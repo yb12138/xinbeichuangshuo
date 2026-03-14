@@ -444,9 +444,9 @@ const selectableCards = computed(() => {
     <Transition name="modal">
       <div 
         v-if="isVisible" 
-        class="prompt-overlay fixed inset-0 z-[2200] flex items-center justify-center bg-black/70 backdrop-blur-sm"
+        class="prompt-overlay fixed inset-0 z-[2200] flex items-end justify-end pointer-events-none pb-4 pr-4 sm:pb-8 sm:pr-8"
       >
-        <div class="prompt-card prompt-card-shell glass-panel max-w-md w-full mx-4 mt-auto mb-[20vh] overflow-hidden dialog-pop shadow-2xl border-white/10" style="margin-left: auto; margin-right: 2rem;">
+        <div class="prompt-card prompt-card-shell pointer-events-auto glass-panel max-w-md w-full overflow-hidden dialog-pop shadow-2xl border-white/10">
         <!-- 标题栏 -->
         <div class="dialog-header prompt-header px-6 py-4">
           <h3 class="text-lg font-bold text-white">策略抉择</h3>

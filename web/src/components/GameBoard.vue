@@ -103,13 +103,6 @@ const rightRailPlayers = computed(() =>
 )
 
 // 行动选择 prompt 不触发 blur（已在 ActionPanel 内联展示）
-const isActionPrompt = computed(() => {
-  const prompt = store.currentPrompt
-  if (!prompt) return false
-  if (prompt.ui_mode === 'action_hub') return true
-  const msg = prompt.message ?? ''
-  return msg.includes('行动类型')
-})
 const gameEndTitle = computed(() => {
   const msg = store.gameEndMessage || ''
   if (msg.includes('红方胜利')) return '红方胜利'
@@ -474,7 +467,7 @@ function dissolveRoomByHost() {
 
     <div
       class="main-grid flex-1 min-h-0 min-w-0 mt-2 arena-blur-focus"
-      :class="{ 'blur-active': store.currentPrompt && store.isPromptForMe && !isActionPrompt }"
+      
     >
       <aside class="side-rail side-rail-left">
         <div
