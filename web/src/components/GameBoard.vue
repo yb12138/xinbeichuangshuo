@@ -10,7 +10,6 @@ import SkillDetailModal from './SkillDetailModal.vue'
 import BattleZone from './BattleZone.vue'
 import VfxLayer from './VfxLayer.vue'
 import ActionTimeline from './ActionTimeline.vue'
-import DamageNotification from './DamageNotification.vue'
 import { useWebSocket } from '../composables/useWebSocket'
 const store = useGameStore()
 const ws = useWebSocket()
@@ -649,7 +648,6 @@ function dissolveRoomByHost() {
     <PromptDialog />
 
     <!-- 伤害结算通知弹框 -->
-    <DamageNotification />
 
     <!-- 技能详情中央弹窗（所有人可查看任意角色） -->
     <SkillDetailModal

@@ -440,14 +440,7 @@ export function useWebSocket() {
             event.damage,
             event.damage_type || 'Attack'
           )
-          if (event.target_id === store.myPlayerId) {
-            store.addDamageNotification(
-              event.target_id,
-              event.target_name || event.target_id,
-              event.damage,
-              event.damage_type || 'Attack'
-            )
-          }
+
         }
         break
 
