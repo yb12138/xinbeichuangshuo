@@ -663,8 +663,6 @@ const selectableCards = computed(() => {
 
 <style scoped>
 .prompt-overlay {
-  align-items: center;
-  justify-content: center;
   background: transparent;
   pointer-events: none; /* Let clicks pass through empty areas */
 }
