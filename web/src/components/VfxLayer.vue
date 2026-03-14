@@ -1,9 +1,12 @@
 <template>
   <div class="vfx-layer pointer-events-none overflow-visible" style="position: absolute !important; inset: 0 !important; width: 100% !important; height: 100% !important; z-index: 9999;">
 
-    <!-- Explosions -->
-    <div v-for="exp in explosions" :key="'exp'+exp.id" class="absolute explosion-effect text-6xl" :style="{ left: exp.x + 'px', top: exp.y + 'px' }">
-      💥
+    <!-- Explosions and Damage Numbers -->
+    <div v-for="exp in explosions" :key="'exp'+exp.id" class="absolute explosion-container" :style="{ left: exp.x + 'px', top: exp.y + 'px' }">
+      <div class="explosion-effect text-6xl">💥</div>
+      <div v-if="exp.damage" class="damage-number font-black text-red-500 drop-shadow-[0_0_8px_rgba(255,0,0,0.8)]">
+        -{{ exp.damage }}
+      </div>
     </div>
 
     <!-- Flying Cards -->
@@ -44,16 +47,17 @@ interface Explosion {
   id: number
   x: number
   y: number
+  damage?: number
 }
 const explosions = ref<Explosion[]>([])
 let expIdCounter = 0
 
-function spawnExplosion(x: number, y: number) {
+function spawnExplosion(x: number, y: number, damage?: number) {
   const id = ++expIdCounter
-  explosions.value.push({ id, x, y })
+  explosions.value.push({ id, x, y, damage })
   setTimeout(() => {
     explosions.value = explosions.value.filter(e => e.id !== id)
-  }, 600)
+  }, 800)
 }
 
 interface FlyingCardEntity {
@@ -181,7 +185,14 @@ watch(() => store.flyingCards, (newVals) => {
           
           setTimeout(() => {
             fc.opacity = 0
-            spawnExplosion(tCenter.x, tCenter.y)
+            let dmgValue = 0
+            if (store.damageEffects.length > 0) {
+              const lastDmg = store.damageEffects[store.damageEffects.length - 1]
+              if (lastDmg && lastDmg.targetId === targetId) {
+                dmgValue = lastDmg.damage
+              }
+            }
+            spawnExplosion(tCenter.x, tCenter.y, dmgValue)
             setTimeout(() => {
               displayCards.value = displayCards.value.filter(f => f.id !== fc.id)
             }, 400)
@@ -204,17 +215,37 @@ watch(() => store.flyingCards, (newVals) => {
 </script>
 
 <style scoped>
-.explosion-effect {
+.explosion-container {
   transform: translate(-50%, -50%);
-  animation: explodeAnim 0.6s ease-out forwards;
   pointer-events: none;
   z-index: 10001;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.explosion-effect {
+  animation: explodeAnim 0.6s ease-out forwards;
   text-shadow: 0 0 20px rgba(255, 100, 0, 0.8);
 }
 
+.damage-number {
+  position: absolute;
+  font-size: 3rem;
+  -webkit-text-stroke: 2px #4a0000;
+  animation: damagePop 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+@keyframes damagePop {
+  0% { transform: scale(0.5) translateY(20px); opacity: 0; }
+  20% { transform: scale(1.2) translateY(-10px); opacity: 1; }
+  100% { transform: scale(1) translateY(-40px); opacity: 0; }
+}
+
 @keyframes explodeAnim {
-  0% { transform: translate(-50%, -50%) scale(0.3); opacity: 1; }
-  20% { transform: translate(-50%, -50%) scale(1.4); opacity: 1; }
-  100% { transform: translate(-50%, -50%) scale(2.2); opacity: 0; }
+  0% { transform: scale(0.3); opacity: 1; }
+  20% { transform: scale(1.4); opacity: 1; }
+  100% { transform: scale(2.2); opacity: 0; }
 }
 </style>
