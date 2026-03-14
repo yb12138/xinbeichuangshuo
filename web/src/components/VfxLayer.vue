@@ -235,6 +235,7 @@ watch(() => store.flyingCards, (newVals) => {
   
   // 使用 setTimeout 等待 Vue 渲染了刚刚 push 的初始状态元素
   setTimeout(() => {
+    void document.body.offsetHeight; // 强制 reflow
     const el = displayCards.value.find(f => f.id === fcId)
     if (el) {
       el.duration = 400
