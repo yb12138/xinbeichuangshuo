@@ -1,7 +1,7 @@
 <template>
-  <div class="vfx-layer absolute inset-0 pointer-events-none z-[9999] overflow-hidden">
+  <div class="vfx-layer absolute inset-0 pointer-events-none overflow-visible" style="z-index: 9999;">
     <!-- SVG for Laser Beams -->
-    <svg class="absolute inset-0 w-full h-full pointer-events-none z-[49]">
+    <svg class="absolute inset-0 w-full h-full pointer-events-none z-40">
       <defs>
         <filter id="glow-red" x="-50%" y="-50%" width="200%" height="200%">
           <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
@@ -53,7 +53,7 @@
     <div
       v-for="fc in displayCards"
       :key="fc.id"
-      class="absolute transition-all ease-out z-[9999] flex flex-col items-center"
+      class="absolute transition-all ease-out z-50 flex flex-col items-center"
       :style="{
         left: fc.x + 'px',
         top: fc.y + 'px',
@@ -128,6 +128,7 @@ function getElementCenter(selector: string) {
 
 // 监听对战提示，绘制连线
 watch(() => store.combatCue, (cue, oldCue) => {
+  console.log("VFX: combatCue changed", cue);
   if (!cue) return
   if (oldCue && oldCue.attackerId === cue.attackerId && oldCue.targetId === cue.targetId && oldCue.phase === cue.phase) return
   
@@ -169,6 +170,7 @@ watch(() => store.combatCue, (cue, oldCue) => {
 
 // 监听飞牌事件
 watch(() => store.flyingCards, (newVals) => {
+  console.log("VFX: flyingCards changed", newVals);
   if (!newVals || newVals.length === 0) return
   const batch = newVals[0]
   if (!batch) return

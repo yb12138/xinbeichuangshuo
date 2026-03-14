@@ -420,7 +420,6 @@ function dissolveRoomByHost() {
     >
       解散房间
     </button>
-    <VfxLayer />
 
     <div class="top-hud">
       <div class="camp-bar camp-blue-bar">
@@ -735,6 +734,7 @@ function dissolveRoomByHost() {
         </div>
       </div>
     </Transition>
+    <VfxLayer />
   </div>
 </template>
 
