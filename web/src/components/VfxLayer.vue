@@ -59,7 +59,8 @@
         top: fc.y + 'px',
         transform: fc.transform,
         opacity: fc.opacity,
-        transitionDuration: fc.duration + 'ms'
+        transition: `all ${fc.duration}ms cubic-bezier(0.2, 0.8, 0.2, 1)`,
+        zIndex: 10000
       }"
     >
       <div class="relative flex">
@@ -226,7 +227,7 @@ watch(() => store.flyingCards, (newVals) => {
     x: startX,
     y: startY,
     transform: 'scale(0.3) rotate(-15deg)',
-    opacity: 1,
+    opacity: 0,
     duration: 0
   }
   
