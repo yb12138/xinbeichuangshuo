@@ -113,7 +113,7 @@ let laserIdCounter = 0
 // 计算元素中心点在 boardRoot 中的相对坐标
 function getElementCenter(selector: string) {
   const el = document.querySelector(selector)
-  if (!el) return null
+  if (!el) { console.warn('VFX: Could not find element', selector); return null }
   const rect = el.getBoundingClientRect()
   
   const boardEl = document.querySelector('.board-shell')
