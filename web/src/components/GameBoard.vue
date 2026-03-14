@@ -137,6 +137,9 @@ function moraleDeltaLabel(delta: number): string {
 
 function isPlayerSelectable(playerId: string): boolean {
   if (store.isGameEnded) return false
+  if (store.currentPrompt?.type === 'choose_target' && store.isPromptForMe) {
+    return store.currentPrompt.options.some((o: any) => o.id === playerId)
+  }
   if (store.isPromptForMe) return false
   if (store.canTargetOpponent() && store.targetablePlayers.some(t => t.id === playerId)) return true
   if (store.skillMode === 'choosing_target' && store.targetablePlayersForSkill.some(t => t.id === playerId)) return true
@@ -146,6 +149,14 @@ function isPlayerSelectable(playerId: string): boolean {
 
 function onTargetClick(playerId: string) {
   if (store.isGameEnded) return
+  
+  if (store.currentPrompt?.type === 'choose_target' && store.isPromptForMe) {
+    if (store.currentPrompt.options.some((o: any) => o.id === playerId)) {
+      store.selectTarget(playerId)
+    }
+    return
+  }
+
   // 中断提示期间仅允许通过 PromptDialog/ActionPanel 操作，禁止点击角色区发普通行动
   if (store.currentPrompt && store.isPromptForMe) return
 
@@ -481,7 +492,7 @@ function dissolveRoomByHost() {
             :isMe="p.id === store.myPlayerId"
             :isOpponent="p.camp !== store.myCamp"
             :selectable="isPlayerSelectable(p.id)"
-            :selected="store.skillMode === 'choosing_target' && store.skillTargetIds.includes(p.id)"
+            :selected="(store.skillMode === 'choosing_target' && store.skillTargetIds.includes(p.id)) || (store.currentPrompt?.type === 'choose_target' && store.selectedTarget === p.id)"
             :turnOrder="turnOrderFor(p.id)"
             compact
             @select="onTargetClick"
@@ -506,8 +517,11 @@ function dissolveRoomByHost() {
                 v-if="myAreaPlayer"
                 :player="myAreaPlayer"
                 is-me
+                :selectable="isPlayerSelectable(myAreaPlayer.id)"
+                :selected="(store.skillMode === 'choosing_target' && store.skillTargetIds.includes(myAreaPlayer.id)) || (store.currentPrompt?.type === 'choose_target' && store.selectedTarget === myAreaPlayer.id)"
                 :turnOrder="turnOrderFor(myAreaPlayer.id)"
                 compact
+                @select="onTargetClick"
               />
             </div>
             <div class="hand-rail bottom-slot-hand rounded-lg sm:rounded-xl p-2 sm:p-2 min-h-0">
@@ -596,7 +610,7 @@ function dissolveRoomByHost() {
             :isMe="p.id === store.myPlayerId"
             :isOpponent="p.camp !== store.myCamp"
             :selectable="isPlayerSelectable(p.id)"
-            :selected="store.skillMode === 'choosing_target' && store.skillTargetIds.includes(p.id)"
+            :selected="(store.skillMode === 'choosing_target' && store.skillTargetIds.includes(p.id)) || (store.currentPrompt?.type === 'choose_target' && store.selectedTarget === p.id)"
             :turnOrder="turnOrderFor(p.id)"
             compact
             @select="onTargetClick"

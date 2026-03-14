@@ -365,11 +365,35 @@ function handleOptionClick(optionId: string) {
   // 不在此处清除 prompt：等后端 state_update 或新 prompt 到达
 }
 
-function confirmCardSelection() {
-  if (selectedCardIndices.value.length > 0) {
-    ws.select(selectedCardIndices.value)
+
+
+
+const canConfirmPrompt = computed(() => {
+  if (!prompt.value) return false
+  if (prompt.value.type === 'choose_target' && store.selectedTarget) {
+    return true
+  }
+  const count = store.selectedCards.length
+  return count >= prompt.value.min && count <= prompt.value.max
+})
+
+function confirmPromptAction() {
+  if (!canConfirmPrompt.value) return
+  if (prompt.value?.type === 'choose_target' && store.selectedTarget) {
+    ws.sendAction({
+      player_id: store.myPlayerId,
+      type: 'Select',
+      target_id: store.selectedTarget
+    })
+    return
+  }
+  const indices = store.selectedCards
+  if (indices.length > 0) {
+    ws.select(indices)
   }
 }
+
+
 
 function confirmTargetSelection(targetId: string) {
   ws.sendAction({
@@ -400,16 +424,9 @@ function getElementBadgeClass(element: string): string {
 }
 
 // 检查选择是否有效
-const isSelectionValid = computed(() => {
-  if (!prompt.value) return false
-  
-  if (needsCardSelection.value) {
-    return selectedCardIndices.value.length >= prompt.value.min &&
-           selectedCardIndices.value.length <= prompt.value.max
-  }
-  
-  return true
-})
+
+
+
 
 const cardSelectionOptions = computed<Array<{ id: string; label: string; disabled?: boolean }>>(() => {
   if (!prompt.value?.options || !needsCardSelection.value || !hasCounterOrDefend.value) return []
@@ -516,19 +533,9 @@ const selectableCards = computed(() => {
                 @select="() => handleOptionClick(entry.option.id)"
               />
             </div>
-            <button
-              v-else
-              v-for="option in prompt.options"
-              :key="option.id"
-              class="w-full py-3 px-4 rounded-lg font-semibold text-left"
-              :class="[
-                getDialogOptionClass(option.id),
-                selectedOptions.includes(option.id) ? 'ring-2 ring-yellow-400 scale-[1.02]' : ''
-              ]"
-              @click="handleOptionClick(option.id)"
-            >
-              {{ option.label }}
-            </button>
+            <div v-else class="text-sm text-yellow-300 bg-amber-900/30 border border-amber-500/30 p-3 rounded-lg text-center">
+              👉 请在战场上点击玩家头像选择
+            </div>
           </div>
 
           <!-- 应战反弹目标选择（攻击方队友，不含攻击者） -->
@@ -604,11 +611,11 @@ const selectableCards = computed(() => {
             <button
               v-if="!hasCounterOrDefend"
               class="w-full py-3 rounded-lg font-bold btn-success"
-              :class="{ 'opacity-50 cursor-not-allowed': !isSelectionValid }"
-              :disabled="!isSelectionValid"
-              @click="confirmCardSelection"
+              :class="{ 'opacity-50 cursor-not-allowed': !canConfirmPrompt }"
+              :disabled="!canConfirmPrompt"
+              @click="confirmPromptAction"
             >
-              确认选择 ({{ selectedCardIndices.length }}/{{ prompt?.max }})
+              确认选择
             </button>
           </div>
 
