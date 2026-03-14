@@ -223,7 +223,7 @@ watch(() => store.flyingCards, (newVals) => {
     x: startX,
     y: startY,
     transform: 'scale(0.3) rotate(-15deg)',
-    opacity: 0,
+    opacity: 1,
     duration: 0
   }
   
