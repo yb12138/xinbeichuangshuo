@@ -446,7 +446,7 @@ const selectableCards = computed(() => {
         v-if="isVisible" 
         class="prompt-overlay fixed inset-0 z-[2200] flex items-center justify-center bg-black/70 backdrop-blur-sm"
       >
-        <div class="prompt-card prompt-card-shell glass-panel max-w-lg w-full mx-4 overflow-hidden dialog-pop">
+        <div class="prompt-card prompt-card-shell glass-panel max-w-md w-full mx-4 mt-auto mb-[20vh] overflow-hidden dialog-pop shadow-2xl border-white/10" style="margin-left: auto; margin-right: 2rem;">
         <!-- 标题栏 -->
         <div class="dialog-header prompt-header px-6 py-4">
           <h3 class="text-lg font-bold text-white">策略抉择</h3>
@@ -665,9 +665,11 @@ const selectableCards = computed(() => {
 .prompt-overlay {
   align-items: center;
   justify-content: center;
-  background:
-    radial-gradient(360px 180px at 50% 48%, rgba(141, 192, 196, 0.18), transparent 70%),
-    rgba(1, 7, 12, 0.76);
+  background: transparent;
+  pointer-events: none; /* Let clicks pass through empty areas */
+}
+.prompt-overlay > * {
+  pointer-events: auto; /* Re-enable clicks on the dialog itself */
 }
 
 .prompt-card {

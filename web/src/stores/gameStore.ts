@@ -650,9 +650,9 @@ export const useGameStore = defineStore('game', () => {
   }
 
   function resolveFlyingHoldMode(actionType: string): 'timed' | 'until_response' | 'until_next_card_or_draw' {
-    if (actionType === 'attack' || actionType === 'magic') return 'until_response'
-    if (actionType === 'discard') return 'until_next_card_or_draw'
-    return 'timed'
+    // 任何与对战相关的牌（攻击/法术/抵挡/应战/技能），都在屏幕中心悬浮等待，直到响应结束
+    if (actionType !== 'discard') return 'until_response'
+    return 'until_next_card_or_draw'
   }
 
   function dropActiveFlyingCards() {
@@ -665,21 +665,22 @@ export const useGameStore = defineStore('game', () => {
   }
 
   function notifyFlyingCardsEvent(kind: 'card_revealed' | 'draw' | 'combat_response' | 'damage', actionType?: string) {
-    const active = flyingCards.value[0]
-    if (!active) return
-    if (active.holdMode === 'until_response') {
-      const isResponseCard = kind === 'card_revealed' && (actionType === 'defend' || actionType === 'counter')
-      if (kind === 'combat_response' || kind === 'damage' || isResponseCard) {
-        dropActiveFlyingCards()
-        pumpFlyingCards()
-      }
+    // 收到别人打出的响应牌时，不要清空屏幕上的攻击牌，让它们同框出现
+    if (kind === 'card_revealed' && (actionType === 'defend' || actionType === 'counter')) {
+      return // 不在此处清空，等真正的 combat 结束再清空
+    }
+
+    // 真正的对局结束（承受伤害或下一回合开始）才清空
+    if (kind === 'damage' || kind === 'combat_response') {
+      dropActiveFlyingCards()
+      pumpFlyingCards()
       return
     }
-    if (active.holdMode === 'until_next_card_or_draw') {
-      if (kind === 'card_revealed' || kind === 'draw') {
-        dropActiveFlyingCards()
-        pumpFlyingCards()
-      }
+    
+    // 如果之前有悬挂的卡牌，并且不是战斗相关，清空
+    if (kind === 'draw' || kind === 'card_revealed') {
+      dropActiveFlyingCards()
+      pumpFlyingCards()
     }
   }
 
@@ -704,7 +705,12 @@ export const useGameStore = defineStore('game', () => {
 
     flyingCardsId++
     const id = flyingCardsId
-    flyingCards.value = [{ id, ...next }]
+    // 如果是对方响应（抵挡/应战）或任何响应牌，都堆叠在屏幕中间
+    if (next.holdMode === 'until_response') {
+      flyingCards.value = [...flyingCards.value, { id, ...next }]
+    } else {
+      flyingCards.value = [{ id, ...next }]
+    }
 
     if (next.holdMode === 'timed') {
       const displayMs = cinematicMode.value ? 2400 : 1600
