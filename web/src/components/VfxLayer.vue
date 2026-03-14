@@ -59,7 +59,7 @@
         top: fc.y + 'px',
         transform: fc.transform,
         opacity: fc.opacity,
-        transition: `all ${fc.duration}ms cubic-bezier(0.2, 0.8, 0.2, 1)`,
+        transition: `transform ${fc.duration}ms cubic-bezier(0.2, 0.8, 0.2, 1), left ${fc.duration}ms cubic-bezier(0.2, 0.8, 0.2, 1), top ${fc.duration}ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity ${fc.duration}ms linear`,
         zIndex: 10000
       }"
     >
