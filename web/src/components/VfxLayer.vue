@@ -1,7 +1,7 @@
 <template>
   <div class="vfx-layer pointer-events-none overflow-visible" style="position: absolute !important; inset: 0 !important; width: 100% !important; height: 100% !important; z-index: 9999; border: 2px solid red;">
     <!-- SVG for Laser Beams -->
-    <svg class="absolute inset-0 w-full h-full pointer-events-none z-40">
+    <svg class="pointer-events-none" style="position: absolute !important; inset: 0 !important; width: 100% !important; height: 100% !important; z-index: 9999;">
       <defs>
         <filter id="glow-red" x="-50%" y="-50%" width="200%" height="200%">
           <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
