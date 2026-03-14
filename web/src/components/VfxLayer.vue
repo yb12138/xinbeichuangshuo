@@ -1,5 +1,5 @@
 <template>
-  <div class="vfx-layer absolute inset-0 pointer-events-none z-50 overflow-hidden">
+  <div class="vfx-layer absolute inset-0 pointer-events-none z-[9999] overflow-hidden">
     <!-- SVG for Laser Beams -->
     <svg class="absolute inset-0 w-full h-full pointer-events-none z-[49]">
       <defs>
@@ -44,6 +44,7 @@
         :stroke-width="laser.width"
         :filter="laser.filter"
         :marker-end="laser.marker"
+        pathLength="1"
         class="laser-beam"
       />
     </svg>
@@ -52,7 +53,7 @@
     <div
       v-for="fc in displayCards"
       :key="fc.id"
-      class="absolute transition-all ease-out z-50 flex flex-col items-center"
+      class="absolute transition-all ease-out z-[9999] flex flex-col items-center"
       :style="{
         left: fc.x + 'px',
         top: fc.y + 'px',
@@ -74,7 +75,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, nextTick } from 'vue'
 import { useGameStore } from '../stores/gameStore'
 import CardComponent from './CardComponent.vue'
 import type { Card } from '../types/game'
@@ -226,18 +227,17 @@ watch(() => store.flyingCards, (newVals) => {
   
   displayCards.value.push(entity)
   
-  // 下一帧开始飞向中间
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      const el = displayCards.value.find(f => f.id === fcId)
-      if (el) {
-        el.duration = 400
-        el.x = destX - 40
-        el.y = destY - 60
-        el.transform = 'scale(1.2) rotate(0deg)'
-        el.opacity = 1
-      }
-    })
+  // 使用 nextTick 和强制重绘确保初始状态生效，再触发 CSS transition
+  nextTick(() => {
+    void document.body.offsetHeight; // 强制 reflow
+    const el = displayCards.value.find(f => f.id === fcId)
+    if (el) {
+      el.duration = 400
+      el.x = destX - 40
+      el.y = destY - 60
+      el.transform = 'scale(1.2) rotate(0deg)'
+      el.opacity = 1
+    }
   })
   
   // 如果是攻击，在中间停留一会后再冲向目标
@@ -264,17 +264,17 @@ watch(() => store.flyingCards, (newVals) => {
 
 <style scoped>
 .laser-beam {
-  stroke-dasharray: 100;
-  stroke-dashoffset: 100;
-  animation: dash 1.2s cubic-bezier(0.1, 0.7, 0.1, 1) forwards;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: dash 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
 }
 
 @keyframes dash {
   0% {
-    stroke-dashoffset: 100;
+    stroke-dashoffset: 1;
     opacity: 1;
   }
-  30% {
+  40% {
     stroke-dashoffset: 0;
     opacity: 1;
   }
