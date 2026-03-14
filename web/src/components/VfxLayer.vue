@@ -68,6 +68,8 @@ interface FlyingCardEntity {
   opacity: number
   duration: number
   isRemoving?: boolean
+  targetOffsetX?: number
+  targetOffsetY?: number
 }
 
 const displayCards = ref<FlyingCardEntity[]>([])
@@ -114,10 +116,17 @@ watch(() => store.flyingCards, (newVals) => {
         const startX = pCenter ? pCenter.x - 40 : destX - 40
         const startY = pCenter ? pCenter.y - 60 : destY - 60
 
+        // If there's already a card waiting in the center, shift the new one slightly
+        const offsetIdx = displayCards.value.length
+        const offsetX = offsetIdx * 20
+        const offsetY = offsetIdx * 20
+
         const entity: FlyingCardEntity = {
           id: batch.id,
           cards: batch.cards,
           hidden: batch.hidden,
+          targetOffsetX: offsetX,
+          targetOffsetY: offsetY,
           actionType: batch.actionType,
           label: actionLabels[batch.actionType] || batch.actionType,
           x: startX,
@@ -134,8 +143,8 @@ watch(() => store.flyingCards, (newVals) => {
           const el = displayCards.value.find(f => f.id === batch.id)
           if (el) {
             el.duration = 800 // 速度放慢一倍 (原来是400)
-            el.x = destX - 40
-            el.y = destY - 60
+            el.x = destX - 40 + (el.targetOffsetX || 0)
+            el.y = destY - 60 + (el.targetOffsetY || 0)
             el.transform = 'scale(1.2) rotate(0deg)'
             el.opacity = 1
           }
