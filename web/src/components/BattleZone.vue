@@ -1,9 +1,17 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useGameStore } from '../stores/gameStore'
+import CardComponent from './CardComponent.vue'
 
 const store = useGameStore()
 
+const actionLabels: Record<string, string> = {
+  attack: '攻击',
+  magic: '法术',
+  discard: '弃牌',
+  defend: '防御',
+  counter: '应战'
+}
 
 const duelAttacker = computed(() => {
   const cue = store.combatCue
@@ -45,16 +53,19 @@ function charImage(role?: string) {
         </div>
       </div>
 
-      <div
-        v-if="!(duelAttacker && duelTarget && store.combatCue)"
-        class="battle-idle-label"
-      >
-        <span class="battle-idle-icon">⚔</span>
-        <span>战区</span>
-      </div>
-    </div>
-  </div>
-</template>
+      <div class="fly-zone">
+        <template v-for="batch in store.flyingCards" :key="batch.id">
+          <div
+            v-for="(card, cidx) in batch.cards"
+            :key="`${batch.id}-${cidx}`"
+            class="flex flex-col items-center card-fly-enter"
+          >
+            <CardComponent :card="card" small class="card-animate" :face-down="batch.hidden" />
+            <div v-if="cidx === 0 && batch.cards.length > 0" class="text-[9px] text-gray-400 mt-0.5">
+              {{ batch.playerName }} {{ actionLabels[batch.actionType] || batch.actionType }}
+            </div>
+          </div>
+        </template>
 
         <div
           v-if="store.flyingCards.length === 0 && !(duelAttacker && duelTarget && store.combatCue)"

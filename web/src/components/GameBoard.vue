@@ -399,12 +399,27 @@ function takeoverOfflinePlayer(playerId: string) {
   if (!playerId) return
   ws.sendRoomAction('takeover_player', { target_id: playerId })
 }
+
+function dissolveRoomByHost() {
+  if (!isHostInRoom.value) return
+  const confirmed = window.confirm('确认解散房间吗？所有玩家将被退出到大厅。')
+  if (!confirmed) return
+  ws.sendRoomAction('dissolve_room')
+}
 </script>
 
 <template>
   <div ref="boardRootRef" class="h-full w-full flex flex-col board-shell p-2 sm:p-3 md:p-4 min-h-0 relative">
     <div class="board-ambient board-ambient-left" />
     <div class="board-ambient board-ambient-right" />
+    <button
+      v-if="isHostInRoom"
+      type="button"
+      class="host-dissolve-btn"
+      @click="dissolveRoomByHost"
+    >
+      解散房间
+    </button>
     <VfxLayer />
 
     <div class="top-hud">
@@ -1038,6 +1053,27 @@ function takeoverOfflinePlayer(playerId: string) {
   right: -104px;
   top: 10%;
   background: rgba(213, 168, 104, 0.16);
+}
+
+.host-dissolve-btn {
+  position: absolute;
+  top: max(8px, var(--safe-top));
+  right: 10px;
+  z-index: 9;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(226, 136, 136, 0.52);
+  background: linear-gradient(135deg, rgba(138, 51, 51, 0.92), rgba(92, 29, 29, 0.95));
+  color: #ffe7e7;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  box-shadow: 0 8px 18px rgba(12, 3, 3, 0.45);
+}
+
+.host-dissolve-btn:hover {
+  filter: brightness(1.08);
 }
 
 .top-hud {

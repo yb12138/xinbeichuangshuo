@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 900" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <linearGradient id="sigil" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#8ac4cd" stop-opacity="0.26"/>
+      <stop offset="100%" stop-color="#f0c789" stop-opacity="0.2"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="url(#sigil)">
+    <circle cx="450" cy="450" r="322" stroke-width="2.2"/>
+    <circle cx="450" cy="450" r="254" stroke-width="1.8" stroke-opacity="0.8"/>
+    <circle cx="450" cy="450" r="176" stroke-width="1.4" stroke-opacity="0.62"/>
+    <polygon points="450,176 673,575 227,575" stroke-width="2"/>
+    <polygon points="450,724 674,325 226,325" stroke-width="2"/>
+    <path d="M450 128v644M128 450h644" stroke-width="1.2" stroke-opacity="0.64"/>
+  </g>
+</svg>

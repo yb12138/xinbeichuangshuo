@@ -1,0 +1,9 @@
+start
+cheat turn p1
+cheat p1 魔弹
+cheat p4 魔弹
+cheat p1 圣光
+magic p4 5
+counter 5
+defend 6
+quit

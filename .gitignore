@@ -1,0 +1,25 @@
+# macOS / editor
+.DS_Store
+.idea/
+.cursor/
+
+# Go
+bin/
+*.test
+*.out
+coverage.out
+
+# Local compiled binaries in this repo
+/cli
+/game_cli
+/main
+/server
+
+# Node / frontend build
+node_modules/
+web/node_modules/
+web/dist/
+
+# Logs / temp
+*.log
+tmp/
