@@ -135,10 +135,11 @@ watch(() => store.combatCue, (cue, oldCue) => {
   // 只在攻击/应战时画线
   if (cue.phase === 'defend' || cue.phase === 'take') return
 
-  const p1 = getElementCenter(`[data-player-anchor="${cue.attackerId}"]`)
-  const p2 = getElementCenter(`[data-player-anchor="${cue.targetId}"]`)
-  
-  if (p1 && p2) {
+  nextTick(() => {
+    const p1 = getElementCenter(`[data-player-anchor="${cue.attackerId}"]`)
+    const p2 = getElementCenter(`[data-player-anchor="${cue.targetId}"]`)
+    
+    if (p1 && p2) {
     let color = '#ff4444' // 攻击红线
     let filter = 'url(#glow-red)'
     let marker = 'url(#arrow-red)'
@@ -166,6 +167,7 @@ watch(() => store.combatCue, (cue, oldCue) => {
       lasers.value = lasers.value.filter(l => l.id !== id)
     }, 1200)
   }
+  })
 }, { deep: true })
 
 // 监听飞牌事件
@@ -178,9 +180,10 @@ watch(() => store.flyingCards, (newVals) => {
   // 避免重复动画同一个 id
   if (displayCards.value.some(f => f.id === batch.id)) return
 
-  const pCenter = getElementCenter(`[data-player-anchor="${batch.playerId}"]`)
-  
-  const boardEl = document.querySelector('.board-shell')
+  nextTick(() => {
+    const pCenter = getElementCenter(`[data-player-anchor="${batch.playerId}"]`)
+    
+    const boardEl = document.querySelector('.board-shell')
   let destX = window.innerWidth / 2
   let destY = window.innerHeight / 2
   if (boardEl) {
@@ -229,9 +232,8 @@ watch(() => store.flyingCards, (newVals) => {
   
   displayCards.value.push(entity)
   
-  // 使用 nextTick 和强制重绘确保初始状态生效，再触发 CSS transition
-  nextTick(() => {
-    void document.body.offsetHeight; // 强制 reflow
+  // 使用 setTimeout 等待 Vue 渲染了刚刚 push 的初始状态元素
+  setTimeout(() => {
     const el = displayCards.value.find(f => f.id === fcId)
     if (el) {
       el.duration = 400
@@ -240,7 +242,7 @@ watch(() => store.flyingCards, (newVals) => {
       el.transform = 'scale(1.2) rotate(0deg)'
       el.opacity = 1
     }
-  })
+  }, 50)
   
   // 如果是攻击，在中间停留一会后再冲向目标
   if (store.combatCue && (batch.actionType === 'attack' || batch.actionType === 'counter')) {
@@ -259,8 +261,8 @@ watch(() => store.flyingCards, (newVals) => {
   // 清理
   setTimeout(() => {
     displayCards.value = displayCards.value.filter(f => f.id !== fcId)
-  }, 1400) // 与 flyingCardsTimer 的 duration 保持一致
-
+  }, 1400)
+  })
 }, { deep: true })
 </script>
 
