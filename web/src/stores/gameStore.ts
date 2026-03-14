@@ -707,7 +707,7 @@ export const useGameStore = defineStore('game', () => {
     flyingCards.value = [{ id, ...next }]
 
     if (next.holdMode === 'timed') {
-      const displayMs = cinematicMode.value ? 1400 : 700
+      const displayMs = cinematicMode.value ? 2400 : 1600
       if (flyingCardsTimer) clearTimeout(flyingCardsTimer)
       flyingCardsTimer = setTimeout(() => {
         flyingCards.value = flyingCards.value.filter(f => f.id !== id)
@@ -821,7 +821,7 @@ export const useGameStore = defineStore('game', () => {
         targetId,
         phase
       }
-      const displayMs = cinematicMode.value ? 1300 : 760
+      const displayMs = cinematicMode.value ? 2600 : 1500
       combatCueTimer = setTimeout(() => {
         if (combatCue.value?.id === id) {
           combatCue.value = null
@@ -848,7 +848,7 @@ export const useGameStore = defineStore('game', () => {
     const id = combatCueId
     combatCue.value = { id, ...next }
 
-    const displayMs = cinematicMode.value ? 950 : 460
+    const displayMs = cinematicMode.value ? 1900 : 1000
     if (combatCueTimer) clearTimeout(combatCueTimer)
     combatCueTimer = setTimeout(() => {
       if (combatCue.value?.id === id) {
