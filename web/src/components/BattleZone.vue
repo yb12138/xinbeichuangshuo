@@ -1,17 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useGameStore } from '../stores/gameStore'
-import CardComponent from './CardComponent.vue'
 
 const store = useGameStore()
-
-const actionLabels: Record<string, string> = {
-  attack: '攻击',
-  magic: '法术',
-  discard: '弃牌',
-  defend: '防御',
-  counter: '应战'
-}
 
 const duelAttacker = computed(() => {
   const cue = store.combatCue
@@ -53,27 +44,12 @@ function charImage(role?: string) {
         </div>
       </div>
 
-      <div class="fly-zone">
-        <template v-for="batch in store.flyingCards" :key="batch.id">
-          <div
-            v-for="(card, cidx) in batch.cards"
-            :key="`${batch.id}-${cidx}`"
-            class="flex flex-col items-center card-fly-enter"
-          >
-            <CardComponent :card="card" small class="card-animate" :face-down="batch.hidden" />
-            <div v-if="cidx === 0 && batch.cards.length > 0" class="text-[9px] text-gray-400 mt-0.5">
-              {{ batch.playerName }} {{ actionLabels[batch.actionType] || batch.actionType }}
-            </div>
-          </div>
-        </template>
-
-        <div
-          v-if="store.flyingCards.length === 0 && !(duelAttacker && duelTarget && store.combatCue)"
-          class="battle-idle-label"
-        >
-          <span class="battle-idle-icon">⚔</span>
-          <span>战区</span>
-        </div>
+      <div
+        v-if="!(duelAttacker && duelTarget && store.combatCue)"
+        class="battle-idle-label"
+      >
+        <span class="battle-idle-icon">⚔</span>
+        <span>战区</span>
       </div>
     </div>
   </div>
@@ -153,40 +129,6 @@ function charImage(role?: string) {
   justify-content: center;
 }
 
-.fly-zone {
-  min-height: 0;
-  width: 100%;
-  flex: 1 1 auto;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  justify-content: center;
-  align-items: center;
-}
-
-.card-fly-enter {
-  animation: cardAppear 0.36s cubic-bezier(0.22, 0.61, 0.36, 1);
-}
-
-@keyframes cardAppear {
-  from {
-    opacity: 0;
-    transform: scale(0.75) translateY(14px);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
-}
-
-.card-animate {
-  transition: transform 0.24s ease, filter 0.24s ease;
-}
-.card-animate:hover {
-  transform: translateY(-2px) scale(1.03);
-  filter: drop-shadow(0 6px 14px rgba(5, 20, 33, 0.4));
-}
-
 .duel-stage {
   width: min(380px, 100%);
   min-height: 90px;
@@ -196,12 +138,6 @@ function charImage(role?: string) {
   gap: 8px;
   margin-bottom: 6px;
   animation: duelShow 0.2s ease-out;
-}
-
-@media (max-width: 900px) {
-  .fly-zone {
-    gap: 6px;
-  }
 }
 
 .duel-side {
