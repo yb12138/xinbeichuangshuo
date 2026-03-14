@@ -1,5 +1,5 @@
 <template>
-  <div class="vfx-layer absolute inset-0 pointer-events-none overflow-visible" style="z-index: 9999;">
+  <div class="vfx-layer absolute inset-0 pointer-events-none overflow-visible" style="border: 2px solid red;" style="z-index: 9999;">
     <!-- SVG for Laser Beams -->
     <svg class="absolute inset-0 w-full h-full pointer-events-none z-40">
       <defs>
