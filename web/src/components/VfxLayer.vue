@@ -53,7 +53,7 @@
     <div
       v-for="fc in displayCards"
       :key="fc.id"
-      class="absolute transition-all ease-out z-50 flex flex-col items-center"
+      class="absolute flex flex-col items-center pointer-events-none"
       :style="{
         left: fc.x + 'px',
         top: fc.y + 'px',
