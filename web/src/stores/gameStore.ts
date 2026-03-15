@@ -193,7 +193,7 @@ export const useGameStore = defineStore('game', () => {
   const waitingFor = ref<string>('')
   const logs = ref<string[]>([])
   const selectedCards = ref<number[]>([])
-  const selectedTarget = ref<string>('')
+  const selectedTargets = ref<string[]>([])
   const errorMessage = ref<string>('')
   const skillEffectToast = ref<string>('')
   const isConnected = ref(false)
@@ -519,7 +519,7 @@ export const useGameStore = defineStore('game', () => {
   function setPrompt(prompt: Prompt | null) {
     currentPrompt.value = prompt
     selectedCards.value = []
-    selectedTarget.value = ''
+    selectedTargets.value = []
     // 进入中断/交互提示时，清理本地行动态，避免继续发送 Skill/Attack 指令
     if (prompt) {
       actionMode.value = 'none'
@@ -563,7 +563,16 @@ export const useGameStore = defineStore('game', () => {
   }
 
   function selectTarget(playerId: string) {
-    selectedTarget.value = playerId
+    const idx = selectedTargets.value.indexOf(playerId)
+    if (idx >= 0) {
+      selectedTargets.value.splice(idx, 1)
+    } else {
+      if (currentPrompt.value && currentPrompt.value.max === 1) {
+        selectedTargets.value = [playerId]
+      } else {
+        selectedTargets.value.push(playerId)
+      }
+    }
   }
 
   function setActionModeForAttack(mode: 'none' | 'attack' | 'magic') {
@@ -986,7 +995,7 @@ export const useGameStore = defineStore('game', () => {
     currentPrompt.value = null
     waitingFor.value = ''
     selectedCards.value = []
-    selectedTarget.value = ''
+    selectedTargets.value = []
     actionMode.value = 'none'
     magicSubChoice.value = 'none'
     selectedCardForAction.value = null
@@ -1062,7 +1071,7 @@ export const useGameStore = defineStore('game', () => {
     waitingFor.value = ''
     logs.value = []
     selectedCards.value = []
-    selectedTarget.value = ''
+    selectedTargets.value = []
     errorMessage.value = ''
     skillEffectToast.value = ''
     isConnected.value = false
@@ -1123,7 +1132,7 @@ export const useGameStore = defineStore('game', () => {
     waitingFor,
     logs,
     selectedCards,
-    selectedTarget,
+    selectedTargets,
     errorMessage,
     skillEffectToast,
     isConnected,

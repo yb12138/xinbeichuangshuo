@@ -370,23 +370,37 @@ function handleOptionClick(optionId: string) {
 
 const canConfirmPrompt = computed(() => {
   if (!prompt.value) return false
-  if (prompt.value.type === 'choose_target' && store.selectedTarget) {
-    return true
+  if (prompt.value.type === 'choose_target') {
+    const tCount = store.selectedTargets.length
+    return tCount >= prompt.value.min && tCount <= prompt.value.max
   }
-  const count = store.selectedCards.length
-  return count >= prompt.value.min && count <= prompt.value.max
+  if (prompt.value.type === 'choose_card' || prompt.value.type === 'choose_cards') {
+    const cCount = store.selectedCards.length
+    return cCount >= prompt.value.min && cCount <= prompt.value.max
+  }
+  return true
 })
 
 function confirmPromptAction() {
   if (!canConfirmPrompt.value) return
-  if (prompt.value?.type === 'choose_target' && store.selectedTarget) {
-    ws.sendAction({
-      player_id: store.myPlayerId,
-      type: 'Select',
-      target_id: store.selectedTarget
-    })
+  
+  if (prompt.value?.type === 'choose_target' && store.selectedTargets.length > 0) {
+    if (store.selectedTargets.length === 1) {
+      ws.sendAction({
+        player_id: store.myPlayerId,
+        type: 'Select',
+        target_id: store.selectedTargets[0]
+      })
+    } else {
+      ws.sendAction({
+        player_id: store.myPlayerId,
+        type: 'Select',
+        target_ids: store.selectedTargets
+      })
+    }
     return
   }
+
   const indices = store.selectedCards
   if (indices.length > 0) {
     ws.select(indices)

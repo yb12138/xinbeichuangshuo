@@ -492,7 +492,7 @@ function dissolveRoomByHost() {
             :isMe="p.id === store.myPlayerId"
             :isOpponent="p.camp !== store.myCamp"
             :selectable="isPlayerSelectable(p.id)"
-            :selected="(store.skillMode === 'choosing_target' && store.skillTargetIds.includes(p.id)) || (store.currentPrompt?.type === 'choose_target' && store.selectedTarget === p.id)"
+            :selected="(store.skillMode === 'choosing_target' && store.skillTargetIds.includes(p.id)) || (store.currentPrompt?.type === 'choose_target' && store.selectedTargets.includes(p.id))"
             :turnOrder="turnOrderFor(p.id)"
             compact
             @select="onTargetClick"
@@ -518,7 +518,7 @@ function dissolveRoomByHost() {
                 :player="myAreaPlayer"
                 is-me
                 :selectable="isPlayerSelectable(myAreaPlayer.id)"
-                :selected="(store.skillMode === 'choosing_target' && store.skillTargetIds.includes(myAreaPlayer.id)) || (store.currentPrompt?.type === 'choose_target' && store.selectedTarget === myAreaPlayer.id)"
+                :selected="(store.skillMode === 'choosing_target' && store.skillTargetIds.includes(myAreaPlayer.id)) || (store.currentPrompt?.type === 'choose_target' && store.selectedTargets.includes(myAreaPlayer.id))"
                 :turnOrder="turnOrderFor(myAreaPlayer.id)"
                 compact
                 @select="onTargetClick"
@@ -610,7 +610,7 @@ function dissolveRoomByHost() {
             :isMe="p.id === store.myPlayerId"
             :isOpponent="p.camp !== store.myCamp"
             :selectable="isPlayerSelectable(p.id)"
-            :selected="(store.skillMode === 'choosing_target' && store.skillTargetIds.includes(p.id)) || (store.currentPrompt?.type === 'choose_target' && store.selectedTarget === p.id)"
+            :selected="(store.skillMode === 'choosing_target' && store.skillTargetIds.includes(p.id)) || (store.currentPrompt?.type === 'choose_target' && store.selectedTargets.includes(p.id))"
             :turnOrder="turnOrderFor(p.id)"
             compact
             @select="onTargetClick"
