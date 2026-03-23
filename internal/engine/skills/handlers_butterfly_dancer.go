@@ -88,19 +88,13 @@ func (h *ButterflyReverseHandler) Execute(ctx *model.Context) error {
 	if len(ctx.User.Hand) < discardNeed {
 		discardNeed = len(ctx.User.Hand)
 	}
-	remaining := make([]int, 0, len(ctx.User.Hand))
-	for i := range ctx.User.Hand {
-		remaining = append(remaining, i)
-	}
 	ctx.Game.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
 		Context: map[string]interface{}{
-			"choice_type":       "bt_reverse_discard",
-			"user_id":           ctx.User.ID,
-			"discard_count":     discardNeed,
-			"remaining_indices": remaining,
-			"selected_indices":  []int{},
+			"choice_type":   "bt_reverse_discard",
+			"user_id":       ctx.User.ID,
+			"discard_count": discardNeed,
 		},
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [倒逆之蝶]：请先弃置%d张牌", ctx.User.Name, discardNeed))

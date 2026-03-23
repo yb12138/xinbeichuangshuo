@@ -71,6 +71,58 @@ func TestMoonGoddessNewMoonShelter_AbsorbsOverflowAndPreventsMoraleLoss(t *testi
 	}
 }
 
+func TestMoonGoddessNewMoonShelter_NoSoulDevourGainWhenMoraleLossPrevented(t *testing.T) {
+	// 重复多次覆盖 map 迭代随机性，确保“暗月抵消士气后，灵魂术士不加黄魂”稳定成立。
+	for i := 0; i < 24; i++ {
+		game := NewGameEngine(noopObserver{})
+		if err := game.AddPlayer("p1", "Soul", "soul_sorcerer", model.RedCamp); err != nil {
+			t.Fatal(err)
+		}
+		if err := game.AddPlayer("p2", "Moon", "moon_goddess", model.RedCamp); err != nil {
+			t.Fatal(err)
+		}
+		if err := game.AddPlayer("p3", "Enemy", "berserker", model.BlueCamp); err != nil {
+			t.Fatal(err)
+		}
+
+		soul := game.State.Players["p1"]
+		moon := game.State.Players["p2"]
+		soul.MaxHand = 4
+		soul.Hand = []model.Card{
+			moonTestCard("s1", "牌1", model.CardTypeAttack, model.ElementFire),
+			moonTestCard("s2", "牌2", model.CardTypeAttack, model.ElementWater),
+			moonTestCard("s3", "牌3", model.CardTypeAttack, model.ElementWind),
+			moonTestCard("s4", "牌4", model.CardTypeAttack, model.ElementThunder),
+			moonTestCard("s5", "牌5", model.CardTypeMagic, model.ElementDark),
+			moonTestCard("s6", "牌6", model.CardTypeMagic, model.ElementLight),
+		}
+
+		damageOverflowCtx := game.buildContext(soul, nil, model.TriggerNone, nil)
+		damageOverflowCtx.Flags["FromDamageDraw"] = true
+		damageOverflowCtx.Flags["IsMagicDamage"] = false
+		game.checkHandLimit(soul, damageOverflowCtx)
+
+		if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptDiscard {
+			t.Fatalf("round %d: expected discard interrupt from overflow", i)
+		}
+		mustHandleAction(t, game, model.PlayerAction{
+			PlayerID:   "p1",
+			Type:       model.CmdSelect,
+			Selections: []int{4, 5},
+		})
+
+		if got := game.State.RedMorale; got != 15 {
+			t.Fatalf("round %d: expected red morale unchanged by 新月庇护, got %d", i, got)
+		}
+		if got := soul.Tokens["ss_yellow_soul"]; got != 0 {
+			t.Fatalf("round %d: expected soul devour no yellow gain when morale loss prevented, got %d", i, got)
+		}
+		if got := moonGoddessDarkMoonCount(moon); got != 2 {
+			t.Fatalf("round %d: expected 2 dark moons absorbed, got %d", i, got)
+		}
+	}
+}
+
 func TestMoonGoddessMoonCycle_Branch1AppliesCurseAndHeal(t *testing.T) {
 	game := NewGameEngine(noopObserver{})
 	if err := game.AddPlayer("p1", "Moon", "moon_goddess", model.RedCamp); err != nil {
@@ -118,6 +170,160 @@ func TestMoonGoddessMoonCycle_Branch1AppliesCurseAndHeal(t *testing.T) {
 	}
 	if got := ally.Heal; got != 1 {
 		t.Fatalf("expected ally heal +1, got %d", got)
+	}
+}
+
+func TestMoonGoddessMoonCycle_OnlyOncePerTurn(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "Moon", "moon_goddess", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Ally", "angel", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p3", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	moon := game.State.Players["p1"]
+	moon.IsActive = true
+	moon.TurnState = model.NewPlayerTurnState()
+	moon.Heal = 1
+	addMoonGoddessDarkMoonCards(moon, []model.Card{
+		moonTestCard("dm1", "暗月1", model.CardTypeAttack, model.ElementFire),
+	})
+	game.State.CurrentTurn = 0
+	game.State.Phase = model.PhaseTurnEnd
+
+	if !game.maybeTriggerMoonGoddessMoonCycleAtTurnEnd(moon) {
+		t.Fatalf("expected moon cycle first trigger")
+	}
+	requireChoicePrompt(t, game, "p1", "mg_moon_cycle_mode")
+	// 分支①
+	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+		t.Fatalf("choose moon cycle mode branch1 failed: %v", err)
+	}
+	requireChoicePrompt(t, game, "p1", "mg_moon_cycle_heal_target")
+	// 选自己，确保治疗>0，若无一次/回合门闩会继续出现分支②弹窗。
+	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+		t.Fatalf("choose moon cycle heal target failed: %v", err)
+	}
+	if got := moon.Tokens["mg_moon_cycle_used_turn"]; got != 1 {
+		t.Fatalf("expected moon cycle used flag=1 in current turn, got %d", got)
+	}
+
+	if game.maybeTriggerMoonGoddessMoonCycleAtTurnEnd(moon) {
+		t.Fatalf("moon cycle should not trigger twice in same turn")
+	}
+	if game.State.PendingInterrupt != nil {
+		t.Fatalf("expected no pending interrupt after second trigger attempt")
+	}
+}
+
+func TestMoonGoddessMoonCycle_Branch1NoRepromptBranch2InDriveFlow(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "Moon", "moon_goddess", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Ally", "angel", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p3", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	moon := game.State.Players["p1"]
+	moon.IsActive = true
+	moon.TurnState = model.NewPlayerTurnState()
+	moon.Heal = 1 // 同时满足分支①/②，验证选①后不会再弹②
+	addMoonGoddessDarkMoonCards(moon, []model.Card{
+		moonTestCard("dm1", "暗月1", model.CardTypeAttack, model.ElementFire),
+	})
+	game.State.CurrentTurn = 0
+	game.State.Phase = model.PhaseTurnEnd
+
+	game.Drive()
+	requireChoicePrompt(t, game, "p1", "mg_moon_cycle_mode")
+
+	// 选择分支①
+	mustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{0},
+	})
+	requireChoicePrompt(t, game, "p1", "mg_moon_cycle_heal_target")
+
+	// 选择治疗目标并完成分支①
+	mustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{1},
+	})
+
+	if intr := game.State.PendingInterrupt; intr != nil && intr.Type == model.InterruptChoice {
+		if data, ok := intr.Context.(map[string]interface{}); ok {
+			if ct, _ := data["choice_type"].(string); ct == "mg_moon_cycle_mode" && intr.PlayerID == "p1" {
+				t.Fatalf("moon cycle should not reprompt branch mode after branch1 resolved")
+			}
+		}
+	}
+	for _, intr := range game.State.InterruptQueue {
+		if intr == nil || intr.Type != model.InterruptChoice || intr.PlayerID != "p1" {
+			continue
+		}
+		if data, ok := intr.Context.(map[string]interface{}); ok {
+			if ct, _ := data["choice_type"].(string); ct == "mg_moon_cycle_mode" {
+				t.Fatalf("moon cycle mode should not stay queued after branch1 resolved")
+			}
+		}
+	}
+}
+
+func TestMoonGoddessMoonCycle_TurnStateLatchPreventsRepromptWhenTokenResets(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "Moon", "moon_goddess", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Ally", "angel", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p3", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	moon := game.State.Players["p1"]
+	moon.IsActive = true
+	moon.TurnState = model.NewPlayerTurnState()
+	moon.Heal = 1
+	addMoonGoddessDarkMoonCards(moon, []model.Card{
+		moonTestCard("dm1", "暗月1", model.CardTypeAttack, model.ElementFire),
+	})
+	game.State.CurrentTurn = 0
+	game.State.Phase = model.PhaseTurnEnd
+
+	if !game.maybeTriggerMoonGoddessMoonCycleAtTurnEnd(moon) {
+		t.Fatalf("expected moon cycle first trigger")
+	}
+	requireChoicePrompt(t, game, "p1", "mg_moon_cycle_mode")
+	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+		t.Fatalf("choose moon cycle mode branch1 failed: %v", err)
+	}
+	requireChoicePrompt(t, game, "p1", "mg_moon_cycle_heal_target")
+	if err := game.handleWeakChoiceInput("p1", 1); err != nil {
+		t.Fatalf("choose moon cycle heal target failed: %v", err)
+	}
+
+	// 模拟异常链路将 token 意外清零，仍应被本回合 TurnState 门闩拦住。
+	moon.Tokens["mg_moon_cycle_used_turn"] = 0
+	if game.maybeTriggerMoonGoddessMoonCycleAtTurnEnd(moon) {
+		t.Fatalf("moon cycle should stay blocked by turnstate latch even if token resets unexpectedly")
+	}
+	if game.State.PendingInterrupt != nil {
+		if data, ok := game.State.PendingInterrupt.Context.(map[string]interface{}); ok {
+			if ct, _ := data["choice_type"].(string); ct == "mg_moon_cycle_mode" {
+				t.Fatalf("unexpected moon cycle reprompt after turnstate latch")
+			}
+		}
 	}
 }
 
@@ -204,22 +410,91 @@ func TestMoonGoddessMedusa_ExcludesConvertedAttacks(t *testing.T) {
 		moonTestCard("dm_fire", "火暗月", model.CardTypeAttack, model.ElementFire),
 	})
 	attackCard := moonTestCard("atk", "火斩", model.CardTypeAttack, model.ElementFire)
+	attackStartCtx := game.buildContext(enemy, ally, model.TriggerOnAttackStart, &model.EventContext{
+		Type:     model.EventAttack,
+		SourceID: enemy.ID,
+		TargetID: ally.ID,
+		Card:     &attackCard,
+		AttackInfo: &model.AttackEventInfo{
+			ActionType: string(model.ActionAttack),
+		},
+	})
 
-	if game.maybeTriggerMoonGoddessMedusa(enemy, ally, "adventurer_fraud", &attackCard, nil) {
+	if game.maybeTriggerMoonGoddessMedusa(enemy, ally, "adventurer_fraud", &attackCard, attackStartCtx) {
 		t.Fatalf("fraud converted attack should not trigger medusa")
 	}
 	if game.State.PendingInterrupt != nil {
 		t.Fatalf("expected no interrupt for fraud converted attack")
 	}
-	if game.maybeTriggerMoonGoddessMedusa(enemy, ally, "hb_holy_shard_storm", &attackCard, nil) {
+	if game.maybeTriggerMoonGoddessMedusa(enemy, ally, "hb_holy_shard_storm", &attackCard, attackStartCtx) {
 		t.Fatalf("holy shard storm converted attack should not trigger medusa")
 	}
 	if game.State.PendingInterrupt != nil {
 		t.Fatalf("expected no interrupt for holy shard storm converted attack")
 	}
 
-	if !game.maybeTriggerMoonGoddessMedusa(enemy, ally, "", &attackCard, nil) {
+	if !game.maybeTriggerMoonGoddessMedusa(enemy, ally, "", &attackCard, attackStartCtx) {
 		t.Fatalf("normal attack should trigger medusa when matching dark moon exists")
+	}
+	requireChoicePrompt(t, game, "p1", "mg_medusa_darkmoon_pick")
+}
+
+func TestMoonGoddessMedusa_OnlyAtAttackStart(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "Moon", "moon_goddess", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Ally", "angel", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p3", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	moon := game.State.Players["p1"]
+	ally := game.State.Players["p2"]
+	enemy := game.State.Players["p3"]
+	addMoonGoddessDarkMoonCards(moon, []model.Card{
+		moonTestCard("dm_fire", "火暗月", model.CardTypeAttack, model.ElementFire),
+	})
+	attackCard := moonTestCard("atk", "火斩", model.CardTypeAttack, model.ElementFire)
+
+	// 非攻击开始上下文：不应触发。
+	if game.maybeTriggerMoonGoddessMedusa(enemy, ally, "", &attackCard, nil) {
+		t.Fatalf("medusa should not trigger without attack-start context")
+	}
+	if game.State.PendingInterrupt != nil {
+		t.Fatalf("expected no interrupt without attack-start context")
+	}
+
+	nonStartCtx := game.buildContext(enemy, ally, model.TriggerOnAttackHit, &model.EventContext{
+		Type:     model.EventAttack,
+		SourceID: enemy.ID,
+		TargetID: ally.ID,
+		Card:     &attackCard,
+		AttackInfo: &model.AttackEventInfo{
+			ActionType: string(model.ActionAttack),
+		},
+	})
+	if game.maybeTriggerMoonGoddessMedusa(enemy, ally, "", &attackCard, nonStartCtx) {
+		t.Fatalf("medusa should not trigger outside attack-start trigger")
+	}
+	if game.State.PendingInterrupt != nil {
+		t.Fatalf("expected no interrupt for non-attack-start trigger")
+	}
+
+	// 攻击开始上下文：可触发。
+	attackStartCtx := game.buildContext(enemy, ally, model.TriggerOnAttackStart, &model.EventContext{
+		Type:     model.EventAttack,
+		SourceID: enemy.ID,
+		TargetID: ally.ID,
+		Card:     &attackCard,
+		AttackInfo: &model.AttackEventInfo{
+			ActionType: string(model.ActionAttack),
+		},
+	})
+	if !game.maybeTriggerMoonGoddessMedusa(enemy, ally, "", &attackCard, attackStartCtx) {
+		t.Fatalf("medusa should trigger at attack start with matching dark moon")
 	}
 	requireChoicePrompt(t, game, "p1", "mg_medusa_darkmoon_pick")
 }

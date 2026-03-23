@@ -76,6 +76,16 @@ export interface SkillModalAnchor {
   height: number
 }
 
+export type InitiatorFocusMode = 'attack' | 'magic' | 'skill'
+export type InitiatorFocusSide = 'left' | 'right'
+
+export interface InitiatorFocusState {
+  playerId: string
+  side: InitiatorFocusSide
+  mode: InitiatorFocusMode
+  startedAt: number
+}
+
 export const useGameStore = defineStore('game', () => {
   // 房间状态
   const roomCode = ref<string>('')
@@ -141,15 +151,18 @@ export const useGameStore = defineStore('game', () => {
     id: number
     attackerId: string
     targetId: string
-    phase: 'attack' | 'defend' | 'take' | 'counter'
+    phase: 'attack' | 'defend' | 'take' | 'counter' | 'shield'
   } | null>(null)
   let combatCueId = 0
   const combatCueQueue = ref<Array<{
     attackerId: string
     targetId: string
-    phase: 'attack' | 'defend' | 'take' | 'counter'
+    phase: 'attack' | 'defend' | 'take' | 'counter' | 'shield'
   }>>([])
   let combatCueTimer: ReturnType<typeof setTimeout> | null = null
+  const initiatorFocus = ref<InitiatorFocusState | null>(null)
+  let initiatorFocusIdleTimer: ReturnType<typeof setTimeout> | null = null
+  let initiatorFocusResolveTimer: ReturnType<typeof setTimeout> | null = null
 
   // 战斗播报流：用于“动作可读性”增强
   const battleFeed = ref<BattleFeedEntry[]>([])
@@ -194,6 +207,7 @@ export const useGameStore = defineStore('game', () => {
   const logs = ref<string[]>([])
   const selectedCards = ref<number[]>([])
   const selectedTargets = ref<string[]>([])
+  const promptCounterTarget = ref<string>('')
   const errorMessage = ref<string>('')
   const skillEffectToast = ref<string>('')
   const isConnected = ref(false)
@@ -247,6 +261,138 @@ export const useGameStore = defineStore('game', () => {
   function getRoleDisplayName(roleId?: string): string {
     if (!roleId) return '未知角色'
     return characters.value[roleId]?.name || ROLE_NAME_MAP[roleId] || '未知角色'
+  }
+
+  function resolveInitiatorFocusSide(playerId: string): InitiatorFocusSide {
+    const actorCamp = players.value[playerId]?.camp
+    if ((myCamp.value === 'Red' || myCamp.value === 'Blue') && (actorCamp === 'Red' || actorCamp === 'Blue')) {
+      return actorCamp === myCamp.value ? 'right' : 'left'
+    }
+    if (playerId === myPlayerId.value) return 'right'
+    return 'left'
+  }
+
+  function cancelInitiatorFocusIdleTimer() {
+    if (initiatorFocusIdleTimer) {
+      clearTimeout(initiatorFocusIdleTimer)
+      initiatorFocusIdleTimer = null
+    }
+  }
+
+  function cancelInitiatorFocusResolveTimer() {
+    if (initiatorFocusResolveTimer) {
+      clearTimeout(initiatorFocusResolveTimer)
+      initiatorFocusResolveTimer = null
+    }
+  }
+
+  function clearInitiatorFocus() {
+    cancelInitiatorFocusIdleTimer()
+    cancelInitiatorFocusResolveTimer()
+    initiatorFocus.value = null
+  }
+
+  function setInitiatorFocus(playerId: string, mode: InitiatorFocusMode) {
+    if (!playerId) return
+    cancelInitiatorFocusResolveTimer()
+    initiatorFocus.value = {
+      playerId,
+      side: resolveInitiatorFocusSide(playerId),
+      mode,
+      startedAt: Date.now()
+    }
+  }
+
+  function armSkillFocusIdleTimer() {
+    cancelInitiatorFocusIdleTimer()
+    const idleMs = cinematicMode.value ? 8200 : 6200
+    initiatorFocusIdleTimer = setTimeout(() => {
+      if (initiatorFocus.value && initiatorFocus.value.mode !== 'attack') {
+        initiatorFocus.value = null
+      }
+      initiatorFocusIdleTimer = null
+    }, idleMs)
+  }
+
+  function startAttackInitiatorFocus(attackerId: string) {
+    if (!attackerId) return
+    setInitiatorFocus(attackerId, 'attack')
+    cancelInitiatorFocusIdleTimer()
+  }
+
+  function resolveAttackInitiatorFocus(attackerId: string, delayMs?: number) {
+    const focus = initiatorFocus.value
+    if (!focus || focus.mode !== 'attack' || focus.playerId !== attackerId) return
+    cancelInitiatorFocusResolveTimer()
+    const holdMs = delayMs ?? (cinematicMode.value ? 820 : 460)
+    initiatorFocusResolveTimer = setTimeout(() => {
+      if (initiatorFocus.value?.mode === 'attack' && initiatorFocus.value.playerId === attackerId) {
+        initiatorFocus.value = null
+      }
+      initiatorFocusResolveTimer = null
+    }, holdMs)
+  }
+
+  function startSkillInitiatorFocus(playerId: string, mode: 'magic' | 'skill' = 'skill') {
+    if (!playerId) return
+    setInitiatorFocus(playerId, mode)
+    armSkillFocusIdleTimer()
+  }
+
+  function touchSkillInitiatorFocus(playerId?: string) {
+    const focus = initiatorFocus.value
+    if (!focus || focus.mode === 'attack') return
+    if (playerId && focus.playerId !== playerId) return
+    armSkillFocusIdleTimer()
+  }
+
+  function settleSkillInitiatorFocus(playerId?: string, delayMs?: number) {
+    const focus = initiatorFocus.value
+    if (!focus || focus.mode === 'attack') return
+    if (playerId && focus.playerId !== playerId) return
+    cancelInitiatorFocusIdleTimer()
+    cancelInitiatorFocusResolveTimer()
+    const holdMs = delayMs ?? (cinematicMode.value ? 1080 : 700)
+    const expectedPlayerId = focus.playerId
+    const expectedMode = focus.mode
+    initiatorFocusResolveTimer = setTimeout(() => {
+      if (
+        initiatorFocus.value?.playerId === expectedPlayerId &&
+        initiatorFocus.value?.mode === expectedMode
+      ) {
+        initiatorFocus.value = null
+      }
+      initiatorFocusResolveTimer = null
+    }, holdMs)
+  }
+
+  function syncInitiatorFocusWithState(nextPhase: string) {
+    const focus = initiatorFocus.value
+    if (!focus) return
+    // 玩家阵营可能在首包 state_update 才可用，动态修正左右落位。
+    const nextSide = resolveInitiatorFocusSide(focus.playerId)
+    if (focus.side !== nextSide) {
+      initiatorFocus.value = { ...focus, side: nextSide }
+    }
+
+    if (focus.mode === 'attack') {
+      if (nextPhase !== 'CombatInteraction') {
+        resolveAttackInitiatorFocus(focus.playerId, cinematicMode.value ? 260 : 160)
+      }
+      return
+    }
+
+    if (nextPhase === 'Response' || nextPhase === 'CombatInteraction') {
+      touchSkillInitiatorFocus(focus.playerId)
+      return
+    }
+
+    if (damageEffects.value.length > 0) {
+      touchSkillInitiatorFocus(focus.playerId)
+      return
+    }
+
+    settleSkillInitiatorFocus(focus.playerId, cinematicMode.value ? 420 : 240)
   }
 
   function setCharacters(list: CharacterView[]) {
@@ -479,6 +625,9 @@ export const useGameStore = defineStore('game', () => {
     // 对战提示在战斗交互阶段常驻显示，离开该阶段后清除
     if (state.phase !== 'CombatInteraction' && combatCueQueue.value.length === 0) {
       combatCue.value = null
+      if (initiatorFocus.value?.mode === 'attack') {
+        resolveAttackInitiatorFocus(initiatorFocus.value.playerId, cinematicMode.value ? 260 : 160)
+      }
     }
     currentPlayer.value = state.current_player
     hasPerformedStartup.value = state.has_performed_startup ?? false
@@ -486,6 +635,8 @@ export const useGameStore = defineStore('game', () => {
     // 收到 state_update 表示上一动作已被服务器成功处理，清除所有操作中的 UI 状态
     currentPrompt.value = null
     selectedCards.value = []
+    selectedTargets.value = []
+    promptCounterTarget.value = ''
     actionMode.value = 'none'
     magicSubChoice.value = 'none'
     selectedCardForAction.value = null
@@ -510,6 +661,7 @@ export const useGameStore = defineStore('game', () => {
     if (state.characters?.length) {
       setCharacters(state.characters)
     }
+    syncInitiatorFocusWithState(state.phase)
     // 终局后仍可能收到一次最终状态推送，刷新复盘快照中的最终面板数据
     if (isGameEnded.value) {
       gameEndSnapshot.value = buildGameEndSnapshot(gameEndMessage.value || '游戏结束')
@@ -520,6 +672,10 @@ export const useGameStore = defineStore('game', () => {
     currentPrompt.value = prompt
     selectedCards.value = []
     selectedTargets.value = []
+    promptCounterTarget.value = ''
+    if (prompt?.player_id) {
+      touchSkillInitiatorFocus(prompt.player_id)
+    }
     // 进入中断/交互提示时，清理本地行动态，避免继续发送 Skill/Attack 指令
     if (prompt) {
       actionMode.value = 'none'
@@ -530,6 +686,10 @@ export const useGameStore = defineStore('game', () => {
       skillTargetIds.value = []
       skillDiscardIndices.value = []
     }
+  }
+
+  function setPromptCounterTarget(playerId: string) {
+    promptCounterTarget.value = playerId
   }
 
   function setWaiting(playerId: string) {
@@ -754,6 +914,7 @@ export const useGameStore = defineStore('game', () => {
   function addDamageEffect(targetId: string, targetName: string, damage: number, damageType: string) {
     if (damage <= 0) return
     notifyFlyingCardsEvent('damage')
+    touchSkillInitiatorFocus()
     damageEffectsId++
     const id = damageEffectsId
     damageEffects.value.push({
@@ -799,10 +960,13 @@ export const useGameStore = defineStore('game', () => {
     actionSummaryLines.value = []
   }
 
-  function addCombatCue(attackerId: string, targetId: string, phase: 'attack' | 'defend' | 'take' | 'counter') {
+  function addCombatCue(attackerId: string, targetId: string, phase: 'attack' | 'defend' | 'take' | 'counter' | 'shield') {
     if (!attackerId || !targetId) return
-    if (phase === 'defend' || phase === 'take' || phase === 'counter') {
+    if (phase === 'defend' || phase === 'take' || phase === 'counter' || phase === 'shield') {
       notifyFlyingCardsEvent('combat_response')
+      resolveAttackInitiatorFocus(attackerId)
+    } else if (phase === 'attack') {
+      startAttackInitiatorFocus(attackerId)
     }
 
     if (phase === 'attack') {
@@ -996,6 +1160,7 @@ export const useGameStore = defineStore('game', () => {
     waitingFor.value = ''
     selectedCards.value = []
     selectedTargets.value = []
+    promptCounterTarget.value = ''
     actionMode.value = 'none'
     magicSubChoice.value = 'none'
     selectedCardForAction.value = null
@@ -1013,6 +1178,7 @@ export const useGameStore = defineStore('game', () => {
       clearTimeout(combatCueTimer)
       combatCueTimer = null
     }
+    clearInitiatorFocus()
   }
 
   function clearGameEnded() {
@@ -1063,6 +1229,7 @@ export const useGameStore = defineStore('game', () => {
       clearTimeout(combatCueTimer)
       combatCueTimer = null
     }
+    clearInitiatorFocus()
     battleFeed.value = []
     moraleHints.value = []
     moraleChanges.value = []
@@ -1072,6 +1239,7 @@ export const useGameStore = defineStore('game', () => {
     logs.value = []
     selectedCards.value = []
     selectedTargets.value = []
+    promptCounterTarget.value = ''
     errorMessage.value = ''
     skillEffectToast.value = ''
     isConnected.value = false
@@ -1133,6 +1301,7 @@ export const useGameStore = defineStore('game', () => {
     logs,
     selectedCards,
     selectedTargets,
+    promptCounterTarget,
     errorMessage,
     skillEffectToast,
     isConnected,
@@ -1165,6 +1334,14 @@ export const useGameStore = defineStore('game', () => {
     clearActionSummary,
     combatCue,
     addCombatCue,
+    initiatorFocus,
+    startAttackInitiatorFocus,
+    resolveAttackInitiatorFocus,
+    startSkillInitiatorFocus,
+    touchSkillInitiatorFocus,
+    settleSkillInitiatorFocus,
+    clearInitiatorFocus,
+    syncInitiatorFocusWithState,
     addBattleFeed,
     clearBattleFeed,
     setCinematicMode,
@@ -1201,6 +1378,7 @@ export const useGameStore = defineStore('game', () => {
     clearLogs,
     toggleCardSelection,
     selectTarget,
+    setPromptCounterTarget,
     setActionModeForAttack,
     setMagicSubChoice,
     setSelectedCardForAction,

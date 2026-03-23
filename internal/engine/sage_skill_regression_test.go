@@ -125,6 +125,263 @@ func TestSageMagicRebound_SameElementDiscardChain(t *testing.T) {
 	}
 }
 
+// 回归：法术反弹的触发时点必须在“承伤摸牌完成之后”。
+// 若触发早于摸牌，本用例中将无法凑出2张同系牌，不会出现反弹询问。
+func TestSageMagicRebound_TriggerAfterDamageDraw(t *testing.T) {
+	g := NewGameEngine(noopObserver{})
+	if err := g.AddPlayer("p1", "Sage", "sage", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := g.State.Players["p1"]
+	p1.Hand = []model.Card{
+		sageTestCard("f1", "火焰斩", model.CardTypeAttack, model.ElementFire),
+	}
+	// 受1点法伤后会摸1张；这张牌补成“第2张同系牌”，使法术反弹满足 X>1。
+	g.State.Deck = []model.Card{
+		sageTestCard("f2", "炎流", model.CardTypeMagic, model.ElementFire),
+	}
+
+	g.AddPendingDamage(model.PendingDamage{
+		SourceID:   "p2",
+		TargetID:   "p1",
+		Damage:     1,
+		DamageType: "magic",
+		Stage:      0,
+	})
+	g.State.Phase = model.PhasePendingDamageResolution
+
+	runUntilChoiceInterrupt(g, 12)
+	if g.State.PendingInterrupt == nil {
+		t.Fatalf("expected rebound confirm after damage draw, got nil")
+	}
+	if got := choiceTypeOf(g.State.PendingInterrupt); got != "sage_magic_rebound_confirm" {
+		t.Fatalf("expected choice_type sage_magic_rebound_confirm, got %q", got)
+	}
+	if got := len(p1.Hand); got != 2 {
+		t.Fatalf("expected draw finished before rebound confirm, hand should be 2, got %d", got)
+	}
+}
+
+// 回归：同一次结算链里若连续承受两次1点法术伤害，应逐条触发法术反弹询问。
+func TestSageMagicRebound_TwoOneMagicDamagesPromptTwice(t *testing.T) {
+	g := NewGameEngine(noopObserver{})
+	if err := g.AddPlayer("p1", "Sage", "sage", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := g.State.Players["p1"]
+	p1.Hand = []model.Card{
+		sageTestCard("f1", "火焰斩", model.CardTypeAttack, model.ElementFire),
+		sageTestCard("f2", "烈焰击", model.CardTypeMagic, model.ElementFire),
+	}
+	g.State.Deck = []model.Card{
+		sageTestCard("d1", "补牌1", model.CardTypeAttack, model.ElementWater),
+		sageTestCard("d2", "补牌2", model.CardTypeAttack, model.ElementEarth),
+	}
+
+	g.AddPendingDamage(model.PendingDamage{
+		SourceID:   "p2",
+		TargetID:   "p1",
+		Damage:     1,
+		DamageType: "magic",
+		Stage:      0,
+	})
+	g.AddPendingDamage(model.PendingDamage{
+		SourceID:   "p2",
+		TargetID:   "p1",
+		Damage:     1,
+		DamageType: "magic",
+		Stage:      0,
+	})
+	g.State.Phase = model.PhasePendingDamageResolution
+
+	runUntilChoiceInterrupt(g, 16)
+	if got := choiceTypeOf(g.State.PendingInterrupt); got != "sage_magic_rebound_confirm" {
+		t.Fatalf("expected first rebound confirm, got %q", got)
+	}
+	// 第一次选择不发动，流程应继续到下一条1点法伤并再次询问。
+	if err := g.handleWeakChoiceInput("p1", 1); err != nil {
+		t.Fatalf("skip first rebound confirm failed: %v", err)
+	}
+	runUntilChoiceInterrupt(g, 16)
+	if got := choiceTypeOf(g.State.PendingInterrupt); got != "sage_magic_rebound_confirm" {
+		t.Fatalf("expected second rebound confirm after next 1-damage, got %q", got)
+	}
+}
+
+// 回归：对自己发动法术反弹时会形成嵌套结算；
+// 新产生伤害遵循“后产生先结算”（LIFO）顺序。
+func TestSageMagicRebound_SelfTargetNestedLIFO(t *testing.T) {
+	g := NewGameEngine(noopObserver{})
+	if err := g.AddPlayer("p1", "Sage", "sage", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := g.State.Players["p1"]
+	p1.Hand = []model.Card{
+		sageTestCard("f1", "火焰斩", model.CardTypeAttack, model.ElementFire),
+		sageTestCard("f2", "烈焰击", model.CardTypeMagic, model.ElementFire),
+	}
+	// 自己作为目标时，首轮反弹会生成 2 与 1 两段自伤；
+	// 其中 1 点结算后再触发新一轮反弹。这里准备同系补牌，确保能进入嵌套。
+	g.State.Deck = []model.Card{
+		sageTestCard("w1", "浪涌1", model.CardTypeAttack, model.ElementWater),
+		sageTestCard("w2", "浪涌2", model.CardTypeMagic, model.ElementWater),
+		sageTestCard("w3", "浪涌3", model.CardTypeAttack, model.ElementWater),
+	}
+
+	g.AddPendingDamage(model.PendingDamage{
+		SourceID:   "p2",
+		TargetID:   "p1",
+		Damage:     1,
+		DamageType: "magic",
+		Stage:      0,
+	})
+	g.State.Phase = model.PhasePendingDamageResolution
+
+	runUntilChoiceInterrupt(g, 16)
+	if got := choiceTypeOf(g.State.PendingInterrupt); got != "sage_magic_rebound_confirm" {
+		t.Fatalf("expected rebound confirm, got %q", got)
+	}
+	if err := g.handleWeakChoiceInput("p1", 0); err != nil { // 发动
+		t.Fatalf("confirm rebound failed: %v", err)
+	}
+	if err := g.handleWeakChoiceInput("p1", 0); err != nil { // X=2
+		t.Fatalf("choose rebound x=2 failed: %v", err)
+	}
+	if err := g.handleWeakChoiceInput("p1", 0); err != nil { // 选择火系
+		t.Fatalf("choose rebound element failed: %v", err)
+	}
+	if err := g.handleWeakChoiceInput("p1", 0); err != nil { // 选第1张火牌
+		t.Fatalf("choose rebound card#1 failed: %v", err)
+	}
+	if err := g.handleWeakChoiceInput("p1", 0); err != nil { // 选第2张火牌
+		t.Fatalf("choose rebound card#2 failed: %v", err)
+	}
+	if got := choiceTypeOf(g.State.PendingInterrupt); got != "sage_magic_rebound_target" {
+		t.Fatalf("expected rebound target choice, got %q", got)
+	}
+	if err := g.handleWeakChoiceInput("p1", 0); err != nil { // 目标选自己（playerOrder: p1,p2）
+		t.Fatalf("choose rebound self target failed: %v", err)
+	}
+
+	if got := len(g.State.PendingDamageQueue); got < 2 {
+		t.Fatalf("expected at least 2 rebound damages queued, got %d", got)
+	}
+	first := g.State.PendingDamageQueue[0]
+	second := g.State.PendingDamageQueue[1]
+	if first.TargetID != "p1" || first.Damage != 2 || !strings.EqualFold(first.DamageType, "magic") {
+		t.Fatalf("expected first nested damage self=2, got %+v", first)
+	}
+	if second.TargetID != "p1" || second.Damage != 1 || !strings.EqualFold(second.DamageType, "magic") {
+		t.Fatalf("expected second nested damage self=1, got %+v", second)
+	}
+
+	// 继续推进：2点自伤与1点自伤结算后，应因后者再次进入法术反弹询问（嵌套触发）。
+	runUntilChoiceInterrupt(g, 24)
+	if got := choiceTypeOf(g.State.PendingInterrupt); got != "sage_magic_rebound_confirm" {
+		t.Fatalf("expected nested rebound confirm after self-target chain, got %q", got)
+	}
+}
+
+// 回归：魔道法典 X=2 且目标为自己时，会产生两次1点法术伤害；
+// 若同系手牌条件满足，应逐次出现法术反弹询问。
+func TestSageArcaneCodex_SelfTargetTriggersReboundPerOneDamage(t *testing.T) {
+	g := NewGameEngine(noopObserver{})
+	if err := g.AddPlayer("p1", "Sage", "sage", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := g.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Gem = 1
+	// 手牌含 2 张火系 + 水/地各1张：
+	// 魔道法典弃2张异系（水、地）后，仍保留2张同系（火）可触发法术反弹。
+	p1.Hand = []model.Card{
+		sageTestCard("f1", "火焰斩", model.CardTypeAttack, model.ElementFire),
+		sageTestCard("f2", "烈焰击", model.CardTypeMagic, model.ElementFire),
+		sageTestCard("w1", "水涟斩", model.CardTypeAttack, model.ElementWater),
+		sageTestCard("e1", "地裂斩", model.CardTypeAttack, model.ElementEarth),
+	}
+	g.State.Deck = []model.Card{
+		sageTestCard("d1", "补牌1", model.CardTypeAttack, model.ElementWind),
+		sageTestCard("d2", "补牌2", model.CardTypeMagic, model.ElementThunder),
+	}
+	g.State.CurrentTurn = 0
+	g.State.Phase = model.PhaseActionSelection
+
+	if err := g.UseSkill("p1", "sage_arcane_codex", nil, nil); err != nil {
+		t.Fatalf("use arcane codex failed: %v", err)
+	}
+	if got := p1.Gem; got != 0 {
+		t.Fatalf("expected arcane codex consume 1 gem, got %d", got)
+	}
+	if got := choiceTypeOf(g.State.PendingInterrupt); got != "sage_arcane_x" {
+		t.Fatalf("expected choice_type sage_arcane_x, got %q", got)
+	}
+
+	// 选 X=2（minX=2，索引0）。
+	if err := g.handleWeakChoiceInput("p1", 0); err != nil {
+		t.Fatalf("choose arcane x=2 failed: %v", err)
+	}
+	if got := choiceTypeOf(g.State.PendingInterrupt); got != "sage_arcane_cards" {
+		t.Fatalf("expected choice_type sage_arcane_cards, got %q", got)
+	}
+
+	// 弃2张异系（水、地）。
+	if err := g.handleWeakChoiceInput("p1", 2); err != nil {
+		t.Fatalf("choose arcane card#1(water) failed: %v", err)
+	}
+	if err := g.handleWeakChoiceInput("p1", 2); err != nil {
+		t.Fatalf("choose arcane card#2(earth) failed: %v", err)
+	}
+	if got := choiceTypeOf(g.State.PendingInterrupt); got != "sage_arcane_target" {
+		t.Fatalf("expected choice_type sage_arcane_target, got %q", got)
+	}
+
+	// 目标选自己（player order: p1,p2）。
+	if err := g.handleWeakChoiceInput("p1", 0); err != nil {
+		t.Fatalf("choose arcane self target failed: %v", err)
+	}
+	if got := len(g.State.PendingDamageQueue); got < 2 {
+		t.Fatalf("expected 2 pending magic damages from arcane self-target, got %d", got)
+	}
+	if g.State.PendingDamageQueue[0].TargetID != "p1" || g.State.PendingDamageQueue[0].Damage != 1 {
+		t.Fatalf("expected first pending self magic damage=1, got %+v", g.State.PendingDamageQueue[0])
+	}
+	if g.State.PendingDamageQueue[1].TargetID != "p1" || g.State.PendingDamageQueue[1].Damage != 1 {
+		t.Fatalf("expected second pending self magic damage=1, got %+v", g.State.PendingDamageQueue[1])
+	}
+
+	// 第一段1点法伤结算后应出现法术反弹询问。
+	runUntilChoiceInterrupt(g, 16)
+	if got := choiceTypeOf(g.State.PendingInterrupt); got != "sage_magic_rebound_confirm" {
+		t.Fatalf("expected first rebound confirm after first 1-damage, got %q", got)
+	}
+	// 跳过第一段反弹，继续处理第二段1点法伤。
+	if err := g.handleWeakChoiceInput("p1", 1); err != nil {
+		t.Fatalf("skip first rebound confirm failed: %v", err)
+	}
+	runUntilChoiceInterrupt(g, 16)
+	if got := choiceTypeOf(g.State.PendingInterrupt); got != "sage_magic_rebound_confirm" {
+		t.Fatalf("expected second rebound confirm after second 1-damage, got %q", got)
+	}
+}
+
 func TestSageHolyCodex_XAndTargetCountBoundaries(t *testing.T) {
 	g := NewGameEngine(noopObserver{})
 	if err := g.AddPlayer("p1", "Sage", "sage", model.RedCamp); err != nil {

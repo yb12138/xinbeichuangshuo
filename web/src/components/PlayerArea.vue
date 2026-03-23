@@ -10,6 +10,7 @@ const props = defineProps<{
   isOpponent?: boolean
   selectable?: boolean
   selected?: boolean
+  debugTargetReason?: string
   compact?: boolean
   turnOrder?: number
 }>()
@@ -63,6 +64,12 @@ const campClass = computed(() => {
 
 const handCount = computed(() => {
   return props.isMe ? (props.player.hand?.length ?? props.player.hand_count) : props.player.hand_count
+})
+
+const maxHand = computed(() => {
+  const limit = props.player.max_hand
+  if (typeof limit === 'number' && limit >= 0) return limit
+  return handCount.value
 })
 
 const isActive = computed(() => !!props.player.is_active)
@@ -147,6 +154,7 @@ const TOKEN_DISPLAY: Record<string, { label: string; cls: string }> = {
   mg_next_attack_no_counter: { label: '下次攻不可应战', cls: 'bg-rose-900/70 text-rose-100 border-rose-500/40' },
   bp_bleed_form: { label: '流血形态', cls: 'bg-red-900/70 text-red-100 border-red-500/40' },
   bp_shared_life_active: { label: '同生共死在场', cls: 'bg-rose-900/70 text-rose-100 border-rose-500/40' },
+  bp_shared_life_bound: { label: '同生共死绑定', cls: 'bg-rose-950/75 text-rose-100 border-rose-400/50' },
   bt_pupa: { label: '蛹', cls: 'bg-amber-900/70 text-amber-100 border-amber-500/40' },
   bt_cocoon_count: { label: '茧', cls: 'bg-indigo-900/70 text-indigo-100 border-indigo-500/40' },
   bt_wither_active: { label: '凋零生效', cls: 'bg-red-900/70 text-red-100 border-red-500/40' },
@@ -219,160 +227,6 @@ const tokenIndicators = computed(() => {
   return entries
 })
 
-const isFighter = computed(() => props.player.role === 'fighter')
-const orderedPlayerIds = computed(() => {
-  const ids: string[] = []
-  const seen = new Set<string>()
-  for (const p of store.roomPlayers) {
-    if (store.players[p.id] && !seen.has(p.id)) {
-      ids.push(p.id)
-      seen.add(p.id)
-    }
-  }
-  for (const id of Object.keys(store.players).sort()) {
-    if (!seen.has(id)) {
-      ids.push(id)
-      seen.add(id)
-    }
-  }
-  return ids
-})
-const playerNameByTurnOrder = computed<Record<number, string>>(() => {
-  const map: Record<number, string> = {}
-  orderedPlayerIds.value.forEach((id, idx) => {
-    const p = store.players[id]
-    map[idx + 1] = p?.name || id
-  })
-  return map
-})
-const playerByTurnOrder = computed<Record<number, PlayerView | undefined>>(() => {
-  const map: Record<number, PlayerView | undefined> = {}
-  orderedPlayerIds.value.forEach((id, idx) => {
-    map[idx + 1] = store.players[id]
-  })
-  return map
-})
-
-const fighterStatusLines = computed(() => {
-  if (!isFighter.value) return []
-  const t = props.player.tokens ?? {}
-  const lines: string[] = []
-  const qi = t.fighter_qi ?? 0
-  const inForm = (t.fighter_hundred_dragon_form ?? 0) > 0
-  const targetOrder = t.fighter_hundred_dragon_target_order ?? 0
-  const chargePending = (t.fighter_charge_pending ?? 0) > 0
-  const burstNoCounter = (t.fighter_qiburst_force_no_counter ?? 0) > 0
-
-  lines.push(`斗气：${qi}/8`)
-  if (inForm) {
-    lines.push('当前：百式幻龙拳形态（主动攻击+2，应战攻击+1）')
-    lines.push('本阶段限制：仅可执行攻击；不能执行法术/特殊行动；不能发动【蓄力一击】')
-    if (targetOrder > 0) {
-      const targetPlayer = playerByTurnOrder.value[targetOrder]
-      if (targetPlayer && targetPlayer.camp !== props.player.camp) {
-        const targetName = playerNameByTurnOrder.value[targetOrder] || targetPlayer.id
-        lines.push(`目标锁定：${targetName}（顺序 #${targetOrder}，主动攻击需保持同一目标）`)
-      } else {
-        lines.push('目标锁定：无（仅可锁定敌方目标）')
-      }
-    } else {
-      lines.push('目标锁定：将在本回合首次主动攻击后确定')
-    }
-  } else {
-    lines.push('当前：普通形态')
-  }
-  if (chargePending) {
-    lines.push('蓄力一击生效中：若本次攻击未命中，将按当前斗气对自己造成法术伤害')
-  }
-  if (burstNoCounter) {
-    lines.push('气绝崩击生效中：本次攻击无法应战')
-  }
-  return lines
-})
-
-const fighterSkillBriefs = computed(() => {
-  if (!isFighter.value) return []
-  return [
-    { title: '念气力场', desc: '被动：所有对你造成的单次伤害最高为4点。' },
-    { title: '蓄力一击', desc: '响应（主动攻击前）：斗气+1，本次攻击伤害+1；若未命中，按当前斗气对自己造成法术伤害。' },
-    { title: '念弹', desc: '响应（法术行动后）：斗气+1并对目标敌方造成1点法术伤害；若其治疗为0，你按当前斗气自伤。' },
-    { title: '百式幻龙拳', desc: '启动：移除3斗气进入持续形态；主动攻+2、应战攻+1；本阶段仅可攻击且锁定同一目标。' },
-    { title: '气绝崩击', desc: '响应（主动攻击前）：移除1斗气，本次攻击无法应战，再按当前斗气对自己造成法术伤害。' },
-    { title: '斗神天驱', desc: '启动（消耗1水晶）：弃到3张牌并+2治疗。' }
-  ]
-})
-
-const isHolyBow = computed(() => props.player.role === 'holy_bow')
-
-const holyBowStatusLines = computed(() => {
-  if (!isHolyBow.value) return []
-  const t = props.player.tokens ?? {}
-  const lines: string[] = []
-  const faith = t.hb_faith ?? 0
-  const cannon = t.hb_cannon ?? 0
-  const inForm = (t.hb_form ?? 0) > 0
-  const usedSpecial = (t.hb_special_used_turn ?? 0) > 0
-
-  lines.push(`信仰：${faith}/10`)
-  lines.push(`圣煌辉光炮：${cannon}/1`)
-  if (inForm) {
-    lines.push('当前：圣煌形态（可用圣光爆裂/流星圣弹/圣煌辉光炮）')
-    lines.push('形态规则：执行特殊行动会立即脱离并+1治疗')
-  } else {
-    lines.push('当前：普通形态')
-  }
-  if (usedSpecial) {
-    lines.push('本回合已执行特殊行动（回合结束不触发自动填充）')
-  } else {
-    lines.push('本回合未执行特殊行动（回合结束可触发自动填充）')
-  }
-  return lines
-})
-
-const holyBowSkillBriefs = computed(() => {
-  if (!isHolyBow.value) return []
-  return [
-    { title: '天之弓', desc: '被动：初始+1辉光炮、+2水晶、治疗上限+1；非圣命格主动攻击伤害-1；圣命格主动攻击命中+1信仰。' },
-    { title: '圣屑飓暴', desc: '法术：弃2张同系攻击牌，视为同系圣命格主动攻击；未命中可移除治疗并令队友弃牌。' },
-    { title: '圣煌降临', desc: '法术：移除2治疗或2信仰，进入圣煌形态并额外+1法术行动。' },
-    { title: '圣光爆裂', desc: '法术（仅圣煌）：分支①摸1并增益治疗/信仰；分支②移除X治疗并弃X牌后，对最多X名对手造成攻击伤害。' },
-    { title: '流星圣弹', desc: '响应（仅圣煌）：主动攻击前移除1治疗或1信仰，使1名我方角色+1治疗。' },
-    { title: '圣煌辉光炮', desc: '法术（仅圣煌）：消耗辉光炮与信仰，全员手牌调至4、我方星杯+1，并选择士气对齐方向。' },
-    { title: '自动填充', desc: '被动：回合结束且未执行特殊行动时，可消耗资源获得信仰/治疗增益。' }
-  ]
-})
-
-const isSoulSorcerer = computed(() => props.player.role === 'soul_sorcerer')
-
-const soulSorcererStatusLines = computed(() => {
-  if (!isSoulSorcerer.value) return []
-  const t = props.player.tokens ?? {}
-  const lines: string[] = []
-  const blue = t.ss_blue_soul ?? 0
-  const yellow = t.ss_yellow_soul ?? 0
-  const linkActive = (t.ss_link_active ?? 0) > 0
-
-  lines.push(`蓝色灵魂：${blue}/6`)
-  lines.push(`黄色灵魂：${yellow}/6`)
-  if (linkActive) {
-    lines.push('灵魂链接：已放置（承伤前可移除蓝魂转移伤害）')
-  } else {
-    lines.push('灵魂链接：未放置')
-  }
-  return lines
-})
-
-const soulSorcererSkillBriefs = computed(() => {
-  if (!isSoulSorcerer.value) return []
-  return [
-    { title: '灵魂吞噬', desc: '被动：我方每下降1点士气，你+1黄色灵魂。' },
-    { title: '灵魂召还', desc: '法术：弃X张法术牌，+X蓝色灵魂。' },
-    { title: '灵魂转换', desc: '响应（每次主动攻击前）：可将1点蓝/黄灵魂互转。' },
-    { title: '灵魂镜像', desc: '法术：移除2黄魂并弃2张牌，目标摸2张（最多补至手牌上限）。' },
-    { title: '灵魂链接', desc: '启动：移除1黄+1蓝并放置链接；你或链接队友承伤前可移除X蓝魂转移X点伤害给另一方（转移后为法术伤害）。' }
-  ]
-})
-
 const showStealthBlockedHint = computed(() => {
   if (props.selectable) return false
   if (!props.isOpponent) return false
@@ -381,12 +235,46 @@ const showStealthBlockedHint = computed(() => {
   return !!props.player.field?.some((fc) => fc.mode === 'Effect' && fc.effect === 'Stealth')
 })
 
+const targetDebugEnabled = computed(() => {
+  if (typeof window === 'undefined') return false
+  const query = new URLSearchParams(window.location.search)
+  return import.meta.env.DEV || query.has('debug') || query.has('debug_target')
+})
+
+function logTargetDebug(stage: string, payload?: Record<string, unknown>) {
+  if (!targetDebugEnabled.value) return
+  const data = {
+    stage,
+    playerId: props.player.id,
+    playerName: props.player.name,
+    selectable: !!props.selectable,
+    selected: !!props.selected,
+    reason: props.debugTargetReason || '',
+    actionMode: store.actionMode,
+    skillMode: store.skillMode,
+    promptType: store.currentPrompt?.type || '',
+    isPromptForMe: store.isPromptForMe,
+    ...payload
+  }
+  console.log('[TargetDebug][PlayerArea]', data)
+  store.addLog(
+    `[TargetDebug][PlayerArea] ${stage} p=${props.player.id} selectable=${String(!!props.selectable)} selected=${String(!!props.selected)} reason=${props.debugTargetReason || ''}`
+  )
+}
+
 function handleClick(e: MouseEvent) {
+  logTargetDebug('click_received')
   if (props.selectable) {
     // 点击技能按钮不触发选目标
-    if ((e.target as HTMLElement).closest('.btn-show-skills')) return
+    if ((e.target as HTMLElement).closest('.btn-show-skills')) {
+      logTargetDebug('click_ignored_skill_button')
+      return
+    }
+    logTargetDebug('emit_select')
     emit('select', props.player.id)
+    return
   }
+  logTargetDebug('click_blocked_not_selectable')
 }
 </script>
 
@@ -446,9 +334,9 @@ function handleClick(e: MouseEvent) {
           <span aria-hidden="true">💖</span>
           <span>{{ player.heal }}/{{ player.max_heal }}</span>
         </div>
-        <div class="player-overlay-stat">
+        <div class="player-overlay-stat" :title="`手牌 ${handCount}/${maxHand}`">
           <span aria-hidden="true">🃏</span>
-          <span>{{ handCount }}</span>
+          <span>{{ handCount }}/{{ maxHand }}</span>
         </div>
         <div v-if="(player.gem || 0) + (player.crystal || 0) > 0" class="player-overlay-resource">
           <span v-if="player.gem" class="flex items-center gap-0.5"><span aria-hidden="true" class="text-red-300">♦</span>{{ player.gem }}</span>
@@ -481,72 +369,6 @@ function handleClick(e: MouseEvent) {
           <span>{{ token.label }}</span>
           <span class="font-bold">×{{ token.value }}</span>
         </span>
-      </div>
-
-      <div v-if="fighterStatusLines.length" class="player-overlay-ml-status">
-        <div
-          v-for="(line, idx) in fighterStatusLines"
-          :key="`fighter-status-${idx}`"
-          class="player-overlay-ml-line"
-        >
-          {{ line }}
-        </div>
-      </div>
-
-      <div v-if="fighterSkillBriefs.length" class="player-overlay-ml-skills">
-        <div class="player-overlay-ml-title">格斗家状态说明</div>
-        <div
-          v-for="item in fighterSkillBriefs"
-          :key="item.title"
-          class="player-overlay-ml-skill-item"
-        >
-          <span class="player-overlay-ml-skill-name">{{ item.title }}：</span>
-          <span class="player-overlay-ml-skill-desc">{{ item.desc }}</span>
-        </div>
-      </div>
-
-      <div v-if="holyBowStatusLines.length" class="player-overlay-ml-status">
-        <div
-          v-for="(line, idx) in holyBowStatusLines"
-          :key="`holy-bow-status-${idx}`"
-          class="player-overlay-ml-line"
-        >
-          {{ line }}
-        </div>
-      </div>
-
-      <div v-if="holyBowSkillBriefs.length" class="player-overlay-ml-skills">
-        <div class="player-overlay-ml-title">圣弓状态说明</div>
-        <div
-          v-for="item in holyBowSkillBriefs"
-          :key="item.title"
-          class="player-overlay-ml-skill-item"
-        >
-          <span class="player-overlay-ml-skill-name">{{ item.title }}：</span>
-          <span class="player-overlay-ml-skill-desc">{{ item.desc }}</span>
-        </div>
-      </div>
-
-      <div v-if="soulSorcererStatusLines.length" class="player-overlay-ml-status">
-        <div
-          v-for="(line, idx) in soulSorcererStatusLines"
-          :key="`soul-sorcerer-status-${idx}`"
-          class="player-overlay-ml-line"
-        >
-          {{ line }}
-        </div>
-      </div>
-
-      <div v-if="soulSorcererSkillBriefs.length" class="player-overlay-ml-skills">
-        <div class="player-overlay-ml-title">灵魂术士状态说明</div>
-        <div
-          v-for="item in soulSorcererSkillBriefs"
-          :key="item.title"
-          class="player-overlay-ml-skill-item"
-        >
-          <span class="player-overlay-ml-skill-name">{{ item.title }}：</span>
-          <span class="player-overlay-ml-skill-desc">{{ item.desc }}</span>
-        </div>
       </div>
     </div>
 

@@ -4,48 +4,25 @@ import { useGameStore } from '../stores/gameStore'
 
 const store = useGameStore()
 
-const duelAttacker = computed(() => {
-  const cue = store.combatCue
-  if (!cue) return null
-  return store.players[cue.attackerId] || null
-})
-const duelTarget = computed(() => {
-  const cue = store.combatCue
-  if (!cue) return null
-  return store.players[cue.targetId] || null
-})
 const duelPhaseLabel = computed(() => {
   const phase = store.combatCue?.phase
   if (phase === 'attack') return '攻击'
   if (phase === 'defend') return '防御'
   if (phase === 'counter') return '应战'
-  return '承受'
+  if (phase === 'shield') return '圣盾'
+  return '命中'
 })
-function charImage(role?: string) {
-  if (!role) return ''
-  return `/characters/${role}.png`
-}
 </script>
 
 <template>
   <div class="battle-zone battle-zone-shell min-h-[90px]">
     <div class="battle-content">
-      <div v-if="duelAttacker && duelTarget && store.combatCue" :key="store.combatCue.id" class="duel-stage">
-        <div class="duel-side attacker" :class="{ 'pulse-attack': store.combatCue.phase === 'attack' || store.combatCue.phase === 'counter' }">
-          <img :src="charImage(duelAttacker.role)" :alt="duelAttacker.name" class="duel-portrait" />
-          <div class="duel-name">{{ duelAttacker.name }}</div>
-        </div>
-        <div class="duel-center">
-          <div class="duel-effect" :class="`phase-${store.combatCue.phase}`">{{ duelPhaseLabel }}</div>
-        </div>
-        <div class="duel-side target" :class="{ 'pulse-defend': store.combatCue.phase === 'defend' || store.combatCue.phase === 'take' }">
-          <img :src="charImage(duelTarget.role)" :alt="duelTarget.name" class="duel-portrait" />
-          <div class="duel-name">{{ duelTarget.name }}</div>
-        </div>
+      <div v-if="store.combatCue" :key="store.combatCue.id" class="duel-center-only">
+        <div class="duel-effect" :class="`phase-${store.combatCue.phase}`">{{ duelPhaseLabel }}</div>
       </div>
 
       <div
-        v-if="!(duelAttacker && duelTarget && store.combatCue)"
+        v-else
         class="battle-idle-label"
       >
         <span class="battle-idle-icon">⚔</span>
@@ -129,51 +106,17 @@ function charImage(role?: string) {
   justify-content: center;
 }
 
-.duel-stage {
-  width: min(380px, 100%);
+.duel-center-only {
+  width: min(360px, 100%);
   min-height: 90px;
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 6px;
-  animation: duelShow 0.2s ease-out;
-}
-
-.duel-side {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.duel-portrait {
-  width: 50px;
-  height: 62px;
-  object-fit: cover;
-  border-radius: 8px;
-  border: 1px solid rgba(150, 182, 201, 0.62);
-  box-shadow: 0 8px 18px rgba(2, 8, 18, 0.44);
-}
-
-.duel-name {
-  margin-top: 4px;
-  font-size: 10px;
-  color: #dceaf5;
-  text-align: center;
-  max-width: 90px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.duel-center {
   display: flex;
   align-items: center;
   justify-content: center;
+  animation: duelShow 0.2s ease-out;
 }
 
 .duel-effect {
-  min-width: 78px;
+  min-width: 86px;
   text-align: center;
   font-size: 12px;
   font-weight: 700;
@@ -199,18 +142,20 @@ function charImage(role?: string) {
   background: rgba(19, 60, 92, 0.84);
 }
 
+.duel-effect.phase-shield {
+  color: #f5f8ff;
+  border-color: rgba(183, 216, 255, 0.9);
+  background: rgba(28, 52, 86, 0.9);
+  box-shadow:
+    0 0 0 1px rgba(207, 230, 255, 0.32),
+    0 6px 22px rgba(26, 80, 146, 0.45),
+    0 0 26px rgba(148, 199, 255, 0.35);
+}
+
 .duel-effect.phase-take {
   color: #fbe9c5;
   border-color: rgba(227, 192, 132, 0.6);
   background: rgba(90, 63, 34, 0.82);
-}
-
-.pulse-attack {
-  animation: hitPush 0.26s ease-out;
-}
-
-.pulse-defend {
-  animation: shieldPulse 0.28s ease-out;
 }
 
 @keyframes duelShow {
@@ -224,31 +169,20 @@ function charImage(role?: string) {
   100% { transform: scale(1); opacity: 1; }
 }
 
-@keyframes hitPush {
-  0% { transform: translateX(0) scale(1); }
-  45% { transform: translateX(4px) scale(1.03); }
-  100% { transform: translateX(0) scale(1); }
-}
-
-@keyframes shieldPulse {
-  0% { transform: scale(1); filter: brightness(1); }
-  50% { transform: scale(1.03); filter: brightness(1.15); }
-  100% { transform: scale(1); filter: brightness(1); }
-}
-
 @media (min-width: 1600px) {
   .battle-zone-shell {
     padding: 12px 12px 10px;
   }
 
-  .duel-stage {
-    width: min(460px, 100%);
+  .duel-center-only {
+    width: min(420px, 100%);
     min-height: 106px;
   }
 
-  .duel-portrait {
-    width: 58px;
-    height: 72px;
+  .duel-effect {
+    min-width: 96px;
+    font-size: 13px;
+    padding: 7px 14px;
   }
 }
 
@@ -257,20 +191,15 @@ function charImage(role?: string) {
     padding: 14px 14px 12px;
   }
 
-  .duel-stage {
-    width: min(520px, 100%);
+  .duel-center-only {
+    width: min(480px, 100%);
     min-height: 118px;
   }
 
-  .duel-portrait {
-    width: 66px;
-    height: 82px;
-  }
-
   .duel-effect {
-    min-width: 92px;
-    font-size: 13px;
-    padding: 7px 14px;
+    min-width: 106px;
+    font-size: 14px;
+    padding: 8px 16px;
   }
 }
 
@@ -296,25 +225,15 @@ function charImage(role?: string) {
     padding: 8px 8px 6px;
   }
 
-  .duel-stage {
+  .duel-center-only {
     width: min(320px, 100%);
     min-height: 78px;
   }
 
-  .duel-portrait {
-    width: 42px;
-    height: 52px;
-  }
-
   .duel-effect {
-    min-width: 64px;
+    min-width: 72px;
     font-size: 11px;
     padding: 5px 9px;
-  }
-
-  .duel-name {
-    font-size: 9px;
-    margin-top: 3px;
   }
 }
 </style>

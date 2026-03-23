@@ -127,6 +127,7 @@ type PlayerView struct {
 	Camp               string             `json:"camp"`
 	Role               string             `json:"role"`
 	HandCount          int                `json:"hand_count"`
+	MaxHand            int                `json:"max_hand"`
 	ExclusiveCardCount int                `json:"exclusive_card_count"`
 	Hand               []model.Card       `json:"hand,omitempty"`            // Only for self
 	Blessings          []model.Card       `json:"blessings,omitempty"`       // Only for self (精灵射手祝福)
@@ -222,6 +223,10 @@ func (r *Room) handleRegister(client *Client) {
 	hasReconnectParams := client.ReconnectPlayerID != "" || client.ReconnectToken != ""
 	if hasReconnectParams {
 		if r.tryReconnectLocked(client) {
+			return
+		}
+		// token 校验失败时，允许按“房间码+player_id”兜底认领离线席位。
+		if r.tryReconnectByPlayerIDLocked(client) {
 			return
 		}
 		// token 失效时，允许按“房间码+名字”兜底认领离线席位。
@@ -418,6 +423,39 @@ func (r *Room) tryReconnectByNameLocked(client *Client) bool {
 		return false
 	}
 	return r.reconnectIntoSeatLocked(client, matched, "通过房间码+玩家名重连成功")
+}
+
+func (r *Room) tryReconnectByPlayerIDLocked(client *Client) bool {
+	if client == nil {
+		return false
+	}
+	playerID := strings.TrimSpace(client.ReconnectPlayerID)
+	if playerID == "" {
+		return false
+	}
+	existing, ok := r.Clients[playerID]
+	if !ok || existing == nil {
+		log.Printf("Reconnect by player_id failed in room %s: target player %s not found", r.Code, playerID)
+		return false
+	}
+
+	// 允许认领：
+	// 1) 离线的人类席位；2) 房主手动切换出来的托管席位。
+	if existing.IsBot {
+		if existing.BotMode != "takeover" {
+			log.Printf("Reconnect by player_id failed in room %s: target player %s is non-takeover bot", r.Code, playerID)
+			return false
+		}
+	} else if !existing.Disconnected {
+		log.Printf("Reconnect by player_id failed in room %s: target player %s still online", r.Code, playerID)
+		return false
+	}
+
+	if client.Name != "" && !strings.EqualFold(strings.TrimSpace(client.Name), strings.TrimSpace(existing.Name)) {
+		log.Printf("Reconnect by player_id accepted in room %s: incoming_name=%s, seat_name=%s, player_id=%s",
+			r.Code, client.Name, existing.Name, playerID)
+	}
+	return r.reconnectIntoSeatLocked(client, existing, "通过房间码+玩家ID重连成功")
 }
 
 func (r *Room) reconnectIntoSeatLocked(client *Client, existing *Client, successMessage string) bool {
@@ -1113,6 +1151,35 @@ func countBloodSharedLifeAsSource(state *model.GameState, sourceID string) int {
 	return count
 }
 
+func countBloodSharedLifeAsHolder(player *model.Player) int {
+	if player == nil {
+		return 0
+	}
+	count := 0
+	for _, fc := range player.Field {
+		if fc == nil || fc.Mode != model.FieldEffect || fc.Effect != model.EffectBloodSharedLife {
+			continue
+		}
+		count++
+	}
+	return count
+}
+
+// 当前手牌上限仅用于展示，避免直接对引擎内玩家对象调用 GetMaxHand 带来状态副作用。
+func (r *Room) previewMaxHand(player *model.Player) int {
+	if player == nil {
+		return 0
+	}
+	playerCopy := *player
+	if player.Tokens != nil {
+		playerCopy.Tokens = make(map[string]int, len(player.Tokens))
+		for k, v := range player.Tokens {
+			playerCopy.Tokens[k] = v
+		}
+	}
+	return r.Engine.GetMaxHand(&playerCopy)
+}
+
 func buildMaskedFieldForViewer(owner *model.Player, viewerID string) []*model.FieldCard {
 	if owner == nil || len(owner.Field) == 0 {
 		return nil
@@ -1159,6 +1226,7 @@ func (r *Room) buildStateForPlayer(playerID string) GameStateUpdate {
 			Camp:               string(p.Camp),
 			Role:               p.Role,
 			HandCount:          len(p.Hand),
+			MaxHand:            r.previewMaxHand(p),
 			ExclusiveCardCount: len(p.ExclusiveCards),
 			Field:              buildMaskedFieldForViewer(p, playerID),
 			Heal:               p.Heal,
@@ -1174,6 +1242,7 @@ func (r *Room) buildStateForPlayer(playerID string) GameStateUpdate {
 		}
 		delete(view.Tokens, "adventurer_extract_last_gem")
 		delete(view.Tokens, "adventurer_extract_last_crystal")
+		delete(view.Tokens, "mg_moon_cycle_used_turn")
 		// 魔枪公开状态：下次主动攻击加成/当回合互斥锁，便于前端角色面板展示。
 		if p.TurnState.UsedSkillCounts != nil {
 			if v := p.TurnState.UsedSkillCounts["ml_dark_release_next_attack_bonus"]; v > 0 {
@@ -1218,6 +1287,12 @@ func (r *Room) buildStateForPlayer(playerID string) GameStateUpdate {
 			view.Tokens["bp_shared_life_active"] = sharedLifeCount
 		} else {
 			delete(view.Tokens, "bp_shared_life_active")
+		}
+		sharedLifeBoundCount := countBloodSharedLifeAsHolder(p)
+		if sharedLifeBoundCount > 0 {
+			view.Tokens["bp_shared_life_bound"] = sharedLifeBoundCount
+		} else {
+			delete(view.Tokens, "bp_shared_life_bound")
 		}
 		// 蝶舞者茧数量（盖牌内容对他人隐藏，仅展示数量）。
 		cocoonCount := countButterflyCocoons(p)

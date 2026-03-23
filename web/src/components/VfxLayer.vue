@@ -28,9 +28,6 @@
           <CardComponent :card="c" :face-down="fc.hidden" small class="shadow-2xl" />
         </div>
       </div>
-      <div v-if="fc.label" class="mt-2 px-2 py-0.5 bg-black/60 text-white text-xs rounded-full shadow-lg border border-white/20">
-        {{ fc.label }}
-      </div>
     </div>
   </div>
 </template>
@@ -65,7 +62,6 @@ interface FlyingCardEntity {
   cards: Card[]
   hidden?: boolean
   actionType: string
-  label?: string
   x: number
   y: number
   transform: string
@@ -77,15 +73,6 @@ interface FlyingCardEntity {
 }
 
 const displayCards = ref<FlyingCardEntity[]>([])
-
-const actionLabels: Record<string, string> = {
-  attack: '攻击',
-  magic: '法术',
-  counter: '应战',
-  defend: '抵挡',
-  skill: '发动技能',
-  discard: '弃牌'
-}
 
 function getElementCenter(selector: string) {
   const el = document.querySelector(selector)
@@ -102,20 +89,30 @@ function getElementCenter(selector: string) {
   }
 }
 
+function getBattleCenter() {
+  const centerBattle = getElementCenter('.center-battle')
+  if (centerBattle) return centerBattle
+  const battleZone = getElementCenter('.battle-zone-fill')
+  if (battleZone) return battleZone
+
+  const boardEl = document.querySelector('.board-shell')
+  if (!boardEl) return { x: window.innerWidth / 2, y: window.innerHeight / 2 }
+  const r = boardEl.getBoundingClientRect()
+  return {
+    x: r.width / 2,
+    y: r.height / 2
+  }
+}
+
 watch(() => store.flyingCards, (newVals) => {
   // 1. 处理新增的卡牌
   newVals.forEach(batch => {
     if (!displayCards.value.some(f => f.id === batch.id)) {
       nextTick(() => {
         const pCenter = getElementCenter(`[data-player-anchor="${batch.playerId}"]`)
-        const boardEl = document.querySelector('.board-shell')
-        let destX = window.innerWidth / 2
-        let destY = window.innerHeight / 2
-        if (boardEl) {
-          const r = boardEl.getBoundingClientRect()
-          destX = r.width / 2
-          destY = r.height / 2
-        }
+        const battleCenter = getBattleCenter()
+        const destX = battleCenter.x
+        const destY = battleCenter.y
 
         const startX = pCenter ? pCenter.x - 40 : destX - 40
         const startY = pCenter ? pCenter.y - 60 : destY - 60
@@ -132,7 +129,6 @@ watch(() => store.flyingCards, (newVals) => {
           targetOffsetX: offsetX,
           targetOffsetY: offsetY,
           actionType: batch.actionType,
-          label: actionLabels[batch.actionType] || batch.actionType,
           x: startX,
           y: startY,
           transform: 'scale(0.3) rotate(-15deg)',

@@ -105,15 +105,48 @@ func (sd *SkillDispatcher) OnTrigger(trigger model.TriggerType, ctx *model.Conte
 	case model.TriggerBeforeMoraleLoss:
 		// 上下文的 User 是导致士气下降的受害者 (Victim)
 		if ctx.User != nil {
-			// 遍历所有玩家，找出同阵营的队友 (包括自己)
-			for _, p := range sd.engine.State.Players {
-				if p.Camp == ctx.User.Camp {
-					// 这里的 RoleAny 表示队友是以“旁观者/盟友”的身份介入
-					targetsToCheck = append(targetsToCheck, checkTarget{
-						Player: p,
-						Role:   model.RoleAny,
-					})
+			// TriggerBeforeMoraleLoss 需要稳定顺序：
+			// 1) 先按座次(PlayerOrder)遍历同阵营角色，避免 map 迭代随机顺序；
+			// 2) 灵魂术士（灵魂吞噬）放在最后，确保其基于“最终士气损失”判定，避免被抵消前抢先加魂。
+			orderedPlayers := make([]*model.Player, 0, len(sd.engine.State.Players))
+			seen := make(map[string]struct{}, len(sd.engine.State.Players))
+			for _, pid := range sd.engine.State.PlayerOrder {
+				p := sd.engine.State.Players[pid]
+				if p == nil || p.Camp != ctx.User.Camp {
+					continue
 				}
+				orderedPlayers = append(orderedPlayers, p)
+				seen[pid] = struct{}{}
+			}
+			// 兜底：补齐不在 PlayerOrder 的同阵营玩家（通常不会发生）。
+			for pid, p := range sd.engine.State.Players {
+				if p == nil || p.Camp != ctx.User.Camp {
+					continue
+				}
+				if _, ok := seen[pid]; ok {
+					continue
+				}
+				orderedPlayers = append(orderedPlayers, p)
+				seen[pid] = struct{}{}
+			}
+
+			appendTarget := func(p *model.Player) {
+				targetsToCheck = append(targetsToCheck, checkTarget{
+					Player: p,
+					Role:   model.RoleAny,
+				})
+			}
+			for _, p := range orderedPlayers {
+				if p == nil || (p.Character != nil && p.Character.ID == "soul_sorcerer") {
+					continue
+				}
+				appendTarget(p)
+			}
+			for _, p := range orderedPlayers {
+				if p == nil || p.Character == nil || p.Character.ID != "soul_sorcerer" {
+					continue
+				}
+				appendTarget(p)
 			}
 		}
 
@@ -311,6 +344,8 @@ func (sd *SkillDispatcher) processSkills(triggeredSkills []model.SkillDefinition
 		}
 	}
 
+	optionalSkillIDs = sd.normalizeResponseSkillOrder(optionalSkillIDs, ctx)
+
 	// 如果有 Startup 技能，推送 Startup 中断 (优先于 Response)
 	if len(startupSkillIDs) > 0 {
 		sd.engine.State.PendingInterrupt = &model.Interrupt{
@@ -334,6 +369,42 @@ func (sd *SkillDispatcher) processSkills(triggeredSkills []model.SkillDefinition
 		})
 		sd.engine.Log(fmt.Sprintf("%s 有 %d 个响应技能可以发动", ctx.User.Name, len(optionalSkillIDs)))
 	}
+}
+
+// normalizeResponseSkillOrder 对特定角色/时机的响应技能进行顺序规范化。
+// 当前规则：格斗家在主动攻击前若同时满足【蓄力一击】与【气绝崩击】，
+// 首次仅展示【蓄力一击】；若玩家跳过，再由 SkipResponse 推进到【气绝崩击】。
+func (sd *SkillDispatcher) normalizeResponseSkillOrder(skillIDs []string, ctx *model.Context) []string {
+	if len(skillIDs) <= 1 || ctx == nil || ctx.User == nil {
+		return skillIDs
+	}
+	if ctx.Trigger != model.TriggerOnAttackStart {
+		return skillIDs
+	}
+	if !sd.engine.isFighter(ctx.User) {
+		return skillIDs
+	}
+	if ctx.TriggerCtx == nil || ctx.TriggerCtx.AttackInfo == nil {
+		return skillIDs
+	}
+	// 仅在“主动攻击前”生效，不影响应战攻击分支。
+	if ctx.TriggerCtx.AttackInfo.CounterInitiator != "" {
+		return skillIDs
+	}
+
+	hasCharge := false
+	hasBurst := false
+	for _, sid := range skillIDs {
+		if sid == "fighter_charge_strike" {
+			hasCharge = true
+		} else if sid == "fighter_burst_crash" {
+			hasBurst = true
+		}
+	}
+	if hasCharge && hasBurst {
+		return []string{"fighter_charge_strike"}
+	}
+	return skillIDs
 }
 
 // uniqueSkillCardMatches 校验独有技是否由当前角色打出对应独有牌触发。

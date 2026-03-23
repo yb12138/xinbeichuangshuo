@@ -189,19 +189,13 @@ func (h *BloodPriestessBloodCurseHandler) Execute(ctx *model.Context) error {
 		discardNeed = len(ctx.User.Hand)
 	}
 	if discardNeed > 0 {
-		remaining := make([]int, 0, len(ctx.User.Hand))
-		for i := range ctx.User.Hand {
-			remaining = append(remaining, i)
-		}
 		ctx.Game.PushInterrupt(&model.Interrupt{
 			Type:     model.InterruptChoice,
 			PlayerID: ctx.User.ID,
 			Context: map[string]interface{}{
-				"choice_type":       "bp_curse_discard",
-				"user_id":           ctx.User.ID,
-				"discard_count":     discardNeed,
-				"remaining_indices": remaining,
-				"selected_indices":  []int{},
+				"choice_type":   "bp_curse_discard",
+				"user_id":       ctx.User.ID,
+				"discard_count": discardNeed,
 			},
 		})
 	}

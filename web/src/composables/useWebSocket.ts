@@ -239,6 +239,14 @@ export function useWebSocket() {
       if (!id) return ''
       return store.players[id]?.name || id
     }
+    const resolvePlayerIdByToken = (token?: string) => {
+      if (!token) return ''
+      const normalized = token.trim()
+      if (!normalized) return ''
+      if (store.players[normalized]) return normalized
+      const byName = playerByName(normalized)
+      return byName?.id || ''
+    }
     const normalizeCamp = (camp?: string): 'Red' | 'Blue' | undefined => {
       if (camp === 'Red' || camp === 'Blue') return camp
       return undefined
@@ -319,6 +327,15 @@ export function useWebSocket() {
         if (event.message) {
           store.addLog(event.message)
           parseMoraleHintFromLog(event.message)
+          // 技能链路：发起技能时将发起者立绘平移到战区，直至结算完成。
+          const skillActorToken =
+            event.message.match(/^\[Skill\]\s*(.+?)\s*使用了技能[:：]/)?.[1] ||
+            event.message.match(/^(.+?)\s*发动\s*\[[^\]]+\]/)?.[1] ||
+            ''
+          const skillActorId = resolvePlayerIdByToken(skillActorToken)
+          if (skillActorId) {
+            store.startSkillInitiatorFocus(skillActorId, 'skill')
+          }
           // 技能发动日志：弹出明显提示
           const m = event.message.match(/发动\s*\[([^\]]+)\]/)
           if (m) {
@@ -329,6 +346,11 @@ export function useWebSocket() {
         
       case 'state_update':
         if (event.state) {
+          // 重连到进行中的对局时，后端会先补发 state_update（不一定再发 started）。
+          // 看到有效状态即切回对战页，避免卡在大厅。
+          if (!store.gameStarted) {
+            store.setGameStarted()
+          }
           const prevCurrent = store.currentPlayer
           const prevRedMorale = store.redMorale
           const prevBlueMorale = store.blueMorale
@@ -374,6 +396,9 @@ export function useWebSocket() {
       case 'prompt':
         if (event.prompt) {
           store.setPrompt(event.prompt)
+          if (event.prompt.player_id) {
+            store.touchSkillInitiatorFocus(event.prompt.player_id)
+          }
           store.setWaiting('')
         }
         break
@@ -428,6 +453,9 @@ export function useWebSocket() {
             event.action_type || 'discard',
             event.hidden
           )
+          if (event.action_type === 'magic') {
+            store.startSkillInitiatorFocus(event.player_id, 'magic')
+          }
         }
         break
 
@@ -440,18 +468,20 @@ export function useWebSocket() {
             event.damage,
             event.damage_type || 'Attack'
           )
-
+          store.settleSkillInitiatorFocus(event.source_id)
         }
         break
 
       case 'action_step':
         // 行动步骤：桌面展示行动流程
-        if (event.line && event.kind === 'summary') {
+        if (event.line) {
           store.addActionStep(event.line)
-          store.addBattleFeed({
-            type: 'system',
-            title: event.line
-          })
+          if (event.kind === 'summary') {
+            store.addBattleFeed({
+              type: 'system',
+              title: event.line
+            })
+          }
         }
         break
 
@@ -480,7 +510,13 @@ export function useWebSocket() {
       type: 'action',
       payload: action
     }
-    
+
+    if (action.type === 'Skill' && action.player_id) {
+      store.startSkillInitiatorFocus(action.player_id, 'skill')
+    }
+    if (action.type === 'Magic' && action.player_id) {
+      store.startSkillInitiatorFocus(action.player_id, 'magic')
+    }
     store.addLog(`[WS][TX] action: ${safeStringify(action)}`)
     ws.send(JSON.stringify(msg))
   }

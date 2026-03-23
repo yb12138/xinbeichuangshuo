@@ -138,7 +138,7 @@ func (h *HeroForbiddenPowerHandler) Execute(ctx *model.Context) error {
 		ctx.Game.Log(fmt.Sprintf("%s 发动 [禁断之力]：弃掉%d张手牌（法术%d/火%d），怒气=%d；本次攻击伤害额外+%d并对自己造成%d点法术伤害；进入精疲力竭并获得额外攻击行动",
 			ctx.User.Name, len(handCards), magicCount, fireCount, anger, fireCount, fireCount))
 	case model.TriggerOnAttackMiss:
-		ctx.Game.Log(fmt.Sprintf("%s 发动 [禁断之力]：弃掉%d张手牌（法术%d/水%d），怒气=%d，知性+%d；进入精疲力竭并获得额外攻击行动",
+		ctx.Game.Log(fmt.Sprintf("%s 发动 [禁断之力]：弃掉%d张手牌（法术%d/水系%d），怒气=%d，知性+%d；进入精疲力竭并获得额外攻击行动",
 			ctx.User.Name, len(handCards), magicCount, waterCount, anger, wisdomGain))
 	}
 	return nil

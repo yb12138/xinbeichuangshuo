@@ -82,7 +82,7 @@ func TestSoulSorcerer_StartGameInitAndStarterCard(t *testing.T) {
 	}
 }
 
-func TestSoulSorcererSoulRecall_PickThenDone(t *testing.T) {
+func TestSoulSorcererSoulRecall_MultiSelectSubmit(t *testing.T) {
 	game, p1, _ := setupSoulSorcererActionTurn(t)
 	p1.Hand = []model.Card{
 		soulSorcererTestCard("m1", "法术A", model.CardTypeMagic, model.ElementWater),
@@ -94,16 +94,18 @@ func TestSoulSorcererSoulRecall_PickThenDone(t *testing.T) {
 		t.Fatalf("use ss_soul_recall failed: %v", err)
 	}
 	requireChoicePrompt(t, game, "p1", "ss_recall_pick")
-
-	// 先选择第1张法术牌（选项0是“完成”，所以牌从1开始）。
-	if err := game.handleWeakChoiceInput("p1", 1); err != nil {
-		t.Fatalf("choose recall card failed: %v", err)
+	prompt := game.GetCurrentPrompt()
+	if prompt == nil || prompt.Type != model.PromptChooseCards {
+		t.Fatalf("expected choose_cards prompt for soul recall, got %+v", prompt)
 	}
-	requireChoicePrompt(t, game, "p1", "ss_recall_pick")
 
-	// 完成选择并结算。
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
-		t.Fatalf("finish recall failed: %v", err)
+	// 直接多选提交（此处只选1张法术牌）。
+	if err := game.HandleAction(model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{1},
+	}); err != nil {
+		t.Fatalf("submit soul recall selections failed: %v", err)
 	}
 
 	if got := p1.Tokens["ss_blue_soul"]; got != 1 {
@@ -114,6 +116,83 @@ func TestSoulSorcererSoulRecall_PickThenDone(t *testing.T) {
 	}
 	if got := len(game.State.DiscardPile); got != 1 {
 		t.Fatalf("expected discard pile +1, got %d", got)
+	}
+}
+
+func TestSoulSorcererSoulConvert_OnAttackStartChoice_DoesNotStallInResponsePhase(t *testing.T) {
+	game, p1, _ := setupSoulSorcererActionTurn(t)
+	p1.Tokens["ss_blue_soul"] = 1
+	p1.Tokens["ss_yellow_soul"] = 0
+	p1.Hand = []model.Card{
+		soulSorcererTestCard("atk1", "暗袭", model.CardTypeAttack, model.ElementDark),
+	}
+
+	mustHandleAction(t, game, model.PlayerAction{
+		PlayerID:  "p1",
+		Type:      model.CmdAttack,
+		TargetID:  "p2",
+		CardIndex: 0,
+	})
+
+	requireResponseSkillPrompt(t, game, "p1")
+	chooseResponseSkillByID(t, game, "p1", "ss_soul_convert")
+	requireChoicePrompt(t, game, "p1", "ss_convert_color")
+	mustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{0},
+	})
+
+	if game.State.Phase == model.PhaseResponse && game.State.PendingInterrupt == nil {
+		t.Fatalf("phase should not stay in empty response after ss_convert_color")
+	}
+	if got := p1.Tokens["ss_blue_soul"]; got != 0 {
+		t.Fatalf("expected blue soul converted to 0, got %d", got)
+	}
+	if got := p1.Tokens["ss_yellow_soul"]; got != 1 {
+		t.Fatalf("expected yellow soul +1 after convert, got %d", got)
+	}
+	if len(game.State.CombatStack) == 0 {
+		t.Fatalf("expected attack flow resumed into combat stack after conversion")
+	}
+}
+
+func TestSoulSorcererSoulConvert_ChoiceFallback_NoUserCtxShouldNotStayResponse(t *testing.T) {
+	game, p1, _ := setupSoulSorcererActionTurn(t)
+	p1.Tokens["ss_blue_soul"] = 1
+	p1.Tokens["ss_yellow_soul"] = 0
+
+	// 构造一个缺少 user_ctx 的选择中断，模拟线上异常链路；
+	// 即使当前阶段是 Response，也不应在选择后停留在空 Response。
+	game.State.Phase = model.PhaseResponse
+	game.State.ActionStack = []model.Action{
+		{Type: model.ActionAttack, SourceID: "p1", TargetID: "p2"},
+	}
+	game.State.PendingInterrupt = &model.Interrupt{
+		Type:     model.InterruptChoice,
+		PlayerID: "p1",
+		Context: map[string]interface{}{
+			"choice_type": "ss_convert_color",
+			"user_id":     "p1",
+			"mode_order":  []string{"b2y"},
+		},
+	}
+
+	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+		t.Fatalf("ss_convert_color fallback resolve failed: %v", err)
+	}
+
+	if game.State.PendingInterrupt != nil {
+		t.Fatalf("expected interrupt cleared, got %+v", game.State.PendingInterrupt)
+	}
+	if game.State.Phase == model.PhaseResponse {
+		t.Fatalf("phase should not stay in empty response after ss_convert_color fallback")
+	}
+	if got := p1.Tokens["ss_blue_soul"]; got != 0 {
+		t.Fatalf("expected blue soul converted to 0, got %d", got)
+	}
+	if got := p1.Tokens["ss_yellow_soul"]; got != 1 {
+		t.Fatalf("expected yellow soul +1 after convert, got %d", got)
 	}
 }
 
@@ -175,6 +254,45 @@ func TestSoulSorcererSoulBlast_ConditionalBonusDamage(t *testing.T) {
 	pd := game.State.PendingDamageQueue[0]
 	if pd.TargetID != "p2" || pd.DamageType != "magic" || pd.Damage != 5 {
 		t.Fatalf("unexpected soul blast pending damage: %+v", pd)
+	}
+}
+
+func TestSoulSorcererSoulBlast_NoBonusWhenDynamicMaxHandIsNotGreaterThanFive(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "Soul", "soul_sorcerer", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Hero", "hero", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Tokens["ss_yellow_soul"] = 3
+	p1.ExclusiveCards = append(p1.ExclusiveCards, soulSorcererExclusiveCard(p1.Character.Name, "灵魂震爆"))
+	// 勇者精疲力竭时动态手牌上限应为4，不满足“上限>5”的加伤条件。
+	p2.Tokens["hero_exhaustion_form"] = 1
+	p2.Hand = []model.Card{
+		soulSorcererTestCard("t1", "少牌1", model.CardTypeAttack, model.ElementFire),
+		soulSorcererTestCard("t2", "少牌2", model.CardTypeAttack, model.ElementWater),
+	}
+	game.State.CurrentTurn = 0
+	game.State.Phase = model.PhaseActionSelection
+
+	if got := game.GetMaxHand(p2); got != 4 {
+		t.Fatalf("expected exhausted hero dynamic max hand=4, got %d", got)
+	}
+	if err := game.UseSkill("p1", "ss_soul_blast", []string{"p2"}, nil); err != nil {
+		t.Fatalf("use ss_soul_blast failed: %v", err)
+	}
+	if len(game.State.PendingDamageQueue) == 0 {
+		t.Fatalf("expected pending damage from soul blast")
+	}
+	pd := game.State.PendingDamageQueue[0]
+	if pd.Damage != 3 {
+		t.Fatalf("expected soul blast no bonus damage when dynamic max hand<=5, got %+v", pd)
 	}
 }
 

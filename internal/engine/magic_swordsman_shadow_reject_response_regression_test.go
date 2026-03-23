@@ -104,3 +104,64 @@ func TestMagicSwordsmanShadowReject_AllowMagicBulletCounterOutsideOwnTurn(t *tes
 		t.Fatalf("expected magic bullet consumed on counter, got hand=%d", len(p1.Hand))
 	}
 }
+
+// 回归：魔剑士【暗影抗拒】在非自己行动阶段，可在普通战斗应战中使用【魔弹】。
+func TestMagicSwordsmanShadowReject_AllowMagicBulletCounterOutsideOwnTurnCombat(t *testing.T) {
+	g := NewGameEngine(nil)
+	if err := g.AddPlayer("p1", "MS", "magic_swordsman", model.RedCamp); err != nil {
+		t.Fatalf("add p1 failed: %v", err)
+	}
+	if err := g.AddPlayer("p2", "ATK", "angel", model.BlueCamp); err != nil {
+		t.Fatalf("add p2 failed: %v", err)
+	}
+	// 应战反弹目标必须是“攻击方队友”，因此补一个同阵营目标。
+	if err := g.AddPlayer("p3", "ALLY", "berserker", model.BlueCamp); err != nil {
+		t.Fatalf("add p3 failed: %v", err)
+	}
+
+	p1 := g.State.Players["p1"]
+	p2 := g.State.Players["p2"]
+	p3 := g.State.Players["p3"]
+	p1.IsActive = false
+	p2.IsActive = true
+	p3.IsActive = false
+	p1.Tokens["ms_shadow_form"] = 1
+	p1.Hand = []model.Card{
+		{ID: "mb_1", Name: "魔弹", Type: model.CardTypeMagic, Element: model.ElementWater, Damage: 2},
+	}
+	p2.Hand = []model.Card{
+		{ID: "atk_1", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 1},
+	}
+
+	g.State.CurrentTurn = 1
+	g.State.Phase = model.PhaseActionSelection
+
+	mustHandleActionNoErr(t, g, model.PlayerAction{
+		PlayerID:  "p2",
+		Type:      model.CmdAttack,
+		TargetID:  "p1",
+		CardIndex: 0,
+	})
+	if g.State.Phase != model.PhaseCombatInteraction {
+		t.Fatalf("expected combat interaction phase, got %s", g.State.Phase)
+	}
+
+	mustHandleActionNoErr(t, g, model.PlayerAction{
+		PlayerID:  "p1",
+		Type:      model.CmdRespond,
+		CardIndex: 0,
+		TargetID:  "p3",
+		ExtraArgs: []string{"counter"},
+	})
+
+	if len(p1.Hand) != 0 {
+		t.Fatalf("expected magic bullet consumed on combat counter, got hand=%d", len(p1.Hand))
+	}
+	if len(g.State.CombatStack) == 0 {
+		t.Fatalf("expected reflected combat request on stack")
+	}
+	top := g.State.CombatStack[len(g.State.CombatStack)-1]
+	if top.AttackerID != "p1" || top.TargetID != "p3" {
+		t.Fatalf("expected reflected combat p1 -> p3, got %s -> %s", top.AttackerID, top.TargetID)
+	}
+}

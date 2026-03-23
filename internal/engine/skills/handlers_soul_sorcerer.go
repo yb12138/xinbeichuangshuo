@@ -109,10 +109,9 @@ func (h *SoulSorcererSoulRecallHandler) Execute(ctx *model.Context) error {
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
 		Context: map[string]interface{}{
-			"choice_type":      "ss_recall_pick",
-			"user_id":          ctx.User.ID,
-			"remaining_indices": magicIndices,
-			"selected_indices":  []int{},
+			"choice_type":   "ss_recall_pick",
+			"user_id":       ctx.User.ID,
+			"magic_indices": magicIndices,
 		},
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [灵魂召还]：请选择要弃置的法术牌", ctx.User.Name))
@@ -159,6 +158,7 @@ func (h *SoulSorcererSoulConvertHandler) Execute(ctx *model.Context) error {
 			"choice_type": "ss_convert_color",
 			"user_id":     ctx.User.ID,
 			"mode_order":  modeOrder,
+			"user_ctx":    ctx,
 		},
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [灵魂转换]：请选择转换方向", ctx.User.Name))
@@ -219,7 +219,13 @@ func (h *SoulSorcererSoulBlastHandler) Execute(ctx *model.Context) error {
 	}
 	addSoulYellow(ctx.User, -3)
 	damage := 3
-	if len(target.Hand) < 3 && target.MaxHand > 5 {
+	maxHand := target.MaxHand
+	if gameWithDynamicMaxHand, ok := ctx.Game.(interface {
+		GetMaxHand(*model.Player) int
+	}); ok {
+		maxHand = gameWithDynamicMaxHand.GetMaxHand(target)
+	}
+	if len(target.Hand) < 3 && maxHand > 5 {
 		damage += 2
 	}
 	ctx.Game.AddPendingDamage(model.PendingDamage{
@@ -324,4 +330,3 @@ func (h *SoulSorcererSoulAmpHandler) Execute(ctx *model.Context) error {
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [灵魂增幅]：黄色灵魂+2（当前%d），蓝色灵魂+2（当前%d）", ctx.User.Name, y, b))
 	return nil
 }
-

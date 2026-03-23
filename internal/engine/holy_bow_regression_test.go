@@ -463,23 +463,17 @@ func TestHolyBow_LightBurstModeB_XYBoundaries(t *testing.T) {
 		Type:       model.CmdSelect,
 		Selections: []int{1}, // X=2（最大）
 	})
-	requireChoicePrompt(t, game, "p1", "hb_light_burst_mode_b_target_count")
+	requireChoicePrompt(t, game, "p1", "hb_light_burst_mode_b_targets")
 	mustHandleAction(t, game, model.PlayerAction{
 		PlayerID:   "p1",
 		Type:       model.CmdSelect,
-		Selections: []int{1}, // 选择2名目标（最大）
+		Selections: []int{0}, // 先选第1名目标
 	})
 	requireChoicePrompt(t, game, "p1", "hb_light_burst_mode_b_targets")
 	mustHandleAction(t, game, model.PlayerAction{
 		PlayerID:   "p1",
 		Type:       model.CmdSelect,
-		Selections: []int{0},
-	})
-	requireChoicePrompt(t, game, "p1", "hb_light_burst_mode_b_targets")
-	mustHandleAction(t, game, model.PlayerAction{
-		PlayerID:   "p1",
-		Type:       model.CmdSelect,
-		Selections: []int{0},
+		Selections: []int{1}, // 点击“完成目标选择”（至多X名）
 	})
 	requireChoicePrompt(t, game, "p1", "hb_light_burst_mode_b_discard")
 	mustHandleAction(t, game, model.PlayerAction{
@@ -531,13 +525,14 @@ func TestHolyBow_LightBurstModeB_XYBoundaries(t *testing.T) {
 	if got := len(p1.Hand); got != 0 {
 		t.Fatalf("expected discard X=2 from hand, got hand=%d", got)
 	}
-	// Y=1（两名目标中仅 p2 有治疗），所以每名目标应受 Y+2=3 点攻击伤害。
-	// p2 先抵消1点治疗后摸2张，p3摸3张。
+	// 本用例在 X=2 时提前完成，仅选择了 1 名目标（p2）。
+	// Y=1（已选目标中仅 p2 有治疗），故目标伤害为 Y+2=3。
+	// p2 先抵消1点治疗后摸2张；p3未被指定，不应受到伤害。
 	if got := len(p2.Hand); got != 2 {
 		t.Fatalf("expected enemyA hand draw=2 with heal mitigation, got %d", got)
 	}
-	if got := len(p3.Hand); got != 3 {
-		t.Fatalf("expected enemyB hand draw=3, got %d", got)
+	if got := len(p3.Hand); got != 0 {
+		t.Fatalf("expected enemyB not targeted and hand unchanged, got %d", got)
 	}
 }
 

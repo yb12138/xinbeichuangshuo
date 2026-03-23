@@ -2205,7 +2205,7 @@ func GetCharacters() []model.Character {
 					ID:           "fighter_hundred_dragon",
 					Title:        "百式幻龙拳",
 					Type:         model.SkillTypeStartup,
-					Description:  "持续：移除3斗气并横置。本回合主动攻击伤害+2、应战攻击伤害+1；本回合不能执行法术/特殊行动；主动攻击需锁定同一目标，且不能发动蓄力一击。",
+					Description:  "持续：移除3斗气并横置。主动攻击伤害+2、应战攻击伤害+1；主动攻击需锁定同一目标，且不能发动蓄力一击。若改为执行法术行动或特殊行动，或主动攻击更换目标，则立即退出该状态。",
 					Trigger:      model.TriggerOnTurnStart,
 					ResponseType: model.ResponseOptional,
 					LogicHandler: "fighter_hundred_dragon",

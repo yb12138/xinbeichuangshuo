@@ -188,8 +188,10 @@ const (
 
 // PromptOption 定义可选项
 type PromptOption struct {
-	ID    string `json:"id"`    // 选项ID (card index / skill id)
-	Label string `json:"label"` // 显示标签
+	ID          string `json:"id"`                     // 选项ID (card index / skill id)
+	Label       string `json:"label"`                  // 原始显示标签（兼容老客户端）
+	ButtonLabel string `json:"button_label,omitempty"` // 按钮短文案（如：发动/放弃/取消/1）
+	Hint        string `json:"hint,omitempty"`         // 选项说明（展示在按钮上方）
 }
 
 // Prompt 定义用户交互提示

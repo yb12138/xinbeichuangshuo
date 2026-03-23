@@ -172,6 +172,7 @@ func (e *GameEngine) applyRoleDefaults(player *model.Player) {
 		player.Tokens["mg_new_moon"] = 0
 		player.Tokens["mg_petrify"] = 0
 		player.Tokens["mg_dark_moon_count"] = 0
+		player.Tokens["mg_moon_cycle_used_turn"] = 0
 		player.Tokens["mg_blasphemy_used_turn"] = 0
 		player.Tokens["mg_blasphemy_pending"] = 0
 		player.Tokens["mg_next_attack_no_counter"] = 0
@@ -1179,6 +1180,39 @@ func (e *GameEngine) Drive() {
 				player.Tokens["bw_flame_release_pending"] = 0
 				e.Log(fmt.Sprintf("%s 脱离烈焰形态并转正", player.Name))
 			}
+			// 勇者：精疲力竭在“下个回合开始”时结束并结算：
+			// 转正 -> 摸3张牌 -> 对自己造成3点法术伤害。结算完成后仍正常进入行动阶段。
+			if e.isHero(player) &&
+				!player.TurnState.HasUsedTriggerSkill &&
+				player.Tokens["hero_exhaustion_form"] > 0 &&
+				player.Tokens["hero_exhaustion_release_pending"] > 0 {
+				player.Tokens["hero_exhaustion_form"] = 0
+				player.Tokens["hero_exhaustion_release_pending"] = 0
+				e.Log(fmt.Sprintf("%s 的 [精疲力竭] 结束：转正，先摸3张牌，再对自己造成3点法术伤害", player.Name))
+
+				cards, newDeck, newDiscard := rules.DrawCards(e.State.Deck, e.State.DiscardPile, 3)
+				e.State.Deck = newDeck
+				e.State.DiscardPile = newDiscard
+				player.Hand = append(player.Hand, cards...)
+				e.NotifyDrawCards(player.ID, len(cards), "hero_exhaustion_release")
+
+				// 先登记“自伤3”到延迟伤害队列，确保后续一定会进入伤害结算。
+				// 这样即使“摸3”触发了爆牌弃牌中断，也不会丢失精疲力竭的自伤步骤。
+				e.InflictDamage(player.ID, player.ID, 3, "magic")
+
+				// 回合开始阶段的额外摸牌若爆牌，结算后应留在当前回合继续推进。
+				checkCtx := e.buildContext(player, nil, model.TriggerNone, nil)
+				checkCtx.Flags["StayInTurn"] = true
+				e.checkHandLimit(player, checkCtx)
+				if e.State.PendingInterrupt != nil {
+					return
+				}
+				if len(e.State.PendingDamageQueue) > 0 {
+					e.State.Phase = model.PhasePendingDamageResolution
+					e.State.ReturnPhase = model.PhaseStartup
+				}
+				continue
+			}
 			// 每回合开始重置“跳过行动免强制末日审判”和“本回合已强制末日审判”标记
 			player.Tokens["arbiter_skip_forced_doomsday"] = 0
 			player.Tokens["arbiter_forced_doomsday_done_turn"] = 0
@@ -1222,18 +1256,6 @@ func (e *GameEngine) Drive() {
 			// 3. 行动选择阶段
 			if player.Tokens == nil {
 				player.Tokens = map[string]int{}
-			}
-			// 勇者：精疲力竭在“下个行动阶段开始”时结束并自伤3。
-			if e.isHero(player) &&
-				player.Tokens["hero_exhaustion_form"] > 0 &&
-				player.Tokens["hero_exhaustion_release_pending"] > 0 &&
-				!player.TurnState.HasActed &&
-				player.TurnState.CurrentExtraAction == "" {
-				player.Tokens["hero_exhaustion_form"] = 0
-				player.Tokens["hero_exhaustion_release_pending"] = 0
-				e.Log(fmt.Sprintf("%s 的 [精疲力竭] 结束，转正并对自己造成3点法术伤害", player.Name))
-				e.InflictDamage(player.ID, player.ID, 3, "magic")
-				return
 			}
 
 			tauntSourceID := ""
@@ -1292,6 +1314,20 @@ func (e *GameEngine) Drive() {
 				hasRestrictedExtraActionCard = e.checkExtraActionCards(player, currentExtraAction, player.TurnState.CurrentExtraElement)
 			}
 			hasFighterHundredDragon := e.isFighter(player) && player.Tokens != nil && player.Tokens["fighter_hundred_dragon_form"] > 0
+			// 百式幻龙拳状态下，法术行动入口用于“提示并允许退出形态后执行法术”。
+			// 这里按“拥有可打出的法术牌”兜底补齐可见性，避免被 canCastMagicInAction 的形态限制隐藏入口。
+			if hasFighterHundredDragon && !canMagicAction {
+				for idx := 0; idx < playableCardCount(player); idx++ {
+					c, _, _, ok := getPlayableCardByIndex(player, idx)
+					if !ok {
+						continue
+					}
+					if c.Type == model.CardTypeMagic {
+						canMagicAction = true
+						break
+					}
+				}
+			}
 
 			// 行动类型选项：
 			// - 额外攻击行动：只能选攻击
@@ -1310,6 +1346,9 @@ func (e *GameEngine) Drive() {
 			default:
 				if hasFighterHundredDragon {
 					validOptions = append(validOptions, model.PromptOption{ID: "attack", Label: "攻击（百式幻龙拳）"})
+					if canMagicAction || canMagicSkillAction {
+						validOptions = append(validOptions, model.PromptOption{ID: "magic", Label: "法术（将退出百式幻龙拳）"})
+					}
 				} else if hasHeroTaunt {
 					validOptions = append(validOptions, model.PromptOption{ID: "attack", Label: "攻击（受挑衅约束）"})
 				} else {
@@ -1322,13 +1361,17 @@ func (e *GameEngine) Drive() {
 				}
 			}
 
-			if !hasHeroTaunt && !hasFighterHundredDragon && !isRestrictedExtraAction && !e.State.HasPerformedStartup {
+			if !hasHeroTaunt && !isRestrictedExtraAction && !e.State.HasPerformedStartup {
 				// 未执行启动技能时，按条件过滤特殊行动
 				maxHand := e.GetMaxHand(player)
 				canBuyOrSynth := len(player.Hand)+3 <= maxHand
+				specialExitSuffix := ""
+				if hasFighterHundredDragon {
+					specialExitSuffix = "（将退出百式幻龙拳）"
+				}
 
 				if canBuyOrSynth {
-					specialOptions = append(specialOptions, model.PromptOption{ID: "buy", Label: "购买"})
+					specialOptions = append(specialOptions, model.PromptOption{ID: "buy", Label: "购买" + specialExitSuffix})
 				}
 
 				var totalStones int
@@ -1338,16 +1381,20 @@ func (e *GameEngine) Drive() {
 					totalStones = e.State.BlueGems + e.State.BlueCrystals
 				}
 				if canBuyOrSynth && totalStones >= 3 {
-					specialOptions = append(specialOptions, model.PromptOption{ID: "synthesize", Label: "合成"})
+					specialOptions = append(specialOptions, model.PromptOption{ID: "synthesize", Label: "合成" + specialExitSuffix})
 				}
 
 				currentEnergy := player.Gem + player.Crystal
 				if totalStones > 0 && currentEnergy < 3 {
-					specialOptions = append(specialOptions, model.PromptOption{ID: "extract", Label: "提炼"})
+					specialOptions = append(specialOptions, model.PromptOption{ID: "extract", Label: "提炼" + specialExitSuffix})
 				}
 
 				if len(specialOptions) > 0 {
-					validOptions = append(validOptions, model.PromptOption{ID: "special", Label: "特殊"})
+					label := "特殊"
+					if hasFighterHundredDragon {
+						label = "特殊（将退出百式幻龙拳）"
+					}
+					validOptions = append(validOptions, model.PromptOption{ID: "special", Label: label})
 				}
 			}
 
@@ -1368,7 +1415,7 @@ func (e *GameEngine) Drive() {
 						hasMagicCard = true
 					}
 				}
-				canNormalAction := hasAttackCard || (!hasFighterHundredDragon && (hasMagicCard || canMagicSkillAction))
+				canNormalAction := hasAttackCard || hasMagicCard || canMagicSkillAction
 				// 仅当无法执行一般行动（无攻击牌也无法术牌）时提供"无法行动"
 				if !canNormalAction {
 					validOptions = append(validOptions, model.PromptOption{ID: "cannot_act", Label: "无法行动（展示手牌）"})
@@ -1383,7 +1430,7 @@ func (e *GameEngine) Drive() {
 			} else if currentExtraAction == "Magic" {
 				promptMessage = fmt.Sprint("当前为额外法术行动，仅可执行法术。请选择行动类型")
 			} else if hasFighterHundredDragon {
-				promptMessage = fmt.Sprint("你处于【百式幻龙拳】状态：本行动阶段仅可执行攻击。")
+				promptMessage = fmt.Sprint("你处于【百式幻龙拳】状态：继续攻击可保持形态；若改为执行法术或特殊行动，将退出该形态。")
 			} else if hasHeroTaunt {
 				promptMessage = fmt.Sprintf("你受到【挑衅】影响：本次行动阶段必须且只能主动攻击 %s。", tauntSrcName)
 			}
@@ -1806,8 +1853,9 @@ func (e *GameEngine) Drive() {
 
 			// 通知目标玩家选择响应方式（无圣盾时正常选项）
 			var options []model.PromptOption
-			// 暗灭规则兜底：无论来源如何，暗灭攻击均不可应战。
-			if combatReq.Card != nil && combatReq.Card.Element == model.ElementDark {
+			// 暗灭规则兜底：默认暗灭攻击不可应战。
+			// 例外：魔剑士【暗影抗拒】在“非自己行动阶段”可用【魔弹】响应，应保留应战入口。
+			if combatReq.Card != nil && combatReq.Card.Element == model.ElementDark && !e.canUseShadowRejectResponseMagic(target) {
 				combatReq.CanBeResponded = false
 			}
 			takeLabel := "承受伤害"
@@ -1994,12 +2042,6 @@ func (e *GameEngine) Drive() {
 				if e.State.PendingInterrupt != nil {
 					return
 				}
-			}
-			// 格斗家：百式幻龙拳持续至回合结束，随后转正。
-			if e.isFighter(player) && player.Tokens != nil && player.Tokens["fighter_hundred_dragon_form"] > 0 {
-				player.Tokens["fighter_hundred_dragon_form"] = 0
-				player.Tokens["fighter_hundred_dragon_target_order"] = 0
-				e.Log(fmt.Sprintf("%s 的 [百式幻龙拳] 回合结束，效果取消并转正", player.Name))
 			}
 			// 阴阳师：回合结束时若鬼火达到上限，触发黑暗祭礼。
 			if e.isOnmyoji(player) && player.Tokens != nil && player.Tokens["onmyoji_ghost_fire"] >= 3 {
@@ -2188,6 +2230,7 @@ func (e *GameEngine) NextTurn() {
 		p.Tokens["bd_descent_used_turn"] = 0
 		p.Tokens["hb_shard_miss_pending"] = 0
 		p.Tokens["hb_auto_fill_done_turn"] = 0
+		p.Tokens["mg_moon_cycle_used_turn"] = 0
 		p.Tokens["mg_blasphemy_used_turn"] = 0
 		p.Tokens["mg_blasphemy_pending"] = 0
 		p.Tokens["bp_bleed_tick_done_turn"] = 0
@@ -2907,6 +2950,10 @@ func (e *GameEngine) processDeferredFollowups() bool {
 		if err := e.resolveBloodPriestessWailDamageFollowup(f); err != nil {
 			e.Log(fmt.Sprintf("[BloodPriestess] 血之悲鸣延迟伤害失败: %v", err))
 		}
+	case "blood_priestess_blood_sorrow_apply":
+		if err := e.resolveBloodPriestessBloodSorrowFollowup(f); err != nil {
+			e.Log(fmt.Sprintf("[BloodPriestess] 血之哀伤后续结算失败: %v", err))
+		}
 	default:
 		e.Log(fmt.Sprintf("[Warn] 未知的延迟后续类型: %s", f.Type))
 	}
@@ -3227,6 +3274,67 @@ func (e *GameEngine) resolveBloodPriestessWailDamageFollowup(f model.DeferredFol
 	return nil
 }
 
+func (e *GameEngine) resolveBloodPriestessBloodSorrowFollowup(f model.DeferredFollowup) error {
+	user := e.State.Players[f.UserID]
+	if user == nil {
+		return fmt.Errorf("执行者不存在: %s", f.UserID)
+	}
+	mode := ""
+	if f.Data != nil {
+		if raw, ok := f.Data["mode"].(string); ok {
+			mode = raw
+		}
+	}
+	if mode == "" {
+		return fmt.Errorf("血之哀伤后续模式缺失")
+	}
+	checked := map[string]bool{}
+	checkCap := func(player *model.Player) {
+		if player == nil || checked[player.ID] {
+			return
+		}
+		checked[player.ID] = true
+		e.checkHandLimit(player, nil)
+	}
+
+	switch mode {
+	case "remove":
+		if !e.removeBloodPriestessSharedLife(user, true) {
+			return fmt.Errorf("当前没有可移除的同生共死")
+		}
+		e.Log(fmt.Sprintf("%s 的 [血之哀伤] 后续结算：移除【同生共死】", user.Name))
+		checkCap(user)
+		return nil
+	case "transfer":
+		targetID := ""
+		if f.Data != nil {
+			if raw, ok := f.Data["target_id"].(string); ok {
+				targetID = raw
+			}
+		}
+		target := e.State.Players[targetID]
+		if target == nil {
+			return fmt.Errorf("转移目标不存在: %s", targetID)
+		}
+		holder, fc := e.findBloodPriestessSharedLife(user)
+		if holder == nil || fc == nil {
+			return fmt.Errorf("当前没有可转移的同生共死")
+		}
+		card := fc.Card
+		holder.RemoveFieldCard(fc)
+		if err := e.placeBloodPriestessSharedLife(user, target, card); err != nil {
+			return err
+		}
+		e.Log(fmt.Sprintf("%s 的 [血之哀伤] 后续结算：将【同生共死】转移至 %s", user.Name, target.Name))
+		checkCap(user)
+		checkCap(holder)
+		checkCap(target)
+		return nil
+	default:
+		return fmt.Errorf("未知的血之哀伤后续模式: %s", mode)
+	}
+}
+
 // prepareMagicLancerFullnessStep 在“充盈”结算过程中推进到下一个需要选择的角色。
 // 返回 true 表示所有角色都已处理完。
 func (e *GameEngine) prepareMagicLancerFullnessStep(ctxData map[string]interface{}, user *model.Player) (bool, error) {
@@ -3431,8 +3539,180 @@ func (e *GameEngine) checkHandLimit(p *model.Player, ctx *model.Context) {
 	}
 }
 
+var promptButtonLabelByID = map[string]string{
+	"confirm":    "发动",
+	"yes":        "发动",
+	"no":         "放弃",
+	"cancel":     "取消",
+	"skip":       "放弃",
+	"take":       "承受",
+	"counter":    "应战",
+	"defend":     "防御",
+	"normal":     "顺序",
+	"reverse":    "反向",
+	"attack":     "攻击",
+	"magic":      "法术",
+	"special":    "特殊",
+	"buy":        "购买",
+	"synthesize": "合成",
+	"extract":    "提炼",
+	"cannot_act": "放弃",
+	"pass":       "放弃",
+}
+
+func parsePromptNonNegativeInt(raw string) (int, bool) {
+	val, err := strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil || val < 0 {
+		return 0, false
+	}
+	return val, true
+}
+
+func isPromptDeclineLabel(label string) bool {
+	trimmed := strings.TrimSpace(label)
+	if trimmed == "" {
+		return false
+	}
+	return strings.Contains(trimmed, "不发动") ||
+		strings.Contains(trimmed, "放弃") ||
+		strings.Contains(trimmed, "跳过") ||
+		strings.Contains(trimmed, "无法行动") ||
+		strings.Contains(trimmed, "拒绝")
+}
+
+func shouldUseNumericPromptButtons(prompt *model.Prompt, options []model.PromptOption) (bool, bool) {
+	if prompt == nil || len(options) < 2 {
+		return false, false
+	}
+	if prompt.Type == model.PromptChooseCards {
+		return false, false
+	}
+	numericIDs := make([]int, 0, len(options))
+	hasLongLabel := false
+	hasXHint := strings.ContainsAny(strings.ToLower(prompt.Message), "xｘ")
+	for _, option := range options {
+		if n, ok := parsePromptNonNegativeInt(option.ID); ok {
+			numericIDs = append(numericIDs, n)
+		}
+		label := strings.TrimSpace(option.Label)
+		if len([]rune(label)) >= 8 || strings.Contains(label, "分支") {
+			hasLongLabel = true
+		}
+		lowLabel := strings.ToLower(label)
+		if strings.Contains(lowLabel, "x=") || strings.Contains(label, "X=") || strings.Contains(lowLabel, "x值") || strings.ContainsAny(lowLabel, "xｘ") {
+			hasXHint = true
+		}
+	}
+	if len(numericIDs) < 2 || (!hasLongLabel && !hasXHint) {
+		return false, false
+	}
+	minID := numericIDs[0]
+	for _, id := range numericIDs[1:] {
+		if id < minID {
+			minID = id
+		}
+	}
+	return true, minID == 0
+}
+
+func normalizePromptOptionForClient(option model.PromptOption, prompt *model.Prompt, useNumeric bool, plusOne bool) model.PromptOption {
+	label := strings.TrimSpace(option.Label)
+	button := strings.TrimSpace(option.ButtonLabel)
+	hint := strings.TrimSpace(option.Hint)
+	optionID := strings.ToLower(strings.TrimSpace(option.ID))
+
+	if button == "" {
+		if mapped, ok := promptButtonLabelByID[optionID]; ok {
+			button = mapped
+		}
+	}
+	if button == "" && prompt != nil && prompt.Type == model.PromptChooseSkill {
+		button = "发动"
+	}
+	if button == "" && optionID == "-1" {
+		if strings.Contains(label, "完成") || strings.Contains(label, "结束") {
+			button = "完成"
+		} else {
+			button = "放弃"
+		}
+	}
+	if button == "" && useNumeric {
+		if n, ok := parsePromptNonNegativeInt(option.ID); ok {
+			if plusOne {
+				button = strconv.Itoa(n + 1)
+			} else {
+				button = strconv.Itoa(n)
+			}
+		}
+	}
+	if button == "" && isPromptDeclineLabel(label) {
+		button = "放弃"
+	}
+	if button == "" {
+		if label != "" && len([]rune(label)) <= 6 {
+			button = label
+		} else {
+			button = "执行"
+		}
+	}
+
+	isCombatResponseOption := optionID == "take" || optionID == "defend" || optionID == "counter" ||
+		button == "承受" || button == "防御" || button == "应战"
+	if isCombatResponseOption {
+		hint = ""
+	}
+
+	if hint == "" && !isCombatResponseOption && label != "" && label != button {
+		if !(button == "取消" && (label == "取消" || label == "取消/跳过")) &&
+			!(button == "放弃" && isPromptDeclineLabel(label)) {
+			hint = label
+		}
+	}
+
+	option.ButtonLabel = button
+	option.Hint = hint
+	return option
+}
+
+func (e *GameEngine) decoratePromptForClient(prompt *model.Prompt) *model.Prompt {
+	if prompt == nil {
+		return nil
+	}
+	cp := *prompt
+	if prompt.Options != nil {
+		useNumeric, plusOne := shouldUseNumericPromptButtons(prompt, prompt.Options)
+		cp.Options = make([]model.PromptOption, 0, len(prompt.Options))
+		for _, option := range prompt.Options {
+			cp.Options = append(cp.Options, normalizePromptOptionForClient(option, prompt, useNumeric, plusOne))
+		}
+	}
+	if prompt.SpecialOptions != nil {
+		useNumeric, plusOne := shouldUseNumericPromptButtons(prompt, prompt.SpecialOptions)
+		cp.SpecialOptions = make([]model.PromptOption, 0, len(prompt.SpecialOptions))
+		for _, option := range prompt.SpecialOptions {
+			cp.SpecialOptions = append(cp.SpecialOptions, normalizePromptOptionForClient(option, prompt, useNumeric, plusOne))
+		}
+	}
+	if prompt.CounterTargetIDs != nil {
+		cp.CounterTargetIDs = append([]string{}, prompt.CounterTargetIDs...)
+	}
+	if prompt.EffectHints != nil {
+		cp.EffectHints = append([]string{}, prompt.EffectHints...)
+	}
+	return &cp
+}
+
 // Notify 统一通知方法 (替换所有的 fmt.Printf)
 func (e *GameEngine) Notify(eventType model.GameEventType, msg string, data interface{}) {
+	if eventType == model.EventAskInput {
+		switch p := data.(type) {
+		case *model.Prompt:
+			data = e.decoratePromptForClient(p)
+		case model.Prompt:
+			cp := p
+			data = e.decoratePromptForClient(&cp)
+		}
+	}
 	if e.observer != nil {
 		e.observer.OnGameEvent(model.GameEvent{
 			Type:    eventType,
@@ -3581,7 +3861,7 @@ func (e *GameEngine) NotifyCombatCue(attackerID, targetID, phase string) {
 	e.Notify(model.EventCombatCue, "", map[string]interface{}{
 		"attacker_id": attackerID,
 		"target_id":   targetID,
-		"phase":       phase, // attack/defend/take/counter
+		"phase":       phase, // attack/defend/take/counter/shield
 	})
 }
 
@@ -3804,6 +4084,17 @@ func (e *GameEngine) ConfirmDiscard(playerID string, indices []int) error {
 			}
 		}
 		if e.State.PendingInterrupt == nil {
+			// 启动技能（回合开始触发）中的弃牌后续：应继续当前回合流程，
+			// 不能落到 TurnEnd，否则会出现“发动后直接跳过回合”。
+			if ctx.Trigger == model.TriggerOnTurnStart {
+				if len(e.State.PendingDamageQueue) > 0 {
+					e.State.Phase = model.PhasePendingDamageResolution
+					e.State.ReturnPhase = model.PhaseStartup
+				} else {
+					e.State.Phase = model.PhaseStartup
+				}
+				return nil
+			}
 			if len(e.State.ActionStack) > 0 {
 				// 还在战斗响应堆栈中
 				e.State.Phase = model.PhaseResponse
@@ -3961,21 +4252,32 @@ func (e *GameEngine) ConfirmDiscard(playerID string, indices []int) error {
 	if e.State.PendingInterrupt == nil {
 		// 检查是否在伤害结算阶段（通过中断上下文中的标志）
 		if isDamageResolution {
-			// 伤害结算阶段的弃牌完成，进入 PhaseExtraAction
-			e.State.Phase = model.PhaseExtraAction
+			// 伤害结算阶段的弃牌完成后：
+			// 1) 若还有待结算伤害，必须先继续 PendingDamageResolution；
+			// 2) 否则再恢复 ReturnPhase（如 Startup / ExtraAction）；
+			// 3) 最后兜底到 ExtraAction。
+			// 这样可覆盖“先入队伤害，再因其他摸牌触发爆牌”的链路（如勇者精疲力竭）。
+			if len(e.State.PendingDamageQueue) > 0 {
+				e.State.Phase = model.PhasePendingDamageResolution
+			} else if e.State.ReturnPhase != "" {
+				e.State.Phase = e.State.ReturnPhase
+				e.State.ReturnPhase = ""
+			} else {
+				e.State.Phase = model.PhaseExtraAction
+			}
 
 		} else if stayInTurn {
 			// 比如中毒摸牌导致的爆牌，弃完牌后继续回合
 			e.Log("[System] 弃牌完成，继续当前回合")
-			// 如果有 ReturnPhase 设置（如从 PendingDamageResolution 阶段来），使用它
-			if e.State.ReturnPhase != "" {
+			// 若仍有待结算伤害，优先继续伤害结算，避免跳过中间结算环节。
+			if len(e.State.PendingDamageQueue) > 0 {
+				e.State.Phase = model.PhasePendingDamageResolution
+			} else if e.State.ReturnPhase != "" {
+				// 无待结算伤害时，再恢复记录的返回阶段（如 Startup / ExtraAction）。
 				e.State.Phase = e.State.ReturnPhase
 				e.State.ReturnPhase = ""
 			} else if len(e.State.ActionQueue) > 0 {
 				e.State.Phase = model.PhaseBeforeAction
-			} else if len(e.State.PendingDamageQueue) > 0 {
-				// 还有待处理的伤害，继续处理
-				e.State.Phase = model.PhasePendingDamageResolution
 			} else {
 				// 默认回到启动阶段，让回合继续正常流程
 				e.State.Phase = model.PhaseStartup
@@ -4074,6 +4376,7 @@ func (e *GameEngine) checkGameEnd() {
 
 // GetCurrentPrompt 获取当前用户交互提示
 func (e *GameEngine) GetCurrentPrompt() *model.Prompt {
+	var prompt *model.Prompt
 	// 如果有中断，优先处理中断相关的Prompt
 	if e.State.PendingInterrupt != nil {
 		switch e.State.PendingInterrupt.Type {
@@ -4082,28 +4385,31 @@ func (e *GameEngine) GetCurrentPrompt() *model.Prompt {
 				_ = e.SkipResponse()
 				return nil
 			}
-			return e.buildResponseSkillPrompt()
+			prompt = e.buildResponseSkillPrompt()
 		case model.InterruptStartupSkill:
-			return e.buildStartupSkillPrompt()
+			prompt = e.buildStartupSkillPrompt()
 		case model.InterruptDiscard:
-			return e.buildDiscardPrompt()
+			prompt = e.buildDiscardPrompt()
 		case model.InterruptChoice:
-			return e.buildChoicePrompt()
+			prompt = e.buildChoicePrompt()
 		case model.InterruptMagicMissile:
-			return e.buildMagicMissilePrompt()
+			prompt = e.buildMagicMissilePrompt()
 		case model.InterruptGiveCards:
-			return e.buildGiveCardsPrompt()
+			prompt = e.buildGiveCardsPrompt()
 		case model.InterruptMagicBulletFusion:
-			return e.buildMagicBulletFusionPrompt()
+			prompt = e.buildMagicBulletFusionPrompt()
 		case model.InterruptMagicBulletDirection:
-			return e.buildMagicBulletDirectionPrompt()
+			prompt = e.buildMagicBulletDirectionPrompt()
 		case model.InterruptHolySwordDraw:
-			return e.buildHolySwordDrawPrompt()
+			prompt = e.buildHolySwordDrawPrompt()
 		case model.InterruptSaintHeal:
-			return e.buildSaintHealPrompt()
+			prompt = e.buildSaintHealPrompt()
 		case model.InterruptMagicBlast:
-			return e.buildMagicBlastPrompt()
+			prompt = e.buildMagicBlastPrompt()
 		}
+	}
+	if prompt != nil {
+		return e.decoratePromptForClient(prompt)
 	}
 	// 2. 【新增】处理普通的响应阶段提示
 	if e.State.Phase == model.PhaseResponse && len(e.State.ActionStack) > 0 {
@@ -4111,7 +4417,7 @@ func (e *GameEngine) GetCurrentPrompt() *model.Prompt {
 		targetID := lastAction.TargetID
 
 		// 只有目标玩家能看到提示
-		return &model.Prompt{
+		prompt = &model.Prompt{
 			Type:     model.PromptConfirm, // 或者定义一个新的 PromptTypeStandardResponse
 			PlayerID: targetID,
 			Message:  fmt.Sprintf("你成为了 %s 的目标，请做出响应 (take/counter/defend)", lastAction.Type),
@@ -4122,6 +4428,7 @@ func (e *GameEngine) GetCurrentPrompt() *model.Prompt {
 			},
 			// 如果是强制命中，可以在 Message 里提示 "攻击强制命中，无法防御/应战，只能 take"
 		}
+		return e.decoratePromptForClient(prompt)
 	}
 
 	return nil
@@ -4456,30 +4763,57 @@ func (e *GameEngine) buildResponseSkillPrompt() *model.Prompt {
 
 	skillIDs := e.State.PendingInterrupt.SkillIDs
 	n := len(skillIDs)
-	// 提示语中明确说明输入方式：choose 1 / choose 2 / ... / choose N 跳过
-	message := fmt.Sprintf("你触发了多个响应机会，请选择发动 (剩余 %d 个)。输入 choose 1 发动第一项，choose 2 发动第二项，…，choose %d 跳过：", n, n+1)
-	var options []model.PromptOption
+	options := make([]model.PromptOption, 0, len(skillIDs)+1)
 
-	for i, skillID := range skillIDs {
+	skillByID := make(map[string]model.SkillDefinition)
+	if player != nil && player.Character != nil {
 		for _, skill := range player.Character.Skills {
-			if skill.ID == skillID {
-				costStr := ""
-				if skill.CostGem > 0 || skill.CostCrystal > 0 {
-					costStr = fmt.Sprintf(" [💎%d 🏆%d]", skill.CostGem, skill.CostCrystal)
-				}
-				options = append(options, model.PromptOption{
-					ID:    skill.ID,
-					Label: fmt.Sprintf("%d. %s%s: %s", i+1, skill.Title, costStr, skill.Description),
-				})
-				break
-			}
+			skillByID[skill.ID] = skill
 		}
 	}
 
-	// 跳过选项：序号为 len(skillIDs)+1，即 choose N+1
+	message := "你触发了响应技能，请选择要发动的技能。"
+	if n > 1 {
+		message = fmt.Sprintf("你触发了 %d 个响应技能，请选择 1 个发动，或跳过。", n)
+	} else if n == 1 {
+		if skill, ok := skillByID[skillIDs[0]]; ok && strings.TrimSpace(skill.Title) != "" {
+			message = fmt.Sprintf("你触发了响应技能【%s】，请选择是否发动。", strings.TrimSpace(skill.Title))
+		}
+	}
+
+	for i, skillID := range skillIDs {
+		skill, ok := skillByID[skillID]
+		if !ok {
+			options = append(options, model.PromptOption{
+				ID:    skillID,
+				Label: fmt.Sprintf("技能 %d", i+1),
+			})
+			continue
+		}
+
+		label := strings.TrimSpace(skill.Title)
+		if label == "" {
+			label = fmt.Sprintf("技能 %d", i+1)
+		}
+		costStr := ""
+		if skill.CostGem > 0 || skill.CostCrystal > 0 {
+			costStr = fmt.Sprintf(" [💎%d 🔷%d]", skill.CostGem, skill.CostCrystal)
+		}
+		if costStr != "" {
+			label = fmt.Sprintf("%s%s", label, costStr)
+		}
+		hint := strings.TrimSpace(skill.Description)
+		options = append(options, model.PromptOption{
+			ID:    skill.ID,
+			Label: label,
+			Hint:  hint,
+		})
+	}
+
 	options = append(options, model.PromptOption{
 		ID:    "skip",
-		Label: fmt.Sprintf("%d. 跳过 / 结束响应", n+1),
+		Label: "跳过",
+		Hint:  "不发动响应技能",
 	})
 
 	return &model.Prompt{
@@ -4498,29 +4832,49 @@ func (e *GameEngine) buildStartupSkillPrompt() *model.Prompt {
 	player := e.State.Players[playerID]
 
 	skillIDs := e.State.PendingInterrupt.SkillIDs
-	n := len(skillIDs)
-	message := fmt.Sprintf("你可以发动启动技能。输入 choose 1 发动第一项，…，choose %d 跳过：", n+1)
-	var options []model.PromptOption
+	message := "你可以发动启动技能，请选择 1 个发动，或跳过。"
+	options := make([]model.PromptOption, 0, len(skillIDs)+1)
+
+	skillByID := make(map[string]model.SkillDefinition)
+	if player != nil && player.Character != nil {
+		for _, skill := range player.Character.Skills {
+			skillByID[skill.ID] = skill
+		}
+	}
 
 	for i, skillID := range skillIDs {
-		for _, skill := range player.Character.Skills {
-			if skill.ID == skillID {
-				costStr := ""
-				if skill.CostGem > 0 || skill.CostCrystal > 0 {
-					costStr = fmt.Sprintf(" (消耗: 宝石%d 水晶%d)", skill.CostGem, skill.CostCrystal)
-				}
-				options = append(options, model.PromptOption{
-					ID:    skill.ID,
-					Label: fmt.Sprintf("%d. %s%s - %s", i+1, skill.Title, costStr, skill.Description),
-				})
-				break
-			}
+		skill, ok := skillByID[skillID]
+		if !ok {
+			options = append(options, model.PromptOption{
+				ID:    skillID,
+				Label: fmt.Sprintf("技能 %d", i+1),
+			})
+			continue
 		}
+
+		label := strings.TrimSpace(skill.Title)
+		if label == "" {
+			label = fmt.Sprintf("技能 %d", i+1)
+		}
+		costStr := ""
+		if skill.CostGem > 0 || skill.CostCrystal > 0 {
+			costStr = fmt.Sprintf(" [💎%d 🔷%d]", skill.CostGem, skill.CostCrystal)
+		}
+		if costStr != "" {
+			label = fmt.Sprintf("%s%s", label, costStr)
+		}
+		hint := strings.TrimSpace(skill.Description)
+		options = append(options, model.PromptOption{
+			ID:    skill.ID,
+			Label: label,
+			Hint:  hint,
+		})
 	}
 
 	options = append(options, model.PromptOption{
 		ID:    "skip",
-		Label: fmt.Sprintf("%d. 跳过 - 不发动启动技能", n+1),
+		Label: "跳过",
+		Hint:  "本回合不发动启动技能",
 	})
 
 	return &model.Prompt{
@@ -6055,17 +6409,24 @@ func (e *GameEngine) buildChoicePrompt() *model.Prompt {
 				Label: fmt.Sprintf("%d: %s", idx+1, formatCardInfo(player.Hand[idx])),
 			})
 		}
-		msg := fmt.Sprintf("【战纹碎击】请选择第 %d/%d 张弃牌：", selectedCount+1, xVal)
+		remainingPick := xVal - selectedCount
+		if remainingPick < 1 {
+			remainingPick = 1
+		}
+		if len(options) > 0 && remainingPick > len(options) {
+			remainingPick = len(options)
+		}
+		msg := fmt.Sprintf("【战纹碎击】请选择要弃置的%d张牌：", remainingPick)
 		if choiceType == "hom_glyph_fusion_cards" {
-			msg = fmt.Sprintf("【魔纹融合】请选择第 %d/%d 张弃牌（元素不可重复）：", selectedCount+1, xVal)
+			msg = fmt.Sprintf("【魔纹融合】请选择要弃置的%d张牌（元素不可重复）：", remainingPick)
 		}
 		return &model.Prompt{
-			Type:     model.PromptConfirm,
+			Type:     model.PromptChooseCards,
 			PlayerID: playerID,
 			Message:  msg,
 			Options:  options,
-			Min:      1,
-			Max:      1,
+			Min:      remainingPick,
+			Max:      remainingPick,
 		}
 	}
 	if choiceType == "hom_rune_smash_y" || choiceType == "hom_glyph_fusion_y" {
@@ -6378,13 +6739,20 @@ func (e *GameEngine) buildChoicePrompt() *model.Prompt {
 				Label: fmt.Sprintf("%d: %s", idx+1, formatCardInfo(player.Hand[idx])),
 			})
 		}
+		remainingPick := yNeed - selectedCount
+		if remainingPick < 1 {
+			remainingPick = 1
+		}
+		if len(options) > 0 && remainingPick > len(options) {
+			remainingPick = len(options)
+		}
 		return &model.Prompt{
-			Type:     model.PromptConfirm,
+			Type:     model.PromptChooseCards,
 			PlayerID: playerID,
-			Message:  fmt.Sprintf("【死亡之触】请选择第 %d/%d 张弃牌：", selectedCount+1, yNeed),
+			Message:  fmt.Sprintf("【死亡之触】请选择要弃置的%d张牌：", remainingPick),
 			Options:  options,
-			Min:      1,
-			Max:      1,
+			Min:      remainingPick,
+			Max:      remainingPick,
 		}
 	}
 	// === 魔剑士：暗影流星 ===
@@ -6426,13 +6794,20 @@ func (e *GameEngine) buildChoicePrompt() *model.Prompt {
 				Label: fmt.Sprintf("%d: %s", idx+1, formatCardInfo(player.Hand[idx])),
 			})
 		}
+		remainingPick := 2 - selectedCount
+		if remainingPick < 1 {
+			remainingPick = 1
+		}
+		if len(options) > 0 && remainingPick > len(options) {
+			remainingPick = len(options)
+		}
 		return &model.Prompt{
-			Type:     model.PromptConfirm,
+			Type:     model.PromptChooseCards,
 			PlayerID: playerID,
-			Message:  fmt.Sprintf("【暗影流星】请选择第 %d/2 张法术牌：", selectedCount+1),
+			Message:  fmt.Sprintf("【暗影流星】请选择用于弃置的%d张法术牌：", remainingPick),
 			Options:  options,
-			Min:      1,
-			Max:      1,
+			Min:      remainingPick,
+			Max:      remainingPick,
 		}
 	}
 	if choiceType == "ms_shadow_meteor_release_confirm" {
@@ -6573,13 +6948,20 @@ func (e *GameEngine) buildChoicePrompt() *model.Prompt {
 				Label: fmt.Sprintf("%d: %s", idx+1, formatCardInfo(player.Hand[idx])),
 			})
 		}
+		remainingPick := targetCount - selectedCount
+		if remainingPick < 1 {
+			remainingPick = 1
+		}
+		if len(options) > 0 && remainingPick > len(options) {
+			remainingPick = len(options)
+		}
 		return &model.Prompt{
-			Type:     model.PromptConfirm,
+			Type:     model.PromptChooseCards,
 			PlayerID: playerID,
-			Message:  fmt.Sprintf("【魔能反转】请选择第 %d/%d 张法术牌：", selectedCount+1, targetCount),
+			Message:  fmt.Sprintf("【魔能反转】请选择要弃置的%d张法术牌：", remainingPick),
 			Options:  options,
-			Min:      1,
-			Max:      1,
+			Min:      remainingPick,
+			Max:      remainingPick,
 		}
 	}
 	// === 贤者 ===
@@ -6674,22 +7056,29 @@ func (e *GameEngine) buildChoicePrompt() *model.Prompt {
 				Label: fmt.Sprintf("%d: %s", idx+1, formatCardInfo(player.Hand[idx])),
 			})
 		}
-		msg := fmt.Sprintf("请选择第 %d/%d 张牌：", selectedCount+1, targetCount)
+		remainingPick := targetCount - selectedCount
+		if remainingPick < 1 {
+			remainingPick = 1
+		}
+		if len(options) > 0 && remainingPick > len(options) {
+			remainingPick = len(options)
+		}
+		msg := fmt.Sprintf("请选择%d张牌：", remainingPick)
 		switch choiceType {
 		case "sage_magic_rebound_cards":
-			msg = fmt.Sprintf("【法术反弹】请选择第 %d/%d 张同系牌：", selectedCount+1, targetCount)
+			msg = fmt.Sprintf("【法术反弹】请选择%d张同系牌：", remainingPick)
 		case "sage_arcane_cards":
-			msg = fmt.Sprintf("【魔道法典】请选择第 %d/%d 张异系牌：", selectedCount+1, targetCount)
+			msg = fmt.Sprintf("【魔道法典】请选择%d张异系牌：", remainingPick)
 		case "sage_holy_cards":
-			msg = fmt.Sprintf("【圣洁法典】请选择第 %d/%d 张异系牌：", selectedCount+1, targetCount)
+			msg = fmt.Sprintf("【圣洁法典】请选择%d张异系牌：", remainingPick)
 		}
 		return &model.Prompt{
-			Type:     model.PromptConfirm,
+			Type:     model.PromptChooseCards,
 			PlayerID: playerID,
 			Message:  msg,
 			Options:  options,
-			Min:      1,
-			Max:      1,
+			Min:      remainingPick,
+			Max:      remainingPick,
 		}
 	}
 	if choiceType == "sage_arcane_x" || choiceType == "sage_holy_x" {
@@ -6881,17 +7270,24 @@ func (e *GameEngine) buildChoicePrompt() *model.Prompt {
 				Label: fmt.Sprintf("%d: %s", idx+1, formatCardInfo(player.Hand[idx])),
 			})
 		}
-		msg := fmt.Sprintf("【充能】请选择第 %d/%d 张作为充能的手牌：", selectedCount+1, needCount)
+		remainingPick := needCount - selectedCount
+		if remainingPick < 1 {
+			remainingPick = 1
+		}
+		if len(options) > 0 && remainingPick > len(options) {
+			remainingPick = len(options)
+		}
+		msg := fmt.Sprintf("【充能】请选择%d张作为充能的手牌：", remainingPick)
 		if choiceType == "mb_demon_eye_charge_card" {
 			msg = "【魔眼】请选择1张手牌作为充能："
 		}
 		return &model.Prompt{
-			Type:     model.PromptConfirm,
+			Type:     model.PromptChooseCards,
 			PlayerID: playerID,
 			Message:  msg,
 			Options:  options,
-			Min:      1,
-			Max:      1,
+			Min:      remainingPick,
+			Max:      remainingPick,
 		}
 	}
 	if choiceType == "mb_thunder_scatter_extra" {
@@ -7211,32 +7607,6 @@ func (e *GameEngine) buildChoicePrompt() *model.Prompt {
 			Max:      1,
 		}
 	}
-	if choiceType == "hb_light_burst_mode_b_target_count" {
-		x := toIntContextValue(data["x_value"])
-		eligible := toIntContextValue(data["eligible_count"])
-		maxCount := x
-		if eligible < maxCount {
-			maxCount = eligible
-		}
-		if maxCount < 1 {
-			maxCount = 1
-		}
-		var options []model.PromptOption
-		for c := 1; c <= maxCount; c++ {
-			options = append(options, model.PromptOption{
-				ID:    fmt.Sprintf("%d", c),
-				Label: fmt.Sprintf("选择%d名对手", c),
-			})
-		}
-		return &model.Prompt{
-			Type:     model.PromptConfirm,
-			PlayerID: playerID,
-			Message:  "【圣光爆裂】分支②请选择目标人数：",
-			Options:  options,
-			Min:      1,
-			Max:      1,
-		}
-	}
 	if choiceType == "hb_light_burst_mode_b_targets" {
 		var candidates []string
 		if arr, ok := data["candidate_target_ids"].([]string); ok {
@@ -7269,11 +7639,22 @@ func (e *GameEngine) buildChoicePrompt() *model.Prompt {
 				options = append(options, model.PromptOption{ID: tid, Label: p.Name})
 			}
 		}
-		targetCount := toIntContextValue(data["target_count"])
+		xValue := toIntContextValue(data["x_value"])
+		maxTargets := xValue
+		if len(candidates) < maxTargets {
+			maxTargets = len(candidates)
+		}
+		if len(selectedSet) > 0 {
+			options = append(options, model.PromptOption{
+				ID:          "finish",
+				Label:       "完成目标选择",
+				ButtonLabel: "完成",
+			})
+		}
 		return &model.Prompt{
 			Type:     model.PromptConfirm,
 			PlayerID: playerID,
-			Message:  fmt.Sprintf("【圣光爆裂】分支②请选择第 %d/%d 名目标：", len(selectedSet)+1, targetCount),
+			Message:  fmt.Sprintf("【圣光爆裂】分支②请点击角色立绘选择目标（已选%d/最多%d）：", len(selectedSet), maxTargets),
 			Options:  options,
 			Min:      1,
 			Max:      1,
@@ -7307,13 +7688,20 @@ func (e *GameEngine) buildChoicePrompt() *model.Prompt {
 				Label: fmt.Sprintf("%d: %s", idx+1, formatCardInfo(player.Hand[idx])),
 			})
 		}
+		remainingPick := x - selectedCount
+		if remainingPick < 1 {
+			remainingPick = 1
+		}
+		if len(options) > 0 && remainingPick > len(options) {
+			remainingPick = len(options)
+		}
 		return &model.Prompt{
-			Type:     model.PromptConfirm,
+			Type:     model.PromptChooseCards,
 			PlayerID: playerID,
-			Message:  fmt.Sprintf("【圣光爆裂】分支②请选择第 %d/%d 张弃牌：", selectedCount+1, x),
+			Message:  fmt.Sprintf("【圣光爆裂】分支②请选择要弃置的%d张手牌：", remainingPick),
 			Options:  options,
-			Min:      1,
-			Max:      1,
+			Min:      remainingPick,
+			Max:      remainingPick,
 		}
 	}
 	if choiceType == "hb_meteor_bullet_cost" {
@@ -7487,30 +7875,34 @@ func (e *GameEngine) buildChoicePrompt() *model.Prompt {
 		}
 	}
 	if choiceType == "ss_recall_pick" {
-		var remaining []int
-		if arr, ok := data["remaining_indices"].([]int); ok {
-			remaining = append(remaining, arr...)
-		} else if arr, ok := data["remaining_indices"].([]interface{}); ok {
+		var magicIndices []int
+		if arr, ok := data["magic_indices"].([]int); ok {
+			magicIndices = append(magicIndices, arr...)
+		} else if arr, ok := data["magic_indices"].([]interface{}); ok {
 			for _, v := range arr {
 				if f, ok := v.(float64); ok {
-					remaining = append(remaining, int(f))
+					magicIndices = append(magicIndices, int(f))
 				}
 			}
 		}
-		selectedCount := 0
-		if arr, ok := data["selected_indices"].([]int); ok {
-			selectedCount = len(arr)
-		} else if arr, ok := data["selected_indices"].([]interface{}); ok {
-			selectedCount = len(arr)
+		// 兼容旧上下文键，避免旧中断状态崩溃。
+		if len(magicIndices) == 0 {
+			if arr, ok := data["remaining_indices"].([]int); ok {
+				magicIndices = append(magicIndices, arr...)
+			} else if arr, ok := data["remaining_indices"].([]interface{}); ok {
+				for _, v := range arr {
+					if f, ok := v.(float64); ok {
+						magicIndices = append(magicIndices, int(f))
+					}
+				}
+			}
 		}
 		var options []model.PromptOption
-		doneLabel := "完成选择并结算"
-		if selectedCount == 0 {
-			doneLabel = "完成选择并结算（至少选择1张）"
-		}
-		options = append(options, model.PromptOption{ID: "-1", Label: doneLabel})
-		for _, idx := range remaining {
+		for _, idx := range magicIndices {
 			if idx < 0 || idx >= len(player.Hand) {
+				continue
+			}
+			if player.Hand[idx].Type != model.CardTypeMagic {
 				continue
 			}
 			options = append(options, model.PromptOption{
@@ -7518,13 +7910,17 @@ func (e *GameEngine) buildChoicePrompt() *model.Prompt {
 				Label: fmt.Sprintf("%d: %s", idx+1, formatCardInfo(player.Hand[idx])),
 			})
 		}
+		maxSelect := len(options)
+		if maxSelect < 1 {
+			maxSelect = 1
+		}
 		return &model.Prompt{
-			Type:     model.PromptConfirm,
+			Type:     model.PromptChooseCards,
 			PlayerID: playerID,
-			Message:  fmt.Sprintf("【灵魂召还】已选择%d张法术牌。继续选择或结束：", selectedCount),
+			Message:  "【灵魂召还】请选择要弃置的法术牌（至少1张）：",
 			Options:  options,
 			Min:      1,
-			Max:      1,
+			Max:      maxSelect,
 		}
 	}
 	// === 血之巫女 ===
@@ -7612,44 +8008,23 @@ func (e *GameEngine) buildChoicePrompt() *model.Prompt {
 		if discardCount < 0 {
 			discardCount = 0
 		}
-		var remaining []int
-		if arr, ok := data["remaining_indices"].([]int); ok {
-			remaining = append(remaining, arr...)
-		} else if arr, ok := data["remaining_indices"].([]interface{}); ok {
-			for _, v := range arr {
-				if f, ok := v.(float64); ok {
-					remaining = append(remaining, int(f))
-				}
-			}
+		if discardCount > len(player.Hand) {
+			discardCount = len(player.Hand)
 		}
-		selectedCount := 0
-		if arr, ok := data["selected_indices"].([]int); ok {
-			selectedCount = len(arr)
-		} else if arr, ok := data["selected_indices"].([]interface{}); ok {
-			selectedCount = len(arr)
-		}
-		var options []model.PromptOption
-		doneLabel := fmt.Sprintf("完成弃牌（需弃%d张）", discardCount)
-		if selectedCount < discardCount {
-			doneLabel = fmt.Sprintf("完成弃牌（还需%d张）", discardCount-selectedCount)
-		}
-		options = append(options, model.PromptOption{ID: "-1", Label: doneLabel})
-		for _, idx := range remaining {
-			if idx < 0 || idx >= len(player.Hand) {
-				continue
-			}
+		options := make([]model.PromptOption, 0, len(player.Hand))
+		for idx, card := range player.Hand {
 			options = append(options, model.PromptOption{
 				ID:    fmt.Sprintf("%d", idx),
-				Label: fmt.Sprintf("%d: %s", idx+1, formatCardInfo(player.Hand[idx])),
+				Label: fmt.Sprintf("%d: %s", idx+1, formatCardInfo(card)),
 			})
 		}
 		return &model.Prompt{
 			Type:     model.PromptChooseCards,
 			PlayerID: playerID,
-			Message:  fmt.Sprintf("【血之诅咒】已选择%d/%d张弃牌，继续选择或完成：", selectedCount, discardCount),
+			Message:  fmt.Sprintf("【血之诅咒】请选择要弃置的%d张手牌：", discardCount),
 			Options:  options,
-			Min:      1,
-			Max:      1,
+			Min:      discardCount,
+			Max:      discardCount,
 		}
 	}
 	// === 蝶舞者 ===
@@ -7701,29 +8076,15 @@ func (e *GameEngine) buildChoicePrompt() *model.Prompt {
 	}
 	if choiceType == "bt_cocoon_overflow_discard" {
 		discardCount := toIntContextValue(data["discard_count"])
-		var remaining []int
-		if arr, ok := data["remaining_indices"].([]int); ok {
-			remaining = append(remaining, arr...)
-		} else if arr, ok := data["remaining_indices"].([]interface{}); ok {
-			for _, v := range arr {
-				if f, ok := v.(float64); ok {
-					remaining = append(remaining, int(f))
-				}
-			}
+		if discardCount < 0 {
+			discardCount = 0
 		}
-		selectedCount := 0
-		if arr, ok := data["selected_indices"].([]int); ok {
-			selectedCount = len(arr)
-		} else if arr, ok := data["selected_indices"].([]interface{}); ok {
-			selectedCount = len(arr)
+		cocoonIndices := butterflyCocoonFieldIndices(player)
+		if discardCount > len(cocoonIndices) {
+			discardCount = len(cocoonIndices)
 		}
 		var options []model.PromptOption
-		doneLabel := fmt.Sprintf("完成舍弃（需弃%d个茧）", discardCount)
-		if selectedCount < discardCount {
-			doneLabel = fmt.Sprintf("完成舍弃（还需%d个茧）", discardCount-selectedCount)
-		}
-		options = append(options, model.PromptOption{ID: "-1", Label: doneLabel})
-		for _, idx := range remaining {
+		for _, idx := range cocoonIndices {
 			if idx < 0 || idx >= len(player.Field) || player.Field[idx] == nil {
 				continue
 			}
@@ -7739,40 +8100,22 @@ func (e *GameEngine) buildChoicePrompt() *model.Prompt {
 		return &model.Prompt{
 			Type:     model.PromptChooseCards,
 			PlayerID: playerID,
-			Message:  fmt.Sprintf("【茧上限】已选择%d/%d个茧，继续选择或完成：", selectedCount, discardCount),
+			Message:  fmt.Sprintf("【茧上限】请选择要舍弃的%d个茧：", discardCount),
 			Options:  options,
-			Min:      1,
-			Max:      1,
+			Min:      discardCount,
+			Max:      discardCount,
 		}
 	}
 	if choiceType == "bt_reverse_discard" {
 		discardCount := toIntContextValue(data["discard_count"])
-		var remaining []int
-		if arr, ok := data["remaining_indices"].([]int); ok {
-			remaining = append(remaining, arr...)
-		} else if arr, ok := data["remaining_indices"].([]interface{}); ok {
-			for _, v := range arr {
-				if f, ok := v.(float64); ok {
-					remaining = append(remaining, int(f))
-				}
-			}
+		if discardCount < 0 {
+			discardCount = 0
 		}
-		selectedCount := 0
-		if arr, ok := data["selected_indices"].([]int); ok {
-			selectedCount = len(arr)
-		} else if arr, ok := data["selected_indices"].([]interface{}); ok {
-			selectedCount = len(arr)
+		if discardCount > len(player.Hand) {
+			discardCount = len(player.Hand)
 		}
 		var options []model.PromptOption
-		doneLabel := fmt.Sprintf("完成弃牌（需弃%d张）", discardCount)
-		if selectedCount < discardCount {
-			doneLabel = fmt.Sprintf("完成弃牌（还需%d张）", discardCount-selectedCount)
-		}
-		options = append(options, model.PromptOption{ID: "-1", Label: doneLabel})
-		for _, idx := range remaining {
-			if idx < 0 || idx >= len(player.Hand) {
-				continue
-			}
+		for idx := range player.Hand {
 			options = append(options, model.PromptOption{
 				ID:    fmt.Sprintf("%d", idx),
 				Label: fmt.Sprintf("%d: %s", idx+1, formatCardInfo(player.Hand[idx])),
@@ -7781,10 +8124,10 @@ func (e *GameEngine) buildChoicePrompt() *model.Prompt {
 		return &model.Prompt{
 			Type:     model.PromptChooseCards,
 			PlayerID: playerID,
-			Message:  fmt.Sprintf("【倒逆之蝶】已选择%d/%d张弃牌，继续选择或完成：", selectedCount, discardCount),
+			Message:  fmt.Sprintf("【倒逆之蝶】请选择要弃置的%d张手牌：", discardCount),
 			Options:  options,
-			Min:      1,
-			Max:      1,
+			Min:      discardCount,
+			Max:      discardCount,
 		}
 	}
 	if choiceType == "bt_reverse_mode" {
@@ -7847,29 +8190,13 @@ func (e *GameEngine) buildChoicePrompt() *model.Prompt {
 		}
 	}
 	if choiceType == "bt_reverse_branch2_pick" {
-		var remaining []int
-		if arr, ok := data["remaining_indices"].([]int); ok {
-			remaining = append(remaining, arr...)
-		} else if arr, ok := data["remaining_indices"].([]interface{}); ok {
-			for _, v := range arr {
-				if f, ok := v.(float64); ok {
-					remaining = append(remaining, int(f))
-				}
-			}
-		}
-		selectedCount := 0
-		if arr, ok := data["selected_indices"].([]int); ok {
-			selectedCount = len(arr)
-		} else if arr, ok := data["selected_indices"].([]interface{}); ok {
-			selectedCount = len(arr)
+		cocoonIndices := butterflyCocoonFieldIndices(player)
+		pickCount := 2
+		if pickCount > len(cocoonIndices) {
+			pickCount = len(cocoonIndices)
 		}
 		var options []model.PromptOption
-		doneLabel := "完成选择（需2个茧）"
-		if selectedCount < 2 {
-			doneLabel = fmt.Sprintf("完成选择（还需%d个茧）", 2-selectedCount)
-		}
-		options = append(options, model.PromptOption{ID: "-1", Label: doneLabel})
-		for _, idx := range remaining {
+		for _, idx := range cocoonIndices {
 			if idx < 0 || idx >= len(player.Field) || player.Field[idx] == nil {
 				continue
 			}
@@ -7885,10 +8212,10 @@ func (e *GameEngine) buildChoicePrompt() *model.Prompt {
 		return &model.Prompt{
 			Type:     model.PromptChooseCards,
 			PlayerID: playerID,
-			Message:  fmt.Sprintf("【倒逆之蝶】分支②已选择%d/2个茧，继续选择或完成：", selectedCount),
+			Message:  fmt.Sprintf("【倒逆之蝶】分支②请选择要移除的%d个茧：", pickCount),
 			Options:  options,
-			Min:      1,
-			Max:      1,
+			Min:      pickCount,
+			Max:      pickCount,
 		}
 	}
 	if choiceType == "bt_pilgrimage_pick" || choiceType == "bt_poison_pick" {
@@ -8357,13 +8684,20 @@ func (e *GameEngine) buildChoicePrompt() *model.Prompt {
 				Label: fmt.Sprintf("%d: %s", idx+1, formatCardInfo(player.Hand[idx])),
 			})
 		}
+		remainingPick := xValue - selectedCount
+		if remainingPick < 1 {
+			remainingPick = 1
+		}
+		if len(options) > 0 && remainingPick > len(options) {
+			remainingPick = len(options)
+		}
 		return &model.Prompt{
-			Type:     model.PromptConfirm,
+			Type:     model.PromptChooseCards,
 			PlayerID: playerID,
-			Message:  fmt.Sprintf("【暗之障壁】请选择第 %d/%d 张弃牌：", selectedCount+1, xValue),
+			Message:  fmt.Sprintf("【暗之障壁】请选择要弃置的%d张牌：", remainingPick),
 			Options:  options,
-			Min:      1,
-			Max:      1,
+			Min:      remainingPick,
+			Max:      remainingPick,
 		}
 	}
 	if choiceType == "ml_fullness_cost_card" {
@@ -8641,13 +8975,20 @@ func (e *GameEngine) buildChoicePrompt() *model.Prompt {
 				Label: fmt.Sprintf("%d: %s", idx+1, formatCardInfo(player.Hand[idx])),
 			})
 		}
+		remainingPick := 2 - selected
+		if remainingPick < 1 {
+			remainingPick = 1
+		}
+		if len(options) > 0 && remainingPick > len(options) {
+			remainingPick = len(options)
+		}
 		return &model.Prompt{
-			Type:     model.PromptConfirm,
+			Type:     model.PromptChooseCards,
 			PlayerID: playerID,
-			Message:  fmt.Sprintf("【沉沦协奏曲】请选择第 %d/2 张%s系牌：", selected+1, chosenEleZh),
+			Message:  fmt.Sprintf("【沉沦协奏曲】请选择要弃置的%d张%s系牌：", remainingPick, chosenEleZh),
 			Options:  options,
-			Min:      1,
-			Max:      1,
+			Min:      remainingPick,
+			Max:      remainingPick,
 		}
 	}
 	if choiceType == "bd_dissonance_x" {
@@ -8700,13 +9041,20 @@ func (e *GameEngine) buildChoicePrompt() *model.Prompt {
 				Label: fmt.Sprintf("%d: %s", idx+1, formatCardInfo(c)),
 			})
 		}
+		remainingPick := need - selected
+		if remainingPick < 1 {
+			remainingPick = 1
+		}
+		if len(options) > 0 && remainingPick > len(options) {
+			remainingPick = len(options)
+		}
 		return &model.Prompt{
-			Type:     model.PromptConfirm,
+			Type:     model.PromptChooseCards,
 			PlayerID: playerID,
-			Message:  fmt.Sprintf("【不谐和弦】请 %s 选择第 %d/%d 张弃牌：", actor.Name, selected+1, need),
+			Message:  fmt.Sprintf("【不谐和弦】请 %s 选择要弃置的%d张手牌：", actor.Name, remainingPick),
 			Options:  options,
-			Min:      1,
-			Max:      1,
+			Min:      remainingPick,
+			Max:      remainingPick,
 		}
 	}
 	if choiceType == "bd_rousing_mode" {
@@ -8773,13 +9121,20 @@ func (e *GameEngine) buildChoicePrompt() *model.Prompt {
 				Label: fmt.Sprintf("%d: %s", idx+1, formatCardInfo(player.Hand[idx])),
 			})
 		}
+		remainingPick := 2 - selected
+		if remainingPick < 1 {
+			remainingPick = 1
+		}
+		if len(options) > 0 && remainingPick > len(options) {
+			remainingPick = len(options)
+		}
 		return &model.Prompt{
-			Type:     model.PromptConfirm,
+			Type:     model.PromptChooseCards,
 			PlayerID: playerID,
-			Message:  fmt.Sprintf("【激昂狂想曲】请选择第 %d/2 张弃牌：", selected+1),
+			Message:  fmt.Sprintf("【激昂狂想曲】请选择要弃置的%d张手牌：", remainingPick),
 			Options:  options,
-			Min:      1,
-			Max:      1,
+			Min:      remainingPick,
+			Max:      remainingPick,
 		}
 	}
 	if choiceType == "bd_victory_mode" {
@@ -8977,6 +9332,12 @@ func (e *GameEngine) buildChoicePrompt() *model.Prompt {
 
 // SkipResponse 跳过响应阶段
 func (e *GameEngine) SkipResponse() error {
+	// 格斗家攻击前互斥技能串行提示：
+	// 若当前是【蓄力一击】确认框且玩家选择跳过，则继续弹出【气绝崩击】确认框。
+	if e.maybeAdvanceFighterAttackStartResponse() {
+		return nil
+	}
+
 	// 获取当前中断的上下文（用于恢复扣卡）
 	// InterruptResponseSkill 的 Context 直接是 *model.Context（如 TriggerBeforeDraw 的 drawCtx）
 	var resumeCtx *model.Context
@@ -9109,6 +9470,46 @@ func (e *GameEngine) SkipResponse() error {
 	return nil
 }
 
+// maybeAdvanceFighterAttackStartResponse 在“跳过蓄力一击”时推进到“气绝崩击”确认框。
+func (e *GameEngine) maybeAdvanceFighterAttackStartResponse() bool {
+	intr := e.State.PendingInterrupt
+	if intr == nil || intr.Type != model.InterruptResponseSkill || intr.PlayerID == "" {
+		return false
+	}
+	if len(intr.SkillIDs) != 1 || intr.SkillIDs[0] != "fighter_charge_strike" {
+		return false
+	}
+	player := e.State.Players[intr.PlayerID]
+	if player == nil || !e.isFighter(player) {
+		return false
+	}
+
+	var ctx *model.Context
+	switch data := intr.Context.(type) {
+	case *model.Context:
+		ctx = data
+	case map[string]interface{}:
+		if userCtx, ok := data["user_ctx"].(*model.Context); ok {
+			ctx = userCtx
+		}
+	}
+	if ctx == nil || ctx.Trigger != model.TriggerOnAttackStart || ctx.TriggerCtx == nil || ctx.TriggerCtx.AttackInfo == nil {
+		return false
+	}
+	// 仅处理主动攻击前链路。
+	if ctx.TriggerCtx.AttackInfo.CounterInitiator != "" {
+		return false
+	}
+	if e.dispatcher == nil || !e.dispatcher.isSkillStillUsable("fighter_burst_crash", player, ctx) {
+		return false
+	}
+
+	intr.SkillIDs = []string{"fighter_burst_crash"}
+	e.Log(fmt.Sprintf("%s 放弃 [蓄力一击]，继续询问是否发动 [气绝崩击]", player.Name))
+	e.notifyInterruptPrompt()
+	return true
+}
+
 // advancePendingAttackDamageStageAfterHit 将命中后响应取消的延迟伤害从 Stage0 推进到 Stage1
 // 这样后续只继续受伤结算，不会再次触发 OnAttackHit 的响应弹框。
 func (e *GameEngine) advancePendingAttackDamageStageAfterHit(ctx *model.Context) bool {
@@ -9133,11 +9534,18 @@ func (e *GameEngine) advancePendingAttackDamageStageAfterHit(ctx *model.Context)
 }
 
 func (e *GameEngine) resolveHeroRoarMiss(attackerID string) {
+	e.resolveHeroRoarMissWithOverride(attackerID, false)
+}
+
+func (e *GameEngine) resolveHeroRoarMissWithOverride(attackerID string, force bool) {
 	attacker := e.State.Players[attackerID]
 	if attacker == nil || !e.isHero(attacker) {
 		return
 	}
-	if attacker.Tokens == nil || attacker.Tokens["hero_roar_active"] <= 0 {
+	if attacker.Tokens == nil {
+		attacker.Tokens = map[string]int{}
+	}
+	if !force && attacker.Tokens["hero_roar_active"] <= 0 {
 		return
 	}
 	attacker.Tokens["hero_roar_active"] = 0
@@ -9151,11 +9559,18 @@ func (e *GameEngine) resolveHeroRoarMiss(attackerID string) {
 }
 
 func (e *GameEngine) resolveFighterChargeMiss(attackerID string) {
+	e.resolveFighterChargeMissWithOverride(attackerID, false)
+}
+
+func (e *GameEngine) resolveFighterChargeMissWithOverride(attackerID string, force bool) {
 	attacker := e.State.Players[attackerID]
 	if attacker == nil || !e.isFighter(attacker) {
 		return
 	}
-	if attacker.Tokens == nil || attacker.Tokens["fighter_charge_pending"] <= 0 {
+	if attacker.Tokens == nil {
+		attacker.Tokens = map[string]int{}
+	}
+	if !force && attacker.Tokens["fighter_charge_pending"] <= 0 {
 		return
 	}
 	attacker.Tokens["fighter_charge_pending"] = 0
@@ -9174,8 +9589,12 @@ func (e *GameEngine) resolveFighterChargeMiss(attackerID string) {
 }
 
 func (e *GameEngine) resolveMagicBowPierceMiss(attackerID, targetID string) {
-	e.resolveHeroRoarMiss(attackerID)
-	e.resolveFighterChargeMiss(attackerID)
+	e.resolveMagicBowPierceMissWithOverride(attackerID, targetID, false, false)
+}
+
+func (e *GameEngine) resolveMagicBowPierceMissWithOverride(attackerID, targetID string, forceHeroRoarMiss, forceFighterChargeMiss bool) {
+	e.resolveHeroRoarMissWithOverride(attackerID, forceHeroRoarMiss)
+	e.resolveFighterChargeMissWithOverride(attackerID, forceFighterChargeMiss)
 	e.resolveHolyBowShardMiss(attackerID, targetID)
 	attacker := e.State.Players[attackerID]
 	target := e.State.Players[targetID]
@@ -9409,7 +9828,14 @@ func (e *GameEngine) resumePendingMoraleLoss(ctx *model.Context) bool {
 	isDamageResolution, _ := ctx.Selections["morale_loss_is_damage_resolution"].(bool)
 	if e.State.PendingInterrupt == nil {
 		if isDamageResolution {
-			e.State.Phase = model.PhaseExtraAction
+			// 优先恢复到伤害入队前的阶段（例如 Startup / ActionSelection / ExtraAction）。
+			// 若未记录 ReturnPhase，再兜底到 ExtraAction 以保持旧行为兼容。
+			if e.State.ReturnPhase != "" {
+				e.State.Phase = e.State.ReturnPhase
+				e.State.ReturnPhase = ""
+			} else {
+				e.State.Phase = model.PhaseExtraAction
+			}
 		} else if stayInTurn {
 			e.Log("[System] 弃牌完成，继续当前回合")
 			if e.State.ReturnPhase != "" {
@@ -9831,7 +10257,7 @@ func (e *GameEngine) consumeShieldForCombatTake(target *model.Player, combatReq 
 
 	e.addActionResponse(fmt.Sprintf("%s 的【圣盾】自动抵挡本次攻击", target.Name))
 	e.NotifyActionStep(fmt.Sprintf("%s 的【圣盾】触发，自动抵挡了本次攻击", target.Name))
-	e.NotifyCombatCue(combatReq.AttackerID, combatReq.TargetID, "defend")
+	e.NotifyCombatCue(combatReq.AttackerID, combatReq.TargetID, "shield")
 	e.Log(fmt.Sprintf("[Combat] %s 选择承受伤害，触发【圣盾】抵挡本次攻击！", target.Name))
 	e.resolveMagicBowPierceMiss(combatReq.AttackerID, combatReq.TargetID)
 	if atk := e.State.Players[combatReq.AttackerID]; atk != nil && atk.Tokens != nil {
@@ -9989,26 +10415,34 @@ func (e *GameEngine) handleCombatResponse(act model.PlayerAction) error {
 		if !ok {
 			return errors.New("无效的卡牌索引")
 		}
-		if card.Type != model.CardTypeAttack {
-			return errors.New("只能使用攻击牌进行应战")
-		}
-		card = e.applyBlazeWitchAttackCardTransform(player, card)
-
-		// 验证应战卡牌元素（规则：同系或暗灭）
-		// 暗灭不可被应战，只能承受伤害或使用圣光（若有场上圣盾会自动生效）
-		if combatReq.Card.Element == model.ElementDark {
-			return errors.New("暗灭无法被应战，只能承受伤害或使用圣光抵挡（场上圣盾会自动生效）")
-		}
+		useShadowMagicBulletCounter := e.canUseShadowRejectResponseMagic(player) &&
+			card.Type == model.CardTypeMagic &&
+			card.Name == "魔弹"
 		useFactionCounter := false
-		// 非暗灭攻击：只能用同系攻击牌或暗灭应战
-		if card.Element != combatReq.Card.Element && card.Element != model.ElementDark {
-			// 阴阳师可通过“阴阳转换”以同命格应战（非欺诈）。
-			if e.isOnmyoji(player) && onmyojiCanUseFactionCounter(combatReq.Card) &&
-				card.Faction != "" && card.Faction == combatReq.Card.Faction {
-				useFactionCounter = true
-			} else {
-				return fmt.Errorf("应战必须使用同系攻击牌或暗灭，对方为 %s 系", combatReq.Card.Element)
+
+		if !useShadowMagicBulletCounter {
+			if card.Type != model.CardTypeAttack {
+				return errors.New("只能使用攻击牌进行应战（暗影抗拒下可在非自己行动阶段使用【魔弹】）")
 			}
+			card = e.applyBlazeWitchAttackCardTransform(player, card)
+
+			// 验证应战卡牌元素（规则：同系或暗灭）
+			// 暗灭不可被应战，只能承受伤害或使用圣光（若有场上圣盾会自动生效）
+			if combatReq.Card.Element == model.ElementDark {
+				return errors.New("暗灭无法被应战，只能承受伤害或使用圣光抵挡（场上圣盾会自动生效）")
+			}
+			// 非暗灭攻击：只能用同系攻击牌或暗灭应战
+			if card.Element != combatReq.Card.Element && card.Element != model.ElementDark {
+				// 阴阳师可通过“阴阳转换”以同命格应战（非欺诈）。
+				if e.isOnmyoji(player) && onmyojiCanUseFactionCounter(combatReq.Card) &&
+					card.Faction != "" && card.Faction == combatReq.Card.Faction {
+					useFactionCounter = true
+				} else {
+					return fmt.Errorf("应战必须使用同系攻击牌或暗灭，对方为 %s 系", combatReq.Card.Element)
+				}
+			}
+		} else {
+			e.Log(fmt.Sprintf("[Combat] %s 触发[暗影抗拒]：非自己行动阶段使用【魔弹】应战", player.Name))
 		}
 
 		// 应战只能反弹给攻击方的队友，不能选择攻击者本人
@@ -11159,16 +11593,8 @@ func (e *GameEngine) handleActionSelection(act model.PlayerAction) error {
 		player.Tokens = map[string]int{}
 	}
 	if e.isFighter(player) && player.Tokens["fighter_hundred_dragon_form"] > 0 {
-		if act.Type == model.CmdCannotAct {
-			player.Tokens["fighter_hundred_dragon_form"] = 0
-			player.Tokens["fighter_hundred_dragon_target_order"] = 0
-			e.Log(fmt.Sprintf("%s 选择【无法行动】，取消 [百式幻龙拳] 并转正", player.Name))
-		} else if act.Type != model.CmdAttack {
-			player.Tokens["fighter_hundred_dragon_form"] = 0
-			player.Tokens["fighter_hundred_dragon_target_order"] = 0
-			e.Log(fmt.Sprintf("%s 未执行攻击，取消 [百式幻龙拳] 并转正", player.Name))
-			return fmt.Errorf("百式幻龙拳状态下仅可执行攻击；已取消该状态，请重新选择行动")
-		} else {
+		switch act.Type {
+		case model.CmdAttack:
 			targetID := act.TargetID
 			if targetID == "" && len(act.TargetIDs) > 0 {
 				targetID = act.TargetIDs[0]
@@ -11202,6 +11628,14 @@ func (e *GameEngine) handleActionSelection(act model.PlayerAction) error {
 				e.Log(fmt.Sprintf("%s 攻击目标变化，取消 [百式幻龙拳] 并转正", player.Name))
 				return fmt.Errorf("百式幻龙拳要求主动攻击同一目标；已取消该状态，请重新选择行动")
 			}
+		case model.CmdMagic, model.CmdSkill:
+			player.Tokens["fighter_hundred_dragon_form"] = 0
+			player.Tokens["fighter_hundred_dragon_target_order"] = 0
+			e.Log(fmt.Sprintf("%s 执行法术行动，取消 [百式幻龙拳] 并转正", player.Name))
+		case model.CmdBuy, model.CmdSynthesize, model.CmdExtract:
+			player.Tokens["fighter_hundred_dragon_form"] = 0
+			player.Tokens["fighter_hundred_dragon_target_order"] = 0
+			e.Log(fmt.Sprintf("%s 执行特殊行动，取消 [百式幻龙拳] 并转正", player.Name))
 		}
 	}
 
@@ -12214,6 +12648,9 @@ func (e *GameEngine) handleInterruptAction(act model.PlayerAction) error {
 		if act.Type == model.CmdSelect {
 			return e.ConfirmDiscard(act.PlayerID, act.Selections)
 		}
+		if act.Type == model.CmdSkill {
+			return fmt.Errorf("当前正在处理弃牌步骤，请先在手牌区选择并提交弃牌")
+		}
 
 	case model.InterruptGiveCards:
 		if act.Type == model.CmdSelect {
@@ -12272,6 +12709,18 @@ func (e *GameEngine) handleInterruptAction(act model.PlayerAction) error {
 			if data, ok := e.State.PendingInterrupt.Context.(map[string]interface{}); ok {
 				if ct, _ := data["choice_type"].(string); ct == "extract" {
 					return e.handleExtractChoiceResponse(act)
+				} else if ct == "bp_curse_discard" {
+					return e.handleBloodCurseDiscardSelections(act.PlayerID, act.Selections)
+				} else if ct == "ss_recall_pick" {
+					return e.handleSoulRecallSelections(act.PlayerID, act.Selections)
+				} else if ct == "bt_reverse_discard" {
+					return e.handleButterflyReverseDiscardSelections(act.PlayerID, act.Selections)
+				} else if ct == "bt_cocoon_overflow_discard" {
+					return e.handleButterflyCocoonOverflowSelections(act.PlayerID, act.Selections)
+				} else if ct == "bt_reverse_branch2_pick" {
+					return e.handleButterflyReverseBranch2PickSelections(act.PlayerID, act.Selections)
+				} else if _, isLegacyCardMulti := legacyCardChoiceRemainingCount(ct, data); isLegacyCardMulti {
+					return e.handleLegacySequentialCardSelections(act.PlayerID, act.Selections)
 				}
 			}
 			if len(act.Selections) != 1 {
@@ -13102,6 +13551,464 @@ func (e *GameEngine) handleSaintHealResponse(act model.PlayerAction) error {
 	return fmt.Errorf("未知的圣疗阶段")
 }
 
+func (e *GameEngine) handleBloodCurseDiscardSelections(playerID string, selections []int) error {
+	if e.State.PendingInterrupt == nil || e.State.PendingInterrupt.Type != model.InterruptChoice {
+		return fmt.Errorf("当前不存在可处理的血之诅咒弃牌")
+	}
+	ctxData, ok := e.State.PendingInterrupt.Context.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("血之诅咒上下文错误")
+	}
+	choiceType, _ := ctxData["choice_type"].(string)
+	if choiceType != "bp_curse_discard" {
+		return fmt.Errorf("当前中断不是血之诅咒弃牌")
+	}
+
+	userID, _ := ctxData["user_id"].(string)
+	if userID == "" {
+		userID = playerID
+	}
+	user := e.State.Players[userID]
+	if user == nil {
+		return fmt.Errorf("玩家不存在")
+	}
+
+	discardNeed := toIntContextValue(ctxData["discard_count"])
+	if discardNeed < 0 {
+		discardNeed = 0
+	}
+	if discardNeed > len(user.Hand) {
+		discardNeed = len(user.Hand)
+	}
+	if discardNeed == 0 {
+		e.PopInterrupt()
+		if e.State.PendingInterrupt == nil {
+			if len(e.State.PendingDamageQueue) > 0 {
+				e.State.Phase = model.PhasePendingDamageResolution
+				e.State.ReturnPhase = model.PhaseExtraAction
+			} else {
+				e.State.Phase = model.PhaseExtraAction
+			}
+		}
+		return nil
+	}
+
+	if len(selections) != discardNeed {
+		return fmt.Errorf("需要选择 %d 张手牌弃置", discardNeed)
+	}
+
+	chosen := make([]int, 0, discardNeed)
+	seen := make(map[int]struct{}, discardNeed)
+	for _, idx := range selections {
+		if idx < 0 || idx >= len(user.Hand) {
+			return fmt.Errorf("无效的弃牌索引: %d", idx)
+		}
+		if _, ok := seen[idx]; ok {
+			return fmt.Errorf("不能重复选择同一张牌")
+		}
+		seen[idx] = struct{}{}
+		chosen = append(chosen, idx)
+	}
+
+	sort.Sort(sort.Reverse(sort.IntSlice(chosen)))
+	discarded := make([]model.Card, 0, len(chosen))
+	for _, idx := range chosen {
+		discarded = append(discarded, user.Hand[idx])
+		user.Hand = append(user.Hand[:idx], user.Hand[idx+1:]...)
+	}
+
+	if len(discarded) > 0 {
+		e.NotifyCardRevealed(user.ID, discarded, "discard")
+		e.State.DiscardPile = append(e.State.DiscardPile, discarded...)
+	}
+	_ = e.maybeAutoReleaseBloodPriestessByHand(user, "手牌<3强制脱离流血形态")
+	e.Log(fmt.Sprintf("%s 的 [血之诅咒] 后续：弃置%d张牌", user.Name, len(discarded)))
+
+	e.PopInterrupt()
+	if e.State.PendingInterrupt == nil {
+		if len(e.State.PendingDamageQueue) > 0 {
+			e.State.Phase = model.PhasePendingDamageResolution
+			e.State.ReturnPhase = model.PhaseExtraAction
+		} else {
+			e.State.Phase = model.PhaseExtraAction
+		}
+	}
+	return nil
+}
+
+func parseChoiceIntSlice(raw interface{}) []int {
+	var out []int
+	if arr, ok := raw.([]int); ok {
+		out = append(out, arr...)
+		return out
+	}
+	if arr, ok := raw.([]interface{}); ok {
+		for _, v := range arr {
+			if f, ok := v.(float64); ok {
+				out = append(out, int(f))
+			}
+		}
+	}
+	return out
+}
+
+func resolveSelectionToAllowedIndex(selection int, candidates []int, allowed map[int]struct{}) (int, bool) {
+	if _, ok := allowed[selection]; ok {
+		return selection, true
+	}
+	if selection >= 0 && selection < len(candidates) {
+		mapped := candidates[selection]
+		if _, ok := allowed[mapped]; ok {
+			return mapped, true
+		}
+	}
+	return 0, false
+}
+
+func legacyCardChoiceRemainingCount(choiceType string, ctxData map[string]interface{}) (int, bool) {
+	selectedCount := len(parseChoiceIntSlice(ctxData["selected_indices"]))
+
+	switch choiceType {
+	case "hom_rune_smash_cards", "hom_glyph_fusion_cards":
+		return toIntContextValue(ctxData["x_value"]) - selectedCount, true
+	case "plague_death_touch_cards":
+		return toIntContextValue(ctxData["y_value"]) - selectedCount, true
+	case "ms_shadow_meteor_discard":
+		return 2 - selectedCount, true
+	case "bw_mana_inversion_cards":
+		return toIntContextValue(ctxData["x_value"]) - selectedCount, true
+	case "sage_magic_rebound_cards", "sage_arcane_cards", "sage_holy_cards":
+		return toIntContextValue(ctxData["x_value"]) - selectedCount, true
+	case "mb_charge_place_cards":
+		return toIntContextValue(ctxData["need_count"]) - selectedCount, true
+	case "mb_demon_eye_charge_card":
+		need := toIntContextValue(ctxData["need_count"])
+		if need <= 0 {
+			need = 1
+		}
+		return need - selectedCount, true
+	case "hb_light_burst_mode_b_discard":
+		return toIntContextValue(ctxData["x_value"]) - selectedCount, true
+	case "ml_dark_barrier_cards":
+		return toIntContextValue(ctxData["x_value"]) - selectedCount, true
+	case "bd_descent_cards", "bd_rousing_discard_cards":
+		return 2 - selectedCount, true
+	case "bd_dissonance_discard_step":
+		need := toIntContextValue(ctxData["need_count"])
+		selected := toIntContextValue(ctxData["selected_count"])
+		return need - selected, true
+	default:
+		return 0, false
+	}
+}
+
+func (e *GameEngine) handleLegacySequentialCardSelections(playerID string, selections []int) error {
+	if len(selections) == 0 {
+		return fmt.Errorf("请先选择手牌后再提交")
+	}
+	if e.State.PendingInterrupt == nil || e.State.PendingInterrupt.Type != model.InterruptChoice {
+		return fmt.Errorf("当前不存在可处理的选牌中断")
+	}
+	ctxData, ok := e.State.PendingInterrupt.Context.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("选牌上下文错误")
+	}
+	choiceType, _ := ctxData["choice_type"].(string)
+	needCount, supported := legacyCardChoiceRemainingCount(choiceType, ctxData)
+	if !supported {
+		return fmt.Errorf("当前选择类型不支持多选提交流程")
+	}
+	if needCount < 1 {
+		needCount = 1
+	}
+	// 兼容旧客户端逐次提交：当仍为单选提交时，沿用历史流程继续推进。
+	if len(selections) == 1 && needCount != 1 {
+		return e.handleWeakChoiceInput(playerID, selections[0])
+	}
+	if len(selections) != needCount {
+		return fmt.Errorf("需要选择 %d 张牌", needCount)
+	}
+	for _, idx := range selections {
+		if err := e.handleWeakChoiceInput(playerID, idx); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (e *GameEngine) handleSoulRecallSelections(playerID string, selections []int) error {
+	if e.State.PendingInterrupt == nil || e.State.PendingInterrupt.Type != model.InterruptChoice {
+		return fmt.Errorf("当前不存在可处理的灵魂召还弃牌")
+	}
+	ctxData, ok := e.State.PendingInterrupt.Context.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("灵魂召还上下文错误")
+	}
+	choiceType, _ := ctxData["choice_type"].(string)
+	if choiceType != "ss_recall_pick" {
+		return fmt.Errorf("当前中断不是灵魂召还选牌")
+	}
+
+	userID, _ := ctxData["user_id"].(string)
+	if userID == "" {
+		userID = playerID
+	}
+	user := e.State.Players[userID]
+	if user == nil {
+		return fmt.Errorf("玩家不存在")
+	}
+
+	magicIndices := parseChoiceIntSlice(ctxData["magic_indices"])
+	if len(magicIndices) == 0 {
+		// 兼容旧上下文键。
+		magicIndices = parseChoiceIntSlice(ctxData["remaining_indices"])
+	}
+	allowed := make(map[int]struct{}, len(magicIndices))
+	orderedCandidates := make([]int, 0, len(magicIndices))
+	for _, idx := range magicIndices {
+		if idx < 0 || idx >= len(user.Hand) {
+			continue
+		}
+		if user.Hand[idx].Type != model.CardTypeMagic {
+			continue
+		}
+		allowed[idx] = struct{}{}
+		orderedCandidates = append(orderedCandidates, idx)
+	}
+	if len(allowed) == 0 {
+		return fmt.Errorf("灵魂召还没有可弃置的法术牌")
+	}
+	if len(selections) == 0 {
+		return fmt.Errorf("灵魂召还至少选择1张法术牌")
+	}
+	if len(selections) > len(allowed) {
+		return fmt.Errorf("选择数量超过可选法术牌数量")
+	}
+
+	picked := make([]int, 0, len(selections))
+	seen := make(map[int]struct{}, len(selections))
+	for _, idx := range selections {
+		resolvedIdx, ok := resolveSelectionToAllowedIndex(idx, orderedCandidates, allowed)
+		if !ok {
+			return fmt.Errorf("灵魂召还只能选择法术牌")
+		}
+		if _, dup := seen[resolvedIdx]; dup {
+			return fmt.Errorf("不能重复选择同一张牌")
+		}
+		seen[resolvedIdx] = struct{}{}
+		picked = append(picked, resolvedIdx)
+	}
+
+	removed, err := removeCardsByIndicesFromHand(user, picked)
+	if err != nil {
+		return err
+	}
+	e.NotifyCardRevealed(user.ID, removed, "discard")
+	e.State.DiscardPile = append(e.State.DiscardPile, removed...)
+	gain := len(removed)
+	before := soulSorcererBlue(user)
+	after := addSoulSorcererBlue(user, gain)
+	e.Log(fmt.Sprintf("%s 发动 [灵魂召还]：弃置%d张法术牌，蓝色灵魂 +%d（%d→%d）", user.Name, gain, gain, before, after))
+
+	e.PopInterrupt()
+	if e.State.PendingInterrupt == nil {
+		if len(e.State.PendingDamageQueue) > 0 {
+			e.State.Phase = model.PhasePendingDamageResolution
+			e.State.ReturnPhase = model.PhaseExtraAction
+		} else {
+			e.State.Phase = model.PhaseExtraAction
+		}
+	}
+	return nil
+}
+
+func (e *GameEngine) handleButterflyReverseDiscardSelections(playerID string, selections []int) error {
+	if e.State.PendingInterrupt == nil || e.State.PendingInterrupt.Type != model.InterruptChoice {
+		return fmt.Errorf("当前不存在可处理的倒逆之蝶弃牌")
+	}
+	ctxData, ok := e.State.PendingInterrupt.Context.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("倒逆之蝶上下文错误")
+	}
+	choiceType, _ := ctxData["choice_type"].(string)
+	if choiceType != "bt_reverse_discard" {
+		return fmt.Errorf("当前中断不是倒逆之蝶弃牌")
+	}
+
+	userID, _ := ctxData["user_id"].(string)
+	if userID == "" {
+		userID = playerID
+	}
+	user := e.State.Players[userID]
+	if user == nil {
+		return fmt.Errorf("玩家不存在")
+	}
+
+	discardNeed := toIntContextValue(ctxData["discard_count"])
+	if discardNeed < 0 {
+		discardNeed = 0
+	}
+	if discardNeed > len(user.Hand) {
+		discardNeed = len(user.Hand)
+	}
+	if len(selections) != discardNeed {
+		return fmt.Errorf("需要选择 %d 张手牌弃置", discardNeed)
+	}
+
+	removed, err := removeCardsByIndicesFromHand(user, append([]int{}, selections...))
+	if err != nil {
+		return err
+	}
+	if len(removed) > 0 {
+		e.NotifyCardRevealed(user.ID, removed, "discard")
+		e.State.DiscardPile = append(e.State.DiscardPile, removed...)
+	}
+
+	ctxData["choice_type"] = "bt_reverse_mode"
+	ctxData["can_branch2"] = butterflyPupa(user) > 0
+	ctxData["can_remove_cocoon"] = butterflyCocoonCount(user) >= 2
+	ctxData["target_ids"] = append([]string{}, e.State.PlayerOrder...)
+	delete(ctxData, "selected_indices")
+	delete(ctxData, "remaining_indices")
+	e.State.PendingInterrupt.Context = ctxData
+	e.notifyInterruptPrompt()
+	return nil
+}
+
+func (e *GameEngine) handleButterflyCocoonOverflowSelections(playerID string, selections []int) error {
+	if e.State.PendingInterrupt == nil || e.State.PendingInterrupt.Type != model.InterruptChoice {
+		return fmt.Errorf("当前不存在可处理的茧上限弃置")
+	}
+	ctxData, ok := e.State.PendingInterrupt.Context.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("茧上限上下文错误")
+	}
+	choiceType, _ := ctxData["choice_type"].(string)
+	if choiceType != "bt_cocoon_overflow_discard" {
+		return fmt.Errorf("当前中断不是茧上限弃置")
+	}
+
+	userID, _ := ctxData["user_id"].(string)
+	if userID == "" {
+		userID = playerID
+	}
+	user := e.State.Players[userID]
+	if user == nil {
+		return fmt.Errorf("玩家不存在")
+	}
+
+	discardNeed := toIntContextValue(ctxData["discard_count"])
+	if discardNeed < 0 {
+		discardNeed = 0
+	}
+	cocoonIndices := butterflyCocoonFieldIndices(user)
+	if discardNeed > len(cocoonIndices) {
+		discardNeed = len(cocoonIndices)
+	}
+	if len(selections) != discardNeed {
+		return fmt.Errorf("需要选择 %d 个茧舍弃", discardNeed)
+	}
+
+	picked := make([]int, 0, len(selections))
+	seen := make(map[int]struct{}, len(selections))
+	for _, selection := range selections {
+		fieldIdx, ok := resolveSelectionToCandidate(selection, cocoonIndices)
+		if !ok {
+			return fmt.Errorf("无效的茧索引: %d", selection)
+		}
+		if _, dup := seen[fieldIdx]; dup {
+			return fmt.Errorf("不能重复选择同一个茧")
+		}
+		seen[fieldIdx] = struct{}{}
+		picked = append(picked, fieldIdx)
+	}
+
+	removed, err := removeButterflyCocoonByFieldIndices(user, picked)
+	if err != nil {
+		return err
+	}
+	if len(removed) > 0 {
+		e.NotifyCardHidden(user.ID, removed, "discard")
+		e.State.DiscardPile = append(e.State.DiscardPile, removed...)
+	}
+	e.Log(fmt.Sprintf("%s 的 [茧上限] 结算：舍弃%d个茧", user.Name, len(removed)))
+
+	e.PopInterrupt()
+	if e.State.PendingInterrupt == nil {
+		e.State.Phase = model.PhaseExtraAction
+	}
+	return nil
+}
+
+func (e *GameEngine) handleButterflyReverseBranch2PickSelections(playerID string, selections []int) error {
+	if e.State.PendingInterrupt == nil || e.State.PendingInterrupt.Type != model.InterruptChoice {
+		return fmt.Errorf("当前不存在可处理的倒逆之蝶分支②选茧")
+	}
+	ctxData, ok := e.State.PendingInterrupt.Context.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("倒逆之蝶分支②上下文错误")
+	}
+	choiceType, _ := ctxData["choice_type"].(string)
+	if choiceType != "bt_reverse_branch2_pick" {
+		return fmt.Errorf("当前中断不是倒逆之蝶分支②选茧")
+	}
+
+	userID, _ := ctxData["user_id"].(string)
+	if userID == "" {
+		userID = playerID
+	}
+	user := e.State.Players[userID]
+	if user == nil {
+		return fmt.Errorf("玩家不存在")
+	}
+	const pickNeed = 2
+	if len(selections) != pickNeed {
+		return fmt.Errorf("需要选择 %d 个茧", pickNeed)
+	}
+
+	cocoonIndices := butterflyCocoonFieldIndices(user)
+	picked := make([]int, 0, len(selections))
+	seen := make(map[int]struct{}, len(selections))
+	for _, selection := range selections {
+		fieldIdx, ok := resolveSelectionToCandidate(selection, cocoonIndices)
+		if !ok {
+			return fmt.Errorf("无效的茧索引: %d", selection)
+		}
+		if _, dup := seen[fieldIdx]; dup {
+			return fmt.Errorf("不能重复选择同一个茧")
+		}
+		seen[fieldIdx] = struct{}{}
+		picked = append(picked, fieldIdx)
+	}
+
+	removed, err := removeButterflyCocoonByFieldIndices(user, picked)
+	if err != nil {
+		return err
+	}
+	if len(removed) > 0 {
+		e.NotifyCardRevealed(user.ID, removed, "discard")
+		e.State.DiscardPile = append(e.State.DiscardPile, removed...)
+	}
+	for _, c := range removed {
+		if c.Type == model.CardTypeMagic {
+			e.queueButterflyWitherTrigger(user)
+		}
+	}
+	now := addButterflyPupa(user, -1)
+	e.Log(fmt.Sprintf("%s 的 [倒逆之蝶] 分支②：移除2个茧并移除1个蛹（当前蛹=%d）", user.Name, now))
+
+	e.PopInterrupt()
+	if e.State.PendingInterrupt == nil {
+		if len(e.State.PendingDamageQueue) > 0 {
+			e.State.Phase = model.PhasePendingDamageResolution
+			e.State.ReturnPhase = model.PhaseExtraAction
+		} else {
+			e.State.Phase = model.PhaseExtraAction
+		}
+	}
+	return nil
+}
+
 // handleWeakChoiceInput 处理虚弱/选择中断
 func (e *GameEngine) handleWeakChoiceInput(playerID string, selectionIndex int) error {
 	// 1. 安全获取上下文数据
@@ -13276,6 +14183,34 @@ func (e *GameEngine) handleWeakChoiceInput(playerID string, selectionIndex int) 
 		}
 		if drawCount > 0 {
 			e.DrawCards(user.ID, drawCount)
+			// 怒吼摸牌发生在“攻击前响应”流程内：若因此爆牌，需要弃牌后继续当前攻击链路，
+			// 不能按普通摸牌默认走回合结束。
+			markRoarOverflowStayInTurn := func(intr *model.Interrupt) {
+				if intr == nil || intr.Type != model.InterruptDiscard || intr.PlayerID != user.ID {
+					return
+				}
+				data, ok := intr.Context.(map[string]interface{})
+				if !ok || data == nil {
+					return
+				}
+				// 仅修正“手牌上限爆牌弃牌”，不影响技能弃牌/伤害摸牌弃牌等分支。
+				if _, hasSkillDiscard := data["skill_id"]; hasSkillDiscard {
+					return
+				}
+				victimID, _ := data["victim_id"].(string)
+				if victimID != user.ID {
+					return
+				}
+				if fromDamage, _ := data["from_damage_draw"].(bool); fromDamage {
+					return
+				}
+				data["stay_in_turn"] = true
+				intr.Context = data
+			}
+			markRoarOverflowStayInTurn(e.State.PendingInterrupt)
+			for _, intr := range e.State.InterruptQueue {
+				markRoarOverflowStayInTurn(intr)
+			}
 		}
 		e.Log(fmt.Sprintf("%s 的 [怒吼] 结算：摸%d张牌", user.Name, drawCount))
 		e.PopInterrupt()
@@ -17952,25 +18887,7 @@ func (e *GameEngine) handleWeakChoiceInput(playerID string, selectionIndex int) 
 			return fmt.Errorf("没有满足手牌条件的目标")
 		}
 		ctxData["x_value"] = xValue
-		ctxData["eligible_count"] = len(candidateTargets)
 		ctxData["candidate_target_ids"] = candidateTargets
-		ctxData["choice_type"] = "hb_light_burst_mode_b_target_count"
-		e.State.PendingInterrupt.Context = ctxData
-		e.notifyInterruptPrompt()
-		return nil
-	}
-	if choiceType == "hb_light_burst_mode_b_target_count" {
-		xValue := toIntContextValue(ctxData["x_value"])
-		eligibleCount := toIntContextValue(ctxData["eligible_count"])
-		maxCount := xValue
-		if eligibleCount < maxCount {
-			maxCount = eligibleCount
-		}
-		targetCount := selectionIndex + 1
-		if targetCount < 1 || targetCount > maxCount {
-			return fmt.Errorf("无效的目标数量")
-		}
-		ctxData["target_count"] = targetCount
 		ctxData["selected_target_ids"] = []string{}
 		ctxData["choice_type"] = "hb_light_burst_mode_b_targets"
 		e.State.PendingInterrupt.Context = ctxData
@@ -17988,9 +18905,16 @@ func (e *GameEngine) handleWeakChoiceInput(playerID string, selectionIndex int) 
 				}
 			}
 		}
-		targetCount := toIntContextValue(ctxData["target_count"])
-		if targetCount <= 0 {
-			return fmt.Errorf("目标数量无效")
+		xValue := toIntContextValue(ctxData["x_value"])
+		if xValue <= 0 {
+			return fmt.Errorf("X值无效")
+		}
+		maxTargets := xValue
+		if len(candidates) < maxTargets {
+			maxTargets = len(candidates)
+		}
+		if maxTargets <= 0 {
+			return fmt.Errorf("没有可选目标")
 		}
 		var selected []string
 		selectedSet := map[string]bool{}
@@ -18015,15 +18939,31 @@ func (e *GameEngine) handleWeakChoiceInput(playerID string, selectionIndex int) 
 				remaining = append(remaining, tid)
 			}
 		}
-		if selectionIndex < 0 || selectionIndex >= len(remaining) {
-			return fmt.Errorf("无效的选项索引: %d", selectionIndex)
+
+		allowFinish := len(selected) > 0
+		finishIndex := -1
+		if allowFinish {
+			finishIndex = len(remaining)
 		}
-		selected = append(selected, remaining[selectionIndex])
-		ctxData["selected_target_ids"] = selected
-		if len(selected) < targetCount {
-			e.State.PendingInterrupt.Context = ctxData
-			e.notifyInterruptPrompt()
-			return nil
+
+		proceedDiscard := false
+		if allowFinish && selectionIndex == finishIndex {
+			proceedDiscard = true
+		} else {
+			if selectionIndex < 0 || selectionIndex >= len(remaining) {
+				return fmt.Errorf("无效的选项索引: %d", selectionIndex)
+			}
+			selected = append(selected, remaining[selectionIndex])
+			ctxData["selected_target_ids"] = selected
+			if len(selected) < maxTargets {
+				e.State.PendingInterrupt.Context = ctxData
+				e.notifyInterruptPrompt()
+				return nil
+			}
+			proceedDiscard = true
+		}
+		if !proceedDiscard || len(selected) == 0 {
+			return fmt.Errorf("至少需要选择1名目标")
 		}
 		userID, _ := ctxData["user_id"].(string)
 		user := e.State.Players[userID]
@@ -18418,16 +19358,22 @@ func (e *GameEngine) handleWeakChoiceInput(playerID string, selectionIndex int) 
 		rawCtx, _ := ctxData["user_ctx"].(*model.Context)
 		e.PopInterrupt()
 		if e.State.PendingInterrupt == nil {
-			if rawCtx != nil && rawCtx.Trigger == model.TriggerOnAttackStart {
-				if len(e.State.ActionQueue) > 0 {
-					e.State.Phase = model.PhaseBeforeAction
-				} else if len(e.State.CombatStack) > 0 {
-					e.State.Phase = model.PhaseCombatInteraction
-				} else {
-					e.State.Phase = model.PhaseTurnEnd
-				}
+			// 兜底恢复：灵魂转换常发生在响应链路中，若恢复到空 Response 会导致 Drive 无法推进。
+			// 因此这里严格按“可继续执行的流程”回切，不再回到 Response。
+			if len(e.State.ActionQueue) > 0 {
+				e.State.Phase = model.PhaseBeforeAction
+			} else if len(e.State.CombatStack) > 0 {
+				e.State.Phase = model.PhaseCombatInteraction
+			} else if len(e.State.PendingDamageQueue) > 0 {
+				e.State.Phase = model.PhasePendingDamageResolution
+			} else if e.State.ReturnPhase != "" && e.State.ReturnPhase != model.PhaseResponse {
+				e.State.Phase = e.State.ReturnPhase
+				e.State.ReturnPhase = ""
+			} else if rawCtx != nil && rawCtx.Trigger == model.TriggerOnAttackStart {
+				// AttackStart 响应恢复：若现场队列已被消费，至少回到 ExtraAction 继续推进回合。
+				e.State.Phase = model.PhaseExtraAction
 			} else {
-				e.State.Phase = model.PhaseResponse
+				e.State.Phase = model.PhaseExtraAction
 			}
 		}
 		return nil
@@ -18543,86 +19489,11 @@ func (e *GameEngine) handleWeakChoiceInput(playerID string, selectionIndex int) 
 		return nil
 	}
 	if choiceType == "ss_recall_pick" {
-		userID, _ := ctxData["user_id"].(string)
-		user := e.State.Players[userID]
-		if user == nil {
-			return fmt.Errorf("玩家不存在")
+		if selectionIndex < 0 {
+			return fmt.Errorf("请从可选法术牌中至少选择1张")
 		}
-		var remaining []int
-		if arr, ok := ctxData["remaining_indices"].([]int); ok {
-			remaining = append(remaining, arr...)
-		} else if arr, ok := ctxData["remaining_indices"].([]interface{}); ok {
-			for _, v := range arr {
-				if f, ok := v.(float64); ok {
-					remaining = append(remaining, int(f))
-				}
-			}
-		}
-		var selected []int
-		if arr, ok := ctxData["selected_indices"].([]int); ok {
-			selected = append(selected, arr...)
-		} else if arr, ok := ctxData["selected_indices"].([]interface{}); ok {
-			for _, v := range arr {
-				if f, ok := v.(float64); ok {
-					selected = append(selected, int(f))
-				}
-			}
-		}
-		// 兼容两种前端：选项序号或直接 option ID=-1
-		if selectionIndex == -1 || selectionIndex == 0 {
-			if len(selected) == 0 {
-				return fmt.Errorf("灵魂召还至少选择1张法术牌")
-			}
-			removed, err := removeCardsByIndicesFromHand(user, append([]int{}, selected...))
-			if err != nil {
-				return err
-			}
-			e.NotifyCardRevealed(user.ID, removed, "discard")
-			e.State.DiscardPile = append(e.State.DiscardPile, removed...)
-			gain := len(removed)
-			before := soulSorcererBlue(user)
-			after := addSoulSorcererBlue(user, gain)
-			e.Log(fmt.Sprintf("%s 发动 [灵魂召还]：弃置%d张法术牌，蓝色灵魂 +%d（%d→%d）", user.Name, gain, gain, before, after))
-			e.PopInterrupt()
-			if e.State.PendingInterrupt == nil {
-				if len(e.State.PendingDamageQueue) > 0 {
-					e.State.Phase = model.PhasePendingDamageResolution
-					e.State.ReturnPhase = model.PhaseExtraAction
-				} else {
-					e.State.Phase = model.PhaseExtraAction
-				}
-			}
-			return nil
-		}
-		cardIdx := -1
-		if selectionIndex >= 1 && selectionIndex <= len(remaining) {
-			cardIdx = remaining[selectionIndex-1]
-		} else {
-			for _, idx := range remaining {
-				if idx == selectionIndex {
-					cardIdx = idx
-					break
-				}
-			}
-		}
-		if cardIdx < 0 || cardIdx >= len(user.Hand) {
-			return fmt.Errorf("无效的选项索引: %d", selectionIndex)
-		}
-		if user.Hand[cardIdx].Type != model.CardTypeMagic {
-			return fmt.Errorf("灵魂召还只能选择法术牌")
-		}
-		selected = append(selected, cardIdx)
-		nextRemaining := make([]int, 0, len(remaining))
-		for _, idx := range remaining {
-			if idx != cardIdx {
-				nextRemaining = append(nextRemaining, idx)
-			}
-		}
-		ctxData["selected_indices"] = selected
-		ctxData["remaining_indices"] = nextRemaining
-		e.State.PendingInterrupt.Context = ctxData
-		e.notifyInterruptPrompt()
-		return nil
+		// 兼容旧入口：若仍以单选索引进入此分支，转交统一多选提交处理。
+		return e.handleSoulRecallSelections(playerID, []int{selectionIndex})
 	}
 	if choiceType == "bp_shared_life_target" {
 		userID, _ := ctxData["user_id"].(string)
@@ -18722,11 +19593,14 @@ func (e *GameEngine) handleWeakChoiceInput(playerID string, selectionIndex int) 
 			e.notifyInterruptPrompt()
 			return nil
 		}
-
-		if !e.removeBloodPriestessSharedLife(user, true) {
-			return fmt.Errorf("当前没有可移除的同生共死")
-		}
-		e.Log(fmt.Sprintf("%s 发动 [血之哀伤]：对自己造成2点法术伤害，并移除【同生共死】", user.Name))
+		e.enqueueDeferredFollowup(model.DeferredFollowup{
+			Type:   "blood_priestess_blood_sorrow_apply",
+			UserID: user.ID,
+			Data: map[string]interface{}{
+				"mode": "remove",
+			},
+		})
+		e.Log(fmt.Sprintf("%s 发动 [血之哀伤]：先对自己造成2点法术伤害，伤害结算后移除【同生共死】", user.Name))
 		e.PopInterrupt()
 		if e.State.PendingInterrupt == nil {
 			e.State.Phase = model.PhasePendingDamageResolution
@@ -18753,20 +19627,29 @@ func (e *GameEngine) handleWeakChoiceInput(playerID string, selectionIndex int) 
 		if selectionIndex < 0 || selectionIndex >= len(targetIDs) {
 			return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
+		if !toBoolContextValue(ctxData["damage_queued"]) {
+			e.AddPendingDamage(model.PendingDamage{
+				SourceID:   user.ID,
+				TargetID:   user.ID,
+				Damage:     2,
+				DamageType: "magic",
+				Stage:      0,
+			})
+			ctxData["damage_queued"] = true
+		}
 		target := e.State.Players[targetIDs[selectionIndex]]
 		if target == nil {
 			return fmt.Errorf("转移目标不存在")
 		}
-		holder, fc := e.findBloodPriestessSharedLife(user)
-		if holder == nil || fc == nil {
-			return fmt.Errorf("当前没有可转移的同生共死")
-		}
-		card := fc.Card
-		holder.RemoveFieldCard(fc)
-		if err := e.placeBloodPriestessSharedLife(user, target, card); err != nil {
-			return err
-		}
-		e.Log(fmt.Sprintf("%s 发动 [血之哀伤]：对自己造成2点法术伤害，并将【同生共死】转移至 %s", user.Name, target.Name))
+		e.enqueueDeferredFollowup(model.DeferredFollowup{
+			Type:   "blood_priestess_blood_sorrow_apply",
+			UserID: user.ID,
+			Data: map[string]interface{}{
+				"mode":      "transfer",
+				"target_id": target.ID,
+			},
+		})
+		e.Log(fmt.Sprintf("%s 发动 [血之哀伤]：先对自己造成2点法术伤害，伤害结算后将【同生共死】转移至 %s", user.Name, target.Name))
 		e.PopInterrupt()
 		if e.State.PendingInterrupt == nil {
 			e.State.Phase = model.PhasePendingDamageResolution
@@ -18828,97 +19711,11 @@ func (e *GameEngine) handleWeakChoiceInput(playerID string, selectionIndex int) 
 		return nil
 	}
 	if choiceType == "bp_curse_discard" {
-		userID, _ := ctxData["user_id"].(string)
-		user := e.State.Players[userID]
-		if user == nil {
-			return fmt.Errorf("玩家不存在")
+		if selectionIndex < 0 {
+			return fmt.Errorf("请在手牌区选择需要弃置的手牌后确认")
 		}
-		discardNeed := toIntContextValue(ctxData["discard_count"])
-		if discardNeed < 0 {
-			discardNeed = 0
-		}
-		var selected []int
-		if arr, ok := ctxData["selected_indices"].([]int); ok {
-			selected = append(selected, arr...)
-		} else if arr, ok := ctxData["selected_indices"].([]interface{}); ok {
-			for _, v := range arr {
-				if f, ok := v.(float64); ok {
-					selected = append(selected, int(f))
-				}
-			}
-		}
-		var remaining []int
-		if arr, ok := ctxData["remaining_indices"].([]int); ok {
-			remaining = append(remaining, arr...)
-		} else if arr, ok := ctxData["remaining_indices"].([]interface{}); ok {
-			for _, v := range arr {
-				if f, ok := v.(float64); ok {
-					remaining = append(remaining, int(f))
-				}
-			}
-		}
-		if selectionIndex == -1 {
-			if len(selected) < discardNeed {
-				return fmt.Errorf("还需选择 %d 张弃牌", discardNeed-len(selected))
-			}
-			sort.Sort(sort.Reverse(sort.IntSlice(selected)))
-			var discarded []model.Card
-			for _, idx := range selected {
-				if idx < 0 || idx >= len(user.Hand) {
-					return fmt.Errorf("无效的弃牌索引: %d", idx)
-				}
-				discarded = append(discarded, user.Hand[idx])
-				user.Hand = append(user.Hand[:idx], user.Hand[idx+1:]...)
-			}
-			if len(discarded) > 0 {
-				e.NotifyCardRevealed(user.ID, discarded, "discard")
-				e.State.DiscardPile = append(e.State.DiscardPile, discarded...)
-			}
-			_ = e.maybeAutoReleaseBloodPriestessByHand(user, "手牌<3强制脱离流血形态")
-			e.Log(fmt.Sprintf("%s 的 [血之诅咒] 后续：弃置%d张牌", user.Name, len(discarded)))
-			e.PopInterrupt()
-			if e.State.PendingInterrupt == nil {
-				if len(e.State.PendingDamageQueue) > 0 {
-					e.State.Phase = model.PhasePendingDamageResolution
-					e.State.ReturnPhase = model.PhaseExtraAction
-				} else {
-					e.State.Phase = model.PhaseExtraAction
-				}
-			}
-			return nil
-		}
-
-		cardIdx := -1
-		if selectionIndex >= 1 && selectionIndex <= len(remaining) {
-			cardIdx = remaining[selectionIndex-1]
-		} else {
-			for _, idx := range remaining {
-				if idx == selectionIndex {
-					cardIdx = idx
-					break
-				}
-			}
-		}
-		if cardIdx < 0 || cardIdx >= len(user.Hand) {
-			return fmt.Errorf("无效的选项索引: %d", selectionIndex)
-		}
-		for _, idx := range selected {
-			if idx == cardIdx {
-				return fmt.Errorf("不能重复选择同一张牌")
-			}
-		}
-		selected = append(selected, cardIdx)
-		nextRemaining := make([]int, 0, len(remaining))
-		for _, idx := range remaining {
-			if idx != cardIdx {
-				nextRemaining = append(nextRemaining, idx)
-			}
-		}
-		ctxData["selected_indices"] = selected
-		ctxData["remaining_indices"] = nextRemaining
-		e.State.PendingInterrupt.Context = ctxData
-		e.notifyInterruptPrompt()
-		return nil
+		// 兼容旧入口：若仍以单选索引进入此分支，转交统一的多选提交处理。
+		return e.handleBloodCurseDiscardSelections(playerID, []int{selectionIndex})
 	}
 	if choiceType == "mg_medusa_darkmoon_pick" {
 		userID, _ := ctxData["user_id"].(string)
@@ -20382,11 +21179,9 @@ func (e *GameEngine) handleWeakChoiceInput(playerID string, selectionIndex int) 
 				Type:     model.InterruptChoice,
 				PlayerID: user.ID,
 				Context: map[string]interface{}{
-					"choice_type":       "bt_cocoon_overflow_discard",
-					"user_id":           user.ID,
-					"discard_count":     overflow,
-					"remaining_indices": butterflyCocoonFieldIndices(user),
-					"selected_indices":  []int{},
+					"choice_type":   "bt_cocoon_overflow_discard",
+					"user_id":       user.ID,
+					"discard_count": overflow,
 				},
 			})
 		}
@@ -20429,11 +21224,9 @@ func (e *GameEngine) handleWeakChoiceInput(playerID string, selectionIndex int) 
 				Type:     model.InterruptChoice,
 				PlayerID: user.ID,
 				Context: map[string]interface{}{
-					"choice_type":       "bt_cocoon_overflow_discard",
-					"user_id":           user.ID,
-					"discard_count":     overflow,
-					"remaining_indices": butterflyCocoonFieldIndices(user),
-					"selected_indices":  []int{},
+					"choice_type":   "bt_cocoon_overflow_discard",
+					"user_id":       user.ID,
+					"discard_count": overflow,
 				},
 			})
 		}
@@ -20458,17 +21251,17 @@ func (e *GameEngine) handleWeakChoiceInput(playerID string, selectionIndex int) 
 		e.State.DiscardPile = newDiscard
 		added := addButterflyCocoonCards(user, cards)
 		e.Log(fmt.Sprintf("%s 发动 [蛹化]：蛹+1（当前%d），获得%d个茧", user.Name, now, added))
+		// 蛹增加会降低手牌上限（生命之火），若当前手牌超上限需立即进入爆牌弃牌流程。
+		e.checkHandLimit(user, nil)
 		overflow := butterflyCocoonCount(user) - butterflyCocoonCapEngine
 		if overflow > 0 {
 			e.PushInterrupt(&model.Interrupt{
 				Type:     model.InterruptChoice,
 				PlayerID: user.ID,
 				Context: map[string]interface{}{
-					"choice_type":       "bt_cocoon_overflow_discard",
-					"user_id":           user.ID,
-					"discard_count":     overflow,
-					"remaining_indices": butterflyCocoonFieldIndices(user),
-					"selected_indices":  []int{},
+					"choice_type":   "bt_cocoon_overflow_discard",
+					"user_id":       user.ID,
+					"discard_count": overflow,
 				},
 			})
 		}
@@ -20479,141 +21272,18 @@ func (e *GameEngine) handleWeakChoiceInput(playerID string, selectionIndex int) 
 		return nil
 	}
 	if choiceType == "bt_cocoon_overflow_discard" {
-		userID, _ := ctxData["user_id"].(string)
-		user := e.State.Players[userID]
-		if user == nil {
-			return fmt.Errorf("玩家不存在")
+		if selectionIndex < 0 {
+			return fmt.Errorf("请先选择要舍弃的茧后再确认")
 		}
-		discardNeed := toIntContextValue(ctxData["discard_count"])
-		var remaining []int
-		if arr, ok := ctxData["remaining_indices"].([]int); ok {
-			remaining = append(remaining, arr...)
-		} else if arr, ok := ctxData["remaining_indices"].([]interface{}); ok {
-			for _, v := range arr {
-				if f, ok := v.(float64); ok {
-					remaining = append(remaining, int(f))
-				}
-			}
-		}
-		var selected []int
-		if arr, ok := ctxData["selected_indices"].([]int); ok {
-			selected = append(selected, arr...)
-		} else if arr, ok := ctxData["selected_indices"].([]interface{}); ok {
-			for _, v := range arr {
-				if f, ok := v.(float64); ok {
-					selected = append(selected, int(f))
-				}
-			}
-		}
-		if selectionIndex == -1 {
-			if len(selected) < discardNeed {
-				return fmt.Errorf("还需选择 %d 个茧", discardNeed-len(selected))
-			}
-			removed, err := removeButterflyCocoonByFieldIndices(user, append([]int{}, selected...))
-			if err != nil {
-				return err
-			}
-			if len(removed) > 0 {
-				e.NotifyCardHidden(user.ID, removed, "discard")
-				e.State.DiscardPile = append(e.State.DiscardPile, removed...)
-			}
-			e.Log(fmt.Sprintf("%s 的 [茧上限] 结算：舍弃%d个茧", user.Name, len(removed)))
-			e.PopInterrupt()
-			if e.State.PendingInterrupt == nil {
-				e.State.Phase = model.PhaseExtraAction
-			}
-			return nil
-		}
-		candidate, ok := resolveSelectionToCandidate(selectionIndex, remaining)
-		if !ok {
-			return fmt.Errorf("无效的选项索引: %d", selectionIndex)
-		}
-		for _, v := range selected {
-			if v == candidate {
-				return fmt.Errorf("不能重复选择同一个茧")
-			}
-		}
-		selected = append(selected, candidate)
-		var nextRemaining []int
-		for _, v := range remaining {
-			if v != candidate {
-				nextRemaining = append(nextRemaining, v)
-			}
-		}
-		ctxData["selected_indices"] = selected
-		ctxData["remaining_indices"] = nextRemaining
-		e.State.PendingInterrupt.Context = ctxData
-		e.notifyInterruptPrompt()
-		return nil
+		// 兼容旧入口：若仍以单选索引进入此分支，转交统一多选提交处理。
+		return e.handleButterflyCocoonOverflowSelections(playerID, []int{selectionIndex})
 	}
 	if choiceType == "bt_reverse_discard" {
-		userID, _ := ctxData["user_id"].(string)
-		user := e.State.Players[userID]
-		if user == nil {
-			return fmt.Errorf("玩家不存在")
+		if selectionIndex < 0 {
+			return fmt.Errorf("请先选择要弃置的手牌后再确认")
 		}
-		discardNeed := toIntContextValue(ctxData["discard_count"])
-		var remaining []int
-		if arr, ok := ctxData["remaining_indices"].([]int); ok {
-			remaining = append(remaining, arr...)
-		} else if arr, ok := ctxData["remaining_indices"].([]interface{}); ok {
-			for _, v := range arr {
-				if f, ok := v.(float64); ok {
-					remaining = append(remaining, int(f))
-				}
-			}
-		}
-		var selected []int
-		if arr, ok := ctxData["selected_indices"].([]int); ok {
-			selected = append(selected, arr...)
-		} else if arr, ok := ctxData["selected_indices"].([]interface{}); ok {
-			for _, v := range arr {
-				if f, ok := v.(float64); ok {
-					selected = append(selected, int(f))
-				}
-			}
-		}
-		if selectionIndex == -1 {
-			if len(selected) < discardNeed {
-				return fmt.Errorf("还需选择 %d 张弃牌", discardNeed-len(selected))
-			}
-			removed, err := removeCardsByIndicesFromHand(user, append([]int{}, selected...))
-			if err != nil {
-				return err
-			}
-			if len(removed) > 0 {
-				e.NotifyCardRevealed(user.ID, removed, "discard")
-				e.State.DiscardPile = append(e.State.DiscardPile, removed...)
-			}
-			ctxData["choice_type"] = "bt_reverse_mode"
-			ctxData["can_branch2"] = butterflyPupa(user) > 0
-			ctxData["can_remove_cocoon"] = butterflyCocoonCount(user) >= 2
-			ctxData["target_ids"] = append([]string{}, e.State.PlayerOrder...)
-			e.State.PendingInterrupt.Context = ctxData
-			e.notifyInterruptPrompt()
-			return nil
-		}
-		cardIdx, ok := resolveSelectionToCandidate(selectionIndex, remaining)
-		if !ok || cardIdx < 0 || cardIdx >= len(user.Hand) {
-			return fmt.Errorf("无效的选项索引: %d", selectionIndex)
-		}
-		for _, v := range selected {
-			if v == cardIdx {
-				return fmt.Errorf("不能重复选择同一张牌")
-			}
-		}
-		selected = append(selected, cardIdx)
-		var nextRemaining []int
-		for _, v := range remaining {
-			if v != cardIdx {
-				nextRemaining = append(nextRemaining, v)
-			}
-		}
-		ctxData["selected_indices"] = selected
-		ctxData["remaining_indices"] = nextRemaining
-		e.State.PendingInterrupt.Context = ctxData
-		e.notifyInterruptPrompt()
-		return nil
+		// 兼容旧入口：若仍以单选索引进入此分支，转交统一多选提交处理。
+		return e.handleButterflyReverseDiscardSelections(playerID, []int{selectionIndex})
 	}
 	if choiceType == "bt_reverse_mode" {
 		userID, _ := ctxData["user_id"].(string)
@@ -20706,8 +21376,8 @@ func (e *GameEngine) handleWeakChoiceInput(playerID string, selectionIndex int) 
 		mode := modes[selectionIndex]
 		if mode == "remove_cocoon" {
 			ctxData["choice_type"] = "bt_reverse_branch2_pick"
-			ctxData["remaining_indices"] = butterflyCocoonFieldIndices(user)
-			ctxData["selected_indices"] = []int{}
+			delete(ctxData, "remaining_indices")
+			delete(ctxData, "selected_indices")
 			e.State.PendingInterrupt.Context = ctxData
 			e.notifyInterruptPrompt()
 			return nil
@@ -20733,82 +21403,11 @@ func (e *GameEngine) handleWeakChoiceInput(playerID string, selectionIndex int) 
 		return nil
 	}
 	if choiceType == "bt_reverse_branch2_pick" {
-		userID, _ := ctxData["user_id"].(string)
-		user := e.State.Players[userID]
-		if user == nil {
-			return fmt.Errorf("玩家不存在")
+		if selectionIndex < 0 {
+			return fmt.Errorf("请先选择要移除的茧后再确认")
 		}
-		var remaining []int
-		if arr, ok := ctxData["remaining_indices"].([]int); ok {
-			remaining = append(remaining, arr...)
-		} else if arr, ok := ctxData["remaining_indices"].([]interface{}); ok {
-			for _, v := range arr {
-				if f, ok := v.(float64); ok {
-					remaining = append(remaining, int(f))
-				}
-			}
-		}
-		var selected []int
-		if arr, ok := ctxData["selected_indices"].([]int); ok {
-			selected = append(selected, arr...)
-		} else if arr, ok := ctxData["selected_indices"].([]interface{}); ok {
-			for _, v := range arr {
-				if f, ok := v.(float64); ok {
-					selected = append(selected, int(f))
-				}
-			}
-		}
-		if selectionIndex == -1 {
-			if len(selected) < 2 {
-				return fmt.Errorf("还需选择 %d 个茧", 2-len(selected))
-			}
-			removed, err := removeButterflyCocoonByFieldIndices(user, append([]int{}, selected...))
-			if err != nil {
-				return err
-			}
-			if len(removed) > 0 {
-				e.NotifyCardRevealed(user.ID, removed, "discard")
-				e.State.DiscardPile = append(e.State.DiscardPile, removed...)
-			}
-			for _, c := range removed {
-				if c.Type == model.CardTypeMagic {
-					e.queueButterflyWitherTrigger(user)
-				}
-			}
-			now := addButterflyPupa(user, -1)
-			e.Log(fmt.Sprintf("%s 的 [倒逆之蝶] 分支②：移除2个茧并移除1个蛹（当前蛹=%d）", user.Name, now))
-			e.PopInterrupt()
-			if e.State.PendingInterrupt == nil {
-				if len(e.State.PendingDamageQueue) > 0 {
-					e.State.Phase = model.PhasePendingDamageResolution
-					e.State.ReturnPhase = model.PhaseExtraAction
-				} else {
-					e.State.Phase = model.PhaseExtraAction
-				}
-			}
-			return nil
-		}
-		candidate, ok := resolveSelectionToCandidate(selectionIndex, remaining)
-		if !ok {
-			return fmt.Errorf("无效的选项索引: %d", selectionIndex)
-		}
-		for _, v := range selected {
-			if v == candidate {
-				return fmt.Errorf("不能重复选择同一个茧")
-			}
-		}
-		selected = append(selected, candidate)
-		var nextRemaining []int
-		for _, v := range remaining {
-			if v != candidate {
-				nextRemaining = append(nextRemaining, v)
-			}
-		}
-		ctxData["selected_indices"] = selected
-		ctxData["remaining_indices"] = nextRemaining
-		e.State.PendingInterrupt.Context = ctxData
-		e.notifyInterruptPrompt()
-		return nil
+		// 兼容旧入口：若仍以单选索引进入此分支，转交统一多选提交处理。
+		return e.handleButterflyReverseBranch2PickSelections(playerID, []int{selectionIndex})
 	}
 	if choiceType == "bt_pilgrimage_pick" || choiceType == "bt_poison_pick" {
 		userID, _ := ctxData["user_id"].(string)
@@ -21545,6 +22144,38 @@ func (e *GameEngine) AddPendingDamageFront(pd model.PendingDamage) {
 	}
 }
 
+func (e *GameEngine) resolveShieldBlockedAttackAsMiss(pd *model.PendingDamage) {
+	if pd == nil || pd.AttackMissResolved || !strings.EqualFold(pd.DamageType, "Attack") {
+		return
+	}
+	attacker := e.State.Players[pd.SourceID]
+	target := e.State.Players[pd.TargetID]
+	if attacker == nil {
+		return
+	}
+
+	if pd.AttackHitResourceGranted && pd.AttackHitResourceType != "" {
+		if e.rollbackCampResource(attacker.Camp, pd.AttackHitResourceType) {
+			pd.AttackHitResourceGranted = false
+			e.Log(fmt.Sprintf("[Combat] 本次攻击被【圣盾】完全抵消，已回滚%s方命中战绩", attacker.Camp))
+		}
+	}
+
+	targetName := pd.TargetID
+	if target != nil {
+		targetName = target.Name
+	}
+	e.NotifyCombatCue(pd.SourceID, pd.TargetID, "shield")
+	e.NotifyActionStep(fmt.Sprintf("%s 的【圣盾】抵消了本次攻击，判定为未命中", targetName))
+	e.Log(fmt.Sprintf("[Combat] %s 的攻击被【圣盾】完全抵消，按未命中处理", attacker.Name))
+
+	e.resolveMagicBowPierceMissWithOverride(pd.SourceID, pd.TargetID, pd.HeroRoarMissArmed, pd.FighterChargeMissArmed)
+	if attacker.Tokens != nil {
+		attacker.Tokens["elf_elemental_shot_thunder_pending"] = 0
+	}
+	pd.AttackMissResolved = true
+}
+
 // processPendingDamages 处理伤害队列中的所有伤害
 // 返回 true 如果产生了中断需要暂停 Drive
 func (e *GameEngine) processPendingDamages() bool {
@@ -21555,11 +22186,19 @@ func (e *GameEngine) processPendingDamages() bool {
 		// Stage 0: 初始化 & 攻击命中触发 (OnAttackHit)
 		if pd.Stage == 0 {
 			// 如果是攻击伤害，且有卡牌上下文
-			if pd.DamageType == "Attack" && pd.Card != nil {
+			if strings.EqualFold(pd.DamageType, "Attack") && pd.Card != nil {
 				attacker := e.State.Players[pd.SourceID]
 				victim := e.State.Players[pd.TargetID]
 
 				if attacker != nil && victim != nil {
+					// 记录“命中后未命中分支候选”状态。
+					pd.HeroRoarMissArmed = e.isHero(attacker) &&
+						attacker.Tokens != nil &&
+						attacker.Tokens["hero_roar_active"] > 0
+					pd.FighterChargeMissArmed = e.isFighter(attacker) &&
+						attacker.Tokens != nil &&
+						attacker.Tokens["fighter_charge_pending"] > 0
+
 					// 1. 应用被动效果 (如精准射击、狂化) - 这里可能会修改 pd.Damage
 					action := model.Action{
 						SourceID: pd.SourceID,
@@ -21574,47 +22213,55 @@ func (e *GameEngine) processPendingDamages() bool {
 						}(),
 					}
 					pd.Damage = e.applyPassiveAttackEffects(attacker, victim, pd.Damage, action)
-				}
 
-				// 2. 攻击命中加星石：主动攻击→宝石，应战→水晶（战绩区上限5）
-				if pd.IsCounter {
-					e.addCampResource(attacker.Camp, "crystal")
-					e.Log(fmt.Sprintf("[Combat] 应战攻击命中！%s 方战绩区+1水晶", attacker.Camp))
-				} else {
-					e.addCampResource(attacker.Camp, "gem")
-					e.Log(fmt.Sprintf("[Combat] 主动攻击命中！%s 方战绩区+1宝石", attacker.Camp))
-				}
+					// 2. 攻击命中加星石：主动攻击→宝石，应战→水晶（战绩区上限5）
+					resourceType := "gem"
+					if pd.IsCounter {
+						resourceType = "crystal"
+					}
+					pd.AttackHitResourceType = resourceType
+					pd.AttackHitResourceGranted = e.addCampResource(attacker.Camp, resourceType)
+					if pd.AttackHitResourceGranted {
+						if resourceType == "crystal" {
+							e.Log(fmt.Sprintf("[Combat] 应战攻击命中！%s 方战绩区+1水晶", attacker.Camp))
+						} else {
+							e.Log(fmt.Sprintf("[Combat] 主动攻击命中！%s 方战绩区+1宝石", attacker.Camp))
+						}
+					} else {
+						e.Log(fmt.Sprintf("[Combat] 攻击命中，但 %s 方战绩区已满，本次不增加星石", attacker.Camp))
+					}
 
-				// 3. 触发 OnAttackHit (如撕裂)
-				hitEventCtx := &model.EventContext{
-					Type:      model.EventAttack,
-					SourceID:  pd.SourceID,
-					TargetID:  pd.TargetID,
-					DamageVal: &pd.Damage, // 允许技能修改伤害
-					Card:      pd.Card,
-					AttackInfo: &model.AttackEventInfo{
-						ActionType: "Attack",
-						IsHit:      true,
-						CounterInitiator: func() string {
-							if pd.IsCounter {
-								return pd.SourceID
-							}
-							return ""
-						}(),
-					},
-				}
-				hitCtx := e.buildContext(e.State.Players[pd.SourceID], e.State.Players[pd.TargetID], model.TriggerOnAttackHit, hitEventCtx)
-				e.dispatcher.OnTrigger(model.TriggerOnAttackHit, hitCtx)
+					// 3. 触发 OnAttackHit (如撕裂)
+					hitEventCtx := &model.EventContext{
+						Type:      model.EventAttack,
+						SourceID:  pd.SourceID,
+						TargetID:  pd.TargetID,
+						DamageVal: &pd.Damage, // 允许技能修改伤害
+						Card:      pd.Card,
+						AttackInfo: &model.AttackEventInfo{
+							ActionType: "Attack",
+							IsHit:      true,
+							CounterInitiator: func() string {
+								if pd.IsCounter {
+									return pd.SourceID
+								}
+								return ""
+							}(),
+						},
+					}
+					hitCtx := e.buildContext(e.State.Players[pd.SourceID], e.State.Players[pd.TargetID], model.TriggerOnAttackHit, hitEventCtx)
+					e.dispatcher.OnTrigger(model.TriggerOnAttackHit, hitCtx)
 
-				// 如果触发了中断 (例如询问是否发动撕裂)，暂停处理
-				if e.State.PendingInterrupt != nil {
-					return true
-				}
-				// 处理攻击命中后的附加技能分支（如元素射击后续/黄泉震颤）。
-				if e.handlePostAttackHitEffects(pd) {
-					// 该命中已进入伤害阶段，避免恢复后再次重复触发 OnAttackHit。
-					pd.Stage = 1
-					return true
+					// 如果触发了中断 (例如询问是否发动撕裂)，暂停处理
+					if e.State.PendingInterrupt != nil {
+						return true
+					}
+					// 处理攻击命中后的附加技能分支（如元素射击后续/黄泉震颤）。
+					if e.handlePostAttackHitEffects(pd) {
+						// 该命中已进入伤害阶段，避免恢复后再次重复触发 OnAttackHit。
+						pd.Stage = 1
+						return true
+					}
 				}
 			}
 			// 完成 Stage 0，进入下一阶段
@@ -21646,6 +22293,10 @@ func (e *GameEngine) processPendingDamages() bool {
 			// 如果触发了中断 (例如询问是否发动减伤技能)，暂停处理
 			if e.State.PendingInterrupt != nil {
 				return true
+			}
+			shieldTriggered, _ := damageCtx.Selections["holy_shield_triggered"].(bool)
+			if shieldTriggered && pd.Damage <= 0 && strings.EqualFold(pd.DamageType, "Attack") {
+				e.resolveShieldBlockedAttackAsMiss(pd)
 			}
 			// 治疗选择阶段：允许受伤方选择是否使用治疗抵消
 			if !pd.HealResolved {

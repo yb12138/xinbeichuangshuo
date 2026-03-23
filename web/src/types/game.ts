@@ -69,6 +69,7 @@ export interface PlayerView {
   camp: string
   role: string
   hand_count: number
+  max_hand: number
   exclusive_card_count: number
   hand?: Card[]  // 只有自己能看到
   blessings?: Card[] // 只有自己能看到（精灵射手祝福区）
@@ -133,6 +134,8 @@ export interface GameStateUpdate {
 export interface PromptOption {
   id: string
   label: string
+  button_label?: string
+  hint?: string
 }
 
 // Prompt 类型
@@ -237,7 +240,7 @@ export interface GameEvent {
   kind?: 'detail' | 'summary'
   /** 对战提示（战区动画） */
   attacker_id?: string
-  phase?: 'attack' | 'defend' | 'take' | 'counter'
+  phase?: 'attack' | 'defend' | 'take' | 'counter' | 'shield'
   /** 摸牌事件（公共牌堆 -> 玩家区域动画） */
   draw_count?: number
   reason?: string

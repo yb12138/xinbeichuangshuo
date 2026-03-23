@@ -227,9 +227,15 @@ func TestBloodPriestessBloodSorrow_TransferThenRemove(t *testing.T) {
 	if err := game.handleWeakChoiceInput("p1", 2); err != nil { // 选 p3
 		t.Fatalf("choose blood sorrow transfer target p3 failed: %v", err)
 	}
+	game.Drive() // 先结算自伤，再执行延迟的转移后续
 	holder, _ = game.findBloodPriestessSharedLife(p1)
 	if holder == nil || holder.ID != "p3" {
 		t.Fatalf("expected shared life holder p3 after transfer, got %+v", holder)
+	}
+	if game.State.PendingInterrupt != nil && game.State.PendingInterrupt.Type == model.InterruptStartupSkill {
+		if err := game.SkipStartupSkill("p1"); err != nil {
+			t.Fatalf("skip startup prompt after transfer failed: %v", err)
+		}
 	}
 
 	// 3) 再次发动血之哀伤，选择“移除”。
@@ -246,12 +252,105 @@ func TestBloodPriestessBloodSorrow_TransferThenRemove(t *testing.T) {
 	if err := game.handleWeakChoiceInput("p1", 1); err != nil { // 移除分支
 		t.Fatalf("choose blood sorrow remove mode failed: %v", err)
 	}
+	game.Drive() // 先结算自伤，再执行延迟的移除后续
+	if game.State.PendingInterrupt != nil && game.State.PendingInterrupt.Type == model.InterruptDiscard {
+		data, _ := game.State.PendingInterrupt.Context.(map[string]interface{})
+		discardCount := toIntContextValue(data["discard_count"])
+		if discardCount <= 0 {
+			discardCount = 1
+		}
+		picks := make([]int, 0, discardCount)
+		for i := 0; i < discardCount && i < len(p1.Hand); i++ {
+			picks = append(picks, i)
+		}
+		mustHandleAction(t, game, model.PlayerAction{
+			PlayerID:   "p1",
+			Type:       model.CmdSelect,
+			Selections: picks,
+		})
+	}
 	holder, fc := game.findBloodPriestessSharedLife(p1)
 	if holder != nil || fc != nil {
 		t.Fatalf("expected shared life removed, holder=%+v card=%+v", holder, fc)
 	}
 	if !p1.HasExclusiveCard(p1.Character.Name, "同生共死") {
 		t.Fatalf("expected shared-life card restored to exclusive zone after remove branch")
+	}
+}
+
+func TestBloodPriestessBloodSorrow_Remove_ShouldEnterBleedWhenDamageCausesMoraleLoss(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "Witch", "blood_priestess", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Ally", "angel", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p3", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Heal = 0
+	p1.Tokens["bp_bleed_form"] = 0
+	p1.Hand = []model.Card{
+		bloodPriestessTestCard("h1", model.ElementFire),
+		bloodPriestessTestCard("h2", model.ElementWater),
+		bloodPriestessTestCard("h3", model.ElementWind),
+		bloodPriestessTestCard("h4", model.ElementThunder),
+	}
+	// 保证同生共死处于生效状态，此时普通形态下巫女手牌上限应为4。
+	if err := game.placeBloodPriestessSharedLife(p1, p2, bloodPriestessSharedLifeCard(p1)); err != nil {
+		t.Fatalf("place shared life failed: %v", err)
+	}
+	if got := game.GetMaxHand(p1); got != 4 {
+		t.Fatalf("expected max hand=4 with shared life in normal form, got %d", got)
+	}
+	game.State.Deck = rules.InitDeck()
+	game.State.CurrentTurn = 0
+	game.State.Phase = model.PhaseStartup
+
+	// 发动血之哀伤并选择“移除同生共死”。
+	ctx := game.buildContext(p1, nil, model.TriggerOnTurnStart, nil)
+	h := &skills.BloodPriestessBloodSorrowHandler{}
+	if !h.CanUse(ctx) {
+		t.Fatalf("expected blood sorrow can use when shared life exists")
+	}
+	if err := h.Execute(ctx); err != nil {
+		t.Fatalf("execute blood sorrow failed: %v", err)
+	}
+	requireChoicePrompt(t, game, "p1", "bp_blood_sorrow_mode")
+	mustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{1}, // 移除
+	})
+
+	// 自伤2应先按上限4结算承伤摸牌并触发爆牌弃牌。
+	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptDiscard {
+		t.Fatalf("expected overflow discard interrupt after blood sorrow self-damage, got %+v", game.State.PendingInterrupt)
+	}
+	mustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{0, 1},
+	})
+
+	if got := p1.Tokens["bp_bleed_form"]; got != 1 {
+		t.Fatalf("expected enter bleed form after morale loss from blood sorrow self-damage, got %d", got)
+	}
+	if got := p1.Heal; got != 1 {
+		t.Fatalf("expected +1 heal when entering bleed form, got %d", got)
+	}
+	if got := game.State.RedMorale; got != 13 {
+		t.Fatalf("expected red morale loss 2 from overflow discard, got %d", got)
+	}
+	holder, fc := game.findBloodPriestessSharedLife(p1)
+	if holder != nil || fc != nil {
+		t.Fatalf("expected shared life removed after blood sorrow remove branch, holder=%+v card=%+v", holder, fc)
 	}
 }
 
@@ -293,5 +392,127 @@ func TestBloodPriestessSharedLife_FixedHandCapTargetExempt(t *testing.T) {
 	}
 	if got := game.GetMaxHand(p2); got != 5 {
 		t.Fatalf("expected fixed-cap target still 5 in bleed form, got %d", got)
+	}
+}
+
+func TestBloodPriestessBloodCurse_DiscardPromptAndConfirm(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "Witch", "blood_priestess", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Gem = 1
+	p1.Hand = []model.Card{
+		bloodPriestessTestCard("c0", model.ElementFire),
+		bloodPriestessTestCard("c1", model.ElementWater),
+		bloodPriestessTestCard("c2", model.ElementWind),
+		bloodPriestessTestCard("c3", model.ElementThunder),
+		bloodPriestessTestCard("c4", model.ElementEarth),
+	}
+
+	game.State.CurrentTurn = 0
+	game.State.Phase = model.PhaseActionSelection
+
+	mustHandleAction(t, game, model.PlayerAction{
+		PlayerID:  "p1",
+		Type:      model.CmdSkill,
+		SkillID:   "bp_blood_curse",
+		TargetIDs: []string{"p2"},
+	})
+
+	requireChoicePrompt(t, game, "p1", "bp_curse_discard")
+	prompt := game.GetCurrentPrompt()
+	if prompt == nil {
+		t.Fatalf("expected blood curse discard prompt")
+	}
+	if prompt.Type != model.PromptChooseCards {
+		t.Fatalf("expected choose_cards prompt, got %s", prompt.Type)
+	}
+	if prompt.Min != 3 || prompt.Max != 3 {
+		t.Fatalf("expected fixed discard count 3, got min=%d max=%d", prompt.Min, prompt.Max)
+	}
+	if got := len(prompt.Options); got != 5 {
+		t.Fatalf("expected 5 discard options from hand, got %d", got)
+	}
+
+	mustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{4, 1, 3},
+	})
+
+	if got := len(p1.Hand); got != 2 {
+		t.Fatalf("expected hand size 2 after discarding 3 cards, got %d", got)
+	}
+	if p1.Hand[0].ID != "c0" || p1.Hand[1].ID != "c2" {
+		t.Fatalf("unexpected remaining cards: %+v", p1.Hand)
+	}
+	if game.State.PendingInterrupt != nil && game.State.PendingInterrupt.Type == model.InterruptChoice {
+		if ctx, ok := game.State.PendingInterrupt.Context.(map[string]interface{}); ok {
+			if ct, _ := ctx["choice_type"].(string); ct == "bp_curse_discard" {
+				t.Fatalf("blood curse discard interrupt should be finished after confirm")
+			}
+		}
+	}
+}
+
+func TestBloodPriestessBloodCurse_DiscardAllWhenHandInsufficient(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "Witch", "blood_priestess", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Gem = 1
+	p1.Hand = []model.Card{
+		bloodPriestessTestCard("s0", model.ElementFire),
+		bloodPriestessTestCard("s1", model.ElementWater),
+	}
+
+	game.State.CurrentTurn = 0
+	game.State.Phase = model.PhaseActionSelection
+
+	mustHandleAction(t, game, model.PlayerAction{
+		PlayerID:  "p1",
+		Type:      model.CmdSkill,
+		SkillID:   "bp_blood_curse",
+		TargetIDs: []string{"p2"},
+	})
+
+	requireChoicePrompt(t, game, "p1", "bp_curse_discard")
+	prompt := game.GetCurrentPrompt()
+	if prompt == nil {
+		t.Fatalf("expected blood curse discard prompt when hand<3")
+	}
+	if prompt.Min != 2 || prompt.Max != 2 {
+		t.Fatalf("expected discard-all prompt min/max=2, got min=%d max=%d", prompt.Min, prompt.Max)
+	}
+
+	mustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{0, 1},
+	})
+
+	if got := len(p1.Hand); got != 0 {
+		t.Fatalf("expected all cards discarded when hand<3, got %d", got)
+	}
+	if game.State.PendingInterrupt != nil && game.State.PendingInterrupt.Type == model.InterruptChoice {
+		if ctx, ok := game.State.PendingInterrupt.Context.(map[string]interface{}); ok {
+			if ct, _ := ctx["choice_type"].(string); ct == "bp_curse_discard" {
+				t.Fatalf("blood curse discard interrupt should be finished when hand<3 flow ends")
+			}
+		}
 	}
 }

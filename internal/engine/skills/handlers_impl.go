@@ -144,7 +144,11 @@ func (h *HolyShieldHandler) Execute(ctx *model.Context) error {
 	originalDamage := *ctx.TriggerCtx.DamageVal
 	*ctx.TriggerCtx.DamageVal = 0
 
+	if ctx.Selections != nil {
+		ctx.Selections["holy_shield_triggered"] = true
+	}
 	ctx.Game.Log(fmt.Sprintf("[Shield] %s 的【圣盾】自动触发，抵消了 %d 点伤害！", ctx.User.Name, originalDamage))
+	ctx.Game.NotifyActionStep(fmt.Sprintf("%s 的【圣盾】触发，抵消了 %d 点伤害", ctx.User.Name, originalDamage))
 
 	// 2. 移除圣盾状态（移除一张牌）
 	// 我们需要精确移除一张圣盾牌

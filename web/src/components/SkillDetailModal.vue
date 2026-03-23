@@ -83,70 +83,76 @@ const panelStyle = computed(() => {
 </script>
 
 <template>
-  <Transition name="modal">
-    <div
-      v-if="visible && character"
-      class="skill-overlay fixed inset-0 z-[100]"
-      :class="isAnchored ? 'skill-overlay--anchored' : 'skill-overlay--centered'"
-      @click.self="!isAnchored && emit('close')"
-    >
+  <Teleport to="body">
+    <Transition name="modal">
       <div
-        class="skill-card rounded-2xl shadow-2xl max-h-[85vh] overflow-hidden flex flex-col"
-        :class="isAnchored ? 'skill-card--anchored' : 'skill-card--centered'"
-        :style="isAnchored ? panelStyle : undefined"
-        @click.stop
+        v-if="visible && character"
+        class="skill-overlay fixed inset-0 z-[13050]"
+        :class="isAnchored ? 'skill-overlay--anchored' : 'skill-overlay--centered'"
+        @click.self="!isAnchored && emit('close')"
       >
-        <!-- 标题栏 -->
-        <div class="skill-header flex-shrink-0 px-6 py-4 flex justify-between items-center">
-          <h2 class="text-xl font-bold text-white">{{ charDisplayName }}</h2>
-          <button
-            type="button"
-            class="p-2 rounded-lg hover:bg-white/20 text-white transition-colors"
-            aria-label="关闭"
-            @click="emit('close')"
-          >
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
+        <div
+          class="skill-card relative z-[13051] rounded-2xl shadow-2xl max-h-[85vh] overflow-hidden flex flex-col"
+          :class="isAnchored ? 'skill-card--anchored' : 'skill-card--centered'"
+          :style="isAnchored ? panelStyle : undefined"
+          @click.stop
+        >
+          <!-- 标题栏 -->
+          <div class="skill-header flex-shrink-0 px-6 py-4 flex justify-between items-center">
+            <h2 class="text-xl font-bold text-white">{{ charDisplayName }}</h2>
+            <button
+              type="button"
+              class="p-2 rounded-lg hover:bg-white/20 text-white transition-colors"
+              aria-label="关闭"
+              @click="emit('close')"
+            >
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
 
-        <!-- 技能列表 - 可滚动，不截断 -->
-        <div class="skill-body flex-1 overflow-y-auto p-6 space-y-4">
-          <div
-            v-for="skill in character.skills"
-            :key="skill.id"
-            class="skill-item rounded-xl p-4"
-          >
-            <div class="font-semibold text-amber-400 text-base mb-2">{{ skill.title }}</div>
-            <div class="text-gray-300 text-sm leading-relaxed whitespace-pre-wrap break-words">
-              {{ skill.description }}
-            </div>
-            <div v-if="skill.cost_gem || skill.cost_crystal || skill.cost_discards" class="mt-2 text-xs text-gray-400">
-              <span v-if="skill.cost_gem">消耗♦{{ skill.cost_gem }} </span>
-              <span v-if="skill.cost_crystal">消耗🔷{{ skill.cost_crystal }} </span>
-              <span v-if="skill.cost_discards">弃{{ skill.cost_discards }}张牌</span>
-              <span v-if="skill.discard_element">({{ skill.discard_element }})</span>
+          <!-- 技能列表 - 可滚动，不截断 -->
+          <div class="skill-body flex-1 overflow-y-auto p-6 space-y-4">
+            <div
+              v-for="skill in character.skills"
+              :key="skill.id"
+              class="skill-item rounded-xl p-4"
+            >
+              <div class="font-semibold text-amber-400 text-base mb-2">{{ skill.title }}</div>
+              <div class="text-gray-300 text-sm leading-relaxed whitespace-pre-wrap break-words">
+                {{ skill.description }}
+              </div>
+              <div v-if="skill.cost_gem || skill.cost_crystal || skill.cost_discards" class="mt-2 text-xs text-gray-400">
+                <span v-if="skill.cost_gem">消耗♦{{ skill.cost_gem }} </span>
+                <span v-if="skill.cost_crystal">消耗🔷{{ skill.cost_crystal }} </span>
+                <span v-if="skill.cost_discards">弃{{ skill.cost_discards }}张牌</span>
+                <span v-if="skill.discard_element">({{ skill.discard_element }})</span>
+              </div>
             </div>
           </div>
-        </div>
 
-        <!-- 底部 -->
-        <div class="skill-footer flex-shrink-0 px-6 py-4">
-          <button
-            type="button"
-            class="w-full py-2.5 rounded-lg font-medium btn-skill text-white"
-            @click="emit('close')"
-          >
-            关闭
-          </button>
+          <!-- 底部 -->
+          <div class="skill-footer flex-shrink-0 px-6 py-4">
+            <button
+              type="button"
+              class="w-full py-2.5 rounded-lg font-medium btn-skill text-white"
+              @click="emit('close')"
+            >
+              关闭
+            </button>
+          </div>
         </div>
       </div>
-    </div>
-  </Transition>
+    </Transition>
+  </Teleport>
 </template>
 
 <style scoped>
+.skill-overlay {
+  z-index: 13050 !important;
+}
+
 .skill-overlay--centered {
   display: flex;
   align-items: center;
@@ -164,6 +170,7 @@ const panelStyle = computed(() => {
 }
 
 .skill-card {
+  z-index: 13051 !important;
   background:
     linear-gradient(180deg, rgba(8, 20, 34, 0.92), rgba(6, 15, 28, 0.95)),
     url('/assets/ui/modal-aura.svg') center/cover no-repeat;
@@ -177,7 +184,7 @@ const panelStyle = computed(() => {
 .skill-card--anchored {
   position: fixed;
   pointer-events: auto;
-  max-height: min(78vh, 640px);
+  max-height: min(84vh, 720px);
 }
 
 .skill-header {

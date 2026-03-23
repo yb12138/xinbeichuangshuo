@@ -205,8 +205,9 @@ func (e *GameEngine) triggerHolySwordDrawIfNeeded(attacker *model.Player) bool {
 	return true
 }
 
-// addCampResource 添加阵营资源 (水晶或宝石)，战绩区总上限为 5
-func (e *GameEngine) addCampResource(camp model.Camp, resourceType string) {
+// addCampResource 添加阵营资源 (水晶或宝石)，战绩区总上限为 5。
+// 返回 true 表示本次成功增加资源。
+func (e *GameEngine) addCampResource(camp model.Camp, resourceType string) bool {
 	const maxTotalResources = 5
 
 	if camp == model.RedCamp {
@@ -215,17 +216,17 @@ func (e *GameEngine) addCampResource(camp model.Camp, resourceType string) {
 			if currentTotal < maxTotalResources {
 				e.State.RedGems++
 				fmt.Printf("[Combat] 攻击命中！红方阵营获得 1 宝石\n")
-			} else {
-				fmt.Printf("[Combat] 攻击命中！红方阵营资源已满，无法获得宝石\n")
+				return true
 			}
+			fmt.Printf("[Combat] 攻击命中！红方阵营资源已满，无法获得宝石\n")
 		} else if resourceType == "crystal" {
 			currentTotal := e.State.RedCrystals + e.State.RedGems
 			if currentTotal < maxTotalResources {
 				e.State.RedCrystals++
 				fmt.Printf("[Combat] 红方阵营获得 1 水晶\n")
-			} else {
-				fmt.Printf("[Combat] 红方阵营资源已满，获得的水晶被丢弃\n")
+				return true
 			}
+			fmt.Printf("[Combat] 红方阵营资源已满，获得的水晶被丢弃\n")
 		}
 	} else {
 		// Blue Camp
@@ -234,19 +235,45 @@ func (e *GameEngine) addCampResource(camp model.Camp, resourceType string) {
 			if currentTotal < maxTotalResources {
 				e.State.BlueGems++
 				fmt.Printf("[Combat] 攻击命中！蓝方阵营获得 1 宝石\n")
-			} else {
-				fmt.Printf("[Combat] 攻击命中！蓝方阵营资源已满，无法获得宝石\n")
+				return true
 			}
+			fmt.Printf("[Combat] 攻击命中！蓝方阵营资源已满，无法获得宝石\n")
 		} else if resourceType == "crystal" {
 			currentTotal := e.State.BlueCrystals + e.State.BlueGems
 			if currentTotal < maxTotalResources {
 				e.State.BlueCrystals++
 				fmt.Printf("[Combat] 蓝方阵营获得 1 水晶\n")
-			} else {
-				fmt.Printf("[Combat] 蓝方阵营资源已满，获得的水晶被丢弃\n")
+				return true
 			}
+			fmt.Printf("[Combat] 蓝方阵营资源已满，获得的水晶被丢弃\n")
 		}
 	}
+	return false
+}
+
+// rollbackCampResource 回滚一次命中后发放的战绩资源，返回 true 表示回滚成功。
+func (e *GameEngine) rollbackCampResource(camp model.Camp, resourceType string) bool {
+	switch camp {
+	case model.RedCamp:
+		if resourceType == "gem" && e.State.RedGems > 0 {
+			e.State.RedGems--
+			return true
+		}
+		if resourceType == "crystal" && e.State.RedCrystals > 0 {
+			e.State.RedCrystals--
+			return true
+		}
+	default:
+		if resourceType == "gem" && e.State.BlueGems > 0 {
+			e.State.BlueGems--
+			return true
+		}
+		if resourceType == "crystal" && e.State.BlueCrystals > 0 {
+			e.State.BlueCrystals--
+			return true
+		}
+	}
+	return false
 }
 
 // containsString 检查字符串切片是否包含指定字符串

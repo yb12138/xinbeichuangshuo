@@ -219,6 +219,11 @@ type PendingDamage struct {
 	Stage                      int        `json:"stage"`                                  // 处理阶段: 0=Init, 1=HitProcessed, 2=DamageProcessed
 	HealResolved               bool       `json:"heal_resolved"`                          // 是否已处理治疗选择
 	IsCounter                  bool       `json:"is_counter"`                             // 是否为应战攻击（命中加水晶而非宝石）
+	AttackHitResourceType      string     `json:"attack_hit_resource_type,omitempty"`     // 攻击命中后发放的战绩资源类型(gem/crystal)
+	AttackHitResourceGranted   bool       `json:"attack_hit_resource_granted,omitempty"`  // 是否已成功发放命中战绩资源
+	HeroRoarMissArmed          bool       `json:"hero_roar_miss_armed,omitempty"`         // 本次攻击是否携带怒吼未命中分支
+	FighterChargeMissArmed     bool       `json:"fighter_charge_miss_armed,omitempty"`    // 本次攻击是否携带蓄力一击未命中分支
+	AttackMissResolved         bool       `json:"attack_miss_resolved,omitempty"`         // 本次攻击是否已按未命中分支结算
 	SoulLinkChecked            bool       `json:"soul_link_checked,omitempty"`            // 灵魂链接“承伤前”是否已检查
 	FromSoulLink               bool       `json:"from_soul_link,omitempty"`               // 是否为灵魂链接转移产生的法术伤害
 	ButterflyPilgrimageChecked bool       `json:"butterfly_pilgrimage_checked,omitempty"` // 本次伤害是否已检查过朝圣

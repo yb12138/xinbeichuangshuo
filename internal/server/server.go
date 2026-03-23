@@ -41,8 +41,12 @@ func (s *Server) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	reconnectToken := r.URL.Query().Get("reconnect_token")
 
 	if playerName == "" {
-		http.Error(w, "Missing player name", http.StatusBadRequest)
-		return
+		// 重连场景允许仅携带 player_id；最终会在席位认领时回填原名。
+		if reconnectPlayerID == "" {
+			http.Error(w, "Missing player name", http.StatusBadRequest)
+			return
+		}
+		playerName = reconnectPlayerID
 	}
 
 	// Create or join room

@@ -265,13 +265,18 @@ function handleClick() {
 }
 
 .card-shell.selected {
-  transform: translateY(-4px) scale(1.03);
-  border-color: rgba(255, 232, 156, 0.95);
+  transform: translateY(-12px);
   box-shadow:
-    0 18px 28px rgba(0, 0, 0, 0.82),
-    0 0 0 2px rgba(255, 226, 140, 0.5),
-    0 0 24px rgba(255, 204, 96, 0.55),
-    inset 0 0 0 1px rgba(255, 246, 220, 0.58);
+    0 20px 30px rgba(0, 0, 0, 0.78),
+    inset 0 0 0 1px rgba(255, 245, 224, 0.22);
+}
+
+.card-shell.selected:hover {
+  transform: translateY(-12px);
+  border-color: var(--edge-color);
+  box-shadow:
+    0 20px 30px rgba(0, 0, 0, 0.78),
+    inset 0 0 0 1px rgba(255, 245, 224, 0.22);
 }
 
 .card-shell:not(.selectable):not(.selected) {

@@ -82,6 +82,59 @@ func TestButterflyDance_DrawAndGainCocoon(t *testing.T) {
 	}
 }
 
+func TestButterflyChrysalis_TriggersOverflowDiscardWhenPupaLowersHandLimit(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "Butterfly", "butterfly_dancer", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Gem = 1
+	p1.Hand = []model.Card{
+		butterflyTestCard("h1", model.CardTypeAttack, model.ElementFire),
+		butterflyTestCard("h2", model.CardTypeAttack, model.ElementWater),
+		butterflyTestCard("h3", model.CardTypeAttack, model.ElementWind),
+		butterflyTestCard("h4", model.CardTypeAttack, model.ElementThunder),
+		butterflyTestCard("h5", model.CardTypeMagic, model.ElementDark),
+		butterflyTestCard("h6", model.CardTypeMagic, model.ElementLight),
+	}
+	game.State.Deck = rules.InitDeck()
+	game.State.CurrentTurn = 0
+	game.State.Phase = model.PhaseActionSelection
+
+	mustHandleAction(t, game, model.PlayerAction{
+		PlayerID: "p1",
+		Type:     model.CmdSkill,
+		SkillID:  "bt_chrysalis",
+	})
+	requireChoicePrompt(t, game, "p1", "bt_chrysalis_resolve")
+
+	// 选择确认结算蛹化。
+	mustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{0},
+	})
+
+	if got := p1.Tokens["bt_pupa"]; got != 1 {
+		t.Fatalf("expected pupa +1 after chrysalis, got %d", got)
+	}
+	if got := game.GetMaxHand(p1); got != 5 {
+		t.Fatalf("expected max hand 5 after pupa +1, got %d", got)
+	}
+	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptDiscard || game.State.PendingInterrupt.PlayerID != "p1" {
+		t.Fatalf("expected overflow discard interrupt after chrysalis, got %+v", game.State.PendingInterrupt)
+	}
+	data, _ := game.State.PendingInterrupt.Context.(map[string]interface{})
+	if dc, _ := data["discard_count"].(int); dc != 1 {
+		t.Fatalf("expected discard_count=1 after hand limit shrink, got %v", data["discard_count"])
+	}
+}
+
 func TestButterflyPilgrimage_ResistOneDamage(t *testing.T) {
 	game := NewGameEngine(noopObserver{})
 	if err := game.AddPlayer("p1", "Butterfly", "butterfly_dancer", model.RedCamp); err != nil {

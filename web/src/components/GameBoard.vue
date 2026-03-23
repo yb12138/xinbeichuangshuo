@@ -5,7 +5,6 @@ import type { FieldCard, PlayerView } from '../types/game'
 import PlayerArea from './PlayerArea.vue'
 import ActionPanel from './ActionPanel.vue'
 import CardComponent from './CardComponent.vue'
-import PromptDialog from './PromptDialog.vue'
 import SkillDetailModal from './SkillDetailModal.vue'
 import BattleZone from './BattleZone.vue'
 import VfxLayer from './VfxLayer.vue'
@@ -19,10 +18,21 @@ const myHand = computed(() => store.myHand)
 const myExclusiveCards = computed(() => store.myExclusiveCards)
 const myHandEntries = computed(() => store.myPlayableCards.filter(item => item.source === 'hand'))
 const myAreaPlayer = computed(() => store.players[store.myPlayerId] || null)
-const myCoverCards = computed(() =>
-  (myAreaPlayer.value?.field || []).filter(
-    (fc): fc is FieldCard => !!fc && fc.mode === 'Cover' && !!fc.card
-  )
+type CoverCardEntry = {
+  fieldIndex: number
+  fieldCard: FieldCard
+}
+
+const myCoverCards = computed<CoverCardEntry[]>(() =>
+  (myAreaPlayer.value?.field || [])
+    .map((fc, fieldIndex) => ({ fc, fieldIndex }))
+    .filter((entry): entry is { fc: FieldCard; fieldIndex: number } =>
+      !!entry.fc && entry.fc.mode === 'Cover' && !!entry.fc.card
+    )
+    .map((entry) => ({
+      fieldIndex: entry.fieldIndex,
+      fieldCard: entry.fc
+    }))
 )
 const expansionCardCount = computed(() => myExclusiveCards.value.length + myCoverCards.value.length)
 const boardRootRef = ref<HTMLElement | null>(null)
@@ -102,6 +112,19 @@ const rightRailPlayers = computed(() =>
     .slice(0, 2)
 )
 
+type PlayerAnchorSlot = 'left' | 'right' | 'bottom'
+
+function playerAnchorClasses(playerId: string, slot: PlayerAnchorSlot) {
+  const focus = store.initiatorFocus
+  const active = !!focus && focus.playerId === playerId
+  return {
+    'player-anchor-wrap--focus-active': active,
+    [`player-anchor-wrap--focus-slot-${slot}`]: active,
+    [`player-anchor-wrap--focus-side-${focus?.side || 'right'}`]: active,
+    [`player-anchor-wrap--focus-mode-${focus?.mode || 'attack'}`]: active
+  }
+}
+
 // 行动选择 prompt 不触发 blur（已在 ActionPanel 内联展示）
 const gameEndTitle = computed(() => {
   const msg = store.gameEndMessage || ''
@@ -135,77 +158,760 @@ function moraleDeltaLabel(delta: number): string {
   return delta > 0 ? `+${delta}` : `${delta}`
 }
 
-function isPlayerSelectable(playerId: string): boolean {
-  if (store.isGameEnded) return false
-  if (store.currentPrompt?.type === 'choose_target' && store.isPromptForMe) {
-    return store.currentPrompt.options.some((o: any) => o.id === playerId)
+const targetDebugEnabled = computed(() => {
+  if (typeof window === 'undefined') return false
+  const query = new URLSearchParams(window.location.search)
+  return import.meta.env.DEV || query.has('debug') || query.has('debug_target')
+})
+
+function promptOptionsDebugSnapshot() {
+  const options = store.currentPrompt?.options || []
+  return options.map((option: any, idx: number) => ({
+    idx,
+    id: option?.id,
+    label: String(option?.label || '').slice(0, 48)
+  }))
+}
+
+function logTargetDebug(stage: string, payload?: Record<string, unknown>) {
+  if (!targetDebugEnabled.value) return
+  const data = {
+    stage,
+    me: store.myPlayerId,
+    isMyTurn: store.isMyTurn,
+    isPromptForMe: store.isPromptForMe,
+    promptType: store.currentPrompt?.type || '',
+    actionMode: store.actionMode,
+    skillMode: store.skillMode,
+    selectedCardForAction: store.selectedCardForAction ?? -1,
+    selectedTargets: [...store.selectedTargets],
+    skillTargets: [...store.skillTargetIds],
+    promptCounterTarget: store.promptCounterTarget,
+    ...payload
   }
-  if (store.isPromptForMe) return false
-  if (store.canTargetOpponent() && store.targetablePlayers.some(t => t.id === playerId)) return true
-  if (store.skillMode === 'choosing_target' && store.targetablePlayersForSkill.some(t => t.id === playerId)) return true
-  if (store.actionMode === 'magic' && store.selectedCardForAction !== null && store.targetablePlayers.some(t => t.id === playerId)) return true
+  console.log('[TargetDebug][GameBoard]', data)
+  store.addLog(`[TargetDebug][GameBoard] ${stage}`)
+}
+
+type ActionHubOptionId = 'attack' | 'magic' | 'special' | 'cannot_act'
+
+function normalizeActionHubOptionId(option: { id?: string; label?: string }): ActionHubOptionId | null {
+  const id = String(option?.id || '').trim()
+  if (id === 'attack' || id === 'magic' || id === 'special' || id === 'cannot_act') {
+    return id
+  }
+  const label = String(option?.label || '').trim()
+  if (!label) return null
+  if (label.includes('攻击行动') || label.includes('攻击')) return 'attack'
+  if (label.includes('法术行动') || label.includes('法术')) return 'magic'
+  if (label.includes('跳过额外行动') || label.includes('无法行动')) return 'cannot_act'
+  if (label.includes('特殊')) return 'special'
+  return null
+}
+
+function isActionSelectionPrompt(prompt: typeof store.currentPrompt): boolean {
+  if (!prompt) return false
+  if (prompt.ui_mode === 'action_hub') return true
+  if (prompt.type !== 'confirm') return false
+  if (!String(prompt.message || '').includes('行动类型')) return false
+  return (prompt.options || []).some((option: any) => normalizeActionHubOptionId(option) !== null)
+}
+
+const promptGuideContext = computed(() => {
+  const p = store.currentPrompt
+  if (!p || !store.isPromptForMe) return null
+  if (isActionSelectionPrompt(p)) return null
+  return p
+})
+
+type CocoonPromptMode = 'none' | 'confirm' | 'cards'
+type CocoonPromptOption = {
+  optionIndex: number
+  fieldIndex: number
+}
+
+function parseCocoonFieldIndexFromLabel(label: string): number | null {
+  const matched = String(label || '').match(/茧\[(\d+)\]/)
+  if (!matched) return null
+  const parsed = Number.parseInt(matched[1] || '', 10)
+  if (!Number.isFinite(parsed) || parsed < 0) return null
+  return parsed
+}
+
+const cocoonPromptContext = computed(() => {
+  const p = promptGuideContext.value
+  if (!p || !Array.isArray(p.options) || p.options.length === 0) {
+    return {
+      active: false,
+      mode: 'none' as CocoonPromptMode,
+      min: 0,
+      max: 0,
+      options: [] as CocoonPromptOption[],
+      fieldToOptionIndex: {} as Record<number, number>
+    }
+  }
+
+  const options: CocoonPromptOption[] = []
+  for (let idx = 0; idx < p.options.length; idx++) {
+    const option = p.options[idx]
+    const fieldIndex = parseCocoonFieldIndexFromLabel(String(option?.label || ''))
+    if (fieldIndex === null) continue
+    options.push({
+      optionIndex: idx,
+      fieldIndex
+    })
+  }
+  if (options.length === 0) {
+    return {
+      active: false,
+      mode: 'none' as CocoonPromptMode,
+      min: 0,
+      max: 0,
+      options: [] as CocoonPromptOption[],
+      fieldToOptionIndex: {} as Record<number, number>
+    }
+  }
+
+  let mode: CocoonPromptMode = 'none'
+  if (p.type === 'confirm') mode = 'confirm'
+  if (p.type === 'choose_card' || p.type === 'choose_cards') mode = 'cards'
+  if (mode === 'none') {
+    return {
+      active: false,
+      mode,
+      min: 0,
+      max: 0,
+      options: [] as CocoonPromptOption[],
+      fieldToOptionIndex: {} as Record<number, number>
+    }
+  }
+
+  const fieldToOptionIndex: Record<number, number> = {}
+  for (const option of options) {
+    if (fieldToOptionIndex[option.fieldIndex] === undefined) {
+      fieldToOptionIndex[option.fieldIndex] = option.optionIndex
+    }
+  }
+
+  return {
+    active: true,
+    mode,
+    min: Math.max(1, Number.isFinite(p.min) ? p.min : 1),
+    max: Math.max(1, Number.isFinite(p.max) ? p.max : 1),
+    options,
+    fieldToOptionIndex,
+  }
+})
+
+const selectedCocoonFieldIndices = ref<number[]>([])
+
+const promptNeedsCocoonGuide = computed(() => cocoonPromptContext.value.active)
+
+const cocoonGuideText = computed(() => {
+  const ctx = cocoonPromptContext.value
+  if (!ctx.active) return ''
+  if (ctx.mode === 'confirm') {
+    return '请在扩展区点击对应的茧完成选择'
+  }
+  const selected = selectedCocoonFieldIndices.value.length
+  if (ctx.min === ctx.max) {
+    return `请在扩展区选择 ${ctx.min} 个茧（已选 ${selected}/${ctx.min}）`
+  }
+  return `请在扩展区选择茧（已选 ${selected}，需 ${ctx.min}-${ctx.max} 个）`
+})
+
+const canConfirmCocoonSelection = computed(() => {
+  const ctx = cocoonPromptContext.value
+  if (!ctx.active || ctx.mode !== 'cards') return false
+  const n = selectedCocoonFieldIndices.value.length
+  return n >= ctx.min && n <= ctx.max
+})
+
+watch(
+  () => cocoonPromptContext.value.active,
+  (active) => {
+    selectedCocoonFieldIndices.value = []
+    if (active) {
+      showExpansionCards.value = true
+    }
+  }
+)
+
+watch(
+  () => store.currentPrompt,
+  () => {
+    selectedCocoonFieldIndices.value = []
+  }
+)
+
+const promptNeedsCardGuide = computed(() => {
+  if (promptNeedsCocoonGuide.value) return false
+  const p = promptGuideContext.value
+  if (!p) return false
+  if (p.type === 'choose_card' || p.type === 'choose_cards') return true
+  const optionIds = new Set((p.options || []).map((option: any) => String(option?.id || '')))
+  return optionIds.has('counter') || optionIds.has('defend')
+})
+
+function isOverflowDiscardPrompt(prompt: typeof store.currentPrompt): boolean {
+  if (!prompt) return false
+  if (prompt.type !== 'choose_card' && prompt.type !== 'choose_cards') return false
+  const message = String(prompt.message || '')
+  if (!message) return false
+
+  if (message.includes('手牌上限溢出')) return true
+  if (message.includes('爆牌')) return true
+  if (message.includes('手牌上限') && (message.includes('弃置') || message.includes('弃牌'))) return true
   return false
 }
 
-function onTargetClick(playerId: string) {
-  if (store.isGameEnded) return
-  
-  if (store.currentPrompt?.type === 'choose_target' && store.isPromptForMe) {
-    if (store.currentPrompt.options.some((o: any) => o.id === playerId)) {
-      store.selectTarget(playerId)
-    }
+function parseOverflowDiscardCount(prompt: typeof store.currentPrompt): number | null {
+  if (!prompt || !isOverflowDiscardPrompt(prompt)) return null
+  if (Number.isFinite(prompt.min) && Number.isFinite(prompt.max) && prompt.min > 0 && prompt.min === prompt.max) {
+    return prompt.min
+  }
+  const message = String(prompt.message || '')
+  const matched = message.match(/弃[置牌]\s*(\d+)\s*张/)
+  if (!matched) return null
+  const count = Number.parseInt(matched[1] || '', 10)
+  if (!Number.isFinite(count) || count <= 0) return null
+  return count
+}
+
+const promptNeedsOverflowDiscardGuide = computed(() => {
+  const p = promptGuideContext.value
+  return isOverflowDiscardPrompt(p)
+})
+
+const overflowDiscardCount = computed(() => {
+  const p = promptGuideContext.value
+  return parseOverflowDiscardCount(p)
+})
+
+const overflowDiscardGuideText = computed(() => {
+  const count = overflowDiscardCount.value
+  if (count !== null) {
+    return `你的手牌超过上限，请从下方手牌区选择 ${count} 张手牌弃置后继续。`
+  }
+  return '你的手牌超过上限，请从下方手牌区选择需要弃置的手牌后继续。'
+})
+
+function isCocoonCoverSelectable(fieldIndex: number): boolean {
+  const ctx = cocoonPromptContext.value
+  if (!ctx.active) return false
+  return ctx.options.some((option) => option.fieldIndex === fieldIndex)
+}
+
+function isCocoonCoverSelected(fieldIndex: number): boolean {
+  return selectedCocoonFieldIndices.value.includes(fieldIndex)
+}
+
+function onCoverCardClick(fieldIndex: number) {
+  const ctx = cocoonPromptContext.value
+  if (!ctx.active) return
+  if (!isCocoonCoverSelectable(fieldIndex)) {
+    store.setError('当前步骤不可选择该茧')
     return
   }
 
-  // 中断提示期间仅允许通过 PromptDialog/ActionPanel 操作，禁止点击角色区发普通行动
-  if (store.currentPrompt && store.isPromptForMe) return
+  if (ctx.mode === 'confirm') {
+    const optionIndex = ctx.fieldToOptionIndex[fieldIndex]
+    if (optionIndex === undefined) {
+      store.setError('未找到对应茧选项，请重试')
+      return
+    }
+    ws.select([optionIndex])
+    return
+  }
+
+  if (ctx.max <= 1) {
+    ws.select([fieldIndex])
+    return
+  }
+
+  const pos = selectedCocoonFieldIndices.value.indexOf(fieldIndex)
+  if (pos >= 0) {
+    selectedCocoonFieldIndices.value.splice(pos, 1)
+    return
+  }
+  if (selectedCocoonFieldIndices.value.length >= ctx.max) {
+    store.setError(`最多只能选择 ${ctx.max} 个茧`)
+    return
+  }
+  selectedCocoonFieldIndices.value.push(fieldIndex)
+  selectedCocoonFieldIndices.value.sort((a, b) => a - b)
+}
+
+function confirmCocoonSelection() {
+  const ctx = cocoonPromptContext.value
+  if (!ctx.active || ctx.mode !== 'cards') return
+  if (!canConfirmCocoonSelection.value) {
+    store.setError(`请选择 ${ctx.min}-${ctx.max} 个茧`)
+    return
+  }
+  ws.select([...selectedCocoonFieldIndices.value])
+}
+
+const promptNeedsTargetGuide = computed(() => {
+  const p = promptGuideContext.value
+  if (!p) return false
+  if (p.type === 'choose_target') return true
+  if ((p.counter_target_ids?.length ?? 0) > 0) return true
+  return Object.keys(store.players).some((playerId) => promptOptionIndexForPlayer(playerId) >= 0)
+})
+
+function playerPromptMarkers(playerId: string): string[] {
+  const p = store.players[playerId]
+  if (!p) return []
+  const markers = new Set<string>()
+  if (p.id) markers.add(p.id)
+  if (p.name) markers.add(p.name)
+  if (p.role) {
+    markers.add(p.role)
+    const roleName = store.getRoleDisplayName(p.role)
+    if (roleName && roleName !== '未知角色') {
+      markers.add(roleName)
+    }
+  }
+  return [...markers]
+}
+
+function labelMatchesMarkers(label: string, markers: string[]): boolean {
+  if (!label || markers.length === 0) return false
+  const low = label.toLowerCase()
+  return markers.some((marker) => {
+    const token = marker.trim().toLowerCase()
+    return !!token && low.includes(token)
+  })
+}
+
+function promptOptionIndexForPlayer(playerId: string, debugTrace: boolean = false): number {
+  const p = store.currentPrompt
+  if (!p || !store.isPromptForMe || !Array.isArray(p.options)) {
+    if (debugTrace) {
+      logTargetDebug('prompt_option_resolve_blocked_no_prompt', { playerId })
+    }
+    return -1
+  }
+  const directIdx = p.options.findIndex((o: any) => o?.id === playerId)
+  if (directIdx >= 0) {
+    if (debugTrace) {
+      logTargetDebug('prompt_option_resolve_by_id', { playerId, optionIdx: directIdx })
+    }
+    return directIdx
+  }
+
+  const markers = playerPromptMarkers(playerId)
+  if (markers.length === 0) {
+    if (debugTrace) {
+      logTargetDebug('prompt_option_resolve_no_player_markers', { playerId })
+    }
+    return -1
+  }
+
+  const allMarkerMap = Object.fromEntries(
+    Object.keys(store.players).map((id) => [id, playerPromptMarkers(id)])
+  ) as Record<string, string[]>
+
+  let matchedIdx = -1
+  for (let i = 0; i < p.options.length; i++) {
+    const option = p.options[i] as any
+    const label = String(option?.label || '')
+    if (!labelMatchesMarkers(label, markers)) continue
+    const hitOtherMarker = Object.entries(allMarkerMap).some(([otherId, otherMarkers]) =>
+      otherId !== playerId && labelMatchesMarkers(label, otherMarkers)
+    )
+    if (hitOtherMarker) continue
+    if (matchedIdx !== -1) {
+      if (debugTrace) {
+        logTargetDebug('prompt_option_resolve_ambiguous', { playerId, prevIdx: matchedIdx, nextIdx: i })
+      }
+      return -1
+    }
+    matchedIdx = i
+  }
+  if (debugTrace) {
+    logTargetDebug('prompt_option_resolve_by_label', { playerId, optionIdx: matchedIdx })
+  }
+  return matchedIdx
+}
+
+type PlayerSelectState = {
+  selectable: boolean
+  reason: string
+}
+
+function playerSelectState(playerId: string): PlayerSelectState {
+  if (store.isGameEnded) return { selectable: false, reason: 'game_ended' }
+
+  const prompt = store.currentPrompt
+  const promptIsActionHub = isActionSelectionPrompt(prompt)
+  if (prompt && !store.isPromptForMe) {
+    return { selectable: false, reason: 'prompt_not_for_me' }
+  }
+
+  if (prompt && store.isPromptForMe && !promptIsActionHub) {
+    const idx = promptOptionIndexForPlayer(playerId)
+    if (prompt.type === 'choose_target') {
+      if (idx >= 0) return { selectable: true, reason: `prompt_choose_target_option_${idx}` }
+      return { selectable: false, reason: 'prompt_choose_target_no_option_match' }
+    }
+    if (idx >= 0) return { selectable: true, reason: `prompt_confirm_option_${idx}` }
+    if (isPromptCounterTargetSelectable(playerId)) {
+      return { selectable: true, reason: 'prompt_counter_target_selectable' }
+    }
+    return { selectable: false, reason: 'prompt_confirm_no_option_match' }
+  }
+
+  if (prompt && store.isPromptForMe && promptIsActionHub && store.actionMode === 'none' && store.skillMode === 'none') {
+    return { selectable: false, reason: 'action_hub_waiting_for_mode_choice' }
+  }
+
+  if (store.canTargetOpponent() && store.targetablePlayers.some((t) => t.id === playerId)) {
+    return { selectable: true, reason: 'action_mode_targetable' }
+  }
+  if (store.skillMode === 'choosing_target' && store.targetablePlayersForSkill.some((t) => t.id === playerId)) {
+    return { selectable: true, reason: 'skill_mode_targetable' }
+  }
+  if (
+    store.actionMode === 'magic' &&
+    store.selectedCardForAction !== null &&
+    store.targetablePlayers.some((t) => t.id === playerId)
+  ) {
+    return { selectable: true, reason: 'magic_mode_targetable' }
+  }
+
+  if (store.skillMode === 'choosing_target') {
+    return { selectable: false, reason: 'skill_mode_target_not_in_targetablePlayersForSkill' }
+  }
+  if (store.actionMode !== 'none') {
+    if (store.selectedCardForAction === null) return { selectable: false, reason: 'action_mode_no_card_selected' }
+    if (!store.canTargetOpponent()) return { selectable: false, reason: 'action_mode_canTargetOpponent_false' }
+    return { selectable: false, reason: 'action_mode_target_not_in_targetablePlayers' }
+  }
+
+  return { selectable: false, reason: 'no_target_context' }
+}
+
+function isPromptCounterTargetSelectable(playerId: string): boolean {
+  const ids = store.currentPrompt?.counter_target_ids
+  if (!store.currentPrompt || !store.isPromptForMe || !ids?.length) return false
+  return ids.includes(playerId)
+}
+
+function isPlayerSelected(playerId: string): boolean {
+  if (store.skillMode === 'choosing_target' && store.skillTargetIds.includes(playerId)) return true
+  if (store.currentPrompt?.type === 'choose_target' && store.selectedTargets.includes(playerId)) return true
+  if (store.promptCounterTarget === playerId && isPromptCounterTargetSelectable(playerId)) return true
+  return false
+}
+
+function isPlayerSelectable(playerId: string): boolean {
+  return playerSelectState(playerId).selectable
+}
+
+function playerSelectReason(playerId: string): string {
+  return playerSelectState(playerId).reason
+}
+
+function onTargetClick(playerId: string) {
+  if (store.isGameEnded) {
+    logTargetDebug('click_blocked_game_ended', { playerId })
+    return
+  }
+  const prompt = store.currentPrompt
+  const promptIsActionHub = isActionSelectionPrompt(prompt)
+  logTargetDebug('click_received', {
+    playerId,
+    promptOptions: promptOptionsDebugSnapshot(),
+    counterTargetIds: store.currentPrompt?.counter_target_ids || [],
+    promptIsActionHub
+  })
+  
+  if (prompt && store.isPromptForMe && !promptIsActionHub) {
+    if (prompt.type === 'choose_target') {
+      const promptIdx = promptOptionIndexForPlayer(playerId, true)
+      if (promptIdx >= 0) {
+        logTargetDebug('prompt_choose_target_send_action', { playerId, optionIdx: promptIdx })
+        ws.sendAction({
+          player_id: store.myPlayerId,
+          type: 'Select',
+          target_id: playerId
+        })
+      } else {
+        logTargetDebug('prompt_choose_target_reject_click', { playerId })
+      }
+      return
+    }
+    const optionIdx = promptOptionIndexForPlayer(playerId, true)
+    if (optionIdx >= 0) {
+      logTargetDebug('prompt_option_send_select', { playerId, optionIdx })
+      ws.select([optionIdx])
+      return
+    }
+    if (isPromptCounterTargetSelectable(playerId)) {
+      const next = store.promptCounterTarget === playerId ? '' : playerId
+      store.setPromptCounterTarget(next)
+      logTargetDebug('prompt_counter_target_toggled', { playerId, nextTarget: next })
+      return
+    }
+    logTargetDebug('prompt_click_no_matching_route', { playerId })
+    return
+  }
+  if (prompt && store.isPromptForMe && promptIsActionHub) {
+    logTargetDebug('action_hub_prompt_bypassed_for_target_click', {
+      playerId,
+      actionMode: store.actionMode,
+      selectedCardForAction: store.selectedCardForAction ?? -1
+    })
+  }
 
   // 技能选目标模式
   if (store.skillMode === 'choosing_target' && store.selectedSkill) {
     if (store.targetablePlayersForSkill.some(p => p.id === playerId)) {
       store.toggleSkillTarget(playerId)
+      logTargetDebug('skill_target_toggled', {
+        playerId,
+        skillId: store.selectedSkill.id,
+        skillTargets: [...store.skillTargetIds]
+      })
       // 单目标技能选中后自动发动
       if (store.selectedSkill.max_targets === 1 && store.skillTargetIds.length === 1) {
-        ws.useSkill(store.selectedSkill.id, store.skillTargetIds)
+        logTargetDebug('skill_target_auto_use', {
+          playerId,
+          skillId: store.selectedSkill.id
+        })
+        const skillId = store.selectedSkill.id
+        const targetIds = [...store.skillTargetIds]
+        // 技能已提交后立即退出选择态，避免等待下一步 prompt 期间重复发送 Skill。
+        store.clearSkillMode()
+        ws.useSkill(skillId, targetIds)
       }
+    } else {
+      logTargetDebug('skill_target_blocked_not_candidate', {
+        playerId,
+        candidates: store.targetablePlayersForSkill.map(p => p.id)
+      })
     }
     return
   }
   // 攻击/法术模式
-  if (!store.canTargetOpponent()) return
+  if (!store.canTargetOpponent()) {
+    logTargetDebug('action_target_blocked_canTargetOpponent_false', { playerId })
+    return
+  }
   const cardIdx = store.selectedCardForAction
-  if (cardIdx === null) return
+  if (cardIdx === null) {
+    logTargetDebug('action_target_blocked_no_card_selected', { playerId })
+    return
+  }
   const selectedItem = store.myPlayableCards.find(item => item.index === cardIdx)
   if (!selectedItem) {
     store.setSelectedCardForAction(null)
     store.setError('所选卡牌已变化，请重新选择')
+    logTargetDebug('action_target_blocked_card_not_found', { playerId, cardIdx })
     return
   }
   if (store.actionMode === 'attack') {
     if (selectedItem.card.type !== 'Attack') {
       store.setSelectedCardForAction(null)
       store.setError('所选卡牌不是攻击牌，请重新选择')
+      logTargetDebug('action_target_blocked_card_not_attack', { playerId, cardIdx, cardType: selectedItem.card.type })
       return
     }
+    logTargetDebug('action_attack_send', { playerId, cardIdx, cardName: selectedItem.card.name })
     ws.attack(playerId, cardIdx)
   } else if (store.actionMode === 'magic') {
     if (selectedItem.card.type !== 'Magic') {
       store.setSelectedCardForAction(null)
       store.setError('所选卡牌不是法术牌，请重新选择')
+      logTargetDebug('action_target_blocked_card_not_magic', { playerId, cardIdx, cardType: selectedItem.card.type })
       return
     }
     if (isMagicBulletCard(cardIdx)) {
+      logTargetDebug('action_magic_missile_send', { playerId, cardIdx, cardName: selectedItem.card.name })
       ws.magic(undefined, cardIdx)
     } else {
+      logTargetDebug('action_magic_send', { playerId, cardIdx, cardName: selectedItem.card.name })
       ws.magic(playerId, cardIdx)
     }
   }
 }
 
+function parsePromptCardIndex(optionId: string): number | null {
+  const normalized = String(optionId || '').trim()
+  if (!/^-?\d+$/.test(normalized)) return null
+  const parsed = Number.parseInt(normalized, 10)
+  if (!Number.isFinite(parsed)) return null
+  return parsed
+}
+
+function parseHandIndexFromPromptLabel(label: string): number | null {
+  const matched = String(label || '').trim().match(/^(\d+)\s*:/)
+  if (!matched) return null
+  const displayIndex = Number.parseInt(matched[1] || "", 10)
+  if (!Number.isFinite(displayIndex) || displayIndex <= 0) return null
+  return displayIndex - 1
+}
+
+function promptHandCardIndexSet(): Set<number> {
+  const set = new Set<number>()
+  const options = store.currentPrompt?.options || []
+  for (const option of options) {
+    const idx = parsePromptCardIndex(option.id)
+    if (idx === null || idx < 0 || idx >= store.myHand.length) continue
+    const labelIdx = parseHandIndexFromPromptLabel(option.label)
+    if (labelIdx === idx) set.add(idx)
+  }
+  return set
+}
+
+function isWaterShadowPromptForSelection(prompt: typeof store.currentPrompt): boolean {
+  if (!prompt) return false
+  if (!String(prompt.message || '').includes('水影')) return false
+  const options = prompt.options || []
+  const hasCounterOrDefend = options.some((option: any) => option?.id === 'counter' || option?.id === 'defend')
+  return !hasCounterOrDefend
+}
+
+function isStealthedForWaterShadow(): boolean {
+  return !!store.myPlayer?.field?.some((fc) => fc.mode === 'Effect' && fc.effect === 'Stealth')
+}
+
+function canUseShadowRejectMagicResponse(): boolean {
+  const me = store.myPlayer
+  if (!me) return false
+  if (store.isMyTurn) return false
+  if (me.role !== 'magic_swordsman') return false
+  const shadowForm = Number(me.tokens?.ms_shadow_form ?? 0)
+  return shadowForm > 0
+}
+
+type PromptCardSelectionState = {
+  selectable: boolean
+  reason: string
+  error?: string
+}
+
+function promptCardSelectionState(idx: number): PromptCardSelectionState {
+  const prompt = store.currentPrompt
+  if (!prompt || !store.isPromptForMe) {
+    return { selectable: false, reason: 'no_prompt_for_me' }
+  }
+  if (isActionSelectionPrompt(prompt)) {
+    return { selectable: false, reason: 'action_hub_prompt' }
+  }
+
+  const card = store.myHand[idx]
+  if (!card) {
+    return { selectable: false, reason: 'card_not_in_hand', error: '请从手牌区选择有效卡牌' }
+  }
+
+  const options = prompt.options || []
+  const optionIds = new Set(options.map((option: any) => String(option?.id || '')))
+  const hasCounter = optionIds.has('counter')
+  const hasDefend = optionIds.has('defend')
+  const isMagicMissilePrompt = String(prompt.message || '').includes('魔弹')
+  const allowShadowMagicCounter = canUseShadowRejectMagicResponse()
+
+  if (hasCounter || hasDefend) {
+    const validForCounter = hasCounter && (
+      isMagicMissilePrompt
+        ? card.type === 'Magic' && card.name === '魔弹'
+        : (
+          (card.type === 'Attack' && (!prompt.attack_element || card.element === prompt.attack_element || card.element === 'Dark')) ||
+          (allowShadowMagicCounter && card.type === 'Magic' && card.name === '魔弹')
+        )
+    )
+    const validForDefend = hasDefend && card.type === 'Magic' && card.name === '圣光'
+    const counterOnlyHint = isMagicMissilePrompt
+      ? '请先选择一张【魔弹】进行传递'
+      : (allowShadowMagicCounter
+        ? '请先选择同系攻击牌/暗灭，或在暗影形态下选择【魔弹】进行应战'
+        : '请先选择同系攻击牌或暗灭进行应战')
+    const counterAndDefendHint = isMagicMissilePrompt
+      ? '应战请选择【魔弹】，防御请选择【圣光】'
+      : (allowShadowMagicCounter
+        ? '应战请选择同系攻击牌/暗灭（暗影形态下也可【魔弹】），防御请选择【圣光】'
+        : '应战请选择同系攻击牌或暗灭，防御请选择【圣光】')
+    if (validForCounter || validForDefend) {
+      return { selectable: true, reason: 'prompt_counter_defend_valid' }
+    }
+    if (hasCounter && hasDefend) {
+      return {
+        selectable: false,
+        reason: 'prompt_counter_defend_invalid',
+        error: counterAndDefendHint
+      }
+    }
+    if (hasCounter) {
+      return {
+        selectable: false,
+        reason: 'prompt_counter_invalid',
+        error: counterOnlyHint
+      }
+    }
+    return {
+      selectable: false,
+      reason: 'prompt_defend_invalid',
+      error: '防御只能选择【圣光】（圣盾需提前放置）'
+    }
+  }
+
+  if (isWaterShadowPromptForSelection(prompt)) {
+    const selectedCards = store.selectedCards
+      .map((i) => store.myHand[i])
+      .filter((c): c is NonNullable<typeof c> => !!c)
+    const waterCount = selectedCards.filter((c) => c.element === 'Water').length
+    const magicCount = selectedCards.filter((c) => c.type === 'Magic' && c.element !== 'Water').length
+    const stealthed = isStealthedForWaterShadow()
+    if (card.element === 'Water') {
+      return { selectable: true, reason: 'prompt_water_shadow_water' }
+    }
+    if (stealthed && card.type === 'Magic') {
+      if (store.selectedCards.includes(idx)) {
+        return { selectable: true, reason: 'prompt_water_shadow_keep_selected_magic' }
+      }
+      if (magicCount >= 1) {
+        return {
+          selectable: false,
+          reason: 'prompt_water_shadow_magic_limit',
+          error: '水影仅可弃水系牌，潜行状态下最多额外弃1张法术牌'
+        }
+      }
+      if (waterCount > 0) {
+        return { selectable: true, reason: 'prompt_water_shadow_magic_after_water' }
+      }
+    }
+    return {
+      selectable: false,
+      reason: 'prompt_water_shadow_invalid',
+      error: stealthed ? '水影仅可弃水系牌，潜行状态下最多额外弃1张法术牌' : '水影仅可弃水系牌'
+    }
+  }
+
+  const handOptionSet = promptHandCardIndexSet()
+  if (handOptionSet.size > 0) {
+    if (handOptionSet.has(idx)) {
+      return { selectable: true, reason: 'prompt_hand_option_match' }
+    }
+    return {
+      selectable: false,
+      reason: 'prompt_hand_option_mismatch',
+      error: '当前步骤只能选择提示中的手牌'
+    }
+  }
+
+  if (prompt.type === 'choose_card' || prompt.type === 'choose_cards') {
+    return { selectable: false, reason: 'prompt_choose_cards_no_hand_option' }
+  }
+
+  return { selectable: false, reason: 'prompt_not_card_selection' }
+}
+
 function isCardSelectableForAction(idx: number): boolean {
   if (store.isGameEnded) return false
   if (store.skillMode === 'choosing_discard') return idx < store.myHand.length
-  if (store.isPromptForMe) return true
   if (store.actionMode === 'attack') {
     const card = store.myPlayableCards.find(item => item.index === idx)?.card
     return !!card && card.type === 'Attack'
@@ -214,6 +920,7 @@ function isCardSelectableForAction(idx: number): boolean {
     const card = store.myPlayableCards.find(item => item.index === idx)?.card
     return !!card && card.type === 'Magic'
   }
+  if (store.isPromptForMe) return promptCardSelectionState(idx).selectable
   return store.isMyTurn
 }
 
@@ -281,7 +988,23 @@ function onCardClick(idx: number) {
     return
   }
   if (store.isPromptForMe) {
+    const state = promptCardSelectionState(idx)
+    if (!state.selectable) {
+      logTargetDebug('prompt_card_click_blocked', {
+        cardIdx: idx,
+        reason: state.reason
+      })
+      if (state.error) {
+        store.setError(state.error)
+      }
+      return
+    }
     store.toggleCardSelection(idx)
+    logTargetDebug('prompt_card_toggled', {
+      cardIdx: idx,
+      selectedCards: [...store.selectedCards],
+      reason: state.reason
+    })
     return
   }
   if (store.isMyTurn) {
@@ -481,10 +1204,19 @@ function dissolveRoomByHost() {
       
     >
       <aside class="side-rail side-rail-left">
+        <Transition name="guide-hint">
+          <div v-if="promptNeedsTargetGuide" class="left-target-guide-hint">
+            点击角色选择目标
+          </div>
+        </Transition>
         <div
           v-for="p in leftRailPlayers"
           :key="p.id"
           class="player-anchor-wrap"
+          :class="[
+            playerAnchorClasses(p.id, 'left'),
+            { 'target-guide-pulse': promptNeedsTargetGuide && isPlayerSelectable(p.id) }
+          ]"
           :data-player-anchor="p.id"
         >
           <PlayerArea
@@ -492,7 +1224,8 @@ function dissolveRoomByHost() {
             :isMe="p.id === store.myPlayerId"
             :isOpponent="p.camp !== store.myCamp"
             :selectable="isPlayerSelectable(p.id)"
-            :selected="(store.skillMode === 'choosing_target' && store.skillTargetIds.includes(p.id)) || (store.currentPrompt?.type === 'choose_target' && store.selectedTargets.includes(p.id))"
+            :debugTargetReason="playerSelectReason(p.id)"
+            :selected="isPlayerSelected(p.id)"
             :turnOrder="turnOrderFor(p.id)"
             compact
             @select="onTargetClick"
@@ -512,19 +1245,33 @@ function dissolveRoomByHost() {
 
         <div class="bottom-hud flex-shrink-0 min-h-0 mt-2">
           <div class="bottom-hud-main">
-            <div class="bottom-slot-me player-anchor-wrap" :data-player-anchor="store.myPlayerId">
+            <div
+              class="bottom-slot-me player-anchor-wrap"
+              :class="[
+                playerAnchorClasses(store.myPlayerId, 'bottom'),
+                { 'target-guide-pulse': promptNeedsTargetGuide && isPlayerSelectable(store.myPlayerId) }
+              ]"
+              :data-player-anchor="store.myPlayerId"
+            >
               <PlayerArea
                 v-if="myAreaPlayer"
                 :player="myAreaPlayer"
                 is-me
                 :selectable="isPlayerSelectable(myAreaPlayer.id)"
-                :selected="(store.skillMode === 'choosing_target' && store.skillTargetIds.includes(myAreaPlayer.id)) || (store.currentPrompt?.type === 'choose_target' && store.selectedTargets.includes(myAreaPlayer.id))"
+                :debugTargetReason="playerSelectReason(myAreaPlayer.id)"
+                :selected="isPlayerSelected(myAreaPlayer.id)"
                 :turnOrder="turnOrderFor(myAreaPlayer.id)"
                 compact
                 @select="onTargetClick"
               />
             </div>
-            <div class="hand-rail bottom-slot-hand rounded-lg sm:rounded-xl p-2 sm:p-2 min-h-0">
+            <div
+              class="hand-rail bottom-slot-hand rounded-lg sm:rounded-xl p-2 sm:p-2 min-h-0"
+              :class="{
+                'hand-rail--prompt-guide': promptNeedsCardGuide,
+                'hand-rail--overflow-discard': promptNeedsOverflowDiscardGuide
+              }"
+            >
               <div class="exclusive-toggle-row mb-2">
                 <button
                   type="button"
@@ -546,6 +1293,18 @@ function dissolveRoomByHost() {
                 </button>
               </div>
               <div v-if="showExpansionCards && expansionCardCount > 0" class="expansion-zone mb-2">
+                <div v-if="promptNeedsCocoonGuide" class="expansion-cocoon-guide">
+                  <div class="expansion-cocoon-guide-text">{{ cocoonGuideText }}</div>
+                  <button
+                    v-if="cocoonPromptContext.mode === 'cards' && cocoonPromptContext.max > 1"
+                    class="expansion-cocoon-confirm-btn"
+                    :class="{ 'expansion-cocoon-confirm-btn--disabled': !canConfirmCocoonSelection }"
+                    :disabled="!canConfirmCocoonSelection"
+                    @click="confirmCocoonSelection"
+                  >
+                    确认选择
+                  </button>
+                </div>
                 <div class="expansion-zone-scroll">
                   <div class="expansion-zone-content">
                     <div v-if="myExclusiveCards.length > 0" class="expansion-group">
@@ -563,21 +1322,44 @@ function dissolveRoomByHost() {
                       <div class="expansion-group-title">盖牌（{{ myCoverCards.length }}）</div>
                       <div class="expansion-card-row">
                         <div
-                          v-for="(fc, idx) in myCoverCards"
-                          :key="`cover-${fc.card.id || idx}`"
+                          v-for="(cover, idx) in myCoverCards"
+                          :key="`cover-${cover.fieldCard.card.id || idx}`"
                           class="expansion-cover-item"
                         >
                           <CardComponent
-                            :card="fc.card"
+                            :card="cover.fieldCard.card"
+                            :index="cover.fieldIndex"
                             medium
+                            :selectable="isCocoonCoverSelectable(cover.fieldIndex)"
+                            :selected="isCocoonCoverSelected(cover.fieldIndex)"
+                            @click="onCoverCardClick"
                           />
-                          <div class="expansion-cover-tag">{{ coverEffectLabel(fc.effect) }}</div>
+                          <div class="expansion-cover-tag">{{ coverEffectLabel(cover.fieldCard.effect) }}</div>
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
+              <Transition name="guide-hint" mode="out-in">
+                <div
+                  v-if="promptNeedsOverflowDiscardGuide"
+                  key="overflow-discard-guide"
+                  class="overflow-discard-guide"
+                >
+                  <div class="overflow-discard-guide__title">爆牌弃牌阶段</div>
+                  <div class="overflow-discard-guide__desc">
+                    {{ overflowDiscardGuideText }}
+                  </div>
+                </div>
+                <div
+                  v-else-if="promptNeedsCardGuide"
+                  key="prompt-card-guide"
+                  class="prompt-card-guide-chip"
+                >
+                  点击下方手牌完成选择
+                </div>
+              </Transition>
               <div class="overflow-x-auto hand-list pb-0.5">
                 <div class="hand-card-row">
                   <CardComponent
@@ -603,6 +1385,10 @@ function dissolveRoomByHost() {
           v-for="p in rightRailPlayers"
           :key="p.id"
           class="player-anchor-wrap"
+          :class="[
+            playerAnchorClasses(p.id, 'right'),
+            { 'target-guide-pulse': promptNeedsTargetGuide && isPlayerSelectable(p.id) }
+          ]"
           :data-player-anchor="p.id"
         >
           <PlayerArea
@@ -610,7 +1396,8 @@ function dissolveRoomByHost() {
             :isMe="p.id === store.myPlayerId"
             :isOpponent="p.camp !== store.myCamp"
             :selectable="isPlayerSelectable(p.id)"
-            :selected="(store.skillMode === 'choosing_target' && store.skillTargetIds.includes(p.id)) || (store.currentPrompt?.type === 'choose_target' && store.selectedTargets.includes(p.id))"
+            :debugTargetReason="playerSelectReason(p.id)"
+            :selected="isPlayerSelected(p.id)"
             :turnOrder="turnOrderFor(p.id)"
             compact
             @select="onTargetClick"
@@ -651,8 +1438,6 @@ function dissolveRoomByHost() {
         {{ store.skillEffectToast }}
       </div>
     </Transition>
-
-    <PromptDialog />
 
     <!-- 伤害结算通知弹框 -->
 
@@ -1406,10 +2191,54 @@ function dissolveRoomByHost() {
 
 .player-anchor-wrap {
   width: 100%;
+  position: relative;
+  transition:
+    transform 0.42s cubic-bezier(0.2, 0.82, 0.22, 1),
+    filter 0.36s ease,
+    box-shadow 0.36s ease;
+  will-change: transform;
+}
+
+.player-anchor-wrap--focus-active {
+  z-index: 16;
+  filter: drop-shadow(0 14px 22px rgba(6, 20, 34, 0.48));
+}
+
+.player-anchor-wrap--focus-active :deep(.player-area) {
+  box-shadow:
+    0 0 0 1px rgba(237, 218, 164, 0.36),
+    0 12px 26px rgba(8, 22, 36, 0.4);
+}
+
+.player-anchor-wrap--focus-slot-left.player-anchor-wrap--focus-active {
+  transform: translate(clamp(34px, 4.2vw, 64px), 0) scale(1.04);
+}
+
+.player-anchor-wrap--focus-slot-right.player-anchor-wrap--focus-active {
+  transform: translate(clamp(-64px, -4.2vw, -34px), 0) scale(1.04);
+}
+
+.player-anchor-wrap--focus-slot-bottom.player-anchor-wrap--focus-active {
+  transform: translate(0, clamp(-72px, -8vh, -44px)) scale(1.05);
 }
 
 .side-rail-left {
   align-items: flex-start;
+}
+
+.left-target-guide-hint {
+  width: 100%;
+  text-align: center;
+  margin-bottom: 6px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(219, 186, 123, 0.52);
+  background: linear-gradient(180deg, rgba(84, 59, 28, 0.9), rgba(62, 43, 20, 0.92));
+  color: #f9e4ba;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  box-shadow: 0 6px 14px rgba(10, 5, 1, 0.32);
 }
 
 .side-rail-right {
@@ -1555,9 +2384,156 @@ function dissolveRoomByHost() {
     0 8px 24px rgba(1, 8, 16, 0.4);
 }
 
+.hand-rail--prompt-guide {
+  border-color: rgba(200, 171, 113, 0.52);
+  box-shadow:
+    inset 0 1px 0 rgba(244, 236, 216, 0.16),
+    inset 0 0 20px rgba(164, 126, 72, 0.18),
+    0 10px 26px rgba(1, 8, 16, 0.45),
+    0 0 0 1px rgba(203, 169, 107, 0.24);
+  animation: handGuidePulse 1.8s ease-in-out infinite;
+}
+
+.hand-rail--overflow-discard {
+  border-color: rgba(217, 132, 93, 0.64);
+  box-shadow:
+    inset 0 1px 0 rgba(250, 233, 221, 0.16),
+    inset 0 0 24px rgba(178, 94, 61, 0.22),
+    0 10px 28px rgba(1, 8, 16, 0.48),
+    0 0 0 1px rgba(216, 139, 103, 0.32);
+  animation: overflowDiscardPulse 1.45s ease-in-out infinite;
+}
+
+.prompt-card-guide-chip {
+  width: fit-content;
+  margin: 0 auto 8px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(215, 179, 116, 0.58);
+  background: linear-gradient(180deg, rgba(88, 61, 28, 0.9), rgba(66, 45, 19, 0.92));
+  color: #ffe4b8;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  box-shadow: 0 8px 16px rgba(13, 7, 2, 0.34);
+  animation: guideChipFloat 1.25s ease-in-out infinite;
+}
+
+.overflow-discard-guide {
+  width: min(100%, 620px);
+  margin: 0 auto 8px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(217, 132, 93, 0.7);
+  background: linear-gradient(180deg, rgba(82, 36, 20, 0.92), rgba(56, 24, 14, 0.94));
+  box-shadow: 0 10px 18px rgba(22, 8, 3, 0.35);
+}
+
+.overflow-discard-guide__title {
+  color: #ffd8b9;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.3;
+}
+
+.overflow-discard-guide__desc {
+  margin-top: 3px;
+  color: rgba(255, 234, 220, 0.92);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.guide-hint-enter-active,
+.guide-hint-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.guide-hint-enter-from,
+.guide-hint-leave-to {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.target-guide-pulse {
+  position: relative;
+}
+
+.target-guide-pulse::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 14px;
+  border: 1px solid rgba(225, 193, 137, 0.72);
+  box-shadow: 0 0 14px rgba(226, 190, 127, 0.38);
+  pointer-events: none;
+  animation: targetGuidePulse 1.4s ease-in-out infinite;
+}
+
+@keyframes handGuidePulse {
+  0%,
+  100% {
+    box-shadow:
+      inset 0 1px 0 rgba(244, 236, 216, 0.14),
+      inset 0 0 16px rgba(164, 126, 72, 0.14),
+      0 8px 24px rgba(1, 8, 16, 0.42),
+      0 0 0 1px rgba(203, 169, 107, 0.18);
+  }
+  50% {
+    box-shadow:
+      inset 0 1px 0 rgba(247, 240, 225, 0.2),
+      inset 0 0 24px rgba(182, 142, 84, 0.24),
+      0 12px 28px rgba(1, 8, 16, 0.5),
+      0 0 0 1px rgba(218, 184, 123, 0.34);
+  }
+}
+
+@keyframes overflowDiscardPulse {
+  0%,
+  100% {
+    box-shadow:
+      inset 0 1px 0 rgba(248, 232, 220, 0.14),
+      inset 0 0 18px rgba(172, 92, 57, 0.18),
+      0 8px 24px rgba(1, 8, 16, 0.46),
+      0 0 0 1px rgba(204, 127, 89, 0.2);
+  }
+  50% {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 241, 231, 0.22),
+      inset 0 0 28px rgba(188, 101, 64, 0.28),
+      0 12px 30px rgba(1, 8, 16, 0.52),
+      0 0 0 1px rgba(224, 146, 107, 0.36);
+  }
+}
+
+@keyframes targetGuidePulse {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.98);
+  }
+  50% {
+    opacity: 0.92;
+    transform: scale(1.02);
+  }
+}
+
+@keyframes guideChipFloat {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
 .hand-list {
   width: 100%;
   min-width: 0;
+  /* 选中卡牌上移时预留顶部空间，避免在横向滚动容器内被裁切。 */
+  padding-top: 14px;
+  margin-top: -8px;
   scrollbar-width: thin;
   scrollbar-color: rgba(94, 138, 165, 0.74) rgba(7, 14, 22, 0.45);
 }
@@ -1614,6 +2590,48 @@ function dissolveRoomByHost() {
 .expansion-zone {
   max-width: 100%;
   min-width: 0;
+}
+
+.expansion-cocoon-guide {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(178, 206, 235, 0.36);
+  background: linear-gradient(180deg, rgba(22, 36, 55, 0.78), rgba(12, 23, 37, 0.88));
+}
+
+.expansion-cocoon-guide-text {
+  font-size: 12px;
+  line-height: 1.35;
+  color: rgba(218, 234, 249, 0.96);
+}
+
+.expansion-cocoon-confirm-btn {
+  flex-shrink: 0;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(228, 192, 128, 0.58);
+  background: linear-gradient(140deg, rgba(156, 102, 49, 0.92), rgba(109, 69, 30, 0.96));
+  color: rgba(255, 238, 209, 0.96);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.expansion-cocoon-confirm-btn:not(:disabled):hover {
+  filter: brightness(1.06);
+}
+
+.expansion-cocoon-confirm-btn--disabled,
+.expansion-cocoon-confirm-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+  filter: none;
 }
 
 .expansion-zone-scroll {
@@ -1995,6 +3013,18 @@ function dissolveRoomByHost() {
     justify-content: flex-start;
   }
 
+  .player-anchor-wrap--focus-slot-left.player-anchor-wrap--focus-active {
+    transform: translate(clamp(16px, 3.2vw, 28px), 0) scale(1.03);
+  }
+
+  .player-anchor-wrap--focus-slot-right.player-anchor-wrap--focus-active {
+    transform: translate(clamp(-28px, -3.2vw, -16px), 0) scale(1.03);
+  }
+
+  .player-anchor-wrap--focus-slot-bottom.player-anchor-wrap--focus-active {
+    transform: translate(0, clamp(-52px, -6.4vh, -34px)) scale(1.04);
+  }
+
   .center-stage {
     width: 100%;
   }
@@ -2147,10 +3177,10 @@ function dissolveRoomByHost() {
 }
 
 .side-rail .player-anchor-wrap {
-  transition: transform 0.2s ease;
+  transition: transform 0.24s ease, filter 0.24s ease;
 }
 
-.side-rail .player-anchor-wrap:hover {
+.side-rail .player-anchor-wrap:hover:not(.player-anchor-wrap--focus-active) {
   transform: translateY(-1px);
 }
 </style>

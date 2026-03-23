@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -200,5 +201,108 @@ func TestRoomReconnectByRoomAndNameWithoutToken(t *testing.T) {
 	}
 	if assigned.Message == "" {
 		t.Fatal("expected assigned message for reconnect")
+	}
+}
+
+func TestRoomReconnectByPlayerIDWithoutToken_WhenSeatDisconnected(t *testing.T) {
+	room := NewRoom("R004")
+	host := &Client{
+		Room:     room,
+		Send:     make(chan []byte, 64),
+		PlayerID: "p2",
+		Name:     "Host",
+		Camp:     model.BlueCamp,
+		CharRole: "angel",
+	}
+	oldSeat := &Client{
+		Room:           room,
+		Send:           make(chan []byte, 64),
+		PlayerID:       "p1",
+		Name:           "Alice",
+		Camp:           model.RedCamp,
+		CharRole:       "berserker",
+		ReconnectToken: "tok-alice-old",
+		Disconnected:   true,
+	}
+	room.Clients["p1"] = oldSeat
+	room.Clients["p2"] = host
+	room.Started = true
+	room.HostID = "p2"
+
+	incoming := &Client{
+		Name:              "Alice-New-Device",
+		Send:              make(chan []byte, 64),
+		ReconnectPlayerID: "p1",
+		ReconnectToken:    "stale-token",
+	}
+	room.handleRegister(incoming)
+
+	if room.Clients["p1"] != incoming {
+		t.Fatal("expected reconnect by player_id to reclaim p1 seat")
+	}
+	if incoming.PlayerID != "p1" {
+		t.Fatalf("expected incoming player_id=p1, got %q", incoming.PlayerID)
+	}
+	if incoming.Name != "Alice" {
+		t.Fatalf("expected reconnect to restore seat name Alice, got %q", incoming.Name)
+	}
+	if incoming.Disconnected {
+		t.Fatal("expected incoming client connected after reconnect")
+	}
+	if incoming.ReconnectToken == "" || incoming.ReconnectToken == "tok-alice-old" {
+		t.Fatalf("expected rotated reconnect token, got %q", incoming.ReconnectToken)
+	}
+
+	assigned := waitRoomEvent(t, incoming.Send, "assigned")
+	if assigned.PlayerID != "p1" {
+		t.Fatalf("expected assigned player p1, got %q", assigned.PlayerID)
+	}
+	if !strings.Contains(assigned.Message, "玩家ID") {
+		t.Fatalf("expected player_id reconnect message, got %q", assigned.Message)
+	}
+}
+
+func TestRoomReconnectByPlayerIDRejected_WhenSeatOnline(t *testing.T) {
+	room := NewRoom("R005")
+	host := &Client{
+		Room:     room,
+		Send:     make(chan []byte, 64),
+		PlayerID: "p2",
+		Name:     "Host",
+		Camp:     model.BlueCamp,
+		CharRole: "angel",
+	}
+	onlineSeat := &Client{
+		Room:           room,
+		Send:           make(chan []byte, 64),
+		PlayerID:       "p1",
+		Name:           "Alice",
+		Camp:           model.RedCamp,
+		CharRole:       "berserker",
+		ReconnectToken: "tok-alice-online",
+		Disconnected:   false,
+	}
+	room.Clients["p1"] = onlineSeat
+	room.Clients["p2"] = host
+	room.Started = true
+	room.HostID = "p2"
+
+	incoming := &Client{
+		Name:              "Alice",
+		Send:              make(chan []byte, 64),
+		ReconnectPlayerID: "p1",
+	}
+	room.handleRegister(incoming)
+
+	if room.Clients["p1"] != onlineSeat {
+		t.Fatal("expected online seat to remain unchanged")
+	}
+	if incoming.PlayerID != "" {
+		t.Fatalf("expected incoming not assigned seat, got %q", incoming.PlayerID)
+	}
+
+	errEv := waitRoomEvent(t, incoming.Send, "error")
+	if !strings.Contains(errEv.Message, "重连校验失败") {
+		t.Fatalf("expected reconnect rejected error, got %q", errEv.Message)
 	}
 }

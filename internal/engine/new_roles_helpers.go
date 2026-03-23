@@ -163,6 +163,27 @@ func (e *GameEngine) canCastMagicInAction(player *model.Player) bool {
 	return true
 }
 
+// canUseShadowRejectResponseMagic 判断魔剑士【暗影抗拒】是否允许在“非自己行动阶段”用法术响应。
+// 规则：仅暗影形态下生效，且必须不是当前回合玩家本人。
+func (e *GameEngine) canUseShadowRejectResponseMagic(player *model.Player) bool {
+	if e == nil || player == nil {
+		return false
+	}
+	if !e.isMagicSwordsman(player) {
+		return false
+	}
+	if player.Tokens == nil || player.Tokens["ms_shadow_form"] <= 0 {
+		return false
+	}
+	if len(e.State.PlayerOrder) == 0 {
+		return false
+	}
+	if e.State.CurrentTurn < 0 || e.State.CurrentTurn >= len(e.State.PlayerOrder) {
+		return false
+	}
+	return e.State.PlayerOrder[e.State.CurrentTurn] != player.ID
+}
+
 // reverseOrderTargetIDsFrom 按“逆向”顺序返回角色 ID（从 source 的前一位开始）。
 func (e *GameEngine) reverseOrderTargetIDsFrom(sourceID string, includeSelf bool) []string {
 	if len(e.State.PlayerOrder) == 0 {
@@ -1940,6 +1961,10 @@ func (e *GameEngine) maybeTriggerMoonGoddessMedusa(attacker *model.Player, targe
 	if attacker == nil || target == nil || attackCard == nil {
 		return false
 	}
+	// 美杜莎之眼仅允许在“攻击开始”时机触发，避免攻击结算后误触发。
+	if userCtx == nil || userCtx.Trigger != model.TriggerOnAttackStart {
+		return false
+	}
 	// 欺诈/圣屑飓暴属于“转化攻击”，不触发美杜莎之眼。
 	if sourceSkill == "adventurer_fraud" || sourceSkill == "hb_holy_shard_storm" {
 		return false
@@ -1993,6 +2018,21 @@ func (e *GameEngine) maybeTriggerMoonGoddessMoonCycleAtTurnEnd(player *model.Pla
 	if player == nil || !e.isMoonGoddess(player) {
 		return false
 	}
+	if player.Tokens == nil {
+		player.Tokens = map[string]int{}
+	}
+	if player.TurnState.UsedSkillCounts == nil {
+		player.TurnState.UsedSkillCounts = map[string]int{}
+	}
+	// 双保险：除 token 外，再用本回合 TurnState 门闩防止重复触发。
+	// 某些异常链路下若 token 被提前清零，仍要保证“每回合仅一次”。
+	if player.TurnState.UsedSkillCounts["mg_moon_cycle"] > 0 {
+		return false
+	}
+	// 月之轮回：每回合仅可响应一次，避免 TurnEnd 循环阶段重复弹窗。
+	if player.Tokens["mg_moon_cycle_used_turn"] > 0 {
+		return false
+	}
 	canBranch1 := moonGoddessDarkMoonCount(player) > 0
 	canBranch2 := player.Heal > 0
 	if !canBranch1 && !canBranch2 {
@@ -2005,6 +2045,8 @@ func (e *GameEngine) maybeTriggerMoonGoddessMoonCycleAtTurnEnd(player *model.Pla
 	if canBranch2 {
 		modes = append(modes, "branch2")
 	}
+	player.Tokens["mg_moon_cycle_used_turn"] = 1
+	player.TurnState.UsedSkillCounts["mg_moon_cycle"] = 1
 	e.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
 		PlayerID: player.ID,
@@ -2382,7 +2424,8 @@ func (e *GameEngine) handlePostDamageResolved(pd *model.PendingDamage) bool {
 			}
 		}
 		if pd.Damage == 1 {
-			if maxSameElementCount(target) >= 2 {
+			sameCount := maxSameElementCount(target)
+			if sameCount >= 2 {
 				e.PushInterrupt(&model.Interrupt{
 					Type:     model.InterruptChoice,
 					PlayerID: target.ID,
@@ -2391,9 +2434,11 @@ func (e *GameEngine) handlePostDamageResolved(pd *model.PendingDamage) bool {
 						"user_id":     target.ID,
 					},
 				})
+				e.Log(fmt.Sprintf("%s 的 [法术反弹] 可触发：承受1点法术伤害，最大同系手牌=%d", target.Name, sameCount))
 				_ = e.tryQueueMoonGoddessBlasphemy(pd)
 				return true
 			}
+			e.Log(fmt.Sprintf("%s 的 [法术反弹] 未触发：承受1点法术伤害但同系手牌不足2（当前最大同系=%d）", target.Name, sameCount))
 		}
 	}
 	if pd.Damage > 0 && isMagicLikeDamageType(pd.DamageType) {
