@@ -26,7 +26,7 @@ func TestAngel_Skills(t *testing.T) {
 		p1 := game.State.Players["p1"]
 		p1.IsActive = true
 		p1.TurnState = model.NewPlayerTurnState()
-		game.State.Phase = model.PhaseActionSelection
+		game.State.TurnStage = model.TurnStageActionExecution
 
 		// 给 P1 发一张独有牌 "天使之墙" (在ExclusiveCards中定义为 angel_wall，但这里模拟手牌匹配)
 		// 注意：RequiresExclusive: true, 需要牌名匹配 Skill Title 或 ExclusiveCards 配置
@@ -81,7 +81,7 @@ func TestAngel_Skills(t *testing.T) {
 		p2 := game.State.Players["p2"]
 		p1.IsActive = true
 		p1.TurnState = model.NewPlayerTurnState()
-		game.State.Phase = model.PhaseActionSelection
+		game.State.TurnStage = model.TurnStageActionExecution
 
 		// 给 P1 风系牌
 		p1.Hand = []model.Card{
@@ -121,7 +121,7 @@ func TestAngel_Skills(t *testing.T) {
 	})
 
 	// -------------------------------------------------------------------------
-	// Case 3: 天使之歌 (Angel Song) - 启动技移除Buff
+	// Case 3: 天使之歌 (Angel Song) - 回合开始响应技移除Buff
 	// -------------------------------------------------------------------------
 	t.Run("AngelSong_Startup", func(t *testing.T) {
 		game := engine.NewGameEngine(observer)
@@ -134,7 +134,7 @@ func TestAngel_Skills(t *testing.T) {
 		p2 := game.State.Players["p2"]
 		p1.IsActive = true
 		p1.TurnState = model.NewPlayerTurnState()
-		game.State.Phase = model.PhaseStartup // 启动阶段
+		game.State.TurnStage = model.TurnStageActionStart // 回合开始阶段
 
 		// P1 需要 1 水晶
 		p1.Crystal = 1
@@ -143,16 +143,18 @@ func TestAngel_Skills(t *testing.T) {
 			Mode: model.FieldEffect, Effect: model.EffectPoison, SourceID: "enemy",
 		})
 
-		// 执行启动技
-		// Startup 阶段会自动检查并推送中断
+		// Startup 阶段会自动检查回合开始响应技并推送中断
 		game.Drive()
 
 		// 检查中断
-		if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptStartupSkill {
-			t.Fatalf("预期产生启动技能中断，实际: %v", game.State.PendingInterrupt)
+		if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptResponseSkill {
+			t.Fatalf("预期产生响应技能中断，实际: %v", game.State.PendingInterrupt)
+		}
+		if len(game.State.PendingInterrupt.SkillIDs) != 1 || game.State.PendingInterrupt.SkillIDs[0] != "angel_song" {
+			t.Fatalf("预期响应技能为 angel_song，实际: %+v", game.State.PendingInterrupt.SkillIDs)
 		}
 
-		// 先确认发动启动技（选择 angel_song）
+		// 先确认发动响应技（选择 angel_song）
 		action := model.PlayerAction{
 			PlayerID:   "p1",
 			Type:       model.CmdSelect,
@@ -167,12 +169,38 @@ func TestAngel_Skills(t *testing.T) {
 		if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptChoice {
 			t.Fatalf("预期进入天使之歌选择中断，实际: %v", game.State.PendingInterrupt)
 		}
+		ctxData, ok := game.State.PendingInterrupt.Context.(map[string]interface{})
+		if !ok {
+			t.Fatalf("天使之歌选择上下文类型错误: %T", game.State.PendingInterrupt.Context)
+		}
+		if got, _ := ctxData["choice_type"].(string); got != "basic_effect_pick" {
+			t.Fatalf("预期 choice_type=basic_effect_pick，实际: %q", got)
+		}
 		if err := game.HandleAction(model.PlayerAction{
 			PlayerID:   "p1",
 			Type:       model.CmdSelect,
 			Selections: []int{0},
 		}); err != nil {
 			t.Fatalf("天使之歌选择移除目标失败: %v", err)
+		}
+
+		// 移除基础效果后会继续触发天使羁绊的治疗选择。
+		if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptChoice {
+			t.Fatalf("预期进入天使羁绊选择中断，实际: %v", game.State.PendingInterrupt)
+		}
+		ctxData, ok = game.State.PendingInterrupt.Context.(map[string]interface{})
+		if !ok {
+			t.Fatalf("天使羁绊选择上下文类型错误: %T", game.State.PendingInterrupt.Context)
+		}
+		if got, _ := ctxData["choice_type"].(string); got != "angel_bond_heal_target" {
+			t.Fatalf("预期 choice_type=angel_bond_heal_target，实际: %q", got)
+		}
+		if err := game.HandleAction(model.PlayerAction{
+			PlayerID:   "p1",
+			Type:       model.CmdSelect,
+			Selections: []int{0},
+		}); err != nil {
+			t.Fatalf("天使羁绊选择治疗目标失败: %v", err)
 		}
 
 		// 验证水晶消耗
@@ -191,6 +219,14 @@ func TestAngel_Skills(t *testing.T) {
 		if hasPoison {
 			t.Errorf("天使之歌未移除目标的中毒效果")
 		}
+		if game.State.PendingInterrupt != nil {
+			t.Fatalf("天使之歌结算后不应残留中断，实际: %v", game.State.PendingInterrupt)
+		}
+		if !(game.State.TurnStage == model.TurnStageActionExecution &&
+			game.State.CombatStage == model.CombatStageNone &&
+			game.State.Subflow == model.SubflowNone) {
+			t.Fatalf("天使之歌结算后应回到行动选择窗口，实际: turn=%s combat=%s subflow=%s", game.State.TurnStage, game.State.CombatStage, game.State.Subflow)
+		}
 		t.Logf("✅ 天使之歌测试通过")
 	})
 
@@ -208,7 +244,7 @@ func TestAngel_Skills(t *testing.T) {
 		p2 := game.State.Players["p2"]
 		p1.IsActive = true
 		p1.TurnState = model.NewPlayerTurnState()
-		game.State.Phase = model.PhaseActionSelection
+		game.State.TurnStage = model.TurnStageActionExecution
 
 		// 场景：移除 Buff 触发羁绊
 		// 给 P2 放置一个虚弱，然后移除它

@@ -1,10 +1,17 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { useGameStore } from '../stores/gameStore'
+import { useInterruptStore } from '../stores/interrupt.store'
+import { useSessionStore } from '../stores/session.store'
+import { useSnapshotStore } from '../stores/snapshot.store'
+import { useSubmitAction } from '../composables/useSubmitAction'
 import { useWebSocket } from '../composables/useWebSocket'
+import { ROLE_NAME_MAP } from '../constants/roleNameMap'
 import SkillDetailModal from './SkillDetailModal.vue'
 
-const store = useGameStore()
+const interruptStore = useInterruptStore()
+const sessionStore = useSessionStore()
+const snapshotStore = useSnapshotStore()
+const actions = useSubmitAction()
 const ws = useWebSocket()
 
 const playerName = ref('')
@@ -19,7 +26,7 @@ const IMAGE_EXTS = ['png', 'webp', 'jpg', 'jpeg']
 
 async function copyRoomCode() {
   try {
-    await navigator.clipboard.writeText(store.roomCode)
+    await navigator.clipboard.writeText(sessionStore.roomCode)
     copyFeedback.value = true
     setTimeout(() => {
       copyFeedback.value = false
@@ -29,8 +36,8 @@ async function copyRoomCode() {
   }
 }
 
-const roomPlayers = computed(() => store.roomPlayers)
-const isHost = computed(() => roomPlayers.value.some(p => p.id === store.myPlayerId && p.is_host))
+const roomPlayers = computed(() => sessionStore.roomPlayers)
+const isHost = computed(() => roomPlayers.value.some(p => p.id === sessionStore.myPlayerId && p.is_host))
 const botCount = computed(() => roomPlayers.value.filter(p => p.is_bot).length)
 
 const redCount = computed(() => roomPlayers.value.filter(p => p.camp === 'Red').length)
@@ -45,7 +52,7 @@ const allRolesSelected = computed(() => {
 })
 const allReadyToStart = computed(() => allCampsSelected.value && allRolesSelected.value)
 
-const characterOptions = computed(() => Object.values(store.characters))
+const characterOptions = computed(() => Object.values(snapshotStore.characters))
 const characterMap = computed(() => {
   const map = new Map<string, (typeof characterOptions.value)[number]>()
   for (const role of characterOptions.value) {
@@ -92,7 +99,7 @@ const skillModalCharacter = computed(() => {
   if (!skillModalRoleId.value) return null
   return characterMap.value.get(skillModalRoleId.value) ?? null
 })
-const displayError = computed(() => errorMsg.value || store.errorMessage)
+const displayError = computed(() => errorMsg.value || interruptStore.errorMessage)
 
 const lobbyHint = computed(() => {
   if (roomPlayers.value.length < 2) return `至少需要 2 名玩家（当前 ${roomPlayers.value.length}/6）`
@@ -127,7 +134,7 @@ function joinRoom() {
 
 function getCharacterName(roleId: string) {
   if (!roleId) return '未选择角色'
-  return store.getRoleDisplayName(roleId)
+  return snapshotStore.characters[roleId]?.name || ROLE_NAME_MAP[roleId] || '未知角色'
 }
 
 function portraitSrc(roleId: string) {
@@ -159,11 +166,11 @@ function roleTakenBy(roleId: string) {
 
 function isRoleTakenByOther(roleId: string) {
   const owner = roleTakenBy(roleId)
-  return !!owner && owner.id !== store.myPlayerId
+  return !!owner && owner.id !== sessionStore.myPlayerId
 }
 
 function canSelectRole(roleId: string) {
-  if (store.gameStarted) return false
+  if (sessionStore.gameStarted) return false
   return !isRoleTakenByOther(roleId)
 }
 
@@ -176,21 +183,21 @@ function closeSkillModal() {
 }
 
 function selectCamp(camp: string) {
-  ws.sendRoomAction('change_camp', { camp })
+  actions.sendRoomAction('change_camp', { camp })
 }
 
 function selectRole(role: string) {
   if (!role) return
-  ws.sendRoomAction('change_role', { char_role: role })
+  actions.sendRoomAction('change_role', { char_role: role })
 }
 
 function selectCampFor(playerId: string, camp: string) {
-  ws.sendRoomAction('change_camp', { target_id: playerId, camp })
+  actions.sendRoomAction('change_camp', { target_id: playerId, camp })
 }
 
 function selectRoleFor(playerId: string, role: string) {
   if (!role) return
-  ws.sendRoomAction('change_role', { target_id: playerId, char_role: role })
+  actions.sendRoomAction('change_role', { target_id: playerId, char_role: role })
 }
 
 function pickRole(roleId: string) {
@@ -199,28 +206,28 @@ function pickRole(roleId: string) {
 }
 
 function canJoinCamp(camp: 'Red' | 'Blue') {
-  if (store.myCamp === camp) return true
+  if (sessionStore.myCamp === camp) return true
   if (camp === 'Red') return redCount.value < 3
   return blueCount.value < 3
 }
 
 function addBot() {
-  ws.sendRoomAction('add_bot', { bot_name: `机器人${botCount.value + 1}` })
+  actions.sendRoomAction('add_bot', { bot_name: `机器人${botCount.value + 1}` })
 }
 
 function removeBot(playerId: string) {
-  ws.sendRoomAction('remove_bot', { target_id: playerId })
+  actions.sendRoomAction('remove_bot', { target_id: playerId })
 }
 
 function startGame() {
-  ws.sendRoomAction('start')
+  actions.sendRoomAction('start')
 }
 
 function dissolveRoom() {
   if (!isHost.value) return
   const confirmed = window.confirm('确认解散房间吗？所有玩家将被退出到大厅。')
   if (!confirmed) return
-  ws.sendRoomAction('dissolve_room')
+  actions.sendRoomAction('dissolve_room')
 }
 </script>
 
@@ -235,7 +242,7 @@ function dissolveRoom() {
           <p class="text-gray-400">3v3 卡牌对战游戏</p>
         </div>
 
-        <div v-if="!store.isInRoom" class="lobby-card rounded-2xl p-6 shadow-xl max-w-md mx-auto">
+        <div v-if="!sessionStore.isInRoom" class="lobby-card rounded-2xl p-6 shadow-xl max-w-md mx-auto">
           <div class="mb-6">
             <label class="block text-sm text-gray-400 mb-2">玩家名称</label>
             <input
@@ -287,7 +294,7 @@ function dissolveRoom() {
             {{ displayError }}
           </div>
 
-          <div v-if="isJoining && !store.isInRoom" class="mt-4 text-center text-gray-400">
+          <div v-if="isJoining && !sessionStore.isInRoom" class="mt-4 text-center text-gray-400">
             <div class="animate-spin inline-block w-6 h-6 border-2 border-current border-t-transparent rounded-full"></div>
             <span class="ml-2">连接中...</span>
           </div>
@@ -302,7 +309,7 @@ function dissolveRoom() {
                 class="room-code-btn"
                 @click="copyRoomCode"
               >
-                <span class="room-code">{{ store.roomCode }}</span>
+                <span class="room-code">{{ sessionStore.roomCode }}</span>
                 <span class="room-copy-hint">{{ copyFeedback ? '✓ 已复制' : '📋 复制' }}</span>
               </button>
             </div>
@@ -314,14 +321,14 @@ function dissolveRoom() {
 
             <div class="draft-actions">
               <button
-                v-if="isHost && !store.gameStarted && roomPlayers.length < 6"
+                v-if="isHost && !sessionStore.gameStarted && roomPlayers.length < 6"
                 class="draft-btn draft-btn-bot"
                 @click="addBot"
               >
                 + 添加机器人
               </button>
               <button
-                v-if="isHost && allReadyToStart && !store.gameStarted"
+                v-if="isHost && allReadyToStart && !sessionStore.gameStarted"
                 class="draft-btn draft-btn-start"
                 @click="startGame"
               >
@@ -342,12 +349,12 @@ function dissolveRoom() {
               <div class="team-head">
                 <div class="team-title">蓝方阵营</div>
                 <button
-                  v-if="!store.gameStarted"
+                  v-if="!sessionStore.gameStarted"
                   class="team-join-btn"
                   :disabled="!canJoinCamp('Blue')"
                   @click="selectCamp('Blue')"
                 >
-                  {{ store.myCamp === 'Blue' ? '已在蓝方' : '加入蓝方' }}
+                  {{ sessionStore.myCamp === 'Blue' ? '已在蓝方' : '加入蓝方' }}
                 </button>
               </div>
 
@@ -360,7 +367,7 @@ function dissolveRoom() {
                         <span class="slot-id">{{ player.id }}</span>
                       </div>
                       <div class="slot-tags">
-                        <span v-if="player.id === store.myPlayerId" class="slot-tag me">你</span>
+                        <span v-if="player.id === sessionStore.myPlayerId" class="slot-tag me">你</span>
                         <span v-if="!player.is_bot && player.is_online === false" class="slot-tag offline">离线</span>
                         <span v-if="player.is_bot" class="slot-tag bot">BOT</span>
                         <span v-if="player.is_host" class="slot-tag host">房主</span>
@@ -389,7 +396,7 @@ function dissolveRoom() {
                       </div>
                     </div>
 
-                    <div v-if="player.is_bot && isHost && !store.gameStarted" class="slot-bot-controls">
+                    <div v-if="player.is_bot && isHost && !sessionStore.gameStarted" class="slot-bot-controls">
                       <select
                         class="bot-role-select"
                         :value="player.char_role || ''"
@@ -424,8 +431,8 @@ function dissolveRoom() {
                 <div class="unassigned-list">
                   <div v-for="player in unassignedPlayers" :key="`pending-${player.id}`" class="pending-chip">
                     <span>{{ player.name }} ({{ player.id }})</span>
-                    <span v-if="player.id === store.myPlayerId" class="pending-me">你</span>
-                    <template v-if="player.is_bot && isHost && !store.gameStarted">
+                    <span v-if="player.id === sessionStore.myPlayerId" class="pending-me">你</span>
+                    <template v-if="player.is_bot && isHost && !sessionStore.gameStarted">
                       <button class="pending-btn pending-btn-blue" :disabled="blueCount >= 3" @click="selectCampFor(player.id, 'Blue')">蓝方</button>
                       <button class="pending-btn pending-btn-red" :disabled="redCount >= 3" @click="selectCampFor(player.id, 'Red')">红方</button>
                     </template>
@@ -439,7 +446,7 @@ function dissolveRoom() {
                   :key="role.id"
                   class="role-card"
                   :class="{
-                    'role-card-selected': store.myCharRole === role.id,
+                    'role-card-selected': sessionStore.myCharRole === role.id,
                     'role-card-taken': roleTakenBy(role.id),
                     'role-card-disabled': !canSelectRole(role.id)
                   }"
@@ -463,8 +470,8 @@ function dissolveRoom() {
                   >
                     技能详情
                   </button>
-                  <div v-if="roleTakenBy(role.id)" class="role-owner-chip" :class="roleTakenBy(role.id)?.id === store.myPlayerId ? 'mine' : 'other'">
-                    {{ roleTakenBy(role.id)?.id === store.myPlayerId ? '已锁定' : `已被 ${roleTakenBy(role.id)?.name} 选择` }}
+                  <div v-if="roleTakenBy(role.id)" class="role-owner-chip" :class="roleTakenBy(role.id)?.id === sessionStore.myPlayerId ? 'mine' : 'other'">
+                    {{ roleTakenBy(role.id)?.id === sessionStore.myPlayerId ? '已锁定' : `已被 ${roleTakenBy(role.id)?.name} 选择` }}
                   </div>
                 </div>
               </div>
@@ -474,12 +481,12 @@ function dissolveRoom() {
               <div class="team-head">
                 <div class="team-title">红方阵营</div>
                 <button
-                  v-if="!store.gameStarted"
+                  v-if="!sessionStore.gameStarted"
                   class="team-join-btn"
                   :disabled="!canJoinCamp('Red')"
                   @click="selectCamp('Red')"
                 >
-                  {{ store.myCamp === 'Red' ? '已在红方' : '加入红方' }}
+                  {{ sessionStore.myCamp === 'Red' ? '已在红方' : '加入红方' }}
                 </button>
               </div>
 
@@ -492,7 +499,7 @@ function dissolveRoom() {
                         <span class="slot-id">{{ player.id }}</span>
                       </div>
                       <div class="slot-tags">
-                        <span v-if="player.id === store.myPlayerId" class="slot-tag me">你</span>
+                        <span v-if="player.id === sessionStore.myPlayerId" class="slot-tag me">你</span>
                         <span v-if="!player.is_bot && player.is_online === false" class="slot-tag offline">离线</span>
                         <span v-if="player.is_bot" class="slot-tag bot">BOT</span>
                         <span v-if="player.is_host" class="slot-tag host">房主</span>
@@ -521,7 +528,7 @@ function dissolveRoom() {
                       </div>
                     </div>
 
-                    <div v-if="player.is_bot && isHost && !store.gameStarted" class="slot-bot-controls">
+                    <div v-if="player.is_bot && isHost && !sessionStore.gameStarted" class="slot-bot-controls">
                       <select
                         class="bot-role-select"
                         :value="player.char_role || ''"

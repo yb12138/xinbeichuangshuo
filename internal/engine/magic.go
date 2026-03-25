@@ -9,7 +9,9 @@ import (
 // PerformMagic 发动法术
 func (e *GameEngine) PerformMagic(sourceID, targetID string, cardIdx int) error {
 	// 1. 验证阶段
-	if e.State.Phase != model.PhaseBeforeAction && e.State.Phase != model.PhaseActionExecution {
+	if e.State.Subflow != model.SubflowNone ||
+		e.State.CombatStage != model.CombatStageNone ||
+		e.State.TurnStage != model.TurnStageActionExecution {
 		return errors.New("当前不是行动阶段")
 	}
 	player := e.State.Players[sourceID]
@@ -86,7 +88,6 @@ func (e *GameEngine) PerformMagic(sourceID, targetID string, cardIdx int) error 
 	if _, err := consumePlayableCardByIndex(player, cardIdx); err != nil {
 		return err
 	}
-	_ = e.maybeAutoReleaseBloodPriestessByHand(player, "手牌<3强制脱离流血形态")
 
 	// 4. 处理效果
 	placedOnField := false // 标记卡牌是否留在了场上
@@ -108,7 +109,7 @@ func (e *GameEngine) PerformMagic(sourceID, targetID string, cardIdx int) error 
 		// 非魔法少女直接执行魔弹
 		return e.executeMagicBullet(player, false, false, nil)
 
-		// 此时函数返回 nil，但在 Game 循环中会检测到 PendingInterrupt 并暂停
+	// 此时函数返回 nil，但在 Game 循环中会检测到 PendingInterrupt 并暂停
 
 	case "中毒":
 		// 放置场上牌：中毒 (回合开始触发)
@@ -123,9 +124,10 @@ func (e *GameEngine) PerformMagic(sourceID, targetID string, cardIdx int) error 
 			SourceID: player.ID,
 			Mode:     model.FieldEffect,
 			Effect:   model.EffectPoison,
-			Trigger:  model.EffectTriggerOnTurnStart,
+			Trigger:  model.EffectTriggerOnBeforeAction,
 		}
 		target.AddFieldCard(fc)
+		e.emitBuffAddedTrigger(player.ID, target.ID, fc.Effect)
 		placedOnField = true
 		e.Log(fmt.Sprintf("[Magic] %s 面前放置了【中毒】", target.Name))
 
@@ -141,9 +143,10 @@ func (e *GameEngine) PerformMagic(sourceID, targetID string, cardIdx int) error 
 			SourceID: player.ID,
 			Mode:     model.FieldEffect,
 			Effect:   model.EffectWeak,
-			Trigger:  model.EffectTriggerOnTurnStart,
+			Trigger:  model.EffectTriggerOnBeforeAction,
 		}
 		target.AddFieldCard(fc)
+		e.emitBuffAddedTrigger(player.ID, target.ID, fc.Effect)
 		placedOnField = true
 		e.Log(fmt.Sprintf("[Magic] %s 面前放置了【虚弱】", target.Name))
 
@@ -162,6 +165,7 @@ func (e *GameEngine) PerformMagic(sourceID, targetID string, cardIdx int) error 
 			Trigger:  model.EffectTriggerOnDamaged,
 		}
 		target.AddFieldCard(fc)
+		e.emitBuffAddedTrigger(player.ID, target.ID, fc.Effect)
 		placedOnField = true
 		e.Log(fmt.Sprintf("[Magic] %s 获得了【圣盾】保护", target.Name))
 
@@ -230,6 +234,9 @@ func (e *GameEngine) findNextMagicBulletTarget(currentPID string) string {
 		}
 		pid := e.State.PlayerOrder[idx]
 		target := e.State.Players[pid]
+		if target == nil {
+			continue
+		}
 
 		// 必须是对手 (不同阵营)
 		if target.Camp != currentPlayer.Camp {

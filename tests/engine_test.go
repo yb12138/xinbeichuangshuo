@@ -25,14 +25,14 @@ func TestBladeMaster_WindFury_ExtraAttack(t *testing.T) {
 	p1 := game.State.Players["p1"]
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	// 4. 准备手牌：两张风系攻击牌
 	cardWind1 := model.Card{ID: "c1", Name: "风神斩", Type: model.CardTypeAttack, Element: model.ElementWind, Damage: 2}
 	cardWind2 := model.Card{ID: "c2", Name: "风神斩", Type: model.CardTypeAttack, Element: model.ElementWind, Damage: 2}
 	p1.Hand = []model.Card{cardWind1, cardWind2}
 
-	t.Logf("✅ [Setup] P1 手牌: %d 张 (均为风系), 初始阶段: %s", len(p1.Hand), game.State.Phase)
+	t.Logf("✅ [Setup] P1 手牌: %d 张 (均为风系), 初始流转: turn=%s combat=%s subflow=%s", len(p1.Hand), game.State.TurnStage, game.State.CombatStage, game.State.Subflow)
 
 	// =============================================================
 	t.Logf("\n👉 [Step 1] P1 发起第一次攻击")
@@ -92,7 +92,7 @@ func TestBladeMaster_WindFury_ExtraAttack(t *testing.T) {
 	// HandleAction 结束后引擎处于暂停状态，测试代码手动推一把
 	game.Drive()
 
-	t.Logf("🔄 [状态流转] 当前阶段变为: %s", game.State.Phase)
+	t.Logf("🔄 [状态流转] 当前流转变为: turn=%s combat=%s subflow=%s", game.State.TurnStage, game.State.CombatStage, game.State.Subflow)
 	t.Logf("🔄 [状态流转] P1 当前限制行动: %s", p1.TurnState.CurrentExtraAction)
 
 	// =============================================================
@@ -187,7 +187,7 @@ func TestSealer_FiveSeals(t *testing.T) {
 			p2 := game.State.Players["p2"]
 			p1.IsActive = true
 			p1.TurnState = model.NewPlayerTurnState()
-			game.State.Phase = model.PhaseActionSelection
+			game.State.TurnStage = model.TurnStageActionExecution
 
 			// 给 P1 发一张对应封印需要的弃牌 (根据配置，部分封印需要弃牌)
 			// 为了简化，我们假设技能消耗已满足，或者给 P1 塞满各种牌
@@ -318,7 +318,7 @@ func TestSealer_FiveSeals(t *testing.T) {
 			p1.IsActive = false
 			p2.IsActive = true
 			p2.TurnState = model.NewPlayerTurnState()
-			game.State.Phase = model.PhaseActionSelection
+			game.State.TurnStage = model.TurnStageActionExecution
 
 			// 给 P2 发触发牌
 			p2.Hand = []model.Card{tc.triggerCard}
@@ -348,7 +348,9 @@ func TestSealer_FiveSeals(t *testing.T) {
 
 			// ========================= 【新增修复代码】 开始 =========================
 			// 此时 P1 需要响应战斗（承担伤害），否则流程会卡住
-			if game.State.PendingInterrupt == nil && game.State.Phase == model.PhaseCombatInteraction {
+			if game.State.PendingInterrupt == nil &&
+				game.State.Subflow == model.SubflowNone &&
+				(game.State.CombatStage == model.CombatStageDeclare || game.State.CombatStage == model.CombatStageHitCheck) {
 				t.Logf("👀 检测到战斗交互中断，P1 承担伤害...")
 				actionTakeHit := model.PlayerAction{
 					PlayerID:  "p1",
@@ -425,15 +427,15 @@ func TestAngel_AngelBlessing(t *testing.T) {
 	game.AddPlayer("p1", "Angel", "angel", model.RedCamp)
 	game.AddPlayer("p2", "Victim", "berserker", model.BlueCamp)
 
-		// 设置 P1 回合，行动阶段
-		game.State.CurrentTurn = 0
-		game.State.Deck = rules.InitDeck() // 【修复】初始化牌库
-		game.State.HasPerformedStartup = true
+	// 设置 P1 回合，行动阶段
+	game.State.CurrentTurn = 0
+	game.State.Deck = rules.InitDeck() // 【修复】初始化牌库
+	game.State.HasPerformedStartup = true
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	// P1 手牌：1 张水系牌用于发动技能
 	waterCard := model.Card{

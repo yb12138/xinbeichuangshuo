@@ -27,6 +27,13 @@ const (
 	BuffTypeMorph                   // 形态 (英灵形态, 审判形态)
 )
 
+type CharacterOrientation string
+
+const (
+	OrientationNormal CharacterOrientation = "Normal"
+	OrientationTapped CharacterOrientation = "Tapped"
+)
+
 // Buff 状态效果
 type Buff struct {
 	ID       string   `json:"id"`
@@ -63,6 +70,9 @@ type Player struct {
 
 	Tokens    map[string]int `json:"tokens"`
 	CharaZone []string       `json:"chara_zone"`
+
+	Orientation CharacterOrientation `json:"orientation,omitempty"`
+	Form        string               `json:"form,omitempty"`
 
 	Character       *Character      `json:"character,omitempty"`
 	TurnState       PlayerTurnState `json:"turn_state"`
@@ -119,6 +129,7 @@ type CombatRequest struct {
 	TargetID       string `json:"target_id"`        // 目标ID
 	Card           *Card  `json:"card"`             // 使用的攻击卡牌
 	IsForcedHit    bool   `json:"is_forced_hit"`    // 是否强制命中
+	IgnoreShield   bool   `json:"ignore_shield"`    // 是否无视圣盾
 	CanBeResponded bool   `json:"can_be_responded"` // 是否可被应战
 	IsCounter      bool   `json:"is_counter"`       // 是否为应战反弹攻击（命中加水晶）
 
@@ -159,7 +170,9 @@ const (
 )
 
 type GameState struct {
-	Phase       GamePhase          `json:"phase"`
+	TurnStage   TurnStage          `json:"turn_stage,omitempty"`
+	CombatStage CombatStage        `json:"combat_stage,omitempty"`
+	Subflow     Subflow            `json:"subflow,omitempty"`
 	Players     map[string]*Player `json:"players"`
 	PlayerOrder []string           `json:"player_order"` // Add this if missing
 	TurnOrder   []string           `json:"turn_order"`   // Maybe same as PlayerOrder?
@@ -201,8 +214,11 @@ type GameState struct {
 	// 延迟后续队列（用于“先结算伤害/中断，再继续技能后续”）。
 	DeferredFollowups []DeferredFollowup `json:"deferred_followups,omitempty"`
 
-	// 状态机返回阶段 (用于 PendingDamageResolution 等临时阶段结束后恢复)
-	ReturnPhase GamePhase `json:"return_phase,omitempty"`
+	// 状态机返回阶段
+	ReturnTurnStage   TurnStage   `json:"return_turn_stage,omitempty"`
+	ReturnCombatStage CombatStage `json:"return_combat_stage,omitempty"`
+	ReturnSubflow     Subflow     `json:"return_subflow,omitempty"`
+	GameOver          bool        `json:"game_over,omitempty"`
 }
 
 // PendingDamage 代表一个待处理的伤害事件
@@ -211,16 +227,21 @@ type PendingDamage struct {
 	TargetID                   string     `json:"target_id"`
 	Damage                     int        `json:"damage"`
 	DamageType                 string     `json:"damage_type"`
+	OverflowMoraleLossFixed    int        `json:"overflow_morale_loss_fixed,omitempty"`   // 本次伤害摸牌若导致士气下降，则固定为该值
 	IgnoreHeal                 bool       `json:"ignore_heal,omitempty"`                  // 本次伤害是否不可被治疗抵御
 	CapDrawToHandLimit         bool       `json:"cap_draw_to_hand_limit,omitempty"`       // 本次伤害摸牌是否“最多摸到手牌上限”
 	AllowCrimsonFaithHeal      bool       `json:"allow_crimson_faith_heal,omitempty"`     // 红莲骑士[腥红信仰]是否可用治疗抵御本次自伤
 	EffectTypeToRemove         EffectType `json:"effect_type_to_remove,omitempty"`        // 伤害结算后需要移除的场上效果 (例如封印)
+	SourceSkillID              string     `json:"source_skill_id,omitempty"`              // 伤害来源技能ID（用于回合内追踪）
 	Card                       *Card      `json:"card,omitempty"`                         // 关联的卡牌 (用于攻击伤害判定)
-	Stage                      int        `json:"stage"`                                  // 处理阶段: 0=Init, 1=HitProcessed, 2=DamageProcessed
+	IgnoreShield               bool       `json:"ignore_shield,omitempty"`                // 本次攻击伤害是否无视圣盾
+	AttackHitTriggerChecked    bool       `json:"attack_hit_trigger_checked,omitempty"`   // 本次攻击伤害是否已完成 OnAttackHit 分发
 	HealResolved               bool       `json:"heal_resolved"`                          // 是否已处理治疗选择
+	DamageTakenTriggerChecked  bool       `json:"damage_taken_trigger_checked,omitempty"` // 本次伤害是否已完成 OnDamageTaken 响应分发
 	IsCounter                  bool       `json:"is_counter"`                             // 是否为应战攻击（命中加水晶而非宝石）
 	AttackHitResourceType      string     `json:"attack_hit_resource_type,omitempty"`     // 攻击命中后发放的战绩资源类型(gem/crystal)
 	AttackHitResourceGranted   bool       `json:"attack_hit_resource_granted,omitempty"`  // 是否已成功发放命中战绩资源
+	AttackPostHitEffectsDone   bool       `json:"attack_post_hit_effects_done,omitempty"` // 命中后、承伤前的一次性后效是否已处理
 	HeroRoarMissArmed          bool       `json:"hero_roar_miss_armed,omitempty"`         // 本次攻击是否携带怒吼未命中分支
 	FighterChargeMissArmed     bool       `json:"fighter_charge_miss_armed,omitempty"`    // 本次攻击是否携带蓄力一击未命中分支
 	AttackMissResolved         bool       `json:"attack_miss_resolved,omitempty"`         // 本次攻击是否已按未命中分支结算
@@ -250,7 +271,9 @@ type PendingSkill struct {
 // NewGameState creates a new game state
 func NewGameState() *GameState {
 	return &GameState{
-		Phase:       "",
+		TurnStage:   "",
+		CombatStage: CombatStageNone,
+		Subflow:     SubflowNone,
 		Players:     make(map[string]*Player),
 		PlayerOrder: []string{}, // Initialize
 		TurnOrder:   []string{},
@@ -427,10 +450,12 @@ const (
 type EffectTrigger string
 
 const (
-	EffectTriggerOnAttack    EffectTrigger = "OnAttack"    // 攻击时触发
-	EffectTriggerOnDamaged   EffectTrigger = "OnDamaged"   // 受到伤害时触发
-	EffectTriggerOnTurnStart EffectTrigger = "OnTurnStart" // 回合开始时触发
-	EffectTriggerManual      EffectTrigger = "Manual"      // 被技能点名时触发
+	EffectTriggerOnAttack               EffectTrigger = "OnAttack"               // 攻击时触发
+	EffectTriggerOnDamaged              EffectTrigger = "OnDamaged"              // 受到伤害时触发
+	EffectTriggerOnTurnStart            EffectTrigger = "OnTurnStart"            // 回合开始时触发
+	EffectTriggerOnBeforeAction         EffectTrigger = "OnBeforeAction"         // 行动阶段开始前触发
+	EffectTriggerOnCardPlayedOrRevealed EffectTrigger = "OnCardPlayedOrRevealed" // 打出或展示卡牌时触发
+	EffectTriggerManual                 EffectTrigger = "Manual"                 // 被技能点名时触发
 )
 
 // EffectType 定义效果类型
@@ -450,7 +475,6 @@ const (
 	EffectPowerBlessing    EffectType = "PowerBlessing"    // 威力赐福
 	EffectSwiftBlessing    EffectType = "SwiftBlessing"    // 迅捷赐福
 	EffectMercy            EffectType = "Mercy"            // 怜悯
-	EffectStealth          EffectType = "Stealth"          // 潜行
 	// 魔弓“充能”使用的盖牌效果标识（Mode=Cover）。
 	EffectMagicBowCharge EffectType = "MagicBowCharge"
 	// 灵符师“妖力”使用的盖牌效果标识（Mode=Cover）。
@@ -459,6 +483,8 @@ const (
 	EffectBardEternalMovement EffectType = "BardEternalMovement"
 	// 勇者“挑衅”场上效果标识（Mode=Effect）。
 	EffectHeroTaunt EffectType = "HeroTaunt"
+	// 剑帝“剑魂”盖牌效果标识（Mode=Cover）。
+	EffectSwordSoul EffectType = "SwordSoul"
 	// 灵魂术士“灵魂链接”场上效果标识（Mode=Effect）。
 	EffectSoulLink EffectType = "SoulLink"
 	// 月之女神“暗月”盖牌效果标识（Mode=Cover）。
@@ -471,14 +497,15 @@ const (
 
 // FieldCard 表示场上放置的卡牌
 type FieldCard struct {
-	Card     Card          `json:"card"`      // 原始卡牌
-	OwnerID  string        `json:"owner_id"`  // 牌当前在哪个玩家面前
-	SourceID string        `json:"source_id"` // 谁放的牌
-	Mode     FieldCardMode `json:"mode"`      // 效果牌还是盖牌
-	Effect   EffectType    `json:"effect"`    // 仅Effect模式下有意义
-	Trigger  EffectTrigger `json:"trigger"`   // 触发时机
-	Locked   bool          `json:"locked"`    // 是否锁定
-	Duration int           `json:"duration"`  // 持续回合数 (-1为永久)
+	Card     Card              `json:"card"`           // 原始卡牌
+	OwnerID  string            `json:"owner_id"`       // 牌当前在哪个玩家面前
+	SourceID string            `json:"source_id"`      // 谁放的牌
+	Mode     FieldCardMode     `json:"mode"`           // 效果牌还是盖牌
+	Effect   EffectType        `json:"effect"`         // 仅Effect模式下有意义
+	Trigger  EffectTrigger     `json:"trigger"`        // 触发时机
+	Locked   bool              `json:"locked"`         // 是否锁定
+	Duration int               `json:"duration"`       // 持续回合数 (-1为永久)
+	Meta     map[string]string `json:"meta,omitempty"` // 状态运行时元数据（如绑定元素）
 }
 
 func IsBasicEffect(name string) bool {

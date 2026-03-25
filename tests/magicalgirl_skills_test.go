@@ -19,7 +19,7 @@ func TestMagicalGirl_Skills(t *testing.T) {
 		game.AddPlayer("p1", "MagicalGirl", "magical_girl", model.RedCamp)
 		game.AddPlayer("p2", "Enemy1", "berserker", model.BlueCamp)
 		game.AddPlayer("p3", "Enemy2", "angel", model.BlueCamp)
-		
+
 		game.State.CurrentTurn = 0
 		game.State.Deck = rules.InitDeck()
 		p1 := game.State.Players["p1"]
@@ -27,7 +27,7 @@ func TestMagicalGirl_Skills(t *testing.T) {
 		p3 := game.State.Players["p3"]
 		p1.IsActive = true
 		p1.TurnState = model.NewPlayerTurnState()
-		game.State.Phase = model.PhaseActionSelection
+		game.State.TurnStage = model.TurnStageActionExecution
 		p1.Gem = 1
 		p2.Heal = 0
 		p3.Heal = 0
@@ -39,17 +39,17 @@ func TestMagicalGirl_Skills(t *testing.T) {
 			PlayerID: "p1", Type: model.CmdSkill, SkillID: "destruction_storm",
 			TargetIDs: []string{"p2", "p3"},
 		}
-		
+
 		if err := game.HandleAction(action); err != nil {
 			t.Fatalf("毁灭风暴发动失败: %v", err)
 		}
-		
+
 		// 结算伤害 (AOE damage might need processPendingDamages loop)
 		game.Drive()
-		game.Drive() 
-		
+		game.Drive()
+
 		// 验证伤害 (各受到 2 点法术伤害 -> 摸 2 张牌)
-		if len(p2.Hand) != initialHandP2 + 2 || len(p3.Hand) != initialHandP3 + 2 {
+		if len(p2.Hand) != initialHandP2+2 || len(p3.Hand) != initialHandP3+2 {
 			t.Errorf("毁灭风暴伤害错误: p2Hand=%d, p3Hand=%d", len(p2.Hand), len(p3.Hand))
 		}
 		t.Logf("✅ 毁灭风暴测试通过")
@@ -63,7 +63,7 @@ func TestMagicalGirl_Skills(t *testing.T) {
 		game.AddPlayer("p1", "MagicalGirl", "magical_girl", model.RedCamp)
 		game.AddPlayer("p2", "Enemy1", "berserker", model.BlueCamp)
 		game.AddPlayer("p3", "Enemy2", "angel", model.BlueCamp)
-		
+
 		game.State.CurrentTurn = 0
 		game.State.Deck = rules.InitDeck()
 		p1 := game.State.Players["p1"]
@@ -71,7 +71,7 @@ func TestMagicalGirl_Skills(t *testing.T) {
 		p3 := game.State.Players["p3"]
 		p1.IsActive = true
 		p1.TurnState = model.NewPlayerTurnState()
-		game.State.Phase = model.PhaseActionSelection
+		game.State.TurnStage = model.TurnStageActionExecution
 
 		// p1 需弃1张法术牌发动技能
 		p1.Hand = []model.Card{
@@ -86,10 +86,10 @@ func TestMagicalGirl_Skills(t *testing.T) {
 
 		action := model.PlayerAction{
 			PlayerID: "p1", Type: model.CmdSkill, SkillID: "magic_blast",
-			TargetIDs: []string{"p2", "p3"},
+			TargetIDs:  []string{"p2", "p3"},
 			Selections: []int{0}, // 弃1张法术牌作为技能发动代价
 		}
-		
+
 		if err := game.HandleAction(action); err != nil {
 			t.Fatalf("魔爆冲击发动失败: %v", err)
 		}
@@ -101,10 +101,6 @@ func TestMagicalGirl_Skills(t *testing.T) {
 		// 目标2：p3 放弃弃牌 -> 受2点法术伤害
 		if err := game.HandleAction(model.PlayerAction{PlayerID: "p3", Type: model.CmdCancel}); err != nil {
 			t.Fatalf("p3 处理魔爆冲击失败: %v", err)
-		}
-		// 施法者阶段：可选弃1张牌，这里选择跳过
-		if err := game.HandleAction(model.PlayerAction{PlayerID: "p1", Type: model.CmdCancel}); err != nil {
-			t.Fatalf("p1 处理可选弃牌失败: %v", err)
 		}
 
 		// 继续驱动伤害结算

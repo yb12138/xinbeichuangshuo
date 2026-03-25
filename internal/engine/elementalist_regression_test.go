@@ -46,7 +46,7 @@ func TestElementalistFreeze_RequiresTwoTargets(t *testing.T) {
 	}
 	p2.Hand = nil
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 	game.State.Deck = rules.InitDeck()
 
 	err := game.HandleAction(model.PlayerAction{
@@ -58,6 +58,17 @@ func TestElementalistFreeze_RequiresTwoTargets(t *testing.T) {
 	})
 	if err == nil || !strings.Contains(err.Error(), "最少需要指定 2 个目标") {
 		t.Fatalf("expected freeze single-target rejection, got err=%v", err)
+	}
+
+	err = game.HandleAction(model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSkill,
+		SkillID:    "elementalist_freeze",
+		TargetIDs:  []string{"p1", "p1"},
+		Selections: []int{0},
+	})
+	if err == nil || !strings.Contains(err.Error(), "第1个目标必须是敌方角色") {
+		t.Fatalf("expected freeze first target enemy rejection, got err=%v", err)
 	}
 
 	mustHandleAction(t, game, model.PlayerAction{
@@ -91,7 +102,7 @@ func TestElementalistMoonlight_ConsumesGemAndRequiresGem(t *testing.T) {
 	p1.TurnState = model.NewPlayerTurnState()
 	p2.Hand = nil
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 	game.State.Deck = rules.InitDeck()
 
 	p1.Gem = 0
@@ -139,7 +150,7 @@ func TestElementalistIgnite_RequiresThreeElement(t *testing.T) {
 	p1.Tokens["element"] = 2
 	p2.Hand = nil
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 	game.State.Deck = rules.InitDeck()
 
 	err := game.HandleAction(model.PlayerAction{
@@ -168,5 +179,97 @@ func TestElementalistIgnite_RequiresThreeElement(t *testing.T) {
 	}
 	if p1.TurnState.CurrentExtraAction != "Magic" && len(p1.TurnState.PendingActions) == 0 {
 		t.Fatalf("expected ignite grant extra magic action, current=%q pending=%d", p1.TurnState.CurrentExtraAction, len(p1.TurnState.PendingActions))
+	}
+}
+
+func TestElementalistOffenseSkills_RejectAllyTargets(t *testing.T) {
+	skillCard := func(owner *model.Player, skillTitle string, element model.Element) []int {
+		owner.Hand = []model.Card{elementalistExclusiveCard(owner, skillTitle, element)}
+		return []int{0}
+	}
+
+	tests := []struct {
+		name    string
+		skillID string
+		setup   func(p1 *model.Player) []int
+	}{
+		{
+			name:    "ignite",
+			skillID: "elementalist_ignite",
+			setup: func(p1 *model.Player) []int {
+				p1.Tokens["element"] = 3
+				return nil
+			},
+		},
+		{
+			name:    "thunder_strike",
+			skillID: "elementalist_thunder_strike",
+			setup: func(p1 *model.Player) []int {
+				return skillCard(p1, "雷击", model.ElementThunder)
+			},
+		},
+		{
+			name:    "wind_blade",
+			skillID: "elementalist_wind_blade",
+			setup: func(p1 *model.Player) []int {
+				return skillCard(p1, "风刃", model.ElementWind)
+			},
+		},
+		{
+			name:    "meteor",
+			skillID: "elementalist_meteor",
+			setup: func(p1 *model.Player) []int {
+				return skillCard(p1, "陨石", model.ElementEarth)
+			},
+		},
+		{
+			name:    "fireball",
+			skillID: "elementalist_fireball",
+			setup: func(p1 *model.Player) []int {
+				return skillCard(p1, "火球", model.ElementFire)
+			},
+		},
+		{
+			name:    "moonlight",
+			skillID: "elementalist_moonlight",
+			setup: func(p1 *model.Player) []int {
+				p1.Gem = 1
+				p1.Crystal = 0
+				return nil
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			game := NewGameEngine(noopObserver{})
+			if err := game.AddPlayer("p1", "Elem", "elementalist", model.RedCamp); err != nil {
+				t.Fatal(err)
+			}
+			if err := game.AddPlayer("p2", "Ally", "angel", model.RedCamp); err != nil {
+				t.Fatal(err)
+			}
+			if err := game.AddPlayer("p3", "Enemy", "berserker", model.BlueCamp); err != nil {
+				t.Fatal(err)
+			}
+
+			p1 := game.State.Players["p1"]
+			p1.IsActive = true
+			p1.TurnState = model.NewPlayerTurnState()
+			game.State.CurrentTurn = 0
+			game.State.TurnStage = model.TurnStageActionExecution
+			selections := tc.setup(p1)
+
+			err := game.HandleAction(model.PlayerAction{
+				PlayerID:   "p1",
+				Type:       model.CmdSkill,
+				SkillID:    tc.skillID,
+				TargetIDs:  []string{"p2"},
+				Selections: selections,
+			})
+			if err == nil || !strings.Contains(err.Error(), "skill can only target enemies") {
+				t.Fatalf("expected ally target rejection, got err=%v", err)
+			}
+		})
 	}
 }

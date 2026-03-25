@@ -290,33 +290,43 @@ func (e *GameEngine) formatCountMap(counts map[string]int, unit string, sign str
 	return strings.Join(parts, "、")
 }
 
+func (e *GameEngine) isActionFinalizeIdle() bool {
+	if e == nil || e.State == nil {
+		return false
+	}
+	if e.State.PendingInterrupt != nil {
+		return false
+	}
+	if len(e.State.PendingDamageQueue) > 0 {
+		return false
+	}
+	if len(e.State.DeferredFollowups) > 0 {
+		return false
+	}
+	if len(e.State.CombatStack) > 0 {
+		return false
+	}
+	if e.State.Subflow != model.SubflowNone || e.State.CombatStage != model.CombatStageNone {
+		return false
+	}
+	switch e.State.TurnStage {
+	case model.TurnStageActionEnd, model.TurnStageExtraAction, model.TurnStageTurnEnd:
+		return true
+	default:
+		return false
+	}
+}
+
 func (e *GameEngine) finalizeActionSummaryIfIdle() {
 	if e == nil || e.actionSummary == nil || !e.actionSummary.active {
 		return
 	}
-	if e.State == nil {
+	if !e.isActionFinalizeIdle() {
 		return
 	}
-	if e.State.PendingInterrupt != nil {
-		return
+	msg := e.actionSummaryMessage()
+	if msg != "" {
+		e.NotifyActionSummary(msg)
 	}
-	if len(e.State.PendingDamageQueue) > 0 {
-		return
-	}
-	if len(e.State.DeferredFollowups) > 0 {
-		return
-	}
-	if len(e.State.CombatStack) > 0 {
-		return
-	}
-	switch e.State.Phase {
-	case model.PhaseActionSelection, model.PhaseExtraAction, model.PhaseTurnEnd:
-		msg := e.actionSummaryMessage()
-		if msg != "" {
-			e.NotifyActionSummary(msg)
-		}
-		e.clearActionSummary()
-	default:
-		return
-	}
+	e.clearActionSummary()
 }

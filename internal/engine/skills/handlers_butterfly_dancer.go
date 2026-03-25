@@ -21,6 +21,14 @@ type ButterflyChrysalisHandler struct{ BaseHandler }
 
 type ButterflyReverseHandler struct{ BaseHandler }
 
+type butterflyChrysalisResolver interface {
+	ResolveButterflyChrysalis(userID string) error
+}
+
+type butterflyReverseStarter interface {
+	StartButterflyReverse(userID string) error
+}
+
 func (h *ButterflyLifeFireHandler) CanUse(ctx *model.Context) bool { return false }
 
 func (h *ButterflyLifeFireHandler) Execute(ctx *model.Context) error { return nil }
@@ -64,16 +72,11 @@ func (h *ButterflyChrysalisHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("蛹化上下文无效")
 	}
-	ctx.Game.PushInterrupt(&model.Interrupt{
-		Type:     model.InterruptChoice,
-		PlayerID: ctx.User.ID,
-		Context: map[string]interface{}{
-			"choice_type": "bt_chrysalis_resolve",
-			"user_id":     ctx.User.ID,
-		},
-	})
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [蛹化]：等待结算 +1蛹 并获得4张茧", ctx.User.Name))
-	return nil
+	resolver, ok := ctx.Game.(butterflyChrysalisResolver)
+	if !ok {
+		return fmt.Errorf("当前引擎不支持蛹化直接结算")
+	}
+	return resolver.ResolveButterflyChrysalis(ctx.User.ID)
 }
 
 func (h *ButterflyReverseHandler) CanUse(ctx *model.Context) bool {
@@ -84,19 +87,9 @@ func (h *ButterflyReverseHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("倒逆之蝶上下文无效")
 	}
-	discardNeed := 2
-	if len(ctx.User.Hand) < discardNeed {
-		discardNeed = len(ctx.User.Hand)
+	starter, ok := ctx.Game.(butterflyReverseStarter)
+	if !ok {
+		return fmt.Errorf("当前引擎不支持倒逆之蝶分支编排")
 	}
-	ctx.Game.PushInterrupt(&model.Interrupt{
-		Type:     model.InterruptChoice,
-		PlayerID: ctx.User.ID,
-		Context: map[string]interface{}{
-			"choice_type":   "bt_reverse_discard",
-			"user_id":       ctx.User.ID,
-			"discard_count": discardNeed,
-		},
-	})
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [倒逆之蝶]：请先弃置%d张牌", ctx.User.Name, discardNeed))
-	return nil
+	return starter.StartButterflyReverse(ctx.User.ID)
 }

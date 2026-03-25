@@ -222,7 +222,7 @@ func (h *HolyBowRadiantDescentHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil {
 		return false
 	}
-	if getToken(ctx.User, "hb_form") > 0 {
+	if hasForm(ctx.User, model.FormHolyBowHolyGlory) {
 		return false
 	}
 	return ctx.User.Heal >= 2 || holyBowFaith(ctx.User) >= 2
@@ -232,7 +232,7 @@ func (h *HolyBowRadiantDescentHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("圣煌降临上下文无效")
 	}
-	if getToken(ctx.User, "hb_form") > 0 {
+	if hasForm(ctx.User, model.FormHolyBowHolyGlory) {
 		return fmt.Errorf("已处于圣煌形态")
 	}
 	var costModes []string
@@ -262,34 +262,34 @@ func (h *HolyBowLightBurstHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return false
 	}
-	if getToken(ctx.User, "hb_form") <= 0 {
+	if !hasForm(ctx.User, model.FormHolyBowHolyGlory) {
 		return false
 	}
+	allyIDs := holyBowAllies(ctx.Game, ctx.User, false)
 	enemyIDs := holyBowEnemies(ctx.Game, ctx.User)
 	maxX := ctx.User.Heal
 	if len(ctx.User.Hand) < maxX {
 		maxX = len(ctx.User.Hand)
 	}
-	return holyBowCanUseLightBurstModeA(ctx.User) || holyBowCanUseLightBurstModeB(ctx.Game, ctx.User, enemyIDs, maxX)
+	canModeA := holyBowCanUseLightBurstModeA(ctx.User) && len(allyIDs) > 0
+	return canModeA || holyBowCanUseLightBurstModeB(ctx.Game, ctx.User, enemyIDs, maxX)
 }
 
 func (h *HolyBowLightBurstHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("圣光爆裂上下文无效")
 	}
-	if getToken(ctx.User, "hb_form") <= 0 {
+	if !hasForm(ctx.User, model.FormHolyBowHolyGlory) {
 		return fmt.Errorf("仅圣煌形态可发动圣光爆裂")
 	}
-	allyIDs := holyBowAllies(ctx.Game, ctx.User, true)
-	if len(allyIDs) == 0 {
-		allyIDs = append(allyIDs, ctx.User.ID)
-	}
+	allyIDs := holyBowAllies(ctx.Game, ctx.User, false)
 	enemyIDs := holyBowEnemies(ctx.Game, ctx.User)
 	maxX := ctx.User.Heal
 	if len(ctx.User.Hand) < maxX {
 		maxX = len(ctx.User.Hand)
 	}
-	if !holyBowCanUseLightBurstModeA(ctx.User) && !holyBowCanUseLightBurstModeB(ctx.Game, ctx.User, enemyIDs, maxX) {
+	canModeA := holyBowCanUseLightBurstModeA(ctx.User) && len(allyIDs) > 0
+	if !canModeA && !holyBowCanUseLightBurstModeB(ctx.Game, ctx.User, enemyIDs, maxX) {
 		return fmt.Errorf("当前不满足圣光爆裂任一分支发动条件")
 	}
 	ctx.Game.PushInterrupt(&model.Interrupt{
@@ -314,7 +314,7 @@ func (h *HolyBowMeteorBulletHandler) CanUse(ctx *model.Context) bool {
 	if ctx.Trigger != model.TriggerOnAttackStart {
 		return false
 	}
-	if getToken(ctx.User, "hb_form") <= 0 {
+	if !hasForm(ctx.User, model.FormHolyBowHolyGlory) {
 		return false
 	}
 	if ctx.TriggerCtx.AttackInfo != nil && ctx.TriggerCtx.AttackInfo.CounterInitiator != "" {
@@ -323,14 +323,14 @@ func (h *HolyBowMeteorBulletHandler) CanUse(ctx *model.Context) bool {
 	if ctx.User.Heal <= 0 && holyBowFaith(ctx.User) <= 0 {
 		return false
 	}
-	return len(holyBowAllies(ctx.Game, ctx.User, true)) > 0
+	return len(holyBowAllies(ctx.Game, ctx.User, false)) > 0
 }
 
 func (h *HolyBowMeteorBulletHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("流星圣弹上下文无效")
 	}
-	if getToken(ctx.User, "hb_form") <= 0 {
+	if !hasForm(ctx.User, model.FormHolyBowHolyGlory) {
 		return fmt.Errorf("仅圣煌形态可发动流星圣弹")
 	}
 	var costModes []string
@@ -343,7 +343,7 @@ func (h *HolyBowMeteorBulletHandler) Execute(ctx *model.Context) error {
 	if len(costModes) == 0 {
 		return fmt.Errorf("治疗与信仰均不足，无法发动流星圣弹")
 	}
-	allyIDs := holyBowAllies(ctx.Game, ctx.User, true)
+	allyIDs := holyBowAllies(ctx.Game, ctx.User, false)
 	if len(allyIDs) == 0 {
 		return fmt.Errorf("没有可选我方目标")
 	}
@@ -366,7 +366,7 @@ func (h *HolyBowRadiantCannonHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return false
 	}
-	if getToken(ctx.User, "hb_form") <= 0 {
+	if !hasForm(ctx.User, model.FormHolyBowHolyGlory) {
 		return false
 	}
 	if holyBowCannon(ctx.User) <= 0 {
@@ -380,7 +380,7 @@ func (h *HolyBowRadiantCannonHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("圣煌辉光炮上下文无效")
 	}
-	if getToken(ctx.User, "hb_form") <= 0 {
+	if !hasForm(ctx.User, model.FormHolyBowHolyGlory) {
 		return fmt.Errorf("仅圣煌形态可发动圣煌辉光炮")
 	}
 	if holyBowCannon(ctx.User) <= 0 {

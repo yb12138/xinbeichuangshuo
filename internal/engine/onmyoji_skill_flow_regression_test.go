@@ -34,7 +34,7 @@ func TestOnmyojiDarkRitual_ChoosesTargetAtTurnEnd(t *testing.T) {
 	p1.Tokens["onmyoji_ghost_fire"] = 3
 
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseTurnEnd
+	game.State.TurnStage = model.TurnStageTurnEnd
 
 	game.Drive()
 
@@ -44,8 +44,12 @@ func TestOnmyojiDarkRitual_ChoosesTargetAtTurnEnd(t *testing.T) {
 	if got := choiceTypeOf(game.State.PendingInterrupt); got != "onmyoji_dark_ritual_target" {
 		t.Fatalf("expected onmyoji_dark_ritual_target prompt, got %s", got)
 	}
-	// 选 p2（玩家顺序 p1,p2）
-	if err := game.handleWeakChoiceInput("p1", 1); err != nil {
+	ctxData, _ := game.State.PendingInterrupt.Context.(map[string]interface{})
+	targetIDs := parseStringSliceContextValue(ctxData["target_ids"])
+	if len(targetIDs) != 1 || targetIDs[0] != "p2" {
+		t.Fatalf("expected dark ritual target pool only include enemy p2, got %+v", targetIDs)
+	}
+	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
 		t.Fatalf("choose dark ritual target failed: %v", err)
 	}
 	if got := p1.Tokens["onmyoji_ghost_fire"]; got != 0 {
@@ -76,7 +80,7 @@ func TestOnmyojiBinding_RequiresGemAndCrystal(t *testing.T) {
 	}
 
 	p3 := game.State.Players["p3"]
-	p3.Tokens["onmyoji_form"] = 1
+	p3.Form = model.FormOnmyojiShikigami
 	p3.Hand = []model.Card{
 		{ID: "c1", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Faction: "咏", Damage: 2},
 	}
@@ -126,7 +130,7 @@ func TestOnmyojiLifeBarrier_Mode1_X3NoMoraleLoss(t *testing.T) {
 
 	game.State.Deck = rules.InitDeck()
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	p1 := game.State.Players["p1"]
 	p1.IsActive = true
@@ -185,7 +189,7 @@ func TestOnmyojiLifeBarrier_Mode2_ReleaseFormAndForceAllyDiscard(t *testing.T) {
 	}
 
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]
@@ -193,7 +197,7 @@ func TestOnmyojiLifeBarrier_Mode2_ReleaseFormAndForceAllyDiscard(t *testing.T) {
 	p1.TurnState = model.NewPlayerTurnState()
 	p2.TurnState = model.NewPlayerTurnState()
 	p1.Crystal = 1
-	p1.Tokens["onmyoji_form"] = 1
+	p1.Form = model.FormOnmyojiShikigami
 	p1.Hand = []model.Card{
 		{ID: "o1", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Faction: "咏", Damage: 2},
 		{ID: "o2", Name: "风神斩", Type: model.CardTypeAttack, Element: model.ElementWind, Faction: "咏", Damage: 2},
@@ -220,8 +224,8 @@ func TestOnmyojiLifeBarrier_Mode2_ReleaseFormAndForceAllyDiscard(t *testing.T) {
 	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
 		t.Fatalf("choose release combo failed: %v", err)
 	}
-	if got := p1.Tokens["onmyoji_form"]; got != 0 {
-		t.Fatalf("expected leave shikigami form, got onmyoji_form=%d", got)
+	if got := p1.Form; got != "" {
+		t.Fatalf("expected leave shikigami form, got %q", got)
 	}
 	if got := len(p1.Hand); got != 1 {
 		t.Fatalf("expected p1 hand reduced by 2, got %d", got)
@@ -244,6 +248,49 @@ func TestOnmyojiLifeBarrier_Mode2_ReleaseFormAndForceAllyDiscard(t *testing.T) {
 	}
 }
 
+func TestOnmyojiLifeBarrier_PreselectedTargetSkipsSecondTargetChoice(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "Onmyoji", "onmyoji", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Ally", "angel", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p3", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p2.TurnState = model.NewPlayerTurnState()
+	p1.Crystal = 1
+	p1.Tokens["onmyoji_ghost_fire"] = 1
+
+	if err := game.UseSkill("p1", "onmyoji_life_barrier", []string{"p2"}, nil); err != nil {
+		t.Fatalf("use life barrier with preselected ally failed: %v", err)
+	}
+	if game.State.PendingInterrupt == nil || choiceTypeOf(game.State.PendingInterrupt) != "onmyoji_life_barrier_mode" {
+		t.Fatalf("expected life barrier mode prompt, got %+v", game.State.PendingInterrupt)
+	}
+	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+		t.Fatalf("choose mode1 failed: %v", err)
+	}
+	if game.State.PendingInterrupt != nil && choiceTypeOf(game.State.PendingInterrupt) == "onmyoji_life_barrier_support_target" {
+		t.Fatalf("expected preselected target to skip second target prompt, got %+v", game.State.PendingInterrupt)
+	}
+	if p2.Gem != 1 || p2.Heal != 1 {
+		t.Fatalf("expected preselected ally get +1 gem/+1 heal, got gem=%d heal=%d", p2.Gem, p2.Heal)
+	}
+	if len(game.State.PendingDamageQueue) == 0 || game.State.PendingDamageQueue[0].Damage != 2 {
+		t.Fatalf("expected self-damage queued with ghost fire=2, got %+v", game.State.PendingDamageQueue)
+	}
+}
+
 func TestOnmyojiYinYangConfirm_PrioritizedBeforeNormalCombatPrompt(t *testing.T) {
 	game := NewGameEngine(noopObserver{})
 	if err := game.AddPlayer("p1", "Attacker", "berserker", model.RedCamp); err != nil {
@@ -257,7 +304,7 @@ func TestOnmyojiYinYangConfirm_PrioritizedBeforeNormalCombatPrompt(t *testing.T)
 	}
 
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]
@@ -295,8 +342,8 @@ func TestOnmyojiYinYangConfirm_PrioritizedBeforeNormalCombatPrompt(t *testing.T)
 	if game.State.PendingInterrupt != nil {
 		t.Fatalf("expected no pending interrupt after decline, got %+v", game.State.PendingInterrupt)
 	}
-	if game.State.Phase != model.PhaseCombatInteraction {
-		t.Fatalf("expected phase stay in combat interaction, got %s", game.State.Phase)
+	if !game.isCombatInteractionWindow() {
+		t.Fatalf("expected stay in combat interaction window, got %s", game.runtimeStateLabel())
 	}
 	if len(game.State.CombatStack) == 0 {
 		t.Fatalf("expected combat stack still exists for normal response")
@@ -317,14 +364,14 @@ func TestOnmyojiYinYangConfirm_YesBranchResolvesFactionCounterChain(t *testing.T
 
 	game.State.Deck = rules.InitDeck()
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
 	p2.TurnState = model.NewPlayerTurnState()
-	p2.Tokens["onmyoji_form"] = 1
+	p2.Form = model.FormOnmyojiShikigami
 	p2.Tokens["onmyoji_ghost_fire"] = 1
 
 	p1.Hand = []model.Card{
@@ -366,8 +413,8 @@ func TestOnmyojiYinYangConfirm_YesBranchResolvesFactionCounterChain(t *testing.T
 	if got := p2.Tokens["onmyoji_ghost_fire"]; got != 3 {
 		t.Fatalf("expected ghost fire=3 after yinyang+form chain, got %d", got)
 	}
-	if got := p2.Tokens["onmyoji_form"]; got != 0 {
-		t.Fatalf("expected leave shikigami form, got onmyoji_form=%d", got)
+	if got := p2.Form; got != "" {
+		t.Fatalf("expected leave shikigami form, got %q", got)
 	}
 	if got := len(p2.Hand); got != 1 {
 		t.Fatalf("expected hand size 1 (counter consume 1 then draw 1), got %d", got)

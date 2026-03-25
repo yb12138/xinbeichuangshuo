@@ -20,7 +20,7 @@ func TestCombatDefend_CannotPlayShieldFromHand(t *testing.T) {
 
 	game.State.Deck = rules.InitDeck()
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]
@@ -73,7 +73,7 @@ func TestCombatDefend_HolyLightStillValid(t *testing.T) {
 
 	game.State.Deck = rules.InitDeck()
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]
@@ -126,7 +126,7 @@ func TestMagicBulletDefend_CannotPlayShieldFromHand(t *testing.T) {
 
 	game.State.Deck = rules.InitDeck()
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]
@@ -182,7 +182,7 @@ func TestMagicBullet_FieldShieldAutoBlocks(t *testing.T) {
 
 	game.State.Deck = rules.InitDeck()
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]
@@ -261,7 +261,7 @@ func TestMagicBullet_FieldShieldCanStillDefendWithHolyLight(t *testing.T) {
 
 	game.State.Deck = rules.InitDeck()
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]
@@ -340,7 +340,7 @@ func TestMagicBullet_PassToShieldedNextTargetNeedsPromptFirst(t *testing.T) {
 
 	game.State.Deck = rules.InitDeck()
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 	game.State.PlayerOrder = []string{"p1", "p3", "p2"}
 
 	p1 := game.State.Players["p1"]
@@ -439,7 +439,7 @@ func TestCombatShield_WaitsForPlayerChoice(t *testing.T) {
 
 	game.State.Deck = rules.InitDeck()
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]
@@ -476,8 +476,8 @@ func TestCombatShield_WaitsForPlayerChoice(t *testing.T) {
 		t.Fatalf("attack failed: %v", err)
 	}
 
-	if game.State.Phase != model.PhaseCombatInteraction {
-		t.Fatalf("expected phase CombatInteraction, got=%s", game.State.Phase)
+	if !game.isCombatInteractionWindow() {
+		t.Fatalf("expected combat interaction window, got=%s", game.runtimeStateLabel())
 	}
 	if len(game.State.CombatStack) != 1 {
 		t.Fatalf("combat stack should wait for response, got=%d", len(game.State.CombatStack))
@@ -499,7 +499,7 @@ func TestCombatShield_ConsumeOnTake(t *testing.T) {
 
 	game.State.Deck = rules.InitDeck()
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]
@@ -571,7 +571,7 @@ func TestCombatShield_CounterChoiceKeepsShield(t *testing.T) {
 
 	game.State.Deck = rules.InitDeck()
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]

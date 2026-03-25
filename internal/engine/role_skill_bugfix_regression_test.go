@@ -22,7 +22,7 @@ func TestAngelBond_OnlyTriggersWhenAngelIsRemovalSource(t *testing.T) {
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]
 	p1.IsActive = true
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	// 非天使移除基础效果：不应触发天使羁绊。
 	p2.AddFieldCard(&model.FieldCard{Mode: model.FieldEffect, Effect: model.EffectWeak, SourceID: "p3"})
@@ -50,7 +50,7 @@ func TestBloodRoar_ForcedHitIgnoresShield(t *testing.T) {
 
 	game.State.Deck = rules.InitDeck()
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]
@@ -111,7 +111,7 @@ func TestSealBreak_SelectSpecificBasicEffectAndTakeCard(t *testing.T) {
 	}
 
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]

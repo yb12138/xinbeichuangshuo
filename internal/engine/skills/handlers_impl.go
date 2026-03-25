@@ -4,8 +4,11 @@ import (
 	"fmt"
 	"sort"
 	"starcup-engine/internal/model"
-	"strconv"
 )
+
+func hasAssassinStealthForm(p *model.Player) bool {
+	return p != nil && p.Form == model.FormAssassinStealth
+}
 
 // --- Angel Handlers ---
 
@@ -61,7 +64,7 @@ func (h *PoisonHandler) Execute(ctx *model.Context) error {
 		return err
 	}
 
-	ctx.Game.RemoveFieldCard(user.ID, model.EffectPoison)
+	ctx.Game.RemoveFieldCardBy(user.ID, model.EffectPoison, "")
 	ctx.Game.Log(fmt.Sprintf("[Buff] %s 的中毒效果已结束", user.Name))
 
 	return nil
@@ -116,11 +119,14 @@ func (h *HolyShieldHandler) CanUse(ctx *model.Context) bool {
 	if ctx.TriggerCtx == nil || ctx.TriggerCtx.DamageVal == nil || *ctx.TriggerCtx.DamageVal <= 0 {
 		return false
 	}
+	if !ctx.Flags["holy_shield_eligible"] {
+		return false
+	}
 
 	// 3. 检查玩家场上是否真的有【圣盾】效果牌
 	// (Dispatcher 遍历 Field 时会传入 User，这里做双重保险)
-	// 烈风技：本次攻击无视圣盾
-	if ctx.Target != nil && ctx.Target.TurnState.GaleSlashActive {
+	// 列风技：本次攻击无视圣盾
+	if ctx.Flags["ignore_shield"] {
 		return false
 	}
 	// 血腥咆哮：本次攻击无视圣盾
@@ -174,27 +180,97 @@ func (h *HolyShieldHandler) Execute(ctx *model.Context) error {
 
 type AngelBondHandler struct{ BaseHandler }
 
-func (h *AngelBondHandler) CanUse(ctx *model.Context) bool {
-	// 场景 A: 移除基础效果
-	if ctx.Trigger == model.TriggerOnBuffRemoved {
-		if ctx.TriggerCtx == nil || ctx.User == nil {
-			return false
+type basicEffectOption struct {
+	TargetID    string
+	TargetName  string
+	FieldIndex  int
+	Effect      model.EffectType
+	DisplayName string
+	Label       string
+}
+
+func basicEffectLabel(effect model.EffectType) string {
+	switch effect {
+	case model.EffectShield:
+		return "圣盾"
+	case model.EffectWeak:
+		return "虚弱"
+	case model.EffectPoison:
+		return "中毒"
+	case model.EffectSealFire:
+		return "火之封印"
+	case model.EffectSealWater:
+		return "水之封印"
+	case model.EffectSealEarth:
+		return "地之封印"
+	case model.EffectSealWind:
+		return "风之封印"
+	case model.EffectSealThunder:
+		return "雷之封印"
+	case model.EffectPowerBlessing:
+		return "威力赐福"
+	case model.EffectSwiftBlessing:
+		return "迅捷赐福"
+	default:
+		return string(effect)
+	}
+}
+
+func collectBasicEffectOptions(players ...*model.Player) []basicEffectOption {
+	options := make([]basicEffectOption, 0)
+	for _, player := range players {
+		if player == nil {
+			continue
 		}
-		// 只在“天使本人移除基础效果”时触发。
+		for idx, fc := range player.Field {
+			if fc == nil || fc.Mode != model.FieldEffect || !model.IsBasicEffect(string(fc.Effect)) {
+				continue
+			}
+			displayName := basicEffectLabel(fc.Effect)
+			options = append(options, basicEffectOption{
+				TargetID:    player.ID,
+				TargetName:  player.Name,
+				FieldIndex:  idx,
+				Effect:      fc.Effect,
+				DisplayName: displayName,
+				Label:       fmt.Sprintf("%s：%s", player.Name, displayName),
+			})
+		}
+	}
+	return options
+}
+
+func encodeBasicEffectOptions(options []basicEffectOption) []map[string]interface{} {
+	encoded := make([]map[string]interface{}, 0, len(options))
+	for _, option := range options {
+		encoded = append(encoded, map[string]interface{}{
+			"id":           fmt.Sprintf("%s|%d|%s", option.TargetID, option.FieldIndex, option.Effect),
+			"target_id":    option.TargetID,
+			"field_index":  option.FieldIndex,
+			"effect":       string(option.Effect),
+			"display_name": option.DisplayName,
+			"label":        option.Label,
+		})
+	}
+	return encoded
+}
+
+func (h *AngelBondHandler) CanUse(ctx *model.Context) bool {
+	if ctx.TriggerCtx == nil || ctx.User == nil {
+		return false
+	}
+
+	// 场景 A: 自己主动移除基础效果
+	if ctx.Trigger == model.TriggerOnBuffRemoved {
 		if ctx.TriggerCtx.SourceID != ctx.User.ID {
 			return false
 		}
 		return model.IsBasicEffect(ctx.TriggerCtx.BuffID)
 	}
 
-	// 场景 B: 使用圣盾 或 天使之墙
-	if ctx.Trigger == model.TriggerOnCardUsed {
-		if ctx.TriggerCtx == nil || ctx.TriggerCtx.Card == nil {
-			return false
-		}
-		name := ctx.TriggerCtx.Card.Name
-		// 【修正】兼容天使之墙
-		return name == "圣盾" || name == "天使之墙"
+	// 场景 B: 自己放置了圣盾效果（包括将独有牌当作圣盾使用的情况）
+	if ctx.Trigger == model.TriggerOnBuffAdded {
+		return ctx.TriggerCtx.SourceID == ctx.User.ID && ctx.TriggerCtx.BuffID == string(model.EffectShield)
 	}
 	return false
 }
@@ -316,44 +392,36 @@ func (h *AngelCleanseHandler) CanUse(ctx *model.Context) bool {
 }
 
 func (h *AngelCleanseHandler) Execute(ctx *model.Context) error {
-	// 风之洁净：弃一张风系牌，移除场上任意一个基础效果
-	if ctx.Target != nil {
-		target := ctx.Target
-		var effectsToRemove []string
-		// 检查 FieldCards
-		for _, fc := range target.Field {
-			if fc.Mode == model.FieldEffect {
-				if model.IsBasicEffect(string(fc.Effect)) {
-					effectsToRemove = append(effectsToRemove, string(fc.Effect))
-				}
-			}
-		}
-
-		if len(effectsToRemove) == 0 {
-			ctx.Game.Log(fmt.Sprintf("%s 的 [风之洁净] 发动，但 %s 没有基础效果可移除", ctx.User.Name, ctx.Target.Name))
-			return nil
-		}
-
-		// 移除逻辑
-		removeEffect := func(name string) {
-			ctx.Game.RemoveFieldCardBy(target.ID, model.EffectType(name), ctx.User.ID)
-			ctx.Game.Log(fmt.Sprintf("%s 的 [风之洁净] 发动，移除了 %s 的 %s", ctx.User.Name, ctx.Target.Name, name))
-		}
-
-		// 1. 优先使用 Args
-		if len(ctx.Args) > 0 && ctx.Args[0] != "" {
-			name := ctx.Args[0]
-			for _, e := range effectsToRemove {
-				if e == name {
-					removeEffect(name)
-					return nil
-				}
-			}
-		}
-
-		// 2. 默认移除第一个
-		removeEffect(effectsToRemove[0])
+	if ctx == nil || ctx.User == nil || ctx.Target == nil || ctx.Game == nil {
+		return fmt.Errorf("风之洁净上下文无效")
 	}
+	options := collectBasicEffectOptions(ctx.Target)
+	if len(options) == 0 {
+		return fmt.Errorf("%s 面前没有可移除的基础效果", ctx.Target.Name)
+	}
+	if len(options) > 1 {
+		ctx.Game.PushInterrupt(&model.Interrupt{
+			Type:     model.InterruptChoice,
+			PlayerID: ctx.User.ID,
+			Context: map[string]interface{}{
+				"choice_type":  "basic_effect_pick",
+				"user_id":      ctx.User.ID,
+				"skill_name":   "风之洁净",
+				"operation":    "remove",
+				"resume_phase": model.NormalizeResumePoint(model.TurnStageActionExecution),
+				"prompt":       "【风之洁净】请选择要移除的基础效果：",
+				"options":      encodeBasicEffectOptions(options),
+			},
+		})
+		ctx.Game.Log(fmt.Sprintf("%s 发动 [风之洁净]，请选择要移除的基础效果", ctx.User.Name))
+		return nil
+	}
+
+	selected := options[0]
+	if !ctx.Game.RemoveFieldCardBy(selected.TargetID, selected.Effect, ctx.User.ID) {
+		return fmt.Errorf("%s 面前的基础效果已不存在", ctx.Target.Name)
+	}
+	ctx.Game.Log(fmt.Sprintf("%s 的 [风之洁净] 发动，移除了 %s", ctx.User.Name, selected.Label))
 	return nil
 }
 
@@ -383,50 +451,7 @@ func (h *AngelSongHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("天使之歌上下文无效")
 	}
-	effectLabel := func(effect model.EffectType) string {
-		switch effect {
-		case model.EffectShield:
-			return "圣盾"
-		case model.EffectWeak:
-			return "虚弱"
-		case model.EffectPoison:
-			return "中毒"
-		case model.EffectSealFire:
-			return "火之封印"
-		case model.EffectSealWater:
-			return "水之封印"
-		case model.EffectSealEarth:
-			return "地之封印"
-		case model.EffectSealWind:
-			return "风之封印"
-		case model.EffectSealThunder:
-			return "雷之封印"
-		case model.EffectPowerBlessing:
-			return "威力赐福"
-		case model.EffectSwiftBlessing:
-			return "迅捷赐福"
-		default:
-			return string(effect)
-		}
-	}
-	var options []map[string]interface{}
-	for _, p := range ctx.Game.GetAllPlayers() {
-		if p == nil {
-			continue
-		}
-		for _, fc := range p.Field {
-			if fc.Mode != model.FieldEffect || !model.IsBasicEffect(string(fc.Effect)) {
-				continue
-			}
-			optID := fmt.Sprintf("%s|%s", p.ID, string(fc.Effect))
-			options = append(options, map[string]interface{}{
-				"id":        optID,
-				"label":     fmt.Sprintf("%s：%s", p.Name, effectLabel(fc.Effect)),
-				"target_id": p.ID,
-				"effect":    string(fc.Effect),
-			})
-		}
-	}
+	options := collectBasicEffectOptions(ctx.Game.GetAllPlayers()...)
 	if len(options) == 0 {
 		return fmt.Errorf("发动天使之歌失败：场上没有可移除的基础效果")
 	}
@@ -438,9 +463,14 @@ func (h *AngelSongHandler) Execute(ctx *model.Context) error {
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
 		Context: map[string]interface{}{
-			"choice_type": "angel_song_pick",
-			"user_id":     ctx.User.ID,
-			"options":     options,
+			"choice_type":   "basic_effect_pick",
+			"user_id":       ctx.User.ID,
+			"skill_name":    "天使之歌",
+			"operation":     "remove",
+			"resume_phase":  model.NormalizeResumePoint(model.TurnStageActionStart),
+			"waiting_phase": model.NormalizeResumePoint(model.TurnStageActionStart),
+			"prompt":        "【天使之歌】请选择要移除的基础效果：",
+			"options":       encodeBasicEffectOptions(options),
 		},
 	})
 	return nil
@@ -502,27 +532,30 @@ func (h *GodProtectionHandler) CanUse(ctx *model.Context) bool {
 }
 
 func (h *GodProtectionHandler) Execute(ctx *model.Context) error {
-	angel := ctx.User
-	loss := *ctx.TriggerCtx.DamageVal
-
-	// 计算可以抵御多少 (1水晶抵御1点；红宝石可替代水晶)
-	usable := ctx.Game.GetUsableCrystal(angel.ID)
-	mitigate := loss
-	if mitigate > usable {
-		mitigate = usable
-	}
-
-	if mitigate <= 0 {
+	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.TriggerCtx == nil || ctx.TriggerCtx.DamageVal == nil {
 		return nil
 	}
-	if !ctx.Game.ConsumeCrystalCost(angel.ID, mitigate) {
-		return fmt.Errorf("神之庇护结算失败：可用水晶不足")
+	angel := ctx.User
+	loss := *ctx.TriggerCtx.DamageVal
+	usable := ctx.Game.GetUsableCrystal(angel.ID)
+	maxX := loss
+	if maxX > usable {
+		maxX = usable
 	}
-
-	// 减少士气损失
-	*ctx.TriggerCtx.DamageVal -= mitigate
-
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [神之庇护]，消耗 %d 水晶（可由红宝石替代）抵御了 %d 点士气下降！", angel.Name, mitigate, mitigate))
+	if maxX <= 0 {
+		return nil
+	}
+	ctx.Game.PushInterrupt(&model.Interrupt{
+		Type:     model.InterruptChoice,
+		PlayerID: angel.ID,
+		Context: map[string]interface{}{
+			"choice_type": "god_protection_x",
+			"user_id":     angel.ID,
+			"max_x":       maxX,
+			"user_ctx":    ctx,
+		},
+	})
+	ctx.Game.Log(fmt.Sprintf("%s 触发 [神之庇护]：请选择要抵御的士气下降值（最多%d）", angel.Name, maxX))
 	return nil
 }
 
@@ -543,7 +576,44 @@ func (h *AngelWallHandler) Execute(ctx *model.Context) error {
 
 // --- Berserker Handlers ---
 
-// BerserkerFrenzyHandler removed - passive skills are handled directly in game logic
+type BerserkerFrenzyHandler struct{ BaseHandler }
+
+func (h *BerserkerFrenzyHandler) CanUse(ctx *model.Context) bool {
+	if ctx == nil || ctx.User == nil || ctx.TriggerCtx == nil || ctx.TriggerCtx.DamageVal == nil {
+		return false
+	}
+	info := ctx.TriggerCtx.AttackInfo
+	if info == nil || info.ActionType != "Attack" {
+		return false
+	}
+	return ctx.Trigger == model.TriggerModifyDamage || ctx.Trigger == model.TriggerOnAttackHit
+}
+
+func (h *BerserkerFrenzyHandler) Execute(ctx *model.Context) error {
+	bonus := 0
+	switch ctx.Trigger {
+	case model.TriggerModifyDamage:
+		bonus = 1
+	case model.TriggerOnAttackHit:
+		if len(ctx.User.Hand) > 3 {
+			bonus = 1
+		}
+	default:
+		return nil
+	}
+	if bonus <= 0 {
+		return nil
+	}
+	*ctx.TriggerCtx.DamageVal += bonus
+	if ctx.Trigger == model.TriggerModifyDamage {
+		ctx.Game.NotifyActionStep(fmt.Sprintf("%s 的被动技【狂化】生效：本次攻击伤害+1", model.GetPlayerDisplayName(ctx.User)))
+		ctx.Game.Log(fmt.Sprintf("[Passive] %s 的【狂化】基础效果生效：伤害 +1", ctx.User.Name))
+	} else {
+		ctx.Game.NotifyActionStep(fmt.Sprintf("攻击命中，%s发动被动技狂化，当前其手牌数%d，伤害额外+1", model.GetPlayerDisplayName(ctx.User), len(ctx.User.Hand)))
+		ctx.Game.Log(fmt.Sprintf("[Passive] %s 的【狂化】命中分支生效：手牌 %d，伤害再 +1", ctx.User.Name, len(ctx.User.Hand)))
+	}
+	return nil
+}
 
 type BerserkerTearHandler struct{ BaseHandler }
 
@@ -556,17 +626,14 @@ func (h *BerserkerTearHandler) CanUse(ctx *model.Context) bool {
 		return false
 	}
 	info := ctx.TriggerCtx.AttackInfo
-	// 规则：必须作为主动攻击打出 (非应战反弹)
-	can := info.ActionType == "Attack" && info.CounterInitiator == ""
-	return can
+	return info.ActionType == "Attack"
 }
 
 func (h *BerserkerTearHandler) Execute(ctx *model.Context) error {
-	// 撕裂：作为主动攻击打出时发动，若攻击命中时②，消耗1宝石，使本次攻击伤害额外+2
+	// 撕裂：攻击命中时发动，覆盖主动攻击与应战攻击。
 	if ctx.TriggerCtx != nil && ctx.TriggerCtx.AttackInfo != nil {
 		info := ctx.TriggerCtx.AttackInfo
-		// 规则：必须作为主动攻击打出 (非应战反弹)
-		if info.ActionType == "Attack" && info.CounterInitiator == "" {
+		if info.ActionType == "Attack" {
 			if ctx.TriggerCtx.DamageVal != nil {
 				ctx.User.Gem -= 1
 				*ctx.TriggerCtx.DamageVal += 2
@@ -603,6 +670,24 @@ func (h *BloodRoarHandler) Execute(ctx *model.Context) error {
 }
 
 type BloodBladeHandler struct{ BaseHandler }
+
+func (h *BloodBladeHandler) CanUse(ctx *model.Context) bool {
+	if ctx == nil || ctx.User == nil || ctx.Target == nil || ctx.Trigger != model.TriggerOnAttackHit || ctx.TriggerCtx == nil || ctx.TriggerCtx.DamageVal == nil {
+		return false
+	}
+	info := ctx.TriggerCtx.AttackInfo
+	if info == nil || info.ActionType != "Attack" || info.CounterInitiator != "" || ctx.TriggerCtx.Card == nil {
+		return false
+	}
+	if ctx.User.Character == nil {
+		return false
+	}
+	if !ctx.TriggerCtx.Card.MatchExclusive(ctx.User.Character.Name, "血影狂刀") {
+		return false
+	}
+	handCount := len(ctx.Target.Hand)
+	return handCount == 2 || handCount == 3
+}
 
 func (h *BloodBladeHandler) Execute(ctx *model.Context) error {
 	// 血影狂刀：作为主动攻击打出时发动，根据对手手牌数额外伤害
@@ -699,85 +784,33 @@ func createBuffCard(buffName string) *model.Card {
 }
 
 func (h *SealBreakHandler) Execute(ctx *model.Context) error {
-	// 封印破碎：收回“目标角色”面前的一张基础效果牌到自己手里。
-	if ctx == nil || ctx.User == nil || ctx.Target == nil {
-		return fmt.Errorf("封印破碎缺少目标")
+	// 封印破碎：收回场上任意一张基础效果牌到自己手里。
+	if ctx == nil || ctx.User == nil || ctx.Game == nil {
+		return fmt.Errorf("封印破碎上下文无效")
 	}
-
-	type effectOption struct {
-		TargetID    string
-		TargetName  string
-		FieldIndex  int
-		Effect      model.EffectType
-		DisplayName string
-	}
-	effectLabel := func(effect model.EffectType) string {
-		switch effect {
-		case model.EffectShield:
-			return "圣盾"
-		case model.EffectWeak:
-			return "虚弱"
-		case model.EffectPoison:
-			return "中毒"
-		case model.EffectSealFire:
-			return "火之封印"
-		case model.EffectSealWater:
-			return "水之封印"
-		case model.EffectSealEarth:
-			return "地之封印"
-		case model.EffectSealWind:
-			return "风之封印"
-		case model.EffectSealThunder:
-			return "雷之封印"
-		case model.EffectPowerBlessing:
-			return "威力赐福"
-		case model.EffectSwiftBlessing:
-			return "迅捷赐福"
-		default:
-			return string(effect)
-		}
-	}
-
-	target := ctx.Target
-	options := make([]effectOption, 0)
-	for idx, fc := range target.Field {
-		if fc == nil || fc.Mode != model.FieldEffect {
-			continue
-		}
-		if !model.IsBasicEffect(string(fc.Effect)) {
-			continue
-		}
-		options = append(options, effectOption{
-			TargetID:    target.ID,
-			TargetName:  target.Name,
-			FieldIndex:  idx,
-			Effect:      fc.Effect,
-			DisplayName: effectLabel(fc.Effect),
-		})
+	var options []basicEffectOption
+	if ctx.Target != nil {
+		options = collectBasicEffectOptions(ctx.Target)
+	} else {
+		options = collectBasicEffectOptions(ctx.Game.GetAllPlayers()...)
 	}
 	if len(options) == 0 {
-		return fmt.Errorf("%s 面前没有可收回的基础效果", target.Name)
+		return fmt.Errorf("场上没有可收回的基础效果")
 	}
 
-	// 若目标身上有多张基础效果，弹窗让封印师选择具体哪一张。
+	// 若场上有多张基础效果，弹窗让封印师选择具体哪一张。
 	if len(options) > 1 {
-		pickOptions := make([]map[string]interface{}, 0, len(options))
-		for _, op := range options {
-			pickOptions = append(pickOptions, map[string]interface{}{
-				"target_id":    op.TargetID,
-				"field_index":  op.FieldIndex,
-				"effect":       string(op.Effect),
-				"display_name": op.DisplayName,
-				"label":        fmt.Sprintf("%s：%s", op.TargetName, op.DisplayName),
-			})
-		}
 		ctx.Game.PushInterrupt(&model.Interrupt{
 			Type:     model.InterruptChoice,
 			PlayerID: ctx.User.ID,
 			Context: map[string]interface{}{
-				"choice_type": "seal_break_pick_effect",
-				"user_id":     ctx.User.ID,
-				"options":     pickOptions,
+				"choice_type":  "basic_effect_pick",
+				"user_id":      ctx.User.ID,
+				"skill_name":   "封印破碎",
+				"operation":    "take",
+				"resume_phase": model.NormalizeResumePoint(model.TurnStageActionExecution),
+				"prompt":       "【封印破碎】请选择要收回的基础效果：",
+				"options":      encodeBasicEffectOptions(options),
 			},
 		})
 		ctx.Game.Log(fmt.Sprintf("%s 发动 [封印破碎]，请选择要收回的基础效果", ctx.User.Name))
@@ -789,88 +822,65 @@ func (h *SealBreakHandler) Execute(ctx *model.Context) error {
 		return err
 	}
 	ctx.User.Hand = append(ctx.User.Hand, takenCard)
-	ctx.Game.Log(fmt.Sprintf("%s 的 [封印破碎] 发动，将 %s 的 %s 收入手中", ctx.User.Name, options[0].TargetName, options[0].DisplayName))
+	ctx.Game.Log(fmt.Sprintf("%s 的 [封印破碎] 发动，将 %s 收入手中", ctx.User.Name, options[0].Label))
 	return nil
 }
 
 type FiveElementsBindHandler struct{ BaseHandler }
 
-func (h *FiveElementsBindHandler) Execute(ctx *model.Context) error {
-	// 五系束缚：［水晶］将五系束缚放置于目标对手面前
-	// 放置逻辑由 UseSkill 的 PlaceCard 通用处理
-	// 效果触发在目标回合开始时由 applyFiveElementsBindEffect 处理
-	// 目标选择：摸(2+X)张牌(X=场上封印数，最多2)，或者放弃行动移除此牌
-	if ctx.Target != nil {
-		ctx.Game.Log(fmt.Sprintf("%s 对 %s 发动五系束缚", ctx.User.Name, ctx.Target.Name))
-	}
-	return nil
+func (h *FiveElementsBindHandler) CanUse(ctx *model.Context) bool {
+	return canResolveFieldStatus(ctx, model.EffectFiveElementsBind)
 }
 
-// SealLogic 是所有封印技能共用的核心逻辑
-// 放置阶段由 UseSkill 的 PlaceCard 通用逻辑处理，触发阶段由此 Execute 处理
+func (h *FiveElementsBindHandler) Execute(ctx *model.Context) error {
+	if ctx != nil && ctx.Trigger == model.TriggerNone && ctx.Target != nil {
+		ctx.Game.Log(fmt.Sprintf("%s 对 %s 发动五系束缚", ctx.User.Name, ctx.Target.Name))
+		return nil
+	}
+	return executeFieldStatus(ctx, model.EffectFiveElementsBind)
+}
+
+// ==========================================
+// 五系封印 Handler 设计说明
+// ==========================================
+// 五系封印的完整流程分为三个阶段：
+//
+// 阶段 1：放置封印（由技能使用流程处理）
+//   - 封印师使用技能（水之封印等）
+//   - UseSkill → consumeSkillInputs → placeSkillFieldCard
+//   - 场牌被放置到目标玩家面前，Meta中记录绑定元素
+//
+// 阶段 2：触发封印（由SkillDispatcher处理）
+//   - 目标玩家打出/展示对应元素牌
+//   - 触发 TriggerOnCardUsed / TriggerOnCardRevealed
+//   - collectTriggeredSkills 遍历Field，找到匹配的封印
+//   - SealLogic.CanUse → canResolveElementalSealStatus
+//
+// 阶段 3：结算伤害（由processPendingDamages处理）
+//   - SealLogic.Execute → executeElementalSealStatus
+//   - 添加PendingDamage，标记EffectTypeToRemove
+//   - 伤害结算后移除封印（game.go:5387）
+// ==========================================
+
+// SealLogic 五系封印的通用Handler逻辑
+// 仅保留放置后的入口映射；
+// 实际触发规则统一交给 field status resolver，避免继续耦合主流程。
 type SealLogic struct {
-	TargetElement model.Element    // 该封印针对的属性
-	EffectName    string           // 封印名称（用于日志）
-	EffectType    model.EffectType // 对应的 Effect 枚举，用于移除
+	EffectType model.EffectType // 对应的 Effect 枚举，用于移除
 }
 
 func (s *SealLogic) CanUse(ctx *model.Context) bool {
-	// 1. 触发时机必须是"使用卡牌"或"展示卡牌"
-	// 规则：当玩家展示/使用对应系的卡牌时，触发效果
-	if ctx.Trigger != model.TriggerOnCardUsed && ctx.Trigger != model.TriggerOnCardRevealed {
-		return false
-	}
-
-	// 2. 检查使用/展示的卡牌是否匹配封印属性
-	if ctx.TriggerCtx == nil || ctx.TriggerCtx.Card == nil {
-		return false
-	}
-
-	// 封印规则：只要是该系牌（攻击或法术）都触发
-	return ctx.TriggerCtx.Card.Element == s.TargetElement
+	return canResolveFieldStatus(ctx, s.EffectType)
 }
 
 func (s *SealLogic) Execute(ctx *model.Context) error {
-	// 放置阶段由 UseSkill 的 PlaceCard 处理，此处仅处理触发阶段
-	// 规则：当玩家展示/使用对应系的卡牌时，触发效果
-	if ctx.Trigger != model.TriggerOnCardUsed && ctx.Trigger != model.TriggerOnCardRevealed {
+	if ctx != nil && ctx.Trigger == model.TriggerNone {
 		return nil
 	}
-
-	user := ctx.User // 触发封印的人（被封印的玩家）
-
-	ctx.Game.Log(fmt.Sprintf("[Seal] %s 使用了 %s 系牌，触发了 %s！",
-		user.Name, s.TargetElement, s.EffectName))
-
-	// 1. 找到封印牌以获取施放者 SourceID
-	var sourceID string
-
-	for _, fc := range user.Field {
-		if fc.Mode == model.FieldEffect && fc.Effect == s.EffectType {
-			sourceID = fc.SourceID
-			break
-		}
-	}
-
-	if sourceID == "" {
-		sourceID = user.ID // 兜底
-	}
-
-	// 将伤害作为延迟效果推入队列
-	ctx.Game.AddPendingDamage(model.PendingDamage{
-		SourceID:           sourceID,
-		TargetID:           user.ID,
-		Damage:             3,
-		DamageType:         "magic",
-		EffectTypeToRemove: s.EffectType, // 伤害结算后需要移除的封印
-	})
-
-	ctx.Game.Log(fmt.Sprintf("[Seal] 封印伤害已推入延迟队列，Source: %s, Target: %s, Damage: 3, EffectToRemove: %s", sourceID, user.ID, s.EffectType))
-
-	return nil
+	return executeFieldStatus(ctx, s.EffectType)
 }
 
-// 五系封印 Handler（放置由 PlaceCard 处理，触发由 SealLogic 处理）
+// 五系封印具体Handler（放置由 PlaceCard 处理，触发由通用状态 resolver 处理）
 type WaterSealHandler struct{ SealLogic }
 type FireSealHandler struct{ SealLogic }
 type EarthSealHandler struct{ SealLogic }
@@ -879,41 +889,31 @@ type ThunderSealHandler struct{ SealLogic }
 
 func NewWaterSealHandler() *WaterSealHandler {
 	return &WaterSealHandler{SealLogic{
-		TargetElement: model.ElementWater,
-		EffectName:    "水之封印",
-		EffectType:    model.EffectSealWater,
+		EffectType: model.EffectSealWater,
 	}}
 }
 
 func NewFireSealHandler() *FireSealHandler {
 	return &FireSealHandler{SealLogic{
-		TargetElement: model.ElementFire,
-		EffectName:    "火之封印",
-		EffectType:    model.EffectSealFire,
+		EffectType: model.EffectSealFire,
 	}}
 }
 
 func NewEarthSealHandler() *EarthSealHandler {
 	return &EarthSealHandler{SealLogic{
-		TargetElement: model.ElementEarth,
-		EffectName:    "地之封印",
-		EffectType:    model.EffectSealEarth,
+		EffectType: model.EffectSealEarth,
 	}}
 }
 
 func NewWindSealHandler() *WindSealHandler {
 	return &WindSealHandler{SealLogic{
-		TargetElement: model.ElementWind,
-		EffectName:    "风之封印",
-		EffectType:    model.EffectSealWind,
+		EffectType: model.EffectSealWind,
 	}}
 }
 
 func NewThunderSealHandler() *ThunderSealHandler {
 	return &ThunderSealHandler{SealLogic{
-		TargetElement: model.ElementThunder,
-		EffectName:    "雷之封印",
-		EffectType:    model.EffectSealThunder,
+		EffectType: model.EffectSealThunder,
 	}}
 }
 
@@ -941,22 +941,6 @@ func (h *WindFuryHandler) CanUse(ctx *model.Context) bool {
 		return false
 	}
 
-	if len(ctx.User.Hand) == 0 {
-		return false
-	}
-
-	hasWindAttackCard := false
-	for _, card := range ctx.User.Hand {
-		if card.Type == model.CardTypeAttack && card.Element == model.ElementWind {
-			hasWindAttackCard = true
-			break
-		}
-	}
-
-	if !hasWindAttackCard {
-		return false
-	}
-
 	// 4. 检查是否已经发动过 (回合限定)
 	if ctx.User.TurnState.UsedSkillCounts["wind_fury"] > 0 {
 		return false
@@ -981,8 +965,14 @@ func (h *WindFuryHandler) Execute(ctx *model.Context) error {
 type HolySwordHandler struct{ BaseHandler }
 
 func (h *HolySwordHandler) CanUse(ctx *model.Context) bool {
-	// 圣剑：仅在第3次攻击时可用
-	return ctx.User != nil && ctx.User.TurnState.AttackCount+1 == 3
+	// 圣剑：仅在第3次主动攻击宣告时生效。
+	if ctx == nil || ctx.User == nil || ctx.Trigger != model.TriggerOnAttackStart || ctx.TriggerCtx == nil || ctx.TriggerCtx.AttackInfo == nil {
+		return false
+	}
+	if ctx.TriggerCtx.AttackInfo.ActionType != string(model.ActionAttack) || ctx.TriggerCtx.AttackInfo.CounterInitiator != "" {
+		return false
+	}
+	return ctx.User.TurnState.AttackCount+1 == 3
 }
 
 func (h *HolySwordHandler) Execute(ctx *model.Context) error {
@@ -1071,8 +1061,11 @@ func (h *GaleSkillHandler) Execute(ctx *model.Context) error {
 type GaleSlashHandler struct{ BaseHandler }
 
 func (h *GaleSlashHandler) CanUse(ctx *model.Context) bool {
-	// 烈风技：目标拥有圣盾时发动
-	if ctx.Target == nil {
+	// 列风技：目标拥有圣盾时发动
+	if ctx == nil || ctx.Trigger != model.TriggerOnAttackStart || ctx.Target == nil || ctx.TriggerCtx == nil || ctx.TriggerCtx.AttackInfo == nil {
+		return false
+	}
+	if ctx.TriggerCtx.AttackInfo.ActionType != string(model.ActionAttack) || ctx.TriggerCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
 	hasShield := false
@@ -1086,10 +1079,12 @@ func (h *GaleSlashHandler) CanUse(ctx *model.Context) bool {
 }
 
 func (h *GaleSlashHandler) Execute(ctx *model.Context) error {
-	// 烈风技：无视圣盾效果，被攻击目标无法应战
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [烈风技]，目标拥有圣盾，无视圣盾效果且目标无法应战", ctx.User.Name))
-	// 设置标记，表示这次攻击发动了烈风技
-	ctx.User.TurnState.GaleSlashActive = true
+	// 列风技：无视圣盾效果，被攻击目标无法应战
+	ctx.Game.Log(fmt.Sprintf("%s 发动 [列风技]，目标拥有圣盾，无视圣盾效果且目标无法应战", ctx.User.Name))
+	if ctx.TriggerCtx != nil && ctx.TriggerCtx.AttackInfo != nil {
+		ctx.TriggerCtx.AttackInfo.CanBeResponded = false
+		ctx.TriggerCtx.AttackInfo.IgnoreShield = true
+	}
 	return nil
 }
 
@@ -1133,6 +1128,9 @@ func (h *PiercingShotHandler) Execute(ctx *model.Context) error {
 	if card.Type != model.CardTypeMagic {
 		return fmt.Errorf("贯穿射击必须弃置法术牌")
 	}
+	// 文档口径为“弃1张法术牌[展示]”，因此需要走公开展示通知，
+	// 以便前端可见并驱动“打出/展示”类被动结算（如元素封印）。
+	ctx.Game.NotifyCardRevealed(ctx.User.ID, []model.Card{card}, "discard")
 	ctx.User.Hand = append(ctx.User.Hand[:idx], ctx.User.Hand[idx+1:]...)
 	ctx.Selections["discardedCards"] = []model.Card{card}
 
@@ -1195,15 +1193,35 @@ func (h *SnipeHandler) Execute(ctx *model.Context) error {
 
 type PreciseShotHandler struct{ BaseHandler }
 
-func (h *PreciseShotHandler) Execute(ctx *model.Context) error {
-	// 精准射击：此攻击强制命中，但本次攻击伤害-1
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [精准射击]，攻击强制命中但伤害-1", ctx.User.Name))
-	if ctx.TriggerCtx != nil && ctx.TriggerCtx.AttackInfo != nil {
-		ctx.TriggerCtx.AttackInfo.IsHitForced = true
-		ctx.TriggerCtx.AttackInfo.CanBeResponded = false
+func (h *PreciseShotHandler) CanUse(ctx *model.Context) bool {
+	if ctx == nil || ctx.User == nil || ctx.User.Character == nil || ctx.TriggerCtx == nil || ctx.TriggerCtx.AttackInfo == nil || ctx.TriggerCtx.Card == nil {
+		return false
 	}
-	// 设置标记，表示这次攻击强制命中
-	ctx.User.TurnState.PreciseShotActive = true
+	info := ctx.TriggerCtx.AttackInfo
+	if info.ActionType != string(model.ActionAttack) || info.CounterInitiator != "" {
+		return false
+	}
+	return ctx.TriggerCtx.Card.MatchExclusive(ctx.User.Character.Name, "精准射击")
+}
+
+func (h *PreciseShotHandler) Execute(ctx *model.Context) error {
+	// 精准射击：攻击宣告时强制命中，伤害结算时 -1。
+	if ctx == nil || ctx.TriggerCtx == nil {
+		return nil
+	}
+	switch ctx.Trigger {
+	case model.TriggerOnAttackStart:
+		ctx.Game.Log(fmt.Sprintf("%s 发动 [精准射击]，攻击强制命中但伤害-1", ctx.User.Name))
+		if ctx.TriggerCtx.AttackInfo != nil {
+			ctx.TriggerCtx.AttackInfo.IsHitForced = true
+		}
+	case model.TriggerModifyDamage:
+		if ctx.TriggerCtx.DamageVal != nil {
+			*ctx.TriggerCtx.DamageVal -= 1
+		}
+	default:
+		return nil
+	}
 	return nil
 }
 
@@ -1263,12 +1281,33 @@ func (h *BacklashHandler) Execute(ctx *model.Context) error {
 type WaterShadowHandler struct{ BaseHandler }
 
 func (h *WaterShadowHandler) CanUse(ctx *model.Context) bool {
-	// 检查是否有水系牌
+	if ctx == nil || ctx.User == nil || ctx.TriggerCtx == nil {
+		return false
+	}
+	if ctx.Trigger != model.TriggerBeforeDraw {
+		return false
+	}
+	if ctx.TriggerCtx.TargetID != "" && ctx.TriggerCtx.TargetID != ctx.User.ID {
+		return false
+	}
+	if ctx.TriggerCtx.DrawCount == nil || *ctx.TriggerCtx.DrawCount <= 0 {
+		return false
+	}
+	if ctx.TriggerCtx.ActionType == model.ActionBuy ||
+		ctx.TriggerCtx.ActionType == model.ActionSynthesize ||
+		ctx.TriggerCtx.ActionType == model.ActionExtract {
+		return false
+	}
 	return ctx.User.HasElement(model.ElementWater)
 }
 
 func (h *WaterShadowHandler) Execute(ctx *model.Context) error {
-	// 水影：弃X张水系牌，潜行状态下可额外弃法术牌，避免爆牌
+	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.TriggerCtx == nil {
+		return fmt.Errorf("水影上下文无效")
+	}
+	if ctx.Trigger != model.TriggerBeforeDraw {
+		return fmt.Errorf("水影只能在摸牌前发动")
+	}
 
 	// 获取玩家的弃牌选择
 	selection, exists := ctx.Selections["discard_indices"]
@@ -1310,14 +1349,7 @@ func (h *WaterShadowHandler) Execute(ctx *model.Context) error {
 		}
 	}
 
-	// 检查潜行状态
-	isStealthed := false
-	for _, fc := range player.Field {
-		if fc.Mode == model.FieldEffect && fc.Effect == model.EffectStealth {
-			isStealthed = true
-			break
-		}
-	}
+	isStealthed := hasAssassinStealthForm(player)
 
 	// 验证规则
 	if waterCards == 0 {
@@ -1341,13 +1373,17 @@ func (h *WaterShadowHandler) Execute(ctx *model.Context) error {
 		player.Hand = append(player.Hand[:idx], player.Hand[idx+1:]...)
 	}
 
+	ctx.Game.NotifyCardRevealed(player.ID, discardedCards, "discard")
+
 	// 将弃牌信息存储在Selections中，供外部处理
 	ctx.Selections["discardedCards"] = discardedCards
+	ctx.Flags["cancelDraw"] = true
+	*ctx.TriggerCtx.DrawCount = 0
 
 	// 记录日志
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [水影]，弃置了 %d 张水系牌", player.Name, waterCards))
+	ctx.Game.Log(fmt.Sprintf("%s 发动 [水影]，展示并弃置了 %d 张水系牌，本次摸牌改为弃牌", player.Name, waterCards))
 	if magicCards > 0 {
-		ctx.Game.Log(fmt.Sprintf("%s 额外弃置了 %d 张法术牌", player.Name, magicCards))
+		ctx.Game.Log(fmt.Sprintf("%s 处于[潜行]，额外展示并弃置了 %d 张法术牌", player.Name, magicCards))
 	}
 
 	return nil
@@ -1356,41 +1392,41 @@ func (h *WaterShadowHandler) Execute(ctx *model.Context) error {
 type StealthHandler struct{ BaseHandler }
 
 func (h *StealthHandler) CanUse(ctx *model.Context) bool {
-	// 检查是否有足够的宝石
-	if ctx.User == nil {
+	if ctx == nil || ctx.User == nil {
 		return false
 	}
-	return ctx.User.Gem >= 1 // 需要1个宝石
+	if ctx.Trigger != model.TriggerOnTurnStart {
+		return false
+	}
+	if ctx.User.Gem < 1 {
+		return false
+	}
+	return !hasAssassinStealthForm(ctx.User)
 }
 
 func (h *StealthHandler) Execute(ctx *model.Context) error {
+	if ctx == nil || ctx.User == nil || ctx.Game == nil {
+		return fmt.Errorf("潜行上下文无效")
+	}
 	// 消耗宝石
 	if ctx.User.Gem < 1 {
 		return fmt.Errorf("宝石不足，无法发动潜行")
 	}
+	if hasAssassinStealthForm(ctx.User) {
+		return fmt.Errorf("已处于潜行状态")
+	}
 	ctx.User.Gem -= 1
 
-	// 摸1张牌
-	ctx.Game.DrawCards(ctx.User.ID, 1)
-
-	// 进入潜行状态（场上效果），供后续技能和UI判定
-	if !ctx.User.HasFieldEffect(model.EffectStealth) {
-		ctx.User.AddFieldCard(&model.FieldCard{
-			Card: model.Card{
-				ID:   fmt.Sprintf("effect-stealth-%s-%d", ctx.User.ID, len(ctx.User.Field)),
-				Name: "潜行",
-				Type: model.CardTypeMagic,
-			},
-			OwnerID:  ctx.User.ID,
-			SourceID: ctx.User.ID,
-			Mode:     model.FieldEffect,
-			Effect:   model.EffectStealth,
-			Trigger:  model.EffectTriggerManual,
-			Duration: -1,
-		})
-	}
-
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [潜行]，消耗1宝石，摸1张牌并进入潜行状态", ctx.User.Name))
+	ctx.Game.PushInterrupt(&model.Interrupt{
+		Type:     model.InterruptChoice,
+		PlayerID: ctx.User.ID,
+		Context: map[string]interface{}{
+			"choice_type":   "assassin_stealth_draw",
+			"user_id":       ctx.User.ID,
+			"waiting_phase": model.NormalizeResumePoint(model.TurnStageActionStart),
+		},
+	})
+	ctx.Game.Log(fmt.Sprintf("%s 发动 [潜行]，消耗1宝石，等待选择是否摸1张牌后进入潜行状态", ctx.User.Name))
 	return nil
 }
 
@@ -1481,88 +1517,100 @@ func (h *HealHandler) Execute(ctx *model.Context) error {
 type SaintHealHandler struct{ BaseHandler }
 
 func (h *SaintHealHandler) Execute(ctx *model.Context) error {
-	// 圣疗：[水晶] 任意分配3点治疗给1~3名角色，额外+1攻击行动
-	// 资源扣除由 UseSkill 统一处理，这里不重复扣费。
-
+	// 圣疗：[水晶] 任意分配3点治疗给1~3名角色，再选择额外+1攻击行动或法术行动。
 	targets := ctx.Targets
 	if len(targets) == 0 && ctx.Target != nil {
 		targets = []*model.Player{ctx.Target}
 	}
-	if len(targets) == 0 {
-		return fmt.Errorf("需要指定目标")
+	if len(targets) == 0 || len(targets) > 3 {
+		return fmt.Errorf("圣疗需要指定1-3名目标")
 	}
 
-	// 检查是否传入了分配参数（Args）
-	// Args 格式: ["目标1治疗点数", "目标2治疗点数", ...]
-	if ctx.Args != nil && len(ctx.Args) > 0 {
-		// 自定义分配模式
-		totalHeal := 0
-		for i, t := range targets {
-			if i < len(ctx.Args) {
-				healAmount, err := strconv.Atoi(ctx.Args[i])
-				if err == nil && healAmount > 0 {
-					ctx.Game.Heal(t.ID, healAmount)
-					ctx.Game.Log(fmt.Sprintf("[Skill] %s 获得 %d 点治疗", t.Name, healAmount))
-					totalHeal += healAmount
-				}
-			}
+	targetIDs := make([]string, 0, len(targets))
+	for _, target := range targets {
+		if target == nil {
+			continue
 		}
-		if totalHeal != 3 {
-			ctx.Game.Log(fmt.Sprintf("[Warning] 圣疗治疗分配总计 %d 点，应为3点", totalHeal))
-		}
+		targetIDs = append(targetIDs, target.ID)
+	}
+	if len(targetIDs) == 0 {
+		return fmt.Errorf("圣疗缺少有效目标")
+	}
+
+	data := map[string]interface{}{
+		"targets": targetIDs,
+	}
+	if len(targetIDs) == 2 {
+		data["stage"] = "allocate_heal"
 	} else {
-		// 默认分配逻辑：
-		// 1个目标: +3
-		// 2个目标: +2, +1
-		// 3个目标: +1, +1, +1
-		points := 3
-		for i, t := range targets {
-			if points <= 0 {
-				break
+		data["stage"] = "choose_extra_action"
+		allocations := map[string]int{}
+		if len(targetIDs) == 1 {
+			allocations[targetIDs[0]] = 3
+		} else {
+			for _, targetID := range targetIDs {
+				allocations[targetID] = 1
 			}
-			healAmount := 1
-			if len(targets) == 1 {
-				healAmount = 3
-			} else if len(targets) == 2 && i == 0 {
-				healAmount = 2
-			}
-
-			ctx.Game.Heal(t.ID, healAmount)
-			ctx.Game.Log(fmt.Sprintf("[Skill] %s 获得 %d 点治疗", t.Name, healAmount))
-			points -= healAmount
 		}
+		data["allocations"] = allocations
 	}
 
-	// 额外攻击行动
-	token := model.ActionContext{
-		Source:   "圣疗",
-		MustType: "Attack",
-	}
-	ctx.User.TurnState.PendingActions = append(ctx.User.TurnState.PendingActions, token)
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [圣疗]，分配治疗并获得额外攻击行动", ctx.User.Name))
+	ctx.Game.PushInterrupt(&model.Interrupt{
+		Type:     model.InterruptSaintHeal,
+		PlayerID: ctx.User.ID,
+		Context:  data,
+	})
+	ctx.Game.Log(fmt.Sprintf("%s 发动 [圣疗]，等待分配治疗并选择额外行动类型", ctx.User.Name))
 	return nil
 }
 
 type MercyHandler struct{ BaseHandler }
 
+func (h *MercyHandler) CanUse(ctx *model.Context) bool {
+	if ctx == nil || ctx.User == nil {
+		return false
+	}
+	if ctx.Trigger != model.TriggerOnTurnStart {
+		return false
+	}
+	if ctx.User.Gem < 1 {
+		return false
+	}
+	return !ctx.User.HasFieldEffect(model.EffectMercy)
+}
+
 func (h *MercyHandler) Execute(ctx *model.Context) error {
 	user := ctx.User
 	game := ctx.Game
 
-	// 怜悯：持续状态，宝石，水晶+1，手牌上限恒定为7
-	// 消耗宝石
+	if user == nil || game == nil {
+		return fmt.Errorf("怜悯上下文无效")
+	}
+	if user.Gem < 1 {
+		return fmt.Errorf("宝石不足，无法发动怜悯")
+	}
+	if user.HasFieldEffect(model.EffectMercy) {
+		return fmt.Errorf("已处于怜悯状态")
+	}
+
+	// 怜悯：进入持续状态，横置并使手牌上限恒定为7，同时自己+1水晶。
 	user.Gem -= 1
+	user.Crystal += 1
 
-	// 给己方阵营 +1 水晶
-	camp := user.Camp
-	game.ModifyCrystal(string(camp), 1)
+	user.AddFieldCard(&model.FieldCard{
+		Card: model.Card{
+			ID:      fmt.Sprintf("effect-mercy-%s-%d", user.ID, len(user.Field)),
+			Name:    "怜悯",
+			Type:    model.CardTypeMagic,
+			Element: model.ElementLight,
+		},
+		OwnerID:  user.ID,
+		SourceID: user.ID,
+		Mode:     model.FieldEffect,
+		Effect:   model.EffectMercy,
+	})
 
-	// 修改最大手牌 (需要引擎支持动态修改或 flag)
-	user.MaxHand = 7
-	// 设置Flag防止重置? 或 TurnStart 自动重置?
-	// 描述 "恒定为7".
-
-	game.Log(fmt.Sprintf("%s 的怜悯发动，获得1水晶，手牌上限恒定为7", user.Name))
+	game.Log(fmt.Sprintf("%s 发动 [怜悯]：横置并获得1水晶，手牌上限恒定为7", user.Name))
 	return nil
 }
 
@@ -1571,46 +1619,16 @@ func (h *MercyHandler) Execute(ctx *model.Context) error {
 type MagicBulletControlHandler struct{ BaseHandler }
 
 func (h *MagicBulletControlHandler) Execute(ctx *model.Context) error {
-	// 魔弹掌控：主动使用魔弹时可以选择逆向传递
-	// 设置标记，在 PerformMagic 逻辑中检查
-	// 或者如果此时魔弹链已经启动，尝试修改方向?
-	// TriggerOnAttackStart (Using Magic Bullet)
-	// 假设引擎检查 TurnState.MagicBulletReverse
-	// 这里我们需要在 PlayerTurnState 中加个字段? 或者 Context Flag?
-
-	// 暂且打印日志，实际方向控制需要在 PerformMagic 中实现
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [魔弹掌控]，魔弹将逆向传递", ctx.User.Name))
-	// TODO: Implement direction reversal in Engine
+	// 魔弹掌控由 magic.go/game.go 中的魔弹中断链路直接处理；
+	// 这里保留 handler 仅用于维持技能注册表完整。
 	return nil
 }
 
 type MagicBulletFusionHandler struct{ BaseHandler }
 
 func (h *MagicBulletFusionHandler) Execute(ctx *model.Context) error {
-	if ctx == nil || ctx.User == nil {
-		return fmt.Errorf("上下文无效")
-	}
-	var fusionCard *model.Card
-	if ctx.Selections != nil {
-		if cards, ok := ctx.Selections["discardedCards"].([]model.Card); ok && len(cards) > 0 {
-			c := cards[0]
-			fusionCard = &c
-		}
-	}
-	if fusionCard == nil {
-		return fmt.Errorf("魔弹融合缺少弃牌信息")
-	}
-	// 视为发动魔弹，并沿用“魔弹掌控”方向选择流程。
-	ctx.Game.PushInterrupt(&model.Interrupt{
-		Type:     model.InterruptMagicBulletDirection,
-		PlayerID: ctx.User.ID,
-		Context: map[string]interface{}{
-			"source_id":   ctx.User.ID,
-			"is_fusion":   true,
-			"fusion_card": *fusionCard,
-		},
-	})
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [魔弹融合]，弃置 %s 并视为发动【魔弹】", ctx.User.Name, fusionCard.Name))
+	// 魔弹融合由 PerformMagic 触发的确认中断统一处理；
+	// 这里保留 handler 仅用于维持技能注册表完整。
 	return nil
 }
 
@@ -1627,34 +1645,18 @@ func (h *MagicBlastHandler) CanUse(ctx *model.Context) bool {
 }
 
 func (h *MagicBlastHandler) Execute(ctx *model.Context) error {
-	// 魔爆冲击复杂逻辑：
-	// 1. 弃一张地系牌（已在 UseSkill 弃牌检查中处理）
-	// 2. 战绩区+1红宝石
-	// 3. 选择两个目标对手，他们各需弃一张法术牌
-	// 4. 未弃者受2点伤害，同时魔法少女弃一张牌
-
-	// 弃牌已处理，战绩区+1宝石
+	// 弃牌代价已在 UseSkill 中处理；这里从“我方战绩区 +1 宝石”开始。
 	ctx.Game.ModifyGem(string(ctx.User.Camp), 1)
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [魔爆冲击]，弃地系牌后战绩区+1宝石", ctx.User.Name))
+	ctx.Game.Log(fmt.Sprintf("%s 发动 [魔爆冲击]，我方战绩区+1宝石", ctx.User.Name))
 
-	// 获取两个目标
 	targets := ctx.Targets
 	if len(targets) == 0 && ctx.Target != nil {
 		targets = []*model.Player{ctx.Target}
 	}
-
-	if len(targets) == 0 {
-		// 如果没有选择目标，技能效果结束
-		ctx.Game.Log("[Skill] 魔爆冲击：未选择目标")
-		return nil
+	if len(targets) != 2 {
+		return fmt.Errorf("魔爆冲击需要且只能指定2名敌方目标")
 	}
 
-	// 限制最多2个目标
-	if len(targets) > 2 {
-		targets = targets[:2]
-	}
-
-	// 推送魔爆冲击中断，让目标玩家选择弃法术牌
 	targetIDs := make([]string, len(targets))
 	for i, t := range targets {
 		targetIDs[i] = t.ID
@@ -1665,10 +1667,10 @@ func (h *MagicBlastHandler) Execute(ctx *model.Context) error {
 		PlayerID: targetIDs[0], // 第一个目标先响应
 		Context: map[string]interface{}{
 			"choice_type":    "magic_blast",
+			"stage":          "target_discard",
 			"caster_id":      ctx.User.ID,
 			"targets":        targetIDs,
 			"current_target": 0,
-			"failed_count":   0, // 未弃牌的目标数
 		},
 	})
 	ctx.Game.Log(fmt.Sprintf("[Skill] %s 需要选择弃一张法术牌或受到2点伤害", targets[0].Name))
@@ -1680,15 +1682,12 @@ type DestructionStormHandler struct{ BaseHandler }
 
 func (h *DestructionStormHandler) Execute(ctx *model.Context) error {
 	// 毁灭风暴：[宝石] 对任2名目标对手各造成2点法术伤害
-	ctx.User.Gem -= 1
-
 	targets := ctx.Targets
 	if len(targets) == 0 && ctx.Target != nil {
 		targets = []*model.Player{ctx.Target}
 	}
-
-	if len(targets) == 0 {
-		return fmt.Errorf("需要指定目标")
+	if len(targets) != 2 {
+		return fmt.Errorf("毁灭风暴需要且只能指定2名敌方目标")
 	}
 
 	for _, t := range targets {

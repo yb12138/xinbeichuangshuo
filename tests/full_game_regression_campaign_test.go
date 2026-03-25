@@ -126,7 +126,7 @@ func buildDirectedScenarios() []directedScenarioPlan {
 			Name:              "S6_blademaster_break_shield",
 			Lineup:            []string{"blade_master", "saintess", "sealer", "angel", "magical_girl", "adventurer"},
 			Runs:              16,
-			TargetSkillTitles: []string{"烈风技", "剑影"},
+			TargetSkillTitles: []string{"列风技", "剑影"},
 			RoleActionOrder: map[string][]string{
 				"blade_master": {autoPlanActionAttack, autoPlanActionBuy, autoPlanActionExtract, autoPlanActionSkill, autoPlanActionMagic},
 				"saintess":     {autoPlanActionAttack, autoPlanActionBuy, autoPlanActionExtract, autoPlanActionSkill, autoPlanActionMagic},

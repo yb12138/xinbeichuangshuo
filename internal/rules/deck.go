@@ -95,7 +95,7 @@ func InitDeck() []model.Card {
 		"血", "狂战士", "血之巫女", "血腥咆哮", "血之悲鸣")
 	// 技命格 * 5
 	addExclusiveCards("地裂斩", model.CardTypeAttack, model.ElementEarth, 5, 2, "基础攻击，持有者可使用独有技",
-		"技", "风之剑圣", "神箭手", "烈风技", "精准射击")
+		"技", "风之剑圣", "神箭手", "列风技", "精准射击")
 	// 圣命格 * 3
 	addExclusiveCards("地裂斩", model.CardTypeAttack, model.ElementEarth, 3, 2, "基础攻击，持有者可使用独有技",
 		"圣", "圣女", "", "治疗术", "")
@@ -110,9 +110,9 @@ func InitDeck() []model.Card {
 	// 血命格 * 4
 	addExclusiveCards("风神斩", model.CardTypeAttack, model.ElementWind, 4, 2, "基础攻击，持有者可使用独有技",
 		"血", "狂战士", "血之巫女", "血腥咆哮", "血之悲鸣")
-	// 技命格 * 5 (烈风技/精准射击 * 2, 疾风技/精准射击 * 3)
+	// 技命格 * 5 (列风技/精准射击 * 2, 疾风技/精准射击 * 3)
 	addExclusiveCards("风神斩", model.CardTypeAttack, model.ElementWind, 2, 2, "基础攻击，持有者可使用独有技",
-		"技", "风之剑圣", "神箭手", "烈风技", "精准射击")
+		"技", "风之剑圣", "神箭手", "列风技", "精准射击")
 	addExclusiveCards("风神斩", model.CardTypeAttack, model.ElementWind, 3, 2, "基础攻击，持有者可使用独有技",
 		"技", "风之剑圣", "神箭手", "疾风技", "精准射击")
 	// 圣命格 * 3
@@ -129,9 +129,9 @@ func InitDeck() []model.Card {
 	// 血命格 * 4
 	addExclusiveCards("雷光斩", model.CardTypeAttack, model.ElementThunder, 4, 2, "基础攻击，持有者可使用独有技",
 		"血", "狂战士", "血之巫女", "血影狂刀", "血之悲鸣")
-	// 技命格 * 4 (烈风技/精准射击 * 2, 疾风技/精准射击 * 2)
+	// 技命格 * 4 (列风技/精准射击 * 2, 疾风技/精准射击 * 2)
 	addExclusiveCards("雷光斩", model.CardTypeAttack, model.ElementThunder, 2, 2, "基础攻击，持有者可使用独有技",
-		"技", "风之剑圣", "神箭手", "烈风技", "精准射击")
+		"技", "风之剑圣", "神箭手", "列风技", "精准射击")
 	addExclusiveCards("雷光斩", model.CardTypeAttack, model.ElementThunder, 2, 2, "基础攻击，持有者可使用独有技",
 		"技", "风之剑圣", "神箭手", "疾风技", "精准射击")
 	// 圣命格 * 4

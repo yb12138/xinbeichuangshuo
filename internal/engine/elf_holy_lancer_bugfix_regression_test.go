@@ -28,7 +28,7 @@ func TestElfElementalShotThunder_DisablesCounterResponse(t *testing.T) {
 
 	game.State.CurrentTurn = 0
 	game.State.Deck = rules.InitDeck()
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]
@@ -101,13 +101,18 @@ func TestElfPetEmpower_OverflowConsumesDiscardOnlyOnce(t *testing.T) {
 
 	game.State.CurrentTurn = 0
 	game.State.Deck = rules.InitDeck()
-	game.State.Phase = model.PhaseResponse
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]
+	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
 	p2.TurnState = model.NewPlayerTurnState()
-	p2.Hand = make([]model.Card, game.GetMaxHand(p2))
+	p1.Crystal = 1
+	p1.Hand = []model.Card{
+		{ID: "atk-dark", Name: "暗斩", Type: model.CardTypeAttack, Element: model.ElementDark, Damage: 1},
+	}
+	p2.Hand = make([]model.Card, game.GetMaxHand(p2)-1)
 	for i := range p2.Hand {
 		p2.Hand[i] = model.Card{
 			ID:      "h" + string(rune('a'+i)),
@@ -118,20 +123,30 @@ func TestElfPetEmpower_OverflowConsumesDiscardOnlyOnce(t *testing.T) {
 		}
 	}
 
-	game.State.PendingInterrupt = &model.Interrupt{
-		Type:     model.InterruptChoice,
-		PlayerID: "p1",
-		Context: map[string]interface{}{
-			"choice_type": "elf_pet_empower_target",
-			"user_id":     "p1",
-			"target_ids":  []string{"p2"},
-		},
+	mustDo(t, game, model.PlayerAction{
+		PlayerID:  "p1",
+		Type:      model.CmdAttack,
+		TargetID:  "p2",
+		CardIndex: 0,
+	})
+
+	mustDo(t, game, model.PlayerAction{
+		PlayerID:  "p2",
+		Type:      model.CmdRespond,
+		ExtraArgs: []string{"take"},
+	})
+	requireResponseSkillPrompt(t, game, "p1")
+	if skillIndex(game.State.PendingInterrupt.SkillIDs, "elf_animal_companion") < 0 ||
+		skillIndex(game.State.PendingInterrupt.SkillIDs, "elf_pet_empower") < 0 {
+		t.Fatalf("expected animal companion and pet empower in pending skills, got %+v", game.State.PendingInterrupt.SkillIDs)
 	}
 
 	mustDo(t, game, model.PlayerAction{
-		PlayerID:   "p1",
-		Type:       model.CmdSelect,
-		Selections: []int{0},
+		PlayerID: "p1",
+		Type:     model.CmdSelect,
+		Selections: []int{
+			skillIndex(game.State.PendingInterrupt.SkillIDs, "elf_pet_empower"),
+		},
 	})
 
 	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptDiscard {
@@ -142,6 +157,9 @@ func TestElfPetEmpower_OverflowConsumesDiscardOnlyOnce(t *testing.T) {
 	}
 	if len(game.State.InterruptQueue) != 0 {
 		t.Fatalf("expected no extra queued discard interrupt, got queue size %d", len(game.State.InterruptQueue))
+	}
+	if p1.Crystal != 0 {
+		t.Fatalf("expected pet empower to consume exactly 1 crystal, got %d", p1.Crystal)
 	}
 }
 
@@ -157,7 +175,7 @@ func TestHolyLancer_EarthSpearAndHolyStrikeMutualExclusion(t *testing.T) {
 
 	game.State.CurrentTurn = 0
 	game.State.Deck = rules.InitDeck()
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]
@@ -218,7 +236,7 @@ func TestHolyLancer_SkySpearDisablesCounterResponse(t *testing.T) {
 
 	game.State.CurrentTurn = 0
 	game.State.Deck = rules.InitDeck()
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]

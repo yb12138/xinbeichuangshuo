@@ -26,7 +26,7 @@ func TestArcher_Skills(t *testing.T) {
 		p2 := game.State.Players["p2"]
 		p1.IsActive = true
 		p1.TurnState = model.NewPlayerTurnState()
-		game.State.Phase = model.PhaseActionSelection
+		game.State.TurnStage = model.TurnStageActionExecution
 
 		// P1 攻击牌 + 法术牌(用于消耗)
 		p1.Hand = []model.Card{
@@ -76,8 +76,9 @@ func TestArcher_Skills(t *testing.T) {
 		}
 
 		// 贯穿射击结算后，战斗应继续到反弹目标 p3。
-		if game.State.Phase != model.PhaseCombatInteraction {
-			t.Fatalf("预期处于 CombatInteraction，实际: %s", game.State.Phase)
+		if !(game.State.Subflow == model.SubflowNone &&
+			(game.State.CombatStage == model.CombatStageDeclare || game.State.CombatStage == model.CombatStageHitCheck)) {
+			t.Fatalf("预期处于战斗交互窗口，实际: turn=%s combat=%s subflow=%s", game.State.TurnStage, game.State.CombatStage, game.State.Subflow)
 		}
 		if len(game.State.CombatStack) == 0 || game.State.CombatStack[len(game.State.CombatStack)-1].TargetID != "p3" {
 			t.Fatalf("预期当前被反弹攻击目标是 p3，实际战斗栈: %+v", game.State.CombatStack)
@@ -116,7 +117,7 @@ func TestArcher_Skills(t *testing.T) {
 		// p2 := game.State.Players["p2"] // Unused
 		p1.IsActive = true
 		p1.TurnState = model.NewPlayerTurnState()
-		game.State.Phase = model.PhaseActionSelection
+		game.State.TurnStage = model.TurnStageActionExecution
 
 		p1.Crystal = 1
 		p1.Hand = []model.Card{{}} // 1 card
@@ -159,7 +160,7 @@ func TestArcher_Skills(t *testing.T) {
 		p2 := game.State.Players["p2"]
 		p1.IsActive = true
 		p1.TurnState = model.NewPlayerTurnState()
-		game.State.Phase = model.PhaseActionSelection
+		game.State.TurnStage = model.TurnStageActionExecution
 
 		p1.Hand = []model.Card{
 			{

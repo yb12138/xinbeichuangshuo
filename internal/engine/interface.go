@@ -3,7 +3,6 @@ package engine
 import (
 	"fmt"
 	"starcup-engine/internal/model"
-	"starcup-engine/internal/rules"
 )
 
 // Ensure GameEngine implements IGameEngine
@@ -62,6 +61,23 @@ func (e *GameEngine) GetUsableCrystal(playerID string) int {
 		return 0
 	}
 	return p.Crystal + p.Gem
+}
+
+func (e *GameEngine) GetPlayerOrientation(playerID string) model.CharacterOrientation {
+	player := e.State.Players[playerID]
+	return effectivePlayerOrientation(player)
+}
+
+func (e *GameEngine) GetPlayerForm(playerID string) string {
+	player := e.State.Players[playerID]
+	return effectivePlayerForm(player)
+}
+
+func (e *GameEngine) RefreshPlayerDerivedState(playerID string) {
+	if e == nil || e.State == nil {
+		return
+	}
+	e.refreshPlayerDerivedState(e.State.Players[playerID])
 }
 
 func (e *GameEngine) CanPayCrystalCost(playerID string, amount int) bool {
@@ -143,39 +159,28 @@ func (e *GameEngine) DrawCards(playerID string, amount int) {
 		return
 	}
 
-	// 摸牌前触发（需携带 DrawCount 供水影等技能在中断后恢复摸牌）
-	drawCount := amount
-	drawEventCtx := &model.EventContext{
-		Type:      model.EventBeforeDraw,
-		SourceID:  playerID,
-		TargetID:  playerID,
-		DrawCount: &drawCount,
+	ctx := e.newDrawContextWithOptions(p, amount, "draw", model.DrawOptions{})
+	if ctx == nil {
+		return
 	}
-	ctx := e.buildContext(p, nil, model.TriggerBeforeDraw, drawEventCtx)
-	if p.Tokens != nil && p.Tokens["elf_ritual_suppress_overflow"] > 0 {
-		ctx.Flags["preventOverflow"] = true
-	}
+	e.startDraw(ctx)
+}
 
-	e.dispatcher.OnTrigger(model.TriggerBeforeDraw, ctx)
-
-	if ctx.Flags["cancelDraw"] {
-		e.Log(fmt.Sprintf("%s 的摸牌被取消", p.Name))
+func (e *GameEngine) DrawCardsWithOptions(playerID string, amount int, opts model.DrawOptions) {
+	p := e.State.Players[playerID]
+	if p == nil {
 		return
 	}
 
-	// 真正摸牌
-	cards, newDeck, newDiscard := rules.DrawCards(e.State.Deck, e.State.DiscardPile, amount)
-	e.State.Deck = newDeck
-	e.State.DiscardPile = newDiscard
-	p.Hand = append(p.Hand, cards...)
-	e.NotifyDrawCards(playerID, amount, "draw")
+	ctx := e.newDrawContextWithOptions(p, amount, opts.Reason, opts)
+	if ctx == nil {
+		return
+	}
+	e.startDraw(ctx)
+}
 
-	// 摸牌后触发
-	ctx.Trigger = model.TriggerAfterDraw
-	e.dispatcher.OnTrigger(model.TriggerAfterDraw, ctx)
-
-	e.checkHandLimit(p, ctx)
-	e.Log(fmt.Sprintf("%s 摸了 %d 张牌", p.Name, amount))
+func (e *GameEngine) EnqueueDeferredFollowup(f model.DeferredFollowup) {
+	e.enqueueDeferredFollowup(f)
 }
 
 func (e *GameEngine) AppendToDiscard(cards []model.Card) {
@@ -218,7 +223,6 @@ func (e *GameEngine) InflictDamage(sourceID, targetID string, amount int, damage
 		TargetID:   targetID,
 		Damage:     amount,
 		DamageType: damageType,
-		Stage:      0,
 		Card: &model.Card{
 			Name:        "直接伤害",
 			Type:        model.CardTypeMagic, // 默认为法术类型，如果是Attack通常走Combat流程
@@ -237,9 +241,6 @@ func (e *GameEngine) emitBuffRemovedTrigger(sourceID, targetID string, effect mo
 	if target == nil {
 		return
 	}
-	if sourceID == "" {
-		sourceID = targetID
-	}
 	eventCtx := &model.EventContext{
 		Type:     model.EventBuffRemoved,
 		SourceID: sourceID, // 谁移除了基础效果
@@ -248,6 +249,21 @@ func (e *GameEngine) emitBuffRemovedTrigger(sourceID, targetID string, effect mo
 	}
 	ctx := e.buildContext(target, nil, model.TriggerOnBuffRemoved, eventCtx)
 	e.dispatcher.OnTrigger(model.TriggerOnBuffRemoved, ctx)
+}
+
+func (e *GameEngine) emitBuffAddedTrigger(sourceID, targetID string, effect model.EffectType) {
+	target := e.State.Players[targetID]
+	if target == nil {
+		return
+	}
+	eventCtx := &model.EventContext{
+		Type:     model.EventBuff,
+		SourceID: sourceID,
+		TargetID: targetID,
+		BuffID:   string(effect),
+	}
+	ctx := e.buildContext(target, nil, model.TriggerOnBuffAdded, eventCtx)
+	e.dispatcher.OnTrigger(model.TriggerOnBuffAdded, ctx)
 }
 
 func (e *GameEngine) RemoveFieldCard(targetID string, effect model.EffectType) bool {

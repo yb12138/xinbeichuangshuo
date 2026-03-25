@@ -38,7 +38,7 @@ func promptHasOption(prompt *model.Prompt, id string) bool {
 	return false
 }
 
-func TestMagicSwordsmanYellowSpring_ForcesDarkAndNoCounter(t *testing.T) {
+func TestMagicSwordsmanYellowSpring_NoCounterKeepsOriginalElementAndConsumesGem(t *testing.T) {
 	g := NewGameEngine(nil)
 	if err := g.AddPlayer("p1", "MS", "magic_swordsman", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -67,7 +67,7 @@ func TestMagicSwordsmanYellowSpring_ForcesDarkAndNoCounter(t *testing.T) {
 		{ID: "counter_dark", Name: "暗灭", Type: model.CardTypeAttack, Element: model.ElementDark, Damage: 1},
 	}
 	g.State.CurrentTurn = 0
-	g.State.Phase = model.PhaseActionSelection
+	g.State.TurnStage = model.TurnStageActionExecution
 
 	if err := g.HandleAction(model.PlayerAction{
 		PlayerID:  "p1",
@@ -94,11 +94,14 @@ func TestMagicSwordsmanYellowSpring_ForcesDarkAndNoCounter(t *testing.T) {
 		t.Fatalf("expected combat stack after confirming yellow spring")
 	}
 	top := g.State.CombatStack[len(g.State.CombatStack)-1]
-	if top.Card == nil || top.Card.Element != model.ElementDark {
-		t.Fatalf("expected attack element forced to dark, got %+v", top.Card)
+	if top.Card == nil || top.Card.Element != model.ElementFire {
+		t.Fatalf("expected attack element remain fire, got %+v", top.Card)
 	}
 	if top.CanBeResponded {
 		t.Fatalf("expected attack cannot be countered after yellow spring")
+	}
+	if p1.Gem != 0 {
+		t.Fatalf("expected yellow spring consume 1 gem, got %d", p1.Gem)
 	}
 
 	// 兜底校验：即使防守方手里有可应战牌，也应被禁止应战。
@@ -114,7 +117,7 @@ func TestMagicSwordsmanYellowSpring_ForcesDarkAndNoCounter(t *testing.T) {
 	}
 }
 
-func TestCrimsonBloodBarrierPrompt_CanCancel(t *testing.T) {
+func TestCrimsonBloodBarrier_AutoDamagesSourceWithoutPrompt(t *testing.T) {
 	g := NewGameEngine(nil)
 	if err := g.AddPlayer("p1", "CSS", "crimson_sword_spirit", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -146,34 +149,29 @@ func TestCrimsonBloodBarrierPrompt_CanCancel(t *testing.T) {
 		t.Fatalf("execute css_blood_barrier failed: %v", err)
 	}
 
-	if ct := pendingChoiceType(g.State.PendingInterrupt); ct != "css_blood_barrier_counter_confirm" {
-		t.Fatalf("expected css_blood_barrier_counter_confirm, got %q", ct)
-	}
-	prompt := g.buildChoicePrompt()
-	if !promptHasOption(prompt, "cancel") {
-		t.Fatalf("expected cancel option in css blood barrier confirm prompt, got %+v", prompt)
-	}
-
-	if err := g.handleInterruptAction(model.PlayerAction{
-		PlayerID: "p1",
-		Type:     model.CmdCancel,
-	}); err != nil {
-		t.Fatalf("cancel css blood barrier confirm failed: %v", err)
-	}
 	if g.State.PendingInterrupt != nil {
-		t.Fatalf("expected interrupt cleared after cancel, got %+v", g.State.PendingInterrupt)
+		t.Fatalf("expected no extra prompt for css blood barrier, got %+v", g.State.PendingInterrupt)
 	}
-	if len(g.State.PendingDamageQueue) != 0 {
-		t.Fatalf("cancel should not enqueue extra damage, got %+v", g.State.PendingDamageQueue)
+	if damage != 1 {
+		t.Fatalf("expected damage reduced to 1, got %d", damage)
+	}
+	if len(g.State.PendingDamageQueue) != 1 {
+		t.Fatalf("expected 1 reflected damage queued, got %+v", g.State.PendingDamageQueue)
+	}
+	if g.State.PendingDamageQueue[0].TargetID != "p2" {
+		t.Fatalf("expected reflected damage target source p2, got %+v", g.State.PendingDamageQueue[0])
 	}
 }
 
-func TestCrimsonBloodBarrierTargetPrompt_CanCancel(t *testing.T) {
+func TestCrimsonBloodBarrier_DoesNotRetargetOtherEnemy(t *testing.T) {
 	g := NewGameEngine(nil)
 	if err := g.AddPlayer("p1", "CSS", "crimson_sword_spirit", model.RedCamp); err != nil {
 		t.Fatal(err)
 	}
 	if err := g.AddPlayer("p2", "Enemy", "angel", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.AddPlayer("p3", "OtherEnemy", "berserker", model.BlueCamp); err != nil {
 		t.Fatal(err)
 	}
 
@@ -196,34 +194,11 @@ func TestCrimsonBloodBarrierTargetPrompt_CanCancel(t *testing.T) {
 	if err := handler.Execute(ctx); err != nil {
 		t.Fatalf("execute css_blood_barrier failed: %v", err)
 	}
-
-	if err := g.handleInterruptAction(model.PlayerAction{
-		PlayerID:   "p1",
-		Type:       model.CmdSelect,
-		Selections: []int{0}, // 是 -> 进入选目标
-	}); err != nil {
-		t.Fatalf("confirm css blood barrier extra damage failed: %v", err)
+	if len(g.State.PendingDamageQueue) != 1 {
+		t.Fatalf("expected exactly 1 reflected damage, got %+v", g.State.PendingDamageQueue)
 	}
-
-	if ct := pendingChoiceType(g.State.PendingInterrupt); ct != "css_blood_barrier_target" {
-		t.Fatalf("expected css_blood_barrier_target, got %q", ct)
-	}
-	prompt := g.buildChoicePrompt()
-	if !promptHasOption(prompt, "cancel") {
-		t.Fatalf("expected cancel option in css blood barrier target prompt, got %+v", prompt)
-	}
-
-	if err := g.handleInterruptAction(model.PlayerAction{
-		PlayerID: "p1",
-		Type:     model.CmdCancel,
-	}); err != nil {
-		t.Fatalf("cancel css blood barrier target failed: %v", err)
-	}
-	if g.State.PendingInterrupt != nil {
-		t.Fatalf("expected interrupt cleared after cancel, got %+v", g.State.PendingInterrupt)
-	}
-	if len(g.State.PendingDamageQueue) != 0 {
-		t.Fatalf("cancel target selection should not enqueue extra damage, got %+v", g.State.PendingDamageQueue)
+	if g.State.PendingDamageQueue[0].TargetID != "p2" {
+		t.Fatalf("expected reflected damage locked to original source p2, got %+v", g.State.PendingDamageQueue[0])
 	}
 }
 
@@ -242,7 +217,7 @@ func TestPrayerManaTide_TriggersAfterMagicActionEnd(t *testing.T) {
 	p1.TurnState = model.NewPlayerTurnState()
 	p1.TurnState.LastActionType = string(model.ActionMagic)
 	g.State.CurrentTurn = 0
-	g.State.Phase = model.PhaseExtraAction
+	g.State.TurnStage = model.TurnStageExtraAction
 
 	g.Drive()
 
@@ -275,7 +250,7 @@ func TestPrayerSwiftBlessing_StillTriggersAfterPhaseEndInterrupt(t *testing.T) {
 		Trigger: model.EffectTriggerManual,
 	})
 	g.State.CurrentTurn = 0
-	g.State.Phase = model.PhaseExtraAction
+	g.State.TurnStage = model.TurnStageExtraAction
 
 	g.Drive()
 	if g.State.PendingInterrupt == nil || g.State.PendingInterrupt.Type != model.InterruptResponseSkill {

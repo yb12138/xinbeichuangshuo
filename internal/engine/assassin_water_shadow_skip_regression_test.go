@@ -8,7 +8,7 @@ import (
 )
 
 // 回归：暗杀者在受伤摸牌前出现【水影】响应时，选择“跳过”后必须回到伤害结算流程，
-// 不能停留在 PhaseResponse 导致 Drive 空转。
+// 不能停留在 Response 子流程导致 Drive 空转。
 func TestAssassinWaterShadowSkip_ResumesPendingDamageResolution(t *testing.T) {
 	game := NewGameEngine(&captureObserver{})
 	if err := game.AddPlayer("p1", "Attacker", "berserker", model.RedCamp); err != nil {
@@ -19,7 +19,7 @@ func TestAssassinWaterShadowSkip_ResumesPendingDamageResolution(t *testing.T) {
 	}
 
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 	game.State.Deck = rules.InitDeck()
 
 	p1 := game.State.Players["p1"]
@@ -83,7 +83,7 @@ func TestAssassinWaterShadowSkip_ResumesPendingDamageResolution(t *testing.T) {
 	if game.State.PendingInterrupt != nil {
 		t.Fatalf("expected no pending interrupt after skip, got %+v", game.State.PendingInterrupt)
 	}
-	if game.State.Phase == model.PhaseResponse {
-		t.Fatalf("phase should not stay in response after skip (would stall drive)")
+	if game.State.Subflow == model.SubflowResponse {
+		t.Fatalf("subflow should not stay in response after skip (would stall drive)")
 	}
 }

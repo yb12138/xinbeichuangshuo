@@ -28,7 +28,7 @@ func TestBuildAvailableActionSkills_ElementalistIgniteAndMoonlightGating(t *test
 	}
 
 	room.Engine.State.CurrentTurn = 0
-	room.Engine.State.Phase = model.PhaseActionSelection
+	room.Engine.State.TurnStage = model.TurnStageActionExecution
 	p1 := room.Engine.State.Players["p1"]
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()

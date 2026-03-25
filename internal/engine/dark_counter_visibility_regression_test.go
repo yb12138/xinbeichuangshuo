@@ -20,7 +20,7 @@ func TestDarkAttack_CombatRequestNotRespondable(t *testing.T) {
 
 	g.State.CurrentTurn = 0
 	g.State.Deck = rules.InitDeck()
-	g.State.Phase = model.PhaseActionSelection
+	g.State.TurnStage = model.TurnStageActionExecution
 
 	p1 := g.State.Players["p1"]
 	p2 := g.State.Players["p2"]

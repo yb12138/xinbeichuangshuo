@@ -89,7 +89,7 @@ func TestValkyrie_ComboChain_FullFlow(t *testing.T) {
 
 	game.State.CurrentTurn = 0
 	game.State.Deck = rules.InitDeck()
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]
@@ -115,8 +115,8 @@ func TestValkyrie_ComboChain_FullFlow(t *testing.T) {
 
 	// 2) 神圣追击后应进入额外攻击行动
 	game.Drive()
-	if game.State.Phase != model.PhaseActionSelection {
-		t.Fatalf("expected phase ActionSelection after divine pursuit, got %s", game.State.Phase)
+	if !game.isActionSelectionWindow() {
+		t.Fatalf("expected action selection window after divine pursuit, got %s", game.runtimeStateLabel())
 	}
 	if p1.TurnState.CurrentExtraAction != "Attack" {
 		t.Fatalf("expected current extra action=Attack, got %s", p1.TurnState.CurrentExtraAction)
@@ -141,42 +141,25 @@ func TestValkyrie_ComboChain_FullFlow(t *testing.T) {
 	requireResponseSkillPrompt(t, game, "p1")
 	chooseResponseSkillByID(t, game, "p1", "valkyrie_heroic_summon")
 
-	// 4) 英灵召唤额外流程：确认弃法术 -> 选法术 -> 选治疗目标
+	// 4) 英灵召唤额外流程：确认弃法术 -> 选法术 -> 当前战斗目标自动+1治疗
 	requireChoicePrompt(t, game, "p1", "valkyrie_heroic_extra_confirm")
 	mustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0}}) // 是
 	requireChoicePrompt(t, game, "p1", "valkyrie_heroic_discard_card")
 	mustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0}})
-	requireChoicePrompt(t, game, "p1", "valkyrie_heroic_heal_target")
-	mustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0}}) // 治疗自己
-
-	// 5) 攻击行动结束后应再次询问神圣追击（关键回归点）
-	requireResponseSkillPrompt(t, game, "p1")
-	chooseResponseSkillByID(t, game, "p1", "valkyrie_divine_pursuit")
-
-	// 6) 再次进入额外攻击，并在主动攻击开始时脱离英灵形态（和平行者）
-	game.Drive()
-	if game.State.Phase != model.PhaseActionSelection {
-		t.Fatalf("expected phase ActionSelection before second attack, got %s", game.State.Phase)
+	if p2.Heal != 1 {
+		t.Fatalf("expected heroic summon extra heal to apply to current combat target, got %d", p2.Heal)
 	}
-	if p1.TurnState.CurrentExtraAction != "Attack" {
-		t.Fatalf("expected current extra action=Attack before second attack, got %s", p1.TurnState.CurrentExtraAction)
-	}
+
+	// 5) 当前文档口径下，额外治疗只能给当前战斗目标，因此不会再给自己补治疗触发第二次神圣追击。
 	if p1.Tokens["valkyrie_spirit"] != 1 {
-		t.Fatalf("expected valkyrie spirit=1 before second attack, got %d", p1.Tokens["valkyrie_spirit"])
+		t.Fatalf("expected valkyrie spirit=1 after heroic summon on self turn, got %d", p1.Tokens["valkyrie_spirit"])
 	}
-
-	secondAttackIdx := firstAttackCardIndex(p1)
-	if secondAttackIdx < 0 {
-		t.Fatalf("no attack card found for second attack")
-	}
-	mustHandleAction(t, game, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: secondAttackIdx,
-	})
-	if p1.Tokens["valkyrie_spirit"] != 0 {
-		t.Fatalf("expected valkyrie spirit to be removed on active attack start, got %d", p1.Tokens["valkyrie_spirit"])
+	if game.State.PendingInterrupt != nil && game.State.PendingInterrupt.Type == model.InterruptResponseSkill {
+		for _, sid := range game.State.PendingInterrupt.SkillIDs {
+			if sid == "valkyrie_divine_pursuit" {
+				t.Fatalf("divine pursuit should not reprompt when heroic summon healed the combat target instead of self")
+			}
+		}
 	}
 }
 
@@ -192,7 +175,7 @@ func TestValkyrie_HeroicSummon_CancelDoesNotRepromptSameHit(t *testing.T) {
 
 	game.State.CurrentTurn = 0
 	game.State.Deck = rules.InitDeck()
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]

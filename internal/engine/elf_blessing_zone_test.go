@@ -26,7 +26,7 @@ func buildElfBlessingGame(t *testing.T) *GameEngine {
 	}
 
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 	game.State.PlayerOrder = []string{"p1", "p2"}
 
 	p1 := game.State.Players["p1"]
@@ -79,8 +79,8 @@ func TestElfRitualStoresBlessingsOutsideHand(t *testing.T) {
 	if p1.Gem != 0 {
 		t.Fatalf("ritual should consume 1 gem, got=%d", p1.Gem)
 	}
-	if p1.Tokens["elf_ritual_form"] != 1 {
-		t.Fatalf("elf_ritual_form token should be 1, got=%d", p1.Tokens["elf_ritual_form"])
+	if p1.Form != model.FormElfArcherRitual {
+		t.Fatalf("elf ritual should enter Player.Form, got=%q", p1.Form)
 	}
 }
 
@@ -174,7 +174,7 @@ func TestElfRitualStartupConfirmShouldNotLeaveOverflowDiscard(t *testing.T) {
 		SkillIDs: []string{"elf_ritual"},
 		Context:  startupCtx,
 	}
-	game.State.Phase = model.PhaseStartup
+	game.State.TurnStage = model.TurnStageActionStart
 
 	if err := game.ConfirmStartupSkill(p1.ID, "elf_ritual"); err != nil {
 		t.Fatalf("confirm startup ritual failed: %v", err)

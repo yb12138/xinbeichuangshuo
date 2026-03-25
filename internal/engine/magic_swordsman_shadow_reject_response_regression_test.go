@@ -28,7 +28,7 @@ func TestMagicSwordsmanShadowReject_AllowHolyLightDefendOutsideOwnTurn(t *testin
 	p2 := g.State.Players["p2"]
 	p1.IsActive = false
 	p2.IsActive = true
-	p1.Tokens["ms_shadow_form"] = 1
+	enterMagicSwordsmanShadowForm(p1)
 	p1.Hand = []model.Card{
 		{ID: "holy_1", Name: "圣光", Type: model.CardTypeMagic, Element: model.ElementLight},
 	}
@@ -37,7 +37,7 @@ func TestMagicSwordsmanShadowReject_AllowHolyLightDefendOutsideOwnTurn(t *testin
 	}
 
 	g.State.CurrentTurn = 1
-	g.State.Phase = model.PhaseActionSelection
+	g.State.TurnStage = model.TurnStageActionExecution
 
 	mustHandleActionNoErr(t, g, model.PlayerAction{
 		PlayerID:  "p2",
@@ -71,7 +71,7 @@ func TestMagicSwordsmanShadowReject_AllowMagicBulletCounterOutsideOwnTurn(t *tes
 	p2 := g.State.Players["p2"]
 	p1.IsActive = false
 	p2.IsActive = true
-	p1.Tokens["ms_shadow_form"] = 1
+	enterMagicSwordsmanShadowForm(p1)
 	p1.Hand = []model.Card{
 		{ID: "mb_1", Name: "魔弹", Type: model.CardTypeMagic, Element: model.ElementWater, Damage: 2},
 	}
@@ -80,7 +80,7 @@ func TestMagicSwordsmanShadowReject_AllowMagicBulletCounterOutsideOwnTurn(t *tes
 	}
 
 	g.State.CurrentTurn = 1
-	g.State.Phase = model.PhaseActionSelection
+	g.State.TurnStage = model.TurnStageActionExecution
 
 	// 发起魔弹（无需手动选择目标，按顺序自动寻找对手）。
 	mustHandleActionNoErr(t, g, model.PlayerAction{
@@ -125,7 +125,7 @@ func TestMagicSwordsmanShadowReject_AllowMagicBulletCounterOutsideOwnTurnCombat(
 	p1.IsActive = false
 	p2.IsActive = true
 	p3.IsActive = false
-	p1.Tokens["ms_shadow_form"] = 1
+	enterMagicSwordsmanShadowForm(p1)
 	p1.Hand = []model.Card{
 		{ID: "mb_1", Name: "魔弹", Type: model.CardTypeMagic, Element: model.ElementWater, Damage: 2},
 	}
@@ -134,7 +134,7 @@ func TestMagicSwordsmanShadowReject_AllowMagicBulletCounterOutsideOwnTurnCombat(
 	}
 
 	g.State.CurrentTurn = 1
-	g.State.Phase = model.PhaseActionSelection
+	g.State.TurnStage = model.TurnStageActionExecution
 
 	mustHandleActionNoErr(t, g, model.PlayerAction{
 		PlayerID:  "p2",
@@ -142,8 +142,8 @@ func TestMagicSwordsmanShadowReject_AllowMagicBulletCounterOutsideOwnTurnCombat(
 		TargetID:  "p1",
 		CardIndex: 0,
 	})
-	if g.State.Phase != model.PhaseCombatInteraction {
-		t.Fatalf("expected combat interaction phase, got %s", g.State.Phase)
+	if !g.isCombatInteractionWindow() {
+		t.Fatalf("expected combat interaction window, got %s", g.runtimeStateLabel())
 	}
 
 	mustHandleActionNoErr(t, g, model.PlayerAction{

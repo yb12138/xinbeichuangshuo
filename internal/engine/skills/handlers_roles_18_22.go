@@ -3,6 +3,7 @@ package skills
 import (
 	"fmt"
 	"starcup-engine/internal/model"
+	"strings"
 )
 
 // --- 18. 祈祷师 ---
@@ -25,7 +26,7 @@ func (h *PrayerEnterFormHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil {
 		return false
 	}
-	return ctx.User.Gem > 0 && getToken(ctx.User, "prayer_form") == 0
+	return ctx.User.Gem > 0 && !hasForm(ctx.User, model.FormPrayerMasterPrayer)
 }
 
 func (h *PrayerEnterFormHandler) Execute(ctx *model.Context) error {
@@ -35,12 +36,13 @@ func (h *PrayerEnterFormHandler) Execute(ctx *model.Context) error {
 	if ctx.User.Gem <= 0 {
 		return fmt.Errorf("祈祷需要至少1个红宝石")
 	}
-	if getToken(ctx.User, "prayer_form") > 0 {
+	if hasForm(ctx.User, model.FormPrayerMasterPrayer) {
 		return nil
 	}
 	ctx.User.Gem--
-	setToken(ctx.User, "prayer_form", 1)
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [祈祷]，进入祈祷形态", ctx.User.Name))
+	enterForm(ctx.User, model.FormPrayerMasterPrayer)
+	ctx.User.MaxHand = 5
+	ctx.Game.Log(fmt.Sprintf("%s 发动 [祈祷]，进入祈祷形态，手牌上限固定为5", ctx.User.Name))
 	return nil
 }
 
@@ -48,7 +50,7 @@ func (h *PrayerRuneGainHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.TriggerCtx == nil {
 		return false
 	}
-	if getToken(ctx.User, "prayer_form") == 0 {
+	if !hasForm(ctx.User, model.FormPrayerMasterPrayer) {
 		return false
 	}
 	if ctx.Trigger != model.TriggerOnAttackStart {
@@ -71,31 +73,27 @@ func (h *PrayerRadiantFaithHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil {
 		return false
 	}
-	return getToken(ctx.User, "prayer_form") > 0 && getToken(ctx.User, "prayer_rune") > 0
+	return hasForm(ctx.User, model.FormPrayerMasterPrayer) && getToken(ctx.User, "prayer_rune") > 0
 }
 
 func (h *PrayerRadiantFaithHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("上下文无效")
 	}
-	if getToken(ctx.User, "prayer_form") == 0 {
+	if !hasForm(ctx.User, model.FormPrayerMasterPrayer) {
 		return fmt.Errorf("不在祈祷形态，无法发动光辉信仰")
 	}
 	if getToken(ctx.User, "prayer_rune") <= 0 {
 		return fmt.Errorf("祈祷符文不足")
 	}
+	target := ctx.Target
+	if target == nil || target.Camp != ctx.User.Camp || target.ID == ctx.User.ID {
+		return fmt.Errorf("光辉信仰需要1名其他队友目标")
+	}
 	addToken(ctx.User, "prayer_rune", -1, 0, 3)
 	ctx.Game.ModifyGem(string(ctx.User.Camp), 1)
-	target := ctx.Target
-	if target == nil || target.Camp != ctx.User.Camp {
-		target = firstAllySelf(ctx.Game.GetAllPlayers(), ctx.User.Camp)
-	}
-	if target != nil {
-		ctx.Game.Heal(target.ID, 1)
-		ctx.Game.Log(fmt.Sprintf("%s 发动 [光辉信仰]，移除1祈祷符文，战绩区+1红宝石，并治疗 %s 1点", ctx.User.Name, target.Name))
-	} else {
-		ctx.Game.Log(fmt.Sprintf("%s 发动 [光辉信仰]，移除1祈祷符文，战绩区+1红宝石", ctx.User.Name))
-	}
+	ctx.Game.Heal(target.ID, 1)
+	ctx.Game.Log(fmt.Sprintf("%s 发动 [光辉信仰]，移除1祈祷符文，战绩区+1红宝石，并治疗 %s 1点", ctx.User.Name, target.Name))
 	return nil
 }
 
@@ -103,14 +101,14 @@ func (h *PrayerDarkCurseHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil {
 		return false
 	}
-	return getToken(ctx.User, "prayer_form") > 0 && getToken(ctx.User, "prayer_rune") > 0
+	return hasForm(ctx.User, model.FormPrayerMasterPrayer) && getToken(ctx.User, "prayer_rune") > 0
 }
 
 func (h *PrayerDarkCurseHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Target == nil || ctx.Game == nil {
 		return fmt.Errorf("黑暗诅咒需要目标")
 	}
-	if getToken(ctx.User, "prayer_form") == 0 {
+	if !hasForm(ctx.User, model.FormPrayerMasterPrayer) {
 		return fmt.Errorf("不在祈祷形态，无法发动黑暗诅咒")
 	}
 	if getToken(ctx.User, "prayer_rune") <= 0 {
@@ -123,14 +121,12 @@ func (h *PrayerDarkCurseHandler) Execute(ctx *model.Context) error {
 		TargetID:   ctx.Target.ID,
 		Damage:     2,
 		DamageType: "magic",
-		Stage:      0,
 	})
 	ctx.Game.AddPendingDamage(model.PendingDamage{
 		SourceID:   ctx.User.ID,
 		TargetID:   ctx.User.ID,
 		Damage:     2,
 		DamageType: "magic",
-		Stage:      0,
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [黑暗诅咒]，先对 %s 再对自己各造成2点法术伤害", ctx.User.Name, ctx.Target.Name))
 	return nil
@@ -286,7 +282,6 @@ func (h *CrimsonKnightKillingFeastHandler) Execute(ctx *model.Context) error {
 		Damage:                4,
 		DamageType:            "magic",
 		AllowCrimsonFaithHeal: true,
-		Stage:                 0,
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [杀戮盛宴]，移除1血印并对自己造成4伤害，本次攻击伤害+2", ctx.User.Name))
 	return nil
@@ -301,7 +296,7 @@ func (h *CrimsonKnightCalmMindHandler) CanUse(ctx *model.Context) bool {
 	if ctx.Trigger != model.TriggerOnPhaseEnd {
 		return false
 	}
-	if getToken(ctx.User, "crk_hot_form") == 0 {
+	if !hasForm(ctx.User, model.FormCrimsonKnightHotBlooded) {
 		return false
 	}
 	if ctx.TriggerCtx.ActionType != model.ActionAttack && ctx.TriggerCtx.ActionType != model.ActionMagic {
@@ -314,24 +309,36 @@ func (h *CrimsonKnightCalmMindHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("戒骄戒躁上下文无效")
 	}
+	if ctx.TriggerCtx == nil {
+		return fmt.Errorf("戒骄戒躁缺少行动结束上下文")
+	}
 	if !spendCrystalLike(ctx, 1) {
 		return fmt.Errorf("戒骄戒躁需要1蓝水晶（红宝石可替代）")
 	}
-	setToken(ctx.User, "crk_hot_form", 0)
-	ctx.Game.PushInterrupt(&model.Interrupt{
-		Type:     model.InterruptChoice,
-		PlayerID: ctx.User.ID,
-		Context: map[string]interface{}{
-			"choice_type": "crk_calm_mind_action",
-			"user_id":     ctx.User.ID,
-		},
+	leaveForm(ctx.User, model.FormCrimsonKnightHotBlooded)
+
+	actionType := ctx.TriggerCtx.ActionType
+	if actionType != model.ActionAttack && actionType != model.ActionMagic {
+		return fmt.Errorf("戒骄戒躁只支持攻击/法术行动结束后触发")
+	}
+
+	actionLabel := "攻击"
+	if actionType == model.ActionMagic {
+		actionLabel = "法术"
+	}
+	ctx.User.TurnState.PendingActions = append(ctx.User.TurnState.PendingActions, model.ActionContext{
+		Source:   "戒骄戒躁",
+		MustType: string(actionType),
 	})
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [戒骄戒躁]，脱离热血沸腾形态并选择额外行动类型", ctx.User.Name))
+	ctx.Game.Log(fmt.Sprintf("%s 发动 [戒骄戒躁]，脱离热血沸腾形态并额外获得1次%s行动", ctx.User.Name, actionLabel))
 	return nil
 }
 
 func (h *CrimsonKnightCrimsonCrossHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.Target == nil {
+		return false
+	}
+	if ctx.Target.Camp == ctx.User.Camp {
 		return false
 	}
 	if getToken(ctx.User, "crk_blood_mark") <= 0 {
@@ -350,6 +357,9 @@ func (h *CrimsonKnightCrimsonCrossHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Target == nil || ctx.Game == nil {
 		return fmt.Errorf("腥红十字需要目标")
 	}
+	if ctx.Target.Camp == ctx.User.Camp {
+		return fmt.Errorf("腥红十字只能指定敌方角色")
+	}
 	if getToken(ctx.User, "crk_blood_mark") <= 0 {
 		return fmt.Errorf("血印不足")
 	}
@@ -360,14 +370,12 @@ func (h *CrimsonKnightCrimsonCrossHandler) Execute(ctx *model.Context) error {
 		Damage:                4,
 		DamageType:            "magic",
 		AllowCrimsonFaithHeal: true,
-		Stage:                 0,
 	})
 	ctx.Game.AddPendingDamage(model.PendingDamage{
 		SourceID:   ctx.User.ID,
 		TargetID:   ctx.Target.ID,
 		Damage:     3,
 		DamageType: "magic",
-		Stage:      0,
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [腥红十字]，对自己造成4点法术伤害，并对 %s 造成3点法术伤害", ctx.User.Name, ctx.Target.Name))
 	return nil
@@ -456,7 +464,7 @@ func (h *HomunculusRuneSmashHandler) Execute(ctx *model.Context) error {
 		return fmt.Errorf("没有可弃置的同系牌")
 	}
 	maxY := 0
-	if getToken(ctx.User, "hom_burst_form") > 0 {
+	if hasForm(ctx.User, model.FormWarHomunculusBurst) {
 		warRunes := getToken(ctx.User, "hom_war_rune")
 		if warRunes > 1 {
 			maxY = warRunes - 1
@@ -532,7 +540,7 @@ func (h *HomunculusGlyphFusionHandler) Execute(ctx *model.Context) error {
 	}
 	maxX := len(uniqueElements)
 	maxY := 0
-	if getToken(ctx.User, "hom_burst_form") > 0 {
+	if hasForm(ctx.User, model.FormWarHomunculusBurst) {
 		magicRunes := getToken(ctx.User, "hom_magic_rune")
 		if magicRunes > 1 {
 			maxY = magicRunes - 1
@@ -560,7 +568,7 @@ func (h *HomunculusRuneReforgeHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil {
 		return false
 	}
-	return ctx.User.Gem > 0 && getToken(ctx.User, "hom_burst_form") == 0
+	return ctx.User.Gem > 0 && !hasForm(ctx.User, model.FormWarHomunculusBurst)
 }
 
 func (h *HomunculusRuneReforgeHandler) Execute(ctx *model.Context) error {
@@ -571,7 +579,7 @@ func (h *HomunculusRuneReforgeHandler) Execute(ctx *model.Context) error {
 		return fmt.Errorf("符文改造需要红宝石")
 	}
 	ctx.User.Gem--
-	setToken(ctx.User, "hom_burst_form", 1)
+	enterForm(ctx.User, model.FormWarHomunculusBurst)
 	ctx.Game.DrawCards(ctx.User.ID, 1)
 	totalRunes := getToken(ctx.User, "hom_war_rune") + getToken(ctx.User, "hom_magic_rune")
 	if totalRunes <= 0 {
@@ -600,6 +608,12 @@ func (h *HomunculusDualEchoHandler) CanUse(ctx *model.Context) bool {
 	if ctx.TriggerCtx.SourceID != ctx.User.ID {
 		return false
 	}
+	if damageType, _ := ctx.Selections["damage_type"].(string); damageType != "" {
+		lower := strings.ToLower(strings.TrimSpace(damageType))
+		if lower != "attack" && !strings.Contains(lower, "magic") {
+			return false
+		}
+	}
 	if ctx.TriggerCtx.DamageVal == nil || *ctx.TriggerCtx.DamageVal <= 0 {
 		return false
 	}
@@ -622,7 +636,7 @@ func (h *HomunculusDualEchoHandler) Execute(ctx *model.Context) error {
 	}
 	var targetIDs []string
 	for _, p := range ctx.Game.GetAllPlayers() {
-		if p == nil || p.ID == ctx.User.ID || p.ID == ctx.TriggerCtx.TargetID {
+		if p == nil || p.ID == ctx.TriggerCtx.TargetID {
 			continue
 		}
 		targetIDs = append(targetIDs, p.ID)
@@ -701,7 +715,7 @@ func (h *PriestWaterPowerHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil {
 		return false
 	}
-	return hasElementCard(ctx.User, model.ElementWater)
+	return len(ctx.User.Hand) >= 2 && hasElementCard(ctx.User, model.ElementWater)
 }
 
 func (h *PriestWaterPowerHandler) Execute(ctx *model.Context) error {
@@ -709,7 +723,7 @@ func (h *PriestWaterPowerHandler) Execute(ctx *model.Context) error {
 		return fmt.Errorf("上下文无效")
 	}
 	target := ctx.Target
-	if target == nil || target.Camp != ctx.User.Camp {
+	if target == nil || target.Camp != ctx.User.Camp || target.ID == ctx.User.ID {
 		return fmt.Errorf("水之神力需要指定队友")
 	}
 
@@ -720,12 +734,12 @@ func (h *PriestWaterPowerHandler) Execute(ctx *model.Context) error {
 	}
 	ctx.Game.Log(fmt.Sprintf("%s 为 [水之神力] 弃置了 %s", ctx.User.Name, discarded[0].Name))
 
-	// 若弃完水系牌后仍有手牌，则第二张弃牌视为“交给队友的牌”。
-	if len(discarded) >= 2 {
-		give := discarded[1]
-		target.Hand = append(target.Hand, give)
-		ctx.Game.Log(fmt.Sprintf("%s 将 %s 交给了 %s", ctx.User.Name, give.Name, target.Name))
+	if len(discarded) < 2 {
+		return fmt.Errorf("水之神力需要额外选择1张手牌交给队友")
 	}
+	give := discarded[1]
+	target.Hand = append(target.Hand, give)
+	ctx.Game.Log(fmt.Sprintf("%s 将 %s 交给了 %s", ctx.User.Name, give.Name, target.Name))
 	ctx.Game.Heal(ctx.User.ID, 1)
 	ctx.Game.Heal(target.ID, 1)
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [水之神力]，与 %s 各+1治疗", ctx.User.Name, target.Name))
@@ -735,37 +749,89 @@ func (h *PriestWaterPowerHandler) Execute(ctx *model.Context) error {
 func (h *PriestGuardianHandler) Execute(ctx *model.Context) error { return nil }
 
 func (h *PriestDivineContractHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil {
+	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return false
 	}
-	return ctx.User.Heal > 0 && canPayCrystalLike(ctx, 1)
+	return ctx.User.Heal > 0 && canPayCrystalLike(ctx, 1) && len(priestDivineContractTargets(ctx.Game, ctx.User)) > 0
 }
 
 func (h *PriestDivineContractHandler) Execute(ctx *model.Context) error {
-	if ctx == nil || ctx.User == nil || ctx.Target == nil || ctx.Game == nil {
-		return fmt.Errorf("神圣契约需要目标")
+	if ctx == nil || ctx.User == nil || ctx.Game == nil {
+		return fmt.Errorf("神圣契约上下文无效")
 	}
-	if ctx.Target.Camp != ctx.User.Camp {
-		return fmt.Errorf("神圣契约目标必须是队友")
+	if ctx.User.Heal <= 0 {
+		return fmt.Errorf("神圣契约需要可转移治疗")
+	}
+	targetIDs := priestDivineContractTargets(ctx.Game, ctx.User)
+	if len(targetIDs) == 0 {
+		return fmt.Errorf("神圣契约需要至少1名其他队友")
 	}
 	if !spendCrystalLike(ctx, 1) {
 		return fmt.Errorf("神圣契约需要1蓝水晶（红宝石可替代）")
 	}
-	if ctx.User.Heal <= 0 {
-		return fmt.Errorf("神圣契约需要可转移治疗")
+	waitingPhase := priestDivineContractWaitingPhase(ctx)
+	resumePhase := priestDivineContractResumePhase(ctx)
+	if ctx.Target == nil {
+		ctx.Game.PushInterrupt(&model.Interrupt{
+			Type:     model.InterruptChoice,
+			PlayerID: ctx.User.ID,
+			Context: map[string]interface{}{
+				"choice_type":   "priest_divine_contract_target",
+				"user_id":       ctx.User.ID,
+				"ally_ids":      targetIDs,
+				"max_x":         ctx.User.Heal,
+				"waiting_phase": model.NormalizeResumePoint(waitingPhase),
+				"resume_phase":  model.NormalizeResumePoint(resumePhase),
+			},
+		})
+		ctx.Game.Log(fmt.Sprintf("%s 发动 [神圣契约]，请选择目标队友", ctx.User.Name))
+		return nil
+	}
+	if ctx.Target.Camp != ctx.User.Camp || ctx.Target.ID == ctx.User.ID {
+		return fmt.Errorf("神圣契约目标必须是其他队友")
 	}
 	ctx.Game.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
 		Context: map[string]interface{}{
-			"choice_type": "priest_divine_contract_x",
-			"user_id":     ctx.User.ID,
-			"target_id":   ctx.Target.ID,
-			"max_x":       ctx.User.Heal,
+			"choice_type":   "priest_divine_contract_x",
+			"user_id":       ctx.User.ID,
+			"target_id":     ctx.Target.ID,
+			"max_x":         ctx.User.Heal,
+			"waiting_phase": model.NormalizeResumePoint(waitingPhase),
+			"resume_phase":  model.NormalizeResumePoint(resumePhase),
 		},
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [神圣契约]，请选择转移治疗值X（目标：%s）", ctx.User.Name, ctx.Target.Name))
 	return nil
+}
+
+func priestDivineContractTargets(game model.IGameEngine, user *model.Player) []string {
+	if game == nil || user == nil {
+		return nil
+	}
+	targetIDs := make([]string, 0)
+	for _, player := range game.GetAllPlayers() {
+		if player == nil || player.ID == user.ID || player.Camp != user.Camp {
+			continue
+		}
+		targetIDs = append(targetIDs, player.ID)
+	}
+	return targetIDs
+}
+
+func priestDivineContractWaitingPhase(ctx *model.Context) string {
+	if ctx != nil && ctx.Trigger == model.TriggerOnTurnStart {
+		return model.NormalizeResumePoint(model.TurnStageActionStart)
+	}
+	return model.NormalizeResumePoint(model.TurnStageActionExecution)
+}
+
+func priestDivineContractResumePhase(ctx *model.Context) string {
+	if ctx != nil && ctx.Trigger == model.TriggerOnTurnStart {
+		return model.NormalizeResumePoint(model.TurnStageActionExecution)
+	}
+	return model.NormalizeResumePoint(model.TurnStageExtraAction)
 }
 
 func (h *PriestDivineDomainHandler) CanUse(ctx *model.Context) bool {
@@ -785,7 +851,9 @@ func (h *PriestDivineDomainHandler) Execute(ctx *model.Context) error {
 		if p == nil {
 			continue
 		}
-		allTargetIDs = append(allTargetIDs, p.ID)
+		if p.ID != ctx.User.ID {
+			allTargetIDs = append(allTargetIDs, p.ID)
+		}
 		if p.Camp == ctx.User.Camp && p.ID != ctx.User.ID {
 			allyIDs = append(allyIDs, p.ID)
 		}
@@ -799,9 +867,6 @@ func (h *PriestDivineDomainHandler) Execute(ctx *model.Context) error {
 	}
 	if len(modeOptions) == 0 {
 		return fmt.Errorf("神圣领域当前无可用分支（伤害分支需至少1点治疗，治疗分支需至少1名队友）")
-	}
-	if !spendCrystalLike(ctx, 1) {
-		return fmt.Errorf("神圣领域需要1蓝水晶（红宝石可替代）")
 	}
 	ctx.Game.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
@@ -836,7 +901,7 @@ func (h *OnmyojiShikigamiDescendHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil {
 		return false
 	}
-	if getToken(ctx.User, "onmyoji_form") > 0 {
+	if hasForm(ctx.User, model.FormOnmyojiShikigami) {
 		return false
 	}
 	if len(ctx.User.Hand) < 2 {
@@ -859,10 +924,10 @@ func (h *OnmyojiShikigamiDescendHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("上下文无效")
 	}
-	if getToken(ctx.User, "onmyoji_form") > 0 {
+	if hasForm(ctx.User, model.FormOnmyojiShikigami) {
 		return fmt.Errorf("已处于式神形态")
 	}
-	setToken(ctx.User, "onmyoji_form", 1)
+	enterForm(ctx.User, model.FormOnmyojiShikigami)
 	addToken(ctx.User, "onmyoji_ghost_fire", 1, 0, 3)
 	addAttackAction(ctx.User, "式神降临")
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [式神降临]，弃2张同命格手牌后进入式神形态并+1鬼火，获得额外攻击行动", ctx.User.Name))
@@ -908,13 +973,25 @@ func (h *OnmyojiLifeBarrierHandler) Execute(ctx *model.Context) error {
 	var supportTargetIDs []string
 	// 分支②可选队友（需有手牌可弃）
 	var releaseTargetIDs []string
-	for _, p := range ctx.Game.GetAllPlayers() {
-		if p == nil || p.Camp != ctx.User.Camp || p.ID == ctx.User.ID {
-			continue
+	lockedTargetID := ""
+	if ctx.Target != nil {
+		if ctx.Target.Camp != ctx.User.Camp || ctx.Target.ID == ctx.User.ID {
+			return fmt.Errorf("生命结界目标必须是其他队友")
 		}
-		supportTargetIDs = append(supportTargetIDs, p.ID)
-		if len(p.Hand) > 0 {
-			releaseTargetIDs = append(releaseTargetIDs, p.ID)
+		lockedTargetID = ctx.Target.ID
+		supportTargetIDs = append(supportTargetIDs, ctx.Target.ID)
+		if len(ctx.Target.Hand) > 0 {
+			releaseTargetIDs = append(releaseTargetIDs, ctx.Target.ID)
+		}
+	} else {
+		for _, p := range ctx.Game.GetAllPlayers() {
+			if p == nil || p.Camp != ctx.User.Camp || p.ID == ctx.User.ID {
+				continue
+			}
+			supportTargetIDs = append(supportTargetIDs, p.ID)
+			if len(p.Hand) > 0 {
+				releaseTargetIDs = append(releaseTargetIDs, p.ID)
+			}
 		}
 	}
 	if len(supportTargetIDs) == 0 {
@@ -923,7 +1000,7 @@ func (h *OnmyojiLifeBarrierHandler) Execute(ctx *model.Context) error {
 
 	// 分支②：式神形态 + 手牌中存在“2张同命格”组合 + 有队友可弃牌
 	var releaseCombos []string
-	if getToken(ctx.User, "onmyoji_form") > 0 && len(releaseTargetIDs) > 0 {
+	if hasForm(ctx.User, model.FormOnmyojiShikigami) && len(releaseTargetIDs) > 0 {
 		for i := 0; i < len(ctx.User.Hand); i++ {
 			if ctx.User.Hand[i].Faction == "" {
 				continue
@@ -943,6 +1020,7 @@ func (h *OnmyojiLifeBarrierHandler) Execute(ctx *model.Context) error {
 			"choice_type":         "onmyoji_life_barrier_mode",
 			"user_id":             ctx.User.ID,
 			"ghost_fire":          gf,
+			"locked_target_id":    lockedTargetID,
 			"support_target_ids":  supportTargetIDs,
 			"release_target_ids":  releaseTargetIDs,
 			"release_card_combos": releaseCombos,
@@ -981,14 +1059,12 @@ func (h *BlazeWitchBlazingCodexHandler) Execute(ctx *model.Context) error {
 		TargetID:   ctx.Target.ID,
 		Damage:     2,
 		DamageType: "magic",
-		Stage:      0,
 	})
 	ctx.Game.AddPendingDamage(model.PendingDamage{
 		SourceID:   ctx.User.ID,
 		TargetID:   ctx.User.ID,
 		Damage:     2,
 		DamageType: "magic",
-		Stage:      0,
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [苍炎法典]，先对 %s 后对自己各造成2点法术伤害", ctx.User.Name, ctx.Target.Name))
 	return nil
@@ -998,7 +1074,7 @@ func (h *BlazeWitchHeavenfireCleaveHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil {
 		return false
 	}
-	if getToken(ctx.User, "bw_flame_form") > 0 {
+	if hasForm(ctx.User, model.FormBlazeWitchFlame) {
 		return true
 	}
 	return getToken(ctx.User, "bw_rebirth") > 0
@@ -1014,7 +1090,7 @@ func (h *BlazeWitchHeavenfireCleaveHandler) Execute(ctx *model.Context) error {
 	if userCampMorale < targetCampMorale {
 		damage++
 	}
-	if getToken(ctx.User, "bw_flame_form") == 0 {
+	if !hasForm(ctx.User, model.FormBlazeWitchFlame) {
 		if getToken(ctx.User, "bw_rebirth") <= 0 {
 			return fmt.Errorf("天火断空需要至少1点重生")
 		}
@@ -1025,14 +1101,12 @@ func (h *BlazeWitchHeavenfireCleaveHandler) Execute(ctx *model.Context) error {
 		TargetID:   ctx.Target.ID,
 		Damage:     damage,
 		DamageType: "magic",
-		Stage:      0,
 	})
 	ctx.Game.AddPendingDamage(model.PendingDamage{
 		SourceID:   ctx.User.ID,
 		TargetID:   ctx.User.ID,
 		Damage:     damage,
 		DamageType: "magic",
-		Stage:      0,
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [天火断空]，先对 %s 后对自己各造成%d点法术伤害", ctx.User.Name, ctx.Target.Name, damage))
 	return nil
@@ -1049,14 +1123,15 @@ func (h *BlazeWitchWitchWrathHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("魔女之怒上下文无效")
 	}
-	setToken(ctx.User, "bw_flame_form", 1)
+	enterForm(ctx.User, model.FormBlazeWitchFlame)
 	setToken(ctx.User, "bw_flame_release_pending", 1)
 	ctx.Game.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
 		Context: map[string]interface{}{
-			"choice_type": "bw_witch_wrath_draw",
-			"user_id":     ctx.User.ID,
+			"choice_type":   "bw_witch_wrath_draw",
+			"user_id":       ctx.User.ID,
+			"waiting_phase": model.NormalizeResumePoint(model.TurnStageActionStart),
 		},
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [魔女之怒]，进入烈焰形态并选择摸牌数量", ctx.User.Name))
@@ -1147,14 +1222,12 @@ func (h *BlazeWitchPainLinkHandler) Execute(ctx *model.Context) error {
 		TargetID:   ctx.Target.ID,
 		Damage:     1,
 		DamageType: "magic",
-		Stage:      0,
 	})
 	ctx.Game.AddPendingDamage(model.PendingDamage{
 		SourceID:   ctx.User.ID,
 		TargetID:   ctx.User.ID,
 		Damage:     1,
 		DamageType: "magic",
-		Stage:      0,
 	})
 	setToken(ctx.User, "bw_pain_link_pending_discard", 1)
 	setToken(ctx.User, "bw_pain_link_pending_hits", 2)

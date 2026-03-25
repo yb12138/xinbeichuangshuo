@@ -16,6 +16,64 @@ func findSkillIndex(skillIDs []string, want string) int {
 	return -1
 }
 
+func TestHolyLancerRevelation_SyncsMaxHealWithCupState(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "HolyLancer", "holy_lancer", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Dummy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := game.State.Players["p1"]
+	if got := p1.MaxHeal; got != 3 {
+		t.Fatalf("expected holy lancer start at max heal 3 when cups are tied, got %d", got)
+	}
+
+	game.State.RedCups = 0
+	game.State.BlueCups = 1
+	game.refreshAllPlayerDerivedStates()
+	if got := p1.MaxHeal; got != 2 {
+		t.Fatalf("expected max heal drop to 2 when own cups are fewer, got %d", got)
+	}
+
+	game.State.RedCups = 1
+	game.State.BlueCups = 1
+	game.refreshAllPlayerDerivedStates()
+	if got := p1.MaxHeal; got != 3 {
+		t.Fatalf("expected max heal restore to 3 when cups tie again, got %d", got)
+	}
+}
+
+func TestHolyLancerRevelation_UpdatesWhenCampCupChanges(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "HolyLancer", "holy_lancer", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Dummy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := game.State.Players["p1"]
+	if got := p1.MaxHeal; got != 3 {
+		t.Fatalf("expected holy lancer start at max heal 3 when cups are tied, got %d", got)
+	}
+
+	if !game.addCampCup(model.BlueCamp) {
+		t.Fatalf("expected blue camp cup gain to succeed")
+	}
+	if got := p1.MaxHeal; got != 2 {
+		t.Fatalf("expected max heal drop to 2 after enemy camp gains cup, got %d", got)
+	}
+
+	if !game.addCampCup(model.RedCamp) {
+		t.Fatalf("expected red camp cup gain to succeed")
+	}
+	if got := p1.MaxHeal; got != 3 {
+		t.Fatalf("expected max heal restore to 3 after own camp catches up, got %d", got)
+	}
+}
+
 // 回归：圣枪骑士在“当前治疗高于MaxHeal”的场景下，地枪X上限应以当前治疗值为准（最多4）。
 func TestHolyLancerEarthSpear_MaxXUsesCurrentHealValue(t *testing.T) {
 	game := NewGameEngine(noopObserver{})
@@ -28,7 +86,7 @@ func TestHolyLancerEarthSpear_MaxXUsesCurrentHealValue(t *testing.T) {
 
 	game.State.CurrentTurn = 0
 	game.State.Deck = rules.InitDeck()
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]
@@ -120,7 +178,7 @@ func TestHolyLancerEarthSpear_SelectXResumesAttackFlow(t *testing.T) {
 
 	game.State.CurrentTurn = 0
 	game.State.Deck = rules.InitDeck()
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]
@@ -194,7 +252,7 @@ func TestHolyLancerPrayerToken_ClearedAtRealTurnEnd(t *testing.T) {
 	}
 
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseTurnEnd
+	game.State.TurnStage = model.TurnStageTurnEnd
 
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]
@@ -217,13 +275,13 @@ func TestHolyLancerPrayerToken_ClearedAtRealTurnEnd(t *testing.T) {
 	if got := p1.Tokens["holy_lancer_prayer_used_turn"]; got != 1 {
 		t.Fatalf("expected prayer token to remain during pending extra actions, got %d", got)
 	}
-	if game.State.Phase != model.PhaseActionSelection {
-		t.Fatalf("expected to enter ActionSelection for extra action, got %s", game.State.Phase)
+	if !game.isActionSelectionWindow() {
+		t.Fatalf("expected to enter action selection window for extra action, got %s", game.runtimeStateLabel())
 	}
 
 	// 额外行动耗尽后再次进入TurnEnd，才应清理并切到下一回合。
 	p1.TurnState.PendingActions = nil
-	game.State.Phase = model.PhaseTurnEnd
+	game.State.TurnStage = model.TurnStageTurnEnd
 	game.Drive()
 
 	if got := p1.Tokens["holy_lancer_prayer_used_turn"]; got != 0 {
@@ -231,6 +289,134 @@ func TestHolyLancerPrayerToken_ClearedAtRealTurnEnd(t *testing.T) {
 	}
 	if game.State.CurrentTurn != 1 {
 		t.Fatalf("expected turn to advance to next player, got current turn index %d", game.State.CurrentTurn)
+	}
+}
+
+func TestHolyLancerPrayer_ConsumesExactlyOneGemAndCapsHealAtFive(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "HolyLancer", "holy_lancer", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Dummy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Gem = 1
+	p1.Heal = 4
+
+	mustDo(t, game, model.PlayerAction{
+		PlayerID: "p1",
+		Type:     model.CmdSkill,
+		SkillID:  "holy_lancer_prayer",
+	})
+
+	if got := p1.Gem; got != 0 {
+		t.Fatalf("expected prayer to consume exactly 1 gem, got %d", got)
+	}
+	if got := p1.Heal; got != 5 {
+		t.Fatalf("expected prayer heal to cap at 5, got %d", got)
+	}
+	if got := p1.Tokens["holy_lancer_prayer_used_turn"]; got != 1 {
+		t.Fatalf("expected prayer used-turn token=1, got %d", got)
+	}
+}
+
+func TestHolyLancerRadiance_UsesSelectedWaterDiscard(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "HolyLancer", "holy_lancer", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Dummy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p2.TurnState = model.NewPlayerTurnState()
+	p1.Hand = []model.Card{
+		{ID: "water-a", Name: "水牌A", Type: model.CardTypeMagic, Element: model.ElementWater},
+		{ID: "water-b", Name: "水牌B", Type: model.CardTypeMagic, Element: model.ElementWater},
+	}
+
+	mustDo(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSkill,
+		SkillID:    "holy_lancer_radiance",
+		Selections: []int{1},
+	})
+
+	if got := len(p1.Hand); got != 1 {
+		t.Fatalf("expected radiance discard exactly 1 card, got %d", got)
+	}
+	if p1.Hand[0].ID != "water-a" {
+		t.Fatalf("expected selected discard to remove water-b, remaining hand=%+v", p1.Hand)
+	}
+	if p1.Heal != 1 || p2.Heal != 1 {
+		t.Fatalf("expected radiance heal all players by 1, got self=%d target=%d", p1.Heal, p2.Heal)
+	}
+}
+
+func TestHolyLancerPunishment_RejectsSelfAndUsesSelectedMagicDiscard(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "HolyLancer", "holy_lancer", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Dummy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p2.TurnState = model.NewPlayerTurnState()
+	p2.Heal = 1
+	p1.Hand = []model.Card{
+		{ID: "magic-a", Name: "法术A", Type: model.CardTypeMagic, Element: model.ElementLight},
+		{ID: "magic-b", Name: "法术B", Type: model.CardTypeMagic, Element: model.ElementWater},
+	}
+
+	err := game.HandleAction(model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSkill,
+		SkillID:    "holy_lancer_punishment",
+		TargetIDs:  []string{"p1"},
+		Selections: []int{0},
+	})
+	if err == nil {
+		t.Fatalf("expected punishment to reject self target")
+	}
+
+	mustDo(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSkill,
+		SkillID:    "holy_lancer_punishment",
+		TargetIDs:  []string{"p2"},
+		Selections: []int{1},
+	})
+
+	if got := len(p1.Hand); got != 1 {
+		t.Fatalf("expected punishment discard exactly 1 card, got %d", got)
+	}
+	if p1.Hand[0].ID != "magic-a" {
+		t.Fatalf("expected selected discard to remove magic-b, remaining hand=%+v", p1.Hand)
+	}
+	if p1.Heal != 1 || p2.Heal != 0 {
+		t.Fatalf("expected punishment transfer 1 heal from p2 to p1, got self=%d target=%d", p1.Heal, p2.Heal)
 	}
 }
 
@@ -251,7 +437,7 @@ func TestResponsePrompt_PrunesInvalidHolyLancerSkySpear(t *testing.T) {
 		p1.Tokens = map[string]int{}
 	}
 
-	game.State.Phase = model.PhaseResponse
+	game.State.Subflow = model.SubflowResponse
 	game.State.PendingInterrupt = &model.Interrupt{
 		Type:     model.InterruptResponseSkill,
 		PlayerID: "p1",

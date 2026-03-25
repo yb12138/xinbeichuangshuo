@@ -45,8 +45,8 @@ func TestHolyBow_InitStatsAndTokens(t *testing.T) {
 	if got := p1.Tokens["hb_faith"]; got != 0 {
 		t.Fatalf("expected hb_faith=0, got %d", got)
 	}
-	if got := p1.Tokens["hb_form"]; got != 0 {
-		t.Fatalf("expected hb_form=0, got %d", got)
+	if got := p1.Form; got != "" {
+		t.Fatalf("expected holy bow form empty, got %q", got)
 	}
 }
 
@@ -154,7 +154,7 @@ func TestHolyBow_RadiantDescentAndSpecialExitForm(t *testing.T) {
 		holyBowTestCard("m1", "圣光", model.CardTypeMagic, model.ElementLight, 0),
 	}
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	mustHandleAction(t, game, model.PlayerAction{
 		PlayerID: "p1",
@@ -168,30 +168,89 @@ func TestHolyBow_RadiantDescentAndSpecialExitForm(t *testing.T) {
 		Selections: []int{0}, // 移除2点治疗
 	})
 
-	if got := p1.Tokens["hb_form"]; got != 1 {
-		t.Fatalf("expected enter hb_form=1 after radiant descent, got %d", got)
+	if got := p1.Form; got != model.FormHolyBowHolyGlory {
+		t.Fatalf("expected enter holy bow form after radiant descent, got %q", got)
 	}
 	if got := p1.Heal; got != 1 {
 		t.Fatalf("expected heal reduced to 1, got %d", got)
+	}
+	if !game.isActionSelectionWindow() {
+		t.Fatalf("expected extra magic action to enter action selection window, got %s", game.runtimeStateLabel())
 	}
 	if p1.TurnState.CurrentExtraAction != "Magic" && len(p1.TurnState.PendingActions) == 0 {
 		t.Fatalf("expected extra magic action from radiant descent, current=%s pending=%d", p1.TurnState.CurrentExtraAction, len(p1.TurnState.PendingActions))
 	}
 
-	// 清理额外行动约束后执行特殊行动，验证圣煌形态会脱离并+1治疗。
+	// 模拟后续回合：仍处于圣煌形态时，执行特殊行动会脱离形态并+1治疗。
 	p1.TurnState.CurrentExtraAction = ""
 	p1.TurnState.CurrentExtraElement = nil
 	p1.TurnState.PendingActions = nil
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 	mustHandleAction(t, game, model.PlayerAction{
 		PlayerID: "p1",
 		Type:     model.CmdBuy,
 	})
-	if got := p1.Tokens["hb_form"]; got != 0 {
-		t.Fatalf("expected holy bow form cleared after special action, got %d", got)
+	if got := p1.Form; got != "" {
+		t.Fatalf("expected holy bow form cleared after special action, got %q", got)
 	}
 	if got := p1.Heal; got != 2 {
 		t.Fatalf("expected +1 heal after exiting form by special action, got %d", got)
+	}
+}
+
+func TestHolyBow_LightBurstModeA_RequiresOtherAlly(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "HolyBow", "holy_bow", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "angel", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Form = model.FormHolyBowHolyGlory
+	p1.Heal = 1
+	p1.Hand = nil
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	err := game.HandleAction(model.PlayerAction{
+		PlayerID: "p1",
+		Type:     model.CmdSkill,
+		SkillID:  "hb_light_burst",
+	})
+	if err == nil {
+		t.Fatalf("expected hb_light_burst to be unusable without other ally target for mode A")
+	}
+}
+
+func TestHolyBow_MeteorBullet_RequiresOtherAlly(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "HolyBow", "holy_bow", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "angel", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p1.Form = model.FormHolyBowHolyGlory
+	p1.Heal = 1
+
+	ctx := game.buildContext(p1, p2, model.TriggerOnAttackStart, &model.EventContext{
+		Type:     model.EventAttack,
+		SourceID: p1.ID,
+		TargetID: p2.ID,
+		AttackInfo: &model.AttackEventInfo{
+			ActionType:       string(model.ActionAttack),
+			CounterInitiator: "",
+		},
+	})
+	if game.dispatcher.isSkillStillUsable("hb_meteor_bullet", p1, ctx) {
+		t.Fatalf("expected hb_meteor_bullet disabled when no other ally is available")
 	}
 }
 
@@ -212,7 +271,7 @@ func TestHolyBow_AutoFillTriggeredAtTurnEndWithoutSpecial(t *testing.T) {
 	p1.Crystal = 1
 	p1.Gem = 0
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseTurnEnd
+	game.State.TurnStage = model.TurnStageTurnEnd
 
 	game.Drive()
 	requireChoicePrompt(t, game, "p1", "hb_auto_fill_resource")
@@ -266,7 +325,7 @@ func TestHolyBow_HolyShardStormMiss_NoBranch(t *testing.T) {
 		holyBowTestCard("al_m2", "魔弹", model.CardTypeMagic, model.ElementDark, 0),
 	}
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	mustHandleAction(t, game, model.PlayerAction{
 		PlayerID: "p1",
@@ -313,6 +372,74 @@ func TestHolyBow_HolyShardStormMiss_NoBranch(t *testing.T) {
 	}
 }
 
+func TestHolyBow_HolyShardStormMiss_NoEligibleAllySkipsPrompt(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "HolyBow", "holy_bow", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "angel", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p3", "Ally", "angel", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p3 := game.State.Players["p3"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Heal = 3
+	p1.Hand = []model.Card{
+		holyBowTestCard("hb_a1", "火斩1", model.CardTypeAttack, model.ElementFire, 2),
+		holyBowTestCard("hb_a2", "火斩2", model.CardTypeAttack, model.ElementFire, 2),
+	}
+	p2.Hand = []model.Card{
+		holyBowTestCard("e_m1", "圣光", model.CardTypeMagic, model.ElementLight, 0),
+	}
+	p3.Hand = nil
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	mustHandleAction(t, game, model.PlayerAction{
+		PlayerID: "p1",
+		Type:     model.CmdSkill,
+		SkillID:  "hb_holy_shard_storm",
+	})
+	requireChoicePrompt(t, game, "p1", "hb_holy_shard_combo")
+	mustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{0},
+	})
+	requireChoicePrompt(t, game, "p1", "hb_holy_shard_target")
+	mustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{0},
+	})
+	mustHandleAction(t, game, model.PlayerAction{
+		PlayerID:  "p2",
+		Type:      model.CmdRespond,
+		CardIndex: 0,
+		ExtraArgs: []string{"defend"},
+	})
+
+	if game.State.PendingInterrupt != nil && game.State.PendingInterrupt.Type == model.InterruptChoice {
+		ctxData, _ := game.State.PendingInterrupt.Context.(map[string]interface{})
+		choiceType, _ := ctxData["choice_type"].(string)
+		if choiceType == "hb_holy_shard_miss_confirm" || choiceType == "hb_holy_shard_miss_x" || choiceType == "hb_holy_shard_miss_ally_target" {
+			t.Fatalf("expected shard-miss follow-up to be skipped when no ally can discard, got %s", choiceType)
+		}
+	}
+	if got := p1.Heal; got != 3 {
+		t.Fatalf("expected heal unchanged when miss branch cannot trigger, got %d", got)
+	}
+	if got := p1.Tokens["hb_shard_miss_pending"]; got != 0 {
+		t.Fatalf("expected shard_miss_pending cleared, got %d", got)
+	}
+}
+
 func TestHolyBow_HolyShardStormMiss_YesBranch(t *testing.T) {
 	game := NewGameEngine(noopObserver{})
 	if err := game.AddPlayer("p1", "HolyBow", "holy_bow", model.RedCamp); err != nil {
@@ -343,7 +470,7 @@ func TestHolyBow_HolyShardStormMiss_YesBranch(t *testing.T) {
 		holyBowTestCard("al_m2", "魔弹", model.CardTypeMagic, model.ElementDark, 0),
 	}
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	mustHandleAction(t, game, model.PlayerAction{
 		PlayerID: "p1",
@@ -408,6 +535,81 @@ func TestHolyBow_HolyShardStormMiss_YesBranch(t *testing.T) {
 	}
 }
 
+func TestHolyBow_HolyShardStormMiss_XChoicesRequireAllyEnoughCards(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "HolyBow", "holy_bow", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "angel", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p3", "Ally", "angel", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p3 := game.State.Players["p3"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Heal = 3
+	p1.Hand = []model.Card{
+		holyBowTestCard("hb_a1", "火斩1", model.CardTypeAttack, model.ElementFire, 2),
+		holyBowTestCard("hb_a2", "火斩2", model.CardTypeAttack, model.ElementFire, 2),
+	}
+	p2.Hand = []model.Card{
+		holyBowTestCard("e_m1", "圣光", model.CardTypeMagic, model.ElementLight, 0),
+	}
+	p3.Hand = []model.Card{
+		holyBowTestCard("al_m1", "圣光", model.CardTypeMagic, model.ElementLight, 0),
+	}
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	mustHandleAction(t, game, model.PlayerAction{
+		PlayerID: "p1",
+		Type:     model.CmdSkill,
+		SkillID:  "hb_holy_shard_storm",
+	})
+	requireChoicePrompt(t, game, "p1", "hb_holy_shard_combo")
+	mustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{0},
+	})
+	requireChoicePrompt(t, game, "p1", "hb_holy_shard_target")
+	mustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{0},
+	})
+	mustHandleAction(t, game, model.PlayerAction{
+		PlayerID:  "p2",
+		Type:      model.CmdRespond,
+		CardIndex: 0,
+		ExtraArgs: []string{"defend"},
+	})
+
+	requireChoicePrompt(t, game, "p1", "hb_holy_shard_miss_confirm")
+	mustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{0},
+	})
+	requireChoicePrompt(t, game, "p1", "hb_holy_shard_miss_x")
+
+	prompt := game.GetCurrentPrompt()
+	if prompt == nil {
+		t.Fatal("expected current prompt for shard miss x selection")
+	}
+	if got := len(prompt.Options); got != 1 {
+		t.Fatalf("expected only one legal X option, got %d", got)
+	}
+	if got := prompt.Options[0].Label; got != "移除1点治疗，并令队友弃1张牌" {
+		t.Fatalf("unexpected X option label: %s", got)
+	}
+}
+
 func TestHolyBow_LightBurstModeB_XYBoundaries(t *testing.T) {
 	game := NewGameEngine(noopObserver{})
 	if err := game.AddPlayer("p1", "HolyBow", "holy_bow", model.RedCamp); err != nil {
@@ -425,7 +627,7 @@ func TestHolyBow_LightBurstModeB_XYBoundaries(t *testing.T) {
 	p3 := game.State.Players["p3"]
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
-	p1.Tokens["hb_form"] = 1
+	p1.Form = model.FormHolyBowHolyGlory
 	p1.Heal = 2
 	p1.Hand = []model.Card{
 		holyBowTestCard("lb_c1", "圣光", model.CardTypeMagic, model.ElementLight, 0),
@@ -444,7 +646,7 @@ func TestHolyBow_LightBurstModeB_XYBoundaries(t *testing.T) {
 		holyBowTestCard("d6", "补牌6", model.CardTypeAttack, model.ElementLight, 2),
 	}
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	mustHandleAction(t, game, model.PlayerAction{
 		PlayerID: "p1",
@@ -455,7 +657,7 @@ func TestHolyBow_LightBurstModeB_XYBoundaries(t *testing.T) {
 	mustHandleAction(t, game, model.PlayerAction{
 		PlayerID:   "p1",
 		Type:       model.CmdSelect,
-		Selections: []int{1}, // 分支②
+		Selections: []int{0}, // 分支②（当前唯一可选分支）
 	})
 	requireChoicePrompt(t, game, "p1", "hb_light_burst_mode_b_x")
 	mustHandleAction(t, game, model.PlayerAction{
@@ -550,7 +752,7 @@ func TestHolyBow_LightBurst_NoAvailableModeCannotUse(t *testing.T) {
 	p2 := game.State.Players["p2"]
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
-	p1.Tokens["hb_form"] = 1
+	p1.Form = model.FormHolyBowHolyGlory
 	p1.Heal = 0
 	p1.Hand = []model.Card{
 		holyBowTestCard("hb_lb_block", "圣光", model.CardTypeMagic, model.ElementLight, 0),
@@ -559,7 +761,7 @@ func TestHolyBow_LightBurst_NoAvailableModeCannotUse(t *testing.T) {
 	p2.Hand = nil
 
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	err := game.HandleAction(model.PlayerAction{
 		PlayerID: "p1",
@@ -604,7 +806,7 @@ func TestHolyBow_RadiantCannon_MoraleAlignBothSides(t *testing.T) {
 			p3 := game.State.Players["p3"]
 			p1.IsActive = true
 			p1.TurnState = model.NewPlayerTurnState()
-			p1.Tokens["hb_form"] = 1
+			p1.Form = model.FormHolyBowHolyGlory
 			p1.Tokens["hb_cannon"] = 1
 			p1.Tokens["hb_faith"] = 6
 			p1.Hand = []model.Card{
@@ -635,7 +837,7 @@ func TestHolyBow_RadiantCannon_MoraleAlignBothSides(t *testing.T) {
 			game.State.RedCups = 0
 			game.State.BlueCups = 0
 			game.State.CurrentTurn = 0
-			game.State.Phase = model.PhaseActionSelection
+			game.State.TurnStage = model.TurnStageActionExecution
 
 			mustHandleAction(t, game, model.PlayerAction{
 				PlayerID: "p1",

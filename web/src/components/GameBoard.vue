@@ -1,7 +1,13 @@
 <script setup lang="ts">
+import { storeToRefs } from 'pinia'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useGameStore } from '../stores/gameStore'
-import type { FieldCard, PlayerView } from '../types/game'
+import { useBattleFxStore } from '../stores/battlefx.store'
+import { useBattleReviewStore } from '../stores/battleReview.store'
+import { useInterruptStore } from '../stores/interrupt.store'
+import { useSessionStore } from '../stores/session.store'
+import { useSnapshotStore } from '../stores/snapshot.store'
+import { useUiStore } from '../stores/ui.store'
+import type { FieldCard, PlayerView, Prompt } from '../types/game'
 import PlayerArea from './PlayerArea.vue'
 import ActionPanel from './ActionPanel.vue'
 import CardComponent from './CardComponent.vue'
@@ -9,15 +15,78 @@ import SkillDetailModal from './SkillDetailModal.vue'
 import BattleZone from './BattleZone.vue'
 import VfxLayer from './VfxLayer.vue'
 import ActionTimeline from './ActionTimeline.vue'
-import { useWebSocket } from '../composables/useWebSocket'
-const store = useGameStore()
-const ws = useWebSocket()
+import { useSubmitAction } from '../composables/useSubmitAction'
+import { useBattleInteractionState } from '../composables/useBattleInteractionState'
+
+const battleFxStore = useBattleFxStore()
+const battleReviewStore = useBattleReviewStore()
+const sessionStore = useSessionStore()
+const snapshotStore = useSnapshotStore()
+const interruptStore = useInterruptStore()
+const uiStore = useUiStore()
+const actions = useSubmitAction()
+const {
+  myPlayer: myAreaPlayer,
+  myHand,
+  myExclusiveCards,
+  myPlayableCards,
+  isMyTurn,
+  isPromptForMe,
+  targetablePlayers,
+  targetablePlayersForSkill,
+  canTargetOpponent,
+  getRoleDisplayName,
+} = useBattleInteractionState()
+
+const {
+  moraleChanges,
+  moraleBurstRanking: rawMoraleBurstRanking,
+} = storeToRefs(battleReviewStore)
+const { drawBursts, initiatorFocus } = storeToRefs(battleFxStore)
+const { roomPlayers, myPlayerId, myCamp } = storeToRefs(sessionStore)
+const {
+  currentPlayer,
+  players,
+  redMorale,
+  blueMorale,
+  redCups,
+  blueCups,
+  redGems,
+  blueGems,
+  redCrystals,
+  blueCrystals,
+  deckCount,
+  characters,
+} = storeToRefs(snapshotStore)
+const {
+  currentPrompt,
+  selectedCards,
+  selectedTargets,
+  promptCounterTarget,
+  errorMessage,
+  skillEffectToast,
+  actionMode,
+  magicSubChoice,
+  selectedCardForAction,
+  skillMode,
+  selectedSkill,
+  skillTargetIds,
+  skillDiscardIndices,
+} = storeToRefs(interruptStore)
+const {
+  skillModalCharacterId,
+  skillModalAnchor,
+  isGameEnded,
+  gameEndMessage,
+  gameEndSnapshot: uiGameEndSnapshot,
+} = storeToRefs(uiStore)
 
 // 我的手牌
-const myHand = computed(() => store.myHand)
-const myExclusiveCards = computed(() => store.myExclusiveCards)
-const myHandEntries = computed(() => store.myPlayableCards.filter(item => item.source === 'hand'))
-const myAreaPlayer = computed(() => store.players[store.myPlayerId] || null)
+const myHandEntries = computed(() => myPlayableCards.value.filter(item => item.source === 'hand'))
+const skillModalCharacter = computed(() => {
+  const id = skillModalCharacterId.value
+  return id ? (characters.value[id] ?? null) : null
+})
 type CoverCardEntry = {
   fieldIndex: number
   fieldCard: FieldCard
@@ -54,13 +123,13 @@ function coverEffectLabel(effect?: string): string {
 const orderedPlayerIds = computed(() => {
   const ids: string[] = []
   const seen = new Set<string>()
-  for (const p of store.roomPlayers) {
-    if (store.players[p.id] && !seen.has(p.id)) {
+  for (const p of roomPlayers.value) {
+    if (players.value[p.id] && !seen.has(p.id)) {
       ids.push(p.id)
       seen.add(p.id)
     }
   }
-  for (const id of Object.keys(store.players).sort()) {
+  for (const id of Object.keys(players.value).sort()) {
     if (!seen.has(id)) {
       ids.push(id)
       seen.add(id)
@@ -79,25 +148,25 @@ const turnOrderMap = computed(() => {
 
 const orderedOtherPlayers = computed(() =>
   orderedPlayerIds.value
-    .filter((id) => id !== store.myPlayerId)
-    .map((id) => store.players[id])
+    .filter((id) => id !== myPlayerId.value)
+    .map((id) => players.value[id])
     .filter((p): p is PlayerView => !!p)
 )
 
 const currentTurnCamp = computed(() => {
-  const current = store.currentPlayer ? store.players[store.currentPlayer] : undefined
+  const current = currentPlayer.value ? players.value[currentPlayer.value] : undefined
   if (current?.camp === 'Red' || current?.camp === 'Blue') return current.camp
-  if (store.myCamp === 'Red' || store.myCamp === 'Blue') return store.myCamp
+  if (myCamp.value === 'Red' || myCamp.value === 'Blue') return myCamp.value
   return 'Red'
 })
 
 const leftCamp = computed(() => (currentTurnCamp.value === 'Red' ? 'Blue' : 'Red'))
 const rightCamp = computed(() => currentTurnCamp.value)
 const isHostInRoom = computed(() =>
-  store.roomPlayers.some(p => p.id === store.myPlayerId && p.is_host)
+  roomPlayers.value.some(p => p.id === myPlayerId.value && p.is_host)
 )
 const offlinePlayers = computed(() =>
-  store.roomPlayers.filter(p => !p.is_bot && p.is_online === false)
+  roomPlayers.value.filter(p => !p.is_bot && p.is_online === false)
 )
 const canHostTakeover = computed(() => isHostInRoom.value && offlinePlayers.value.length > 0)
 
@@ -115,7 +184,7 @@ const rightRailPlayers = computed(() =>
 type PlayerAnchorSlot = 'left' | 'right' | 'bottom'
 
 function playerAnchorClasses(playerId: string, slot: PlayerAnchorSlot) {
-  const focus = store.initiatorFocus
+  const focus = initiatorFocus.value
   const active = !!focus && focus.playerId === playerId
   return {
     'player-anchor-wrap--focus-active': active,
@@ -127,15 +196,15 @@ function playerAnchorClasses(playerId: string, slot: PlayerAnchorSlot) {
 
 // 行动选择 prompt 不触发 blur（已在 ActionPanel 内联展示）
 const gameEndTitle = computed(() => {
-  const msg = store.gameEndMessage || ''
+  const msg = gameEndMessage.value || ''
   if (msg.includes('红方胜利')) return '红方胜利'
   if (msg.includes('蓝方胜利')) return '蓝方胜利'
   return '对局结束'
 })
-const gameEndSnapshot = computed(() => store.gameEndSnapshot)
-const moraleBurstRanking = computed(() => store.moraleBurstRanking.slice(0, 8))
+const gameEndSnapshot = computed(() => uiGameEndSnapshot.value)
+const moraleBurstRanking = computed(() => rawMoraleBurstRanking.value.slice(0, 8))
 const moraleChangesForReview = computed(() =>
-  [...store.moraleChanges].sort((a, b) => b.timestamp - a.timestamp).slice(0, 12)
+  [...moraleChanges.value].sort((a, b) => b.timestamp - a.timestamp).slice(0, 12)
 )
 const gameEndTriggerText = computed(() => {
   const snap = gameEndSnapshot.value
@@ -150,7 +219,7 @@ function campLabel(camp?: string): string {
 }
 
 function isMagicBulletCard(cardIdx: number): boolean {
-  const card = store.myPlayableCards.find(item => item.index === cardIdx)?.card
+  const card = myPlayableCards.value.find(item => item.index === cardIdx)?.card
   return !!card && card.type === 'Magic' && card.name === '魔弹'
 }
 
@@ -165,7 +234,7 @@ const targetDebugEnabled = computed(() => {
 })
 
 function promptOptionsDebugSnapshot() {
-  const options = store.currentPrompt?.options || []
+  const options = currentPrompt.value?.options || []
   return options.map((option: any, idx: number) => ({
     idx,
     id: option?.id,
@@ -177,20 +246,20 @@ function logTargetDebug(stage: string, payload?: Record<string, unknown>) {
   if (!targetDebugEnabled.value) return
   const data = {
     stage,
-    me: store.myPlayerId,
-    isMyTurn: store.isMyTurn,
-    isPromptForMe: store.isPromptForMe,
-    promptType: store.currentPrompt?.type || '',
-    actionMode: store.actionMode,
-    skillMode: store.skillMode,
-    selectedCardForAction: store.selectedCardForAction ?? -1,
-    selectedTargets: [...store.selectedTargets],
-    skillTargets: [...store.skillTargetIds],
-    promptCounterTarget: store.promptCounterTarget,
+    me: myPlayerId.value,
+    isMyTurn: isMyTurn.value,
+    isPromptForMe: isPromptForMe.value,
+    promptType: currentPrompt.value?.type || '',
+    actionMode: actionMode.value,
+    skillMode: skillMode.value,
+    selectedCardForAction: selectedCardForAction.value ?? -1,
+    selectedTargets: [...selectedTargets.value],
+    skillTargets: [...skillTargetIds.value],
+    promptCounterTarget: promptCounterTarget.value,
     ...payload
   }
   console.log('[TargetDebug][GameBoard]', data)
-  store.addLog(`[TargetDebug][GameBoard] ${stage}`)
+  battleReviewStore.addLog(`[TargetDebug][GameBoard] ${stage}`)
 }
 
 type ActionHubOptionId = 'attack' | 'magic' | 'special' | 'cannot_act'
@@ -209,7 +278,7 @@ function normalizeActionHubOptionId(option: { id?: string; label?: string }): Ac
   return null
 }
 
-function isActionSelectionPrompt(prompt: typeof store.currentPrompt): boolean {
+function isActionSelectionPrompt(prompt: Prompt | null): boolean {
   if (!prompt) return false
   if (prompt.ui_mode === 'action_hub') return true
   if (prompt.type !== 'confirm') return false
@@ -218,8 +287,8 @@ function isActionSelectionPrompt(prompt: typeof store.currentPrompt): boolean {
 }
 
 const promptGuideContext = computed(() => {
-  const p = store.currentPrompt
-  if (!p || !store.isPromptForMe) return null
+  const p = currentPrompt.value
+  if (!p || !isPromptForMe.value) return null
   if (isActionSelectionPrompt(p)) return null
   return p
 })
@@ -338,7 +407,7 @@ watch(
 )
 
 watch(
-  () => store.currentPrompt,
+  () => currentPrompt.value,
   () => {
     selectedCocoonFieldIndices.value = []
   }
@@ -353,7 +422,7 @@ const promptNeedsCardGuide = computed(() => {
   return optionIds.has('counter') || optionIds.has('defend')
 })
 
-function isOverflowDiscardPrompt(prompt: typeof store.currentPrompt): boolean {
+function isOverflowDiscardPrompt(prompt: Prompt | null): boolean {
   if (!prompt) return false
   if (prompt.type !== 'choose_card' && prompt.type !== 'choose_cards') return false
   const message = String(prompt.message || '')
@@ -365,7 +434,7 @@ function isOverflowDiscardPrompt(prompt: typeof store.currentPrompt): boolean {
   return false
 }
 
-function parseOverflowDiscardCount(prompt: typeof store.currentPrompt): number | null {
+function parseOverflowDiscardCount(prompt: Prompt | null): number | null {
   if (!prompt || !isOverflowDiscardPrompt(prompt)) return null
   if (Number.isFinite(prompt.min) && Number.isFinite(prompt.max) && prompt.min > 0 && prompt.min === prompt.max) {
     return prompt.min
@@ -410,22 +479,22 @@ function onCoverCardClick(fieldIndex: number) {
   const ctx = cocoonPromptContext.value
   if (!ctx.active) return
   if (!isCocoonCoverSelectable(fieldIndex)) {
-    store.setError('当前步骤不可选择该茧')
+    interruptStore.showError('当前步骤不可选择该茧')
     return
   }
 
   if (ctx.mode === 'confirm') {
     const optionIndex = ctx.fieldToOptionIndex[fieldIndex]
     if (optionIndex === undefined) {
-      store.setError('未找到对应茧选项，请重试')
+      interruptStore.showError('未找到对应茧选项，请重试')
       return
     }
-    ws.select([optionIndex])
+    actions.submitSelect([optionIndex])
     return
   }
 
   if (ctx.max <= 1) {
-    ws.select([fieldIndex])
+    actions.submitSelect([fieldIndex])
     return
   }
 
@@ -435,7 +504,7 @@ function onCoverCardClick(fieldIndex: number) {
     return
   }
   if (selectedCocoonFieldIndices.value.length >= ctx.max) {
-    store.setError(`最多只能选择 ${ctx.max} 个茧`)
+    interruptStore.showError(`最多只能选择 ${ctx.max} 个茧`)
     return
   }
   selectedCocoonFieldIndices.value.push(fieldIndex)
@@ -446,10 +515,10 @@ function confirmCocoonSelection() {
   const ctx = cocoonPromptContext.value
   if (!ctx.active || ctx.mode !== 'cards') return
   if (!canConfirmCocoonSelection.value) {
-    store.setError(`请选择 ${ctx.min}-${ctx.max} 个茧`)
+    interruptStore.showError(`请选择 ${ctx.min}-${ctx.max} 个茧`)
     return
   }
-  ws.select([...selectedCocoonFieldIndices.value])
+  actions.submitSelect([...selectedCocoonFieldIndices.value])
 }
 
 const promptNeedsTargetGuide = computed(() => {
@@ -457,18 +526,18 @@ const promptNeedsTargetGuide = computed(() => {
   if (!p) return false
   if (p.type === 'choose_target') return true
   if ((p.counter_target_ids?.length ?? 0) > 0) return true
-  return Object.keys(store.players).some((playerId) => promptOptionIndexForPlayer(playerId) >= 0)
+  return Object.keys(players.value).some((playerId) => promptOptionIndexForPlayer(playerId) >= 0)
 })
 
 function playerPromptMarkers(playerId: string): string[] {
-  const p = store.players[playerId]
+  const p = players.value[playerId]
   if (!p) return []
   const markers = new Set<string>()
   if (p.id) markers.add(p.id)
   if (p.name) markers.add(p.name)
   if (p.role) {
     markers.add(p.role)
-    const roleName = store.getRoleDisplayName(p.role)
+    const roleName = getRoleDisplayName(p.role)
     if (roleName && roleName !== '未知角色') {
       markers.add(roleName)
     }
@@ -486,8 +555,8 @@ function labelMatchesMarkers(label: string, markers: string[]): boolean {
 }
 
 function promptOptionIndexForPlayer(playerId: string, debugTrace: boolean = false): number {
-  const p = store.currentPrompt
-  if (!p || !store.isPromptForMe || !Array.isArray(p.options)) {
+  const p = currentPrompt.value
+  if (!p || !isPromptForMe.value || !Array.isArray(p.options)) {
     if (debugTrace) {
       logTargetDebug('prompt_option_resolve_blocked_no_prompt', { playerId })
     }
@@ -510,7 +579,7 @@ function promptOptionIndexForPlayer(playerId: string, debugTrace: boolean = fals
   }
 
   const allMarkerMap = Object.fromEntries(
-    Object.keys(store.players).map((id) => [id, playerPromptMarkers(id)])
+    Object.keys(players.value).map((id) => [id, playerPromptMarkers(id)])
   ) as Record<string, string[]>
 
   let matchedIdx = -1
@@ -542,15 +611,15 @@ type PlayerSelectState = {
 }
 
 function playerSelectState(playerId: string): PlayerSelectState {
-  if (store.isGameEnded) return { selectable: false, reason: 'game_ended' }
+  if (isGameEnded.value) return { selectable: false, reason: 'game_ended' }
 
-  const prompt = store.currentPrompt
+  const prompt = currentPrompt.value
   const promptIsActionHub = isActionSelectionPrompt(prompt)
-  if (prompt && !store.isPromptForMe) {
+  if (prompt && !isPromptForMe.value) {
     return { selectable: false, reason: 'prompt_not_for_me' }
   }
 
-  if (prompt && store.isPromptForMe && !promptIsActionHub) {
+  if (prompt && isPromptForMe.value && !promptIsActionHub) {
     const idx = promptOptionIndexForPlayer(playerId)
     if (prompt.type === 'choose_target') {
       if (idx >= 0) return { selectable: true, reason: `prompt_choose_target_option_${idx}` }
@@ -563,30 +632,30 @@ function playerSelectState(playerId: string): PlayerSelectState {
     return { selectable: false, reason: 'prompt_confirm_no_option_match' }
   }
 
-  if (prompt && store.isPromptForMe && promptIsActionHub && store.actionMode === 'none' && store.skillMode === 'none') {
+  if (prompt && isPromptForMe.value && promptIsActionHub && actionMode.value === 'none' && skillMode.value === 'none') {
     return { selectable: false, reason: 'action_hub_waiting_for_mode_choice' }
   }
 
-  if (store.canTargetOpponent() && store.targetablePlayers.some((t) => t.id === playerId)) {
+  if (canTargetOpponent.value && targetablePlayers.value.some((t) => t.id === playerId)) {
     return { selectable: true, reason: 'action_mode_targetable' }
   }
-  if (store.skillMode === 'choosing_target' && store.targetablePlayersForSkill.some((t) => t.id === playerId)) {
+  if (skillMode.value === 'choosing_target' && targetablePlayersForSkill.value.some((t) => t.id === playerId)) {
     return { selectable: true, reason: 'skill_mode_targetable' }
   }
   if (
-    store.actionMode === 'magic' &&
-    store.selectedCardForAction !== null &&
-    store.targetablePlayers.some((t) => t.id === playerId)
+    actionMode.value === 'magic' &&
+    selectedCardForAction.value !== null &&
+    targetablePlayers.value.some((t) => t.id === playerId)
   ) {
     return { selectable: true, reason: 'magic_mode_targetable' }
   }
 
-  if (store.skillMode === 'choosing_target') {
+  if (skillMode.value === 'choosing_target') {
     return { selectable: false, reason: 'skill_mode_target_not_in_targetablePlayersForSkill' }
   }
-  if (store.actionMode !== 'none') {
-    if (store.selectedCardForAction === null) return { selectable: false, reason: 'action_mode_no_card_selected' }
-    if (!store.canTargetOpponent()) return { selectable: false, reason: 'action_mode_canTargetOpponent_false' }
+  if (actionMode.value !== 'none') {
+    if (selectedCardForAction.value === null) return { selectable: false, reason: 'action_mode_no_card_selected' }
+    if (!canTargetOpponent.value) return { selectable: false, reason: 'action_mode_canTargetOpponent_false' }
     return { selectable: false, reason: 'action_mode_target_not_in_targetablePlayers' }
   }
 
@@ -594,15 +663,15 @@ function playerSelectState(playerId: string): PlayerSelectState {
 }
 
 function isPromptCounterTargetSelectable(playerId: string): boolean {
-  const ids = store.currentPrompt?.counter_target_ids
-  if (!store.currentPrompt || !store.isPromptForMe || !ids?.length) return false
+  const ids = currentPrompt.value?.counter_target_ids
+  if (!currentPrompt.value || !isPromptForMe.value || !ids?.length) return false
   return ids.includes(playerId)
 }
 
 function isPlayerSelected(playerId: string): boolean {
-  if (store.skillMode === 'choosing_target' && store.skillTargetIds.includes(playerId)) return true
-  if (store.currentPrompt?.type === 'choose_target' && store.selectedTargets.includes(playerId)) return true
-  if (store.promptCounterTarget === playerId && isPromptCounterTargetSelectable(playerId)) return true
+  if (skillMode.value === 'choosing_target' && skillTargetIds.value.includes(playerId)) return true
+  if (currentPrompt.value?.type === 'choose_target' && selectedTargets.value.includes(playerId)) return true
+  if (promptCounterTarget.value === playerId && isPromptCounterTargetSelectable(playerId)) return true
   return false
 }
 
@@ -615,29 +684,25 @@ function playerSelectReason(playerId: string): string {
 }
 
 function onTargetClick(playerId: string) {
-  if (store.isGameEnded) {
+  if (isGameEnded.value) {
     logTargetDebug('click_blocked_game_ended', { playerId })
     return
   }
-  const prompt = store.currentPrompt
+  const prompt = currentPrompt.value
   const promptIsActionHub = isActionSelectionPrompt(prompt)
   logTargetDebug('click_received', {
     playerId,
     promptOptions: promptOptionsDebugSnapshot(),
-    counterTargetIds: store.currentPrompt?.counter_target_ids || [],
+    counterTargetIds: currentPrompt.value?.counter_target_ids || [],
     promptIsActionHub
   })
   
-  if (prompt && store.isPromptForMe && !promptIsActionHub) {
+  if (prompt && isPromptForMe.value && !promptIsActionHub) {
     if (prompt.type === 'choose_target') {
       const promptIdx = promptOptionIndexForPlayer(playerId, true)
       if (promptIdx >= 0) {
         logTargetDebug('prompt_choose_target_send_action', { playerId, optionIdx: promptIdx })
-        ws.sendAction({
-          player_id: store.myPlayerId,
-          type: 'Select',
-          target_id: playerId
-        })
+        actions.submitPromptTarget(playerId)
       } else {
         logTargetDebug('prompt_choose_target_reject_click', { playerId })
       }
@@ -646,94 +711,93 @@ function onTargetClick(playerId: string) {
     const optionIdx = promptOptionIndexForPlayer(playerId, true)
     if (optionIdx >= 0) {
       logTargetDebug('prompt_option_send_select', { playerId, optionIdx })
-      ws.select([optionIdx])
+      actions.submitSelect([optionIdx])
       return
     }
     if (isPromptCounterTargetSelectable(playerId)) {
-      const next = store.promptCounterTarget === playerId ? '' : playerId
-      store.setPromptCounterTarget(next)
+      const next = promptCounterTarget.value === playerId ? '' : playerId
+      interruptStore.setPromptCounterTarget(next)
       logTargetDebug('prompt_counter_target_toggled', { playerId, nextTarget: next })
       return
     }
     logTargetDebug('prompt_click_no_matching_route', { playerId })
     return
   }
-  if (prompt && store.isPromptForMe && promptIsActionHub) {
+  if (prompt && isPromptForMe.value && promptIsActionHub) {
     logTargetDebug('action_hub_prompt_bypassed_for_target_click', {
       playerId,
-      actionMode: store.actionMode,
-      selectedCardForAction: store.selectedCardForAction ?? -1
+      actionMode: actionMode.value,
+      selectedCardForAction: selectedCardForAction.value ?? -1
     })
   }
 
   // 技能选目标模式
-  if (store.skillMode === 'choosing_target' && store.selectedSkill) {
-    if (store.targetablePlayersForSkill.some(p => p.id === playerId)) {
-      store.toggleSkillTarget(playerId)
+  if (skillMode.value === 'choosing_target' && selectedSkill.value) {
+    if (targetablePlayersForSkill.value.some(p => p.id === playerId)) {
+      interruptStore.toggleSkillTarget(playerId)
       logTargetDebug('skill_target_toggled', {
         playerId,
-        skillId: store.selectedSkill.id,
-        skillTargets: [...store.skillTargetIds]
+        skillId: selectedSkill.value.id,
+        skillTargets: [...skillTargetIds.value]
       })
       // 单目标技能选中后自动发动
-      if (store.selectedSkill.max_targets === 1 && store.skillTargetIds.length === 1) {
+      if (selectedSkill.value.max_targets === 1 && skillTargetIds.value.length === 1) {
         logTargetDebug('skill_target_auto_use', {
           playerId,
-          skillId: store.selectedSkill.id
+          skillId: selectedSkill.value.id
         })
-        const skillId = store.selectedSkill.id
-        const targetIds = [...store.skillTargetIds]
+        const skillId = selectedSkill.value.id
+        const targetIds = [...skillTargetIds.value]
         // 技能已提交后立即退出选择态，避免等待下一步 prompt 期间重复发送 Skill。
-        store.clearSkillMode()
-        ws.useSkill(skillId, targetIds)
+        actions.submitUseSkill(skillId, targetIds, undefined, { clearSkillMode: true })
       }
     } else {
       logTargetDebug('skill_target_blocked_not_candidate', {
         playerId,
-        candidates: store.targetablePlayersForSkill.map(p => p.id)
+        candidates: targetablePlayersForSkill.value.map(p => p.id)
       })
     }
     return
   }
   // 攻击/法术模式
-  if (!store.canTargetOpponent()) {
+  if (!canTargetOpponent.value) {
     logTargetDebug('action_target_blocked_canTargetOpponent_false', { playerId })
     return
   }
-  const cardIdx = store.selectedCardForAction
+  const cardIdx = selectedCardForAction.value
   if (cardIdx === null) {
     logTargetDebug('action_target_blocked_no_card_selected', { playerId })
     return
   }
-  const selectedItem = store.myPlayableCards.find(item => item.index === cardIdx)
+  const selectedItem = myPlayableCards.value.find(item => item.index === cardIdx)
   if (!selectedItem) {
-    store.setSelectedCardForAction(null)
-    store.setError('所选卡牌已变化，请重新选择')
+    interruptStore.setSelectedCardForAction(null)
+    interruptStore.showError('所选卡牌已变化，请重新选择')
     logTargetDebug('action_target_blocked_card_not_found', { playerId, cardIdx })
     return
   }
-  if (store.actionMode === 'attack') {
+  if (actionMode.value === 'attack') {
     if (selectedItem.card.type !== 'Attack') {
-      store.setSelectedCardForAction(null)
-      store.setError('所选卡牌不是攻击牌，请重新选择')
+      interruptStore.setSelectedCardForAction(null)
+      interruptStore.showError('所选卡牌不是攻击牌，请重新选择')
       logTargetDebug('action_target_blocked_card_not_attack', { playerId, cardIdx, cardType: selectedItem.card.type })
       return
     }
     logTargetDebug('action_attack_send', { playerId, cardIdx, cardName: selectedItem.card.name })
-    ws.attack(playerId, cardIdx)
-  } else if (store.actionMode === 'magic') {
+    actions.submitAttack(playerId, cardIdx)
+  } else if (actionMode.value === 'magic') {
     if (selectedItem.card.type !== 'Magic') {
-      store.setSelectedCardForAction(null)
-      store.setError('所选卡牌不是法术牌，请重新选择')
+      interruptStore.setSelectedCardForAction(null)
+      interruptStore.showError('所选卡牌不是法术牌，请重新选择')
       logTargetDebug('action_target_blocked_card_not_magic', { playerId, cardIdx, cardType: selectedItem.card.type })
       return
     }
     if (isMagicBulletCard(cardIdx)) {
       logTargetDebug('action_magic_missile_send', { playerId, cardIdx, cardName: selectedItem.card.name })
-      ws.magic(undefined, cardIdx)
+      actions.submitMagic(undefined, cardIdx)
     } else {
       logTargetDebug('action_magic_send', { playerId, cardIdx, cardName: selectedItem.card.name })
-      ws.magic(playerId, cardIdx)
+      actions.submitMagic(playerId, cardIdx)
     }
   }
 }
@@ -756,35 +820,34 @@ function parseHandIndexFromPromptLabel(label: string): number | null {
 
 function promptHandCardIndexSet(): Set<number> {
   const set = new Set<number>()
-  const options = store.currentPrompt?.options || []
+  const options = currentPrompt.value?.options || []
   for (const option of options) {
     const idx = parsePromptCardIndex(option.id)
-    if (idx === null || idx < 0 || idx >= store.myHand.length) continue
+    if (idx === null || idx < 0 || idx >= myHand.value.length) continue
     const labelIdx = parseHandIndexFromPromptLabel(option.label)
     if (labelIdx === idx) set.add(idx)
   }
   return set
 }
 
-function isWaterShadowPromptForSelection(prompt: typeof store.currentPrompt): boolean {
+function isWaterShadowPromptForSelection(prompt: Prompt | null): boolean {
   if (!prompt) return false
-  if (!String(prompt.message || '').includes('水影')) return false
+  if (prompt.skill_id !== 'water_shadow') return false
   const options = prompt.options || []
   const hasCounterOrDefend = options.some((option: any) => option?.id === 'counter' || option?.id === 'defend')
   return !hasCounterOrDefend
 }
 
 function isStealthedForWaterShadow(): boolean {
-  return !!store.myPlayer?.field?.some((fc) => fc.mode === 'Effect' && fc.effect === 'Stealth')
+  return !!myAreaPlayer.value?.field?.some((fc) => fc.mode === 'Effect' && fc.effect === 'Stealth')
 }
 
 function canUseShadowRejectMagicResponse(): boolean {
-  const me = store.myPlayer
+  const me = myAreaPlayer.value
   if (!me) return false
-  if (store.isMyTurn) return false
+  if (isMyTurn.value) return false
   if (me.role !== 'magic_swordsman') return false
-  const shadowForm = Number(me.tokens?.ms_shadow_form ?? 0)
-  return shadowForm > 0
+  return me.form === 'magic_swordsman_shadow_form'
 }
 
 type PromptCardSelectionState = {
@@ -794,15 +857,15 @@ type PromptCardSelectionState = {
 }
 
 function promptCardSelectionState(idx: number): PromptCardSelectionState {
-  const prompt = store.currentPrompt
-  if (!prompt || !store.isPromptForMe) {
+  const prompt = currentPrompt.value
+  if (!prompt || !isPromptForMe.value) {
     return { selectable: false, reason: 'no_prompt_for_me' }
   }
   if (isActionSelectionPrompt(prompt)) {
     return { selectable: false, reason: 'action_hub_prompt' }
   }
 
-  const card = store.myHand[idx]
+  const card = myHand.value[idx]
   if (!card) {
     return { selectable: false, reason: 'card_not_in_hand', error: '请从手牌区选择有效卡牌' }
   }
@@ -859,17 +922,17 @@ function promptCardSelectionState(idx: number): PromptCardSelectionState {
   }
 
   if (isWaterShadowPromptForSelection(prompt)) {
-    const selectedCards = store.selectedCards
-      .map((i) => store.myHand[i])
+    const selectedPromptCards = selectedCards.value
+      .map((i) => myHand.value[i])
       .filter((c): c is NonNullable<typeof c> => !!c)
-    const waterCount = selectedCards.filter((c) => c.element === 'Water').length
-    const magicCount = selectedCards.filter((c) => c.type === 'Magic' && c.element !== 'Water').length
+    const waterCount = selectedPromptCards.filter((c) => c.element === 'Water').length
+    const magicCount = selectedPromptCards.filter((c) => c.type === 'Magic' && c.element !== 'Water').length
     const stealthed = isStealthedForWaterShadow()
     if (card.element === 'Water') {
       return { selectable: true, reason: 'prompt_water_shadow_water' }
     }
     if (stealthed && card.type === 'Magic') {
-      if (store.selectedCards.includes(idx)) {
+      if (selectedCards.value.includes(idx)) {
         return { selectable: true, reason: 'prompt_water_shadow_keep_selected_magic' }
       }
       if (magicCount >= 1) {
@@ -910,84 +973,97 @@ function promptCardSelectionState(idx: number): PromptCardSelectionState {
 }
 
 function isCardSelectableForAction(idx: number): boolean {
-  if (store.isGameEnded) return false
-  if (store.skillMode === 'choosing_discard') return idx < store.myHand.length
-  if (store.actionMode === 'attack') {
-    const card = store.myPlayableCards.find(item => item.index === idx)?.card
+  if (isGameEnded.value) return false
+  if (skillMode.value === 'choosing_discard') return idx < myHand.value.length
+  if (actionMode.value === 'attack') {
+    const card = myPlayableCards.value.find(item => item.index === idx)?.card
     return !!card && card.type === 'Attack'
   }
-  if (store.actionMode === 'magic' && store.magicSubChoice === 'card') {
-    const card = store.myPlayableCards.find(item => item.index === idx)?.card
+  if (actionMode.value === 'magic' && magicSubChoice.value === 'card') {
+    const card = myPlayableCards.value.find(item => item.index === idx)?.card
     return !!card && card.type === 'Magic'
   }
-  if (store.isPromptForMe) return promptCardSelectionState(idx).selectable
-  return store.isMyTurn
+  if (isPromptForMe.value) return promptCardSelectionState(idx).selectable
+  return isMyTurn.value
+}
+
+function togglePromptSelectedCard(idx: number) {
+  const nextSelected = [...selectedCards.value]
+  const existingIndex = nextSelected.indexOf(idx)
+  if (existingIndex >= 0) {
+    nextSelected.splice(existingIndex, 1)
+  } else if (currentPrompt.value?.max === 1) {
+    nextSelected.splice(0, nextSelected.length, idx)
+  } else {
+    nextSelected.push(idx)
+  }
+  interruptStore.setSelectedCards(nextSelected)
 }
 
 function onCardClick(idx: number) {
-  if (store.isGameEnded) return
+  if (isGameEnded.value) return
   // 优先级：actionMode > skillMode(弃牌) > prompt 选牌 > 默认
-  if (store.actionMode !== 'none') {
-    const card = store.myPlayableCards.find(item => item.index === idx)?.card
-    if (store.actionMode === 'magic' && card && card.type !== 'Magic') {
-      store.setError('请选择法术牌')
+  if (actionMode.value !== 'none') {
+    const card = myPlayableCards.value.find(item => item.index === idx)?.card
+    if (actionMode.value === 'magic' && card && card.type !== 'Magic') {
+      interruptStore.showError('请选择法术牌')
       return
     }
-    if (store.actionMode === 'attack' && card && card.type !== 'Attack') {
-      store.setError('请选择攻击牌')
+    if (actionMode.value === 'attack' && card && card.type !== 'Attack') {
+      interruptStore.showError('请选择攻击牌')
       return
     }
-    if (store.actionMode === 'magic' && isMagicBulletCard(idx)) {
+    if (actionMode.value === 'magic' && isMagicBulletCard(idx)) {
       // 魔弹按固定传递顺序自动结算，不需要手动点目标。
-      ws.magic(undefined, idx)
+      actions.submitMagic(undefined, idx)
       return
     }
-    store.setSelectedCardForAction(store.selectedCardForAction === idx ? null : idx)
+    interruptStore.setSelectedCardForAction(selectedCardForAction.value === idx ? null : idx)
     return
   }
   // 技能弃牌模式：检查元素要求后切换选中
-  if (store.skillMode === 'choosing_discard' && store.selectedSkill) {
-    const card = store.myHand[idx]
+  if (skillMode.value === 'choosing_discard' && selectedSkill.value) {
+    const card = myHand.value[idx]
     if (!card) return
-    const skill = store.selectedSkill
+    const skill = selectedSkill.value
     // 检查元素要求
     if (skill.discard_element && card.element !== skill.discard_element) {
-      store.setError(`需要弃置${skill.discard_element}牌`)
+      interruptStore.showError(`需要弃置${skill.discard_element}牌`)
       return
     }
     if (skill.discard_type && card.type !== skill.discard_type) {
-      store.setError(`需要弃置${skill.discard_type === 'Magic' ? '法术' : '攻击'}牌`)
+      interruptStore.showError(`需要弃置${skill.discard_type === 'Magic' ? '法术' : '攻击'}牌`)
       return
     }
     if (skill.id === 'magic_bullet_fusion' && card.element !== 'Fire' && card.element !== 'Earth') {
-      store.setError('魔弹融合需要弃置1张火系或地系牌')
+      interruptStore.showError('魔弹融合需要弃置1张火系或地系牌')
       return
     }
-    if (skill.id === 'onmyoji_shikigami_descend' && !store.skillDiscardIndices.includes(idx)) {
+    if (skill.id === 'onmyoji_shikigami_descend' && !skillDiscardIndices.value.includes(idx)) {
       if (!card.faction) {
-        store.setError('式神降临需要弃置有命格的手牌')
+        interruptStore.showError('式神降临需要弃置有命格的手牌')
         return
       }
-      const selected = store.skillDiscardIndices
-        .map((i) => store.myHand[i])
+      const selected = skillDiscardIndices.value
+        .map((i) => myHand.value[i])
         .filter((c): c is NonNullable<typeof c> => !!c)
       if (selected.length > 0) {
         const reqFaction = selected[0]?.faction
         if (reqFaction && card.faction !== reqFaction) {
-          store.setError('式神降临需要弃置2张命格相同的手牌')
+          interruptStore.showError('式神降临需要弃置2张命格相同的手牌')
           return
         }
       }
     }
     // 检查是否已选满
-    if (!store.skillDiscardIndices.includes(idx) && store.skillDiscardIndices.length >= skill.cost_discards) {
-      store.setError(`最多选择 ${skill.cost_discards} 张牌`)
+    if (!skillDiscardIndices.value.includes(idx) && skillDiscardIndices.value.length >= skill.cost_discards) {
+      interruptStore.showError(`最多选择 ${skill.cost_discards} 张牌`)
       return
     }
-    store.toggleSkillDiscard(idx)
+    interruptStore.toggleSkillDiscard(idx)
     return
   }
-  if (store.isPromptForMe) {
+  if (isPromptForMe.value) {
     const state = promptCardSelectionState(idx)
     if (!state.selectable) {
       logTargetDebug('prompt_card_click_blocked', {
@@ -995,20 +1071,20 @@ function onCardClick(idx: number) {
         reason: state.reason
       })
       if (state.error) {
-        store.setError(state.error)
+        interruptStore.showError(state.error)
       }
       return
     }
-    store.toggleCardSelection(idx)
+    togglePromptSelectedCard(idx)
     logTargetDebug('prompt_card_toggled', {
       cardIdx: idx,
-      selectedCards: [...store.selectedCards],
+      selectedCards: [...selectedCards.value],
       reason: state.reason
     })
     return
   }
-  if (store.isMyTurn) {
-    store.setSelectedCardForAction(store.selectedCardForAction === idx ? null : idx)
+  if (isMyTurn.value) {
+    interruptStore.setSelectedCardForAction(selectedCardForAction.value === idx ? null : idx)
   }
 }
 
@@ -1030,7 +1106,7 @@ const drawFlightCards = ref<DrawFlightVisual[]>([])
 function rebuildDrawFlights() {
   const root = boardRootRef.value
   const deck = deckCounterRef.value
-  if (!root || !deck || store.drawBursts.length === 0) {
+  if (!root || !deck || drawBursts.value.length === 0) {
     drawFlightCards.value = []
     return
   }
@@ -1041,7 +1117,7 @@ function rebuildDrawFlights() {
   const startY = deckRect.top + deckRect.height / 2 - rootRect.top
   const visuals: DrawFlightVisual[] = []
 
-  for (const burst of store.drawBursts) {
+  for (const burst of drawBursts.value) {
     const anchor = root.querySelector<HTMLElement>(`[data-player-anchor="${burst.playerId}"]`)
     if (!anchor) continue
     const targetRect = anchor.getBoundingClientRect()
@@ -1083,7 +1159,7 @@ function refreshDrawFlightsSoon() {
 }
 
 watch(
-  () => store.drawBursts.map((item) => `${item.id}-${item.playerId}-${item.count}`).join('|'),
+  () => drawBursts.value.map((item) => `${item.id}-${item.playerId}-${item.count}`).join('|'),
   () => {
     refreshDrawFlightsSoon()
   },
@@ -1091,16 +1167,16 @@ watch(
 )
 
 watch(
-  () => [leftRailPlayers.value.length, rightRailPlayers.value.length, !!myAreaPlayer.value, store.myPlayerId, store.deckCount],
+  () => [leftRailPlayers.value.length, rightRailPlayers.value.length, !!myAreaPlayer.value, myPlayerId.value, deckCount.value],
   () => {
-    if (store.drawBursts.length > 0) {
+    if (drawBursts.value.length > 0) {
       refreshDrawFlightsSoon()
     }
   }
 )
 
 function handleResize() {
-  if (store.drawBursts.length > 0) {
+  if (drawBursts.value.length > 0) {
     rebuildDrawFlights()
   }
 }
@@ -1118,19 +1194,19 @@ onBeforeUnmount(() => {
 })
 
 function leaveToLobby() {
-  ws.disconnect()
+  actions.disconnect()
 }
 
 function takeoverOfflinePlayer(playerId: string) {
   if (!playerId) return
-  ws.sendRoomAction('takeover_player', { target_id: playerId })
+  actions.sendRoomAction('takeover_player', { target_id: playerId })
 }
 
 function dissolveRoomByHost() {
   if (!isHostInRoom.value) return
   const confirmed = window.confirm('确认解散房间吗？所有玩家将被退出到大厅。')
   if (!confirmed) return
-  ws.sendRoomAction('dissolve_room')
+  actions.sendRoomAction('dissolve_room')
 }
 </script>
 
@@ -1151,30 +1227,30 @@ function dissolveRoomByHost() {
       <div class="camp-bar camp-blue-bar">
         <span class="camp-side-label camp-side-label-left">蓝阵营</span>
         <div class="camp-center-metrics">
-          <span class="camp-score">{{ store.blueMorale }}</span>
-          <span class="camp-cup">🏆 {{ store.blueCups }}</span>
-          <span class="camp-gem">♦ {{ store.blueGems }}</span>
-          <span class="camp-crystal">🔷 {{ store.blueCrystals }}</span>
+          <span class="camp-score">{{ blueMorale }}</span>
+          <span class="camp-cup">🏆 {{ blueCups }}</span>
+          <span class="camp-gem">♦ {{ blueGems }}</span>
+          <span class="camp-crystal">🔷 {{ blueCrystals }}</span>
         </div>
       </div>
 
       <div
         ref="deckCounterRef"
         class="top-deck-indicator"
-        :class="{ 'top-deck-indicator--active': store.drawBursts.length > 0 }"
+        :class="{ 'top-deck-indicator--active': drawBursts.length > 0 }"
         title="当前公共牌堆剩余卡牌"
       >
         <span class="top-deck-label">公共牌堆</span>
-        <span class="top-deck-count">{{ store.deckCount }}</span>
+        <span class="top-deck-count">{{ deckCount }}</span>
       </div>
 
       <div class="camp-bar camp-red-bar">
         <span class="camp-side-label camp-side-label-right">红阵营</span>
         <div class="camp-center-metrics">
-          <span class="camp-score">{{ store.redMorale }}</span>
-          <span class="camp-cup">🏆 {{ store.redCups }}</span>
-          <span class="camp-gem">♦ {{ store.redGems }}</span>
-          <span class="camp-crystal">🔷 {{ store.redCrystals }}</span>
+          <span class="camp-score">{{ redMorale }}</span>
+          <span class="camp-cup">🏆 {{ redCups }}</span>
+          <span class="camp-gem">♦ {{ redGems }}</span>
+          <span class="camp-crystal">🔷 {{ redCrystals }}</span>
         </div>
       </div>
     </div>
@@ -1221,8 +1297,8 @@ function dissolveRoomByHost() {
         >
           <PlayerArea
             :player="p"
-            :isMe="p.id === store.myPlayerId"
-            :isOpponent="p.camp !== store.myCamp"
+            :isMe="p.id === myPlayerId"
+            :isOpponent="p.camp !== myCamp"
             :selectable="isPlayerSelectable(p.id)"
             :debugTargetReason="playerSelectReason(p.id)"
             :selected="isPlayerSelected(p.id)"
@@ -1248,10 +1324,10 @@ function dissolveRoomByHost() {
             <div
               class="bottom-slot-me player-anchor-wrap"
               :class="[
-                playerAnchorClasses(store.myPlayerId, 'bottom'),
-                { 'target-guide-pulse': promptNeedsTargetGuide && isPlayerSelectable(store.myPlayerId) }
+                playerAnchorClasses(myPlayerId, 'bottom'),
+                { 'target-guide-pulse': promptNeedsTargetGuide && isPlayerSelectable(myPlayerId) }
               ]"
-              :data-player-anchor="store.myPlayerId"
+              :data-player-anchor="myPlayerId"
             >
               <PlayerArea
                 v-if="myAreaPlayer"
@@ -1369,7 +1445,7 @@ function dissolveRoomByHost() {
                     :index="entry.index"
                     medium
                     :selectable="isCardSelectableForAction(entry.index)"
-                    :selected="store.selectedCards.includes(entry.index) || store.selectedCardForAction === entry.index || store.skillDiscardIndices.includes(entry.index)"
+                    :selected="selectedCards.includes(entry.index) || selectedCardForAction === entry.index || skillDiscardIndices.includes(entry.index)"
                     @click="onCardClick(entry.index)"
                   />
                 </div>
@@ -1393,8 +1469,8 @@ function dissolveRoomByHost() {
         >
           <PlayerArea
             :player="p"
-            :isMe="p.id === store.myPlayerId"
-            :isOpponent="p.camp !== store.myCamp"
+            :isMe="p.id === myPlayerId"
+            :isOpponent="p.camp !== myCamp"
             :selectable="isPlayerSelectable(p.id)"
             :debugTargetReason="playerSelectReason(p.id)"
             :selected="isPlayerSelected(p.id)"
@@ -1417,25 +1493,25 @@ function dissolveRoomByHost() {
       </div>
     </div>
 
-    <div class="right-action-dock" :class="{ 'right-action-dock--active': store.isMyTurn }">
+    <div class="right-action-dock" :class="{ 'right-action-dock--active': isMyTurn }">
       <ActionPanel />
     </div>
 
     <!-- Toast 通知（参考 noname） -->
     <Transition name="toast">
       <div 
-        v-if="store.errorMessage" 
+        v-if="errorMessage" 
         class="toast error"
       >
-        {{ store.errorMessage }}
+        {{ errorMessage }}
       </div>
     </Transition>
     <Transition name="toast">
       <div 
-        v-if="store.skillEffectToast" 
+        v-if="skillEffectToast" 
         class="toast skill"
       >
-        {{ store.skillEffectToast }}
+        {{ skillEffectToast }}
       </div>
     </Transition>
 
@@ -1443,17 +1519,17 @@ function dissolveRoomByHost() {
 
     <!-- 技能详情中央弹窗（所有人可查看任意角色） -->
     <SkillDetailModal
-      :character="store.skillModalCharacter"
-      :visible="!!store.skillModalCharacterId"
-      :anchor="store.skillModalAnchor"
-      @close="store.openSkillModal(null)"
+      :character="skillModalCharacter"
+      :visible="!!skillModalCharacterId"
+      :anchor="skillModalAnchor"
+      @close="uiStore.openSkillModal(null)"
     />
 
     <Transition name="game-end">
-      <div v-if="store.isGameEnded" class="game-end-overlay">
+      <div v-if="isGameEnded" class="game-end-overlay">
         <div class="game-end-card">
           <div class="game-end-title">{{ gameEndTitle }}</div>
-          <div class="game-end-message">{{ store.gameEndMessage || '游戏结束' }}</div>
+          <div class="game-end-message">{{ gameEndMessage || '游戏结束' }}</div>
 
           <div class="game-end-layout">
             <section class="game-end-summary">
@@ -1471,19 +1547,19 @@ function dissolveRoomByHost() {
               <div class="summary-metrics">
                 <div class="metric-item">
                   <span>红方士气</span>
-                  <strong>{{ gameEndSnapshot?.finalRedMorale ?? store.redMorale }}</strong>
+                  <strong>{{ gameEndSnapshot?.finalRedMorale ?? redMorale }}</strong>
                 </div>
                 <div class="metric-item">
                   <span>蓝方士气</span>
-                  <strong>{{ gameEndSnapshot?.finalBlueMorale ?? store.blueMorale }}</strong>
+                  <strong>{{ gameEndSnapshot?.finalBlueMorale ?? blueMorale }}</strong>
                 </div>
                 <div class="metric-item">
                   <span>红方星杯</span>
-                  <strong>{{ gameEndSnapshot?.finalRedCups ?? store.redCups }}</strong>
+                  <strong>{{ gameEndSnapshot?.finalRedCups ?? redCups }}</strong>
                 </div>
                 <div class="metric-item">
                   <span>蓝方星杯</span>
-                  <strong>{{ gameEndSnapshot?.finalBlueCups ?? store.blueCups }}</strong>
+                  <strong>{{ gameEndSnapshot?.finalBlueCups ?? blueCups }}</strong>
                 </div>
               </div>
             </section>

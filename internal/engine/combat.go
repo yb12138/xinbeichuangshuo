@@ -8,7 +8,9 @@ import (
 )
 
 // initCombat 初始化战斗，将 CombatRequest 推入栈并进入战斗交互阶段
-func (e *GameEngine) initCombat(attackerID, targetID string, card *model.Card, isForcedHit, canBeResponded bool, isCounter ...bool) {
+func (e *GameEngine) initCombat(attackerID, targetID string, card *model.Card, isForcedHit, canBeResponded, ignoreShield bool, isCounter ...bool) {
+	e.setCombatStage(model.CombatStageDeclare)
+	e.clearSubflow()
 	attacker := e.State.Players[attackerID]
 	target := e.State.Players[targetID]
 	if attacker != nil && target != nil && card != nil {
@@ -20,20 +22,18 @@ func (e *GameEngine) initCombat(attackerID, targetID string, card *model.Card, i
 		TargetID:       targetID,
 		Card:           card,
 		IsForcedHit:    isForcedHit,
+		IgnoreShield:   ignoreShield,
 		CanBeResponded: canBeResponded,
 		IsCounter:      len(isCounter) > 0 && isCounter[0],
 	}
 
 	// 推入战斗栈
 	e.State.CombatStack = append(e.State.CombatStack, combatReq)
-
-	// 设置阶段为战斗交互
-	e.State.Phase = model.PhaseCombatInteraction
-
 }
 
 // ResolveDamage 结算伤害（Step 7 & 8）
 func (e *GameEngine) ResolveDamage(attackerID, victimID string, card *model.Card, damageType string) error {
+	e.setCombatStage(model.CombatStageCalcDamage)
 	attacker := e.State.Players[attackerID]
 	victim := e.State.Players[victimID]
 
@@ -56,7 +56,7 @@ func (e *GameEngine) ResolveDamage(attackerID, victimID string, card *model.Card
 			Type:     model.ActionAttack,
 			Card:     card,
 		}
-		damage = e.applyPassiveAttackEffects(attacker, victim, damage, action)
+		damage = e.applyAttackDamageModifiers(attacker, victim, damage, action)
 	}
 
 	// 3. 触发 TriggerOnDamageTaken 检查减伤技能
@@ -78,8 +78,7 @@ func (e *GameEngine) ResolveDamage(attackerID, victimID string, card *model.Card
 	// 检查是否有中断（如减伤技能需要确认）
 	if e.State.PendingInterrupt != nil {
 		e.Log("等待减伤技能响应...")
-		e.State.Phase = model.PhaseDamageResolution // 标记当前处于伤害结算中
-		return nil                                  // 暂停执行，等待中断处理
+		return nil // 暂停执行，等待中断处理
 	}
 
 	// 4. 使用修改后的伤害值
@@ -89,9 +88,31 @@ func (e *GameEngine) ResolveDamage(attackerID, victimID string, card *model.Card
 	}
 
 	// 6. 应用伤害（扣除生命值/摸牌）
+	e.setCombatStage(model.CombatStageApply)
 	e.applyDamage(victim, finalDamage, damageType)
 
 	return nil
+}
+
+func (e *GameEngine) applyAttackDamageModifiers(attacker, target *model.Player, baseDamage int, action model.Action) int {
+	damage := baseDamage
+	if attacker != nil && target != nil {
+		modifyDamageCtx := &model.EventContext{
+			Type:      model.EventAttack,
+			SourceID:  action.SourceID,
+			TargetID:  action.TargetID,
+			DamageVal: &damage,
+			Card:      action.Card,
+			AttackInfo: &model.AttackEventInfo{
+				ActionType:       string(action.Type),
+				IsHit:            true,
+				CounterInitiator: action.CounterInitiator,
+			},
+		}
+		modifyCtx := e.buildContext(attacker, target, model.TriggerModifyDamage, modifyDamageCtx)
+		e.dispatcher.OnTrigger(model.TriggerModifyDamage, modifyCtx)
+	}
+	return e.applyPassiveAttackEffects(attacker, target, damage, action)
 }
 
 // resolveCombatDamage 结算战斗伤害（从 CombatStack 栈顶）
@@ -111,6 +132,7 @@ func (e *GameEngine) resolveCombatDamage(combatReq model.CombatRequest) error {
 // clearCombatStack 清空战斗栈
 func (e *GameEngine) clearCombatStack() {
 	e.State.CombatStack = []model.CombatRequest{}
+	e.clearCombatStage()
 }
 
 // finishTakeHit 完成受到伤害后的流程 (扣血、事件、回合结束)
@@ -121,6 +143,7 @@ func (e *GameEngine) finishTakeHit(target *model.Player, damage int, attackActio
 	}
 
 	// 4. 执行扣血
+	e.setCombatStage(model.CombatStageApply)
 	e.applyDamage(target, damage, "Attack")
 
 	// 5. 触发伤害承受事件
@@ -138,10 +161,6 @@ func (e *GameEngine) finishTakeHit(target *model.Player, damage int, attackActio
 			return
 		}
 	}
-
-	// 重置临时技能状态
-	attacker.TurnState.GaleSlashActive = false
-	attacker.TurnState.PreciseShotActive = false
 
 	eventCtx := &model.EventContext{
 		Type:       model.EventPhaseEnd,
@@ -169,12 +188,10 @@ func (e *GameEngine) finishTakeHit(target *model.Player, damage int, attackActio
 	// 8. 回到额外行动阶段，交由状态机统一处理 PendingActions/回合结束
 	// 这里已手动触发过一次 OnPhaseEnd，清空 LastActionType 防止重复触发
 	attacker.TurnState.LastActionType = ""
-	if len(e.State.PendingDamageQueue) > 0 {
-		e.State.Phase = model.PhasePendingDamageResolution
-		e.State.ReturnPhase = model.PhaseExtraAction
-	} else {
-		e.State.Phase = model.PhaseExtraAction
+	if !e.routePendingDamageWithDefaultReturn(model.TurnStageExtraAction) {
+		e.enterExtraActionStage()
 	}
+	e.clearCombatStage()
 }
 
 // triggerHolySwordDrawIfNeeded 在满足条件时推送圣剑摸X弃X中断
@@ -192,6 +209,7 @@ func (e *GameEngine) triggerHolySwordDrawIfNeeded(attacker *model.Player) bool {
 	if !hasHolySword {
 		return false
 	}
+	e.setReturnPoint(model.TurnStageExtraAction)
 
 	e.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptHolySwordDraw,
@@ -202,6 +220,25 @@ func (e *GameEngine) triggerHolySwordDrawIfNeeded(attacker *model.Player) bool {
 		},
 	})
 	e.Log(fmt.Sprintf("[Skill] %s 的 [圣剑] 第3次攻击结束，需选择摸X弃X (X=0-3)", attacker.Name))
+	return true
+}
+
+func (e *GameEngine) maybeTriggerHolySwordDrawFromPhaseEndCtx(ctx *model.Context) bool {
+	if ctx == nil || ctx.User == nil || ctx.TriggerCtx == nil || ctx.TriggerCtx.ActionType != model.ActionAttack {
+		return false
+	}
+	if ctx.TriggerCtx.AttackInfo != nil && ctx.TriggerCtx.AttackInfo.CounterInitiator != "" {
+		return false
+	}
+	if !e.triggerHolySwordDrawIfNeeded(ctx.User) {
+		return false
+	}
+	if ctx.User.Tokens == nil {
+		ctx.User.Tokens = map[string]int{}
+	}
+	// 圣剑中断先打断当前 ActionEnd，处理完后回到同一个 ActionEnd 继续派发风怒/剑影等响应技能。
+	ctx.User.Tokens["holy_sword_phase_end_pending"] = 1
+	e.setReturnPoint(model.TurnStageActionEnd)
 	return true
 }
 
@@ -295,203 +332,48 @@ func cardMatchesExclusiveSkill(player *model.Player, card *model.Card, skillTitl
 
 // applyPassiveAttackEffects 应用攻击者的被动技能效果
 func (e *GameEngine) applyPassiveAttackEffects(attacker, target *model.Player, baseDamage int, action model.Action) int {
-	damage := baseDamage
-
-	// 检查攻击者的主动技能效果
-	if attacker.TurnState.PreciseShotActive {
-		if cardMatchesExclusiveSkill(attacker, action.Card, "精准射击") {
-			damage -= 1 // 精准射击：伤害-1
-			if damage < 0 {
-				damage = 0
-			}
-			fmt.Printf("[Skill] %s 的 [精准射击] 发动！伤害 -1\n", attacker.Name)
-		} else {
-			// 容错兜底：若标记异常残留但当前牌不匹配，立即失效。
-			attacker.TurnState.PreciseShotActive = false
-		}
-	}
-
-	// 检查攻击者的被动技能
-	if attacker.Character != nil {
-		for _, skill := range attacker.Character.Skills {
-			if skill.Type == model.SkillTypePassive {
-				// 应用狂化技能
-				if skill.ID == "berserker_frenzy" {
-					damage += 1 // 基础+1
-					if len(attacker.Hand) > 3 {
-						damage += 1 // 手牌>=3时额外+1（规则：攻击命中时手牌数大于等于3）
-					}
-					bonus := damage - baseDamage
-					e.NotifyActionStep(fmt.Sprintf("攻击命中，%s发动被动技狂化，当前其手牌数%d，伤害额外+%d", model.GetPlayerDisplayName(attacker), len(attacker.Hand), bonus))
-					e.Log(fmt.Sprintf("[Passive] %s 的狂化发动！伤害 %+d (手牌: %d)", attacker.Name, damage-baseDamage, len(attacker.Hand)))
-				}
-				// 圣剑：第三次攻击强制命中，无法抵挡
-				if skill.ID == "holy_sword" {
-					currentAttackNumber := attacker.TurnState.AttackCount // 此时AttackCount已经+1了
-					if currentAttackNumber == 3 {
-						e.Log(fmt.Sprintf("[Passive] %s 的 [圣剑] 发动！本回合第3次攻击强制命中，对方无法抵挡", attacker.Name))
-					}
-				}
-				// 血影狂刀：根据对手手牌数增加伤害
-				if skill.ID == "blood_blade" {
-					// 规则：必须作为主动攻击打出 (非应战反弹)，且必须使用独有牌
-					if action.Type == model.ActionAttack && action.CounterInitiator == "" && action.Card != nil && action.Card.MatchExclusive(attacker.Character.Name, "血影狂刀") {
-						targetHandSize := len(target.Hand)
-						if targetHandSize == 2 {
-							damage += 2
-							e.NotifyActionStep(fmt.Sprintf("攻击命中，%s发动被动技血影狂刀，对手手牌为2，伤害+2", model.GetPlayerDisplayName(attacker)))
-							e.Log(fmt.Sprintf("[Passive] %s 的 [血影狂刀] 发动！对手手牌为2，伤害 +2", attacker.Name))
-						} else if targetHandSize == 3 {
-							damage += 1
-							e.NotifyActionStep(fmt.Sprintf("攻击命中，%s发动被动技血影狂刀，对手手牌为3，伤害+1", model.GetPlayerDisplayName(attacker)))
-							e.Log(fmt.Sprintf("[Passive] %s 的 [血影狂刀] 发动！对手手牌为3，伤害 +1", attacker.Name))
-						}
-					}
-				}
-				// 这里可以添加其他角色的被动技能
-			}
-		}
-	}
-	if attacker.Tokens == nil {
-		attacker.Tokens = map[string]int{}
-	}
-	// 精灵射手：火之矢在本次攻击结算时额外+1伤害。
-	if attacker.Tokens["elf_elemental_shot_fire_pending"] > 0 {
-		damage += 1
-		attacker.Tokens["elf_elemental_shot_fire_pending"] = 0
-		e.Log(fmt.Sprintf("[Passive] %s 的 [火之矢] 生效，伤害 +1", attacker.Name))
-	}
-	// 魔剑士：暗影形态下攻击伤害+1（含应战攻击）。
-	if isCharacter(attacker, "magic_swordsman") && attacker.Tokens["ms_shadow_form"] > 0 {
-		damage += 1
-		e.Log(fmt.Sprintf("[Passive] %s 的 [暗影之力] 生效，伤害 +1", attacker.Name))
-	}
-	// 魔枪：暗之解放/充盈的“本回合下一次主动攻击伤害加成”。
-	if isCharacter(attacker, "magic_lancer") &&
-		action.Type == model.ActionAttack &&
-		action.CounterInitiator == "" {
-		if attacker.TurnState.UsedSkillCounts == nil {
-			attacker.TurnState.UsedSkillCounts = map[string]int{}
-		}
-		if attacker.TurnState.UsedSkillCounts["ml_dark_release_next_attack_bonus"] > 0 {
-			damage += 1
-			attacker.TurnState.UsedSkillCounts["ml_dark_release_next_attack_bonus"] = 0
-			e.Log(fmt.Sprintf("[Passive] %s 的 [暗之解放] 生效，本次主动攻击伤害 +1", attacker.Name))
-		}
-		if bonus := attacker.TurnState.UsedSkillCounts["ml_fullness_next_attack_bonus"]; bonus > 0 {
-			damage += bonus
-			attacker.TurnState.UsedSkillCounts["ml_fullness_next_attack_bonus"] = 0
-			e.Log(fmt.Sprintf("[Passive] %s 的 [充盈] 生效，本次主动攻击伤害 +%d", attacker.Name, bonus))
-		}
-	}
-	// 格斗家：蓄力一击与百式幻龙拳伤害修正。
-	if isCharacter(attacker, "fighter") {
-		if action.Type == model.ActionAttack &&
-			action.CounterInitiator == "" &&
-			attacker.Tokens["fighter_charge_damage_pending"] > 0 {
-			damage += 1
-			attacker.Tokens["fighter_charge_damage_pending"] = 0
-			attacker.Tokens["fighter_charge_pending"] = 0
-			e.Log(fmt.Sprintf("[Passive] %s 的 [蓄力一击] 生效，本次主动攻击伤害 +1", attacker.Name))
-		}
-		if attacker.Tokens["fighter_hundred_dragon_form"] > 0 {
-			if action.Type == model.ActionAttack && action.CounterInitiator == "" {
-				damage += 2
-				e.Log(fmt.Sprintf("[Passive] %s 的 [百式幻龙拳] 生效，本次主动攻击伤害 +2", attacker.Name))
-			} else if action.Type == model.ActionAttack && action.CounterInitiator != "" {
-				damage += 1
-				e.Log(fmt.Sprintf("[Passive] %s 的 [百式幻龙拳] 生效，本次应战攻击伤害 +1", attacker.Name))
-			}
-		}
-	}
-	// 勇者：怒吼生效时，本次主动攻击伤害额外+2（命中分支）。
-	if isCharacter(attacker, "hero") &&
-		action.Type == model.ActionAttack &&
-		action.CounterInitiator == "" &&
-		attacker.Tokens["hero_roar_damage_pending"] > 0 {
-		damage += 2
-		attacker.Tokens["hero_roar_damage_pending"] = 0
-		attacker.Tokens["hero_roar_active"] = 0
-		e.Log(fmt.Sprintf("[Passive] %s 的 [怒吼] 生效，本次主动攻击伤害 +2", attacker.Name))
-	}
-	// 暗杀者：潜行状态下，主动攻击伤害额外+X（X=当前剩余能量=宝石+水晶）。
-	if isCharacter(attacker, "assassin") &&
-		action.Type == model.ActionAttack &&
-		action.CounterInitiator == "" {
-		extra := 0
-		if attacker.Tokens != nil {
-			extra = attacker.Tokens["assassin_stealth_attack_bonus"]
-			// 单次攻击增伤，命中流程只应生效一次。
-			attacker.Tokens["assassin_stealth_attack_bonus"] = 0
-		}
-		// 兜底：若旧流程未写入 token，且当前仍在潜行，则按实时能量计算。
-		if extra <= 0 && attacker.HasFieldEffect(model.EffectStealth) {
-			extra = attacker.Gem + attacker.Crystal
-		}
-		if extra > 0 {
-			damage += extra
-			e.Log(fmt.Sprintf("[Passive] %s 处于[潜行]，本次主动攻击伤害额外+%d（剩余能量）", attacker.Name, extra))
-		}
-	}
-	// 圣弓：主动攻击若非圣命格，本次攻击伤害-1。
-	if isCharacter(attacker, "holy_bow") &&
-		action.Type == model.ActionAttack &&
-		action.CounterInitiator == "" &&
-		action.Card != nil {
-		if strings.TrimSpace(action.Card.Faction) != "圣" {
-			damage--
-			if damage < 0 {
-				damage = 0
-			}
-			e.Log(fmt.Sprintf("[Passive] %s 的 [天之弓] 生效：非圣命格主动攻击伤害 -1", attacker.Name))
-		}
-	}
-
-	return damage
+	return e.applyAttackPassiveRuntimeHooks(attacker, target, action, baseDamage)
 }
 
 // applyDamageWithOptions 应用伤害逻辑 (治疗抵消 + 摸牌)
-func (e *GameEngine) applyDamageWithOptions(target *model.Player, damage int, damageType string, capToHandLimit bool) {
-	// 说明：
-	// OnDamaged 的【圣盾】改为在“承受/防御选择”分支中结算（例如 take 时优先抵挡），
-	// 这里不再做通用自动触发，避免出现“伤害已生效却又把圣盾误消耗”的重复结算。
+func (e *GameEngine) applyDamageWithOptions(target *model.Player, damage int, damageType string, capToHandLimit bool, sourceID string, sourceSkillID string, overflowMoraleLossFixed int) {
 
 	// 5. 造成伤害 (摸牌)
 	if damage > 0 {
+		e.setCombatStage(model.CombatStageDraw)
 		e.Log(fmt.Sprintf("[Damage] %s 受到 %d 点伤害 (摸牌)\n", target.Name, damage))
 
 		// 触发摸牌前事件 (允许水影等技能干预)
-		drawEventCtx := &model.EventContext{
-			Type:      model.EventBeforeDraw,
-			SourceID:  target.ID,
-			TargetID:  target.ID,
-			DrawCount: &damage,
+		drawCtx := e.newDrawContext(target, damage, "damage_draw")
+		if drawCtx == nil {
+			return
 		}
-		drawCtx := e.buildContext(target, target, model.TriggerBeforeDraw, drawEventCtx)
 		drawCtx.Flags["IsMagicDamage"] = (damageType != "Attack" && damageType != "attack")
 		drawCtx.Flags["FromDamageDraw"] = true
 		if capToHandLimit {
 			drawCtx.Flags["capToHandLimit"] = true
 		}
+		if drawCtx.Selections == nil {
+			drawCtx.Selections = map[string]any{}
+		}
+		if sourceID != "" {
+			drawCtx.Selections["damage_source_id"] = sourceID
+		}
+		if sourceSkillID != "" {
+			drawCtx.Selections["damage_source_skill_id"] = sourceSkillID
+		}
+		if overflowMoraleLossFixed > 0 {
+			drawCtx.Selections["overflow_morale_loss_fixed"] = overflowMoraleLossFixed
+		}
 		if strings.EqualFold(damageType, "magic_no_morale") {
 			drawCtx.Flags["NoMoraleLoss"] = true
 		}
 
-		// 如果在 BuffResolve 或 PendingDamageResolution 阶段（如中毒伤害），弃牌后应继续当前回合
-		if e.State.Phase == model.PhaseBuffResolve || e.State.Phase == model.PhasePendingDamageResolution {
+		// 若当前处于回合内基础结算或伤害结算链路，爆牌后应继续当前主流程。
+		if e.State.TurnStage == model.TurnStageBeforeAction || e.isDamageResolutionActive() {
 			drawCtx.Flags["StayInTurn"] = true
 		}
-
-		e.dispatcher.OnTrigger(model.TriggerBeforeDraw, drawCtx)
-
-		// 检查是否有中断 (如水影技能触发)
-		if e.State.PendingInterrupt != nil {
-			e.Log("[System] 等待响应前暂停扣卡...")
-			return // 暂停执行，等待中断处理完成后恢复
-		}
-
-		// 没有中断，继续执行扣卡
-		e.resumePendingDraw(drawCtx)
+		e.startDraw(drawCtx)
 	} else {
 		e.Log("[Damage] 伤害被完全抵消")
 	}
@@ -499,5 +381,5 @@ func (e *GameEngine) applyDamageWithOptions(target *model.Player, damage int, da
 
 // applyDamage 应用伤害逻辑 (治疗抵消 + 摸牌)
 func (e *GameEngine) applyDamage(target *model.Player, damage int, damageType string) {
-	e.applyDamageWithOptions(target, damage, damageType, false)
+	e.applyDamageWithOptions(target, damage, damageType, false, "", "", 0)
 }

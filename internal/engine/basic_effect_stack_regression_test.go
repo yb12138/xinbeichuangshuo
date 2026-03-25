@@ -36,7 +36,7 @@ func TestPerformMagic_PoisonCannotStackOnSameTarget(t *testing.T) {
 		{ID: "poison-1", Name: "中毒", Type: model.CardTypeMagic, Element: model.ElementEarth},
 		{ID: "poison-2", Name: "中毒", Type: model.CardTypeMagic, Element: model.ElementWater},
 	}
-	game.State.Phase = model.PhaseActionExecution
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	if err := game.PerformMagic("p1", "p2", 0); err != nil {
 		t.Fatalf("first poison should succeed, got err=%v", err)
@@ -88,7 +88,7 @@ func TestUseSkill_BasicEffectPlacementCannotStack(t *testing.T) {
 			ExclusiveSkill1: "天使之墙",
 		},
 	}
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	// 第一次放置【天使之墙】成功。
 	if err := game.UseSkill("p1", "angel_wall", []string{"p2"}, []int{0}); err != nil {
@@ -100,7 +100,7 @@ func TestUseSkill_BasicEffectPlacementCannotStack(t *testing.T) {
 
 	// 回到行动阶段后再次尝试同目标放置，应被“基础效果不可叠加”拦截。
 	p1.IsActive = true
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 	if err := game.UseSkill("p1", "angel_wall", []string{"p2"}, []int{0}); err == nil || !strings.Contains(err.Error(), "同种基础效果") {
 		t.Fatalf("second angel_wall should be rejected by duplicate rule, got err=%v", err)
 	}

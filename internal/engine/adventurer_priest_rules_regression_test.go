@@ -49,7 +49,7 @@ func TestAdventurerStealSky_ModeAndExtraActionChoice(t *testing.T) {
 
 	game.State.CurrentTurn = 0
 	game.State.Deck = rules.InitDeck()
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 	p1 := game.State.Players["p1"]
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
@@ -83,6 +83,42 @@ func TestAdventurerStealSky_ModeAndExtraActionChoice(t *testing.T) {
 	}
 }
 
+func TestAdventurerUndergroundLaw_RewritesBuyInsteadOfDefaultSettlement(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "Adventurer", "adventurer", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Hand = []model.Card{
+		{ID: "c1", Name: "火斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 1},
+		{ID: "c2", Name: "水盾", Type: model.CardTypeMagic, Element: model.ElementWater},
+		{ID: "c3", Name: "圣光", Type: model.CardTypeMagic, Element: model.ElementLight},
+		{ID: "c4", Name: "风斩", Type: model.CardTypeAttack, Element: model.ElementWind, Damage: 1},
+		{ID: "c5", Name: "雷击", Type: model.CardTypeMagic, Element: model.ElementThunder},
+		{ID: "c6", Name: "地刺", Type: model.CardTypeMagic, Element: model.ElementEarth},
+	}
+
+	mustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdBuy})
+
+	if got := len(p1.Hand); got != 6 {
+		t.Fatalf("expected underground law buy rewrite not to draw cards, got hand=%d", got)
+	}
+	if got := game.State.RedGems; got != 2 {
+		t.Fatalf("expected underground law to add 2 team gems, got %d", got)
+	}
+	if got := game.State.RedCrystals; got != 0 {
+		t.Fatalf("expected underground law rewrite not to add team crystals, got %d", got)
+	}
+}
+
 func TestAdventurerExtractFullEnergy_ForceParadiseTransfer(t *testing.T) {
 	game := NewGameEngine(noopObserver{})
 	if err := game.AddPlayer("p1", "Adventurer", "adventurer", model.RedCamp); err != nil {
@@ -97,7 +133,7 @@ func TestAdventurerExtractFullEnergy_ForceParadiseTransfer(t *testing.T) {
 
 	game.State.CurrentTurn = 0
 	game.State.Deck = rules.InitDeck()
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]
 	p1.IsActive = true
@@ -159,7 +195,7 @@ func TestAdventurerParadise_TransferOnlyExtractedEnergy(t *testing.T) {
 
 	game.State.CurrentTurn = 0
 	game.State.Deck = rules.InitDeck()
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]
 	p1.IsActive = true
@@ -208,7 +244,7 @@ func TestAdventurerParadise_TargetsFilteredByExtractCapacity(t *testing.T) {
 
 	game.State.CurrentTurn = 0
 	game.State.Deck = rules.InitDeck()
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]
 	p3 := game.State.Players["p3"]
@@ -260,7 +296,7 @@ func TestAdventurerParadise_TargetsFilteredByExtractCapacity(t *testing.T) {
 	}
 }
 
-func TestPriestDivineDomain_AllowsPartialDiscardAndHealBranch(t *testing.T) {
+func TestPriestDivineDomain_HealBranchRequiresTwoDiscards(t *testing.T) {
 	game := NewGameEngine(noopObserver{})
 	if err := game.AddPlayer("p1", "Priest", "priest", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -274,7 +310,7 @@ func TestPriestDivineDomain_AllowsPartialDiscardAndHealBranch(t *testing.T) {
 
 	game.State.CurrentTurn = 0
 	game.State.Deck = rules.InitDeck()
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]
 	p1.IsActive = true
@@ -283,6 +319,7 @@ func TestPriestDivineDomain_AllowsPartialDiscardAndHealBranch(t *testing.T) {
 	p1.Heal = 0 // 伤害分支不可用，应只出现治疗分支
 	p1.Hand = []model.Card{
 		{ID: "m1", Name: "圣光", Type: model.CardTypeMagic, Element: model.ElementLight},
+		{ID: "a1", Name: "火刃", Type: model.CardTypeAttack, Element: model.ElementFire},
 	}
 
 	mustHandleAction(t, game, model.PlayerAction{
@@ -290,11 +327,11 @@ func TestPriestDivineDomain_AllowsPartialDiscardAndHealBranch(t *testing.T) {
 		Type:     model.CmdSkill,
 		SkillID:  "priest_divine_domain",
 		Selections: []int{
-			0,
+			0, 1,
 		},
 	})
 	if len(p1.Hand) != 0 {
-		t.Fatalf("expected partial discard consume 1 card, got hand=%d", len(p1.Hand))
+		t.Fatalf("expected divine domain consume 2 cards, got hand=%d", len(p1.Hand))
 	}
 	if p1.Crystal != 0 {
 		t.Fatalf("expected crystal spent, got %d", p1.Crystal)
@@ -322,6 +359,39 @@ func TestPriestDivineDomain_AllowsPartialDiscardAndHealBranch(t *testing.T) {
 	}
 }
 
+func TestPriestDivineDomain_RejectsPartialDiscard(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "Priest", "priest", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Ally", "berserker", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p3", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Crystal = 1
+	p1.Heal = 0
+	p1.Hand = []model.Card{
+		{ID: "m1", Name: "圣光", Type: model.CardTypeMagic, Element: model.ElementLight},
+	}
+
+	if err := game.HandleAction(model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSkill,
+		SkillID:    "priest_divine_domain",
+		Selections: []int{0},
+	}); err == nil {
+		t.Fatalf("expected divine domain to reject partial discard when hand<2")
+	}
+}
+
 func TestPriestDivineDomain_DamageBranchTargetsAnyPlayer(t *testing.T) {
 	game := NewGameEngine(noopObserver{})
 	if err := game.AddPlayer("p1", "Priest", "priest", model.RedCamp); err != nil {
@@ -336,7 +406,7 @@ func TestPriestDivineDomain_DamageBranchTargetsAnyPlayer(t *testing.T) {
 
 	game.State.CurrentTurn = 0
 	game.State.Deck = rules.InitDeck()
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 	p1 := game.State.Players["p1"]
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
@@ -362,6 +432,13 @@ func TestPriestDivineDomain_DamageBranchTargetsAnyPlayer(t *testing.T) {
 		Selections: []int{0}, // 伤害分支
 	})
 	ctx := requireChoiceContext(t, game, "p1", "priest_divine_domain_damage_target")
+	if ids, ok := ctx["target_ids"].([]string); ok {
+		for _, id := range ids {
+			if id == "p1" {
+				t.Fatalf("expected damage branch to exclude self target, got %v", ids)
+			}
+		}
+	}
 	idx := choiceIndexForTarget(t, ctx, "p3")
 	mustHandleAction(t, game, model.PlayerAction{
 		PlayerID:   "p1",
@@ -388,7 +465,7 @@ func TestPriestWaterPower_DiscardWaterThenGiveSelectedCard(t *testing.T) {
 
 	game.State.CurrentTurn = 0
 	game.State.Deck = rules.InitDeck()
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]
 	p1.IsActive = true
@@ -421,7 +498,7 @@ func TestPriestWaterPower_DiscardWaterThenGiveSelectedCard(t *testing.T) {
 	}
 }
 
-func TestPriestWaterPower_NoRemainingCardSkipsGiveStillHealsBoth(t *testing.T) {
+func TestPriestWaterPower_RequiresTransferCard(t *testing.T) {
 	game := NewGameEngine(noopObserver{})
 	if err := game.AddPlayer("p1", "Priest", "priest", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -435,34 +512,22 @@ func TestPriestWaterPower_NoRemainingCardSkipsGiveStillHealsBoth(t *testing.T) {
 
 	game.State.CurrentTurn = 0
 	game.State.Deck = rules.InitDeck()
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 	p1 := game.State.Players["p1"]
-	p2 := game.State.Players["p2"]
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
 	p1.Hand = []model.Card{
 		{ID: "w1", Name: "水涟斩", Type: model.CardTypeAttack, Element: model.ElementWater},
 	}
 
-	mustHandleAction(t, game, model.PlayerAction{
+	if err := game.HandleAction(model.PlayerAction{
 		PlayerID:   "p1",
 		Type:       model.CmdSkill,
 		SkillID:    "priest_water_power",
 		TargetIDs:  []string{"p2"},
 		Selections: []int{0},
-	})
-
-	if len(p1.Hand) != 0 {
-		t.Fatalf("expected priest hand empty after paying water cost, got %d", len(p1.Hand))
-	}
-	if len(p2.Hand) != 0 {
-		t.Fatalf("expected ally receives no card when priest has no remaining hand, got hand=%+v", p2.Hand)
-	}
-	if p1.Heal != 1 || p2.Heal != 1 {
-		t.Fatalf("expected both sides +1 heal, got p1=%d p2=%d", p1.Heal, p2.Heal)
-	}
-	if len(game.State.DiscardPile) == 0 || game.State.DiscardPile[len(game.State.DiscardPile)-1].ID != "w1" {
-		t.Fatalf("expected water card in discard pile, got discard=%+v", game.State.DiscardPile)
+	}); err == nil {
+		t.Fatalf("expected water power to require a second card to transfer")
 	}
 }
 
@@ -478,7 +543,7 @@ func TestPriestDivineRevelation_TriggersOnlyOncePerSpecialAction(t *testing.T) {
 
 	game.State.CurrentTurn = 0
 	game.State.Deck = rules.InitDeck()
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	p1 := game.State.Players["p1"]
 	p1.IsActive = true
@@ -509,7 +574,7 @@ func TestPriestDivineContract_HasXChoiceAndCapsTargetAt4(t *testing.T) {
 	}
 
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionStart
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]
 	p1.IsActive = true
@@ -518,11 +583,18 @@ func TestPriestDivineContract_HasXChoiceAndCapsTargetAt4(t *testing.T) {
 	p1.Heal = 3
 	p2.Heal = 3
 
+	game.Drive()
+	startupIdx := startupSkillIndexByID(t, game, "p1", "priest_divine_contract")
 	mustHandleAction(t, game, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdSkill,
-		SkillID:   "priest_divine_contract",
-		TargetIDs: []string{"p2"},
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{startupIdx},
+	})
+	requireChoicePrompt(t, game, "p1", "priest_divine_contract_target")
+	mustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{0},
 	})
 	requireChoicePrompt(t, game, "p1", "priest_divine_contract_x")
 
@@ -557,7 +629,7 @@ func TestPriestDivineContract_TargetAlreadyAbove4KeepsUnchanged(t *testing.T) {
 	}
 
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionStart
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]
 	p1.IsActive = true
@@ -566,11 +638,18 @@ func TestPriestDivineContract_TargetAlreadyAbove4KeepsUnchanged(t *testing.T) {
 	p1.Heal = 3
 	p2.Heal = 5
 
+	game.Drive()
+	startupIdx := startupSkillIndexByID(t, game, "p1", "priest_divine_contract")
 	mustHandleAction(t, game, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdSkill,
-		SkillID:   "priest_divine_contract",
-		TargetIDs: []string{"p2"},
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{startupIdx},
+	})
+	requireChoicePrompt(t, game, "p1", "priest_divine_contract_target")
+	mustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{0},
 	})
 	requireChoicePrompt(t, game, "p1", "priest_divine_contract_x")
 

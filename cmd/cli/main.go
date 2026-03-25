@@ -185,45 +185,45 @@ func parseInput(line string, game *engine.GameEngine, cli *CLI) (model.PlayerAct
 		action.Type = model.CmdSynthesize
 	case "ext":
 		action.Type = model.CmdExtract
-		case "skill", "use", "s":
-			action.Type = model.CmdSkill
-			if len(parts) < 2 {
-				return action, fmt.Errorf("用法: skill <skill_id> [target_id1] [target_id2...] [discard_indices...]")
-			}
+	case "skill", "use", "s":
+		action.Type = model.CmdSkill
+		if len(parts) < 2 {
+			return action, fmt.Errorf("用法: skill <skill_id> [target_id1] [target_id2...] [discard_indices...]")
+		}
 
-			action.SkillID = parts[1]
-			
-			var targetIDs []string
-			var selections []int
-			
-			// 从第三个参数开始解析（parts[0]是cmd，parts[1]是skill_id）
-			argIndex := 2
-			
-			// 收集目标ID，直到遇到第一个数字或参数结束
-			for ; argIndex < len(parts); argIndex++ {
-				arg := parts[argIndex]
-				if _, err := strconv.Atoi(arg); err != nil {
-					// 不是数字，认为是目标ID
-					targetIDs = append(targetIDs, arg)
-				} else {
-					// 遇到数字，停止收集目标ID
-					break
-				}
-			}
-			action.TargetIDs = targetIDs
-			if len(targetIDs) == 1 {
-				action.TargetID = targetIDs[0] // 兼容单目标
-			}
+		action.SkillID = parts[1]
 
-			// 解析剩余的参数为弃牌索引
-			for ; argIndex < len(parts); argIndex++ {
-				val, err := strconv.Atoi(parts[argIndex])
-				if err != nil {
-					return action, fmt.Errorf("弃牌索引必须是数字: %s", parts[argIndex])
-				}
-				selections = append(selections, val-1) // 转换为 0-based
+		var targetIDs []string
+		var selections []int
+
+		// 从第三个参数开始解析（parts[0]是cmd，parts[1]是skill_id）
+		argIndex := 2
+
+		// 收集目标ID，直到遇到第一个数字或参数结束
+		for ; argIndex < len(parts); argIndex++ {
+			arg := parts[argIndex]
+			if _, err := strconv.Atoi(arg); err != nil {
+				// 不是数字，认为是目标ID
+				targetIDs = append(targetIDs, arg)
+			} else {
+				// 遇到数字，停止收集目标ID
+				break
 			}
-			action.Selections = selections
+		}
+		action.TargetIDs = targetIDs
+		if len(targetIDs) == 1 {
+			action.TargetID = targetIDs[0] // 兼容单目标
+		}
+
+		// 解析剩余的参数为弃牌索引
+		for ; argIndex < len(parts); argIndex++ {
+			val, err := strconv.Atoi(parts[argIndex])
+			if err != nil {
+				return action, fmt.Errorf("弃牌索引必须是数字: %s", parts[argIndex])
+			}
+			selections = append(selections, val-1) // 转换为 0-based
+		}
+		action.Selections = selections
 	case "atk": // atk <target> <idx>
 		action.Type = model.CmdAttack
 		if len(parts) < 3 {
@@ -361,7 +361,7 @@ func parseInput(line string, game *engine.GameEngine, cli *CLI) (model.PlayerAct
 }
 
 func printStatus(g *engine.GameEngine) {
-	fmt.Printf("--- Game Status (Phase: %s) ---\n", g.State.Phase)
+	fmt.Printf("--- Game Status (Turn=%s Combat=%s Subflow=%s) ---\n", g.State.TurnStage, g.State.CombatStage, g.State.Subflow)
 	fmt.Printf("Red Morale: %d | Blue Morale: %d\n", g.State.RedMorale, g.State.BlueMorale)
 
 	for _, pid := range g.State.PlayerOrder {

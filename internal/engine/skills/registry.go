@@ -51,7 +51,7 @@ func InitHandlers() {
 		Register("angel_wall", &AngelWallHandler{})
 
 		// 2. 狂战士
-		// berserker_frenzy is passive, handled directly in game logic
+		Register("berserker_frenzy", &BerserkerFrenzyHandler{})
 		Register("berserker_tear", &BerserkerTearHandler{})
 		Register("blood_roar", &BloodRoarHandler{})
 		Register("blood_blade", &BloodBladeHandler{})
@@ -284,6 +284,32 @@ func InitHandlers() {
 		Register("hb_radiant_cannon", &HolyBowRadiantCannonHandler{})
 		Register("hb_auto_fill", &HolyBowAutoFillHandler{})
 
+		// 32. 剑帝
+		Register("se_sword_soul_guard", &SwordEmperorSwordSoulGuardHandler{})
+		Register("se_feint", &SwordEmperorFeintHandler{})
+		Register("se_sword_qi_slash", &SwordEmperorSwordQiSlashHandler{})
+		Register("se_angel_soul", &SwordEmperorAngelSoulHandler{})
+		Register("se_demon_soul", &SwordEmperorDemonSoulHandler{})
+		Register("se_angel_soul_hit", &SwordEmperorAngelSoulHitHandler{})
+		Register("se_angel_soul_miss", &SwordEmperorAngelSoulMissHandler{})
+		Register("se_demon_soul_miss", &SwordEmperorDemonSoulMissHandler{})
+		Register("se_indomitable_will", &SwordEmperorIndomitableWillHandler{})
+
+		// 33. 兽灵武士
+		Register("bs_warrior_zanshin", &BeastSamuraiWarriorZanshinHandler{})
+		Register("bs_one_strike_no_thought", &BeastSamuraiOneStrikeNoThoughtHandler{})
+		Register("bs_one_strike_intercept", &BeastSamuraiOneStrikeInterceptHandler{})
+		Register("bs_beast_soul_will", &BeastSamuraiBeastSoulWillHandler{})
+		Register("bs_beast_soul_alert", &BeastSamuraiBeastSoulAlertHandler{})
+		Register("bs_beast_return", &BeastSamuraiBeastReturnHandler{})
+		Register("bs_iaijutsu_turn_end_drain", &BeastSamuraiIaijutsuTurnEndDrainHandler{})
+		Register("bs_iaijutsu_exit_on_deal_damage", &BeastSamuraiIaijutsuExitOnDealDamageHandler{})
+		Register("bs_iaijutsu_exit_on_zero", &BeastSamuraiIaijutsuExitOnZeroHandler{})
+		Register("bs_iaijutsu_tapped_target_boost", &BeastSamuraiIaijutsuTappedBoostHandler{})
+		Register("bs_reversal_iaijutsu", &BeastSamuraiReversalIaijutsuSlashHandler{})
+		Register("bs_iaijutsu_style", &BeastSamuraiIaijutsuStyleHandler{})
+
+		// 34. 灵魂术士
 		Register("ss_soul_devour", &SoulSorcererSoulDevourHandler{})
 		Register("ss_soul_recall", &SoulSorcererSoulRecallHandler{})
 		Register("ss_soul_convert", &SoulSorcererSoulConvertHandler{})

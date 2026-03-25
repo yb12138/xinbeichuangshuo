@@ -49,7 +49,7 @@ func (h *FighterChargeStrikeHandler) CanUse(ctx *model.Context) bool {
 	if ctx.TriggerCtx.AttackInfo != nil && ctx.TriggerCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
-	if getToken(ctx.User, "fighter_hundred_dragon_form") > 0 {
+	if hasForm(ctx.User, model.FormFighterHundredDragon) {
 		return false
 	}
 	if getToken(ctx.User, "fighter_attack_start_skill_lock") > 0 {
@@ -129,10 +129,18 @@ func (h *FighterHundredDragonHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil {
 		return false
 	}
-	if getToken(ctx.User, "fighter_hundred_dragon_form") > 0 {
+	if hasForm(ctx.User, model.FormFighterHundredDragon) {
 		return false
 	}
-	return getToken(ctx.User, "fighter_qi") >= 3
+	if getToken(ctx.User, "fighter_qi") < 3 || ctx.Game == nil {
+		return false
+	}
+	for _, p := range ctx.Game.GetAllPlayers() {
+		if p != nil && p.Camp != ctx.User.Camp {
+			return true
+		}
+	}
+	return false
 }
 
 func (h *FighterHundredDragonHandler) Execute(ctx *model.Context) error {
@@ -142,10 +150,30 @@ func (h *FighterHundredDragonHandler) Execute(ctx *model.Context) error {
 	if getToken(ctx.User, "fighter_qi") < 3 {
 		return fmt.Errorf("斗气不足3，无法发动百式幻龙拳")
 	}
+	targetIDs := make([]string, 0)
+	for _, p := range ctx.Game.GetAllPlayers() {
+		if p == nil || p.Camp == ctx.User.Camp {
+			continue
+		}
+		targetIDs = append(targetIDs, p.ID)
+	}
+	if len(targetIDs) == 0 {
+		return fmt.Errorf("百式幻龙拳没有可锁定的敌方目标")
+	}
 	qi := addToken(ctx.User, "fighter_qi", -3, 0, fighterQiCap)
-	setToken(ctx.User, "fighter_hundred_dragon_form", 1)
+	enterForm(ctx.User, model.FormFighterHundredDragon)
 	setToken(ctx.User, "fighter_hundred_dragon_target_order", 0)
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [百式幻龙拳]：移除3斗气（剩余%d），进入持续形态（主动攻击+2，应战攻击+1）", ctx.User.Name, qi))
+	ctx.Game.PushInterrupt(&model.Interrupt{
+		Type:     model.InterruptChoice,
+		PlayerID: ctx.User.ID,
+		Context: map[string]interface{}{
+			"choice_type":   "fighter_hundred_dragon_target",
+			"user_id":       ctx.User.ID,
+			"target_ids":    targetIDs,
+			"waiting_phase": model.NormalizeResumePoint(model.TurnStageActionExecution),
+		},
+	})
+	ctx.Game.Log(fmt.Sprintf("%s 发动 [百式幻龙拳]：移除3斗气（剩余%d），进入持续形态，请选择本行动阶段锁定目标", ctx.User.Name, qi))
 	return nil
 }
 
@@ -184,7 +212,6 @@ func (h *FighterBurstCrashHandler) Execute(ctx *model.Context) error {
 			TargetID:   ctx.User.ID,
 			Damage:     qi,
 			DamageType: "magic",
-			Stage:      0,
 		})
 	}
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [气绝崩击]：移除1斗气（剩余%d），本次攻击不可应战，并对自己造成%d点法术伤害", ctx.User.Name, qi, qi))

@@ -20,7 +20,7 @@ func TestCrimsonFlash_PhaseEndDamageShouldNotStall(t *testing.T) {
 	p1.Tokens["css_blood"] = 1
 	p1.Heal = 0
 	g.State.CurrentTurn = 0
-	g.State.Phase = model.PhaseExtraAction
+	g.State.TurnStage = model.TurnStageExtraAction
 	g.State.Deck = []model.Card{
 		{ID: "d1", Name: "补1", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2},
 		{ID: "d2", Name: "补2", Type: model.CardTypeAttack, Element: model.ElementWater, Damage: 2},
@@ -53,8 +53,8 @@ func TestCrimsonFlash_PhaseEndDamageShouldNotStall(t *testing.T) {
 	// Drive should resolve pending damage and should not return to response phase (would stall).
 	g.Drive()
 
-	if g.State.Phase == model.PhaseResponse {
-		t.Fatalf("phase stuck in response after crimson flash: return_phase=%s", g.State.ReturnPhase)
+	if g.State.Subflow == model.SubflowResponse {
+		t.Fatalf("flow stuck in response after crimson flash: return_subflow=%s", g.State.ReturnSubflow)
 	}
 	if len(g.State.PendingDamageQueue) != 0 {
 		t.Fatalf("expected pending damage drained, got %d", len(g.State.PendingDamageQueue))
@@ -84,7 +84,7 @@ func TestCrimsonFlash_CombatFlow_DealsExactlyTwoAndKeepsTurnProgressing(t *testi
 		{ID: "atk1", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2},
 	}
 	g.State.CurrentTurn = 0
-	g.State.Phase = model.PhaseActionSelection
+	g.State.TurnStage = model.TurnStageActionExecution
 	g.State.Deck = []model.Card{
 		{ID: "d1", Name: "补1", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2},
 		{ID: "d2", Name: "补2", Type: model.CardTypeAttack, Element: model.ElementWater, Damage: 2},
@@ -123,8 +123,8 @@ func TestCrimsonFlash_CombatFlow_DealsExactlyTwoAndKeepsTurnProgressing(t *testi
 
 	g.Drive()
 
-	if g.State.Phase == model.PhaseResponse {
-		t.Fatalf("phase stuck in response after crimson flash in combat flow")
+	if g.State.Subflow == model.SubflowResponse {
+		t.Fatalf("flow stuck in response after crimson flash in combat flow")
 	}
 	if len(g.State.PendingDamageQueue) != 0 {
 		t.Fatalf("expected pending damage drained, got %d", len(g.State.PendingDamageQueue))

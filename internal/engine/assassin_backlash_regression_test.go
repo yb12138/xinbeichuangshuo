@@ -51,7 +51,7 @@ func TestAssassinBacklash_DoesNotTriggerOnMagicDamage(t *testing.T) {
 	}
 
 	game.State.Deck = rules.InitDeck()
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 	game.State.CurrentTurn = 0
 	game.State.Players["p1"].TurnState = model.NewPlayerTurnState()
 	game.State.Players["p2"].TurnState = model.NewPlayerTurnState()
@@ -93,7 +93,7 @@ func TestAssassinBacklash_TriggersOnAttackDamage(t *testing.T) {
 
 	game.State.Deck = rules.InitDeck()
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]
 	p1.IsActive = true

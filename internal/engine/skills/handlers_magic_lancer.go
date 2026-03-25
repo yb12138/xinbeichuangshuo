@@ -59,17 +59,17 @@ func (h *MagicLancerDarkReleaseHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil {
 		return false
 	}
-	return getToken(ctx.User, "ml_phantom_form") <= 0
+	return !hasForm(ctx.User, model.FormMagicLancerPhantom)
 }
 
 func (h *MagicLancerDarkReleaseHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("暗之解放上下文无效")
 	}
-	if getToken(ctx.User, "ml_phantom_form") > 0 {
+	if hasForm(ctx.User, model.FormMagicLancerPhantom) {
 		return fmt.Errorf("已处于幻影形态，不能再次发动暗之解放")
 	}
-	setToken(ctx.User, "ml_phantom_form", 1)
+	enterForm(ctx.User, model.FormMagicLancerPhantom)
 	if ctx.User.TurnState.UsedSkillCounts == nil {
 		ctx.User.TurnState.UsedSkillCounts = map[string]int{}
 	}
@@ -83,15 +83,28 @@ func (h *MagicLancerPhantomStardustHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil {
 		return false
 	}
-	return getToken(ctx.User, "ml_phantom_form") > 0
+	return hasForm(ctx.User, model.FormMagicLancerPhantom)
 }
 
 func (h *MagicLancerPhantomStardustHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("幻影星尘上下文无效")
 	}
-	if getToken(ctx.User, "ml_phantom_form") <= 0 {
+	if !hasForm(ctx.User, model.FormMagicLancerPhantom) {
 		return fmt.Errorf("仅幻影形态下可发动幻影星尘")
+	}
+	if ctx.Target != nil {
+		if ctx.Target.Camp == ctx.User.Camp || ctx.Target.ID == ctx.User.ID {
+			return fmt.Errorf("幻影星尘目标必须是敌方角色")
+		}
+		for i, p := range ctx.Game.GetAllPlayers() {
+			if p != nil && p.ID == ctx.Target.ID {
+				setToken(ctx.User, "ml_stardust_locked_target_order", i+1)
+				break
+			}
+		}
+	} else {
+		setToken(ctx.User, "ml_stardust_locked_target_order", 0)
 	}
 	before := ctx.Game.GetCampMorale(string(ctx.User.Camp))
 	setToken(ctx.User, "ml_stardust_pending", 1)
@@ -174,6 +187,12 @@ func (h *MagicLancerFullnessHandler) Execute(ctx *model.Context) error {
 		Context: map[string]interface{}{
 			"choice_type": "ml_fullness_cost_card",
 			"user_id":     ctx.User.ID,
+			"locked_ally_id": func() string {
+				if ctx.Target == nil {
+					return ""
+				}
+				return ctx.Target.ID
+			}(),
 		},
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [充盈]，请先弃置1张法术牌或雷系牌", ctx.User.Name))
@@ -190,7 +209,7 @@ func (h *MagicLancerBlackSpearHandler) CanUse(ctx *model.Context) bool {
 	if ctx.TriggerCtx.AttackInfo != nil && ctx.TriggerCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
-	if getToken(ctx.User, "ml_phantom_form") <= 0 {
+	if !hasForm(ctx.User, model.FormMagicLancerPhantom) {
 		return false
 	}
 	if ctx.User.TurnState.UsedSkillCounts["ml_dark_release_lock_turn"] > 0 {
@@ -207,7 +226,7 @@ func (h *MagicLancerBlackSpearHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Target == nil || ctx.Game == nil {
 		return fmt.Errorf("漆黑之枪上下文无效")
 	}
-	if getToken(ctx.User, "ml_phantom_form") <= 0 {
+	if !hasForm(ctx.User, model.FormMagicLancerPhantom) {
 		return fmt.Errorf("仅幻影形态下可发动漆黑之枪")
 	}
 	if ctx.User.TurnState.UsedSkillCounts["ml_dark_release_lock_turn"] > 0 {

@@ -1,15 +1,31 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { useGameStore } from '../stores/gameStore'
-import { useWebSocket } from '../composables/useWebSocket'
+import { useInterruptStore } from '../stores/interrupt.store'
+import { useSessionStore } from '../stores/session.store'
+import { useSnapshotStore } from '../stores/snapshot.store'
+import { useBattleInteractionState } from '../composables/useBattleInteractionState'
+import { useSubmitAction } from '../composables/useSubmitAction'
 import type { AvailableSkill, PromptOption, PlayerView } from '../types/game'
 import CardComponent from './CardComponent.vue'
 import PromptDialog from './PromptDialog.vue'
 
-const store = useGameStore()
-const ws = useWebSocket()
+const interruptStore = useInterruptStore()
+const sessionStore = useSessionStore()
+const snapshotStore = useSnapshotStore()
+const actions = useSubmitAction()
+const {
+    myPlayer,
+    myHand,
+    targetablePlayers,
+    targetablePlayersForSkill,
+    effectiveAvailableSkills,
+    canConfirmSkill,
+    getCharacter,
+    cardMatchesExclusive,
+} = useBattleInteractionState()
 
-const prompt = computed(() => store.currentPrompt)
+const prompt = computed(() => interruptStore.currentPrompt)
+const isPromptForMe = computed(() => prompt.value?.player_id === sessionStore.myPlayerId)
 
 const debugOpen = ref(false)
 const debugTargetPlayerId = ref('')
@@ -82,17 +98,17 @@ const SPECIAL_ACTION_CATALOG: SpecialActionMeta[] = [
         icon: '⛏',
     },
 ]
-const isMyTurn = computed(() => store.isMyTurn)
+const isMyTurn = computed(() => snapshotStore.currentPlayer === sessionStore.myPlayerId)
 const waitingName = computed(() => {
-    if (!store.waitingFor) return ''
-    return store.players[store.waitingFor]?.name || store.waitingFor
+    if (!interruptStore.waitingFor) return ''
+    return snapshotStore.players[interruptStore.waitingFor]?.name || interruptStore.waitingFor
 })
 const specialActionModalVisible = ref(false)
 const isIdleMainTurnPanel = computed(() =>
     isMyTurn.value &&
     !prompt.value &&
-    store.actionMode === 'none' &&
-    store.skillMode === 'none'
+    interruptStore.actionMode === 'none' &&
+    interruptStore.skillMode === 'none'
 )
 
 function isActionSelectionPromptMessage(message: string): boolean {
@@ -117,7 +133,7 @@ function normalizeActionHubOptionId(option: PromptOption): ActionHubOptionId | n
 
 const isActionSelectionPrompt = computed(() => {
     const p = prompt.value
-    if (!p || !store.isPromptForMe) return false
+    if (!p || !isPromptForMe.value) return false
     if (p.ui_mode === 'action_hub') return true
     if (p.type !== 'confirm') return false
     if (!isActionSelectionPromptMessage(p.message || '')) return false
@@ -126,16 +142,16 @@ const isActionSelectionPrompt = computed(() => {
 
 const isActionHubContext = computed(() =>
     (isIdleMainTurnPanel.value || isActionSelectionPrompt.value) &&
-    store.actionMode === 'none' &&
-    store.skillMode === 'none'
+    interruptStore.actionMode === 'none' &&
+    interruptStore.skillMode === 'none'
 )
 
 const isInlinePromptContext = computed(() =>
     !!prompt.value &&
-    store.isPromptForMe &&
+    isPromptForMe.value &&
     !isActionHubContext.value &&
-    store.actionMode === 'none' &&
-    store.skillMode === 'none'
+    interruptStore.actionMode === 'none' &&
+    interruptStore.skillMode === 'none'
 )
 
 const actionPanelRootClass = computed(() => ({
@@ -164,7 +180,7 @@ const actionPromptOptionMap = computed(() => {
 })
 
 const specialActionOptions = computed<PromptOption[]>(() => {
-    if (store.hasPerformedStartup) {
+    if (snapshotStore.hasPerformedStartup) {
         return []
     }
     if (isActionSelectionPrompt.value) {
@@ -184,7 +200,7 @@ const specialActionOptions = computed<PromptOption[]>(() => {
 
 const hasHubSpecialActions = computed(() => specialActionOptions.value.length > 0)
 const showSpecialHubEntry = computed(() => isActionHubContext.value)
-const isStartupSpecialLocked = computed(() => store.hasPerformedStartup)
+const isStartupSpecialLocked = computed(() => snapshotStore.hasPerformedStartup)
 const isExtraActionPrompt = computed(() => {
     const message = prompt.value?.message ?? ''
     return message.includes('额外攻击行动') || message.includes('额外法术行动') || message.includes('额外行动阶段')
@@ -195,12 +211,12 @@ const cannotActButtonLabel = computed(() =>
         : actionPromptLabel('cannot_act', '无法行动')
 )
 const teamStoneCount = computed(() =>
-    store.myCamp === 'Red'
-        ? store.redGems + store.redCrystals
-        : store.blueGems + store.blueCrystals
+    sessionStore.myCamp === 'Red'
+        ? snapshotStore.redGems + snapshotStore.redCrystals
+        : snapshotStore.blueGems + snapshotStore.blueCrystals
 )
 const personalEnergy = computed(() => {
-    const me = store.myPlayer
+    const me = myPlayer.value
     if (!me) return 0
     return (me.gem || 0) + (me.crystal || 0)
 })
@@ -226,15 +242,15 @@ const specialActionDisplayItems = computed<SpecialActionDisplayItem[]>(() => {
 })
 
 const debugTargetPlayers = computed(() =>
-    Object.values(store.players).sort((a, b) => a.name.localeCompare(b.name, 'zh-Hans-CN'))
+    Object.values(snapshotStore.players).sort((a, b) => a.name.localeCompare(b.name, 'zh-Hans-CN'))
 )
 
 const debugRoleList = computed(() =>
-    Object.values(store.characters).sort((a, b) => a.name.localeCompare(b.name, 'zh-Hans-CN'))
+    Object.values(snapshotStore.characters).sort((a, b) => a.name.localeCompare(b.name, 'zh-Hans-CN'))
 )
 
 const debugExclusiveSkillOptions = computed(() => {
-    const role = store.characters[debugExclusiveRoleId.value]
+    const role = snapshotStore.characters[debugExclusiveRoleId.value]
     if (!role || !Array.isArray(role.skills)) return []
     return role.skills
 })
@@ -337,7 +353,7 @@ function triggerActionHubOption(optionId: string) {
             openExtractAction()
             return
         case 'cannot_act':
-            ws.sendAction({ player_id: store.myPlayerId, type: 'CannotAct' })
+            actions.submitCannotAct()
             return
         case 'pass':
             openPassAction()
@@ -352,7 +368,7 @@ function triggerActionHubOption(optionId: string) {
 
 function openSpecialActionModal() {
     if (isStartupSpecialLocked.value) {
-        store.setError('你本回合已执行启动技能，不能执行特殊行动')
+        interruptStore.showError('你本回合已执行启动技能，不能执行特殊行动')
         return
     }
     specialActionModalVisible.value = true
@@ -365,7 +381,7 @@ function closeSpecialActionModal() {
 function chooseSpecialAction(optionId: string) {
     const chosen = specialActionDisplayItems.value.find((item) => item.id === optionId)
     if (chosen && !chosen.available) {
-        store.setError(chosen.disabledReason || '该特殊行动当前不可执行')
+        interruptStore.showError(chosen.disabledReason || '该特殊行动当前不可执行')
         return
     }
     specialActionModalVisible.value = false
@@ -373,35 +389,35 @@ function chooseSpecialAction(optionId: string) {
 }
 
 function openActionHubAttack() {
-    store.setActionModeForAttack('attack')
+    interruptStore.setActionMode('attack')
 }
 
 function openActionHubMagic() {
-    store.setActionModeForAttack('magic')
+    interruptStore.setActionMode('magic')
 }
 
 function openSkillAction() {
-    if (store.effectiveAvailableSkills.length === 0) {
-        store.setError('当前没有可发动技能')
+    if (effectiveAvailableSkills.value.length === 0) {
+        interruptStore.showError('当前没有可发动技能')
         return
     }
-    store.setSkillMode('choosing_skill')
+    interruptStore.setSkillMode('choosing_skill')
 }
 
 function openBuyAction() {
-    ws.buy()
+    actions.submitBuy()
 }
 
 function openSynthesizeAction() {
-    ws.sendAction({ player_id: store.myPlayerId, type: 'Synthesize' })
+    actions.submitSynthesize()
 }
 
 function openExtractAction() {
-    ws.extract()
+    actions.submitExtract()
 }
 
 function openPassAction() {
-    ws.pass()
+    actions.submitPass()
 }
 
 watch(isActionHubContext, (isOpen) => {
@@ -425,63 +441,55 @@ function handlePromptOption(optionId: string) {
     if (!prompt.value) return
     if (optionId === 'special') {
         if (isStartupSpecialLocked.value) {
-            store.setError('你本回合已执行启动技能，不能执行特殊行动')
+            interruptStore.showError('你本回合已执行启动技能，不能执行特殊行动')
             return
         }
         openSpecialActionModal()
         return
     } else if (optionId === 'buy') {
-        ws.buy()
+        actions.submitBuy()
     } else if (optionId === 'extract') {
-        ws.extract()
+        actions.submitExtract()
     } else if (optionId === 'synthesize') {
-        ws.sendAction({ player_id: store.myPlayerId, type: 'Synthesize' })
+        actions.submitSynthesize()
     } else if (optionId === 'attack') {
-        store.setActionModeForAttack('attack')
+        interruptStore.setActionMode('attack')
     } else if (optionId === 'magic') {
-        store.setActionModeForAttack('magic')
+        interruptStore.setActionMode('magic')
     } else if (optionId === 'cannot_act') {
-        ws.sendAction({ player_id: store.myPlayerId, type: 'CannotAct' })
+        actions.submitCannotAct()
     } else if (optionId === 'skip' || optionId === 'cancel') {
-        ws.cancel()
+        actions.submitCancel()
         return
     } else if (optionId === 'confirm') {
-        ws.confirm()
+        actions.submitConfirm()
     } else if (optionId === 'take') {
-        ws.respond('take')
+        actions.submitRespondTake()
     } else if (optionId === 'counter') {
-        if (store.selectedCards.length === 0) {
-            store.setError(isMagicMissilePromptMessage() ? '请先选择一张【魔弹】再传递' : '请先选择一张应战牌')
-            return
-        }
-        ws.respond('counter', store.selectedCards[0])
+        if (!actions.submitRespondCounter(isMagicMissilePromptMessage())) return
     } else if (optionId === 'defend') {
-        if (store.selectedCards.length === 0) {
-            store.setError('请先选择一张【圣光】进行防御（圣盾需提前放置）')
-            return
-        }
-        ws.respond('defend', store.selectedCards[0])
+        if (!actions.submitRespondDefend()) return
     } else if (optionId === 'yes' || optionId === 'no') {
         // 魔弹融合等确认选项：yes=0, no=1
-        ws.select([optionId === 'yes' ? 0 : 1])
+        actions.submitSelect([optionId === 'yes' ? 0 : 1])
     } else if (optionId === 'normal' || optionId === 'reverse') {
         // 魔弹掌控方向选择：normal=0, reverse=1
-        ws.select([optionId === 'normal' ? 0 : 1])
+        actions.submitSelect([optionId === 'normal' ? 0 : 1])
     } else if (prompt.value.type === 'choose_skill') {
         const idx = prompt.value.options.findIndex((o: { id: string }) => o.id === optionId)
         if (idx >= 0) {
-            ws.select([idx])
+            actions.submitSelect([idx])
         } else {
-            ws.cancel()
+            actions.submitCancel()
             return
         }
     } else {
         const index = parseInt(optionId)
         if (!isNaN(index)) {
-            ws.select([index])
+            actions.submitSelect([index])
         } else {
-            ws.sendAction({
-                player_id: store.myPlayerId,
+            actions.submitAction({
+                player_id: sessionStore.myPlayerId,
                 type: 'Select',
                 skill_id: optionId
             })
@@ -492,20 +500,20 @@ function handlePromptOption(optionId: string) {
 }
 
 function backFromMagicCard() {
-    store.setMagicSubChoice('none')
-    store.setSelectedCardForAction(null)
+    interruptStore.setMagicSubChoice('none')
+    interruptStore.setSelectedCardForAction(null)
 }
 
 const attackTargetCandidates = computed(() => {
-    if (store.actionMode !== 'attack') return []
-    return Object.values(store.players).filter((p) => p.camp !== store.myCamp)
+    if (interruptStore.actionMode !== 'attack') return []
+    return Object.values(snapshotStore.players).filter((p) => p.camp !== sessionStore.myCamp)
 })
 
 function isAllyTarget(player: PlayerView): boolean {
-    if (store.myCamp) return player.camp === store.myCamp
-    const myCamp = store.players[store.myPlayerId]?.camp
+    if (sessionStore.myCamp) return player.camp === sessionStore.myCamp
+    const myCamp = snapshotStore.players[sessionStore.myPlayerId]?.camp
     if (myCamp) return player.camp === myCamp
-    return player.id === store.myPlayerId
+    return player.id === sessionStore.myPlayerId
 }
 
 function splitTargetsByCamp(targets: PlayerView[]): { enemies: PlayerView[]; allies: PlayerView[] } {
@@ -519,16 +527,16 @@ function splitTargetsByCamp(targets: PlayerView[]): { enemies: PlayerView[]; all
 }
 
 const actionTargets = computed<PlayerView[]>(() => {
-    if (store.actionMode === 'attack') return attackTargetCandidates.value
-    if (store.actionMode === 'magic') return store.targetablePlayers
+    if (interruptStore.actionMode === 'attack') return attackTargetCandidates.value
+    if (interruptStore.actionMode === 'magic') return targetablePlayers.value
     return []
 })
 
 const hasActionTargets = computed(() => actionTargets.value.length > 0)
-const groupedSkillTargets = computed(() => splitTargetsByCamp(store.targetablePlayersForSkill))
+const groupedSkillTargets = computed(() => splitTargetsByCamp(targetablePlayersForSkill.value))
 
 function targetBasicInfo(targetId: string): string {
-    const player = store.players[targetId]
+    const player = snapshotStore.players[targetId]
     if (!player) return ''
     const handCount = Number.isFinite(player.hand_count) ? player.hand_count : (player.hand?.length ?? 0)
     const heal = Number.isFinite(player.heal) ? player.heal : 0
@@ -536,9 +544,9 @@ function targetBasicInfo(targetId: string): string {
 }
 
 function isStealthBlockedTarget(playerId: string): boolean {
-    if (store.actionMode !== 'attack') return false
-    if (store.targetablePlayers.some((p) => p.id === playerId)) return false
-    const p = store.players[playerId]
+    if (interruptStore.actionMode !== 'attack') return false
+    if (targetablePlayers.value.some((p) => p.id === playerId)) return false
+    const p = snapshotStore.players[playerId]
     if (!p || !Array.isArray(p.field)) return false
     return p.field.some((fc) => fc.mode === 'Effect' && fc.effect === 'Stealth')
 }
@@ -549,28 +557,26 @@ const hasStealthBlockedAttackTarget = computed(() =>
 
 const BOARD_GUIDED_SKILL_IDS = new Set(['ss_soul_mirror'])
 const isBoardGuidedSkillFlow = computed(() => {
-    const skillId = store.selectedSkill?.id
+    const skillId = interruptStore.selectedSkill?.id
     if (!skillId) return false
     return BOARD_GUIDED_SKILL_IDS.has(skillId)
 })
 
 function confirmSkill() {
-    const skill = store.selectedSkill
+    const skill = interruptStore.selectedSkill
     if (!skill) return
-    const targetIds = [...store.skillTargetIds]
-    const selections = store.skillDiscardIndices.length > 0 ? [...store.skillDiscardIndices] : undefined
+    const targetIds = [...interruptStore.skillTargetIds]
+    const selections = interruptStore.skillDiscardIndices.length > 0 ? [...interruptStore.skillDiscardIndices] : undefined
     // 技能已发送后立即退出选择态，避免在服务端下发下一步 prompt 前重复发送 Skill。
-    store.clearSkillMode()
-    // 发送时带上弃牌索引
-    ws.useSkill(skill.id, targetIds, selections)
+    actions.submitUseSkill(skill.id, targetIds, selections, { clearSkillMode: true })
 }
 
 function selectSkill(skill: AvailableSkill) {
     if (!canSelectSkill(skill)) {
-        store.setError(skillDisabledReason(skill))
+        interruptStore.showError(skillDisabledReason(skill))
         return
     }
-    store.setSelectedSkill(skill)
+    interruptStore.setSelectedSkill(skill)
     // 如果技能需要弃牌，先进入弃牌选择模式
     if (skill.cost_discards > 0) {
         const required = requiredDiscardCount(skill)
@@ -578,7 +584,7 @@ function selectSkill(skill: AvailableSkill) {
             proceedAfterDiscard(skill)
             return
         }
-        store.setSkillMode('choosing_discard')
+        interruptStore.setSkillMode('choosing_discard')
         return
     }
     // 无需弃牌，直接进入目标选择或发动
@@ -587,8 +593,8 @@ function selectSkill(skill: AvailableSkill) {
 
 function cardMatchesSkillDiscard(card: { type: string; element: string; faction?: string; exclusive_char1?: string; exclusive_char2?: string; exclusive_skill1?: string; exclusive_skill2?: string }, skill: AvailableSkill): boolean {
     if (skill.require_exclusive) {
-        const char = store.getCharacter(store.myCharRole)
-        if (!char || !store.cardMatchesExclusive(card, char.name, skill.title)) return false
+        const char = getCharacter(sessionStore.myCharRole)
+        if (!char || !cardMatchesExclusive(card, char.name, skill.title)) return false
     }
     if (skill.discard_type && card.type !== skill.discard_type) return false
     if (skill.discard_element) return card.element === skill.discard_element
@@ -598,12 +604,12 @@ function cardMatchesSkillDiscard(card: { type: string; element: string; faction?
 
 function countSkillDiscardCandidates(skill: AvailableSkill): number {
     if (!skill || skill.cost_discards <= 0) return 0
-    return store.myHand.filter(card => cardMatchesSkillDiscard(card, skill)).length
+    return myHand.value.filter(card => cardMatchesSkillDiscard(card, skill)).length
 }
 
 function hasOnmyojiSameFactionPair(): boolean {
     const countByFaction = new Map<string, number>()
-    for (const card of store.myHand) {
+    for (const card of myHand.value) {
         if (!card.faction) continue
         const next = (countByFaction.get(card.faction) || 0) + 1
         if (next >= 2) return true
@@ -619,7 +625,7 @@ function hasAnyBasicEffectTarget(): boolean {
             effect === 'SealWind' || effect === 'SealThunder' ||
             effect === 'PowerBlessing' || effect === 'SwiftBlessing'
     }
-    return Object.values(store.players).some((p) => {
+    return Object.values(snapshotStore.players).some((p) => {
         if (!p || !Array.isArray(p.field)) return false
         return p.field.some((fc) =>
             fc.mode === 'Effect' && isBasicEffect(fc.effect)
@@ -656,12 +662,15 @@ const SKILL_TOKEN_RULES: Record<string, SkillTokenRule[]> = {
         { token: 'ss_blue_soul', min: 1, label: '蓝色灵魂' },
     ],
     arbiter_balance: [{ token: 'judgment', min: 1, label: '审判' }],
-    ms_shadow_meteor: [{ token: 'ms_shadow_form', min: 1, label: '暗影形态' }],
     bw_heavenfire_cleave: [{ token: 'bw_rebirth', min: 1, label: '重生' }],
 }
 
 function getMyTokenValue(token: string): number {
-    return store.myPlayer?.tokens?.[token] ?? 0
+    return myPlayer.value?.tokens?.[token] ?? 0
+}
+
+function hasMyForm(form: string): boolean {
+    return myPlayer.value?.form === form
 }
 
 function skillTokenDisabledReason(skill: AvailableSkill): string {
@@ -673,33 +682,34 @@ function skillTokenDisabledReason(skill: AvailableSkill): string {
         }
     }
     if (skill.id === 'hb_radiant_descent') {
-        const form = getMyTokenValue('hb_form')
+        const form = hasMyForm('holy_bow_holy_glory_form')
         const faith = getMyTokenValue('hb_faith')
-        const heal = store.myPlayer?.heal ?? 0
-        if (form > 0) return '已处于圣煌形态，无法再次发动。'
+        const heal = myPlayer.value?.heal ?? 0
+        if (form) return '已处于圣煌形态，无法再次发动。'
         if (heal < 2 && faith < 2) return '治疗与信仰均不足2，无法发动。'
     }
     if (skill.id === 'hb_light_burst') {
-        const form = getMyTokenValue('hb_form')
-        if (form <= 0) return '仅圣煌形态下可发动。'
+        if (!hasMyForm('holy_bow_holy_glory_form')) return '仅圣煌形态下可发动。'
     }
     if (skill.id === 'hb_radiant_cannon') {
-        const form = getMyTokenValue('hb_form')
         const cannon = getMyTokenValue('hb_cannon')
         const faith = getMyTokenValue('hb_faith')
-        const myMorale = store.myCamp === 'Red' ? store.redMorale : store.blueMorale
-        const enemyMorale = store.myCamp === 'Red' ? store.blueMorale : store.redMorale
+        const myMorale = sessionStore.myCamp === 'Red' ? snapshotStore.redMorale : snapshotStore.blueMorale
+        const enemyMorale = sessionStore.myCamp === 'Red' ? snapshotStore.blueMorale : snapshotStore.redMorale
         const moraleGap = Math.max(0, enemyMorale - myMorale)
         const requiredFaith = 4 + moraleGap
-        if (form <= 0) return '仅圣煌形态下可发动。'
+        if (!hasMyForm('holy_bow_holy_glory_form')) return '仅圣煌形态下可发动。'
         if (cannon <= 0) return '圣煌辉光炮指示物不足。'
         if (faith < requiredFaith) return `信仰不足（需要 ${requiredFaith}，当前 ${faith}）。`
+    }
+    if (skill.id === 'ms_shadow_meteor' && !hasMyForm('magic_swordsman_shadow_form')) {
+        return '仅暗影形态下可发动。'
     }
     return ''
 }
 
 function canPaySkillEnergy(skill: AvailableSkill): boolean {
-    const me = store.myPlayer
+    const me = myPlayer.value
     if (!me) return false
     const gemNeed = skill.cost_gem || 0
     const crystalNeed = skill.cost_crystal || 0
@@ -713,12 +723,12 @@ function canSelectSkill(skill: AvailableSkill): boolean {
     if (!canPaySkillEnergy(skill)) return false
     if (skillTokenDisabledReason(skill)) return false
     if (skill.id === 'prayer_radiant_faith' || skill.id === 'prayer_dark_curse') {
-        const prayerForm = store.myPlayer?.tokens?.prayer_form ?? 0
-        const prayerRune = store.myPlayer?.tokens?.prayer_rune ?? 0
-        if (prayerForm <= 0 || prayerRune <= 0) return false
+        const prayerForm = hasMyForm('prayer_master_prayer_form')
+        const prayerRune = myPlayer.value?.tokens?.prayer_rune ?? 0
+        if (!prayerForm || prayerRune <= 0) return false
     }
     if (skill.id === 'elementalist_ignite') {
-        const element = store.myPlayer?.tokens?.element ?? 0
+        const element = myPlayer.value?.tokens?.element ?? 0
         if (element < 3) return false
     }
     if (skill.id === 'onmyoji_shikigami_descend') {
@@ -744,9 +754,9 @@ function skillDisabledReason(skill: AvailableSkill): string {
     const tokenReason = skillTokenDisabledReason(skill)
     if (tokenReason) return tokenReason
     if (skill.id === 'prayer_radiant_faith' || skill.id === 'prayer_dark_curse') {
-        const prayerForm = store.myPlayer?.tokens?.prayer_form ?? 0
-        const prayerRune = store.myPlayer?.tokens?.prayer_rune ?? 0
-        if (prayerForm <= 0) return '仅祈祷形态下可发动。'
+        const prayerForm = hasMyForm('prayer_master_prayer_form')
+        const prayerRune = myPlayer.value?.tokens?.prayer_rune ?? 0
+        if (!prayerForm) return '仅祈祷形态下可发动。'
         if (prayerRune <= 0) return '祈祷符文不足，无法发动。'
     }
     if (skill.id === 'elementalist_ignite') {
@@ -780,37 +790,35 @@ function skillDisabledReason(skill: AvailableSkill): string {
 function proceedAfterDiscard(skill: AvailableSkill) {
     // target_type=0 (None): 无需目标，直接发动
     if (skill.target_type === 0) {
-        const selections = store.skillDiscardIndices.length > 0 ? [...store.skillDiscardIndices] : undefined
-        store.clearSkillMode()
-        ws.useSkill(skill.id, [], selections)
+        const selections = interruptStore.skillDiscardIndices.length > 0 ? [...interruptStore.skillDiscardIndices] : undefined
+        actions.submitUseSkill(skill.id, [], selections, { clearSkillMode: true })
         return
     }
     // target_type=1 (Self): 自动选中自己并发动
     if (skill.target_type === 1) {
-        const selections = store.skillDiscardIndices.length > 0 ? [...store.skillDiscardIndices] : undefined
-        store.clearSkillMode()
-        ws.useSkill(skill.id, [store.myPlayerId], selections)
+        const selections = interruptStore.skillDiscardIndices.length > 0 ? [...interruptStore.skillDiscardIndices] : undefined
+        actions.submitUseSkill(skill.id, [sessionStore.myPlayerId], selections, { clearSkillMode: true })
         return
     }
-    store.setSkillMode('choosing_target')
+    interruptStore.setSkillMode('choosing_target')
 }
 
 function confirmSkillDiscard() {
-    const skill = store.selectedSkill
+    const skill = interruptStore.selectedSkill
     if (!skill) return
     const required = requiredDiscardCount(skill)
-    if (store.skillDiscardIndices.length < required) {
-        store.setError(`请选择 ${required} 张牌`)
+    if (interruptStore.skillDiscardIndices.length < required) {
+        interruptStore.showError(`请选择 ${required} 张牌`)
         return
     }
     proceedAfterDiscard(skill)
 }
 
 watch(
-    () => [store.skillMode, store.selectedSkill?.id, store.skillDiscardIndices.length] as const,
+    () => [interruptStore.skillMode, interruptStore.selectedSkill?.id, interruptStore.skillDiscardIndices.length] as const,
     ([mode, skillId, selectedCount]) => {
         if (mode !== 'choosing_discard' || skillId !== 'ss_soul_mirror') return
-        const skill = store.selectedSkill
+        const skill = interruptStore.selectedSkill
         if (!skill) return
         const required = requiredDiscardCount(skill)
         if (required > 0 && selectedCount >= required) {
@@ -820,15 +828,14 @@ watch(
 )
 
 function onSkillTargetClick(playerId: string) {
-    store.toggleSkillTarget(playerId)
-    const skill = store.selectedSkill
+    interruptStore.toggleSkillTarget(playerId)
+    const skill = interruptStore.selectedSkill
     if (!skill) return
     // 单目标技能选中后自动确认
-    if (skill.max_targets === 1 && store.skillTargetIds.length === 1) {
-        const targetIds = [...store.skillTargetIds]
-        const selections = store.skillDiscardIndices.length > 0 ? [...store.skillDiscardIndices] : undefined
-        store.clearSkillMode()
-        ws.useSkill(skill.id, targetIds, selections)
+    if (skill.max_targets === 1 && interruptStore.skillTargetIds.length === 1) {
+        const targetIds = [...interruptStore.skillTargetIds]
+        const selections = interruptStore.skillDiscardIndices.length > 0 ? [...interruptStore.skillDiscardIndices] : undefined
+        actions.submitUseSkill(skill.id, targetIds, selections, { clearSkillMode: true })
     }
 }
 
@@ -851,10 +858,10 @@ function openDebugPanel() {
     debugOpen.value = true
     debugStatus.value = ''
     if (!debugTargetPlayerId.value) {
-        debugTargetPlayerId.value = store.myPlayerId
+        debugTargetPlayerId.value = sessionStore.myPlayerId
     }
     if (!debugExclusiveRoleId.value) {
-        debugExclusiveRoleId.value = store.myCharRole || debugRoleList.value[0]?.id || ''
+        debugExclusiveRoleId.value = sessionStore.myCharRole || debugRoleList.value[0]?.id || ''
     }
     if (!debugExclusiveSkillId.value) {
         debugExclusiveSkillId.value = debugExclusiveSkillOptions.value[0]?.id || ''
@@ -866,16 +873,16 @@ function closeDebugPanel() {
 }
 
 function ensureDebugTargetPlayerId(): string | null {
-    const pid = debugTargetPlayerId.value || store.myPlayerId
-    if (!pid || !store.players[pid]) {
-        store.setError('请选择有效的目标角色')
+    const pid = debugTargetPlayerId.value || sessionStore.myPlayerId
+    if (!pid || !snapshotStore.players[pid]) {
+        interruptStore.showError('请选择有效的目标角色')
         return null
     }
     return pid
 }
 
 function debugTargetName(pid: string): string {
-    return store.players[pid]?.name || pid
+    return snapshotStore.players[pid]?.name || pid
 }
 
 function applyDebugEffect() {
@@ -883,10 +890,10 @@ function applyDebugEffect() {
     if (!pid) return
     const count = Number(debugEffectCount.value)
     if (!Number.isFinite(count) || count < 0) {
-        store.setError('基础效果数量需为 >= 0 的数字')
+        interruptStore.showError('基础效果数量需为 >= 0 的数字')
         return
     }
-    ws.cheatEffect(pid, debugEffectType.value, Math.floor(count))
+    actions.cheatEffect(pid, debugEffectType.value, Math.floor(count))
     debugStatus.value = `已设置 ${debugTargetName(pid)} 的基础效果 ${debugEffectType.value}=${Math.floor(count)}`
 }
 
@@ -895,10 +902,10 @@ function applyDebugSet() {
     if (!pid) return
     const value = Number(debugSetValue.value)
     if (!Number.isFinite(value)) {
-        store.setError('请输入有效数字')
+        interruptStore.showError('请输入有效数字')
         return
     }
-    ws.cheatSet(pid, debugSetField.value, Math.floor(value))
+    actions.cheatSet(pid, debugSetField.value, Math.floor(value))
     debugStatus.value = `已设置 ${debugTargetName(pid)} 的 ${debugSetField.value}=${Math.floor(value)}`
 }
 
@@ -908,14 +915,14 @@ function applyDebugToken() {
     const key = debugTokenKey.value.trim()
     const value = Number(debugTokenValue.value)
     if (!key) {
-        store.setError('请输入指示物 key')
+        interruptStore.showError('请输入指示物 key')
         return
     }
     if (!Number.isFinite(value)) {
-        store.setError('请输入有效数字')
+        interruptStore.showError('请输入有效数字')
         return
     }
-    ws.cheatToken(pid, key, Math.floor(value))
+    actions.cheatToken(pid, key, Math.floor(value))
     debugStatus.value = `已设置 ${debugTargetName(pid)} 的指示物 ${key}=${Math.floor(value)}`
 }
 
@@ -923,19 +930,19 @@ function applyDebugExclusiveCard() {
     const pid = ensureDebugTargetPlayerId()
     if (!pid) return
     if (!debugExclusiveRoleId.value) {
-        store.setError('请选择角色来源')
+        interruptStore.showError('请选择角色来源')
         return
     }
     if (!debugExclusiveSkillId.value) {
-        store.setError('请选择独有技')
+        interruptStore.showError('请选择独有技')
         return
     }
     const count = Number(debugExclusiveCount.value)
     if (!Number.isFinite(count) || count <= 0) {
-        store.setError('独有牌数量需为 > 0 的数字')
+        interruptStore.showError('独有牌数量需为 > 0 的数字')
         return
     }
-    ws.cheatGiveExclusive(pid, debugExclusiveRoleId.value, debugExclusiveSkillId.value, Math.floor(count))
+    actions.cheatGiveExclusive(pid, debugExclusiveRoleId.value, debugExclusiveSkillId.value, Math.floor(count))
     debugStatus.value = `已给 ${debugTargetName(pid)} 添加 ${Math.floor(count)} 张独有技手牌`
 }
 
@@ -944,10 +951,10 @@ function applyDebugElementCards() {
     if (!pid) return
     const count = Number(debugElementCount.value)
     if (!Number.isFinite(count) || count <= 0) {
-        store.setError('系别手牌数量需为 > 0 的数字')
+        interruptStore.showError('系别手牌数量需为 > 0 的数字')
         return
     }
-    ws.cheatGiveByElement(pid, debugElement.value, Math.floor(count))
+    actions.cheatGiveByElement(pid, debugElement.value, Math.floor(count))
     debugStatus.value = `已给 ${debugTargetName(pid)} 添加 ${Math.floor(count)} 张 ${elementName(debugElement.value)}手牌`
 }
 
@@ -956,15 +963,15 @@ function applyDebugFactionCards() {
     if (!pid) return
     const faction = debugFaction.value.trim()
     if (!faction) {
-        store.setError('请输入命格')
+        interruptStore.showError('请输入命格')
         return
     }
     const count = Number(debugFactionCount.value)
     if (!Number.isFinite(count) || count <= 0) {
-        store.setError('命格手牌数量需为 > 0 的数字')
+        interruptStore.showError('命格手牌数量需为 > 0 的数字')
         return
     }
-    ws.cheatGiveByFaction(pid, faction, Math.floor(count))
+    actions.cheatGiveByFaction(pid, faction, Math.floor(count))
     debugStatus.value = `已给 ${debugTargetName(pid)} 添加 ${Math.floor(count)} 张 ${faction}命格手牌`
 }
 
@@ -973,15 +980,15 @@ function applyDebugMagicCard() {
     if (!pid) return
     const cardName = debugMagicCardName.value.trim()
     if (!cardName) {
-        store.setError('请输入法术牌名称')
+        interruptStore.showError('请输入法术牌名称')
         return
     }
     const count = Number(debugMagicCardCount.value)
     if (!Number.isFinite(count) || count <= 0) {
-        store.setError('法术牌数量需为 > 0 的数字')
+        interruptStore.showError('法术牌数量需为 > 0 的数字')
         return
     }
-    ws.cheatGiveMagicByName(pid, cardName, Math.floor(count))
+    actions.cheatGiveMagicByName(pid, cardName, Math.floor(count))
     debugStatus.value = `已给 ${debugTargetName(pid)} 添加 ${Math.floor(count)} 张法术牌【${cardName}】`
 }
 
@@ -989,21 +996,21 @@ function requiredDiscardCount(skill: AvailableSkill): number {
     if (!skill || skill.cost_discards <= 0) return 0
     // 神官-神圣领域：手牌不足2时，改为弃全部手牌。
     if (skill.id === 'priest_divine_domain') {
-        return Math.min(skill.cost_discards, store.myHand.length)
+        return Math.min(skill.cost_discards, myHand.value.length)
     }
     // 神官-水之神力：若弃完水系后无剩余手牌，则仅需弃1张水系牌。
     if (skill.id === 'priest_water_power') {
-        return Math.min(skill.cost_discards, store.myHand.length)
+        return Math.min(skill.cost_discards, myHand.value.length)
     }
     return skill.cost_discards
 }
 
 function isCardSelectableForSkillDiscard(card: { type: string; element: string; faction?: string; exclusive_char1?: string; exclusive_char2?: string; exclusive_skill1?: string; exclusive_skill2?: string }): boolean {
-    const skill = store.selectedSkill
+    const skill = interruptStore.selectedSkill
     if (!skill) return false
     if (skill.id === 'priest_water_power') {
-        const selected = store.skillDiscardIndices
-            .map((i) => store.myHand[i])
+        const selected = interruptStore.skillDiscardIndices
+            .map((i) => myHand.value[i])
             .filter((c): c is NonNullable<typeof c> => !!c)
         if (selected.length === 0) {
             return card.element === 'Water'
@@ -1013,9 +1020,9 @@ function isCardSelectableForSkillDiscard(card: { type: string; element: string; 
     }
     // 独有技：必须使用卡牌下标了该技能名的牌
     if (skill.require_exclusive) {
-        const char = store.getCharacter(store.myCharRole)
+        const char = getCharacter(sessionStore.myCharRole)
         if (!char) return false
-        if (!store.cardMatchesExclusive(card, char.name, skill.title)) return false
+        if (!cardMatchesExclusive(card, char.name, skill.title)) return false
     }
     if (skill.discard_type && card.type !== skill.discard_type) return false
     // 元素要求
@@ -1026,8 +1033,8 @@ function isCardSelectableForSkillDiscard(card: { type: string; element: string; 
     // 阴阳师：式神降临需要两张同命格手牌
     if (skill.id === 'onmyoji_shikigami_descend') {
         if (!card.faction) return false
-        const selected = store.skillDiscardIndices
-            .map((i) => store.myHand[i])
+        const selected = interruptStore.skillDiscardIndices
+            .map((i) => myHand.value[i])
             .filter((c): c is NonNullable<typeof c> => !!c)
         if (selected.length > 0) {
             const reqFaction = selected[0]?.faction
@@ -1038,68 +1045,68 @@ function isCardSelectableForSkillDiscard(card: { type: string; element: string; 
 }
 
 function toggleSkillDiscardCard(idx: number) {
-    const skill = store.selectedSkill
+    const skill = interruptStore.selectedSkill
     if (!skill) return
     const required = requiredDiscardCount(skill)
-    const card = store.myHand[idx]
+    const card = myHand.value[idx]
     if (!card) return
     // 独有技：必须使用卡牌下标了该技能名的牌
     if (skill.require_exclusive) {
-        const char = store.getCharacter(store.myCharRole)
-        if (!char || !store.cardMatchesExclusive(card, char.name, skill.title)) {
-            store.setError('必须使用标有该技能名的独有牌')
+        const char = getCharacter(sessionStore.myCharRole)
+        if (!char || !cardMatchesExclusive(card, char.name, skill.title)) {
+            interruptStore.showError('必须使用标有该技能名的独有牌')
             return
         }
     }
     // 检查元素要求
     if (skill.discard_element && card.element !== skill.discard_element) {
-        store.setError(`需要弃置${elementName(skill.discard_element)}牌`)
+        interruptStore.showError(`需要弃置${elementName(skill.discard_element)}牌`)
         return
     }
     if (skill.discard_type && card.type !== skill.discard_type) {
-        store.setError(`需要弃置${skill.discard_type === 'Magic' ? '法术' : '攻击'}牌`)
+        interruptStore.showError(`需要弃置${skill.discard_type === 'Magic' ? '法术' : '攻击'}牌`)
         return
     }
-    if (skill.id === 'priest_water_power' && !store.skillDiscardIndices.includes(idx)) {
-        const selected = store.skillDiscardIndices
-            .map((i) => store.myHand[i])
+    if (skill.id === 'priest_water_power' && !interruptStore.skillDiscardIndices.includes(idx)) {
+        const selected = interruptStore.skillDiscardIndices
+            .map((i) => myHand.value[i])
             .filter((c): c is NonNullable<typeof c> => !!c)
         if (selected.length === 0 && card.element !== 'Water') {
-            store.setError('水之神力第一张需弃置水系牌')
+            interruptStore.showError('水之神力第一张需弃置水系牌')
             return
         }
         if (selected.length > 0 && selected[0]?.element !== 'Water') {
-            store.setError('水之神力第一张需弃置水系牌')
+            interruptStore.showError('水之神力第一张需弃置水系牌')
             return
         }
     }
     if (skill.id === 'magic_bullet_fusion' && card.element !== 'Fire' && card.element !== 'Earth') {
-        store.setError('魔弹融合需要弃置1张火系或地系牌')
+        interruptStore.showError('魔弹融合需要弃置1张火系或地系牌')
         return
     }
     // 阴阳师：式神降临必须弃置两张同命格手牌
-    if (skill.id === 'onmyoji_shikigami_descend' && !store.skillDiscardIndices.includes(idx)) {
+    if (skill.id === 'onmyoji_shikigami_descend' && !interruptStore.skillDiscardIndices.includes(idx)) {
         if (!card.faction) {
-            store.setError('式神降临需要弃置有命格的手牌')
+            interruptStore.showError('式神降临需要弃置有命格的手牌')
             return
         }
-        const selected = store.skillDiscardIndices
-            .map((i) => store.myHand[i])
+        const selected = interruptStore.skillDiscardIndices
+            .map((i) => myHand.value[i])
             .filter((c): c is NonNullable<typeof c> => !!c)
         if (selected.length > 0) {
             const reqFaction = selected[0]?.faction
             if (reqFaction && card.faction !== reqFaction) {
-                store.setError('式神降临需要弃置2张命格相同的手牌')
+                interruptStore.showError('式神降临需要弃置2张命格相同的手牌')
                 return
             }
         }
     }
     // 如果已选满且不是取消选择，不允许继续选
-    if (!store.skillDiscardIndices.includes(idx) && store.skillDiscardIndices.length >= required) {
-        store.setError(`最多选择 ${required} 张牌`)
+    if (!interruptStore.skillDiscardIndices.includes(idx) && interruptStore.skillDiscardIndices.length >= required) {
+        interruptStore.showError(`最多选择 ${required} 张牌`)
         return
     }
-    store.toggleSkillDiscard(idx)
+    interruptStore.toggleSkillDiscard(idx)
 }
 
 function elementName(el: string): string {
@@ -1108,7 +1115,7 @@ function elementName(el: string): string {
 }
 
 function basicEffectSummary(playerId: string): string {
-    const player = store.players[playerId]
+    const player = snapshotStore.players[playerId]
     if (!player) return ''
     const labels: string[] = []
     for (const fc of player.field) {
@@ -1127,41 +1134,41 @@ function basicEffectSummary(playerId: string): string {
         :class="actionPanelRootClass"
     >
         <!-- 攻击/法术模式 -->
-        <div v-if="store.actionMode !== 'none'" class="space-y-3 action-mode-panel">
+        <div v-if="interruptStore.actionMode !== 'none'" class="space-y-3 action-mode-panel">
             <!-- 法术行动：先选择 出牌 或 发动技能 -->
-            <template v-if="store.actionMode === 'magic' && store.magicSubChoice === 'none'">
+            <template v-if="interruptStore.actionMode === 'magic' && interruptStore.magicSubChoice === 'none'">
                 <div class="text-amber-400 text-sm font-bold">✨ 法术行动</div>
                 <div class="text-xs text-gray-400">发动法术有两种方式：打出法术牌或发动角色技能</div>
                 <div class="flex gap-2 flex-wrap">
-                    <button class="btn-primary px-4 py-2.5" @click="store.setMagicSubChoice('card')">
+                    <button class="btn-primary px-4 py-2.5" @click="interruptStore.setMagicSubChoice('card')">
                         打出法术牌
                     </button>
                     <button
-                        v-if="store.effectiveAvailableSkills.length > 0"
+                        v-if="effectiveAvailableSkills.length > 0"
                         class="btn-skill px-4 py-2.5"
-                        @click="store.setSkillMode('choosing_skill'); store.clearActionMode()"
+                        @click="interruptStore.setSkillMode('choosing_skill'); interruptStore.clearActionMode()"
                     >
                         发动技能
                     </button>
-                    <button class="btn-secondary flex-1 py-2.5" @click="store.clearActionMode()">取消</button>
+                    <button class="btn-secondary flex-1 py-2.5" @click="interruptStore.clearActionMode()">取消</button>
                 </div>
             </template>
             <!-- 攻击模式 或 法术已选「出牌」：选牌 + 选目标 -->
             <template v-else>
                 <div class="flex items-center justify-between">
           <span class="text-amber-400 text-sm font-bold">
-            {{ store.actionMode === 'attack' ? '⚔️ 攻击模式' : '✨ 法术模式' }}
+            {{ interruptStore.actionMode === 'attack' ? '⚔️ 攻击模式' : '✨ 法术模式' }}
           </span>
                     <span class="step-indicator">
-            {{ store.selectedCardForAction === null ? '步骤 1/2' : '步骤 2/2' }} · {{ store.selectedCardForAction === null ? '选牌' : '选目标' }}
+            {{ interruptStore.selectedCardForAction === null ? '步骤 1/2' : '步骤 2/2' }} · {{ interruptStore.selectedCardForAction === null ? '选牌' : '选目标' }}
           </span>
                 </div>
-                <div v-if="store.selectedCardForAction !== null" class="space-y-2">
+                <div v-if="interruptStore.selectedCardForAction !== null" class="space-y-2">
                     <div
                         v-if="hasActionTargets"
                         class="text-xs text-gray-400"
                     >
-                        请直接点击战场角色立绘完成{{ store.actionMode === 'attack' ? '攻击' : '施法' }}。
+                        请直接点击战场角色立绘完成{{ interruptStore.actionMode === 'attack' ? '攻击' : '施法' }}。
                     </div>
                     <div v-else class="text-xs text-gray-400">当前法术无需手动选目标，将按规则自动结算。</div>
                     <div v-if="hasStealthBlockedAttackTarget" class="text-[11px] text-gray-400">
@@ -1169,16 +1176,16 @@ function basicEffectSummary(playerId: string): string {
                     </div>
                 </div>
                 <div v-else class="text-xs text-gray-400 py-1">
-                    先在下方手牌选一张{{ store.actionMode === 'attack' ? '攻击' : '法术' }}牌
+                    先在下方手牌选一张{{ interruptStore.actionMode === 'attack' ? '攻击' : '法术' }}牌
                 </div>
                 <div class="flex gap-2 flex-wrap">
-                    <button class="btn-secondary text-sm flex-1 py-2" @click="store.actionMode === 'magic' ? backFromMagicCard() : store.clearActionMode()">
-                        {{ store.actionMode === 'magic' ? '返回' : '取消' }}
+                    <button class="btn-secondary text-sm flex-1 py-2" @click="interruptStore.actionMode === 'magic' ? backFromMagicCard() : interruptStore.clearActionMode()">
+                        {{ interruptStore.actionMode === 'magic' ? '返回' : '取消' }}
                     </button>
                     <button
-                        v-if="store.actionMode === 'magic' && store.effectiveAvailableSkills.length > 0"
+                        v-if="interruptStore.actionMode === 'magic' && effectiveAvailableSkills.length > 0"
                         class="btn-skill text-sm px-4 py-2"
-                        @click="store.setSkillMode('choosing_skill'); store.clearActionMode()"
+                        @click="interruptStore.setSkillMode('choosing_skill'); interruptStore.clearActionMode()"
                     >
                         改用技能
                     </button>
@@ -1187,11 +1194,11 @@ function basicEffectSummary(playerId: string): string {
         </div>
 
         <!-- 技能发动流程：选择技能 -->
-        <div v-else-if="store.skillMode === 'choosing_skill'" class="space-y-3 skill-select-panel">
+        <div v-else-if="interruptStore.skillMode === 'choosing_skill'" class="space-y-3 skill-select-panel">
             <div class="text-amber-400 text-sm font-bold">选择要发动的技能</div>
             <div class="flex flex-col gap-2">
                 <button
-                    v-for="skill in store.effectiveAvailableSkills"
+                    v-for="skill in effectiveAvailableSkills"
                     :key="skill.id"
                     class="btn-skill px-4 py-2.5 rounded-lg text-sm text-left w-full"
                     :class="{ 'skill-btn-disabled': !canSelectSkill(skill) }"
@@ -1207,100 +1214,100 @@ function basicEffectSummary(playerId: string): string {
                     <span v-if="!canSelectSkill(skill)" class="block text-[11px] text-gray-400 mt-1">{{ skillDisabledReason(skill) }}</span>
                 </button>
             </div>
-            <button class="btn-secondary text-sm w-full py-2" @click="store.clearSkillMode()">
+            <button class="btn-secondary text-sm w-full py-2" @click="interruptStore.clearSkillMode()">
                 取消
             </button>
         </div>
 
         <!-- 技能发动流程：选择弃牌 -->
-        <div v-else-if="store.skillMode === 'choosing_discard' && store.selectedSkill" class="space-y-3 skill-discard-panel">
+        <div v-else-if="interruptStore.skillMode === 'choosing_discard' && interruptStore.selectedSkill" class="space-y-3 skill-discard-panel">
             <div class="flex items-center justify-between">
-                <span class="text-amber-400 text-sm font-bold">{{ store.selectedSkill.title }}</span>
+                <span class="text-amber-400 text-sm font-bold">{{ interruptStore.selectedSkill.title }}</span>
                 <span class="step-indicator">
-          {{ store.skillDiscardIndices.length }}/{{ requiredDiscardCount(store.selectedSkill) }}
+          {{ interruptStore.skillDiscardIndices.length }}/{{ requiredDiscardCount(interruptStore.selectedSkill) }}
         </span>
             </div>
             <template v-if="isBoardGuidedSkillFlow">
                 <div class="text-xs text-gray-400">
                     请在下方手牌区选择要弃置的牌
-                    <span class="text-amber-300">（已选 {{ store.skillDiscardIndices.length }}/{{ requiredDiscardCount(store.selectedSkill) }}）</span>
+                    <span class="text-amber-300">（已选 {{ interruptStore.skillDiscardIndices.length }}/{{ requiredDiscardCount(interruptStore.selectedSkill) }}）</span>
                 </div>
                 <div class="text-[11px] text-gray-500">选满后将自动进入目标选择</div>
                 <div class="flex gap-2">
-                    <button class="btn-secondary w-full py-2" @click="store.clearSkillMode()">取消</button>
+                    <button class="btn-secondary w-full py-2" @click="interruptStore.clearSkillMode()">取消</button>
                 </div>
             </template>
             <template v-else>
                 <div class="text-xs text-gray-400">
                     请选择要弃置的牌
-                    <span v-if="store.selectedSkill.require_exclusive" class="text-amber-300">
-          （须为标有「{{ store.selectedSkill.title }}」的独有牌）
+                    <span v-if="interruptStore.selectedSkill.require_exclusive" class="text-amber-300">
+          （须为标有「{{ interruptStore.selectedSkill.title }}」的独有牌）
         </span>
-                    <span v-else-if="store.selectedSkill.discard_element" class="text-amber-300">
-          （需要{{ elementName(store.selectedSkill.discard_element) }}牌）
+                    <span v-else-if="interruptStore.selectedSkill.discard_element" class="text-amber-300">
+          （需要{{ elementName(interruptStore.selectedSkill.discard_element) }}牌）
                     </span>
-                    <span v-else-if="store.selectedSkill.discard_type" class="text-amber-300">
-          （需要{{ store.selectedSkill.discard_type === 'Magic' ? '法术牌' : '攻击牌' }}）
+                    <span v-else-if="interruptStore.selectedSkill.discard_type" class="text-amber-300">
+          （需要{{ interruptStore.selectedSkill.discard_type === 'Magic' ? '法术牌' : '攻击牌' }}）
                     </span>
-                    <span v-else-if="store.selectedSkill.id === 'priest_water_power'" class="text-amber-300">
+                    <span v-else-if="interruptStore.selectedSkill.id === 'priest_water_power'" class="text-amber-300">
           （第一张需水系；若仍有手牌，第二张将交给目标队友）
                     </span>
-                    <span v-else-if="store.selectedSkill.id === 'magic_bullet_fusion'" class="text-amber-300">
+                    <span v-else-if="interruptStore.selectedSkill.id === 'magic_bullet_fusion'" class="text-amber-300">
           （需要火系或地系牌）
                     </span>
-                    <span v-else-if="store.selectedSkill.id === 'onmyoji_shikigami_descend'" class="text-amber-300">
+                    <span v-else-if="interruptStore.selectedSkill.id === 'onmyoji_shikigami_descend'" class="text-amber-300">
           （需要2张命格相同的手牌）
                     </span>
                 </div>
                 <div class="flex gap-1 flex-wrap justify-center skill-discard-card-row">
                     <CardComponent
-                        v-for="(card, idx) in store.myHand"
+                        v-for="(card, idx) in myHand"
                         :key="idx"
                         :card="card"
                         :index="idx"
                         medium
                         :selectable="isCardSelectableForSkillDiscard(card)"
-                        :selected="store.skillDiscardIndices.includes(idx)"
+                        :selected="interruptStore.skillDiscardIndices.includes(idx)"
                         @click="toggleSkillDiscardCard(idx)"
                     />
                 </div>
                 <div class="flex gap-2">
                     <button
                         class="btn-success flex-1 py-2"
-                        :class="{ 'opacity-50 cursor-not-allowed': store.skillDiscardIndices.length < requiredDiscardCount(store.selectedSkill) }"
-                        :disabled="store.skillDiscardIndices.length < requiredDiscardCount(store.selectedSkill)"
+                        :class="{ 'opacity-50 cursor-not-allowed': interruptStore.skillDiscardIndices.length < requiredDiscardCount(interruptStore.selectedSkill) }"
+                        :disabled="interruptStore.skillDiscardIndices.length < requiredDiscardCount(interruptStore.selectedSkill)"
                         @click="confirmSkillDiscard()"
                     >
-                        确认弃牌 ({{ store.skillDiscardIndices.length }}/{{ requiredDiscardCount(store.selectedSkill) }})
+                        确认弃牌 ({{ interruptStore.skillDiscardIndices.length }}/{{ requiredDiscardCount(interruptStore.selectedSkill) }})
                     </button>
-                    <button class="btn-secondary py-2 px-4" @click="store.clearSkillMode()">取消</button>
+                    <button class="btn-secondary py-2 px-4" @click="interruptStore.clearSkillMode()">取消</button>
                 </div>
             </template>
         </div>
 
         <!-- 技能发动流程：选择目标 -->
-        <div v-else-if="store.skillMode === 'choosing_target' && store.selectedSkill" class="space-y-3 skill-target-panel">
+        <div v-else-if="interruptStore.skillMode === 'choosing_target' && interruptStore.selectedSkill" class="space-y-3 skill-target-panel">
             <div class="flex items-center justify-between">
-                <span class="text-amber-400 text-sm font-bold">{{ store.selectedSkill.title }}</span>
+                <span class="text-amber-400 text-sm font-bold">{{ interruptStore.selectedSkill.title }}</span>
                 <span class="step-indicator">
-          {{ store.skillTargetIds.length }}/{{ (store.selectedSkill.max_targets > 0 ? store.selectedSkill.max_targets : 1) }}
+          {{ interruptStore.skillTargetIds.length }}/{{ (interruptStore.selectedSkill.max_targets > 0 ? interruptStore.selectedSkill.max_targets : 1) }}
         </span>
             </div>
             <template v-if="isBoardGuidedSkillFlow">
                 <div class="text-xs text-gray-400">
                     请直接点击角色立绘选择目标
-                    <span v-if="(store.selectedSkill.max_targets || 1) === 1">（单目标将自动发动）</span>
+                    <span v-if="(interruptStore.selectedSkill.max_targets || 1) === 1">（单目标将自动发动）</span>
                 </div>
                 <div class="flex gap-2">
-                    <button class="btn-secondary w-full py-2" @click="store.clearSkillMode()">取消</button>
+                    <button class="btn-secondary w-full py-2" @click="interruptStore.clearSkillMode()">取消</button>
                 </div>
             </template>
             <template v-else>
-                <p v-if="store.selectedSkill.description" class="text-xs text-gray-400 whitespace-pre-wrap break-words">{{ store.selectedSkill.description }}</p>
+                <p v-if="interruptStore.selectedSkill.description" class="text-xs text-gray-400 whitespace-pre-wrap break-words">{{ interruptStore.selectedSkill.description }}</p>
                 <div class="text-xs text-gray-400">
                     点击玩家头像或下方按钮选择目标
-                    <span v-if="store.selectedSkill.min_targets > 0">（至少 {{ store.selectedSkill.min_targets }} 个）</span>
-                    <span v-if="(store.selectedSkill.max_targets || 1) === 1"> · 选中后自动发动</span>
+                    <span v-if="interruptStore.selectedSkill.min_targets > 0">（至少 {{ interruptStore.selectedSkill.min_targets }} 个）</span>
+                    <span v-if="(interruptStore.selectedSkill.max_targets || 1) === 1"> · 选中后自动发动</span>
                 </div>
                 <div class="target-group-stack">
                     <div v-if="groupedSkillTargets.enemies.length > 0" class="target-group-card">
@@ -1311,16 +1318,16 @@ function basicEffectSummary(playerId: string): string {
                                 :key="target.id"
                                 class="btn-target target-grid-btn px-3 py-2 rounded-lg text-sm font-medium text-left"
                                 :class="[
-                                    store.skillTargetIds.includes(target.id)
+                                    interruptStore.skillTargetIds.includes(target.id)
                                       ? 'ring-2 ring-yellow-400 bg-amber-900/70'
                                       : 'bg-gray-700 hover:bg-gray-600',
                                     target.camp === 'Red' ? 'border border-red-500/50' : 'border border-blue-500/50'
                                 ]"
                                 @click="onSkillTargetClick(target.id)"
                             >
-                                <div class="target-grid-name">{{ target.id === store.myPlayerId ? '自己' : target.name }}</div>
+                                <div class="target-grid-name">{{ target.id === sessionStore.myPlayerId ? '自己' : target.name }}</div>
                                 <div class="target-grid-meta">{{ targetBasicInfo(target.id) }}</div>
-                                <div v-if="store.selectedSkill?.id === 'angel_cleanse'" class="text-[11px] opacity-80 mt-0.5">
+                                <div v-if="interruptStore.selectedSkill?.id === 'angel_cleanse'" class="text-[11px] opacity-80 mt-0.5">
                                     可移除：{{ basicEffectSummary(target.id) || '无' }}
                                 </div>
                             </button>
@@ -1334,16 +1341,16 @@ function basicEffectSummary(playerId: string): string {
                                 :key="target.id"
                                 class="btn-target target-grid-btn px-3 py-2 rounded-lg text-sm font-medium text-left"
                                 :class="[
-                                    store.skillTargetIds.includes(target.id)
+                                    interruptStore.skillTargetIds.includes(target.id)
                                       ? 'ring-2 ring-yellow-400 bg-amber-900/70'
                                       : 'bg-gray-700 hover:bg-gray-600',
                                     target.camp === 'Red' ? 'border border-red-500/50' : 'border border-blue-500/50'
                                 ]"
                                 @click="onSkillTargetClick(target.id)"
                             >
-                                <div class="target-grid-name">{{ target.id === store.myPlayerId ? '自己' : target.name }}</div>
+                                <div class="target-grid-name">{{ target.id === sessionStore.myPlayerId ? '自己' : target.name }}</div>
                                 <div class="target-grid-meta">{{ targetBasicInfo(target.id) }}</div>
-                                <div v-if="store.selectedSkill?.id === 'angel_cleanse'" class="text-[11px] opacity-80 mt-0.5">
+                                <div v-if="interruptStore.selectedSkill?.id === 'angel_cleanse'" class="text-[11px] opacity-80 mt-0.5">
                                     可移除：{{ basicEffectSummary(target.id) || '无' }}
                                 </div>
                             </button>
@@ -1353,24 +1360,24 @@ function basicEffectSummary(playerId: string): string {
                 <div class="flex gap-2">
                     <button
                         class="btn-success flex-1 py-2"
-                        :class="{ 'opacity-50 cursor-not-allowed': !store.canConfirmSkill }"
-                        :disabled="!store.canConfirmSkill"
+                        :class="{ 'opacity-50 cursor-not-allowed': !canConfirmSkill }"
+                        :disabled="!canConfirmSkill"
                         @click="confirmSkill()"
                     >
                         确认发动
                     </button>
-                    <button class="btn-secondary py-2 px-4" @click="store.clearSkillMode()">取消</button>
+                    <button class="btn-secondary py-2 px-4" @click="interruptStore.clearSkillMode()">取消</button>
                 </div>
             </template>
         </div>
 
         <!-- 等待提示 -->
-        <div v-else-if="store.waitingFor && !prompt" class="text-center py-2 sm:py-3 text-gray-400 text-sm">
-            <div class="animate-pulse">等待 {{ waitingName || store.waitingFor }} 操作...</div>
+        <div v-else-if="interruptStore.waitingFor && !prompt" class="text-center py-2 sm:py-3 text-gray-400 text-sm">
+            <div class="animate-pulse">等待 {{ waitingName || interruptStore.waitingFor }} 操作...</div>
         </div>
 
         <!-- 非行动类 Prompt：在行动区内直接显示按钮操作 -->
-        <div v-else-if="prompt && store.isPromptForMe && !isActionHubContext" class="prompt-inline-host">
+        <div v-else-if="prompt && isPromptForMe && !isActionHubContext" class="prompt-inline-host">
             <PromptDialog />
         </div>
 
@@ -1445,7 +1452,7 @@ function basicEffectSummary(playerId: string): string {
                 </template>
                 <template v-else>
                     <button
-                        v-if="store.effectiveAvailableSkills.length > 0"
+                        v-if="effectiveAvailableSkills.length > 0"
                         class="btn-skill action-hub-desktop-btn"
                         @click="triggerActionHubOption('skill')"
                     >

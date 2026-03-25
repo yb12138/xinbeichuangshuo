@@ -99,7 +99,7 @@ func (h *MoonGoddessNewMoonShelterHandler) Execute(ctx *model.Context) error {
 	if ctx.User.Tokens == nil {
 		ctx.User.Tokens = map[string]int{}
 	}
-	ctx.User.Tokens["mg_dark_form"] = 1
+	enterForm(ctx.User, model.FormMoonGoddessDarkMoon)
 	added := 0
 	for _, c := range cards {
 		ctx.User.AddFieldCard(&model.FieldCard{
@@ -146,7 +146,7 @@ func (h *MoonGoddessDarkMoonSlashHandler) CanUse(ctx *model.Context) bool {
 	if ctx.TriggerCtx.AttackInfo != nil && ctx.TriggerCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
-	if getToken(ctx.User, "mg_dark_form") <= 0 {
+	if !hasForm(ctx.User, model.FormMoonGoddessDarkMoon) {
 		return false
 	}
 	if moonGoddessDarkMoonCount(ctx.User) <= 0 {
@@ -159,7 +159,7 @@ func (h *MoonGoddessDarkMoonSlashHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("暗月斩上下文无效")
 	}
-	if getToken(ctx.User, "mg_dark_form") <= 0 {
+	if !hasForm(ctx.User, model.FormMoonGoddessDarkMoon) {
 		return fmt.Errorf("仅暗月形态可发动暗月斩")
 	}
 	if moonGoddessDarkMoonCount(ctx.User) <= 0 {
@@ -172,6 +172,9 @@ func (h *MoonGoddessDarkMoonSlashHandler) Execute(ctx *model.Context) error {
 	if maxX > 2 {
 		maxX = 2
 	}
+	if maxX < 1 {
+		return fmt.Errorf("暗月不足，无法发动暗月斩")
+	}
 	ctx.Game.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
@@ -182,7 +185,7 @@ func (h *MoonGoddessDarkMoonSlashHandler) Execute(ctx *model.Context) error {
 			"user_ctx":    ctx,
 		},
 	})
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [暗月斩]：消耗1水晶，选择移除暗月数量X（0~%d）", ctx.User.Name, maxX))
+	ctx.Game.Log(fmt.Sprintf("%s 发动 [暗月斩]：消耗1水晶，选择移除暗月数量X（1~%d）", ctx.User.Name, maxX))
 	return nil
 }
 
@@ -191,7 +194,9 @@ func (h *MoonGoddessPaleMoonHandler) CanUse(ctx *model.Context) bool {
 		return false
 	}
 	branch1 := getToken(ctx.User, "mg_petrify") >= 3
-	branch2 := len(ctx.User.Hand) > 0 && len(moonGoddessEnemyIDs(ctx.Game, ctx.User)) > 0
+	branch2 := getToken(ctx.User, "mg_new_moon") >= 1 &&
+		len(ctx.User.Hand) > 0 &&
+		len(moonGoddessEnemyIDs(ctx.Game, ctx.User)) > 0
 	return branch1 || branch2
 }
 
@@ -203,7 +208,9 @@ func (h *MoonGoddessPaleMoonHandler) Execute(ctx *model.Context) error {
 	if getToken(ctx.User, "mg_petrify") >= 3 {
 		modes = append(modes, "branch1")
 	}
-	if len(ctx.User.Hand) > 0 && len(moonGoddessEnemyIDs(ctx.Game, ctx.User)) > 0 {
+	if getToken(ctx.User, "mg_new_moon") >= 1 &&
+		len(ctx.User.Hand) > 0 &&
+		len(moonGoddessEnemyIDs(ctx.Game, ctx.User)) > 0 {
 		modes = append(modes, "branch2")
 	}
 	if len(modes) == 0 {

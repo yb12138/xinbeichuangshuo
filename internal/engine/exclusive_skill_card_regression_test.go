@@ -59,7 +59,7 @@ func TestFiveElementsBind_UsesExclusiveZoneCard(t *testing.T) {
 	}
 
 	g.State.CurrentTurn = 0
-	g.State.Phase = model.PhaseActionSelection
+	g.State.TurnStage = model.TurnStageActionExecution
 	g.State.Deck = rules.InitDeck()
 
 	p1 := g.State.Players["p1"]
@@ -106,7 +106,7 @@ func TestCrimsonDance_UsesAndReturnsRoseCourtyardExclusiveCard(t *testing.T) {
 	}
 
 	g.State.CurrentTurn = 0
-	g.State.Phase = model.PhaseStartup
+	g.State.TurnStage = model.TurnStageActionStart
 	g.State.Deck = rules.InitDeck()
 
 	p1 := g.State.Players["p1"]
@@ -147,7 +147,7 @@ func TestCrimsonDance_UsesAndReturnsRoseCourtyardExclusiveCard(t *testing.T) {
 		t.Fatalf("expected rose courtyard field card on board")
 	}
 
-	g.State.Phase = model.PhaseTurnEnd
+	g.State.TurnStage = model.TurnStageTurnEnd
 	g.Drive()
 
 	if p1.Tokens["css_rose_courtyard_active"] != 0 {
@@ -161,6 +161,37 @@ func TestCrimsonDance_UsesAndReturnsRoseCourtyardExclusiveCard(t *testing.T) {
 	}
 }
 
+func TestCrimsonDanceTurnEnd_DoesNotSynthesizeRoseCourtyardWithoutFieldCard(t *testing.T) {
+	g := NewGameEngine(noopObserver{})
+	if err := g.AddPlayer("p1", "CSS", "crimson_sword_spirit", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.AddPlayer("p2", "Dummy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := g.State.Players["p1"]
+	p1.Tokens["css_rose_courtyard_active"] = 1
+	p1.Tokens["css_blood_cap"] = 4
+	p1.Tokens["css_blood"] = 4
+	p1.ExclusiveCards = nil
+
+	turnEndCrimsonSwordSpiritHook(g, p1)
+
+	if p1.Tokens["css_rose_courtyard_active"] != 0 {
+		t.Fatalf("expected courtyard active token cleared")
+	}
+	if p1.Tokens["css_blood_cap"] != 3 {
+		t.Fatalf("expected blood cap reset to 3, got %d", p1.Tokens["css_blood_cap"])
+	}
+	if p1.Tokens["css_blood"] != 3 {
+		t.Fatalf("expected blood trimmed to 3, got %d", p1.Tokens["css_blood"])
+	}
+	if p1.HasExclusiveCard(p1.Character.Name, "血蔷薇庭院") {
+		t.Fatalf("expected no synthetic courtyard card restored without field card")
+	}
+}
+
 func TestPreciseShot_NotTriggeredByNonOwnerCharacter(t *testing.T) {
 	g := NewGameEngine(noopObserver{})
 	if err := g.AddPlayer("p1", "MG", "magical_girl", model.RedCamp); err != nil {
@@ -171,7 +202,7 @@ func TestPreciseShot_NotTriggeredByNonOwnerCharacter(t *testing.T) {
 	}
 
 	g.State.CurrentTurn = 0
-	g.State.Phase = model.PhaseActionSelection
+	g.State.TurnStage = model.TurnStageActionExecution
 
 	p1 := g.State.Players["p1"]
 	p1.IsActive = true
@@ -186,7 +217,7 @@ func TestPreciseShot_NotTriggeredByNonOwnerCharacter(t *testing.T) {
 			Faction:         "技",
 			ExclusiveChar1:  "风之剑圣",
 			ExclusiveChar2:  "神箭手",
-			ExclusiveSkill1: "烈风技",
+			ExclusiveSkill1: "列风技",
 			ExclusiveSkill2: "精准射击",
 		},
 	}
@@ -205,12 +236,46 @@ func TestPreciseShot_NotTriggeredByNonOwnerCharacter(t *testing.T) {
 	if req.IsForcedHit {
 		t.Fatalf("expected non-owner card not to trigger precise shot forced hit")
 	}
-	if p1.TurnState.PreciseShotActive {
-		t.Fatalf("expected precise shot flag remain false for non-owner character")
+}
+
+func TestPreciseShot_ModifyDamage_ReducesOwnerAttack(t *testing.T) {
+	g := NewGameEngine(noopObserver{})
+	if err := g.AddPlayer("p1", "Archer", "archer", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.AddPlayer("p2", "Dummy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := g.State.Players["p1"]
+	p2 := g.State.Players["p2"]
+	p1.TurnState = model.NewPlayerTurnState()
+
+	card := model.Card{
+		ID:              "atk-2",
+		Name:            "雷光斩",
+		Type:            model.CardTypeAttack,
+		Element:         model.ElementThunder,
+		Damage:          2,
+		Faction:         "技",
+		ExclusiveChar1:  "风之剑圣",
+		ExclusiveChar2:  "神箭手",
+		ExclusiveSkill1: "列风技",
+		ExclusiveSkill2: "精准射击",
+	}
+
+	damage := g.applyAttackDamageModifiers(p1, p2, 2, model.Action{
+		SourceID: p1.ID,
+		TargetID: p2.ID,
+		Type:     model.ActionAttack,
+		Card:     &card,
+	})
+	if damage != 1 {
+		t.Fatalf("expected precise shot to reduce owner attack damage to 1, got %d", damage)
 	}
 }
 
-func TestPreciseShotFlagMismatchCard_DoesNotReduceDamage(t *testing.T) {
+func TestPreciseShot_NonOwnerCard_DoesNotReduceDamage(t *testing.T) {
 	g := NewGameEngine(noopObserver{})
 	if err := g.AddPlayer("p1", "MG", "magical_girl", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -222,10 +287,9 @@ func TestPreciseShotFlagMismatchCard_DoesNotReduceDamage(t *testing.T) {
 	p1 := g.State.Players["p1"]
 	p2 := g.State.Players["p2"]
 	p1.TurnState = model.NewPlayerTurnState()
-	p1.TurnState.PreciseShotActive = true
 
 	card := model.Card{
-		ID:              "atk-2",
+		ID:              "atk-3",
 		Name:            "雷光斩",
 		Type:            model.CardTypeAttack,
 		Element:         model.ElementThunder,
@@ -233,20 +297,17 @@ func TestPreciseShotFlagMismatchCard_DoesNotReduceDamage(t *testing.T) {
 		Faction:         "技",
 		ExclusiveChar1:  "风之剑圣",
 		ExclusiveChar2:  "神箭手",
-		ExclusiveSkill1: "烈风技",
+		ExclusiveSkill1: "列风技",
 		ExclusiveSkill2: "精准射击",
 	}
 
-	damage := g.applyPassiveAttackEffects(p1, p2, 2, model.Action{
+	damage := g.applyAttackDamageModifiers(p1, p2, 2, model.Action{
 		SourceID: p1.ID,
 		TargetID: p2.ID,
 		Type:     model.ActionAttack,
 		Card:     &card,
 	})
 	if damage != 2 {
-		t.Fatalf("expected mismatch precise shot flag not to reduce damage, got %d", damage)
-	}
-	if p1.TurnState.PreciseShotActive {
-		t.Fatalf("expected mismatch precise shot flag to be cleared")
+		t.Fatalf("expected non-owner precise-shot card not to reduce damage, got %d", damage)
 	}
 }

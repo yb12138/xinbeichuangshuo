@@ -43,7 +43,7 @@ func TestMagicBullet_ChainAndDamage(t *testing.T) {
 
 	// 3. P1 回合，使用魔弹
 	game.State.CurrentTurn = 0 // P1's turn
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
 
@@ -178,7 +178,7 @@ func TestMagicBullet_Defend(t *testing.T) {
 	p2.Heal = 3
 
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 	p1.IsActive = true
 
 	t.Logf("Step 1: P1 对 P2 使用魔弹")
@@ -246,7 +246,7 @@ func TestMagicBullet_CounterEndsWhenRoundCovered(t *testing.T) {
 	}
 
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
 

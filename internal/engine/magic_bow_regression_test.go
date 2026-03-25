@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"starcup-engine/internal/data"
 	"starcup-engine/internal/engine/skills"
 	"starcup-engine/internal/model"
 )
@@ -81,7 +82,7 @@ func TestMagicBowMagicPierce_MissDealsMagicDamageAndLocksMultiShot(t *testing.T)
 	giveMagicBowCharges(p1, model.ElementFire, model.ElementWind)
 
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	mustHandleAction(t, game, model.PlayerAction{
 		PlayerID:  "p1",
@@ -389,7 +390,7 @@ func TestMagicBowThunderScatter_ExtraDamageSplit(t *testing.T) {
 	giveMagicBowCharges(p1, model.ElementThunder, model.ElementThunder, model.ElementThunder)
 
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	if err := game.UseSkill("p1", "mb_thunder_scatter", nil, nil); err != nil {
 		t.Fatalf("use thunder scatter failed: %v", err)
@@ -444,16 +445,24 @@ func TestMagicBowMagicPierce_HitBonusCappedAtTwo(t *testing.T) {
 	}
 
 	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
 	p1.Hand = []model.Card{
 		magicBowTestCard("atk_hit", "烈焰箭", model.CardTypeAttack, model.ElementFire),
 	}
+	game.State.Deck = []model.Card{
+		magicBowTestCard("d1", "补牌1", model.CardTypeAttack, model.ElementFire),
+		magicBowTestCard("d2", "补牌2", model.CardTypeAttack, model.ElementWater),
+		magicBowTestCard("d3", "补牌3", model.CardTypeAttack, model.ElementWind),
+		magicBowTestCard("d4", "补牌4", model.CardTypeAttack, model.ElementThunder),
+		magicBowTestCard("d5", "补牌5", model.CardTypeAttack, model.ElementLight),
+	}
 	// 预置3个火系充能，命中追加只应消耗1个（总共最多+2伤害）。
 	giveMagicBowCharges(p1, model.ElementFire, model.ElementFire, model.ElementFire)
 
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	mustHandleAction(t, game, model.PlayerAction{
 		PlayerID:  "p1",
@@ -469,18 +478,9 @@ func TestMagicBowMagicPierce_HitBonusCappedAtTwo(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("combat take response failed: %v", err)
 	}
-	// 命中追加询问在“待结算伤害”阶段触发，需要推进主循环一次。
 	game.Drive()
-	requireChoicePrompt(t, game, "p1", "mb_magic_pierce_hit_confirm")
-	if ctxData, ok := game.State.PendingInterrupt.Context.(map[string]interface{}); ok {
-		src, _ := ctxData["source_id"].(string)
-		dst, _ := ctxData["target_id"].(string)
-		if src != "p1" || dst != "p2" {
-			t.Fatalf("unexpected hit-confirm context source/target: src=%q dst=%q", src, dst)
-		}
-	}
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
-		t.Fatalf("confirm hit bonus failed: %v", err)
+	if game.State.PendingInterrupt != nil {
+		t.Fatalf("expected hit bonus auto-resolve without extra prompt, got %+v", game.State.PendingInterrupt)
 	}
 
 	if got := magicBowChargeCount(p1, model.ElementFire); got != 1 {
@@ -489,18 +489,8 @@ func TestMagicBowMagicPierce_HitBonusCappedAtTwo(t *testing.T) {
 	if got := p1.Tokens["mb_magic_pierce_pending"]; got != 0 {
 		t.Fatalf("expected mb_magic_pierce_pending cleared, got %d", got)
 	}
-
-	totalAttackToP2 := 0
-	for _, pd := range game.State.PendingDamageQueue {
-		if pd.SourceID != "p1" || pd.TargetID != "p2" || !strings.EqualFold(pd.DamageType, "attack") {
-			continue
-		}
-		totalAttackToP2 += pd.Damage
-	}
-	// 上限约束：本次攻击总伤害不应超过“基础伤害 + 2”。
-	// 当前链路至少应包含发动前 +1，因此下界为3。
-	if totalAttackToP2 < 3 || totalAttackToP2 > 4 {
-		t.Fatalf("expected capped attack damage in [3,4], got %d, queue=%+v", totalAttackToP2, game.State.PendingDamageQueue)
+	if got := len(p2.Hand); got != 3 {
+		t.Fatalf("expected hit bonus auto-raise final attack damage to 3 in current combat chain, got hand=%d", got)
 	}
 }
 
@@ -527,7 +517,7 @@ func TestMagicBowMagicPierce_MissDealsExactlyThreeMagicDamage(t *testing.T) {
 	giveMagicBowCharges(p1, model.ElementFire, model.ElementFire)
 
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	mustHandleAction(t, game, model.PlayerAction{
 		PlayerID:  "p1",
@@ -590,7 +580,7 @@ func TestMagicBowThunderScatter_ExtraZeroSkipsTargetChoice(t *testing.T) {
 	giveMagicBowCharges(p1, model.ElementThunder, model.ElementThunder)
 
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	if err := game.UseSkill("p1", "mb_thunder_scatter", nil, nil); err != nil {
 		t.Fatalf("use thunder scatter failed: %v", err)
@@ -633,7 +623,7 @@ func TestMagicBowCharge_LockTurnDisablesPierceAndScatter(t *testing.T) {
 	giveMagicBowCharges(p1, model.ElementFire, model.ElementThunder)
 
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseStartup
+	game.State.TurnStage = model.TurnStageActionStart
 
 	ctx := game.buildContext(p1, nil, model.TriggerOnTurnStart, &model.EventContext{
 		Type:     model.EventTurnStart,
@@ -651,7 +641,7 @@ func TestMagicBowCharge_LockTurnDisablesPierceAndScatter(t *testing.T) {
 	if got := p1.TurnState.UsedSkillCounts["mb_charge_lock_turn"]; got != 1 {
 		t.Fatalf("expected mb_charge_lock_turn=1 after charge, got %d", got)
 	}
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 	if err := game.UseSkill("p1", "mb_thunder_scatter", nil, nil); err == nil {
 		t.Fatalf("expected thunder scatter locked in same turn after charge")
 	}
@@ -672,7 +662,7 @@ func TestMagicBowCharge_LockTurnDisablesPierceAndScatter(t *testing.T) {
 	}
 }
 
-func runMagicPierceHitConfirmScenario(t *testing.T, confirmSelection int) (remainFire int, attackDamage int) {
+func TestMagicBowMagicPierce_HitBonusAutoConsumesSecondCharge(t *testing.T) {
 	t.Helper()
 	game := NewGameEngine(noopObserver{})
 	if err := game.AddPlayer("p1", "MagicBow", "magic_bow", model.RedCamp); err != nil {
@@ -688,11 +678,18 @@ func runMagicPierceHitConfirmScenario(t *testing.T, confirmSelection int) (remai
 	p1.Hand = []model.Card{
 		magicBowTestCard("atk_branch", "烈焰箭", model.CardTypeAttack, model.ElementFire),
 	}
+	game.State.Deck = []model.Card{
+		magicBowTestCard("d1", "补牌1", model.CardTypeAttack, model.ElementFire),
+		magicBowTestCard("d2", "补牌2", model.CardTypeAttack, model.ElementWater),
+		magicBowTestCard("d3", "补牌3", model.CardTypeAttack, model.ElementWind),
+		magicBowTestCard("d4", "补牌4", model.CardTypeAttack, model.ElementThunder),
+		magicBowTestCard("d5", "补牌5", model.CardTypeAttack, model.ElementLight),
+	}
 	// 两个火充能：第一个用于发动，第二个用于命中追加分支验证。
 	giveMagicBowCharges(p1, model.ElementFire, model.ElementFire)
 
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	mustHandleAction(t, game, model.PlayerAction{
 		PlayerID:  "p1",
@@ -709,41 +706,182 @@ func runMagicPierceHitConfirmScenario(t *testing.T, confirmSelection int) (remai
 		t.Fatalf("combat take response failed: %v", err)
 	}
 	game.Drive()
-	requireChoicePrompt(t, game, "p1", "mb_magic_pierce_hit_confirm")
-	if err := game.handleWeakChoiceInput("p1", confirmSelection); err != nil {
-		t.Fatalf("choose magic-pierce hit-confirm failed: %v", err)
+	if game.State.PendingInterrupt != nil {
+		t.Fatalf("expected hit bonus auto-resolve without prompt, got %+v", game.State.PendingInterrupt)
 	}
 
-	remainFire = magicBowChargeCount(p1, model.ElementFire)
-	for _, pd := range game.State.PendingDamageQueue {
-		if pd.SourceID == "p1" && pd.TargetID == "p2" && strings.EqualFold(pd.DamageType, "attack") {
-			attackDamage += pd.Damage
+	if remainFire := magicBowChargeCount(p1, model.ElementFire); remainFire != 0 {
+		t.Fatalf("expected second fire charge auto-consumed on hit bonus, remain=%d", remainFire)
+	}
+	if got := len(game.State.Players["p2"].Hand); got != 3 {
+		t.Fatalf("expected final hit damage 3 after auto bonus in current combat chain, got hand=%d", got)
+	}
+}
+
+func TestMagicBowDemonEye_TargetPoolExcludesSelf(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "MagicBow", "magic_bow", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p3", "Ally", "angel", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Gem = 1
+	p1.Hand = []model.Card{
+		magicBowTestCard("h1", "火焰斩", model.CardTypeAttack, model.ElementFire),
+	}
+
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionStart
+
+	if err := game.UseSkill("p1", "mb_demon_eye", nil, nil); err != nil {
+		t.Fatalf("use demon eye failed: %v", err)
+	}
+	requireChoicePrompt(t, game, "p1", "mb_demon_eye_target")
+
+	targetIDs := pendingChoiceTargetIDs(game.State.PendingInterrupt)
+	if len(targetIDs) != 2 || targetIDs[0] != "p2" || targetIDs[1] != "p3" {
+		t.Fatalf("expected demon eye target pool exclude self and keep other roles, got %v", targetIDs)
+	}
+}
+
+func TestMagicBowDemonEye_TargetNoHandFallsBackToDrawThreeThenCharge(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "MagicBow", "magic_bow", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Gem = 1
+	p1.Hand = []model.Card{
+		magicBowTestCard("h1", "火焰斩", model.CardTypeAttack, model.ElementFire),
+	}
+	game.State.Deck = []model.Card{
+		magicBowTestCard("d1", "补牌1", model.CardTypeAttack, model.ElementWater),
+		magicBowTestCard("d2", "补牌2", model.CardTypeAttack, model.ElementWind),
+		magicBowTestCard("d3", "补牌3", model.CardTypeAttack, model.ElementThunder),
+	}
+
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionStart
+
+	if err := game.UseSkill("p1", "mb_demon_eye", []string{"p2"}, nil); err != nil {
+		t.Fatalf("use demon eye with preselected target failed: %v", err)
+	}
+	requireChoicePrompt(t, game, "p1", "mb_demon_eye_charge_card")
+
+	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+		t.Fatalf("choose demon-eye charge card failed: %v", err)
+	}
+	if got := magicBowChargeCount(p1, ""); got != 1 {
+		t.Fatalf("expected demon eye to place 1 charge after fallback draw, got %d", got)
+	}
+	if got := len(p1.Hand); got != 3 {
+		t.Fatalf("expected hand=3 after draw3 then place1 charge, got %d", got)
+	}
+	if got := p1.Crystal; got != 1 {
+		t.Fatalf("expected demon eye grant 1 crystal after charge, got %d", got)
+	}
+	if got := p1.Gem; got != 0 {
+		t.Fatalf("expected demon eye consume 1 gem, got %d", got)
+	}
+}
+
+func TestMagicBowDemonEye_TargetDiscardsThenUserCharges(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "MagicBow", "magic_bow", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Gem = 1
+	p1.Hand = []model.Card{
+		magicBowTestCard("h1", "火焰斩", model.CardTypeAttack, model.ElementFire),
+	}
+	p2.Hand = []model.Card{
+		magicBowTestCard("e1", "水盾", model.CardTypeMagic, model.ElementWater),
+		magicBowTestCard("e2", "雷刃", model.CardTypeAttack, model.ElementThunder),
+	}
+
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionStart
+
+	if err := game.UseSkill("p1", "mb_demon_eye", []string{"p2"}, nil); err != nil {
+		t.Fatalf("use demon eye with target discard branch failed: %v", err)
+	}
+	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptDiscard || game.State.PendingInterrupt.PlayerID != "p2" {
+		t.Fatalf("expected demon eye force target discard interrupt, got %+v", game.State.PendingInterrupt)
+	}
+	if err := game.ConfirmDiscard("p2", []int{1}); err != nil {
+		t.Fatalf("confirm demon eye target discard failed: %v", err)
+	}
+	requireChoicePrompt(t, game, "p1", "mb_demon_eye_charge_card")
+	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+		t.Fatalf("choose demon-eye charge card after target discard failed: %v", err)
+	}
+	if got := len(p2.Hand); got != 1 || p2.Hand[0].ID != "e1" {
+		t.Fatalf("expected target chosen discard applied, remaining hand=%+v", p2.Hand)
+	}
+	if got := magicBowChargeCount(p1, ""); got != 1 {
+		t.Fatalf("expected demon eye to place 1 charge after target discard branch, got %d", got)
+	}
+	if got := p1.Crystal; got != 1 {
+		t.Fatalf("expected demon eye grant 1 crystal after charge, got %d", got)
+	}
+}
+
+func TestMagicBowConfig_MetadataAlignsWithDocument(t *testing.T) {
+	characters := data.GetCharacters()
+	var magicBow *model.Character
+	for _, character := range characters {
+		if character.ID == "magic_bow" {
+			copy := character
+			magicBow = &copy
+			break
 		}
 	}
-	return remainFire, attackDamage
-}
+	if magicBow == nil {
+		t.Fatalf("magic_bow character not found")
+	}
 
-func TestMagicBowMagicPierce_HitConfirmNo_DoesNotConsumeSecondFireCharge(t *testing.T) {
-	remainFire, dmgNo := runMagicPierceHitConfirmScenario(t, 1)
-	if remainFire != 1 {
-		t.Fatalf("expected selecting NO keeps second fire charge, remain=%d", remainFire)
+	var thunderScatter *model.SkillDefinition
+	var demonEye *model.SkillDefinition
+	for i := range magicBow.Skills {
+		switch magicBow.Skills[i].ID {
+		case "mb_thunder_scatter":
+			thunderScatter = &magicBow.Skills[i]
+		case "mb_demon_eye":
+			demonEye = &magicBow.Skills[i]
+		}
 	}
-	if dmgNo <= 0 {
-		t.Fatalf("expected positive pending attack damage after NO branch, got %d", dmgNo)
+	if thunderScatter == nil || demonEye == nil {
+		t.Fatalf("expected thunder scatter and demon eye skills present")
 	}
-}
-
-func TestMagicBowMagicPierce_HitConfirmYes_ConsumesSecondChargeAndAddsOne(t *testing.T) {
-	remainNo, dmgNo := runMagicPierceHitConfirmScenario(t, 1)
-	remainYes, dmgYes := runMagicPierceHitConfirmScenario(t, 0)
-
-	if remainNo != 1 {
-		t.Fatalf("precheck failed: NO branch should keep 1 fire charge, got %d", remainNo)
+	if thunderScatter.TargetType != model.TargetEnemy || thunderScatter.MinTargets != 0 || thunderScatter.MaxTargets != 1 {
+		t.Fatalf("expected thunder scatter target metadata enemy(0..1), got type=%v min=%d max=%d", thunderScatter.TargetType, thunderScatter.MinTargets, thunderScatter.MaxTargets)
 	}
-	if remainYes != 0 {
-		t.Fatalf("expected YES branch consumes second fire charge, remain=%d", remainYes)
+	if demonEye.TargetType != model.TargetAny || demonEye.MinTargets != 1 || demonEye.MaxTargets != 1 {
+		t.Fatalf("expected demon eye target metadata any(1), got type=%v min=%d max=%d", demonEye.TargetType, demonEye.MinTargets, demonEye.MaxTargets)
 	}
-	if dmgYes != dmgNo+1 {
-		t.Fatalf("expected YES branch damage = NO + 1, got yes=%d no=%d", dmgYes, dmgNo)
+	if strings.Contains(demonEye.Description, "选择：") {
+		t.Fatalf("expected demon eye description to remove old optional mode wording, got %q", demonEye.Description)
 	}
 }

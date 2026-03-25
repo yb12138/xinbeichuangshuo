@@ -30,7 +30,7 @@ func TestBerserker_Tear(t *testing.T) {
 	p2 := game.State.Players["p2"]
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	// 2. 准备状态
 	// P1 需要 1 宝石，1 张攻击牌

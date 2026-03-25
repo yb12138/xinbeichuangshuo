@@ -24,6 +24,25 @@ func (e *GameEngine) isMagicSwordsman(player *model.Player) bool {
 	return isCharacter(player, "magic_swordsman")
 }
 
+func (e *GameEngine) maybeReleaseMagicSwordsmanShadowAtActionStart(player *model.Player) bool {
+	if e == nil || player == nil || !e.isMagicSwordsman(player) {
+		return false
+	}
+	if player.Tokens == nil {
+		player.Tokens = map[string]int{}
+	}
+	if player.TurnState.HasUsedTriggerSkill {
+		return false
+	}
+	if !hasMagicSwordsmanShadowForm(player) || player.Tokens["ms_shadow_release_pending"] <= 0 {
+		return false
+	}
+	leaveMagicSwordsmanShadowForm(player)
+	player.Tokens["ms_shadow_release_pending"] = 0
+	e.Log(fmt.Sprintf("%s 脱离暗影形态并转正", player.Name))
+	return true
+}
+
 func (e *GameEngine) isCrimsonSwordSpirit(player *model.Player) bool {
 	return isCharacter(player, "crimson_sword_spirit")
 }
@@ -84,6 +103,14 @@ func (e *GameEngine) isHolyBow(player *model.Player) bool {
 	return isCharacter(player, "holy_bow")
 }
 
+func (e *GameEngine) isSwordEmperor(player *model.Player) bool {
+	return isCharacter(player, "sword_emperor")
+}
+
+func (e *GameEngine) isBeastSamurai(player *model.Player) bool {
+	return isCharacter(player, "beast_samurai")
+}
+
 func (e *GameEngine) isHolyLancer(player *model.Player) bool {
 	return isCharacter(player, "holy_lancer")
 }
@@ -105,16 +132,333 @@ func (e *GameEngine) isButterflyDancer(player *model.Player) bool {
 }
 
 const magicBowChargeCapEngine = 8
-const spiritCasterPowerCapEngine = 2
 const bardInspirationCapEngine = 3
 const heroTokenCapEngine = 4
 const holyBowFaithCapEngine = 10
 const holyBowCannonCapEngine = 1
+const standardCampMoraleCapEngine = 15
+const swordEmperorSwordQiCapEngine = 5
+const swordEmperorSwordSoulCapEngine = 3
+const beastSamuraiZanshinCapEngine = 4
+const beastSamuraiBeastSoulCapEngine = 2
 const soulSorcererBlueCapEngine = 6
 const soulSorcererYellowCapEngine = 6
 const moonGoddessNewMoonCapEngine = 2
 const moonGoddessPetrifyCapEngine = 3
 const butterflyCocoonCapEngine = 8
+
+type poseSnapshot struct {
+	Orientation model.CharacterOrientation
+	Form        string
+}
+
+func legacyPlayerPose(player *model.Player) (poseSnapshot, bool) {
+	if player == nil {
+		return poseSnapshot{}, false
+	}
+	if player.Tokens == nil {
+		return poseSnapshot{}, false
+	}
+	switch {
+	case player.Tokens["valkyrie_spirit"] > 0:
+		return poseSnapshot{Orientation: model.OrientationTapped, Form: "heroic_form"}, true
+	}
+	return poseSnapshot{}, false
+}
+
+func effectivePlayerOrientation(player *model.Player) model.CharacterOrientation {
+	if player == nil {
+		return model.OrientationNormal
+	}
+	if legacy, ok := legacyPlayerPose(player); ok {
+		return legacy.Orientation
+	}
+	if player.Orientation != "" {
+		return player.Orientation
+	}
+	if player.Form != "" {
+		return model.OrientationTapped
+	}
+	return model.OrientationNormal
+}
+
+func effectivePlayerForm(player *model.Player) string {
+	if player == nil {
+		return ""
+	}
+	if legacy, ok := legacyPlayerPose(player); ok {
+		return legacy.Form
+	}
+	return player.Form
+}
+
+func playerHasForm(player *model.Player, form string) bool {
+	return player != nil && effectivePlayerForm(player) == form
+}
+
+func setPlayerForm(player *model.Player, form string) bool {
+	if player == nil {
+		return false
+	}
+	changed := effectivePlayerOrientation(player) != model.OrientationTapped || effectivePlayerForm(player) != form
+	player.Orientation = model.OrientationTapped
+	player.Form = form
+	return changed
+}
+
+func clearPlayerForm(player *model.Player, form string) bool {
+	if player == nil {
+		return false
+	}
+	if form != "" && effectivePlayerForm(player) != form {
+		return false
+	}
+	changed := effectivePlayerOrientation(player) != model.OrientationNormal || effectivePlayerForm(player) != ""
+	player.Orientation = model.OrientationNormal
+	player.Form = ""
+	return changed
+}
+
+func hasPrayerMasterPrayerForm(player *model.Player) bool {
+	return playerHasForm(player, model.FormPrayerMasterPrayer)
+}
+
+func hasAssassinStealthForm(player *model.Player) bool {
+	return playerHasForm(player, model.FormAssassinStealth)
+}
+
+func enterAssassinStealthForm(player *model.Player) bool {
+	return setPlayerForm(player, model.FormAssassinStealth)
+}
+
+func leaveAssassinStealthForm(player *model.Player) bool {
+	return clearPlayerForm(player, model.FormAssassinStealth)
+}
+
+func enterPrayerMasterPrayerForm(player *model.Player) bool {
+	return setPlayerForm(player, model.FormPrayerMasterPrayer)
+}
+
+func hasCrimsonKnightHotBloodedForm(player *model.Player) bool {
+	return playerHasForm(player, model.FormCrimsonKnightHotBlooded)
+}
+
+func enterCrimsonKnightHotBloodedForm(player *model.Player) bool {
+	return setPlayerForm(player, model.FormCrimsonKnightHotBlooded)
+}
+
+func leaveCrimsonKnightHotBloodedForm(player *model.Player) bool {
+	return clearPlayerForm(player, model.FormCrimsonKnightHotBlooded)
+}
+
+func hasOnmyojiShikigamiForm(player *model.Player) bool {
+	return playerHasForm(player, model.FormOnmyojiShikigami)
+}
+
+func enterOnmyojiShikigamiForm(player *model.Player) bool {
+	return setPlayerForm(player, model.FormOnmyojiShikigami)
+}
+
+func leaveOnmyojiShikigamiForm(player *model.Player) bool {
+	return clearPlayerForm(player, model.FormOnmyojiShikigami)
+}
+
+func hasBlazeWitchFlameForm(player *model.Player) bool {
+	return playerHasForm(player, model.FormBlazeWitchFlame)
+}
+
+func enterBlazeWitchFlameForm(player *model.Player) bool {
+	return setPlayerForm(player, model.FormBlazeWitchFlame)
+}
+
+func leaveBlazeWitchFlameForm(player *model.Player) bool {
+	return clearPlayerForm(player, model.FormBlazeWitchFlame)
+}
+
+func hasHolyBowHolyGloryForm(player *model.Player) bool {
+	return playerHasForm(player, model.FormHolyBowHolyGlory)
+}
+
+func hasArbiterJudgmentForm(player *model.Player) bool {
+	return playerHasForm(player, model.FormArbiterJudgment)
+}
+
+func enterArbiterJudgmentForm(player *model.Player) bool {
+	return setPlayerForm(player, model.FormArbiterJudgment)
+}
+
+func leaveArbiterJudgmentForm(player *model.Player) bool {
+	return clearPlayerForm(player, model.FormArbiterJudgment)
+}
+
+func hasElfArcherRitualForm(player *model.Player) bool {
+	return playerHasForm(player, model.FormElfArcherRitual)
+}
+
+func enterElfArcherRitualForm(player *model.Player) bool {
+	return setPlayerForm(player, model.FormElfArcherRitual)
+}
+
+func leaveElfArcherRitualForm(player *model.Player) bool {
+	return clearPlayerForm(player, model.FormElfArcherRitual)
+}
+
+func hasMagicSwordsmanShadowForm(player *model.Player) bool {
+	return playerHasForm(player, model.FormMagicSwordsmanShadow)
+}
+
+func enterMagicSwordsmanShadowForm(player *model.Player) bool {
+	return setPlayerForm(player, model.FormMagicSwordsmanShadow)
+}
+
+func leaveMagicSwordsmanShadowForm(player *model.Player) bool {
+	return clearPlayerForm(player, model.FormMagicSwordsmanShadow)
+}
+
+func hasWarHomunculusBurstForm(player *model.Player) bool {
+	return playerHasForm(player, model.FormWarHomunculusBurst)
+}
+
+func enterWarHomunculusBurstForm(player *model.Player) bool {
+	return setPlayerForm(player, model.FormWarHomunculusBurst)
+}
+
+func leaveWarHomunculusBurstForm(player *model.Player) bool {
+	return clearPlayerForm(player, model.FormWarHomunculusBurst)
+}
+
+func enterHolyBowHolyGloryForm(player *model.Player) bool {
+	return setPlayerForm(player, model.FormHolyBowHolyGlory)
+}
+
+func leaveHolyBowHolyGloryForm(player *model.Player) bool {
+	return clearPlayerForm(player, model.FormHolyBowHolyGlory)
+}
+
+func hasMagicLancerPhantomForm(player *model.Player) bool {
+	return playerHasForm(player, model.FormMagicLancerPhantom)
+}
+
+func enterMagicLancerPhantomForm(player *model.Player) bool {
+	return setPlayerForm(player, model.FormMagicLancerPhantom)
+}
+
+func leaveMagicLancerPhantomForm(player *model.Player) bool {
+	return clearPlayerForm(player, model.FormMagicLancerPhantom)
+}
+
+func hasBardEternalPrisonerForm(player *model.Player) bool {
+	return playerHasForm(player, model.FormBardEternalPrisoner)
+}
+
+func enterBardEternalPrisonerForm(player *model.Player) bool {
+	return setPlayerForm(player, model.FormBardEternalPrisoner)
+}
+
+func leaveBardEternalPrisonerForm(player *model.Player) bool {
+	return clearPlayerForm(player, model.FormBardEternalPrisoner)
+}
+
+func hasHeroExhaustionForm(player *model.Player) bool {
+	return playerHasForm(player, model.FormHeroExhaustion)
+}
+
+func enterHeroExhaustionForm(player *model.Player) bool {
+	return setPlayerForm(player, model.FormHeroExhaustion)
+}
+
+func leaveHeroExhaustionForm(player *model.Player) bool {
+	return clearPlayerForm(player, model.FormHeroExhaustion)
+}
+
+func hasFighterHundredDragonForm(player *model.Player) bool {
+	return playerHasForm(player, model.FormFighterHundredDragon)
+}
+
+func enterFighterHundredDragonForm(player *model.Player) bool {
+	return setPlayerForm(player, model.FormFighterHundredDragon)
+}
+
+func leaveFighterHundredDragonForm(player *model.Player) bool {
+	return clearPlayerForm(player, model.FormFighterHundredDragon)
+}
+
+func hasMoonGoddessDarkMoonForm(player *model.Player) bool {
+	return playerHasForm(player, model.FormMoonGoddessDarkMoon)
+}
+
+func enterMoonGoddessDarkMoonForm(player *model.Player) bool {
+	return setPlayerForm(player, model.FormMoonGoddessDarkMoon)
+}
+
+func leaveMoonGoddessDarkMoonForm(player *model.Player) bool {
+	return clearPlayerForm(player, model.FormMoonGoddessDarkMoon)
+}
+
+func hasBloodPriestessBleedingForm(player *model.Player) bool {
+	return playerHasForm(player, model.FormBloodPriestessBleeding)
+}
+
+func enterBloodPriestessBleedingFormState(player *model.Player) bool {
+	return setPlayerForm(player, model.FormBloodPriestessBleeding)
+}
+
+func leaveBloodPriestessBleedingFormState(player *model.Player) bool {
+	return clearPlayerForm(player, model.FormBloodPriestessBleeding)
+}
+
+func (e *GameEngine) snapshotPlayerPoses() map[string]poseSnapshot {
+	snapshots := make(map[string]poseSnapshot, len(e.State.Players))
+	for id, player := range e.State.Players {
+		snapshots[id] = poseSnapshot{
+			Orientation: effectivePlayerOrientation(player),
+			Form:        effectivePlayerForm(player),
+		}
+	}
+	return snapshots
+}
+
+func (e *GameEngine) dispatchOrientationChanges(before map[string]poseSnapshot) {
+	if e == nil || len(before) == 0 {
+		return
+	}
+	orderedIDs := append([]string{}, e.State.PlayerOrder...)
+	seen := make(map[string]bool, len(orderedIDs))
+	for _, id := range orderedIDs {
+		seen[id] = true
+	}
+	for id := range e.State.Players {
+		if !seen[id] {
+			orderedIDs = append(orderedIDs, id)
+		}
+	}
+	for _, playerID := range orderedIDs {
+		player := e.State.Players[playerID]
+		if player == nil {
+			continue
+		}
+		prev := before[playerID]
+		current := poseSnapshot{
+			Orientation: effectivePlayerOrientation(player),
+			Form:        effectivePlayerForm(player),
+		}
+		if prev == current {
+			continue
+		}
+		eventCtx := &model.EventContext{
+			Type:            model.EventNone,
+			SourceID:        playerID,
+			TargetID:        playerID,
+			OperatorID:      playerID,
+			PrevOrientation: prev.Orientation,
+			NewOrientation:  current.Orientation,
+			PrevForm:        prev.Form,
+			NewForm:         current.Form,
+		}
+		ctx := e.buildContext(player, player, model.TriggerOnOrientationChanged, eventCtx)
+		e.dispatcher.OnTrigger(model.TriggerOnOrientationChanged, ctx)
+	}
+}
 
 func getFieldEffectCard(player *model.Player, effect model.EffectType) *model.FieldCard {
 	if player == nil {
@@ -144,19 +488,13 @@ func (e *GameEngine) canCastMagicInAction(player *model.Player) bool {
 	}
 	// 格斗家百式幻龙拳：形态期间不能执行法术行动。
 	if e.isFighter(player) {
-		if player.Tokens == nil {
-			player.Tokens = map[string]int{}
-		}
-		if player.Tokens["fighter_hundred_dragon_form"] > 0 {
+		if hasFighterHundredDragonForm(player) {
 			return false
 		}
 	}
 	// 魔剑士暗影抗拒：行动阶段不能使用法术牌。
 	if e.isMagicSwordsman(player) {
-		if player.Tokens == nil {
-			player.Tokens = map[string]int{}
-		}
-		if player.Tokens["ms_shadow_form"] > 0 {
+		if hasMagicSwordsmanShadowForm(player) {
 			return false
 		}
 	}
@@ -172,7 +510,7 @@ func (e *GameEngine) canUseShadowRejectResponseMagic(player *model.Player) bool 
 	if !e.isMagicSwordsman(player) {
 		return false
 	}
-	if player.Tokens == nil || player.Tokens["ms_shadow_form"] <= 0 {
+	if !hasMagicSwordsmanShadowForm(player) {
 		return false
 	}
 	if len(e.State.PlayerOrder) == 0 {
@@ -211,6 +549,47 @@ func (e *GameEngine) reverseOrderTargetIDsFrom(sourceID string, includeSelf bool
 		ids = append(ids, e.State.PlayerOrder[idx])
 	}
 	return ids
+}
+
+func (e *GameEngine) playerOrderPosition(playerID string) int {
+	if e == nil || playerID == "" {
+		return 0
+	}
+	for i, pid := range e.State.PlayerOrder {
+		if pid == playerID {
+			return i + 1
+		}
+	}
+	return 0
+}
+
+func (e *GameEngine) fighterLockedTarget(player *model.Player) *model.Player {
+	if e == nil || player == nil || player.Tokens == nil {
+		return nil
+	}
+	order := player.Tokens["fighter_hundred_dragon_target_order"]
+	if order <= 0 || order > len(e.State.PlayerOrder) {
+		return nil
+	}
+	return e.State.Players[e.State.PlayerOrder[order-1]]
+}
+
+func (e *GameEngine) clearFighterHundredDragon(player *model.Player, logLine string) bool {
+	if e == nil || player == nil || !e.isFighter(player) {
+		return false
+	}
+	if player.Tokens == nil {
+		player.Tokens = map[string]int{}
+	}
+	beforePoses := e.snapshotPlayerPoses()
+	active := hasFighterHundredDragonForm(player) || player.Tokens["fighter_hundred_dragon_target_order"] > 0
+	leaveFighterHundredDragonForm(player)
+	player.Tokens["fighter_hundred_dragon_target_order"] = 0
+	if active && logLine != "" {
+		e.Log(logLine)
+	}
+	e.dispatchOrientationChanges(beforePoses)
+	return active
 }
 
 func markElfBlessings(player *model.Player, cards []model.Card) {
@@ -474,6 +853,67 @@ func hasPendingActionSource(player *model.Player, source string) bool {
 	return false
 }
 
+func clearElfElementalShotCombatState(player *model.Player) {
+	if player == nil {
+		return
+	}
+	if player.Tokens == nil {
+		player.Tokens = map[string]int{}
+	}
+	player.Tokens["elf_elemental_shot_fire_pending"] = 0
+	player.Tokens["elf_elemental_shot_water_pending"] = 0
+	player.Tokens["elf_elemental_shot_earth_pending"] = 0
+	player.Tokens["elf_elemental_shot_thunder_pending"] = 0
+	player.Tokens["elf_elemental_shot_wind_pending"] = 0
+}
+
+func (e *GameEngine) queueElfAnimalResponse(source, target *model.Player, pd *model.PendingDamage) bool {
+	if e == nil || e.dispatcher == nil || source == nil || target == nil || pd == nil {
+		return false
+	}
+	if !e.isElfArcher(source) || !source.IsActive {
+		return false
+	}
+	if pd.TargetID == "" || pd.TargetID == source.ID {
+		return false
+	}
+	if !strings.EqualFold(pd.DamageType, "Attack") || pd.Card == nil || pd.IsCounter {
+		return false
+	}
+
+	damageVal := pd.Damage
+	ctx := e.buildContext(source, target, model.TriggerOnDamageTaken, &model.EventContext{
+		Type:      model.EventDamage,
+		SourceID:  pd.SourceID,
+		TargetID:  pd.TargetID,
+		DamageVal: &damageVal,
+		Card:      pd.Card,
+		AttackInfo: &model.AttackEventInfo{
+			ActionType: "Attack",
+			IsHit:      true,
+		},
+	})
+
+	skillIDs := make([]string, 0, 2)
+	for _, skillID := range []string{"elf_animal_companion", "elf_pet_empower"} {
+		if e.dispatcher.isSkillStillUsable(skillID, source, ctx) {
+			skillIDs = append(skillIDs, skillID)
+		}
+	}
+	if len(skillIDs) == 0 {
+		return false
+	}
+
+	e.PushInterrupt(&model.Interrupt{
+		Type:     model.InterruptResponseSkill,
+		PlayerID: source.ID,
+		SkillIDs: skillIDs,
+		Context:  ctx,
+	})
+	e.Log(fmt.Sprintf("%s 的 [动物伙伴] 响应窗口开启", source.Name))
+	return true
+}
+
 func (e *GameEngine) canPayOnmyojiBindingCost(camp model.Camp) bool {
 	gems := e.GetCampGems(string(camp))
 	crystals := e.GetCampCrystals(string(camp))
@@ -590,7 +1030,7 @@ func (e *GameEngine) buildCombatEffectHints(combatReq model.CombatRequest, attac
 	if attacker.Tokens["elf_elemental_shot_earth_pending"] > 0 {
 		appendHint("元素射击·地之矢：若本次主动攻击命中，目标额外受到1点法术伤害。")
 	}
-	if hasPendingActionSource(attacker, "风之矢") {
+	if attacker.Tokens["elf_elemental_shot_wind_pending"] > 0 {
 		appendHint("元素射击·风之矢：本次攻击行动结束后，精灵射手额外获得1次攻击行动。")
 	}
 	return hints
@@ -815,9 +1255,6 @@ func syncSpiritCasterPowerToken(player *model.Player) {
 
 func addSpiritCasterPowerCard(player *model.Player, card model.Card) bool {
 	if player == nil {
-		return false
-	}
-	if spiritCasterPowerCount(player, "") >= spiritCasterPowerCapEngine {
 		return false
 	}
 	player.AddFieldCard(&model.FieldCard{
@@ -1065,7 +1502,7 @@ func (e *GameEngine) queueButterflyWitherTrigger(user *model.Player) {
 		Context: map[string]interface{}{
 			"choice_type": "bt_wither_confirm",
 			"user_id":     user.ID,
-			"target_ids":  e.butterflyEnemyIDs(user),
+			"target_ids":  e.butterflyActionTargetIDs(),
 		},
 	})
 	e.Log(fmt.Sprintf("%s 可发动 [凋零]：请选择是否发动", user.Name))
@@ -1110,6 +1547,30 @@ func (e *GameEngine) applyCampMoraleLoss(camp model.Camp, wantLoss int) int {
 		e.State.RedMorale -= actual
 	} else {
 		e.State.BlueMorale -= actual
+	}
+	return actual
+}
+
+func (e *GameEngine) addCampMorale(camp model.Camp, amount int) int {
+	if amount <= 0 {
+		return 0
+	}
+	current := e.campMorale(camp)
+	if current >= standardCampMoraleCapEngine {
+		return 0
+	}
+	actual := amount
+	room := standardCampMoraleCapEngine - current
+	if actual > room {
+		actual = room
+	}
+	if actual <= 0 {
+		return 0
+	}
+	if camp == model.RedCamp {
+		e.State.RedMorale += actual
+	} else {
+		e.State.BlueMorale += actual
 	}
 	return actual
 }
@@ -1303,6 +1764,348 @@ func holyBowCannon(player *model.Player) int {
 	return v
 }
 
+func swordEmperorSwordQi(player *model.Player) int {
+	if player == nil {
+		return 0
+	}
+	if player.Tokens == nil {
+		player.Tokens = map[string]int{}
+	}
+	v := player.Tokens["se_sword_qi"]
+	if v < 0 {
+		v = 0
+	}
+	if v > swordEmperorSwordQiCapEngine {
+		v = swordEmperorSwordQiCapEngine
+	}
+	player.Tokens["se_sword_qi"] = v
+	return v
+}
+
+func addSwordEmperorSwordQi(player *model.Player, delta int) int {
+	if player == nil {
+		return 0
+	}
+	if player.Tokens == nil {
+		player.Tokens = map[string]int{}
+	}
+	v := swordEmperorSwordQi(player) + delta
+	if v < 0 {
+		v = 0
+	}
+	if v > swordEmperorSwordQiCapEngine {
+		v = swordEmperorSwordQiCapEngine
+	}
+	player.Tokens["se_sword_qi"] = v
+	return v
+}
+
+func swordEmperorEnergyCount(player *model.Player) int {
+	if player == nil {
+		return 0
+	}
+	return player.Gem + player.Crystal
+}
+
+func swordEmperorSwordSoulCards(player *model.Player) []*model.FieldCard {
+	if player == nil {
+		return nil
+	}
+	var cards []*model.FieldCard
+	for _, fc := range player.Field {
+		if fc == nil || fc.Mode != model.FieldCover || fc.Effect != model.EffectSwordSoul {
+			continue
+		}
+		cards = append(cards, fc)
+	}
+	return cards
+}
+
+func swordEmperorSwordSoulCount(player *model.Player) int {
+	return len(swordEmperorSwordSoulCards(player))
+}
+
+func (e *GameEngine) syncSwordEmperorSwordSoulToken(player *model.Player) {
+	if player == nil {
+		return
+	}
+	if player.Tokens == nil {
+		player.Tokens = map[string]int{}
+	}
+	player.Tokens["se_sword_soul_count"] = swordEmperorSwordSoulCount(player)
+}
+
+func (e *GameEngine) placeSwordEmperorSwordSoul(player *model.Player, card model.Card) bool {
+	if player == nil || swordEmperorSwordSoulCount(player) >= swordEmperorSwordSoulCapEngine {
+		return false
+	}
+	player.AddFieldCard(&model.FieldCard{
+		Card:     card,
+		OwnerID:  player.ID,
+		SourceID: player.ID,
+		Mode:     model.FieldCover,
+		Effect:   model.EffectSwordSoul,
+	})
+	e.syncSwordEmperorSwordSoulToken(player)
+	return true
+}
+
+func (e *GameEngine) removeSwordEmperorSwordSoul(player *model.Player) (model.Card, bool) {
+	if player == nil {
+		return model.Card{}, false
+	}
+	for _, fc := range player.Field {
+		if fc == nil || fc.Mode != model.FieldCover || fc.Effect != model.EffectSwordSoul {
+			continue
+		}
+		card := fc.Card
+		player.RemoveFieldCard(fc)
+		e.syncSwordEmperorSwordSoulToken(player)
+		return card, true
+	}
+	return model.Card{}, false
+}
+
+func (e *GameEngine) takeDiscardPileCardByID(cardID string) (model.Card, bool) {
+	if e == nil || cardID == "" {
+		return model.Card{}, false
+	}
+	for i := len(e.State.DiscardPile) - 1; i >= 0; i-- {
+		if e.State.DiscardPile[i].ID != cardID {
+			continue
+		}
+		card := e.State.DiscardPile[i]
+		e.State.DiscardPile = append(e.State.DiscardPile[:i], e.State.DiscardPile[i+1:]...)
+		return card, true
+	}
+	return model.Card{}, false
+}
+
+func clearSwordEmperorCombatTokens(player *model.Player) {
+	if player == nil {
+		return
+	}
+	if player.Tokens == nil {
+		player.Tokens = map[string]int{}
+	}
+	player.Tokens["se_guard_disabled_current_attack"] = 0
+	player.Tokens["se_angel_soul_armed"] = 0
+	player.Tokens["se_demon_soul_armed"] = 0
+	player.Tokens["se_demon_damage_bonus_pending"] = 0
+}
+
+func (e *GameEngine) resolveSwordEmperorAttackMiss(attackerID string, attackCard *model.Card, isCounter bool) {
+	attacker := e.State.Players[attackerID]
+	if attacker == nil || !e.isSwordEmperor(attacker) || isCounter {
+		return
+	}
+	if attacker.Tokens == nil {
+		attacker.Tokens = map[string]int{}
+	}
+
+	if attacker.Tokens["se_guard_disabled_current_attack"] <= 0 &&
+		swordEmperorSwordSoulCount(attacker) < swordEmperorSwordSoulCapEngine &&
+		attackCard != nil {
+		if card, ok := e.takeDiscardPileCardByID(attackCard.ID); ok && e.placeSwordEmperorSwordSoul(attacker, card) {
+			e.Log(fmt.Sprintf("%s 的 [剑魂守护] 生效：将本次攻击牌转化为1张剑魂（当前%d）", attacker.Name, swordEmperorSwordSoulCount(attacker)))
+		}
+	}
+
+	qi := addSwordEmperorSwordQi(attacker, 1)
+	e.Log(fmt.Sprintf("%s 的 [佯攻] 生效：剑气+1（当前%d）", attacker.Name, qi))
+
+	if attacker.Tokens["se_angel_soul_armed"] > 0 {
+		if gained := e.addCampMorale(attacker.Camp, 1); gained > 0 {
+			e.Log(fmt.Sprintf("%s 的 [天使之魂] 未命中分支生效：%s方士气+%d", attacker.Name, attacker.Camp, gained))
+		} else {
+			e.Log(fmt.Sprintf("%s 的 [天使之魂] 未命中分支生效：%s方士气已满，未再增加", attacker.Name, attacker.Camp))
+		}
+	}
+	if attacker.Tokens["se_demon_soul_armed"] > 0 {
+		qi = addSwordEmperorSwordQi(attacker, 2)
+		e.Log(fmt.Sprintf("%s 的 [恶魔之魂] 未命中分支生效：剑气+2（当前%d）", attacker.Name, qi))
+	}
+
+	clearSwordEmperorCombatTokens(attacker)
+}
+
+func (e *GameEngine) resolveSwordEmperorAttackHitAftermath(pd *model.PendingDamage) {
+	if pd == nil || pd.IsCounter || pd.AttackMissResolved {
+		return
+	}
+	attacker := e.State.Players[pd.SourceID]
+	if attacker == nil || !e.isSwordEmperor(attacker) {
+		return
+	}
+	if attacker.Tokens == nil {
+		attacker.Tokens = map[string]int{}
+	}
+	if attacker.Tokens["se_angel_soul_armed"] > 0 {
+		e.Heal(attacker.ID, 2)
+		e.Log(fmt.Sprintf("%s 的 [天使之魂] 命中分支生效：治疗+2", attacker.Name))
+	}
+	clearSwordEmperorCombatTokens(attacker)
+}
+
+func (e *GameEngine) beastSamuraiZanshin(player *model.Player) int {
+	if player == nil {
+		return 0
+	}
+	if player.Tokens == nil {
+		player.Tokens = map[string]int{}
+	}
+	v := player.Tokens["bs_zanshin"]
+	if v < 0 {
+		v = 0
+	}
+	if v > beastSamuraiZanshinCapEngine {
+		v = beastSamuraiZanshinCapEngine
+	}
+	player.Tokens["bs_zanshin"] = v
+	return v
+}
+
+func (e *GameEngine) addBeastSamuraiZanshin(player *model.Player, delta int) int {
+	if player == nil {
+		return 0
+	}
+	if player.Tokens == nil {
+		player.Tokens = map[string]int{}
+	}
+	v := e.beastSamuraiZanshin(player) + delta
+	if v < 0 {
+		v = 0
+	}
+	if v > beastSamuraiZanshinCapEngine {
+		v = beastSamuraiZanshinCapEngine
+	}
+	player.Tokens["bs_zanshin"] = v
+	return v
+}
+
+func (e *GameEngine) beastSamuraiBeastSoul(player *model.Player) int {
+	if player == nil {
+		return 0
+	}
+	if player.Tokens == nil {
+		player.Tokens = map[string]int{}
+	}
+	v := player.Tokens["bs_beast_soul"]
+	if v < 0 {
+		v = 0
+	}
+	if v > beastSamuraiBeastSoulCapEngine {
+		v = beastSamuraiBeastSoulCapEngine
+	}
+	player.Tokens["bs_beast_soul"] = v
+	return v
+}
+
+func (e *GameEngine) addBeastSamuraiBeastSoul(player *model.Player, delta int, ignoreCap bool) int {
+	if player == nil {
+		return 0
+	}
+	if player.Tokens == nil {
+		player.Tokens = map[string]int{}
+	}
+	current := player.Tokens["bs_beast_soul"]
+	if current < 0 {
+		current = 0
+	}
+	current += delta
+	if current < 0 {
+		current = 0
+	}
+	if !ignoreCap && current > beastSamuraiBeastSoulCapEngine {
+		current = beastSamuraiBeastSoulCapEngine
+	}
+	player.Tokens["bs_beast_soul"] = current
+	return current
+}
+
+func (e *GameEngine) consumeBeastSamuraiBeastSoul(player *model.Player, amount int) int {
+	if player == nil || amount <= 0 {
+		return 0
+	}
+	current := e.beastSamuraiBeastSoul(player)
+	if amount > current {
+		amount = current
+	}
+	if amount <= 0 {
+		return 0
+	}
+	e.addBeastSamuraiBeastSoul(player, -amount, true)
+	e.addBeastSamuraiZanshin(player, amount)
+	return amount
+}
+
+func (e *GameEngine) beastSamuraiInIaijutsuForm(player *model.Player) bool {
+	return effectivePlayerForm(player) == model.FormBeastSamuraiIaijutsu
+}
+
+func (e *GameEngine) enterBeastSamuraiIaijutsuForm(player *model.Player) bool {
+	if player == nil {
+		return false
+	}
+	changed := effectivePlayerOrientation(player) != model.OrientationTapped || effectivePlayerForm(player) != model.FormBeastSamuraiIaijutsu
+	player.Orientation = model.OrientationTapped
+	player.Form = model.FormBeastSamuraiIaijutsu
+	return changed
+}
+
+func (e *GameEngine) leaveBeastSamuraiIaijutsuForm(player *model.Player) bool {
+	if player == nil {
+		return false
+	}
+	changed := effectivePlayerOrientation(player) != model.OrientationNormal || effectivePlayerForm(player) != ""
+	player.Orientation = model.OrientationNormal
+	player.Form = ""
+	return changed
+}
+
+func clearBeastSamuraiAttackTokens(player *model.Player) {
+	if player == nil {
+		return
+	}
+	if player.Tokens == nil {
+		player.Tokens = map[string]int{}
+	}
+	player.Tokens["bs_ignore_shield_current_attack"] = 0
+	player.Tokens["bs_no_holy_defend_current_attack"] = 0
+	player.Tokens["bs_reversal_pending_x"] = 0
+}
+
+func (e *GameEngine) holyBowShardMissEligibleAllies(user *model.Player, x int) []string {
+	if e == nil || user == nil || x <= 0 {
+		return nil
+	}
+	allyIDs := make([]string, 0)
+	for _, pid := range e.State.PlayerOrder {
+		p := e.State.Players[pid]
+		if p == nil || p.Camp != user.Camp || p.ID == user.ID {
+			continue
+		}
+		if len(p.Hand) < x {
+			continue
+		}
+		allyIDs = append(allyIDs, p.ID)
+	}
+	return allyIDs
+}
+
+func (e *GameEngine) holyBowShardMissValidXValues(user *model.Player, maxX int) []int {
+	if e == nil || user == nil || maxX <= 0 {
+		return nil
+	}
+	valid := make([]int, 0, maxX)
+	for x := 1; x <= maxX; x++ {
+		if len(e.holyBowShardMissEligibleAllies(user, x)) > 0 {
+			valid = append(valid, x)
+		}
+	}
+	return valid
+}
+
 func soulSorcererBlue(player *model.Player) int {
 	if player == nil {
 		return 0
@@ -1373,6 +2176,20 @@ func addSoulSorcererYellow(player *model.Player, delta int) int {
 	}
 	player.Tokens["ss_yellow_soul"] = v
 	return v
+}
+
+func (e *GameEngine) applySoulSorcererSoulDevour(victim *model.Player, finalLoss int, fromDamageDraw bool) {
+	if e == nil || victim == nil || finalLoss <= 0 || !fromDamageDraw {
+		return
+	}
+	for _, player := range e.GetAllPlayers() {
+		if player == nil || player.Camp != victim.Camp || !e.isSoulSorcerer(player) {
+			continue
+		}
+		before := soulSorcererYellow(player)
+		after := addSoulSorcererYellow(player, finalLoss)
+		e.Log(fmt.Sprintf("%s 的 [灵魂吞噬] 触发：黄色灵魂 +%d（%d→%d）", player.Name, finalLoss, before, after))
+	}
 }
 
 func moonGoddessNewMoon(player *model.Player) int {
@@ -1469,7 +2286,7 @@ func moonGoddessDarkMoonCount(player *model.Player) int {
 		}
 		player.Tokens["mg_dark_moon_count"] = count
 		if count <= 0 {
-			player.Tokens["mg_dark_form"] = 0
+			leaveMoonGoddessDarkMoonForm(player)
 		}
 	}
 	return count
@@ -1495,7 +2312,7 @@ func addMoonGoddessDarkMoonCards(player *model.Player, cards []model.Card) int {
 		player.Tokens = map[string]int{}
 	}
 	if added > 0 {
-		player.Tokens["mg_dark_form"] = 1
+		enterMoonGoddessDarkMoonForm(player)
 	}
 	moonGoddessDarkMoonCount(player)
 	return added
@@ -1505,9 +2322,11 @@ func (e *GameEngine) applyMoonGoddessDarkMoonCurse(player *model.Player, removed
 	if player == nil || removed <= 0 {
 		return
 	}
+	beforePoses := e.snapshotPlayerPoses()
 	actual := e.applyCampMoraleLoss(player.Camp, removed)
 	e.Log(fmt.Sprintf("%s 的 [暗月诅咒] 触发：移除%d个暗月，我方士气-%d", player.Name, removed, actual))
 	moonGoddessDarkMoonCount(player)
+	e.dispatchOrientationChanges(beforePoses)
 	e.checkGameEnd()
 }
 
@@ -1588,25 +2407,7 @@ func bardEternalMovementCard(bard *model.Player) model.Card {
 }
 
 func (e *GameEngine) findBardEternalMovement(bard *model.Player) (*model.Player, *model.FieldCard) {
-	if bard == nil {
-		return nil, nil
-	}
-	for _, pid := range e.State.PlayerOrder {
-		p := e.State.Players[pid]
-		if p == nil {
-			continue
-		}
-		for _, fc := range p.Field {
-			if fc == nil || fc.Mode != model.FieldEffect || fc.Effect != model.EffectBardEternalMovement {
-				continue
-			}
-			if fc.SourceID != bard.ID {
-				continue
-			}
-			return p, fc
-		}
-	}
-	return nil, nil
+	return e.findSourceEffectCard(bard, model.EffectBardEternalMovement)
 }
 
 func (e *GameEngine) bardEternalHolderID(bard *model.Player) string {
@@ -1618,15 +2419,20 @@ func (e *GameEngine) bardEternalHolderID(bard *model.Player) string {
 }
 
 func (e *GameEngine) removeBardEternalMovement(bard *model.Player) bool {
-	holder, fc := e.findBardEternalMovement(bard)
-	if holder == nil || fc == nil {
+	holder, card, ok := e.detachSourceEffectCard(bard, model.EffectBardEternalMovement)
+	if !ok {
 		return false
 	}
-	holder.RemoveFieldCard(fc)
+	e.State.DiscardPile = append(e.State.DiscardPile, card)
+	e.emitBuffRemovedTrigger(bard.ID, holder.ID, model.EffectBardEternalMovement)
 	return true
 }
 
 func (e *GameEngine) placeBardEternalMovement(bard *model.Player, target *model.Player) error {
+	return e.placeBardEternalMovementWithCard(bard, target, bardEternalMovementCard(bard))
+}
+
+func (e *GameEngine) placeBardEternalMovementWithCard(bard *model.Player, target *model.Player, card model.Card) error {
 	if bard == nil || target == nil {
 		return fmt.Errorf("放置永恒乐章时角色不存在")
 	}
@@ -1634,78 +2440,32 @@ func (e *GameEngine) placeBardEternalMovement(bard *model.Player, target *model.
 		return fmt.Errorf("永恒乐章只能放置在我方角色面前")
 	}
 	e.removeBardEternalMovement(bard)
-	target.AddFieldCard(&model.FieldCard{
-		Card:     bardEternalMovementCard(bard),
-		OwnerID:  target.ID,
-		SourceID: bard.ID,
-		Mode:     model.FieldEffect,
-		Effect:   model.EffectBardEternalMovement,
-		Trigger:  model.EffectTriggerManual,
-	})
-	return nil
+	return e.attachSourceEffectCard(bard, target, model.EffectBardEternalMovement, card)
 }
 
-func soulLinkCard(sorcerer *model.Player) model.Card {
-	id := "ss_soul_link"
-	if sorcerer != nil && sorcerer.ID != "" {
-		id = "ss_soul_link_" + sorcerer.ID
+func (e *GameEngine) transferBardEternalMovement(bard *model.Player, target *model.Player) error {
+	if bard == nil || target == nil {
+		return fmt.Errorf("转移永恒乐章时角色不存在")
 	}
-	charName := "灵魂术士"
-	if sorcerer != nil && sorcerer.Character != nil && sorcerer.Character.Name != "" {
-		charName = sorcerer.Character.Name
+	if target.Camp != bard.Camp {
+		return fmt.Errorf("永恒乐章只能转移给我方角色")
 	}
-	return model.Card{
-		ID:              id,
-		Name:            "灵魂链接",
-		Type:            model.CardTypeMagic,
-		Element:         model.ElementDark,
-		Description:     "灵魂术士的专属灵魂链接",
-		ExclusiveChar1:  charName,
-		ExclusiveSkill1: "灵魂链接",
+	holder, _ := e.findBardEternalMovement(bard)
+	if holder == nil {
+		return fmt.Errorf("当前没有永恒乐章可转移")
 	}
+	if holder.ID == target.ID {
+		return fmt.Errorf("永恒乐章已在该角色面前")
+	}
+	holder, card, ok := e.detachSourceEffectCard(bard, model.EffectBardEternalMovement)
+	if !ok || holder == nil {
+		return fmt.Errorf("当前没有永恒乐章可转移")
+	}
+	return e.attachSourceEffectCard(bard, target, model.EffectBardEternalMovement, card)
 }
 
 func (e *GameEngine) findSoulLink(sorcerer *model.Player) (*model.Player, *model.FieldCard) {
-	if sorcerer == nil {
-		return nil, nil
-	}
-	for _, pid := range e.State.PlayerOrder {
-		p := e.State.Players[pid]
-		if p == nil {
-			continue
-		}
-		for _, fc := range p.Field {
-			if fc == nil || fc.Mode != model.FieldEffect || fc.Effect != model.EffectSoulLink {
-				continue
-			}
-			if fc.SourceID != sorcerer.ID {
-				continue
-			}
-			return p, fc
-		}
-	}
-	return nil, nil
-}
-
-func (e *GameEngine) removeSoulLink(sorcerer *model.Player, restoreCard bool) bool {
-	holder, fc := e.findSoulLink(sorcerer)
-	if holder == nil || fc == nil {
-		if sorcerer != nil && sorcerer.Tokens != nil {
-			sorcerer.Tokens["ss_link_active"] = 0
-		}
-		return false
-	}
-	holder.RemoveFieldCard(fc)
-	if restoreCard && sorcerer != nil {
-		sorcerer.RestoreExclusiveCard(fc.Card)
-	}
-	if sorcerer != nil {
-		if sorcerer.Tokens == nil {
-			sorcerer.Tokens = map[string]int{}
-		}
-		sorcerer.Tokens["ss_link_active"] = 0
-	}
-	return true
+	return e.findExclusiveEffectCard(sorcerer, model.EffectSoulLink)
 }
 
 func (e *GameEngine) placeSoulLink(sorcerer *model.Player, target *model.Player, card model.Card) error {
@@ -1715,115 +2475,43 @@ func (e *GameEngine) placeSoulLink(sorcerer *model.Player, target *model.Player,
 	if target.Camp != sorcerer.Camp || target.ID == sorcerer.ID {
 		return fmt.Errorf("灵魂链接只能放置于队友")
 	}
-	e.removeSoulLink(sorcerer, false)
-	target.AddFieldCard(&model.FieldCard{
-		Card:     card,
-		OwnerID:  target.ID,
-		SourceID: sorcerer.ID,
-		Mode:     model.FieldEffect,
-		Effect:   model.EffectSoulLink,
-		Trigger:  model.EffectTriggerManual,
-	})
-	if sorcerer.Tokens == nil {
-		sorcerer.Tokens = map[string]int{}
+	if holder, _ := e.findSoulLink(sorcerer); holder != nil {
+		return fmt.Errorf("灵魂链接已绑定，不能再次放置或移除")
 	}
-	sorcerer.Tokens["ss_link_active"] = 1
-	return nil
-}
-
-func bloodPriestessSharedLifeCard(priestess *model.Player) model.Card {
-	id := "bp_shared_life"
-	if priestess != nil && priestess.ID != "" {
-		id = "bp_shared_life_" + priestess.ID
-	}
-	charName := "血之巫女"
-	if priestess != nil && priestess.Character != nil && priestess.Character.Name != "" {
-		charName = priestess.Character.Name
-	}
-	return model.Card{
-		ID:              id,
-		Name:            "同生共死",
-		Type:            model.CardTypeMagic,
-		Element:         model.ElementDark,
-		Description:     "血之巫女的专属同生共死",
-		ExclusiveChar1:  charName,
-		ExclusiveSkill1: "同生共死",
-	}
+	return e.attachExclusiveEffectCard(sorcerer, target, model.EffectSoulLink, card)
 }
 
 func (e *GameEngine) findBloodPriestessSharedLife(priestess *model.Player) (*model.Player, *model.FieldCard) {
-	if priestess == nil {
-		return nil, nil
-	}
-	for _, pid := range e.State.PlayerOrder {
-		p := e.State.Players[pid]
-		if p == nil {
-			continue
-		}
-		for _, fc := range p.Field {
-			if fc == nil || fc.Mode != model.FieldEffect || fc.Effect != model.EffectBloodSharedLife {
-				continue
-			}
-			if fc.SourceID != priestess.ID {
-				continue
-			}
-			return p, fc
-		}
-	}
-	return nil, nil
+	return e.findExclusiveEffectCard(priestess, model.EffectBloodSharedLife)
+}
+
+func (e *GameEngine) detachBloodPriestessSharedLife(priestess *model.Player) (*model.Player, model.Card, bool) {
+	return e.detachExclusiveEffectCard(priestess, model.EffectBloodSharedLife)
 }
 
 func (e *GameEngine) removeBloodPriestessSharedLife(priestess *model.Player, restoreCard bool) bool {
-	holder, fc := e.findBloodPriestessSharedLife(priestess)
-	if holder == nil || fc == nil {
-		if priestess != nil && priestess.Tokens != nil {
-			priestess.Tokens["bp_shared_life_active"] = 0
-		}
-		return false
-	}
-	holder.RemoveFieldCard(fc)
-	if restoreCard && priestess != nil {
-		priestess.RestoreExclusiveCard(fc.Card)
-	} else {
-		e.State.DiscardPile = append(e.State.DiscardPile, fc.Card)
-	}
-	if priestess != nil {
-		if priestess.Tokens == nil {
-			priestess.Tokens = map[string]int{}
-		}
-		priestess.Tokens["bp_shared_life_active"] = 0
-	}
-	return true
+	return e.removeExclusiveEffectCard(priestess, model.EffectBloodSharedLife, restoreCard)
 }
 
 func (e *GameEngine) placeBloodPriestessSharedLife(priestess *model.Player, target *model.Player, card model.Card) error {
 	if priestess == nil || target == nil {
 		return fmt.Errorf("放置同生共死时角色不存在")
 	}
-	e.removeBloodPriestessSharedLife(priestess, false)
-	target.AddFieldCard(&model.FieldCard{
-		Card:     card,
-		OwnerID:  target.ID,
-		SourceID: priestess.ID,
-		Mode:     model.FieldEffect,
-		Effect:   model.EffectBloodSharedLife,
-		Trigger:  model.EffectTriggerManual,
-	})
-	if priestess.Tokens == nil {
-		priestess.Tokens = map[string]int{}
-	}
-	priestess.Tokens["bp_shared_life_active"] = 1
-	return nil
+
+	return e.attachExclusiveEffectCard(priestess, target, model.EffectBloodSharedLife, card)
 }
 
 func (e *GameEngine) hasFixedMaxHandCap(player *model.Player) bool {
 	if player == nil {
 		return false
 	}
-	if e.isMagicLancer(player) && player.Tokens != nil && player.Tokens["ml_phantom_form"] > 0 {
+	if e.isPrayerMaster(player) && hasPrayerMasterPrayerForm(player) {
 		return true
 	}
-	if e.isHero(player) && player.Tokens != nil && player.Tokens["hero_exhaustion_form"] > 0 {
+	if e.isMagicLancer(player) && hasMagicLancerPhantomForm(player) {
+		return true
+	}
+	if e.isHero(player) && hasHeroExhaustionForm(player) {
 		return true
 	}
 	for _, fc := range player.Field {
@@ -1853,7 +2541,7 @@ func (e *GameEngine) bloodPriestessSharedLifeDeltaFor(player *model.Player) int 
 				continue
 			}
 			change := -2
-			if source.Tokens != nil && source.Tokens["bp_bleed_form"] > 0 {
+			if hasBloodPriestessBleedingForm(source) {
 				change = 1
 			}
 			if source.ID == player.ID {
@@ -1868,22 +2556,58 @@ func (e *GameEngine) bloodPriestessSharedLifeDeltaFor(player *model.Player) int 
 	return delta
 }
 
-func (e *GameEngine) maybeAutoReleaseBloodPriestessByHand(player *model.Player, reason string) bool {
+func (e *GameEngine) enterBloodPriestessBleedingForm(player *model.Player, reason string) bool {
 	if player == nil || !e.isBloodPriestess(player) {
 		return false
 	}
-	if player.Tokens == nil {
-		player.Tokens = map[string]int{}
-	}
-	if player.Tokens["bp_bleed_form"] <= 0 || len(player.Hand) >= 3 {
+	if hasBloodPriestessBleedingForm(player) {
 		return false
 	}
-	player.Tokens["bp_bleed_form"] = 0
+	beforePoses := e.snapshotPlayerPoses()
+	enterBloodPriestessBleedingFormState(player)
 	if reason == "" {
-		reason = "手牌少于3"
+		reason = "因承受伤害导致我方士气下降"
 	}
-	e.Log(fmt.Sprintf("%s 的 [流血] 强制重置：%s，脱离流血形态", player.Name, reason))
+	e.Log(fmt.Sprintf("%s 的 [流血] 触发：%s，进入流血形态", player.Name, reason))
+	e.dispatchOrientationChanges(beforePoses)
 	return true
+}
+
+func (e *GameEngine) leaveBloodPriestessBleedingForm(player *model.Player, reason string) bool {
+	if player == nil || !e.isBloodPriestess(player) {
+		return false
+	}
+	if !hasBloodPriestessBleedingForm(player) {
+		return false
+	}
+	beforePoses := e.snapshotPlayerPoses()
+	leaveBloodPriestessBleedingFormState(player)
+	if reason == "" {
+		reason = "行动结束时手牌少于3"
+	}
+	e.Log(fmt.Sprintf("%s 的 [流血·手牌不足脱离] 生效：%s，脱离流血形态", player.Name, reason))
+	e.dispatchOrientationChanges(beforePoses)
+	return true
+}
+
+func (e *GameEngine) resolveBloodPriestessBleedExitOnActionEnd() bool {
+	if e == nil || e.State == nil {
+		return false
+	}
+	released := false
+	for _, pid := range e.State.PlayerOrder {
+		player := e.State.Players[pid]
+		if player == nil || !e.isBloodPriestess(player) {
+			continue
+		}
+		if len(player.Hand) >= 3 {
+			continue
+		}
+		if e.leaveBloodPriestessBleedingForm(player, "行动结束时手牌<3") {
+			released = true
+		}
+	}
+	return released
 }
 
 // maybeTriggerSoulLinkTransfer 在承受伤害前检查灵魂链接转伤流程。
@@ -1998,14 +2722,13 @@ func (e *GameEngine) maybeTriggerMoonGoddessMedusa(attacker *model.Player, targe
 			Type:     model.InterruptChoice,
 			PlayerID: p.ID,
 			Context: map[string]interface{}{
-				"choice_type":        "mg_medusa_darkmoon_pick",
-				"user_id":            p.ID,
-				"attacker_id":        attacker.ID,
-				"attack_element":     string(attackCard.Element),
-				"darkmoon_indices":   selectable,
-				"user_ctx":           userCtx,
-				"source_skill":       sourceSkill,
-				"medusa_target_hint": attacker.ID,
+				"choice_type":      "mg_medusa_darkmoon_pick",
+				"user_id":          p.ID,
+				"attacker_id":      attacker.ID,
+				"attack_element":   string(attackCard.Element),
+				"darkmoon_indices": selectable,
+				"user_ctx":         userCtx,
+				"source_skill":     sourceSkill,
 			},
 		})
 		e.Log(fmt.Sprintf("%s 的 [美杜莎之眼] 可触发：请选择要展示并移除的%s系暗月", p.Name, attackCard.Element))
@@ -2069,6 +2792,17 @@ func (e *GameEngine) tryQueueMoonGoddessBlasphemy(pd *model.PendingDamage) bool 
 	if source == nil || !e.isMoonGoddess(source) {
 		return false
 	}
+	currentTurnSource := false
+	if e.State != nil && e.State.CurrentTurn >= 0 && e.State.CurrentTurn < len(e.State.PlayerOrder) {
+		currentTurnSource = e.State.PlayerOrder[e.State.CurrentTurn] == source.ID
+	}
+	if !source.IsActive && !currentTurnSource {
+		return false
+	}
+	target := e.State.Players[pd.TargetID]
+	if target == nil || target.Camp == source.Camp {
+		return false
+	}
 	if source.Tokens == nil {
 		source.Tokens = map[string]int{}
 	}
@@ -2081,17 +2815,13 @@ func (e *GameEngine) tryQueueMoonGoddessBlasphemy(pd *model.PendingDamage) bool 
 	if source.Heal <= 0 {
 		return false
 	}
-	targetIDs := e.moonGoddessEnemyIDs(source)
-	if len(targetIDs) == 0 {
-		return false
-	}
 	e.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
 		PlayerID: source.ID,
 		Context: map[string]interface{}{
 			"choice_type": "mg_blasphemy_target",
 			"user_id":     source.ID,
-			"target_ids":  targetIDs,
+			"target_ids":  []string{target.ID},
 			"source_id":   pd.SourceID,
 			"trigger_pd":  pd,
 		},
@@ -2162,9 +2892,11 @@ func (e *GameEngine) resolveMagicLancerStardustAfterSelf(user *model.Player) boo
 	user.Tokens["ml_stardust_wait_discard"] = 0
 	user.Tokens["ml_stardust_morale_before"] = 0
 
-	if user.Tokens["ml_phantom_form"] > 0 {
-		user.Tokens["ml_phantom_form"] = 0
+	if hasMagicLancerPhantomForm(user) {
+		beforePoses := e.snapshotPlayerPoses()
+		leaveMagicLancerPhantomForm(user)
 		e.Log(fmt.Sprintf("%s 的 [幻影星尘] 结算完成，脱离幻影形态并转正", user.Name))
+		e.dispatchOrientationChanges(beforePoses)
 	}
 
 	if before > 0 && current < before {
@@ -2174,12 +2906,32 @@ func (e *GameEngine) resolveMagicLancerStardustAfterSelf(user *model.Player) boo
 
 	targetIDs := make([]string, 0, len(e.State.PlayerOrder))
 	for _, pid := range e.State.PlayerOrder {
-		if p := e.State.Players[pid]; p != nil {
+		if p := e.State.Players[pid]; p != nil && p.Camp != user.Camp {
 			targetIDs = append(targetIDs, pid)
 		}
 	}
+	lockedOrder := user.Tokens["ml_stardust_locked_target_order"]
+	user.Tokens["ml_stardust_locked_target_order"] = 0
 	if len(targetIDs) == 0 {
 		return false
+	}
+	if lockedOrder > 0 && lockedOrder <= len(e.State.PlayerOrder) {
+		lockedID := e.State.PlayerOrder[lockedOrder-1]
+		for _, tid := range targetIDs {
+			if tid != lockedID {
+				continue
+			}
+			e.AddPendingDamage(model.PendingDamage{
+				SourceID:   user.ID,
+				TargetID:   lockedID,
+				Damage:     2,
+				DamageType: "magic",
+			})
+			if target := e.State.Players[lockedID]; target != nil {
+				e.Log(fmt.Sprintf("%s 的 [幻影星尘] 生效：对 %s 造成2点法术伤害", user.Name, target.Name))
+			}
+			return false
+		}
 	}
 
 	e.PushInterrupt(&model.Interrupt{
@@ -2220,6 +2972,16 @@ func (e *GameEngine) handlePostAttackHitEffects(pd *model.PendingDamage) bool {
 			}
 		}
 	}
+	// 兽灵武士：普通形态下，主动攻击命中时兽魂+1。
+	if e.isBeastSamurai(attacker) &&
+		!pd.IsCounter &&
+		!e.beastSamuraiInIaijutsuForm(attacker) {
+		before := e.beastSamuraiBeastSoul(attacker)
+		after := e.addBeastSamuraiBeastSoul(attacker, 1, false)
+		if after > before {
+			e.Log(fmt.Sprintf("%s 的 [兽魂意念] 生效：普通形态主动攻击命中，兽魂+1（当前%d）", attacker.Name, after))
+		}
+	}
 
 	// 祈祷师威力赐福：命中后由UI严格确认是否移除并令本次攻击伤害+2。
 	if getFieldEffectCard(attacker, model.EffectPowerBlessing) != nil {
@@ -2239,31 +3001,20 @@ func (e *GameEngine) handlePostAttackHitEffects(pd *model.PendingDamage) bool {
 	// 精灵射手：水之矢
 	if attacker.Tokens["elf_elemental_shot_water_pending"] > 0 {
 		attacker.Tokens["elf_elemental_shot_water_pending"] = 0
-		e.PushInterrupt(&model.Interrupt{
-			Type:     model.InterruptChoice,
-			PlayerID: attacker.ID,
-			Context: map[string]interface{}{
-				"choice_type": "elf_elemental_shot_water_target",
-				"user_id":     attacker.ID,
-				"target_ids":  append([]string{}, e.State.PlayerOrder...),
-			},
-		})
-		return true
+		e.Heal(pd.TargetID, 1)
+		e.Log(fmt.Sprintf("%s 的 [元素射击·水之矢] 生效：%s +1治疗", attacker.Name, model.GetPlayerDisplayName(e.State.Players[pd.TargetID])))
 	}
 
 	// 精灵射手：地之矢
 	if attacker.Tokens["elf_elemental_shot_earth_pending"] > 0 {
 		attacker.Tokens["elf_elemental_shot_earth_pending"] = 0
-		e.PushInterrupt(&model.Interrupt{
-			Type:     model.InterruptChoice,
-			PlayerID: attacker.ID,
-			Context: map[string]interface{}{
-				"choice_type": "elf_elemental_shot_earth_target",
-				"user_id":     attacker.ID,
-				"target_ids":  append([]string{}, e.State.PlayerOrder...),
-			},
+		e.AddPendingDamage(model.PendingDamage{
+			SourceID:   attacker.ID,
+			TargetID:   pd.TargetID,
+			Damage:     1,
+			DamageType: "magic",
 		})
-		return true
+		e.Log(fmt.Sprintf("%s 的 [元素射击·地之矢] 生效：对 %s 追加1点法术伤害", attacker.Name, model.GetPlayerDisplayName(e.State.Players[pd.TargetID])))
 	}
 
 	// 魔剑士：黄泉震颤命中后，补至上限并弃2。
@@ -2287,22 +3038,28 @@ func (e *GameEngine) handlePostAttackHitEffects(pd *model.PendingDamage) bool {
 		}
 	}
 
-	// 魔弓：魔贯冲击命中后可额外移除1个火系充能使伤害再+1（至多一次）。
+	// 魔弓：魔贯冲击命中后，若仍有火系充能则强制再移除1个并使本次伤害+1。
 	if attacker.Tokens["mb_magic_pierce_pending"] > 0 {
 		if magicBowChargeCount(attacker, model.ElementFire) <= 0 {
 			attacker.Tokens["mb_magic_pierce_pending"] = 0
 		} else {
-			e.PushInterrupt(&model.Interrupt{
-				Type:     model.InterruptChoice,
-				PlayerID: attacker.ID,
-				Context: map[string]interface{}{
-					"choice_type": "mb_magic_pierce_hit_confirm",
-					"user_id":     attacker.ID,
-					"source_id":   pd.SourceID,
-					"target_id":   pd.TargetID,
-				},
-			})
-			return true
+			if _, ok := removeMagicBowChargeByElement(attacker, model.ElementFire); ok {
+				applied := false
+				for i := range e.State.PendingDamageQueue {
+					queued := &e.State.PendingDamageQueue[i]
+					if !strings.EqualFold(queued.DamageType, "Attack") {
+						continue
+					}
+					queued.Damage++
+					applied = true
+					break
+				}
+				e.Log(fmt.Sprintf("%s 的 [魔贯冲击] 命中追加生效：额外移除1个火系充能，本次攻击伤害+1", attacker.Name))
+				if !applied {
+					e.Log("[Warn] 魔贯冲击命中追加未找到对应伤害条目，未能叠加伤害")
+				}
+			}
+			attacker.Tokens["mb_magic_pierce_pending"] = 0
 		}
 	}
 
@@ -2317,6 +3074,16 @@ func (e *GameEngine) handlePostActionEndEffects(player *model.Player, actionType
 	}
 	if actionType != model.ActionAttack && actionType != model.ActionMagic {
 		return false
+	}
+	if actionType == model.ActionAttack && e.isElfArcher(player) {
+		if player.Tokens != nil && player.Tokens["elf_elemental_shot_wind_pending"] > 0 {
+			player.TurnState.PendingActions = append(player.TurnState.PendingActions, model.ActionContext{
+				Source:   "风之矢",
+				MustType: "Attack",
+			})
+			e.Log(fmt.Sprintf("%s 的 [元素射击·风之矢] 结算：额外获得1次攻击行动", player.Name))
+		}
+		clearElfElementalShotCombatState(player)
 	}
 	// 勇者：明镜止水在“本次攻击结束时”获得1点水晶（红宝石不替代，受能量上限限制）。
 	if e.isHero(player) && player.Tokens != nil && player.Tokens["hero_calm_end_crystal_pending"] > 0 && actionType == model.ActionAttack {
@@ -2357,6 +3124,16 @@ func (e *GameEngine) handlePostDamageResolved(pd *model.PendingDamage) bool {
 	source := e.State.Players[pd.SourceID]
 	if source == nil {
 		return false
+	}
+	if e.isBeastSamurai(source) && strings.EqualFold(pd.DamageType, "Attack") {
+		clearBeastSamuraiAttackTokens(source)
+	}
+	if e.isBeastSamurai(source) && pd.Damage > 0 && e.beastSamuraiInIaijutsuForm(source) {
+		beforePoses := e.snapshotPlayerPoses()
+		if e.leaveBeastSamuraiIaijutsuForm(source) {
+			e.Log(fmt.Sprintf("%s 的 [御魂流居合形态·造成伤害退场] 生效：转正并脱离御魂流居合形态", source.Name))
+		}
+		e.dispatchOrientationChanges(beforePoses)
 	}
 	if e.isBlazeWitch(source) && source.Tokens != nil && source.Tokens["bw_pain_link_pending_discard"] > 0 {
 		if source.Tokens["bw_pain_link_pending_hits"] > 0 {
@@ -2412,11 +3189,13 @@ func (e *GameEngine) handlePostDamageResolved(pd *model.PendingDamage) bool {
 			}
 			if len(target.Hand) > 0 {
 				e.PushInterrupt(&model.Interrupt{
-					Type:     model.InterruptChoice,
+					Type:     model.InterruptDiscard,
 					PlayerID: target.ID,
 					Context: map[string]interface{}{
-						"choice_type": "sage_wisdom_codex_discard_confirm",
-						"user_id":     target.ID,
+						"discard_count":        1,
+						"stay_in_turn":         true,
+						"is_damage_resolution": true,
+						"prompt":               "【智慧法典】请选择弃置1张手牌：",
 					},
 				})
 				_ = e.tryQueueMoonGoddessBlasphemy(pd)
@@ -2447,16 +3226,7 @@ func (e *GameEngine) handlePostDamageResolved(pd *model.PendingDamage) bool {
 			return true
 		}
 	}
-	// 动物伙伴：仅精灵射手自己的回合，且该伤害由其造成。
-	if e.isElfArcher(source) && source.IsActive {
-		e.PushInterrupt(&model.Interrupt{
-			Type:     model.InterruptChoice,
-			PlayerID: source.ID,
-			Context: map[string]interface{}{
-				"choice_type": "elf_animal_companion_confirm",
-				"user_id":     source.ID,
-			},
-		})
+	if e.queueElfAnimalResponse(source, target, pd) {
 		_ = e.tryQueueMoonGoddessBlasphemy(pd)
 		return true
 	}

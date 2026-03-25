@@ -1,12 +1,30 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { useGameStore } from '../stores/gameStore'
-import { useWebSocket } from '../composables/useWebSocket'
+import { useInterruptStore } from '../stores/interrupt.store'
+import { useSessionStore } from '../stores/session.store'
+import { useSnapshotStore } from '../stores/snapshot.store'
+import { useSubmitAction } from '../composables/useSubmitAction'
+import { ROLE_NAME_MAP } from '../constants/roleNameMap'
+import type { PlayerView } from '../types/game'
 
-const store = useGameStore()
-const ws = useWebSocket()
+const interruptStore = useInterruptStore()
+const sessionStore = useSessionStore()
+const snapshotStore = useSnapshotStore()
+const actions = useSubmitAction()
 
-const prompt = computed(() => store.currentPrompt)
+const prompt = computed(() => interruptStore.currentPrompt)
+const myPlayerId = computed(() => sessionStore.myPlayerId)
+const playerViews = computed(() => snapshotStore.players)
+const myHand = computed(() => playerViews.value[myPlayerId.value]?.hand || [])
+
+function getRoleDisplayName(roleId?: string): string {
+  if (!roleId) return '未知角色'
+  return snapshotStore.characters[roleId]?.name || ROLE_NAME_MAP[roleId] || '未知角色'
+}
+
+function showPromptError(message: string) {
+  interruptStore.showError(message)
+}
 
 // 行动选择（攻击/法术/购买/提取/合成）不在这里显示，由 ActionPanel 承载
 const isActionSelectionPrompt = computed(() => {
@@ -17,7 +35,7 @@ const isActionSelectionPrompt = computed(() => {
 })
 
 const isVisible = computed(() =>
-  prompt.value !== null && store.isPromptForMe && !isActionSelectionPrompt.value
+  prompt.value !== null && prompt.value.player_id === myPlayerId.value && !isActionSelectionPrompt.value
 )
 
 const selectedExtractIndices = ref<number[]>([])
@@ -25,7 +43,7 @@ const selectedInlineCardOptionIndices = ref<number[]>([])
 const autoResolvedPromptKey = ref('')
 
 watch(() => prompt.value, () => {
-  store.setPromptCounterTarget('')
+  interruptStore.setPromptCounterTarget('')
   selectedExtractIndices.value = []
   selectedInlineCardOptionIndices.value = []
   if (!prompt.value) {
@@ -109,30 +127,30 @@ function confirmExtractSelection() {
   const max = prompt.value?.max ?? 2
   const sel = selectedExtractIndices.value
   if (sel.length < min || sel.length > max) return
-  ws.select(sel)
+  actions.submitSelect(sel)
 }
 
 function resolveOptionPlayerId(option: { id: string; label: string }): string | null {
-  if (store.players[option.id]) return option.id
+  if (playerViews.value[option.id]) return option.id
   const label = String(option.label || '')
   if (!label) return null
   const lowLabel = label.toLowerCase()
 
   const markersFor = (playerId: string): string[] => {
-    const p = store.players[playerId]
+    const p = playerViews.value[playerId]
     if (!p) return []
     const markers = new Set<string>()
     if (p.id) markers.add(p.id)
     if (p.name) markers.add(p.name)
     if (p.role) {
       markers.add(p.role)
-      const roleName = store.getRoleDisplayName(p.role)
+      const roleName = getRoleDisplayName(p.role)
       if (roleName && roleName !== '未知角色') markers.add(roleName)
     }
     return [...markers]
   }
 
-  const matched = Object.values(store.players).filter((p) => {
+  const matched = Object.values(playerViews.value).filter((p) => {
     const markers = markersFor(p.id)
     return markers.some((marker) => {
       const token = marker.trim().toLowerCase()
@@ -150,11 +168,11 @@ const playerOptionEntries = computed(() => {
     .map((option, index) => {
       const playerId = resolveOptionPlayerId(option)
       if (!playerId) return null
-      const player = store.players[playerId]
+      const player = playerViews.value[playerId]
       if (!player) return null
       return { index, option, player }
     })
-    .filter((entry): entry is { index: number; option: { id: string; label: string }; player: NonNullable<typeof store.players[string]> } => entry != null)
+    .filter((entry): entry is { index: number; option: { id: string; label: string }; player: PlayerView } => entry != null)
 })
 
 const playerOptionIndexSet = computed(() => {
@@ -198,66 +216,66 @@ const canCancelPrompt = computed(() => {
 
 function handleOptionClick(optionId: string) {
   if (optionId === 'counter_disabled') {
-    store.setError('此攻击无法应战')
+    showPromptError('此攻击无法应战')
     return
   }
   if (prompt.value?.type === 'choose_skill') {
     const idx = prompt.value.options.findIndex((o: { id: string }) => o.id === optionId)
     if (idx >= 0) {
-      ws.select([idx])
+      actions.submitSelect([idx])
     } else {
       if (!canCancelPrompt.value) {
-        store.setError('当前步骤不可取消，请先完成本次操作')
+        showPromptError('当前步骤不可取消，请先完成本次操作')
         return
       }
-      ws.cancel()
+      actions.submitCancel()
     }
     return
   }
   if (optionId === 'skip' || optionId === 'cancel') {
     if (!canCancelPrompt.value) {
-      store.setError('当前步骤不可取消，请先完成本次操作')
+      showPromptError('当前步骤不可取消，请先完成本次操作')
       return
     }
-    ws.cancel()
+    actions.submitCancel()
     return
   }
   if (optionId === 'confirm') {
-    ws.confirm()
+    actions.submitConfirm()
     return
   }
   // 魔弹融合等确认选项：yes=0, no=1
   if (optionId === 'yes' || optionId === 'no') {
-    ws.select([optionId === 'yes' ? 0 : 1])
+    actions.submitSelect([optionId === 'yes' ? 0 : 1])
     return
   }
   // 魔弹掌控方向选择：normal=0, reverse=1
   if (optionId === 'normal' || optionId === 'reverse') {
-    ws.select([optionId === 'normal' ? 0 : 1])
+    actions.submitSelect([optionId === 'normal' ? 0 : 1])
     return
   }
   if (optionId === 'take') {
-    ws.respond('take')
+    actions.submitRespondTake()
     return
   }
   if (optionId === 'counter') {
-    if (store.selectedCards.length === 0) {
-      store.setError(isMagicMissilePrompt.value ? '请先选择一张【魔弹】进行传递' : '请先选择一张攻击牌进行应战')
+    if (interruptStore.selectedCards.length === 0) {
+      showPromptError(isMagicMissilePrompt.value ? '请先选择一张【魔弹】进行传递' : '请先选择一张攻击牌进行应战')
       return
     }
-    if (needsCounterTargetSelection.value && !store.promptCounterTarget) {
-      store.setError('请先选择反弹目标（攻击方的队友）')
+    if (needsCounterTargetSelection.value && !interruptStore.promptCounterTarget) {
+      showPromptError('请先选择反弹目标（攻击方的队友）')
       return
     }
-    ws.respond('counter', store.selectedCards[0], store.promptCounterTarget || undefined)
+    if (!actions.submitRespondCounter(isMagicMissilePrompt.value)) return
     return
   }
   if (optionId === 'defend') {
-    if (store.selectedCards.length === 0) {
-      store.setError('请先选择一张【圣光】进行防御（圣盾需提前放置）')
+    if (interruptStore.selectedCards.length === 0) {
+      showPromptError('请先选择一张【圣光】进行防御（圣盾需提前放置）')
       return
     }
-    ws.respond('defend', store.selectedCards[0])
+    if (!actions.submitRespondDefend()) return
     return
   }
   if (isNonHandChooseCardsMultiMode.value && isNonHandChooseCardOption(optionId)) {
@@ -267,14 +285,14 @@ function handleOptionClick(optionId: string) {
   {
     const optionIndex = prompt.value?.options?.findIndex((o: { id: string }) => o.id === optionId) ?? -1
     if (optionIndex >= 0) {
-      ws.select([optionIndex])
+      actions.submitSelect([optionIndex])
     } else {
       const index = parseInt(optionId, 10)
       if (!Number.isNaN(index)) {
-        ws.select([index])
+        actions.submitSelect([index])
       } else {
-        ws.sendAction({
-          player_id: store.myPlayerId,
+        actions.submitAction({
+          player_id: myPlayerId.value,
           type: 'Select',
           skill_id: optionId
         })
@@ -286,13 +304,13 @@ function handleOptionClick(optionId: string) {
 const canConfirmPrompt = computed(() => {
   if (!prompt.value) return false
   if (prompt.value.type === 'choose_target') {
-    const tCount = store.selectedTargets.length
+    const tCount = interruptStore.selectedTargets.length
     return tCount >= prompt.value.min && tCount <= prompt.value.max
   }
   if (prompt.value.type === 'choose_card' || prompt.value.type === 'choose_cards') {
     const cCount = isNonHandChooseCardsMultiMode.value
       ? selectedInlineCardOptionIndices.value.length
-      : store.selectedCards.length
+      : interruptStore.selectedCards.length
     return cCount >= prompt.value.min && cCount <= prompt.value.max
   }
   return true
@@ -301,18 +319,16 @@ const canConfirmPrompt = computed(() => {
 function confirmPromptAction() {
   if (!canConfirmPrompt.value) return
 
-  if (prompt.value?.type === 'choose_target' && store.selectedTargets.length > 0) {
-    if (store.selectedTargets.length === 1) {
-      ws.sendAction({
-        player_id: store.myPlayerId,
-        type: 'Select',
-        target_id: store.selectedTargets[0]
-      })
+  if (prompt.value?.type === 'choose_target' && interruptStore.selectedTargets.length > 0) {
+    if (interruptStore.selectedTargets.length === 1) {
+      const targetId = interruptStore.selectedTargets[0]
+      if (!targetId) return
+      actions.submitPromptTarget(targetId)
     } else {
-      ws.sendAction({
-        player_id: store.myPlayerId,
+      actions.submitAction({
+        player_id: myPlayerId.value,
         type: 'Select',
-        target_ids: store.selectedTargets
+        target_ids: interruptStore.selectedTargets
       })
     }
     return
@@ -320,9 +336,9 @@ function confirmPromptAction() {
 
   const indices = isNonHandChooseCardsMultiMode.value
     ? selectedInlineCardOptionIndices.value
-    : store.selectedCards
+    : interruptStore.selectedCards
   if (indices.length > 0) {
-    ws.select(indices)
+    actions.submitSelect(indices)
   }
 }
 
@@ -356,7 +372,7 @@ function isIndexedCocoonOption(option: { label?: string }): boolean {
 
 function isPromptHandCardOption(option: { id: string; label: string }): boolean {
   const idx = parsePromptCardIndex(option.id)
-  if (idx === null || idx < 0 || idx >= store.myHand.length) return false
+  if (idx === null || idx < 0 || idx >= myHand.value.length) return false
   const labelIndex = parseHandIndexFromOptionLabel(option.label)
   return labelIndex === idx
 }

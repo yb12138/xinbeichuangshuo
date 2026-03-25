@@ -60,23 +60,12 @@ func soulSorcererAllyIDs(game model.IGameEngine, user *model.Player, includeSelf
 }
 
 func (h *SoulSorcererSoulDevourHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.TriggerCtx == nil || ctx.TriggerCtx.DamageVal == nil {
-		return false
-	}
-	return ctx.Trigger == model.TriggerBeforeMoraleLoss && *ctx.TriggerCtx.DamageVal > 0
+	// 灵魂吞噬需要按“最终实际士气下降”结算，
+	// 运行时统一由 applyMoraleLossAfterTrigger 处理，这里仅保留注册占位。
+	return false
 }
 
 func (h *SoulSorcererSoulDevourHandler) Execute(ctx *model.Context) error {
-	if ctx == nil || ctx.User == nil || ctx.TriggerCtx == nil || ctx.TriggerCtx.DamageVal == nil {
-		return fmt.Errorf("灵魂吞噬上下文无效")
-	}
-	loss := *ctx.TriggerCtx.DamageVal
-	if loss <= 0 {
-		return nil
-	}
-	before := soulYellow(ctx.User)
-	after := addSoulYellow(ctx.User, loss)
-	ctx.Game.Log(fmt.Sprintf("%s 的 [灵魂吞噬] 触发：黄色灵魂 +%d（%d→%d）", ctx.User.Name, loss, before, after))
 	return nil
 }
 
@@ -185,7 +174,7 @@ func (h *SoulSorcererSoulMirrorHandler) Execute(ctx *model.Context) error {
 	}
 	addSoulYellow(ctx.User, -2)
 	drawN := 2
-	room := target.MaxHand - len(target.Hand)
+	room := ctx.Game.GetMaxHand(target) - len(target.Hand)
 	if room < drawN {
 		drawN = room
 	}
@@ -219,12 +208,7 @@ func (h *SoulSorcererSoulBlastHandler) Execute(ctx *model.Context) error {
 	}
 	addSoulYellow(ctx.User, -3)
 	damage := 3
-	maxHand := target.MaxHand
-	if gameWithDynamicMaxHand, ok := ctx.Game.(interface {
-		GetMaxHand(*model.Player) int
-	}); ok {
-		maxHand = gameWithDynamicMaxHand.GetMaxHand(target)
-	}
+	maxHand := ctx.Game.GetMaxHand(target)
 	if len(target.Hand) < 3 && maxHand > 5 {
 		damage += 2
 	}
@@ -233,7 +217,6 @@ func (h *SoulSorcererSoulBlastHandler) Execute(ctx *model.Context) error {
 		TargetID:   target.ID,
 		Damage:     damage,
 		DamageType: "magic",
-		Stage:      0,
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [灵魂震爆]：对 %s 造成%d点法术伤害", ctx.User.Name, target.Name, damage))
 	return nil
@@ -274,6 +257,9 @@ func (h *SoulSorcererSoulGrantHandler) Execute(ctx *model.Context) error {
 
 func (h *SoulSorcererSoulLinkHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
+		return false
+	}
+	if holder, _ := ctx.Game.FindFieldEffectBySource(model.EffectSoulLink, ctx.User.ID); holder != nil {
 		return false
 	}
 	allyIDs := soulSorcererAllyIDs(ctx.Game, ctx.User, false)
@@ -321,10 +307,6 @@ func (h *SoulSorcererSoulAmpHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("灵魂增幅上下文无效")
 	}
-	if ctx.User.Gem <= 0 {
-		return fmt.Errorf("灵魂增幅需要1个红宝石")
-	}
-	ctx.User.Gem--
 	y := addSoulYellow(ctx.User, 2)
 	b := addSoulBlue(ctx.User, 2)
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [灵魂增幅]：黄色灵魂+2（当前%d），蓝色灵魂+2（当前%d）", ctx.User.Name, y, b))

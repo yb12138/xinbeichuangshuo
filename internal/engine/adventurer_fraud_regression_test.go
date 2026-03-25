@@ -29,7 +29,7 @@ func requireChoiceType(t *testing.T, game *GameEngine, playerID, ct string) map[
 	return ctx
 }
 
-// 回归测试：欺诈(弃2)应支持“先选攻击系别(不含光/暗)”且可选“具体两张同系牌”
+// 回归测试：欺诈(弃2)应支持“先选攻击系别(仅排除暗系)”且可选“具体两张同系牌”
 func TestAdventurerFraud_Mode2_ElementAndDiscardComboSelectable(t *testing.T) {
 	game := NewGameEngine(noopObserver{})
 	if err := game.AddPlayer("p1", "Adventurer", "adventurer", model.RedCamp); err != nil {
@@ -41,7 +41,7 @@ func TestAdventurerFraud_Mode2_ElementAndDiscardComboSelectable(t *testing.T) {
 
 	game.State.CurrentTurn = 0
 	game.State.Deck = rules.InitDeck()
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	p1 := game.State.Players["p1"]
 	p1.IsActive = true
@@ -88,8 +88,8 @@ func TestAdventurerFraud_Mode2_ElementAndDiscardComboSelectable(t *testing.T) {
 	mustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{1}})
 
 	// 欺诈攻击会被自动推进到战斗交互阶段，检查战斗栈中的攻击元素
-	if game.State.Phase != model.PhaseCombatInteraction {
-		t.Fatalf("expected phase CombatInteraction after fraud resolve, got %s", game.State.Phase)
+	if len(game.State.CombatStack) == 0 || (game.State.CombatStage != model.CombatStageDeclare && game.State.CombatStage != model.CombatStageHitCheck) {
+		t.Fatalf("expected combat interaction state after fraud resolve, got combat=%s stack=%d", game.State.CombatStage, len(game.State.CombatStack))
 	}
 	if len(game.State.CombatStack) == 0 {
 		t.Fatalf("expected combat stack entry after fraud resolve")
@@ -109,5 +109,64 @@ func TestAdventurerFraud_Mode2_ElementAndDiscardComboSelectable(t *testing.T) {
 	}
 	if p1.Crystal != 1 {
 		t.Fatalf("expected lucky fortune crystal gain after fraud attack start, got %d", p1.Crystal)
+	}
+}
+
+func TestAdventurerFraud_Mode2_AllowsLightAttackElement(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "Adventurer", "adventurer", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Dummy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	game.State.CurrentTurn = 0
+	game.State.Deck = rules.InitDeck()
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Hand = []model.Card{
+		{ID: "l1", Name: "圣光A", Type: model.CardTypeMagic, Element: model.ElementLight},
+		{ID: "l2", Name: "圣光B", Type: model.CardTypeMagic, Element: model.ElementLight},
+		{ID: "w1", Name: "水盾A", Type: model.CardTypeMagic, Element: model.ElementWater},
+		{ID: "w2", Name: "水盾B", Type: model.CardTypeMagic, Element: model.ElementWater},
+	}
+
+	mustHandleAction(t, game, model.PlayerAction{
+		PlayerID:  "p1",
+		Type:      model.CmdSkill,
+		SkillID:   "adventurer_fraud",
+		TargetIDs: []string{"p2"},
+	})
+	requireChoiceType(t, game, "p1", "adventurer_fraud_mode")
+	mustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0}})
+
+	ctx := requireChoiceType(t, game, "p1", "adventurer_fraud_attack_element")
+	options, ok := ctx["options"].([]model.PromptOption)
+	if ok && len(options) > 0 {
+		t.Fatalf("unexpected prompt options embedded in context: %+v", options)
+	}
+
+	// 选择光系（现在应作为第 6 个可选攻击系别存在）
+	mustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{5}})
+	requireChoiceType(t, game, "p1", "adventurer_fraud_discard_element")
+
+	// 选择弃置光系的两张牌
+	mustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{1}})
+	requireChoiceType(t, game, "p1", "adventurer_fraud_discard_combo")
+	mustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0}})
+
+	if len(game.State.CombatStack) == 0 || (game.State.CombatStage != model.CombatStageDeclare && game.State.CombatStage != model.CombatStageHitCheck) {
+		t.Fatalf("expected combat interaction state after light fraud resolve, got combat=%s stack=%d", game.State.CombatStage, len(game.State.CombatStack))
+	}
+	if len(game.State.CombatStack) == 0 {
+		t.Fatalf("expected combat stack entry after light fraud resolve")
+	}
+	last := game.State.CombatStack[len(game.State.CombatStack)-1]
+	if last.Card == nil || last.Card.Element != model.ElementLight {
+		t.Fatalf("expected fraud attack element Light, got %+v", last.Card)
 	}
 }

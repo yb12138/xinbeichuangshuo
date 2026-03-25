@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"sort"
 	"starcup-engine/internal/engine/skills"
 	"starcup-engine/internal/model"
 )
@@ -24,6 +25,14 @@ type checkTarget struct {
 	Role   model.SkillRole
 }
 
+type targetTriggeredSkills struct {
+	target    checkTarget
+	ctx       *model.Context
+	skills    []model.SkillDefinition
+	priority  int
+	seatOrder int
+}
+
 // OnEvent 在某个事件发生时调用，统一处理技能触发
 func (sd *SkillDispatcher) OnTrigger(trigger model.TriggerType, ctx *model.Context) {
 	ctx.Trigger = trigger
@@ -40,7 +49,7 @@ func (sd *SkillDispatcher) OnTrigger(trigger model.TriggerType, ctx *model.Conte
 			targetsToCheck = append(targetsToCheck, checkTarget{Player: player, Role: model.RoleAny})
 		}
 
-	case model.TriggerOnAttackStart, model.TriggerOnAttackHit, model.TriggerOnAttackMiss:
+	case model.TriggerOnAttackStart, model.TriggerOnAttackHit, model.TriggerOnAttackMiss, model.TriggerModifyDamage:
 		// 上下文中的 User 是攻击发起者 -> 身份标记为 Attacker
 		if ctx.User != nil {
 			targetsToCheck = append(targetsToCheck, checkTarget{
@@ -79,22 +88,15 @@ func (sd *SkillDispatcher) OnTrigger(trigger model.TriggerType, ctx *model.Conte
 
 	case model.TriggerBeforeDraw, model.TriggerAfterDraw:
 		if ctx.User != nil {
-			// 摸牌通常没有明确的攻防关系，但在水影的case里，是在受击时触发摸牌
-			// 为了安全，这里给 RoleAny，或者根据 TriggerBeforeDraw 的调用源头来定
-			// 简单起见，RoleDefender 的技能也能在 RoleAny 状态下触发（如果逻辑允许），
-			// 但这里我们主要限制 "Defender 不要在攻击时触发"。
-			// 对于水影，TriggerBeforeDraw 是个通用事件。
-			// 我们可以让 collectTriggeredSkills 宽容处理：RoleAny 的上下文可以触发任何技能，
-			// 只有当上下文明确是 Attacker 时才屏蔽 Defender 技能。
 			targetsToCheck = append(targetsToCheck, checkTarget{Player: ctx.User, Role: model.RoleAny})
 		}
 
-	case model.TriggerOnPhaseEnd, model.TriggerOnBuffRemoved:
+	case model.TriggerOnPhaseEnd, model.TriggerOnBuffRemoved, model.TriggerOnBuffAdded:
 		if ctx.User != nil {
 			targetsToCheck = append(targetsToCheck, checkTarget{Player: ctx.User, Role: model.RoleAny})
 		}
-		// 对于 BuffRemoved，可能需要检查全场玩家的被动技能 (如天使羁绊)
-		if trigger == model.TriggerOnBuffRemoved {
+		// 对于 BuffAdded/BuffRemoved，可能需要检查全场玩家的被动技能 (如天使羁绊)
+		if trigger == model.TriggerOnBuffRemoved || trigger == model.TriggerOnBuffAdded {
 			for _, p := range sd.engine.State.Players {
 				if p.ID != ctx.User.ID {
 					targetsToCheck = append(targetsToCheck, checkTarget{Player: p, Role: model.RoleAny})
@@ -102,12 +104,32 @@ func (sd *SkillDispatcher) OnTrigger(trigger model.TriggerType, ctx *model.Conte
 			}
 		}
 
+	case model.TriggerOnOrientationChanged:
+		for _, pid := range sd.engine.State.PlayerOrder {
+			if player := sd.engine.State.Players[pid]; player != nil {
+				targetsToCheck = append(targetsToCheck, checkTarget{Player: player, Role: model.RoleAny})
+			}
+		}
+		for pid, player := range sd.engine.State.Players {
+			if player == nil {
+				continue
+			}
+			seen := false
+			for _, queued := range targetsToCheck {
+				if queued.Player != nil && queued.Player.ID == pid {
+					seen = true
+					break
+				}
+			}
+			if !seen {
+				targetsToCheck = append(targetsToCheck, checkTarget{Player: player, Role: model.RoleAny})
+			}
+		}
+
 	case model.TriggerBeforeMoraleLoss:
 		// 上下文的 User 是导致士气下降的受害者 (Victim)
 		if ctx.User != nil {
-			// TriggerBeforeMoraleLoss 需要稳定顺序：
-			// 1) 先按座次(PlayerOrder)遍历同阵营角色，避免 map 迭代随机顺序；
-			// 2) 灵魂术士（灵魂吞噬）放在最后，确保其基于“最终士气损失”判定，避免被抵消前抢先加魂。
+			// TriggerBeforeMoraleLoss：先按座次收集同阵营目标，后续再按技能优先级排序执行。
 			orderedPlayers := make([]*model.Player, 0, len(sd.engine.State.Players))
 			seen := make(map[string]struct{}, len(sd.engine.State.Players))
 			for _, pid := range sd.engine.State.PlayerOrder {
@@ -137,15 +159,6 @@ func (sd *SkillDispatcher) OnTrigger(trigger model.TriggerType, ctx *model.Conte
 				})
 			}
 			for _, p := range orderedPlayers {
-				if p == nil || (p.Character != nil && p.Character.ID == "soul_sorcerer") {
-					continue
-				}
-				appendTarget(p)
-			}
-			for _, p := range orderedPlayers {
-				if p == nil || p.Character == nil || p.Character.ID != "soul_sorcerer" {
-					continue
-				}
 				appendTarget(p)
 			}
 		}
@@ -157,6 +170,14 @@ func (sd *SkillDispatcher) OnTrigger(trigger model.TriggerType, ctx *model.Conte
 		if ctx.Target != nil && ctx.Target != ctx.User {
 			targetsToCheck = append(targetsToCheck, checkTarget{Player: ctx.Target, Role: model.RoleAny})
 		}
+	}
+
+	// TriggerBeforeMoraleLoss：同一时点按技能优先级（高->低）执行；同优先级按座次稳定。
+	if trigger == model.TriggerBeforeMoraleLoss {
+		for _, item := range sd.collectTargetsWithSkillsByPriority(targetsToCheck, trigger, ctx) {
+			sd.processSkills(item.skills, item.ctx)
+		}
+		return
 	}
 
 	// 3. 执行检查
@@ -174,12 +195,72 @@ func (sd *SkillDispatcher) OnTrigger(trigger model.TriggerType, ctx *model.Conte
 	}
 }
 
+func (sd *SkillDispatcher) collectTargetsWithSkillsByPriority(targets []checkTarget, trigger model.TriggerType, ctx *model.Context) []targetTriggeredSkills {
+	if len(targets) == 0 || ctx == nil || sd == nil || sd.engine == nil || sd.engine.State == nil {
+		return nil
+	}
+
+	seatOrders := make(map[string]int, len(sd.engine.State.PlayerOrder))
+	for idx, pid := range sd.engine.State.PlayerOrder {
+		seatOrders[pid] = idx
+	}
+
+	items := make([]targetTriggeredSkills, 0, len(targets))
+	for _, target := range targets {
+		if target.Player == nil || target.Player.Character == nil {
+			continue
+		}
+		skillCtx := *ctx
+		skillCtx.User = target.Player
+		triggered := sd.collectTriggeredSkills(target.Player, trigger, &skillCtx, target.Role)
+		if len(triggered) == 0 {
+			continue
+		}
+		maxPriority := 0
+		for _, skill := range triggered {
+			if skill.Priority > maxPriority {
+				maxPriority = skill.Priority
+			}
+		}
+		seat, ok := seatOrders[target.Player.ID]
+		if !ok {
+			seat = len(sd.engine.State.PlayerOrder) + len(items)
+		}
+		items = append(items, targetTriggeredSkills{
+			target:    target,
+			ctx:       &skillCtx,
+			skills:    triggered,
+			priority:  maxPriority,
+			seatOrder: seat,
+		})
+	}
+
+	sort.SliceStable(items, func(i, j int) bool {
+		if items[i].priority != items[j].priority {
+			return items[i].priority > items[j].priority
+		}
+		if items[i].seatOrder != items[j].seatOrder {
+			return items[i].seatOrder < items[j].seatOrder
+		}
+		return items[i].target.Player.ID < items[j].target.Player.ID
+	})
+	return items
+}
+
 // collectTriggeredSkills 收集指定玩家在指定触发时机下可触发的技能
 func (sd *SkillDispatcher) collectTriggeredSkills(player *model.Player,
 	trigger model.TriggerType, ctx *model.Context, currentRole model.SkillRole) []model.SkillDefinition {
 	var triggeredSkills []model.SkillDefinition
 
 	for _, skill := range player.Character.Skills {
+		if ctx != nil && ctx.Timing == model.TimingStartup {
+			if skill.Type != model.SkillTypeStartup {
+				continue
+			}
+		} else if skill.Type == model.SkillTypeStartup {
+			continue
+		}
+
 		// 1. 触发匹配检查 (支持主触发器 OR 额外触发器)
 		isMatch := skill.Trigger == trigger
 		if !isMatch {
@@ -251,6 +332,10 @@ func (sd *SkillDispatcher) collectTriggeredSkills(player *model.Player,
 		triggeredSkills = append(triggeredSkills, skill)
 	}
 
+	if ctx != nil && ctx.Timing == model.TimingStartup {
+		return triggeredSkills
+	}
+
 	for _, fc := range player.Field {
 		// 必须是 Effect 模式且未锁定
 		if fc.Mode != model.FieldEffect || fc.Locked {
@@ -298,23 +383,30 @@ func (sd *SkillDispatcher) collectTriggeredSkills(player *model.Player,
 
 // processSkills 处理收集到的技能，根据ResponseType决定执行方式
 func (sd *SkillDispatcher) processSkills(triggeredSkills []model.SkillDefinition, ctx *model.Context) {
+	sort.SliceStable(triggeredSkills, func(i, j int) bool {
+		return triggeredSkills[i].Priority > triggeredSkills[j].Priority
+	})
+
 	var startupSkillIDs []string
 	var optionalSkillIDs []string
 	// 用于保存可选技能的上下文，假设所有并发触发的技能共享同一个上下文结构
 	// (在星杯中，同一时机的技能通常共享 TriggerCtx)
 	var sharedCtx *model.Context
 	for _, skill := range triggeredSkills {
-		// 【新增】特别处理 Startup 技能
+		// 灵魂吞噬按文档要求基于“最终实际士气下降”结算，
+		// 因此统一在 applyMoraleLossAfterTrigger 中处理，避免被响应修改前抢先加魂。
+		if ctx != nil && ctx.Trigger == model.TriggerBeforeMoraleLoss && skill.ID == "ss_soul_devour" {
+			continue
+		}
+
+		// 启动技只在 TimingStartup 窗口收集，统一走 StartupInterrupt。
 		if skill.Type == model.SkillTypeStartup {
-			// 本回合启动技只处理一次（无论发动或跳过），避免在 Startup 阶段重复弹窗。
 			if ctx != nil && ctx.User != nil && ctx.User.TurnState.HasUsedTriggerSkill {
 				continue
 			}
-			// 同一回合内同一启动技能至多发动一次，避免重复触发同一技能导致空转。
 			if ctx != nil && ctx.User != nil && ctx.User.TurnState.UsedSkillCounts[skill.ID] > 0 {
 				continue
 			}
-			// 检查是否可用 (资源等)
 			handler := skills.GetHandler(skill.LogicHandler)
 			if handler != nil && handler.CanUse(ctx) {
 				startupSkillIDs = append(startupSkillIDs, skill.ID)
@@ -344,6 +436,22 @@ func (sd *SkillDispatcher) processSkills(triggeredSkills []model.SkillDefinition
 		}
 	}
 
+	if ctx != nil &&
+		ctx.Trigger == model.TriggerOnPhaseEnd &&
+		ctx.TriggerCtx != nil &&
+		ctx.TriggerCtx.ActionType == model.ActionAttack &&
+		ctx.User != nil &&
+		sd.engine.isBeastSamurai(ctx.User) &&
+		!containsSkillID(optionalSkillIDs, "bs_one_strike_no_thought") &&
+		sd.engine.beastSamuraiZanshin(ctx.User) >= beastSamuraiZanshinCapEngine {
+		if skillDef := findCharacterSkill(ctx.User.Character, "bs_one_strike_no_thought"); skillDef != nil {
+			if handler := skills.GetHandler(skillDef.LogicHandler); handler != nil && handler.CanUse(ctx) {
+				optionalSkillIDs = append(optionalSkillIDs, skillDef.ID)
+				sharedCtx = ctx
+			}
+		}
+	}
+
 	optionalSkillIDs = sd.normalizeResponseSkillOrder(optionalSkillIDs, ctx)
 
 	// 如果有 Startup 技能，推送 Startup 中断 (优先于 Response)
@@ -354,7 +462,9 @@ func (sd *SkillDispatcher) processSkills(triggeredSkills []model.SkillDefinition
 			SkillIDs: startupSkillIDs,
 			Context:  sharedCtx,
 		}
-		sd.engine.State.Phase = model.PhaseStartup // Ensure phase is correct
+		sd.engine.setTurnStage(model.TurnStageActionStart)
+		sd.engine.clearCombatStage()
+		sd.engine.clearSubflow()
 		sd.engine.Log(fmt.Sprintf("[Startup] %s 有 %d 个启动技能可以发动", ctx.User.Name, len(startupSkillIDs)))
 		return // 暂不处理其他中断，一次只处理一种类型
 	}
@@ -424,6 +534,7 @@ func (sd *SkillDispatcher) executeSkill(skill model.SkillDefinition, ctx *model.
 	if handler == nil {
 		return
 	}
+	beforePoses := sd.engine.snapshotPlayerPoses()
 
 	// 记录回合使用次数
 	if model.ContainsSkillTag(skill.Tags, model.TagTurnLimit) {
@@ -451,6 +562,8 @@ func (sd *SkillDispatcher) executeSkill(skill model.SkillDefinition, ctx *model.
 		fmt.Printf("[Skill Error] %s 执行失败: %v\n", skill.Title, err)
 		return
 	}
+	sd.engine.syncPendingDamageRuntimeFromContext(ctx)
+	sd.engine.dispatchOrientationChanges(beforePoses)
 
 	if ctx != nil && ctx.Game != nil && ctx.User != nil {
 		if engine, ok := ctx.Game.(*GameEngine); ok {
@@ -464,6 +577,15 @@ func (sd *SkillDispatcher) executeSkill(skill model.SkillDefinition, ctx *model.
 		ctx.Game.Log(fmt.Sprintf("[Skill] %s 使用了技能: %s", ctx.User.Name, skill.Title))
 	}
 	fmt.Printf("[Skill] %s 发动 [%s]\n", ctx.User.Name, skill.Title)
+}
+
+func containsSkillID(skillIDs []string, skillID string) bool {
+	for _, id := range skillIDs {
+		if id == skillID {
+			return true
+		}
+	}
+	return false
 }
 
 // ConfirmStartupSkill 确认执行启动技能
@@ -688,22 +810,19 @@ func (sd *SkillDispatcher) ConfirmResponseSkill(playerID string, skillID string)
 				"remaining_skills": sd.getOtherUsableSkills(skillID, player, ctx),
 			},
 		}
-		sd.engine.State.Phase = model.PhaseDiscardSelection
+		sd.engine.enterDiscardSelection()
 		sd.engine.Log(fmt.Sprintf("%s 确认发动 [%s]，请选择弃牌", player.Name, skillDef.Title))
 		sd.engine.notifyInterruptPrompt() // 新增：发送弃牌选择 prompt 到前端
 		return nil
 
 	case model.InteractionNone:
+		resumeState := sd.engine.captureResponseResumeStateFromContext(responseCompletionConfirm, skillID, ctx)
+
 		// 无交互：直接执行技能
 		sd.executeSkill(*skillDef, ctx)
 
 		// 2. 检查是否需要恢复暂停的逻辑
-		if ctx.Trigger == model.TriggerBeforeDraw {
-			sd.engine.resumePendingDraw(ctx)
-		} else if ctx.Trigger == model.TriggerOnAttackHit {
-			// 恢复战斗流程：推进 PendingDamage 到 Stage1，继续统一伤害管线。
-			sd.engine.advancePendingAttackDamageStageAfterHit(ctx)
-		}
+		sd.engine.prepareConfirmedResponseResume(resumeState)
 
 		// 3. 【核心逻辑】执行完当前技能后，检查是否还有其他技能可以发动
 		// (例如：刚发动了风怒，看看剑影是否还能发动)
@@ -720,46 +839,7 @@ func (sd *SkillDispatcher) ConfirmResponseSkill(playerID string, skillID string)
 		// 没有剩余技能，继续原有流程
 		// 清除中断，恢复游戏流程
 		sd.engine.PopInterrupt()
-		if sd.engine.State.PendingInterrupt == nil && ctx.Trigger == model.TriggerOnAttackMiss {
-			if sd.engine.resumePendingAttackMiss(ctx) {
-				return nil
-			}
-		}
-		if sd.engine.State.PendingInterrupt == nil && ctx.Trigger == model.TriggerBeforeMoraleLoss {
-			if sd.engine.resumePendingMoraleLoss(ctx) {
-				return nil
-			}
-		}
-
-		// 检查是否还有其他待处理的响应 (队列为空时才尝试 NextTurn)
-		if sd.engine.State.PendingInterrupt == nil {
-			if len(sd.engine.State.ActionStack) > 0 {
-				// 优先级 1: 如果栈里还有 Action (比如战斗响应中触发技能)，继续响应
-				sd.engine.State.Phase = model.PhaseResponse
-			} else if len(sd.engine.State.ActionQueue) > 0 {
-				// 优先级 2: 如果队列里还有行动 (说明是在 PhaseBeforeAction 中触发的技能)
-				// 必须回到 BeforeAction 继续执行该行动 (如攻击结算)
-				sd.engine.State.Phase = model.PhaseBeforeAction
-			} else {
-				// 优先级 3: 既没响应也没行动，才去回合结束检查 (处理额外行动 Token)
-				if len(sd.engine.State.PendingDamageQueue) > 0 {
-					sd.engine.State.Phase = model.PhasePendingDamageResolution
-					// 保留既有 ReturnPhase（例如战斗承伤路径预设的 ExtraAction），避免误跳过攻击后流程。
-					// 但若 ReturnPhase 意外为 Response（常见于在响应阶段入队延迟伤害），
-					// 伤害结算后回到 Response 会导致无中断可处理而停滞。
-					if sd.engine.State.ReturnPhase == "" || sd.engine.State.ReturnPhase == model.PhaseResponse {
-						if ctx.Trigger == model.TriggerOnPhaseEnd {
-							// 行动结束响应（如赤色一闪）结算完应回到额外行动阶段。
-							sd.engine.State.ReturnPhase = model.PhaseExtraAction
-						} else {
-							sd.engine.State.ReturnPhase = model.PhaseTurnEnd
-						}
-					}
-				} else {
-					sd.engine.State.Phase = model.PhaseTurnEnd
-				}
-			}
-		}
+		sd.engine.restoreConfirmedResponseAfterPop(resumeState)
 
 	default:
 		return fmt.Errorf("未知的交互类型: %s", skillDef.InteractionType)
@@ -779,6 +859,9 @@ func (sd *SkillDispatcher) getOtherUsableSkills(currentSkillID string, player *m
 		if sid == currentSkillID {
 			continue // 跳过刚才执行过的技能
 		}
+		if isMutuallyExclusiveResponseSkill(currentSkillID, sid) {
+			continue
+		}
 
 		// 重新验证技能是否仍然可用 (因为刚才执行的技能可能消耗了水晶/宝石)
 		if sd.isSkillStillUsable(sid, player, ctx) {
@@ -786,4 +869,19 @@ func (sd *SkillDispatcher) getOtherUsableSkills(currentSkillID string, player *m
 		}
 	}
 	return remainingSkillIDs
+}
+
+func isMutuallyExclusiveResponseSkill(currentSkillID string, otherSkillID string) bool {
+	if currentSkillID == "" || otherSkillID == "" {
+		return false
+	}
+	if (currentSkillID == "elf_animal_companion" || currentSkillID == "elf_pet_empower") &&
+		(otherSkillID == "elf_animal_companion" || otherSkillID == "elf_pet_empower") {
+		return true
+	}
+	if (currentSkillID == "hom_rage_suppress" || currentSkillID == "hom_glyph_fusion") &&
+		(otherSkillID == "hom_rage_suppress" || otherSkillID == "hom_glyph_fusion") {
+		return true
+	}
+	return false
 }

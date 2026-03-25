@@ -19,19 +19,22 @@ func TestPrayerForm_PersistsAfterTurnEnd(t *testing.T) {
 
 	game.State.Deck = rules.InitDeck()
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseTurnEnd
+	game.State.TurnStage = model.TurnStageTurnEnd
 
 	p1 := game.State.Players["p1"]
 	p1.IsActive = true
-	p1.Tokens["prayer_form"] = 1
+	p1.Form = model.FormPrayerMasterPrayer
 	p1.Tokens["prayer_rune"] = 3
 
 	game.Drive()
 
-	if got := p1.Tokens["prayer_form"]; got != 1 {
-		t.Fatalf("expected prayer_form remain 1 after turn end, got %d", got)
+	if got := p1.Form; got != model.FormPrayerMasterPrayer {
+		t.Fatalf("expected prayer form remain %q after turn end, got %q", model.FormPrayerMasterPrayer, got)
 	}
 	if got := p1.Tokens["prayer_rune"]; got != 3 {
 		t.Fatalf("expected prayer_rune remain 3 after turn end, got %d", got)
+	}
+	if got := game.GetMaxHand(p1); got != 5 {
+		t.Fatalf("expected prayer form fixed max hand=5, got %d", got)
 	}
 }

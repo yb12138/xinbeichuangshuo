@@ -84,7 +84,7 @@ func TestUIRegression_YellowSpring_HidesCounterOptionInResponsePrompt(t *testing
 	}
 
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	if err := game.HandleAction(model.PlayerAction{
 		PlayerID:  "p1",
@@ -120,107 +120,64 @@ func TestUIRegression_YellowSpring_HidesCounterOptionInResponsePrompt(t *testing
 	}
 }
 
-// UI回归：血气屏障“确认弹框”和“目标弹框”都允许取消，且取消后流程不报错不卡住。
-func TestUIRegression_CrimsonBloodBarrier_TwoLevelCancelFlow(t *testing.T) {
-	makeGame := func() *engine.GameEngine {
-		game := engine.NewGameEngine(nil)
-		if err := game.AddPlayer("p1", "血色剑灵", "crimson_sword_spirit", model.RedCamp); err != nil {
-			t.Fatal(err)
-		}
-		if err := game.AddPlayer("p2", "敌人", "angel", model.BlueCamp); err != nil {
-			t.Fatal(err)
-		}
-		p1 := game.State.Players["p1"]
-		p2 := game.State.Players["p2"]
-		p1.IsActive = false
-		p2.IsActive = true
-		p1.TurnState = model.NewPlayerTurnState()
-		p2.TurnState = model.NewPlayerTurnState()
-		p1.Tokens["css_blood"] = 1
-		p2.Hand = []model.Card{
-			{ID: "mb1", Name: "魔弹", Type: model.CardTypeMagic, Element: model.ElementWater, Damage: 2},
-		}
-		game.State.CurrentTurn = 1
-		game.State.Phase = model.PhaseActionSelection
-		return game
+// UI回归：血气屏障确认后应直接结算“伤害-1并反打来源”，不再进入额外确认/选目标弹框。
+func TestUIRegression_CrimsonBloodBarrier_ResolvesWithoutNestedChoicePrompt(t *testing.T) {
+	game := engine.NewGameEngine(nil)
+	if err := game.AddPlayer("p1", "血色剑灵", "crimson_sword_spirit", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "敌人", "angel", model.BlueCamp); err != nil {
+		t.Fatal(err)
 	}
 
-	triggerBloodBarrier := func(game *engine.GameEngine) {
-		// 端到端：由敌方打出魔弹，血色剑灵选择承受后触发血气屏障。
-		if err := game.HandleAction(model.PlayerAction{
-			PlayerID:  "p2",
-			Type:      model.CmdMagic,
-			CardIndex: 0,
-		}); err != nil {
-			t.Fatalf("敌方打出魔弹失败: %v", err)
-		}
-		if err := game.HandleAction(model.PlayerAction{
-			PlayerID:  "p1",
-			Type:      model.CmdRespond,
-			ExtraArgs: []string{"take"},
-		}); err != nil {
-			t.Fatalf("血色剑灵承受魔弹失败: %v", err)
-		}
-		if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptResponseSkill {
-			t.Fatalf("预期出现血气屏障响应技能中断，实际: %+v", game.State.PendingInterrupt)
-		}
-		if !interruptHasSkillIDUI(game.State.PendingInterrupt, "css_blood_barrier") {
-			t.Fatalf("预期包含 css_blood_barrier，实际技能列表: %+v", game.State.PendingInterrupt.SkillIDs)
-		}
-		if err := game.ConfirmResponseSkill("p1", "css_blood_barrier"); err != nil {
-			t.Fatalf("确认血气屏障失败: %v", err)
-		}
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p1.IsActive = false
+	p2.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p2.TurnState = model.NewPlayerTurnState()
+	p1.Tokens["css_blood"] = 1
+	p2.Hand = []model.Card{
+		{ID: "mb1", Name: "魔弹", Type: model.CardTypeMagic, Element: model.ElementWater, Damage: 2},
+	}
+	game.State.CurrentTurn = 1
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	if err := game.HandleAction(model.PlayerAction{
+		PlayerID:  "p2",
+		Type:      model.CmdMagic,
+		CardIndex: 0,
+	}); err != nil {
+		t.Fatalf("敌方打出魔弹失败: %v", err)
+	}
+	if err := game.HandleAction(model.PlayerAction{
+		PlayerID:  "p1",
+		Type:      model.CmdRespond,
+		ExtraArgs: []string{"take"},
+	}); err != nil {
+		t.Fatalf("血色剑灵承受魔弹失败: %v", err)
+	}
+	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptResponseSkill {
+		t.Fatalf("预期出现血气屏障响应技能中断，实际: %+v", game.State.PendingInterrupt)
+	}
+	if !interruptHasSkillIDUI(game.State.PendingInterrupt, "css_blood_barrier") {
+		t.Fatalf("预期包含 css_blood_barrier，实际技能列表: %+v", game.State.PendingInterrupt.SkillIDs)
+	}
+	if err := game.ConfirmResponseSkill("p1", "css_blood_barrier"); err != nil {
+		t.Fatalf("确认血气屏障失败: %v", err)
 	}
 
-	t.Run("确认弹框可取消", func(t *testing.T) {
-		game := makeGame()
-		triggerBloodBarrier(game)
-
-		if ct := choiceTypeOfPendingInterruptUI(game.State.PendingInterrupt); ct != "css_blood_barrier_counter_confirm" {
-			t.Fatalf("预期确认弹框中断，实际 choice_type=%q", ct)
+	if game.State.PendingInterrupt != nil {
+		t.Fatalf("血气屏障确认后不应再出现二级弹框，实际: %+v", game.State.PendingInterrupt)
+	}
+	foundReflect := false
+	for _, pd := range game.State.PendingDamageQueue {
+		if pd.SourceID == "p1" && pd.TargetID == "p2" && pd.Damage == 1 && pd.DamageType == "magic" {
+			foundReflect = true
+			break
 		}
-		prompt := game.GetCurrentPrompt()
-		if !hasPromptOptionUI(prompt, "cancel") {
-			t.Fatalf("确认弹框应包含取消按钮，实际: %+v", prompt)
-		}
-		if err := game.HandleAction(model.PlayerAction{
-			PlayerID: "p1",
-			Type:     model.CmdCancel,
-		}); err != nil {
-			t.Fatalf("取消确认弹框失败: %v", err)
-		}
-		if game.State.PendingInterrupt != nil {
-			t.Fatalf("取消后应清空中断，实际: %+v", game.State.PendingInterrupt)
-		}
-	})
-
-	t.Run("目标弹框可取消", func(t *testing.T) {
-		game := makeGame()
-		triggerBloodBarrier(game)
-
-		if err := game.HandleAction(model.PlayerAction{
-			PlayerID:   "p1",
-			Type:       model.CmdSelect,
-			Selections: []int{0}, // 先选“是”进入目标弹框
-		}); err != nil {
-			t.Fatalf("确认进入目标弹框失败: %v", err)
-		}
-
-		if ct := choiceTypeOfPendingInterruptUI(game.State.PendingInterrupt); ct != "css_blood_barrier_target" {
-			t.Fatalf("预期目标弹框中断，实际 choice_type=%q", ct)
-		}
-		prompt := game.GetCurrentPrompt()
-		if !hasPromptOptionUI(prompt, "cancel") {
-			t.Fatalf("目标弹框应包含取消按钮，实际: %+v", prompt)
-		}
-		if err := game.HandleAction(model.PlayerAction{
-			PlayerID: "p1",
-			Type:     model.CmdCancel,
-		}); err != nil {
-			t.Fatalf("取消目标弹框失败: %v", err)
-		}
-		if game.State.PendingInterrupt != nil {
-			t.Fatalf("取消后应清空中断，实际: %+v", game.State.PendingInterrupt)
-		}
-	})
+	}
+	if !foundReflect {
+		t.Fatalf("预期存在反打来源 p2 的1点法术伤害，实际: %+v", game.State.PendingDamageQueue)
+	}
 }

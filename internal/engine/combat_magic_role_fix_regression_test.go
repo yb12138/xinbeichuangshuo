@@ -17,7 +17,7 @@ func TestAssassinStealthAttack_NoCounterAndBonusDamage(t *testing.T) {
 	}
 
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 	game.State.Deck = rules.InitDeck()
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]
@@ -26,18 +26,7 @@ func TestAssassinStealthAttack_NoCounterAndBonusDamage(t *testing.T) {
 	p2.TurnState = model.NewPlayerTurnState()
 	p1.Gem = 1
 	p1.Crystal = 2 // X=3
-	p1.AddFieldCard(&model.FieldCard{
-		Card: model.Card{
-			ID:   "stealth-fc",
-			Name: "潜行",
-			Type: model.CardTypeMagic,
-		},
-		OwnerID:  p1.ID,
-		SourceID: p1.ID,
-		Mode:     model.FieldEffect,
-		Effect:   model.EffectStealth,
-		Trigger:  model.EffectTriggerManual,
-	})
+	enterAssassinStealthForm(p1)
 	p1.Hand = []model.Card{
 		{ID: "atk1", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 1},
 	}
@@ -88,7 +77,7 @@ func TestSaintessFrostPrayer_PromptTargetAndHeal(t *testing.T) {
 	}
 
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]
 	p1.IsActive = true
@@ -149,7 +138,7 @@ func TestSaintessFrostPrayer_PromptTargetAndHeal(t *testing.T) {
 	}
 }
 
-func TestMagicalGirlMagicBulletFusion_ActionSkill(t *testing.T) {
+func TestMagicalGirlMagicBulletFusion_PromptsOnFireMagic(t *testing.T) {
 	game := NewGameEngine(noopObserver{})
 	if err := game.AddPlayer("p1", "Girl", "magical_girl", model.RedCamp); err != nil {
 		t.Fatalf("add p1 failed: %v", err)
@@ -159,24 +148,24 @@ func TestMagicalGirlMagicBulletFusion_ActionSkill(t *testing.T) {
 	}
 
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 	p1 := game.State.Players["p1"]
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
 	p1.Hand = []model.Card{
-		{ID: "f1", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2},
+		{ID: "f1", Name: "火球术", Type: model.CardTypeMagic, Element: model.ElementFire, Damage: 2},
 	}
 
 	if err := game.HandleAction(model.PlayerAction{
-		PlayerID:   "p1",
-		Type:       model.CmdSkill,
-		SkillID:    "magic_bullet_fusion",
-		Selections: []int{0},
+		PlayerID:  "p1",
+		Type:      model.CmdMagic,
+		TargetID:  "p2",
+		CardIndex: 0,
 	}); err != nil {
-		t.Fatalf("magic_bullet_fusion failed: %v", err)
+		t.Fatalf("magic cast failed: %v", err)
 	}
 
-	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptMagicBulletDirection {
-		t.Fatalf("expected magic bullet direction prompt after fusion, got %+v", game.State.PendingInterrupt)
+	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptMagicBulletFusion {
+		t.Fatalf("expected magic bullet fusion prompt, got %+v", game.State.PendingInterrupt)
 	}
 }

@@ -1,11 +1,13 @@
 <script setup lang="ts">
+import { storeToRefs } from 'pinia'
 import { computed } from 'vue'
-import { useGameStore } from '../stores/gameStore'
+import { useBattleFxStore } from '../stores/battlefx.store'
 
-const store = useGameStore()
+const battleFxStore = useBattleFxStore()
+const { combatCue } = storeToRefs(battleFxStore)
 
 const duelPhaseLabel = computed(() => {
-  const phase = store.combatCue?.phase
+  const phase = combatCue.value?.phase
   if (phase === 'attack') return '攻击'
   if (phase === 'defend') return '防御'
   if (phase === 'counter') return '应战'
@@ -17,8 +19,8 @@ const duelPhaseLabel = computed(() => {
 <template>
   <div class="battle-zone battle-zone-shell min-h-[90px]">
     <div class="battle-content">
-      <div v-if="store.combatCue" :key="store.combatCue.id" class="duel-center-only">
-        <div class="duel-effect" :class="`phase-${store.combatCue.phase}`">{{ duelPhaseLabel }}</div>
+      <div v-if="combatCue" :key="combatCue.id" class="duel-center-only">
+        <div class="duel-effect" :class="`phase-${combatCue.phase}`">{{ duelPhaseLabel }}</div>
       </div>
 
       <div

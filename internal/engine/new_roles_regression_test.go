@@ -37,11 +37,10 @@ func TestPlagueMageCannotUseHealAgainstAttackDamage(t *testing.T) {
 			TargetID:   "p2",
 			Damage:     1,
 			DamageType: "Attack",
-			Stage:      0,
 		},
 	}
-	g.State.Phase = model.PhasePendingDamageResolution
-	g.State.ReturnPhase = model.PhaseTurnEnd
+	g.State.CombatStage = model.CombatStageCalcDamage
+	g.State.ReturnTurnStage = model.TurnStageTurnEnd
 
 	g.Drive()
 
@@ -71,11 +70,10 @@ func TestPlagueMageCanUseHealAgainstMagicDamage(t *testing.T) {
 			TargetID:   "p2",
 			Damage:     1,
 			DamageType: "magic",
-			Stage:      0,
 		},
 	}
-	g.State.Phase = model.PhasePendingDamageResolution
-	g.State.ReturnPhase = model.PhaseTurnEnd
+	g.State.CombatStage = model.CombatStageCalcDamage
+	g.State.ReturnTurnStage = model.TurnStageTurnEnd
 
 	g.Drive()
 
@@ -100,12 +98,12 @@ func TestMagicSwordsmanShadowRejectHidesMagicOption(t *testing.T) {
 
 	p1 := g.State.Players["p1"]
 	p1.IsActive = true
-	p1.Tokens["ms_shadow_form"] = 1
+	enterMagicSwordsmanShadowForm(p1)
 	p1.Hand = []model.Card{
 		{ID: "m1", Name: "中毒", Type: model.CardTypeMagic, Element: model.ElementEarth},
 	}
 	g.State.CurrentTurn = 0
-	g.State.Phase = model.PhaseActionSelection
+	g.State.TurnStage = model.TurnStageActionExecution
 
 	g.Drive()
 
@@ -141,7 +139,7 @@ func TestMagicSwordsmanShadowGather_PersistsThisTurnAndReleasesNextTurn(t *testi
 
 	g.State.Deck = rules.InitDeck()
 	g.State.CurrentTurn = 0
-	g.State.Phase = model.PhaseStartup
+	g.State.TurnStage = model.TurnStageActionStart
 
 	p1 := g.State.Players["p1"]
 	p2 := g.State.Players["p2"]
@@ -176,8 +174,8 @@ func TestMagicSwordsmanShadowGather_PersistsThisTurnAndReleasesNextTurn(t *testi
 	}
 
 	// 回到同回合行动阶段时，仍应保持暗影形态。
-	if p1.Tokens["ms_shadow_form"] <= 0 {
-		t.Fatalf("shadow form should persist in current turn after startup confirm")
+	if p1.Form != model.FormMagicSwordsmanShadow {
+		t.Fatalf("shadow form should persist in current turn after startup confirm, got %q", p1.Form)
 	}
 	if p1.Tokens["ms_shadow_release_pending"] <= 0 {
 		t.Fatalf("shadow release pending flag should remain until next own startup")
@@ -189,7 +187,7 @@ func TestMagicSwordsmanShadowGather_PersistsThisTurnAndReleasesNextTurn(t *testi
 	}
 	p2.Hand = nil
 	p2.Heal = 0
-	g.State.Phase = model.PhaseActionSelection
+	g.State.TurnStage = model.TurnStageActionExecution
 
 	if err := g.HandleAction(model.PlayerAction{
 		PlayerID:  "p1",
@@ -213,12 +211,12 @@ func TestMagicSwordsmanShadowGather_PersistsThisTurnAndReleasesNextTurn(t *testi
 	// 模拟下一次自己回合开始：应自动转正脱离暗影形态。
 	p1.TurnState = model.NewPlayerTurnState()
 	g.State.CurrentTurn = 0
-	g.State.Phase = model.PhaseStartup
+	g.State.TurnStage = model.TurnStageActionStart
 	g.State.PendingInterrupt = nil
 	g.Drive()
 
-	if p1.Tokens["ms_shadow_form"] != 0 {
-		t.Fatalf("shadow form should be released at next own startup")
+	if p1.Form != "" {
+		t.Fatalf("shadow form should be released at next own startup, got %q", p1.Form)
 	}
 	if p1.Tokens["ms_shadow_release_pending"] != 0 {
 		t.Fatalf("shadow release pending should be cleared at next own startup")
@@ -243,7 +241,7 @@ func TestMagicSwordsmanAsuraCombo_OnlyOncePerTurn(t *testing.T) {
 	g.State.CurrentTurn = 0
 
 	// 第一次攻击行动结束：应出现修罗连斩可选响应。
-	g.State.Phase = model.PhaseExtraAction
+	g.State.TurnStage = model.TurnStageExtraAction
 	p1.TurnState.LastActionType = string(model.ActionAttack)
 	g.Drive()
 
@@ -275,7 +273,7 @@ func TestMagicSwordsmanAsuraCombo_OnlyOncePerTurn(t *testing.T) {
 
 	// 同回合再次“攻击行动结束”：不应再出现修罗连斩。
 	g.State.PendingInterrupt = nil
-	g.State.Phase = model.PhaseExtraAction
+	g.State.TurnStage = model.TurnStageExtraAction
 	p1.TurnState.LastActionType = string(model.ActionAttack)
 	g.Drive()
 

@@ -55,7 +55,7 @@ func buildActionSelectionEngine(t *testing.T, extraAction string) (*GameEngine, 
 	}
 
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	p1 := game.State.Players["p1"]
 	p1.IsActive = true
@@ -83,7 +83,7 @@ func buildActionSelectionElementalistEngine(t *testing.T, extraAction string) (*
 	}
 
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	p1 := game.State.Players["p1"]
 	p1.IsActive = true
@@ -214,8 +214,8 @@ func TestActionSelection_ExtraActionCannotActSkipsWhenNoLegalAction(t *testing.T
 	if len(p1.TurnState.CurrentExtraElement) != 0 {
 		t.Fatalf("expected extra-action element constraint cleared, got %+v", p1.TurnState.CurrentExtraElement)
 	}
-	if game.State.Phase != model.PhaseTurnEnd {
-		t.Fatalf("expected phase turn_end after skipping extra action, got %s", game.State.Phase)
+	if game.State.TurnStage != model.TurnStageTurnEnd {
+		t.Fatalf("expected turn stage turn_end after skipping extra action, got %s", game.State.TurnStage)
 	}
 }
 
@@ -244,7 +244,7 @@ func TestActionSelection_ExtraMagicAllowsSkill(t *testing.T) {
 	}
 
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 	p1 := game.State.Players["p1"]
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
@@ -263,8 +263,8 @@ func TestActionSelection_ExtraMagicAllowsSkill(t *testing.T) {
 	if len(game.State.PendingDamageQueue) == 0 {
 		t.Fatalf("expected ignite queued pending damage")
 	}
-	if game.State.ReturnPhase != model.PhaseExtraAction {
-		t.Fatalf("expected return phase extra action, got %s", game.State.ReturnPhase)
+	if game.State.ReturnTurnStage != model.TurnStageExtraAction {
+		t.Fatalf("expected return turn stage extra action, got %s", game.State.ReturnTurnStage)
 	}
 }
 
@@ -295,12 +295,12 @@ func TestActionSelectionPrompt_MagicSwordsmanShadowForm_StillShowsMagicWhenSkill
 	}
 
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	p1 := game.State.Players["p1"]
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
-	p1.Tokens["ms_shadow_form"] = 1
+	enterMagicSwordsmanShadowForm(p1)
 	// 暗影流星需要至少2张法术牌弃置；暗影抗拒会禁用法术牌直接打出。
 	p1.Hand = []model.Card{
 		{ID: "m1", Name: "圣光", Type: model.CardTypeMagic, Element: model.ElementLight, Damage: 0},

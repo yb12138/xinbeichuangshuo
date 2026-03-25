@@ -40,6 +40,29 @@ func addToken(p *model.Player, key string, delta int, minV int, maxV int) int {
 	return cur
 }
 
+func hasForm(p *model.Player, form string) bool {
+	return p != nil && p.Form == form
+}
+
+func enterForm(p *model.Player, form string) {
+	if p == nil {
+		return
+	}
+	p.Orientation = model.OrientationTapped
+	p.Form = form
+}
+
+func leaveForm(p *model.Player, form string) {
+	if p == nil {
+		return
+	}
+	if form != "" && p.Form != form {
+		return
+	}
+	p.Orientation = model.OrientationNormal
+	p.Form = ""
+}
+
 func discardFirstMatching(ctx *model.Context, p *model.Player, pred func(model.Card) bool, reveal bool) (model.Card, bool) {
 	for i, c := range p.Hand {
 		if !pred(c) {
@@ -176,7 +199,7 @@ func (h *ValkyrieMilitaryGloryHandler) Execute(ctx *model.Context) error {
 			"max_x":       minInt(2, energy),
 		},
 	})
-	ctx.Game.Log(fmt.Sprintf("%s 的 [军神威光] 触发，等待选择效果", ctx.User.Name))
+	ctx.Game.Log(fmt.Sprintf("%s 的 [军威神光] 触发，等待选择效果", ctx.User.Name))
 	return nil
 }
 
@@ -214,8 +237,12 @@ func (h *ValkyrieHeroicSummonHandler) Execute(ctx *model.Context) error {
 			},
 		})
 	}
-	setToken(ctx.User, "valkyrie_spirit", 1)
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [英灵召唤]，伤害+1并进入英灵形态", ctx.User.Name))
+	if ctx.User.IsActive {
+		setToken(ctx.User, "valkyrie_spirit", 1)
+		ctx.Game.Log(fmt.Sprintf("%s 发动 [英灵召唤]，伤害+1并进入英灵形态", ctx.User.Name))
+		return nil
+	}
+	ctx.Game.Log(fmt.Sprintf("%s 发动 [英灵召唤]，伤害+1", ctx.User.Name))
 	return nil
 }
 
@@ -449,7 +476,7 @@ type ArbiterDoomsdayHandler struct{ BaseHandler }
 type ArbiterBalanceHandler struct{ BaseHandler }
 
 func (h *ArbiterLawHandler) CanUse(ctx *model.Context) bool {
-	return getToken(ctx.User, "arbiter_law_inited") == 0
+	return ctx != nil && ctx.User != nil && getToken(ctx.User, "arbiter_law_inited") == 0
 }
 
 func (h *ArbiterLawHandler) Execute(ctx *model.Context) error {
@@ -469,7 +496,7 @@ func (h *ArbiterJudgmentTideHandler) Execute(ctx *model.Context) error {
 }
 
 func (h *ArbiterRitualHandler) CanUse(ctx *model.Context) bool {
-	return getToken(ctx.User, "arbiter_form") == 0 && ctx.User.Gem > 0
+	return !hasForm(ctx.User, model.FormArbiterJudgment) && ctx.User.Gem > 0
 }
 
 func (h *ArbiterRitualHandler) Execute(ctx *model.Context) error {
@@ -477,30 +504,32 @@ func (h *ArbiterRitualHandler) Execute(ctx *model.Context) error {
 		return nil
 	}
 	ctx.User.Gem--
-	setToken(ctx.User, "arbiter_form", 1)
+	enterForm(ctx.User, model.FormArbiterJudgment)
 	ctx.User.MaxHand = 5
-	v := addToken(ctx.User, "judgment", 1, 0, 4)
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [仲裁仪式]，进入审判形态，审判=%d", ctx.User.Name, v))
+	ctx.Game.Log(fmt.Sprintf("%s 发动 [仲裁仪式]，进入审判形态，手牌上限恒定为5", ctx.User.Name))
 	return nil
 }
 
 func (h *ArbiterRitualBreakHandler) CanUse(ctx *model.Context) bool {
-	return getToken(ctx.User, "arbiter_form") > 0
+	return hasForm(ctx.User, model.FormArbiterJudgment)
 }
 
 func (h *ArbiterRitualBreakHandler) Execute(ctx *model.Context) error {
-	setToken(ctx.User, "arbiter_form", 0)
+	leaveForm(ctx.User, model.FormArbiterJudgment)
 	if ctx.User.Character != nil && ctx.User.Character.MaxHand > 0 {
 		ctx.User.MaxHand = ctx.User.Character.MaxHand
 	} else {
 		ctx.User.MaxHand = 6
 	}
 	ctx.Game.ModifyGem(string(ctx.User.Camp), 1)
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [仪式中断]，脱离审判形态并为阵营+1红宝石", ctx.User.Name))
+	ctx.Game.Log(fmt.Sprintf("%s 发动 [仪式中断]，转正脱离审判形态并为阵营+1宝石", ctx.User.Name))
 	return nil
 }
 
 func (h *ArbiterDoomsdayHandler) CanUse(ctx *model.Context) bool {
+	if ctx == nil || ctx.User == nil {
+		return false
+	}
 	return getToken(ctx.User, "judgment") > 0
 }
 
@@ -513,8 +542,7 @@ func (h *ArbiterDoomsdayHandler) Execute(ctx *model.Context) error {
 	if dmg > 0 {
 		ctx.Game.InflictDamage(ctx.User.ID, ctx.Target.ID, dmg, "magic")
 	}
-	// TODO: “审判满层强制发动”及与虚弱/五系束缚/挑衅优先级联动待补。
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [末日审判]，造成%d点法术伤害", ctx.User.Name, dmg))
+	ctx.Game.Log(fmt.Sprintf("%s 发动 [末日审判]，对 %s 造成%d点法术伤害", ctx.User.Name, ctx.Target.Name, dmg))
 	return nil
 }
 
@@ -744,25 +772,14 @@ type HolyLancerEarthSpearHandler struct{ BaseHandler }
 type HolyLancerPrayerHandler struct{ BaseHandler }
 
 func (h *HolyLancerRevelationHandler) Execute(ctx *model.Context) error {
-	enemy := model.BlueCamp
-	if ctx.User.Camp == model.BlueCamp {
-		enemy = model.RedCamp
+	if ctx == nil || ctx.Game == nil || ctx.User == nil {
+		return nil
 	}
-	if ctx.Game.GetCampCups(string(ctx.User.Camp)) >= ctx.Game.GetCampCups(string(enemy)) {
-		ctx.User.MaxHeal = 3
-	} else {
-		ctx.User.MaxHeal = 2
-		if ctx.User.Heal > ctx.User.MaxHeal {
-			ctx.User.Heal = ctx.User.MaxHeal
-		}
-	}
+	ctx.Game.RefreshPlayerDerivedState(ctx.User.ID)
 	return nil
 }
 
 func (h *HolyLancerRadianceHandler) Execute(ctx *model.Context) error {
-	if _, ok := discardFirstMatching(ctx, ctx.User, func(c model.Card) bool { return c.Element == model.ElementWater }, true); !ok {
-		return fmt.Errorf("辉耀需要弃1张水系牌")
-	}
 	for _, p := range ctx.Game.GetAllPlayers() {
 		ctx.Game.Heal(p.ID, 1)
 	}
@@ -780,9 +797,6 @@ func (h *HolyLancerPunishmentHandler) Execute(ctx *model.Context) error {
 	}
 	if ctx.Target.Heal <= 0 {
 		return fmt.Errorf("惩戒目标没有治疗，无法发动")
-	}
-	if _, ok := discardFirstMatching(ctx, ctx.User, func(c model.Card) bool { return c.Type == model.CardTypeMagic }, true); !ok {
-		return fmt.Errorf("惩戒需要弃1张法术牌")
 	}
 	ctx.Target.Heal--
 	if ctx.User.Heal < ctx.User.MaxHeal {
@@ -877,7 +891,6 @@ func (h *HolyLancerPrayerHandler) CanUse(ctx *model.Context) bool {
 }
 
 func (h *HolyLancerPrayerHandler) Execute(ctx *model.Context) error {
-	ctx.User.Gem--
 	ctx.User.Heal += 2
 	if ctx.User.Heal > 5 {
 		ctx.User.Heal = 5
@@ -946,26 +959,53 @@ func (h *ElfElementalShotHandler) Execute(ctx *model.Context) error {
 	return nil
 }
 
-func (h *ElfAnimalCompanionHandler) CanUse(ctx *model.Context) bool {
-	// 动物伙伴由 processPendingDamages -> handlePostDamageResolved 在“造成伤害结算后”单点触发，
-	// 这里禁用通用 Trigger 调度，避免在 Buy/Extract 等 PhaseEnd 动作后误弹响应。
-	return false
-}
-
-func (h *ElfAnimalCompanionHandler) Execute(ctx *model.Context) error {
-	ctx.Game.PushInterrupt(&model.Interrupt{
-		Type:     model.InterruptChoice,
-		PlayerID: ctx.User.ID,
+func resolveElfForcedDrawDiscard(game model.IGameEngine, target *model.Player, prompt string, excludeBlessings bool) error {
+	if game == nil || target == nil {
+		return fmt.Errorf("动物伙伴结算目标无效")
+	}
+	game.DrawCards(target.ID, 1)
+	if len(target.Hand) > game.GetMaxHand(target) {
+		game.Log(fmt.Sprintf("[精灵射手] %s 摸牌后触发爆牌，本次弃1由爆牌弃牌结算承担", target.Name))
+		return nil
+	}
+	game.PushInterrupt(&model.Interrupt{
+		Type:     model.InterruptDiscard,
+		PlayerID: target.ID,
 		Context: map[string]interface{}{
-			"choice_type": "elf_animal_companion_confirm",
-			"user_id":     ctx.User.ID,
+			"discard_count":     1,
+			"stay_in_turn":      true,
+			"prompt":            prompt,
+			"exclude_blessings": excludeBlessings,
 		},
 	})
 	return nil
 }
 
+func (h *ElfAnimalCompanionHandler) CanUse(ctx *model.Context) bool {
+	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.Target == nil || ctx.TriggerCtx == nil || ctx.TriggerCtx.DamageVal == nil {
+		return false
+	}
+	if ctx.Trigger != model.TriggerOnDamageTaken || *ctx.TriggerCtx.DamageVal <= 0 {
+		return false
+	}
+	if ctx.TriggerCtx.SourceID != ctx.User.ID || ctx.TriggerCtx.TargetID == "" || ctx.TriggerCtx.TargetID == ctx.User.ID {
+		return false
+	}
+	if ctx.TriggerCtx.Card == nil || ctx.TriggerCtx.Card.Type != model.CardTypeAttack {
+		return false
+	}
+	if ctx.TriggerCtx.AttackInfo == nil || ctx.TriggerCtx.AttackInfo.CounterInitiator != "" {
+		return false
+	}
+	return ctx.User.IsActive
+}
+
+func (h *ElfAnimalCompanionHandler) Execute(ctx *model.Context) error {
+	return resolveElfForcedDrawDiscard(ctx.Game, ctx.User, "【动物伙伴】请选择弃置1张牌：", true)
+}
+
 func (h *ElfRitualHandler) CanUse(ctx *model.Context) bool {
-	return ctx.User.Gem > 0 && getToken(ctx.User, "elf_ritual_form") == 0
+	return ctx.User.Gem > 0 && !hasForm(ctx.User, model.FormElfArcherRitual)
 }
 
 func (h *ElfRitualHandler) Execute(ctx *model.Context) error {
@@ -973,11 +1013,12 @@ func (h *ElfRitualHandler) Execute(ctx *model.Context) error {
 		return fmt.Errorf("精灵密仪需要至少1个红宝石")
 	}
 	ctx.User.Gem--
-	setToken(ctx.User, "elf_ritual_form", 1)
+	enterForm(ctx.User, model.FormElfArcherRitual)
 	before := len(ctx.User.Hand)
-	setToken(ctx.User, "elf_ritual_suppress_overflow", 1)
-	ctx.Game.DrawCards(ctx.User.ID, 3)
-	setToken(ctx.User, "elf_ritual_suppress_overflow", 0)
+	ctx.Game.DrawCardsWithOptions(ctx.User.ID, 3, model.DrawOptions{
+		PreventOverflow: true,
+		Reason:          "elf_ritual",
+	})
 
 	if len(ctx.User.Hand)-before < 3 {
 		return fmt.Errorf("精灵密仪抽取祝福数量不足")
@@ -990,18 +1031,44 @@ func (h *ElfRitualHandler) Execute(ctx *model.Context) error {
 }
 
 func (h *ElfPetEmpowerHandler) CanUse(ctx *model.Context) bool {
-	return canPayCrystalLike(ctx, 1)
+	if !canPayCrystalLike(ctx, 1) {
+		return false
+	}
+	if ctx == nil || ctx.User == nil || ctx.Target == nil || ctx.TriggerCtx == nil || ctx.TriggerCtx.DamageVal == nil {
+		return false
+	}
+	if ctx.Trigger != model.TriggerOnDamageTaken || *ctx.TriggerCtx.DamageVal <= 0 {
+		return false
+	}
+	if ctx.TriggerCtx.SourceID != ctx.User.ID || ctx.TriggerCtx.TargetID != ctx.Target.ID {
+		return false
+	}
+	if ctx.TriggerCtx.Card == nil || ctx.TriggerCtx.Card.Type != model.CardTypeAttack {
+		return false
+	}
+	if ctx.TriggerCtx.AttackInfo == nil || ctx.TriggerCtx.AttackInfo.CounterInitiator != "" {
+		return false
+	}
+	return ctx.User.IsActive && ctx.Target.Camp != ctx.User.Camp
 }
 
 func (h *ElfPetEmpowerHandler) Execute(ctx *model.Context) error {
 	if !canPayCrystalLike(ctx, 1) {
 		return fmt.Errorf("宠物强化需要至少1个蓝水晶")
 	}
+	if ctx == nil || ctx.Target == nil {
+		return fmt.Errorf("宠物强化缺少受伤目标")
+	}
 	if !spendCrystalLike(ctx, 1) {
 		return fmt.Errorf("宠物强化结算失败：水晶不足（红宝石可替代）")
 	}
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [宠物强化]，动物伙伴效果改为目标摸1弃1", ctx.User.Name))
-	return nil
+	return resolveElfForcedDrawDiscard(
+		ctx.Game,
+		ctx.Target,
+		fmt.Sprintf("【宠物强化】%s 请弃置1张牌：", ctx.Target.Name),
+		ctx.Target.Character != nil && ctx.Target.Character.ID == "elf_archer",
+	)
 }
 
 // --- 15. 瘟疫法师 ---
@@ -1017,18 +1084,13 @@ type PlagueDeathTouchHandler struct{ BaseHandler }
 type PlagueToxicNovaHandler struct{ BaseHandler }
 
 func (h *PlagueImmortalHandler) CanUse(ctx *model.Context) bool {
-	if ctx.Trigger != model.TriggerOnPhaseEnd || ctx.TriggerCtx == nil {
+	if ctx == nil || ctx.User == nil || ctx.Trigger != model.TriggerOnPhaseEnd || ctx.TriggerCtx == nil {
 		return false
 	}
 	if ctx.TriggerCtx.ActionType != model.ActionMagic {
 		return false
 	}
-	if ctx.TriggerCtx.Card != nil {
-		if ctx.TriggerCtx.Card.Name == "圣光" || ctx.TriggerCtx.Card.Name == "魔弹" {
-			return false
-		}
-	}
-	return true
+	return ctx.User.IsActive
 }
 
 func (h *PlagueImmortalHandler) Execute(ctx *model.Context) error {
@@ -1055,14 +1117,13 @@ func (h *PlagueOutbreakHandler) Execute(ctx *model.Context) error {
 			continue
 		}
 		ctx.Game.AddPendingDamage(model.PendingDamage{
-			SourceID:   ctx.User.ID,
-			TargetID:   p.ID,
-			Damage:     1,
-			DamageType: "magic",
-			Stage:      0,
+			SourceID:      ctx.User.ID,
+			TargetID:      p.ID,
+			Damage:        1,
+			DamageType:    "magic",
+			SourceSkillID: "plague_outbreak",
 		})
 	}
-	ctx.Game.Heal(ctx.User.ID, 1)
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [瘟疫]，按逆序对其余角色各造成1点法术伤害", ctx.User.Name))
 	return nil
 }
@@ -1086,6 +1147,9 @@ func (h *PlagueDeathTouchHandler) CanUse(ctx *model.Context) bool {
 }
 
 func (h *PlagueDeathTouchHandler) Execute(ctx *model.Context) error {
+	if ctx.Target == nil {
+		return fmt.Errorf("死亡之触需要1名敌方目标")
+	}
 	if ctx.User.Heal < 2 {
 		return fmt.Errorf("死亡之触需要至少2点治疗")
 	}
@@ -1115,6 +1179,7 @@ func (h *PlagueDeathTouchHandler) Execute(ctx *model.Context) error {
 		Context: map[string]interface{}{
 			"choice_type":      "plague_death_touch_element",
 			"user_id":          ctx.User.ID,
+			"target_id":        ctx.Target.ID,
 			"elements":         elements,
 			"max_heal":         ctx.User.Heal,
 			"element_counts":   counts,
@@ -1130,10 +1195,6 @@ func (h *PlagueToxicNovaHandler) CanUse(ctx *model.Context) bool {
 }
 
 func (h *PlagueToxicNovaHandler) Execute(ctx *model.Context) error {
-	if ctx.User.Gem <= 0 {
-		return fmt.Errorf("剧毒新星需要红宝石")
-	}
-	ctx.User.Gem--
 	ordered := reverseOrderPlayers(ctx.Game.GetAllPlayers(), ctx.User.ID)
 	for _, p := range ordered {
 		if p.ID == ctx.User.ID {
@@ -1144,7 +1205,6 @@ func (h *PlagueToxicNovaHandler) Execute(ctx *model.Context) error {
 			TargetID:   p.ID,
 			Damage:     2,
 			DamageType: "magic",
-			Stage:      0,
 		})
 	}
 	ctx.Game.Heal(ctx.User.ID, 1)
@@ -1177,12 +1237,7 @@ func (h *MagicSwordsmanAsuraComboHandler) CanUse(ctx *model.Context) bool {
 	if ctx.TriggerCtx.AttackInfo != nil && ctx.TriggerCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
-	for _, c := range ctx.User.Hand {
-		if c.Type == model.CardTypeAttack && c.Element == model.ElementFire {
-			return true
-		}
-	}
-	return false
+	return true
 }
 
 func (h *MagicSwordsmanAsuraComboHandler) Execute(ctx *model.Context) error {
@@ -1196,18 +1251,17 @@ func (h *MagicSwordsmanAsuraComboHandler) Execute(ctx *model.Context) error {
 }
 
 func (h *MagicSwordsmanShadowGatherHandler) CanUse(ctx *model.Context) bool {
-	return getToken(ctx.User, "ms_shadow_form") == 0
+	return !hasForm(ctx.User, model.FormMagicSwordsmanShadow)
 }
 
 func (h *MagicSwordsmanShadowGatherHandler) Execute(ctx *model.Context) error {
-	setToken(ctx.User, "ms_shadow_form", 1)
+	enterForm(ctx.User, model.FormMagicSwordsmanShadow)
 	setToken(ctx.User, "ms_shadow_release_pending", 1)
 	ctx.Game.AddPendingDamage(model.PendingDamage{
 		SourceID:   ctx.User.ID,
 		TargetID:   ctx.User.ID,
 		Damage:     1,
 		DamageType: "magic",
-		Stage:      0,
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [暗影凝聚]，进入暗影形态并承受1点法术伤害", ctx.User.Name))
 	return nil
@@ -1218,7 +1272,7 @@ func (h *MagicSwordsmanShadowPowerHandler) Execute(ctx *model.Context) error { r
 func (h *MagicSwordsmanShadowRejectHandler) Execute(ctx *model.Context) error { return nil }
 
 func (h *MagicSwordsmanShadowMeteorHandler) CanUse(ctx *model.Context) bool {
-	if getToken(ctx.User, "ms_shadow_form") == 0 {
+	if !hasForm(ctx.User, model.FormMagicSwordsmanShadow) {
 		return false
 	}
 	count := 0
@@ -1231,29 +1285,32 @@ func (h *MagicSwordsmanShadowMeteorHandler) CanUse(ctx *model.Context) bool {
 }
 
 func (h *MagicSwordsmanShadowMeteorHandler) Execute(ctx *model.Context) error {
-	if getToken(ctx.User, "ms_shadow_form") == 0 {
+	if !hasForm(ctx.User, model.FormMagicSwordsmanShadow) {
 		return fmt.Errorf("暗影流星仅可在暗影形态下发动")
 	}
-	var magicIndices []int
-	for i, c := range ctx.User.Hand {
-		if c.Type == model.CardTypeMagic {
-			magicIndices = append(magicIndices, i)
-		}
+	if ctx.Target == nil {
+		return fmt.Errorf("暗影流星需要1名敌方目标")
 	}
-	if len(magicIndices) < 2 {
-		return fmt.Errorf("暗影流星需要至少2张法术牌")
-	}
-	ctx.Game.PushInterrupt(&model.Interrupt{
-		Type:     model.InterruptChoice,
-		PlayerID: ctx.User.ID,
-		Context: map[string]interface{}{
-			"choice_type":      "ms_shadow_meteor_discard",
-			"user_id":          ctx.User.ID,
-			"magic_indices":    magicIndices,
-			"selected_indices": []int{},
-		},
+	ctx.Game.AddPendingDamage(model.PendingDamage{
+		SourceID:   ctx.User.ID,
+		TargetID:   ctx.Target.ID,
+		Damage:     2,
+		DamageType: "magic",
 	})
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [暗影流星]，请选择弃置2张法术牌", ctx.User.Name))
+	camp := string(ctx.User.Camp)
+	total := ctx.Game.GetCampGems(camp) + ctx.Game.GetCampCrystals(camp)
+	if total >= 2 {
+		ctx.Game.PushInterrupt(&model.Interrupt{
+			Type:     model.InterruptChoice,
+			PlayerID: ctx.User.ID,
+			Context: map[string]interface{}{
+				"choice_type": "ms_shadow_meteor_release_confirm",
+				"user_id":     ctx.User.ID,
+				"camp":        camp,
+			},
+		})
+	}
+	ctx.Game.Log(fmt.Sprintf("%s 发动 [暗影流星]，对 %s 造成2点法术伤害", ctx.User.Name, model.GetPlayerDisplayName(ctx.Target)))
 	return nil
 }
 
@@ -1268,14 +1325,15 @@ func (h *MagicSwordsmanYellowSpringHandler) CanUse(ctx *model.Context) bool {
 }
 
 func (h *MagicSwordsmanYellowSpringHandler) Execute(ctx *model.Context) error {
+	if ctx.User.Gem <= 0 {
+		return fmt.Errorf("黄泉震颤需要至少1个红宝石")
+	}
+	ctx.User.Gem--
 	if ctx.TriggerCtx != nil && ctx.TriggerCtx.AttackInfo != nil {
 		ctx.TriggerCtx.AttackInfo.CanBeResponded = false
 	}
-	if ctx.TriggerCtx != nil && ctx.TriggerCtx.Card != nil {
-		ctx.TriggerCtx.Card.Element = model.ElementDark
-	}
 	setToken(ctx.User, "ms_yellow_spring_pending", 1)
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [黄泉震颤]，本次攻击视为暗灭且无法应战", ctx.User.Name))
+	ctx.Game.Log(fmt.Sprintf("%s 发动 [黄泉震颤]，本次攻击不可应战", ctx.User.Name))
 	return nil
 }
 
@@ -1297,7 +1355,7 @@ func (h *CrimsonBloodThornsHandler) CanUse(ctx *model.Context) bool {
 	if ctx.Trigger != model.TriggerOnAttackHit || ctx.TriggerCtx == nil || ctx.TriggerCtx.AttackInfo == nil {
 		return false
 	}
-	return ctx.TriggerCtx.AttackInfo.CounterInitiator == ""
+	return true
 }
 
 func (h *CrimsonBloodThornsHandler) Execute(ctx *model.Context) error {
@@ -1330,7 +1388,6 @@ func (h *CrimsonFlashHandler) Execute(ctx *model.Context) error {
 		TargetID:   ctx.User.ID,
 		Damage:     2,
 		DamageType: "magic",
-		Stage:      0,
 	})
 	addAttackAction(ctx.User, "赤色一闪")
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [赤色一闪]，移除1鲜血并获得额外攻击行动", ctx.User.Name))
@@ -1342,24 +1399,38 @@ func (h *CrimsonBloodRoseHandler) CanUse(ctx *model.Context) bool {
 }
 
 func (h *CrimsonBloodRoseHandler) Execute(ctx *model.Context) error {
-	if ctx.Target == nil {
-		return fmt.Errorf("血染蔷薇需要目标")
+	if len(ctx.Targets) != 2 {
+		return fmt.Errorf("血染蔷薇需要恰好2名目标")
 	}
 	if getToken(ctx.User, "css_blood") < 2 {
 		return fmt.Errorf("鲜血不足")
 	}
-	addBlood(ctx.User, -2)
-	if ctx.Target.Heal > 0 {
-		loss := 2
-		if ctx.Target.Heal < loss {
-			loss = ctx.Target.Heal
+	var allyTarget *model.Player
+	var enemyTarget *model.Player
+	for _, target := range ctx.Targets {
+		if target == nil {
+			continue
 		}
-		ctx.Target.Heal -= loss
+		if target.Camp == ctx.User.Camp {
+			allyTarget = target
+		} else {
+			enemyTarget = target
+		}
 	}
-	// 我方能量区：优先翻转1个蓝水晶为红宝石
-	if ctx.User.Crystal > 0 {
-		ctx.User.Crystal--
-		ctx.User.Gem++
+	if allyTarget == nil || enemyTarget == nil {
+		return fmt.Errorf("血染蔷薇需要1名我方和1名敌方目标")
+	}
+	addBlood(ctx.User, -2)
+	if enemyTarget.Heal > 0 {
+		loss := 2
+		if enemyTarget.Heal < loss {
+			loss = enemyTarget.Heal
+		}
+		enemyTarget.Heal -= loss
+	}
+	if allyTarget.Crystal > 0 {
+		allyTarget.Crystal--
+		allyTarget.Gem++
 	}
 	if getToken(ctx.User, "css_rose_courtyard_active") > 0 {
 		for _, p := range ctx.Game.GetAllPlayers() {
@@ -1368,11 +1439,10 @@ func (h *CrimsonBloodRoseHandler) Execute(ctx *model.Context) error {
 				TargetID:   p.ID,
 				Damage:     1,
 				DamageType: "magic",
-				Stage:      0,
 			})
 		}
 	}
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [血染蔷薇]，对 %s 结算治疗移除与转能量", ctx.User.Name, ctx.Target.Name))
+	ctx.Game.Log(fmt.Sprintf("%s 发动 [血染蔷薇]：%s -2治疗，%s 的1水晶转为1宝石", ctx.User.Name, enemyTarget.Name, allyTarget.Name))
 	return nil
 }
 
@@ -1398,25 +1468,19 @@ func (h *CrimsonBloodBarrierHandler) Execute(ctx *model.Context) error {
 	if ctx.TriggerCtx != nil && ctx.TriggerCtx.DamageVal != nil && *ctx.TriggerCtx.DamageVal > 0 {
 		*ctx.TriggerCtx.DamageVal--
 	}
-	var enemyIDs []string
-	for _, p := range ctx.Game.GetAllPlayers() {
-		if p.Camp != ctx.User.Camp {
-			enemyIDs = append(enemyIDs, p.ID)
-		}
+	sourceID := ""
+	if ctx.TriggerCtx != nil {
+		sourceID = strings.TrimSpace(ctx.TriggerCtx.SourceID)
 	}
-	if len(enemyIDs) == 0 {
-		return nil
+	if sourceID != "" && sourceID != ctx.User.ID {
+		ctx.Game.AddPendingDamage(model.PendingDamage{
+			SourceID:   ctx.User.ID,
+			TargetID:   sourceID,
+			Damage:     1,
+			DamageType: "magic",
+		})
 	}
-	ctx.Game.PushInterrupt(&model.Interrupt{
-		Type:     model.InterruptChoice,
-		PlayerID: ctx.User.ID,
-		Context: map[string]interface{}{
-			"choice_type": "css_blood_barrier_counter_confirm",
-			"user_id":     ctx.User.ID,
-			"enemy_ids":   enemyIDs,
-		},
-	})
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [血气屏障]，本次法术伤害-1", ctx.User.Name))
+	ctx.Game.Log(fmt.Sprintf("%s 发动 [血气屏障]，本次法术伤害-1，并对伤害来源造成1点法术伤害", ctx.User.Name))
 	return nil
 }
 

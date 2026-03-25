@@ -56,8 +56,9 @@ func (h *HeroRoarHandler) Execute(ctx *model.Context) error {
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
 		Context: map[string]interface{}{
-			"choice_type": "hero_roar_draw",
-			"user_id":     ctx.User.ID,
+			"choice_type":   "hero_roar_draw",
+			"user_id":       ctx.User.ID,
+			"waiting_phase": model.NormalizeResumePoint(model.TurnStageActionExecution),
 		},
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [怒吼]：移除1点怒气，本次攻击伤害额外+2，等待选择摸牌数量", ctx.User.Name))
@@ -124,12 +125,11 @@ func (h *HeroForbiddenPowerHandler) Execute(ctx *model.Context) error {
 			TargetID:   ctx.User.ID,
 			Damage:     fireCount,
 			DamageType: "magic",
-			Stage:      0,
 		})
 	}
 
 	// 精疲力竭：强制进入状态并追加1次攻击行动。
-	setToken(ctx.User, "hero_exhaustion_form", 1)
+	enterForm(ctx.User, model.FormHeroExhaustion)
 	setToken(ctx.User, "hero_exhaustion_release_pending", 1)
 	addAttackAction(ctx.User, "精疲力竭")
 
@@ -226,7 +226,10 @@ func (h *HeroDeadDuelHandler) Execute(ctx *model.Context) error {
 	}
 	ctx.User.Gem--
 	anger := addToken(ctx.User, "hero_anger", 3, 0, heroTokenCap)
-	setToken(ctx.User, "hero_dead_duel_pending", 1)
+	if ctx.Selections == nil {
+		ctx.Selections = map[string]any{}
+	}
+	ctx.Selections["overflow_morale_loss_fixed"] = 1
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [死斗]：消耗1红宝石，怒气+3（当前%d）；若本次法术伤害导致士气下降，则该次下降值恒定为1", ctx.User.Name, anger))
 	return nil
 }

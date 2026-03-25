@@ -26,7 +26,7 @@ func TestSealer_Skills(t *testing.T) {
 		// p2 := game.State.Players["p2"] // Unused
 		p1.IsActive = true
 		p1.TurnState = model.NewPlayerTurnState()
-		game.State.Phase = model.PhaseActionSelection
+		game.State.TurnStage = model.TurnStageActionExecution
 
 		// 给 P1 一张法术牌
 		p1.Hand = []model.Card{
@@ -79,7 +79,7 @@ func TestSealer_Skills(t *testing.T) {
 		p2 := game.State.Players["p2"]
 		p1.IsActive = true
 		p1.TurnState = model.NewPlayerTurnState()
-		game.State.Phase = model.PhaseActionSelection
+		game.State.TurnStage = model.TurnStageActionExecution
 
 		// P1 消耗 1 水晶，使用专属卡区中的五系束缚专属技能卡
 		p1.Crystal = 1
@@ -113,8 +113,8 @@ func TestSealer_Skills(t *testing.T) {
 		}
 
 		// 结束回合，轮到 P2
-		game.NextTurn()                       // CurrentTurn=1 (P2)
-		game.State.Phase = model.PhaseStartup // 模拟进入启动阶段
+		game.NextTurn()                                   // CurrentTurn=1 (P2)
+		game.State.TurnStage = model.TurnStageActionStart // 模拟进入启动阶段
 		// NextTurn 会重置 TurnState
 
 		// 模拟 P2 回合开始 (Drive Loop 处理 TurnStart -> ... -> ActionSelection)
@@ -126,7 +126,7 @@ func TestSealer_Skills(t *testing.T) {
 
 		// 由于是在 CLI 侧模拟，我们手动调用 Drive 看看是否进入 Prompt
 		// 注意: NextTurn 只是切换了 ID 和 Phase=BuffResolve
-		game.State.Phase = model.PhaseStartup // 跳过 BuffResolve
+		game.State.TurnStage = model.TurnStageActionStart // 跳过 BuffResolve
 
 		// 理论上应该触发五系束缚的逻辑 (LogicHandler "five_elements_bind"?? No, it's a FieldCard trigger)
 		// FieldCard TriggerOnTurnStart 需要在 PhaseStartup 里被 Engine 扫描并触发
