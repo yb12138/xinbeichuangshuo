@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"starcup-engine/internal/engine/runtimeutil"
 	"testing"
 
 	"starcup-engine/internal/model"
@@ -45,7 +46,7 @@ func TestOnmyojiDarkRitual_ChoosesTargetAtTurnEnd(t *testing.T) {
 		t.Fatalf("expected onmyoji_dark_ritual_target prompt, got %s", got)
 	}
 	ctxData, _ := game.State.PendingInterrupt.Context.(map[string]interface{})
-	targetIDs := parseStringSliceContextValue(ctxData["target_ids"])
+	targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
 	if len(targetIDs) != 1 || targetIDs[0] != "p2" {
 		t.Fatalf("expected dark ritual target pool only include enemy p2, got %+v", targetIDs)
 	}

@@ -108,7 +108,7 @@ func TestMagicBowMagicPierce_MissDealsMagicDamageAndLocksMultiShot(t *testing.T)
 	if pd.SourceID != "p1" || pd.TargetID != "p2" || pd.Damage != 3 || pd.DamageType != "magic" {
 		t.Fatalf("unexpected pending damage: %+v", pd)
 	}
-	if got := p1.Tokens["mb_magic_pierce_pending"]; got != 0 {
+	if got := p1.TurnState.SkillFlowState["mb_magic_pierce_pending"]; got != 0 {
 		t.Fatalf("expected mb_magic_pierce_pending cleared, got %d", got)
 	}
 	if got := p1.TurnState.UsedSkillCounts["mb_magic_pierce_used_turn"]; got != 1 {
@@ -241,9 +241,7 @@ func TestMagicBowCharge_FollowupPlaceCharges(t *testing.T) {
 	if got := magicBowChargeCount(p1, ""); got != 2 {
 		t.Fatalf("expected 2 charges placed, got %d", got)
 	}
-	if got := p1.Tokens["mb_charge_count"]; got != 2 {
-		t.Fatalf("expected token mb_charge_count=2, got %d", got)
-	}
+	// mb_charge_count 由服务端 buildStateForPlayer 写入 PlayerView.tokens，引擎内不再同步到 Player.Tokens
 	if got := len(p1.Hand); got != 4 {
 		t.Fatalf("expected hand size back to 4 after draw2/place2, got %d", got)
 	}
@@ -486,7 +484,7 @@ func TestMagicBowMagicPierce_HitBonusCappedAtTwo(t *testing.T) {
 	if got := magicBowChargeCount(p1, model.ElementFire); got != 1 {
 		t.Fatalf("expected remain 1 fire charge after at-most-once hit bonus, got %d", got)
 	}
-	if got := p1.Tokens["mb_magic_pierce_pending"]; got != 0 {
+	if got := p1.TurnState.SkillFlowState["mb_magic_pierce_pending"]; got != 0 {
 		t.Fatalf("expected mb_magic_pierce_pending cleared, got %d", got)
 	}
 	if got := len(p2.Hand); got != 3 {
@@ -557,7 +555,7 @@ func TestMagicBowMagicPierce_MissDealsExactlyThreeMagicDamage(t *testing.T) {
 	if got := magicBowChargeCount(p1, model.ElementFire); got != 1 {
 		t.Fatalf("expected only first fire charge consumed on miss, remain=%d", got)
 	}
-	if got := p1.Tokens["mb_magic_pierce_pending"]; got != 0 {
+	if got := p1.TurnState.SkillFlowState["mb_magic_pierce_pending"]; got != 0 {
 		t.Fatalf("expected mb_magic_pierce_pending cleared after miss, got %d", got)
 	}
 }

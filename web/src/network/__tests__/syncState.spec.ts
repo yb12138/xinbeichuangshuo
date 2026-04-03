@@ -6,7 +6,7 @@ describe('buildGameStateUpdateFromSyncState', () => {
   it('converts structured SyncState payloads into the battle snapshot shape', () => {
     const payload: SyncStatePayload = {
       room_state: 'Playing',
-      current_phase: 'Main',
+      turn_stage: 'Main',
       turn_player_id: 'p1',
       has_performed_startup: true,
       morale_red: 14,
@@ -64,7 +64,7 @@ describe('buildGameStateUpdateFromSyncState', () => {
     }
 
     expect(buildGameStateUpdateFromSyncState(payload)).toEqual({
-      phase: 'Main',
+      turn_stage: 'Main',
       current_player: 'p1',
       has_performed_startup: true,
       players: {

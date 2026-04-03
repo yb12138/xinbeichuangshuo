@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"starcup-engine/internal/engine/runtimeutil"
 
 	"starcup-engine/internal/model"
 )
@@ -102,7 +103,7 @@ func (e *GameEngine) handleElfArcherChoiceInput(_ string, selectionIndex int, ct
 			key = "blessing_indices"
 		}
 		candidates := parseIntSliceContextValue(ctxData[key])
-		cardIdx, ok := resolveSelectionToCandidate(selectionIndex, candidates)
+		cardIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, candidates)
 		if !ok {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
@@ -127,25 +128,19 @@ func (e *GameEngine) handleElfArcherChoiceInput(_ string, selectionIndex int, ct
 		if user.Tokens == nil {
 			user.Tokens = map[string]int{}
 		}
-		user.Tokens["elf_elemental_shot_fire_pending"] = 0
 		user.Tokens["elf_elemental_shot_water_pending"] = 0
 		user.Tokens["elf_elemental_shot_earth_pending"] = 0
-		user.Tokens["elf_elemental_shot_thunder_pending"] = 0
 		user.Tokens["elf_elemental_shot_wind_pending"] = 0
-		rawCtx, _ := ctxData["user_ctx"].(*model.Context)
 		attackElement, _ := ctxData["attack_element"].(string)
 		switch attackElement {
 		case string(model.ElementFire):
-			user.Tokens["elf_elemental_shot_fire_pending"] = 1
+			e.ApplyNextAttackDamageRule(user.ID, "elf_elemental_shot_fire_attack_bonus", "elf_elemental_shot", 1, model.RuleLifeThisEffectChain)
 		case string(model.ElementWater):
 			user.Tokens["elf_elemental_shot_water_pending"] = 1
 		case string(model.ElementWind):
 			user.Tokens["elf_elemental_shot_wind_pending"] = 1
 		case string(model.ElementThunder):
-			user.Tokens["elf_elemental_shot_thunder_pending"] = 1
-			if rawCtx != nil && rawCtx.TriggerCtx != nil && rawCtx.TriggerCtx.AttackInfo != nil {
-				rawCtx.TriggerCtx.AttackInfo.CanBeResponded = false
-			}
+			e.ApplyNextAttackInterceptTagRule(user.ID, "elf_elemental_shot_thunder_attack_tag", "elf_elemental_shot", model.CombatInterceptUnrespondable, model.RuleLifeThisEffectChain)
 		case string(model.ElementEarth):
 			user.Tokens["elf_elemental_shot_earth_pending"] = 1
 		}
@@ -203,7 +198,7 @@ func (e *GameEngine) handleElfArcherChoiceInput(_ string, selectionIndex int, ct
 		return true, nil
 
 	case "elf_pet_empower_target":
-		targetIDs := parseStringSliceContextValue(ctxData["target_ids"])
+		targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
 		if selectionIndex < 0 || selectionIndex >= len(targetIDs) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
@@ -227,7 +222,7 @@ func (e *GameEngine) handleElfArcherChoiceInput(_ string, selectionIndex int, ct
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
-		targetIDs := parseStringSliceContextValue(ctxData["target_ids"])
+		targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
 		if selectionIndex < 0 || selectionIndex >= len(targetIDs) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}

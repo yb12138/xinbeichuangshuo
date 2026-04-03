@@ -34,23 +34,6 @@ func newBotIntel() *botIntel {
 	}
 }
 
-func clonePrompt(src *model.Prompt) *model.Prompt {
-	if src == nil {
-		return nil
-	}
-	cp := *src
-	if src.Options != nil {
-		cp.Options = append([]model.PromptOption{}, src.Options...)
-	}
-	if src.SpecialOptions != nil {
-		cp.SpecialOptions = append([]model.PromptOption{}, src.SpecialOptions...)
-	}
-	if src.CounterTargetIDs != nil {
-		cp.CounterTargetIDs = append([]string{}, src.CounterTargetIDs...)
-	}
-	return &cp
-}
-
 func (bi *botIntel) ensurePlayer(playerID string) *playerRevealStats {
 	ps, ok := bi.players[playerID]
 	if ok {

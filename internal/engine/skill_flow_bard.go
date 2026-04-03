@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"starcup-engine/internal/engine/runtimeutil"
 
 	"starcup-engine/internal/model"
 )
@@ -42,7 +43,7 @@ func (e *GameEngine) buildBardChoicePrompt(choiceType, playerID string, player *
 		}
 		return &model.Prompt{Type: model.PromptChooseCards, PlayerID: playerID, Message: fmt.Sprintf("【沉沦协奏曲】请选择要弃置的%d张%s系牌：", remainingPick, chosenEleZh), Options: options, Min: remainingPick, Max: remainingPick}
 	case "bd_dissonance_x":
-		maxX := toIntContextValue(data["max_x"])
+		maxX := runtimeutil.ToIntContextValue(data["max_x"])
 		if maxX < 2 {
 			maxX = 2
 		}
@@ -52,7 +53,7 @@ func (e *GameEngine) buildBardChoicePrompt(choiceType, playerID string, player *
 		}
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【不谐和弦】请选择X值：", Options: options, Min: 1, Max: 1}
 	case "bd_dissonance_mode":
-		xValue := toIntContextValue(data["x_value"])
+		xValue := runtimeutil.ToIntContextValue(data["x_value"])
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: fmt.Sprintf("【不谐和弦】请选择分支（X=%d）：", xValue), Options: []model.PromptOption{{ID: "0", Label: fmt.Sprintf("你与目标各摸%d张牌", xValue-1)}, {ID: "1", Label: fmt.Sprintf("你与目标各弃%d张牌", xValue-1)}}, Min: 1, Max: 1}
 	case "bd_dissonance_discard_step":
 		currentActorID, _ := data["current_actor_id"].(string)
@@ -60,8 +61,8 @@ func (e *GameEngine) buildBardChoicePrompt(choiceType, playerID string, player *
 		if actor == nil {
 			return nil
 		}
-		need := toIntContextValue(data["need_count"])
-		selected := toIntContextValue(data["selected_count"])
+		need := runtimeutil.ToIntContextValue(data["need_count"])
+		selected := runtimeutil.ToIntContextValue(data["selected_count"])
 		options := make([]model.PromptOption, 0, len(actor.Hand))
 		for idx, c := range actor.Hand {
 			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", idx), Label: fmt.Sprintf("%d: %s", idx+1, formatCardInfo(c))})
@@ -77,8 +78,8 @@ func (e *GameEngine) buildBardChoicePrompt(choiceType, playerID string, player *
 	case "bd_rousing_mode":
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【激昂狂想曲】请选择效果：", Options: []model.PromptOption{{ID: "0", Label: "对2名对手各造成1点法术伤害"}, {ID: "1", Label: "弃2张牌"}}, Min: 1, Max: 1}
 	case "bd_rousing_targets":
-		targetIDs := parseStringSliceContextValue(data["target_ids"])
-		selectedSet := idsToSet(parseStringSliceContextValue(data["selected_target_ids"]))
+		targetIDs := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
+		selectedSet := runtimeutil.IDsToSet(runtimeutil.ParseStringSliceContextValue(data["selected_target_ids"]))
 		options := make([]model.PromptOption, 0, len(targetIDs))
 		for _, targetID := range targetIDs {
 			if selectedSet[targetID] {
@@ -171,7 +172,7 @@ func (e *GameEngine) handleBardChoiceInput(_ string, selectionIndex int, ctxData
 		chosenElement, _ := ctxData["chosen_element"].(string)
 		remaining := parseIntSliceContextValue(ctxData["remaining_indices"])
 		selected := parseIntSliceContextValue(ctxData["selected_indices"])
-		cardIdx, ok := resolveSelectionToCandidate(selectionIndex, remaining)
+		cardIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, remaining)
 		if !ok || cardIdx < 0 || cardIdx >= len(user.Hand) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
@@ -198,10 +199,7 @@ func (e *GameEngine) handleBardChoiceInput(_ string, selectionIndex int, ctxData
 		}
 		e.NotifyCardRevealed(user.ID, removed, "discard")
 		e.State.DiscardPile = append(e.State.DiscardPile, removed...)
-		if user.Tokens == nil {
-			user.Tokens = map[string]int{}
-		}
-		user.Tokens["bd_descent_used_turn"] = 1
+		user.TurnState.UsedSkillCounts["bd_descent"] = 1
 		now := addBardInspiration(user, 1)
 		e.Log(fmt.Sprintf("%s 发动 [沉沦协奏曲]：弃2张%s系牌，灵感+1（当前%d）", user.Name, chosenElement, now))
 
@@ -230,7 +228,7 @@ func (e *GameEngine) handleBardChoiceInput(_ string, selectionIndex int, ctxData
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
-		targetIDs := parseStringSliceContextValue(ctxData["target_ids"])
+		targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
 		if selectionIndex < 0 || selectionIndex >= len(targetIDs) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
@@ -252,7 +250,7 @@ func (e *GameEngine) handleBardChoiceInput(_ string, selectionIndex int, ctxData
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
-		maxX := toIntContextValue(ctxData["max_x"])
+		maxX := runtimeutil.ToIntContextValue(ctxData["max_x"])
 		xValue := selectionIndex + 2
 		if xValue < 2 || xValue > maxX {
 			return true, fmt.Errorf("无效的X值")
@@ -293,7 +291,7 @@ func (e *GameEngine) handleBardChoiceInput(_ string, selectionIndex int, ctxData
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
-		targetIDs := parseStringSliceContextValue(ctxData["target_ids"])
+		targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
 		if selectionIndex < 0 || selectionIndex >= len(targetIDs) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
@@ -302,8 +300,8 @@ func (e *GameEngine) handleBardChoiceInput(_ string, selectionIndex int, ctxData
 		if target == nil {
 			return true, fmt.Errorf("目标不存在")
 		}
-		xValue := toIntContextValue(ctxData["x_value"])
-		mode := toIntContextValue(ctxData["mode"])
+		xValue := runtimeutil.ToIntContextValue(ctxData["x_value"])
+		mode := runtimeutil.ToIntContextValue(ctxData["mode"])
 		n := xValue - 1
 		if n < 0 {
 			n = 0
@@ -358,8 +356,8 @@ func (e *GameEngine) handleBardChoiceInput(_ string, selectionIndex int, ctxData
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
-		actorIDs := parseStringSliceContextValue(ctxData["actor_ids"])
-		cursor := toIntContextValue(ctxData["cursor"])
+		actorIDs := runtimeutil.ParseStringSliceContextValue(ctxData["actor_ids"])
+		cursor := runtimeutil.ToIntContextValue(ctxData["cursor"])
 		if cursor < 0 || cursor >= len(actorIDs) {
 			return true, fmt.Errorf("弃牌游标无效")
 		}
@@ -371,11 +369,11 @@ func (e *GameEngine) handleBardChoiceInput(_ string, selectionIndex int, ctxData
 		if actor == nil {
 			return true, fmt.Errorf("弃牌角色不存在")
 		}
-		needCount := toIntContextValue(ctxData["need_count"])
-		selectedCount := toIntContextValue(ctxData["selected_count"])
+		needCount := runtimeutil.ToIntContextValue(ctxData["need_count"])
+		selectedCount := runtimeutil.ToIntContextValue(ctxData["selected_count"])
 		remaining := parseIntSliceContextValue(ctxData["remaining_indices"])
 		selected := parseIntSliceContextValue(ctxData["selected_indices"])
-		cardIdx, ok := resolveSelectionToCandidate(selectionIndex, remaining)
+		cardIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, remaining)
 		if !ok || cardIdx < 0 || cardIdx >= len(actor.Hand) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
@@ -459,9 +457,9 @@ func (e *GameEngine) handleBardChoiceInput(_ string, selectionIndex int, ctxData
 		if user == nil {
 			return true, fmt.Errorf("吟游诗人不存在")
 		}
-		targetIDs := parseStringSliceContextValue(ctxData["target_ids"])
-		selected := dedupeIDs(parseStringSliceContextValue(ctxData["selected_target_ids"]))
-		selectedSet := idsToSet(selected)
+		targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
+		selected := runtimeutil.DedupeIDs(runtimeutil.ParseStringSliceContextValue(ctxData["selected_target_ids"]))
+		selectedSet := runtimeutil.IDsToSet(selected)
 		remaining := make([]string, 0, len(targetIDs))
 		for _, targetID := range targetIDs {
 			if !selectedSet[targetID] {
@@ -485,11 +483,11 @@ func (e *GameEngine) handleBardChoiceInput(_ string, selectionIndex int, ctxData
 		e.resolveBardForbiddenVerseAfterSong(user, "激昂狂想曲")
 		e.PopInterrupt()
 		if e.State.PendingInterrupt == nil {
-			e.routePendingDamageOr(model.TurnStageActionStart, func() {
+			if !e.routePendingDamageWithReturn(model.TurnStageActionStart) {
 				e.setTurnStage(model.TurnStageActionStart)
 				e.clearCombatStage()
 				e.clearSubflow()
-			})
+			}
 		}
 		return true, nil
 	case "bd_rousing_discard_cards":
@@ -500,7 +498,7 @@ func (e *GameEngine) handleBardChoiceInput(_ string, selectionIndex int, ctxData
 		}
 		remaining := parseIntSliceContextValue(ctxData["remaining_indices"])
 		selected := parseIntSliceContextValue(ctxData["selected_indices"])
-		cardIdx, ok := resolveSelectionToCandidate(selectionIndex, remaining)
+		cardIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, remaining)
 		if !ok || cardIdx < 0 || cardIdx >= len(user.Hand) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
@@ -528,11 +526,11 @@ func (e *GameEngine) handleBardChoiceInput(_ string, selectionIndex int, ctxData
 		e.resolveBardForbiddenVerseAfterSong(user, "激昂狂想曲")
 		e.PopInterrupt()
 		if e.State.PendingInterrupt == nil {
-			e.routePendingDamageOr(model.TurnStageActionStart, func() {
+			if !e.routePendingDamageWithReturn(model.TurnStageActionStart) {
 				e.setTurnStage(model.TurnStageActionStart)
 				e.clearCombatStage()
 				e.clearSubflow()
-			})
+			}
 		}
 		return true, nil
 	case "bd_victory_mode":
@@ -684,7 +682,7 @@ func (e *GameEngine) handleBardChoiceInput(_ string, selectionIndex int, ctxData
 		if user == nil {
 			return true, fmt.Errorf("吟游诗人不存在")
 		}
-		targetIDs := parseStringSliceContextValue(ctxData["target_ids"])
+		targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
 		if selectionIndex < 0 || selectionIndex >= len(targetIDs) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
@@ -713,7 +711,7 @@ func (e *GameEngine) handleBardChoiceInput(_ string, selectionIndex int, ctxData
 		if user == nil {
 			return true, fmt.Errorf("吟游诗人不存在")
 		}
-		targetIDs := parseStringSliceContextValue(ctxData["target_ids"])
+		targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
 		if selectionIndex < 0 || selectionIndex >= len(targetIDs) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
@@ -746,7 +744,7 @@ func (e *GameEngine) handleBardChoiceInput(_ string, selectionIndex int, ctxData
 			return true, fmt.Errorf("希望赋格曲的专属牌上下文丢失")
 		}
 		e.State.DiscardPile = append(e.State.DiscardPile, playedCard)
-		mode := toIntContextValue(ctxData["mode"])
+		mode := runtimeutil.ToIntContextValue(ctxData["mode"])
 		switch mode {
 		case 1:
 			e.Heal(user.ID, 1)

@@ -66,22 +66,21 @@ func registerFixedChoiceResumePoints(m map[string]choiceResumeResolver, point in
 
 func buildChoiceInterruptResumeResolvers() map[string]choiceResumeResolver {
 	m := map[string]choiceResumeResolver{
-		"hero_roar_draw":                 waitingChoiceResumePoint("waiting_phase"),
-		"bw_witch_wrath_draw":            waitingChoiceResumePoint("waiting_phase"),
-		"assassin_stealth_draw":          waitingChoiceResumePoint("waiting_phase"),
-		"arbiter_forced_doomsday_target": waitingChoiceResumePointOr("waiting_phase", model.TurnStageActionStart),
-		"fighter_hundred_dragon_target":  waitingChoiceResumePointOr("waiting_phase", model.TurnStageActionStart),
-		"priest_divine_contract_target":  waitingChoiceResumePointOr("waiting_phase", model.TurnStageActionStart),
-		"priest_divine_contract_x":       waitingChoiceResumePointOr("waiting_phase", model.TurnStageActionStart),
-		"basic_effect_pick":              waitingChoiceResumePoint("waiting_phase"),
-		"angel_bond_heal_target":         currentChoiceResumePointResolver(),
-		"sage_arcane_x":                  currentChoiceResumePointResolver(),
-		"sage_holy_x":                    currentChoiceResumePointResolver(),
-		"hb_holy_shard_combo":            currentChoiceResumePointResolver(),
-		"hb_radiant_descent_cost":        currentChoiceResumePointResolver(),
-		"hb_light_burst_mode":            currentChoiceResumePointResolver(),
-		"hb_radiant_cannon_side":         currentChoiceResumePointResolver(),
-		"ml_fullness_cost_card":          currentChoiceResumePointResolver(),
+		"hero_roar_draw":                waitingChoiceResumePoint("waiting_phase"),
+		"bw_witch_wrath_draw":           waitingChoiceResumePoint("waiting_phase"),
+		"assassin_stealth_draw":         waitingChoiceResumePoint("waiting_phase"),
+		"fighter_hundred_dragon_target": waitingChoiceResumePointOr("waiting_phase", model.TurnStageActionStart),
+		"priest_divine_contract_target": waitingChoiceResumePointOr("waiting_phase", model.TurnStageActionStart),
+		"priest_divine_contract_x":      waitingChoiceResumePointOr("waiting_phase", model.TurnStageActionStart),
+		"basic_effect_pick":             waitingChoiceResumePoint("waiting_phase"),
+		"angel_bond_heal_target":        currentChoiceResumePointResolver(),
+		"sage_arcane_x":                 currentChoiceResumePointResolver(),
+		"sage_holy_x":                   currentChoiceResumePointResolver(),
+		"hb_holy_shard_combo":           currentChoiceResumePointResolver(),
+		"hb_radiant_descent_cost":       currentChoiceResumePointResolver(),
+		"hb_light_burst_mode":           currentChoiceResumePointResolver(),
+		"hb_radiant_cannon_side":        currentChoiceResumePointResolver(),
+		"ml_fullness_cost_card":         currentChoiceResumePointResolver(),
 		"sc_spiritual_collapse_confirm": func(currentPoint string, ctxData map[string]interface{}) (string, bool) {
 			if mode, _ := ctxData["mode"].(string); strings.HasPrefix(mode, "sc_hundred_night") {
 				return model.NormalizeResumePoint(model.CombatStageCalcDamage), true

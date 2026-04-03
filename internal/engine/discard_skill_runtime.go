@@ -2,10 +2,31 @@ package engine
 
 import (
 	"fmt"
+	"starcup-engine/internal/engine/runtimeutil"
 
 	"starcup-engine/internal/engine/skills"
 	"starcup-engine/internal/model"
 )
+
+// ConfirmDiscard 确认执行弃牌。
+func (e *GameEngine) ConfirmDiscard(playerID string, indices []int) error {
+	if e.State.PendingInterrupt == nil || e.State.PendingInterrupt.Type != model.InterruptDiscard {
+		return fmt.Errorf("当前没有待处理的弃牌操作")
+	}
+
+	data, _ := e.State.PendingInterrupt.Context.(map[string]interface{})
+	skillID, hasSkillID := data["skill_id"].(string)
+
+	if handled, err := e.handleBeastSamuraiDiscardInput(playerID, indices); handled || err != nil {
+		return err
+	}
+
+	if hasSkillID && skillID != "" {
+		return e.handleSkillDiscardSelection(playerID, indices, data)
+	}
+
+	return e.handleDiscardSelection(playerID, indices, data)
+}
 
 func (e *GameEngine) handleSkillDiscardSelection(playerID string, indices []int, data map[string]interface{}) error {
 	skillID, _ := data["skill_id"].(string)
@@ -19,7 +40,7 @@ func (e *GameEngine) handleSkillDiscardSelection(playerID string, indices []int,
 }
 
 func (e *GameEngine) handleDeferredSkillDiscardSelection(playerID, skillID string, indices []int, data map[string]interface{}) error {
-	targetIDs := parseStringSliceContextValue(data["target_ids"])
+	targetIDs := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
 	resumePoint := data["resume_phase"]
 
 	e.PopInterrupt()
@@ -101,10 +122,9 @@ func (e *GameEngine) resumePhaseAfterSkillDiscardContext(ctx *model.Context) boo
 	}
 	if ctx.Trigger == model.TriggerOnTurnStart {
 		// 启动技能（回合开始触发）中的弃牌后续：应继续当前回合流程。
-		if len(e.State.PendingDamageQueue) > 0 {
-			e.setReturnPoint(model.TurnStageActionStart)
-			e.enterDamageResolution(nil)
-		} else {
+		e.clearSubflow()
+		e.clearCombatStage()
+		if !e.routePendingDamageWithReturn(model.TurnStageActionStart) {
 			e.setTurnStage(model.TurnStageActionStart)
 		}
 		return true

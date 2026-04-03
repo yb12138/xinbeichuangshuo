@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"starcup-engine/internal/engine/runtimeutil"
 	"strconv"
 
 	"starcup-engine/internal/model"
@@ -42,7 +43,7 @@ func (e *GameEngine) buildSystemChoicePrompt(choiceType, playerID string, player
 		}
 
 	case "heal":
-		maxHeal := toIntContextValue(data["max_heal"])
+		maxHeal := runtimeutil.ToIntContextValue(data["max_heal"])
 		if maxHeal < 0 {
 			maxHeal = 0
 		}
@@ -74,8 +75,8 @@ func (e *GameEngine) buildSystemChoicePrompt(choiceType, playerID string, player
 		if len(options) == 0 {
 			return nil
 		}
-		minSel := toIntContextValue(data["extract_min"])
-		maxSel := toIntContextValue(data["extract_max"])
+		minSel := runtimeutil.ToIntContextValue(data["extract_min"])
+		maxSel := runtimeutil.ToIntContextValue(data["extract_max"])
 		if minSel < 1 {
 			minSel = 1
 		}
@@ -112,10 +113,7 @@ func (e *GameEngine) handleSystemChoiceInput(playerID string, selectionIndex int
 		switch selectionIndex {
 		case 0:
 			e.Log(fmt.Sprintf("[Weak] %s 选择跳过行动阶段", player.Name))
-			if player.Tokens == nil {
-				player.Tokens = map[string]int{}
-			}
-			player.Tokens["arbiter_skip_forced_doomsday"] = 1
+			player.TurnState.UsedSkillCounts["arbiter_skip_forced_doomsday"] = 1
 			e.PopInterrupt()
 			if e.State.PendingInterrupt == nil {
 				e.enterTurnEndStage()
@@ -174,7 +172,7 @@ func (e *GameEngine) handleSystemChoiceInput(playerID string, selectionIndex int
 		return true, nil
 
 	case "heal":
-		damageIdx := toIntContextValue(ctxData["damage_index"])
+		damageIdx := runtimeutil.ToIntContextValue(ctxData["damage_index"])
 		if damageIdx < 0 || damageIdx >= len(e.State.PendingDamageQueue) {
 			return true, fmt.Errorf("伤害上下文不存在")
 		}
@@ -256,8 +254,8 @@ func (e *GameEngine) handleExtractChoiceSelections(playerID string, selections [
 	if !ok || len(selections) == 0 {
 		return fmt.Errorf("请选择要提炼的星石")
 	}
-	minSel := toIntContextValue(data["extract_min"])
-	maxSel := toIntContextValue(data["extract_max"])
+	minSel := runtimeutil.ToIntContextValue(data["extract_min"])
+	maxSel := runtimeutil.ToIntContextValue(data["extract_max"])
 	if minSel < 1 {
 		minSel = 1
 	}
@@ -288,11 +286,11 @@ func (e *GameEngine) handleExtractChoiceSelections(playerID string, selections [
 		}
 	}
 
-	selfRoom := toIntContextValue(data["extract_self_room"])
+	selfRoom := runtimeutil.ToIntContextValue(data["extract_self_room"])
 	if selfRoom < 0 {
 		selfRoom = 0
 	}
-	maxAllyRoom := toIntContextValue(data["extract_max_ally_room"])
+	maxAllyRoom := runtimeutil.ToIntContextValue(data["extract_max_ally_room"])
 	allowParadise, _ := data["extract_allow_paradise"].(bool)
 	totalExtracted := extractedGems + extractedCrystals
 	requiresParadise := totalExtracted > selfRoom

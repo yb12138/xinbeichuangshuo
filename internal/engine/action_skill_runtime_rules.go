@@ -28,7 +28,7 @@ func (e *GameEngine) isActionSkillUsableForExtraMagic(player *model.Player, skil
 		return false
 	}
 	// 独有技：需拥有对应独有牌（手牌或专属卡区）。
-	if skillDef.RequireExclusive && !player.HasExclusiveCard(player.Character.Name, skillDef.Title) {
+	if skillDef.RequireExclusive && !player.HasExclusiveCard(player.Character.ID, skillDef.Title) {
 		return false
 	}
 	// 弃牌成本可达成性。
@@ -169,7 +169,7 @@ func (e *GameEngine) canSatisfyActionSkillDiscardRequirement(player *model.Playe
 		if skillDef.DiscardFate != "" && card.Faction != skillDef.DiscardFate {
 			continue
 		}
-		if skillDef.RequireExclusive && !card.MatchExclusive(player.Character.Name, skillDef.Title) {
+		if skillDef.RequireExclusive && !card.MatchExclusive(player.Character.ID, skillDef.Title) {
 			continue
 		}
 		matched++

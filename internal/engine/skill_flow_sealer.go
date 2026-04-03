@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"starcup-engine/internal/engine/runtimeutil"
 
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/rules"
@@ -11,7 +12,7 @@ func (e *GameEngine) buildSealerChoicePrompt(choiceType, playerID string, player
 	if choiceType != "five_elements_bind" {
 		return nil
 	}
-	drawCount := toIntContextValue(data["draw_count"])
+	drawCount := runtimeutil.ToIntContextValue(data["draw_count"])
 	return &model.Prompt{
 		Type:     model.PromptConfirm,
 		PlayerID: playerID,
@@ -34,7 +35,7 @@ func (e *GameEngine) handleSealerChoiceInput(_ string, selectionIndex int, ctxDa
 }
 
 func (e *GameEngine) handleFiveElementsBindChoice(selectionIndex int, ctxData map[string]interface{}) error {
-	drawCount := toIntContextValue(ctxData["draw_count"])
+	drawCount := runtimeutil.ToIntContextValue(ctxData["draw_count"])
 	targetPlayerID, _ := ctxData["player_id"].(string)
 	player := e.State.Players[targetPlayerID]
 	if player == nil {
@@ -66,8 +67,7 @@ func (e *GameEngine) handleFiveElementsBindChoice(selectionIndex int, ctxData ma
 		return nil
 	case 1:
 		e.Log(fmt.Sprintf("[FiveElementsBind] %s 选择放弃行动", player.Name))
-		ensurePlayerTokensMap(player)
-		player.Tokens["arbiter_skip_forced_doomsday"] = 1
+		player.TurnState.UsedSkillCounts["arbiter_skip_forced_doomsday"] = 1
 
 		e.PopInterrupt()
 		if e.State.PendingInterrupt == nil {

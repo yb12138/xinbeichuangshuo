@@ -1,5 +1,7 @@
 package engine
 
+import "starcup-engine/internal/engine/runtimeutil"
+
 type choiceSequentialCountResolver func(ctxData map[string]interface{}) (int, bool)
 
 var registeredChoiceSequentialCountResolvers = buildChoiceSequentialCountResolvers()
@@ -20,11 +22,11 @@ func buildChoiceSequentialCountResolvers() map[string]choiceSequentialCountResol
 		"bd_rousing_discard_cards":      remainingCountFromFixedTotal(2),
 		"bd_dissonance_discard_step":    remainingCountFromNeedAndSelected("need_count", "selected_count"),
 		"mb_demon_eye_charge_card": func(ctxData map[string]interface{}) (int, bool) {
-			need := toIntContextValue(ctxData["need_count"])
+			need := runtimeutil.ToIntContextValue(ctxData["need_count"])
 			if need <= 0 {
 				need = 1
 			}
-			return need - len(parseChoiceIntSlice(ctxData["selected_indices"])), true
+			return need - len(runtimeutil.ParseChoiceIntSlice(ctxData["selected_indices"])), true
 		},
 	}
 	return m
@@ -32,21 +34,21 @@ func buildChoiceSequentialCountResolvers() map[string]choiceSequentialCountResol
 
 func remainingCountFromSelectionKey(key string) choiceSequentialCountResolver {
 	return func(ctxData map[string]interface{}) (int, bool) {
-		selectedCount := len(parseChoiceIntSlice(ctxData["selected_indices"]))
-		return toIntContextValue(ctxData[key]) - selectedCount, true
+		selectedCount := len(runtimeutil.ParseChoiceIntSlice(ctxData["selected_indices"]))
+		return runtimeutil.ToIntContextValue(ctxData[key]) - selectedCount, true
 	}
 }
 
 func remainingCountFromFixedTotal(total int) choiceSequentialCountResolver {
 	return func(ctxData map[string]interface{}) (int, bool) {
-		selectedCount := len(parseChoiceIntSlice(ctxData["selected_indices"]))
+		selectedCount := len(runtimeutil.ParseChoiceIntSlice(ctxData["selected_indices"]))
 		return total - selectedCount, true
 	}
 }
 
 func remainingCountFromNeedAndSelected(needKey, selectedKey string) choiceSequentialCountResolver {
 	return func(ctxData map[string]interface{}) (int, bool) {
-		return toIntContextValue(ctxData[needKey]) - toIntContextValue(ctxData[selectedKey]), true
+		return runtimeutil.ToIntContextValue(ctxData[needKey]) - runtimeutil.ToIntContextValue(ctxData[selectedKey]), true
 	}
 }
 

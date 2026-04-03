@@ -290,6 +290,7 @@ func (e *GameEngine) formatCountMap(counts map[string]int, unit string, sign str
 	return strings.Join(parts, "、")
 }
 
+// 判断当前行动是否结束
 func (e *GameEngine) isActionFinalizeIdle() bool {
 	if e == nil || e.State == nil {
 		return false

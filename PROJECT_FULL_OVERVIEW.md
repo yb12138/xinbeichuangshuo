@@ -121,9 +121,9 @@
 
 ## 4.1 规则/文档资产
 
-- `internal/data/rule.md`：规则正文
-- `internal/data/action.md`：阶段/时序清单
-- `internal/data/qa.md`：FAQ 解释
+- `internal/data/docs/rule.md`：规则正文
+- `internal/data/docs/action.md`：阶段/时序清单
+- `internal/data/docs/qa.md`：FAQ 解释
 - `star_cup_rules.md`：补充规则文档
 - `plan.md`：开发阶段计划
 - `role_skill_chain`：角色技能逻辑草案（早期）

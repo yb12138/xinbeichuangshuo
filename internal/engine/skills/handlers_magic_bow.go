@@ -39,10 +39,7 @@ func magicBowChargeCount(user *model.Player, element model.Element) int {
 }
 
 func syncMagicBowChargeToken(user *model.Player) {
-	if user == nil {
-		return
-	}
-	setToken(user, "mb_charge_count", magicBowChargeCount(user, ""))
+	// no-op: mb_charge_count 在服务端 buildStateForPlayer 中按场上盖牌派生写入 PlayerView.tokens
 }
 
 func removeMagicBowChargeByElement(user *model.Player, element model.Element) (model.Card, bool) {
@@ -176,7 +173,7 @@ func (h *MagicBowMagicPierceHandler) Execute(ctx *model.Context) error {
 		return fmt.Errorf("火系充能不足")
 	}
 	ctx.User.TurnState.UsedSkillCounts["mb_magic_pierce_used_turn"]++
-	setToken(ctx.User, "mb_magic_pierce_pending", 1)
+	setSkillFlow(ctx.User, "mb_magic_pierce_pending", 1)
 	ctx.TriggerCtx.Card.Damage++
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [魔贯冲击]：移除1个火系充能，本次攻击伤害+1", ctx.User.Name))
 	return nil

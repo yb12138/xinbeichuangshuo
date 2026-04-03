@@ -266,8 +266,8 @@ func TestHolyBow_AutoFillTriggeredAtTurnEndWithoutSpecial(t *testing.T) {
 	p1 := game.State.Players["p1"]
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
-	p1.Tokens["hb_special_used_turn"] = 0
-	p1.Tokens["hb_auto_fill_done_turn"] = 0
+	p1.TurnState.UsedSkillCounts["hb_special"] = 0
+	p1.TurnState.UsedSkillCounts["hb_auto_fill"] = 0
 	p1.Crystal = 1
 	p1.Gem = 0
 	game.State.CurrentTurn = 0
@@ -364,7 +364,7 @@ func TestHolyBow_HolyShardStormMiss_NoBranch(t *testing.T) {
 	if got := len(p3.Hand); got != 2 {
 		t.Fatalf("expected ally hand unchanged on miss-no branch, got %d", got)
 	}
-	if got := p1.Tokens["hb_shard_miss_pending"]; got != 0 {
+	if got := p1.TurnState.SkillFlowState["hb_shard_miss_pending"]; got != 0 {
 		t.Fatalf("expected shard_miss_pending cleared, got %d", got)
 	}
 	if game.State.PendingInterrupt != nil && game.State.PendingInterrupt.Type == model.InterruptDiscard {
@@ -435,7 +435,7 @@ func TestHolyBow_HolyShardStormMiss_NoEligibleAllySkipsPrompt(t *testing.T) {
 	if got := p1.Heal; got != 3 {
 		t.Fatalf("expected heal unchanged when miss branch cannot trigger, got %d", got)
 	}
-	if got := p1.Tokens["hb_shard_miss_pending"]; got != 0 {
+	if got := p1.TurnState.SkillFlowState["hb_shard_miss_pending"]; got != 0 {
 		t.Fatalf("expected shard_miss_pending cleared, got %d", got)
 	}
 }
@@ -530,7 +530,7 @@ func TestHolyBow_HolyShardStormMiss_YesBranch(t *testing.T) {
 	if got := len(p3.Hand); got != 0 {
 		t.Fatalf("expected ally discarded 2 cards, got hand=%d", got)
 	}
-	if got := p1.Tokens["hb_shard_miss_pending"]; got != 0 {
+	if got := p1.TurnState.SkillFlowState["hb_shard_miss_pending"]; got != 0 {
 		t.Fatalf("expected shard_miss_pending cleared, got %d", got)
 	}
 }

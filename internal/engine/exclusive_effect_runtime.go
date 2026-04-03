@@ -6,6 +6,63 @@ import (
 	"starcup-engine/internal/model"
 )
 
+// triggerFieldEffects 触发场上效果牌。
+func (e *GameEngine) triggerFieldEffects(p *model.Player, trigger model.EffectTrigger, ctx *model.Context) {
+	var remain []*model.FieldCard
+
+	for _, fc := range p.Field {
+		if fc.Mode != model.FieldEffect || fc.Trigger != trigger {
+			remain = append(remain, fc)
+			continue
+		}
+
+		switch fc.Effect {
+		case model.EffectPoison:
+			e.applyPoisonEffect(p, fc.SourceID, ctx)
+		case model.EffectWeak:
+			remain = append(remain, fc)
+			continue
+		default:
+			remain = append(remain, fc)
+			continue
+		}
+
+		e.State.DiscardPile = append(e.State.DiscardPile, fc.Card)
+		e.Log(fmt.Sprintf("[Field] %s 面前的【%s】触发效果并被弃置", p.Name, fc.Card.Name))
+	}
+
+	p.Field = remain
+}
+
+// applyPoisonEffect 应用中毒效果。
+func (e *GameEngine) applyPoisonEffect(p *model.Player, sourceID string, ctx *model.Context) {
+	allowCrimsonFaithHeal := sourceID != "" && sourceID == p.ID
+	e.AddPendingDamage(model.PendingDamage{
+		SourceID:              sourceID,
+		TargetID:              p.ID,
+		Damage:                1,
+		DamageType:            "poison",
+		AllowCrimsonFaithHeal: allowCrimsonFaithHeal,
+	})
+	e.Log(fmt.Sprintf("[Effect] %s 受到中毒伤害", p.Name))
+}
+
+// applyShieldEffect 应用圣盾效果。
+func (e *GameEngine) applyShieldEffect(p *model.Player, ctx *model.Context) {
+	if ctx != nil {
+		ctx.Flags["shielded"] = true
+	}
+	e.Log(fmt.Sprintf("[Effect] %s 的圣盾生效", p.Name))
+}
+
+// applyWeakEffect 应用虚弱效果。
+func (e *GameEngine) applyWeakEffect(p *model.Player, ctx *model.Context) {
+	if ctx != nil {
+		ctx.Flags["weakened"] = true
+	}
+	e.Log(fmt.Sprintf("[Effect] %s 陷入虚弱状态", p.Name))
+}
+
 func (e *GameEngine) findSourceEffectCard(source *model.Player, effect model.EffectType) (*model.Player, *model.FieldCard) {
 	if source == nil {
 		return nil, nil

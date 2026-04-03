@@ -3,11 +3,83 @@ package engine
 import (
 	"fmt"
 	"sort"
+	"starcup-engine/internal/engine/runtimeutil"
 	"strconv"
 	"strings"
 
 	"starcup-engine/internal/model"
 )
+
+func (e *GameEngine) isForcedAdventurerParadiseResponse(playerID string) bool {
+	intr := e.State.PendingInterrupt
+	if intr == nil || intr.Type != model.InterruptResponseSkill || intr.PlayerID != playerID {
+		return false
+	}
+	player := e.State.Players[playerID]
+	if player == nil || player.TurnState.SkillFlowState == nil || player.TurnState.SkillFlowState["adventurer_extract_requires_paradise"] <= 0 {
+		return false
+	}
+	for _, sid := range intr.SkillIDs {
+		if sid == "adventurer_paradise" {
+			return true
+		}
+	}
+	return false
+}
+
+func (e *GameEngine) resolveAdventurerLuckyFortuneFromFraud(user *model.Player) {
+	if user == nil {
+		return
+	}
+	user.Crystal++
+	e.Log(fmt.Sprintf("%s 的 [强运] 触发，获得1蓝水晶", user.Name))
+	e.Log(fmt.Sprintf("[Skill] %s 使用了技能: 强运", user.Name))
+}
+
+func (e *GameEngine) resolveAdventurerUndergroundLaw(user *model.Player) {
+	if user == nil {
+		return
+	}
+	e.ModifyGem(string(user.Camp), 2)
+	e.Log(fmt.Sprintf("%s 的 [地下法则] 生效，本次购买改为战绩区+2宝石", user.Name))
+	e.Log(fmt.Sprintf("[Skill] %s 使用了技能: 地下法则", user.Name))
+}
+
+func (e *GameEngine) buildFraudCombos(user *model.Player, element model.Element, need int, allowAnyElementForDark bool) []string {
+	if user == nil || need <= 0 {
+		return nil
+	}
+	elemToIdx := map[model.Element][]int{}
+	for i, c := range user.Hand {
+		elemToIdx[c.Element] = append(elemToIdx[c.Element], i)
+	}
+
+	var targets []model.Element
+	if allowAnyElementForDark {
+		for ele, idxs := range elemToIdx {
+			if len(idxs) >= need {
+				targets = append(targets, ele)
+			}
+		}
+	} else {
+		if len(elemToIdx[element]) >= need {
+			targets = append(targets, element)
+		}
+	}
+
+	var combos []string
+	for _, ele := range targets {
+		idxs := elemToIdx[ele]
+		for _, picked := range runtimeutil.PickKIndices(idxs, need) {
+			parts := make([]string, 0, len(picked))
+			for _, v := range picked {
+				parts = append(parts, fmt.Sprintf("%d", v))
+			}
+			combos = append(combos, fmt.Sprintf("%s:%s", ele, strings.Join(parts, ",")))
+		}
+	}
+	return combos
+}
 
 func (e *GameEngine) buildAdventurerChoicePrompt(choiceType, playerID string, player *model.Player, data map[string]interface{}) *model.Prompt {
 	switch choiceType {
@@ -34,7 +106,7 @@ func (e *GameEngine) buildAdventurerChoicePrompt(choiceType, playerID string, pl
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【欺诈】请选择本次攻击系别（不可选暗）：", Options: options, Min: 1, Max: 1}
 
 	case "adventurer_fraud_discard_element":
-		elems := parseStringSliceContextValue(data["discard_elements"])
+		elems := runtimeutil.ParseStringSliceContextValue(data["discard_elements"])
 		options := make([]model.PromptOption, 0, len(elems))
 		for _, ele := range elems {
 			options = append(options, model.PromptOption{ID: ele, Label: fmt.Sprintf("弃%s系同系2张", elementNameForPrompt(ele))})
@@ -42,7 +114,7 @@ func (e *GameEngine) buildAdventurerChoicePrompt(choiceType, playerID string, pl
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【欺诈】请选择用于弃置的同系牌：", Options: options, Min: 1, Max: 1}
 
 	case "adventurer_fraud_discard_combo":
-		combos := parseStringSliceContextValue(data["combos"])
+		combos := runtimeutil.ParseStringSliceContextValue(data["combos"])
 		options := make([]model.PromptOption, 0, len(combos))
 		for _, combo := range combos {
 			parts := strings.Split(combo, ":")
@@ -70,16 +142,16 @@ func (e *GameEngine) buildAdventurerChoicePrompt(choiceType, playerID string, pl
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【欺诈】请选择要弃置的同系牌组合：", Options: options, Min: 1, Max: 1}
 
 	case "adventurer_paradise_target":
-		allyIDs := parseStringSliceContextValue(data["ally_ids"])
+		allyIDs := runtimeutil.ParseStringSliceContextValue(data["ally_ids"])
 		options := make([]model.PromptOption, 0, len(allyIDs))
 		for _, allyID := range allyIDs {
 			if target := e.State.Players[allyID]; target != nil {
 				options = append(options, model.PromptOption{ID: allyID, Label: target.Name})
 			}
 		}
-		transferGem := toIntContextValue(data["transfer_gem"])
-		transferCrystal := toIntContextValue(data["transfer_crystal"])
-		transferTotal := toIntContextValue(data["transfer_total"])
+		transferGem := runtimeutil.ToIntContextValue(data["transfer_gem"])
+		transferCrystal := runtimeutil.ToIntContextValue(data["transfer_crystal"])
+		transferTotal := runtimeutil.ToIntContextValue(data["transfer_total"])
 		if transferTotal <= 0 {
 			transferTotal = transferGem + transferCrystal
 		}
@@ -195,7 +267,7 @@ func (e *GameEngine) handleAdventurerChoiceInput(_ string, selectionIndex int, c
 		return true, nil
 
 	case "adventurer_fraud_discard_element":
-		elems := parseStringSliceContextValue(ctxData["discard_elements"])
+		elems := runtimeutil.ParseStringSliceContextValue(ctxData["discard_elements"])
 		if selectionIndex < 0 || selectionIndex >= len(elems) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
@@ -217,7 +289,7 @@ func (e *GameEngine) handleAdventurerChoiceInput(_ string, selectionIndex int, c
 		return true, nil
 
 	case "adventurer_fraud_discard_combo":
-		combos := parseStringSliceContextValue(ctxData["combos"])
+		combos := runtimeutil.ParseStringSliceContextValue(ctxData["combos"])
 		if selectionIndex < 0 || selectionIndex >= len(combos) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
@@ -286,13 +358,14 @@ func (e *GameEngine) handleAdventurerChoiceInput(_ string, selectionIndex int, c
 			Damage:  2,
 		}
 		e.State.ActionQueue = append(e.State.ActionQueue, model.QueuedAction{
-			SourceID:    userID,
-			TargetID:    targetID,
-			Type:        model.ActionAttack,
-			Element:     attackElement,
-			Card:        &virtualCard,
-			CardIndex:   -1,
-			SourceSkill: "adventurer_fraud",
+			SourceID:        userID,
+			TargetID:        targetID,
+			Type:            model.ActionAttack,
+			Element:         attackElement,
+			Card:            &virtualCard,
+			CardIndex:       -1,
+			SourceSkill:     "adventurer_fraud",
+			UsesVirtualCard: true,
 		})
 		e.resolveAdventurerLuckyFortuneFromFraud(user)
 		e.enterActionExecutionStage()
@@ -306,7 +379,7 @@ func (e *GameEngine) handleAdventurerChoiceInput(_ string, selectionIndex int, c
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
-		allyIDs := parseStringSliceContextValue(ctxData["ally_ids"])
+		allyIDs := runtimeutil.ParseStringSliceContextValue(ctxData["ally_ids"])
 		if selectionIndex < 0 || selectionIndex >= len(allyIDs) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
@@ -315,9 +388,9 @@ func (e *GameEngine) handleAdventurerChoiceInput(_ string, selectionIndex int, c
 			return true, fmt.Errorf("队友不存在")
 		}
 
-		transferGem := toIntContextValue(ctxData["transfer_gem"])
-		transferCrystal := toIntContextValue(ctxData["transfer_crystal"])
-		transferTotal := toIntContextValue(ctxData["transfer_total"])
+		transferGem := runtimeutil.ToIntContextValue(ctxData["transfer_gem"])
+		transferCrystal := runtimeutil.ToIntContextValue(ctxData["transfer_crystal"])
+		transferTotal := runtimeutil.ToIntContextValue(ctxData["transfer_total"])
 		if transferTotal <= 0 {
 			transferTotal = transferGem + transferCrystal
 		}
@@ -398,9 +471,9 @@ func (e *GameEngine) handleAdventurerChoiceInput(_ string, selectionIndex int, c
 		}
 		switch selectionIndex {
 		case 0:
-			user.TurnState.PendingActions = append(user.TurnState.PendingActions, model.ActionContext{Source: "偷天换日", MustType: "Attack"})
+			model.AppendAttackAction(user, "偷天换日")
 		case 1:
-			user.TurnState.PendingActions = append(user.TurnState.PendingActions, model.ActionContext{Source: "偷天换日", MustType: "Magic"})
+			model.AppendMagicAction(user, "偷天换日")
 		default:
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}

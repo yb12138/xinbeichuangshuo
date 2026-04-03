@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"starcup-engine/internal/engine/runtimeutil"
 
 	"starcup-engine/internal/model"
 )
@@ -9,7 +10,7 @@ import (
 func (e *GameEngine) buildPlagueMageChoicePrompt(choiceType, playerID string, player *model.Player, data map[string]interface{}) *model.Prompt {
 	switch choiceType {
 	case "plague_death_touch_element":
-		elements := parseStringSliceContextValue(data["elements"])
+		elements := runtimeutil.ParseStringSliceContextValue(data["elements"])
 		options := make([]model.PromptOption, 0, len(elements))
 		for i, ele := range elements {
 			options = append(options, model.PromptOption{
@@ -26,7 +27,7 @@ func (e *GameEngine) buildPlagueMageChoicePrompt(choiceType, playerID string, pl
 			Max:      1,
 		}
 	case "plague_death_touch_x":
-		maxHeal := toIntContextValue(data["max_heal"])
+		maxHeal := runtimeutil.ToIntContextValue(data["max_heal"])
 		options := make([]model.PromptOption, 0, maxHeal-1)
 		for x := 2; x <= maxHeal; x++ {
 			options = append(options, model.PromptOption{
@@ -43,7 +44,7 @@ func (e *GameEngine) buildPlagueMageChoicePrompt(choiceType, playerID string, pl
 			Max:      1,
 		}
 	case "plague_death_touch_y":
-		maxCards := toIntContextValue(data["max_cards"])
+		maxCards := runtimeutil.ToIntContextValue(data["max_cards"])
 		options := make([]model.PromptOption, 0, maxCards-1)
 		for y := 2; y <= maxCards; y++ {
 			options = append(options, model.PromptOption{
@@ -60,9 +61,9 @@ func (e *GameEngine) buildPlagueMageChoicePrompt(choiceType, playerID string, pl
 			Max:      1,
 		}
 	case "plague_death_touch_cards":
-		remaining := parseChoiceIntSlice(data["remaining_indices"])
-		yNeed := toIntContextValue(data["y_value"])
-		selectedCount := len(parseChoiceIntSlice(data["selected_indices"]))
+		remaining := runtimeutil.ParseChoiceIntSlice(data["remaining_indices"])
+		yNeed := runtimeutil.ToIntContextValue(data["y_value"])
+		selectedCount := len(runtimeutil.ParseChoiceIntSlice(data["selected_indices"]))
 		options := make([]model.PromptOption, 0, len(remaining))
 		for _, idx := range remaining {
 			if player == nil || idx < 0 || idx >= len(player.Hand) {
@@ -89,7 +90,7 @@ func (e *GameEngine) buildPlagueMageChoicePrompt(choiceType, playerID string, pl
 			Max:      remainingPick,
 		}
 	case "plague_death_touch_target":
-		targetIDs := parseStringSliceContextValue(data["target_ids"])
+		targetIDs := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
 		options := make([]model.PromptOption, 0, len(targetIDs))
 		for i, targetID := range targetIDs {
 			if target := e.State.Players[targetID]; target != nil {
@@ -137,7 +138,7 @@ func (e *GameEngine) handlePlagueDeathTouchElementChoice(ctxData map[string]inte
 		return fmt.Errorf("玩家不存在")
 	}
 
-	elements := parseStringSliceContextValue(ctxData["elements"])
+	elements := runtimeutil.ParseStringSliceContextValue(ctxData["elements"])
 	if selectionIndex < 0 || selectionIndex >= len(elements) {
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
@@ -158,7 +159,7 @@ func (e *GameEngine) handlePlagueDeathTouchElementChoice(ctxData map[string]inte
 
 func (e *GameEngine) handlePlagueDeathTouchXChoice(ctxData map[string]interface{}, selectionIndex int) error {
 	xValue := selectionIndex + 2
-	if maxHeal := toIntContextValue(ctxData["max_heal"]); xValue < 2 || xValue > maxHeal {
+	if maxHeal := runtimeutil.ToIntContextValue(ctxData["max_heal"]); xValue < 2 || xValue > maxHeal {
 		return fmt.Errorf("无效的X值")
 	}
 	ctxData["choice_type"] = "plague_death_touch_y"
@@ -176,7 +177,7 @@ func (e *GameEngine) handlePlagueDeathTouchYChoice(ctxData map[string]interface{
 	}
 
 	yValue := selectionIndex + 2
-	if maxCards := toIntContextValue(ctxData["max_cards"]); yValue < 2 || yValue > maxCards {
+	if maxCards := runtimeutil.ToIntContextValue(ctxData["max_cards"]); yValue < 2 || yValue > maxCards {
 		return fmt.Errorf("无效的Y值")
 	}
 
@@ -191,11 +192,11 @@ func (e *GameEngine) handlePlagueDeathTouchYChoice(ctxData map[string]interface{
 }
 
 func (e *GameEngine) handlePlagueDeathTouchCardsChoice(ctxData map[string]interface{}, selectionIndex int) error {
-	remaining := parseChoiceIntSlice(ctxData["remaining_indices"])
-	selected := append([]int{}, parseChoiceIntSlice(ctxData["selected_indices"])...)
-	yValue := toIntContextValue(ctxData["y_value"])
+	remaining := runtimeutil.ParseChoiceIntSlice(ctxData["remaining_indices"])
+	selected := append([]int{}, runtimeutil.ParseChoiceIntSlice(ctxData["selected_indices"])...)
+	yValue := runtimeutil.ToIntContextValue(ctxData["y_value"])
 
-	cardIdx, ok := resolveSelectionToCandidate(selectionIndex, remaining)
+	cardIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, remaining)
 	if !ok {
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
@@ -234,7 +235,7 @@ func (e *GameEngine) handlePlagueDeathTouchCardsChoice(ctxData map[string]interf
 }
 
 func (e *GameEngine) handlePlagueDeathTouchTargetChoice(ctxData map[string]interface{}, selectionIndex int) error {
-	targetIDs := parseStringSliceContextValue(ctxData["target_ids"])
+	targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
 	if selectionIndex < 0 || selectionIndex >= len(targetIDs) {
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
@@ -251,9 +252,9 @@ func (e *GameEngine) resolvePlagueDeathTouchFinal(ctxData map[string]interface{}
 		return fmt.Errorf("目标不存在")
 	}
 
-	selected := append([]int{}, parseChoiceIntSlice(ctxData["selected_indices"])...)
-	xValue := toIntContextValue(ctxData["x_value"])
-	yValue := toIntContextValue(ctxData["y_value"])
+	selected := append([]int{}, runtimeutil.ParseChoiceIntSlice(ctxData["selected_indices"])...)
+	xValue := runtimeutil.ToIntContextValue(ctxData["x_value"])
+	yValue := runtimeutil.ToIntContextValue(ctxData["y_value"])
 
 	removed, err := removeCardsByIndicesFromHand(user, selected)
 	if err != nil {
@@ -271,8 +272,9 @@ func (e *GameEngine) resolvePlagueDeathTouchFinal(ctxData map[string]interface{}
 	if damage < 0 {
 		damage = 0
 	}
-	ensurePlayerTokensMap(user)
-	user.Tokens["plague_block_immortal"] = 1
+	user.TurnState.UsedSkillCounts["plague_block_immortal"] = 1
+	user.TurnState.HasActed = true
+	user.TurnState.LastActionType = string(model.ActionMagic)
 	e.AddPendingDamage(model.PendingDamage{
 		SourceID:           user.ID,
 		TargetID:           targetID,
@@ -283,9 +285,9 @@ func (e *GameEngine) resolvePlagueDeathTouchFinal(ctxData map[string]interface{}
 
 	e.PopInterrupt()
 	if e.State.PendingInterrupt == nil {
-		e.routePendingDamageOr(model.TurnStageExtraAction, func() {
+		if !e.routePendingDamageWithReturn(model.TurnStageExtraAction) {
 			e.enterExtraActionStage()
-		})
+		}
 	}
 	return nil
 }

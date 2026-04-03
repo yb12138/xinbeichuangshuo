@@ -367,7 +367,7 @@ func printStatus(g *engine.GameEngine) {
 	for _, pid := range g.State.PlayerOrder {
 		player := g.State.Players[pid]
 		status := fmt.Sprintf("[%s] %s (%s) [角色:%s]: Hand %d/%d, Gem %d, Cry %d, Heal %d",
-			player.ID, player.Name, player.Camp, player.Character.Name,
+			player.ID, player.Name, player.Camp, player.Character.ID,
 			len(player.Hand), player.MaxHand, player.Gem, player.Crystal, player.Heal)
 
 		// Check field effects instead of Buffs

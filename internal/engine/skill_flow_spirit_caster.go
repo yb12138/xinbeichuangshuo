@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"starcup-engine/internal/engine/runtimeutil"
 	"starcup-engine/internal/model"
 )
 
@@ -21,7 +22,7 @@ func (e *GameEngine) beginSpiritCasterTalisman(user *model.Player, skillID strin
 	if !e.isSpiritCaster(user) {
 		return fmt.Errorf("仅灵符师可发动灵符技能")
 	}
-	targetIDs = dedupeIDs(targetIDs)
+	targetIDs = runtimeutil.DedupeIDs(targetIDs)
 	if len(targetIDs) != 2 {
 		return fmt.Errorf("灵符技能需要且仅需指定2名角色")
 	}
@@ -50,7 +51,7 @@ func (e *GameEngine) resolveSpiritCasterTalismanFollowup(f model.DeferredFollowu
 	if user == nil {
 		return fmt.Errorf("执行者不存在: %s", f.UserID)
 	}
-	targetIDs := dedupeIDs(f.TargetIDs)
+	targetIDs := runtimeutil.DedupeIDs(f.TargetIDs)
 	if len(targetIDs) != 2 {
 		return fmt.Errorf("灵符后续目标数量无效: %d", len(targetIDs))
 	}
@@ -107,7 +108,7 @@ func (e *GameEngine) resolveSpiritCasterThunderDamage(user *model.Player, target
 	if damage < 0 {
 		damage = 0
 	}
-	targetSet := idsToSet(dedupeIDs(targetIDs))
+	targetSet := runtimeutil.IDsToSet(runtimeutil.DedupeIDs(targetIDs))
 	ordered := e.reverseOrderTargetIDsFrom(user.ID, true)
 	hitCount := 0
 	for _, targetID := range ordered {
@@ -130,7 +131,7 @@ func (e *GameEngine) startSpiritCasterWindDiscardFlow(user *model.Player, target
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
-	targetSet := idsToSet(dedupeIDs(targetIDs))
+	targetSet := runtimeutil.IDsToSet(runtimeutil.DedupeIDs(targetIDs))
 	orderedAll := e.reverseOrderTargetIDsFrom(user.ID, true)
 	ordered := make([]string, 0, len(targetIDs))
 	for _, playerID := range orderedAll {
@@ -199,7 +200,7 @@ func (e *GameEngine) resolveSpiritCasterHundredNightFireAOE(user *model.Player, 
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
-	exclude := idsToSet(dedupeIDs(excludeIDs))
+	exclude := runtimeutil.IDsToSet(runtimeutil.DedupeIDs(excludeIDs))
 	damage := 1 + bonus
 	ordered := e.reverseOrderTargetIDsFrom(user.ID, true)
 	hitCount := 0
@@ -278,8 +279,8 @@ func (e *GameEngine) buildSpiritCasterChoicePrompt(choiceType, playerID string, 
 			Max:      1,
 		}
 	case "sc_hundred_night_exclude_pick":
-		targetIDs := parseStringSliceContextValue(data["target_ids"])
-		selectedSet := idsToSet(parseStringSliceContextValue(data["selected_exclude_ids"]))
+		targetIDs := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
+		selectedSet := runtimeutil.IDsToSet(runtimeutil.ParseStringSliceContextValue(data["selected_exclude_ids"]))
 		options := make([]model.PromptOption, 0, len(targetIDs))
 		for _, targetID := range targetIDs {
 			if selectedSet[targetID] {
@@ -338,7 +339,7 @@ func (e *GameEngine) handleSpiritCasterChoiceInput(playerID string, selectionInd
 			return true, fmt.Errorf("玩家不存在")
 		}
 		skillID, _ := ctxData["skill_id"].(string)
-		targetIDs := dedupeIDs(parseStringSliceContextValue(ctxData["target_ids"]))
+		targetIDs := runtimeutil.DedupeIDs(runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"]))
 		switch selectionIndex {
 		case 0:
 			if len(user.Hand) == 0 {
@@ -363,7 +364,7 @@ func (e *GameEngine) handleSpiritCasterChoiceInput(playerID string, selectionInd
 			return true, fmt.Errorf("玩家不存在")
 		}
 		skillID, _ := ctxData["skill_id"].(string)
-		targetIDs := dedupeIDs(parseStringSliceContextValue(ctxData["target_ids"]))
+		targetIDs := runtimeutil.DedupeIDs(runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"]))
 		if selectionIndex < 0 || selectionIndex >= len(user.Hand) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
@@ -386,7 +387,7 @@ func (e *GameEngine) handleSpiritCasterChoiceInput(playerID string, selectionInd
 		if len(powers) == 0 {
 			return true, fmt.Errorf("没有可移除的妖力")
 		}
-		powerIdx, ok := resolveSelectionToCandidate(selectionIndex, func() []int {
+		powerIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, func() []int {
 			idxs := make([]int, 0, len(powers))
 			for i := range powers {
 				idxs = append(idxs, i)
@@ -449,12 +450,12 @@ func (e *GameEngine) handleSpiritCasterChoiceInput(playerID string, selectionInd
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
-		allTargetIDs := parseStringSliceContextValue(ctxData["target_ids"])
+		allTargetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
 		if len(allTargetIDs) < 2 {
 			return true, fmt.Errorf("可选目标不足2名")
 		}
-		selected := dedupeIDs(parseStringSliceContextValue(ctxData["selected_exclude_ids"]))
-		selectedSet := idsToSet(selected)
+		selected := runtimeutil.DedupeIDs(runtimeutil.ParseStringSliceContextValue(ctxData["selected_exclude_ids"]))
+		selectedSet := runtimeutil.IDsToSet(selected)
 		remaining := make([]string, 0, len(allTargetIDs))
 		for _, targetID := range allTargetIDs {
 			if !selectedSet[targetID] {
@@ -493,7 +494,7 @@ func (e *GameEngine) handleSpiritCasterChoiceInput(playerID string, selectionInd
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
-		targetIDs := parseStringSliceContextValue(ctxData["target_ids"])
+		targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
 		if selectionIndex < 0 || selectionIndex >= len(targetIDs) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
@@ -533,7 +534,7 @@ func (e *GameEngine) handleSpiritCasterChoiceInput(playerID string, selectionInd
 		mode, _ := ctxData["mode"].(string)
 		switch mode {
 		case "sc_talisman_thunder":
-			targetIDs := dedupeIDs(parseStringSliceContextValue(ctxData["target_ids"]))
+			targetIDs := runtimeutil.DedupeIDs(runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"]))
 			e.PopInterrupt()
 			e.resolveSpiritCasterThunderDamage(user, targetIDs, bonus)
 		case "sc_hundred_night_single":
@@ -546,7 +547,7 @@ func (e *GameEngine) handleSpiritCasterChoiceInput(playerID string, selectionInd
 			}
 			e.PopInterrupt()
 		case "sc_hundred_night_fire_aoe":
-			excludeIDs := dedupeIDs(parseStringSliceContextValue(ctxData["exclude_ids"]))
+			excludeIDs := runtimeutil.DedupeIDs(runtimeutil.ParseStringSliceContextValue(ctxData["exclude_ids"]))
 			if len(excludeIDs) != 2 {
 				return true, fmt.Errorf("百鬼夜行火系分支需要2名排除目标")
 			}
@@ -567,11 +568,11 @@ func (e *GameEngine) handleSpiritCasterChoiceInput(playerID string, selectionInd
 		if user == nil {
 			return true, fmt.Errorf("灵符师不存在")
 		}
-		ordered := parseStringSliceContextValue(ctxData["ordered_target_ids"])
+		ordered := runtimeutil.ParseStringSliceContextValue(ctxData["ordered_target_ids"])
 		if len(ordered) == 0 {
 			return true, fmt.Errorf("灵符-风行上下文无效")
 		}
-		cursor := toIntContextValue(ctxData["cursor"])
+		cursor := runtimeutil.ToIntContextValue(ctxData["cursor"])
 		if cursor < 0 || cursor >= len(ordered) {
 			return true, fmt.Errorf("灵符-风行游标无效")
 		}
@@ -587,7 +588,7 @@ func (e *GameEngine) handleSpiritCasterChoiceInput(playerID string, selectionInd
 			e.Log(fmt.Sprintf("%s 的 [灵符-风行]：%s 已无手牌，跳过", user.Name, target.Name))
 		} else {
 			candidates := allHandIndices(target)
-			cardIdx, ok := resolveSelectionToCandidate(selectionIndex, candidates)
+			cardIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, candidates)
 			if !ok || cardIdx < 0 || cardIdx >= len(target.Hand) {
 				return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 			}

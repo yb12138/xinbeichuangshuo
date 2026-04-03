@@ -326,10 +326,7 @@ func (h *CrimsonKnightCalmMindHandler) Execute(ctx *model.Context) error {
 	if actionType == model.ActionMagic {
 		actionLabel = "法术"
 	}
-	ctx.User.TurnState.PendingActions = append(ctx.User.TurnState.PendingActions, model.ActionContext{
-		Source:   "戒骄戒躁",
-		MustType: string(actionType),
-	})
+	model.AppendExtraAction(ctx.User, "戒骄戒躁", string(actionType))
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [戒骄戒躁]，脱离热血沸腾形态并额外获得1次%s行动", ctx.User.Name, actionLabel))
 	return nil
 }
@@ -1229,8 +1226,8 @@ func (h *BlazeWitchPainLinkHandler) Execute(ctx *model.Context) error {
 		Damage:     1,
 		DamageType: "magic",
 	})
-	setToken(ctx.User, "bw_pain_link_pending_discard", 1)
-	setToken(ctx.User, "bw_pain_link_pending_hits", 2)
+	setSkillFlow(ctx.User, "bw_pain_link_pending_discard", 1)
+	setSkillFlow(ctx.User, "bw_pain_link_pending_hits", 2)
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [痛苦链接]，先对 %s 后对自己各造成1点法术伤害", ctx.User.Name, ctx.Target.Name))
 	return nil
 }

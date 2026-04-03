@@ -61,7 +61,7 @@ func TestSwordEmperor_InitTokens(t *testing.T) {
 	if got := p1.Tokens["se_sword_soul_count"]; got != 0 {
 		t.Fatalf("expected se_sword_soul_count=0, got %d", got)
 	}
-	if got := p1.Tokens["se_guard_disabled_current_attack"]; got != 0 {
+	if got := p1.TurnState.UsedSkillCounts["se_guard_disabled_current_attack"]; got != 0 {
 		t.Fatalf("expected guard disable token cleared, got %d", got)
 	}
 }
@@ -186,10 +186,10 @@ func TestSwordEmperor_AngelSoul_MissDisablesGuardAndAddsMorale(t *testing.T) {
 	if got := game.State.RedMorale; got != 15 {
 		t.Fatalf("expected red morale 14 -> 15, got %d", got)
 	}
-	if got := p1.Tokens["se_guard_disabled_current_attack"]; got != 0 {
+	if got := p1.TurnState.UsedSkillCounts["se_guard_disabled_current_attack"]; got != 0 {
 		t.Fatalf("expected guard disable token cleared after miss, got %d", got)
 	}
-	if got := p1.Tokens["se_angel_soul_armed"]; got != 0 {
+	if got := p1.TurnState.UsedSkillCounts["se_angel_soul_armed"]; got != 0 {
 		t.Fatalf("expected angel soul armed token cleared after miss, got %d", got)
 	}
 }
@@ -273,9 +273,6 @@ func TestSwordEmperor_DemonSoul_HitAddsDamage(t *testing.T) {
 
 	if got := len(game.State.Players["p2"].Hand); got != 3 {
 		t.Fatalf("expected demon soul hit deal 3 damage, got target draw=%d", got)
-	}
-	if got := p1.Tokens["se_demon_damage_bonus_pending"]; got != 0 {
-		t.Fatalf("expected demon damage bonus token cleared after hit, got %d", got)
 	}
 }
 

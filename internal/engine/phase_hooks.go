@@ -8,16 +8,26 @@ import (
 
 type playerPhaseHook func(e *GameEngine, player *model.Player) bool
 
+var turnBeforeStartPhaseHooks = []playerPhaseHook{
+	turnBeforeStartButterflyDancerWitherExpiryHook,
+}
+
 var turnStartPhaseHooks = []playerPhaseHook{
 	startupArbiterTurnResetHook,
 	startupHolyBowTurnResetHook,
 	startupBardRousingHook,
-	startupArbiterJudgmentUpkeepHook,
+	turnStartBloodPriestessBleedHook,
+	turnStartArbiterJudgmentUpkeepHook,
+	turnStartValkyrieMilitaryGloryHook,
 }
 
 var actionStartPhaseHooks = []playerPhaseHook{
 	startupBlazeWitchFlameReleaseHook,
 	startupAssassinStealthReleaseHook,
+	startupMagicSwordsmanShadowReleaseHook,
+	startupHeroExhaustionReleaseHook,
+	startupArbiterForcedDoomsdayHook,
+	startupHeroTauntHook,
 }
 
 var turnEndPreExtraActionHooks = []playerPhaseHook{
@@ -62,6 +72,16 @@ func (e *GameEngine) runTurnProgressionFallbackHooks(player *model.Player) {
 	e.runPlayerPhaseHooks(player, turnProgressionFallbackHooks)
 }
 
+func (e *GameEngine) normalizeActionSelectionEntryState(player *model.Player) {
+	if e == nil || player == nil {
+		return
+	}
+	startupBlazeWitchFlameReleaseHook(e, player)
+	startupAssassinStealthReleaseHook(e, player)
+	startupMagicSwordsmanShadowReleaseHook(e, player)
+	startupHeroExhaustionReleaseHook(e, player)
+}
+
 func startupBlazeWitchFlameReleaseHook(e *GameEngine, player *model.Player) bool {
 	if !e.isBlazeWitch(player) || player.TurnState.HasUsedTriggerSkill || !hasBlazeWitchFlameForm(player) {
 		return false
@@ -86,17 +106,20 @@ func startupAssassinStealthReleaseHook(e *GameEngine, player *model.Player) bool
 	return false
 }
 
+func startupMagicSwordsmanShadowReleaseHook(e *GameEngine, player *model.Player) bool {
+	e.maybeReleaseMagicSwordsmanShadowAtActionStart(player)
+	return false
+}
+
 func startupArbiterTurnResetHook(_ *GameEngine, player *model.Player) bool {
-	ensurePlayerTokensMap(player)
-	player.Tokens["arbiter_skip_forced_doomsday"] = 0
-	player.Tokens["arbiter_forced_doomsday_done_turn"] = 0
+	player.TurnState.UsedSkillCounts["arbiter_skip_forced_doomsday"] = 0
+	player.TurnState.UsedSkillCounts["arbiter_forced_doomsday_done_turn"] = 0
 	return false
 }
 
 func startupHolyBowTurnResetHook(_ *GameEngine, player *model.Player) bool {
-	ensurePlayerTokensMap(player)
-	player.Tokens["hb_special_used_turn"] = 0
-	player.Tokens["hb_auto_fill_done_turn"] = 0
+	player.TurnState.UsedSkillCounts["hb_special"] = 0
+	player.TurnState.UsedSkillCounts["hb_auto_fill"] = 0
 	return false
 }
 
@@ -104,7 +127,7 @@ func startupBardRousingHook(e *GameEngine, player *model.Player) bool {
 	return e.maybeTriggerBardRousingAtTurnStart(player)
 }
 
-func startupArbiterJudgmentUpkeepHook(e *GameEngine, player *model.Player) bool {
+func turnStartArbiterJudgmentUpkeepHook(e *GameEngine, player *model.Player) bool {
 	if !hasArbiterJudgmentForm(player) || player.TurnState.HasUsedTriggerSkill {
 		return false
 	}
@@ -135,7 +158,7 @@ func turnEndBeastSamuraiHook(e *GameEngine, player *model.Player) bool {
 		}
 		e.dispatchOrientationChanges(beforePoses)
 	}
-	player.Tokens["bs_one_strike_armed"] = 0
+	player.TurnState.UsedSkillCounts["bs_one_strike_armed"] = 0
 	clearBeastSamuraiAttackTokens(player)
 	return false
 }
@@ -176,10 +199,10 @@ func turnEndElfArcherHook(e *GameEngine, player *model.Player) bool {
 }
 
 func turnEndPlagueMageHook(e *GameEngine, player *model.Player) bool {
-	if !e.isPlagueMage(player) || player.Tokens["plague_outbreak_morale_drop_turn"] <= 0 {
+	if !e.isPlagueMage(player) || player.TurnState.UsedSkillCounts["plague_outbreak_morale_drop"] <= 0 {
 		return false
 	}
-	player.Tokens["plague_outbreak_morale_drop_turn"] = 0
+	player.TurnState.UsedSkillCounts["plague_outbreak_morale_drop"] = 0
 	e.Heal(player.ID, 1)
 	e.Log(fmt.Sprintf("%s 的 [瘟疫] 回合结束奖励生效：+1治疗", player.Name))
 	return false
@@ -194,10 +217,19 @@ func turnEndBardHook(e *GameEngine, player *model.Player) bool {
 }
 
 func turnEndCrimsonSwordSpiritHook(e *GameEngine, player *model.Player) bool {
-	if !e.isCrimsonSwordSpirit(player) || player.Tokens["css_rose_courtyard_active"] <= 0 {
+	if !e.isCrimsonSwordSpirit(player) {
 		return false
 	}
-	player.Tokens["css_rose_courtyard_active"] = 0
+	hasCourtyard := false
+	for _, fc := range player.Field {
+		if fc != nil && fc.Mode == model.FieldEffect && fc.Effect == model.EffectRoseCourtyard {
+			hasCourtyard = true
+			break
+		}
+	}
+	if !hasCourtyard {
+		return false
+	}
 	player.Tokens["css_blood_cap"] = 3
 	if player.Tokens["css_blood"] > 3 {
 		player.Tokens["css_blood"] = 3
@@ -233,11 +265,10 @@ func turnEndHolyBowHook(e *GameEngine, player *model.Player) bool {
 	if !e.isHolyBow(player) {
 		return false
 	}
-	ensurePlayerTokensMap(player)
-	if player.Tokens["hb_auto_fill_done_turn"] > 0 {
+	if player.TurnState.UsedSkillCounts["hb_auto_fill"] > 0 {
 		return false
 	}
-	if player.Tokens["hb_special_used_turn"] <= 0 {
+	if player.TurnState.UsedSkillCounts["hb_special"] <= 0 {
 		var resourceModes []string
 		if e.CanPayCrystalCost(player.ID, 1) {
 			resourceModes = append(resourceModes, "crystal")
@@ -246,7 +277,7 @@ func turnEndHolyBowHook(e *GameEngine, player *model.Player) bool {
 			resourceModes = append(resourceModes, "gem")
 		}
 		if len(resourceModes) > 0 {
-			player.Tokens["hb_auto_fill_done_turn"] = 1
+			player.TurnState.UsedSkillCounts["hb_auto_fill"] = 1
 			e.PushInterrupt(&model.Interrupt{
 				Type:     model.InterruptChoice,
 				PlayerID: player.ID,
@@ -260,13 +291,13 @@ func turnEndHolyBowHook(e *GameEngine, player *model.Player) bool {
 			return true
 		}
 	}
-	player.Tokens["hb_auto_fill_done_turn"] = 1
+	player.TurnState.UsedSkillCounts["hb_auto_fill"] = 1
 	return false
 }
 
 func turnEndHolyLancerHook(_ *GameEngine, player *model.Player) bool {
-	if player != nil && player.Tokens != nil {
-		player.Tokens["holy_lancer_prayer_used_turn"] = 0
+	if player != nil {
+		player.TurnState.UsedSkillCounts["holy_lancer_prayer"] = 0
 	}
 	return false
 }

@@ -88,7 +88,7 @@ func TestBerserker_Skills(t *testing.T) {
 		p1.Hand = []model.Card{
 			{
 				ID: "br_card", Name: "血腥咆哮", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2,
-				ExclusiveChar1: "狂战士", ExclusiveSkill1: "血腥咆哮",
+				ExclusiveChar1: "berserker", ExclusiveSkill1: "血腥咆哮",
 			},
 		}
 
@@ -151,7 +151,7 @@ func TestBerserker_Skills(t *testing.T) {
 			p1.Hand = []model.Card{
 				{
 					ID: "bb_card", Name: "血影狂刀", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2,
-					ExclusiveChar1: "狂战士", ExclusiveSkill1: "血影狂刀",
+					ExclusiveChar1: "berserker", ExclusiveSkill1: "血影狂刀",
 				},
 			}
 			p2.Heal = 0

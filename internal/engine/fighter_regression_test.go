@@ -83,11 +83,8 @@ func TestFighterChargeStrike_HitDamageBonus(t *testing.T) {
 	if got := p1.Tokens["fighter_qi"]; got != 1 {
 		t.Fatalf("expected qi=1 after charge strike, got %d", got)
 	}
-	if got := p1.Tokens["fighter_charge_pending"]; got != 0 {
+	if got := p1.TurnState.SkillFlowState["fighter_charge_pending"]; got != 0 {
 		t.Fatalf("expected fighter_charge_pending cleared on hit, got %d", got)
-	}
-	if got := p1.Tokens["fighter_charge_damage_pending"]; got != 0 {
-		t.Fatalf("expected fighter_charge_damage_pending cleared on hit, got %d", got)
 	}
 }
 
@@ -127,11 +124,8 @@ func TestFighterChargeStrike_MissSelfDamageByQi(t *testing.T) {
 	if got := p1.Tokens["fighter_qi"]; got != 1 {
 		t.Fatalf("expected qi=1 after miss branch, got %d", got)
 	}
-	if got := p1.Tokens["fighter_charge_pending"]; got != 0 {
+	if got := p1.TurnState.SkillFlowState["fighter_charge_pending"]; got != 0 {
 		t.Fatalf("expected fighter_charge_pending cleared on miss, got %d", got)
-	}
-	if got := p1.Tokens["fighter_charge_damage_pending"]; got != 0 {
-		t.Fatalf("expected fighter_charge_damage_pending cleared on miss, got %d", got)
 	}
 }
 
@@ -148,8 +142,8 @@ func TestFighterChargeStrike_ShieldBlockAfterPendingDamageCountsAsMiss(t *testin
 	p2 := game.State.Players["p2"]
 	p1.Hand = nil
 	p1.Tokens["fighter_qi"] = 3
-	p1.Tokens["fighter_charge_pending"] = 1
-	p1.Tokens["fighter_charge_damage_pending"] = 1
+	p1.TurnState.SkillFlowState["fighter_charge_pending"] = 1
+	game.ApplyNextAttackDamageRule(p1.ID, "fighter_charge_attack_bonus", "fighter_charge_strike", 1, model.RuleLifeThisEffectChain)
 	p2.Field = []*model.FieldCard{
 		{
 			Card: model.Card{
@@ -197,11 +191,8 @@ func TestFighterChargeStrike_ShieldBlockAfterPendingDamageCountsAsMiss(t *testin
 	if got := game.State.RedGems; got != 0 {
 		t.Fatalf("expected hit gem rollback after shield full block, got red_gems=%d", got)
 	}
-	if got := p1.Tokens["fighter_charge_pending"]; got != 0 {
+	if got := p1.TurnState.SkillFlowState["fighter_charge_pending"]; got != 0 {
 		t.Fatalf("expected fighter_charge_pending cleared after miss settle, got %d", got)
-	}
-	if got := p1.Tokens["fighter_charge_damage_pending"]; got != 0 {
-		t.Fatalf("expected fighter_charge_damage_pending cleared after miss settle, got %d", got)
 	}
 }
 
@@ -640,7 +631,7 @@ func TestFighterBurstCrash_NoCounterAndSelfDamage(t *testing.T) {
 	if got := p1.Tokens["fighter_qi"]; got != 1 {
 		t.Fatalf("expected qi reduced to 1 after burst crash, got %d", got)
 	}
-	if got := p1.Tokens["fighter_qiburst_force_no_counter"]; got != 0 {
+	if got := p1.TurnState.SkillFlowState["fighter_qiburst_force_no_counter"]; got != 0 {
 		t.Fatalf("expected no-counter token consumed, got %d", got)
 	}
 	if got := len(p1.Hand); got != 1 {

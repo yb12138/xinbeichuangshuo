@@ -78,7 +78,7 @@ func TestBloodRoar_ForcedHitIgnoresShield(t *testing.T) {
 			Type:            model.CardTypeAttack,
 			Element:         model.ElementFire,
 			Damage:          2,
-			ExclusiveChar1:  "狂战士",
+			ExclusiveChar1:  "berserker",
 			ExclusiveSkill1: "血腥咆哮",
 		},
 	}
@@ -139,7 +139,7 @@ func TestSealBreak_SelectSpecificBasicEffectAndTakeCard(t *testing.T) {
 			Name:            "火焰斩",
 			Type:            model.CardTypeAttack,
 			Element:         model.ElementFire,
-			ExclusiveChar1:  "封印师",
+			ExclusiveChar1:  "sealer",
 			ExclusiveSkill1: "火之封印",
 		},
 		OwnerID:  p2.ID,

@@ -70,11 +70,8 @@ func (h *MagicLancerDarkReleaseHandler) Execute(ctx *model.Context) error {
 		return fmt.Errorf("已处于幻影形态，不能再次发动暗之解放")
 	}
 	enterForm(ctx.User, model.FormMagicLancerPhantom)
-	if ctx.User.TurnState.UsedSkillCounts == nil {
-		ctx.User.TurnState.UsedSkillCounts = map[string]int{}
-	}
-	ctx.User.TurnState.UsedSkillCounts["ml_dark_release_next_attack_bonus"] = 1
-	ctx.User.TurnState.UsedSkillCounts["ml_dark_release_lock_turn"] = 1
+	ctx.Game.ApplyNextAttackDamageRule(ctx.User.ID, "ml_dark_release_next_attack_bonus", "ml_dark_release", 1, model.RuleLifeUntilTurnEnd)
+	ctx.Game.ApplySkillGateRule(ctx.User.ID, "ml_dark_release_lock_turn", "ml_dark_release", []string{"ml_fullness", "ml_black_spear"}, model.RuleLifeUntilTurnEnd)
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [暗之解放]，进入幻影形态：手牌上限恒定为5，本回合下一次主动攻击伤害+1，且本回合不能发动充盈/漆黑之枪", ctx.User.Name))
 	return nil
 }
@@ -99,17 +96,17 @@ func (h *MagicLancerPhantomStardustHandler) Execute(ctx *model.Context) error {
 		}
 		for i, p := range ctx.Game.GetAllPlayers() {
 			if p != nil && p.ID == ctx.Target.ID {
-				setToken(ctx.User, "ml_stardust_locked_target_order", i+1)
+				setSkillFlow(ctx.User, "ml_stardust_locked_target_order", i+1)
 				break
 			}
 		}
 	} else {
-		setToken(ctx.User, "ml_stardust_locked_target_order", 0)
+		setSkillFlow(ctx.User, "ml_stardust_locked_target_order", 0)
 	}
 	before := ctx.Game.GetCampMorale(string(ctx.User.Camp))
-	setToken(ctx.User, "ml_stardust_pending", 1)
-	setToken(ctx.User, "ml_stardust_wait_discard", 0)
-	setToken(ctx.User, "ml_stardust_morale_before", before)
+	setSkillFlow(ctx.User, "ml_stardust_pending", 1)
+	setSkillFlow(ctx.User, "ml_stardust_wait_discard", 0)
+	setSkillFlow(ctx.User, "ml_stardust_morale_before", before)
 	ctx.Game.InflictDamage(ctx.User.ID, ctx.User.ID, 2, "magic")
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [幻影星尘]：先对自己造成2点法术伤害，待完全结算后转正，并根据士气变化判定是否追加目标伤害", ctx.User.Name))
 	return nil
@@ -165,7 +162,7 @@ func (h *MagicLancerFullnessHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil {
 		return false
 	}
-	if ctx.User.TurnState.UsedSkillCounts["ml_dark_release_lock_turn"] > 0 {
+	if ctx.Game != nil && ctx.Game.IsSkillBlocked(ctx.User.ID, "ml_fullness") {
 		return false
 	}
 	return magicLancerHasMagicOrThunder(ctx.User)
@@ -175,7 +172,7 @@ func (h *MagicLancerFullnessHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("充盈上下文无效")
 	}
-	if ctx.User.TurnState.UsedSkillCounts["ml_dark_release_lock_turn"] > 0 {
+	if ctx.Game.IsSkillBlocked(ctx.User.ID, "ml_fullness") {
 		return fmt.Errorf("本回合已发动暗之解放，不能发动充盈")
 	}
 	if !magicLancerHasMagicOrThunder(ctx.User) {
@@ -212,7 +209,7 @@ func (h *MagicLancerBlackSpearHandler) CanUse(ctx *model.Context) bool {
 	if !hasForm(ctx.User, model.FormMagicLancerPhantom) {
 		return false
 	}
-	if ctx.User.TurnState.UsedSkillCounts["ml_dark_release_lock_turn"] > 0 {
+	if ctx.Game != nil && ctx.Game.IsSkillBlocked(ctx.User.ID, "ml_black_spear") {
 		return false
 	}
 	handCount := len(ctx.Target.Hand)
@@ -229,7 +226,7 @@ func (h *MagicLancerBlackSpearHandler) Execute(ctx *model.Context) error {
 	if !hasForm(ctx.User, model.FormMagicLancerPhantom) {
 		return fmt.Errorf("仅幻影形态下可发动漆黑之枪")
 	}
-	if ctx.User.TurnState.UsedSkillCounts["ml_dark_release_lock_turn"] > 0 {
+	if ctx.Game.IsSkillBlocked(ctx.User.ID, "ml_black_spear") {
 		return fmt.Errorf("本回合已发动暗之解放，不能发动漆黑之枪")
 	}
 	maxX := ctx.Game.GetUsableCrystal(ctx.User.ID)

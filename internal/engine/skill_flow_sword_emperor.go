@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"starcup-engine/internal/engine/runtimeutil"
 
 	"starcup-engine/internal/model"
 )
@@ -9,7 +10,7 @@ import (
 func (e *GameEngine) buildSwordEmperorChoicePrompt(choiceType, playerID string, _ *model.Player, data map[string]interface{}) *model.Prompt {
 	switch choiceType {
 	case "se_sword_qi_slash_x":
-		maxX := toIntContextValue(data["max_x"])
+		maxX := runtimeutil.ToIntContextValue(data["max_x"])
 		if maxX < 1 {
 			maxX = 1
 		}
@@ -33,7 +34,7 @@ func (e *GameEngine) handleSwordEmperorChoiceInput(_ string, selectionIndex int,
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
-		maxX := toIntContextValue(ctxData["max_x"])
+		maxX := runtimeutil.ToIntContextValue(ctxData["max_x"])
 		if maxX <= 0 {
 			return true, fmt.Errorf("剑气斩没有可选X值")
 		}
@@ -48,7 +49,7 @@ func (e *GameEngine) handleSwordEmperorChoiceInput(_ string, selectionIndex int,
 		if xValue > 3 {
 			return true, fmt.Errorf("剑气斩的X不能超过3")
 		}
-		targetIDs := parseStringSliceContextValue(ctxData["target_ids"])
+		targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
 		if len(targetIDs) == 0 {
 			return true, fmt.Errorf("没有可选的剑气斩目标")
 		}
@@ -64,7 +65,7 @@ func (e *GameEngine) handleSwordEmperorChoiceInput(_ string, selectionIndex int,
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
-		targetIDs := parseStringSliceContextValue(ctxData["target_ids"])
+		targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
 		if selectionIndex < 0 || selectionIndex >= len(targetIDs) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
@@ -73,7 +74,7 @@ func (e *GameEngine) handleSwordEmperorChoiceInput(_ string, selectionIndex int,
 		if target == nil {
 			return true, fmt.Errorf("目标不存在")
 		}
-		xValue := toIntContextValue(ctxData["x_value"])
+		xValue := runtimeutil.ToIntContextValue(ctxData["x_value"])
 		if xValue <= 0 {
 			return true, fmt.Errorf("剑气斩的X值无效")
 		}

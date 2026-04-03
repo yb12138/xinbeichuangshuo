@@ -27,6 +27,23 @@ func setToken(p *model.Player, key string, v int) {
 	p.Tokens[key] = v
 }
 
+func getSkillFlow(p *model.Player, key string) int {
+	if p == nil || p.TurnState.SkillFlowState == nil {
+		return 0
+	}
+	return p.TurnState.SkillFlowState[key]
+}
+
+func setSkillFlow(p *model.Player, key string, v int) {
+	if p == nil {
+		return
+	}
+	if p.TurnState.SkillFlowState == nil {
+		p.TurnState.SkillFlowState = make(map[string]int)
+	}
+	p.TurnState.SkillFlowState[key] = v
+}
+
 func addToken(p *model.Player, key string, delta int, minV int, maxV int) int {
 	cur := getToken(p, key)
 	cur += delta
@@ -107,13 +124,11 @@ func playerEnergyCap(p *model.Player) int {
 }
 
 func addAttackAction(p *model.Player, source string) {
-	token := model.ActionContext{Source: source, MustType: "Attack"}
-	p.TurnState.PendingActions = append(p.TurnState.PendingActions, token)
+	model.AppendAttackAction(p, source)
 }
 
 func addMagicAction(p *model.Player, source string) {
-	token := model.ActionContext{Source: source, MustType: "Magic"}
-	p.TurnState.PendingActions = append(p.TurnState.PendingActions, token)
+	model.AppendMagicAction(p, source)
 }
 
 func hasElementCard(p *model.Player, element model.Element) bool {
@@ -183,7 +198,7 @@ func (h *ValkyriePeaceWalkerHandler) Execute(ctx *model.Context) error {
 type ValkyrieMilitaryGloryHandler struct{ BaseHandler }
 
 func (h *ValkyrieMilitaryGloryHandler) CanUse(ctx *model.Context) bool {
-	return getToken(ctx.User, "valkyrie_spirit") > 0
+	return ctx != nil && ctx.Trigger == model.TriggerOnTurnStart && ctx.Timing == model.TimingOnTurnStart && getToken(ctx.User, "valkyrie_spirit") > 0
 }
 
 func (h *ValkyrieMilitaryGloryHandler) Execute(ctx *model.Context) error {
@@ -257,7 +272,12 @@ func (h *ElementalistAbsorbHandler) CanUse(ctx *model.Context) bool {
 	if !ctx.Flags["IsMagicDamage"] {
 		return false
 	}
-	if ctx.Flags["NoElementAbsorb"] {
+	// 检查伤害类型是否包含 "no_absorb"（元素吸收专属判断逻辑）
+	noAbsorb := false
+	if damageType, ok := ctx.Selections["damage_type"].(string); ok {
+		noAbsorb = strings.Contains(strings.ToLower(damageType), "no_absorb")
+	}
+	if noAbsorb {
 		return false
 	}
 	if ctx.TriggerCtx.SourceID != ctx.User.ID {
@@ -686,11 +706,11 @@ func (h *AdventurerParadiseHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return nil
 	}
-	transferGem := getToken(ctx.User, "adventurer_extract_last_gem")
-	transferCrystal := getToken(ctx.User, "adventurer_extract_last_crystal")
+	transferGem := getSkillFlow(ctx.User, "adventurer_extract_last_gem")
+	transferCrystal := getSkillFlow(ctx.User, "adventurer_extract_last_crystal")
 	transferTotal := transferGem + transferCrystal
 	if transferTotal <= 0 {
-		setToken(ctx.User, "adventurer_extract_requires_paradise", 0)
+		setSkillFlow(ctx.User, "adventurer_extract_requires_paradise", 0)
 		ctx.Game.Log(fmt.Sprintf("%s 的 [冒险者天堂] 未检测到本次提炼结果，效果取消", ctx.User.Name))
 		return nil
 	}
@@ -710,11 +730,11 @@ func (h *AdventurerParadiseHandler) Execute(ctx *model.Context) error {
 		}
 	}
 	if len(allyIDs) == 0 {
-		setToken(ctx.User, "adventurer_extract_requires_paradise", 0)
+		setSkillFlow(ctx.User, "adventurer_extract_requires_paradise", 0)
 		ctx.Game.Log(fmt.Sprintf("%s 的 [冒险者天堂] 无法发动：没有可完整承接%d点提炼能量的队友", ctx.User.Name, transferTotal))
 		return nil
 	}
-	forceTransfer := getToken(ctx.User, "adventurer_extract_requires_paradise") > 0
+	forceTransfer := getSkillFlow(ctx.User, "adventurer_extract_requires_paradise") > 0
 	ctx.Game.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
@@ -820,7 +840,7 @@ func (h *HolyLancerHolyStrikeHandler) CanUse(ctx *model.Context) bool {
 			return false
 		}
 	}
-	return getToken(ctx.User, "holy_lancer_block_sacred_strike") == 0
+	return ctx.User.TurnState.UsedSkillCounts["holy_lancer_block_sacred_strike"] == 0
 }
 
 func (h *HolyLancerHolyStrikeHandler) Execute(ctx *model.Context) error {
@@ -832,7 +852,7 @@ func (h *HolyLancerSkySpearHandler) CanUse(ctx *model.Context) bool {
 	if ctx.User.Heal < 2 {
 		return false
 	}
-	if getToken(ctx.User, "holy_lancer_prayer_used_turn") > 0 {
+	if ctx.User.TurnState.UsedSkillCounts["holy_lancer_prayer"] > 0 {
 		return false
 	}
 	if ctx.TriggerCtx == nil || ctx.TriggerCtx.AttackInfo == nil {
@@ -847,8 +867,8 @@ func (h *HolyLancerSkySpearHandler) Execute(ctx *model.Context) error {
 		ctx.TriggerCtx.AttackInfo.CanBeResponded = false
 	}
 	// 通过令牌持久化“本次攻击无法应战”，避免攻击开始响应后的二次进入覆盖状态。
-	setToken(ctx.User, "holy_lancer_sky_spear_no_counter", 1)
-	setToken(ctx.User, "holy_lancer_block_sacred_strike", 1)
+	ctx.User.TurnState.UsedSkillCounts["holy_lancer_sky_spear_no_counter"] = 1
+	ctx.User.TurnState.UsedSkillCounts["holy_lancer_block_sacred_strike"] = 1
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [天枪]，移除2治疗，本次攻击不可应战", ctx.User.Name))
 	return nil
 }
@@ -895,7 +915,7 @@ func (h *HolyLancerPrayerHandler) Execute(ctx *model.Context) error {
 	if ctx.User.Heal > 5 {
 		ctx.User.Heal = 5
 	}
-	setToken(ctx.User, "holy_lancer_prayer_used_turn", 1)
+	ctx.User.TurnState.UsedSkillCounts["holy_lancer_prayer"] = 1
 	addAttackAction(ctx.User, "圣光祈愈")
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [圣光祈愈]，治疗+2（上限5）并获得额外攻击行动", ctx.User.Name))
 	return nil
@@ -1094,8 +1114,8 @@ func (h *PlagueImmortalHandler) CanUse(ctx *model.Context) bool {
 }
 
 func (h *PlagueImmortalHandler) Execute(ctx *model.Context) error {
-	if getToken(ctx.User, "plague_block_immortal") > 0 {
-		setToken(ctx.User, "plague_block_immortal", 0)
+	if ctx.User.TurnState.UsedSkillCounts["plague_block_immortal"] > 0 {
+		ctx.User.TurnState.UsedSkillCounts["plague_block_immortal"] = 0
 		ctx.Game.Log(fmt.Sprintf("%s 的 [不朽] 本次被技能效果抑制", ctx.User.Name))
 		return nil
 	}
@@ -1172,7 +1192,7 @@ func (h *PlagueDeathTouchHandler) Execute(ctx *model.Context) error {
 		return fmt.Errorf("死亡之触需要至少2张同系牌")
 	}
 	// 该技能不触发不朽：先设置抑制标记，覆盖 UseSkill 的阶段结束触发。
-	setToken(ctx.User, "plague_block_immortal", 1)
+	ctx.User.TurnState.UsedSkillCounts["plague_block_immortal"] = 1
 	ctx.Game.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
@@ -1241,11 +1261,7 @@ func (h *MagicSwordsmanAsuraComboHandler) CanUse(ctx *model.Context) bool {
 }
 
 func (h *MagicSwordsmanAsuraComboHandler) Execute(ctx *model.Context) error {
-	ctx.User.TurnState.PendingActions = append(ctx.User.TurnState.PendingActions, model.ActionContext{
-		Source:      "修罗连斩",
-		MustType:    "Attack",
-		MustElement: []model.Element{model.ElementFire},
-	})
+	model.AppendAttackAction(ctx.User, "修罗连斩", model.ElementFire)
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [修罗连斩]，获得额外火系攻击行动", ctx.User.Name))
 	return nil
 }
@@ -1256,7 +1272,6 @@ func (h *MagicSwordsmanShadowGatherHandler) CanUse(ctx *model.Context) bool {
 
 func (h *MagicSwordsmanShadowGatherHandler) Execute(ctx *model.Context) error {
 	enterForm(ctx.User, model.FormMagicSwordsmanShadow)
-	setToken(ctx.User, "ms_shadow_release_pending", 1)
 	ctx.Game.AddPendingDamage(model.PendingDamage{
 		SourceID:   ctx.User.ID,
 		TargetID:   ctx.User.ID,
@@ -1332,7 +1347,7 @@ func (h *MagicSwordsmanYellowSpringHandler) Execute(ctx *model.Context) error {
 	if ctx.TriggerCtx != nil && ctx.TriggerCtx.AttackInfo != nil {
 		ctx.TriggerCtx.AttackInfo.CanBeResponded = false
 	}
-	setToken(ctx.User, "ms_yellow_spring_pending", 1)
+	ctx.User.TurnState.UsedSkillCounts["ms_yellow_spring_pending"] = 1
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [黄泉震颤]，本次攻击不可应战", ctx.User.Name))
 	return nil
 }
@@ -1432,7 +1447,14 @@ func (h *CrimsonBloodRoseHandler) Execute(ctx *model.Context) error {
 		allyTarget.Crystal--
 		allyTarget.Gem++
 	}
-	if getToken(ctx.User, "css_rose_courtyard_active") > 0 {
+	hasRoseCourtyard := false
+	for _, fc := range ctx.User.Field {
+		if fc != nil && fc.Mode == model.FieldEffect && fc.Effect == model.EffectRoseCourtyard {
+			hasRoseCourtyard = true
+			break
+		}
+	}
+	if hasRoseCourtyard {
 		for _, p := range ctx.Game.GetAllPlayers() {
 			ctx.Game.AddPendingDamage(model.PendingDamage{
 				SourceID:   ctx.User.ID,
@@ -1493,7 +1515,7 @@ func (h *CrimsonDanceHandler) CanUse(ctx *model.Context) bool {
 	if !(canPayCrystalLike(ctx, 1) || ctx.User.Gem > 0) {
 		return false
 	}
-	return ctx.User.HasExclusiveCard(ctx.User.Character.Name, "血蔷薇庭院")
+	return ctx.User.HasExclusiveCard(ctx.User.Character.ID, "血蔷薇庭院")
 }
 
 func (h *CrimsonDanceHandler) Execute(ctx *model.Context) error {

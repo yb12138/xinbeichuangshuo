@@ -155,11 +155,7 @@ func holyLancerEarthSkippedResponseHook(e *GameEngine, state *responseResumeStat
 	if user == nil || !e.isHolyLancer(user) {
 		return
 	}
-	if user.Tokens == nil {
-		user.Tokens = map[string]int{}
-	}
-	// 未发动地枪时，补触发圣击（若本次攻击未被天枪/地枪阻断）。
-	if user.Tokens["holy_lancer_block_sacred_strike"] != 0 {
+	if user.TurnState.UsedSkillCounts["holy_lancer_block_sacred_strike"] != 0 {
 		return
 	}
 	e.Heal(user.ID, 1)
@@ -197,17 +193,15 @@ func (e *GameEngine) restoreSkippedResponseAfterPop(state responseResumeState) b
 	if state.resumeDrawCtx != nil {
 		return true
 	}
-	if state.resumePhaseEndCtx != nil {
-		e.enterExtraActionStage()
+	if state.responseResumePoint != "" {
+		if e.routePendingDamageWithReturn(state.responseResumePoint) {
+			return true
+		}
+		e.applyChoiceResumePoint(state.responseResumePoint)
 		return true
 	}
-	if state.responseResumePoint != "" {
-		if len(e.State.PendingDamageQueue) > 0 {
-			e.setReturnPoint(state.responseResumePoint)
-			e.enterDamageResolution(nil)
-		} else {
-			e.applyChoiceResumePoint(state.responseResumePoint)
-		}
+	if state.resumePhaseEndCtx != nil {
+		e.enterExtraActionStage()
 		return true
 	}
 	if len(e.State.ActionStack) > 0 {
@@ -235,12 +229,10 @@ func (e *GameEngine) restoreConfirmedResponseAfterPop(state responseResumeState)
 		return true
 	}
 	if state.responseResumePoint != "" {
-		if len(e.State.PendingDamageQueue) > 0 {
-			e.setReturnPoint(state.responseResumePoint)
-			e.enterDamageResolution(nil)
-		} else {
-			e.applyChoiceResumePoint(state.responseResumePoint)
+		if e.routePendingDamageWithReturn(state.responseResumePoint) {
+			return true
 		}
+		e.applyChoiceResumePoint(state.responseResumePoint)
 		return true
 	}
 	if len(e.State.ActionStack) > 0 {
@@ -252,7 +244,7 @@ func (e *GameEngine) restoreConfirmedResponseAfterPop(state responseResumeState)
 		if state.resumePhaseEndCtx != nil {
 			defaultReturn = model.TurnStageExtraAction
 		}
-		if !e.routePendingDamageWithDefaultReturn(defaultReturn) {
+		if !e.routePendingDamageWithReturn(defaultReturn) {
 			e.enterTurnEndStage()
 		}
 	}

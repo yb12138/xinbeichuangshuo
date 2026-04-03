@@ -113,7 +113,7 @@ export const useTimelineStore = defineStore('timeline', () => {
         title: buildFeedTitle(event),
         actorUserId: event.actor_user_id,
         targetUserIds: [...(event.target_user_ids || [])],
-        phase: event.phase,
+        phase: event.cue_phase,
         actionType: event.action_type,
         gameplayType: event.gameplay_type,
         timestamp,

@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"sort"
+	"starcup-engine/internal/engine/runtimeutil"
 
 	"starcup-engine/internal/model"
 )
@@ -110,7 +111,7 @@ func (e *GameEngine) buildBloodPriestessChoicePrompt(choiceType, playerID string
 		}
 
 	case "bp_curse_discard":
-		discardCount := toIntContextValue(data["discard_count"])
+		discardCount := runtimeutil.ToIntContextValue(data["discard_count"])
 		if discardCount < 0 {
 			discardCount = 0
 		}
@@ -167,7 +168,7 @@ func (e *GameEngine) handleBloodPriestessChoiceInput(playerID string, selectionI
 		if user.Character == nil {
 			return true, fmt.Errorf("角色信息缺失")
 		}
-		linkCard, ok := user.ConsumeExclusiveCard(user.Character.Name, "同生共死")
+		linkCard, ok := user.ConsumeExclusiveCard(user.Character.ID, "同生共死")
 		if !ok {
 			return true, fmt.Errorf("未找到【同生共死】专属技能卡")
 		}
@@ -205,7 +206,7 @@ func (e *GameEngine) handleBloodPriestessChoiceInput(playerID string, selectionI
 		if selectionIndex < 0 || selectionIndex > 1 {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
-		if !toBoolContextValue(ctxData["damage_queued"]) {
+		if !runtimeutil.ToBoolContextValue(ctxData["damage_queued"]) {
 			e.AddPendingDamage(model.PendingDamage{
 				SourceID:   user.ID,
 				TargetID:   user.ID,
@@ -267,7 +268,7 @@ func (e *GameEngine) handleBloodPriestessChoiceInput(playerID string, selectionI
 		if selectionIndex < 0 || selectionIndex >= len(targetIDs) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
-		if !toBoolContextValue(ctxData["damage_queued"]) {
+		if !runtimeutil.ToBoolContextValue(ctxData["damage_queued"]) {
 			e.AddPendingDamage(model.PendingDamage{
 				SourceID:   user.ID,
 				TargetID:   user.ID,
@@ -500,7 +501,7 @@ func (e *GameEngine) handleBloodCurseDiscardSelections(playerID string, selectio
 		return fmt.Errorf("玩家不存在")
 	}
 
-	discardNeed := toIntContextValue(ctxData["discard_count"])
+	discardNeed := runtimeutil.ToIntContextValue(ctxData["discard_count"])
 	if discardNeed < 0 {
 		discardNeed = 0
 	}
@@ -510,10 +511,7 @@ func (e *GameEngine) handleBloodCurseDiscardSelections(playerID string, selectio
 	if discardNeed == 0 {
 		e.PopInterrupt()
 		if e.State.PendingInterrupt == nil {
-			if len(e.State.PendingDamageQueue) > 0 {
-				e.setReturnPoint(model.TurnStageExtraAction)
-				e.enterDamageResolution(nil)
-			} else {
+			if !e.routePendingDamageWithReturn(model.TurnStageExtraAction) {
 				e.enterExtraActionStage()
 			}
 		}

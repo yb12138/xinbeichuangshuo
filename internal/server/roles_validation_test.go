@@ -4,6 +4,7 @@ import (
 	"sort"
 	"starcup-engine/internal/data"
 	"starcup-engine/internal/model"
+	"starcup-engine/internal/server/catalog"
 	"strings"
 	"testing"
 )
@@ -15,7 +16,7 @@ func TestAvailableRolesSyncWithCharacterData(t *testing.T) {
 	}
 
 	roleSet := map[string]bool{}
-	for _, roleID := range availableRoles {
+	for _, roleID := range catalog.AvailableRoles() {
 		roleSet[roleID] = true
 	}
 

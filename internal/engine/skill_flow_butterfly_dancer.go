@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"starcup-engine/internal/engine/runtimeutil"
 	"strconv"
 	"strings"
 
@@ -25,7 +26,7 @@ func (e *GameEngine) butterflyActionTargetIDs() []string {
 func (e *GameEngine) buildButterflyChoicePrompt(choiceType, playerID string, player *model.Player, data map[string]interface{}) *model.Prompt {
 	switch choiceType {
 	case "bt_dance_mode":
-		canDiscard := toBoolContextValue(data["can_discard"])
+		canDiscard := runtimeutil.ToBoolContextValue(data["can_discard"])
 		options := []model.PromptOption{{ID: "0", Label: "摸1张牌"}}
 		if canDiscard {
 			options = append(options, model.PromptOption{ID: "1", Label: "弃1张牌"})
@@ -40,7 +41,7 @@ func (e *GameEngine) buildButterflyChoicePrompt(choiceType, playerID string, pla
 		return &model.Prompt{Type: model.PromptChooseCards, PlayerID: playerID, ChoiceType: choiceType, Message: "【舞动】请选择要弃置的1张手牌：", Options: options, Min: 1, Max: 1}
 
 	case "bt_cocoon_overflow_discard":
-		discardCount := toIntContextValue(data["discard_count"])
+		discardCount := runtimeutil.ToIntContextValue(data["discard_count"])
 		if discardCount < 0 {
 			discardCount = 0
 		}
@@ -62,7 +63,7 @@ func (e *GameEngine) buildButterflyChoicePrompt(choiceType, playerID string, pla
 		return &model.Prompt{Type: model.PromptChooseCards, PlayerID: playerID, ChoiceType: choiceType, Message: fmt.Sprintf("【茧上限】请选择要舍弃的%d个茧：", discardCount), Options: options, Min: discardCount, Max: discardCount}
 
 	case "bt_reverse_mode":
-		canBranch2 := toBoolContextValue(data["can_branch2"])
+		canBranch2 := runtimeutil.ToBoolContextValue(data["can_branch2"])
 		options := []model.PromptOption{{ID: "0", Label: "分支①：对目标造成1点不可治疗抵御的法术伤害"}}
 		if canBranch2 {
 			options = append(options, model.PromptOption{ID: "1", Label: "分支②：移除2个茧或自伤4，然后移除1个蛹"})
@@ -89,7 +90,7 @@ func (e *GameEngine) buildButterflyChoicePrompt(choiceType, playerID string, pla
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, ChoiceType: choiceType, Message: "【倒逆之蝶】请选择分支①伤害目标：", Options: options, Min: 1, Max: 1}
 
 	case "bt_reverse_branch2_cost":
-		canRemove := toBoolContextValue(data["can_remove_cocoon"])
+		canRemove := runtimeutil.ToBoolContextValue(data["can_remove_cocoon"])
 		options := []model.PromptOption{}
 		if canRemove {
 			options = append(options, model.PromptOption{ID: "0", Label: "移除2个茧"})
@@ -234,7 +235,7 @@ func (e *GameEngine) handleButterflyChoiceInput(playerID string, selectionIndex 
 			return true, fmt.Errorf("玩家不存在")
 		}
 		modes := []string{"draw"}
-		if toBoolContextValue(ctxData["can_discard"]) {
+		if runtimeutil.ToBoolContextValue(ctxData["can_discard"]) {
 			modes = append(modes, "discard")
 		}
 		if selectionIndex < 0 || selectionIndex >= len(modes) {
@@ -362,10 +363,7 @@ func (e *GameEngine) handleButterflyChoiceInput(playerID string, selectionIndex 
 		}
 		e.PopInterrupt()
 		if e.State.PendingInterrupt == nil {
-			if len(e.State.PendingDamageQueue) > 0 {
-				e.setReturnPoint(model.TurnStageExtraAction)
-				e.enterDamageResolution(nil)
-			} else {
+			if !e.routePendingDamageWithReturn(model.TurnStageExtraAction) {
 				e.enterExtraActionStage()
 			}
 		}
@@ -377,7 +375,7 @@ func (e *GameEngine) handleButterflyChoiceInput(playerID string, selectionIndex 
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
-		canRemove := toBoolContextValue(ctxData["can_remove_cocoon"])
+		canRemove := runtimeutil.ToBoolContextValue(ctxData["can_remove_cocoon"])
 		modes := []string{}
 		if canRemove {
 			modes = append(modes, "remove_cocoon")
@@ -399,10 +397,7 @@ func (e *GameEngine) handleButterflyChoiceInput(playerID string, selectionIndex 
 		e.Log(fmt.Sprintf("%s 的 [倒逆之蝶] 分支②：对自己造成4点法术伤害并移除1个蛹（当前蛹=%d）", user.Name, now))
 		e.PopInterrupt()
 		if e.State.PendingInterrupt == nil {
-			if len(e.State.PendingDamageQueue) > 0 {
-				e.setReturnPoint(model.TurnStageExtraAction)
-				e.enterDamageResolution(nil)
-			} else {
+			if !e.routePendingDamageWithReturn(model.TurnStageExtraAction) {
 				e.enterExtraActionStage()
 			}
 		}
@@ -433,9 +428,7 @@ func (e *GameEngine) handleButterflyChoiceInput(playerID string, selectionIndex 
 		if selectionIndex == -1 || selectionIndex == 0 {
 			e.PopInterrupt()
 			if e.State.PendingInterrupt == nil {
-				if len(e.State.PendingDamageQueue) > 0 {
-					e.enterDamageResolution(nil)
-				} else {
+				if !e.routePendingDamageWithDefaultReturn(nil) {
 					e.enterExtraActionStage()
 				}
 			}
@@ -444,7 +437,7 @@ func (e *GameEngine) handleButterflyChoiceInput(playerID string, selectionIndex 
 		pickIdx := -1
 		if selectionIndex >= 1 && selectionIndex <= len(cocoonIndices) {
 			pickIdx = cocoonIndices[selectionIndex-1]
-		} else if idx, ok := resolveSelectionToCandidate(selectionIndex, cocoonIndices); ok {
+		} else if idx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, cocoonIndices); ok {
 			pickIdx = idx
 		}
 		if pickIdx < 0 {
@@ -456,7 +449,7 @@ func (e *GameEngine) handleButterflyChoiceInput(playerID string, selectionIndex 
 		}
 		e.NotifyCardRevealed(user.ID, []model.Card{removed}, "discard")
 		e.State.DiscardPile = append(e.State.DiscardPile, removed)
-		damageIdx := toIntContextValue(ctxData["damage_index"])
+		damageIdx := runtimeutil.ToIntContextValue(ctxData["damage_index"])
 		if damageIdx < 0 || damageIdx >= len(e.State.PendingDamageQueue) {
 			return true, fmt.Errorf("伤害上下文不存在")
 		}
@@ -488,9 +481,7 @@ func (e *GameEngine) handleButterflyChoiceInput(playerID string, selectionIndex 
 		if selectionIndex == -1 || selectionIndex == 0 {
 			e.PopInterrupt()
 			if e.State.PendingInterrupt == nil {
-				if len(e.State.PendingDamageQueue) > 0 {
-					e.enterDamageResolution(nil)
-				} else {
+				if !e.routePendingDamageWithDefaultReturn(nil) {
 					e.enterExtraActionStage()
 				}
 			}
@@ -533,7 +524,7 @@ func (e *GameEngine) handleButterflyChoiceInput(playerID string, selectionIndex 
 		}
 		e.NotifyCardRevealed(user.ID, removed, "discard")
 		e.State.DiscardPile = append(e.State.DiscardPile, removed...)
-		damageIdx := toIntContextValue(ctxData["damage_index"])
+		damageIdx := runtimeutil.ToIntContextValue(ctxData["damage_index"])
 		if damageIdx < 0 || damageIdx >= len(e.State.PendingDamageQueue) {
 			return true, fmt.Errorf("伤害上下文不存在")
 		}
@@ -575,10 +566,10 @@ func (e *GameEngine) handleButterflyChoiceInput(playerID string, selectionIndex 
 		if selectionIndex != 1 {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
-		if user.Tokens["bt_wither_pending"] > 0 {
-			user.Tokens["bt_wither_pending"]--
+		if user.TurnState.SkillFlowState["bt_wither_pending"] > 0 {
+			user.TurnState.SkillFlowState["bt_wither_pending"]--
 		}
-		if user.Tokens["bt_wither_pending"] > 0 {
+		if user.TurnState.SkillFlowState["bt_wither_pending"] > 0 {
 			ctxData["choice_type"] = "bt_wither_confirm"
 			ctxData["target_ids"] = e.butterflyActionTargetIDs()
 			e.State.PendingInterrupt.Context = ctxData
@@ -587,9 +578,7 @@ func (e *GameEngine) handleButterflyChoiceInput(playerID string, selectionIndex 
 		}
 		e.PopInterrupt()
 		if e.State.PendingInterrupt == nil {
-			if len(e.State.PendingDamageQueue) > 0 {
-				e.enterDamageResolution(nil)
-			} else {
+			if !e.routePendingDamageWithDefaultReturn(nil) {
 				e.enterExtraActionStage()
 			}
 		}
@@ -621,13 +610,13 @@ func (e *GameEngine) handleButterflyChoiceInput(playerID string, selectionIndex 
 			user.Tokens = map[string]int{}
 		}
 		user.Tokens["bt_wither_active"] = 1
-		if user.Tokens["bt_wither_pending"] > 0 {
-			user.Tokens["bt_wither_pending"]--
+		if user.TurnState.SkillFlowState["bt_wither_pending"] > 0 {
+			user.TurnState.SkillFlowState["bt_wither_pending"]--
 		}
 		if target := e.State.Players[targetID]; target != nil {
 			e.Log(fmt.Sprintf("%s 发动 [凋零]：对 %s 造成1点法术伤害，并对自己造成2点法术伤害；对方士气最低为1直到其下回合开始前", user.Name, target.Name))
 		}
-		if user.Tokens["bt_wither_pending"] > 0 {
+		if user.TurnState.SkillFlowState["bt_wither_pending"] > 0 {
 			ctxData["choice_type"] = "bt_wither_confirm"
 			ctxData["target_ids"] = e.butterflyActionTargetIDs()
 			e.State.PendingInterrupt.Context = ctxData
@@ -663,7 +652,7 @@ func (e *GameEngine) handleButterflyCocoonOverflowSelections(playerID string, se
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
-	discardNeed := toIntContextValue(ctxData["discard_count"])
+	discardNeed := runtimeutil.ToIntContextValue(ctxData["discard_count"])
 	if discardNeed < 0 {
 		discardNeed = 0
 	}
@@ -677,7 +666,7 @@ func (e *GameEngine) handleButterflyCocoonOverflowSelections(playerID string, se
 	picked := make([]int, 0, len(selections))
 	seen := make(map[int]struct{}, len(selections))
 	for _, selection := range selections {
-		fieldIdx, ok := resolveSelectionToCandidate(selection, cocoonIndices)
+		fieldIdx, ok := runtimeutil.ResolveSelectionToCandidate(selection, cocoonIndices)
 		if !ok {
 			return fmt.Errorf("无效的茧索引: %d", selection)
 		}
@@ -731,7 +720,7 @@ func (e *GameEngine) handleButterflyReverseBranch2PickSelections(playerID string
 	picked := make([]int, 0, len(selections))
 	seen := make(map[int]struct{}, len(selections))
 	for _, selection := range selections {
-		fieldIdx, ok := resolveSelectionToCandidate(selection, cocoonIndices)
+		fieldIdx, ok := runtimeutil.ResolveSelectionToCandidate(selection, cocoonIndices)
 		if !ok {
 			return fmt.Errorf("无效的茧索引: %d", selection)
 		}
@@ -758,10 +747,7 @@ func (e *GameEngine) handleButterflyReverseBranch2PickSelections(playerID string
 	e.Log(fmt.Sprintf("%s 的 [倒逆之蝶] 分支②：移除2个茧并移除1个蛹（当前蛹=%d）", user.Name, now))
 	e.PopInterrupt()
 	if e.State.PendingInterrupt == nil {
-		if len(e.State.PendingDamageQueue) > 0 {
-			e.setReturnPoint(model.TurnStageExtraAction)
-			e.enterDamageResolution(nil)
-		} else {
+		if !e.routePendingDamageWithReturn(model.TurnStageExtraAction) {
 			e.enterExtraActionStage()
 		}
 	}

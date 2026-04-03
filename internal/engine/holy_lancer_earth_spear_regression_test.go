@@ -92,9 +92,8 @@ func TestHolyLancerEarthSpear_MaxXUsesCurrentHealValue(t *testing.T) {
 	p2 := game.State.Players["p2"]
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
-	p1.Tokens = map[string]int{
-		"holy_lancer_prayer_used_turn": 1, // 屏蔽天枪前置询问，聚焦地枪链路
-	}
+	p1.Tokens = map[string]int{}
+	p1.TurnState.UsedSkillCounts["holy_lancer_prayer"] = 1
 	p2.TurnState = model.NewPlayerTurnState()
 	p2.Heal = 0
 	p2.Hand = nil
@@ -184,9 +183,8 @@ func TestHolyLancerEarthSpear_SelectXResumesAttackFlow(t *testing.T) {
 	p2 := game.State.Players["p2"]
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
-	p1.Tokens = map[string]int{
-		"holy_lancer_prayer_used_turn": 1, // 屏蔽天枪前置询问，聚焦地枪链路
-	}
+	p1.Tokens = map[string]int{}
+	p1.TurnState.UsedSkillCounts["holy_lancer_prayer"] = 1
 	p2.TurnState = model.NewPlayerTurnState()
 	p2.Heal = 0
 	p2.Hand = nil
@@ -262,7 +260,7 @@ func TestHolyLancerPrayerToken_ClearedAtRealTurnEnd(t *testing.T) {
 	if p1.Tokens == nil {
 		p1.Tokens = map[string]int{}
 	}
-	p1.Tokens["holy_lancer_prayer_used_turn"] = 1
+	p1.TurnState.UsedSkillCounts["holy_lancer_prayer"] = 1
 	p1.TurnState.PendingActions = []model.ActionContext{
 		{Source: "TestExtraAction", MustType: "Attack"},
 	}
@@ -272,7 +270,7 @@ func TestHolyLancerPrayerToken_ClearedAtRealTurnEnd(t *testing.T) {
 
 	// 第一次进入TurnEnd时，因仍有额外行动，不应清理标记。
 	game.Drive()
-	if got := p1.Tokens["holy_lancer_prayer_used_turn"]; got != 1 {
+	if got := p1.TurnState.UsedSkillCounts["holy_lancer_prayer"]; got != 1 {
 		t.Fatalf("expected prayer token to remain during pending extra actions, got %d", got)
 	}
 	if !game.isActionSelectionWindow() {
@@ -284,7 +282,7 @@ func TestHolyLancerPrayerToken_ClearedAtRealTurnEnd(t *testing.T) {
 	game.State.TurnStage = model.TurnStageTurnEnd
 	game.Drive()
 
-	if got := p1.Tokens["holy_lancer_prayer_used_turn"]; got != 0 {
+	if got := p1.TurnState.UsedSkillCounts["holy_lancer_prayer"]; got != 0 {
 		t.Fatalf("expected prayer token cleared at real turn end, got %d", got)
 	}
 	if game.State.CurrentTurn != 1 {
@@ -322,7 +320,7 @@ func TestHolyLancerPrayer_ConsumesExactlyOneGemAndCapsHealAtFive(t *testing.T) {
 	if got := p1.Heal; got != 5 {
 		t.Fatalf("expected prayer heal to cap at 5, got %d", got)
 	}
-	if got := p1.Tokens["holy_lancer_prayer_used_turn"]; got != 1 {
+	if got := p1.TurnState.UsedSkillCounts["holy_lancer_prayer"]; got != 1 {
 		t.Fatalf("expected prayer used-turn token=1, got %d", got)
 	}
 }

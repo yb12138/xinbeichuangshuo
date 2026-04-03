@@ -511,12 +511,12 @@ func ensureStarterRoleCardsForAuto(player *model.Player) {
 	}
 	ensureZoneCard := func(skillTitle string, card model.Card) {
 		for _, c := range player.ExclusiveCards {
-			if c.MatchExclusive(player.Character.Name, skillTitle) {
+			if c.MatchExclusive(player.Character.ID, skillTitle) {
 				return
 			}
 		}
 		for i, c := range player.Hand {
-			if !c.MatchExclusive(player.Character.Name, skillTitle) {
+			if !c.MatchExclusive(player.Character.ID, skillTitle) {
 				continue
 			}
 			player.Hand = append(player.Hand[:i], player.Hand[i+1:]...)
@@ -536,7 +536,7 @@ func ensureStarterRoleCardsForAuto(player *model.Player) {
 			Faction:         player.Character.Faction,
 			Damage:          0,
 			Description:     "封印师开局自带专属技能卡",
-			ExclusiveChar1:  player.Character.Name,
+			ExclusiveChar1:  player.Character.ID,
 			ExclusiveSkill1: "五系束缚",
 		})
 	case "crimson_sword_spirit":
@@ -548,7 +548,7 @@ func ensureStarterRoleCardsForAuto(player *model.Player) {
 			Faction:         player.Character.Faction,
 			Damage:          0,
 			Description:     "血色剑灵开局自带专属技能卡",
-			ExclusiveChar1:  player.Character.Name,
+			ExclusiveChar1:  player.Character.ID,
 			ExclusiveSkill1: "血蔷薇庭院",
 		})
 	case "hero":
@@ -560,7 +560,7 @@ func ensureStarterRoleCardsForAuto(player *model.Player) {
 			Faction:         player.Character.Faction,
 			Damage:          0,
 			Description:     "勇者开局自带专属技能卡",
-			ExclusiveChar1:  player.Character.Name,
+			ExclusiveChar1:  player.Character.ID,
 			ExclusiveSkill1: "挑衅",
 		})
 	case "soul_sorcerer":
@@ -572,7 +572,7 @@ func ensureStarterRoleCardsForAuto(player *model.Player) {
 			Faction:         player.Character.Faction,
 			Damage:          0,
 			Description:     "灵魂术士开局自带专属技能卡",
-			ExclusiveChar1:  player.Character.Name,
+			ExclusiveChar1:  player.Character.ID,
 			ExclusiveSkill1: "灵魂链接",
 		})
 	case "blood_priestess":
@@ -584,7 +584,7 @@ func ensureStarterRoleCardsForAuto(player *model.Player) {
 			Faction:         player.Character.Faction,
 			Damage:          0,
 			Description:     "血之巫女开局自带专属技能卡",
-			ExclusiveChar1:  player.Character.Name,
+			ExclusiveChar1:  player.Character.ID,
 			ExclusiveSkill1: "同生共死",
 		})
 	case "bard":
@@ -596,7 +596,7 @@ func ensureStarterRoleCardsForAuto(player *model.Player) {
 			Faction:         player.Character.Faction,
 			Damage:          0,
 			Description:     "吟游诗人开局自带专属技能卡",
-			ExclusiveChar1:  player.Character.Name,
+			ExclusiveChar1:  player.Character.ID,
 			ExclusiveSkill1: "激昂狂想曲",
 		})
 		ensureZoneCard("胜利交响诗", model.Card{
@@ -607,7 +607,7 @@ func ensureStarterRoleCardsForAuto(player *model.Player) {
 			Faction:         player.Character.Faction,
 			Damage:          0,
 			Description:     "吟游诗人开局自带专属技能卡",
-			ExclusiveChar1:  player.Character.Name,
+			ExclusiveChar1:  player.Character.ID,
 			ExclusiveSkill1: "胜利交响诗",
 		})
 		ensureZoneCard("希望赋格曲", model.Card{
@@ -618,7 +618,7 @@ func ensureStarterRoleCardsForAuto(player *model.Player) {
 			Faction:         player.Character.Faction,
 			Damage:          0,
 			Description:     "吟游诗人开局自带专属技能卡",
-			ExclusiveChar1:  player.Character.Name,
+			ExclusiveChar1:  player.Character.ID,
 			ExclusiveSkill1: "希望赋格曲",
 		})
 	}
@@ -693,7 +693,7 @@ func applyDirectedScenarioPrestartState(game *engine.GameEngine) {
 			// 列风技需要“打出匹配独有牌 + 目标有圣盾”，这里在定向场景预置硬前提。
 			hasGaleSlashCard := false
 			for _, c := range bladeMaster.Hand {
-				if c.Type == model.CardTypeAttack && c.MatchExclusive(bladeMaster.Character.Name, "列风技") {
+				if c.Type == model.CardTypeAttack && c.MatchExclusive(bladeMaster.Character.ID, "列风技") {
 					hasGaleSlashCard = true
 					break
 				}
@@ -706,7 +706,7 @@ func applyDirectedScenarioPrestartState(game *engine.GameEngine) {
 					Element:         model.ElementWind,
 					Damage:          2,
 					Faction:         bladeMaster.Character.Faction,
-					ExclusiveChar1:  bladeMaster.Character.Name,
+					ExclusiveChar1:  bladeMaster.Character.ID,
 					ExclusiveSkill1: "列风技",
 				}}, bladeMaster.Hand...)
 			}
@@ -1704,7 +1704,7 @@ func cardMatchesSkillDiscard(player *model.Player, skill model.SkillDefinition, 
 		if player == nil || player.Character == nil {
 			return false
 		}
-		if !card.MatchExclusive(player.Character.Name, skill.Title) {
+		if !card.MatchExclusive(player.Character.ID, skill.Title) {
 			return false
 		}
 	}
@@ -1903,12 +1903,12 @@ func hasExclusiveCardForSkill(player *model.Player, skillTitle string) bool {
 		return false
 	}
 	for _, c := range player.ExclusiveCards {
-		if c.MatchExclusive(player.Character.Name, skillTitle) {
+		if c.MatchExclusive(player.Character.ID, skillTitle) {
 			return true
 		}
 	}
 	for _, c := range player.Hand {
-		if c.MatchExclusive(player.Character.Name, skillTitle) {
+		if c.MatchExclusive(player.Character.ID, skillTitle) {
 			return true
 		}
 	}
@@ -1923,7 +1923,7 @@ func hasAttackExclusiveCardForSkill(player *model.Player, skillTitle string) boo
 		if c.Type != model.CardTypeAttack {
 			continue
 		}
-		if c.MatchExclusive(player.Character.Name, skillTitle) {
+		if c.MatchExclusive(player.Character.ID, skillTitle) {
 			return true
 		}
 	}
@@ -1981,8 +1981,8 @@ func collectPlayableCards(player *model.Player) (attackIdx []int, magicIdx []int
 			if !okI || !okJ {
 				return attackIdx[i] < attackIdx[j]
 			}
-			ei := ci.MatchExclusive(player.Character.Name, "血影狂刀")
-			ej := cj.MatchExclusive(player.Character.Name, "血影狂刀")
+			ei := ci.MatchExclusive(player.Character.ID, "血影狂刀")
+			ej := cj.MatchExclusive(player.Character.ID, "血影狂刀")
 			if ei != ej {
 				return ei
 			}

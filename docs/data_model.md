@@ -95,6 +95,52 @@
 | `34` | `MagicRune` | 魔纹（英灵人形） | 3|
 | `35` | `BloodMark` | 鲜血（血色剑灵） | 3|
 
+#### 1.7.1 实现约定：`Player.Tokens` 与专属指示物
+
+引擎中 `model.Player.Tokens` 为 `map[string]int`。**§1.7 仅描述「可对外展示的专属资源计数」语义**；下列 key 虽挂在同一 map 上，应视为**流程状态、锁、当回合标记或 UI 派生字段**，长期目标是从 `Tokens` 迁到更可配置的运行时结构（如分域 flag、`Interrupt.Context`、规则修饰物等），避免与「指示物」混谈。
+
+**自动生成索引**：代码中出现的全部字面量 key（含 `路径:行号`）、动态下标写入处，以及 `role_defaults.go` 中的默认初始化行，见 [player_tokens_keys_appendix.md](player_tokens_keys_appendix.md)（由 `scripts/gen_player_tokens_appendix.py` 生成，更新后请重新运行脚本）。
+
+**迁出 `Tokens` 的实施型方案**（流程态、UI 派生、多步技能上下文等分层）：见 [player_tokens_runtime_refactor_plan.md](player_tokens_runtime_refactor_plan.md)。
+
+**A. 与 §1.7 对应的代码 key（枚举名 → 小写 snake_case）**
+
+| Token Type（§1.7） | 典型代码 key |
+|:---|:---|
+| `BloodMark`（红莲骑士） | `crk_blood_mark` |
+| `Rune`（祈祷师） | `prayer_rune` |
+| `GhostFire` | `onmyoji_ghost_fire` |
+| `Rebirth` | `bw_rebirth` |
+| `EnergyCharge` | `mb_charge_count`（盖牌区计数，视图层可覆盖展示） |
+| `Inspiration` | `bd_inspiration` |
+| `Rage` / `Intellect` | `hero_anger` / `hero_wisdom` |
+| `BattleQi` | `fighter_qi` |
+| `Faith` / 圣弓资源 | `hb_faith`；`hb_cannon` 为圣弓机制相关计数（是否与 Faith 合并展示由前端约定） |
+| `SwordQi` | `se_sword_qi`（`se_sword_soul_count` 等为剑帝机制扩展计数） |
+| `Zanshin` / `BeastSoul` | `bs_zanshin` / `bs_beast_soul` |
+| `SoulYellow` / `SoulBlue` | `ss_yellow_soul` / `ss_blue_soul` |
+| `Petrifaction` / `Crescent` | `mg_petrify` / `mg_new_moon` |
+| `Pupa` | `bt_pupa`（`bt_cocoon_count` 等为茧区数量展示） |
+| `Judgment` | `judgment`（小写，与枚举名不同） |
+| `WarRune` / `MagicRune` | `hom_war_rune` / `hom_magic_rune` |
+| `BloodMark`（血色剑灵鲜血） | `css_blood`（`css_blood_cap` 为上限辅助） |
+| `Element` | `element` |
+
+**B. 典型「流程 / 回合 / 锁」类 key（宜迁出 `Tokens`）**
+
+- **全局回合切换清零**：见 `internal/engine/turn_progression_runtime.go` 中 `turnScopedResetKeys`（如 `mb_magic_pierce_pending`、`arbiter_forced_doomsday_pending`、`hero_taunt_active_turn`、`mg_blasphemy_pending` 等）。
+- **行动链 / 阶段**：如 `post_action_end_effect_pending`、`special_phase_end_dispatched`、`holy_sword_phase_end_pending`。
+- **单次攻击或效果链内**：如 `se_guard_disabled_current_attack`、`fighter_qiburst_force_no_counter`、`hero_calm_force_no_counter`、`mg_next_attack_no_counter`。
+- **多步技能暂存**：如 `ml_stardust_pending`、`ml_stardust_wait_discard`、`bw_pain_link_pending_hits`、`adventurer_extract_last_gem` / `adventurer_extract_last_crystal`（对局外视图已剔除）。
+
+**C. UI 派生与对手可见性**
+
+`internal/server/state_view.go` 会根据规则修饰物、盖牌区等**重写或删除**部分 key（如 `ml_dark_release_next_attack_bonus`、`elf_blessing_count`）；并对若干 `*_form` 类 key 做 `delete`，避免与 `Player.Form` 重复暴露。此类不应理解为 §1.7 指示物来源。
+
+**D. 文档滞后**
+
+若代码中出现稳定使用的计数型 key 却未出现在上表，应**先补 §1.7 或角色配置**，再讨论是否迁入/迁出 `Tokens`。
+
 ---
 
 ## 2. 卡牌与技能定义 (Cards & Skills)
@@ -510,7 +556,7 @@ const (
 
 // 单个执行节点
 type EffectNode struct {
-    ActionType model.EffectActionType // 要执行的具体动作（如：造成伤害、加血、摸牌）
+    ActionType model.EffectActionType // 历史效果节点动作类型；额外行动现改用 model.AppendExtraAction / PendingActions 表达
     Target     model.EffectTargetType // 这个动作作用于谁（如：自己、选中的敌人、全场）
     Value      int                    // 动作的数值（如：伤害值、摸牌数）
     
@@ -542,7 +588,7 @@ const (
     EffectDrawCard             EffectActionType = 4  // 摸牌
     EffectDiscard              EffectActionType = 5  // 强制目标弃牌
     EffectAddToken             EffectActionType = 6  // 调整专属指示物（Value>0 增加；Value<0 移除；移除不足按可移除量结算且不阻断）
-    EffectAddAction            EffectActionType = 7  // 增加额外行动次数 (如: +1 攻击行动)
+    // 额外行动不再通过 EffectActionType 枚举项表达，改由 model.AppendExtraAction / model.AppendAttackAction / model.AppendMagicAction 写入 PendingActions
     EffectPlaceStatus          EffectActionType = 8  // 放置基础效果 (如: 中毒、五系束缚)
     EffectRemoveStatus         EffectActionType = 9  // 移除基础效果
     EffectRemoveStatusToHand   EffectActionType = 10 // 将场上基础效果牌收入手牌 (如封印破碎)

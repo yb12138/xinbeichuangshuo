@@ -7,6 +7,63 @@ import (
 	"starcup-engine/internal/rules"
 )
 
+func (e *GameEngine) drawForAction(p *model.Player, count int) {
+	if p == nil {
+		return
+	}
+	ctx := e.newDrawContextWithOptions(p, count, "action", model.DrawOptions{})
+	if ctx == nil {
+		return
+	}
+	e.startDraw(ctx)
+}
+
+// resumePendingDraw 恢复暂停的扣卡流程。
+func (e *GameEngine) resumePendingDraw(ctx *model.Context) {
+	if ctx == nil || ctx.Trigger != model.TriggerBeforeDraw || ctx.TriggerCtx == nil || ctx.TriggerCtx.DrawCount == nil {
+		e.Log("[Draw] 跳过恢复摸牌：上下文不完整")
+		return
+	}
+
+	drawCount := *ctx.TriggerCtx.DrawCount
+	target := ctx.User
+	if target == nil {
+		e.Log("[Draw] 跳过恢复摸牌：目标不存在")
+		return
+	}
+
+	if ctx.Flags["cancelDraw"] {
+		e.Log(fmt.Sprintf("[Draw] %s 的摸牌被替换/取消", target.Name))
+		e.enqueuePendingDrawFollowup(ctx)
+		return
+	}
+	if ctx.Flags["capToHandLimit"] {
+		room := e.GetMaxHand(target) - len(target.Hand)
+		if room < 0 {
+			room = 0
+		}
+		if drawCount > room {
+			e.Log(fmt.Sprintf("[Draw] %s 的伤害摸牌受上限保护：%d -> %d", target.Name, drawCount, room))
+			drawCount = room
+			*ctx.TriggerCtx.DrawCount = drawCount
+		}
+	}
+	if drawCount <= 0 {
+		e.Log(fmt.Sprintf("[Draw] %s 本次无需摸牌", target.Name))
+		e.enqueuePendingDrawFollowup(ctx)
+		return
+	}
+
+	reason, _ := ctx.Selections["draw_reason"].(string)
+	if reason == "" {
+		reason = "resume_draw"
+	}
+
+	e.Log(fmt.Sprintf("[Draw] %s 摸牌 %d 张", target.Name, drawCount))
+	e.executeResolvedDraw(ctx, drawCount, reason)
+	e.enqueuePendingDrawFollowup(ctx)
+}
+
 func buildAssassinDeferredFollowupHandlers() map[string]deferredFollowupHandler {
 	return map[string]deferredFollowupHandler{
 		"assassin_stealth_apply": {

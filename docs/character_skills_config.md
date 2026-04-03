@@ -443,7 +443,7 @@
   * **Tags**: `None`
 * **6. 执行效果序列**：
   * **Effect[0]**:
-    * `ActionType`: `EffectAddAction`
+    * `Implementation`: `model.AppendExtraAction`
     * `Target`: `TargetSelf`
     * `Value`: `1`
     * `ActionRef`: `Attack`     // 限定追加的行动大类为：攻击行动
@@ -569,7 +569,7 @@
   * **Tags**: `None`
 * **6. 执行效果序列**：
   * **Effect[0]**:
-    * `ActionType`: `EffectAddAction`
+    * `Implementation`: `model.AppendExtraAction`
     * `Target`: `TargetSelf`
     * `Value`: `1`
     * `ActionRef`: `Attack`     // 限定追加的行动大类为：攻击行动
@@ -634,7 +634,7 @@
   * **Tags**: `None`
 * **6. 执行效果序列**：
   * **Effect[0]**:
-    * `ActionType`: `EffectAddAction`
+    * `Implementation`: `model.AppendExtraAction`
     * `Target`: `TargetSelf`
     * `Value`: `1`
     * `ActionRef`: `Attack`     // 限定追加的行动大类为：攻击行动
@@ -660,7 +660,7 @@
   * **Tags**: `None`
 * **6. 执行效果序列**：
   * **Effect[0]**:
-    * `ActionType`: `EffectAddAction`
+    * `Implementation`: `model.AppendExtraAction`
     * `Target`: `TargetSelf`
     * `Value`: `1`
     * `ActionRef`: `Attack`     // 限定追加的行动大类为：攻击行动
@@ -759,7 +759,7 @@
     * `Value`: `Max(0, 5 - Target.HandCount)`
     * `Ref`: `None`
   * **Effect[1]**:
-    * `ActionType`: `EffectAddAction`
+    * `Implementation`: `model.AppendExtraAction`
     * `Target`: `TargetSelf`
     * `Value`: `1`
     * `ActionRef`: `Attack`     // 限定追加的行动大类为：攻击行动
@@ -1075,7 +1075,7 @@
     * `Value`: `Action.TargetAllocations[Target.UserID]`
     * `Ref`: `None`
   * **Effect[1]** *(额外+1攻击行动 或 +1法术行动，由 ActionRef 指定)*:
-    * `ActionType`: `EffectAddAction`
+    * `Implementation`: `model.AppendExtraAction`
     * `Target`: `TargetSelf`
     * `Value`: `1`
     * `ActionRef`: `Action.ActionRef`
@@ -1263,7 +1263,7 @@
   * **Tags**: `None`
 * **6. 执行效果序列**：
   * **Effect[0]**:
-    * `EffectType`: `EffectAddAction`
+    * `Implementation`: `model.AppendExtraAction`
     * `Target`: `TargetSelf`
     * `Value`: `1`
     * `ActionRef`: `Attack`
@@ -1500,7 +1500,7 @@
     * `Value`: `2`
     * `Ref`: `None`
   * **Effect[1]**:
-    * `EffectType`: `EffectAddAction`
+    * `Implementation`: `model.AppendExtraAction`
     * `Target`: `TargetSelf`
     * `Value`: `1`
     * `ActionRef`: `Magic`
@@ -1628,7 +1628,7 @@
       * `Value`: `2`
       * `Ref`: `None`
   * **Effect[1]** *(额外+1攻击行动)*:
-    * `EffectType`: `EffectAddAction`
+    * `Implementation`: `model.AppendExtraAction`
     * `Target`: `TargetSelf`
     * `Value`: `1`
     * `ActionRef`: `Attack`
@@ -1672,7 +1672,7 @@
       * `Value`: `2`
       * `Ref`: `None`
   * **Effect[1]** *(额外+1法术行动)*:
-    * `EffectType`: `EffectAddAction`
+    * `Implementation`: `model.AppendExtraAction`
     * `Target`: `TargetSelf`
     * `Value`: `1`
     * `ActionRef`: `Magic`
@@ -2130,7 +2130,7 @@
       * `StoneToRef`: `Gem`
       * `Ref`: `None`
   * **Effect[1]** *(额外+1攻击行动或法术行动)*:
-    * `EffectType`: `EffectAddAction`
+    * `Implementation`: `model.AppendExtraAction`
     * `Target`: `TargetSelf`
     * `Value`: `1`
     * `ActionRef`: `Attack,Magic`
@@ -2201,7 +2201,7 @@
     * `Value`: `1`
     * `Ref`: `None`
   * **Effect[1]** *(额外+1攻击行动)*:
-    * `EffectType`: `EffectAddAction`
+    * `Implementation`: `model.AppendExtraAction`
     * `Target`: `TargetSelf`
     * `Value`: `1`
     * `ActionRef`: `Attack`
@@ -2242,7 +2242,7 @@
     * `Value`: `1`
     * `Ref`: `None`
   * **Effect[2]** *(额外+1攻击行动)*:
-    * `EffectType`: `EffectAddAction`
+    * `Implementation`: `model.AppendExtraAction`
     * `Target`: `TargetSelf`
     * `Value`: `1`
     * `ActionRef`: `Attack`
@@ -2396,7 +2396,7 @@
     * `RuleLifetimeRef`: `RuleLifeUntilTurnEnd`
     * `Ref`: `None`
   * **Effect[3]** *(额外+1攻击行动)*:
-    * `EffectType`: `EffectAddAction`
+    * `Implementation`: `model.AppendExtraAction`
     * `Target`: `TargetSelf`
     * `Value`: `1`
     * `ActionRef`: `Attack`
@@ -2543,7 +2543,7 @@
   * **Tags**: `None`
 * **6. 执行效果序列**：
   * **Effect[0]** *(风之矢：+1攻击行动)*:
-    * `EffectType`: `EffectAddAction`
+    * `Implementation`: `model.AppendExtraAction`
     * `Target`: `TargetSelf`
     * `Value`: `1`
     * `ActionRef`: `Attack`
@@ -2913,7 +2913,7 @@
   * **Tags**: `None`
 * **6. 执行效果序列**：
   * **Effect[0]**:
-    * `EffectType`: `EffectAddAction`
+    * `Implementation`: `model.AppendExtraAction`
     * `Target`: `TargetSelf`
     * `Value`: `1`
     * `ActionRef`: `Attack`
@@ -3208,7 +3208,7 @@
     * `Value`: `2`
     * `Ref`: `None`
   * **Effect[1]**:
-    * `EffectType`: `EffectAddAction`
+    * `Implementation`: `model.AppendExtraAction`
     * `Target`: `TargetSelf`
     * `Value`: `1`
     * `ActionRef`: `Attack`
@@ -3586,7 +3586,7 @@
     * `FieldMarkRef`: `SwiftBlessing`
     * `Ref`: `None`
   * **Effect[1]**:
-    * `EffectType`: `EffectAddAction`
+    * `Implementation`: `model.AppendExtraAction`
     * `Target`: `TargetSelf`
     * `Value`: `1`
     * `ActionRef`: `Attack`
@@ -3672,7 +3672,7 @@
   * **Tags**: `None`
 * **6. 执行效果序列**：
   * **Effect[0]**:
-    * `EffectType`: `EffectAddAction`
+    * `Implementation`: `model.AppendExtraAction`
     * `Target`: `TargetSelf`
     * `Value`: `1`
     * `ActionRef`: `Magic`
@@ -3933,7 +3933,7 @@
     * `FormRef`: `nil`
     * `Ref`: `None`
   * **Effect[2]**:
-    * `EffectType`: `EffectAddAction`
+    * `Implementation`: `model.AppendExtraAction`
     * `Target`: `TargetSelf`
     * `Value`: `1`
     * `ActionRef`: `Action.ActionRef`
@@ -4540,7 +4540,7 @@
     * `TokenRef`: `GhostFire`
     * `Ref`: `None`
   * **Effect[3]**:
-    * `EffectType`: `EffectAddAction`
+    * `Implementation`: `model.AppendExtraAction`
     * `Target`: `TargetSelf`
     * `Value`: `1`
     * `ActionRef`: `Attack`
@@ -5903,7 +5903,7 @@
     * `RuleLifetimeRef`: `RuleLifeUntilTurnEnd`
     * `Ref`: `None`
   * **Effect[3]** *(额外+1攻击行动)*:
-    * `EffectType`: `EffectAddAction`
+    * `Implementation`: `model.AppendExtraAction`
     * `Target`: `TargetSelf`
     * `Value`: `1`
     * `ActionRef`: `Attack`
@@ -6597,7 +6597,7 @@
     * `FormRef`: `"hero_exhaustion_form"`
     * `Ref`: `None`
   * **Effect[2]** *(额外+1攻击行动)*:
-    * `EffectType`: `EffectAddAction`
+    * `Implementation`: `model.AppendExtraAction`
     * `Target`: `TargetSelf`
     * `Value`: `1`
     * `ActionRef`: `Attack`
@@ -7471,7 +7471,7 @@
     * `FormRef`: `"holy_bow_holy_glory_form"`
     * `Ref`: `None`
   * **Effect[2]**:
-    * `EffectType`: `EffectAddAction`
+    * `Implementation`: `model.AppendExtraAction`
     * `Target`: `TargetSelf`
     * `Value`: `1`
     * `ActionRef`: `Magic`
@@ -7994,7 +7994,7 @@
     * `TokenRef`: `SwordQi`
     * `Ref`: `None`
   * **Effect[2]**:
-    * `EffectType`: `EffectAddAction`
+    * `Implementation`: `model.AppendExtraAction`
     * `Target`: `TargetSelf`
     * `Value`: `1`
     * `ActionRef`: `Attack`
@@ -8055,7 +8055,7 @@
   * **Tags**: `None`
 * **6. 执行效果序列**：
   * **Effect[0]** *(额外+1攻击行动)*:
-    * `EffectType`: `EffectAddAction`
+    * `Implementation`: `model.AppendExtraAction`
     * `Target`: `TargetSelf`
     * `Value`: `1`
     * `ActionRef`: `Attack`
@@ -9017,7 +9017,7 @@
     * `Condition`: `Action.SelectedValue == 0`
     * `Ref`: `None`
   * **Effect[2]** *(石化分支：额外+1攻击行动)*:
-    * `EffectType`: `EffectAddAction`
+    * `Implementation`: `model.AppendExtraAction`
     * `Target`: `TargetSelf`
     * `Value`: `1`
     * `ActionRef`: `Attack`

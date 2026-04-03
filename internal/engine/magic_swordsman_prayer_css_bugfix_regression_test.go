@@ -6,6 +6,7 @@ import (
 
 	"starcup-engine/internal/engine/skills"
 	"starcup-engine/internal/model"
+	"starcup-engine/internal/rules"
 )
 
 func pendingChoiceType(intr *model.Interrupt) string {
@@ -271,5 +272,90 @@ func TestPrayerSwiftBlessing_StillTriggersAfterPhaseEndInterrupt(t *testing.T) {
 	}
 	if ct := pendingChoiceType(g.State.PendingInterrupt); ct != "prayer_swift_blessing_trigger" {
 		t.Fatalf("expected prayer_swift_blessing_trigger, got %q", ct)
+	}
+}
+
+func TestPrayerSwiftBlessing_AttackFollowupSurvivesPhaseEndResponseInterrupt(t *testing.T) {
+	g := NewGameEngine(nil)
+	if err := g.AddPlayer("p1", "Blade", "blade_master", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.AddPlayer("p2", "Enemy", "angel", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	g.State.CurrentTurn = 0
+	g.State.Deck = rules.InitDeck()
+	g.State.TurnStage = model.TurnStageActionExecution
+
+	p1 := g.State.Players["p1"]
+	p2 := g.State.Players["p2"]
+	p1.IsActive = true
+	p1.Crystal = 1
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.TurnState.UsedSkillCounts["wind_fury"] = 1
+	p2.TurnState = model.NewPlayerTurnState()
+	p1.AddFieldCard(&model.FieldCard{
+		OwnerID: p1.ID,
+		Mode:    model.FieldEffect,
+		Effect:  model.EffectSwiftBlessing,
+		Trigger: model.EffectTriggerManual,
+	})
+	p1.Hand = []model.Card{{ID: "atk1", Name: "火斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 1}}
+
+	if err := g.HandleAction(model.PlayerAction{
+		PlayerID:  "p1",
+		Type:      model.CmdAttack,
+		TargetID:  "p2",
+		CardIndex: 0,
+	}); err != nil {
+		t.Fatalf("attack failed: %v", err)
+	}
+	if err := g.HandleAction(model.PlayerAction{
+		PlayerID:  "p2",
+		Type:      model.CmdRespond,
+		ExtraArgs: []string{"take"},
+	}); err != nil {
+		t.Fatalf("take failed: %v", err)
+	}
+
+	if g.State.PendingInterrupt == nil || g.State.PendingInterrupt.Type != model.InterruptResponseSkill {
+		t.Fatalf("expected first attack-end response interrupt, got %+v", g.State.PendingInterrupt)
+	}
+	if !containsSkillIDBugfix(g.State.PendingInterrupt.SkillIDs, "sword_shadow") {
+		t.Fatalf("expected sword_shadow first, got %+v", g.State.PendingInterrupt.SkillIDs)
+	}
+
+	if err := g.SkipResponse(); err != nil {
+		t.Fatalf("skip sword_shadow failed: %v", err)
+	}
+	g.Drive()
+
+	if g.State.PendingInterrupt == nil || g.State.PendingInterrupt.Type != model.InterruptChoice {
+		t.Fatalf("expected swift blessing choice after attack-end response, got %+v", g.State.PendingInterrupt)
+	}
+	if ct := pendingChoiceType(g.State.PendingInterrupt); ct != "prayer_swift_blessing_trigger" {
+		t.Fatalf("expected prayer_swift_blessing_trigger after sword_shadow, got %q", ct)
+	}
+
+	if err := g.HandleAction(model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{0},
+	}); err != nil {
+		t.Fatalf("confirm swift blessing failed: %v", err)
+	}
+
+	if p1.HasFieldEffect(model.EffectSwiftBlessing) {
+		t.Fatalf("expected swift blessing to be consumed")
+	}
+	if g.State.TurnStage != model.TurnStageActionExecution {
+		t.Fatalf("expected extra attack action window after swift blessing, got %s", g.State.TurnStage)
+	}
+	if p1.TurnState.CurrentExtraAction != string(model.ActionAttack) {
+		t.Fatalf("expected current extra action Attack, got %q", p1.TurnState.CurrentExtraAction)
+	}
+	if len(g.State.DeferredFollowups) != 0 {
+		t.Fatalf("expected deferred followups drained, got %+v", g.State.DeferredFollowups)
 	}
 }

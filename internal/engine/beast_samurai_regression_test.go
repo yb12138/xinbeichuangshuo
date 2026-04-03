@@ -104,8 +104,8 @@ func TestBeastSamurai_InitTokens(t *testing.T) {
 	if p1.Tokens["bs_beast_soul"] != 0 {
 		t.Fatalf("expected initial beast soul=0, got %d", p1.Tokens["bs_beast_soul"])
 	}
-	if p1.Tokens["bs_one_strike_armed"] != 0 {
-		t.Fatalf("expected initial one-strike flag=0, got %d", p1.Tokens["bs_one_strike_armed"])
+	if p1.TurnState.UsedSkillCounts["bs_one_strike_armed"] != 0 {
+		t.Fatalf("expected initial one-strike flag=0, got %d", p1.TurnState.UsedSkillCounts["bs_one_strike_armed"])
 	}
 	if p1.Orientation != model.OrientationNormal {
 		t.Fatalf("expected initial orientation normal, got %s", p1.Orientation)
@@ -153,7 +153,7 @@ func TestBeastSamurai_OneStrike_NextAttackIgnoresShieldAndHoly(t *testing.T) {
 		Damage:  2,
 	}
 	p1.Hand = []model.Card{attackCard}
-	p1.Tokens["bs_one_strike_armed"] = 1
+	p1.TurnState.UsedSkillCounts["bs_one_strike_armed"] = 1
 
 	p2.Hand = []model.Card{
 		{ID: "holy-1", Name: "圣光", Type: model.CardTypeMagic, Element: model.ElementLight, Faction: "圣"},
@@ -180,14 +180,14 @@ func TestBeastSamurai_OneStrike_NextAttackIgnoresShieldAndHoly(t *testing.T) {
 	if len(game.State.CombatStack) != 1 {
 		t.Fatalf("expected combat stack size 1, got %d", len(game.State.CombatStack))
 	}
-	if p1.Tokens["bs_one_strike_armed"] != 0 {
-		t.Fatalf("expected one-strike armed cleared, got %d", p1.Tokens["bs_one_strike_armed"])
+	if p1.TurnState.UsedSkillCounts["bs_one_strike_armed"] != 0 {
+		t.Fatalf("expected one-strike armed cleared, got %d", p1.TurnState.UsedSkillCounts["bs_one_strike_armed"])
 	}
-	if p1.Tokens["bs_ignore_shield_current_attack"] != 1 {
-		t.Fatalf("expected ignore shield token=1, got %d", p1.Tokens["bs_ignore_shield_current_attack"])
+	if !game.State.CombatStack[0].HasInterceptTag(model.CombatInterceptIgnoreHolyShield) {
+		t.Fatalf("expected one-strike attack to carry IgnoreHolyShield tag")
 	}
-	if p1.Tokens["bs_no_holy_defend_current_attack"] != 1 {
-		t.Fatalf("expected no-holy-defend token=1, got %d", p1.Tokens["bs_no_holy_defend_current_attack"])
+	if !game.State.CombatStack[0].HasInterceptTag(model.CombatInterceptIgnoreTargetHoly) {
+		t.Fatalf("expected one-strike attack to carry IgnoreTargetHoly tag")
 	}
 	if game.hasUsableShieldForCombat(p2, game.State.CombatStack[0]) {
 		t.Fatalf("expected shield to be ignored by one-strike attack")
@@ -222,7 +222,7 @@ func TestBeastSamurai_OneStrike_JiFactionForceHit(t *testing.T) {
 		Damage:  2,
 	}
 	p1.Hand = []model.Card{attackCard}
-	p1.Tokens["bs_one_strike_armed"] = 1
+	p1.TurnState.UsedSkillCounts["bs_one_strike_armed"] = 1
 	p2.Hand = nil
 
 	game.State.TurnStage = model.TurnStageActionExecution

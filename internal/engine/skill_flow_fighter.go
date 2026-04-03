@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"starcup-engine/internal/engine/runtimeutil"
 
 	"starcup-engine/internal/model"
 )
@@ -17,7 +18,7 @@ func (e *GameEngine) handleFighterChoiceInput(_ string, selectionIndex int, ctxD
 	if user == nil {
 		return true, fmt.Errorf("玩家不存在")
 	}
-	targetIDs := parseStringSliceContextValue(ctxData["target_ids"])
+	targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
 	if selectionIndex < 0 || selectionIndex >= len(targetIDs) {
 		return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}

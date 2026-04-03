@@ -44,99 +44,99 @@ func InitDeck() []model.Card {
 	// 1. 火焰斩 (Attack, 火)
 	// 幻命格 * 5
 	addExclusiveCards("火焰斩", model.CardTypeAttack, model.ElementFire, 5, 2, "基础攻击，持有者可使用独有技",
-		"幻", "封印师", "灵魂术士", "火之封印", "灵魂震爆")
+		"幻", "sealer", "soul_sorcerer", "火之封印", "灵魂震爆")
 	// 咏命格 * 4
 	addExclusiveCards("火焰斩", model.CardTypeAttack, model.ElementFire, 4, 2, "基础攻击，持有者可使用独有技",
-		"咏", "祈祷师", "元素师", "威力赐福", "火球")
+		"咏", "prayer_master", "elementalist", "威力赐福", "火球")
 	// 血命格 * 4
 	addExclusiveCards("火焰斩", model.CardTypeAttack, model.ElementFire, 4, 2, "基础攻击，持有者可使用独有技",
-		"血", "狂战士", "血之巫女", "血腥咆哮", "血之悲鸣")
+		"血", "berserker", "blood_priestess", "血腥咆哮", "血之悲鸣")
 	// 技命格 * 4
 	addExclusiveCards("火焰斩", model.CardTypeAttack, model.ElementFire, 4, 2, "基础攻击，持有者可使用独有技",
-		"技", "风之剑圣", "神箭手", "疾风技", "闪光陷阱")
+		"技", "blade_master", "archer", "疾风技", "闪光陷阱")
 	// 圣命格 * 4
 	addExclusiveCards("火焰斩", model.CardTypeAttack, model.ElementFire, 4, 2, "基础攻击，持有者可使用独有技",
-		"圣", "圣女", "天使", "治疗术", "天使之墙")
+		"圣", "saintess", "angel", "治疗术", "天使之墙")
 
 	// 2. 水涟斩 (Attack, 水)
 	// 幻命格 * 4 (水之封印/灵魂震爆 * 2, 水之封印/灵魂赐予 * 2)
 	addExclusiveCards("水涟斩", model.CardTypeAttack, model.ElementWater, 2, 2, "基础攻击，持有者可使用独有技",
-		"幻", "封印师", "灵魂术士", "水之封印", "灵魂震爆")
+		"幻", "sealer", "soul_sorcerer", "水之封印", "灵魂震爆")
 	addExclusiveCards("水涟斩", model.CardTypeAttack, model.ElementWater, 2, 2, "基础攻击，持有者可使用独有技",
-		"幻", "封印师", "灵魂术士", "水之封印", "灵魂赐予")
+		"幻", "sealer", "soul_sorcerer", "水之封印", "灵魂赐予")
 	// 咏命格 * 6
 	addExclusiveCards("水涟斩", model.CardTypeAttack, model.ElementWater, 6, 2, "基础攻击，持有者可使用独有技",
-		"咏", "祈祷师", "元素师", "威力赐福", "冰冻")
+		"咏", "prayer_master", "elementalist", "威力赐福", "冰冻")
 	// 血命格 * 4
 	addExclusiveCards("水涟斩", model.CardTypeAttack, model.ElementWater, 4, 2, "基础攻击，持有者可使用独有技",
-		"血", "狂战士", "血之巫女", "血影狂刀", "血之悲鸣")
+		"血", "berserker", "blood_priestess", "血影狂刀", "血之悲鸣")
 	// 技命格 * 4
 	addExclusiveCards("水涟斩", model.CardTypeAttack, model.ElementWater, 4, 2, "基础攻击，持有者可使用独有技",
-		"技", "风之剑圣", "神箭手", "疾风技", "闪光陷阱")
+		"技", "blade_master", "archer", "疾风技", "闪光陷阱")
 	// 圣命格 * 3
 	addExclusiveCards("水涟斩", model.CardTypeAttack, model.ElementWater, 3, 2, "基础攻击，持有者可使用独有技",
-		"圣", "圣女", "天使", "治愈之光", "天使之墙")
+		"圣", "saintess", "angel", "治愈之光", "天使之墙")
 
 	// 3. 地裂斩 (Attack, 地)
 	// 幻命格 * 4 (地之封印/灵魂震爆 * 2, 地之封印/灵魂赐予 * 2)
 	addExclusiveCards("地裂斩", model.CardTypeAttack, model.ElementEarth, 2, 2, "基础攻击，持有者可使用独有技",
-		"幻", "封印师", "灵魂术士", "地之封印", "灵魂震爆")
+		"幻", "sealer", "soul_sorcerer", "地之封印", "灵魂震爆")
 	addExclusiveCards("地裂斩", model.CardTypeAttack, model.ElementEarth, 2, 2, "基础攻击，持有者可使用独有技",
-		"幻", "封印师", "灵魂术士", "地之封印", "灵魂赐予")
+		"幻", "sealer", "soul_sorcerer", "地之封印", "灵魂赐予")
 	// 咏命格 * 4 (威力赐福/陨石 * 2, 迅捷赐福/陨石 * 2)
 	addExclusiveCards("地裂斩", model.CardTypeAttack, model.ElementEarth, 2, 2, "基础攻击，持有者可使用独有技",
-		"咏", "祈祷师", "元素师", "威力赐福", "陨石")
+		"咏", "prayer_master", "elementalist", "威力赐福", "陨石")
 	addExclusiveCards("地裂斩", model.CardTypeAttack, model.ElementEarth, 2, 2, "基础攻击，持有者可使用独有技",
-		"咏", "祈祷师", "元素师", "迅捷赐福", "陨石")
+		"咏", "prayer_master", "elementalist", "迅捷赐福", "陨石")
 	// 血命格 * 5 (血影狂刀/血之悲鸣 * 3, 血腥咆哮/血之悲鸣 * 2)
 	addExclusiveCards("地裂斩", model.CardTypeAttack, model.ElementEarth, 3, 2, "基础攻击，持有者可使用独有技",
-		"血", "狂战士", "血之巫女", "血影狂刀", "血之悲鸣")
+		"血", "berserker", "blood_priestess", "血影狂刀", "血之悲鸣")
 	addExclusiveCards("地裂斩", model.CardTypeAttack, model.ElementEarth, 2, 2, "基础攻击，持有者可使用独有技",
-		"血", "狂战士", "血之巫女", "血腥咆哮", "血之悲鸣")
+		"血", "berserker", "blood_priestess", "血腥咆哮", "血之悲鸣")
 	// 技命格 * 5
 	addExclusiveCards("地裂斩", model.CardTypeAttack, model.ElementEarth, 5, 2, "基础攻击，持有者可使用独有技",
-		"技", "风之剑圣", "神箭手", "列风技", "精准射击")
+		"技", "blade_master", "archer", "列风技", "精准射击")
 	// 圣命格 * 3
 	addExclusiveCards("地裂斩", model.CardTypeAttack, model.ElementEarth, 3, 2, "基础攻击，持有者可使用独有技",
-		"圣", "圣女", "", "治疗术", "")
+		"圣", "saintess", "", "治疗术", "")
 
 	// 4. 风神斩 (Attack, 风)
 	// 幻命格 * 4
 	addExclusiveCards("风神斩", model.CardTypeAttack, model.ElementWind, 4, 2, "基础攻击，持有者可使用独有技",
-		"幻", "封印师", "灵魂术士", "风之封印", "灵魂赐予")
+		"幻", "sealer", "soul_sorcerer", "风之封印", "灵魂赐予")
 	// 咏命格 * 5
 	addExclusiveCards("风神斩", model.CardTypeAttack, model.ElementWind, 5, 2, "基础攻击，持有者可使用独有技",
-		"咏", "祈祷师", "元素师", "迅捷赐福", "风刃")
+		"咏", "prayer_master", "elementalist", "迅捷赐福", "风刃")
 	// 血命格 * 4
 	addExclusiveCards("风神斩", model.CardTypeAttack, model.ElementWind, 4, 2, "基础攻击，持有者可使用独有技",
-		"血", "狂战士", "血之巫女", "血腥咆哮", "血之悲鸣")
+		"血", "berserker", "blood_priestess", "血腥咆哮", "血之悲鸣")
 	// 技命格 * 5 (列风技/精准射击 * 2, 疾风技/精准射击 * 3)
 	addExclusiveCards("风神斩", model.CardTypeAttack, model.ElementWind, 2, 2, "基础攻击，持有者可使用独有技",
-		"技", "风之剑圣", "神箭手", "列风技", "精准射击")
+		"技", "blade_master", "archer", "列风技", "精准射击")
 	addExclusiveCards("风神斩", model.CardTypeAttack, model.ElementWind, 3, 2, "基础攻击，持有者可使用独有技",
-		"技", "风之剑圣", "神箭手", "疾风技", "精准射击")
+		"技", "blade_master", "archer", "疾风技", "精准射击")
 	// 圣命格 * 3
 	addExclusiveCards("风神斩", model.CardTypeAttack, model.ElementWind, 3, 2, "基础攻击，持有者可使用独有技",
-		"圣", "圣女", "天使", "治愈之光", "天使之墙")
+		"圣", "saintess", "angel", "治愈之光", "天使之墙")
 
 	// 5. 雷光斩 (Attack, 雷)
 	// 幻命格 * 5
 	addExclusiveCards("雷光斩", model.CardTypeAttack, model.ElementThunder, 5, 2, "基础攻击，持有者可使用独有技",
-		"幻", "封印师", "灵魂术士", "雷之封印", "灵魂震爆")
+		"幻", "sealer", "soul_sorcerer", "雷之封印", "灵魂震爆")
 	// 咏命格 * 4
 	addExclusiveCards("雷光斩", model.CardTypeAttack, model.ElementThunder, 4, 2, "基础攻击，持有者可使用独有技",
-		"咏", "祈祷师", "元素师", "迅捷赐福", "雷击")
+		"咏", "prayer_master", "elementalist", "迅捷赐福", "雷击")
 	// 血命格 * 4
 	addExclusiveCards("雷光斩", model.CardTypeAttack, model.ElementThunder, 4, 2, "基础攻击，持有者可使用独有技",
-		"血", "狂战士", "血之巫女", "血影狂刀", "血之悲鸣")
+		"血", "berserker", "blood_priestess", "血影狂刀", "血之悲鸣")
 	// 技命格 * 4 (列风技/精准射击 * 2, 疾风技/精准射击 * 2)
 	addExclusiveCards("雷光斩", model.CardTypeAttack, model.ElementThunder, 2, 2, "基础攻击，持有者可使用独有技",
-		"技", "风之剑圣", "神箭手", "列风技", "精准射击")
+		"技", "blade_master", "archer", "列风技", "精准射击")
 	addExclusiveCards("雷光斩", model.CardTypeAttack, model.ElementThunder, 2, 2, "基础攻击，持有者可使用独有技",
-		"技", "风之剑圣", "神箭手", "疾风技", "精准射击")
+		"技", "blade_master", "archer", "疾风技", "精准射击")
 	// 圣命格 * 4
 	addExclusiveCards("雷光斩", model.CardTypeAttack, model.ElementThunder, 4, 2, "基础攻击，持有者可使用独有技",
-		"圣", "圣女", "天使", "治疗术", "天使之墙")
+		"圣", "saintess", "angel", "治疗术", "天使之墙")
 
 	// 6. 暗灭 (Attack, 暗)
 	// 咏命格 * 2
@@ -238,9 +238,9 @@ func InitDeck() []model.Card {
 		"技", "", "", "", "")
 	// 圣命格 * 3 (治疗术 * 2, 治愈之光 * 1)
 	addExclusiveCards("圣光", model.CardTypeMagic, model.ElementLight, 2, 0, "抵挡伤害或作为响应",
-		"圣", "圣女", "", "治疗术", "")
+		"圣", "saintess", "", "治疗术", "")
 	addExclusiveCards("圣光", model.CardTypeMagic, model.ElementLight, 1, 0, "抵挡伤害或作为响应",
-		"圣", "圣女", "", "治愈之光", "")
+		"圣", "saintess", "", "治愈之光", "")
 
 	return deck
 }

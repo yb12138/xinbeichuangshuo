@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"starcup-engine/internal/model"
+	"strings"
 )
 
 func hasAssassinStealthForm(p *model.Player) bool {
@@ -11,100 +12,6 @@ func hasAssassinStealthForm(p *model.Player) bool {
 }
 
 // --- Angel Handlers ---
-
-type PoisonHandler struct{ BaseHandler }
-
-func (h *PoisonHandler) CanUse(ctx *model.Context) bool {
-	// 1. 时机：Buff结算阶段
-	if ctx.Trigger != model.TriggerOnBuffPhase {
-		return false
-	}
-
-	// 2. 检查是否有中毒牌
-	hasPoison := false
-	for _, fc := range ctx.User.Field {
-		if fc.Mode == model.FieldEffect && fc.Effect == model.EffectPoison {
-			hasPoison = true
-			break
-		}
-	}
-	return hasPoison
-}
-
-func (h *PoisonHandler) Execute(ctx *model.Context) error {
-	user := ctx.User
-
-	// 我们需要把 ctx.Game 转换为 *GameEngine 才能调用 resolveDamage
-	// 或者你在 IGameEngine 接口里暴露了 ResolveDamage 方法
-	// 这里假设通过接口或者类型断言调用
-
-	// 1. 找到中毒的源头（可能有多个中毒，通常结算第一个或合并结算）
-	var poisonCard *model.FieldCard
-	for _, fc := range user.Field {
-		if fc.Mode == model.FieldEffect && fc.Effect == model.EffectPoison {
-			poisonCard = fc
-			break
-		}
-	}
-
-	if poisonCard == nil {
-		return nil
-	}
-
-	ctx.Game.Log(fmt.Sprintf("[Buff] %s 中毒发作，正在结算伤害...", user.Name))
-
-	damageCard := poisonCard.Card
-	damageCard.Damage = 1
-
-	// 2. 发起伤害结算
-	// 参数: 来源ID (施加中毒的人), 目标ID (中毒者), 卡牌 (中毒牌), 伤害类型 ("Poison")
-	// ResolveDamage 会触发 TriggerOnDamageTaken，从而允许圣盾、技能减免伤害
-	err := ctx.Game.ResolveDamage(poisonCard.SourceID, user.ID, &damageCard, "Poison")
-	if err != nil {
-		return err
-	}
-
-	ctx.Game.RemoveFieldCardBy(user.ID, model.EffectPoison, "")
-	ctx.Game.Log(fmt.Sprintf("[Buff] %s 的中毒效果已结束", user.Name))
-
-	return nil
-}
-
-type WeaknessHandler struct{ BaseHandler }
-
-func (h *WeaknessHandler) CanUse(ctx *model.Context) bool {
-	// 1. 时机必须是 Buff 结算阶段
-	if ctx.Trigger != model.TriggerOnBuffPhase {
-		return false
-	}
-	// 2. 检查玩家场上是否有虚弱牌
-	hasWeak := false
-	for _, fc := range ctx.User.Field {
-		if fc.Mode == model.FieldEffect && fc.Effect == model.EffectWeak {
-			hasWeak = true
-			break
-		}
-	}
-	return hasWeak
-}
-
-func (h *WeaknessHandler) Execute(ctx *model.Context) error {
-	user := ctx.User
-	// game := ctx.Game.(model.IGameEngine) // Removed assertion, use interface directly
-
-	// 抛出一个通用的选择中断
-	ctx.Game.PushInterrupt(&model.Interrupt{
-		Type:     model.InterruptChoice, // 【新增】使用选择类型
-		PlayerID: user.ID,
-		Context: map[string]interface{}{
-			"choice_type": "weak", // 标记这是虚弱的选择
-			// 可以在这里存更多上下文，比如虚弱牌的 ID
-		},
-	})
-
-	ctx.Game.Log(fmt.Sprintf("[Buff] %s 触发虚弱判定，等待玩家选择...", user.Name))
-	return nil
-}
 
 type HolyShieldHandler struct{}
 
@@ -119,18 +26,22 @@ func (h *HolyShieldHandler) CanUse(ctx *model.Context) bool {
 	if ctx.TriggerCtx == nil || ctx.TriggerCtx.DamageVal == nil || *ctx.TriggerCtx.DamageVal <= 0 {
 		return false
 	}
-	if !ctx.Flags["holy_shield_eligible"] {
+
+	// [重构] 3. 攻击伤害圣盾已经在 processPendingAttackHit 开头检查过了
+	// 这里只处理魔弹伤害（法术伤害但卡牌名是"魔弹"）
+	if ctx.Flags["IsMagicDamage"] {
+		// 法术伤害：检查是否是魔弹
+		if ctx.TriggerCtx.Card == nil || strings.TrimSpace(ctx.TriggerCtx.Card.Name) != "魔弹" {
+			return false
+		}
+	} else {
+		// 攻击伤害：这里不再处理（已在前面检查过）
 		return false
 	}
 
-	// 3. 检查玩家场上是否真的有【圣盾】效果牌
-	// (Dispatcher 遍历 Field 时会传入 User，这里做双重保险)
+	// 4. 检查玩家场上是否真的有【圣盾】效果牌
 	// 列风技：本次攻击无视圣盾
 	if ctx.Flags["ignore_shield"] {
-		return false
-	}
-	// 血腥咆哮：本次攻击无视圣盾
-	if ctx.Target != nil && ctx.Target.Tokens != nil && ctx.Target.Tokens["berserker_blood_roar_ignore_shield"] > 0 {
 		return false
 	}
 
@@ -655,13 +566,8 @@ func (h *BloodRoarHandler) Execute(ctx *model.Context) error {
 		if info.ActionType == "Attack" && info.CounterInitiator == "" {
 			target := ctx.Target
 			if target != nil && target.Heal == 2 {
-				info.IsHitForced = true
-				info.CanBeResponded = false
-				if ctx.User.Tokens == nil {
-					ctx.User.Tokens = map[string]int{}
-				}
-				// 血腥咆哮强制命中本次攻击同时无视圣盾（仅本次攻击）。
-				ctx.User.Tokens["berserker_blood_roar_ignore_shield"] = 1
+				info.SetInterceptTag(model.CombatInterceptForceHit)
+				info.SetInterceptTag(model.CombatInterceptIgnoreHolyShield)
 				ctx.Game.Log(fmt.Sprintf("%s 发动 [血腥咆哮]！目标治疗剂为2，强制命中且无视圣盾", ctx.User.Name))
 			}
 		}
@@ -682,7 +588,7 @@ func (h *BloodBladeHandler) CanUse(ctx *model.Context) bool {
 	if ctx.User.Character == nil {
 		return false
 	}
-	if !ctx.TriggerCtx.Card.MatchExclusive(ctx.User.Character.Name, "血影狂刀") {
+	if !ctx.TriggerCtx.Card.MatchExclusive(ctx.User.Character.ID, "血影狂刀") {
 		return false
 	}
 	handCount := len(ctx.Target.Hand)
@@ -726,12 +632,7 @@ func (h *MagicSurgeHandler) CanUse(ctx *model.Context) bool {
 func (h *MagicSurgeHandler) Execute(ctx *model.Context) error {
 	// 法术激荡：（［法术行动］结束时发动）额外+1［攻击行动］
 	// 向行动队列添加一个无限制的攻击行动令牌
-	token := model.ActionContext{
-		Source:      "法术激荡",
-		MustElement: nil,      // 无属性限制
-		MustType:    "Attack", // 必须是攻击行动
-	}
-	ctx.User.TurnState.PendingActions = append(ctx.User.TurnState.PendingActions, token)
+	model.AppendAttackAction(ctx.User, "法术激荡")
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [法术激荡]，额外获得1次攻击行动", ctx.User.Name))
 	return nil
 }
@@ -829,15 +730,15 @@ func (h *SealBreakHandler) Execute(ctx *model.Context) error {
 type FiveElementsBindHandler struct{ BaseHandler }
 
 func (h *FiveElementsBindHandler) CanUse(ctx *model.Context) bool {
-	return canResolveFieldStatus(ctx, model.EffectFiveElementsBind)
+	return ctx != nil && ctx.Trigger == model.TriggerNone && ctx.User != nil && ctx.Target != nil
 }
 
 func (h *FiveElementsBindHandler) Execute(ctx *model.Context) error {
-	if ctx != nil && ctx.Trigger == model.TriggerNone && ctx.Target != nil {
-		ctx.Game.Log(fmt.Sprintf("%s 对 %s 发动五系束缚", ctx.User.Name, ctx.Target.Name))
+	if !h.CanUse(ctx) {
 		return nil
 	}
-	return executeFieldStatus(ctx, model.EffectFiveElementsBind)
+	ctx.Game.Log(fmt.Sprintf("%s 对 %s 发动五系束缚", ctx.User.Name, ctx.Target.Name))
+	return nil
 }
 
 // ==========================================
@@ -952,12 +853,7 @@ func (h *WindFuryHandler) CanUse(ctx *model.Context) bool {
 func (h *WindFuryHandler) Execute(ctx *model.Context) error {
 	// 风怒追击：响应技，回合限定一回合只能触发一次，在发攻击行动结束后，可以额外再发动一次攻击行动，其使用的攻击牌必须是风系。
 	// 向行动队列添加一个限制为风系攻击的行动令牌
-	token := model.ActionContext{
-		Source:      "风怒追击",
-		MustElement: []model.Element{model.ElementWind}, // 必须是风系牌
-		MustType:    "Attack",                           // 必须是攻击行动
-	}
-	ctx.User.TurnState.PendingActions = append(ctx.User.TurnState.PendingActions, token)
+	model.AppendAttackAction(ctx.User, "风怒追击", model.ElementWind)
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [风怒追击]，获得一次额外的[风系]攻击行动机会", ctx.User.Name))
 	return nil
 }
@@ -979,7 +875,7 @@ func (h *HolySwordHandler) Execute(ctx *model.Context) error {
 	// 圣剑：强制命中对方无法抵挡
 	ctx.Game.Log(fmt.Sprintf("%s 的 [圣剑] 发动，本回合第3次攻击强制命中，对方无法抵挡", ctx.User.Name))
 	if ctx.TriggerCtx != nil && ctx.TriggerCtx.AttackInfo != nil {
-		ctx.TriggerCtx.AttackInfo.IsHitForced = true
+		ctx.TriggerCtx.AttackInfo.SetInterceptTag(model.CombatInterceptForceHit)
 	}
 	return nil
 }
@@ -1029,16 +925,7 @@ func (h *SwordShadowHandler) Execute(ctx *model.Context) error {
 	}
 	ctx.Game.Log(fmt.Sprintf("%s 消耗1蓝水晶（可由红宝石替代）发动 [剑影]", ctx.User.Name))
 
-	// 构造行动令牌
-	token := model.ActionContext{
-		Source:      "剑影",
-		MustElement: nil,      // 剑影不限制额外攻击的属性
-		MustType:    "Attack", // 强制要求下一次行动必须是攻击
-	}
-
-	// 添加到待执行队列
-	ctx.User.TurnState.PendingActions = append(ctx.User.TurnState.PendingActions, token)
-
+	model.AppendAttackAction(ctx.User, "剑影")
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [剑影]，获得一次额外的攻击行动机会", ctx.User.Name))
 	return nil
 }
@@ -1048,12 +935,7 @@ type GaleSkillHandler struct{ BaseHandler }
 func (h *GaleSkillHandler) Execute(ctx *model.Context) error {
 	// 疾风技：独有技，持有该卡牌并作为主动攻击打出时可触发响应，额外增加一次攻击行动。
 	// 向行动队列添加一个无限制的攻击行动令牌
-	token := model.ActionContext{
-		Source:      "疾风技",
-		MustElement: nil,      // 无属性限制
-		MustType:    "Attack", // 必须是攻击行动
-	}
-	ctx.User.TurnState.PendingActions = append(ctx.User.TurnState.PendingActions, token)
+	model.AppendAttackAction(ctx.User, "疾风技")
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [疾风技]，额外获得1次攻击行动", ctx.User.Name))
 	return nil
 }
@@ -1082,8 +964,8 @@ func (h *GaleSlashHandler) Execute(ctx *model.Context) error {
 	// 列风技：无视圣盾效果，被攻击目标无法应战
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [列风技]，目标拥有圣盾，无视圣盾效果且目标无法应战", ctx.User.Name))
 	if ctx.TriggerCtx != nil && ctx.TriggerCtx.AttackInfo != nil {
-		ctx.TriggerCtx.AttackInfo.CanBeResponded = false
-		ctx.TriggerCtx.AttackInfo.IgnoreShield = true
+		ctx.TriggerCtx.AttackInfo.SetInterceptTag(model.CombatInterceptUnrespondable)
+		ctx.TriggerCtx.AttackInfo.SetInterceptTag(model.CombatInterceptIgnoreHolyShield)
 	}
 	return nil
 }
@@ -1180,12 +1062,7 @@ func (h *SnipeHandler) Execute(ctx *model.Context) error {
 		}
 
 		// 向行动队列添加一个无限制的攻击行动令牌
-		token := model.ActionContext{
-			Source:      "狙击",
-			MustElement: nil,      // 无属性限制
-			MustType:    "Attack", // 必须是攻击行动
-		}
-		ctx.User.TurnState.PendingActions = append(ctx.User.TurnState.PendingActions, token)
+		model.AppendAttackAction(ctx.User, "狙击")
 		ctx.Game.Log(fmt.Sprintf("%s 发动 [狙击]，额外获得1次攻击行动", ctx.User.Name))
 	}
 	return nil
@@ -1201,7 +1078,7 @@ func (h *PreciseShotHandler) CanUse(ctx *model.Context) bool {
 	if info.ActionType != string(model.ActionAttack) || info.CounterInitiator != "" {
 		return false
 	}
-	return ctx.TriggerCtx.Card.MatchExclusive(ctx.User.Character.Name, "精准射击")
+	return ctx.TriggerCtx.Card.MatchExclusive(ctx.User.Character.ID, "精准射击")
 }
 
 func (h *PreciseShotHandler) Execute(ctx *model.Context) error {

@@ -220,7 +220,7 @@ func TestAngelBond_TriggersOnAngelWallShieldPlacement(t *testing.T) {
 		Name:            "天使之墙",
 		Type:            model.CardTypeMagic,
 		Element:         model.ElementLight,
-		ExclusiveChar1:  "天使",
+		ExclusiveChar1:  "angel",
 		ExclusiveSkill1: "天使之墙",
 	}}
 

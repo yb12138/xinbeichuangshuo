@@ -3,6 +3,7 @@ package server
 import (
 	"starcup-engine/internal/engine/skills"
 	"starcup-engine/internal/model"
+	"starcup-engine/internal/server/stateview"
 )
 
 // buildAvailableActionSkills 返回当前玩家可发动的主动技能列表（用于前端按钮可用态）。
@@ -12,9 +13,13 @@ func (r *Room) buildAvailableActionSkills(playerID string) []AvailableSkill {
 		return nil
 	}
 
+	forcedDoomsdayOnly := p.TurnState.UsedSkillCounts["arbiter_forced_doomsday_pending"] > 0
 	var list []AvailableSkill
 	for _, sd := range p.Character.Skills {
 		if sd.Type != model.SkillTypeAction {
+			continue
+		}
+		if forcedDoomsdayOnly && sd.ID != "arbiter_doomsday" {
 			continue
 		}
 		if sd.ID == "adventurer_fraud" {
@@ -61,7 +66,7 @@ func (r *Room) buildAvailableActionSkills(playerID string) []AvailableSkill {
 			if p.TurnState.UsedSkillCounts["mb_charge_lock_turn"] > 0 {
 				continue
 			}
-			if countMagicBowChargesByElement(p, model.ElementThunder) <= 0 {
+			if stateview.CountMagicBowChargesByElement(p, model.ElementThunder) <= 0 {
 				continue
 			}
 		}
@@ -103,7 +108,7 @@ func (r *Room) buildAvailableActionSkills(playerID string) []AvailableSkill {
 		}
 		// 独有技：必须拥有对应独有牌（手牌或专属卡区）才能使用。
 		if sd.RequireExclusive {
-			if !p.HasExclusiveCard(p.Character.Name, sd.Title) {
+			if !p.HasExclusiveCard(p.Character.ID, sd.Title) {
 				continue
 			}
 		}

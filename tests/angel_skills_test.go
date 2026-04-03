@@ -36,7 +36,7 @@ func TestAngel_Skills(t *testing.T) {
 		// 简单起见，我们构造一张满足 MatchExclusive 的牌
 		card := model.Card{
 			ID: "c1", Name: "天使之墙", Type: model.CardTypeMagic, Element: model.ElementLight,
-			ExclusiveChar1: "天使", ExclusiveSkill1: "天使之墙",
+			ExclusiveChar1: "angel", ExclusiveSkill1: "天使之墙",
 		}
 		p1.Hand = []model.Card{card}
 

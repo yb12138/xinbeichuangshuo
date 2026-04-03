@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"starcup-engine/internal/engine/runtimeutil"
 	"testing"
 
 	"starcup-engine/internal/engine/skills"
@@ -274,7 +275,6 @@ func TestBloodPriestessBleeding_TurnStartSelfDamageBeforeBuff(t *testing.T) {
 	p1.TurnState = model.NewPlayerTurnState()
 	p1.Heal = 0
 	p1.Form = model.FormBloodPriestessBleeding
-	p1.Tokens["bp_bleed_tick_done_turn"] = 0
 	game.State.Deck = rules.InitDeck()
 	p1.Hand = []model.Card{
 		bloodPriestessTestCard("s1", model.ElementFire),
@@ -283,12 +283,9 @@ func TestBloodPriestessBleeding_TurnStartSelfDamageBeforeBuff(t *testing.T) {
 	}
 
 	game.State.CurrentTurn = 0
-	game.State.TurnStage = model.TurnStageBeforeAction
+	game.State.TurnStage = model.TurnStageTurnStart
 	game.Drive()
 
-	if got := p1.Tokens["bp_bleed_tick_done_turn"]; got != 1 {
-		t.Fatalf("expected bleed tick consumed at turn start, got %d", got)
-	}
 	// 承伤摸1：3 -> 4
 	if got := len(p1.Hand); got != 4 {
 		t.Fatalf("expected turn-start self-damage draw 1 card, hand=4 got %d", got)
@@ -385,7 +382,7 @@ func TestBloodPriestessBloodSorrow_TransferThenRemove(t *testing.T) {
 	game.Drive() // 先结算自伤，再执行延迟的移除后续
 	if game.State.PendingInterrupt != nil && game.State.PendingInterrupt.Type == model.InterruptDiscard {
 		data, _ := game.State.PendingInterrupt.Context.(map[string]interface{})
-		discardCount := toIntContextValue(data["discard_count"])
+		discardCount := runtimeutil.ToIntContextValue(data["discard_count"])
 		if discardCount <= 0 {
 			discardCount = 1
 		}
@@ -403,7 +400,7 @@ func TestBloodPriestessBloodSorrow_TransferThenRemove(t *testing.T) {
 	if holder != nil || fc != nil {
 		t.Fatalf("expected shared life removed, holder=%+v card=%+v", holder, fc)
 	}
-	if !p1.HasExclusiveCard(p1.Character.Name, "同生共死") {
+	if !p1.HasExclusiveCard(p1.Character.ID, "同生共死") {
 		t.Fatalf("expected shared-life card restored to exclusive zone after remove branch")
 	}
 }
@@ -432,11 +429,11 @@ func TestBloodPriestessBloodSorrow_Remove_ShouldEnterBleedWhenDamageCausesMorale
 		bloodPriestessTestCard("h3", model.ElementWind),
 		bloodPriestessTestCard("h4", model.ElementThunder),
 	}
-	if !p1.HasExclusiveCard(p1.Character.Name, "同生共死") {
+	if !p1.HasExclusiveCard(p1.Character.ID, "同生共死") {
 		p1.ExclusiveCards = append(p1.ExclusiveCards, makeStarterBloodSharedLifeCard(p1))
 	}
 	// 保证同生共死处于生效状态，此时普通形态下巫女手牌上限应为4。
-	card, ok := p1.ConsumeExclusiveCard(p1.Character.Name, "同生共死")
+	card, ok := p1.ConsumeExclusiveCard(p1.Character.ID, "同生共死")
 	if !ok {
 		t.Fatalf("expected starter shared life card in exclusive zone")
 	}
@@ -508,11 +505,11 @@ func TestBloodPriestessSharedLife_FixedHandCapTargetExempt(t *testing.T) {
 		bloodPriestessTestCard("f2", model.ElementWater),
 		bloodPriestessTestCard("f3", model.ElementWind),
 	}
-	if !p1.HasExclusiveCard(p1.Character.Name, "同生共死") {
+	if !p1.HasExclusiveCard(p1.Character.ID, "同生共死") {
 		p1.ExclusiveCards = append(p1.ExclusiveCards, makeStarterBloodSharedLifeCard(p1))
 	}
 
-	card, ok := p1.ConsumeExclusiveCard(p1.Character.Name, "同生共死")
+	card, ok := p1.ConsumeExclusiveCard(p1.Character.ID, "同生共死")
 	if !ok {
 		t.Fatalf("expected starter shared life card in exclusive zone")
 	}

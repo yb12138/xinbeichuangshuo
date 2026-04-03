@@ -20,6 +20,8 @@ func (e *GameEngine) driveNonTurnPhase(currentPid string, player *model.Player) 
 		return e.drivePendingDamageResolutionPhase()
 	case e.isDiscardSelectionActive():
 		return e.driveDiscardSelectionPhase()
+	case e.isResponseWindowActive():
+		return e.driveResponseRecoveryPhase()
 	case e.isCombatInteractionWindow():
 		return e.driveCombatInteractionPhase(currentPid, player)
 	default:
@@ -53,24 +55,35 @@ func (e *GameEngine) driveTurnFSM(currentPid string, player *model.Player) drive
 
 func (e *GameEngine) syncTurnStageForDispatch(player *model.Player) model.TurnStage {
 	stage := e.State.TurnStage
+	setAndReturn := func(next model.TurnStage) model.TurnStage {
+		e.setTurnStage(next)
+		return next
+	}
 	if stage == "" {
 		stage = model.TurnStageTurnBeforeStart
 	}
 	if e.State.Subflow != model.SubflowNone || len(e.State.CombatStack) > 0 {
-		e.setTurnStage(stage)
-		return stage
+		return setAndReturn(stage)
+	}
+	if player != nil {
+		if stage == model.TurnStageActionStart && !player.TurnState.HasProcessedTurnStart {
+			return setAndReturn(model.TurnStageTurnStart)
+		}
+		needsActionEndCatchup := player.TurnState.LastActionType != "" || e.State.PostActionEndPending
+		if (stage == model.TurnStageExtraAction || stage == model.TurnStageTurnEnd) && needsActionEndCatchup {
+			return setAndReturn(model.TurnStageActionEnd)
+		}
 	}
 	switch stage {
 	case model.TurnStageActionExecution:
 		return stage
 	case model.TurnStageActionEnd, model.TurnStageExtraAction, model.TurnStageTurnEnd,
 		model.TurnStageTurnBeforeStart, model.TurnStageBeforeAction, model.TurnStageTurnStart, model.TurnStageActionStart:
-		e.setTurnStage(stage)
-		return stage
+		return setAndReturn(stage)
 	default:
 		if player != nil && player.TurnState.LastActionType != "" {
 			stage = model.TurnStageActionEnd
-		} else if player != nil && player.Tokens != nil && player.Tokens["post_action_end_effect_pending"] > 0 {
+		} else if player != nil && e.State.PostActionEndPending {
 			stage = model.TurnStageActionEnd
 		} else if player != nil && player.TurnState.HasProcessedTurnStart {
 			stage = model.TurnStageActionStart
@@ -78,11 +91,22 @@ func (e *GameEngine) syncTurnStageForDispatch(player *model.Player) model.TurnSt
 			stage = model.TurnStageTurnBeforeStart
 		}
 	}
-	e.setTurnStage(stage)
-	return stage
+	return setAndReturn(stage)
 }
 
 func (e *GameEngine) driveTurnBeforeStartStage(currentPid string, player *model.Player) driveOutcome {
+	if e.State.Subflow != model.SubflowNone || len(e.State.CombatStack) > 0 || e.State.TurnStage != model.TurnStageTurnBeforeStart {
+		return driveUnhandled
+	}
+
+	e.setTurnStage(model.TurnStageTurnBeforeStart)
+	if e.runPlayerPhaseHooks(player, turnBeforeStartPhaseHooks) {
+		if e.State.PendingInterrupt != nil {
+			return driveStop
+		}
+		return driveContinueLoop
+	}
+
 	e.setTurnStage(model.TurnStageBeforeAction)
 	return driveContinueLoop
 }
@@ -93,52 +117,16 @@ func (e *GameEngine) driveBeforeActionStage(currentPid string, player *model.Pla
 	}
 
 	e.setTurnStage(model.TurnStageBeforeAction)
-	// 蝶舞者：凋零的“对方士气最低为1”持续到其下个回合开始前。
-	if e.isButterflyDancer(player) {
-		if player.Tokens == nil {
-			player.Tokens = map[string]int{}
+	// 回合开始前先按固定顺序结算基础效果 hook（如中毒、五系束缚、虚弱）。
+	if e.runPlayerPhaseHooks(player, beforeActionPhaseHooks) {
+		if e.State.PendingInterrupt != nil {
+			return driveStop
 		}
-		if player.Tokens["bt_wither_active"] > 0 {
-			player.Tokens["bt_wither_active"] = 0
-			e.Log(fmt.Sprintf("%s 的 [凋零] 效果到期：对方士气下限保护已解除", player.Name))
-		}
-	}
-	// 血之巫女：流血形态回合开始先自损1点法术伤害（先于中毒/虚弱）。
-	if e.isBloodPriestess(player) {
-		if player.Tokens == nil {
-			player.Tokens = map[string]int{}
-		}
-		if hasBloodPriestessBleedingForm(player) && player.Tokens["bp_bleed_tick_done_turn"] <= 0 {
-			player.Tokens["bp_bleed_tick_done_turn"] = 1
-			e.Log(fmt.Sprintf("%s 的 [流血] 生效：回合开始对自己造成1点法术伤害", player.Name))
-			e.AddPendingDamage(model.PendingDamage{
-				SourceID:   player.ID,
-				TargetID:   player.ID,
-				Damage:     1,
-				DamageType: "magic",
-			})
-			e.enterDamageResolution(model.TurnStageBeforeAction)
-			return driveContinueLoop
-		}
-	}
-	// 行动开始前的基础效果先结算：
-	// - 中毒先入延迟伤害管线，严格先于后续选择型状态；
-	// - 虚弱保留在场上，交由后续选择中断处理。
-	fieldCtx := e.buildContext(player, nil, model.TriggerOnBuffPhase, nil)
-	e.triggerFieldEffects(player, model.EffectTriggerOnBeforeAction, fieldCtx)
-	if e.State.PendingInterrupt != nil {
-		return driveStop
-	}
-	if len(e.State.PendingDamageQueue) > 0 {
-		e.enterDamageResolution(model.TurnStageBeforeAction)
 		return driveContinueLoop
 	}
-	// 构建上下文
+	// 其余 TriggerOnBuffPhase 的通用技能/状态仍走 dispatcher 主流程。
 	skillCtx := e.buildContext(player, nil, model.TriggerOnBuffPhase, nil)
-
-	// 选择型/事件型状态（如虚弱、五系束缚、元素封印）由 dispatcher 的通用 resolver 处理。
 	e.dispatcher.OnTrigger(model.TriggerOnBuffPhase, skillCtx)
-	// 处理可能产生的中断（例如虚弱需要玩家选择弃牌还是跳过）
 	if e.State.PendingInterrupt != nil {
 		return driveStop
 	}
@@ -148,9 +136,7 @@ func (e *GameEngine) driveBeforeActionStage(currentPid string, player *model.Pla
 	}
 
 	// 处理完 BuffResolve 后，检查是否有延迟伤害需要结算
-	if len(e.State.PendingDamageQueue) > 0 {
-		e.enterDamageResolution(model.TurnStageTurnStart)
-	} else {
+	if !e.routePendingDamageWithReturn(model.TurnStageTurnStart) {
 		e.clearSubflow()
 		e.clearCombatStage()
 	}
@@ -193,10 +179,17 @@ func (e *GameEngine) driveTurnStartStage(currentPid string, player *model.Player
 	}
 
 	e.setTurnStage(model.TurnStageTurnStart)
-	player.TurnState.HasProcessedTurnStart = true
-	if e.runPlayerPhaseHooks(player, turnStartPhaseHooks) {
-		return driveStop
+	if player.TurnState.HasProcessedTurnStart {
+		e.setTurnStage(model.TurnStageActionStart)
+		return driveContinueLoop
 	}
+	if e.runPlayerPhaseHooks(player, turnStartPhaseHooks) {
+		if e.State.PendingInterrupt != nil {
+			return driveStop
+		}
+		return driveContinueLoop
+	}
+	player.TurnState.HasProcessedTurnStart = true
 	turnStartCtx := e.buildTimedContext(player, nil, model.TriggerOnTurnStart, model.TimingOnTurnStart, eventCtx)
 	e.dispatcher.OnTrigger(model.TriggerOnTurnStart, turnStartCtx)
 	if e.State.PendingInterrupt != nil {
@@ -214,7 +207,10 @@ func (e *GameEngine) driveActionStartStage(currentPid string, player *model.Play
 
 	e.setTurnStage(model.TurnStageActionStart)
 	if e.runPlayerPhaseHooks(player, actionStartPhaseHooks) {
-		return driveStop
+		if e.State.PendingInterrupt != nil {
+			return driveStop
+		}
+		return driveContinueLoop
 	}
 	startupCtx := e.buildTimedContext(player, nil, model.TriggerOnTurnStart, model.TimingStartup, &model.EventContext{
 		Type:     model.EventTurnStart,
@@ -250,196 +246,16 @@ func (e *GameEngine) driveActionExecutionStage(currentPid string, player *model.
 
 func (e *GameEngine) driveActionSelectionPhase(currentPid string, player *model.Player) driveOutcome {
 	e.setTurnStage(model.TurnStageActionExecution)
-	// 3. 行动选择阶段
-	if player.Tokens == nil {
-		player.Tokens = map[string]int{}
-	}
-	// 勇者：精疲力竭在“下个行动阶段开始”时结束，立即转正并对自己造成3点法术伤害。
-	if e.isHero(player) &&
-		hasHeroExhaustionForm(player) &&
-		player.Tokens["hero_exhaustion_release_pending"] > 0 {
-		beforePoses := e.snapshotPlayerPoses()
-		leaveHeroExhaustionForm(player)
-		player.Tokens["hero_exhaustion_release_pending"] = 0
-		e.Log(fmt.Sprintf("%s 的 [精疲力竭] 结束：转正，并对自己造成3点法术伤害", player.Name))
-		e.dispatchOrientationChanges(beforePoses)
-		e.InflictDamage(player.ID, player.ID, 3, "magic")
-		if e.State.PendingInterrupt != nil || len(e.State.PendingDamageQueue) > 0 {
-			return driveStop
-		}
-	}
-	// 魔剑士暗影形态持续到“下个行动阶段开始前”，在这里统一退场。
-	e.maybeReleaseMagicSwordsmanShadowAtActionStart(player)
-	if player.Tokens["judgment"] >= 4 &&
-		player.Tokens["arbiter_skip_forced_doomsday"] == 0 &&
-		player.Tokens["arbiter_forced_doomsday_done_turn"] == 0 {
-		targetIDs := e.campEnemyIDs(player.Camp)
-		if len(targetIDs) > 0 {
-			e.PushInterrupt(&model.Interrupt{
-				Type:     model.InterruptChoice,
-				PlayerID: currentPid,
-				Context: map[string]interface{}{
-					"choice_type":   "arbiter_forced_doomsday_target",
-					"user_id":       currentPid,
-					"target_ids":    targetIDs,
-					"waiting_phase": model.NormalizeResumePoint(model.TurnStageActionExecution),
-				},
-			})
-			return driveStop
-		}
-	}
 
-	tauntSourceID := ""
-	tauntSrcName := ""
-	if tauntCard := getHeroTauntCard(player); tauntCard != nil {
-		src := e.State.Players[tauntCard.SourceID]
-		// 仅对“敌方来源的挑衅”生效；非法残留直接移除。
-		if src == nil || src.Camp == player.Camp {
-			e.RemoveFieldCard(player.ID, model.EffectHeroTaunt)
-		} else {
-			tauntSourceID = src.ID
-			tauntSrcName = model.GetPlayerDisplayName(src)
-			hasAttackCard := false
-			for idx := 0; idx < playableCardCount(player); idx++ {
-				c, _, _, ok := getPlayableCardByIndex(player, idx)
-				if ok && c.Type == model.CardTypeAttack {
-					hasAttackCard = true
-					break
-				}
-			}
-			if !hasAttackCard {
-				e.Log(fmt.Sprintf("[Taunt] %s 受到【挑衅】约束但无攻击牌，跳过本次行动阶段", player.Name))
-				e.RemoveFieldCard(player.ID, model.EffectHeroTaunt)
-				e.enterTurnEndStage()
-				return driveContinueLoop
-			}
-		}
-	}
-	hasHeroTaunt := tauntSourceID != ""
-
-	var validOptions []model.PromptOption
-	var specialOptions []model.PromptOption
-	currentExtraAction := player.TurnState.CurrentExtraAction
-	isRestrictedExtraAction := currentExtraAction == "Attack" || currentExtraAction == "Magic"
-	canMagicAction := e.canCastMagicInAction(player)
-	canMagicSkillAction := e.hasUsableActionSkillForExtraMagic(player)
-	hasRestrictedExtraActionCard := true
-	if isRestrictedExtraAction {
-		hasRestrictedExtraActionCard = e.checkExtraActionCards(player, currentExtraAction, player.TurnState.CurrentExtraElement)
-	}
-	hasFighterHundredDragon := e.isFighter(player) && hasFighterHundredDragonForm(player)
-
-	// 行动类型选项：
-	// - 额外攻击行动：只能选攻击
-	// - 额外法术行动：只能选法术
-	// - 常规行动：攻击/法术都可选
-	switch currentExtraAction {
-	case "Attack":
-		if hasRestrictedExtraActionCard {
-			validOptions = append(validOptions, model.PromptOption{ID: "attack", Label: "攻击"})
-		}
-	case "Magic":
-		// 额外法术行动：允许“法术牌”或“主动技能(视为法术行动)”。
-		if hasRestrictedExtraActionCard {
-			validOptions = append(validOptions, model.PromptOption{ID: "magic", Label: "法术"})
-		}
-	default:
-		if hasFighterHundredDragon {
-			validOptions = append(validOptions, model.PromptOption{ID: "attack", Label: "攻击（百式幻龙拳）"})
-		} else if hasHeroTaunt {
-			validOptions = append(validOptions, model.PromptOption{ID: "attack", Label: "攻击（受挑衅约束）"})
-		} else {
-			validOptions = append(validOptions, model.PromptOption{ID: "attack", Label: "攻击"})
-			// 常规阶段：即便当前形态不能“打出法术牌”，只要存在可用主动技能，
-			// 仍应保留“法术行动”入口（例如魔剑士【暗影流星】）。
-			if canMagicAction || canMagicSkillAction {
-				validOptions = append(validOptions, model.PromptOption{ID: "magic", Label: "法术"})
-			}
-		}
-	}
-
-	if !hasHeroTaunt && !hasFighterHundredDragon && !isRestrictedExtraAction && !e.State.HasPerformedStartup {
-		// 未执行启动技能时，按条件过滤特殊行动
-		maxHand := e.GetMaxHand(player)
-		canBuyOrSynth := len(player.Hand)+3 <= maxHand
-
-		if canBuyOrSynth {
-			specialOptions = append(specialOptions, model.PromptOption{ID: "buy", Label: "购买"})
-		}
-
-		var totalStones int
-		if player.Camp == model.RedCamp {
-			totalStones = e.State.RedGems + e.State.RedCrystals
-		} else {
-			totalStones = e.State.BlueGems + e.State.BlueCrystals
-		}
-		if canBuyOrSynth && totalStones >= 3 {
-			specialOptions = append(specialOptions, model.PromptOption{ID: "synthesize", Label: "合成"})
-		}
-
-		currentEnergy := player.Gem + player.Crystal
-		if totalStones > 0 && currentEnergy < 3 {
-			specialOptions = append(specialOptions, model.PromptOption{ID: "extract", Label: "提炼"})
-		}
-
-		if len(specialOptions) > 0 {
-			validOptions = append(validOptions, model.PromptOption{ID: "special", Label: "特殊"})
-		}
-	}
-
-	// 常规行动下："无法行动"表示展示手牌并重摸；
-	// 额外行动受限下：当无合法动作时，允许主动宣告跳过本次额外行动。
-	if !isRestrictedExtraAction {
-		hasAttackCard := false
-		hasMagicCard := false
-		for idx := 0; idx < playableCardCount(player); idx++ {
-			c, _, _, ok := getPlayableCardByIndex(player, idx)
-			if !ok {
-				continue
-			}
-			if c.Type == model.CardTypeAttack {
-				hasAttackCard = true
-			}
-			if c.Type == model.CardTypeMagic && canMagicAction {
-				hasMagicCard = true
-			}
-		}
-		canNormalAction := hasAttackCard || hasMagicCard || canMagicSkillAction
-		if hasFighterHundredDragon {
-			canNormalAction = hasAttackCard
-		}
-		// 仅当无法执行一般行动（无攻击牌也无法术牌）时提供"无法行动"
-		if !canNormalAction {
-			validOptions = append(validOptions, model.PromptOption{ID: "cannot_act", Label: "无法行动（展示手牌）"})
-		}
-	} else if !hasRestrictedExtraActionCard {
-		validOptions = append(validOptions, model.PromptOption{ID: "cannot_act", Label: "跳过额外行动"})
-	}
-
-	promptMessage := fmt.Sprint("请选择行动类型")
-	if currentExtraAction == "Attack" {
-		promptMessage = fmt.Sprint("当前为额外攻击行动，仅可执行攻击。请选择行动类型")
-	} else if currentExtraAction == "Magic" {
-		promptMessage = fmt.Sprint("当前为额外法术行动，仅可执行法术。请选择行动类型")
-	} else if hasFighterHundredDragon {
-		if locked := e.fighterLockedTarget(player); locked != nil {
-			promptMessage = fmt.Sprintf("你处于【百式幻龙拳】状态：本行动阶段只能主动攻击 %s；若本行动阶段结束仍处于该形态，则自动转正。", model.GetPlayerDisplayName(locked))
-		} else {
-			promptMessage = fmt.Sprint("你处于【百式幻龙拳】状态：本行动阶段只能主动攻击已锁定目标；若本行动阶段结束仍处于该形态，则自动转正。")
-		}
-	} else if hasHeroTaunt {
-		promptMessage = fmt.Sprintf("你受到【挑衅】影响：本次行动阶段必须且只能主动攻击 %s。", tauntSrcName)
-	}
-	if isRestrictedExtraAction && !hasRestrictedExtraActionCard {
-		promptMessage = fmt.Sprint("当前为额外行动阶段，但你没有满足约束的可执行动作。可选择跳过本次额外行动。")
-	}
-
+	state := e.buildActionSelectionOptions(currentPid, player)
 	prompt := &model.Prompt{
 		Type:           model.PromptConfirm,
 		PlayerID:       currentPid,
-		Message:        promptMessage,
-		Options:        validOptions,
-		SpecialOptions: specialOptions,
+		Message:        state.promptMessage,
+		ChoiceType:     state.promptChoiceType,
+		SkillID:        state.promptSkillID,
+		Options:        state.validOptions,
+		SpecialOptions: state.specialOptions,
 		UIMode:         model.PromptUIModeActionHub,
 	}
 	e.Notify(model.EventAskInput, "请选择行动类型", prompt)
@@ -451,9 +267,10 @@ func (e *GameEngine) driveDiscardSelectionPhase() driveOutcome {
 	// 若中断已被消费但阶段未恢复，修复到可继续推进的阶段，避免空转。
 	if e.State.PendingInterrupt == nil {
 		e.Log("[Warn] PhaseDiscardSelection: 无待处理中断，执行阶段修复")
-		if len(e.State.PendingDamageQueue) > 0 {
-			e.enterDamageResolution(model.TurnStageExtraAction)
-		} else if len(e.State.ActionQueue) > 0 {
+		if e.routePendingDamageWithReturn(model.TurnStageExtraAction) {
+			return driveContinueLoop
+		}
+		if len(e.State.ActionQueue) > 0 {
 			e.enterActionExecutionStage()
 		} else if len(e.State.CombatStack) > 0 {
 			e.clearSubflow()
@@ -474,22 +291,22 @@ func (e *GameEngine) driveBeforeActionPhase(currentPid string, player *model.Pla
 	// 从队列中获取当前行动（不弹出，因为后续阶段可能需要使用）
 	if len(e.State.ActionQueue) == 0 {
 		e.Log("[Warn] PhaseBeforeAction: 行动队列为空，执行阶段修复")
-		if len(e.State.PendingDamageQueue) > 0 {
-			e.enterDamageResolution(model.TurnStageExtraAction)
-		} else {
-			e.enterExtraActionStage()
+		if e.routePendingDamageWithDefaultReturn(model.TurnStageExtraAction) {
+			return driveContinueLoop
 		}
+		e.enterExtraActionStage()
 		return driveContinueLoop
 	}
 
 	currentAction := e.State.ActionQueue[0] // 只读取，不弹出
-	if !queuedActionUsesVirtualCard(currentAction.SourceSkill) {
+	if !currentAction.UsesVirtualCard {
 		if !e.repairQueuedActionCard(player, &e.State.ActionQueue[0]) {
 			e.Log("[Warn] PhaseBeforeAction: 无法修复队列中的卡牌索引，丢弃该行动")
 			e.State.ActionQueue = e.State.ActionQueue[1:]
-			if len(e.State.PendingDamageQueue) > 0 {
-				e.enterDamageResolution(model.TurnStageExtraAction)
-			} else if len(e.State.ActionQueue) > 0 {
+			if e.routePendingDamageWithReturn(model.TurnStageExtraAction) {
+				return driveContinueLoop
+			}
+			if len(e.State.ActionQueue) > 0 {
 				e.enterActionExecutionStage()
 			} else {
 				e.enterExtraActionStage()
@@ -497,6 +314,19 @@ func (e *GameEngine) driveBeforeActionPhase(currentPid string, player *model.Pla
 			return driveContinueLoop
 		}
 		currentAction = e.State.ActionQueue[0]
+	}
+	if currentAction.Card == nil {
+		e.Log("[Warn] PhaseBeforeAction: 队列中的卡牌数据缺失，丢弃该行动")
+		e.State.ActionQueue = e.State.ActionQueue[1:]
+		if e.routePendingDamageWithReturn(model.TurnStageExtraAction) {
+			return driveContinueLoop
+		}
+		if len(e.State.ActionQueue) > 0 {
+			e.enterActionExecutionStage()
+		} else {
+			e.enterExtraActionStage()
+		}
+		return driveContinueLoop
 	}
 
 	// 获取目标（从 HandleAction 传入的 TargetID，需要存储）
@@ -519,29 +349,16 @@ func (e *GameEngine) driveBeforeActionPhase(currentPid string, player *model.Pla
 			return driveStop
 		}
 
-		// ==========================================
-		// 五系封印触发点 1/3：攻击前打出卡牌时触发
-		// ==========================================
 		// [新增] 先触发 TriggerOnCardUsed (封印等通用卡牌触发)
 		if !e.State.ActionQueue[0].HasTriggeredCardUsed {
 			// 技能转化攻击（如欺诈/多重射击）不消耗攻击牌，不触发 CardUsed。
-			if queuedActionUsesVirtualCard(currentAction.SourceSkill) {
+			if currentAction.UsesVirtualCard {
 				e.State.ActionQueue[0].HasTriggeredCardUsed = true
 			} else {
-				// 1. 获取使用的卡牌 (用于事件触发)
-				cardIdx := currentAction.CardIndex
-				cardUsed, _, _, ok := getPlayableCardByIndex(player, cardIdx)
-				if !ok {
-					e.Log("[Warn] PhaseBeforeAction: 卡牌索引失效，丢弃该行动")
-					e.State.ActionQueue = e.State.ActionQueue[1:]
-					e.enterExtraActionStage()
-					return driveContinueLoop
-				}
-				// 此时还未消耗，获取副本
-				cardUsed = e.applyBlazeWitchAttackCardTransform(player, cardUsed)
+				// 1. 使用队列中已准备好的卡牌副本（元素转化等已在排队/修复阶段处理）
+				cardUsed := *currentAction.Card
 
-				// 2. 触发 TriggerOnCardUsed 【五系封印在此处触发】
-				// 如果玩家面前有对应元素的封印，这里会触发并添加PendingDamage
+				// 2. 触发 TriggerOnCardUsed
 				cardCtx := &model.EventContext{
 					Type:     model.EventCardUsed,
 					Card:     &cardUsed,
@@ -567,7 +384,7 @@ func (e *GameEngine) driveBeforeActionPhase(currentPid string, player *model.Pla
 			}
 		}
 
-		e.recordAttackTargetContext(player, targetID)
+		e.recordAttackTargetLifecycle(player, targetID)
 
 		eventCtx := &model.EventContext{
 			Type:     model.EventAttack,
@@ -579,13 +396,14 @@ func (e *GameEngine) driveBeforeActionPhase(currentPid string, player *model.Pla
 				CanBeResponded:   true,
 				ActionType:       string(model.ActionAttack),
 				CounterInitiator: "",
+				InterceptTags:    map[model.CombatInterceptTag]bool{},
 			},
 		}
 
 		// 仅在本条攻击尚未触发过 AttackStart 时触发（确认响应技能后会再次进入此处，不再重复触发）
 		var attackStartCtx *model.Context
 		if !e.State.ActionQueue[0].HasTriggeredAttackStart {
-			e.runAttackStartStateResets(player)
+			e.resetAttackStartLifecycle(player)
 			e.State.ActionQueue[0].HasTriggeredAttackStart = true
 			attackStartCtx = e.buildContext(player, target, model.TriggerOnAttackStart, eventCtx)
 			player.TurnState.LastActionType = string(model.ActionAttack)
@@ -599,22 +417,19 @@ func (e *GameEngine) driveBeforeActionPhase(currentPid string, player *model.Pla
 		}
 
 		// 无中断或已确认响应后：初始化战斗
-		e.applyAttackPreCombatRoleRules(player, target, &currentAction, eventCtx)
+		e.applyAttackPreCombatLifecycle(player, target, &currentAction, eventCtx)
 		isForcedHit := eventCtx.AttackInfo != nil && eventCtx.AttackInfo.IsHitForced
 		ignoreShield := eventCtx.AttackInfo != nil && eventCtx.AttackInfo.IgnoreShield
 
 		// 消耗卡牌（从手牌中移除）
 		card := *currentAction.Card
-		if !queuedActionUsesVirtualCard(currentAction.SourceSkill) {
+		if !currentAction.UsesVirtualCard {
 			cardIdx := currentAction.CardIndex
-			usedCard, err := consumePlayableCardByIndex(player, cardIdx)
-			if err != nil {
+			if _, err := consumePlayableCardByIndex(player, cardIdx); err != nil {
 				e.Log("[Warn] PhaseBeforeAction: 卡牌索引失效，丢弃该行动")
 				e.enterExtraActionStage()
 				return driveContinueLoop
 			}
-			card = usedCard
-			card = e.applyBlazeWitchAttackCardTransform(player, card)
 			e.NotifyCardRevealed(currentPid, []model.Card{card}, "attack")
 			e.State.DiscardPile = append(e.State.DiscardPile, card)
 		}
@@ -626,7 +441,7 @@ func (e *GameEngine) driveBeforeActionPhase(currentPid string, player *model.Pla
 		e.State.ActionQueue = e.State.ActionQueue[1:]
 
 		// 初始化战斗（使用实际卡牌，而不是队列中的指针）
-		e.initCombat(currentPid, targetID, &card, isForcedHit, eventCtx.AttackInfo.CanBeResponded, ignoreShield)
+		e.initCombat(currentPid, targetID, &card, isForcedHit, eventCtx.AttackInfo.CanBeResponded, ignoreShield, eventCtx.AttackInfo.InterceptTags)
 		return driveContinueLoop
 	}
 
@@ -685,9 +500,7 @@ func (e *GameEngine) driveBeforeActionPhase(currentPid string, player *model.Pla
 		}
 
 		// 法术执行完毕，进入回合结束阶段
-		if len(e.State.PendingDamageQueue) > 0 {
-			e.enterDamageResolution(model.TurnStageTurnEnd)
-		} else {
+		if !e.routePendingDamageWithReturn(model.TurnStageTurnEnd) {
 			e.enterTurnEndStage()
 		}
 		return driveContinueLoop
@@ -714,34 +527,25 @@ func (e *GameEngine) driveCombatInteractionPhase(currentPid string, player *mode
 		return driveStop
 	}
 
-	// 阴阳师式神咒束：在响应阶段开始前，先检查是否触发“代应战”。
-	if e.tryStartOnmyojiBindingInterrupt(combatReq) {
-		return driveStop
-	}
-	// 若已完成式神咒束选择，自动执行“视为应战”流程。
-	if e.executeOnmyojiBindingCounter(combatReq) {
-		return driveStop
-	}
-	// 阴阳师阴阳转换：若目标阴阳师存在“同命格应战”机会，先询问是否发动。
-	if e.tryStartOnmyojiYinYangInterrupt(combatReq) {
-		return driveStop
+	for _, hook := range combatInteractionHooks {
+		if hook != nil && hook(e, combatReq) {
+			return driveStop
+		}
 	}
 
 	// 如果强制命中，直接结算伤害
 	if combatReq.IsForcedHit {
 		e.Log(fmt.Sprintf("[Combat] 攻击强制命中！跳过响应阶段，直接结算..."))
-		if atk := e.State.Players[combatReq.AttackerID]; atk != nil && atk.Tokens != nil {
-			atk.Tokens["elf_elemental_shot_thunder_pending"] = 0
-		}
 		e.clearCombatStack()
 		e.AddPendingDamageFront(model.PendingDamage{
-			SourceID:     combatReq.AttackerID,
-			TargetID:     combatReq.TargetID,
-			Damage:       combatReq.Card.Damage,
-			DamageType:   "Attack",
-			Card:         combatReq.Card,
-			IsCounter:    combatReq.IsCounter,
-			IgnoreShield: combatReq.IgnoreShield,
+			SourceID:      combatReq.AttackerID,
+			TargetID:      combatReq.TargetID,
+			Damage:        combatReq.Card.Damage,
+			DamageType:    "Attack",
+			Card:          combatReq.Card,
+			IsCounter:     combatReq.IsCounter,
+			IgnoreShield:  combatReq.IgnoreShield,
+			InterceptTags: model.CloneCombatInterceptTags(combatReq.InterceptTags),
 		})
 		e.setReturnPoint(model.TurnStageActionEnd)
 		e.enterDamageResolution(nil)
@@ -771,9 +575,9 @@ func (e *GameEngine) driveCombatInteractionPhase(currentPid string, player *mode
 	// 暗灭规则兜底：默认暗灭攻击不可应战。
 	// 例外：魔剑士【暗影抗拒】在“非自己行动阶段”可用【魔弹】响应，应保留应战入口。
 	if combatReq.Card != nil && combatReq.Card.Element == model.ElementDark && !e.canUseShadowRejectResponseMagic(target) {
-		combatReq.CanBeResponded = false
+		combatReq.SetInterceptTag(model.CombatInterceptUnrespondable)
 	}
-	noHolyDefend := attacker != nil && attacker.Tokens != nil && attacker.Tokens["bs_no_holy_defend_current_attack"] > 0
+	noHolyDefend := combatReq.HasInterceptTag(model.CombatInterceptIgnoreTargetHoly)
 	takeLabel := "承受伤害"
 	if shieldFallbackReady {
 		takeLabel = "承受（将触发圣盾）"
@@ -822,13 +626,13 @@ func (e *GameEngine) driveActionEndStage(currentPid string, player *model.Player
 	e.setTurnStage(model.TurnStageActionEnd)
 	// 若上一次行动在 OnPhaseEnd 触发中断后返回，这里补做“行动结束追加效果”
 	// （如迅捷赐福），避免被前置中断吞掉。
-	if player.TurnState.LastActionType == "" && player.Tokens != nil && player.Tokens["post_action_end_effect_pending"] > 0 {
+	if player.TurnState.LastActionType == "" && e.State.PostActionEndPending {
 		actionType := model.ActionAttack
-		if player.Tokens["post_action_end_effect_magic"] > 0 {
+		if e.State.PostActionEndWasMagic {
 			actionType = model.ActionMagic
 		}
-		player.Tokens["post_action_end_effect_pending"] = 0
-		player.Tokens["post_action_end_effect_magic"] = 0
+		e.State.PostActionEndPending = false
+		e.State.PostActionEndWasMagic = false
 		if e.handlePostActionEndEffects(player, actionType) {
 			return driveStop
 		}
@@ -837,16 +641,15 @@ func (e *GameEngine) driveActionEndStage(currentPid string, player *model.Player
 	if player.TurnState.LastActionType != "" {
 		lastActionType := model.ActionType(player.TurnState.LastActionType)
 		skipHolySwordPhaseEnd := false
-		if player.Tokens != nil && player.Tokens["holy_sword_phase_end_pending"] > 0 {
+		if e.State.HolySwordPhaseEndPending {
 			skipHolySwordPhaseEnd = true
-			player.Tokens["holy_sword_phase_end_pending"] = 0
+			e.State.HolySwordPhaseEndPending = false
 		}
 		specialPhaseEndDispatched := false
-		if player.Tokens != nil &&
-			player.Tokens["special_phase_end_dispatched"] > 0 &&
+		if e.State.SpecialPhaseEndDispatched &&
 			(lastActionType == model.ActionBuy || lastActionType == model.ActionSynthesize || lastActionType == model.ActionExtract) {
 			specialPhaseEndDispatched = true
-			player.Tokens["special_phase_end_dispatched"] = 0
+			e.State.SpecialPhaseEndDispatched = false
 		}
 		eventCtx := &model.EventContext{
 			Type:       model.EventPhaseEnd,
@@ -880,15 +683,8 @@ func (e *GameEngine) driveActionEndStage(currentPid string, player *model.Player
 
 		// 如果触发了技能（产生了中断，比如用户需要确认是否发动风怒），直接 return 等待用户
 		if e.State.PendingInterrupt != nil {
-			if player.Tokens == nil {
-				player.Tokens = map[string]int{}
-			}
-			player.Tokens["post_action_end_effect_pending"] = 1
-			if lastActionType == model.ActionMagic {
-				player.Tokens["post_action_end_effect_magic"] = 1
-			} else {
-				player.Tokens["post_action_end_effect_magic"] = 0
-			}
+			e.State.PostActionEndPending = true
+			e.State.PostActionEndWasMagic = lastActionType == model.ActionMagic
 			// 【重要】恢复 LastActionType，因为中断回来后还要处理 PhaseExtraAction
 			// 但为了避免重复触发 EventPhaseEnd，我们需要一个标志位，或者让中断处理完直接进队列检查
 			// 简单做法：中断回来后，Phase 依然是 ExtraAction，但 LastActionType 已被清空，所以不会二次触发

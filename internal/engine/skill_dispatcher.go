@@ -436,23 +436,11 @@ func (sd *SkillDispatcher) processSkills(triggeredSkills []model.SkillDefinition
 		}
 	}
 
-	if ctx != nil &&
-		ctx.Trigger == model.TriggerOnPhaseEnd &&
-		ctx.TriggerCtx != nil &&
-		ctx.TriggerCtx.ActionType == model.ActionAttack &&
-		ctx.User != nil &&
-		sd.engine.isBeastSamurai(ctx.User) &&
-		!containsSkillID(optionalSkillIDs, "bs_one_strike_no_thought") &&
-		sd.engine.beastSamuraiZanshin(ctx.User) >= beastSamuraiZanshinCapEngine {
-		if skillDef := findCharacterSkill(ctx.User.Character, "bs_one_strike_no_thought"); skillDef != nil {
-			if handler := skills.GetHandler(skillDef.LogicHandler); handler != nil && handler.CanUse(ctx) {
-				optionalSkillIDs = append(optionalSkillIDs, skillDef.ID)
-				sharedCtx = ctx
-			}
-		}
+	optionalSkillIDs = sd.applyResponseSkillIDAugmenters(optionalSkillIDs, ctx)
+	optionalSkillIDs = sd.applyResponseSkillIDNormalizers(optionalSkillIDs, ctx)
+	if len(optionalSkillIDs) > 0 && sharedCtx == nil {
+		sharedCtx = ctx
 	}
-
-	optionalSkillIDs = sd.normalizeResponseSkillOrder(optionalSkillIDs, ctx)
 
 	// 如果有 Startup 技能，推送 Startup 中断 (优先于 Response)
 	if len(startupSkillIDs) > 0 {
@@ -481,38 +469,20 @@ func (sd *SkillDispatcher) processSkills(triggeredSkills []model.SkillDefinition
 	}
 }
 
-// normalizeResponseSkillOrder 对特定角色/时机的响应技能进行顺序规范化。
-// 当前规则：格斗家在主动攻击前若同时满足【蓄力一击】与【气绝崩击】，
-// 首次仅展示【蓄力一击】；若玩家跳过，再由 SkipResponse 推进到【气绝崩击】。
-func (sd *SkillDispatcher) normalizeResponseSkillOrder(skillIDs []string, ctx *model.Context) []string {
-	if len(skillIDs) <= 1 || ctx == nil || ctx.User == nil {
-		return skillIDs
-	}
-	if ctx.Trigger != model.TriggerOnAttackStart {
-		return skillIDs
-	}
-	if !sd.engine.isFighter(ctx.User) {
-		return skillIDs
-	}
-	if ctx.TriggerCtx == nil || ctx.TriggerCtx.AttackInfo == nil {
-		return skillIDs
-	}
-	// 仅在“主动攻击前”生效，不影响应战攻击分支。
-	if ctx.TriggerCtx.AttackInfo.CounterInitiator != "" {
-		return skillIDs
-	}
-
-	hasCharge := false
-	hasBurst := false
-	for _, sid := range skillIDs {
-		if sid == "fighter_charge_strike" {
-			hasCharge = true
-		} else if sid == "fighter_burst_crash" {
-			hasBurst = true
+func (sd *SkillDispatcher) applyResponseSkillIDAugmenters(skillIDs []string, ctx *model.Context) []string {
+	for _, augmenter := range responseSkillIDAugmenters {
+		if augmenter != nil {
+			skillIDs = augmenter(sd, skillIDs, ctx)
 		}
 	}
-	if hasCharge && hasBurst {
-		return []string{"fighter_charge_strike"}
+	return skillIDs
+}
+
+func (sd *SkillDispatcher) applyResponseSkillIDNormalizers(skillIDs []string, ctx *model.Context) []string {
+	for _, normalizer := range responseSkillIDNormalizers {
+		if normalizer != nil {
+			skillIDs = normalizer(sd, skillIDs, ctx)
+		}
 	}
 	return skillIDs
 }
@@ -525,7 +495,7 @@ func (sd *SkillDispatcher) uniqueSkillCardMatches(player *model.Player, skill mo
 	if player == nil || player.Character == nil || ctx == nil || ctx.TriggerCtx == nil || ctx.TriggerCtx.Card == nil {
 		return false
 	}
-	return ctx.TriggerCtx.Card.MatchExclusive(player.Character.Name, skill.Title)
+	return ctx.TriggerCtx.Card.MatchExclusive(player.Character.ID, skill.Title)
 }
 
 // executeSkill 执行单个技能

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"starcup-engine/internal/engine/runtimeutil"
 	"strconv"
 	"strings"
 
@@ -12,7 +13,7 @@ import (
 func (e *GameEngine) buildHolyBowChoicePrompt(choiceType, playerID string, player *model.Player, data map[string]interface{}) *model.Prompt {
 	switch choiceType {
 	case "hb_holy_shard_combo":
-		combos := parseStringSliceContextValue(data["combos"])
+		combos := runtimeutil.ParseStringSliceContextValue(data["combos"])
 		options := make([]model.PromptOption, 0, len(combos))
 		for _, combo := range combos {
 			parts := strings.Split(combo, ":")
@@ -36,7 +37,7 @@ func (e *GameEngine) buildHolyBowChoicePrompt(choiceType, playerID string, playe
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【圣屑飓暴】请选择要弃置的2张同系攻击牌：", Options: options, Min: 1, Max: 1}
 
 	case "hb_holy_shard_target":
-		targetIDs := parseStringSliceContextValue(data["target_ids"])
+		targetIDs := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【圣屑飓暴】请选择主动攻击目标：", Options: holyBowChoicePlayerOptions(e, targetIDs), Min: 1, Max: 1}
 
 	case "hb_holy_shard_miss_confirm":
@@ -45,7 +46,7 @@ func (e *GameEngine) buildHolyBowChoicePrompt(choiceType, playerID string, playe
 	case "hb_holy_shard_miss_x":
 		validX := parseIntSliceContextValue(data["valid_x"])
 		if len(validX) == 0 {
-			maxX := toIntContextValue(data["max_x"])
+			maxX := runtimeutil.ToIntContextValue(data["max_x"])
 			if maxX <= 0 {
 				maxX = 1
 			}
@@ -60,12 +61,12 @@ func (e *GameEngine) buildHolyBowChoicePrompt(choiceType, playerID string, playe
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【圣屑飓暴】请选择移除治疗点数X：", Options: options, Min: 1, Max: 1}
 
 	case "hb_holy_shard_miss_ally_target":
-		allyIDs := parseStringSliceContextValue(data["ally_ids"])
-		xValue := toIntContextValue(data["x_value"])
+		allyIDs := runtimeutil.ParseStringSliceContextValue(data["ally_ids"])
+		xValue := runtimeutil.ToIntContextValue(data["x_value"])
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: fmt.Sprintf("【圣屑飓暴】请选择1名队友弃置%d张手牌：", xValue), Options: holyBowChoicePlayerOptions(e, allyIDs), Min: 1, Max: 1}
 
 	case "hb_radiant_descent_cost":
-		modes := parseStringSliceContextValue(data["cost_modes"])
+		modes := runtimeutil.ParseStringSliceContextValue(data["cost_modes"])
 		options := make([]model.PromptOption, 0, len(modes))
 		for _, mode := range modes {
 			switch mode {
@@ -78,9 +79,9 @@ func (e *GameEngine) buildHolyBowChoicePrompt(choiceType, playerID string, playe
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【圣煌降临】请选择支付方式：", Options: options, Min: 1, Max: 1}
 
 	case "hb_light_burst_mode":
-		allyIDs := parseStringSliceContextValue(data["ally_ids"])
-		enemyIDs := parseStringSliceContextValue(data["enemy_ids"])
-		maxX := toIntContextValue(data["max_x"])
+		allyIDs := runtimeutil.ParseStringSliceContextValue(data["ally_ids"])
+		enemyIDs := runtimeutil.ParseStringSliceContextValue(data["enemy_ids"])
+		maxX := runtimeutil.ToIntContextValue(data["max_x"])
 		canModeA := player != nil && player.Heal >= 1 && len(allyIDs) > 0
 		canModeB := false
 		if player != nil && maxX > 0 && len(enemyIDs) > 0 {
@@ -109,7 +110,7 @@ func (e *GameEngine) buildHolyBowChoicePrompt(choiceType, playerID string, playe
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【圣光爆裂】请选择发动分支：", Options: options, Min: 1, Max: 1}
 
 	case "hb_light_burst_mode_a_target", "hb_meteor_bullet_target":
-		allyIDs := parseStringSliceContextValue(data["ally_ids"])
+		allyIDs := runtimeutil.ParseStringSliceContextValue(data["ally_ids"])
 		msg := "请选择我方角色："
 		if choiceType == "hb_light_burst_mode_a_target" {
 			msg = "【圣光爆裂】分支①请选择获得治疗的我方角色："
@@ -119,8 +120,8 @@ func (e *GameEngine) buildHolyBowChoicePrompt(choiceType, playerID string, playe
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: msg, Options: holyBowChoicePlayerOptions(e, allyIDs), Min: 1, Max: 1}
 
 	case "hb_light_burst_mode_b_x":
-		enemyIDs := parseStringSliceContextValue(data["enemy_ids"])
-		maxX := toIntContextValue(data["max_x"])
+		enemyIDs := runtimeutil.ParseStringSliceContextValue(data["enemy_ids"])
+		maxX := runtimeutil.ToIntContextValue(data["max_x"])
 		options := make([]model.PromptOption, 0, maxX)
 		if player != nil {
 			for x := 1; x <= maxX; x++ {
@@ -140,8 +141,8 @@ func (e *GameEngine) buildHolyBowChoicePrompt(choiceType, playerID string, playe
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【圣光爆裂】分支②请选择X值：", Options: options, Min: 1, Max: 1}
 
 	case "hb_light_burst_mode_b_targets":
-		candidates := parseStringSliceContextValue(data["candidate_target_ids"])
-		selectedSet := idsToSet(parseStringSliceContextValue(data["selected_target_ids"]))
+		candidates := runtimeutil.ParseStringSliceContextValue(data["candidate_target_ids"])
+		selectedSet := runtimeutil.IDsToSet(runtimeutil.ParseStringSliceContextValue(data["selected_target_ids"]))
 		options := make([]model.PromptOption, 0, len(candidates)+1)
 		for _, targetID := range candidates {
 			if selectedSet[targetID] {
@@ -151,7 +152,7 @@ func (e *GameEngine) buildHolyBowChoicePrompt(choiceType, playerID string, playe
 				options = append(options, model.PromptOption{ID: targetID, Label: target.Name})
 			}
 		}
-		xValue := toIntContextValue(data["x_value"])
+		xValue := runtimeutil.ToIntContextValue(data["x_value"])
 		maxTargets := xValue
 		if len(candidates) < maxTargets {
 			maxTargets = len(candidates)
@@ -164,7 +165,7 @@ func (e *GameEngine) buildHolyBowChoicePrompt(choiceType, playerID string, playe
 	case "hb_light_burst_mode_b_discard":
 		remaining := parseIntSliceContextValue(data["remaining_indices"])
 		selectedCount := len(parseIntSliceContextValue(data["selected_indices"]))
-		xValue := toIntContextValue(data["x_value"])
+		xValue := runtimeutil.ToIntContextValue(data["x_value"])
 		options := make([]model.PromptOption, 0, len(remaining))
 		for _, idx := range remaining {
 			if player == nil || idx < 0 || idx >= len(player.Hand) {
@@ -182,7 +183,7 @@ func (e *GameEngine) buildHolyBowChoicePrompt(choiceType, playerID string, playe
 		return &model.Prompt{Type: model.PromptChooseCards, PlayerID: playerID, Message: fmt.Sprintf("【圣光爆裂】分支②请选择要弃置的%d张手牌：", remainingPick), Options: options, Min: remainingPick, Max: remainingPick}
 
 	case "hb_meteor_bullet_cost":
-		modes := parseStringSliceContextValue(data["cost_modes"])
+		modes := runtimeutil.ParseStringSliceContextValue(data["cost_modes"])
 		options := make([]model.PromptOption, 0, len(modes))
 		for _, mode := range modes {
 			switch mode {
@@ -195,11 +196,11 @@ func (e *GameEngine) buildHolyBowChoicePrompt(choiceType, playerID string, playe
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【流星圣弹】请选择要移除的资源：", Options: options, Min: 1, Max: 1}
 
 	case "hb_radiant_cannon_side":
-		requiredFaith := toIntContextValue(data["required_faith"])
+		requiredFaith := runtimeutil.ToIntContextValue(data["required_faith"])
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: fmt.Sprintf("【圣煌辉光炮】将消耗1辉光炮与%d点信仰。请选择士气对齐方向：", requiredFaith), Options: []model.PromptOption{{ID: "0", Label: "将红方士气调整为蓝方士气"}, {ID: "1", Label: "将蓝方士气调整为红方士气"}}, Min: 1, Max: 1}
 
 	case "hb_auto_fill_resource":
-		modes := parseStringSliceContextValue(data["resource_modes"])
+		modes := runtimeutil.ParseStringSliceContextValue(data["resource_modes"])
 		options := make([]model.PromptOption, 0, len(modes))
 		for _, mode := range modes {
 			switch mode {
@@ -237,7 +238,7 @@ func (e *GameEngine) handleHolyBowChoiceInput(_ string, selectionIndex int, ctxD
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
-		combos := parseStringSliceContextValue(ctxData["combos"])
+		combos := runtimeutil.ParseStringSliceContextValue(ctxData["combos"])
 		if selectionIndex < 0 || selectionIndex >= len(combos) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
@@ -279,7 +280,7 @@ func (e *GameEngine) handleHolyBowChoiceInput(_ string, selectionIndex int, ctxD
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
-		targetIDs := parseStringSliceContextValue(ctxData["target_ids"])
+		targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
 		if selectionIndex < 0 || selectionIndex >= len(targetIDs) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
@@ -308,8 +309,8 @@ func (e *GameEngine) handleHolyBowChoiceInput(_ string, selectionIndex int, ctxD
 		if user.Tokens == nil {
 			user.Tokens = map[string]int{}
 		}
-		user.Tokens["hb_shard_miss_pending"] = 1
-		e.State.ActionQueue = append(e.State.ActionQueue, model.QueuedAction{SourceID: user.ID, TargetID: target.ID, Type: model.ActionAttack, Element: ele, Card: &virtualCard, CardIndex: -1, SourceSkill: "hb_holy_shard_storm"})
+		user.TurnState.SkillFlowState["hb_shard_miss_pending"] = 1
+		e.State.ActionQueue = append(e.State.ActionQueue, model.QueuedAction{SourceID: user.ID, TargetID: target.ID, Type: model.ActionAttack, Element: ele, Card: &virtualCard, CardIndex: -1, SourceSkill: "hb_holy_shard_storm", UsesVirtualCard: true})
 		e.Log(fmt.Sprintf("%s 发动 [圣屑飓暴]：对 %s 发起1次%s系圣命格主动攻击", user.Name, target.Name, ele))
 		e.PopInterrupt()
 		if e.State.PendingInterrupt == nil {
@@ -337,7 +338,7 @@ func (e *GameEngine) handleHolyBowChoiceInput(_ string, selectionIndex int, ctxD
 		if selectionIndex != 0 {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
-		maxX := toIntContextValue(ctxData["max_x"])
+		maxX := runtimeutil.ToIntContextValue(ctxData["max_x"])
 		if maxX <= 0 {
 			e.PopInterrupt()
 			return true, nil
@@ -350,7 +351,7 @@ func (e *GameEngine) handleHolyBowChoiceInput(_ string, selectionIndex int, ctxD
 	case "hb_holy_shard_miss_x":
 		validX := parseIntSliceContextValue(ctxData["valid_x"])
 		if len(validX) == 0 {
-			maxX := toIntContextValue(ctxData["max_x"])
+			maxX := runtimeutil.ToIntContextValue(ctxData["max_x"])
 			for x := 1; x <= maxX; x++ {
 				validX = append(validX, x)
 			}
@@ -381,7 +382,7 @@ func (e *GameEngine) handleHolyBowChoiceInput(_ string, selectionIndex int, ctxD
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
-		allyIDs := parseStringSliceContextValue(ctxData["ally_ids"])
+		allyIDs := runtimeutil.ParseStringSliceContextValue(ctxData["ally_ids"])
 		if selectionIndex < 0 || selectionIndex >= len(allyIDs) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
@@ -390,7 +391,7 @@ func (e *GameEngine) handleHolyBowChoiceInput(_ string, selectionIndex int, ctxD
 		if target == nil {
 			return true, fmt.Errorf("目标队友不存在")
 		}
-		xValue := toIntContextValue(ctxData["x_value"])
+		xValue := runtimeutil.ToIntContextValue(ctxData["x_value"])
 		if xValue <= 0 {
 			return true, fmt.Errorf("无效的X值")
 		}
@@ -413,7 +414,7 @@ func (e *GameEngine) handleHolyBowChoiceInput(_ string, selectionIndex int, ctxD
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
-		modes := parseStringSliceContextValue(ctxData["cost_modes"])
+		modes := runtimeutil.ParseStringSliceContextValue(ctxData["cost_modes"])
 		if selectionIndex < 0 || selectionIndex >= len(modes) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
@@ -436,7 +437,7 @@ func (e *GameEngine) handleHolyBowChoiceInput(_ string, selectionIndex int, ctxD
 		}
 		beforePoses := e.snapshotPlayerPoses()
 		enterHolyBowHolyGloryForm(user)
-		user.TurnState.PendingActions = append(user.TurnState.PendingActions, model.ActionContext{Source: "圣煌降临", MustType: "Magic"})
+		model.AppendMagicAction(user, "圣煌降临")
 		e.Log(fmt.Sprintf("%s 发动 [圣煌降临]：进入圣煌形态并获得额外法术行动", user.Name))
 		e.dispatchOrientationChanges(beforePoses)
 		e.PopInterrupt()
@@ -455,9 +456,9 @@ func (e *GameEngine) handleHolyBowChoiceInput(_ string, selectionIndex int, ctxD
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
-		allyIDs := parseStringSliceContextValue(ctxData["ally_ids"])
-		enemyIDs := parseStringSliceContextValue(ctxData["enemy_ids"])
-		maxX := toIntContextValue(ctxData["max_x"])
+		allyIDs := runtimeutil.ParseStringSliceContextValue(ctxData["ally_ids"])
+		enemyIDs := runtimeutil.ParseStringSliceContextValue(ctxData["enemy_ids"])
+		maxX := runtimeutil.ToIntContextValue(ctxData["max_x"])
 		modeOrder := make([]string, 0, 2)
 		if user.Heal >= 1 && len(allyIDs) > 0 {
 			modeOrder = append(modeOrder, "a")
@@ -502,7 +503,7 @@ func (e *GameEngine) handleHolyBowChoiceInput(_ string, selectionIndex int, ctxD
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
-		allyIDs := parseStringSliceContextValue(ctxData["ally_ids"])
+		allyIDs := runtimeutil.ParseStringSliceContextValue(ctxData["ally_ids"])
 		if selectionIndex < 0 || selectionIndex >= len(allyIDs) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
@@ -521,10 +522,7 @@ func (e *GameEngine) handleHolyBowChoiceInput(_ string, selectionIndex int, ctxD
 		e.Log(fmt.Sprintf("%s 的 [圣光爆裂] 分支①生效：摸1、移除1治疗、信仰+1（当前%d），%s +1治疗", user.Name, faith, targetName))
 		e.PopInterrupt()
 		if e.State.PendingInterrupt == nil {
-			if len(e.State.PendingDamageQueue) > 0 {
-				e.setReturnPoint(model.TurnStageExtraAction)
-				e.enterDamageResolution(nil)
-			} else {
+			if !e.routePendingDamageWithReturn(model.TurnStageExtraAction) {
 				e.enterExtraActionStage()
 			}
 		}
@@ -536,8 +534,8 @@ func (e *GameEngine) handleHolyBowChoiceInput(_ string, selectionIndex int, ctxD
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
-		enemyIDs := parseStringSliceContextValue(ctxData["enemy_ids"])
-		maxX := toIntContextValue(ctxData["max_x"])
+		enemyIDs := runtimeutil.ParseStringSliceContextValue(ctxData["enemy_ids"])
+		maxX := runtimeutil.ToIntContextValue(ctxData["max_x"])
 		validX := make([]int, 0, maxX)
 		for x := 1; x <= maxX; x++ {
 			limit := len(user.Hand) - x
@@ -574,8 +572,8 @@ func (e *GameEngine) handleHolyBowChoiceInput(_ string, selectionIndex int, ctxD
 		return true, nil
 
 	case "hb_light_burst_mode_b_targets":
-		candidates := parseStringSliceContextValue(ctxData["candidate_target_ids"])
-		xValue := toIntContextValue(ctxData["x_value"])
+		candidates := runtimeutil.ParseStringSliceContextValue(ctxData["candidate_target_ids"])
+		xValue := runtimeutil.ToIntContextValue(ctxData["x_value"])
 		if xValue <= 0 {
 			return true, fmt.Errorf("X值无效")
 		}
@@ -586,8 +584,8 @@ func (e *GameEngine) handleHolyBowChoiceInput(_ string, selectionIndex int, ctxD
 		if maxTargets <= 0 {
 			return true, fmt.Errorf("没有可选目标")
 		}
-		selected := parseStringSliceContextValue(ctxData["selected_target_ids"])
-		selectedSet := idsToSet(selected)
+		selected := runtimeutil.ParseStringSliceContextValue(ctxData["selected_target_ids"])
+		selectedSet := runtimeutil.IDsToSet(selected)
 		remaining := make([]string, 0, len(candidates))
 		for _, targetID := range candidates {
 			if !selectedSet[targetID] {
@@ -636,13 +634,13 @@ func (e *GameEngine) handleHolyBowChoiceInput(_ string, selectionIndex int, ctxD
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
-		xValue := toIntContextValue(ctxData["x_value"])
+		xValue := runtimeutil.ToIntContextValue(ctxData["x_value"])
 		if xValue <= 0 {
 			return true, fmt.Errorf("X值无效")
 		}
 		remaining := parseIntSliceContextValue(ctxData["remaining_indices"])
 		selected := parseIntSliceContextValue(ctxData["selected_indices"])
-		cardIdx, ok := resolveSelectionToCandidate(selectionIndex, remaining)
+		cardIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, remaining)
 		if !ok || cardIdx < 0 || cardIdx >= len(user.Hand) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
@@ -670,7 +668,7 @@ func (e *GameEngine) handleHolyBowChoiceInput(_ string, selectionIndex int, ctxD
 		e.NotifyCardRevealed(user.ID, removed, "discard")
 		e.State.DiscardPile = append(e.State.DiscardPile, removed...)
 		user.Heal -= xValue
-		targetIDs := parseStringSliceContextValue(ctxData["selected_target_ids"])
+		targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["selected_target_ids"])
 		yValue := 0
 		for _, targetID := range targetIDs {
 			if target := e.State.Players[targetID]; target != nil && target.Heal > 0 {
@@ -687,17 +685,14 @@ func (e *GameEngine) handleHolyBowChoiceInput(_ string, selectionIndex int, ctxD
 		e.Log(fmt.Sprintf("%s 的 [圣光爆裂] 分支②生效：移除%d治疗并弃%d张牌，对%d名目标各造成%d点攻击伤害（Y=%d）", user.Name, xValue, xValue, len(targetIDs), damage, yValue))
 		e.PopInterrupt()
 		if e.State.PendingInterrupt == nil {
-			if len(e.State.PendingDamageQueue) > 0 {
-				e.setReturnPoint(model.TurnStageExtraAction)
-				e.enterDamageResolution(nil)
-			} else {
+			if !e.routePendingDamageWithReturn(model.TurnStageExtraAction) {
 				e.enterExtraActionStage()
 			}
 		}
 		return true, nil
 
 	case "hb_meteor_bullet_cost":
-		modes := parseStringSliceContextValue(ctxData["cost_modes"])
+		modes := runtimeutil.ParseStringSliceContextValue(ctxData["cost_modes"])
 		if selectionIndex < 0 || selectionIndex >= len(modes) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
@@ -713,7 +708,7 @@ func (e *GameEngine) handleHolyBowChoiceInput(_ string, selectionIndex int, ctxD
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
-		allyIDs := parseStringSliceContextValue(ctxData["ally_ids"])
+		allyIDs := runtimeutil.ParseStringSliceContextValue(ctxData["ally_ids"])
 		if selectionIndex < 0 || selectionIndex >= len(allyIDs) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
@@ -771,7 +766,7 @@ func (e *GameEngine) handleHolyBowChoiceInput(_ string, selectionIndex int, ctxD
 		if user.Tokens == nil {
 			user.Tokens = map[string]int{}
 		}
-		requiredFaith := toIntContextValue(ctxData["required_faith"])
+		requiredFaith := runtimeutil.ToIntContextValue(ctxData["required_faith"])
 		if requiredFaith <= 0 {
 			requiredFaith = 4
 		}
@@ -815,10 +810,7 @@ func (e *GameEngine) handleHolyBowChoiceInput(_ string, selectionIndex int, ctxD
 		e.checkGameEnd()
 		e.PopInterrupt()
 		if e.State.PendingInterrupt == nil {
-			if len(e.State.PendingDamageQueue) > 0 {
-				e.setReturnPoint(model.TurnStageExtraAction)
-				e.enterDamageResolution(nil)
-			} else {
+			if !e.routePendingDamageWithReturn(model.TurnStageExtraAction) {
 				e.enterExtraActionStage()
 			}
 		}
@@ -830,7 +822,7 @@ func (e *GameEngine) handleHolyBowChoiceInput(_ string, selectionIndex int, ctxD
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
-		modes := parseStringSliceContextValue(ctxData["resource_modes"])
+		modes := runtimeutil.ParseStringSliceContextValue(ctxData["resource_modes"])
 		if selectionIndex < 0 || selectionIndex >= len(modes) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}

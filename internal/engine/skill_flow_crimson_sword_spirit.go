@@ -52,11 +52,11 @@ func (e *GameEngine) handleCrimsonSwordSpiritChoiceInput(_ string, selectionInde
 		return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
 	mode := modeList[selectionIndex]
-	if user.Character == nil || user.Character.Name == "" {
+	if user.Character == nil || user.Character.ID == "" {
 		return true, fmt.Errorf("角色信息缺失")
 	}
 
-	courtyardCard, ok := user.ConsumeExclusiveCard(user.Character.Name, "血蔷薇庭院")
+	courtyardCard, ok := user.ConsumeExclusiveCard(user.Character.ID, "血蔷薇庭院")
 	if !ok {
 		return true, fmt.Errorf("未找到【血蔷薇庭院】专属技能卡")
 	}
@@ -64,7 +64,6 @@ func (e *GameEngine) handleCrimsonSwordSpiritChoiceInput(_ string, selectionInde
 		user.RestoreExclusiveCard(courtyardCard)
 		return true, err
 	}
-	user.Tokens["css_rose_courtyard_active"] = 1
 
 	if mode == 0 {
 		if !e.ConsumeCrystalCost(user.ID, 1) {

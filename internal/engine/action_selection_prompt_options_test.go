@@ -283,6 +283,86 @@ func TestActionSelection_ExtraMagicCannotActRejectedWhenSkillAvailable(t *testin
 	}
 }
 
+func TestActionSelectionPrompt_ArbiterForcedDoomsdayOnlyShowsMagic(t *testing.T) {
+	obs := &actionPromptObserver{}
+	game := NewGameEngine(obs)
+
+	if err := game.AddPlayer("p1", "Arbiter", "arbiter", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Tokens["judgment"] = 4
+	p1.TurnState.UsedSkillCounts["arbiter_forced_doomsday_pending"] = 1
+
+	game.Drive()
+
+	if obs.lastPrompt == nil {
+		t.Fatalf("expected action selection prompt, got nil")
+	}
+	options := promptOptionSet(obs.lastPrompt)
+	if !options["magic"] {
+		t.Fatalf("expected magic option for forced doomsday, got %+v", obs.lastPrompt.Options)
+	}
+	if options["attack"] || options["buy"] || options["extract"] || options["synthesize"] {
+		t.Fatalf("unexpected options for forced doomsday prompt: %+v", obs.lastPrompt.Options)
+	}
+	if obs.lastPrompt.SkillID != "arbiter_doomsday" {
+		t.Fatalf("expected prompt skill id arbiter_doomsday, got %q", obs.lastPrompt.SkillID)
+	}
+}
+
+func TestActionSelectionPrompt_TauntWithoutAttackOnlyShowsSkip(t *testing.T) {
+	obs := &actionPromptObserver{}
+	game := NewGameEngine(obs)
+
+	if err := game.AddPlayer("p1", "Hero", "hero", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Target", "angel", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	game.State.CurrentTurn = 1
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p1.IsActive = false
+	p2.IsActive = true
+	p2.TurnState = model.NewPlayerTurnState()
+	p2.TurnState.UsedSkillCounts["hero_taunt_active_turn"] = 1
+	p2.Field = []*model.FieldCard{{
+		Card:     model.Card{ID: "taunt", Name: "挑衅", Type: model.CardTypeMagic, Element: model.ElementLight},
+		OwnerID:  p2.ID,
+		SourceID: p1.ID,
+		Mode:     model.FieldEffect,
+		Effect:   model.EffectHeroTaunt,
+	}}
+	p2.Hand = []model.Card{{ID: "m1", Name: "圣光", Type: model.CardTypeMagic, Element: model.ElementLight, Damage: 0}}
+
+	game.Drive()
+
+	if obs.lastPrompt == nil {
+		t.Fatalf("expected action selection prompt, got nil")
+	}
+	options := promptOptionSet(obs.lastPrompt)
+	if !options["cannot_act"] {
+		t.Fatalf("expected cannot_act option for taunt without attack card, got %+v", obs.lastPrompt.Options)
+	}
+	if options["attack"] || options["magic"] {
+		t.Fatalf("unexpected action options for taunt without attack card: %+v", obs.lastPrompt.Options)
+	}
+}
+
 func TestActionSelectionPrompt_MagicSwordsmanShadowForm_StillShowsMagicWhenSkillUsable(t *testing.T) {
 	obs := &actionPromptObserver{}
 	game := NewGameEngine(obs)

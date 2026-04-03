@@ -48,7 +48,6 @@ func (e *GameEngine) handleMagicSwordsmanChoiceInput(_ string, selectionIndex in
 			e.ModifyGem(camp, -remain)
 		}
 		leaveMagicSwordsmanShadowForm(user)
-		user.Tokens["ms_shadow_release_pending"] = 0
 		user.Gem++
 		e.Log(fmt.Sprintf("%s 通过[暗影流星]额外效果转正并获得1红宝石", user.Name))
 	}

@@ -50,8 +50,8 @@ func (h *HeroRoarHandler) Execute(ctx *model.Context) error {
 		return fmt.Errorf("怒气不足，无法发动怒吼")
 	}
 	addToken(ctx.User, "hero_anger", -1, 0, heroTokenCap)
-	setToken(ctx.User, "hero_roar_active", 1)
-	setToken(ctx.User, "hero_roar_damage_pending", 1)
+	ctx.User.TurnState.UsedSkillCounts["hero_roar_active"] = 1
+	ctx.Game.ApplyNextAttackDamageRule(ctx.User.ID, "hero_roar_attack_bonus", "hero_roar", 2, model.RuleLifeThisEffectChain)
 	ctx.Game.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
@@ -168,7 +168,7 @@ func (h *HeroCalmMindHandler) Execute(ctx *model.Context) error {
 	if ctx.TriggerCtx.AttackInfo != nil {
 		ctx.TriggerCtx.AttackInfo.CanBeResponded = false
 	}
-	setToken(ctx.User, "hero_calm_force_no_counter", 1)
+	ctx.User.TurnState.UsedSkillCounts["hero_calm_force_no_counter"] = 1
 	setToken(ctx.User, "hero_calm_end_crystal_pending", getToken(ctx.User, "hero_calm_end_crystal_pending")+1)
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [明镜止水]：移除4点知性，本次攻击无法应战（攻击结束时+1水晶）", ctx.User.Name))
 	return nil

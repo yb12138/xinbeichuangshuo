@@ -74,8 +74,8 @@ func TestPlagueOutbreak_UsesTurnEndRewardInsteadOfImmediateHeal(t *testing.T) {
 	if p1.Heal != 2 {
 		t.Fatalf("expected outbreak to gain +1 from immortal and +1 from turn-end reward, got %d", p1.Heal)
 	}
-	if got := p1.Tokens["plague_outbreak_morale_drop_turn"]; got != 0 {
-		t.Fatalf("expected outbreak turn reward token cleared after turn end, got %d", got)
+	if got := p1.TurnState.UsedSkillCounts["plague_outbreak_morale_drop"]; got != 0 {
+		t.Fatalf("expected outbreak turn reward flag cleared after turn end, got %d", got)
 	}
 }
 
@@ -145,8 +145,8 @@ func TestPlagueDeathTouch_TargetsEnemyOnlyAndSuppressesImmortal(t *testing.T) {
 	if p1.Heal != 1 {
 		t.Fatalf("expected death touch to remove 2 heal and suppress immortal, got %d", p1.Heal)
 	}
-	if got := p1.Tokens["plague_block_immortal"]; got != 0 {
-		t.Fatalf("expected immortal suppression token cleared after action end, got %d", got)
+	if got := p1.TurnState.UsedSkillCounts["plague_block_immortal"]; got != 0 {
+		t.Fatalf("expected immortal suppression flag cleared after action end, got %d", got)
 	}
 }
 

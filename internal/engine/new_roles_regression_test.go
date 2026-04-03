@@ -80,7 +80,7 @@ func TestPlagueMageCanUseHealAgainstMagicDamage(t *testing.T) {
 	if g.State.PendingInterrupt == nil || g.State.PendingInterrupt.Type != model.InterruptChoice {
 		t.Fatalf("expected heal choice interrupt for plague mage on magic damage")
 	}
-	ctx, _ := g.State.PendingInterrupt.Context.(map[string]interface{})
+	ctx, _ := g.State.PendingInterrupt.Context.(map[string]any)
 	if ct, _ := ctx["choice_type"].(string); ct != "heal" {
 		t.Fatalf("expected heal choice_type, got %q", ct)
 	}
@@ -98,6 +98,8 @@ func TestMagicSwordsmanShadowRejectHidesMagicOption(t *testing.T) {
 
 	p1 := g.State.Players["p1"]
 	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.TurnState.HasUsedTriggerSkill = true
 	enterMagicSwordsmanShadowForm(p1)
 	p1.Hand = []model.Card{
 		{ID: "m1", Name: "中毒", Type: model.CardTypeMagic, Element: model.ElementEarth},
@@ -177,9 +179,6 @@ func TestMagicSwordsmanShadowGather_PersistsThisTurnAndReleasesNextTurn(t *testi
 	if p1.Form != model.FormMagicSwordsmanShadow {
 		t.Fatalf("shadow form should persist in current turn after startup confirm, got %q", p1.Form)
 	}
-	if p1.Tokens["ms_shadow_release_pending"] <= 0 {
-		t.Fatalf("shadow release pending flag should remain until next own startup")
-	}
 
 	// 同回合发起一次攻击，应触发暗影之力(+1)，受击方应摸2张（火焰斩基础1）。
 	p1.Hand = []model.Card{
@@ -217,9 +216,6 @@ func TestMagicSwordsmanShadowGather_PersistsThisTurnAndReleasesNextTurn(t *testi
 
 	if p1.Form != "" {
 		t.Fatalf("shadow form should be released at next own startup, got %q", p1.Form)
-	}
-	if p1.Tokens["ms_shadow_release_pending"] != 0 {
-		t.Fatalf("shadow release pending should be cleared at next own startup")
 	}
 }
 

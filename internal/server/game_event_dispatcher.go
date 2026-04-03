@@ -1,6 +1,9 @@
 package server
 
-import "starcup-engine/internal/model"
+import (
+	"starcup-engine/internal/model"
+	"starcup-engine/internal/server/timeline"
+)
 
 type scheduledBotPrompt struct {
 	playerID string
@@ -122,7 +125,7 @@ func (r *Room) handleCardRevealedGameEvent(event model.GameEvent) {
 		return
 	}
 	r.botIntel.observeReveal(data)
-	r.broadcastTimeline("card_revealed", data, stringValue(data["message"]))
+	r.broadcastTimeline("card_revealed", data, timeline.StringValue(data["message"]))
 }
 
 func (r *Room) handleDamageDealtGameEvent(event model.GameEvent) {
@@ -130,7 +133,7 @@ func (r *Room) handleDamageDealtGameEvent(event model.GameEvent) {
 	if !ok {
 		return
 	}
-	r.broadcastTimeline("damage_dealt", data, stringValue(data["message"]))
+	r.broadcastTimeline("damage_dealt", data, timeline.StringValue(data["message"]))
 }
 
 func (r *Room) handleActionStepGameEvent(event model.GameEvent) {
@@ -138,7 +141,7 @@ func (r *Room) handleActionStepGameEvent(event model.GameEvent) {
 	if !ok {
 		return
 	}
-	r.broadcastTimeline("action_step", data, stringValue(data["line"]))
+	r.broadcastTimeline("action_step", data, timeline.StringValue(data["line"]))
 }
 
 func (r *Room) handleCombatCueGameEvent(event model.GameEvent) {
@@ -146,7 +149,7 @@ func (r *Room) handleCombatCueGameEvent(event model.GameEvent) {
 	if !ok {
 		return
 	}
-	r.broadcastTimeline("combat_cue", data, stringValue(data["message"]))
+	r.broadcastTimeline("combat_cue", data, timeline.StringValue(data["message"]))
 }
 
 func (r *Room) handleDrawCardsGameEvent(event model.GameEvent) {
@@ -154,7 +157,7 @@ func (r *Room) handleDrawCardsGameEvent(event model.GameEvent) {
 	if !ok {
 		return
 	}
-	r.broadcastTimeline("draw_cards", data, stringValue(data["reason"]))
+	r.broadcastTimeline("draw_cards", data, timeline.StringValue(data["reason"]))
 }
 
 func (r *Room) broadcastTimeline(eventType string, data map[string]interface{}, message string) {

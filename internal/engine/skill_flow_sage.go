@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"starcup-engine/internal/engine/runtimeutil"
 
 	"starcup-engine/internal/model"
 )
@@ -21,7 +22,7 @@ func (e *GameEngine) buildSageChoicePrompt(choiceType, playerID string, player *
 			Max: 1,
 		}
 	case "sage_magic_rebound_x":
-		maxX := toIntContextValue(data["max_x"])
+		maxX := runtimeutil.ToIntContextValue(data["max_x"])
 		options := make([]model.PromptOption, 0, max(0, maxX-1))
 		for x := 2; x <= maxX; x++ {
 			options = append(options, model.PromptOption{
@@ -38,7 +39,7 @@ func (e *GameEngine) buildSageChoicePrompt(choiceType, playerID string, player *
 			Max:      1,
 		}
 	case "sage_magic_rebound_element":
-		xValue := toIntContextValue(data["x_value"])
+		xValue := runtimeutil.ToIntContextValue(data["x_value"])
 		elements := availableElementsByMinCount(player, xValue)
 		options := make([]model.PromptOption, 0, len(elements))
 		for idx, ele := range elements {
@@ -58,7 +59,7 @@ func (e *GameEngine) buildSageChoicePrompt(choiceType, playerID string, player *
 	case "sage_magic_rebound_cards", "sage_arcane_cards", "sage_holy_cards":
 		remaining := parseIntSliceContextValue(data["remaining_indices"])
 		selectedCount := len(parseIntSliceContextValue(data["selected_indices"]))
-		targetCount := toIntContextValue(data["x_value"])
+		targetCount := runtimeutil.ToIntContextValue(data["x_value"])
 		options := make([]model.PromptOption, 0, len(remaining))
 		for _, idx := range remaining {
 			if player == nil || idx < 0 || idx >= len(player.Hand) {
@@ -94,7 +95,7 @@ func (e *GameEngine) buildSageChoicePrompt(choiceType, playerID string, player *
 			Max:      remainingPick,
 		}
 	case "sage_arcane_x", "sage_holy_x":
-		maxX := toIntContextValue(data["max_x"])
+		maxX := runtimeutil.ToIntContextValue(data["max_x"])
 		minX := 2
 		if choiceType == "sage_holy_x" {
 			minX = 3
@@ -119,7 +120,7 @@ func (e *GameEngine) buildSageChoicePrompt(choiceType, playerID string, player *
 			Max:      1,
 		}
 	case "sage_holy_target_count":
-		maxCount := toIntContextValue(data["max_target_count"])
+		maxCount := runtimeutil.ToIntContextValue(data["max_target_count"])
 		if maxCount < 1 {
 			maxCount = 1
 		}
@@ -139,9 +140,9 @@ func (e *GameEngine) buildSageChoicePrompt(choiceType, playerID string, player *
 			Max:      1,
 		}
 	case "sage_holy_targets":
-		allTargetIDs := parseStringSliceContextValue(data["target_ids"])
-		selectedSet := idsToSet(parseStringSliceContextValue(data["selected_target_ids"]))
-		targetCount := toIntContextValue(data["target_count"])
+		allTargetIDs := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
+		selectedSet := runtimeutil.IDsToSet(runtimeutil.ParseStringSliceContextValue(data["selected_target_ids"]))
+		targetCount := runtimeutil.ToIntContextValue(data["target_count"])
 		options := make([]model.PromptOption, 0, len(allTargetIDs))
 		for _, targetID := range allTargetIDs {
 			if selectedSet[targetID] {
@@ -160,7 +161,7 @@ func (e *GameEngine) buildSageChoicePrompt(choiceType, playerID string, player *
 			Max:      1,
 		}
 	case "sage_magic_rebound_target", "sage_arcane_target":
-		targetIDs := parseStringSliceContextValue(data["target_ids"])
+		targetIDs := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
 		options := make([]model.PromptOption, 0, len(targetIDs))
 		for _, targetID := range targetIDs {
 			if target := e.State.Players[targetID]; target != nil {
@@ -239,7 +240,7 @@ func (e *GameEngine) handleSageChoiceInput(_ string, selectionIndex int, ctxData
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
-		xValue := toIntContextValue(ctxData["x_value"])
+		xValue := runtimeutil.ToIntContextValue(ctxData["x_value"])
 		elements := availableElementsByMinCount(user, xValue)
 		if selectionIndex < 0 || selectionIndex >= len(elements) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
@@ -259,13 +260,13 @@ func (e *GameEngine) handleSageChoiceInput(_ string, selectionIndex int, ctxData
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
-		xValue := toIntContextValue(ctxData["x_value"])
+		xValue := runtimeutil.ToIntContextValue(ctxData["x_value"])
 		if xValue <= 0 {
 			return true, fmt.Errorf("X值无效")
 		}
 		remaining := parseIntSliceContextValue(ctxData["remaining_indices"])
 		selected := parseIntSliceContextValue(ctxData["selected_indices"])
-		cardIdx, ok := resolveSelectionToCandidate(selectionIndex, remaining)
+		cardIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, remaining)
 		if !ok || cardIdx < 0 || cardIdx >= len(user.Hand) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
@@ -329,7 +330,7 @@ func (e *GameEngine) handleSageChoiceInput(_ string, selectionIndex int, ctxData
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
-		maxX := toIntContextValue(ctxData["max_x"])
+		maxX := runtimeutil.ToIntContextValue(ctxData["max_x"])
 		minX := 2
 		if choiceType == "sage_holy_x" {
 			minX = 3
@@ -352,7 +353,7 @@ func (e *GameEngine) handleSageChoiceInput(_ string, selectionIndex int, ctxData
 
 	case "sage_holy_target_count":
 		targetCount := selectionIndex + 1
-		maxCount := toIntContextValue(ctxData["max_target_count"])
+		maxCount := runtimeutil.ToIntContextValue(ctxData["max_target_count"])
 		if targetCount < 1 || targetCount > maxCount {
 			return true, fmt.Errorf("无效的治疗目标数量")
 		}
@@ -369,13 +370,13 @@ func (e *GameEngine) handleSageChoiceInput(_ string, selectionIndex int, ctxData
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
-		targetCount := toIntContextValue(ctxData["target_count"])
+		targetCount := runtimeutil.ToIntContextValue(ctxData["target_count"])
 		if targetCount <= 0 {
 			return true, fmt.Errorf("治疗目标数量无效")
 		}
-		allTargetIDs := parseStringSliceContextValue(ctxData["target_ids"])
-		selected := parseStringSliceContextValue(ctxData["selected_target_ids"])
-		selectedSet := idsToSet(selected)
+		allTargetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
+		selected := runtimeutil.ParseStringSliceContextValue(ctxData["selected_target_ids"])
+		selectedSet := runtimeutil.IDsToSet(selected)
 		remaining := make([]string, 0, len(allTargetIDs))
 		for _, targetID := range allTargetIDs {
 			if !selectedSet[targetID] {
@@ -394,7 +395,7 @@ func (e *GameEngine) handleSageChoiceInput(_ string, selectionIndex int, ctxData
 		}
 
 		selectedCards := parseIntSliceContextValue(ctxData["selected_indices"])
-		xValue := toIntContextValue(ctxData["x_value"])
+		xValue := runtimeutil.ToIntContextValue(ctxData["x_value"])
 		if xValue <= 2 || len(selectedCards) != xValue {
 			return true, fmt.Errorf("圣洁法典弃牌参数无效")
 		}
@@ -419,10 +420,7 @@ func (e *GameEngine) handleSageChoiceInput(_ string, selectionIndex int, ctxData
 		e.Log(fmt.Sprintf("%s 发动 [圣洁法典]：为%d名角色各+2治疗，并对自己造成%d点法术伤害", user.Name, len(selected), damage))
 		e.PopInterrupt()
 		if e.State.PendingInterrupt == nil {
-			if len(e.State.PendingDamageQueue) > 0 {
-				e.setReturnPoint(model.TurnStageExtraAction)
-				e.enterDamageResolution(nil)
-			} else {
+			if !e.routePendingDamageWithReturn(model.TurnStageExtraAction) {
 				e.enterExtraActionStage()
 			}
 		}
@@ -434,12 +432,12 @@ func (e *GameEngine) handleSageChoiceInput(_ string, selectionIndex int, ctxData
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
-		targetIDs := parseStringSliceContextValue(ctxData["target_ids"])
+		targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
 		if selectionIndex < 0 || selectionIndex >= len(targetIDs) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
 		selected := parseIntSliceContextValue(ctxData["selected_indices"])
-		xValue := toIntContextValue(ctxData["x_value"])
+		xValue := runtimeutil.ToIntContextValue(ctxData["x_value"])
 		if xValue <= 1 || len(selected) != xValue {
 			return true, fmt.Errorf("弃牌参数无效")
 		}
@@ -502,10 +500,7 @@ func (e *GameEngine) handleSageChoiceInput(_ string, selectionIndex int, ctxData
 
 		e.PopInterrupt()
 		if e.State.PendingInterrupt == nil {
-			if len(e.State.PendingDamageQueue) > 0 {
-				e.setReturnPoint(model.TurnStageExtraAction)
-				e.enterDamageResolution(nil)
-			} else {
+			if !e.routePendingDamageWithReturn(model.TurnStageExtraAction) {
 				e.enterExtraActionStage()
 			}
 		}

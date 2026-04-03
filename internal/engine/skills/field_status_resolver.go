@@ -2,11 +2,12 @@ package skills
 
 import (
 	"fmt"
+
 	"starcup-engine/internal/model"
 )
 
 // fieldStatusResolverSpec 定义了场牌状态解析器的规范
-// 用于统一处理不同类型的场牌效果（如五系束缚、五系封印等）
+// 用于统一处理不同类型的场牌效果（如五系封印）
 type fieldStatusResolverSpec struct {
 	matchesEffect func(effect model.EffectType) bool                  // 判断是否匹配该效果类型
 	canUse        func(ctx *model.Context, fc *model.FieldCard) bool  // 检查是否可以触发
@@ -14,15 +15,8 @@ type fieldStatusResolverSpec struct {
 }
 
 // fieldStatusResolverSpecs 注册所有场牌状态解析器
-// 目前包括：五系束缚、五系封印
+// 目前包括：五系封印
 var fieldStatusResolverSpecs = []fieldStatusResolverSpec{
-	{
-		matchesEffect: func(effect model.EffectType) bool {
-			return effect == model.EffectFiveElementsBind
-		},
-		canUse:  canResolveFiveElementsBindStatus,
-		execute: executeFiveElementsBindStatus,
-	},
 	{
 		matchesEffect: model.IsElementalSealEffect, // 匹配任意五系封印效果
 		canUse:        canResolveElementalSealStatus,
@@ -63,41 +57,6 @@ func resolveFieldStatusSpec(ctx *model.Context, effect model.EffectType) (*field
 		}
 	}
 	return nil, nil
-}
-
-// canResolveFiveElementsBindStatus 检查五系束缚是否可以触发
-// 触发时机：Buff阶段（回合开始时）
-func canResolveFiveElementsBindStatus(ctx *model.Context, fc *model.FieldCard) bool {
-	return ctx != nil &&
-		ctx.Trigger == model.TriggerOnBuffPhase &&
-		ctx.User != nil &&
-		fc != nil &&
-		fc.Mode == model.FieldEffect &&
-		fc.Effect == model.EffectFiveElementsBind
-}
-
-// executeFiveElementsBindStatus 执行五系束缚效果
-// 效果：摸(2+场上封印数)张牌取消，或跳过行动阶段（最多摸4张）
-func executeFiveElementsBindStatus(ctx *model.Context, fc *model.FieldCard) error {
-	if !canResolveFiveElementsBindStatus(ctx, fc) {
-		return nil
-	}
-	drawCount := 2 + countElementalSealsOnField(ctx.Game.GetAllPlayers())
-	if drawCount > 4 {
-		drawCount = 4
-	}
-
-	ctx.Game.PushInterrupt(&model.Interrupt{
-		Type:     model.InterruptChoice,
-		PlayerID: ctx.User.ID,
-		Context: map[string]interface{}{
-			"choice_type": "five_elements_bind",
-			"draw_count":  drawCount,
-			"player_id":   ctx.User.ID,
-		},
-	})
-	ctx.Game.Log(fmt.Sprintf("[Status] %s 的【五系束缚】生效：摸%d张牌取消，或跳过行动阶段", ctx.User.Name, drawCount))
-	return nil
 }
 
 // ==========================================
@@ -170,27 +129,6 @@ func executeElementalSealStatus(ctx *model.Context, fc *model.FieldCard) error {
 		EffectTypeToRemove: fc.Effect, // 【关键】伤害结算后移除此封印
 	})
 	return nil
-}
-
-// countElementalSealsOnField 统计全场所有玩家面前的五系封印数量
-// 用于五系束缚的摸牌数计算（最多+2）
-func countElementalSealsOnField(players []*model.Player) int {
-	sealCount := 0
-	for _, player := range players {
-		if player == nil {
-			continue
-		}
-		for _, fc := range player.Field {
-			if fc == nil || fc.Mode != model.FieldEffect || !model.IsElementalSealEffect(fc.Effect) {
-				continue
-			}
-			sealCount++
-		}
-	}
-	if sealCount > 2 {
-		return 2
-	}
-	return sealCount
 }
 
 // elementalSealName 获取封印的名称

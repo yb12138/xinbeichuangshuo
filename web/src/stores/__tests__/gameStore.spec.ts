@@ -32,7 +32,7 @@ function buildPlayer(overrides: Partial<PlayerView> = {}): PlayerView {
 
 function buildState(overrides: Partial<GameStateUpdate> = {}): GameStateUpdate {
   return {
-    phase: 'Main',
+    turn_stage: 'Main',
     current_player: 'p1',
     has_performed_startup: false,
     players: {

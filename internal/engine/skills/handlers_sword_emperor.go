@@ -204,8 +204,8 @@ func (h *SwordEmperorAngelSoulHandler) Execute(ctx *model.Context) error {
 	if !swordEmperorConsumeSwordSoul(ctx) {
 		return fmt.Errorf("没有可移除的天使之魂")
 	}
-	setToken(ctx.User, "se_guard_disabled_current_attack", 1)
-	setToken(ctx.User, "se_angel_soul_armed", 1)
+	ctx.User.TurnState.UsedSkillCounts["se_guard_disabled_current_attack"] = 1
+	ctx.User.TurnState.UsedSkillCounts["se_angel_soul_armed"] = 1
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [天使之魂]：移除1张剑魂，本次攻击命中后+2治疗，未命中则我方士气+1", ctx.User.Name))
 	return nil
 }
@@ -234,9 +234,9 @@ func (h *SwordEmperorDemonSoulHandler) Execute(ctx *model.Context) error {
 	if !swordEmperorConsumeSwordSoul(ctx) {
 		return fmt.Errorf("没有可移除的恶魔之魂")
 	}
-	setToken(ctx.User, "se_guard_disabled_current_attack", 1)
-	setToken(ctx.User, "se_demon_soul_armed", 1)
-	setToken(ctx.User, "se_demon_damage_bonus_pending", 1)
+	ctx.User.TurnState.UsedSkillCounts["se_guard_disabled_current_attack"] = 1
+	ctx.User.TurnState.UsedSkillCounts["se_demon_soul_armed"] = 1
+	ctx.Game.ApplyNextAttackDamageRule(ctx.User.ID, "se_demon_soul_attack_bonus", "se_demon_soul", 1, model.RuleLifeThisEffectChain)
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [恶魔之魂]：移除1张剑魂，本次攻击伤害额外+1，未命中则+2剑气", ctx.User.Name))
 	return nil
 }

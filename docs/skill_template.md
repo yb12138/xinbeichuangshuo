@@ -109,7 +109,7 @@
 #### 6. 执行效果序列 (Effects)
 *(挂载到 SkillDefinition.Effects 数组)*
 * **Effect[0]**:
-* `EffectType`: `[EffectType Enum: 如 EffectDamage, EffectHeal, EffectAddAction]`
+* `EffectType`: `[EffectType Enum: 如 EffectDamage, EffectHeal；额外行动改用 model.AppendExtraAction / model.AppendAttackAction / model.AppendMagicAction]`
 * `Target`: `[EffectTargetType Enum: 如 TargetSelected, TargetSelf, TargetAllOthers, TargetAllExceptSelected]`
 * `Value`: `[数值或基于上下文的动态表达式，例如: 2 或 Player.Tokens[Rage]]`
 * `Visibility`: `VisibilityPublic` (必须向全场展示)

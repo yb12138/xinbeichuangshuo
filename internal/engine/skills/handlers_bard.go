@@ -101,7 +101,7 @@ func (h *BardRousingRhapsodyHandler) CanUse(ctx *model.Context) bool {
 	if !bardHasEternalMovement(ctx.Game, ctx.User) {
 		return false
 	}
-	if !ctx.User.HasExclusiveCard(ctx.User.Character.Name, "激昂狂想曲") {
+	if !ctx.User.HasExclusiveCard(ctx.User.Character.ID, "激昂狂想曲") {
 		return false
 	}
 	return len(bardEnemyIDs(ctx.Game, ctx.User)) >= 2 || len(ctx.User.Hand) >= 2
@@ -111,7 +111,7 @@ func (h *BardRousingRhapsodyHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.User.Character == nil {
 		return fmt.Errorf("激昂狂想曲上下文无效")
 	}
-	card, ok := ctx.User.ConsumeExclusiveCard(ctx.User.Character.Name, "激昂狂想曲")
+	card, ok := ctx.User.ConsumeExclusiveCard(ctx.User.Character.ID, "激昂狂想曲")
 	if !ok {
 		return fmt.Errorf("未找到【激昂狂想曲】专属技能卡")
 	}
@@ -141,14 +141,14 @@ func (h *BardVictorySymphonyHandler) CanUse(ctx *model.Context) bool {
 	if !bardHasEternalMovement(ctx.Game, ctx.User) {
 		return false
 	}
-	return ctx.User.HasExclusiveCard(ctx.User.Character.Name, "胜利交响诗")
+	return ctx.User.HasExclusiveCard(ctx.User.Character.ID, "胜利交响诗")
 }
 
 func (h *BardVictorySymphonyHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.User.Character == nil {
 		return fmt.Errorf("胜利交响诗上下文无效")
 	}
-	card, ok := ctx.User.ConsumeExclusiveCard(ctx.User.Character.Name, "胜利交响诗")
+	card, ok := ctx.User.ConsumeExclusiveCard(ctx.User.Character.ID, "胜利交响诗")
 	if !ok {
 		return fmt.Errorf("未找到【胜利交响诗】专属技能卡")
 	}
@@ -170,14 +170,14 @@ func (h *BardHopeFugueHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.User.Character == nil {
 		return false
 	}
-	return canPayCrystalLike(ctx, 1) && ctx.User.HasExclusiveCard(ctx.User.Character.Name, "希望赋格曲")
+	return canPayCrystalLike(ctx, 1) && ctx.User.HasExclusiveCard(ctx.User.Character.ID, "希望赋格曲")
 }
 
 func (h *BardHopeFugueHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.User.Character == nil {
 		return fmt.Errorf("希望赋格曲上下文无效")
 	}
-	card, ok := ctx.User.ConsumeExclusiveCard(ctx.User.Character.Name, "希望赋格曲")
+	card, ok := ctx.User.ConsumeExclusiveCard(ctx.User.Character.ID, "希望赋格曲")
 	if !ok {
 		return fmt.Errorf("未找到【希望赋格曲】专属技能卡")
 	}

@@ -2,15 +2,53 @@ package engine
 
 import (
 	"fmt"
+	"starcup-engine/internal/engine/runtimeutil"
 	"strings"
 
 	"starcup-engine/internal/model"
 )
 
+// prepareMagicLancerFullnessStep 在“充盈”结算过程中推进到下一个需要选择的角色。
+// 返回 true 表示所有角色都已处理完。
+func (e *GameEngine) prepareMagicLancerFullnessStep(ctxData map[string]interface{}, user *model.Player) (bool, error) {
+	if ctxData == nil || user == nil {
+		return true, fmt.Errorf("充盈上下文无效")
+	}
+	orderIDs := runtimeutil.ParseStringSliceContextValue(ctxData["order_ids"])
+	if len(orderIDs) == 0 {
+		return true, nil
+	}
+	idx := runtimeutil.ToIntContextValue(ctxData["order_index"])
+	if idx < 0 {
+		idx = 0
+	}
+	for idx < len(orderIDs) {
+		pid := orderIDs[idx]
+		target := e.State.Players[pid]
+		if target == nil {
+			idx++
+			continue
+		}
+		allowSkip := target.Camp == user.Camp
+		candidates := allHandIndices(target)
+		if len(candidates) == 0 {
+			e.Log(fmt.Sprintf("%s 的 [充盈] 结算：%s 无手牌可弃，跳过", user.Name, target.Name))
+			idx++
+			continue
+		}
+		ctxData["order_index"] = idx
+		ctxData["current_player_id"] = pid
+		ctxData["allow_skip"] = allowSkip
+		ctxData["candidates"] = candidates
+		return false, nil
+	}
+	return true, nil
+}
+
 func (e *GameEngine) buildMagicLancerChoicePrompt(choiceType, playerID string, player *model.Player, data map[string]interface{}) *model.Prompt {
 	switch choiceType {
 	case "ml_black_spear_x":
-		maxX := toIntContextValue(data["max_x"])
+		maxX := runtimeutil.ToIntContextValue(data["max_x"])
 		if maxX < 1 {
 			maxX = 1
 		}
@@ -21,8 +59,8 @@ func (e *GameEngine) buildMagicLancerChoicePrompt(choiceType, playerID string, p
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【漆黑之枪】请选择X值：", Options: options, Min: 1, Max: 1}
 
 	case "ml_dark_barrier_mode":
-		maxMagic := toIntContextValue(data["max_magic"])
-		maxThunder := toIntContextValue(data["max_thunder"])
+		maxMagic := runtimeutil.ToIntContextValue(data["max_magic"])
+		maxThunder := runtimeutil.ToIntContextValue(data["max_thunder"])
 		options := make([]model.PromptOption, 0, 2)
 		if maxMagic > 0 {
 			options = append(options, model.PromptOption{ID: "0", Label: "弃法术牌"})
@@ -33,7 +71,7 @@ func (e *GameEngine) buildMagicLancerChoicePrompt(choiceType, playerID string, p
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【暗之障壁】请选择本次弃牌类型：", Options: options, Min: 1, Max: 1}
 
 	case "ml_dark_barrier_x":
-		maxX := toIntContextValue(data["max_x"])
+		maxX := runtimeutil.ToIntContextValue(data["max_x"])
 		if maxX < 1 {
 			maxX = 1
 		}
@@ -46,7 +84,7 @@ func (e *GameEngine) buildMagicLancerChoicePrompt(choiceType, playerID string, p
 	case "ml_dark_barrier_cards":
 		remaining := parseIntSliceContextValue(data["remaining_indices"])
 		selectedCount := len(parseIntSliceContextValue(data["selected_indices"]))
-		xValue := toIntContextValue(data["x_value"])
+		xValue := runtimeutil.ToIntContextValue(data["x_value"])
 		options := make([]model.PromptOption, 0, len(remaining))
 		for _, idx := range remaining {
 			if player == nil || idx < 0 || idx >= len(player.Hand) {
@@ -98,7 +136,7 @@ func (e *GameEngine) buildMagicLancerChoicePrompt(choiceType, playerID string, p
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: msg, Options: options, Min: 1, Max: 1}
 
 	case "ml_stardust_target":
-		targetIDs := parseStringSliceContextValue(data["target_ids"])
+		targetIDs := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
 		options := make([]model.PromptOption, 0, len(targetIDs))
 		for _, targetID := range targetIDs {
 			if target := e.State.Players[targetID]; target != nil {
@@ -121,7 +159,7 @@ func (e *GameEngine) handleMagicLancerChoiceInput(_ string, selectionIndex int, 
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
-		maxX := toIntContextValue(ctxData["max_x"])
+		maxX := runtimeutil.ToIntContextValue(ctxData["max_x"])
 		xValue := selectionIndex + 1
 		if xValue < 1 || xValue > maxX {
 			return true, fmt.Errorf("无效的X值")
@@ -163,8 +201,8 @@ func (e *GameEngine) handleMagicLancerChoiceInput(_ string, selectionIndex int, 
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
-		maxMagic := toIntContextValue(ctxData["max_magic"])
-		maxThunder := toIntContextValue(ctxData["max_thunder"])
+		maxMagic := runtimeutil.ToIntContextValue(ctxData["max_magic"])
+		maxThunder := runtimeutil.ToIntContextValue(ctxData["max_thunder"])
 		modes := make([]string, 0, 2)
 		if maxMagic > 0 {
 			modes = append(modes, "magic")
@@ -197,7 +235,7 @@ func (e *GameEngine) handleMagicLancerChoiceInput(_ string, selectionIndex int, 
 			return true, fmt.Errorf("玩家不存在")
 		}
 		mode, _ := ctxData["mode"].(string)
-		maxX := toIntContextValue(ctxData["max_x"])
+		maxX := runtimeutil.ToIntContextValue(ctxData["max_x"])
 		xValue := selectionIndex + 1
 		if xValue < 1 || xValue > maxX {
 			return true, fmt.Errorf("无效的X值")
@@ -230,10 +268,10 @@ func (e *GameEngine) handleMagicLancerChoiceInput(_ string, selectionIndex int, 
 			return true, fmt.Errorf("玩家不存在")
 		}
 		mode, _ := ctxData["mode"].(string)
-		xValue := toIntContextValue(ctxData["x_value"])
+		xValue := runtimeutil.ToIntContextValue(ctxData["x_value"])
 		remaining := parseIntSliceContextValue(ctxData["remaining_indices"])
 		selected := parseIntSliceContextValue(ctxData["selected_indices"])
-		cardIdx, ok := resolveSelectionToCandidate(selectionIndex, remaining)
+		cardIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, remaining)
 		if !ok || cardIdx < 0 || cardIdx >= len(user.Hand) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
@@ -287,7 +325,7 @@ func (e *GameEngine) handleMagicLancerChoiceInput(_ string, selectionIndex int, 
 				candidates = append(candidates, idx)
 			}
 		}
-		cardIdx, ok := resolveSelectionToCandidate(selectionIndex, candidates)
+		cardIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, candidates)
 		if !ok || cardIdx < 0 || cardIdx >= len(user.Hand) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
@@ -324,7 +362,7 @@ func (e *GameEngine) handleMagicLancerChoiceInput(_ string, selectionIndex int, 
 			if user.TurnState.UsedSkillCounts == nil {
 				user.TurnState.UsedSkillCounts = map[string]int{}
 			}
-			user.TurnState.PendingActions = append(user.TurnState.PendingActions, model.ActionContext{Source: "充盈", MustType: "Attack"})
+			model.AppendAttackAction(user, "充盈")
 			e.Log(fmt.Sprintf("%s 的 [充盈] 生效：无可处理弃牌目标，获得额外1次攻击行动", user.Name))
 			e.PopInterrupt()
 			if e.State.PendingInterrupt == nil {
@@ -361,7 +399,7 @@ func (e *GameEngine) handleMagicLancerChoiceInput(_ string, selectionIndex int, 
 			if allowSkip {
 				optionIdx--
 			}
-			cardIdx, ok := resolveSelectionToCandidate(optionIdx, candidates)
+			cardIdx, ok := runtimeutil.ResolveSelectionToCandidate(optionIdx, candidates)
 			if !ok || cardIdx < 0 || cardIdx >= len(target.Hand) {
 				return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 			}
@@ -375,11 +413,11 @@ func (e *GameEngine) handleMagicLancerChoiceInput(_ string, selectionIndex int, 
 		} else {
 			e.Log(fmt.Sprintf("%s 的 [充盈]：%s 弃置了 %s", user.Name, target.Name, chosenCard.Name))
 			if target.ID != user.ID && (chosenCard.Type == model.CardTypeMagic || chosenCard.Element == model.ElementThunder) {
-				ctxData["bonus"] = toIntContextValue(ctxData["bonus"]) + 1
+				ctxData["bonus"] = runtimeutil.ToIntContextValue(ctxData["bonus"]) + 1
 			}
 		}
 
-		ctxData["order_index"] = toIntContextValue(ctxData["order_index"]) + 1
+		ctxData["order_index"] = runtimeutil.ToIntContextValue(ctxData["order_index"]) + 1
 		done, err := e.prepareMagicLancerFullnessStep(ctxData, user)
 		if err != nil {
 			return true, err
@@ -390,21 +428,15 @@ func (e *GameEngine) handleMagicLancerChoiceInput(_ string, selectionIndex int, 
 			return true, nil
 		}
 
-		bonus := toIntContextValue(ctxData["bonus"])
-		if user.TurnState.UsedSkillCounts == nil {
-			user.TurnState.UsedSkillCounts = map[string]int{}
-		}
+		bonus := runtimeutil.ToIntContextValue(ctxData["bonus"])
 		if bonus > 0 {
-			user.TurnState.UsedSkillCounts["ml_fullness_next_attack_bonus"] += bonus
+			e.ApplyNextAttackDamageRule(user.ID, "ml_fullness_next_attack_bonus", "ml_fullness", bonus, model.RuleLifeUntilTurnEnd)
 		}
-		user.TurnState.PendingActions = append(user.TurnState.PendingActions, model.ActionContext{Source: "充盈", MustType: "Attack"})
+		model.AppendAttackAction(user, "充盈")
 		e.Log(fmt.Sprintf("%s 的 [充盈] 结算完成：本回合下次主动攻击伤害额外+%d，额外获得1次攻击行动", user.Name, bonus))
 		e.PopInterrupt()
 		if e.State.PendingInterrupt == nil {
-			if len(e.State.PendingDamageQueue) > 0 {
-				e.setReturnPoint(model.TurnStageExtraAction)
-				e.enterDamageResolution(nil)
-			} else {
+			if !e.routePendingDamageWithReturn(model.TurnStageExtraAction) {
 				e.enterExtraActionStage()
 			}
 		}
@@ -416,7 +448,7 @@ func (e *GameEngine) handleMagicLancerChoiceInput(_ string, selectionIndex int, 
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
-		targetIDs := parseStringSliceContextValue(ctxData["target_ids"])
+		targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
 		if selectionIndex < 0 || selectionIndex >= len(targetIDs) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
@@ -429,9 +461,7 @@ func (e *GameEngine) handleMagicLancerChoiceInput(_ string, selectionIndex int, 
 		e.Log(fmt.Sprintf("%s 的 [幻影星尘] 生效：对 %s 造成2点法术伤害", user.Name, target.Name))
 		e.PopInterrupt()
 		if e.State.PendingInterrupt == nil {
-			if len(e.State.PendingDamageQueue) > 0 {
-				e.enterDamageResolution(nil)
-			} else {
+			if !e.routePendingDamageWithDefaultReturn(nil) {
 				e.setTurnStage(model.TurnStageActionStart)
 				e.clearCombatStage()
 				e.clearSubflow()

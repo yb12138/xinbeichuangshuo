@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"starcup-engine/internal/engine/runtimeutil"
 
 	"starcup-engine/internal/model"
 )
@@ -9,7 +10,7 @@ import (
 func (e *GameEngine) buildGuardianSupportChoicePrompt(choiceType, playerID string, _ *model.Player, data map[string]interface{}) *model.Prompt {
 	switch choiceType {
 	case "angel_bond_heal_target":
-		options := buildPromptOptionsForPlayerIDs(e.State.Players, parseStringSliceContextValue(data["target_ids"]))
+		options := buildPromptOptionsForPlayerIDs(e.State.Players, runtimeutil.ParseStringSliceContextValue(data["target_ids"]))
 		if len(options) == 0 {
 			return nil
 		}
@@ -22,7 +23,7 @@ func (e *GameEngine) buildGuardianSupportChoicePrompt(choiceType, playerID strin
 			Max:      1,
 		}
 	case "frost_prayer_target":
-		options := buildPromptOptionsForPlayerIDs(e.State.Players, parseStringSliceContextValue(data["target_ids"]))
+		options := buildPromptOptionsForPlayerIDs(e.State.Players, runtimeutil.ParseStringSliceContextValue(data["target_ids"]))
 		if len(options) == 0 {
 			return nil
 		}
@@ -35,7 +36,7 @@ func (e *GameEngine) buildGuardianSupportChoicePrompt(choiceType, playerID strin
 			Max:      1,
 		}
 	case "god_protection_x":
-		maxX := toIntContextValue(data["max_x"])
+		maxX := runtimeutil.ToIntContextValue(data["max_x"])
 		if maxX < 1 {
 			return nil
 		}
@@ -83,7 +84,7 @@ func (e *GameEngine) handleGodProtectionChoice(selectionIndex int, ctxData map[s
 	if !ok || userCtx == nil || userCtx.TriggerCtx == nil || userCtx.TriggerCtx.DamageVal == nil {
 		return fmt.Errorf("神之庇护上下文丢失")
 	}
-	maxX := toIntContextValue(ctxData["max_x"])
+	maxX := runtimeutil.ToIntContextValue(ctxData["max_x"])
 	x := selectionIndex + 1
 	if x < 1 || x > maxX {
 		return fmt.Errorf("无效的X值")
@@ -111,7 +112,7 @@ func (e *GameEngine) handleGodProtectionChoice(selectionIndex int, ctxData map[s
 }
 
 func (e *GameEngine) handleAngelBondHealChoice(playerID string, selectionIndex int, ctxData map[string]interface{}) error {
-	targetIDs := parseStringSliceContextValue(ctxData["target_ids"])
+	targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
 	if selectionIndex < 0 || selectionIndex >= len(targetIDs) {
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
@@ -140,7 +141,7 @@ func (e *GameEngine) handleFrostPrayerChoice(selectionIndex int, ctxData map[str
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
-	targetIDs := parseStringSliceContextValue(ctxData["target_ids"])
+	targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
 	if selectionIndex < 0 || selectionIndex >= len(targetIDs) {
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}

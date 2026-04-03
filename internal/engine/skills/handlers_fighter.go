@@ -52,7 +52,7 @@ func (h *FighterChargeStrikeHandler) CanUse(ctx *model.Context) bool {
 	if hasForm(ctx.User, model.FormFighterHundredDragon) {
 		return false
 	}
-	if getToken(ctx.User, "fighter_attack_start_skill_lock") > 0 {
+	if getSkillFlow(ctx.User, "fighter_attack_start_skill_lock") > 0 {
 		return false
 	}
 	return getToken(ctx.User, "fighter_qi") < fighterQiCap
@@ -66,9 +66,9 @@ func (h *FighterChargeStrikeHandler) Execute(ctx *model.Context) error {
 		return fmt.Errorf("斗气已达上限，不能发动蓄力一击")
 	}
 	qi := addToken(ctx.User, "fighter_qi", 1, 0, fighterQiCap)
-	setToken(ctx.User, "fighter_attack_start_skill_lock", 1)
-	setToken(ctx.User, "fighter_charge_pending", 1)
-	setToken(ctx.User, "fighter_charge_damage_pending", 1)
+	setSkillFlow(ctx.User, "fighter_attack_start_skill_lock", 1)
+	setSkillFlow(ctx.User, "fighter_charge_pending", 1)
+	ctx.Game.ApplyNextAttackDamageRule(ctx.User.ID, "fighter_charge_attack_bonus", "fighter_charge_strike", 1, model.RuleLifeThisEffectChain)
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [蓄力一击]：斗气+1（当前%d），本次攻击伤害额外+1；若未命中将按斗气自伤", ctx.User.Name, qi))
 	return nil
 }
@@ -187,7 +187,7 @@ func (h *FighterBurstCrashHandler) CanUse(ctx *model.Context) bool {
 	if ctx.TriggerCtx.AttackInfo != nil && ctx.TriggerCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
-	if getToken(ctx.User, "fighter_attack_start_skill_lock") > 0 {
+	if getSkillFlow(ctx.User, "fighter_attack_start_skill_lock") > 0 {
 		return false
 	}
 	return getToken(ctx.User, "fighter_qi") > 0
@@ -201,8 +201,8 @@ func (h *FighterBurstCrashHandler) Execute(ctx *model.Context) error {
 		return fmt.Errorf("斗气不足，无法发动气绝崩击")
 	}
 	qi := addToken(ctx.User, "fighter_qi", -1, 0, fighterQiCap)
-	setToken(ctx.User, "fighter_attack_start_skill_lock", 2)
-	setToken(ctx.User, "fighter_qiburst_force_no_counter", 1)
+	setSkillFlow(ctx.User, "fighter_attack_start_skill_lock", 2)
+	setSkillFlow(ctx.User, "fighter_qiburst_force_no_counter", 1)
 	if ctx.TriggerCtx != nil && ctx.TriggerCtx.AttackInfo != nil {
 		ctx.TriggerCtx.AttackInfo.CanBeResponded = false
 	}

@@ -54,3 +54,31 @@ func TestBuildAvailableActionSkills_ElementalistIgniteAndMoonlightGating(t *test
 		t.Fatalf("expected moonlight available when gem>=1")
 	}
 }
+
+func TestBuildAvailableActionSkills_ForcedDoomsdayOnlyShowsDoomsday(t *testing.T) {
+	room := NewRoom("ARBITER")
+	room.Engine = engine.NewGameEngine(room)
+
+	if err := room.Engine.AddPlayer("p1", "Arbiter", "arbiter", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := room.Engine.AddPlayer("p2", "Dummy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	room.Engine.State.CurrentTurn = 0
+	room.Engine.State.TurnStage = model.TurnStageActionExecution
+	p1 := room.Engine.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Tokens["judgment"] = 4
+	p1.TurnState.UsedSkillCounts["arbiter_forced_doomsday_pending"] = 1
+
+	skills := room.buildAvailableActionSkills("p1")
+	if !hasAvailableSkill(skills, "arbiter_doomsday") {
+		t.Fatalf("expected doomsday available while forced")
+	}
+	if hasAvailableSkill(skills, "arbiter_balance") {
+		t.Fatalf("expected non-doomsday arbiter action skills hidden while forced")
+	}
+}

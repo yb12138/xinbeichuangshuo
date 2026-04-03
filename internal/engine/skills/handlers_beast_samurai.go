@@ -108,7 +108,7 @@ func (h *BeastSamuraiOneStrikeNoThoughtHandler) Execute(ctx *model.Context) erro
 		return fmt.Errorf("残心不足4点，无法发动一击无念")
 	}
 	left := addToken(ctx.User, "bs_zanshin", -4, 0, beastSamuraiZanshinCap)
-	setToken(ctx.User, "bs_one_strike_armed", 1)
+	ctx.User.TurnState.UsedSkillCounts["bs_one_strike_armed"] = 1
 	addAttackAction(ctx.User, "一击无念")
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [一击无念]：移除4点残心（剩余%d），额外获得1次攻击行动并挂载下次攻击劫持", ctx.User.Name, left))
 	return nil

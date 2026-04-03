@@ -66,7 +66,7 @@ func TestPrayerPowerBlessing_ConsumesExclusiveZoneCardDirectly(t *testing.T) {
 			Name:            "威力赐福",
 			Type:            model.CardTypeMagic,
 			Element:         model.ElementLight,
-			ExclusiveChar1:  "祈祷师",
+			ExclusiveChar1:  "prayer_master",
 			ExclusiveSkill1: "威力赐福",
 		},
 	}
@@ -74,7 +74,7 @@ func TestPrayerPowerBlessing_ConsumesExclusiveZoneCardDirectly(t *testing.T) {
 	if err := game.UseSkill("p1", "prayer_power_blessing", []string{"p2"}, nil); err != nil {
 		t.Fatalf("use prayer power blessing failed: %v", err)
 	}
-	if p1.HasExclusiveCard(p1.Character.Name, "威力赐福") {
+	if p1.HasExclusiveCard(p1.Character.ID, "威力赐福") {
 		t.Fatalf("expected power blessing consumed from exclusive zone")
 	}
 	if !hasFieldEffect(p2, model.EffectPowerBlessing) {
@@ -107,7 +107,7 @@ func TestPrayerSwiftBlessing_ConsumesExclusiveZoneCardDirectly(t *testing.T) {
 			Name:            "迅捷赐福",
 			Type:            model.CardTypeMagic,
 			Element:         model.ElementWind,
-			ExclusiveChar1:  "祈祷师",
+			ExclusiveChar1:  "prayer_master",
 			ExclusiveSkill1: "迅捷赐福",
 		},
 	}
@@ -115,7 +115,7 @@ func TestPrayerSwiftBlessing_ConsumesExclusiveZoneCardDirectly(t *testing.T) {
 	if err := game.UseSkill("p1", "prayer_swift_blessing", []string{"p2"}, nil); err != nil {
 		t.Fatalf("use prayer swift blessing failed: %v", err)
 	}
-	if p1.HasExclusiveCard(p1.Character.Name, "迅捷赐福") {
+	if p1.HasExclusiveCard(p1.Character.ID, "迅捷赐福") {
 		t.Fatalf("expected swift blessing consumed from exclusive zone")
 	}
 	if !hasFieldEffect(p2, model.EffectSwiftBlessing) {

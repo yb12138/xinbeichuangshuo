@@ -253,9 +253,7 @@ func (e *GameEngine) isMagicalGirl(player *model.Player) bool {
 		return false
 	}
 	return player.Character.ID == "magical_girl" ||
-		player.Character.ID == "magic_bullet_girl" ||
-		player.Character.Name == "魔法少女" ||
-		player.Character.Name == "魔弹少女"
+		player.Character.ID == "magic_bullet_girl"
 }
 
 // executeMagicBullet 执行魔弹效果

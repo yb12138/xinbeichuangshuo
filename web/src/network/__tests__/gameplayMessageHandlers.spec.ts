@@ -69,7 +69,7 @@ describe('createGameplayMessageHandlers', () => {
 
     const payload: SyncStatePayload = {
       room_state: 'Playing',
-      current_phase: 'Main',
+      turn_stage: 'Main',
       turn_player_id: 'p1',
       has_performed_startup: true,
       morale_red: 15,
@@ -109,7 +109,7 @@ describe('createGameplayMessageHandlers', () => {
     handlers.handleSyncState(payload)
 
     expect(sessionStore.gameStarted).toBe(true)
-    expect(snapshotStore.phase).toBe('Main')
+    expect(snapshotStore.turnStage).toBe('Main')
     expect(snapshotStore.players.p1?.name).toBe('Alice')
     expect(snapshotStore.redGems).toBe(2)
     expect(interruptStore.currentPrompt).toBeNull()

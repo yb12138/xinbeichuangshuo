@@ -8,7 +8,7 @@ import (
 )
 
 // initCombat 初始化战斗，将 CombatRequest 推入栈并进入战斗交互阶段
-func (e *GameEngine) initCombat(attackerID, targetID string, card *model.Card, isForcedHit, canBeResponded, ignoreShield bool, isCounter ...bool) {
+func (e *GameEngine) initCombat(attackerID, targetID string, card *model.Card, isForcedHit, canBeResponded, ignoreShield bool, interceptTags map[model.CombatInterceptTag]bool, isCounter ...bool) {
 	e.setCombatStage(model.CombatStageDeclare)
 	e.clearSubflow()
 	attacker := e.State.Players[attackerID]
@@ -25,6 +25,16 @@ func (e *GameEngine) initCombat(attackerID, targetID string, card *model.Card, i
 		IgnoreShield:   ignoreShield,
 		CanBeResponded: canBeResponded,
 		IsCounter:      len(isCounter) > 0 && isCounter[0],
+		InterceptTags:  model.CloneCombatInterceptTags(interceptTags),
+	}
+	if combatReq.IsForcedHit {
+		combatReq.SetInterceptTag(model.CombatInterceptForceHit)
+	}
+	if combatReq.IgnoreShield {
+		combatReq.SetInterceptTag(model.CombatInterceptIgnoreHolyShield)
+	}
+	if !combatReq.CanBeResponded {
+		combatReq.SetInterceptTag(model.CombatInterceptUnrespondable)
 	}
 
 	// 推入战斗栈
@@ -69,10 +79,11 @@ func (e *GameEngine) ResolveDamage(attackerID, victimID string, card *model.Card
 		Card:      card,
 	}
 	damageSkillCtx := e.buildContext(victim, attacker, model.TriggerNone, damageEventCtx)
-	damageSkillCtx.Flags["IsMagicDamage"] = (damageType != "Attack" && damageType != "attack")
-	if strings.Contains(strings.ToLower(damageType), "no_absorb") {
-		damageSkillCtx.Flags["NoElementAbsorb"] = true
+	damageSkillCtx.Flags["IsMagicDamage"] = !strings.EqualFold(damageType, "Attack")
+	if damageSkillCtx.Selections == nil {
+		damageSkillCtx.Selections = map[string]any{}
 	}
+	damageSkillCtx.Selections["damage_type"] = damageType
 	e.dispatcher.OnTrigger(model.TriggerOnDamageTaken, damageSkillCtx)
 
 	// 检查是否有中断（如减伤技能需要确认）
@@ -106,6 +117,7 @@ func (e *GameEngine) applyAttackDamageModifiers(attacker, target *model.Player, 
 			AttackInfo: &model.AttackEventInfo{
 				ActionType:       string(action.Type),
 				IsHit:            true,
+				CanBeResponded:   true,
 				CounterInitiator: action.CounterInitiator,
 			},
 		}
@@ -233,11 +245,8 @@ func (e *GameEngine) maybeTriggerHolySwordDrawFromPhaseEndCtx(ctx *model.Context
 	if !e.triggerHolySwordDrawIfNeeded(ctx.User) {
 		return false
 	}
-	if ctx.User.Tokens == nil {
-		ctx.User.Tokens = map[string]int{}
-	}
 	// 圣剑中断先打断当前 ActionEnd，处理完后回到同一个 ActionEnd 继续派发风怒/剑影等响应技能。
-	ctx.User.Tokens["holy_sword_phase_end_pending"] = 1
+	e.State.HolySwordPhaseEndPending = true
 	e.setReturnPoint(model.TurnStageActionEnd)
 	return true
 }
@@ -327,7 +336,7 @@ func cardMatchesExclusiveSkill(player *model.Player, card *model.Card, skillTitl
 	if player == nil || player.Character == nil || card == nil || skillTitle == "" {
 		return false
 	}
-	return card.MatchExclusive(player.Character.Name, skillTitle)
+	return card.MatchExclusive(player.Character.ID, skillTitle)
 }
 
 // applyPassiveAttackEffects 应用攻击者的被动技能效果

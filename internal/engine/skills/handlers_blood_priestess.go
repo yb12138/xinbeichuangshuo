@@ -115,14 +115,14 @@ func (h *BloodPriestessSharedLifeHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.User.Character == nil {
 		return false
 	}
-	return ctx.User.HasExclusiveCard(ctx.User.Character.Name, "同生共死")
+	return ctx.User.HasExclusiveCard(ctx.User.Character.ID, "同生共死")
 }
 
 func (h *BloodPriestessSharedLifeHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.User.Character == nil {
 		return fmt.Errorf("同生共死上下文无效")
 	}
-	if !ctx.User.HasExclusiveCard(ctx.User.Character.Name, "同生共死") {
+	if !ctx.User.HasExclusiveCard(ctx.User.Character.ID, "同生共死") {
 		return fmt.Errorf("未找到【同生共死】专属技能卡")
 	}
 	targetIDs := bloodPriestessAllTargetIDs(ctx.Game)

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"starcup-engine/internal/engine/runtimeutil"
 
 	"starcup-engine/internal/model"
 )
@@ -86,7 +87,7 @@ func (e *GameEngine) handleElementalistChoiceInput(_ string, selectionIndex int,
 
 	case "elementalist_bonus_card":
 		matching := parseIntSliceContextValue(ctxData["matching_indices"])
-		cardIdx, ok := resolveSelectionToCandidate(selectionIndex, matching)
+		cardIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, matching)
 		if !ok {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
@@ -160,16 +161,10 @@ func (e *GameEngine) resolveElementalistBonus(ctxData map[string]interface{}, bo
 		grantMagic = value
 	}
 	if grantAttack {
-		user.TurnState.PendingActions = append(user.TurnState.PendingActions, model.ActionContext{
-			Source:   skillName,
-			MustType: "Attack",
-		})
+		model.AppendAttackAction(user, skillName)
 	}
 	if grantMagic {
-		user.TurnState.PendingActions = append(user.TurnState.PendingActions, model.ActionContext{
-			Source:   skillName,
-			MustType: "Magic",
-		})
+		model.AppendMagicAction(user, skillName)
 	}
 
 	e.Log(fmt.Sprintf("%s 发动 [%s]，对 %s 造成%d点法术伤害", user.Name, skillName, target.Name, damage))

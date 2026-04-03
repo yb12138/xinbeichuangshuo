@@ -87,6 +87,14 @@ func TestElfElementalShotThunder_DisablesCounterResponse(t *testing.T) {
 	if game.State.CombatStack[0].CanBeResponded {
 		t.Fatalf("expected thunder elemental shot to disable counter response")
 	}
+	if p1.Tokens["elf_elemental_shot_thunder_pending"] != 0 {
+		t.Fatalf("expected thunder shot to stop using token state, got %d", p1.Tokens["elf_elemental_shot_thunder_pending"])
+	}
+	for _, modifier := range p1.ActiveRuleModifiers {
+		if modifier != nil && modifier.ModifierID == "elf_elemental_shot_thunder_attack_tag" {
+			t.Fatalf("expected thunder combat-policy rule consumed before combat request, modifier still present: %+v", modifier)
+		}
+	}
 }
 
 // 回归：宠物强化目标摸牌触发爆牌时，不应再追加第二次“弃1”中断。
@@ -183,9 +191,8 @@ func TestHolyLancer_EarthSpearAndHolyStrikeMutualExclusion(t *testing.T) {
 	p1.TurnState = model.NewPlayerTurnState()
 	p2.TurnState = model.NewPlayerTurnState()
 	p1.Heal = 1
-	p1.Tokens = map[string]int{
-		"holy_lancer_prayer_used_turn": 1, // 禁用天枪，聚焦“地枪/圣击互斥”
-	}
+	p1.Tokens = map[string]int{}
+	p1.TurnState.UsedSkillCounts["holy_lancer_prayer"] = 1
 	p1.Hand = []model.Card{
 		{ID: "atk-fire", Name: "火斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 1},
 	}

@@ -329,6 +329,10 @@ var skillUsePolicies = map[string]skillUsePolicy{
 	"saint_heal": {
 		skipAutoPhaseEnd: true,
 	},
+	// 瘟疫术士-死亡之触：多段选择与延迟伤害结束后，按正常 ActionEnd 再触发阶段结束效果。
+	"plague_death_touch": {
+		skipAutoPhaseEnd: true,
+	},
 }
 
 func resolveSkillUsePolicy(skillID string) skillUsePolicy {

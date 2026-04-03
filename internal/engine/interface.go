@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"sort"
 	"starcup-engine/internal/model"
 )
 
@@ -153,6 +154,49 @@ func consumeSkillEnergyCost(p *model.Player, gemCost, crystalCost int) bool {
 	return true
 }
 
+// CheckHandLimit 提供给技能处理器的手牌上限检查入口。
+func (e *GameEngine) CheckHandLimit(playerID string, stayInTurn bool) {
+	player := e.State.Players[playerID]
+	if player == nil {
+		return
+	}
+	ctx := e.buildContext(player, nil, model.TriggerNone, nil)
+	if stayInTurn {
+		ctx.Flags["StayInTurn"] = true
+	}
+	e.checkHandLimit(player, ctx)
+}
+
+// GetAllPlayers 返回所有玩家的切片。
+func (e *GameEngine) GetAllPlayers() []*model.Player {
+	players := make([]*model.Player, 0, len(e.State.Players))
+	seen := make(map[string]struct{}, len(e.State.PlayerOrder))
+	for _, pid := range e.State.PlayerOrder {
+		p := e.State.Players[pid]
+		if p == nil {
+			continue
+		}
+		players = append(players, p)
+		seen[pid] = struct{}{}
+	}
+
+	extraIDs := make([]string, 0)
+	for pid := range e.State.Players {
+		if _, ok := seen[pid]; ok {
+			continue
+		}
+		extraIDs = append(extraIDs, pid)
+	}
+	sort.Strings(extraIDs)
+	for _, pid := range extraIDs {
+		if p := e.State.Players[pid]; p != nil {
+			players = append(players, p)
+		}
+	}
+
+	return players
+}
+
 func (e *GameEngine) DrawCards(playerID string, amount int) {
 	p := e.State.Players[playerID]
 	if p == nil {
@@ -181,6 +225,18 @@ func (e *GameEngine) DrawCardsWithOptions(playerID string, amount int, opts mode
 
 func (e *GameEngine) EnqueueDeferredFollowup(f model.DeferredFollowup) {
 	e.enqueueDeferredFollowup(f)
+}
+
+func (e *GameEngine) AppendExtraAction(player *model.Player, source string, mustType string, mustElement ...model.Element) {
+	model.AppendExtraAction(player, source, mustType, mustElement...)
+}
+
+func (e *GameEngine) AppendAttackAction(player *model.Player, source string, mustElement ...model.Element) {
+	model.AppendAttackAction(player, source, mustElement...)
+}
+
+func (e *GameEngine) AppendMagicAction(player *model.Player, source string, mustElement ...model.Element) {
+	model.AppendMagicAction(player, source, mustElement...)
 }
 
 func (e *GameEngine) AppendToDiscard(cards []model.Card) {

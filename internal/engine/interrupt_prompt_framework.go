@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	"starcup-engine/internal/engine/promptfmt"
 	"starcup-engine/internal/model"
 )
 
@@ -158,58 +159,7 @@ func (e *GameEngine) buildStartupSkillPrompt() *model.Prompt {
 }
 
 func formatCardInfo(card model.Card) string {
-	elementLabel := elementNameForPrompt(string(card.Element))
-	if elementLabel == "" {
-		info := fmt.Sprintf("[%s] %s", card.Element, card.Name)
-		if card.Type != "" {
-			info += fmt.Sprintf(" (%s", card.Type)
-			if card.Damage > 0 {
-				info += fmt.Sprintf(" Dmg:%d", card.Damage)
-			}
-			info += ")"
-		}
-		if card.Faction != "" {
-			info += fmt.Sprintf(" [%s命格]", card.Faction)
-		}
-
-		exclusiveInfo := []string{}
-		if card.ExclusiveChar1 != "" && card.ExclusiveSkill1 != "" {
-			exclusiveInfo = append(exclusiveInfo, fmt.Sprintf("%s:%s", card.ExclusiveChar1, card.ExclusiveSkill1))
-		}
-		if card.ExclusiveChar2 != "" && card.ExclusiveSkill2 != "" {
-			exclusiveInfo = append(exclusiveInfo, fmt.Sprintf("%s:%s", card.ExclusiveChar2, card.ExclusiveSkill2))
-		}
-		if len(exclusiveInfo) > 0 {
-			info += fmt.Sprintf(" [独有技:%s]", strings.Join(exclusiveInfo, " | "))
-		}
-
-		return info
-	}
-
-	info := fmt.Sprintf("[%s系] %s", elementLabel, card.Name)
-	if card.Type != "" {
-		info += fmt.Sprintf(" (%s", card.Type)
-		if card.Damage > 0 {
-			info += fmt.Sprintf(" Dmg:%d", card.Damage)
-		}
-		info += ")"
-	}
-	if card.Faction != "" {
-		info += fmt.Sprintf(" [%s命格]", card.Faction)
-	}
-
-	exclusiveInfo := []string{}
-	if card.ExclusiveChar1 != "" && card.ExclusiveSkill1 != "" {
-		exclusiveInfo = append(exclusiveInfo, fmt.Sprintf("%s:%s", card.ExclusiveChar1, card.ExclusiveSkill1))
-	}
-	if card.ExclusiveChar2 != "" && card.ExclusiveSkill2 != "" {
-		exclusiveInfo = append(exclusiveInfo, fmt.Sprintf("%s:%s", card.ExclusiveChar2, card.ExclusiveSkill2))
-	}
-	if len(exclusiveInfo) > 0 {
-		info += fmt.Sprintf(" [独有技:%s]", strings.Join(exclusiveInfo, " | "))
-	}
-
-	return info
+	return promptfmt.FormatCardInfo(card)
 }
 
 func (e *GameEngine) buildDiscardPrompt() *model.Prompt {

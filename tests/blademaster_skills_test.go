@@ -126,7 +126,7 @@ func TestBladeMaster_Skills(t *testing.T) {
 		p1.Hand = []model.Card{
 			{
 				ID: "gs_card", Name: "列风技", Type: model.CardTypeAttack, Element: model.ElementWind, Damage: 2,
-				ExclusiveChar1: "风之剑圣", ExclusiveSkill1: "列风技",
+				ExclusiveChar1: "blade_master", ExclusiveSkill1: "列风技",
 			},
 		}
 

@@ -17,7 +17,6 @@ var attackTargetContextHooks = []attackTargetContextHook{
 
 var attackStartStateResetHooks = []attackStartStateResetHook{
 	resetHolyLancerAttackFlags,
-	resetBerserkerAttackFlags,
 	resetSwordEmperorAttackFlags,
 	resetBeastSamuraiAttackFlags,
 	resetMagicSwordsmanAttackFlags,
@@ -25,13 +24,13 @@ var attackStartStateResetHooks = []attackStartStateResetHook{
 }
 
 var attackPreCombatHooks = []attackPreCombatHook{
+	applyCombatPolicyAttackGating,
 	applyHeroAttackGating,
 	applyFighterAttackGating,
 	applyMoonGoddessAttackGating,
 	applyAssassinAttackGating,
 	applyHolyLancerAttackGating,
 	applyMagicSwordsmanAttackGating,
-	applyElfArcherAttackGating,
 	applyDarkElementNoCounterRule,
 	applyBeastSamuraiAttackGating,
 }
@@ -67,63 +66,67 @@ func recordMagicBowAttackTargetOrder(e *GameEngine, player *model.Player, target
 }
 
 func resetHolyLancerAttackFlags(_ *GameEngine, player *model.Player) {
-	ensurePlayerTokensMap(player)
-	player.Tokens["holy_lancer_block_sacred_strike"] = 0
-	player.Tokens["holy_lancer_sky_spear_no_counter"] = 0
-}
-
-func resetBerserkerAttackFlags(_ *GameEngine, player *model.Player) {
-	ensurePlayerTokensMap(player)
-	player.Tokens["berserker_blood_roar_ignore_shield"] = 0
+	player.TurnState.UsedSkillCounts["holy_lancer_block_sacred_strike"] = 0
+	player.TurnState.UsedSkillCounts["holy_lancer_sky_spear_no_counter"] = 0
 }
 
 func resetSwordEmperorAttackFlags(_ *GameEngine, player *model.Player) {
-	ensurePlayerTokensMap(player)
-	player.Tokens["se_guard_disabled_current_attack"] = 0
-	player.Tokens["se_angel_soul_armed"] = 0
-	player.Tokens["se_demon_soul_armed"] = 0
-	player.Tokens["se_demon_damage_bonus_pending"] = 0
+	player.TurnState.UsedSkillCounts["se_guard_disabled_current_attack"] = 0
+	player.TurnState.UsedSkillCounts["se_angel_soul_armed"] = 0
+	player.TurnState.UsedSkillCounts["se_demon_soul_armed"] = 0
 }
 
 func resetBeastSamuraiAttackFlags(_ *GameEngine, player *model.Player) {
-	ensurePlayerTokensMap(player)
 	clearBeastSamuraiAttackTokens(player)
 }
 
 func resetMagicSwordsmanAttackFlags(_ *GameEngine, player *model.Player) {
-	ensurePlayerTokensMap(player)
-	player.Tokens["ms_yellow_spring_pending"] = 0
+	player.TurnState.UsedSkillCounts["ms_yellow_spring_pending"] = 0
 }
 
 func resetFighterAttackFlags(_ *GameEngine, player *model.Player) {
-	ensurePlayerTokensMap(player)
-	player.Tokens["fighter_attack_start_skill_lock"] = 0
+	player.TurnState.SkillFlowState["fighter_attack_start_skill_lock"] = 0
 }
 
 func applyHeroAttackGating(_ *GameEngine, player *model.Player, _ *model.Player, _ *model.QueuedAction, eventCtx *model.EventContext) {
-	if player == nil || player.Tokens == nil || player.Tokens["hero_calm_force_no_counter"] <= 0 || eventCtx == nil || eventCtx.AttackInfo == nil {
+	if player == nil || player.TurnState.UsedSkillCounts["hero_calm_force_no_counter"] <= 0 || eventCtx == nil || eventCtx.AttackInfo == nil {
 		return
 	}
-	eventCtx.AttackInfo.CanBeResponded = false
-	player.Tokens["hero_calm_force_no_counter"] = 0
+	eventCtx.AttackInfo.SetInterceptTag(model.CombatInterceptUnrespondable)
+	player.TurnState.UsedSkillCounts["hero_calm_force_no_counter"] = 0
 }
 
 func applyFighterAttackGating(_ *GameEngine, player *model.Player, _ *model.Player, _ *model.QueuedAction, eventCtx *model.EventContext) {
-	if player == nil || player.Tokens == nil || player.Tokens["fighter_qiburst_force_no_counter"] <= 0 || eventCtx == nil || eventCtx.AttackInfo == nil {
+	if player == nil || player.TurnState.SkillFlowState["fighter_qiburst_force_no_counter"] <= 0 || eventCtx == nil || eventCtx.AttackInfo == nil {
 		return
 	}
-	eventCtx.AttackInfo.CanBeResponded = false
-	player.Tokens["fighter_qiburst_force_no_counter"] = 0
+	eventCtx.AttackInfo.SetInterceptTag(model.CombatInterceptUnrespondable)
+	player.TurnState.SkillFlowState["fighter_qiburst_force_no_counter"] = 0
+}
+
+func applyCombatPolicyAttackGating(_ *GameEngine, player *model.Player, _ *model.Player, currentAction *model.QueuedAction, eventCtx *model.EventContext) {
+	if player == nil || eventCtx == nil || eventCtx.AttackInfo == nil {
+		return
+	}
+	action := model.Action{
+		SourceID: player.ID,
+		Type:     model.ActionAttack,
+	}
+	if currentAction != nil {
+		action.TargetID = currentAction.TargetID
+		action.Card = currentAction.Card
+	}
+	consumeAttackCombatPolicyInterceptTags(player, action, eventCtx.AttackInfo)
 }
 
 func applyMoonGoddessAttackGating(_ *GameEngine, player *model.Player, _ *model.Player, _ *model.QueuedAction, eventCtx *model.EventContext) {
-	if player == nil || player.Tokens == nil || player.Tokens["mg_next_attack_no_counter"] <= 0 || eventCtx == nil || eventCtx.AttackInfo == nil {
+	if player == nil || player.TurnState.UsedSkillCounts["mg_next_attack_no_counter"] <= 0 || eventCtx == nil || eventCtx.AttackInfo == nil {
 		return
 	}
-	eventCtx.AttackInfo.CanBeResponded = false
-	player.Tokens["mg_next_attack_no_counter"]--
-	if player.Tokens["mg_next_attack_no_counter"] < 0 {
-		player.Tokens["mg_next_attack_no_counter"] = 0
+	eventCtx.AttackInfo.SetInterceptTag(model.CombatInterceptUnrespondable)
+	player.TurnState.UsedSkillCounts["mg_next_attack_no_counter"]--
+	if player.TurnState.UsedSkillCounts["mg_next_attack_no_counter"] < 0 {
+		player.TurnState.UsedSkillCounts["mg_next_attack_no_counter"] = 0
 	}
 }
 
@@ -132,48 +135,41 @@ func applyAssassinAttackGating(e *GameEngine, player *model.Player, _ *model.Pla
 		return
 	}
 	ensurePlayerTokensMap(player)
-	eventCtx.AttackInfo.CanBeResponded = false
+	eventCtx.AttackInfo.SetInterceptTag(model.CombatInterceptUnrespondable)
 	e.Log(fmt.Sprintf("[Skill] %s 处于[潜行]：本次主动攻击无法应战", player.Name))
 }
 
 func applyHolyLancerAttackGating(e *GameEngine, player *model.Player, _ *model.Player, _ *model.QueuedAction, eventCtx *model.EventContext) {
-	if !e.isHolyLancer(player) || player.Tokens == nil || player.Tokens["holy_lancer_sky_spear_no_counter"] <= 0 || eventCtx == nil || eventCtx.AttackInfo == nil {
+	if !e.isHolyLancer(player) || player.TurnState.UsedSkillCounts["holy_lancer_sky_spear_no_counter"] <= 0 || eventCtx == nil || eventCtx.AttackInfo == nil {
 		return
 	}
-	eventCtx.AttackInfo.CanBeResponded = false
-	player.Tokens["holy_lancer_sky_spear_no_counter"] = 0
+	eventCtx.AttackInfo.SetInterceptTag(model.CombatInterceptUnrespondable)
+	player.TurnState.UsedSkillCounts["holy_lancer_sky_spear_no_counter"] = 0
 }
 
 func applyMagicSwordsmanAttackGating(e *GameEngine, player *model.Player, _ *model.Player, _ *model.QueuedAction, eventCtx *model.EventContext) {
-	if !e.isMagicSwordsman(player) || player.Tokens == nil || player.Tokens["ms_yellow_spring_pending"] <= 0 || eventCtx == nil || eventCtx.AttackInfo == nil {
+	if !e.isMagicSwordsman(player) || player.TurnState.UsedSkillCounts["ms_yellow_spring_pending"] <= 0 || eventCtx == nil || eventCtx.AttackInfo == nil {
 		return
 	}
-	eventCtx.AttackInfo.CanBeResponded = false
-}
-
-func applyElfArcherAttackGating(e *GameEngine, player *model.Player, _ *model.Player, _ *model.QueuedAction, eventCtx *model.EventContext) {
-	if !e.isElfArcher(player) || player.Tokens == nil || player.Tokens["elf_elemental_shot_thunder_pending"] <= 0 || eventCtx == nil || eventCtx.AttackInfo == nil {
-		return
-	}
-	eventCtx.AttackInfo.CanBeResponded = false
+	eventCtx.AttackInfo.SetInterceptTag(model.CombatInterceptUnrespondable)
 }
 
 func applyDarkElementNoCounterRule(_ *GameEngine, _ *model.Player, _ *model.Player, currentAction *model.QueuedAction, eventCtx *model.EventContext) {
 	if currentAction == nil || currentAction.Card == nil || currentAction.Card.Element != model.ElementDark || eventCtx == nil || eventCtx.AttackInfo == nil {
 		return
 	}
-	eventCtx.AttackInfo.CanBeResponded = false
+	eventCtx.AttackInfo.SetInterceptTag(model.CombatInterceptUnrespondable)
 }
 
 func applyBeastSamuraiAttackGating(e *GameEngine, player *model.Player, _ *model.Player, currentAction *model.QueuedAction, eventCtx *model.EventContext) {
-	if !e.isBeastSamurai(player) || player.Tokens == nil || player.Tokens["bs_one_strike_armed"] <= 0 || eventCtx == nil || eventCtx.AttackInfo == nil {
+	if !e.isBeastSamurai(player) || player.TurnState.UsedSkillCounts["bs_one_strike_armed"] <= 0 || eventCtx == nil || eventCtx.AttackInfo == nil {
 		return
 	}
-	player.Tokens["bs_one_strike_armed"] = 0
-	player.Tokens["bs_ignore_shield_current_attack"] = 1
-	player.Tokens["bs_no_holy_defend_current_attack"] = 1
+	player.TurnState.UsedSkillCounts["bs_one_strike_armed"] = 0
+	eventCtx.AttackInfo.SetInterceptTag(model.CombatInterceptIgnoreHolyShield)
+	eventCtx.AttackInfo.SetInterceptTag(model.CombatInterceptIgnoreTargetHoly)
 	if currentAction != nil && currentAction.Card != nil && strings.TrimSpace(currentAction.Card.Faction) == "技" {
-		eventCtx.AttackInfo.IsHitForced = true
+		eventCtx.AttackInfo.SetInterceptTag(model.CombatInterceptForceHit)
 	}
 	e.Log(fmt.Sprintf("%s 的 [一击无念·下次攻击劫持] 生效：本次主动攻击无视圣盾、不可用圣光抵挡%s", player.Name, func() string {
 		if currentAction != nil && currentAction.Card != nil && strings.TrimSpace(currentAction.Card.Faction) == "技" {

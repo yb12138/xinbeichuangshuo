@@ -2,14 +2,68 @@ package engine
 
 import (
 	"fmt"
+	"starcup-engine/internal/engine/runtimeutil"
+	"strings"
 
 	"starcup-engine/internal/model"
 )
 
+func (e *GameEngine) resolveCrimsonKnightBloodyPrayer(user *model.Player, x int, allocations map[string]int) error {
+	if user == nil {
+		return fmt.Errorf("玩家不存在")
+	}
+	if x <= 0 {
+		return fmt.Errorf("无效的X值")
+	}
+	if user.Heal < x {
+		return fmt.Errorf("治疗不足，无法结算血腥祷言")
+	}
+
+	user.Heal -= x
+	for _, pid := range e.State.PlayerOrder {
+		amt := allocations[pid]
+		if amt <= 0 {
+			continue
+		}
+		e.Heal(pid, amt)
+	}
+	e.AddPendingDamage(model.PendingDamage{
+		SourceID:              user.ID,
+		TargetID:              user.ID,
+		Damage:                x,
+		DamageType:            "magic",
+		AllowCrimsonFaithHeal: true,
+	})
+	if user.Tokens == nil {
+		user.Tokens = map[string]int{}
+	}
+	user.Tokens["crk_blood_mark"]++
+	if user.Tokens["crk_blood_mark"] > 3 {
+		user.Tokens["crk_blood_mark"] = 3
+	}
+
+	var parts []string
+	for _, pid := range e.State.PlayerOrder {
+		amt := allocations[pid]
+		if amt <= 0 {
+			continue
+		}
+		if p := e.State.Players[pid]; p != nil {
+			parts = append(parts, fmt.Sprintf("%s +%d治疗", p.Name, amt))
+		}
+	}
+	allocText := "未分配治疗"
+	if len(parts) > 0 {
+		allocText = strings.Join(parts, "，")
+	}
+	e.Log(fmt.Sprintf("%s 发动 [血腥祷言]：移除%d治疗并自伤%d，%s，血印+1", user.Name, x, x, allocText))
+	return nil
+}
+
 func (e *GameEngine) buildCrimsonKnightChoicePrompt(choiceType, playerID string, _ *model.Player, data map[string]interface{}) *model.Prompt {
 	switch choiceType {
 	case "crk_bloody_prayer_x":
-		maxX := toIntContextValue(data["max_x"])
+		maxX := runtimeutil.ToIntContextValue(data["max_x"])
 		options := make([]model.PromptOption, 0, maxX)
 		for x := 1; x <= maxX; x++ {
 			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", x), Label: fmt.Sprintf("X=%d（移除%d治疗并对自己造成%d法伤）", x, x, x)})
@@ -17,8 +71,8 @@ func (e *GameEngine) buildCrimsonKnightChoicePrompt(choiceType, playerID string,
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【血腥祷言】请选择X值：", Options: options, Min: 1, Max: 1}
 
 	case "crk_bloody_prayer_ally_count":
-		allyIDs := parseStringSliceContextValue(data["ally_ids"])
-		xValue := toIntContextValue(data["x_value"])
+		allyIDs := runtimeutil.ParseStringSliceContextValue(data["ally_ids"])
+		xValue := runtimeutil.ToIntContextValue(data["x_value"])
 		if xValue <= 0 {
 			xValue = 1
 		}
@@ -29,9 +83,9 @@ func (e *GameEngine) buildCrimsonKnightChoicePrompt(choiceType, playerID string,
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【血腥祷言】请选择要分配治疗的队友数量：", Options: options, Min: 1, Max: 1}
 
 	case "crk_bloody_prayer_target":
-		allyIDs := parseStringSliceContextValue(data["ally_ids"])
-		selectedSet := idsToSet(parseStringSliceContextValue(data["selected_ally_ids"]))
-		allyCount := toIntContextValue(data["ally_count"])
+		allyIDs := runtimeutil.ParseStringSliceContextValue(data["ally_ids"])
+		selectedSet := runtimeutil.IDsToSet(runtimeutil.ParseStringSliceContextValue(data["selected_ally_ids"]))
+		allyCount := runtimeutil.ToIntContextValue(data["ally_count"])
 		if allyCount <= 0 {
 			allyCount = 1
 		}
@@ -48,11 +102,11 @@ func (e *GameEngine) buildCrimsonKnightChoicePrompt(choiceType, playerID string,
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: fmt.Sprintf("【血腥祷言】请选择第 %d/%d 名队友：", pickIndex, allyCount), Options: options, Min: 1, Max: 1}
 
 	case "crk_bloody_prayer_split":
-		selected := parseStringSliceContextValue(data["selected_ally_ids"])
+		selected := runtimeutil.ParseStringSliceContextValue(data["selected_ally_ids"])
 		if len(selected) != 2 {
 			return nil
 		}
-		xValue := toIntContextValue(data["x_value"])
+		xValue := runtimeutil.ToIntContextValue(data["x_value"])
 		if xValue < 2 {
 			return nil
 		}
@@ -77,14 +131,14 @@ func (e *GameEngine) handleCrimsonKnightChoiceInput(_ string, selectionIndex int
 
 	switch choiceType {
 	case "crk_bloody_prayer_x":
-		maxX := toIntContextValue(ctxData["max_x"])
+		maxX := runtimeutil.ToIntContextValue(ctxData["max_x"])
 		xValue := selectionIndex + 1
 		if xValue < 1 || xValue > maxX {
 			return true, fmt.Errorf("无效的X值")
 		}
 		ctxData["x_value"] = xValue
 		ctxData["selected_ally_ids"] = []string{}
-		allyIDs := parseStringSliceContextValue(ctxData["ally_ids"])
+		allyIDs := runtimeutil.ParseStringSliceContextValue(ctxData["ally_ids"])
 		if len(allyIDs) == 0 {
 			return true, fmt.Errorf("没有可分配治疗的队友")
 		}
@@ -99,8 +153,8 @@ func (e *GameEngine) handleCrimsonKnightChoiceInput(_ string, selectionIndex int
 		return true, nil
 
 	case "crk_bloody_prayer_ally_count":
-		xValue := toIntContextValue(ctxData["x_value"])
-		allyIDs := parseStringSliceContextValue(ctxData["ally_ids"])
+		xValue := runtimeutil.ToIntContextValue(ctxData["x_value"])
+		allyIDs := runtimeutil.ParseStringSliceContextValue(ctxData["ally_ids"])
 		maxCount := 1
 		if len(allyIDs) >= 2 && xValue >= 2 {
 			maxCount = 2
@@ -122,9 +176,9 @@ func (e *GameEngine) handleCrimsonKnightChoiceInput(_ string, selectionIndex int
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
-		allyIDs := parseStringSliceContextValue(ctxData["ally_ids"])
-		selected := dedupeNonEmptyIDs(parseStringSliceContextValue(ctxData["selected_ally_ids"]))
-		selectedSet := idsToSet(selected)
+		allyIDs := runtimeutil.ParseStringSliceContextValue(ctxData["ally_ids"])
+		selected := dedupeNonEmptyIDs(runtimeutil.ParseStringSliceContextValue(ctxData["selected_ally_ids"]))
+		selectedSet := runtimeutil.IDsToSet(selected)
 		remaining := make([]string, 0, len(allyIDs))
 		for _, allyID := range allyIDs {
 			if !selectedSet[allyID] {
@@ -134,7 +188,7 @@ func (e *GameEngine) handleCrimsonKnightChoiceInput(_ string, selectionIndex int
 		if selectionIndex < 0 || selectionIndex >= len(remaining) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
-		allyCount := toIntContextValue(ctxData["ally_count"])
+		allyCount := runtimeutil.ToIntContextValue(ctxData["ally_count"])
 		if allyCount <= 0 {
 			allyCount = 1
 		}
@@ -142,7 +196,7 @@ func (e *GameEngine) handleCrimsonKnightChoiceInput(_ string, selectionIndex int
 		selected = append(selected, chosenID)
 		ctxData["selected_ally_ids"] = selected
 
-		xValue := toIntContextValue(ctxData["x_value"])
+		xValue := runtimeutil.ToIntContextValue(ctxData["x_value"])
 		if xValue <= 0 || user.Heal < xValue {
 			return true, fmt.Errorf("治疗不足，无法结算血腥祷言")
 		}
@@ -179,11 +233,11 @@ func (e *GameEngine) handleCrimsonKnightChoiceInput(_ string, selectionIndex int
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
-		xValue := toIntContextValue(ctxData["x_value"])
+		xValue := runtimeutil.ToIntContextValue(ctxData["x_value"])
 		if xValue < 2 || user.Heal < xValue {
 			return true, fmt.Errorf("治疗不足，无法结算血腥祷言")
 		}
-		selected := parseStringSliceContextValue(ctxData["selected_ally_ids"])
+		selected := runtimeutil.ParseStringSliceContextValue(ctxData["selected_ally_ids"])
 		if len(selected) != 2 {
 			return true, fmt.Errorf("血腥祷言分配目标数量异常")
 		}

@@ -18,7 +18,7 @@ func soulSorcererTestCard(id, name string, cardType model.CardType, ele model.El
 	}
 }
 
-func soulSorcererExclusiveCard(charName, skillTitle string) model.Card {
+func soulSorcererExclusiveCard(charID, skillTitle string) model.Card {
 	return model.Card{
 		ID:              "ss_ex_" + skillTitle,
 		Name:            skillTitle,
@@ -27,7 +27,7 @@ func soulSorcererExclusiveCard(charName, skillTitle string) model.Card {
 		Faction:         "幻",
 		Damage:          0,
 		Description:     "灵魂术士测试专属卡",
-		ExclusiveChar1:  charName,
+		ExclusiveChar1:  charID,
 		ExclusiveSkill1: skillTitle,
 	}
 }
@@ -74,7 +74,7 @@ func TestSoulSorcerer_StartGameInitAndStarterCard(t *testing.T) {
 	if p1.Character == nil {
 		t.Fatalf("character missing")
 	}
-	if !p1.HasExclusiveCard(p1.Character.Name, "灵魂链接") {
+	if !p1.HasExclusiveCard(p1.Character.ID, "灵魂链接") {
 		t.Fatalf("expected starter exclusive card 【灵魂链接】")
 	}
 }
@@ -348,7 +348,7 @@ func TestSoulSorcererSoulMirror_UsesDynamicMaxHand(t *testing.T) {
 func TestSoulSorcererSoulBlast_ConditionalBonusDamage(t *testing.T) {
 	game, p1, p2 := setupSoulSorcererActionTurn(t)
 	p1.Tokens["ss_yellow_soul"] = 3
-	p1.ExclusiveCards = append(p1.ExclusiveCards, soulSorcererExclusiveCard(p1.Character.Name, "灵魂震爆"))
+	p1.ExclusiveCards = append(p1.ExclusiveCards, soulSorcererExclusiveCard(p1.Character.ID, "灵魂震爆"))
 	p2.MaxHand = 6
 	p2.Hand = []model.Card{
 		soulSorcererTestCard("t1", "少牌1", model.CardTypeAttack, model.ElementFire),
@@ -384,7 +384,7 @@ func TestSoulSorcererSoulBlast_NoBonusWhenDynamicMaxHandIsNotGreaterThanFive(t *
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
 	p1.Tokens["ss_yellow_soul"] = 3
-	p1.ExclusiveCards = append(p1.ExclusiveCards, soulSorcererExclusiveCard(p1.Character.Name, "灵魂震爆"))
+	p1.ExclusiveCards = append(p1.ExclusiveCards, soulSorcererExclusiveCard(p1.Character.ID, "灵魂震爆"))
 	// 勇者精疲力竭时动态手牌上限应为4，不满足“上限>5”的加伤条件。
 	p2.Form = model.FormHeroExhaustion
 	p2.Hand = []model.Card{
@@ -412,7 +412,7 @@ func TestSoulSorcererSoulBlast_NoBonusWhenDynamicMaxHandIsNotGreaterThanFive(t *
 func TestSoulSorcererSoulGrant_RespectsEnergyCap(t *testing.T) {
 	game, p1, p2 := setupSoulSorcererActionTurn(t)
 	p1.Tokens["ss_blue_soul"] = 3
-	p1.ExclusiveCards = append(p1.ExclusiveCards, soulSorcererExclusiveCard(p1.Character.Name, "灵魂赐予"))
+	p1.ExclusiveCards = append(p1.ExclusiveCards, soulSorcererExclusiveCard(p1.Character.ID, "灵魂赐予"))
 	p2.Gem = 2
 	p2.Crystal = 0
 
@@ -480,7 +480,7 @@ func TestSoulSorcererSoulLink_TransferDamageBeforeResolve(t *testing.T) {
 	p1.TurnState = model.NewPlayerTurnState()
 	p1.Tokens["ss_blue_soul"] = 2
 	p1.Tokens["ss_yellow_soul"] = 1
-	p1.ExclusiveCards = append(p1.ExclusiveCards, soulSorcererExclusiveCard(p1.Character.Name, "灵魂链接"))
+	p1.ExclusiveCards = append(p1.ExclusiveCards, soulSorcererExclusiveCard(p1.Character.ID, "灵魂链接"))
 	game.State.CurrentTurn = 0
 	game.State.TurnStage = model.TurnStageActionStart
 
@@ -551,7 +551,7 @@ func TestSoulSorcererSoulLink_Replay_TransferSorcererToAlly_NoRecursiveLinkPromp
 	p1.TurnState = model.NewPlayerTurnState()
 	p1.Tokens["ss_blue_soul"] = 3
 	p1.Tokens["ss_yellow_soul"] = 1
-	p1.ExclusiveCards = append(p1.ExclusiveCards, soulSorcererExclusiveCard(p1.Character.Name, "灵魂链接"))
+	p1.ExclusiveCards = append(p1.ExclusiveCards, soulSorcererExclusiveCard(p1.Character.ID, "灵魂链接"))
 	game.State.CurrentTurn = 0
 	game.State.TurnStage = model.TurnStageActionStart
 
@@ -626,7 +626,7 @@ func TestSoulSorcererSoulLink_Replay_TransferAllyToSorcerer_NoRecursiveLinkPromp
 	p1.TurnState = model.NewPlayerTurnState()
 	p1.Tokens["ss_blue_soul"] = 3
 	p1.Tokens["ss_yellow_soul"] = 1
-	p1.ExclusiveCards = append(p1.ExclusiveCards, soulSorcererExclusiveCard(p1.Character.Name, "灵魂链接"))
+	p1.ExclusiveCards = append(p1.ExclusiveCards, soulSorcererExclusiveCard(p1.Character.ID, "灵魂链接"))
 	game.State.CurrentTurn = 0
 	game.State.TurnStage = model.TurnStageActionStart
 
@@ -699,7 +699,7 @@ func TestSoulSorcererSoulLink_Replay_TransferDamageThenTriggersResponseChain(t *
 	p1.TurnState = model.NewPlayerTurnState()
 	p1.Tokens["ss_blue_soul"] = 3
 	p1.Tokens["ss_yellow_soul"] = 1
-	p1.ExclusiveCards = append(p1.ExclusiveCards, soulSorcererExclusiveCard(p1.Character.Name, "灵魂链接"))
+	p1.ExclusiveCards = append(p1.ExclusiveCards, soulSorcererExclusiveCard(p1.Character.ID, "灵魂链接"))
 	p3.Gem = 1 // 让死斗可触发
 	game.State.CurrentTurn = 0
 	game.State.TurnStage = model.TurnStageActionStart

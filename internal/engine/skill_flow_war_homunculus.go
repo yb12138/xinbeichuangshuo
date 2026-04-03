@@ -2,14 +2,128 @@ package engine
 
 import (
 	"fmt"
+	"starcup-engine/internal/engine/runtimeutil"
 
 	"starcup-engine/internal/model"
 )
 
+// resolveHomunculusRuneChoice 结算英灵人形“战纹碎击/魔纹融合”的X/Y交互结果。
+func (e *GameEngine) resolveHomunculusRuneChoice(ctxData map[string]interface{}, glyph bool) error {
+	userID, _ := ctxData["user_id"].(string)
+	user := e.State.Players[userID]
+	if user == nil {
+		return fmt.Errorf("玩家不存在")
+	}
+	rawCtx, _ := ctxData["user_ctx"].(*model.Context)
+	if rawCtx == nil || rawCtx.TriggerCtx == nil {
+		return fmt.Errorf("英灵人形技能上下文丢失")
+	}
+	xVal := runtimeutil.ToIntContextValue(ctxData["x_value"])
+	yVal := runtimeutil.ToIntContextValue(ctxData["y_value"])
+	if xVal <= 0 || yVal < 0 {
+		return fmt.Errorf("X/Y 参数无效")
+	}
+	selected := runtimeutil.ParseChoiceIntSlice(ctxData["selected_indices"])
+	if len(selected) != xVal {
+		return fmt.Errorf("弃牌数量与X不一致")
+	}
+
+	attackElement, _ := ctxData["attack_element"].(string)
+	glyphSelectedElements := map[model.Element]bool{}
+	for _, idx := range selected {
+		if idx < 0 || idx >= len(user.Hand) {
+			return fmt.Errorf("无效的手牌索引: %d", idx)
+		}
+		if glyph {
+			if attackElement != "" && string(user.Hand[idx].Element) == attackElement {
+				return fmt.Errorf("魔纹融合需弃置异系牌")
+			}
+			if glyphSelectedElements[user.Hand[idx].Element] {
+				return fmt.Errorf("魔纹融合需弃置元素互不相同的异系牌")
+			}
+			glyphSelectedElements[user.Hand[idx].Element] = true
+		} else if attackElement != "" && string(user.Hand[idx].Element) != attackElement {
+			return fmt.Errorf("战纹碎击需弃置同系牌")
+		}
+	}
+
+	if user.Tokens == nil {
+		user.Tokens = map[string]int{}
+	}
+	flipCount := 1 + yVal
+	if glyph {
+		if user.Tokens["hom_magic_rune"] < flipCount {
+			return fmt.Errorf("魔纹不足，至少需要%d个", flipCount)
+		}
+		user.Tokens["hom_magic_rune"] -= flipCount
+		user.Tokens["hom_war_rune"] += flipCount
+	} else {
+		if user.Tokens["hom_war_rune"] < flipCount {
+			return fmt.Errorf("战纹不足，至少需要%d个", flipCount)
+		}
+		user.Tokens["hom_war_rune"] -= flipCount
+		user.Tokens["hom_magic_rune"] += flipCount
+	}
+
+	removed, err := removeCardsByIndicesFromHand(user, append([]int{}, selected...))
+	if err != nil {
+		return err
+	}
+	e.NotifyCardRevealed(user.ID, removed, "discard")
+	e.State.DiscardPile = append(e.State.DiscardPile, removed...)
+
+	targetID := rawCtx.TriggerCtx.TargetID
+	if glyph {
+		damage := xVal - 1 + yVal
+		if damage < 0 {
+			damage = 0
+		}
+		if damage > 0 && targetID != "" {
+			e.AddPendingDamage(model.PendingDamage{
+				SourceID:   user.ID,
+				TargetID:   targetID,
+				Damage:     damage,
+				DamageType: "magic",
+			})
+		}
+		e.Log(fmt.Sprintf("%s 发动 [魔纹融合]：弃%d张异系牌，翻转%d个魔纹为战纹，额外造成%d点法术伤害", user.Name, xVal, flipCount, damage))
+		e.PopInterrupt()
+		if e.State.PendingInterrupt == nil && rawCtx.Trigger == model.TriggerOnAttackMiss {
+			if e.resumePendingAttackMiss(rawCtx) {
+				return nil
+			}
+		}
+		if e.State.PendingInterrupt == nil && len(e.State.PendingDamageQueue) > 0 {
+			e.enterDamageResolution(nil)
+		}
+		return nil
+	}
+
+	bonusDamage := xVal - 1
+	if bonusDamage < 0 {
+		bonusDamage = 0
+	}
+	if rawCtx.TriggerCtx.DamageVal != nil && bonusDamage > 0 {
+		*rawCtx.TriggerCtx.DamageVal += bonusDamage
+	}
+	if yVal > 0 && targetID != "" {
+		e.AddPendingDamage(model.PendingDamage{
+			SourceID:   user.ID,
+			TargetID:   targetID,
+			Damage:     yVal,
+			DamageType: "magic",
+		})
+	}
+	e.Log(fmt.Sprintf("%s 发动 [战纹碎击]：弃%d张同系牌，翻转%d个战纹为魔纹，本次攻击伤害+%d", user.Name, xVal, flipCount, bonusDamage))
+	e.PopInterrupt()
+	e.resumePendingAttackHit(ctxData)
+	return nil
+}
+
 func (e *GameEngine) buildWarHomunculusChoicePrompt(choiceType, playerID string, player *model.Player, data map[string]interface{}) *model.Prompt {
 	switch choiceType {
 	case "hom_rune_reforge_distribution":
-		total := toIntContextValue(data["total_runes"])
+		total := runtimeutil.ToIntContextValue(data["total_runes"])
 		if total <= 0 {
 			total = 3
 		}
@@ -21,7 +135,7 @@ func (e *GameEngine) buildWarHomunculusChoicePrompt(choiceType, playerID string,
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: fmt.Sprintf("【符文改造】请选择战纹/魔纹分配（总计%d）：", total), Options: options, Min: 1, Max: 1}
 
 	case "hom_rune_smash_x", "hom_glyph_fusion_x":
-		maxX := toIntContextValue(data["max_x"])
+		maxX := runtimeutil.ToIntContextValue(data["max_x"])
 		minX := 1
 		message := "【战纹碎击】请选择X（弃置同系牌数量）："
 		if choiceType == "hom_glyph_fusion_x" {
@@ -36,7 +150,7 @@ func (e *GameEngine) buildWarHomunculusChoicePrompt(choiceType, playerID string,
 
 	case "hom_rune_smash_cards", "hom_glyph_fusion_cards":
 		remaining := parseIntSliceContextValue(data["remaining_indices"])
-		xValue := toIntContextValue(data["x_value"])
+		xValue := runtimeutil.ToIntContextValue(data["x_value"])
 		selectedCount := len(parseIntSliceContextValue(data["selected_indices"]))
 		options := make([]model.PromptOption, 0, len(remaining))
 		for _, idx := range remaining {
@@ -59,7 +173,7 @@ func (e *GameEngine) buildWarHomunculusChoicePrompt(choiceType, playerID string,
 		return &model.Prompt{Type: model.PromptChooseCards, PlayerID: playerID, Message: message, Options: options, Min: remainingPick, Max: remainingPick}
 
 	case "hom_rune_smash_y", "hom_glyph_fusion_y":
-		maxY := toIntContextValue(data["max_y"])
+		maxY := runtimeutil.ToIntContextValue(data["max_y"])
 		options := make([]model.PromptOption, 0, maxY+1)
 		for yValue := 0; yValue <= maxY; yValue++ {
 			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", yValue), Label: fmt.Sprintf("Y=%d", yValue)})
@@ -71,7 +185,7 @@ func (e *GameEngine) buildWarHomunculusChoicePrompt(choiceType, playerID string,
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: message, Options: options, Min: 1, Max: 1}
 
 	case "hom_dual_echo_target":
-		targetIDs := parseStringSliceContextValue(data["target_ids"])
+		targetIDs := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
 		options := make([]model.PromptOption, 0, len(targetIDs)+1)
 		for _, targetID := range targetIDs {
 			if target := e.State.Players[targetID]; target != nil {
@@ -79,7 +193,7 @@ func (e *GameEngine) buildWarHomunculusChoicePrompt(choiceType, playerID string,
 			}
 		}
 		options = append(options, model.PromptOption{ID: "cancel", Label: "取消"})
-		damage := toIntContextValue(data["damage"])
+		damage := runtimeutil.ToIntContextValue(data["damage"])
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: fmt.Sprintf("【双重回响】请选择额外造成%d点法术伤害的目标：", damage), Options: options, Min: 1, Max: 1}
 	}
 
@@ -96,7 +210,7 @@ func (e *GameEngine) handleWarHomunculusChoiceInput(_ string, selectionIndex int
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
-		total := toIntContextValue(ctxData["total_runes"])
+		total := runtimeutil.ToIntContextValue(ctxData["total_runes"])
 		if total <= 0 {
 			total = 3
 		}
@@ -119,7 +233,7 @@ func (e *GameEngine) handleWarHomunculusChoiceInput(_ string, selectionIndex int
 		return true, nil
 
 	case "hom_rune_smash_x", "hom_glyph_fusion_x":
-		maxX := toIntContextValue(ctxData["max_x"])
+		maxX := runtimeutil.ToIntContextValue(ctxData["max_x"])
 		minX := 1
 		nextChoice := "hom_rune_smash_cards"
 		if choiceType == "hom_glyph_fusion_x" {
@@ -153,8 +267,8 @@ func (e *GameEngine) handleWarHomunculusChoiceInput(_ string, selectionIndex int
 		}
 		remaining := parseIntSliceContextValue(ctxData["remaining_indices"])
 		selected := parseIntSliceContextValue(ctxData["selected_indices"])
-		xValue := toIntContextValue(ctxData["x_value"])
-		cardIdx, ok := resolveSelectionToCandidate(selectionIndex, remaining)
+		xValue := runtimeutil.ToIntContextValue(ctxData["x_value"])
+		cardIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, remaining)
 		if !ok {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
@@ -196,7 +310,7 @@ func (e *GameEngine) handleWarHomunculusChoiceInput(_ string, selectionIndex int
 			return true, nil
 		}
 		ctxData["selected_indices"] = selected
-		maxY := toIntContextValue(ctxData["max_y"])
+		maxY := runtimeutil.ToIntContextValue(ctxData["max_y"])
 		if maxY > 0 {
 			if choiceType == "hom_rune_smash_cards" {
 				ctxData["choice_type"] = "hom_rune_smash_y"
@@ -211,7 +325,7 @@ func (e *GameEngine) handleWarHomunculusChoiceInput(_ string, selectionIndex int
 		return true, e.resolveHomunculusRuneChoice(ctxData, choiceType == "hom_glyph_fusion_cards")
 
 	case "hom_rune_smash_y", "hom_glyph_fusion_y":
-		maxY := toIntContextValue(ctxData["max_y"])
+		maxY := runtimeutil.ToIntContextValue(ctxData["max_y"])
 		yValue := selectionIndex
 		if yValue < 0 || yValue > maxY {
 			return true, fmt.Errorf("无效的Y值")
@@ -225,18 +339,18 @@ func (e *GameEngine) handleWarHomunculusChoiceInput(_ string, selectionIndex int
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
-		targetIDs := parseStringSliceContextValue(ctxData["target_ids"])
+		targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
 		if selectionIndex < 0 || selectionIndex >= len(targetIDs) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
-		costPending := toIntContextValue(ctxData["cost_pending"])
+		costPending := runtimeutil.ToIntContextValue(ctxData["cost_pending"])
 		if costPending > 0 {
 			if !e.ConsumeCrystalCost(user.ID, costPending) {
 				return true, fmt.Errorf("双重回响需要1蓝水晶（红宝石可替代）")
 			}
 			ctxData["cost_pending"] = 0
 		}
-		damage := toIntContextValue(ctxData["damage"])
+		damage := runtimeutil.ToIntContextValue(ctxData["damage"])
 		if damage < 0 {
 			damage = 0
 		}

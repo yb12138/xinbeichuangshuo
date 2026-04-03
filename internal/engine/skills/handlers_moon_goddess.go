@@ -49,10 +49,6 @@ func moonGoddessDarkMoonCount(user *model.Player) int {
 		}
 		count++
 	}
-	if user.Tokens == nil {
-		user.Tokens = map[string]int{}
-	}
-	user.Tokens["mg_dark_moon_count"] = count
 	return count
 }
 

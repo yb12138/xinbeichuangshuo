@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"starcup-engine/internal/engine/runtimeutil"
 
 	"starcup-engine/internal/model"
 )
@@ -51,7 +52,7 @@ func (e *GameEngine) buildHandOverflowContext(ctx *model.Context) handOverflowCo
 	result.stayInTurn = ctx.Flags["StayInTurn"]
 
 	if ctx.Selections != nil {
-		result.overflowMoraleLossFixed = toIntContextValue(ctx.Selections["overflow_morale_loss_fixed"])
+		result.overflowMoraleLossFixed = runtimeutil.ToIntContextValue(ctx.Selections["overflow_morale_loss_fixed"])
 		result.damageSourceID = ctx.Selections["damage_source_id"]
 		result.damageSourceSkillID = ctx.Selections["damage_source_skill_id"]
 		result.drawResumePoint = normalizeChoiceResumePoint(ctx.Selections["draw_resume_phase"])
@@ -89,7 +90,7 @@ func (e *GameEngine) handOverflowSelectableIndices(player *model.Player) []int {
 		return indices
 	}
 	current := e.State.ActionQueue[0]
-	if current.SourceID != player.ID || queuedActionUsesVirtualCard(current.SourceSkill) {
+	if current.SourceID != player.ID || current.UsesVirtualCard {
 		return indices
 	}
 	lockedIdx := current.CardIndex

@@ -2,9 +2,31 @@ package engine
 
 import (
 	"fmt"
+	"starcup-engine/internal/engine/runtimeutil"
 
 	"starcup-engine/internal/model"
 )
+
+func (e *GameEngine) blazeWitchAttackElement(player *model.Player, card model.Card) model.Element {
+	if player == nil || player.Tokens == nil {
+		return card.Element
+	}
+	if !e.isBlazeWitch(player) || !hasBlazeWitchFlameForm(player) {
+		return card.Element
+	}
+	if card.Type != model.CardTypeAttack {
+		return card.Element
+	}
+	if card.Element == model.ElementWater || card.Element == model.ElementDark {
+		return card.Element
+	}
+	return model.ElementFire
+}
+
+func (e *GameEngine) applyBlazeWitchAttackCardTransform(player *model.Player, card model.Card) model.Card {
+	card.Element = e.blazeWitchAttackElement(player, card)
+	return card
+}
 
 func (e *GameEngine) buildBlazeWitchChoicePrompt(choiceType, playerID string, player *model.Player, data map[string]interface{}) *model.Prompt {
 	switch choiceType {
@@ -23,7 +45,7 @@ func (e *GameEngine) buildBlazeWitchChoicePrompt(choiceType, playerID string, pl
 			Max: 1,
 		}
 	case "bw_substitute_doll_card":
-		magicIndices := parseChoiceIntSlice(data["magic_indices"])
+		magicIndices := runtimeutil.ParseChoiceIntSlice(data["magic_indices"])
 		options := make([]model.PromptOption, 0, len(magicIndices))
 		for _, idx := range magicIndices {
 			if player == nil || idx < 0 || idx >= len(player.Hand) {
@@ -43,7 +65,7 @@ func (e *GameEngine) buildBlazeWitchChoicePrompt(choiceType, playerID string, pl
 			Max:      1,
 		}
 	case "bw_mana_inversion_x":
-		maxX := toIntContextValue(data["max_x"])
+		maxX := runtimeutil.ToIntContextValue(data["max_x"])
 		options := make([]model.PromptOption, 0, maxX-1)
 		for x := 2; x <= maxX; x++ {
 			options = append(options, model.PromptOption{
@@ -60,9 +82,9 @@ func (e *GameEngine) buildBlazeWitchChoicePrompt(choiceType, playerID string, pl
 			Max:      1,
 		}
 	case "bw_mana_inversion_cards":
-		remaining := parseChoiceIntSlice(data["remaining_indices"])
-		selectedCount := len(parseChoiceIntSlice(data["selected_indices"]))
-		targetCount := toIntContextValue(data["x_value"])
+		remaining := runtimeutil.ParseChoiceIntSlice(data["remaining_indices"])
+		selectedCount := len(runtimeutil.ParseChoiceIntSlice(data["selected_indices"]))
+		targetCount := runtimeutil.ToIntContextValue(data["x_value"])
 		options := make([]model.PromptOption, 0, len(remaining))
 		for _, idx := range remaining {
 			if player == nil || idx < 0 || idx >= len(player.Hand) {
@@ -93,7 +115,7 @@ func (e *GameEngine) buildBlazeWitchChoicePrompt(choiceType, playerID string, pl
 			Type:     model.PromptConfirm,
 			PlayerID: playerID,
 			Message:  "【替身玩偶】请选择摸1张牌的队友：",
-			Options:  buildPromptOptionsForPlayerIDs(e.State.Players, parseStringSliceContextValue(data["target_ids"])),
+			Options:  buildPromptOptionsForPlayerIDs(e.State.Players, runtimeutil.ParseStringSliceContextValue(data["target_ids"])),
 			Min:      1,
 			Max:      1,
 		}
@@ -102,7 +124,7 @@ func (e *GameEngine) buildBlazeWitchChoicePrompt(choiceType, playerID string, pl
 			Type:     model.PromptConfirm,
 			PlayerID: playerID,
 			Message:  "【魔能反转】请选择法术伤害目标：",
-			Options:  buildPromptOptionsForPlayerIDs(e.State.Players, parseStringSliceContextValue(data["target_ids"])),
+			Options:  buildPromptOptionsForPlayerIDs(e.State.Players, runtimeutil.ParseStringSliceContextValue(data["target_ids"])),
 			Min:      1,
 			Max:      1,
 		}
@@ -157,8 +179,8 @@ func (e *GameEngine) handleBlazeWitchSubstituteCardChoice(ctxData map[string]int
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
-	magicIndices := parseChoiceIntSlice(ctxData["magic_indices"])
-	cardIdx, ok := resolveSelectionToCandidate(selectionIndex, magicIndices)
+	magicIndices := runtimeutil.ParseChoiceIntSlice(ctxData["magic_indices"])
+	cardIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, magicIndices)
 	if !ok || cardIdx < 0 || cardIdx >= len(user.Hand) {
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
@@ -167,7 +189,7 @@ func (e *GameEngine) handleBlazeWitchSubstituteCardChoice(ctxData map[string]int
 	}
 	ctxData["selected_card_index"] = cardIdx
 	ctxData["choice_type"] = "bw_substitute_doll_target"
-	ctxData["target_ids"] = parseStringSliceContextValue(ctxData["ally_ids"])
+	ctxData["target_ids"] = runtimeutil.ParseStringSliceContextValue(ctxData["ally_ids"])
 	e.State.PendingInterrupt.Context = ctxData
 	e.notifyInterruptPrompt()
 	return nil
@@ -179,7 +201,7 @@ func (e *GameEngine) handleBlazeWitchManaInversionXChoice(ctxData map[string]int
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
-	maxX := toIntContextValue(ctxData["max_x"])
+	maxX := runtimeutil.ToIntContextValue(ctxData["max_x"])
 	xValue := selectionIndex + 2
 	if xValue < 2 || xValue > maxX {
 		return fmt.Errorf("无效的X值")
@@ -208,11 +230,11 @@ func (e *GameEngine) handleBlazeWitchManaInversionCardsChoice(ctxData map[string
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
-	remaining := parseChoiceIntSlice(ctxData["remaining_indices"])
-	selected := append([]int{}, parseChoiceIntSlice(ctxData["selected_indices"])...)
-	xValue := toIntContextValue(ctxData["x_value"])
+	remaining := runtimeutil.ParseChoiceIntSlice(ctxData["remaining_indices"])
+	selected := append([]int{}, runtimeutil.ParseChoiceIntSlice(ctxData["selected_indices"])...)
+	xValue := runtimeutil.ToIntContextValue(ctxData["x_value"])
 
-	cardIdx, ok := resolveSelectionToCandidate(selectionIndex, remaining)
+	cardIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, remaining)
 	if !ok || cardIdx < 0 || cardIdx >= len(user.Hand) {
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
@@ -259,7 +281,7 @@ func (e *GameEngine) handleBlazeWitchTargetChoice(ctxData map[string]interface{}
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
-	targetIDs := parseStringSliceContextValue(ctxData["target_ids"])
+	targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
 	if selectionIndex < 0 || selectionIndex >= len(targetIDs) {
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
@@ -271,7 +293,7 @@ func (e *GameEngine) handleBlazeWitchTargetChoice(ctxData map[string]interface{}
 
 	switch choiceType, _ := ctxData["choice_type"].(string); choiceType {
 	case "bw_substitute_doll_target":
-		cardIdx := toIntContextValue(ctxData["selected_card_index"])
+		cardIdx := runtimeutil.ToIntContextValue(ctxData["selected_card_index"])
 		if cardIdx < 0 || cardIdx >= len(user.Hand) {
 			return fmt.Errorf("无效的弃牌索引")
 		}
@@ -285,8 +307,8 @@ func (e *GameEngine) handleBlazeWitchTargetChoice(ctxData map[string]interface{}
 		e.DrawCards(targetID, 1)
 		e.Log(fmt.Sprintf("%s 的 [替身玩偶] 生效：%s 摸1张牌", user.Name, target.Name))
 	case "bw_mana_inversion_target":
-		selected := append([]int{}, parseChoiceIntSlice(ctxData["selected_indices"])...)
-		xValue := toIntContextValue(ctxData["x_value"])
+		selected := append([]int{}, runtimeutil.ParseChoiceIntSlice(ctxData["selected_indices"])...)
+		xValue := runtimeutil.ToIntContextValue(ctxData["x_value"])
 		if xValue < 2 || len(selected) != xValue {
 			return fmt.Errorf("魔能反转弃牌参数错误")
 		}

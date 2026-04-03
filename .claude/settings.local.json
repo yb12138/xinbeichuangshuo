@@ -1,7 +1,15 @@
 {
   "permissions": {
     "allow": [
-      "Bash(go test:*)"
+      "Bash(go test:*)",
+      "Bash(gofmt:*)",
+      "Bash(python3:*)",
+      "Bash(git diff:*)",
+      "Bash(go list:*)",
+      "Bash(git -C \"/Users/yb/xinbeichuangshuo\" status --short)",
+      "Bash(git -C \"/Users/yb/xinbeichuangshuo\" log --oneline -n 8)",
+      "Bash(npm:*)",
+      "Bash(golangci-lint run:*)"
     ]
   }
 }

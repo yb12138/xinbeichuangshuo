@@ -20,7 +20,7 @@ func makeBlazeWitchTestCards(n int) []model.Card {
 		model.ElementLight,
 	}
 	cards := make([]model.Card, 0, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		cardType := model.CardTypeAttack
 		if i%2 == 0 {
 			cardType = model.CardTypeMagic
@@ -77,7 +77,7 @@ func TestBlazeWitchPainLink_ConsumesCrystalOnceAndQueuesDiscardToThree(t *testin
 	if game.State.PendingInterrupt.Type != model.InterruptDiscard || game.State.PendingInterrupt.PlayerID != "p1" {
 		t.Fatalf("unexpected interrupt: %+v", game.State.PendingInterrupt)
 	}
-	data, _ := game.State.PendingInterrupt.Context.(map[string]interface{})
+	data, _ := game.State.PendingInterrupt.Context.(map[string]any)
 	discardCount, _ := data["discard_count"].(int)
 	if discardCount != len(p1.Hand)-3 {
 		t.Fatalf("expected discard_count=len(hand)-3, got discard=%d hand=%d", discardCount, len(p1.Hand))
@@ -242,6 +242,47 @@ func TestBlazeWitchCodexAndHeavenfire_RejectSelfTarget(t *testing.T) {
 
 	if err := game.UseSkill("p1", "bw_heavenfire_cleave", []string{"p1"}, []int{0, 1}); err == nil {
 		t.Fatalf("expected heavenfire cleave reject self target")
+	}
+}
+
+func TestBlazeWitchFlameForm_AttackUsesPreparedTransformedCard(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "Blaze", "blaze_witch", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Sealer", "sealer", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Form = model.FormBlazeWitchFlame
+	p1.Hand = []model.Card{{ID: "atk-wind", Name: "风神斩", Type: model.CardTypeAttack, Element: model.ElementWind, Faction: "血", Damage: 2}}
+	p1.AddFieldCard(&model.FieldCard{
+		Card:     model.Card{ID: "seal-fire", Name: "火之封印", Type: model.CardTypeMagic, Element: model.ElementFire},
+		OwnerID:  p1.ID,
+		SourceID: "p2",
+		Mode:     model.FieldEffect,
+		Effect:   model.EffectSealFire,
+		Trigger:  model.EffectTriggerOnCardPlayedOrRevealed,
+	})
+
+	game.State.Deck = rules.InitDeck()
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	mustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardIndex: 0})
+
+	if got := countFieldEffect(p1, model.EffectSealFire); got != 0 {
+		t.Fatalf("expected transformed fire attack to consume fire seal, got %d", got)
+	}
+	if len(game.State.CombatStack) == 0 {
+		t.Fatalf("expected combat request queued after attack")
+	}
+	combatReq := game.State.CombatStack[len(game.State.CombatStack)-1]
+	if combatReq.Card == nil || combatReq.Card.Element != model.ElementFire {
+		t.Fatalf("expected combat card element Fire after flame-form transform, got %+v", combatReq.Card)
 	}
 }
 

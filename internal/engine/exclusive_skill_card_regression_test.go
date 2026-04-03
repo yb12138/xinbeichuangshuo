@@ -40,11 +40,11 @@ func TestSealerStarterExclusiveCard_NotInHand(t *testing.T) {
 		t.Fatalf("expected sealer opening hand=4 (starter card not in hand), got %d", len(p1.Hand))
 	}
 	for _, c := range p1.Hand {
-		if c.MatchExclusive(p1.Character.Name, "五系束缚") {
+		if c.MatchExclusive(p1.Character.ID, "五系束缚") {
 			t.Fatalf("starter five-elements card should not stay in hand")
 		}
 	}
-	if !p1.HasExclusiveCard(p1.Character.Name, "五系束缚") {
+	if !p1.HasExclusiveCard(p1.Character.ID, "五系束缚") {
 		t.Fatalf("expected five-elements starter card in exclusive zone")
 	}
 }
@@ -73,7 +73,7 @@ func TestFiveElementsBind_UsesExclusiveZoneCard(t *testing.T) {
 			Name:            "五系束缚",
 			Type:            model.CardTypeMagic,
 			Element:         model.ElementLight,
-			ExclusiveChar1:  "封印师",
+			ExclusiveChar1:  "sealer",
 			ExclusiveSkill1: "五系束缚",
 		},
 	}
@@ -88,7 +88,7 @@ func TestFiveElementsBind_UsesExclusiveZoneCard(t *testing.T) {
 	if p1.Crystal != 0 {
 		t.Fatalf("expected crystal consumed by five-elements bind, got %d", p1.Crystal)
 	}
-	if p1.HasExclusiveCard(p1.Character.Name, "五系束缚") {
+	if p1.HasExclusiveCard(p1.Character.ID, "五系束缚") {
 		t.Fatalf("expected five-elements exclusive card consumed from exclusive zone")
 	}
 	if !hasFieldEffect(p2, model.EffectFiveElementsBind) {
@@ -119,7 +119,7 @@ func TestCrimsonDance_UsesAndReturnsRoseCourtyardExclusiveCard(t *testing.T) {
 			Name:            "血蔷薇庭院",
 			Type:            model.CardTypeMagic,
 			Element:         model.ElementDark,
-			ExclusiveChar1:  "血色剑灵",
+			ExclusiveChar1:  "crimson_sword_spirit",
 			ExclusiveSkill1: "血蔷薇庭院",
 		},
 	}
@@ -137,10 +137,7 @@ func TestCrimsonDance_UsesAndReturnsRoseCourtyardExclusiveCard(t *testing.T) {
 		Selections: []int{0},
 	})
 
-	if p1.Tokens["css_rose_courtyard_active"] != 1 {
-		t.Fatalf("expected courtyard active after dance")
-	}
-	if p1.HasExclusiveCard(p1.Character.Name, "血蔷薇庭院") {
+	if p1.HasExclusiveCard(p1.Character.ID, "血蔷薇庭院") {
 		t.Fatalf("expected courtyard card moved out of exclusive zone while active")
 	}
 	if !hasFieldEffect(p1, model.EffectRoseCourtyard) {
@@ -150,13 +147,10 @@ func TestCrimsonDance_UsesAndReturnsRoseCourtyardExclusiveCard(t *testing.T) {
 	g.State.TurnStage = model.TurnStageTurnEnd
 	g.Drive()
 
-	if p1.Tokens["css_rose_courtyard_active"] != 0 {
-		t.Fatalf("expected courtyard inactive after turn end")
-	}
 	if hasFieldEffect(p1, model.EffectRoseCourtyard) {
 		t.Fatalf("expected rose courtyard field card removed at turn end")
 	}
-	if !p1.HasExclusiveCard(p1.Character.Name, "血蔷薇庭院") {
+	if !p1.HasExclusiveCard(p1.Character.ID, "血蔷薇庭院") {
 		t.Fatalf("expected courtyard card returned to exclusive zone")
 	}
 }
@@ -171,23 +165,31 @@ func TestCrimsonDanceTurnEnd_DoesNotSynthesizeRoseCourtyardWithoutFieldCard(t *t
 	}
 
 	p1 := g.State.Players["p1"]
-	p1.Tokens["css_rose_courtyard_active"] = 1
 	p1.Tokens["css_blood_cap"] = 4
 	p1.Tokens["css_blood"] = 4
+	p1.Field = append(p1.Field, &model.FieldCard{
+		Card: model.Card{
+			ID:      "css_test_rose_courtyard",
+			Name:    "血蔷薇庭院",
+			Type:    model.CardTypeMagic,
+			Element: model.ElementDark,
+		},
+		OwnerID:  p1.ID,
+		SourceID: p1.ID,
+		Mode:     model.FieldEffect,
+		Effect:   model.EffectRoseCourtyard,
+	})
 	p1.ExclusiveCards = nil
 
 	turnEndCrimsonSwordSpiritHook(g, p1)
 
-	if p1.Tokens["css_rose_courtyard_active"] != 0 {
-		t.Fatalf("expected courtyard active token cleared")
-	}
 	if p1.Tokens["css_blood_cap"] != 3 {
 		t.Fatalf("expected blood cap reset to 3, got %d", p1.Tokens["css_blood_cap"])
 	}
 	if p1.Tokens["css_blood"] != 3 {
 		t.Fatalf("expected blood trimmed to 3, got %d", p1.Tokens["css_blood"])
 	}
-	if p1.HasExclusiveCard(p1.Character.Name, "血蔷薇庭院") {
+	if p1.HasExclusiveCard(p1.Character.ID, "血蔷薇庭院") {
 		t.Fatalf("expected no synthetic courtyard card restored without field card")
 	}
 }
@@ -215,8 +217,8 @@ func TestPreciseShot_NotTriggeredByNonOwnerCharacter(t *testing.T) {
 			Element:         model.ElementWind,
 			Damage:          2,
 			Faction:         "技",
-			ExclusiveChar1:  "风之剑圣",
-			ExclusiveChar2:  "神箭手",
+			ExclusiveChar1:  "blade_master",
+			ExclusiveChar2:  "archer",
 			ExclusiveSkill1: "列风技",
 			ExclusiveSkill2: "精准射击",
 		},
@@ -258,8 +260,8 @@ func TestPreciseShot_ModifyDamage_ReducesOwnerAttack(t *testing.T) {
 		Element:         model.ElementThunder,
 		Damage:          2,
 		Faction:         "技",
-		ExclusiveChar1:  "风之剑圣",
-		ExclusiveChar2:  "神箭手",
+		ExclusiveChar1:  "blade_master",
+		ExclusiveChar2:  "archer",
 		ExclusiveSkill1: "列风技",
 		ExclusiveSkill2: "精准射击",
 	}
@@ -295,8 +297,8 @@ func TestPreciseShot_NonOwnerCard_DoesNotReduceDamage(t *testing.T) {
 		Element:         model.ElementThunder,
 		Damage:          2,
 		Faction:         "技",
-		ExclusiveChar1:  "风之剑圣",
-		ExclusiveChar2:  "神箭手",
+		ExclusiveChar1:  "blade_master",
+		ExclusiveChar2:  "archer",
 		ExclusiveSkill1: "列风技",
 		ExclusiveSkill2: "精准射击",
 	}

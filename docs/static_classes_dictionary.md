@@ -487,7 +487,7 @@ Value      int                    // 动作的数值（如：伤害值、摸牌�
 // 可选：关联的具体实体
 StatusRef  *model.StatusEffect    // 用于 EffectPlaceStatus 时，放置什么状态？
 TokenRef   *model.TokenType       // 用于 EffectAddToken 时，增加什么指示物？
-ActionRef  *model.ActionType      // 用于 EffectAddAction 时，限定追加行动类型（Attack/Magic）
+ActionRef  *model.ActionType      // 用于 extra-action 相关实现时，限定追加行动类型（Attack/Magic）
 ElementRef *model.ElementType     // 可选：系别限制（如风怒追击的风系攻击行动）；当 EffectType=EffectSetCurrentCombatElement 时表示改写后的战斗系别；当 EffectType=EffectRemoveFieldMark 时可按系别过滤移除
 StoneRef   *model.StarStoneType   // 用于 EffectAddTeamStone / EffectAddEnergyStone / EffectConvertTeamStone / EffectConvertEnergyStone 时，指定源颜色或星石类型（Gem/Crystal/Any）
 StoneToRef *model.StarStoneType   // 用于 EffectConvertTeamStone / EffectConvertEnergyStone 时，指定转换目标星石类型
@@ -512,7 +512,7 @@ const (
     EffectDrawCard             EffectType = 4  // 摸牌
     EffectDiscard              EffectType = 5  // 强制目标弃牌
     EffectAddToken             EffectType = 6  // 调整专属指示物（Value>0 增加；Value<0 移除；移除不足按可移除量结算且不阻断）
-    EffectAddAction            EffectType = 7  // 增加额外行动次数 (如: +1 攻击行动)
+    // 额外行动不再通过 EffectType 表达，改由 model.AppendExtraAction / model.AppendAttackAction / model.AppendMagicAction 写入 PendingActions
     EffectPlaceStatus          EffectType = 8  // 放置基础效果 (如: 挑衅、五系封印)
     EffectRemoveStatus         EffectType = 9  // 移除基础效果 (如: 天使解除状态)
     EffectRemoveStatusToHand   EffectType = 10 // 将场上基础效果牌收入手牌 (如封印破碎)

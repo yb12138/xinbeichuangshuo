@@ -103,7 +103,7 @@ func TestBardDescentConcerto_TriggersAndResolves(t *testing.T) {
 	if got := bard.Tokens["bd_inspiration"]; got != 1 {
 		t.Fatalf("expected inspiration=1, got %d", got)
 	}
-	if got := bard.Tokens["bd_descent_used_turn"]; got != 1 {
+	if got := bard.TurnState.UsedSkillCounts["bd_descent"]; got != 1 {
 		t.Fatalf("expected descent used flag=1, got %d", got)
 	}
 	if got := len(bard.Hand); got != 1 {
@@ -258,7 +258,7 @@ func TestBardHopeFugue_PlaceUsesPlayedCardAsEternalMovement(t *testing.T) {
 	if fieldCard.Card.Name != "希望赋格曲" {
 		t.Fatalf("expected played hope fugue card to become field entity, got %s", fieldCard.Card.Name)
 	}
-	if bard.HasExclusiveCard(bard.Character.Name, "希望赋格曲") {
+	if bard.HasExclusiveCard(bard.Character.ID, "希望赋格曲") {
 		t.Fatalf("expected hope fugue exclusive card consumed from exclusive zone")
 	}
 }
@@ -565,9 +565,9 @@ func TestBardStarterExclusiveCards_NotInHand(t *testing.T) {
 	if got := len(bard.Hand); got != 4 {
 		t.Fatalf("expected bard starting hand remain 4, got %d", got)
 	}
-	if !bard.HasExclusiveCard(bard.Character.Name, "激昂狂想曲") ||
-		!bard.HasExclusiveCard(bard.Character.Name, "胜利交响诗") ||
-		!bard.HasExclusiveCard(bard.Character.Name, "希望赋格曲") {
+	if !bard.HasExclusiveCard(bard.Character.ID, "激昂狂想曲") ||
+		!bard.HasExclusiveCard(bard.Character.ID, "胜利交响诗") ||
+		!bard.HasExclusiveCard(bard.Character.ID, "希望赋格曲") {
 		t.Fatalf("expected bard starter exclusive cards in exclusive zone, got %+v", bard.ExclusiveCards)
 	}
 }

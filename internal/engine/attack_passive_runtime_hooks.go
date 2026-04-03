@@ -35,16 +35,10 @@ func (e *GameEngine) applyAttackPassiveRuntimeHooks(attacker *model.Player, targ
 	return damage
 }
 
-func attackPassiveElfFireShotHook(e *GameEngine, attacker *model.Player, _ *model.Player, _ model.Action, damage int) int {
-	if e == nil || attacker == nil {
+func attackPassiveElfFireShotHook(_ *GameEngine, attacker *model.Player, _ *model.Player, action model.Action, damage int) int {
+	if attacker == nil || consumeAttackDamageRuleBonus(attacker, "elf_elemental_shot_fire_attack_bonus", action) <= 0 {
 		return damage
 	}
-	ensurePlayerTokensMap(attacker)
-	if attacker.Tokens["elf_elemental_shot_fire_pending"] <= 0 {
-		return damage
-	}
-	attacker.Tokens["elf_elemental_shot_fire_pending"] = 0
-	e.Log(fmt.Sprintf("[Passive] %s 的 [火之矢] 生效，伤害 +1", attacker.Name))
 	return damage + 1
 }
 
@@ -60,19 +54,17 @@ func attackPassiveMagicLancerBonusHook(e *GameEngine, attacker *model.Player, _ 
 	if e == nil || attacker == nil || !isCharacter(attacker, "magic_lancer") || action.Type != model.ActionAttack || action.CounterInitiator != "" {
 		return damage
 	}
-	if attacker.TurnState.UsedSkillCounts == nil {
-		attacker.TurnState.UsedSkillCounts = map[string]int{}
-	}
-	if attacker.TurnState.UsedSkillCounts["ml_dark_release_next_attack_bonus"] > 0 {
-		damage += 1
-		attacker.TurnState.UsedSkillCounts["ml_dark_release_next_attack_bonus"] = 0
+
+	if darkBonus := consumeAttackDamageRuleBonus(attacker, "ml_dark_release_next_attack_bonus", action); darkBonus > 0 {
+		damage += darkBonus
 		e.Log(fmt.Sprintf("[Passive] %s 的 [暗之解放] 生效，本次主动攻击伤害 +1", attacker.Name))
 	}
-	if bonus := attacker.TurnState.UsedSkillCounts["ml_fullness_next_attack_bonus"]; bonus > 0 {
-		damage += bonus
-		attacker.TurnState.UsedSkillCounts["ml_fullness_next_attack_bonus"] = 0
-		e.Log(fmt.Sprintf("[Passive] %s 的 [充盈] 生效，本次主动攻击伤害 +%d", attacker.Name, bonus))
+
+	if additional := consumeAttackDamageRuleBonus(attacker, "ml_fullness_next_attack_bonus", action); additional > 0 {
+		damage += additional
+		e.Log(fmt.Sprintf("[Passive] %s 的 [充盈] 生效，本次主动攻击伤害 +%d", attacker.Name, additional))
 	}
+
 	return damage
 }
 
@@ -80,15 +72,15 @@ func attackPassiveFighterBonusHook(e *GameEngine, attacker *model.Player, _ *mod
 	if e == nil || attacker == nil || !isCharacter(attacker, "fighter") {
 		return damage
 	}
-	ensurePlayerTokensMap(attacker)
+
 	if action.Type == model.ActionAttack &&
 		action.CounterInitiator == "" &&
-		attacker.Tokens["fighter_charge_damage_pending"] > 0 {
+		consumeAttackDamageRuleBonus(attacker, "fighter_charge_attack_bonus", action) > 0 {
 		damage += 1
-		attacker.Tokens["fighter_charge_damage_pending"] = 0
-		attacker.Tokens["fighter_charge_pending"] = 0
+		attacker.TurnState.SkillFlowState["fighter_charge_pending"] = 0
 		e.Log(fmt.Sprintf("[Passive] %s 的 [蓄力一击] 生效，本次主动攻击伤害 +1", attacker.Name))
 	}
+
 	if hasFighterHundredDragonForm(attacker) {
 		if action.Type == model.ActionAttack && action.CounterInitiator == "" {
 			damage += 2
@@ -98,6 +90,7 @@ func attackPassiveFighterBonusHook(e *GameEngine, attacker *model.Player, _ *mod
 			e.Log(fmt.Sprintf("[Passive] %s 的 [百式幻龙拳] 生效，本次应战攻击伤害 +1", attacker.Name))
 		}
 	}
+
 	return damage
 }
 
@@ -105,12 +98,12 @@ func attackPassiveHeroRoarBonusHook(e *GameEngine, attacker *model.Player, _ *mo
 	if e == nil || attacker == nil || !isCharacter(attacker, "hero") || action.Type != model.ActionAttack || action.CounterInitiator != "" {
 		return damage
 	}
-	ensurePlayerTokensMap(attacker)
-	if attacker.Tokens["hero_roar_damage_pending"] <= 0 {
+
+	if consumeAttackDamageRuleBonus(attacker, "hero_roar_attack_bonus", action) <= 0 {
 		return damage
 	}
-	attacker.Tokens["hero_roar_damage_pending"] = 0
-	attacker.Tokens["hero_roar_active"] = 0
+
+	attacker.TurnState.UsedSkillCounts["hero_roar_active"] = 0
 	e.Log(fmt.Sprintf("[Passive] %s 的 [怒吼] 生效，本次主动攻击伤害 +2", attacker.Name))
 	return damage + 2
 }
@@ -146,10 +139,11 @@ func attackPassiveSwordEmperorBonusHook(e *GameEngine, attacker *model.Player, _
 	if e == nil || attacker == nil || !e.isSwordEmperor(attacker) || action.Type != model.ActionAttack || action.CounterInitiator != "" {
 		return damage
 	}
-	ensurePlayerTokensMap(attacker)
-	if attacker.Tokens["se_demon_damage_bonus_pending"] <= 0 {
+
+	if consumeAttackDamageRuleBonus(attacker, "se_demon_soul_attack_bonus", action) <= 0 {
 		return damage
 	}
+
 	e.Log(fmt.Sprintf("[Passive] %s 的 [恶魔之魂] 生效：本次主动攻击伤害 +1", attacker.Name))
 	return damage + 1
 }

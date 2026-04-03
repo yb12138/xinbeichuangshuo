@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"starcup-engine/internal/engine/runtimeutil"
 
 	"starcup-engine/internal/model"
 )
@@ -9,7 +10,7 @@ import (
 func (e *GameEngine) buildPriestChoicePrompt(choiceType, playerID string, _ *model.Player, data map[string]interface{}) *model.Prompt {
 	switch choiceType {
 	case "priest_divine_contract_target":
-		allyIDs := parseStringSliceContextValue(data["ally_ids"])
+		allyIDs := runtimeutil.ParseStringSliceContextValue(data["ally_ids"])
 		options := make([]model.PromptOption, 0, len(allyIDs))
 		for _, allyID := range allyIDs {
 			if target := e.State.Players[allyID]; target != nil {
@@ -19,7 +20,7 @@ func (e *GameEngine) buildPriestChoicePrompt(choiceType, playerID string, _ *mod
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【神圣契约】请选择1名队友：", Options: options, Min: 1, Max: 1}
 
 	case "priest_divine_contract_x":
-		maxX := toIntContextValue(data["max_x"])
+		maxX := runtimeutil.ToIntContextValue(data["max_x"])
 		targetID, _ := data["target_id"].(string)
 		targetName := targetID
 		targetHeal := -1
@@ -42,7 +43,7 @@ func (e *GameEngine) buildPriestChoicePrompt(choiceType, playerID string, _ *mod
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: message, Options: options, Min: 1, Max: 1}
 
 	case "priest_divine_domain_mode":
-		modeOptions := parseStringSliceContextValue(data["mode_options"])
+		modeOptions := runtimeutil.ParseStringSliceContextValue(data["mode_options"])
 		options := make([]model.PromptOption, 0, len(modeOptions))
 		for _, mode := range modeOptions {
 			switch mode {
@@ -55,7 +56,7 @@ func (e *GameEngine) buildPriestChoicePrompt(choiceType, playerID string, _ *mod
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【神圣领域】请选择发动分支：", Options: options, Min: 1, Max: 1}
 
 	case "priest_divine_domain_damage_target", "priest_divine_domain_heal_target":
-		targetIDs := parseStringSliceContextValue(data["target_ids"])
+		targetIDs := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
 		options := make([]model.PromptOption, 0, len(targetIDs))
 		for _, targetID := range targetIDs {
 			if target := e.State.Players[targetID]; target != nil {
@@ -84,7 +85,7 @@ func (e *GameEngine) handlePriestChoiceInput(_ string, selectionIndex int, ctxDa
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
-		allyIDs := parseStringSliceContextValue(ctxData["ally_ids"])
+		allyIDs := runtimeutil.ParseStringSliceContextValue(ctxData["ally_ids"])
 		if selectionIndex < 0 || selectionIndex >= len(allyIDs) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
@@ -92,7 +93,7 @@ func (e *GameEngine) handlePriestChoiceInput(_ string, selectionIndex int, ctxDa
 		if target == nil {
 			return true, fmt.Errorf("队友不存在")
 		}
-		maxX := toIntContextValue(ctxData["max_x"])
+		maxX := runtimeutil.ToIntContextValue(ctxData["max_x"])
 		if maxX <= 0 {
 			maxX = user.Heal
 		}
@@ -123,7 +124,7 @@ func (e *GameEngine) handlePriestChoiceInput(_ string, selectionIndex int, ctxDa
 		if target.Camp != user.Camp {
 			return true, fmt.Errorf("神圣契约目标必须是队友")
 		}
-		maxX := toIntContextValue(ctxData["max_x"])
+		maxX := runtimeutil.ToIntContextValue(ctxData["max_x"])
 		xValue := selectionIndex + 1
 		if xValue < 1 || xValue > maxX {
 			return true, fmt.Errorf("无效的X值")
@@ -163,14 +164,14 @@ func (e *GameEngine) handlePriestChoiceInput(_ string, selectionIndex int, ctxDa
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
-		modeOptions := parseStringSliceContextValue(ctxData["mode_options"])
+		modeOptions := runtimeutil.ParseStringSliceContextValue(ctxData["mode_options"])
 		if selectionIndex < 0 || selectionIndex >= len(modeOptions) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
 		mode := modeOptions[selectionIndex]
 		switch mode {
 		case "damage":
-			allTargets := parseStringSliceContextValue(ctxData["all_target_ids"])
+			allTargets := runtimeutil.ParseStringSliceContextValue(ctxData["all_target_ids"])
 			if len(allTargets) == 0 {
 				return true, fmt.Errorf("无可选伤害目标")
 			}
@@ -180,7 +181,7 @@ func (e *GameEngine) handlePriestChoiceInput(_ string, selectionIndex int, ctxDa
 			e.notifyInterruptPrompt()
 			return true, nil
 		case "heal":
-			allyTargets := parseStringSliceContextValue(ctxData["ally_target_ids"])
+			allyTargets := runtimeutil.ParseStringSliceContextValue(ctxData["ally_target_ids"])
 			if len(allyTargets) == 0 {
 				return true, fmt.Errorf("无可选队友目标")
 			}
@@ -199,7 +200,7 @@ func (e *GameEngine) handlePriestChoiceInput(_ string, selectionIndex int, ctxDa
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
-		targetIDs := parseStringSliceContextValue(ctxData["target_ids"])
+		targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
 		if selectionIndex < 0 || selectionIndex >= len(targetIDs) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}

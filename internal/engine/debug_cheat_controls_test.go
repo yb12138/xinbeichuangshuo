@@ -155,12 +155,12 @@ func TestDebugCheat_CardFiltersAndExclusive(t *testing.T) {
 	p1.Hand = nil
 	available := 0
 	for _, c := range game.State.Deck {
-		if c.MatchExclusive(char.Name, skill.Title) {
+		if c.MatchExclusive(char.ID, skill.Title) {
 			available++
 		}
 	}
 	if available == 0 {
-		t.Fatalf("precondition failed: no deck cards match [%s·%s]", char.Name, skill.Title)
+		t.Fatalf("precondition failed: no deck cards match [%s·%s]", char.ID, skill.Title)
 	}
 	beforeStock := len(game.State.Deck) + len(game.State.DiscardPile)
 	if err := game.handleCheat(model.PlayerAction{
@@ -176,7 +176,7 @@ func TestDebugCheat_CardFiltersAndExclusive(t *testing.T) {
 	if len(p1.Hand) != 1 {
 		t.Fatalf("expected 1 card after card_exclusive, got=%d", len(p1.Hand))
 	}
-	if !p1.Hand[0].MatchExclusive(char.Name, skill.Title) {
+	if !p1.Hand[0].MatchExclusive(char.ID, skill.Title) {
 		t.Fatalf("unexpected exclusive mark: char1=%s skill1=%s char2=%s skill2=%s",
 			p1.Hand[0].ExclusiveChar1, p1.Hand[0].ExclusiveSkill1, p1.Hand[0].ExclusiveChar2, p1.Hand[0].ExclusiveSkill2)
 	}

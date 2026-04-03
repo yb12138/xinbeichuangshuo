@@ -11,11 +11,10 @@ func (e *GameEngine) maybeTriggerBardRousingAtTurnStart(current *model.Player) b
 	if current == nil || !e.isBard(current) {
 		return false
 	}
-	ensurePlayerTokensMap(current)
-	if current.Tokens["bd_rousing_prompted_turn"] > 0 {
+	if current.TurnState.UsedSkillCounts["bd_rousing_prompted"] > 0 {
 		return false
 	}
-	current.Tokens["bd_rousing_prompted_turn"] = 1
+	current.TurnState.UsedSkillCounts["bd_rousing_prompted"] = 1
 	if e.bardEternalHolderID(current) == "" {
 		return false
 	}
@@ -40,11 +39,10 @@ func (e *GameEngine) maybeTriggerBardVictoryAtTurnEnd(current *model.Player) boo
 	if current == nil || !e.isBard(current) {
 		return false
 	}
-	ensurePlayerTokensMap(current)
-	if current.Tokens["bd_victory_prompted_turn"] > 0 {
+	if current.TurnState.UsedSkillCounts["bd_victory_prompted"] > 0 {
 		return false
 	}
-	current.Tokens["bd_victory_prompted_turn"] = 1
+	current.TurnState.UsedSkillCounts["bd_victory_prompted"] = 1
 	if e.bardEternalHolderID(current) == "" {
 		return false
 	}
@@ -63,6 +61,74 @@ func (e *GameEngine) maybeTriggerBardVictoryAtTurnEnd(current *model.Player) boo
 	})
 	e.Log(fmt.Sprintf("%s 在回合结束时满足 [胜利交响诗] 的发动条件", current.Name))
 	return true
+}
+
+func (e *GameEngine) resetTurnMagicDamageTracker() {
+	e.turnMagicDamageTargets = map[string]map[string]bool{}
+}
+
+// 吟游诗人：记录“当前回合吟游诗人自己已对哪些敌方角色造成过法术伤害”，并在满足条件时触发沉沦协奏曲。
+func (e *GameEngine) tryTriggerBardDescentAfterMagicDamage(pd *model.PendingDamage) bool {
+	if pd == nil || pd.Damage <= 0 {
+		return false
+	}
+	source := e.State.Players[pd.SourceID]
+	target := e.State.Players[pd.TargetID]
+	if source == nil || target == nil || source.Camp == target.Camp {
+		return false
+	}
+	if !e.isBard(source) || !source.IsActive {
+		return false
+	}
+
+	if e.turnMagicDamageTargets == nil {
+		e.resetTurnMagicDamageTracker()
+	}
+	if _, ok := e.turnMagicDamageTargets[source.ID]; !ok {
+		e.turnMagicDamageTargets[source.ID] = map[string]bool{}
+	}
+	e.turnMagicDamageTargets[source.ID][target.ID] = true
+	if len(e.turnMagicDamageTargets[source.ID]) < 2 {
+		return false
+	}
+	if hasBardEternalPrisonerForm(source) || source.TurnState.UsedSkillCounts["bd_descent"] > 0 {
+		return false
+	}
+	if bardMaxSameElementCount(source) < 2 {
+		return false
+	}
+	e.PushInterrupt(&model.Interrupt{
+		Type:     model.InterruptChoice,
+		PlayerID: source.ID,
+		Context: map[string]interface{}{
+			"choice_type": "bd_descent_element",
+			"user_id":     source.ID,
+		},
+	})
+	e.Log(fmt.Sprintf("%s 满足 [沉沦协奏曲] 触发条件，强制进入弃2张同系牌流程", source.Name))
+	return true
+}
+
+func (e *GameEngine) bardResponseContext(user *model.Player, stage string, resumePoint interface{}) *model.Context {
+	ctx := e.buildContext(user, nil, model.TriggerNone, &model.EventContext{
+		Type:     model.EventNone,
+		SourceID: user.ID,
+	})
+	ctx.Selections["bd_song_stage"] = stage
+	ctx.Selections["response_resume_phase"] = normalizeChoiceResumePoint(resumePoint)
+	return ctx
+}
+
+func (e *GameEngine) bardAlliesExcluding(camp model.Camp, excludeID string) []string {
+	var ids []string
+	for _, pid := range e.State.PlayerOrder {
+		p := e.State.Players[pid]
+		if p == nil || p.Camp != camp || p.ID == excludeID {
+			continue
+		}
+		ids = append(ids, p.ID)
+	}
+	return ids
 }
 
 func (e *GameEngine) resolveBardForbiddenVerseAfterSong(bard *model.Player, songName string) {

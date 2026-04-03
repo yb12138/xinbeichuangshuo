@@ -88,7 +88,7 @@ func (e *GameEngine) prepareSkillUse(playerID, skillID string, targetIDs []strin
 
 	skillDef := findCharacterSkill(player.Character, skillID)
 	if skillDef == nil {
-		return nil, fmt.Errorf("skill %s not found for character %s", skillID, player.Character.Name)
+		return nil, fmt.Errorf("skill %s not found for character %s", skillID, player.Character.ID)
 	}
 
 	policy := resolveSkillUsePolicy(skillID)
@@ -178,7 +178,7 @@ func (e *GameEngine) validateSkillDiscardSelection(use *skillUseRequest) error {
 		if use.skillDef.DiscardFate != "" && card.Faction != use.skillDef.DiscardFate {
 			return fmt.Errorf("弃牌 %s 不符合命格要求", card.Name)
 		}
-		if use.skillDef.RequireExclusive && !card.MatchExclusive(use.player.Character.Name, use.skillDef.Title) {
+		if use.skillDef.RequireExclusive && !card.MatchExclusive(use.player.Character.ID, use.skillDef.Title) {
 			return fmt.Errorf("弃牌 %s 不是该技能对应的独有牌", card.Name)
 		}
 		discardedCards = append(discardedCards, card)
@@ -192,15 +192,15 @@ func (e *GameEngine) validateSkillDiscardSelection(use *skillUseRequest) error {
 	}
 
 	if use.skillDef.RequireExclusive && use.skillDef.CostDiscards <= 0 && len(use.discardedCards) == 0 {
-		if use.player.Character == nil || use.player.Character.Name == "" {
+		if use.player.Character == nil || use.player.Character.ID == "" {
 			return fmt.Errorf("角色信息缺失，无法校验独有牌")
 		}
 		if use.policy.manualExclusiveCard {
-			if !use.player.HasExclusiveCard(use.player.Character.Name, use.skillDef.Title) {
+			if !use.player.HasExclusiveCard(use.player.Character.ID, use.skillDef.Title) {
 				return fmt.Errorf("未找到技能 [%s] 对应的专属技能卡", use.skillDef.Title)
 			}
 		} else {
-			card, ok := use.player.ConsumeExclusiveCard(use.player.Character.Name, use.skillDef.Title)
+			card, ok := use.player.ConsumeExclusiveCard(use.player.Character.ID, use.skillDef.Title)
 			if !ok {
 				return fmt.Errorf("未找到技能 [%s] 对应的专属技能卡", use.skillDef.Title)
 			}

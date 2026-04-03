@@ -86,7 +86,7 @@ func TestSealer_Skills(t *testing.T) {
 		p1.ExclusiveCards = []model.Card{
 			{
 				ID: "bind_card", Name: "五系束缚", Type: model.CardTypeMagic, Element: model.ElementLight,
-				ExclusiveChar1: "封印师", ExclusiveSkill1: "五系束缚",
+				ExclusiveChar1: "sealer", ExclusiveSkill1: "五系束缚",
 			},
 		}
 

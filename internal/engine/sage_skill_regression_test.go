@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"starcup-engine/internal/engine/runtimeutil"
 	"strings"
 	"testing"
 
@@ -100,7 +101,7 @@ func TestSageMagicRebound_SameElementDiscardChain(t *testing.T) {
 		t.Fatalf("expected choice_type sage_magic_rebound_target, got %q", got)
 	}
 	ctxData, _ := g.State.PendingInterrupt.Context.(map[string]interface{})
-	targetIDs := parseStringSliceContextValue(ctxData["target_ids"])
+	targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
 	if len(targetIDs) != 1 || targetIDs[0] != "p2" {
 		t.Fatalf("expected rebound target pool exclude self and keep only p2, got %v", targetIDs)
 	}
@@ -254,10 +255,10 @@ func TestSageWisdomCodex_ForceDiscardAfterHeavyMagicDamage(t *testing.T) {
 		t.Fatalf("expected forced discard interrupt, got %+v", g.State.PendingInterrupt)
 	}
 	data, _ := g.State.PendingInterrupt.Context.(map[string]interface{})
-	if discardCount := toIntContextValue(data["discard_count"]); discardCount != 1 {
+	if discardCount := runtimeutil.ToIntContextValue(data["discard_count"]); discardCount != 1 {
 		t.Fatalf("expected wisdom codex discard_count=1, got %d", discardCount)
 	}
-	if !toBoolContextValue(data["is_damage_resolution"]) {
+	if !runtimeutil.ToBoolContextValue(data["is_damage_resolution"]) {
 		t.Fatalf("expected wisdom codex discard stay in damage resolution")
 	}
 	if got := p1.Gem; got != 2 {
@@ -322,7 +323,7 @@ func TestSageArcaneCodex_TargetPoolExcludesSelfAndSelfDamageStillTriggersRebound
 		t.Fatalf("expected choice_type sage_arcane_target, got %q", got)
 	}
 	ctxData, _ := g.State.PendingInterrupt.Context.(map[string]interface{})
-	targetIDs := parseStringSliceContextValue(ctxData["target_ids"])
+	targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
 	if len(targetIDs) != 1 || targetIDs[0] != "p2" {
 		t.Fatalf("expected arcane target pool exclude self and keep only p2, got %v", targetIDs)
 	}

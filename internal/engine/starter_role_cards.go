@@ -7,23 +7,11 @@ import (
 )
 
 func ensureExclusiveStarterCard(player *model.Player, skillTitle string, buildCard func() model.Card) bool {
-	if player == nil || player.Character == nil || skillTitle == "" || buildCard == nil {
-		return false
-	}
-	charName := player.Character.Name
+	charID := player.Character.ID
 	for _, c := range player.ExclusiveCards {
-		if c.MatchExclusive(charName, skillTitle) {
+		if c.MatchExclusive(charID, skillTitle) {
 			return false
 		}
-	}
-	// 兼容旧状态：若该专属卡误在手牌区，迁移到专属卡区。
-	for i, c := range player.Hand {
-		if !c.MatchExclusive(charName, skillTitle) {
-			continue
-		}
-		player.Hand = append(player.Hand[:i], player.Hand[i+1:]...)
-		player.ExclusiveCards = append(player.ExclusiveCards, c)
-		return true
 	}
 	player.ExclusiveCards = append(player.ExclusiveCards, buildCard())
 	return true
@@ -38,7 +26,7 @@ func makeStarterFiveElementsBindCard(player *model.Player) model.Card {
 		Faction:         player.Character.Faction,
 		Damage:          0,
 		Description:     "封印师开局自带专属技能卡",
-		ExclusiveChar1:  player.Character.Name,
+		ExclusiveChar1:  player.Character.ID,
 		ExclusiveSkill1: "五系束缚",
 	}
 }
@@ -52,7 +40,7 @@ func makeStarterRoseCourtyardCard(player *model.Player) model.Card {
 		Faction:         player.Character.Faction,
 		Damage:          0,
 		Description:     "血色剑灵开局自带专属技能卡",
-		ExclusiveChar1:  player.Character.Name,
+		ExclusiveChar1:  player.Character.ID,
 		ExclusiveSkill1: "血蔷薇庭院",
 	}
 }
@@ -66,7 +54,7 @@ func makeStarterHeroTauntCard(player *model.Player) model.Card {
 		Faction:         player.Character.Faction,
 		Damage:          0,
 		Description:     "勇者开局自带专属技能卡",
-		ExclusiveChar1:  player.Character.Name,
+		ExclusiveChar1:  player.Character.ID,
 		ExclusiveSkill1: "挑衅",
 	}
 }
@@ -80,7 +68,7 @@ func makeStarterSoulLinkCard(player *model.Player) model.Card {
 		Faction:         player.Character.Faction,
 		Damage:          0,
 		Description:     "灵魂术士开局自带专属技能卡",
-		ExclusiveChar1:  player.Character.Name,
+		ExclusiveChar1:  player.Character.ID,
 		ExclusiveSkill1: "灵魂链接",
 	}
 }
@@ -94,7 +82,7 @@ func makeStarterBloodSharedLifeCard(player *model.Player) model.Card {
 		Faction:         player.Character.Faction,
 		Damage:          0,
 		Description:     "血之巫女开局自带专属技能卡",
-		ExclusiveChar1:  player.Character.Name,
+		ExclusiveChar1:  player.Character.ID,
 		ExclusiveSkill1: "同生共死",
 	}
 }
@@ -108,7 +96,7 @@ func makeStarterBardRousingRhapsodyCard(player *model.Player) model.Card {
 		Faction:         player.Character.Faction,
 		Damage:          0,
 		Description:     "吟游诗人开局自带专属技能卡",
-		ExclusiveChar1:  player.Character.Name,
+		ExclusiveChar1:  player.Character.ID,
 		ExclusiveSkill1: "激昂狂想曲",
 	}
 }
@@ -122,7 +110,7 @@ func makeStarterBardVictorySymphonyCard(player *model.Player) model.Card {
 		Faction:         player.Character.Faction,
 		Damage:          0,
 		Description:     "吟游诗人开局自带专属技能卡",
-		ExclusiveChar1:  player.Character.Name,
+		ExclusiveChar1:  player.Character.ID,
 		ExclusiveSkill1: "胜利交响诗",
 	}
 }
@@ -136,7 +124,7 @@ func makeStarterBardHopeFugueCard(player *model.Player) model.Card {
 		Faction:         player.Character.Faction,
 		Damage:          0,
 		Description:     "吟游诗人开局自带专属技能卡",
-		ExclusiveChar1:  player.Character.Name,
+		ExclusiveChar1:  player.Character.ID,
 		ExclusiveSkill1: "希望赋格曲",
 	}
 }

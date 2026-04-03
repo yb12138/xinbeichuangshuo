@@ -182,6 +182,7 @@ type AttackEventInfo struct {
 	CanBeResponded   bool   // 是否可被应战 (如: 暗灭=false)
 	ActionType       string // 行动类型 (Attack)
 	CounterInitiator string // 原始应战发起者 (空表示主动攻击)
+	InterceptTags    map[CombatInterceptTag]bool
 }
 
 // PromptType 定义用户交互类型
@@ -298,6 +299,10 @@ type IGameEngine interface {
 	GetPlayerOrientation(playerID string) CharacterOrientation
 	GetPlayerForm(playerID string) string
 	RefreshPlayerDerivedState(playerID string)
+	ApplySkillGateRule(playerID string, modifierID string, sourceSkillID string, skillIDs []string, lifetime RuleModifierLifetimeType)
+	ApplyNextAttackDamageRule(playerID string, modifierID string, sourceSkillID string, bonus int, lifetime RuleModifierLifetimeType)
+	ApplyNextAttackInterceptTagRule(playerID string, modifierID string, sourceSkillID string, tag CombatInterceptTag, lifetime RuleModifierLifetimeType)
+	IsSkillBlocked(playerID string, skillID string) bool
 
 	InflictDamage(sourceID, targetID string, amount int, damageType string)
 	RemoveFieldCard(targetID string, effect EffectType) bool
@@ -402,6 +407,7 @@ type PlayerTurnState struct {
 	AttackCount           int             `json:"attack_count"`             // 本回合攻击行动次数
 	LastActionType        string          `json:"last_action_type"`         // 记录刚刚结束的行动类型 (Attack/Magic)
 	SkipFusionCheck       bool            `json:"skip_fusion_check"`        // 跳过魔弹融合检查（已经询问过了）
+	SkillFlowState        map[string]int  `json:"skill_flow_state"`         // 多步技能中间态（如星尘/痛苦链接/冒险者提炼），回合重置时自动清空
 }
 
 // NewPlayerTurnState 初始化回合状态
@@ -411,11 +417,34 @@ func NewPlayerTurnState() PlayerTurnState {
 		HasProcessedTurnStart: false,
 		HasActed:              false,
 		UsedSkillCounts:       make(map[string]int),
+		SkillFlowState:        make(map[string]int),
 		PendingActions:        []ActionContext{}, // 初始化为空队列
 		CurrentExtraAction:    "",
 		CurrentExtraElement:   nil,
 		AttackCount:           0,
 	}
+}
+
+func AppendExtraAction(p *Player, source string, mustType string, mustElement ...Element) {
+	if p == nil {
+		return
+	}
+	ctx := ActionContext{
+		Source:   source,
+		MustType: mustType,
+	}
+	if len(mustElement) > 0 {
+		ctx.MustElement = append([]Element{}, mustElement...)
+	}
+	p.TurnState.PendingActions = append(p.TurnState.PendingActions, ctx)
+}
+
+func AppendAttackAction(p *Player, source string, mustElement ...Element) {
+	AppendExtraAction(p, source, "Attack", mustElement...)
+}
+
+func AppendMagicAction(p *Player, source string, mustElement ...Element) {
+	AppendExtraAction(p, source, "Magic", mustElement...)
 }
 
 // Contains 检查技能标签列表是否包含指定标签
@@ -433,8 +462,6 @@ func GetHandlerIDByEffect(effect EffectType) string {
 	switch effect {
 	case EffectShield:
 		return "holy_shield"
-	case EffectFiveElementsBind:
-		return "five_elements_bind"
 	case EffectSealWater:
 		return "water_seal"
 	case EffectSealFire:
@@ -445,10 +472,6 @@ func GetHandlerIDByEffect(effect EffectType) string {
 		return "wind_seal"
 	case EffectSealThunder:
 		return "thunder_seal"
-	case EffectPoison:
-		return "poison"
-	case EffectWeak:
-		return "weakness"
 
 	default:
 		return ""

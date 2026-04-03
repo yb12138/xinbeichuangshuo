@@ -165,7 +165,7 @@ func TestArcher_Skills(t *testing.T) {
 		p1.Hand = []model.Card{
 			{
 				ID: "ft_card", Name: "闪光陷阱", Type: model.CardTypeMagic, Element: model.ElementFire,
-				ExclusiveChar1: "神箭手", ExclusiveSkill1: "闪光陷阱",
+				ExclusiveChar1: "archer", ExclusiveSkill1: "闪光陷阱",
 			},
 		}
 		p2.Heal = 0

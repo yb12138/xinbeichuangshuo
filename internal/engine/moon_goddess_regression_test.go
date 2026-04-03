@@ -208,7 +208,7 @@ func TestMoonGoddessMoonCycle_OnlyOncePerTurn(t *testing.T) {
 	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
 		t.Fatalf("choose moon cycle heal target failed: %v", err)
 	}
-	if got := moon.Tokens["mg_moon_cycle_used_turn"]; got != 1 {
+	if got := moon.TurnState.UsedSkillCounts["mg_moon_cycle"]; got != 1 {
 		t.Fatalf("expected moon cycle used flag=1 in current turn, got %d", got)
 	}
 
@@ -313,10 +313,8 @@ func TestMoonGoddessMoonCycle_TurnStateLatchPreventsRepromptWhenTokenResets(t *t
 		t.Fatalf("choose moon cycle heal target failed: %v", err)
 	}
 
-	// 模拟异常链路将 token 意外清零，仍应被本回合 TurnState 门闩拦住。
-	moon.Tokens["mg_moon_cycle_used_turn"] = 0
 	if game.maybeTriggerMoonGoddessMoonCycleAtTurnEnd(moon) {
-		t.Fatalf("moon cycle should stay blocked by turnstate latch even if token resets unexpectedly")
+		t.Fatalf("moon cycle should stay blocked by turnstate latch")
 	}
 	if game.State.PendingInterrupt != nil {
 		if data, ok := game.State.PendingInterrupt.Context.(map[string]interface{}); ok {
@@ -582,10 +580,10 @@ func TestMoonGoddessBlasphemy_OncePerTurnAndResetNextTurn(t *testing.T) {
 	if err := game.handleWeakChoiceInput("p1", 1); err != nil {
 		t.Fatalf("resolve blasphemy target failed: %v", err)
 	}
-	if got := moon.Tokens["mg_blasphemy_used_turn"]; got != 1 {
+	if got := moon.TurnState.UsedSkillCounts["mg_blasphemy"]; got != 1 {
 		t.Fatalf("expected blasphemy used flag=1, got %d", got)
 	}
-	if got := moon.Tokens["mg_blasphemy_pending"]; got != 0 {
+	if got := moon.TurnState.SkillFlowState["mg_blasphemy_pending"]; got != 0 {
 		t.Fatalf("expected blasphemy pending reset to 0, got %d", got)
 	}
 	if game.tryQueueMoonGoddessBlasphemy(&pd) {
@@ -594,11 +592,11 @@ func TestMoonGoddessBlasphemy_OncePerTurnAndResetNextTurn(t *testing.T) {
 
 	moon.IsActive = true
 	game.State.CurrentTurn = 0
-	game.NextTurn()
-	if got := moon.Tokens["mg_blasphemy_used_turn"]; got != 0 {
-		t.Fatalf("expected blasphemy used flag reset on next turn, got %d", got)
+	game.NextTurn() // p2's turn — moon's TurnState not reset yet
+	game.NextTurn() // moon's turn — TurnState rebuilt via NewPlayerTurnState
+	if got := moon.TurnState.UsedSkillCounts["mg_blasphemy"]; got != 0 {
+		t.Fatalf("expected blasphemy used flag reset on own next turn, got %d", got)
 	}
-	game.NextTurn()
 	if !game.tryQueueMoonGoddessBlasphemy(&pd) {
 		t.Fatalf("expected blasphemy can queue again after turn reset")
 	}
@@ -649,8 +647,8 @@ func TestMoonGoddessBlasphemy_TargetLockedToDamagedEnemyAndSelfTurn(t *testing.T
 
 	moon.IsActive = false
 	game.State.CurrentTurn = 1
-	moon.Tokens["mg_blasphemy_used_turn"] = 0
-	moon.Tokens["mg_blasphemy_pending"] = 0
+	moon.TurnState.UsedSkillCounts["mg_blasphemy"] = 0
+	moon.TurnState.SkillFlowState["mg_blasphemy_pending"] = 0
 	moon.Heal = 1
 	game.State.PendingInterrupt = nil
 	game.State.PendingDamageQueue = nil
@@ -685,7 +683,7 @@ func TestMoonGoddessPaleMoon_Branch1GrantsExtraTurn(t *testing.T) {
 	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
 		t.Fatalf("choose pale moon branch1 failed: %v", err)
 	}
-	if got := moon.Tokens["mg_next_attack_no_counter"]; got != 1 {
+	if got := moon.TurnState.UsedSkillCounts["mg_next_attack_no_counter"]; got != 1 {
 		t.Fatalf("expected next attack no-counter token=1, got %d", got)
 	}
 	if got := moon.Tokens["mg_extra_turn_pending"]; got != 1 {

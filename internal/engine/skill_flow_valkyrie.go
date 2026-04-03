@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"starcup-engine/internal/engine/runtimeutil"
 	"strconv"
 
 	"starcup-engine/internal/model"
@@ -10,7 +11,7 @@ import (
 func (e *GameEngine) buildValkyrieChoicePrompt(choiceType, playerID string, player *model.Player, data map[string]interface{}) *model.Prompt {
 	switch choiceType {
 	case "valkyrie_military_glory_mode":
-		maxX := toIntContextValue(data["max_x"])
+		maxX := runtimeutil.ToIntContextValue(data["max_x"])
 		options := []model.PromptOption{
 			{ID: "0", Label: "你+1治疗并脱离英灵形态"},
 		}
@@ -30,7 +31,7 @@ func (e *GameEngine) buildValkyrieChoicePrompt(choiceType, playerID string, play
 		}
 
 	case "valkyrie_military_glory_x":
-		maxX := toIntContextValue(data["max_x"])
+		maxX := runtimeutil.ToIntContextValue(data["max_x"])
 		options := make([]model.PromptOption, 0, maxX)
 		for x := 1; x <= maxX; x++ {
 			options = append(options, model.PromptOption{
@@ -48,7 +49,7 @@ func (e *GameEngine) buildValkyrieChoicePrompt(choiceType, playerID string, play
 		}
 
 	case "valkyrie_military_glory_target":
-		targetIDs := parseStringSliceContextValue(data["target_ids"])
+		targetIDs := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
 		options := make([]model.PromptOption, 0, len(targetIDs))
 		for _, targetID := range targetIDs {
 			if target := e.State.Players[targetID]; target != nil {
@@ -130,7 +131,7 @@ func (e *GameEngine) handleValkyrieChoiceInput(_ string, selectionIndex int, ctx
 			return true, nil
 		}
 		if selectionIndex == 1 {
-			maxX := toIntContextValue(ctxData["max_x"])
+			maxX := runtimeutil.ToIntContextValue(ctxData["max_x"])
 			if maxX <= 0 {
 				return true, fmt.Errorf("当前阵营无可用能量")
 			}
@@ -148,7 +149,7 @@ func (e *GameEngine) handleValkyrieChoiceInput(_ string, selectionIndex int, ctx
 	case "valkyrie_military_glory_x":
 		userID, _ := ctxData["user_id"].(string)
 		camp, _ := ctxData["camp"].(string)
-		maxX := toIntContextValue(ctxData["max_x"])
+		maxX := runtimeutil.ToIntContextValue(ctxData["max_x"])
 		if maxX <= 0 {
 			return true, fmt.Errorf("当前阵营无可用能量")
 		}
@@ -179,7 +180,7 @@ func (e *GameEngine) handleValkyrieChoiceInput(_ string, selectionIndex int, ctx
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
-		targetIDs := parseStringSliceContextValue(ctxData["target_ids"])
+		targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
 		if selectionIndex < 0 || selectionIndex >= len(targetIDs) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
@@ -188,7 +189,7 @@ func (e *GameEngine) handleValkyrieChoiceInput(_ string, selectionIndex int, ctx
 		if target == nil {
 			return true, fmt.Errorf("目标不存在")
 		}
-		x := toIntContextValue(ctxData["x"])
+		x := runtimeutil.ToIntContextValue(ctxData["x"])
 		if x <= 0 || x >= 3 {
 			return true, fmt.Errorf("无效的X值")
 		}
@@ -252,7 +253,7 @@ func (e *GameEngine) handleValkyrieChoiceInput(_ string, selectionIndex int, ctx
 			return true, fmt.Errorf("玩家不存在")
 		}
 		magicIndices := parseIntSliceContextValue(ctxData["magic_indices"])
-		cardIdx, ok := resolveSelectionToCandidate(selectionIndex, magicIndices)
+		cardIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, magicIndices)
 		if !ok {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}

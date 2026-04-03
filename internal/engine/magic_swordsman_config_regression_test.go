@@ -57,7 +57,6 @@ func TestMagicSwordsmanShadowGather_ReleasesBeforeNextActionSelectionPrompt(t *t
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
 	enterMagicSwordsmanShadowForm(p1)
-	p1.Tokens["ms_shadow_release_pending"] = 1
 	p1.Hand = []model.Card{
 		{ID: "holy", Name: "圣光", Type: model.CardTypeMagic, Element: model.ElementLight},
 	}
@@ -67,8 +66,8 @@ func TestMagicSwordsmanShadowGather_ReleasesBeforeNextActionSelectionPrompt(t *t
 
 	g.Drive()
 
-	if p1.Form != "" || p1.Tokens["ms_shadow_release_pending"] != 0 {
-		t.Fatalf("expected shadow form released before action selection, got form=%q pending=%d", p1.Form, p1.Tokens["ms_shadow_release_pending"])
+	if p1.Form != "" {
+		t.Fatalf("expected shadow form released before action selection, got form=%q", p1.Form)
 	}
 	if obs.lastPrompt == nil {
 		t.Fatalf("expected action selection prompt")
@@ -154,8 +153,8 @@ func TestMagicSwordsmanShadowMeteor_TargetsEnemyOnlyAndUsesUnifiedSkillFlow(t *t
 		t.Fatalf("confirm shadow meteor release failed: %v", err)
 	}
 
-	if p1.Form != "" || p1.Tokens["ms_shadow_release_pending"] != 0 {
-		t.Fatalf("expected release confirm clear shadow form, got form=%q pending=%d", p1.Form, p1.Tokens["ms_shadow_release_pending"])
+	if p1.Form != "" {
+		t.Fatalf("expected release confirm clear shadow form, got form=%q", p1.Form)
 	}
 	if p1.Gem != 1 {
 		t.Fatalf("expected gain 1 gem after release confirm, got %d", p1.Gem)

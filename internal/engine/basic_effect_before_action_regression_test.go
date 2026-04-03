@@ -65,6 +65,71 @@ func TestBuffResolve_PoisonResolvesBeforeWeaknessChoice(t *testing.T) {
 	}
 }
 
+func TestBeforeActionHooks_PoisonEntersDamageResolutionBeforeWeakness(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "Target", "angel", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := game.State.Players["p1"]
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.AddFieldCard(&model.FieldCard{
+		Card:     model.Card{ID: "weak-1", Name: "虚弱", Type: model.CardTypeMagic, Element: model.ElementWind},
+		OwnerID:  p1.ID,
+		SourceID: "p2",
+		Mode:     model.FieldEffect,
+		Effect:   model.EffectWeak,
+		Trigger:  model.EffectTriggerOnBeforeAction,
+	})
+	p1.AddFieldCard(&model.FieldCard{
+		Card:     model.Card{ID: "poison-1", Name: "中毒", Type: model.CardTypeMagic, Element: model.ElementEarth},
+		OwnerID:  p1.ID,
+		SourceID: "p2",
+		Mode:     model.FieldEffect,
+		Effect:   model.EffectPoison,
+		Trigger:  model.EffectTriggerOnBeforeAction,
+	})
+
+	if interrupted := game.runPlayerPhaseHooks(p1, beforeActionPhaseHooks); !interrupted {
+		t.Fatal("expected beforeAction hooks to stop on poison damage resolution")
+	}
+	if game.State.CombatStage != model.CombatStageCalcDamage {
+		t.Fatalf("expected poison hook to enter damage resolution, got combat stage %s", game.State.CombatStage)
+	}
+	if game.State.ReturnTurnStage != model.TurnStageBeforeAction {
+		t.Fatalf("expected poison hook to return to before action, got %s", game.State.ReturnTurnStage)
+	}
+	if len(game.State.PendingDamageQueue) != 1 {
+		t.Fatalf("expected one pending poison damage, got %d", len(game.State.PendingDamageQueue))
+	}
+	if got := countFieldEffect(p1, model.EffectPoison); got != 0 {
+		t.Fatalf("poison should be removed immediately after hook trigger, got %d", got)
+	}
+	if got := countFieldEffect(p1, model.EffectWeak); got != 1 {
+		t.Fatalf("weakness should remain after poison hook, got %d", got)
+	}
+	if game.State.PendingInterrupt != nil {
+		t.Fatalf("expected no weakness interrupt before poison resolves, got %+v", game.State.PendingInterrupt)
+	}
+
+	game.processPendingDamages()
+	if game.State.PendingInterrupt != nil {
+		t.Fatalf("expected poison damage to resolve without interrupt here, got %+v", game.State.PendingInterrupt)
+	}
+	if !game.restoreReturnPoint() {
+		t.Fatal("expected to restore before-action return point after poison resolution")
+	}
+	if interrupted := game.runPlayerPhaseHooks(p1, beforeActionPhaseHooks); !interrupted {
+		t.Fatal("expected weakness hook to stop with choice interrupt")
+	}
+	if got := choiceTypeOfInterrupt(game.State.PendingInterrupt); got != "weak" {
+		t.Fatalf("expected weakness interrupt after poison resolution, got %q", got)
+	}
+}
+
 func TestWeaknessPrompt_OrderMatchesConfig(t *testing.T) {
 	game := NewGameEngine(noopObserver{})
 	if err := game.AddPlayer("p1", "Target", "angel", model.RedCamp); err != nil {

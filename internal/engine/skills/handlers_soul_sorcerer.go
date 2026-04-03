@@ -272,7 +272,7 @@ func (h *SoulSorcererSoulLinkHandler) CanUse(ctx *model.Context) bool {
 	if ctx.User.Character == nil {
 		return false
 	}
-	return ctx.User.HasExclusiveCard(ctx.User.Character.Name, "灵魂链接")
+	return ctx.User.HasExclusiveCard(ctx.User.Character.ID, "灵魂链接")
 }
 
 func (h *SoulSorcererSoulLinkHandler) Execute(ctx *model.Context) error {

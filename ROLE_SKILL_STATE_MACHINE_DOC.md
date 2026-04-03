@@ -139,7 +139,7 @@ type EffectNode struct {
 
 | 技能 | 类型 | 主回合阶段映射 | 战斗阶段映射 | Timing钩子映射 | EffectNodes建议 | 规则摘要 |
 |:---|:---|:---|:---|:---|:---|:---|
-| 法术激荡 | 响应技 | `ActionEnd` | `CombatHitCheck/CombatDraw（依技能插入点）` | `TimingOnActionEnd` | `EffectAddAction` | （［法术行动］结束时发动）额外+1［攻击行动］。 |
+| 法术激荡 | 响应技 | `ActionEnd` | `CombatHitCheck/CombatDraw（依技能插入点）` | `TimingOnActionEnd` | `model.AppendExtraAction` | （［法术行动］结束时发动）额外+1［攻击行动］。 |
 | 封印破碎 | 主动技 | `ActionExecution` | `不固定/非战斗专属` | `TimingActive` | `需按 Handler 逻辑定制` | ［水晶］将场上任意一张基础效果牌收入自己手中。 |
 | 五系束缚 | 主动技 | `ActionExecution` | `不固定/非战斗专属` | `TimingActive` | `EffectDrawCard + EffectPlaceStatus` | ［水晶］使用开局自带的五系束缚专属技能卡，将其放置于目标对手面前，该对手跳过其下个行动阶段。在其下个行动阶段开始前他可以选择摸（2+X）张牌来取消五系束缚的效果。X为场上封印的数量，X最高为2。不论效果是否发动，触发后移除此牌。 |
 | 水之封印 | 主动技 | `ActionExecution` | `不固定/非战斗专属` | `TimingActive` | `EffectDamage + EffectPlaceStatus` | （将水之封印放置于目标对手面前）该对手获得（直到他从手中打出或展示出水系牌时强制触发）对他造成3点法术伤害③，触发后移除此牌。 |
@@ -154,8 +154,8 @@ type EffectNode struct {
 |:---|:---|:---|:---|:---|:---|:---|
 | 风怒追击 | 响应技 | `ActionEnd` | `CombatHitCheck/CombatDraw（依技能插入点）` | `TimingOnActionEnd` | `需按 Handler 逻辑定制` | ［回合限定］（［攻击行动］结束时发动）额外+1风系［攻击行动］。 |
 | 圣剑 | 被动技 | `ActionExecution（战斗中）` | `CombatDeclare（①）` | `TimingOnAttackDeclared` | `EffectDrawCard + EffectDiscard` | 若你的主动攻击为你本次行动阶段的第三次［攻击行动］，则此攻击强制命中。本次［攻击行动］结束后，你摸X张牌，弃X张牌（X<4）。 |
-| 剑影 | 响应技 | `ActionEnd` | `CombatHitCheck/CombatDraw（依技能插入点）` | `TimingOnActionEnd` | `EffectAddAction` | ［回合限定］［蓝水晶］（［攻击行动］结束时发动）额外+1［攻击行动］。 |
-| 疾风技 | 响应技 | `ActionExecution（战斗中）` | `CombatDeclare（①）` | `TimingOnAttackDeclared` | `EffectAddAction` | （作为主动攻击打出时发动）额外+1［攻击行动］。 |
+| 剑影 | 响应技 | `ActionEnd` | `CombatHitCheck/CombatDraw（依技能插入点）` | `TimingOnActionEnd` | `model.AppendExtraAction` | ［回合限定］［蓝水晶］（［攻击行动］结束时发动）额外+1［攻击行动］。 |
+| 疾风技 | 响应技 | `ActionExecution（战斗中）` | `CombatDeclare（①）` | `TimingOnAttackDeclared` | `model.AppendExtraAction` | （作为主动攻击打出时发动）额外+1［攻击行动］。 |
 | 烈风技 | 响应技 | `ActionExecution（战斗中）` | `CombatDeclare（①）` | `TimingOnAttackDeclared` | `EffectPlaceStatus` | （攻击目标拥有圣盾时发动）无视对手圣盾的效果，且此攻击对手无法应战。 |
 
 ### 5.5 神箭手（`archer`）
@@ -164,7 +164,7 @@ type EffectNode struct {
 |:---|:---|:---|:---|:---|:---|:---|
 | 贯穿射击 | 响应技 | `ActionExecution（战斗中）` | `CombatHitCheck（②）` | `TimingOnHitCheck` | `EffectAttackDamage / EffectDamage + EffectDiscard` | （主动攻击未命中时发动②，弃1张法术牌［展示］）对你所攻击的目标造成2点法术伤害③。 |
 | 闪电箭 | 被动技 | `ActionExecution（战斗中）` | `CombatDeclare（①）` | `TimingOnAttackDeclared` | `需按 Handler 逻辑定制` | 你的雷系攻击对手无法应战。 |
-| 狙击 | 主动技 | `ActionExecution` | `不固定/非战斗专属` | `TimingActive` | `EffectAddAction` | ［水晶］目标角色手牌补到5张［强制］，额外+1［攻击行动］。 |
+| 狙击 | 主动技 | `ActionExecution` | `不固定/非战斗专属` | `TimingActive` | `model.AppendExtraAction` | ［水晶］目标角色手牌补到5张［强制］，额外+1［攻击行动］。 |
 | 精准射击 | 响应技 | `ActionExecution（战斗中）` | `CombatDeclare（①）` | `TimingOnAttackDeclared` | `EffectAttackDamage / EffectDamage` | 此攻击强制命中，但本次攻击伤害-1。 |
 | 闪光陷阱 | 主动技 | `ActionExecution` | `不固定/非战斗专属` | `TimingActive` | `EffectDamage` | 对目标角色造成2点法术伤害③。 |
 
@@ -183,7 +183,7 @@ type EffectNode struct {
 | 冰霜祷言 | 被动技 | `ActionExecution（战斗中）` | `不固定/非战斗专属` | `TimingOnSkillExecuted/TimingOnMagicDeclared（依上下文）` | `EffectHeal` | （每当你打出或展示水系牌或圣光时发动）目标角色+1［治疗］。 |
 | 治愈之光 | 主动技 | `ActionExecution` | `不固定/非战斗专属` | `TimingActive` | `EffectHeal` | 指定最多3名角色各+1［治疗］。 |
 | 治疗术 | 主动技 | `ActionExecution` | `不固定/非战斗专属` | `TimingActive` | `EffectHeal` | 目标角色+2［治疗］。 |
-| 圣疗 | 主动技 | `ActionExecution` | `不固定/非战斗专属` | `TimingActive` | `EffectHeal + EffectAddAction` | ［回合限定］［水晶］任意分配3点［治疗］给1~3名角色，额外+1［攻击行动］或［法术行动］。 |
+| 圣疗 | 主动技 | `ActionExecution` | `不固定/非战斗专属` | `TimingActive` | `EffectHeal + model.AppendExtraAction` | ［回合限定］［水晶］任意分配3点［治疗］给1~3名角色，额外+1［攻击行动］或［法术行动］。 |
 | 怜悯 | 启动技 | `ActionStart` | `不固定/非战斗专属` | `TimingStartup` | `需按 Handler 逻辑定制` | ［持续］［宝石］［横置］，你的手牌上限恒定为7［恒定］，你+1［水晶］。 |
 
 ### 5.8 魔法少女（`magical_girl`）
@@ -199,7 +199,7 @@ type EffectNode struct {
 
 | 技能 | 类型 | 主回合阶段映射 | 战斗阶段映射 | Timing钩子映射 | EffectNodes建议 | 规则摘要 |
 |:---|:---|:---|:---|:---|:---|:---|
-| 神圣追击 | 响应技 | `ActionEnd` | `CombatHitCheck/CombatDraw（依技能插入点）` | `TimingOnActionEnd` | `EffectHeal + EffectAddAction` | 攻击/法术行动结束时，若你有治疗，可移除1点治疗，额外+1攻击行动。 |
+| 神圣追击 | 响应技 | `ActionEnd` | `CombatHitCheck/CombatDraw（依技能插入点）` | `TimingOnActionEnd` | `EffectHeal + model.AppendExtraAction` | 攻击/法术行动结束时，若你有治疗，可移除1点治疗，额外+1攻击行动。 |
 | 秩序之印 | 主动技 | `ActionExecution` | `不固定/非战斗专属` | `TimingActive` | `EffectHeal + EffectDrawCard` | 摸2张牌，然后自身+1治疗和+1蓝水晶。 |
 | 和平行者 | 被动技 | `ActionExecution（战斗中）` | `CombatDeclare（①）` | `TimingOnAttackDeclared` | `需按 Handler 逻辑定制` | 主动攻击时若处于英灵形态，自动脱离英灵形态。 |
 | 军神威光 | 启动技 | `ActionStart` | `不固定/非战斗专属` | `TimingStartup` | `EffectHeal` | （回合开始时，若你处于［英灵形态］）选择以下1项发动：●你+1［治疗］，［转正］脱离［英灵型态］。●（移除我方战绩区X个星石，X<3）目标角色+X［治疗］。 |
@@ -210,11 +210,11 @@ type EffectNode struct {
 | 技能 | 类型 | 主回合阶段映射 | 战斗阶段映射 | Timing钩子映射 | EffectNodes建议 | 规则摘要 |
 |:---|:---|:---|:---|:---|:---|:---|
 | 元素吸收 | 被动技 | `ActionExecution/CombatDraw（依事件来源）` | `CombatDraw（⑥）` | `TimingOnDamageTaken` | `EffectDamage + EffectAddToken` | 你造成法术伤害后，元素+1（上限3）。元素点燃造成的伤害不触发。 |
-| 元素点燃 | 主动技 | `ActionExecution` | `不固定/非战斗专属` | `TimingActive` | `EffectDamage + EffectAddToken + EffectAddAction` | 移除3点元素，对任意角色造成2点法术伤害，并额外+1法术行动。 |
+| 元素点燃 | 主动技 | `ActionExecution` | `不固定/非战斗专属` | `TimingActive` | `EffectDamage + EffectAddToken + model.AppendExtraAction` | 移除3点元素，对任意角色造成2点法术伤害，并额外+1法术行动。 |
 | 雷击 | 主动技 | `ActionExecution` | `不固定/非战斗专属` | `TimingActive` | `EffectDamage + EffectDiscard` | 独有技法术：对任意角色造成1点法术伤害；可额外弃1张雷系牌使伤害+1；阵营+1宝石。 |
 | 冰冻 | 主动技 | `ActionExecution` | `不固定/非战斗专属` | `TimingActive` | `EffectDamage + EffectHeal + EffectDiscard` | 独有技法术：选择1名角色受1点法术伤害，再选择1名角色+1治疗；可额外弃1张水系牌使伤害+1。 |
-| 风刃 | 主动技 | `ActionExecution` | `不固定/非战斗专属` | `TimingActive` | `EffectAttackDamage / EffectDamage + EffectDiscard + EffectAddAction` | 独有技法术：对任意角色造成1点法术伤害，额外+1攻击行动；可额外弃1张风系牌使伤害+1。 |
-| 陨石 | 主动技 | `ActionExecution` | `不固定/非战斗专属` | `TimingActive` | `EffectDamage + EffectDiscard + EffectAddAction` | 独有技法术：对任意角色造成1点法术伤害，额外+1法术行动；可额外弃1张地系牌使伤害+1。 |
+| 风刃 | 主动技 | `ActionExecution` | `不固定/非战斗专属` | `TimingActive` | `EffectAttackDamage / EffectDamage + EffectDiscard + model.AppendExtraAction` | 独有技法术：对任意角色造成1点法术伤害，额外+1攻击行动；可额外弃1张风系牌使伤害+1。 |
+| 陨石 | 主动技 | `ActionExecution` | `不固定/非战斗专属` | `TimingActive` | `EffectDamage + EffectDiscard + model.AppendExtraAction` | 独有技法术：对任意角色造成1点法术伤害，额外+1法术行动；可额外弃1张地系牌使伤害+1。 |
 | 火球 | 主动技 | `ActionExecution` | `不固定/非战斗专属` | `TimingActive` | `EffectDamage + EffectDiscard` | 独有技法术：对任意角色造成2点法术伤害；可额外弃1张火系牌使伤害+1。 |
 | 月光 | 主动技 | `ActionExecution` | `不固定/非战斗专属` | `TimingActive` | `EffectDamage` | 手上有红宝石时可发动，对任意角色造成（X+1）点法术伤害，X为发动后剩余能量数。 |
 
@@ -237,19 +237,19 @@ type EffectNode struct {
 | 强运 | 被动技 | `ActionExecution（战斗中）` | `CombatDeclare（①）` | `TimingOnAttackDeclared` | `需按 Handler 逻辑定制` | 发动欺诈后，+1蓝水晶。 |
 | 地下法则 | 响应技 | `ActionEnd` | `CombatHitCheck/CombatDraw（依技能插入点）` | `TimingOnActionEnd` | `需按 Handler 逻辑定制` | 购买行动后触发，战绩区+2红宝石。 |
 | 冒险者天堂 | 响应技 | `ActionEnd` | `CombatHitCheck/CombatDraw（依技能插入点）` | `TimingOnActionEnd` | `需按 Handler 逻辑定制` | 你执行提炼时，可将本次提炼出的［宝石］和［水晶］全部交给1名队友（不能拆分），然后若你有能量则移除你的1［能量］。 |
-| 偷天换日 | 主动技 | `ActionExecution` | `不固定/非战斗专属` | `TimingActive` | `EffectAddAction` | ［回合限定］［水晶］二选一：转移对方战绩区1个［宝石］到我方；或将我方战绩区所有［水晶］转为［宝石］。随后额外+1［攻击行动］或［法术行动］。 |
+| 偷天换日 | 主动技 | `ActionExecution` | `不固定/非战斗专属` | `TimingActive` | `model.AppendExtraAction` | ［回合限定］［水晶］二选一：转移对方战绩区1个［宝石］到我方；或将我方战绩区所有［水晶］转为［宝石］。随后额外+1［攻击行动］或［法术行动］。 |
 
 ### 5.13 圣枪骑士（`holy_lancer`）
 
 | 技能 | 类型 | 主回合阶段映射 | 战斗阶段映射 | Timing钩子映射 | EffectNodes建议 | 规则摘要 |
 |:---|:---|:---|:---|:---|:---|:---|
 | 神圣启示 | 被动技 | `TurnStart` | `不固定/非战斗专属` | `TimingOnTurnStart` | `EffectHeal` | 当我方星杯数不小于对方时，治疗上限+1。 |
-| 辉耀 | 主动技 | `ActionExecution` | `不固定/非战斗专属` | `TimingActive` | `EffectHeal + EffectDiscard + EffectAddAction` | 弃1张水系牌，全场各+1治疗，同时额外+1攻击行动。 |
-| 惩戒 | 主动技 | `ActionExecution` | `不固定/非战斗专属` | `TimingActive` | `EffectHeal + EffectDiscard + EffectAddAction` | 弃1张法术牌，将任意其他角色1点治疗转移给你，并额外+1攻击行动。 |
+| 辉耀 | 主动技 | `ActionExecution` | `不固定/非战斗专属` | `TimingActive` | `EffectHeal + EffectDiscard + model.AppendExtraAction` | 弃1张水系牌，全场各+1治疗，同时额外+1攻击行动。 |
+| 惩戒 | 主动技 | `ActionExecution` | `不固定/非战斗专属` | `TimingActive` | `EffectHeal + EffectDiscard + model.AppendExtraAction` | 弃1张法术牌，将任意其他角色1点治疗转移给你，并额外+1攻击行动。 |
 | 圣击 | 响应技 | `ActionExecution（战斗中）` | `CombatHitCheck（②）` | `TimingOnHitCheck` | `EffectHeal` | 攻击命中后，若本次未发动天枪/地枪，则+1治疗。 |
 | 天枪 | 响应技 | `ActionExecution（战斗中）` | `CombatDeclare（①）` | `TimingOnAttackDeclared` | `EffectHeal` | 主动攻击前，若治疗≥2且本回合未发动圣光祈愈，可移除2治疗使本次攻击不可应战。 |
 | 地枪 | 响应技 | `ActionExecution（战斗中）` | `CombatHitCheck（②）` | `TimingOnHitCheck` | `EffectAttackDamage / EffectDamage + EffectHeal` | （主动攻击命中后发动②）移除你的X点［治疗］，本次攻击伤害额外+X，X最高为4；不能和［圣击］同时发动。 |
-| 圣光祈愈 | 主动技 | `ActionExecution` | `不固定/非战斗专属` | `TimingActive` | `EffectHeal + EffectAddAction` | 有宝石时可发动：+2治疗（不受上限但总治疗封顶5），并额外+1攻击行动。 |
+| 圣光祈愈 | 主动技 | `ActionExecution` | `不固定/非战斗专属` | `TimingActive` | `EffectHeal + model.AppendExtraAction` | 有宝石时可发动：+2治疗（不受上限但总治疗封顶5），并额外+1攻击行动。 |
 
 ### 5.14 精灵射手（`elf_archer`）
 
@@ -286,7 +286,7 @@ type EffectNode struct {
 | 技能 | 类型 | 主回合阶段映射 | 战斗阶段映射 | Timing钩子映射 | EffectNodes建议 | 规则摘要 |
 |:---|:---|:---|:---|:---|:---|:---|
 | 血色荆棘 | 被动技 | `ActionExecution（战斗中）` | `CombatHitCheck（②）` | `TimingOnHitCheck` | `需按 Handler 逻辑定制` | 攻击命中时自动+1鲜血（上限3）。 |
-| 赤色一闪 | 响应技 | `ActionEnd` | `CombatHitCheck/CombatDraw（依技能插入点）` | `TimingOnActionEnd` | `EffectAttackDamage / EffectDamage + EffectAddAction` | 攻击行动结束后若有鲜血，可移除1鲜血并对自己造成2点法术伤害，额外+1攻击行动。 |
+| 赤色一闪 | 响应技 | `ActionEnd` | `CombatHitCheck/CombatDraw（依技能插入点）` | `TimingOnActionEnd` | `EffectAttackDamage / EffectDamage + model.AppendExtraAction` | 攻击行动结束后若有鲜血，可移除1鲜血并对自己造成2点法术伤害，额外+1攻击行动。 |
 | 血染蔷薇 | 主动技 | `ActionExecution` | `不固定/非战斗专属` | `TimingActive` | `EffectDamage + EffectHeal` | 移除2鲜血，移除任意角色2点治疗，并将我方1蓝水晶翻为1红宝石；若庭院在场，额外对所有人各1点法术伤害。 |
 | 血气屏障 | 响应技 | `ActionExecution/CombatDraw（依事件来源）` | `CombatDraw（⑥）` | `TimingOnDamageTaken` | `EffectDamage` | 受到法术伤害时可移除1鲜血使本次伤害-1，然后可对任意对手造成1点法术伤害。 |
 | 血蔷薇庭院 | 被动技 | `ActionExecution` | `不固定/非战斗专属` | `TimingActive（或引擎内部派发）` | `EffectDamage + EffectHeal + EffectPlaceStatus` | 专属卡在场时，所有人的治疗均不能用于抵挡伤害；你的回合结束时移回手牌区。 |
@@ -301,8 +301,8 @@ type EffectNode struct {
 | 光辉信仰 | 主动技 | `ActionExecution` | `不固定/非战斗专属` | `TimingActive` | `EffectHeal + EffectDiscard` | 祈祷形态下可发动：移除1祈祷符文，弃2张牌，我方战绩区+1宝石（若未满），并使1名队友+1治疗。 |
 | 黑暗诅咒 | 主动技 | `ActionExecution` | `不固定/非战斗专属` | `TimingActive` | `EffectDamage` | 祈祷形态下可发动：移除1祈祷符文，对任意1名角色造成2点法术伤害，再对自己造成2点法术伤害。 |
 | 威力赐福 | 主动技 | `ActionExecution` | `不固定/非战斗专属` | `TimingActive` | `EffectAttackDamage / EffectDamage + EffectPlaceStatus` | 将独有牌当法术牌打出并放置于1名队友面前；该队友攻击命中后可移除此牌，本次伤害+2。 |
-| 迅捷赐福 | 主动技 | `ActionExecution` | `不固定/非战斗专属` | `TimingActive` | `EffectAddAction + EffectPlaceStatus` | 将独有牌当法术牌打出并放置于1名队友面前；该队友攻击/法术行动结束后可移除此牌，额外+1攻击行动。 |
-| 法力潮汐 | 响应技 | `ActionEnd` | `CombatHitCheck/CombatDraw（依技能插入点）` | `TimingOnActionEnd` | `EffectAddAction` | 回合限定：法术行动结束后可消耗1蓝水晶，额外+1法术行动。 |
+| 迅捷赐福 | 主动技 | `ActionExecution` | `不固定/非战斗专属` | `TimingActive` | `model.AppendExtraAction + EffectPlaceStatus` | 将独有牌当法术牌打出并放置于1名队友面前；该队友攻击/法术行动结束后可移除此牌，额外+1攻击行动。 |
+| 法力潮汐 | 响应技 | `ActionEnd` | `CombatHitCheck/CombatDraw（依技能插入点）` | `TimingOnActionEnd` | `model.AppendExtraAction` | 回合限定：法术行动结束后可消耗1蓝水晶，额外+1法术行动。 |
 
 ### 5.19 红莲骑士（`crimson_knight`）
 
@@ -342,7 +342,7 @@ type EffectNode struct {
 
 | 技能 | 类型 | 主回合阶段映射 | 战斗阶段映射 | Timing钩子映射 | EffectNodes建议 | 规则摘要 |
 |:---|:---|:---|:---|:---|:---|:---|
-| 式神降临 | 主动技 | `ActionExecution` | `不固定/非战斗专属` | `TimingActive` | `EffectDiscard + EffectAddAction` | ［持续］（弃2张命格相同的手牌［展示］）［横置］转为［式神形态］，你+1［鬼火］，额外+1［攻击行动］。 |
+| 式神降临 | 主动技 | `ActionExecution` | `不固定/非战斗专属` | `TimingActive` | `EffectDiscard + model.AppendExtraAction` | ［持续］（弃2张命格相同的手牌［展示］）［横置］转为［式神形态］，你+1［鬼火］，额外+1［攻击行动］。 |
 | 阴阳转换 | 响应技 | `ActionExecution（战斗中）` | `CombatDeclare（①）` | `TimingOnAttackDeclared` | `EffectAttackDamage / EffectDamage` | 你应战时可展示1张与来袭攻击同命格的攻击牌，视为你应战此次攻击并将其系别转为该牌系别；你+1［鬼火］。若处于式神形态则转正脱离，本次攻击伤害=X（X为你的鬼火数）。 |
 | 式神转换 | 响应技 | `ActionExecution（战斗中）` | `CombatDeclare（①）` | `TimingOnAttackDeclared` | `EffectDrawCard` | 当阴阳转换生效且你处于式神形态时：你强制摸1张牌并+1［鬼火］，随后脱离式神形态。 |
 | 黑暗祭礼 | 被动技 | `ActionEnd` | `不固定/非战斗专属` | `TimingOnActionEnd` | `EffectDamage` | 回合结束时若鬼火达上限，强制发动：选择1名角色，移除全部鬼火并对其造成2点法术伤害。 |
@@ -419,7 +419,7 @@ type EffectNode struct {
 | 勇者之心 | 被动技 | `ActionExecution` | `不固定/非战斗专属` | `TimingActive（或引擎内部派发）` | `需按 Handler 逻辑定制` | 游戏初始时，你+2［水晶］。 |
 | 怒吼 | 响应技 | `ActionExecution（战斗中）` | `CombatDeclare（①）` | `TimingOnAttackDeclared` | `EffectAttackDamage / EffectDamage + EffectDrawCard + EffectAddToken` | 主动攻击前可发动：移除1点［怒气］，你摸0~1张牌，本次攻击伤害额外+2；若未命中，你+1［知性］。 |
 | 禁断之力 | 响应技 | `ActionExecution（战斗中）` | `CombatHitCheck（②）` | `TimingOnHitCheck` | `EffectAttackDamage / EffectDamage + EffectDiscard + EffectAddToken` | ［水晶］主动攻击命中或未命中后可发动：展示并弃掉所有手牌；每有1张法术牌你+1怒气；未命中时每有1张水系牌你+1知性；命中时每有1张火系牌本次攻击伤害额外+1，并对自己造成等同火系牌数量的法术伤害。 |
-| 精疲力竭 | 被动技 | `ActionExecution` | `不固定/非战斗专属` | `TimingActive（或引擎内部派发）` | `EffectAttackDamage / EffectDamage + EffectAddAction` | 发动禁断之力后强制触发：［横置］额外+1攻击行动；持续到你的下个行动阶段开始，手牌上限恒定为4。效果结束时转正并对自己造成3点法术伤害。 |
+| 精疲力竭 | 被动技 | `ActionExecution` | `不固定/非战斗专属` | `TimingActive（或引擎内部派发）` | `EffectAttackDamage / EffectDamage + model.AppendExtraAction` | 发动禁断之力后强制触发：［横置］额外+1攻击行动；持续到你的下个行动阶段开始，手牌上限恒定为4。效果结束时转正并对自己造成3点法术伤害。 |
 | 明镜止水 | 响应技 | `ActionExecution（战斗中）` | `CombatDeclare（①）` | `TimingOnAttackDeclared` | `EffectAddToken` | 主动攻击前可发动：移除4点［知性］，本次攻击对手无法应战；本次攻击结束时你+1［水晶］。 |
 | 挑衅 | 主动技 | `ActionExecution` | `不固定/非战斗专属` | `TimingActive` | `EffectAddToken + EffectPlaceStatus` | 移除1点［怒气］：将【挑衅】放置于目标对手面前，你+1［知性］；该对手在其下个行动阶段必须且只能主动攻击你，否则跳过该行动阶段。触发后移除此牌。 |
 | 死斗 | 响应技 | `ActionExecution/CombatDraw（依事件来源）` | `CombatDraw（⑥）` | `TimingOnDamageTaken` | `EffectDamage + EffectAddToken` | ［宝石］每当你承受法术伤害时可发动：你+3［怒气］；若此伤害造成士气实际下降，本次士气下降值恒定为1。 |
@@ -441,7 +441,7 @@ type EffectNode struct {
 |:---|:---|:---|:---|:---|:---|:---|
 | 天之弓 | 被动技 | `ActionExecution` | `不固定/非战斗专属` | `TimingActive（或引擎内部派发）` | `EffectAttackDamage / EffectDamage + EffectHeal + EffectAddToken` | 初始+1圣煌辉光炮、+2水晶、治疗上限+1；主动攻击若非圣命格伤害-1；主动攻击命中且为圣命格时+1信仰。 |
 | 圣屑飓暴 | 主动技 | `ActionExecution` | `不固定/非战斗专属` | `TimingActive` | `EffectHeal + EffectDiscard` | 弃2张同系攻击牌，视为一次圣命格同系主动攻击；若未命中，可移除最多2点治疗并令1名队友弃置等量手牌。 |
-| 圣煌降临 | 主动技 | `ActionExecution` | `不固定/非战斗专属` | `TimingActive` | `EffectHeal + EffectAddToken + EffectAddAction` | 移除2点治疗或2点信仰，横置进入圣煌形态，并额外+1法术行动。 |
+| 圣煌降临 | 主动技 | `ActionExecution` | `不固定/非战斗专属` | `TimingActive` | `EffectHeal + EffectAddToken + model.AppendExtraAction` | 移除2点治疗或2点信仰，横置进入圣煌形态，并额外+1法术行动。 |
 | 圣光爆裂 | 主动技 | `ActionExecution` | `不固定/非战斗专属` | `TimingActive` | `EffectAttackDamage / EffectDamage + EffectHeal + EffectDiscard + EffectAddToken` | 仅圣煌形态可发动：①摸1，移除1治疗，+1信仰，1名我方+1治疗；②移除X治疗并弃X牌，至多选择X名对手各受(Y+2)点攻击伤害（Y为目标中有治疗者数量）。 |
 | 流星圣弹 | 响应技 | `ActionExecution（战斗中）` | `CombatDeclare（①）` | `TimingOnAttackDeclared` | `EffectHeal + EffectAddToken` | 仅圣煌形态下，主动攻击前可发动：移除1点治疗或1点信仰，令1名我方角色+1治疗。 |
 | 圣煌辉光炮 | 主动技 | `ActionExecution` | `不固定/非战斗专属` | `TimingActive` | `EffectAddToken` | 仅圣煌形态可发动：移除1圣煌辉光炮与(4+士气落后值)信仰，所有角色手牌调整为4，我方星杯+1，然后选择将一方士气调整为与另一方相同。 |
@@ -470,7 +470,7 @@ type EffectNode struct {
 | 月之轮回 | 响应技 | `ActionExecution` | `CombatHitCheck/CombatDraw（依技能插入点）` | `TimingActive（或引擎内部派发）` | `EffectHeal` | 你的回合结束时，选择其一：①移除1暗月，令任意角色+1治疗；②移除1治疗，你+1新月。 |
 | 月渎 | 响应技 | `ActionExecution` | `CombatHitCheck/CombatDraw（依技能插入点）` | `TimingActive（或引擎内部派发）` | `EffectDamage + EffectHeal` | ［回合限定］目标角色承受你造成的法术伤害后，可移除1治疗，对目标对手造成1点法术伤害。 |
 | 暗月斩 | 响应技 | `ActionExecution（战斗中）` | `CombatHitCheck（②）` | `TimingOnHitCheck` | `EffectAttackDamage / EffectDamage` | 仅暗月形态下，主动攻击命中时可发动：移除X个暗月（X<=2），本次攻击伤害额外+X。 |
-| 苍白之月 | 主动技 | `ActionExecution` | `不固定/非战斗专属` | `TimingActive` | `EffectAttackDamage / EffectDamage + EffectDiscard + EffectAddToken + EffectAddAction` | ［宝石］选择其一：①移除3石化，下次主动攻击不可应战、额外+1攻击行动，并额外获得一个回合。②移除X新月、你+1石化、弃1张牌，对目标对手造成(X+1)点法术伤害（X可为0）。 |
+| 苍白之月 | 主动技 | `ActionExecution` | `不固定/非战斗专属` | `TimingActive` | `EffectAttackDamage / EffectDamage + EffectDiscard + EffectAddToken + model.AppendExtraAction` | ［宝石］选择其一：①移除3石化，下次主动攻击不可应战、额外+1攻击行动，并额外获得一个回合。②移除X新月、你+1石化、弃1张牌，对目标对手造成(X+1)点法术伤害（X可为0）。 |
 
 ### 5.34 血之巫女（`blood_priestess`）
 

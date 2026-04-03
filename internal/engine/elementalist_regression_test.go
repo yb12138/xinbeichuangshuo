@@ -9,10 +9,10 @@ import (
 )
 
 func elementalistExclusiveCard(owner *model.Player, skillTitle string, element model.Element) model.Card {
-	charName := "元素师"
+	charID := "elementalist"
 	faction := "咏"
 	if owner != nil && owner.Character != nil {
-		charName = owner.Character.Name
+		charID = owner.Character.ID
 		faction = owner.Character.Faction
 	}
 	return model.Card{
@@ -23,7 +23,7 @@ func elementalistExclusiveCard(owner *model.Player, skillTitle string, element m
 		Faction:         faction,
 		Damage:          0,
 		Description:     "元素师独有技测试卡",
-		ExclusiveChar1:  charName,
+		ExclusiveChar1:  charID,
 		ExclusiveSkill1: skillTitle,
 	}
 }

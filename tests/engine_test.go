@@ -222,9 +222,9 @@ func TestSealer_FiveSeals(t *testing.T) {
 				Element: skillElement, // 元素必须匹配
 
 				// 【核心修正点】
-				// 引擎校验的是: card.MatchExclusive(player.Character.Name, skillDef.Title)
-				// 所以这里必须填中文名 "封印师" 和 "水之封印"
-				ExclusiveChar1:  "封印师",      // 匹配 player.Character.Name
+				// 引擎校验的是: card.MatchExclusive(player.Character.ID, skillDef.Title)
+				// 所以这里必须填中文名 "sealer" 和 "水之封印"
+				ExclusiveChar1:  "sealer",   // 匹配 player.Character.ID
 				ExclusiveSkill1: skillTitle, // 匹配 skillDef.Title (例如 "水之封印")
 			}
 			// 注意：如果是不触发的case，弃牌属性也要跟技能匹配

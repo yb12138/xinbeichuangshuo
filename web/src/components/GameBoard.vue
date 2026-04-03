@@ -1073,8 +1073,8 @@ function onCardClick(idx: number) {
       if (state.error) {
         interruptStore.showError(state.error)
       }
-      return
-    }
+    return
+  }
     togglePromptSelectedCard(idx)
     logTargetDebug('prompt_card_toggled', {
       cardIdx: idx,
@@ -1296,17 +1296,17 @@ function dissolveRoomByHost() {
           :data-player-anchor="p.id"
         >
           <PlayerArea
-            :player="p"
+          :player="p"
             :isMe="p.id === myPlayerId"
             :isOpponent="p.camp !== myCamp"
             :selectable="isPlayerSelectable(p.id)"
             :debugTargetReason="playerSelectReason(p.id)"
             :selected="isPlayerSelected(p.id)"
             :turnOrder="turnOrderFor(p.id)"
-            compact
-            @select="onTargetClick"
-          />
-        </div>
+          compact
+          @select="onTargetClick"
+        />
+      </div>
       </aside>
 
       <section class="center-stage">
@@ -1315,7 +1315,7 @@ function dissolveRoomByHost() {
             <BattleZone class="battle-zone-fill" />
             <div class="battle-feed-float">
               <ActionTimeline />
-            </div>
+      </div>
           </div>
         </div>
 
@@ -1329,7 +1329,7 @@ function dissolveRoomByHost() {
               ]"
               :data-player-anchor="myPlayerId"
             >
-              <PlayerArea
+        <PlayerArea
                 v-if="myAreaPlayer"
                 :player="myAreaPlayer"
                 is-me
@@ -1337,10 +1337,10 @@ function dissolveRoomByHost() {
                 :debugTargetReason="playerSelectReason(myAreaPlayer.id)"
                 :selected="isPlayerSelected(myAreaPlayer.id)"
                 :turnOrder="turnOrderFor(myAreaPlayer.id)"
-                compact
-                @select="onTargetClick"
-              />
-            </div>
+          compact
+          @select="onTargetClick"
+        />
+      </div>
             <div
               class="hand-rail bottom-slot-hand rounded-lg sm:rounded-xl p-2 sm:p-2 min-h-0"
               :class="{
@@ -1367,7 +1367,7 @@ function dissolveRoomByHost() {
                     {{ showExpansionCards ? '收起 ▲' : '展开 ▼' }}
                   </span>
                 </button>
-              </div>
+    </div>
               <div v-if="showExpansionCards && expansionCardCount > 0" class="expansion-zone mb-2">
                 <div v-if="promptNeedsCocoonGuide" class="expansion-cocoon-guide">
                   <div class="expansion-cocoon-guide-text">{{ cocoonGuideText }}</div>
@@ -1380,16 +1380,16 @@ function dissolveRoomByHost() {
                   >
                     确认选择
                   </button>
-                </div>
+    </div>
                 <div class="expansion-zone-scroll">
                   <div class="expansion-zone-content">
                     <div v-if="myExclusiveCards.length > 0" class="expansion-group">
                       <div class="expansion-group-title">专属技能卡（{{ myExclusiveCards.length }}）</div>
                       <div class="expansion-card-row">
-                        <CardComponent
+          <CardComponent
                           v-for="(card, idx) in myExclusiveCards"
                           :key="`exclusive-${card.id || idx}`"
-                          :card="card"
+            :card="card"
                           medium
                         />
                       </div>
@@ -1449,10 +1449,10 @@ function dissolveRoomByHost() {
                     @click="onCardClick(entry.index)"
                   />
                 </div>
-                <div v-if="myHand.length === 0" class="text-gray-500 py-4 text-sm">没有手牌</div>
-              </div>
-            </div>
-          </div>
+          <div v-if="myHand.length === 0" class="text-gray-500 py-4 text-sm">没有手牌</div>
+        </div>
+      </div>
+      </div>
         </div>
       </section>
 

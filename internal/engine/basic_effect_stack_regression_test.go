@@ -75,7 +75,7 @@ func TestUseSkill_BasicEffectPlacementCannotStack(t *testing.T) {
 			Type:            model.CardTypeMagic,
 			Element:         model.ElementLight,
 			Faction:         "圣",
-			ExclusiveChar1:  "天使",
+			ExclusiveChar1:  "angel",
 			ExclusiveSkill1: "天使之墙",
 		},
 		{
@@ -84,7 +84,7 @@ func TestUseSkill_BasicEffectPlacementCannotStack(t *testing.T) {
 			Type:            model.CardTypeMagic,
 			Element:         model.ElementEarth,
 			Faction:         "圣",
-			ExclusiveChar1:  "天使",
+			ExclusiveChar1:  "angel",
 			ExclusiveSkill1: "天使之墙",
 		},
 	}

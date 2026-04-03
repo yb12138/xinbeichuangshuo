@@ -86,6 +86,15 @@ func (e *GameEngine) routePendingDamageWithDefaultReturn(defaultReturn interface
 	return true
 }
 
+func (e *GameEngine) routePendingDamageWithReturn(returnTo interface{}) bool {
+	if e == nil || e.State == nil || len(e.State.PendingDamageQueue) == 0 {
+		return false
+	}
+	e.setReturnPoint(returnTo)
+	e.enterDamageResolution(nil)
+	return true
+}
+
 func (e *GameEngine) routePendingDamageOr(defaultReturn interface{}, onNoPending func()) bool {
 	if e.routePendingDamageWithDefaultReturn(defaultReturn) {
 		return true
@@ -192,6 +201,24 @@ func (e *GameEngine) isDiscardSelectionActive() bool {
 
 func (e *GameEngine) isResponseWindowActive() bool {
 	return e != nil && e.State != nil && e.State.Subflow == model.SubflowResponse
+}
+
+func (e *GameEngine) driveResponseRecoveryPhase() driveOutcome {
+	if e == nil || e.State == nil || e.State.PendingInterrupt != nil || e.State.Subflow != model.SubflowResponse {
+		return driveUnhandled
+	}
+	if len(e.State.PendingDamageQueue) > 0 {
+		e.enterDamageResolution(nil)
+		return driveContinueLoop
+	}
+	if e.restoreReturnPoint() {
+		return driveContinueLoop
+	}
+	e.clearSubflow()
+	if len(e.State.CombatStack) > 0 && e.State.CombatStage == model.CombatStageNone {
+		e.setCombatStage(model.CombatStageHitCheck)
+	}
+	return driveContinueLoop
 }
 
 func (e *GameEngine) clearCombatStage() {

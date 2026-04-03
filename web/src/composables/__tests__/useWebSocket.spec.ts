@@ -125,7 +125,7 @@ describe('useWebSocket integration', () => {
       Cmd: 'SyncState',
       Data: {
         room_state: 'Playing',
-        current_phase: 'Main',
+        turn_stage: 'Main',
         turn_player_id: 'p1',
         has_performed_startup: false,
         morale_red: 15,
@@ -193,7 +193,7 @@ describe('useWebSocket integration', () => {
     expect(sessionStore.myPlayerId).toBe('p1')
     expect(sessionStore.reconnectToken).toBe('token-1')
     expect(sessionStore.gameStarted).toBe(true)
-    expect(snapshotStore.phase).toBe('Main')
+    expect(snapshotStore.turnStage).toBe('Main')
     expect(snapshotStore.players.p1?.name).toBe('Alice')
     expect(timelineStore.entries).toHaveLength(1)
     expect(storage.getItem('xbs_reconnect_ROOM1_Alice')).toContain('token-1')

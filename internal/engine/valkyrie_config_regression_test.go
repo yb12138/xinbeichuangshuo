@@ -3,7 +3,6 @@ package engine
 import (
 	"testing"
 
-	"starcup-engine/internal/engine/skills"
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/rules"
 )
@@ -127,7 +126,7 @@ func TestValkyrie_MilitaryGlory_BranchTwoDoesNotExitSpirit(t *testing.T) {
 	}
 
 	game.State.CurrentTurn = 0
-	game.State.TurnStage = model.TurnStageActionStart
+	game.State.TurnStage = model.TurnStageTurnStart
 
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]
@@ -137,20 +136,7 @@ func TestValkyrie_MilitaryGlory_BranchTwoDoesNotExitSpirit(t *testing.T) {
 	p1.Tokens["valkyrie_spirit"] = 1
 	game.State.RedCrystals = 2
 
-	ctx := game.buildContext(p1, nil, model.TriggerOnTurnStart, &model.EventContext{
-		Type:     model.EventNone,
-		SourceID: p1.ID,
-	})
-	handler := skills.GetHandler("valkyrie_military_glory")
-	if handler == nil {
-		t.Fatalf("valkyrie_military_glory handler not registered")
-	}
-	if !handler.CanUse(ctx) {
-		t.Fatalf("expected military glory to be usable in spirit form")
-	}
-	if err := handler.Execute(ctx); err != nil {
-		t.Fatalf("military glory execute failed: %v", err)
-	}
+	game.Drive()
 
 	requireChoicePrompt(t, game, "p1", "valkyrie_military_glory_mode")
 	mustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{1}})

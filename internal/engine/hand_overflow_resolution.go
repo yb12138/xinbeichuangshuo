@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"sort"
+	"starcup-engine/internal/engine/runtimeutil"
 
 	"starcup-engine/internal/model"
 )
@@ -16,7 +17,7 @@ const (
 )
 
 func (e *GameEngine) handleDiscardSelection(playerID string, indices []int, data map[string]interface{}) error {
-	discardCount := toIntContextValue(data["discard_count"])
+	discardCount := runtimeutil.ToIntContextValue(data["discard_count"])
 	if len(indices) != discardCount {
 		return fmt.Errorf("需要选择 %d 张牌丢弃，你选择了 %d 张", discardCount, len(indices))
 	}
@@ -56,12 +57,12 @@ func (e *GameEngine) handleDiscardSelection(playerID string, indices []int, data
 
 	e.PopInterrupt()
 	if e.State.PendingInterrupt == nil {
-		if normalizeChoiceResumePoint(data["draw_resume_phase"]) != "" {
+		if normalizeChoiceResumePoint(data["draw_resume_phase"]) != "" && !e.hasReturnPoint() {
 			e.setReturnPoint(data["draw_resume_phase"])
 		}
 		e.restorePhaseAfterDiscardResolution(
-			toBoolContextValue(data["stay_in_turn"]),
-			toBoolContextValue(data["is_damage_resolution"]),
+			runtimeutil.ToBoolContextValue(data["stay_in_turn"]),
+			runtimeutil.ToBoolContextValue(data["is_damage_resolution"]),
 			[]discardPhaseCandidate{discardPhasePendingDamage, discardPhaseReturn},
 			[]discardPhaseCandidate{discardPhasePendingDamage, discardPhaseReturn, discardPhaseActionQueue},
 		)
@@ -107,10 +108,10 @@ func (e *GameEngine) notifyHiddenDiscard(playerID string, discardedCards []model
 func (e *GameEngine) resolveDiscardSelectionMoraleLoss(player *model.Player, discardedCards []model.Card, data map[string]interface{}) (int, bool, error) {
 	moraleLoss := len(discardedCards)
 	finalLoss := moraleLoss
-	noMoraleLoss := toBoolContextValue(data["no_morale_loss"])
-	overflowMoraleLossFixed := toIntContextValue(data["overflow_morale_loss_fixed"])
-	stayInTurn := toBoolContextValue(data["stay_in_turn"])
-	isDamageResolution := toBoolContextValue(data["is_damage_resolution"])
+	noMoraleLoss := runtimeutil.ToBoolContextValue(data["no_morale_loss"])
+	overflowMoraleLossFixed := runtimeutil.ToIntContextValue(data["overflow_morale_loss_fixed"])
+	stayInTurn := runtimeutil.ToBoolContextValue(data["stay_in_turn"])
+	isDamageResolution := runtimeutil.ToBoolContextValue(data["is_damage_resolution"])
 
 	if noMoraleLoss {
 		moraleLoss = 0
@@ -126,7 +127,7 @@ func (e *GameEngine) resolveDiscardSelectionMoraleLoss(player *model.Player, dis
 	}
 
 	victimID, _ := data["victim_id"].(string)
-	fromDamageDraw := toBoolContextValue(data["from_damage_draw"])
+	fromDamageDraw := runtimeutil.ToBoolContextValue(data["from_damage_draw"])
 	victim := e.State.Players[victimID]
 	if victim == nil {
 		e.State.DiscardPile = append(e.State.DiscardPile, discardedCards...)
@@ -137,7 +138,7 @@ func (e *GameEngine) resolveDiscardSelectionMoraleLoss(player *model.Player, dis
 		moraleLoss = 0
 	}
 
-	isMagic := toBoolContextValue(data["is_magic"])
+	isMagic := runtimeutil.ToBoolContextValue(data["is_magic"])
 	allowedByFloor := e.campMorale(victim.Camp) - e.moraleFloorForCamp(victim.Camp)
 	if allowedByFloor < 0 {
 		allowedByFloor = 0
@@ -234,7 +235,7 @@ func (e *GameEngine) handleDiscardSelectionFollowups(player *model.Player, data 
 		return true, nil
 	}
 
-	if e.isMagicLancer(player) && player.Tokens != nil && player.Tokens["ml_stardust_wait_discard"] > 0 {
+	if e.isMagicLancer(player) && player.TurnState.SkillFlowState != nil && player.TurnState.SkillFlowState["ml_stardust_wait_discard"] > 0 {
 		e.resolveMagicLancerStardustAfterSelf(player)
 	}
 	return false, nil
@@ -284,21 +285,21 @@ func (e *GameEngine) resumePendingMoraleLoss(ctx *model.Context) bool {
 	if ctx == nil || ctx.Selections == nil {
 		return false
 	}
-	if !toBoolContextValue(ctx.Selections["morale_loss_pending"]) {
+	if !runtimeutil.ToBoolContextValue(ctx.Selections["morale_loss_pending"]) {
 		return false
 	}
 
 	victimID, _ := ctx.Selections["victim_id"].(string)
 	victim := e.State.Players[victimID]
 
-	moraleLoss := toIntContextValue(ctx.Selections["morale_loss_value"])
-	isMagic := toBoolContextValue(ctx.Selections["is_magic"])
-	fromDamageDraw := toBoolContextValue(ctx.Selections["from_damage_draw"])
-	overflowMoraleLossFixed := toIntContextValue(ctx.Selections["overflow_morale_loss_fixed"])
+	moraleLoss := runtimeutil.ToIntContextValue(ctx.Selections["morale_loss_value"])
+	isMagic := runtimeutil.ToBoolContextValue(ctx.Selections["is_magic"])
+	fromDamageDraw := runtimeutil.ToBoolContextValue(ctx.Selections["from_damage_draw"])
+	overflowMoraleLossFixed := runtimeutil.ToIntContextValue(ctx.Selections["overflow_morale_loss_fixed"])
 	discardedCards := discardedCardsFromContext(ctx.Selections["discarded_cards"])
 
 	finalLoss := e.applyMoraleLossAfterTrigger(victim, moraleLoss, isMagic, fromDamageDraw, overflowMoraleLossFixed, discardedCards, ctx)
-	mbChargeResume := toBoolContextValue(ctx.Selections["mb_charge_resume"])
+	mbChargeResume := runtimeutil.ToBoolContextValue(ctx.Selections["mb_charge_resume"])
 	discardPlayerID, _ := ctx.Selections["discard_player_id"].(string)
 	discardPlayer := e.State.Players[discardPlayerID]
 	if discardPlayer == nil {
@@ -311,7 +312,7 @@ func (e *GameEngine) resumePendingMoraleLoss(ctx *model.Context) bool {
 		}
 	} else if discardPlayer != nil {
 		e.Log(fmt.Sprintf("[System] %s 丢弃了 %d 张牌！士气 -%d", discardPlayer.Name, len(discardedCards), finalLoss))
-		if e.isMagicLancer(discardPlayer) && discardPlayer.Tokens != nil && discardPlayer.Tokens["ml_stardust_wait_discard"] > 0 {
+		if e.isMagicLancer(discardPlayer) && discardPlayer.TurnState.SkillFlowState != nil && discardPlayer.TurnState.SkillFlowState["ml_stardust_wait_discard"] > 0 {
 			e.resolveMagicLancerStardustAfterSelf(discardPlayer)
 		}
 	}
@@ -323,7 +324,7 @@ func (e *GameEngine) resumePendingMoraleLoss(ctx *model.Context) bool {
 		if e.State.GameOver {
 			return true
 		}
-		maxPlace := toIntContextValue(ctx.Selections["mb_charge_max_place"])
+		maxPlace := runtimeutil.ToIntContextValue(ctx.Selections["mb_charge_max_place"])
 		userID, _ := ctx.Selections["mb_charge_user_id"].(string)
 		user := e.State.Players[userID]
 		if e.State.PendingInterrupt == nil {
@@ -346,8 +347,8 @@ func (e *GameEngine) resumePendingMoraleLoss(ctx *model.Context) bool {
 
 	if e.State.PendingInterrupt == nil {
 		e.restorePhaseAfterDiscardResolution(
-			toBoolContextValue(ctx.Selections["morale_loss_stay_in_turn"]),
-			toBoolContextValue(ctx.Selections["morale_loss_is_damage_resolution"]),
+			runtimeutil.ToBoolContextValue(ctx.Selections["morale_loss_stay_in_turn"]),
+			runtimeutil.ToBoolContextValue(ctx.Selections["morale_loss_is_damage_resolution"]),
 			[]discardPhaseCandidate{discardPhaseReturn},
 			[]discardPhaseCandidate{discardPhaseReturn, discardPhaseActionQueue, discardPhasePendingDamage},
 		)

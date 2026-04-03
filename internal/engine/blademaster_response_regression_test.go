@@ -39,11 +39,7 @@ func TestBladeMaster_SwordShadow_ReAskOnEachAttackEnd(t *testing.T) {
 	}
 	p1.Crystal = 1
 	// 人为放一个额外攻击 token，确保同回合发生第二次攻击行动
-	p1.TurnState.PendingActions = append(p1.TurnState.PendingActions, model.ActionContext{
-		Source:      "test-token",
-		MustType:    "Attack",
-		MustElement: nil,
-	})
+	model.AppendAttackAction(p1, "test-token")
 
 	// 第一次攻击
 	if err := game.HandleAction(model.PlayerAction{
@@ -119,11 +115,7 @@ func TestBladeMaster_WindFury_ReAskOnEachAttackEnd(t *testing.T) {
 	}
 	p1.Gem = 0
 	p1.Crystal = 0
-	p1.TurnState.PendingActions = append(p1.TurnState.PendingActions, model.ActionContext{
-		Source:      "test-token",
-		MustType:    "Attack",
-		MustElement: nil,
-	})
+	model.AppendAttackAction(p1, "test-token")
 
 	if err := game.HandleAction(model.PlayerAction{
 		PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardIndex: 0,
@@ -292,10 +284,7 @@ func TestBladeMaster_HolySwordDiscardResumesExtraAction(t *testing.T) {
 	p1.Hand = []model.Card{
 		{ID: "a1", Name: "火斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 1},
 	}
-	p1.TurnState.PendingActions = append(p1.TurnState.PendingActions, model.ActionContext{
-		Source:   "holy-sword-followup",
-		MustType: "Attack",
-	})
+	model.AppendAttackAction(p1, "holy-sword-followup")
 	game.State.CurrentTurn = 0
 
 	if !game.triggerHolySwordDrawIfNeeded(p1) {
@@ -376,7 +365,7 @@ func TestBladeMaster_GaleSlash_DisablesCounterButAllowsDefend(t *testing.T) {
 		Type:            model.CardTypeAttack,
 		Element:         model.ElementWind,
 		Damage:          2,
-		ExclusiveChar1:  "风之剑圣",
+		ExclusiveChar1:  "blade_master",
 		ExclusiveSkill1: "列风技",
 	}}
 

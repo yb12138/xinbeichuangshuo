@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"strings"
 
 	"starcup-engine/internal/model"
 )
@@ -11,14 +12,10 @@ func (e *GameEngine) resolveHeroRoarMissWithOverride(attackerID string, force bo
 	if attacker == nil || !e.isHero(attacker) {
 		return
 	}
-	if attacker.Tokens == nil {
+	if !force && attacker.TurnState.UsedSkillCounts["hero_roar_active"] <= 0 {
 		return
 	}
-	if !force && attacker.Tokens["hero_roar_active"] <= 0 {
-		return
-	}
-	attacker.Tokens["hero_roar_active"] = 0
-	attacker.Tokens["hero_roar_damage_pending"] = 0
+	attacker.TurnState.UsedSkillCounts["hero_roar_active"] = 0
 	wisdom := attacker.Tokens["hero_wisdom"] + 1
 	if wisdom > 3 {
 		wisdom = 3
@@ -32,14 +29,10 @@ func (e *GameEngine) resolveFighterChargeMissWithOverride(attackerID string, for
 	if attacker == nil || !e.isFighter(attacker) {
 		return
 	}
-	if attacker.Tokens == nil {
+	if !force && attacker.TurnState.SkillFlowState["fighter_charge_pending"] <= 0 {
 		return
 	}
-	if !force && attacker.Tokens["fighter_charge_pending"] <= 0 {
-		return
-	}
-	attacker.Tokens["fighter_charge_pending"] = 0
-	attacker.Tokens["fighter_charge_damage_pending"] = 0
+	attacker.TurnState.SkillFlowState["fighter_charge_pending"] = 0
 	damage := attacker.Tokens["fighter_qi"]
 	if damage < 1 {
 		damage = 1
@@ -71,10 +64,10 @@ func (e *GameEngine) resolveMagicBowPierceMissWithOverride(attackerID, targetID 
 	if attacker == nil || target == nil {
 		return
 	}
-	if attacker.Tokens == nil || attacker.Tokens["mb_magic_pierce_pending"] <= 0 {
+	if attacker.TurnState.SkillFlowState["mb_magic_pierce_pending"] <= 0 {
 		return
 	}
-	attacker.Tokens["mb_magic_pierce_pending"] = 0
+	attacker.TurnState.SkillFlowState["mb_magic_pierce_pending"] = 0
 	e.AddPendingDamage(model.PendingDamage{
 		SourceID:   attackerID,
 		TargetID:   targetID,
@@ -90,10 +83,10 @@ func (e *GameEngine) resolveHolyBowShardMiss(attackerID, targetID string) {
 	if attacker == nil || target == nil || !e.isHolyBow(attacker) {
 		return
 	}
-	if attacker.Tokens == nil || attacker.Tokens["hb_shard_miss_pending"] <= 0 {
+	if attacker.TurnState.SkillFlowState["hb_shard_miss_pending"] <= 0 {
 		return
 	}
-	attacker.Tokens["hb_shard_miss_pending"] = 0
+	attacker.TurnState.SkillFlowState["hb_shard_miss_pending"] = 0
 	maxX := attacker.Heal
 	if maxX > 2 {
 		maxX = 2
@@ -119,4 +112,26 @@ func (e *GameEngine) resolveHolyBowShardMiss(attackerID, targetID string) {
 		},
 	})
 	e.Log(fmt.Sprintf("%s 的 [圣屑飓暴] 未命中：可移除治疗并令队友弃牌", attacker.Name))
+}
+
+func (e *GameEngine) resolveShieldBlockedAttackAsMiss(pd *model.PendingDamage) {
+	if pd == nil || pd.AttackMissResolved || !strings.EqualFold(pd.DamageType, "Attack") {
+		return
+	}
+	attacker := e.State.Players[pd.SourceID]
+	target := e.State.Players[pd.TargetID]
+	if attacker == nil {
+		return
+	}
+
+	targetName := pd.TargetID
+	if target != nil {
+		targetName = target.Name
+	}
+	e.NotifyCombatCue(pd.SourceID, pd.TargetID, "shield")
+	e.NotifyActionStep(fmt.Sprintf("%s 的【圣盾】抵消了本次攻击，判定为未命中", targetName))
+	e.Log(fmt.Sprintf("[Combat] %s 的攻击被【圣盾】完全抵消，按未命中处理", attacker.Name))
+
+	e.resolveMagicBowPierceMissWithOverride(pd.SourceID, pd.TargetID, pd.Card, pd.HeroRoarMissArmed, pd.FighterChargeMissArmed, pd.IsCounter)
+	pd.AttackMissResolved = true
 }

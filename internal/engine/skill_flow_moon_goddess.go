@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"starcup-engine/internal/engine/runtimeutil"
 	"strings"
 
 	"starcup-engine/internal/model"
@@ -147,7 +148,7 @@ func (e *GameEngine) buildMoonGoddessChoicePrompt(choiceType, playerID string, p
 		}
 
 	case "mg_darkmoon_slash_x":
-		maxX := toIntContextValue(data["max_x"])
+		maxX := runtimeutil.ToIntContextValue(data["max_x"])
 		if maxX < 1 {
 			return nil
 		}
@@ -199,7 +200,7 @@ func (e *GameEngine) buildMoonGoddessChoicePrompt(choiceType, playerID string, p
 		}
 
 	case "mg_pale_moon_x":
-		maxX := toIntContextValue(data["max_x"])
+		maxX := runtimeutil.ToIntContextValue(data["max_x"])
 		if maxX < 1 {
 			return nil
 		}
@@ -491,9 +492,7 @@ func (e *GameEngine) handleMoonGoddessChoiceInput(playerID string, selectionInde
 			}
 		}
 		if selectionIndex == 0 {
-			if user.Tokens != nil {
-				user.Tokens["mg_blasphemy_pending"] = 0
-			}
+			user.TurnState.SkillFlowState["mg_blasphemy_pending"] = 0
 			e.Log(fmt.Sprintf("%s 选择跳过 [月渎]", user.Name))
 			e.PopInterrupt()
 			if e.State.PendingInterrupt == nil {
@@ -513,11 +512,8 @@ func (e *GameEngine) handleMoonGoddessChoiceInput(playerID string, selectionInde
 			return true, fmt.Errorf("治疗不足，无法发动月渎")
 		}
 		user.Heal--
-		if user.Tokens == nil {
-			user.Tokens = map[string]int{}
-		}
-		user.Tokens["mg_blasphemy_pending"] = 0
-		user.Tokens["mg_blasphemy_used_turn"] = 1
+		user.TurnState.SkillFlowState["mg_blasphemy_pending"] = 0
+		user.TurnState.UsedSkillCounts["mg_blasphemy"] = 1
 		e.AddPendingDamage(model.PendingDamage{
 			SourceID:   user.ID,
 			TargetID:   target.ID,
@@ -537,7 +533,7 @@ func (e *GameEngine) handleMoonGoddessChoiceInput(playerID string, selectionInde
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
-		maxX := toIntContextValue(ctxData["max_x"])
+		maxX := runtimeutil.ToIntContextValue(ctxData["max_x"])
 		if maxX < 1 {
 			return true, fmt.Errorf("闇月斩没有可选X值")
 		}
@@ -591,15 +587,10 @@ func (e *GameEngine) handleMoonGoddessChoiceInput(playerID string, selectionInde
 				return true, fmt.Errorf("石化不足3点，无法发动分支①")
 			}
 			addMoonGoddessPetrify(user, -3)
-			if user.Tokens == nil {
-				user.Tokens = map[string]int{}
-			}
-			user.Tokens["mg_next_attack_no_counter"]++
+			user.TurnState.UsedSkillCounts["mg_next_attack_no_counter"]++
+			ensurePlayerTokensMap(user)
 			user.Tokens["mg_extra_turn_pending"]++
-			user.TurnState.PendingActions = append(user.TurnState.PendingActions, model.ActionContext{
-				Source:   "苍白之月",
-				MustType: "Attack",
-			})
+			model.AppendAttackAction(user, "苍白之月")
 			e.Log(fmt.Sprintf("%s 发动 [苍白之月] 分支①：移除3石化，下次主动攻击不可应战，额外+1攻击行动并获得额外回合", user.Name))
 			e.PopInterrupt()
 			if e.State.PendingInterrupt == nil {
@@ -629,7 +620,7 @@ func (e *GameEngine) handleMoonGoddessChoiceInput(playerID string, selectionInde
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
-		maxX := toIntContextValue(ctxData["max_x"])
+		maxX := runtimeutil.ToIntContextValue(ctxData["max_x"])
 		if maxX < 1 {
 			return true, fmt.Errorf("没有可选的新月数量")
 		}
@@ -682,7 +673,7 @@ func (e *GameEngine) handleMoonGoddessChoiceInput(playerID string, selectionInde
 		if target == nil {
 			return true, fmt.Errorf("目标角色不存在")
 		}
-		x := toIntContextValue(ctxData["x"])
+		x := runtimeutil.ToIntContextValue(ctxData["x"])
 		if x < 1 {
 			return true, fmt.Errorf("苍白之月分支②的X至少为1")
 		}

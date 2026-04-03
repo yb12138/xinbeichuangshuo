@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"starcup-engine/internal/engine/runtimeutil"
 	"strconv"
 	"strings"
 
@@ -50,7 +51,7 @@ func parseOnmyojiCardOption(data map[string]interface{}) (onmyojiCardOption, boo
 	}
 	return onmyojiCardOption{
 		CardID:     cardID,
-		UseFaction: toBoolContextValue(data["use_faction"]),
+		UseFaction: runtimeutil.ToBoolContextValue(data["use_faction"]),
 		Label:      label,
 	}, true
 }
@@ -71,11 +72,11 @@ func buildPromptOptionsForPlayerIDs(players map[string]*model.Player, targetIDs 
 func (e *GameEngine) buildOnmyojiChoicePrompt(choiceType, playerID string, player *model.Player, data map[string]interface{}) *model.Prompt {
 	switch choiceType {
 	case "onmyoji_life_barrier_mode":
-		ghostFire := toIntContextValue(data["ghost_fire"])
+		ghostFire := runtimeutil.ToIntContextValue(data["ghost_fire"])
 		options := []model.PromptOption{
 			{ID: "0", Label: "分支①：1名队友+1宝石+1治疗，自己承受X点法伤"},
 		}
-		releaseCombos := len(parseStringSliceContextValue(data["release_card_combos"]))
+		releaseCombos := len(runtimeutil.ParseStringSliceContextValue(data["release_card_combos"]))
 		if releaseCombos > 0 {
 			options = append(options, model.PromptOption{
 				ID:    "1",
@@ -94,7 +95,7 @@ func (e *GameEngine) buildOnmyojiChoicePrompt(choiceType, playerID string, playe
 		if player == nil {
 			return nil
 		}
-		combos := parseStringSliceContextValue(data["release_card_combos"])
+		combos := runtimeutil.ParseStringSliceContextValue(data["release_card_combos"])
 		options := make([]model.PromptOption, 0, len(combos))
 		for _, combo := range combos {
 			parts := strings.Split(combo, ",")
@@ -123,7 +124,7 @@ func (e *GameEngine) buildOnmyojiChoicePrompt(choiceType, playerID string, playe
 			Max:      1,
 		}
 	case "onmyoji_dark_ritual_target":
-		options := buildPromptOptionsForPlayerIDs(e.State.Players, parseStringSliceContextValue(data["target_ids"]))
+		options := buildPromptOptionsForPlayerIDs(e.State.Players, runtimeutil.ParseStringSliceContextValue(data["target_ids"]))
 		if len(options) == 0 {
 			return nil
 		}
@@ -136,7 +137,7 @@ func (e *GameEngine) buildOnmyojiChoicePrompt(choiceType, playerID string, playe
 			Max:      1,
 		}
 	case "onmyoji_life_barrier_support_target":
-		options := buildPromptOptionsForPlayerIDs(e.State.Players, parseStringSliceContextValue(data["target_ids"]))
+		options := buildPromptOptionsForPlayerIDs(e.State.Players, runtimeutil.ParseStringSliceContextValue(data["target_ids"]))
 		if len(options) == 0 {
 			return nil
 		}
@@ -149,7 +150,7 @@ func (e *GameEngine) buildOnmyojiChoicePrompt(choiceType, playerID string, playe
 			Max:      1,
 		}
 	case "onmyoji_life_barrier_release_target":
-		options := buildPromptOptionsForPlayerIDs(e.State.Players, parseStringSliceContextValue(data["target_ids"]))
+		options := buildPromptOptionsForPlayerIDs(e.State.Players, runtimeutil.ParseStringSliceContextValue(data["target_ids"]))
 		if len(options) == 0 {
 			return nil
 		}
@@ -191,7 +192,7 @@ func (e *GameEngine) buildOnmyojiChoicePrompt(choiceType, playerID string, playe
 			Max:      1,
 		}
 	case "onmyoji_yinyang_counter_target":
-		options := buildPromptOptionsForPlayerIDs(e.State.Players, parseStringSliceContextValue(data["counter_target_ids"]))
+		options := buildPromptOptionsForPlayerIDs(e.State.Players, runtimeutil.ParseStringSliceContextValue(data["counter_target_ids"]))
 		if len(options) == 0 {
 			return nil
 		}
@@ -233,7 +234,7 @@ func (e *GameEngine) buildOnmyojiChoicePrompt(choiceType, playerID string, playe
 			Max:      1,
 		}
 	case "onmyoji_binding_counter_target":
-		options := buildPromptOptionsForPlayerIDs(e.State.Players, parseStringSliceContextValue(data["counter_target_ids"]))
+		options := buildPromptOptionsForPlayerIDs(e.State.Players, runtimeutil.ParseStringSliceContextValue(data["counter_target_ids"]))
 		if len(options) == 0 {
 			return nil
 		}
@@ -263,7 +264,7 @@ func (e *GameEngine) resolveOnmyojiLifeBarrierSupportTarget(ctxData map[string]i
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
-	targetIDs := parseStringSliceContextValue(ctxData["support_target_ids"])
+	targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["support_target_ids"])
 	if !stringSliceContains(targetIDs, targetID) {
 		return fmt.Errorf("生命结界分支①目标不合法")
 	}
@@ -271,7 +272,7 @@ func (e *GameEngine) resolveOnmyojiLifeBarrierSupportTarget(ctxData map[string]i
 	if target == nil {
 		return fmt.Errorf("目标不存在")
 	}
-	ghostFire := toIntContextValue(ctxData["ghost_fire"])
+	ghostFire := runtimeutil.ToIntContextValue(ctxData["ghost_fire"])
 	target.Gem++
 	e.Heal(targetID, 1)
 	if ghostFire > 0 {
@@ -300,7 +301,7 @@ func (e *GameEngine) resolveOnmyojiLifeBarrierReleaseTarget(ctxData map[string]i
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
-	targetIDs := parseStringSliceContextValue(ctxData["release_target_ids"])
+	targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["release_target_ids"])
 	if !stringSliceContains(targetIDs, targetID) {
 		return fmt.Errorf("生命结界分支②目标不合法")
 	}
@@ -331,7 +332,7 @@ func (e *GameEngine) resolveOnmyojiDarkRitualTarget(ctxData map[string]interface
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
-	targetIDs := parseStringSliceContextValue(ctxData["target_ids"])
+	targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
 	if !stringSliceContains(targetIDs, targetID) {
 		return fmt.Errorf("黑暗祭礼目标不合法")
 	}
@@ -342,7 +343,7 @@ func (e *GameEngine) resolveOnmyojiDarkRitualTarget(ctxData map[string]interface
 	if target.Camp == user.Camp {
 		return fmt.Errorf("黑暗祭礼只能选择敌方目标")
 	}
-	ghostFire := toIntContextValue(ctxData["ghost_fire"])
+	ghostFire := runtimeutil.ToIntContextValue(ctxData["ghost_fire"])
 	user.Tokens["onmyoji_ghost_fire"] = 0
 	e.AddPendingDamage(model.PendingDamage{
 		SourceID:   user.ID,
@@ -371,7 +372,7 @@ func (e *GameEngine) handleOnmyojiChoiceInput(selectionIndex int, ctxData map[st
 		lockedTargetID, _ := ctxData["locked_target_id"].(string)
 		switch selectionIndex {
 		case 0:
-			targetIDs := parseStringSliceContextValue(ctxData["support_target_ids"])
+			targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["support_target_ids"])
 			if len(targetIDs) == 0 {
 				return true, fmt.Errorf("生命结界分支①没有可选队友")
 			}
@@ -387,11 +388,11 @@ func (e *GameEngine) handleOnmyojiChoiceInput(selectionIndex int, ctxData map[st
 			if !hasOnmyojiShikigamiForm(user) {
 				return true, fmt.Errorf("不在式神形态，无法选择生命结界分支②")
 			}
-			combos := parseStringSliceContextValue(ctxData["release_card_combos"])
+			combos := runtimeutil.ParseStringSliceContextValue(ctxData["release_card_combos"])
 			if len(combos) == 0 {
 				return true, fmt.Errorf("分支②需要弃2张同命格手牌")
 			}
-			targetIDs := parseStringSliceContextValue(ctxData["release_target_ids"])
+			targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["release_target_ids"])
 			if len(targetIDs) == 0 {
 				return true, fmt.Errorf("分支②没有可选队友目标")
 			}
@@ -409,7 +410,7 @@ func (e *GameEngine) handleOnmyojiChoiceInput(selectionIndex int, ctxData map[st
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
-		combos := parseStringSliceContextValue(ctxData["release_card_combos"])
+		combos := runtimeutil.ParseStringSliceContextValue(ctxData["release_card_combos"])
 		if selectionIndex < 0 || selectionIndex >= len(combos) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
@@ -454,7 +455,7 @@ func (e *GameEngine) handleOnmyojiChoiceInput(selectionIndex int, ctxData map[st
 	case "onmyoji_life_barrier_support_target":
 		userID, _ := ctxData["user_id"].(string)
 		user := e.State.Players[userID]
-		targetIDs := parseStringSliceContextValue(ctxData["target_ids"])
+		targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
@@ -465,7 +466,7 @@ func (e *GameEngine) handleOnmyojiChoiceInput(selectionIndex int, ctxData map[st
 	case "onmyoji_life_barrier_release_target":
 		userID, _ := ctxData["user_id"].(string)
 		user := e.State.Players[userID]
-		targetIDs := parseStringSliceContextValue(ctxData["target_ids"])
+		targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
@@ -476,7 +477,7 @@ func (e *GameEngine) handleOnmyojiChoiceInput(selectionIndex int, ctxData map[st
 	case "onmyoji_dark_ritual_target":
 		userID, _ := ctxData["user_id"].(string)
 		user := e.State.Players[userID]
-		targetIDs := parseStringSliceContextValue(ctxData["target_ids"])
+		targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
@@ -553,7 +554,7 @@ func (e *GameEngine) handleOnmyojiChoiceInput(selectionIndex int, ctxData map[st
 		e.notifyInterruptPrompt()
 		return true, nil
 	case "onmyoji_yinyang_counter_target":
-		counterTargets := parseStringSliceContextValue(ctxData["counter_target_ids"])
+		counterTargets := runtimeutil.ParseStringSliceContextValue(ctxData["counter_target_ids"])
 		if selectionIndex < 0 || selectionIndex >= len(counterTargets) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
@@ -596,7 +597,7 @@ func (e *GameEngine) handleOnmyojiChoiceInput(selectionIndex int, ctxData map[st
 		e.notifyInterruptPrompt()
 		return true, nil
 	case "onmyoji_binding_counter_target":
-		counterTargets := parseStringSliceContextValue(ctxData["counter_target_ids"])
+		counterTargets := runtimeutil.ParseStringSliceContextValue(ctxData["counter_target_ids"])
 		if selectionIndex < 0 || selectionIndex >= len(counterTargets) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
@@ -620,7 +621,7 @@ func (e *GameEngine) handleOnmyojiChoiceInput(selectionIndex int, ctxData map[st
 		combatReq.OnmyojiBindingActorID = actorID
 		combatReq.OnmyojiBindingCounterID = cardID
 		combatReq.OnmyojiBindingTargetID = counterTargets[selectionIndex]
-		combatReq.OnmyojiBindingUseFaction = toBoolContextValue(ctxData["selected_use_faction"])
+		combatReq.OnmyojiBindingUseFaction = runtimeutil.ToBoolContextValue(ctxData["selected_use_faction"])
 		combatReq.TargetID = actorID
 
 		e.PopInterrupt()
@@ -926,12 +927,9 @@ func (e *GameEngine) executeOnmyojiBindingCounter(combatReq *model.CombatRequest
 	}
 
 	e.resolveMagicBowPierceMiss(combatReq.AttackerID, combatReq.TargetID, combatReq.Card, combatReq.IsCounter)
-	if attacker := e.State.Players[combatReq.AttackerID]; attacker != nil && attacker.Tokens != nil {
-		attacker.Tokens["elf_elemental_shot_thunder_pending"] = 0
-	}
 	e.Log(fmt.Sprintf("[Combat] %s 通过[式神咒束]代应战成功，攻击反弹给 %s", actor.Name, model.GetPlayerDisplayName(e.State.Players[counterTargetID])))
 	e.State.CombatStack = e.State.CombatStack[:len(e.State.CombatStack)-1]
-	e.initCombat(actor.ID, counterTargetID, &card, false, true, false, true)
+	e.initCombat(actor.ID, counterTargetID, &card, false, true, false, nil, true)
 	combatReq.OnmyojiBindingActorID = ""
 	combatReq.OnmyojiBindingCounterID = ""
 	combatReq.OnmyojiBindingTargetID = ""

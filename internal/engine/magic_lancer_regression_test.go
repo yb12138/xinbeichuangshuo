@@ -58,6 +58,9 @@ func TestMagicLancerDarkRelease_HandCapAndAttackBonusAndLock(t *testing.T) {
 	if fullnessHandler.CanUse(ctx) {
 		t.Fatal("ml_fullness should be locked in the same turn after dark release")
 	}
+	if !game.IsSkillBlocked("p1", "ml_fullness") {
+		t.Fatal("expected ml_fullness to be blocked by active rule modifier")
+	}
 
 	blackSpearHandler := skills.GetHandler("ml_black_spear")
 	if blackSpearHandler == nil {
@@ -76,6 +79,9 @@ func TestMagicLancerDarkRelease_HandCapAndAttackBonusAndLock(t *testing.T) {
 	if blackSpearHandler.CanUse(hitCtx) {
 		t.Fatal("ml_black_spear should be locked in the same turn after dark release")
 	}
+	if !game.IsSkillBlocked("p1", "ml_black_spear") {
+		t.Fatal("expected ml_black_spear to be blocked by active rule modifier")
+	}
 
 	attackCard := magicLancerTestCard("atk1", "雷斩", model.CardTypeAttack, model.ElementThunder, 2)
 	dmg1 := game.applyPassiveAttackEffects(p1, p2, 2, model.Action{
@@ -88,7 +94,7 @@ func TestMagicLancerDarkRelease_HandCapAndAttackBonusAndLock(t *testing.T) {
 	if dmg1 != 3 {
 		t.Fatalf("expected first active attack damage=3, got %d", dmg1)
 	}
-	if got := p1.TurnState.UsedSkillCounts["ml_dark_release_next_attack_bonus"]; got != 0 {
+	if got := attackDamageRuleBonusForModifier(p1, "ml_dark_release_next_attack_bonus"); got != 0 {
 		t.Fatalf("expected dark release bonus consumed, got %d", got)
 	}
 	dmg2 := game.applyPassiveAttackEffects(p1, p2, 2, model.Action{
@@ -100,6 +106,11 @@ func TestMagicLancerDarkRelease_HandCapAndAttackBonusAndLock(t *testing.T) {
 	})
 	if dmg2 != 2 {
 		t.Fatalf("expected subsequent active attack damage back to 2, got %d", dmg2)
+	}
+
+	game.NextTurn()
+	if game.IsSkillBlocked("p1", "ml_fullness") || game.IsSkillBlocked("p1", "ml_black_spear") {
+		t.Fatal("expected dark release lock to expire at turn end")
 	}
 }
 
@@ -144,7 +155,7 @@ func TestMagicLancerPhantomStardust_LeaveFormAndPromptTarget(t *testing.T) {
 	if got := p1.Form; got != "" {
 		t.Fatalf("expected leave phantom form after stardust self damage, got %q", got)
 	}
-	if got := p1.Tokens["ml_stardust_pending"]; got != 0 {
+	if got := p1.TurnState.SkillFlowState["ml_stardust_pending"]; got != 0 {
 		t.Fatalf("expected ml_stardust_pending cleared, got %d", got)
 	}
 	if game.State.PendingInterrupt == nil {
@@ -292,7 +303,7 @@ func TestMagicLancerFullness_FlowBonusAndExtraAttack(t *testing.T) {
 		t.Fatalf("ally skip failed: %v", err)
 	}
 
-	if got := p1.TurnState.UsedSkillCounts["ml_fullness_next_attack_bonus"]; got != 1 {
+	if got := attackDamageRuleBonusForModifier(p1, "ml_fullness_next_attack_bonus"); got != 1 {
 		t.Fatalf("expected ml_fullness_next_attack_bonus=1, got %d", got)
 	}
 	if len(p1.TurnState.PendingActions) == 0 {
@@ -316,7 +327,7 @@ func TestMagicLancerFullness_FlowBonusAndExtraAttack(t *testing.T) {
 	if dmg != 3 {
 		t.Fatalf("expected fullness bonus damage to apply once (2+1), got %d", dmg)
 	}
-	if got := p1.TurnState.UsedSkillCounts["ml_fullness_next_attack_bonus"]; got != 0 {
+	if got := attackDamageRuleBonusForModifier(p1, "ml_fullness_next_attack_bonus"); got != 0 {
 		t.Fatalf("expected fullness bonus consumed, got %d", got)
 	}
 }

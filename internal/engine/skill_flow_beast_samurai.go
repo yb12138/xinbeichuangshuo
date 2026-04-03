@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"starcup-engine/internal/engine/runtimeutil"
 	"strings"
 
 	"starcup-engine/internal/model"
@@ -93,7 +94,7 @@ func (e *GameEngine) beastSamuraiFinishReversal(rawCtx *model.Context, target *m
 func (e *GameEngine) buildBeastSamuraiChoicePrompt(choiceType, playerID string, player *model.Player, data map[string]interface{}) *model.Prompt {
 	switch choiceType {
 	case "bs_beast_return_x":
-		maxX := toIntContextValue(data["max_x"])
+		maxX := runtimeutil.ToIntContextValue(data["max_x"])
 		options := make([]model.PromptOption, 0, maxX+1)
 		for x := 0; x <= maxX; x++ {
 			label := fmt.Sprintf("X=%d", x)
@@ -115,7 +116,7 @@ func (e *GameEngine) buildBeastSamuraiChoicePrompt(choiceType, playerID string, 
 			Max:        1,
 		}
 	case "bs_reversal_x":
-		maxX := toIntContextValue(data["max_x"])
+		maxX := runtimeutil.ToIntContextValue(data["max_x"])
 		options := make([]model.PromptOption, 0, maxX+1)
 		for x := 0; x <= maxX; x++ {
 			options = append(options, model.PromptOption{
@@ -133,7 +134,7 @@ func (e *GameEngine) buildBeastSamuraiChoicePrompt(choiceType, playerID string, 
 			Max:        1,
 		}
 	case "bs_iaijutsu_style_mode":
-		modes := parseChoiceIntSlice(data["modes"])
+		modes := runtimeutil.ParseChoiceIntSlice(data["modes"])
 		if len(modes) == 0 {
 			modes = []int{0, 1}
 		}
@@ -174,7 +175,7 @@ func (e *GameEngine) handleBeastSamuraiChoiceInput(selectionIndex int, ctxData m
 		if user == nil {
 			return true, fmt.Errorf("兽返执行者不存在")
 		}
-		maxX := toIntContextValue(ctxData["max_x"])
+		maxX := runtimeutil.ToIntContextValue(ctxData["max_x"])
 		if current := e.beastSamuraiBeastSoul(user); maxX > current {
 			maxX = current
 		}
@@ -224,7 +225,7 @@ func (e *GameEngine) handleBeastSamuraiChoiceInput(selectionIndex int, ctxData m
 		if user == nil || target == nil {
 			return true, fmt.Errorf("逆反居合斩上下文目标不存在")
 		}
-		maxX := toIntContextValue(ctxData["max_x"])
+		maxX := runtimeutil.ToIntContextValue(ctxData["max_x"])
 		if current := e.beastSamuraiBeastSoul(user); maxX > current {
 			maxX = current
 		}
@@ -272,7 +273,7 @@ func (e *GameEngine) handleBeastSamuraiChoiceInput(selectionIndex int, ctxData m
 		if user == nil {
 			return true, fmt.Errorf("御魂流居合式执行者不存在")
 		}
-		modes := parseChoiceIntSlice(ctxData["modes"])
+		modes := runtimeutil.ParseChoiceIntSlice(ctxData["modes"])
 		if len(modes) == 0 {
 			modes = []int{0, 1}
 		}
@@ -434,7 +435,7 @@ func (e *GameEngine) handleBeastSamuraiDiscardInput(playerID string, selections 
 			return true, fmt.Errorf("逆反居合斩目标不存在")
 		}
 		rawCtx, _ := ctxData["user_ctx"].(*model.Context)
-		need := toIntContextValue(ctxData["need_count"])
+		need := runtimeutil.ToIntContextValue(ctxData["need_count"])
 		removed, err := removeCardsByIndicesFromHand(target, append([]int{}, selections...))
 		if err != nil {
 			return true, err

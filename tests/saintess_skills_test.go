@@ -90,7 +90,7 @@ func TestSaintess_Skills(t *testing.T) {
 		p1.Hand = []model.Card{
 			{
 				ID: "hl_card", Name: "治愈之光", Type: model.CardTypeMagic, Element: model.ElementLight,
-				ExclusiveChar1: "圣女", ExclusiveSkill1: "治愈之光",
+				ExclusiveChar1: "saintess", ExclusiveSkill1: "治愈之光",
 			},
 		}
 		p2.Heal = 1

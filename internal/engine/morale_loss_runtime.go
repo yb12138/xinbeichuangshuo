@@ -81,8 +81,7 @@ func (e *GameEngine) applyDamageDrivenMoraleLossRoleEffects(victim *model.Player
 		return
 	}
 	if source := e.State.Players[sourceID]; source != nil {
-		ensurePlayerTokensMap(source)
-		source.Tokens["plague_outbreak_morale_drop_turn"] = 1
+		source.TurnState.UsedSkillCounts["plague_outbreak_morale_drop"] = 1
 	}
 }
 

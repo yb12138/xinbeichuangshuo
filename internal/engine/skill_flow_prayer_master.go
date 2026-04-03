@@ -73,7 +73,7 @@ func (e *GameEngine) handlePrayerMasterChoiceInput(_ string, selectionIndex int,
 		}
 		if selectionIndex == 0 {
 			e.RemoveFieldCard(user.ID, model.EffectSwiftBlessing)
-			user.TurnState.PendingActions = append(user.TurnState.PendingActions, model.ActionContext{Source: "迅捷赐福", MustType: "Attack"})
+			model.AppendAttackAction(user, "迅捷赐福")
 			e.Log(fmt.Sprintf("%s 的 [迅捷赐福] 生效，获得额外攻击行动", user.Name))
 		}
 		e.PopInterrupt()

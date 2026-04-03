@@ -183,7 +183,7 @@ func TestArcher_PreciseShot_AutoAppliesForceHit(t *testing.T) {
 		Type:            model.CardTypeAttack,
 		Element:         model.ElementWind,
 		Damage:          2,
-		ExclusiveChar1:  "神箭手",
+		ExclusiveChar1:  "archer",
 		ExclusiveSkill1: "精准射击",
 	}}
 	p2.Hand = []model.Card{

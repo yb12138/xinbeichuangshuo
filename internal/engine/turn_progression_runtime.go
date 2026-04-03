@@ -7,23 +7,8 @@ import (
 )
 
 var turnScopedResetKeys = []string{
-	"mb_magic_pierce_pending",
-	"fighter_attack_start_skill_lock",
-	"fighter_charge_pending",
-	"fighter_charge_damage_pending",
-	"fighter_qiburst_force_no_counter",
-	"bd_descent_used_turn",
-	"bd_rousing_prompted_turn",
-	"bd_victory_prompted_turn",
-	"hb_shard_miss_pending",
-	"hb_auto_fill_done_turn",
-	"mg_moon_cycle_used_turn",
-	"mg_blasphemy_used_turn",
-	"mg_blasphemy_pending",
-	"plague_block_immortal",
-	"plague_outbreak_morale_drop_turn",
-	"bp_bleed_tick_done_turn",
-	"bt_wither_pending",
+	// 全部迁出到 PlayerTurnState（UsedSkillCounts / SkillFlowState），
+	// 由 NewPlayerTurnState() 在活跃玩家回合开始时自动清零。
 }
 
 func (e *GameEngine) NextTurn() {
@@ -43,6 +28,7 @@ func (e *GameEngine) NextTurn() {
 	// 兜底：若有路径直接调用 NextTurn 而跳过 PhaseTurnEnd，
 	// 仍需保证红莲骑士“热血沸腾”在回合结束时正确退形态并+2治疗。
 	e.runTurnProgressionFallbackHooks(player)
+	e.expireRuleModifiersByLifetime(player, model.RuleLifeUntilTurnEnd)
 
 	extraTurn := e.consumePendingMoonGoddessExtraTurn(player)
 
@@ -96,8 +82,12 @@ func (e *GameEngine) prepareNextTurnRuntime(nextPlayer *model.Player) {
 	e.resetTurnScopedPlayerTokens()
 	e.resetTurnMagicDamageTracker()
 
-	// 重置 Engine 状态
+	// 重置 Engine / FSM 级状态
 	e.State.HasPerformedStartup = false
+	e.State.PostActionEndPending = false
+	e.State.PostActionEndWasMagic = false
+	e.State.SpecialPhaseEndDispatched = false
+	e.State.HolySwordPhaseEndPending = false
 	e.State.ActionQueue = []model.QueuedAction{}
 	e.State.CombatStack = []model.CombatRequest{}
 	e.clearSubflow()

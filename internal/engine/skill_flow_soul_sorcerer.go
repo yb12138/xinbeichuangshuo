@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"starcup-engine/internal/engine/runtimeutil"
 
 	"starcup-engine/internal/model"
 )
@@ -66,7 +67,7 @@ func (e *GameEngine) buildSoulSorcererChoicePrompt(choiceType, playerID string, 
 		}
 
 	case "ss_link_transfer_x":
-		maxX := toIntContextValue(data["max_x"])
+		maxX := runtimeutil.ToIntContextValue(data["max_x"])
 		if maxX < 0 {
 			maxX = 0
 		}
@@ -242,7 +243,7 @@ func (e *GameEngine) handleSoulSorcererChoiceInput(playerID string, selectionInd
 		if user.Character == nil {
 			return true, fmt.Errorf("角色信息缺失")
 		}
-		linkCard, ok := user.ConsumeExclusiveCard(user.Character.Name, "灵魂链接")
+		linkCard, ok := user.ConsumeExclusiveCard(user.Character.ID, "灵魂链接")
 		if !ok {
 			return true, fmt.Errorf("未找到【灵魂链接】专属技能卡")
 		}
@@ -269,7 +270,7 @@ func (e *GameEngine) handleSoulSorcererChoiceInput(playerID string, selectionInd
 		if sorcerer == nil {
 			return true, fmt.Errorf("灵魂术士不存在")
 		}
-		damageIdx := toIntContextValue(ctxData["damage_index"])
+		damageIdx := runtimeutil.ToIntContextValue(ctxData["damage_index"])
 		if damageIdx < 0 || damageIdx >= len(e.State.PendingDamageQueue) {
 			return true, fmt.Errorf("伤害上下文不存在")
 		}
@@ -282,7 +283,7 @@ func (e *GameEngine) handleSoulSorcererChoiceInput(playerID string, selectionInd
 		if targetID != "" && targetID != pd.TargetID {
 			return true, fmt.Errorf("伤害目标已变化")
 		}
-		maxX := toIntContextValue(ctxData["max_x"])
+		maxX := runtimeutil.ToIntContextValue(ctxData["max_x"])
 		if maxX < 0 {
 			maxX = 0
 		}
@@ -353,9 +354,9 @@ func (e *GameEngine) handleSoulRecallSelections(playerID string, selections []in
 		return fmt.Errorf("玩家不存在")
 	}
 
-	magicIndices := parseChoiceIntSlice(ctxData["magic_indices"])
+	magicIndices := runtimeutil.ParseChoiceIntSlice(ctxData["magic_indices"])
 	if len(magicIndices) == 0 {
-		magicIndices = parseChoiceIntSlice(ctxData["remaining_indices"])
+		magicIndices = runtimeutil.ParseChoiceIntSlice(ctxData["remaining_indices"])
 	}
 	allowed := make(map[int]struct{}, len(magicIndices))
 	orderedCandidates := make([]int, 0, len(magicIndices))
@@ -382,7 +383,7 @@ func (e *GameEngine) handleSoulRecallSelections(playerID string, selections []in
 	picked := make([]int, 0, len(selections))
 	seen := make(map[int]struct{}, len(selections))
 	for _, idx := range selections {
-		resolvedIdx, ok := resolveSelectionToAllowedIndex(idx, orderedCandidates, allowed)
+		resolvedIdx, ok := runtimeutil.ResolveSelectionToAllowedIndex(idx, orderedCandidates, allowed)
 		if !ok {
 			return fmt.Errorf("灵魂召还只能选择法术牌")
 		}
@@ -406,10 +407,7 @@ func (e *GameEngine) handleSoulRecallSelections(playerID string, selections []in
 
 	e.PopInterrupt()
 	if e.State.PendingInterrupt == nil {
-		if len(e.State.PendingDamageQueue) > 0 {
-			e.setReturnPoint(model.TurnStageExtraAction)
-			e.enterDamageResolution(nil)
-		} else {
+		if !e.routePendingDamageWithReturn(model.TurnStageExtraAction) {
 			e.enterExtraActionStage()
 		}
 	}

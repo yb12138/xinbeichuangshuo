@@ -79,7 +79,7 @@ func TestArbiterForm_JudgmentAutoGainAtStartup(t *testing.T) {
 	}
 
 	game.State.CurrentTurn = 0
-	game.State.TurnStage = model.TurnStageActionStart
+	game.State.TurnStage = model.TurnStageTurnStart
 
 	p1 := game.State.Players["p1"]
 	p1.IsActive = true
@@ -246,24 +246,38 @@ func TestArbiterForcedDoomsday_HappensAfterStartupAndTargetsEnemiesOnly(t *testi
 		Selections: []int{startupIdx},
 	})
 
-	ctx := requireChoiceContext(t, game, "p1", "arbiter_forced_doomsday_target")
-	var targetIDs []string
-	if arr, ok := ctx["target_ids"].([]string); ok {
-		targetIDs = append(targetIDs, arr...)
-	} else if arr, ok := ctx["target_ids"].([]interface{}); ok {
-		for _, v := range arr {
-			if s, ok := v.(string); ok {
-				targetIDs = append(targetIDs, s)
-			}
-		}
+	if !game.isActionSelectionWindow() {
+		t.Fatalf("expected action selection window after startup, got %s", game.runtimeStateLabel())
 	}
-	if len(targetIDs) != 2 {
-		t.Fatalf("expected exactly two enemy targets, got %v", targetIDs)
+	if got := p1.TurnState.UsedSkillCounts["arbiter_forced_doomsday_pending"]; got != 1 {
+		t.Fatalf("expected forced doomsday pending token set, got %d", got)
 	}
-	for _, targetID := range targetIDs {
-		if targetID == "p1" || targetID == "p2" {
-			t.Fatalf("forced doomsday target list should exclude self/ally, got %v", targetIDs)
-		}
+
+	state := game.buildActionSelectionOptions("p1", p1)
+	if !state.hasArbiterForcedDoomsday {
+		t.Fatalf("expected forced doomsday action selection restriction")
+	}
+	if len(state.validOptions) != 1 || state.validOptions[0].ID != "magic" {
+		t.Fatalf("expected only magic option for forced doomsday, got %+v", state.validOptions)
+	}
+
+	err := game.HandleAction(model.PlayerAction{PlayerID: "p1", Type: model.CmdAttack, TargetID: "p3", CardIndex: 0})
+	if err == nil {
+		t.Fatalf("expected non-doomsday action to be rejected while forced")
+	}
+
+	mustHandleAction(t, game, model.PlayerAction{
+		PlayerID: "p1",
+		Type:     model.CmdSkill,
+		SkillID:  "arbiter_doomsday",
+		TargetID: "p3",
+	})
+
+	if got := p1.Tokens["judgment"]; got != 0 {
+		t.Fatalf("expected forced doomsday to clear judgment, got %d", got)
+	}
+	if got := p1.TurnState.UsedSkillCounts["arbiter_forced_doomsday_pending"]; got != 0 {
+		t.Fatalf("expected forced doomsday pending cleared after skill use, got %d", got)
 	}
 }
 
@@ -386,13 +400,26 @@ func TestArbiterForcedDoomsday_IgnoresTauntAndClearsItAfterResolution(t *testing
 	}}
 
 	game.Drive()
+	if !game.isActionSelectionWindow() {
+		t.Fatalf("expected action selection window after forced doomsday startup, got %s", game.runtimeStateLabel())
+	}
 
-	ctx := requireChoiceContext(t, game, "p1", "arbiter_forced_doomsday_target")
-	targetIdx := choiceIndexForTarget(t, ctx, "p3")
+	if got := p1.TurnState.UsedSkillCounts["arbiter_forced_doomsday_pending"]; got != 1 {
+		t.Fatalf("expected forced doomsday pending set, got %d", got)
+	}
+	state := game.buildActionSelectionOptions("p1", p1)
+	if !state.hasArbiterForcedDoomsday {
+		t.Fatalf("expected forced doomsday to override taunt restriction")
+	}
+	if state.hasHeroTaunt {
+		t.Fatalf("expected taunt not to control prompt while forced doomsday is pending")
+	}
+
 	mustHandleAction(t, game, model.PlayerAction{
-		PlayerID:   "p1",
-		Type:       model.CmdSelect,
-		Selections: []int{targetIdx},
+		PlayerID: "p1",
+		Type:     model.CmdSkill,
+		SkillID:  "arbiter_doomsday",
+		TargetID: "p3",
 	})
 
 	if got := p1.Tokens["judgment"]; got != 0 {

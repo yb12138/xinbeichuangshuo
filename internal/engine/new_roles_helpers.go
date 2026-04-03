@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"starcup-engine/internal/engine/runtimeutil"
 	"starcup-engine/internal/model"
 	"strings"
 )
@@ -34,11 +35,10 @@ func (e *GameEngine) maybeReleaseMagicSwordsmanShadowAtActionStart(player *model
 	if player.TurnState.HasUsedTriggerSkill {
 		return false
 	}
-	if !hasMagicSwordsmanShadowForm(player) || player.Tokens["ms_shadow_release_pending"] <= 0 {
+	if !hasMagicSwordsmanShadowForm(player) {
 		return false
 	}
 	leaveMagicSwordsmanShadowForm(player)
-	player.Tokens["ms_shadow_release_pending"] = 0
 	e.Log(fmt.Sprintf("%s 脱离暗影形态并转正", player.Name))
 	return true
 }
@@ -860,10 +860,8 @@ func clearElfElementalShotCombatState(player *model.Player) {
 	if player.Tokens == nil {
 		player.Tokens = map[string]int{}
 	}
-	player.Tokens["elf_elemental_shot_fire_pending"] = 0
 	player.Tokens["elf_elemental_shot_water_pending"] = 0
 	player.Tokens["elf_elemental_shot_earth_pending"] = 0
-	player.Tokens["elf_elemental_shot_thunder_pending"] = 0
 	player.Tokens["elf_elemental_shot_wind_pending"] = 0
 }
 
@@ -996,21 +994,17 @@ func (e *GameEngine) buildCombatEffectHints(combatReq model.CombatRequest, attac
 	}
 
 	if !combatReq.CanBeResponded && (combatReq.Card == nil || combatReq.Card.Element != model.ElementDark) {
-		if attacker != nil && e.isElfArcher(attacker) && attacker.Tokens["elf_elemental_shot_thunder_pending"] > 0 {
-			appendHint("精灵射手发动了[元素射击·雷之矢]：此攻击无法应战。")
-		} else {
-			appendHint("技能效果：此攻击无法应战。")
-		}
+		appendHint("技能效果：此攻击无法应战。")
 	}
 
-	if attacker != nil && attacker.Tokens != nil && attacker.Tokens["mb_magic_pierce_pending"] > 0 {
+	if attacker != nil && attacker.TurnState.SkillFlowState != nil && attacker.TurnState.SkillFlowState["mb_magic_pierce_pending"] > 0 {
 		appendHint("魔弓发动了[魔贯冲击]：本次攻击伤害额外+1。")
 	}
 	if attacker != nil && e.isMagicLancer(attacker) {
-		if attacker.TurnState.UsedSkillCounts["ml_dark_release_next_attack_bonus"] > 0 {
+		if attackDamageRuleBonusForModifier(attacker, "ml_dark_release_next_attack_bonus") > 0 {
 			appendHint("魔枪发动了[暗之解放]：本回合下一次主动攻击伤害额外+1。")
 		}
-		if bonus := attacker.TurnState.UsedSkillCounts["ml_fullness_next_attack_bonus"]; bonus > 0 {
+		if bonus := attackDamageRuleBonusForModifier(attacker, "ml_fullness_next_attack_bonus"); bonus > 0 {
 			appendHint(fmt.Sprintf("魔枪[充盈]增幅：本回合下一次主动攻击伤害额外+%d。", bonus))
 		}
 	}
@@ -1021,7 +1015,7 @@ func (e *GameEngine) buildCombatEffectHints(combatReq model.CombatRequest, attac
 	if attacker.Tokens == nil {
 		attacker.Tokens = map[string]int{}
 	}
-	if attacker.Tokens["elf_elemental_shot_fire_pending"] > 0 {
+	if attackDamageRuleBonusForModifier(attacker, "elf_elemental_shot_fire_attack_bonus") > 0 {
 		appendHint("元素射击·火之矢：本次攻击伤害额外+1。")
 	}
 	if attacker.Tokens["elf_elemental_shot_water_pending"] > 0 {
@@ -1074,9 +1068,6 @@ func (e *GameEngine) isRoseCourtyardActive() bool {
 		if p == nil || !e.isCrimsonSwordSpirit(p) {
 			continue
 		}
-		if p.Tokens != nil && p.Tokens["css_rose_courtyard_active"] > 0 {
-			return true
-		}
 		for _, fc := range p.Field {
 			if fc != nil && fc.Mode == model.FieldEffect && fc.Effect == model.EffectRoseCourtyard {
 				return true
@@ -1093,24 +1084,9 @@ func (e *GameEngine) canUseHealToResist(target *model.Player, sourceID string, d
 	if ignoreHeal {
 		return false
 	}
-	if e.isRoseCourtyardActive() {
-		return false
-	}
-	// 红莲骑士：仅允许“腥红信仰白名单”中的自伤使用治疗抵御。
-	if e.isCrimsonKnight(target) {
-		if target.ID != sourceID {
-			return false
-		}
-		if !allowCrimsonFaithHeal {
-			return false
-		}
-	}
-	// 瘟疫法师圣渎：攻击伤害不可用治疗抵挡，法术伤害可以。
-	if e.isPlagueMage(target) {
-		if strings.EqualFold(damageType, "Attack") {
-			return false
-		}
-	}
+	_ = sourceID
+	_ = damageType
+	_ = allowCrimsonFaithHeal
 	return true
 }
 
@@ -1164,13 +1140,7 @@ func magicBowChargeCount(player *model.Player, element model.Element) int {
 }
 
 func syncMagicBowChargeToken(player *model.Player) {
-	if player == nil {
-		return
-	}
-	if player.Tokens == nil {
-		player.Tokens = map[string]int{}
-	}
-	player.Tokens["mb_charge_count"] = magicBowChargeCount(player, "")
+	// no-op: mb_charge_count 在服务端 buildStateForPlayer 中按场上盖牌派生写入 PlayerView.tokens
 }
 
 func addMagicBowChargeCards(player *model.Player, cards []model.Card) int {
@@ -1244,13 +1214,7 @@ func spiritCasterPowerCount(player *model.Player, element model.Element) int {
 }
 
 func syncSpiritCasterPowerToken(player *model.Player) {
-	if player == nil {
-		return
-	}
-	if player.Tokens == nil {
-		player.Tokens = map[string]int{}
-	}
-	player.Tokens["sc_power_count"] = spiritCasterPowerCount(player, "")
+	// no-op: sc_power_count 在服务端 buildStateForPlayer 中按场上盖牌派生写入 PlayerView.tokens
 }
 
 func addSpiritCasterPowerCard(player *model.Player, card model.Card) bool {
@@ -1332,14 +1296,7 @@ func butterflyCocoonCovers(player *model.Player) []*model.FieldCard {
 }
 
 func butterflyCocoonCount(player *model.Player) int {
-	count := len(butterflyCocoonCovers(player))
-	if player != nil {
-		if player.Tokens == nil {
-			player.Tokens = map[string]int{}
-		}
-		player.Tokens["bt_cocoon_count"] = count
-	}
-	return count
+	return len(butterflyCocoonCovers(player))
 }
 
 func syncButterflyCocoonToken(player *model.Player) {
@@ -1488,11 +1445,11 @@ func (e *GameEngine) queueButterflyWitherTrigger(user *model.Player) {
 	if user == nil || !e.isButterflyDancer(user) {
 		return
 	}
-	if user.Tokens == nil {
-		user.Tokens = map[string]int{}
+	if user.TurnState.SkillFlowState == nil {
+		user.TurnState.SkillFlowState = make(map[string]int)
 	}
-	user.Tokens["bt_wither_pending"]++
-	if user.Tokens["bt_wither_pending"] > 1 {
+	user.TurnState.SkillFlowState["bt_wither_pending"]++
+	if user.TurnState.SkillFlowState["bt_wither_pending"] > 1 {
 		// 已有待处理的凋零询问，累计即可。
 		return
 	}
@@ -1606,7 +1563,7 @@ func (e *GameEngine) maybeTriggerButterflyDamageResponses(pd *model.PendingDamag
 		}
 	}
 	// 毒粉/镜花水月仅作用于法术伤害。
-	if !isMagicLikeDamageType(pd.DamageType) {
+	if !runtimeutil.IsMagicLikeDamageType(pd.DamageType) {
 		return false
 	}
 
@@ -1885,13 +1842,9 @@ func clearSwordEmperorCombatTokens(player *model.Player) {
 	if player == nil {
 		return
 	}
-	if player.Tokens == nil {
-		player.Tokens = map[string]int{}
-	}
-	player.Tokens["se_guard_disabled_current_attack"] = 0
-	player.Tokens["se_angel_soul_armed"] = 0
-	player.Tokens["se_demon_soul_armed"] = 0
-	player.Tokens["se_demon_damage_bonus_pending"] = 0
+	player.TurnState.UsedSkillCounts["se_guard_disabled_current_attack"] = 0
+	player.TurnState.UsedSkillCounts["se_angel_soul_armed"] = 0
+	player.TurnState.UsedSkillCounts["se_demon_soul_armed"] = 0
 }
 
 func (e *GameEngine) resolveSwordEmperorAttackMiss(attackerID string, attackCard *model.Card, isCounter bool) {
@@ -1899,11 +1852,7 @@ func (e *GameEngine) resolveSwordEmperorAttackMiss(attackerID string, attackCard
 	if attacker == nil || !e.isSwordEmperor(attacker) || isCounter {
 		return
 	}
-	if attacker.Tokens == nil {
-		attacker.Tokens = map[string]int{}
-	}
-
-	if attacker.Tokens["se_guard_disabled_current_attack"] <= 0 &&
+	if attacker.TurnState.UsedSkillCounts["se_guard_disabled_current_attack"] <= 0 &&
 		swordEmperorSwordSoulCount(attacker) < swordEmperorSwordSoulCapEngine &&
 		attackCard != nil {
 		if card, ok := e.takeDiscardPileCardByID(attackCard.ID); ok && e.placeSwordEmperorSwordSoul(attacker, card) {
@@ -1914,14 +1863,14 @@ func (e *GameEngine) resolveSwordEmperorAttackMiss(attackerID string, attackCard
 	qi := addSwordEmperorSwordQi(attacker, 1)
 	e.Log(fmt.Sprintf("%s 的 [佯攻] 生效：剑气+1（当前%d）", attacker.Name, qi))
 
-	if attacker.Tokens["se_angel_soul_armed"] > 0 {
+	if attacker.TurnState.UsedSkillCounts["se_angel_soul_armed"] > 0 {
 		if gained := e.addCampMorale(attacker.Camp, 1); gained > 0 {
 			e.Log(fmt.Sprintf("%s 的 [天使之魂] 未命中分支生效：%s方士气+%d", attacker.Name, attacker.Camp, gained))
 		} else {
 			e.Log(fmt.Sprintf("%s 的 [天使之魂] 未命中分支生效：%s方士气已满，未再增加", attacker.Name, attacker.Camp))
 		}
 	}
-	if attacker.Tokens["se_demon_soul_armed"] > 0 {
+	if attacker.TurnState.UsedSkillCounts["se_demon_soul_armed"] > 0 {
 		qi = addSwordEmperorSwordQi(attacker, 2)
 		e.Log(fmt.Sprintf("%s 的 [恶魔之魂] 未命中分支生效：剑气+2（当前%d）", attacker.Name, qi))
 	}
@@ -1937,10 +1886,7 @@ func (e *GameEngine) resolveSwordEmperorAttackHitAftermath(pd *model.PendingDama
 	if attacker == nil || !e.isSwordEmperor(attacker) {
 		return
 	}
-	if attacker.Tokens == nil {
-		attacker.Tokens = map[string]int{}
-	}
-	if attacker.Tokens["se_angel_soul_armed"] > 0 {
+	if attacker.TurnState.UsedSkillCounts["se_angel_soul_armed"] > 0 {
 		e.Heal(attacker.ID, 2)
 		e.Log(fmt.Sprintf("%s 的 [天使之魂] 命中分支生效：治疗+2", attacker.Name))
 	}
@@ -2070,8 +2016,6 @@ func clearBeastSamuraiAttackTokens(player *model.Player) {
 	if player.Tokens == nil {
 		player.Tokens = map[string]int{}
 	}
-	player.Tokens["bs_ignore_shield_current_attack"] = 0
-	player.Tokens["bs_no_holy_defend_current_attack"] = 0
 	player.Tokens["bs_reversal_pending_x"] = 0
 }
 
@@ -2280,14 +2224,8 @@ func moonGoddessDarkMoonCovers(player *model.Player) []*model.FieldCard {
 
 func moonGoddessDarkMoonCount(player *model.Player) int {
 	count := len(moonGoddessDarkMoonCovers(player))
-	if player != nil {
-		if player.Tokens == nil {
-			player.Tokens = map[string]int{}
-		}
-		player.Tokens["mg_dark_moon_count"] = count
-		if count <= 0 {
-			leaveMoonGoddessDarkMoonForm(player)
-		}
+	if player != nil && count <= 0 {
+		leaveMoonGoddessDarkMoonForm(player)
 	}
 	return count
 }
@@ -2307,9 +2245,6 @@ func addMoonGoddessDarkMoonCards(player *model.Player, cards []model.Card) int {
 			Trigger:  model.EffectTriggerManual,
 		})
 		added++
-	}
-	if player.Tokens == nil {
-		player.Tokens = map[string]int{}
 	}
 	if added > 0 {
 		enterMoonGoddessDarkMoonForm(player)
@@ -2747,13 +2682,7 @@ func (e *GameEngine) maybeTriggerMoonGoddessMoonCycleAtTurnEnd(player *model.Pla
 	if player.TurnState.UsedSkillCounts == nil {
 		player.TurnState.UsedSkillCounts = map[string]int{}
 	}
-	// 双保险：除 token 外，再用本回合 TurnState 门闩防止重复触发。
-	// 某些异常链路下若 token 被提前清零，仍要保证“每回合仅一次”。
 	if player.TurnState.UsedSkillCounts["mg_moon_cycle"] > 0 {
-		return false
-	}
-	// 月之轮回：每回合仅可响应一次，避免 TurnEnd 循环阶段重复弹窗。
-	if player.Tokens["mg_moon_cycle_used_turn"] > 0 {
 		return false
 	}
 	canBranch1 := moonGoddessDarkMoonCount(player) > 0
@@ -2768,7 +2697,6 @@ func (e *GameEngine) maybeTriggerMoonGoddessMoonCycleAtTurnEnd(player *model.Pla
 	if canBranch2 {
 		modes = append(modes, "branch2")
 	}
-	player.Tokens["mg_moon_cycle_used_turn"] = 1
 	player.TurnState.UsedSkillCounts["mg_moon_cycle"] = 1
 	e.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
@@ -2785,7 +2713,7 @@ func (e *GameEngine) maybeTriggerMoonGoddessMoonCycleAtTurnEnd(player *model.Pla
 }
 
 func (e *GameEngine) tryQueueMoonGoddessBlasphemy(pd *model.PendingDamage) bool {
-	if pd == nil || pd.Damage <= 0 || !isMagicLikeDamageType(pd.DamageType) {
+	if pd == nil || pd.Damage <= 0 || !runtimeutil.IsMagicLikeDamageType(pd.DamageType) {
 		return false
 	}
 	source := e.State.Players[pd.SourceID]
@@ -2806,10 +2734,10 @@ func (e *GameEngine) tryQueueMoonGoddessBlasphemy(pd *model.PendingDamage) bool 
 	if source.Tokens == nil {
 		source.Tokens = map[string]int{}
 	}
-	if source.Tokens["mg_blasphemy_used_turn"] > 0 {
+	if source.TurnState.UsedSkillCounts["mg_blasphemy"] > 0 {
 		return false
 	}
-	if source.Tokens["mg_blasphemy_pending"] > 0 {
+	if source.TurnState.SkillFlowState["mg_blasphemy_pending"] > 0 {
 		return false
 	}
 	if source.Heal <= 0 {
@@ -2826,7 +2754,7 @@ func (e *GameEngine) tryQueueMoonGoddessBlasphemy(pd *model.PendingDamage) bool 
 			"trigger_pd":  pd,
 		},
 	})
-	source.Tokens["mg_blasphemy_pending"] = 1
+	source.TurnState.SkillFlowState["mg_blasphemy_pending"] = 1
 	e.Log(fmt.Sprintf("%s 的 [月渎] 可触发：请选择目标（或跳过）", source.Name))
 	return true
 }
@@ -2876,21 +2804,21 @@ func (e *GameEngine) resolveMagicLancerStardustAfterSelf(user *model.Player) boo
 	if user == nil || !e.isMagicLancer(user) {
 		return false
 	}
-	if user.Tokens == nil || user.Tokens["ml_stardust_pending"] <= 0 {
+	if user.TurnState.SkillFlowState == nil || user.TurnState.SkillFlowState["ml_stardust_pending"] <= 0 {
 		return false
 	}
 
 	// 若还在等待本次自伤导致的爆牌弃牌，则延后到 ConfirmDiscard 再判定。
 	if e.pendingDiscardVictimID() == user.ID {
-		user.Tokens["ml_stardust_wait_discard"] = 1
+		user.TurnState.SkillFlowState["ml_stardust_wait_discard"] = 1
 		return false
 	}
 
-	before := user.Tokens["ml_stardust_morale_before"]
+	before := user.TurnState.SkillFlowState["ml_stardust_morale_before"]
 	current := e.campMorale(user.Camp)
-	user.Tokens["ml_stardust_pending"] = 0
-	user.Tokens["ml_stardust_wait_discard"] = 0
-	user.Tokens["ml_stardust_morale_before"] = 0
+	user.TurnState.SkillFlowState["ml_stardust_pending"] = 0
+	user.TurnState.SkillFlowState["ml_stardust_wait_discard"] = 0
+	user.TurnState.SkillFlowState["ml_stardust_morale_before"] = 0
 
 	if hasMagicLancerPhantomForm(user) {
 		beforePoses := e.snapshotPlayerPoses()
@@ -2910,8 +2838,8 @@ func (e *GameEngine) resolveMagicLancerStardustAfterSelf(user *model.Player) boo
 			targetIDs = append(targetIDs, pid)
 		}
 	}
-	lockedOrder := user.Tokens["ml_stardust_locked_target_order"]
-	user.Tokens["ml_stardust_locked_target_order"] = 0
+	lockedOrder := user.TurnState.SkillFlowState["ml_stardust_locked_target_order"]
+	user.TurnState.SkillFlowState["ml_stardust_locked_target_order"] = 0
 	if len(targetIDs) == 0 {
 		return false
 	}
@@ -2961,8 +2889,8 @@ func (e *GameEngine) handlePostAttackHitEffects(pd *model.PendingDamage) bool {
 	}
 	// 圣弓：主动攻击命中且本次攻击为圣命格时，信仰+1（上限10）。
 	if e.isHolyBow(attacker) {
-		if attacker.Tokens["hb_shard_miss_pending"] > 0 {
-			attacker.Tokens["hb_shard_miss_pending"] = 0
+		if attacker.TurnState.SkillFlowState["hb_shard_miss_pending"] > 0 {
+			attacker.TurnState.SkillFlowState["hb_shard_miss_pending"] = 0
 		}
 		if !pd.IsCounter && pd.Card != nil && strings.TrimSpace(pd.Card.Faction) == "圣" {
 			before := holyBowFaith(attacker)
@@ -3018,8 +2946,8 @@ func (e *GameEngine) handlePostAttackHitEffects(pd *model.PendingDamage) bool {
 	}
 
 	// 魔剑士：黄泉震颤命中后，补至上限并弃2。
-	if attacker.Tokens["ms_yellow_spring_pending"] > 0 {
-		attacker.Tokens["ms_yellow_spring_pending"] = 0
+	if attacker.TurnState.UsedSkillCounts["ms_yellow_spring_pending"] > 0 {
+		attacker.TurnState.UsedSkillCounts["ms_yellow_spring_pending"] = 0
 		maxHand := e.GetMaxHand(attacker)
 		if len(attacker.Hand) < maxHand {
 			e.DrawCards(attacker.ID, maxHand-len(attacker.Hand))
@@ -3039,9 +2967,9 @@ func (e *GameEngine) handlePostAttackHitEffects(pd *model.PendingDamage) bool {
 	}
 
 	// 魔弓：魔贯冲击命中后，若仍有火系充能则强制再移除1个并使本次伤害+1。
-	if attacker.Tokens["mb_magic_pierce_pending"] > 0 {
+	if attacker.TurnState.SkillFlowState["mb_magic_pierce_pending"] > 0 {
 		if magicBowChargeCount(attacker, model.ElementFire) <= 0 {
-			attacker.Tokens["mb_magic_pierce_pending"] = 0
+			attacker.TurnState.SkillFlowState["mb_magic_pierce_pending"] = 0
 		} else {
 			if _, ok := removeMagicBowChargeByElement(attacker, model.ElementFire); ok {
 				applied := false
@@ -3059,7 +2987,7 @@ func (e *GameEngine) handlePostAttackHitEffects(pd *model.PendingDamage) bool {
 					e.Log("[Warn] 魔贯冲击命中追加未找到对应伤害条目，未能叠加伤害")
 				}
 			}
-			attacker.Tokens["mb_magic_pierce_pending"] = 0
+			attacker.TurnState.SkillFlowState["mb_magic_pierce_pending"] = 0
 		}
 	}
 
@@ -3077,10 +3005,7 @@ func (e *GameEngine) handlePostActionEndEffects(player *model.Player, actionType
 	}
 	if actionType == model.ActionAttack && e.isElfArcher(player) {
 		if player.Tokens != nil && player.Tokens["elf_elemental_shot_wind_pending"] > 0 {
-			player.TurnState.PendingActions = append(player.TurnState.PendingActions, model.ActionContext{
-				Source:   "风之矢",
-				MustType: "Attack",
-			})
+			model.AppendAttackAction(player, "风之矢")
 			e.Log(fmt.Sprintf("%s 的 [元素射击·风之矢] 结算：额外获得1次攻击行动", player.Name))
 		}
 		clearElfElementalShotCombatState(player)
@@ -3135,13 +3060,13 @@ func (e *GameEngine) handlePostDamageResolved(pd *model.PendingDamage) bool {
 		}
 		e.dispatchOrientationChanges(beforePoses)
 	}
-	if e.isBlazeWitch(source) && source.Tokens != nil && source.Tokens["bw_pain_link_pending_discard"] > 0 {
-		if source.Tokens["bw_pain_link_pending_hits"] > 0 {
-			source.Tokens["bw_pain_link_pending_hits"]--
+	if e.isBlazeWitch(source) && source.TurnState.SkillFlowState != nil && source.TurnState.SkillFlowState["bw_pain_link_pending_discard"] > 0 {
+		if source.TurnState.SkillFlowState["bw_pain_link_pending_hits"] > 0 {
+			source.TurnState.SkillFlowState["bw_pain_link_pending_hits"]--
 		}
-		if source.Tokens["bw_pain_link_pending_hits"] <= 0 {
-			source.Tokens["bw_pain_link_pending_hits"] = 0
-			source.Tokens["bw_pain_link_pending_discard"] = 0
+		if source.TurnState.SkillFlowState["bw_pain_link_pending_hits"] <= 0 {
+			source.TurnState.SkillFlowState["bw_pain_link_pending_hits"] = 0
+			source.TurnState.SkillFlowState["bw_pain_link_pending_discard"] = 0
 			if len(source.Hand) > 3 {
 				e.PushInterrupt(&model.Interrupt{
 					Type:     model.InterruptDiscard,
@@ -3158,8 +3083,8 @@ func (e *GameEngine) handlePostDamageResolved(pd *model.PendingDamage) bool {
 		}
 	}
 	if e.isMagicLancer(source) &&
-		source.Tokens != nil &&
-		source.Tokens["ml_stardust_pending"] > 0 &&
+		source.TurnState.SkillFlowState != nil &&
+		source.TurnState.SkillFlowState["ml_stardust_pending"] > 0 &&
 		pd.SourceID == source.ID &&
 		pd.TargetID == source.ID {
 		if e.resolveMagicLancerStardustAfterSelf(source) {
@@ -3171,7 +3096,7 @@ func (e *GameEngine) handlePostDamageResolved(pd *model.PendingDamage) bool {
 		return false
 	}
 	target := e.State.Players[pd.TargetID]
-	if target != nil && e.isSage(target) && isMagicLikeDamageType(pd.DamageType) {
+	if target != nil && e.isSage(target) && runtimeutil.IsMagicLikeDamageType(pd.DamageType) {
 		if pd.Damage > 3 {
 			maxEnergy := e.getPlayerEnergyCap(target)
 			if target.Gem+target.Crystal < maxEnergy {
@@ -3220,7 +3145,7 @@ func (e *GameEngine) handlePostDamageResolved(pd *model.PendingDamage) bool {
 			e.Log(fmt.Sprintf("%s 的 [法术反弹] 未触发：承受1点法术伤害但同系手牌不足2（当前最大同系=%d）", target.Name, sameCount))
 		}
 	}
-	if pd.Damage > 0 && isMagicLikeDamageType(pd.DamageType) {
+	if pd.Damage > 0 && runtimeutil.IsMagicLikeDamageType(pd.DamageType) {
 		if e.tryTriggerBardDescentAfterMagicDamage(pd) {
 			_ = e.tryQueueMoonGoddessBlasphemy(pd)
 			return true

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"starcup-engine/internal/engine/runtimeutil"
 
 	"starcup-engine/internal/model"
 )
@@ -51,13 +52,13 @@ var targetChoicePromptSpecs = map[string]targetChoicePromptSpec{
 	},
 	"hom_dual_echo_target": {
 		message: func(data map[string]interface{}) string {
-			return fmt.Sprintf("【双重回响】请选择额外造成%d点法术伤害的目标：", toIntContextValue(data["damage"]))
+			return fmt.Sprintf("【双重回响】请选择额外造成%d点法术伤害的目标：", runtimeutil.ToIntContextValue(data["damage"]))
 		},
 		allowCancel: true,
 	},
 	"mb_thunder_scatter_target": {
 		message: func(data map[string]interface{}) string {
-			return fmt.Sprintf("【雷光散射】请选择额外受到%d点法术伤害的目标：", toIntContextValue(data["extra_x"]))
+			return fmt.Sprintf("【雷光散射】请选择额外受到%d点法术伤害的目标：", runtimeutil.ToIntContextValue(data["extra_x"]))
 		},
 	},
 	"mb_multi_shot_target": {
@@ -90,7 +91,7 @@ var targetChoicePromptSpecs = map[string]targetChoicePromptSpec{
 	},
 	"se_sword_qi_slash_target": {
 		message: func(data map[string]interface{}) string {
-			return fmt.Sprintf("【剑气斩】请选择承受%d点法术伤害的目标：", toIntContextValue(data["x_value"]))
+			return fmt.Sprintf("【剑气斩】请选择承受%d点法术伤害的目标：", runtimeutil.ToIntContextValue(data["x_value"]))
 		},
 	},
 	"fighter_psi_bullet_target": {
@@ -109,7 +110,7 @@ func (e *GameEngine) buildTargetChoicePrompt(choiceType, playerID string, _ *mod
 		return nil
 	}
 
-	targetIDs := parseStringSliceContextValue(data["target_ids"])
+	targetIDs := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
 	options := make([]model.PromptOption, 0, len(targetIDs)+1)
 	for _, targetID := range targetIDs {
 		if target := e.State.Players[targetID]; target != nil {

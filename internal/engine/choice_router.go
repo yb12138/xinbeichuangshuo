@@ -1,6 +1,10 @@
 package engine
 
-import "starcup-engine/internal/model"
+import (
+	"fmt"
+
+	"starcup-engine/internal/model"
+)
 
 type choicePromptBuilder func(e *GameEngine, choiceType, playerID string, player *model.Player, data map[string]interface{}) *model.Prompt
 
@@ -129,6 +133,91 @@ func (e *GameEngine) handleRegisteredChoiceCancel(playerID, choiceType string) (
 		return false, nil
 	}
 	return true, handler(e, playerID)
+}
+
+func (e *GameEngine) handleLegacySequentialCardSelections(playerID string, selections []int) error {
+	if len(selections) == 0 {
+		return fmt.Errorf("请先选择手牌后再提交")
+	}
+	if e.State.PendingInterrupt == nil || e.State.PendingInterrupt.Type != model.InterruptChoice {
+		return fmt.Errorf("当前不存在可处理的选牌中断")
+	}
+	ctxData, ok := e.State.PendingInterrupt.Context.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("选牌上下文错误")
+	}
+	choiceType, _ := ctxData["choice_type"].(string)
+	needCount, supported := registeredSequentialCardChoiceRemainingCount(choiceType, ctxData)
+	if !supported {
+		return fmt.Errorf("当前选择类型不支持多选提交流程")
+	}
+	if needCount < 1 {
+		needCount = 1
+	}
+	if len(selections) == 1 && needCount != 1 {
+		return e.handleWeakChoiceInput(playerID, selections[0])
+	}
+	if len(selections) != needCount {
+		return fmt.Errorf("需要选择 %d 张牌", needCount)
+	}
+	for _, idx := range selections {
+		if err := e.handleWeakChoiceInput(playerID, idx); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (e *GameEngine) handleWeakChoiceInput(playerID string, selectionIndex int) error {
+	if e.State.PendingInterrupt == nil {
+		return fmt.Errorf("没有待处理的中断")
+	}
+
+	ctxData, ok := e.State.PendingInterrupt.Context.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("中断上下文格式错误")
+	}
+
+	choiceType, _ := ctxData["choice_type"].(string)
+
+	if handled, err := e.handleRegisteredChoiceInput(playerID, selectionIndex, ctxData); handled || err != nil {
+		return err
+	}
+
+	return fmt.Errorf("未知的选择类型: %s", choiceType)
+}
+
+func (e *GameEngine) handleChoiceSelectionInput(playerID string, selectionIndex int) error {
+	return e.handleWeakChoiceInput(playerID, selectionIndex)
+}
+
+func (e *GameEngine) handleInterruptChoiceAction(act model.PlayerAction) error {
+	if act.Type == model.CmdCancel {
+		if data, ok := e.State.PendingInterrupt.Context.(map[string]interface{}); ok {
+			if ct, _ := data["choice_type"].(string); ct != "" {
+				if handled, err := e.handleRegisteredChoiceCancel(act.PlayerID, ct); handled || err != nil {
+					return err
+				}
+			}
+		}
+	}
+	if act.Type == model.CmdSelect {
+		if data, ok := e.State.PendingInterrupt.Context.(map[string]interface{}); ok {
+			if ct, _ := data["choice_type"].(string); ct != "" {
+				if handled, err := e.handleRegisteredChoiceMultiSelect(act.PlayerID, ct, act.Selections); handled || err != nil {
+					return err
+				}
+				if _, isLegacyCardMulti := registeredSequentialCardChoiceRemainingCount(ct, data); isLegacyCardMulti {
+					return e.handleLegacySequentialCardSelections(act.PlayerID, act.Selections)
+				}
+			}
+		}
+		if len(act.Selections) != 1 {
+			return fmt.Errorf("请选择一个选项")
+		}
+		return e.handleWeakChoiceInput(act.PlayerID, act.Selections[0])
+	}
+	return fmt.Errorf("当前中断类型不支持该指令")
 }
 
 func (e *GameEngine) cancelExtractChoice(playerID string) error {

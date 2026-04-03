@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"starcup-engine/internal/engine/runtimeutil"
 
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/rules"
@@ -10,7 +11,7 @@ import (
 func (e *GameEngine) buildMagicBowChoicePrompt(choiceType, playerID string, player *model.Player, data map[string]interface{}) *model.Prompt {
 	switch choiceType {
 	case "mb_charge_draw_x":
-		maxDraw := toIntContextValue(data["max_draw"])
+		maxDraw := runtimeutil.ToIntContextValue(data["max_draw"])
 		if maxDraw <= 0 {
 			maxDraw = 4
 		}
@@ -21,7 +22,7 @@ func (e *GameEngine) buildMagicBowChoicePrompt(choiceType, playerID string, play
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【充能】请选择摸牌数量X（0~4）：", Options: options, Min: 1, Max: 1}
 
 	case "mb_charge_place_count":
-		maxPlace := toIntContextValue(data["max_place"])
+		maxPlace := runtimeutil.ToIntContextValue(data["max_place"])
 		if maxPlace < 0 {
 			maxPlace = 0
 		}
@@ -40,7 +41,7 @@ func (e *GameEngine) buildMagicBowChoicePrompt(choiceType, playerID string, play
 			remaining = allHandIndices(player)
 		}
 		selectedCount := len(parseIntSliceContextValue(data["selected_indices"]))
-		needCount := toIntContextValue(data["need_count"])
+		needCount := runtimeutil.ToIntContextValue(data["need_count"])
 		if choiceType == "mb_demon_eye_charge_card" && needCount <= 0 {
 			needCount = 1
 		}
@@ -68,7 +69,7 @@ func (e *GameEngine) buildMagicBowChoicePrompt(choiceType, playerID string, play
 		return &model.Prompt{Type: model.PromptChooseCards, PlayerID: playerID, Message: message, Options: options, Min: remainingPick, Max: remainingPick}
 
 	case "mb_thunder_scatter_extra":
-		maxExtra := toIntContextValue(data["max_extra"])
+		maxExtra := runtimeutil.ToIntContextValue(data["max_extra"])
 		if maxExtra < 0 {
 			maxExtra = 0
 		}
@@ -92,7 +93,7 @@ func (e *GameEngine) handleMagicBowChoiceInput(_ string, selectionIndex int, ctx
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
-		maxDraw := toIntContextValue(ctxData["max_draw"])
+		maxDraw := runtimeutil.ToIntContextValue(ctxData["max_draw"])
 		if maxDraw <= 0 {
 			maxDraw = 4
 		}
@@ -189,7 +190,7 @@ func (e *GameEngine) handleMagicBowChoiceInput(_ string, selectionIndex int, ctx
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
-		maxPlace := toIntContextValue(ctxData["max_place"])
+		maxPlace := runtimeutil.ToIntContextValue(ctxData["max_place"])
 		if maxPlace < 0 {
 			maxPlace = 0
 		}
@@ -226,14 +227,14 @@ func (e *GameEngine) handleMagicBowChoiceInput(_ string, selectionIndex int, ctx
 			remaining = allHandIndices(user)
 		}
 		selected := parseIntSliceContextValue(ctxData["selected_indices"])
-		needCount := toIntContextValue(ctxData["need_count"])
+		needCount := runtimeutil.ToIntContextValue(ctxData["need_count"])
 		if choiceType == "mb_demon_eye_charge_card" && needCount <= 0 {
 			needCount = 1
 		}
 		if needCount <= 0 {
 			needCount = 1
 		}
-		cardIdx, ok := resolveSelectionToCandidate(selectionIndex, remaining)
+		cardIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, remaining)
 		if !ok || cardIdx < 0 || cardIdx >= len(user.Hand) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
@@ -285,11 +286,11 @@ func (e *GameEngine) handleMagicBowChoiceInput(_ string, selectionIndex int, ctx
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
-		targetIDs := parseStringSliceContextValue(ctxData["target_ids"])
+		targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
 		if len(targetIDs) == 0 {
 			return true, fmt.Errorf("雷光散射没有可选目标")
 		}
-		maxExtra := toIntContextValue(ctxData["max_extra"])
+		maxExtra := runtimeutil.ToIntContextValue(ctxData["max_extra"])
 		extraX := selectionIndex
 		if extraX < 0 || extraX > maxExtra {
 			return true, fmt.Errorf("无效的X值")
@@ -350,7 +351,7 @@ func (e *GameEngine) handleMagicBowChoiceInput(_ string, selectionIndex int, ctx
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
-		targetIDs := parseStringSliceContextValue(ctxData["target_ids"])
+		targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
 		if selectionIndex < 0 || selectionIndex >= len(targetIDs) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
@@ -361,7 +362,7 @@ func (e *GameEngine) handleMagicBowChoiceInput(_ string, selectionIndex int, ctx
 		}
 		switch choiceType {
 		case "mb_thunder_scatter_target":
-			extraX := toIntContextValue(ctxData["extra_x"])
+			extraX := runtimeutil.ToIntContextValue(ctxData["extra_x"])
 			if extraX > 0 {
 				e.AddPendingDamage(model.PendingDamage{SourceID: user.ID, TargetID: targetID, Damage: extraX, DamageType: "magic"})
 			}
@@ -382,7 +383,7 @@ func (e *GameEngine) handleMagicBowChoiceInput(_ string, selectionIndex int, ctx
 				}
 			}
 			virtualCard := model.Card{ID: fmt.Sprintf("mb_multi_shot_%s_%d", user.ID, len(e.State.DiscardPile)+len(e.State.ActionQueue)+1), Name: "多重射击", Type: model.CardTypeAttack, Element: model.ElementDark, Damage: 1, Description: "由多重射击视为的暗系主动攻击（伤害-1）"}
-			e.State.ActionQueue = append(e.State.ActionQueue, model.QueuedAction{SourceID: user.ID, TargetID: target.ID, Type: model.ActionAttack, Element: model.ElementDark, Card: &virtualCard, CardIndex: -1, SourceSkill: "mb_multi_shot"})
+			e.State.ActionQueue = append(e.State.ActionQueue, model.QueuedAction{SourceID: user.ID, TargetID: target.ID, Type: model.ActionAttack, Element: model.ElementDark, Card: &virtualCard, CardIndex: -1, SourceSkill: "mb_multi_shot", UsesVirtualCard: true})
 			e.Log(fmt.Sprintf("%s 的 [多重射击] 生效：对 %s 发起1次暗系追加攻击（伤害-1）", user.Name, target.Name))
 			e.PopInterrupt()
 			if e.State.PendingInterrupt == nil {

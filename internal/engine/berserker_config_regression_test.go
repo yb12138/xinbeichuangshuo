@@ -89,7 +89,7 @@ func TestBloodBlade_TriggersOnHitCheckForActiveUniqueAttack(t *testing.T) {
 			Type:            model.CardTypeAttack,
 			Element:         model.ElementDark,
 			Damage:          2,
-			ExclusiveChar1:  "狂战士",
+			ExclusiveChar1:  "berserker",
 			ExclusiveSkill1: "血影狂刀",
 		},
 		AttackInfo: &model.AttackEventInfo{

@@ -40,8 +40,6 @@ func (h *BaseHandler) Execute(ctx *model.Context) error {
 func InitHandlers() {
 	initOnce.Do(func() {
 		Register("holy_shield", &HolyShieldHandler{})
-		Register("weakness", &WeaknessHandler{})
-		Register("poison", &PoisonHandler{})
 		// 1. 天使
 		Register("angel_bond", &AngelBondHandler{})
 		Register("angel_blessing", &AngelBlessingHandler{})
