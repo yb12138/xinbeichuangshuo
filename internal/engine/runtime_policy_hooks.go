@@ -11,6 +11,8 @@ type actionSelectionOptionPolicy func(e *GameEngine, player *model.Player, state
 type actionSelectionValidationPolicy func(e *GameEngine, player *model.Player, act model.PlayerAction, result *actionSelectionValidationResult) error
 
 type combatInteractionHook func(e *GameEngine, req *model.CombatRequest) bool
+type attackStartInterruptHook func(e *GameEngine, attacker *model.Player, target *model.Player, currentAction *model.QueuedAction, userCtx *model.Context) bool
+type actionEndInterruptHook func(e *GameEngine, ctx *model.Context) bool
 
 type responseSkillIDAugmenter func(sd *SkillDispatcher, skillIDs []string, ctx *model.Context) []string
 type responseSkillIDNormalizer func(sd *SkillDispatcher, skillIDs []string, ctx *model.Context) []string
@@ -37,6 +39,18 @@ var combatInteractionHooks = []combatInteractionHook{
 	combatInteractionOnmyojiBindingInterruptHook,
 	combatInteractionOnmyojiBindingCounterHook,
 	combatInteractionOnmyojiYinYangInterruptHook,
+	// 暗灭可否应战属于战斗交互策略，统一放在策略钩子中，避免主流程写死角色特判。
+	combatInteractionDarkElementResponsePolicyHook,
+}
+
+var attackStartInterruptHooks = []attackStartInterruptHook{
+	// 角色技能在“攻击开始时机”插入中断，统一由钩子扩展主流程。
+	attackStartMoonGoddessMedusaInterruptHook,
+}
+
+var actionEndInterruptHooks = []actionEndInterruptHook{
+	// 行动结束时机的角色中断（如圣剑三连击）通过统一钩子处理。
+	actionEndHolySwordInterruptHook,
 }
 
 var responseSkillIDAugmenters = []responseSkillIDAugmenter{
@@ -45,6 +59,24 @@ var responseSkillIDAugmenters = []responseSkillIDAugmenter{
 
 var responseSkillIDNormalizers = []responseSkillIDNormalizer{
 	normalizeFighterResponseSkillIDs,
+}
+
+func (e *GameEngine) runAttackStartInterruptHooks(attacker *model.Player, target *model.Player, currentAction *model.QueuedAction, userCtx *model.Context) bool {
+	for _, hook := range attackStartInterruptHooks {
+		if hook != nil && hook(e, attacker, target, currentAction, userCtx) {
+			return true
+		}
+	}
+	return false
+}
+
+func (e *GameEngine) runActionEndInterruptHooks(ctx *model.Context) bool {
+	for _, hook := range actionEndInterruptHooks {
+		if hook != nil && hook(e, ctx) {
+			return true
+		}
+	}
+	return false
 }
 
 func turnBeforeStartButterflyDancerWitherExpiryHook(e *GameEngine, player *model.Player) bool {
@@ -437,6 +469,32 @@ func combatInteractionOnmyojiBindingCounterHook(e *GameEngine, req *model.Combat
 
 func combatInteractionOnmyojiYinYangInterruptHook(e *GameEngine, req *model.CombatRequest) bool {
 	return e != nil && req != nil && e.tryStartOnmyojiYinYangInterrupt(req)
+}
+
+func combatInteractionDarkElementResponsePolicyHook(e *GameEngine, req *model.CombatRequest) bool {
+	if e == nil || req == nil || req.Card == nil || req.Card.Element != model.ElementDark {
+		return false
+	}
+	target := e.State.Players[req.TargetID]
+	if target == nil || e.canUseShadowRejectResponseMagic(target) {
+		return false
+	}
+	req.SetInterceptTag(model.CombatInterceptUnrespondable)
+	return false
+}
+
+func attackStartMoonGoddessMedusaInterruptHook(e *GameEngine, attacker *model.Player, target *model.Player, currentAction *model.QueuedAction, userCtx *model.Context) bool {
+	if e == nil || attacker == nil || target == nil || currentAction == nil {
+		return false
+	}
+	return e.maybeTriggerMoonGoddessMedusa(attacker, target, currentAction.SourceSkill, currentAction.Card, userCtx)
+}
+
+func actionEndHolySwordInterruptHook(e *GameEngine, ctx *model.Context) bool {
+	if e == nil {
+		return false
+	}
+	return e.maybeTriggerHolySwordDrawFromPhaseEndCtx(ctx)
 }
 
 func augmentBeastSamuraiResponseSkillIDs(sd *SkillDispatcher, skillIDs []string, ctx *model.Context) []string {

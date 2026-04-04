@@ -128,7 +128,6 @@ func TestSaintess_Mercy_BecomesPersistentFixedHandCapState(t *testing.T) {
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
 	game.State.PendingInterrupt = nil
-	game.State.HasPerformedStartup = false
 	game.State.CurrentTurn = 0
 	game.State.TurnStage = model.TurnStageActionStart
 	game.Drive()

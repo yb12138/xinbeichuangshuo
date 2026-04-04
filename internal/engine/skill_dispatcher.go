@@ -600,8 +600,6 @@ func (sd *SkillDispatcher) ConfirmStartupSkill(playerID string, skillID string) 
 	player.TurnState.UsedSkillCounts[skillID]++
 	// 启动阶段每回合只允许选择一次：确认发动后即视为本回合已处理启动技能。
 	player.TurnState.HasUsedTriggerSkill = true
-	// 本回合一旦执行过启动技能，则禁止特殊行动（购买/合成/提炼）。
-	sd.engine.State.HasPerformedStartup = true
 
 	// 若技能执行过程中产生了新的中断（如摸牌溢出弃牌），不要把它清掉。
 	if sd.engine.State.PendingInterrupt != nil && sd.engine.State.PendingInterrupt.Type == model.InterruptStartupSkill {

@@ -32,7 +32,7 @@ func (e *GameEngine) handleActionSelection(act model.PlayerAction) error {
 
 	switch act.Type {
 	case model.CmdBuy, model.CmdSynthesize, model.CmdExtract, model.CmdSkill:
-		if e.State.HasPerformedStartup &&
+		if e.hasPerformedStartupThisTurn(player) &&
 			(act.Type == model.CmdBuy || act.Type == model.CmdSynthesize || act.Type == model.CmdExtract) {
 			return fmt.Errorf("你本回合已执行启动技能，不能执行特殊行动")
 		}
@@ -114,7 +114,8 @@ func (e *GameEngine) handleActionSelection(act model.PlayerAction) error {
 		}
 		phaseCtx := e.buildContext(player, nil, model.TriggerOnPhaseEnd, phaseEventCtx)
 		e.dispatcher.OnTrigger(model.TriggerOnPhaseEnd, phaseCtx)
-		e.State.SpecialPhaseEndDispatched = true
+		// 特殊行动的 OnPhaseEnd 已在此处派发，不再通过 ActionEnd 阶段重复派发。
+		player.TurnState.LastActionType = ""
 
 		if e.State.PendingInterrupt == nil {
 			e.enterExtraActionStage()
@@ -243,7 +244,7 @@ func (e *GameEngine) handleActionSelection(act model.PlayerAction) error {
 		handCount := len(player.Hand)
 		if handCount == 0 {
 			e.Log(fmt.Sprintf("[Action] %s 宣告【无法行动】（无手牌），结束本回合行动阶段", player.Name))
-			e.State.HasPerformedStartup = true
+			e.markSpecialActionLockedForTurn(player)
 			e.enterTurnEndStage()
 			return nil
 		}
@@ -297,7 +298,7 @@ func (e *GameEngine) handleActionSelection(act model.PlayerAction) error {
 			}
 		}
 		e.Log(fmt.Sprintf("[Action] %s 重新摸了%d张牌，且本回合不可执行特殊行动", player.Name, handCount))
-		e.State.HasPerformedStartup = true
+		e.markSpecialActionLockedForTurn(player)
 		e.enterActionExecutionStage()
 		return nil
 

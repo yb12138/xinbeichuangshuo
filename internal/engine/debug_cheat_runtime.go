@@ -34,7 +34,6 @@ func (e *GameEngine) forceTurnTo(targetPID string) error {
 	newPlayer.TurnState = model.NewPlayerTurnState()
 
 	e.enterActionExecutionStage()
-	e.State.HasPerformedStartup = false
 
 	return nil
 }
@@ -849,7 +848,6 @@ func (e *GameEngine) handleCheat(act model.PlayerAction) error {
 		e.State.ActionQueue = []model.QueuedAction{}
 		e.State.ActionStack = []model.Action{}
 		e.State.CombatStack = []model.CombatRequest{}
-		e.State.HasPerformedStartup = false
 		player.TurnState = model.NewPlayerTurnState()
 
 		skill, ok := e.debugFindSkill(player, skillID)

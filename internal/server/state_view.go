@@ -62,6 +62,13 @@ func countBloodSharedLifeAsHolder(player *model.Player) int {
 
 func (r *Room) buildStateForPlayer(playerID string) GameStateUpdate {
 	state := r.Engine.State
+	hasPerformedStartup := false
+	if state != nil && len(state.PlayerOrder) > 0 && state.CurrentTurn >= 0 && state.CurrentTurn < len(state.PlayerOrder) {
+		currentPlayer := state.Players[state.PlayerOrder[state.CurrentTurn]]
+		if currentPlayer != nil {
+			hasPerformedStartup = currentPlayer.TurnState.HasUsedTriggerSkill || currentPlayer.TurnState.UsedSkillCounts["turn_special_action_locked"] > 0
+		}
+	}
 
 	players := make(map[string]PlayerView)
 	for pid, p := range state.Players {
@@ -97,7 +104,11 @@ func (r *Room) buildStateForPlayer(playerID string) GameStateUpdate {
 		view.BloodSharedLifeBound = countBloodSharedLifeAsHolder(p)
 		view.MagicLancerDarkReleaseBonus = combatPolicyAttackBonusByModifierID(p, "ml_dark_release_next_attack_bonus")
 		view.MagicLancerFullnessBonus = combatPolicyAttackBonusByModifierID(p, "ml_fullness_next_attack_bonus")
-		view.MagicLancerDarkReleaseLocked = hasRuleModifierWithModifierID(p, "ml_dark_release_lock_turn")
+		if hasRuleModifierWithModifierID(p, "ml_dark_release_lock_turn") {
+			view.MagicLancerDarkReleaseLockTurn = 1
+		} else {
+			view.MagicLancerDarkReleaseLockTurn = 0
+		}
 		// 清理不应暴露给前端的 Tokens 镜像
 		delete(view.Tokens, "mb_charge_count")
 		delete(view.Tokens, "sc_power_count")
@@ -124,7 +135,7 @@ func (r *Room) buildStateForPlayer(playerID string) GameStateUpdate {
 		CombatStage:         string(state.CombatStage),
 		Subflow:             string(state.Subflow),
 		CurrentPlayer:       state.CurrentPlayer,
-		HasPerformedStartup: state.HasPerformedStartup,
+		HasPerformedStartup: hasPerformedStartup,
 		Players:             players,
 		RedMorale:           state.RedMorale,
 		BlueMorale:          state.BlueMorale,

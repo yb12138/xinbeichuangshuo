@@ -96,7 +96,7 @@ func (e *GameEngine) appendBaseActionSelectionOptions(player *model.Player, stat
 		}
 	}
 
-	if !state.hasHeroTaunt && !state.hasArbiterForcedDoomsday && !state.hasFighterHundredDragon && !state.isRestrictedExtraAction && !e.State.HasPerformedStartup {
+	if !state.hasHeroTaunt && !state.hasArbiterForcedDoomsday && !state.hasFighterHundredDragon && !state.isRestrictedExtraAction && !e.hasPerformedStartupThisTurn(player) {
 		maxHand := e.GetMaxHand(player)
 		canBuyOrSynth := len(player.Hand)+3 <= maxHand
 

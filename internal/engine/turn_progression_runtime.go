@@ -83,11 +83,6 @@ func (e *GameEngine) prepareNextTurnRuntime(nextPlayer *model.Player) {
 	e.resetTurnMagicDamageTracker()
 
 	// 重置 Engine / FSM 级状态
-	e.State.HasPerformedStartup = false
-	e.State.PostActionEndPending = false
-	e.State.PostActionEndWasMagic = false
-	e.State.SpecialPhaseEndDispatched = false
-	e.State.HolySwordPhaseEndPending = false
 	e.State.ActionQueue = []model.QueuedAction{}
 	e.State.CombatStack = []model.CombatRequest{}
 	e.clearSubflow()

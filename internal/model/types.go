@@ -208,9 +208,8 @@ type GameState struct {
 	InterruptQueue   []*Interrupt `json:"interrupt_queue,omitempty"`   // Wait list for interrupts
 
 	// 11步回合结构新增字段
-	ActionQueue         []QueuedAction  `json:"action_queue,omitempty"` // 额外行动队列
-	CombatStack         []CombatRequest `json:"combat_stack,omitempty"` // 战斗请求栈
-	HasPerformedStartup bool            `json:"has_performed_startup"`  // 是否已执行启动技能（限制特殊行动）
+	ActionQueue []QueuedAction  `json:"action_queue,omitempty"` // 额外行动队列
+	CombatStack []CombatRequest `json:"combat_stack,omitempty"` // 战斗请求栈
 
 	MagicBulletChain *MagicBulletChain `json:"magic_bullet_chain,omitempty"` // 魔弹链条
 
@@ -225,11 +224,6 @@ type GameState struct {
 	ReturnSubflow     Subflow     `json:"return_subflow,omitempty"`
 	GameOver          bool        `json:"game_over,omitempty"`
 
-	// 行动收尾 FSM 中间态（原在 Player.Tokens 上，与回合 FSM 阶段切换强绑定）
-	PostActionEndPending      bool `json:"post_action_end_pending,omitempty"`
-	PostActionEndWasMagic     bool `json:"post_action_end_was_magic,omitempty"`
-	SpecialPhaseEndDispatched bool `json:"special_phase_end_dispatched,omitempty"`
-	HolySwordPhaseEndPending  bool `json:"holy_sword_phase_end_pending,omitempty"`
 }
 
 // PendingDamage 代表一个待处理的伤害事件
@@ -308,7 +302,6 @@ func NewGameState() *GameState {
 		PendingInterrupt:    nil, // No interrupt initially
 		ActionQueue:         []QueuedAction{},
 		CombatStack:         []CombatRequest{},
-		HasPerformedStartup: false,
 		MagicBulletChain:    nil,
 		PendingDamageQueue:  []PendingDamage{}, // 初始化延迟伤害队列
 		DeferredFollowups:   []DeferredFollowup{},

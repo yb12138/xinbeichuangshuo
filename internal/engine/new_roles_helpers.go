@@ -502,15 +502,12 @@ func (e *GameEngine) canCastMagicInAction(player *model.Player) bool {
 }
 
 // canUseShadowRejectResponseMagic 判断魔剑士【暗影抗拒】是否允许在“非自己行动阶段”用法术响应。
-// 规则：仅暗影形态下生效，且必须不是当前回合玩家本人。
+// 规则：必须不是当前回合玩家本人。
 func (e *GameEngine) canUseShadowRejectResponseMagic(player *model.Player) bool {
 	if e == nil || player == nil {
 		return false
 	}
 	if !e.isMagicSwordsman(player) {
-		return false
-	}
-	if !hasMagicSwordsmanShadowForm(player) {
 		return false
 	}
 	if len(e.State.PlayerOrder) == 0 {

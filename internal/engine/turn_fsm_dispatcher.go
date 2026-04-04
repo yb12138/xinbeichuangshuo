@@ -69,7 +69,7 @@ func (e *GameEngine) syncTurnStageForDispatch(player *model.Player) model.TurnSt
 		if stage == model.TurnStageActionStart && !player.TurnState.HasProcessedTurnStart {
 			return setAndReturn(model.TurnStageTurnStart)
 		}
-		needsActionEndCatchup := player.TurnState.LastActionType != "" || e.State.PostActionEndPending
+		needsActionEndCatchup := player.TurnState.LastActionType != ""
 		if (stage == model.TurnStageExtraAction || stage == model.TurnStageTurnEnd) && needsActionEndCatchup {
 			return setAndReturn(model.TurnStageActionEnd)
 		}
@@ -82,8 +82,6 @@ func (e *GameEngine) syncTurnStageForDispatch(player *model.Player) model.TurnSt
 		return setAndReturn(stage)
 	default:
 		if player != nil && player.TurnState.LastActionType != "" {
-			stage = model.TurnStageActionEnd
-		} else if player != nil && e.State.PostActionEndPending {
 			stage = model.TurnStageActionEnd
 		} else if player != nil && player.TurnState.HasProcessedTurnStart {
 			stage = model.TurnStageActionStart
@@ -411,7 +409,8 @@ func (e *GameEngine) driveBeforeActionPhase(currentPid string, player *model.Pla
 			if e.State.PendingInterrupt != nil {
 				return driveStop
 			}
-			if e.maybeTriggerMoonGoddessMedusa(player, target, currentAction.SourceSkill, currentAction.Card, attackStartCtx) {
+			// 角色“攻击开始”阶段的中断由统一策略钩子处理，主流程不再直连角色技能实现。
+			if e.runAttackStartInterruptHooks(player, target, &currentAction, attackStartCtx) {
 				return driveStop
 			}
 		}
@@ -535,7 +534,7 @@ func (e *GameEngine) driveCombatInteractionPhase(currentPid string, player *mode
 
 	// 如果强制命中，直接结算伤害
 	if combatReq.IsForcedHit {
-		e.Log(fmt.Sprintf("[Combat] 攻击强制命中！跳过响应阶段，直接结算..."))
+		e.Log("[Combat] 攻击强制命中！跳过响应阶段，直接结算...")
 		e.clearCombatStack()
 		e.AddPendingDamageFront(model.PendingDamage{
 			SourceID:      combatReq.AttackerID,
@@ -572,11 +571,7 @@ func (e *GameEngine) driveCombatInteractionPhase(currentPid string, player *mode
 
 	// 通知目标玩家选择响应方式（无圣盾时正常选项）
 	var options []model.PromptOption
-	// 暗灭规则兜底：默认暗灭攻击不可应战。
-	// 例外：魔剑士【暗影抗拒】在“非自己行动阶段”可用【魔弹】响应，应保留应战入口。
-	if combatReq.Card != nil && combatReq.Card.Element == model.ElementDark && !e.canUseShadowRejectResponseMagic(target) {
-		combatReq.SetInterceptTag(model.CombatInterceptUnrespondable)
-	}
+	// 暗灭/暗影抗拒等交互策略在 combatInteractionHooks 中统一处理。
 	noHolyDefend := combatReq.HasInterceptTag(model.CombatInterceptIgnoreTargetHoly)
 	takeLabel := "承受伤害"
 	if shieldFallbackReady {
@@ -624,33 +619,11 @@ func (e *GameEngine) driveCombatInteractionPhase(currentPid string, player *mode
 
 func (e *GameEngine) driveActionEndStage(currentPid string, player *model.Player) driveOutcome {
 	e.setTurnStage(model.TurnStageActionEnd)
-	// 若上一次行动在 OnPhaseEnd 触发中断后返回，这里补做“行动结束追加效果”
-	// （如迅捷赐福），避免被前置中断吞掉。
-	if player.TurnState.LastActionType == "" && e.State.PostActionEndPending {
-		actionType := model.ActionAttack
-		if e.State.PostActionEndWasMagic {
-			actionType = model.ActionMagic
-		}
-		e.State.PostActionEndPending = false
-		e.State.PostActionEndWasMagic = false
-		if e.handlePostActionEndEffects(player, actionType) {
-			return driveStop
-		}
-	}
 
 	if player.TurnState.LastActionType != "" {
 		lastActionType := model.ActionType(player.TurnState.LastActionType)
-		skipHolySwordPhaseEnd := false
-		if e.State.HolySwordPhaseEndPending {
-			skipHolySwordPhaseEnd = true
-			e.State.HolySwordPhaseEndPending = false
-		}
-		specialPhaseEndDispatched := false
-		if e.State.SpecialPhaseEndDispatched &&
-			(lastActionType == model.ActionBuy || lastActionType == model.ActionSynthesize || lastActionType == model.ActionExtract) {
-			specialPhaseEndDispatched = true
-			e.State.SpecialPhaseEndDispatched = false
-		}
+		// 通过玩家回合态消费“行动结束中断恢复标记”，避免依赖全局临时字段。
+		skipActionEndInterruptHooks := e.consumeActionEndHookResuming(player)
 		eventCtx := &model.EventContext{
 			Type:       model.EventPhaseEnd,
 			SourceID:   currentPid,
@@ -665,7 +638,8 @@ func (e *GameEngine) driveActionEndStage(currentPid string, player *model.Player
 
 		skillCtx := e.buildContext(player, nil, model.TriggerOnPhaseEnd, eventCtx)
 
-		if !skipHolySwordPhaseEnd && e.maybeTriggerHolySwordDrawFromPhaseEndCtx(skillCtx) {
+		// 行动结束时机的角色中断统一经由钩子注入（如圣剑第三击中断）。
+		if !skipActionEndInterruptHooks && e.runActionEndInterruptHooks(skillCtx) {
 			return driveStop
 		}
 
@@ -675,19 +649,13 @@ func (e *GameEngine) driveActionEndStage(currentPid string, player *model.Player
 		// 广播事件！
 		// 此时 WindFuryHandler.CanUse 会被调用
 		// 如果 CanUse 返回 true，Dispatcher 会根据 ResponseOptional 推送中断给用户
-		// 特殊行动(Buy/Synthesize/Extract)在 ActionSelection 已完成过一次 OnPhaseEnd，
-		// 这里跳过重复触发，避免被动结算两次。
-		if !specialPhaseEndDispatched {
-			e.dispatcher.OnTrigger(model.TriggerOnPhaseEnd, skillCtx)
-		}
+		e.dispatcher.OnTrigger(model.TriggerOnPhaseEnd, skillCtx)
 
 		// 如果触发了技能（产生了中断，比如用户需要确认是否发动风怒），直接 return 等待用户
 		if e.State.PendingInterrupt != nil {
-			e.State.PostActionEndPending = true
-			e.State.PostActionEndWasMagic = lastActionType == model.ActionMagic
-			// 【重要】恢复 LastActionType，因为中断回来后还要处理 PhaseExtraAction
-			// 但为了避免重复触发 EventPhaseEnd，我们需要一个标志位，或者让中断处理完直接进队列检查
-			// 简单做法：中断回来后，Phase 依然是 ExtraAction，但 LastActionType 已被清空，所以不会二次触发
+			// OnPhaseEnd 已派发完，后续恢复时只补执行行动后续效果，不重复派发 OnPhaseEnd。
+			e.markActionEndHookResuming(player)
+			e.enqueuePostActionEndFollowup(player.ID, lastActionType)
 			return driveStop
 		}
 		// 行动结束后场上赐福结算（如迅捷赐福）

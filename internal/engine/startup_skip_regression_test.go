@@ -99,8 +99,8 @@ func TestStartupSkillConfirm_EndsStartupPhaseAfterOneSkill(t *testing.T) {
 	if !p1.TurnState.HasUsedTriggerSkill {
 		t.Fatalf("expected HasUsedTriggerSkill=true after confirming startup skill")
 	}
-	if !game.State.HasPerformedStartup {
-		t.Fatalf("expected HasPerformedStartup=true after confirming startup skill")
+	if !game.hasPerformedStartupThisTurn(p1) {
+		t.Fatalf("expected startup lock=true after confirming startup skill")
 	}
 	if p1.Form != model.FormArbiterJudgment {
 		t.Fatalf("expected judgment form after ritual, got %q", p1.Form)
@@ -158,8 +158,8 @@ func TestStartupSkillConfirm_DisablesSpecialActionsInSameTurn(t *testing.T) {
 	if !game.isActionSelectionWindow() {
 		t.Fatalf("expected flow to move to action selection window, got %s", game.runtimeStateLabel())
 	}
-	if !game.State.HasPerformedStartup {
-		t.Fatalf("expected HasPerformedStartup=true after confirming startup skill")
+	if !game.hasPerformedStartupThisTurn(p1) {
+		t.Fatalf("expected startup lock=true after confirming startup skill")
 	}
 
 	beforeHand := len(p1.Hand)

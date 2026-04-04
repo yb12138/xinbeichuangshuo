@@ -430,11 +430,11 @@ func TestAngel_AngelBlessing(t *testing.T) {
 	// 设置 P1 回合，行动阶段
 	game.State.CurrentTurn = 0
 	game.State.Deck = rules.InitDeck() // 【修复】初始化牌库
-	game.State.HasPerformedStartup = true
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
+	p1.TurnState.HasUsedTriggerSkill = true
 	game.State.TurnStage = model.TurnStageActionExecution
 
 	// P1 手牌：1 张水系牌用于发动技能
