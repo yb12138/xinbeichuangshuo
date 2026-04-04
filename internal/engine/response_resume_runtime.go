@@ -27,7 +27,7 @@ type responseResumeState struct {
 	resumeMoraleCtx      *model.Context
 	resumePhaseEndCtx    *model.Context
 
-	responseResumePoint string
+	responseResumePoint interface{}
 }
 
 type responseSkipHook func(e *GameEngine, state *responseResumeState)
@@ -109,7 +109,7 @@ func (s *responseResumeState) captureContext(ctx *model.Context) {
 			s.resumePhaseEndCtx = ctx
 		}
 	}
-	if point := normalizeChoiceResumePoint(ctx.Selections["response_resume_phase"]); point != "" {
+	if point, ok := choiceResumePointValue(ctx.Selections["response_resume_phase"]); ok {
 		s.responseResumePoint = point
 	}
 }
@@ -193,7 +193,7 @@ func (e *GameEngine) restoreSkippedResponseAfterPop(state responseResumeState) b
 	if state.resumeDrawCtx != nil {
 		return true
 	}
-	if state.responseResumePoint != "" {
+	if hasChoiceResumePoint(state.responseResumePoint) {
 		if e.routePendingDamageWithReturn(state.responseResumePoint) {
 			return true
 		}
@@ -228,7 +228,7 @@ func (e *GameEngine) restoreConfirmedResponseAfterPop(state responseResumeState)
 	if state.resumeMoraleCtx != nil && e.resumePendingMoraleLoss(state.resumeMoraleCtx) {
 		return true
 	}
-	if state.responseResumePoint != "" {
+	if hasChoiceResumePoint(state.responseResumePoint) {
 		if e.routePendingDamageWithReturn(state.responseResumePoint) {
 			return true
 		}

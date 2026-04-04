@@ -103,7 +103,6 @@ func (e *GameEngine) handleBasicEffectChoiceInput(playerID string, selectionInde
 	selected := options[selectionIndex]
 	operation, _ := data["operation"].(string)
 	skillName, _ := data["skill_name"].(string)
-	resumePoint := normalizeChoiceResumePoint(data["resume_phase"])
 	user := e.State.Players[playerID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
@@ -129,8 +128,10 @@ func (e *GameEngine) handleBasicEffectChoiceInput(playerID string, selectionInde
 	}
 
 	e.PopInterrupt()
-	if e.State.PendingInterrupt == nil && resumePoint != "" {
-		e.applyChoiceResumePoint(data["resume_phase"])
+	if e.State.PendingInterrupt == nil {
+		// 规则：这里是技能执行中的“目标选择子步骤”，不是系统自动阶段结算。
+		// 选择完成后按技能声明的 resume_phase 继续流程，保证后续仍在该技能约束的阶段节点上。
+		e.applyChoiceResumePoint(mustChoiceResumePointFromMap(data, "resume_phase"))
 	}
 	return nil
 }

@@ -442,11 +442,8 @@ func (e *GameEngine) handleHolyBowChoiceInput(_ string, selectionIndex int, ctxD
 		e.dispatchOrientationChanges(beforePoses)
 		e.PopInterrupt()
 		if e.State.PendingInterrupt == nil {
-			if resumePoint := normalizeChoiceResumePoint(ctxData["resume_phase"]); resumePoint != "" {
-				e.applyChoiceResumePoint(ctxData["resume_phase"])
-			} else {
-				e.applyChoiceResumePoint(model.TurnStageExtraAction)
-			}
+			// 规则：圣煌降临支付完成后，应继续其额外行动流程；恢复点必须和技能规则保持一致。
+			e.applyChoiceResumePoint(mustChoiceResumePointFromMap(ctxData, "resume_phase"))
 		}
 		return true, nil
 

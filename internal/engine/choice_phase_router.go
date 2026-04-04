@@ -6,55 +6,42 @@ import (
 	"starcup-engine/internal/model"
 )
 
-type choiceResumeResolver func(currentPoint string, ctxData map[string]interface{}) (string, bool)
+type choiceResumeResolver func(currentPoint interface{}, ctxData map[string]interface{}) (interface{}, bool)
 
 var choiceInterruptResumeResolvers = buildChoiceInterruptResumeResolvers()
 
-func resolveChoiceInterruptPhase(currentPoint string, ctxData map[string]interface{}) (string, bool) {
+func resolveChoiceInterruptPhase(currentPoint interface{}, ctxData map[string]interface{}) (interface{}, bool) {
 	if ctxData == nil {
-		return "", false
+		return nil, false
 	}
 	choiceType, _ := ctxData["choice_type"].(string)
 	if choiceType == "" {
-		return "", false
+		return nil, false
 	}
 	resolver, ok := choiceInterruptResumeResolvers[choiceType]
 	if !ok {
-		return "", false
+		return nil, false
 	}
 	return resolver(currentPoint, ctxData)
 }
 
 func fixedChoiceResumePoint(point interface{}) choiceResumeResolver {
-	normalized := model.NormalizeResumePoint(point)
-	return func(_ string, _ map[string]interface{}) (string, bool) {
-		return normalized, normalized != ""
+	point = mustChoiceResumePoint(point, "fixed_choice")
+	return func(_ interface{}, _ map[string]interface{}) (interface{}, bool) {
+		return point, true
 	}
 }
 
 func currentChoiceResumePointResolver() choiceResumeResolver {
-	return func(currentPoint string, _ map[string]interface{}) (string, bool) {
-		return model.NormalizeResumePoint(currentPoint), currentPoint != ""
+	return func(currentPoint interface{}, _ map[string]interface{}) (interface{}, bool) {
+		return choiceResumePointValue(currentPoint)
 	}
 }
 
 func waitingChoiceResumePoint(key string) choiceResumeResolver {
-	return func(currentPoint string, ctxData map[string]interface{}) (string, bool) {
-		if point := normalizeChoiceResumePoint(ctxData[key]); point != "" {
-			return point, true
-		}
-		point := model.NormalizeResumePoint(currentPoint)
-		return point, point != ""
-	}
-}
-
-func waitingChoiceResumePointOr(key string, fallback interface{}) choiceResumeResolver {
-	fallbackPoint := model.NormalizeResumePoint(fallback)
-	return func(_ string, ctxData map[string]interface{}) (string, bool) {
-		if point := normalizeChoiceResumePoint(ctxData[key]); point != "" {
-			return point, true
-		}
-		return fallbackPoint, fallbackPoint != ""
+	return func(_ interface{}, ctxData map[string]interface{}) (interface{}, bool) {
+		// 规则：这类选择属于“挂起后继续原流程”，必须由 waiting_phase 明确指向恢复节点。
+		return mustChoiceResumePointFromMap(ctxData, key), true
 	}
 }
 
@@ -69,9 +56,9 @@ func buildChoiceInterruptResumeResolvers() map[string]choiceResumeResolver {
 		"hero_roar_draw":                waitingChoiceResumePoint("waiting_phase"),
 		"bw_witch_wrath_draw":           waitingChoiceResumePoint("waiting_phase"),
 		"assassin_stealth_draw":         waitingChoiceResumePoint("waiting_phase"),
-		"fighter_hundred_dragon_target": waitingChoiceResumePointOr("waiting_phase", model.TurnStageActionStart),
-		"priest_divine_contract_target": waitingChoiceResumePointOr("waiting_phase", model.TurnStageActionStart),
-		"priest_divine_contract_x":      waitingChoiceResumePointOr("waiting_phase", model.TurnStageActionStart),
+		"fighter_hundred_dragon_target": waitingChoiceResumePoint("waiting_phase"),
+		"priest_divine_contract_target": waitingChoiceResumePoint("waiting_phase"),
+		"priest_divine_contract_x":      waitingChoiceResumePoint("waiting_phase"),
 		"basic_effect_pick":             waitingChoiceResumePoint("waiting_phase"),
 		"angel_bond_heal_target":        currentChoiceResumePointResolver(),
 		"sage_arcane_x":                 currentChoiceResumePointResolver(),
@@ -81,12 +68,11 @@ func buildChoiceInterruptResumeResolvers() map[string]choiceResumeResolver {
 		"hb_light_burst_mode":           currentChoiceResumePointResolver(),
 		"hb_radiant_cannon_side":        currentChoiceResumePointResolver(),
 		"ml_fullness_cost_card":         currentChoiceResumePointResolver(),
-		"sc_spiritual_collapse_confirm": func(currentPoint string, ctxData map[string]interface{}) (string, bool) {
+		"sc_spiritual_collapse_confirm": func(currentPoint interface{}, ctxData map[string]interface{}) (interface{}, bool) {
 			if mode, _ := ctxData["mode"].(string); strings.HasPrefix(mode, "sc_hundred_night") {
-				return model.NormalizeResumePoint(model.CombatStageCalcDamage), true
+				return model.CombatStageCalcDamage, true
 			}
-			point := model.NormalizeResumePoint(currentPoint)
-			return point, point != ""
+			return choiceResumePointValue(currentPoint)
 		},
 	}
 

@@ -16,7 +16,7 @@ type handOverflowContext struct {
 	overflowMoraleLossFixed int
 	damageSourceID          any
 	damageSourceSkillID     any
-	drawResumePoint         string
+	drawResumePoint         interface{}
 }
 
 func (e *GameEngine) checkHandLimit(player *model.Player, ctx *model.Context) {
@@ -55,7 +55,9 @@ func (e *GameEngine) buildHandOverflowContext(ctx *model.Context) handOverflowCo
 		result.overflowMoraleLossFixed = runtimeutil.ToIntContextValue(ctx.Selections["overflow_morale_loss_fixed"])
 		result.damageSourceID = ctx.Selections["damage_source_id"]
 		result.damageSourceSkillID = ctx.Selections["damage_source_skill_id"]
-		result.drawResumePoint = normalizeChoiceResumePoint(ctx.Selections["draw_resume_phase"])
+		if point, ok := choiceResumePointValue(ctx.Selections["draw_resume_phase"]); ok {
+			result.drawResumePoint = point
+		}
 	}
 	return result
 }

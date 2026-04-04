@@ -150,11 +150,8 @@ func (e *GameEngine) handlePriestChoiceInput(_ string, selectionIndex int, ctxDa
 
 		e.PopInterrupt()
 		if e.State.PendingInterrupt == nil {
-			if resumePoint := normalizeChoiceResumePoint(ctxData["resume_phase"]); resumePoint != "" {
-				e.applyChoiceResumePoint(ctxData["resume_phase"])
-			} else {
-				e.applyChoiceResumePoint(model.TurnStageExtraAction)
-			}
+			// 规则：神圣契约是“选择目标+选择X”的两段式结算，最终恢复点必须由上游显式给出。
+			e.applyChoiceResumePoint(mustChoiceResumePointFromMap(ctxData, "resume_phase"))
 		}
 		return true, nil
 

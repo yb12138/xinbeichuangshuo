@@ -777,8 +777,8 @@ func (h *PriestDivineContractHandler) Execute(ctx *model.Context) error {
 				"user_id":       ctx.User.ID,
 				"ally_ids":      targetIDs,
 				"max_x":         ctx.User.Heal,
-				"waiting_phase": model.NormalizeResumePoint(waitingPhase),
-				"resume_phase":  model.NormalizeResumePoint(resumePhase),
+				"waiting_phase": waitingPhase,
+				"resume_phase":  resumePhase,
 			},
 		})
 		ctx.Game.Log(fmt.Sprintf("%s 发动 [神圣契约]，请选择目标队友", ctx.User.Name))
@@ -795,8 +795,8 @@ func (h *PriestDivineContractHandler) Execute(ctx *model.Context) error {
 			"user_id":       ctx.User.ID,
 			"target_id":     ctx.Target.ID,
 			"max_x":         ctx.User.Heal,
-			"waiting_phase": model.NormalizeResumePoint(waitingPhase),
-			"resume_phase":  model.NormalizeResumePoint(resumePhase),
+			"waiting_phase": waitingPhase,
+			"resume_phase":  resumePhase,
 		},
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [神圣契约]，请选择转移治疗值X（目标：%s）", ctx.User.Name, ctx.Target.Name))
@@ -817,18 +817,18 @@ func priestDivineContractTargets(game model.IGameEngine, user *model.Player) []s
 	return targetIDs
 }
 
-func priestDivineContractWaitingPhase(ctx *model.Context) string {
+func priestDivineContractWaitingPhase(ctx *model.Context) model.TurnStage {
 	if ctx != nil && ctx.Trigger == model.TriggerOnTurnStart {
-		return model.NormalizeResumePoint(model.TurnStageActionStart)
+		return model.TurnStageActionStart
 	}
-	return model.NormalizeResumePoint(model.TurnStageActionExecution)
+	return model.TurnStageActionExecution
 }
 
-func priestDivineContractResumePhase(ctx *model.Context) string {
+func priestDivineContractResumePhase(ctx *model.Context) model.TurnStage {
 	if ctx != nil && ctx.Trigger == model.TriggerOnTurnStart {
-		return model.NormalizeResumePoint(model.TurnStageActionExecution)
+		return model.TurnStageActionExecution
 	}
-	return model.NormalizeResumePoint(model.TurnStageExtraAction)
+	return model.TurnStageExtraAction
 }
 
 func (h *PriestDivineDomainHandler) CanUse(ctx *model.Context) bool {
@@ -1128,7 +1128,7 @@ func (h *BlazeWitchWitchWrathHandler) Execute(ctx *model.Context) error {
 		Context: map[string]interface{}{
 			"choice_type":   "bw_witch_wrath_draw",
 			"user_id":       ctx.User.ID,
-			"waiting_phase": model.NormalizeResumePoint(model.TurnStageActionStart),
+			"waiting_phase": model.TurnStageActionStart,
 		},
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [魔女之怒]，进入烈焰形态并选择摸牌数量", ctx.User.Name))

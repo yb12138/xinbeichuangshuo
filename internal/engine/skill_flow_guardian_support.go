@@ -127,10 +127,9 @@ func (e *GameEngine) handleAngelBondHealChoice(playerID string, selectionIndex i
 		userName = user.Name
 	}
 	e.Log(fmt.Sprintf("%s 的 [天使羁绊] 生效：%s 获得 +1 治疗", userName, target.Name))
-	resumePoint := normalizeChoiceResumePoint(ctxData["resume_phase"])
 	e.PopInterrupt()
-	if e.State.PendingInterrupt == nil && resumePoint != "" {
-		e.applyChoiceResumePoint(ctxData["resume_phase"])
+	if e.State.PendingInterrupt == nil {
+		e.applyChoiceResumePoint(mustChoiceResumePointFromMap(ctxData, "resume_phase"))
 	}
 	return nil
 }

@@ -252,6 +252,8 @@ func (h *HolyBowRadiantDescentHandler) Execute(ctx *model.Context) error {
 			"choice_type": "hb_radiant_descent_cost",
 			"user_id":     ctx.User.ID,
 			"cost_modes":  costModes,
+			// 规则：圣煌降临支付完成后应进入额外行动链，恢复点固定为 ExtraAction。
+			"resume_phase": model.TurnStageExtraAction,
 		},
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [圣煌降临]：请选择支付方式", ctx.User.Name))

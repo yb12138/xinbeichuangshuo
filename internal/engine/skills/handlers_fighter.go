@@ -170,7 +170,7 @@ func (h *FighterHundredDragonHandler) Execute(ctx *model.Context) error {
 			"choice_type":   "fighter_hundred_dragon_target",
 			"user_id":       ctx.User.ID,
 			"target_ids":    targetIDs,
-			"waiting_phase": model.NormalizeResumePoint(model.TurnStageActionExecution),
+			"waiting_phase": model.TurnStageActionExecution,
 		},
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [百式幻龙拳]：移除3斗气（剩余%d），进入持续形态，请选择本行动阶段锁定目标", ctx.User.Name, qi))

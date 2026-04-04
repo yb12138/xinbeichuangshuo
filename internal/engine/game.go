@@ -384,9 +384,9 @@ func (e *GameEngine) buildContext(user *model.Player, target *model.Player, trig
 		Targets: []*model.Player{},
 	}
 	ctx.Selections["current_resume_point"] = e.currentChoiceResumePoint()
-	ctx.Selections["current_turn_stage"] = string(e.State.TurnStage)
-	ctx.Selections["current_combat_stage"] = string(e.State.CombatStage)
-	ctx.Selections["current_subflow"] = string(e.State.Subflow)
+	ctx.Selections["current_turn_stage"] = e.State.TurnStage
+	ctx.Selections["current_combat_stage"] = e.State.CombatStage
+	ctx.Selections["current_subflow"] = e.State.Subflow
 
 	if target != nil {
 		ctx.Targets = append(ctx.Targets, target)
@@ -403,7 +403,9 @@ func (e *GameEngine) AddPendingDamage(pd model.PendingDamage) {
 
 	if !e.isDamageResolutionActive() {
 		if e.State.ReturnTurnStage == "" && e.State.ReturnCombatStage == model.CombatStageNone && e.State.ReturnSubflow == model.SubflowNone {
-			e.setReturnPoint(e.currentChoiceResumePoint())
+			if point := e.currentChoiceResumePoint(); hasChoiceResumePoint(point) {
+				e.setReturnPoint(point)
+			}
 		}
 		e.enterDamageResolution(nil)
 	}
@@ -417,7 +419,9 @@ func (e *GameEngine) AddPendingDamageFront(pd model.PendingDamage) {
 
 	if !e.isDamageResolutionActive() {
 		if e.State.ReturnTurnStage == "" && e.State.ReturnCombatStage == model.CombatStageNone && e.State.ReturnSubflow == model.SubflowNone {
-			e.setReturnPoint(e.currentChoiceResumePoint())
+			if point := e.currentChoiceResumePoint(); hasChoiceResumePoint(point) {
+				e.setReturnPoint(point)
+			}
 		}
 		e.enterDamageResolution(nil)
 	}

@@ -47,9 +47,8 @@ func (e *GameEngine) handleDeferredSkillDiscardSelection(playerID, skillID strin
 	if e.State.PendingInterrupt != nil {
 		return fmt.Errorf("当前仍有其他待处理的中断")
 	}
-	if !e.applyChoiceResumePoint(resumePoint) {
-		e.enterActionExecutionStage()
-	}
+	// 规则：为发动技能而产生的弃牌中断，处理完必须回到技能声明的恢复点后再继续施放技能。
+	e.applyChoiceResumePoint(mustChoiceResumePoint(resumePoint, "resume_phase"))
 	return e.UseSkill(playerID, skillID, targetIDs, indices)
 }
 

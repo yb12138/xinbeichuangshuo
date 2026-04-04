@@ -33,7 +33,7 @@ func (e *GameEngine) driveTurnFSM(currentPid string, player *model.Player) drive
 	stage := e.syncTurnStageForDispatch(player)
 	switch stage {
 	case model.TurnStageTurnBeforeStart:
-		return e.driveTurnBeforeStartStage(currentPid, player)
+		return e.driveTurnBeforeStartStage(player)
 	case model.TurnStageBeforeAction:
 		return e.driveBeforeActionStage(currentPid, player)
 	case model.TurnStageTurnStart:
@@ -92,12 +92,11 @@ func (e *GameEngine) syncTurnStageForDispatch(player *model.Player) model.TurnSt
 	return setAndReturn(stage)
 }
 
-func (e *GameEngine) driveTurnBeforeStartStage(currentPid string, player *model.Player) driveOutcome {
+func (e *GameEngine) driveTurnBeforeStartStage(player *model.Player) driveOutcome {
 	if e.State.Subflow != model.SubflowNone || len(e.State.CombatStack) > 0 || e.State.TurnStage != model.TurnStageTurnBeforeStart {
 		return driveUnhandled
 	}
 
-	e.setTurnStage(model.TurnStageTurnBeforeStart)
 	if e.runPlayerPhaseHooks(player, turnBeforeStartPhaseHooks) {
 		if e.State.PendingInterrupt != nil {
 			return driveStop
@@ -114,7 +113,6 @@ func (e *GameEngine) driveBeforeActionStage(currentPid string, player *model.Pla
 		return driveUnhandled
 	}
 
-	e.setTurnStage(model.TurnStageBeforeAction)
 	// 回合开始前先按固定顺序结算基础效果 hook（如中毒、五系束缚、虚弱）。
 	if e.runPlayerPhaseHooks(player, beforeActionPhaseHooks) {
 		if e.State.PendingInterrupt != nil {
@@ -176,7 +174,6 @@ func (e *GameEngine) driveTurnStartStage(currentPid string, player *model.Player
 		return driveContinueLoop
 	}
 
-	e.setTurnStage(model.TurnStageTurnStart)
 	if player.TurnState.HasProcessedTurnStart {
 		e.setTurnStage(model.TurnStageActionStart)
 		return driveContinueLoop
@@ -203,7 +200,6 @@ func (e *GameEngine) driveActionStartStage(currentPid string, player *model.Play
 		return driveUnhandled
 	}
 
-	e.setTurnStage(model.TurnStageActionStart)
 	if e.runPlayerPhaseHooks(player, actionStartPhaseHooks) {
 		if e.State.PendingInterrupt != nil {
 			return driveStop
@@ -701,7 +697,6 @@ func (e *GameEngine) driveTurnEndStage(currentPid string, player *model.Player) 
 		return driveUnhandled
 	}
 
-	e.setTurnStage(model.TurnStageTurnEnd)
 	// 9. 回合结束阶段
 	if e.runPlayerPhaseHooks(player, turnEndPreExtraActionHooks) {
 		return driveStop

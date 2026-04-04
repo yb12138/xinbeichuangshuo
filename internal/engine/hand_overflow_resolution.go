@@ -57,7 +57,7 @@ func (e *GameEngine) handleDiscardSelection(playerID string, indices []int, data
 
 	e.PopInterrupt()
 	if e.State.PendingInterrupt == nil {
-		if normalizeChoiceResumePoint(data["draw_resume_phase"]) != "" && !e.hasReturnPoint() {
+		if hasChoiceResumePoint(data["draw_resume_phase"]) && !e.hasReturnPoint() {
 			e.setReturnPoint(data["draw_resume_phase"])
 		}
 		e.restorePhaseAfterDiscardResolution(

@@ -2,29 +2,36 @@ package model
 
 import "testing"
 
-func TestParseResumePointTurnStage_StrictPrefixOnly(t *testing.T) {
-	if got := ParseResumePointTurnStage("BeforeAction"); got != "" {
-		t.Fatalf("expected bare turn stage rejected, got %q", got)
-	}
-	if got := ParseResumePointTurnStage("turn:BeforeAction"); got != TurnStageBeforeAction {
-		t.Fatalf("expected prefixed turn stage accepted, got %q", got)
+func mustPanic(t *testing.T, fn func()) {
+	t.Helper()
+	defer func() {
+		if recover() == nil {
+			t.Fatal("expected panic")
+		}
+	}()
+	fn()
+}
+
+func TestParseResumePointTurnStage_StrictEnumOnly(t *testing.T) {
+	mustPanic(t, func() { ParseResumePointTurnStage("BeforeAction") })
+	mustPanic(t, func() { ParseResumePointTurnStage("turn:BeforeAction") })
+	if got := ParseResumePointTurnStage(TurnStageBeforeAction); got != TurnStageBeforeAction {
+		t.Fatalf("expected typed turn stage accepted, got %q", got)
 	}
 }
 
-func TestParseResumePointCombatStage_StrictPrefixOnly(t *testing.T) {
-	if got := ParseResumePointCombatStage("CombatCalcDamage"); got != CombatStageNone {
-		t.Fatalf("expected bare combat stage rejected, got %q", got)
-	}
-	if got := ParseResumePointCombatStage("combat:CombatCalcDamage"); got != CombatStageCalcDamage {
-		t.Fatalf("expected prefixed combat stage accepted, got %q", got)
+func TestParseResumePointCombatStage_StrictEnumOnly(t *testing.T) {
+	mustPanic(t, func() { ParseResumePointCombatStage("CombatCalcDamage") })
+	mustPanic(t, func() { ParseResumePointCombatStage("combat:CombatCalcDamage") })
+	if got := ParseResumePointCombatStage(CombatStageCalcDamage); got != CombatStageCalcDamage {
+		t.Fatalf("expected typed combat stage accepted, got %q", got)
 	}
 }
 
-func TestParseResumePointSubflow_StrictPrefixOnly(t *testing.T) {
-	if got := ParseResumePointSubflow("Response"); got != SubflowNone {
-		t.Fatalf("expected bare subflow rejected, got %q", got)
-	}
-	if got := ParseResumePointSubflow("subflow:Response"); got != SubflowResponse {
-		t.Fatalf("expected prefixed subflow accepted, got %q", got)
+func TestParseResumePointSubflow_StrictEnumOnly(t *testing.T) {
+	mustPanic(t, func() { ParseResumePointSubflow("Response") })
+	mustPanic(t, func() { ParseResumePointSubflow("subflow:Response") })
+	if got := ParseResumePointSubflow(SubflowResponse); got != SubflowResponse {
+		t.Fatalf("expected typed subflow accepted, got %q", got)
 	}
 }

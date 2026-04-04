@@ -73,11 +73,8 @@ func (e *GameEngine) handleFighterChoiceInput(_ string, selectionIndex int, ctxD
 		e.Log(fmt.Sprintf("%s 的 [百式幻龙拳] 锁定目标：%s", user.Name, target.Name))
 		e.PopInterrupt()
 		if e.State.PendingInterrupt == nil {
-			if waitingPoint := normalizeChoiceResumePoint(ctxData["waiting_phase"]); waitingPoint != "" {
-				e.applyChoiceResumePoint(ctxData["waiting_phase"])
-			} else {
-				e.applyChoiceResumePoint(model.TurnStageActionExecution)
-			}
+			// 规则：百式幻龙拳的“锁定目标”仅是中间步骤，结算后必须回到 waiting_phase 指定的行动窗口。
+			e.applyChoiceResumePoint(mustChoiceResumePointFromMap(ctxData, "waiting_phase"))
 		}
 		return true, nil
 	}

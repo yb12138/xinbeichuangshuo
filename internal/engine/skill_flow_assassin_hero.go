@@ -134,11 +134,8 @@ func (e *GameEngine) handleAssassinStealthDrawChoice(selectionIndex int, ctxData
 
 		e.PopInterrupt()
 		if e.State.PendingInterrupt == nil {
-			if waitingPoint := normalizeChoiceResumePoint(ctxData["waiting_phase"]); waitingPoint != "" {
-				e.applyChoiceResumePoint(ctxData["waiting_phase"])
-			} else {
-				e.applyChoiceResumePoint(model.TurnStageActionStart)
-			}
+			// 规则：潜行选择结束后要回到触发前的等待阶段，不允许隐式回落到任意默认阶段。
+			e.applyChoiceResumePoint(mustChoiceResumePointFromMap(ctxData, "waiting_phase"))
 		}
 		return nil
 	default:

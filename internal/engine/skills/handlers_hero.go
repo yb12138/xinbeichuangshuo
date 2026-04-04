@@ -58,7 +58,7 @@ func (h *HeroRoarHandler) Execute(ctx *model.Context) error {
 		Context: map[string]interface{}{
 			"choice_type":   "hero_roar_draw",
 			"user_id":       ctx.User.ID,
-			"waiting_phase": model.NormalizeResumePoint(model.TurnStageActionExecution),
+			"waiting_phase": model.TurnStageActionExecution,
 		},
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [怒吼]：移除1点怒气，本次攻击伤害额外+2，等待选择摸牌数量", ctx.User.Name))

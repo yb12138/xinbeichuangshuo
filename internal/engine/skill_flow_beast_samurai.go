@@ -19,7 +19,7 @@ func beastSamuraiDiscardedMagicCount(cards []model.Card) int {
 }
 
 func (e *GameEngine) beastSamuraiResumePoint(ctxData map[string]interface{}, fallback interface{}) interface{} {
-	if resumePoint := normalizeChoiceResumePoint(ctxData["resume_phase"]); resumePoint != "" {
+	if resumePoint, ok := choiceResumePointValue(ctxData["resume_phase"]); ok {
 		return resumePoint
 	}
 	return fallback
@@ -40,7 +40,7 @@ func (e *GameEngine) beastSamuraiFinishResume(resumePoint interface{}) {
 	if e.State.PendingInterrupt != nil {
 		return
 	}
-	if normalizeChoiceResumePoint(resumePoint) != "" {
+	if hasChoiceResumePoint(resumePoint) {
 		e.applyChoiceResumePoint(resumePoint)
 		return
 	}
@@ -199,7 +199,7 @@ func (e *GameEngine) handleBeastSamuraiChoiceInput(selectionIndex int, ctxData m
 				"x_value":       x,
 				"discard_count": selfDiscardCount,
 				"prompt":        fmt.Sprintf("【兽返】请选择弃置%d张手牌：", selfDiscardCount),
-				"resume_phase":  normalizeChoiceResumePoint(resumePoint),
+				"resume_phase":  resumePoint,
 			})
 			return true, nil
 		}
@@ -210,7 +210,7 @@ func (e *GameEngine) handleBeastSamuraiChoiceInput(selectionIndex int, ctxData m
 				"source_id":     source.ID,
 				"discard_count": 1,
 				"prompt":        fmt.Sprintf("【兽返】请选择弃置1张手牌："),
-				"resume_phase":  normalizeChoiceResumePoint(resumePoint),
+				"resume_phase":  resumePoint,
 			})
 			return true, nil
 		}
@@ -259,7 +259,7 @@ func (e *GameEngine) handleBeastSamuraiChoiceInput(selectionIndex int, ctxData m
 				"need_count":    need,
 				"discard_count": discardCount,
 				"prompt":        fmt.Sprintf("【逆反居合斩】请选择弃置%d张手牌：", discardCount),
-				"resume_phase":  normalizeChoiceResumePoint(resumePoint),
+				"resume_phase":  resumePoint,
 				"user_ctx":      rawCtx,
 			})
 			return true, nil
@@ -310,7 +310,7 @@ func (e *GameEngine) handleBeastSamuraiChoiceInput(selectionIndex int, ctxData m
 					"user_id":       user.ID,
 					"discard_count": discardCount,
 					"prompt":        "【御魂流居合式】请选择弃置1张手牌：",
-					"resume_phase":  normalizeChoiceResumePoint(resumePoint),
+					"resume_phase":  resumePoint,
 				})
 				return true, nil
 			}
@@ -381,7 +381,7 @@ func (e *GameEngine) handleBeastSamuraiDiscardInput(playerID string, selections 
 				"source_id":     source.ID,
 				"discard_count": 1,
 				"prompt":        "【兽返】请选择弃置1张手牌：",
-				"resume_phase":  normalizeChoiceResumePoint(resumePoint),
+				"resume_phase":  resumePoint,
 			})
 			return true, nil
 		}

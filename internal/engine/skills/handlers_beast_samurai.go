@@ -34,29 +34,29 @@ type BeastSamuraiReversalIaijutsuSlashHandler struct{ BaseHandler }
 
 type BeastSamuraiIaijutsuStyleHandler struct{ BaseHandler }
 
-func beastSamuraiResumePhase(ctx *model.Context) string {
+func beastSamuraiResumePhase(ctx *model.Context) interface{} {
 	if ctx == nil || ctx.Selections == nil {
-		return ""
+		return nil
 	}
-	if raw, ok := ctx.Selections["current_resume_point"].(string); ok {
-		return model.NormalizeResumePoint(raw)
+	if raw, ok := ctx.Selections["current_resume_point"].(model.TurnStage); ok && raw != "" && model.IsKnownTurnStage(raw) {
+		return raw
 	}
-	if raw, ok := ctx.Selections["current_turn_stage"].(string); ok {
-		if stage := model.TurnStage(raw); model.IsKnownTurnStage(stage) {
-			return model.NormalizeResumePoint(stage)
-		}
+	if raw, ok := ctx.Selections["current_resume_point"].(model.CombatStage); ok && raw != model.CombatStageNone && model.IsKnownCombatStage(raw) {
+		return raw
 	}
-	if raw, ok := ctx.Selections["current_combat_stage"].(string); ok {
-		if stage := model.CombatStage(raw); model.IsKnownCombatStage(stage) {
-			return model.NormalizeResumePoint(stage)
-		}
+	if raw, ok := ctx.Selections["current_resume_point"].(model.Subflow); ok && raw != model.SubflowNone && model.IsKnownSubflow(raw) {
+		return raw
 	}
-	if raw, ok := ctx.Selections["current_subflow"].(string); ok {
-		if subflow := model.Subflow(raw); model.IsKnownSubflow(subflow) {
-			return model.NormalizeResumePoint(subflow)
-		}
+	if stage, ok := ctx.Selections["current_turn_stage"].(model.TurnStage); ok && stage != "" && model.IsKnownTurnStage(stage) {
+		return stage
 	}
-	return ""
+	if stage, ok := ctx.Selections["current_combat_stage"].(model.CombatStage); ok && stage != model.CombatStageNone && model.IsKnownCombatStage(stage) {
+		return stage
+	}
+	if subflow, ok := ctx.Selections["current_subflow"].(model.Subflow); ok && subflow != model.SubflowNone && model.IsKnownSubflow(subflow) {
+		return subflow
+	}
+	return nil
 }
 
 func (h *BeastSamuraiWarriorZanshinHandler) CanUse(ctx *model.Context) bool {

@@ -85,7 +85,7 @@ func (e *GameEngine) newDrawContextWithOptions(player *model.Player, amount int,
 	resumePoint := e.currentChoiceResumePoint()
 	if intr := e.State.PendingInterrupt; intr != nil && intr.Type == model.InterruptChoice {
 		if data, ok := intr.Context.(map[string]interface{}); ok {
-			if waitingPoint := normalizeChoiceResumePoint(data["waiting_phase"]); waitingPoint != "" {
+			if waitingPoint, ok := choiceResumePointValue(data["waiting_phase"]); ok {
 				resumePoint = waitingPoint
 			}
 		}
@@ -108,7 +108,7 @@ func (e *GameEngine) newDrawContextWithOptions(player *model.Player, amount int,
 	if opts.PreventOverflow {
 		ctx.Flags["preventOverflow"] = true
 	}
-	if resumePoint != "" && resumePoint != normalizeChoiceResumePoint(model.TurnStageTurnEnd) {
+	if hasChoiceResumePoint(resumePoint) && !isChoiceResumeTurnStage(resumePoint, model.TurnStageTurnEnd) {
 		ctx.Flags["StayInTurn"] = true
 	}
 	if reason == "" {
@@ -171,7 +171,7 @@ func (e *GameEngine) restorePhaseAfterInterruptedDraw(ctx *model.Context) bool {
 		return true
 	}
 
-	if resumePoint := normalizeChoiceResumePoint(ctx.Selections["draw_resume_phase"]); resumePoint != "" {
+	if hasChoiceResumePoint(ctx.Selections["draw_resume_phase"]) {
 		e.applyChoiceResumePoint(ctx.Selections["draw_resume_phase"])
 		return true
 	}

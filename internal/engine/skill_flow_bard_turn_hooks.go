@@ -115,7 +115,7 @@ func (e *GameEngine) bardResponseContext(user *model.Player, stage string, resum
 		SourceID: user.ID,
 	})
 	ctx.Selections["bd_song_stage"] = stage
-	ctx.Selections["response_resume_phase"] = normalizeChoiceResumePoint(resumePoint)
+	ctx.Selections["response_resume_phase"] = resumePoint
 	return ctx
 }
 

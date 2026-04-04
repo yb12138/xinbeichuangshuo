@@ -208,6 +208,8 @@ func (h *AngelBondHandler) Execute(ctx *model.Context) error {
 			"choice_type": "angel_bond_heal_target",
 			"user_id":     ctx.User.ID,
 			"target_ids":  targetIDs,
+			// 规则：天使羁绊是响应链中的插入选择，需携带当前恢复点以便结算后回到原流程。
+			"resume_phase": ctx.Selections["current_resume_point"],
 		},
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 的 [天使羁绊] 触发：请选择1名角色获得+1治疗", ctx.User.Name))
@@ -319,7 +321,7 @@ func (h *AngelCleanseHandler) Execute(ctx *model.Context) error {
 				"user_id":      ctx.User.ID,
 				"skill_name":   "风之洁净",
 				"operation":    "remove",
-				"resume_phase": model.NormalizeResumePoint(model.TurnStageActionExecution),
+				"resume_phase": model.TurnStageActionExecution,
 				"prompt":       "【风之洁净】请选择要移除的基础效果：",
 				"options":      encodeBasicEffectOptions(options),
 			},
@@ -378,8 +380,8 @@ func (h *AngelSongHandler) Execute(ctx *model.Context) error {
 			"user_id":       ctx.User.ID,
 			"skill_name":    "天使之歌",
 			"operation":     "remove",
-			"resume_phase":  model.NormalizeResumePoint(model.TurnStageActionStart),
-			"waiting_phase": model.NormalizeResumePoint(model.TurnStageActionStart),
+			"resume_phase":  model.TurnStageActionStart,
+			"waiting_phase": model.TurnStageActionStart,
 			"prompt":        "【天使之歌】请选择要移除的基础效果：",
 			"options":       encodeBasicEffectOptions(options),
 		},
@@ -709,7 +711,7 @@ func (h *SealBreakHandler) Execute(ctx *model.Context) error {
 				"user_id":      ctx.User.ID,
 				"skill_name":   "封印破碎",
 				"operation":    "take",
-				"resume_phase": model.NormalizeResumePoint(model.TurnStageActionExecution),
+				"resume_phase": model.TurnStageActionExecution,
 				"prompt":       "【封印破碎】请选择要收回的基础效果：",
 				"options":      encodeBasicEffectOptions(options),
 			},
@@ -1300,7 +1302,7 @@ func (h *StealthHandler) Execute(ctx *model.Context) error {
 		Context: map[string]interface{}{
 			"choice_type":   "assassin_stealth_draw",
 			"user_id":       ctx.User.ID,
-			"waiting_phase": model.NormalizeResumePoint(model.TurnStageActionStart),
+			"waiting_phase": model.TurnStageActionStart,
 		},
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [潜行]，消耗1宝石，等待选择是否摸1张牌后进入潜行状态", ctx.User.Name))

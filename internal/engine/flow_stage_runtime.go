@@ -257,8 +257,8 @@ func (e *GameEngine) defaultTimingForTrigger(trigger model.TriggerType) model.Tr
 func (e *GameEngine) buildTimedContext(user *model.Player, target *model.Player, trigger model.TriggerType, timing model.TriggerTiming, eventCtx *model.EventContext) *model.Context {
 	ctx := e.buildContext(user, target, trigger, eventCtx)
 	ctx.Timing = timing
-	ctx.Selections["current_turn_stage"] = string(e.State.TurnStage)
-	ctx.Selections["current_combat_stage"] = string(e.State.CombatStage)
-	ctx.Selections["current_subflow"] = string(e.State.Subflow)
+	ctx.Selections["current_turn_stage"] = e.State.TurnStage
+	ctx.Selections["current_combat_stage"] = e.State.CombatStage
+	ctx.Selections["current_subflow"] = e.State.Subflow
 	return ctx
 }

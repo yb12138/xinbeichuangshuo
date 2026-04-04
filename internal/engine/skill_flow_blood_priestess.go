@@ -177,7 +177,7 @@ func (e *GameEngine) handleBloodPriestessChoiceInput(playerID string, selectionI
 			user.RestoreExclusiveCard(linkCard)
 			return true, fmt.Errorf("同生共死摸牌上下文创建失败")
 		}
-		drawCtx.Selections["draw_resume_phase"] = normalizeChoiceResumePoint(model.TurnStageActionExecution)
+		drawCtx.Selections["draw_resume_phase"] = model.TurnStageActionExecution
 		drawCtx.Selections["draw_followup"] = model.DeferredFollowup{
 			Type:      "blood_priestess_shared_life_place",
 			UserID:    user.ID,
