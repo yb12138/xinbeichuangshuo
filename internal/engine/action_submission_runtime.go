@@ -442,18 +442,6 @@ func (e *GameEngine) repairQueuedActionCard(player *model.Player, qa *model.Queu
 		return false
 	}
 
-	if card, _, _, ok := getPlayableCardByIndex(player, qa.CardIndex); ok {
-		if card.Type == requiredType {
-			if requiredType == model.CardTypeAttack {
-				card = e.transformAttackCard(player, card)
-			}
-			qa.Element = card.Element
-			cardCopy := card
-			qa.Card = &cardCopy
-			return true
-		}
-	}
-
 	if qa.Card != nil {
 		if idx := findPlayableCardIndexByID(player, qa.Card.ID); idx >= 0 {
 			if card, _, _, ok := getPlayableCardByIndex(player, idx); ok && card.Type == requiredType {
@@ -467,45 +455,8 @@ func (e *GameEngine) repairQueuedActionCard(player *model.Player, qa *model.Queu
 				return true
 			}
 		}
-	}
-
-	total := playableCardCount(player)
-	for idx := range total {
-		card, _, _, ok := getPlayableCardByIndex(player, idx)
-		if !ok {
-			continue
-		}
-		if card.Type != requiredType {
-			continue
-		}
-		if requiredType == model.CardTypeAttack {
-			card = e.transformAttackCard(player, card)
-		}
-		if qa.Element != "" && card.Element != qa.Element {
-			continue
-		}
-		qa.CardIndex = idx
-		qa.Element = card.Element
-		cardCopy := card
-		qa.Card = &cardCopy
-		return true
-	}
-
-	for idx := range total {
-		card, _, _, ok := getPlayableCardByIndex(player, idx)
-		if !ok {
-			continue
-		}
-		if card.Type == requiredType {
-			if requiredType == model.CardTypeAttack {
-				card = e.transformAttackCard(player, card)
-			}
-			qa.CardIndex = idx
-			qa.Element = card.Element
-			cardCopy := card
-			qa.Card = &cardCopy
-			return true
-		}
+		// 规则约束：队列中的行动卡必须与玩家最初选择的实体卡一致，不允许同类自动替代。
+		return false
 	}
 
 	return false

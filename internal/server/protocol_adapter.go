@@ -54,6 +54,14 @@ func (r *Room) buildSyncStatePayload(playerID string) SyncStatePayload {
 }
 
 func (r *Room) translateClientAction(playerID string, req ClientActionRequest) (model.PlayerAction, error) {
+	if !model.IsKnownPlayerActionType(model.PlayerActionType(req.ActionType)) {
+		return model.PlayerAction{}, newProtocolInputError(
+			protocolErrorCodeUnknownActionType,
+			fmt.Sprintf("未知 action_type: %s", req.ActionType),
+			map[string]interface{}{"action_type": req.ActionType},
+		)
+	}
+
 	action := model.PlayerAction{
 		PlayerID: playerID,
 		Type:     model.PlayerActionType(req.ActionType),

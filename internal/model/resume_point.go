@@ -76,51 +76,36 @@ func IsKnownSubflow(subflow Subflow) bool {
 
 func ParseResumePointTurnStage(raw interface{}) TurnStage {
 	point := NormalizeResumePoint(raw)
-	switch {
-	case strings.HasPrefix(point, ResumePointTurnStagePrefix):
-		stage := TurnStage(strings.TrimPrefix(point, ResumePointTurnStagePrefix))
-		if IsKnownTurnStage(stage) {
-			return stage
-		}
-	case point != "":
-		stage := TurnStage(point)
-		if IsKnownTurnStage(stage) {
-			return stage
-		}
+	if !strings.HasPrefix(point, ResumePointTurnStagePrefix) {
+		return ""
+	}
+	stage := TurnStage(strings.TrimPrefix(point, ResumePointTurnStagePrefix))
+	if IsKnownTurnStage(stage) {
+		return stage
 	}
 	return ""
 }
 
 func ParseResumePointCombatStage(raw interface{}) CombatStage {
 	point := NormalizeResumePoint(raw)
-	switch {
-	case strings.HasPrefix(point, ResumePointCombatStagePrefix):
-		stage := CombatStage(strings.TrimPrefix(point, ResumePointCombatStagePrefix))
-		if IsKnownCombatStage(stage) {
-			return stage
-		}
-	case point != "":
-		stage := CombatStage(point)
-		if IsKnownCombatStage(stage) {
-			return stage
-		}
+	if !strings.HasPrefix(point, ResumePointCombatStagePrefix) {
+		return CombatStageNone
+	}
+	stage := CombatStage(strings.TrimPrefix(point, ResumePointCombatStagePrefix))
+	if IsKnownCombatStage(stage) {
+		return stage
 	}
 	return CombatStageNone
 }
 
 func ParseResumePointSubflow(raw interface{}) Subflow {
 	point := NormalizeResumePoint(raw)
-	switch {
-	case strings.HasPrefix(point, ResumePointSubflowPrefix):
-		subflow := Subflow(strings.TrimPrefix(point, ResumePointSubflowPrefix))
-		if IsKnownSubflow(subflow) {
-			return subflow
-		}
-	case point != "":
-		subflow := Subflow(point)
-		if IsKnownSubflow(subflow) {
-			return subflow
-		}
+	if !strings.HasPrefix(point, ResumePointSubflowPrefix) {
+		return SubflowNone
+	}
+	subflow := Subflow(strings.TrimPrefix(point, ResumePointSubflowPrefix))
+	if IsKnownSubflow(subflow) {
+		return subflow
 	}
 	return SubflowNone
 }

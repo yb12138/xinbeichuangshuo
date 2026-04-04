@@ -10,9 +10,12 @@ const (
 	CmdRoomAction     = protocol.CmdRoomAction
 	CmdRoomEvent      = protocol.CmdRoomEvent
 	CmdChatMessage    = protocol.CmdChatMessage
+	CmdProtocolError  = protocol.CmdProtocolError
 )
 
 type WSMessage = protocol.WSMessage
+
+type ProtocolErrorPayload = protocol.ProtocolErrorPayload
 
 type TargetNode = protocol.TargetNode
 

@@ -15,12 +15,20 @@ const (
 	CmdRoomAction     = "RoomAction"
 	CmdRoomEvent      = "RoomEvent"
 	CmdChatMessage    = "ChatMessage"
+	CmdProtocolError  = "ProtocolError"
 )
 
 // WSMessage is the standard websocket envelope used by both client and server.
 type WSMessage struct {
 	Cmd  string          `json:"Cmd"`
 	Data json.RawMessage `json:"Data,omitempty"`
+}
+
+type ProtocolErrorPayload struct {
+	Code    string                 `json:"code"`
+	Message string                 `json:"message"`
+	Cmd     string                 `json:"cmd,omitempty"`
+	Context map[string]interface{} `json:"context,omitempty"`
 }
 
 type TargetNode struct {

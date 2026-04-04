@@ -1,6 +1,10 @@
 package engine
 
-import "starcup-engine/internal/model"
+import (
+	"fmt"
+
+	"starcup-engine/internal/model"
+)
 
 func normalizeChoiceResumePoint(raw interface{}) string {
 	return model.NormalizeResumePoint(raw)
@@ -30,13 +34,25 @@ func (e *GameEngine) currentTurnPlayer() *model.Player {
 
 func (e *GameEngine) currentChoiceResumePoint() string {
 	if e == nil || e.State == nil {
-		return ""
+		panic("currentChoiceResumePoint: engine/state is nil")
 	}
 	if e.State.Subflow != model.SubflowNone {
+		if !model.IsKnownSubflow(e.State.Subflow) {
+			panic(fmt.Sprintf("currentChoiceResumePoint: unknown subflow %q", e.State.Subflow))
+		}
 		return normalizeChoiceResumePoint(e.State.Subflow)
 	}
 	if e.State.CombatStage != model.CombatStageNone {
+		if !model.IsKnownCombatStage(e.State.CombatStage) {
+			panic(fmt.Sprintf("currentChoiceResumePoint: unknown combat stage %q", e.State.CombatStage))
+		}
 		return normalizeChoiceResumePoint(e.State.CombatStage)
+	}
+	if e.State.TurnStage == "" {
+		return ""
+	}
+	if !model.IsKnownTurnStage(e.State.TurnStage) {
+		panic(fmt.Sprintf("currentChoiceResumePoint: unknown turn stage %q", e.State.TurnStage))
 	}
 	return normalizeChoiceResumePoint(e.State.TurnStage)
 }

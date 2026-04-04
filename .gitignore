@@ -23,3 +23,5 @@ web/dist/
 # Logs / temp
 *.log
 tmp/
+artifacts/refactor_runs/
+specs/refactor/codex_prompt.md

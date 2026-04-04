@@ -7,8 +7,8 @@ import (
 )
 
 func TestParseChoiceResumeTurnStage_BareBeforeActionStaysExactStage(t *testing.T) {
-	if got := parseChoiceResumeTurnStage("BeforeAction"); got != model.TurnStageBeforeAction {
-		t.Fatalf("expected bare BeforeAction to stay exact turn stage, got %s", got)
+	if got := parseChoiceResumeTurnStage("BeforeAction"); got != "" {
+		t.Fatalf("expected bare BeforeAction rejected in strict mode, got %s", got)
 	}
 }
 
@@ -38,4 +38,37 @@ func TestParseChoiceResumeSubflow_RoundTrips(t *testing.T) {
 	if got := parseChoiceResumeSubflow(point); got != model.SubflowDiscardSelection {
 		t.Fatalf("expected explicit discard-selection subflow to round-trip, got %s", got)
 	}
+}
+
+func TestParseChoiceResumeCombatStage_BareValueRejected(t *testing.T) {
+	if got := parseChoiceResumeCombatStage("CombatCalcDamage"); got != model.CombatStageNone {
+		t.Fatalf("expected bare combat stage rejected in strict mode, got %s", got)
+	}
+}
+
+func TestParseChoiceResumeSubflow_BareValueRejected(t *testing.T) {
+	if got := parseChoiceResumeSubflow("Response"); got != model.SubflowNone {
+		t.Fatalf("expected bare subflow rejected in strict mode, got %s", got)
+	}
+}
+
+func TestCurrentChoiceResumePoint_InvalidTurnStagePanics(t *testing.T) {
+	game := NewGameEngine(nil)
+	game.State.TurnStage = model.TurnStage("InvalidStage")
+	defer func() {
+		if recover() == nil {
+			t.Fatal("expected panic for invalid turn stage")
+		}
+	}()
+	_ = game.currentChoiceResumePoint()
+}
+
+func TestCurrentChoiceResumePoint_NilEnginePanics(t *testing.T) {
+	var game *GameEngine
+	defer func() {
+		if recover() == nil {
+			t.Fatal("expected panic for nil engine")
+		}
+	}()
+	_ = game.currentChoiceResumePoint()
 }

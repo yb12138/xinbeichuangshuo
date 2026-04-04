@@ -72,16 +72,6 @@ func (e *GameEngine) runTurnProgressionFallbackHooks(player *model.Player) {
 	e.runPlayerPhaseHooks(player, turnProgressionFallbackHooks)
 }
 
-func (e *GameEngine) normalizeActionSelectionEntryState(player *model.Player) {
-	if e == nil || player == nil {
-		return
-	}
-	startupBlazeWitchFlameReleaseHook(e, player)
-	startupAssassinStealthReleaseHook(e, player)
-	startupMagicSwordsmanShadowReleaseHook(e, player)
-	startupHeroExhaustionReleaseHook(e, player)
-}
-
 func startupBlazeWitchFlameReleaseHook(e *GameEngine, player *model.Player) bool {
 	if !e.isBlazeWitch(player) || player.TurnState.HasUsedTriggerSkill || !hasBlazeWitchFlameForm(player) {
 		return false

@@ -62,13 +62,21 @@ func TestMagicSwordsmanShadowGather_ReleasesBeforeNextActionSelectionPrompt(t *t
 	}
 
 	g.State.CurrentTurn = 0
-	g.State.TurnStage = model.TurnStageActionExecution
+	g.State.TurnStage = model.TurnStageActionStart
 
 	g.Drive()
 
 	if p1.Form != "" {
 		t.Fatalf("expected shadow form released before action selection, got form=%q", p1.Form)
 	}
+	if g.State.PendingInterrupt == nil || g.State.PendingInterrupt.Type != model.InterruptStartupSkill {
+		t.Fatalf("expected startup skill prompt after action-start release, got %+v", g.State.PendingInterrupt)
+	}
+	mustHandleAction(t, g, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{len(g.State.PendingInterrupt.SkillIDs)},
+	})
 	if obs.lastPrompt == nil {
 		t.Fatalf("expected action selection prompt")
 	}

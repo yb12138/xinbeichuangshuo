@@ -82,7 +82,8 @@ func TestHeroRoar_HitDamagePlusTwoAndCleared(t *testing.T) {
 		heroTestCard("d4", "抽4", model.CardTypeAttack, model.ElementWater, 2),
 	}
 	game.State.CurrentTurn = 0
-	game.State.TurnStage = model.TurnStageActionExecution
+	game.State.TurnStage = model.TurnStageActionStart
+	game.Drive()
 
 	mustHandleAction(t, game, model.PlayerAction{
 		PlayerID:  "p1",
@@ -137,7 +138,8 @@ func TestHeroRoar_MissAddsWisdom(t *testing.T) {
 		heroTestCard("m1", "圣光", model.CardTypeMagic, model.ElementLight, 0),
 	}
 	game.State.CurrentTurn = 0
-	game.State.TurnStage = model.TurnStageActionExecution
+	game.State.TurnStage = model.TurnStageActionStart
+	game.Drive()
 
 	mustHandleAction(t, game, model.PlayerAction{
 		PlayerID:  "p1",
@@ -196,7 +198,8 @@ func TestHeroForbiddenPower_HitBranch(t *testing.T) {
 		heroTestCard("d6", "抽6", model.CardTypeAttack, model.ElementEarth, 2),
 	}
 	game.State.CurrentTurn = 0
-	game.State.TurnStage = model.TurnStageActionExecution
+	game.State.TurnStage = model.TurnStageActionStart
+	game.Drive()
 
 	mustHandleAction(t, game, model.PlayerAction{
 		PlayerID:  "p1",
@@ -216,12 +219,6 @@ func TestHeroForbiddenPower_HitBranch(t *testing.T) {
 	}
 	if got := p1.Crystal; got != 1 {
 		t.Fatalf("expected forbidden power consume 1 crystal-like, crystal=%d", got)
-	}
-	if got := p1.Form; got != "" {
-		t.Fatalf("expected exhaustion form released at next action selection start, got %q", got)
-	}
-	if got := p1.Tokens["hero_exhaustion_release_pending"]; got != 0 {
-		t.Fatalf("expected exhaustion pending flag cleared after release, got %d", got)
 	}
 	if got := len(p2.Hand); got != 4 {
 		t.Fatalf("expected hit branch add fire-count bonus to attack damage (target draw 4), got %d", got)
@@ -275,9 +272,6 @@ func TestHeroForbiddenPower_MissBranchWaterToWisdom(t *testing.T) {
 	}
 	if got := p1.Tokens["hero_wisdom"]; got != 2 {
 		t.Fatalf("expected wisdom +2 from discarded water cards on miss branch, got %d", got)
-	}
-	if got := p1.Form; got != "" {
-		t.Fatalf("expected exhaustion form released after next action selection start, got %q", got)
 	}
 }
 
@@ -401,8 +395,8 @@ func TestHeroForbiddenPower_UserScenario_Hit_FireCardsBonusAndSelfDamage(t *test
 	if got := len(p2.Hand); got != 4 {
 		t.Fatalf("expected hit branch add +2 damage from two discarded fire cards (target draw 4), got %d", got)
 	}
-	if got := len(p1.Hand); got != 5 {
-		t.Fatalf("expected self draw total 5 after forbidden power self-damage (2) plus exhaustion release damage (3), got hand=%d", got)
+	if got := len(p1.Hand); got != 2 {
+		t.Fatalf("expected self draw 2 from forbidden power self-damage only (exhaustion release happens on later action-start), got hand=%d", got)
 	}
 }
 

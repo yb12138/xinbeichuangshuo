@@ -11,6 +11,9 @@ import (
 func (r *Room) handleRoomAction(client *Client, payload json.RawMessage) {
 	var roomAction RoomActionRequest
 	if err := json.Unmarshal(payload, &roomAction); err != nil {
+		r.sendProtocolErrorToClient(client, protocolErrorCodeInvalidJSON, "RoomAction 负载不是合法 JSON", CmdRoomAction, map[string]interface{}{
+			"error": err.Error(),
+		})
 		return
 	}
 
@@ -29,6 +32,10 @@ func (r *Room) handleRoomAction(client *Client, payload json.RawMessage) {
 		r.handleChangeRoleRoomAction(client, roomAction)
 	case "start":
 		r.handleStartRoomAction(client)
+	default:
+		r.sendProtocolErrorToClient(client, protocolErrorCodeUnknownRoomAction, "未知房间动作", CmdRoomAction, map[string]interface{}{
+			"action": roomAction.Action,
+		})
 	}
 }
 
@@ -224,6 +231,7 @@ func (r *Room) handleTakeoverPlayerRoomAction(client *Client, roomAction RoomAct
 
 func (r *Room) handleChangeCampRoomAction(client *Client, roomAction RoomActionRequest) {
 	if r.Started {
+		r.sendRoomErrorToClient(client, "游戏已开始，无法调整阵营")
 		return
 	}
 
@@ -262,7 +270,12 @@ func (r *Room) handleChangeCampRoomAction(client *Client, roomAction RoomActionR
 }
 
 func (r *Room) handleChangeRoleRoomAction(client *Client, roomAction RoomActionRequest) {
-	if r.Started || roomAction.CharRole == "" {
+	if r.Started {
+		r.sendRoomErrorToClient(client, "游戏已开始，无法调整角色")
+		return
+	}
+	if roomAction.CharRole == "" {
+		r.sendRoomErrorToClient(client, "缺少角色")
 		return
 	}
 
