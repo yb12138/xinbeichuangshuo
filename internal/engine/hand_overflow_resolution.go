@@ -230,6 +230,7 @@ func (e *GameEngine) handleDiscardSelectionFollowups(player *model.Player, data 
 			"selected_indices":  []int{},
 			"remaining_indices": allHandIndices(user),
 		}
+		e.updatePhaseByInterrupt(e.State.PendingInterrupt)
 		e.Log(fmt.Sprintf("%s 的 [魔眼] 生效：%s 已弃置1张手牌，请选择1张手牌作为充能", user.Name, player.Name))
 		e.notifyInterruptPrompt()
 		return true, nil

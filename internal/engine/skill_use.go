@@ -140,7 +140,7 @@ func (e *GameEngine) maybeRequestSkillDiscardSelection(use *skillUseRequest) (bo
 			"resume_phase":  e.currentChoiceResumePoint(),
 		},
 	}
-	e.setSubflow(model.SubflowDiscardSelection)
+	e.enterDiscardSelection()
 	e.Log(fmt.Sprintf("%s 请选择用于发动 [%s] 的卡牌", use.player.Name, use.skillDef.Title))
 	return true, nil
 }

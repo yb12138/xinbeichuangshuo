@@ -434,7 +434,7 @@ func TestAngel_AngelBlessing(t *testing.T) {
 	p2 := game.State.Players["p2"]
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
-	p1.TurnState.HasUsedTriggerSkill = true
+	p1.TurnState.HasUsedActionSkill = true
 	game.State.TurnStage = model.TurnStageActionExecution
 
 	// P1 手牌：1 张水系牌用于发动技能

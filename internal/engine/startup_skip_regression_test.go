@@ -43,8 +43,8 @@ func TestStartupSkillSkip_OnlyPromptsOncePerTurn(t *testing.T) {
 		t.Fatalf("skip startup skill failed: %v", err)
 	}
 
-	if !p1.TurnState.HasUsedTriggerSkill {
-		t.Fatalf("expected HasUsedTriggerSkill=true after skip")
+	if !p1.TurnState.HasUsedActionSkill {
+		t.Fatalf("expected HasUsedActionSkill=true after skip")
 	}
 	if game.State.PendingInterrupt != nil && game.State.PendingInterrupt.Type == model.InterruptStartupSkill {
 		t.Fatalf("startup interrupt should not reappear in same turn")
@@ -96,10 +96,10 @@ func TestStartupSkillConfirm_EndsStartupPhaseAfterOneSkill(t *testing.T) {
 		t.Fatalf("confirm startup skill failed: %v", err)
 	}
 
-	if !p1.TurnState.HasUsedTriggerSkill {
-		t.Fatalf("expected HasUsedTriggerSkill=true after confirming startup skill")
+	if !p1.TurnState.HasUsedActionSkill {
+		t.Fatalf("expected HasUsedActionSkill=true after confirming startup skill")
 	}
-	if !game.hasPerformedStartupThisTurn(p1) {
+	if !p1.TurnState.HasStartupSkillOrSpecialActionsLocked() {
 		t.Fatalf("expected startup lock=true after confirming startup skill")
 	}
 	if p1.Form != model.FormArbiterJudgment {
@@ -158,7 +158,7 @@ func TestStartupSkillConfirm_DisablesSpecialActionsInSameTurn(t *testing.T) {
 	if !game.isActionSelectionWindow() {
 		t.Fatalf("expected flow to move to action selection window, got %s", game.runtimeStateLabel())
 	}
-	if !game.hasPerformedStartupThisTurn(p1) {
+	if !p1.TurnState.HasStartupSkillOrSpecialActionsLocked() {
 		t.Fatalf("expected startup lock=true after confirming startup skill")
 	}
 

@@ -431,7 +431,7 @@ func (e *GameEngine) debugPrepareSkillResources(player *model.Player, skill mode
 		player.TurnState.UsedSkillCounts = make(map[string]int)
 	}
 	player.TurnState.UsedSkillCounts[skill.ID] = 0
-	player.TurnState.HasUsedTriggerSkill = false
+	player.TurnState.HasUsedActionSkill = false
 }
 
 func (e *GameEngine) debugPrepareSkillCards(player *model.Player, skill model.SkillDefinition) error {

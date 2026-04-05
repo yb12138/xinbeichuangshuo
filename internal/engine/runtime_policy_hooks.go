@@ -7,8 +7,8 @@ import (
 	"starcup-engine/internal/model"
 )
 
-type actionSelectionOptionPolicy func(e *GameEngine, player *model.Player, state *actionSelectionOptionState)
-type actionSelectionValidationPolicy func(e *GameEngine, player *model.Player, act model.PlayerAction, result *actionSelectionValidationResult) error
+type actionSelectionOptionPolicy func(e *GameEngine, player *model.Player, state *actionSelectionState)
+type actionSelectionValidationConstraintPolicy func(e *GameEngine, player *model.Player, state *actionSelectionState)
 
 type combatInteractionHook func(e *GameEngine, req *model.CombatRequest) bool
 type attackStartInterruptHook func(e *GameEngine, attacker *model.Player, target *model.Player, currentAction *model.QueuedAction, userCtx *model.Context) bool
@@ -29,7 +29,7 @@ var actionSelectionOptionPolicies = []actionSelectionOptionPolicy{
 	actionSelectionFighterHundredDragonOptionsPolicy,
 }
 
-var actionSelectionValidationPolicies = []actionSelectionValidationPolicy{
+var actionSelectionValidationConstraintPolicies = []actionSelectionValidationConstraintPolicy{
 	actionSelectionArbiterForcedDoomsdayValidationPolicy,
 	actionSelectionHeroTauntValidationPolicy,
 	actionSelectionFighterHundredDragonValidationPolicy,
@@ -219,7 +219,7 @@ func turnStartValkyrieMilitaryGloryHook(e *GameEngine, player *model.Player) boo
 }
 
 func startupHeroExhaustionReleaseHook(e *GameEngine, player *model.Player) bool {
-	if e == nil || player == nil || !e.isHero(player) || player.TurnState.HasUsedTriggerSkill || !hasHeroExhaustionForm(player) {
+	if e == nil || player == nil || !e.isHero(player) || player.TurnState.HasUsedActionSkill || !hasHeroExhaustionForm(player) {
 		return false
 	}
 	ensurePlayerTokensMap(player)
@@ -319,7 +319,7 @@ func hasPlayableAttackCard(player *model.Player) bool {
 	return false
 }
 
-func actionSelectionArbiterForcedDoomsdayOptionsPolicy(e *GameEngine, player *model.Player, state *actionSelectionOptionState) {
+func actionSelectionArbiterForcedDoomsdayOptionsPolicy(e *GameEngine, player *model.Player, state *actionSelectionState) {
 	if e == nil || player == nil || state == nil {
 		return
 	}
@@ -330,14 +330,15 @@ func actionSelectionArbiterForcedDoomsdayOptionsPolicy(e *GameEngine, player *mo
 	if skillDef == nil || !e.isActionSkillUsableForExtraMagic(player, *skillDef) {
 		return
 	}
-	state.hasArbiterForcedDoomsday = true
+	state.setActionRule(actionSelectionRuleForceSkillAsMagic, "arbiter_forced_doomsday", 30)
 	state.canMagicAction = false
 	state.canMagicSkillAction = true
 	state.promptChoiceType = "arbiter_forced_doomsday"
 	state.promptSkillID = "arbiter_doomsday"
+	state.actionRulePromptMessage = "你的审判已达上限：本行动阶段必须发动【末日审判】。"
 }
 
-func actionSelectionHeroTauntOptionsPolicy(e *GameEngine, player *model.Player, state *actionSelectionOptionState) {
+func actionSelectionHeroTauntOptionsPolicy(e *GameEngine, player *model.Player, state *actionSelectionState) {
 	if player == nil || state == nil {
 		return
 	}
@@ -348,94 +349,93 @@ func actionSelectionHeroTauntOptionsPolicy(e *GameEngine, player *model.Player, 
 	if src == nil {
 		return
 	}
-	state.tauntSourceID = src.ID
-	state.tauntSourceName = model.GetPlayerDisplayName(src)
-	state.hasHeroTaunt = true
-	state.tauntRequiresSkip = !hasPlayableAttackCard(player)
+	state.setActionRule(actionSelectionRuleForceAttackOrSkip, "hero_taunt", 10)
+	state.constrainedTargetID = src.ID
+	state.constrainedTargetName = model.GetPlayerDisplayName(src)
+	state.ruleRequiresSkipOnly = !hasPlayableAttackCard(player)
 }
 
-func actionSelectionFighterHundredDragonOptionsPolicy(e *GameEngine, player *model.Player, state *actionSelectionOptionState) {
+func actionSelectionFighterHundredDragonOptionsPolicy(e *GameEngine, player *model.Player, state *actionSelectionState) {
 	if e == nil || player == nil || state == nil {
 		return
 	}
-	state.hasFighterHundredDragon = e.isFighter(player) && hasFighterHundredDragonForm(player)
+	if !e.isFighter(player) || !hasFighterHundredDragonForm(player) {
+		return
+	}
+	state.setActionRule(actionSelectionRuleForceAttack, "fighter_hundred_dragon", 20)
+	if locked := e.fighterLockedTarget(player); locked != nil {
+		state.actionRulePromptMessage = fmt.Sprintf("你处于【百式幻龙拳】状态：本行动阶段只能主动攻击 %s；若本行动阶段结束仍处于该形态，则自动转正。", model.GetPlayerDisplayName(locked))
+	} else {
+		state.actionRulePromptMessage = "你处于【百式幻龙拳】状态：本行动阶段只能主动攻击已锁定目标；若本行动阶段结束仍处于该形态，则自动转正。"
+	}
 }
 
-func actionSelectionArbiterForcedDoomsdayValidationPolicy(e *GameEngine, player *model.Player, act model.PlayerAction, _ *actionSelectionValidationResult) error {
+func actionSelectionArbiterForcedDoomsdayValidationPolicy(e *GameEngine, player *model.Player, state *actionSelectionState) {
 	if e == nil || player == nil || player.TurnState.UsedSkillCounts["arbiter_forced_doomsday_pending"] <= 0 {
-		return nil
+		return
 	}
-	if act.Type != model.CmdSkill {
-		return fmt.Errorf("审判已达上限：本行动阶段必须发动 [末日审判]")
-	}
-	if act.SkillID != "arbiter_doomsday" {
-		return fmt.Errorf("审判已达上限：本行动阶段只能发动 [末日审判]")
-	}
-	return nil
+	state.setActionRule(actionSelectionRuleForceSkillAsMagic, "arbiter_forced_doomsday", 30)
+	state.requiredSkillID = "arbiter_doomsday"
+	state.forceSkillMustUseMessage = "审判已达上限：本行动阶段必须发动 [末日审判]"
+	state.forceSkillOnlyMessage = "审判已达上限：本行动阶段只能发动 [末日审判]"
 }
 
-func actionSelectionHeroTauntValidationPolicy(e *GameEngine, player *model.Player, act model.PlayerAction, result *actionSelectionValidationResult) error {
+func actionSelectionHeroTauntValidationPolicy(e *GameEngine, player *model.Player, state *actionSelectionState) {
 	if e == nil || player == nil {
-		return nil
+		return
 	}
 	if player.TurnState.UsedSkillCounts["hero_taunt_active_turn"] <= 0 || player.TurnState.UsedSkillCounts["arbiter_forced_doomsday_pending"] > 0 {
-		return nil
+		return
 	}
 	src := activeHeroTauntSource(e, player)
 	if src == nil {
-		return nil
+		return
 	}
 	sourceName := model.GetPlayerDisplayName(src)
-	if act.Type == model.CmdCannotAct {
+	state.setActionRule(actionSelectionRuleForceAttackOrSkip, "hero_taunt", 10)
+	state.constrainedTargetID = src.ID
+	state.constrainedTargetName = sourceName
+	state.ruleRequiresSkipOnly = !hasPlayableAttackCard(player)
+	state.forceAttackOnlyMessage = fmt.Sprintf("你受到【挑衅】影响：本次行动阶段必须且只能主动攻击 %s，或选择跳过行动", sourceName)
+	state.onSkipChosen = func(e *GameEngine, player *model.Player, result *actionSelectionValidationResult) (bool, error) {
 		e.Log(fmt.Sprintf("[Taunt] %s 选择跳过本次行动阶段，并移除来自 %s 的【挑衅】", player.Name, sourceName))
 		clearHeroTauntRestriction(e, player)
 		e.enterTurnEndStage()
 		if result != nil {
 			result.handled = true
 		}
+		return true, nil
+	}
+	state.onAttackAccepted = func(_ *GameEngine, _ *model.Player, _ model.PlayerAction, result *actionSelectionValidationResult) error {
+		if result != nil {
+			result.consumeHeroTauntOnAttack = true
+		}
 		return nil
 	}
-	if act.Type != model.CmdAttack {
-		return fmt.Errorf("你受到【挑衅】影响：本次行动阶段必须且只能主动攻击 %s，或选择跳过行动", sourceName)
-	}
-	targetID := act.TargetID
-	if targetID == "" && len(act.TargetIDs) > 0 {
-		targetID = act.TargetIDs[0]
-	}
-	if targetID == "" {
-		return fmt.Errorf("你受到【挑衅】影响：攻击必须指定 %s", sourceName)
-	}
-	if e.State.Players[targetID] == nil {
-		return fmt.Errorf("目标不存在")
-	}
-	if targetID != src.ID {
-		return fmt.Errorf("你受到【挑衅】影响：本次行动阶段只能主动攻击 %s", sourceName)
-	}
-	if result != nil {
-		result.consumeHeroTauntOnAttack = true
-	}
-	return nil
 }
 
-func actionSelectionFighterHundredDragonValidationPolicy(e *GameEngine, player *model.Player, act model.PlayerAction, _ *actionSelectionValidationResult) error {
+func actionSelectionFighterHundredDragonValidationPolicy(e *GameEngine, player *model.Player, state *actionSelectionState) {
 	if e == nil || player == nil || !e.isFighter(player) || !hasFighterHundredDragonForm(player) {
-		return nil
+		return
 	}
-	switch act.Type {
-	case model.CmdAttack:
+	state.setActionRule(actionSelectionRuleForceAttack, "fighter_hundred_dragon", 20)
+	state.forceAttackOnlyMessage = "百式幻龙拳状态下只能主动攻击"
+	state.onNonAttackChosen = func(e *GameEngine, player *model.Player, act model.PlayerAction, _ *actionSelectionValidationResult) error {
+		switch act.Type {
+		case model.CmdMagic, model.CmdSkill:
+			e.clearFighterHundredDragon(player, fmt.Sprintf("%s 尝试执行法术行动，取消 [百式幻龙拳] 并转正", player.Name))
+			return fmt.Errorf("百式幻龙拳状态下不能执行法术行动；状态已取消，请重新选择行动")
+		case model.CmdBuy, model.CmdSynthesize, model.CmdExtract:
+			e.clearFighterHundredDragon(player, fmt.Sprintf("%s 尝试执行特殊行动，取消 [百式幻龙拳] 并转正", player.Name))
+			return fmt.Errorf("百式幻龙拳状态下不能执行特殊行动；状态已取消，请重新选择行动")
+		default:
+			return nil
+		}
+	}
+	state.onAttackAccepted = func(e *GameEngine, player *model.Player, act model.PlayerAction, _ *actionSelectionValidationResult) error {
 		targetID := act.TargetID
 		if targetID == "" && len(act.TargetIDs) > 0 {
 			targetID = act.TargetIDs[0]
-		}
-		if targetID == "" {
-			return fmt.Errorf("百式幻龙拳状态下攻击必须指定目标")
-		}
-		targetPlayer := e.State.Players[targetID]
-		if targetPlayer == nil {
-			return fmt.Errorf("目标不存在")
-		}
-		if targetPlayer.Camp == player.Camp {
-			return fmt.Errorf("攻击目标必须是敌方角色")
 		}
 		targetOrder := e.playerOrderPosition(targetID)
 		if targetOrder == 0 {
@@ -449,14 +449,8 @@ func actionSelectionFighterHundredDragonValidationPolicy(e *GameEngine, player *
 		if lockedOrder != targetOrder {
 			e.clearFighterHundredDragon(player, fmt.Sprintf("%s 攻击目标变化，取消 [百式幻龙拳] 并继续本次攻击", player.Name))
 		}
-	case model.CmdMagic, model.CmdSkill:
-		e.clearFighterHundredDragon(player, fmt.Sprintf("%s 尝试执行法术行动，取消 [百式幻龙拳] 并转正", player.Name))
-		return fmt.Errorf("百式幻龙拳状态下不能执行法术行动；状态已取消，请重新选择行动")
-	case model.CmdBuy, model.CmdSynthesize, model.CmdExtract:
-		e.clearFighterHundredDragon(player, fmt.Sprintf("%s 尝试执行特殊行动，取消 [百式幻龙拳] 并转正", player.Name))
-		return fmt.Errorf("百式幻龙拳状态下不能执行特殊行动；状态已取消，请重新选择行动")
+		return nil
 	}
-	return nil
 }
 
 func combatInteractionOnmyojiBindingInterruptHook(e *GameEngine, req *model.CombatRequest) bool {

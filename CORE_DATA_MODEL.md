@@ -142,14 +142,15 @@
 
 ## 4.3 `PlayerTurnState`（回合内态）
 
-位置：`skill.go`
+位置：`skill.go`；回合流程标记的读写集中在 `player_turn_marks.go`（`HasStartupSkillOrSpecialActionsLocked`、`LockSpecialActionsForRemainderOfTurn`、`MarkActionEndNeedsInterruptHookSkipOnce` 等）。
 
 关键字段：
 
 - 行动轨迹：`HasActed/AttackCount/LastActionType`
 - 技能计数：`UsedSkillCounts`
 - 追加行动：`PendingActions/CurrentExtraAction/CurrentExtraElement`
-- 临时标志：`GaleSlashActive/PreciseShotActive/SkipFusionCheck`
+- 本回合限制：`HasUsedActionSkill`、`SpecialActionsLockedThisTurn`、`ActionEndSkipInterruptHooksOnce`（含义见 `player_turn_marks.go`）
+- 临时标志：`GaleSlashActive/PreciseShotActive`（魔弹融合「正常使用」重入用 `performMagic(..., skipFusion=true)`，不再占用回合态）
 
 用途：
 

@@ -32,7 +32,7 @@ func (e *GameEngine) handleActionSelection(act model.PlayerAction) error {
 
 	switch act.Type {
 	case model.CmdBuy, model.CmdSynthesize, model.CmdExtract, model.CmdSkill:
-		if e.hasPerformedStartupThisTurn(player) &&
+		if player.TurnState.HasStartupSkillOrSpecialActionsLocked() &&
 			(act.Type == model.CmdBuy || act.Type == model.CmdSynthesize || act.Type == model.CmdExtract) {
 			return fmt.Errorf("你本回合已执行启动技能，不能执行特殊行动")
 		}
@@ -244,7 +244,7 @@ func (e *GameEngine) handleActionSelection(act model.PlayerAction) error {
 		handCount := len(player.Hand)
 		if handCount == 0 {
 			e.Log(fmt.Sprintf("[Action] %s 宣告【无法行动】（无手牌），结束本回合行动阶段", player.Name))
-			e.markSpecialActionLockedForTurn(player)
+			player.TurnState.LockSpecialActionsForRemainderOfTurn()
 			e.enterTurnEndStage()
 			return nil
 		}
@@ -298,7 +298,7 @@ func (e *GameEngine) handleActionSelection(act model.PlayerAction) error {
 			}
 		}
 		e.Log(fmt.Sprintf("[Action] %s 重新摸了%d张牌，且本回合不可执行特殊行动", player.Name, handCount))
-		e.markSpecialActionLockedForTurn(player)
+		player.TurnState.LockSpecialActionsForRemainderOfTurn()
 		e.enterActionExecutionStage()
 		return nil
 

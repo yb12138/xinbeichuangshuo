@@ -73,7 +73,7 @@ func (e *GameEngine) runTurnProgressionFallbackHooks(player *model.Player) {
 }
 
 func startupBlazeWitchFlameReleaseHook(e *GameEngine, player *model.Player) bool {
-	if !e.isBlazeWitch(player) || player.TurnState.HasUsedTriggerSkill || !hasBlazeWitchFlameForm(player) {
+	if !e.isBlazeWitch(player) || player.TurnState.HasUsedActionSkill || !hasBlazeWitchFlameForm(player) {
 		return false
 	}
 	ensurePlayerTokensMap(player)
@@ -89,7 +89,7 @@ func startupBlazeWitchFlameReleaseHook(e *GameEngine, player *model.Player) bool
 }
 
 func startupAssassinStealthReleaseHook(e *GameEngine, player *model.Player) bool {
-	if !isCharacter(player, "assassin") || player.TurnState.HasUsedTriggerSkill || !hasAssassinStealthForm(player) {
+	if !isCharacter(player, "assassin") || player.TurnState.HasUsedActionSkill || !hasAssassinStealthForm(player) {
 		return false
 	}
 	e.releaseAssassinStealthEffect(player)
@@ -118,7 +118,7 @@ func startupBardRousingHook(e *GameEngine, player *model.Player) bool {
 }
 
 func turnStartArbiterJudgmentUpkeepHook(e *GameEngine, player *model.Player) bool {
-	if !hasArbiterJudgmentForm(player) || player.TurnState.HasUsedTriggerSkill {
+	if !hasArbiterJudgmentForm(player) || player.TurnState.HasUsedActionSkill {
 		return false
 	}
 	ensurePlayerTokensMap(player)

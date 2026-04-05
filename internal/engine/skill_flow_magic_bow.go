@@ -398,6 +398,7 @@ func (e *GameEngine) handleMagicBowChoiceInput(_ string, selectionIndex int, ctx
 				e.State.PendingInterrupt.Type = model.InterruptDiscard
 				e.State.PendingInterrupt.PlayerID = targetID
 				e.State.PendingInterrupt.Context = map[string]interface{}{"discard_count": 1, "prompt": "【魔眼】请选择弃置1张手牌：", "mb_demon_eye_user_id": user.ID, "mb_demon_eye_target_id": targetID}
+				e.enterDiscardSelection()
 				e.Log(fmt.Sprintf("%s 的 [魔眼] 生效：请选择 %s 弃置1张手牌", user.Name, target.Name))
 				e.notifyInterruptPrompt()
 				return true, nil

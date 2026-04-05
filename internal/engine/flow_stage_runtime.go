@@ -109,6 +109,10 @@ func (e *GameEngine) enterDiscardSelection() {
 	if e == nil || e.State == nil {
 		return
 	}
+	if !e.hasDiscardSelectionInterrupt() {
+		e.Log("[Error] enterDiscardSelection: 缺少与弃牌子流程匹配的 PendingInterrupt")
+		return
+	}
 	e.State.Subflow = model.SubflowDiscardSelection
 }
 
@@ -196,7 +200,20 @@ func (e *GameEngine) isDamageResolutionActive() bool {
 }
 
 func (e *GameEngine) isDiscardSelectionActive() bool {
-	return e != nil && e.State != nil && e.State.Subflow == model.SubflowDiscardSelection
+	return e != nil && e.State != nil &&
+		e.State.Subflow == model.SubflowDiscardSelection &&
+		e.hasDiscardSelectionInterrupt()
+}
+
+func isDiscardSelectionInterruptType(interruptType model.InterruptType) bool {
+	return interruptType == model.InterruptDiscard || interruptType == model.InterruptGiveCards
+}
+
+func (e *GameEngine) hasDiscardSelectionInterrupt() bool {
+	if e == nil || e.State == nil || e.State.PendingInterrupt == nil {
+		return false
+	}
+	return isDiscardSelectionInterruptType(e.State.PendingInterrupt.Type)
 }
 
 func (e *GameEngine) isResponseWindowActive() bool {

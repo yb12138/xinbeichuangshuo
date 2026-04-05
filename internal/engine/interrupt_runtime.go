@@ -203,6 +203,7 @@ func (e *GameEngine) updatePhaseByInterrupt(interrupt *model.Interrupt) {
 
 // PopInterrupt 弹出当前中断并处理下一个。
 func (e *GameEngine) PopInterrupt() {
+	popped := e.State.PendingInterrupt
 	e.State.PendingInterrupt = nil
 	if len(e.State.InterruptQueue) > 0 {
 		nextInterrupt := e.State.InterruptQueue[0]
@@ -213,6 +214,9 @@ func (e *GameEngine) PopInterrupt() {
 		e.notifyInterruptPrompt()
 	} else {
 		e.Log("[System] 所有中断处理完毕，恢复主流程")
+	}
+	if e.State.Subflow == model.SubflowDiscardSelection && !e.hasDiscardSelectionInterrupt() && popped != nil && isDiscardSelectionInterruptType(popped.Type) {
+		e.clearSubflow()
 	}
 }
 

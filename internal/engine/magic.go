@@ -6,8 +6,13 @@ import (
 	"starcup-engine/internal/model"
 )
 
-// PerformMagic 发动法术
+// PerformMagic 发动法术（含魔弹融合是否询问等入口逻辑）。
 func (e *GameEngine) PerformMagic(sourceID, targetID string, cardIdx int) error {
+	return e.performMagic(sourceID, targetID, cardIdx, false)
+}
+
+// performMagic 发动法术。skipMagicBulletFusionCheck 为 true 时不弹出魔弹融合询问，用于中断里已选「正常使用」后的重入，避免死循环。
+func (e *GameEngine) performMagic(sourceID, targetID string, cardIdx int, skipMagicBulletFusionCheck bool) error {
 	// 1. 验证阶段
 	if e.State.Subflow != model.SubflowNone ||
 		e.State.CombatStage != model.CombatStageNone ||
@@ -60,8 +65,7 @@ func (e *GameEngine) PerformMagic(sourceID, targetID string, cardIdx int) error 
 	}
 
 	// 【魔弹融合】检查：魔法少女使用地系或火系非魔弹法术牌时，询问是否当魔弹使用
-	// SkipFusionCheck=true 表示已经询问过了，玩家选择正常使用
-	if !player.TurnState.SkipFusionCheck && e.isMagicalGirl(player) && card.Name != "魔弹" &&
+	if !skipMagicBulletFusionCheck && e.isMagicalGirl(player) && card.Name != "魔弹" &&
 		(card.Element == model.ElementEarth || card.Element == model.ElementFire) {
 		// 先不移除手牌，等玩家确认后再处理
 		e.PushInterrupt(&model.Interrupt{

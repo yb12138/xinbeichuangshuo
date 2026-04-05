@@ -99,7 +99,7 @@ func TestMagicSwordsmanShadowRejectHidesMagicOption(t *testing.T) {
 	p1 := g.State.Players["p1"]
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
-	p1.TurnState.HasUsedTriggerSkill = true
+	p1.TurnState.HasUsedActionSkill = true
 	enterMagicSwordsmanShadowForm(p1)
 	p1.Hand = []model.Card{
 		{ID: "m1", Name: "中毒", Type: model.CardTypeMagic, Element: model.ElementEarth},

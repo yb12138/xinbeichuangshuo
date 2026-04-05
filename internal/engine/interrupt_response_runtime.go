@@ -393,10 +393,7 @@ func (e *GameEngine) handleMagicBulletFusionResponse(act model.PlayerAction) err
 	}
 
 	e.Log(fmt.Sprintf("[Magic] %s 选择正常使用 %s", player.Name, card.Name))
-	player.TurnState.SkipFusionCheck = true
-	err := e.PerformMagic(act.PlayerID, targetID, cardIdx)
-	player.TurnState.SkipFusionCheck = false
-	return err
+	return e.performMagic(act.PlayerID, targetID, cardIdx, true)
 }
 
 // handleMagicBulletDirectionResponse 处理魔弹掌控响应。

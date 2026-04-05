@@ -254,7 +254,7 @@ func TestArbiterForcedDoomsday_HappensAfterStartupAndTargetsEnemiesOnly(t *testi
 	}
 
 	state := game.buildActionSelectionOptions("p1", p1)
-	if !state.hasArbiterForcedDoomsday {
+	if state.actionRuleMode != actionSelectionRuleForceSkillAsMagic {
 		t.Fatalf("expected forced doomsday action selection restriction")
 	}
 	if len(state.validOptions) != 1 || state.validOptions[0].ID != "magic" {
@@ -408,10 +408,10 @@ func TestArbiterForcedDoomsday_IgnoresTauntAndClearsItAfterResolution(t *testing
 		t.Fatalf("expected forced doomsday pending set, got %d", got)
 	}
 	state := game.buildActionSelectionOptions("p1", p1)
-	if !state.hasArbiterForcedDoomsday {
+	if state.actionRuleMode != actionSelectionRuleForceSkillAsMagic {
 		t.Fatalf("expected forced doomsday to override taunt restriction")
 	}
-	if state.hasHeroTaunt {
+	if state.actionRuleMode == actionSelectionRuleForceAttackOrSkip {
 		t.Fatalf("expected taunt not to control prompt while forced doomsday is pending")
 	}
 

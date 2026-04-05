@@ -32,7 +32,7 @@ func (e *GameEngine) maybeReleaseMagicSwordsmanShadowAtActionStart(player *model
 	if player.Tokens == nil {
 		player.Tokens = map[string]int{}
 	}
-	if player.TurnState.HasUsedTriggerSkill {
+	if player.TurnState.HasUsedActionSkill {
 		return false
 	}
 	if !hasMagicSwordsmanShadowForm(player) {

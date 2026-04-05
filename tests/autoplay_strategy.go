@@ -1308,7 +1308,7 @@ func canAttemptBuy(game *engine.GameEngine, player *model.Player) bool {
 	if game == nil || player == nil {
 		return false
 	}
-	if player.TurnState.HasUsedTriggerSkill || player.TurnState.UsedSkillCounts["turn_special_action_locked"] > 0 {
+	if player.TurnState.HasStartupSkillOrSpecialActionsLocked() {
 		return false
 	}
 	maxHand := player.MaxHand
@@ -1322,7 +1322,7 @@ func canAttemptExtract(game *engine.GameEngine, player *model.Player) bool {
 	if game == nil || player == nil {
 		return false
 	}
-	if player.TurnState.HasUsedTriggerSkill || player.TurnState.UsedSkillCounts["turn_special_action_locked"] > 0 {
+	if player.TurnState.HasStartupSkillOrSpecialActionsLocked() {
 		return false
 	}
 	if player.Gem+player.Crystal >= 3 {

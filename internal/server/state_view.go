@@ -66,7 +66,7 @@ func (r *Room) buildStateForPlayer(playerID string) GameStateUpdate {
 	if state != nil && len(state.PlayerOrder) > 0 && state.CurrentTurn >= 0 && state.CurrentTurn < len(state.PlayerOrder) {
 		currentPlayer := state.Players[state.PlayerOrder[state.CurrentTurn]]
 		if currentPlayer != nil {
-			hasPerformedStartup = currentPlayer.TurnState.HasUsedTriggerSkill || currentPlayer.TurnState.UsedSkillCounts["turn_special_action_locked"] > 0
+			hasPerformedStartup = currentPlayer.TurnState.HasStartupSkillOrSpecialActionsLocked()
 		}
 	}
 

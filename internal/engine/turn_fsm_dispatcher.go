@@ -174,10 +174,6 @@ func (e *GameEngine) driveTurnStartStage(currentPid string, player *model.Player
 		return driveContinueLoop
 	}
 
-	if player.TurnState.HasProcessedTurnStart {
-		e.setTurnStage(model.TurnStageActionStart)
-		return driveContinueLoop
-	}
 	if e.runPlayerPhaseHooks(player, turnStartPhaseHooks) {
 		if e.State.PendingInterrupt != nil {
 			return driveStop
@@ -257,251 +253,33 @@ func (e *GameEngine) driveActionSelectionPhase(currentPid string, player *model.
 }
 
 func (e *GameEngine) driveDiscardSelectionPhase() driveOutcome {
-	// 弃牌阶段应当伴随 PendingInterrupt(Discard)。
-	// 若中断已被消费但阶段未恢复，修复到可继续推进的阶段，避免空转。
-	if e.State.PendingInterrupt == nil {
-		e.Log("[Warn] PhaseDiscardSelection: 无待处理中断，执行阶段修复")
-		if e.routePendingDamageWithReturn(model.TurnStageExtraAction) {
-			return driveContinueLoop
-		}
-		if len(e.State.ActionQueue) > 0 {
-			e.enterActionExecutionStage()
-		} else if len(e.State.CombatStack) > 0 {
-			e.clearSubflow()
-			if e.State.CombatStage == model.CombatStageNone {
-				e.setCombatStage(model.CombatStageHitCheck)
-			}
-		} else {
-			e.enterTurnEndStage()
-		}
-		return driveContinueLoop
+	if e.State.PendingInterrupt == nil || !isDiscardSelectionInterruptType(e.State.PendingInterrupt.Type) {
+		return driveUnhandled
 	}
 	return driveStop
 }
 
+// driveBeforeActionPhase 驱动「行动阶段中、队首行动尚未真正结算」的一段：从队列取出攻击/法术并交给规则链。
+// 与回合阶段 TurnStageBeforeAction（回合开始前的中毒/束缚等）不同，此处始终是 ActionExecution 内的执行前窗口。
 func (e *GameEngine) driveBeforeActionPhase(currentPid string, player *model.Player) driveOutcome {
 	e.setTurnStage(model.TurnStageActionExecution)
-	// 4. 行动前阶段
-	// 从队列中获取当前行动（不弹出，因为后续阶段可能需要使用）
-	if len(e.State.ActionQueue) == 0 {
-		e.Log("[Warn] PhaseBeforeAction: 行动队列为空，执行阶段修复")
-		if e.routePendingDamageWithDefaultReturn(model.TurnStageExtraAction) {
-			return driveContinueLoop
-		}
-		e.enterExtraActionStage()
-		return driveContinueLoop
+
+	head, immediate, stop := e.beforeActionPeekReadyHead(player)
+	if stop {
+		return immediate
 	}
 
-	currentAction := e.State.ActionQueue[0] // 只读取，不弹出
-	if !currentAction.UsesVirtualCard {
-		if !e.repairQueuedActionCard(player, &e.State.ActionQueue[0]) {
-			e.Log("[Warn] PhaseBeforeAction: 无法修复队列中的卡牌索引，丢弃该行动")
-			e.State.ActionQueue = e.State.ActionQueue[1:]
-			if e.routePendingDamageWithReturn(model.TurnStageExtraAction) {
-				return driveContinueLoop
-			}
-			if len(e.State.ActionQueue) > 0 {
-				e.enterActionExecutionStage()
-			} else {
-				e.enterExtraActionStage()
-			}
-			return driveContinueLoop
-		}
-		currentAction = e.State.ActionQueue[0]
-	}
-	if currentAction.Card == nil {
-		e.Log("[Warn] PhaseBeforeAction: 队列中的卡牌数据缺失，丢弃该行动")
+	switch head.Type {
+	case model.ActionAttack:
+		return e.driveBeforeActionAttack(currentPid, player, head)
+	case model.ActionMagic:
+		return e.driveBeforeActionMagic(currentPid, player, head)
+	default:
+		// 正常对局只应入队 Attack/Magic；其它类型视为状态异常，丢弃以免卡在行动阶段。
+		e.Log(fmt.Sprintf("[Error] PhaseBeforeAction: 不支持的队列行动类型 %s", head.Type))
 		e.State.ActionQueue = e.State.ActionQueue[1:]
-		if e.routePendingDamageWithReturn(model.TurnStageExtraAction) {
-			return driveContinueLoop
-		}
-		if len(e.State.ActionQueue) > 0 {
-			e.enterActionExecutionStage()
-		} else {
-			e.enterExtraActionStage()
-		}
-		return driveContinueLoop
+		return e.beforeActionRecoverAfterDroppedHead()
 	}
-
-	// 获取目标（从 HandleAction 传入的 TargetID，需要存储）
-	// 注意：这里我们需要从某个地方获取目标ID，可能需要修改 QueuedAction 结构
-	// 暂时假设目标已经在某个地方存储了，或者从 ActionStack 中获取
-
-	// 根据行动类型触发相应事件
-	if currentAction.Type == model.ActionAttack {
-		// 触发攻击开始事件
-		targetID := currentAction.TargetID
-
-		if targetID == "" {
-			e.Log("[Error] 攻击行动缺少目标")
-			return driveStop
-		}
-
-		target := e.State.Players[targetID]
-		if target == nil {
-			e.Log("[Error] 目标玩家不存在")
-			return driveStop
-		}
-
-		// [新增] 先触发 TriggerOnCardUsed (封印等通用卡牌触发)
-		if !e.State.ActionQueue[0].HasTriggeredCardUsed {
-			// 技能转化攻击（如欺诈/多重射击）不消耗攻击牌，不触发 CardUsed。
-			if currentAction.UsesVirtualCard {
-				e.State.ActionQueue[0].HasTriggeredCardUsed = true
-			} else {
-				// 1. 使用队列中已准备好的卡牌副本（元素转化等已在排队/修复阶段处理）
-				cardUsed := *currentAction.Card
-
-				// 2. 触发 TriggerOnCardUsed
-				cardCtx := &model.EventContext{
-					Type:     model.EventCardUsed,
-					Card:     &cardUsed,
-					SourceID: currentPid,
-					TargetID: targetID,
-				}
-				skillCtxUsed := e.buildContext(player, nil, model.TriggerOnCardUsed, cardCtx)
-				e.dispatcher.OnTrigger(model.TriggerOnCardUsed, skillCtxUsed)
-
-				// 标记已触发
-				e.State.ActionQueue[0].HasTriggeredCardUsed = true
-
-				// 3. 处理可能产生的延迟伤害 (即封印伤害)
-				// 【五系封印伤害在此处结算】
-				if e.processPendingDamages() {
-					return driveStop // 有中断 (如伤害导致爆牌)，暂停 Drive
-				}
-
-				// 4. 处理可能产生的其他中断
-				if e.State.PendingInterrupt != nil {
-					return driveStop
-				}
-			}
-		}
-
-		e.recordAttackTargetLifecycle(player, targetID)
-
-		eventCtx := &model.EventContext{
-			Type:     model.EventAttack,
-			SourceID: currentPid,
-			TargetID: targetID,
-			Card:     currentAction.Card,
-			AttackInfo: &model.AttackEventInfo{
-				IsHit:            false,
-				CanBeResponded:   true,
-				ActionType:       string(model.ActionAttack),
-				CounterInitiator: "",
-				InterceptTags:    map[model.CombatInterceptTag]bool{},
-			},
-		}
-
-		// 仅在本条攻击尚未触发过 AttackStart 时触发（确认响应技能后会再次进入此处，不再重复触发）
-		var attackStartCtx *model.Context
-		if !e.State.ActionQueue[0].HasTriggeredAttackStart {
-			e.resetAttackStartLifecycle(player)
-			e.State.ActionQueue[0].HasTriggeredAttackStart = true
-			attackStartCtx = e.buildContext(player, target, model.TriggerOnAttackStart, eventCtx)
-			player.TurnState.LastActionType = string(model.ActionAttack)
-			e.dispatcher.OnTrigger(model.TriggerOnAttackStart, attackStartCtx)
-			if e.State.PendingInterrupt != nil {
-				return driveStop
-			}
-			// 角色“攻击开始”阶段的中断由统一策略钩子处理，主流程不再直连角色技能实现。
-			if e.runAttackStartInterruptHooks(player, target, &currentAction, attackStartCtx) {
-				return driveStop
-			}
-		}
-
-		// 无中断或已确认响应后：初始化战斗
-		e.applyAttackPreCombatLifecycle(player, target, &currentAction, eventCtx)
-		isForcedHit := eventCtx.AttackInfo != nil && eventCtx.AttackInfo.IsHitForced
-		ignoreShield := eventCtx.AttackInfo != nil && eventCtx.AttackInfo.IgnoreShield
-
-		// 消耗卡牌（从手牌中移除）
-		card := *currentAction.Card
-		if !currentAction.UsesVirtualCard {
-			cardIdx := currentAction.CardIndex
-			if _, err := consumePlayableCardByIndex(player, cardIdx); err != nil {
-				e.Log("[Warn] PhaseBeforeAction: 卡牌索引失效，丢弃该行动")
-				e.enterExtraActionStage()
-				return driveContinueLoop
-			}
-			e.NotifyCardRevealed(currentPid, []model.Card{card}, "attack")
-			e.State.DiscardPile = append(e.State.DiscardPile, card)
-		}
-
-		// 记录攻击行动次数
-		player.TurnState.AttackCount += 1
-
-		// 从队列中弹出行动（因为即将执行）
-		e.State.ActionQueue = e.State.ActionQueue[1:]
-
-		// 初始化战斗（使用实际卡牌，而不是队列中的指针）
-		e.initCombat(currentPid, targetID, &card, isForcedHit, eventCtx.AttackInfo.CanBeResponded, ignoreShield, eventCtx.AttackInfo.InterceptTags)
-		return driveContinueLoop
-	}
-
-	if currentAction.Type == model.ActionMagic {
-		// 触发卡牌使用事件
-		targetID := currentAction.TargetID
-		if targetID == "" && len(currentAction.TargetIDs) > 0 {
-			targetID = currentAction.TargetIDs[0]
-		}
-
-		if !e.State.ActionQueue[0].HasTriggeredCardUsed {
-			cardCtx := &model.EventContext{
-				Type:     model.EventCardUsed,
-				Card:     currentAction.Card,
-				SourceID: currentPid,
-				TargetID: targetID,
-			}
-
-			skillCtx := e.buildContext(player, nil, model.TriggerOnCardUsed, cardCtx)
-
-			// 触发卡牌使用事件
-			e.dispatcher.OnTrigger(model.TriggerOnCardUsed, skillCtx)
-			e.State.ActionQueue[0].HasTriggeredCardUsed = true
-
-			// 如果触发了中断，等待用户输入
-			if e.State.PendingInterrupt != nil {
-				return driveStop
-			}
-
-			// 处理可能产生的延迟伤害（如封印），确保优先结算
-			if e.processPendingDamages() {
-				return driveStop
-			}
-			if e.State.PendingInterrupt != nil {
-				return driveStop
-			}
-		}
-
-		// 从队列中弹出行动
-		e.State.ActionQueue = e.State.ActionQueue[1:]
-
-		player.TurnState.LastActionType = string(model.ActionMagic)
-
-		// 没有中断，执行法术逻辑
-		// targetID 已经在上面计算过，包含了 TargetIDs[0] 的回退逻辑
-		if err := e.PerformMagic(currentPid, targetID, currentAction.CardIndex); err != nil {
-			e.Log(fmt.Sprintf("[Error] 法术执行失败: %v", err))
-		}
-
-		// 【新增检查】
-		// 如果 PerformMagic 导致了中断 (比如触发了减伤技能)，
-		// Phase 会被 ResolveDamage 改为 PhaseDamageResolution 或其他响应阶段。
-		// 此时我们应该 break，让 Drive 处理中断，而不是强制跳到 ExtraAction
-		if e.State.PendingInterrupt != nil {
-			return driveContinueLoop
-		}
-
-		// 法术执行完毕，进入回合结束阶段
-		if !e.routePendingDamageWithReturn(model.TurnStageTurnEnd) {
-			e.enterTurnEndStage()
-		}
-		return driveContinueLoop
-	}
-
-	return driveContinueLoop
 }
 
 func (e *GameEngine) driveCombatInteractionPhase(currentPid string, player *model.Player) driveOutcome {
@@ -619,7 +397,7 @@ func (e *GameEngine) driveActionEndStage(currentPid string, player *model.Player
 	if player.TurnState.LastActionType != "" {
 		lastActionType := model.ActionType(player.TurnState.LastActionType)
 		// 通过玩家回合态消费“行动结束中断恢复标记”，避免依赖全局临时字段。
-		skipActionEndInterruptHooks := e.consumeActionEndHookResuming(player)
+		skipActionEndInterruptHooks := player.TurnState.ConsumeActionEndInterruptHookSkipOnce()
 		eventCtx := &model.EventContext{
 			Type:       model.EventPhaseEnd,
 			SourceID:   currentPid,
@@ -634,7 +412,7 @@ func (e *GameEngine) driveActionEndStage(currentPid string, player *model.Player
 
 		skillCtx := e.buildContext(player, nil, model.TriggerOnPhaseEnd, eventCtx)
 
-		// 行动结束时机的角色中断统一经由钩子注入（如圣剑第三击中断）。
+		// 行动结束时机的角色中断统一经由钩子注入（如本回合第三次攻击行动结束时的圣剑摸弃中断）。
 		if !skipActionEndInterruptHooks && e.runActionEndInterruptHooks(skillCtx) {
 			return driveStop
 		}
@@ -650,7 +428,7 @@ func (e *GameEngine) driveActionEndStage(currentPid string, player *model.Player
 		// 如果触发了技能（产生了中断，比如用户需要确认是否发动风怒），直接 return 等待用户
 		if e.State.PendingInterrupt != nil {
 			// OnPhaseEnd 已派发完，后续恢复时只补执行行动后续效果，不重复派发 OnPhaseEnd。
-			e.markActionEndHookResuming(player)
+			player.TurnState.MarkActionEndNeedsInterruptHookSkipOnce()
 			e.enqueuePostActionEndFollowup(player.ID, lastActionType)
 			return driveStop
 		}

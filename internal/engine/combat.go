@@ -246,7 +246,7 @@ func (e *GameEngine) maybeTriggerHolySwordDrawFromPhaseEndCtx(ctx *model.Context
 		return false
 	}
 	// 圣剑中断先打断当前 ActionEnd，处理完后回到同一个 ActionEnd 继续派发风怒/剑影等响应技能。
-	e.markActionEndHookResuming(ctx.User)
+	ctx.User.TurnState.MarkActionEndNeedsInterruptHookSkipOnce()
 	e.setReturnPoint(model.TurnStageActionEnd)
 	return true
 }

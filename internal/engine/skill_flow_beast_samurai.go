@@ -32,6 +32,7 @@ func (e *GameEngine) beastSamuraiReplacePendingInterruptWithDiscard(playerID str
 	e.State.PendingInterrupt.Type = model.InterruptDiscard
 	e.State.PendingInterrupt.PlayerID = playerID
 	e.State.PendingInterrupt.Context = ctxData
+	e.enterDiscardSelection()
 	e.notifyInterruptPrompt()
 }
 
