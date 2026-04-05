@@ -480,13 +480,8 @@ func (e *GameEngine) finishSkillUse(use *skillUseRequest) error {
 
 	if use.skillDef.Type == model.SkillTypeAction && !use.policy.skipAutoPhaseEnd {
 		use.player.TurnState.HasActed = true
-		phaseEventCtx := &model.EventContext{
-			Type:       model.EventPhaseEnd,
-			SourceID:   use.player.ID,
-			ActionType: model.ActionMagic,
-		}
-		phaseCtx := e.buildContext(use.player, nil, model.TriggerOnPhaseEnd, phaseEventCtx)
-		e.dispatcher.OnTrigger(model.TriggerOnPhaseEnd, phaseCtx)
+		use.player.TurnState.LastActionType = string(model.ActionMagic)
+		use.player.TurnState.LastActionCard = nil
 	}
 	return nil
 }

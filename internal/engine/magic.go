@@ -188,16 +188,6 @@ func (e *GameEngine) performMagic(sourceID, targetID string, cardIdx int, skipMa
 		e.State.DiscardPile = append(e.State.DiscardPile, card)
 	}
 
-	// === 【新增】 5. 触发法术行动结束事件 (为了触发法术激荡等技能) ===
-	phaseEventCtx := &model.EventContext{
-		Type:       model.EventPhaseEnd,
-		SourceID:   player.ID,
-		Card:       &card,
-		ActionType: model.ActionMagic,
-	}
-	phaseCtx := e.buildContext(player, nil, model.TriggerOnPhaseEnd, phaseEventCtx)
-	e.dispatcher.OnTrigger(model.TriggerOnPhaseEnd, phaseCtx)
-
 	return nil
 }
 

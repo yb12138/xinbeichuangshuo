@@ -275,6 +275,7 @@ func (e *GameEngine) resolvePlagueDeathTouchFinal(ctxData map[string]interface{}
 	user.TurnState.UsedSkillCounts["plague_block_immortal"] = 1
 	user.TurnState.HasActed = true
 	user.TurnState.LastActionType = string(model.ActionMagic)
+	user.TurnState.LastActionCard = nil
 	e.AddPendingDamage(model.PendingDamage{
 		SourceID:           user.ID,
 		TargetID:           targetID,

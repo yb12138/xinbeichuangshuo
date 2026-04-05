@@ -82,6 +82,13 @@ func (e *GameEngine) handleActionSelection(act model.PlayerAction) error {
 			if e.State.PendingInterrupt != nil {
 				return nil
 			}
+
+			if player.TurnState.LastActionType != "" {
+				lastActionType := model.ActionType(player.TurnState.LastActionType)
+				if e.runActionEndSequence(currentPid, player, lastActionType, false) {
+					return nil
+				}
+			}
 			if !e.routePendingDamageWithReturn(model.TurnStageExtraAction) {
 				e.enterExtraActionStage()
 			}
@@ -106,20 +113,8 @@ func (e *GameEngine) handleActionSelection(act model.PlayerAction) error {
 		player.TurnState.UsedSkillCounts["hb_special"] = 1
 		e.runPostSpecialActionRuntime(player, actionType)
 		player.TurnState.LastActionType = string(actionType)
-
-		phaseEventCtx := &model.EventContext{
-			Type:       model.EventPhaseEnd,
-			SourceID:   player.ID,
-			ActionType: actionType,
-		}
-		phaseCtx := e.buildContext(player, nil, model.TriggerOnPhaseEnd, phaseEventCtx)
-		e.dispatcher.OnTrigger(model.TriggerOnPhaseEnd, phaseCtx)
-		// 特殊行动的 OnPhaseEnd 已在此处派发，不再通过 ActionEnd 阶段重复派发。
-		player.TurnState.LastActionType = ""
-
-		if e.State.PendingInterrupt == nil {
-			e.enterExtraActionStage()
-		}
+		player.TurnState.LastActionCard = nil
+		e.enterActionEndStage()
 		return nil
 
 	case model.CmdAttack, model.CmdMagic:

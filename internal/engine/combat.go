@@ -200,6 +200,7 @@ func (e *GameEngine) finishTakeHit(target *model.Player, damage int, attackActio
 	// 8. 回到额外行动阶段，交由状态机统一处理 PendingActions/回合结束
 	// 这里已手动触发过一次 OnPhaseEnd，清空 LastActionType 防止重复触发
 	attacker.TurnState.LastActionType = ""
+	attacker.TurnState.LastActionCard = nil
 	if !e.routePendingDamageWithDefaultReturn(model.TurnStageExtraAction) {
 		e.enterExtraActionStage()
 	}

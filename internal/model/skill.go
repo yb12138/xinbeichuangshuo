@@ -408,6 +408,7 @@ type PlayerTurnState struct {
 	CurrentExtraElement             []Element       `json:"current_extra_element"`                          // 当前额外行动元素限制: "Wind", "Fire", etc.
 	AttackCount                     int             `json:"attack_count"`                                   // 本回合攻击行动次数
 	LastActionType                  string          `json:"last_action_type"`                               // 记录刚刚结束的行动类型 (Attack/Magic)
+	LastActionCard                  *Card           `json:"last_action_card,omitempty"`                     // 记录刚刚结束行动对应的卡牌快照（供 ActionEnd 统一构建 OnPhaseEnd 上下文）
 	SkillFlowState                  map[string]int  `json:"skill_flow_state"`                               // 多步技能中间态（如星尘/痛苦链接/冒险者提炼），回合重置时自动清空
 }
 

@@ -130,6 +130,8 @@ func (e *GameEngine) driveBeforeActionAttack(currentPid string, player *model.Pl
 		head.HasTriggeredAttackStart = true
 		attackStartCtx := e.buildContext(player, target, model.TriggerOnAttackStart, eventCtx)
 		player.TurnState.LastActionType = string(model.ActionAttack)
+		cardSnapshot := *head.Card
+		player.TurnState.LastActionCard = &cardSnapshot
 		e.dispatcher.OnTrigger(model.TriggerOnAttackStart, attackStartCtx)
 		if e.State.PendingInterrupt != nil {
 			return driveStop
@@ -175,6 +177,12 @@ func (e *GameEngine) driveBeforeActionMagic(currentPid string, player *model.Pla
 
 	e.State.ActionQueue = e.State.ActionQueue[1:]
 	player.TurnState.LastActionType = string(model.ActionMagic)
+	if head.Card != nil {
+		cardSnapshot := *head.Card
+		player.TurnState.LastActionCard = &cardSnapshot
+	} else {
+		player.TurnState.LastActionCard = nil
+	}
 
 	if err := e.PerformMagic(currentPid, targetID, head.CardIndex); err != nil {
 		e.Log(fmt.Sprintf("[Error] 法术执行失败: %v", err))
@@ -182,8 +190,8 @@ func (e *GameEngine) driveBeforeActionMagic(currentPid string, player *model.Pla
 	if e.State.PendingInterrupt != nil {
 		return driveContinueLoop
 	}
-	if !e.routePendingDamageWithReturn(model.TurnStageTurnEnd) {
-		e.enterTurnEndStage()
+	if !e.routePendingDamageWithReturn(model.TurnStageActionEnd) {
+		e.enterActionEndStage()
 	}
 	return driveContinueLoop
 }

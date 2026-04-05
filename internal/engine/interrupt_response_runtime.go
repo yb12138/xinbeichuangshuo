@@ -570,19 +570,9 @@ func (e *GameEngine) handleSaintHealResponse(act model.PlayerAction) error {
 	e.Log(fmt.Sprintf("[Skill] %s 发动 [圣疗]，获得额外%s行动", player.Name, extraActionLabel))
 	player.TurnState.HasActed = true
 	player.TurnState.LastActionType = string(model.ActionMagic)
-
-	phaseEventCtx := &model.EventContext{
-		Type:       model.EventPhaseEnd,
-		SourceID:   player.ID,
-		ActionType: model.ActionMagic,
-	}
-	phaseCtx := e.buildContext(player, nil, model.TriggerOnPhaseEnd, phaseEventCtx)
-	e.dispatcher.OnTrigger(model.TriggerOnPhaseEnd, phaseCtx)
-	if e.State.PendingInterrupt != nil {
-		return nil
-	}
-	if !e.routePendingDamageWithReturn(model.TurnStageExtraAction) {
-		e.enterExtraActionStage()
+	player.TurnState.LastActionCard = nil
+	if !e.routePendingDamageWithReturn(model.TurnStageActionEnd) {
+		e.enterActionEndStage()
 	}
 	return nil
 }

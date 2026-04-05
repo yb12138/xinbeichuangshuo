@@ -396,50 +396,60 @@ func (e *GameEngine) driveActionEndStage(currentPid string, player *model.Player
 
 	if player.TurnState.LastActionType != "" {
 		lastActionType := model.ActionType(player.TurnState.LastActionType)
-		// 通过玩家回合态消费“行动结束中断恢复标记”，避免依赖全局临时字段。
 		skipActionEndInterruptHooks := player.TurnState.ConsumeActionEndInterruptHookSkipOnce()
-		eventCtx := &model.EventContext{
-			Type:       model.EventPhaseEnd,
-			SourceID:   currentPid,
-			ActionType: lastActionType, // 告诉技能，刚才结束的是 Attack
-		}
-		if eventCtx.ActionType == model.ActionAttack {
-			eventCtx.AttackInfo = &model.AttackEventInfo{
-				ActionType:       string(model.ActionAttack),
-				CounterInitiator: "",
-			}
-		}
-
-		skillCtx := e.buildContext(player, nil, model.TriggerOnPhaseEnd, eventCtx)
-
-		// 行动结束时机的角色中断统一经由钩子注入（如本回合第三次攻击行动结束时的圣剑摸弃中断）。
-		if !skipActionEndInterruptHooks && e.runActionEndInterruptHooks(skillCtx) {
-			return driveStop
-		}
-
-		// 清除记录，防止死循环触发（非常重要！）
-		player.TurnState.LastActionType = ""
-
-		// 广播事件！
-		// 此时 WindFuryHandler.CanUse 会被调用
-		// 如果 CanUse 返回 true，Dispatcher 会根据 ResponseOptional 推送中断给用户
-		e.dispatcher.OnTrigger(model.TriggerOnPhaseEnd, skillCtx)
-
-		// 如果触发了技能（产生了中断，比如用户需要确认是否发动风怒），直接 return 等待用户
-		if e.State.PendingInterrupt != nil {
-			// OnPhaseEnd 已派发完，后续恢复时只补执行行动后续效果，不重复派发 OnPhaseEnd。
-			player.TurnState.MarkActionEndNeedsInterruptHookSkipOnce()
-			e.enqueuePostActionEndFollowup(player.ID, lastActionType)
-			return driveStop
-		}
-		// 行动结束后场上赐福结算（如迅捷赐福）
-		if e.handlePostActionEndEffects(player, lastActionType) {
+		if e.runActionEndSequence(currentPid, player, lastActionType, skipActionEndInterruptHooks) {
 			return driveStop
 		}
 	}
 
 	e.enterExtraActionStage()
 	return driveContinueLoop
+}
+
+func (e *GameEngine) runActionEndSequence(currentPid string, player *model.Player, actionType model.ActionType, skipActionEndInterruptHooks bool) bool {
+	if e == nil || player == nil || actionType == "" {
+		return false
+	}
+
+	var phaseEndCard *model.Card
+	if player.TurnState.LastActionCard != nil {
+		cardCopy := *player.TurnState.LastActionCard
+		phaseEndCard = &cardCopy
+	}
+	eventCtx := &model.EventContext{
+		Type:       model.EventPhaseEnd,
+		SourceID:   currentPid,
+		Card:       phaseEndCard,
+		ActionType: actionType,
+	}
+	if actionType == model.ActionAttack {
+		eventCtx.AttackInfo = &model.AttackEventInfo{
+			ActionType:       string(model.ActionAttack),
+			CounterInitiator: "",
+		}
+	}
+	skillCtx := e.buildContext(player, nil, model.TriggerOnPhaseEnd, eventCtx)
+	if skillCtx.Selections == nil {
+		skillCtx.Selections = map[string]interface{}{}
+	}
+	skillCtx.Selections["response_resume_phase"] = model.TurnStageActionEnd
+
+	// 攻击结束钩子优先于 OnPhaseEnd（例如圣剑三连击中断）。
+	if !skipActionEndInterruptHooks && e.runActionEndInterruptHooks(skillCtx) {
+		return true
+	}
+
+	// 先清理行动结束标记，再派发 OnPhaseEnd，避免恢复路径重复派发。
+	player.TurnState.LastActionType = ""
+	player.TurnState.LastActionCard = nil
+
+	e.dispatcher.OnTrigger(model.TriggerOnPhaseEnd, skillCtx)
+	if e.State.PendingInterrupt != nil {
+		// OnPhaseEnd 已派发，后续仅补执行行动后场上追加效果。
+		e.enqueuePostActionEndFollowup(player.ID, actionType)
+		return true
+	}
+	return e.handlePostActionEndEffects(player, actionType)
 }
 
 func (e *GameEngine) driveExtraActionStage(currentPid string, player *model.Player) driveOutcome {

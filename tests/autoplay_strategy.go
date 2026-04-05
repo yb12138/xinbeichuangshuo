@@ -900,6 +900,18 @@ func performAggressiveActionSelection(game *engine.GameEngine) error {
 		}
 	}
 
+	// 基线前提：剑帝技能链主要依赖“攻击结束时有可支付资源”或“后续未命中分支”。
+	// 当自身无资源且阵营资源池可提炼时，优先先提炼，避免长期卡在“只打普攻但无技能触发”的路径。
+	if currentDirectedScenarioPlan == nil &&
+		player.TurnState.CurrentExtraAction == "" &&
+		player.Role == "sword_emperor" &&
+		player.Gem+player.Crystal == 0 &&
+		canAttemptExtract(game, player) {
+		if err := game.HandleAction(model.PlayerAction{PlayerID: pid, Type: model.CmdExtract}); err == nil {
+			return nil
+		}
+	}
+
 	if currentDirectedScenarioPlan != nil && player.TurnState.CurrentExtraAction == "" {
 		if ok, err := tryScenarioActionPlan(game, player, enemies, attackIdx, magicIdx); err != nil {
 			return err
