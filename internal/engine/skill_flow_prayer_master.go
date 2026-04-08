@@ -34,54 +34,56 @@ func (e *GameEngine) buildPrayerMasterChoicePrompt(choiceType, playerID string, 
 
 func (e *GameEngine) handlePrayerMasterChoiceInput(_ string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
 	choiceType, _ := ctxData["choice_type"].(string)
+	return dispatchChoiceInputByType(choiceType, selectionIndex, ctxData, map[string]skillChoiceInputHandler{
+		"prayer_power_blessing_trigger": e.handlePrayerPowerBlessingTriggerChoice,
+		"prayer_swift_blessing_trigger": e.handlePrayerSwiftBlessingTriggerChoice,
+	})
+}
 
-	switch choiceType {
-	case "prayer_power_blessing_trigger":
-		userID, _ := ctxData["user_id"].(string)
-		user := e.State.Players[userID]
-		if user == nil {
-			return true, fmt.Errorf("玩家不存在")
-		}
-		if selectionIndex == 0 {
-			e.RemoveFieldCard(user.ID, model.EffectPowerBlessing)
-			sourceID, _ := ctxData["source_id"].(string)
-			targetID, _ := ctxData["target_id"].(string)
-			for i := range e.State.PendingDamageQueue {
-				pd := &e.State.PendingDamageQueue[i]
-				if pd.SourceID != sourceID || pd.TargetID != targetID {
-					continue
-				}
-				if !strings.EqualFold(pd.DamageType, "Attack") {
-					continue
-				}
-				pd.Damage += 2
-				e.Log(fmt.Sprintf("%s 的 [威力赐福] 生效，本次攻击伤害+2", user.Name))
-				break
-			}
-		}
-		e.PopInterrupt()
-		if e.State.PendingInterrupt == nil && len(e.State.PendingDamageQueue) > 0 {
-			e.enterDamageResolution(nil)
-		}
-		return true, nil
-
-	case "prayer_swift_blessing_trigger":
-		userID, _ := ctxData["user_id"].(string)
-		user := e.State.Players[userID]
-		if user == nil {
-			return true, fmt.Errorf("玩家不存在")
-		}
-		if selectionIndex == 0 {
-			e.RemoveFieldCard(user.ID, model.EffectSwiftBlessing)
-			model.AppendAttackAction(user, "迅捷赐福")
-			e.Log(fmt.Sprintf("%s 的 [迅捷赐福] 生效，获得额外攻击行动", user.Name))
-		}
-		e.PopInterrupt()
-		if e.State.PendingInterrupt == nil && e.State.TurnStage != model.TurnStageExtraAction {
-			e.enterExtraActionStage()
-		}
-		return true, nil
+func (e *GameEngine) handlePrayerPowerBlessingTriggerChoice(selectionIndex int, ctxData map[string]interface{}) error {
+	userID, _ := ctxData["user_id"].(string)
+	user := e.State.Players[userID]
+	if user == nil {
+		return fmt.Errorf("玩家不存在")
 	}
+	if selectionIndex == 0 {
+		e.RemoveFieldCard(user.ID, model.EffectPowerBlessing)
+		sourceID, _ := ctxData["source_id"].(string)
+		targetID, _ := ctxData["target_id"].(string)
+		for i := range e.State.PendingDamageQueue {
+			pd := &e.State.PendingDamageQueue[i]
+			if pd.SourceID != sourceID || pd.TargetID != targetID {
+				continue
+			}
+			if !strings.EqualFold(pd.DamageType, "Attack") {
+				continue
+			}
+			pd.Damage += 2
+			e.Log(fmt.Sprintf("%s 的 [威力赐福] 生效，本次攻击伤害+2", user.Name))
+			break
+		}
+	}
+	e.PopInterrupt()
+	if e.State.PendingInterrupt == nil && len(e.State.PendingDamageQueue) > 0 {
+		e.enterDamageResolution(nil)
+	}
+	return nil
+}
 
-	return false, nil
+func (e *GameEngine) handlePrayerSwiftBlessingTriggerChoice(selectionIndex int, ctxData map[string]interface{}) error {
+	userID, _ := ctxData["user_id"].(string)
+	user := e.State.Players[userID]
+	if user == nil {
+		return fmt.Errorf("玩家不存在")
+	}
+	if selectionIndex == 0 {
+		e.RemoveFieldCard(user.ID, model.EffectSwiftBlessing)
+		model.AppendAttackAction(user, "迅捷赐福")
+		e.Log(fmt.Sprintf("%s 的 [迅捷赐福] 生效，获得额外攻击行动", user.Name))
+	}
+	e.PopInterrupt()
+	if e.State.PendingInterrupt == nil && e.State.TurnStage != model.TurnStageExtraAction {
+		e.enterExtraActionStage()
+	}
+	return nil
 }

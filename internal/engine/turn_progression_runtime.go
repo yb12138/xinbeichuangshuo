@@ -25,9 +25,6 @@ func (e *GameEngine) NextTurn() {
 	currentPid := e.State.PlayerOrder[e.State.CurrentTurn]
 	player := e.State.Players[currentPid]
 
-	// 兜底：若有路径直接调用 NextTurn 而跳过 PhaseTurnEnd，
-	// 仍需保证红莲骑士“热血沸腾”在回合结束时正确退形态并+2治疗。
-	e.runTurnProgressionFallbackHooks(player)
 	e.expireRuleModifiersByLifetime(player, model.RuleLifeUntilTurnEnd)
 
 	extraTurn := e.consumePendingMoonGoddessExtraTurn(player)

@@ -24,14 +24,17 @@ func (e *GameEngine) buildMagicSwordsmanChoicePrompt(choiceType, playerID string
 }
 
 func (e *GameEngine) handleMagicSwordsmanChoiceInput(_ string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
-	if choiceType, _ := ctxData["choice_type"].(string); choiceType != "ms_shadow_meteor_release_confirm" {
-		return false, nil
-	}
+	choiceType, _ := ctxData["choice_type"].(string)
+	return dispatchChoiceInputByType(choiceType, selectionIndex, ctxData, map[string]skillChoiceInputHandler{
+		"ms_shadow_meteor_release_confirm": e.handleMagicSwordsmanShadowMeteorReleaseConfirmChoice,
+	})
+}
 
+func (e *GameEngine) handleMagicSwordsmanShadowMeteorReleaseConfirmChoice(selectionIndex int, ctxData map[string]interface{}) error {
 	userID, _ := ctxData["user_id"].(string)
 	user := e.State.Players[userID]
 	if user == nil {
-		return true, fmt.Errorf("玩家不存在")
+		return fmt.Errorf("玩家不存在")
 	}
 	if selectionIndex == 0 {
 		camp, _ := ctxData["camp"].(string)
@@ -57,5 +60,5 @@ func (e *GameEngine) handleMagicSwordsmanChoiceInput(_ string, selectionIndex in
 			e.enterExtraActionStage()
 		})
 	}
-	return true, nil
+	return nil
 }

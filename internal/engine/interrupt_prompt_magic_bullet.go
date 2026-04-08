@@ -112,50 +112,62 @@ func (e *GameEngine) buildMagicBlastPrompt() *model.Prompt {
 		return nil
 	}
 	data, _ := interrupt.Context.(map[string]interface{})
-	stage, _ := data["stage"].(string)
-	if stage == "" {
-		stage = "target_discard"
-	}
+	stage := magicBlastStageFromContext(data)
 
-	if stage == "caster_forced_discard" {
-		var options []model.PromptOption
-		for i, card := range player.Hand {
-			options = append(options, model.PromptOption{
-				ID:    strconv.Itoa(i),
-				Label: fmt.Sprintf("%d: %s", i+1, formatCardInfo(card)),
-			})
-		}
+	if stage == magicBlastStageCasterForcedDiscard {
 		return &model.Prompt{
 			Type:     model.PromptChooseCards,
 			PlayerID: playerID,
 			Message:  "【魔爆冲击】请选择弃1张牌：",
-			Options:  options,
+			Options:  magicBlastCasterForcedDiscardOptions(player),
 			Min:      1,
 			Max:      1,
 		}
 	}
 
-	var options []model.PromptOption
-	for i, card := range player.Hand {
-		if card.Type == model.CardTypeMagic {
-			options = append(options, model.PromptOption{
-				ID:    strconv.Itoa(i),
-				Label: fmt.Sprintf("%d: %s", i+1, formatCardInfo(card)),
-			})
-		}
-	}
-
-	options = append(options, model.PromptOption{
-		ID:    "refuse",
-		Label: "不弃牌 (受到2点伤害)",
-	})
-
 	return &model.Prompt{
 		Type:     model.PromptChooseCards,
 		PlayerID: playerID,
 		Message:  "【魔爆冲击】请选择弃一张法术牌，否则受到2点伤害：",
-		Options:  options,
+		Options:  magicBlastTargetDiscardOptions(player),
 		Min:      1,
 		Max:      1,
 	}
+}
+
+func magicBlastStageFromContext(data map[string]interface{}) string {
+	stage, _ := data["stage"].(string)
+	if stage == "" {
+		return magicBlastStageTargetDiscard
+	}
+	return stage
+}
+
+func magicBlastCasterForcedDiscardOptions(player *model.Player) []model.PromptOption {
+	options := make([]model.PromptOption, 0, len(player.Hand))
+	for i, card := range player.Hand {
+		options = append(options, model.PromptOption{
+			ID:    strconv.Itoa(i),
+			Label: fmt.Sprintf("%d: %s", i+1, formatCardInfo(card)),
+		})
+	}
+	return options
+}
+
+func magicBlastTargetDiscardOptions(player *model.Player) []model.PromptOption {
+	options := make([]model.PromptOption, 0, len(player.Hand)+1)
+	for i, card := range player.Hand {
+		if card.Type != model.CardTypeMagic {
+			continue
+		}
+		options = append(options, model.PromptOption{
+			ID:    strconv.Itoa(i),
+			Label: fmt.Sprintf("%d: %s", i+1, formatCardInfo(card)),
+		})
+	}
+	options = append(options, model.PromptOption{
+		ID:    "refuse",
+		Label: "不弃牌 (受到2点伤害)",
+	})
+	return options
 }

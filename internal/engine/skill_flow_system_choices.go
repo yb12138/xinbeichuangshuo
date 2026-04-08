@@ -99,118 +99,127 @@ func (e *GameEngine) buildSystemChoicePrompt(choiceType, playerID string, player
 
 func (e *GameEngine) handleSystemChoiceInput(playerID string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
 	choiceType, _ := ctxData["choice_type"].(string)
+	return dispatchChoiceInputByType(choiceType, selectionIndex, ctxData, map[string]skillChoiceInputHandler{
+		"weak": func(idx int, data map[string]interface{}) error {
+			return e.handleSystemWeakChoice(playerID, idx)
+		},
+		"buy_resource": func(idx int, data map[string]interface{}) error {
+			return e.handleSystemBuyResourceChoice(playerID, idx, data)
+		},
+		"heal": func(idx int, data map[string]interface{}) error {
+			return e.handleSystemHealChoice(idx, data)
+		},
+		"basic_effect_pick": func(idx int, data map[string]interface{}) error {
+			return e.handleBasicEffectChoiceInput(playerID, idx, data)
+		},
+	})
+}
 
-	switch choiceType {
-	case "weak":
-		player := e.State.Players[playerID]
-		if player == nil {
-			return true, fmt.Errorf("玩家不存在")
-		}
-		if e.RemoveFieldCardBy(player.ID, model.EffectWeak, "") {
-			e.Log(fmt.Sprintf("[System] %s 的虚弱状态已移除", player.Name))
-		}
-
-		switch selectionIndex {
-		case 0:
-			e.Log(fmt.Sprintf("[Weak] %s 选择跳过行动阶段", player.Name))
-			player.TurnState.UsedSkillCounts["arbiter_skip_forced_doomsday"] = 1
-			e.PopInterrupt()
-			if e.State.PendingInterrupt == nil {
-				e.enterTurnEndStage()
-			}
-			return true, nil
-
-		case 1:
-			e.Log(fmt.Sprintf("[Weak] %s 选择摸3张牌后继续行动阶段", player.Name))
-			cards, newDeck, newDiscard := rules.DrawCards(e.State.Deck, e.State.DiscardPile, 3)
-			e.State.Deck = newDeck
-			e.State.DiscardPile = newDiscard
-			player.Hand = append(player.Hand, cards...)
-			e.NotifyDrawCards(player.ID, 3, "weak_choice")
-
-			checkCtx := e.buildContext(player, nil, model.TriggerNone, nil)
-			checkCtx.Flags["StayInTurn"] = true
-			e.checkHandLimit(player, checkCtx)
-
-			e.PopInterrupt()
-			if e.State.PendingInterrupt == nil {
-				e.setTurnStage(model.TurnStageActionStart)
-				e.clearCombatStage()
-				e.clearSubflow()
-			}
-			return true, nil
-		}
-
-		return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
-
-	case "buy_resource":
-		camp, _ := ctxData["camp"].(string)
-		if camp == "" {
-			if player := e.State.Players[playerID]; player != nil {
-				camp = string(player.Camp)
-			}
-		}
-		if camp == "" {
-			return true, fmt.Errorf("购买资源选择缺少阵营信息")
-		}
-
-		switch selectionIndex {
-		case 0:
-			e.ModifyGem(camp, 1)
-			e.Log(fmt.Sprintf("[Action] 购买结算：%s 阵营战绩区 +1 宝石", camp))
-		case 1:
-			e.ModifyCrystal(camp, 1)
-			e.Log(fmt.Sprintf("[Action] 购买结算：%s 阵营战绩区 +1 水晶", camp))
-		default:
-			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
-		}
-
-		e.PopInterrupt()
-		if e.State.PendingInterrupt == nil {
-			e.enterExtraActionStage()
-		}
-		return true, nil
-
-	case "heal":
-		damageIdx := runtimeutil.ToIntContextValue(ctxData["damage_index"])
-		if damageIdx < 0 || damageIdx >= len(e.State.PendingDamageQueue) {
-			return true, fmt.Errorf("伤害上下文不存在")
-		}
-		pd := &e.State.PendingDamageQueue[damageIdx]
-		target := e.State.Players[pd.TargetID]
-		if target == nil {
-			return true, fmt.Errorf("目标不存在")
-		}
-		healToUse := selectionIndex
-		if healToUse < 0 {
-			healToUse = 0
-		}
-		if healToUse > target.Heal {
-			healToUse = target.Heal
-		}
-		if healToUse > pd.Damage {
-			healToUse = pd.Damage
-		}
-		if healToUse > 0 {
-			target.Heal -= healToUse
-			pd.Damage -= healToUse
-			e.Log(fmt.Sprintf("[Combat] %s 使用 %d 点治疗抵消伤害", target.Name, healToUse))
-		} else {
-			e.Log(fmt.Sprintf("[Combat] %s 选择不使用治疗", target.Name))
-		}
-		pd.HealResolved = true
-
-		e.PopInterrupt()
-		if e.State.PendingInterrupt == nil {
-			e.enterDamageResolution(nil)
-		}
-		return true, nil
-
-	case "basic_effect_pick":
-		return true, e.handleBasicEffectChoiceInput(playerID, selectionIndex, ctxData)
+func (e *GameEngine) handleSystemWeakChoice(playerID string, selectionIndex int) error {
+	player := e.State.Players[playerID]
+	if player == nil {
+		return fmt.Errorf("玩家不存在")
+	}
+	if e.RemoveFieldCardBy(player.ID, model.EffectWeak, "") {
+		e.Log(fmt.Sprintf("[System] %s 的虚弱状态已移除", player.Name))
 	}
 
-	return false, nil
+	switch selectionIndex {
+	case 0:
+		e.Log(fmt.Sprintf("[Weak] %s 选择跳过行动阶段", player.Name))
+		player.TurnState.UsedSkillCounts["arbiter_skip_forced_doomsday"] = 1
+		e.PopInterrupt()
+		if e.State.PendingInterrupt == nil {
+			e.enterTurnEndStage()
+		}
+		return nil
+	case 1:
+		e.Log(fmt.Sprintf("[Weak] %s 选择摸3张牌后继续行动阶段", player.Name))
+		cards, newDeck, newDiscard := rules.DrawCards(e.State.Deck, e.State.DiscardPile, 3)
+		e.State.Deck = newDeck
+		e.State.DiscardPile = newDiscard
+		player.Hand = append(player.Hand, cards...)
+		e.NotifyDrawCards(player.ID, 3, "weak_choice")
+
+		checkCtx := e.buildContext(player, nil, model.TriggerNone, nil)
+		checkCtx.Flags["StayInTurn"] = true
+		e.checkHandLimit(player, checkCtx)
+
+		e.PopInterrupt()
+		if e.State.PendingInterrupt == nil {
+			e.setTurnStage(model.TurnStageActionStart)
+			e.clearCombatStage()
+			e.clearSubflow()
+		}
+		return nil
+	default:
+		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
+	}
+}
+
+func (e *GameEngine) handleSystemBuyResourceChoice(playerID string, selectionIndex int, ctxData map[string]interface{}) error {
+	camp, _ := ctxData["camp"].(string)
+	if camp == "" {
+		if player := e.State.Players[playerID]; player != nil {
+			camp = string(player.Camp)
+		}
+	}
+	if camp == "" {
+		return fmt.Errorf("购买资源选择缺少阵营信息")
+	}
+
+	switch selectionIndex {
+	case 0:
+		e.ModifyGem(camp, 1)
+		e.Log(fmt.Sprintf("[Action] 购买结算：%s 阵营战绩区 +1 宝石", camp))
+	case 1:
+		e.ModifyCrystal(camp, 1)
+		e.Log(fmt.Sprintf("[Action] 购买结算：%s 阵营战绩区 +1 水晶", camp))
+	default:
+		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
+	}
+
+	e.PopInterrupt()
+	if e.State.PendingInterrupt == nil {
+		e.enterExtraActionStage()
+	}
+	return nil
+}
+
+func (e *GameEngine) handleSystemHealChoice(selectionIndex int, ctxData map[string]interface{}) error {
+	damageIdx := runtimeutil.ToIntContextValue(ctxData["damage_index"])
+	if damageIdx < 0 || damageIdx >= len(e.State.PendingDamageQueue) {
+		return fmt.Errorf("伤害上下文不存在")
+	}
+	pd := &e.State.PendingDamageQueue[damageIdx]
+	target := e.State.Players[pd.TargetID]
+	if target == nil {
+		return fmt.Errorf("目标不存在")
+	}
+	healToUse := selectionIndex
+	if healToUse < 0 {
+		healToUse = 0
+	}
+	if healToUse > target.Heal {
+		healToUse = target.Heal
+	}
+	if healToUse > pd.Damage {
+		healToUse = pd.Damage
+	}
+	if healToUse > 0 {
+		target.Heal -= healToUse
+		pd.Damage -= healToUse
+		e.Log(fmt.Sprintf("[Combat] %s 使用 %d 点治疗抵消伤害", target.Name, healToUse))
+	} else {
+		e.Log(fmt.Sprintf("[Combat] %s 选择不使用治疗", target.Name))
+	}
+	pd.HealResolved = true
+
+	e.PopInterrupt()
+	if e.State.PendingInterrupt == nil {
+		e.enterDamageResolution(nil)
+	}
+	return nil
 }
 
 func buildExtractChoicePromptOptions(raw interface{}) []model.PromptOption {

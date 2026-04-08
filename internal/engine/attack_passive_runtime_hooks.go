@@ -9,24 +9,10 @@ import (
 
 type attackPassiveDamageHook func(e *GameEngine, attacker *model.Player, target *model.Player, action model.Action, damage int) int
 
-var attackPassiveDamageHooks = []attackPassiveDamageHook{
-	attackPassiveElfFireShotHook,
-	attackPassiveMagicSwordsmanShadowHook,
-	attackPassiveMagicLancerBonusHook,
-	attackPassiveFighterBonusHook,
-	attackPassiveHeroRoarBonusHook,
-	attackPassiveAssassinStealthBonusHook,
-	attackPassiveHolyBowPenaltyHook,
-	attackPassiveSwordEmperorBonusHook,
-	attackPassiveBeastSamuraiBonusHook,
-}
-
-func (e *GameEngine) applyAttackPassiveRuntimeHooks(attacker *model.Player, target *model.Player, action model.Action, baseDamage int) int {
+// applyTimingOnDamageCalculatedAttackPassiveModifiers 在伤害计算时按固定顺序应用攻击方被动修正。
+func (e *GameEngine) applyTimingOnDamageCalculatedAttackPassiveModifiers(attacker *model.Player, target *model.Player, action model.Action, baseDamage int) int {
 	damage := baseDamage
-	for _, hook := range attackPassiveDamageHooks {
-		if hook == nil {
-			continue
-		}
+	for _, hook := range e.damageCalculatedAttackPassiveHooks {
 		damage = hook(e, attacker, target, action, damage)
 		if damage < 0 {
 			damage = 0

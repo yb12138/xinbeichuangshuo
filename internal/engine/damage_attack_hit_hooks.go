@@ -8,16 +8,9 @@ import (
 
 type pendingDamageAttackHitHook func(e *GameEngine, pd *model.PendingDamage, attacker *model.Player, victim *model.Player)
 
-var pendingDamageAttackHitHooks = []pendingDamageAttackHitHook{
-	pendingDamageBerserkerBloodRoarHook,
-}
-
-func (e *GameEngine) runPendingDamageAttackHitHooks(pd *model.PendingDamage, attacker *model.Player, victim *model.Player) {
-	for _, hook := range pendingDamageAttackHitHooks {
-		if hook != nil {
-			hook(e, pd, attacker, victim)
-		}
-	}
+// applyTimingOnHitCheckPendingDamageAttackHitRules 在命中判定时处理攻击伤害命中规则。
+func (e *GameEngine) applyTimingOnHitCheckPendingDamageAttackHitRules(pd *model.PendingDamage, attacker *model.Player, victim *model.Player) {
+	pendingDamageBerserkerBloodRoarHook(e, pd, attacker, victim)
 }
 
 func pendingDamageBerserkerBloodRoarHook(e *GameEngine, pd *model.PendingDamage, attacker *model.Player, victim *model.Player) {

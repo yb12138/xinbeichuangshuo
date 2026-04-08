@@ -42,7 +42,7 @@ func (e *GameEngine) resolveFighterChargeMissWithOverride(attackerID string, for
 			SourceID:   attacker.ID,
 			TargetID:   attacker.ID,
 			Damage:     damage,
-			DamageType: "magic",
+			DamageType: model.MagicDamage,
 		})
 	}
 	e.Log(fmt.Sprintf("%s 的 [蓄力一击] 未命中分支生效：对自己造成%d点法术伤害", attacker.Name, damage))

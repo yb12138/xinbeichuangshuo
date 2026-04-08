@@ -37,6 +37,8 @@ type TriggerTiming string
 
 const (
 	TimingUnknown                TriggerTiming = ""
+	TimingOnGameStart            TriggerTiming = "TimingOnGameStart"
+	TimingOnCampChanged          TriggerTiming = "TimingOnCampChanged"
 	TimingActive                 TriggerTiming = "TimingActive"
 	TimingStartup                TriggerTiming = "TimingStartup"
 	TimingOnTurnStart            TriggerTiming = "TimingOnTurnStart"

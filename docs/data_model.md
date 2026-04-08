@@ -440,6 +440,8 @@ const (
 | `TimingStartup` | 玩家主动发动（启动技专有） | 仅在`ActionStart`阶段合法，占用启动名额。 |
 | `TimingOnTurnStart` | 玩家的回合开始时触发 | 对应各种回合初的被动/状态转换。 |
 | `TimingOnBeforeAction` | 回合玩家进入行动阶段开始前时触发 | 中毒、虚弱等状态结算。配合 `RequireHolderIsTurnPlayer` 筛出持有者=回合玩家的状态。 |
+| `TimingOnGameStart`| 游戏开始时| 触发初始化手牌、专属牌等等，还有一些在游戏最开始时触发的技能。 |
+| `TimingOnTurnEnd`| 玩家的回合结束时触发| 触发初始化手牌、专属牌等等，还有一些在游戏最开始时触发的技能。 |
 | **【动作与结算劫持钩子】** | | |
 | `TimingBeforeActionExecute`| 系统尝试执行某种行动前 | **高复用拦截点**：系统传入 `ActionType`，用于劫持/替换默认购买、提炼等规则。 |
 | `TimingOnActionEnd` | 某项行动彻底结算完毕时 | **高复用结算点**：系统传入 `ActionType`，涵盖攻击、法术、特殊行动结束。 |
@@ -449,6 +451,7 @@ const (
 | `TimingOnMagicDeclared` | ① 任意法术宣告发动时 | |
 | `TimingOnHitCheck` | ② 命中判定时 | 拦截点：发效应战、圣盾、圣光、仪式中断。 |
 | `TimingOnDamageCalculated`| ③ 伤害计算完毕时 | 增减伤结算点：撕裂、剑魂等数值修饰（未扣治疗）。 |
+| `TimingOnHealUsed`| ④治疗响应阶段 | 治疗使用响应阶段：该遭受伤害者选择是否消耗治疗抵御。 |
 | `TimingOnDamageApplied` | ⑤ 实际产生伤害时 | 伤害已定、扣除治疗后，未摸牌前（如蝶舞者【毒粉】）。 |
 | `TimingOnDamageTaken` | ⑥ 实际承受伤害，准备摸牌前 | 摸牌和爆牌判定的前置点。系统应在事件上下文提供 `PendingMoraleLoss`（待扣士气值）供 X 点抵御类技能读取。 |
 | **【卡牌与状态流转钩子】** | | |
@@ -459,6 +462,7 @@ const (
 | `TimingOnHealOverflow` | 获得治疗且超出自身上限时 | 专用于处理溢出转化机制（如圣殿骑士【神选者】）。 |
 | `TimingOnFieldMarkChanged`| 基础效果/场上盖牌发生改变时| **高复用点**：系统传入行为`Placed`/`Removed`及变更类型。涵盖：主动移除基础效果、打出圣盾放置于目标（非抵挡触发）。如天使羁绊。 |
 | `TimingOnOrientationChanged`| 角色发生横置/转正状态切换时| 触发对姿态敏感的技能（如兽灵武士）。 |
+| `TimingOnCampChanged`| 星杯数发生变化| 触发对星杯数感知的技能（例如圣枪的神圣启示）。 |
 
 ### 4.5 技能执行序列配置 (Effect Nodes Sequence)
 用来定义一个技能具体“干了什么”以及“执行的先后顺序”。引擎会遍历 `Effects` 数组，按照 `[0], [1], [2]` 的顺序依次执行。

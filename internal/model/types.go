@@ -223,15 +223,22 @@ type GameState struct {
 	ReturnCombatStage CombatStage `json:"return_combat_stage,omitempty"`
 	ReturnSubflow     Subflow     `json:"return_subflow,omitempty"`
 	GameOver          bool        `json:"game_over,omitempty"`
-
 }
+
+// InterruptType defines the type of game interruption
+type DamageType string
+
+const (
+	AttackDamage DamageType = "Attack"
+	MagicDamage  DamageType = "magic"
+)
 
 // PendingDamage 代表一个待处理的伤害事件
 type PendingDamage struct {
 	SourceID                   string                      `json:"source_id"`
 	TargetID                   string                      `json:"target_id"`
 	Damage                     int                         `json:"damage"`
-	DamageType                 string                      `json:"damage_type"`
+	DamageType                 DamageType                  `json:"damage_type"`
 	OverflowMoraleLossFixed    int                         `json:"overflow_morale_loss_fixed,omitempty"` // 本次伤害摸牌若导致士气下降，则固定为该值
 	IgnoreHeal                 bool                        `json:"ignore_heal,omitempty"`                // 本次伤害是否不可被治疗抵御
 	CapDrawToHandLimit         bool                        `json:"cap_draw_to_hand_limit,omitempty"`     // 本次伤害摸牌是否“最多摸到手牌上限”
@@ -290,21 +297,21 @@ func NewGameState() *GameState {
 		Deck:        make([]Card, 0),
 		DiscardPile: make([]Card, 0),
 
-		RedMorale:           15,
-		BlueMorale:          15,
-		RedCups:             0,
-		BlueCups:            0,
-		RedGems:             0,
-		BlueGems:            0,
-		RedCrystals:         0,
-		BlueCrystals:        0,
-		ActionStack:         []Action{},
-		PendingInterrupt:    nil, // No interrupt initially
-		ActionQueue:         []QueuedAction{},
-		CombatStack:         []CombatRequest{},
-		MagicBulletChain:    nil,
-		PendingDamageQueue:  []PendingDamage{}, // 初始化延迟伤害队列
-		DeferredFollowups:   []DeferredFollowup{},
+		RedMorale:          15,
+		BlueMorale:         15,
+		RedCups:            0,
+		BlueCups:           0,
+		RedGems:            0,
+		BlueGems:           0,
+		RedCrystals:        0,
+		BlueCrystals:       0,
+		ActionStack:        []Action{},
+		PendingInterrupt:   nil, // No interrupt initially
+		ActionQueue:        []QueuedAction{},
+		CombatStack:        []CombatRequest{},
+		MagicBulletChain:   nil,
+		PendingDamageQueue: []PendingDamage{}, // 初始化延迟伤害队列
+		DeferredFollowups:  []DeferredFollowup{},
 	}
 }
 

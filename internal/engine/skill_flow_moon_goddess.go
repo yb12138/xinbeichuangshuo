@@ -329,6 +329,130 @@ func (e *GameEngine) queueMoonGoddessMedusaMagicDamage(user *model.Player, attac
 
 func (e *GameEngine) handleMoonGoddessChoiceInput(playerID string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
 	choiceType, _ := ctxData["choice_type"].(string)
+	return dispatchChoiceRouteByType(choiceType, selectionIndex, ctxData, map[string]skillChoiceRouteHandler{
+		"mg_medusa_darkmoon_pick": func(idx int, data map[string]interface{}) (bool, error) {
+			return e.handleMoonGoddessChoiceInputByType(playerID, idx, data)
+		},
+		"mg_medusa_magic_discard": func(idx int, data map[string]interface{}) (bool, error) {
+			return e.handleMoonGoddessChoiceInputByType(playerID, idx, data)
+		},
+		"mg_moon_cycle_mode": func(idx int, data map[string]interface{}) (bool, error) {
+			return e.handleMoonGoddessChoiceInputByType(playerID, idx, data)
+		},
+		"mg_moon_cycle_heal_target": func(idx int, data map[string]interface{}) (bool, error) {
+			return e.handleMoonGoddessChoiceInputByType(playerID, idx, data)
+		},
+		"mg_blasphemy_target": func(idx int, data map[string]interface{}) (bool, error) {
+			return e.handleMoonGoddessChoiceInputByType(playerID, idx, data)
+		},
+		"mg_darkmoon_slash_x": func(idx int, data map[string]interface{}) (bool, error) {
+			return e.handleMoonGoddessChoiceInputByType(playerID, idx, data)
+		},
+		"mg_pale_moon_mode": func(idx int, data map[string]interface{}) (bool, error) {
+			return e.handleMoonGoddessChoiceInputByType(playerID, idx, data)
+		},
+		"mg_pale_moon_x": func(idx int, data map[string]interface{}) (bool, error) {
+			return e.handleMoonGoddessChoiceInputByType(playerID, idx, data)
+		},
+		"mg_pale_moon_target": func(idx int, data map[string]interface{}) (bool, error) {
+			return e.handleMoonGoddessChoiceInputByType(playerID, idx, data)
+		},
+		"mg_pale_moon_discard": func(idx int, data map[string]interface{}) (bool, error) {
+			return e.handleMoonGoddessChoiceInputByType(playerID, idx, data)
+		},
+	})
+}
+
+func (e *GameEngine) handleMoonGoddessChoiceInputByType(_ string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
+	choiceType, _ := ctxData["choice_type"].(string)
+	return dispatchChoiceRouteByType(moonGoddessChoiceFlow(choiceType), selectionIndex, ctxData, map[string]skillChoiceRouteHandler{
+		"medusa":         e.handleMoonGoddessMedusaFlow,
+		"moon_cycle":     e.handleMoonGoddessMoonCycleFlow,
+		"blasphemy":      e.handleMoonGoddessBlasphemyFlow,
+		"darkmoon_slash": e.handleMoonGoddessDarkmoonSlashFlow,
+		"pale_moon":      e.handleMoonGoddessPaleMoonFlow,
+	})
+}
+
+func moonGoddessChoiceFlow(choiceType string) string {
+	switch choiceType {
+	case "mg_medusa_darkmoon_pick", "mg_medusa_magic_discard":
+		return "medusa"
+	case "mg_moon_cycle_mode", "mg_moon_cycle_heal_target":
+		return "moon_cycle"
+	case "mg_blasphemy_target":
+		return "blasphemy"
+	case "mg_darkmoon_slash_x":
+		return "darkmoon_slash"
+	case "mg_pale_moon_mode", "mg_pale_moon_x", "mg_pale_moon_target", "mg_pale_moon_discard":
+		return "pale_moon"
+	default:
+		return ""
+	}
+}
+
+func (e *GameEngine) handleMoonGoddessMedusaFlow(selectionIndex int, ctxData map[string]interface{}) (bool, error) {
+	choiceType, _ := ctxData["choice_type"].(string)
+	return dispatchChoiceRouteByType(choiceType, selectionIndex, ctxData, map[string]skillChoiceRouteHandler{
+		"mg_medusa_darkmoon_pick": func(idx int, data map[string]interface{}) (bool, error) {
+			return e.handleMoonGoddessChoiceInputByTypeLegacy("", idx, data)
+		},
+		"mg_medusa_magic_discard": func(idx int, data map[string]interface{}) (bool, error) {
+			return e.handleMoonGoddessChoiceInputByTypeLegacy("", idx, data)
+		},
+	})
+}
+
+func (e *GameEngine) handleMoonGoddessMoonCycleFlow(selectionIndex int, ctxData map[string]interface{}) (bool, error) {
+	choiceType, _ := ctxData["choice_type"].(string)
+	return dispatchChoiceRouteByType(choiceType, selectionIndex, ctxData, map[string]skillChoiceRouteHandler{
+		"mg_moon_cycle_mode": func(idx int, data map[string]interface{}) (bool, error) {
+			return e.handleMoonGoddessChoiceInputByTypeLegacy("", idx, data)
+		},
+		"mg_moon_cycle_heal_target": func(idx int, data map[string]interface{}) (bool, error) {
+			return e.handleMoonGoddessChoiceInputByTypeLegacy("", idx, data)
+		},
+	})
+}
+
+func (e *GameEngine) handleMoonGoddessBlasphemyFlow(selectionIndex int, ctxData map[string]interface{}) (bool, error) {
+	choiceType, _ := ctxData["choice_type"].(string)
+	return dispatchChoiceRouteByType(choiceType, selectionIndex, ctxData, map[string]skillChoiceRouteHandler{
+		"mg_blasphemy_target": func(idx int, data map[string]interface{}) (bool, error) {
+			return e.handleMoonGoddessChoiceInputByTypeLegacy("", idx, data)
+		},
+	})
+}
+
+func (e *GameEngine) handleMoonGoddessDarkmoonSlashFlow(selectionIndex int, ctxData map[string]interface{}) (bool, error) {
+	choiceType, _ := ctxData["choice_type"].(string)
+	return dispatchChoiceRouteByType(choiceType, selectionIndex, ctxData, map[string]skillChoiceRouteHandler{
+		"mg_darkmoon_slash_x": func(idx int, data map[string]interface{}) (bool, error) {
+			return e.handleMoonGoddessChoiceInputByTypeLegacy("", idx, data)
+		},
+	})
+}
+
+func (e *GameEngine) handleMoonGoddessPaleMoonFlow(selectionIndex int, ctxData map[string]interface{}) (bool, error) {
+	choiceType, _ := ctxData["choice_type"].(string)
+	return dispatchChoiceRouteByType(choiceType, selectionIndex, ctxData, map[string]skillChoiceRouteHandler{
+		"mg_pale_moon_mode": func(idx int, data map[string]interface{}) (bool, error) {
+			return e.handleMoonGoddessChoiceInputByTypeLegacy("", idx, data)
+		},
+		"mg_pale_moon_x": func(idx int, data map[string]interface{}) (bool, error) {
+			return e.handleMoonGoddessChoiceInputByTypeLegacy("", idx, data)
+		},
+		"mg_pale_moon_target": func(idx int, data map[string]interface{}) (bool, error) {
+			return e.handleMoonGoddessChoiceInputByTypeLegacy("", idx, data)
+		},
+		"mg_pale_moon_discard": func(idx int, data map[string]interface{}) (bool, error) {
+			return e.handleMoonGoddessChoiceInputByTypeLegacy("", idx, data)
+		},
+	})
+}
+
+func (e *GameEngine) handleMoonGoddessChoiceInputByTypeLegacy(_ string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
+	choiceType, _ := ctxData["choice_type"].(string)
 	switch choiceType {
 	case "mg_medusa_darkmoon_pick":
 		userID, _ := ctxData["user_id"].(string)

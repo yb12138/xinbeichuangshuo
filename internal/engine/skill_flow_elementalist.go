@@ -54,47 +54,49 @@ func (e *GameEngine) buildElementalistChoicePrompt(choiceType, playerID string, 
 
 func (e *GameEngine) handleElementalistChoiceInput(_ string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
 	choiceType, _ := ctxData["choice_type"].(string)
+	return dispatchChoiceInputByType(choiceType, selectionIndex, ctxData, map[string]skillChoiceInputHandler{
+		"elementalist_bonus_confirm": e.handleElementalistBonusConfirmChoice,
+		"elementalist_bonus_card":    e.handleElementalistBonusCardChoice,
+	})
+}
 
-	switch choiceType {
-	case "elementalist_bonus_confirm":
-		if selectionIndex == 1 {
-			return true, e.resolveElementalistBonus(ctxData, false, -1)
-		}
-		if selectionIndex != 0 {
-			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
-		}
-
-		userID, _ := ctxData["user_id"].(string)
-		user := e.State.Players[userID]
-		if user == nil {
-			return true, fmt.Errorf("玩家不存在")
-		}
-		bonusElement, _ := ctxData["bonus_element"].(string)
-		matching := make([]int, 0)
-		for i, card := range user.Hand {
-			if string(card.Element) == bonusElement {
-				matching = append(matching, i)
-			}
-		}
-		if len(matching) == 0 {
-			return true, e.resolveElementalistBonus(ctxData, false, -1)
-		}
-		ctxData["choice_type"] = "elementalist_bonus_card"
-		ctxData["matching_indices"] = matching
-		e.State.PendingInterrupt.Context = ctxData
-		e.notifyInterruptPrompt()
-		return true, nil
-
-	case "elementalist_bonus_card":
-		matching := parseIntSliceContextValue(ctxData["matching_indices"])
-		cardIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, matching)
-		if !ok {
-			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
-		}
-		return true, e.resolveElementalistBonus(ctxData, true, cardIdx)
+func (e *GameEngine) handleElementalistBonusConfirmChoice(selectionIndex int, ctxData map[string]interface{}) error {
+	if selectionIndex == 1 {
+		return e.resolveElementalistBonus(ctxData, false, -1)
+	}
+	if selectionIndex != 0 {
+		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
 
-	return false, nil
+	userID, _ := ctxData["user_id"].(string)
+	user := e.State.Players[userID]
+	if user == nil {
+		return fmt.Errorf("玩家不存在")
+	}
+	bonusElement, _ := ctxData["bonus_element"].(string)
+	matching := make([]int, 0)
+	for i, card := range user.Hand {
+		if string(card.Element) == bonusElement {
+			matching = append(matching, i)
+		}
+	}
+	if len(matching) == 0 {
+		return e.resolveElementalistBonus(ctxData, false, -1)
+	}
+	ctxData["choice_type"] = "elementalist_bonus_card"
+	ctxData["matching_indices"] = matching
+	e.State.PendingInterrupt.Context = ctxData
+	e.notifyInterruptPrompt()
+	return nil
+}
+
+func (e *GameEngine) handleElementalistBonusCardChoice(selectionIndex int, ctxData map[string]interface{}) error {
+	matching := parseIntSliceContextValue(ctxData["matching_indices"])
+	cardIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, matching)
+	if !ok {
+		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
+	}
+	return e.resolveElementalistBonus(ctxData, true, cardIdx)
 }
 
 func (e *GameEngine) resolveElementalistBonus(ctxData map[string]interface{}, bonus bool, discardIdx int) error {

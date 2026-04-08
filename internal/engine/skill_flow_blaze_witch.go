@@ -135,20 +135,26 @@ func (e *GameEngine) buildBlazeWitchChoicePrompt(choiceType, playerID string, pl
 
 func (e *GameEngine) handleBlazeWitchChoiceInput(_ string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
 	choiceType, _ := ctxData["choice_type"].(string)
-	switch choiceType {
-	case "bw_witch_wrath_draw":
-		return true, e.handleBlazeWitchWrathDrawChoice(ctxData, selectionIndex)
-	case "bw_substitute_doll_card":
-		return true, e.handleBlazeWitchSubstituteCardChoice(ctxData, selectionIndex)
-	case "bw_mana_inversion_x":
-		return true, e.handleBlazeWitchManaInversionXChoice(ctxData, selectionIndex)
-	case "bw_mana_inversion_cards":
-		return true, e.handleBlazeWitchManaInversionCardsChoice(ctxData, selectionIndex)
-	case "bw_substitute_doll_target", "bw_mana_inversion_target":
-		return true, e.handleBlazeWitchTargetChoice(ctxData, selectionIndex)
-	default:
-		return false, nil
-	}
+	return dispatchChoiceInputByType(choiceType, selectionIndex, ctxData, map[string]skillChoiceInputHandler{
+		"bw_witch_wrath_draw": func(idx int, data map[string]interface{}) error {
+			return e.handleBlazeWitchWrathDrawChoice(data, idx)
+		},
+		"bw_substitute_doll_card": func(idx int, data map[string]interface{}) error {
+			return e.handleBlazeWitchSubstituteCardChoice(data, idx)
+		},
+		"bw_mana_inversion_x": func(idx int, data map[string]interface{}) error {
+			return e.handleBlazeWitchManaInversionXChoice(data, idx)
+		},
+		"bw_mana_inversion_cards": func(idx int, data map[string]interface{}) error {
+			return e.handleBlazeWitchManaInversionCardsChoice(data, idx)
+		},
+		"bw_substitute_doll_target": func(idx int, data map[string]interface{}) error {
+			return e.handleBlazeWitchTargetChoice(data, idx)
+		},
+		"bw_mana_inversion_target": func(idx int, data map[string]interface{}) error {
+			return e.handleBlazeWitchTargetChoice(data, idx)
+		},
+	})
 }
 
 func (e *GameEngine) handleBlazeWitchWrathDrawChoice(ctxData map[string]interface{}, selectionIndex int) error {

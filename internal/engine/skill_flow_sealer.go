@@ -28,10 +28,9 @@ func (e *GameEngine) buildSealerChoicePrompt(choiceType, playerID string, player
 
 func (e *GameEngine) handleSealerChoiceInput(_ string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
 	choiceType, _ := ctxData["choice_type"].(string)
-	if choiceType != "five_elements_bind" {
-		return false, nil
-	}
-	return true, e.handleFiveElementsBindChoice(selectionIndex, ctxData)
+	return dispatchChoiceInputByType(choiceType, selectionIndex, ctxData, map[string]skillChoiceInputHandler{
+		"five_elements_bind": e.handleFiveElementsBindChoice,
+	})
 }
 
 func (e *GameEngine) handleFiveElementsBindChoice(selectionIndex int, ctxData map[string]interface{}) error {

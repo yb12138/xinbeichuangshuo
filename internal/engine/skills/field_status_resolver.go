@@ -71,7 +71,7 @@ func resolveFieldStatusSpec(ctx *model.Context, effect model.EffectType) (*field
 // 3. 检查封印是否匹配 → canResolveElementalSealStatus
 // 4. 执行封印效果 → executeElementalSealStatus
 // 5. 添加PendingDamage（带EffectTypeToRemove标记）
-// 6. 伤害结算时移除封印 → game.go:5387
+// 6. 伤害应用后由封印结算钩子移除封印（pendingDamageElementalSealCleanupHook）
 // ==========================================
 
 // canResolveElementalSealStatus 检查五系封印是否可以触发
@@ -98,7 +98,7 @@ func canResolveElementalSealStatus(ctx *model.Context, fc *model.FieldCard) bool
 // executeElementalSealStatus 执行五系封印效果
 // 效果：
 //  1. 对目标造成3点法术伤害
-//  2. 伤害结算后移除该封印（通过EffectTypeToRemove标记）
+//  2. 伤害应用后移除该封印（通过EffectTypeToRemove标记）
 func executeElementalSealStatus(ctx *model.Context, fc *model.FieldCard) error {
 	if !canResolveElementalSealStatus(ctx, fc) {
 		return nil
@@ -119,14 +119,14 @@ func executeElementalSealStatus(ctx *model.Context, fc *model.FieldCard) error {
 		model.BoundElementForFieldCard(fc),
 		elementalSealName(fc),
 	))
-	// 添加待结算伤害，同时标记需要移除的封印效果
-	// EffectTypeToRemove 会在伤害结算后触发移除逻辑（game.go:5387）
+	// 添加待结算伤害，同时标记需要移除的封印效果。
+	// EffectTypeToRemove 由封印结算钩子在伤害应用后消费并移除场上封印牌。
 	ctx.Game.AddPendingDamage(model.PendingDamage{
 		SourceID:           sourceID,
 		TargetID:           ctx.User.ID,
 		Damage:             3,
 		DamageType:         "magic",
-		EffectTypeToRemove: fc.Effect, // 【关键】伤害结算后移除此封印
+		EffectTypeToRemove: fc.Effect, // 【关键】伤害应用后移除此封印
 	})
 	return nil
 }

@@ -762,7 +762,7 @@ func (h *FiveElementsBindHandler) Execute(ctx *model.Context) error {
 // 阶段 3：结算伤害（由processPendingDamages处理）
 //   - SealLogic.Execute → executeElementalSealStatus
 //   - 添加PendingDamage，标记EffectTypeToRemove
-//   - 伤害结算后移除封印（game.go:5387）
+//   - 伤害应用后由封印结算钩子移除封印
 // ==========================================
 
 // SealLogic 五系封印的通用Handler逻辑

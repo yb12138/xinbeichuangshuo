@@ -1,0 +1,154 @@
+{
+  "bindings": [
+    {
+      "stage": "attack_declared",
+      "op": "card_transform",
+      "handler": "default.attack_declared.card_transform",
+      "priority": 10
+    },
+    {
+      "stage": "attack_declared",
+      "op": "target_context",
+      "handler": "default.attack_declared.target_context",
+      "priority": 10
+    },
+    {
+      "stage": "attack_declared",
+      "op": "state_reset",
+      "handler": "default.attack_declared.state_reset",
+      "priority": 10
+    },
+    {
+      "stage": "attack_declared",
+      "op": "pre_combat",
+      "handler": "default.attack_declared.pre_combat",
+      "priority": 10
+    },
+    {
+      "stage": "attack_declared",
+      "op": "pending_damage_init",
+      "handler": "default.attack_declared.pending_damage_init",
+      "priority": 10
+    },
+    {
+      "stage": "attack_declared",
+      "op": "interrupt",
+      "handler": "default.attack_declared.interrupt",
+      "priority": 10
+    },
+    {
+      "stage": "attack_declared",
+      "op": "pre_combat",
+      "handler": "overlay.moon.pre_combat",
+      "priority": 100,
+      "require_any_characters": ["moon_goddess"]
+    },
+
+    {
+      "stage": "hit_check",
+      "op": "pending_damage_attack_hit",
+      "handler": "default.hit_check.pending_damage_attack_hit",
+      "priority": 10
+    },
+    {
+      "stage": "hit_check",
+      "op": "combat_interaction",
+      "handler": "default.hit_check.combat_interaction",
+      "priority": 10
+    },
+    {
+      "stage": "hit_check",
+      "op": "combat_defend_validation",
+      "handler": "default.hit_check.combat_defend_validation",
+      "priority": 10
+    },
+    {
+      "stage": "hit_check",
+      "op": "combat_counter_card",
+      "handler": "default.hit_check.combat_counter_card",
+      "priority": 10
+    },
+    {
+      "stage": "hit_check",
+      "op": "combat_counter_element",
+      "handler": "default.hit_check.combat_counter_element",
+      "priority": 10
+    },
+    {
+      "stage": "hit_check",
+      "op": "combat_counter_resolve",
+      "handler": "default.hit_check.combat_counter_resolve",
+      "priority": 10
+    },
+    {
+      "stage": "hit_check",
+      "op": "magic_missile_defend",
+      "handler": "default.hit_check.magic_missile_defend",
+      "priority": 10
+    },
+    {
+      "stage": "hit_check",
+      "op": "magic_missile_counter",
+      "handler": "default.hit_check.magic_missile_counter",
+      "priority": 10
+    },
+    {
+      "stage": "hit_check",
+      "op": "response_skip",
+      "handler": "default.hit_check.response_skip",
+      "priority": 10
+    },
+    {
+      "stage": "hit_check",
+      "op": "combat_counter_element",
+      "handler": "overlay.onmyoji.combat_counter_element",
+      "priority": 100,
+      "require_any_characters": ["onmyoji"]
+    },
+
+    {
+      "stage": "damage_calculated",
+      "op": "attack_passive",
+      "handler": "default.damage_calculated.attack_passive",
+      "priority": 10
+    },
+    {
+      "stage": "damage_calculated",
+      "op": "before_taken",
+      "handler": "default.damage_calculated.before_taken",
+      "priority": 10
+    },
+    {
+      "stage": "damage_calculated",
+      "op": "heal_cap",
+      "handler": "default.damage_calculated.heal_cap",
+      "priority": 10
+    },
+    {
+      "stage": "damage_calculated",
+      "op": "heal_resist",
+      "handler": "default.damage_calculated.heal_resist",
+      "priority": 10
+    },
+    {
+      "stage": "damage_calculated",
+      "op": "heal_resist",
+      "handler": "overlay.crimson_or_plague.heal_resist",
+      "priority": 100,
+      "require_any_characters": ["crimson_sword_spirit", "crimson_knight", "plague_mage"]
+    },
+
+    {
+      "stage": "hit_check_skill",
+      "op": "augment",
+      "handler": "default.hit_check_skill.augment",
+      "priority": 10
+    },
+    {
+      "stage": "hit_check_skill",
+      "op": "normalize",
+      "handler": "default.hit_check_skill.normalize",
+      "priority": 10
+    }
+  ]
+}

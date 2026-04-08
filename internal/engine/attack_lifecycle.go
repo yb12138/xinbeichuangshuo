@@ -26,49 +26,80 @@ func (l *defaultAttackLifecycle) TransformAttackCard(player *model.Player, card 
 	if l == nil || l.engine == nil {
 		return card
 	}
-	return l.engine.applyAttackCardRuntimeTransforms(player, card)
+	return l.engine.dispatchTimingOnAttackDeclared(timingOnAttackDeclaredContext{
+		Op:     timingOnAttackDeclaredCardTransform,
+		Player: player,
+		Card:   card,
+	}).Card
 }
 
 func (l *defaultAttackLifecycle) RecordAttackTargetContext(player *model.Player, targetID string) {
 	if l == nil || l.engine == nil {
 		return
 	}
-	l.engine.recordAttackTargetContext(player, targetID)
+	l.engine.dispatchTimingOnAttackDeclared(timingOnAttackDeclaredContext{
+		Op:       timingOnAttackDeclaredTargetContext,
+		Player:   player,
+		TargetID: targetID,
+	})
 }
 
 func (l *defaultAttackLifecycle) ResetAttackStartState(player *model.Player) {
 	if l == nil || l.engine == nil {
 		return
 	}
-	l.engine.runAttackStartStateResets(player)
+	l.engine.dispatchTimingOnAttackDeclared(timingOnAttackDeclaredContext{
+		Op:     timingOnAttackDeclaredStateReset,
+		Player: player,
+	})
 }
 
 func (l *defaultAttackLifecycle) ApplyPreCombatRules(player *model.Player, target *model.Player, currentAction *model.QueuedAction, eventCtx *model.EventContext) {
 	if l == nil || l.engine == nil {
 		return
 	}
-	l.engine.applyAttackPreCombatRoleRules(player, target, currentAction, eventCtx)
+	l.engine.dispatchTimingOnAttackDeclared(timingOnAttackDeclaredContext{
+		Op:            timingOnAttackDeclaredPreCombat,
+		Player:        player,
+		Target:        target,
+		CurrentAction: currentAction,
+		EventCtx:      eventCtx,
+	})
 }
 
 func (l *defaultAttackLifecycle) RunPendingDamageAttackInit(pd *model.PendingDamage, attacker *model.Player, victim *model.Player) {
 	if l == nil || l.engine == nil {
 		return
 	}
-	l.engine.runPendingDamageAttackInitHooks(pd, attacker, victim)
+	l.engine.dispatchTimingOnAttackDeclared(timingOnAttackDeclaredContext{
+		Op:            timingOnAttackDeclaredPendingDamageInit,
+		PendingDamage: pd,
+		Attacker:      attacker,
+		Victim:        victim,
+	})
 }
 
 func (l *defaultAttackLifecycle) RunPendingDamageAttackHit(pd *model.PendingDamage, attacker *model.Player, victim *model.Player) {
 	if l == nil || l.engine == nil {
 		return
 	}
-	l.engine.runPendingDamageAttackHitHooks(pd, attacker, victim)
+	l.engine.dispatchTimingOnHitCheck(timingOnHitCheckContext{
+		Op:            timingOnHitCheckPendingDamageAttackHit,
+		PendingDamage: pd,
+		Attacker:      attacker,
+		Victim:        victim,
+	})
 }
 
 func (e *GameEngine) transformAttackCard(player *model.Player, card model.Card) model.Card {
 	if e != nil && e.lifecycle != nil {
 		return e.lifecycle.TransformAttackCard(player, card)
 	}
-	return e.applyAttackCardRuntimeTransforms(player, card)
+	return e.dispatchTimingOnAttackDeclared(timingOnAttackDeclaredContext{
+		Op:     timingOnAttackDeclaredCardTransform,
+		Player: player,
+		Card:   card,
+	}).Card
 }
 
 func (e *GameEngine) recordAttackTargetLifecycle(player *model.Player, targetID string) {
@@ -76,7 +107,11 @@ func (e *GameEngine) recordAttackTargetLifecycle(player *model.Player, targetID 
 		e.lifecycle.RecordAttackTargetContext(player, targetID)
 		return
 	}
-	e.recordAttackTargetContext(player, targetID)
+	e.dispatchTimingOnAttackDeclared(timingOnAttackDeclaredContext{
+		Op:       timingOnAttackDeclaredTargetContext,
+		Player:   player,
+		TargetID: targetID,
+	})
 }
 
 func (e *GameEngine) resetAttackStartLifecycle(player *model.Player) {
@@ -84,7 +119,10 @@ func (e *GameEngine) resetAttackStartLifecycle(player *model.Player) {
 		e.lifecycle.ResetAttackStartState(player)
 		return
 	}
-	e.runAttackStartStateResets(player)
+	e.dispatchTimingOnAttackDeclared(timingOnAttackDeclaredContext{
+		Op:     timingOnAttackDeclaredStateReset,
+		Player: player,
+	})
 }
 
 func (e *GameEngine) applyAttackPreCombatLifecycle(player *model.Player, target *model.Player, currentAction *model.QueuedAction, eventCtx *model.EventContext) {
@@ -92,7 +130,13 @@ func (e *GameEngine) applyAttackPreCombatLifecycle(player *model.Player, target 
 		e.lifecycle.ApplyPreCombatRules(player, target, currentAction, eventCtx)
 		return
 	}
-	e.applyAttackPreCombatRoleRules(player, target, currentAction, eventCtx)
+	e.dispatchTimingOnAttackDeclared(timingOnAttackDeclaredContext{
+		Op:            timingOnAttackDeclaredPreCombat,
+		Player:        player,
+		Target:        target,
+		CurrentAction: currentAction,
+		EventCtx:      eventCtx,
+	})
 }
 
 func (e *GameEngine) runPendingDamageAttackLifecycle(pd *model.PendingDamage, attacker *model.Player, victim *model.Player) {
@@ -101,6 +145,16 @@ func (e *GameEngine) runPendingDamageAttackLifecycle(pd *model.PendingDamage, at
 		e.lifecycle.RunPendingDamageAttackHit(pd, attacker, victim)
 		return
 	}
-	e.runPendingDamageAttackInitHooks(pd, attacker, victim)
-	e.runPendingDamageAttackHitHooks(pd, attacker, victim)
+	e.dispatchTimingOnAttackDeclared(timingOnAttackDeclaredContext{
+		Op:            timingOnAttackDeclaredPendingDamageInit,
+		PendingDamage: pd,
+		Attacker:      attacker,
+		Victim:        victim,
+	})
+	e.dispatchTimingOnHitCheck(timingOnHitCheckContext{
+		Op:            timingOnHitCheckPendingDamageAttackHit,
+		PendingDamage: pd,
+		Attacker:      attacker,
+		Victim:        victim,
+	})
 }

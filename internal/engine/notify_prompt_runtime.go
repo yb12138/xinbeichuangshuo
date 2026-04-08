@@ -194,7 +194,7 @@ func (e *GameEngine) Log(msg string) {
 	e.Notify(model.EventLog, msg, nil)
 }
 
-func (e *GameEngine) NotifyCardRevealed(playerID string, cards []model.Card, actionType string) {
+func (e *GameEngine) NotifyCardRevealed(playerID string, cards []model.Card, actionType model.DamageType) {
 	e.notifyCards(playerID, cards, actionType, false)
 }
 
@@ -217,7 +217,7 @@ func (e *GameEngine) dispatchCardTrigger(player *model.Player, trigger model.Tri
 	e.dispatcher.OnTrigger(trigger, skillCtx)
 }
 
-func (e *GameEngine) notifyCards(playerID string, cards []model.Card, actionType string, hidden bool) {
+func (e *GameEngine) notifyCards(playerID string, cards []model.Card, actionType model.DamageType, hidden bool) {
 	if e.observer == nil || len(cards) == 0 {
 		return
 	}

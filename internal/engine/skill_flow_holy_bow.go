@@ -230,6 +230,111 @@ func (e *GameEngine) buildHolyBowChoicePrompt(choiceType, playerID string, playe
 
 func (e *GameEngine) handleHolyBowChoiceInput(_ string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
 	choiceType, _ := ctxData["choice_type"].(string)
+	return dispatchChoiceRouteByType(choiceType, selectionIndex, ctxData, map[string]skillChoiceRouteHandler{
+		"hb_holy_shard_combo":            e.handleHolyBowChoiceInputByType,
+		"hb_holy_shard_target":           e.handleHolyBowChoiceInputByType,
+		"hb_holy_shard_miss_confirm":     e.handleHolyBowChoiceInputByType,
+		"hb_holy_shard_miss_x":           e.handleHolyBowChoiceInputByType,
+		"hb_holy_shard_miss_ally_target": e.handleHolyBowChoiceInputByType,
+		"hb_radiant_descent_cost":        e.handleHolyBowChoiceInputByType,
+		"hb_light_burst_mode":            e.handleHolyBowChoiceInputByType,
+		"hb_light_burst_mode_a_target":   e.handleHolyBowChoiceInputByType,
+		"hb_light_burst_mode_b_x":        e.handleHolyBowChoiceInputByType,
+		"hb_light_burst_mode_b_targets":  e.handleHolyBowChoiceInputByType,
+		"hb_light_burst_mode_b_discard":  e.handleHolyBowChoiceInputByType,
+		"hb_meteor_bullet_cost":          e.handleHolyBowChoiceInputByType,
+		"hb_meteor_bullet_target":        e.handleHolyBowChoiceInputByType,
+		"hb_radiant_cannon_side":         e.handleHolyBowChoiceInputByType,
+		"hb_auto_fill_resource":          e.handleHolyBowChoiceInputByType,
+		"hb_auto_fill_gain":              e.handleHolyBowChoiceInputByType,
+	})
+}
+
+func (e *GameEngine) handleHolyBowChoiceInputByType(selectionIndex int, ctxData map[string]interface{}) (bool, error) {
+	choiceType, _ := ctxData["choice_type"].(string)
+	return dispatchChoiceRouteByType(holyBowChoiceFlow(choiceType), selectionIndex, ctxData, map[string]skillChoiceRouteHandler{
+		"holy_shard":      e.handleHolyBowHolyShardFlow,
+		"radiant_descent": e.handleHolyBowRadiantDescentFlow,
+		"light_burst":     e.handleHolyBowLightBurstFlow,
+		"meteor_bullet":   e.handleHolyBowMeteorBulletFlow,
+		"radiant_cannon":  e.handleHolyBowRadiantCannonFlow,
+		"auto_fill":       e.handleHolyBowAutoFillFlow,
+	})
+}
+
+func holyBowChoiceFlow(choiceType string) string {
+	switch choiceType {
+	case "hb_holy_shard_combo", "hb_holy_shard_target", "hb_holy_shard_miss_confirm", "hb_holy_shard_miss_x", "hb_holy_shard_miss_ally_target":
+		return "holy_shard"
+	case "hb_radiant_descent_cost":
+		return "radiant_descent"
+	case "hb_light_burst_mode", "hb_light_burst_mode_a_target", "hb_light_burst_mode_b_x", "hb_light_burst_mode_b_targets", "hb_light_burst_mode_b_discard":
+		return "light_burst"
+	case "hb_meteor_bullet_cost", "hb_meteor_bullet_target":
+		return "meteor_bullet"
+	case "hb_radiant_cannon_side":
+		return "radiant_cannon"
+	case "hb_auto_fill_resource", "hb_auto_fill_gain":
+		return "auto_fill"
+	default:
+		return ""
+	}
+}
+
+func (e *GameEngine) handleHolyBowHolyShardFlow(selectionIndex int, ctxData map[string]interface{}) (bool, error) {
+	choiceType, _ := ctxData["choice_type"].(string)
+	return dispatchChoiceRouteByType(choiceType, selectionIndex, ctxData, map[string]skillChoiceRouteHandler{
+		"hb_holy_shard_combo":            e.handleHolyBowChoiceInputByTypeLegacy,
+		"hb_holy_shard_target":           e.handleHolyBowChoiceInputByTypeLegacy,
+		"hb_holy_shard_miss_confirm":     e.handleHolyBowChoiceInputByTypeLegacy,
+		"hb_holy_shard_miss_x":           e.handleHolyBowChoiceInputByTypeLegacy,
+		"hb_holy_shard_miss_ally_target": e.handleHolyBowChoiceInputByTypeLegacy,
+	})
+}
+
+func (e *GameEngine) handleHolyBowRadiantDescentFlow(selectionIndex int, ctxData map[string]interface{}) (bool, error) {
+	choiceType, _ := ctxData["choice_type"].(string)
+	return dispatchChoiceRouteByType(choiceType, selectionIndex, ctxData, map[string]skillChoiceRouteHandler{
+		"hb_radiant_descent_cost": e.handleHolyBowChoiceInputByTypeLegacy,
+	})
+}
+
+func (e *GameEngine) handleHolyBowLightBurstFlow(selectionIndex int, ctxData map[string]interface{}) (bool, error) {
+	choiceType, _ := ctxData["choice_type"].(string)
+	return dispatchChoiceRouteByType(choiceType, selectionIndex, ctxData, map[string]skillChoiceRouteHandler{
+		"hb_light_burst_mode":           e.handleHolyBowChoiceInputByTypeLegacy,
+		"hb_light_burst_mode_a_target":  e.handleHolyBowChoiceInputByTypeLegacy,
+		"hb_light_burst_mode_b_x":       e.handleHolyBowChoiceInputByTypeLegacy,
+		"hb_light_burst_mode_b_targets": e.handleHolyBowChoiceInputByTypeLegacy,
+		"hb_light_burst_mode_b_discard": e.handleHolyBowChoiceInputByTypeLegacy,
+	})
+}
+
+func (e *GameEngine) handleHolyBowMeteorBulletFlow(selectionIndex int, ctxData map[string]interface{}) (bool, error) {
+	choiceType, _ := ctxData["choice_type"].(string)
+	return dispatchChoiceRouteByType(choiceType, selectionIndex, ctxData, map[string]skillChoiceRouteHandler{
+		"hb_meteor_bullet_cost":   e.handleHolyBowChoiceInputByTypeLegacy,
+		"hb_meteor_bullet_target": e.handleHolyBowChoiceInputByTypeLegacy,
+	})
+}
+
+func (e *GameEngine) handleHolyBowRadiantCannonFlow(selectionIndex int, ctxData map[string]interface{}) (bool, error) {
+	choiceType, _ := ctxData["choice_type"].(string)
+	return dispatchChoiceRouteByType(choiceType, selectionIndex, ctxData, map[string]skillChoiceRouteHandler{
+		"hb_radiant_cannon_side": e.handleHolyBowChoiceInputByTypeLegacy,
+	})
+}
+
+func (e *GameEngine) handleHolyBowAutoFillFlow(selectionIndex int, ctxData map[string]interface{}) (bool, error) {
+	choiceType, _ := ctxData["choice_type"].(string)
+	return dispatchChoiceRouteByType(choiceType, selectionIndex, ctxData, map[string]skillChoiceRouteHandler{
+		"hb_auto_fill_resource": e.handleHolyBowChoiceInputByTypeLegacy,
+		"hb_auto_fill_gain":     e.handleHolyBowChoiceInputByTypeLegacy,
+	})
+}
+
+func (e *GameEngine) handleHolyBowChoiceInputByTypeLegacy(selectionIndex int, ctxData map[string]interface{}) (bool, error) {
+	choiceType, _ := ctxData["choice_type"].(string)
 
 	switch choiceType {
 	case "hb_holy_shard_combo":

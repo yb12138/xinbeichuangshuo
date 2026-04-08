@@ -8,29 +8,16 @@ import (
 	"starcup-engine/internal/model"
 )
 
-type specialActionOverride func(e *GameEngine, player *model.Player, actionType model.ActionType) (bool, error)
+type specialActionOverridePolicy func(e *GameEngine, player *model.Player, actionType model.ActionType) (bool, error)
 type specialActionPostHook func(e *GameEngine, player *model.Player, actionType model.ActionType)
 
-var specialActionOverrides = []specialActionOverride{
-	specialActionAdventurerUndergroundLawOverride,
-}
-
-var specialActionPostHooks = []specialActionPostHook{
-	specialActionHolyBowHolyGloryExitHook,
-}
-
 func (e *GameEngine) executeSpecialActionWithRuntime(player *model.Player, actionType model.ActionType) error {
-	for _, override := range specialActionOverrides {
-		if override == nil {
-			continue
-		}
-		handled, err := override(e, player, actionType)
-		if err != nil {
-			return err
-		}
-		if handled {
-			return nil
-		}
+	handled, err := e.applyTimingBeforeActionExecuteSpecialActionOverride(player, actionType)
+	if err != nil {
+		return err
+	}
+	if handled {
+		return nil
 	}
 	return e.executeSpecialAction(player, actionType)
 }
@@ -303,10 +290,27 @@ func (e *GameEngine) recordAdventurerExtractResult(p *model.Player, gem, crystal
 }
 
 func (e *GameEngine) runPostSpecialActionRuntime(player *model.Player, actionType model.ActionType) {
-	for _, hook := range specialActionPostHooks {
-		if hook != nil {
-			hook(e, player, actionType)
+	e.runTimingOnActionEndSpecialActionPost(player, actionType)
+}
+
+// applyTimingBeforeActionExecuteSpecialActionOverride 在执行特殊行动前应用覆盖策略。
+func (e *GameEngine) applyTimingBeforeActionExecuteSpecialActionOverride(player *model.Player, actionType model.ActionType) (bool, error) {
+	for _, policy := range e.specialActionOverridePolicies {
+		handled, err := policy(e, player, actionType)
+		if err != nil {
+			return false, err
 		}
+		if handled {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// runTimingOnActionEndSpecialActionPost 在特殊行动完成后执行后置规则。
+func (e *GameEngine) runTimingOnActionEndSpecialActionPost(player *model.Player, actionType model.ActionType) {
+	for _, hook := range e.specialActionPostHooks {
+		hook(e, player, actionType)
 	}
 }
 

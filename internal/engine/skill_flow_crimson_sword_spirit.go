@@ -30,14 +30,17 @@ func (e *GameEngine) buildCrimsonSwordSpiritChoicePrompt(choiceType, playerID st
 }
 
 func (e *GameEngine) handleCrimsonSwordSpiritChoiceInput(_ string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
-	if choiceType, _ := ctxData["choice_type"].(string); choiceType != "css_dance_mode" {
-		return false, nil
-	}
+	choiceType, _ := ctxData["choice_type"].(string)
+	return dispatchChoiceInputByType(choiceType, selectionIndex, ctxData, map[string]skillChoiceInputHandler{
+		"css_dance_mode": e.handleCrimsonSwordSpiritDanceModeChoice,
+	})
+}
 
+func (e *GameEngine) handleCrimsonSwordSpiritDanceModeChoice(selectionIndex int, ctxData map[string]interface{}) error {
 	userID, _ := ctxData["user_id"].(string)
 	user := e.State.Players[userID]
 	if user == nil {
-		return true, fmt.Errorf("玩家不存在")
+		return fmt.Errorf("玩家不存在")
 	}
 	canCrystal, _ := ctxData["can_crystal"].(bool)
 	canGem, _ := ctxData["can_gem"].(bool)
@@ -49,31 +52,31 @@ func (e *GameEngine) handleCrimsonSwordSpiritChoiceInput(_ string, selectionInde
 		modeList = append(modeList, 1)
 	}
 	if selectionIndex < 0 || selectionIndex >= len(modeList) {
-		return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
+		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
 	mode := modeList[selectionIndex]
 	if user.Character == nil || user.Character.ID == "" {
-		return true, fmt.Errorf("角色信息缺失")
+		return fmt.Errorf("角色信息缺失")
 	}
 
 	courtyardCard, ok := user.ConsumeExclusiveCard(user.Character.ID, "血蔷薇庭院")
 	if !ok {
-		return true, fmt.Errorf("未找到【血蔷薇庭院】专属技能卡")
+		return fmt.Errorf("未找到【血蔷薇庭院】专属技能卡")
 	}
 	if err := e.attachExclusiveEffectCard(user, user, model.EffectRoseCourtyard, courtyardCard); err != nil {
 		user.RestoreExclusiveCard(courtyardCard)
-		return true, err
+		return err
 	}
 
 	if mode == 0 {
 		if !e.ConsumeCrystalCost(user.ID, 1) {
-			return true, fmt.Errorf("蓝水晶不足（红宝石可替代）")
+			return fmt.Errorf("蓝水晶不足（红宝石可替代）")
 		}
 		user.Tokens["css_blood_cap"] = 3
 		addBlood(user, 2)
 	} else {
 		if user.Gem <= 0 {
-			return true, fmt.Errorf("红宝石不足")
+			return fmt.Errorf("红宝石不足")
 		}
 		user.Gem--
 		user.Tokens["css_blood_cap"] = 4
@@ -93,5 +96,5 @@ func (e *GameEngine) handleCrimsonSwordSpiritChoiceInput(_ string, selectionInde
 	}
 
 	e.PopInterrupt()
-	return true, nil
+	return nil
 }

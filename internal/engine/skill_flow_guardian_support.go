@@ -62,16 +62,13 @@ func (e *GameEngine) buildGuardianSupportChoicePrompt(choiceType, playerID strin
 
 func (e *GameEngine) handleGuardianSupportChoiceInput(playerID string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
 	choiceType, _ := ctxData["choice_type"].(string)
-	switch choiceType {
-	case "angel_bond_heal_target":
-		return true, e.handleAngelBondHealChoice(playerID, selectionIndex, ctxData)
-	case "frost_prayer_target":
-		return true, e.handleFrostPrayerChoice(selectionIndex, ctxData)
-	case "god_protection_x":
-		return true, e.handleGodProtectionChoice(selectionIndex, ctxData)
-	default:
-		return false, nil
-	}
+	return dispatchChoiceInputByType(choiceType, selectionIndex, ctxData, map[string]skillChoiceInputHandler{
+		"angel_bond_heal_target": func(idx int, data map[string]interface{}) error {
+			return e.handleAngelBondHealChoice(playerID, idx, data)
+		},
+		"frost_prayer_target": e.handleFrostPrayerChoice,
+		"god_protection_x":    e.handleGodProtectionChoice,
+	})
 }
 
 func (e *GameEngine) handleGodProtectionChoice(selectionIndex int, ctxData map[string]interface{}) error {

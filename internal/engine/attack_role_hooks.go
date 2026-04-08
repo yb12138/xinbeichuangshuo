@@ -11,44 +11,23 @@ type attackTargetContextHook func(e *GameEngine, player *model.Player, targetID 
 type attackStartStateResetHook func(e *GameEngine, player *model.Player)
 type attackPreCombatHook func(e *GameEngine, player *model.Player, target *model.Player, currentAction *model.QueuedAction, eventCtx *model.EventContext)
 
-var attackTargetContextHooks = []attackTargetContextHook{
-	recordMagicBowAttackTargetOrder,
-}
-
-var attackStartStateResetHooks = []attackStartStateResetHook{
-	resetHolyLancerAttackFlags,
-	resetSwordEmperorAttackFlags,
-	resetBeastSamuraiAttackFlags,
-	resetMagicSwordsmanAttackFlags,
-	resetFighterAttackFlags,
-}
-
-var attackPreCombatHooks = []attackPreCombatHook{
-	applyCombatPolicyAttackGating,
-	applyHeroAttackGating,
-	applyFighterAttackGating,
-	applyMoonGoddessAttackGating,
-	applyAssassinAttackGating,
-	applyHolyLancerAttackGating,
-	applyMagicSwordsmanAttackGating,
-	applyDarkElementNoCounterRule,
-	applyBeastSamuraiAttackGating,
-}
-
-func (e *GameEngine) recordAttackTargetContext(player *model.Player, targetID string) {
-	for _, hook := range attackTargetContextHooks {
+// recordTimingOnAttackDeclaredTargetContext 在攻击宣言时写入目标上下文。
+func (e *GameEngine) recordTimingOnAttackDeclaredTargetContext(player *model.Player, targetID string) {
+	for _, hook := range e.attackDeclaredTargetContextHooks {
 		hook(e, player, targetID)
 	}
 }
 
-func (e *GameEngine) runAttackStartStateResets(player *model.Player) {
-	for _, hook := range attackStartStateResetHooks {
+// resetTimingOnAttackDeclaredState 在攻击宣言时清理一次性状态。
+func (e *GameEngine) resetTimingOnAttackDeclaredState(player *model.Player) {
+	for _, hook := range e.attackDeclaredStateResetHooks {
 		hook(e, player)
 	}
 }
 
-func (e *GameEngine) applyAttackPreCombatRoleRules(player *model.Player, target *model.Player, currentAction *model.QueuedAction, eventCtx *model.EventContext) {
-	for _, hook := range attackPreCombatHooks {
+// applyTimingOnAttackDeclaredPreCombatRules 在进入战斗交互前应用攻击劫持策略。
+func (e *GameEngine) applyTimingOnAttackDeclaredPreCombatRules(player *model.Player, target *model.Player, currentAction *model.QueuedAction, eventCtx *model.EventContext) {
+	for _, hook := range e.attackDeclaredPreCombatHooks {
 		hook(e, player, target, currentAction, eventCtx)
 	}
 }

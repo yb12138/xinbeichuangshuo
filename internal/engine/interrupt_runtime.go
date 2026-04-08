@@ -343,7 +343,10 @@ func (e *GameEngine) SkipResponse() error {
 	}
 	state := e.captureResponseResumeStateFromInterrupt(responseCompletionSkip, "", e.State.PendingInterrupt)
 	e.PopInterrupt()
-	e.runResponseSkipHooks(&state)
+	e.dispatchTimingOnHitCheck(timingOnHitCheckContext{
+		Op:            timingOnHitCheckResponseSkip,
+		ResponseState: &state,
+	})
 	e.restoreSkippedResponseAfterPop(state)
 	return nil
 }
@@ -383,7 +386,7 @@ func (e *GameEngine) maybeAdvanceResponseSkillSelection() bool {
 	}
 
 	nextSkillIDs := e.dispatcher.getOtherUsableSkills("", player, ctx)
-	nextSkillIDs = e.dispatcher.applyResponseSkillIDNormalizers(nextSkillIDs, ctx)
+	nextSkillIDs = e.dispatcher.dispatchTimingOnHitCheckSkillIDs(nextSkillIDs, ctx, timingOnHitCheckSkillNormalize)
 	if len(nextSkillIDs) == 0 {
 		return false
 	}

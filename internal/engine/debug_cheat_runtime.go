@@ -72,8 +72,9 @@ func (e *GameEngine) debugResetPlayerForRole(player *model.Player, char *model.C
 	player.CharaZone = nil
 	player.TurnState = model.NewPlayerTurnState()
 	e.applyRoleDefaults(player)
-	e.refreshPlayerDerivedState(player)
 	e.ensureStarterRoleCards(player)
+	e.rebuildTimingOnAttackDeclaredRegistry()
+	e.refreshPlayerDerivedState(player)
 }
 
 func (e *GameEngine) debugPickOtherPlayer(excludeID string) *model.Player {
@@ -570,317 +571,328 @@ func (e *GameEngine) debugBuildContext(user *model.Player, skill model.SkillDefi
 	return ctx
 }
 
+type cheatCommandHandler func(e *GameEngine, act model.PlayerAction) error
+
+var cheatCommandHandlers = map[string]cheatCommandHandler{
+	"turn":           (*GameEngine).handleCheatTurn,
+	"role":           (*GameEngine).handleCheatRole,
+	"token":          (*GameEngine).handleCheatToken,
+	"set":            (*GameEngine).handleCheatSet,
+	"effect":         (*GameEngine).handleCheatEffect,
+	"card_exclusive": (*GameEngine).handleCheatCardExclusive,
+	"card_element":   (*GameEngine).handleCheatCardElement,
+	"card_faction":   (*GameEngine).handleCheatCardFaction,
+	"card_magic":     (*GameEngine).handleCheatCardMagic,
+	"skill":          (*GameEngine).handleCheatSkill,
+}
+
 // handleCheat 处理作弊指令 (用于测试)
 func (e *GameEngine) handleCheat(act model.PlayerAction) error {
-	targetStr := act.TargetID
-	if targetStr == "turn" {
-		if len(act.ExtraArgs) == 0 {
-			return fmt.Errorf("未指定目标玩家ID")
-		}
-		targetPID := act.ExtraArgs[0]
-		if err := e.forceTurnTo(targetPID); err != nil {
-			return err
-		}
-		e.Log(fmt.Sprintf("[Cheat] 强制切换回合到 %s", e.State.Players[targetPID].Name))
-		return nil
+	if handler, ok := cheatCommandHandlers[act.TargetID]; ok {
+		return handler(e, act)
 	}
-	if targetStr == "role" {
-		if len(act.ExtraArgs) < 2 {
-			return fmt.Errorf("用法: cheat role <pid> <role_id>")
+	return e.handleCheatAddCardByName(act)
+}
+
+func (e *GameEngine) handleCheatTurn(act model.PlayerAction) error {
+	if len(act.ExtraArgs) == 0 {
+		return fmt.Errorf("未指定目标玩家ID")
+	}
+	targetPID := act.ExtraArgs[0]
+	if err := e.forceTurnTo(targetPID); err != nil {
+		return err
+	}
+	e.Log(fmt.Sprintf("[Cheat] 强制切换回合到 %s", e.State.Players[targetPID].Name))
+	return nil
+}
+
+func (e *GameEngine) handleCheatRole(act model.PlayerAction) error {
+	if len(act.ExtraArgs) < 2 {
+		return fmt.Errorf("用法: cheat role <pid> <role_id>")
+	}
+	pid := act.ExtraArgs[0]
+	roleID := act.ExtraArgs[1]
+	player, err := e.getCheatPlayer(pid)
+	if err != nil {
+		return err
+	}
+	char := e.debugFindCharacter(roleID)
+	if char == nil {
+		return fmt.Errorf("角色不存在: %s", roleID)
+	}
+	e.debugResetPlayerForRole(player, char)
+	e.Log(fmt.Sprintf("[Cheat] %s 切换角色为 %s", player.Name, char.Name))
+	return nil
+}
+
+func (e *GameEngine) handleCheatToken(act model.PlayerAction) error {
+	if len(act.ExtraArgs) < 3 {
+		return fmt.Errorf("用法: cheat token <pid> <token_key> <value>")
+	}
+	pid := act.ExtraArgs[0]
+	tokenKey := act.ExtraArgs[1]
+	val, err := strconv.Atoi(act.ExtraArgs[2])
+	if err != nil {
+		return fmt.Errorf("token 值无效: %s", act.ExtraArgs[2])
+	}
+	player, err := e.getCheatPlayer(pid)
+	if err != nil {
+		return err
+	}
+	ensurePlayerTokensMap(player)
+	player.Tokens[tokenKey] = val
+	e.Log(fmt.Sprintf("[Cheat] %s 指示物 %s=%d", player.Name, tokenKey, val))
+	return nil
+}
+
+func (e *GameEngine) handleCheatSet(act model.PlayerAction) error {
+	if len(act.ExtraArgs) < 3 {
+		return fmt.Errorf("用法: cheat set <pid> <field> <value>")
+	}
+	pid := act.ExtraArgs[0]
+	field := act.ExtraArgs[1]
+	val, err := strconv.Atoi(act.ExtraArgs[2])
+	if err != nil {
+		return fmt.Errorf("数值无效: %s", act.ExtraArgs[2])
+	}
+	player, err := e.getCheatPlayer(pid)
+	if err != nil {
+		return err
+	}
+	switch field {
+	case "gem":
+		player.Gem = val
+	case "crystal":
+		player.Crystal = val
+	case "heal":
+		player.Heal = val
+	case "max_heal":
+		player.MaxHeal = val
+	default:
+		return fmt.Errorf("未知字段: %s", field)
+	}
+	e.Log(fmt.Sprintf("[Cheat] %s 设置 %s=%d", player.Name, field, val))
+	return nil
+}
+
+func (e *GameEngine) handleCheatEffect(act model.PlayerAction) error {
+	if len(act.ExtraArgs) < 3 {
+		return fmt.Errorf("用法: cheat effect <pid> <effect_type> <count>")
+	}
+	pid := act.ExtraArgs[0]
+	rawEffect := act.ExtraArgs[1]
+	count, err := strconv.Atoi(act.ExtraArgs[2])
+	if err != nil {
+		return fmt.Errorf("效果数量无效: %s", act.ExtraArgs[2])
+	}
+	player, err := e.getCheatPlayer(pid)
+	if err != nil {
+		return err
+	}
+	effectType, err := debugParseEffectType(rawEffect)
+	if err != nil {
+		return err
+	}
+	e.debugSetEffectCount(player, effectType, count)
+	e.Log(fmt.Sprintf("[Cheat] %s 基础效果 %s 设置为 %d 层", player.Name, effectType, count))
+	return nil
+}
+
+func (e *GameEngine) handleCheatCardExclusive(act model.PlayerAction) error {
+	if len(act.ExtraArgs) < 3 {
+		return fmt.Errorf("用法: cheat card_exclusive <pid> <role_id> <skill_id> [count]")
+	}
+	pid := act.ExtraArgs[0]
+	roleID := act.ExtraArgs[1]
+	skillID := act.ExtraArgs[2]
+	count, err := parseCheatOptionalCount(act.ExtraArgs, 3, 1)
+	if err != nil {
+		return err
+	}
+	if count <= 0 {
+		return fmt.Errorf("数量必须大于0")
+	}
+	player, err := e.getCheatPlayer(pid)
+	if err != nil {
+		return err
+	}
+	char := e.debugFindCharacter(roleID)
+	if char == nil {
+		return fmt.Errorf("角色不存在: %s", roleID)
+	}
+	var skill *model.SkillDefinition
+	for _, s := range char.Skills {
+		if s.ID == skillID || s.Title == skillID {
+			copySkill := s
+			skill = &copySkill
+			break
 		}
-		pid := act.ExtraArgs[0]
-		roleID := act.ExtraArgs[1]
-		player := e.State.Players[pid]
-		if player == nil {
-			return fmt.Errorf("玩家不存在: %s", pid)
-		}
+	}
+	if skill == nil {
+		return fmt.Errorf("角色[%s]不存在该技能: %s", char.Name, skillID)
+	}
+	cards, err := e.debugDrawExclusiveCardsFromStock(char.ID, skill.Title, count)
+	if err != nil {
+		return err
+	}
+	player.Hand = append(player.Hand, cards...)
+	e.Log(fmt.Sprintf("[Cheat] %s 获得 %d 张独有技手牌 [%s·%s]", player.Name, count, char.Name, skill.Title))
+	return nil
+}
+
+func (e *GameEngine) handleCheatCardElement(act model.PlayerAction) error {
+	if len(act.ExtraArgs) < 2 {
+		return fmt.Errorf("用法: cheat card_element <pid> <element> [count]")
+	}
+	pid := act.ExtraArgs[0]
+	rawElement := act.ExtraArgs[1]
+	count, err := parseCheatOptionalCount(act.ExtraArgs, 2, 1)
+	if err != nil {
+		return err
+	}
+	player, err := e.getCheatPlayer(pid)
+	if err != nil {
+		return err
+	}
+	element, err := debugParseElement(rawElement)
+	if err != nil {
+		return err
+	}
+	templates := debugFindCardsByFilter(func(card model.Card) bool {
+		return card.Element == element && (card.Type == model.CardTypeAttack || card.Type == model.CardTypeMagic)
+	})
+	if err := e.debugAddCardsFromTemplates(player, templates, count); err != nil {
+		return err
+	}
+	e.Log(fmt.Sprintf("[Cheat] %s 获得 %d 张%s手牌", player.Name, count, element))
+	return nil
+}
+
+func (e *GameEngine) handleCheatCardFaction(act model.PlayerAction) error {
+	if len(act.ExtraArgs) < 2 {
+		return fmt.Errorf("用法: cheat card_faction <pid> <faction> [count]")
+	}
+	pid := act.ExtraArgs[0]
+	rawFaction := act.ExtraArgs[1]
+	count, err := parseCheatOptionalCount(act.ExtraArgs, 2, 1)
+	if err != nil {
+		return err
+	}
+	player, err := e.getCheatPlayer(pid)
+	if err != nil {
+		return err
+	}
+	faction, err := debugNormalizeFaction(rawFaction)
+	if err != nil {
+		return err
+	}
+	templates := debugFindCardsByFilter(func(card model.Card) bool {
+		return strings.TrimSpace(card.Faction) == faction && (card.Type == model.CardTypeAttack || card.Type == model.CardTypeMagic)
+	})
+	if err := e.debugAddCardsFromTemplates(player, templates, count); err != nil {
+		return err
+	}
+	e.Log(fmt.Sprintf("[Cheat] %s 获得 %d 张%s命格手牌", player.Name, count, faction))
+	return nil
+}
+
+func (e *GameEngine) handleCheatCardMagic(act model.PlayerAction) error {
+	if len(act.ExtraArgs) < 2 {
+		return fmt.Errorf("用法: cheat card_magic <pid> <card_name> [count]")
+	}
+	pid := act.ExtraArgs[0]
+	cardName := strings.TrimSpace(act.ExtraArgs[1])
+	count, err := parseCheatOptionalCount(act.ExtraArgs, 2, 1)
+	if err != nil {
+		return err
+	}
+	player, err := e.getCheatPlayer(pid)
+	if err != nil {
+		return err
+	}
+	if cardName == "" {
+		return fmt.Errorf("法术牌名称不能为空")
+	}
+	templates := debugFindCardsByFilter(func(card model.Card) bool {
+		return card.Type == model.CardTypeMagic && strings.TrimSpace(card.Name) == cardName
+	})
+	if err := e.debugAddCardsFromTemplates(player, templates, count); err != nil {
+		return err
+	}
+	e.Log(fmt.Sprintf("[Cheat] %s 获得 %d 张法术牌 [%s]", player.Name, count, cardName))
+	return nil
+}
+
+func (e *GameEngine) handleCheatSkill(act model.PlayerAction) error {
+	if len(act.ExtraArgs) < 2 {
+		return fmt.Errorf("用法: cheat skill <pid> [role_id] <skill_id>")
+	}
+	pid := act.ExtraArgs[0]
+	player, err := e.getCheatPlayer(pid)
+	if err != nil {
+		return err
+	}
+
+	roleID := ""
+	skillID := ""
+	if len(act.ExtraArgs) == 2 {
+		skillID = act.ExtraArgs[1]
+	} else {
+		roleID = act.ExtraArgs[1]
+		skillID = act.ExtraArgs[2]
+	}
+
+	if roleID != "" {
 		char := e.debugFindCharacter(roleID)
 		if char == nil {
 			return fmt.Errorf("角色不存在: %s", roleID)
 		}
 		e.debugResetPlayerForRole(player, char)
-		e.Log(fmt.Sprintf("[Cheat] %s 切换角色为 %s", player.Name, char.Name))
-		return nil
 	}
-	if targetStr == "token" {
-		if len(act.ExtraArgs) < 3 {
-			return fmt.Errorf("用法: cheat token <pid> <token_key> <value>")
-		}
-		pid := act.ExtraArgs[0]
-		tokenKey := act.ExtraArgs[1]
-		val, err := strconv.Atoi(act.ExtraArgs[2])
-		if err != nil {
-			return fmt.Errorf("token 值无效: %s", act.ExtraArgs[2])
-		}
-		player := e.State.Players[pid]
-		if player == nil {
-			return fmt.Errorf("玩家不存在: %s", pid)
-		}
-		if player.Tokens == nil {
-			player.Tokens = map[string]int{}
-		}
-		player.Tokens[tokenKey] = val
-		e.Log(fmt.Sprintf("[Cheat] %s 指示物 %s=%d", player.Name, tokenKey, val))
-		return nil
+
+	if err := e.forceTurnTo(pid); err != nil {
+		return err
 	}
-	if targetStr == "set" {
-		if len(act.ExtraArgs) < 3 {
-			return fmt.Errorf("用法: cheat set <pid> <field> <value>")
-		}
-		pid := act.ExtraArgs[0]
-		field := act.ExtraArgs[1]
-		val, err := strconv.Atoi(act.ExtraArgs[2])
-		if err != nil {
-			return fmt.Errorf("数值无效: %s", act.ExtraArgs[2])
-		}
-		player := e.State.Players[pid]
-		if player == nil {
-			return fmt.Errorf("玩家不存在: %s", pid)
-		}
-		switch field {
-		case "gem":
-			player.Gem = val
-		case "crystal":
-			player.Crystal = val
-		case "heal":
-			player.Heal = val
-		case "max_heal":
-			player.MaxHeal = val
-		default:
-			return fmt.Errorf("未知字段: %s", field)
-		}
-		e.Log(fmt.Sprintf("[Cheat] %s 设置 %s=%d", player.Name, field, val))
-		return nil
+	e.Log(fmt.Sprintf("[Cheat] 强制切换回合到 %s", player.Name))
+
+	e.State.PendingInterrupt = nil
+	e.State.InterruptQueue = nil
+	e.State.ActionQueue = []model.QueuedAction{}
+	e.State.ActionStack = []model.Action{}
+	e.State.CombatStack = []model.CombatRequest{}
+	player.TurnState = model.NewPlayerTurnState()
+
+	skill, ok := e.debugFindSkill(player, skillID)
+	if !ok {
+		return fmt.Errorf("技能不存在: %s", skillID)
 	}
-	if targetStr == "effect" {
-		if len(act.ExtraArgs) < 3 {
-			return fmt.Errorf("用法: cheat effect <pid> <effect_type> <count>")
-		}
-		pid := act.ExtraArgs[0]
-		rawEffect := act.ExtraArgs[1]
-		count, err := strconv.Atoi(act.ExtraArgs[2])
-		if err != nil {
-			return fmt.Errorf("效果数量无效: %s", act.ExtraArgs[2])
-		}
-		player := e.State.Players[pid]
-		if player == nil {
-			return fmt.Errorf("玩家不存在: %s", pid)
-		}
-		effectType, err := debugParseEffectType(rawEffect)
-		if err != nil {
-			return err
-		}
-		e.debugSetEffectCount(player, effectType, count)
-		e.Log(fmt.Sprintf("[Cheat] %s 基础效果 %s 设置为 %d 层", player.Name, effectType, count))
-		return nil
+	e.debugPrepareSkillResources(player, skill)
+	if err := e.debugPrepareSkillCards(player, skill); err != nil {
+		return err
 	}
-	if targetStr == "card_exclusive" {
-		if len(act.ExtraArgs) < 3 {
-			return fmt.Errorf("用法: cheat card_exclusive <pid> <role_id> <skill_id> [count]")
-		}
-		pid := act.ExtraArgs[0]
-		roleID := act.ExtraArgs[1]
-		skillID := act.ExtraArgs[2]
-		count := 1
-		if len(act.ExtraArgs) > 3 {
-			c, err := strconv.Atoi(act.ExtraArgs[3])
-			if err != nil {
-				return fmt.Errorf("数量无效: %s", act.ExtraArgs[3])
-			}
-			count = c
-		}
-		if count <= 0 {
-			return fmt.Errorf("数量必须大于0")
-		}
-		player := e.State.Players[pid]
-		if player == nil {
-			return fmt.Errorf("玩家不存在: %s", pid)
-		}
-		char := e.debugFindCharacter(roleID)
-		if char == nil {
-			return fmt.Errorf("角色不存在: %s", roleID)
-		}
-		var skill *model.SkillDefinition
-		for _, s := range char.Skills {
-			if s.ID == skillID || s.Title == skillID {
-				copySkill := s
-				skill = &copySkill
-				break
-			}
-		}
-		if skill == nil {
-			return fmt.Errorf("角色[%s]不存在该技能: %s", char.Name, skillID)
-		}
-		cards, err := e.debugDrawExclusiveCardsFromStock(char.ID, skill.Title, count)
-		if err != nil {
-			return err
-		}
-		player.Hand = append(player.Hand, cards...)
-		e.Log(fmt.Sprintf("[Cheat] %s 获得 %d 张独有技手牌 [%s·%s]", player.Name, count, char.Name, skill.Title))
-		return nil
-	}
-	if targetStr == "card_element" {
-		if len(act.ExtraArgs) < 2 {
-			return fmt.Errorf("用法: cheat card_element <pid> <element> [count]")
-		}
-		pid := act.ExtraArgs[0]
-		rawElement := act.ExtraArgs[1]
-		count := 1
-		if len(act.ExtraArgs) > 2 {
-			c, err := strconv.Atoi(act.ExtraArgs[2])
-			if err != nil {
-				return fmt.Errorf("数量无效: %s", act.ExtraArgs[2])
-			}
-			count = c
-		}
-		player := e.State.Players[pid]
-		if player == nil {
-			return fmt.Errorf("玩家不存在: %s", pid)
-		}
-		element, err := debugParseElement(rawElement)
-		if err != nil {
-			return err
-		}
-		templates := debugFindCardsByFilter(func(card model.Card) bool {
-			return card.Element == element && (card.Type == model.CardTypeAttack || card.Type == model.CardTypeMagic)
-		})
-		if err := e.debugAddCardsFromTemplates(player, templates, count); err != nil {
-			return err
-		}
-		e.Log(fmt.Sprintf("[Cheat] %s 获得 %d 张%s手牌", player.Name, count, element))
-		return nil
-	}
-	if targetStr == "card_faction" {
-		if len(act.ExtraArgs) < 2 {
-			return fmt.Errorf("用法: cheat card_faction <pid> <faction> [count]")
-		}
-		pid := act.ExtraArgs[0]
-		rawFaction := act.ExtraArgs[1]
-		count := 1
-		if len(act.ExtraArgs) > 2 {
-			c, err := strconv.Atoi(act.ExtraArgs[2])
-			if err != nil {
-				return fmt.Errorf("数量无效: %s", act.ExtraArgs[2])
-			}
-			count = c
-		}
-		player := e.State.Players[pid]
-		if player == nil {
-			return fmt.Errorf("玩家不存在: %s", pid)
-		}
-		faction, err := debugNormalizeFaction(rawFaction)
-		if err != nil {
-			return err
-		}
-		templates := debugFindCardsByFilter(func(card model.Card) bool {
-			return strings.TrimSpace(card.Faction) == faction && (card.Type == model.CardTypeAttack || card.Type == model.CardTypeMagic)
-		})
-		if err := e.debugAddCardsFromTemplates(player, templates, count); err != nil {
-			return err
-		}
-		e.Log(fmt.Sprintf("[Cheat] %s 获得 %d 张%s命格手牌", player.Name, count, faction))
-		return nil
-	}
-	if targetStr == "card_magic" {
-		if len(act.ExtraArgs) < 2 {
-			return fmt.Errorf("用法: cheat card_magic <pid> <card_name> [count]")
-		}
-		pid := act.ExtraArgs[0]
-		cardName := strings.TrimSpace(act.ExtraArgs[1])
-		count := 1
-		if len(act.ExtraArgs) > 2 {
-			c, err := strconv.Atoi(act.ExtraArgs[2])
-			if err != nil {
-				return fmt.Errorf("数量无效: %s", act.ExtraArgs[2])
-			}
-			count = c
-		}
-		player := e.State.Players[pid]
-		if player == nil {
-			return fmt.Errorf("玩家不存在: %s", pid)
-		}
-		if cardName == "" {
-			return fmt.Errorf("法术牌名称不能为空")
-		}
-		templates := debugFindCardsByFilter(func(card model.Card) bool {
-			return card.Type == model.CardTypeMagic && strings.TrimSpace(card.Name) == cardName
-		})
-		if err := e.debugAddCardsFromTemplates(player, templates, count); err != nil {
-			return err
-		}
-		e.Log(fmt.Sprintf("[Cheat] %s 获得 %d 张法术牌 [%s]", player.Name, count, cardName))
-		return nil
-	}
-	if targetStr == "skill" {
-		if len(act.ExtraArgs) < 2 {
-			return fmt.Errorf("用法: cheat skill <pid> [role_id] <skill_id>")
-		}
-		pid := act.ExtraArgs[0]
-		player := e.State.Players[pid]
-		if player == nil {
-			return fmt.Errorf("玩家不存在: %s", pid)
-		}
-
-		roleID := ""
-		skillID := ""
-		if len(act.ExtraArgs) == 2 {
-			skillID = act.ExtraArgs[1]
-		} else {
-			roleID = act.ExtraArgs[1]
-			skillID = act.ExtraArgs[2]
-		}
-
-		if roleID != "" {
-			char := e.debugFindCharacter(roleID)
-			if char == nil {
-				return fmt.Errorf("角色不存在: %s", roleID)
-			}
-			e.debugResetPlayerForRole(player, char)
-		}
-
-		if err := e.forceTurnTo(pid); err != nil {
-			return err
-		}
-		e.Log(fmt.Sprintf("[Cheat] 强制切换回合到 %s", player.Name))
-
-		e.State.PendingInterrupt = nil
-		e.State.InterruptQueue = nil
-		e.State.ActionQueue = []model.QueuedAction{}
-		e.State.ActionStack = []model.Action{}
-		e.State.CombatStack = []model.CombatRequest{}
-		player.TurnState = model.NewPlayerTurnState()
-
-		skill, ok := e.debugFindSkill(player, skillID)
-		if !ok {
-			return fmt.Errorf("技能不存在: %s", skillID)
-		}
-
-		e.debugPrepareSkillResources(player, skill)
-		if err := e.debugPrepareSkillCards(player, skill); err != nil {
-			return err
-		}
-
-		if skill.Type == model.SkillTypeAction {
-			e.Log(fmt.Sprintf("[Cheat] 已准备技能 %s（行动技），请在 UI 手动发动", skill.Title))
-			return nil
-		}
-
-		ctx := e.debugBuildContext(player, skill)
-		if ctx == nil {
-			return fmt.Errorf("无法构建技能上下文")
-		}
-		e.dispatcher.processSkills([]model.SkillDefinition{skill}, ctx)
-		e.Log(fmt.Sprintf("[Cheat] 已触发调试技能 %s", skill.Title))
+	if skill.Type == model.SkillTypeAction {
+		e.Log(fmt.Sprintf("[Cheat] 已准备技能 %s（行动技），请在 UI 手动发动", skill.Title))
 		return nil
 	}
 
+	ctx := e.debugBuildContext(player, skill)
+	if ctx == nil {
+		return fmt.Errorf("无法构建技能上下文")
+	}
+	e.dispatcher.processSkills([]model.SkillDefinition{skill}, ctx)
+	e.Log(fmt.Sprintf("[Cheat] 已触发调试技能 %s", skill.Title))
+	return nil
+}
+
+// 未命中预定义 cheat 子命令时，按“给玩家添加指定名称卡牌”处理。
+func (e *GameEngine) handleCheatAddCardByName(act model.PlayerAction) error {
 	pid := act.TargetID
 	if pid == "" {
 		return fmt.Errorf("未指定玩家ID")
 	}
-	player := e.State.Players[pid]
-	if player == nil {
-		return fmt.Errorf("玩家不存在: %s", pid)
+	player, err := e.getCheatPlayer(pid)
+	if err != nil {
+		return err
 	}
 
 	if len(act.ExtraArgs) == 0 {
@@ -890,20 +902,19 @@ func (e *GameEngine) handleCheat(act model.PlayerAction) error {
 
 	count := 1
 	if len(act.ExtraArgs) > 1 {
-		if c, err := strconv.Atoi(act.ExtraArgs[1]); err == nil {
+		if c, parseErr := strconv.Atoi(act.ExtraArgs[1]); parseErr == nil {
 			count = c
 		}
 	}
 
 	var template *model.Card
-	tempDeck := rules.InitDeck()
-	for _, c := range tempDeck {
+	for _, c := range rules.InitDeck() {
 		if c.Name == cardName {
-			template = &c
+			card := c
+			template = &card
 			break
 		}
 	}
-
 	if template == nil {
 		return fmt.Errorf("未找到卡牌: %s", cardName)
 	}
@@ -913,7 +924,25 @@ func (e *GameEngine) handleCheat(act model.PlayerAction) error {
 		newCard.ID = fmt.Sprintf("cheat-%s-%d-%d", cardName, time.Now().UnixNano(), i)
 		player.Hand = append(player.Hand, newCard)
 	}
-
 	e.Log(fmt.Sprintf("[Cheat] 给 %s 添加了 %d 张 %s", player.Name, count, cardName))
 	return nil
+}
+
+func (e *GameEngine) getCheatPlayer(pid string) (*model.Player, error) {
+	player := e.State.Players[pid]
+	if player == nil {
+		return nil, fmt.Errorf("玩家不存在: %s", pid)
+	}
+	return player, nil
+}
+
+func parseCheatOptionalCount(extraArgs []string, idx int, defaultCount int) (int, error) {
+	if len(extraArgs) <= idx {
+		return defaultCount, nil
+	}
+	count, err := strconv.Atoi(extraArgs[idx])
+	if err != nil {
+		return 0, fmt.Errorf("数量无效: %s", extraArgs[idx])
+	}
+	return count, nil
 }

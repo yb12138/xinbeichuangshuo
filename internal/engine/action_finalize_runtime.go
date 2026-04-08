@@ -1,11 +1,5 @@
 package engine
 
-type actionFinalizeHook func(e *GameEngine) bool
-
-var actionFinalizeIdleHooks = []actionFinalizeHook{
-	actionFinalizeBloodPriestessBleedHook,
-}
-
 func (e *GameEngine) runActionFinalizeHooksIfIdle() bool {
 	if e == nil || e.actionSummary == nil || !e.actionSummary.active {
 		return false
@@ -13,13 +7,12 @@ func (e *GameEngine) runActionFinalizeHooksIfIdle() bool {
 	if !e.isActionFinalizeIdle() {
 		return false
 	}
-	triggered := false
-	for _, hook := range actionFinalizeIdleHooks {
-		if hook != nil && hook(e) {
-			triggered = true
-		}
-	}
-	return triggered
+	return e.runTimingOnActionEndFinalizeEffects()
+}
+
+// runTimingOnActionEndFinalizeEffects 在行动彻底收尾后按固定顺序执行收尾规则。
+func (e *GameEngine) runTimingOnActionEndFinalizeEffects() bool {
+	return e.runTimingOnGameStartHooks(nil, timingOnGameStartFinalizeIdle)
 }
 
 func actionFinalizeBloodPriestessBleedHook(e *GameEngine) bool {

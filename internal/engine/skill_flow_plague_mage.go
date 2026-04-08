@@ -115,20 +115,23 @@ func (e *GameEngine) buildPlagueMageChoicePrompt(choiceType, playerID string, pl
 
 func (e *GameEngine) handlePlagueMageChoiceInput(_ string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
 	choiceType, _ := ctxData["choice_type"].(string)
-	switch choiceType {
-	case "plague_death_touch_element":
-		return true, e.handlePlagueDeathTouchElementChoice(ctxData, selectionIndex)
-	case "plague_death_touch_x":
-		return true, e.handlePlagueDeathTouchXChoice(ctxData, selectionIndex)
-	case "plague_death_touch_y":
-		return true, e.handlePlagueDeathTouchYChoice(ctxData, selectionIndex)
-	case "plague_death_touch_cards":
-		return true, e.handlePlagueDeathTouchCardsChoice(ctxData, selectionIndex)
-	case "plague_death_touch_target":
-		return true, e.handlePlagueDeathTouchTargetChoice(ctxData, selectionIndex)
-	default:
-		return false, nil
-	}
+	return dispatchChoiceInputByType(choiceType, selectionIndex, ctxData, map[string]skillChoiceInputHandler{
+		"plague_death_touch_element": func(idx int, data map[string]interface{}) error {
+			return e.handlePlagueDeathTouchElementChoice(data, idx)
+		},
+		"plague_death_touch_x": func(idx int, data map[string]interface{}) error {
+			return e.handlePlagueDeathTouchXChoice(data, idx)
+		},
+		"plague_death_touch_y": func(idx int, data map[string]interface{}) error {
+			return e.handlePlagueDeathTouchYChoice(data, idx)
+		},
+		"plague_death_touch_cards": func(idx int, data map[string]interface{}) error {
+			return e.handlePlagueDeathTouchCardsChoice(data, idx)
+		},
+		"plague_death_touch_target": func(idx int, data map[string]interface{}) error {
+			return e.handlePlagueDeathTouchTargetChoice(data, idx)
+		},
+	})
 }
 
 func (e *GameEngine) handlePlagueDeathTouchElementChoice(ctxData map[string]interface{}, selectionIndex int) error {

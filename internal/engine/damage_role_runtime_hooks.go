@@ -1,51 +1,31 @@
 package engine
 
-import "starcup-engine/internal/model"
+import (
+	"fmt"
+	"strings"
+
+	"starcup-engine/internal/model"
+)
 
 type pendingDamageAttackInitHook func(e *GameEngine, pd *model.PendingDamage, attacker *model.Player, victim *model.Player)
 type pendingDamageBeforeTakenHook func(e *GameEngine, pd *model.PendingDamage) bool
+type pendingDamageAfterTakenHook func(e *GameEngine, pd *model.PendingDamage) bool
 type pendingDamageHealResistRule func(e *GameEngine, pd *model.PendingDamage, target *model.Player) bool
+type pendingDamageBeforeApplyHook func(e *GameEngine, pd *model.PendingDamage) bool
 type pendingDamageHealCapHook func(e *GameEngine, pd *model.PendingDamage, target *model.Player, maxHeal int) int
 type pendingDamageAfterApplyHook func(e *GameEngine, pd *model.PendingDamage, target *model.Player)
+type pendingDamageAfterResolvedHook func(e *GameEngine, pd *model.PendingDamage) bool
 
-var pendingDamageAttackInitHooks = []pendingDamageAttackInitHook{
-	pendingDamageHeroRoarMissArmHook,
-	pendingDamageFighterChargeMissArmHook,
-}
-
-var pendingDamageBeforeTakenHooks = []pendingDamageBeforeTakenHook{
-	pendingDamageHealResistGateHook,
-	pendingDamageSoulLinkTransferHook,
-}
-
-var pendingDamageHealResistRules = []pendingDamageHealResistRule{
-	pendingDamageRoseCourtyardHealResistRule,
-	pendingDamageCrimsonKnightHealResistRule,
-	pendingDamagePlagueMageHealResistRule,
-}
-
-var pendingDamageHealCapHooks = []pendingDamageHealCapHook{
-	pendingDamagePriestHealCapHook,
-}
-
-var pendingDamageAfterApplyHooks = []pendingDamageAfterApplyHook{
-	pendingDamageResetCrimsonSwordSpiritLocksHook,
-	pendingDamageResetBlazeWitchLocksHook,
-}
-
-func (e *GameEngine) runPendingDamageAttackInitHooks(pd *model.PendingDamage, attacker *model.Player, victim *model.Player) {
-	for _, hook := range pendingDamageAttackInitHooks {
-		if hook != nil {
-			hook(e, pd, attacker, victim)
-		}
+// applyTimingOnAttackDeclaredPendingDamageInitRules 在攻击宣言后初始化伤害运行态。
+func (e *GameEngine) applyTimingOnAttackDeclaredPendingDamageInitRules(pd *model.PendingDamage, attacker *model.Player, victim *model.Player) {
+	for _, hook := range e.attackDeclaredPendingDamageInitOps {
+		hook(e, pd, attacker, victim)
 	}
 }
 
-func (e *GameEngine) runPendingDamageBeforeTakenHooks(pd *model.PendingDamage) bool {
-	for _, hook := range pendingDamageBeforeTakenHooks {
-		if hook == nil {
-			continue
-		}
+// applyTimingOnDamageCalculatedBeforeTakenRules 在承伤触发前处理伤害计算阶段规则。
+func (e *GameEngine) applyTimingOnDamageCalculatedBeforeTakenRules(pd *model.PendingDamage) bool {
+	for _, hook := range e.damageCalculatedBeforeTakenHooks {
 		if hook(e, pd) {
 			return true
 		}
@@ -53,12 +33,30 @@ func (e *GameEngine) runPendingDamageBeforeTakenHooks(pd *model.PendingDamage) b
 	return false
 }
 
-func (e *GameEngine) applyPendingDamageHealCapHooks(pd *model.PendingDamage, target *model.Player, maxHeal int) int {
-	limited := maxHeal
-	for _, hook := range pendingDamageHealCapHooks {
-		if hook == nil {
-			continue
+// applyTimingOnDamageTakenAfterTakenRules 在承伤触发后处理后续规则。
+func (e *GameEngine) applyTimingOnDamageTakenAfterTakenRules(pd *model.PendingDamage) bool {
+	for _, hook := range e.damageTakenAfterTakenHooks {
+		if hook(e, pd) {
+			return true
 		}
+	}
+	return false
+}
+
+// applyTimingOnDamageAppliedBeforeApplyRules 在真正扣血前处理应用前规则。
+func (e *GameEngine) applyTimingOnDamageAppliedBeforeApplyRules(pd *model.PendingDamage) bool {
+	for _, hook := range e.damageAppliedBeforeApplyHooks {
+		if hook(e, pd) {
+			return true
+		}
+	}
+	return false
+}
+
+// applyTimingOnDamageCalculatedHealCapRules 在治疗抵伤额度计算时应用上限规则。
+func (e *GameEngine) applyTimingOnDamageCalculatedHealCapRules(pd *model.PendingDamage, target *model.Player, maxHeal int) int {
+	limited := maxHeal
+	for _, hook := range e.damageCalculatedHealCapHooks {
 		limited = hook(e, pd, target, limited)
 		if limited < 0 {
 			limited = 0
@@ -67,12 +65,21 @@ func (e *GameEngine) applyPendingDamageHealCapHooks(pd *model.PendingDamage, tar
 	return limited
 }
 
-func (e *GameEngine) runPendingDamageAfterApplyHooks(pd *model.PendingDamage, target *model.Player) {
-	for _, hook := range pendingDamageAfterApplyHooks {
-		if hook != nil {
-			hook(e, pd, target)
+// applyTimingOnDamageTakenAfterApplyRules 在伤害应用后执行后置清理。
+func (e *GameEngine) applyTimingOnDamageTakenAfterApplyRules(pd *model.PendingDamage, target *model.Player) {
+	for _, hook := range e.damageTakenAfterApplyHooks {
+		hook(e, pd, target)
+	}
+}
+
+// applyTimingOnDamageTakenAfterResolvedRules 在整次伤害出队后处理结算后规则。
+func (e *GameEngine) applyTimingOnDamageTakenAfterResolvedRules(pd *model.PendingDamage) bool {
+	for _, hook := range e.damageTakenAfterResolvedHooks {
+		if hook(e, pd) {
+			return true
 		}
 	}
+	return false
 }
 
 func pendingDamageHeroRoarMissArmHook(e *GameEngine, pd *model.PendingDamage, attacker *model.Player, _ *model.Player) {
@@ -100,9 +107,27 @@ func pendingDamageSoulLinkTransferHook(e *GameEngine, pd *model.PendingDamage) b
 	return e.maybeTriggerSoulLinkTransfer(pd)
 }
 
+// 剑帝命中后置：承伤触发后、治疗抵伤前执行命中分支。
+// 使用 AttackPostHitEffectsDone 标记确保同一次伤害只处理一次。
+func pendingDamageSwordEmperorAfterTakenHook(e *GameEngine, pd *model.PendingDamage) bool {
+	if e == nil || pd == nil || pd.AttackPostHitEffectsDone || pd.AttackMissResolved || !strings.EqualFold(pd.DamageType, "Attack") {
+		return false
+	}
+	e.resolveSwordEmperorAttackHitAftermath(pd)
+	pd.AttackPostHitEffectsDone = true
+	return false
+}
+
+// 蝶舞者承伤前响应：治疗抵伤处理后、正式扣血前的统一插入点。
+func pendingDamageButterflyBeforeApplyHook(e *GameEngine, pd *model.PendingDamage) bool {
+	if e == nil || pd == nil {
+		return false
+	}
+	return e.maybeTriggerButterflyDamageResponses(pd)
+}
+
 // pendingDamageHealResistGateHook 统一承载“治疗抵伤门禁”的角色技能规则。
 // 这类规则统一通过修改 PendingDamage 标记（IgnoreHeal）生效。
-// 具体规则由 pendingDamageHealResistRules 注册，避免把角色分支硬编码在入口函数。
 func pendingDamageHealResistGateHook(e *GameEngine, pd *model.PendingDamage) bool {
 	if e == nil || pd == nil {
 		return false
@@ -114,13 +139,21 @@ func pendingDamageHealResistGateHook(e *GameEngine, pd *model.PendingDamage) boo
 	if target == nil {
 		return false
 	}
-	for _, rule := range pendingDamageHealResistRules {
-		if rule == nil {
-			continue
-		}
+	if e.dispatchTimingOnDamageCalculated(timingOnDamageCalculatedContext{
+		Op:            timingOnDamageCalculatedHealResist,
+		PendingDamage: pd,
+		Target:        target,
+	}).IgnoreHeal {
+		pd.IgnoreHeal = true
+	}
+	return false
+}
+
+// applyTimingOnDamageCalculatedHealResistRules 在伤害计算阶段判定治疗抵伤门禁。
+func (e *GameEngine) applyTimingOnDamageCalculatedHealResistRules(pd *model.PendingDamage, target *model.Player) bool {
+	for _, rule := range e.damageCalculatedHealResistRules {
 		if rule(e, pd, target) {
-			pd.IgnoreHeal = true
-			break
+			return true
 		}
 	}
 	return false
@@ -167,4 +200,24 @@ func pendingDamageResetBlazeWitchLocksHook(_ *GameEngine, _ *model.PendingDamage
 	}
 	target.Tokens["bw_substitute_lock"] = 0
 	target.Tokens["bw_mana_inversion_lock"] = 0
+}
+
+// 封印师五系封印：伤害应用后结算封印牌移除。
+// 该逻辑由封印技能在 PendingDamage 中写入 EffectTypeToRemove 标记触发，
+// 不在伤害主流程硬编码处理。
+func pendingDamageElementalSealCleanupHook(e *GameEngine, pd *model.PendingDamage, target *model.Player) {
+	if e == nil || pd == nil || target == nil || !model.IsElementalSealEffect(pd.EffectTypeToRemove) {
+		return
+	}
+	if !e.RemoveFieldCard(target.ID, pd.EffectTypeToRemove) {
+		return
+	}
+	e.Log(fmt.Sprintf("[Seal] %s 的 %s 伤害结算后被移除", target.Name, pd.EffectTypeToRemove))
+}
+
+func pendingDamageRolePostResolvedHook(e *GameEngine, pd *model.PendingDamage) bool {
+	if e == nil || pd == nil {
+		return false
+	}
+	return e.handlePostDamageResolved(pd)
 }

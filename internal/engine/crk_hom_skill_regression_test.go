@@ -118,7 +118,7 @@ func TestCrimsonKnightHotBlood_AutoReleaseOnTurnEnd(t *testing.T) {
 	}
 }
 
-func TestCrimsonKnightHotBlood_NextTurnFallbackStillReleases(t *testing.T) {
+func TestCrimsonKnightHotBlood_NextTurnNoFallbackRelease(t *testing.T) {
 	g := NewGameEngine(noopObserver{})
 	if err := g.AddPlayer("p1", "Crimson", "crimson_knight", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -133,14 +133,14 @@ func TestCrimsonKnightHotBlood_NextTurnFallbackStillReleases(t *testing.T) {
 	p1.Form = model.FormCrimsonKnightHotBlooded
 	g.State.CurrentTurn = 0
 
-	// 模拟“跳过 PhaseTurnEnd 直接调用 NextTurn”的路径，仍应触发回合结束退形态。
+	// 规则约束：回合结束退形态只在 TurnEnd 固定时序触发，NextTurn 不再做兜底处理。
 	g.NextTurn()
 
-	if got := p1.Form; got != "" {
-		t.Fatalf("expected hot form cleared in NextTurn fallback, got %q", got)
+	if got := p1.Form; got != model.FormCrimsonKnightHotBlooded {
+		t.Fatalf("expected hot form unchanged when bypassing TurnEnd, got %q", got)
 	}
-	if got := p1.Heal; got != 2 {
-		t.Fatalf("expected heal +2 in NextTurn fallback, got %d", got)
+	if got := p1.Heal; got != 0 {
+		t.Fatalf("expected no heal when bypassing TurnEnd, got %d", got)
 	}
 }
 

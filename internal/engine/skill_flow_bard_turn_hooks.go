@@ -94,7 +94,7 @@ func (e *GameEngine) tryTriggerBardDescentAfterMagicDamage(pd *model.PendingDama
 	if hasBardEternalPrisonerForm(source) || source.TurnState.UsedSkillCounts["bd_descent"] > 0 {
 		return false
 	}
-	if bardMaxSameElementCount(source) < 2 {
+	if maxSameElementCount(source) < 2 {
 		return false
 	}
 	e.PushInterrupt(&model.Interrupt{

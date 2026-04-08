@@ -27,12 +27,9 @@ func (e *GameEngine) buildArbiterChoicePrompt(choiceType, playerID string, _ *mo
 
 func (e *GameEngine) handleArbiterChoiceInput(_ string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
 	choiceType, _ := ctxData["choice_type"].(string)
-	switch choiceType {
-	case "arbiter_balance_mode":
-		return true, e.handleArbiterBalanceChoice(selectionIndex, ctxData)
-	default:
-		return false, nil
-	}
+	return dispatchChoiceInputByType(choiceType, selectionIndex, ctxData, map[string]skillChoiceInputHandler{
+		"arbiter_balance_mode": e.handleArbiterBalanceChoice,
+	})
 }
 
 func (e *GameEngine) handleArbiterBalanceChoice(selectionIndex int, ctxData map[string]interface{}) error {

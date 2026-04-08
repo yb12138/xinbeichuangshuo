@@ -362,6 +362,83 @@ func (e *GameEngine) resolveOnmyojiDarkRitualTarget(ctxData map[string]interface
 
 func (e *GameEngine) handleOnmyojiChoiceInput(selectionIndex int, ctxData map[string]interface{}) (bool, error) {
 	choiceType, _ := ctxData["choice_type"].(string)
+	return dispatchChoiceRouteByType(choiceType, selectionIndex, ctxData, map[string]skillChoiceRouteHandler{
+		"onmyoji_life_barrier_mode":           e.handleOnmyojiChoiceInputByType,
+		"onmyoji_life_barrier_release_combo":  e.handleOnmyojiChoiceInputByType,
+		"onmyoji_life_barrier_support_target": e.handleOnmyojiChoiceInputByType,
+		"onmyoji_life_barrier_release_target": e.handleOnmyojiChoiceInputByType,
+		"onmyoji_dark_ritual_target":          e.handleOnmyojiChoiceInputByType,
+		"onmyoji_binding_confirm":             e.handleOnmyojiChoiceInputByType,
+		"onmyoji_yinyang_confirm":             e.handleOnmyojiChoiceInputByType,
+		"onmyoji_yinyang_card":                e.handleOnmyojiChoiceInputByType,
+		"onmyoji_yinyang_counter_target":      e.handleOnmyojiChoiceInputByType,
+		"onmyoji_binding_card":                e.handleOnmyojiChoiceInputByType,
+		"onmyoji_binding_counter_target":      e.handleOnmyojiChoiceInputByType,
+	})
+}
+
+func (e *GameEngine) handleOnmyojiChoiceInputByType(selectionIndex int, ctxData map[string]interface{}) (bool, error) {
+	choiceType, _ := ctxData["choice_type"].(string)
+	return dispatchChoiceRouteByType(onmyojiChoiceFlow(choiceType), selectionIndex, ctxData, map[string]skillChoiceRouteHandler{
+		"life_barrier": e.handleOnmyojiLifeBarrierFlow,
+		"dark_ritual":  e.handleOnmyojiDarkRitualFlow,
+		"binding":      e.handleOnmyojiBindingFlow,
+		"yinyang":      e.handleOnmyojiYinYangFlow,
+	})
+}
+
+func onmyojiChoiceFlow(choiceType string) string {
+	switch choiceType {
+	case "onmyoji_life_barrier_mode", "onmyoji_life_barrier_release_combo", "onmyoji_life_barrier_support_target", "onmyoji_life_barrier_release_target":
+		return "life_barrier"
+	case "onmyoji_dark_ritual_target":
+		return "dark_ritual"
+	case "onmyoji_binding_confirm", "onmyoji_binding_card", "onmyoji_binding_counter_target":
+		return "binding"
+	case "onmyoji_yinyang_confirm", "onmyoji_yinyang_card", "onmyoji_yinyang_counter_target":
+		return "yinyang"
+	default:
+		return ""
+	}
+}
+
+func (e *GameEngine) handleOnmyojiLifeBarrierFlow(selectionIndex int, ctxData map[string]interface{}) (bool, error) {
+	choiceType, _ := ctxData["choice_type"].(string)
+	return dispatchChoiceRouteByType(choiceType, selectionIndex, ctxData, map[string]skillChoiceRouteHandler{
+		"onmyoji_life_barrier_mode":           e.handleOnmyojiChoiceInputByTypeLegacy,
+		"onmyoji_life_barrier_release_combo":  e.handleOnmyojiChoiceInputByTypeLegacy,
+		"onmyoji_life_barrier_support_target": e.handleOnmyojiChoiceInputByTypeLegacy,
+		"onmyoji_life_barrier_release_target": e.handleOnmyojiChoiceInputByTypeLegacy,
+	})
+}
+
+func (e *GameEngine) handleOnmyojiDarkRitualFlow(selectionIndex int, ctxData map[string]interface{}) (bool, error) {
+	choiceType, _ := ctxData["choice_type"].(string)
+	return dispatchChoiceRouteByType(choiceType, selectionIndex, ctxData, map[string]skillChoiceRouteHandler{
+		"onmyoji_dark_ritual_target": e.handleOnmyojiChoiceInputByTypeLegacy,
+	})
+}
+
+func (e *GameEngine) handleOnmyojiBindingFlow(selectionIndex int, ctxData map[string]interface{}) (bool, error) {
+	choiceType, _ := ctxData["choice_type"].(string)
+	return dispatchChoiceRouteByType(choiceType, selectionIndex, ctxData, map[string]skillChoiceRouteHandler{
+		"onmyoji_binding_confirm":        e.handleOnmyojiChoiceInputByTypeLegacy,
+		"onmyoji_binding_card":           e.handleOnmyojiChoiceInputByTypeLegacy,
+		"onmyoji_binding_counter_target": e.handleOnmyojiChoiceInputByTypeLegacy,
+	})
+}
+
+func (e *GameEngine) handleOnmyojiYinYangFlow(selectionIndex int, ctxData map[string]interface{}) (bool, error) {
+	choiceType, _ := ctxData["choice_type"].(string)
+	return dispatchChoiceRouteByType(choiceType, selectionIndex, ctxData, map[string]skillChoiceRouteHandler{
+		"onmyoji_yinyang_confirm":        e.handleOnmyojiChoiceInputByTypeLegacy,
+		"onmyoji_yinyang_card":           e.handleOnmyojiChoiceInputByTypeLegacy,
+		"onmyoji_yinyang_counter_target": e.handleOnmyojiChoiceInputByTypeLegacy,
+	})
+}
+
+func (e *GameEngine) handleOnmyojiChoiceInputByTypeLegacy(selectionIndex int, ctxData map[string]interface{}) (bool, error) {
+	choiceType, _ := ctxData["choice_type"].(string)
 	switch choiceType {
 	case "onmyoji_life_barrier_mode":
 		userID, _ := ctxData["user_id"].(string)

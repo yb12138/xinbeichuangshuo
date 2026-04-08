@@ -6,52 +6,7 @@ import (
 	"starcup-engine/internal/model"
 )
 
-type playerPhaseHook func(e *GameEngine, player *model.Player) bool
-
-var turnBeforeStartPhaseHooks = []playerPhaseHook{
-	turnBeforeStartButterflyDancerWitherExpiryHook,
-}
-
-var turnStartPhaseHooks = []playerPhaseHook{
-	startupArbiterTurnResetHook,
-	startupHolyBowTurnResetHook,
-	startupBardRousingHook,
-	turnStartBloodPriestessBleedHook,
-	turnStartArbiterJudgmentUpkeepHook,
-	turnStartValkyrieMilitaryGloryHook,
-}
-
-var actionStartPhaseHooks = []playerPhaseHook{
-	startupBlazeWitchFlameReleaseHook,
-	startupAssassinStealthReleaseHook,
-	startupMagicSwordsmanShadowReleaseHook,
-	startupHeroExhaustionReleaseHook,
-	startupArbiterForcedDoomsdayHook,
-	startupHeroTauntHook,
-}
-
-var turnEndPreExtraActionHooks = []playerPhaseHook{
-	turnEndBeastSamuraiHook,
-	turnEndFighterHook,
-	turnEndElfArcherHook,
-	turnEndPlagueMageHook,
-	turnEndMoonGoddessHook,
-	turnEndBardHook,
-	turnEndCrimsonSwordSpiritHook,
-	turnEndCrimsonKnightHook,
-	turnEndWarHomunculusHook,
-	turnEndOnmyojiHook,
-}
-
-var turnEndFinalHooks = []playerPhaseHook{
-	turnEndHolyBowHook,
-	turnEndHolyLancerHook,
-}
-
-var turnProgressionFallbackHooks = []playerPhaseHook{
-	turnFallbackCrimsonKnightHook,
-	turnFallbackFighterHook,
-}
+type turnTimingHook func(e *GameEngine, player *model.Player) bool
 
 func ensurePlayerTokensMap(player *model.Player) {
 	if player != nil && player.Tokens == nil {
@@ -59,8 +14,77 @@ func ensurePlayerTokensMap(player *model.Player) {
 	}
 }
 
-func (e *GameEngine) runPlayerPhaseHooks(player *model.Player, hooks []playerPhaseHook) bool {
-	for _, hook := range hooks {
+type timingOnTurnStartStage int
+
+const (
+	timingOnTurnStartBeforeStart timingOnTurnStartStage = iota
+	timingOnTurnStartMain
+)
+
+type timingOnTurnEndStage int
+
+const (
+	timingOnTurnEndPreExtra timingOnTurnEndStage = iota
+	timingOnTurnEndFinal
+)
+
+// runTimingOnTurnStartStageHooks 统一处理 TimingOnTurnStart 阶段规则。
+func (e *GameEngine) runTimingOnTurnStartStageHooks(player *model.Player, stage timingOnTurnStartStage) bool {
+	switch stage {
+	case timingOnTurnStartBeforeStart:
+		for _, hook := range e.turnStartBeforeStartHooks {
+			if hook(e, player) {
+				return true
+			}
+		}
+		return false
+	case timingOnTurnStartMain:
+		for _, hook := range e.turnStartMainHooks {
+			if hook(e, player) {
+				return true
+			}
+		}
+		return false
+	default:
+		panic(fmt.Sprintf("unregistered TimingOnTurnStart stage: %d", stage))
+	}
+}
+
+// runTimingOnTurnEndStageHooks 统一处理 TimingOnTurnEnd 阶段规则。
+func (e *GameEngine) runTimingOnTurnEndStageHooks(player *model.Player, stage timingOnTurnEndStage) bool {
+	switch stage {
+	case timingOnTurnEndPreExtra:
+		for _, hook := range e.turnEndPreExtraHooks {
+			if hook(e, player) {
+				return true
+			}
+		}
+		return false
+	case timingOnTurnEndFinal:
+		for _, hook := range e.turnEndFinalHooks {
+			if hook(e, player) {
+				return true
+			}
+		}
+		return false
+	default:
+		panic(fmt.Sprintf("unregistered TimingOnTurnEnd stage: %d", stage))
+	}
+}
+
+// runTimingOnTurnStartBeforeStartHooks 回合开始前（TurnBeforeStart）固定结算点。
+func (e *GameEngine) runTimingOnTurnStartBeforeStartHooks(player *model.Player) bool {
+	return e.runTimingOnTurnStartStageHooks(player, timingOnTurnStartBeforeStart)
+}
+
+// runTimingOnTurnStartHooks 回合开始（TurnStart）固定结算点。
+func (e *GameEngine) runTimingOnTurnStartHooks(player *model.Player) bool {
+	return e.runTimingOnTurnStartStageHooks(player, timingOnTurnStartMain)
+}
+
+// runTimingBeforeActionExecuteHooks 行动开始（ActionStart）固定结算点。
+func (e *GameEngine) runTimingBeforeActionExecuteHooks(player *model.Player) bool {
+	for _, hook := range e.beforeActionExecuteHooks {
 		if hook(e, player) {
 			return true
 		}
@@ -68,8 +92,14 @@ func (e *GameEngine) runPlayerPhaseHooks(player *model.Player, hooks []playerPha
 	return false
 }
 
-func (e *GameEngine) runTurnProgressionFallbackHooks(player *model.Player) {
-	e.runPlayerPhaseHooks(player, turnProgressionFallbackHooks)
+// runTimingOnTurnEndPreExtraHooks 回合结束前置结算（额外行动判定前）。
+func (e *GameEngine) runTimingOnTurnEndPreExtraHooks(player *model.Player) bool {
+	return e.runTimingOnTurnEndStageHooks(player, timingOnTurnEndPreExtra)
+}
+
+// runTimingOnTurnEndFinalHooks 回合结束最终结算点。
+func (e *GameEngine) runTimingOnTurnEndFinalHooks(player *model.Player) bool {
+	return e.runTimingOnTurnEndStageHooks(player, timingOnTurnEndFinal)
 }
 
 func startupBlazeWitchFlameReleaseHook(e *GameEngine, player *model.Player) bool {

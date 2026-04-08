@@ -97,7 +97,7 @@ func (e *GameEngine) driveTurnBeforeStartStage(player *model.Player) driveOutcom
 		return driveUnhandled
 	}
 
-	if e.runPlayerPhaseHooks(player, turnBeforeStartPhaseHooks) {
+	if e.runTimingOnTurnStartBeforeStartHooks(player) {
 		if e.State.PendingInterrupt != nil {
 			return driveStop
 		}
@@ -114,7 +114,7 @@ func (e *GameEngine) driveBeforeActionStage(currentPid string, player *model.Pla
 	}
 
 	// 回合开始前先按固定顺序结算基础效果 hook（如中毒、五系束缚、虚弱）。
-	if e.runPlayerPhaseHooks(player, beforeActionPhaseHooks) {
+	if e.runTimingOnBeforeActionStageHooks(player, timingOnBeforeActionResolveField) {
 		if e.State.PendingInterrupt != nil {
 			return driveStop
 		}
@@ -174,7 +174,7 @@ func (e *GameEngine) driveTurnStartStage(currentPid string, player *model.Player
 		return driveContinueLoop
 	}
 
-	if e.runPlayerPhaseHooks(player, turnStartPhaseHooks) {
+	if e.runTimingOnTurnStartHooks(player) {
 		if e.State.PendingInterrupt != nil {
 			return driveStop
 		}
@@ -196,7 +196,7 @@ func (e *GameEngine) driveActionStartStage(currentPid string, player *model.Play
 		return driveUnhandled
 	}
 
-	if e.runPlayerPhaseHooks(player, actionStartPhaseHooks) {
+	if e.runTimingOnBeforeActionStageHooks(player, timingOnBeforeActionResolveActionStart) {
 		if e.State.PendingInterrupt != nil {
 			return driveStop
 		}
@@ -284,95 +284,29 @@ func (e *GameEngine) driveBeforeActionPhase(currentPid string, player *model.Pla
 
 func (e *GameEngine) driveCombatInteractionPhase(currentPid string, player *model.Player) driveOutcome {
 	e.setCombatStage(model.CombatStageHitCheck)
-	// 6. 战斗交互阶段（等待响应）
-	if len(e.State.CombatStack) == 0 {
-		e.Log("[Error] PhaseCombatInteraction: 战斗栈为空")
+	combatReq, target, attacker, ok := e.peekCombatInteractionRequest()
+	if !ok {
 		return driveStop
 	}
-
-	// 查看栈顶战斗请求
-	idx := len(e.State.CombatStack) - 1
-	combatReq := &e.State.CombatStack[idx]
-	target := e.State.Players[combatReq.TargetID]
-
-	if target == nil {
-		e.Log("[Error] PhaseCombatInteraction: 目标玩家不存在")
+	if e.dispatchTimingOnHitCheck(timingOnHitCheckContext{
+		Op:        timingOnHitCheckCombatInteraction,
+		CombatReq: combatReq,
+	}).Stop {
 		return driveStop
 	}
-
-	for _, hook := range combatInteractionHooks {
-		if hook != nil && hook(e, combatReq) {
-			return driveStop
-		}
-	}
-
-	// 如果强制命中，直接结算伤害
-	if combatReq.IsForcedHit {
-		e.Log("[Combat] 攻击强制命中！跳过响应阶段，直接结算...")
-		e.clearCombatStack()
-		e.AddPendingDamageFront(model.PendingDamage{
-			SourceID:      combatReq.AttackerID,
-			TargetID:      combatReq.TargetID,
-			Damage:        combatReq.Card.Damage,
-			DamageType:    "Attack",
-			Card:          combatReq.Card,
-			IsCounter:     combatReq.IsCounter,
-			IgnoreShield:  combatReq.IgnoreShield,
-			InterceptTags: model.CloneCombatInterceptTags(combatReq.InterceptTags),
-		})
-		e.setReturnPoint(model.TurnStageActionEnd)
-		e.enterDamageResolution(nil)
+	if e.resolveForcedHitCombat(combatReq) {
 		return driveContinueLoop
 	}
 
-	// 圣盾改为“承受伤害(take)时”再触发，先给玩家应战/防御的选择机会。
 	shieldFallbackReady := e.hasUsableShieldForCombat(target, *combatReq)
+	counterTargets := e.buildCombatCounterTargets(combatReq.AttackerID)
+	options := e.buildCombatResponseOptions(combatReq, shieldFallbackReady, counterTargets)
+	hints := e.buildCombatInteractionHints(*combatReq, shieldFallbackReady)
 
-	// 应战反弹目标：攻击方的队友（不含攻击者本人）
-	var counterTargets []string
-	attacker := e.State.Players[combatReq.AttackerID]
-	if attacker != nil {
-		for pid, p := range e.State.Players {
-			if p.Camp == attacker.Camp && pid != combatReq.AttackerID {
-				counterTargets = append(counterTargets, pid)
-			}
-		}
-	}
 	attackerRole := combatReq.AttackerID
 	if attacker != nil {
 		attackerRole = attacker.Name
 	}
-
-	// 通知目标玩家选择响应方式（无圣盾时正常选项）
-	var options []model.PromptOption
-	// 暗灭/暗影抗拒等交互策略在 combatInteractionHooks 中统一处理。
-	noHolyDefend := combatReq.HasInterceptTag(model.CombatInterceptIgnoreTargetHoly)
-	takeLabel := "承受伤害"
-	if shieldFallbackReady {
-		takeLabel = "承受（将触发圣盾）"
-	}
-	if combatReq.CanBeResponded {
-		options = []model.PromptOption{{ID: "take", Label: takeLabel}}
-		if !noHolyDefend {
-			options = append(options, model.PromptOption{ID: "defend", Label: "防御"})
-		}
-		if len(counterTargets) > 0 {
-			options = append(options, model.PromptOption{ID: "counter", Label: "应战"})
-		}
-	} else {
-		options = []model.PromptOption{{ID: "take", Label: takeLabel}}
-		if !noHolyDefend {
-			options = append(options, model.PromptOption{ID: "defend", Label: "防御"})
-		}
-	}
-	hints := e.buildCombatEffectHints(*combatReq, attacker)
-	if shieldFallbackReady {
-		hints = append(hints, "你身上有【圣盾】：若本次选择承受伤害，将优先消耗圣盾并抵挡本次攻击。")
-	}
-	if noHolyDefend {
-		hints = append(hints, "本次攻击处于【一击无念】劫持中，不能使用【圣光】防御。")
-	}
-
 	prompt := &model.Prompt{
 		Type:             model.PromptConfirm,
 		PlayerID:         combatReq.TargetID,
@@ -386,9 +320,102 @@ func (e *GameEngine) driveCombatInteractionPhase(currentPid string, player *mode
 			combatReq.Card.Name),
 		Options: options,
 	}
-
 	e.Notify(model.EventAskInput, "请选择响应方式", prompt)
-	return driveStop // 等待用户输入
+	return driveStop
+}
+
+func (e *GameEngine) peekCombatInteractionRequest() (*model.CombatRequest, *model.Player, *model.Player, bool) {
+	if len(e.State.CombatStack) == 0 {
+		e.Log("[Error] PhaseCombatInteraction: 战斗栈为空")
+		return nil, nil, nil, false
+	}
+	combatReq := &e.State.CombatStack[len(e.State.CombatStack)-1]
+	target := e.State.Players[combatReq.TargetID]
+	if target == nil {
+		e.Log("[Error] PhaseCombatInteraction: 目标玩家不存在")
+		return nil, nil, nil, false
+	}
+	attacker := e.State.Players[combatReq.AttackerID]
+	return combatReq, target, attacker, true
+}
+
+func (e *GameEngine) resolveForcedHitCombat(combatReq *model.CombatRequest) bool {
+	if !combatReq.IsForcedHit {
+		return false
+	}
+	e.Log("[Combat] 攻击强制命中！跳过响应阶段，直接结算...")
+	e.clearCombatStack()
+	e.AddPendingDamageFront(model.PendingDamage{
+		SourceID:      combatReq.AttackerID,
+		TargetID:      combatReq.TargetID,
+		Damage:        combatReq.Card.Damage,
+		DamageType:    "Attack",
+		Card:          combatReq.Card,
+		IsCounter:     combatReq.IsCounter,
+		IgnoreShield:  combatReq.IgnoreShield,
+		InterceptTags: model.CloneCombatInterceptTags(combatReq.InterceptTags),
+	})
+	e.setReturnPoint(model.TurnStageActionEnd)
+	e.enterDamageResolution(nil)
+	return true
+}
+
+func (e *GameEngine) canUseHolyDefend(combatReq *model.CombatRequest) bool {
+	return combatReq != nil && !combatReq.HasInterceptTag(model.CombatInterceptIgnoreTargetHoly)
+}
+
+func (e *GameEngine) canUseCounter(combatReq *model.CombatRequest) bool {
+	return combatReq != nil && combatReq.CanBeResponded
+}
+
+func (e *GameEngine) buildCombatCounterTargets(attackerID string) []string {
+	attacker := e.State.Players[attackerID]
+	if attacker == nil {
+		return nil
+	}
+	counterTargets := make([]string, 0, len(e.State.PlayerOrder))
+	for _, pid := range e.State.PlayerOrder {
+		if pid == attackerID {
+			continue
+		}
+		p := e.State.Players[pid]
+		if p != nil && p.Camp == attacker.Camp {
+			counterTargets = append(counterTargets, pid)
+		}
+	}
+	return counterTargets
+}
+
+func (e *GameEngine) buildCombatResponseOptions(combatReq *model.CombatRequest, shieldFallbackReady bool, counterTargets []string) []model.PromptOption {
+	takeLabel := "承受伤害"
+	if shieldFallbackReady {
+		takeLabel = "承受（将触发圣盾）"
+	}
+	options := []model.PromptOption{{ID: "take", Label: takeLabel}}
+	if e.canUseHolyDefend(combatReq) {
+		options = append(options, model.PromptOption{ID: "defend", Label: "防御"})
+	}
+	if e.canUseCounter(combatReq) && len(counterTargets) > 0 {
+		options = append(options, model.PromptOption{ID: "counter", Label: "应战"})
+	}
+	return options
+}
+
+func (e *GameEngine) buildCombatInteractionHints(combatReq model.CombatRequest, shieldFallbackReady bool) []string {
+	hints := make([]string, 0, 4)
+	if combatReq.HasInterceptTag(model.CombatInterceptIgnoreHolyShield) || combatReq.IgnoreShield {
+		hints = append(hints, "本次攻击无视【圣盾】。")
+	}
+	if !e.canUseCounter(&combatReq) {
+		hints = append(hints, "本次攻击无法应战。")
+	}
+	if shieldFallbackReady {
+		hints = append(hints, "你身上有【圣盾】：若本次选择承受伤害，将优先消耗圣盾并抵挡本次攻击。")
+	}
+	if !e.canUseHolyDefend(&combatReq) {
+		hints = append(hints, "本次攻击处于【一击无念】劫持中，不能使用【圣光】防御。")
+	}
+	return hints
 }
 
 func (e *GameEngine) driveActionEndStage(currentPid string, player *model.Player) driveOutcome {
@@ -435,7 +462,7 @@ func (e *GameEngine) runActionEndSequence(currentPid string, player *model.Playe
 	skillCtx.Selections["response_resume_phase"] = model.TurnStageActionEnd
 
 	// 攻击结束钩子优先于 OnPhaseEnd（例如圣剑三连击中断）。
-	if !skipActionEndInterruptHooks && e.runActionEndInterruptHooks(skillCtx) {
+	if !skipActionEndInterruptHooks && e.runTimingOnActionEndInterruptPolicies(skillCtx) {
 		return true
 	}
 
@@ -486,7 +513,7 @@ func (e *GameEngine) driveTurnEndStage(currentPid string, player *model.Player) 
 	}
 
 	// 9. 回合结束阶段
-	if e.runPlayerPhaseHooks(player, turnEndPreExtraActionHooks) {
+	if e.runTimingOnTurnEndPreExtraHooks(player) {
 		return driveStop
 	}
 	// 检查是否有待执行的行动令牌 (处理额外行动)
@@ -513,7 +540,7 @@ func (e *GameEngine) driveTurnEndStage(currentPid string, player *model.Player) 
 		return driveContinueLoop
 	}
 
-	if e.runPlayerPhaseHooks(player, turnEndFinalHooks) {
+	if e.runTimingOnTurnEndFinalHooks(player) {
 		return driveStop
 	}
 

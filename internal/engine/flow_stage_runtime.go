@@ -1,6 +1,10 @@
 package engine
 
-import "starcup-engine/internal/model"
+import (
+	"fmt"
+
+	"starcup-engine/internal/model"
+)
 
 func (e *GameEngine) runtimeStateLabel() string {
 	if e == nil || e.State == nil {
@@ -244,6 +248,8 @@ func (e *GameEngine) clearCombatStage() {
 
 func (e *GameEngine) defaultTimingForTrigger(trigger model.TriggerType) model.TriggerTiming {
 	switch trigger {
+	case model.TriggerNone:
+		return model.TimingActive
 	case model.TriggerOnTurnStart:
 		return model.TimingOnTurnStart
 	case model.TriggerOnBuffPhase:
@@ -260,14 +266,18 @@ func (e *GameEngine) defaultTimingForTrigger(trigger model.TriggerType) model.Tr
 		return model.TimingOnActionEnd
 	case model.TriggerOnCardUsed, model.TriggerOnCardRevealed:
 		return model.TimingOnCardPlayedOrRevealed
+	case model.TriggerOnBuffAdded, model.TriggerOnBuffRemoved:
+		return model.TimingOnFieldMarkChanged
 	case model.TriggerBeforeDraw:
 		return model.TimingBeforeCardDrawn
 	case model.TriggerAfterDraw:
 		return model.TimingOnCardDrawn
+	case model.TriggerBeforeMoraleLoss:
+		return model.TimingOnDamageTaken
 	case model.TriggerOnOrientationChanged:
 		return model.TimingOnOrientationChanged
 	default:
-		return model.TimingUnknown
+		panic(fmt.Sprintf("unmapped trigger timing: %d", trigger))
 	}
 }
 

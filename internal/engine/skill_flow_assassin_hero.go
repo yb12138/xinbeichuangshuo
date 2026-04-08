@@ -41,14 +41,10 @@ func (e *GameEngine) buildHeroAssassinChoicePrompt(choiceType, playerID string, 
 
 func (e *GameEngine) handleHeroAssassinChoiceInput(_ string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
 	choiceType, _ := ctxData["choice_type"].(string)
-	switch choiceType {
-	case "hero_roar_draw":
-		return true, e.handleHeroRoarDrawChoice(selectionIndex, ctxData)
-	case "assassin_stealth_draw":
-		return true, e.handleAssassinStealthDrawChoice(selectionIndex, ctxData)
-	default:
-		return false, nil
-	}
+	return dispatchChoiceInputByType(choiceType, selectionIndex, ctxData, map[string]skillChoiceInputHandler{
+		"hero_roar_draw":        e.handleHeroRoarDrawChoice,
+		"assassin_stealth_draw": e.handleAssassinStealthDrawChoice,
+	})
 }
 
 func (e *GameEngine) handleHeroRoarDrawChoice(selectionIndex int, ctxData map[string]interface{}) error {

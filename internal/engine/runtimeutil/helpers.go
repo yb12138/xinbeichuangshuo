@@ -1,6 +1,9 @@
 package runtimeutil
 
-import "strings"
+import (
+	"starcup-engine/internal/model"
+	"strings"
+)
 
 func ToIntContextValue(v interface{}) int {
 	if i, ok := v.(int); ok {
@@ -19,7 +22,7 @@ func ToBoolContextValue(v interface{}) bool {
 	return false
 }
 
-func IsMagicLikeDamageType(damageType string) bool {
+func IsMagicDamageType(damageType model.DamageType) bool {
 	return !strings.EqualFold(damageType, "Attack")
 }
 

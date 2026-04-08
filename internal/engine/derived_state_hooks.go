@@ -2,21 +2,39 @@ package engine
 
 import "starcup-engine/internal/model"
 
-type playerDerivedStateHook func(e *GameEngine, player *model.Player)
-type campCupChangedHook func(e *GameEngine, changedCamp model.Camp)
+type campChangedPlayerHook func(e *GameEngine, player *model.Player)
+type campChangedCupHook func(e *GameEngine, changedCamp model.Camp)
 
-var playerDerivedStateHooks = []playerDerivedStateHook{
-	syncHolyLancerDerivedStateOnPlayerSetup,
-}
+type timingOnCampChangedStage int
 
-var campCupChangedHooks = []campCupChangedHook{
-	syncHolyLancerDerivedStateOnCampCupChanged,
+const (
+	timingOnCampChangedPlayerSetup timingOnCampChangedStage = iota
+	timingOnCampChangedCampCup
+)
+
+// runTimingOnCampChangedHooks 统一处理 TimingOnCampChanged 阶段规则。
+func (e *GameEngine) runTimingOnCampChangedHooks(player *model.Player, changedCamp model.Camp, stage timingOnCampChangedStage) {
+	switch stage {
+	case timingOnCampChangedPlayerSetup:
+		for _, hook := range e.campChangedPlayerSetupHooks {
+			hook(e, player)
+		}
+	case timingOnCampChangedCampCup:
+		for _, hook := range e.campChangedCampCupHooks {
+			hook(e, changedCamp)
+		}
+	default:
+		panic("unregistered TimingOnCampChanged stage")
+	}
 }
 
 func (e *GameEngine) refreshPlayerDerivedState(player *model.Player) {
-	for _, hook := range playerDerivedStateHooks {
-		hook(e, player)
-	}
+	e.refreshTimingDerivedStateOnPlayerSetup(player)
+}
+
+// refreshTimingDerivedStateOnPlayerSetup 在玩家初始化/刷新时同步派生状态。
+func (e *GameEngine) refreshTimingDerivedStateOnPlayerSetup(player *model.Player) {
+	e.runTimingOnCampChangedHooks(player, "", timingOnCampChangedPlayerSetup)
 }
 
 func (e *GameEngine) refreshAllPlayerDerivedStates() {
@@ -43,10 +61,9 @@ func (e *GameEngine) refreshAllPlayerDerivedStates() {
 	}
 }
 
-func (e *GameEngine) runCampCupChangedHooks(changedCamp model.Camp) {
-	for _, hook := range campCupChangedHooks {
-		hook(e, changedCamp)
-	}
+// refreshTimingDerivedStateOnCampCupChanged 在星杯变化时同步相关派生状态。
+func (e *GameEngine) refreshTimingDerivedStateOnCampCupChanged(changedCamp model.Camp) {
+	e.runTimingOnCampChangedHooks(nil, changedCamp, timingOnCampChangedCampCup)
 }
 
 func (e *GameEngine) addCampCup(camp model.Camp) bool {
@@ -67,7 +84,7 @@ func (e *GameEngine) addCampCup(camp model.Camp) bool {
 		}
 	}
 	if changed {
-		e.runCampCupChangedHooks(camp)
+		e.refreshTimingDerivedStateOnCampCupChanged(camp)
 	}
 	return changed
 }

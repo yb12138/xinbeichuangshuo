@@ -11,20 +11,18 @@ func saintHealTargetIDsFromContext(data map[string]interface{}) []string {
 	if data == nil {
 		return nil
 	}
-	if ids, ok := data["targets"].([]string); ok {
-		return append([]string{}, ids...)
-	}
-	raw, _ := data["targets"].([]interface{})
-	if len(raw) == 0 {
+	ids, ok := data["targets"].([]string)
+	if !ok || len(ids) == 0 {
 		return nil
 	}
-	ids := make([]string, 0, len(raw))
-	for _, v := range raw {
-		if id, ok := v.(string); ok && id != "" {
-			ids = append(ids, id)
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if id == "" {
+			return nil
 		}
+		out = append(out, id)
 	}
-	return ids
+	return out
 }
 
 func saintHealDefaultAllocations(targetIDs []string) map[string]int {
@@ -43,32 +41,44 @@ func saintHealDefaultAllocations(targetIDs []string) map[string]int {
 	return allocations
 }
 
-func saintHealAllocationsFromContext(data map[string]interface{}, targetIDs []string) map[string]int {
+func saintHealAllocationsFromContext(data map[string]interface{}, targetIDs []string) (map[string]int, error) {
+	if len(targetIDs) != 2 {
+		return saintHealDefaultAllocations(targetIDs), nil
+	}
 	if data == nil {
-		return saintHealDefaultAllocations(targetIDs)
+		return nil, fmt.Errorf("圣疗双目标缺少治疗分配")
 	}
-	if allocations, ok := data["allocations"].(map[string]int); ok && len(allocations) > 0 {
-		out := make(map[string]int, len(allocations))
-		for targetID, amount := range allocations {
-			out[targetID] = amount
-		}
-		return out
+	raw, ok := data["allocations"].(map[string]int)
+	if !ok || len(raw) == 0 {
+		return nil, fmt.Errorf("圣疗双目标缺少治疗分配")
 	}
-	if raw, ok := data["allocations"].(map[string]interface{}); ok && len(raw) > 0 {
-		out := make(map[string]int, len(raw))
-		for targetID, value := range raw {
-			switch v := value.(type) {
-			case int:
-				out[targetID] = v
-			case float64:
-				out[targetID] = int(v)
-			}
-		}
-		if len(out) > 0 {
-			return out
-		}
+
+	out := map[string]int{
+		targetIDs[0]: raw[targetIDs[0]],
+		targetIDs[1]: raw[targetIDs[1]],
 	}
-	return saintHealDefaultAllocations(targetIDs)
+	a := out[targetIDs[0]]
+	b := out[targetIDs[1]]
+	if a <= 0 || b <= 0 || a+b != 3 {
+		return nil, fmt.Errorf("圣疗双目标治疗分配无效")
+	}
+	return out, nil
+}
+
+func saintHealStageFromContext(data map[string]interface{}, targetIDs []string) (string, error) {
+	stage, _ := data["stage"].(string)
+	if stage == "" {
+		if len(targetIDs) == 2 {
+			return saintHealStageAllocateHeal, nil
+		}
+		return saintHealStageChooseExtraAction, nil
+	}
+	switch stage {
+	case saintHealStageAllocateHeal, saintHealStageChooseExtraAction:
+		return stage, nil
+	default:
+		return "", fmt.Errorf("无效的圣疗阶段: %s", stage)
+	}
 }
 
 func (e *GameEngine) saintHealAllocationSummary(targetIDs []string, allocations map[string]int) string {
@@ -97,16 +107,12 @@ func (e *GameEngine) buildSaintHealPrompt() *model.Prompt {
 	if len(targetIDs) == 0 {
 		return nil
 	}
-	stage, _ := data["stage"].(string)
-	if stage == "" {
-		if len(targetIDs) == 2 {
-			stage = "allocate_heal"
-		} else {
-			stage = "choose_extra_action"
-		}
+	stage, err := saintHealStageFromContext(data, targetIDs)
+	if err != nil {
+		return nil
 	}
 
-	if stage == "allocate_heal" {
+	if stage == saintHealStageAllocateHeal {
 		if len(targetIDs) != 2 {
 			return nil
 		}
@@ -128,7 +134,10 @@ func (e *GameEngine) buildSaintHealPrompt() *model.Prompt {
 		}
 	}
 
-	allocations := saintHealAllocationsFromContext(data, targetIDs)
+	allocations, err := saintHealAllocationsFromContext(data, targetIDs)
+	if err != nil {
+		return nil
+	}
 	summary := e.saintHealAllocationSummary(targetIDs, allocations)
 	if summary == "" {
 		summary = "已选择治疗目标"

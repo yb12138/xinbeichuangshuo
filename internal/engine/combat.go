@@ -342,7 +342,13 @@ func cardMatchesExclusiveSkill(player *model.Player, card *model.Card, skillTitl
 
 // applyPassiveAttackEffects 应用攻击者的被动技能效果
 func (e *GameEngine) applyPassiveAttackEffects(attacker, target *model.Player, baseDamage int, action model.Action) int {
-	return e.applyAttackPassiveRuntimeHooks(attacker, target, action, baseDamage)
+	return e.dispatchTimingOnDamageCalculated(timingOnDamageCalculatedContext{
+		Op:       timingOnDamageCalculatedAttackPassive,
+		Attacker: attacker,
+		Target:   target,
+		Action:   action,
+		Damage:   baseDamage,
+	}).Damage
 }
 
 // applyDamageWithOptions 应用伤害逻辑 (治疗抵消 + 摸牌)

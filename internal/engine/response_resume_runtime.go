@@ -32,10 +32,6 @@ type responseResumeState struct {
 
 type responseSkipHook func(e *GameEngine, state *responseResumeState)
 
-var responseSkipHooks = []responseSkipHook{
-	holyLancerEarthSkippedResponseHook,
-}
-
 func (e *GameEngine) captureResponseResumeStateFromInterrupt(kind responseCompletionKind, skillID string, intr *model.Interrupt) responseResumeState {
 	state := responseResumeState{
 		kind:    kind,
@@ -132,11 +128,12 @@ func (e *GameEngine) prepareConfirmedResponseResume(state responseResumeState) {
 	}
 }
 
-func (e *GameEngine) runResponseSkipHooks(state *responseResumeState) {
+// runTimingOnResponseSkipEffects 在“跳过响应”时按固定顺序执行后效。
+func (e *GameEngine) runTimingOnResponseSkipEffects(state *responseResumeState) {
 	if state == nil {
 		return
 	}
-	for _, hook := range responseSkipHooks {
+	for _, hook := range e.hitCheckResponseSkipHooks {
 		hook(e, state)
 		if e.State.PendingInterrupt != nil {
 			return

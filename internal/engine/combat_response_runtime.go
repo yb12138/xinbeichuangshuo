@@ -178,201 +178,237 @@ func (e *GameEngine) handleCombatResponse(act model.PlayerAction) error {
 		return errors.New("玩家不存在")
 	}
 
-	switch respType {
-	case "take", "hit":
-		if e.consumeShieldForCombatTake(player, combatReq) {
-			return nil
-		}
-
-		e.clearCombatStack()
-		pd := model.PendingDamage{
-			SourceID:      combatReq.AttackerID,
-			TargetID:      combatReq.TargetID,
-			Damage:        combatReq.Card.Damage,
-			DamageType:    "Attack",
-			Card:          combatReq.Card,
-			IsCounter:     combatReq.IsCounter,
-			IgnoreShield:  combatReq.IgnoreShield,
-			InterceptTags: model.CloneCombatInterceptTags(combatReq.InterceptTags),
-		}
-		e.State.PendingDamageQueue = append([]model.PendingDamage{pd}, e.State.PendingDamageQueue...)
-		e.addActionResponse(fmt.Sprintf("%s 承受伤害", player.Name))
-		e.NotifyActionStep(fmt.Sprintf("%s承受伤害", model.GetPlayerDisplayName(player)))
-		e.NotifyCombatCue(combatReq.AttackerID, combatReq.TargetID, "take")
-		e.Log(fmt.Sprintf("[Combat] %s 选择承受伤害，进入伤害结算流程", player.Name))
-		e.setReturnPoint(model.TurnStageActionEnd)
-		e.enterDamageResolution(nil)
-		return nil
-
-	case "defend":
-		if combatReq.HasInterceptTag(model.CombatInterceptIgnoreTargetHoly) {
-			return errors.New("本次攻击受【一击无念】影响，不能使用【圣光】防御")
-		}
-		if e.isMagicLancer(player) {
-			return errors.New("魔枪受[黑暗束缚]影响，不能使用法术牌防御")
-		}
-		card, _, _, ok := getPlayableCardByIndex(player, act.CardIndex)
-		if !ok {
-			return errors.New("无效的卡牌索引")
-		}
-		if card.Type != model.CardTypeMagic {
-			return errors.New("只能使用法术牌进行防御")
-		}
-		if card.Name == "圣盾" {
-			return errors.New("【圣盾】不能在防御时打出，请提前放置到场上触发")
-		}
-		if card.Name != "圣光" {
-			return errors.New("防御只能使用【圣光】；【圣盾】需提前放置到场上")
-		}
-
-		e.dispatchCardTrigger(player, model.TriggerOnCardUsed, "", card)
-		e.NotifyCardRevealed(act.PlayerID, []model.Card{card}, "defend")
-		e.NotifyCombatCue(combatReq.AttackerID, combatReq.TargetID, "defend")
-		if _, err := consumePlayableCardByIndex(player, act.CardIndex); err != nil {
-			return err
-		}
-		e.State.DiscardPile = append(e.State.DiscardPile, card)
-
-		missCtx := &model.EventContext{
-			Type:     model.EventAttack,
-			SourceID: combatReq.AttackerID,
-			TargetID: combatReq.TargetID,
-			Card:     combatReq.Card,
-			AttackInfo: &model.AttackEventInfo{
-				ActionType: string(model.ActionAttack),
-				CounterInitiator: func() string {
-					if combatReq.IsCounter {
-						return combatReq.AttackerID
-					}
-					return ""
-				}(),
-			},
-		}
-		skillCtx := e.buildContext(e.State.Players[combatReq.AttackerID], e.State.Players[combatReq.TargetID], model.TriggerOnAttackMiss, missCtx)
-		skillCtx.Selections["attack_miss_resume"] = map[string]interface{}{
-			"mode":        "defend",
-			"attacker_id": combatReq.AttackerID,
-			"target_id":   combatReq.TargetID,
-		}
-		e.dispatcher.OnTrigger(model.TriggerOnAttackMiss, skillCtx)
-		if e.State.PendingInterrupt != nil {
-			return nil
-		}
-
-		e.Log(fmt.Sprintf("[Combat] %s 使用 %s 防御成功！", player.Name, card.Name))
-		e.resolveMagicBowPierceMiss(combatReq.AttackerID, combatReq.TargetID, combatReq.Card, combatReq.IsCounter)
-		e.clearCombatStack()
-		if !e.routePendingDamageWithReturn(model.TurnStageActionEnd) {
-			e.enterActionEndStage()
-		}
-		return nil
-
-	case "counter":
-		if !combatReq.CanBeResponded {
-			return errors.New("此攻击无法被应战")
-		}
-
-		card, _, _, ok := getPlayableCardByIndex(player, act.CardIndex)
-		if !ok {
-			return errors.New("无效的卡牌索引")
-		}
-		useShadowMagicBulletCounter := e.canUseShadowRejectResponseMagic(player) &&
-			card.Type == model.CardTypeMagic &&
-			card.Name == "魔弹"
-		useFactionCounter := false
-
-		if !useShadowMagicBulletCounter {
-			if card.Type != model.CardTypeAttack {
-				return errors.New("只能使用攻击牌进行应战（暗影抗拒下可在非自己行动阶段使用【魔弹】）")
-			}
-			card = e.transformAttackCard(player, card)
-			if combatReq.Card.Element == model.ElementDark {
-				return errors.New("暗灭无法被应战，只能承受伤害或使用圣光抵挡（场上圣盾会自动生效）")
-			}
-			if card.Element != combatReq.Card.Element && card.Element != model.ElementDark {
-				if e.isOnmyoji(player) && onmyojiCanUseFactionCounter(combatReq.Card) &&
-					card.Faction != "" && card.Faction == combatReq.Card.Faction {
-					useFactionCounter = true
-				} else {
-					return fmt.Errorf("应战必须使用同系攻击牌或暗灭，对方为 %s 系", combatReq.Card.Element)
-				}
-			}
-		} else {
-			e.Log(fmt.Sprintf("[Combat] %s 触发[暗影抗拒]：非自己行动阶段使用【魔弹】应战", player.Name))
-		}
-
-		targetID := act.TargetID
-		if targetID == "" {
-			return errors.New("应战必须指定反弹目标（从攻击方队友中选择）")
-		}
-		if targetID == combatReq.AttackerID {
-			return errors.New("不能选择攻击者本人，只能选择攻击方的队友进行反弹")
-		}
-
-		target := e.State.Players[targetID]
-		if target == nil {
-			return errors.New("目标不存在")
-		}
-		attacker := e.State.Players[combatReq.AttackerID]
-		if attacker == nil {
-			return errors.New("攻击者信息异常")
-		}
-		if target.Camp != attacker.Camp {
-			return errors.New("应战反弹目标必须是攻击方的队友")
-		}
-
-		e.dispatchCardTrigger(player, model.TriggerOnCardUsed, "", card)
-		e.NotifyCardRevealed(act.PlayerID, []model.Card{card}, "counter")
-		e.NotifyCombatCue(combatReq.AttackerID, combatReq.TargetID, "counter")
-		if _, err := consumePlayableCardByIndex(player, act.CardIndex); err != nil {
-			return err
-		}
-		e.State.DiscardPile = append(e.State.DiscardPile, card)
-		if useFactionCounter {
-			e.applyOnmyojiFactionCounterBonuses(player, &card)
-		}
-
-		missCtx := &model.EventContext{
-			Type:     model.EventAttack,
-			SourceID: combatReq.AttackerID,
-			TargetID: combatReq.TargetID,
-			Card:     combatReq.Card,
-			AttackInfo: &model.AttackEventInfo{
-				ActionType: string(model.ActionAttack),
-				CounterInitiator: func() string {
-					if combatReq.IsCounter {
-						return combatReq.AttackerID
-					}
-					return ""
-				}(),
-			},
-		}
-		skillCtx := e.buildContext(e.State.Players[combatReq.AttackerID], e.State.Players[combatReq.TargetID], model.TriggerOnAttackMiss, missCtx)
-		skillCtx.Selections["attack_miss_resume"] = map[string]interface{}{
-			"mode":              "counter",
-			"attacker_id":       combatReq.AttackerID,
-			"target_id":         combatReq.TargetID,
-			"counter_player_id": act.PlayerID,
-			"counter_target_id": targetID,
-			"counter_card":      card,
-		}
-		e.dispatcher.OnTrigger(model.TriggerOnAttackMiss, skillCtx)
-		if e.State.PendingInterrupt != nil {
-			return nil
-		}
-
-		e.Log(fmt.Sprintf("[Combat] %s 使用 %s 应战成功！攻击反弹给 %s", player.Name, card.Name, target.Name))
-		e.resolveMagicBowPierceMiss(combatReq.AttackerID, combatReq.TargetID, combatReq.Card, combatReq.IsCounter)
-		e.State.CombatStack = e.State.CombatStack[:len(e.State.CombatStack)-1]
-		e.initCombat(act.PlayerID, targetID, &card, false, true, false, nil, true)
-		e.Log(fmt.Sprintf("[Combat] %s 应战成功！攻击转移向 %s", player.Name, target.Name))
-		if len(e.State.PendingDamageQueue) > 0 {
-			e.setReturnPoint(model.CombatStageHitCheck)
-			e.enterDamageResolution(nil)
-		}
-		return nil
-
-	default:
+	handlers := map[string]func() error{
+		"take": func() error {
+			return e.handleCombatTakeResponse(player, combatReq)
+		},
+		"defend": func() error {
+			return e.handleCombatDefendResponse(act, player, combatReq)
+		},
+		"counter": func() error {
+			return e.handleCombatCounterResponse(act, player, combatReq)
+		},
+	}
+	handler, ok := handlers[respType]
+	if !ok {
 		return fmt.Errorf("未知的响应类型: %s", respType)
 	}
+	return handler()
+}
+
+func (e *GameEngine) handleCombatTakeResponse(player *model.Player, combatReq model.CombatRequest) error {
+	if e.consumeShieldForCombatTake(player, combatReq) {
+		return nil
+	}
+
+	e.clearCombatStack()
+	pd := model.PendingDamage{
+		SourceID:      combatReq.AttackerID,
+		TargetID:      combatReq.TargetID,
+		Damage:        combatReq.Card.Damage,
+		DamageType:    "Attack",
+		Card:          combatReq.Card,
+		IsCounter:     combatReq.IsCounter,
+		IgnoreShield:  combatReq.IgnoreShield,
+		InterceptTags: model.CloneCombatInterceptTags(combatReq.InterceptTags),
+	}
+	e.State.PendingDamageQueue = append([]model.PendingDamage{pd}, e.State.PendingDamageQueue...)
+	e.addActionResponse(fmt.Sprintf("%s 承受伤害", player.Name))
+	e.NotifyActionStep(fmt.Sprintf("%s承受伤害", model.GetPlayerDisplayName(player)))
+	e.NotifyCombatCue(combatReq.AttackerID, combatReq.TargetID, "take")
+	e.Log(fmt.Sprintf("[Combat] %s 选择承受伤害，进入伤害结算流程", player.Name))
+	e.setReturnPoint(model.TurnStageActionEnd)
+	e.enterDamageResolution(nil)
+	return nil
+}
+
+func (e *GameEngine) handleCombatDefendResponse(act model.PlayerAction, player *model.Player, combatReq model.CombatRequest) error {
+	if !e.canUseHolyDefend(&combatReq) {
+		return errors.New("本次攻击受【一击无念】影响，不能使用【圣光】防御")
+	}
+	if res := e.dispatchTimingOnHitCheck(timingOnHitCheckContext{
+		Op:        timingOnHitCheckCombatDefendValidation,
+		Player:    player,
+		CombatReq: &combatReq,
+	}); res.Err != nil {
+		return res.Err
+	}
+	card, _, _, ok := getPlayableCardByIndex(player, act.CardIndex)
+	if !ok {
+		return errors.New("无效的卡牌索引")
+	}
+	if card.Type != model.CardTypeMagic {
+		return errors.New("只能使用法术牌进行防御")
+	}
+	if card.Name == "圣盾" {
+		return errors.New("【圣盾】不能在防御时打出，请提前放置到场上触发")
+	}
+	if card.Name != "圣光" {
+		return errors.New("防御只能使用【圣光】；【圣盾】需提前放置到场上")
+	}
+
+	e.dispatchCardTrigger(player, model.TriggerOnCardUsed, "", card)
+	e.NotifyCardRevealed(act.PlayerID, []model.Card{card}, "defend")
+	e.NotifyCombatCue(combatReq.AttackerID, combatReq.TargetID, "defend")
+	if _, err := consumePlayableCardByIndex(player, act.CardIndex); err != nil {
+		return err
+	}
+	e.State.DiscardPile = append(e.State.DiscardPile, card)
+
+	missCtx := &model.EventContext{
+		Type:     model.EventAttack,
+		SourceID: combatReq.AttackerID,
+		TargetID: combatReq.TargetID,
+		Card:     combatReq.Card,
+		AttackInfo: &model.AttackEventInfo{
+			ActionType: string(model.ActionAttack),
+			CounterInitiator: func() string {
+				if combatReq.IsCounter {
+					return combatReq.AttackerID
+				}
+				return ""
+			}(),
+		},
+	}
+	skillCtx := e.buildContext(e.State.Players[combatReq.AttackerID], e.State.Players[combatReq.TargetID], model.TriggerOnAttackMiss, missCtx)
+	skillCtx.Selections["attack_miss_resume"] = map[string]interface{}{
+		"mode":        "defend",
+		"attacker_id": combatReq.AttackerID,
+		"target_id":   combatReq.TargetID,
+	}
+	e.dispatcher.OnTrigger(model.TriggerOnAttackMiss, skillCtx)
+	if e.State.PendingInterrupt != nil {
+		return nil
+	}
+
+	e.Log(fmt.Sprintf("[Combat] %s 使用 %s 防御成功！", player.Name, card.Name))
+	e.resolveMagicBowPierceMiss(combatReq.AttackerID, combatReq.TargetID, combatReq.Card, combatReq.IsCounter)
+	e.clearCombatStack()
+	if !e.routePendingDamageWithReturn(model.TurnStageActionEnd) {
+		e.enterActionEndStage()
+	}
+	return nil
+}
+
+func (e *GameEngine) handleCombatCounterResponse(act model.PlayerAction, player *model.Player, combatReq model.CombatRequest) error {
+	if !e.canUseCounter(&combatReq) {
+		return errors.New("此攻击无法被应战")
+	}
+
+	card, _, _, ok := getPlayableCardByIndex(player, act.CardIndex)
+	if !ok {
+		return errors.New("无效的卡牌索引")
+	}
+	res := e.dispatchTimingOnHitCheck(timingOnHitCheckContext{
+		Op:        timingOnHitCheckCombatCounterCard,
+		Player:    player,
+		CombatReq: &combatReq,
+		Card:      card,
+	})
+	useSpecialCounterCard, counterCard, err := res.Handled, res.Card, res.Err
+	if err != nil {
+		return err
+	}
+	useFactionCounter := false
+
+	if useSpecialCounterCard {
+		card = counterCard
+	} else {
+		if card.Type != model.CardTypeAttack {
+			return errors.New("只能使用攻击牌进行应战（暗影抗拒下可在非自己行动阶段使用【魔弹】）")
+		}
+		card = e.transformAttackCard(player, card)
+		if combatReq.Card.Element == model.ElementDark {
+			return errors.New("暗灭无法被应战，只能承受伤害或使用圣光抵挡（场上圣盾会自动生效）")
+		}
+		if card.Element != combatReq.Card.Element && card.Element != model.ElementDark {
+			res := e.dispatchTimingOnHitCheck(timingOnHitCheckContext{
+				Op:        timingOnHitCheckCombatCounterElement,
+				Player:    player,
+				CombatReq: &combatReq,
+				Card:      card,
+			})
+			allowedByPolicy, useFaction := res.Allowed, res.UseFaction
+			if allowedByPolicy {
+				useFactionCounter = useFaction
+			} else {
+				return fmt.Errorf("应战必须使用同系攻击牌或暗灭，对方为 %s 系", combatReq.Card.Element)
+			}
+		}
+	}
+
+	targetID := act.TargetID
+	if targetID == "" {
+		return errors.New("应战必须指定反弹目标（从攻击方队友中选择）")
+	}
+	if targetID == combatReq.AttackerID {
+		return errors.New("不能选择攻击者本人，只能选择攻击方的队友进行反弹")
+	}
+
+	target := e.State.Players[targetID]
+	if target == nil {
+		return errors.New("目标不存在")
+	}
+	attacker := e.State.Players[combatReq.AttackerID]
+	if attacker == nil {
+		return errors.New("攻击者信息异常")
+	}
+	if target.Camp != attacker.Camp {
+		return errors.New("应战反弹目标必须是攻击方的队友")
+	}
+
+	e.dispatchCardTrigger(player, model.TriggerOnCardUsed, "", card)
+	e.NotifyCardRevealed(act.PlayerID, []model.Card{card}, "counter")
+	e.NotifyCombatCue(combatReq.AttackerID, combatReq.TargetID, "counter")
+	if _, err := consumePlayableCardByIndex(player, act.CardIndex); err != nil {
+		return err
+	}
+	e.State.DiscardPile = append(e.State.DiscardPile, card)
+	e.dispatchTimingOnHitCheck(timingOnHitCheckContext{
+		Op:         timingOnHitCheckCombatCounterResolve,
+		Player:     player,
+		CombatReq:  &combatReq,
+		CardPtr:    &card,
+		UseFaction: useFactionCounter,
+	})
+
+	missCtx := &model.EventContext{
+		Type:     model.EventAttack,
+		SourceID: combatReq.AttackerID,
+		TargetID: combatReq.TargetID,
+		Card:     combatReq.Card,
+		AttackInfo: &model.AttackEventInfo{
+			ActionType: string(model.ActionAttack),
+			CounterInitiator: func() string {
+				if combatReq.IsCounter {
+					return combatReq.AttackerID
+				}
+				return ""
+			}(),
+		},
+	}
+	skillCtx := e.buildContext(e.State.Players[combatReq.AttackerID], e.State.Players[combatReq.TargetID], model.TriggerOnAttackMiss, missCtx)
+	skillCtx.Selections["attack_miss_resume"] = map[string]interface{}{
+		"mode":              "counter",
+		"attacker_id":       combatReq.AttackerID,
+		"target_id":         combatReq.TargetID,
+		"counter_player_id": act.PlayerID,
+		"counter_target_id": targetID,
+		"counter_card":      card,
+	}
+	e.dispatcher.OnTrigger(model.TriggerOnAttackMiss, skillCtx)
+	if e.State.PendingInterrupt != nil {
+		return nil
+	}
+
+	e.Log(fmt.Sprintf("[Combat] %s 使用 %s 应战成功！攻击反弹给 %s", player.Name, card.Name, target.Name))
+	e.resolveMagicBowPierceMiss(combatReq.AttackerID, combatReq.TargetID, combatReq.Card, combatReq.IsCounter)
+	e.State.CombatStack = e.State.CombatStack[:len(e.State.CombatStack)-1]
+	e.initCombat(act.PlayerID, targetID, &card, false, true, false, nil, true)
+	e.Log(fmt.Sprintf("[Combat] %s 应战成功！攻击转移向 %s", player.Name, target.Name))
+	if len(e.State.PendingDamageQueue) > 0 {
+		e.setReturnPoint(model.CombatStageHitCheck)
+		e.enterDamageResolution(nil)
+	}
+	return nil
 }
