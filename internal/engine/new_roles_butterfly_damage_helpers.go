@@ -11,8 +11,8 @@ func (e *GameEngine) maybeTriggerButterflyDamageResponses(pd *model.PendingDamag
 		return false
 	}
 	// 朝圣：承伤者若为蝶舞者，可在每次伤害中询问一次。
-	if !pd.ButterflyPilgrimageChecked {
-		pd.ButterflyPilgrimageChecked = true
+	if !pd.HasCheck(model.PendingDamageCheckBeforeApplyDefend) {
+		pd.SetCheck(model.PendingDamageCheckBeforeApplyDefend, true)
 		target := e.State.Players[pd.TargetID]
 		if target != nil && e.isButterflyDancer(target) && butterflyCocoonCount(target) > 0 {
 			indices := butterflyCocoonFieldIndices(target)
@@ -40,10 +40,10 @@ func (e *GameEngine) maybeTriggerButterflyDamageResponses(pd *model.PendingDamag
 	}
 
 	// 毒粉/镜花水月：按“实际法术伤害”值检查，仅询问一次。
-	if pd.ButterflyStage5Checked {
+	if pd.HasCheck(model.PendingDamageCheckBeforeApplyResponse) {
 		return false
 	}
-	pd.ButterflyStage5Checked = true
+	pd.SetCheck(model.PendingDamageCheckBeforeApplyResponse, true)
 
 	if pd.Damage == 1 {
 		for _, pid := range e.State.PlayerOrder {

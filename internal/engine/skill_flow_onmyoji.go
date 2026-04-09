@@ -2,7 +2,7 @@ package engine
 
 import (
 	"fmt"
-	"starcup-engine/internal/engine/runtimeutil"
+	"starcup-engine/internal/engine/core/runtimeutil"
 	"strconv"
 	"strings"
 
@@ -276,9 +276,9 @@ func (e *GameEngine) resolveOnmyojiLifeBarrierSupportTarget(ctxData map[string]i
 	target.Gem++
 	e.Heal(targetID, 1)
 	if ghostFire > 0 {
-		damageType := "magic"
+		damageType := model.MagicAttack
 		if ghostFire >= 3 {
-			damageType = "magic_no_morale"
+			damageType = model.DamageType("magic_no_morale")
 		}
 		e.AddPendingDamage(model.PendingDamage{
 			SourceID:   user.ID,
@@ -349,7 +349,7 @@ func (e *GameEngine) resolveOnmyojiDarkRitualTarget(ctxData map[string]interface
 		SourceID:   user.ID,
 		TargetID:   targetID,
 		Damage:     2,
-		DamageType: "magic",
+		DamageType: model.MagicAttack,
 	})
 	e.Log(fmt.Sprintf("%s 的 [黑暗祭礼] 生效：移除%d点鬼火，对 %s 造成2点法术伤害", user.Name, ghostFire, target.Name))
 	e.PopInterrupt()

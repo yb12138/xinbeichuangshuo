@@ -1019,7 +1019,7 @@ func (h *PiercingShotHandler) Execute(ctx *model.Context) error {
 	ctx.Selections["discardedCards"] = []model.Card{card}
 
 	if ctx.Target != nil {
-		ctx.Game.InflictDamage(ctx.User.ID, ctx.Target.ID, 2, "magic")
+		ctx.Game.InflictDamage(ctx.User.ID, ctx.Target.ID, 2, model.MagicAttack)
 		ctx.Game.Log(fmt.Sprintf("%s 发动 [贯穿射击]，对 %s 造成2点法术伤害",
 			ctx.User.Name, ctx.Target.Name))
 	}
@@ -1570,7 +1570,7 @@ func (h *DestructionStormHandler) Execute(ctx *model.Context) error {
 	}
 
 	for _, t := range targets {
-		ctx.Game.InflictDamage(ctx.User.ID, t.ID, 2, "magic")
+		ctx.Game.InflictDamage(ctx.User.ID, t.ID, 2, model.MagicAttack)
 	}
 
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [毁灭风暴]，对 %d 名目标造成伤害", ctx.User.Name, len(targets)))

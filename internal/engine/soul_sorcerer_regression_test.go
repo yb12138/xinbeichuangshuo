@@ -502,7 +502,7 @@ func TestSoulSorcererSoulLink_TransferDamageBeforeResolve(t *testing.T) {
 			SourceID:   "p2",
 			TargetID:   linkedHolder.ID,
 			Damage:     2,
-			DamageType: "Attack",
+			DamageType: model.AttackDamage,
 		},
 	}
 	if !game.maybeTriggerSoulLinkTransfer(&game.State.PendingDamageQueue[0]) {
@@ -521,7 +521,8 @@ func TestSoulSorcererSoulLink_TransferDamageBeforeResolve(t *testing.T) {
 	}
 	foundTransfer := false
 	for _, pd := range game.State.PendingDamageQueue {
-		if pd.TargetID == "p1" && pd.DamageType == "magic" && pd.Damage == 1 && pd.FromSoulLink {
+		if pd.TargetID == "p1" && pd.DamageType == model.MagicAttack && pd.Damage == 1 &&
+			pd.HasCheck(model.PendingDamageCheckFromSoulLink) {
 			foundTransfer = true
 			break
 		}
@@ -574,7 +575,7 @@ func TestSoulSorcererSoulLink_Replay_TransferSorcererToAlly_NoRecursiveLinkPromp
 			SourceID:   "p2",
 			TargetID:   "p1",
 			Damage:     2,
-			DamageType: "Attack",
+			DamageType: model.AttackDamage,
 		},
 	}
 	if interrupted := game.processPendingDamages(); !interrupted {
@@ -596,7 +597,8 @@ func TestSoulSorcererSoulLink_Replay_TransferSorcererToAlly_NoRecursiveLinkPromp
 		t.Fatalf("expected original damage reduced to 1 on p1, got %+v", original)
 	}
 	transferred := game.State.PendingDamageQueue[1]
-	if transferred.TargetID != linkedHolder.ID || transferred.DamageType != "magic" || transferred.Damage != 1 || !transferred.FromSoulLink {
+	if transferred.TargetID != linkedHolder.ID || transferred.DamageType != "magic" || transferred.Damage != 1 ||
+		!transferred.HasCheck(model.PendingDamageCheckFromSoulLink) {
 		t.Fatalf("unexpected transferred damage: %+v", transferred)
 	}
 
@@ -648,7 +650,7 @@ func TestSoulSorcererSoulLink_Replay_TransferAllyToSorcerer_NoRecursiveLinkPromp
 			SourceID:   "p2",
 			TargetID:   linkedHolder.ID,
 			Damage:     2,
-			DamageType: "Attack",
+			DamageType: model.AttackDamage,
 		},
 	}
 	if interrupted := game.processPendingDamages(); !interrupted {
@@ -670,7 +672,8 @@ func TestSoulSorcererSoulLink_Replay_TransferAllyToSorcerer_NoRecursiveLinkPromp
 		t.Fatalf("expected original damage reduced to 1 on ally, got %+v", original)
 	}
 	transferred := game.State.PendingDamageQueue[1]
-	if transferred.TargetID != "p1" || transferred.DamageType != "magic" || transferred.Damage != 1 || !transferred.FromSoulLink {
+	if transferred.TargetID != "p1" || transferred.DamageType != "magic" || transferred.Damage != 1 ||
+		!transferred.HasCheck(model.PendingDamageCheckFromSoulLink) {
 		t.Fatalf("unexpected transferred damage: %+v", transferred)
 	}
 	if game.maybeTriggerSoulLinkTransfer(&game.State.PendingDamageQueue[1]) {
@@ -723,7 +726,7 @@ func TestSoulSorcererSoulLink_Replay_TransferDamageThenTriggersResponseChain(t *
 			SourceID:   "p2",
 			TargetID:   "p1",
 			Damage:     2,
-			DamageType: "Attack",
+			DamageType: model.AttackDamage,
 		},
 	}
 	if interrupted := game.processPendingDamages(); !interrupted {

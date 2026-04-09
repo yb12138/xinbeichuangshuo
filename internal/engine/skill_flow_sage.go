@@ -2,7 +2,7 @@ package engine
 
 import (
 	"fmt"
-	"starcup-engine/internal/engine/runtimeutil"
+	"starcup-engine/internal/engine/core/runtimeutil"
 
 	"starcup-engine/internal/model"
 )
@@ -414,7 +414,7 @@ func (e *GameEngine) handleSageChoiceInput(_ string, selectionIndex int, ctxData
 				SourceID:   user.ID,
 				TargetID:   user.ID,
 				Damage:     damage,
-				DamageType: "magic",
+				DamageType: model.MagicAttack,
 			})
 		}
 		e.Log(fmt.Sprintf("%s 发动 [圣洁法典]：为%d名角色各+2治疗，并对自己造成%d点法术伤害", user.Name, len(selected), damage))
@@ -466,7 +466,7 @@ func (e *GameEngine) handleSageChoiceInput(_ string, selectionIndex int, ctxData
 					SourceID:   user.ID,
 					TargetID:   targetID,
 					Damage:     damageToTarget,
-					DamageType: "magic",
+					DamageType: model.MagicAttack,
 				})
 			}
 			if damageToSelf > 0 {
@@ -474,7 +474,7 @@ func (e *GameEngine) handleSageChoiceInput(_ string, selectionIndex int, ctxData
 					SourceID:   user.ID,
 					TargetID:   user.ID,
 					Damage:     damageToSelf,
-					DamageType: "magic",
+					DamageType: model.MagicAttack,
 				})
 			}
 			e.prependPendingDamages(pending)
@@ -486,13 +486,13 @@ func (e *GameEngine) handleSageChoiceInput(_ string, selectionIndex int, ctxData
 					SourceID:   user.ID,
 					TargetID:   targetID,
 					Damage:     damage,
-					DamageType: "magic",
+					DamageType: model.MagicAttack,
 				})
 				e.AddPendingDamage(model.PendingDamage{
 					SourceID:   user.ID,
 					TargetID:   user.ID,
 					Damage:     damage,
-					DamageType: "magic",
+					DamageType: model.MagicAttack,
 				})
 			}
 			e.Log(fmt.Sprintf("%s 发动 [魔道法典]：弃%d张异系牌，对 %s 与自己各造成%d点法术伤害", user.Name, xValue, target.Name, damage))

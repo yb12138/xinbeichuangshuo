@@ -17,6 +17,7 @@ func (e *GameEngine) rebuildTimingOnAttackDeclaredRegistry() {
 	e.rebuildTurnTimingRegistryWithPresence(present)
 	e.rebuildActionSelectionTimingRegistryWithPresence(present)
 	e.rebuildSpecialActionTimingRegistryWithPresence(present)
+	e.rebuildSkillTimingRegistryWithPresence(present)
 	e.rebuildGameStartTimingRegistryWithPresence(present)
 	e.rebuildCampChangedTimingRegistryWithPresence(present)
 	e.rebuildInterruptTimingRegistryWithPresence(present)
@@ -226,6 +227,13 @@ func (e *GameEngine) rebuildSpecialActionTimingRegistryWithPresence(present map[
 
 	e.specialActionPostHooks = buildPresenceHooks(present, []presenceHookEntry[specialActionPostHook]{
 		{requireAny: requireAny("holy_bow"), hook: specialActionHolyBowHolyGloryExitHook},
+	})
+}
+
+// rebuildSkillTimingRegistryWithPresence 装配技能主动发动成功后的后置策略。
+func (e *GameEngine) rebuildSkillTimingRegistryWithPresence(present map[string]bool) {
+	e.skillPostHooks = buildPresenceHooks(present, []presenceHookEntry[skillPostHook]{
+		{requireAny: requireAny("arbiter"), hook: skillPostArbiterForcedDoomsdayCleanupHook},
 	})
 }
 

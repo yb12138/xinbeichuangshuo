@@ -415,7 +415,7 @@ func (e *GameEngine) queueElfAnimalResponse(source, target *model.Player, pd *mo
 	if pd.TargetID == "" || pd.TargetID == source.ID {
 		return false
 	}
-	if !strings.EqualFold(pd.DamageType, "Attack") || pd.Card == nil || pd.IsCounter {
+	if !strings.EqualFold(string(pd.DamageType), string(model.AttackDamage)) || pd.Card == nil || pd.IsCounter {
 		return false
 	}
 
@@ -544,7 +544,7 @@ func (e *GameEngine) isRoseCourtyardActive() bool {
 	return false
 }
 
-func (e *GameEngine) canUseHealToResist(target *model.Player, sourceID string, damageType string, ignoreHeal bool, allowCrimsonFaithHeal bool) bool {
+func (e *GameEngine) canUseHealToResist(target *model.Player, sourceID string, damageType model.DamageType, ignoreHeal bool, allowCrimsonFaithHeal bool) bool {
 	if target == nil || target.Heal <= 0 {
 		return false
 	}

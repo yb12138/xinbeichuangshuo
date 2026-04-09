@@ -3,7 +3,7 @@ package engine
 import (
 	"testing"
 
-	"starcup-engine/internal/engine/skills"
+	"starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/rules"
 )
@@ -266,7 +266,7 @@ func TestBeastSamurai_BeastSoulWill_NormalFormHitGainBeastSoul(t *testing.T) {
 			SourceID:   "p1",
 			TargetID:   "p2",
 			Damage:     2,
-			DamageType: "Attack",
+			DamageType: model.AttackDamage,
 			Card:       &attackCard,
 		},
 	}
@@ -384,7 +384,7 @@ func TestBeastSamurai_BeastReturnSkip_ResumesPendingDamageWithoutReprompt(t *tes
 			SourceID:   p2.ID,
 			TargetID:   p1.ID,
 			Damage:     1,
-			DamageType: "magic",
+			DamageType: model.MagicAttack,
 		},
 	}
 
@@ -468,7 +468,7 @@ func TestBeastSamurai_ReversalIaijutsu_ReplacesDamageWithDiscard(t *testing.T) {
 			SourceID:   p1.ID,
 			TargetID:   p2.ID,
 			Damage:     2,
-			DamageType: "Attack",
+			DamageType: model.AttackDamage,
 			Card:       &attackCard,
 		},
 	}

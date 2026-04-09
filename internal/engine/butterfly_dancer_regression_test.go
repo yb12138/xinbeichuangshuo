@@ -230,7 +230,7 @@ func TestButterflyPilgrimage_ResistOneDamage(t *testing.T) {
 		SourceID:   p2.ID,
 		TargetID:   p1.ID,
 		Damage:     1,
-		DamageType: "magic",
+		DamageType: model.MagicAttack,
 	})
 	game.State.CombatStage = model.CombatStageCalcDamage
 	game.State.ReturnTurnStage = model.TurnStageExtraAction
@@ -293,7 +293,7 @@ func TestButterflyMirror_ReplaceTwoDamageToTwoHits(t *testing.T) {
 		SourceID:   p2.ID,
 		TargetID:   p3.ID,
 		Damage:     2,
-		DamageType: "magic",
+		DamageType: model.MagicAttack,
 	})
 	game.State.CombatStage = model.CombatStageCalcDamage
 	game.State.ReturnTurnStage = model.TurnStageExtraAction

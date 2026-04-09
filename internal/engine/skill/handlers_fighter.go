@@ -211,7 +211,7 @@ func (h *FighterBurstCrashHandler) Execute(ctx *model.Context) error {
 			SourceID:   ctx.User.ID,
 			TargetID:   ctx.User.ID,
 			Damage:     qi,
-			DamageType: "magic",
+			DamageType: model.MagicAttack,
 		})
 	}
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [气绝崩击]：移除1斗气（剩余%d），本次攻击不可应战，并对自己造成%d点法术伤害", ctx.User.Name, qi, qi))

@@ -2,7 +2,7 @@ package engine
 
 import (
 	"fmt"
-	"starcup-engine/internal/engine/runtimeutil"
+	"starcup-engine/internal/engine/core/runtimeutil"
 
 	"starcup-engine/internal/model"
 )
@@ -90,7 +90,7 @@ func (e *GameEngine) handleSwordEmperorSwordQiSlashTargetChoice(selectionIndex i
 		return fmt.Errorf("剑气斩不能选择当前攻击目标")
 	}
 	nowQi := addSwordEmperorSwordQi(user, -xValue)
-	e.AddPendingDamage(model.PendingDamage{SourceID: user.ID, TargetID: targetID, Damage: xValue, DamageType: "magic"})
+	e.AddPendingDamage(model.PendingDamage{SourceID: user.ID, TargetID: targetID, Damage: xValue, DamageType: model.MagicAttack})
 	e.Log(fmt.Sprintf("%s 发动 [剑气斩]：移除%d点剑气（当前%d），对 %s 造成%d点法术伤害", user.Name, xValue, nowQi, target.Name, xValue))
 	e.PopInterrupt()
 	if e.State.PendingInterrupt == nil {

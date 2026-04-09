@@ -2,7 +2,7 @@ package engine
 
 import (
 	"fmt"
-	"starcup-engine/internal/engine/runtimeutil"
+	"starcup-engine/internal/engine/core/runtimeutil"
 
 	"starcup-engine/internal/model"
 )
@@ -83,7 +83,7 @@ func (e *GameEngine) resolveHomunculusRuneChoice(ctxData map[string]interface{},
 				SourceID:   user.ID,
 				TargetID:   targetID,
 				Damage:     damage,
-				DamageType: "magic",
+				DamageType: model.MagicAttack,
 			})
 		}
 		e.Log(fmt.Sprintf("%s 发动 [魔纹融合]：弃%d张异系牌，翻转%d个魔纹为战纹，额外造成%d点法术伤害", user.Name, xVal, flipCount, damage))
@@ -111,7 +111,7 @@ func (e *GameEngine) resolveHomunculusRuneChoice(ctxData map[string]interface{},
 			SourceID:   user.ID,
 			TargetID:   targetID,
 			Damage:     yVal,
-			DamageType: "magic",
+			DamageType: model.MagicAttack,
 		})
 	}
 	e.Log(fmt.Sprintf("%s 发动 [战纹碎击]：弃%d张同系牌，翻转%d个战纹为魔纹，本次攻击伤害+%d", user.Name, xVal, flipCount, bonusDamage))

@@ -86,11 +86,6 @@ func (e *GameEngine) handleActionSelectionSpecialOrSkill(act model.PlayerAction,
 		if err := e.UseSkill(act.PlayerID, act.SkillID, targetIDs, act.Selections); err != nil {
 			return fmt.Errorf("技能发动失败: %v", err)
 		}
-		if player.TurnState.UsedSkillCounts["arbiter_forced_doomsday_pending"] > 0 && act.SkillID == "arbiter_doomsday" {
-			player.TurnState.UsedSkillCounts["arbiter_forced_doomsday_pending"] = 0
-			player.TurnState.UsedSkillCounts["arbiter_forced_doomsday_done_turn"] = 1
-			consumeHeroTauntRestriction(e, player)
-		}
 		skillTitle := act.SkillID
 		if player.Character != nil {
 			for _, s := range player.Character.Skills {

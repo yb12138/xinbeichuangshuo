@@ -2,7 +2,7 @@ package engine
 
 import (
 	"fmt"
-	"starcup-engine/internal/engine/runtimeutil"
+	"starcup-engine/internal/engine/core/runtimeutil"
 
 	"starcup-engine/internal/model"
 )
@@ -283,7 +283,7 @@ func (e *GameEngine) resolvePlagueDeathTouchFinal(ctxData map[string]interface{}
 		SourceID:           user.ID,
 		TargetID:           targetID,
 		Damage:             damage,
-		DamageType:         "magic",
+		DamageType:         model.MagicAttack,
 		CapDrawToHandLimit: true,
 	})
 

@@ -69,7 +69,7 @@ func (e *GameEngine) processPendingDamages() bool {
 }
 
 func (e *GameEngine) removePendingDamageIfAttackMissed(pd *model.PendingDamage) bool {
-	if pd == nil || !pd.AttackMissResolved {
+	if pd == nil || !pd.HasCheck(model.PendingDamageCheckAttackMissResolved) {
 		return false
 	}
 	e.State.PendingDamageQueue = e.State.PendingDamageQueue[1:]
@@ -106,7 +106,7 @@ func (e *GameEngine) applyAndPopPendingDamage(pd *model.PendingDamage) model.Pen
 	target := e.State.Players[pd.TargetID]
 	source := e.State.Players[pd.SourceID]
 	if target != nil && pd.Damage > 0 {
-		if pd.DamageType == "Attack" && source != nil {
+		if pd.DamageType == model.AttackDamage && source != nil {
 			e.NotifyActionStep(fmt.Sprintf("总共对%s造成%d点伤害", model.GetPlayerDisplayName(target), pd.Damage))
 		}
 		e.NotifyDamageDealt(pd.SourceID, pd.TargetID, pd.Damage, pd.DamageType)

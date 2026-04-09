@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"starcup-engine/internal/data"
-	"starcup-engine/internal/engine/skills"
+	"starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 )
 

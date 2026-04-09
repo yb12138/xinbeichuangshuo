@@ -1,7 +1,7 @@
 package engine
 
 import (
-	"starcup-engine/internal/engine/runtimeutil"
+	"starcup-engine/internal/engine/core/runtimeutil"
 	"strings"
 	"testing"
 
@@ -56,7 +56,7 @@ func TestSageMagicRebound_SameElementDiscardChain(t *testing.T) {
 		SourceID:   "p2",
 		TargetID:   "p1",
 		Damage:     1,
-		DamageType: "magic",
+		DamageType: model.MagicAttack,
 	})
 	g.State.CombatStage = model.CombatStageCalcDamage
 
@@ -120,10 +120,10 @@ func TestSageMagicRebound_SameElementDiscardChain(t *testing.T) {
 	}
 	first := g.State.PendingDamageQueue[0]
 	second := g.State.PendingDamageQueue[1]
-	if first.TargetID != "p1" || first.Damage != 3 || !strings.EqualFold(first.DamageType, "magic") {
+	if first.TargetID != "p1" || first.Damage != 3 || !strings.EqualFold(string(first.DamageType), string(model.MagicAttack)) {
 		t.Fatalf("unexpected first rebound damage: %+v", first)
 	}
-	if second.TargetID != "p2" || second.Damage != 2 || !strings.EqualFold(second.DamageType, "magic") {
+	if second.TargetID != "p2" || second.Damage != 2 || !strings.EqualFold(string(second.DamageType), string(model.MagicAttack)) {
 		t.Fatalf("unexpected second rebound damage: %+v", second)
 	}
 	if got := len(p1.Hand); got != 1 {
@@ -155,7 +155,7 @@ func TestSageMagicRebound_TriggerAfterDamageDraw(t *testing.T) {
 		SourceID:   "p2",
 		TargetID:   "p1",
 		Damage:     1,
-		DamageType: "magic",
+		DamageType: model.MagicAttack,
 	})
 	g.State.CombatStage = model.CombatStageCalcDamage
 
@@ -195,13 +195,13 @@ func TestSageMagicRebound_TwoOneMagicDamagesPromptTwice(t *testing.T) {
 		SourceID:   "p2",
 		TargetID:   "p1",
 		Damage:     1,
-		DamageType: "magic",
+		DamageType: model.MagicAttack,
 	})
 	g.AddPendingDamage(model.PendingDamage{
 		SourceID:   "p2",
 		TargetID:   "p1",
 		Damage:     1,
-		DamageType: "magic",
+		DamageType: model.MagicAttack,
 	})
 	g.State.CombatStage = model.CombatStageCalcDamage
 
@@ -243,7 +243,7 @@ func TestSageWisdomCodex_ForceDiscardAfterHeavyMagicDamage(t *testing.T) {
 		SourceID:   "p2",
 		TargetID:   "p1",
 		Damage:     4,
-		DamageType: "magic",
+		DamageType: model.MagicAttack,
 	})
 	g.State.CombatStage = model.CombatStageCalcDamage
 
@@ -471,7 +471,7 @@ func TestSageHolyCodex_XAndTargetCountBoundaries(t *testing.T) {
 		t.Fatalf("expected self magic damage queued after holy codex")
 	}
 	pd := g.State.PendingDamageQueue[0]
-	if pd.SourceID != "p1" || pd.TargetID != "p1" || pd.Damage != 3 || !strings.EqualFold(pd.DamageType, "magic") {
+	if pd.SourceID != "p1" || pd.TargetID != "p1" || pd.Damage != 3 || !strings.EqualFold(string(pd.DamageType), string(model.MagicAttack)) {
 		t.Fatalf("unexpected holy codex self damage: %+v", pd)
 	}
 }

@@ -2,7 +2,7 @@ package engine
 
 import (
 	"fmt"
-	"starcup-engine/internal/engine/runtimeutil"
+	"starcup-engine/internal/engine/core/runtimeutil"
 	"strings"
 
 	"starcup-engine/internal/model"
@@ -240,7 +240,7 @@ func (e *GameEngine) handleMagicLancerChoiceInputByTypeLegacy(selectionIndex int
 		applied := false
 		for idx := range e.State.PendingDamageQueue {
 			pd := &e.State.PendingDamageQueue[idx]
-			if !strings.EqualFold(pd.DamageType, "Attack") {
+			if !strings.EqualFold(string(pd.DamageType), string(model.AttackDamage)) {
 				continue
 			}
 			if pd.SourceID != user.ID {
@@ -525,7 +525,7 @@ func (e *GameEngine) handleMagicLancerChoiceInputByTypeLegacy(selectionIndex int
 		if target == nil {
 			return true, fmt.Errorf("目标不存在")
 		}
-		e.AddPendingDamage(model.PendingDamage{SourceID: user.ID, TargetID: targetID, Damage: 2, DamageType: "magic"})
+		e.AddPendingDamage(model.PendingDamage{SourceID: user.ID, TargetID: targetID, Damage: 2, DamageType: model.MagicAttack})
 		e.Log(fmt.Sprintf("%s 的 [幻影星尘] 生效：对 %s 造成2点法术伤害", user.Name, target.Name))
 		e.PopInterrupt()
 		if e.State.PendingInterrupt == nil {

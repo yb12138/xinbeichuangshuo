@@ -216,7 +216,7 @@ func (h *SoulSorcererSoulBlastHandler) Execute(ctx *model.Context) error {
 		SourceID:   ctx.User.ID,
 		TargetID:   target.ID,
 		Damage:     damage,
-		DamageType: "magic",
+		DamageType: model.MagicAttack,
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [灵魂震爆]：对 %s 造成%d点法术伤害", ctx.User.Name, target.Name, damage))
 	return nil

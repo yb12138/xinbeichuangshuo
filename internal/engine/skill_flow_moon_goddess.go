@@ -2,7 +2,7 @@ package engine
 
 import (
 	"fmt"
-	"starcup-engine/internal/engine/runtimeutil"
+	"starcup-engine/internal/engine/core/runtimeutil"
 	"strings"
 
 	"starcup-engine/internal/model"
@@ -276,7 +276,7 @@ func (e *GameEngine) moonGoddessFindPendingAttackDamage(rawCtx *model.Context) *
 	}
 	for i := range e.State.PendingDamageQueue {
 		pd := &e.State.PendingDamageQueue[i]
-		if !strings.EqualFold(pd.DamageType, "Attack") {
+		if !strings.EqualFold(string(pd.DamageType), string(model.AttackDamage)) {
 			continue
 		}
 		if pd.SourceID != rawCtx.TriggerCtx.SourceID || pd.TargetID != rawCtx.TriggerCtx.TargetID {
@@ -322,7 +322,7 @@ func (e *GameEngine) queueMoonGoddessMedusaMagicDamage(user *model.Player, attac
 		SourceID:   user.ID,
 		TargetID:   attacker.ID,
 		Damage:     1,
-		DamageType: "magic",
+		DamageType: model.MagicAttack,
 	})
 	e.Log(fmt.Sprintf("%s 的 [美杜莎之眼] 额外效果：对 %s 造成1点法术伤害", user.Name, attacker.Name))
 }
@@ -642,7 +642,7 @@ func (e *GameEngine) handleMoonGoddessChoiceInputByTypeLegacy(_ string, selectio
 			SourceID:   user.ID,
 			TargetID:   target.ID,
 			Damage:     1,
-			DamageType: "magic",
+			DamageType: model.MagicAttack,
 		})
 		e.Log(fmt.Sprintf("%s 发动 [月渎]：移除1治疗，对 %s 造成1点法术伤害", user.Name, target.Name))
 		e.PopInterrupt()
@@ -815,7 +815,7 @@ func (e *GameEngine) handleMoonGoddessChoiceInputByTypeLegacy(_ string, selectio
 			SourceID:   user.ID,
 			TargetID:   target.ID,
 			Damage:     damage,
-			DamageType: "magic",
+			DamageType: model.MagicAttack,
 		})
 		e.Log(fmt.Sprintf("%s 发动 [苍白之月] 分支②：移除%d新月，石化+1（当前%d），弃1张牌并对 %s 造成%d点法术伤害",
 			user.Name, x, nowPetrify, target.Name, damage))

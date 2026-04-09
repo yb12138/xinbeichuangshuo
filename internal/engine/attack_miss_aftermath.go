@@ -72,7 +72,7 @@ func (e *GameEngine) resolveMagicBowPierceMissWithOverride(attackerID, targetID 
 		SourceID:   attackerID,
 		TargetID:   targetID,
 		Damage:     3,
-		DamageType: "magic",
+		DamageType: model.MagicAttack,
 	})
 	e.Log(fmt.Sprintf("%s 的 [魔贯冲击] 未命中：对 %s 造成3点法术伤害", attacker.Name, target.Name))
 }
@@ -115,7 +115,7 @@ func (e *GameEngine) resolveHolyBowShardMiss(attackerID, targetID string) {
 }
 
 func (e *GameEngine) resolveShieldBlockedAttackAsMiss(pd *model.PendingDamage) {
-	if pd == nil || pd.AttackMissResolved || !strings.EqualFold(pd.DamageType, "Attack") {
+	if pd == nil || pd.HasCheck(model.PendingDamageCheckAttackMissResolved) || !strings.EqualFold(string(pd.DamageType), string(model.AttackDamage)) {
 		return
 	}
 	attacker := e.State.Players[pd.SourceID]
@@ -132,6 +132,13 @@ func (e *GameEngine) resolveShieldBlockedAttackAsMiss(pd *model.PendingDamage) {
 	e.NotifyActionStep(fmt.Sprintf("%s 的【圣盾】抵消了本次攻击，判定为未命中", targetName))
 	e.Log(fmt.Sprintf("[Combat] %s 的攻击被【圣盾】完全抵消，按未命中处理", attacker.Name))
 
-	e.resolveMagicBowPierceMissWithOverride(pd.SourceID, pd.TargetID, pd.Card, pd.HeroRoarMissArmed, pd.FighterChargeMissArmed, pd.IsCounter)
-	pd.AttackMissResolved = true
+	e.resolveMagicBowPierceMissWithOverride(
+		pd.SourceID,
+		pd.TargetID,
+		pd.Card,
+		pd.HasCheck(model.PendingDamageCheckHeroRoarMissArmed),
+		pd.HasCheck(model.PendingDamageCheckFighterChargeMissArmed),
+		pd.IsCounter,
+	)
+	pd.SetCheck(model.PendingDamageCheckAttackMissResolved, true)
 }

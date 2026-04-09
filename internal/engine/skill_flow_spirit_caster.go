@@ -2,7 +2,7 @@ package engine
 
 import (
 	"fmt"
-	"starcup-engine/internal/engine/runtimeutil"
+	"starcup-engine/internal/engine/core/runtimeutil"
 	"starcup-engine/internal/model"
 )
 
@@ -119,7 +119,7 @@ func (e *GameEngine) resolveSpiritCasterThunderDamage(user *model.Player, target
 			SourceID:   user.ID,
 			TargetID:   targetID,
 			Damage:     damage,
-			DamageType: "magic",
+			DamageType: model.MagicAttack,
 		})
 		hitCount++
 	}
@@ -190,7 +190,7 @@ func (e *GameEngine) resolveSpiritCasterHundredNightSingle(user *model.Player, t
 		SourceID:   user.ID,
 		TargetID:   target.ID,
 		Damage:     damage,
-		DamageType: "magic",
+		DamageType: model.MagicAttack,
 	})
 	e.Log(fmt.Sprintf("%s 发动 [百鬼夜行]：对 %s 造成%d点法术伤害", user.Name, target.Name, damage))
 	return nil
@@ -216,7 +216,7 @@ func (e *GameEngine) resolveSpiritCasterHundredNightFireAOE(user *model.Player, 
 			SourceID:   user.ID,
 			TargetID:   target.ID,
 			Damage:     damage,
-			DamageType: "magic",
+			DamageType: model.MagicAttack,
 		})
 		hitCount++
 	}

@@ -124,7 +124,7 @@ func (h *HeroForbiddenPowerHandler) Execute(ctx *model.Context) error {
 			SourceID:   ctx.User.ID,
 			TargetID:   ctx.User.ID,
 			Damage:     fireCount,
-			DamageType: "magic",
+			DamageType: model.MagicAttack,
 		})
 	}
 

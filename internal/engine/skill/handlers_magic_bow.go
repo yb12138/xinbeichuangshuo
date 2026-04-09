@@ -224,7 +224,7 @@ func (h *MagicBowThunderScatterHandler) Execute(ctx *model.Context) error {
 				SourceID:   ctx.User.ID,
 				TargetID:   enemyID,
 				Damage:     1,
-				DamageType: "magic",
+				DamageType: model.MagicAttack,
 			})
 		}
 		ctx.Game.Log(fmt.Sprintf("%s 发动 [雷光散射]：对所有对手各造成1点法术伤害", ctx.User.Name))

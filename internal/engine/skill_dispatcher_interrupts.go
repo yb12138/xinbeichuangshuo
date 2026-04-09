@@ -2,7 +2,7 @@ package engine
 
 import (
 	"fmt"
-	"starcup-engine/internal/engine/skills"
+	"starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 )
 

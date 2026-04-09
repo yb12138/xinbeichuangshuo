@@ -899,7 +899,7 @@ func TestHeroDeadDuel_MagicOverflowMoraleLossFlooredToOne(t *testing.T) {
 		SourceID:   "p2",
 		TargetID:   "p1",
 		Damage:     3,
-		DamageType: "magic",
+		DamageType: model.MagicAttack,
 	})
 
 	if interrupted := game.processPendingDamages(); !interrupted {

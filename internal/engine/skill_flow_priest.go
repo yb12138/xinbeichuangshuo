@@ -2,7 +2,7 @@ package engine
 
 import (
 	"fmt"
-	"starcup-engine/internal/engine/runtimeutil"
+	"starcup-engine/internal/engine/core/runtimeutil"
 
 	"starcup-engine/internal/model"
 )
@@ -212,7 +212,7 @@ func (e *GameEngine) handlePriestChoiceInput(_ string, selectionIndex int, ctxDa
 				return true, fmt.Errorf("神圣领域分支①需要至少1点治疗")
 			}
 			user.Heal--
-			e.AddPendingDamage(model.PendingDamage{SourceID: user.ID, TargetID: targetID, Damage: 2, DamageType: "magic"})
+			e.AddPendingDamage(model.PendingDamage{SourceID: user.ID, TargetID: targetID, Damage: 2, DamageType: model.MagicAttack})
 			e.Log(fmt.Sprintf("%s 的 [神圣领域] 分支①生效：移除1点治疗，对 %s 造成2点法术伤害", user.Name, target.Name))
 			e.PopInterrupt()
 			if e.State.PendingInterrupt == nil {

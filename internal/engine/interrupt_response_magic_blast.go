@@ -88,7 +88,7 @@ func (e *GameEngine) resolveMagicBlastTargetDiscard(
 	}
 
 	// 规则顺序：目标不弃法术牌 -> 先受到2点法术伤害 -> 再判断施法者是否强制弃牌。
-	e.InflictDamage(casterID, player.ID, 2, "magic")
+	e.InflictDamage(casterID, player.ID, 2, model.MagicAttack)
 	e.Log(fmt.Sprintf("[Skill] %s 未弃法术牌，受到2点伤害", player.Name))
 
 	caster := e.State.Players[casterID]

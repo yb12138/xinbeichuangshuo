@@ -274,8 +274,8 @@ func (h *ElementalistAbsorbHandler) CanUse(ctx *model.Context) bool {
 	}
 	// 检查伤害类型是否包含 "no_absorb"（元素吸收专属判断逻辑）
 	noAbsorb := false
-	if damageType, ok := ctx.Selections["damage_type"].(string); ok {
-		noAbsorb = strings.Contains(strings.ToLower(damageType), "no_absorb")
+	if damageType, ok := ctx.Selections["damage_type"].(model.DamageType); ok {
+		noAbsorb = strings.Contains(strings.ToLower(string(damageType)), "no_absorb")
 	}
 	if noAbsorb {
 		return false
@@ -332,7 +332,7 @@ func (h *ElementalistThunderStrikeHandler) Execute(ctx *model.Context) error {
 		return fmt.Errorf("雷击需要目标")
 	}
 	if !hasElementCard(ctx.User, model.ElementThunder) {
-		ctx.Game.InflictDamage(ctx.User.ID, ctx.Target.ID, 1, "magic")
+		ctx.Game.InflictDamage(ctx.User.ID, ctx.Target.ID, 1, model.MagicAttack)
 		ctx.Game.ModifyGem(string(ctx.User.Camp), 1)
 		ctx.Game.Log(fmt.Sprintf("%s 发动 [雷击]，造成1点法术伤害并为阵营+1宝石", ctx.User.Name))
 		return nil
@@ -371,7 +371,7 @@ func (h *ElementalistFreezeHandler) Execute(ctx *model.Context) error {
 		healTarget = ctx.User
 	}
 	if !hasElementCard(ctx.User, model.ElementWater) {
-		ctx.Game.InflictDamage(ctx.User.ID, dmgTarget.ID, 1, "magic")
+		ctx.Game.InflictDamage(ctx.User.ID, dmgTarget.ID, 1, model.MagicAttack)
 		ctx.Game.Heal(healTarget.ID, 1)
 		ctx.Game.Log(fmt.Sprintf("%s 发动 [冰冻]，对 %s 造成1点法术伤害并治疗 %s 1点", ctx.User.Name, dmgTarget.Name, healTarget.Name))
 		return nil
@@ -397,7 +397,7 @@ func (h *ElementalistWindBladeHandler) Execute(ctx *model.Context) error {
 		return fmt.Errorf("风刃需要目标")
 	}
 	if !hasElementCard(ctx.User, model.ElementWind) {
-		ctx.Game.InflictDamage(ctx.User.ID, ctx.Target.ID, 1, "magic")
+		ctx.Game.InflictDamage(ctx.User.ID, ctx.Target.ID, 1, model.MagicAttack)
 		addAttackAction(ctx.User, "风刃")
 		ctx.Game.Log(fmt.Sprintf("%s 发动 [风刃]，造成1点法术伤害并获得额外攻击行动", ctx.User.Name))
 		return nil
@@ -422,7 +422,7 @@ func (h *ElementalistMeteorHandler) Execute(ctx *model.Context) error {
 		return fmt.Errorf("陨石需要目标")
 	}
 	if !hasElementCard(ctx.User, model.ElementEarth) {
-		ctx.Game.InflictDamage(ctx.User.ID, ctx.Target.ID, 1, "magic")
+		ctx.Game.InflictDamage(ctx.User.ID, ctx.Target.ID, 1, model.MagicAttack)
 		addMagicAction(ctx.User, "陨石")
 		ctx.Game.Log(fmt.Sprintf("%s 发动 [陨石]，造成1点法术伤害并获得额外法术行动", ctx.User.Name))
 		return nil
@@ -447,7 +447,7 @@ func (h *ElementalistFireballHandler) Execute(ctx *model.Context) error {
 		return fmt.Errorf("火球需要目标")
 	}
 	if !hasElementCard(ctx.User, model.ElementFire) {
-		ctx.Game.InflictDamage(ctx.User.ID, ctx.Target.ID, 2, "magic")
+		ctx.Game.InflictDamage(ctx.User.ID, ctx.Target.ID, 2, model.MagicAttack)
 		ctx.Game.Log(fmt.Sprintf("%s 发动 [火球]，造成2点法术伤害", ctx.User.Name))
 		return nil
 	}
@@ -476,7 +476,7 @@ func (h *ElementalistMoonlightHandler) Execute(ctx *model.Context) error {
 	}
 	x := ctx.User.Gem + ctx.User.Crystal
 	dmg := x + 1
-	ctx.Game.InflictDamage(ctx.User.ID, ctx.Target.ID, dmg, "magic")
+	ctx.Game.InflictDamage(ctx.User.ID, ctx.Target.ID, dmg, model.MagicAttack)
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [月光]，造成%d点法术伤害", ctx.User.Name, dmg))
 	return nil
 }
@@ -560,7 +560,7 @@ func (h *ArbiterDoomsdayHandler) Execute(ctx *model.Context) error {
 	dmg := getToken(ctx.User, "judgment")
 	setToken(ctx.User, "judgment", 0)
 	if dmg > 0 {
-		ctx.Game.InflictDamage(ctx.User.ID, ctx.Target.ID, dmg, "magic")
+		ctx.Game.InflictDamage(ctx.User.ID, ctx.Target.ID, dmg, model.MagicAttack)
 	}
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [末日审判]，对 %s 造成%d点法术伤害", ctx.User.Name, ctx.Target.Name, dmg))
 	return nil
@@ -1140,7 +1140,7 @@ func (h *PlagueOutbreakHandler) Execute(ctx *model.Context) error {
 			SourceID:      ctx.User.ID,
 			TargetID:      p.ID,
 			Damage:        1,
-			DamageType:    "magic",
+			DamageType:    model.MagicAttack,
 			SourceSkillID: "plague_outbreak",
 		})
 	}
@@ -1224,7 +1224,7 @@ func (h *PlagueToxicNovaHandler) Execute(ctx *model.Context) error {
 			SourceID:   ctx.User.ID,
 			TargetID:   p.ID,
 			Damage:     2,
-			DamageType: "magic",
+			DamageType: model.MagicAttack,
 		})
 	}
 	ctx.Game.Heal(ctx.User.ID, 1)
@@ -1276,7 +1276,7 @@ func (h *MagicSwordsmanShadowGatherHandler) Execute(ctx *model.Context) error {
 		SourceID:   ctx.User.ID,
 		TargetID:   ctx.User.ID,
 		Damage:     1,
-		DamageType: "magic",
+		DamageType: model.MagicAttack,
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [暗影凝聚]，进入暗影形态并承受1点法术伤害", ctx.User.Name))
 	return nil
@@ -1310,7 +1310,7 @@ func (h *MagicSwordsmanShadowMeteorHandler) Execute(ctx *model.Context) error {
 		SourceID:   ctx.User.ID,
 		TargetID:   ctx.Target.ID,
 		Damage:     2,
-		DamageType: "magic",
+		DamageType: model.MagicAttack,
 	})
 	camp := string(ctx.User.Camp)
 	total := ctx.Game.GetCampGems(camp) + ctx.Game.GetCampCrystals(camp)
@@ -1402,7 +1402,7 @@ func (h *CrimsonFlashHandler) Execute(ctx *model.Context) error {
 		SourceID:   ctx.User.ID,
 		TargetID:   ctx.User.ID,
 		Damage:     2,
-		DamageType: "magic",
+		DamageType: model.MagicAttack,
 	})
 	addAttackAction(ctx.User, "赤色一闪")
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [赤色一闪]，移除1鲜血并获得额外攻击行动", ctx.User.Name))
@@ -1460,7 +1460,7 @@ func (h *CrimsonBloodRoseHandler) Execute(ctx *model.Context) error {
 				SourceID:   ctx.User.ID,
 				TargetID:   p.ID,
 				Damage:     1,
-				DamageType: "magic",
+				DamageType: model.MagicAttack,
 			})
 		}
 	}
@@ -1499,7 +1499,7 @@ func (h *CrimsonBloodBarrierHandler) Execute(ctx *model.Context) error {
 			SourceID:   ctx.User.ID,
 			TargetID:   sourceID,
 			Damage:     1,
-			DamageType: "magic",
+			DamageType: model.MagicAttack,
 		})
 	}
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [血气屏障]，本次法术伤害-1，并对伤害来源造成1点法术伤害", ctx.User.Name))

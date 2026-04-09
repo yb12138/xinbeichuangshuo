@@ -71,12 +71,12 @@ func TestBardDescentConcerto_TriggersAndResolves(t *testing.T) {
 	}
 
 	if paused := game.handlePostDamageResolved(&model.PendingDamage{
-		SourceID: "p1", TargetID: "p3", Damage: 1, DamageType: "magic",
+		SourceID: "p1", TargetID: "p3", Damage: 1, DamageType: model.MagicAttack,
 	}); paused {
 		t.Fatalf("first magic damage should not trigger descent yet")
 	}
 	if paused := game.handlePostDamageResolved(&model.PendingDamage{
-		SourceID: "p1", TargetID: "p4", Damage: 1, DamageType: "magic",
+		SourceID: "p1", TargetID: "p4", Damage: 1, DamageType: model.MagicAttack,
 	}); !paused {
 		t.Fatalf("second self magic damage should trigger descent interrupt")
 	}
@@ -138,12 +138,12 @@ func TestBardDescentConcerto_DoesNotTriggerOnAllyMagicDamage(t *testing.T) {
 	ally.TurnState = model.NewPlayerTurnState()
 
 	if paused := game.handlePostDamageResolved(&model.PendingDamage{
-		SourceID: "p2", TargetID: "p3", Damage: 1, DamageType: "magic",
+		SourceID: "p2", TargetID: "p3", Damage: 1, DamageType: model.MagicAttack,
 	}); paused {
 		t.Fatalf("ally magic damage should not trigger bard descent on first hit")
 	}
 	if paused := game.handlePostDamageResolved(&model.PendingDamage{
-		SourceID: "p2", TargetID: "p4", Damage: 1, DamageType: "magic",
+		SourceID: "p2", TargetID: "p4", Damage: 1, DamageType: model.MagicAttack,
 	}); paused {
 		t.Fatalf("ally magic damage should not trigger bard descent on second hit")
 	}

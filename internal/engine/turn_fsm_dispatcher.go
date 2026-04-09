@@ -349,7 +349,7 @@ func (e *GameEngine) resolveForcedHitCombat(combatReq *model.CombatRequest) bool
 		SourceID:      combatReq.AttackerID,
 		TargetID:      combatReq.TargetID,
 		Damage:        combatReq.Card.Damage,
-		DamageType:    "Attack",
+		DamageType:    model.AttackDamage,
 		Card:          combatReq.Card,
 		IsCounter:     combatReq.IsCounter,
 		IgnoreShield:  combatReq.IgnoreShield,

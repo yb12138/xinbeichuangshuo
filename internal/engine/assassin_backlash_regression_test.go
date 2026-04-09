@@ -56,7 +56,7 @@ func TestAssassinBacklash_DoesNotTriggerOnMagicDamage(t *testing.T) {
 	game.State.Players["p1"].TurnState = model.NewPlayerTurnState()
 	game.State.Players["p2"].TurnState = model.NewPlayerTurnState()
 
-	game.InflictDamage("p1", "p2", 1, "magic")
+	game.InflictDamage("p1", "p2", 1, model.MagicAttack)
 	game.Drive()
 
 	if got := countDamageEvents(obs, "p1", "p2", "magic"); got != 1 {

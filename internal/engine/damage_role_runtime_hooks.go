@@ -87,7 +87,7 @@ func pendingDamageHeroRoarMissArmHook(e *GameEngine, pd *model.PendingDamage, at
 		return
 	}
 	if attacker.TurnState.UsedSkillCounts["hero_roar_active"] > 0 {
-		pd.HeroRoarMissArmed = true
+		pd.SetCheck(model.PendingDamageCheckHeroRoarMissArmed, true)
 	}
 }
 
@@ -96,7 +96,7 @@ func pendingDamageFighterChargeMissArmHook(e *GameEngine, pd *model.PendingDamag
 		return
 	}
 	if attacker.TurnState.SkillFlowState["fighter_charge_pending"] > 0 {
-		pd.FighterChargeMissArmed = true
+		pd.SetCheck(model.PendingDamageCheckFighterChargeMissArmed, true)
 	}
 }
 
@@ -110,7 +110,7 @@ func pendingDamageSoulLinkTransferHook(e *GameEngine, pd *model.PendingDamage) b
 // 剑帝命中后置：承伤触发后、治疗抵伤前执行命中分支。
 // 使用 AttackPostHitEffectsDone 标记确保同一次伤害只处理一次。
 func pendingDamageSwordEmperorAfterTakenHook(e *GameEngine, pd *model.PendingDamage) bool {
-	if e == nil || pd == nil || pd.AttackPostHitEffectsDone || pd.AttackMissResolved || !strings.EqualFold(pd.DamageType, "Attack") {
+	if e == nil || pd == nil || pd.AttackPostHitEffectsDone || pd.HasCheck(model.PendingDamageCheckAttackMissResolved) || !strings.EqualFold(string(pd.DamageType), string(model.AttackDamage)) {
 		return false
 	}
 	e.resolveSwordEmperorAttackHitAftermath(pd)
@@ -177,7 +177,7 @@ func pendingDamagePlagueMageHealResistRule(e *GameEngine, pd *model.PendingDamag
 	if e == nil || pd == nil || target == nil || !e.isPlagueMage(target) {
 		return false
 	}
-	return pd.DamageType == "Attack"
+	return pd.DamageType == model.AttackDamage
 }
 
 func pendingDamagePriestHealCapHook(e *GameEngine, _ *model.PendingDamage, target *model.Player, maxHeal int) int {

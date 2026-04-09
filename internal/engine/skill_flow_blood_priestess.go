@@ -3,7 +3,7 @@ package engine
 import (
 	"fmt"
 	"sort"
-	"starcup-engine/internal/engine/runtimeutil"
+	"starcup-engine/internal/engine/core/runtimeutil"
 
 	"starcup-engine/internal/model"
 )
@@ -211,7 +211,7 @@ func (e *GameEngine) handleBloodPriestessChoiceInput(playerID string, selectionI
 				SourceID:   user.ID,
 				TargetID:   user.ID,
 				Damage:     2,
-				DamageType: "magic",
+				DamageType: model.MagicAttack,
 			})
 			ctxData["damage_queued"] = true
 		}
@@ -273,7 +273,7 @@ func (e *GameEngine) handleBloodPriestessChoiceInput(playerID string, selectionI
 				SourceID:   user.ID,
 				TargetID:   user.ID,
 				Damage:     2,
-				DamageType: "magic",
+				DamageType: model.MagicAttack,
 			})
 			ctxData["damage_queued"] = true
 		}
@@ -319,13 +319,13 @@ func (e *GameEngine) handleBloodPriestessChoiceInput(playerID string, selectionI
 			SourceID:   user.ID,
 			TargetID:   target.ID,
 			Damage:     damage,
-			DamageType: "magic",
+			DamageType: model.MagicAttack,
 		})
 		e.AddPendingDamage(model.PendingDamage{
 			SourceID:   user.ID,
 			TargetID:   user.ID,
 			Damage:     damage,
-			DamageType: "magic",
+			DamageType: model.MagicAttack,
 		})
 		e.Log(fmt.Sprintf("%s 发动 [血之悲鸣]：对 %s 和自己各造成%d点法术伤害", user.Name, target.Name, damage))
 		e.PopInterrupt()

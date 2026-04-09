@@ -101,7 +101,7 @@ func TestHolyBow_HeavenlyBowHolyHitGainFaith(t *testing.T) {
 		SourceID:   "p1",
 		TargetID:   "p2",
 		Damage:     2,
-		DamageType: "Attack",
+		DamageType: model.AttackDamage,
 		IsCounter:  false,
 		Card:       &holy,
 	})
@@ -115,7 +115,7 @@ func TestHolyBow_HeavenlyBowHolyHitGainFaith(t *testing.T) {
 		SourceID:   "p1",
 		TargetID:   "p2",
 		Damage:     2,
-		DamageType: "Attack",
+		DamageType: model.AttackDamage,
 		IsCounter:  false,
 		Card:       &nonHoly,
 	})
@@ -127,7 +127,7 @@ func TestHolyBow_HeavenlyBowHolyHitGainFaith(t *testing.T) {
 		SourceID:   "p1",
 		TargetID:   "p2",
 		Damage:     2,
-		DamageType: "Attack",
+		DamageType: model.AttackDamage,
 		IsCounter:  true,
 		Card:       &holy,
 	})

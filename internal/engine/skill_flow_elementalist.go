@@ -2,7 +2,7 @@ package engine
 
 import (
 	"fmt"
-	"starcup-engine/internal/engine/runtimeutil"
+	"starcup-engine/internal/engine/core/runtimeutil"
 
 	"starcup-engine/internal/model"
 )
@@ -135,7 +135,7 @@ func (e *GameEngine) resolveElementalistBonus(ctxData map[string]interface{}, bo
 		damage++
 	}
 
-	e.InflictDamage(userID, targetID, damage, "magic")
+	e.InflictDamage(userID, targetID, damage, model.MagicAttack)
 
 	if healTargetID, ok := ctxData["heal_target_id"].(string); ok && healTargetID != "" {
 		if healTarget := e.State.Players[healTargetID]; healTarget != nil {

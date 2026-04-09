@@ -107,7 +107,7 @@ func (h *MagicLancerPhantomStardustHandler) Execute(ctx *model.Context) error {
 	setSkillFlow(ctx.User, "ml_stardust_pending", 1)
 	setSkillFlow(ctx.User, "ml_stardust_wait_discard", 0)
 	setSkillFlow(ctx.User, "ml_stardust_morale_before", before)
-	ctx.Game.InflictDamage(ctx.User.ID, ctx.User.ID, 2, "magic")
+	ctx.Game.InflictDamage(ctx.User.ID, ctx.User.ID, 2, model.MagicAttack)
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [幻影星尘]：先对自己造成2点法术伤害，待完全结算后转正，并根据士气变化判定是否追加目标伤害", ctx.User.Name))
 	return nil
 }

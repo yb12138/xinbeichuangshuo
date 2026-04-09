@@ -125,7 +125,7 @@ func executeElementalSealStatus(ctx *model.Context, fc *model.FieldCard) error {
 		SourceID:           sourceID,
 		TargetID:           ctx.User.ID,
 		Damage:             3,
-		DamageType:         "magic",
+		DamageType:         model.MagicAttack,
 		EffectTypeToRemove: fc.Effect, // 【关键】伤害应用后移除此封印
 	})
 	return nil

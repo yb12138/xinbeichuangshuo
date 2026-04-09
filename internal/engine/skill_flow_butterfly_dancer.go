@@ -2,7 +2,7 @@ package engine
 
 import (
 	"fmt"
-	"starcup-engine/internal/engine/runtimeutil"
+	"starcup-engine/internal/engine/core/runtimeutil"
 	"strconv"
 	"strings"
 
@@ -492,7 +492,7 @@ func (e *GameEngine) handleButterflyChoiceInputByTypeLegacy(playerID string, sel
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
 		targetID := targetIDs[selectionIndex]
-		e.AddPendingDamage(model.PendingDamage{SourceID: user.ID, TargetID: targetID, Damage: 1, DamageType: "magic", IgnoreHeal: true})
+		e.AddPendingDamage(model.PendingDamage{SourceID: user.ID, TargetID: targetID, Damage: 1, DamageType: model.MagicAttack, IgnoreHeal: true})
 		if target := e.State.Players[targetID]; target != nil {
 			e.Log(fmt.Sprintf("%s 的 [倒逆之蝶] 分支①：对 %s 造成1点不可治疗抵御的法术伤害", user.Name, target.Name))
 		}
@@ -527,7 +527,7 @@ func (e *GameEngine) handleButterflyChoiceInputByTypeLegacy(playerID string, sel
 			e.notifyInterruptPrompt()
 			return true, nil
 		}
-		e.AddPendingDamage(model.PendingDamage{SourceID: user.ID, TargetID: user.ID, Damage: 4, DamageType: "magic"})
+		e.AddPendingDamage(model.PendingDamage{SourceID: user.ID, TargetID: user.ID, Damage: 4, DamageType: model.MagicAttack})
 		now := addButterflyPupa(user, -1)
 		e.Log(fmt.Sprintf("%s 的 [倒逆之蝶] 分支②：对自己造成4点法术伤害并移除1个蛹（当前蛹=%d）", user.Name, now))
 		e.PopInterrupt()
@@ -666,8 +666,8 @@ func (e *GameEngine) handleButterflyChoiceInputByTypeLegacy(playerID string, sel
 		pd := &e.State.PendingDamageQueue[damageIdx]
 		originSourceID := pd.SourceID
 		pd.Damage = 0
-		e.AddPendingDamage(model.PendingDamage{SourceID: user.ID, TargetID: originSourceID, Damage: 1, DamageType: "magic"})
-		e.AddPendingDamage(model.PendingDamage{SourceID: user.ID, TargetID: originSourceID, Damage: 1, DamageType: "magic"})
+		e.AddPendingDamage(model.PendingDamage{SourceID: user.ID, TargetID: originSourceID, Damage: 1, DamageType: model.MagicAttack})
+		e.AddPendingDamage(model.PendingDamage{SourceID: user.ID, TargetID: originSourceID, Damage: 1, DamageType: model.MagicAttack})
 		for _, c := range removed {
 			if c.Type == model.CardTypeMagic {
 				e.queueButterflyWitherTrigger(user)
@@ -739,8 +739,8 @@ func (e *GameEngine) handleButterflyChoiceInputByTypeLegacy(playerID string, sel
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
 		targetID := targetIDs[selectionIndex]
-		e.AddPendingDamage(model.PendingDamage{SourceID: user.ID, TargetID: targetID, Damage: 1, DamageType: "magic"})
-		e.AddPendingDamage(model.PendingDamage{SourceID: user.ID, TargetID: user.ID, Damage: 2, DamageType: "magic"})
+		e.AddPendingDamage(model.PendingDamage{SourceID: user.ID, TargetID: targetID, Damage: 1, DamageType: model.MagicAttack})
+		e.AddPendingDamage(model.PendingDamage{SourceID: user.ID, TargetID: user.ID, Damage: 2, DamageType: model.MagicAttack})
 		if user.Tokens == nil {
 			user.Tokens = map[string]int{}
 		}

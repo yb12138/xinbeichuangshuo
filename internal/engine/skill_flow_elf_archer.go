@@ -2,7 +2,7 @@ package engine
 
 import (
 	"fmt"
-	"starcup-engine/internal/engine/runtimeutil"
+	"starcup-engine/internal/engine/core/runtimeutil"
 
 	"starcup-engine/internal/model"
 )
@@ -231,11 +231,11 @@ func (e *GameEngine) handleElfArcherChoiceInput(_ string, selectionIndex int, ct
 		case "elf_elemental_shot_water_target":
 			e.Heal(targetID, 1)
 		case "elf_elemental_shot_earth_target":
-			e.AddPendingDamage(model.PendingDamage{SourceID: user.ID, TargetID: targetID, Damage: 1, DamageType: "magic"})
+			e.AddPendingDamage(model.PendingDamage{SourceID: user.ID, TargetID: targetID, Damage: 1, DamageType: model.MagicAttack})
 		case "elf_ritual_release_target":
 			leaveElfArcherRitualForm(user)
 			user.Tokens["elf_ritual_release_waiting"] = 0
-			e.AddPendingDamage(model.PendingDamage{SourceID: user.ID, TargetID: targetID, Damage: 2, DamageType: "magic"})
+			e.AddPendingDamage(model.PendingDamage{SourceID: user.ID, TargetID: targetID, Damage: 2, DamageType: model.MagicAttack})
 		}
 		e.PopInterrupt()
 		if e.State.PendingInterrupt == nil && len(e.State.PendingDamageQueue) > 0 {

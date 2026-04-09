@@ -3,7 +3,7 @@ package engine
 import (
 	"fmt"
 	"sort"
-	"starcup-engine/internal/engine/runtimeutil"
+	"starcup-engine/internal/engine/core/runtimeutil"
 
 	"starcup-engine/internal/model"
 )

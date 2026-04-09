@@ -55,7 +55,7 @@ func (e *GameEngine) handlePrayerPowerBlessingTriggerChoice(selectionIndex int, 
 			if pd.SourceID != sourceID || pd.TargetID != targetID {
 				continue
 			}
-			if !strings.EqualFold(pd.DamageType, "Attack") {
+			if !strings.EqualFold(string(pd.DamageType), string(model.AttackDamage)) {
 				continue
 			}
 			pd.Damage += 2

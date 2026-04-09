@@ -161,7 +161,7 @@ func (h *BloodPriestessBloodCurseHandler) Execute(ctx *model.Context) error {
 		SourceID:   ctx.User.ID,
 		TargetID:   target.ID,
 		Damage:     2,
-		DamageType: "magic",
+		DamageType: model.MagicAttack,
 	})
 	ctx.Game.EnqueueDeferredFollowup(model.DeferredFollowup{
 		Type:   "blood_priestess_curse_discard",

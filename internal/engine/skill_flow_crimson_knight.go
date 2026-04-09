@@ -2,7 +2,7 @@ package engine
 
 import (
 	"fmt"
-	"starcup-engine/internal/engine/runtimeutil"
+	"starcup-engine/internal/engine/core/runtimeutil"
 	"strings"
 
 	"starcup-engine/internal/model"
@@ -31,7 +31,7 @@ func (e *GameEngine) resolveCrimsonKnightBloodyPrayer(user *model.Player, x int,
 		SourceID:              user.ID,
 		TargetID:              user.ID,
 		Damage:                x,
-		DamageType:            "magic",
+		DamageType:            model.MagicAttack,
 		AllowCrimsonFaithHeal: true,
 	})
 	if user.Tokens == nil {

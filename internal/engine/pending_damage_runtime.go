@@ -2,7 +2,7 @@ package engine
 
 import (
 	"fmt"
-	"starcup-engine/internal/engine/runtimeutil"
+	"starcup-engine/internal/engine/core/runtimeutil"
 	"strings"
 
 	"starcup-engine/internal/model"
@@ -88,14 +88,21 @@ func (e *GameEngine) checkAndProcessAttackHolyShield(pd *model.PendingDamage, at
 	e.NotifyCombatCue(pd.SourceID, pd.TargetID, "shield")
 	e.NotifyActionStep(fmt.Sprintf("%s 的【圣盾】抵消了本次攻击，判定为未命中", victim.Name))
 
-	e.resolveMagicBowPierceMissWithOverride(pd.SourceID, pd.TargetID, pd.Card, pd.HeroRoarMissArmed, pd.FighterChargeMissArmed, pd.IsCounter)
-	pd.AttackMissResolved = true
+	e.resolveMagicBowPierceMissWithOverride(
+		pd.SourceID,
+		pd.TargetID,
+		pd.Card,
+		pd.HasCheck(model.PendingDamageCheckHeroRoarMissArmed),
+		pd.HasCheck(model.PendingDamageCheckFighterChargeMissArmed),
+		pd.IsCounter,
+	)
+	pd.SetCheck(model.PendingDamageCheckAttackMissResolved, true)
 	pd.AttackHitTriggerChecked = true
 	return true
 }
 
 func (e *GameEngine) processPendingAttackHit(pd *model.PendingDamage) bool {
-	if pd == nil || !strings.EqualFold(pd.DamageType, "Attack") || pd.AttackHitTriggerChecked {
+	if pd == nil || !strings.EqualFold(string(pd.DamageType), string(model.AttackDamage)) || pd.AttackHitTriggerChecked {
 		return false
 	}
 	if pd.Card == nil {
@@ -188,8 +195,8 @@ func (e *GameEngine) dispatchPendingDamageTaken(pd *model.PendingDamage) bool {
 		Card:      pd.Card,
 	}
 	damageCtx := e.buildContext(e.State.Players[pd.TargetID], e.State.Players[pd.SourceID], model.TriggerOnDamageTaken, damageEventCtx)
-	damageCtx.Flags["IsMagicDamage"] = !strings.EqualFold(pd.DamageType, "Attack")
-	damageCtx.Flags["holy_shield_eligible"] = strings.EqualFold(pd.DamageType, "Attack") ||
+	damageCtx.Flags["IsMagicDamage"] = !strings.EqualFold(string(pd.DamageType), string(model.AttackDamage))
+	damageCtx.Flags["holy_shield_eligible"] = strings.EqualFold(string(pd.DamageType), string(model.AttackDamage)) ||
 		(pd.Card != nil && strings.TrimSpace(pd.Card.Name) == "魔弹")
 	damageCtx.Flags["ignore_shield"] = pd.IgnoreShield || pd.HasInterceptTag(model.CombatInterceptIgnoreHolyShield)
 	if damageCtx.Selections == nil {

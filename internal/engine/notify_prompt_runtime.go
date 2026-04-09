@@ -198,7 +198,7 @@ func (e *GameEngine) NotifyCardRevealed(playerID string, cards []model.Card, act
 	e.notifyCards(playerID, cards, actionType, false)
 }
 
-func (e *GameEngine) NotifyCardHidden(playerID string, cards []model.Card, actionType string) {
+func (e *GameEngine) NotifyCardHidden(playerID string, cards []model.Card, actionType model.DamageType) {
 	e.notifyCards(playerID, cards, actionType, true)
 }
 
@@ -259,12 +259,12 @@ func (e *GameEngine) notifyCards(playerID string, cards []model.Card, actionType
 		"player_id":   playerID,
 		"player_name": playerName,
 		"cards":       cards,
-		"action_type": actionType,
+		"action_type": string(actionType),
 		"hidden":      hidden,
 	})
 }
 
-func (e *GameEngine) NotifyDamageDealt(sourceID, targetID string, damage int, damageType string) {
+func (e *GameEngine) NotifyDamageDealt(sourceID, targetID string, damage int, damageType model.DamageType) {
 	if e.observer == nil || damage <= 0 {
 		return
 	}
@@ -285,7 +285,7 @@ func (e *GameEngine) NotifyDamageDealt(sourceID, targetID string, damage int, da
 		"target_id":   targetID,
 		"target_name": targetName,
 		"damage":      damage,
-		"damage_type": damageType,
+		"damage_type": string(damageType),
 	})
 }
 

@@ -3,7 +3,7 @@ package engine
 import (
 	"fmt"
 
-	"starcup-engine/internal/engine/skills"
+	"starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 )
 
@@ -163,7 +163,7 @@ func startupHeroExhaustionReleaseHook(e *GameEngine, player *model.Player) bool 
 		SourceID:   player.ID,
 		TargetID:   player.ID,
 		Damage:     3,
-		DamageType: "magic",
+		DamageType: model.MagicAttack,
 	})
 	return true
 }

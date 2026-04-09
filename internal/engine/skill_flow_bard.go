@@ -2,7 +2,7 @@ package engine
 
 import (
 	"fmt"
-	"starcup-engine/internal/engine/runtimeutil"
+	"starcup-engine/internal/engine/core/runtimeutil"
 
 	"starcup-engine/internal/model"
 )
@@ -335,7 +335,7 @@ func (e *GameEngine) handleBardChoiceInputByTypeLegacy(selectionIndex int, ctxDa
 		if target == nil {
 			return true, fmt.Errorf("目标不存在")
 		}
-		e.AddPendingDamage(model.PendingDamage{SourceID: user.ID, TargetID: target.ID, Damage: 1, DamageType: "magic"})
+		e.AddPendingDamage(model.PendingDamage{SourceID: user.ID, TargetID: target.ID, Damage: 1, DamageType: model.MagicAttack})
 		e.Log(fmt.Sprintf("%s 的 [沉沦协奏曲] 追加效果：对 %s 造成1点法术伤害", user.Name, target.Name))
 		e.PopInterrupt()
 		if e.State.PendingInterrupt == nil {
@@ -575,7 +575,7 @@ func (e *GameEngine) handleBardChoiceInputByTypeLegacy(selectionIndex int, ctxDa
 			return true, nil
 		}
 		for _, targetID := range selected {
-			e.AddPendingDamage(model.PendingDamage{SourceID: user.ID, TargetID: targetID, Damage: 1, DamageType: "magic"})
+			e.AddPendingDamage(model.PendingDamage{SourceID: user.ID, TargetID: targetID, Damage: 1, DamageType: model.MagicAttack})
 		}
 		e.Log(fmt.Sprintf("%s 发动 [激昂狂想曲]：对2名目标各造成1点法术伤害", user.Name))
 		e.resolveBardForbiddenVerseAfterSong(user, "激昂狂想曲")

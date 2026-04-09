@@ -2,7 +2,7 @@ package engine
 
 import (
 	"fmt"
-	"starcup-engine/internal/engine/runtimeutil"
+	"starcup-engine/internal/engine/core/runtimeutil"
 
 	"starcup-engine/internal/model"
 )
@@ -42,7 +42,7 @@ func (e *GameEngine) handleFighterPsiBulletTargetChoice(selectionIndex int, ctxD
 		SourceID:   user.ID,
 		TargetID:   targetID,
 		Damage:     1,
-		DamageType: "magic",
+		DamageType: model.MagicAttack,
 	})
 	selfDamage := 0
 	if target.Heal <= 0 {
@@ -52,7 +52,7 @@ func (e *GameEngine) handleFighterPsiBulletTargetChoice(selectionIndex int, ctxD
 				SourceID:   user.ID,
 				TargetID:   user.ID,
 				Damage:     selfDamage,
-				DamageType: "magic",
+				DamageType: model.MagicAttack,
 			})
 		}
 	}

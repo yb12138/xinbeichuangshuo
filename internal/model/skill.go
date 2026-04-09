@@ -288,7 +288,7 @@ type IGameEngine interface {
 	// 玩家操作
 	DrawCards(playerID string, amount int)
 	DrawCardsWithOptions(playerID string, amount int, opts DrawOptions)
-	NotifyCardRevealed(playerID string, cards []Card, actionType string)
+	NotifyCardRevealed(playerID string, cards []Card, actionType DamageType)
 	DiscardCard(card *FieldCard) error //丢弃指定牌
 	AppendToDiscard(cards []Card)
 	Heal(playerID string, amount int)
@@ -304,7 +304,7 @@ type IGameEngine interface {
 	ApplyNextAttackInterceptTagRule(playerID string, modifierID string, sourceSkillID string, tag CombatInterceptTag, lifetime RuleModifierLifetimeType)
 	IsSkillBlocked(playerID string, skillID string) bool
 
-	InflictDamage(sourceID, targetID string, amount int, damageType string)
+	InflictDamage(sourceID, targetID string, amount int, damageType DamageType)
 	RemoveFieldCard(targetID string, effect EffectType) bool
 	RemoveFieldCardBy(targetID string, effect EffectType, sourceID string) bool
 	TakeFieldCard(targetID string, fieldIndex int, sourceID string) (Card, error)
@@ -318,7 +318,7 @@ type IGameEngine interface {
 
 	// 行动步骤（桌面展示）
 	NotifyActionStep(line string)
-	NotifyDamageDealt(sourceID, targetID string, damage int, damageType string)
+	NotifyDamageDealt(sourceID, targetID string, damage int, damageType DamageType)
 
 	// 启动技能确认
 	ConfirmStartupSkill(playerID string, skillID string) error
@@ -338,7 +338,7 @@ type IGameEngine interface {
 
 	PushInterrupt(intr *Interrupt)
 
-	ResolveDamage(sourceID, targetID string, card *Card, damageType string) error
+	ResolveDamage(sourceID, targetID string, card *Card, damageType DamageType) error
 	AddPendingDamage(pd PendingDamage)
 	AddPendingDamageFront(pd PendingDamage)
 	EnqueueDeferredFollowup(f DeferredFollowup)

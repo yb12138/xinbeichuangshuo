@@ -1,7 +1,7 @@
 package engine
 
 import (
-	"starcup-engine/internal/engine/skills"
+	"starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 )
 
@@ -54,6 +54,8 @@ type GameEngine struct {
 	// TimingBeforeActionExecute / TimingOnActionEnd：特殊行动策略装配表。
 	specialActionOverridePolicies []specialActionOverridePolicy
 	specialActionPostHooks        []specialActionPostHook
+	// Skill 主动发动成功后的后置策略装配表。
+	skillPostHooks []skillPostHook
 	// TimingOnGameStart：入场初始化 / 开局发牌后 / 行动收尾。
 	gameStartAddPlayerHooks   []gameStartPlayerHook
 	gameStartInitialDealHooks []gameStartPlayerHook

@@ -227,10 +227,12 @@ func (e *GameEngine) resolveBloodPriestessBleedExitOnActionEnd() bool {
 // maybeTriggerSoulLinkTransfer 在承受伤害前检查灵魂链接转伤流程。
 // 返回 true 表示已产生中断，状态机应暂停等待玩家选择。
 func (e *GameEngine) maybeTriggerSoulLinkTransfer(pd *model.PendingDamage) bool {
-	if pd == nil || pd.Damage <= 0 || pd.FromSoulLink || pd.SoulLinkChecked {
+	if pd == nil || pd.Damage <= 0 ||
+		pd.HasCheck(model.PendingDamageCheckFromSoulLink) ||
+		pd.HasCheck(model.PendingDamageCheckSoulLinkChecked) {
 		return false
 	}
-	pd.SoulLinkChecked = true
+	pd.SetCheck(model.PendingDamageCheckSoulLinkChecked, true)
 
 	target := e.State.Players[pd.TargetID]
 	if target == nil {

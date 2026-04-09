@@ -2,7 +2,7 @@ package engine
 
 import (
 	"fmt"
-	"starcup-engine/internal/engine/runtimeutil"
+	"starcup-engine/internal/engine/core/runtimeutil"
 
 	"starcup-engine/internal/model"
 )
@@ -306,11 +306,13 @@ func (e *GameEngine) handleSoulSorcererChoiceInput(playerID string, selectionInd
 				pd.Damage = 0
 			}
 			e.AddPendingDamage(model.PendingDamage{
-				SourceID:     pd.SourceID,
-				TargetID:     counterpart.ID,
-				Damage:       x,
-				DamageType:   "magic",
-				FromSoulLink: true,
+				SourceID:   pd.SourceID,
+				TargetID:   counterpart.ID,
+				Damage:     x,
+				DamageType: model.MagicAttack,
+				Checks: map[model.PendingDamageCheckKey]bool{
+					model.PendingDamageCheckFromSoulLink: true,
+				},
 			})
 			e.Log(fmt.Sprintf("%s 的 [灵魂链接] 生效：移除%d点蓝魂，将%d点伤害转移给 %s（法术伤害）", sorcerer.Name, x, x, counterpart.Name))
 		} else {

@@ -120,13 +120,13 @@ func (h *PrayerDarkCurseHandler) Execute(ctx *model.Context) error {
 		SourceID:   ctx.User.ID,
 		TargetID:   ctx.Target.ID,
 		Damage:     2,
-		DamageType: "magic",
+		DamageType: model.MagicAttack,
 	})
 	ctx.Game.AddPendingDamage(model.PendingDamage{
 		SourceID:   ctx.User.ID,
 		TargetID:   ctx.User.ID,
 		Damage:     2,
-		DamageType: "magic",
+		DamageType: model.MagicAttack,
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [黑暗诅咒]，先对 %s 再对自己各造成2点法术伤害", ctx.User.Name, ctx.Target.Name))
 	return nil
@@ -280,7 +280,7 @@ func (h *CrimsonKnightKillingFeastHandler) Execute(ctx *model.Context) error {
 		SourceID:              ctx.User.ID,
 		TargetID:              ctx.User.ID,
 		Damage:                4,
-		DamageType:            "magic",
+		DamageType:            model.MagicAttack,
 		AllowCrimsonFaithHeal: true,
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [杀戮盛宴]，移除1血印并对自己造成4伤害，本次攻击伤害+2", ctx.User.Name))
@@ -365,14 +365,14 @@ func (h *CrimsonKnightCrimsonCrossHandler) Execute(ctx *model.Context) error {
 		SourceID:              ctx.User.ID,
 		TargetID:              ctx.User.ID,
 		Damage:                4,
-		DamageType:            "magic",
+		DamageType:            model.MagicAttack,
 		AllowCrimsonFaithHeal: true,
 	})
 	ctx.Game.AddPendingDamage(model.PendingDamage{
 		SourceID:   ctx.User.ID,
 		TargetID:   ctx.Target.ID,
 		Damage:     3,
-		DamageType: "magic",
+		DamageType: model.MagicAttack,
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [腥红十字]，对自己造成4点法术伤害，并对 %s 造成3点法术伤害", ctx.User.Name, ctx.Target.Name))
 	return nil
@@ -1055,13 +1055,13 @@ func (h *BlazeWitchBlazingCodexHandler) Execute(ctx *model.Context) error {
 		SourceID:   ctx.User.ID,
 		TargetID:   ctx.Target.ID,
 		Damage:     2,
-		DamageType: "magic",
+		DamageType: model.MagicAttack,
 	})
 	ctx.Game.AddPendingDamage(model.PendingDamage{
 		SourceID:   ctx.User.ID,
 		TargetID:   ctx.User.ID,
 		Damage:     2,
-		DamageType: "magic",
+		DamageType: model.MagicAttack,
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [苍炎法典]，先对 %s 后对自己各造成2点法术伤害", ctx.User.Name, ctx.Target.Name))
 	return nil
@@ -1097,13 +1097,13 @@ func (h *BlazeWitchHeavenfireCleaveHandler) Execute(ctx *model.Context) error {
 		SourceID:   ctx.User.ID,
 		TargetID:   ctx.Target.ID,
 		Damage:     damage,
-		DamageType: "magic",
+		DamageType: model.MagicAttack,
 	})
 	ctx.Game.AddPendingDamage(model.PendingDamage{
 		SourceID:   ctx.User.ID,
 		TargetID:   ctx.User.ID,
 		Damage:     damage,
-		DamageType: "magic",
+		DamageType: model.MagicAttack,
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [天火断空]，先对 %s 后对自己各造成%d点法术伤害", ctx.User.Name, ctx.Target.Name, damage))
 	return nil
@@ -1218,13 +1218,13 @@ func (h *BlazeWitchPainLinkHandler) Execute(ctx *model.Context) error {
 		SourceID:   ctx.User.ID,
 		TargetID:   ctx.Target.ID,
 		Damage:     1,
-		DamageType: "magic",
+		DamageType: model.MagicAttack,
 	})
 	ctx.Game.AddPendingDamage(model.PendingDamage{
 		SourceID:   ctx.User.ID,
 		TargetID:   ctx.User.ID,
 		Damage:     1,
-		DamageType: "magic",
+		DamageType: model.MagicAttack,
 	})
 	setSkillFlow(ctx.User, "bw_pain_link_pending_discard", 1)
 	setSkillFlow(ctx.User, "bw_pain_link_pending_hits", 2)

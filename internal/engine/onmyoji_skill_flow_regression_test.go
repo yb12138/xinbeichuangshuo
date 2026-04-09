@@ -1,7 +1,7 @@
 package engine
 
 import (
-	"starcup-engine/internal/engine/runtimeutil"
+	"starcup-engine/internal/engine/core/runtimeutil"
 	"testing"
 
 	"starcup-engine/internal/model"

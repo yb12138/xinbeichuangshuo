@@ -225,43 +225,75 @@ type GameState struct {
 	GameOver          bool        `json:"game_over,omitempty"`
 }
 
-// InterruptType defines the type of game interruption
+// DamageType 定义伤害/行动类型枚举文本。
 type DamageType string
 
 const (
 	AttackDamage DamageType = "Attack"
-	MagicDamage  DamageType = "magic"
+	MagicAttack  DamageType = "magic"
+	// MagicDamage 保留兼容别名，逐步迁移到 MagicAttack。
+	MagicDamage DamageType = MagicAttack
 )
 
 // PendingDamage 代表一个待处理的伤害事件
 type PendingDamage struct {
-	SourceID                   string                      `json:"source_id"`
-	TargetID                   string                      `json:"target_id"`
-	Damage                     int                         `json:"damage"`
-	DamageType                 DamageType                  `json:"damage_type"`
-	OverflowMoraleLossFixed    int                         `json:"overflow_morale_loss_fixed,omitempty"` // 本次伤害摸牌若导致士气下降，则固定为该值
-	IgnoreHeal                 bool                        `json:"ignore_heal,omitempty"`                // 本次伤害是否不可被治疗抵御
-	CapDrawToHandLimit         bool                        `json:"cap_draw_to_hand_limit,omitempty"`     // 本次伤害摸牌是否“最多摸到手牌上限”
-	AllowCrimsonFaithHeal      bool                        `json:"allow_crimson_faith_heal,omitempty"`   // 红莲骑士[腥红信仰]是否可用治疗抵御本次自伤
-	EffectTypeToRemove         EffectType                  `json:"effect_type_to_remove,omitempty"`      // 伤害结算后需要移除的场上效果 (例如封印)
-	SourceSkillID              string                      `json:"source_skill_id,omitempty"`            // 伤害来源技能ID（用于回合内追踪）
-	Card                       *Card                       `json:"card,omitempty"`                       // 关联的卡牌 (用于攻击伤害判定)
-	IgnoreShield               bool                        `json:"ignore_shield,omitempty"`              // 本次攻击伤害是否无视圣盾
-	InterceptTags              map[CombatInterceptTag]bool `json:"intercept_tags,omitempty"`
-	AttackHitTriggerChecked    bool                        `json:"attack_hit_trigger_checked,omitempty"`   // 本次攻击伤害是否已完成 OnAttackHit 分发
-	HealResolved               bool                        `json:"heal_resolved"`                          // 是否已处理治疗选择
-	DamageTakenTriggerChecked  bool                        `json:"damage_taken_trigger_checked,omitempty"` // 本次伤害是否已完成 OnDamageTaken 响应分发
-	IsCounter                  bool                        `json:"is_counter"`                             // 是否为应战攻击（命中加水晶而非宝石）
-	AttackHitResourceType      string                      `json:"attack_hit_resource_type,omitempty"`     // 攻击命中后发放的战绩资源类型(gem/crystal)
-	AttackHitResourceGranted   bool                        `json:"attack_hit_resource_granted,omitempty"`  // 是否已成功发放命中战绩资源
-	AttackPostHitEffectsDone   bool                        `json:"attack_post_hit_effects_done,omitempty"` // 命中后、承伤前的一次性后效是否已处理
-	HeroRoarMissArmed          bool                        `json:"hero_roar_miss_armed,omitempty"`         // 本次攻击是否携带怒吼未命中分支
-	FighterChargeMissArmed     bool                        `json:"fighter_charge_miss_armed,omitempty"`    // 本次攻击是否携带蓄力一击未命中分支
-	AttackMissResolved         bool                        `json:"attack_miss_resolved,omitempty"`         // 本次攻击是否已按未命中分支结算
-	SoulLinkChecked            bool                        `json:"soul_link_checked,omitempty"`            // 灵魂链接“承伤前”是否已检查
-	FromSoulLink               bool                        `json:"from_soul_link,omitempty"`               // 是否为灵魂链接转移产生的法术伤害
-	ButterflyPilgrimageChecked bool                        `json:"butterfly_pilgrimage_checked,omitempty"` // 本次伤害是否已检查过朝圣
-	ButterflyStage5Checked     bool                        `json:"butterfly_stage5_checked,omitempty"`     // 本次伤害是否已检查过毒粉/镜花水月
+	SourceID                  string                         `json:"source_id"`
+	TargetID                  string                         `json:"target_id"`
+	Damage                    int                            `json:"damage"`
+	DamageType                DamageType                     `json:"damage_type"`
+	OverflowMoraleLossFixed   int                            `json:"overflow_morale_loss_fixed,omitempty"` // 本次伤害摸牌若导致士气下降，则固定为该值
+	IgnoreHeal                bool                           `json:"ignore_heal,omitempty"`                // 本次伤害是否不可被治疗抵御
+	CapDrawToHandLimit        bool                           `json:"cap_draw_to_hand_limit,omitempty"`     // 本次伤害摸牌是否“最多摸到手牌上限”
+	AllowCrimsonFaithHeal     bool                           `json:"allow_crimson_faith_heal,omitempty"`   // 红莲骑士[腥红信仰]是否可用治疗抵御本次自伤
+	EffectTypeToRemove        EffectType                     `json:"effect_type_to_remove,omitempty"`      // 伤害结算后需要移除的场上效果 (例如封印)
+	SourceSkillID             string                         `json:"source_skill_id,omitempty"`            // 伤害来源技能ID（用于回合内追踪）
+	Card                      *Card                          `json:"card,omitempty"`                       // 关联的卡牌 (用于攻击伤害判定)
+	IgnoreShield              bool                           `json:"ignore_shield,omitempty"`              // 本次攻击伤害是否无视圣盾
+	InterceptTags             map[CombatInterceptTag]bool    `json:"intercept_tags,omitempty"`
+	AttackHitTriggerChecked   bool                           `json:"attack_hit_trigger_checked,omitempty"`   // 本次攻击伤害是否已完成 OnAttackHit 分发
+	HealResolved              bool                           `json:"heal_resolved"`                          // 是否已处理治疗选择
+	DamageTakenTriggerChecked bool                           `json:"damage_taken_trigger_checked,omitempty"` // 本次伤害是否已完成 OnDamageTaken 响应分发
+	IsCounter                 bool                           `json:"is_counter"`                             // 是否为应战攻击（命中加水晶而非宝石）
+	AttackHitResourceType     string                         `json:"attack_hit_resource_type,omitempty"`     // 攻击命中后发放的战绩资源类型(gem/crystal)
+	AttackHitResourceGranted  bool                           `json:"attack_hit_resource_granted,omitempty"`  // 是否已成功发放命中战绩资源
+	AttackPostHitEffectsDone  bool                           `json:"attack_post_hit_effects_done,omitempty"` // 命中后、承伤前的一次性后效是否已处理
+	Checks                    map[PendingDamageCheckKey]bool `json:"checks,omitempty"`                       // 伤害实例运行时检查位（按 key 标记一次性检查/来源属性）
+}
+
+type PendingDamageCheckKey string
+
+const (
+	PendingDamageCheckHeroRoarMissArmed      PendingDamageCheckKey = "hero_roar_miss_armed"
+	PendingDamageCheckFighterChargeMissArmed PendingDamageCheckKey = "fighter_charge_miss_armed"
+	PendingDamageCheckAttackMissResolved     PendingDamageCheckKey = "attack_miss_resolved"
+	PendingDamageCheckSoulLinkChecked        PendingDamageCheckKey = "soul_link_checked"
+	PendingDamageCheckFromSoulLink           PendingDamageCheckKey = "from_soul_link"
+	PendingDamageCheckBeforeApplyDefend      PendingDamageCheckKey = "before_apply_defend_checked"
+	PendingDamageCheckBeforeApplyResponse    PendingDamageCheckKey = "before_apply_response_checked"
+)
+
+func (pd *PendingDamage) HasCheck(key PendingDamageCheckKey) bool {
+	return pd != nil && pd.Checks != nil && pd.Checks[key]
+}
+
+func (pd *PendingDamage) SetCheck(key PendingDamageCheckKey, enabled bool) {
+	if pd == nil || key == "" {
+		return
+	}
+	if enabled {
+		if pd.Checks == nil {
+			pd.Checks = map[PendingDamageCheckKey]bool{}
+		}
+		pd.Checks[key] = true
+		return
+	}
+	if pd.Checks == nil {
+		return
+	}
+	delete(pd.Checks, key)
+	if len(pd.Checks) == 0 {
+		pd.Checks = nil
+	}
 }
 
 // DeferredFollowup 代表一个待执行的技能后续结算。

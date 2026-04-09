@@ -2,7 +2,7 @@ package engine
 
 import (
 	"fmt"
-	"starcup-engine/internal/engine/runtimeutil"
+	"starcup-engine/internal/engine/core/runtimeutil"
 
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/rules"
@@ -296,7 +296,7 @@ func (e *GameEngine) handleMagicBowChoiceInput(_ string, selectionIndex int, ctx
 			return true, fmt.Errorf("无效的X值")
 		}
 		for _, targetID := range targetIDs {
-			e.AddPendingDamage(model.PendingDamage{SourceID: user.ID, TargetID: targetID, Damage: 1, DamageType: "magic"})
+			e.AddPendingDamage(model.PendingDamage{SourceID: user.ID, TargetID: targetID, Damage: 1, DamageType: model.MagicAttack})
 		}
 		actualExtra := 0
 		for i := 0; i < extraX; i++ {
@@ -330,7 +330,7 @@ func (e *GameEngine) handleMagicBowChoiceInput(_ string, selectionIndex int, ctx
 			if target == nil {
 				return true, fmt.Errorf("目标不存在")
 			}
-			e.AddPendingDamage(model.PendingDamage{SourceID: user.ID, TargetID: lockedTargetID, Damage: actualExtra, DamageType: "magic"})
+			e.AddPendingDamage(model.PendingDamage{SourceID: user.ID, TargetID: lockedTargetID, Damage: actualExtra, DamageType: model.MagicAttack})
 			e.Log(fmt.Sprintf("%s 的 [雷光散射] 生效：对所有对手各1点，并对 %s 额外造成%d点法术伤害", user.Name, target.Name, actualExtra))
 			e.PopInterrupt()
 			if e.State.PendingInterrupt == nil && len(e.State.PendingDamageQueue) > 0 {
@@ -364,7 +364,7 @@ func (e *GameEngine) handleMagicBowChoiceInput(_ string, selectionIndex int, ctx
 		case "mb_thunder_scatter_target":
 			extraX := runtimeutil.ToIntContextValue(ctxData["extra_x"])
 			if extraX > 0 {
-				e.AddPendingDamage(model.PendingDamage{SourceID: user.ID, TargetID: targetID, Damage: extraX, DamageType: "magic"})
+				e.AddPendingDamage(model.PendingDamage{SourceID: user.ID, TargetID: targetID, Damage: extraX, DamageType: model.MagicAttack})
 			}
 			e.Log(fmt.Sprintf("%s 的 [雷光散射] 生效：对所有对手各1点，并对 %s 额外造成%d点法术伤害", user.Name, target.Name, extraX))
 			e.PopInterrupt()

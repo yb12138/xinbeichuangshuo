@@ -3,7 +3,7 @@ package engine
 import (
 	"testing"
 
-	"starcup-engine/internal/engine/skills"
+	"starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/rules"
 )
@@ -54,7 +54,7 @@ func TestCrimsonKnightKillingFeast_BoostsCurrentHitDamage(t *testing.T) {
 		SourceID:   "p1",
 		TargetID:   "p2",
 		Damage:     2,
-		DamageType: "Attack",
+		DamageType: model.AttackDamage,
 		Card:       &attackCard,
 	}
 
@@ -129,7 +129,7 @@ func TestCrimsonKnightKillingFeast_SelfDamageResolvesBeforeAttackDamage(t *testi
 			SourceID:   "p1",
 			TargetID:   "p2",
 			Damage:     2,
-			DamageType: "Attack",
+			DamageType: model.AttackDamage,
 			Card:       &attackCard,
 		},
 	}

@@ -1,6 +1,6 @@
 package engine
 
-import "starcup-engine/internal/engine/runtimeutil"
+import "starcup-engine/internal/engine/core/runtimeutil"
 
 type choiceSequentialCountResolver func(ctxData map[string]interface{}) (int, bool)
 

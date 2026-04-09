@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"starcup-engine/internal/data"
-	"starcup-engine/internal/engine/skills"
+	"starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 )
 
@@ -402,7 +402,7 @@ func TestMagicLancerBlackSpear_ConsumesCrystalAndAddsDamage(t *testing.T) {
 		SourceID:   p1.ID,
 		TargetID:   p2.ID,
 		Damage:     2,
-		DamageType: "Attack",
+		DamageType: model.AttackDamage,
 	}}
 	if err := handler.Execute(ctx); err != nil {
 		t.Fatalf("execute ml_black_spear failed: %v", err)

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"starcup-engine/internal/engine/skills"
+	"starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/rules"
 )
@@ -643,7 +643,7 @@ func TestCrimsonKnightFaith_OnlyWhitelistedSelfDamageCanUseHeal(t *testing.T) {
 			SourceID:   p1.ID,
 			TargetID:   p1.ID,
 			Damage:     1,
-			DamageType: "magic",
+			DamageType: model.MagicAttack,
 		},
 	}
 	for i := 0; i < 5 && len(g.State.PendingDamageQueue) > 0; i++ {
@@ -664,7 +664,7 @@ func TestCrimsonKnightFaith_OnlyWhitelistedSelfDamageCanUseHeal(t *testing.T) {
 			SourceID:              p1.ID,
 			TargetID:              p1.ID,
 			Damage:                1,
-			DamageType:            "magic",
+			DamageType:            model.MagicAttack,
 			AllowCrimsonFaithHeal: true,
 		},
 	}

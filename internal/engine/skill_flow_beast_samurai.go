@@ -2,7 +2,7 @@ package engine
 
 import (
 	"fmt"
-	"starcup-engine/internal/engine/runtimeutil"
+	"starcup-engine/internal/engine/core/runtimeutil"
 	"strings"
 
 	"starcup-engine/internal/model"
@@ -62,7 +62,7 @@ func (e *GameEngine) beastSamuraiFindPendingAttackDamage(rawCtx *model.Context) 
 	}
 	for i := range e.State.PendingDamageQueue {
 		pd := &e.State.PendingDamageQueue[i]
-		if !strings.EqualFold(pd.DamageType, "Attack") {
+		if !strings.EqualFold(string(pd.DamageType), string(model.AttackDamage)) {
 			continue
 		}
 		if pd.SourceID != rawCtx.TriggerCtx.SourceID || pd.TargetID != rawCtx.TriggerCtx.TargetID {

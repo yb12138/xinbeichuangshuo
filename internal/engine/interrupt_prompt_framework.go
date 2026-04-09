@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"starcup-engine/internal/engine/promptfmt"
+	"starcup-engine/internal/engine/hook/promptfmt"
 	"starcup-engine/internal/model"
 )
 

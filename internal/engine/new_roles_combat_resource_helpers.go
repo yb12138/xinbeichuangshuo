@@ -144,7 +144,7 @@ func (e *GameEngine) resolveSwordEmperorAttackMiss(attackerID string, attackCard
 }
 
 func (e *GameEngine) resolveSwordEmperorAttackHitAftermath(pd *model.PendingDamage) {
-	if pd == nil || pd.IsCounter || pd.AttackMissResolved {
+	if pd == nil || pd.IsCounter || pd.HasCheck(model.PendingDamageCheckAttackMissResolved) {
 		return
 	}
 	attacker := e.State.Players[pd.SourceID]

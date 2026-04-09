@@ -3,7 +3,7 @@ package engine
 import (
 	"testing"
 
-	"starcup-engine/internal/engine/skills"
+	"starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 )
 
@@ -349,7 +349,7 @@ func TestMoonGoddessDarkMoonSlash_AddsDamageAndConsumesDarkMoon(t *testing.T) {
 			SourceID:   moon.ID,
 			TargetID:   enemy.ID,
 			Damage:     2,
-			DamageType: "Attack",
+			DamageType: model.AttackDamage,
 		},
 	}
 
@@ -569,7 +569,7 @@ func TestMoonGoddessBlasphemy_OncePerTurnAndResetNextTurn(t *testing.T) {
 		SourceID:   "p1",
 		TargetID:   "p2",
 		Damage:     1,
-		DamageType: "magic",
+		DamageType: model.MagicAttack,
 	}
 
 	if !game.tryQueueMoonGoddessBlasphemy(&pd) {
@@ -622,7 +622,7 @@ func TestMoonGoddessBlasphemy_TargetLockedToDamagedEnemyAndSelfTurn(t *testing.T
 		SourceID:   "p1",
 		TargetID:   "p2",
 		Damage:     1,
-		DamageType: "magic",
+		DamageType: model.MagicAttack,
 	}
 
 	if !game.tryQueueMoonGoddessBlasphemy(&pd) {
@@ -873,7 +873,7 @@ func TestMoonGoddessDarkMoonSlash_XBoundaries_CurseAndDamage(t *testing.T) {
 					SourceID:   moon.ID,
 					TargetID:   enemy.ID,
 					Damage:     2,
-					DamageType: "Attack",
+					DamageType: model.AttackDamage,
 				},
 			}
 

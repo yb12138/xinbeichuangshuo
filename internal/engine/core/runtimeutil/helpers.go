@@ -23,7 +23,7 @@ func ToBoolContextValue(v interface{}) bool {
 }
 
 func IsMagicDamageType(damageType model.DamageType) bool {
-	return !strings.EqualFold(damageType, "Attack")
+	return !strings.EqualFold(string(damageType), "Attack")
 }
 
 func ParseStringSliceContextValue(v interface{}) []string {

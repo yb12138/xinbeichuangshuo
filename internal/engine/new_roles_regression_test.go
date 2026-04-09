@@ -36,7 +36,7 @@ func TestPlagueMageCannotUseHealAgainstAttackDamage(t *testing.T) {
 			SourceID:   "p1",
 			TargetID:   "p2",
 			Damage:     1,
-			DamageType: "Attack",
+			DamageType: model.AttackDamage,
 		},
 	}
 	g.State.CombatStage = model.CombatStageCalcDamage
@@ -69,7 +69,7 @@ func TestPlagueMageCanUseHealAgainstMagicDamage(t *testing.T) {
 			SourceID:   "p1",
 			TargetID:   "p2",
 			Damage:     1,
-			DamageType: "magic",
+			DamageType: model.MagicAttack,
 		},
 	}
 	g.State.CombatStage = model.CombatStageCalcDamage

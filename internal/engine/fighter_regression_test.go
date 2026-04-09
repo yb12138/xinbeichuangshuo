@@ -40,7 +40,7 @@ func TestFighterPsiField_CapsDamageAtFour(t *testing.T) {
 	}
 
 	sourceCard := fighterTestCard("m1", "高伤法术", model.CardTypeMagic, model.ElementFire, 6)
-	if err := game.ResolveDamage("p2", "p1", &sourceCard, "magic"); err != nil {
+	if err := game.ResolveDamage("p2", "p1", &sourceCard, model.MagicAttack); err != nil {
 		t.Fatalf("resolve damage failed: %v", err)
 	}
 	if got := len(p1.Hand); got != 4 {
@@ -172,7 +172,7 @@ func TestFighterChargeStrike_ShieldBlockAfterPendingDamageCountsAsMiss(t *testin
 			SourceID:   "p1",
 			TargetID:   "p2",
 			Damage:     attackCard.Damage,
-			DamageType: "Attack",
+			DamageType: model.AttackDamage,
 			Card:       &attackCard,
 			IsCounter:  false,
 		},

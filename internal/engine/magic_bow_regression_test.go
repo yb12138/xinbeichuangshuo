@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"starcup-engine/internal/data"
-	"starcup-engine/internal/engine/skills"
+	"starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 )
 
@@ -539,10 +539,10 @@ func TestMagicBowMagicPierce_MissDealsExactlyThreeMagicDamage(t *testing.T) {
 		if pd.SourceID != "p1" || pd.TargetID != "p2" {
 			continue
 		}
-		if strings.EqualFold(pd.DamageType, "magic") {
+		if strings.EqualFold(string(pd.DamageType), string(model.MagicAttack)) {
 			totalMagicToP2 += pd.Damage
 		}
-		if strings.EqualFold(pd.DamageType, "attack") {
+		if strings.EqualFold(string(pd.DamageType), string(model.AttackDamage)) {
 			totalAttackToP2 += pd.Damage
 		}
 	}
@@ -598,7 +598,7 @@ func TestMagicBowThunderScatter_ExtraZeroSkipsTargetChoice(t *testing.T) {
 		t.Fatalf("expected base aoe damage to two enemies, got %d", len(game.State.PendingDamageQueue))
 	}
 	for _, pd := range game.State.PendingDamageQueue {
-		if !strings.EqualFold(pd.DamageType, "magic") || pd.Damage != 1 {
+		if !strings.EqualFold(string(pd.DamageType), string(model.MagicAttack)) || pd.Damage != 1 {
 			t.Fatalf("unexpected base thunder-scatter damage item: %+v", pd)
 		}
 	}

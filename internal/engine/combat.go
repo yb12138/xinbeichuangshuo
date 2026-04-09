@@ -42,7 +42,7 @@ func (e *GameEngine) initCombat(attackerID, targetID string, card *model.Card, i
 }
 
 // ResolveDamage 结算伤害（Step 7 & 8）
-func (e *GameEngine) ResolveDamage(attackerID, victimID string, card *model.Card, damageType string) error {
+func (e *GameEngine) ResolveDamage(attackerID, victimID string, card *model.Card, damageType model.DamageType) error {
 	e.setCombatStage(model.CombatStageCalcDamage)
 	attacker := e.State.Players[attackerID]
 	victim := e.State.Players[victimID]
@@ -59,7 +59,7 @@ func (e *GameEngine) ResolveDamage(attackerID, victimID string, card *model.Card
 	damage := card.Damage
 
 	// 2. 应用攻击者的被动技能效果（仅对攻击伤害）
-	if damageType == "Attack" {
+	if damageType == model.AttackDamage {
 		action := model.Action{
 			SourceID: attackerID,
 			TargetID: victimID,
@@ -79,7 +79,7 @@ func (e *GameEngine) ResolveDamage(attackerID, victimID string, card *model.Card
 		Card:      card,
 	}
 	damageSkillCtx := e.buildContext(victim, attacker, model.TriggerNone, damageEventCtx)
-	damageSkillCtx.Flags["IsMagicDamage"] = !strings.EqualFold(damageType, "Attack")
+	damageSkillCtx.Flags["IsMagicDamage"] = !strings.EqualFold(string(damageType), string(model.AttackDamage))
 	if damageSkillCtx.Selections == nil {
 		damageSkillCtx.Selections = map[string]any{}
 	}
@@ -138,7 +138,7 @@ func (e *GameEngine) resolveCombatDamage(combatReq model.CombatRequest) error {
 	}
 
 	// 使用新的 ResolveDamage 函数
-	return e.ResolveDamage(combatReq.AttackerID, combatReq.TargetID, combatReq.Card, "Attack")
+	return e.ResolveDamage(combatReq.AttackerID, combatReq.TargetID, combatReq.Card, model.AttackDamage)
 }
 
 // clearCombatStack 清空战斗栈
@@ -156,7 +156,7 @@ func (e *GameEngine) finishTakeHit(target *model.Player, damage int, attackActio
 
 	// 4. 执行扣血
 	e.setCombatStage(model.CombatStageApply)
-	e.applyDamage(target, damage, "Attack")
+	e.applyDamage(target, damage, model.AttackDamage)
 
 	// 5. 触发伤害承受事件
 	if damage > 0 {
@@ -352,7 +352,7 @@ func (e *GameEngine) applyPassiveAttackEffects(attacker, target *model.Player, b
 }
 
 // applyDamageWithOptions 应用伤害逻辑 (治疗抵消 + 摸牌)
-func (e *GameEngine) applyDamageWithOptions(target *model.Player, damage int, damageType string, capToHandLimit bool, sourceID string, sourceSkillID string, overflowMoraleLossFixed int) {
+func (e *GameEngine) applyDamageWithOptions(target *model.Player, damage int, damageType model.DamageType, capToHandLimit bool, sourceID string, sourceSkillID string, overflowMoraleLossFixed int) {
 
 	// 5. 造成伤害 (摸牌)
 	if damage > 0 {
@@ -364,7 +364,7 @@ func (e *GameEngine) applyDamageWithOptions(target *model.Player, damage int, da
 		if drawCtx == nil {
 			return
 		}
-		drawCtx.Flags["IsMagicDamage"] = (damageType != "Attack" && damageType != "attack")
+		drawCtx.Flags["IsMagicDamage"] = !strings.EqualFold(string(damageType), string(model.AttackDamage))
 		drawCtx.Flags["FromDamageDraw"] = true
 		if capToHandLimit {
 			drawCtx.Flags["capToHandLimit"] = true
@@ -381,7 +381,7 @@ func (e *GameEngine) applyDamageWithOptions(target *model.Player, damage int, da
 		if overflowMoraleLossFixed > 0 {
 			drawCtx.Selections["overflow_morale_loss_fixed"] = overflowMoraleLossFixed
 		}
-		if strings.EqualFold(damageType, "magic_no_morale") {
+		if strings.EqualFold(string(damageType), "magic_no_morale") {
 			drawCtx.Flags["NoMoraleLoss"] = true
 		}
 
@@ -396,6 +396,6 @@ func (e *GameEngine) applyDamageWithOptions(target *model.Player, damage int, da
 }
 
 // applyDamage 应用伤害逻辑 (治疗抵消 + 摸牌)
-func (e *GameEngine) applyDamage(target *model.Player, damage int, damageType string) {
+func (e *GameEngine) applyDamage(target *model.Player, damage int, damageType model.DamageType) {
 	e.applyDamageWithOptions(target, damage, damageType, false, "", "", 0)
 }

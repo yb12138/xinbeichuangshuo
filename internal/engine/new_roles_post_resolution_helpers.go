@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"starcup-engine/internal/engine/runtimeutil"
+	"starcup-engine/internal/engine/core/runtimeutil"
 	"starcup-engine/internal/model"
 )
 
@@ -183,7 +183,7 @@ func (e *GameEngine) handlePostAttackHitEffects(pd *model.PendingDamage) bool {
 				applied := false
 				for i := range e.State.PendingDamageQueue {
 					queued := &e.State.PendingDamageQueue[i]
-					if !strings.EqualFold(queued.DamageType, "Attack") {
+					if !strings.EqualFold(string(queued.DamageType), string(model.AttackDamage)) {
 						continue
 					}
 					queued.Damage++
@@ -258,7 +258,7 @@ func (e *GameEngine) handlePostDamageResolved(pd *model.PendingDamage) bool {
 	if source == nil {
 		return false
 	}
-	if e.isBeastSamurai(source) && strings.EqualFold(pd.DamageType, "Attack") {
+	if e.isBeastSamurai(source) && strings.EqualFold(string(pd.DamageType), string(model.AttackDamage)) {
 		clearBeastSamuraiAttackTokens(source)
 	}
 	if e.isBeastSamurai(source) && pd.Damage > 0 && e.beastSamuraiInIaijutsuForm(source) {

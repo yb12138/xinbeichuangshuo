@@ -272,7 +272,7 @@ func (e *GameEngine) Heal(playerID string, amount int) {
 	e.Log(fmt.Sprintf("%s 获得了 %d 点治疗，当前治疗: %d", p.Name, amount, p.Heal))
 }
 
-func (e *GameEngine) InflictDamage(sourceID, targetID string, amount int, damageType string) {
+func (e *GameEngine) InflictDamage(sourceID, targetID string, amount int, damageType model.DamageType) {
 	// 将伤害推入延迟伤害队列，以便支持中断和触发器
 	e.AddPendingDamage(model.PendingDamage{
 		SourceID:   sourceID,

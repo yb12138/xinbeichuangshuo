@@ -2,7 +2,7 @@ package engine
 
 import (
 	"fmt"
-	"starcup-engine/internal/engine/runtimeutil"
+	"starcup-engine/internal/engine/core/runtimeutil"
 	"strconv"
 	"strings"
 
@@ -782,7 +782,7 @@ func (e *GameEngine) handleHolyBowChoiceInputByTypeLegacy(selectionIndex int, ct
 			if e.State.Players[targetID] == nil {
 				continue
 			}
-			e.AddPendingDamage(model.PendingDamage{SourceID: user.ID, TargetID: targetID, Damage: damage, DamageType: "Attack"})
+			e.AddPendingDamage(model.PendingDamage{SourceID: user.ID, TargetID: targetID, Damage: damage, DamageType: model.AttackDamage})
 		}
 		e.Log(fmt.Sprintf("%s 的 [圣光爆裂] 分支②生效：移除%d治疗并弃%d张牌，对%d名目标各造成%d点攻击伤害（Y=%d）", user.Name, xValue, xValue, len(targetIDs), damage, yValue))
 		e.PopInterrupt()

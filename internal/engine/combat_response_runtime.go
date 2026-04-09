@@ -15,7 +15,7 @@ func (e *GameEngine) markPendingAttackDamageHitProcessed(ctx *model.Context) boo
 	}
 	for i := range e.State.PendingDamageQueue {
 		pd := &e.State.PendingDamageQueue[i]
-		if !strings.EqualFold(pd.DamageType, "Attack") {
+		if !strings.EqualFold(string(pd.DamageType), string(model.AttackDamage)) {
 			continue
 		}
 		if pd.SourceID != ctx.TriggerCtx.SourceID || pd.TargetID != ctx.TriggerCtx.TargetID {
@@ -206,7 +206,7 @@ func (e *GameEngine) handleCombatTakeResponse(player *model.Player, combatReq mo
 		SourceID:      combatReq.AttackerID,
 		TargetID:      combatReq.TargetID,
 		Damage:        combatReq.Card.Damage,
-		DamageType:    "Attack",
+		DamageType:    model.AttackDamage,
 		Card:          combatReq.Card,
 		IsCounter:     combatReq.IsCounter,
 		IgnoreShield:  combatReq.IgnoreShield,

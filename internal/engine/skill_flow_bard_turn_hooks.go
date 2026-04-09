@@ -3,7 +3,7 @@ package engine
 import (
 	"fmt"
 
-	"starcup-engine/internal/engine/skills"
+	"starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 )
 
@@ -157,7 +157,7 @@ func (e *GameEngine) resolveBardForbiddenVerseAfterSong(bard *model.Player, song
 		SourceID:   bard.ID,
 		TargetID:   bard.ID,
 		Damage:     3,
-		DamageType: "magic",
+		DamageType: model.MagicAttack,
 	})
 	e.Log(fmt.Sprintf("%s 的 [禁忌诗篇] 生效：灵感已满，对自己造成3点法术伤害（来源：%s）", bard.Name, songName))
 }

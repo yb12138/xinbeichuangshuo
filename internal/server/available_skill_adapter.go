@@ -1,7 +1,7 @@
 package server
 
 import (
-	"starcup-engine/internal/engine/skills"
+	"starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/server/stateview"
 )

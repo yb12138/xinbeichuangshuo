@@ -2,7 +2,7 @@ package engine
 
 import (
 	"fmt"
-	"starcup-engine/internal/engine/runtimeutil"
+	"starcup-engine/internal/engine/core/runtimeutil"
 
 	"starcup-engine/internal/model"
 )
@@ -335,7 +335,7 @@ func (e *GameEngine) handleBlazeWitchTargetChoice(ctxData map[string]interface{}
 				SourceID:   user.ID,
 				TargetID:   targetID,
 				Damage:     damage,
-				DamageType: "magic",
+				DamageType: model.MagicAttack,
 			})
 		}
 		e.Log(fmt.Sprintf("%s 的 [魔能反转] 生效：弃%d张法术牌，对 %s 造成%d点法术伤害", user.Name, xValue, target.Name, damage))
