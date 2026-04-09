@@ -273,7 +273,7 @@ func (e *GameEngine) defaultTimingForTrigger(trigger model.TriggerType) model.Tr
 	case model.TriggerAfterDraw:
 		return model.TimingOnCardDrawn
 	case model.TriggerBeforeMoraleLoss:
-		return model.TimingOnDamageTaken
+		return model.TimingBeforeMoraleLoss
 	case model.TriggerOnOrientationChanged:
 		return model.TimingOnOrientationChanged
 	default:

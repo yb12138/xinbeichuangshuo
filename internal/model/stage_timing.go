@@ -52,6 +52,7 @@ const (
 	TimingOnDamageCalculated     TriggerTiming = "TimingOnDamageCalculated"
 	TimingOnDamageApplied        TriggerTiming = "TimingOnDamageApplied"
 	TimingOnDamageTaken          TriggerTiming = "TimingOnDamageTaken"
+	TimingBeforeMoraleLoss       TriggerTiming = "TimingBeforeMoraleLoss"
 	TimingBeforeCardDrawn        TriggerTiming = "TimingBeforeCardDrawn"
 	TimingOnCardDrawn            TriggerTiming = "TimingOnCardDrawn"
 	TimingOnCardDiscarded        TriggerTiming = "TimingOnCardDiscarded"

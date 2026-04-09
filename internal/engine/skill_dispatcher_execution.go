@@ -11,7 +11,7 @@ import (
 // 该阶段只做“能否触发”判断，不做玩家交互。
 // collectTriggeredSkills 收集指定玩家在指定触发时机下可触发的技能
 func (sd *SkillDispatcher) collectTriggeredSkills(player *model.Player,
-	trigger model.TriggerType, ctx *model.Context, currentRole model.SkillRole) []model.SkillDefinition {
+	timing model.TriggerTiming, ctx *model.Context, currentRole model.SkillRole) []model.SkillDefinition {
 	var triggeredSkills []model.SkillDefinition
 
 	for _, skill := range player.Character.Skills {
@@ -23,17 +23,7 @@ func (sd *SkillDispatcher) collectTriggeredSkills(player *model.Player,
 			continue
 		}
 
-		// 1. 触发匹配检查 (支持主触发器 OR 额外触发器)
-		isMatch := skill.Trigger == trigger
-		if !isMatch {
-			for _, t := range skill.ExtraTriggers {
-				if t == trigger {
-					isMatch = true
-					break
-				}
-			}
-		}
-		if !isMatch {
+		if !skillMatchesTiming(skill, timing) {
 			continue
 		}
 		// 基本筛选条件
@@ -132,7 +122,7 @@ func (sd *SkillDispatcher) collectTriggeredSkills(player *model.Player,
 				ResponseType: model.ResponseSilent,
 
 				LogicHandler: handlerID,
-				Trigger:      trigger,
+				Timings:      []model.TriggerTiming{timing},
 			}
 
 			// 如果 Handler 认为可以用，就加入列表
@@ -141,6 +131,33 @@ func (sd *SkillDispatcher) collectTriggeredSkills(player *model.Player,
 	}
 
 	return triggeredSkills
+}
+
+func skillMatchesTiming(skill model.SkillDefinition, timing model.TriggerTiming) bool {
+	if timing == model.TimingStartup && skill.Type == model.SkillTypeStartup {
+		// Startup 技能在独立窗口下按技能类型匹配，不再依赖 Trigger 枚举。
+		return true
+	}
+
+	if len(skill.Timings) > 0 {
+		for _, t := range skill.Timings {
+			if t == timing {
+				return true
+			}
+		}
+		return false
+	}
+
+	// 兼容旧配置：迁移完成后删除。
+	if legacyTriggerToTiming(skill.Trigger) == timing {
+		return true
+	}
+	for _, t := range skill.ExtraTriggers {
+		if legacyTriggerToTiming(t) == timing {
+			return true
+		}
+	}
+	return false
 }
 
 // processSkills 处理收集到的技能，根据ResponseType决定执行方式
@@ -157,7 +174,7 @@ func (sd *SkillDispatcher) processSkills(triggeredSkills []model.SkillDefinition
 	for _, skill := range triggeredSkills {
 		// 灵魂吞噬按文档要求基于“最终实际士气下降”结算，
 		// 因此统一在 applyMoraleLossAfterTrigger 中处理，避免被响应修改前抢先加魂。
-		if ctx != nil && ctx.Trigger == model.TriggerBeforeMoraleLoss && skill.ID == "ss_soul_devour" {
+		if ctx != nil && ctx.Timing == model.TimingBeforeMoraleLoss && skill.ID == "ss_soul_devour" {
 			continue
 		}
 

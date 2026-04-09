@@ -5,25 +5,24 @@ import (
 	"starcup-engine/internal/model"
 )
 
-// OnTrigger 在某个 Trigger 时机触发技能分发。
+// OnTiming 在某个 Timing 窗口触发技能分发。
 // 流程：先按规则收集本时机需要检查的玩家，再按技能可触发条件执行或挂起中断。
-// OnEvent 在某个事件发生时调用，统一处理技能触发
-func (sd *SkillDispatcher) OnTrigger(trigger model.TriggerType, ctx *model.Context) {
-	ctx.Trigger = trigger
+func (sd *SkillDispatcher) OnTiming(timing model.TriggerTiming, ctx *model.Context) {
+	ctx.Timing = timing
 
 	// 1. 收集触发的技能
 	// 使用 checkTarget 结构来明确当前检查的玩家是什么身份
 	var targetsToCheck []checkTarget
 
-	switch trigger {
-	case model.TriggerOnTurnStart:
+	switch timing {
+	case model.TimingOnTurnStart, model.TimingStartup:
 		// 回合开始：只检查当前玩家
 		currentPid := sd.engine.State.PlayerOrder[sd.engine.State.CurrentTurn]
 		if player := sd.engine.State.Players[currentPid]; player != nil {
 			targetsToCheck = append(targetsToCheck, checkTarget{Player: player, Role: model.RoleAny})
 		}
 
-	case model.TriggerOnAttackStart, model.TriggerOnAttackHit, model.TriggerOnAttackMiss, model.TriggerModifyDamage:
+	case model.TimingOnAttackDeclared, model.TimingOnHitCheck, model.TimingOnDamageCalculated:
 		// 上下文中的 User 是攻击发起者 -> 身份标记为 Attacker
 		if ctx.User != nil {
 			targetsToCheck = append(targetsToCheck, checkTarget{
@@ -39,7 +38,7 @@ func (sd *SkillDispatcher) OnTrigger(trigger model.TriggerType, ctx *model.Conte
 			})
 		}
 
-	case model.TriggerOnDamageTaken:
+	case model.TimingOnDamageTaken:
 		// 在 combat.go 的 handleTakeHit 中，TriggerOnDamageTaken 的 ctx.User 是受害者
 		if ctx.User != nil {
 			targetsToCheck = append(targetsToCheck, checkTarget{
@@ -55,22 +54,22 @@ func (sd *SkillDispatcher) OnTrigger(trigger model.TriggerType, ctx *model.Conte
 			})
 		}
 
-	case model.TriggerOnCardUsed:
+	case model.TimingOnCardPlayedOrRevealed:
 		if ctx.User != nil {
 			targetsToCheck = append(targetsToCheck, checkTarget{Player: ctx.User, Role: model.RoleAny})
 		}
 
-	case model.TriggerBeforeDraw, model.TriggerAfterDraw:
+	case model.TimingBeforeCardDrawn, model.TimingOnCardDrawn:
 		if ctx.User != nil {
 			targetsToCheck = append(targetsToCheck, checkTarget{Player: ctx.User, Role: model.RoleAny})
 		}
 
-	case model.TriggerOnPhaseEnd, model.TriggerOnBuffRemoved, model.TriggerOnBuffAdded:
+	case model.TimingOnActionEnd, model.TimingOnFieldMarkChanged:
 		if ctx.User != nil {
 			targetsToCheck = append(targetsToCheck, checkTarget{Player: ctx.User, Role: model.RoleAny})
 		}
-		// 对于 BuffAdded/BuffRemoved，可能需要检查全场玩家的被动技能 (如天使羁绊)
-		if trigger == model.TriggerOnBuffRemoved || trigger == model.TriggerOnBuffAdded {
+		// 对于 FieldMarkChanged，可能需要检查全场玩家的被动技能 (如天使羁绊)
+		if timing == model.TimingOnFieldMarkChanged {
 			for _, p := range sd.engine.State.Players {
 				if p.ID != ctx.User.ID {
 					targetsToCheck = append(targetsToCheck, checkTarget{Player: p, Role: model.RoleAny})
@@ -78,7 +77,7 @@ func (sd *SkillDispatcher) OnTrigger(trigger model.TriggerType, ctx *model.Conte
 			}
 		}
 
-	case model.TriggerOnOrientationChanged:
+	case model.TimingOnOrientationChanged:
 		for _, pid := range sd.engine.State.PlayerOrder {
 			if player := sd.engine.State.Players[pid]; player != nil {
 				targetsToCheck = append(targetsToCheck, checkTarget{Player: player, Role: model.RoleAny})
@@ -100,7 +99,7 @@ func (sd *SkillDispatcher) OnTrigger(trigger model.TriggerType, ctx *model.Conte
 			}
 		}
 
-	case model.TriggerBeforeMoraleLoss:
+	case model.TimingBeforeMoraleLoss:
 		// 上下文的 User 是导致士气下降的受害者 (Victim)
 		if ctx.User != nil {
 			// TriggerBeforeMoraleLoss：先按座次收集同阵营目标，后续再按技能优先级排序执行。
@@ -146,9 +145,9 @@ func (sd *SkillDispatcher) OnTrigger(trigger model.TriggerType, ctx *model.Conte
 		}
 	}
 
-	// TriggerBeforeMoraleLoss：同一时点按技能优先级（高->低）执行；同优先级按座次稳定。
-	if trigger == model.TriggerBeforeMoraleLoss {
-		for _, item := range sd.collectTargetsWithSkillsByPriority(targetsToCheck, trigger, ctx) {
+	// 同一时点按技能优先级（高->低）执行；同优先级按座次稳定。
+	if timing == model.TimingBeforeMoraleLoss {
+		for _, item := range sd.collectTargetsWithSkillsByPriority(targetsToCheck, timing, ctx) {
 			sd.processSkills(item.skills, item.ctx)
 		}
 		return
@@ -164,12 +163,12 @@ func (sd *SkillDispatcher) OnTrigger(trigger model.TriggerType, ctx *model.Conte
 		skillCtx.User = target.Player
 
 		// 【关键】传入当前玩家在事件中的角色
-		skills := sd.collectTriggeredSkills(target.Player, trigger, &skillCtx, target.Role)
+		skills := sd.collectTriggeredSkills(target.Player, timing, &skillCtx, target.Role)
 		sd.processSkills(skills, &skillCtx)
 	}
 }
 
-func (sd *SkillDispatcher) collectTargetsWithSkillsByPriority(targets []checkTarget, trigger model.TriggerType, ctx *model.Context) []targetTriggeredSkills {
+func (sd *SkillDispatcher) collectTargetsWithSkillsByPriority(targets []checkTarget, timing model.TriggerTiming, ctx *model.Context) []targetTriggeredSkills {
 	if len(targets) == 0 || ctx == nil || sd == nil || sd.engine == nil || sd.engine.State == nil {
 		return nil
 	}
@@ -186,7 +185,7 @@ func (sd *SkillDispatcher) collectTargetsWithSkillsByPriority(targets []checkTar
 		}
 		skillCtx := *ctx
 		skillCtx.User = target.Player
-		triggered := sd.collectTriggeredSkills(target.Player, trigger, &skillCtx, target.Role)
+		triggered := sd.collectTriggeredSkills(target.Player, timing, &skillCtx, target.Role)
 		if len(triggered) == 0 {
 			continue
 		}
@@ -219,4 +218,52 @@ func (sd *SkillDispatcher) collectTargetsWithSkillsByPriority(targets []checkTar
 		return items[i].target.Player.ID < items[j].target.Player.ID
 	})
 	return items
+}
+
+// OnTrigger 兼容入口：迁移期保留，内部统一转 Timing。
+func (sd *SkillDispatcher) OnTrigger(trigger model.TriggerType, ctx *model.Context) {
+	if ctx == nil {
+		return
+	}
+	prevTrigger := ctx.Trigger
+	ctx.Trigger = trigger
+	if ctx.Timing == model.TimingUnknown || prevTrigger != trigger {
+		ctx.Timing = legacyTriggerToTiming(trigger)
+	}
+	sd.OnTiming(ctx.Timing, ctx)
+}
+
+func legacyTriggerToTiming(trigger model.TriggerType) model.TriggerTiming {
+	switch trigger {
+	case model.TriggerNone:
+		return model.TimingActive
+	case model.TriggerOnTurnStart:
+		return model.TimingOnTurnStart
+	case model.TriggerOnBuffPhase:
+		return model.TimingOnBeforeAction
+	case model.TriggerOnAttackStart:
+		return model.TimingOnAttackDeclared
+	case model.TriggerOnAttackHit, model.TriggerOnAttackMiss:
+		return model.TimingOnHitCheck
+	case model.TriggerModifyDamage:
+		return model.TimingOnDamageCalculated
+	case model.TriggerOnDamageTaken:
+		return model.TimingOnDamageTaken
+	case model.TriggerOnPhaseEnd:
+		return model.TimingOnActionEnd
+	case model.TriggerOnCardUsed, model.TriggerOnCardRevealed:
+		return model.TimingOnCardPlayedOrRevealed
+	case model.TriggerOnBuffAdded, model.TriggerOnBuffRemoved:
+		return model.TimingOnFieldMarkChanged
+	case model.TriggerBeforeDraw:
+		return model.TimingBeforeCardDrawn
+	case model.TriggerAfterDraw:
+		return model.TimingOnCardDrawn
+	case model.TriggerBeforeMoraleLoss:
+		return model.TimingBeforeMoraleLoss
+	case model.TriggerOnOrientationChanged:
+		return model.TimingOnOrientationChanged
+	default:
+		return model.TimingUnknown
+	}
 }

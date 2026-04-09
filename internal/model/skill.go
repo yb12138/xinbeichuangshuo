@@ -140,6 +140,10 @@ type SkillDefinition struct {
 	MaxTargets   int        `json:"max_targets"` // 最大目标数 (通常为1，部分技能如 AOE 可能更多)
 	RequiredRole SkillRole  `json:"required_role"`
 
+	// Timings 是新的统一触发窗口声明，替代 Trigger/ExtraTriggers。
+	Timings []TriggerTiming `json:"timings"`
+
+	// 兼容字段：迁移期保留，后续删除。
 	Trigger       TriggerType   `json:"trigger"`
 	ExtraTriggers []TriggerType `json:"extra_triggers"`
 	ResponseType  ResponseType  `json:"response_type"`
