@@ -7,94 +7,66 @@ import (
 )
 
 type skillUsePolicy struct {
-	resolveDiscardCount    func(player *model.Player, skillDef *model.SkillDefinition) int
+	// prepareSkillUse 阶段覆盖默认 CostDiscards，决定后续弃牌交互/校验需要的张数。
+	resolveDiscardCount func(player *model.Player, skillDef *model.SkillDefinition) int
+	// validateSkillDiscardSelection 阶段的二次校验，用于检查弃牌组合规则（顺序、元素、联动要求等）。
 	validateDiscardedCards func(use *skillUseRequest) error
-	validateTargets        func(use *skillUseRequest) error
-	appendDiscardPile      func(e *GameEngine, use *skillUseRequest)
-	afterConsume           func(e *GameEngine, use *skillUseRequest) (bool, error)
-	skipAutoPhaseEnd       bool
-	allowZeroTargets       bool
-	manualExclusiveCard    bool
+	// resolveSkillTargets 阶段的声明式目标规则（人数、阵营、自身约束、附加谓词）。
+	targetRules targetRuleSet
+	// consumeSkillInputs 阶段自定义弃牌入弃牌堆行为（例如只丢部分牌，其余交给目标/转其他区域）。
+	appendDiscardPile func(e *GameEngine, use *skillUseRequest)
+	// executeSkillFlow 阶段的后置钩子：资源与输入已消耗后触发；返回 handled=true 可跳过默认 handler。
+	afterConsume func(e *GameEngine, use *skillUseRequest) (bool, error)
+	// finishSkillUse 阶段是否跳过 Action 技能的默认收尾（HasActed/LastActionType 自动写入）。
+	skipAutoPhaseEnd bool
+	// validateSkillDiscardSelection 阶段对专属卡改为“仅检查不自动消耗”，由技能自定义流程手动处理。
+	manualExclusiveCard bool
 }
 
 // skillUsePolicies 承接 docs/character_skills_config.md 中当前 SkillDefinition 尚不能直接表达的差异规则。
 var skillUsePolicies = map[string]skillUsePolicy{
 	"angel_blessing": {
-		validateTargets: func(use *skillUseRequest) error {
-			if len(use.actualTargets) < 1 || len(use.actualTargets) > 2 {
-				return fmt.Errorf("天使祝福只能指定 1 名或 2 名目标")
-			}
-			if len(use.actualTargets) == 2 && use.actualTargets[0] != nil && use.actualTargets[1] != nil &&
-				use.actualTargets[0].ID == use.actualTargets[1].ID {
-				return fmt.Errorf("天使祝福指定 2 名目标时不能重复选择同一角色")
-			}
-			return nil
+		targetRules: targetRuleSet{
+			Count:       targetCountRule{Min: 1, Max: 2, Err: "天使祝福只能指定 1 名或 2 名目标"},
+			Distinct:    true,
+			DistinctErr: "天使祝福指定 2 名目标时不能重复选择同一角色",
 		},
 	},
 	"angel_cleanse": {
-		validateTargets: func(use *skillUseRequest) error {
-			if len(use.actualTargets) == 0 || use.actualTargets[0] == nil {
-				return fmt.Errorf("风之洁净需要指定目标")
-			}
-			if !hasBasicFieldEffect(use.actualTargets[0]) {
-				return fmt.Errorf("%s 面前没有可移除的基础效果", use.actualTargets[0].Name)
-			}
-			return nil
+		targetRules: targetRuleSet{
+			Count: targetCountRule{Min: 1, Max: 1, Err: "风之洁净需要指定目标"},
+			Checks: []targetCheckRule{
+				{
+					Kind:           targetCheckHasBasicFieldOnTarget,
+					Index:          0,
+					Err:            "%s 面前没有可移除的基础效果",
+					WithTargetName: true,
+				},
+			},
 		},
 	},
 	"elementalist_freeze": {
-		validateTargets: func(use *skillUseRequest) error {
-			if len(use.actualTargets) != 2 {
-				return fmt.Errorf("冰冻需要指定2名目标")
-			}
-			if use.actualTargets[0] == nil {
-				return fmt.Errorf("冰冻缺少法术伤害目标")
-			}
-			if use.actualTargets[0].Camp == use.player.Camp {
-				return fmt.Errorf("冰冻的第1个目标必须是敌方角色")
-			}
-			return nil
+		targetRules: targetRuleSet{
+			Count: targetCountRule{Min: 2, Max: 2, Err: "冰冻需要指定2名目标"},
 		},
 	},
 	"holy_lancer_punishment": {
-		validateTargets: func(use *skillUseRequest) error {
-			if len(use.actualTargets) != 1 || use.actualTargets[0] == nil {
-				return fmt.Errorf("惩戒需要指定1名其他角色")
-			}
-			target := use.actualTargets[0]
-			if use.player != nil && target.ID == use.player.ID {
-				return fmt.Errorf("惩戒目标必须是其他角色")
-			}
-			if target.Heal <= 0 {
-				return fmt.Errorf("惩戒目标至少需要有1点治疗")
-			}
-			return nil
+		targetRules: targetRuleSet{
+			Count: targetCountRule{Min: 1, Max: 1, Err: "惩戒需要指定1名其他角色"},
+			Slots: []targetSlotRule{
+				{Index: 0, Self: targetSelfOther, Err: "惩戒目标必须是其他角色"},
+			},
+			Checks: []targetCheckRule{
+				{Kind: targetCheckTargetMinHeal, Index: 0, Min: 1, Err: "惩戒目标至少需要有1点治疗"},
+			},
 		},
 	},
 	"css_blood_rose": {
-		validateTargets: func(use *skillUseRequest) error {
-			if len(use.actualTargets) != 2 {
-				return fmt.Errorf("血染蔷薇需要恰好指定2名目标")
-			}
-			if use.actualTargets[0] == nil || use.actualTargets[1] == nil {
-				return fmt.Errorf("血染蔷薇目标无效")
-			}
-			if use.actualTargets[0].ID == use.actualTargets[1].ID {
-				return fmt.Errorf("血染蔷薇不能重复选择同一角色")
-			}
-			allyCount := 0
-			enemyCount := 0
-			for _, target := range use.actualTargets {
-				if target.Camp == use.player.Camp {
-					allyCount++
-				} else {
-					enemyCount++
-				}
-			}
-			if allyCount != 1 || enemyCount != 1 {
-				return fmt.Errorf("血染蔷薇需要恰好指定1名敌方和1名我方角色")
-			}
-			return nil
+		targetRules: targetRuleSet{
+			Count: targetCountRule{Min: 2, Max: 2, Err: "血染蔷薇需要恰好指定2名目标"},
+			Slots: []targetSlotRule{
+				{Index: 1, Camp: targetCampAlly, Err: "血染蔷薇的第2个目标必须是我方角色"},
+			},
 		},
 	},
 	// 神官-神圣领域：严格弃 2 张牌，再选择分支目标。
@@ -141,140 +113,86 @@ var skillUsePolicies = map[string]skillUsePolicy{
 		},
 	},
 	"onmyoji_life_barrier": {
-		allowZeroTargets: true,
-		validateTargets: func(use *skillUseRequest) error {
-			if len(use.actualTargets) == 0 {
-				return nil
-			}
-			if len(use.actualTargets) != 1 || use.actualTargets[0] == nil {
-				return fmt.Errorf("生命结界需要且仅能指定1名其他队友")
-			}
-			target := use.actualTargets[0]
-			if target.Camp != use.player.Camp || target.ID == use.player.ID {
-				return fmt.Errorf("生命结界目标必须是其他队友")
-			}
-			return nil
+		targetRules: targetRuleSet{
+			Count: targetCountRule{Min: 0, Max: 1, Err: "生命结界需要且仅能指定1名其他队友"},
+			Slots: []targetSlotRule{
+				{Index: 0, Camp: targetCampAlly, Self: targetSelfOther, Err: "生命结界目标必须是其他队友"},
+			},
 		},
 	},
 	"bw_blazing_codex": {
-		validateTargets: func(use *skillUseRequest) error {
-			if len(use.actualTargets) != 1 || use.actualTargets[0] == nil {
-				return fmt.Errorf("苍炎法典需要且仅能指定1名其他角色")
-			}
-			if use.actualTargets[0].ID == use.player.ID {
-				return fmt.Errorf("苍炎法典不能以自己为目标")
-			}
-			return nil
+		targetRules: targetRuleSet{
+			Count: targetCountRule{Min: 1, Max: 1, Err: "苍炎法典需要且仅能指定1名其他角色"},
+			Slots: []targetSlotRule{
+				{Index: 0, Self: targetSelfOther, Err: "苍炎法典不能以自己为目标"},
+			},
 		},
 	},
 	"bw_heavenfire_cleave": {
-		validateTargets: func(use *skillUseRequest) error {
-			if len(use.actualTargets) != 1 || use.actualTargets[0] == nil {
-				return fmt.Errorf("天火断空需要且仅能指定1名其他角色")
-			}
-			if use.actualTargets[0].ID == use.player.ID {
-				return fmt.Errorf("天火断空不能以自己为目标")
-			}
-			return nil
+		targetRules: targetRuleSet{
+			Count: targetCountRule{Min: 1, Max: 1, Err: "天火断空需要且仅能指定1名其他角色"},
+			Slots: []targetSlotRule{
+				{Index: 0, Self: targetSelfOther, Err: "天火断空不能以自己为目标"},
+			},
 		},
 	},
 	"mb_thunder_scatter": {
-		allowZeroTargets: true,
-		validateTargets: func(use *skillUseRequest) error {
-			if len(use.actualTargets) == 0 {
-				return nil
-			}
-			if len(use.actualTargets) != 1 || use.actualTargets[0] == nil {
-				return fmt.Errorf("雷光散射至多指定1名敌方角色作为额外目标")
-			}
-			if use.actualTargets[0].Camp == use.player.Camp {
-				return fmt.Errorf("雷光散射的额外目标必须是敌方角色")
-			}
-			return nil
+		targetRules: targetRuleSet{
+			Count: targetCountRule{Min: 0, Max: 1, Err: "雷光散射至多指定1名敌方角色作为额外目标"},
+			Slots: []targetSlotRule{
+				{Index: 0, Camp: targetCampEnemy, Err: "雷光散射的额外目标必须是敌方角色"},
+			},
 		},
 	},
 	"mb_demon_eye": {
-		allowZeroTargets: true,
-		validateTargets: func(use *skillUseRequest) error {
-			if len(use.actualTargets) == 0 {
-				return nil
-			}
-			if len(use.actualTargets) != 1 || use.actualTargets[0] == nil {
-				return fmt.Errorf("魔眼需要且仅能指定1名其他角色")
-			}
-			if use.actualTargets[0].ID == use.player.ID {
-				return fmt.Errorf("魔眼不能以自己为目标")
-			}
-			return nil
+		targetRules: targetRuleSet{
+			Count: targetCountRule{Min: 0, Max: 1, Err: "魔眼需要且仅能指定1名其他角色"},
+			Slots: []targetSlotRule{
+				{Index: 0, Self: targetSelfOther, Err: "魔眼不能以自己为目标"},
+			},
 		},
 	},
 	"ml_phantom_stardust": {
-		allowZeroTargets: true,
-		validateTargets: func(use *skillUseRequest) error {
-			if len(use.actualTargets) == 0 {
-				return nil
-			}
-			if len(use.actualTargets) != 1 || use.actualTargets[0] == nil {
-				return fmt.Errorf("幻影星尘需要且仅能指定1名敌方角色")
-			}
-			if use.actualTargets[0].Camp == use.player.Camp {
-				return fmt.Errorf("幻影星尘目标必须是敌方角色")
-			}
-			return nil
+		targetRules: targetRuleSet{
+			Count: targetCountRule{Min: 0, Max: 1, Err: "幻影星尘需要且仅能指定1名敌方角色"},
+			Slots: []targetSlotRule{
+				{Index: 0, Camp: targetCampEnemy, Err: "幻影星尘目标必须是敌方角色"},
+			},
 		},
 	},
 	"ml_fullness": {
-		allowZeroTargets: true,
-		validateTargets: func(use *skillUseRequest) error {
-			if len(use.actualTargets) == 0 {
-				return nil
-			}
-			if len(use.actualTargets) != 1 || use.actualTargets[0] == nil {
-				return fmt.Errorf("充盈至多指定1名其他队友")
-			}
-			target := use.actualTargets[0]
-			if target.Camp != use.player.Camp || target.ID == use.player.ID {
-				return fmt.Errorf("充盈的可选目标必须是其他队友")
-			}
-			return nil
+		targetRules: targetRuleSet{
+			Count: targetCountRule{Min: 0, Max: 1, Err: "充盈至多指定1名其他队友"},
+			Slots: []targetSlotRule{
+				{Index: 0, Camp: targetCampAlly, Self: targetSelfOther, Err: "充盈的可选目标必须是其他队友"},
+			},
 		},
 	},
 	"sage_arcane_codex": {
-		allowZeroTargets: true,
-		validateTargets: func(use *skillUseRequest) error {
-			if len(use.actualTargets) == 0 {
-				return nil
-			}
-			if len(use.actualTargets) != 1 || use.actualTargets[0] == nil {
-				return fmt.Errorf("魔道法典需要且仅能指定1名其他角色")
-			}
-			if use.actualTargets[0].ID == use.player.ID {
-				return fmt.Errorf("魔道法典不能以自己为目标")
-			}
-			return nil
+		targetRules: targetRuleSet{
+			Count: targetCountRule{Min: 0, Max: 1, Err: "魔道法典需要且仅能指定1名其他角色"},
+			Slots: []targetSlotRule{
+				{Index: 0, Self: targetSelfOther, Err: "魔道法典不能以自己为目标"},
+			},
 		},
 	},
 	"sage_holy_codex": {
-		allowZeroTargets: true,
+		targetRules: targetRuleSet{
+			Count: targetCountRule{Min: 0, Max: 6},
+		},
 	},
 	"bd_dissonance_chord": {
-		allowZeroTargets: true,
+		targetRules: targetRuleSet{
+			Count: targetCountRule{Min: 0, Max: 1},
+		},
 	},
 	"bd_hope_fugue": {
-		allowZeroTargets:    true,
 		manualExclusiveCard: true,
-		validateTargets: func(use *skillUseRequest) error {
-			if len(use.actualTargets) == 0 {
-				return nil
-			}
-			if len(use.actualTargets) != 1 || use.actualTargets[0] == nil {
-				return fmt.Errorf("希望赋格曲至多指定1名其他队友")
-			}
-			target := use.actualTargets[0]
-			if target.Camp != use.player.Camp || target.ID == use.player.ID {
-				return fmt.Errorf("希望赋格曲的目标必须是其他队友")
-			}
-			return nil
+		targetRules: targetRuleSet{
+			Count: targetCountRule{Min: 0, Max: 1, Err: "希望赋格曲至多指定1名其他队友"},
+			Slots: []targetSlotRule{
+				{Index: 0, Camp: targetCampAlly, Self: targetSelfOther, Err: "希望赋格曲的目标必须是其他队友"},
+			},
 		},
 	},
 	"ss_soul_link": {
@@ -282,26 +200,12 @@ var skillUsePolicies = map[string]skillUsePolicy{
 	},
 	// 封印师-封印破碎：目标面前必须存在基础效果。
 	"seal_break": {
-		allowZeroTargets: true,
-		validateTargets: func(use *skillUseRequest) error {
-			if len(use.actualTargets) == 0 {
-				if use == nil || use.engine == nil {
-					return fmt.Errorf("封印破碎缺少引擎上下文")
-				}
-				for _, player := range use.engine.GetAllPlayers() {
-					if hasBasicFieldEffect(player) {
-						return nil
-					}
-				}
-				return fmt.Errorf("场上没有可收回的基础效果")
-			}
-			if use.actualTargets[0] == nil {
-				return fmt.Errorf("封印破碎需要指定有效目标")
-			}
-			if !hasBasicFieldEffect(use.actualTargets[0]) {
-				return fmt.Errorf("%s 面前没有可收回的基础效果", use.actualTargets[0].Name)
-			}
-			return nil
+		targetRules: targetRuleSet{
+			Count: targetCountRule{Min: 0, Max: 1},
+			Checks: []targetCheckRule{
+				{Kind: targetCheckAnyBasicFieldWhenNone, Err: "场上没有可收回的基础效果"},
+				{Kind: targetCheckHasBasicFieldOnTarget, Index: 0, Err: "%s 面前没有可收回的基础效果", WithTargetName: true},
+			},
 		},
 	},
 	// 灵符师灵符技能：技能效果通过延迟 followup 串行结算，绕过默认 handler。

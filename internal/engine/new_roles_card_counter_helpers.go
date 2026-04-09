@@ -138,11 +138,9 @@ func markElfBlessings(player *model.Player, cards []model.Card) {
 	if player == nil || len(cards) == 0 {
 		return
 	}
-	if player.Blessings == nil {
-		player.Blessings = make([]model.Card, 0)
-	}
 	exists := map[string]bool{}
-	for _, c := range player.Blessings {
+	for _, fc := range elfBlessingCoverCards(player) {
+		c := fc.Card
 		if c.ID != "" {
 			exists[c.ID] = true
 		}
@@ -151,7 +149,14 @@ func markElfBlessings(player *model.Player, cards []model.Card) {
 		if c.ID == "" || exists[c.ID] {
 			continue
 		}
-		player.Blessings = append(player.Blessings, c)
+		player.AddFieldCard(&model.FieldCard{
+			Card:     c,
+			OwnerID:  player.ID,
+			SourceID: player.ID,
+			Mode:     model.FieldCover,
+			Effect:   model.EffectElfBlessing,
+			Trigger:  model.EffectTriggerManual,
+		})
 		exists[c.ID] = true
 	}
 	syncElfBlessings(player)
@@ -161,13 +166,15 @@ func syncElfBlessings(player *model.Player) {
 	if player == nil {
 		return
 	}
+	blessings := elfBlessingCards(player)
+	player.Blessings = blessings
 	blessingIDs := map[string]bool{}
-	for _, c := range player.Blessings {
+	for _, c := range blessings {
 		if c.ID != "" {
 			blessingIDs[c.ID] = true
 		}
 	}
-	newZone := make([]string, 0, len(player.CharaZone)+len(player.Blessings))
+	newZone := make([]string, 0, len(player.CharaZone)+len(blessings))
 	zoneHas := map[string]bool{}
 	for _, z := range player.CharaZone {
 		if !strings.HasPrefix(z, elfBlessingPrefix) {
@@ -181,7 +188,7 @@ func syncElfBlessings(player *model.Player) {
 			zoneHas[z] = true
 		}
 	}
-	for _, c := range player.Blessings {
+	for _, c := range blessings {
 		if c.ID == "" {
 			continue
 		}
@@ -198,14 +205,14 @@ func countElfBlessings(player *model.Player) int {
 	if player == nil {
 		return 0
 	}
-	return len(player.Blessings)
+	return len(elfBlessingCoverCards(player))
 }
 
 func isElfBlessingCard(player *model.Player, cardID string) bool {
 	if player == nil || cardID == "" {
 		return false
 	}
-	for _, c := range player.Blessings {
+	for _, c := range elfBlessingCards(player) {
 		if c.ID == cardID {
 			return true
 		}
@@ -218,15 +225,18 @@ func removeElfBlessingByCardID(player *model.Player, cardID string) bool {
 		return false
 	}
 	removed := false
-	newBlessings := make([]model.Card, 0, len(player.Blessings))
-	for _, c := range player.Blessings {
-		if !removed && c.ID == cardID {
-			removed = true
+	for _, fc := range player.Field {
+		if fc == nil || fc.Mode != model.FieldCover || fc.Effect != model.EffectElfBlessing {
 			continue
 		}
-		newBlessings = append(newBlessings, c)
+		if !removed && fc.Card.ID == cardID {
+			player.RemoveFieldCard(fc)
+			removed = true
+		}
+		if removed {
+			break
+		}
 	}
-	player.Blessings = newBlessings
 
 	target := elfBlessingPrefix + cardID
 	newZone := make([]string, 0, len(player.CharaZone))
@@ -239,6 +249,9 @@ func removeElfBlessingByCardID(player *model.Player, cardID string) bool {
 		newZone = append(newZone, z)
 	}
 	player.CharaZone = newZone
+	if removed {
+		syncElfBlessings(player)
+	}
 	return removed || removedZone
 }
 
@@ -247,7 +260,7 @@ func elfBlessingHandIndices(player *model.Player) []int {
 		return nil
 	}
 	var idxs []int
-	for i := range player.Blessings {
+	for i := 0; i < countElfBlessings(player); i++ {
 		idxs = append(idxs, i)
 	}
 	return idxs
@@ -257,7 +270,7 @@ func playableCardCount(player *model.Player) int {
 	if player == nil {
 		return 0
 	}
-	return len(player.Hand) + len(player.Blessings)
+	return len(player.Hand) + countElfBlessings(player)
 }
 
 func getPlayableCardByIndex(player *model.Player, index int) (card model.Card, fromBlessing bool, blessingIndex int, ok bool) {
@@ -267,11 +280,12 @@ func getPlayableCardByIndex(player *model.Player, index int) (card model.Card, f
 	if index < len(player.Hand) {
 		return player.Hand[index], false, -1, true
 	}
+	blessings := elfBlessingCards(player)
 	bidx := index - len(player.Hand)
-	if bidx < 0 || bidx >= len(player.Blessings) {
+	if bidx < 0 || bidx >= len(blessings) {
 		return model.Card{}, false, -1, false
 	}
-	return player.Blessings[bidx], true, bidx, true
+	return blessings[bidx], true, bidx, true
 }
 
 func consumePlayableCardByIndex(player *model.Player, index int) (model.Card, error) {
@@ -297,7 +311,7 @@ func findPlayableCardIndexByID(player *model.Player, cardID string) int {
 		}
 	}
 	base := len(player.Hand)
-	for i, c := range player.Blessings {
+	for i, c := range elfBlessingCards(player) {
 		if c.ID == cardID {
 			return base + i
 		}
@@ -316,7 +330,7 @@ func getPlayableCardIndicesByType(player *model.Player, cardType model.CardType)
 		}
 	}
 	base := len(player.Hand)
-	for i, c := range player.Blessings {
+	for i, c := range elfBlessingCards(player) {
 		if c.Type == cardType {
 			out = append(out, base+i)
 		}
@@ -335,10 +349,32 @@ func getPlayableCardIndicesByElement(player *model.Player, element model.Element
 		}
 	}
 	base := len(player.Hand)
-	for i, c := range player.Blessings {
+	for i, c := range elfBlessingCards(player) {
 		if c.Element == element {
 			out = append(out, base+i)
 		}
+	}
+	return out
+}
+
+func elfBlessingCoverCards(player *model.Player) []*model.FieldCard {
+	if player == nil {
+		return nil
+	}
+	return player.GetCoverCardsByEffect(model.EffectElfBlessing)
+}
+
+func elfBlessingCards(player *model.Player) []model.Card {
+	covers := elfBlessingCoverCards(player)
+	if len(covers) == 0 {
+		return nil
+	}
+	out := make([]model.Card, 0, len(covers))
+	for _, fc := range covers {
+		if fc == nil {
+			continue
+		}
+		out = append(out, fc.Card)
 	}
 	return out
 }

@@ -1564,7 +1564,7 @@
   * **SelectType**: `Any`
   * **MinCount**: `2` *(Targets[0]=伤害目标；Targets[1]=治疗目标)*
   * **MaxCount**: `2`
-  * **Filters**: `Action.Targets[0] 为法术伤害目标（前端限制为敌方）；Action.Targets[1] 为治疗目标（可为任意角色）`
+  * **Filters**: `Action.Targets[0] 为法术伤害目标（可为任意角色）；Action.Targets[1] 为治疗目标（可为任意角色）`
   * **SelectedValueRule**: `Action.SelectedValue == 0 || Action.SelectedValue == 1` *(0=不额外弃牌；1=额外弃1张水系牌)*
 * **4. 费用消耗**：
   * **CardPlayCostType**: `CardPlayRequired`
@@ -3215,7 +3215,7 @@
     * `Ref`: `None`
 
 #### 【血染蔷薇】 (Bloodstained Rose)
-* **技能描述**：（移除2点［鲜血］）移除目标角色2点［治疗］，将我方角色能量区的1［水晶］翻面为1［宝石］。（若［血蔷薇庭院］在场）额外对所有角色各造成1点法术伤害③。
+* **技能描述**：移除2点［鲜血］发动，移除目标角色2点［治疗］，将我方阵营的1［水晶］翻面为1［宝石］，再选择任意1名队友+1［治疗］。（若［血蔷薇庭院］在场）额外对所有角色各造成1点法术伤害③。
 * **1. 主干配置**：
   * **SkillID**: `skill_blood_sword_spirit_bloodstained_rose`
   * **Category**: `Normal`
@@ -3228,28 +3228,31 @@
   * **SelectType**: `Any`
   * **MinCount**: `2`
   * **MaxCount**: `2`
-  * **Filters**: `None` *(提交校验约束：本次2名目标需恰好包含1名敌方与1名我方角色)*
+  * **Filters**: `Action.Targets[0] 为移除治疗目标（任意角色）；Action.Targets[1] 为治疗目标（必须我方角色）`
 * **4. 费用消耗**：
   * **CardPlayCostType**: `CardPlayNotRequired`
   * **Tokens**: `[{Type: Blood, Amount: 2}]`
 * **5. 战斗与结算劫持标记**：
   * **Tags**: `None`
 * **6. 执行效果序列**：
-  * **Effect[0]** *(敌方目标移除2点治疗)*:
+  * **Effect[0]** *(Targets[0] 移除2点治疗)*:
     * `EffectType`: `EffectHeal`
     * `Target`: `TargetSelected`
     * `Value`: `-2`
-    * `Condition`: `Target.Team != Self.Team`
-    * `Ref`: `None`
-  * **Effect[1]** *(我方目标能量区1水晶转1宝石；不足时按可转换量结算)*:
-    * `EffectType`: `EffectConvertEnergyStone`
-    * `Target`: `TargetSelected`
+    * `Ref`: `Action.Targets[0].TargetUserID`
+  * **Effect[1]** *(我方阵营战绩区1水晶转1宝石；无水晶时跳过)*:
+    * `EffectType`: `EffectConvertTeamStone`
+    * `Target`: `TargetSelfTeam`
     * `Value`: `1`
     * `StoneRef`: `Crystal`
     * `StoneToRef`: `Gem`
-    * `Condition`: `Target.Team == Self.Team`
     * `Ref`: `None`
-  * **Effect[2]** *(若血蔷薇庭院在场：全场各受1点法术伤害)*:
+  * **Effect[2]** *(Targets[1] +1治疗)*:
+    * `EffectType`: `EffectHeal`
+    * `Target`: `TargetSelected`
+    * `Value`: `1`
+    * `Ref`: `Action.Targets[1].TargetUserID`
+  * **Effect[3]** *(若血蔷薇庭院在场：全场各受1点法术伤害)*:
     * `EffectType`: `EffectDamage`
     * `Target`: `TargetAllPlayers`
     * `Value`: `1`

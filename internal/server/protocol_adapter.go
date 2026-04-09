@@ -139,16 +139,31 @@ func findPlayableCardIndexByUUID(player *model.Player, id string) int {
 		}
 	}
 	base := len(player.Hand)
-	for i, card := range player.Blessings {
+	blessings := listElfBlessingsForPlayableIndex(player)
+	for i, card := range blessings {
 		if card.ID == id {
 			return base + i
 		}
 	}
-	base += len(player.Blessings)
+	base += len(blessings)
 	for i, card := range player.ExclusiveCards {
 		if card.ID == id {
 			return base + i
 		}
 	}
 	return -1
+}
+
+func listElfBlessingsForPlayableIndex(player *model.Player) []model.Card {
+	if player == nil {
+		return nil
+	}
+	out := make([]model.Card, 0)
+	for _, fc := range player.Field {
+		if fc == nil || fc.Mode != model.FieldCover || fc.Effect != model.EffectElfBlessing {
+			continue
+		}
+		out = append(out, fc.Card)
+	}
+	return out
 }

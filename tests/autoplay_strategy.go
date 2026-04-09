@@ -1946,6 +1946,7 @@ func collectPlayableCards(player *model.Player) (attackIdx []int, magicIdx []int
 	attackIdx = make([]int, 0)
 	magicIdx = make([]int, 0)
 	handCount := len(player.Hand)
+	blessings := collectElfBlessings(player)
 
 	playableCardAt := func(playIdx int) (model.Card, bool) {
 		if playIdx < 0 {
@@ -1955,8 +1956,8 @@ func collectPlayableCards(player *model.Player) (attackIdx []int, magicIdx []int
 			return player.Hand[playIdx], true
 		}
 		bIdx := playIdx - handCount
-		if bIdx >= 0 && bIdx < len(player.Blessings) {
-			return player.Blessings[bIdx], true
+		if bIdx >= 0 && bIdx < len(blessings) {
+			return blessings[bIdx], true
 		}
 		return model.Card{}, false
 	}
@@ -1972,7 +1973,7 @@ func collectPlayableCards(player *model.Player) (attackIdx []int, magicIdx []int
 			magicIdx = append(magicIdx, idx)
 		}
 	}
-	for idx, card := range player.Blessings {
+	for idx, card := range blessings {
 		playIdx := handCount + idx
 		if !matchesExtraElement(player.TurnState.CurrentExtraElement, card.Element) {
 			continue
@@ -2020,6 +2021,20 @@ func collectPlayableCards(player *model.Player) (attackIdx []int, magicIdx []int
 	})
 
 	return attackIdx, magicIdx
+}
+
+func collectElfBlessings(player *model.Player) []model.Card {
+	if player == nil {
+		return nil
+	}
+	out := make([]model.Card, 0)
+	for _, fc := range player.Field {
+		if fc == nil || fc.Mode != model.FieldCover || fc.Effect != model.EffectElfBlessing {
+			continue
+		}
+		out = append(out, fc.Card)
+	}
+	return out
 }
 
 func tryAttackActions(game *engine.GameEngine, pid string, enemies []string, attackIdx []int) error {

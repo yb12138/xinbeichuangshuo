@@ -1420,33 +1420,27 @@ func (h *CrimsonBloodRoseHandler) Execute(ctx *model.Context) error {
 	if getToken(ctx.User, "css_blood") < 2 {
 		return fmt.Errorf("鲜血不足")
 	}
-	var allyTarget *model.Player
-	var enemyTarget *model.Player
-	for _, target := range ctx.Targets {
-		if target == nil {
-			continue
-		}
-		if target.Camp == ctx.User.Camp {
-			allyTarget = target
-		} else {
-			enemyTarget = target
-		}
+	healReduceTarget := ctx.Targets[0]
+	healGainTarget := ctx.Targets[1]
+	if healReduceTarget == nil || healGainTarget == nil {
+		return fmt.Errorf("血染蔷薇目标无效")
 	}
-	if allyTarget == nil || enemyTarget == nil {
-		return fmt.Errorf("血染蔷薇需要1名我方和1名敌方目标")
+	if healGainTarget.Camp != ctx.User.Camp {
+		return fmt.Errorf("血染蔷薇的第2个目标必须是我方角色")
 	}
 	addBlood(ctx.User, -2)
-	if enemyTarget.Heal > 0 {
+	if healReduceTarget.Heal > 0 {
 		loss := 2
-		if enemyTarget.Heal < loss {
-			loss = enemyTarget.Heal
+		if healReduceTarget.Heal < loss {
+			loss = healReduceTarget.Heal
 		}
-		enemyTarget.Heal -= loss
+		healReduceTarget.Heal -= loss
 	}
-	if allyTarget.Crystal > 0 {
-		allyTarget.Crystal--
-		allyTarget.Gem++
+	if ctx.Game.GetCampCrystals(string(ctx.User.Camp)) > 0 {
+		ctx.Game.ModifyCrystal(string(ctx.User.Camp), -1)
+		ctx.Game.ModifyGem(string(ctx.User.Camp), 1)
 	}
+	ctx.Game.Heal(healGainTarget.ID, 1)
 	hasRoseCourtyard := false
 	for _, fc := range ctx.User.Field {
 		if fc != nil && fc.Mode == model.FieldEffect && fc.Effect == model.EffectRoseCourtyard {
@@ -1464,7 +1458,7 @@ func (h *CrimsonBloodRoseHandler) Execute(ctx *model.Context) error {
 			})
 		}
 	}
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [血染蔷薇]：%s -2治疗，%s 的1水晶转为1宝石", ctx.User.Name, enemyTarget.Name, allyTarget.Name))
+	ctx.Game.Log(fmt.Sprintf("%s 发动 [血染蔷薇]：%s -2治疗，阵营1水晶转1宝石，%s +1治疗", ctx.User.Name, healReduceTarget.Name, healGainTarget.Name))
 	return nil
 }
 
@@ -1562,7 +1556,7 @@ func countElfBlessings(p *model.Player) int {
 	if p == nil {
 		return 0
 	}
-	return len(p.Blessings)
+	return len(elfBlessingCoverCards(p))
 }
 
 func markElfBlessingCards(p *model.Player, cards []model.Card) {
@@ -1570,7 +1564,7 @@ func markElfBlessingCards(p *model.Player, cards []model.Card) {
 		return
 	}
 	existsBless := map[string]bool{}
-	for _, c := range p.Blessings {
+	for _, c := range elfBlessingCards(p) {
 		if c.ID != "" {
 			existsBless[c.ID] = true
 		}
@@ -1582,16 +1576,25 @@ func markElfBlessingCards(p *model.Player, cards []model.Card) {
 		if existsBless[c.ID] {
 			continue
 		}
-		p.Blessings = append(p.Blessings, c)
+		p.AddFieldCard(&model.FieldCard{
+			Card:     c,
+			OwnerID:  p.ID,
+			SourceID: p.ID,
+			Mode:     model.FieldCover,
+			Effect:   model.EffectElfBlessing,
+			Trigger:  model.EffectTriggerManual,
+		})
 		existsBless[c.ID] = true
 	}
+	blessings := elfBlessingCards(p)
+	p.Blessings = blessings
 	blessingIDs := map[string]bool{}
-	for _, c := range p.Blessings {
+	for _, c := range blessings {
 		if c.ID != "" {
 			blessingIDs[c.ID] = true
 		}
 	}
-	newZone := make([]string, 0, len(p.CharaZone)+len(p.Blessings))
+	newZone := make([]string, 0, len(p.CharaZone)+len(blessings))
 	zoneHas := map[string]bool{}
 	for _, z := range p.CharaZone {
 		if !strings.HasPrefix(z, "elf_blessing:") {
@@ -1605,7 +1608,7 @@ func markElfBlessingCards(p *model.Player, cards []model.Card) {
 			zoneHas[z] = true
 		}
 	}
-	for _, c := range p.Blessings {
+	for _, c := range blessings {
 		if c.ID == "" {
 			continue
 		}
@@ -1616,6 +1619,28 @@ func markElfBlessingCards(p *model.Player, cards []model.Card) {
 		newZone = append(newZone, key)
 	}
 	p.CharaZone = newZone
+}
+
+func elfBlessingCoverCards(p *model.Player) []*model.FieldCard {
+	if p == nil {
+		return nil
+	}
+	return p.GetCoverCardsByEffect(model.EffectElfBlessing)
+}
+
+func elfBlessingCards(p *model.Player) []model.Card {
+	covers := elfBlessingCoverCards(p)
+	if len(covers) == 0 {
+		return nil
+	}
+	out := make([]model.Card, 0, len(covers))
+	for _, fc := range covers {
+		if fc == nil {
+			continue
+		}
+		out = append(out, fc.Card)
+	}
+	return out
 }
 
 func addBlood(p *model.Player, delta int) int {

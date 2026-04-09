@@ -161,8 +161,6 @@ func TestElfRitualRelease_TargetsEnemyOnly(t *testing.T) {
 		"elf_ritual_release_waiting": 0,
 	}
 	enterElfArcherRitualForm(p1)
-	p1.Blessings = nil
-	syncElfBlessings(p1)
 
 	game.Drive()
 

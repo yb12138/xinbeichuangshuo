@@ -52,6 +52,10 @@ func countButterflyCocoons(p *model.Player) int {
 	return stateview.CountButterflyCocoons(p)
 }
 
+func countElfBlessings(p *model.Player) int {
+	return stateview.CountElfBlessings(p)
+}
+
 func countBloodSharedLifeAsSource(state *model.GameState, sourceID string) int {
 	return stateview.CountBloodSharedLifeAsSource(state, sourceID)
 }
@@ -94,8 +98,8 @@ func (r *Room) buildStateForPlayer(playerID string) GameStateUpdate {
 		for k, v := range p.Tokens {
 			view.Tokens[k] = v
 		}
-		// UI 派生计数 → PlayerView 显式字段（真源在 Blessings/Field/RuleModifiers 上）
-		view.ElfBlessingCount = len(p.Blessings)
+		// UI 派生计数 -> PlayerView 显式字段（真源在 Field/RuleModifiers 上）
+		view.ElfBlessingCount = countElfBlessings(p)
 		view.MagicBowChargeCount = countMagicBowCharges(p)
 		view.SpiritCasterPowerCount = countSpiritCasterPowers(p)
 		view.MoonDarkMoonCount = countMoonDarkMoons(p)
@@ -117,7 +121,6 @@ func (r *Room) buildStateForPlayer(playerID string) GameStateUpdate {
 		// 仅自己可见手牌具体内容，他人只能看到数量
 		if pid == playerID {
 			view.Hand = p.Hand
-			view.Blessings = p.Blessings
 			view.ExclusiveCards = p.ExclusiveCards
 		}
 		players[pid] = view

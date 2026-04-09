@@ -106,7 +106,6 @@ type PlayerView struct {
 	MaxHand            int                `json:"max_hand"`
 	ExclusiveCardCount int                `json:"exclusive_card_count"`
 	Hand               []model.Card       `json:"hand,omitempty"`            // Only for self
-	Blessings          []model.Card       `json:"blessings,omitempty"`       // Only for self (精灵射手祝福)
 	ExclusiveCards     []model.Card       `json:"exclusive_cards,omitempty"` // Only for self (专属技能卡区)
 	Field              []*model.FieldCard `json:"field"`
 	Heal               int                `json:"heal"`

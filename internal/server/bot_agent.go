@@ -483,12 +483,19 @@ func buildFallbackAction(playerID string, prompt *model.Prompt, state GameStateU
 }
 
 func botPlayableCards(me PlayerView) []model.Card {
-	if len(me.Blessings) == 0 {
+	blessings := make([]model.Card, 0)
+	for _, fc := range me.Field {
+		if fc == nil || fc.Mode != model.FieldCover || fc.Effect != model.EffectElfBlessing {
+			continue
+		}
+		blessings = append(blessings, fc.Card)
+	}
+	if len(blessings) == 0 {
 		return me.Hand
 	}
-	out := make([]model.Card, 0, len(me.Hand)+len(me.Blessings))
+	out := make([]model.Card, 0, len(me.Hand)+len(blessings))
 	out = append(out, me.Hand...)
-	out = append(out, me.Blessings...)
+	out = append(out, blessings...)
 	return out
 }
 

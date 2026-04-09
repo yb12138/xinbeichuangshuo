@@ -70,7 +70,7 @@ func TestElfRitualStoresBlessingsOutsideHand(t *testing.T) {
 	if got := len(p1.Hand); got != beforeHand {
 		t.Fatalf("ritual should not change normal hand size, got=%d want=%d", got, beforeHand)
 	}
-	if got := len(p1.Blessings); got != 3 {
+	if got := countElfBlessings(p1); got != 3 {
 		t.Fatalf("ritual should create 3 blessings, got=%d", got)
 	}
 	if game.State.PendingInterrupt != nil {
@@ -89,10 +89,9 @@ func TestElfBlessingCanBePlayedAsMagic(t *testing.T) {
 	p1 := game.State.Players["p1"]
 
 	p1.Hand = nil
-	p1.Blessings = []model.Card{
+	markElfBlessings(p1, []model.Card{
 		{ID: "bless-magic", Name: "圣盾", Type: model.CardTypeMagic, Element: model.ElementLight, Damage: 0},
-	}
-	syncElfBlessings(p1)
+	})
 
 	if err := game.HandleAction(model.PlayerAction{
 		PlayerID:  "p1",
@@ -103,7 +102,7 @@ func TestElfBlessingCanBePlayedAsMagic(t *testing.T) {
 		t.Fatalf("magic with blessing should succeed: %v", err)
 	}
 
-	if got := len(p1.Blessings); got != 0 {
+	if got := countElfBlessings(p1); got != 0 {
 		t.Fatalf("blessing should be consumed after play, got=%d", got)
 	}
 	if p1.HasFieldEffect(model.EffectShield) == false {
@@ -119,11 +118,10 @@ func TestElfBlessingCanBePlayedAsAttack(t *testing.T) {
 	p1 := game.State.Players["p1"]
 
 	p1.Hand = nil
-	p1.Blessings = []model.Card{
+	markElfBlessings(p1, []model.Card{
 		// 使用暗系避免触发「元素射击」中断，聚焦验证“祝福可作为攻击牌打出”。
 		{ID: "bless-attack", Name: "祝福之刃", Type: model.CardTypeAttack, Element: model.ElementDark, Damage: 1},
-	}
-	syncElfBlessings(p1)
+	})
 
 	if err := game.HandleAction(model.PlayerAction{
 		PlayerID:  "p1",
@@ -136,7 +134,7 @@ func TestElfBlessingCanBePlayedAsAttack(t *testing.T) {
 
 	game.Drive()
 
-	if got := len(p1.Blessings); got != 0 {
+	if got := countElfBlessings(p1); got != 0 {
 		t.Fatalf("blessing should be consumed after attack, got=%d", got)
 	}
 	if got := len(game.State.CombatStack); got != 1 {
@@ -183,7 +181,7 @@ func TestElfRitualStartupConfirmShouldNotLeaveOverflowDiscard(t *testing.T) {
 	if got := len(p1.Hand); got != 6 {
 		t.Fatalf("ritual startup confirm should keep normal hand size 6, got=%d", got)
 	}
-	if got := len(p1.Blessings); got != 3 {
+	if got := countElfBlessings(p1); got != 3 {
 		t.Fatalf("ritual startup confirm should create 3 blessings, got=%d", got)
 	}
 	if game.State.PendingInterrupt != nil && game.State.PendingInterrupt.Type == model.InterruptDiscard {

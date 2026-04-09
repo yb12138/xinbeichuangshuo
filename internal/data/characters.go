@@ -1242,7 +1242,7 @@ func GetCharacters() []model.Character {
 					ID:           "css_blood_rose",
 					Title:        "血染蔷薇",
 					Type:         model.SkillTypeAction,
-					Description:  "移除2鲜血：选择恰好1名敌方与1名我方角色，敌方目标移除2点治疗，我方目标将1蓝水晶翻为1红宝石；若庭院在场，额外对所有人各1点法术伤害。",
+					Description:  "移除2点［鲜血］发动，移除目标角色2点［治疗］，将我方阵营的1［水晶］翻面为1［宝石］，再选择任意1名队友+1［治疗］。（若［血蔷薇庭院］在场）额外对所有角色各造成1点法术伤害③。",
 					LogicHandler: "css_blood_rose",
 					TargetType:   model.TargetAny,
 					MinTargets:   2,

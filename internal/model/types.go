@@ -52,7 +52,7 @@ type Player struct {
 	Role string `json:"role"` // 角色 (前端展示)
 	Camp Camp   `json:"camp"`
 	Hand []Card `json:"hand"`
-	// 精灵射手“祝福”独立牌区：不计入手牌上限，但可按手牌方式打出。
+	// 仅用于协议视图的“精灵祝福”派生展示字段（真源在 Field 中的 EffectElfBlessing 盖牌）。
 	Blessings []Card `json:"blessings,omitempty"`
 	// 角色专属技能卡区：不计入手牌，不参与爆牌；用于五系束缚/血蔷薇庭院等专属卡。
 	ExclusiveCards []Card       `json:"exclusive_cards,omitempty"`
@@ -459,6 +459,21 @@ func (p *Player) GetCoverCards() []*FieldCard {
 	return covers
 }
 
+// GetCoverCardsByEffect 获取指定效果类型的盖牌。
+func (p *Player) GetCoverCardsByEffect(effect EffectType) []*FieldCard {
+	if p == nil {
+		return nil
+	}
+	var covers []*FieldCard
+	for _, fc := range p.Field {
+		if fc == nil || fc.Mode != FieldCover || fc.Effect != effect {
+			continue
+		}
+		covers = append(covers, fc)
+	}
+	return covers
+}
+
 // ConsumeCoverCards 消耗指定数量的盖牌
 func (p *Player) ConsumeCoverCards(n int) ([]Card, error) {
 	covers := p.GetCoverCards()
@@ -539,6 +554,8 @@ const (
 	EffectBloodSharedLife EffectType = "BloodSharedLife"
 	// 蝶舞者“茧”盖牌效果标识（Mode=Cover）。
 	EffectButterflyCocoon EffectType = "ButterflyCocoon"
+	// 精灵射手“祝福区”盖牌效果标识（Mode=Cover，可按手牌方式打出）。
+	EffectElfBlessing EffectType = "ElfBlessing"
 )
 
 // FieldCard 表示场上放置的卡牌

@@ -43,6 +43,7 @@ func TestElementalistFreeze_RequiresTwoTargets(t *testing.T) {
 	p1.TurnState = model.NewPlayerTurnState()
 	p1.Hand = []model.Card{
 		elementalistExclusiveCard(p1, "冰冻", model.ElementFire),
+		elementalistExclusiveCard(p1, "冰冻", model.ElementFire),
 	}
 	p2.Hand = nil
 	game.State.CurrentTurn = 0
@@ -56,34 +57,23 @@ func TestElementalistFreeze_RequiresTwoTargets(t *testing.T) {
 		TargetIDs:  []string{"p2"},
 		Selections: []int{0},
 	})
-	if err == nil || !strings.Contains(err.Error(), "最少需要指定 2 个目标") {
+	if err == nil || !strings.Contains(err.Error(), "冰冻需要指定2名目标") {
 		t.Fatalf("expected freeze single-target rejection, got err=%v", err)
-	}
-
-	err = game.HandleAction(model.PlayerAction{
-		PlayerID:   "p1",
-		Type:       model.CmdSkill,
-		SkillID:    "elementalist_freeze",
-		TargetIDs:  []string{"p1", "p1"},
-		Selections: []int{0},
-	})
-	if err == nil || !strings.Contains(err.Error(), "第1个目标必须是敌方角色") {
-		t.Fatalf("expected freeze first target enemy rejection, got err=%v", err)
 	}
 
 	mustHandleAction(t, game, model.PlayerAction{
 		PlayerID:   "p1",
 		Type:       model.CmdSkill,
 		SkillID:    "elementalist_freeze",
-		TargetIDs:  []string{"p2", "p1"},
+		TargetIDs:  []string{"p1", "p1"},
 		Selections: []int{0},
 	})
 
 	if got := p1.Heal; got != 1 {
 		t.Fatalf("expected freeze heal target gain 1 heal, got %d", got)
 	}
-	if got := len(p2.Hand); got != 1 {
-		t.Fatalf("expected freeze deal 1 damage (draw 1), got hand=%d", got)
+	if got := len(p2.Hand); got != 0 {
+		t.Fatalf("expected freeze not force enemy as damage target, got enemy hand=%d", got)
 	}
 }
 

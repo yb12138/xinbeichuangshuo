@@ -146,20 +146,11 @@ func (e *GameEngine) ensureSkillEnergyCost(use *skillUseRequest) error {
 }
 
 func (e *GameEngine) resolveSkillTargets(use *skillUseRequest) error {
+	use.actualTargets = nil
+	use.target = nil
+
 	if use.skillDef.TargetType == model.TargetNone {
-		if use.policy.validateTargets != nil {
-			return use.policy.validateTargets(use)
-		}
-		return nil
-	}
-	if len(use.targetIDs) == 0 {
-		if use.policy.allowZeroTargets {
-			if use.policy.validateTargets != nil {
-				return use.policy.validateTargets(use)
-			}
-			return nil
-		}
-		return fmt.Errorf("skill requires target(s)")
+		return use.policy.targetRules.validate(use)
 	}
 
 	actualTargets := make([]*model.Player, 0, len(use.targetIDs))
@@ -170,49 +161,20 @@ func (e *GameEngine) resolveSkillTargets(use *skillUseRequest) error {
 		}
 		actualTargets = append(actualTargets, target)
 	}
-	if len(actualTargets) == 0 {
-		return fmt.Errorf("no valid targets found")
-	}
-	if use.skillDef.MaxTargets > 0 && len(actualTargets) > use.skillDef.MaxTargets {
-		return fmt.Errorf("技能最多只能指定 %d 个目标，你指定了 %d 个", use.skillDef.MaxTargets, len(actualTargets))
-	}
-	if use.skillDef.MinTargets > 0 && len(actualTargets) < use.skillDef.MinTargets {
-		return fmt.Errorf("技能最少需要指定 %d 个目标，你指定了 %d 个", use.skillDef.MinTargets, len(actualTargets))
-	}
-
-	for _, target := range actualTargets {
-		switch use.skillDef.TargetType {
-		case model.TargetSelf:
-			if target.ID != use.player.ID {
-				return fmt.Errorf("skill can only target self")
-			}
-		case model.TargetEnemy:
-			if target.Camp == use.player.Camp {
-				return fmt.Errorf("skill can only target enemies")
-			}
-		case model.TargetAlly:
-			if target.Camp != use.player.Camp {
-				return fmt.Errorf("skill can only target allies")
-			}
-		case model.TargetAllySelf:
-			if target.Camp != use.player.Camp {
-				return fmt.Errorf("skill can only target allies or self")
-			}
-		case model.TargetAny:
-			// no-op
-		default:
-			// TargetSpecific 等由 skill policy / handler 继续校验。
-		}
-	}
-
 	use.actualTargets = actualTargets
 	if len(actualTargets) == 1 {
 		use.target = actualTargets[0]
 	}
-	if use.policy.validateTargets != nil {
-		return use.policy.validateTargets(use)
+
+	minTargets, maxTargets, countErr := effectiveTargetCountRange(use)
+	if (maxTargets > 0 && len(actualTargets) > maxTargets) || len(actualTargets) < minTargets {
+		return formatTargetCountError(len(actualTargets), minTargets, maxTargets, countErr)
 	}
-	return nil
+
+	if err := validateTargetTypeConstraints(use); err != nil {
+		return err
+	}
+	return use.policy.targetRules.validate(use)
 }
 
 func (e *GameEngine) validateSkillFieldPlacement(use *skillUseRequest) error {

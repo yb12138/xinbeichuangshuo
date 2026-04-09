@@ -39,13 +39,14 @@ func (e *GameEngine) buildElfArcherChoicePrompt(choiceType, playerID string, pla
 		if player == nil {
 			return nil
 		}
+		blessings := elfBlessingCards(player)
 		idxs := parseIntSliceContextValue(data["blessing_indices"])
 		options := make([]model.PromptOption, 0, len(idxs))
 		for _, idx := range idxs {
-			if idx < 0 || idx >= len(player.Blessings) {
+			if idx < 0 || idx >= len(blessings) {
 				continue
 			}
-			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", idx), Label: fmt.Sprintf("%d: %s", idx+1, formatCardInfo(player.Blessings[idx]))})
+			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", idx), Label: fmt.Sprintf("%d: %s", idx+1, formatCardInfo(blessings[idx]))})
 		}
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【元素射击】请选择要移除的祝福：", Options: options, Min: 1, Max: 1}
 
@@ -110,10 +111,11 @@ func (e *GameEngine) handleElfArcherChoiceInput(_ string, selectionIndex int, ct
 
 		var card model.Card
 		if choiceType == "elf_elemental_shot_remove_blessing" {
-			if cardIdx < 0 || cardIdx >= len(user.Blessings) {
+			blessings := elfBlessingCards(user)
+			if cardIdx < 0 || cardIdx >= len(blessings) {
 				return true, fmt.Errorf("无效的祝福索引: %d", selectionIndex)
 			}
-			card = user.Blessings[cardIdx]
+			card = blessings[cardIdx]
 			removeElfBlessingByCardID(user, card.ID)
 		} else {
 			if cardIdx < 0 || cardIdx >= len(user.Hand) {
