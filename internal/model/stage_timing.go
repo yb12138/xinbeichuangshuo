@@ -62,3 +62,39 @@ const (
 	TimingOnOrientationChanged   TriggerTiming = "TimingOnOrientationChanged"
 	TimingOnTurnEnd              TriggerTiming = "TimingOnTurnEnd"
 )
+
+// LegacyTriggerToTiming 兼容旧 Trigger 枚举，统一映射到 Timing。
+func LegacyTriggerToTiming(trigger TriggerType) TriggerTiming {
+	switch trigger {
+	case TriggerNone:
+		return TimingActive
+	case TriggerOnTurnStart:
+		return TimingOnTurnStart
+	case TriggerOnBuffPhase:
+		return TimingOnBeforeAction
+	case TriggerOnAttackStart:
+		return TimingOnAttackDeclared
+	case TriggerOnAttackHit, TriggerOnAttackMiss:
+		return TimingOnHitCheck
+	case TriggerModifyDamage:
+		return TimingOnDamageCalculated
+	case TriggerOnDamageTaken:
+		return TimingOnDamageTaken
+	case TriggerOnPhaseEnd:
+		return TimingOnActionEnd
+	case TriggerOnCardUsed, TriggerOnCardRevealed:
+		return TimingOnCardPlayedOrRevealed
+	case TriggerOnBuffAdded, TriggerOnBuffRemoved:
+		return TimingOnFieldMarkChanged
+	case TriggerBeforeDraw:
+		return TimingBeforeCardDrawn
+	case TriggerAfterDraw:
+		return TimingOnCardDrawn
+	case TriggerBeforeMoraleLoss:
+		return TimingBeforeMoraleLoss
+	case TriggerOnOrientationChanged:
+		return TimingOnOrientationChanged
+	default:
+		return TimingUnknown
+	}
+}

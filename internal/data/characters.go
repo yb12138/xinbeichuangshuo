@@ -4,7 +4,7 @@ import "starcup-engine/internal/model"
 
 // GetCharacters 返回所有角色定义
 func GetCharacters() []model.Character {
-	return []model.Character{
+	characters := []model.Character{
 		// 1. 天使
 		{
 			ID:      "angel",
@@ -2950,4 +2950,5 @@ func GetCharacters() []model.Character {
 			ExclusiveCards: []string{},
 		},
 	}
+	return normalizeSkillTimings(characters)
 }

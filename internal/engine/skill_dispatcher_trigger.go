@@ -228,42 +228,7 @@ func (sd *SkillDispatcher) OnTrigger(trigger model.TriggerType, ctx *model.Conte
 	prevTrigger := ctx.Trigger
 	ctx.Trigger = trigger
 	if ctx.Timing == model.TimingUnknown || prevTrigger != trigger {
-		ctx.Timing = legacyTriggerToTiming(trigger)
+		ctx.Timing = model.LegacyTriggerToTiming(trigger)
 	}
 	sd.OnTiming(ctx.Timing, ctx)
-}
-
-func legacyTriggerToTiming(trigger model.TriggerType) model.TriggerTiming {
-	switch trigger {
-	case model.TriggerNone:
-		return model.TimingActive
-	case model.TriggerOnTurnStart:
-		return model.TimingOnTurnStart
-	case model.TriggerOnBuffPhase:
-		return model.TimingOnBeforeAction
-	case model.TriggerOnAttackStart:
-		return model.TimingOnAttackDeclared
-	case model.TriggerOnAttackHit, model.TriggerOnAttackMiss:
-		return model.TimingOnHitCheck
-	case model.TriggerModifyDamage:
-		return model.TimingOnDamageCalculated
-	case model.TriggerOnDamageTaken:
-		return model.TimingOnDamageTaken
-	case model.TriggerOnPhaseEnd:
-		return model.TimingOnActionEnd
-	case model.TriggerOnCardUsed, model.TriggerOnCardRevealed:
-		return model.TimingOnCardPlayedOrRevealed
-	case model.TriggerOnBuffAdded, model.TriggerOnBuffRemoved:
-		return model.TimingOnFieldMarkChanged
-	case model.TriggerBeforeDraw:
-		return model.TimingBeforeCardDrawn
-	case model.TriggerAfterDraw:
-		return model.TimingOnCardDrawn
-	case model.TriggerBeforeMoraleLoss:
-		return model.TimingBeforeMoraleLoss
-	case model.TriggerOnOrientationChanged:
-		return model.TimingOnOrientationChanged
-	default:
-		return model.TimingUnknown
-	}
 }

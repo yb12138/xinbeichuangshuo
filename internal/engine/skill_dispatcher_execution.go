@@ -149,11 +149,11 @@ func skillMatchesTiming(skill model.SkillDefinition, timing model.TriggerTiming)
 	}
 
 	// 兼容旧配置：迁移完成后删除。
-	if legacyTriggerToTiming(skill.Trigger) == timing {
+	if model.LegacyTriggerToTiming(skill.Trigger) == timing {
 		return true
 	}
 	for _, t := range skill.ExtraTriggers {
-		if legacyTriggerToTiming(t) == timing {
+		if model.LegacyTriggerToTiming(t) == timing {
 			return true
 		}
 	}
