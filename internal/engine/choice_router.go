@@ -8,134 +8,85 @@ import (
 	"starcup-engine/internal/model"
 )
 
-type choicePromptBuilder func(e *GameEngine, choiceType, playerID string, player *model.Player, data map[string]interface{}) *model.Prompt
+// ==================== 类型定义 ====================
 
-type choiceSingleInputHandler func(e *GameEngine, playerID string, selectionIndex int, ctxData map[string]interface{}) (bool, error)
+type choicePromptBuilder func(e *GameEngine, choiceType, playerID string, player *model.Player, data map[string]any) *model.Prompt
+
+type choiceSingleInputHandler func(e *GameEngine, playerID string, selectionIndex int, ctxData map[string]any) (bool, error)
 
 type choiceMultiInputHandler func(e *GameEngine, playerID string, selections []int) error
 
 type choiceCancelHandler func(e *GameEngine, playerID string) error
 
-var registeredChoicePromptBuilders = []choicePromptBuilder{
-	(*GameEngine).buildSystemChoicePrompt,
-	(*GameEngine).buildOnmyojiChoicePrompt,
-	(*GameEngine).buildBeastSamuraiChoicePrompt,
-	(*GameEngine).buildSageChoicePrompt,
-	(*GameEngine).buildAdventurerChoicePrompt,
-	(*GameEngine).buildPriestChoicePrompt,
-	(*GameEngine).buildPrayerMasterChoicePrompt,
-	(*GameEngine).buildCrimsonKnightChoicePrompt,
-	(*GameEngine).buildWarHomunculusChoicePrompt,
-	(*GameEngine).buildValkyrieChoicePrompt,
-	(*GameEngine).buildElementalistChoicePrompt,
-	(*GameEngine).buildElfArcherChoicePrompt,
-	(*GameEngine).buildMagicBowChoicePrompt,
-	(*GameEngine).buildSwordEmperorChoicePrompt,
-	(*GameEngine).buildMagicLancerChoicePrompt,
-	(*GameEngine).buildSoulSorcererChoicePrompt,
-	(*GameEngine).buildMoonGoddessChoicePrompt,
-	(*GameEngine).buildBloodPriestessChoicePrompt,
-	(*GameEngine).buildButterflyChoicePrompt,
-	(*GameEngine).buildSpiritCasterChoicePrompt,
-	(*GameEngine).buildBardChoicePrompt,
-	(*GameEngine).buildHolyBowChoicePrompt,
-	(*GameEngine).buildHeroAssassinChoicePrompt,
-	(*GameEngine).buildArbiterChoicePrompt,
-	(*GameEngine).buildGuardianSupportChoicePrompt,
-	(*GameEngine).buildHolyLancerChoicePrompt,
-	(*GameEngine).buildSealerChoicePrompt,
-	(*GameEngine).buildPlagueMageChoicePrompt,
-	(*GameEngine).buildMagicSwordsmanChoicePrompt,
-	(*GameEngine).buildCrimsonSwordSpiritChoicePrompt,
-	(*GameEngine).buildBlazeWitchChoicePrompt,
-	(*GameEngine).buildTargetChoicePrompt,
+// ==================== 注册表 ====================
+
+var (
+	choicePromptBuilders = make(map[string]choicePromptBuilder)
+	choiceSingleHandlers = make(map[string]choiceSingleInputHandler)
+	choiceMultiHandlers  = make(map[string]choiceMultiInputHandler)
+	choiceCancelHandlers = make(map[string]choiceCancelHandler)
+)
+
+// RegisterChoicePrompt 注册选择提示构建器
+func RegisterChoicePrompt(choiceType string, builder choicePromptBuilder) {
+	if _, exists := choicePromptBuilders[choiceType]; !exists {
+		choicePromptBuilders[choiceType] = builder
+	}
 }
 
-var registeredChoiceSingleInputHandlers = []choiceSingleInputHandler{
-	(*GameEngine).handleSystemChoiceInput,
-	func(e *GameEngine, _ string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
-		return e.handleOnmyojiChoiceInput(selectionIndex, ctxData)
-	},
-	func(e *GameEngine, _ string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
-		return e.handleBeastSamuraiChoiceInput(selectionIndex, ctxData)
-	},
-	(*GameEngine).handleSageChoiceInput,
-	(*GameEngine).handleAdventurerChoiceInput,
-	(*GameEngine).handlePriestChoiceInput,
-	(*GameEngine).handlePrayerMasterChoiceInput,
-	(*GameEngine).handleCrimsonKnightChoiceInput,
-	(*GameEngine).handleWarHomunculusChoiceInput,
-	(*GameEngine).handleValkyrieChoiceInput,
-	(*GameEngine).handleElementalistChoiceInput,
-	(*GameEngine).handleElfArcherChoiceInput,
-	(*GameEngine).handleMagicBowChoiceInput,
-	(*GameEngine).handleSwordEmperorChoiceInput,
-	(*GameEngine).handleMagicLancerChoiceInput,
-	(*GameEngine).handleFighterChoiceInput,
-	(*GameEngine).handleSoulSorcererChoiceInput,
-	(*GameEngine).handleMoonGoddessChoiceInput,
-	(*GameEngine).handleBloodPriestessChoiceInput,
-	(*GameEngine).handleButterflyChoiceInput,
-	(*GameEngine).handleSpiritCasterChoiceInput,
-	(*GameEngine).handleBardChoiceInput,
-	(*GameEngine).handleHolyBowChoiceInput,
-	(*GameEngine).handleHeroAssassinChoiceInput,
-	(*GameEngine).handleArbiterChoiceInput,
-	(*GameEngine).handleGuardianSupportChoiceInput,
-	(*GameEngine).handleHolyLancerChoiceInput,
-	(*GameEngine).handleSealerChoiceInput,
-	(*GameEngine).handlePlagueMageChoiceInput,
-	(*GameEngine).handleMagicSwordsmanChoiceInput,
-	(*GameEngine).handleCrimsonSwordSpiritChoiceInput,
-	(*GameEngine).handleBlazeWitchChoiceInput,
+// RegisterChoiceSingleHandler 注册单选输入处理器
+func RegisterChoiceSingleHandler(choiceType string, handler choiceSingleInputHandler) {
+	if _, exists := choiceSingleHandlers[choiceType]; !exists {
+		choiceSingleHandlers[choiceType] = handler
+	}
 }
 
-var registeredChoiceMultiInputHandlers = map[string]choiceMultiInputHandler{
-	"extract":                    (*GameEngine).handleExtractChoiceSelections,
-	"bp_curse_discard":           (*GameEngine).handleBloodCurseDiscardSelections,
-	"ss_recall_pick":             (*GameEngine).handleSoulRecallSelections,
-	"bt_cocoon_overflow_discard": (*GameEngine).handleButterflyCocoonOverflowSelections,
-	"bt_reverse_branch2_pick":    (*GameEngine).handleButterflyReverseBranch2PickSelections,
+// RegisterChoiceMultiHandler 注册多选输入处理器
+func RegisterChoiceMultiHandler(choiceType string, handler choiceMultiInputHandler) {
+	if _, exists := choiceMultiHandlers[choiceType]; !exists {
+		choiceMultiHandlers[choiceType] = handler
+	}
 }
 
-var registeredChoiceCancelHandlers = map[string]choiceCancelHandler{
-	"extract":              (*GameEngine).cancelExtractChoice,
-	"hom_dual_echo_target": (*GameEngine).cancelHomDualEchoChoice,
+// RegisterChoiceCancelHandler 注册取消处理器
+func RegisterChoiceCancelHandler(choiceType string, handler choiceCancelHandler) {
+	if _, exists := choiceCancelHandlers[choiceType]; !exists {
+		choiceCancelHandlers[choiceType] = handler
+	}
 }
 
-func (e *GameEngine) buildRegisteredChoicePrompt(choiceType, playerID string, player *model.Player, data map[string]interface{}) *model.Prompt {
-	for _, builder := range registeredChoicePromptBuilders {
-		if prompt := builder(e, choiceType, playerID, player, data); prompt != nil {
-			return prompt
-		}
+// ==================== 路由函数 ====================
+
+func (e *GameEngine) buildRegisteredChoicePrompt(choiceType, playerID string, player *model.Player, data map[string]any) *model.Prompt {
+	if builder, ok := choicePromptBuilders[choiceType]; ok {
+		return builder(e, choiceType, playerID, player, data)
 	}
 	return nil
 }
 
-func (e *GameEngine) handleRegisteredChoiceInput(playerID string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
-	for _, handler := range registeredChoiceSingleInputHandlers {
-		if handled, err := handler(e, playerID, selectionIndex, ctxData); handled || err != nil {
-			return handled, err
-		}
+func (e *GameEngine) handleRegisteredChoiceInput(playerID string, selectionIndex int, ctxData map[string]any) (bool, error) {
+	choiceType, _ := ctxData["choice_type"].(string)
+	if handler, ok := choiceSingleHandlers[choiceType]; ok {
+		return handler(e, playerID, selectionIndex, ctxData)
 	}
 	return false, nil
 }
 
 func (e *GameEngine) handleRegisteredChoiceMultiSelect(playerID, choiceType string, selections []int) (bool, error) {
-	handler, ok := registeredChoiceMultiInputHandlers[choiceType]
-	if !ok {
-		return false, nil
+	if handler, ok := choiceMultiHandlers[choiceType]; ok {
+		return true, handler(e, playerID, selections)
 	}
-	return true, handler(e, playerID, selections)
+	return false, nil
 }
 
 func (e *GameEngine) handleRegisteredChoiceCancel(playerID, choiceType string) (bool, error) {
-	handler, ok := registeredChoiceCancelHandlers[choiceType]
-	if !ok {
-		return false, nil
+	if handler, ok := choiceCancelHandlers[choiceType]; ok {
+		return true, handler(e, playerID)
 	}
-	return true, handler(e, playerID)
+	return false, nil
 }
+
+// ==================== 核心处理函数 ====================
 
 func (e *GameEngine) handleLegacySequentialCardSelections(playerID string, selections []int) error {
 	if len(selections) == 0 {
@@ -144,7 +95,7 @@ func (e *GameEngine) handleLegacySequentialCardSelections(playerID string, selec
 	if e.State.PendingInterrupt == nil || e.State.PendingInterrupt.Type != model.InterruptChoice {
 		return fmt.Errorf("当前不存在可处理的选牌中断")
 	}
-	ctxData, ok := e.State.PendingInterrupt.Context.(map[string]interface{})
+	ctxData, ok := e.State.PendingInterrupt.Context.(map[string]any)
 	if !ok {
 		return fmt.Errorf("选牌上下文错误")
 	}
@@ -175,7 +126,7 @@ func (e *GameEngine) handleWeakChoiceInput(playerID string, selectionIndex int) 
 		return fmt.Errorf("没有待处理的中断")
 	}
 
-	ctxData, ok := e.State.PendingInterrupt.Context.(map[string]interface{})
+	ctxData, ok := e.State.PendingInterrupt.Context.(map[string]any)
 	if !ok {
 		return fmt.Errorf("中断上下文格式错误")
 	}
@@ -195,7 +146,7 @@ func (e *GameEngine) handleChoiceSelectionInput(playerID string, selectionIndex 
 
 func (e *GameEngine) handleInterruptChoiceAction(act model.PlayerAction) error {
 	if act.Type == model.CmdCancel {
-		if data, ok := e.State.PendingInterrupt.Context.(map[string]interface{}); ok {
+		if data, ok := e.State.PendingInterrupt.Context.(map[string]any); ok {
 			if ct, _ := data["choice_type"].(string); ct != "" {
 				if handled, err := e.handleRegisteredChoiceCancel(act.PlayerID, ct); handled || err != nil {
 					return err
@@ -204,7 +155,7 @@ func (e *GameEngine) handleInterruptChoiceAction(act model.PlayerAction) error {
 		}
 	}
 	if act.Type == model.CmdSelect {
-		if data, ok := e.State.PendingInterrupt.Context.(map[string]interface{}); ok {
+		if data, ok := e.State.PendingInterrupt.Context.(map[string]any); ok {
 			if ct, _ := data["choice_type"].(string); ct != "" {
 				if handled, err := e.handleRegisteredChoiceMultiSelect(act.PlayerID, ct, act.Selections); handled || err != nil {
 					return err
