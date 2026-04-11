@@ -1,3 +1,5 @@
+// gameflow: 月女神 handler。
+
 package skills
 
 import (
@@ -61,13 +63,13 @@ func addMoonGoddessPetrify(user *model.Player, delta int) int {
 }
 
 func (h *MoonGoddessNewMoonShelterHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.TriggerCtx == nil || ctx.TriggerCtx.DamageVal == nil {
+	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil || ctx.EventCtx.DamageVal == nil {
 		return false
 	}
-	if ctx.Trigger != model.TriggerBeforeMoraleLoss {
+	if ctx.Timing != model.TimingBeforeMoraleLoss {
 		return false
 	}
-	if *ctx.TriggerCtx.DamageVal <= 0 {
+	if *ctx.EventCtx.DamageVal <= 0 {
 		return false
 	}
 	if ctx.Selections == nil {
@@ -85,7 +87,7 @@ func (h *MoonGoddessNewMoonShelterHandler) CanUse(ctx *model.Context) bool {
 }
 
 func (h *MoonGoddessNewMoonShelterHandler) Execute(ctx *model.Context) error {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.TriggerCtx == nil || ctx.TriggerCtx.DamageVal == nil {
+	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.EventCtx == nil || ctx.EventCtx.DamageVal == nil {
 		return fmt.Errorf("新月庇护上下文无效")
 	}
 	cards, ok := ctx.Selections["discarded_cards"].([]model.Card)
@@ -104,13 +106,13 @@ func (h *MoonGoddessNewMoonShelterHandler) Execute(ctx *model.Context) error {
 			SourceID: ctx.User.ID,
 			Mode:     model.FieldCover,
 			Effect:   model.EffectMoonDarkMoon,
-			Trigger:  model.EffectTriggerManual,
+			Hook: model.FieldHookManual,
 		})
 		added++
 	}
 	moonGoddessDarkMoonCount(ctx.User)
 	ctx.Selections["mg_new_moon_absorb_by"] = ctx.User.ID
-	*ctx.TriggerCtx.DamageVal = 0
+	*ctx.EventCtx.DamageVal = 0
 	ctx.Game.Log(fmt.Sprintf("%s 的 [新月庇护] 触发：进入暗月形态并吸收%d张爆牌为暗月，本次士气不下降",
 		ctx.User.Name, added))
 	return nil
@@ -133,13 +135,13 @@ func (h *MoonGoddessBlasphemyHandler) CanUse(ctx *model.Context) bool { return f
 func (h *MoonGoddessBlasphemyHandler) Execute(ctx *model.Context) error { return nil }
 
 func (h *MoonGoddessDarkMoonSlashHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.TriggerCtx == nil {
+	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Trigger != model.TriggerOnAttackHit {
+	if ctx.Timing != model.TimingOnHitCheck {
 		return false
 	}
-	if ctx.TriggerCtx.AttackInfo != nil && ctx.TriggerCtx.AttackInfo.CounterInitiator != "" {
+	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
 	if !hasForm(ctx.User, model.FormMoonGoddessDarkMoon) {

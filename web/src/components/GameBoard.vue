@@ -206,12 +206,12 @@ const moraleBurstRanking = computed(() => rawMoraleBurstRanking.value.slice(0, 8
 const moraleChangesForReview = computed(() =>
   [...moraleChanges.value].sort((a, b) => b.timestamp - a.timestamp).slice(0, 12)
 )
-const gameEndTriggerText = computed(() => {
+const gameEndReasonSummary = computed(() => {
   const snap = gameEndSnapshot.value
-  if (!snap) return '未记录触发点'
-  if (snap.triggerType === 'cups') return '星杯达到 5（资源胜利）'
-  if (snap.triggerType === 'morale') return '士气归零（战斗胜利）'
-  return '服务器结束事件触发'
+  if (!snap) return '未记录终局判定点'
+  if (snap.endReasonKind === 'cups') return '星杯达到 5（资源胜利）'
+  if (snap.endReasonKind === 'morale') return '士气归零（战斗胜利）'
+  return '服务器结束事件'
 })
 
 function campLabel(camp?: string): string {
@@ -1533,16 +1533,16 @@ function dissolveRoomByHost() {
 
           <div class="game-end-layout">
             <section class="game-end-summary">
-              <div class="summary-title">胜利条件触发点</div>
-              <div class="summary-trigger">{{ gameEndTriggerText }}</div>
-              <div class="summary-source" v-if="gameEndSnapshot?.triggerSource">
-                触发来源：{{ gameEndSnapshot.triggerSource }}
-                <span v-if="gameEndSnapshot.triggerCamp">
-                  （{{ campLabel(gameEndSnapshot.triggerCamp) }}{{ gameEndSnapshot.triggerDelta ? ` -${gameEndSnapshot.triggerDelta}` : '' }}）
+              <div class="summary-title">胜利条件判定点</div>
+              <div class="summary-end-reason">{{ gameEndReasonSummary }}</div>
+              <div class="summary-source" v-if="gameEndSnapshot?.endCauseSource">
+                来源：{{ gameEndSnapshot.endCauseSource }}
+                <span v-if="gameEndSnapshot.endMoraleCamp">
+                  （{{ campLabel(gameEndSnapshot.endMoraleCamp) }}{{ gameEndSnapshot.endMoraleLoss ? ` -${gameEndSnapshot.endMoraleLoss}` : '' }}）
                 </span>
               </div>
               <div class="summary-source" v-else>
-                触发来源：无明确来源记录（以服务端结算为准）
+                来源：无明确记录（以服务端结算为准）
               </div>
               <div class="summary-metrics">
                 <div class="metric-item">
@@ -1690,7 +1690,7 @@ function dissolveRoomByHost() {
   margin-bottom: 6px;
 }
 
-.summary-trigger {
+.summary-end-reason {
   color: #f6dfb1;
   font-size: 15px;
   font-weight: 700;

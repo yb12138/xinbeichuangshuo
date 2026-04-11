@@ -1,3 +1,5 @@
+// gameflow: 祈祷师：威力赐福/迅捷赐福等在 PendingDamage 前后的确认中断。
+
 package engine
 
 import (
@@ -9,7 +11,7 @@ import (
 
 func (e *GameEngine) buildPrayerMasterChoicePrompt(choiceType, playerID string, _ *model.Player, _ map[string]interface{}) *model.Prompt {
 	switch choiceType {
-	case "prayer_power_blessing_trigger":
+	case "prayer_power_blessing_followup":
 		return &model.Prompt{
 			Type:     model.PromptConfirm,
 			PlayerID: playerID,
@@ -18,7 +20,7 @@ func (e *GameEngine) buildPrayerMasterChoicePrompt(choiceType, playerID string, 
 			Min:      1,
 			Max:      1,
 		}
-	case "prayer_swift_blessing_trigger":
+	case "prayer_swift_blessing_followup":
 		return &model.Prompt{
 			Type:     model.PromptConfirm,
 			PlayerID: playerID,
@@ -35,12 +37,12 @@ func (e *GameEngine) buildPrayerMasterChoicePrompt(choiceType, playerID string, 
 func (e *GameEngine) handlePrayerMasterChoiceInput(_ string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
 	choiceType, _ := ctxData["choice_type"].(string)
 	return dispatchChoiceInputByType(choiceType, selectionIndex, ctxData, map[string]skillChoiceInputHandler{
-		"prayer_power_blessing_trigger": e.handlePrayerPowerBlessingTriggerChoice,
-		"prayer_swift_blessing_trigger": e.handlePrayerSwiftBlessingTriggerChoice,
+		"prayer_power_blessing_followup": e.handlePrayerPowerBlessingFollowupChoice,
+		"prayer_swift_blessing_followup": e.handlePrayerSwiftBlessingFollowupChoice,
 	})
 }
 
-func (e *GameEngine) handlePrayerPowerBlessingTriggerChoice(selectionIndex int, ctxData map[string]interface{}) error {
+func (e *GameEngine) handlePrayerPowerBlessingFollowupChoice(selectionIndex int, ctxData map[string]interface{}) error {
 	userID, _ := ctxData["user_id"].(string)
 	user := e.State.Players[userID]
 	if user == nil {
@@ -70,7 +72,7 @@ func (e *GameEngine) handlePrayerPowerBlessingTriggerChoice(selectionIndex int, 
 	return nil
 }
 
-func (e *GameEngine) handlePrayerSwiftBlessingTriggerChoice(selectionIndex int, ctxData map[string]interface{}) error {
+func (e *GameEngine) handlePrayerSwiftBlessingFollowupChoice(selectionIndex int, ctxData map[string]interface{}) error {
 	userID, _ := ctxData["user_id"].(string)
 	user := e.State.Players[userID]
 	if user == nil {

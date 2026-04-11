@@ -1,3 +1,5 @@
+// gameflow: Prompt 构建公共框架与选项生成。
+
 package engine
 
 import (

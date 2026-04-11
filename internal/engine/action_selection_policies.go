@@ -1,3 +1,5 @@
+// gameflow: 行动选择界面：可选攻击/法术/技能等策略。
+
 package engine
 
 import (

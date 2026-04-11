@@ -1,3 +1,5 @@
+// gameflow: 与技能相关的中断推送辅助。
+
 package engine
 
 import (

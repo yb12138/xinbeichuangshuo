@@ -1,3 +1,5 @@
+// gameflow: 封印师：五系封印等。
+
 package engine
 
 import (
@@ -53,7 +55,7 @@ func (e *GameEngine) handleFiveElementsBindChoice(selectionIndex int, ctxData ma
 		player.Hand = append(player.Hand, cards...)
 		e.NotifyDrawCards(player.ID, drawCount, "five_elements_bind")
 
-		checkCtx := e.buildContext(player, nil, model.TriggerNone, nil)
+		checkCtx := e.buildContext(player, nil, model.TimingActive, nil)
 		checkCtx.Flags["StayInTurn"] = true
 		e.checkHandLimit(player, checkCtx)
 

@@ -1,3 +1,5 @@
+// gameflow: 吟游诗人回合内法术伤害统计与协奏曲触发链。
+
 package engine
 
 import (
@@ -7,7 +9,7 @@ import (
 	"starcup-engine/internal/model"
 )
 
-func (e *GameEngine) maybeTriggerBardRousingAtTurnStart(current *model.Player) bool {
+func (e *GameEngine) maybeBardRousingAtTurnStart(current *model.Player) bool {
 	if current == nil || !e.isBard(current) {
 		return false
 	}
@@ -35,7 +37,7 @@ func (e *GameEngine) maybeTriggerBardRousingAtTurnStart(current *model.Player) b
 	return true
 }
 
-func (e *GameEngine) maybeTriggerBardVictoryAtTurnEnd(current *model.Player) bool {
+func (e *GameEngine) maybeBardVictoryAtTurnEnd(current *model.Player) bool {
 	if current == nil || !e.isBard(current) {
 		return false
 	}
@@ -68,7 +70,7 @@ func (e *GameEngine) resetTurnMagicDamageTracker() {
 }
 
 // 吟游诗人：记录“当前回合吟游诗人自己已对哪些敌方角色造成过法术伤害”，并在满足条件时触发沉沦协奏曲。
-func (e *GameEngine) tryTriggerBardDescentAfterMagicDamage(pd *model.PendingDamage) bool {
+func (e *GameEngine) tryBardDescentAfterMagicDamage(pd *model.PendingDamage) bool {
 	if pd == nil || pd.Damage <= 0 {
 		return false
 	}
@@ -110,7 +112,7 @@ func (e *GameEngine) tryTriggerBardDescentAfterMagicDamage(pd *model.PendingDama
 }
 
 func (e *GameEngine) bardResponseContext(user *model.Player, stage string, resumePoint interface{}) *model.Context {
-	ctx := e.buildContext(user, nil, model.TriggerNone, &model.EventContext{
+	ctx := e.buildContext(user, nil, model.TimingActive, &model.EventContext{
 		Type:     model.EventNone,
 		SourceID: user.ID,
 	})

@@ -1,3 +1,5 @@
+// gameflow: 伤害管线公共步骤（若存在）。
+
 package engine
 
 import (

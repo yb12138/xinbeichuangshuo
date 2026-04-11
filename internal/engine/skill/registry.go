@@ -1,3 +1,5 @@
+// gameflow: Register 各 LogicHandler；引擎启动时 InitHandlers。
+
 package skills
 
 import (

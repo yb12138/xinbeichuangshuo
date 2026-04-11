@@ -1,3 +1,5 @@
+// gameflow: 蝶舞者 handler。
+
 package skills
 
 import (
@@ -54,7 +56,7 @@ func (h *ButterflyDanceHandler) Execute(ctx *model.Context) error {
 	return nil
 }
 
-// 毒粉、朝圣、镜花水月、凋零由引擎伤害时点逻辑统一调度，不走通用 Trigger 分发。
+// 毒粉、朝圣、镜花水月、凋零由引擎伤害时点逻辑统一调度，不走通用 Dispatch 分发。
 func (h *ButterflyPoisonPowderHandler) CanUse(ctx *model.Context) bool   { return false }
 func (h *ButterflyPoisonPowderHandler) Execute(ctx *model.Context) error { return nil }
 func (h *ButterflyPilgrimageHandler) CanUse(ctx *model.Context) bool     { return false }

@@ -194,7 +194,7 @@ func TestCrimsonDanceTurnEnd_DoesNotSynthesizeRoseCourtyardWithoutFieldCard(t *t
 	}
 }
 
-func TestPreciseShot_NotTriggeredByNonOwnerCharacter(t *testing.T) {
+func TestPreciseShot_NotActivatedByNonOwnerCharacter(t *testing.T) {
 	g := NewGameEngine(noopObserver{})
 	if err := g.AddPlayer("p1", "MG", "magical_girl", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -236,7 +236,7 @@ func TestPreciseShot_NotTriggeredByNonOwnerCharacter(t *testing.T) {
 	}
 	req := g.State.CombatStack[len(g.State.CombatStack)-1]
 	if req.IsForcedHit {
-		t.Fatalf("expected non-owner card not to trigger precise shot forced hit")
+		t.Fatalf("expected non-owner card not to dispatch precise shot forced hit")
 	}
 }
 

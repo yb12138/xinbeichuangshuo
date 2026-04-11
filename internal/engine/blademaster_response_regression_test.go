@@ -159,7 +159,7 @@ func TestBladeMaster_WindFury_ReAskOnEachAttackEnd(t *testing.T) {
 	}
 }
 
-func TestBladeMaster_WindFury_StillTriggersWithoutRemainingWindAttack(t *testing.T) {
+func TestBladeMaster_WindFury_StillRunsWithoutRemainingWindAttack(t *testing.T) {
 	game := NewGameEngine(noopObserver{})
 	if err := game.AddPlayer("p1", "BladeMaster", "blade_master", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -242,8 +242,8 @@ func TestBladeMaster_HolySwordDraw_X0ResumesExtraAction(t *testing.T) {
 	p1.TurnState.AttackCount = 3
 	game.State.TurnStage = model.TurnStageActionExecution
 
-	if !game.triggerHolySwordDrawIfNeeded(p1) {
-		t.Fatalf("expected holy sword draw interrupt to trigger")
+	if !game.holySwordDrawInterruptIfNeeded(p1) {
+		t.Fatalf("expected holy sword draw interrupt to dispatch")
 	}
 	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptHolySwordDraw {
 		t.Fatalf("expected holy sword draw interrupt, got %+v", game.State.PendingInterrupt)
@@ -287,8 +287,8 @@ func TestBladeMaster_HolySwordDiscardResumesExtraAction(t *testing.T) {
 	model.AppendAttackAction(p1, "holy-sword-followup")
 	game.State.CurrentTurn = 0
 
-	if !game.triggerHolySwordDrawIfNeeded(p1) {
-		t.Fatalf("expected holy sword draw interrupt to trigger")
+	if !game.holySwordDrawInterruptIfNeeded(p1) {
+		t.Fatalf("expected holy sword draw interrupt to dispatch")
 	}
 	if err := game.handleHolySwordDrawResponse(model.PlayerAction{
 		PlayerID:   "p1",

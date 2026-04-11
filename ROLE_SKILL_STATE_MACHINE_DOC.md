@@ -1,6 +1,6 @@
 # 项目角色与技能状态机映射文档
 
-> 目标：按照指定的“核心对局状态机 + Trigger Timing + Effect Nodes”结构，从当前项目代码中抽取全部角色及技能并归档。  
+> 目标：按照指定的“核心对局状态机 + Flow timing + Effect Nodes”结构，从当前项目代码中抽取全部角色及技能并归档。  
 > 数据来源：`internal/model/*.go`、`internal/data/characters.go`。  
 > 抽取口径：以当前代码实现为准（35 角色 / 206 技能）。
 
@@ -27,11 +27,11 @@
 | 阶段标识名 | 中文名 | 阶段核心职能描述 | 项目代码Phase对照 |
 |:---|:---|:---|:---|
 | `TurnBeforeStart` | 回合开始前 | 无实际意义，仅作为极其罕见的技能触发点。 | `PhaseBuffResolve`（含开场/回合前置结算语义） |
-| `TurnStart` | 回合开始时 | 宣言回合开始，触发对应的被动技能。 | `TriggerOnTurnStart` 触发窗口 |
+| `TurnStart` | 回合开始时 | 宣言回合开始，触发对应的被动技能。 | `TimingOnTurnStart`（`SkillDispatcher.OnTiming`） |
 | `BeforeAction` | 行动阶段开始前 | **核心控制点**：强制结算面前的【中毒】伤害或【虚弱】跳过/摸牌判定。 | `PhaseBeforeAction` |
 | `ActionStart` | 行动阶段开始时 | **核心控制点**：玩家发动【启动技】的唯一合法窗口。 | `PhaseStartup` |
 | `ActionExecution` | 行动阶段中 | 玩家选择执行三大行动之一（攻击、法术、特殊）。 | `PhaseActionSelection` + `PhaseActionExecution` |
-| `ActionEnd` | 行动结束时 | 行动结算完毕后的收尾时点。 | `TriggerOnPhaseEnd` |
+| `ActionEnd` | 行动结束时 | 行动结算完毕后的收尾时点。 | `TimingOnActionEnd` |
 | `ExtraAction` | 行动结束后追加行动 | 若本回合存在额外行动，按照额外行动类型继续执行，也可以选择跳过。 | `PhaseExtraAction` + `ActionQueue/PendingActions` |
 | `TurnEnd` | 回合结束时 | 宣言回合结束，清理所有临时状态，移交当前回合归属。 | `PhaseTurnEnd` |
 
@@ -41,41 +41,43 @@
 
 | 阶段标识名 | 中文名 | 阶段核心职能描述 | 项目代码对照 |
 | :--- | :--- | :--- | :--- |
-| `CombatDeclare` | ① 发动阶段 | 攻击/法术宣告，触发“发动时”被动。 | `TriggerOnAttackStart` / `EventCardUsed` |
+| `CombatDeclare` | ① 发动阶段 | 攻击/法术宣告，触发“发动时”被动。 | `TimingOnAttackDeclared`；法术宣告另见 `TimingOnMagicDeclared` / `EventCardUsed` |
 | `CombatHitCheck` | ② 命中判定阶段 | 拦截点：等待【圣盾】【圣光】抵挡，或【应战】及响应技的打断。 | `PhaseCombatInteraction` |
-| `CombatCalcDamage` | ③ 计算伤害阶段 | 增减伤结算点：处理狂化、撕裂等数值变化被动。 | `TriggerModifyDamage` + `applyPassiveAttackEffects` |
+| `CombatCalcDamage` | ③ 计算伤害阶段 | 增减伤结算点：处理狂化、撕裂等数值变化被动。 | `TimingOnDamageCalculated` + `applyPassiveAttackEffects` |
 | `CombatHeal` | ④ 治疗响应阶段 | 询问遭受伤害者是否消耗【治疗】抵挡伤害。 | `PendingDamage` 中治疗处理 |
 | `CombatApply` | ⑤ 实际产生伤害阶段 | 真实伤害落地，为攻击方结算阵营星石收入。 | `applyDamage` + 阵营资源发放 |
 | `CombatDraw` | ⑥ 实际承受伤害阶段 | 承受伤害方摸牌，并执行爆牌检测及扣除士气逻辑。 | `ResolveDamage` + `checkHandLimit` |
 
-### 4.4 事件触发时机钩子 (Trigger Timing)
+### 4.4 事件触发时机钩子 (`FlowTiming`)
 
-注意：Phase 是系统当前的“状态”，而 Timing 是系统状态发生改变或动作发生时向外广播的“瞬间事件”。技能通过监听这些事件来触发。
+注意：Phase 是系统当前的“状态”，而 `FlowTiming` 是系统状态发生改变或动作发生时向外广播的“瞬间事件”。技能在静态配置里用 `SkillDefinition.Timings []FlowTiming` 声明自己监听哪些窗口，由 `SkillDispatcher.OnTiming` 收集并执行。
 
-| 标识名 | 触发场景描述 | 逻辑与复用说明 | 项目触发器映射 |
+| 标识名 | 触发场景描述 | 逻辑与复用说明 | 技能侧配置要点 |
 |:---|:---|:---|:---|
 | **【主动与主回合钩子】** | | | |
-| `TimingActive` | 玩家主动发动 | 普/独/大招的默认点击触发。 | `SkillTypeAction + TriggerNone` |
-| `TimingStartup` | 玩家主动发动（启动技专有） | 仅在`ActionStart`阶段合法，占用启动名额。 | `SkillTypeStartup` |
-| `TimingOnTurnStart` | 玩家的回合开始时触发 | 对应各种回合初的被动/状态转换。 | `TriggerOnTurnStart` |
+| `TimingActive` | 玩家主动发动 | 普/独/大招的默认点击触发。 | `SkillTypeAction` 默认兜底；显式写在 `Timings` 中 |
+| `TimingStartup` | 玩家主动发动（启动技专有） | 仅在`ActionStart`阶段合法，占用启动名额。 | `SkillTypeStartup` + 常见 `Timings` 含 `TimingOnTurnStart` 等 |
+| `TimingOnTurnStart` | 玩家的回合开始时触发 | 对应各种回合初的被动/状态转换。 | `Timings` 包含 `TimingOnTurnStart` |
 | **【动作与结算劫持钩子】** | | | |
-| `TimingBeforeActionExecute`| 系统尝试执行某种行动前 | **高复用拦截点**：系统传入 `ActionType`，用于劫持/替换默认购买、提炼等规则。 | `TriggerOnBuffPhase`（语义近似） |
-| `TimingOnActionEnd` | 某项行动彻底结算完毕时 | **高复用结算点**：系统传入 `ActionType`，涵盖攻击、法术、特殊行动结束。 | `TriggerOnPhaseEnd` |
-| `TimingOnSkillExecuted` | 某一特定技能完整执行完毕时 | 系统传入 `SkillID`。如监听真言术执行完毕。 | `TriggerOnCardUsed` / Handler 内逻辑 |
+| `TimingBeforeActionExecute`| 系统尝试执行某种行动前 | **高复用拦截点**：系统传入 `ActionType`，用于劫持/替换默认购买、提炼等规则。 | `Timings` 包含本常量；与回合 `BeforeAction` 阶段配合 |
+| `TimingOnActionEnd` | 某项行动彻底结算完毕时 | **高复用结算点**：系统传入 `ActionType`，涵盖攻击、法术、特殊行动结束。 | `Timings` 包含 `TimingOnActionEnd` |
+| `TimingOnSkillExecuted` | 某一特定技能完整执行完毕时 | 系统传入 `SkillID`。如监听真言术执行完毕。 | 部分链路由 Handler 内逻辑承载；可写入 `Timings` |
 | **【战斗时间轴钩子】** | | | |
-| `TimingOnAttackDeclared`| ① 任意攻击宣告发动时 | | `TriggerOnAttackStart` |
-| `TimingOnMagicDeclared` | ① 任意法术宣告发动时 | | `TriggerOnCardUsed`（法术卡/法术技） |
-| `TimingOnHitCheck` | ② 命中判定时 | 拦截点：发效应战、圣盾、圣光、仪式中断。 | `TriggerOnAttackHit` / `TriggerOnAttackMiss` / CombatInteraction |
-| `TimingOnDamageCalculated`| ③ 伤害计算完毕时 | 增减伤结算点：撕裂、剑魂等数值修饰（未扣治疗）。 | `TriggerModifyDamage` |
+| `TimingOnAttackDeclared`| ① 任意攻击宣告发动时 | | `Timings` 包含 `TimingOnAttackDeclared` |
+| `TimingOnMagicDeclared` | ① 任意法术宣告发动时 | | `Timings` 包含 `TimingOnMagicDeclared`（或法术路径上等价窗口） |
+| `TimingOnHitCheck` | ② 命中判定时 | 拦截点：发效应战、圣盾、圣光、仪式中断。 | `Timings` 包含 `TimingOnHitCheck`；命中/未命中分支看 `AttackInfo` |
+| `TimingOnDamageCalculated`| ③ 伤害计算完毕时 | 增减伤结算点：撕裂、剑魂等数值修饰（未扣治疗）。 | `Timings` 包含 `TimingOnDamageCalculated` |
 | `TimingOnDamageApplied` | ⑤ 实际产生伤害时 | 伤害已定、扣除治疗后，未摸牌前（如蝶舞者【毒粉】）。 | `PendingDamage.Stage=DamageProcessed`（语义层） |
-| `TimingOnDamageTaken` | ⑥ 实际承受伤害，准备摸牌前 | 摸牌和爆牌判定的前置点。 | `TriggerOnDamageTaken` |
+| `TimingOnDamageTaken` | ⑥ 实际承受伤害，准备摸牌前 | 摸牌和爆牌判定的前置点。 | `Timings` 包含 `TimingOnDamageTaken` |
 | **【卡牌与状态流转钩子】** | | | |
-| `TimingBeforeCardDrawn` | 摸牌动作发生前 | **拦截点**：用于修改摸牌数或劫持为弃牌（如暗杀者水影）。 | `TriggerBeforeDraw` |
-| `TimingOnCardDrawn` | 摸牌动作完成后 | 结算点：用于触发摸牌后的伴生效果。 | `TriggerAfterDraw` |
+| `TimingBeforeCardDrawn` | 摸牌动作发生前 | **拦截点**：用于修改摸牌数或劫持为弃牌（如暗杀者水影）。 | `Timings` 包含 `TimingBeforeCardDrawn` |
+| `TimingOnCardDrawn` | 摸牌动作完成后 | 结算点：用于触发摸牌后的伴生效果。 | `Timings` 包含 `TimingOnCardDrawn` |
 | `TimingOnCardDiscarded` | 弃牌动作完成后 | 系统传入弃掉的卡牌数组，用于判断是否触发额外技能。 | 由 `InterruptDiscard/Choose` 流程承载（无统一枚举） |
 | `TimingOnHealOverflow` | 获得治疗且超出自身上限时 | 专用于处理溢出转化机制。 | 在 `Heal`/上限校验逻辑中处理（无统一枚举） |
-| `TimingOnFieldMarkChanged`| 基础效果/场上盖牌发生改变时| **高复用点**：系统传入行为是`Placed`还是`Removed`。 | `TriggerOnBuffRemoved` + 放置/移除函数 |
-| `TimingOnOrientationChanged`| 角色发生横置/转正状态切换时| 触发对姿态敏感的技能（如兽灵武士）。 | `Tokens/TurnState` + Handler 自行判定 |
+| `TimingOnCardPlayedOrRevealed` | 打出或展示卡牌时 | 如封印、冰霜祷言等。 | `Timings` 包含 `TimingOnCardPlayedOrRevealed` |
+| `TimingOnFieldMarkChanged`| 基础效果/场上盖牌发生改变时| **高复用点**：系统传入行为是`Placed`还是`Removed`。 | `Timings` 包含 `TimingOnFieldMarkChanged` |
+| `TimingOnOrientationChanged`| 角色发生横置/转正状态切换时| 触发对姿态敏感的技能（如兽灵武士）。 | `Timings` 包含 `TimingOnOrientationChanged` |
+| `TimingBeforeMoraleLoss` | 士气下降结算前 | 神之庇护等。 | `Timings` 包含 `TimingBeforeMoraleLoss` |
 
 ### 4.5 技能执行序列配置 (Effect Nodes Sequence)
 

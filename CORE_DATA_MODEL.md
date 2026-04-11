@@ -41,7 +41,7 @@
 - `SkillType`: 被动/启动/主动/响应
 - `SkillTag`: 费用、限制、独有、专属、可选等语义标签
 - `TargetType`: 目标选择约束（Self/Enemy/Ally/Any/Specific）
-- `TriggerType`: 技能触发时机（攻击前、命中后、承伤前、回合开始等）
+- `FlowTiming` + `SkillDefinition.Timings`: 技能在哪些事件窗口可被 `SkillDispatcher.OnTiming` 收集（如 `TimingOnHitCheck`、`TimingOnTurnStart` 等）
 - `ResponseType`: `Mandatory` / `Optional` / `Silent`
 - `SkillRole`: `Attacker` / `Defender` / `Any`
 
@@ -92,10 +92,10 @@
 
 1. 身份信息：`ID/Title/CharacterID/Type/Tags/Description`
 2. 消耗与校验：`CostGem/CostCrystal/CostDiscards/DiscardElement/DiscardType/DiscardFate/RequireExclusive`
-3. 场上牌放置：`PlaceCard/PlaceMode/PlaceEffect/PlaceTrigger`
+3. 场上牌放置：`PlaceCard/PlaceMode/PlaceEffect/PlaceHook`
 4. 盖牌消耗：`CostCoverCards`
 5. UI 交互：`InteractionType/InteractionConfig/TargetType/MinTargets/MaxTargets`
-6. 触发与执行：`RequiredRole/Trigger/ExtraTriggers/ResponseType/LogicHandler`
+6. 时机与执行：`RequiredRole/Timings/ResponseType/LogicHandler`
 
 用途：
 
@@ -129,12 +129,12 @@
 相关枚举：
 
 - `FieldCardMode`: `Effect` / `Cover`
-- `EffectTrigger`: `OnAttack/OnDamaged/OnTurnStart/Manual`
+- `FieldHook`: `OnAttack/OnDamaged/OnTurnStart/Manual`
 - `EffectType`: 圣盾/中毒/虚弱/封印/五系束缚/专属效果/角色扩展效果等
 
 `FieldCard` 字段：
 
-- `Card/OwnerID/SourceID/Mode/Effect/Trigger/Locked/Duration`
+- `Card/OwnerID/SourceID/Mode/Effect/Hook/Locked/Duration`
 
 关键点：
 
@@ -205,7 +205,7 @@
 
 位置：`skill.go`
 
-- `Context`: `Game/User/Target/Targets/Trigger/TriggerCtx/Selections/Flags/...`
+- `Context`: `Game/User/Target/Targets/Timing/EventCtx/Selections/Flags/...`
 - `EventContext`: 事件级可变上下文（`DamageVal`、`DrawCount` 用指针支持“技能改写值”）
 - `AttackEventInfo`: 攻击细粒度上下文（命中、强制命中、可否应战等）
 
@@ -254,7 +254,7 @@
 
 特征：
 
-- 用统一事件流覆盖日志、状态刷新、交互请求、动画触发、终局通知
+- 用统一事件流覆盖日志、状态刷新、交互请求、动画提示、终局通知
 
 ## 6.3 WebSocket 分类
 
@@ -304,7 +304,7 @@ classDiagram
     class SkillDefinition {
       string ID
       SkillType Type
-      TriggerType Trigger
+      FlowTiming[] Timings
       ResponseType ResponseType
       string LogicHandler
     }
@@ -321,7 +321,7 @@ classDiagram
       Card Card
       FieldCardMode Mode
       EffectType Effect
-      EffectTrigger Trigger
+      FieldHook Hook
     }
 
     class Context {
@@ -329,7 +329,7 @@ classDiagram
       Player User
       Player Target
       []Player Targets
-      EventContext TriggerCtx
+      EventContext EventCtx
     }
 
     GameState --> Player

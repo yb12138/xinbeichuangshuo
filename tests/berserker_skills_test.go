@@ -105,7 +105,7 @@ func TestBerserker_Skills(t *testing.T) {
 		}
 
 		// 执行攻击
-		// 引擎应该检测到 BloodRoar 技能触发 (TriggerOnAttackStart, Silent response)
+		// 引擎应该检测到 BloodRoar 技能触发 (TimingOnAttackStart, Silent response)
 		// 并且 IsHitForced 被设为 true
 		if err := game.HandleAction(action); err != nil {
 			t.Fatalf("攻击失败: %v", err)

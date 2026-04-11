@@ -1,3 +1,5 @@
+// gameflow: 守护/辅助向角色技能流（配置内技能）。
+
 package engine
 
 import (
@@ -78,7 +80,7 @@ func (e *GameEngine) handleGodProtectionChoice(selectionIndex int, ctxData map[s
 		return fmt.Errorf("玩家不存在")
 	}
 	userCtx, ok := ctxData["user_ctx"].(*model.Context)
-	if !ok || userCtx == nil || userCtx.TriggerCtx == nil || userCtx.TriggerCtx.DamageVal == nil {
+	if !ok || userCtx == nil || userCtx.EventCtx == nil || userCtx.EventCtx.DamageVal == nil {
 		return fmt.Errorf("神之庇护上下文丢失")
 	}
 	maxX := runtimeutil.ToIntContextValue(ctxData["max_x"])
@@ -86,15 +88,15 @@ func (e *GameEngine) handleGodProtectionChoice(selectionIndex int, ctxData map[s
 	if x < 1 || x > maxX {
 		return fmt.Errorf("无效的X值")
 	}
-	if current := *userCtx.TriggerCtx.DamageVal; current > 0 && x > current {
+	if current := *userCtx.EventCtx.DamageVal; current > 0 && x > current {
 		return fmt.Errorf("X值超过当前可抵御的士气下降")
 	}
 	if !e.ConsumeCrystalCost(user.ID, x) {
 		return fmt.Errorf("神之庇护需要%d点水晶（红宝石可替代）", x)
 	}
-	*userCtx.TriggerCtx.DamageVal -= x
-	if *userCtx.TriggerCtx.DamageVal < 0 {
-		*userCtx.TriggerCtx.DamageVal = 0
+	*userCtx.EventCtx.DamageVal -= x
+	if *userCtx.EventCtx.DamageVal < 0 {
+		*userCtx.EventCtx.DamageVal = 0
 	}
 	e.Log(fmt.Sprintf("%s 发动 [神之庇护]，消耗%d点水晶（可由红宝石替代）抵御了%d点士气下降", user.Name, x, x))
 

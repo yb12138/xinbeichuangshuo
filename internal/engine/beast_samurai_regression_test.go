@@ -122,14 +122,14 @@ func TestBeastSamurai_WarriorZanshinThenOneStrikeBecomesAvailable(t *testing.T) 
 	game, p1, p2 := newBeastSamuraiTestEngine(t, noopObserver{}, "")
 	p1.Tokens["bs_zanshin"] = 3
 
-	ctx := game.buildContext(p1, p2, model.TriggerOnPhaseEnd, &model.EventContext{
+	ctx := game.buildContext(p1, p2, model.TimingOnActionEnd, &model.EventContext{
 		Type:       model.EventPhaseEnd,
 		SourceID:   p1.ID,
 		TargetID:   p2.ID,
 		ActionType: model.ActionAttack,
 		AttackInfo: &model.AttackEventInfo{ActionType: string(model.ActionAttack)},
 	})
-	game.dispatcher.OnTrigger(model.TriggerOnPhaseEnd, ctx)
+	game.dispatcher.OnTiming(ctx.Timing, ctx)
 
 	if got := p1.Tokens["bs_zanshin"]; got != 4 {
 		t.Fatalf("expected zanshin=4 after [武者残心], got %d", got)
@@ -279,7 +279,7 @@ func TestBeastSamurai_BeastSoulWill_NormalFormHitGainBeastSoul(t *testing.T) {
 	}
 }
 
-func TestBeastSamurai_BeastSoulAlert_TriggersOnOtherPlayerTapped(t *testing.T) {
+func TestBeastSamurai_BeastSoulAlert_RunsOnOtherPlayerTapped(t *testing.T) {
 	obs := &captureObserver{}
 	game, p1, p2 := newBeastSamuraiTestEngine(t, obs, "")
 	p1.Tokens["bs_beast_soul"] = 1
@@ -330,14 +330,14 @@ func TestBeastSamurai_BeastReturn_XFlowAndMagicDiscardGainSoul(t *testing.T) {
 
 	damage := 2
 	game.State.CombatStage = model.CombatStageCalcDamage
-	ctx := game.buildContext(p1, p2, model.TriggerOnDamageTaken, &model.EventContext{
+	ctx := game.buildContext(p1, p2, model.TimingOnDamageTaken, &model.EventContext{
 		Type:      model.EventDamage,
 		SourceID:  p2.ID,
 		TargetID:  p1.ID,
 		DamageVal: &damage,
 	})
 	ctx.Flags["IsMagicDamage"] = true
-	game.dispatcher.OnTrigger(model.TriggerOnDamageTaken, ctx)
+	game.dispatcher.OnTiming(ctx.Timing, ctx)
 
 	requireResponseSkillPrompt(t, game, "p1")
 	if err := game.ConfirmResponseSkill("p1", "bs_beast_return"); err != nil {
@@ -403,8 +403,8 @@ func TestBeastSamurai_BeastReturnSkip_ResumesPendingDamageWithoutReprompt(t *tes
 	if len(game.State.PendingDamageQueue) != 1 {
 		t.Fatalf("expected pending damage to remain for resolution, got %d", len(game.State.PendingDamageQueue))
 	}
-	if !game.State.PendingDamageQueue[0].DamageTakenTriggerChecked {
-		t.Fatalf("expected damage-taken trigger to be marked checked after skip")
+	if !game.State.PendingDamageQueue[0].DamageTakenFlowDispatched {
+		t.Fatalf("expected damage-taken dispatch to be marked checked after skip")
 	}
 
 	for i := 0; i < 4 && len(game.State.PendingDamageQueue) > 0; i++ {
@@ -518,7 +518,7 @@ func TestBeastSamurai_IaijutsuStyle_CanOverflowBeastSoulAndEnterForm(t *testing.
 		t.Fatalf("expected iaijutsu style handler")
 	}
 	game.State.TurnStage = model.TurnStageActionStart
-	ctx := game.buildContext(p1, nil, model.TriggerOnTurnStart, &model.EventContext{
+	ctx := game.buildContext(p1, nil, model.TimingOnTurnStart, &model.EventContext{
 		Type:     model.EventTurnStart,
 		SourceID: p1.ID,
 	})

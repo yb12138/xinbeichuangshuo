@@ -1,3 +1,5 @@
+// gameflow: 中断内响应技能列表规则。
+
 package engine
 
 import (
@@ -9,18 +11,18 @@ func attackStartMoonGoddessMedusaInterruptHook(e *GameEngine, attacker *model.Pl
 	if e == nil || attacker == nil || target == nil || currentAction == nil {
 		return false
 	}
-	return e.maybeTriggerMoonGoddessMedusa(attacker, target, currentAction.SourceSkill, currentAction.Card, userCtx)
+	return e.maybeMoonGoddessMedusa(attacker, target, currentAction.SourceSkill, currentAction.Card, userCtx)
 }
 
 func actionEndHolySwordInterruptHook(e *GameEngine, ctx *model.Context) bool {
 	if e == nil {
 		return false
 	}
-	return e.maybeTriggerHolySwordDrawFromPhaseEndCtx(ctx)
+	return e.maybeHolySwordDrawFromPhaseEndCtx(ctx)
 }
 
 func augmentBeastSamuraiResponseSkillIDs(sd *SkillDispatcher, skillIDs []string, ctx *model.Context) []string {
-	if sd == nil || sd.engine == nil || ctx == nil || ctx.Trigger != model.TriggerOnPhaseEnd || ctx.TriggerCtx == nil || ctx.TriggerCtx.ActionType != model.ActionAttack || ctx.User == nil {
+	if sd == nil || sd.engine == nil || ctx == nil || ctx.Timing != model.TimingOnActionEnd || ctx.EventCtx == nil || ctx.EventCtx.ActionType != model.ActionAttack || ctx.User == nil {
 		return skillIDs
 	}
 	if !sd.engine.isBeastSamurai(ctx.User) || containsSkillID(skillIDs, "bs_one_strike_no_thought") || sd.engine.beastSamuraiZanshin(ctx.User) < beastSamuraiZanshinCapEngine {
@@ -41,7 +43,7 @@ func normalizeFighterResponseSkillIDs(sd *SkillDispatcher, skillIDs []string, ct
 	if sd == nil || sd.engine == nil || len(skillIDs) <= 1 || ctx == nil || ctx.User == nil {
 		return skillIDs
 	}
-	if ctx.Trigger != model.TriggerOnAttackStart || !sd.engine.isFighter(ctx.User) || ctx.TriggerCtx == nil || ctx.TriggerCtx.AttackInfo == nil || ctx.TriggerCtx.AttackInfo.CounterInitiator != "" {
+	if ctx.Timing != model.TimingOnAttackDeclared || !sd.engine.isFighter(ctx.User) || ctx.EventCtx == nil || ctx.EventCtx.AttackInfo == nil || ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return skillIDs
 	}
 	hasCharge := false

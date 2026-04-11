@@ -1,3 +1,5 @@
+// gameflow: 技能能否在当阶段使用（启动技/主动技/响应禁止手动等）。
+
 package engine
 
 import (
@@ -101,16 +103,16 @@ func (e *GameEngine) validateSkillActivation(use *skillUseRequest) error {
 	switch use.skillDef.Type {
 	case model.SkillTypeStartup:
 		if !e.isStartupWindow() {
-			return fmt.Errorf("startup skills can only be used during trigger phase")
+			return fmt.Errorf("startup skills can only be used during the startup skill window")
 		}
 	case model.SkillTypeAction:
 		if !e.isActionSelectionWindow() {
 			return fmt.Errorf("action skills can only be used during action phase")
 		}
 	case model.SkillTypeResponse:
-		return fmt.Errorf("response skills are triggered automatically")
+		return fmt.Errorf("response skills are activated automatically")
 	case model.SkillTypePassive:
-		return fmt.Errorf("passive skills are triggered automatically")
+		return fmt.Errorf("passive skills are activated automatically")
 	}
 
 	if use.player.TurnState.CurrentExtraAction == "Attack" {

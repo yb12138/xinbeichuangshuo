@@ -1,3 +1,5 @@
+// gameflow: 牧师/神官向技能流。
+
 package engine
 
 import (

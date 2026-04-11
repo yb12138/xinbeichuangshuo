@@ -31,9 +31,10 @@ func TestGodProtectionMitigatesMoraleLossFromMagicDamage(t *testing.T) {
 
 	loss := 3
 	ctx := &model.Context{
-		Game: game,
-		User: victim,
-		TriggerCtx: &model.EventContext{
+		Game:    game,
+		User:    victim,
+		Timing:  model.TimingBeforeMoraleLoss,
+		EventCtx: &model.EventContext{
 			Type:      model.EventDamage,
 			DamageVal: &loss,
 		},
@@ -54,7 +55,7 @@ func TestGodProtectionMitigatesMoraleLossFromMagicDamage(t *testing.T) {
 		},
 	}
 
-	getDispatcher(game).OnTrigger(model.TriggerBeforeMoraleLoss, ctx)
+	getDispatcher(game).OnTiming(ctx.Timing, ctx)
 	if game.State.PendingInterrupt == nil {
 		t.Fatalf("expected response interrupt")
 	}

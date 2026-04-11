@@ -1,3 +1,5 @@
+// gameflow: 手牌上限、可见性等规则。
+
 package engine
 
 import "starcup-engine/internal/model"

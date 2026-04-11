@@ -1,3 +1,5 @@
+// gameflow: Drive 主循环：中断优先、延迟后续、回合/非回合阶段推进。
+
 package engine
 
 import "fmt"

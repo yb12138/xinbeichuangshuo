@@ -1,3 +1,5 @@
+// gameflow: 剑圣风怒等专用中断 Prompt。
+
 package engine
 
 import "starcup-engine/internal/model"

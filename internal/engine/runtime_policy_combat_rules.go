@@ -1,3 +1,5 @@
+// gameflow: 运行时策略装配：combat rules。
+
 package engine
 
 import (

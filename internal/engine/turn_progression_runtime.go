@@ -1,3 +1,5 @@
+// gameflow: 回合切换、NextTurn、先后手更新。
+
 package engine
 
 import (

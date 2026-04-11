@@ -1,3 +1,5 @@
+// gameflow: 兽魂武士：兽魂警觉等。
+
 package engine
 
 import (
@@ -57,7 +59,7 @@ func (e *GameEngine) beastSamuraiFinishResume(resumePoint interface{}) {
 }
 
 func (e *GameEngine) beastSamuraiFindPendingAttackDamage(rawCtx *model.Context) *model.PendingDamage {
-	if rawCtx == nil || rawCtx.TriggerCtx == nil {
+	if rawCtx == nil || rawCtx.EventCtx == nil {
 		return nil
 	}
 	for i := range e.State.PendingDamageQueue {
@@ -65,7 +67,7 @@ func (e *GameEngine) beastSamuraiFindPendingAttackDamage(rawCtx *model.Context) 
 		if !strings.EqualFold(string(pd.DamageType), string(model.AttackDamage)) {
 			continue
 		}
-		if pd.SourceID != rawCtx.TriggerCtx.SourceID || pd.TargetID != rawCtx.TriggerCtx.TargetID {
+		if pd.SourceID != rawCtx.EventCtx.SourceID || pd.TargetID != rawCtx.EventCtx.TargetID {
 			continue
 		}
 		return pd

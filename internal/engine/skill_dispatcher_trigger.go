@@ -1,3 +1,5 @@
+// gameflow: OnTiming 内按 Timing 决定要检查的玩家与身份（攻/守）。
+
 package engine
 
 import (
@@ -7,7 +9,7 @@ import (
 
 // OnTiming 在某个 Timing 窗口触发技能分发。
 // 流程：先按规则收集本时机需要检查的玩家，再按技能可触发条件执行或挂起中断。
-func (sd *SkillDispatcher) OnTiming(timing model.TriggerTiming, ctx *model.Context) {
+func (sd *SkillDispatcher) OnTiming(timing model.FlowTiming, ctx *model.Context) {
 	ctx.Timing = timing
 
 	// 1. 收集触发的技能
@@ -39,7 +41,7 @@ func (sd *SkillDispatcher) OnTiming(timing model.TriggerTiming, ctx *model.Conte
 		}
 
 	case model.TimingOnDamageTaken:
-		// 在 combat.go 的 handleTakeHit 中，TriggerOnDamageTaken 的 ctx.User 是受害者
+		// 在 combat.go 的 handleTakeHit 中，TimingOnDamageTaken 的 ctx.User 是受害者
 		if ctx.User != nil {
 			targetsToCheck = append(targetsToCheck, checkTarget{
 				Player: ctx.User,
@@ -102,7 +104,7 @@ func (sd *SkillDispatcher) OnTiming(timing model.TriggerTiming, ctx *model.Conte
 	case model.TimingBeforeMoraleLoss:
 		// 上下文的 User 是导致士气下降的受害者 (Victim)
 		if ctx.User != nil {
-			// TriggerBeforeMoraleLoss：先按座次收集同阵营目标，后续再按技能优先级排序执行。
+			// TimingBeforeMoraleLoss：先按座次收集同阵营目标，后续再按技能优先级排序执行。
 			orderedPlayers := make([]*model.Player, 0, len(sd.engine.State.Players))
 			seen := make(map[string]struct{}, len(sd.engine.State.Players))
 			for _, pid := range sd.engine.State.PlayerOrder {
@@ -163,12 +165,12 @@ func (sd *SkillDispatcher) OnTiming(timing model.TriggerTiming, ctx *model.Conte
 		skillCtx.User = target.Player
 
 		// 【关键】传入当前玩家在事件中的角色
-		skills := sd.collectTriggeredSkills(target.Player, timing, &skillCtx, target.Role)
+		skills := sd.collectSkillsForTiming(target.Player, timing, &skillCtx, target.Role)
 		sd.processSkills(skills, &skillCtx)
 	}
 }
 
-func (sd *SkillDispatcher) collectTargetsWithSkillsByPriority(targets []checkTarget, timing model.TriggerTiming, ctx *model.Context) []targetTriggeredSkills {
+func (sd *SkillDispatcher) collectTargetsWithSkillsByPriority(targets []checkTarget, timing model.FlowTiming, ctx *model.Context) []targetSkillsBatch {
 	if len(targets) == 0 || ctx == nil || sd == nil || sd.engine == nil || sd.engine.State == nil {
 		return nil
 	}
@@ -178,19 +180,19 @@ func (sd *SkillDispatcher) collectTargetsWithSkillsByPriority(targets []checkTar
 		seatOrders[pid] = idx
 	}
 
-	items := make([]targetTriggeredSkills, 0, len(targets))
+	items := make([]targetSkillsBatch, 0, len(targets))
 	for _, target := range targets {
 		if target.Player == nil || target.Player.Character == nil {
 			continue
 		}
 		skillCtx := *ctx
 		skillCtx.User = target.Player
-		triggered := sd.collectTriggeredSkills(target.Player, timing, &skillCtx, target.Role)
-		if len(triggered) == 0 {
+		activated := sd.collectSkillsForTiming(target.Player, timing, &skillCtx, target.Role)
+		if len(activated) == 0 {
 			continue
 		}
 		maxPriority := 0
-		for _, skill := range triggered {
+		for _, skill := range activated {
 			if skill.Priority > maxPriority {
 				maxPriority = skill.Priority
 			}
@@ -199,10 +201,10 @@ func (sd *SkillDispatcher) collectTargetsWithSkillsByPriority(targets []checkTar
 		if !ok {
 			seat = len(sd.engine.State.PlayerOrder) + len(items)
 		}
-		items = append(items, targetTriggeredSkills{
+		items = append(items, targetSkillsBatch{
 			target:    target,
 			ctx:       &skillCtx,
-			skills:    triggered,
+			skills:    activated,
 			priority:  maxPriority,
 			seatOrder: seat,
 		})
@@ -218,17 +220,4 @@ func (sd *SkillDispatcher) collectTargetsWithSkillsByPriority(targets []checkTar
 		return items[i].target.Player.ID < items[j].target.Player.ID
 	})
 	return items
-}
-
-// OnTrigger 兼容入口：迁移期保留，内部统一转 Timing。
-func (sd *SkillDispatcher) OnTrigger(trigger model.TriggerType, ctx *model.Context) {
-	if ctx == nil {
-		return
-	}
-	prevTrigger := ctx.Trigger
-	ctx.Trigger = trigger
-	if ctx.Timing == model.TimingUnknown || prevTrigger != trigger {
-		ctx.Timing = model.LegacyTriggerToTiming(trigger)
-	}
-	sd.OnTiming(ctx.Timing, ctx)
 }

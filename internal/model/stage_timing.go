@@ -33,68 +33,33 @@ const (
 	SubflowDiscardSelection Subflow = "DiscardSelection"
 )
 
-type TriggerTiming string
+type FlowTiming string
 
 const (
-	TimingUnknown                TriggerTiming = ""
-	TimingOnGameStart            TriggerTiming = "TimingOnGameStart"
-	TimingOnCampChanged          TriggerTiming = "TimingOnCampChanged"
-	TimingActive                 TriggerTiming = "TimingActive"
-	TimingStartup                TriggerTiming = "TimingStartup"
-	TimingOnTurnStart            TriggerTiming = "TimingOnTurnStart"
-	TimingOnBeforeAction         TriggerTiming = "TimingOnBeforeAction"
-	TimingBeforeActionExecute    TriggerTiming = "TimingBeforeActionExecute"
-	TimingOnActionEnd            TriggerTiming = "TimingOnActionEnd"
-	TimingOnSkillExecuted        TriggerTiming = "TimingOnSkillExecuted"
-	TimingOnAttackDeclared       TriggerTiming = "TimingOnAttackDeclared"
-	TimingOnMagicDeclared        TriggerTiming = "TimingOnMagicDeclared"
-	TimingOnHitCheck             TriggerTiming = "TimingOnHitCheck"
-	TimingOnDamageCalculated     TriggerTiming = "TimingOnDamageCalculated"
-	TimingOnDamageApplied        TriggerTiming = "TimingOnDamageApplied"
-	TimingOnDamageTaken          TriggerTiming = "TimingOnDamageTaken"
-	TimingBeforeMoraleLoss       TriggerTiming = "TimingBeforeMoraleLoss"
-	TimingBeforeCardDrawn        TriggerTiming = "TimingBeforeCardDrawn"
-	TimingOnCardDrawn            TriggerTiming = "TimingOnCardDrawn"
-	TimingOnCardDiscarded        TriggerTiming = "TimingOnCardDiscarded"
-	TimingOnCardPlayedOrRevealed TriggerTiming = "TimingOnCardPlayedOrRevealed"
-	TimingOnHealOverflow         TriggerTiming = "TimingOnHealOverflow"
-	TimingOnFieldMarkChanged     TriggerTiming = "TimingOnFieldMarkChanged"
-	TimingOnOrientationChanged   TriggerTiming = "TimingOnOrientationChanged"
-	TimingOnTurnEnd              TriggerTiming = "TimingOnTurnEnd"
+	TimingUnknown                FlowTiming = ""
+	TimingOnGameStart            FlowTiming = "TimingOnGameStart"
+	TimingOnCampChanged          FlowTiming = "TimingOnCampChanged"
+	TimingActive                 FlowTiming = "TimingActive"
+	TimingStartup                FlowTiming = "TimingStartup"
+	TimingOnTurnStart            FlowTiming = "TimingOnTurnStart"
+	TimingOnBeforeAction         FlowTiming = "TimingOnBeforeAction"
+	TimingBeforeActionExecute    FlowTiming = "TimingBeforeActionExecute"
+	TimingOnActionEnd            FlowTiming = "TimingOnActionEnd"
+	TimingOnSkillExecuted        FlowTiming = "TimingOnSkillExecuted"
+	TimingOnAttackDeclared       FlowTiming = "TimingOnAttackDeclared"
+	TimingOnMagicDeclared        FlowTiming = "TimingOnMagicDeclared"
+	TimingOnHitCheck             FlowTiming = "TimingOnHitCheck"
+	TimingOnDamageCalculated     FlowTiming = "TimingOnDamageCalculated"
+	TimingOnDamageApplied        FlowTiming = "TimingOnDamageApplied"
+	TimingOnDamageTaken          FlowTiming = "TimingOnDamageTaken"
+	TimingBeforeMoraleLoss       FlowTiming = "TimingBeforeMoraleLoss"
+	TimingBeforeCardDrawn        FlowTiming = "TimingBeforeCardDrawn"
+	TimingOnCardDrawn            FlowTiming = "TimingOnCardDrawn"
+	TimingOnCardDiscarded        FlowTiming = "TimingOnCardDiscarded"
+	TimingOnCardPlayedOrRevealed FlowTiming = "TimingOnCardPlayedOrRevealed"
+	TimingOnHealOverflow         FlowTiming = "TimingOnHealOverflow"
+	TimingOnFieldMarkChanged     FlowTiming = "TimingOnFieldMarkChanged"
+	TimingOnOrientationChanged   FlowTiming = "TimingOnOrientationChanged"
+	TimingOnTurnEnd              FlowTiming = "TimingOnTurnEnd"
 )
 
-// LegacyTriggerToTiming 兼容旧 Trigger 枚举，统一映射到 Timing。
-func LegacyTriggerToTiming(trigger TriggerType) TriggerTiming {
-	switch trigger {
-	case TriggerNone:
-		return TimingActive
-	case TriggerOnTurnStart:
-		return TimingOnTurnStart
-	case TriggerOnBuffPhase:
-		return TimingOnBeforeAction
-	case TriggerOnAttackStart:
-		return TimingOnAttackDeclared
-	case TriggerOnAttackHit, TriggerOnAttackMiss:
-		return TimingOnHitCheck
-	case TriggerModifyDamage:
-		return TimingOnDamageCalculated
-	case TriggerOnDamageTaken:
-		return TimingOnDamageTaken
-	case TriggerOnPhaseEnd:
-		return TimingOnActionEnd
-	case TriggerOnCardUsed, TriggerOnCardRevealed:
-		return TimingOnCardPlayedOrRevealed
-	case TriggerOnBuffAdded, TriggerOnBuffRemoved:
-		return TimingOnFieldMarkChanged
-	case TriggerBeforeDraw:
-		return TimingBeforeCardDrawn
-	case TriggerAfterDraw:
-		return TimingOnCardDrawn
-	case TriggerBeforeMoraleLoss:
-		return TimingBeforeMoraleLoss
-	case TriggerOnOrientationChanged:
-		return TimingOnOrientationChanged
-	default:
-		return TimingUnknown
-	}
-}

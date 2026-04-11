@@ -1,3 +1,5 @@
+// gameflow: 多选类 choice 注册表。
+
 package engine
 
 import "starcup-engine/internal/engine/core/runtimeutil"

@@ -1,3 +1,5 @@
+// gameflow: 赤剑圣灵相关流程。
+
 package engine
 
 import (

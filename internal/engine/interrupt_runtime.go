@@ -1,3 +1,5 @@
+// gameflow: 中断 Push/Pop、类型分派、与 Prompt 绑定。
+
 package engine
 
 import (
@@ -338,7 +340,7 @@ func (e *GameEngine) ConfirmGiveCards(giverID, receiverID string, indices []int)
 
 // SkipResponse 跳过响应阶段。
 func (e *GameEngine) SkipResponse() error {
-	if e.maybeAdvanceResponseSkillSelection() {
+	if !isBeforeDrawResponseInterrupt(e.State.PendingInterrupt) && e.maybeAdvanceResponseSkillSelection() {
 		return nil
 	}
 	state := e.captureResponseResumeStateFromInterrupt(responseCompletionSkip, "", e.State.PendingInterrupt)
@@ -349,6 +351,21 @@ func (e *GameEngine) SkipResponse() error {
 	})
 	e.restoreSkippedResponseAfterPop(state)
 	return nil
+}
+
+func isBeforeDrawResponseInterrupt(intr *model.Interrupt) bool {
+	if intr == nil || intr.Type != model.InterruptResponseSkill {
+		return false
+	}
+	switch raw := intr.Context.(type) {
+	case *model.Context:
+		return raw.BeforeDrawPhase()
+	case map[string]interface{}:
+		if ctx, ok := raw["user_ctx"].(*model.Context); ok {
+			return ctx.BeforeDrawPhase()
+		}
+	}
+	return false
 }
 
 // maybeAdvanceResponseSkillSelection 在跳过当前响应技能时，根据 policy 推进到下一批可展示技能。
@@ -374,10 +391,14 @@ func (e *GameEngine) maybeAdvanceResponseSkillSelection() bool {
 	if ctx == nil {
 		return false
 	}
+	// 摸牌前响应（如水影）跳过后应直接恢复摸牌，不在同一窗口反复询问。
+	if ctx.BeforeDrawPhase() {
+		return false
+	}
 
 	if len(intr.SkillIDs) == 1 && intr.SkillIDs[0] == "fighter_charge_strike" &&
-		ctx.Trigger == model.TriggerOnAttackStart && ctx.TriggerCtx != nil && ctx.TriggerCtx.AttackInfo != nil &&
-		ctx.TriggerCtx.AttackInfo.CounterInitiator == "" && e.isFighter(player) &&
+		ctx.Timing == model.TimingOnAttackDeclared && ctx.EventCtx != nil && ctx.EventCtx.AttackInfo != nil &&
+		ctx.EventCtx.AttackInfo.CounterInitiator == "" && e.isFighter(player) &&
 		e.dispatcher.isSkillStillUsable("fighter_burst_crash", player, ctx) {
 		intr.SkillIDs = []string{"fighter_burst_crash"}
 		e.Log(fmt.Sprintf("%s 放弃 [蓄力一击]，继续询问是否发动 [气绝崩击]", player.Name))

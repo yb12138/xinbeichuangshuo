@@ -1,3 +1,5 @@
+// gameflow: 按场上角色 presence 过滤注册项。
+
 package engine
 
 // presenceHookEntry 描述“角色在场 -> 挂载规则函数”的一条声明式配置。

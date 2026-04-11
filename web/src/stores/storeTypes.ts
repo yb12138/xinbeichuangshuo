@@ -1,13 +1,13 @@
 export interface GameEndSnapshot {
   message: string
-  triggerType: 'cups' | 'morale' | 'unknown'
+  endReasonKind: 'cups' | 'morale' | 'unknown'
   finalRedMorale: number
   finalBlueMorale: number
   finalRedCups: number
   finalBlueCups: number
-  triggerCamp?: 'Red' | 'Blue'
-  triggerDelta?: number
-  triggerSource?: string
+  endMoraleCamp?: 'Red' | 'Blue'
+  endMoraleLoss?: number
+  endCauseSource?: string
 }
 
 export interface SkillModalAnchor {

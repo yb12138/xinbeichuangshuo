@@ -1,3 +1,5 @@
+// gameflow: 女武神：英灵形态、神圣追击等。
+
 package engine
 
 import (
@@ -267,8 +269,8 @@ func (e *GameEngine) handleValkyrieChoiceInput(_ string, selectionIndex int, ctx
 
 		rawCtx, _ := ctxData["user_ctx"].(*model.Context)
 		targetID := ""
-		if rawCtx != nil && rawCtx.TriggerCtx != nil {
-			targetID = rawCtx.TriggerCtx.TargetID
+		if rawCtx != nil && rawCtx.EventCtx != nil {
+			targetID = rawCtx.EventCtx.TargetID
 		}
 		if targetID == "" && rawCtx != nil && rawCtx.Target != nil {
 			targetID = rawCtx.Target.ID

@@ -14,7 +14,7 @@ func TestSaintess_Skills(t *testing.T) {
 	// -------------------------------------------------------------------------
 	// Case 1: 冰霜祷言 (Frost Prayer) - 使用水/圣光治疗目标
 	// -------------------------------------------------------------------------
-	t.Run("FrostPrayer_HealTrigger", func(t *testing.T) {
+	t.Run("FrostPrayer_HealDispatch", func(t *testing.T) {
 		game := engine.NewGameEngine(observer)
 		game.AddPlayer("p1", "Saintess", "saintess", model.RedCamp)
 		game.AddPlayer("p2", "Ally", "berserker", model.RedCamp)
@@ -35,17 +35,17 @@ func TestSaintess_Skills(t *testing.T) {
 		p2.MaxHeal = 5
 
 		// 触发: 使用牌时. P1 对 P2 使用水牌(治疗/伤害无所谓，只要使用)
-		// 冰霜祷言 TriggerOnCardUsed -> TargetType: Any.
+		// 冰霜祷言 TimingOnCardUsed -> TargetType: Any.
 		// 这里有个问题：被动技能通常自动触发，还是需要选择目标?
 		// SkillDefinition: TargetType: TargetAny.
 		// 引擎逻辑：如果 SkillTypePassive 且 TargetType != None，需要 resolve target?
 		// 或者 Passive 技能通常 hardcode logic?
 		// 检查 FrostPrayerHandler: LogicHandler: "frost_prayer".
-		// 它是在 TriggerOnCardUsed 时触发。如果需要指定目标，Context 里必须有 Target。
-		// 但 Passive 技能触发时，Context 的 Target 通常是 nil 或者 Trigger 的 Target。
+		// 它是在 TimingOnCardUsed 时触发。如果需要指定目标，Context 里必须有 Target。
+		// 但 Passive 技能触发时，Context 的 Target 通常是 nil 或者 Dispatch 的 Target。
 		// 描述: "(每当你使用水系牌或圣光时发动) 目标角色+1[治疗]"。
 		// 这个 "目标角色" 应该是 "你这张牌的目标"? 还是 "你可以指定任意目标"?
-		// 如果是 "这张牌的目标"，那么 TriggerCtx.TargetID 就是目标。
+		// 如果是 "这张牌的目标"，那么 EventCtx.TargetID 就是目标。
 		// FrostPrayer Handler 逻辑未实现? 让我们假设它复用了 BaseHandler?
 		// 我需要读 handlers_impl.go 看看 FrostPrayerHandler。
 		// 如果它是自动给牌的目标加血，那不需要额外操作。

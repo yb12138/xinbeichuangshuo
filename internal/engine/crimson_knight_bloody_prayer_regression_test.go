@@ -36,7 +36,7 @@ func TestCrimsonKnightBloodyPrayer_CanSplitHealToTwoAllies(t *testing.T) {
 	if handler == nil {
 		t.Fatalf("crk_bloody_prayer handler not found")
 	}
-	ctx := game.buildContext(p1, nil, model.TriggerOnTurnStart, nil)
+	ctx := game.buildContext(p1, nil, model.TimingOnTurnStart, nil)
 	if !handler.CanUse(ctx) {
 		t.Fatalf("expected bloody prayer can use when heal>0 and has allies")
 	}
@@ -116,7 +116,7 @@ func TestCrimsonKnightBloodyPrayer_XOneDirectlyChoosesOtherAlly(t *testing.T) {
 	if handler == nil {
 		t.Fatalf("crk_bloody_prayer handler not found")
 	}
-	ctx := game.buildContext(p1, nil, model.TriggerOnTurnStart, nil)
+	ctx := game.buildContext(p1, nil, model.TimingOnTurnStart, nil)
 	if !handler.CanUse(ctx) {
 		t.Fatalf("expected bloody prayer can use when heal>0 and has allies")
 	}

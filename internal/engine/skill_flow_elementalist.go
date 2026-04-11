@@ -1,3 +1,5 @@
+// gameflow: 元素师技能流。
+
 package engine
 
 import (

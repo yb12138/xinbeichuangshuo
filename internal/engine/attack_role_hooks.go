@@ -1,3 +1,5 @@
+// gameflow: 攻击链上按攻击者/防御者身份挂载的运行时钩子。
+
 package engine
 
 import (

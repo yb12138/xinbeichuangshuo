@@ -1,3 +1,5 @@
+// gameflow: 攻击宣告/命中前后被动修正（通用扩展点）。
+
 package engine
 
 import (

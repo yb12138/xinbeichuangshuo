@@ -44,29 +44,6 @@ const (
 	TargetSpecific                   // 特殊逻辑 (由后端检查，前端可能需要根据上下文高亮)
 )
 
-// TriggerType 触发时机
-type TriggerType int
-
-const (
-	TriggerNone                 TriggerType = iota
-	TriggerOnBuffPhase                      // 计算Buff前
-	TriggerOnAttackStart                    // 主动攻击前
-	TriggerOnAttackHit                      // 主动攻击命中时
-	TriggerOnAttackMiss                     // 主动攻击未命中
-	TriggerOnDamageTaken                    // 承受伤害时
-	TriggerOnPhaseEnd                       // 某阶段结束时
-	TriggerOnCardUsed                       // 使用卡牌时
-	TriggerOnCardRevealed                   // 展示卡牌时 (如：封印触发、冰霜祷言)
-	TriggerOnBuffRemoved                    // 移除Buff时
-	TriggerOnTurnStart                      // 回合开始时
-	TriggerBeforeDraw                       // 摸牌前
-	TriggerAfterDraw                        // 摸牌后
-	TriggerModifyDamage                     // 伤害计算时 (修改伤害值)
-	TriggerBeforeMoraleLoss                 // 士气下降前
-	TriggerOnBuffAdded                      // 新增Buff/场上效果时
-	TriggerOnOrientationChanged             // 角色姿态/形态变更后
-)
-
 // ResponseType 响应类型
 type ResponseType int
 
@@ -125,7 +102,7 @@ type SkillDefinition struct {
 	PlaceCard    bool          `json:"place_card"`    // 是否放置牌到场上
 	PlaceMode    FieldCardMode `json:"place_mode"`    // 放置模式 (Effect/Cover)
 	PlaceEffect  EffectType    `json:"place_effect"`  // 效果类型 (仅Effect模式)
-	PlaceTrigger EffectTrigger `json:"place_trigger"` // 触发时机 (仅Effect模式)
+	PlaceHook FieldHook `json:"place_hook"` // 触发时机 (仅Effect模式)
 
 	// --- 新增：盖牌消耗 ---
 	CostCoverCards int `json:"cost_cover_cards"` // 消耗盖牌数量
@@ -140,14 +117,29 @@ type SkillDefinition struct {
 	MaxTargets   int        `json:"max_targets"` // 最大目标数 (通常为1，部分技能如 AOE 可能更多)
 	RequiredRole SkillRole  `json:"required_role"`
 
-	// Timings 是新的统一触发窗口声明，替代 Trigger/ExtraTriggers。
-	Timings []TriggerTiming `json:"timings"`
+	// Timings 是统一触发窗口声明（与引擎 OnTiming / collectSkillsForTiming 对齐）。
+	Timings []FlowTiming `json:"timings"`
 
-	// 兼容字段：迁移期保留，后续删除。
-	Trigger       TriggerType   `json:"trigger"`
-	ExtraTriggers []TriggerType `json:"extra_triggers"`
-	ResponseType  ResponseType  `json:"response_type"`
-	LogicHandler  string        `json:"logic_handler"`
+	ResponseType ResponseType `json:"response_type"`
+	LogicHandler string       `json:"logic_handler"`
+}
+
+// HasTiming 报告 Timings 是否包含给定触发窗口。
+func (s SkillDefinition) HasTiming(t FlowTiming) bool {
+	for _, x := range s.Timings {
+		if x == t {
+			return true
+		}
+	}
+	return false
+}
+
+// PrimaryTimingOrLegacy 返回 Timings 的首项；空则视为主动/即时窗口。
+func (s SkillDefinition) PrimaryTimingOrLegacy() FlowTiming {
+	if len(s.Timings) > 0 {
+		return s.Timings[0]
+	}
+	return TimingActive
 }
 
 // 3. 增强：事件上下文 (支持数据修改)
@@ -356,11 +348,10 @@ type Context struct {
 	// 【修改点 2】新增多目标支持
 	Targets []*Player
 
-	Trigger TriggerType
-	Timing  TriggerTiming
+	Timing FlowTiming
 
 	// 触发上下文（可选，用于复杂事件）
-	TriggerCtx *EventContext
+	EventCtx *EventContext
 
 	// 命令行参数（向后兼容）
 	Args []string

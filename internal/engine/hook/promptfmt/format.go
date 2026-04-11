@@ -1,3 +1,5 @@
+// gameflow: Prompt 文案模板与格式化（与中断展示相关）。
+
 package promptfmt
 
 import (

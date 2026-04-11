@@ -1,3 +1,5 @@
+// gameflow: 派生状态刷新（如手牌上限、可见字段）。
+
 package engine
 
 import "starcup-engine/internal/model"

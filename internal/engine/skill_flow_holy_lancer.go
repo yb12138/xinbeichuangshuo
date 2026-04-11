@@ -1,3 +1,5 @@
+// gameflow: 圣枪骑士：地枪、圣击等互斥与补结算。
+
 package engine
 
 import (
@@ -71,11 +73,11 @@ func (e *GameEngine) handleHolyLancerEarthSpearXChoice(selectionIndex int, ctxDa
 		return fmt.Errorf("无效的X值")
 	}
 	userCtx, ok := ctxData["user_ctx"].(*model.Context)
-	if !ok || userCtx == nil || userCtx.TriggerCtx == nil || userCtx.TriggerCtx.DamageVal == nil {
+	if !ok || userCtx == nil || userCtx.EventCtx == nil || userCtx.EventCtx.DamageVal == nil {
 		return fmt.Errorf("地枪上下文丢失")
 	}
 	user.Heal -= x
-	*userCtx.TriggerCtx.DamageVal += x
+	*userCtx.EventCtx.DamageVal += x
 	user.TurnState.UsedSkillCounts["holy_lancer_block_sacred_strike"] = 1
 	e.Log(fmt.Sprintf("%s 发动 [地枪]，移除%d治疗，本次伤害+%d", user.Name, x, x))
 	e.PopInterrupt()

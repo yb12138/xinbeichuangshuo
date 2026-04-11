@@ -1,3 +1,5 @@
+// gameflow: IGameEngine 资源/治疗/伤害/场上牌等接口实现（供 model.Context.Game 调用）。
+
 package engine
 
 import (
@@ -160,7 +162,7 @@ func (e *GameEngine) CheckHandLimit(playerID string, stayInTurn bool) {
 	if player == nil {
 		return
 	}
-	ctx := e.buildContext(player, nil, model.TriggerNone, nil)
+	ctx := e.buildContext(player, nil, model.TimingActive, nil)
 	if stayInTurn {
 		ctx.Flags["StayInTurn"] = true
 	}
@@ -292,7 +294,7 @@ func (e *GameEngine) InflictDamage(sourceID, targetID string, amount int, damage
 	// 通常 InflictDamage 由 Handler 调用，Handler 返回后 Drive 会处理 PendingDamageResolution
 }
 
-func (e *GameEngine) emitBuffRemovedTrigger(sourceID, targetID string, effect model.EffectType) {
+func (e *GameEngine) emitBuffRemovedDispatch(sourceID, targetID string, effect model.EffectType) {
 	target := e.State.Players[targetID]
 	if target == nil {
 		return
@@ -303,11 +305,11 @@ func (e *GameEngine) emitBuffRemovedTrigger(sourceID, targetID string, effect mo
 		TargetID: targetID, // 哪个目标身上的基础效果被移除
 		BuffID:   string(effect),
 	}
-	ctx := e.buildContext(target, nil, model.TriggerOnBuffRemoved, eventCtx)
-	e.dispatcher.OnTrigger(model.TriggerOnBuffRemoved, ctx)
+	ctx := e.buildContext(target, nil, model.TimingOnFieldMarkChanged, eventCtx)
+	e.dispatcher.OnTiming(ctx.Timing, ctx)
 }
 
-func (e *GameEngine) emitBuffAddedTrigger(sourceID, targetID string, effect model.EffectType) {
+func (e *GameEngine) emitBuffAddedDispatch(sourceID, targetID string, effect model.EffectType) {
 	target := e.State.Players[targetID]
 	if target == nil {
 		return
@@ -318,8 +320,8 @@ func (e *GameEngine) emitBuffAddedTrigger(sourceID, targetID string, effect mode
 		TargetID: targetID,
 		BuffID:   string(effect),
 	}
-	ctx := e.buildContext(target, nil, model.TriggerOnBuffAdded, eventCtx)
-	e.dispatcher.OnTrigger(model.TriggerOnBuffAdded, ctx)
+	ctx := e.buildContext(target, nil, model.TimingOnFieldMarkChanged, eventCtx)
+	e.dispatcher.OnTiming(ctx.Timing, ctx)
 }
 
 func (e *GameEngine) RemoveFieldCard(targetID string, effect model.EffectType) bool {
@@ -348,7 +350,7 @@ func (e *GameEngine) RemoveFieldCardBy(targetID string, effect model.EffectType,
 	if removed && removedCard != nil {
 		e.State.DiscardPile = append(e.State.DiscardPile, *removedCard)
 		e.Log(fmt.Sprintf("%s 移除了场上效果牌: %s", target.Name, effect))
-		e.emitBuffRemovedTrigger(sourceID, targetID, effect)
+		e.emitBuffRemovedDispatch(sourceID, targetID, effect)
 	}
 	return removed
 }
@@ -369,7 +371,7 @@ func (e *GameEngine) TakeFieldCard(targetID string, fieldIndex int, sourceID str
 	target.Field = append(target.Field[:fieldIndex], target.Field[fieldIndex+1:]...)
 	e.Log(fmt.Sprintf("%s 的场上牌被收回: %s", target.Name, fc.Effect))
 	if fc.Mode == model.FieldEffect {
-		e.emitBuffRemovedTrigger(sourceID, targetID, fc.Effect)
+		e.emitBuffRemovedDispatch(sourceID, targetID, fc.Effect)
 	}
 	return fc.Card, nil
 }

@@ -1,3 +1,5 @@
+// gameflow: 灵魂术士：灵魂链接、吞噬、魔魂等同调多步中断。
+
 package engine
 
 import (
@@ -203,7 +205,7 @@ func (e *GameEngine) handleSoulSorcererChoiceInput(playerID string, selectionInd
 				e.enterDamageResolution(nil)
 			} else if e.State.ReturnTurnStage != "" || e.State.ReturnCombatStage != model.CombatStageNone || e.State.ReturnSubflow != model.SubflowNone {
 				e.restoreReturnPoint()
-			} else if rawCtx != nil && rawCtx.Trigger == model.TriggerOnAttackStart {
+			} else if rawCtx != nil && rawCtx.AttackDeclaredPhase() {
 				e.enterExtraActionStage()
 			} else {
 				e.enterExtraActionStage()

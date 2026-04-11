@@ -1,15 +1,16 @@
+// gameflow: buildContext：组装 User/Target/Timing/EventCtx。
+
 package engine
 
 import "starcup-engine/internal/model"
 
-func (e *GameEngine) buildContext(user *model.Player, target *model.Player, trigger model.TriggerType, eventCtx *model.EventContext) *model.Context {
+func (e *GameEngine) buildContext(user *model.Player, target *model.Player, timing model.FlowTiming, eventCtx *model.EventContext) *model.Context {
 	ctx := &model.Context{
 		Game:       e,
 		User:       user,
 		Target:     target,
-		Trigger:    trigger,
-		Timing:     e.defaultTimingForTrigger(trigger),
-		TriggerCtx: eventCtx,
+		Timing:     timing,
+		EventCtx: eventCtx,
 		// 初始化 map 避免 handler 写入时 panic
 		Selections: make(map[string]any),
 		Flags:      make(map[string]bool),

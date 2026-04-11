@@ -182,7 +182,7 @@ for msg := range roomInbox {
 每个阶段入口执行：
 
 1. 写入当前 `GamePhase`
-2. 派发对应 `TriggerTiming`
+2. 派发对应 `FlowTiming`
 3. 收集并执行响应技能
 4. 若产生中断则挂起并等待 `SubmitAction`
 5. 阶段收尾推进下一阶段

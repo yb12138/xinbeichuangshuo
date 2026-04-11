@@ -1,3 +1,5 @@
+// gameflow: 爆牌相关运行时辅助。
+
 package engine
 
 import (

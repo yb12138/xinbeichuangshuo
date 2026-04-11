@@ -1,3 +1,5 @@
+// gameflow: 跨角色系统级 choice（非单一职业专属）。
+
 package engine
 
 import (
@@ -141,7 +143,7 @@ func (e *GameEngine) handleSystemWeakChoice(playerID string, selectionIndex int)
 		player.Hand = append(player.Hand, cards...)
 		e.NotifyDrawCards(player.ID, 3, "weak_choice")
 
-		checkCtx := e.buildContext(player, nil, model.TriggerNone, nil)
+		checkCtx := e.buildContext(player, nil, model.TimingActive, nil)
 		checkCtx.Flags["StayInTurn"] = true
 		e.checkHandLimit(player, checkCtx)
 
@@ -326,7 +328,7 @@ func (e *GameEngine) handleExtractChoiceSelections(playerID string, selections [
 			Type:     model.InterruptResponseSkill,
 			PlayerID: player.ID,
 			SkillIDs: []string{"adventurer_paradise"},
-			Context: e.buildContext(player, nil, model.TriggerNone, &model.EventContext{
+			Context: e.buildContext(player, nil, model.TimingActive, &model.EventContext{
 				Type:       model.EventNone,
 				SourceID:   player.ID,
 				ActionType: model.ActionExtract,
@@ -348,7 +350,7 @@ func (e *GameEngine) handleExtractChoiceSelections(playerID string, selections [
 			Type:     model.InterruptResponseSkill,
 			PlayerID: player.ID,
 			SkillIDs: []string{"adventurer_paradise"},
-			Context: e.buildContext(player, nil, model.TriggerNone, &model.EventContext{
+			Context: e.buildContext(player, nil, model.TimingActive, &model.EventContext{
 				Type:       model.EventNone,
 				SourceID:   player.ID,
 				ActionType: model.ActionExtract,

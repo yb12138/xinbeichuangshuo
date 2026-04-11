@@ -1,3 +1,5 @@
+// gameflow: 神圣弓手 handler。
+
 package skills
 
 import (
@@ -310,16 +312,16 @@ func (h *HolyBowLightBurstHandler) Execute(ctx *model.Context) error {
 }
 
 func (h *HolyBowMeteorBulletHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.TriggerCtx == nil {
+	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Trigger != model.TriggerOnAttackStart {
+	if ctx.Timing != model.TimingOnAttackDeclared {
 		return false
 	}
 	if !hasForm(ctx.User, model.FormHolyBowHolyGlory) {
 		return false
 	}
-	if ctx.TriggerCtx.AttackInfo != nil && ctx.TriggerCtx.AttackInfo.CounterInitiator != "" {
+	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
 	if ctx.User.Heal <= 0 && holyBowFaith(ctx.User) <= 0 {

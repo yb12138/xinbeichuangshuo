@@ -431,7 +431,7 @@ const (
 | `CombatApply` | ⑤ 实际产生伤害阶段 | 真实伤害落地，为攻击方结算阵营星石收入。 |
 | `CombatDraw` | ⑥ 实际承受伤害阶段 | 承受伤害方摸牌，并执行爆牌检测及扣除士气逻辑。 |
 
-### 4.4 事件触发时机钩子 (Trigger Timing)
+### 4.4 事件触发时机钩子 (Flow timing)
 注意：Phase 是系统当前的“状态”，而 Timing 是系统状态发生改变或动作发生时向外广播的“瞬间事件”。技能通过监听这些事件来触发。
 | 标识名 | 触发场景描述 | 逻辑与复用说明 |
 |:---|:---|:---|
@@ -489,7 +489,7 @@ type SkillDefinition struct {
 
 // 技能强制发动配置（通用：解决“命中条件后，本行动阶段只能发动某技能”）
 type SkillMandatoryConfig struct {
-    MatchTiming model.TriggerTiming // 在哪个钩子上判定是否进入“强制发动”锁（通常为 TimingStartup）
+    MatchTiming model.FlowTiming // 在哪个钩子上判定是否进入“强制发动”锁（通常为 TimingStartup）
     ConditionExpression string      // 命中强制锁的附加表达式（基于 Event/State/Player）
     LockMode    model.SkillMandatoryLockMode // 锁定模式
 }
@@ -596,7 +596,7 @@ const (
     TargetAllEnemies      EffectTargetType = 3 // 所有敌人 (AOE)
     TargetAllTeammates    EffectTargetType = 4 // 所有队友 (含自己)
     TargetAllPlayers      EffectTargetType = 5 // 全场所有人
-    TargetTriggerSource   EffectTargetType = 6 // 抽象指针：刚才触发这个被动事件的源头玩家 (比如反伤技)
+    TargetFlowSource   EffectTargetType = 6 // 抽象指针：刚才触发这个被动事件的源头玩家 (比如反伤技)
     TargetSelfTeam        EffectTargetType = 7 // 己方阵营 (如神之庇护抵御士气下降)
     TargetCurrentCombat   EffectTargetType = 8 // 当前战斗上下文 (用于伤害修饰等)
     TargetCurrentEvent    EffectTargetType = 9 // 当前事件上下文 (用于修改 PendingMoraleLoss 等待结算值)
@@ -785,7 +785,7 @@ type PerTargetBranchConfig struct {
 }
 ```
 
-#### 4.5.1 强制发动流程 (Mandatory Trigger Flow)
+#### 4.5.1 强制发动流程 (Mandatory dispatch flow)
 当某个技能配置了 `Mandatory` 且命中其条件时，统一按以下流程处理：
 1. 在 `Mandatory.MatchTiming` 到达时，先校验 `Mandatory.ConditionExpression`。
 2. 命中后根据 `Mandatory.LockMode` 写入行动阶段锁（如 `SkillMandatoryLockActionPhaseToSelfSkill`）。
@@ -872,7 +872,7 @@ type PerTargetBranchConfig struct {
 type ResponseCandidate struct {
     OwnerID          string
     SkillID          string
-    Timing           model.TriggerTiming
+    Timing           model.FlowTiming
     Group            *model.ResponseGroupConfig // nil 表示不参与分组仲裁
     ReplacesSkillIDs []string
 
@@ -884,7 +884,7 @@ type ResponseCandidate struct {
 func CollectResponseCandidates(
     state *GameState,
     evt *EventContext,
-    timing model.TriggerTiming,
+    timing model.FlowTiming,
 ) []ResponseCandidate {
     out := make([]ResponseCandidate, 0)
     for _, user := range state.AllAliveUsers() {
@@ -935,7 +935,7 @@ func BuildResponseGroups(cands []ResponseCandidate) (
 }
 
 // 触发窗口总流程：候选收集 -> 分组展示 -> 玩家选择 -> 替换 -> 入队执行
-func ResolveResponseWindow(state *GameState, evt *EventContext, timing model.TriggerTiming) error {
+func ResolveResponseWindow(state *GameState, evt *EventContext, timing model.FlowTiming) error {
     cands := CollectResponseCandidates(state, evt, timing)
     grouped, ungrouped := BuildResponseGroups(cands)
 
@@ -1117,7 +1117,7 @@ func ResolveResponseWindow(state *GameState, evt *EventContext, timing model.Tri
 
 ```go
 type ActionTransformConfig struct {
-    Hook     model.TriggerTiming     // 建议固定为 TimingBeforeActionExecute
+    Hook     model.FlowTiming     // 建议固定为 TimingBeforeActionExecute
     Optional bool                    // true=可选发动；false=满足条件后强制改写
     Priority int                     // 多改写命中时优先级（大者优先）
     CancelCurrentAction bool         // 是否取消当前行动默认结算（如替代 Buy 的原生流程）
@@ -1361,7 +1361,7 @@ type GameStateAPI interface {
 | `3` | `TimelineResponseWindowOpened` | 响应窗口打开（可响应人、可用选项） |
 | `4` | `TimelineResponseSelected` | 某玩家选择了响应项（技能/卡牌/防御） |
 | `5` | `TimelineResponseDeclined` | 某玩家主动放弃响应 |
-| `6` | `TimelineSkillTriggered` | 技能触发并入执行队列（主动/被动/响应） |
+| `6` | `TimelineSkillQueued` | 技能触发并入执行队列（主动/被动/响应） |
 | `7` | `TimelineEffectResolved` | 单个 Effect 节点完成结算（可携带多条 Delta） |
 | `8` | `TimelineCombatResolved` | 一次战斗链路收尾（命中/未命中/最终伤害） |
 | `9` | `TimelineStatusResolved` | 延后状态结算（中毒/虚弱/封印等） |
@@ -1416,7 +1416,7 @@ const (
     TimelineResponseWindowOpened TimelineEventType = 3
     TimelineResponseSelected TimelineEventType = 4
     TimelineResponseDeclined TimelineEventType = 5
-    TimelineSkillTriggered TimelineEventType = 6
+    TimelineSkillQueued TimelineEventType = 6
     TimelineEffectResolved TimelineEventType = 7
     TimelineCombatResolved TimelineEventType = 8
     TimelineStatusResolved TimelineEventType = 9
@@ -1474,7 +1474,7 @@ type TimelineEvent struct {
     EventID int64                     // 房间内单调递增序号
     TurnID int                        // 所属回合号（从 1 开始）
     Phase model.GamePhase             // 事件发生时阶段
-    Timing model.TriggerTiming        // 事件对应的触发钩子
+    Timing model.FlowTiming        // 事件对应的触发钩子
     ChainID string                    // 同一结算链路标识
     ParentEventID *int64              // 可选：父事件（如响应来源）
 

@@ -1,3 +1,5 @@
+// gameflow: 法术爆发类响应。
+
 package engine
 
 import (

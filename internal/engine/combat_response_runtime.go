@@ -1,3 +1,5 @@
+// gameflow: 战斗响应窗口：承伤、防御牌、圣盾等与技能交互。
+
 package engine
 
 import (
@@ -10,7 +12,7 @@ import (
 
 // markPendingAttackDamageHitProcessed 将命中后响应结束的攻击伤害标记为已完成 OnAttackHit。
 func (e *GameEngine) markPendingAttackDamageHitProcessed(ctx *model.Context) bool {
-	if ctx == nil || ctx.TriggerCtx == nil || len(e.State.PendingDamageQueue) == 0 {
+	if ctx == nil || ctx.EventCtx == nil || len(e.State.PendingDamageQueue) == 0 {
 		return false
 	}
 	for i := range e.State.PendingDamageQueue {
@@ -18,10 +20,10 @@ func (e *GameEngine) markPendingAttackDamageHitProcessed(ctx *model.Context) boo
 		if !strings.EqualFold(string(pd.DamageType), string(model.AttackDamage)) {
 			continue
 		}
-		if pd.SourceID != ctx.TriggerCtx.SourceID || pd.TargetID != ctx.TriggerCtx.TargetID {
+		if pd.SourceID != ctx.EventCtx.SourceID || pd.TargetID != ctx.EventCtx.TargetID {
 			continue
 		}
-		pd.AttackHitTriggerChecked = true
+		pd.AttackHitFlowDispatched = true
 		return true
 	}
 	return false
@@ -30,7 +32,7 @@ func (e *GameEngine) markPendingAttackDamageHitProcessed(ctx *model.Context) boo
 // resumePendingAttackHit 恢复被响应技能选择打断的“攻击命中后续结算”。
 func (e *GameEngine) resumePendingAttackHit(ctxData map[string]interface{}) {
 	rawCtx, ok := ctxData["user_ctx"].(*model.Context)
-	if !ok || rawCtx == nil || rawCtx.Trigger != model.TriggerOnAttackHit || rawCtx.TriggerCtx == nil {
+	if !ok || rawCtx == nil || !rawCtx.ResumeAttackHitPhase() || rawCtx.EventCtx == nil {
 		return
 	}
 	if e.markPendingAttackDamageHitProcessed(rawCtx) {
@@ -247,7 +249,7 @@ func (e *GameEngine) handleCombatDefendResponse(act model.PlayerAction, player *
 		return errors.New("防御只能使用【圣光】；【圣盾】需提前放置到场上")
 	}
 
-	e.dispatchCardTrigger(player, model.TriggerOnCardUsed, "", card)
+	e.dispatchCardTiming(player, model.TimingOnCardPlayedOrRevealed, "", card)
 	e.NotifyCardRevealed(act.PlayerID, []model.Card{card}, "defend")
 	e.NotifyCombatCue(combatReq.AttackerID, combatReq.TargetID, "defend")
 	if _, err := consumePlayableCardByIndex(player, act.CardIndex); err != nil {
@@ -270,13 +272,13 @@ func (e *GameEngine) handleCombatDefendResponse(act model.PlayerAction, player *
 			}(),
 		},
 	}
-	skillCtx := e.buildContext(e.State.Players[combatReq.AttackerID], e.State.Players[combatReq.TargetID], model.TriggerOnAttackMiss, missCtx)
+	skillCtx := e.buildContext(e.State.Players[combatReq.AttackerID], e.State.Players[combatReq.TargetID], model.TimingOnHitCheck, missCtx)
 	skillCtx.Selections["attack_miss_resume"] = map[string]interface{}{
 		"mode":        "defend",
 		"attacker_id": combatReq.AttackerID,
 		"target_id":   combatReq.TargetID,
 	}
-	e.dispatcher.OnTrigger(model.TriggerOnAttackMiss, skillCtx)
+	e.dispatcher.OnTiming(skillCtx.Timing, skillCtx)
 	if e.State.PendingInterrupt != nil {
 		return nil
 	}
@@ -357,7 +359,7 @@ func (e *GameEngine) handleCombatCounterResponse(act model.PlayerAction, player 
 		return errors.New("应战反弹目标必须是攻击方的队友")
 	}
 
-	e.dispatchCardTrigger(player, model.TriggerOnCardUsed, "", card)
+	e.dispatchCardTiming(player, model.TimingOnCardPlayedOrRevealed, "", card)
 	e.NotifyCardRevealed(act.PlayerID, []model.Card{card}, "counter")
 	e.NotifyCombatCue(combatReq.AttackerID, combatReq.TargetID, "counter")
 	if _, err := consumePlayableCardByIndex(player, act.CardIndex); err != nil {
@@ -387,7 +389,7 @@ func (e *GameEngine) handleCombatCounterResponse(act model.PlayerAction, player 
 			}(),
 		},
 	}
-	skillCtx := e.buildContext(e.State.Players[combatReq.AttackerID], e.State.Players[combatReq.TargetID], model.TriggerOnAttackMiss, missCtx)
+	skillCtx := e.buildContext(e.State.Players[combatReq.AttackerID], e.State.Players[combatReq.TargetID], model.TimingOnHitCheck, missCtx)
 	skillCtx.Selections["attack_miss_resume"] = map[string]interface{}{
 		"mode":              "counter",
 		"attacker_id":       combatReq.AttackerID,
@@ -396,7 +398,7 @@ func (e *GameEngine) handleCombatCounterResponse(act model.PlayerAction, player 
 		"counter_target_id": targetID,
 		"counter_card":      card,
 	}
-	e.dispatcher.OnTrigger(model.TriggerOnAttackMiss, skillCtx)
+	e.dispatcher.OnTiming(skillCtx.Timing, skillCtx)
 	if e.State.PendingInterrupt != nil {
 		return nil
 	}

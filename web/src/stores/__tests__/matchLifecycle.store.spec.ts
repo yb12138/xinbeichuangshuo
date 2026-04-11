@@ -138,12 +138,12 @@ describe('useMatchLifecycleStore', () => {
     expect(uiStore.isGameEnded).toBe(true)
     expect(uiStore.gameEndMessage).toBe('蓝方胜利！红方士气归零')
     expect(uiStore.gameEndSnapshot).toMatchObject({
-      triggerType: 'morale',
+      endReasonKind: 'morale',
       finalRedMorale: 0,
       finalBlueMorale: 7,
-      triggerCamp: 'Red',
-      triggerDelta: 2,
-      triggerSource: '绝杀',
+      endMoraleCamp: 'Red',
+      endMoraleLoss: 2,
+      endCauseSource: '绝杀',
     })
     expect(interruptStore.currentPrompt).toBeNull()
     expect(interruptStore.waitingFor).toBe('')
@@ -177,12 +177,12 @@ describe('useMatchLifecycleStore', () => {
     const snapshot = lifecycleStore.refreshGameEndSnapshot('蓝方胜利！红方士气归零')
 
     expect(snapshot).toMatchObject({
-      triggerType: 'morale',
+      endReasonKind: 'morale',
       finalRedMorale: 0,
       finalBlueMorale: 9,
       finalRedCups: 1,
       finalBlueCups: 2,
-      triggerSource: '补发终局状态',
+      endCauseSource: '补发终局状态',
     })
     expect(uiStore.gameEndMessage).toBe('蓝方胜利！红方士气归零')
     expect(uiStore.gameEndSnapshot).toEqual(snapshot)

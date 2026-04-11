@@ -33,8 +33,8 @@ func TestCrimsonFlash_PhaseEndDamageShouldNotStall(t *testing.T) {
 		ActionType: model.ActionAttack,
 		AttackInfo: &model.AttackEventInfo{ActionType: string(model.ActionAttack), CounterInitiator: ""},
 	}
-	ctx := g.buildContext(p1, nil, model.TriggerOnPhaseEnd, eventCtx)
-	g.dispatcher.OnTrigger(model.TriggerOnPhaseEnd, ctx)
+	ctx := g.buildContext(p1, nil, model.TimingOnActionEnd, eventCtx)
+	g.dispatcher.OnTiming(ctx.Timing, ctx)
 
 	if g.State.PendingInterrupt == nil || g.State.PendingInterrupt.Type != model.InterruptResponseSkill {
 		t.Fatalf("expected response prompt for css flash, got %+v", g.State.PendingInterrupt)

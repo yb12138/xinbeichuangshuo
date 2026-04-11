@@ -1,3 +1,5 @@
+// gameflow: 新角色批次：延迟伤害后/攻击后等公共解析（含祈祷师赐福确认等）。
+
 package engine
 
 import (
@@ -125,7 +127,7 @@ func (e *GameEngine) handlePostAttackHitEffects(pd *model.PendingDamage) bool {
 			Type:     model.InterruptChoice,
 			PlayerID: attacker.ID,
 			Context: map[string]interface{}{
-				"choice_type": "prayer_power_blessing_trigger",
+				"choice_type": "prayer_power_blessing_followup",
 				"user_id":     attacker.ID,
 				"source_id":   pd.SourceID,
 				"target_id":   pd.TargetID,
@@ -238,7 +240,7 @@ func (e *GameEngine) handlePostActionEndEffects(player *model.Player, actionType
 			Type:     model.InterruptChoice,
 			PlayerID: player.ID,
 			Context: map[string]interface{}{
-				"choice_type": "prayer_swift_blessing_trigger",
+				"choice_type": "prayer_swift_blessing_followup",
 				"user_id":     player.ID,
 				"action_type": string(actionType),
 			},
@@ -354,7 +356,7 @@ func (e *GameEngine) handlePostDamageResolved(pd *model.PendingDamage) bool {
 		}
 	}
 	if pd.Damage > 0 && runtimeutil.IsMagicDamageType(pd.DamageType) {
-		if e.tryTriggerBardDescentAfterMagicDamage(pd) {
+		if e.tryBardDescentAfterMagicDamage(pd) {
 			_ = e.tryQueueMoonGoddessBlasphemy(pd)
 			return true
 		}

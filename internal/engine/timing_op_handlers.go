@@ -1,3 +1,5 @@
+// gameflow: 各 Timing op 的具体 handler 实现。
+
 package engine
 
 import "starcup-engine/internal/model"

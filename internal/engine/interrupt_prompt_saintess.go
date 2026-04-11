@@ -1,3 +1,5 @@
+// gameflow: 圣女系中断 Prompt。
+
 package engine
 
 import (

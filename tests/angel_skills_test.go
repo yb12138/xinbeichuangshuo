@@ -257,7 +257,7 @@ func TestAngel_Skills(t *testing.T) {
 		p2.MaxHeal = 5 // 确保能加血
 
 		t.Logf("模拟由天使移除 P2 的虚弱效果...")
-		// 由天使本人移除基础效果，应该触发 TriggerOnBuffRemoved -> Angel Bond
+		// 由天使本人移除基础效果，应该触发 TimingOnBuffRemoved -> Angel Bond
 		game.RemoveFieldCardBy("p2", model.EffectWeak, "p1")
 
 		// AngelBond 当前为“弹框选目标”实现，先选择目标 p2

@@ -1,3 +1,5 @@
+// gameflow: 特殊行动（如提炼、合成）与阶段互动。
+
 package engine
 
 import (

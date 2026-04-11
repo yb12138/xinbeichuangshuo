@@ -1,3 +1,5 @@
+// gameflow: 仲裁者：审判形态、仲裁法则、仪式等。
+
 package engine
 
 import (

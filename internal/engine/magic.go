@@ -1,3 +1,5 @@
+// gameflow: 法术行动：消耗、目标、进入战斗或直伤等。
+
 package engine
 
 import (
@@ -128,10 +130,10 @@ func (e *GameEngine) performMagic(sourceID, targetID string, cardIdx int, skipMa
 			SourceID: player.ID,
 			Mode:     model.FieldEffect,
 			Effect:   model.EffectPoison,
-			Trigger:  model.EffectTriggerOnBeforeAction,
+			Hook: model.FieldHookOnBeforeAction,
 		}
 		target.AddFieldCard(fc)
-		e.emitBuffAddedTrigger(player.ID, target.ID, fc.Effect)
+		e.emitBuffAddedDispatch(player.ID, target.ID, fc.Effect)
 		placedOnField = true
 		e.Log(fmt.Sprintf("[Magic] %s 面前放置了【中毒】", target.Name))
 
@@ -147,10 +149,10 @@ func (e *GameEngine) performMagic(sourceID, targetID string, cardIdx int, skipMa
 			SourceID: player.ID,
 			Mode:     model.FieldEffect,
 			Effect:   model.EffectWeak,
-			Trigger:  model.EffectTriggerOnBeforeAction,
+			Hook: model.FieldHookOnBeforeAction,
 		}
 		target.AddFieldCard(fc)
-		e.emitBuffAddedTrigger(player.ID, target.ID, fc.Effect)
+		e.emitBuffAddedDispatch(player.ID, target.ID, fc.Effect)
 		placedOnField = true
 		e.Log(fmt.Sprintf("[Magic] %s 面前放置了【虚弱】", target.Name))
 
@@ -166,10 +168,10 @@ func (e *GameEngine) performMagic(sourceID, targetID string, cardIdx int, skipMa
 			SourceID: player.ID,
 			Mode:     model.FieldEffect,
 			Effect:   model.EffectShield,
-			Trigger:  model.EffectTriggerOnDamaged,
+			Hook: model.FieldHookOnDamaged,
 		}
 		target.AddFieldCard(fc)
-		e.emitBuffAddedTrigger(player.ID, target.ID, fc.Effect)
+		e.emitBuffAddedDispatch(player.ID, target.ID, fc.Effect)
 		placedOnField = true
 		e.Log(fmt.Sprintf("[Magic] %s 获得了【圣盾】保护", target.Name))
 

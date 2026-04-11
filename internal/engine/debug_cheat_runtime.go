@@ -1,3 +1,5 @@
+// gameflow: 调试作弊指令（仅测试/开发）。
+
 package engine
 
 import (
@@ -330,16 +332,16 @@ func debugParseEffectType(raw string) (model.EffectType, error) {
 	}
 }
 
-func debugEffectTrigger(effect model.EffectType) model.EffectTrigger {
+func debugFieldHook(effect model.EffectType) model.FieldHook {
 	switch effect {
 	case model.EffectPoison, model.EffectWeak:
-		return model.EffectTriggerOnBeforeAction
+		return model.FieldHookOnBeforeAction
 	case model.EffectShield:
-		return model.EffectTriggerOnDamaged
+		return model.FieldHookOnDamaged
 	case model.EffectSealFire, model.EffectSealWater, model.EffectSealEarth, model.EffectSealWind, model.EffectSealThunder:
-		return model.EffectTriggerOnAttack
+		return model.FieldHookOnAttack
 	default:
-		return model.EffectTriggerManual
+		return model.FieldHookManual
 	}
 }
 
@@ -358,7 +360,7 @@ func (e *GameEngine) debugSetEffectCount(player *model.Player, effect model.Effe
 		return
 	}
 
-	trigger := debugEffectTrigger(effect)
+	dispatch := debugFieldHook(effect)
 	for i := 0; i < count; i++ {
 		card := model.Card{
 			ID:          fmt.Sprintf("debug-effect-%s-%d-%d", effect, time.Now().UnixNano(), i),
@@ -374,7 +376,7 @@ func (e *GameEngine) debugSetEffectCount(player *model.Player, effect model.Effe
 			SourceID: player.ID,
 			Mode:     model.FieldEffect,
 			Effect:   effect,
-			Trigger:  trigger,
+			Hook: dispatch,
 			Duration: -1,
 		})
 	}
@@ -472,6 +474,38 @@ func (e *GameEngine) debugPrepareSkillCards(player *model.Player, skill model.Sk
 	return nil
 }
 
+// 若干技能仅区分「命中检定窗口内的未命中分支」；数据上均为 TimingOnHitCheck，调试上下文按技能 ID 区分是否模拟未命中。
+var debugCheatSimulateMissOnHitCheck = map[string]bool{
+	"piercing_shot":       true,
+	"hom_rage_suppress":   true,
+	"hom_glyph_fusion":    true,
+	"se_sword_soul_guard": true,
+	"se_feint":            true,
+	"se_angel_soul_miss":  true,
+	"se_demon_soul_miss":  true,
+}
+
+func debugCheatEventTypeForTiming(t model.FlowTiming) model.EventType {
+	switch t {
+	case model.TimingOnAttackDeclared, model.TimingOnHitCheck, model.TimingOnDamageCalculated:
+		return model.EventAttack
+	case model.TimingOnDamageTaken:
+		return model.EventDamage
+	case model.TimingOnCardPlayedOrRevealed:
+		return model.EventCardUsed
+	case model.TimingBeforeCardDrawn:
+		return model.EventBeforeDraw
+	case model.TimingOnCardDrawn:
+		return model.EventAfterDraw
+	case model.TimingOnTurnStart, model.TimingStartup:
+		return model.EventTurnStart
+	case model.TimingOnActionEnd:
+		return model.EventPhaseEnd
+	default:
+		return model.EventNone
+	}
+}
+
 func (e *GameEngine) debugBuildContext(user *model.Player, skill model.SkillDefinition) *model.Context {
 	if user == nil {
 		return nil
@@ -494,7 +528,7 @@ func (e *GameEngine) debugBuildContext(user *model.Player, skill model.SkillDefi
 	if skill.DiscardElement != "" {
 		element = skill.DiscardElement
 	}
-	if skill.Trigger == model.TriggerOnCardUsed || skill.Trigger == model.TriggerOnCardRevealed {
+	if skill.HasTiming(model.TimingOnCardPlayedOrRevealed) {
 		actionType = model.ActionMagic
 		cardType = model.CardTypeMagic
 		if skill.DiscardElement == "" {
@@ -521,23 +555,7 @@ func (e *GameEngine) debugBuildContext(user *model.Player, skill model.SkillDefi
 
 	damageVal := 1
 	drawCount := 1
-	eventType := model.EventNone
-	switch skill.Trigger {
-	case model.TriggerOnAttackStart, model.TriggerOnAttackHit, model.TriggerOnAttackMiss:
-		eventType = model.EventAttack
-	case model.TriggerOnDamageTaken:
-		eventType = model.EventDamage
-	case model.TriggerOnCardUsed:
-		eventType = model.EventCardUsed
-	case model.TriggerBeforeDraw:
-		eventType = model.EventBeforeDraw
-	case model.TriggerAfterDraw:
-		eventType = model.EventAfterDraw
-	case model.TriggerOnTurnStart:
-		eventType = model.EventTurnStart
-	case model.TriggerOnPhaseEnd:
-		eventType = model.EventPhaseEnd
-	}
+	eventType := debugCheatEventTypeForTiming(skill.PrimaryTimingOrLegacy())
 
 	attackInfo := &model.AttackEventInfo{
 		IsHit:          true,
@@ -546,7 +564,10 @@ func (e *GameEngine) debugBuildContext(user *model.Player, skill model.SkillDefi
 		CanBeResponded: true,
 		ActionType:     string(actionType),
 	}
-	if skill.Trigger == model.TriggerOnAttackMiss || skill.Trigger == model.TriggerOnAttackStart {
+	// 命中检定窗口内「仅未命中」类技能无法仅靠 Timing 与「仅命中」区分，按技能 ID 保留调试语义。
+	if skill.PrimaryTimingOrLegacy() == model.TimingOnAttackDeclared {
+		attackInfo.IsHit = false
+	} else if skill.PrimaryTimingOrLegacy() == model.TimingOnHitCheck && debugCheatSimulateMissOnHitCheck[skill.ID] {
 		attackInfo.IsHit = false
 	}
 
@@ -554,8 +575,8 @@ func (e *GameEngine) debugBuildContext(user *model.Player, skill model.SkillDefi
 		Game:    e,
 		User:    user,
 		Target:  target,
-		Trigger: skill.Trigger,
-		TriggerCtx: &model.EventContext{
+		Timing:  skill.PrimaryTimingOrLegacy(),
+		EventCtx: &model.EventContext{
 			Type:       eventType,
 			SourceID:   attacker.ID,
 			TargetID:   defender.ID,

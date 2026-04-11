@@ -1,3 +1,5 @@
+// gameflow: 格斗家 handler。
+
 package skills
 
 import (
@@ -22,31 +24,31 @@ type FighterWarGodDriveHandler struct{ BaseHandler }
 type FighterWarGodDriveFollowupHandler struct{ BaseHandler }
 
 func (h *FighterPsiFieldHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.TriggerCtx == nil || ctx.TriggerCtx.DamageVal == nil {
+	if ctx == nil || ctx.EventCtx == nil || ctx.EventCtx.DamageVal == nil {
 		return false
 	}
-	return ctx.Trigger == model.TriggerOnDamageTaken && *ctx.TriggerCtx.DamageVal > 4
+	return ctx.Timing == model.TimingOnDamageTaken && *ctx.EventCtx.DamageVal > 4
 }
 
 func (h *FighterPsiFieldHandler) Execute(ctx *model.Context) error {
-	if ctx == nil || ctx.TriggerCtx == nil || ctx.TriggerCtx.DamageVal == nil || ctx.User == nil || ctx.Game == nil {
+	if ctx == nil || ctx.EventCtx == nil || ctx.EventCtx.DamageVal == nil || ctx.User == nil || ctx.Game == nil {
 		return nil
 	}
-	if *ctx.TriggerCtx.DamageVal > 4 {
-		*ctx.TriggerCtx.DamageVal = 4
+	if *ctx.EventCtx.DamageVal > 4 {
+		*ctx.EventCtx.DamageVal = 4
 		ctx.Game.Log(fmt.Sprintf("%s 的 [念气力场] 生效：本次伤害被限制为4", ctx.User.Name))
 	}
 	return nil
 }
 
 func (h *FighterChargeStrikeHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.TriggerCtx == nil {
+	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Trigger != model.TriggerOnAttackStart {
+	if ctx.Timing != model.TimingOnAttackDeclared {
 		return false
 	}
-	if ctx.TriggerCtx.AttackInfo != nil && ctx.TriggerCtx.AttackInfo.CounterInitiator != "" {
+	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
 	if hasForm(ctx.User, model.FormFighterHundredDragon) {
@@ -74,13 +76,13 @@ func (h *FighterChargeStrikeHandler) Execute(ctx *model.Context) error {
 }
 
 func (h *FighterPsiBulletHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.TriggerCtx == nil {
+	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Trigger != model.TriggerOnPhaseEnd {
+	if ctx.Timing != model.TimingOnActionEnd {
 		return false
 	}
-	if ctx.TriggerCtx.ActionType != model.ActionMagic {
+	if ctx.EventCtx.ActionType != model.ActionMagic {
 		return false
 	}
 	if getToken(ctx.User, "fighter_qi") >= fighterQiCap {
@@ -178,13 +180,13 @@ func (h *FighterHundredDragonHandler) Execute(ctx *model.Context) error {
 }
 
 func (h *FighterBurstCrashHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.TriggerCtx == nil {
+	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Trigger != model.TriggerOnAttackStart {
+	if ctx.Timing != model.TimingOnAttackDeclared {
 		return false
 	}
-	if ctx.TriggerCtx.AttackInfo != nil && ctx.TriggerCtx.AttackInfo.CounterInitiator != "" {
+	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
 	if getSkillFlow(ctx.User, "fighter_attack_start_skill_lock") > 0 {
@@ -203,8 +205,8 @@ func (h *FighterBurstCrashHandler) Execute(ctx *model.Context) error {
 	qi := addToken(ctx.User, "fighter_qi", -1, 0, fighterQiCap)
 	setSkillFlow(ctx.User, "fighter_attack_start_skill_lock", 2)
 	setSkillFlow(ctx.User, "fighter_qiburst_force_no_counter", 1)
-	if ctx.TriggerCtx != nil && ctx.TriggerCtx.AttackInfo != nil {
-		ctx.TriggerCtx.AttackInfo.CanBeResponded = false
+	if ctx.EventCtx != nil && ctx.EventCtx.AttackInfo != nil {
+		ctx.EventCtx.AttackInfo.CanBeResponded = false
 	}
 	if qi > 0 {
 		ctx.Game.AddPendingDamage(model.PendingDamage{

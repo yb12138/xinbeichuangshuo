@@ -1,3 +1,5 @@
+// gameflow: 攻击命中后伤害计算链上的钩子。
+
 package engine
 
 import (

@@ -1,3 +1,5 @@
+// gameflow: 角色默认指示物、形态等。
+
 package engine
 
 import "starcup-engine/internal/model"

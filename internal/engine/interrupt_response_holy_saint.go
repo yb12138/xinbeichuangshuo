@@ -1,3 +1,5 @@
+// gameflow: 圣系响应（如圣击等）分支。
+
 package engine
 
 import (

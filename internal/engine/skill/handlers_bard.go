@@ -1,3 +1,5 @@
+// gameflow: 吟游诗人 handler。
+
 package skills
 
 import (

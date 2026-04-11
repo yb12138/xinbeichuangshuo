@@ -1,3 +1,5 @@
+// gameflow: 魔枪士技能流。
+
 package engine
 
 import (

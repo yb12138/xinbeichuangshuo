@@ -1,3 +1,5 @@
+// gameflow: 精灵射手：元素射击、雷之矢、祝福区等。
+
 package engine
 
 import (

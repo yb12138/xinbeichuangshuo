@@ -1,3 +1,5 @@
+// gameflow: 技能内共用的资源校验/消耗辅助。
+
 package skills
 
 import "starcup-engine/internal/model"

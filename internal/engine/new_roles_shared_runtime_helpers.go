@@ -1,3 +1,5 @@
+// gameflow: 新角色共用小型运行时函数。
+
 package engine
 
 import "starcup-engine/internal/model"

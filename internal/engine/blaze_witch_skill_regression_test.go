@@ -265,7 +265,7 @@ func TestBlazeWitchFlameForm_AttackUsesPreparedTransformedCard(t *testing.T) {
 		SourceID: "p2",
 		Mode:     model.FieldEffect,
 		Effect:   model.EffectSealFire,
-		Trigger:  model.EffectTriggerOnCardPlayedOrRevealed,
+		Hook: model.FieldHookOnCardPlayedOrRevealed,
 	})
 
 	game.State.Deck = rules.InitDeck()

@@ -1,3 +1,5 @@
+// gameflow: 选择处理公共辅助。
+
 package engine
 
 // skillChoiceInputHandler 表示一个 choice_type 对应的一步结算处理器。

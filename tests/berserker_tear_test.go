@@ -58,7 +58,7 @@ func TestBerserker_Tear(t *testing.T) {
 	}
 
 	// 4. P2 选择承受 (Take)
-	// 这应该触发 攻击命中 -> 撕裂 (TriggerOnAttackHit)
+	// 这应该触发 攻击命中 -> 撕裂 (TimingOnAttackHit)
 	t.Logf("\n👉 [Step 2] P2 选择承受 (Take)")
 	actionTake := model.PlayerAction{
 		PlayerID:  "p2",
@@ -66,7 +66,7 @@ func TestBerserker_Tear(t *testing.T) {
 		ExtraArgs: []string{"take"},
 	}
 
-	// 执行响应。如果逻辑正确，引擎应该检测到 TriggerOnAttackHit，
+	// 执行响应。如果逻辑正确，引擎应该检测到 TimingOnAttackHit，
 	// 发现 P1 有撕裂技能且满足条件，推送“可选响应”中断给 P1。
 	if err := game.HandleAction(actionTake); err != nil {
 		t.Fatalf("承受伤害失败: %v", err)

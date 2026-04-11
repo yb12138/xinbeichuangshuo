@@ -1,3 +1,5 @@
+// gameflow: 吟游诗人：战歌、魅惑、沉沦协奏曲等技能流与回合钩子。
+
 package engine
 
 import (

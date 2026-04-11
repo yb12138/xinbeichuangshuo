@@ -1,3 +1,5 @@
+// gameflow: runtimeutil：轻量数值/上下文读取，避免 skill 与 engine 循环依赖。
+
 package runtimeutil
 
 import (

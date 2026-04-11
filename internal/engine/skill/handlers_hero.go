@@ -1,3 +1,5 @@
+// gameflow: 英雄职业向 handler。
+
 package skills
 
 import (
@@ -30,13 +32,13 @@ func (h *HeroExhaustionHandler) CanUse(ctx *model.Context) bool { return false }
 func (h *HeroExhaustionHandler) Execute(ctx *model.Context) error { return nil }
 
 func (h *HeroRoarHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.TriggerCtx == nil {
+	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Trigger != model.TriggerOnAttackStart {
+	if ctx.Timing != model.TimingOnAttackDeclared {
 		return false
 	}
-	if ctx.TriggerCtx.AttackInfo != nil && ctx.TriggerCtx.AttackInfo.CounterInitiator != "" {
+	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
 	return getToken(ctx.User, "hero_anger") > 0
@@ -66,13 +68,13 @@ func (h *HeroRoarHandler) Execute(ctx *model.Context) error {
 }
 
 func (h *HeroForbiddenPowerHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.TriggerCtx == nil {
+	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Trigger != model.TriggerOnAttackHit && ctx.Trigger != model.TriggerOnAttackMiss {
+	if ctx.Timing != model.TimingOnHitCheck {
 		return false
 	}
-	if ctx.TriggerCtx.AttackInfo != nil && ctx.TriggerCtx.AttackInfo.CounterInitiator != "" {
+	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
 	return canPayCrystalLike(ctx, 1)
@@ -109,16 +111,17 @@ func (h *HeroForbiddenPowerHandler) Execute(ctx *model.Context) error {
 	}
 
 	anger := addToken(ctx.User, "hero_anger", magicCount, 0, heroTokenCap)
+	isHit := ctx.EventCtx != nil && ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.IsHit
 	wisdomGain := 0
-	if ctx.Trigger == model.TriggerOnAttackMiss {
+	if !isHit {
 		before := getToken(ctx.User, "hero_wisdom")
 		after := addToken(ctx.User, "hero_wisdom", waterCount, 0, heroTokenCap)
 		wisdomGain = after - before
 	}
 
-	if ctx.Trigger == model.TriggerOnAttackHit && fireCount > 0 {
-		if ctx.TriggerCtx != nil && ctx.TriggerCtx.DamageVal != nil {
-			*ctx.TriggerCtx.DamageVal += fireCount
+	if isHit && fireCount > 0 {
+		if ctx.EventCtx != nil && ctx.EventCtx.DamageVal != nil {
+			*ctx.EventCtx.DamageVal += fireCount
 		}
 		ctx.Game.AddPendingDamage(model.PendingDamage{
 			SourceID:   ctx.User.ID,
@@ -133,11 +136,10 @@ func (h *HeroForbiddenPowerHandler) Execute(ctx *model.Context) error {
 	setToken(ctx.User, "hero_exhaustion_release_pending", 1)
 	addAttackAction(ctx.User, "精疲力竭")
 
-	switch ctx.Trigger {
-	case model.TriggerOnAttackHit:
+	if isHit {
 		ctx.Game.Log(fmt.Sprintf("%s 发动 [禁断之力]：弃掉%d张手牌（法术%d/火%d），怒气=%d；本次攻击伤害额外+%d并对自己造成%d点法术伤害；进入精疲力竭并获得额外攻击行动",
 			ctx.User.Name, len(handCards), magicCount, fireCount, anger, fireCount, fireCount))
-	case model.TriggerOnAttackMiss:
+	} else {
 		ctx.Game.Log(fmt.Sprintf("%s 发动 [禁断之力]：弃掉%d张手牌（法术%d/水系%d），怒气=%d，知性+%d；进入精疲力竭并获得额外攻击行动",
 			ctx.User.Name, len(handCards), magicCount, waterCount, anger, wisdomGain))
 	}
@@ -145,28 +147,28 @@ func (h *HeroForbiddenPowerHandler) Execute(ctx *model.Context) error {
 }
 
 func (h *HeroCalmMindHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.TriggerCtx == nil {
+	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Trigger != model.TriggerOnAttackStart {
+	if ctx.Timing != model.TimingOnAttackDeclared {
 		return false
 	}
-	if ctx.TriggerCtx.AttackInfo != nil && ctx.TriggerCtx.AttackInfo.CounterInitiator != "" {
+	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
 	return getToken(ctx.User, "hero_wisdom") >= 4
 }
 
 func (h *HeroCalmMindHandler) Execute(ctx *model.Context) error {
-	if ctx == nil || ctx.User == nil || ctx.TriggerCtx == nil {
+	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return fmt.Errorf("明镜止水上下文无效")
 	}
 	if getToken(ctx.User, "hero_wisdom") < 4 {
 		return fmt.Errorf("知性不足，无法发动明镜止水")
 	}
 	addToken(ctx.User, "hero_wisdom", -4, 0, heroTokenCap)
-	if ctx.TriggerCtx.AttackInfo != nil {
-		ctx.TriggerCtx.AttackInfo.CanBeResponded = false
+	if ctx.EventCtx.AttackInfo != nil {
+		ctx.EventCtx.AttackInfo.CanBeResponded = false
 	}
 	ctx.User.TurnState.UsedSkillCounts["hero_calm_force_no_counter"] = 1
 	setToken(ctx.User, "hero_calm_end_crystal_pending", getToken(ctx.User, "hero_calm_end_crystal_pending")+1)
@@ -202,13 +204,13 @@ func (h *HeroTauntHandler) Execute(ctx *model.Context) error {
 }
 
 func (h *HeroDeadDuelHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.TriggerCtx == nil {
+	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Trigger != model.TriggerOnDamageTaken {
+	if ctx.Timing != model.TimingOnDamageTaken {
 		return false
 	}
-	if ctx.TriggerCtx.DamageVal == nil || *ctx.TriggerCtx.DamageVal <= 0 {
+	if ctx.EventCtx.DamageVal == nil || *ctx.EventCtx.DamageVal <= 0 {
 		return false
 	}
 	if !ctx.Flags["IsMagicDamage"] {

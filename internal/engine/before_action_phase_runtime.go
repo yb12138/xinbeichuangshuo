@@ -1,3 +1,5 @@
+// gameflow: 行动前阶段：可选行动列表、虚拟攻击牌等。
+
 // before_action_phase_runtime 实现行动阶段（TurnStageActionExecution）里「执行队首待办行动之前」的规则链。
 // 玩家已在行动枢纽选定攻击或法术后，ActionQueue 队首会在此依次经过：使用牌时点（含封印等延迟伤害）、
 // 攻击宣言与应战入口（initCombat），或法术结算（PerformMagic）；对应设计文档中 ActionExecution 且队列非空时的子流程。
@@ -52,14 +54,14 @@ func (e *GameEngine) beforeActionRecoverAfterDroppedHead() driveOutcome {
 	return driveContinueLoop
 }
 
-// beforeActionRunCardUsedIfNeeded 触发技能与状态上的「使用卡牌」时点（TriggerOnCardUsed），例如五系封印等会在此后插入延迟伤害并优先结算。
-// virtualSkipTrigger：技能视为的攻击（欺诈、多重射击等）不从手牌打出实体攻击牌，规则上不走「使用那张手牌」的触发链，只记标记以免重复。
-func (e *GameEngine) beforeActionRunCardUsedIfNeeded(player *model.Player, currentPid, targetID string, head *model.QueuedAction, cardForEvent *model.Card, virtualSkipTrigger bool) (immediate driveOutcome, stop bool) {
-	if head.HasTriggeredCardUsed {
+// beforeActionRunCardUsedIfNeeded 触发技能与状态上的「打出/展示卡牌」时点（TimingOnCardPlayedOrRevealed），例如五系封印等会在此后插入延迟伤害并优先结算。
+// virtualSkipCardDispatch：技能视为的攻击（欺诈、多重射击等）不从手牌打出实体攻击牌，规则上不走「使用那张手牌」的触发链，只记标记以免重复。
+func (e *GameEngine) beforeActionRunCardUsedIfNeeded(player *model.Player, currentPid, targetID string, head *model.QueuedAction, cardForEvent *model.Card, virtualSkipCardDispatch bool) (immediate driveOutcome, stop bool) {
+	if head.HasDispatchedCardUsed {
 		return 0, false
 	}
-	if virtualSkipTrigger {
-		head.HasTriggeredCardUsed = true
+	if virtualSkipCardDispatch {
+		head.HasDispatchedCardUsed = true
 		return 0, false
 	}
 	if cardForEvent == nil {
@@ -71,9 +73,9 @@ func (e *GameEngine) beforeActionRunCardUsedIfNeeded(player *model.Player, curre
 		SourceID: currentPid,
 		TargetID: targetID,
 	}
-	skillCtx := e.buildContext(player, nil, model.TriggerOnCardUsed, cardCtx)
-	e.dispatcher.OnTrigger(model.TriggerOnCardUsed, skillCtx)
-	head.HasTriggeredCardUsed = true
+	skillCtx := e.buildContext(player, nil, model.TimingOnCardPlayedOrRevealed, cardCtx)
+	e.dispatcher.OnTiming(skillCtx.Timing, skillCtx)
+	head.HasDispatchedCardUsed = true
 	if e.State.PendingInterrupt != nil {
 		return driveStop, true
 	}
@@ -87,7 +89,7 @@ func (e *GameEngine) beforeActionRunCardUsedIfNeeded(player *model.Player, curre
 }
 
 // driveBeforeActionAttack 主动攻击链：宣言攻击（AttackStart）→ 若有被动/确认则中断 → 从手牌移除攻击牌（非虚拟）→ 压入战斗栈，由后续阶段处理目标「承受/防御/应战」。
-// HasTriggeredAttackStart 用于在「响应技能确认」后再次进入本段时不重复宣言。
+// HasDispatchedAttackDeclared 用于在「响应技能确认」后再次进入本段时不重复宣言。
 func (e *GameEngine) driveBeforeActionAttack(currentPid string, player *model.Player, head *model.QueuedAction) driveOutcome {
 	targetID := head.TargetID
 	if targetID == "" {
@@ -125,14 +127,14 @@ func (e *GameEngine) driveBeforeActionAttack(currentPid string, player *model.Pl
 		},
 	}
 
-	if !head.HasTriggeredAttackStart {
+	if !head.HasDispatchedAttackDeclared {
 		e.resetAttackStartLifecycle(player)
-		head.HasTriggeredAttackStart = true
-		attackStartCtx := e.buildContext(player, target, model.TriggerOnAttackStart, eventCtx)
+		head.HasDispatchedAttackDeclared = true
+		attackStartCtx := e.buildContext(player, target, model.TimingOnAttackDeclared, eventCtx)
 		player.TurnState.LastActionType = string(model.ActionAttack)
 		cardSnapshot := *head.Card
 		player.TurnState.LastActionCard = &cardSnapshot
-		e.dispatcher.OnTrigger(model.TriggerOnAttackStart, attackStartCtx)
+		e.dispatcher.OnTiming(attackStartCtx.Timing, attackStartCtx)
 		if e.State.PendingInterrupt != nil {
 			return driveStop
 		}

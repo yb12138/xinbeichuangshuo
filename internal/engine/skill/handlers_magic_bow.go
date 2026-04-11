@@ -1,3 +1,5 @@
+// gameflow: 魔弓手 handler。
+
 package skills
 
 import (
@@ -140,13 +142,13 @@ type MagicBowDemonEyeHandler struct{ BaseHandler }
 type MagicBowChargeFollowupDiscardHandler struct{ BaseHandler }
 
 func (h *MagicBowMagicPierceHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.Target == nil || ctx.TriggerCtx == nil {
+	if ctx == nil || ctx.User == nil || ctx.Target == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Trigger != model.TriggerOnAttackStart {
+	if ctx.Timing != model.TimingOnAttackDeclared {
 		return false
 	}
-	if ctx.TriggerCtx.AttackInfo != nil && ctx.TriggerCtx.AttackInfo.CounterInitiator != "" {
+	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
 	if ctx.User.TurnState.UsedSkillCounts["mb_multi_shot_used_turn"] > 0 {
@@ -166,7 +168,7 @@ func (h *MagicBowMagicPierceHandler) CanUse(ctx *model.Context) bool {
 }
 
 func (h *MagicBowMagicPierceHandler) Execute(ctx *model.Context) error {
-	if ctx == nil || ctx.User == nil || ctx.TriggerCtx == nil || ctx.TriggerCtx.Card == nil {
+	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil || ctx.EventCtx.Card == nil {
 		return fmt.Errorf("魔贯冲击上下文无效")
 	}
 	if _, ok := removeMagicBowChargeByElement(ctx.User, model.ElementFire); !ok {
@@ -174,7 +176,7 @@ func (h *MagicBowMagicPierceHandler) Execute(ctx *model.Context) error {
 	}
 	ctx.User.TurnState.UsedSkillCounts["mb_magic_pierce_used_turn"]++
 	setSkillFlow(ctx.User, "mb_magic_pierce_pending", 1)
-	ctx.TriggerCtx.Card.Damage++
+	ctx.EventCtx.Card.Damage++
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [魔贯冲击]：移除1个火系充能，本次攻击伤害+1", ctx.User.Name))
 	return nil
 }
@@ -246,16 +248,16 @@ func (h *MagicBowThunderScatterHandler) Execute(ctx *model.Context) error {
 }
 
 func (h *MagicBowMultiShotHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.TriggerCtx == nil {
+	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Trigger != model.TriggerOnPhaseEnd {
+	if ctx.Timing != model.TimingOnActionEnd {
 		return false
 	}
-	if ctx.TriggerCtx.ActionType != model.ActionAttack {
+	if ctx.EventCtx.ActionType != model.ActionAttack {
 		return false
 	}
-	if ctx.TriggerCtx.AttackInfo != nil && ctx.TriggerCtx.AttackInfo.CounterInitiator != "" {
+	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
 	if ctx.User.TurnState.UsedSkillCounts["mb_magic_pierce_used_turn"] > 0 {
@@ -325,7 +327,7 @@ func (h *MagicBowChargeHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("充能上下文无效")
 	}
-	if ctx.Trigger != model.TriggerNone && !spendCrystalLike(ctx, 1) {
+	if ctx.Timing != model.TimingActive && !spendCrystalLike(ctx, 1) {
 		return fmt.Errorf("充能需要1蓝水晶（红宝石可替代）")
 	}
 	ctx.User.TurnState.UsedSkillCounts["mb_charge_lock_turn"] = 1
@@ -374,7 +376,7 @@ func (h *MagicBowDemonEyeHandler) Execute(ctx *model.Context) error {
 	if len(ctx.User.Hand) == 0 {
 		return fmt.Errorf("魔眼需要至少1张手牌作为充能")
 	}
-	if ctx.Trigger != model.TriggerNone && ctx.User.Gem <= 0 {
+	if ctx.Timing != model.TimingActive && ctx.User.Gem <= 0 {
 		return fmt.Errorf("魔眼需要1个红宝石")
 	}
 	targetIDs := make([]string, 0)
@@ -392,7 +394,7 @@ func (h *MagicBowDemonEyeHandler) Execute(ctx *model.Context) error {
 			return fmt.Errorf("魔眼不能以自己为目标")
 		}
 	}
-	if ctx.Trigger != model.TriggerNone {
+	if ctx.Timing != model.TimingActive {
 		ctx.User.Gem--
 	}
 	if ctx.Target != nil {

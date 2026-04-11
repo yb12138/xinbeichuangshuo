@@ -1,8 +1,8 @@
+// gameflow: TurnStage/Subflow 与阶段切换辅助。
+
 package engine
 
 import (
-	"fmt"
-
 	"starcup-engine/internal/model"
 )
 
@@ -246,44 +246,8 @@ func (e *GameEngine) clearCombatStage() {
 	e.setCombatStage(model.CombatStageNone)
 }
 
-func (e *GameEngine) defaultTimingForTrigger(trigger model.TriggerType) model.TriggerTiming {
-	switch trigger {
-	case model.TriggerNone:
-		return model.TimingActive
-	case model.TriggerOnTurnStart:
-		return model.TimingOnTurnStart
-	case model.TriggerOnBuffPhase:
-		return model.TimingOnBeforeAction
-	case model.TriggerOnAttackStart:
-		return model.TimingOnAttackDeclared
-	case model.TriggerOnAttackHit, model.TriggerOnAttackMiss:
-		return model.TimingOnHitCheck
-	case model.TriggerModifyDamage:
-		return model.TimingOnDamageCalculated
-	case model.TriggerOnDamageTaken:
-		return model.TimingOnDamageTaken
-	case model.TriggerOnPhaseEnd:
-		return model.TimingOnActionEnd
-	case model.TriggerOnCardUsed, model.TriggerOnCardRevealed:
-		return model.TimingOnCardPlayedOrRevealed
-	case model.TriggerOnBuffAdded, model.TriggerOnBuffRemoved:
-		return model.TimingOnFieldMarkChanged
-	case model.TriggerBeforeDraw:
-		return model.TimingBeforeCardDrawn
-	case model.TriggerAfterDraw:
-		return model.TimingOnCardDrawn
-	case model.TriggerBeforeMoraleLoss:
-		return model.TimingBeforeMoraleLoss
-	case model.TriggerOnOrientationChanged:
-		return model.TimingOnOrientationChanged
-	default:
-		panic(fmt.Sprintf("unmapped trigger timing: %d", trigger))
-	}
-}
-
-func (e *GameEngine) buildTimedContext(user *model.Player, target *model.Player, trigger model.TriggerType, timing model.TriggerTiming, eventCtx *model.EventContext) *model.Context {
-	ctx := e.buildContext(user, target, trigger, eventCtx)
-	ctx.Timing = timing
+func (e *GameEngine) buildTimedContext(user *model.Player, target *model.Player, timing model.FlowTiming, eventCtx *model.EventContext) *model.Context {
+	ctx := e.buildContext(user, target, timing, eventCtx)
 	ctx.Selections["current_turn_stage"] = e.State.TurnStage
 	ctx.Selections["current_combat_stage"] = e.State.CombatStage
 	ctx.Selections["current_subflow"] = e.State.Subflow

@@ -1,3 +1,5 @@
+// gameflow: 月女神等：PendingDamage 后排队技能中断辅助。
+
 package engine
 
 import (
@@ -7,12 +9,12 @@ import (
 	"starcup-engine/internal/model"
 )
 
-func (e *GameEngine) maybeTriggerMoonGoddessMedusa(attacker *model.Player, target *model.Player, sourceSkill string, attackCard *model.Card, userCtx *model.Context) bool {
+func (e *GameEngine) maybeMoonGoddessMedusa(attacker *model.Player, target *model.Player, sourceSkill string, attackCard *model.Card, userCtx *model.Context) bool {
 	if attacker == nil || target == nil || attackCard == nil {
 		return false
 	}
 	// 美杜莎之眼仅允许在“攻击开始”时机触发，避免攻击结算后误触发。
-	if userCtx == nil || userCtx.Trigger != model.TriggerOnAttackStart {
+	if userCtx == nil || !userCtx.AttackDeclaredPhase() {
 		return false
 	}
 	// 欺诈/圣屑飓暴属于“转化攻击”，不触发美杜莎之眼。
@@ -63,7 +65,7 @@ func (e *GameEngine) maybeTriggerMoonGoddessMedusa(attacker *model.Player, targe
 	return false
 }
 
-func (e *GameEngine) maybeTriggerMoonGoddessMoonCycleAtTurnEnd(player *model.Player) bool {
+func (e *GameEngine) maybeMoonGoddessMoonCycleAtTurnEnd(player *model.Player) bool {
 	if player == nil || !e.isMoonGoddess(player) {
 		return false
 	}
@@ -138,7 +140,7 @@ func (e *GameEngine) tryQueueMoonGoddessBlasphemy(pd *model.PendingDamage) bool 
 			"user_id":     source.ID,
 			"target_ids":  []string{target.ID},
 			"source_id":   pd.SourceID,
-			"trigger_pd":  pd,
+			"context_pending_damage":  pd,
 		},
 	})
 	source.TurnState.SkillFlowState["mg_blasphemy_pending"] = 1

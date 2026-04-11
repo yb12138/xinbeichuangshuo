@@ -1,3 +1,5 @@
+// gameflow: TimingOnAttackDeclared 动态钩子表重建。
+
 package engine
 
 // rebuildTimingOnAttackDeclaredRegistry 根据当前已上场角色，重建攻击宣言阶段的执行表。

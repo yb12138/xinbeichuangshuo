@@ -89,7 +89,7 @@ type SkillDefinition struct {
     
     Category    SkillCategory // 技能来源类别（普通/独有/专属/大招）
     Type        SkillType     // 发动机制类别（被动/启动/法术/响应）
-    Timing      TriggerTiming // 事件总线监听的触发钩子（如 TimingActive）
+    Timing      FlowTiming // 事件总线监听的触发钩子（如 TimingActive）
     
     TargetRule  *TargetRuleConfig // 目标选择规则（控制前端选取头像）
     Condition   *ConditionConfig  // 状态前置条件（控制按钮是否点亮）
@@ -108,7 +108,7 @@ type SkillDefinition struct {
 用于统一表达“命中条件后，本行动阶段只能执行该技能”的规则（避免拆分成两个技能ID）。
 ```go
 type SkillMandatoryConfig struct {
-    MatchTiming TriggerTiming // 在哪个钩子上判定是否进入“强制发动”锁（通常为 TimingStartup）
+    MatchTiming FlowTiming // 在哪个钩子上判定是否进入“强制发动”锁（通常为 TimingStartup）
     ConditionExpression string // 命中强制锁的附加表达式（基于 Event/State/Player）
     LockMode    SkillMandatoryLockMode // 锁定模式
 }
@@ -363,7 +363,7 @@ type FieldMarkChangeFilterConfig struct {
 用于表达“视为某行动/改写到另一条结算流水线”的能力，避免把具体技能逻辑耦合到 `EffectType` 枚举中。
 ```go
 type ActionTransformConfig struct {
-    Hook     TriggerTiming       // 建议固定为 TimingBeforeActionExecute（执行前改写）
+    Hook     FlowTiming       // 建议固定为 TimingBeforeActionExecute（执行前改写）
     Optional bool                // true=可选发动；false=满足条件后强制改写
     Priority int                 // 多个改写同时命中时的优先级（大者优先）
     CancelCurrentAction bool     // 是否取消当前行动默认结算（如替代 Buy 的原生流程）
@@ -568,7 +568,7 @@ const (
     TargetAllEnemies      EffectTargetType = 3 // 所有敌人 (AOE)
     TargetAllTeammates    EffectTargetType = 4 // 所有队友 (含自己)
     TargetAllPlayers      EffectTargetType = 5 // 全场所有人
-    TargetTriggerSource   EffectTargetType = 6 // 触发该被动的源头 (如: 暗杀者反伤攻击她的人)
+    TargetFlowSource   EffectTargetType = 6 // 触发该被动的源头 (如: 暗杀者反伤攻击她的人)
     TargetSelfTeam        EffectTargetType = 7 // 己方阵营 (如神之庇护抵御士气下降)
     TargetCurrentCombat   EffectTargetType = 8 // 当前战斗上下文 (用于伤害修饰等)
     TargetCurrentEvent    EffectTargetType = 9 // 当前事件上下文 (用于修改 PendingMoraleLoss 等待结算值)
@@ -640,7 +640,7 @@ const (
 type StatusResolveConfig struct {
     ConfigID        string                  // 配置唯一ID（如 "status_resolve_poison"）
     StatusType      model.StatusEffect      // 作用于哪种状态（如 Poison）
-    ResolveTiming   model.TriggerTiming     // 触发时机（如 TimingOnBeforeAction、TimingOnHitCheck）
+    ResolveTiming   model.FlowTiming     // 触发时机（如 TimingOnBeforeAction、TimingOnHitCheck）
     RequireHolderIsTurnPlayer bool          // 仅当状态持有者=当前回合玩家时触发（中毒、虚弱、五系束缚用）
     RequireHolderIsCombatTarget bool        // 仅当状态持有者=当前战斗目标时触发（圣盾用）
     RequirePlayedCardElementMatchesSealElement bool // 仅当打出/展示的牌系别=状态绑定的系别时触发（元素封印用）
@@ -648,7 +648,7 @@ type StatusResolveConfig struct {
     ResolveMode     model.StatusResolveMode // Auto / Choice
     CanDecline      bool                    // 触发条件满足后是否允许放弃结算（圣盾应为 false）
 
-    TriggerLimit    int                     // 最大触发次数（通常为 1）
+    FlowWindowLimit    int                     // 最大触发次数（通常为 1）
     RemoveOnResolved bool                   // 结算完成后是否移除该状态牌
     TimeoutFallbackChoiceIndex int          // Choice 模式下超时默认分支索引
 
@@ -953,7 +953,7 @@ const (
     TimelineResponseWindowOpened TimelineEventType = 3
     TimelineResponseSelected TimelineEventType = 4
     TimelineResponseDeclined TimelineEventType = 5
-    TimelineSkillTriggered TimelineEventType = 6
+    TimelineSkillQueued TimelineEventType = 6
     TimelineEffectResolved TimelineEventType = 7
     TimelineCombatResolved TimelineEventType = 8
     TimelineStatusResolved TimelineEventType = 9
@@ -1011,7 +1011,7 @@ type TimelineEvent struct {
     EventID int64
     TurnID int
     Phase model.GamePhase
-    Timing model.TriggerTiming
+    Timing model.FlowTiming
     ChainID string
     ParentEventID *int64
 
@@ -1317,7 +1317,7 @@ type StatusEffectConfig struct {
     
     // --- 统一为“临时技能”模型 ---
     // 基础效果本质上是挂载在玩家身上的临时被动技/响应技
-    Timing       model.TriggerTiming  // 监听的事件钩子 (如 TimingOnHitCheck, TimingBeforeActionExecute)
+    Timing       model.FlowTiming  // 监听的事件钩子 (如 TimingOnHitCheck, TimingBeforeActionExecute)
     Condition    *ConditionConfig     // 触发前置条件表达式
     Effects      []EffectNode         // 触发后执行的标准动作序列 (复用 EffectDamage, EffectSystemOp 等)
 }

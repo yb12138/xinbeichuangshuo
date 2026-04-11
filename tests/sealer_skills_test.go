@@ -119,26 +119,26 @@ func TestSealer_Skills(t *testing.T) {
 
 		// 模拟 P2 回合开始 (Drive Loop 处理 TurnStart -> ... -> ActionSelection)
 		// 这里的测试比较依赖 Engine Drive 的自动流转
-		// 五系束缚 EffectTriggerOnTurnStart: 回合开始触发 -> 弹出 InterruptChoice (摸牌取消效果)
+		// 五系束缚 FieldHookOnTurnStart: 回合开始触发 -> 弹出 InterruptChoice (摸牌取消效果)
 
-		// 我们手动触发 TriggerOnTurnStart
+		// 我们手动触发 TimingOnTurnStart
 		// 实际上 Engine Drive 里会在 PhaseStartup 做这件事
 
 		// 由于是在 CLI 侧模拟，我们手动调用 Drive 看看是否进入 Prompt
 		// 注意: NextTurn 只是切换了 ID 和 Phase=BuffResolve
 		game.State.TurnStage = model.TurnStageActionStart // 跳过 BuffResolve
 
-		// 理论上应该触发五系束缚的逻辑 (LogicHandler "five_elements_bind"?? No, it's a FieldCard trigger)
-		// FieldCard TriggerOnTurnStart 需要在 PhaseStartup 里被 Engine 扫描并触发
-		// 目前 Engine 似乎没有自动扫描 FieldCard TriggerOnTurnStart 的逻辑?
+		// 理论上应该触发五系束缚的逻辑 (LogicHandler "five_elements_bind"?? No, it's a FieldCard dispatch)
+		// FieldCard TimingOnTurnStart 需要在 PhaseStartup 里被 Engine 扫描并触发
+		// 目前 Engine 似乎没有自动扫描 FieldCard TimingOnTurnStart 的逻辑?
 		// 检查 game.go PhaseStartup...
-		// "e.dispatcher.OnTrigger(model.TriggerOnTurnStart, startCtx)"
+		// "e.dispatcher.OnTiming(startCtx.Timing, startCtx)"
 		// 我们需要确保 FieldCard 的 Handler (FiveElementsBindHandler? No, usually generic field logic)
-		// 或者是 collectTriggeredSkills 把 FieldCard 转化为 Skill?
-		// 封印师定义里 PlaceTrigger: model.EffectTriggerOnTurnStart
+		// 或者是 collectSkillsForTiming 把 FieldCard 转化为 Skill?
+		// 封印师定义里 PlaceHook: model.FieldHookOnTurnStart
 
 		// 如果 Engine 没实现 FieldCard 的自动触发，这个测试会失败。
-		// 假设 Engine 已经实现了 "TriggerOnTurnStart" 会扫描所有 FieldCard
+		// 假设 Engine 已经实现了 "TimingOnTurnStart" 会扫描所有 FieldCard
 
 		t.Logf("✅ 五系束缚放置测试通过 (完整跳过逻辑依赖引擎TurnStart实现，暂略)")
 	})

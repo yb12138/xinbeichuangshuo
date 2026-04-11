@@ -1,3 +1,5 @@
+// gameflow: 玩家主动发动技能的对外入口（与校验、消耗衔接）。
+
 package engine
 
 import (

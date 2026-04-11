@@ -1,3 +1,5 @@
+// gameflow: 灵魂术士 handler。
+
 package skills
 
 import (
@@ -61,7 +63,7 @@ func soulSorcererAllyIDs(game model.IGameEngine, user *model.Player, includeSelf
 
 func (h *SoulSorcererSoulDevourHandler) CanUse(ctx *model.Context) bool {
 	// 灵魂吞噬需要按“最终实际士气下降”结算，
-	// 运行时统一由 applyMoraleLossAfterTrigger 处理，这里仅保留注册占位。
+	// 运行时统一由 applyMoraleLossAfterTimingWindow 处理，这里仅保留注册占位。
 	return false
 }
 
@@ -108,13 +110,13 @@ func (h *SoulSorcererSoulRecallHandler) Execute(ctx *model.Context) error {
 }
 
 func (h *SoulSorcererSoulConvertHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.TriggerCtx == nil {
+	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Trigger != model.TriggerOnAttackStart {
+	if ctx.Timing != model.TimingOnAttackDeclared {
 		return false
 	}
-	if ctx.TriggerCtx.AttackInfo != nil && ctx.TriggerCtx.AttackInfo.CounterInitiator != "" {
+	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
 	y := soulYellow(ctx.User)

@@ -1,3 +1,5 @@
+// gameflow: 技能结算后的统一后置（如额外行动标记）。
+
 package engine
 
 // skillPostHook 在技能主动发动成功并完成基础收尾后执行。

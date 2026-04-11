@@ -1,3 +1,5 @@
+// gameflow: 冒险家：地下法则、欺诈攻击等。
+
 package engine
 
 import (
@@ -334,11 +336,11 @@ func (e *GameEngine) handleAdventurerChoiceInput(_ string, selectionIndex int, c
 		}
 
 		rawCtx, ok := ctxData["user_ctx"].(*model.Context)
-		if ok && rawCtx != nil && rawCtx.TriggerCtx != nil && rawCtx.TriggerCtx.Card != nil && rawCtx.TriggerCtx.AttackInfo != nil {
-			rawCtx.TriggerCtx.Card.Faction = ""
-			rawCtx.TriggerCtx.Card.Element = attackElement
-			rawCtx.TriggerCtx.Card.Damage = 2
-			rawCtx.TriggerCtx.AttackInfo.CanBeResponded = canBeResponded
+		if ok && rawCtx != nil && rawCtx.EventCtx != nil && rawCtx.EventCtx.Card != nil && rawCtx.EventCtx.AttackInfo != nil {
+			rawCtx.EventCtx.Card.Faction = ""
+			rawCtx.EventCtx.Card.Element = attackElement
+			rawCtx.EventCtx.Card.Damage = 2
+			rawCtx.EventCtx.AttackInfo.CanBeResponded = canBeResponded
 			e.Log(fmt.Sprintf("%s 发动[欺诈]完成，弃同系牌并将本次攻击改为 %s", user.Name, attackElement))
 			e.resolveAdventurerLuckyFortuneFromFraud(user)
 			e.PopInterrupt()

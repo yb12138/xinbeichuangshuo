@@ -1,3 +1,5 @@
+// gameflow: Prompt 目标列表生成。
+
 package engine
 
 import (

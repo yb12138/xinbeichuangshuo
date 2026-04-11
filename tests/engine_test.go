@@ -57,7 +57,7 @@ func TestBladeMaster_WindFury_ExtraAttack(t *testing.T) {
 		ExtraArgs: []string{"take"},
 	}
 
-	// 此时引擎会处理伤害 -> 触发 TriggerOnPhaseEnd -> 挂起风怒中断 -> 暂停
+	// 此时引擎会处理伤害 -> 触发 TimingOnPhaseEnd -> 挂起风怒中断 -> 暂停
 	if err := game.HandleAction(actionTake); err != nil {
 		t.Fatalf("P2 承受伤害失败: %v", err)
 	}
@@ -120,8 +120,8 @@ func TestSealer_FiveSeals(t *testing.T) {
 		name           string           // 测试用例名称
 		sealSkillID    string           // 封印师发动的技能ID
 		sealEffectType model.EffectType // 期望场上生成的Effect类型
-		triggerCard    model.Card       // 目标玩家使用的卡牌
-		shouldTrigger  bool             // 是否应该触发封印
+		attackCard    model.Card       // 目标玩家使用的卡牌
+		expectSealProc  bool             // 是否应该触发封印
 	}
 
 	// 构造五种属性的测试数据
@@ -130,43 +130,43 @@ func TestSealer_FiveSeals(t *testing.T) {
 			name:           "水之封印-触发",
 			sealSkillID:    "water_seal",
 			sealEffectType: model.EffectSealWater,
-			triggerCard:    model.Card{ID: "c_water", Name: "水涟斩", Type: model.CardTypeAttack, Element: model.ElementWater, Damage: 2},
-			shouldTrigger:  true,
+			attackCard:    model.Card{ID: "c_water", Name: "水涟斩", Type: model.CardTypeAttack, Element: model.ElementWater, Damage: 2},
+			expectSealProc:  true,
 		},
 		{
 			name:           "火之封印-触发",
 			sealSkillID:    "fire_seal",
 			sealEffectType: model.EffectSealFire,
-			triggerCard:    model.Card{ID: "c_fire", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2},
-			shouldTrigger:  true,
+			attackCard:    model.Card{ID: "c_fire", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2},
+			expectSealProc:  true,
 		},
 		{
 			name:           "地之封印-触发",
 			sealSkillID:    "earth_seal",
 			sealEffectType: model.EffectSealEarth,
-			triggerCard:    model.Card{ID: "c_earth", Name: "地裂斩", Type: model.CardTypeAttack, Element: model.ElementEarth, Damage: 2},
-			shouldTrigger:  true,
+			attackCard:    model.Card{ID: "c_earth", Name: "地裂斩", Type: model.CardTypeAttack, Element: model.ElementEarth, Damage: 2},
+			expectSealProc:  true,
 		},
 		{
 			name:           "风之封印-触发",
 			sealSkillID:    "wind_seal",
 			sealEffectType: model.EffectSealWind,
-			triggerCard:    model.Card{ID: "c_wind", Name: "风神斩", Type: model.CardTypeAttack, Element: model.ElementWind, Damage: 2},
-			shouldTrigger:  true,
+			attackCard:    model.Card{ID: "c_wind", Name: "风神斩", Type: model.CardTypeAttack, Element: model.ElementWind, Damage: 2},
+			expectSealProc:  true,
 		},
 		{
 			name:           "雷之封印-触发",
 			sealSkillID:    "thunder_seal",
 			sealEffectType: model.EffectSealThunder,
-			triggerCard:    model.Card{ID: "c_thunder", Name: "雷光斩", Type: model.CardTypeAttack, Element: model.ElementThunder, Damage: 2},
-			shouldTrigger:  true,
+			attackCard:    model.Card{ID: "c_thunder", Name: "雷光斩", Type: model.CardTypeAttack, Element: model.ElementThunder, Damage: 2},
+			expectSealProc:  true,
 		},
 		{
 			name:           "水之封印-不触发(属性不匹配)",
 			sealSkillID:    "water_seal",
 			sealEffectType: model.EffectSealWater,
-			triggerCard:    model.Card{ID: "c_fire_mismatch", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2}, // 用火系牌
-			shouldTrigger:  false,
+			attackCard:    model.Card{ID: "c_fire_mismatch", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2}, // 用火系牌
+			expectSealProc:  false,
 		},
 	}
 
@@ -228,7 +228,7 @@ func TestSealer_FiveSeals(t *testing.T) {
 				ExclusiveSkill1: skillTitle, // 匹配 skillDef.Title (例如 "水之封印")
 			}
 			// 注意：如果是不触发的case，弃牌属性也要跟技能匹配
-			if !tc.shouldTrigger {
+			if !tc.expectSealProc {
 				// 对于不触发的case，比如水封印，需要弃水牌，但受害者用火牌
 				discardCard.Element = model.ElementWater // 强行修正消耗牌属性，确保技能能发出来
 			}
@@ -321,12 +321,12 @@ func TestSealer_FiveSeals(t *testing.T) {
 			game.State.TurnStage = model.TurnStageActionExecution
 
 			// 给 P2 发触发牌
-			p2.Hand = []model.Card{tc.triggerCard}
+			p2.Hand = []model.Card{tc.attackCard}
 			initialHandSize := len(p2.Hand)
 
-			t.Logf("👉 [Step 2] P2 使用卡牌: %s (%s)", tc.triggerCard.Name, tc.triggerCard.Element)
+			t.Logf("👉 [Step 2] P2 使用卡牌: %s (%s)", tc.attackCard.Name, tc.attackCard.Element)
 
-			// P2 发起攻击 (这将触发 TriggerOnCardUsed)
+			// P2 发起攻击 (这将触发 TimingOnCardUsed)
 			actionAtk := model.PlayerAction{
 				PlayerID:  "p2",
 				Type:      model.CmdAttack,
@@ -341,7 +341,7 @@ func TestSealer_FiveSeals(t *testing.T) {
 			// 不触发：Initial(1) - 1(打出) = 0
 
 			// 执行攻击
-			// 注意：HandleAction 内部会触发 TriggerOnCardUsed -> 检测封印 -> 造成伤害
+			// 注意：HandleAction 内部会触发 TimingOnCardUsed -> 检测封印 -> 造成伤害
 			if err := game.HandleAction(actionAtk); err != nil {
 				t.Fatalf("P2 攻击失败: %v", err)
 			}
@@ -364,7 +364,7 @@ func TestSealer_FiveSeals(t *testing.T) {
 			// ========================= 【新增修复代码】 结束 =========================
 
 			// 验证结果
-			if tc.shouldTrigger {
+			if tc.expectSealProc {
 				// 1. 验证伤害摸牌
 				// P2 应该受到 3 点伤害，即摸 3 张牌
 				// 此时 P2 应该处于 CombatInteraction 阶段，但伤害已经结算完了

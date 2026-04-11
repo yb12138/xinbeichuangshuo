@@ -1,3 +1,5 @@
+// gameflow: 兽魂武士 handler。
+
 package skills
 
 import (
@@ -60,16 +62,16 @@ func beastSamuraiResumePhase(ctx *model.Context) interface{} {
 }
 
 func (h *BeastSamuraiWarriorZanshinHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.TriggerCtx == nil {
+	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Trigger != model.TriggerOnPhaseEnd {
+	if ctx.Timing != model.TimingOnActionEnd {
 		return false
 	}
-	if ctx.TriggerCtx.ActionType != model.ActionAttack {
+	if ctx.EventCtx.ActionType != model.ActionAttack {
 		return false
 	}
-	if ctx.TriggerCtx.AttackInfo != nil && ctx.TriggerCtx.AttackInfo.CounterInitiator != "" {
+	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
 	return true
@@ -85,16 +87,16 @@ func (h *BeastSamuraiWarriorZanshinHandler) Execute(ctx *model.Context) error {
 }
 
 func (h *BeastSamuraiOneStrikeNoThoughtHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.TriggerCtx == nil {
+	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Trigger != model.TriggerOnPhaseEnd {
+	if ctx.Timing != model.TimingOnActionEnd {
 		return false
 	}
-	if ctx.TriggerCtx.ActionType != model.ActionAttack {
+	if ctx.EventCtx.ActionType != model.ActionAttack {
 		return false
 	}
-	if ctx.TriggerCtx.AttackInfo != nil && ctx.TriggerCtx.AttackInfo.CounterInitiator != "" {
+	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
 	return getToken(ctx.User, "bs_zanshin") >= beastSamuraiZanshinCap
@@ -123,26 +125,26 @@ func (h *BeastSamuraiBeastSoulWillHandler) CanUse(ctx *model.Context) bool { ret
 func (h *BeastSamuraiBeastSoulWillHandler) Execute(ctx *model.Context) error { return nil }
 
 func (h *BeastSamuraiBeastSoulAlertHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.TriggerCtx == nil {
+	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Trigger != model.TriggerOnOrientationChanged {
+	if ctx.Timing != model.TimingOnOrientationChanged {
 		return false
 	}
-	if ctx.TriggerCtx.OperatorID == "" || ctx.TriggerCtx.OperatorID == ctx.User.ID {
+	if ctx.EventCtx.OperatorID == "" || ctx.EventCtx.OperatorID == ctx.User.ID {
 		return false
 	}
-	if ctx.TriggerCtx.NewOrientation != model.OrientationTapped {
+	if ctx.EventCtx.NewOrientation != model.OrientationTapped {
 		return false
 	}
 	return getToken(ctx.User, "bs_beast_soul") >= 1
 }
 
 func (h *BeastSamuraiBeastSoulAlertHandler) Execute(ctx *model.Context) error {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.TriggerCtx == nil {
+	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.EventCtx == nil {
 		return fmt.Errorf("兽魂警戒上下文无效")
 	}
-	actorID := ctx.TriggerCtx.OperatorID
+	actorID := ctx.EventCtx.OperatorID
 	if actorID == "" {
 		return fmt.Errorf("兽魂警戒缺少触发角色")
 	}
@@ -182,10 +184,10 @@ func (h *BeastSamuraiBeastSoulAlertHandler) Execute(ctx *model.Context) error {
 }
 
 func (h *BeastSamuraiBeastReturnHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.TriggerCtx == nil {
+	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Trigger != model.TriggerOnDamageTaken {
+	if ctx.Timing != model.TimingOnDamageTaken {
 		return false
 	}
 	if !ctx.Flags["IsMagicDamage"] {
@@ -234,13 +236,13 @@ func (h *BeastSamuraiIaijutsuTappedBoostHandler) CanUse(ctx *model.Context) bool
 func (h *BeastSamuraiIaijutsuTappedBoostHandler) Execute(ctx *model.Context) error { return nil }
 
 func (h *BeastSamuraiReversalIaijutsuSlashHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.TriggerCtx == nil {
+	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Trigger != model.TriggerOnAttackHit {
+	if ctx.Timing != model.TimingOnHitCheck {
 		return false
 	}
-	if ctx.TriggerCtx.AttackInfo != nil && ctx.TriggerCtx.AttackInfo.CounterInitiator != "" {
+	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
 	if ctx.User.Form != "beast_samurai_iaijutsu_form" {

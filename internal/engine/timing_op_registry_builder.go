@@ -1,3 +1,5 @@
+// gameflow: 构建各 Timing 的 op→handler 注册表。
+
 package engine
 
 import "fmt"

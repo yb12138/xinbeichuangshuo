@@ -1,3 +1,5 @@
+// gameflow: 蝶舞者：蛹、毒粉、伤害传递等。
+
 package engine
 
 import (
@@ -599,7 +601,7 @@ func (e *GameEngine) handleButterflyChoiceInputByTypeLegacy(playerID string, sel
 			e.Log(fmt.Sprintf("%s 发动 [毒粉]：移除1个茧，本次法术伤害+1（当前伤害=%d）", user.Name, pd.Damage))
 		}
 		if removed.Type == model.CardTypeMagic {
-			e.queueButterflyWitherTrigger(user)
+			e.queueButterflyWitherFollowup(user)
 		}
 		e.PopInterrupt()
 		if e.State.PendingInterrupt == nil {
@@ -670,7 +672,7 @@ func (e *GameEngine) handleButterflyChoiceInputByTypeLegacy(playerID string, sel
 		e.AddPendingDamage(model.PendingDamage{SourceID: user.ID, TargetID: originSourceID, Damage: 1, DamageType: model.MagicAttack})
 		for _, c := range removed {
 			if c.Type == model.CardTypeMagic {
-				e.queueButterflyWitherTrigger(user)
+				e.queueButterflyWitherFollowup(user)
 			}
 		}
 		if target := e.State.Players[originSourceID]; target != nil {
@@ -875,7 +877,7 @@ func (e *GameEngine) handleButterflyReverseBranch2PickSelections(playerID string
 	}
 	for _, c := range removed {
 		if c.Type == model.CardTypeMagic {
-			e.queueButterflyWitherTrigger(user)
+			e.queueButterflyWitherFollowup(user)
 		}
 	}
 	now := addButterflyPupa(user, -1)

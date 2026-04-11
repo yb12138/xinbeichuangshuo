@@ -1,3 +1,5 @@
+// gameflow: collectSkillsForTiming、processSkills、executeSkill。
+
 package engine
 
 import (
@@ -7,12 +9,12 @@ import (
 	"starcup-engine/internal/model"
 )
 
-// collectTriggeredSkills 收集当前时机可触发技能。
+// collectSkillsForTiming 收集当前时机可触发技能。
 // 该阶段只做“能否触发”判断，不做玩家交互。
-// collectTriggeredSkills 收集指定玩家在指定触发时机下可触发的技能
-func (sd *SkillDispatcher) collectTriggeredSkills(player *model.Player,
-	timing model.TriggerTiming, ctx *model.Context, currentRole model.SkillRole) []model.SkillDefinition {
-	var triggeredSkills []model.SkillDefinition
+// collectSkillsForTiming 收集指定玩家在指定触发时机下可触发的技能
+func (sd *SkillDispatcher) collectSkillsForTiming(player *model.Player,
+	timing model.FlowTiming, ctx *model.Context, currentRole model.SkillRole) []model.SkillDefinition {
+	var skillBatch []model.SkillDefinition
 
 	for _, skill := range player.Character.Skills {
 		if ctx != nil && ctx.Timing == model.TimingStartup {
@@ -26,13 +28,7 @@ func (sd *SkillDispatcher) collectTriggeredSkills(player *model.Player,
 		if !skillMatchesTiming(skill, timing) {
 			continue
 		}
-		// 基本筛选条件
-		// if skill.Trigger != trigger {
-		// 	continue
-		// }
-		// 上面的 ExtraTriggers 逻辑已经处理了匹配问题
-		// 如果 isMatch 为 false，已经在上面 continue 了
-		// 这里不需要再次检查 skill.Trigger == trigger，否则会过滤掉 ExtraTriggers 匹配的情况
+		// 基本筛选条件：是否匹配当前窗口由 skill.Timings / skillMatchesTiming 决定。
 
 		// 2. [核心修改] 身份匹配机制
 		// 逻辑：
@@ -81,11 +77,11 @@ func (sd *SkillDispatcher) collectTriggeredSkills(player *model.Player,
 			continue
 		}
 
-		triggeredSkills = append(triggeredSkills, skill)
+		skillBatch = append(skillBatch, skill)
 	}
 
 	if ctx != nil && ctx.Timing == model.TimingStartup {
-		return triggeredSkills
+		return skillBatch
 	}
 
 	for _, fc := range player.Field {
@@ -122,58 +118,39 @@ func (sd *SkillDispatcher) collectTriggeredSkills(player *model.Player,
 				ResponseType: model.ResponseSilent,
 
 				LogicHandler: handlerID,
-				Timings:      []model.TriggerTiming{timing},
+				Timings:      []model.FlowTiming{timing},
 			}
 
 			// 如果 Handler 认为可以用，就加入列表
-			triggeredSkills = append(triggeredSkills, fieldSkill)
+			skillBatch = append(skillBatch, fieldSkill)
 		}
 	}
 
-	return triggeredSkills
+	return skillBatch
 }
 
-func skillMatchesTiming(skill model.SkillDefinition, timing model.TriggerTiming) bool {
+func skillMatchesTiming(skill model.SkillDefinition, timing model.FlowTiming) bool {
 	if timing == model.TimingStartup && skill.Type == model.SkillTypeStartup {
-		// Startup 技能在独立窗口下按技能类型匹配，不再依赖 Trigger 枚举。
+		// Startup 技能在独立窗口下按技能类型匹配，不再依赖 Dispatch 枚举。
 		return true
 	}
-
-	if len(skill.Timings) > 0 {
-		for _, t := range skill.Timings {
-			if t == timing {
-				return true
-			}
-		}
-		return false
-	}
-
-	// 兼容旧配置：迁移完成后删除。
-	if model.LegacyTriggerToTiming(skill.Trigger) == timing {
-		return true
-	}
-	for _, t := range skill.ExtraTriggers {
-		if model.LegacyTriggerToTiming(t) == timing {
-			return true
-		}
-	}
-	return false
+	return skill.HasTiming(timing)
 }
 
 // processSkills 处理收集到的技能，根据ResponseType决定执行方式
-func (sd *SkillDispatcher) processSkills(triggeredSkills []model.SkillDefinition, ctx *model.Context) {
-	sort.SliceStable(triggeredSkills, func(i, j int) bool {
-		return triggeredSkills[i].Priority > triggeredSkills[j].Priority
+func (sd *SkillDispatcher) processSkills(skillBatch []model.SkillDefinition, ctx *model.Context) {
+	sort.SliceStable(skillBatch, func(i, j int) bool {
+		return skillBatch[i].Priority > skillBatch[j].Priority
 	})
 
 	var startupSkillIDs []string
 	var optionalSkillIDs []string
 	// 用于保存可选技能的上下文，假设所有并发触发的技能共享同一个上下文结构
-	// (在星杯中，同一时机的技能通常共享 TriggerCtx)
+	// (在星杯中，同一时机的技能通常共享 EventCtx)
 	var sharedCtx *model.Context
-	for _, skill := range triggeredSkills {
+	for _, skill := range skillBatch {
 		// 灵魂吞噬按文档要求基于“最终实际士气下降”结算，
-		// 因此统一在 applyMoraleLossAfterTrigger 中处理，避免被响应修改前抢先加魂。
+		// 因此统一在 applyMoraleLossAfterTimingWindow 中处理，避免被响应修改前抢先加魂。
 		if ctx != nil && ctx.Timing == model.TimingBeforeMoraleLoss && skill.ID == "ss_soul_devour" {
 			continue
 		}
@@ -217,6 +194,8 @@ func (sd *SkillDispatcher) processSkills(triggeredSkills []model.SkillDefinition
 
 	optionalSkillIDs = sd.dispatchTimingOnHitCheckSkillIDs(optionalSkillIDs, ctx, timingOnHitCheckSkillAugment)
 	optionalSkillIDs = sd.dispatchTimingOnHitCheckSkillIDs(optionalSkillIDs, ctx, timingOnHitCheckSkillNormalize)
+	optionalSkillIDs = dedupeSkillIDs(optionalSkillIDs)
+	startupSkillIDs = dedupeSkillIDs(startupSkillIDs)
 	if len(optionalSkillIDs) > 0 && sharedCtx == nil {
 		sharedCtx = ctx
 	}
@@ -253,10 +232,10 @@ func (sd *SkillDispatcher) uniqueSkillCardMatches(player *model.Player, skill mo
 	if !model.ContainsSkillTag(skill.Tags, model.TagUnique) {
 		return true
 	}
-	if player == nil || player.Character == nil || ctx == nil || ctx.TriggerCtx == nil || ctx.TriggerCtx.Card == nil {
+	if player == nil || player.Character == nil || ctx == nil || ctx.EventCtx == nil || ctx.EventCtx.Card == nil {
 		return false
 	}
-	return ctx.TriggerCtx.Card.MatchExclusive(player.Character.ID, skill.Title)
+	return ctx.EventCtx.Card.MatchExclusive(player.Character.ID, skill.Title)
 }
 
 // executeSkill 执行单个技能
@@ -274,10 +253,10 @@ func (sd *SkillDispatcher) executeSkill(skill model.SkillDefinition, ctx *model.
 
 	// 【修正】如果是独有技，且不是由打出该牌触发的，需要提醒玩家选择手里的独有牌
 	if model.ContainsSkillTag(skill.Tags, model.TagUnique) {
-		isConsumingTrigger := ctx.Trigger == model.TriggerOnAttackStart ||
-			ctx.Trigger == model.TriggerOnCardUsed
+		isAttackOrPlayCardWindow := ctx != nil &&
+			(ctx.Timing == model.TimingOnAttackDeclared || ctx.Timing == model.TimingOnCardPlayedOrRevealed)
 
-		if !isConsumingTrigger {
+		if !isAttackOrPlayCardWindow {
 			// 如果已经在响应确认中断中，且是独有技，我们需要在 Execute 之前确保弃牌
 			// 这里的逻辑较为复杂，因为 dispatcher 是同步执行的。
 			// 暂且维持现状：如果玩家手里有多张合法独有牌，在执行确认时由 ConfirmResponseSkill 处理
@@ -317,4 +296,23 @@ func containsSkillID(skillIDs []string, skillID string) bool {
 		}
 	}
 	return false
+}
+
+func dedupeSkillIDs(skillIDs []string) []string {
+	if len(skillIDs) <= 1 {
+		return skillIDs
+	}
+	out := make([]string, 0, len(skillIDs))
+	seen := make(map[string]struct{}, len(skillIDs))
+	for _, id := range skillIDs {
+		if id == "" {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	return out
 }

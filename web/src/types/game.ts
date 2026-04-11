@@ -57,7 +57,7 @@ export interface FieldCard {
   source_id: string
   mode: 'Effect' | 'Cover'
   effect: string
-  trigger: string
+  field_hook: string
   locked: boolean
   duration: number
 }

@@ -7,7 +7,7 @@ import (
 	"starcup-engine/internal/rules"
 )
 
-func TestAngelBond_OnlyTriggersWhenAngelIsRemovalSource(t *testing.T) {
+func TestAngelBond_OnlyRunsWhenAngelIsRemovalSource(t *testing.T) {
 	game := NewGameEngine(noopObserver{})
 	if err := game.AddPlayer("p1", "Angel", "angel", model.RedCamp); err != nil {
 		t.Fatalf("add p1 failed: %v", err)
@@ -28,14 +28,14 @@ func TestAngelBond_OnlyTriggersWhenAngelIsRemovalSource(t *testing.T) {
 	p2.AddFieldCard(&model.FieldCard{Mode: model.FieldEffect, Effect: model.EffectWeak, SourceID: "p3"})
 	game.RemoveFieldCardBy("p2", model.EffectWeak, "p3")
 	if game.State.PendingInterrupt != nil {
-		t.Fatalf("angel bond should not trigger when remover is not angel, got: %+v", game.State.PendingInterrupt)
+		t.Fatalf("angel bond should not dispatch when remover is not angel, got: %+v", game.State.PendingInterrupt)
 	}
 
 	// 天使本人移除基础效果：应触发天使羁绊选择框。
 	p2.AddFieldCard(&model.FieldCard{Mode: model.FieldEffect, Effect: model.EffectWeak, SourceID: "p3"})
 	game.RemoveFieldCardBy("p2", model.EffectWeak, "p1")
 	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptChoice {
-		t.Fatalf("angel bond should trigger when angel removes basic effect, got: %+v", game.State.PendingInterrupt)
+		t.Fatalf("angel bond should dispatch when angel removes basic effect, got: %+v", game.State.PendingInterrupt)
 	}
 }
 
@@ -69,7 +69,7 @@ func TestBloodRoar_ForcedHitIgnoresShield(t *testing.T) {
 		SourceID: p2.ID,
 		Mode:     model.FieldEffect,
 		Effect:   model.EffectShield,
-		Trigger:  model.EffectTriggerOnDamaged,
+		Hook: model.FieldHookOnDamaged,
 	})
 	p1.Hand = []model.Card{
 		{
@@ -131,7 +131,7 @@ func TestSealBreak_SelectSpecificBasicEffectAndTakeCard(t *testing.T) {
 		SourceID: "p3",
 		Mode:     model.FieldEffect,
 		Effect:   model.EffectShield,
-		Trigger:  model.EffectTriggerOnDamaged,
+		Hook: model.FieldHookOnDamaged,
 	})
 	p2.AddFieldCard(&model.FieldCard{
 		Card: model.Card{
@@ -146,7 +146,7 @@ func TestSealBreak_SelectSpecificBasicEffectAndTakeCard(t *testing.T) {
 		SourceID: "p3",
 		Mode:     model.FieldEffect,
 		Effect:   model.EffectSealFire,
-		Trigger:  model.EffectTriggerOnAttack,
+		Hook: model.FieldHookOnAttack,
 	})
 
 	if err := game.HandleAction(model.PlayerAction{

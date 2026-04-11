@@ -1,3 +1,5 @@
+// gameflow: 从暂停点恢复攻击命中/承伤等 FlowTiming 上下文。
+
 package engine
 
 import (
@@ -79,28 +81,32 @@ func (s *responseResumeState) captureContext(ctx *model.Context) {
 	if ctx == nil {
 		return
 	}
-	switch ctx.Trigger {
-	case model.TriggerBeforeDraw:
+	if s.resumeDrawCtx == nil && ctx.EventCtx != nil && ctx.EventCtx.DrawCount != nil &&
+		(ctx.EventCtx.Type == model.EventBeforeDraw || ctx.EventCtx.Type == model.EventAfterDraw) {
+		s.resumeDrawCtx = ctx
+	}
+	switch {
+	case ctx.BeforeDrawPhase():
 		if s.resumeDrawCtx == nil {
 			s.resumeDrawCtx = ctx
 		}
-	case model.TriggerOnAttackHit:
+	case ctx.ResumeAttackHitPhase():
 		if s.resumeAttackHitCtx == nil {
 			s.resumeAttackHitCtx = ctx
 		}
-	case model.TriggerOnDamageTaken:
+	case ctx.ResumeDamageTakenPhase():
 		if s.resumeDamageTakenCtx == nil {
 			s.resumeDamageTakenCtx = ctx
 		}
-	case model.TriggerOnAttackMiss:
+	case ctx.ResumeAttackMissPhase():
 		if s.resumeAttackMissCtx == nil {
 			s.resumeAttackMissCtx = ctx
 		}
-	case model.TriggerBeforeMoraleLoss:
+	case ctx.ResumeBeforeMoraleLossPhase():
 		if s.resumeMoraleCtx == nil {
 			s.resumeMoraleCtx = ctx
 		}
-	case model.TriggerOnPhaseEnd:
+	case ctx.ResumeActionEndPhase():
 		if s.resumePhaseEndCtx == nil {
 			s.resumePhaseEndCtx = ctx
 		}

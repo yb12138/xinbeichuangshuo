@@ -1,3 +1,5 @@
+// gameflow: 阴阳师：鬼火、式神、黑暗祭礼、阴阳转换、念咒等长流程与选项。
+
 package engine
 
 import (
@@ -714,7 +716,7 @@ func (e *GameEngine) handleOnmyojiChoiceInputByTypeLegacy(selectionIndex int, ct
 	}
 }
 
-func (e *GameEngine) maybeTriggerOnmyojiDarkRitual(player *model.Player) bool {
+func (e *GameEngine) maybeOnmyojiDarkRitual(player *model.Player) bool {
 	if player == nil || !e.isOnmyoji(player) || player.Tokens == nil || player.Tokens["onmyoji_ghost_fire"] < 3 {
 		return false
 	}
@@ -989,7 +991,7 @@ func (e *GameEngine) executeOnmyojiBindingCounter(combatReq *model.CombatRequest
 			}(),
 		},
 	}
-	skillCtx := e.buildContext(e.State.Players[combatReq.AttackerID], e.State.Players[combatReq.TargetID], model.TriggerOnAttackMiss, missCtx)
+	skillCtx := e.buildContext(e.State.Players[combatReq.AttackerID], e.State.Players[combatReq.TargetID], model.TimingOnHitCheck, missCtx)
 	skillCtx.Selections["attack_miss_resume"] = map[string]interface{}{
 		"mode":              "counter",
 		"attacker_id":       combatReq.AttackerID,
@@ -998,7 +1000,7 @@ func (e *GameEngine) executeOnmyojiBindingCounter(combatReq *model.CombatRequest
 		"counter_target_id": counterTargetID,
 		"counter_card":      card,
 	}
-	e.dispatcher.OnTrigger(model.TriggerOnAttackMiss, skillCtx)
+	e.dispatcher.OnTiming(skillCtx.Timing, skillCtx)
 	if e.State.PendingInterrupt != nil {
 		return true
 	}

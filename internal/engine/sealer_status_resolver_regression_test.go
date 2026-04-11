@@ -24,7 +24,7 @@ func TestFiveElementsBind_BuffPhaseChoiceUsesSealCountCapAtTwo(t *testing.T) {
 		SourceID: p1.ID,
 		Mode:     model.FieldEffect,
 		Effect:   model.EffectFiveElementsBind,
-		Trigger:  model.EffectTriggerOnBeforeAction,
+		Hook: model.FieldHookOnBeforeAction,
 	})
 	p1.AddFieldCard(&model.FieldCard{
 		Card:     model.Card{ID: "seal-fire", Name: "火之封印", Type: model.CardTypeMagic, Element: model.ElementFire},
@@ -32,7 +32,7 @@ func TestFiveElementsBind_BuffPhaseChoiceUsesSealCountCapAtTwo(t *testing.T) {
 		SourceID: p1.ID,
 		Mode:     model.FieldEffect,
 		Effect:   model.EffectSealFire,
-		Trigger:  model.EffectTriggerOnCardPlayedOrRevealed,
+		Hook: model.FieldHookOnCardPlayedOrRevealed,
 	})
 	p1.AddFieldCard(&model.FieldCard{
 		Card:     model.Card{ID: "seal-water", Name: "水之封印", Type: model.CardTypeMagic, Element: model.ElementWater},
@@ -40,7 +40,7 @@ func TestFiveElementsBind_BuffPhaseChoiceUsesSealCountCapAtTwo(t *testing.T) {
 		SourceID: p1.ID,
 		Mode:     model.FieldEffect,
 		Effect:   model.EffectSealWater,
-		Trigger:  model.EffectTriggerOnCardPlayedOrRevealed,
+		Hook: model.FieldHookOnCardPlayedOrRevealed,
 	})
 	p2.AddFieldCard(&model.FieldCard{
 		Card:     model.Card{ID: "seal-wind", Name: "风之封印", Type: model.CardTypeMagic, Element: model.ElementWind},
@@ -48,7 +48,7 @@ func TestFiveElementsBind_BuffPhaseChoiceUsesSealCountCapAtTwo(t *testing.T) {
 		SourceID: p1.ID,
 		Mode:     model.FieldEffect,
 		Effect:   model.EffectSealWind,
-		Trigger:  model.EffectTriggerOnCardPlayedOrRevealed,
+		Hook: model.FieldHookOnCardPlayedOrRevealed,
 	})
 
 	game.State.CurrentTurn = 1
@@ -84,7 +84,7 @@ func TestFiveElementsBind_DrawCancelRemovesStatusAndResumesStartup(t *testing.T)
 		SourceID: p1.ID,
 		Mode:     model.FieldEffect,
 		Effect:   model.EffectFiveElementsBind,
-		Trigger:  model.EffectTriggerOnBeforeAction,
+		Hook: model.FieldHookOnBeforeAction,
 	})
 	p1.AddFieldCard(&model.FieldCard{
 		Card:     model.Card{ID: "seal-fire", Name: "火之封印", Type: model.CardTypeMagic, Element: model.ElementFire},
@@ -92,7 +92,7 @@ func TestFiveElementsBind_DrawCancelRemovesStatusAndResumesStartup(t *testing.T)
 		SourceID: p1.ID,
 		Mode:     model.FieldEffect,
 		Effect:   model.EffectSealFire,
-		Trigger:  model.EffectTriggerOnCardPlayedOrRevealed,
+		Hook: model.FieldHookOnCardPlayedOrRevealed,
 	})
 
 	game.State.Deck = rules.InitDeck()
@@ -115,7 +115,7 @@ func TestFiveElementsBind_DrawCancelRemovesStatusAndResumesStartup(t *testing.T)
 	}
 }
 
-func TestElementalSeal_RevealedDiscardTriggersButHiddenDiscardDoesNot(t *testing.T) {
+func TestElementalSeal_RevealedDiscardRunsButHiddenDiscardDoesNot(t *testing.T) {
 	newGame := func() *GameEngine {
 		game := NewGameEngine(noopObserver{})
 		if err := game.AddPlayer("p1", "Target", "berserker", model.RedCamp); err != nil {
@@ -131,7 +131,7 @@ func TestElementalSeal_RevealedDiscardTriggersButHiddenDiscardDoesNot(t *testing
 			SourceID: "p2",
 			Mode:     model.FieldEffect,
 			Effect:   model.EffectSealFire,
-			Trigger:  model.EffectTriggerOnCardPlayedOrRevealed,
+			Hook: model.FieldHookOnCardPlayedOrRevealed,
 		})
 		return game
 	}
@@ -144,7 +144,7 @@ func TestElementalSeal_RevealedDiscardTriggersButHiddenDiscardDoesNot(t *testing
 		Element: model.ElementFire,
 	}}, "discard")
 	if len(game.State.PendingDamageQueue) != 1 {
-		t.Fatalf("revealed discard should trigger elemental seal, got %d pending damages", len(game.State.PendingDamageQueue))
+		t.Fatalf("revealed discard should dispatch elemental seal, got %d pending damages", len(game.State.PendingDamageQueue))
 	}
 
 	game = newGame()
@@ -155,7 +155,7 @@ func TestElementalSeal_RevealedDiscardTriggersButHiddenDiscardDoesNot(t *testing
 		Element: model.ElementFire,
 	}}, "discard")
 	if len(game.State.PendingDamageQueue) != 0 {
-		t.Fatalf("hidden discard should not trigger elemental seal, got %d pending damages", len(game.State.PendingDamageQueue))
+		t.Fatalf("hidden discard should not dispatch elemental seal, got %d pending damages", len(game.State.PendingDamageQueue))
 	}
 }
 
@@ -175,7 +175,7 @@ func TestElementalSeal_UsesBoundElementMetaForMatching(t *testing.T) {
 			SourceID: "p2",
 			Mode:     model.FieldEffect,
 			Effect:   model.EffectSealFire,
-			Trigger:  model.EffectTriggerOnCardPlayedOrRevealed,
+			Hook: model.FieldHookOnCardPlayedOrRevealed,
 			Meta: map[string]string{
 				model.FieldMetaBoundElement: string(model.ElementWater),
 			},
@@ -191,7 +191,7 @@ func TestElementalSeal_UsesBoundElementMetaForMatching(t *testing.T) {
 		Element: model.ElementWater,
 	}}, "discard")
 	if len(game.State.PendingDamageQueue) != 1 {
-		t.Fatalf("bound element meta should allow water reveal to trigger, got %d pending damages", len(game.State.PendingDamageQueue))
+		t.Fatalf("bound element meta should allow water reveal to dispatch, got %d pending damages", len(game.State.PendingDamageQueue))
 	}
 	if game.State.PendingDamageQueue[0].EffectTypeToRemove != model.EffectSealFire {
 		t.Fatalf("expected pending damage to remove original seal effect, got %s", game.State.PendingDamageQueue[0].EffectTypeToRemove)
@@ -236,7 +236,7 @@ func TestSealBreak_CanPickGlobalBasicEffectWithoutPreselectedTarget(t *testing.T
 		SourceID: "p3",
 		Mode:     model.FieldEffect,
 		Effect:   model.EffectShield,
-		Trigger:  model.EffectTriggerOnDamaged,
+		Hook: model.FieldHookOnDamaged,
 	})
 	p3.AddFieldCard(&model.FieldCard{
 		Card:     model.Card{ID: "seal-fire-card", Name: "火之封印", Type: model.CardTypeMagic, Element: model.ElementFire},
@@ -244,7 +244,7 @@ func TestSealBreak_CanPickGlobalBasicEffectWithoutPreselectedTarget(t *testing.T
 		SourceID: "p2",
 		Mode:     model.FieldEffect,
 		Effect:   model.EffectSealFire,
-		Trigger:  model.EffectTriggerOnCardPlayedOrRevealed,
+		Hook: model.FieldHookOnCardPlayedOrRevealed,
 	})
 
 	if err := game.HandleAction(model.PlayerAction{

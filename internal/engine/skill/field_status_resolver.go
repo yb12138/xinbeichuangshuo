@@ -1,3 +1,5 @@
+// gameflow: 解析场上牌/形态是否满足技能 CanUse 条件。
+
 package skills
 
 import (
@@ -66,8 +68,8 @@ func resolveFieldStatusSpec(ctx *model.Context, effect model.EffectType) (*field
 // 五系封印包括：水之封印、火之封印、地之封印、风之封印、雷之封印
 //
 // 触发流程：
-// 1. 目标玩家打出/展示对应元素的牌 → TriggerOnCardUsed / TriggerOnCardRevealed
-// 2. SkillDispatcher 收集触发技能 → collectTriggeredSkills
+// 1. 目标玩家打出/展示对应元素的牌 → TimingOnCardPlayedOrRevealed
+// 2. SkillDispatcher 收集触发技能 → collectSkillsForTiming
 // 3. 检查封印是否匹配 → canResolveElementalSealStatus
 // 4. 执行封印效果 → executeElementalSealStatus
 // 5. 添加PendingDamage（带EffectTypeToRemove标记）
@@ -76,23 +78,23 @@ func resolveFieldStatusSpec(ctx *model.Context, effect model.EffectType) (*field
 
 // canResolveElementalSealStatus 检查五系封印是否可以触发
 // 触发条件：
-//  1. 触发时机是 TriggerOnCardUsed（打出牌）或 TriggerOnCardRevealed（展示牌）
+//  1. 触发时机为 TimingOnCardPlayedOrRevealed（打出或展示牌）
 //  2. 打出/展示的牌的元素与封印绑定的元素一致
 func canResolveElementalSealStatus(ctx *model.Context, fc *model.FieldCard) bool {
 	if ctx == nil || ctx.User == nil || fc == nil {
 		return false
 	}
 	// 只在"打出牌"或"展示牌"时触发
-	if ctx.Trigger != model.TriggerOnCardUsed && ctx.Trigger != model.TriggerOnCardRevealed {
+	if ctx.Timing != model.TimingOnCardPlayedOrRevealed {
 		return false
 	}
-	if ctx.TriggerCtx == nil || ctx.TriggerCtx.Card == nil {
+	if ctx.EventCtx == nil || ctx.EventCtx.Card == nil {
 		return false
 	}
 	// 获取封印绑定的元素（从Meta中读取，或根据EffectType推断）
 	boundElement := model.BoundElementForFieldCard(fc)
 	// 检查打出/展示的牌的元素是否匹配封印元素
-	return boundElement != "" && ctx.TriggerCtx.Card.Element == boundElement
+	return boundElement != "" && ctx.EventCtx.Card.Element == boundElement
 }
 
 // executeElementalSealStatus 执行五系封印效果
@@ -109,7 +111,7 @@ func executeElementalSealStatus(ctx *model.Context, fc *model.FieldCard) error {
 		sourceID = ctx.User.ID
 	}
 	actionWord := "打出"
-	if ctx.Trigger == model.TriggerOnCardRevealed {
+	if ctx.Timing == model.TimingOnCardPlayedOrRevealed {
 		actionWord = "展示"
 	}
 	ctx.Game.Log(fmt.Sprintf(

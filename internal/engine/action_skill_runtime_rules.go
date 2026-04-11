@@ -1,3 +1,5 @@
+// gameflow: 行动阶段使用技能的运行时规则。
+
 package engine
 
 import "starcup-engine/internal/model"

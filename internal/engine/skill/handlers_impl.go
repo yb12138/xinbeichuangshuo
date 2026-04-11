@@ -1,3 +1,5 @@
+// gameflow: 通用/多职业小技能与圣盾、治疗等基础 handler 实现。
+
 package skills
 
 import (
@@ -17,13 +19,13 @@ type HolyShieldHandler struct{}
 
 func (h *HolyShieldHandler) CanUse(ctx *model.Context) bool {
 	// 1. 触发时机必须是受伤时
-	if ctx.Trigger != model.TriggerOnDamageTaken {
+	if ctx.Timing != model.TimingOnDamageTaken {
 		return false
 	}
 
 	// 2. 必须有伤害值上下文，且伤害值 > 0
 	// 如果伤害已经被其他技能减为0了，圣盾就不需要触发了（省一个盾）
-	if ctx.TriggerCtx == nil || ctx.TriggerCtx.DamageVal == nil || *ctx.TriggerCtx.DamageVal <= 0 {
+	if ctx.EventCtx == nil || ctx.EventCtx.DamageVal == nil || *ctx.EventCtx.DamageVal <= 0 {
 		return false
 	}
 
@@ -31,7 +33,7 @@ func (h *HolyShieldHandler) CanUse(ctx *model.Context) bool {
 	// 这里只处理魔弹伤害（法术伤害但卡牌名是"魔弹"）
 	if ctx.Flags["IsMagicDamage"] {
 		// 法术伤害：检查是否是魔弹
-		if ctx.TriggerCtx.Card == nil || strings.TrimSpace(ctx.TriggerCtx.Card.Name) != "魔弹" {
+		if ctx.EventCtx.Card == nil || strings.TrimSpace(ctx.EventCtx.Card.Name) != "魔弹" {
 			return false
 		}
 	} else {
@@ -58,11 +60,11 @@ func (h *HolyShieldHandler) CanUse(ctx *model.Context) bool {
 // Execute 执行抵消逻辑
 func (h *HolyShieldHandler) Execute(ctx *model.Context) error {
 	// 1. 抵消伤害：直接修改指针指向的值
-	originalDamage := *ctx.TriggerCtx.DamageVal
-	*ctx.TriggerCtx.DamageVal = 0
+	originalDamage := *ctx.EventCtx.DamageVal
+	*ctx.EventCtx.DamageVal = 0
 
 	if ctx.Selections != nil {
-		ctx.Selections["holy_shield_triggered"] = true
+		ctx.Selections["holy_shield_applied"] = true
 	}
 	ctx.Game.Log(fmt.Sprintf("[Shield] %s 的【圣盾】自动触发，抵消了 %d 点伤害！", ctx.User.Name, originalDamage))
 	ctx.Game.NotifyActionStep(fmt.Sprintf("%s 的【圣盾】触发，抵消了 %d 点伤害", ctx.User.Name, originalDamage))
@@ -167,21 +169,21 @@ func encodeBasicEffectOptions(options []basicEffectOption) []map[string]interfac
 }
 
 func (h *AngelBondHandler) CanUse(ctx *model.Context) bool {
-	if ctx.TriggerCtx == nil || ctx.User == nil {
+	if ctx.EventCtx == nil || ctx.User == nil {
 		return false
 	}
 
 	// 场景 A: 自己主动移除基础效果
-	if ctx.Trigger == model.TriggerOnBuffRemoved {
-		if ctx.TriggerCtx.SourceID != ctx.User.ID {
+	if ctx.Timing == model.TimingOnFieldMarkChanged {
+		if ctx.EventCtx.SourceID != ctx.User.ID {
 			return false
 		}
-		return model.IsBasicEffect(ctx.TriggerCtx.BuffID)
+		return model.IsBasicEffect(ctx.EventCtx.BuffID)
 	}
 
 	// 场景 B: 自己放置了圣盾效果（包括将独有牌当作圣盾使用的情况）
-	if ctx.Trigger == model.TriggerOnBuffAdded {
-		return ctx.TriggerCtx.SourceID == ctx.User.ID && ctx.TriggerCtx.BuffID == string(model.EffectShield)
+	if ctx.Timing == model.TimingOnFieldMarkChanged {
+		return ctx.EventCtx.SourceID == ctx.User.ID && ctx.EventCtx.BuffID == string(model.EffectShield)
 	}
 	return false
 }
@@ -421,7 +423,7 @@ func (h *BaseHandler) removeBasicEffectLogic(ctx *model.Context) error {
 	}
 
 	// 3. 执行移除
-	// removeFieldCard 内部应该会触发 TriggerOnBuffRemoved，从而连锁触发 天使羁绊
+	// removeFieldCard 内部应进入 TimingOnFieldMarkChanged，从而连锁触发天使羁绊
 	ctx.Game.RemoveFieldCardBy(ctx.Target.ID, targetBuff, ctx.User.ID)
 	return nil
 }
@@ -438,18 +440,18 @@ func (h *GodProtectionHandler) CanUse(ctx *model.Context) bool {
 		return false
 	}
 	// 3. 士气损失必须大于0
-	if ctx.TriggerCtx.DamageVal == nil || *ctx.TriggerCtx.DamageVal <= 0 {
+	if ctx.EventCtx.DamageVal == nil || *ctx.EventCtx.DamageVal <= 0 {
 		return false
 	}
 	return true
 }
 
 func (h *GodProtectionHandler) Execute(ctx *model.Context) error {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.TriggerCtx == nil || ctx.TriggerCtx.DamageVal == nil {
+	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.EventCtx == nil || ctx.EventCtx.DamageVal == nil {
 		return nil
 	}
 	angel := ctx.User
-	loss := *ctx.TriggerCtx.DamageVal
+	loss := *ctx.EventCtx.DamageVal
 	usable := ctx.Game.GetUsableCrystal(angel.ID)
 	maxX := loss
 	if maxX > usable {
@@ -492,22 +494,22 @@ func (h *AngelWallHandler) Execute(ctx *model.Context) error {
 type BerserkerFrenzyHandler struct{ BaseHandler }
 
 func (h *BerserkerFrenzyHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.TriggerCtx == nil || ctx.TriggerCtx.DamageVal == nil {
+	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil || ctx.EventCtx.DamageVal == nil {
 		return false
 	}
-	info := ctx.TriggerCtx.AttackInfo
+	info := ctx.EventCtx.AttackInfo
 	if info == nil || info.ActionType != "Attack" {
 		return false
 	}
-	return ctx.Trigger == model.TriggerModifyDamage || ctx.Trigger == model.TriggerOnAttackHit
+	return ctx.Timing == model.TimingOnDamageCalculated || ctx.Timing == model.TimingOnHitCheck
 }
 
 func (h *BerserkerFrenzyHandler) Execute(ctx *model.Context) error {
 	bonus := 0
-	switch ctx.Trigger {
-	case model.TriggerModifyDamage:
+	switch ctx.Timing {
+	case model.TimingOnDamageCalculated:
 		bonus = 1
-	case model.TriggerOnAttackHit:
+	case model.TimingOnHitCheck:
 		if len(ctx.User.Hand) > 3 {
 			bonus = 1
 		}
@@ -517,8 +519,8 @@ func (h *BerserkerFrenzyHandler) Execute(ctx *model.Context) error {
 	if bonus <= 0 {
 		return nil
 	}
-	*ctx.TriggerCtx.DamageVal += bonus
-	if ctx.Trigger == model.TriggerModifyDamage {
+	*ctx.EventCtx.DamageVal += bonus
+	if ctx.Timing == model.TimingOnDamageCalculated {
 		ctx.Game.NotifyActionStep(fmt.Sprintf("%s 的被动技【狂化】生效：本次攻击伤害+1", model.GetPlayerDisplayName(ctx.User)))
 		ctx.Game.Log(fmt.Sprintf("[Passive] %s 的【狂化】基础效果生效：伤害 +1", ctx.User.Name))
 	} else {
@@ -531,25 +533,25 @@ func (h *BerserkerFrenzyHandler) Execute(ctx *model.Context) error {
 type BerserkerTearHandler struct{ BaseHandler }
 
 func (h *BerserkerTearHandler) CanUse(ctx *model.Context) bool {
-	if ctx.TriggerCtx == nil || ctx.TriggerCtx.AttackInfo == nil {
+	if ctx.EventCtx == nil || ctx.EventCtx.AttackInfo == nil {
 		return false
 	}
 	// 2. [新增] 资源检查：必须至少有 1 颗宝石
 	if ctx.User.Gem < 1 {
 		return false
 	}
-	info := ctx.TriggerCtx.AttackInfo
+	info := ctx.EventCtx.AttackInfo
 	return info.ActionType == "Attack"
 }
 
 func (h *BerserkerTearHandler) Execute(ctx *model.Context) error {
 	// 撕裂：攻击命中时发动，覆盖主动攻击与应战攻击。
-	if ctx.TriggerCtx != nil && ctx.TriggerCtx.AttackInfo != nil {
-		info := ctx.TriggerCtx.AttackInfo
+	if ctx.EventCtx != nil && ctx.EventCtx.AttackInfo != nil {
+		info := ctx.EventCtx.AttackInfo
 		if info.ActionType == "Attack" {
-			if ctx.TriggerCtx.DamageVal != nil {
+			if ctx.EventCtx.DamageVal != nil {
 				ctx.User.Gem -= 1
-				*ctx.TriggerCtx.DamageVal += 2
+				*ctx.EventCtx.DamageVal += 2
 				ctx.Game.NotifyActionStep(fmt.Sprintf("%s花费宝石发动撕裂，此次伤害再额外+2点", model.GetPlayerDisplayName(ctx.User)))
 				ctx.Game.Log(fmt.Sprintf("%s 发动 [撕裂]，伤害 +2", ctx.User.Name))
 			}
@@ -562,8 +564,8 @@ type BloodRoarHandler struct{ BaseHandler }
 
 func (h *BloodRoarHandler) Execute(ctx *model.Context) error {
 	// 血腥咆哮：作为主动攻击打出时发动，若攻击的目标拥有的［治疗］为2，则本次攻击强制命中
-	if ctx.TriggerCtx != nil && ctx.TriggerCtx.AttackInfo != nil {
-		info := ctx.TriggerCtx.AttackInfo
+	if ctx.EventCtx != nil && ctx.EventCtx.AttackInfo != nil {
+		info := ctx.EventCtx.AttackInfo
 		// 规则：必须作为主动攻击打出 (非应战反弹)
 		if info.ActionType == "Attack" && info.CounterInitiator == "" {
 			target := ctx.Target
@@ -580,17 +582,17 @@ func (h *BloodRoarHandler) Execute(ctx *model.Context) error {
 type BloodBladeHandler struct{ BaseHandler }
 
 func (h *BloodBladeHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.Target == nil || ctx.Trigger != model.TriggerOnAttackHit || ctx.TriggerCtx == nil || ctx.TriggerCtx.DamageVal == nil {
+	if ctx == nil || ctx.User == nil || ctx.Target == nil || ctx.Timing != model.TimingOnHitCheck || ctx.EventCtx == nil || ctx.EventCtx.DamageVal == nil {
 		return false
 	}
-	info := ctx.TriggerCtx.AttackInfo
-	if info == nil || info.ActionType != "Attack" || info.CounterInitiator != "" || ctx.TriggerCtx.Card == nil {
+	info := ctx.EventCtx.AttackInfo
+	if info == nil || info.ActionType != "Attack" || info.CounterInitiator != "" || ctx.EventCtx.Card == nil {
 		return false
 	}
 	if ctx.User.Character == nil {
 		return false
 	}
-	if !ctx.TriggerCtx.Card.MatchExclusive(ctx.User.Character.ID, "血影狂刀") {
+	if !ctx.EventCtx.Card.MatchExclusive(ctx.User.Character.ID, "血影狂刀") {
 		return false
 	}
 	handCount := len(ctx.Target.Hand)
@@ -599,7 +601,7 @@ func (h *BloodBladeHandler) CanUse(ctx *model.Context) bool {
 
 func (h *BloodBladeHandler) Execute(ctx *model.Context) error {
 	// 血影狂刀：作为主动攻击打出时发动，根据对手手牌数额外伤害
-	if ctx.TriggerCtx != nil && ctx.TriggerCtx.DamageVal != nil {
+	if ctx.EventCtx != nil && ctx.EventCtx.DamageVal != nil {
 		target := ctx.Target
 		if target != nil {
 			extraDamage := 0
@@ -612,7 +614,7 @@ func (h *BloodBladeHandler) Execute(ctx *model.Context) error {
 			}
 
 			if extraDamage > 0 {
-				*ctx.TriggerCtx.DamageVal += extraDamage
+				*ctx.EventCtx.DamageVal += extraDamage
 				ctx.Game.Log(fmt.Sprintf("%s 发动 [血影狂刀]！对手手牌%d张，伤害 +%d", ctx.User.Name, handCount, extraDamage))
 			}
 		}
@@ -624,11 +626,11 @@ func (h *BloodBladeHandler) Execute(ctx *model.Context) error {
 type MagicSurgeHandler struct{ BaseHandler }
 
 func (h *MagicSurgeHandler) CanUse(ctx *model.Context) bool {
-	if ctx.TriggerCtx == nil {
+	if ctx.EventCtx == nil {
 		return false
 	}
 	// 【修正】只要是法术行动（含法术牌和主动技能），都满足条件
-	return ctx.TriggerCtx.ActionType == model.ActionMagic
+	return ctx.EventCtx.ActionType == model.ActionMagic
 }
 
 func (h *MagicSurgeHandler) Execute(ctx *model.Context) error {
@@ -732,7 +734,7 @@ func (h *SealBreakHandler) Execute(ctx *model.Context) error {
 type FiveElementsBindHandler struct{ BaseHandler }
 
 func (h *FiveElementsBindHandler) CanUse(ctx *model.Context) bool {
-	return ctx != nil && ctx.Trigger == model.TriggerNone && ctx.User != nil && ctx.Target != nil
+	return ctx != nil && ctx.Timing == model.TimingActive && ctx.User != nil && ctx.Target != nil
 }
 
 func (h *FiveElementsBindHandler) Execute(ctx *model.Context) error {
@@ -755,8 +757,8 @@ func (h *FiveElementsBindHandler) Execute(ctx *model.Context) error {
 //
 // 阶段 2：触发封印（由SkillDispatcher处理）
 //   - 目标玩家打出/展示对应元素牌
-//   - 触发 TriggerOnCardUsed / TriggerOnCardRevealed
-//   - collectTriggeredSkills 遍历Field，找到匹配的封印
+//   - 触发 TimingOnCardPlayedOrRevealed
+//   - collectSkillsForTiming 遍历Field，找到匹配的封印
 //   - SealLogic.CanUse → canResolveElementalSealStatus
 //
 // 阶段 3：结算伤害（由processPendingDamages处理）
@@ -777,7 +779,7 @@ func (s *SealLogic) CanUse(ctx *model.Context) bool {
 }
 
 func (s *SealLogic) Execute(ctx *model.Context) error {
-	if ctx != nil && ctx.Trigger == model.TriggerNone {
+	if ctx != nil && ctx.Timing == model.TimingActive {
 		return nil
 	}
 	return executeFieldStatus(ctx, s.EffectType)
@@ -825,22 +827,22 @@ type WindFuryHandler struct{ BaseHandler }
 
 func (h *WindFuryHandler) CanUse(ctx *model.Context) bool {
 	// 1. 基础检查
-	if ctx.TriggerCtx == nil {
+	if ctx.EventCtx == nil {
 		return false
 	}
 
 	// 2. 检查触发时机
-	if ctx.Trigger != model.TriggerOnPhaseEnd {
+	if ctx.Timing != model.TimingOnActionEnd {
 		return false
 	}
 
 	// 3. 【关键】检查刚才结束的行动是不是攻击
 	// 这就是我们在 Drive 里填入的 ActionType
-	if ctx.TriggerCtx.ActionType != model.ActionAttack {
+	if ctx.EventCtx.ActionType != model.ActionAttack {
 		return false
 	}
 	// “攻击行动”仅指主动攻击；应战攻击结束不触发该技能。
-	if ctx.TriggerCtx.AttackInfo != nil && ctx.TriggerCtx.AttackInfo.CounterInitiator != "" {
+	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
 
@@ -864,10 +866,10 @@ type HolySwordHandler struct{ BaseHandler }
 
 func (h *HolySwordHandler) CanUse(ctx *model.Context) bool {
 	// 圣剑：仅在第3次主动攻击宣告时生效。
-	if ctx == nil || ctx.User == nil || ctx.Trigger != model.TriggerOnAttackStart || ctx.TriggerCtx == nil || ctx.TriggerCtx.AttackInfo == nil {
+	if ctx == nil || ctx.User == nil || ctx.Timing != model.TimingOnAttackDeclared || ctx.EventCtx == nil || ctx.EventCtx.AttackInfo == nil {
 		return false
 	}
-	if ctx.TriggerCtx.AttackInfo.ActionType != string(model.ActionAttack) || ctx.TriggerCtx.AttackInfo.CounterInitiator != "" {
+	if ctx.EventCtx.AttackInfo.ActionType != string(model.ActionAttack) || ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
 	return ctx.User.TurnState.AttackCount+1 == 3
@@ -876,8 +878,8 @@ func (h *HolySwordHandler) CanUse(ctx *model.Context) bool {
 func (h *HolySwordHandler) Execute(ctx *model.Context) error {
 	// 圣剑：强制命中对方无法抵挡
 	ctx.Game.Log(fmt.Sprintf("%s 的 [圣剑] 发动，本回合第3次攻击强制命中，对方无法抵挡", ctx.User.Name))
-	if ctx.TriggerCtx != nil && ctx.TriggerCtx.AttackInfo != nil {
-		ctx.TriggerCtx.AttackInfo.SetInterceptTag(model.CombatInterceptForceHit)
+	if ctx.EventCtx != nil && ctx.EventCtx.AttackInfo != nil {
+		ctx.EventCtx.AttackInfo.SetInterceptTag(model.CombatInterceptForceHit)
 	}
 	return nil
 }
@@ -886,23 +888,23 @@ type SwordShadowHandler struct{ BaseHandler }
 
 func (h *SwordShadowHandler) CanUse(ctx *model.Context) bool {
 	// 1. 基础防御性检查
-	if ctx.TriggerCtx == nil {
+	if ctx.EventCtx == nil {
 		return false
 	}
 
 	// 2. 核心校验：刚才结束的行动必须是“攻击行动”
 	// 注意：我们在 Engine 的 PerformMagic 和 PerformAttack 结束时
 	// 都在 EventContext 里传入了 ActionType
-	if ctx.TriggerCtx.ActionType != model.ActionAttack {
+	if ctx.EventCtx.ActionType != model.ActionAttack {
 		return false
 	}
 	// “攻击行动”仅指主动攻击；应战攻击结束不触发该技能。
-	if ctx.TriggerCtx.AttackInfo != nil && ctx.TriggerCtx.AttackInfo.CounterInitiator != "" {
+	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
 
 	// 3. 确认是 PhaseEnd 触发
-	if ctx.Trigger != model.TriggerOnPhaseEnd {
+	if ctx.Timing != model.TimingOnActionEnd {
 		return false
 	}
 
@@ -946,10 +948,10 @@ type GaleSlashHandler struct{ BaseHandler }
 
 func (h *GaleSlashHandler) CanUse(ctx *model.Context) bool {
 	// 列风技：目标拥有圣盾时发动
-	if ctx == nil || ctx.Trigger != model.TriggerOnAttackStart || ctx.Target == nil || ctx.TriggerCtx == nil || ctx.TriggerCtx.AttackInfo == nil {
+	if ctx == nil || ctx.Timing != model.TimingOnAttackDeclared || ctx.Target == nil || ctx.EventCtx == nil || ctx.EventCtx.AttackInfo == nil {
 		return false
 	}
-	if ctx.TriggerCtx.AttackInfo.ActionType != string(model.ActionAttack) || ctx.TriggerCtx.AttackInfo.CounterInitiator != "" {
+	if ctx.EventCtx.AttackInfo.ActionType != string(model.ActionAttack) || ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
 	hasShield := false
@@ -965,9 +967,9 @@ func (h *GaleSlashHandler) CanUse(ctx *model.Context) bool {
 func (h *GaleSlashHandler) Execute(ctx *model.Context) error {
 	// 列风技：无视圣盾效果，被攻击目标无法应战
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [列风技]，目标拥有圣盾，无视圣盾效果且目标无法应战", ctx.User.Name))
-	if ctx.TriggerCtx != nil && ctx.TriggerCtx.AttackInfo != nil {
-		ctx.TriggerCtx.AttackInfo.SetInterceptTag(model.CombatInterceptUnrespondable)
-		ctx.TriggerCtx.AttackInfo.SetInterceptTag(model.CombatInterceptIgnoreHolyShield)
+	if ctx.EventCtx != nil && ctx.EventCtx.AttackInfo != nil {
+		ctx.EventCtx.AttackInfo.SetInterceptTag(model.CombatInterceptUnrespondable)
+		ctx.EventCtx.AttackInfo.SetInterceptTag(model.CombatInterceptIgnoreHolyShield)
 	}
 	return nil
 }
@@ -977,10 +979,10 @@ func (h *GaleSlashHandler) Execute(ctx *model.Context) error {
 
 func (h *PiercingShotHandler) CanUse(ctx *model.Context) bool {
 	// 仅主动攻击未命中可触发；应战攻击未命中不触发。
-	if ctx.TriggerCtx == nil || ctx.TriggerCtx.AttackInfo == nil {
+	if ctx.EventCtx == nil || ctx.EventCtx.AttackInfo == nil {
 		return false
 	}
-	if ctx.TriggerCtx.AttackInfo.CounterInitiator != "" {
+	if ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
 	// 必须有法术牌才能发动
@@ -1030,17 +1032,17 @@ type LightningArrowHandler struct{ BaseHandler }
 
 func (h *LightningArrowHandler) CanUse(ctx *model.Context) bool {
 	// 闪电箭：仅在雷系攻击时可用
-	if ctx.TriggerCtx != nil && ctx.TriggerCtx.Card != nil {
-		return ctx.TriggerCtx.Card.Element == model.ElementThunder
+	if ctx.EventCtx != nil && ctx.EventCtx.Card != nil {
+		return ctx.EventCtx.Card.Element == model.ElementThunder
 	}
 	return false
 }
 
 func (h *LightningArrowHandler) Execute(ctx *model.Context) error {
 	// 闪电箭：你的雷系攻击对手无法应战
-	if ctx.TriggerCtx != nil && ctx.TriggerCtx.AttackInfo != nil {
+	if ctx.EventCtx != nil && ctx.EventCtx.AttackInfo != nil {
 		// 设置无法应战标志 (CanUse 已验证 ElementThunder)
-		ctx.TriggerCtx.AttackInfo.CanBeResponded = false
+		ctx.EventCtx.AttackInfo.CanBeResponded = false
 		ctx.Game.Log(fmt.Sprintf("%s 发动 [闪电箭]，雷系攻击不可被应战", ctx.User.Name))
 	}
 	return nil
@@ -1073,30 +1075,30 @@ func (h *SnipeHandler) Execute(ctx *model.Context) error {
 type PreciseShotHandler struct{ BaseHandler }
 
 func (h *PreciseShotHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.User.Character == nil || ctx.TriggerCtx == nil || ctx.TriggerCtx.AttackInfo == nil || ctx.TriggerCtx.Card == nil {
+	if ctx == nil || ctx.User == nil || ctx.User.Character == nil || ctx.EventCtx == nil || ctx.EventCtx.AttackInfo == nil || ctx.EventCtx.Card == nil {
 		return false
 	}
-	info := ctx.TriggerCtx.AttackInfo
+	info := ctx.EventCtx.AttackInfo
 	if info.ActionType != string(model.ActionAttack) || info.CounterInitiator != "" {
 		return false
 	}
-	return ctx.TriggerCtx.Card.MatchExclusive(ctx.User.Character.ID, "精准射击")
+	return ctx.EventCtx.Card.MatchExclusive(ctx.User.Character.ID, "精准射击")
 }
 
 func (h *PreciseShotHandler) Execute(ctx *model.Context) error {
 	// 精准射击：攻击宣告时强制命中，伤害结算时 -1。
-	if ctx == nil || ctx.TriggerCtx == nil {
+	if ctx == nil || ctx.EventCtx == nil {
 		return nil
 	}
-	switch ctx.Trigger {
-	case model.TriggerOnAttackStart:
+	switch ctx.Timing {
+	case model.TimingOnAttackDeclared:
 		ctx.Game.Log(fmt.Sprintf("%s 发动 [精准射击]，攻击强制命中但伤害-1", ctx.User.Name))
-		if ctx.TriggerCtx.AttackInfo != nil {
-			ctx.TriggerCtx.AttackInfo.IsHitForced = true
+		if ctx.EventCtx.AttackInfo != nil {
+			ctx.EventCtx.AttackInfo.IsHitForced = true
 		}
-	case model.TriggerModifyDamage:
-		if ctx.TriggerCtx.DamageVal != nil {
-			*ctx.TriggerCtx.DamageVal -= 1
+	case model.TimingOnDamageCalculated:
+		if ctx.EventCtx.DamageVal != nil {
+			*ctx.EventCtx.DamageVal -= 1
 		}
 	default:
 		return nil
@@ -1126,16 +1128,16 @@ type BacklashHandler struct{ BaseHandler }
 
 func (h *BacklashHandler) CanUse(ctx *model.Context) bool {
 	// 仅在“承受攻击伤害”时触发：法术/中毒等非攻击伤害不触发。
-	if ctx == nil || ctx.Trigger != model.TriggerOnDamageTaken || ctx.TriggerCtx == nil {
+	if ctx == nil || ctx.Timing != model.TimingOnDamageTaken || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.TriggerCtx.DamageVal == nil || *ctx.TriggerCtx.DamageVal <= 0 {
+	if ctx.EventCtx.DamageVal == nil || *ctx.EventCtx.DamageVal <= 0 {
 		return false
 	}
 	if ctx.Flags["IsMagicDamage"] {
 		return false
 	}
-	if ctx.TriggerCtx.SourceID == "" || ctx.User == nil || ctx.TriggerCtx.SourceID == ctx.User.ID {
+	if ctx.EventCtx.SourceID == "" || ctx.User == nil || ctx.EventCtx.SourceID == ctx.User.ID {
 		return false
 	}
 	return true
@@ -1143,7 +1145,7 @@ func (h *BacklashHandler) CanUse(ctx *model.Context) bool {
 
 func (h *BacklashHandler) Execute(ctx *model.Context) error {
 	// 反噬：强制让攻击者摸1张牌（非伤害，不可被治疗等抵挡）。
-	attackerID := ctx.TriggerCtx.SourceID
+	attackerID := ctx.EventCtx.SourceID
 	attackerName := attackerID
 	for _, p := range ctx.Game.GetAllPlayers() {
 		if p.ID == attackerID {
@@ -1160,31 +1162,31 @@ func (h *BacklashHandler) Execute(ctx *model.Context) error {
 type WaterShadowHandler struct{ BaseHandler }
 
 func (h *WaterShadowHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.TriggerCtx == nil {
+	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Trigger != model.TriggerBeforeDraw {
+	if !ctx.BeforeDrawPhase() {
 		return false
 	}
-	if ctx.TriggerCtx.TargetID != "" && ctx.TriggerCtx.TargetID != ctx.User.ID {
+	if ctx.EventCtx.TargetID != "" && ctx.EventCtx.TargetID != ctx.User.ID {
 		return false
 	}
-	if ctx.TriggerCtx.DrawCount == nil || *ctx.TriggerCtx.DrawCount <= 0 {
+	if ctx.EventCtx.DrawCount == nil || *ctx.EventCtx.DrawCount <= 0 {
 		return false
 	}
-	if ctx.TriggerCtx.ActionType == model.ActionBuy ||
-		ctx.TriggerCtx.ActionType == model.ActionSynthesize ||
-		ctx.TriggerCtx.ActionType == model.ActionExtract {
+	if ctx.EventCtx.ActionType == model.ActionBuy ||
+		ctx.EventCtx.ActionType == model.ActionSynthesize ||
+		ctx.EventCtx.ActionType == model.ActionExtract {
 		return false
 	}
 	return ctx.User.HasElement(model.ElementWater)
 }
 
 func (h *WaterShadowHandler) Execute(ctx *model.Context) error {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.TriggerCtx == nil {
+	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.EventCtx == nil {
 		return fmt.Errorf("水影上下文无效")
 	}
-	if ctx.Trigger != model.TriggerBeforeDraw {
+	if !ctx.BeforeDrawPhase() {
 		return fmt.Errorf("水影只能在摸牌前发动")
 	}
 
@@ -1257,7 +1259,7 @@ func (h *WaterShadowHandler) Execute(ctx *model.Context) error {
 	// 将弃牌信息存储在Selections中，供外部处理
 	ctx.Selections["discardedCards"] = discardedCards
 	ctx.Flags["cancelDraw"] = true
-	*ctx.TriggerCtx.DrawCount = 0
+	*ctx.EventCtx.DrawCount = 0
 
 	// 记录日志
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [水影]，展示并弃置了 %d 张水系牌，本次摸牌改为弃牌", player.Name, waterCards))
@@ -1274,7 +1276,7 @@ func (h *StealthHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil {
 		return false
 	}
-	if ctx.Trigger != model.TriggerOnTurnStart {
+	if ctx.Timing != model.TimingOnTurnStart && ctx.Timing != model.TimingStartup {
 		return false
 	}
 	if ctx.User.Gem < 1 {
@@ -1315,13 +1317,13 @@ type FrostPrayerHandler struct{ BaseHandler }
 
 func (h *FrostPrayerHandler) CanUse(ctx *model.Context) bool {
 	// 触发时机：使用卡牌 或 展示卡牌
-	if ctx.Trigger != model.TriggerOnCardUsed && ctx.Trigger != model.TriggerOnCardRevealed {
+	if ctx.Timing != model.TimingOnCardPlayedOrRevealed {
 		return false
 	}
-	if ctx.TriggerCtx == nil || ctx.TriggerCtx.Card == nil {
+	if ctx.EventCtx == nil || ctx.EventCtx.Card == nil {
 		return false
 	}
-	card := ctx.TriggerCtx.Card
+	card := ctx.EventCtx.Card
 	// 条件：水系牌 或 圣光
 	return card.Element == model.ElementWater || card.Name == "圣光"
 }
@@ -1449,7 +1451,7 @@ func (h *MercyHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil {
 		return false
 	}
-	if ctx.Trigger != model.TriggerOnTurnStart {
+	if ctx.Timing != model.TimingOnTurnStart && ctx.Timing != model.TimingStartup {
 		return false
 	}
 	if ctx.User.Gem < 1 {

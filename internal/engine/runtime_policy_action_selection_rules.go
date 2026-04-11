@@ -1,3 +1,5 @@
+// gameflow: 行动选择阶段可选项过滤规则。
+
 package engine
 
 import (

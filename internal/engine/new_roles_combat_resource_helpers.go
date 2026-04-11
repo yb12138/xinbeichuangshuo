@@ -1,3 +1,5 @@
+// gameflow: 新角色战斗资源（闇月、剑魂等）读写。
+
 package engine
 
 import (
@@ -323,7 +325,7 @@ func addMoonGoddessDarkMoonCards(player *model.Player, cards []model.Card) int {
 			SourceID: player.ID,
 			Mode:     model.FieldCover,
 			Effect:   model.EffectMoonDarkMoon,
-			Trigger:  model.EffectTriggerManual,
+			Hook: model.FieldHookManual,
 		})
 		added++
 	}

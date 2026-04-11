@@ -180,6 +180,6 @@ func TestPlagueToxicNova_ConsumesExactlyOneGem(t *testing.T) {
 		t.Fatalf("expected toxic nova to consume exactly 1 gem, got %d", p1.Gem)
 	}
 	if p1.Heal != 2 {
-		t.Fatalf("expected toxic nova to grant +1治疗 and trigger immortal once, got %d", p1.Heal)
+		t.Fatalf("expected toxic nova to grant +1治疗 and dispatch immortal once, got %d", p1.Heal)
 	}
 }

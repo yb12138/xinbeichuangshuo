@@ -1,3 +1,5 @@
+// gameflow: 新角色：计数器/牌面互动（如欺诈、暗灭应战可见性）。
+
 package engine
 
 import (
@@ -155,7 +157,7 @@ func markElfBlessings(player *model.Player, cards []model.Card) {
 			SourceID: player.ID,
 			Mode:     model.FieldCover,
 			Effect:   model.EffectElfBlessing,
-			Trigger:  model.EffectTriggerManual,
+			Hook: model.FieldHookManual,
 		})
 		exists[c.ID] = true
 	}
@@ -456,7 +458,7 @@ func (e *GameEngine) queueElfAnimalResponse(source, target *model.Player, pd *mo
 	}
 
 	damageVal := pd.Damage
-	ctx := e.buildContext(source, target, model.TriggerOnDamageTaken, &model.EventContext{
+	ctx := e.buildContext(source, target, model.TimingOnDamageTaken, &model.EventContext{
 		Type:      model.EventDamage,
 		SourceID:  pd.SourceID,
 		TargetID:  pd.TargetID,

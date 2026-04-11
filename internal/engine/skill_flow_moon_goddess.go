@@ -1,3 +1,5 @@
+// gameflow: 月女神：美杜莎之眸、月之轮回、月渎、闇月斩、苍白之月、新月庇护等 Flow 与选项。
+
 package engine
 
 import (
@@ -271,7 +273,7 @@ func (e *GameEngine) buildMoonGoddessChoicePrompt(choiceType, playerID string, p
 }
 
 func (e *GameEngine) moonGoddessFindPendingAttackDamage(rawCtx *model.Context) *model.PendingDamage {
-	if rawCtx == nil || rawCtx.TriggerCtx == nil {
+	if rawCtx == nil || rawCtx.EventCtx == nil {
 		return nil
 	}
 	for i := range e.State.PendingDamageQueue {
@@ -279,7 +281,7 @@ func (e *GameEngine) moonGoddessFindPendingAttackDamage(rawCtx *model.Context) *
 		if !strings.EqualFold(string(pd.DamageType), string(model.AttackDamage)) {
 			continue
 		}
-		if pd.SourceID != rawCtx.TriggerCtx.SourceID || pd.TargetID != rawCtx.TriggerCtx.TargetID {
+		if pd.SourceID != rawCtx.EventCtx.SourceID || pd.TargetID != rawCtx.EventCtx.TargetID {
 			continue
 		}
 		return pd
@@ -293,13 +295,13 @@ func (e *GameEngine) finishMoonGoddessMedusa(rawCtx *model.Context) {
 		return
 	}
 	defaultReturn := interface{}(nil)
-	if rawCtx != nil && rawCtx.Trigger == model.TriggerOnAttackStart {
+	if rawCtx != nil && rawCtx.AttackDeclaredPhase() {
 		defaultReturn = model.TurnStageActionExecution
 	}
 	if e.routePendingDamageWithDefaultReturn(defaultReturn) {
 		return
 	}
-	if rawCtx != nil && rawCtx.Trigger == model.TriggerOnAttackStart {
+	if rawCtx != nil && rawCtx.AttackDeclaredPhase() {
 		if len(e.State.ActionQueue) > 0 {
 			e.enterActionExecutionStage()
 		} else {
@@ -678,7 +680,7 @@ func (e *GameEngine) handleMoonGoddessChoiceInputByTypeLegacy(_ string, selectio
 		e.Log(fmt.Sprintf("%s 的 [闇月斩] 生效：移除%d个闇月，本次攻击伤害额外+%d", user.Name, x, x))
 		e.PopInterrupt()
 		if e.State.PendingInterrupt == nil {
-			if rawCtx != nil && rawCtx.Trigger == model.TriggerOnAttackHit {
+			if rawCtx != nil && rawCtx.ResumeAttackHitPhase() {
 				e.markPendingAttackDamageHitProcessed(rawCtx)
 			}
 			e.enterDamageResolution(nil)

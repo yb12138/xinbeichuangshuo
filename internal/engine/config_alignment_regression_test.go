@@ -24,7 +24,7 @@ func TestPendingDamage_PoisonDoesNotConsumeHolyShield(t *testing.T) {
 		SourceID: p1.ID,
 		Mode:     model.FieldEffect,
 		Effect:   model.EffectShield,
-		Trigger:  model.EffectTriggerOnDamaged,
+		Hook: model.FieldHookOnDamaged,
 	}}
 	game.State.PendingDamageQueue = []model.PendingDamage{{
 		SourceID:   "p2",
@@ -64,8 +64,8 @@ func TestAngelCleanse_CanPickSpecificBasicEffect(t *testing.T) {
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
 	p1.Hand = []model.Card{{ID: "wind-1", Name: "风牌", Type: model.CardTypeMagic, Element: model.ElementWind}}
-	p2.AddFieldCard(&model.FieldCard{Card: model.Card{ID: "weak", Name: "虚弱"}, OwnerID: p2.ID, SourceID: "p3", Mode: model.FieldEffect, Effect: model.EffectWeak, Trigger: model.EffectTriggerOnBeforeAction})
-	p2.AddFieldCard(&model.FieldCard{Card: model.Card{ID: "poison", Name: "中毒"}, OwnerID: p2.ID, SourceID: "p3", Mode: model.FieldEffect, Effect: model.EffectPoison, Trigger: model.EffectTriggerOnBeforeAction})
+	p2.AddFieldCard(&model.FieldCard{Card: model.Card{ID: "weak", Name: "虚弱"}, OwnerID: p2.ID, SourceID: "p3", Mode: model.FieldEffect, Effect: model.EffectWeak, Hook: model.FieldHookOnBeforeAction})
+	p2.AddFieldCard(&model.FieldCard{Card: model.Card{ID: "poison", Name: "中毒"}, OwnerID: p2.ID, SourceID: "p3", Mode: model.FieldEffect, Effect: model.EffectPoison, Hook: model.FieldHookOnBeforeAction})
 
 	if err := game.HandleAction(model.PlayerAction{
 		PlayerID:   "p1",
@@ -186,18 +186,18 @@ func TestAngelBond_IgnoresSystemBuffRemoval(t *testing.T) {
 		SourceID: "p2",
 		Mode:     model.FieldEffect,
 		Effect:   model.EffectPoison,
-		Trigger:  model.EffectTriggerOnBeforeAction,
+		Hook: model.FieldHookOnBeforeAction,
 	})
 
 	if !game.RemoveFieldCardBy("p1", model.EffectPoison, "") {
 		t.Fatalf("expected poison to be removed")
 	}
 	if game.State.PendingInterrupt != nil {
-		t.Fatalf("system buff removal should not trigger angel bond, got %+v", game.State.PendingInterrupt)
+		t.Fatalf("system buff removal should not dispatch angel bond, got %+v", game.State.PendingInterrupt)
 	}
 }
 
-func TestAngelBond_TriggersOnAngelWallShieldPlacement(t *testing.T) {
+func TestAngelBond_RunsOnAngelWallShieldPlacement(t *testing.T) {
 	game := NewGameEngine(noopObserver{})
 	if err := game.AddPlayer("p1", "Angel", "angel", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -244,6 +244,6 @@ func TestAngelBond_TriggersOnAngelWallShieldPlacement(t *testing.T) {
 		t.Fatalf("angel bond choice after angel_wall should succeed, got err=%v", err)
 	}
 	if p2.Heal != 2 {
-		t.Fatalf("expected angel wall shield placement to trigger angel bond heal, got %d", p2.Heal)
+		t.Fatalf("expected angel wall shield placement to dispatch angel bond heal, got %d", p2.Heal)
 	}
 }

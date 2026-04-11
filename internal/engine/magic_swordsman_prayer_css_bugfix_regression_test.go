@@ -136,7 +136,7 @@ func TestCrimsonBloodBarrier_AutoDamagesSourceWithoutPrompt(t *testing.T) {
 		t.Fatalf("css_blood_barrier handler not found")
 	}
 	damage := 2
-	ctx := g.buildContext(p1, p1, model.TriggerOnDamageTaken, &model.EventContext{
+	ctx := g.buildContext(p1, p1, model.TimingOnDamageTaken, &model.EventContext{
 		Type:      model.EventDamage,
 		SourceID:  "p2",
 		TargetID:  "p1",
@@ -185,7 +185,7 @@ func TestCrimsonBloodBarrier_DoesNotRetargetOtherEnemy(t *testing.T) {
 		t.Fatalf("css_blood_barrier handler not found")
 	}
 	damage := 2
-	ctx := g.buildContext(p1, p1, model.TriggerOnDamageTaken, &model.EventContext{
+	ctx := g.buildContext(p1, p1, model.TimingOnDamageTaken, &model.EventContext{
 		Type:      model.EventDamage,
 		SourceID:  "p2",
 		TargetID:  "p1",
@@ -203,7 +203,7 @@ func TestCrimsonBloodBarrier_DoesNotRetargetOtherEnemy(t *testing.T) {
 	}
 }
 
-func TestPrayerManaTide_TriggersAfterMagicActionEnd(t *testing.T) {
+func TestPrayerManaTide_RunsAfterMagicActionEnd(t *testing.T) {
 	g := NewGameEngine(nil)
 	if err := g.AddPlayer("p1", "Prayer", "prayer_master", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -230,7 +230,7 @@ func TestPrayerManaTide_TriggersAfterMagicActionEnd(t *testing.T) {
 	}
 }
 
-func TestPrayerSwiftBlessing_StillTriggersAfterPhaseEndInterrupt(t *testing.T) {
+func TestPrayerSwiftBlessing_StillRunsAfterPhaseEndInterrupt(t *testing.T) {
 	g := NewGameEngine(nil)
 	if err := g.AddPlayer("p1", "Prayer", "prayer_master", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -248,7 +248,7 @@ func TestPrayerSwiftBlessing_StillTriggersAfterPhaseEndInterrupt(t *testing.T) {
 		OwnerID: p1.ID,
 		Mode:    model.FieldEffect,
 		Effect:  model.EffectSwiftBlessing,
-		Trigger: model.EffectTriggerManual,
+		Hook: model.FieldHookManual,
 	})
 	g.State.CurrentTurn = 0
 	g.State.TurnStage = model.TurnStageExtraAction
@@ -270,8 +270,8 @@ func TestPrayerSwiftBlessing_StillTriggersAfterPhaseEndInterrupt(t *testing.T) {
 	if g.State.PendingInterrupt == nil || g.State.PendingInterrupt.Type != model.InterruptChoice {
 		t.Fatalf("expected swift blessing choice interrupt after mana tide, got %+v", g.State.PendingInterrupt)
 	}
-	if ct := pendingChoiceType(g.State.PendingInterrupt); ct != "prayer_swift_blessing_trigger" {
-		t.Fatalf("expected prayer_swift_blessing_trigger, got %q", ct)
+	if ct := pendingChoiceType(g.State.PendingInterrupt); ct != "prayer_swift_blessing_followup" {
+		t.Fatalf("expected prayer_swift_blessing_followup, got %q", ct)
 	}
 }
 
@@ -299,7 +299,7 @@ func TestPrayerSwiftBlessing_AttackFollowupSurvivesPhaseEndResponseInterrupt(t *
 		OwnerID: p1.ID,
 		Mode:    model.FieldEffect,
 		Effect:  model.EffectSwiftBlessing,
-		Trigger: model.EffectTriggerManual,
+		Hook: model.FieldHookManual,
 	})
 	p1.Hand = []model.Card{{ID: "atk1", Name: "火斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 1}}
 
@@ -334,8 +334,8 @@ func TestPrayerSwiftBlessing_AttackFollowupSurvivesPhaseEndResponseInterrupt(t *
 	if g.State.PendingInterrupt == nil || g.State.PendingInterrupt.Type != model.InterruptChoice {
 		t.Fatalf("expected swift blessing choice after attack-end response, got %+v", g.State.PendingInterrupt)
 	}
-	if ct := pendingChoiceType(g.State.PendingInterrupt); ct != "prayer_swift_blessing_trigger" {
-		t.Fatalf("expected prayer_swift_blessing_trigger after sword_shadow, got %q", ct)
+	if ct := pendingChoiceType(g.State.PendingInterrupt); ct != "prayer_swift_blessing_followup" {
+		t.Fatalf("expected prayer_swift_blessing_followup after sword_shadow, got %q", ct)
 	}
 
 	if err := g.HandleAction(model.PlayerAction{

@@ -1,3 +1,5 @@
+// gameflow: 战争人偶相关技能流。
+
 package engine
 
 import (
@@ -15,7 +17,7 @@ func (e *GameEngine) resolveHomunculusRuneChoice(ctxData map[string]interface{},
 		return fmt.Errorf("玩家不存在")
 	}
 	rawCtx, _ := ctxData["user_ctx"].(*model.Context)
-	if rawCtx == nil || rawCtx.TriggerCtx == nil {
+	if rawCtx == nil || rawCtx.EventCtx == nil {
 		return fmt.Errorf("英灵人形技能上下文丢失")
 	}
 	xVal := runtimeutil.ToIntContextValue(ctxData["x_value"])
@@ -72,7 +74,7 @@ func (e *GameEngine) resolveHomunculusRuneChoice(ctxData map[string]interface{},
 	e.NotifyCardRevealed(user.ID, removed, "discard")
 	e.State.DiscardPile = append(e.State.DiscardPile, removed...)
 
-	targetID := rawCtx.TriggerCtx.TargetID
+	targetID := rawCtx.EventCtx.TargetID
 	if glyph {
 		damage := xVal - 1 + yVal
 		if damage < 0 {
@@ -88,7 +90,7 @@ func (e *GameEngine) resolveHomunculusRuneChoice(ctxData map[string]interface{},
 		}
 		e.Log(fmt.Sprintf("%s 发动 [魔纹融合]：弃%d张异系牌，翻转%d个魔纹为战纹，额外造成%d点法术伤害", user.Name, xVal, flipCount, damage))
 		e.PopInterrupt()
-		if e.State.PendingInterrupt == nil && rawCtx.Trigger == model.TriggerOnAttackMiss {
+		if e.State.PendingInterrupt == nil && rawCtx.ResumeAttackMissPhase() {
 			if e.resumePendingAttackMiss(rawCtx) {
 				return nil
 			}
@@ -103,8 +105,8 @@ func (e *GameEngine) resolveHomunculusRuneChoice(ctxData map[string]interface{},
 	if bonusDamage < 0 {
 		bonusDamage = 0
 	}
-	if rawCtx.TriggerCtx.DamageVal != nil && bonusDamage > 0 {
-		*rawCtx.TriggerCtx.DamageVal += bonusDamage
+	if rawCtx.EventCtx.DamageVal != nil && bonusDamage > 0 {
+		*rawCtx.EventCtx.DamageVal += bonusDamage
 	}
 	if yVal > 0 && targetID != "" {
 		e.AddPendingDamage(model.PendingDamage{

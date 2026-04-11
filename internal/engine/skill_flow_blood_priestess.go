@@ -1,3 +1,5 @@
+// gameflow: 血祭司：血咒、仪式等。
+
 package engine
 
 import (

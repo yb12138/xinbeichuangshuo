@@ -1,3 +1,5 @@
+// gameflow: 神圣弓手：射击与圣箭相关流程。
+
 package engine
 
 import (
@@ -839,7 +841,7 @@ func (e *GameEngine) handleHolyBowChoiceInputByTypeLegacy(selectionIndex int, ct
 		rawCtx, _ := ctxData["user_ctx"].(*model.Context)
 		e.PopInterrupt()
 		if e.State.PendingInterrupt == nil {
-			if rawCtx != nil && rawCtx.Trigger == model.TriggerOnAttackStart {
+			if rawCtx != nil && rawCtx.AttackDeclaredPhase() {
 				if len(e.State.ActionQueue) > 0 {
 					e.enterActionExecutionStage()
 				} else if len(e.State.CombatStack) > 0 {

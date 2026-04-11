@@ -1,3 +1,5 @@
+// gameflow: 摸牌流程：牌库、爆牌前检测、Timing 窗口。
+
 package engine
 
 import (
@@ -20,12 +22,12 @@ func (e *GameEngine) drawForAction(p *model.Player, count int) {
 
 // resumePendingDraw 恢复暂停的扣卡流程。
 func (e *GameEngine) resumePendingDraw(ctx *model.Context) {
-	if ctx == nil || ctx.Trigger != model.TriggerBeforeDraw || ctx.TriggerCtx == nil || ctx.TriggerCtx.DrawCount == nil {
+	if ctx == nil || !ctx.BeforeDrawPhase() || ctx.EventCtx == nil || ctx.EventCtx.DrawCount == nil {
 		e.Log("[Draw] 跳过恢复摸牌：上下文不完整")
 		return
 	}
 
-	drawCount := *ctx.TriggerCtx.DrawCount
+	drawCount := *ctx.EventCtx.DrawCount
 	target := ctx.User
 	if target == nil {
 		e.Log("[Draw] 跳过恢复摸牌：目标不存在")
@@ -45,7 +47,7 @@ func (e *GameEngine) resumePendingDraw(ctx *model.Context) {
 		if drawCount > room {
 			e.Log(fmt.Sprintf("[Draw] %s 的伤害摸牌受上限保护：%d -> %d", target.Name, drawCount, room))
 			drawCount = room
-			*ctx.TriggerCtx.DrawCount = drawCount
+			*ctx.EventCtx.DrawCount = drawCount
 		}
 	}
 	if drawCount <= 0 {
@@ -104,7 +106,7 @@ func (e *GameEngine) newDrawContextWithOptions(player *model.Player, amount int,
 			return model.ActionType(player.TurnState.LastActionType)
 		}(),
 	}
-	ctx := e.buildContext(player, player, model.TriggerBeforeDraw, eventCtx)
+	ctx := e.buildContext(player, player, model.TimingBeforeCardDrawn, eventCtx)
 	if opts.PreventOverflow {
 		ctx.Flags["preventOverflow"] = true
 	}
@@ -123,13 +125,13 @@ func (e *GameEngine) newDrawContextWithOptions(player *model.Player, amount int,
 }
 
 func (e *GameEngine) startDraw(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.TriggerCtx == nil || ctx.TriggerCtx.DrawCount == nil {
+	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil || ctx.EventCtx.DrawCount == nil {
 		return false
 	}
 
 	prevPending := e.State.PendingInterrupt
 	prevQueueLen := len(e.State.InterruptQueue)
-	e.dispatcher.OnTrigger(model.TriggerBeforeDraw, ctx)
+	e.dispatcher.OnTiming(ctx.Timing, ctx)
 
 	if e.State.PendingInterrupt != prevPending || len(e.State.InterruptQueue) > prevQueueLen {
 		e.Log("[System] 等待响应前暂停摸牌...")
@@ -194,7 +196,7 @@ func (e *GameEngine) applyAssassinStealthEffect(player *model.Player) {
 	enterAssassinStealthForm(player)
 	e.Log(fmt.Sprintf("%s 进入潜行形态：转为横置，手牌上限-1，无法成为主动攻击目标", player.Name))
 	e.dispatchOrientationChanges(beforePoses)
-	checkCtx := e.buildContext(player, nil, model.TriggerNone, nil)
+	checkCtx := e.buildContext(player, nil, model.TimingActive, nil)
 	checkCtx.Flags["StayInTurn"] = true
 	e.checkHandLimit(player, checkCtx)
 }
@@ -234,12 +236,12 @@ func (e *GameEngine) executeResolvedDraw(ctx *model.Context, drawCount int, reas
 	target.Hand = append(target.Hand, cards...)
 	e.NotifyDrawCards(target.ID, drawCount, reason)
 
-	ctx.Trigger = model.TriggerAfterDraw
-	if ctx.TriggerCtx != nil {
-		ctx.TriggerCtx.Type = model.EventAfterDraw
-		ctx.TriggerCtx.DrawCount = &drawCount
+	ctx.Timing = model.TimingOnCardDrawn
+	if ctx.EventCtx != nil {
+		ctx.EventCtx.Type = model.EventAfterDraw
+		ctx.EventCtx.DrawCount = &drawCount
 	}
-	e.dispatcher.OnTrigger(model.TriggerAfterDraw, ctx)
+	e.dispatcher.OnTiming(ctx.Timing, ctx)
 
 	e.checkHandLimit(target, ctx)
 	e.Log(fmt.Sprintf("%s 摸了 %d 张牌", target.Name, drawCount))

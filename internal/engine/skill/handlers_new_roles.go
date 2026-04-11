@@ -1,3 +1,5 @@
+// gameflow: 新角色批次集中 handler（与 data 配置 ID 对应）。
+
 package skills
 
 import (
@@ -145,16 +147,16 @@ func hasElementCard(p *model.Player, element model.Element) bool {
 type ValkyrieDivinePursuitHandler struct{ BaseHandler }
 
 func (h *ValkyrieDivinePursuitHandler) CanUse(ctx *model.Context) bool {
-	if ctx.Trigger != model.TriggerOnPhaseEnd || ctx.TriggerCtx == nil {
+	if ctx.Timing != model.TimingOnActionEnd || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.TriggerCtx.ActionType != model.ActionAttack && ctx.TriggerCtx.ActionType != model.ActionMagic {
+	if ctx.EventCtx.ActionType != model.ActionAttack && ctx.EventCtx.ActionType != model.ActionMagic {
 		return false
 	}
 	// 攻击行动仅指主动攻击；应战攻击结束不触发神圣追击。
-	if ctx.TriggerCtx.ActionType == model.ActionAttack &&
-		ctx.TriggerCtx.AttackInfo != nil &&
-		ctx.TriggerCtx.AttackInfo.CounterInitiator != "" {
+	if ctx.EventCtx.ActionType == model.ActionAttack &&
+		ctx.EventCtx.AttackInfo != nil &&
+		ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
 	return ctx.User.Heal > 0
@@ -180,7 +182,7 @@ func (h *ValkyrieOrderSealHandler) Execute(ctx *model.Context) error {
 type ValkyriePeaceWalkerHandler struct{ BaseHandler }
 
 func (h *ValkyriePeaceWalkerHandler) CanUse(ctx *model.Context) bool {
-	if ctx.TriggerCtx != nil && ctx.TriggerCtx.AttackInfo != nil && ctx.TriggerCtx.AttackInfo.CounterInitiator != "" {
+	if ctx.EventCtx != nil && ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
 	return getToken(ctx.User, "valkyrie_spirit") > 0
@@ -198,7 +200,7 @@ func (h *ValkyriePeaceWalkerHandler) Execute(ctx *model.Context) error {
 type ValkyrieMilitaryGloryHandler struct{ BaseHandler }
 
 func (h *ValkyrieMilitaryGloryHandler) CanUse(ctx *model.Context) bool {
-	return ctx != nil && ctx.Trigger == model.TriggerOnTurnStart && ctx.Timing == model.TimingOnTurnStart && getToken(ctx.User, "valkyrie_spirit") > 0
+	return ctx != nil && ctx.Timing == model.TimingOnTurnStart && getToken(ctx.User, "valkyrie_spirit") > 0
 }
 
 func (h *ValkyrieMilitaryGloryHandler) Execute(ctx *model.Context) error {
@@ -231,8 +233,8 @@ func (h *ValkyrieHeroicSummonHandler) Execute(ctx *model.Context) error {
 	if !spendCrystalLike(ctx, 1) {
 		return fmt.Errorf("英灵召唤发动失败：水晶不足（红宝石可替代）")
 	}
-	if ctx.TriggerCtx != nil && ctx.TriggerCtx.DamageVal != nil {
-		*ctx.TriggerCtx.DamageVal += 1
+	if ctx.EventCtx != nil && ctx.EventCtx.DamageVal != nil {
+		*ctx.EventCtx.DamageVal += 1
 	}
 	hasMagic := false
 	for _, c := range ctx.User.Hand {
@@ -266,7 +268,7 @@ func (h *ValkyrieHeroicSummonHandler) Execute(ctx *model.Context) error {
 type ElementalistAbsorbHandler struct{ BaseHandler }
 
 func (h *ElementalistAbsorbHandler) CanUse(ctx *model.Context) bool {
-	if ctx.Trigger != model.TriggerOnDamageTaken || ctx.TriggerCtx == nil {
+	if ctx.Timing != model.TimingOnDamageTaken || ctx.EventCtx == nil {
 		return false
 	}
 	if !ctx.Flags["IsMagicDamage"] {
@@ -280,10 +282,10 @@ func (h *ElementalistAbsorbHandler) CanUse(ctx *model.Context) bool {
 	if noAbsorb {
 		return false
 	}
-	if ctx.TriggerCtx.SourceID != ctx.User.ID {
+	if ctx.EventCtx.SourceID != ctx.User.ID {
 		return false
 	}
-	if ctx.TriggerCtx.Card != nil && ctx.TriggerCtx.Card.Name == "元素点燃" {
+	if ctx.EventCtx.Card != nil && ctx.EventCtx.Card.Name == "元素点燃" {
 		return false
 	}
 	return getToken(ctx.User, "element") < 3
@@ -507,7 +509,7 @@ func (h *ArbiterLawHandler) Execute(ctx *model.Context) error {
 }
 
 func (h *ArbiterJudgmentTideHandler) Execute(ctx *model.Context) error {
-	if ctx.TriggerCtx != nil && ctx.TriggerCtx.DamageVal != nil && *ctx.TriggerCtx.DamageVal <= 0 {
+	if ctx.EventCtx != nil && ctx.EventCtx.DamageVal != nil && *ctx.EventCtx.DamageVal <= 0 {
 		return nil
 	}
 	v := addToken(ctx.User, "judgment", 1, 0, 4)
@@ -656,13 +658,13 @@ func (h *AdventurerFraudHandler) Execute(ctx *model.Context) error {
 }
 
 func (h *AdventurerLuckyFortuneHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.Trigger != model.TriggerOnAttackStart {
+	if ctx == nil || ctx.User == nil || ctx.Timing != model.TimingOnAttackDeclared {
 		return false
 	}
-	if ctx.TriggerCtx == nil || ctx.TriggerCtx.Card == nil {
+	if ctx.EventCtx == nil || ctx.EventCtx.Card == nil {
 		return false
 	}
-	card := ctx.TriggerCtx.Card
+	card := ctx.EventCtx.Card
 	// 强运仅在“欺诈转化出的攻击”开始时自动触发。
 	return card.ID == "fraud_virtual_attack" || card.Name == "欺诈"
 }
@@ -677,7 +679,7 @@ func (h *AdventurerLuckyFortuneHandler) Execute(ctx *model.Context) error {
 }
 
 func (h *AdventurerUndergroundLawHandler) CanUse(ctx *model.Context) bool {
-	return ctx.TriggerCtx != nil && ctx.TriggerCtx.ActionType == model.ActionBuy
+	return ctx.EventCtx != nil && ctx.EventCtx.ActionType == model.ActionBuy
 }
 
 func (h *AdventurerUndergroundLawHandler) Execute(ctx *model.Context) error {
@@ -687,10 +689,10 @@ func (h *AdventurerUndergroundLawHandler) Execute(ctx *model.Context) error {
 }
 
 func (h *AdventurerParadiseHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.TriggerCtx == nil {
+	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.TriggerCtx.ActionType != model.ActionExtract {
+	if ctx.EventCtx.ActionType != model.ActionExtract {
 		return false
 	}
 	all := ctx.Game.GetAllPlayers()
@@ -831,10 +833,10 @@ func (h *HolyLancerHolyStrikeHandler) CanUse(ctx *model.Context) bool {
 	// 与地枪互斥：
 	// 若当前“主动攻击命中”下地枪可发动，则先进入地枪响应窗口；
 	// 仅当玩家不发动地枪（跳过响应）时，再由引擎补触发圣击治疗。
-	if ctx != nil && ctx.Trigger == model.TriggerOnAttackHit && ctx.TriggerCtx != nil && ctx.TriggerCtx.DamageVal != nil {
+	if ctx != nil && ctx.Timing == model.TimingOnHitCheck && ctx.EventCtx != nil && ctx.EventCtx.DamageVal != nil {
 		counterInitiator := ""
-		if ctx.TriggerCtx.AttackInfo != nil {
-			counterInitiator = ctx.TriggerCtx.AttackInfo.CounterInitiator
+		if ctx.EventCtx.AttackInfo != nil {
+			counterInitiator = ctx.EventCtx.AttackInfo.CounterInitiator
 		}
 		if counterInitiator == "" && ctx.User != nil && ctx.User.Heal > 0 {
 			return false
@@ -855,16 +857,16 @@ func (h *HolyLancerSkySpearHandler) CanUse(ctx *model.Context) bool {
 	if ctx.User.TurnState.UsedSkillCounts["holy_lancer_prayer"] > 0 {
 		return false
 	}
-	if ctx.TriggerCtx == nil || ctx.TriggerCtx.AttackInfo == nil {
+	if ctx.EventCtx == nil || ctx.EventCtx.AttackInfo == nil {
 		return false
 	}
-	return ctx.TriggerCtx.AttackInfo.CounterInitiator == ""
+	return ctx.EventCtx.AttackInfo.CounterInitiator == ""
 }
 
 func (h *HolyLancerSkySpearHandler) Execute(ctx *model.Context) error {
 	ctx.User.Heal -= 2
-	if ctx.TriggerCtx != nil && ctx.TriggerCtx.AttackInfo != nil {
-		ctx.TriggerCtx.AttackInfo.CanBeResponded = false
+	if ctx.EventCtx != nil && ctx.EventCtx.AttackInfo != nil {
+		ctx.EventCtx.AttackInfo.CanBeResponded = false
 	}
 	// 通过令牌持久化“本次攻击无法应战”，避免攻击开始响应后的二次进入覆盖状态。
 	ctx.User.TurnState.UsedSkillCounts["holy_lancer_sky_spear_no_counter"] = 1
@@ -874,18 +876,18 @@ func (h *HolyLancerSkySpearHandler) Execute(ctx *model.Context) error {
 }
 
 func (h *HolyLancerEarthSpearHandler) CanUse(ctx *model.Context) bool {
-	if ctx.User.Heal <= 0 || ctx.TriggerCtx == nil || ctx.TriggerCtx.DamageVal == nil {
+	if ctx.User.Heal <= 0 || ctx.EventCtx == nil || ctx.EventCtx.DamageVal == nil {
 		return false
 	}
 	// 地枪仅可在主动攻击命中后发动。
-	if ctx.TriggerCtx.AttackInfo != nil && ctx.TriggerCtx.AttackInfo.CounterInitiator != "" {
+	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
 	return true
 }
 
 func (h *HolyLancerEarthSpearHandler) Execute(ctx *model.Context) error {
-	if ctx.TriggerCtx == nil || ctx.TriggerCtx.DamageVal == nil {
+	if ctx.EventCtx == nil || ctx.EventCtx.DamageVal == nil {
 		return nil
 	}
 	x := ctx.User.Heal
@@ -932,13 +934,13 @@ type ElfRitualHandler struct{ BaseHandler }
 type ElfPetEmpowerHandler struct{ BaseHandler }
 
 func (h *ElfElementalShotHandler) CanUse(ctx *model.Context) bool {
-	if ctx.Trigger != model.TriggerOnAttackStart || ctx.TriggerCtx == nil || ctx.TriggerCtx.Card == nil {
+	if ctx.Timing != model.TimingOnAttackDeclared || ctx.EventCtx == nil || ctx.EventCtx.Card == nil {
 		return false
 	}
-	if ctx.TriggerCtx.Card.Element == model.ElementDark {
+	if ctx.EventCtx.Card.Element == model.ElementDark {
 		return false
 	}
-	if ctx.TriggerCtx.AttackInfo != nil && ctx.TriggerCtx.AttackInfo.CounterInitiator != "" {
+	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
 	hasMagic := false
@@ -952,7 +954,7 @@ func (h *ElfElementalShotHandler) CanUse(ctx *model.Context) bool {
 }
 
 func (h *ElfElementalShotHandler) Execute(ctx *model.Context) error {
-	if ctx.TriggerCtx == nil || ctx.TriggerCtx.Card == nil {
+	if ctx.EventCtx == nil || ctx.EventCtx.Card == nil {
 		return nil
 	}
 	hasMagic := false
@@ -969,7 +971,7 @@ func (h *ElfElementalShotHandler) Execute(ctx *model.Context) error {
 		Context: map[string]interface{}{
 			"choice_type":       "elf_elemental_shot_cost",
 			"user_id":           ctx.User.ID,
-			"attack_element":    string(ctx.TriggerCtx.Card.Element),
+			"attack_element":    string(ctx.EventCtx.Card.Element),
 			"can_discard_magic": hasMagic,
 			"can_remove_bless":  hasBlessing,
 			"user_ctx":          ctx,
@@ -1002,19 +1004,19 @@ func resolveElfForcedDrawDiscard(game model.IGameEngine, target *model.Player, p
 }
 
 func (h *ElfAnimalCompanionHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.Target == nil || ctx.TriggerCtx == nil || ctx.TriggerCtx.DamageVal == nil {
+	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.Target == nil || ctx.EventCtx == nil || ctx.EventCtx.DamageVal == nil {
 		return false
 	}
-	if ctx.Trigger != model.TriggerOnDamageTaken || *ctx.TriggerCtx.DamageVal <= 0 {
+	if ctx.Timing != model.TimingOnDamageTaken || *ctx.EventCtx.DamageVal <= 0 {
 		return false
 	}
-	if ctx.TriggerCtx.SourceID != ctx.User.ID || ctx.TriggerCtx.TargetID == "" || ctx.TriggerCtx.TargetID == ctx.User.ID {
+	if ctx.EventCtx.SourceID != ctx.User.ID || ctx.EventCtx.TargetID == "" || ctx.EventCtx.TargetID == ctx.User.ID {
 		return false
 	}
-	if ctx.TriggerCtx.Card == nil || ctx.TriggerCtx.Card.Type != model.CardTypeAttack {
+	if ctx.EventCtx.Card == nil || ctx.EventCtx.Card.Type != model.CardTypeAttack {
 		return false
 	}
-	if ctx.TriggerCtx.AttackInfo == nil || ctx.TriggerCtx.AttackInfo.CounterInitiator != "" {
+	if ctx.EventCtx.AttackInfo == nil || ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
 	return ctx.User.IsActive
@@ -1054,19 +1056,19 @@ func (h *ElfPetEmpowerHandler) CanUse(ctx *model.Context) bool {
 	if !canPayCrystalLike(ctx, 1) {
 		return false
 	}
-	if ctx == nil || ctx.User == nil || ctx.Target == nil || ctx.TriggerCtx == nil || ctx.TriggerCtx.DamageVal == nil {
+	if ctx == nil || ctx.User == nil || ctx.Target == nil || ctx.EventCtx == nil || ctx.EventCtx.DamageVal == nil {
 		return false
 	}
-	if ctx.Trigger != model.TriggerOnDamageTaken || *ctx.TriggerCtx.DamageVal <= 0 {
+	if ctx.Timing != model.TimingOnDamageTaken || *ctx.EventCtx.DamageVal <= 0 {
 		return false
 	}
-	if ctx.TriggerCtx.SourceID != ctx.User.ID || ctx.TriggerCtx.TargetID != ctx.Target.ID {
+	if ctx.EventCtx.SourceID != ctx.User.ID || ctx.EventCtx.TargetID != ctx.Target.ID {
 		return false
 	}
-	if ctx.TriggerCtx.Card == nil || ctx.TriggerCtx.Card.Type != model.CardTypeAttack {
+	if ctx.EventCtx.Card == nil || ctx.EventCtx.Card.Type != model.CardTypeAttack {
 		return false
 	}
-	if ctx.TriggerCtx.AttackInfo == nil || ctx.TriggerCtx.AttackInfo.CounterInitiator != "" {
+	if ctx.EventCtx.AttackInfo == nil || ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
 	return ctx.User.IsActive && ctx.Target.Camp != ctx.User.Camp
@@ -1104,10 +1106,10 @@ type PlagueDeathTouchHandler struct{ BaseHandler }
 type PlagueToxicNovaHandler struct{ BaseHandler }
 
 func (h *PlagueImmortalHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.Trigger != model.TriggerOnPhaseEnd || ctx.TriggerCtx == nil {
+	if ctx == nil || ctx.User == nil || ctx.Timing != model.TimingOnActionEnd || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.TriggerCtx.ActionType != model.ActionMagic {
+	if ctx.EventCtx.ActionType != model.ActionMagic {
 		return false
 	}
 	return ctx.User.IsActive
@@ -1247,14 +1249,14 @@ type MagicSwordsmanShadowMeteorHandler struct{ BaseHandler }
 type MagicSwordsmanYellowSpringHandler struct{ BaseHandler }
 
 func (h *MagicSwordsmanAsuraComboHandler) CanUse(ctx *model.Context) bool {
-	if ctx.Trigger != model.TriggerOnPhaseEnd || ctx.TriggerCtx == nil {
+	if ctx.Timing != model.TimingOnActionEnd || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.TriggerCtx.ActionType != model.ActionAttack {
+	if ctx.EventCtx.ActionType != model.ActionAttack {
 		return false
 	}
 	// 修罗连斩响应“攻击行动结束”，不应在应战攻击结束后触发。
-	if ctx.TriggerCtx.AttackInfo != nil && ctx.TriggerCtx.AttackInfo.CounterInitiator != "" {
+	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
 	return true
@@ -1330,10 +1332,10 @@ func (h *MagicSwordsmanShadowMeteorHandler) Execute(ctx *model.Context) error {
 }
 
 func (h *MagicSwordsmanYellowSpringHandler) CanUse(ctx *model.Context) bool {
-	if ctx.Trigger != model.TriggerOnAttackStart || ctx.TriggerCtx == nil || ctx.TriggerCtx.AttackInfo == nil {
+	if ctx.Timing != model.TimingOnAttackDeclared || ctx.EventCtx == nil || ctx.EventCtx.AttackInfo == nil {
 		return false
 	}
-	if ctx.TriggerCtx.AttackInfo.CounterInitiator != "" {
+	if ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
 	return ctx.User.Gem > 0
@@ -1344,8 +1346,8 @@ func (h *MagicSwordsmanYellowSpringHandler) Execute(ctx *model.Context) error {
 		return fmt.Errorf("黄泉震颤需要至少1个红宝石")
 	}
 	ctx.User.Gem--
-	if ctx.TriggerCtx != nil && ctx.TriggerCtx.AttackInfo != nil {
-		ctx.TriggerCtx.AttackInfo.CanBeResponded = false
+	if ctx.EventCtx != nil && ctx.EventCtx.AttackInfo != nil {
+		ctx.EventCtx.AttackInfo.CanBeResponded = false
 	}
 	ctx.User.TurnState.UsedSkillCounts["ms_yellow_spring_pending"] = 1
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [黄泉震颤]，本次攻击不可应战", ctx.User.Name))
@@ -1367,7 +1369,7 @@ type CrimsonRoseCourtyardHandler struct{ BaseHandler }
 type CrimsonDanceHandler struct{ BaseHandler }
 
 func (h *CrimsonBloodThornsHandler) CanUse(ctx *model.Context) bool {
-	if ctx.Trigger != model.TriggerOnAttackHit || ctx.TriggerCtx == nil || ctx.TriggerCtx.AttackInfo == nil {
+	if ctx.Timing != model.TimingOnHitCheck || ctx.EventCtx == nil || ctx.EventCtx.AttackInfo == nil {
 		return false
 	}
 	return true
@@ -1380,14 +1382,14 @@ func (h *CrimsonBloodThornsHandler) Execute(ctx *model.Context) error {
 }
 
 func (h *CrimsonFlashHandler) CanUse(ctx *model.Context) bool {
-	if ctx.Trigger != model.TriggerOnPhaseEnd || ctx.TriggerCtx == nil {
+	if ctx.Timing != model.TimingOnActionEnd || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.TriggerCtx.ActionType != model.ActionAttack {
+	if ctx.EventCtx.ActionType != model.ActionAttack {
 		return false
 	}
 	// 赤色一闪只响应主动攻击行动结束。
-	if ctx.TriggerCtx.AttackInfo != nil && ctx.TriggerCtx.AttackInfo.CounterInitiator != "" {
+	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
 	return getToken(ctx.User, "css_blood") > 0
@@ -1463,7 +1465,7 @@ func (h *CrimsonBloodRoseHandler) Execute(ctx *model.Context) error {
 }
 
 func (h *CrimsonBloodBarrierHandler) CanUse(ctx *model.Context) bool {
-	if ctx.Trigger != model.TriggerOnDamageTaken || ctx.TriggerCtx == nil {
+	if ctx.Timing != model.TimingOnDamageTaken || ctx.EventCtx == nil {
 		return false
 	}
 	if !ctx.Flags["IsMagicDamage"] {
@@ -1481,12 +1483,12 @@ func (h *CrimsonBloodBarrierHandler) Execute(ctx *model.Context) error {
 	}
 	setToken(ctx.User, "css_blood_barrier_lock", 1)
 	addBlood(ctx.User, -1)
-	if ctx.TriggerCtx != nil && ctx.TriggerCtx.DamageVal != nil && *ctx.TriggerCtx.DamageVal > 0 {
-		*ctx.TriggerCtx.DamageVal--
+	if ctx.EventCtx != nil && ctx.EventCtx.DamageVal != nil && *ctx.EventCtx.DamageVal > 0 {
+		*ctx.EventCtx.DamageVal--
 	}
 	sourceID := ""
-	if ctx.TriggerCtx != nil {
-		sourceID = strings.TrimSpace(ctx.TriggerCtx.SourceID)
+	if ctx.EventCtx != nil {
+		sourceID = strings.TrimSpace(ctx.EventCtx.SourceID)
 	}
 	if sourceID != "" && sourceID != ctx.User.ID {
 		ctx.Game.AddPendingDamage(model.PendingDamage{
@@ -1582,7 +1584,7 @@ func markElfBlessingCards(p *model.Player, cards []model.Card) {
 			SourceID: p.ID,
 			Mode:     model.FieldCover,
 			Effect:   model.EffectElfBlessing,
-			Trigger:  model.EffectTriggerManual,
+			Hook: model.FieldHookManual,
 		})
 		existsBless[c.ID] = true
 	}

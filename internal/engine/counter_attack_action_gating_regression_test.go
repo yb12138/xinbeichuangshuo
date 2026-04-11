@@ -24,7 +24,7 @@ func mustDo(t *testing.T, g *GameEngine, act model.PlayerAction) {
 }
 
 // 文档口径：血色剑灵【血色荆棘】没有“主动攻击”限定，应战攻击命中同样应获得鲜血。
-func TestCounterHit_CrimsonBloodThornsAlsoTriggersOnCounterHit(t *testing.T) {
+func TestCounterHit_CrimsonBloodThornsAlsoRunsOnCounterHit(t *testing.T) {
 	g := NewGameEngine(noopObserver{})
 	if err := g.AddPlayer("p1", "Attacker", "berserker", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -82,7 +82,7 @@ func TestCounterHit_CrimsonBloodThornsAlsoTriggersOnCounterHit(t *testing.T) {
 }
 
 // 回归：应战攻击未命中不应触发“主动攻击未命中”类技能（如贯穿射击）。
-func TestCounterMiss_DoesNotTriggerActiveOnlyOnAttackMissSkills(t *testing.T) {
+func TestCounterMiss_DoesNotDispatchActiveOnlyOnAttackMissSkills(t *testing.T) {
 	g := NewGameEngine(noopObserver{})
 	if err := g.AddPlayer("p1", "Attacker", "berserker", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -141,12 +141,12 @@ func TestCounterMiss_DoesNotTriggerActiveOnlyOnAttackMissSkills(t *testing.T) {
 		g.State.PendingInterrupt.Type == model.InterruptResponseSkill &&
 		g.State.PendingInterrupt.PlayerID == "p2" &&
 		hasSkillID(g.State.PendingInterrupt.SkillIDs, "piercing_shot") {
-		t.Fatalf("piercing_shot should not trigger on counter-attack miss")
+		t.Fatalf("piercing_shot should not dispatch on counter-attack miss")
 	}
 }
 
 // 回归：应战命中后即使触发命中响应，也不应在“攻击行动结束”阶段继续触发主动攻击类连击技能。
-func TestCounterHit_PhaseEndSkillsNotTriggeredForCounterAction(t *testing.T) {
+func TestCounterHit_PhaseEndSkillsNotActivatedForCounterAction(t *testing.T) {
 	g := NewGameEngine(noopObserver{})
 	if err := g.AddPlayer("p1", "Attacker", "berserker", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -225,6 +225,6 @@ func TestCounterHit_PhaseEndSkillsNotTriggeredForCounterAction(t *testing.T) {
 		g.State.PendingInterrupt.Type == model.InterruptResponseSkill &&
 		g.State.PendingInterrupt.PlayerID == "p2" &&
 		hasSkillID(g.State.PendingInterrupt.SkillIDs, "valkyrie_divine_pursuit") {
-		t.Fatalf("valkyrie_divine_pursuit should not trigger from counter-attack phase end")
+		t.Fatalf("valkyrie_divine_pursuit should not dispatch from counter-attack phase end")
 	}
 }

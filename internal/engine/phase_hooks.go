@@ -1,3 +1,5 @@
+// gameflow: 阶段边界上的通用钩子入口。
+
 package engine
 
 import (
@@ -144,7 +146,7 @@ func startupHolyBowTurnResetHook(_ *GameEngine, player *model.Player) bool {
 }
 
 func startupBardRousingHook(e *GameEngine, player *model.Player) bool {
-	return e.maybeTriggerBardRousingAtTurnStart(player)
+	return e.maybeBardRousingAtTurnStart(player)
 }
 
 func turnStartArbiterJudgmentUpkeepHook(e *GameEngine, player *model.Player) bool {
@@ -229,11 +231,11 @@ func turnEndPlagueMageHook(e *GameEngine, player *model.Player) bool {
 }
 
 func turnEndMoonGoddessHook(e *GameEngine, player *model.Player) bool {
-	return e.maybeTriggerMoonGoddessMoonCycleAtTurnEnd(player)
+	return e.maybeMoonGoddessMoonCycleAtTurnEnd(player)
 }
 
 func turnEndBardHook(e *GameEngine, player *model.Player) bool {
-	return e.maybeTriggerBardVictoryAtTurnEnd(player)
+	return e.maybeBardVictoryAtTurnEnd(player)
 }
 
 func turnEndCrimsonSwordSpiritHook(e *GameEngine, player *model.Player) bool {
@@ -278,7 +280,7 @@ func turnEndWarHomunculusHook(e *GameEngine, player *model.Player) bool {
 }
 
 func turnEndOnmyojiHook(e *GameEngine, player *model.Player) bool {
-	return e.maybeTriggerOnmyojiDarkRitual(player)
+	return e.maybeOnmyojiDarkRitual(player)
 }
 
 func turnEndHolyBowHook(e *GameEngine, player *model.Player) bool {

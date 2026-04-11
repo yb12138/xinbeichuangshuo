@@ -240,7 +240,7 @@ func TestHolyBow_MeteorBullet_RequiresOtherAlly(t *testing.T) {
 	p1.Form = model.FormHolyBowHolyGlory
 	p1.Heal = 1
 
-	ctx := game.buildContext(p1, p2, model.TriggerOnAttackStart, &model.EventContext{
+	ctx := game.buildContext(p1, p2, model.TimingOnAttackDeclared, &model.EventContext{
 		Type:     model.EventAttack,
 		SourceID: p1.ID,
 		TargetID: p2.ID,
@@ -254,7 +254,7 @@ func TestHolyBow_MeteorBullet_RequiresOtherAlly(t *testing.T) {
 	}
 }
 
-func TestHolyBow_AutoFillTriggeredAtTurnEndWithoutSpecial(t *testing.T) {
+func TestHolyBow_AutoFillActivatedAtTurnEndWithoutSpecial(t *testing.T) {
 	game := NewGameEngine(noopObserver{})
 	if err := game.AddPlayer("p1", "HolyBow", "holy_bow", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -433,7 +433,7 @@ func TestHolyBow_HolyShardStormMiss_NoEligibleAllySkipsPrompt(t *testing.T) {
 		}
 	}
 	if got := p1.Heal; got != 3 {
-		t.Fatalf("expected heal unchanged when miss branch cannot trigger, got %d", got)
+		t.Fatalf("expected heal unchanged when miss branch cannot dispatch, got %d", got)
 	}
 	if got := p1.TurnState.SkillFlowState["hb_shard_miss_pending"]; got != 0 {
 		t.Fatalf("expected shard_miss_pending cleared, got %d", got)

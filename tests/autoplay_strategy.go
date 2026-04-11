@@ -46,7 +46,7 @@ type autoGameObserver struct {
 	gameEnded     bool
 	endMessage    string
 	logs          []string
-	skillTriggers map[string]int
+	skillInvocationCounts map[string]int
 }
 
 var actionSkillCursor = map[string]int{}
@@ -65,13 +65,13 @@ func (o *autoGameObserver) OnGameEvent(event model.GameEvent) {
 		if len(o.logs) > 240 {
 			o.logs = o.logs[len(o.logs)-240:]
 		}
-		o.captureSkillTrigger(event.Message)
+		o.recordSkillInvocationFromLog(event.Message)
 	}
 }
 
-func (o *autoGameObserver) captureSkillTrigger(msg string) {
-	if o.skillTriggers == nil {
-		o.skillTriggers = make(map[string]int)
+func (o *autoGameObserver) recordSkillInvocationFromLog(msg string) {
+	if o.skillInvocationCounts == nil {
+		o.skillInvocationCounts = make(map[string]int)
 	}
 
 	seenInMsg := make(map[string]struct{})
@@ -87,7 +87,7 @@ func (o *autoGameObserver) captureSkillTrigger(msg string) {
 			return
 		}
 		seenInMsg[name] = struct{}{}
-		o.skillTriggers[name]++
+		o.skillInvocationCounts[name]++
 	}
 
 	// 格式一: "[Skill] xxx 使用了技能: 技能名"
@@ -182,7 +182,7 @@ func extractBracketSkillCandidates(msg string) []string {
 }
 
 type autoGameResult struct {
-	triggeredSkills      map[string]int
+	skillBatch      map[string]int
 	expectedActionSkills map[string]struct{}
 	expectedAllSkills    map[string]struct{}
 	logs                 []string
@@ -286,7 +286,7 @@ func mirrorLineup(lineup []string) []string {
 	return out
 }
 
-func mergeTriggered(dst map[string]int, src map[string]int) {
+func mergeSkillCountMaps(dst map[string]int, src map[string]int) {
 	for name, cnt := range src {
 		dst[name] += cnt
 	}
@@ -298,18 +298,18 @@ func mergeSkillSet(dst map[string]struct{}, src map[string]struct{}) {
 	}
 }
 
-func coverageStats(expected map[string]struct{}, triggered map[string]int) (triggeredCount, total int, ratio float64) {
+func coverageStats(expected map[string]struct{}, activated map[string]int) (activatedCount, total int, ratio float64) {
 	total = len(expected)
 	if total == 0 {
 		return 0, 0, 0
 	}
 	for name := range expected {
-		if triggered[name] > 0 {
-			triggeredCount++
+		if activated[name] > 0 {
+			activatedCount++
 		}
 	}
-	ratio = float64(triggeredCount) / float64(total)
-	return triggeredCount, total, ratio
+	ratio = float64(activatedCount) / float64(total)
+	return activatedCount, total, ratio
 }
 
 func runAutoGame(lineup []string, maxSteps int) (*autoGameResult, error) {
@@ -435,7 +435,7 @@ func runAutoGameWithScenarioSeedTag(
 	}
 
 	return &autoGameResult{
-		triggeredSkills:      observer.skillTriggers,
+		skillBatch:      observer.skillInvocationCounts,
 		expectedActionSkills: expectedActionSkills,
 		expectedAllSkills:    expectedAllSkills,
 		logs:                 append([]string{}, observer.logs...),
@@ -726,7 +726,7 @@ func applyDirectedScenarioPrestartState(game *engine.GameEngine) {
 					},
 					Mode:     model.FieldEffect,
 					Effect:   model.EffectShield,
-					Trigger:  model.EffectTriggerOnDamaged,
+					Hook: model.FieldHookOnDamaged,
 					SourceID: bladeMaster.ID,
 				})
 			}
@@ -3308,10 +3308,10 @@ func observerTailLogs(observer *autoGameObserver, n int) string {
 	return strings.Join(observer.logs[start:], "\n")
 }
 
-func missingSkillList(expected map[string]struct{}, triggered map[string]int) []string {
+func missingSkillList(expected map[string]struct{}, activated map[string]int) []string {
 	missing := make([]string, 0)
 	for sid := range expected {
-		if triggered[sid] == 0 {
+		if activated[sid] == 0 {
 			missing = append(missing, sid)
 		}
 	}
@@ -3319,15 +3319,15 @@ func missingSkillList(expected map[string]struct{}, triggered map[string]int) []
 	return missing
 }
 
-func topTriggeredActionSkills(expected map[string]struct{}, triggered map[string]int, limit int) []string {
+func topObservedActionSkills(expected map[string]struct{}, activated map[string]int, limit int) []string {
 	type kv struct {
 		name  string
 		count int
 	}
 	list := make([]kv, 0)
 	for name := range expected {
-		if triggered[name] > 0 {
-			list = append(list, kv{name: name, count: triggered[name]})
+		if activated[name] > 0 {
+			list = append(list, kv{name: name, count: activated[name]})
 		}
 	}
 	sort.Slice(list, func(i, j int) bool {

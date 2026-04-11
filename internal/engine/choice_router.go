@@ -1,3 +1,5 @@
+// gameflow: 技能/系统选项输入按 choice_type 分派。
+
 package engine
 
 import (

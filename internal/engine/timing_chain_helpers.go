@@ -1,3 +1,5 @@
+// gameflow: Timing 链式调用辅助。
+
 package engine
 
 // runTimingBoolChain 顺序执行同一 Timing 阶段的布尔钩子。

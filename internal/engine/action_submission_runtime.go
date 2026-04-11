@@ -1,3 +1,5 @@
+// gameflow: 行动提交后的校验与写入队列（与 TurnStage 衔接）。
+
 package engine
 
 import (

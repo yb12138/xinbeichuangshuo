@@ -1,3 +1,5 @@
+// gameflow: 单次行动结束后的收尾钩子与状态收敛。
+
 package engine
 
 func (e *GameEngine) runActionFinalizeHooksIfIdle() bool {

@@ -18,34 +18,34 @@ export const useMatchLifecycleStore = defineStore('matchLifecycle', () => {
   const battleReviewStore = useBattleReviewStore()
 
   function buildGameEndSnapshot(message: string): GameEndSnapshot {
-    const triggerType: GameEndSnapshot['triggerType'] =
+    const endReasonKind: GameEndSnapshot['endReasonKind'] =
       snapshotStore.redCups >= 5 || snapshotStore.blueCups >= 5
         ? 'cups'
         : snapshotStore.redMorale <= 0 || snapshotStore.blueMorale <= 0
           ? 'morale'
           : 'unknown'
 
-    const triggerCamp: MoraleCamp | undefined =
+    const endMoraleCamp: MoraleCamp | undefined =
       snapshotStore.redMorale <= 0
         ? 'Red'
         : snapshotStore.blueMorale <= 0
           ? 'Blue'
           : undefined
 
-    const triggerEntry = [...battleReviewStore.moraleChanges]
+    const lastMoraleDrop = [...battleReviewStore.moraleChanges]
       .reverse()
-      .find(item => (triggerCamp ? item.camp === triggerCamp : true) && item.delta < 0)
+      .find(item => (endMoraleCamp ? item.camp === endMoraleCamp : true) && item.delta < 0)
 
     return {
       message: message || '游戏结束',
-      triggerType,
+      endReasonKind,
       finalRedMorale: snapshotStore.redMorale,
       finalBlueMorale: snapshotStore.blueMorale,
       finalRedCups: snapshotStore.redCups,
       finalBlueCups: snapshotStore.blueCups,
-      triggerCamp: triggerEntry?.camp,
-      triggerDelta: triggerEntry ? Math.abs(triggerEntry.delta) : undefined,
-      triggerSource: triggerEntry?.source,
+      endMoraleCamp: lastMoraleDrop?.camp,
+      endMoraleLoss: lastMoraleDrop ? Math.abs(lastMoraleDrop.delta) : undefined,
+      endCauseSource: lastMoraleDrop?.source,
     }
   }
 

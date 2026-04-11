@@ -27,14 +27,14 @@ func TestStartupSkill_WindowSeparatedFromTurnStartTiming(t *testing.T) {
 		SourceID: "p1",
 	}
 
-	turnStartCtx := game.buildTimedContext(p1, nil, model.TriggerOnTurnStart, model.TimingOnTurnStart, eventCtx)
-	game.dispatcher.OnTrigger(model.TriggerOnTurnStart, turnStartCtx)
+	turnStartCtx := game.buildTimedContext(p1, nil, model.TimingOnTurnStart, eventCtx)
+	game.dispatcher.OnTiming(turnStartCtx.Timing, turnStartCtx)
 	if game.State.PendingInterrupt != nil {
 		t.Fatalf("expected no startup interrupt on turn-start timing, got %+v", game.State.PendingInterrupt)
 	}
 
-	startupCtx := game.buildTimedContext(p1, nil, model.TriggerOnTurnStart, model.TimingStartup, eventCtx)
-	game.dispatcher.OnTrigger(model.TriggerOnTurnStart, startupCtx)
+	startupCtx := game.buildTimedContext(p1, nil, model.TimingStartup, eventCtx)
+	game.dispatcher.OnTiming(startupCtx.Timing, startupCtx)
 	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptStartupSkill {
 		t.Fatalf("expected startup interrupt on startup timing, got %+v", game.State.PendingInterrupt)
 	}

@@ -443,8 +443,8 @@ func TestResponsePrompt_PrunesInvalidHolyLancerSkySpear(t *testing.T) {
 		Context: &model.Context{
 			Game:    game,
 			User:    p1,
-			Trigger: model.TriggerOnAttackStart,
-			TriggerCtx: &model.EventContext{
+			Timing:  model.TimingOnAttackDeclared,
+			EventCtx: &model.EventContext{
 				AttackInfo: &model.AttackEventInfo{
 					CounterInitiator: "",
 				},

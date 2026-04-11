@@ -1,3 +1,5 @@
+// gameflow: 回合级策略钩子注册。
+
 package engine
 
 import (
@@ -44,7 +46,7 @@ func beforeActionPoisonHook(e *GameEngine, player *model.Player) bool {
 		return false
 	}
 	for _, fc := range player.Field {
-		if fc == nil || fc.Mode != model.FieldEffect || fc.Trigger != model.EffectTriggerOnBeforeAction || fc.Effect != model.EffectPoison {
+		if fc == nil || fc.Mode != model.FieldEffect || fc.Hook != model.FieldHookOnBeforeAction || fc.Effect != model.EffectPoison {
 			continue
 		}
 		allowCrimsonFaithHeal := fc.SourceID != "" && fc.SourceID == player.ID
@@ -70,7 +72,7 @@ func beforeActionFiveElementsBindHook(e *GameEngine, player *model.Player) bool 
 		return false
 	}
 	for _, fc := range player.Field {
-		if fc == nil || fc.Mode != model.FieldEffect || fc.Trigger != model.EffectTriggerOnBeforeAction || fc.Effect != model.EffectFiveElementsBind {
+		if fc == nil || fc.Mode != model.FieldEffect || fc.Hook != model.FieldHookOnBeforeAction || fc.Effect != model.EffectFiveElementsBind {
 			continue
 		}
 		sealCount := 0
@@ -129,7 +131,7 @@ func turnStartValkyrieMilitaryGloryHook(e *GameEngine, player *model.Player) boo
 	if player.Tokens["valkyrie_spirit"] <= 0 || player.TurnState.UsedSkillCounts["valkyrie_military_glory"] > 0 {
 		return false
 	}
-	ctx := e.buildTimedContext(player, nil, model.TriggerOnTurnStart, model.TimingOnTurnStart, &model.EventContext{
+	ctx := e.buildTimedContext(player, nil, model.TimingOnTurnStart, &model.EventContext{
 		Type:     model.EventTurnStart,
 		SourceID: player.ID,
 	})

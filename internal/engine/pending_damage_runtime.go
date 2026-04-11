@@ -1,3 +1,5 @@
+// gameflow: PendingDamage 队列：入队、结算、插入响应。
+
 package engine
 
 import (
@@ -26,16 +28,16 @@ func (e *GameEngine) prependPendingDamages(pds []model.PendingDamage) {
 // syncPendingDamageRuntimeFromContext 将响应/被动技能在当前伤害上下文里写入的运行时元数据，
 // 回填到正在处理的 PendingDamage 头结点，确保中断恢复后状态仍然存在。
 func (e *GameEngine) syncPendingDamageRuntimeFromContext(ctx *model.Context) {
-	if e == nil || ctx == nil || ctx.Trigger != model.TriggerOnDamageTaken || len(e.State.PendingDamageQueue) == 0 {
+	if e == nil || ctx == nil || ctx.Timing != model.TimingOnDamageTaken || len(e.State.PendingDamageQueue) == 0 {
 		return
 	}
 
 	pd := &e.State.PendingDamageQueue[0]
-	if ctx.TriggerCtx != nil {
-		if ctx.TriggerCtx.SourceID != "" && pd.SourceID != ctx.TriggerCtx.SourceID {
+	if ctx.EventCtx != nil {
+		if ctx.EventCtx.SourceID != "" && pd.SourceID != ctx.EventCtx.SourceID {
 			return
 		}
-		if ctx.TriggerCtx.TargetID != "" && pd.TargetID != ctx.TriggerCtx.TargetID {
+		if ctx.EventCtx.TargetID != "" && pd.TargetID != ctx.EventCtx.TargetID {
 			return
 		}
 	}
@@ -97,22 +99,22 @@ func (e *GameEngine) checkAndProcessAttackHolyShield(pd *model.PendingDamage, at
 		pd.IsCounter,
 	)
 	pd.SetCheck(model.PendingDamageCheckAttackMissResolved, true)
-	pd.AttackHitTriggerChecked = true
+	pd.AttackHitFlowDispatched = true
 	return true
 }
 
 func (e *GameEngine) processPendingAttackHit(pd *model.PendingDamage) bool {
-	if pd == nil || !strings.EqualFold(string(pd.DamageType), string(model.AttackDamage)) || pd.AttackHitTriggerChecked {
+	if pd == nil || !strings.EqualFold(string(pd.DamageType), string(model.AttackDamage)) || pd.AttackHitFlowDispatched {
 		return false
 	}
 	if pd.Card == nil {
-		pd.AttackHitTriggerChecked = true
+		pd.AttackHitFlowDispatched = true
 		return false
 	}
 	attacker := e.State.Players[pd.SourceID]
 	victim := e.State.Players[pd.TargetID]
 	if attacker == nil || victim == nil {
-		pd.AttackHitTriggerChecked = true
+		pd.AttackHitFlowDispatched = true
 		return false
 	}
 
@@ -168,22 +170,22 @@ func (e *GameEngine) processPendingAttackHit(pd *model.PendingDamage) bool {
 			}(),
 		},
 	}
-	hitCtx := e.buildContext(attacker, victim, model.TriggerOnAttackHit, hitEventCtx)
-	e.dispatcher.OnTrigger(model.TriggerOnAttackHit, hitCtx)
+	hitCtx := e.buildContext(attacker, victim, model.TimingOnHitCheck, hitEventCtx)
+	e.dispatcher.OnTiming(hitCtx.Timing, hitCtx)
 	if e.State.PendingInterrupt != nil {
 		return true
 	}
 	if e.handlePostAttackHitEffects(pd) {
-		pd.AttackHitTriggerChecked = true
+		pd.AttackHitFlowDispatched = true
 		return true
 	}
 
-	pd.AttackHitTriggerChecked = true
+	pd.AttackHitFlowDispatched = true
 	return false
 }
 
 func (e *GameEngine) dispatchPendingDamageTaken(pd *model.PendingDamage) bool {
-	if pd == nil || pd.DamageTakenTriggerChecked {
+	if pd == nil || pd.DamageTakenFlowDispatched {
 		return false
 	}
 
@@ -194,7 +196,7 @@ func (e *GameEngine) dispatchPendingDamageTaken(pd *model.PendingDamage) bool {
 		DamageVal: &pd.Damage,
 		Card:      pd.Card,
 	}
-	damageCtx := e.buildContext(e.State.Players[pd.TargetID], e.State.Players[pd.SourceID], model.TriggerOnDamageTaken, damageEventCtx)
+	damageCtx := e.buildContext(e.State.Players[pd.TargetID], e.State.Players[pd.SourceID], model.TimingOnDamageTaken, damageEventCtx)
 	damageCtx.Flags["IsMagicDamage"] = !strings.EqualFold(string(pd.DamageType), string(model.AttackDamage))
 	damageCtx.Flags["holy_shield_eligible"] = strings.EqualFold(string(pd.DamageType), string(model.AttackDamage)) ||
 		(pd.Card != nil && strings.TrimSpace(pd.Card.Name) == "魔弹")
@@ -203,9 +205,9 @@ func (e *GameEngine) dispatchPendingDamageTaken(pd *model.PendingDamage) bool {
 		damageCtx.Selections = map[string]any{}
 	}
 	damageCtx.Selections["damage_type"] = pd.DamageType
-	pd.DamageTakenTriggerChecked = true
+	pd.DamageTakenFlowDispatched = true
 
-	e.dispatcher.OnTrigger(model.TriggerOnDamageTaken, damageCtx)
+	e.dispatcher.OnTiming(damageCtx.Timing, damageCtx)
 	return e.State.PendingInterrupt != nil
 }
 

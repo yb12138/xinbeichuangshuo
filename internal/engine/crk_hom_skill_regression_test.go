@@ -66,7 +66,7 @@ func TestCrimsonKnightCalmMind_AutoGrantsEndedActionType(t *testing.T) {
 	if h == nil {
 		t.Fatalf("crk_calm_mind handler not found")
 	}
-	ctx := g.buildContext(p1, nil, model.TriggerOnPhaseEnd, &model.EventContext{
+	ctx := g.buildContext(p1, nil, model.TimingOnActionEnd, &model.EventContext{
 		Type:       model.EventPhaseEnd,
 		SourceID:   p1.ID,
 		ActionType: model.ActionMagic, // 法术行动结束后，仍应允许选择“攻击行动”
@@ -235,7 +235,7 @@ func TestHomRuneReforge_ReallocateAndOverflowCheckOnTurnEnd(t *testing.T) {
 	if h == nil {
 		t.Fatalf("hom_rune_reforge handler not found")
 	}
-	ctx := g.buildContext(p1, nil, model.TriggerOnTurnStart, &model.EventContext{
+	ctx := g.buildContext(p1, nil, model.TimingOnTurnStart, &model.EventContext{
 		SourceID: p1.ID,
 	})
 	if !h.CanUse(ctx) {
@@ -300,7 +300,7 @@ func TestHomGlyphFusion_MaxXUsesDistinctElements(t *testing.T) {
 		t.Fatalf("hom_glyph_fusion handler not found")
 	}
 	damageVal := 2
-	ctx := g.buildContext(p1, g.State.Players["p2"], model.TriggerOnAttackMiss, &model.EventContext{
+	ctx := g.buildContext(p1, g.State.Players["p2"], model.TimingOnHitCheck, &model.EventContext{
 		Type:      model.EventAttack,
 		SourceID:  p1.ID,
 		TargetID:  "p2",
@@ -362,7 +362,7 @@ func TestHomAttackMissResponseGroup_ChooseOneOnly(t *testing.T) {
 		{ID: "g1", Name: "风神斩", Type: model.CardTypeAttack, Element: model.ElementWind, Damage: 2},
 	}
 
-	ctx := g.buildContext(p1, p2, model.TriggerOnAttackMiss, &model.EventContext{
+	ctx := g.buildContext(p1, p2, model.TimingOnHitCheck, &model.EventContext{
 		Type:     model.EventAttack,
 		SourceID: p1.ID,
 		TargetID: p2.ID,
@@ -376,7 +376,7 @@ func TestHomAttackMissResponseGroup_ChooseOneOnly(t *testing.T) {
 		AttackInfo: &model.AttackEventInfo{ActionType: "Attack", IsHit: false},
 	})
 
-	g.dispatcher.OnTrigger(model.TriggerOnAttackMiss, ctx)
+	g.dispatcher.OnTiming(ctx.Timing, ctx)
 	if g.State.PendingInterrupt == nil || g.State.PendingInterrupt.Type != model.InterruptResponseSkill {
 		t.Fatalf("expected attack miss response interrupt, got %+v", g.State.PendingInterrupt)
 	}
@@ -412,7 +412,7 @@ func TestHomDualEcho_TargetChoiceCanCancel(t *testing.T) {
 	}
 
 	damageVal := 2
-	ctx := g.buildContext(p1, p1, model.TriggerOnDamageTaken, &model.EventContext{
+	ctx := g.buildContext(p1, p1, model.TimingOnDamageTaken, &model.EventContext{
 		Type:      model.EventDamage,
 		SourceID:  p1.ID,
 		TargetID:  p1.ID,
@@ -475,7 +475,7 @@ func TestHomDualEcho_WhenDamagingEnemyInTwoPlayerGameCanTargetSelf(t *testing.T)
 	}
 
 	damageVal := 2
-	ctx := g.buildContext(p1, p2, model.TriggerOnDamageTaken, &model.EventContext{
+	ctx := g.buildContext(p1, p2, model.TimingOnDamageTaken, &model.EventContext{
 		Type:      model.EventDamage,
 		SourceID:  p1.ID,
 		TargetID:  p2.ID,
@@ -517,7 +517,7 @@ func TestHomDualEcho_TargetConfirmConsumesCostAndQueuesDamage(t *testing.T) {
 		t.Fatalf("hom_dual_echo handler not found")
 	}
 	damageVal := 2
-	ctx := g.buildContext(p1, p1, model.TriggerOnDamageTaken, &model.EventContext{
+	ctx := g.buildContext(p1, p1, model.TimingOnDamageTaken, &model.EventContext{
 		Type:      model.EventDamage,
 		SourceID:  p1.ID,
 		TargetID:  p1.ID,
@@ -576,7 +576,7 @@ func TestHomDualEcho_NoMoraleDamageStillOverflowsAndDoesNotDropMorale(t *testing
 		t.Fatalf("hom_dual_echo handler not found")
 	}
 	damageVal := 2
-	ctx := g.buildContext(p1, p1, model.TriggerOnDamageTaken, &model.EventContext{
+	ctx := g.buildContext(p1, p1, model.TimingOnDamageTaken, &model.EventContext{
 		Type:      model.EventDamage,
 		SourceID:  p1.ID,
 		TargetID:  p1.ID,
@@ -704,10 +704,10 @@ func TestCrimsonKnightFaith_SelfPoisonCanUseHeal(t *testing.T) {
 		SourceID: p1.ID,
 		Mode:     model.FieldEffect,
 		Effect:   model.EffectPoison,
-		Trigger:  model.EffectTriggerOnBeforeAction,
+		Hook: model.FieldHookOnBeforeAction,
 	})
 
-	g.triggerFieldEffects(p1, model.EffectTriggerOnBeforeAction, nil)
+	g.runFieldCardsForHook(p1, model.FieldHookOnBeforeAction, nil)
 	if len(g.State.PendingDamageQueue) != 1 {
 		t.Fatalf("expected one poison pending damage, got %d", len(g.State.PendingDamageQueue))
 	}
@@ -747,7 +747,7 @@ func TestCrimsonKnightBloodyPrayerXPrompt_NoZeroOption(t *testing.T) {
 	if h == nil {
 		t.Fatalf("crk_bloody_prayer handler not found")
 	}
-	ctx := g.buildContext(p1, nil, model.TriggerNone, nil)
+	ctx := g.buildContext(p1, nil, model.TimingActive, nil)
 	if !h.CanUse(ctx) {
 		t.Fatalf("expected bloody prayer can use with heal>0 and ally exists")
 	}
@@ -795,7 +795,7 @@ func TestHomRuneSmash_BurstAddsAttackAndMagicDamage(t *testing.T) {
 	if h == nil {
 		t.Fatalf("hom_rune_smash handler not found")
 	}
-	ctx := g.buildContext(p1, p2, model.TriggerOnAttackHit, &model.EventContext{
+	ctx := g.buildContext(p1, p2, model.TimingOnHitCheck, &model.EventContext{
 		Type:      model.EventAttack,
 		SourceID:  p1.ID,
 		TargetID:  p2.ID,

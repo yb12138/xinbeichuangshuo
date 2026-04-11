@@ -1,3 +1,5 @@
+// gameflow: 按角色身份挂载的承伤/转伤钩子。
+
 package engine
 
 import (
@@ -104,7 +106,7 @@ func pendingDamageSoulLinkTransferHook(e *GameEngine, pd *model.PendingDamage) b
 	if e == nil || pd == nil {
 		return false
 	}
-	return e.maybeTriggerSoulLinkTransfer(pd)
+	return e.maybeSoulLinkTransfer(pd)
 }
 
 // 剑帝命中后置：承伤触发后、治疗抵伤前执行命中分支。
@@ -123,7 +125,7 @@ func pendingDamageButterflyBeforeApplyHook(e *GameEngine, pd *model.PendingDamag
 	if e == nil || pd == nil {
 		return false
 	}
-	return e.maybeTriggerButterflyDamageResponses(pd)
+	return e.maybeButterflyDamageResponses(pd)
 }
 
 // pendingDamageHealResistGateHook 统一承载“治疗抵伤门禁”的角色技能规则。

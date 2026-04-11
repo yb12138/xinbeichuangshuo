@@ -1,3 +1,5 @@
+// gameflow: 格斗家技能流。
+
 package engine
 
 import (

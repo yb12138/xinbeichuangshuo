@@ -1,3 +1,5 @@
+// gameflow: HandleAction 入口：将 PlayerAction 分派到技能/攻击/法术/选择等。
+
 package engine
 
 import (

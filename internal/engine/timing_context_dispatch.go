@@ -1,3 +1,5 @@
+// gameflow: Timing 与 Context Op 的总分派入口。
+
 package engine
 
 import (

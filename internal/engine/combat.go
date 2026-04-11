@@ -1,3 +1,5 @@
+// gameflow: 战斗栈：发起攻击/法术战斗、阶段切换、与应战/承伤衔接。
+
 package engine
 
 import (
@@ -69,7 +71,7 @@ func (e *GameEngine) ResolveDamage(attackerID, victimID string, card *model.Card
 		damage = e.applyAttackDamageModifiers(attacker, victim, damage, action)
 	}
 
-	// 3. 触发 TriggerOnDamageTaken 检查减伤技能
+	// 3. 触发 TimingOnDamageTaken 检查减伤技能
 	damageVal := damage
 	damageEventCtx := &model.EventContext{
 		Type:      model.EventDamage,
@@ -78,13 +80,13 @@ func (e *GameEngine) ResolveDamage(attackerID, victimID string, card *model.Card
 		DamageVal: &damageVal, // 允许技能修改伤害值
 		Card:      card,
 	}
-	damageSkillCtx := e.buildContext(victim, attacker, model.TriggerNone, damageEventCtx)
+	damageSkillCtx := e.buildContext(victim, attacker, model.TimingOnDamageTaken, damageEventCtx)
 	damageSkillCtx.Flags["IsMagicDamage"] = !strings.EqualFold(string(damageType), string(model.AttackDamage))
 	if damageSkillCtx.Selections == nil {
 		damageSkillCtx.Selections = map[string]any{}
 	}
 	damageSkillCtx.Selections["damage_type"] = damageType
-	e.dispatcher.OnTrigger(model.TriggerOnDamageTaken, damageSkillCtx)
+	e.dispatcher.OnTiming(model.TimingOnDamageTaken, damageSkillCtx)
 
 	// 检查是否有中断（如减伤技能需要确认）
 	if e.State.PendingInterrupt != nil {
@@ -121,8 +123,8 @@ func (e *GameEngine) applyAttackDamageModifiers(attacker, target *model.Player, 
 				CounterInitiator: action.CounterInitiator,
 			},
 		}
-		modifyCtx := e.buildContext(attacker, target, model.TriggerModifyDamage, modifyDamageCtx)
-		e.dispatcher.OnTrigger(model.TriggerModifyDamage, modifyCtx)
+		modifyCtx := e.buildContext(attacker, target, model.TimingOnDamageCalculated, modifyDamageCtx)
+		e.dispatcher.OnTiming(modifyCtx.Timing, modifyCtx)
 	}
 	return e.applyPassiveAttackEffects(attacker, target, damage, action)
 }
@@ -166,8 +168,8 @@ func (e *GameEngine) finishTakeHit(target *model.Player, damage int, attackActio
 			TargetID:  target.ID,
 			DamageVal: &damage,
 		}
-		damageSkillCtx := e.buildContext(target, attacker, model.TriggerNone, damageEventCtx)
-		e.dispatcher.OnTrigger(model.TriggerOnDamageTaken, damageSkillCtx)
+		damageSkillCtx := e.buildContext(target, attacker, model.TimingOnDamageTaken, damageEventCtx)
+		e.dispatcher.OnTiming(model.TimingOnDamageTaken, damageSkillCtx)
 		// 受伤响应可能产生中断（例如减伤/弃牌等），等待用户处理后继续
 		if e.State.PendingInterrupt != nil {
 			return
@@ -185,15 +187,15 @@ func (e *GameEngine) finishTakeHit(target *model.Player, damage int, attackActio
 		},
 	}
 	// 6. 触发攻击行动结束事件
-	phaseCtx := e.buildContext(attacker, nil, model.TriggerOnPhaseEnd, eventCtx)
-	e.dispatcher.OnTrigger(model.TriggerOnPhaseEnd, phaseCtx)
+	phaseCtx := e.buildContext(attacker, nil, model.TimingOnActionEnd, eventCtx)
+	e.dispatcher.OnTiming(phaseCtx.Timing, phaseCtx)
 	// 攻击后响应（如神圣追击）出现中断时，暂停，避免提前切回合
 	if e.State.PendingInterrupt != nil {
 		return
 	}
 
 	// 7. 检查圣剑第3次攻击的摸X弃X效果
-	if e.triggerHolySwordDrawIfNeeded(attacker) {
+	if e.holySwordDrawInterruptIfNeeded(attacker) {
 		return // 等待中断处理完成后再继续
 	}
 
@@ -207,8 +209,8 @@ func (e *GameEngine) finishTakeHit(target *model.Player, damage int, attackActio
 	e.clearCombatStage()
 }
 
-// triggerHolySwordDrawIfNeeded 在满足条件时推送圣剑摸X弃X中断
-func (e *GameEngine) triggerHolySwordDrawIfNeeded(attacker *model.Player) bool {
+// holySwordDrawInterruptIfNeeded 在满足条件时推送圣剑摸X弃X中断
+func (e *GameEngine) holySwordDrawInterruptIfNeeded(attacker *model.Player) bool {
 	if attacker == nil || attacker.Character == nil || attacker.TurnState.AttackCount != 3 {
 		return false
 	}
@@ -236,14 +238,14 @@ func (e *GameEngine) triggerHolySwordDrawIfNeeded(attacker *model.Player) bool {
 	return true
 }
 
-func (e *GameEngine) maybeTriggerHolySwordDrawFromPhaseEndCtx(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.TriggerCtx == nil || ctx.TriggerCtx.ActionType != model.ActionAttack {
+func (e *GameEngine) maybeHolySwordDrawFromPhaseEndCtx(ctx *model.Context) bool {
+	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil || ctx.EventCtx.ActionType != model.ActionAttack {
 		return false
 	}
-	if ctx.TriggerCtx.AttackInfo != nil && ctx.TriggerCtx.AttackInfo.CounterInitiator != "" {
+	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
-	if !e.triggerHolySwordDrawIfNeeded(ctx.User) {
+	if !e.holySwordDrawInterruptIfNeeded(ctx.User) {
 		return false
 	}
 	// 圣剑中断先打断当前 ActionEnd，处理完后回到同一个 ActionEnd 继续派发风怒/剑影等响应技能。

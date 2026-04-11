@@ -74,7 +74,7 @@ func TestElfRitualStoresBlessingsOutsideHand(t *testing.T) {
 		t.Fatalf("ritual should create 3 blessings, got=%d", got)
 	}
 	if game.State.PendingInterrupt != nil {
-		t.Fatalf("ritual draw should not trigger overflow discard interrupt")
+		t.Fatalf("ritual draw should not dispatch overflow discard interrupt")
 	}
 	if p1.Gem != 0 {
 		t.Fatalf("ritual should consume 1 gem, got=%d", p1.Gem)
@@ -162,7 +162,7 @@ func TestElfRitualStartupConfirmShouldNotLeaveOverflowDiscard(t *testing.T) {
 		{ID: "h6", Name: "手牌6", Type: model.CardTypeMagic, Element: model.ElementLight, Damage: 0},
 	}
 
-	startupCtx := game.buildContext(p1, nil, model.TriggerOnTurnStart, &model.EventContext{
+	startupCtx := game.buildContext(p1, nil, model.TimingOnTurnStart, &model.EventContext{
 		Type:     model.EventTurnStart,
 		SourceID: p1.ID,
 	})

@@ -60,10 +60,10 @@
 1. 发起攻击，构造 `CombatRequest` 压入 `CombatStack`
 2. 进入战斗交互阶段（应战 / 防御 / 承受）
 3. 计算伤害并应用被动修正
-4. 分发 `TriggerOnDamageTaken` 以允许减伤/转移/响应
+4. 分发 `TimingOnDamageTaken` 以允许减伤/转移/响应
 5. 处理中断（`PendingInterrupt`）
 6. 执行最终伤害（摸牌伤害、爆牌、士气变化）
-7. 触发攻击后事件（`TriggerOnPhaseEnd`）
+7. 触发攻击后事件（`TimingOnActionEnd`）
 8. 回到额外行动阶段，消费追加行动
 
 ## 3.3 法术链路
@@ -80,7 +80,7 @@
 
 核心由 `internal/engine/skill_dispatcher.go` + `internal/engine/skills/registry.go`：
 
-- 事件驱动：按 Trigger 收集候选技能
+- 事件驱动：按时窗收集候选技能
 - 身份驱动：区分 `Attacker` / `Defender` / `Any`
 - 响应类型：`Mandatory` / `Optional` / `Silent`
 - 执行前校验：费用、回合限制、独有卡匹配、CanUse

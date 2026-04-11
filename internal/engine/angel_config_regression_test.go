@@ -18,7 +18,7 @@ func interruptHasSkillID(intr *model.Interrupt, skillID string) bool {
 	return false
 }
 
-func TestAngelSong_TriggersAsTurnStartResponseAndResumesActionSelection(t *testing.T) {
+func TestAngelSong_RunsAsTurnStartResponseAndResumesActionSelection(t *testing.T) {
 	game := NewGameEngine(noopObserver{})
 	if err := game.AddPlayer("p1", "Angel", "angel", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -41,7 +41,7 @@ func TestAngelSong_TriggersAsTurnStartResponseAndResumesActionSelection(t *testi
 		SourceID: "p3",
 		Mode:     model.FieldEffect,
 		Effect:   model.EffectWeak,
-		Trigger:  model.EffectTriggerOnBeforeAction,
+		Hook: model.FieldHookOnBeforeAction,
 	})
 
 	game.Drive()
@@ -121,7 +121,7 @@ func TestGodProtection_PromptsForXAndPartiallyMitigatesMoraleLoss(t *testing.T) 
 	p1.Crystal = 3
 
 	moraleLoss := 3
-	lossCtx := game.buildContext(p1, nil, model.TriggerBeforeMoraleLoss, &model.EventContext{
+	lossCtx := game.buildContext(p1, nil, model.TimingBeforeMoraleLoss, &model.EventContext{
 		Type:      model.EventDamage,
 		DamageVal: &moraleLoss,
 	})
@@ -139,7 +139,7 @@ func TestGodProtection_PromptsForXAndPartiallyMitigatesMoraleLoss(t *testing.T) 
 		"morale_loss_is_damage_resolution": false,
 	}
 
-	game.dispatcher.OnTrigger(model.TriggerBeforeMoraleLoss, lossCtx)
+	game.dispatcher.OnTiming(lossCtx.Timing, lossCtx)
 	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptResponseSkill {
 		t.Fatalf("expected god_protection response interrupt, got %+v", game.State.PendingInterrupt)
 	}

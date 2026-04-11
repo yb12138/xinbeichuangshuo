@@ -1,3 +1,5 @@
+// gameflow: 魔弹相关 Prompt 与选项。
+
 package engine
 
 import (

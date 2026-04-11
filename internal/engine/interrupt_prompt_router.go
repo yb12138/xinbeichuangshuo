@@ -1,3 +1,5 @@
+// gameflow: 各类中断对应的 Prompt 构建路由。
+
 package engine
 
 import "starcup-engine/internal/model"

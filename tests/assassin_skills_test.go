@@ -37,10 +37,10 @@ func TestAssassin_Skills(t *testing.T) {
 		// P1 承受
 		// P2 Damage = 2.
 		// P1 Heal = 0 (assumed default). Damage = 2 -> Draw 2 cards.
-		// TriggerOnDamageTaken (Backlash) triggers. P2 draws 1 card.
+		// TimingOnDamageTaken (Backlash) runs. P2 draws 1 card.
 
 		game.HandleAction(model.PlayerAction{PlayerID: "p1", Type: model.CmdRespond, ExtraArgs: []string{"take"}})
-		game.Drive() // 结算伤害 -> TriggerOnDamageTaken -> Backlash
+		game.Drive() // 结算伤害 -> TimingOnDamageTaken -> Backlash
 
 		// 验证 P2 手牌
 		// P2 Hand initial 1. Played 1 -> 0.

@@ -82,7 +82,7 @@ func TestButterflyDance_DrawAndGainCocoon(t *testing.T) {
 	}
 }
 
-func TestButterflyChrysalis_TriggersOverflowDiscardWhenPupaLowersHandLimit(t *testing.T) {
+func TestButterflyChrysalis_RunsOverflowDiscardWhenPupaLowersHandLimit(t *testing.T) {
 	game := NewGameEngine(noopObserver{})
 	if err := game.AddPlayer("p1", "Butterfly", "butterfly_dancer", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -375,7 +375,7 @@ func TestButterflyWither_CanTargetAnyCharacter(t *testing.T) {
 	}
 
 	p1 := game.State.Players["p1"]
-	game.queueButterflyWitherTrigger(p1)
+	game.queueButterflyWitherFollowup(p1)
 	requireChoicePrompt(t, game, "p1", "bt_wither_confirm")
 
 	mustHandleAction(t, game, model.PlayerAction{

@@ -1,3 +1,5 @@
+// gameflow: 暗杀者/英雄向：水影、反击链等（与配置中技能 ID 对应）。
+
 package engine
 
 import (

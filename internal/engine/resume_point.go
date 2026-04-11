@@ -1,3 +1,5 @@
+// gameflow: 响应恢复断点标记（命中/未命中/承伤等）。
+
 package engine
 
 import (

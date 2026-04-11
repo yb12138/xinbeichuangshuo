@@ -1,3 +1,5 @@
+// gameflow: 血祭司 handler。
+
 package skills
 
 import (

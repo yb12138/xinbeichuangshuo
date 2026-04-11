@@ -6,7 +6,7 @@ import (
 	"starcup-engine/internal/model"
 )
 
-func TestBerserkerTear_CanTriggerOnCounterAttackHit(t *testing.T) {
+func TestBerserkerTear_CanTimingOnCounterAttackHit(t *testing.T) {
 	game := NewGameEngine(noopObserver{})
 	if err := game.AddPlayer("p1", "Berserker", "berserker", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -21,7 +21,7 @@ func TestBerserkerTear_CanTriggerOnCounterAttackHit(t *testing.T) {
 	p1.Gem = 1
 
 	damage := 2
-	hitCtx := game.buildContext(p1, p2, model.TriggerOnAttackHit, &model.EventContext{
+	hitCtx := game.buildContext(p1, p2, model.TimingOnHitCheck, &model.EventContext{
 		Type:      model.EventAttack,
 		SourceID:  p1.ID,
 		TargetID:  p2.ID,
@@ -40,7 +40,7 @@ func TestBerserkerTear_CanTriggerOnCounterAttackHit(t *testing.T) {
 		},
 	})
 
-	game.dispatcher.OnTrigger(model.TriggerOnAttackHit, hitCtx)
+	game.dispatcher.OnTiming(hitCtx.Timing, hitCtx)
 	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptResponseSkill {
 		t.Fatalf("expected tear response interrupt on counter hit, got %+v", game.State.PendingInterrupt)
 	}
@@ -59,7 +59,7 @@ func TestBerserkerTear_CanTriggerOnCounterAttackHit(t *testing.T) {
 	}
 }
 
-func TestBloodBlade_TriggersOnHitCheckForActiveUniqueAttack(t *testing.T) {
+func TestBloodBlade_RunsOnHitCheckForActiveUniqueAttack(t *testing.T) {
 	game := NewGameEngine(noopObserver{})
 	if err := game.AddPlayer("p1", "Berserker", "berserker", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -78,7 +78,7 @@ func TestBloodBlade_TriggersOnHitCheckForActiveUniqueAttack(t *testing.T) {
 	}
 
 	damage := 2
-	hitCtx := game.buildContext(p1, p2, model.TriggerOnAttackHit, &model.EventContext{
+	hitCtx := game.buildContext(p1, p2, model.TimingOnHitCheck, &model.EventContext{
 		Type:      model.EventAttack,
 		SourceID:  p1.ID,
 		TargetID:  p2.ID,
@@ -99,7 +99,7 @@ func TestBloodBlade_TriggersOnHitCheckForActiveUniqueAttack(t *testing.T) {
 		},
 	})
 
-	game.dispatcher.OnTrigger(model.TriggerOnAttackHit, hitCtx)
+	game.dispatcher.OnTiming(hitCtx.Timing, hitCtx)
 	if damage != 4 {
 		t.Fatalf("expected blood_blade to add 2 damage when target hand=2, got %d", damage)
 	}

@@ -1,3 +1,5 @@
+// gameflow: 通灵师：念咒、百鬼夜行等。
+
 package engine
 
 import (

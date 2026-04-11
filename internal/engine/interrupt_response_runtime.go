@@ -1,3 +1,5 @@
+// gameflow: 响应技能确认后的恢复与战斗阶段回落。
+
 package engine
 
 const (

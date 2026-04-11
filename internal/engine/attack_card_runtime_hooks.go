@@ -1,3 +1,5 @@
+// gameflow: 打出攻击牌时的变牌、目标上下文等扩展点。
+
 package engine
 
 import "starcup-engine/internal/model"

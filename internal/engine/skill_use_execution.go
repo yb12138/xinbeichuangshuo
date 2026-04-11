@@ -1,3 +1,5 @@
+// gameflow: 技能执行：扣费、建 Context、调 handler。
+
 package engine
 
 import (
@@ -59,13 +61,13 @@ func (e *GameEngine) placeSkillFieldCard(use *skillUseRequest) error {
 		SourceID: use.player.ID,  // 谁放置的这个场牌（用于伤害来源）
 		Mode:     use.skillDef.PlaceMode,
 		Effect:   use.skillDef.PlaceEffect,
-		Trigger:  use.skillDef.PlaceTrigger,
+		Hook: use.skillDef.PlaceHook,
 		Meta:     buildFieldCardMeta(use, placedCard), // 【关键】封印会在这里记录绑定元素
 	}
 	fieldTarget.AddFieldCard(fc)
 	e.Log(fmt.Sprintf(
 		"[Skill] %s 在 %s 面前放置了场上牌: %s (效果: %s, 触发: %s)",
-		use.player.Name, fieldTarget.Name, placedCard.Name, fc.Effect, fc.Trigger,
+		use.player.Name, fieldTarget.Name, placedCard.Name, fc.Effect, fc.Hook,
 	))
 	return nil
 }
@@ -118,7 +120,7 @@ func (e *GameEngine) executeSkillFlow(use *skillUseRequest) error {
 		return fmt.Errorf("skill handler not found for %s", use.skillID)
 	}
 
-	ctx := e.buildContext(use.player, use.target, model.TriggerNone, nil)
+	ctx := e.buildContext(use.player, use.target, model.TimingActive, nil)
 	ctx.Targets = use.actualTargets
 	if ctx.Selections == nil {
 		ctx.Selections = map[string]interface{}{}
@@ -135,7 +137,7 @@ func (e *GameEngine) executeSkillFlow(use *skillUseRequest) error {
 
 func (e *GameEngine) finishSkillUse(use *skillUseRequest) error {
 	if use.skillDef.PlaceCard && use.skillDef.PlaceMode == model.FieldEffect && len(use.actualTargets) > 0 {
-		e.emitBuffAddedTrigger(use.player.ID, use.actualTargets[0].ID, use.skillDef.PlaceEffect)
+		e.emitBuffAddedDispatch(use.player.ID, use.actualTargets[0].ID, use.skillDef.PlaceEffect)
 	}
 	e.runTimingOnActionEndSkillPost(use)
 	e.recordSkillUsage(use.player.ID, use.skillDef.Title, use.skillDef.Type)

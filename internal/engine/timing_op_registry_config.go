@@ -1,3 +1,5 @@
+// gameflow: 注册表配置数据。
+
 package engine
 
 import (

@@ -1,3 +1,5 @@
+// gameflow: 场上效果牌按 FieldHook 结算（中毒等）。
+
 package engine
 
 import (
@@ -6,12 +8,12 @@ import (
 	"starcup-engine/internal/model"
 )
 
-// triggerFieldEffects 触发场上效果牌。
-func (e *GameEngine) triggerFieldEffects(p *model.Player, trigger model.EffectTrigger, ctx *model.Context) {
+// runFieldCardsForHook 按场上牌的结算钩子处理效果牌（如中毒等）。
+func (e *GameEngine) runFieldCardsForHook(p *model.Player, hook model.FieldHook, ctx *model.Context) {
 	var remain []*model.FieldCard
 
 	for _, fc := range p.Field {
-		if fc.Mode != model.FieldEffect || fc.Trigger != trigger {
+		if fc.Mode != model.FieldEffect || fc.Hook != hook {
 			remain = append(remain, fc)
 			continue
 		}
@@ -83,7 +85,7 @@ func (e *GameEngine) attachSourceEffectCard(source *model.Player, target *model.
 		SourceID: source.ID,
 		Mode:     model.FieldEffect,
 		Effect:   effect,
-		Trigger:  model.EffectTriggerManual,
+		Hook: model.FieldHookManual,
 	})
 	return nil
 }

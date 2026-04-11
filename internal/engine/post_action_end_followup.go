@@ -1,3 +1,5 @@
+// gameflow: 行动结束后的跟随效果（全局）。
+
 package engine
 
 import (

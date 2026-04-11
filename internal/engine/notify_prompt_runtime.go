@@ -1,3 +1,5 @@
+// gameflow: 向观察者/前端通知当前 Prompt。
+
 package engine
 
 import (
@@ -202,7 +204,7 @@ func (e *GameEngine) NotifyCardHidden(playerID string, cards []model.Card, actio
 	e.notifyCards(playerID, cards, actionType, true)
 }
 
-func (e *GameEngine) dispatchCardTrigger(player *model.Player, trigger model.TriggerType, targetID string, card model.Card) {
+func (e *GameEngine) dispatchCardTiming(player *model.Player, timing model.FlowTiming, targetID string, card model.Card) {
 	if e == nil || e.dispatcher == nil || player == nil {
 		return
 	}
@@ -213,8 +215,8 @@ func (e *GameEngine) dispatchCardTrigger(player *model.Player, trigger model.Tri
 		TargetID: targetID,
 		Card:     &cardCopy,
 	}
-	skillCtx := e.buildContext(player, nil, trigger, cardCtx)
-	e.dispatcher.OnTrigger(trigger, skillCtx)
+	skillCtx := e.buildContext(player, nil, timing, cardCtx)
+	e.dispatcher.OnTiming(skillCtx.Timing, skillCtx)
 }
 
 func (e *GameEngine) notifyCards(playerID string, cards []model.Card, actionType model.DamageType, hidden bool) {
@@ -248,7 +250,7 @@ func (e *GameEngine) notifyCards(playerID string, cards []model.Card, actionType
 	p := e.State.Players[playerID]
 	if actionType == "discard" && !hidden && !e.suppressSealOnDiscard && p != nil {
 		for i := range cards {
-			e.dispatchCardTrigger(p, model.TriggerOnCardRevealed, "", cards[i])
+			e.dispatchCardTiming(p, model.TimingOnCardPlayedOrRevealed, "", cards[i])
 		}
 	}
 	playerName := playerID

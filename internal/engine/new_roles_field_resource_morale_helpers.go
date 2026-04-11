@@ -1,3 +1,5 @@
+// gameflow: 新角色扩展：field resource morale helpers。
+
 package engine
 
 import (
@@ -127,7 +129,7 @@ func addButterflyCocoonCards(player *model.Player, cards []model.Card) int {
 			SourceID: player.ID,
 			Mode:     model.FieldCover,
 			Effect:   model.EffectButterflyCocoon,
-			Trigger:  model.EffectTriggerManual,
+			Hook: model.FieldHookManual,
 		})
 		added++
 	}
@@ -238,7 +240,7 @@ func butterflyMirrorPairDefs(player *model.Player) ([]string, []string) {
 	return defs, labels
 }
 
-func (e *GameEngine) queueButterflyWitherTrigger(user *model.Player) {
+func (e *GameEngine) queueButterflyWitherFollowup(user *model.Player) {
 	if user == nil || !e.isButterflyDancer(user) {
 		return
 	}

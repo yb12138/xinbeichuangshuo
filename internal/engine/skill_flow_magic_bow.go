@@ -1,3 +1,5 @@
+// gameflow: 魔弓手技能流与选项。
+
 package engine
 
 import (
@@ -129,7 +131,7 @@ func (e *GameEngine) handleMagicBowChoiceInput(_ string, selectionIndex int, ctx
 			}
 			if moraleLoss > 0 {
 				lossEventCtx := &model.EventContext{Type: model.EventDamage, DamageVal: &moraleLoss}
-				lossCtx := e.buildContext(user, nil, model.TriggerBeforeMoraleLoss, lossEventCtx)
+				lossCtx := e.buildContext(user, nil, model.TimingBeforeMoraleLoss, lossEventCtx)
 				lossCtx.Flags["IsMagicDamage"] = false
 				if lossCtx.Selections == nil {
 					lossCtx.Selections = map[string]any{}
@@ -143,7 +145,7 @@ func (e *GameEngine) handleMagicBowChoiceInput(_ string, selectionIndex int, ctx
 				lossCtx.Selections["mb_charge_resume"] = true
 				lossCtx.Selections["mb_charge_user_id"] = user.ID
 				lossCtx.Selections["mb_charge_max_place"] = maxPlace
-				e.dispatcher.OnTrigger(model.TriggerBeforeMoraleLoss, lossCtx)
+				e.dispatcher.OnTiming(lossCtx.Timing, lossCtx)
 
 				pendingResponse := false
 				for _, intr := range e.State.InterruptQueue {
@@ -161,7 +163,7 @@ func (e *GameEngine) handleMagicBowChoiceInput(_ string, selectionIndex int, ctx
 					return true, nil
 				}
 
-				finalLoss := e.applyMoraleLossAfterTrigger(user, moraleLoss, false, false, 0, []model.Card{}, lossCtx)
+				finalLoss := e.applyMoraleLossAfterTimingWindow(user, moraleLoss, false, false, 0, []model.Card{}, lossCtx)
 				e.Log(fmt.Sprintf("%s 的 [充能] 摸牌后超出手牌上限%d：士气-%d（本次不弃牌）", user.Name, overflow, finalLoss))
 				e.checkGameEnd()
 			}

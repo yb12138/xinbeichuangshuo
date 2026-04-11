@@ -330,7 +330,7 @@ function resolveSpecialActionDisabledReason(optionId: SpecialActionId): string {
     return '当前条件不足，无法执行该行动。'
 }
 
-function triggerActionHubOption(optionId: string) {
+function invokeActionHubOption(optionId: string) {
     specialActionModalVisible.value = false
     if (isActionSelectionPrompt.value) {
         handlePromptOption(actionPromptRawOptionId(optionId))
@@ -385,7 +385,7 @@ function chooseSpecialAction(optionId: string) {
         return
     }
     specialActionModalVisible.value = false
-    triggerActionHubOption(optionId)
+    invokeActionHubOption(optionId)
 }
 
 function openActionHubAttack() {
@@ -1389,7 +1389,7 @@ function basicEffectSummary(playerId: string): string {
                     class="action-hub-desktop-btn action-image-btn action-image-btn--attack"
                     :title="actionPromptLabel('attack', '攻击')"
                     :aria-label="actionPromptLabel('attack', '攻击')"
-                    @click="triggerActionHubOption('attack')"
+                    @click="invokeActionHubOption('attack')"
                 >
                     <img
                         v-if="isMainActionImageReady('attack')"
@@ -1406,7 +1406,7 @@ function basicEffectSummary(playerId: string): string {
                     class="action-hub-desktop-btn action-image-btn action-image-btn--magic"
                     :title="actionPromptLabel('magic', '法术')"
                     :aria-label="actionPromptLabel('magic', '法术')"
-                    @click="triggerActionHubOption('magic')"
+                    @click="invokeActionHubOption('magic')"
                 >
                     <img
                         v-if="isMainActionImageReady('magic')"
@@ -1442,7 +1442,7 @@ function basicEffectSummary(playerId: string): string {
                         v-if="hasActionPromptOption('cannot_act')"
                         class="btn-secondary action-hub-desktop-btn action-hub-desktop-btn--cannot-act"
                         :class="{ 'action-hub-desktop-btn--cannot-act-extra': isExtraActionPrompt }"
-                        @click="triggerActionHubOption('cannot_act')"
+                        @click="invokeActionHubOption('cannot_act')"
                     >
                         <span class="cannot-act-btn__kicker">
                             {{ isExtraActionPrompt ? '额外行动阶段' : '行动阶段' }}
@@ -1454,11 +1454,11 @@ function basicEffectSummary(playerId: string): string {
                     <button
                         v-if="effectiveAvailableSkills.length > 0"
                         class="btn-skill action-hub-desktop-btn"
-                        @click="triggerActionHubOption('skill')"
+                        @click="invokeActionHubOption('skill')"
                     >
                         发动技能
                     </button>
-                    <button class="btn-secondary action-hub-desktop-btn" @click="triggerActionHubOption('pass')">
+                    <button class="btn-secondary action-hub-desktop-btn" @click="invokeActionHubOption('pass')">
                         结束回合
                     </button>
                 </template>

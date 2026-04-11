@@ -2,6 +2,8 @@
 
 **文档说明**：本文档基于 `data_model.md` 与 `static_classes_dictionary.md` 定义的数据模型，将 `character.md` 中的自然语言技能文案拆解、提炼为面向后端开发（如 Go 结构体实例化）的强类型属性配置说明。
 
+**与引擎对齐**：Go 里 `SkillDefinition` 使用 `timings []FlowTiming`（JSON: `timings`）声明技能在哪些窗口参与 `SkillDispatcher.OnTiming`；本文各技能节中的 **Timing** / **Timings** 字段即对应这些 `FlowTiming` 常量（已不再使用独立的旧式类型/JSON 配置列）。
+
 ---
 
 ## 📦 角色技能配置列表 (第一批次)
@@ -63,7 +65,7 @@
   * **ResolveMode**: `Auto`
   * **ResolveEffects**: `[{EffectType: EffectDamage, Target: TargetSelf, Value: 1, Ref: nil}]`
   * **RemoveAfterResolve**: `true`
-  * **TriggerLimit**: `1`
+  * **FlowWindowLimit**: `1`
 
 #### 【虚弱】 (Weakness)
 * **技能描述**：（将此牌放置于目标角色前，他的行动阶段开始前）目标选择：跳过行动阶段，或摸3张牌后继续行动阶段。
@@ -100,7 +102,7 @@
     * `[1]`: `{Effects: [{EffectType: EffectDrawCard, Target: TargetSelf, Value: 3, Ref: nil}]}` *(摸3张牌后继续)*
   * **ResolveChoiceTimeoutIndex**: `0`
   * **RemoveAfterResolve**: `true`
-  * **TriggerLimit**: `1`
+  * **FlowWindowLimit**: `1`
 
 #### 【圣盾】 (Holy Shield)
 * **技能描述**：（将此牌放置于目标角色前，他遭受攻击或【魔弹】时，移除此牌）视为未命中。
@@ -135,7 +137,7 @@
   * **CanDecline**: `false`
   * **ResolveEffects**: `[{EffectType: EffectCancelHit, Target: TargetCurrentCombat, Value: 0, Ref: nil}]`
   * **RemoveAfterResolve**: `true`
-  * **TriggerLimit**: `1`
+  * **FlowWindowLimit**: `1`
 
 #### 【魔弹】 (Magic Bullet)
 * **技能描述**：（使用此牌）你右手边最近的一名对手选择：承受伤害，打出【魔弹】继续传递并伤害+1，或用【圣光】/【圣盾】抵挡。
@@ -348,12 +350,12 @@
     * `EffectType`: `EffectAttackDamageModifier`
     * `Target`: `TargetCurrentCombat`
     * `Value`: `1`
-    * `Condition`: `Event.TriggerHook == TimingOnAttackDeclared`
+    * `Condition`: `Event.FlowHook == TimingOnAttackDeclared`
   * **Effect[1]** *(对应"命中且手牌>3额外+1")*:
     * `EffectType`: `EffectAttackDamageModifier`
     * `Target`: `TargetCurrentCombat`
     * `Value`: `1`
-    * `Condition`: `Event.TriggerHook == TimingOnHitCheck && Self.HandCount > 3 && Combat.IsHit == true`
+    * `Condition`: `Event.FlowHook == TimingOnHitCheck && Self.HandCount > 3 && Combat.IsHit == true`
 
 #### 【撕裂】 (Tear)
 * **技能描述**：［宝石］攻击命中后发动②，本次攻击伤害额外+2。
@@ -512,7 +514,7 @@
     * `[1]`: `{ChoiceID: "skip_action", Label: "跳过行动阶段", Effects: [{EffectType: EffectSkipPhase, Target: TargetSelf, Value: 0, Ref: nil}]}`
   * **ResolveChoiceTimeoutIndex**: `1`
   * **RemoveAfterResolve**: `true`
-  * **TriggerLimit**: `1`
+  * **FlowWindowLimit**: `1`
 
 #### 【水/火/地/风/雷之封印】 (Elemental Seals)
 * **技能描述**：（将对应封印放置于目标对手面前）该对手获得（直到他从手中打出或展示出对应系别牌时强制触发）对他造成3点法术伤害③，触发后移除此牌。
@@ -546,7 +548,7 @@
   * **ResolveMode**: `Auto`
   * **ResolveEffects**: `[{EffectType: EffectDamage, Target: TargetSelf, Value: 3, Ref: nil}]`
   * **RemoveAfterResolve**: `true`
-  * **TriggerLimit**: `1`
+  * **FlowWindowLimit**: `1`
 
 ### 04. 风之剑圣 (Wind Sword Saint)
 
@@ -586,7 +588,7 @@
   * **Timing**: `TimingOnAttackDeclared` / `TimingOnActionEnd` *(前者做命中劫持，后者做延后结算)*
 * **2. 前置条件**：
   * **PhaseLimit**: `None`
-  * **CustomExpression**: `(Event.TriggerHook == TimingOnAttackDeclared && Combat.SourceID == Self.UserID && Combat.IsActiveAttack == true && Self.AttackCount == 3) || (Event.TriggerHook == TimingOnActionEnd && Action.SourceID == Self.UserID && Action.CurrentType == Attack && Self.AttackCount == 3)`
+  * **CustomExpression**: `(Event.FlowHook == TimingOnAttackDeclared && Combat.SourceID == Self.UserID && Combat.IsActiveAttack == true && Self.AttackCount == 3) || (Event.FlowHook == TimingOnActionEnd && Action.SourceID == Self.UserID && Action.CurrentType == Attack && Self.AttackCount == 3)`
 * **3. 目标选择规则**：
   * **SelectType**: `None`
 * **4. 费用消耗**：
@@ -598,7 +600,7 @@
     * `EffectType`: `EffectApplyCombatTag`
     * `Target`: `TargetCurrentCombat`
     * `Value`: `ForceHit`
-    * `Condition`: `Event.TriggerHook == TimingOnAttackDeclared`
+    * `Condition`: `Event.FlowHook == TimingOnAttackDeclared`
 * **7. 延后结算配置**：
   * **ResolveMoment**: `TimingOnActionEnd`
   * **InterruptType**: `WaitChoice` *(在攻击行动结束时弹出 X 值选择，而不是在宣告攻击时选择)*
@@ -836,7 +838,7 @@
 * **6. 执行效果序列**：
   * **Effect[0]**:
     * `EffectType`: `EffectDrawCard`
-    * `Target`: `TargetTriggerSource` *(触发该次攻击伤害的来源玩家)*
+    * `Target`: `TargetFlowSource` *(触发该次攻击伤害的来源玩家)*
     * `Value`: `1`
     * `Ref`: `None`
 
@@ -1314,7 +1316,7 @@
   * **Timing**: `TimingOnSkillExecuted` / `TimingBeforeActionExecute`
 * **2. 前置条件**：
   * **PhaseLimit**: `None`
-  * **CustomExpression**: `(Event.TriggerHook == TimingOnSkillExecuted && Event.SkillID == "skill_valkyrie_heroic_summon" && State.IsInSelfTurn(Self.UserID) == true) || (Event.TriggerHook == TimingBeforeActionExecute && Action.SourceID == Self.UserID && Action.CurrentType == Attack && Combat.IsActiveAttack == true && Self.Orientation == Tapped && Self.Form == "heroic_form")`
+  * **CustomExpression**: `(Event.FlowHook == TimingOnSkillExecuted && Event.SkillID == "skill_valkyrie_heroic_summon" && State.IsInSelfTurn(Self.UserID) == true) || (Event.FlowHook == TimingBeforeActionExecute && Action.SourceID == Self.UserID && Action.CurrentType == Attack && Combat.IsActiveAttack == true && Self.Orientation == Tapped && Self.Form == "heroic_form")`
 * **3. 目标选择规则**：
   * **SelectType**: `None`
 * **4. 费用消耗**：
@@ -1328,14 +1330,14 @@
     * `Target`: `TargetSelf`
     * `Value`: `0`
     * `OrientationRef`: `Tapped`
-    * `Condition`: `Event.TriggerHook == TimingOnSkillExecuted && Event.SkillID == "skill_valkyrie_heroic_summon" && State.IsInSelfTurn(Self.UserID) == true`
+    * `Condition`: `Event.FlowHook == TimingOnSkillExecuted && Event.SkillID == "skill_valkyrie_heroic_summon" && State.IsInSelfTurn(Self.UserID) == true`
     * `Ref`: `None`
   * **Effect[1]** *(横置时标记为英灵形态 heroic_form)*:
     * `EffectType`: `EffectSetForm`
     * `Target`: `TargetSelf`
     * `Value`: `0`
     * `FormRef`: `"heroic_form"`
-    * `Condition`: `Event.TriggerHook == TimingOnSkillExecuted && Event.SkillID == "skill_valkyrie_heroic_summon" && State.IsInSelfTurn(Self.UserID) == true`
+    * `Condition`: `Event.FlowHook == TimingOnSkillExecuted && Event.SkillID == "skill_valkyrie_heroic_summon" && State.IsInSelfTurn(Self.UserID) == true`
     * `Ref`: `None`
 * **7. 状态结算行为**（挂载于 `Self.Form == "heroic_form"`，用 Timing + Effects 表达）：
   * **ResolveTiming**: `TimingBeforeActionExecute`
@@ -1346,16 +1348,16 @@
     * `Target`: `TargetSelf`
     * `Value`: `0`
     * `OrientationRef`: `Normal`
-    * `Condition`: `Event.TriggerHook == TimingBeforeActionExecute && Action.SourceID == Self.UserID && Action.CurrentType == Attack && Combat.IsActiveAttack == true && Self.Orientation == Tapped && Self.Form == "heroic_form"`
+    * `Condition`: `Event.FlowHook == TimingBeforeActionExecute && Action.SourceID == Self.UserID && Action.CurrentType == Attack && Combat.IsActiveAttack == true && Self.Orientation == Tapped && Self.Form == "heroic_form"`
     * `Ref`: `None`
   * **ResolveEffects[1]** *(英灵状态自动结算②：转正后退出英灵形态)*:
     * `EffectType`: `EffectSetForm`
     * `Target`: `TargetSelf`
     * `Value`: `0`
     * `FormRef`: `nil`
-    * `Condition`: `Event.TriggerHook == TimingBeforeActionExecute && Action.SourceID == Self.UserID && Action.CurrentType == Attack && Combat.IsActiveAttack == true && Self.Orientation == Tapped && Self.Form == "heroic_form"`
+    * `Condition`: `Event.FlowHook == TimingBeforeActionExecute && Action.SourceID == Self.UserID && Action.CurrentType == Attack && Combat.IsActiveAttack == true && Self.Orientation == Tapped && Self.Form == "heroic_form"`
     * `Ref`: `None`
-  * **TriggerLimit**: `1`
+  * **FlowWindowLimit**: `1`
   * **RemoveAfterResolve**: `true`
 
 #### 【军威神光】 (Military Divine Light)
@@ -1884,20 +1886,20 @@
     * `Target`: `TargetSelf`
     * `Value`: `0`
     * `OrientationRef`: `Tapped`
-    * `Condition`: `Event.TriggerHook == TimingStartup`
+    * `Condition`: `Event.FlowHook == TimingStartup`
     * `Ref`: `None`
   * **Effect[1]** *(启动时进入审判形态)*:
     * `EffectType`: `EffectSetForm`
     * `Target`: `TargetSelf`
     * `Value`: `0`
     * `FormRef`: `"judgment_form"`
-    * `Condition`: `Event.TriggerHook == TimingStartup`
+    * `Condition`: `Event.FlowHook == TimingStartup`
     * `Ref`: `None`
   * **Effect[2]** *(启动时手牌上限恒定为5)*:
     * `EffectType`: `EffectSetHandLimitFixed`
     * `Target`: `TargetSelf`
     * `Value`: `5`
-    * `Condition`: `Event.TriggerHook == TimingStartup`
+    * `Condition`: `Event.FlowHook == TimingStartup`
     * `Ref`: `None`
 * **7. 状态结算行为**（挂载于 `Self.Form == "judgment_form"`）：
   * **ResolveTiming**: `TimingOnTurnStart`
@@ -2755,7 +2757,7 @@
   * **AttrPayload**: `{AttrType: PlayerAttributeMaxHeal, Operation: AttributeModifyAdd, Value: 3}`
 * **2. 前置条件**：
   * **PhaseLimit**: `None`
-  * **CustomExpression**: `(Event.TriggerHook == TimingOnAttackDeclared && Combat.IsAttack == true && Combat.TargetID == Self.UserID) || (Event.TriggerHook == TimingOnTurnStart && Event.SourceType == SourceSystem && Event.CauseAction == "GameStart")`
+  * **CustomExpression**: `(Event.FlowHook == TimingOnAttackDeclared && Combat.IsAttack == true && Combat.TargetID == Self.UserID) || (Event.FlowHook == TimingOnTurnStart && Event.SourceType == SourceSystem && Event.CauseAction == "GameStart")`
 * **3. 目标选择规则**：
   * **SelectType**: `None`
 * **4. 费用消耗**：
@@ -2767,7 +2769,7 @@
     * `EffectType`: `EffectApplyCombatTag`
     * `Target`: `TargetCurrentCombat`
     * `Value`: `UnhealableDamage`
-    * `Condition`: `Event.TriggerHook == TimingOnAttackDeclared && Combat.IsAttack == true && Combat.TargetID == Self.UserID`
+    * `Condition`: `Event.FlowHook == TimingOnAttackDeclared && Combat.IsAttack == true && Combat.TargetID == Self.UserID`
     * `Ref`: `None`
   * **Effect[1]** *(游戏初始化时施加“治疗上限+3”常驻规则)*:
     * `EffectType`: `EffectApplyRuleModifier`
@@ -2775,7 +2777,7 @@
     * `Value`: `0`
     * `RuleModifierRef`: `"rm_plague_mage_blasphemy_max_heal_plus_3"`
     * `RuleLifetimeRef`: `RuleLifePermanent`
-    * `Condition`: `Event.TriggerHook == TimingOnTurnStart && Event.SourceType == SourceSystem && Event.CauseAction == "GameStart"`
+    * `Condition`: `Event.FlowHook == TimingOnTurnStart && Event.SourceType == SourceSystem && Event.CauseAction == "GameStart"`
     * `Ref`: `None`
 
 #### 【瘟疫】 (Plague)
@@ -3284,7 +3286,7 @@
     * `Ref`: `None`
   * **Effect[1]** *(对伤害来源角色造成1点法术伤害)*:
     * `EffectType`: `EffectDamage`
-    * `Target`: `TargetTriggerSource`
+    * `Target`: `TargetFlowSource`
     * `Value`: `1`
     * `Ref`: `None`
 
@@ -3503,11 +3505,11 @@
     * `VisibilityRef`: `VisibilityPublic`
     * `Ref`: `None`
 
-#### 【威力赐福·触发】 (Power Blessing Trigger)
+#### 【威力赐福·跟进】 (Power Blessing follow-up)
 * **说明**：当我方持有【威力赐福】标记的角色攻击命中后，可选择移除该标记以使本次攻击伤害额外+2。
 * **实现约定**：此“可选择是否移除”由【威力赐福】持有者本人在其攻击命中窗口自行响应发动。
 * **1. 主干配置**：
-  * **SkillID**: `skill_prayer_master_power_blessing_trigger`
+  * **SkillID**: `skill_prayer_master_power_blessing_followup`
   * **Category**: `Unique`
   * **Type**: `Response`
   * **Timing**: `TimingOnHitCheck`
@@ -3562,11 +3564,11 @@
     * `VisibilityRef`: `VisibilityPublic`
     * `Ref`: `None`
 
-#### 【迅捷赐福·触发】 (Swift Blessing Trigger)
+#### 【迅捷赐福·跟进】 (Swift Blessing follow-up)
 * **说明**：当我方持有【迅捷赐福】标记的角色完成一次攻击行动或法术行动后，可选择移除该标记以额外+1攻击行动。
 * **实现约定**：此“可选择是否移除”由【迅捷赐福】持有者本人在其行动结束窗口自行响应发动。
 * **1. 主干配置**：
-  * **SkillID**: `skill_prayer_master_swift_blessing_trigger`
+  * **SkillID**: `skill_prayer_master_swift_blessing_followup`
   * **Category**: `Unique`
   * **Type**: `Response`
   * **Timing**: `TimingOnActionEnd`
@@ -3725,7 +3727,7 @@
   * **AttrPayload**: `{AttrType: PlayerAttributeMaxHeal, Operation: AttributeModifyAdd, Value: 2}`
 * **2. 前置条件**：
   * **PhaseLimit**: `None`
-  * **CustomExpression**: `((Event.TriggerHook == TimingOnAttackDeclared || Event.TriggerHook == TimingOnMagicDeclared) && Combat.TargetID == Self.UserID && Combat.SourceID != Self.UserID) || (Event.TriggerHook == TimingOnTurnStart && Event.SourceType == SourceSystem && Event.CauseAction == "GameStart")`
+  * **CustomExpression**: `((Event.FlowHook == TimingOnAttackDeclared || Event.FlowHook == TimingOnMagicDeclared) && Combat.TargetID == Self.UserID && Combat.SourceID != Self.UserID) || (Event.FlowHook == TimingOnTurnStart && Event.SourceType == SourceSystem && Event.CauseAction == "GameStart")`
 * **3. 目标选择规则**：
   * **SelectType**: `None`
 * **4. 费用消耗**：
@@ -3737,7 +3739,7 @@
     * `EffectType`: `EffectApplyCombatTag`
     * `Target`: `TargetCurrentCombat`
     * `Value`: `UnhealableDamage`
-    * `Condition`: `(Event.TriggerHook == TimingOnAttackDeclared || Event.TriggerHook == TimingOnMagicDeclared) && Combat.TargetID == Self.UserID && Combat.SourceID != Self.UserID`
+    * `Condition`: `(Event.FlowHook == TimingOnAttackDeclared || Event.FlowHook == TimingOnMagicDeclared) && Combat.TargetID == Self.UserID && Combat.SourceID != Self.UserID`
     * `Ref`: `None`
   * **Effect[1]** *(游戏初始化时施加“治疗上限+2”常驻规则)*:
     * `EffectType`: `EffectApplyRuleModifier`
@@ -3745,7 +3747,7 @@
     * `Value`: `0`
     * `RuleModifierRef`: `"rm_crimson_knight_crimson_faith_max_heal_plus_2"`
     * `RuleLifetimeRef`: `RuleLifePermanent`
-    * `Condition`: `Event.TriggerHook == TimingOnTurnStart && Event.SourceType == SourceSystem && Event.CauseAction == "GameStart"`
+    * `Condition`: `Event.FlowHook == TimingOnTurnStart && Event.SourceType == SourceSystem && Event.CauseAction == "GameStart"`
     * `Ref`: `None`
 
 #### 【血腥祷言】 (Bloody Prayer)
@@ -5144,7 +5146,7 @@
   * **AttrPayload**: `{AttrType: PlayerAttributeMaxEnergy, Operation: AttributeModifyAdd, ValueSourceMode: RuleAttrValueFromFixed, Value: 1}`
 * **2. 前置条件**：
   * **PhaseLimit**: `None`
-  * **CustomExpression**: `(Event.TriggerHook == TimingOnTurnStart && Event.SourceType == SourceSystem && Event.CauseAction == "GameStart") || (Event.TriggerHook == TimingOnDamageTaken && Combat.TargetID == Self.UserID && Combat.IsMagic == true && Combat.FinalDamage > 3)`
+  * **CustomExpression**: `(Event.FlowHook == TimingOnTurnStart && Event.SourceType == SourceSystem && Event.CauseAction == "GameStart") || (Event.FlowHook == TimingOnDamageTaken && Combat.TargetID == Self.UserID && Combat.IsMagic == true && Combat.FinalDamage > 3)`
 * **3. 目标选择规则**：
   * **SelectType**: `None`
 * **4. 费用消耗**：
@@ -5158,20 +5160,20 @@
     * `Value`: `0`
     * `RuleModifierRef`: `"rm_sage_wisdom_codex_max_energy_plus_1"`
     * `RuleLifetimeRef`: `RuleLifePermanent`
-    * `Condition`: `Event.TriggerHook == TimingOnTurnStart && Event.SourceType == SourceSystem && Event.CauseAction == "GameStart"`
+    * `Condition`: `Event.FlowHook == TimingOnTurnStart && Event.SourceType == SourceSystem && Event.CauseAction == "GameStart"`
     * `Ref`: `None`
   * **Effect[1]** *(承受法术伤害>3时，+2宝石)*:
     * `EffectType`: `EffectAddEnergyStone`
     * `Target`: `TargetSelf`
     * `Value`: `2`
     * `StoneRef`: `Gem`
-    * `Condition`: `Event.TriggerHook == TimingOnDamageTaken && Combat.TargetID == Self.UserID && Combat.IsMagic == true && Combat.FinalDamage > 3`
+    * `Condition`: `Event.FlowHook == TimingOnDamageTaken && Combat.TargetID == Self.UserID && Combat.IsMagic == true && Combat.FinalDamage > 3`
     * `Ref`: `None`
   * **Effect[2]** *(承受法术伤害>3时，弃1张牌)*:
     * `EffectType`: `EffectDiscard`
     * `Target`: `TargetSelf`
     * `Value`: `1`
-    * `Condition`: `Event.TriggerHook == TimingOnDamageTaken && Combat.TargetID == Self.UserID && Combat.IsMagic == true && Combat.FinalDamage > 3`
+    * `Condition`: `Event.FlowHook == TimingOnDamageTaken && Combat.TargetID == Self.UserID && Combat.IsMagic == true && Combat.FinalDamage > 3`
     * `Ref`: `None`
 
 #### 【法术反弹】 (Spell Rebound)
@@ -6749,7 +6751,7 @@
   * **ResolveMode**: `Auto`
   * **CanDecline**: `false`
   * **EnforceNextActionMustActiveAttackSource**: `true` *(必须“主动攻击且目标=StatusMeta.SourceUserID”，否则跳过当前行动阶段)*
-  * **TriggerLimit**: `1`
+  * **FlowWindowLimit**: `1`
   * **RemoveAfterResolve**: `true`
 
 #### 【禁断之力】 (Forbidden Power)
@@ -8174,7 +8176,7 @@
     * `Ref`: `None`
   * **Effect[3]** *(令触发该横置变化的角色弃1张牌)*:
     * `EffectType`: `EffectDiscard`
-    * `Target`: `TargetTriggerSource`
+    * `Target`: `TargetFlowSource`
     * `Value`: `1`
     * `Ref`: `None`
   * **Effect[4]** *(若其弃牌为法术牌，则你+1兽魂)*:
@@ -8217,7 +8219,7 @@
     * `Ref`: `None`
   * **Effect[2]**:
     * `EffectType`: `EffectDiscard`
-    * `Target`: `TargetTriggerSource`
+    * `Target`: `TargetFlowSource`
     * `Value`: `1`
     * `Ref`: `None`
   * **Effect[3]** *(若对方弃牌为法术牌，则你+1兽魂)*:
@@ -8865,7 +8867,7 @@
     * `Ref`: `None`
   * **Effect[4]** *(若移除的是法术牌：对攻击者造成1点法术伤害)*:
     * `EffectType`: `EffectDamage`
-    * `Target`: `TargetTriggerSource`
+    * `Target`: `TargetFlowSource`
     * `Value`: `1`
     * `Condition`: `Event.RemovedFieldCardType == Magic`
     * `Ref`: `None`
@@ -9682,12 +9684,12 @@
     * `Ref`: `None`
   * **Effect[2]** *(对伤害来源造成第1次1点法术伤害)*:
     * `EffectType`: `EffectDamage`
-    * `Target`: `TargetTriggerSource`
+    * `Target`: `TargetFlowSource`
     * `Value`: `1`
     * `Ref`: `None`
   * **Effect[3]** *(对伤害来源造成第2次1点法术伤害)*:
     * `EffectType`: `EffectDamage`
-    * `Target`: `TargetTriggerSource`
+    * `Target`: `TargetFlowSource`
     * `Value`: `1`
     * `Ref`: `None`
 

@@ -60,7 +60,7 @@ func TestSpiritCasterTalismanThunder_SealThenIncantThenDamage(t *testing.T) {
 		SourceID: "p2",
 		Mode:     model.FieldEffect,
 		Effect:   model.EffectSealThunder,
-		Trigger:  model.EffectTriggerManual,
+		Hook: model.FieldHookManual,
 	})
 
 	game.State.CurrentTurn = 0
@@ -195,7 +195,7 @@ func TestSpiritCasterHundredNight_FireRevealAOEWithCollapse(t *testing.T) {
 	p1.Crystal = 1
 	addSpiritCasterPowerForTest(p1, spiritCasterTestCard("pow_fire", "火妖力", model.CardTypeMagic, model.ElementFire))
 
-	ctx := game.buildContext(p1, p2, model.TriggerOnAttackHit, &model.EventContext{
+	ctx := game.buildContext(p1, p2, model.TimingOnHitCheck, &model.EventContext{
 		Type:     model.EventAttack,
 		SourceID: "p1",
 		TargetID: "p2",
@@ -267,7 +267,7 @@ func TestSpiritCasterHundredNight_NonFireSingleTarget(t *testing.T) {
 	p2 := game.State.Players["p2"]
 	addSpiritCasterPowerForTest(p1, spiritCasterTestCard("pow_w", "水妖力", model.CardTypeMagic, model.ElementWater))
 
-	ctx := game.buildContext(p1, p2, model.TriggerOnAttackHit, &model.EventContext{
+	ctx := game.buildContext(p1, p2, model.TimingOnHitCheck, &model.EventContext{
 		Type:     model.EventAttack,
 		SourceID: "p1",
 		TargetID: "p2",

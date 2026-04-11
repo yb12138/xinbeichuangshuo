@@ -1,3 +1,5 @@
+// gameflow: 蝶舞者伤害传递/蛹相关辅助。
+
 package engine
 
 import (
@@ -6,7 +8,7 @@ import (
 	"starcup-engine/internal/model"
 )
 
-func (e *GameEngine) maybeTriggerButterflyDamageResponses(pd *model.PendingDamage) bool {
+func (e *GameEngine) maybeButterflyDamageResponses(pd *model.PendingDamage) bool {
 	if pd == nil || pd.Damage <= 0 {
 		return false
 	}

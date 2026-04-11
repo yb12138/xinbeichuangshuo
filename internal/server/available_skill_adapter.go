@@ -184,8 +184,8 @@ func (r *Room) canUseActionSkillNow(user *model.Player, sd model.SkillDefinition
 		Game:    r.Engine,
 		User:    user,
 		Target:  probeTarget,
-		Trigger: model.TriggerNone,
-		TriggerCtx: &model.EventContext{
+		Timing:  model.TimingActive,
+		EventCtx: &model.EventContext{
 			Type:     model.EventNone,
 			SourceID: user.ID,
 			TargetID: targetID,

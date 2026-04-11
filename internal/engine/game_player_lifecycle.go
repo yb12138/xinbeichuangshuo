@@ -1,3 +1,5 @@
+// gameflow: 玩家增删、开局、终局。
+
 package engine
 
 import (

@@ -1,3 +1,5 @@
+// gameflow: 回合 TurnStage 状态机：各 Stage 的 drive* 实现。
+
 package engine
 
 import (
@@ -120,9 +122,9 @@ func (e *GameEngine) driveBeforeActionStage(currentPid string, player *model.Pla
 		}
 		return driveContinueLoop
 	}
-	// 其余 TriggerOnBuffPhase 的通用技能/状态仍走 dispatcher 主流程。
-	skillCtx := e.buildContext(player, nil, model.TriggerOnBuffPhase, nil)
-	e.dispatcher.OnTrigger(model.TriggerOnBuffPhase, skillCtx)
+	// 其余 TimingOnBeforeAction 的通用技能/状态仍走 dispatcher 主流程。
+	skillCtx := e.buildContext(player, nil, model.TimingOnBeforeAction, nil)
+	e.dispatcher.OnTiming(skillCtx.Timing, skillCtx)
 	if e.State.PendingInterrupt != nil {
 		return driveStop
 	}
@@ -181,8 +183,8 @@ func (e *GameEngine) driveTurnStartStage(currentPid string, player *model.Player
 		return driveContinueLoop
 	}
 	player.TurnState.HasProcessedTurnStart = true
-	turnStartCtx := e.buildTimedContext(player, nil, model.TriggerOnTurnStart, model.TimingOnTurnStart, eventCtx)
-	e.dispatcher.OnTrigger(model.TriggerOnTurnStart, turnStartCtx)
+	turnStartCtx := e.buildTimedContext(player, nil, model.TimingOnTurnStart, eventCtx)
+	e.dispatcher.OnTiming(turnStartCtx.Timing, turnStartCtx)
 	if e.State.PendingInterrupt != nil {
 		return driveStop
 	}
@@ -202,11 +204,11 @@ func (e *GameEngine) driveActionStartStage(currentPid string, player *model.Play
 		}
 		return driveContinueLoop
 	}
-	startupCtx := e.buildTimedContext(player, nil, model.TriggerOnTurnStart, model.TimingStartup, &model.EventContext{
+	startupCtx := e.buildTimedContext(player, nil, model.TimingStartup, &model.EventContext{
 		Type:     model.EventTurnStart,
 		SourceID: currentPid,
 	})
-	e.dispatcher.OnTrigger(model.TriggerOnTurnStart, startupCtx)
+	e.dispatcher.OnTiming(startupCtx.Timing, startupCtx)
 	if e.State.PendingInterrupt != nil {
 		if e.State.PendingInterrupt.Type == model.InterruptStartupSkill {
 			// Startup 中断由 dispatcher 直接写入 PendingInterrupt，这里补发提示。
@@ -455,7 +457,7 @@ func (e *GameEngine) runActionEndSequence(currentPid string, player *model.Playe
 			CounterInitiator: "",
 		}
 	}
-	skillCtx := e.buildContext(player, nil, model.TriggerOnPhaseEnd, eventCtx)
+	skillCtx := e.buildContext(player, nil, model.TimingOnActionEnd, eventCtx)
 	if skillCtx.Selections == nil {
 		skillCtx.Selections = map[string]interface{}{}
 	}
@@ -470,7 +472,7 @@ func (e *GameEngine) runActionEndSequence(currentPid string, player *model.Playe
 	player.TurnState.LastActionType = ""
 	player.TurnState.LastActionCard = nil
 
-	e.dispatcher.OnTrigger(model.TriggerOnPhaseEnd, skillCtx)
+	e.dispatcher.OnTiming(skillCtx.Timing, skillCtx)
 	if e.State.PendingInterrupt != nil {
 		// OnPhaseEnd 已派发，后续仅补执行行动后场上追加效果。
 		e.enqueuePostActionEndFollowup(player.ID, actionType)

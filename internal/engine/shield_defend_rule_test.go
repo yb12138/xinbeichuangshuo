@@ -262,7 +262,7 @@ func TestMagicBullet_FieldShieldAutoBlocks(t *testing.T) {
 			SourceID: "p2",
 			Mode:     model.FieldEffect,
 			Effect:   model.EffectShield,
-			Trigger:  model.EffectTriggerOnDamaged,
+			Hook: model.FieldHookOnDamaged,
 			Duration: 1,
 		},
 	}
@@ -344,7 +344,7 @@ func TestMagicBullet_FieldShieldCanStillDefendWithHolyLight(t *testing.T) {
 			SourceID: "p2",
 			Mode:     model.FieldEffect,
 			Effect:   model.EffectShield,
-			Trigger:  model.EffectTriggerOnDamaged,
+			Hook: model.FieldHookOnDamaged,
 			Duration: 1,
 		},
 	}
@@ -426,7 +426,7 @@ func TestMagicBullet_PassToShieldedNextTargetNeedsPromptFirst(t *testing.T) {
 			SourceID: "p1",
 			Mode:     model.FieldEffect,
 			Effect:   model.EffectShield,
-			Trigger:  model.EffectTriggerOnDamaged,
+			Hook: model.FieldHookOnDamaged,
 			Duration: 1,
 		},
 	}
@@ -518,7 +518,7 @@ func TestCombatShield_WaitsForPlayerChoice(t *testing.T) {
 			SourceID: "p2",
 			Mode:     model.FieldEffect,
 			Effect:   model.EffectShield,
-			Trigger:  model.EffectTriggerOnDamaged,
+			Hook: model.FieldHookOnDamaged,
 			Duration: 1,
 		},
 	}
@@ -579,7 +579,7 @@ func TestCombatShield_ConsumeOnTake(t *testing.T) {
 			SourceID: "p2",
 			Mode:     model.FieldEffect,
 			Effect:   model.EffectShield,
-			Trigger:  model.EffectTriggerOnDamaged,
+			Hook: model.FieldHookOnDamaged,
 			Duration: 1,
 		},
 	}
@@ -655,7 +655,7 @@ func TestCombatShield_CounterChoiceKeepsShield(t *testing.T) {
 			SourceID: "p2",
 			Mode:     model.FieldEffect,
 			Effect:   model.EffectShield,
-			Trigger:  model.EffectTriggerOnDamaged,
+			Hook: model.FieldHookOnDamaged,
 			Duration: 1,
 		},
 	}

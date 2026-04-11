@@ -1,3 +1,5 @@
+// gameflow: 攻击生命周期对象：与 CombatRequest 绑定的步骤推进。
+
 package engine
 
 import "starcup-engine/internal/model"

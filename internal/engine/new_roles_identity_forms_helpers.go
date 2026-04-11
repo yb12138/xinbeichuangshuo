@@ -1,3 +1,5 @@
+// gameflow: 新角色：形态、身份切换相关判定。
+
 package engine
 
 import (
@@ -452,7 +454,7 @@ func (e *GameEngine) dispatchOrientationChanges(before map[string]poseSnapshot) 
 			PrevForm:        prev.Form,
 			NewForm:         current.Form,
 		}
-		ctx := e.buildContext(player, player, model.TriggerOnOrientationChanged, eventCtx)
-		e.dispatcher.OnTrigger(model.TriggerOnOrientationChanged, ctx)
+		ctx := e.buildContext(player, player, model.TimingOnOrientationChanged, eventCtx)
+		e.dispatcher.OnTiming(ctx.Timing, ctx)
 	}
 }

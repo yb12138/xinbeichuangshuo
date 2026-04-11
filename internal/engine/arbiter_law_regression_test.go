@@ -30,7 +30,7 @@ func (o *captureObserver) countLogContains(substr string) int {
 }
 
 // 回归测试：仲裁法则应在角色初始化时结算，而不是借首个回合开始偷渡触发。
-func TestArbiterLaw_GrantsInitialCrystalAndDoesNotRetriggerOnTurnStart(t *testing.T) {
+func TestArbiterLaw_GrantsInitialCrystalAndDoesNotReactivateOnTurnStart(t *testing.T) {
 	obs := &captureObserver{}
 	game := NewGameEngine(obs)
 	if err := game.AddPlayer("p1", "Arbiter", "arbiter", model.RedCamp); err != nil {
@@ -53,14 +53,14 @@ func TestArbiterLaw_GrantsInitialCrystalAndDoesNotRetriggerOnTurnStart(t *testin
 		t.Fatalf("expected arbiter_law_inited=1 after init, got %d", got)
 	}
 
-	ctx := game.buildContext(p1, nil, model.TriggerOnTurnStart, &model.EventContext{
+	ctx := game.buildContext(p1, nil, model.TimingOnTurnStart, &model.EventContext{
 		Type:     model.EventTurnStart,
 		SourceID: "p1",
 	})
-	game.dispatcher.OnTrigger(model.TriggerOnTurnStart, ctx)
+	game.dispatcher.OnTiming(ctx.Timing, ctx)
 
 	if p1.Crystal != 2 {
-		t.Fatalf("expected crystal to stay 2 after turn-start trigger, got %d", p1.Crystal)
+		t.Fatalf("expected crystal to stay 2 after turn-start dispatch, got %d", p1.Crystal)
 	}
 	if got := obs.countLogContains("[仲裁法则]"); got != 0 {
 		t.Fatalf("expected no [仲裁法则] turn-start log, got %d", got)

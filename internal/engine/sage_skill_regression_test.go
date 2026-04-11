@@ -133,7 +133,7 @@ func TestSageMagicRebound_SameElementDiscardChain(t *testing.T) {
 
 // 回归：法术反弹的触发时点必须在“承伤摸牌完成之后”。
 // 若触发早于摸牌，本用例中将无法凑出2张同系牌，不会出现反弹询问。
-func TestSageMagicRebound_TriggerAfterDamageDraw(t *testing.T) {
+func TestSageMagicRebound_DispatchAfterDamageDraw(t *testing.T) {
 	g := NewGameEngine(noopObserver{})
 	if err := g.AddPlayer("p1", "Sage", "sage", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -266,7 +266,7 @@ func TestSageWisdomCodex_ForceDiscardAfterHeavyMagicDamage(t *testing.T) {
 	}
 }
 
-func TestSageArcaneCodex_TargetPoolExcludesSelfAndSelfDamageStillTriggersRebound(t *testing.T) {
+func TestSageArcaneCodex_TargetPoolExcludesSelfAndSelfDamageStillRunsRebound(t *testing.T) {
 	g := NewGameEngine(noopObserver{})
 	if err := g.AddPlayer("p1", "Sage", "sage", model.RedCamp); err != nil {
 		t.Fatal(err)

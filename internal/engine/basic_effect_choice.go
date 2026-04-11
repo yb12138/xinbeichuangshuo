@@ -1,3 +1,5 @@
+// gameflow: 基础效果（圣盾/虚弱等）相关的玩家选择。
+
 package engine
 
 import (
@@ -153,7 +155,7 @@ func (e *GameEngine) RemoveFieldCardAt(targetID string, fieldIndex int, sourceID
 	e.State.DiscardPile = append(e.State.DiscardPile, fc.Card)
 	e.Log(fmt.Sprintf("%s 的场上牌被移除: %s", target.Name, fc.Effect))
 	if fc.Mode == model.FieldEffect {
-		e.emitBuffRemovedTrigger(sourceID, targetID, fc.Effect)
+		e.emitBuffRemovedDispatch(sourceID, targetID, fc.Effect)
 	}
 	return fc.Card, nil
 }

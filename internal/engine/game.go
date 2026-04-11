@@ -1,3 +1,5 @@
+// gameflow: GameEngine 构造与核心字段；钩子表占位。
+
 package engine
 
 import (
@@ -5,11 +7,17 @@ import (
 	"starcup-engine/internal/model"
 )
 
+// GameEngine 对局运行时核心：持有全局 GameState，并在 Drive 中推进回合/战斗/中断。
+// 各切片与 map 为「按当前上场角色动态装配」的策略钩子，用于把通用流程与角色特例解耦。
 type GameEngine struct {
-	State      *model.GameState
+	// State 完整对局快照（回合、玩家、战斗栈、中断、牌库等）；所有流程读写的中枢。
+	State *model.GameState
+	// dispatcher 技能按 FlowTiming 分发与执行（含可选响应中断）。
 	dispatcher *SkillDispatcher
-	observer   model.GameObserver // [新增] 持有观察者
-	lifecycle  AttackLifecycle
+	// observer 对局事件观察者（日志、协议推送）；不参与规则判定。
+	observer model.GameObserver
+	// lifecycle 攻击生命周期辅助（与 CombatStack 协同的细粒度步骤）。
+	lifecycle AttackLifecycle
 	// TimingOnAttackDeclared: 按已上场角色动态装配的执行表。
 	attackDeclaredCardTransformHooks   []attackCardRuntimeTransformHook
 	attackDeclaredTargetContextHooks   []attackTargetContextHook
@@ -63,13 +71,17 @@ type GameEngine struct {
 	// TimingOnCampChanged：玩家入场派生状态 / 星杯变更派生状态。
 	campChangedPlayerSetupHooks []campChangedPlayerHook
 	campChangedCampCupHooks     []campChangedCupHook
-	// 记录“当前回合内各角色已对哪些敌方角色造成过法术伤害”。
+	// turnMagicDamageTargets 本回合「施法者 → 曾对其造成法术伤害的敌方」；用于吟游诗人【沉沦协奏曲】等统计。
 	turnMagicDamageTargets map[string]map[string]bool
-	actionSummary          *actionSummary
-	actionSummaryTurn      int
-	suppressSealOnDiscard  bool
+	// actionSummary 当前行动周期内的资源/治疗等汇总，供日志或后续效果读取。
+	actionSummary *actionSummary
+	// actionSummaryTurn 汇总所绑定的回合索引，用于跨回合清空。
+	actionSummaryTurn int
+	// suppressSealOnDiscard 为 true 时跳过某次弃牌链路上的封印检测（避免死循环或特殊剧情）。
+	suppressSealOnDiscard bool
 }
 
+// NewGameEngine 构造引擎：初始化状态、注册技能 handler、装配 TimingOnAttackDeclared 等钩子表。
 func NewGameEngine(observer model.GameObserver) *GameEngine {
 	skills.InitHandlers()
 	engine := &GameEngine{

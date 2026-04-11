@@ -6,7 +6,7 @@ import (
 	"starcup-engine/internal/model"
 )
 
-func TestMagicSwordsmanAsuraCombo_TriggersWithoutFireAttackInHand(t *testing.T) {
+func TestMagicSwordsmanAsuraCombo_RunsWithoutFireAttackInHand(t *testing.T) {
 	g := NewGameEngine(nil)
 	if err := g.AddPlayer("p1", "MS", "magic_swordsman", model.RedCamp); err != nil {
 		t.Fatal(err)

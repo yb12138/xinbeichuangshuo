@@ -1,3 +1,5 @@
+// gameflow: 攻击未命中后的后续（如部分角色未命中效果）。
+
 package engine
 
 import (

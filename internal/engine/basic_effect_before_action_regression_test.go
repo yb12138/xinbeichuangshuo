@@ -31,7 +31,7 @@ func TestBuffResolve_PoisonResolvesBeforeWeaknessChoice(t *testing.T) {
 		SourceID: "p2",
 		Mode:     model.FieldEffect,
 		Effect:   model.EffectWeak,
-		Trigger:  model.EffectTriggerOnBeforeAction,
+		Hook: model.FieldHookOnBeforeAction,
 	})
 	p1.AddFieldCard(&model.FieldCard{
 		Card:     model.Card{ID: "poison-1", Name: "中毒", Type: model.CardTypeMagic, Element: model.ElementEarth},
@@ -39,7 +39,7 @@ func TestBuffResolve_PoisonResolvesBeforeWeaknessChoice(t *testing.T) {
 		SourceID: "p2",
 		Mode:     model.FieldEffect,
 		Effect:   model.EffectPoison,
-		Trigger:  model.EffectTriggerOnBeforeAction,
+		Hook: model.FieldHookOnBeforeAction,
 	})
 
 	game.Drive()
@@ -82,7 +82,7 @@ func TestBeforeActionHooks_PoisonEntersDamageResolutionBeforeWeakness(t *testing
 		SourceID: "p2",
 		Mode:     model.FieldEffect,
 		Effect:   model.EffectWeak,
-		Trigger:  model.EffectTriggerOnBeforeAction,
+		Hook: model.FieldHookOnBeforeAction,
 	})
 	p1.AddFieldCard(&model.FieldCard{
 		Card:     model.Card{ID: "poison-1", Name: "中毒", Type: model.CardTypeMagic, Element: model.ElementEarth},
@@ -90,7 +90,7 @@ func TestBeforeActionHooks_PoisonEntersDamageResolutionBeforeWeakness(t *testing
 		SourceID: "p2",
 		Mode:     model.FieldEffect,
 		Effect:   model.EffectPoison,
-		Trigger:  model.EffectTriggerOnBeforeAction,
+		Hook: model.FieldHookOnBeforeAction,
 	})
 
 	if interrupted := game.runTimingOnBeforeActionHooks(p1); !interrupted {
@@ -106,7 +106,7 @@ func TestBeforeActionHooks_PoisonEntersDamageResolutionBeforeWeakness(t *testing
 		t.Fatalf("expected one pending poison damage, got %d", len(game.State.PendingDamageQueue))
 	}
 	if got := countFieldEffect(p1, model.EffectPoison); got != 0 {
-		t.Fatalf("poison should be removed immediately after hook trigger, got %d", got)
+		t.Fatalf("poison should be removed immediately after hook dispatch, got %d", got)
 	}
 	if got := countFieldEffect(p1, model.EffectWeak); got != 1 {
 		t.Fatalf("weakness should remain after poison hook, got %d", got)
@@ -176,7 +176,7 @@ func TestWeaknessChoiceMappingMatchesConfig(t *testing.T) {
 			SourceID: "p2",
 			Mode:     model.FieldEffect,
 			Effect:   model.EffectWeak,
-			Trigger:  model.EffectTriggerOnBeforeAction,
+			Hook: model.FieldHookOnBeforeAction,
 		})
 		game.State.PendingInterrupt = &model.Interrupt{
 			Type:     model.InterruptChoice,

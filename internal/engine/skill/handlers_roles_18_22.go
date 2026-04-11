@@ -1,3 +1,5 @@
+// gameflow: 角色批次 18–22 的 handler 集合。
+
 package skills
 
 import (
@@ -47,17 +49,17 @@ func (h *PrayerEnterFormHandler) Execute(ctx *model.Context) error {
 }
 
 func (h *PrayerRuneGainHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.TriggerCtx == nil {
+	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
 	if !hasForm(ctx.User, model.FormPrayerMasterPrayer) {
 		return false
 	}
-	if ctx.Trigger != model.TriggerOnAttackStart {
+	if ctx.Timing != model.TimingOnAttackDeclared {
 		return false
 	}
 	// 仅主动攻击
-	if ctx.TriggerCtx.AttackInfo != nil && ctx.TriggerCtx.AttackInfo.CounterInitiator != "" {
+	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
 	return true
@@ -149,13 +151,13 @@ func (h *PrayerSwiftBlessingHandler) Execute(ctx *model.Context) error {
 }
 
 func (h *PrayerManaTideHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.TriggerCtx == nil {
+	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Trigger != model.TriggerOnPhaseEnd {
+	if ctx.Timing != model.TimingOnActionEnd {
 		return false
 	}
-	if ctx.TriggerCtx.ActionType != model.ActionMagic {
+	if ctx.EventCtx.ActionType != model.ActionMagic {
 		return false
 	}
 	return canPayCrystalLike(ctx, 1)
@@ -187,13 +189,13 @@ type CrimsonKnightCalmMindHandler struct{ BaseHandler }
 type CrimsonKnightCrimsonCrossHandler struct{ BaseHandler }
 
 func (h *CrimsonKnightCrimsonPactHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.TriggerCtx == nil {
+	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Trigger != model.TriggerOnAttackStart {
+	if ctx.Timing != model.TimingOnAttackDeclared {
 		return false
 	}
-	if ctx.TriggerCtx.AttackInfo != nil && ctx.TriggerCtx.AttackInfo.CounterInitiator != "" {
+	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
 	return true
@@ -253,13 +255,13 @@ func (h *CrimsonKnightBloodyPrayerHandler) Execute(ctx *model.Context) error {
 }
 
 func (h *CrimsonKnightKillingFeastHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.TriggerCtx == nil {
+	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Trigger != model.TriggerOnAttackHit {
+	if ctx.Timing != model.TimingOnHitCheck {
 		return false
 	}
-	if ctx.TriggerCtx.AttackInfo != nil && ctx.TriggerCtx.AttackInfo.CounterInitiator != "" {
+	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
 	return getToken(ctx.User, "crk_blood_mark") > 0
@@ -272,8 +274,8 @@ func (h *CrimsonKnightKillingFeastHandler) Execute(ctx *model.Context) error {
 	addToken(ctx.User, "crk_blood_mark", -1, 0, 3)
 	// 先提升本次命中伤害，再追加自伤到 PendingDamageQueue。
 	// 否则 append 触发底层扩容时，DamageVal 可能指向旧切片元素导致加伤丢失。
-	if ctx.TriggerCtx != nil && ctx.TriggerCtx.DamageVal != nil {
-		*ctx.TriggerCtx.DamageVal += 2
+	if ctx.EventCtx != nil && ctx.EventCtx.DamageVal != nil {
+		*ctx.EventCtx.DamageVal += 2
 	}
 	// 规则：先结算本技能自伤，再结算本次攻击命中伤害。
 	ctx.Game.AddPendingDamageFront(model.PendingDamage{
@@ -290,16 +292,16 @@ func (h *CrimsonKnightKillingFeastHandler) Execute(ctx *model.Context) error {
 func (h *CrimsonKnightHotBloodHandler) Execute(ctx *model.Context) error { return nil }
 
 func (h *CrimsonKnightCalmMindHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.TriggerCtx == nil {
+	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Trigger != model.TriggerOnPhaseEnd {
+	if ctx.Timing != model.TimingOnActionEnd {
 		return false
 	}
 	if !hasForm(ctx.User, model.FormCrimsonKnightHotBlooded) {
 		return false
 	}
-	if ctx.TriggerCtx.ActionType != model.ActionAttack && ctx.TriggerCtx.ActionType != model.ActionMagic {
+	if ctx.EventCtx.ActionType != model.ActionAttack && ctx.EventCtx.ActionType != model.ActionMagic {
 		return false
 	}
 	return canPayCrystalLike(ctx, 1)
@@ -309,7 +311,7 @@ func (h *CrimsonKnightCalmMindHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("戒骄戒躁上下文无效")
 	}
-	if ctx.TriggerCtx == nil {
+	if ctx.EventCtx == nil {
 		return fmt.Errorf("戒骄戒躁缺少行动结束上下文")
 	}
 	if !spendCrystalLike(ctx, 1) {
@@ -317,7 +319,7 @@ func (h *CrimsonKnightCalmMindHandler) Execute(ctx *model.Context) error {
 	}
 	leaveForm(ctx.User, model.FormCrimsonKnightHotBlooded)
 
-	actionType := ctx.TriggerCtx.ActionType
+	actionType := ctx.EventCtx.ActionType
 	if actionType != model.ActionAttack && actionType != model.ActionMagic {
 		return fmt.Errorf("戒骄戒躁只支持攻击/法术行动结束后触发")
 	}
@@ -395,13 +397,13 @@ type HomunculusDualEchoHandler struct{ BaseHandler }
 func (h *HomunculusBattlePatternHandler) Execute(ctx *model.Context) error { return nil }
 
 func (h *HomunculusRageSuppressHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.TriggerCtx == nil {
+	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Trigger != model.TriggerOnAttackMiss {
+	if ctx.Timing != model.TimingOnHitCheck {
 		return false
 	}
-	if ctx.TriggerCtx.AttackInfo != nil && ctx.TriggerCtx.AttackInfo.CounterInitiator != "" {
+	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
 	return getToken(ctx.User, "hom_war_rune") > 0
@@ -418,22 +420,22 @@ func (h *HomunculusRageSuppressHandler) Execute(ctx *model.Context) error {
 }
 
 func (h *HomunculusRuneSmashHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.TriggerCtx == nil {
+	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Trigger != model.TriggerOnAttackHit {
+	if ctx.Timing != model.TimingOnHitCheck {
 		return false
 	}
-	if ctx.TriggerCtx.AttackInfo != nil && ctx.TriggerCtx.AttackInfo.CounterInitiator != "" {
+	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
 	if getToken(ctx.User, "hom_war_rune") <= 0 {
 		return false
 	}
-	if ctx.TriggerCtx.Card == nil {
+	if ctx.EventCtx.Card == nil {
 		return false
 	}
-	ele := ctx.TriggerCtx.Card.Element
+	ele := ctx.EventCtx.Card.Element
 	sameCnt := 0
 	for _, c := range ctx.User.Hand {
 		if c.Element == ele {
@@ -444,13 +446,13 @@ func (h *HomunculusRuneSmashHandler) CanUse(ctx *model.Context) bool {
 }
 
 func (h *HomunculusRuneSmashHandler) Execute(ctx *model.Context) error {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.TriggerCtx == nil || ctx.TriggerCtx.Card == nil {
+	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.EventCtx == nil || ctx.EventCtx.Card == nil {
 		return fmt.Errorf("战纹碎击上下文无效")
 	}
 	if getToken(ctx.User, "hom_war_rune") <= 0 {
 		return fmt.Errorf("战纹不足")
 	}
-	attackEle := ctx.TriggerCtx.Card.Element
+	attackEle := ctx.EventCtx.Card.Element
 	var candidates []int
 	for i, c := range ctx.User.Hand {
 		if c.Element == attackEle {
@@ -486,21 +488,21 @@ func (h *HomunculusRuneSmashHandler) Execute(ctx *model.Context) error {
 }
 
 func (h *HomunculusGlyphFusionHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.TriggerCtx == nil {
+	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Trigger != model.TriggerOnAttackMiss {
+	if ctx.Timing != model.TimingOnHitCheck {
 		return false
 	}
-	if ctx.TriggerCtx.AttackInfo != nil && ctx.TriggerCtx.AttackInfo.CounterInitiator != "" {
+	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
 	if getToken(ctx.User, "hom_magic_rune") <= 0 {
 		return false
 	}
 	attackEle := model.Element("")
-	if ctx.TriggerCtx.Card != nil {
-		attackEle = ctx.TriggerCtx.Card.Element
+	if ctx.EventCtx.Card != nil {
+		attackEle = ctx.EventCtx.Card.Element
 	}
 	uniqueElements := map[model.Element]bool{}
 	for _, c := range ctx.User.Hand {
@@ -512,15 +514,15 @@ func (h *HomunculusGlyphFusionHandler) CanUse(ctx *model.Context) bool {
 }
 
 func (h *HomunculusGlyphFusionHandler) Execute(ctx *model.Context) error {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.TriggerCtx == nil {
+	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.EventCtx == nil {
 		return fmt.Errorf("魔纹融合上下文无效")
 	}
 	if getToken(ctx.User, "hom_magic_rune") <= 0 {
 		return fmt.Errorf("魔纹不足")
 	}
 	attackEle := model.Element("")
-	if ctx.TriggerCtx.Card != nil {
-		attackEle = ctx.TriggerCtx.Card.Element
+	if ctx.EventCtx.Card != nil {
+		attackEle = ctx.EventCtx.Card.Element
 	}
 	var candidates []int
 	for i, c := range ctx.User.Hand {
@@ -596,13 +598,13 @@ func (h *HomunculusRuneReforgeHandler) Execute(ctx *model.Context) error {
 }
 
 func (h *HomunculusDualEchoHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.TriggerCtx == nil {
+	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Trigger != model.TriggerOnDamageTaken {
+	if ctx.Timing != model.TimingOnDamageTaken {
 		return false
 	}
-	if ctx.TriggerCtx.SourceID != ctx.User.ID {
+	if ctx.EventCtx.SourceID != ctx.User.ID {
 		return false
 	}
 	if damageType, _ := ctx.Selections["damage_type"].(string); damageType != "" {
@@ -611,20 +613,20 @@ func (h *HomunculusDualEchoHandler) CanUse(ctx *model.Context) bool {
 			return false
 		}
 	}
-	if ctx.TriggerCtx.DamageVal == nil || *ctx.TriggerCtx.DamageVal <= 0 {
+	if ctx.EventCtx.DamageVal == nil || *ctx.EventCtx.DamageVal <= 0 {
 		return false
 	}
 	return canPayCrystalLike(ctx, 1)
 }
 
 func (h *HomunculusDualEchoHandler) Execute(ctx *model.Context) error {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.TriggerCtx == nil || ctx.TriggerCtx.DamageVal == nil {
+	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.EventCtx == nil || ctx.EventCtx.DamageVal == nil {
 		return fmt.Errorf("双重回响上下文无效")
 	}
 	if !canPayCrystalLike(ctx, 1) {
 		return fmt.Errorf("双重回响需要1蓝水晶（红宝石可替代）")
 	}
-	damage := *ctx.TriggerCtx.DamageVal
+	damage := *ctx.EventCtx.DamageVal
 	if damage > 3 {
 		damage = 3
 	}
@@ -633,7 +635,7 @@ func (h *HomunculusDualEchoHandler) Execute(ctx *model.Context) error {
 	}
 	var targetIDs []string
 	for _, p := range ctx.Game.GetAllPlayers() {
-		if p == nil || p.ID == ctx.TriggerCtx.TargetID {
+		if p == nil || p.ID == ctx.EventCtx.TargetID {
 			continue
 		}
 		targetIDs = append(targetIDs, p.ID)
@@ -672,15 +674,15 @@ type PriestDivineContractHandler struct{ BaseHandler }
 type PriestDivineDomainHandler struct{ BaseHandler }
 
 func (h *PriestDivineRevelationHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.TriggerCtx == nil {
+	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Trigger != model.TriggerOnPhaseEnd {
+	if ctx.Timing != model.TimingOnActionEnd {
 		return false
 	}
-	return ctx.TriggerCtx.ActionType == model.ActionBuy ||
-		ctx.TriggerCtx.ActionType == model.ActionSynthesize ||
-		ctx.TriggerCtx.ActionType == model.ActionExtract
+	return ctx.EventCtx.ActionType == model.ActionBuy ||
+		ctx.EventCtx.ActionType == model.ActionSynthesize ||
+		ctx.EventCtx.ActionType == model.ActionExtract
 }
 
 func (h *PriestDivineRevelationHandler) Execute(ctx *model.Context) error {
@@ -818,14 +820,14 @@ func priestDivineContractTargets(game model.IGameEngine, user *model.Player) []s
 }
 
 func priestDivineContractWaitingPhase(ctx *model.Context) model.TurnStage {
-	if ctx != nil && ctx.Trigger == model.TriggerOnTurnStart {
+	if ctx != nil && ctx.Timing == model.TimingOnTurnStart {
 		return model.TurnStageActionStart
 	}
 	return model.TurnStageActionExecution
 }
 
 func priestDivineContractResumePhase(ctx *model.Context) model.TurnStage {
-	if ctx != nil && ctx.Trigger == model.TriggerOnTurnStart {
+	if ctx != nil && ctx.Timing == model.TimingOnTurnStart {
 		return model.TurnStageActionExecution
 	}
 	return model.TurnStageExtraAction
@@ -1136,10 +1138,10 @@ func (h *BlazeWitchWitchWrathHandler) Execute(ctx *model.Context) error {
 }
 
 func (h *BlazeWitchSubstituteDollHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.TriggerCtx == nil {
+	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Trigger != model.TriggerOnDamageTaken {
+	if ctx.Timing != model.TimingOnDamageTaken {
 		return false
 	}
 	if getToken(ctx.User, "bw_substitute_lock") > 0 {
@@ -1148,7 +1150,7 @@ func (h *BlazeWitchSubstituteDollHandler) CanUse(ctx *model.Context) bool {
 	if ctx.Flags["IsMagicDamage"] {
 		return false
 	}
-	if ctx.TriggerCtx.DamageVal == nil || *ctx.TriggerCtx.DamageVal <= 0 {
+	if ctx.EventCtx.DamageVal == nil || *ctx.EventCtx.DamageVal <= 0 {
 		return false
 	}
 	magicCount := 0
@@ -1233,10 +1235,10 @@ func (h *BlazeWitchPainLinkHandler) Execute(ctx *model.Context) error {
 }
 
 func (h *BlazeWitchManaInversionHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.TriggerCtx == nil {
+	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Trigger != model.TriggerOnDamageTaken {
+	if ctx.Timing != model.TimingOnDamageTaken {
 		return false
 	}
 	if getToken(ctx.User, "bw_mana_inversion_lock") > 0 {
@@ -1245,7 +1247,7 @@ func (h *BlazeWitchManaInversionHandler) CanUse(ctx *model.Context) bool {
 	if !ctx.Flags["IsMagicDamage"] {
 		return false
 	}
-	if ctx.TriggerCtx.DamageVal == nil || *ctx.TriggerCtx.DamageVal <= 0 {
+	if ctx.EventCtx.DamageVal == nil || *ctx.EventCtx.DamageVal <= 0 {
 		return false
 	}
 	magicCount := 0

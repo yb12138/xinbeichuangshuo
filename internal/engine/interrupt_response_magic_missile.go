@@ -1,3 +1,5 @@
+// gameflow: 魔弹应战/圣盾抵挡等响应分支。
+
 package engine
 
 import (

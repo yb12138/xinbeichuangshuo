@@ -429,7 +429,7 @@ func TestSwordEmperor_IndomitableWill_DrawQiAndExtraAttack(t *testing.T) {
 		swordEmperorTestCard("d1", "补牌1", model.CardTypeAttack, model.ElementFire, 2),
 	}
 
-	ctx := game.buildContext(p1, nil, model.TriggerOnPhaseEnd, &model.EventContext{
+	ctx := game.buildContext(p1, nil, model.TimingOnActionEnd, &model.EventContext{
 		Type:       model.EventPhaseEnd,
 		SourceID:   "p1",
 		ActionType: model.ActionAttack,
@@ -438,7 +438,7 @@ func TestSwordEmperor_IndomitableWill_DrawQiAndExtraAttack(t *testing.T) {
 			CounterInitiator: "",
 		},
 	})
-	game.dispatcher.OnTrigger(model.TriggerOnPhaseEnd, ctx)
+	game.dispatcher.OnTiming(ctx.Timing, ctx)
 
 	chooseResponseSkillByID(t, game, "p1", "se_indomitable_will")
 

@@ -1,3 +1,5 @@
+// gameflow: 行动周期内资源变动汇总，供日志或技能读取。
+
 package engine
 
 import (

@@ -1,3 +1,5 @@
+// gameflow: 剑帝：剑魂、斩击等场上资源技能。
+
 package engine
 
 import (
@@ -86,7 +88,7 @@ func (e *GameEngine) handleSwordEmperorSwordQiSlashTargetChoice(selectionIndex i
 	if xValue > swordEmperorSwordQi(user) {
 		return fmt.Errorf("剑气不足，无法移除%d点", xValue)
 	}
-	if rawCtx, _ := ctxData["user_ctx"].(*model.Context); rawCtx != nil && rawCtx.TriggerCtx != nil && rawCtx.TriggerCtx.TargetID == targetID {
+	if rawCtx, _ := ctxData["user_ctx"].(*model.Context); rawCtx != nil && rawCtx.EventCtx != nil && rawCtx.EventCtx.TargetID == targetID {
 		return fmt.Errorf("剑气斩不能选择当前攻击目标")
 	}
 	nowQi := addSwordEmperorSwordQi(user, -xValue)

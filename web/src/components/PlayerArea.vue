@@ -57,9 +57,9 @@ function openSkillModal(event?: MouseEvent) {
     uiStore.openSkillModal(null)
     return
   }
-  const trigger = event?.currentTarget as HTMLElement | null
-  if (trigger) {
-    const rect = trigger.getBoundingClientRect()
+  const anchorEl = event?.currentTarget as HTMLElement | null
+  if (anchorEl) {
+    const rect = anchorEl.getBoundingClientRect()
     uiStore.openSkillModal(props.player.role, {
       x: rect.left,
       y: rect.top,

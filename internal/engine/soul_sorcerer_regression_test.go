@@ -79,7 +79,7 @@ func TestSoulSorcerer_StartGameInitAndStarterCard(t *testing.T) {
 	}
 }
 
-func TestSoulSorcererSoulDevour_OnlyTriggersOnDamageOverflowMoraleLoss(t *testing.T) {
+func TestSoulSorcererSoulDevour_OnlyRunsOnDamageOverflowMoraleLoss(t *testing.T) {
 	game := NewGameEngine(noopObserver{})
 	if err := game.AddPlayer("p1", "Soul", "soul_sorcerer", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -94,7 +94,7 @@ func TestSoulSorcererSoulDevour_OnlyTriggersOnDamageOverflowMoraleLoss(t *testin
 	soul := game.State.Players["p1"]
 	ally := game.State.Players["p2"]
 	loss := 2
-	lossCtx := game.buildContext(ally, nil, model.TriggerBeforeMoraleLoss, &model.EventContext{
+	lossCtx := game.buildContext(ally, nil, model.TimingBeforeMoraleLoss, &model.EventContext{
 		Type:      model.EventDamage,
 		DamageVal: &loss,
 	})
@@ -104,14 +104,14 @@ func TestSoulSorcererSoulDevour_OnlyTriggersOnDamageOverflowMoraleLoss(t *testin
 		"discard_player_id": ally.ID,
 	}
 
-	game.dispatcher.OnTrigger(model.TriggerBeforeMoraleLoss, lossCtx)
-	finalLoss := game.applyMoraleLossAfterTrigger(ally, loss, false, false, 0, nil, lossCtx)
+	game.dispatcher.OnTiming(lossCtx.Timing, lossCtx)
+	finalLoss := game.applyMoraleLossAfterTimingWindow(ally, loss, false, false, 0, nil, lossCtx)
 
 	if finalLoss != 2 {
 		t.Fatalf("expected final morale loss 2, got %d", finalLoss)
 	}
 	if got := soul.Tokens["ss_yellow_soul"]; got != 0 {
-		t.Fatalf("expected soul devour not trigger on non-damage overflow morale loss, got %d", got)
+		t.Fatalf("expected soul devour not dispatch on non-damage overflow morale loss, got %d", got)
 	}
 }
 
@@ -130,7 +130,7 @@ func TestSoulSorcererSoulDevour_UsesFinalAppliedMoraleLoss(t *testing.T) {
 	soul := game.State.Players["p1"]
 	ally := game.State.Players["p2"]
 	loss := 3
-	lossCtx := game.buildContext(ally, nil, model.TriggerBeforeMoraleLoss, &model.EventContext{
+	lossCtx := game.buildContext(ally, nil, model.TimingBeforeMoraleLoss, &model.EventContext{
 		Type:      model.EventDamage,
 		DamageVal: &loss,
 	})
@@ -140,9 +140,9 @@ func TestSoulSorcererSoulDevour_UsesFinalAppliedMoraleLoss(t *testing.T) {
 		"discard_player_id": ally.ID,
 	}
 
-	game.dispatcher.OnTrigger(model.TriggerBeforeMoraleLoss, lossCtx)
+	game.dispatcher.OnTiming(lossCtx.Timing, lossCtx)
 	loss = 1 // 模拟其他“士气下降前”效果将本次实际士气下降改写为1。
-	finalLoss := game.applyMoraleLossAfterTrigger(ally, 3, false, true, 0, nil, lossCtx)
+	finalLoss := game.applyMoraleLossAfterTimingWindow(ally, 3, false, true, 0, nil, lossCtx)
 
 	if finalLoss != 1 {
 		t.Fatalf("expected final morale loss 1, got %d", finalLoss)
@@ -505,7 +505,7 @@ func TestSoulSorcererSoulLink_TransferDamageBeforeResolve(t *testing.T) {
 			DamageType: model.AttackDamage,
 		},
 	}
-	if !game.maybeTriggerSoulLinkTransfer(&game.State.PendingDamageQueue[0]) {
+	if !game.maybeSoulLinkTransfer(&game.State.PendingDamageQueue[0]) {
 		t.Fatalf("expected soul link transfer prompt")
 	}
 	requireChoicePrompt(t, game, "p1", "ss_link_transfer_x")
@@ -603,8 +603,8 @@ func TestSoulSorcererSoulLink_Replay_TransferSorcererToAlly_NoRecursiveLinkPromp
 	}
 
 	// 转移出来的伤害不应再次触发灵魂链接（防递归）。
-	if game.maybeTriggerSoulLinkTransfer(&game.State.PendingDamageQueue[1]) {
-		t.Fatalf("transferred damage should not retrigger soul link transfer")
+	if game.maybeSoulLinkTransfer(&game.State.PendingDamageQueue[1]) {
+		t.Fatalf("transferred damage should not reactivate soul link transfer")
 	}
 }
 
@@ -676,12 +676,12 @@ func TestSoulSorcererSoulLink_Replay_TransferAllyToSorcerer_NoRecursiveLinkPromp
 		!transferred.HasCheck(model.PendingDamageCheckFromSoulLink) {
 		t.Fatalf("unexpected transferred damage: %+v", transferred)
 	}
-	if game.maybeTriggerSoulLinkTransfer(&game.State.PendingDamageQueue[1]) {
-		t.Fatalf("transferred damage should not retrigger soul link transfer")
+	if game.maybeSoulLinkTransfer(&game.State.PendingDamageQueue[1]) {
+		t.Fatalf("transferred damage should not reactivate soul link transfer")
 	}
 }
 
-func TestSoulSorcererSoulLink_Replay_TransferDamageThenTriggersResponseChain(t *testing.T) {
+func TestSoulSorcererSoulLink_Replay_TransferDamageThenRunsResponseChain(t *testing.T) {
 	game := NewGameEngine(noopObserver{})
 	if err := game.AddPlayer("p1", "Soul", "soul_sorcerer", model.RedCamp); err != nil {
 		t.Fatal(err)

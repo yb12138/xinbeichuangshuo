@@ -1,3 +1,5 @@
+// gameflow: RuleModifier 实例的生效与查询。
+
 package engine
 
 import "starcup-engine/internal/model"

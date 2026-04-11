@@ -123,8 +123,8 @@ type QueuedAction struct {
 	CardIndex               int        `json:"card_index"`                  // 卡牌在手牌中的索引
 	SourceSkill             string     `json:"source_skill"`                // 来源技能ID（如疾风技、烈风技）
 	UsesVirtualCard         bool       `json:"uses_virtual_card,omitempty"` // 是否为非手牌实体驱动的虚拟牌行动
-	HasTriggeredCardUsed    bool       `json:"has_triggered_card_used"`     // 是否已触发卡牌使用事件
-	HasTriggeredAttackStart bool       `json:"has_triggered_attack_start"`  // 是否已触发攻击开始（避免确认响应技能后再次触发）
+	HasDispatchedCardUsed    bool       `json:"has_dispatched_card_used"`     // 是否已触发卡牌使用事件
+	HasDispatchedAttackDeclared bool       `json:"has_dispatched_attack_declared"`  // 是否已触发攻击开始（避免确认响应技能后再次触发）
 }
 
 // CombatRequest 战斗请求（用于战斗交互阶段）
@@ -250,9 +250,9 @@ type PendingDamage struct {
 	Card                      *Card                          `json:"card,omitempty"`                       // 关联的卡牌 (用于攻击伤害判定)
 	IgnoreShield              bool                           `json:"ignore_shield,omitempty"`              // 本次攻击伤害是否无视圣盾
 	InterceptTags             map[CombatInterceptTag]bool    `json:"intercept_tags,omitempty"`
-	AttackHitTriggerChecked   bool                           `json:"attack_hit_trigger_checked,omitempty"`   // 本次攻击伤害是否已完成 OnAttackHit 分发
+	AttackHitFlowDispatched   bool                           `json:"attack_hit_flow_dispatched,omitempty"`   // 本次攻击伤害是否已完成 OnAttackHit 分发
 	HealResolved              bool                           `json:"heal_resolved"`                          // 是否已处理治疗选择
-	DamageTakenTriggerChecked bool                           `json:"damage_taken_trigger_checked,omitempty"` // 本次伤害是否已完成 OnDamageTaken 响应分发
+	DamageTakenFlowDispatched bool                           `json:"damage_taken_flow_dispatched,omitempty"` // 本次伤害是否已完成 OnDamageTaken 响应分发
 	IsCounter                 bool                           `json:"is_counter"`                             // 是否为应战攻击（命中加水晶而非宝石）
 	AttackHitResourceType     string                         `json:"attack_hit_resource_type,omitempty"`     // 攻击命中后发放的战绩资源类型(gem/crystal)
 	AttackHitResourceGranted  bool                           `json:"attack_hit_resource_granted,omitempty"`  // 是否已成功发放命中战绩资源
@@ -309,10 +309,10 @@ const DeferredFollowupPostActionEnd = "post_action_end"
 
 // PendingSkill 等待确认的可选技能
 type PendingSkill struct {
-	SkillID     string      `json:"skill_id"`
-	UserID      string      `json:"user_id"`
-	TargetID    string      `json:"target_id"`
-	TriggerType TriggerType `json:"trigger_type"`
+	SkillID  string        `json:"skill_id"`
+	UserID   string        `json:"user_id"`
+	TargetID string        `json:"target_id"`
+	Timing   FlowTiming `json:"timing,omitempty"`
 }
 
 // NewGameState creates a new game state
@@ -438,10 +438,10 @@ func (p *Player) RemoveFieldCard(fc *FieldCard) {
 }
 
 // GetFieldEffects 获取指定触发时机的效果牌
-func (p *Player) GetFieldEffects(trigger EffectTrigger) []*FieldCard {
+func (p *Player) GetFieldEffects(hook FieldHook) []*FieldCard {
 	var effects []*FieldCard
 	for _, fc := range p.Field {
-		if fc.Mode == FieldEffect && fc.Trigger == trigger {
+		if fc.Mode == FieldEffect && fc.Hook == hook {
 			effects = append(effects, fc)
 		}
 	}
@@ -507,16 +507,16 @@ const (
 	FieldCover  FieldCardMode = "Cover"  // 盖牌：作为资源/条件
 )
 
-// EffectTrigger 定义效果触发时机
-type EffectTrigger string
+// FieldHook 场上效果牌在何时参与结算（与技能 FlowTiming 无关）
+type FieldHook string
 
 const (
-	EffectTriggerOnAttack               EffectTrigger = "OnAttack"               // 攻击时触发
-	EffectTriggerOnDamaged              EffectTrigger = "OnDamaged"              // 受到伤害时触发
-	EffectTriggerOnTurnStart            EffectTrigger = "OnTurnStart"            // 回合开始时触发
-	EffectTriggerOnBeforeAction         EffectTrigger = "OnBeforeAction"         // 行动阶段开始前触发
-	EffectTriggerOnCardPlayedOrRevealed EffectTrigger = "OnCardPlayedOrRevealed" // 打出或展示卡牌时触发
-	EffectTriggerManual                 EffectTrigger = "Manual"                 // 被技能点名时触发
+	FieldHookOnAttack               FieldHook = "OnAttack"               // 攻击时结算
+	FieldHookOnDamaged              FieldHook = "OnDamaged"              // 受到伤害时结算
+	FieldHookOnTurnStart            FieldHook = "OnTurnStart"            // 回合开始时结算
+	FieldHookOnBeforeAction         FieldHook = "OnBeforeAction"         // 行动阶段开始前结算
+	FieldHookOnCardPlayedOrRevealed FieldHook = "OnCardPlayedOrRevealed" // 打出或展示卡牌时结算
+	FieldHookManual                 FieldHook = "Manual"                 // 由技能逻辑显式调用
 )
 
 // EffectType 定义效果类型
@@ -565,7 +565,7 @@ type FieldCard struct {
 	SourceID string            `json:"source_id"`      // 谁放的牌
 	Mode     FieldCardMode     `json:"mode"`           // 效果牌还是盖牌
 	Effect   EffectType        `json:"effect"`         // 仅Effect模式下有意义
-	Trigger  EffectTrigger     `json:"trigger"`        // 触发时机
+	Hook     FieldHook         `json:"field_hook"`     // 结算钩子
 	Locked   bool              `json:"locked"`         // 是否锁定
 	Duration int               `json:"duration"`       // 持续回合数 (-1为永久)
 	Meta     map[string]string `json:"meta,omitempty"` // 状态运行时元数据（如绑定元素）

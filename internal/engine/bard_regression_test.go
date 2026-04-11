@@ -46,7 +46,7 @@ func findFieldEffectCard(p *model.Player, effect model.EffectType) *model.FieldC
 	return nil
 }
 
-func TestBardDescentConcerto_TriggersAndResolves(t *testing.T) {
+func TestBardDescentConcerto_RunsAndResolves(t *testing.T) {
 	game := NewGameEngine(noopObserver{})
 	if err := game.AddPlayer("p1", "Bard", "bard", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -73,12 +73,12 @@ func TestBardDescentConcerto_TriggersAndResolves(t *testing.T) {
 	if paused := game.handlePostDamageResolved(&model.PendingDamage{
 		SourceID: "p1", TargetID: "p3", Damage: 1, DamageType: model.MagicAttack,
 	}); paused {
-		t.Fatalf("first magic damage should not trigger descent yet")
+		t.Fatalf("first magic damage should not dispatch descent yet")
 	}
 	if paused := game.handlePostDamageResolved(&model.PendingDamage{
 		SourceID: "p1", TargetID: "p4", Damage: 1, DamageType: model.MagicAttack,
 	}); !paused {
-		t.Fatalf("second self magic damage should trigger descent interrupt")
+		t.Fatalf("second self magic damage should dispatch descent interrupt")
 	}
 	requireChoicePrompt(t, game, "p1", "bd_descent_element")
 
@@ -118,7 +118,7 @@ func TestBardDescentConcerto_TriggersAndResolves(t *testing.T) {
 	}
 }
 
-func TestBardDescentConcerto_DoesNotTriggerOnAllyMagicDamage(t *testing.T) {
+func TestBardDescentConcerto_DoesNotTimingOnAllyMagicDamage(t *testing.T) {
 	game := NewGameEngine(noopObserver{})
 	if err := game.AddPlayer("p1", "Bard", "bard", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -140,12 +140,12 @@ func TestBardDescentConcerto_DoesNotTriggerOnAllyMagicDamage(t *testing.T) {
 	if paused := game.handlePostDamageResolved(&model.PendingDamage{
 		SourceID: "p2", TargetID: "p3", Damage: 1, DamageType: model.MagicAttack,
 	}); paused {
-		t.Fatalf("ally magic damage should not trigger bard descent on first hit")
+		t.Fatalf("ally magic damage should not dispatch bard descent on first hit")
 	}
 	if paused := game.handlePostDamageResolved(&model.PendingDamage{
 		SourceID: "p2", TargetID: "p4", Damage: 1, DamageType: model.MagicAttack,
 	}); paused {
-		t.Fatalf("ally magic damage should not trigger bard descent on second hit")
+		t.Fatalf("ally magic damage should not dispatch bard descent on second hit")
 	}
 	if game.State.PendingInterrupt != nil {
 		t.Fatalf("expected no pending interrupt, got %+v", game.State.PendingInterrupt)
@@ -328,7 +328,7 @@ func TestBardHopeFugue_TransferMovesExistingEternalMovementAndGainsInspiration(t
 	}
 }
 
-func TestBardRousingRhapsody_OnBardTurnStartTriggersForbiddenVerse(t *testing.T) {
+func TestBardRousingRhapsody_OnBardTurnStartRunsForbiddenVerse(t *testing.T) {
 	game := NewGameEngine(noopObserver{})
 	if err := game.AddPlayer("p1", "Bard", "bard", model.RedCamp); err != nil {
 		t.Fatal(err)

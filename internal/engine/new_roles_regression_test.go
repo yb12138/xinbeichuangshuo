@@ -242,7 +242,7 @@ func TestMagicSwordsmanAsuraCombo_OnlyOncePerTurn(t *testing.T) {
 	g.Drive()
 
 	if g.State.PendingInterrupt == nil || g.State.PendingInterrupt.Type != model.InterruptResponseSkill {
-		t.Fatalf("expected response interrupt for first asura combo trigger")
+		t.Fatalf("expected response interrupt for first asura combo dispatch")
 	}
 	asuraIdx := -1
 	for i, skillID := range g.State.PendingInterrupt.SkillIDs {
@@ -276,7 +276,7 @@ func TestMagicSwordsmanAsuraCombo_OnlyOncePerTurn(t *testing.T) {
 	if g.State.PendingInterrupt != nil && g.State.PendingInterrupt.Type == model.InterruptResponseSkill {
 		for _, skillID := range g.State.PendingInterrupt.SkillIDs {
 			if skillID == "ms_asura_combo" {
-				t.Fatalf("ms_asura_combo should not trigger more than once in the same turn")
+				t.Fatalf("ms_asura_combo should not dispatch more than once in the same turn")
 			}
 		}
 	}

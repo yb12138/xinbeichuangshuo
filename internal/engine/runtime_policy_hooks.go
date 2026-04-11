@@ -1,3 +1,5 @@
+// gameflow: 运行时策略：注册各类 policy/hook 的入口。
+
 package engine
 
 import (

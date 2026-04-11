@@ -10,15 +10,15 @@ import (
 
 type fullGameCampaignResult struct {
 	lineups         [][]string
-	triggeredSkills map[string]int
-	roleTriggered   map[string]bool
+	skillBatch map[string]int
+	roleObserved   map[string]bool
 	err             error
 }
 
 type directedScenarioCampaignResult struct {
 	lineups               [][]string
 	scenarios             []directedScenarioPlan
-	triggeredSkills       map[string]int
+	skillBatch       map[string]int
 	targetSkillSet        map[string]struct{}
 	scenarioHitCounts     map[string]int
 	scenarioMissingSkills map[string][]string
@@ -337,13 +337,13 @@ func buildDirectedScenarios() []directedScenarioPlan {
 	}
 }
 
-func mergedRegressionTriggeredSkills(t *testing.T) (fullGameCampaignResult, map[string]int) {
+func mergedRegressionObservedSkills(t *testing.T) (fullGameCampaignResult, map[string]int) {
 	t.Helper()
 	campaign := runFullGameCampaign(t)
 	directed := runDirectedScenarioCampaign(t)
-	merged := make(map[string]int, len(campaign.triggeredSkills)+len(directed.triggeredSkills))
-	mergeTriggered(merged, campaign.triggeredSkills)
-	mergeTriggered(merged, directed.triggeredSkills)
+	merged := make(map[string]int, len(campaign.skillBatch)+len(directed.skillBatch))
+	mergeSkillCountMaps(merged, campaign.skillBatch)
+	mergeSkillCountMaps(merged, directed.skillBatch)
 	return campaign, merged
 }
 
@@ -396,11 +396,11 @@ func runFullGameCampaign(t *testing.T) fullGameCampaignResult {
 		roleSkills := collectRoleSkillTitles()
 
 		fullGameCampaignData.lineups = lineups
-		fullGameCampaignData.triggeredSkills = make(map[string]int)
-		fullGameCampaignData.roleTriggered = make(map[string]bool)
+		fullGameCampaignData.skillBatch = make(map[string]int)
+		fullGameCampaignData.roleObserved = make(map[string]bool)
 
 		for _, roleID := range roleIDs {
-			fullGameCampaignData.roleTriggered[roleID] = false
+			fullGameCampaignData.roleObserved[roleID] = false
 		}
 
 		for _, lineup := range lineups {
@@ -409,15 +409,15 @@ func runFullGameCampaign(t *testing.T) fullGameCampaignResult {
 				fullGameCampaignData.err = fmt.Errorf("lineup=%v err=%w", lineup, err)
 				return
 			}
-			mergeTriggered(fullGameCampaignData.triggeredSkills, result.triggeredSkills)
+			mergeSkillCountMaps(fullGameCampaignData.skillBatch, result.skillBatch)
 
 			for roleID, skills := range roleSkills {
-				if fullGameCampaignData.roleTriggered[roleID] {
+				if fullGameCampaignData.roleObserved[roleID] {
 					continue
 				}
 				for skill := range skills {
-					if fullGameCampaignData.triggeredSkills[skill] > 0 {
-						fullGameCampaignData.roleTriggered[roleID] = true
+					if fullGameCampaignData.skillBatch[skill] > 0 {
+						fullGameCampaignData.roleObserved[roleID] = true
 						break
 					}
 				}
@@ -436,7 +436,7 @@ func runDirectedScenarioCampaign(t *testing.T) directedScenarioCampaignResult {
 	directedScenarioOnce.Do(func() {
 		scenarios := buildDirectedScenarios()
 		directedScenarioCampaign.scenarios = scenarios
-		directedScenarioCampaign.triggeredSkills = make(map[string]int)
+		directedScenarioCampaign.skillBatch = make(map[string]int)
 		directedScenarioCampaign.targetSkillSet = make(map[string]struct{})
 		directedScenarioCampaign.scenarioHitCounts = make(map[string]int)
 		directedScenarioCampaign.scenarioMissingSkills = make(map[string][]string)
@@ -448,7 +448,7 @@ func runDirectedScenarioCampaign(t *testing.T) directedScenarioCampaignResult {
 				runs = 1
 			}
 
-			localTriggered := make(map[string]int)
+			localActivated := make(map[string]int)
 			for _, skill := range scenario.TargetSkillTitles {
 				directedScenarioCampaign.targetSkillSet[skill] = struct{}{}
 			}
@@ -466,14 +466,14 @@ func runDirectedScenarioCampaign(t *testing.T) directedScenarioCampaignResult {
 					directedScenarioCampaign.err = fmt.Errorf("directed scenario=%s lineup=%v err=%w", scenario.Name, lineup, err)
 					return
 				}
-				mergeTriggered(localTriggered, result.triggeredSkills)
-				mergeTriggered(directedScenarioCampaign.triggeredSkills, result.triggeredSkills)
+				mergeSkillCountMaps(localActivated, result.skillBatch)
+				mergeSkillCountMaps(directedScenarioCampaign.skillBatch, result.skillBatch)
 			}
 
 			hitCount := 0
 			missing := make([]string, 0)
 			for _, title := range scenario.TargetSkillTitles {
-				if localTriggered[title] > 0 {
+				if localActivated[title] > 0 {
 					hitCount++
 				} else {
 					missing = append(missing, title)
@@ -492,40 +492,40 @@ func runDirectedScenarioCampaign(t *testing.T) directedScenarioCampaignResult {
 }
 
 func TestFullGame3v3_Regression_ActionSkillCoverage(t *testing.T) {
-	campaign, merged := mergedRegressionTriggeredSkills(t)
+	campaign, merged := mergedRegressionObservedSkills(t)
 	expected := collectActionSkillTitles()
-	triggeredCount, total, ratio := coverageStats(expected, merged)
+	activatedCount, total, ratio := coverageStats(expected, merged)
 
 	t.Logf("campaign lineups=%d", len(campaign.lineups))
-	t.Logf("action-skill coverage: %d/%d (%.2f)", triggeredCount, total, ratio)
-	if top := topTriggeredActionSkills(expected, merged, 15); len(top) > 0 {
+	t.Logf("action-skill coverage: %d/%d (%.2f)", activatedCount, total, ratio)
+	if top := topObservedActionSkills(expected, merged, 15); len(top) > 0 {
 		t.Logf("top action skills: %s", strings.Join(top, ", "))
 	}
 
 	if ratio < 0.45 {
 		missing := missingSkillList(expected, merged)
-		t.Fatalf("action-skill coverage too low: %d/%d (%.2f), missing=%v", triggeredCount, total, ratio, missing)
+		t.Fatalf("action-skill coverage too low: %d/%d (%.2f), missing=%v", activatedCount, total, ratio, missing)
 	}
 }
 
 func TestFullGame3v3_Regression_AllSkillCoverage(t *testing.T) {
-	campaign, merged := mergedRegressionTriggeredSkills(t)
+	campaign, merged := mergedRegressionObservedSkills(t)
 	expected := collectAllSkillTitles()
-	triggeredCount, total, ratio := coverageStats(expected, merged)
+	activatedCount, total, ratio := coverageStats(expected, merged)
 
 	t.Logf("campaign lineups=%d", len(campaign.lineups))
-	t.Logf("all-skill coverage: %d/%d (%.2f)", triggeredCount, total, ratio)
+	t.Logf("all-skill coverage: %d/%d (%.2f)", activatedCount, total, ratio)
 
 	// 角色池扩展后（含更多低频启动/响应技能），全技能覆盖率期望适度下调。
 	// 该阈值仍能识别明显回归，但避免因技能总数上升导致稳定误报。
 	if ratio < 0.54 {
 		missing := missingSkillList(expected, merged)
-		t.Fatalf("all-skill coverage too low: %d/%d (%.2f), missing=%v", triggeredCount, total, ratio, missing)
+		t.Fatalf("all-skill coverage too low: %d/%d (%.2f), missing=%v", activatedCount, total, ratio, missing)
 	}
 }
 
-func TestFullGame3v3_Regression_EachRoleTriggersSkill(t *testing.T) {
-	_, merged := mergedRegressionTriggeredSkills(t)
+func TestFullGame3v3_Regression_EachRoleRunsSkill(t *testing.T) {
+	_, merged := mergedRegressionObservedSkills(t)
 	roleIDs := collectRoleIDs()
 	roleSkills := collectRoleSkillTitles()
 	missingRoles := make([]string, 0)
@@ -544,7 +544,7 @@ func TestFullGame3v3_Regression_EachRoleTriggersSkill(t *testing.T) {
 	sort.Strings(missingRoles)
 
 	if len(missingRoles) > 0 {
-		t.Fatalf("some roles have no triggered skills in campaign: %v", missingRoles)
+		t.Fatalf("some roles have no activated skills in campaign: %v", missingRoles)
 	}
 }
 
@@ -582,16 +582,16 @@ func TestFullGame3v3_DirectedScenario_EachScenarioHitsTarget(t *testing.T) {
 
 func TestFullGame3v3_DirectedScenario_TargetSkillCoverage(t *testing.T) {
 	campaign := runDirectedScenarioCampaign(t)
-	triggeredCount, total, ratio := coverageStats(campaign.targetSkillSet, campaign.triggeredSkills)
+	activatedCount, total, ratio := coverageStats(campaign.targetSkillSet, campaign.skillBatch)
 
 	t.Logf("directed scenario runs=%d", len(campaign.lineups))
-	t.Logf("directed target-skill coverage: %d/%d (%.2f)", triggeredCount, total, ratio)
-	if top := topTriggeredActionSkills(campaign.targetSkillSet, campaign.triggeredSkills, 20); len(top) > 0 {
-		t.Logf("directed top triggered target skills: %s", strings.Join(top, ", "))
+	t.Logf("directed target-skill coverage: %d/%d (%.2f)", activatedCount, total, ratio)
+	if top := topObservedActionSkills(campaign.targetSkillSet, campaign.skillBatch, 20); len(top) > 0 {
+		t.Logf("directed top activated target skills: %s", strings.Join(top, ", "))
 	}
 
 	if ratio < 1.0 {
-		missing := missingSkillList(campaign.targetSkillSet, campaign.triggeredSkills)
-		t.Fatalf("directed target-skill coverage too low: %d/%d (%.2f), missing=%v", triggeredCount, total, ratio, missing)
+		missing := missingSkillList(campaign.targetSkillSet, campaign.skillBatch)
+		t.Fatalf("directed target-skill coverage too low: %d/%d (%.2f), missing=%v", activatedCount, total, ratio, missing)
 	}
 }

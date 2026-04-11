@@ -1,3 +1,5 @@
+// gameflow: 瘟疫术士技能流。
+
 package engine
 
 import (

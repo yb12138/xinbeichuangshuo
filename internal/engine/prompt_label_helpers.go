@@ -1,3 +1,5 @@
+// gameflow: Prompt 选项展示文案。
+
 package engine
 
 import "starcup-engine/internal/engine/hook/promptfmt"

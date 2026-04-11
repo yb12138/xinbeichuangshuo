@@ -156,7 +156,7 @@ func TestFighterChargeStrike_ShieldBlockAfterPendingDamageCountsAsMiss(t *testin
 			SourceID: "p2",
 			Mode:     model.FieldEffect,
 			Effect:   model.EffectShield,
-			Trigger:  model.EffectTriggerOnDamaged,
+			Hook: model.FieldHookOnDamaged,
 			Duration: 1,
 		},
 	}

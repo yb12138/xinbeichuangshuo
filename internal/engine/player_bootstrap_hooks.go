@@ -1,3 +1,5 @@
+// gameflow: 玩家加入/重置时的默认状态。
+
 package engine
 
 import "starcup-engine/internal/model"

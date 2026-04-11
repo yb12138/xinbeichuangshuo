@@ -1,3 +1,5 @@
+// gameflow: 剑帝 handler。
+
 package skills
 
 import (
@@ -135,23 +137,23 @@ func swordEmperorSlashTargets(game model.IGameEngine, user *model.Player, exclud
 }
 
 func (h *SwordEmperorSwordQiSlashHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.TriggerCtx == nil {
+	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Trigger != model.TriggerOnAttackHit {
+	if ctx.Timing != model.TimingOnHitCheck {
 		return false
 	}
-	if ctx.TriggerCtx.AttackInfo != nil && ctx.TriggerCtx.AttackInfo.CounterInitiator != "" {
+	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
 	if swordEmperorSwordQi(ctx.User) <= 0 {
 		return false
 	}
-	return len(swordEmperorSlashTargets(ctx.Game, ctx.User, ctx.TriggerCtx.TargetID)) > 0
+	return len(swordEmperorSlashTargets(ctx.Game, ctx.User, ctx.EventCtx.TargetID)) > 0
 }
 
 func (h *SwordEmperorSwordQiSlashHandler) Execute(ctx *model.Context) error {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.TriggerCtx == nil {
+	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.EventCtx == nil {
 		return fmt.Errorf("剑气斩上下文无效")
 	}
 	maxX := swordEmperorSwordQi(ctx.User)
@@ -161,7 +163,7 @@ func (h *SwordEmperorSwordQiSlashHandler) Execute(ctx *model.Context) error {
 	if maxX <= 0 {
 		return fmt.Errorf("剑气不足，无法发动剑气斩")
 	}
-	targetIDs := swordEmperorSlashTargets(ctx.Game, ctx.User, ctx.TriggerCtx.TargetID)
+	targetIDs := swordEmperorSlashTargets(ctx.Game, ctx.User, ctx.EventCtx.TargetID)
 	if len(targetIDs) == 0 {
 		return fmt.Errorf("没有可选的剑气斩目标")
 	}
@@ -181,13 +183,13 @@ func (h *SwordEmperorSwordQiSlashHandler) Execute(ctx *model.Context) error {
 }
 
 func (h *SwordEmperorAngelSoulHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.TriggerCtx == nil {
+	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Trigger != model.TriggerOnAttackStart {
+	if ctx.Timing != model.TimingOnAttackDeclared {
 		return false
 	}
-	if ctx.TriggerCtx.AttackInfo != nil && ctx.TriggerCtx.AttackInfo.CounterInitiator != "" {
+	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
 	energy := swordEmperorEnergy(ctx.User)
@@ -211,13 +213,13 @@ func (h *SwordEmperorAngelSoulHandler) Execute(ctx *model.Context) error {
 }
 
 func (h *SwordEmperorDemonSoulHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.TriggerCtx == nil {
+	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Trigger != model.TriggerOnAttackStart {
+	if ctx.Timing != model.TimingOnAttackDeclared {
 		return false
 	}
-	if ctx.TriggerCtx.AttackInfo != nil && ctx.TriggerCtx.AttackInfo.CounterInitiator != "" {
+	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
 	energy := swordEmperorEnergy(ctx.User)
@@ -242,13 +244,13 @@ func (h *SwordEmperorDemonSoulHandler) Execute(ctx *model.Context) error {
 }
 
 func (h *SwordEmperorIndomitableWillHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.TriggerCtx == nil {
+	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Trigger != model.TriggerOnPhaseEnd {
+	if ctx.Timing != model.TimingOnActionEnd {
 		return false
 	}
-	if ctx.TriggerCtx.ActionType != model.ActionAttack {
+	if ctx.EventCtx.ActionType != model.ActionAttack {
 		return false
 	}
 	return canPayCrystalLike(ctx, 1)

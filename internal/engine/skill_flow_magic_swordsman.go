@@ -1,3 +1,5 @@
+// gameflow: 魔剑士：剑影、祈祷联动、阿修罗等技能与选项。
+
 package engine
 
 import (

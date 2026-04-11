@@ -1,3 +1,5 @@
+// gameflow: 引擎只读查询（供 handler 或 UI）。
+
 package engine
 
 import "starcup-engine/internal/model"

@@ -1,3 +1,5 @@
+// gameflow: 阶段内选择（如多选）路由。
+
 package engine
 
 import (

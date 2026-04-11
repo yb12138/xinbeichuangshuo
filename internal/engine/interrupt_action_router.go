@@ -1,3 +1,5 @@
+// gameflow: 玩家在中断中的 CmdSelect 等动作路由。
+
 package engine
 
 import "starcup-engine/internal/model"

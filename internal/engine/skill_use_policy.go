@@ -1,3 +1,5 @@
+// gameflow: 技能流策略钩子（executeSkillFlow 后置等）。
+
 package engine
 
 import (

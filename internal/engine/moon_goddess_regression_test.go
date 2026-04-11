@@ -43,7 +43,7 @@ func TestMoonGoddessNewMoonShelter_AbsorbsOverflowAndPreventsMoraleLoss(t *testi
 		moonTestCard("a6", "牌6", model.CardTypeMagic, model.ElementLight),
 	}
 
-	damageOverflowCtx := game.buildContext(ally, nil, model.TriggerNone, nil)
+	damageOverflowCtx := game.buildContext(ally, nil, model.TimingActive, nil)
 	damageOverflowCtx.Flags["FromDamageDraw"] = true
 	damageOverflowCtx.Flags["IsMagicDamage"] = false
 	game.checkHandLimit(ally, damageOverflowCtx)
@@ -97,7 +97,7 @@ func TestMoonGoddessNewMoonShelter_NoSoulDevourGainWhenMoraleLossPrevented(t *te
 			moonTestCard("s6", "牌6", model.CardTypeMagic, model.ElementLight),
 		}
 
-		damageOverflowCtx := game.buildContext(soul, nil, model.TriggerNone, nil)
+		damageOverflowCtx := game.buildContext(soul, nil, model.TimingActive, nil)
 		damageOverflowCtx.Flags["FromDamageDraw"] = true
 		damageOverflowCtx.Flags["IsMagicDamage"] = false
 		game.checkHandLimit(soul, damageOverflowCtx)
@@ -147,7 +147,7 @@ func TestMoonGoddessMoonCycle_Branch1AppliesCurseAndHeal(t *testing.T) {
 	game.State.CurrentTurn = 0
 	game.State.TurnStage = model.TurnStageTurnEnd
 
-	if !game.maybeTriggerMoonGoddessMoonCycleAtTurnEnd(moon) {
+	if !game.maybeMoonGoddessMoonCycleAtTurnEnd(moon) {
 		t.Fatalf("expected moon cycle interrupt")
 	}
 	requireChoicePrompt(t, game, "p1", "mg_moon_cycle_mode")
@@ -195,8 +195,8 @@ func TestMoonGoddessMoonCycle_OnlyOncePerTurn(t *testing.T) {
 	game.State.CurrentTurn = 0
 	game.State.TurnStage = model.TurnStageTurnEnd
 
-	if !game.maybeTriggerMoonGoddessMoonCycleAtTurnEnd(moon) {
-		t.Fatalf("expected moon cycle first trigger")
+	if !game.maybeMoonGoddessMoonCycleAtTurnEnd(moon) {
+		t.Fatalf("expected moon cycle first dispatch")
 	}
 	requireChoicePrompt(t, game, "p1", "mg_moon_cycle_mode")
 	// 分支①
@@ -212,11 +212,11 @@ func TestMoonGoddessMoonCycle_OnlyOncePerTurn(t *testing.T) {
 		t.Fatalf("expected moon cycle used flag=1 in current turn, got %d", got)
 	}
 
-	if game.maybeTriggerMoonGoddessMoonCycleAtTurnEnd(moon) {
-		t.Fatalf("moon cycle should not trigger twice in same turn")
+	if game.maybeMoonGoddessMoonCycleAtTurnEnd(moon) {
+		t.Fatalf("moon cycle should not dispatch twice in same turn")
 	}
 	if game.State.PendingInterrupt != nil {
-		t.Fatalf("expected no pending interrupt after second trigger attempt")
+		t.Fatalf("expected no pending interrupt after second dispatch attempt")
 	}
 }
 
@@ -301,8 +301,8 @@ func TestMoonGoddessMoonCycle_TurnStateLatchPreventsRepromptWhenTokenResets(t *t
 	game.State.CurrentTurn = 0
 	game.State.TurnStage = model.TurnStageTurnEnd
 
-	if !game.maybeTriggerMoonGoddessMoonCycleAtTurnEnd(moon) {
-		t.Fatalf("expected moon cycle first trigger")
+	if !game.maybeMoonGoddessMoonCycleAtTurnEnd(moon) {
+		t.Fatalf("expected moon cycle first dispatch")
 	}
 	requireChoicePrompt(t, game, "p1", "mg_moon_cycle_mode")
 	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
@@ -313,7 +313,7 @@ func TestMoonGoddessMoonCycle_TurnStateLatchPreventsRepromptWhenTokenResets(t *t
 		t.Fatalf("choose moon cycle heal target failed: %v", err)
 	}
 
-	if game.maybeTriggerMoonGoddessMoonCycleAtTurnEnd(moon) {
+	if game.maybeMoonGoddessMoonCycleAtTurnEnd(moon) {
 		t.Fatalf("moon cycle should stay blocked by turnstate latch")
 	}
 	if game.State.PendingInterrupt != nil {
@@ -353,7 +353,7 @@ func TestMoonGoddessDarkMoonSlash_AddsDamageAndConsumesDarkMoon(t *testing.T) {
 		},
 	}
 
-	ctx := game.buildContext(moon, enemy, model.TriggerOnAttackHit, &model.EventContext{
+	ctx := game.buildContext(moon, enemy, model.TimingOnHitCheck, &model.EventContext{
 		Type:     model.EventAttack,
 		SourceID: moon.ID,
 		TargetID: enemy.ID,
@@ -407,7 +407,7 @@ func TestMoonGoddessMedusa_ExcludesConvertedAttacks(t *testing.T) {
 		moonTestCard("dm_fire", "火暗月", model.CardTypeAttack, model.ElementFire),
 	})
 	attackCard := moonTestCard("atk", "火斩", model.CardTypeAttack, model.ElementFire)
-	attackStartCtx := game.buildContext(enemy, ally, model.TriggerOnAttackStart, &model.EventContext{
+	attackStartCtx := game.buildContext(enemy, ally, model.TimingOnAttackDeclared, &model.EventContext{
 		Type:     model.EventAttack,
 		SourceID: enemy.ID,
 		TargetID: ally.ID,
@@ -417,21 +417,21 @@ func TestMoonGoddessMedusa_ExcludesConvertedAttacks(t *testing.T) {
 		},
 	})
 
-	if game.maybeTriggerMoonGoddessMedusa(enemy, ally, "adventurer_fraud", &attackCard, attackStartCtx) {
-		t.Fatalf("fraud converted attack should not trigger medusa")
+	if game.maybeMoonGoddessMedusa(enemy, ally, "adventurer_fraud", &attackCard, attackStartCtx) {
+		t.Fatalf("fraud converted attack should not dispatch medusa")
 	}
 	if game.State.PendingInterrupt != nil {
 		t.Fatalf("expected no interrupt for fraud converted attack")
 	}
-	if game.maybeTriggerMoonGoddessMedusa(enemy, ally, "hb_holy_shard_storm", &attackCard, attackStartCtx) {
-		t.Fatalf("holy shard storm converted attack should not trigger medusa")
+	if game.maybeMoonGoddessMedusa(enemy, ally, "hb_holy_shard_storm", &attackCard, attackStartCtx) {
+		t.Fatalf("holy shard storm converted attack should not dispatch medusa")
 	}
 	if game.State.PendingInterrupt != nil {
 		t.Fatalf("expected no interrupt for holy shard storm converted attack")
 	}
 
-	if !game.maybeTriggerMoonGoddessMedusa(enemy, ally, "", &attackCard, attackStartCtx) {
-		t.Fatalf("normal attack should trigger medusa when matching dark moon exists")
+	if !game.maybeMoonGoddessMedusa(enemy, ally, "", &attackCard, attackStartCtx) {
+		t.Fatalf("normal attack should dispatch medusa when matching dark moon exists")
 	}
 	requireChoicePrompt(t, game, "p1", "mg_medusa_darkmoon_pick")
 }
@@ -457,14 +457,14 @@ func TestMoonGoddessMedusa_OnlyAtAttackStart(t *testing.T) {
 	attackCard := moonTestCard("atk", "火斩", model.CardTypeAttack, model.ElementFire)
 
 	// 非攻击开始上下文：不应触发。
-	if game.maybeTriggerMoonGoddessMedusa(enemy, ally, "", &attackCard, nil) {
-		t.Fatalf("medusa should not trigger without attack-start context")
+	if game.maybeMoonGoddessMedusa(enemy, ally, "", &attackCard, nil) {
+		t.Fatalf("medusa should not dispatch without attack-start context")
 	}
 	if game.State.PendingInterrupt != nil {
 		t.Fatalf("expected no interrupt without attack-start context")
 	}
 
-	nonStartCtx := game.buildContext(enemy, ally, model.TriggerOnAttackHit, &model.EventContext{
+	nonStartCtx := game.buildContext(enemy, ally, model.TimingOnHitCheck, &model.EventContext{
 		Type:     model.EventAttack,
 		SourceID: enemy.ID,
 		TargetID: ally.ID,
@@ -473,15 +473,15 @@ func TestMoonGoddessMedusa_OnlyAtAttackStart(t *testing.T) {
 			ActionType: string(model.ActionAttack),
 		},
 	})
-	if game.maybeTriggerMoonGoddessMedusa(enemy, ally, "", &attackCard, nonStartCtx) {
-		t.Fatalf("medusa should not trigger outside attack-start trigger")
+	if game.maybeMoonGoddessMedusa(enemy, ally, "", &attackCard, nonStartCtx) {
+		t.Fatalf("medusa should not dispatch outside attack-start dispatch")
 	}
 	if game.State.PendingInterrupt != nil {
-		t.Fatalf("expected no interrupt for non-attack-start trigger")
+		t.Fatalf("expected no interrupt for non-attack-start dispatch")
 	}
 
 	// 攻击开始上下文：可触发。
-	attackStartCtx := game.buildContext(enemy, ally, model.TriggerOnAttackStart, &model.EventContext{
+	attackStartCtx := game.buildContext(enemy, ally, model.TimingOnAttackDeclared, &model.EventContext{
 		Type:     model.EventAttack,
 		SourceID: enemy.ID,
 		TargetID: ally.ID,
@@ -490,8 +490,8 @@ func TestMoonGoddessMedusa_OnlyAtAttackStart(t *testing.T) {
 			ActionType: string(model.ActionAttack),
 		},
 	})
-	if !game.maybeTriggerMoonGoddessMedusa(enemy, ally, "", &attackCard, attackStartCtx) {
-		t.Fatalf("medusa should trigger at attack start with matching dark moon")
+	if !game.maybeMoonGoddessMedusa(enemy, ally, "", &attackCard, attackStartCtx) {
+		t.Fatalf("medusa should dispatch at attack start with matching dark moon")
 	}
 	requireChoicePrompt(t, game, "p1", "mg_medusa_darkmoon_pick")
 }
@@ -521,7 +521,7 @@ func TestMoonGoddessMedusa_MagicDarkMoonExtraDamageTargetsAttackerOnly(t *testin
 		moonTestCard("discard1", "弃牌", model.CardTypeAttack, model.ElementWater),
 	}
 	attackCard := moonTestCard("atk", "火斩", model.CardTypeAttack, model.ElementFire)
-	attackStartCtx := game.buildContext(attacker, ally, model.TriggerOnAttackStart, &model.EventContext{
+	attackStartCtx := game.buildContext(attacker, ally, model.TimingOnAttackDeclared, &model.EventContext{
 		Type:     model.EventAttack,
 		SourceID: attacker.ID,
 		TargetID: ally.ID,
@@ -531,8 +531,8 @@ func TestMoonGoddessMedusa_MagicDarkMoonExtraDamageTargetsAttackerOnly(t *testin
 		},
 	})
 
-	if !game.maybeTriggerMoonGoddessMedusa(attacker, ally, "", &attackCard, attackStartCtx) {
-		t.Fatalf("expected medusa trigger")
+	if !game.maybeMoonGoddessMedusa(attacker, ally, "", &attackCard, attackStartCtx) {
+		t.Fatalf("expected medusa dispatch")
 	}
 	requireChoicePrompt(t, game, "p1", "mg_medusa_darkmoon_pick")
 	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
@@ -769,7 +769,7 @@ func TestMoonGoddessPaleMoon_Branch2RequiresNewMoonAndXStartsAtOne(t *testing.T)
 	}
 }
 
-func TestMoonGoddessNewMoonShelter_NotTriggerWhenActualMoraleWillNotDrop(t *testing.T) {
+func TestMoonGoddessNewMoonShelter_NotDispatchWhenActualMoraleWillNotDrop(t *testing.T) {
 	game := NewGameEngine(noopObserver{})
 	if err := game.AddPlayer("p1", "Moon", "moon_goddess", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -796,7 +796,7 @@ func TestMoonGoddessNewMoonShelter_NotTriggerWhenActualMoraleWillNotDrop(t *test
 		moonTestCard("h6", "牌6", model.CardTypeMagic, model.ElementLight),
 	}
 
-	damageOverflowCtx := game.buildContext(ally, nil, model.TriggerNone, nil)
+	damageOverflowCtx := game.buildContext(ally, nil, model.TimingActive, nil)
 	damageOverflowCtx.Flags["FromDamageDraw"] = true
 	damageOverflowCtx.Flags["IsMagicDamage"] = false
 	game.checkHandLimit(ally, damageOverflowCtx)
@@ -814,7 +814,7 @@ func TestMoonGoddessNewMoonShelter_NotTriggerWhenActualMoraleWillNotDrop(t *test
 		t.Fatalf("expected red morale unchanged, got %d", got)
 	}
 	if got := moonGoddessDarkMoonCount(moon); got != 0 {
-		t.Fatalf("expected new moon shelter not trigger, dark moon count=%d", got)
+		t.Fatalf("expected new moon shelter not dispatch, dark moon count=%d", got)
 	}
 	if got := moon.Form; got != "" {
 		t.Fatalf("expected moon goddess stay non-dark form, got %q", got)
@@ -877,7 +877,7 @@ func TestMoonGoddessDarkMoonSlash_XBoundaries_CurseAndDamage(t *testing.T) {
 				},
 			}
 
-			ctx := game.buildContext(moon, enemy, model.TriggerOnAttackHit, &model.EventContext{
+			ctx := game.buildContext(moon, enemy, model.TimingOnHitCheck, &model.EventContext{
 				Type:     model.EventAttack,
 				SourceID: moon.ID,
 				TargetID: enemy.ID,

@@ -229,7 +229,7 @@ func TestBloodPriestessBleeding_EnterOnMoraleLossAndReleaseOnActionEndLowHand(t 
 		bloodPriestessTestCard("a7", model.ElementLight),
 		bloodPriestessTestCard("a8", model.ElementFire),
 	}
-	damageOverflowCtx := game.buildContext(p1, nil, model.TriggerNone, nil)
+	damageOverflowCtx := game.buildContext(p1, nil, model.TimingActive, nil)
 	damageOverflowCtx.Flags["FromDamageDraw"] = true
 	game.checkHandLimit(p1, damageOverflowCtx)
 	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptDiscard {
@@ -338,7 +338,7 @@ func TestBloodPriestessBloodSorrow_TransferThenRemove(t *testing.T) {
 	// 2) 启动血之哀伤，选择“转移”到 p3。
 	game.State.CurrentTurn = 0
 	p1.IsActive = true
-	ctx := game.buildContext(p1, nil, model.TriggerOnTurnStart, nil)
+	ctx := game.buildContext(p1, nil, model.TimingOnTurnStart, nil)
 	h := &skills.BloodPriestessBloodSorrowHandler{}
 	if !h.CanUse(ctx) {
 		t.Fatalf("expected blood sorrow can use when shared life exists")
@@ -368,7 +368,7 @@ func TestBloodPriestessBloodSorrow_TransferThenRemove(t *testing.T) {
 	// 3) 再次发动血之哀伤，选择“移除”。
 	game.State.CurrentTurn = 0
 	p1.IsActive = true
-	ctx = game.buildContext(p1, nil, model.TriggerOnTurnStart, nil)
+	ctx = game.buildContext(p1, nil, model.TimingOnTurnStart, nil)
 	if !h.CanUse(ctx) {
 		t.Fatalf("expected blood sorrow can use before remove branch")
 	}
@@ -448,7 +448,7 @@ func TestBloodPriestessBloodSorrow_Remove_ShouldEnterBleedWhenDamageCausesMorale
 	game.State.TurnStage = model.TurnStageActionStart
 
 	// 发动血之哀伤并选择“移除同生共死”。
-	ctx := game.buildContext(p1, nil, model.TriggerOnTurnStart, nil)
+	ctx := game.buildContext(p1, nil, model.TimingOnTurnStart, nil)
 	h := &skills.BloodPriestessBloodSorrowHandler{}
 	if !h.CanUse(ctx) {
 		t.Fatalf("expected blood sorrow can use when shared life exists")

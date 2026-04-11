@@ -532,7 +532,7 @@ func TestPriestWaterPower_RequiresTransferCard(t *testing.T) {
 }
 
 // 回归：神官被动【神圣启示】在一次特殊行动结束后只应触发1次。
-func TestPriestDivineRevelation_TriggersOnlyOncePerSpecialAction(t *testing.T) {
+func TestPriestDivineRevelation_RunsOnlyOncePerSpecialAction(t *testing.T) {
 	game := NewGameEngine(noopObserver{})
 	if err := game.AddPlayer("p1", "Priest", "priest", model.RedCamp); err != nil {
 		t.Fatal(err)

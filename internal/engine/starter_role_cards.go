@@ -1,3 +1,5 @@
+// gameflow: 开局发角色专属牌/盖牌。
+
 package engine
 
 import (

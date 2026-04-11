@@ -1,3 +1,5 @@
+// gameflow: 魔枪士 handler。
+
 package skills
 
 import (
@@ -117,13 +119,13 @@ func (h *MagicLancerDarkBindHandler) CanUse(ctx *model.Context) bool { return fa
 func (h *MagicLancerDarkBindHandler) Execute(ctx *model.Context) error { return nil }
 
 func (h *MagicLancerDarkBarrierHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.TriggerCtx == nil {
+	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Trigger != model.TriggerOnDamageTaken {
+	if ctx.Timing != model.TimingOnDamageTaken {
 		return false
 	}
-	if ctx.TriggerCtx.DamageVal == nil || *ctx.TriggerCtx.DamageVal <= 0 {
+	if ctx.EventCtx.DamageVal == nil || *ctx.EventCtx.DamageVal <= 0 {
 		return false
 	}
 	return magicLancerMagicCardCount(ctx.User) > 0 || magicLancerThunderCardCount(ctx.User) > 0
@@ -147,8 +149,8 @@ func (h *MagicLancerDarkBarrierHandler) Execute(ctx *model.Context) error {
 			"max_magic":   magicCount,
 			"max_thunder": thunderCount,
 			"source_player_id": func() string {
-				if ctx.TriggerCtx != nil {
-					return ctx.TriggerCtx.SourceID
+				if ctx.EventCtx != nil {
+					return ctx.EventCtx.SourceID
 				}
 				return ""
 			}(),
@@ -197,13 +199,13 @@ func (h *MagicLancerFullnessHandler) Execute(ctx *model.Context) error {
 }
 
 func (h *MagicLancerBlackSpearHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.Target == nil || ctx.TriggerCtx == nil {
+	if ctx == nil || ctx.User == nil || ctx.Target == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Trigger != model.TriggerOnAttackHit {
+	if ctx.Timing != model.TimingOnHitCheck {
 		return false
 	}
-	if ctx.TriggerCtx.AttackInfo != nil && ctx.TriggerCtx.AttackInfo.CounterInitiator != "" {
+	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
 	if !hasForm(ctx.User, model.FormMagicLancerPhantom) {

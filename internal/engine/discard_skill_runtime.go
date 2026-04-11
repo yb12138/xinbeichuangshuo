@@ -1,3 +1,5 @@
+// gameflow: 弃牌技能与弃牌子流程（如展示/封印联动）。
+
 package engine
 
 import (
@@ -89,7 +91,7 @@ func (e *GameEngine) handleContextSkillDiscardSelection(skillID string, indices 
 	if discardedCards, ok := ctx.Selections["discardedCards"].([]model.Card); ok {
 		e.State.DiscardPile = append(e.State.DiscardPile, discardedCards...)
 	}
-	if ctx.Trigger == model.TriggerBeforeDraw {
+	if ctx.BeforeDrawPhase() {
 		e.resumePendingDraw(ctx)
 	}
 
@@ -113,13 +115,13 @@ func (e *GameEngine) resumePhaseAfterSkillDiscardContext(ctx *model.Context) boo
 	if ctx == nil || e.State.PendingInterrupt != nil {
 		return false
 	}
-	if ctx.Trigger == model.TriggerBeforeDraw {
+	if ctx.BeforeDrawPhase() {
 		return e.restorePhaseAfterInterruptedDraw(ctx)
 	}
-	if ctx.Trigger == model.TriggerOnAttackMiss && e.resumePendingAttackMiss(ctx) {
+	if ctx.ResumeAttackMissPhase() && e.resumePendingAttackMiss(ctx) {
 		return true
 	}
-	if ctx.Trigger == model.TriggerOnTurnStart {
+	if ctx.TurnStartOrStartupWindow() {
 		// 启动技能（回合开始触发）中的弃牌后续：应继续当前回合流程。
 		e.clearSubflow()
 		e.clearCombatStage()

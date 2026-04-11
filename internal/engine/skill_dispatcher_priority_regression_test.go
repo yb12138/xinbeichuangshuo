@@ -44,7 +44,7 @@ func TestBeforeMoraleLoss_UsesSkillPriorityOrdering(t *testing.T) {
 	}
 
 	loss := 2
-	lossCtx := game.buildContext(angelA, game.State.Players["p3"], model.TriggerBeforeMoraleLoss, &model.EventContext{
+	lossCtx := game.buildContext(angelA, game.State.Players["p3"], model.TimingBeforeMoraleLoss, &model.EventContext{
 		Type:      model.EventDamage,
 		SourceID:  "p3",
 		TargetID:  "p1",
@@ -52,7 +52,7 @@ func TestBeforeMoraleLoss_UsesSkillPriorityOrdering(t *testing.T) {
 	})
 	lossCtx.Flags["IsMagicDamage"] = true
 
-	game.dispatcher.OnTrigger(model.TriggerBeforeMoraleLoss, lossCtx)
+	game.dispatcher.OnTiming(lossCtx.Timing, lossCtx)
 
 	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptResponseSkill {
 		t.Fatalf("expected response interrupt, got %+v", game.State.PendingInterrupt)
