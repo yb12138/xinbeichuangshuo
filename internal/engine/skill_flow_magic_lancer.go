@@ -153,25 +153,10 @@ func (e *GameEngine) buildMagicLancerChoicePrompt(choiceType, playerID string, p
 
 func (e *GameEngine) handleMagicLancerChoiceInput(_ string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
 	choiceType, _ := ctxData["choice_type"].(string)
-	return dispatchChoiceRouteByType(choiceType, selectionIndex, ctxData, map[string]skillChoiceRouteHandler{
-		"ml_black_spear_x":         e.handleMagicLancerChoiceInputByType,
-		"ml_dark_barrier_mode":     e.handleMagicLancerChoiceInputByType,
-		"ml_dark_barrier_x":        e.handleMagicLancerChoiceInputByType,
-		"ml_dark_barrier_cards":    e.handleMagicLancerChoiceInputByType,
-		"ml_fullness_cost_card":    e.handleMagicLancerChoiceInputByType,
-		"ml_fullness_discard_step": e.handleMagicLancerChoiceInputByType,
-		"ml_stardust_target":       e.handleMagicLancerChoiceInputByType,
-	})
-}
-
-func (e *GameEngine) handleMagicLancerChoiceInputByType(selectionIndex int, ctxData map[string]interface{}) (bool, error) {
-	choiceType, _ := ctxData["choice_type"].(string)
-	return dispatchChoiceRouteByType(magicLancerChoiceFlow(choiceType), selectionIndex, ctxData, map[string]skillChoiceRouteHandler{
-		"black_spear":  e.handleMagicLancerBlackSpearFlow,
-		"dark_barrier": e.handleMagicLancerDarkBarrierFlow,
-		"fullness":     e.handleMagicLancerFullnessFlow,
-		"stardust":     e.handleMagicLancerStardustFlow,
-	})
+	if magicLancerChoiceFlow(choiceType) == "" {
+		return false, nil
+	}
+	return e.handleMagicLancerChoiceInputByTypeLegacy(selectionIndex, ctxData)
 }
 
 func magicLancerChoiceFlow(choiceType string) string {
@@ -187,37 +172,6 @@ func magicLancerChoiceFlow(choiceType string) string {
 	default:
 		return ""
 	}
-}
-
-func (e *GameEngine) handleMagicLancerBlackSpearFlow(selectionIndex int, ctxData map[string]interface{}) (bool, error) {
-	choiceType, _ := ctxData["choice_type"].(string)
-	return dispatchChoiceRouteByType(choiceType, selectionIndex, ctxData, map[string]skillChoiceRouteHandler{
-		"ml_black_spear_x": e.handleMagicLancerChoiceInputByTypeLegacy,
-	})
-}
-
-func (e *GameEngine) handleMagicLancerDarkBarrierFlow(selectionIndex int, ctxData map[string]interface{}) (bool, error) {
-	choiceType, _ := ctxData["choice_type"].(string)
-	return dispatchChoiceRouteByType(choiceType, selectionIndex, ctxData, map[string]skillChoiceRouteHandler{
-		"ml_dark_barrier_mode":  e.handleMagicLancerChoiceInputByTypeLegacy,
-		"ml_dark_barrier_x":     e.handleMagicLancerChoiceInputByTypeLegacy,
-		"ml_dark_barrier_cards": e.handleMagicLancerChoiceInputByTypeLegacy,
-	})
-}
-
-func (e *GameEngine) handleMagicLancerFullnessFlow(selectionIndex int, ctxData map[string]interface{}) (bool, error) {
-	choiceType, _ := ctxData["choice_type"].(string)
-	return dispatchChoiceRouteByType(choiceType, selectionIndex, ctxData, map[string]skillChoiceRouteHandler{
-		"ml_fullness_cost_card":    e.handleMagicLancerChoiceInputByTypeLegacy,
-		"ml_fullness_discard_step": e.handleMagicLancerChoiceInputByTypeLegacy,
-	})
-}
-
-func (e *GameEngine) handleMagicLancerStardustFlow(selectionIndex int, ctxData map[string]interface{}) (bool, error) {
-	choiceType, _ := ctxData["choice_type"].(string)
-	return dispatchChoiceRouteByType(choiceType, selectionIndex, ctxData, map[string]skillChoiceRouteHandler{
-		"ml_stardust_target": e.handleMagicLancerChoiceInputByTypeLegacy,
-	})
 }
 
 func (e *GameEngine) handleMagicLancerChoiceInputByTypeLegacy(selectionIndex int, ctxData map[string]interface{}) (bool, error) {

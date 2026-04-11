@@ -33,9 +33,12 @@ func (e *GameEngine) buildCrimsonSwordSpiritChoicePrompt(choiceType, playerID st
 
 func (e *GameEngine) handleCrimsonSwordSpiritChoiceInput(_ string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
 	choiceType, _ := ctxData["choice_type"].(string)
-	return dispatchChoiceInputByType(choiceType, selectionIndex, ctxData, map[string]skillChoiceInputHandler{
-		"css_dance_mode": e.handleCrimsonSwordSpiritDanceModeChoice,
-	})
+	switch choiceType {
+	case "css_dance_mode":
+		return true, e.handleCrimsonSwordSpiritDanceModeChoice(selectionIndex, ctxData)
+	default:
+		return false, nil
+	}
 }
 
 func (e *GameEngine) handleCrimsonSwordSpiritDanceModeChoice(selectionIndex int, ctxData map[string]interface{}) error {

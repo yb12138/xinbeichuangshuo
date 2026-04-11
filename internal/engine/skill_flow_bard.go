@@ -139,37 +139,15 @@ func (e *GameEngine) buildBardChoicePrompt(choiceType, playerID string, player *
 }
 
 func (e *GameEngine) handleBardChoiceInput(_ string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
-	choiceType, _ := ctxData["choice_type"].(string)
-	return dispatchChoiceRouteByType(choiceType, selectionIndex, ctxData, map[string]skillChoiceRouteHandler{
-		"bd_descent_element":         e.handleBardChoiceInputByType,
-		"bd_descent_cards":           e.handleBardChoiceInputByType,
-		"bd_descent_target":          e.handleBardChoiceInputByType,
-		"bd_dissonance_x":            e.handleBardChoiceInputByType,
-		"bd_dissonance_mode":         e.handleBardChoiceInputByType,
-		"bd_dissonance_target":       e.handleBardChoiceInputByType,
-		"bd_dissonance_discard_step": e.handleBardChoiceInputByType,
-		"bd_rousing_mode":            e.handleBardChoiceInputByType,
-		"bd_rousing_targets":         e.handleBardChoiceInputByType,
-		"bd_rousing_discard_cards":   e.handleBardChoiceInputByType,
-		"bd_victory_mode":            e.handleBardChoiceInputByType,
-		"bd_victory_extract_stone":   e.handleBardChoiceInputByType,
-		"bd_hope_draw_confirm":       e.handleBardChoiceInputByType,
-		"bd_hope_mode":               e.handleBardChoiceInputByType,
-		"bd_hope_place_target":       e.handleBardChoiceInputByType,
-		"bd_hope_transfer_target":    e.handleBardChoiceInputByType,
-		"bd_hope_transfer_discard":   e.handleBardChoiceInputByType,
-	})
+	return e.handleBardChoiceInputByType(selectionIndex, ctxData)
 }
 
 func (e *GameEngine) handleBardChoiceInputByType(selectionIndex int, ctxData map[string]interface{}) (bool, error) {
 	choiceType, _ := ctxData["choice_type"].(string)
-	return dispatchChoiceRouteByType(bardChoiceFlow(choiceType), selectionIndex, ctxData, map[string]skillChoiceRouteHandler{
-		"descent":    e.handleBardDescentFlow,
-		"dissonance": e.handleBardDissonanceFlow,
-		"rousing":    e.handleBardRousingFlow,
-		"victory":    e.handleBardVictoryFlow,
-		"hope":       e.handleBardHopeFlow,
-	})
+	if bardChoiceFlow(choiceType) == "" {
+		return false, nil
+	}
+	return e.handleBardChoiceInputByTypeLegacy(selectionIndex, ctxData)
 }
 
 func bardChoiceFlow(choiceType string) string {
@@ -187,53 +165,6 @@ func bardChoiceFlow(choiceType string) string {
 	default:
 		return ""
 	}
-}
-
-func (e *GameEngine) handleBardDescentFlow(selectionIndex int, ctxData map[string]interface{}) (bool, error) {
-	choiceType, _ := ctxData["choice_type"].(string)
-	return dispatchChoiceRouteByType(choiceType, selectionIndex, ctxData, map[string]skillChoiceRouteHandler{
-		"bd_descent_element": e.handleBardChoiceInputByTypeLegacy,
-		"bd_descent_cards":   e.handleBardChoiceInputByTypeLegacy,
-		"bd_descent_target":  e.handleBardChoiceInputByTypeLegacy,
-	})
-}
-
-func (e *GameEngine) handleBardDissonanceFlow(selectionIndex int, ctxData map[string]interface{}) (bool, error) {
-	choiceType, _ := ctxData["choice_type"].(string)
-	return dispatchChoiceRouteByType(choiceType, selectionIndex, ctxData, map[string]skillChoiceRouteHandler{
-		"bd_dissonance_x":            e.handleBardChoiceInputByTypeLegacy,
-		"bd_dissonance_mode":         e.handleBardChoiceInputByTypeLegacy,
-		"bd_dissonance_target":       e.handleBardChoiceInputByTypeLegacy,
-		"bd_dissonance_discard_step": e.handleBardChoiceInputByTypeLegacy,
-	})
-}
-
-func (e *GameEngine) handleBardRousingFlow(selectionIndex int, ctxData map[string]interface{}) (bool, error) {
-	choiceType, _ := ctxData["choice_type"].(string)
-	return dispatchChoiceRouteByType(choiceType, selectionIndex, ctxData, map[string]skillChoiceRouteHandler{
-		"bd_rousing_mode":          e.handleBardChoiceInputByTypeLegacy,
-		"bd_rousing_targets":       e.handleBardChoiceInputByTypeLegacy,
-		"bd_rousing_discard_cards": e.handleBardChoiceInputByTypeLegacy,
-	})
-}
-
-func (e *GameEngine) handleBardVictoryFlow(selectionIndex int, ctxData map[string]interface{}) (bool, error) {
-	choiceType, _ := ctxData["choice_type"].(string)
-	return dispatchChoiceRouteByType(choiceType, selectionIndex, ctxData, map[string]skillChoiceRouteHandler{
-		"bd_victory_mode":          e.handleBardChoiceInputByTypeLegacy,
-		"bd_victory_extract_stone": e.handleBardChoiceInputByTypeLegacy,
-	})
-}
-
-func (e *GameEngine) handleBardHopeFlow(selectionIndex int, ctxData map[string]interface{}) (bool, error) {
-	choiceType, _ := ctxData["choice_type"].(string)
-	return dispatchChoiceRouteByType(choiceType, selectionIndex, ctxData, map[string]skillChoiceRouteHandler{
-		"bd_hope_draw_confirm":     e.handleBardChoiceInputByTypeLegacy,
-		"bd_hope_mode":             e.handleBardChoiceInputByTypeLegacy,
-		"bd_hope_place_target":     e.handleBardChoiceInputByTypeLegacy,
-		"bd_hope_transfer_target":  e.handleBardChoiceInputByTypeLegacy,
-		"bd_hope_transfer_discard": e.handleBardChoiceInputByTypeLegacy,
-	})
 }
 
 func (e *GameEngine) handleBardChoiceInputByTypeLegacy(selectionIndex int, ctxData map[string]interface{}) (bool, error) {

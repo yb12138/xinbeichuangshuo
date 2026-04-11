@@ -255,7 +255,7 @@ func TestHomRuneReforge_ReallocateAndOverflowCheckOnTurnEnd(t *testing.T) {
 	}
 
 	// 选择 战纹2 / 魔纹1
-	if err := g.handleWeakChoiceInput("p1", 2); err != nil {
+	if err := g.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{2}}); err != nil {
 		t.Fatalf("choose rune distribution failed: %v", err)
 	}
 	if p1.Tokens["hom_war_rune"] != 2 || p1.Tokens["hom_magic_rune"] != 1 {
@@ -327,11 +327,11 @@ func TestHomGlyphFusion_MaxXUsesDistinctElements(t *testing.T) {
 	}
 
 	// 选择 X=2（通过选项值）
-	if err := g.handleWeakChoiceInput("p1", 2); err != nil {
+	if err := g.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{2}}); err != nil {
 		t.Fatalf("choose glyph x failed: %v", err)
 	}
 	// 先选一张水系牌（索引0）
-	if err := g.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := g.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose first glyph card failed: %v", err)
 	}
 	// 剩余候选中不应再有另一张水系（索引1），只保留风系（索引2）
@@ -380,15 +380,15 @@ func TestHomAttackMissResponseGroup_ChooseOneOnly(t *testing.T) {
 	if g.State.PendingInterrupt == nil || g.State.PendingInterrupt.Type != model.InterruptResponseSkill {
 		t.Fatalf("expected attack miss response interrupt, got %+v", g.State.PendingInterrupt)
 	}
-	if !containsSkillID(g.State.PendingInterrupt.SkillIDs, "hom_rage_suppress") ||
-		!containsSkillID(g.State.PendingInterrupt.SkillIDs, "hom_glyph_fusion") {
+	if !ContainsSkillID(g.State.PendingInterrupt.SkillIDs, "hom_rage_suppress") ||
+		!ContainsSkillID(g.State.PendingInterrupt.SkillIDs, "hom_glyph_fusion") {
 		t.Fatalf("expected both miss-response skills before choosing, got %+v", g.State.PendingInterrupt.SkillIDs)
 	}
 
 	if err := g.ConfirmResponseSkill("p1", "hom_rage_suppress"); err != nil {
 		t.Fatalf("confirm rage suppress failed: %v", err)
 	}
-	if g.State.PendingInterrupt != nil && containsSkillID(g.State.PendingInterrupt.SkillIDs, "hom_glyph_fusion") {
+	if g.State.PendingInterrupt != nil && ContainsSkillID(g.State.PendingInterrupt.SkillIDs, "hom_glyph_fusion") {
 		t.Fatalf("expected glyph fusion to be removed after choosing rage suppress, got %+v", g.State.PendingInterrupt)
 	}
 }
@@ -704,7 +704,7 @@ func TestCrimsonKnightFaith_SelfPoisonCanUseHeal(t *testing.T) {
 		SourceID: p1.ID,
 		Mode:     model.FieldEffect,
 		Effect:   model.EffectPoison,
-		Hook: model.FieldHookOnBeforeAction,
+		Hook:     model.FieldHookOnBeforeAction,
 	})
 
 	g.runFieldCardsForHook(p1, model.FieldHookOnBeforeAction, nil)
@@ -819,18 +819,19 @@ func TestHomRuneSmash_BurstAddsAttackAndMagicDamage(t *testing.T) {
 		t.Fatalf("expected hom_rune_smash_x choice, got %+v", g.State.PendingInterrupt)
 	}
 
+	// 与 HomDualEcho 等测例一致：用 handleInterruptAction 避免 HandleAction 尾随 Drive 提前清空 PendingDamageQueue。
 	// X=2，弃2张同系牌
-	if err := g.handleWeakChoiceInput("p1", 2); err != nil {
+	if err := g.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{2}}); err != nil {
 		t.Fatalf("choose rune smash x failed: %v", err)
 	}
-	if err := g.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := g.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose first card failed: %v", err)
 	}
-	if err := g.handleWeakChoiceInput("p1", 1); err != nil {
+	if err := g.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
 		t.Fatalf("choose second card failed: %v", err)
 	}
 	// Y=1：额外翻转1战纹并造成1点法伤
-	if err := g.handleWeakChoiceInput("p1", 1); err != nil {
+	if err := g.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
 		t.Fatalf("choose rune smash y failed: %v", err)
 	}
 

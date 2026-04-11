@@ -56,9 +56,12 @@ func (e *GameEngine) buildHolyLancerChoicePrompt(choiceType, playerID string, _ 
 
 func (e *GameEngine) handleHolyLancerChoiceInput(_ string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
 	choiceType, _ := ctxData["choice_type"].(string)
-	return dispatchChoiceInputByType(choiceType, selectionIndex, ctxData, map[string]skillChoiceInputHandler{
-		"holy_lancer_earth_spear_x": e.handleHolyLancerEarthSpearXChoice,
-	})
+	switch choiceType {
+	case "holy_lancer_earth_spear_x":
+		return true, e.handleHolyLancerEarthSpearXChoice(selectionIndex, ctxData)
+	default:
+		return false, nil
+	}
 }
 
 func (e *GameEngine) handleHolyLancerEarthSpearXChoice(selectionIndex int, ctxData map[string]interface{}) error {

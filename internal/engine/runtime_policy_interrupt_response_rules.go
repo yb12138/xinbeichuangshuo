@@ -25,7 +25,7 @@ func augmentBeastSamuraiResponseSkillIDs(sd *SkillDispatcher, skillIDs []string,
 	if sd == nil || sd.engine == nil || ctx == nil || ctx.Timing != model.TimingOnActionEnd || ctx.EventCtx == nil || ctx.EventCtx.ActionType != model.ActionAttack || ctx.User == nil {
 		return skillIDs
 	}
-	if !sd.engine.isBeastSamurai(ctx.User) || containsSkillID(skillIDs, "bs_one_strike_no_thought") || sd.engine.beastSamuraiZanshin(ctx.User) < beastSamuraiZanshinCapEngine {
+	if !sd.engine.isBeastSamurai(ctx.User) || ContainsSkillID(skillIDs, "bs_one_strike_no_thought") || sd.engine.beastSamuraiZanshin(ctx.User) < beastSamuraiZanshinCapEngine {
 		return skillIDs
 	}
 	skillDef := findCharacterSkill(ctx.User.Character, "bs_one_strike_no_thought")

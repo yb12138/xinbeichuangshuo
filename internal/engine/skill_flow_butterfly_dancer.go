@@ -229,62 +229,10 @@ func (e *GameEngine) StartButterflyReverse(userID string) error {
 
 func (e *GameEngine) handleButterflyChoiceInput(playerID string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
 	choiceType, _ := ctxData["choice_type"].(string)
-	return dispatchChoiceRouteByType(choiceType, selectionIndex, ctxData, map[string]skillChoiceRouteHandler{
-		"bt_dance_mode": func(idx int, data map[string]interface{}) (bool, error) {
-			return e.handleButterflyChoiceInputByType(playerID, idx, data)
-		},
-		"bt_dance_discard": func(idx int, data map[string]interface{}) (bool, error) {
-			return e.handleButterflyChoiceInputByType(playerID, idx, data)
-		},
-		"bt_cocoon_overflow_discard": func(idx int, data map[string]interface{}) (bool, error) {
-			return e.handleButterflyChoiceInputByType(playerID, idx, data)
-		},
-		"bt_reverse_mode": func(idx int, data map[string]interface{}) (bool, error) {
-			return e.handleButterflyChoiceInputByType(playerID, idx, data)
-		},
-		"bt_reverse_target": func(idx int, data map[string]interface{}) (bool, error) {
-			return e.handleButterflyChoiceInputByType(playerID, idx, data)
-		},
-		"bt_reverse_branch2_cost": func(idx int, data map[string]interface{}) (bool, error) {
-			return e.handleButterflyChoiceInputByType(playerID, idx, data)
-		},
-		"bt_reverse_branch2_pick": func(idx int, data map[string]interface{}) (bool, error) {
-			return e.handleButterflyChoiceInputByType(playerID, idx, data)
-		},
-		"bt_pilgrimage_pick": func(idx int, data map[string]interface{}) (bool, error) {
-			return e.handleButterflyChoiceInputByType(playerID, idx, data)
-		},
-		"bt_poison_pick": func(idx int, data map[string]interface{}) (bool, error) {
-			return e.handleButterflyChoiceInputByType(playerID, idx, data)
-		},
-		"bt_mirror_pair": func(idx int, data map[string]interface{}) (bool, error) {
-			return e.handleButterflyChoiceInputByType(playerID, idx, data)
-		},
-		"bt_wither_confirm": func(idx int, data map[string]interface{}) (bool, error) {
-			return e.handleButterflyChoiceInputByType(playerID, idx, data)
-		},
-		"bt_wither_target": func(idx int, data map[string]interface{}) (bool, error) {
-			return e.handleButterflyChoiceInputByType(playerID, idx, data)
-		},
-	})
-}
-
-func (e *GameEngine) handleButterflyChoiceInputByType(playerID string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
-	choiceType, _ := ctxData["choice_type"].(string)
-	return dispatchChoiceRouteByType(butterflyChoiceFlow(choiceType), selectionIndex, ctxData, map[string]skillChoiceRouteHandler{
-		"dance": func(idx int, data map[string]interface{}) (bool, error) {
-			return e.handleButterflyDanceFlow(playerID, idx, data)
-		},
-		"reverse": func(idx int, data map[string]interface{}) (bool, error) {
-			return e.handleButterflyReverseFlow(playerID, idx, data)
-		},
-		"damage_response": func(idx int, data map[string]interface{}) (bool, error) {
-			return e.handleButterflyDamageResponseFlow(playerID, idx, data)
-		},
-		"wither": func(idx int, data map[string]interface{}) (bool, error) {
-			return e.handleButterflyWitherFlow(playerID, idx, data)
-		},
-	})
+	if butterflyChoiceFlow(choiceType) == "" {
+		return false, nil
+	}
+	return e.handleButterflyChoiceInputByTypeLegacy(playerID, selectionIndex, ctxData)
 }
 
 func butterflyChoiceFlow(choiceType string) string {
@@ -300,66 +248,6 @@ func butterflyChoiceFlow(choiceType string) string {
 	default:
 		return ""
 	}
-}
-
-func (e *GameEngine) handleButterflyDanceFlow(playerID string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
-	choiceType, _ := ctxData["choice_type"].(string)
-	return dispatchChoiceRouteByType(choiceType, selectionIndex, ctxData, map[string]skillChoiceRouteHandler{
-		"bt_dance_mode": func(idx int, data map[string]interface{}) (bool, error) {
-			return e.handleButterflyChoiceInputByTypeLegacy(playerID, idx, data)
-		},
-		"bt_dance_discard": func(idx int, data map[string]interface{}) (bool, error) {
-			return e.handleButterflyChoiceInputByTypeLegacy(playerID, idx, data)
-		},
-		"bt_cocoon_overflow_discard": func(idx int, data map[string]interface{}) (bool, error) {
-			return e.handleButterflyChoiceInputByTypeLegacy(playerID, idx, data)
-		},
-	})
-}
-
-func (e *GameEngine) handleButterflyReverseFlow(playerID string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
-	choiceType, _ := ctxData["choice_type"].(string)
-	return dispatchChoiceRouteByType(choiceType, selectionIndex, ctxData, map[string]skillChoiceRouteHandler{
-		"bt_reverse_mode": func(idx int, data map[string]interface{}) (bool, error) {
-			return e.handleButterflyChoiceInputByTypeLegacy(playerID, idx, data)
-		},
-		"bt_reverse_target": func(idx int, data map[string]interface{}) (bool, error) {
-			return e.handleButterflyChoiceInputByTypeLegacy(playerID, idx, data)
-		},
-		"bt_reverse_branch2_cost": func(idx int, data map[string]interface{}) (bool, error) {
-			return e.handleButterflyChoiceInputByTypeLegacy(playerID, idx, data)
-		},
-		"bt_reverse_branch2_pick": func(idx int, data map[string]interface{}) (bool, error) {
-			return e.handleButterflyChoiceInputByTypeLegacy(playerID, idx, data)
-		},
-	})
-}
-
-func (e *GameEngine) handleButterflyDamageResponseFlow(playerID string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
-	choiceType, _ := ctxData["choice_type"].(string)
-	return dispatchChoiceRouteByType(choiceType, selectionIndex, ctxData, map[string]skillChoiceRouteHandler{
-		"bt_pilgrimage_pick": func(idx int, data map[string]interface{}) (bool, error) {
-			return e.handleButterflyChoiceInputByTypeLegacy(playerID, idx, data)
-		},
-		"bt_poison_pick": func(idx int, data map[string]interface{}) (bool, error) {
-			return e.handleButterflyChoiceInputByTypeLegacy(playerID, idx, data)
-		},
-		"bt_mirror_pair": func(idx int, data map[string]interface{}) (bool, error) {
-			return e.handleButterflyChoiceInputByTypeLegacy(playerID, idx, data)
-		},
-	})
-}
-
-func (e *GameEngine) handleButterflyWitherFlow(playerID string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
-	choiceType, _ := ctxData["choice_type"].(string)
-	return dispatchChoiceRouteByType(choiceType, selectionIndex, ctxData, map[string]skillChoiceRouteHandler{
-		"bt_wither_confirm": func(idx int, data map[string]interface{}) (bool, error) {
-			return e.handleButterflyChoiceInputByTypeLegacy(playerID, idx, data)
-		},
-		"bt_wither_target": func(idx int, data map[string]interface{}) (bool, error) {
-			return e.handleButterflyChoiceInputByTypeLegacy(playerID, idx, data)
-		},
-	})
 }
 
 func (e *GameEngine) handleButterflyChoiceInputByTypeLegacy(playerID string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {

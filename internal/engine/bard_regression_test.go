@@ -82,21 +82,21 @@ func TestBardDescentConcerto_RunsAndResolves(t *testing.T) {
 	}
 	requireChoicePrompt(t, game, "p1", "bd_descent_element")
 
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil { // 选火系
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil { // 选火系
 		t.Fatalf("choose descent element failed: %v", err)
 	}
 	requireChoicePrompt(t, game, "p1", "bd_descent_cards")
 
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil { // 第1张火牌
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil { // 第1张火牌
 		t.Fatalf("choose first discard failed: %v", err)
 	}
 	requireChoicePrompt(t, game, "p1", "bd_descent_cards")
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil { // 第2张火牌
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil { // 第2张火牌
 		t.Fatalf("choose second discard failed: %v", err)
 	}
 
 	requireChoicePrompt(t, game, "p1", "bd_descent_target")
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose descent bonus target failed: %v", err)
 	}
 
@@ -184,7 +184,7 @@ func TestBardDissonanceChord_DrawModeAndReleasePrisoner(t *testing.T) {
 		t.Fatalf("use dissonance failed: %v", err)
 	}
 	requireChoicePrompt(t, game, "p1", "bd_dissonance_x")
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil { // X=2
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil { // X=2
 		t.Fatalf("choose X failed: %v", err)
 	}
 	if got := bard.Tokens["bd_inspiration"]; got != 1 {
@@ -195,11 +195,11 @@ func TestBardDissonanceChord_DrawModeAndReleasePrisoner(t *testing.T) {
 	}
 
 	requireChoicePrompt(t, game, "p1", "bd_dissonance_mode")
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil { // 摸牌分支
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil { // 摸牌分支
 		t.Fatalf("choose mode failed: %v", err)
 	}
 	requireChoicePrompt(t, game, "p1", "bd_dissonance_target")
-	if err := game.handleWeakChoiceInput("p1", 1); err != nil { // 目标选 p2
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil { // 目标选 p2
 		t.Fatalf("choose target failed: %v", err)
 	}
 
@@ -236,15 +236,15 @@ func TestBardHopeFugue_PlaceUsesPlayedCardAsEternalMovement(t *testing.T) {
 		t.Fatalf("use hope fugue failed: %v", err)
 	}
 	requireChoicePrompt(t, game, "p1", "bd_hope_draw_confirm")
-	if err := game.handleWeakChoiceInput("p1", 1); err != nil { // 不摸牌
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil { // 不摸牌
 		t.Fatalf("choose draw confirm failed: %v", err)
 	}
 	requireChoicePrompt(t, game, "p1", "bd_hope_mode")
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil { // 放置分支
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil { // 放置分支
 		t.Fatalf("choose hope mode failed: %v", err)
 	}
 	requireChoicePrompt(t, game, "p1", "bd_hope_place_target")
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil { // 目标队友 p2
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil { // 目标队友 p2
 		t.Fatalf("choose place target failed: %v", err)
 	}
 
@@ -295,19 +295,19 @@ func TestBardHopeFugue_TransferMovesExistingEternalMovementAndGainsInspiration(t
 		t.Fatalf("use hope fugue failed: %v", err)
 	}
 	requireChoicePrompt(t, game, "p1", "bd_hope_draw_confirm")
-	if err := game.handleWeakChoiceInput("p1", 1); err != nil { // 不摸牌
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil { // 不摸牌
 		t.Fatalf("choose draw confirm failed: %v", err)
 	}
 	requireChoicePrompt(t, game, "p1", "bd_hope_mode")
-	if err := game.handleWeakChoiceInput("p1", 2); err != nil { // 转移并+1灵感
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{2}}); err != nil { // 转移并+1灵感
 		t.Fatalf("choose hope mode failed: %v", err)
 	}
 	requireChoicePrompt(t, game, "p1", "bd_hope_transfer_target")
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil { // 目标队友 p3
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil { // 目标队友 p3
 		t.Fatalf("choose transfer target failed: %v", err)
 	}
 	requireChoicePrompt(t, game, "p1", "bd_hope_transfer_discard")
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose transfer discard failed: %v", err)
 	}
 
@@ -361,15 +361,15 @@ func TestBardRousingRhapsody_OnBardTurnStartRunsForbiddenVerse(t *testing.T) {
 	requireResponseSkillPrompt(t, game, "p1")
 	chooseResponseSkillByID(t, game, "p1", "bd_rousing_rhapsody")
 	requireChoicePrompt(t, game, "p1", "bd_rousing_mode")
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil { // 选伤害分支
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil { // 选伤害分支
 		t.Fatalf("choose rousing mode failed: %v", err)
 	}
 	requireChoicePrompt(t, game, "p1", "bd_rousing_targets")
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil { // 先选 p3
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil { // 先选 p3
 		t.Fatalf("choose rousing first target failed: %v", err)
 	}
 	requireChoicePrompt(t, game, "p1", "bd_rousing_targets")
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil { // 再选 p4
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil { // 再选 p4
 		t.Fatalf("choose rousing second target failed: %v", err)
 	}
 
@@ -418,7 +418,7 @@ func TestBardVictorySymphony_AtInspirationCapEntersPrisonerAndSelfDamages(t *tes
 	requireResponseSkillPrompt(t, game, "p1")
 	chooseResponseSkillByID(t, game, "p1", "bd_victory_symphony")
 	requireChoicePrompt(t, game, "p1", "bd_victory_mode")
-	if err := game.handleWeakChoiceInput("p1", 1); err != nil { // 分支②
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil { // 分支②
 		t.Fatalf("choose victory mode failed: %v", err)
 	}
 
@@ -475,11 +475,11 @@ func TestBardVictorySymphony_ExtractStoneChoosesGemOrCrystal(t *testing.T) {
 			requireResponseSkillPrompt(t, game, "p1")
 			chooseResponseSkillByID(t, game, "p1", "bd_victory_symphony")
 			requireChoicePrompt(t, game, "p1", "bd_victory_mode")
-			if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+			if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 				t.Fatalf("choose extract mode failed: %v", err)
 			}
 			requireChoicePrompt(t, game, "p1", "bd_victory_extract_stone")
-			if err := game.handleWeakChoiceInput("p1", tc.choiceIndex); err != nil {
+			if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{tc.choiceIndex}}); err != nil {
 				t.Fatalf("choose stone failed: %v", err)
 			}
 

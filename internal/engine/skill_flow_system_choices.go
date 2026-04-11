@@ -99,24 +99,6 @@ func (e *GameEngine) buildSystemChoicePrompt(choiceType, playerID string, player
 	return nil
 }
 
-func (e *GameEngine) handleSystemChoiceInput(playerID string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
-	choiceType, _ := ctxData["choice_type"].(string)
-	return dispatchChoiceInputByType(choiceType, selectionIndex, ctxData, map[string]skillChoiceInputHandler{
-		"weak": func(idx int, data map[string]interface{}) error {
-			return e.handleSystemWeakChoice(playerID, idx)
-		},
-		"buy_resource": func(idx int, data map[string]interface{}) error {
-			return e.handleSystemBuyResourceChoice(playerID, idx, data)
-		},
-		"heal": func(idx int, data map[string]interface{}) error {
-			return e.handleSystemHealChoice(idx, data)
-		},
-		"basic_effect_pick": func(idx int, data map[string]interface{}) error {
-			return e.handleBasicEffectChoiceInput(playerID, idx, data)
-		},
-	})
-}
-
 func (e *GameEngine) handleSystemWeakChoice(playerID string, selectionIndex int) error {
 	player := e.State.Players[playerID]
 	if player == nil {

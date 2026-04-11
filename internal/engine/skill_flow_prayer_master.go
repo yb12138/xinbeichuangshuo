@@ -36,10 +36,14 @@ func (e *GameEngine) buildPrayerMasterChoicePrompt(choiceType, playerID string, 
 
 func (e *GameEngine) handlePrayerMasterChoiceInput(_ string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
 	choiceType, _ := ctxData["choice_type"].(string)
-	return dispatchChoiceInputByType(choiceType, selectionIndex, ctxData, map[string]skillChoiceInputHandler{
-		"prayer_power_blessing_followup": e.handlePrayerPowerBlessingFollowupChoice,
-		"prayer_swift_blessing_followup": e.handlePrayerSwiftBlessingFollowupChoice,
-	})
+	switch choiceType {
+	case "prayer_power_blessing_followup":
+		return true, e.handlePrayerPowerBlessingFollowupChoice(selectionIndex, ctxData)
+	case "prayer_swift_blessing_followup":
+		return true, e.handlePrayerSwiftBlessingFollowupChoice(selectionIndex, ctxData)
+	default:
+		return false, nil
+	}
 }
 
 func (e *GameEngine) handlePrayerPowerBlessingFollowupChoice(selectionIndex int, ctxData map[string]interface{}) error {

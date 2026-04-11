@@ -56,10 +56,14 @@ func (e *GameEngine) buildElementalistChoicePrompt(choiceType, playerID string, 
 
 func (e *GameEngine) handleElementalistChoiceInput(_ string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
 	choiceType, _ := ctxData["choice_type"].(string)
-	return dispatchChoiceInputByType(choiceType, selectionIndex, ctxData, map[string]skillChoiceInputHandler{
-		"elementalist_bonus_confirm": e.handleElementalistBonusConfirmChoice,
-		"elementalist_bonus_card":    e.handleElementalistBonusCardChoice,
-	})
+	switch choiceType {
+	case "elementalist_bonus_confirm":
+		return true, e.handleElementalistBonusConfirmChoice(selectionIndex, ctxData)
+	case "elementalist_bonus_card":
+		return true, e.handleElementalistBonusCardChoice(selectionIndex, ctxData)
+	default:
+		return false, nil
+	}
 }
 
 func (e *GameEngine) handleElementalistBonusConfirmChoice(selectionIndex int, ctxData map[string]interface{}) error {

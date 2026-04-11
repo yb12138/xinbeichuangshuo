@@ -24,7 +24,7 @@ func TestFiveElementsBind_BuffPhaseChoiceUsesSealCountCapAtTwo(t *testing.T) {
 		SourceID: p1.ID,
 		Mode:     model.FieldEffect,
 		Effect:   model.EffectFiveElementsBind,
-		Hook: model.FieldHookOnBeforeAction,
+		Hook:     model.FieldHookOnBeforeAction,
 	})
 	p1.AddFieldCard(&model.FieldCard{
 		Card:     model.Card{ID: "seal-fire", Name: "火之封印", Type: model.CardTypeMagic, Element: model.ElementFire},
@@ -32,7 +32,7 @@ func TestFiveElementsBind_BuffPhaseChoiceUsesSealCountCapAtTwo(t *testing.T) {
 		SourceID: p1.ID,
 		Mode:     model.FieldEffect,
 		Effect:   model.EffectSealFire,
-		Hook: model.FieldHookOnCardPlayedOrRevealed,
+		Hook:     model.FieldHookOnCardPlayedOrRevealed,
 	})
 	p1.AddFieldCard(&model.FieldCard{
 		Card:     model.Card{ID: "seal-water", Name: "水之封印", Type: model.CardTypeMagic, Element: model.ElementWater},
@@ -40,7 +40,7 @@ func TestFiveElementsBind_BuffPhaseChoiceUsesSealCountCapAtTwo(t *testing.T) {
 		SourceID: p1.ID,
 		Mode:     model.FieldEffect,
 		Effect:   model.EffectSealWater,
-		Hook: model.FieldHookOnCardPlayedOrRevealed,
+		Hook:     model.FieldHookOnCardPlayedOrRevealed,
 	})
 	p2.AddFieldCard(&model.FieldCard{
 		Card:     model.Card{ID: "seal-wind", Name: "风之封印", Type: model.CardTypeMagic, Element: model.ElementWind},
@@ -48,7 +48,7 @@ func TestFiveElementsBind_BuffPhaseChoiceUsesSealCountCapAtTwo(t *testing.T) {
 		SourceID: p1.ID,
 		Mode:     model.FieldEffect,
 		Effect:   model.EffectSealWind,
-		Hook: model.FieldHookOnCardPlayedOrRevealed,
+		Hook:     model.FieldHookOnCardPlayedOrRevealed,
 	})
 
 	game.State.CurrentTurn = 1
@@ -84,7 +84,7 @@ func TestFiveElementsBind_DrawCancelRemovesStatusAndResumesStartup(t *testing.T)
 		SourceID: p1.ID,
 		Mode:     model.FieldEffect,
 		Effect:   model.EffectFiveElementsBind,
-		Hook: model.FieldHookOnBeforeAction,
+		Hook:     model.FieldHookOnBeforeAction,
 	})
 	p1.AddFieldCard(&model.FieldCard{
 		Card:     model.Card{ID: "seal-fire", Name: "火之封印", Type: model.CardTypeMagic, Element: model.ElementFire},
@@ -92,7 +92,7 @@ func TestFiveElementsBind_DrawCancelRemovesStatusAndResumesStartup(t *testing.T)
 		SourceID: p1.ID,
 		Mode:     model.FieldEffect,
 		Effect:   model.EffectSealFire,
-		Hook: model.FieldHookOnCardPlayedOrRevealed,
+		Hook:     model.FieldHookOnCardPlayedOrRevealed,
 	})
 
 	game.State.Deck = rules.InitDeck()
@@ -101,7 +101,7 @@ func TestFiveElementsBind_DrawCancelRemovesStatusAndResumesStartup(t *testing.T)
 	game.Drive()
 	requireChoicePrompt(t, game, "p2", "five_elements_bind")
 
-	if err := game.handleWeakChoiceInput("p2", 0); err != nil {
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{0}}); err != nil {
 		t.Fatalf("resolve five elements bind draw cancel failed: %v", err)
 	}
 	if got := countFieldEffect(p2, model.EffectFiveElementsBind); got != 0 {
@@ -131,7 +131,7 @@ func TestElementalSeal_RevealedDiscardRunsButHiddenDiscardDoesNot(t *testing.T) 
 			SourceID: "p2",
 			Mode:     model.FieldEffect,
 			Effect:   model.EffectSealFire,
-			Hook: model.FieldHookOnCardPlayedOrRevealed,
+			Hook:     model.FieldHookOnCardPlayedOrRevealed,
 		})
 		return game
 	}
@@ -175,7 +175,7 @@ func TestElementalSeal_UsesBoundElementMetaForMatching(t *testing.T) {
 			SourceID: "p2",
 			Mode:     model.FieldEffect,
 			Effect:   model.EffectSealFire,
-			Hook: model.FieldHookOnCardPlayedOrRevealed,
+			Hook:     model.FieldHookOnCardPlayedOrRevealed,
 			Meta: map[string]string{
 				model.FieldMetaBoundElement: string(model.ElementWater),
 			},
@@ -236,7 +236,7 @@ func TestSealBreak_CanPickGlobalBasicEffectWithoutPreselectedTarget(t *testing.T
 		SourceID: "p3",
 		Mode:     model.FieldEffect,
 		Effect:   model.EffectShield,
-		Hook: model.FieldHookOnDamaged,
+		Hook:     model.FieldHookOnDamaged,
 	})
 	p3.AddFieldCard(&model.FieldCard{
 		Card:     model.Card{ID: "seal-fire-card", Name: "火之封印", Type: model.CardTypeMagic, Element: model.ElementFire},
@@ -244,7 +244,7 @@ func TestSealBreak_CanPickGlobalBasicEffectWithoutPreselectedTarget(t *testing.T
 		SourceID: "p2",
 		Mode:     model.FieldEffect,
 		Effect:   model.EffectSealFire,
-		Hook: model.FieldHookOnCardPlayedOrRevealed,
+		Hook:     model.FieldHookOnCardPlayedOrRevealed,
 	})
 
 	if err := game.HandleAction(model.PlayerAction{

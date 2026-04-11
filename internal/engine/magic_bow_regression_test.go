@@ -170,7 +170,7 @@ func TestMagicBowMultiShot_TargetCannotRepeatPrevious(t *testing.T) {
 		t.Fatalf("expected only p3 as valid target, got %v", targetIDs)
 	}
 
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose multi-shot target failed: %v", err)
 	}
 	if len(game.State.ActionQueue) != 1 {
@@ -222,19 +222,19 @@ func TestMagicBowCharge_FollowupPlaceCharges(t *testing.T) {
 	}
 	requireChoicePrompt(t, game, "p1", "mb_charge_draw_x")
 
-	if err := game.handleWeakChoiceInput("p1", 2); err != nil {
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{2}}); err != nil {
 		t.Fatalf("choose charge draw x failed: %v", err)
 	}
 	requireChoicePrompt(t, game, "p1", "mb_charge_place_count")
 
-	if err := game.handleWeakChoiceInput("p1", 2); err != nil {
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{2}}); err != nil {
 		t.Fatalf("choose charge place count failed: %v", err)
 	}
 	requireChoicePrompt(t, game, "p1", "mb_charge_place_cards")
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose first charge card failed: %v", err)
 	}
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose second charge card failed: %v", err)
 	}
 
@@ -340,7 +340,7 @@ func TestMagicBowCharge_DrawOverflowMoraleLossWithoutDiscard(t *testing.T) {
 	requireChoicePrompt(t, game, "p1", "mb_charge_draw_x")
 
 	// 选择X=4，4->8，默认上限6，爆士气2但不弃牌。
-	if err := game.handleWeakChoiceInput("p1", 4); err != nil {
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{4}}); err != nil {
 		t.Fatalf("choose charge draw x failed: %v", err)
 	}
 	if got := game.State.RedMorale; got != redMoraleBefore-2 {
@@ -356,12 +356,12 @@ func TestMagicBowCharge_DrawOverflowMoraleLossWithoutDiscard(t *testing.T) {
 		t.Fatalf("should not open discard interrupt after charge overflow draw")
 	}
 
-	if err := game.handleWeakChoiceInput("p1", 4); err != nil {
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{4}}); err != nil {
 		t.Fatalf("choose place count=4 failed: %v", err)
 	}
 	requireChoicePrompt(t, game, "p1", "mb_charge_place_cards")
 	for i := 0; i < 4; i++ {
-		if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+		if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 			t.Fatalf("choose charge place card %d failed: %v", i+1, err)
 		}
 	}
@@ -396,13 +396,13 @@ func TestMagicBowThunderScatter_ExtraDamageSplit(t *testing.T) {
 	requireChoicePrompt(t, game, "p1", "mb_thunder_scatter_extra")
 
 	// 选择额外移除2个雷系充能。
-	if err := game.handleWeakChoiceInput("p1", 2); err != nil {
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{2}}); err != nil {
 		t.Fatalf("choose thunder scatter extra failed: %v", err)
 	}
 	requireChoicePrompt(t, game, "p1", "mb_thunder_scatter_target")
 
 	// 目标列表应为 [p2,p3]，选择第一个目标 p2。
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose thunder scatter target failed: %v", err)
 	}
 
@@ -584,7 +584,7 @@ func TestMagicBowThunderScatter_ExtraZeroSkipsTargetChoice(t *testing.T) {
 		t.Fatalf("use thunder scatter failed: %v", err)
 	}
 	requireChoicePrompt(t, game, "p1", "mb_thunder_scatter_extra")
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose extra x=0 failed: %v", err)
 	}
 
@@ -632,7 +632,7 @@ func TestMagicBowCharge_LockTurnDisablesPierceAndScatter(t *testing.T) {
 	}
 	requireChoicePrompt(t, game, "p1", "mb_charge_draw_x")
 	// 选择 X=0，快速完成本次启动。
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("finish charge with x=0 failed: %v", err)
 	}
 
@@ -780,7 +780,7 @@ func TestMagicBowDemonEye_TargetNoHandFallsBackToDrawThreeThenCharge(t *testing.
 	}
 	requireChoicePrompt(t, game, "p1", "mb_demon_eye_charge_card")
 
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose demon-eye charge card failed: %v", err)
 	}
 	if got := magicBowChargeCount(p1, ""); got != 1 {
@@ -832,7 +832,7 @@ func TestMagicBowDemonEye_TargetDiscardsThenUserCharges(t *testing.T) {
 		t.Fatalf("confirm demon eye target discard failed: %v", err)
 	}
 	requireChoicePrompt(t, game, "p1", "mb_demon_eye_charge_card")
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose demon-eye charge card after target discard failed: %v", err)
 	}
 	if got := len(p2.Hand); got != 1 || p2.Hand[0].ID != "e1" {

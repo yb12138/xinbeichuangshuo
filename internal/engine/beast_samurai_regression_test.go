@@ -135,7 +135,7 @@ func TestBeastSamurai_WarriorZanshinThenOneStrikeBecomesAvailable(t *testing.T) 
 		t.Fatalf("expected zanshin=4 after [武者残心], got %d", got)
 	}
 	requireResponseSkillPrompt(t, game, "p1")
-	if !containsSkillID(game.State.PendingInterrupt.SkillIDs, "bs_one_strike_no_thought") {
+	if !ContainsSkillID(game.State.PendingInterrupt.SkillIDs, "bs_one_strike_no_thought") {
 		t.Fatalf("expected [一击无念] to become available, got %+v", game.State.PendingInterrupt.SkillIDs)
 	}
 }
@@ -345,7 +345,7 @@ func TestBeastSamurai_BeastReturn_XFlowAndMagicDiscardGainSoul(t *testing.T) {
 	}
 	requireChoicePrompt(t, game, "p1", "bs_beast_return_x")
 
-	if err := game.handleWeakChoiceInput("p1", 1); err != nil {
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
 		t.Fatalf("choose X=1 failed: %v", err)
 	}
 	requireBeastSamuraiDiscardInterrupt(t, game, "p1", "bs_beast_return_self_discard")
@@ -482,7 +482,7 @@ func TestBeastSamurai_ReversalIaijutsu_ReplacesDamageWithDiscard(t *testing.T) {
 	}
 	requireChoicePrompt(t, game, "p1", "bs_reversal_x")
 
-	if err := game.handleWeakChoiceInput("p1", 1); err != nil {
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
 		t.Fatalf("choose reversal X=1 failed: %v", err)
 	}
 	requireBeastSamuraiDiscardInterrupt(t, game, "p2", "bs_reversal_target_discard")
@@ -527,7 +527,7 @@ func TestBeastSamurai_IaijutsuStyle_CanOverflowBeastSoulAndEnterForm(t *testing.
 	}
 	requireChoicePrompt(t, game, "p1", "bs_iaijutsu_style_mode")
 
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose iaijutsu style draw mode failed: %v", err)
 	}
 

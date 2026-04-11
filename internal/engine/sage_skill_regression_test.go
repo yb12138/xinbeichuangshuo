@@ -68,7 +68,7 @@ func TestSageMagicRebound_SameElementDiscardChain(t *testing.T) {
 		t.Fatalf("expected choice_type sage_magic_rebound_confirm, got %q", got)
 	}
 
-	if err := g.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := g.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("confirm rebound failed: %v", err)
 	}
 	if got := choiceTypeOf(g.State.PendingInterrupt); got != "sage_magic_rebound_x" {
@@ -76,7 +76,7 @@ func TestSageMagicRebound_SameElementDiscardChain(t *testing.T) {
 	}
 
 	// 选择 X=3（选项从 X=2 开始，索引 1 -> X=3）
-	if err := g.handleWeakChoiceInput("p1", 1); err != nil {
+	if err := g.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
 		t.Fatalf("choose rebound x failed: %v", err)
 	}
 	if got := choiceTypeOf(g.State.PendingInterrupt); got != "sage_magic_rebound_element" {
@@ -84,7 +84,7 @@ func TestSageMagicRebound_SameElementDiscardChain(t *testing.T) {
 	}
 
 	// 仅有火系满足 X=3。
-	if err := g.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := g.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose rebound element failed: %v", err)
 	}
 	if got := choiceTypeOf(g.State.PendingInterrupt); got != "sage_magic_rebound_cards" {
@@ -93,7 +93,7 @@ func TestSageMagicRebound_SameElementDiscardChain(t *testing.T) {
 
 	// 连续3次选择同系牌（同系允许，不能被“异系去重”误伤）。
 	for i := 0; i < 3; i++ {
-		if err := g.handleWeakChoiceInput("p1", 0); err != nil {
+		if err := g.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 			t.Fatalf("choose rebound cards step=%d failed: %v", i+1, err)
 		}
 	}
@@ -107,7 +107,7 @@ func TestSageMagicRebound_SameElementDiscardChain(t *testing.T) {
 	}
 
 	// 目标池已排除自己，仅剩 p2。
-	if err := g.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := g.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose rebound target failed: %v", err)
 	}
 	if g.State.PendingInterrupt != nil {
@@ -210,7 +210,7 @@ func TestSageMagicRebound_TwoOneMagicDamagesPromptTwice(t *testing.T) {
 		t.Fatalf("expected first rebound confirm, got %q", got)
 	}
 	// 第一次选择不发动，流程应继续到下一条1点法伤并再次询问。
-	if err := g.handleWeakChoiceInput("p1", 1); err != nil {
+	if err := g.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
 		t.Fatalf("skip first rebound confirm failed: %v", err)
 	}
 	runUntilChoiceInterrupt(g, 16)
@@ -305,7 +305,7 @@ func TestSageArcaneCodex_TargetPoolExcludesSelfAndSelfDamageStillRunsRebound(t *
 	}
 
 	// 选 X=2（minX=2，索引0）。
-	if err := g.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := g.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose arcane x=2 failed: %v", err)
 	}
 	if got := choiceTypeOf(g.State.PendingInterrupt); got != "sage_arcane_cards" {
@@ -313,10 +313,10 @@ func TestSageArcaneCodex_TargetPoolExcludesSelfAndSelfDamageStillRunsRebound(t *
 	}
 
 	// 弃2张异系（水、地）。
-	if err := g.handleWeakChoiceInput("p1", 2); err != nil {
+	if err := g.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{2}}); err != nil {
 		t.Fatalf("choose arcane card#1(water) failed: %v", err)
 	}
-	if err := g.handleWeakChoiceInput("p1", 2); err != nil {
+	if err := g.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{2}}); err != nil {
 		t.Fatalf("choose arcane card#2(earth) failed: %v", err)
 	}
 	if got := choiceTypeOf(g.State.PendingInterrupt); got != "sage_arcane_target" {
@@ -329,7 +329,7 @@ func TestSageArcaneCodex_TargetPoolExcludesSelfAndSelfDamageStillRunsRebound(t *
 	}
 
 	// 目标池已排除自己，仅剩 p2。
-	if err := g.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := g.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose arcane target failed: %v", err)
 	}
 	if got := len(g.State.PendingDamageQueue); got < 2 {
@@ -350,7 +350,7 @@ func TestSageArcaneCodex_TargetPoolExcludesSelfAndSelfDamageStillRunsRebound(t *
 	if got := choiceTypeOf(g.State.PendingInterrupt); got != "sage_magic_rebound_confirm" {
 		t.Fatalf("expected rebound confirm after self 1-damage, got %q", got)
 	}
-	if err := g.handleWeakChoiceInput("p1", 1); err != nil {
+	if err := g.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
 		t.Fatalf("skip rebound confirm failed: %v", err)
 	}
 	runUntilChoiceInterrupt(g, 16)
@@ -399,7 +399,7 @@ func TestSageHolyCodex_XAndTargetCountBoundaries(t *testing.T) {
 	}
 
 	// 越界：maxX=4 时，索引2 -> X=5，应报错。
-	if err := g.handleWeakChoiceInput("p1", 2); err == nil || !strings.Contains(err.Error(), "无效的X值") {
+	if err := g.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{2}}); err == nil || !strings.Contains(err.Error(), "无效的X值") {
 		t.Fatalf("expected invalid X boundary error, got %v", err)
 	}
 	if got := choiceTypeOf(g.State.PendingInterrupt); got != "sage_holy_x" {
@@ -407,7 +407,7 @@ func TestSageHolyCodex_XAndTargetCountBoundaries(t *testing.T) {
 	}
 
 	// 选择最大 X=4（索引1）。
-	if err := g.handleWeakChoiceInput("p1", 1); err != nil {
+	if err := g.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
 		t.Fatalf("choose holy x=4 failed: %v", err)
 	}
 	if got := choiceTypeOf(g.State.PendingInterrupt); got != "sage_holy_cards" {
@@ -416,7 +416,7 @@ func TestSageHolyCodex_XAndTargetCountBoundaries(t *testing.T) {
 
 	// 依次选择4张异系牌（每次选当前候选第一张）。
 	for i := 0; i < 4; i++ {
-		if err := g.handleWeakChoiceInput("p1", 0); err != nil {
+		if err := g.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 			t.Fatalf("choose holy cards step=%d failed: %v", i+1, err)
 		}
 	}
@@ -435,7 +435,7 @@ func TestSageHolyCodex_XAndTargetCountBoundaries(t *testing.T) {
 	}
 
 	// 越界：X=4 时最多只能选2名角色治疗，索引2代表3名目标，应报错。
-	if err := g.handleWeakChoiceInput("p1", 2); err == nil || !strings.Contains(err.Error(), "无效的治疗目标数量") {
+	if err := g.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{2}}); err == nil || !strings.Contains(err.Error(), "无效的治疗目标数量") {
 		t.Fatalf("expected invalid target count boundary error, got %v", err)
 	}
 	if got := choiceTypeOf(g.State.PendingInterrupt); got != "sage_holy_target_count" {
@@ -443,7 +443,7 @@ func TestSageHolyCodex_XAndTargetCountBoundaries(t *testing.T) {
 	}
 
 	// 选择边界上限：2名角色（索引1）。
-	if err := g.handleWeakChoiceInput("p1", 1); err != nil {
+	if err := g.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
 		t.Fatalf("choose holy target count failed: %v", err)
 	}
 	if got := choiceTypeOf(g.State.PendingInterrupt); got != "sage_holy_targets" {
@@ -451,10 +451,10 @@ func TestSageHolyCodex_XAndTargetCountBoundaries(t *testing.T) {
 	}
 
 	// 依次选择 p1 与 p2 为治疗目标（每次选当前候选第一项）。
-	if err := g.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := g.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose holy target#1 failed: %v", err)
 	}
-	if err := g.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := g.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose holy target#2 failed: %v", err)
 	}
 

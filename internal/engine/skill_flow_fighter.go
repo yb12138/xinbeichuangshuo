@@ -11,10 +11,14 @@ import (
 
 func (e *GameEngine) handleFighterChoiceInput(_ string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
 	choiceType, _ := ctxData["choice_type"].(string)
-	return dispatchChoiceInputByType(choiceType, selectionIndex, ctxData, map[string]skillChoiceInputHandler{
-		"fighter_psi_bullet_target":     e.handleFighterPsiBulletTargetChoice,
-		"fighter_hundred_dragon_target": e.handleFighterHundredDragonTargetChoice,
-	})
+	switch choiceType {
+	case "fighter_psi_bullet_target":
+		return true, e.handleFighterPsiBulletTargetChoice(selectionIndex, ctxData)
+	case "fighter_hundred_dragon_target":
+		return true, e.handleFighterHundredDragonTargetChoice(selectionIndex, ctxData)
+	default:
+		return false, nil
+	}
 }
 
 func (e *GameEngine) resolveFighterChoiceTarget(selectionIndex int, ctxData map[string]interface{}) (*model.Player, *model.Player, string, error) {

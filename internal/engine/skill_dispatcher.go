@@ -1,31 +1,89 @@
-// gameflow: SkillDispatcher：OnTiming 收集候选技能并 processSkills。
+// gameflow: SkillDispatcher 薄 facade，代理到 runtime/skill。
 
 package engine
 
-import "starcup-engine/internal/model"
+import (
+	"fmt"
 
-// SkillDispatcher 统一技能调度器。
-// 职责：在 FlowTiming 窗口内收集候选技能并执行（或挂起中断等待玩家确认）。
+	skillrt "starcup-engine/internal/engine/runtime/skill"
+	"starcup-engine/internal/model"
+)
+
+// SkillDispatcher 统一技能调度器（薄 facade）。
 type SkillDispatcher struct {
-	engine *GameEngine
+	engine  *GameEngine
+	runtime *skillrt.Runtime
 }
 
 // NewSkillDispatcher 创建技能调度器。
 func NewSkillDispatcher(engine *GameEngine) *SkillDispatcher {
-	return &SkillDispatcher{engine: engine}
+	return &SkillDispatcher{
+		engine: engine,
+	}
 }
 
-// checkTarget 表示一次时窗扫描中“要检查哪个玩家、以什么身份检查”。
-// 例如在攻击相关窗口中，同一个事件会分别以 Attacker/Defender 身份检查不同技能。
-type checkTarget struct {
-	Player *model.Player
-	Role   model.SkillRole
+// SetRuntime 设置 skill.Runtime（在 runtime 初始化后调用）。
+func (sd *SkillDispatcher) SetRuntime(rt *skillrt.Runtime) {
+	sd.runtime = rt
 }
 
-type targetSkillsBatch struct {
-	target    checkTarget
-	ctx       *model.Context
-	skills    []model.SkillDefinition
-	priority  int
-	seatOrder int
+// OnTiming 在某个 Timing 窗口触发技能分发。
+func (sd *SkillDispatcher) OnTiming(timing model.FlowTiming, ctx *model.Context) {
+	if sd == nil || sd.runtime == nil || ctx == nil {
+		return
+	}
+	sd.runtime.OnTiming(sd.skillHost(), timing, ctx)
+}
+
+// ConfirmStartupSkill 确认执行启动技能。
+func (sd *SkillDispatcher) ConfirmStartupSkill(playerID string, skillID string) error {
+	if sd == nil || sd.runtime == nil {
+		return fmt.Errorf("技能运行时未初始化")
+	}
+	return sd.runtime.ConfirmStartupSkill(sd.skillHost(), playerID, skillID)
+}
+
+// SkipStartupSkill 跳过启动技能。
+func (sd *SkillDispatcher) SkipStartupSkill(playerID string) error {
+	if sd == nil || sd.runtime == nil {
+		return fmt.Errorf("技能运行时未初始化")
+	}
+	return sd.runtime.SkipStartupSkill(sd.skillHost(), playerID)
+}
+
+// ConfirmResponseSkill 确认执行响应技能。
+func (sd *SkillDispatcher) ConfirmResponseSkill(playerID string, skillID string) error {
+	if sd == nil || sd.runtime == nil {
+		return fmt.Errorf("技能运行时未初始化")
+	}
+	return sd.runtime.ConfirmResponseSkill(sd.skillHost(), playerID, skillID)
+}
+
+// processSkills 处理收集到的技能（调试/作弊等内部路径）。
+func (sd *SkillDispatcher) processSkills(skillBatch []model.SkillDefinition, ctx *model.Context) {
+	if sd == nil || sd.runtime == nil || ctx == nil {
+		return
+	}
+	sd.runtime.ProcessSkillBatch(sd.skillHost(), skillBatch, ctx)
+}
+
+// isSkillStillUsable 检查技能在响应链中是否仍可用。
+func (sd *SkillDispatcher) isSkillStillUsable(skillID string, user *model.Player, ctx *model.Context) bool {
+	if sd == nil || sd.runtime == nil {
+		return false
+	}
+	return sd.runtime.IsSkillStillUsable(skillID, user, ctx)
+}
+
+// getOtherUsableSkills 获取除当前技能外，中断列表中仍可用的响应技能 ID。
+func (sd *SkillDispatcher) getOtherUsableSkills(currentSkillID string, player *model.Player, ctx *model.Context) []string {
+	if sd == nil || sd.runtime == nil || sd.engine == nil || sd.engine.State == nil || sd.engine.State.PendingInterrupt == nil {
+		return nil
+	}
+	return sd.runtime.GetOtherUsableResponseSkills(
+		currentSkillID,
+		player,
+		ctx,
+		sd.engine.State.PendingInterrupt.SkillIDs,
+	)
 }

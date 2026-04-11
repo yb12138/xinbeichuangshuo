@@ -28,10 +28,14 @@ func (e *GameEngine) buildSwordEmperorChoicePrompt(choiceType, playerID string, 
 
 func (e *GameEngine) handleSwordEmperorChoiceInput(_ string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
 	choiceType, _ := ctxData["choice_type"].(string)
-	return dispatchChoiceInputByType(choiceType, selectionIndex, ctxData, map[string]skillChoiceInputHandler{
-		"se_sword_qi_slash_x":      e.handleSwordEmperorSwordQiSlashXChoice,
-		"se_sword_qi_slash_target": e.handleSwordEmperorSwordQiSlashTargetChoice,
-	})
+	switch choiceType {
+	case "se_sword_qi_slash_x":
+		return true, e.handleSwordEmperorSwordQiSlashXChoice(selectionIndex, ctxData)
+	case "se_sword_qi_slash_target":
+		return true, e.handleSwordEmperorSwordQiSlashTargetChoice(selectionIndex, ctxData)
+	default:
+		return false, nil
+	}
 }
 
 func (e *GameEngine) handleSwordEmperorSwordQiSlashXChoice(selectionIndex int, ctxData map[string]interface{}) error {

@@ -60,7 +60,7 @@ func TestSpiritCasterTalismanThunder_SealThenIncantThenDamage(t *testing.T) {
 		SourceID: "p2",
 		Mode:     model.FieldEffect,
 		Effect:   model.EffectSealThunder,
-		Hook: model.FieldHookManual,
+		Hook:     model.FieldHookManual,
 	})
 
 	game.State.CurrentTurn = 0
@@ -86,11 +86,11 @@ func TestSpiritCasterTalismanThunder_SealThenIncantThenDamage(t *testing.T) {
 	game.processDeferredFollowups()
 	requireChoicePrompt(t, game, "p1", "sc_incant_confirm")
 
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil { // 发动念咒
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil { // 发动念咒
 		t.Fatalf("confirm incantation failed: %v", err)
 	}
 	requireChoicePrompt(t, game, "p1", "sc_incant_card")
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil { // 盖放补牌
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil { // 盖放补牌
 		t.Fatalf("choose incantation card failed: %v", err)
 	}
 
@@ -145,19 +145,19 @@ func TestSpiritCasterIncantation_NoCapStillPromptsAndResolvesWind(t *testing.T) 
 	game.processDeferredFollowups()
 
 	requireChoicePrompt(t, game, "p1", "sc_incant_confirm")
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("confirm incantation failed: %v", err)
 	}
 	requireChoicePrompt(t, game, "p1", "sc_incant_card")
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose incantation card failed: %v", err)
 	}
 	requireChoicePrompt(t, game, "p3", "sc_talisman_wind_discard")
-	if err := game.handleWeakChoiceInput("p3", 1); err != nil { // p3 弃第2张
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p3", Selections: []int{1}}); err != nil { // p3 弃第2张
 		t.Fatalf("p3 choose discard failed: %v", err)
 	}
 	requireChoicePrompt(t, game, "p2", "sc_talisman_wind_discard")
-	if err := game.handleWeakChoiceInput("p2", 0); err != nil { // p2 弃第1张
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{0}}); err != nil { // p2 弃第1张
 		t.Fatalf("p2 choose discard failed: %v", err)
 	}
 	if game.State.PendingInterrupt != nil {
@@ -213,25 +213,25 @@ func TestSpiritCasterHundredNight_FireRevealAOEWithCollapse(t *testing.T) {
 	}
 	requireChoicePrompt(t, game, "p1", "sc_hundred_night_power")
 
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil { // 选火妖力
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil { // 选火妖力
 		t.Fatalf("choose power failed: %v", err)
 	}
 	requireChoicePrompt(t, game, "p1", "sc_hundred_night_fire_reveal")
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil { // 展示并走AOE
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil { // 展示并走AOE
 		t.Fatalf("choose reveal failed: %v", err)
 	}
 	if reveal := findPublicDiscardReveal(obs, "p1"); reveal == nil {
 		t.Fatalf("expected revealed fire spirit power to emit a public discard reveal event")
 	}
 	requireChoicePrompt(t, game, "p1", "sc_hundred_night_exclude_pick")
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil { // 排除 p1
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil { // 排除 p1
 		t.Fatalf("pick first excluded target failed: %v", err)
 	}
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil { // 排除 p2（此时索引重排后仍是0）
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil { // 排除 p2（此时索引重排后仍是0）
 		t.Fatalf("pick second excluded target failed: %v", err)
 	}
 	requireChoicePrompt(t, game, "p1", "sc_spiritual_collapse_confirm")
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil { // 发动灵力崩解
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil { // 发动灵力崩解
 		t.Fatalf("confirm spiritual collapse failed: %v", err)
 	}
 
@@ -283,11 +283,11 @@ func TestSpiritCasterHundredNight_NonFireSingleTarget(t *testing.T) {
 	if err := h.Execute(ctx); err != nil {
 		t.Fatalf("execute hundred-night failed: %v", err)
 	}
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil { // 选水妖力
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil { // 选水妖力
 		t.Fatalf("choose power failed: %v", err)
 	}
 	requireChoicePrompt(t, game, "p1", "sc_hundred_night_target")
-	if err := game.handleWeakChoiceInput("p1", 2); err != nil { // 目标选 p3
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{2}}); err != nil { // 目标选 p3
 		t.Fatalf("choose target failed: %v", err)
 	}
 	if len(game.State.PendingDamageQueue) != 1 {

@@ -151,11 +151,11 @@ func TestMoonGoddessMoonCycle_Branch1AppliesCurseAndHeal(t *testing.T) {
 		t.Fatalf("expected moon cycle interrupt")
 	}
 	requireChoicePrompt(t, game, "p1", "mg_moon_cycle_mode")
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose moon cycle mode failed: %v", err)
 	}
 	requireChoicePrompt(t, game, "p1", "mg_moon_cycle_heal_target")
-	if err := game.handleWeakChoiceInput("p1", 1); err != nil {
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
 		t.Fatalf("choose moon cycle heal target failed: %v", err)
 	}
 
@@ -200,12 +200,12 @@ func TestMoonGoddessMoonCycle_OnlyOncePerTurn(t *testing.T) {
 	}
 	requireChoicePrompt(t, game, "p1", "mg_moon_cycle_mode")
 	// 分支①
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose moon cycle mode branch1 failed: %v", err)
 	}
 	requireChoicePrompt(t, game, "p1", "mg_moon_cycle_heal_target")
 	// 选自己，确保治疗>0，若无一次/回合门闩会继续出现分支②弹窗。
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose moon cycle heal target failed: %v", err)
 	}
 	if got := moon.TurnState.UsedSkillCounts["mg_moon_cycle"]; got != 1 {
@@ -305,11 +305,11 @@ func TestMoonGoddessMoonCycle_TurnStateLatchPreventsRepromptWhenTokenResets(t *t
 		t.Fatalf("expected moon cycle first dispatch")
 	}
 	requireChoicePrompt(t, game, "p1", "mg_moon_cycle_mode")
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose moon cycle mode branch1 failed: %v", err)
 	}
 	requireChoicePrompt(t, game, "p1", "mg_moon_cycle_heal_target")
-	if err := game.handleWeakChoiceInput("p1", 1); err != nil {
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
 		t.Fatalf("choose moon cycle heal target failed: %v", err)
 	}
 
@@ -370,7 +370,7 @@ func TestMoonGoddessDarkMoonSlash_AddsDamageAndConsumesDarkMoon(t *testing.T) {
 		t.Fatalf("execute dark moon slash failed: %v", err)
 	}
 	requireChoicePrompt(t, game, "p1", "mg_darkmoon_slash_x")
-	if err := game.handleWeakChoiceInput("p1", 1); err != nil {
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
 		t.Fatalf("choose X=2 failed: %v", err)
 	}
 
@@ -535,11 +535,11 @@ func TestMoonGoddessMedusa_MagicDarkMoonExtraDamageTargetsAttackerOnly(t *testin
 		t.Fatalf("expected medusa dispatch")
 	}
 	requireChoicePrompt(t, game, "p1", "mg_medusa_darkmoon_pick")
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose medusa dark moon failed: %v", err)
 	}
 	requireChoicePrompt(t, game, "p1", "mg_medusa_magic_discard")
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("resolve medusa discard failed: %v", err)
 	}
 
@@ -577,7 +577,7 @@ func TestMoonGoddessBlasphemy_OncePerTurnAndResetNextTurn(t *testing.T) {
 	}
 	requireChoicePrompt(t, game, "p1", "mg_blasphemy_target")
 	// 选第1个目标（index=0 为“跳过”）。
-	if err := game.handleWeakChoiceInput("p1", 1); err != nil {
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
 		t.Fatalf("resolve blasphemy target failed: %v", err)
 	}
 	if got := moon.TurnState.UsedSkillCounts["mg_blasphemy"]; got != 1 {
@@ -635,7 +635,7 @@ func TestMoonGoddessBlasphemy_TargetLockedToDamagedEnemyAndSelfTurn(t *testing.T
 	if got := len(prompt.Options); got != 2 {
 		t.Fatalf("expected skip + only current damaged enemy, got %d options", got)
 	}
-	if err := game.handleWeakChoiceInput("p1", 1); err != nil {
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
 		t.Fatalf("resolve blasphemy target failed: %v", err)
 	}
 	if len(game.State.PendingDamageQueue) != 1 {
@@ -680,7 +680,7 @@ func TestMoonGoddessPaleMoon_Branch1GrantsExtraTurn(t *testing.T) {
 		SkillID:  "mg_pale_moon",
 	})
 	requireChoicePrompt(t, game, "p1", "mg_pale_moon_mode")
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose pale moon branch1 failed: %v", err)
 	}
 	if got := moon.TurnState.UsedSkillCounts["mg_next_attack_no_counter"]; got != 1 {
@@ -734,7 +734,7 @@ func TestMoonGoddessPaleMoon_Branch2RequiresNewMoonAndXStartsAtOne(t *testing.T)
 		t.Fatalf("use mg_pale_moon failed: %v", err)
 	}
 	requireChoicePrompt(t, game, "p1", "mg_pale_moon_mode")
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose pale moon branch2 failed: %v", err)
 	}
 	prompt := game.GetCurrentPrompt()
@@ -744,15 +744,15 @@ func TestMoonGoddessPaleMoon_Branch2RequiresNewMoonAndXStartsAtOne(t *testing.T)
 	if got := len(prompt.Options); got != 2 {
 		t.Fatalf("expected X options only for 1..2, got %d", got)
 	}
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose X=1 failed: %v", err)
 	}
 	requireChoicePrompt(t, game, "p1", "mg_pale_moon_target")
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose pale moon target failed: %v", err)
 	}
 	requireChoicePrompt(t, game, "p1", "mg_pale_moon_discard")
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("resolve pale moon discard failed: %v", err)
 	}
 	if got := moon.Tokens["mg_new_moon"]; got != 1 {
@@ -902,7 +902,7 @@ func TestMoonGoddessDarkMoonSlash_XBoundaries_CurseAndDamage(t *testing.T) {
 			if got := len(prompt.Options); got != 2 {
 				t.Fatalf("expected only X=1..2 options, got %d", got)
 			}
-			if err := game.handleWeakChoiceInput("p1", tc.x-1); err != nil {
+			if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{tc.x - 1}}); err != nil {
 				t.Fatalf("choose x=%d failed: %v", tc.x, err)
 			}
 

@@ -54,7 +54,7 @@ func TestBloodPriestessSharedLife_DrawBeforePlaceOverflowThenApply(t *testing.T)
 		SkillID:  "bp_shared_life",
 	})
 	requireChoicePrompt(t, game, "p1", "bp_shared_life_target")
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose shared-life target failed: %v", err)
 	}
 
@@ -120,7 +120,7 @@ func TestBloodPriestessSharedLife_ChoiceAndDrawStayInActionExecution(t *testing.
 		t.Fatalf("expected shared-life target choice in action execution, got %s", game.State.TurnStage)
 	}
 
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose shared-life target failed: %v", err)
 	}
 	if game.State.TurnStage != model.TurnStageActionExecution {
@@ -174,7 +174,7 @@ func TestBloodPriestessSharedLife_OverflowDiscardResumesActionExecution(t *testi
 		t.Fatalf("expected shared-life target choice in action execution, got %s", game.State.TurnStage)
 	}
 
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose shared-life target failed: %v", err)
 	}
 	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptDiscard {
@@ -324,7 +324,7 @@ func TestBloodPriestessBloodSorrow_TransferThenRemove(t *testing.T) {
 	})
 	requireChoicePrompt(t, game, "p1", "bp_shared_life_target")
 	// 目标列表顺序按 PlayerOrder: p1,p2,p3；这里选 p2(index=1)。
-	if err := game.handleWeakChoiceInput("p1", 1); err != nil {
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
 		t.Fatalf("choose shared-life target p2 failed: %v", err)
 	}
 	game.Drive() // 触发 deferred 放置同生共死
@@ -347,11 +347,11 @@ func TestBloodPriestessBloodSorrow_TransferThenRemove(t *testing.T) {
 		t.Fatalf("execute blood sorrow failed: %v", err)
 	}
 	requireChoicePrompt(t, game, "p1", "bp_blood_sorrow_mode")
-	if err := game.handleWeakChoiceInput("p1", 1); err != nil { // 转移分支
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil { // 转移分支
 		t.Fatalf("choose blood sorrow transfer mode failed: %v", err)
 	}
 	requireChoicePrompt(t, game, "p1", "bp_blood_sorrow_target")
-	if err := game.handleWeakChoiceInput("p1", 2); err != nil { // 选 p3
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{2}}); err != nil { // 选 p3
 		t.Fatalf("choose blood sorrow transfer target p3 failed: %v", err)
 	}
 	game.Drive() // 先结算自伤，再执行延迟的转移后续
@@ -376,7 +376,7 @@ func TestBloodPriestessBloodSorrow_TransferThenRemove(t *testing.T) {
 		t.Fatalf("execute blood sorrow(remove) failed: %v", err)
 	}
 	requireChoicePrompt(t, game, "p1", "bp_blood_sorrow_mode")
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil { // 移除分支
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil { // 移除分支
 		t.Fatalf("choose blood sorrow remove mode failed: %v", err)
 	}
 	game.Drive() // 先结算自伤，再执行延迟的移除后续

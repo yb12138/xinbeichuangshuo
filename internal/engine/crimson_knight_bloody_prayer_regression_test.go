@@ -48,23 +48,23 @@ func TestCrimsonKnightBloodyPrayer_CanSplitHealToTwoAllies(t *testing.T) {
 	}
 
 	// X = 3
-	if err := game.handleWeakChoiceInput("p1", 2); err != nil {
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{2}}); err != nil {
 		t.Fatalf("choose x failed: %v", err)
 	}
 	// 选择 2 名队友
-	if err := game.handleWeakChoiceInput("p1", 1); err != nil {
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
 		t.Fatalf("choose ally count failed: %v", err)
 	}
 	// 第一个队友：p2（当前列表第一项）
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose first ally failed: %v", err)
 	}
 	// 第二个队友：只剩 p3，索引仍为 0
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose second ally failed: %v", err)
 	}
 	// 分配：p2 +2，p3 +1（X=3 时索引1）
-	if err := game.handleWeakChoiceInput("p1", 1); err != nil {
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
 		t.Fatalf("choose split failed: %v", err)
 	}
 
@@ -124,7 +124,7 @@ func TestCrimsonKnightBloodyPrayer_XOneDirectlyChoosesOtherAlly(t *testing.T) {
 		t.Fatalf("execute bloody prayer failed: %v", err)
 	}
 
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose x=1 failed: %v", err)
 	}
 	if got := choiceTypeOfInterrupt(game.State.PendingInterrupt); got != "crk_bloody_prayer_target" {
@@ -141,7 +141,7 @@ func TestCrimsonKnightBloodyPrayer_XOneDirectlyChoosesOtherAlly(t *testing.T) {
 		t.Fatalf("expected bloody prayer prompt to include both allies, got %+v", prompt.Options)
 	}
 
-	if err := game.handleWeakChoiceInput("p1", 1); err != nil {
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
 		t.Fatalf("choose ally failed: %v", err)
 	}
 	if got := p1.Heal; got != 0 {

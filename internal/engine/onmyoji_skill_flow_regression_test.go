@@ -50,7 +50,7 @@ func TestOnmyojiDarkRitual_ChoosesTargetAtTurnEnd(t *testing.T) {
 	if len(targetIDs) != 1 || targetIDs[0] != "p2" {
 		t.Fatalf("expected dark ritual target pool only include enemy p2, got %+v", targetIDs)
 	}
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose dark ritual target failed: %v", err)
 	}
 	if got := p1.Tokens["onmyoji_ghost_fire"]; got != 0 {
@@ -156,11 +156,11 @@ func TestOnmyojiLifeBarrier_Mode1_X3NoMoraleLoss(t *testing.T) {
 		t.Fatalf("expected life barrier mode prompt, got %+v", game.State.PendingInterrupt)
 	}
 	// 选分支①
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose mode1 failed: %v", err)
 	}
 	// 选队友 p2（唯一候选）
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose support target failed: %v", err)
 	}
 
@@ -215,14 +215,14 @@ func TestOnmyojiLifeBarrier_Mode2_ReleaseFormAndForceAllyDiscard(t *testing.T) {
 		t.Fatalf("expected life barrier mode prompt, got %+v", game.State.PendingInterrupt)
 	}
 	// 选分支②
-	if err := game.handleWeakChoiceInput("p1", 1); err != nil {
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
 		t.Fatalf("choose mode2 failed: %v", err)
 	}
 	if got := choiceTypeOf(game.State.PendingInterrupt); got != "onmyoji_life_barrier_release_combo" {
 		t.Fatalf("expected release combo prompt, got %s", got)
 	}
 	// 仅有一组同命格组合，索引0
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose release combo failed: %v", err)
 	}
 	if got := p1.Form; got != "" {
@@ -235,7 +235,7 @@ func TestOnmyojiLifeBarrier_Mode2_ReleaseFormAndForceAllyDiscard(t *testing.T) {
 		t.Fatalf("expected release target prompt, got %s", got)
 	}
 	// 选择唯一队友 p2
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose release target failed: %v", err)
 	}
 	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptDiscard || game.State.PendingInterrupt.PlayerID != "p2" {
@@ -278,7 +278,7 @@ func TestOnmyojiLifeBarrier_PreselectedTargetSkipsSecondTargetChoice(t *testing.
 	if game.State.PendingInterrupt == nil || choiceTypeOf(game.State.PendingInterrupt) != "onmyoji_life_barrier_mode" {
 		t.Fatalf("expected life barrier mode prompt, got %+v", game.State.PendingInterrupt)
 	}
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose mode1 failed: %v", err)
 	}
 	if game.State.PendingInterrupt != nil && choiceTypeOf(game.State.PendingInterrupt) == "onmyoji_life_barrier_support_target" {
@@ -337,7 +337,7 @@ func TestOnmyojiYinYangConfirm_PrioritizedBeforeNormalCombatPrompt(t *testing.T)
 	}
 
 	// 选择“否”：应回到常规战斗响应流程（承受/防御/应战）。
-	if err := game.handleWeakChoiceInput("p2", 1); err != nil {
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{1}}); err != nil {
 		t.Fatalf("decline yinyang confirm failed: %v", err)
 	}
 	if game.State.PendingInterrupt != nil {
@@ -393,21 +393,21 @@ func TestOnmyojiYinYangConfirm_YesBranchResolvesFactionCounterChain(t *testing.T
 	if got := choiceTypeOf(game.State.PendingInterrupt); got != "onmyoji_yinyang_confirm" {
 		t.Fatalf("expected onmyoji_yinyang_confirm, got %s", got)
 	}
-	if err := game.handleWeakChoiceInput("p2", 0); err != nil {
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{0}}); err != nil {
 		t.Fatalf("confirm yinyang failed: %v", err)
 	}
 	if got := choiceTypeOf(game.State.PendingInterrupt); got != "onmyoji_yinyang_card" {
 		t.Fatalf("expected onmyoji_yinyang_card, got %s", got)
 	}
 	// 仅1张可选应战牌
-	if err := game.handleWeakChoiceInput("p2", 0); err != nil {
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose yinyang counter card failed: %v", err)
 	}
 	if got := choiceTypeOf(game.State.PendingInterrupt); got != "onmyoji_yinyang_counter_target" {
 		t.Fatalf("expected onmyoji_yinyang_counter_target, got %s", got)
 	}
 	// 仅1名可选反弹目标（p3）
-	if err := game.handleWeakChoiceInput("p2", 0); err != nil {
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose yinyang counter target failed: %v", err)
 	}
 

@@ -287,7 +287,7 @@ func TestMagicLancerFullness_FlowBonusAndExtraAttack(t *testing.T) {
 		t.Fatalf("expected ml_fullness_cost_card prompt, got %q", got)
 	}
 
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose fullness cost card failed: %v", err)
 	}
 	if got := choiceTypeOf(game.State.PendingInterrupt); got != "ml_fullness_discard_step" {
@@ -295,11 +295,11 @@ func TestMagicLancerFullness_FlowBonusAndExtraAttack(t *testing.T) {
 	}
 
 	// 敌方：必须弃牌，仅有1项可选。
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("enemy discard failed: %v", err)
 	}
 	// 预选队友：可选择不弃。
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("ally skip failed: %v", err)
 	}
 
@@ -412,7 +412,7 @@ func TestMagicLancerBlackSpear_ConsumesCrystalAndAddsDamage(t *testing.T) {
 	}
 
 	// selection=1 -> X=2
-	if err := game.handleWeakChoiceInput("p1", 1); err != nil {
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
 		t.Fatalf("choose black spear x failed: %v", err)
 	}
 	if p1.Crystal != 0 || p1.Gem != 0 {

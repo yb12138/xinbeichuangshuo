@@ -248,7 +248,7 @@ func TestSoulSorcererSoulConvert_ChoiceFallback_NoUserCtxShouldNotStayResponse(t
 		},
 	}
 
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("ss_convert_color fallback resolve failed: %v", err)
 	}
 
@@ -488,7 +488,7 @@ func TestSoulSorcererSoulLink_TransferDamageBeforeResolve(t *testing.T) {
 		t.Fatalf("use ss_soul_link failed: %v", err)
 	}
 	requireChoicePrompt(t, game, "p1", "ss_link_target")
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose soul link target failed: %v", err)
 	}
 
@@ -509,7 +509,7 @@ func TestSoulSorcererSoulLink_TransferDamageBeforeResolve(t *testing.T) {
 		t.Fatalf("expected soul link transfer prompt")
 	}
 	requireChoicePrompt(t, game, "p1", "ss_link_transfer_x")
-	if err := game.handleWeakChoiceInput("p1", 1); err != nil {
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
 		t.Fatalf("choose transfer x failed: %v", err)
 	}
 
@@ -561,7 +561,7 @@ func TestSoulSorcererSoulLink_Replay_TransferSorcererToAlly_NoRecursiveLinkPromp
 		t.Fatalf("use ss_soul_link failed: %v", err)
 	}
 	requireChoicePrompt(t, game, "p1", "ss_link_target")
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose soul link target failed: %v", err)
 	}
 	linkedHolder, _ := game.findSoulLink(p1)
@@ -582,7 +582,7 @@ func TestSoulSorcererSoulLink_Replay_TransferSorcererToAlly_NoRecursiveLinkPromp
 		t.Fatalf("expected ss_link_transfer_x interrupt")
 	}
 	requireChoicePrompt(t, game, "p1", "ss_link_transfer_x")
-	if err := game.handleWeakChoiceInput("p1", 1); err != nil {
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
 		t.Fatalf("choose transfer x failed: %v", err)
 	}
 
@@ -636,7 +636,7 @@ func TestSoulSorcererSoulLink_Replay_TransferAllyToSorcerer_NoRecursiveLinkPromp
 		t.Fatalf("use ss_soul_link failed: %v", err)
 	}
 	requireChoicePrompt(t, game, "p1", "ss_link_target")
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose soul link target failed: %v", err)
 	}
 	linkedHolder, _ := game.findSoulLink(p1)
@@ -657,7 +657,7 @@ func TestSoulSorcererSoulLink_Replay_TransferAllyToSorcerer_NoRecursiveLinkPromp
 		t.Fatalf("expected ss_link_transfer_x interrupt")
 	}
 	requireChoicePrompt(t, game, "p1", "ss_link_transfer_x")
-	if err := game.handleWeakChoiceInput("p1", 1); err != nil {
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
 		t.Fatalf("choose transfer x failed: %v", err)
 	}
 
@@ -712,7 +712,7 @@ func TestSoulSorcererSoulLink_Replay_TransferDamageThenRunsResponseChain(t *test
 		t.Fatalf("use ss_soul_link failed: %v", err)
 	}
 	requireChoicePrompt(t, game, "p1", "ss_link_target")
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose soul link target failed: %v", err)
 	}
 	linkedHolder, _ := game.findSoulLink(p1)
@@ -733,7 +733,7 @@ func TestSoulSorcererSoulLink_Replay_TransferDamageThenRunsResponseChain(t *test
 		t.Fatalf("expected ss_link_transfer_x interrupt")
 	}
 	requireChoicePrompt(t, game, "p1", "ss_link_transfer_x")
-	if err := game.handleWeakChoiceInput("p1", 1); err != nil {
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
 		t.Fatalf("choose transfer x failed: %v", err)
 	}
 

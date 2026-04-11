@@ -31,7 +31,7 @@ func TestBuffResolve_PoisonResolvesBeforeWeaknessChoice(t *testing.T) {
 		SourceID: "p2",
 		Mode:     model.FieldEffect,
 		Effect:   model.EffectWeak,
-		Hook: model.FieldHookOnBeforeAction,
+		Hook:     model.FieldHookOnBeforeAction,
 	})
 	p1.AddFieldCard(&model.FieldCard{
 		Card:     model.Card{ID: "poison-1", Name: "中毒", Type: model.CardTypeMagic, Element: model.ElementEarth},
@@ -39,7 +39,7 @@ func TestBuffResolve_PoisonResolvesBeforeWeaknessChoice(t *testing.T) {
 		SourceID: "p2",
 		Mode:     model.FieldEffect,
 		Effect:   model.EffectPoison,
-		Hook: model.FieldHookOnBeforeAction,
+		Hook:     model.FieldHookOnBeforeAction,
 	})
 
 	game.Drive()
@@ -82,7 +82,7 @@ func TestBeforeActionHooks_PoisonEntersDamageResolutionBeforeWeakness(t *testing
 		SourceID: "p2",
 		Mode:     model.FieldEffect,
 		Effect:   model.EffectWeak,
-		Hook: model.FieldHookOnBeforeAction,
+		Hook:     model.FieldHookOnBeforeAction,
 	})
 	p1.AddFieldCard(&model.FieldCard{
 		Card:     model.Card{ID: "poison-1", Name: "中毒", Type: model.CardTypeMagic, Element: model.ElementEarth},
@@ -90,7 +90,7 @@ func TestBeforeActionHooks_PoisonEntersDamageResolutionBeforeWeakness(t *testing
 		SourceID: "p2",
 		Mode:     model.FieldEffect,
 		Effect:   model.EffectPoison,
-		Hook: model.FieldHookOnBeforeAction,
+		Hook:     model.FieldHookOnBeforeAction,
 	})
 
 	if interrupted := game.runTimingOnBeforeActionHooks(p1); !interrupted {
@@ -176,7 +176,7 @@ func TestWeaknessChoiceMappingMatchesConfig(t *testing.T) {
 			SourceID: "p2",
 			Mode:     model.FieldEffect,
 			Effect:   model.EffectWeak,
-			Hook: model.FieldHookOnBeforeAction,
+			Hook:     model.FieldHookOnBeforeAction,
 		})
 		game.State.PendingInterrupt = &model.Interrupt{
 			Type:     model.InterruptChoice,
@@ -192,14 +192,15 @@ func TestWeaknessChoiceMappingMatchesConfig(t *testing.T) {
 		game := newWeakGame()
 		p1 := game.State.Players["p1"]
 
-		if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+		if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 			t.Fatalf("skip weakness choice failed: %v", err)
 		}
 		if got := countFieldEffect(p1, model.EffectWeak); got != 0 {
 			t.Fatalf("weakness should be removed after skip choice, got %d", got)
 		}
-		if game.State.TurnStage != model.TurnStageTurnEnd {
-			t.Fatalf("skip choice should end turn, got turn stage %s", game.State.TurnStage)
+		// HandleAction 在清空中断后会 Drive；单玩家局会走完回合结束并进入下一回合的行动阶段。
+		if game.State.TurnStage != model.TurnStageActionExecution {
+			t.Fatalf("skip choice should land on action execution after Drive, got turn stage %s", game.State.TurnStage)
 		}
 		if len(p1.Hand) != 0 {
 			t.Fatalf("skip choice should not draw cards, hand=%d", len(p1.Hand))
@@ -210,7 +211,7 @@ func TestWeaknessChoiceMappingMatchesConfig(t *testing.T) {
 		game := newWeakGame()
 		p1 := game.State.Players["p1"]
 
-		if err := game.handleWeakChoiceInput("p1", 1); err != nil {
+		if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
 			t.Fatalf("draw weakness choice failed: %v", err)
 		}
 		if got := countFieldEffect(p1, model.EffectWeak); got != 0 {
@@ -219,8 +220,8 @@ func TestWeaknessChoiceMappingMatchesConfig(t *testing.T) {
 		if len(p1.Hand) != 3 {
 			t.Fatalf("draw choice should add 3 cards, hand=%d", len(p1.Hand))
 		}
-		if game.State.TurnStage != model.TurnStageActionStart {
-			t.Fatalf("draw choice should continue to action start, got turn stage %s", game.State.TurnStage)
+		if game.State.TurnStage != model.TurnStageActionExecution {
+			t.Fatalf("draw choice should land on action execution after Drive, got turn stage %s", game.State.TurnStage)
 		}
 	})
 }

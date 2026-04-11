@@ -114,29 +114,8 @@ func (e *GameEngine) driveAfterSuccessfulAction() {
 
 // handleInterruptAction 专门处理中断状态下的输入
 func (e *GameEngine) handleInterruptAction(act model.PlayerAction) error {
-	interrupt := e.State.PendingInterrupt
-	if interrupt == nil {
-		return fmt.Errorf("没有待处理的中断")
+	if e.interruptOrchestrator == nil {
+		return fmt.Errorf("中断编排器未初始化")
 	}
-	if act.PlayerID != interrupt.PlayerID {
-		return fmt.Errorf("当前不是等待你的响应")
-	}
-	return e.dispatchInterruptAction(interrupt, act)
-}
-
-func (e *GameEngine) dispatchInterruptAction(interrupt *model.Interrupt, act model.PlayerAction) error {
-	rule, ok := interruptActionRules[interrupt.Type]
-	if !ok {
-		return fmt.Errorf("未知的中断类型: %s", interrupt.Type)
-	}
-	if len(rule.allowed) > 0 && !rule.allowed[act.Type] {
-		if rule.invalidActionMessage != "" {
-			return fmt.Errorf(rule.invalidActionMessage)
-		}
-		return fmt.Errorf("当前中断类型不支持该指令")
-	}
-	if rule.handler == nil {
-		return fmt.Errorf("中断规则未配置处理器: %s", interrupt.Type)
-	}
-	return rule.handler(e, act)
+	return e.interruptOrchestrator.DispatchAction(act)
 }

@@ -100,19 +100,19 @@ func TestOnmyojiYinYangShift_InShikigamiForm(t *testing.T) {
 	if game.State.PendingInterrupt == nil || choiceTypeOf(game.State.PendingInterrupt) != "onmyoji_yinyang_confirm" {
 		t.Fatalf("expected onmyoji_yinyang_confirm prompt, got %+v", game.State.PendingInterrupt)
 	}
-	if err := game.handleWeakChoiceInput("p2", 0); err != nil {
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{0}}); err != nil {
 		t.Fatalf("confirm yinyang failed: %v", err)
 	}
 	if got := choiceTypeOf(game.State.PendingInterrupt); got != "onmyoji_yinyang_card" {
 		t.Fatalf("expected onmyoji_yinyang_card prompt, got %s", got)
 	}
-	if err := game.handleWeakChoiceInput("p2", 0); err != nil {
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose yinyang card failed: %v", err)
 	}
 	if got := choiceTypeOf(game.State.PendingInterrupt); got != "onmyoji_yinyang_counter_target" {
 		t.Fatalf("expected onmyoji_yinyang_counter_target prompt, got %s", got)
 	}
-	if err := game.handleWeakChoiceInput("p2", 0); err != nil {
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose yinyang counter target failed: %v", err)
 	}
 

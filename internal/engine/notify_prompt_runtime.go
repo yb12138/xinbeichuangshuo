@@ -364,15 +364,20 @@ func (e *GameEngine) buildChoicePrompt() *model.Prompt {
 	if e.State.PendingInterrupt == nil {
 		return nil
 	}
-
-	data, ok := e.State.PendingInterrupt.Context.(map[string]interface{})
+	data, ok := choiceCtxAsAnyMap(e.State.PendingInterrupt.Context)
 	if !ok {
 		return nil
 	}
-
+	if e.choiceEngine == nil {
+		return nil
+	}
 	choiceType, _ := data["choice_type"].(string)
 	playerID := e.State.PendingInterrupt.PlayerID
 	player := e.State.Players[playerID]
-
-	return e.buildRegisteredChoicePrompt(choiceType, playerID, player, data)
+	p, err := e.choiceEngine.BuildPrompt(choiceType, playerID, player, data)
+	if err != nil {
+		e.Log(fmt.Sprintf("[System] buildChoicePrompt: %v", err))
+		return nil
+	}
+	return p
 }

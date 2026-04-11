@@ -27,9 +27,12 @@ func (e *GameEngine) buildMagicSwordsmanChoicePrompt(choiceType, playerID string
 
 func (e *GameEngine) handleMagicSwordsmanChoiceInput(_ string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
 	choiceType, _ := ctxData["choice_type"].(string)
-	return dispatchChoiceInputByType(choiceType, selectionIndex, ctxData, map[string]skillChoiceInputHandler{
-		"ms_shadow_meteor_release_confirm": e.handleMagicSwordsmanShadowMeteorReleaseConfirmChoice,
-	})
+	switch choiceType {
+	case "ms_shadow_meteor_release_confirm":
+		return true, e.handleMagicSwordsmanShadowMeteorReleaseConfirmChoice(selectionIndex, ctxData)
+	default:
+		return false, nil
+	}
 }
 
 func (e *GameEngine) handleMagicSwordsmanShadowMeteorReleaseConfirmChoice(selectionIndex int, ctxData map[string]interface{}) error {

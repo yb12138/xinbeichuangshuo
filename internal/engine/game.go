@@ -3,6 +3,9 @@
 package engine
 
 import (
+	choicert "starcup-engine/internal/engine/runtime/choice"
+	intr "starcup-engine/internal/engine/runtime/interrupt"
+	skillrt "starcup-engine/internal/engine/runtime/skill"
 	"starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 )
@@ -18,6 +21,12 @@ type GameEngine struct {
 	observer model.GameObserver
 	// lifecycle 攻击生命周期辅助（与 CombatStack 协同的细粒度步骤）。
 	lifecycle AttackLifecycle
+	// skillRuntime 新架构的技能运行时。
+	skillRuntime *skillrt.Runtime
+	// choiceEngine 统一 InterruptChoice（仅 ChoiceSpec，无隐式回退）。
+	choiceEngine *choicert.Engine
+	// interruptOrchestrator 中断动作与 Prompt 编排。
+	interruptOrchestrator *intr.Orchestrator
 	// TimingOnAttackDeclared: 按已上场角色动态装配的执行表。
 	attackDeclaredCardTransformHooks   []attackCardRuntimeTransformHook
 	attackDeclaredTargetContextHooks   []attackTargetContextHook
@@ -92,6 +101,12 @@ func NewGameEngine(observer model.GameObserver) *GameEngine {
 	}
 	engine.lifecycle = NewAttackLifecycle(engine)
 	engine.dispatcher = NewSkillDispatcher(engine)
+	engine.skillRuntime = skillrt.NewRuntime()
+	engine.dispatcher.SetRuntime(engine.skillRuntime)
+	engine.choiceEngine = choicert.NewEngine(choicert.NewSpecRegistry())
+	engine.choiceEngine.SetHost(&choiceHostBridge{e: engine})
+	bootstrapChoiceSpecs(engine)
+	engine.installInterruptOrchestrator()
 	engine.rebuildTimingOnAttackDeclaredRegistry()
 	return engine
 }
