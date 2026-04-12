@@ -429,7 +429,7 @@ func TestResponsePrompt_PrunesInvalidHolyLancerSkySpear(t *testing.T) {
 	}
 
 	p1 := game.State.Players["p1"]
-	p1.Heal = 1 // 天枪要求治疗>=2，此处应被实时剔除
+	p1.Heal = 0 // 天枪要求治疗>=2，此处应被实时剔除；地枪不可用时仅保留圣击
 	p1.TurnState = model.NewPlayerTurnState()
 	if p1.Tokens == nil {
 		p1.Tokens = map[string]int{}
@@ -441,11 +441,13 @@ func TestResponsePrompt_PrunesInvalidHolyLancerSkySpear(t *testing.T) {
 		PlayerID: "p1",
 		SkillIDs: []string{"holy_lancer_sky_spear", "holy_lancer_holy_strike"},
 		Context: &model.Context{
-			Game:    game,
-			User:    p1,
-			Timing:  model.TimingOnAttackDeclared,
+			Game:   game,
+			User:   p1,
+			Timing: model.TimingOnHitCheck,
 			EventCtx: &model.EventContext{
 				AttackInfo: &model.AttackEventInfo{
+					ActionType:       string(model.ActionAttack),
+					IsHit:            true,
 					CounterInitiator: "",
 				},
 			},

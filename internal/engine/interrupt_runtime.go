@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 
+	"starcup-engine/internal/engine/core/runtimeutil"
 	"starcup-engine/internal/model"
 )
 
@@ -246,6 +247,15 @@ func (e *GameEngine) ConfirmGiveCards(giverID, receiverID string, indices []int)
 
 	receiver.Hand = append(receiver.Hand, givenCards...)
 	e.Log(fmt.Sprintf("[Skill] %s 将 %d 张牌交给了 %s", giver.Name, len(givenCards), receiver.Name))
+	overflowCtx := e.buildContext(receiver, nil, model.TimingActive, nil)
+	if runtimeutil.ToBoolContextValue(data["stay_in_turn"]) {
+		overflowCtx.Flags["StayInTurn"] = true
+	}
+	if point, ok := choiceResumePointValue(data["resume_phase"]); ok {
+		overflowCtx.Flags["StayInTurn"] = true
+		overflowCtx.Selections["draw_resume_phase"] = point
+	}
+	e.checkHandLimit(receiver, overflowCtx)
 	e.Log(fmt.Sprintf("[Debug] 给牌完成，队列中还有 %d 个中断", len(e.State.InterruptQueue)))
 
 	e.PopInterrupt()

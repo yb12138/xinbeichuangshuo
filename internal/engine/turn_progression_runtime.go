@@ -16,6 +16,7 @@ var turnScopedResetKeys = []string{
 func (e *GameEngine) NextTurn() {
 	// Guard against turn progression during interrupt phases
 	if e.State.PendingInterrupt != nil {
+		e.Log("[Debug] NextTurn 被阻止：存在 PendingInterrupt")
 		return // Silently prevent turn progression during interrupts
 	}
 	if e.actionSummaryTurn <= 0 {
@@ -43,6 +44,7 @@ func (e *GameEngine) NextTurn() {
 	} else {
 		e.Log(fmt.Sprintf("%s 的 [苍白之月] 生效：立即获得额外回合", player.Name))
 	}
+	e.Log(fmt.Sprintf("[Debug] NextTurn 切换结果: from=%s to=%s extra_turn=%t", currentPid, nextPid, extraTurn))
 
 	e.prepareNextTurnRuntime(e.State.Players[nextPid])
 }

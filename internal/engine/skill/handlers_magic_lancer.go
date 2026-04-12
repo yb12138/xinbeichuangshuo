@@ -205,7 +205,16 @@ func (h *MagicLancerBlackSpearHandler) CanUse(ctx *model.Context) bool {
 	if ctx.Timing != model.TimingOnHitCheck {
 		return false
 	}
-	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
+	if ctx.EventCtx.AttackInfo == nil {
+		return false
+	}
+	if ctx.EventCtx.AttackInfo.ActionType != string(model.ActionAttack) {
+		return false
+	}
+	if !ctx.EventCtx.AttackInfo.IsHit {
+		return false
+	}
+	if ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
 	if !hasForm(ctx.User, model.FormMagicLancerPhantom) {

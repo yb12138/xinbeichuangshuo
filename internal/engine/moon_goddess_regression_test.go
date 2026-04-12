@@ -359,6 +359,7 @@ func TestMoonGoddessDarkMoonSlash_AddsDamageAndConsumesDarkMoon(t *testing.T) {
 		TargetID: enemy.ID,
 		AttackInfo: &model.AttackEventInfo{
 			ActionType:       string(model.ActionAttack),
+			IsHit:            true,
 			CounterInitiator: "",
 		},
 	})
@@ -883,6 +884,7 @@ func TestMoonGoddessDarkMoonSlash_XBoundaries_CurseAndDamage(t *testing.T) {
 				TargetID: enemy.ID,
 				AttackInfo: &model.AttackEventInfo{
 					ActionType:       string(model.ActionAttack),
+					IsHit:            true,
 					CounterInitiator: "",
 				},
 			})

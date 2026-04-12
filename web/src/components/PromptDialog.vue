@@ -536,7 +536,14 @@ function shouldUseNumericButtonMode(options: RawDockOption[]): { useNumeric: boo
 
 function isDeclineLabel(label: string): boolean {
   const text = String(label || '').trim()
-  return text.includes('不发动') || text.includes('放弃') || text.includes('跳过') || text.includes('无法行动') || text.includes('拒绝') || text.includes('取消')
+  if (!text) return false
+  const compact = text.replace(/\s+/g, '')
+  const lower = compact.toLowerCase()
+  if (compact.includes('不发动') || compact.includes('无法行动')) return true
+  if (compact.startsWith('放弃') || compact.startsWith('跳过') || compact.startsWith('拒绝')) return true
+  if (compact === '取消' || compact.startsWith('取消并') || compact.startsWith('取消本次') || compact.startsWith('取消行动')) return true
+  if (lower === 'cancel' || lower === 'pass' || lower === 'skip') return true
+  return false
 }
 
 function isConfirmLikeLabel(label: string): boolean {
@@ -726,7 +733,11 @@ function normalizeDockOption(option: RawDockOption, useNumeric: boolean, plusOne
     buttonLabel = '应战'
   }
   if (!buttonLabel) {
-    buttonLabel = label && label.length <= 6 ? label : '执行'
+    if (prompt.value?.type === 'confirm') {
+      buttonLabel = '确认'
+    } else {
+      buttonLabel = label && label.length <= 6 ? label : '执行'
+    }
   }
 
   if (responseOptionKind({ id, label, button_label: buttonLabel }) !== null) {

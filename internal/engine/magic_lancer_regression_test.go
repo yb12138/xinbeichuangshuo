@@ -73,6 +73,7 @@ func TestMagicLancerDarkRelease_HandCapAndAttackBonusAndLock(t *testing.T) {
 		TargetID: p2.ID,
 		AttackInfo: &model.AttackEventInfo{
 			ActionType:       "Attack",
+			IsHit:            true,
 			CounterInitiator: "",
 		},
 	})
@@ -392,6 +393,7 @@ func TestMagicLancerBlackSpear_ConsumesCrystalAndAddsDamage(t *testing.T) {
 		TargetID: p2.ID,
 		AttackInfo: &model.AttackEventInfo{
 			ActionType:       "Attack",
+			IsHit:            true,
 			CounterInitiator: "",
 		},
 	})

@@ -223,6 +223,16 @@ func (h *ValkyrieMilitaryGloryHandler) Execute(ctx *model.Context) error {
 type ValkyrieHeroicSummonHandler struct{ BaseHandler }
 
 func (h *ValkyrieHeroicSummonHandler) CanUse(ctx *model.Context) bool {
+	if ctx == nil || ctx.EventCtx == nil || ctx.EventCtx.AttackInfo == nil {
+		return false
+	}
+	if ctx.Timing != model.TimingOnHitCheck {
+		return false
+	}
+	info := ctx.EventCtx.AttackInfo
+	if info.ActionType != string(model.ActionAttack) || !info.IsHit {
+		return false
+	}
 	return canPayCrystalLike(ctx, 1)
 }
 
@@ -833,14 +843,15 @@ func (h *HolyLancerHolyStrikeHandler) CanUse(ctx *model.Context) bool {
 	// 与地枪互斥：
 	// 若当前“主动攻击命中”下地枪可发动，则先进入地枪响应窗口；
 	// 仅当玩家不发动地枪（跳过响应）时，再由引擎补触发圣击治疗。
-	if ctx != nil && ctx.Timing == model.TimingOnHitCheck && ctx.EventCtx != nil && ctx.EventCtx.DamageVal != nil {
-		counterInitiator := ""
-		if ctx.EventCtx.AttackInfo != nil {
-			counterInitiator = ctx.EventCtx.AttackInfo.CounterInitiator
-		}
-		if counterInitiator == "" && ctx.User != nil && ctx.User.Heal > 0 {
-			return false
-		}
+	if ctx == nil || ctx.User == nil || ctx.Timing != model.TimingOnHitCheck || ctx.EventCtx == nil || ctx.EventCtx.AttackInfo == nil {
+		return false
+	}
+	info := ctx.EventCtx.AttackInfo
+	if info.ActionType != string(model.ActionAttack) || !info.IsHit {
+		return false
+	}
+	if info.CounterInitiator == "" && ctx.User.Heal > 0 {
+		return false
 	}
 	return ctx.User.TurnState.UsedSkillCounts["holy_lancer_block_sacred_strike"] == 0
 }
@@ -876,11 +887,26 @@ func (h *HolyLancerSkySpearHandler) Execute(ctx *model.Context) error {
 }
 
 func (h *HolyLancerEarthSpearHandler) CanUse(ctx *model.Context) bool {
-	if ctx.User.Heal <= 0 || ctx.EventCtx == nil || ctx.EventCtx.DamageVal == nil {
+	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
+		return false
+	}
+	if ctx.Timing != model.TimingOnHitCheck {
+		return false
+	}
+	if ctx.User.Heal <= 0 || ctx.EventCtx.DamageVal == nil {
 		return false
 	}
 	// 地枪仅可在主动攻击命中后发动。
-	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
+	if ctx.EventCtx.AttackInfo == nil {
+		return false
+	}
+	if ctx.EventCtx.AttackInfo.ActionType != string(model.ActionAttack) {
+		return false
+	}
+	if !ctx.EventCtx.AttackInfo.IsHit {
+		return false
+	}
+	if ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
 	return true
@@ -1369,10 +1395,11 @@ type CrimsonRoseCourtyardHandler struct{ BaseHandler }
 type CrimsonDanceHandler struct{ BaseHandler }
 
 func (h *CrimsonBloodThornsHandler) CanUse(ctx *model.Context) bool {
-	if ctx.Timing != model.TimingOnHitCheck || ctx.EventCtx == nil || ctx.EventCtx.AttackInfo == nil {
+	if ctx == nil || ctx.Timing != model.TimingOnHitCheck || ctx.EventCtx == nil || ctx.EventCtx.AttackInfo == nil {
 		return false
 	}
-	return true
+	info := ctx.EventCtx.AttackInfo
+	return info.ActionType == string(model.ActionAttack) && info.IsHit
 }
 
 func (h *CrimsonBloodThornsHandler) Execute(ctx *model.Context) error {

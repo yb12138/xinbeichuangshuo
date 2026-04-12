@@ -227,6 +227,201 @@ func TestBladeMaster_WindFury_StillRunsWithoutRemainingWindAttack(t *testing.T) 
 	}
 }
 
+// 回归测试：多个可响应技能时，确认其中一个后应先结算并弹出当前响应中断，
+// 再继续后续中断/剩余响应技能，而不是停留在同一个响应中断里原地重选。
+func TestBladeMaster_MultiResponse_ConfirmOneSettlesBeforeRemaining(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "BladeMaster", "blade_master", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Dummy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.Crystal = 1
+	p1.TurnState = model.NewPlayerTurnState()
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionEnd
+	game.State.Subflow = model.SubflowResponse
+
+	ctx := game.buildContext(p1, nil, model.TimingOnActionEnd, &model.EventContext{
+		ActionType: model.ActionAttack,
+		AttackInfo: &model.AttackEventInfo{
+			ActionType:       string(model.ActionAttack),
+			IsHit:            true,
+			CounterInitiator: "",
+		},
+	})
+
+	game.State.PendingInterrupt = &model.Interrupt{
+		Type:     model.InterruptResponseSkill,
+		PlayerID: "p1",
+		SkillIDs: []string{"sword_shadow", "wind_fury"},
+		Context:  ctx,
+	}
+	game.State.InterruptQueue = []*model.Interrupt{
+		{
+			Type:     model.InterruptChoice,
+			PlayerID: "p1",
+			Context: map[string]interface{}{
+				"choice_type": "test_followup_choice",
+			},
+		},
+	}
+
+	if err := game.ConfirmResponseSkill("p1", "sword_shadow"); err != nil {
+		t.Fatalf("confirm sword_shadow failed: %v", err)
+	}
+
+	if got := p1.TurnState.UsedSkillCounts["sword_shadow"]; got != 1 {
+		t.Fatalf("expected sword_shadow used count=1, got %d", got)
+	}
+	if p1.Crystal != 0 {
+		t.Fatalf("expected sword_shadow to consume 1 crystal, got %d", p1.Crystal)
+	}
+	if len(p1.TurnState.PendingActions) == 0 {
+		t.Fatalf("expected sword_shadow to append an extra attack action")
+	}
+
+	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptChoice {
+		t.Fatalf("expected queued follow-up interrupt to become pending first, got %+v", game.State.PendingInterrupt)
+	}
+	if len(game.State.InterruptQueue) != 1 {
+		t.Fatalf("expected exactly one queued interrupt (remaining response), got %d", len(game.State.InterruptQueue))
+	}
+	next := game.State.InterruptQueue[0]
+	if next == nil || next.Type != model.InterruptResponseSkill || next.PlayerID != "p1" {
+		t.Fatalf("expected queued remaining response interrupt for p1, got %+v", next)
+	}
+	if len(next.SkillIDs) != 1 || next.SkillIDs[0] != "wind_fury" {
+		t.Fatalf("expected remaining response skill to be only wind_fury, got %+v", next.SkillIDs)
+	}
+}
+
+// 集成回归：真实走一轮“攻击命中后双响应 -> 先选剑影 -> 再问风怒追击 -> 再选风怒追击”。
+func TestBladeMaster_ResponseChain_SwordShadowThenWindFury_Integration(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "BladeMaster", "blade_master", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Dummy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	game.State.CurrentTurn = 0
+	game.State.Deck = rules.InitDeck()
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Crystal = 1
+	p2.Heal = 0
+	p1.Hand = []model.Card{
+		{ID: "atk-1", Name: "火斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 1},
+	}
+
+	if err := game.HandleAction(model.PlayerAction{
+		PlayerID:  "p1",
+		Type:      model.CmdAttack,
+		TargetID:  "p2",
+		CardIndex: 0,
+	}); err != nil {
+		t.Fatalf("attack failed: %v", err)
+	}
+	if err := game.HandleAction(model.PlayerAction{
+		PlayerID:  "p2",
+		Type:      model.CmdRespond,
+		ExtraArgs: []string{"take"},
+	}); err != nil {
+		t.Fatalf("take failed: %v", err)
+	}
+
+	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptResponseSkill {
+		t.Fatalf("expected response-skill prompt after attack end, got %+v", game.State.PendingInterrupt)
+	}
+	if game.State.PendingInterrupt.PlayerID != "p1" {
+		t.Fatalf("expected response prompt for p1, got %s", game.State.PendingInterrupt.PlayerID)
+	}
+
+	hasSwordShadow := false
+	hasWindFury := false
+	for _, sid := range game.State.PendingInterrupt.SkillIDs {
+		if sid == "sword_shadow" {
+			hasSwordShadow = true
+		}
+		if sid == "wind_fury" {
+			hasWindFury = true
+		}
+	}
+	if !hasSwordShadow || !hasWindFury {
+		t.Fatalf("expected both sword_shadow and wind_fury in response skills, got %+v", game.State.PendingInterrupt.SkillIDs)
+	}
+
+	swordShadowIdx := -1
+	for i, sid := range game.State.PendingInterrupt.SkillIDs {
+		if sid == "sword_shadow" {
+			swordShadowIdx = i
+			break
+		}
+	}
+	if swordShadowIdx < 0 {
+		t.Fatalf("sword_shadow not found in response options: %+v", game.State.PendingInterrupt.SkillIDs)
+	}
+	if err := game.HandleAction(model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{swordShadowIdx},
+	}); err != nil {
+		t.Fatalf("select sword_shadow failed: %v", err)
+	}
+
+	if got := p1.TurnState.UsedSkillCounts["sword_shadow"]; got != 1 {
+		t.Fatalf("expected sword_shadow used count=1, got %d", got)
+	}
+	if p1.Crystal != 0 {
+		t.Fatalf("expected sword_shadow to consume crystal, got %d", p1.Crystal)
+	}
+	if len(p1.TurnState.PendingActions) == 0 {
+		t.Fatalf("expected sword_shadow to append an extra action token")
+	}
+	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptResponseSkill {
+		t.Fatalf("expected reprompt for remaining response skill, got %+v", game.State.PendingInterrupt)
+	}
+	if len(game.State.PendingInterrupt.SkillIDs) != 1 || game.State.PendingInterrupt.SkillIDs[0] != "wind_fury" {
+		t.Fatalf("expected only wind_fury after sword_shadow resolves, got %+v", game.State.PendingInterrupt.SkillIDs)
+	}
+
+	if err := game.HandleAction(model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{0},
+	}); err != nil {
+		t.Fatalf("select wind_fury failed: %v", err)
+	}
+
+	if got := p1.TurnState.UsedSkillCounts["wind_fury"]; got != 1 {
+		t.Fatalf("expected wind_fury used count=1, got %d", got)
+	}
+	if intr := game.State.PendingInterrupt; intr != nil && intr.Type == model.InterruptResponseSkill {
+		for _, sid := range intr.SkillIDs {
+			if sid == "wind_fury" {
+				t.Fatalf("wind_fury should not be reprompted after it is confirmed")
+			}
+		}
+	}
+	extraActionTotal := len(p1.TurnState.PendingActions)
+	if p1.TurnState.CurrentExtraAction != "" {
+		extraActionTotal++
+	}
+	if extraActionTotal < 2 {
+		t.Fatalf("expected at least 2 extra attack opportunities from sword_shadow + wind_fury, got %d", extraActionTotal)
+	}
+}
+
 func TestBladeMaster_HolySwordDraw_X0ResumesExtraAction(t *testing.T) {
 	game := NewGameEngine(noopObserver{})
 	if err := game.AddPlayer("p1", "BladeMaster", "blade_master", model.RedCamp); err != nil {

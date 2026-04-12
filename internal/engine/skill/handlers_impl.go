@@ -258,8 +258,10 @@ func (h *AngelBlessingHandler) Execute(ctx *model.Context) error {
 				Type:     model.InterruptGiveCards,
 				PlayerID: target.ID,
 				Context: map[string]interface{}{
-					"give_count":  giveCount,
-					"receiver_id": receiverID,
+					"give_count":   giveCount,
+					"receiver_id":  receiverID,
+					"stay_in_turn": true,
+					"resume_phase": ctx.Selections["current_resume_point"],
 				},
 			})
 			ctx.Game.Log(fmt.Sprintf("%s 发动天使祝福，%s 需选择 %d 张牌交给 %s", ctx.User.Name, target.Name, giveCount, ctx.User.Name))
@@ -275,8 +277,10 @@ func (h *AngelBlessingHandler) Execute(ctx *model.Context) error {
 					Type:     model.InterruptGiveCards,
 					PlayerID: t.ID,
 					Context: map[string]interface{}{
-						"give_count":  1,
-						"receiver_id": receiverID,
+						"give_count":   1,
+						"receiver_id":  receiverID,
+						"stay_in_turn": true,
+						"resume_phase": ctx.Selections["current_resume_point"],
 					},
 				})
 			} else {
@@ -501,6 +505,9 @@ func (h *BerserkerFrenzyHandler) CanUse(ctx *model.Context) bool {
 	if info == nil || info.ActionType != "Attack" {
 		return false
 	}
+	if ctx.Timing == model.TimingOnHitCheck && !info.IsHit {
+		return false
+	}
 	return ctx.Timing == model.TimingOnDamageCalculated || ctx.Timing == model.TimingOnHitCheck
 }
 
@@ -533,7 +540,7 @@ func (h *BerserkerFrenzyHandler) Execute(ctx *model.Context) error {
 type BerserkerTearHandler struct{ BaseHandler }
 
 func (h *BerserkerTearHandler) CanUse(ctx *model.Context) bool {
-	if ctx.EventCtx == nil || ctx.EventCtx.AttackInfo == nil {
+	if ctx == nil || ctx.User == nil || ctx.Timing != model.TimingOnHitCheck || ctx.EventCtx == nil || ctx.EventCtx.AttackInfo == nil {
 		return false
 	}
 	// 2. [新增] 资源检查：必须至少有 1 颗宝石
@@ -541,7 +548,7 @@ func (h *BerserkerTearHandler) CanUse(ctx *model.Context) bool {
 		return false
 	}
 	info := ctx.EventCtx.AttackInfo
-	return info.ActionType == "Attack"
+	return info.ActionType == "Attack" && info.IsHit
 }
 
 func (h *BerserkerTearHandler) Execute(ctx *model.Context) error {
@@ -586,7 +593,7 @@ func (h *BloodBladeHandler) CanUse(ctx *model.Context) bool {
 		return false
 	}
 	info := ctx.EventCtx.AttackInfo
-	if info == nil || info.ActionType != "Attack" || info.CounterInitiator != "" || ctx.EventCtx.Card == nil {
+	if info == nil || info.ActionType != "Attack" || !info.IsHit || info.CounterInitiator != "" || ctx.EventCtx.Card == nil {
 		return false
 	}
 	if ctx.User.Character == nil {
@@ -979,7 +986,13 @@ func (h *GaleSlashHandler) Execute(ctx *model.Context) error {
 
 func (h *PiercingShotHandler) CanUse(ctx *model.Context) bool {
 	// 仅主动攻击未命中可触发；应战攻击未命中不触发。
-	if ctx.EventCtx == nil || ctx.EventCtx.AttackInfo == nil {
+	if ctx == nil || ctx.User == nil || ctx.Timing != model.TimingOnHitCheck || ctx.EventCtx == nil || ctx.EventCtx.AttackInfo == nil {
+		return false
+	}
+	if ctx.EventCtx.AttackInfo.IsHit {
+		return false
+	}
+	if ctx.EventCtx.AttackInfo.ActionType != string(model.ActionAttack) {
 		return false
 	}
 	if ctx.EventCtx.AttackInfo.CounterInitiator != "" {

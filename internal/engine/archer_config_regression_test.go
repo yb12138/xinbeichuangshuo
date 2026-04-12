@@ -97,6 +97,54 @@ func TestArcher_PiercingShotDiscard_IsPublicReveal(t *testing.T) {
 	}
 }
 
+func TestArcher_PiercingShot_NotPromptedOnHit(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "Archer", "archer", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p3", "Ally", "angel", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	game.State.CurrentTurn = 0
+	game.State.Deck = rules.InitDeck()
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p2.TurnState = model.NewPlayerTurnState()
+	p2.Heal = 0
+
+	p1.Hand = []model.Card{
+		{ID: "atk", Name: "箭", Type: model.CardTypeAttack, Element: model.ElementWind, Damage: 2},
+		{ID: "spell", Name: "水镜", Type: model.CardTypeMagic, Element: model.ElementWater},
+	}
+
+	if err := game.HandleAction(model.PlayerAction{
+		PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardIndex: 0,
+	}); err != nil {
+		t.Fatalf("archer attack failed: %v", err)
+	}
+
+	if err := game.HandleAction(model.PlayerAction{
+		PlayerID: "p2", Type: model.CmdRespond, ExtraArgs: []string{"take"},
+	}); err != nil {
+		t.Fatalf("take response failed: %v", err)
+	}
+
+	if game.State.PendingInterrupt != nil &&
+		game.State.PendingInterrupt.Type == model.InterruptResponseSkill &&
+		game.State.PendingInterrupt.PlayerID == "p1" &&
+		hasSkillID(game.State.PendingInterrupt.SkillIDs, "piercing_shot") {
+		t.Fatalf("piercing_shot should not dispatch on hit branch")
+	}
+}
+
 func TestArcher_LightningArrow_DisablesCounterButAllowsDefend(t *testing.T) {
 	game := NewGameEngine(noopObserver{})
 	if err := game.AddPlayer("p1", "Archer", "archer", model.RedCamp); err != nil {

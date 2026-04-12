@@ -261,7 +261,16 @@ func (h *CrimsonKnightKillingFeastHandler) CanUse(ctx *model.Context) bool {
 	if ctx.Timing != model.TimingOnHitCheck {
 		return false
 	}
-	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
+	if ctx.EventCtx.AttackInfo == nil {
+		return false
+	}
+	if ctx.EventCtx.AttackInfo.ActionType != string(model.ActionAttack) {
+		return false
+	}
+	if !ctx.EventCtx.AttackInfo.IsHit {
+		return false
+	}
+	if ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
 	return getToken(ctx.User, "crk_blood_mark") > 0
@@ -403,7 +412,16 @@ func (h *HomunculusRageSuppressHandler) CanUse(ctx *model.Context) bool {
 	if ctx.Timing != model.TimingOnHitCheck {
 		return false
 	}
-	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
+	if ctx.EventCtx.AttackInfo == nil {
+		return false
+	}
+	if ctx.EventCtx.AttackInfo.ActionType != string(model.ActionAttack) {
+		return false
+	}
+	if ctx.EventCtx.AttackInfo.IsHit {
+		return false
+	}
+	if ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
 	return getToken(ctx.User, "hom_war_rune") > 0
@@ -426,7 +444,16 @@ func (h *HomunculusRuneSmashHandler) CanUse(ctx *model.Context) bool {
 	if ctx.Timing != model.TimingOnHitCheck {
 		return false
 	}
-	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
+	if ctx.EventCtx.AttackInfo == nil {
+		return false
+	}
+	if ctx.EventCtx.AttackInfo.ActionType != string(model.ActionAttack) {
+		return false
+	}
+	if !ctx.EventCtx.AttackInfo.IsHit {
+		return false
+	}
+	if ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
 	if getToken(ctx.User, "hom_war_rune") <= 0 {
@@ -494,7 +521,16 @@ func (h *HomunculusGlyphFusionHandler) CanUse(ctx *model.Context) bool {
 	if ctx.Timing != model.TimingOnHitCheck {
 		return false
 	}
-	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
+	if ctx.EventCtx.AttackInfo == nil {
+		return false
+	}
+	if ctx.EventCtx.AttackInfo.ActionType != string(model.ActionAttack) {
+		return false
+	}
+	if ctx.EventCtx.AttackInfo.IsHit {
+		return false
+	}
+	if ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
 	if getToken(ctx.User, "hom_magic_rune") <= 0 {

@@ -225,6 +225,13 @@ func (e *GameEngine) driveActionStartStage(currentPid string, player *model.Play
 
 func (e *GameEngine) driveActionExecutionStage(currentPid string, player *model.Player) driveOutcome {
 	switch {
+	case e.needsActionExecutionActionEndCatchup(player):
+		lastActionType := "<nil>"
+		if player != nil {
+			lastActionType = player.TurnState.LastActionType
+		}
+		e.Log(fmt.Sprintf("[Debug] ActionExecution 命中 ActionEnd 补结算: player=%s last_action_type=%s action_queue=%d", currentPid, lastActionType, len(e.State.ActionQueue)))
+		return e.driveActionExecutionRecoveryPhase(currentPid, player)
 	case e.isActionSelectionWindow():
 		return e.driveActionSelectionPhase(currentPid, player)
 	case e.isBeforeActionWindow():
@@ -483,11 +490,17 @@ func (e *GameEngine) runActionEndSequence(currentPid string, player *model.Playe
 
 func (e *GameEngine) driveExtraActionStage(currentPid string, player *model.Player) driveOutcome {
 	e.setTurnStage(model.TurnStageExtraAction)
+	pendingTokenCount := 0
+	if player != nil {
+		pendingTokenCount = len(player.TurnState.PendingActions)
+	}
+	e.Log(fmt.Sprintf("[Debug] ExtraAction 阶段: player=%s action_queue=%d pending_action_tokens=%d", currentPid, len(e.State.ActionQueue), pendingTokenCount))
 	// 8. 额外行动阶段（处理队列）
 	if len(e.State.ActionQueue) > 0 {
 		// 弹出队列第一个行动
 		queuedAction := e.State.ActionQueue[0]
 		e.State.ActionQueue = e.State.ActionQueue[1:]
+		e.Log(fmt.Sprintf("[Debug] ExtraAction 消费队列行动: type=%s element=%s source=%s remaining_action_queue=%d", queuedAction.Type, queuedAction.Element, queuedAction.SourceID, len(e.State.ActionQueue)))
 
 		// 设置当前额外行动约束
 		player.TurnState.CurrentExtraAction = string(queuedAction.Type)
@@ -503,6 +516,7 @@ func (e *GameEngine) driveExtraActionStage(currentPid string, player *model.Play
 		e.enterActionExecutionStage()
 	} else {
 		// 队列为空，进入回合结束
+		e.Log("[Debug] ExtraAction 队列为空，进入 TurnEnd")
 		e.enterTurnEndStage()
 	}
 
@@ -513,6 +527,11 @@ func (e *GameEngine) driveTurnEndStage(currentPid string, player *model.Player) 
 	if e.State.Subflow != model.SubflowNone || len(e.State.CombatStack) > 0 || e.State.TurnStage != model.TurnStageTurnEnd {
 		return driveUnhandled
 	}
+	pendingTokenCount := 0
+	if player != nil {
+		pendingTokenCount = len(player.TurnState.PendingActions)
+	}
+	e.Log(fmt.Sprintf("[Debug] TurnEnd 阶段: player=%s pending_action_tokens=%d", currentPid, pendingTokenCount))
 
 	// 9. 回合结束阶段
 	if e.runTimingOnTurnEndPreExtraHooks(player) {

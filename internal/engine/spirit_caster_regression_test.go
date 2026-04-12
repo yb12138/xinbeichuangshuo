@@ -201,6 +201,7 @@ func TestSpiritCasterHundredNight_FireRevealAOEWithCollapse(t *testing.T) {
 		TargetID: "p2",
 		AttackInfo: &model.AttackEventInfo{
 			ActionType:       string(model.ActionAttack),
+			IsHit:            true,
 			CounterInitiator: "",
 		},
 	})
@@ -273,6 +274,7 @@ func TestSpiritCasterHundredNight_NonFireSingleTarget(t *testing.T) {
 		TargetID: "p2",
 		AttackInfo: &model.AttackEventInfo{
 			ActionType:       string(model.ActionAttack),
+			IsHit:            true,
 			CounterInitiator: "",
 		},
 	})

@@ -30,6 +30,17 @@ func (e *GameEngine) isActionSelectionWindow() bool {
 		len(e.State.ActionQueue) == 0
 }
 
+func (e *GameEngine) needsActionExecutionActionEndCatchup(player *model.Player) bool {
+	return e != nil && e.State != nil &&
+		player != nil &&
+		e.State.Subflow == model.SubflowNone &&
+		e.State.CombatStage == model.CombatStageNone &&
+		len(e.State.CombatStack) == 0 &&
+		e.State.TurnStage == model.TurnStageActionExecution &&
+		len(e.State.ActionQueue) == 0 &&
+		player.TurnState.LastActionType != ""
+}
+
 func (e *GameEngine) isBeforeActionWindow() bool {
 	return e != nil && e.State != nil &&
 		e.State.Subflow == model.SubflowNone &&

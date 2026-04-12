@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git checkout:*)",
+      "Bash(go build:*)",
+      "Bash(grep -E \"\\\\.go$\")",
+      "Bash(wc -l /Users/yb/xinbeichuangshuo/internal/engine/*.go)"
+    ]
+  }
+}
