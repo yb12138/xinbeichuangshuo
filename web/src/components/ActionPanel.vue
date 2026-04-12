@@ -20,7 +20,6 @@ const {
     targetablePlayersForSkill,
     effectiveAvailableSkills,
     canConfirmSkill,
-    getCharacter,
     cardMatchesExclusive,
 } = useBattleInteractionState()
 
@@ -49,7 +48,7 @@ const debugStatus = ref('')
 const debugAvailable = computed(() => {
     if (typeof window === 'undefined') return false
     const query = new URLSearchParams(window.location.search)
-    return import.meta.env.DEV || query.has('debug')
+    return import.meta.env.DEV || query.has('debug') || query.has('debug_target')
 })
 
 type MainActionIconId = 'attack' | 'magic' | 'special'
@@ -591,10 +590,15 @@ function selectSkill(skill: AvailableSkill) {
     proceedAfterDiscard(skill)
 }
 
+function resolveMyRoleIdForExclusive(): string {
+    const roleId = (sessionStore.myCharRole || myPlayer.value?.role || '').trim()
+    return roleId
+}
+
 function cardMatchesSkillDiscard(card: { type: string; element: string; faction?: string; exclusive_char1?: string; exclusive_char2?: string; exclusive_skill1?: string; exclusive_skill2?: string }, skill: AvailableSkill): boolean {
     if (skill.require_exclusive) {
-        const char = getCharacter(sessionStore.myCharRole)
-        if (!char || !cardMatchesExclusive(card, char.name, skill.title)) return false
+        const roleId = resolveMyRoleIdForExclusive()
+        if (!roleId || !cardMatchesExclusive(card, roleId, skill.title)) return false
     }
     if (skill.discard_type && card.type !== skill.discard_type) return false
     if (skill.discard_element) return card.element === skill.discard_element
@@ -718,10 +722,23 @@ function canPaySkillEnergy(skill: AvailableSkill): boolean {
     return usableCrystal >= crystalNeed
 }
 
+function isServerPublishedAvailableSkill(skill: AvailableSkill): boolean {
+    if (!skill) return false
+    const list = snapshotStore.availableSkills || []
+    if (list.length === 0) return false
+    const normalize = (v: unknown) => String(v ?? '').trim().toLowerCase()
+    const sid = normalize(skill.id)
+    if (!sid) return false
+    return list.some((item) => normalize(item.id) === sid)
+}
+
 function canSelectSkill(skill: AvailableSkill): boolean {
     if (!skill) return false
+    // 服务端已下发 available_skills 时，以后端可用态为准，避免前端本地预检与后端规则漂移导致误置灰。
+    if (isServerPublishedAvailableSkill(skill)) return true
     if (!canPaySkillEnergy(skill)) return false
-    if (skillTokenDisabledReason(skill)) return false
+    const tokenReason = skillTokenDisabledReason(skill)
+    if (tokenReason) return false
     if (skill.id === 'prayer_radiant_faith' || skill.id === 'prayer_dark_curse') {
         const prayerForm = hasMyForm('prayer_master_prayer_form')
         const prayerRune = myPlayer.value?.tokens?.prayer_rune ?? 0
@@ -739,9 +756,7 @@ function canSelectSkill(skill: AvailableSkill): boolean {
     }
     if (skill.cost_discards > 0) {
         const required = requiredDiscardCount(skill)
-        if (required > 0 && countSkillDiscardCandidates(skill) < required) {
-            return false
-        }
+        if (required > 0 && countSkillDiscardCandidates(skill) < required) return false
     }
     return true
 }
@@ -1020,9 +1035,8 @@ function isCardSelectableForSkillDiscard(card: { type: string; element: string; 
     }
     // 独有技：必须使用卡牌下标了该技能名的牌
     if (skill.require_exclusive) {
-        const char = getCharacter(sessionStore.myCharRole)
-        if (!char) return false
-        if (!cardMatchesExclusive(card, char.name, skill.title)) return false
+        const roleId = resolveMyRoleIdForExclusive()
+        if (!roleId || !cardMatchesExclusive(card, roleId, skill.title)) return false
     }
     if (skill.discard_type && card.type !== skill.discard_type) return false
     // 元素要求
@@ -1052,8 +1066,8 @@ function toggleSkillDiscardCard(idx: number) {
     if (!card) return
     // 独有技：必须使用卡牌下标了该技能名的牌
     if (skill.require_exclusive) {
-        const char = getCharacter(sessionStore.myCharRole)
-        if (!char || !cardMatchesExclusive(card, char.name, skill.title)) {
+        const roleId = resolveMyRoleIdForExclusive()
+        if (!roleId || !cardMatchesExclusive(card, roleId, skill.title)) {
             interruptStore.showError('必须使用标有该技能名的独有牌')
             return
         }
@@ -1757,126 +1771,117 @@ function basicEffectSummary(playerId: string): string {
     isolation: isolate;
     overflow: hidden;
     min-height: 48px;
-    padding: 7px 10px !important;
+    padding: 7px 11px !important;
     display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
-    gap: 3px;
-    border-radius: 13px;
-    border: 1px solid rgba(208, 178, 121, 0.82) !important;
+    gap: 4px;
+    border-radius: 12px;
+    border: 1px solid rgba(211, 225, 244, 0.66) !important;
     background:
-        radial-gradient(150% 90% at 50% 0%, rgba(255, 226, 164, 0.18), rgba(255, 226, 164, 0) 54%),
-        linear-gradient(180deg, rgba(84, 61, 32, 0.97), rgba(44, 31, 16, 0.98)),
-        url('/assets/ui/panel-ornament.svg') center/cover no-repeat !important;
+        radial-gradient(130% 86% at 50% -28%, rgba(255, 255, 255, 0.25), rgba(255, 255, 255, 0) 60%),
+        linear-gradient(180deg, #687790 0%, #4f5f76 52%, #3d4a5d 100%) !important;
     box-shadow:
-        inset 0 1px 0 rgba(255, 244, 214, 0.34),
-        inset 0 -1px 0 rgba(65, 43, 17, 0.48),
-        0 8px 18px rgba(8, 6, 3, 0.34),
-        0 0 0 1px rgba(163, 118, 59, 0.38) !important;
-    color: #faebce !important;
-    text-shadow: 0 1px 2px rgba(4, 4, 7, 0.55);
-    transition: transform 0.16s ease, filter 0.16s ease, box-shadow 0.18s ease;
+        inset 0 1px 0 rgba(244, 251, 255, 0.28),
+        inset 0 -1px 0 rgba(18, 27, 43, 0.58),
+        0 8px 16px rgba(5, 12, 22, 0.35) !important;
+    color: #eef4ff !important;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.38);
+    transition:
+        transform 0.16s ease,
+        filter 0.16s ease,
+        box-shadow 0.18s ease,
+        border-color 0.18s ease;
 }
 
 .action-hub-desktop-btn--cannot-act::before {
     content: '';
     position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    background:
-        linear-gradient(138deg, rgba(255, 236, 190, 0.3), rgba(255, 236, 190, 0) 42%),
-        linear-gradient(328deg, rgba(255, 214, 140, 0.14), rgba(255, 214, 140, 0) 54%);
-    pointer-events: none;
-    z-index: 0;
-}
-
-.action-hub-desktop-btn--cannot-act::after {
-    content: '';
-    position: absolute;
     inset: 1px;
     border-radius: 11px;
-    border: 1px solid rgba(255, 233, 192, 0.28);
     pointer-events: none;
     z-index: 0;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0) 42%);
+    opacity: 0.82;
 }
 
 .action-hub-desktop-btn--cannot-act:hover {
-    transform: translateY(-2px);
-    filter: brightness(1.07) saturate(1.04);
+    transform: translateY(-1px);
+    filter: brightness(1.04) saturate(1.05);
+    border-color: rgba(224, 236, 250, 0.88) !important;
     box-shadow:
-        inset 0 1px 0 rgba(255, 248, 223, 0.36),
-        inset 0 -1px 0 rgba(82, 56, 24, 0.44),
-        0 14px 24px rgba(8, 6, 3, 0.42),
-        0 0 0 1px rgba(199, 145, 73, 0.5) !important;
+        inset 0 1px 0 rgba(246, 252, 255, 0.34),
+        inset 0 -1px 0 rgba(18, 28, 44, 0.62),
+        0 10px 18px rgba(6, 14, 25, 0.4) !important;
 }
 
 .action-hub-desktop-btn--cannot-act:active {
-    transform: translateY(0);
-    filter: brightness(0.98);
+    transform: translateY(1px);
+    filter: brightness(0.95) saturate(0.95);
     box-shadow:
-        inset 0 1px 0 rgba(255, 239, 200, 0.28),
-        inset 0 -1px 0 rgba(58, 39, 17, 0.52),
-        0 8px 16px rgba(8, 6, 3, 0.32),
-        0 0 0 1px rgba(174, 127, 64, 0.42) !important;
+        inset 0 1px 0 rgba(228, 238, 252, 0.2),
+        inset 0 -1px 0 rgba(20, 30, 46, 0.58),
+        0 4px 10px rgba(6, 14, 24, 0.28) !important;
+}
+
+.action-hub-desktop-btn--cannot-act:focus-visible {
+    outline: none;
+    border-color: rgba(204, 234, 255, 0.98) !important;
+    box-shadow:
+        inset 0 1px 0 rgba(244, 251, 255, 0.38),
+        inset 0 -1px 0 rgba(20, 30, 46, 0.62),
+        0 0 0 2px rgba(85, 170, 255, 0.38),
+        0 10px 20px rgba(6, 14, 25, 0.42) !important;
 }
 
 .action-hub-desktop-btn--cannot-act-extra {
-    border-color: rgba(242, 207, 136, 0.92) !important;
+    border-color: rgba(190, 221, 255, 0.88) !important;
     background:
-        radial-gradient(150% 100% at 50% 0%, rgba(255, 229, 162, 0.24), rgba(255, 229, 162, 0) 56%),
-        linear-gradient(180deg, rgba(95, 68, 33, 0.98), rgba(48, 33, 16, 0.99)),
-        url('/assets/ui/panel-ornament.svg') center/cover no-repeat !important;
+        radial-gradient(130% 86% at 50% -28%, rgba(205, 236, 255, 0.36), rgba(255, 255, 255, 0) 62%),
+        linear-gradient(180deg, #5f7a98 0%, #45607e 54%, #344a66 100%) !important;
     box-shadow:
-        inset 0 1px 0 rgba(255, 247, 220, 0.42),
-        inset 0 0 26px rgba(191, 138, 59, 0.23),
-        0 12px 24px rgba(9, 7, 3, 0.42),
-        0 0 0 1px rgba(208, 154, 73, 0.58) !important;
-    animation: cannotActExtraGlow 2.1s ease-in-out infinite;
+        inset 0 1px 0 rgba(235, 248, 255, 0.35),
+        inset 0 -1px 0 rgba(18, 33, 50, 0.6),
+        0 10px 18px rgba(7, 16, 29, 0.38) !important;
 }
 
 .cannot-act-btn__kicker,
 .cannot-act-btn__label {
+    display: block;
+    max-width: 100%;
+    text-align: center;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
     position: relative;
     z-index: 1;
 }
 
 .cannot-act-btn__kicker {
+    font-size: 10px;
+    line-height: 1.15;
+    font-weight: 700;
+    letter-spacing: 0.05em;
     padding: 1px 7px;
     border-radius: 999px;
-    border: 1px solid rgba(255, 232, 180, 0.32);
-    background: linear-gradient(180deg, rgba(253, 229, 172, 0.16), rgba(253, 229, 172, 0.05));
-    font-size: 9px;
-    line-height: 1.1;
-    font-weight: 700;
-    letter-spacing: 0.07em;
-    color: rgba(252, 227, 177, 0.92);
+    border: 1px solid rgba(202, 217, 237, 0.34);
+    background: rgba(8, 20, 33, 0.26);
+    color: rgba(224, 237, 252, 0.96);
 }
 
 .cannot-act-btn__label {
-    font-size: 12px;
-    line-height: 1.15;
-    font-weight: 900;
-    letter-spacing: 0.03em;
-    color: #fff3da;
+    font-size: 12.5px;
+    line-height: 1.2;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: #f3f8ff;
 }
 
-@keyframes cannotActExtraGlow {
-    0%,
-    100% {
-        box-shadow:
-            inset 0 1px 0 rgba(255, 247, 220, 0.42),
-            inset 0 0 22px rgba(191, 138, 59, 0.2),
-            0 11px 22px rgba(9, 7, 3, 0.38),
-            0 0 0 1px rgba(206, 152, 72, 0.5);
-    }
-    50% {
-        box-shadow:
-            inset 0 1px 0 rgba(255, 250, 230, 0.5),
-            inset 0 0 30px rgba(208, 151, 63, 0.28),
-            0 14px 28px rgba(9, 7, 3, 0.46),
-            0 0 0 1px rgba(226, 170, 85, 0.74);
-    }
+.action-hub-desktop-btn--cannot-act-extra .cannot-act-btn__kicker {
+    border-color: rgba(203, 233, 255, 0.44);
+    background: rgba(8, 24, 40, 0.34);
+    color: rgba(227, 244, 255, 0.98);
 }
 
 .debug-toggle-btn {
@@ -2471,17 +2476,18 @@ function basicEffectSummary(playerId: string): string {
     }
 
     .action-hub-desktop-btn--cannot-act {
-        min-height: 40px;
-        padding: 5px 7px !important;
+        min-height: 44px;
+        padding: 5px 8px !important;
     }
 
     .cannot-act-btn__kicker {
-        font-size: 8px;
-        padding: 1px 6px;
+        font-size: 9px;
+        padding: 1px 5px;
     }
 
     .cannot-act-btn__label {
         font-size: 11px;
+        letter-spacing: 0.03em;
     }
 
     .action-image-btn {

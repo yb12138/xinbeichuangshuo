@@ -30,7 +30,7 @@ export function useBattleInteractionState() {
   const interruptStore = useInterruptStore()
 
   const { myPlayerId, myCamp, myCharRole } = storeToRefs(sessionStore)
-  const { currentPlayer, players, characters, availableSkills } = storeToRefs(snapshotStore)
+  const { currentPlayer, turnStage, players, characters, availableSkills } = storeToRefs(snapshotStore)
   const {
     currentPrompt,
     actionMode,
@@ -76,13 +76,44 @@ export function useBattleInteractionState() {
       exclusive_skill1?: string
       exclusive_skill2?: string
     },
-    charName: string,
-    skillTitle: string
+    roleId: string,
+    skillTitle: string,
+    roleName?: string
   ): boolean {
-    if (!card || !charName || !skillTitle) return false
+    if (!card || !roleId || !skillTitle) return false
+    const normalize = (text?: string): string => String(text || '').trim()
+    const roleCandidates = new Set<string>()
+    const pushCandidate = (value?: string) => {
+      const raw = normalize(value)
+      if (!raw) return
+      roleCandidates.add(raw)
+      roleCandidates.add(raw.toLowerCase())
+      // 兼容：如果传入的是中文名，补充对应角色 ID；如果传入的是角色 ID，补充中文名。
+      for (const [id, name] of Object.entries(ROLE_NAME_MAP)) {
+        if (raw === id || raw === id.toLowerCase()) {
+          roleCandidates.add(name)
+          break
+        }
+        if (raw === name) {
+          roleCandidates.add(id)
+          roleCandidates.add(id.toLowerCase())
+          break
+        }
+      }
+    }
+    pushCandidate(roleId)
+    pushCandidate(roleName)
+
+    const cardChar1 = normalize(card.exclusive_char1)
+    const cardChar2 = normalize(card.exclusive_char2)
+    const skill1 = normalize(card.exclusive_skill1)
+    const skill2 = normalize(card.exclusive_skill2)
+    const expectedSkill = normalize(skillTitle)
     return (
-      (card.exclusive_char1 === charName && card.exclusive_skill1 === skillTitle) ||
-      (card.exclusive_char2 === charName && card.exclusive_skill2 === skillTitle)
+      (roleCandidates.has(cardChar1) && skill1 === expectedSkill) ||
+      (roleCandidates.has(cardChar1.toLowerCase()) && skill1 === expectedSkill) ||
+      (roleCandidates.has(cardChar2) && skill2 === expectedSkill) ||
+      (roleCandidates.has(cardChar2.toLowerCase()) && skill2 === expectedSkill)
     )
   }
 
@@ -186,16 +217,23 @@ export function useBattleInteractionState() {
   )
 
   const effectiveAvailableSkills = computed((): AvailableSkill[] => {
+    // 行动阶段且轮到自己时，主动技可用性以后端 available_skills 为准（包含空列表）。
+    // 避免前端 fallback 重新“猜”规则导致与后端可用态漂移。
+    if (isMyTurn.value && turnStage.value === 'ActionExecution') {
+      return availableSkills.value
+    }
     if (availableSkills.value.length > 0) return availableSkills.value
-    const char = getCharacter(myCharRole.value)
+    const roleLookup = myCharRole.value || myPlayer.value?.role || ''
+    const char = getCharacter(roleLookup)
     if (!char?.skills?.length) return []
-    const charName = char.name
+    const roleId = myCharRole.value || char.id
+    const roleName = char.name
     const actionSkills = char.skills.filter((skill: { type?: number }) => (skill.type ?? 2) === 2)
     return actionSkills
       .filter((skill: SkillView) => {
         if (!skill.require_exclusive) return true
-        return myHand.value.some((card) => cardMatchesExclusive(card, charName, skill.title)) ||
-          myExclusiveCards.value.some((card) => cardMatchesExclusive(card, charName, skill.title))
+        return myHand.value.some((card) => cardMatchesExclusive(card, roleId, skill.title, roleName)) ||
+          myExclusiveCards.value.some((card) => cardMatchesExclusive(card, roleId, skill.title, roleName))
       })
       .map((skill: SkillView) => {
         const targetType = skill.target_type ?? 0
