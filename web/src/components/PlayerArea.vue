@@ -336,11 +336,13 @@ function handleClick(e: MouseEvent) {
       :src="characterImageSrc"
       :alt="charInfo?.name || player.name"
       class="character-portrait-fill"
+      :class="{ 'character-portrait-fill--form': !!formIndicator }"
       @error="onCharImageError"
     >
     <div
       v-else
       class="character-portrait-placeholder-fill"
+      :class="{ 'character-portrait-placeholder-fill--form': !!formIndicator }"
     >
       {{ (charInfo?.name || player.name || '?').charAt(0) }}
     </div>
@@ -487,6 +489,12 @@ function handleClick(e: MouseEvent) {
   object-fit: cover;
   object-position: center 32%;
   z-index: 1;
+  transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transform-origin: center center;
+}
+
+.character-portrait-fill--form {
+  transform: rotate(-90deg) scale(0.61);
 }
 
 .character-portrait-placeholder-fill {
@@ -500,6 +508,12 @@ function handleClick(e: MouseEvent) {
   font-weight: 700;
   font-size: 28px;
   z-index: 1;
+  transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transform-origin: center center;
+}
+
+.character-portrait-placeholder-fill--form {
+  transform: rotate(-90deg) scale(0.61);
 }
 
 .turn-order-badge {
