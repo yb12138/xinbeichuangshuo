@@ -57,5 +57,12 @@ func (e *GameEngine) handleFrostPrayerChoice(selectionIndex int, ctxData map[str
 	e.Heal(targetID, 1)
 	e.Log(fmt.Sprintf("%s 的 [冰霜祷言] 生效：%s +1治疗", user.Name, target.Name))
 	e.PopInterrupt()
+	if e.State.PendingInterrupt == nil {
+		if rawCtx, _ := ctxData["user_ctx"].(*model.Context); rawCtx != nil && rawCtx.ResumeAttackMissPhase() {
+			if e.resumePendingAttackMiss(rawCtx) {
+				return nil
+			}
+		}
+	}
 	return nil
 }

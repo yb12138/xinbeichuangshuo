@@ -145,6 +145,65 @@ func TestArcher_PiercingShot_NotPromptedOnHit(t *testing.T) {
 	}
 }
 
+func TestArcher_PiercingShot_PromptedWhenMissByShieldBlock(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "Archer", "archer", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	game.State.CurrentTurn = 0
+	game.State.Deck = rules.InitDeck()
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p2.TurnState = model.NewPlayerTurnState()
+	p2.Heal = 0
+
+	p1.Hand = []model.Card{
+		{ID: "atk", Name: "箭", Type: model.CardTypeAttack, Element: model.ElementWind, Damage: 2},
+		{ID: "spell", Name: "水镜", Type: model.CardTypeMagic, Element: model.ElementWater},
+	}
+	p2.Field = []*model.FieldCard{
+		{
+			Card: model.Card{
+				ID:      "shield_field_1",
+				Name:    "圣盾",
+				Type:    model.CardTypeMagic,
+				Element: model.ElementEarth,
+			},
+			OwnerID:  "p2",
+			SourceID: "p2",
+			Mode:     model.FieldEffect,
+			Effect:   model.EffectShield,
+			Hook:     model.FieldHookOnDamaged,
+			Duration: 1,
+		},
+	}
+
+	if err := game.HandleAction(model.PlayerAction{
+		PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardIndex: 0,
+	}); err != nil {
+		t.Fatalf("archer attack failed: %v", err)
+	}
+
+	if err := game.HandleAction(model.PlayerAction{
+		PlayerID: "p2", Type: model.CmdRespond, ExtraArgs: []string{"take"},
+	}); err != nil {
+		t.Fatalf("take response failed: %v", err)
+	}
+
+	requireResponseSkillPrompt(t, game, "p1")
+	if !hasSkillID(game.State.PendingInterrupt.SkillIDs, "piercing_shot") {
+		t.Fatalf("expected piercing_shot in response skills when attack is blocked by shield, got %+v", game.State.PendingInterrupt.SkillIDs)
+	}
+}
+
 func TestArcher_LightningArrow_DisablesCounterButAllowsDefend(t *testing.T) {
 	game := NewGameEngine(noopObserver{})
 	if err := game.AddPlayer("p1", "Archer", "archer", model.RedCamp); err != nil {
@@ -253,5 +312,55 @@ func TestArcher_PreciseShot_AutoAppliesForceHit(t *testing.T) {
 	}
 	if p2.Hand[0].Name != "圣光" || p2.Hand[1].Name != "风斩" {
 		t.Fatalf("expected defender response cards to remain unused, hand=%+v", p2.Hand)
+	}
+}
+
+func TestArcher_PreciseShot_ForceHitSkipsShield(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "Archer", "archer", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	game.State.CurrentTurn = 0
+	game.State.Deck = rules.InitDeck()
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p2.TurnState = model.NewPlayerTurnState()
+	p2.Heal = 0
+
+	p1.Hand = []model.Card{{
+		ID:              "precise-shot-card",
+		Name:            "精准射击",
+		Type:            model.CardTypeAttack,
+		Element:         model.ElementWind,
+		Damage:          2,
+		ExclusiveChar1:  "archer",
+		ExclusiveSkill1: "精准射击",
+	}}
+	p2.Field = append(p2.Field, &model.FieldCard{
+		Card:   model.Card{ID: "shield-1", Name: "圣盾", Type: model.CardTypeMagic, Element: model.ElementLight},
+		Mode:   model.FieldEffect,
+		Effect: model.EffectShield,
+	})
+	redGemsBefore := game.State.RedGems
+
+	if err := game.HandleAction(model.PlayerAction{
+		PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardIndex: 0,
+	}); err != nil {
+		t.Fatalf("precise shot attack failed: %v", err)
+	}
+
+	if game.State.RedGems <= redGemsBefore {
+		t.Fatalf("expected precise shot force-hit to count as hit and add gem, gems before=%d after=%d", redGemsBefore, game.State.RedGems)
+	}
+	if !p2.HasFieldEffect(model.EffectShield) {
+		t.Fatalf("expected shield to remain when force-hit ignores shield")
 	}
 }

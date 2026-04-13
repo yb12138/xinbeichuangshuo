@@ -24,7 +24,7 @@ func TestPendingDamage_PoisonDoesNotConsumeHolyShield(t *testing.T) {
 		SourceID: p1.ID,
 		Mode:     model.FieldEffect,
 		Effect:   model.EffectShield,
-		Hook: model.FieldHookOnDamaged,
+		Hook:     model.FieldHookOnDamaged,
 	}}
 	game.State.PendingDamageQueue = []model.PendingDamage{{
 		SourceID:   "p2",
@@ -100,7 +100,7 @@ func TestAngelCleanse_CanPickSpecificBasicEffect(t *testing.T) {
 	}
 }
 
-func TestAngelCleanse_InvalidTargetDoesNotConsumeDiscard(t *testing.T) {
+func TestAngelCleanse_NoBasicEffectSkipsRemovalStep(t *testing.T) {
 	game := NewGameEngine(noopObserver{})
 	if err := game.AddPlayer("p1", "Angel", "angel", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -117,21 +117,23 @@ func TestAngelCleanse_InvalidTargetDoesNotConsumeDiscard(t *testing.T) {
 	p1.TurnState = model.NewPlayerTurnState()
 	p1.Hand = []model.Card{{ID: "wind-1", Name: "风牌", Type: model.CardTypeMagic, Element: model.ElementWind}}
 
-	err := game.HandleAction(model.PlayerAction{
+	if err := game.HandleAction(model.PlayerAction{
 		PlayerID:   "p1",
 		Type:       model.CmdSkill,
 		SkillID:    "angel_cleanse",
 		TargetIDs:  []string{"p2"},
 		Selections: []int{0},
-	})
-	if err == nil || !strings.Contains(err.Error(), "没有可移除的基础效果") {
-		t.Fatalf("expected angel_cleanse invalid target error, got err=%v", err)
+	}); err != nil {
+		t.Fatalf("angel_cleanse should succeed when no basic effect exists, got err=%v", err)
 	}
-	if len(p1.Hand) != 1 {
-		t.Fatalf("wind cleanse should not consume discard on invalid target, hand=%d", len(p1.Hand))
+	if game.State.PendingInterrupt != nil {
+		t.Fatalf("expected no follow-up choice interrupt when no basic effect exists, got %+v", game.State.PendingInterrupt)
 	}
-	if len(game.State.DiscardPile) != 0 {
-		t.Fatalf("wind cleanse should not discard any card on invalid target, discard=%d", len(game.State.DiscardPile))
+	if len(p1.Hand) != 0 {
+		t.Fatalf("wind cleanse should still consume discard, hand=%d", len(p1.Hand))
+	}
+	if len(game.State.DiscardPile) != 1 {
+		t.Fatalf("wind cleanse should place discard into pile, discard=%d", len(game.State.DiscardPile))
 	}
 }
 
@@ -186,7 +188,7 @@ func TestAngelBond_IgnoresSystemBuffRemoval(t *testing.T) {
 		SourceID: "p2",
 		Mode:     model.FieldEffect,
 		Effect:   model.EffectPoison,
-		Hook: model.FieldHookOnBeforeAction,
+		Hook:     model.FieldHookOnBeforeAction,
 	})
 
 	if !game.RemoveFieldCardBy("p1", model.EffectPoison, "") {

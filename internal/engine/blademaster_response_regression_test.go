@@ -227,6 +227,281 @@ func TestBladeMaster_WindFury_StillRunsWithoutRemainingWindAttack(t *testing.T) 
 	}
 }
 
+// 回归测试：若疾风技已提供额外攻击行动，取消风怒追击不应吞掉这次额外行动。
+func TestBladeMaster_GaleSkillExtraAction_PreservedWhenWindFuryCanceled(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "BladeMaster", "blade_master", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Dummy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	game.State.CurrentTurn = 0
+	game.State.Deck = rules.InitDeck()
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p2.Heal = 0
+
+	// 第一张为带“疾风技”的独有攻击牌；第二张用于验证额外行动仍可执行。
+	p1.Hand = []model.Card{
+		{
+			ID:              "gale-attack",
+			Name:            "疾风斩",
+			Type:            model.CardTypeAttack,
+			Element:         model.ElementWind,
+			Damage:          1,
+			ExclusiveChar1:  "blade_master",
+			ExclusiveSkill1: "疾风技",
+		},
+		{
+			ID:      "follow-attack",
+			Name:    "火斩",
+			Type:    model.CardTypeAttack,
+			Element: model.ElementFire,
+			Damage:  1,
+		},
+	}
+
+	if err := game.HandleAction(model.PlayerAction{
+		PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardIndex: 0,
+	}); err != nil {
+		t.Fatalf("gale attack failed: %v", err)
+	}
+	if err := game.HandleAction(model.PlayerAction{
+		PlayerID: "p2", Type: model.CmdRespond, ExtraArgs: []string{"take"},
+	}); err != nil {
+		t.Fatalf("take failed: %v", err)
+	}
+
+	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptResponseSkill {
+		t.Fatalf("expected response prompt after attack end, got %+v", game.State.PendingInterrupt)
+	}
+	if len(game.State.PendingInterrupt.SkillIDs) != 1 || game.State.PendingInterrupt.SkillIDs[0] != "wind_fury" {
+		t.Fatalf("expected only wind_fury after attack end, got %+v", game.State.PendingInterrupt.SkillIDs)
+	}
+	if len(p1.TurnState.PendingActions) == 0 {
+		t.Fatalf("expected gale_skill to append extra attack token before wind_fury response")
+	}
+
+	if err := game.HandleAction(model.PlayerAction{
+		PlayerID: "p1", Type: model.CmdCancel,
+	}); err != nil {
+		t.Fatalf("cancel wind_fury failed: %v", err)
+	}
+
+	// HandleAction 会自动 Drive；取消后应继续保留疾风技带来的额外行动窗口。
+	if game.State.CurrentTurn != 0 {
+		t.Fatalf("expected turn to stay on p1 after cancel, got turn=%d", game.State.CurrentTurn)
+	}
+	if game.State.TurnStage != model.TurnStageActionExecution {
+		t.Fatalf("expected to resume action execution for extra action, got %s", game.State.TurnStage)
+	}
+	if p1.TurnState.CurrentExtraAction != "Attack" {
+		t.Fatalf("expected current extra action Attack after cancel, got %q", p1.TurnState.CurrentExtraAction)
+	}
+}
+
+// 回归测试：攻击被圣盾抵挡（未命中）时，取消风怒追击也不应吞掉疾风技额外行动。
+func TestBladeMaster_GaleSkillExtraAction_PreservedWhenWindFuryCanceled_AfterShieldMiss(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "BladeMaster", "blade_master", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Dummy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	game.State.CurrentTurn = 0
+	game.State.Deck = rules.InitDeck()
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p2.Heal = 0
+	p2.AddFieldCard(&model.FieldCard{
+		Mode:   model.FieldEffect,
+		Effect: model.EffectShield,
+		Card: model.Card{
+			ID:      "shield-card",
+			Name:    "圣盾",
+			Type:    model.CardTypeMagic,
+			Element: model.ElementLight,
+		},
+	})
+
+	p1.Hand = []model.Card{
+		{
+			ID:              "gale-attack",
+			Name:            "疾风斩",
+			Type:            model.CardTypeAttack,
+			Element:         model.ElementWind,
+			Damage:          1,
+			ExclusiveChar1:  "blade_master",
+			ExclusiveSkill1: "疾风技",
+		},
+		{
+			ID:      "follow-attack",
+			Name:    "火斩",
+			Type:    model.CardTypeAttack,
+			Element: model.ElementFire,
+			Damage:  1,
+		},
+	}
+
+	if err := game.HandleAction(model.PlayerAction{
+		PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardIndex: 0,
+	}); err != nil {
+		t.Fatalf("gale attack failed: %v", err)
+	}
+	// 选择承受，随后由圣盾自动抵挡并走未命中分支。
+	if err := game.HandleAction(model.PlayerAction{
+		PlayerID: "p2", Type: model.CmdRespond, ExtraArgs: []string{"take"},
+	}); err != nil {
+		t.Fatalf("take failed: %v", err)
+	}
+
+	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptResponseSkill {
+		t.Fatalf("expected response prompt after shield miss action end, got %+v", game.State.PendingInterrupt)
+	}
+	if len(game.State.PendingInterrupt.SkillIDs) != 1 || game.State.PendingInterrupt.SkillIDs[0] != "wind_fury" {
+		t.Fatalf("expected only wind_fury after shield miss action end, got %+v", game.State.PendingInterrupt.SkillIDs)
+	}
+	if len(p1.TurnState.PendingActions) == 0 {
+		t.Fatalf("expected gale_skill extra attack token before cancel")
+	}
+
+	if err := game.HandleAction(model.PlayerAction{
+		PlayerID: "p1", Type: model.CmdCancel,
+	}); err != nil {
+		t.Fatalf("cancel wind_fury failed: %v", err)
+	}
+
+	if game.State.CurrentTurn != 0 {
+		t.Fatalf("expected turn to stay on p1 after cancel, got turn=%d", game.State.CurrentTurn)
+	}
+	if game.State.TurnStage != model.TurnStageActionExecution {
+		t.Fatalf("expected to resume action execution for extra action, got %s", game.State.TurnStage)
+	}
+	if p1.TurnState.CurrentExtraAction != "Attack" {
+		t.Fatalf("expected current extra action Attack after cancel, got %q", p1.TurnState.CurrentExtraAction)
+	}
+}
+
+// 回归测试：若历史分支遗留 LastActionType，取消风怒追击后不应再次重入同一 ActionEnd 响应窗口。
+func TestBladeMaster_WindFuryCancel_WithStaleLastActionType_NoRepromptAndKeepExtraAction(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "BladeMaster", "blade_master", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Dummy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	// 模拟疾风技已提供额外攻击行动。
+	model.AppendAttackAction(p1, "疾风技")
+	// 模拟某旧分支遗留了 LastActionType，导致状态机会尝试 ActionEnd 补结算。
+	p1.TurnState.LastActionType = string(model.ActionAttack)
+
+	eventCtx := &model.EventContext{
+		Type:       model.EventPhaseEnd,
+		SourceID:   "p1",
+		ActionType: model.ActionAttack,
+		AttackInfo: &model.AttackEventInfo{
+			ActionType:       string(model.ActionAttack),
+			CounterInitiator: "",
+		},
+	}
+	userCtx := game.buildContext(p1, nil, model.TimingOnActionEnd, eventCtx)
+	game.State.PendingInterrupt = &model.Interrupt{
+		Type:     model.InterruptResponseSkill,
+		PlayerID: "p1",
+		SkillIDs: []string{"wind_fury"},
+		Context:  userCtx,
+	}
+
+	if err := game.HandleAction(model.PlayerAction{
+		PlayerID: "p1",
+		Type:     model.CmdCancel,
+	}); err != nil {
+		t.Fatalf("cancel wind_fury failed: %v", err)
+	}
+
+	if game.State.PendingInterrupt != nil {
+		t.Fatalf("expected no reprompt after cancel, got %+v", game.State.PendingInterrupt)
+	}
+	if game.State.CurrentTurn != 0 {
+		t.Fatalf("expected turn stay on p1, got %d", game.State.CurrentTurn)
+	}
+	if game.State.TurnStage != model.TurnStageActionExecution {
+		t.Fatalf("expected resume to action execution(extra action), got %s", game.State.TurnStage)
+	}
+	if p1.TurnState.CurrentExtraAction != "Attack" {
+		t.Fatalf("expected current extra action Attack, got %q", p1.TurnState.CurrentExtraAction)
+	}
+}
+
+// 回归测试：弃牌型恢复链路若落在 ActionEnd，上下文恢复应清理 LastActionType，避免同轮重复 ActionEnd 补结算。
+func TestBladeMaster_DiscardContextResume_OnActionEnd_ClearsLastActionCatchup(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "BladeMaster", "blade_master", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Dummy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Hand = []model.Card{
+		{ID: "wind-1", Name: "风斩", Type: model.CardTypeAttack, Element: model.ElementWind, Damage: 1},
+	}
+	p1.TurnState.LastActionType = string(model.ActionAttack)
+	p1.TurnState.LastActionCard = &model.Card{ID: "attack-ended", Name: "已结束攻击", Type: model.CardTypeAttack, Element: model.ElementWind, Damage: 1}
+
+	ctx := game.buildContext(p1, nil, model.TimingOnActionEnd, &model.EventContext{
+		Type:       model.EventPhaseEnd,
+		SourceID:   p1.ID,
+		ActionType: model.ActionAttack,
+		AttackInfo: &model.AttackEventInfo{
+			ActionType:       string(model.ActionAttack),
+			CounterInitiator: "",
+		},
+	})
+	ctx.Selections["response_resume_phase"] = model.TurnStageActionEnd
+
+	if ok := game.resumePhaseAfterSkillDiscardContext(ctx); !ok {
+		t.Fatalf("expected discard-context resume handled")
+	}
+	if got := p1.TurnState.LastActionType; got != "" {
+		t.Fatalf("expected LastActionType cleared during resume, got %q", got)
+	}
+	if p1.TurnState.LastActionCard != nil {
+		t.Fatalf("expected LastActionCard cleared during resume")
+	}
+
+	game.Drive()
+	if game.State.PendingInterrupt != nil {
+		t.Fatalf("expected no duplicated action-end response reprompt, got %+v", game.State.PendingInterrupt)
+	}
+}
+
 // 回归测试：多个可响应技能时，确认其中一个后应先结算并弹出当前响应中断，
 // 再继续后续中断/剩余响应技能，而不是停留在同一个响应中断里原地重选。
 func TestBladeMaster_MultiResponse_ConfirmOneSettlesBeforeRemaining(t *testing.T) {

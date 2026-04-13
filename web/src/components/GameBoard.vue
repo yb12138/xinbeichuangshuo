@@ -36,6 +36,7 @@ const {
   targetablePlayersForSkill,
   canTargetOpponent,
   getRoleDisplayName,
+  cardMatchesExclusive,
 } = useBattleInteractionState()
 
 const {
@@ -223,6 +224,14 @@ function isMagicBulletCard(cardIdx: number): boolean {
   return !!card && card.type === 'Magic' && card.name === '魔弹'
 }
 
+const SKILL_REQUIRE_MANUAL_TARGET_CONFIRM_IDS = new Set([
+  'water_seal',
+  'fire_seal',
+  'earth_seal',
+  'wind_seal',
+  'thunder_seal',
+])
+
 function moraleDeltaLabel(delta: number): string {
   return delta > 0 ? `+${delta}` : `${delta}`
 }
@@ -282,7 +291,10 @@ function isActionSelectionPrompt(prompt: Prompt | null): boolean {
   if (!prompt) return false
   if (prompt.ui_mode === 'action_hub') return true
   if (prompt.type !== 'confirm') return false
-  if (!String(prompt.message || '').includes('行动类型')) return false
+  const normalizedMessage = String(prompt.message || '').trim()
+  // 仅识别主流程“请选择行动类型”提示；
+  // 避免把【圣疗】“请选择额外行动类型”误判成行动枢纽。
+  if (!normalizedMessage.includes('请选择行动类型')) return false
   return (prompt.options || []).some((option: any) => normalizeActionHubOptionId(option) !== null)
 }
 
@@ -620,6 +632,9 @@ function playerSelectState(playerId: string): PlayerSelectState {
   }
 
   if (prompt && isPromptForMe.value && !promptIsActionHub) {
+    if (prompt.type === 'choose_skill') {
+      return { selectable: false, reason: 'prompt_choose_skill_requires_button' }
+    }
     const idx = promptOptionIndexForPlayer(playerId)
     if (prompt.type === 'choose_target') {
       if (idx >= 0) return { selectable: true, reason: `prompt_choose_target_option_${idx}` }
@@ -698,6 +713,10 @@ function onTargetClick(playerId: string) {
   })
   
   if (prompt && isPromptForMe.value && !promptIsActionHub) {
+    if (prompt.type === 'choose_skill') {
+      logTargetDebug('prompt_choose_skill_ignore_target_click', { playerId })
+      return
+    }
     if (prompt.type === 'choose_target') {
       const promptIdx = promptOptionIndexForPlayer(playerId, true)
       if (promptIdx >= 0) {
@@ -733,29 +752,73 @@ function onTargetClick(playerId: string) {
 
   // 技能选目标模式
   if (skillMode.value === 'choosing_target' && selectedSkill.value) {
-    if (targetablePlayersForSkill.value.some(p => p.id === playerId)) {
-      interruptStore.toggleSkillTarget(playerId)
-      logTargetDebug('skill_target_toggled', {
-        playerId,
-        skillId: selectedSkill.value.id,
-        skillTargets: [...skillTargetIds.value]
-      })
-      // 单目标技能选中后自动发动
-      if (selectedSkill.value.max_targets === 1 && skillTargetIds.value.length === 1) {
-        logTargetDebug('skill_target_auto_use', {
-          playerId,
-          skillId: selectedSkill.value.id
-        })
-        const skillId = selectedSkill.value.id
-        const targetIds = [...skillTargetIds.value]
-        // 技能已提交后立即退出选择态，避免等待下一步 prompt 期间重复发送 Skill。
-        actions.submitUseSkill(skillId, targetIds, undefined, { clearSkillMode: true })
-      }
-    } else {
+    const isCandidate = targetablePlayersForSkill.value.some((p) => p.id === playerId)
+    if (!isCandidate) {
       logTargetDebug('skill_target_blocked_not_candidate', {
         playerId,
         candidates: targetablePlayersForSkill.value.map(p => p.id)
       })
+      return
+    }
+
+    const skill = selectedSkill.value
+    const requiresManualConfirm = SKILL_REQUIRE_MANUAL_TARGET_CONFIRM_IDS.has(skill.id)
+    const fallbackMinTargets = skill.target_type >= 2 ? 1 : 0
+    const minTargets = (skill.min_targets || 0) > 0 ? (skill.min_targets || 0) : fallbackMinTargets
+    const maxTargets = (skill.max_targets || 0) > 0 ? (skill.max_targets || 0) : 1
+    const currentTargets = [...skillTargetIds.value]
+    const alreadySelected = currentTargets.includes(playerId)
+
+    if (alreadySelected) {
+      // 头像模式下：范围多目标技能通过“再次点击已选目标”来确认发动。
+      if (!requiresManualConfirm && currentTargets.length >= minTargets && currentTargets.length > 0) {
+        logTargetDebug('skill_target_confirm_by_rec_click', {
+          playerId,
+          skillId: skill.id,
+          minTargets,
+          maxTargets,
+          skillTargets: currentTargets,
+        })
+        const selections = skillDiscardIndices.value.length > 0 ? [...skillDiscardIndices.value] : undefined
+        actions.submitUseSkill(skill.id, currentTargets, selections, { clearSkillMode: true })
+        return
+      }
+      const nextTargets = currentTargets.filter((id) => id !== playerId)
+      interruptStore.setSkillTargetIds(nextTargets)
+      logTargetDebug('skill_target_unselected', {
+        playerId,
+        skillId: skill.id,
+        skillTargets: nextTargets,
+      })
+      return
+    }
+
+    let nextTargets = currentTargets
+    if (maxTargets > 0 && nextTargets.length >= maxTargets) {
+      nextTargets = maxTargets === 1 ? [] : nextTargets.slice(-(maxTargets - 1))
+    }
+    nextTargets = [...nextTargets, playerId]
+    interruptStore.setSkillTargetIds(nextTargets)
+    logTargetDebug('skill_target_selected', {
+      playerId,
+      skillId: skill.id,
+      minTargets,
+      maxTargets,
+      requiresManualConfirm,
+      skillTargets: nextTargets,
+    })
+
+    const shouldAutoSubmitSingle = !requiresManualConfirm && maxTargets === 1 && nextTargets.length === 1
+    const shouldAutoSubmitExactCount = !requiresManualConfirm && minTargets > 0 && minTargets === maxTargets && nextTargets.length === maxTargets
+    if (shouldAutoSubmitSingle || shouldAutoSubmitExactCount) {
+      logTargetDebug('skill_target_auto_use', {
+        playerId,
+        skillId: skill.id,
+        minTargets,
+        maxTargets,
+      })
+      const selections = skillDiscardIndices.value.length > 0 ? [...skillDiscardIndices.value] : undefined
+      actions.submitUseSkill(skill.id, nextTargets, selections, { clearSkillMode: true })
     }
     return
   }
@@ -972,9 +1035,79 @@ function promptCardSelectionState(idx: number): PromptCardSelectionState {
   return { selectable: false, reason: 'prompt_not_card_selection' }
 }
 
+function cardPassesSkillDiscardRules(idx: number): PromptCardSelectionState {
+  const skill = selectedSkill.value
+  const card = myHand.value[idx]
+  if (!skill || !card) {
+    return { selectable: false, reason: 'skill_discard_no_skill_or_card' }
+  }
+  if (skill.require_exclusive) {
+    const roleId = String(sessionStore.myCharRole || myAreaPlayer.value?.role || '').trim()
+    if (!roleId || !cardMatchesExclusive(card, roleId, skill.title)) {
+      return {
+        selectable: false,
+        reason: 'skill_discard_exclusive_mismatch',
+        error: `必须使用标有「${skill.title}」的独有牌`,
+      }
+    }
+  }
+  if (skill.discard_element && card.element !== skill.discard_element) {
+    return {
+      selectable: false,
+      reason: 'skill_discard_element_mismatch',
+      error: `需要弃置${skill.discard_element}牌`,
+    }
+  }
+  if (skill.discard_type && card.type !== skill.discard_type) {
+    return {
+      selectable: false,
+      reason: 'skill_discard_type_mismatch',
+      error: `需要弃置${skill.discard_type === 'Magic' ? '法术' : '攻击'}牌`,
+    }
+  }
+  if (skill.id === 'magic_bullet_fusion' && card.element !== 'Fire' && card.element !== 'Earth') {
+    return {
+      selectable: false,
+      reason: 'skill_discard_magic_bullet_fusion_mismatch',
+      error: '魔弹融合需要弃置1张火系或地系牌',
+    }
+  }
+  if (skill.id === 'onmyoji_shikigami_descend') {
+    if (!card.faction) {
+      return {
+        selectable: false,
+        reason: 'skill_discard_onmyoji_no_faction',
+        error: '式神降临需要弃置有命格的手牌',
+      }
+    }
+    const selected = skillDiscardIndices.value
+      .map((i) => myHand.value[i])
+      .filter((c): c is NonNullable<typeof c> => !!c)
+    if (selected.length > 0) {
+      const reqFaction = selected[0]?.faction
+      if (reqFaction && card.faction !== reqFaction) {
+        return {
+          selectable: false,
+          reason: 'skill_discard_onmyoji_faction_mismatch',
+          error: '式神降临需要弃置2张命格相同的手牌',
+        }
+      }
+    }
+  }
+  return { selectable: true, reason: 'skill_discard_pass' }
+}
+
+function isCardSelectableForSkillDiscard(idx: number): boolean {
+  if (idx < 0 || idx >= myHand.value.length) return false
+  if (!selectedSkill.value) return false
+  if (skillDiscardIndices.value.includes(idx)) return true
+  if (skillDiscardIndices.value.length >= selectedSkill.value.cost_discards) return false
+  return cardPassesSkillDiscardRules(idx).selectable
+}
+
 function isCardSelectableForAction(idx: number): boolean {
   if (isGameEnded.value) return false
-  if (skillMode.value === 'choosing_discard') return idx < myHand.value.length
+  if (skillMode.value === 'choosing_discard') return isCardSelectableForSkillDiscard(idx)
   if (actionMode.value === 'attack') {
     const card = myPlayableCards.value.find(item => item.index === idx)?.card
     return !!card && card.type === 'Attack'
@@ -1023,37 +1156,13 @@ function onCardClick(idx: number) {
   }
   // 技能弃牌模式：检查元素要求后切换选中
   if (skillMode.value === 'choosing_discard' && selectedSkill.value) {
-    const card = myHand.value[idx]
-    if (!card) return
     const skill = selectedSkill.value
-    // 检查元素要求
-    if (skill.discard_element && card.element !== skill.discard_element) {
-      interruptStore.showError(`需要弃置${skill.discard_element}牌`)
-      return
-    }
-    if (skill.discard_type && card.type !== skill.discard_type) {
-      interruptStore.showError(`需要弃置${skill.discard_type === 'Magic' ? '法术' : '攻击'}牌`)
-      return
-    }
-    if (skill.id === 'magic_bullet_fusion' && card.element !== 'Fire' && card.element !== 'Earth') {
-      interruptStore.showError('魔弹融合需要弃置1张火系或地系牌')
-      return
-    }
-    if (skill.id === 'onmyoji_shikigami_descend' && !skillDiscardIndices.value.includes(idx)) {
-      if (!card.faction) {
-        interruptStore.showError('式神降临需要弃置有命格的手牌')
-        return
+    const state = cardPassesSkillDiscardRules(idx)
+    if (!state.selectable && !skillDiscardIndices.value.includes(idx)) {
+      if (state.error) {
+        interruptStore.showError(state.error)
       }
-      const selected = skillDiscardIndices.value
-        .map((i) => myHand.value[i])
-        .filter((c): c is NonNullable<typeof c> => !!c)
-      if (selected.length > 0) {
-        const reqFaction = selected[0]?.faction
-        if (reqFaction && card.faction !== reqFaction) {
-          interruptStore.showError('式神降临需要弃置2张命格相同的手牌')
-          return
-        }
-      }
+      return
     }
     // 检查是否已选满
     if (!skillDiscardIndices.value.includes(idx) && skillDiscardIndices.value.length >= skill.cost_discards) {

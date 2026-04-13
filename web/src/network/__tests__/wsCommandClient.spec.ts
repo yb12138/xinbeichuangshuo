@@ -150,4 +150,20 @@ describe('createWsCommandClient', () => {
       '[WS][TX] RoomAction: {"action":"select_character","camp":"Red","char_role":"mage"}'
     )
   })
+
+  it('sends cheat discard as Cheat action payload', () => {
+    const { client, sendEnvelope } = buildClient()
+
+    client.cheatDiscard('p2', 3)
+
+    expect(sendEnvelope).toHaveBeenCalledWith({
+      Cmd: 'SubmitAction',
+      Data: {
+        action_type: 'Cheat',
+        targets: [{ target_user_id: 'discard' }],
+        target_ref: 'discard',
+        extra_args: ['p2', '3'],
+      },
+    })
+  })
 })

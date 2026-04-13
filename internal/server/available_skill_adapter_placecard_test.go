@@ -81,3 +81,38 @@ func TestBuildAvailableActionSkills_HeroTauntStillRequiresAngerToken(t *testing.
 	}
 }
 
+func TestBuildAvailableActionSkills_AngelCleanseExposedAsNoTargetSkill(t *testing.T) {
+	room := NewRoom("ANGEL")
+	room.Engine = engine.NewGameEngine(room)
+
+	if err := room.Engine.AddPlayer("p1", "Angel", "angel", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := room.Engine.AddPlayer("p2", "Dummy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	room.Engine.State.CurrentTurn = 0
+	room.Engine.State.TurnStage = model.TurnStageActionExecution
+	p1 := room.Engine.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Hand = append(p1.Hand, model.Card{
+		ID:      "wind-card",
+		Name:    "风牌",
+		Type:    model.CardTypeMagic,
+		Element: model.ElementWind,
+	})
+
+	skills := room.buildAvailableActionSkills("p1")
+	for _, skill := range skills {
+		if skill.ID != "angel_cleanse" {
+			continue
+		}
+		if skill.TargetType != int(model.TargetNone) || skill.MinTargets != 0 || skill.MaxTargets != 0 {
+			t.Fatalf("expected angel_cleanse no-target metadata, got target_type=%d min=%d max=%d", skill.TargetType, skill.MinTargets, skill.MaxTargets)
+		}
+		return
+	}
+	t.Fatalf("expected angel_cleanse available when owning wind card")
+}

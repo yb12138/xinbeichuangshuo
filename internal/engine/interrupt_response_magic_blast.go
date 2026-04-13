@@ -4,7 +4,6 @@ package engine
 
 import (
 	"fmt"
-	"strconv"
 
 	"starcup-engine/internal/model"
 )
@@ -102,7 +101,8 @@ func (e *GameEngine) resolveMagicBlastTargetDiscard(
 
 func (e *GameEngine) resolveMagicBlastTargetChoice(player *model.Player, act model.PlayerAction) (bool, error) {
 	// 目标响应只允许两类输入：
-	// 1) CmdSelect 选择一张法术牌弃置；2) CmdCancel / 选择 refuse 代表不弃牌并承受伤害。
+	// 1) CmdSelect + 手牌索引：选择一张法术牌弃置；
+	// 2) CmdCancel：不弃牌并承受伤害（前端 refuse 按钮映射为 Cancel）。
 	if act.Type == model.CmdCancel {
 		return false, nil
 	}
@@ -110,30 +110,8 @@ func (e *GameEngine) resolveMagicBlastTargetChoice(player *model.Player, act mod
 		return false, fmt.Errorf("请选择弃一张法术牌，或取消并承受伤害")
 	}
 
-	options := magicBlastTargetDiscardOptions(player)
 	selection := act.Selections[0]
-	if selection < 0 || selection >= len(options) {
-		return false, fmt.Errorf("无效的选择")
-	}
-	optionID := options[selection].ID
-	if optionID == "refuse" {
-		return false, nil
-	}
-
-	cardIdx, err := strconv.Atoi(optionID)
-	if err != nil || cardIdx < 0 || cardIdx >= len(player.Hand) {
-		return false, fmt.Errorf("无效的卡牌索引")
-	}
-	card := player.Hand[cardIdx]
-	if card.Type != model.CardTypeMagic {
-		return false, fmt.Errorf("只能弃置法术牌")
-	}
-
-	e.NotifyCardRevealed(player.ID, []model.Card{card}, "discard")
-	player.Hand = append(player.Hand[:cardIdx], player.Hand[cardIdx+1:]...)
-	e.State.DiscardPile = append(e.State.DiscardPile, card)
-	e.Log(fmt.Sprintf("[Skill] %s 弃掉了法术牌 %s", player.Name, card.Name))
-	return true, nil
+	return true, e.discardMagicBlastMagicCard(player, selection)
 }
 
 func (e *GameEngine) resolveMagicBlastCasterForcedDiscard(
@@ -150,14 +128,8 @@ func (e *GameEngine) resolveMagicBlastCasterForcedDiscard(
 		return fmt.Errorf("请选择1张牌弃置")
 	}
 
-	options := magicBlastCasterForcedDiscardOptions(player)
-	selection := act.Selections[0]
-	if selection < 0 || selection >= len(options) {
-		return fmt.Errorf("无效的选择")
-	}
-
-	cardIdx, err := strconv.Atoi(options[selection].ID)
-	if err != nil || cardIdx < 0 || cardIdx >= len(player.Hand) {
+	cardIdx := act.Selections[0]
+	if cardIdx < 0 || cardIdx >= len(player.Hand) {
 		return fmt.Errorf("无效的卡牌索引")
 	}
 	card := player.Hand[cardIdx]
@@ -166,6 +138,21 @@ func (e *GameEngine) resolveMagicBlastCasterForcedDiscard(
 	e.Log(fmt.Sprintf("[Skill] %s 因【魔爆冲击】弃掉了 %s", player.Name, card.Name))
 
 	return e.advanceMagicBlastToNextTarget(data, targetIDs, currentTargetIdx)
+}
+
+func (e *GameEngine) discardMagicBlastMagicCard(player *model.Player, cardIdx int) error {
+	if cardIdx < 0 || cardIdx >= len(player.Hand) {
+		return fmt.Errorf("无效的卡牌索引")
+	}
+	card := player.Hand[cardIdx]
+	if card.Type != model.CardTypeMagic {
+		return fmt.Errorf("只能弃置法术牌")
+	}
+	e.NotifyCardRevealed(player.ID, []model.Card{card}, "discard")
+	player.Hand = append(player.Hand[:cardIdx], player.Hand[cardIdx+1:]...)
+	e.State.DiscardPile = append(e.State.DiscardPile, card)
+	e.Log(fmt.Sprintf("[Skill] %s 弃掉了法术牌 %s", player.Name, card.Name))
+	return nil
 }
 
 func (e *GameEngine) enterMagicBlastCasterForcedDiscard(data map[string]interface{}, casterID string, nextTargetIdx int) error {

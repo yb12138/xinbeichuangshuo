@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { useBattleInteractionState } from '../useBattleInteractionState'
+import { useInterruptStore } from '../../stores/interrupt.store'
 import { useSessionStore } from '../../stores/session.store'
 import { useSnapshotStore } from '../../stores/snapshot.store'
 import type { AvailableSkill, Card, CharacterView, GameStateUpdate, PlayerView, SkillView } from '../../types/game'
@@ -157,3 +158,38 @@ describe('useBattleInteractionState available skill source of truth', () => {
   })
 })
 
+describe('useBattleInteractionState skill target candidates', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
+  it('allows angel_wall to target both ally and enemy players when target_type is any', () => {
+    const sessionStore = useSessionStore()
+    const snapshotStore = useSnapshotStore()
+    const interruptStore = useInterruptStore()
+    sessionStore.setRoomInfo('ROOM', 'p1', 'Red', 'angel')
+
+    const angelWallSkill = buildAvailableSkill({
+      id: 'angel_wall',
+      title: '天使之墙',
+      target_type: 5,
+      min_targets: 1,
+      max_targets: 1,
+      discard_element: undefined,
+      place_effect: 'Shield',
+    })
+
+    snapshotStore.updateGameState(buildState({
+      players: {
+        p1: buildPlayer({ id: 'p1', camp: 'Red', role: 'angel' }),
+        p2: buildPlayer({ id: 'p2', camp: 'Red', role: 'saintess' }),
+        p3: buildPlayer({ id: 'p3', camp: 'Blue', role: 'berserker' }),
+      },
+      available_skills: [angelWallSkill],
+    }))
+    interruptStore.setSelectedSkill(angelWallSkill)
+
+    const interaction = useBattleInteractionState()
+    expect(interaction.targetablePlayersForSkill.value.map((p) => p.id)).toEqual(['p1', 'p2', 'p3'])
+  })
+})

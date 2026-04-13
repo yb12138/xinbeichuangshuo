@@ -250,6 +250,16 @@ export function createWsCommandClient(deps: WsCommandClientDeps) {
     })
   }
 
+  function cheatDiscard(playerId: string, count: number) {
+    const pid = playerId || sessionStore.myPlayerId
+    sendAction({
+      player_id: sessionStore.myPlayerId,
+      type: 'Cheat',
+      target_id: 'discard',
+      extra_args: [pid, String(count)],
+    })
+  }
+
   return {
     sendAction,
     sendRoomAction,
@@ -272,5 +282,6 @@ export function createWsCommandClient(deps: WsCommandClientDeps) {
     cheatGiveByElement,
     cheatGiveByFaction,
     cheatGiveMagicByName,
+    cheatDiscard,
   }
 }

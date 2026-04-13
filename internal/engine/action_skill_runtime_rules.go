@@ -116,10 +116,6 @@ func (e *GameEngine) isActionSkillUsableForExtraMagic(player *model.Player, skil
 		if element < 3 {
 			return false
 		}
-	case "angel_cleanse":
-		if !e.hasAnyBasicFieldEffectTarget() {
-			return false
-		}
 	case "holy_lancer_punishment":
 		hasValidTarget := false
 		for _, playerID := range e.State.PlayerOrder {

@@ -55,12 +55,14 @@ type ResponseOptionKind = 'take' | 'counter' | 'defend' | null
 
 function responseOptionKind(option: { id?: string; label?: string; button_label?: string }): ResponseOptionKind {
   const id = String(option.id || '').trim().toLowerCase()
+  // 魔弹掌控方向选择不是战斗应答（take/defend/counter），避免被“传递”关键词误判为应战。
+  if (id === 'normal' || id === 'reverse') return null
   const label = String(option.label || '').trim()
   const buttonLabel = String(option.button_label || '').trim()
   const text = `${label} ${buttonLabel}`.toLowerCase()
   if (id === 'take' || id === 'take_damage' || text.includes('承受') || text.includes('命中')) return 'take'
   if (id === 'defend' || text.includes('防御')) return 'defend'
-  if (id === 'counter' || text.includes('应战') || text.includes('传递')) return 'counter'
+  if (id === 'counter' || text.includes('应战')) return 'counter'
   return null
 }
 
@@ -237,6 +239,11 @@ function handleOptionClick(optionId: string) {
       showPromptError('当前步骤不可取消，请先完成本次操作')
       return
     }
+    actions.submitCancel()
+    return
+  }
+  if (optionId === 'refuse') {
+    // 魔爆冲击“不弃牌”是规则内显式选项，直接走 Cancel 语义。
     actions.submitCancel()
     return
   }
@@ -463,14 +470,15 @@ type SkillPromptButton = {
   cancel: boolean
 }
 
-type PromptImageButtonKind = 'take' | 'counter' | 'defend' | 'cancel' | 'confirm'
+type PromptImageButtonKind = 'take' | 'counter' | 'defend' | 'cancel' | 'confirm' | 'action'
 
 const PROMPT_IMAGE_BUTTON_CANDIDATES: Record<PromptImageButtonKind, string[]> = {
   take: ['/assets/ui/prompt_btn_take.png'],
   counter: ['/assets/ui/prompt_btn_counter.png'],
   defend: ['/assets/ui/prompt_btn_defend.png'],
-  cancel: ['/assets/ui/prompt_btn_cancel.png'],
-  confirm: ['/assets/ui/prompt_btn_confirm.png'],
+  cancel: ['/assets/ui/action_cancel_btn.png'],
+  confirm: ['/assets/ui/action_confirm.png'],
+  action: ['/assets/ui/action_special_btn.png'],
 }
 
 const promptImageButtonIndex = ref<Record<PromptImageButtonKind, number>>({
@@ -479,6 +487,7 @@ const promptImageButtonIndex = ref<Record<PromptImageButtonKind, number>>({
   defend: 0,
   cancel: 0,
   confirm: 0,
+  action: 0,
 })
 
 const promptImageButtonFailed = ref<Record<PromptImageButtonKind, boolean>>({
@@ -487,6 +496,7 @@ const promptImageButtonFailed = ref<Record<PromptImageButtonKind, boolean>>({
   defend: false,
   cancel: false,
   confirm: false,
+  action: false,
 })
 
 const optionButtonLabelById: Record<string, string> = {
@@ -498,8 +508,8 @@ const optionButtonLabelById: Record<string, string> = {
   take: '命中',
   counter: '应战',
   defend: '防御',
-  normal: '顺序',
-  reverse: '反向',
+  normal: '顺时针',
+  reverse: '逆时针',
   cannot_act: '取消',
   pass: '取消',
 }
@@ -539,10 +549,10 @@ function isDeclineLabel(label: string): boolean {
   if (!text) return false
   const compact = text.replace(/\s+/g, '')
   const lower = compact.toLowerCase()
-  if (compact.includes('不发动') || compact.includes('无法行动')) return true
+  if (compact.includes('不发动') || compact.includes('无法行动') || compact.includes('不弃牌')) return true
   if (compact.startsWith('放弃') || compact.startsWith('跳过') || compact.startsWith('拒绝')) return true
   if (compact === '取消' || compact.startsWith('取消并') || compact.startsWith('取消本次') || compact.startsWith('取消行动')) return true
-  if (lower === 'cancel' || lower === 'pass' || lower === 'skip') return true
+  if (lower === 'cancel' || lower === 'pass' || lower === 'skip' || lower === 'refuse') return true
   return false
 }
 
@@ -554,7 +564,7 @@ function isConfirmLikeLabel(label: string): boolean {
   return false
 }
 
-function promptImageButtonKindByOption(option: { id?: string; label?: string; buttonLabel?: string }): PromptImageButtonKind | null {
+function promptImageButtonKindByOption(option: { id?: string; label?: string; buttonLabel?: string }): PromptImageButtonKind {
   const id = String(option.id || '').trim().toLowerCase()
   const label = String(option.label || '').trim()
   const buttonLabel = String(option.buttonLabel || '').trim()
@@ -573,7 +583,7 @@ function promptImageButtonKindByOption(option: { id?: string; label?: string; bu
   if (id === 'confirm' || id === 'yes') return 'confirm'
   if (id === 'skip' || id === 'cancel' || id === 'no' || id === 'pass' || id === 'cannot_act') return 'cancel'
   if (buttonLabel === '取消' || isDeclineLabel(buttonLabel) || isDeclineLabel(label)) return 'cancel'
-  return null
+  return 'action'
 }
 
 function promptImageButtonAsset(kind: PromptImageButtonKind): string {
@@ -596,12 +606,13 @@ function onPromptImageButtonError(kind: PromptImageButtonKind) {
   promptImageButtonFailed.value[kind] = true
 }
 
-function promptImageButtonFallbackText(kind: PromptImageButtonKind | null): string {
+function promptImageButtonFallbackText(kind: PromptImageButtonKind | null, buttonLabel: string = ''): string {
   if (kind === 'take') return '命'
   if (kind === 'defend') return '防'
   if (kind === 'counter') return '应'
   if (kind === 'cancel') return '消'
   if (kind === 'confirm') return '确'
+  if (kind === 'action') return buttonLabel ? buttonLabel.charAt(0) : '动'
   return ''
 }
 
@@ -636,7 +647,7 @@ function onDockButtonImageError(option: DockButtonOption) {
 }
 
 function dockButtonFallbackText(option: DockButtonOption): string {
-  return promptImageButtonFallbackText(dockButtonImageKind(option))
+  return promptImageButtonFallbackText(dockButtonImageKind(option), option.buttonLabel)
 }
 
 function isPromptConfirmImageReady(): boolean {
@@ -677,7 +688,7 @@ function normalizeButtonLabel(rawLabel: string, optionId: string, optionLabel: s
   if (responseKind === 'take' || lowerId === 'take' || lowerId === 'take_damage' || text.includes('承受') || text.includes('命中')) {
     return '命中'
   }
-  if (responseKind === 'counter' || lowerId === 'counter' || text.includes('应战') || text.includes('传递')) {
+  if (responseKind === 'counter' || lowerId === 'counter' || text.includes('应战')) {
     return '应战'
   }
   if (responseKind === 'defend' || lowerId === 'defend' || text.includes('防御')) {
@@ -1028,14 +1039,25 @@ watch(autoResolveOptionId, (optionId) => {
               {{ option.label === '红宝石' ? '♦ 红宝石' : '🔷 蓝水晶' }}
             </button>
           </div>
-          <button
-            class="prompt-inline-btn prompt-inline-btn--success"
-            :class="{ 'prompt-inline-btn--disabled': selectedExtractIndices.length < (prompt?.min ?? 1) || selectedExtractIndices.length > (prompt?.max ?? 2) }"
-            :disabled="selectedExtractIndices.length < (prompt?.min ?? 1) || selectedExtractIndices.length > (prompt?.max ?? 2)"
-            @click="confirmExtractSelection"
-          >
-            确认提炼（{{ selectedExtractIndices.length }}/{{ prompt?.max ?? 2 }}）
-          </button>
+          <div class="flex justify-center mt-2">
+            <button
+              class="prompt-inline-btn prompt-inline-btn--success action-image-btn"
+              :class="{ 'prompt-inline-btn--disabled': selectedExtractIndices.length < (prompt?.min ?? 1) || selectedExtractIndices.length > (prompt?.max ?? 2) }"
+              :disabled="selectedExtractIndices.length < (prompt?.min ?? 1) || selectedExtractIndices.length > (prompt?.max ?? 2)"
+              @click="confirmExtractSelection"
+              :title="`确认提炼（${selectedExtractIndices.length}/${prompt?.max ?? 2}）`"
+            >
+              <img
+                v-if="isPromptConfirmImageReady()"
+                class="action-image-btn-fill"
+                :src="promptConfirmImageSrc()"
+                alt=""
+                @error="onPromptConfirmImageError"
+              />
+              <span v-else class="action-image-fallback-text">确</span>
+              <span class="action-image-btn-label">确认提炼（{{ selectedExtractIndices.length }}/{{ prompt?.max ?? 2 }}）</span>
+            </button>
+          </div>
         </template>
 
         <template v-else>
@@ -1080,14 +1102,22 @@ watch(autoResolveOptionId, (optionId) => {
               v-for="option in inlinePrimaryButtons"
               :key="option.id"
               class="prompt-inline-entry"
+              :class="{ 'prompt-inline-entry--hinted-numeric': option.numeric && !!option.hint }"
             >
-              <div v-if="option.hint && !shouldHideOptionHint(option)" class="prompt-inline-hint">{{ option.hint }}</div>
+              <div
+                v-if="option.hint && !shouldHideOptionHint(option)"
+                class="prompt-inline-hint"
+                :class="{ 'prompt-inline-hint--hinted-numeric': option.numeric }"
+              >
+                {{ option.hint }}
+              </div>
               <button
                 class="prompt-inline-btn"
                 :class="[
                   isDockButtonImageStyle(option) ? 'action-image-btn' : '',
                   getDockButtonClass(option.id),
                   option.numeric ? 'prompt-inline-btn--numeric' : '',
+                  option.numeric && !!option.hint ? 'prompt-inline-btn--hinted-numeric' : '',
                   isInlineCardOptionSelected(option.id) ? 'prompt-inline-btn--selected' : '',
                   option.disabled ? 'prompt-inline-btn--disabled' : ''
                 ]"
@@ -1106,7 +1136,13 @@ watch(autoResolveOptionId, (optionId) => {
                   <span class="action-image-btn-label">{{ option.buttonLabel }}</span>
                 </template>
                 <template v-else>
-                  {{ option.buttonLabel }}
+                  <template v-if="option.numeric && !!option.hint">
+                    <span class="prompt-inline-btn-number">{{ option.buttonLabel }}</span>
+                    <span class="prompt-inline-btn-caption">选择</span>
+                  </template>
+                  <template v-else>
+                    {{ option.buttonLabel }}
+                  </template>
                 </template>
               </button>
             </div>
@@ -1246,8 +1282,20 @@ watch(autoResolveOptionId, (optionId) => {
   gap: 4px;
 }
 
+.prompt-inline-entry--hinted-numeric {
+  padding: 6px;
+  border-radius: 12px;
+  border: 1px solid rgba(114, 150, 177, 0.3);
+  background:
+    linear-gradient(180deg, rgba(26, 41, 58, 0.78), rgba(17, 30, 45, 0.82));
+  box-shadow:
+    inset 0 1px 0 rgba(208, 226, 241, 0.08),
+    0 6px 14px rgba(3, 9, 18, 0.26);
+}
+
 .prompt-inline-btn.action-image-btn {
-  width: min(100%, 132px);
+  width: 64px;
+  height: 64px;
   min-height: 0;
   aspect-ratio: 1 / 1;
   border-radius: 12px !important;
@@ -1262,6 +1310,14 @@ watch(autoResolveOptionId, (optionId) => {
   font-size: 11px;
   line-height: 1.35;
   letter-spacing: 0.01em;
+}
+
+.prompt-inline-hint--hinted-numeric {
+  min-height: 0;
+  padding: 2px 6px 0;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: rgba(214, 231, 246, 0.96);
 }
 
 .prompt-inline-grid--1 {
@@ -1363,6 +1419,49 @@ watch(autoResolveOptionId, (optionId) => {
   font-weight: 800;
 }
 
+.prompt-inline-btn--hinted-numeric {
+  min-height: 42px;
+  border-radius: 10px;
+  border-color: rgba(175, 197, 223, 0.52);
+  background:
+    linear-gradient(180deg, rgba(74, 101, 128, 0.92), rgba(54, 77, 99, 0.94));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow:
+    inset 0 1px 0 rgba(228, 239, 252, 0.26),
+    0 6px 12px rgba(5, 12, 21, 0.28);
+}
+
+.prompt-inline-btn-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.8em;
+  min-height: 1.8em;
+  padding: 0 0.45em;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1;
+  color: #f6fbff;
+  background: rgba(16, 29, 45, 0.46);
+  border: 1px solid rgba(197, 220, 245, 0.38);
+}
+
+.prompt-inline-btn-caption {
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.03em;
+  color: rgba(234, 244, 255, 0.94);
+}
+
+.prompt-inline-btn--hinted-numeric:hover:not(:disabled) {
+  filter: brightness(1.06);
+  border-color: rgba(197, 220, 246, 0.75);
+}
+
 .prompt-inline-btn--success {
   border-color: rgba(111, 185, 141, 0.52);
   background: linear-gradient(180deg, rgba(30, 109, 74, 0.9), rgba(22, 78, 55, 0.9));
@@ -1399,7 +1498,7 @@ watch(autoResolveOptionId, (optionId) => {
 
 .prompt-inline-btn--cancel {
   border-color: rgba(196, 152, 102, 0.56);
-  background-image: url('/assets/ui/prompt_btn_cancel.png');
+  background-image: url('/assets/ui/action_cancel_btn.png');
 }
 
 .prompt-inline-btn--extract {
@@ -1449,13 +1548,31 @@ watch(autoResolveOptionId, (optionId) => {
   }
 
   .prompt-inline-btn.action-image-btn {
-    width: min(100%, 116px);
+    width: 64px;
+    height: 64px;
     min-height: 0;
   }
 
   .prompt-inline-hint {
     min-height: 16px;
     font-size: 10px;
+  }
+
+  .prompt-inline-hint--hinted-numeric {
+    font-size: 10.5px;
+  }
+
+  .prompt-inline-btn--hinted-numeric {
+    min-height: 38px;
+    gap: 6px;
+  }
+
+  .prompt-inline-btn-number {
+    font-size: 12px;
+  }
+
+  .prompt-inline-btn-caption {
+    font-size: 11px;
   }
 
   .prompt-skill-text {
@@ -1487,7 +1604,8 @@ watch(autoResolveOptionId, (optionId) => {
   }
 
   .prompt-inline-btn.action-image-btn {
-    width: min(100%, 98px);
+    width: 64px;
+    height: 64px;
     min-height: 0;
   }
 }

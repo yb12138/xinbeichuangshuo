@@ -186,6 +186,126 @@ func TestGodProtection_PromptsForXAndPartiallyMitigatesMoraleLoss(t *testing.T) 
 	}
 }
 
+func TestGodProtection_TriggersWithGemFallbackWhenCrystalInsufficient(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "Angel", "angel", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	game.State.CurrentTurn = 0
+	game.State.RedMorale = 10
+
+	p1 := game.State.Players["p1"]
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Crystal = 0
+	p1.Gem = 2
+
+	moraleLoss := 2
+	lossCtx := game.buildContext(p1, nil, model.TimingBeforeMoraleLoss, &model.EventContext{
+		Type:      model.EventDamage,
+		DamageVal: &moraleLoss,
+	})
+	lossCtx.Flags["IsMagicDamage"] = true
+	lossCtx.Selections = map[string]any{
+		"morale_loss_pending":              true,
+		"morale_loss_value":                2,
+		"is_magic":                         true,
+		"from_damage_draw":                 false,
+		"overflow_morale_loss_fixed":       0,
+		"discarded_cards":                  []model.Card{},
+		"victim_id":                        p1.ID,
+		"discard_player_id":                p1.ID,
+		"morale_loss_stay_in_turn":         false,
+		"morale_loss_is_damage_resolution": false,
+	}
+
+	game.dispatcher.OnTiming(lossCtx.Timing, lossCtx)
+	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptResponseSkill {
+		t.Fatalf("expected god_protection response interrupt, got %+v", game.State.PendingInterrupt)
+	}
+	if !interruptHasSkillID(game.State.PendingInterrupt, "god_protection") {
+		t.Fatalf("expected god_protection in pending skills, got %+v", game.State.PendingInterrupt.SkillIDs)
+	}
+
+	if err := game.HandleAction(model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{0},
+	}); err != nil {
+		t.Fatalf("confirm god_protection failed: %v", err)
+	}
+	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptChoice {
+		t.Fatalf("expected X choice after god_protection confirmation, got %+v", game.State.PendingInterrupt)
+	}
+
+	// 选择 X=2（option index 1），应消耗2红宝石并完全抵御本次士气下降。
+	if err := game.HandleAction(model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{1},
+	}); err != nil {
+		t.Fatalf("resolve god_protection X failed: %v", err)
+	}
+	if moraleLoss != 0 {
+		t.Fatalf("expected morale loss reduced to 0 after choosing X=2, got %d", moraleLoss)
+	}
+	if p1.Gem != 0 || p1.Crystal != 0 {
+		t.Fatalf("expected gem fallback consumed as crystal-like cost, gem=%d crystal=%d", p1.Gem, p1.Crystal)
+	}
+	if game.State.RedMorale != 10 {
+		t.Fatalf("expected red morale unchanged after full mitigation, got %d", game.State.RedMorale)
+	}
+}
+
+func TestGodProtection_DoesNotTriggerOnNonMagicMoraleLoss(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "Angel", "angel", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	game.State.CurrentTurn = 0
+	game.State.RedMorale = 10
+
+	p1 := game.State.Players["p1"]
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Crystal = 0
+	p1.Gem = 2
+
+	moraleLoss := 2
+	lossCtx := game.buildContext(p1, nil, model.TimingBeforeMoraleLoss, &model.EventContext{
+		Type:      model.EventDamage,
+		DamageVal: &moraleLoss,
+	})
+	// 非法术来源：即便有可替代水晶的红宝石，也不应触发神之庇护。
+	lossCtx.Flags["IsMagicDamage"] = false
+	lossCtx.Selections = map[string]any{
+		"morale_loss_pending":              true,
+		"morale_loss_value":                2,
+		"is_magic":                         false,
+		"from_damage_draw":                 true,
+		"overflow_morale_loss_fixed":       0,
+		"discarded_cards":                  []model.Card{},
+		"victim_id":                        p1.ID,
+		"discard_player_id":                p1.ID,
+		"morale_loss_stay_in_turn":         false,
+		"morale_loss_is_damage_resolution": false,
+	}
+
+	game.dispatcher.OnTiming(lossCtx.Timing, lossCtx)
+	if game.State.PendingInterrupt != nil {
+		t.Fatalf("expected no god_protection prompt on non-magic morale loss, got %+v", game.State.PendingInterrupt)
+	}
+	if p1.Gem != 2 || p1.Crystal != 0 {
+		t.Fatalf("expected no crystal-like cost consumption on non-magic morale-loss timing, gem=%d crystal=%d", p1.Gem, p1.Crystal)
+	}
+}
+
 func TestAngelBond_AfterShieldDoesNotReopenActionSelection(t *testing.T) {
 	game := NewGameEngine(noopObserver{})
 	if err := game.AddPlayer("p1", "Angel", "angel", model.RedCamp); err != nil {

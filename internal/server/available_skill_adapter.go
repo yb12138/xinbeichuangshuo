@@ -117,13 +117,22 @@ func (r *Room) buildAvailableActionSkills(playerID string) []AvailableSkill {
 		if !r.canUseActionSkillNow(p, sd) {
 			continue
 		}
+		targetType := int(sd.TargetType)
+		minTargets := sd.MinTargets
+		maxTargets := sd.MaxTargets
+		// 风之洁净改为“无目标发动”：弃牌后直接进入移除基础效果流程（或在无效果时直接完成）。
+		if sd.ID == "angel_cleanse" {
+			targetType = int(model.TargetNone)
+			minTargets = 0
+			maxTargets = 0
+		}
 		list = append(list, AvailableSkill{
 			ID:               sd.ID,
 			Title:            sd.Title,
 			Description:      sd.Description,
-			MinTargets:       sd.MinTargets,
-			MaxTargets:       sd.MaxTargets,
-			TargetType:       int(sd.TargetType),
+			MinTargets:       minTargets,
+			MaxTargets:       maxTargets,
+			TargetType:       targetType,
 			CostGem:          sd.CostGem,
 			CostCrystal:      sd.CostCrystal,
 			CostDiscards:     sd.CostDiscards,
@@ -190,10 +199,10 @@ func (r *Room) canUseActionSkillNow(user *model.Player, sd model.SkillDefinition
 		targetID = probeTarget.ID
 	}
 	ctx := &model.Context{
-		Game:    r.Engine,
-		User:    user,
-		Target:  probeTarget,
-		Timing:  model.TimingActive,
+		Game:   r.Engine,
+		User:   user,
+		Target: probeTarget,
+		Timing: model.TimingActive,
 		EventCtx: &model.EventContext{
 			Type:     model.EventNone,
 			SourceID: user.ID,

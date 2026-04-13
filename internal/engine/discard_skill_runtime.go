@@ -118,6 +118,22 @@ func (e *GameEngine) resumePhaseAfterSkillDiscardContext(ctx *model.Context) boo
 	if ctx.BeforeDrawPhase() {
 		return e.restorePhaseAfterInterruptedDraw(ctx)
 	}
+	if ctx.ResumeActionEndPhase() {
+		// ActionEnd 响应中的弃牌交互完成后，避免 LastActionType 残留触发同一轮 ActionEnd 重入。
+		if ctx.User != nil {
+			ctx.User.TurnState.LastActionType = ""
+			ctx.User.TurnState.LastActionCard = nil
+		}
+		if point, ok := choiceResumePointValue(ctx.Selections["response_resume_phase"]); ok {
+			if e.routePendingDamageWithReturn(point) {
+				return true
+			}
+			e.applyChoiceResumePoint(point)
+			return true
+		}
+		e.enterExtraActionStage()
+		return true
+	}
 	if ctx.ResumeAttackMissPhase() && e.resumePendingAttackMiss(ctx) {
 		return true
 	}

@@ -34,6 +34,19 @@ type responseResumeState struct {
 
 type responseSkipHook func(e *GameEngine, state *responseResumeState)
 
+func (e *GameEngine) clearActionEndCatchupMarkerAfterResponse(state responseResumeState) {
+	if state.resumePhaseEndCtx == nil || state.playerID == "" {
+		return
+	}
+	player := e.State.Players[state.playerID]
+	if player == nil {
+		return
+	}
+	// ActionEnd 响应窗口已经处理完成时，清理遗留标记，避免状态机在 ExtraAction/TurnEnd 再次补跑同一轮 ActionEnd。
+	player.TurnState.LastActionType = ""
+	player.TurnState.LastActionCard = nil
+}
+
 func (e *GameEngine) captureResponseResumeStateFromInterrupt(kind responseCompletionKind, skillID string, intr *model.Interrupt) responseResumeState {
 	state := responseResumeState{
 		kind:    kind,
@@ -166,6 +179,8 @@ func holyLancerEarthSkippedResponseHook(e *GameEngine, state *responseResumeStat
 }
 
 func (e *GameEngine) restoreSkippedResponseAfterPop(state responseResumeState) bool {
+	e.clearActionEndCatchupMarkerAfterResponse(state)
+
 	if state.resumeDrawCtx != nil {
 		e.resumePendingDraw(state.resumeDrawCtx)
 		if e.State.PendingInterrupt == nil {
@@ -218,6 +233,8 @@ func (e *GameEngine) restoreSkippedResponseAfterPop(state responseResumeState) b
 }
 
 func (e *GameEngine) restoreConfirmedResponseAfterPop(state responseResumeState) bool {
+	e.clearActionEndCatchupMarkerAfterResponse(state)
+
 	if e.State.PendingInterrupt != nil {
 		return true
 	}

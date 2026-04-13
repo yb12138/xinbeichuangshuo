@@ -311,12 +311,14 @@ func (h *AngelCleanseHandler) CanUse(ctx *model.Context) bool {
 }
 
 func (h *AngelCleanseHandler) Execute(ctx *model.Context) error {
-	if ctx == nil || ctx.User == nil || ctx.Target == nil || ctx.Game == nil {
+	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("风之洁净上下文无效")
 	}
-	options := collectBasicEffectOptions(ctx.Target)
+	// 风之洁净可移除“场上任意1个基础效果”，目标可选；当场上无基础效果时直接跳过移除步骤。
+	options := collectBasicEffectOptions(ctx.Game.GetAllPlayers()...)
 	if len(options) == 0 {
-		return fmt.Errorf("%s 面前没有可移除的基础效果", ctx.Target.Name)
+		ctx.Game.Log(fmt.Sprintf("%s 的 [风之洁净] 发动：场上没有可移除的基础效果，跳过移除", ctx.User.Name))
+		return nil
 	}
 	if len(options) > 1 {
 		ctx.Game.PushInterrupt(&model.Interrupt{
@@ -883,7 +885,7 @@ func (h *HolySwordHandler) CanUse(ctx *model.Context) bool {
 }
 
 func (h *HolySwordHandler) Execute(ctx *model.Context) error {
-	// 圣剑：强制命中对方无法抵挡
+	// 圣剑：强制命中（机制层会自动视为无视圣盾）。
 	ctx.Game.Log(fmt.Sprintf("%s 的 [圣剑] 发动，本回合第3次攻击强制命中，对方无法抵挡", ctx.User.Name))
 	if ctx.EventCtx != nil && ctx.EventCtx.AttackInfo != nil {
 		ctx.EventCtx.AttackInfo.SetInterceptTag(model.CombatInterceptForceHit)
@@ -1107,7 +1109,7 @@ func (h *PreciseShotHandler) Execute(ctx *model.Context) error {
 	case model.TimingOnAttackDeclared:
 		ctx.Game.Log(fmt.Sprintf("%s 发动 [精准射击]，攻击强制命中但伤害-1", ctx.User.Name))
 		if ctx.EventCtx.AttackInfo != nil {
-			ctx.EventCtx.AttackInfo.IsHitForced = true
+			ctx.EventCtx.AttackInfo.SetInterceptTag(model.CombatInterceptForceHit)
 		}
 	case model.TimingOnDamageCalculated:
 		if ctx.EventCtx.DamageVal != nil {
@@ -1249,6 +1251,13 @@ func (h *WaterShadowHandler) Execute(ctx *model.Context) error {
 	if waterCards == 0 {
 		return fmt.Errorf("至少需要弃1张水系牌")
 	}
+	originalDrawCount := *ctx.EventCtx.DrawCount
+	if originalDrawCount <= 0 {
+		return fmt.Errorf("当前摸牌值已为0，无法发动水影")
+	}
+	if waterCards > originalDrawCount {
+		return fmt.Errorf("水影最多只能弃置 %d 张水系牌", originalDrawCount)
+	}
 
 	if !isStealthed && magicCards > 0 {
 		return fmt.Errorf("不在潜行状态下不能弃法术牌")
@@ -1271,11 +1280,16 @@ func (h *WaterShadowHandler) Execute(ctx *model.Context) error {
 
 	// 将弃牌信息存储在Selections中，供外部处理
 	ctx.Selections["discardedCards"] = discardedCards
-	ctx.Flags["cancelDraw"] = true
-	*ctx.EventCtx.DrawCount = 0
+	remainingDraw := originalDrawCount - waterCards
+	*ctx.EventCtx.DrawCount = remainingDraw
+	ctx.Flags["cancelDraw"] = remainingDraw == 0
 
 	// 记录日志
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [水影]，展示并弃置了 %d 张水系牌，本次摸牌改为弃牌", player.Name, waterCards))
+	if remainingDraw == 0 {
+		ctx.Game.Log(fmt.Sprintf("%s 发动 [水影]，展示并弃置了 %d 张水系牌，本次摸牌由 %d 改为弃牌", player.Name, waterCards, originalDrawCount))
+	} else {
+		ctx.Game.Log(fmt.Sprintf("%s 发动 [水影]，展示并弃置了 %d 张水系牌，本次摸牌由 %d 改为 %d", player.Name, waterCards, originalDrawCount, remainingDraw))
+	}
 	if magicCards > 0 {
 		ctx.Game.Log(fmt.Sprintf("%s 处于[潜行]，额外展示并弃置了 %d 张法术牌", player.Name, magicCards))
 	}

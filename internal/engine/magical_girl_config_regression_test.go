@@ -220,6 +220,71 @@ func TestMagicalGirl_MagicBlast_DiscardsAfterEachFailedTarget(t *testing.T) {
 	}
 }
 
+func TestMagicalGirl_MagicBlast_TargetCanSelectMagicByHandIndex(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "Girl", "magical_girl", model.RedCamp); err != nil {
+		t.Fatalf("add p1 failed: %v", err)
+	}
+	if err := game.AddPlayer("p2", "Enemy1", "berserker", model.BlueCamp); err != nil {
+		t.Fatalf("add p2 failed: %v", err)
+	}
+	if err := game.AddPlayer("p3", "Enemy2", "angel", model.BlueCamp); err != nil {
+		t.Fatalf("add p3 failed: %v", err)
+	}
+
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p2.TurnState = model.NewPlayerTurnState()
+	p1.Hand = []model.Card{
+		{ID: "cost", Name: "法术代价", Type: model.CardTypeMagic, Element: model.ElementWater},
+	}
+	p2.Hand = []model.Card{
+		{ID: "a1", Name: "火斩", Type: model.CardTypeAttack, Element: model.ElementFire},
+		{ID: "a2", Name: "地裂斩", Type: model.CardTypeAttack, Element: model.ElementEarth},
+		{ID: "a3", Name: "风刃", Type: model.CardTypeAttack, Element: model.ElementWind},
+		{ID: "m1", Name: "雷鸣术", Type: model.CardTypeMagic, Element: model.ElementThunder},
+	}
+
+	if err := game.HandleAction(model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSkill,
+		SkillID:    "magic_blast",
+		TargetIDs:  []string{"p2", "p3"},
+		Selections: []int{0},
+	}); err != nil {
+		t.Fatalf("magic blast failed: %v", err)
+	}
+	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.PlayerID != "p2" {
+		t.Fatalf("expected first target interrupt on p2, got %+v", game.State.PendingInterrupt)
+	}
+
+	// 前端 choose_cards 会提交手牌真实索引；这里验证后端兼容该编码。
+	if err := game.HandleAction(model.PlayerAction{
+		PlayerID:   "p2",
+		Type:       model.CmdSelect,
+		Selections: []int{3},
+	}); err != nil {
+		t.Fatalf("expected selecting magic card by hand index to work, got error: %v", err)
+	}
+
+	if got := len(p2.Hand); got != 3 {
+		t.Fatalf("expected p2 to discard one magic card, got hand size %d", got)
+	}
+	for _, card := range p2.Hand {
+		if card.Type == model.CardTypeMagic {
+			t.Fatalf("expected p2 magic card to be discarded, remaining hand=%+v", p2.Hand)
+		}
+	}
+	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.PlayerID != "p3" {
+		t.Fatalf("expected flow to advance to second target p3, got %+v", game.State.PendingInterrupt)
+	}
+}
+
 func TestMagicalGirl_DestructionStorm_RequiresTwoTargetsAndCostsOneGem(t *testing.T) {
 	t.Run("requires_two_targets", func(t *testing.T) {
 		game := NewGameEngine(noopObserver{})

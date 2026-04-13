@@ -179,5 +179,6 @@ export function useSubmitAction() {
     cheatGiveByElement: ws.cheatGiveByElement,
     cheatGiveByFaction: ws.cheatGiveByFaction,
     cheatGiveMagicByName: ws.cheatGiveMagicByName,
+    cheatDiscard: ws.cheatDiscard,
   }
 }

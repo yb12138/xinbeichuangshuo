@@ -74,6 +74,13 @@ func (e *GameEngine) resumePendingAttackMiss(ctx *model.Context) bool {
 		}
 		e.resolveMagicBowPierceMiss(top.AttackerID, top.TargetID, top.Card, top.IsCounter)
 		e.clearCombatStack()
+		if !e.routePendingDamageWithReturn(model.TurnStageActionEnd) {
+			e.enterActionEndStage()
+		}
+		return true
+	case "shield":
+		e.resolveMagicBowPierceMiss(top.AttackerID, top.TargetID, top.Card, top.IsCounter)
+		e.clearCombatStack()
 		if !e.routePendingDamageWithReturn(model.TurnStageExtraAction) {
 			e.enterExtraActionStage()
 		}
@@ -109,6 +116,25 @@ func (e *GameEngine) resumePendingAttackMiss(ctx *model.Context) bool {
 	default:
 		return false
 	}
+}
+
+func (e *GameEngine) bindPendingChoiceUserCtxIfMissing(userCtx *model.Context) {
+	if e == nil || e.State == nil || e.State.PendingInterrupt == nil || userCtx == nil {
+		return
+	}
+	intr := e.State.PendingInterrupt
+	if intr.Type != model.InterruptChoice {
+		return
+	}
+	ctxData, ok := intr.Context.(map[string]interface{})
+	if !ok || ctxData == nil {
+		return
+	}
+	if _, exists := ctxData["user_ctx"]; exists {
+		return
+	}
+	ctxData["user_ctx"] = userCtx
+	intr.Context = ctxData
 }
 
 func (e *GameEngine) hasUsableShieldForCombat(target *model.Player, combatReq model.CombatRequest) bool {
@@ -152,6 +178,33 @@ func (e *GameEngine) consumeShieldForCombatTake(target *model.Player, combatReq 
 	e.NotifyActionStep(fmt.Sprintf("%s 的【圣盾】触发，自动抵挡了本次攻击", target.Name))
 	e.NotifyCombatCue(combatReq.AttackerID, combatReq.TargetID, "shield")
 	e.Log(fmt.Sprintf("[Combat] %s 选择承受伤害，触发【圣盾】抵挡本次攻击！", target.Name))
+
+	missCtx := &model.EventContext{
+		Type:     model.EventAttack,
+		SourceID: combatReq.AttackerID,
+		TargetID: combatReq.TargetID,
+		Card:     combatReq.Card,
+		AttackInfo: &model.AttackEventInfo{
+			ActionType: string(model.ActionAttack),
+			CounterInitiator: func() string {
+				if combatReq.IsCounter {
+					return combatReq.AttackerID
+				}
+				return ""
+			}(),
+		},
+	}
+	skillCtx := e.buildContext(e.State.Players[combatReq.AttackerID], e.State.Players[combatReq.TargetID], model.TimingOnHitCheck, missCtx)
+	skillCtx.Selections["attack_miss_resume"] = map[string]interface{}{
+		"mode":        "shield",
+		"attacker_id": combatReq.AttackerID,
+		"target_id":   combatReq.TargetID,
+	}
+	e.dispatcher.OnTiming(skillCtx.Timing, skillCtx)
+	if e.State.PendingInterrupt != nil {
+		return true
+	}
+
 	e.resolveMagicBowPierceMiss(combatReq.AttackerID, combatReq.TargetID, combatReq.Card, combatReq.IsCounter)
 	e.clearCombatStack()
 	if !e.routePendingDamageWithReturn(model.TurnStageExtraAction) {
@@ -280,6 +333,7 @@ func (e *GameEngine) handleCombatDefendResponse(act model.PlayerAction, player *
 	}
 	e.dispatcher.OnTiming(skillCtx.Timing, skillCtx)
 	if e.State.PendingInterrupt != nil {
+		e.bindPendingChoiceUserCtxIfMissing(skillCtx)
 		return nil
 	}
 

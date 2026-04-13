@@ -86,6 +86,57 @@ func TestSaintess_SaintHeal_TwoTargetSplitCanChooseMagicExtraAction(t *testing.T
 	}
 }
 
+func TestSaintess_SaintHeal_ThreeTargetsApplyHealAfterExtraActionChoice(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "Saintess", "saintess", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "AllyA", "angel", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p3", "AllyB", "priest", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p4", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p3 := game.State.Players["p3"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Crystal = 1
+
+	mustHandleAction(t, game, model.PlayerAction{
+		PlayerID:  "p1",
+		Type:      model.CmdSkill,
+		SkillID:   "saint_heal",
+		TargetIDs: []string{"p1", "p2", "p3"},
+	})
+	requireSaintHealStage(t, game, "p1", "choose_extra_action")
+
+	// 选择额外攻击行动，随后应结算三名目标各 +1 治疗。
+	mustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{0},
+	})
+
+	if p1.Heal != 1 || p2.Heal != 1 || p3.Heal != 1 {
+		t.Fatalf("expected saint heal three-target split p1=1 p2=1 p3=1, got p1=%d p2=%d p3=%d", p1.Heal, p2.Heal, p3.Heal)
+	}
+	if game.State.PendingInterrupt != nil {
+		t.Fatalf("expected saint heal flow resolved, got %+v", game.State.PendingInterrupt)
+	}
+	if p1.TurnState.CurrentExtraAction != "Attack" {
+		t.Fatalf("expected saint heal to grant extra attack action, got %q", p1.TurnState.CurrentExtraAction)
+	}
+}
+
 func TestSaintess_Mercy_BecomesPersistentFixedHandCapState(t *testing.T) {
 	game := NewGameEngine(noopObserver{})
 	if err := game.AddPlayer("p1", "Saintess", "saintess", model.RedCamp); err != nil {

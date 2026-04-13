@@ -36,15 +36,8 @@ var skillUsePolicies = map[string]skillUsePolicy{
 	},
 	"angel_cleanse": {
 		targetRules: targetRuleSet{
-			Count: targetCountRule{Min: 1, Max: 1, Err: "风之洁净需要指定目标"},
-			Checks: []targetCheckRule{
-				{
-					Kind:           targetCheckHasBasicFieldOnTarget,
-					Index:          0,
-					Err:            "%s 面前没有可移除的基础效果",
-					WithTargetName: true,
-				},
-			},
+			// 允许不选目标：若场上无基础效果，技能直接结算并跳过“移除基础效果”步骤。
+			Count: targetCountRule{Min: 0, Max: 1, Err: "风之洁净最多指定1名目标"},
 		},
 	},
 	"elementalist_freeze": {

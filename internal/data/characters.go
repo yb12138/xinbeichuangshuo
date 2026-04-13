@@ -73,14 +73,14 @@ func GetCharacters() []model.Character {
 					Type:             model.SkillTypeAction,
 					Tags:             []model.SkillTag{model.TagUnique},
 					Description:      "此牌可以当作［圣盾］使用。",
-					CostDiscards:     1,                            // 需要指定一张牌
-					RequireExclusive: true,                         // 必须使用独有牌
-					PlaceCard:        true,                         // 放置场上牌
-					PlaceMode:        model.FieldEffect,            // 效果牌
-					PlaceEffect:      model.EffectShield,           // 圣盾效果
-					PlaceHook:     model.FieldHookOnDamaged, // 受到伤害时触发
+					CostDiscards:     1,                        // 需要指定一张牌
+					RequireExclusive: true,                     // 必须使用独有牌
+					PlaceCard:        true,                     // 放置场上牌
+					PlaceMode:        model.FieldEffect,        // 效果牌
+					PlaceEffect:      model.EffectShield,       // 圣盾效果
+					PlaceHook:        model.FieldHookOnDamaged, // 受到伤害时触发
 					LogicHandler:     "angel_wall",
-					TargetType:       model.TargetAllySelf,
+					TargetType:       model.TargetAny,
 				},
 			},
 			ExclusiveCards: []string{"angel_wall"},
@@ -174,11 +174,11 @@ func GetCharacters() []model.Character {
 					Description:      "［水晶］使用开局自带的五系束缚专属技能卡，将其放置于目标对手面前，该对手跳过其下个行动阶段。在其下个行动阶段开始前他可以选择摸（2+X）张牌来取消五系束缚的效果。X为场上封印的数量，X最高为2。不论效果是否发动，触发后移除此牌。",
 					CostCrystal:      1,
 					CostDiscards:     0,
-					RequireExclusive: true,                              // 必须使用独有牌
-					PlaceCard:        true,                              // 放置场上牌
-					PlaceMode:        model.FieldEffect,                 // 效果牌
-					PlaceEffect:      model.EffectFiveElementsBind,      // 五系束缚效果
-					PlaceHook:     model.FieldHookOnBeforeAction, // 行动阶段开始前触发
+					RequireExclusive: true,                          // 必须使用独有牌
+					PlaceCard:        true,                          // 放置场上牌
+					PlaceMode:        model.FieldEffect,             // 效果牌
+					PlaceEffect:      model.EffectFiveElementsBind,  // 五系束缚效果
+					PlaceHook:        model.FieldHookOnBeforeAction, // 行动阶段开始前触发
 					LogicHandler:     "five_elements_bind",
 					TargetType:       model.TargetEnemy,
 					MinTargets:       1,
@@ -190,13 +190,13 @@ func GetCharacters() []model.Character {
 					Tags:             []model.SkillTag{model.TagUnique},
 					Description:      "（将水之封印放置于目标对手面前）该对手获得（直到他从手中打出或展示出水系牌时强制触发）对他造成3点法术伤害③，触发后移除此牌。",
 					CostDiscards:     1,
-					DiscardElement:   model.ElementWater,                        // 需要弃水系牌
-					DiscardType:      "",                                        // 不限制类型
-					RequireExclusive: true,                                      // 必须使用独有牌
-					PlaceCard:        true,                                      // 放置场上牌
-					PlaceMode:        model.FieldEffect,                         // 效果牌
-					PlaceEffect:      model.EffectSealWater,                     // 水之封印效果
-					PlaceHook:     model.FieldHookOnCardPlayedOrRevealed, // 打出或展示对应元素牌时触发
+					DiscardElement:   model.ElementWater,                    // 需要弃水系牌
+					DiscardType:      "",                                    // 不限制类型
+					RequireExclusive: true,                                  // 必须使用独有牌
+					PlaceCard:        true,                                  // 放置场上牌
+					PlaceMode:        model.FieldEffect,                     // 效果牌
+					PlaceEffect:      model.EffectSealWater,                 // 水之封印效果
+					PlaceHook:        model.FieldHookOnCardPlayedOrRevealed, // 打出或展示对应元素牌时触发
 					LogicHandler:     "water_seal",
 					TargetType:       model.TargetEnemy,
 					MinTargets:       1,
@@ -208,13 +208,13 @@ func GetCharacters() []model.Character {
 					Tags:             []model.SkillTag{model.TagUnique},
 					Description:      "（将火之封印放置于目标对手面前）该对手获得（直到他从手中打出或展示出火系牌时强制触发）对他造成3点法术伤害③，触发后移除此牌。",
 					CostDiscards:     1,
-					DiscardElement:   model.ElementFire,                         // 需要弃火系牌
-					DiscardType:      "",                                        // 不限制类型
-					RequireExclusive: true,                                      // 必须使用独有牌
-					PlaceCard:        true,                                      // 放置场上牌
-					PlaceMode:        model.FieldEffect,                         // 效果牌
-					PlaceEffect:      model.EffectSealFire,                      // 火之封印效果
-					PlaceHook:     model.FieldHookOnCardPlayedOrRevealed, // 打出或展示对应元素牌时触发
+					DiscardElement:   model.ElementFire,                     // 需要弃火系牌
+					DiscardType:      "",                                    // 不限制类型
+					RequireExclusive: true,                                  // 必须使用独有牌
+					PlaceCard:        true,                                  // 放置场上牌
+					PlaceMode:        model.FieldEffect,                     // 效果牌
+					PlaceEffect:      model.EffectSealFire,                  // 火之封印效果
+					PlaceHook:        model.FieldHookOnCardPlayedOrRevealed, // 打出或展示对应元素牌时触发
 					LogicHandler:     "fire_seal",
 					TargetType:       model.TargetEnemy,
 					MinTargets:       1,
@@ -226,13 +226,13 @@ func GetCharacters() []model.Character {
 					Tags:             []model.SkillTag{model.TagUnique},
 					Description:      "（将地之封印放置于目标对手面前）该对手获得（直到他从手中打出或展示出地系牌时强制触发）对他造成3点法术伤害③，触发后移除此牌。",
 					CostDiscards:     1,
-					DiscardElement:   model.ElementEarth,                        // 需要弃地系牌
-					DiscardType:      "",                                        // 不限制类型
-					RequireExclusive: true,                                      // 必须使用独有牌
-					PlaceCard:        true,                                      // 放置场上牌
-					PlaceMode:        model.FieldEffect,                         // 效果牌
-					PlaceEffect:      model.EffectSealEarth,                     // 地之封印效果
-					PlaceHook:     model.FieldHookOnCardPlayedOrRevealed, // 打出或展示对应元素牌时触发
+					DiscardElement:   model.ElementEarth,                    // 需要弃地系牌
+					DiscardType:      "",                                    // 不限制类型
+					RequireExclusive: true,                                  // 必须使用独有牌
+					PlaceCard:        true,                                  // 放置场上牌
+					PlaceMode:        model.FieldEffect,                     // 效果牌
+					PlaceEffect:      model.EffectSealEarth,                 // 地之封印效果
+					PlaceHook:        model.FieldHookOnCardPlayedOrRevealed, // 打出或展示对应元素牌时触发
 					LogicHandler:     "earth_seal",
 					TargetType:       model.TargetEnemy,
 					MinTargets:       1,
@@ -244,13 +244,13 @@ func GetCharacters() []model.Character {
 					Tags:             []model.SkillTag{model.TagUnique},
 					Description:      "（将风之封印放置于目标对手面前）该对手获得（直到他从手中打出或展示出风系牌时强制触发）对他造成3点法术伤害③，触发后移除此牌。",
 					CostDiscards:     1,
-					DiscardElement:   model.ElementWind,                         // 需要弃风系牌
-					DiscardType:      "",                                        // 不限制类型
-					RequireExclusive: true,                                      // 必须使用独有牌
-					PlaceCard:        true,                                      // 放置场上牌
-					PlaceMode:        model.FieldEffect,                         // 效果牌
-					PlaceEffect:      model.EffectSealWind,                      // 风之封印效果
-					PlaceHook:     model.FieldHookOnCardPlayedOrRevealed, // 打出或展示对应元素牌时触发
+					DiscardElement:   model.ElementWind,                     // 需要弃风系牌
+					DiscardType:      "",                                    // 不限制类型
+					RequireExclusive: true,                                  // 必须使用独有牌
+					PlaceCard:        true,                                  // 放置场上牌
+					PlaceMode:        model.FieldEffect,                     // 效果牌
+					PlaceEffect:      model.EffectSealWind,                  // 风之封印效果
+					PlaceHook:        model.FieldHookOnCardPlayedOrRevealed, // 打出或展示对应元素牌时触发
 					LogicHandler:     "wind_seal",
 					TargetType:       model.TargetEnemy,
 					MinTargets:       1,
@@ -262,13 +262,13 @@ func GetCharacters() []model.Character {
 					Tags:             []model.SkillTag{model.TagUnique},
 					Description:      "（将雷之封印放置于目标对手面前）该对手获得（直到他从手中打出或展示出雷系牌时强制触发）对他造成3点法术伤害③，触发后移除此牌。",
 					CostDiscards:     1,
-					DiscardElement:   model.ElementThunder,                      // 需要弃雷系牌
-					DiscardType:      "",                                        // 不限制类型
-					RequireExclusive: true,                                      // 必须使用独有牌
-					PlaceCard:        true,                                      // 放置场上牌
-					PlaceMode:        model.FieldEffect,                         // 效果牌
-					PlaceEffect:      model.EffectSealThunder,                   // 雷之封印效果
-					PlaceHook:     model.FieldHookOnCardPlayedOrRevealed, // 打出或展示对应元素牌时触发
+					DiscardElement:   model.ElementThunder,                  // 需要弃雷系牌
+					DiscardType:      "",                                    // 不限制类型
+					RequireExclusive: true,                                  // 必须使用独有牌
+					PlaceCard:        true,                                  // 放置场上牌
+					PlaceMode:        model.FieldEffect,                     // 效果牌
+					PlaceEffect:      model.EffectSealThunder,               // 雷之封印效果
+					PlaceHook:        model.FieldHookOnCardPlayedOrRevealed, // 打出或展示对应元素牌时触发
 					LogicHandler:     "thunder_seal",
 					TargetType:       model.TargetEnemy,
 					MinTargets:       1,
@@ -1242,7 +1242,7 @@ func GetCharacters() []model.Character {
 					PlaceCard:        true,
 					PlaceMode:        model.FieldEffect,
 					PlaceEffect:      model.EffectPowerBlessing,
-					PlaceHook:     model.FieldHookManual,
+					PlaceHook:        model.FieldHookManual,
 					LogicHandler:     "prayer_power_blessing",
 					TargetType:       model.TargetAlly,
 					MinTargets:       1,
@@ -1257,7 +1257,7 @@ func GetCharacters() []model.Character {
 					PlaceCard:        true,
 					PlaceMode:        model.FieldEffect,
 					PlaceEffect:      model.EffectSwiftBlessing,
-					PlaceHook:     model.FieldHookManual,
+					PlaceHook:        model.FieldHookManual,
 					LogicHandler:     "prayer_swift_blessing",
 					TargetType:       model.TargetAlly,
 					MinTargets:       1,
@@ -2031,7 +2031,7 @@ func GetCharacters() []model.Character {
 					PlaceCard:        true,
 					PlaceMode:        model.FieldEffect,
 					PlaceEffect:      model.EffectHeroTaunt,
-					PlaceHook:     model.FieldHookManual,
+					PlaceHook:        model.FieldHookManual,
 					LogicHandler:     "hero_taunt",
 					TargetType:       model.TargetEnemy,
 					MinTargets:       1,

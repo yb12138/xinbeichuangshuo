@@ -45,6 +45,9 @@ func (info *AttackEventInfo) SetInterceptTag(tag CombatInterceptTag) {
 	case CombatInterceptForceHit:
 		info.IsHitForced = true
 		info.CanBeResponded = false
+		// 机制语义：强制命中默认无视圣盾判定。
+		info.IgnoreShield = true
+		tags[CombatInterceptIgnoreHolyShield] = true
 	case CombatInterceptUnrespondable:
 		info.CanBeResponded = false
 	case CombatInterceptIgnoreHolyShield:
@@ -66,6 +69,9 @@ func (req *CombatRequest) SetInterceptTag(tag CombatInterceptTag) {
 	case CombatInterceptForceHit:
 		req.IsForcedHit = true
 		req.CanBeResponded = false
+		// 机制语义：强制命中默认无视圣盾判定。
+		req.IgnoreShield = true
+		tags[CombatInterceptIgnoreHolyShield] = true
 	case CombatInterceptUnrespondable:
 		req.CanBeResponded = false
 	case CombatInterceptIgnoreHolyShield:
@@ -83,6 +89,10 @@ func (pd *PendingDamage) SetInterceptTag(tag CombatInterceptTag) {
 	}
 	tags := ensureCombatInterceptTags(&pd.InterceptTags)
 	tags[tag] = true
+	if tag == CombatInterceptForceHit {
+		tags[CombatInterceptIgnoreHolyShield] = true
+		pd.IgnoreShield = true
+	}
 	if tag == CombatInterceptIgnoreHolyShield {
 		pd.IgnoreShield = true
 	}

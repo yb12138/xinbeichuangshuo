@@ -187,14 +187,6 @@ export function useBattleInteractionState() {
       }
     })()
 
-    if (skill.id === 'angel_cleanse') {
-      return baseTargets.filter((player) =>
-        Array.isArray(player.field) && player.field.some((fieldCard) =>
-          fieldCard.mode === 'Effect' && isBasicEffect(fieldCard.effect)
-        )
-      )
-    }
-
     if (skill.id === 'seal_break') {
       return baseTargets.filter((player) =>
         Array.isArray(player.field) && player.field.some((fieldCard) =>

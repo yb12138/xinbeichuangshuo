@@ -376,7 +376,7 @@ func (e *GameEngine) debugSetEffectCount(player *model.Player, effect model.Effe
 			SourceID: player.ID,
 			Mode:     model.FieldEffect,
 			Effect:   effect,
-			Hook: dispatch,
+			Hook:     dispatch,
 			Duration: -1,
 		})
 	}
@@ -572,10 +572,10 @@ func (e *GameEngine) debugBuildContext(user *model.Player, skill model.SkillDefi
 	}
 
 	ctx := &model.Context{
-		Game:    e,
-		User:    user,
-		Target:  target,
-		Timing:  skill.PrimaryTimingOrLegacy(),
+		Game:   e,
+		User:   user,
+		Target: target,
+		Timing: skill.PrimaryTimingOrLegacy(),
 		EventCtx: &model.EventContext{
 			Type:       eventType,
 			SourceID:   attacker.ID,
@@ -604,6 +604,7 @@ var cheatCommandHandlers = map[string]cheatCommandHandler{
 	"card_element":   (*GameEngine).handleCheatCardElement,
 	"card_faction":   (*GameEngine).handleCheatCardFaction,
 	"card_magic":     (*GameEngine).handleCheatCardMagic,
+	"discard":        (*GameEngine).handleCheatDiscard,
 	"skill":          (*GameEngine).handleCheatSkill,
 }
 
@@ -841,6 +842,38 @@ func (e *GameEngine) handleCheatCardMagic(act model.PlayerAction) error {
 		return err
 	}
 	e.Log(fmt.Sprintf("[Cheat] %s 获得 %d 张法术牌 [%s]", player.Name, count, cardName))
+	return nil
+}
+
+func (e *GameEngine) handleCheatDiscard(act model.PlayerAction) error {
+	if len(act.ExtraArgs) < 2 {
+		return fmt.Errorf("用法: cheat discard <pid> <count>")
+	}
+	pid := act.ExtraArgs[0]
+	count, err := strconv.Atoi(act.ExtraArgs[1])
+	if err != nil {
+		return fmt.Errorf("弃牌数量无效: %s", act.ExtraArgs[1])
+	}
+	if count <= 0 {
+		return fmt.Errorf("弃牌数量必须大于0")
+	}
+	player, err := e.getCheatPlayer(pid)
+	if err != nil {
+		return err
+	}
+	if len(player.Hand) == 0 {
+		e.Log(fmt.Sprintf("[Cheat] %s 当前无手牌可弃", player.Name))
+		return nil
+	}
+
+	if count > len(player.Hand) {
+		count = len(player.Hand)
+	}
+	discarded := append([]model.Card{}, player.Hand[:count]...)
+	player.Hand = append([]model.Card{}, player.Hand[count:]...)
+	e.State.DiscardPile = append(e.State.DiscardPile, discarded...)
+	e.NotifyCardHidden(player.ID, discarded, "discard")
+	e.Log(fmt.Sprintf("[Cheat] %s 强制弃置 %d 张手牌", player.Name, count))
 	return nil
 }
 

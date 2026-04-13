@@ -86,8 +86,8 @@ func TestAssassinWaterShadow_InterruptsNormalDrawAndPublicReveal(t *testing.T) {
 	if game.State.PendingInterrupt != nil {
 		t.Fatalf("expected draw replacement to resolve cleanly, got %+v", game.State.PendingInterrupt)
 	}
-	if got := len(p1.Hand); got != 1 {
-		t.Fatalf("expected hand size 1 after replacing draw with 1 public discard, got %d", got)
+	if got := len(p1.Hand); got != 2 {
+		t.Fatalf("expected hand size 2 after replacing 1 draw with 1 public discard, got %d", got)
 	}
 	if reveal := findPublicDiscardReveal(obs, "p1"); reveal == nil {
 		t.Fatalf("expected water shadow discard to emit public reveal event")
