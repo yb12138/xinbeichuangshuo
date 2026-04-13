@@ -1087,7 +1087,7 @@ watch(autoResolveOptionId, (optionId) => {
                       @error="onSkillButtonImageError(option)"
                     />
                     <span v-else class="action-image-fallback-text">{{ skillButtonFallbackText(option) }}</span>
-                    <span class="action-image-btn-label">{{ option.label }}</span>
+                    <span class="action-image-btn-label" :title="option.label">{{ option.label }}</span>
                   </template>
                   <template v-else>
                     {{ option.label }}
@@ -1133,7 +1133,7 @@ watch(autoResolveOptionId, (optionId) => {
                     @error="onDockButtonImageError(option)"
                   />
                   <span v-else class="action-image-fallback-text">{{ dockButtonFallbackText(option) }}</span>
-                  <span class="action-image-btn-label">{{ option.buttonLabel }}</span>
+                  <span class="action-image-btn-label" :title="option.buttonLabel">{{ option.buttonLabel }}</span>
                 </template>
                 <template v-else>
                   <template v-if="option.numeric && !!option.hint">
@@ -1280,6 +1280,7 @@ watch(autoResolveOptionId, (optionId) => {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  align-items: center;
 }
 
 .prompt-inline-entry--hinted-numeric {
@@ -1297,9 +1298,12 @@ watch(autoResolveOptionId, (optionId) => {
   width: 64px;
   height: 64px;
   min-height: 0;
+  max-width: 64px;
   aspect-ratio: 1 / 1;
   border-radius: 12px !important;
   align-self: center;
+  justify-self: center;
+  flex-shrink: 0;
 }
 
 .prompt-inline-hint {
@@ -1338,6 +1342,8 @@ watch(autoResolveOptionId, (optionId) => {
 
 .prompt-inline-btn {
   min-height: 40px;
+  width: 100%;
+  max-width: 100%;
   border-radius: 10px;
   border: 1px solid rgba(137, 167, 186, 0.42);
   background: rgba(32, 48, 67, 0.68);
@@ -1373,13 +1379,12 @@ watch(autoResolveOptionId, (optionId) => {
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
   pointer-events: none;
   user-select: none;
 }
 
 .prompt-inline-btn.action-image-btn .action-image-btn-fill {
-  transform: scale(1.14);
   transform-origin: center;
 }
 
@@ -1394,14 +1399,26 @@ watch(autoResolveOptionId, (optionId) => {
 
 .action-image-btn-label {
   position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
+  bottom: 0;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 
+    -1px -1px 0 #000,  
+     1px -1px 0 #000,
+    -1px  1px 0 #000,
+     1px  1px 0 #000,
+     0px  2px 4px rgba(0,0,0,0.8);
+  z-index: 2;
+  pointer-events: none;
   white-space: nowrap;
-  border: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 2px;
+  line-height: 1.2;
 }
 
 .prompt-inline-btn:hover:not(:disabled) {
@@ -1551,6 +1568,7 @@ watch(autoResolveOptionId, (optionId) => {
     width: 64px;
     height: 64px;
     min-height: 0;
+    justify-self: center;
   }
 
   .prompt-inline-hint {
@@ -1607,6 +1625,7 @@ watch(autoResolveOptionId, (optionId) => {
     width: 64px;
     height: 64px;
     min-height: 0;
+    justify-self: center;
   }
 }
 </style>
