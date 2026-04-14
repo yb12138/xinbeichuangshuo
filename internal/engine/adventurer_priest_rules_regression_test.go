@@ -38,6 +38,44 @@ func choiceIndexForTarget(t *testing.T, ctx map[string]interface{}, targetID str
 	return -1
 }
 
+func countAskPromptsForPlayer(obs *captureObserver, playerID string) int {
+	if obs == nil {
+		return 0
+	}
+	count := 0
+	for _, event := range obs.events {
+		if event.Type != model.EventAskInput {
+			continue
+		}
+		prompt, ok := event.Data.(*model.Prompt)
+		if !ok || prompt == nil || prompt.PlayerID != playerID {
+			continue
+		}
+		count++
+	}
+	return count
+}
+
+func latestAskPromptForPlayer(obs *captureObserver, playerID string) *model.Prompt {
+	if obs == nil {
+		return nil
+	}
+	for i := len(obs.events) - 1; i >= 0; i-- {
+		event := obs.events[i]
+		if event.Type != model.EventAskInput {
+			continue
+		}
+		prompt, ok := event.Data.(*model.Prompt)
+		if !ok || prompt == nil || prompt.PlayerID != playerID {
+			continue
+		}
+		copied := *prompt
+		copied.Options = append([]model.PromptOption(nil), prompt.Options...)
+		return &copied
+	}
+	return nil
+}
+
 func TestAdventurerStealSky_ModeAndExtraActionChoice(t *testing.T) {
 	game := NewGameEngine(noopObserver{})
 	if err := game.AddPlayer("p1", "Adventurer", "adventurer", model.RedCamp); err != nil {
@@ -293,6 +331,57 @@ func TestAdventurerParadise_TargetsFilteredByExtractCapacity(t *testing.T) {
 	}
 	if p3.Gem+p3.Crystal != 3 {
 		t.Fatalf("expected p3 receive all extracted energy, got gem=%d crystal=%d", p3.Gem, p3.Crystal)
+	}
+}
+
+// 回归：提炼后切换到【冒险者天堂】响应时，应立即下发新的响应技能提示，避免前端停留在 choose_extract。
+func TestAdventurerExtract_ParadisePromptRefreshAfterSelection(t *testing.T) {
+	obs := &captureObserver{}
+	game := NewGameEngine(obs)
+	if err := game.AddPlayer("p1", "Adventurer", "adventurer", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Ally", "berserker", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p3", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Gem = 0
+	p1.Crystal = 0
+	game.State.RedGems = 1
+
+	mustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdExtract})
+	firstPrompt := latestAskPromptForPlayer(obs, "p1")
+	if firstPrompt == nil || firstPrompt.Type != model.PromptChooseExtract {
+		t.Fatalf("expected first prompt choose_extract, got %+v", firstPrompt)
+	}
+	beforeSelectAskCount := countAskPromptsForPlayer(obs, "p1")
+
+	mustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{0},
+	})
+	requireResponseSkillPrompt(t, game, "p1")
+
+	afterSelectAskCount := countAskPromptsForPlayer(obs, "p1")
+	if afterSelectAskCount <= beforeSelectAskCount {
+		t.Fatalf("expected a fresh ask-input prompt after extract select, before=%d after=%d",
+			beforeSelectAskCount, afterSelectAskCount)
+	}
+	latestPrompt := latestAskPromptForPlayer(obs, "p1")
+	if latestPrompt == nil || latestPrompt.Type != model.PromptChooseSkill {
+		t.Fatalf("expected latest prompt choose_skill for paradise response, got %+v", latestPrompt)
+	}
+	if !promptHasOptionID(latestPrompt, "adventurer_paradise") {
+		t.Fatalf("expected paradise response option in prompt, got options=%+v", latestPrompt.Options)
 	}
 }
 

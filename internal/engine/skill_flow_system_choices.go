@@ -318,6 +318,7 @@ func (e *GameEngine) handleExtractChoiceSelections(playerID string, selections [
 		}
 		e.Log(fmt.Sprintf("[Action] %s 提炼：获得 %d 宝石 %d 水晶，必须先通过[冒险者天堂]分配给队友",
 			player.Name, extractedGems, extractedCrystals))
+		e.notifyInterruptPrompt()
 		return nil
 	}
 
@@ -339,6 +340,7 @@ func (e *GameEngine) handleExtractChoiceSelections(playerID string, selections [
 			}),
 		}
 		e.Log(fmt.Sprintf("[Action] %s 提炼完成，可发动[冒险者天堂]转移本次提炼结果", player.Name))
+		e.notifyInterruptPrompt()
 		return nil
 	}
 
