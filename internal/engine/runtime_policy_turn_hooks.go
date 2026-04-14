@@ -127,8 +127,7 @@ func turnStartValkyrieMilitaryGloryHook(e *GameEngine, player *model.Player) boo
 	if e == nil || player == nil || !isCharacter(player, "valkyrie") {
 		return false
 	}
-	ensurePlayerTokensMap(player)
-	if player.Tokens["valkyrie_spirit"] <= 0 || player.TurnState.UsedSkillCounts["valkyrie_military_glory"] > 0 {
+	if !hasValkyrieHeroicForm(player) || player.TurnState.UsedSkillCounts["valkyrie_military_glory"] > 0 {
 		return false
 	}
 	ctx := e.buildTimedContext(player, nil, model.TimingOnTurnStart, &model.EventContext{

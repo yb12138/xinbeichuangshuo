@@ -6,7 +6,6 @@ import { useSnapshotStore } from '../stores/snapshot.store'
 import { useBattleInteractionState } from '../composables/useBattleInteractionState'
 import { useSubmitAction } from '../composables/useSubmitAction'
 import type { AvailableSkill, PromptOption, PlayerView } from '../types/game'
-import CardComponent from './CardComponent.vue'
 import PromptDialog from './PromptDialog.vue'
 
 const interruptStore = useInterruptStore()
@@ -550,14 +549,6 @@ const hasStealthBlockedAttackTarget = computed(() =>
     attackTargetCandidates.value.some((p) => isStealthBlockedTarget(p.id))
 )
 
-const BOARD_GUIDED_SKILL_IDS = new Set([
-    'ss_soul_mirror',
-    'water_seal',
-    'fire_seal',
-    'earth_seal',
-    'wind_seal',
-    'thunder_seal',
-])
 const SKILL_REQUIRE_MANUAL_TARGET_CONFIRM_IDS = new Set([
     'water_seal',
     'fire_seal',
@@ -565,11 +556,6 @@ const SKILL_REQUIRE_MANUAL_TARGET_CONFIRM_IDS = new Set([
     'wind_seal',
     'thunder_seal',
 ])
-const isBoardGuidedSkillFlow = computed(() => {
-    const skillId = interruptStore.selectedSkill?.id
-    if (!skillId) return false
-    return BOARD_GUIDED_SKILL_IDS.has(skillId)
-})
 const isManualTargetConfirmSkillFlow = computed(() => {
     const skillId = interruptStore.selectedSkill?.id
     if (!skillId) return false
@@ -803,17 +789,6 @@ function proceedAfterDiscard(skill: AvailableSkill) {
     interruptStore.setSkillMode('choosing_target')
 }
 
-function confirmSkillDiscard() {
-    const skill = interruptStore.selectedSkill
-    if (!skill) return
-    const required = requiredDiscardCount(skill)
-    if (interruptStore.skillDiscardIndices.length < required) {
-        interruptStore.showError(`请选择 ${required} 张牌`)
-        return
-    }
-    proceedAfterDiscard(skill)
-}
-
 function confirmSkill() {
     const skill = interruptStore.selectedSkill
     if (!skill) return
@@ -833,8 +808,8 @@ function confirmSkill() {
 
 watch(
     () => [interruptStore.skillMode, interruptStore.selectedSkill?.id, interruptStore.skillDiscardIndices.length] as const,
-    ([mode, skillId, selectedCount]) => {
-        if (mode !== 'choosing_discard' || !skillId || !BOARD_GUIDED_SKILL_IDS.has(skillId)) return
+    ([mode, _skillId, selectedCount]) => {
+        if (mode !== 'choosing_discard') return
         const skill = interruptStore.selectedSkill
         if (!skill) return
         const required = requiredDiscardCount(skill)
@@ -1022,107 +997,26 @@ function requiredDiscardCount(skill: AvailableSkill): number {
     return skill.cost_discards
 }
 
-function isCardSelectableForSkillDiscard(card: { type: string; element: string; faction?: string; exclusive_char1?: string; exclusive_char2?: string; exclusive_skill1?: string; exclusive_skill2?: string }): boolean {
-    const skill = interruptStore.selectedSkill
-    if (!skill) return false
+function skillDiscardGuideText(skill: AvailableSkill): string {
+    if (skill.require_exclusive) {
+        return `弃标有「${skill.title}」的独有牌`
+    }
+    if (skill.discard_element) {
+        return `弃置${elementName(skill.discard_element)}牌`
+    }
+    if (skill.discard_type) {
+        return `弃置${skill.discard_type === 'Magic' ? '法术牌' : '攻击牌'}`
+    }
     if (skill.id === 'priest_water_power') {
-        const selected = interruptStore.skillDiscardIndices
-            .map((i) => myHand.value[i])
-            .filter((c): c is NonNullable<typeof c> => !!c)
-        if (selected.length === 0) {
-            return card.element === 'Water'
-        }
-        // 第一张已是水系后，第二张可为任意手牌（但上限仍由 requiredDiscardCount 控制）。
-        return selected[0]?.element === 'Water'
+        return '第一张需水系；若仍有手牌，第二张将交给目标队友'
     }
-    // 独有技：必须使用卡牌下标了该技能名的牌
-    if (skill.require_exclusive) {
-        const roleId = resolveMyRoleIdForExclusive()
-        if (!roleId || !cardMatchesExclusive(card, roleId, skill.title)) return false
-    }
-    if (skill.discard_type && card.type !== skill.discard_type) return false
-    // 元素要求
-    if (skill.discard_element) return card.element === skill.discard_element
     if (skill.id === 'magic_bullet_fusion') {
-        return card.element === 'Fire' || card.element === 'Earth'
+        return '需要火系或地系牌'
     }
-    // 阴阳师：式神降临需要两张同命格手牌
     if (skill.id === 'onmyoji_shikigami_descend') {
-        if (!card.faction) return false
-        const selected = interruptStore.skillDiscardIndices
-            .map((i) => myHand.value[i])
-            .filter((c): c is NonNullable<typeof c> => !!c)
-        if (selected.length > 0) {
-            const reqFaction = selected[0]?.faction
-            if (reqFaction && card.faction !== reqFaction) return false
-        }
+        return '需要2张命格相同的手牌'
     }
-    return true
-}
-
-function toggleSkillDiscardCard(idx: number) {
-    const skill = interruptStore.selectedSkill
-    if (!skill) return
-    const required = requiredDiscardCount(skill)
-    const card = myHand.value[idx]
-    if (!card) return
-    // 独有技：必须使用卡牌下标了该技能名的牌
-    if (skill.require_exclusive) {
-        const roleId = resolveMyRoleIdForExclusive()
-        if (!roleId || !cardMatchesExclusive(card, roleId, skill.title)) {
-            interruptStore.showError('必须使用标有该技能名的独有牌')
-            return
-        }
-    }
-    // 检查元素要求
-    if (skill.discard_element && card.element !== skill.discard_element) {
-        interruptStore.showError(`需要弃置${elementName(skill.discard_element)}牌`)
-        return
-    }
-    if (skill.discard_type && card.type !== skill.discard_type) {
-        interruptStore.showError(`需要弃置${skill.discard_type === 'Magic' ? '法术' : '攻击'}牌`)
-        return
-    }
-    if (skill.id === 'priest_water_power' && !interruptStore.skillDiscardIndices.includes(idx)) {
-        const selected = interruptStore.skillDiscardIndices
-            .map((i) => myHand.value[i])
-            .filter((c): c is NonNullable<typeof c> => !!c)
-        if (selected.length === 0 && card.element !== 'Water') {
-            interruptStore.showError('水之神力第一张需弃置水系牌')
-            return
-        }
-        if (selected.length > 0 && selected[0]?.element !== 'Water') {
-            interruptStore.showError('水之神力第一张需弃置水系牌')
-            return
-        }
-    }
-    if (skill.id === 'magic_bullet_fusion' && card.element !== 'Fire' && card.element !== 'Earth') {
-        interruptStore.showError('魔弹融合需要弃置1张火系或地系牌')
-        return
-    }
-    // 阴阳师：式神降临必须弃置两张同命格手牌
-    if (skill.id === 'onmyoji_shikigami_descend' && !interruptStore.skillDiscardIndices.includes(idx)) {
-        if (!card.faction) {
-            interruptStore.showError('式神降临需要弃置有命格的手牌')
-            return
-        }
-        const selected = interruptStore.skillDiscardIndices
-            .map((i) => myHand.value[i])
-            .filter((c): c is NonNullable<typeof c> => !!c)
-        if (selected.length > 0) {
-            const reqFaction = selected[0]?.faction
-            if (reqFaction && card.faction !== reqFaction) {
-                interruptStore.showError('式神降临需要弃置2张命格相同的手牌')
-                return
-            }
-        }
-    }
-    // 如果已选满且不是取消选择，不允许继续选
-    if (!interruptStore.skillDiscardIndices.includes(idx) && interruptStore.skillDiscardIndices.length >= required) {
-        interruptStore.showError(`最多选择 ${required} 张牌`)
-        return
-    }
-    interruptStore.toggleSkillDiscard(idx)
+    return '请在下方手牌区选择要弃置的牌'
 }
 
 function elementName(el: string): string {
@@ -1144,14 +1038,14 @@ function elementName(el: string): string {
                 <div class="text-amber-400 text-sm font-bold">✨ 法术行动</div>
                 <div class="text-xs text-gray-400">发动法术有两种方式：打出法术牌或发动角色技能</div>
                 <div class="flex gap-3 justify-center mt-2">
-                    <button class="action-image-btn w-16 sm:w-20" title="打出法术牌" @click="interruptStore.setMagicSubChoice('card')">
+                    <button class="action-image-btn w-[72px] sm:w-[88px]" title="打出法术牌" @click="interruptStore.setMagicSubChoice('card')">
                         <img v-if="isMainActionImageReady('card')" class="action-image-btn-fill" :src="mainActionButtonImage('card')" alt="" @error="onMainActionImageError('card')" />
                         <span v-else class="action-image-fallback-text">牌</span>
                         <span class="action-image-btn-label">打出法术牌</span>
                     </button>
                     <button
                         v-if="effectiveAvailableSkills.length > 0"
-                        class="action-image-btn w-16 sm:w-20"
+                        class="action-image-btn w-[72px] sm:w-[88px]"
                         title="发动技能"
                         @click="interruptStore.setSkillMode('choosing_skill'); interruptStore.clearActionMode()"
                     >
@@ -1159,7 +1053,7 @@ function elementName(el: string): string {
                         <span v-else class="action-image-fallback-text">技</span>
                         <span class="action-image-btn-label">发动技能</span>
                     </button>
-                    <button class="action-image-btn w-16 sm:w-20" title="取消" @click="interruptStore.clearActionMode()">
+                    <button class="action-image-btn w-[72px] sm:w-[88px]" title="取消" @click="interruptStore.clearActionMode()">
                         <img v-if="isMainActionImageReady('cancel')" class="action-image-btn-fill" :src="mainActionButtonImage('cancel')" alt="" @error="onMainActionImageError('cancel')" />
                         <span v-else class="action-image-fallback-text">消</span>
                         <span class="action-image-btn-label">取消</span>
@@ -1192,14 +1086,14 @@ function elementName(el: string): string {
                     先在下方手牌选一张{{ interruptStore.actionMode === 'attack' ? '攻击' : '法术' }}牌
                 </div>
                 <div class="flex gap-3 justify-center mt-2">
-                    <button class="action-image-btn w-16 sm:w-20" :title="interruptStore.actionMode === 'magic' ? '返回' : '取消'" @click="interruptStore.actionMode === 'magic' ? backFromMagicCard() : interruptStore.clearActionMode()">
+                    <button class="action-image-btn w-[72px] sm:w-[88px]" :title="interruptStore.actionMode === 'magic' ? '返回' : '取消'" @click="interruptStore.actionMode === 'magic' ? backFromMagicCard() : interruptStore.clearActionMode()">
                         <img v-if="isMainActionImageReady('cancel')" class="action-image-btn-fill" :src="mainActionButtonImage('cancel')" alt="" @error="onMainActionImageError('cancel')" />
                         <span v-else class="action-image-fallback-text">{{ interruptStore.actionMode === 'magic' ? '返' : '消' }}</span>
                         <span class="action-image-btn-label">{{ interruptStore.actionMode === 'magic' ? '返回' : '取消' }}</span>
                     </button>
                     <button
                         v-if="interruptStore.actionMode === 'magic' && effectiveAvailableSkills.length > 0"
-                        class="action-image-btn w-16 sm:w-20"
+                        class="action-image-btn w-[72px] sm:w-[88px]"
                         title="改用技能"
                         @click="interruptStore.setSkillMode('choosing_skill'); interruptStore.clearActionMode()"
                     >
@@ -1233,7 +1127,7 @@ function elementName(el: string): string {
                 </button>
             </div>
             <div class="flex gap-3 justify-center mt-2">
-                <button class="action-image-btn w-16 sm:w-20" title="取消" @click="interruptStore.clearSkillMode()">
+                <button class="action-image-btn w-[72px] sm:w-[88px]" title="取消" @click="interruptStore.clearSkillMode()">
                     <img v-if="isMainActionImageReady('cancel')" class="action-image-btn-fill" :src="mainActionButtonImage('cancel')" alt="" @error="onMainActionImageError('cancel')" />
                     <span v-else class="action-image-fallback-text">消</span>
                     <span class="action-image-btn-label">取消</span>
@@ -1249,78 +1143,18 @@ function elementName(el: string): string {
           {{ interruptStore.skillDiscardIndices.length }}/{{ requiredDiscardCount(interruptStore.selectedSkill) }}
         </span>
             </div>
-            <template v-if="isBoardGuidedSkillFlow">
-                <div class="text-xs text-gray-400">
-                    <span v-if="interruptStore.selectedSkill.require_exclusive">
-                        弃标有「{{ interruptStore.selectedSkill.title }}」的独有牌
-                    </span>
-                    <span v-else>
-                        请在下方手牌区选择要弃置的牌
-                    </span>
-                    <span class="text-amber-300">（已选 {{ interruptStore.skillDiscardIndices.length }}/{{ requiredDiscardCount(interruptStore.selectedSkill) }}）</span>
-                </div>
-                <div class="text-[11px] text-gray-500">选满后将自动进入目标选择</div>
-                <div class="flex gap-3 justify-center">
-                    <button class="action-image-btn w-16 sm:w-20" title="取消" @click="interruptStore.clearSkillMode()">
-                        <img v-if="isMainActionImageReady('cancel')" class="action-image-btn-fill" :src="mainActionButtonImage('cancel')" alt="" @error="onMainActionImageError('cancel')" />
-                        <span v-else class="action-image-fallback-text">消</span>
-                        <span class="action-image-btn-label">取消</span>
-                    </button>
-                </div>
-            </template>
-            <template v-else>
-                <div class="text-xs text-gray-400">
-                    请选择要弃置的牌
-                    <span v-if="interruptStore.selectedSkill.require_exclusive" class="text-amber-300">
-          （须为标有「{{ interruptStore.selectedSkill.title }}」的独有牌）
-        </span>
-                    <span v-else-if="interruptStore.selectedSkill.discard_element" class="text-amber-300">
-          （需要{{ elementName(interruptStore.selectedSkill.discard_element) }}牌）
-                    </span>
-                    <span v-else-if="interruptStore.selectedSkill.discard_type" class="text-amber-300">
-          （需要{{ interruptStore.selectedSkill.discard_type === 'Magic' ? '法术牌' : '攻击牌' }}）
-                    </span>
-                    <span v-else-if="interruptStore.selectedSkill.id === 'priest_water_power'" class="text-amber-300">
-          （第一张需水系；若仍有手牌，第二张将交给目标队友）
-                    </span>
-                    <span v-else-if="interruptStore.selectedSkill.id === 'magic_bullet_fusion'" class="text-amber-300">
-          （需要火系或地系牌）
-                    </span>
-                    <span v-else-if="interruptStore.selectedSkill.id === 'onmyoji_shikigami_descend'" class="text-amber-300">
-          （需要2张命格相同的手牌）
-                    </span>
-                </div>
-                <div class="flex gap-1 flex-wrap justify-center skill-discard-card-row">
-                    <CardComponent
-                        v-for="(card, idx) in myHand"
-                        :key="idx"
-                        :card="card"
-                        :index="idx"
-                        medium
-                        :selectable="isCardSelectableForSkillDiscard(card)"
-                        :selected="interruptStore.skillDiscardIndices.includes(idx)"
-                        @click="toggleSkillDiscardCard(idx)"
-                    />
-                </div>
-            <div class="flex gap-3 justify-center mt-2">
-                <button
-                    class="action-image-btn w-16 sm:w-20"
-                    :class="{ 'opacity-50 cursor-not-allowed': interruptStore.skillDiscardIndices.length < requiredDiscardCount(interruptStore.selectedSkill) }"
-                    :title="`确认弃牌 (${interruptStore.skillDiscardIndices.length}/${requiredDiscardCount(interruptStore.selectedSkill)})`"
-                    :disabled="interruptStore.skillDiscardIndices.length < requiredDiscardCount(interruptStore.selectedSkill)"
-                    @click="confirmSkillDiscard()"
-                >
-                    <img v-if="isMainActionImageReady('confirm')" class="action-image-btn-fill" :src="mainActionButtonImage('confirm')" alt="" @error="onMainActionImageError('confirm')" />
-                    <span v-else class="action-image-fallback-text">确</span>
-                    <span class="action-image-btn-label">确认弃牌 ({{ interruptStore.skillDiscardIndices.length }}/{{ requiredDiscardCount(interruptStore.selectedSkill) }})</span>
-                </button>
-                <button class="action-image-btn w-16 sm:w-20" title="取消" @click="interruptStore.clearSkillMode()">
+            <div class="text-xs text-gray-400">
+                {{ skillDiscardGuideText(interruptStore.selectedSkill) }}
+                <span class="text-amber-300">（已选 {{ interruptStore.skillDiscardIndices.length }}/{{ requiredDiscardCount(interruptStore.selectedSkill) }}）</span>
+            </div>
+            <div class="text-[11px] text-gray-500">请在下方手牌区点击选择，选满后自动进入下一步</div>
+            <div class="flex gap-3 justify-center">
+                <button class="action-image-btn w-[72px] sm:w-[88px]" title="取消" @click="interruptStore.clearSkillMode()">
                     <img v-if="isMainActionImageReady('cancel')" class="action-image-btn-fill" :src="mainActionButtonImage('cancel')" alt="" @error="onMainActionImageError('cancel')" />
                     <span v-else class="action-image-fallback-text">消</span>
                     <span class="action-image-btn-label">取消</span>
                 </button>
             </div>
-            </template>
         </div>
 
         <!-- 技能发动流程：选择目标 -->
@@ -1331,7 +1165,7 @@ function elementName(el: string): string {
           {{ interruptStore.skillTargetIds.length }}/{{ (interruptStore.selectedSkill.max_targets > 0 ? interruptStore.selectedSkill.max_targets : 1) }}
         </span>
             </div>
-            <p v-if="interruptStore.selectedSkill.description && !isBoardGuidedSkillFlow" class="text-xs text-gray-400 whitespace-pre-wrap break-words">{{ interruptStore.selectedSkill.description }}</p>
+            <p v-if="interruptStore.selectedSkill.description" class="text-xs text-gray-400 whitespace-pre-wrap break-words">{{ interruptStore.selectedSkill.description }}</p>
             <div class="text-xs text-gray-400">
                 <template v-if="isManualTargetConfirmSkillFlow">
                     点击角色头像选择目标，然后点击“确认发动”
@@ -1354,7 +1188,7 @@ function elementName(el: string): string {
             <div class="flex gap-3 justify-center mt-2">
                 <button
                     v-if="isManualTargetConfirmSkillFlow"
-                    class="action-image-btn w-16 sm:w-20"
+                    class="action-image-btn w-[72px] sm:w-[88px]"
                     :class="{ 'opacity-50 cursor-not-allowed': !canConfirmSkill }"
                     title="确认发动"
                     :disabled="!canConfirmSkill"
@@ -1364,7 +1198,7 @@ function elementName(el: string): string {
                     <span v-else class="action-image-fallback-text">确</span>
                     <span class="action-image-btn-label">确认发动</span>
                 </button>
-                <button class="action-image-btn w-16 sm:w-20" title="取消" @click="interruptStore.clearSkillMode()">
+                <button class="action-image-btn w-[72px] sm:w-[88px]" title="取消" @click="interruptStore.clearSkillMode()">
                     <img v-if="isMainActionImageReady('cancel')" class="action-image-btn-fill" :src="mainActionButtonImage('cancel')" alt="" @error="onMainActionImageError('cancel')" />
                     <span v-else class="action-image-fallback-text">消</span>
                     <span class="action-image-btn-label">取消</span>

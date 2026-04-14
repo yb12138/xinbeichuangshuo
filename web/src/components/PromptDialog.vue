@@ -213,7 +213,9 @@ const isResponseSkillConfirmPrompt = computed(() => {
 const canCancelPrompt = computed(() => {
   if (!prompt.value) return false
   if (prompt.value.type === 'choose_skill' || isResponseSkillConfirmPrompt.value) return true
-  return (prompt.value.options ?? []).some((option: { id: string }) => option.id === 'skip' || option.id === 'cancel')
+  return (prompt.value.options ?? []).some((option: { id: string }) =>
+    option.id === 'skip' || option.id === 'cancel' || option.id === 'refuse'
+  )
 })
 
 function handleOptionClick(optionId: string) {
@@ -470,7 +472,7 @@ type SkillPromptButton = {
   cancel: boolean
 }
 
-type PromptImageButtonKind = 'take' | 'counter' | 'defend' | 'cancel' | 'confirm' | 'action'
+type PromptImageButtonKind = 'take' | 'counter' | 'defend' | 'cancel' | 'confirm' | 'card' | 'action'
 
 const PROMPT_IMAGE_BUTTON_CANDIDATES: Record<PromptImageButtonKind, string[]> = {
   take: ['/assets/ui/prompt_btn_take.png'],
@@ -478,6 +480,7 @@ const PROMPT_IMAGE_BUTTON_CANDIDATES: Record<PromptImageButtonKind, string[]> = 
   defend: ['/assets/ui/prompt_btn_defend.png'],
   cancel: ['/assets/ui/action_cancel_btn.png'],
   confirm: ['/assets/ui/action_confirm.png'],
+  card: ['/assets/ui/action_card.png'],
   action: ['/assets/ui/action_special_btn.png'],
 }
 
@@ -487,6 +490,7 @@ const promptImageButtonIndex = ref<Record<PromptImageButtonKind, number>>({
   defend: 0,
   cancel: 0,
   confirm: 0,
+  card: 0,
   action: 0,
 })
 
@@ -496,6 +500,7 @@ const promptImageButtonFailed = ref<Record<PromptImageButtonKind, boolean>>({
   defend: false,
   cancel: false,
   confirm: false,
+  card: false,
   action: false,
 })
 
@@ -510,11 +515,12 @@ const optionButtonLabelById: Record<string, string> = {
   defend: '防御',
   normal: '顺时针',
   reverse: '逆时针',
+  refuse: '不弃牌',
   cannot_act: '取消',
   pass: '取消',
 }
 
-const plainNoHintButtons = new Set(['发动', '确认', '确定', '是', '取消', '应战', '防御', '命中', '顺序', '反向'])
+const plainNoHintButtons = new Set(['发动', '确认', '确定', '是', '取消', '不弃牌', '应战', '防御', '命中', '顺序', '反向'])
 
 function parseNonNegativeOptionId(optionId: string): number | null {
   const normalized = String(optionId || '').trim()
@@ -564,6 +570,16 @@ function isConfirmLikeLabel(label: string): boolean {
   return false
 }
 
+function isCardSelectionLikeText(text: string): boolean {
+  const normalized = String(text || '').trim()
+  if (!normalized) return false
+  if (/^\d+\s*[:：]/.test(normalized)) return true
+  if (/第\d+张\s*[:：]/.test(normalized)) return true
+  if (/^茧\[\d+\]\s*[:：]/.test(normalized)) return true
+  if (/^移除茧\[\d+\]\s*[:：]/.test(normalized)) return true
+  return false
+}
+
 function promptImageButtonKindByOption(option: { id?: string; label?: string; buttonLabel?: string }): PromptImageButtonKind {
   const id = String(option.id || '').trim().toLowerCase()
   const label = String(option.label || '').trim()
@@ -575,6 +591,9 @@ function promptImageButtonKindByOption(option: { id?: string; label?: string; bu
     combinedText.includes('防御') ||
     combinedText.includes('应战') ||
     combinedText.includes('传递')
+  if (isCardSelectionLikeText(label) || isCardSelectionLikeText(buttonLabel)) {
+    return 'card'
+  }
   if ((isConfirmLikeLabel(buttonLabel) || isConfirmLikeLabel(label)) && !hasExplicitResponseText) {
     return 'confirm'
   }
@@ -612,6 +631,7 @@ function promptImageButtonFallbackText(kind: PromptImageButtonKind | null, butto
   if (kind === 'counter') return '应'
   if (kind === 'cancel') return '消'
   if (kind === 'confirm') return '确'
+  if (kind === 'card') return '牌'
   if (kind === 'action') return buttonLabel ? buttonLabel.charAt(0) : '动'
   return ''
 }
@@ -697,6 +717,7 @@ function normalizeButtonLabel(rawLabel: string, optionId: string, optionLabel: s
   if (
     lowerId === 'cancel' ||
     lowerId === 'skip' ||
+    lowerId === 'refuse' ||
     lowerId === 'no' ||
     lowerId === 'pass' ||
     lowerId === 'cannot_act' ||
@@ -730,6 +751,9 @@ function normalizeDockOption(option: RawDockOption, useNumeric: boolean, plusOne
     if (n !== null) {
       buttonLabel = String(plusOne ? n + 1 : n)
     }
+  }
+  if (!buttonLabel && isCardSelectionLikeText(label)) {
+    buttonLabel = '打出卡牌'
   }
   if (!buttonLabel && isDeclineLabel(label)) {
     buttonLabel = '取消'
@@ -805,19 +829,8 @@ const cardFooterOptions = computed<RawDockOption[]>(() => {
       }))
   }
   if (prompt.value.type !== 'choose_card' && prompt.value.type !== 'choose_cards') return []
-  return prompt.value.options
-    .filter((option: { id: string; label?: string }) => {
-      if (isIndexedCocoonOption(option)) return false
-      const idx = parsePromptCardIndex(option.id)
-      return idx === null || !promptCardOptionIndexSet.value.has(idx)
-    })
-    .map((option) => ({
-      id: option.id,
-      label: option.label,
-      button_label: option.button_label,
-      hint: option.hint,
-      disabled: false
-    }))
+  // 选牌类提示统一在手牌区完成，行动区不再展示“选哪张牌”的按钮。
+  return []
 })
 
 const promptNeedsHandCardConfirm = computed(() => {
@@ -837,6 +850,7 @@ const promptNeedsCardConfirm = computed(() =>
 
 const cardConfirmHintText = computed(() => {
   if (promptNeedsInlineCardOptionConfirm.value) return '完成选择后点击发动'
+  if (prompt.value?.choice_type === 'adventurer_fraud_pick') return '请选择2~3张同系牌，3张将自动转为暗灭攻击'
   return '完成选牌后点击发动'
 })
 
@@ -979,9 +993,10 @@ const hasAnyInlineButton = computed(() => {
 
 const cancelDockButton = computed<DockButtonOption>(() => {
   const promptOptions = prompt.value?.options ?? []
+  const refuseOption = promptOptions.find((option) => option.id === 'refuse')
   const cancelOption = promptOptions.find((option) => option.id === 'cancel')
   const skipOption = promptOptions.find((option) => option.id === 'skip')
-  const option = cancelOption ?? skipOption ?? {
+  const option = refuseOption ?? cancelOption ?? skipOption ?? {
     id: 'cancel',
     label: canCancelPrompt.value ? '取消' : ''
   }
@@ -1004,7 +1019,7 @@ function getDockButtonClass(optionId: string): string {
   if (kind === 'counter') return 'prompt-inline-btn--counter'
   if (kind === 'defend') return 'prompt-inline-btn--defend'
   if (lowerOptionId === 'confirm' || lowerOptionId === 'yes') return 'prompt-inline-btn--success'
-  if (lowerOptionId === 'skip' || lowerOptionId === 'cancel' || lowerOptionId === 'no' || lowerOptionId === 'pass' || lowerOptionId === 'cannot_act') {
+  if (lowerOptionId === 'skip' || lowerOptionId === 'cancel' || lowerOptionId === 'refuse' || lowerOptionId === 'no' || lowerOptionId === 'pass' || lowerOptionId === 'cannot_act') {
     return 'prompt-inline-btn--cancel'
   }
   return 'prompt-inline-btn--normal'
@@ -1046,6 +1061,7 @@ watch(autoResolveOptionId, (optionId) => {
               :disabled="selectedExtractIndices.length < (prompt?.min ?? 1) || selectedExtractIndices.length > (prompt?.max ?? 2)"
               @click="confirmExtractSelection"
               :title="`确认提炼（${selectedExtractIndices.length}/${prompt?.max ?? 2}）`"
+              :aria-label="`确认提炼（${selectedExtractIndices.length}/${prompt?.max ?? 2}）`"
             >
               <img
                 v-if="isPromptConfirmImageReady()"
@@ -1055,7 +1071,6 @@ watch(autoResolveOptionId, (optionId) => {
                 @error="onPromptConfirmImageError"
               />
               <span v-else class="action-image-fallback-text">确</span>
-              <span class="action-image-btn-label">确认提炼（{{ selectedExtractIndices.length }}/{{ prompt?.max ?? 2 }}）</span>
             </button>
           </div>
         </template>
@@ -1076,6 +1091,8 @@ watch(autoResolveOptionId, (optionId) => {
                     option.disabled ? 'prompt-inline-btn--disabled' : ''
                   ]"
                   :disabled="option.disabled"
+                  :title="!isMultiSkillNameChoiceMode ? option.label : undefined"
+                  :aria-label="!isMultiSkillNameChoiceMode ? option.label : undefined"
                   @click="handleOptionClick(option.id)"
                 >
                   <template v-if="!isMultiSkillNameChoiceMode">
@@ -1087,7 +1104,6 @@ watch(autoResolveOptionId, (optionId) => {
                       @error="onSkillButtonImageError(option)"
                     />
                     <span v-else class="action-image-fallback-text">{{ skillButtonFallbackText(option) }}</span>
-                    <span class="action-image-btn-label" :title="option.label">{{ option.label }}</span>
                   </template>
                   <template v-else>
                     {{ option.label }}
@@ -1122,6 +1138,8 @@ watch(autoResolveOptionId, (optionId) => {
                   option.disabled ? 'prompt-inline-btn--disabled' : ''
                 ]"
                 :disabled="!!option.disabled"
+                :title="isDockButtonImageStyle(option) ? option.buttonLabel : undefined"
+                :aria-label="isDockButtonImageStyle(option) ? option.buttonLabel : undefined"
                 @click="handleOptionClick(option.id)"
               >
                 <template v-if="isDockButtonImageStyle(option)">
@@ -1133,7 +1151,6 @@ watch(autoResolveOptionId, (optionId) => {
                     @error="onDockButtonImageError(option)"
                   />
                   <span v-else class="action-image-fallback-text">{{ dockButtonFallbackText(option) }}</span>
-                  <span class="action-image-btn-label" :title="option.buttonLabel">{{ option.buttonLabel }}</span>
                 </template>
                 <template v-else>
                   <template v-if="option.numeric && !!option.hint">
@@ -1154,6 +1171,8 @@ watch(autoResolveOptionId, (optionId) => {
               class="prompt-inline-btn prompt-inline-btn--success action-image-btn"
               :class="{ 'prompt-inline-btn--disabled': !canConfirmPrompt }"
               :disabled="!canConfirmPrompt"
+              title="发动"
+              aria-label="发动"
               @click="confirmPromptAction"
             >
               <img
@@ -1164,7 +1183,6 @@ watch(autoResolveOptionId, (optionId) => {
                 @error="onPromptConfirmImageError"
               />
               <span v-else class="action-image-fallback-text">确</span>
-              <span class="action-image-btn-label">发动</span>
             </button>
           </div>
         </template>
@@ -1174,6 +1192,8 @@ watch(autoResolveOptionId, (optionId) => {
           <button
             class="prompt-inline-btn prompt-inline-btn--cancel"
             :class="isDockButtonImageStyle(cancelDockButton) ? 'action-image-btn' : ''"
+            :title="isDockButtonImageStyle(cancelDockButton) ? cancelDockButton.buttonLabel : undefined"
+            :aria-label="isDockButtonImageStyle(cancelDockButton) ? cancelDockButton.buttonLabel : undefined"
             @click="handleOptionClick(cancelDockButton.id)"
           >
             <template v-if="isDockButtonImageStyle(cancelDockButton)">
@@ -1185,7 +1205,6 @@ watch(autoResolveOptionId, (optionId) => {
                 @error="onDockButtonImageError(cancelDockButton)"
               />
               <span v-else class="action-image-fallback-text">{{ dockButtonFallbackText(cancelDockButton) }}</span>
-              <span class="action-image-btn-label">{{ cancelDockButton.buttonLabel }}</span>
             </template>
             <template v-else>
               {{ cancelDockButton.buttonLabel }}
@@ -1295,10 +1314,10 @@ watch(autoResolveOptionId, (optionId) => {
 }
 
 .prompt-inline-btn.action-image-btn {
-  width: 64px;
-  height: 64px;
+  width: 72px;
+  height: 72px;
   min-height: 0;
-  max-width: 64px;
+  max-width: 72px;
   aspect-ratio: 1 / 1;
   border-radius: 12px !important;
   align-self: center;
@@ -1395,30 +1414,6 @@ watch(autoResolveOptionId, (optionId) => {
   font-weight: 700;
   color: #f2f8ff;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
-}
-
-.action-image-btn-label {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  text-align: center;
-  font-size: 12px;
-  font-weight: 700;
-  color: #fff;
-  text-shadow: 
-    -1px -1px 0 #000,  
-     1px -1px 0 #000,
-    -1px  1px 0 #000,
-     1px  1px 0 #000,
-     0px  2px 4px rgba(0,0,0,0.8);
-  z-index: 2;
-  pointer-events: none;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  padding: 0 2px;
-  line-height: 1.2;
 }
 
 .prompt-inline-btn:hover:not(:disabled) {
@@ -1565,9 +1560,10 @@ watch(autoResolveOptionId, (optionId) => {
   }
 
   .prompt-inline-btn.action-image-btn {
-    width: 64px;
-    height: 64px;
+    width: 72px;
+    height: 72px;
     min-height: 0;
+    max-width: 72px;
     justify-self: center;
   }
 
@@ -1622,9 +1618,10 @@ watch(autoResolveOptionId, (optionId) => {
   }
 
   .prompt-inline-btn.action-image-btn {
-    width: 64px;
-    height: 64px;
+    width: 72px;
+    height: 72px;
     min-height: 0;
+    max-width: 72px;
     justify-self: center;
   }
 }

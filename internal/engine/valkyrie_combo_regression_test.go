@@ -141,9 +141,7 @@ func TestValkyrie_ComboChain_FullFlow(t *testing.T) {
 	requireResponseSkillPrompt(t, game, "p1")
 	chooseResponseSkillByID(t, game, "p1", "valkyrie_heroic_summon")
 
-	// 4) 英灵召唤额外流程：确认弃法术 -> 选法术 -> 当前战斗目标自动+1治疗
-	requireChoicePrompt(t, game, "p1", "valkyrie_heroic_extra_confirm")
-	mustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0}}) // 是
+	// 4) 英灵召唤额外流程：直接选择法术牌（可取消）-> 当前战斗目标自动+1治疗
 	requireChoicePrompt(t, game, "p1", "valkyrie_heroic_discard_card")
 	mustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0}})
 	if p2.Heal != 1 {
@@ -151,8 +149,8 @@ func TestValkyrie_ComboChain_FullFlow(t *testing.T) {
 	}
 
 	// 5) 当前文档口径下，额外治疗只能给当前战斗目标，因此不会再给自己补治疗触发第二次神圣追击。
-	if p1.Tokens["valkyrie_spirit"] != 1 {
-		t.Fatalf("expected valkyrie spirit=1 after heroic summon on self turn, got %d", p1.Tokens["valkyrie_spirit"])
+	if !hasValkyrieHeroicForm(p1) {
+		t.Fatalf("expected enter heroic form after heroic summon on self turn, got form=%q", p1.Form)
 	}
 	if game.State.PendingInterrupt != nil && game.State.PendingInterrupt.Type == model.InterruptResponseSkill {
 		for _, sid := range game.State.PendingInterrupt.SkillIDs {

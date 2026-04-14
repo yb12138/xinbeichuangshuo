@@ -11,27 +11,14 @@ import (
 
 func (e *GameEngine) buildElementalistChoicePrompt(choiceType, playerID string, player *model.Player, data map[string]interface{}) *model.Prompt {
 	switch choiceType {
-	case "elementalist_bonus_confirm":
-		skillName, _ := data["skill_display_name"].(string)
-		eleZh := elementNameForPrompt(fmt.Sprint(data["bonus_element"]))
-		return &model.Prompt{
-			Type:     model.PromptConfirm,
-			PlayerID: playerID,
-			Message:  fmt.Sprintf("【%s】是否额外弃1张%s系牌，使本次法术伤害+1？", skillName, eleZh),
-			Options: []model.PromptOption{
-				{ID: "0", Label: "是"},
-				{ID: "1", Label: "否"},
-			},
-			Min: 1,
-			Max: 1,
-		}
-
 	case "elementalist_bonus_card":
 		if player == nil {
 			return nil
 		}
+		skillName, _ := data["skill_display_name"].(string)
+		eleZh := elementNameForPrompt(fmt.Sprint(data["bonus_element"]))
 		matching := parseIntSliceContextValue(data["matching_indices"])
-		options := make([]model.PromptOption, 0, len(matching))
+		options := make([]model.PromptOption, 0, len(matching)+1)
 		for _, idx := range matching {
 			if idx < 0 || idx >= len(player.Hand) {
 				continue
@@ -41,10 +28,11 @@ func (e *GameEngine) buildElementalistChoicePrompt(choiceType, playerID string, 
 				Label: fmt.Sprintf("%d: %s", idx+1, formatCardInfo(player.Hand[idx])),
 			})
 		}
+		options = append(options, model.PromptOption{ID: "cancel", Label: "放弃额外效果"})
 		return &model.Prompt{
-			Type:     model.PromptConfirm,
+			Type:     model.PromptChooseCards,
 			PlayerID: playerID,
-			Message:  "请选择额外弃置的同系牌：",
+			Message:  fmt.Sprintf("【%s】可额外弃1张%s系牌使本次法术伤害+1（或点击取消放弃本次额外效果）：", skillName, eleZh),
 			Options:  options,
 			Min:      1,
 			Max:      1,
@@ -57,43 +45,11 @@ func (e *GameEngine) buildElementalistChoicePrompt(choiceType, playerID string, 
 func (e *GameEngine) handleElementalistChoiceInput(_ string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
 	choiceType, _ := ctxData["choice_type"].(string)
 	switch choiceType {
-	case "elementalist_bonus_confirm":
-		return true, e.handleElementalistBonusConfirmChoice(selectionIndex, ctxData)
 	case "elementalist_bonus_card":
 		return true, e.handleElementalistBonusCardChoice(selectionIndex, ctxData)
 	default:
 		return false, nil
 	}
-}
-
-func (e *GameEngine) handleElementalistBonusConfirmChoice(selectionIndex int, ctxData map[string]interface{}) error {
-	if selectionIndex == 1 {
-		return e.resolveElementalistBonus(ctxData, false, -1)
-	}
-	if selectionIndex != 0 {
-		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
-	}
-
-	userID, _ := ctxData["user_id"].(string)
-	user := e.State.Players[userID]
-	if user == nil {
-		return fmt.Errorf("玩家不存在")
-	}
-	bonusElement, _ := ctxData["bonus_element"].(string)
-	matching := make([]int, 0)
-	for i, card := range user.Hand {
-		if string(card.Element) == bonusElement {
-			matching = append(matching, i)
-		}
-	}
-	if len(matching) == 0 {
-		return e.resolveElementalistBonus(ctxData, false, -1)
-	}
-	ctxData["choice_type"] = "elementalist_bonus_card"
-	ctxData["matching_indices"] = matching
-	e.State.PendingInterrupt.Context = ctxData
-	e.notifyInterruptPrompt()
-	return nil
 }
 
 func (e *GameEngine) handleElementalistBonusCardChoice(selectionIndex int, ctxData map[string]interface{}) error {
@@ -178,4 +134,19 @@ func (e *GameEngine) resolveElementalistBonus(ctxData map[string]interface{}, bo
 	e.Log(fmt.Sprintf("%s 发动 [%s]，对 %s 造成%d点法术伤害", user.Name, skillName, target.Name, damage))
 	e.PopInterrupt()
 	return nil
+}
+
+func (e *GameEngine) cancelElementalistBonusCardChoice(_ string) error {
+	if e.State.PendingInterrupt == nil || e.State.PendingInterrupt.Type != model.InterruptChoice {
+		return fmt.Errorf("没有待处理的元素师额外弃牌选择")
+	}
+	ctxData, ok := e.State.PendingInterrupt.Context.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("中断上下文格式错误")
+	}
+	choiceType, _ := ctxData["choice_type"].(string)
+	if choiceType != "elementalist_bonus_card" {
+		return fmt.Errorf("当前步骤不支持取消")
+	}
+	return e.resolveElementalistBonus(ctxData, false, -1)
 }

@@ -185,14 +185,14 @@ func (h *ValkyriePeaceWalkerHandler) CanUse(ctx *model.Context) bool {
 	if ctx.EventCtx != nil && ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
-	return getToken(ctx.User, "valkyrie_spirit") > 0
+	return hasForm(ctx.User, model.FormValkyrieHeroic)
 }
 
 func (h *ValkyriePeaceWalkerHandler) Execute(ctx *model.Context) error {
-	if getToken(ctx.User, "valkyrie_spirit") <= 0 {
+	if !hasForm(ctx.User, model.FormValkyrieHeroic) {
 		return nil
 	}
-	setToken(ctx.User, "valkyrie_spirit", 0)
+	leaveForm(ctx.User, model.FormValkyrieHeroic)
 	ctx.Game.Log(fmt.Sprintf("%s 的 [和平行者] 触发，脱离英灵形态", ctx.User.Name))
 	return nil
 }
@@ -200,7 +200,7 @@ func (h *ValkyriePeaceWalkerHandler) Execute(ctx *model.Context) error {
 type ValkyrieMilitaryGloryHandler struct{ BaseHandler }
 
 func (h *ValkyrieMilitaryGloryHandler) CanUse(ctx *model.Context) bool {
-	return ctx != nil && ctx.Timing == model.TimingOnTurnStart && getToken(ctx.User, "valkyrie_spirit") > 0
+	return ctx != nil && ctx.Timing == model.TimingOnTurnStart && hasForm(ctx.User, model.FormValkyrieHeroic)
 }
 
 func (h *ValkyrieMilitaryGloryHandler) Execute(ctx *model.Context) error {
@@ -247,10 +247,11 @@ func (h *ValkyrieHeroicSummonHandler) Execute(ctx *model.Context) error {
 		*ctx.EventCtx.DamageVal += 1
 	}
 	hasMagic := false
-	for _, c := range ctx.User.Hand {
+	magicIndices := make([]int, 0)
+	for i, c := range ctx.User.Hand {
 		if c.Type == model.CardTypeMagic {
 			hasMagic = true
-			break
+			magicIndices = append(magicIndices, i)
 		}
 	}
 	if hasMagic {
@@ -258,14 +259,17 @@ func (h *ValkyrieHeroicSummonHandler) Execute(ctx *model.Context) error {
 			Type:     model.InterruptChoice,
 			PlayerID: ctx.User.ID,
 			Context: map[string]interface{}{
-				"choice_type": "valkyrie_heroic_extra_confirm",
-				"user_id":     ctx.User.ID,
-				"user_ctx":    ctx,
+				"choice_type":   "valkyrie_heroic_discard_card",
+				"user_id":       ctx.User.ID,
+				"user_ctx":      ctx,
+				"magic_indices": magicIndices,
 			},
 		})
 	}
+	// 仅在自己的行动回合内，英灵召唤才会令女武神进入英灵形态；
+	// 应战命中依然可以发动该技能，但不会入形态。
 	if ctx.User.IsActive {
-		setToken(ctx.User, "valkyrie_spirit", 1)
+		enterForm(ctx.User, model.FormValkyrieHeroic)
 		ctx.Game.Log(fmt.Sprintf("%s 发动 [英灵召唤]，伤害+1并进入英灵形态", ctx.User.Name))
 		return nil
 	}
@@ -339,6 +343,19 @@ type ElementalistFireballHandler struct{ BaseHandler }
 
 type ElementalistMoonlightHandler struct{ BaseHandler }
 
+func elementalistMatchingElementCardIndices(user *model.Player, element model.Element) []int {
+	if user == nil {
+		return nil
+	}
+	out := make([]int, 0, len(user.Hand))
+	for i, card := range user.Hand {
+		if card.Element == element {
+			out = append(out, i)
+		}
+	}
+	return out
+}
+
 func (h *ElementalistThunderStrikeHandler) Execute(ctx *model.Context) error {
 	if ctx.Target == nil {
 		return fmt.Errorf("雷击需要目标")
@@ -349,12 +366,20 @@ func (h *ElementalistThunderStrikeHandler) Execute(ctx *model.Context) error {
 		ctx.Game.Log(fmt.Sprintf("%s 发动 [雷击]，造成1点法术伤害并为阵营+1宝石", ctx.User.Name))
 		return nil
 	}
+	matching := elementalistMatchingElementCardIndices(ctx.User, model.ElementThunder)
+	if len(matching) == 0 {
+		ctx.Game.InflictDamage(ctx.User.ID, ctx.Target.ID, 1, model.MagicAttack)
+		ctx.Game.ModifyGem(string(ctx.User.Camp), 1)
+		ctx.Game.Log(fmt.Sprintf("%s 发动 [雷击]，造成1点法术伤害并为阵营+1宝石", ctx.User.Name))
+		return nil
+	}
 	data := map[string]interface{}{
-		"choice_type":        "elementalist_bonus_confirm",
+		"choice_type":        "elementalist_bonus_card",
 		"user_id":            ctx.User.ID,
 		"damage_target_id":   ctx.Target.ID,
 		"base_damage":        1,
 		"bonus_element":      string(model.ElementThunder),
+		"matching_indices":   matching,
 		"camp_gem_bonus":     1,
 		"grant_attack":       false,
 		"grant_magic":        false,
@@ -388,13 +413,21 @@ func (h *ElementalistFreezeHandler) Execute(ctx *model.Context) error {
 		ctx.Game.Log(fmt.Sprintf("%s 发动 [冰冻]，对 %s 造成1点法术伤害并治疗 %s 1点", ctx.User.Name, dmgTarget.Name, healTarget.Name))
 		return nil
 	}
+	matching := elementalistMatchingElementCardIndices(ctx.User, model.ElementWater)
+	if len(matching) == 0 {
+		ctx.Game.InflictDamage(ctx.User.ID, dmgTarget.ID, 1, model.MagicAttack)
+		ctx.Game.Heal(healTarget.ID, 1)
+		ctx.Game.Log(fmt.Sprintf("%s 发动 [冰冻]，对 %s 造成1点法术伤害并治疗 %s 1点", ctx.User.Name, dmgTarget.Name, healTarget.Name))
+		return nil
+	}
 	data := map[string]interface{}{
-		"choice_type":        "elementalist_bonus_confirm",
+		"choice_type":        "elementalist_bonus_card",
 		"user_id":            ctx.User.ID,
 		"damage_target_id":   dmgTarget.ID,
 		"heal_target_id":     healTarget.ID,
 		"base_damage":        1,
 		"bonus_element":      string(model.ElementWater),
+		"matching_indices":   matching,
 		"camp_gem_bonus":     0,
 		"grant_attack":       false,
 		"grant_magic":        false,
@@ -414,12 +447,20 @@ func (h *ElementalistWindBladeHandler) Execute(ctx *model.Context) error {
 		ctx.Game.Log(fmt.Sprintf("%s 发动 [风刃]，造成1点法术伤害并获得额外攻击行动", ctx.User.Name))
 		return nil
 	}
+	matching := elementalistMatchingElementCardIndices(ctx.User, model.ElementWind)
+	if len(matching) == 0 {
+		ctx.Game.InflictDamage(ctx.User.ID, ctx.Target.ID, 1, model.MagicAttack)
+		addAttackAction(ctx.User, "风刃")
+		ctx.Game.Log(fmt.Sprintf("%s 发动 [风刃]，造成1点法术伤害并获得额外攻击行动", ctx.User.Name))
+		return nil
+	}
 	data := map[string]interface{}{
-		"choice_type":        "elementalist_bonus_confirm",
+		"choice_type":        "elementalist_bonus_card",
 		"user_id":            ctx.User.ID,
 		"damage_target_id":   ctx.Target.ID,
 		"base_damage":        1,
 		"bonus_element":      string(model.ElementWind),
+		"matching_indices":   matching,
 		"camp_gem_bonus":     0,
 		"grant_attack":       true,
 		"grant_magic":        false,
@@ -439,12 +480,20 @@ func (h *ElementalistMeteorHandler) Execute(ctx *model.Context) error {
 		ctx.Game.Log(fmt.Sprintf("%s 发动 [陨石]，造成1点法术伤害并获得额外法术行动", ctx.User.Name))
 		return nil
 	}
+	matching := elementalistMatchingElementCardIndices(ctx.User, model.ElementEarth)
+	if len(matching) == 0 {
+		ctx.Game.InflictDamage(ctx.User.ID, ctx.Target.ID, 1, model.MagicAttack)
+		addMagicAction(ctx.User, "陨石")
+		ctx.Game.Log(fmt.Sprintf("%s 发动 [陨石]，造成1点法术伤害并获得额外法术行动", ctx.User.Name))
+		return nil
+	}
 	data := map[string]interface{}{
-		"choice_type":        "elementalist_bonus_confirm",
+		"choice_type":        "elementalist_bonus_card",
 		"user_id":            ctx.User.ID,
 		"damage_target_id":   ctx.Target.ID,
 		"base_damage":        1,
 		"bonus_element":      string(model.ElementEarth),
+		"matching_indices":   matching,
 		"camp_gem_bonus":     0,
 		"grant_attack":       false,
 		"grant_magic":        true,
@@ -463,12 +512,19 @@ func (h *ElementalistFireballHandler) Execute(ctx *model.Context) error {
 		ctx.Game.Log(fmt.Sprintf("%s 发动 [火球]，造成2点法术伤害", ctx.User.Name))
 		return nil
 	}
+	matching := elementalistMatchingElementCardIndices(ctx.User, model.ElementFire)
+	if len(matching) == 0 {
+		ctx.Game.InflictDamage(ctx.User.ID, ctx.Target.ID, 2, model.MagicAttack)
+		ctx.Game.Log(fmt.Sprintf("%s 发动 [火球]，造成2点法术伤害", ctx.User.Name))
+		return nil
+	}
 	data := map[string]interface{}{
-		"choice_type":        "elementalist_bonus_confirm",
+		"choice_type":        "elementalist_bonus_card",
 		"user_id":            ctx.User.ID,
 		"damage_target_id":   ctx.Target.ID,
 		"base_damage":        2,
 		"bonus_element":      string(model.ElementFire),
+		"matching_indices":   matching,
 		"camp_gem_bonus":     0,
 		"grant_attack":       false,
 		"grant_magic":        false,
@@ -632,24 +688,24 @@ func (h *AdventurerFraudHandler) Execute(ctx *model.Context) error {
 	for _, c := range ctx.User.Hand {
 		counts[c.Element]++
 	}
-	can2 := false
-	can3 := false
+	canPick := false
 	for ele, n := range counts {
-		if ele != "" && n >= 2 {
-			can2 = true
+		if ele == "" {
+			continue
 		}
-		if n >= 3 {
-			can3 = true
+		if n >= 2 {
+			canPick = true
+			break
 		}
 	}
-	if !can2 && !can3 {
+	if !canPick {
 		return nil
 	}
 	ctx.Game.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
 		Context: map[string]interface{}{
-			"choice_type": "adventurer_fraud_mode",
+			"choice_type": "adventurer_fraud_pick",
 			"user_id":     ctx.User.ID,
 			"user_ctx":    ctx,
 			"fraud_target_id": func() string {
@@ -659,11 +715,9 @@ func (h *AdventurerFraudHandler) Execute(ctx *model.Context) error {
 				return ""
 			}(),
 			"fraud_from_skill": true,
-			"can2":             can2,
-			"can3":             can3,
 		},
 	})
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [欺诈]，等待选择分支", ctx.User.Name))
+	ctx.Game.Log(fmt.Sprintf("%s 发动 [欺诈]，请先选择同系手牌", ctx.User.Name))
 	return nil
 }
 
@@ -1611,7 +1665,7 @@ func markElfBlessingCards(p *model.Player, cards []model.Card) {
 			SourceID: p.ID,
 			Mode:     model.FieldCover,
 			Effect:   model.EffectElfBlessing,
-			Hook: model.FieldHookManual,
+			Hook:     model.FieldHookManual,
 		})
 		existsBless[c.ID] = true
 	}

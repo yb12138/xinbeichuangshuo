@@ -18,32 +18,29 @@ func choiceCatalogTypesFromFile(t *testing.T) []string {
 	return out
 }
 
-func TestChoiceCatalogArchetypeTableMatchesCatalogFile(t *testing.T) {
+func TestChoiceCatalogRouteSpecTableMatchesCatalogFile(t *testing.T) {
 	types := choiceCatalogTypesFromFile(t)
 	seen := make(map[string]bool, len(types))
 	for _, typ := range types {
 		seen[typ] = true
-		arch, ok := catalogChoiceArchetypeTable[typ]
+		spec, ok := catalogChoiceRouteSpecTable[typ]
 		if !ok {
-			t.Fatalf("catalog type %q missing from catalogChoiceArchetypeTable", typ)
+			t.Fatalf("catalog type %q missing from catalogChoiceRouteSpecTable", typ)
 		}
-		if arch == "" {
-			t.Fatalf("catalog type %q has empty archetype", typ)
-		}
-		if arch == "hero_assassin" || arch == "guardian" {
-			t.Fatalf("catalog type %q still uses deprecated mixed-role archetype %q", typ, arch)
+		if !spec.valid() {
+			t.Fatalf("catalog type %q has invalid route spec: %+v", typ, spec)
 		}
 		p := catalogChoiceBinding(typ)
 		if p.build == nil || p.sel == nil {
 			t.Fatalf("catalogChoiceBinding(%q) incomplete plan", typ)
 		}
 	}
-	for typ := range catalogChoiceArchetypeTable {
+	for typ := range catalogChoiceRouteSpecTable {
 		if !seen[typ] {
-			t.Fatalf("catalogChoiceArchetypeTable has extra type %q not in choice_type_catalog.txt", typ)
+			t.Fatalf("catalogChoiceRouteSpecTable has extra type %q not in choice_type_catalog.txt", typ)
 		}
 	}
-	if len(catalogChoiceArchetypeTable) != len(types) {
-		t.Fatalf("map size %d != catalog lines %d", len(catalogChoiceArchetypeTable), len(types))
+	if len(catalogChoiceRouteSpecTable) != len(types) {
+		t.Fatalf("map size %d != catalog lines %d", len(catalogChoiceRouteSpecTable), len(types))
 	}
 }

@@ -263,3 +263,96 @@ func TestElementalistOffenseSkills_RejectAllyTargets(t *testing.T) {
 		})
 	}
 }
+
+func TestElementalistThunderStrike_BonusFlow_DirectCardPickWithCancel(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "Elem", "elementalist", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Dummy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Hand = []model.Card{
+		elementalistExclusiveCard(p1, "雷击", model.ElementThunder),
+		{ID: "thunder-bonus", Name: "雷系弃牌", Type: model.CardTypeAttack, Element: model.ElementThunder, Damage: 1},
+	}
+	p2.Hand = nil
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+	game.State.Deck = rules.InitDeck()
+
+	mustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSkill,
+		SkillID:    "elementalist_thunder_strike",
+		TargetIDs:  []string{"p2"},
+		Selections: []int{0},
+	})
+	requireChoiceType(t, game, "p1", "elementalist_bonus_card")
+	prompt := game.buildPendingInterruptPrompt()
+	if prompt == nil {
+		t.Fatalf("expected elementalist bonus prompt")
+	}
+	if prompt.Type != model.PromptChooseCards {
+		t.Fatalf("expected choose_cards prompt, got %s", prompt.Type)
+	}
+	if got := len(prompt.Options); got < 2 {
+		t.Fatalf("expected card options plus cancel option, got %d", got)
+	}
+
+	beforeCancelHand := len(p1.Hand)
+	mustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdCancel})
+
+	if got := len(p1.Hand); got != beforeCancelHand {
+		t.Fatalf("expected cancel keep hand unchanged, got %d -> %d", beforeCancelHand, got)
+	}
+	if got := len(p2.Hand); got != 1 {
+		t.Fatalf("expected cancel path resolve base 1 magic damage, got hand=%d", got)
+	}
+}
+
+func TestElementalistThunderStrike_BonusFlow_DirectCardPickWithConfirm(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "Elem", "elementalist", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Dummy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Hand = []model.Card{
+		elementalistExclusiveCard(p1, "雷击", model.ElementThunder),
+		{ID: "thunder-bonus", Name: "雷系弃牌", Type: model.CardTypeAttack, Element: model.ElementThunder, Damage: 1},
+	}
+	p2.Hand = nil
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+	game.State.Deck = rules.InitDeck()
+
+	mustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSkill,
+		SkillID:    "elementalist_thunder_strike",
+		TargetIDs:  []string{"p2"},
+		Selections: []int{0},
+	})
+	requireChoiceType(t, game, "p1", "elementalist_bonus_card")
+	beforeSelectHand := len(p1.Hand)
+	mustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0}})
+
+	if got := len(p1.Hand); got != beforeSelectHand-1 {
+		t.Fatalf("expected bonus discard consume 1 card, got %d -> %d", beforeSelectHand, got)
+	}
+	if got := len(p2.Hand); got != 2 {
+		t.Fatalf("expected bonus path resolve 2 magic damage, got hand=%d", got)
+	}
+}

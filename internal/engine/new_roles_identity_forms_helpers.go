@@ -159,8 +159,9 @@ func legacyPlayerPose(player *model.Player) (poseSnapshot, bool) {
 		return poseSnapshot{}, false
 	}
 	switch {
+	// 兼容历史局面：旧版本用 token 表示女武神英灵形态，新版本改为 Form。
 	case player.Tokens["valkyrie_spirit"] > 0:
-		return poseSnapshot{Orientation: model.OrientationTapped, Form: "heroic_form"}, true
+		return poseSnapshot{Orientation: model.OrientationTapped, Form: model.FormValkyrieHeroic}, true
 	}
 	return poseSnapshot{}, false
 }
@@ -220,6 +221,18 @@ func clearPlayerForm(player *model.Player, form string) bool {
 
 func hasPrayerMasterPrayerForm(player *model.Player) bool {
 	return playerHasForm(player, model.FormPrayerMasterPrayer)
+}
+
+func hasValkyrieHeroicForm(player *model.Player) bool {
+	return playerHasForm(player, model.FormValkyrieHeroic)
+}
+
+func enterValkyrieHeroicForm(player *model.Player) bool {
+	return setPlayerForm(player, model.FormValkyrieHeroic)
+}
+
+func leaveValkyrieHeroicForm(player *model.Player) bool {
+	return clearPlayerForm(player, model.FormValkyrieHeroic)
 }
 
 func hasAssassinStealthForm(player *model.Player) bool {

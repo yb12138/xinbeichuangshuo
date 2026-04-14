@@ -817,7 +817,7 @@ func GetCharacters() []model.Character {
 				{
 					ID: "adventurer_fraud", Timings: []model.FlowTiming{model.TimingActive}, Title: "欺诈",
 					Type:         model.SkillTypeAction,
-					Description:  "主动技能：选择1名敌方角色，弃同系牌将本次视为一次主动攻击（弃2张同系可选非暗灭系；弃3张同系视为暗灭）。",
+					Description:  "主动技能：选择1名敌方角色，弃同系牌将本次视为一次主动攻击（弃2张同系可选五系攻击〔不含暗灭〕；弃3张同系视为暗灭）。",
 					LogicHandler: "adventurer_fraud",
 					TargetType:   model.TargetEnemy,
 					MinTargets:   1,

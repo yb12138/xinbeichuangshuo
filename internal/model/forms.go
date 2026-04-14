@@ -18,4 +18,5 @@ const (
 	FormFighterHundredDragon    = "fighter_hundred_dragon_form"
 	FormMoonGoddessDarkMoon     = "moon_goddess_dark_moon_form"
 	FormBloodPriestessBleeding  = "blood_witch_bleeding_form"
+	FormValkyrieHeroic          = "heroic_form"
 )

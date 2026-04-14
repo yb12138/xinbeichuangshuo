@@ -1,7 +1,4 @@
 adventurer_fraud_attack_element
-adventurer_fraud_discard_combo
-adventurer_fraud_discard_element
-adventurer_fraud_mode
 adventurer_paradise_target
 adventurer_steal_sky_extra_action
 adventurer_steal_sky_mode
@@ -61,7 +58,6 @@ crk_bloody_prayer_target
 crk_bloody_prayer_x
 css_dance_mode
 elementalist_bonus_card
-elementalist_bonus_confirm
 elf_elemental_shot_cost
 elf_elemental_shot_discard_magic
 elf_elemental_shot_remove_blessing
@@ -219,7 +215,6 @@ ss_soul_devour_pick
 ss_soul_recall_pick
 valkyrie_heroic_summon_pick
 valkyrie_heroic_discard_card
-valkyrie_heroic_extra_confirm
 valkyrie_military_glory_mode
 valkyrie_military_glory_target
 valkyrie_military_glory_x

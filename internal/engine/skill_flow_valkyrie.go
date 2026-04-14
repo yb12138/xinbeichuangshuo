@@ -70,25 +70,12 @@ func (e *GameEngine) buildValkyrieChoicePrompt(choiceType, playerID string, play
 			Max:      1,
 		}
 
-	case "valkyrie_heroic_extra_confirm":
-		return &model.Prompt{
-			Type:     model.PromptConfirm,
-			PlayerID: playerID,
-			Message:  "【英灵召唤】是否额外弃1张法术牌并令当前战斗目标+1治疗？",
-			Options: []model.PromptOption{
-				{ID: "0", Label: "是"},
-				{ID: "1", Label: "否"},
-			},
-			Min: 1,
-			Max: 1,
-		}
-
 	case "valkyrie_heroic_discard_card":
 		if player == nil {
 			return nil
 		}
 		magicIndices := parseIntSliceContextValue(data["magic_indices"])
-		options := make([]model.PromptOption, 0, len(magicIndices))
+		options := make([]model.PromptOption, 0, len(magicIndices)+1)
 		for _, idx := range magicIndices {
 			if idx < 0 || idx >= len(player.Hand) {
 				continue
@@ -98,10 +85,11 @@ func (e *GameEngine) buildValkyrieChoicePrompt(choiceType, playerID string, play
 				Label: fmt.Sprintf("%d: %s", idx+1, formatCardInfo(player.Hand[idx])),
 			})
 		}
+		options = append(options, model.PromptOption{ID: "cancel", Label: "放弃额外效果"})
 		return &model.Prompt{
-			Type:     model.PromptConfirm,
+			Type:     model.PromptChooseCards,
 			PlayerID: playerID,
-			Message:  "【英灵召唤】请选择要额外弃置的1张法术牌：",
+			Message:  "【英灵召唤】可额外弃1张法术牌并令当前战斗目标+1治疗（或点击取消放弃本次额外效果）：",
 			Options:  options,
 			Min:      1,
 			Max:      1,
@@ -124,10 +112,7 @@ func (e *GameEngine) handleValkyrieChoiceInput(_ string, selectionIndex int, ctx
 		}
 		if selectionIndex == 0 {
 			e.Heal(userID, 1)
-			if user.Tokens == nil {
-				user.Tokens = map[string]int{}
-			}
-			user.Tokens["valkyrie_spirit"] = 0
+			leaveValkyrieHeroicForm(user)
 			e.Log(fmt.Sprintf("%s 选择军威神光选项1：+1治疗并脱离英灵形态", user.Name))
 			e.PopInterrupt()
 			return true, nil
@@ -214,40 +199,6 @@ func (e *GameEngine) handleValkyrieChoiceInput(_ string, selectionIndex int, ctx
 		e.PopInterrupt()
 		return true, nil
 
-	case "valkyrie_heroic_extra_confirm":
-		userID, _ := ctxData["user_id"].(string)
-		user := e.State.Players[userID]
-		if user == nil {
-			return true, fmt.Errorf("玩家不存在")
-		}
-		if selectionIndex == 1 {
-			e.PopInterrupt()
-			e.resumePendingAttackHit(ctxData)
-			return true, nil
-		}
-		if selectionIndex == 0 {
-			magicIndices := make([]int, 0)
-			for i, card := range user.Hand {
-				if card.Type == model.CardTypeMagic {
-					magicIndices = append(magicIndices, i)
-				}
-			}
-			if len(magicIndices) == 0 {
-				e.PopInterrupt()
-				e.resumePendingAttackHit(ctxData)
-				return true, nil
-			}
-			e.State.PendingInterrupt.Context = map[string]interface{}{
-				"choice_type":   "valkyrie_heroic_discard_card",
-				"user_id":       userID,
-				"magic_indices": magicIndices,
-				"user_ctx":      ctxData["user_ctx"],
-			}
-			e.notifyInterruptPrompt()
-			return true, nil
-		}
-		return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
-
 	case "valkyrie_heroic_discard_card":
 		userID, _ := ctxData["user_id"].(string)
 		user := e.State.Players[userID]
@@ -287,4 +238,25 @@ func (e *GameEngine) handleValkyrieChoiceInput(_ string, selectionIndex int, ctx
 	}
 
 	return false, nil
+}
+
+func (e *GameEngine) cancelValkyrieHeroicDiscardChoice(playerID string) error {
+	if e.State.PendingInterrupt == nil || e.State.PendingInterrupt.Type != model.InterruptChoice {
+		return fmt.Errorf("没有待处理的英灵召唤额外弃牌选择")
+	}
+	ctxData, ok := e.State.PendingInterrupt.Context.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("中断上下文格式错误")
+	}
+	choiceType, _ := ctxData["choice_type"].(string)
+	if choiceType != "valkyrie_heroic_discard_card" {
+		return fmt.Errorf("当前步骤不支持取消")
+	}
+
+	e.PopInterrupt()
+	if user := e.State.Players[playerID]; user != nil {
+		e.Log(fmt.Sprintf("%s 放弃了 [英灵召唤] 的额外弃法术效果", user.Name))
+	}
+	e.resumePendingAttackHit(ctxData)
+	return nil
 }

@@ -45,8 +45,6 @@ func TestValkyrie_HeroicSummon_ExtraDiscardHealsCurrentCombatTarget(t *testing.T
 
 	requireResponseSkillPrompt(t, game, "p1")
 	chooseResponseSkillByID(t, game, "p1", "valkyrie_heroic_summon")
-	requireChoicePrompt(t, game, "p1", "valkyrie_heroic_extra_confirm")
-	mustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0}})
 	requireChoicePrompt(t, game, "p1", "valkyrie_heroic_discard_card")
 	mustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0}})
 
@@ -55,6 +53,62 @@ func TestValkyrie_HeroicSummon_ExtraDiscardHealsCurrentCombatTarget(t *testing.T
 	}
 	if p2.Heal != 1 {
 		t.Fatalf("expected heroic summon extra heal to target current combat target, got target heal=%d", p2.Heal)
+	}
+}
+
+func TestValkyrie_HeroicSummon_ExtraDiscardCanCancel(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "Valkyrie", "valkyrie", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Target", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	game.State.CurrentTurn = 0
+	game.State.Deck = rules.InitDeck()
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p2.TurnState = model.NewPlayerTurnState()
+	p1.Crystal = 1
+	p1.Hand = []model.Card{
+		{ID: "atk1", Name: "火斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 1},
+		{ID: "magic1", Name: "圣光", Type: model.CardTypeMagic, Element: model.ElementLight, Damage: 0},
+	}
+
+	mustHandleAction(t, game, model.PlayerAction{
+		PlayerID:  "p1",
+		Type:      model.CmdAttack,
+		TargetID:  "p2",
+		CardIndex: 0,
+	})
+	mustHandleAction(t, game, model.PlayerAction{
+		PlayerID:  "p2",
+		Type:      model.CmdRespond,
+		ExtraArgs: []string{"take"},
+	})
+
+	requireResponseSkillPrompt(t, game, "p1")
+	chooseResponseSkillByID(t, game, "p1", "valkyrie_heroic_summon")
+	requireChoicePrompt(t, game, "p1", "valkyrie_heroic_discard_card")
+
+	mustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdCancel})
+
+	if got := len(p1.Hand); got != 1 {
+		t.Fatalf("expected cancel keep magic card in hand, got hand=%d", got)
+	}
+	if p2.Heal != 0 {
+		t.Fatalf("expected cancel not to apply extra heal, got target heal=%d", p2.Heal)
+	}
+	if game.State.PendingInterrupt != nil && game.State.PendingInterrupt.Type == model.InterruptChoice {
+		ctxData, _ := game.State.PendingInterrupt.Context.(map[string]interface{})
+		if got, _ := ctxData["choice_type"].(string); got == "valkyrie_heroic_discard_card" {
+			t.Fatalf("expected heroic discard choice cleared after cancel")
+		}
 	}
 }
 
@@ -111,8 +165,8 @@ func TestValkyrie_HeroicSummon_DoesNotEnterSpiritOnCounterHit(t *testing.T) {
 	requireResponseSkillPrompt(t, game, "p2")
 	chooseResponseSkillByID(t, game, "p2", "valkyrie_heroic_summon")
 
-	if got := p2.Tokens["valkyrie_spirit"]; got != 0 {
-		t.Fatalf("expected counter-hit heroic summon not to enter spirit form, got %d", got)
+	if hasValkyrieHeroicForm(p2) {
+		t.Fatalf("expected counter-hit heroic summon not to enter spirit form, got form=%q", p2.Form)
 	}
 }
 
@@ -133,7 +187,7 @@ func TestValkyrie_MilitaryGlory_BranchTwoDoesNotExitSpirit(t *testing.T) {
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
 	p2.TurnState = model.NewPlayerTurnState()
-	p1.Tokens["valkyrie_spirit"] = 1
+	enterValkyrieHeroicForm(p1)
 	game.State.RedCrystals = 2
 
 	game.Drive()
@@ -159,8 +213,8 @@ func TestValkyrie_MilitaryGlory_BranchTwoDoesNotExitSpirit(t *testing.T) {
 	}
 	mustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{targetSelection}})
 
-	if got := p1.Tokens["valkyrie_spirit"]; got != 1 {
-		t.Fatalf("expected branch two to keep spirit form, got %d", got)
+	if !hasValkyrieHeroicForm(p1) {
+		t.Fatalf("expected branch two to keep spirit form, got form=%q", p1.Form)
 	}
 	if got := p2.Heal; got != 2 {
 		t.Fatalf("expected branch two to heal target by X=2, got %d", got)
@@ -182,7 +236,7 @@ func TestValkyrie_PeaceWalker_ReleasesSpiritOnActiveAttack(t *testing.T) {
 	p1 := game.State.Players["p1"]
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
-	p1.Tokens["valkyrie_spirit"] = 1
+	enterValkyrieHeroicForm(p1)
 	p1.Hand = []model.Card{
 		{ID: "atk1", Name: "风斩", Type: model.CardTypeAttack, Element: model.ElementWind, Damage: 1},
 	}
@@ -194,7 +248,7 @@ func TestValkyrie_PeaceWalker_ReleasesSpiritOnActiveAttack(t *testing.T) {
 		CardIndex: 0,
 	})
 
-	if got := p1.Tokens["valkyrie_spirit"]; got != 0 {
-		t.Fatalf("expected peace walker to release spirit form on active attack, got %d", got)
+	if hasValkyrieHeroicForm(p1) {
+		t.Fatalf("expected peace walker to release spirit form on active attack, got form=%q", p1.Form)
 	}
 }

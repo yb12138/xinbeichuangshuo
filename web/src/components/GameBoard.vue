@@ -1016,6 +1016,41 @@ function promptCardSelectionState(idx: number): PromptCardSelectionState {
     }
   }
 
+  if (prompt.choice_type === 'adventurer_fraud_pick') {
+    const handOptionSet = promptHandCardIndexSet()
+    if (handOptionSet.size > 0 && !handOptionSet.has(idx)) {
+      return {
+        selectable: false,
+        reason: 'prompt_fraud_pick_not_in_candidates',
+        error: '当前步骤只能选择可用于欺诈的同系手牌'
+      }
+    }
+    if (selectedCards.value.includes(idx)) {
+      return { selectable: true, reason: 'prompt_fraud_pick_keep_selected' }
+    }
+    const selectedFraudCards = selectedCards.value
+      .map((i) => myHand.value[i])
+      .filter((c): c is NonNullable<typeof c> => !!c)
+    if (selectedFraudCards.length >= 3) {
+      return {
+        selectable: false,
+        reason: 'prompt_fraud_pick_max_reached',
+        error: '欺诈最多选择3张同系牌'
+      }
+    }
+    if (selectedFraudCards.length > 0) {
+      const requiredElement = selectedFraudCards[0]?.element
+      if (requiredElement && card.element !== requiredElement) {
+        return {
+          selectable: false,
+          reason: 'prompt_fraud_pick_element_mismatch',
+          error: '欺诈需选择同系牌（2张可选五系攻击，3张自动转暗灭）'
+        }
+      }
+    }
+    return { selectable: true, reason: 'prompt_fraud_pick_same_element' }
+  }
+
   const handOptionSet = promptHandCardIndexSet()
   if (handOptionSet.size > 0) {
     if (handOptionSet.has(idx)) {

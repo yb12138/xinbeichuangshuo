@@ -120,6 +120,7 @@ const myDamageEffects = computed(() =>
 )
 
 const FORM_DISPLAY: Record<string, { label: string; cls: string }> = {
+  heroic_form: { label: '英灵形态', cls: 'bg-amber-800/70 text-amber-100 border-amber-500/40' },
   arbiter_judgment_form: { label: '审判形态', cls: 'bg-violet-800/70 text-violet-100 border-violet-500/40' },
   elf_archer_ritual_form: { label: '祝福形态', cls: 'bg-emerald-800/70 text-emerald-100 border-emerald-500/40' },
   magic_swordsman_shadow_form: { label: '暗影形态', cls: 'bg-slate-800/80 text-slate-100 border-slate-500/40' },
@@ -257,12 +258,24 @@ const formIndicator = computed(() => {
   const form = props.player.form
   if (!form) return null
   const cfg = FORM_DISPLAY[form]
-  if (!cfg) return null
+  if (!cfg) {
+    return {
+      key: form,
+      label: '形态',
+      cls: 'bg-gray-700/70 text-gray-100 border-gray-500/40',
+    }
+  }
   return {
     key: form,
     label: cfg.label,
     cls: cfg.cls,
   }
+})
+
+const hasFormPose = computed(() => {
+  if (props.player.form) return true
+  if (props.player.orientation === 'Tapped') return true
+  return (props.player.tokens?.valkyrie_spirit ?? 0) > 0
 })
 
 const showStealthBlockedHint = computed(() => {
@@ -336,13 +349,13 @@ function handleClick(e: MouseEvent) {
       :src="characterImageSrc"
       :alt="charInfo?.name || player.name"
       class="character-portrait-fill"
-      :class="{ 'character-portrait-fill--form': !!formIndicator }"
+      :class="{ 'character-portrait-fill--form': hasFormPose }"
       @error="onCharImageError"
     >
     <div
       v-else
       class="character-portrait-placeholder-fill"
-      :class="{ 'character-portrait-placeholder-fill--form': !!formIndicator }"
+      :class="{ 'character-portrait-placeholder-fill--form': hasFormPose }"
     >
       {{ (charInfo?.name || player.name || '?').charAt(0) }}
     </div>
@@ -494,7 +507,7 @@ function handleClick(e: MouseEvent) {
 }
 
 .character-portrait-fill--form {
-  transform: rotate(-90deg) scale(0.61);
+  transform: rotate(-90deg) scale(1.42);
 }
 
 .character-portrait-placeholder-fill {
@@ -513,7 +526,7 @@ function handleClick(e: MouseEvent) {
 }
 
 .character-portrait-placeholder-fill--form {
-  transform: rotate(-90deg) scale(0.61);
+  transform: rotate(-90deg) scale(1.42);
 }
 
 .turn-order-badge {

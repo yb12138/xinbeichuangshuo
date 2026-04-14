@@ -29,8 +29,8 @@ func requireChoiceType(t *testing.T, game *GameEngine, playerID, ct string) map[
 	return ctx
 }
 
-// 回归测试：欺诈(弃2)应支持“先选攻击系别(仅排除暗系)”且可选“具体两张同系牌”
-func TestAdventurerFraud_Mode2_ElementAndDiscardComboSelectable(t *testing.T) {
+// 回归测试：欺诈应先在手牌区选择同系牌；选择2张后再选择五系攻击元素。
+func TestAdventurerFraud_PickTwoThenChooseAttackElement(t *testing.T) {
 	game := NewGameEngine(noopObserver{})
 	if err := game.AddPlayer("p1", "Adventurer", "adventurer", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -61,31 +61,37 @@ func TestAdventurerFraud_Mode2_ElementAndDiscardComboSelectable(t *testing.T) {
 		SkillID:   "adventurer_fraud",
 		TargetIDs: []string{"p2"},
 	})
-	requireChoiceType(t, game, "p1", "adventurer_fraud_mode")
+	requireChoiceType(t, game, "p1", "adventurer_fraud_pick")
 
-	// 选择“弃2同系”
-	mustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0}})
+	// 先在手牌区选择2张同系牌（火）
+	mustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0, 1}})
 	requireChoiceType(t, game, "p1", "adventurer_fraud_attack_element")
+
+	prompt := game.buildPendingInterruptPrompt()
+	if prompt == nil {
+		t.Fatalf("expected fraud attack element prompt")
+	}
+	if prompt.Type != model.PromptConfirm {
+		t.Fatalf("expected confirm prompt for fraud attack element, got %s", prompt.Type)
+	}
+	if got := len(prompt.Options); got != 5 {
+		t.Fatalf("expected 5 attack element options, got %d", got)
+	}
+	wantIDs := []string{
+		string(model.ElementWater),
+		string(model.ElementFire),
+		string(model.ElementEarth),
+		string(model.ElementWind),
+		string(model.ElementThunder),
+	}
+	for idx, want := range wantIDs {
+		if idx >= len(prompt.Options) || prompt.Options[idx].ID != want {
+			t.Fatalf("expected option[%d]=%s, got %+v", idx, want, prompt.Options)
+		}
+	}
 
 	// 选择攻击系别=雷（索引4）
 	mustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{4}})
-	requireChoiceType(t, game, "p1", "adventurer_fraud_discard_element")
-
-	// 选择弃牌同系=火（在可弃元素 [Water, Fire] 中索引1）
-	mustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{1}})
-	ctx := requireChoiceType(t, game, "p1", "adventurer_fraud_discard_combo")
-
-	// 火系3选2，应有多个组合供玩家选择
-	var combosLen int
-	if arr, ok := ctx["combos"].([]string); ok {
-		combosLen = len(arr)
-	}
-	if combosLen < 2 {
-		t.Fatalf("expected multiple discard combos for fire 3-choose-2, got %d", combosLen)
-	}
-
-	// 选择其中一个组合
-	mustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{1}})
 
 	// 欺诈攻击会被自动推进到战斗交互阶段，检查战斗栈中的攻击元素
 	if len(game.State.CombatStack) == 0 || (game.State.CombatStage != model.CombatStageDeclare && game.State.CombatStage != model.CombatStageHitCheck) {
@@ -112,7 +118,7 @@ func TestAdventurerFraud_Mode2_ElementAndDiscardComboSelectable(t *testing.T) {
 	}
 }
 
-func TestAdventurerFraud_Mode2_AllowsLightAttackElement(t *testing.T) {
+func TestAdventurerFraud_PickThreeAutoConvertsToDark(t *testing.T) {
 	game := NewGameEngine(noopObserver{})
 	if err := game.AddPlayer("p1", "Adventurer", "adventurer", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -129,10 +135,10 @@ func TestAdventurerFraud_Mode2_AllowsLightAttackElement(t *testing.T) {
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
 	p1.Hand = []model.Card{
-		{ID: "l1", Name: "圣光A", Type: model.CardTypeMagic, Element: model.ElementLight},
-		{ID: "l2", Name: "圣光B", Type: model.CardTypeMagic, Element: model.ElementLight},
+		{ID: "f1", Name: "火刃A", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 1},
+		{ID: "f2", Name: "火刃B", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 1},
+		{ID: "f3", Name: "火刃C", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 1},
 		{ID: "w1", Name: "水盾A", Type: model.CardTypeMagic, Element: model.ElementWater},
-		{ID: "w2", Name: "水盾B", Type: model.CardTypeMagic, Element: model.ElementWater},
 	}
 
 	mustHandleAction(t, game, model.PlayerAction{
@@ -141,32 +147,25 @@ func TestAdventurerFraud_Mode2_AllowsLightAttackElement(t *testing.T) {
 		SkillID:   "adventurer_fraud",
 		TargetIDs: []string{"p2"},
 	})
-	requireChoiceType(t, game, "p1", "adventurer_fraud_mode")
-	mustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0}})
+	requireChoiceType(t, game, "p1", "adventurer_fraud_pick")
 
-	ctx := requireChoiceType(t, game, "p1", "adventurer_fraud_attack_element")
-	options, ok := ctx["options"].([]model.PromptOption)
-	if ok && len(options) > 0 {
-		t.Fatalf("unexpected prompt options embedded in context: %+v", options)
-	}
+	// 直接选择3张同系牌，应自动转暗灭攻击，不再弹攻击系别选择框。
+	mustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0, 1, 2}})
 
-	// 选择光系（现在应作为第 6 个可选攻击系别存在）
-	mustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{5}})
-	requireChoiceType(t, game, "p1", "adventurer_fraud_discard_element")
-
-	// 选择弃置光系的两张牌
-	mustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{1}})
-	requireChoiceType(t, game, "p1", "adventurer_fraud_discard_combo")
-	mustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0}})
-
-	if len(game.State.CombatStack) == 0 || (game.State.CombatStage != model.CombatStageDeclare && game.State.CombatStage != model.CombatStageHitCheck) {
-		t.Fatalf("expected combat interaction state after light fraud resolve, got combat=%s stack=%d", game.State.CombatStage, len(game.State.CombatStack))
-	}
-	if len(game.State.CombatStack) == 0 {
-		t.Fatalf("expected combat stack entry after light fraud resolve")
+	if got := len(game.State.CombatStack); got == 0 {
+		t.Fatalf("expected combat stack entry after fraud dark convert")
 	}
 	last := game.State.CombatStack[len(game.State.CombatStack)-1]
-	if last.Card == nil || last.Card.Element != model.ElementLight {
-		t.Fatalf("expected fraud attack element Light, got %+v", last.Card)
+	if last.Card == nil || last.Card.Element != model.ElementDark {
+		t.Fatalf("expected fraud auto convert to Dark, got %+v", last.Card)
+	}
+	if last.CanBeResponded {
+		t.Fatalf("expected dark fraud attack cannot be responded")
+	}
+	if len(p1.Hand) != 1 {
+		t.Fatalf("expected hand count reduced by 3, got %d", len(p1.Hand))
+	}
+	if p1.Crystal != 1 {
+		t.Fatalf("expected lucky fortune crystal gain after dark fraud attack, got %d", p1.Crystal)
 	}
 }
