@@ -31,7 +31,8 @@ const isActionSelectionPrompt = computed(() => {
   if (!prompt.value) return false
   if (prompt.value.ui_mode === 'action_hub') return true
   if (!prompt.value.message) return false
-  return prompt.value.message.includes('行动类型')
+  // 仅识别主流程“请选择行动类型”，避免把“请选择额外行动类型”误判并隐藏内联提示。
+  return String(prompt.value.message).includes('请选择行动类型')
 })
 
 const isVisible = computed(() =>
