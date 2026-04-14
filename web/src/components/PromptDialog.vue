@@ -902,6 +902,16 @@ const cardConfirmHintText = computed(() => {
   return '完成选牌后点击发动'
 })
 
+const cardConfirmPromptMessage = computed(() => {
+  const message = String(prompt.value?.message || '').trim()
+  if (message) return message
+  return cardConfirmHintText.value
+})
+
+const showCardConfirmCancelRow = computed(() =>
+  promptNeedsCardConfirm.value && canCancelPrompt.value && !isSkillChoicePrompt.value
+)
+
 const inlinePrimaryButtons = computed<DockButtonOption[]>(() => {
   if (isExtractPrompt.value) return []
   if (isFraudElementCardPickerPrompt.value) return []
@@ -1215,7 +1225,45 @@ watch(autoResolveOptionId, (optionId) => {
             </div>
           </div>
 
-          <div v-if="promptNeedsCardConfirm" class="prompt-inline-entry">
+          <div v-if="showCardConfirmCancelRow" class="prompt-inline-entry">
+            <div class="prompt-inline-hint">{{ cardConfirmPromptMessage }}</div>
+            <div class="prompt-inline-actions-row">
+              <button
+                class="prompt-inline-btn prompt-inline-btn--success action-image-btn"
+                :class="{ 'prompt-inline-btn--disabled': !canConfirmPrompt }"
+                :disabled="!canConfirmPrompt"
+                title="发动"
+                aria-label="发动"
+                @click="confirmPromptAction"
+              >
+                <img
+                  v-if="isPromptConfirmImageReady()"
+                  class="action-image-btn-fill"
+                  :src="promptConfirmImageSrc()"
+                  alt=""
+                  @error="onPromptConfirmImageError"
+                />
+                <span v-else class="action-image-fallback-text">确</span>
+              </button>
+              <button
+                class="prompt-inline-btn prompt-inline-btn--cancel action-image-btn"
+                :title="isDockButtonImageStyle(cancelDockButton) ? cancelDockButton.buttonLabel : undefined"
+                :aria-label="isDockButtonImageStyle(cancelDockButton) ? cancelDockButton.buttonLabel : undefined"
+                @click="handleOptionClick(cancelDockButton.id)"
+              >
+                <img
+                  v-if="isDockButtonImageReady(cancelDockButton)"
+                  class="action-image-btn-fill"
+                  :src="dockButtonImageSrc(cancelDockButton)"
+                  alt=""
+                  @error="onDockButtonImageError(cancelDockButton)"
+                />
+                <span v-else class="action-image-fallback-text">{{ dockButtonFallbackText(cancelDockButton) }}</span>
+              </button>
+            </div>
+          </div>
+
+          <div v-else-if="promptNeedsCardConfirm" class="prompt-inline-entry">
             <div class="prompt-inline-hint">{{ cardConfirmHintText }}</div>
             <button
               class="prompt-inline-btn prompt-inline-btn--success action-image-btn"
@@ -1237,7 +1285,7 @@ watch(autoResolveOptionId, (optionId) => {
           </div>
         </template>
 
-        <div v-if="canCancelPrompt && !isSkillChoicePrompt" class="prompt-inline-entry">
+        <div v-if="canCancelPrompt && !isSkillChoicePrompt && !showCardConfirmCancelRow" class="prompt-inline-entry">
           <div v-if="cancelDockButton.hint" class="prompt-inline-hint">{{ cancelDockButton.hint }}</div>
           <button
             class="prompt-inline-btn prompt-inline-btn--cancel"
@@ -1642,6 +1690,15 @@ watch(autoResolveOptionId, (optionId) => {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  align-items: center;
+}
+
+.prompt-inline-actions-row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  justify-items: center;
   align-items: center;
 }
 
