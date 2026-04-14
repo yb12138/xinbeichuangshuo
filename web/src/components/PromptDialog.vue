@@ -475,10 +475,7 @@ type SkillPromptButton = {
 type FraudElementCardOption = {
   id: string
   title: string
-  mark: string
   glyph: string
-  ribbon: string
-  hint: string
   tone: string
 }
 
@@ -812,22 +809,22 @@ function buildDockButtons(options: RawDockOption[]): DockButtonOption[] {
 }
 
 const fraudElementCardMetaById: Record<string, Omit<FraudElementCardOption, 'id' | 'title'>> = {
-  water: { mark: '潮', glyph: '水', ribbon: '潮汐突袭', hint: '点击后以水系发动主动攻击', tone: 'prompt-fraud-card--water' },
-  fire: { mark: '焰', glyph: '火', ribbon: '烈焰压制', hint: '点击后以火系发动主动攻击', tone: 'prompt-fraud-card--fire' },
-  earth: { mark: '岩', glyph: '地', ribbon: '地脉重击', hint: '点击后以地系发动主动攻击', tone: 'prompt-fraud-card--earth' },
-  wind: { mark: '岚', glyph: '风', ribbon: '疾风穿阵', hint: '点击后以风系发动主动攻击', tone: 'prompt-fraud-card--wind' },
-  thunder: { mark: '霆', glyph: '雷', ribbon: '雷鸣断势', hint: '点击后以雷系发动主动攻击', tone: 'prompt-fraud-card--thunder' },
+  water: { glyph: '水', tone: 'prompt-fraud-card--water' },
+  fire: { glyph: '火', tone: 'prompt-fraud-card--fire' },
+  earth: { glyph: '地', tone: 'prompt-fraud-card--earth' },
+  wind: { glyph: '风', tone: 'prompt-fraud-card--wind' },
+  thunder: { glyph: '雷', tone: 'prompt-fraud-card--thunder' },
 }
 
-function normalizeFraudElementTitle(optionId: string, fallback: string): string {
+function fraudAttackCardName(optionId: string, fallback: string): string {
+  const lower = String(optionId || '').trim().toLowerCase()
+  if (lower === 'water') return '水涟斩'
+  if (lower === 'fire') return '火焰斩'
+  if (lower === 'earth') return '地裂斩'
+  if (lower === 'wind') return '风神斩'
+  if (lower === 'thunder') return '雷光斩'
   const normalizedFallback = String(fallback || '').trim()
   if (normalizedFallback) return normalizedFallback
-  const lower = String(optionId || '').trim().toLowerCase()
-  if (lower === 'water') return '水系'
-  if (lower === 'fire') return '火系'
-  if (lower === 'earth') return '地系'
-  if (lower === 'wind') return '风系'
-  if (lower === 'thunder') return '雷系'
   return String(optionId || '').trim() || '系别'
 }
 
@@ -840,19 +837,13 @@ const fraudElementCardOptions = computed<FraudElementCardOption[]>(() => {
   return prompt.value.options.map((option) => {
     const lower = String(option.id || '').trim().toLowerCase()
     const meta = fraudElementCardMetaById[lower] ?? {
-      mark: '系',
       glyph: '系',
-      ribbon: '元素转化',
-      hint: '点击后以此系发动主动攻击',
       tone: 'prompt-fraud-card--generic',
     }
     return {
       id: option.id,
-      title: normalizeFraudElementTitle(option.id, option.label),
-      mark: meta.mark,
+      title: fraudAttackCardName(option.id, option.label),
       glyph: meta.glyph,
-      ribbon: meta.ribbon,
-      hint: meta.hint,
       tone: meta.tone,
     }
   })
@@ -1289,11 +1280,10 @@ watch(autoResolveOptionId, (optionId) => {
                 :key="option.id"
                 class="prompt-fraud-card"
                 :class="option.tone"
-                :title="option.hint"
-                :aria-label="option.hint"
+                :title="option.title"
+                :aria-label="option.title"
                 @click="handleOptionClick(option.id)"
               >
-                <span class="prompt-fraud-card-corner">{{ option.mark }}</span>
                 <span class="prompt-fraud-card-title-banner">
                   <span class="prompt-fraud-card-title">{{ option.title }}</span>
                 </span>
@@ -1303,8 +1293,6 @@ watch(autoResolveOptionId, (optionId) => {
                 <span class="prompt-fraud-card-art">
                   <span class="prompt-fraud-card-glyph">{{ option.glyph }}</span>
                 </span>
-                <span class="prompt-fraud-card-ribbon">{{ option.ribbon }}</span>
-                <span class="prompt-fraud-card-footer">点击选择</span>
               </button>
             </div>
           </div>
@@ -1397,24 +1385,29 @@ watch(autoResolveOptionId, (optionId) => {
   position: fixed;
   inset: 0;
   z-index: 60;
-  pointer-events: none;
+  pointer-events: auto;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: center;
+  background: rgba(7, 14, 24, 0.38);
+  backdrop-filter: blur(7px) saturate(0.98);
+  -webkit-backdrop-filter: blur(7px) saturate(0.98);
   padding:
-    max(14px, calc(var(--safe-top, 0px) + 8px))
-    max(18px, calc(var(--safe-right, 0px) + 8px))
-    max(14px, calc(var(--safe-bottom, 0px) + 8px))
-    14px;
+    max(16px, calc(var(--safe-top, 0px) + 8px))
+    max(16px, calc(var(--safe-right, 0px) + 8px))
+    max(16px, calc(var(--safe-bottom, 0px) + 8px))
+    max(16px, calc(var(--safe-left, 0px) + 8px));
 }
 
 .prompt-fraud-global-panel {
   pointer-events: auto;
-  width: min(760px, 58vw);
+  width: min(860px, calc(100vw - 40px));
+  max-height: calc(100vh - 40px);
+  overflow: auto;
   border-radius: 14px;
   border: 1px solid rgba(146, 183, 207, 0.42);
   background:
-    linear-gradient(180deg, rgba(10, 22, 38, 0.95), rgba(7, 16, 27, 0.97));
+    linear-gradient(180deg, rgba(9, 20, 34, 0.96), rgba(6, 14, 24, 0.97));
   box-shadow:
     0 18px 34px rgba(2, 8, 18, 0.52),
     inset 0 1px 0 rgba(236, 246, 254, 0.12);
@@ -1462,7 +1455,7 @@ watch(autoResolveOptionId, (optionId) => {
   align-items: stretch;
   justify-content: flex-start;
   position: relative;
-  min-height: 156px;
+  min-height: 136px;
   border-radius: 10px;
   border: 2px solid var(--fraud-edge-color);
   background: linear-gradient(180deg, var(--fraud-base-top), var(--fraud-base-bottom));
@@ -1484,24 +1477,6 @@ watch(autoResolveOptionId, (optionId) => {
     0 12px 22px rgba(0, 0, 0, 0.62),
     0 0 16px rgba(255, 214, 138, 0.44),
     inset 0 0 0 1px rgba(255, 247, 229, 0.38);
-}
-
-.prompt-fraud-card-corner {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  z-index: 6;
-  min-width: 18px;
-  height: 18px;
-  border-radius: 4px;
-  border: 1px solid rgba(250, 236, 202, 0.56);
-  background: linear-gradient(180deg, rgba(252, 245, 228, 0.9), rgba(215, 196, 160, 0.88));
-  color: rgba(49, 36, 22, 0.95);
-  font-size: 10px;
-  font-weight: 860;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .prompt-fraud-card-title-banner {
@@ -1560,8 +1535,8 @@ watch(autoResolveOptionId, (optionId) => {
 }
 
 .prompt-fraud-card-art {
-  margin: 30px 7px 0;
-  height: 72px;
+  margin: 30px 7px 8px;
+  height: 88px;
   border-radius: 4px;
   border: 1px solid rgba(175, 161, 132, 0.8);
   display: inline-flex;
@@ -1576,45 +1551,13 @@ watch(autoResolveOptionId, (optionId) => {
 }
 
 .prompt-fraud-card-glyph {
-  font-size: 34px;
+  font-size: 38px;
   font-weight: 900;
   line-height: 1;
   color: rgba(247, 253, 255, 0.96);
   text-shadow:
     0 0 10px rgba(255, 255, 255, 0.24),
     0 2px 5px rgba(0, 0, 0, 0.6);
-}
-
-.prompt-fraud-card-ribbon {
-  margin: 6px 6px 0;
-  min-height: 20px;
-  border-radius: 4px;
-  border: 1px solid rgba(120, 28, 20, 0.72);
-  background: linear-gradient(90deg, var(--fraud-ribbon-start), var(--fraud-ribbon-end));
-  color: #fdf2e6;
-  font-size: 11px;
-  font-weight: 760;
-  letter-spacing: 0.03em;
-  line-height: 1.15;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
-}
-
-.prompt-fraud-card-footer {
-  margin: 6px 6px 7px;
-  min-height: 22px;
-  border-radius: 4px;
-  border: 1px solid rgba(198, 193, 183, 0.94);
-  background: linear-gradient(180deg, rgba(248, 244, 236, 0.96), rgba(227, 220, 205, 0.95));
-  color: rgba(48, 35, 23, 0.95);
-  font-size: 11px;
-  font-weight: 740;
-  letter-spacing: 0.02em;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .prompt-fraud-card--water {
@@ -2005,7 +1948,8 @@ watch(autoResolveOptionId, (optionId) => {
   }
 
   .prompt-fraud-global-panel {
-    width: min(720px, 74vw);
+    width: min(760px, calc(100vw - 28px));
+    max-height: calc(100vh - 28px);
   }
 
   .prompt-fraud-grid {
@@ -2013,7 +1957,7 @@ watch(autoResolveOptionId, (optionId) => {
   }
 
   .prompt-fraud-card {
-    min-height: 146px;
+    min-height: 126px;
   }
 }
 
@@ -2042,7 +1986,7 @@ watch(autoResolveOptionId, (optionId) => {
 
   .prompt-fraud-global-layer {
     justify-content: center;
-    align-items: flex-end;
+    align-items: center;
     padding:
       max(10px, calc(var(--safe-top, 0px) + 4px))
       max(8px, calc(var(--safe-right, 0px) + 4px))
@@ -2051,7 +1995,7 @@ watch(autoResolveOptionId, (optionId) => {
   }
 
   .prompt-fraud-global-panel {
-    width: min(100%, 560px);
+    width: min(100%, 620px);
     border-radius: 12px;
     padding: 8px;
   }
@@ -2069,11 +2013,11 @@ watch(autoResolveOptionId, (optionId) => {
   }
 
   .prompt-fraud-card {
-    min-height: 138px;
+    min-height: 120px;
   }
 
   .prompt-fraud-card-glyph {
-    font-size: 30px;
+    font-size: 32px;
   }
 }
 </style>

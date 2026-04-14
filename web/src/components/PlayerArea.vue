@@ -272,12 +272,6 @@ const formIndicator = computed(() => {
   }
 })
 
-const hasFormPose = computed(() => {
-  if (props.player.form) return true
-  if (props.player.orientation === 'Tapped') return true
-  return (props.player.tokens?.valkyrie_spirit ?? 0) > 0
-})
-
 const showStealthBlockedHint = computed(() => {
   if (props.selectable) return false
   if (!props.isOpponent) return false
@@ -349,19 +343,21 @@ function handleClick(e: MouseEvent) {
       :src="characterImageSrc"
       :alt="charInfo?.name || player.name"
       class="character-portrait-fill"
-      :class="{ 'character-portrait-fill--form': hasFormPose }"
       @error="onCharImageError"
     >
     <div
       v-else
       class="character-portrait-placeholder-fill"
-      :class="{ 'character-portrait-placeholder-fill--form': hasFormPose }"
     >
       {{ (charInfo?.name || player.name || '?').charAt(0) }}
     </div>
 
     <div v-if="typeof turnOrder === 'number'" class="turn-order-badge" :title="`行动顺序 #${turnOrder}`">
       #{{ turnOrder }}
+    </div>
+
+    <div v-if="formIndicator" class="form-badge" :class="formIndicator.cls" :title="formIndicator.label">
+      {{ formIndicator.label }}
     </div>
 
     <div class="player-overlay">
@@ -409,16 +405,6 @@ function handleClick(e: MouseEvent) {
           class="text-[10px] px-1 rounded"
           :class="eff.cls"
         >{{ eff.icon }}</span>
-      </div>
-
-      <div v-if="formIndicator" class="player-overlay-effects">
-        <span
-          class="inline-flex items-center px-1 py-0.5 rounded border text-[9px] leading-none"
-          :class="formIndicator.cls"
-          :title="formIndicator.label"
-        >
-          {{ formIndicator.label }}
-        </span>
       </div>
 
       <div v-if="tokenIndicators.length" class="player-overlay-tokens">
@@ -504,12 +490,6 @@ function handleClick(e: MouseEvent) {
   object-position: center 32%;
   z-index: 1;
   border-radius: inherit;
-  transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
-  transform-origin: center center;
-}
-
-.character-portrait-fill--form {
-  transform: rotate(-90deg);
 }
 
 .character-portrait-placeholder-fill {
@@ -524,12 +504,6 @@ function handleClick(e: MouseEvent) {
   font-size: 28px;
   z-index: 1;
   border-radius: inherit;
-  transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
-  transform-origin: center center;
-}
-
-.character-portrait-placeholder-fill--form {
-  transform: rotate(-90deg);
 }
 
 .turn-order-badge {
@@ -549,6 +523,30 @@ function handleClick(e: MouseEvent) {
   text-align: center;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.62);
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.34);
+}
+
+.form-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 5;
+  padding: 1px 5px;
+  border-radius: 4px;
+  border-width: 1px;
+  border-style: solid;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.4;
+  text-align: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5), inset 0 1px 2px rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(2px);
+  animation: glowPulse 2s infinite ease-in-out;
+}
+
+@keyframes glowPulse {
+  0% { filter: brightness(1); }
+  50% { filter: brightness(1.2); }
+  100% { filter: brightness(1); }
 }
 
 .player-overlay {
