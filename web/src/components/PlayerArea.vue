@@ -331,7 +331,7 @@ function handleClick(e: MouseEvent) {
 
 <template>
   <div
-    class="player-area border transition-all duration-300 rounded-xl overflow-hidden relative"
+    class="player-area border transition-all duration-300 rounded-xl relative"
     :class="[
       compact
         ? 'player-area--compact min-w-[108px] max-w-[124px] sm:min-w-[120px] sm:max-w-[140px] 2xl:min-w-[142px] 2xl:max-w-[166px]'
@@ -480,6 +480,7 @@ function handleClick(e: MouseEvent) {
   content: '';
   position: absolute;
   inset: 0;
+  border-radius: inherit;
   background:
     radial-gradient(120% 88% at 50% 10%, rgba(241, 248, 255, 0.13), rgba(15, 24, 36, 0.22) 56%, rgba(8, 13, 22, 0.4) 100%);
   pointer-events: none;
@@ -502,12 +503,13 @@ function handleClick(e: MouseEvent) {
   object-fit: cover;
   object-position: center 32%;
   z-index: 1;
+  border-radius: inherit;
   transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
   transform-origin: center center;
 }
 
 .character-portrait-fill--form {
-  transform: rotate(-90deg) scale(1.42);
+  transform: rotate(-90deg);
 }
 
 .character-portrait-placeholder-fill {
@@ -521,12 +523,13 @@ function handleClick(e: MouseEvent) {
   font-weight: 700;
   font-size: 28px;
   z-index: 1;
+  border-radius: inherit;
   transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
   transform-origin: center center;
 }
 
 .character-portrait-placeholder-fill--form {
-  transform: rotate(-90deg) scale(1.42);
+  transform: rotate(-90deg);
 }
 
 .turn-order-badge {
@@ -559,6 +562,8 @@ function handleClick(e: MouseEvent) {
   flex-direction: column;
   gap: 3px;
   justify-content: flex-end;
+  border-bottom-left-radius: inherit;
+  border-bottom-right-radius: inherit;
   background:
     linear-gradient(180deg, rgba(4, 10, 18, 0.04) 0%, rgba(8, 16, 27, 0.78) 32%, rgba(6, 12, 21, 0.94) 100%);
   backdrop-filter: blur(2px);
