@@ -81,6 +81,35 @@ const hasCounterOrDefend = computed(() => {
   return hasCounterOption.value || hasDefendOption.value
 })
 
+function promptAttackElementName(raw: string): string {
+  const lower = String(raw || '').trim().toLowerCase()
+  if (lower === 'water') return '水系'
+  if (lower === 'fire') return '火系'
+  if (lower === 'earth') return '地系'
+  if (lower === 'wind') return '风系'
+  if (lower === 'thunder') return '雷系'
+  if (lower === 'light') return '光系'
+  if (lower === 'dark') return '暗灭'
+  return String(raw || '').trim()
+}
+
+const responseAttackElementHintText = computed(() => {
+  if (!prompt.value || !hasCounterOrDefend.value) return ''
+  const attackElement = String(prompt.value.attack_element || '').trim()
+  if (!attackElement) return ''
+  const displayName = promptAttackElementName(attackElement)
+  if (!displayName) return ''
+  const lower = attackElement.toLowerCase()
+  if (lower === 'dark') return `此次攻击系别：${displayName}`
+  if (hasCounterOption.value) return `此次攻击系别：${displayName}（应战需同系或暗灭）`
+  return `此次攻击系别：${displayName}`
+})
+
+const isDarkAttackResponsePrompt = computed(() => {
+  if (!prompt.value || !hasCounterOrDefend.value) return false
+  return String(prompt.value.attack_element || '').trim().toLowerCase() === 'dark'
+})
+
 const isMagicMissilePrompt = computed(() => {
   const msg = prompt.value?.message ?? ''
   return msg.includes('魔弹')
@@ -1089,6 +1118,12 @@ function shouldHideOptionHint(option: DockButtonOption): boolean {
   return responseOptionKind({ id: option.id, label: option.label, button_label: option.buttonLabel }) !== null
 }
 
+function shouldEnlargeResponseActionButton(option: DockButtonOption): boolean {
+  if (!isDarkAttackResponsePrompt.value) return false
+  const kind = responseOptionKind({ id: option.id, label: option.label, button_label: option.buttonLabel })
+  return kind === 'take' || kind === 'defend'
+}
+
 watch(autoResolveOptionId, (optionId) => {
   if (!optionId || !prompt.value) return
   const key = buildPromptAutoResolveKey(prompt.value)
@@ -1173,7 +1208,11 @@ watch(autoResolveOptionId, (optionId) => {
             </div>
           </div>
 
-          <div v-else-if="inlinePrimaryButtons.length > 0" class="prompt-inline-grid" :class="inlinePrimaryGridClass">
+          <div v-else-if="inlinePrimaryButtons.length > 0">
+            <div v-if="responseAttackElementHintText" class="prompt-inline-hint prompt-inline-hint--attack-element">
+              {{ responseAttackElementHintText }}
+            </div>
+            <div class="prompt-inline-grid" :class="inlinePrimaryGridClass">
             <div
               v-for="option in inlinePrimaryButtons"
               :key="option.id"
@@ -1192,6 +1231,7 @@ watch(autoResolveOptionId, (optionId) => {
                 :class="[
                   isDockButtonImageStyle(option) ? 'action-image-btn' : '',
                   getDockButtonClass(option.id),
+                  shouldEnlargeResponseActionButton(option) ? 'prompt-inline-btn--response-large' : '',
                   option.numeric ? 'prompt-inline-btn--numeric' : '',
                   option.numeric && !!option.hint ? 'prompt-inline-btn--hinted-numeric' : '',
                   isInlineCardOptionSelected(option.id) ? 'prompt-inline-btn--selected' : '',
@@ -1223,6 +1263,7 @@ watch(autoResolveOptionId, (optionId) => {
                 </template>
               </button>
             </div>
+          </div>
           </div>
 
           <div v-if="showCardConfirmCancelRow" class="prompt-inline-entry">
@@ -1725,6 +1766,13 @@ watch(autoResolveOptionId, (optionId) => {
   flex-shrink: 0;
 }
 
+.prompt-inline-btn.action-image-btn.prompt-inline-btn--response-large {
+  width: 96px;
+  height: 96px;
+  max-width: 96px;
+  border-radius: 14px !important;
+}
+
 .prompt-inline-hint {
   min-height: 18px;
   padding: 0 4px;
@@ -1741,6 +1789,19 @@ watch(autoResolveOptionId, (optionId) => {
   font-size: 11.5px;
   font-weight: 600;
   color: rgba(214, 231, 246, 0.96);
+}
+
+.prompt-inline-hint--attack-element {
+  min-height: 0;
+  margin: 0 0 6px;
+  padding: 4px 8px;
+  border-radius: 9px;
+  border: 1px solid rgba(132, 165, 187, 0.36);
+  background: linear-gradient(180deg, rgba(28, 43, 61, 0.72), rgba(17, 30, 45, 0.75));
+  color: rgba(223, 239, 250, 0.96);
+  font-size: 12px;
+  font-weight: 640;
+  letter-spacing: 0.01em;
 }
 
 .prompt-inline-grid--1 {
@@ -1978,6 +2039,12 @@ watch(autoResolveOptionId, (optionId) => {
     justify-self: center;
   }
 
+  .prompt-inline-btn.action-image-btn.prompt-inline-btn--response-large {
+    width: 88px;
+    height: 88px;
+    max-width: 88px;
+  }
+
   .prompt-inline-hint {
     min-height: 16px;
     font-size: 10px;
@@ -2063,6 +2130,12 @@ watch(autoResolveOptionId, (optionId) => {
     min-height: 0;
     max-width: 72px;
     justify-self: center;
+  }
+
+  .prompt-inline-btn.action-image-btn.prompt-inline-btn--response-large {
+    width: 84px;
+    height: 84px;
+    max-width: 84px;
   }
 
   .prompt-fraud-grid {
