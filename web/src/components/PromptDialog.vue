@@ -472,6 +472,16 @@ type SkillPromptButton = {
   cancel: boolean
 }
 
+type FraudElementCardOption = {
+  id: string
+  title: string
+  mark: string
+  glyph: string
+  ribbon: string
+  hint: string
+  tone: string
+}
+
 type PromptImageButtonKind = 'take' | 'counter' | 'defend' | 'cancel' | 'confirm' | 'card' | 'action'
 
 const PROMPT_IMAGE_BUTTON_CANDIDATES: Record<PromptImageButtonKind, string[]> = {
@@ -801,6 +811,53 @@ function buildDockButtons(options: RawDockOption[]): DockButtonOption[] {
   return options.map((option) => normalizeDockOption(option, mode.useNumeric, mode.plusOne))
 }
 
+const fraudElementCardMetaById: Record<string, Omit<FraudElementCardOption, 'id' | 'title'>> = {
+  water: { mark: '潮', glyph: '水', ribbon: '潮汐突袭', hint: '点击后以水系发动主动攻击', tone: 'prompt-fraud-card--water' },
+  fire: { mark: '焰', glyph: '火', ribbon: '烈焰压制', hint: '点击后以火系发动主动攻击', tone: 'prompt-fraud-card--fire' },
+  earth: { mark: '岩', glyph: '地', ribbon: '地脉重击', hint: '点击后以地系发动主动攻击', tone: 'prompt-fraud-card--earth' },
+  wind: { mark: '岚', glyph: '风', ribbon: '疾风穿阵', hint: '点击后以风系发动主动攻击', tone: 'prompt-fraud-card--wind' },
+  thunder: { mark: '霆', glyph: '雷', ribbon: '雷鸣断势', hint: '点击后以雷系发动主动攻击', tone: 'prompt-fraud-card--thunder' },
+}
+
+function normalizeFraudElementTitle(optionId: string, fallback: string): string {
+  const normalizedFallback = String(fallback || '').trim()
+  if (normalizedFallback) return normalizedFallback
+  const lower = String(optionId || '').trim().toLowerCase()
+  if (lower === 'water') return '水系'
+  if (lower === 'fire') return '火系'
+  if (lower === 'earth') return '地系'
+  if (lower === 'wind') return '风系'
+  if (lower === 'thunder') return '雷系'
+  return String(optionId || '').trim() || '系别'
+}
+
+const isFraudElementCardPickerPrompt = computed(() =>
+  prompt.value?.choice_type === 'adventurer_fraud_attack_element' && (prompt.value?.options?.length ?? 0) > 0
+)
+
+const fraudElementCardOptions = computed<FraudElementCardOption[]>(() => {
+  if (!isFraudElementCardPickerPrompt.value || !prompt.value?.options?.length) return []
+  return prompt.value.options.map((option) => {
+    const lower = String(option.id || '').trim().toLowerCase()
+    const meta = fraudElementCardMetaById[lower] ?? {
+      mark: '系',
+      glyph: '系',
+      ribbon: '元素转化',
+      hint: '点击后以此系发动主动攻击',
+      tone: 'prompt-fraud-card--generic',
+    }
+    return {
+      id: option.id,
+      title: normalizeFraudElementTitle(option.id, option.label),
+      mark: meta.mark,
+      glyph: meta.glyph,
+      ribbon: meta.ribbon,
+      hint: meta.hint,
+      tone: meta.tone,
+    }
+  })
+})
+
 const cardFooterOptions = computed<RawDockOption[]>(() => {
   if (!prompt.value?.options || !needsCardSelection.value) return []
   if (hasCounterOrDefend.value) {
@@ -856,6 +913,7 @@ const cardConfirmHintText = computed(() => {
 
 const inlinePrimaryButtons = computed<DockButtonOption[]>(() => {
   if (isExtractPrompt.value) return []
+  if (isFraudElementCardPickerPrompt.value) return []
   if (needsCardSelection.value) return buildDockButtons(cardFooterOptions.value)
   if (showConfirmButtonSection.value) {
     const options = nonPlayerOptions.value
@@ -984,6 +1042,7 @@ const autoResolveOptionId = computed(() => {
 
 const hasAnyInlineButton = computed(() => {
   if (!isVisible.value) return false
+  if (isFraudElementCardPickerPrompt.value) return true
   if (isExtractPrompt.value && !!prompt.value?.options?.length) return true
   if (inlinePrimaryButtons.value.length > 0) return true
   if (promptNeedsCardConfirm.value) return true
@@ -1110,6 +1169,34 @@ watch(autoResolveOptionId, (optionId) => {
                   </template>
                 </button>
               </div>
+            </div>
+          </div>
+
+          <div v-else-if="isFraudElementCardPickerPrompt && fraudElementCardOptions.length > 0" class="prompt-fraud-dialog">
+            <div class="prompt-fraud-title">{{ prompt?.message || '请选择本次攻击系别' }}</div>
+            <div class="prompt-fraud-grid">
+              <button
+                v-for="option in fraudElementCardOptions"
+                :key="option.id"
+                class="prompt-fraud-card"
+                :class="option.tone"
+                :title="option.hint"
+                :aria-label="option.hint"
+                @click="handleOptionClick(option.id)"
+              >
+                <span class="prompt-fraud-card-corner">{{ option.mark }}</span>
+                <span class="prompt-fraud-card-title-banner">
+                  <span class="prompt-fraud-card-title">{{ option.title }}</span>
+                </span>
+                <span class="prompt-fraud-card-medal">
+                  <span>{{ option.glyph }}</span>
+                </span>
+                <span class="prompt-fraud-card-art">
+                  <span class="prompt-fraud-card-glyph">{{ option.glyph }}</span>
+                </span>
+                <span class="prompt-fraud-card-ribbon">{{ option.ribbon }}</span>
+                <span class="prompt-fraud-card-footer">点击选择</span>
+              </button>
             </div>
           </div>
 
@@ -1293,6 +1380,276 @@ watch(autoResolveOptionId, (optionId) => {
 
 .prompt-skill-action:hover:not(:disabled) {
   filter: brightness(1.08);
+}
+
+.prompt-fraud-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 2px 2px;
+}
+
+.prompt-fraud-title {
+  font-size: 13px;
+  line-height: 1.4;
+  color: rgba(225, 238, 249, 0.96);
+  text-align: center;
+  letter-spacing: 0.01em;
+}
+
+.prompt-fraud-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.prompt-fraud-card {
+  --fraud-edge-color: rgba(185, 152, 102, 0.78);
+  --fraud-edge-glow: rgba(232, 191, 121, 0.38);
+  --fraud-base-top: #2f2520;
+  --fraud-base-bottom: #17120f;
+  --fraud-ribbon-start: #8c5a2f;
+  --fraud-ribbon-end: #60401f;
+  --fraud-medal-bg: radial-gradient(circle at 32% 28%, #f1d79b, #c6924f 58%, #784d1d);
+  --fraud-medal-fg: #fff7ea;
+  --fraud-art-top: rgba(214, 174, 116, 0.3);
+  --fraud-art-bottom: rgba(71, 45, 24, 0.82);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  position: relative;
+  min-height: 156px;
+  border-radius: 10px;
+  border: 2px solid var(--fraud-edge-color);
+  background: linear-gradient(180deg, var(--fraud-base-top), var(--fraud-base-bottom));
+  color: rgba(245, 250, 255, 0.97);
+  box-shadow:
+    0 8px 16px rgba(0, 0, 0, 0.55),
+    0 0 12px var(--fraud-edge-glow),
+    inset 0 0 0 1px rgba(255, 244, 214, 0.24),
+    inset 0 0 10px rgba(255, 255, 255, 0.08);
+  transition: transform 0.16s ease, filter 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+  overflow: hidden;
+  text-align: center;
+}
+
+.prompt-fraud-card:hover:not(:disabled) {
+  transform: translateY(-2px);
+  border-color: rgba(255, 228, 170, 0.96);
+  box-shadow:
+    0 12px 22px rgba(0, 0, 0, 0.62),
+    0 0 16px rgba(255, 214, 138, 0.44),
+    inset 0 0 0 1px rgba(255, 247, 229, 0.38);
+}
+
+.prompt-fraud-card-corner {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  z-index: 6;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 1px solid rgba(250, 236, 202, 0.56);
+  background: linear-gradient(180deg, rgba(252, 245, 228, 0.9), rgba(215, 196, 160, 0.88));
+  color: rgba(49, 36, 22, 0.95);
+  font-size: 10px;
+  font-weight: 860;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.prompt-fraud-card-title-banner {
+  position: absolute;
+  top: 6px;
+  left: 16px;
+  right: 16px;
+  height: 20px;
+  border-radius: 4px;
+  border: 1px solid rgba(202, 184, 148, 0.88);
+  background: linear-gradient(180deg, rgba(251, 249, 243, 0.96), rgba(222, 214, 197, 0.94));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 4;
+}
+
+.prompt-fraud-card-title {
+  color: rgba(46, 34, 22, 0.94);
+  font-size: 11px;
+  font-weight: 820;
+  letter-spacing: 0.04em;
+  line-height: 1;
+}
+
+.prompt-fraud-card-medal {
+  position: absolute;
+  top: 2px;
+  left: 3px;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.95), rgba(201, 191, 176, 0.8) 42%, rgba(61, 53, 47, 0.88));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 8;
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.55),
+    0 0 8px rgba(255, 244, 189, 0.44);
+}
+
+.prompt-fraud-card-medal > span {
+  width: 72%;
+  height: 72%;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--fraud-medal-bg);
+  color: var(--fraud-medal-fg);
+  font-size: 13px;
+  font-weight: 900;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+}
+
+.prompt-fraud-card-art {
+  margin: 30px 7px 0;
+  height: 72px;
+  border-radius: 4px;
+  border: 1px solid rgba(175, 161, 132, 0.8);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(100% 120% at 50% 0%, var(--fraud-art-top), transparent 56%),
+    linear-gradient(180deg, rgba(255, 250, 235, 0.12), var(--fraud-art-bottom));
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 236, 196, 0.3),
+    inset 0 0 16px rgba(0, 0, 0, 0.38);
+}
+
+.prompt-fraud-card-glyph {
+  font-size: 34px;
+  font-weight: 900;
+  line-height: 1;
+  color: rgba(247, 253, 255, 0.96);
+  text-shadow:
+    0 0 10px rgba(255, 255, 255, 0.24),
+    0 2px 5px rgba(0, 0, 0, 0.6);
+}
+
+.prompt-fraud-card-ribbon {
+  margin: 6px 6px 0;
+  min-height: 20px;
+  border-radius: 4px;
+  border: 1px solid rgba(120, 28, 20, 0.72);
+  background: linear-gradient(90deg, var(--fraud-ribbon-start), var(--fraud-ribbon-end));
+  color: #fdf2e6;
+  font-size: 11px;
+  font-weight: 760;
+  letter-spacing: 0.03em;
+  line-height: 1.15;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+.prompt-fraud-card-footer {
+  margin: 6px 6px 7px;
+  min-height: 22px;
+  border-radius: 4px;
+  border: 1px solid rgba(198, 193, 183, 0.94);
+  background: linear-gradient(180deg, rgba(248, 244, 236, 0.96), rgba(227, 220, 205, 0.95));
+  color: rgba(48, 35, 23, 0.95);
+  font-size: 11px;
+  font-weight: 740;
+  letter-spacing: 0.02em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.prompt-fraud-card--water {
+  --fraud-edge-color: rgba(102, 152, 196, 0.78);
+  --fraud-edge-glow: rgba(124, 196, 255, 0.38);
+  --fraud-base-top: #1a2a3e;
+  --fraud-base-bottom: #0f1826;
+  --fraud-ribbon-start: #25689f;
+  --fraud-ribbon-end: #1b446c;
+  --fraud-medal-bg: radial-gradient(circle at 32% 28%, #ccf3ff, #4ea1d6 58%, #195580);
+  --fraud-medal-fg: #effbff;
+  --fraud-art-top: rgba(138, 206, 255, 0.4);
+  --fraud-art-bottom: rgba(18, 48, 78, 0.84);
+}
+
+.prompt-fraud-card--fire {
+  --fraud-edge-color: rgba(205, 123, 82, 0.78);
+  --fraud-edge-glow: rgba(255, 140, 98, 0.4);
+  --fraud-base-top: #3c1f18;
+  --fraud-base-bottom: #1c120f;
+  --fraud-ribbon-start: #c6352f;
+  --fraud-ribbon-end: #8e1b17;
+  --fraud-medal-bg: radial-gradient(circle at 32% 28%, #ffca7f, #f36d33 58%, #9b2e1a);
+  --fraud-medal-fg: #fff8eb;
+  --fraud-art-top: rgba(255, 176, 126, 0.42);
+  --fraud-art-bottom: rgba(88, 30, 20, 0.84);
+}
+
+.prompt-fraud-card--earth {
+  --fraud-edge-color: rgba(174, 138, 93, 0.8);
+  --fraud-edge-glow: rgba(225, 186, 113, 0.34);
+  --fraud-base-top: #32261a;
+  --fraud-base-bottom: #1a1410;
+  --fraud-ribbon-start: #8a5d2f;
+  --fraud-ribbon-end: #60401f;
+  --fraud-medal-bg: radial-gradient(circle at 32% 28%, #f1d79b, #c6924f 58%, #784d1d);
+  --fraud-medal-fg: #fff6e4;
+  --fraud-art-top: rgba(236, 199, 128, 0.36);
+  --fraud-art-bottom: rgba(85, 57, 22, 0.84);
+}
+
+.prompt-fraud-card--wind {
+  --fraud-edge-color: rgba(96, 169, 145, 0.78);
+  --fraud-edge-glow: rgba(116, 223, 181, 0.34);
+  --fraud-base-top: #183329;
+  --fraud-base-bottom: #101f1b;
+  --fraud-ribbon-start: #237258;
+  --fraud-ribbon-end: #194e3d;
+  --fraud-medal-bg: radial-gradient(circle at 32% 28%, #c8f9e6, #55b68d 58%, #216f54);
+  --fraud-medal-fg: #edfff6;
+  --fraud-art-top: rgba(145, 241, 205, 0.36);
+  --fraud-art-bottom: rgba(25, 73, 56, 0.84);
+}
+
+.prompt-fraud-card--thunder {
+  --fraud-edge-color: rgba(140, 124, 200, 0.8);
+  --fraud-edge-glow: rgba(183, 148, 255, 0.36);
+  --fraud-base-top: #24213d;
+  --fraud-base-bottom: #171427;
+  --fraud-ribbon-start: #5f4a99;
+  --fraud-ribbon-end: #40306f;
+  --fraud-medal-bg: radial-gradient(circle at 32% 28%, #efe2ff, #9c79dc 58%, #4e3385);
+  --fraud-medal-fg: #faf3ff;
+  --fraud-art-top: rgba(208, 180, 255, 0.38);
+  --fraud-art-bottom: rgba(54, 36, 89, 0.84);
+}
+
+.prompt-fraud-card--generic {
+  --fraud-edge-color: rgba(170, 190, 216, 0.56);
+  --fraud-edge-glow: rgba(166, 193, 227, 0.34);
+  --fraud-base-top: #223044;
+  --fraud-base-bottom: #121c29;
+  --fraud-ribbon-start: #44648a;
+  --fraud-ribbon-end: #2d4159;
+  --fraud-medal-bg: radial-gradient(circle at 32% 28%, #dfe9f7, #8ba5cc 58%, #4d6283);
+  --fraud-medal-fg: #f2f7ff;
+  --fraud-art-top: rgba(170, 200, 235, 0.34);
+  --fraud-art-bottom: rgba(35, 51, 72, 0.84);
 }
 
 .prompt-inline-entry {
@@ -1592,6 +1949,14 @@ watch(autoResolveOptionId, (optionId) => {
   .prompt-skill-text {
     font-size: 12px;
   }
+
+  .prompt-fraud-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .prompt-fraud-card {
+    min-height: 146px;
+  }
 }
 
 @media (max-width: 560px) {
@@ -1623,6 +1988,18 @@ watch(autoResolveOptionId, (optionId) => {
     min-height: 0;
     max-width: 72px;
     justify-self: center;
+  }
+
+  .prompt-fraud-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .prompt-fraud-card {
+    min-height: 138px;
+  }
+
+  .prompt-fraud-card-glyph {
+    font-size: 30px;
   }
 }
 </style>
