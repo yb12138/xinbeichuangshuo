@@ -1042,7 +1042,7 @@ const autoResolveOptionId = computed(() => {
 
 const hasAnyInlineButton = computed(() => {
   if (!isVisible.value) return false
-  if (isFraudElementCardPickerPrompt.value) return true
+  if (isFraudElementCardPickerPrompt.value) return false
   if (isExtractPrompt.value && !!prompt.value?.options?.length) return true
   if (inlinePrimaryButtons.value.length > 0) return true
   if (promptNeedsCardConfirm.value) return true
@@ -1172,34 +1172,6 @@ watch(autoResolveOptionId, (optionId) => {
             </div>
           </div>
 
-          <div v-else-if="isFraudElementCardPickerPrompt && fraudElementCardOptions.length > 0" class="prompt-fraud-dialog">
-            <div class="prompt-fraud-title">{{ prompt?.message || '请选择本次攻击系别' }}</div>
-            <div class="prompt-fraud-grid">
-              <button
-                v-for="option in fraudElementCardOptions"
-                :key="option.id"
-                class="prompt-fraud-card"
-                :class="option.tone"
-                :title="option.hint"
-                :aria-label="option.hint"
-                @click="handleOptionClick(option.id)"
-              >
-                <span class="prompt-fraud-card-corner">{{ option.mark }}</span>
-                <span class="prompt-fraud-card-title-banner">
-                  <span class="prompt-fraud-card-title">{{ option.title }}</span>
-                </span>
-                <span class="prompt-fraud-card-medal">
-                  <span>{{ option.glyph }}</span>
-                </span>
-                <span class="prompt-fraud-card-art">
-                  <span class="prompt-fraud-card-glyph">{{ option.glyph }}</span>
-                </span>
-                <span class="prompt-fraud-card-ribbon">{{ option.ribbon }}</span>
-                <span class="prompt-fraud-card-footer">点击选择</span>
-              </button>
-            </div>
-          </div>
-
           <div v-else-if="inlinePrimaryButtons.length > 0" class="prompt-inline-grid" :class="inlinePrimaryGridClass">
             <div
               v-for="option in inlinePrimaryButtons"
@@ -1301,6 +1273,45 @@ watch(autoResolveOptionId, (optionId) => {
       </div>
     </div>
   </Transition>
+
+  <Teleport to="body">
+    <Transition name="prompt-fraud-side-pop">
+      <div
+        v-if="isFraudElementCardPickerPrompt && fraudElementCardOptions.length > 0"
+        class="prompt-fraud-global-layer"
+      >
+        <div class="prompt-fraud-global-panel">
+          <div class="prompt-fraud-dialog prompt-fraud-dialog--global">
+            <div class="prompt-fraud-title">{{ prompt?.message || '请选择本次攻击系别' }}</div>
+            <div class="prompt-fraud-grid">
+              <button
+                v-for="option in fraudElementCardOptions"
+                :key="option.id"
+                class="prompt-fraud-card"
+                :class="option.tone"
+                :title="option.hint"
+                :aria-label="option.hint"
+                @click="handleOptionClick(option.id)"
+              >
+                <span class="prompt-fraud-card-corner">{{ option.mark }}</span>
+                <span class="prompt-fraud-card-title-banner">
+                  <span class="prompt-fraud-card-title">{{ option.title }}</span>
+                </span>
+                <span class="prompt-fraud-card-medal">
+                  <span>{{ option.glyph }}</span>
+                </span>
+                <span class="prompt-fraud-card-art">
+                  <span class="prompt-fraud-card-glyph">{{ option.glyph }}</span>
+                </span>
+                <span class="prompt-fraud-card-ribbon">{{ option.ribbon }}</span>
+                <span class="prompt-fraud-card-footer">点击选择</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
 </template>
 
 <style scoped>
@@ -1382,11 +1393,43 @@ watch(autoResolveOptionId, (optionId) => {
   filter: brightness(1.08);
 }
 
+.prompt-fraud-global-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding:
+    max(14px, calc(var(--safe-top, 0px) + 8px))
+    max(18px, calc(var(--safe-right, 0px) + 8px))
+    max(14px, calc(var(--safe-bottom, 0px) + 8px))
+    14px;
+}
+
+.prompt-fraud-global-panel {
+  pointer-events: auto;
+  width: min(760px, 58vw);
+  border-radius: 14px;
+  border: 1px solid rgba(146, 183, 207, 0.42);
+  background:
+    linear-gradient(180deg, rgba(10, 22, 38, 0.95), rgba(7, 16, 27, 0.97));
+  box-shadow:
+    0 18px 34px rgba(2, 8, 18, 0.52),
+    inset 0 1px 0 rgba(236, 246, 254, 0.12);
+  padding: 10px;
+}
+
 .prompt-fraud-dialog {
   display: flex;
   flex-direction: column;
   gap: 10px;
   padding: 4px 2px 2px;
+}
+
+.prompt-fraud-dialog--global {
+  padding: 4px;
 }
 
 .prompt-fraud-title {
@@ -1899,6 +1942,17 @@ watch(autoResolveOptionId, (optionId) => {
   transform: translateY(10px) scale(0.98);
 }
 
+.prompt-fraud-side-pop-enter-active,
+.prompt-fraud-side-pop-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.prompt-fraud-side-pop-enter-from,
+.prompt-fraud-side-pop-leave-to {
+  opacity: 0;
+  transform: translateX(18px) scale(0.98);
+}
+
 @media (max-width: 900px) {
   .prompt-inline-surface {
     width: min(92vw, 680px);
@@ -1950,6 +2004,10 @@ watch(autoResolveOptionId, (optionId) => {
     font-size: 12px;
   }
 
+  .prompt-fraud-global-panel {
+    width: min(720px, 74vw);
+  }
+
   .prompt-fraud-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -1980,6 +2038,22 @@ watch(autoResolveOptionId, (optionId) => {
 
   .prompt-skill-text {
     text-align: center;
+  }
+
+  .prompt-fraud-global-layer {
+    justify-content: center;
+    align-items: flex-end;
+    padding:
+      max(10px, calc(var(--safe-top, 0px) + 4px))
+      max(8px, calc(var(--safe-right, 0px) + 4px))
+      max(10px, calc(var(--safe-bottom, 0px) + 4px))
+      max(8px, calc(var(--safe-left, 0px) + 4px));
+  }
+
+  .prompt-fraud-global-panel {
+    width: min(100%, 560px);
+    border-radius: 12px;
+    padding: 8px;
   }
 
   .prompt-inline-btn.action-image-btn {
