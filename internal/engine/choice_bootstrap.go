@@ -161,6 +161,7 @@ func bootstrapChoiceSpecs(e *GameEngine) {
 	regSpecSingleAndMulti(reg, "adventurer_fraud_pick", (*GameEngine).buildAdventurerChoicePrompt, (*GameEngine).handleAdventurerChoiceInput, (*GameEngine).handleAdventurerFraudPickSelections)
 	regSpecSingleAndCancel(reg, "elementalist_bonus_card", (*GameEngine).buildElementalistChoicePrompt, (*GameEngine).handleElementalistChoiceInput, (*GameEngine).cancelElementalistBonusCardChoice)
 	regSpecSingleAndCancel(reg, "valkyrie_heroic_discard_card", (*GameEngine).buildValkyrieChoicePrompt, (*GameEngine).handleValkyrieChoiceInput, (*GameEngine).cancelValkyrieHeroicDiscardChoice)
+	regSpecSingleAndCancel(reg, "elf_elemental_shot_cost", (*GameEngine).buildElfArcherChoicePrompt, (*GameEngine).handleElfArcherChoiceInput, (*GameEngine).cancelElfElementalShotCostChoice)
 
 	e.bootstrapChoiceSpecsFromCatalog(reg)
 }

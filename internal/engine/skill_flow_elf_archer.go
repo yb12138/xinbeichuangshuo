@@ -250,3 +250,30 @@ func (e *GameEngine) handleElfArcherChoiceInput(_ string, selectionIndex int, ct
 
 	return false, nil
 }
+
+func (e *GameEngine) cancelElfElementalShotCostChoice(playerID string) error {
+	if e.State.PendingInterrupt == nil || e.State.PendingInterrupt.Type != model.InterruptChoice {
+		return fmt.Errorf("没有待处理的元素射击消耗选择")
+	}
+	ctxData, ok := e.State.PendingInterrupt.Context.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("中断上下文格式错误")
+	}
+	choiceType, _ := ctxData["choice_type"].(string)
+	if choiceType != "elf_elemental_shot_cost" {
+		return fmt.Errorf("当前步骤不支持取消")
+	}
+
+	e.PopInterrupt()
+	if user := e.State.Players[playerID]; user != nil {
+		e.Log(fmt.Sprintf("%s 放弃发动 [元素射击]", user.Name))
+	}
+	if e.State.PendingInterrupt == nil {
+		if len(e.State.ActionQueue) > 0 {
+			e.enterActionExecutionStage()
+		} else if len(e.State.PendingDamageQueue) > 0 {
+			e.enterDamageResolution(nil)
+		}
+	}
+	return nil
+}

@@ -240,8 +240,22 @@ const isResponseSkillConfirmPrompt = computed(() => {
   return /是否发动【.+】/.test(message) || /【.+】是否发动/.test(message)
 })
 
+function isActivationCostText(raw: string): boolean {
+  const text = String(raw || '').replace(/\s+/g, '')
+  if (!text) return false
+  return text.includes('发动') && /(弃|弃置|移除|消耗|支付)/.test(text)
+}
+
+function isPromptActivationCostCancelable(p: NonNullable<typeof prompt.value>): boolean {
+  const choiceType = String(p.choice_type || '').trim()
+  // 发动前置消耗：允许玩家取消并回到原流程。
+  if (choiceType === 'elf_elemental_shot_cost') return true
+  return false
+}
+
 const canCancelPrompt = computed(() => {
   if (!prompt.value) return false
+  if (isPromptActivationCostCancelable(prompt.value)) return true
   if (prompt.value.type === 'choose_skill' || isResponseSkillConfirmPrompt.value) return true
   return (prompt.value.options ?? []).some((option: { id: string }) =>
     option.id === 'skip' || option.id === 'cancel' || option.id === 'refuse'
@@ -942,6 +956,32 @@ const showCardConfirmCancelRow = computed(() =>
   promptNeedsCardConfirm.value && canCancelPrompt.value && !isSkillChoicePrompt.value
 )
 
+const singleActivationCostConfirmOption = computed<DockButtonOption | null>(() => {
+  if (!prompt.value) return null
+  if (promptNeedsCardConfirm.value || isSkillChoicePrompt.value) return null
+  if (!canCancelPrompt.value) return null
+  if (inlinePrimaryButtons.value.length !== 1) return null
+  const option = inlinePrimaryButtons.value[0]
+  if (!option || option.numeric || option.disabled) return null
+  if (responseOptionKind({ id: option.id, label: option.label, button_label: option.buttonLabel }) !== null) return null
+  const message = String(prompt.value.message || '').trim()
+  const optionHint = String(option.hint || '').trim()
+  const optionLabel = String(option.label || '').trim()
+  if (!isActivationCostText(optionHint) && !isActivationCostText(optionLabel) && !isActivationCostText(message)) {
+    return null
+  }
+  return option
+})
+
+const singleActivationCostConfirmHintText = computed(() => {
+  if (!singleActivationCostConfirmOption.value) return ''
+  const hint = String(singleActivationCostConfirmOption.value.hint || '').trim()
+  if (hint) return hint
+  const label = String(singleActivationCostConfirmOption.value.label || '').trim()
+  if (label) return label
+  return String(prompt.value?.message || '').trim()
+})
+
 const inlinePrimaryButtons = computed<DockButtonOption[]>(() => {
   if (isExtractPrompt.value) return []
   if (isFraudElementCardPickerPrompt.value) return []
@@ -1209,7 +1249,7 @@ watch(autoResolveOptionId, (optionId) => {
             </div>
           </div>
 
-          <div v-else-if="inlinePrimaryButtons.length > 0">
+          <div v-else-if="inlinePrimaryButtons.length > 0 && !singleActivationCostConfirmOption">
             <div v-if="responseAttackElementHintText" class="prompt-inline-hint prompt-inline-hint--attack-element">
               {{ responseAttackElementHintText }}
             </div>
@@ -1267,7 +1307,45 @@ watch(autoResolveOptionId, (optionId) => {
           </div>
           </div>
 
-          <div v-if="showCardConfirmCancelRow" class="prompt-inline-entry">
+          <div v-if="singleActivationCostConfirmOption" class="prompt-inline-entry">
+            <div class="prompt-inline-hint">{{ singleActivationCostConfirmHintText }}</div>
+            <div class="prompt-inline-actions-row">
+              <button
+                class="prompt-inline-btn prompt-inline-btn--success action-image-btn"
+                :class="{ 'prompt-inline-btn--disabled': !!singleActivationCostConfirmOption.disabled }"
+                :disabled="!!singleActivationCostConfirmOption.disabled"
+                title="确认"
+                aria-label="确认"
+                @click="handleOptionClick(singleActivationCostConfirmOption.id)"
+              >
+                <img
+                  v-if="isPromptConfirmImageReady()"
+                  class="action-image-btn-fill"
+                  :src="promptConfirmImageSrc()"
+                  alt=""
+                  @error="onPromptConfirmImageError"
+                />
+                <span v-else class="action-image-fallback-text">确</span>
+              </button>
+              <button
+                class="prompt-inline-btn prompt-inline-btn--cancel action-image-btn"
+                :title="isDockButtonImageStyle(cancelDockButton) ? cancelDockButton.buttonLabel : undefined"
+                :aria-label="isDockButtonImageStyle(cancelDockButton) ? cancelDockButton.buttonLabel : undefined"
+                @click="handleOptionClick(cancelDockButton.id)"
+              >
+                <img
+                  v-if="isDockButtonImageReady(cancelDockButton)"
+                  class="action-image-btn-fill"
+                  :src="dockButtonImageSrc(cancelDockButton)"
+                  alt=""
+                  @error="onDockButtonImageError(cancelDockButton)"
+                />
+                <span v-else class="action-image-fallback-text">{{ dockButtonFallbackText(cancelDockButton) }}</span>
+              </button>
+            </div>
+          </div>
+
+          <div v-else-if="showCardConfirmCancelRow" class="prompt-inline-entry">
             <div class="prompt-inline-hint">{{ cardConfirmPromptMessage }}</div>
             <div class="prompt-inline-actions-row">
               <button
@@ -1327,7 +1405,10 @@ watch(autoResolveOptionId, (optionId) => {
           </div>
         </template>
 
-        <div v-if="canCancelPrompt && !isSkillChoicePrompt && !showCardConfirmCancelRow" class="prompt-inline-entry">
+        <div
+          v-if="canCancelPrompt && !isSkillChoicePrompt && !showCardConfirmCancelRow && !singleActivationCostConfirmOption"
+          class="prompt-inline-entry"
+        >
           <div v-if="cancelDockButton.hint" class="prompt-inline-hint">{{ cancelDockButton.hint }}</div>
           <button
             class="prompt-inline-btn prompt-inline-btn--cancel"
