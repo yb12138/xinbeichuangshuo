@@ -2263,7 +2263,10 @@ func resolveInterrupt(game *engine.GameEngine) error {
 		if prompt == nil || len(prompt.Options) == 0 {
 			return game.HandleAction(model.PlayerAction{PlayerID: pid, Type: model.CmdCancel})
 		}
-		return game.HandleAction(model.PlayerAction{PlayerID: pid, Type: model.CmdSelect, Selections: []int{0}})
+		if selection, ok := firstNumericPromptOptionID(prompt); ok {
+			return game.HandleAction(model.PlayerAction{PlayerID: pid, Type: model.CmdSelect, Selections: []int{selection}})
+		}
+		return game.HandleAction(model.PlayerAction{PlayerID: pid, Type: model.CmdCancel})
 	}
 
 	if prompt := game.GetCurrentPrompt(); prompt != nil && len(prompt.Options) > 0 {
@@ -2586,6 +2589,8 @@ func chooseChoiceInterruptSelections(game *engine.GameEngine, intr *model.Interr
 	player := game.State.Players[intr.PlayerID]
 
 	switch choiceType {
+	case "adventurer_fraud_pick":
+		return chooseAdventurerFraudSelections(player, prompt)
 	case "mb_magic_pierce_hit_confirm":
 		// 魔贯冲击命中后默认吃满收益。
 		return []int{0}, nil
@@ -2690,6 +2695,74 @@ func chooseChoiceInterruptSelections(game *engine.GameEngine, intr *model.Interr
 	default:
 		return []int{0}, nil
 	}
+}
+
+func chooseAdventurerFraudSelections(player *model.Player, prompt *model.Prompt) ([]int, error) {
+	if prompt == nil {
+		return nil, fmt.Errorf("missing prompt for adventurer fraud selection")
+	}
+	if player == nil {
+		return pickCardSelections(prompt)
+	}
+
+	// 欺诈要求选择 2~3 张同系牌：优先 3 张（自动暗灭），其次 2 张（再选五系）。
+	type grouped struct {
+		element model.Element
+		indices []int
+	}
+	byElement := map[model.Element][]int{}
+	for _, opt := range prompt.Options {
+		idx, err := strconv.Atoi(opt.ID)
+		if err != nil {
+			continue
+		}
+		if idx < 0 || idx >= len(player.Hand) {
+			continue
+		}
+		ele := player.Hand[idx].Element
+		if ele == "" {
+			continue
+		}
+		byElement[ele] = append(byElement[ele], idx)
+	}
+
+	groups := make([]grouped, 0, len(byElement))
+	for ele, idxs := range byElement {
+		groups = append(groups, grouped{element: ele, indices: idxs})
+	}
+	sort.Slice(groups, func(i, j int) bool {
+		if len(groups[i].indices) != len(groups[j].indices) {
+			return len(groups[i].indices) > len(groups[j].indices)
+		}
+		return string(groups[i].element) < string(groups[j].element)
+	})
+
+	if len(groups) > 0 {
+		best := groups[0].indices
+		if len(best) >= 3 {
+			return []int{best[0], best[1], best[2]}, nil
+		}
+		if len(best) >= 2 {
+			return []int{best[0], best[1]}, nil
+		}
+	}
+
+	// 回退：至少保证满足 Min 要求（若策略数据异常时不阻塞流程）。
+	return pickCardSelections(prompt)
+}
+
+func firstNumericPromptOptionID(prompt *model.Prompt) (int, bool) {
+	if prompt == nil {
+		return 0, false
+	}
+	for _, opt := range prompt.Options {
+		idx, err := strconv.Atoi(opt.ID)
+		if err != nil {
+			continue
+		}
+		return idx, true
+	}
+	return 0, false
 }
 
 func findPromptOptionIndex(prompt *model.Prompt, keyword string) int {
