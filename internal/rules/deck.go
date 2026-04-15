@@ -634,69 +634,8 @@ func cardsAreSimilar(a, b model.Card) bool {
 // 相似定义：同名，或同类型+同元素。
 // 采用“逐位构造 + 相似度优先散列”策略：每一步优先放置与上一张不相似的牌，
 // 并倾向先放置“剩余相似牌较多”的牌，尽量避免尾部形成连续同类。
-func declusterAdjacentSimilarCards(deck []model.Card, r *rand.Rand) {
-	if len(deck) < 3 || r == nil {
-		return
-	}
-	pool := make([]model.Card, len(deck))
-	copy(pool, deck)
-	result := make([]model.Card, 0, len(deck))
 
-	countSimilarInPool := func(idx int) int {
-		if idx < 0 || idx >= len(pool) {
-			return 0
-		}
-		score := 0
-		for j := range pool {
-			if j == idx {
-				continue
-			}
-			if cardsAreSimilar(pool[idx], pool[j]) {
-				score++
-			}
-		}
-		return score
-	}
-
-	for len(pool) > 0 {
-		candidates := make([]int, 0, len(pool))
-		if len(result) == 0 {
-			for i := range pool {
-				candidates = append(candidates, i)
-			}
-		} else {
-			prev := result[len(result)-1]
-			for i := range pool {
-				if !cardsAreSimilar(prev, pool[i]) {
-					candidates = append(candidates, i)
-				}
-			}
-		}
-		if len(candidates) == 0 {
-			// 无法继续打散（例如牌库剩余全是同类），退化为普通抽取。
-			for i := range pool {
-				candidates = append(candidates, i)
-			}
-		}
-
-		bestScore := -1
-		best := make([]int, 0, len(candidates))
-		for _, idx := range candidates {
-			score := countSimilarInPool(idx)
-			if score > bestScore {
-				bestScore = score
-				best = []int{idx}
-			} else if score == bestScore {
-				best = append(best, idx)
-			}
-		}
-		chosen := best[r.Intn(len(best))]
-		result = append(result, pool[chosen])
-		pool = append(pool[:chosen], pool[chosen+1:]...)
-	}
-
-	copy(deck, result)
-}
+// 无法继续打散（例如牌库剩余全是同类），退化为普通抽取。
 
 func adjacentSimilarityScore(deck []model.Card) int {
 	if len(deck) <= 1 {

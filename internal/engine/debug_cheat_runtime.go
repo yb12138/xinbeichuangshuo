@@ -119,41 +119,6 @@ func debugFindCardTemplate(deck []model.Card, element model.Element, cardType mo
 	return nil
 }
 
-func debugBuildExclusiveCardForCharacter(ownerID string, char *model.Character, skillTitle string) model.Card {
-	charID := ""
-	faction := ""
-	if char != nil {
-		charID = char.ID
-		faction = char.Faction
-	}
-	card := model.Card{
-		ID:              fmt.Sprintf("debug-exclusive-%s-%d", ownerID, time.Now().UnixNano()),
-		Name:            skillTitle,
-		Type:            model.CardTypeMagic,
-		Element:         model.ElementLight,
-		Faction:         faction,
-		Damage:          0,
-		Description:     "调试专属牌",
-		ExclusiveChar1:  charID,
-		ExclusiveSkill1: skillTitle,
-	}
-	return card
-}
-
-func (e *GameEngine) debugBuildExclusiveCard(player *model.Player, skillTitle string) model.Card {
-	if player == nil {
-		return model.Card{}
-	}
-	return debugBuildExclusiveCardForCharacter(player.ID, player.Character, skillTitle)
-}
-
-func (e *GameEngine) debugBuildExclusiveCardByRole(player *model.Player, char *model.Character, skillTitle string) model.Card {
-	if player == nil {
-		return model.Card{}
-	}
-	return debugBuildExclusiveCardForCharacter(player.ID, char, skillTitle)
-}
-
 func debugRemoveCardIndices(src []model.Card, indices []int) []model.Card {
 	if len(indices) == 0 {
 		return src
@@ -219,27 +184,6 @@ func (e *GameEngine) debugDrawExclusiveCardsFromStock(characterID, skillTitle st
 	e.State.Deck = debugRemoveCardIndices(e.State.Deck, deckIndices)
 	e.State.DiscardPile = debugRemoveCardIndices(e.State.DiscardPile, discardIndices)
 	return picked, nil
-}
-
-func (e *GameEngine) debugEnsureExclusiveCard(player *model.Player, skill model.SkillDefinition, toHand bool) {
-	if player == nil || player.Character == nil || skill.Title == "" {
-		return
-	}
-	charID := player.Character.ID
-	if player.HasExclusiveCard(charID, skill.Title) {
-		return
-	}
-	cards, err := e.debugDrawExclusiveCardsFromStock(charID, skill.Title, 1)
-	if err != nil || len(cards) == 0 {
-		e.Log(fmt.Sprintf("[Cheat] 独有牌补齐失败 [%s·%s]: %v", charID, skill.Title, err))
-		return
-	}
-	card := cards[0]
-	if toHand {
-		player.Hand = append(player.Hand, card)
-	} else {
-		player.ExclusiveCards = append(player.ExclusiveCards, card)
-	}
 }
 
 func (e *GameEngine) debugAddExclusiveCopies(player *model.Player, skill model.SkillDefinition, count int) error {

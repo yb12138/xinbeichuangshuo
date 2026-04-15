@@ -8,8 +8,6 @@ import (
 	"starcup-engine/internal/model"
 )
 
-type pendingDamageAttackHitHook func(e *GameEngine, pd *model.PendingDamage, attacker *model.Player, victim *model.Player)
-
 // applyTimingOnHitCheckPendingDamageAttackHitRules 在命中判定时处理攻击伤害命中规则。
 func (e *GameEngine) applyTimingOnHitCheckPendingDamageAttackHitRules(pd *model.PendingDamage, attacker *model.Player, victim *model.Player) {
 	pendingDamageBerserkerBloodRoarHook(e, pd, attacker, victim)

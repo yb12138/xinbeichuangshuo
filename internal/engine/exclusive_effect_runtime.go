@@ -50,20 +50,8 @@ func (e *GameEngine) applyPoisonEffect(p *model.Player, sourceID string, ctx *mo
 }
 
 // applyShieldEffect 应用圣盾效果。
-func (e *GameEngine) applyShieldEffect(p *model.Player, ctx *model.Context) {
-	if ctx != nil {
-		ctx.Flags["shielded"] = true
-	}
-	e.Log(fmt.Sprintf("[Effect] %s 的圣盾生效", p.Name))
-}
 
 // applyWeakEffect 应用虚弱效果。
-func (e *GameEngine) applyWeakEffect(p *model.Player, ctx *model.Context) {
-	if ctx != nil {
-		ctx.Flags["weakened"] = true
-	}
-	e.Log(fmt.Sprintf("[Effect] %s 陷入虚弱状态", p.Name))
-}
 
 func (e *GameEngine) findSourceEffectCard(source *model.Player, effect model.EffectType) (*model.Player, *model.FieldCard) {
 	if source == nil {
@@ -85,7 +73,7 @@ func (e *GameEngine) attachSourceEffectCard(source *model.Player, target *model.
 		SourceID: source.ID,
 		Mode:     model.FieldEffect,
 		Effect:   effect,
-		Hook: model.FieldHookManual,
+		Hook:     model.FieldHookManual,
 	})
 	return nil
 }

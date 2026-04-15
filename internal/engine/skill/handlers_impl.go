@@ -398,41 +398,14 @@ func (h *AngelSongHandler) Execute(ctx *model.Context) error {
 }
 
 // 辅助逻辑，Cleanse 和 Song 共用
-func (h *BaseHandler) removeBasicEffectLogic(ctx *model.Context) error {
-	if ctx.Target == nil {
-		return nil
-	}
 
-	// 1. 寻找该目标身上所有的基础效果
-	var basicBuffs []model.EffectType
-	for _, fc := range ctx.Target.Field {
-		if fc.Mode == model.FieldEffect && model.IsBasicEffect(string(fc.Effect)) {
-			basicBuffs = append(basicBuffs, fc.Effect)
-		}
-	}
+// 1. 寻找该目标身上所有的基础效果
 
-	if len(basicBuffs) == 0 {
-		return nil
-	}
+// 2. 决定移除哪一个
+// 如果前端传来了指定的 Buff 名称 (ctx.Args[0])
 
-	// 2. 决定移除哪一个
-	// 如果前端传来了指定的 Buff 名称 (ctx.Args[0])
-	targetBuff := basicBuffs[0]
-	if len(ctx.Args) > 0 {
-		requested := model.EffectType(ctx.Args[0])
-		for _, b := range basicBuffs {
-			if b == requested {
-				targetBuff = requested
-				break
-			}
-		}
-	}
-
-	// 3. 执行移除
-	// removeFieldCard 内部应进入 TimingOnFieldMarkChanged，从而连锁触发天使羁绊
-	ctx.Game.RemoveFieldCardBy(ctx.Target.ID, targetBuff, ctx.User.ID)
-	return nil
-}
+// 3. 执行移除
+// removeFieldCard 内部应进入 TimingOnFieldMarkChanged，从而连锁触发天使羁绊
 
 type GodProtectionHandler struct{ BaseHandler }
 
@@ -653,49 +626,12 @@ func (h *MagicSurgeHandler) Execute(ctx *model.Context) error {
 type SealBreakHandler struct{ BaseHandler }
 
 // createBuffCard 根据buff名称创建对应的牌
-func createBuffCard(buffName string) *model.Card {
-	switch buffName {
-	case "Shield":
-		return &model.Card{
-			ID:          "shield_card",
-			Name:        "圣盾",
-			Type:        model.CardTypeMagic,
-			Element:     model.ElementLight,
-			Damage:      0,
-			Description: "抵挡一次伤害",
-		}
-	case "Weak":
-		// 虚弱没有对应的牌，创建一个虚拟牌
-		return &model.Card{
-			ID:          "weak_card",
-			Name:        "虚弱",
-			Type:        model.CardTypeMagic,
-			Element:     model.ElementDark,
-			Damage:      0,
-			Description: "虚弱状态牌",
-		}
-	case "Poison":
-		// 中毒没有对应的牌，创建一个虚拟牌
-		return &model.Card{
-			ID:          "poison_card",
-			Name:        "中毒",
-			Type:        model.CardTypeMagic,
-			Element:     model.ElementDark,
-			Damage:      0,
-			Description: "中毒状态牌",
-		}
-	default:
-		// 默认创建一个通用状态牌
-		return &model.Card{
-			ID:          "buff_card_" + buffName,
-			Name:        buffName,
-			Type:        model.CardTypeMagic,
-			Element:     model.ElementDark,
-			Damage:      0,
-			Description: "状态牌",
-		}
-	}
-}
+
+// 虚弱没有对应的牌，创建一个虚拟牌
+
+// 中毒没有对应的牌，创建一个虚拟牌
+
+// 默认创建一个通用状态牌
 
 func (h *SealBreakHandler) Execute(ctx *model.Context) error {
 	// 封印破碎：收回场上任意一张基础效果牌到自己手里。

@@ -36,13 +36,6 @@ func addSwordEmperorSwordQi(player *model.Player, delta int) int {
 	return addTokenValueBounded(player, "se_sword_qi", delta, swordEmperorSwordQiCapEngine)
 }
 
-func swordEmperorEnergyCount(player *model.Player) int {
-	if player == nil {
-		return 0
-	}
-	return player.Gem + player.Crystal
-}
-
 func swordEmperorSwordSoulCards(player *model.Player) []*model.FieldCard {
 	return coverCardsByEffect(player, model.EffectSwordSoul)
 }
@@ -72,22 +65,6 @@ func (e *GameEngine) placeSwordEmperorSwordSoul(player *model.Player, card model
 	})
 	e.syncSwordEmperorSwordSoulToken(player)
 	return true
-}
-
-func (e *GameEngine) removeSwordEmperorSwordSoul(player *model.Player) (model.Card, bool) {
-	if player == nil {
-		return model.Card{}, false
-	}
-	for _, fc := range player.Field {
-		if fc == nil || fc.Mode != model.FieldCover || fc.Effect != model.EffectSwordSoul {
-			continue
-		}
-		card := fc.Card
-		player.RemoveFieldCard(fc)
-		e.syncSwordEmperorSwordSoulToken(player)
-		return card, true
-	}
-	return model.Card{}, false
 }
 
 func (e *GameEngine) takeDiscardPileCardByID(cardID string) (model.Card, bool) {
@@ -325,7 +302,7 @@ func addMoonGoddessDarkMoonCards(player *model.Player, cards []model.Card) int {
 			SourceID: player.ID,
 			Mode:     model.FieldCover,
 			Effect:   model.EffectMoonDarkMoon,
-			Hook: model.FieldHookManual,
+			Hook:     model.FieldHookManual,
 		})
 		added++
 	}

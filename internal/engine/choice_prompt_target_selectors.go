@@ -15,10 +15,6 @@ type targetChoicePromptSpec struct {
 }
 
 // IsKnownTargetPromptChoiceType 表示 buildTargetChoicePrompt 内含该类型的文案与选项模板。
-func IsKnownTargetPromptChoiceType(choiceType string) bool {
-	_, ok := targetChoicePromptSpecs[choiceType]
-	return ok
-}
 
 var targetChoicePromptSpecs = map[string]targetChoicePromptSpec{
 	"elf_elemental_shot_water_target": {

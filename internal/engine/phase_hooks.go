@@ -324,16 +324,6 @@ func turnEndHolyLancerHook(_ *GameEngine, player *model.Player) bool {
 	return false
 }
 
-func turnFallbackCrimsonKnightHook(e *GameEngine, player *model.Player) bool {
-	e.resolveCrimsonKnightHotFormTurnEnd(player)
-	return false
-}
-
-func turnFallbackFighterHook(e *GameEngine, player *model.Player) bool {
-	e.clearFighterHundredDragon(player, "")
-	return false
-}
-
 // resolveCrimsonKnightHotFormTurnEnd 统一处理红莲骑士“热血沸腾”在回合结束时的退形态逻辑。
 // 返回 true 表示本次确实触发了退形态与治疗。
 func (e *GameEngine) resolveCrimsonKnightHotFormTurnEnd(player *model.Player) bool {

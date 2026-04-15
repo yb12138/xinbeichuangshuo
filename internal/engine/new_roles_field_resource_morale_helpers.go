@@ -78,25 +78,6 @@ func addSpiritCasterPowerCard(player *model.Player, card model.Card) bool {
 	return true
 }
 
-func removeSpiritCasterPowerByCardID(player *model.Player, cardID string) (model.Card, bool) {
-	if player == nil || cardID == "" {
-		return model.Card{}, false
-	}
-	for _, fc := range player.Field {
-		if fc == nil || fc.Mode != model.FieldCover || fc.Effect != model.EffectSpiritCasterPower {
-			continue
-		}
-		if fc.Card.ID != cardID {
-			continue
-		}
-		card := fc.Card
-		player.RemoveFieldCard(fc)
-		syncSpiritCasterPowerToken(player)
-		return card, true
-	}
-	return model.Card{}, false
-}
-
 func butterflyPupa(player *model.Player) int {
 	return tokenValueBounded(player, "bt_pupa", -1)
 }
@@ -129,7 +110,7 @@ func addButterflyCocoonCards(player *model.Player, cards []model.Card) int {
 			SourceID: player.ID,
 			Mode:     model.FieldCover,
 			Effect:   model.EffectButterflyCocoon,
-			Hook: model.FieldHookManual,
+			Hook:     model.FieldHookManual,
 		})
 		added++
 	}

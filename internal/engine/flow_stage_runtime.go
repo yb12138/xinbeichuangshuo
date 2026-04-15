@@ -56,13 +56,6 @@ func (e *GameEngine) isCombatInteractionWindow() bool {
 		(e.State.CombatStage == model.CombatStageDeclare || e.State.CombatStage == model.CombatStageHitCheck)
 }
 
-func (e *GameEngine) isTurnEndWindow() bool {
-	return e != nil && e.State != nil &&
-		e.State.Subflow == model.SubflowNone &&
-		e.State.CombatStage == model.CombatStageNone &&
-		e.State.TurnStage == model.TurnStageTurnEnd
-}
-
 func (e *GameEngine) enterDamageResolution(returnTo interface{}) {
 	if e == nil || e.State == nil {
 		return

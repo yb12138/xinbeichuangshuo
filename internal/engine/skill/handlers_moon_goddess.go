@@ -7,11 +7,6 @@ import (
 	"starcup-engine/internal/model"
 )
 
-const (
-	moonGoddessNewMoonCap = 2
-	moonGoddessPetrifyCap = 3
-)
-
 type MoonGoddessNewMoonShelterHandler struct{ BaseHandler }
 
 type MoonGoddessDarkMoonCurseHandler struct{ BaseHandler }
@@ -52,14 +47,6 @@ func moonGoddessDarkMoonCount(user *model.Player) int {
 		count++
 	}
 	return count
-}
-
-func addMoonGoddessNewMoon(user *model.Player, delta int) int {
-	return addToken(user, "mg_new_moon", delta, 0, moonGoddessNewMoonCap)
-}
-
-func addMoonGoddessPetrify(user *model.Player, delta int) int {
-	return addToken(user, "mg_petrify", delta, 0, moonGoddessPetrifyCap)
 }
 
 func (h *MoonGoddessNewMoonShelterHandler) CanUse(ctx *model.Context) bool {
@@ -106,7 +93,7 @@ func (h *MoonGoddessNewMoonShelterHandler) Execute(ctx *model.Context) error {
 			SourceID: ctx.User.ID,
 			Mode:     model.FieldCover,
 			Effect:   model.EffectMoonDarkMoon,
-			Hook: model.FieldHookManual,
+			Hook:     model.FieldHookManual,
 		})
 		added++
 	}

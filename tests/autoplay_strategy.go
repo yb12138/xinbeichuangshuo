@@ -43,9 +43,9 @@ type directedScenarioPlan struct {
 }
 
 type autoGameObserver struct {
-	gameEnded     bool
-	endMessage    string
-	logs          []string
+	gameEnded             bool
+	endMessage            string
+	logs                  []string
 	skillInvocationCounts map[string]int
 }
 
@@ -182,7 +182,7 @@ func extractBracketSkillCandidates(msg string) []string {
 }
 
 type autoGameResult struct {
-	skillBatch      map[string]int
+	skillBatch           map[string]int
 	expectedActionSkills map[string]struct{}
 	expectedAllSkills    map[string]struct{}
 	logs                 []string
@@ -316,10 +316,6 @@ func runAutoGame(lineup []string, maxSteps int) (*autoGameResult, error) {
 	return runAutoGameWithScenarioSeedTag(lineup, maxSteps, nil, "baseline")
 }
 
-func runAutoGameWithScenario(lineup []string, maxSteps int, scenario *directedScenarioPlan) (*autoGameResult, error) {
-	return runAutoGameWithScenarioSeedTag(lineup, maxSteps, scenario, "scenario_default")
-}
-
 func runAutoGameWithScenarioSeedTag(
 	lineup []string,
 	maxSteps int,
@@ -435,7 +431,7 @@ func runAutoGameWithScenarioSeedTag(
 	}
 
 	return &autoGameResult{
-		skillBatch:      observer.skillInvocationCounts,
+		skillBatch:           observer.skillInvocationCounts,
 		expectedActionSkills: expectedActionSkills,
 		expectedAllSkills:    expectedAllSkills,
 		logs:                 append([]string{}, observer.logs...),
@@ -726,7 +722,7 @@ func applyDirectedScenarioPrestartState(game *engine.GameEngine) {
 					},
 					Mode:     model.FieldEffect,
 					Effect:   model.EffectShield,
-					Hook: model.FieldHookOnDamaged,
+					Hook:     model.FieldHookOnDamaged,
 					SourceID: bladeMaster.ID,
 				})
 			}
@@ -3047,18 +3043,6 @@ func shouldPreferCounterForCrystal(game *engine.GameEngine, attacker *model.Play
 	}
 	if scenarioTargetsSkill("天使之歌") && campHasRole(game, defender.Camp, "angel") {
 		return true
-	}
-	return false
-}
-
-func promptHasOption(prompt *model.Prompt, id string) bool {
-	if prompt == nil {
-		return false
-	}
-	for _, opt := range prompt.Options {
-		if opt.ID == id {
-			return true
-		}
 	}
 	return false
 }

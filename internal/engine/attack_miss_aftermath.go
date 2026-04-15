@@ -4,7 +4,6 @@ package engine
 
 import (
 	"fmt"
-	"strings"
 
 	"starcup-engine/internal/model"
 )
@@ -114,33 +113,4 @@ func (e *GameEngine) resolveHolyBowShardMiss(attackerID, targetID string) {
 		},
 	})
 	e.Log(fmt.Sprintf("%s 的 [圣屑飓暴] 未命中：可移除治疗并令队友弃牌", attacker.Name))
-}
-
-func (e *GameEngine) resolveShieldBlockedAttackAsMiss(pd *model.PendingDamage) {
-	if pd == nil || pd.HasCheck(model.PendingDamageCheckAttackMissResolved) || !strings.EqualFold(string(pd.DamageType), string(model.AttackDamage)) {
-		return
-	}
-	attacker := e.State.Players[pd.SourceID]
-	target := e.State.Players[pd.TargetID]
-	if attacker == nil {
-		return
-	}
-
-	targetName := pd.TargetID
-	if target != nil {
-		targetName = target.Name
-	}
-	e.NotifyCombatCue(pd.SourceID, pd.TargetID, "shield")
-	e.NotifyActionStep(fmt.Sprintf("%s 的【圣盾】抵消了本次攻击，判定为未命中", targetName))
-	e.Log(fmt.Sprintf("[Combat] %s 的攻击被【圣盾】完全抵消，按未命中处理", attacker.Name))
-
-	e.resolveMagicBowPierceMissWithOverride(
-		pd.SourceID,
-		pd.TargetID,
-		pd.Card,
-		pd.HasCheck(model.PendingDamageCheckHeroRoarMissArmed),
-		pd.HasCheck(model.PendingDamageCheckFighterChargeMissArmed),
-		pd.IsCounter,
-	)
-	pd.SetCheck(model.PendingDamageCheckAttackMissResolved, true)
 }

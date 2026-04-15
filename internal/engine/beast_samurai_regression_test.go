@@ -3,7 +3,7 @@ package engine
 import (
 	"testing"
 
-	"starcup-engine/internal/engine/skill"
+	skills "starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/rules"
 )
@@ -51,26 +51,6 @@ func requireBeastSamuraiDiscardInterrupt(t *testing.T, game *GameEngine, playerI
 	if got != choiceType {
 		t.Fatalf("expected discard choice_type=%s, got %s", choiceType, got)
 	}
-}
-
-func findBeastSamuraiPromptForPlayer(obs *captureObserver, playerID string) *model.Prompt {
-	if obs == nil {
-		return nil
-	}
-	for i := len(obs.events) - 1; i >= 0; i-- {
-		event := obs.events[i]
-		if event.Type != model.EventAskInput {
-			continue
-		}
-		prompt, ok := event.Data.(*model.Prompt)
-		if !ok || prompt == nil || prompt.PlayerID != playerID {
-			continue
-		}
-		copied := *prompt
-		copied.Options = append([]model.PromptOption(nil), prompt.Options...)
-		return &copied
-	}
-	return nil
 }
 
 func findBeastSamuraiCombatPromptForPlayer(obs *captureObserver, playerID string) *model.Prompt {

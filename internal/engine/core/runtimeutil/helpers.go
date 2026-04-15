@@ -110,22 +110,3 @@ func ResolveSelectionToCandidate(selection int, candidates []int) (int, bool) {
 	}
 	return 0, false
 }
-
-func PickKIndices(src []int, k int) [][]int {
-	var out [][]int
-	var dfs func(start int, cur []int)
-	dfs = func(start int, cur []int) {
-		if len(cur) == k {
-			cp := append([]int{}, cur...)
-			out = append(out, cp)
-			return
-		}
-		for i := start; i < len(src); i++ {
-			cur = append(cur, src[i])
-			dfs(i+1, cur)
-			cur = cur[:len(cur)-1]
-		}
-	}
-	dfs(0, nil)
-	return out
-}

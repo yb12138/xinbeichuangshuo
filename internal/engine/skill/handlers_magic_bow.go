@@ -8,10 +8,6 @@ import (
 	"starcup-engine/internal/model"
 )
 
-const (
-	magicBowChargeCap = 8
-)
-
 func magicBowChargeCovers(user *model.Player) []*model.FieldCard {
 	if user == nil {
 		return nil
@@ -61,32 +57,6 @@ func removeMagicBowChargeByElement(user *model.Player, element model.Element) (m
 		return card, true
 	}
 	return model.Card{}, false
-}
-
-func addMagicBowChargeCards(user *model.Player, cards []model.Card) int {
-	if user == nil || len(cards) == 0 {
-		return 0
-	}
-	room := magicBowChargeCap - magicBowChargeCount(user, "")
-	if room <= 0 {
-		return 0
-	}
-	added := 0
-	for _, card := range cards {
-		if added >= room {
-			break
-		}
-		user.AddFieldCard(&model.FieldCard{
-			Card:     card,
-			OwnerID:  user.ID,
-			SourceID: user.ID,
-			Mode:     model.FieldCover,
-			Effect:   model.EffectMagicBowCharge,
-		})
-		added++
-	}
-	syncMagicBowChargeToken(user)
-	return added
 }
 
 func removeCardsByHandIndices(user *model.Player, indices []int) ([]model.Card, error) {

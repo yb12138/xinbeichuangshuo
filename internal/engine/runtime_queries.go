@@ -49,10 +49,6 @@ func maxSameElementCount(player *model.Player) int {
 	return maxCount
 }
 
-func distinctElementCount(player *model.Player) int {
-	return len(buildElementCardIndexMap(player))
-}
-
 func elementOrderForPrompt() []model.Element {
 	return []model.Element{
 		model.ElementEarth,

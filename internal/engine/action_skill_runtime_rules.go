@@ -224,35 +224,3 @@ func (e *GameEngine) hasActionSkillValidTarget(player *model.Player, skillDef mo
 	}
 	return false
 }
-
-func (e *GameEngine) hasAnyBasicFieldEffectTarget() bool {
-	isBasicEffect := func(effect model.EffectType) bool {
-		switch effect {
-		case model.EffectShield,
-			model.EffectWeak,
-			model.EffectPoison,
-			model.EffectSealFire,
-			model.EffectSealWater,
-			model.EffectSealEarth,
-			model.EffectSealWind,
-			model.EffectSealThunder,
-			model.EffectPowerBlessing,
-			model.EffectSwiftBlessing:
-			return true
-		default:
-			return false
-		}
-	}
-
-	for _, player := range e.State.Players {
-		if player == nil {
-			continue
-		}
-		for _, fieldCard := range player.Field {
-			if fieldCard.Mode == model.FieldEffect && isBasicEffect(fieldCard.Effect) {
-				return true
-			}
-		}
-	}
-	return false
-}

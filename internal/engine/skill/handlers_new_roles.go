@@ -82,38 +82,6 @@ func leaveForm(p *model.Player, form string) {
 	p.Form = ""
 }
 
-func discardFirstMatching(ctx *model.Context, p *model.Player, pred func(model.Card) bool, reveal bool) (model.Card, bool) {
-	for i, c := range p.Hand {
-		if !pred(c) {
-			continue
-		}
-		if reveal {
-			ctx.Game.NotifyActionStep(fmt.Sprintf("%s展示并弃置了 %s", model.GetPlayerDisplayName(p), c.Name))
-		}
-		p.Hand = append(p.Hand[:i], p.Hand[i+1:]...)
-		return c, true
-	}
-	return model.Card{}, false
-}
-
-func firstAllySelf(players []*model.Player, camp model.Camp) *model.Player {
-	for _, p := range players {
-		if p != nil && p.Camp == camp {
-			return p
-		}
-	}
-	return nil
-}
-
-func firstEnemy(players []*model.Player, camp model.Camp) *model.Player {
-	for _, p := range players {
-		if p != nil && p.Camp != camp {
-			return p
-		}
-	}
-	return nil
-}
-
 func playerEnergyCap(p *model.Player) int {
 	if p == nil {
 		return 3

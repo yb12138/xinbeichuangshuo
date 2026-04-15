@@ -2,7 +2,6 @@ package model
 
 import (
 	"fmt"
-	"strings"
 )
 
 const (
@@ -19,29 +18,6 @@ const (
 //
 // 设计上保留 string 直通，是为了允许上层把已编码好的协议值再次传入。
 // 例如：从中断上下文读出的 "turn:BeforeAction" 可以直接参与后续解析。
-func NormalizeResumePoint(raw interface{}) string {
-	switch value := raw.(type) {
-	case string:
-		return strings.TrimSpace(value)
-	case TurnStage:
-		if value == "" {
-			return ""
-		}
-		return ResumePointTurnStagePrefix + string(value)
-	case CombatStage:
-		if value == "" {
-			return ""
-		}
-		return ResumePointCombatStagePrefix + string(value)
-	case Subflow:
-		if value == "" {
-			return ""
-		}
-		return ResumePointSubflowPrefix + string(value)
-	default:
-		return ""
-	}
-}
 
 func IsKnownTurnStage(stage TurnStage) bool {
 	switch stage {

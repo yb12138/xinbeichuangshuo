@@ -12,7 +12,3 @@ func clonePrompt(src *model.Prompt) *model.Prompt {
 func buildRequireActionPayload(prompt *model.Prompt) RequireActionPayload {
 	return prompting.BuildRequireActionPayload(prompt)
 }
-
-func inferInterruptType(prompt *model.Prompt) string {
-	return prompting.InferInterruptType(prompt)
-}

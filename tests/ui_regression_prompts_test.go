@@ -33,15 +33,6 @@ func hasPromptOptionUI(prompt *model.Prompt, id string) bool {
 	return false
 }
 
-func choiceTypeOfPendingInterruptUI(intr *model.Interrupt) string {
-	if intr == nil {
-		return ""
-	}
-	data, _ := intr.Context.(map[string]interface{})
-	v, _ := data["choice_type"].(string)
-	return v
-}
-
 func interruptHasSkillIDUI(intr *model.Interrupt, skillID string) bool {
 	if intr == nil {
 		return false

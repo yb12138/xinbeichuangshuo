@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"starcup-engine/internal/engine/skill"
+	skills "starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/rules"
 )
@@ -21,18 +21,6 @@ func pendingChoiceType(intr *model.Interrupt) string {
 func containsSkillIDBugfix(list []string, id string) bool {
 	for _, v := range list {
 		if v == id {
-			return true
-		}
-	}
-	return false
-}
-
-func promptHasOption(prompt *model.Prompt, id string) bool {
-	if prompt == nil {
-		return false
-	}
-	for _, opt := range prompt.Options {
-		if opt.ID == id {
 			return true
 		}
 	}
@@ -248,7 +236,7 @@ func TestPrayerSwiftBlessing_StillRunsAfterPhaseEndInterrupt(t *testing.T) {
 		OwnerID: p1.ID,
 		Mode:    model.FieldEffect,
 		Effect:  model.EffectSwiftBlessing,
-		Hook: model.FieldHookManual,
+		Hook:    model.FieldHookManual,
 	})
 	g.State.CurrentTurn = 0
 	g.State.TurnStage = model.TurnStageExtraAction
@@ -299,7 +287,7 @@ func TestPrayerSwiftBlessing_AttackFollowupSurvivesPhaseEndResponseInterrupt(t *
 		OwnerID: p1.ID,
 		Mode:    model.FieldEffect,
 		Effect:  model.EffectSwiftBlessing,
-		Hook: model.FieldHookManual,
+		Hook:    model.FieldHookManual,
 	})
 	p1.Hand = []model.Card{{ID: "atk1", Name: "火斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 1}}
 

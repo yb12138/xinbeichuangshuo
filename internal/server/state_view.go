@@ -32,10 +32,6 @@ func combatPolicyAttackBonusByModifierID(p *model.Player, modifierID string) int
 	return stateview.CombatPolicyAttackBonusByModifierID(p, modifierID)
 }
 
-func countMagicBowChargesByElement(p *model.Player, element model.Element) int {
-	return stateview.CountMagicBowChargesByElement(p, element)
-}
-
 func countMagicBowCharges(p *model.Player) int {
 	return stateview.CountMagicBowCharges(p)
 }

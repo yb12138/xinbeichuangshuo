@@ -321,44 +321,6 @@ func findPlayableCardIndexByID(player *model.Player, cardID string) int {
 	return -1
 }
 
-func getPlayableCardIndicesByType(player *model.Player, cardType model.CardType) []int {
-	if player == nil {
-		return nil
-	}
-	var out []int
-	for i, c := range player.Hand {
-		if c.Type == cardType {
-			out = append(out, i)
-		}
-	}
-	base := len(player.Hand)
-	for i, c := range elfBlessingCards(player) {
-		if c.Type == cardType {
-			out = append(out, base+i)
-		}
-	}
-	return out
-}
-
-func getPlayableCardIndicesByElement(player *model.Player, element model.Element) []int {
-	if player == nil {
-		return nil
-	}
-	var out []int
-	for i, c := range player.Hand {
-		if c.Element == element {
-			out = append(out, i)
-		}
-	}
-	base := len(player.Hand)
-	for i, c := range elfBlessingCards(player) {
-		if c.Element == element {
-			out = append(out, base+i)
-		}
-	}
-	return out
-}
-
 func elfBlessingCoverCards(player *model.Player) []*model.FieldCard {
 	if player == nil {
 		return nil
@@ -419,18 +381,6 @@ func getSameElementCounts(player *model.Player) map[model.Element]int {
 		out[c.Element]++
 	}
 	return out
-}
-
-func hasPendingActionSource(player *model.Player, source string) bool {
-	if player == nil || source == "" {
-		return false
-	}
-	for _, act := range player.TurnState.PendingActions {
-		if act.Source == source {
-			return true
-		}
-	}
-	return false
 }
 
 func clearElfElementalShotCombatState(player *model.Player) {

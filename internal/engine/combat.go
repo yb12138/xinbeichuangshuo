@@ -130,18 +130,8 @@ func (e *GameEngine) applyAttackDamageModifiers(attacker, target *model.Player, 
 }
 
 // resolveCombatDamage 结算战斗伤害（从 CombatStack 栈顶）
-func (e *GameEngine) resolveCombatDamage(combatReq model.CombatRequest) error {
 
-	attacker := e.State.Players[combatReq.AttackerID]
-	target := e.State.Players[combatReq.TargetID]
-
-	if attacker == nil || target == nil {
-		return errors.New("攻击者或目标不存在")
-	}
-
-	// 使用新的 ResolveDamage 函数
-	return e.ResolveDamage(combatReq.AttackerID, combatReq.TargetID, combatReq.Card, model.AttackDamage)
-}
+// 使用新的 ResolveDamage 函数
 
 // clearCombatStack 清空战斗栈
 func (e *GameEngine) clearCombatStack() {
@@ -150,64 +140,23 @@ func (e *GameEngine) clearCombatStack() {
 }
 
 // finishTakeHit 完成受到伤害后的流程 (扣血、事件、回合结束)
-func (e *GameEngine) finishTakeHit(target *model.Player, damage int, attackAction model.Action) {
-	attacker := e.State.Players[attackAction.SourceID]
-	if attacker == nil || target == nil {
-		return
-	}
 
-	// 4. 执行扣血
-	e.setCombatStage(model.CombatStageApply)
-	e.applyDamage(target, damage, model.AttackDamage)
+// 4. 执行扣血
 
-	// 5. 触发伤害承受事件
-	if damage > 0 {
-		damageEventCtx := &model.EventContext{
-			Type:      model.EventDamage,
-			SourceID:  attacker.ID,
-			TargetID:  target.ID,
-			DamageVal: &damage,
-		}
-		damageSkillCtx := e.buildContext(target, attacker, model.TimingOnDamageTaken, damageEventCtx)
-		e.dispatcher.OnTiming(model.TimingOnDamageTaken, damageSkillCtx)
-		// 受伤响应可能产生中断（例如减伤/弃牌等），等待用户处理后继续
-		if e.State.PendingInterrupt != nil {
-			return
-		}
-	}
+// 5. 触发伤害承受事件
 
-	eventCtx := &model.EventContext{
-		Type:       model.EventPhaseEnd,
-		SourceID:   attacker.ID,
-		Card:       attackAction.Card,
-		ActionType: model.ActionAttack,
-		AttackInfo: &model.AttackEventInfo{
-			ActionType:       string(model.ActionAttack),
-			CounterInitiator: attackAction.CounterInitiator,
-		},
-	}
-	// 6. 触发攻击行动结束事件
-	phaseCtx := e.buildContext(attacker, nil, model.TimingOnActionEnd, eventCtx)
-	e.dispatcher.OnTiming(phaseCtx.Timing, phaseCtx)
-	// 攻击后响应（如神圣追击）出现中断时，暂停，避免提前切回合
-	if e.State.PendingInterrupt != nil {
-		return
-	}
+// 受伤响应可能产生中断（例如减伤/弃牌等），等待用户处理后继续
 
-	// 7. 检查圣剑第3次攻击的摸X弃X效果
-	if e.holySwordDrawInterruptIfNeeded(attacker) {
-		return // 等待中断处理完成后再继续
-	}
+// 6. 触发攻击行动结束事件
 
-	// 8. 回到额外行动阶段，交由状态机统一处理 PendingActions/回合结束
-	// 这里已手动触发过一次 OnPhaseEnd，清空 LastActionType 防止重复触发
-	attacker.TurnState.LastActionType = ""
-	attacker.TurnState.LastActionCard = nil
-	if !e.routePendingDamageWithDefaultReturn(model.TurnStageExtraAction) {
-		e.enterExtraActionStage()
-	}
-	e.clearCombatStage()
-}
+// 攻击后响应（如神圣追击）出现中断时，暂停，避免提前切回合
+
+// 7. 检查圣剑第3次攻击的摸X弃X效果
+
+// 等待中断处理完成后再继续
+
+// 8. 回到额外行动阶段，交由状态机统一处理 PendingActions/回合结束
+// 这里已手动触发过一次 OnPhaseEnd，清空 LastActionType 防止重复触发
 
 // holySwordDrawInterruptIfNeeded 在满足条件时推送圣剑摸X弃X中断
 func (e *GameEngine) holySwordDrawInterruptIfNeeded(attacker *model.Player) bool {
@@ -301,46 +250,8 @@ func (e *GameEngine) addCampResource(camp model.Camp, resourceType string) bool 
 }
 
 // rollbackCampResource 回滚一次命中后发放的战绩资源，返回 true 表示回滚成功。
-func (e *GameEngine) rollbackCampResource(camp model.Camp, resourceType string) bool {
-	switch camp {
-	case model.RedCamp:
-		if resourceType == "gem" && e.State.RedGems > 0 {
-			e.State.RedGems--
-			return true
-		}
-		if resourceType == "crystal" && e.State.RedCrystals > 0 {
-			e.State.RedCrystals--
-			return true
-		}
-	default:
-		if resourceType == "gem" && e.State.BlueGems > 0 {
-			e.State.BlueGems--
-			return true
-		}
-		if resourceType == "crystal" && e.State.BlueCrystals > 0 {
-			e.State.BlueCrystals--
-			return true
-		}
-	}
-	return false
-}
 
 // containsString 检查字符串切片是否包含指定字符串
-func (e *GameEngine) containsString(slice []string, item string) bool {
-	for _, s := range slice {
-		if s == item {
-			return true
-		}
-	}
-	return false
-}
-
-func cardMatchesExclusiveSkill(player *model.Player, card *model.Card, skillTitle string) bool {
-	if player == nil || player.Character == nil || card == nil || skillTitle == "" {
-		return false
-	}
-	return card.MatchExclusive(player.Character.ID, skillTitle)
-}
 
 // applyPassiveAttackEffects 应用攻击者的被动技能效果
 func (e *GameEngine) applyPassiveAttackEffects(attacker, target *model.Player, baseDamage int, action model.Action) int {

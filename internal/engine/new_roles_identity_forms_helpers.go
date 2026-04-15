@@ -132,7 +132,6 @@ func (e *GameEngine) isButterflyDancer(player *model.Player) bool {
 
 const magicBowChargeCapEngine = 8
 const bardInspirationCapEngine = 3
-const heroTokenCapEngine = 4
 const holyBowFaithCapEngine = 10
 const holyBowCannonCapEngine = 1
 const standardCampMoraleCapEngine = 15
@@ -151,33 +150,12 @@ type poseSnapshot struct {
 	Form        string
 }
 
-func legacyPlayerPose(player *model.Player) (poseSnapshot, bool) {
-	if player == nil {
-		return poseSnapshot{}, false
-	}
-	if player.Tokens == nil {
-		return poseSnapshot{}, false
-	}
-	switch {
-	// 兼容历史局面：旧版本用 token 表示女武神英灵形态，新版本改为 Form。
-	case player.Tokens["valkyrie_spirit"] > 0:
-		return poseSnapshot{Orientation: model.OrientationTapped, Form: model.FormValkyrieHeroic}, true
-	}
-	return poseSnapshot{}, false
-}
-
 func effectivePlayerOrientation(player *model.Player) model.CharacterOrientation {
 	if player == nil {
 		return model.OrientationNormal
 	}
-	if legacy, ok := legacyPlayerPose(player); ok {
-		return legacy.Orientation
-	}
 	if player.Orientation != "" {
 		return player.Orientation
-	}
-	if player.Form != "" {
-		return model.OrientationTapped
 	}
 	return model.OrientationNormal
 }
@@ -185,9 +163,6 @@ func effectivePlayerOrientation(player *model.Player) model.CharacterOrientation
 func effectivePlayerForm(player *model.Player) string {
 	if player == nil {
 		return ""
-	}
-	if legacy, ok := legacyPlayerPose(player); ok {
-		return legacy.Form
 	}
 	return player.Form
 }
@@ -247,10 +222,6 @@ func leaveAssassinStealthForm(player *model.Player) bool {
 	return clearPlayerForm(player, model.FormAssassinStealth)
 }
 
-func enterPrayerMasterPrayerForm(player *model.Player) bool {
-	return setPlayerForm(player, model.FormPrayerMasterPrayer)
-}
-
 func hasCrimsonKnightHotBloodedForm(player *model.Player) bool {
 	return playerHasForm(player, model.FormCrimsonKnightHotBlooded)
 }
@@ -267,20 +238,12 @@ func hasOnmyojiShikigamiForm(player *model.Player) bool {
 	return playerHasForm(player, model.FormOnmyojiShikigami)
 }
 
-func enterOnmyojiShikigamiForm(player *model.Player) bool {
-	return setPlayerForm(player, model.FormOnmyojiShikigami)
-}
-
 func leaveOnmyojiShikigamiForm(player *model.Player) bool {
 	return clearPlayerForm(player, model.FormOnmyojiShikigami)
 }
 
 func hasBlazeWitchFlameForm(player *model.Player) bool {
 	return playerHasForm(player, model.FormBlazeWitchFlame)
-}
-
-func enterBlazeWitchFlameForm(player *model.Player) bool {
-	return setPlayerForm(player, model.FormBlazeWitchFlame)
 }
 
 func leaveBlazeWitchFlameForm(player *model.Player) bool {
@@ -297,10 +260,6 @@ func hasArbiterJudgmentForm(player *model.Player) bool {
 
 func enterArbiterJudgmentForm(player *model.Player) bool {
 	return setPlayerForm(player, model.FormArbiterJudgment)
-}
-
-func leaveArbiterJudgmentForm(player *model.Player) bool {
-	return clearPlayerForm(player, model.FormArbiterJudgment)
 }
 
 func hasElfArcherRitualForm(player *model.Player) bool {
@@ -351,10 +310,6 @@ func hasMagicLancerPhantomForm(player *model.Player) bool {
 	return playerHasForm(player, model.FormMagicLancerPhantom)
 }
 
-func enterMagicLancerPhantomForm(player *model.Player) bool {
-	return setPlayerForm(player, model.FormMagicLancerPhantom)
-}
-
 func leaveMagicLancerPhantomForm(player *model.Player) bool {
 	return clearPlayerForm(player, model.FormMagicLancerPhantom)
 }
@@ -375,10 +330,6 @@ func hasHeroExhaustionForm(player *model.Player) bool {
 	return playerHasForm(player, model.FormHeroExhaustion)
 }
 
-func enterHeroExhaustionForm(player *model.Player) bool {
-	return setPlayerForm(player, model.FormHeroExhaustion)
-}
-
 func leaveHeroExhaustionForm(player *model.Player) bool {
 	return clearPlayerForm(player, model.FormHeroExhaustion)
 }
@@ -387,16 +338,8 @@ func hasFighterHundredDragonForm(player *model.Player) bool {
 	return playerHasForm(player, model.FormFighterHundredDragon)
 }
 
-func enterFighterHundredDragonForm(player *model.Player) bool {
-	return setPlayerForm(player, model.FormFighterHundredDragon)
-}
-
 func leaveFighterHundredDragonForm(player *model.Player) bool {
 	return clearPlayerForm(player, model.FormFighterHundredDragon)
-}
-
-func hasMoonGoddessDarkMoonForm(player *model.Player) bool {
-	return playerHasForm(player, model.FormMoonGoddessDarkMoon)
 }
 
 func enterMoonGoddessDarkMoonForm(player *model.Player) bool {

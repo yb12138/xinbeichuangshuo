@@ -52,13 +52,6 @@ func holyBowFaith(user *model.Player) int {
 	return v
 }
 
-func addHolyBowFaith(user *model.Player, delta int) int {
-	if user == nil {
-		return 0
-	}
-	return addToken(user, "hb_faith", delta, 0, holyBowFaithCap)
-}
-
 func holyBowCannon(user *model.Player) int {
 	if user == nil {
 		return 0

@@ -73,16 +73,6 @@ func parseChoiceResumeSubflow(raw interface{}) model.Subflow {
 	return model.ParseResumePointSubflow(raw)
 }
 
-func (e *GameEngine) currentTurnPlayer() *model.Player {
-	if e == nil || e.State == nil || len(e.State.PlayerOrder) == 0 {
-		return nil
-	}
-	if e.State.CurrentTurn < 0 || e.State.CurrentTurn >= len(e.State.PlayerOrder) {
-		return nil
-	}
-	return e.State.Players[e.State.PlayerOrder[e.State.CurrentTurn]]
-}
-
 func (e *GameEngine) currentChoiceResumePoint() interface{} {
 	if e == nil || e.State == nil {
 		panic("currentChoiceResumePoint: engine/state is nil")

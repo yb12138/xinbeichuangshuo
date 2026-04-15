@@ -241,16 +241,6 @@ func resolveSkillUsePolicy(skillID string) skillUsePolicy {
 	return skillUsePolicy{}
 }
 
-func clampSkillDiscardCount(required, handSize int) int {
-	if required > handSize {
-		return handSize
-	}
-	if required < 0 {
-		return 0
-	}
-	return required
-}
-
 func appendDiscardedCardsToPile(e *GameEngine, use *skillUseRequest) {
 	e.State.DiscardPile = append(e.State.DiscardPile, use.discardedCards...)
 }
