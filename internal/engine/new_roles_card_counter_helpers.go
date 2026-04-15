@@ -157,7 +157,7 @@ func markElfBlessings(player *model.Player, cards []model.Card) {
 			SourceID: player.ID,
 			Mode:     model.FieldCover,
 			Effect:   model.EffectElfBlessing,
-			Hook: model.FieldHookManual,
+			Hook:     model.FieldHookManual,
 		})
 		exists[c.ID] = true
 	}
@@ -437,10 +437,12 @@ func clearElfElementalShotCombatState(player *model.Player) {
 	if player == nil {
 		return
 	}
-	ensurePlayerTokensMap(player)
-	player.Tokens["elf_elemental_shot_water_pending"] = 0
-	player.Tokens["elf_elemental_shot_earth_pending"] = 0
-	player.Tokens["elf_elemental_shot_wind_pending"] = 0
+	if player.TurnState.SkillFlowState == nil {
+		player.TurnState.SkillFlowState = make(map[string]int)
+	}
+	player.TurnState.SkillFlowState["elf_elemental_shot_water_pending"] = 0
+	player.TurnState.SkillFlowState["elf_elemental_shot_earth_pending"] = 0
+	player.TurnState.SkillFlowState["elf_elemental_shot_wind_pending"] = 0
 }
 
 func (e *GameEngine) queueElfAnimalResponse(source, target *model.Player, pd *model.PendingDamage) bool {

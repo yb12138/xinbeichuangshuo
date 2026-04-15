@@ -129,24 +129,24 @@ func (e *GameEngine) handleElfArcherChoiceInput(_ string, selectionIndex int, ct
 		e.NotifyCardRevealed(user.ID, []model.Card{card}, "discard")
 		e.State.DiscardPile = append(e.State.DiscardPile, card)
 
-		if user.Tokens == nil {
-			user.Tokens = map[string]int{}
+		if user.TurnState.SkillFlowState == nil {
+			user.TurnState.SkillFlowState = map[string]int{}
 		}
-		user.Tokens["elf_elemental_shot_water_pending"] = 0
-		user.Tokens["elf_elemental_shot_earth_pending"] = 0
-		user.Tokens["elf_elemental_shot_wind_pending"] = 0
+		user.TurnState.SkillFlowState["elf_elemental_shot_water_pending"] = 0
+		user.TurnState.SkillFlowState["elf_elemental_shot_earth_pending"] = 0
+		user.TurnState.SkillFlowState["elf_elemental_shot_wind_pending"] = 0
 		attackElement, _ := ctxData["attack_element"].(string)
 		switch attackElement {
 		case string(model.ElementFire):
 			e.ApplyNextAttackDamageRule(user.ID, "elf_elemental_shot_fire_attack_bonus", "elf_elemental_shot", 1, model.RuleLifeThisEffectChain)
 		case string(model.ElementWater):
-			user.Tokens["elf_elemental_shot_water_pending"] = 1
+			user.TurnState.SkillFlowState["elf_elemental_shot_water_pending"] = 1
 		case string(model.ElementWind):
-			user.Tokens["elf_elemental_shot_wind_pending"] = 1
+			user.TurnState.SkillFlowState["elf_elemental_shot_wind_pending"] = 1
 		case string(model.ElementThunder):
 			e.ApplyNextAttackInterceptTagRule(user.ID, "elf_elemental_shot_thunder_attack_tag", "elf_elemental_shot", model.CombatInterceptUnrespondable, model.RuleLifeThisEffectChain)
 		case string(model.ElementEarth):
-			user.Tokens["elf_elemental_shot_earth_pending"] = 1
+			user.TurnState.SkillFlowState["elf_elemental_shot_earth_pending"] = 1
 		}
 		e.Log(fmt.Sprintf("%s 发动 [元素射击]（%s）", user.Name, attackElement))
 		e.PopInterrupt()

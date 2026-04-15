@@ -321,7 +321,7 @@ func (e *GameEngine) driveCombatInteractionPhase(currentPid string, player *mode
 		PlayerID:         combatReq.TargetID,
 		AttackerID:       combatReq.AttackerID,
 		CounterTargetIDs: counterTargets,
-		AttackElement:    string(combatReq.Card.Element), // 应战须同系或暗灭
+		AttackElement:    e.promptAttackElementForCombatResponse(combatReq, attacker), // 应战须同系或暗灭
 		EffectHints:      hints,
 		Message: fmt.Sprintf("%s 需要响应来自 %s 的攻击 (%s)",
 			target.Name,
@@ -377,6 +377,20 @@ func (e *GameEngine) canUseCounter(combatReq *model.CombatRequest) bool {
 	return combatReq != nil && combatReq.CanBeResponded
 }
 
+func (e *GameEngine) promptAttackElementForCombatResponse(combatReq *model.CombatRequest, attacker *model.Player) string {
+	if combatReq == nil || combatReq.Card == nil {
+		return ""
+	}
+	if combatReq.Card.Element == model.ElementDark {
+		return string(model.ElementDark)
+	}
+	// 圣枪骑士【天枪】文案口径：本次攻击视为暗灭且无法应战。
+	if attacker != nil && e.isHolyLancer(attacker) && combatReq.HasInterceptTag(model.CombatInterceptUnrespondable) {
+		return string(model.ElementDark)
+	}
+	return string(combatReq.Card.Element)
+}
+
 func (e *GameEngine) buildCombatCounterTargets(attackerID string) []string {
 	attacker := e.State.Players[attackerID]
 	if attacker == nil {
@@ -415,7 +429,7 @@ func (e *GameEngine) buildCombatInteractionHints(combatReq model.CombatRequest, 
 	if combatReq.HasInterceptTag(model.CombatInterceptIgnoreHolyShield) || combatReq.IgnoreShield {
 		hints = append(hints, "本次攻击无视【圣盾】。")
 	}
-	if !e.canUseCounter(&combatReq) {
+	if combatReq.HasInterceptTag(model.CombatInterceptUnrespondable) || !e.canUseCounter(&combatReq) {
 		hints = append(hints, "本次攻击无法应战。")
 	}
 	if shieldFallbackReady {

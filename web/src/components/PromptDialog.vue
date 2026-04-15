@@ -4,6 +4,7 @@ import { useInterruptStore } from '../stores/interrupt.store'
 import { useSessionStore } from '../stores/session.store'
 import { useSnapshotStore } from '../stores/snapshot.store'
 import { useSubmitAction } from '../composables/useSubmitAction'
+import { useBattleInteractionState } from '../composables/useBattleInteractionState'
 import { ROLE_NAME_MAP } from '../constants/roleNameMap'
 import type { PlayerView } from '../types/game'
 
@@ -11,6 +12,7 @@ const interruptStore = useInterruptStore()
 const sessionStore = useSessionStore()
 const snapshotStore = useSnapshotStore()
 const actions = useSubmitAction()
+const { myPlayableCards } = useBattleInteractionState()
 
 const prompt = computed(() => interruptStore.currentPrompt)
 const myPlayerId = computed(() => sessionStore.myPlayerId)
@@ -82,6 +84,12 @@ const hasCounterOrDefend = computed(() => {
   return hasCounterOption.value || hasDefendOption.value
 })
 
+const responsePromptUnrespondable = computed(() => {
+  if (!prompt.value || !hasCounterOrDefend.value) return false
+  const effectHints = Array.isArray(prompt.value.effect_hints) ? prompt.value.effect_hints : []
+  return effectHints.some((hint) => String(hint || '').includes('无法应战'))
+})
+
 function promptAttackElementName(raw: string): string {
   const lower = String(raw || '').trim().toLowerCase()
   if (lower === 'water') return '水系'
@@ -100,8 +108,7 @@ const responseAttackElementHintText = computed(() => {
   if (!attackElement) return ''
   const displayName = promptAttackElementName(attackElement)
   if (!displayName) return ''
-  const lower = attackElement.toLowerCase()
-  if (lower === 'dark') return `此次攻击系别：${displayName}`
+  if (responsePromptUnrespondable.value || !hasCounterOption.value) return `此次攻击系别：${displayName}（无法应战）`
   if (hasCounterOption.value) return `此次攻击系别：${displayName}（应战需同系或暗灭）`
   return `此次攻击系别：${displayName}`
 })
@@ -116,8 +123,19 @@ const isMagicMissilePrompt = computed(() => {
   return msg.includes('魔弹')
 })
 
+const isPlagueDeathTouchElementPrompt = computed(() =>
+  prompt.value?.choice_type === 'plague_death_touch_element'
+)
+
+const isElfElementalShotRemoveBlessingPrompt = computed(() =>
+  prompt.value?.choice_type === 'elf_elemental_shot_remove_blessing'
+)
+
 const needsCardSelection = computed(() => {
   if (!prompt.value) return false
+  if (isElfElementalShotRemoveBlessingPrompt.value) return true
+  if (isPlagueDeathTouchElementPrompt.value) return true
+  if (promptHasHandCardOptions.value) return true
   if (prompt.value.type === 'choose_card' || prompt.value.type === 'choose_cards') return true
   if (hasCounterOrDefend.value) return true
   return false
@@ -140,6 +158,10 @@ const isConfirmType = computed(() => {
 })
 
 const isExtractPrompt = computed(() => prompt.value?.type === 'choose_extract')
+
+const NON_HAND_INDEXED_PROMPT_CHOICE_TYPES = new Set([
+  'elf_elemental_shot_remove_blessing',
+])
 
 function toggleExtractOption(index: number) {
   const idx = selectedExtractIndices.value.indexOf(index)
@@ -250,6 +272,7 @@ function isPromptActivationCostCancelable(p: NonNullable<typeof prompt.value>): 
   const choiceType = String(p.choice_type || '').trim()
   // 发动前置消耗：允许玩家取消并回到原流程。
   if (choiceType === 'elf_elemental_shot_cost') return true
+  if (choiceType === 'plague_death_touch_element' || choiceType === 'plague_death_touch_cards') return true
   return false
 }
 
@@ -354,8 +377,68 @@ function handleOptionClick(optionId: string) {
   }
 }
 
+function normalizeElementToken(raw: string): string {
+  const text = String(raw || '').trim().toLowerCase()
+  if (!text) return ''
+  if (text.includes('water') || text.includes('水')) return 'Water'
+  if (text.includes('fire') || text.includes('火')) return 'Fire'
+  if (text.includes('earth') || text.includes('地')) return 'Earth'
+  if (text.includes('wind') || text.includes('风')) return 'Wind'
+  if (text.includes('thunder') || text.includes('雷')) return 'Thunder'
+  if (text.includes('light') || text.includes('光')) return 'Light'
+  if (text.includes('dark') || text.includes('暗')) return 'Dark'
+  return ''
+}
+
+function resolvePlagueDeathTouchElementOptionIndex(): number | null {
+  if (!isPlagueDeathTouchElementPrompt.value || !prompt.value) return null
+  if (interruptStore.selectedCards.length <= 0) return null
+  const selectedIndex = interruptStore.selectedCards[0]
+  if (selectedIndex == null || selectedIndex < 0 || selectedIndex >= myHand.value.length) return null
+  const selectedCard = myHand.value[selectedIndex]
+  if (!selectedCard?.element) return null
+
+  const targetElement = selectedCard.element
+  for (let i = 0; i < prompt.value.options.length; i++) {
+    const option = prompt.value.options[i]
+    if (!option) continue
+    const optionElement = normalizeElementToken(`${option.label || ''} ${option.button_label || ''}`) || normalizeElementToken(option.id || '')
+    if (optionElement && optionElement === targetElement) return i
+  }
+  return null
+}
+
+function resolveElfBlessingSelectionIndices(): number[] {
+  if (!prompt.value || !isElfElementalShotRemoveBlessingPrompt.value) return []
+  const optionIds = new Set((prompt.value.options || []).map((option) => String(option.id || '')))
+  const blessingCount = myPlayableCards.value.filter((item) => item.source === 'blessing').length
+  const mapped = interruptStore.selectedCards
+    .map((playableIndex) => {
+      const playable = myPlayableCards.value.find((item) => item.index === playableIndex)
+      if (!playable || playable.source !== 'blessing') return null
+      const blessingIndex = playableIndex - myHand.value.length
+      if (blessingIndex < 0 || blessingIndex >= blessingCount) return null
+      if (optionIds.size > 0 && !optionIds.has(String(blessingIndex))) return null
+      return blessingIndex
+    })
+    .filter((idx): idx is number => idx !== null)
+  return [...new Set(mapped)]
+}
+
 const canConfirmPrompt = computed(() => {
   if (!prompt.value) return false
+  if (isElfElementalShotRemoveBlessingPrompt.value) {
+    const mapped = resolveElfBlessingSelectionIndices()
+    if (mapped.length !== interruptStore.selectedCards.length) return false
+    return mapped.length >= prompt.value.min && mapped.length <= prompt.value.max
+  }
+  if (isPlagueDeathTouchElementPrompt.value) {
+    return resolvePlagueDeathTouchElementOptionIndex() !== null
+  }
+  if (promptHasHandCardOptions.value) {
+    const cCount = interruptStore.selectedCards.length
+    return cCount >= prompt.value.min && cCount <= prompt.value.max
+  }
   if (prompt.value.type === 'choose_target') {
     const tCount = interruptStore.selectedTargets.length
     return tCount >= prompt.value.min && tCount <= prompt.value.max
@@ -371,6 +454,26 @@ const canConfirmPrompt = computed(() => {
 
 function confirmPromptAction() {
   if (!canConfirmPrompt.value) return
+
+  if (isElfElementalShotRemoveBlessingPrompt.value) {
+    const mapped = resolveElfBlessingSelectionIndices()
+    if (mapped.length <= 0) {
+      showPromptError('请先在扩展区选择要移除的祝福牌')
+      return
+    }
+    actions.submitSelect(mapped)
+    return
+  }
+
+  if (isPlagueDeathTouchElementPrompt.value) {
+    const optionIndex = resolvePlagueDeathTouchElementOptionIndex()
+    if (optionIndex === null) {
+      showPromptError('请先在手牌区选择可用于死亡之触的同系牌')
+      return
+    }
+    actions.submitSelect([optionIndex])
+    return
+  }
 
   if (prompt.value?.type === 'choose_target' && interruptStore.selectedTargets.length > 0) {
     if (interruptStore.selectedTargets.length === 1) {
@@ -404,9 +507,18 @@ function parsePromptCardIndex(optionId: string): number | null {
 }
 
 function parseHandIndexFromOptionLabel(label: string): number | null {
-  const matched = String(label || '').trim().match(/^(\d+)\s*:/)
-  if (!matched) return null
-  const displayIndex = Number.parseInt(matched[1] || '', 10)
+  const text = String(label || '').trim()
+  let displayIndex: number | null = null
+  const prefixed = text.match(/^(\d+)\s*[:：]/)
+  if (prefixed) {
+    displayIndex = Number.parseInt(prefixed[1] || '', 10)
+  } else {
+    const nth = text.match(/第\s*(\d+)\s*张\s*[:：]/)
+    if (nth) {
+      displayIndex = Number.parseInt(nth[1] || '', 10)
+    }
+  }
+  if (displayIndex === null) return null
   if (!Number.isFinite(displayIndex) || displayIndex <= 0) return null
   return displayIndex - 1
 }
@@ -424,6 +536,8 @@ function isIndexedCocoonOption(option: { label?: string }): boolean {
 }
 
 function isPromptHandCardOption(option: { id: string; label: string }): boolean {
+  const choiceType = String(prompt.value?.choice_type || '').trim()
+  if (NON_HAND_INDEXED_PROMPT_CHOICE_TYPES.has(choiceType)) return false
   const idx = parsePromptCardIndex(option.id)
   if (idx === null || idx < 0 || idx >= myHand.value.length) return false
   const labelIndex = parseHandIndexFromOptionLabel(option.label)
@@ -440,6 +554,8 @@ const promptCardOptionIndexSet = computed(() => {
   }
   return set
 })
+
+const promptHasHandCardOptions = computed(() => promptCardOptionIndexSet.value.size > 0)
 
 const hasIndexedCocoonOptions = computed(() => {
   if (!prompt.value?.options?.length) return false
@@ -631,10 +747,11 @@ function isCardSelectionLikeText(text: string): boolean {
   return false
 }
 
-function promptImageButtonKindByOption(option: { id?: string; label?: string; buttonLabel?: string }): PromptImageButtonKind {
+function promptImageButtonKindByOption(option: { id?: string; label?: string; buttonLabel?: string; hint?: string }): PromptImageButtonKind {
   const id = String(option.id || '').trim().toLowerCase()
   const label = String(option.label || '').trim()
   const buttonLabel = String(option.buttonLabel || '').trim()
+  const hint = String(option.hint || '').trim()
   const combinedText = `${label} ${buttonLabel}`
   const hasExplicitResponseText =
     combinedText.includes('命中') ||
@@ -650,6 +767,14 @@ function promptImageButtonKindByOption(option: { id?: string; label?: string; bu
   }
   const responseKind = responseOptionKind({ id, label, button_label: buttonLabel })
   if (responseKind) return responseKind
+  if (
+    (isActivationCostText(hint) || isActivationCostText(label) || isActivationCostText(buttonLabel)) &&
+    !isDeclineLabel(hint) &&
+    !isDeclineLabel(label) &&
+    !isDeclineLabel(buttonLabel)
+  ) {
+    return 'confirm'
+  }
   if (id === 'confirm' || id === 'yes') return 'confirm'
   if (id === 'skip' || id === 'cancel' || id === 'no' || id === 'pass' || id === 'cannot_act') return 'cancel'
   if (buttonLabel === '取消' || isDeclineLabel(buttonLabel) || isDeclineLabel(label)) return 'cancel'
@@ -692,7 +817,8 @@ function dockButtonImageKind(option: DockButtonOption): PromptImageButtonKind | 
   return promptImageButtonKindByOption({
     id: option.id,
     label: option.label,
-    buttonLabel: option.buttonLabel
+    buttonLabel: option.buttonLabel,
+    hint: option.hint
   })
 }
 
@@ -818,6 +944,9 @@ function normalizeDockOption(option: RawDockOption, useNumeric: boolean, plusOne
   if (!buttonLabel && responseKind === 'counter') {
     buttonLabel = '应战'
   }
+  if (!buttonLabel && (isActivationCostText(hint) || isActivationCostText(label) || isActivationCostText(String(prompt.value?.message || '')))) {
+    buttonLabel = '确认'
+  }
   if (!buttonLabel) {
     if (prompt.value?.type === 'confirm') {
       buttonLabel = '确认'
@@ -927,6 +1056,8 @@ const cardFooterOptions = computed<RawDockOption[]>(() => {
 
 const promptNeedsHandCardConfirm = computed(() => {
   if (!prompt.value || !needsCardSelection.value || hasCounterOrDefend.value) return false
+  if (isElfElementalShotRemoveBlessingPrompt.value) return true
+  if (isPlagueDeathTouchElementPrompt.value) return true
   if (isNonHandChooseCardsMultiMode.value) return false
   if (promptCardOptionIndexSet.value.size > 0) return true
   return !prompt.value.options?.length
@@ -941,6 +1072,9 @@ const promptNeedsCardConfirm = computed(() =>
 )
 
 const cardConfirmHintText = computed(() => {
+  if (isElfElementalShotRemoveBlessingPrompt.value) return '请在扩展区选择要移除的祝福牌并点击发动'
+  if (isPlagueDeathTouchElementPrompt.value) return '请选择同系手牌并点击确认'
+  if (prompt.value?.choice_type === 'plague_death_touch_cards') return '请选择要弃置的同系手牌并点击确认'
   if (promptNeedsInlineCardOptionConfirm.value) return '完成选择后点击发动'
   if (prompt.value?.choice_type === 'adventurer_fraud_pick') return '请选择2~3张同系牌，3张将自动转为暗灭攻击'
   return '完成选牌后点击发动'
@@ -954,6 +1088,22 @@ const cardConfirmPromptMessage = computed(() => {
 
 const showCardConfirmCancelRow = computed(() =>
   promptNeedsCardConfirm.value && canCancelPrompt.value && !isSkillChoicePrompt.value
+)
+
+const targetSelectionPromptMessage = computed(() => {
+  if (!prompt.value) return ''
+  const message = String(prompt.value.message || '').trim()
+  if (message) return message
+  if (needsCounterTargetSelection.value) return '请选择反弹目标角色'
+  if (needsTargetSelection.value) return '请选择目标角色'
+  return ''
+})
+
+const showTargetSelectionHintRow = computed(() =>
+  !isSkillChoicePrompt.value &&
+  !promptNeedsCardConfirm.value &&
+  inlinePrimaryButtons.value.length === 0 &&
+  (needsTargetSelection.value || needsCounterTargetSelection.value)
 )
 
 const singleActivationCostConfirmOption = computed<DockButtonOption | null>(() => {
@@ -979,6 +1129,11 @@ const singleActivationCostConfirmHintText = computed(() => {
   if (hint) return hint
   const label = String(singleActivationCostConfirmOption.value.label || '').trim()
   if (label) return label
+  return String(prompt.value?.message || '').trim()
+})
+
+const inlinePrimaryPromptMessage = computed(() => {
+  if (!showConfirmButtonSection.value) return ''
   return String(prompt.value?.message || '').trim()
 })
 
@@ -1115,6 +1270,7 @@ const hasAnyInlineButton = computed(() => {
   if (!isVisible.value) return false
   if (isFraudElementCardPickerPrompt.value) return false
   if (isExtractPrompt.value && !!prompt.value?.options?.length) return true
+  if (showTargetSelectionHintRow.value) return true
   if (inlinePrimaryButtons.value.length > 0) return true
   if (promptNeedsCardConfirm.value) return true
   if (canCancelPrompt.value) return true
@@ -1249,7 +1405,14 @@ watch(autoResolveOptionId, (optionId) => {
             </div>
           </div>
 
+          <div v-else-if="showTargetSelectionHintRow" class="prompt-inline-entry">
+            <div class="prompt-inline-hint">{{ targetSelectionPromptMessage }}</div>
+          </div>
+
           <div v-else-if="inlinePrimaryButtons.length > 0 && !singleActivationCostConfirmOption">
+            <div v-if="inlinePrimaryPromptMessage" class="prompt-inline-hint">
+              {{ inlinePrimaryPromptMessage }}
+            </div>
             <div v-if="responseAttackElementHintText" class="prompt-inline-hint prompt-inline-hint--attack-element">
               {{ responseAttackElementHintText }}
             </div>

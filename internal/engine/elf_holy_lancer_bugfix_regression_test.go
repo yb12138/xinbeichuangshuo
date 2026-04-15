@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"strings"
 	"testing"
 
 	"starcup-engine/internal/model"
@@ -14,6 +15,43 @@ func skillIndex(skillIDs []string, want string) int {
 		}
 	}
 	return -1
+}
+
+func findLatestCombatPromptForPlayer(obs *captureObserver, playerID string) *model.Prompt {
+	if obs == nil {
+		return nil
+	}
+	for i := len(obs.events) - 1; i >= 0; i-- {
+		event := obs.events[i]
+		if event.Type != model.EventAskInput {
+			continue
+		}
+		prompt, ok := event.Data.(*model.Prompt)
+		if !ok || prompt == nil || prompt.PlayerID != playerID {
+			continue
+		}
+		if promptHasOptionID(prompt, "take") || promptHasOptionID(prompt, "defend") || promptHasOptionID(prompt, "counter") {
+			copied := *prompt
+			copied.Options = append([]model.PromptOption(nil), prompt.Options...)
+			return &copied
+		}
+	}
+	return nil
+}
+
+func promptHasEffectHintContains(prompt *model.Prompt, wantFragment string) bool {
+	if prompt == nil {
+		return false
+	}
+	for _, hint := range prompt.EffectHints {
+		if hint == "" {
+			continue
+		}
+		if strings.Contains(hint, wantFragment) {
+			return true
+		}
+	}
+	return false
 }
 
 // 回归：精灵射手元素射击触发雷之矢后，本次攻击应不可应战。
@@ -233,7 +271,8 @@ func TestHolyLancer_EarthSpearAndHolyStrikeMutualExclusion(t *testing.T) {
 
 // 回归：圣枪骑士天枪响应后，本次攻击应不可应战。
 func TestHolyLancer_SkySpearDisablesCounterResponse(t *testing.T) {
-	game := NewGameEngine(noopObserver{})
+	obs := &captureObserver{}
+	game := NewGameEngine(obs)
 	if err := game.AddPlayer("p1", "HolyLancer", "holy_lancer", model.RedCamp); err != nil {
 		t.Fatal(err)
 	}
@@ -286,5 +325,18 @@ func TestHolyLancer_SkySpearDisablesCounterResponse(t *testing.T) {
 	}
 	if game.State.CombatStack[0].CanBeResponded {
 		t.Fatalf("expected sky spear to disable counter response")
+	}
+	prompt := findLatestCombatPromptForPlayer(obs, "p2")
+	if prompt == nil {
+		t.Fatalf("expected combat response prompt for p2")
+	}
+	if got := prompt.AttackElement; got != string(model.ElementDark) {
+		t.Fatalf("expected sky spear prompt attack_element=Dark, got %q", got)
+	}
+	if !promptHasEffectHintContains(prompt, "无法应战") {
+		t.Fatalf("expected sky spear prompt to include unrespondable hint, got %+v", prompt.EffectHints)
+	}
+	if promptHasOptionID(prompt, "counter") {
+		t.Fatalf("expected no counter option after sky spear, got %+v", prompt.Options)
 	}
 }

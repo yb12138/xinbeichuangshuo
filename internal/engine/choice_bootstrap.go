@@ -71,6 +71,45 @@ func regSpecSingleAndMulti(reg *choicert.SpecRegistry, typ string,
 	})
 }
 
+func regSpecSingleAndMultiAndCancel(reg *choicert.SpecRegistry, typ string,
+	build func(*GameEngine, string, string, *model.Player, map[string]any) *model.Prompt,
+	sel func(*GameEngine, string, int, map[string]any) (bool, error),
+	multi func(*GameEngine, string, []int) error,
+	cancel func(*GameEngine, string) error,
+) {
+	reg.Register(&choicert.ChoiceSpec{
+		Type: typ,
+		BuildPrompt: func(h choicert.Host, ct, pid string, pl *model.Player, data map[string]any) *model.Prompt {
+			ge := engFromHost(h)
+			if ge == nil {
+				return nil
+			}
+			return build(ge, ct, pid, pl, data)
+		},
+		OnSelect: func(h choicert.Host, pid string, idx int, ctx map[string]any) (bool, error) {
+			ge := engFromHost(h)
+			if ge == nil {
+				return false, fmt.Errorf("choice: engine bridge unavailable")
+			}
+			return sel(ge, pid, idx, ctx)
+		},
+		OnMultiSelect: func(h choicert.Host, pid string, sel []int, _ map[string]any) (bool, error) {
+			ge := engFromHost(h)
+			if ge == nil {
+				return false, fmt.Errorf("choice: engine bridge unavailable")
+			}
+			return true, multi(ge, pid, sel)
+		},
+		OnCancel: func(h choicert.Host, pid string, _ map[string]any) (bool, error) {
+			ge := engFromHost(h)
+			if ge == nil {
+				return false, fmt.Errorf("choice: engine bridge unavailable")
+			}
+			return true, cancel(ge, pid)
+		},
+	})
+}
+
 func regSpecExtractChoice(reg *choicert.SpecRegistry,
 	build func(*GameEngine, string, string, *model.Player, map[string]any) *model.Prompt,
 	multi func(*GameEngine, string, []int) error,
@@ -162,6 +201,13 @@ func bootstrapChoiceSpecs(e *GameEngine) {
 	regSpecSingleAndCancel(reg, "elementalist_bonus_card", (*GameEngine).buildElementalistChoicePrompt, (*GameEngine).handleElementalistChoiceInput, (*GameEngine).cancelElementalistBonusCardChoice)
 	regSpecSingleAndCancel(reg, "valkyrie_heroic_discard_card", (*GameEngine).buildValkyrieChoicePrompt, (*GameEngine).handleValkyrieChoiceInput, (*GameEngine).cancelValkyrieHeroicDiscardChoice)
 	regSpecSingleAndCancel(reg, "elf_elemental_shot_cost", (*GameEngine).buildElfArcherChoicePrompt, (*GameEngine).handleElfArcherChoiceInput, (*GameEngine).cancelElfElementalShotCostChoice)
+	regSpecSingleAndCancel(reg, "plague_death_touch_element", (*GameEngine).buildPlagueMageChoicePrompt, (*GameEngine).handlePlagueMageChoiceInput, (*GameEngine).cancelPlagueDeathTouchChoice)
+	regSpecSingleAndCancel(reg, "plague_death_touch_x", (*GameEngine).buildPlagueMageChoicePrompt, (*GameEngine).handlePlagueMageChoiceInput, (*GameEngine).cancelPlagueDeathTouchChoice)
+	regSpecSingleAndCancel(reg, "plague_death_touch_y", (*GameEngine).buildPlagueMageChoicePrompt, (*GameEngine).handlePlagueMageChoiceInput, (*GameEngine).cancelPlagueDeathTouchChoice)
+	regSpecSingleAndMultiAndCancel(reg, "plague_death_touch_cards", (*GameEngine).buildPlagueMageChoicePrompt, (*GameEngine).handlePlagueMageChoiceInput, func(ge *GameEngine, pid string, sels []int) error {
+		return ge.runSequentialChoiceSelections(pid, "plague_death_touch_cards", sels)
+	}, (*GameEngine).cancelPlagueDeathTouchChoice)
+	regSpecSingleAndCancel(reg, "plague_death_touch_target", (*GameEngine).buildPlagueMageChoicePrompt, (*GameEngine).handlePlagueMageChoiceInput, (*GameEngine).cancelPlagueDeathTouchChoice)
 
 	e.bootstrapChoiceSpecsFromCatalog(reg)
 }

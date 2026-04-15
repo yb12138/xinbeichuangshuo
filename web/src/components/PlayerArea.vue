@@ -201,8 +201,6 @@ const HIDDEN_TOKEN_KEYS = new Set([
   'holy_lancer_block_sacred_strike',
   'holy_lancer_prayer_used_turn',
   // 新角色内部流程标记：不应直接展示给玩家
-  'elf_elemental_shot_water_pending',
-  'elf_elemental_shot_earth_pending',
   'elf_ritual_release_waiting',
   'plague_block_immortal',
   'ms_yellow_spring_pending',

@@ -11,6 +11,7 @@ const BASIC_EFFECT_BY_MAGIC_CARD_NAME: Record<string, string> = {
   '虚弱': 'Weak',
   '圣盾': 'Shield'
 }
+const ELF_BLESSING_EFFECT = 'ElfBlessing'
 
 function isBasicEffect(effect?: string | null): boolean {
   return effect === 'Shield' || effect === 'Weak' || effect === 'Poison' ||
@@ -41,7 +42,13 @@ export function useBattleInteractionState() {
 
   const myPlayer = computed(() => players.value[myPlayerId.value] || null)
   const myHand = computed(() => myPlayer.value?.hand || [])
-  const myBlessings = computed(() => myPlayer.value?.blessings || [])
+  const myBlessings = computed(() => {
+    const fieldBlessings = (myPlayer.value?.field || [])
+      .filter((fieldCard) => fieldCard?.mode === 'Cover' && fieldCard.effect === ELF_BLESSING_EFFECT && !!fieldCard.card)
+      .map((fieldCard) => fieldCard.card)
+    if (fieldBlessings.length > 0) return fieldBlessings
+    return myPlayer.value?.blessings || []
+  })
   const myExclusiveCards = computed(() => myPlayer.value?.exclusive_cards || [])
   const myPlayableCards = computed(() =>
     [

@@ -294,3 +294,31 @@ func (e *GameEngine) resolvePlagueDeathTouchFinal(ctxData map[string]interface{}
 	}
 	return nil
 }
+
+func (e *GameEngine) cancelPlagueDeathTouchChoice(playerID string) error {
+	if e == nil || e.State == nil || e.State.PendingInterrupt == nil {
+		return fmt.Errorf("没有待处理的死亡之触选择")
+	}
+
+	ctxData, _ := e.State.PendingInterrupt.Context.(map[string]interface{})
+	userID, _ := ctxData["user_id"].(string)
+	if userID == "" {
+		userID = playerID
+	}
+	user := e.State.Players[userID]
+	if user == nil {
+		return fmt.Errorf("玩家不存在")
+	}
+
+	user.TurnState.UsedSkillCounts["plague_block_immortal"] = 0
+	user.TurnState.HasActed = false
+	user.TurnState.LastActionType = ""
+	user.TurnState.LastActionCard = nil
+
+	e.PopInterrupt()
+	e.Log(fmt.Sprintf("%s 取消了 [死亡之触] 的发动", user.Name))
+	if e.State.PendingInterrupt == nil {
+		e.enterActionExecutionStage()
+	}
+	return nil
+}

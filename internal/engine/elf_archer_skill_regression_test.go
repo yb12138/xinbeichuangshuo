@@ -75,8 +75,8 @@ func TestElfElementalShotCostChoice_CancelSupported(t *testing.T) {
 	if p1.Hand[0].ID != "magic-cost" {
 		t.Fatalf("expected remaining card to be magic-cost after cancel, got %+v", p1.Hand[0])
 	}
-	if p1.Tokens != nil && p1.Tokens["elf_elemental_shot_wind_pending"] != 0 {
-		t.Fatalf("expected no wind pending token on cancel, got %d", p1.Tokens["elf_elemental_shot_wind_pending"])
+	if p1.TurnState.SkillFlowState["elf_elemental_shot_wind_pending"] != 0 {
+		t.Fatalf("expected no wind pending state on cancel, got %d", p1.TurnState.SkillFlowState["elf_elemental_shot_wind_pending"])
 	}
 }
 
@@ -117,8 +117,8 @@ func TestElfElementalShotWind_GrantsExtraAttackOnlyAfterActionEnd(t *testing.T) 
 	if len(p1.TurnState.PendingActions) != 0 {
 		t.Fatalf("wind shot should not grant extra action before attack ends, got %+v", p1.TurnState.PendingActions)
 	}
-	if p1.Tokens["elf_elemental_shot_wind_pending"] != 1 {
-		t.Fatalf("expected wind pending token before combat resolves, got %d", p1.Tokens["elf_elemental_shot_wind_pending"])
+	if p1.TurnState.SkillFlowState["elf_elemental_shot_wind_pending"] != 1 {
+		t.Fatalf("expected wind pending state before combat resolves, got %d", p1.TurnState.SkillFlowState["elf_elemental_shot_wind_pending"])
 	}
 
 	mustHandleAction(t, game, model.PlayerAction{
@@ -135,8 +135,8 @@ func TestElfElementalShotWind_GrantsExtraAttackOnlyAfterActionEnd(t *testing.T) 
 	if p1.TurnState.CurrentExtraAction != "Attack" {
 		t.Fatalf("expected wind shot to grant extra attack after action end, got %q", p1.TurnState.CurrentExtraAction)
 	}
-	if p1.Tokens["elf_elemental_shot_wind_pending"] != 0 {
-		t.Fatalf("expected wind pending token cleared after action end, got %d", p1.Tokens["elf_elemental_shot_wind_pending"])
+	if p1.TurnState.SkillFlowState["elf_elemental_shot_wind_pending"] != 0 {
+		t.Fatalf("expected wind pending state cleared after action end, got %d", p1.TurnState.SkillFlowState["elf_elemental_shot_wind_pending"])
 	}
 }
 

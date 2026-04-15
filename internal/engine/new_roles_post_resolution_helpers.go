@@ -137,15 +137,15 @@ func (e *GameEngine) handlePostAttackHitEffects(pd *model.PendingDamage) bool {
 	}
 
 	// 精灵射手：水之矢
-	if attacker.Tokens["elf_elemental_shot_water_pending"] > 0 {
-		attacker.Tokens["elf_elemental_shot_water_pending"] = 0
+	if attacker.TurnState.SkillFlowState["elf_elemental_shot_water_pending"] > 0 {
+		attacker.TurnState.SkillFlowState["elf_elemental_shot_water_pending"] = 0
 		e.Heal(pd.TargetID, 1)
 		e.Log(fmt.Sprintf("%s 的 [元素射击·水之矢] 生效：%s +1治疗", attacker.Name, model.GetPlayerDisplayName(e.State.Players[pd.TargetID])))
 	}
 
 	// 精灵射手：地之矢
-	if attacker.Tokens["elf_elemental_shot_earth_pending"] > 0 {
-		attacker.Tokens["elf_elemental_shot_earth_pending"] = 0
+	if attacker.TurnState.SkillFlowState["elf_elemental_shot_earth_pending"] > 0 {
+		attacker.TurnState.SkillFlowState["elf_elemental_shot_earth_pending"] = 0
 		e.AddPendingDamage(model.PendingDamage{
 			SourceID:   attacker.ID,
 			TargetID:   pd.TargetID,
@@ -214,7 +214,7 @@ func (e *GameEngine) handlePostActionEndEffects(player *model.Player, actionType
 		return false
 	}
 	if actionType == model.ActionAttack && e.isElfArcher(player) {
-		if player.Tokens != nil && player.Tokens["elf_elemental_shot_wind_pending"] > 0 {
+		if player.TurnState.SkillFlowState["elf_elemental_shot_wind_pending"] > 0 {
 			model.AppendAttackAction(player, "风之矢")
 			e.Log(fmt.Sprintf("%s 的 [元素射击·风之矢] 结算：额外获得1次攻击行动", player.Name))
 		}
