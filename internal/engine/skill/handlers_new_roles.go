@@ -1039,9 +1039,11 @@ func resolveElfForcedDrawDiscard(game model.IGameEngine, target *model.Player, p
 		return nil
 	}
 	game.PushInterrupt(&model.Interrupt{
-		Type:     model.InterruptDiscard,
+		Type:     model.InterruptChoice,
 		PlayerID: target.ID,
 		Context: map[string]interface{}{
+			"choice_type":       "system_discard_cards",
+			"discard_subflow":   true,
 			"discard_count":     1,
 			"stay_in_turn":      true,
 			"prompt":            prompt,

@@ -184,11 +184,11 @@ func TestElfRitualStartupConfirmShouldNotLeaveOverflowDiscard(t *testing.T) {
 	if got := countElfBlessings(p1); got != 3 {
 		t.Fatalf("ritual startup confirm should create 3 blessings, got=%d", got)
 	}
-	if game.State.PendingInterrupt != nil && game.State.PendingInterrupt.Type == model.InterruptDiscard {
+	if game.State.PendingInterrupt != nil && isDiscardSelectionInterrupt(game.State.PendingInterrupt) {
 		t.Fatalf("should not leave pending discard interrupt after ritual")
 	}
 	for _, intr := range game.State.InterruptQueue {
-		if intr != nil && intr.Type == model.InterruptDiscard && intr.PlayerID == p1.ID {
+		if intr != nil && isDiscardSelectionInterrupt(intr) && intr.PlayerID == p1.ID {
 			t.Fatalf("should not keep queued discard interrupt for ritual player")
 		}
 	}

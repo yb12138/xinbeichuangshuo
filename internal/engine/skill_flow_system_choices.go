@@ -72,6 +72,9 @@ func (e *GameEngine) buildSystemChoicePrompt(choiceType, playerID string, player
 	case "basic_effect_pick":
 		return buildBasicEffectChoicePrompt(playerID, data)
 
+	case choiceTypeSystemDiscardCards:
+		return e.buildDiscardChoicePromptFromData(playerID, data)
+
 	case "extract":
 		options := buildExtractChoicePromptOptions(data["extract_options"])
 		if len(options) == 0 {
@@ -202,6 +205,33 @@ func (e *GameEngine) handleSystemHealChoice(selectionIndex int, ctxData map[stri
 	e.PopInterrupt()
 	if e.State.PendingInterrupt == nil {
 		e.enterDamageResolution(nil)
+	}
+	return nil
+}
+
+func (e *GameEngine) handleSystemDiscardChoiceSelections(playerID string, selections []int) error {
+	return e.ConfirmDiscard(playerID, selections)
+}
+
+func (e *GameEngine) cancelSystemDiscardChoice(playerID string, ctxData map[string]interface{}) error {
+	if e == nil || e.State == nil || e.State.PendingInterrupt == nil {
+		return fmt.Errorf("当前没有待处理的弃牌操作")
+	}
+	skillID, _ := ctxData["skill_id"].(string)
+	if skillID == "" {
+		return fmt.Errorf("当前弃牌为强制操作，不能取消")
+	}
+	if skillID == "mb_charge_followup_discard" {
+		return fmt.Errorf("【充能】弃牌为强制步骤，不能取消")
+	}
+	if _, hasUserCtx := ctxData["user_ctx"]; hasUserCtx {
+		return e.SkipResponse()
+	}
+
+	e.PopInterrupt()
+	e.Log(fmt.Sprintf("[System] %s 取消了技能 [%s] 的弃牌发动", playerID, skillID))
+	if e.State.PendingInterrupt == nil {
+		e.enterActionExecutionStage()
 	}
 	return nil
 }

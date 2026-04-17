@@ -81,36 +81,6 @@ func (e *GameEngine) handleInterruptStartupSkillAction(act model.PlayerAction) e
 	return fmt.Errorf("当前中断类型不支持该指令")
 }
 
-func (e *GameEngine) handleInterruptDiscardAction(act model.PlayerAction) error {
-	if act.Type == model.CmdCancel {
-		data, _ := e.State.PendingInterrupt.Context.(map[string]interface{})
-		skillID, _ := data["skill_id"].(string)
-		if skillID == "" {
-			return fmt.Errorf("当前弃牌为强制操作，不能取消")
-		}
-		if skillID == "mb_charge_followup_discard" {
-			return fmt.Errorf("【充能】弃牌为强制步骤，不能取消")
-		}
-		if _, hasUserCtx := data["user_ctx"]; hasUserCtx {
-			return e.SkipResponse()
-		}
-
-		e.PopInterrupt()
-		e.Log(fmt.Sprintf("[System] %s 取消了技能 [%s] 的弃牌发动", act.PlayerID, skillID))
-		if e.State.PendingInterrupt == nil {
-			e.enterActionExecutionStage()
-		}
-		return nil
-	}
-	if act.Type == model.CmdSelect {
-		return e.ConfirmDiscard(act.PlayerID, act.Selections)
-	}
-	if act.Type == model.CmdSkill {
-		return fmt.Errorf("当前正在处理弃牌步骤，请先在手牌区选择并提交弃牌")
-	}
-	return fmt.Errorf("当前中断类型不支持该指令")
-}
-
 func (e *GameEngine) handleInterruptGiveCardsAction(act model.PlayerAction) error {
 	if act.Type != model.CmdSelect {
 		return fmt.Errorf("当前中断类型不支持该指令")

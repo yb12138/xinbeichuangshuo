@@ -190,9 +190,11 @@ func (r *Runtime) ConfirmResponseSkill(h Host, playerID, skillID string) error {
 	case model.InteractionDiscard:
 		remaining := r.elig.FilterRemainingUsable(skillID, player, ctx, h.PendingInterrupt().SkillIDs)
 		h.SetPendingInterrupt(&model.Interrupt{
-			Type:     model.InterruptDiscard,
+			Type:     model.InterruptChoice,
 			PlayerID: playerID,
 			Context: map[string]interface{}{
+				"choice_type":      "system_discard_cards",
+				"discard_subflow":  true,
 				"skill_id":         skillID,
 				"user_ctx":         ctx,
 				"min":              skillDef.InteractionConfig.MinSelect,

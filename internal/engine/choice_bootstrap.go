@@ -185,6 +185,46 @@ func bootstrapChoiceSpecs(e *GameEngine) {
 	}
 	reg := e.choiceEngine.Registry()
 
+	regSpecSingleAndMultiAndCancel(reg, choiceTypeSystemDiscardCards, (*GameEngine).buildSystemChoicePrompt, func(ge *GameEngine, pid string, idx int, _ map[string]any) (bool, error) {
+		return true, ge.handleSystemDiscardChoiceSelections(pid, []int{idx})
+	}, (*GameEngine).handleSystemDiscardChoiceSelections, func(ge *GameEngine, pid string) error {
+		if ge.State == nil || ge.State.PendingInterrupt == nil {
+			return fmt.Errorf("当前没有待处理的弃牌操作")
+		}
+		ctxData, _ := ge.State.PendingInterrupt.Context.(map[string]interface{})
+		return ge.cancelSystemDiscardChoice(pid, ctxData)
+	})
+
+	regSpecSingleAndMulti(reg, "bs_alert_source_discard", (*GameEngine).buildBeastSamuraiChoicePrompt, func(ge *GameEngine, pid string, idx int, ctx map[string]any) (bool, error) {
+		return true, ge.handleBeastSamuraiDiscardSelections(pid, []int{idx}, choiceCtxAsInterfaceMap(ctx))
+	}, func(ge *GameEngine, pid string, sels []int) error {
+		return ge.handleBeastSamuraiDiscardSelections(pid, sels, nil)
+	})
+
+	regSpecSingleAndMulti(reg, "bs_beast_return_self_discard", (*GameEngine).buildBeastSamuraiChoicePrompt, func(ge *GameEngine, pid string, idx int, ctx map[string]any) (bool, error) {
+		return true, ge.handleBeastSamuraiDiscardSelections(pid, []int{idx}, choiceCtxAsInterfaceMap(ctx))
+	}, func(ge *GameEngine, pid string, sels []int) error {
+		return ge.handleBeastSamuraiDiscardSelections(pid, sels, nil)
+	})
+
+	regSpecSingleAndMulti(reg, "bs_beast_return_source_discard", (*GameEngine).buildBeastSamuraiChoicePrompt, func(ge *GameEngine, pid string, idx int, ctx map[string]any) (bool, error) {
+		return true, ge.handleBeastSamuraiDiscardSelections(pid, []int{idx}, choiceCtxAsInterfaceMap(ctx))
+	}, func(ge *GameEngine, pid string, sels []int) error {
+		return ge.handleBeastSamuraiDiscardSelections(pid, sels, nil)
+	})
+
+	regSpecSingleAndMulti(reg, "bs_iaijutsu_style_discard", (*GameEngine).buildBeastSamuraiChoicePrompt, func(ge *GameEngine, pid string, idx int, ctx map[string]any) (bool, error) {
+		return true, ge.handleBeastSamuraiDiscardSelections(pid, []int{idx}, choiceCtxAsInterfaceMap(ctx))
+	}, func(ge *GameEngine, pid string, sels []int) error {
+		return ge.handleBeastSamuraiDiscardSelections(pid, sels, nil)
+	})
+
+	regSpecSingleAndMulti(reg, "bs_reversal_target_discard", (*GameEngine).buildBeastSamuraiChoicePrompt, func(ge *GameEngine, pid string, idx int, ctx map[string]any) (bool, error) {
+		return true, ge.handleBeastSamuraiDiscardSelections(pid, []int{idx}, choiceCtxAsInterfaceMap(ctx))
+	}, func(ge *GameEngine, pid string, sels []int) error {
+		return ge.handleBeastSamuraiDiscardSelections(pid, sels, nil)
+	})
+
 	regSpecExtractChoice(reg, (*GameEngine).buildSystemChoicePrompt, (*GameEngine).handleExtractChoiceSelections, (*GameEngine).cancelExtractChoice)
 
 	regSpecSingleAndCancel(reg, "hom_dual_echo_target", (*GameEngine).buildTargetChoicePrompt, (*GameEngine).handleWarHomunculusChoiceInput, (*GameEngine).cancelHomDualEchoChoice)
@@ -198,16 +238,43 @@ func bootstrapChoiceSpecs(e *GameEngine) {
 	regSpecSingleAndMulti(reg, "ss_recall_pick", (*GameEngine).buildSoulSorcererChoicePrompt, (*GameEngine).handleSoulSorcererChoiceInput, (*GameEngine).handleSoulRecallSelections)
 
 	regSpecSingleAndMulti(reg, "adventurer_fraud_pick", (*GameEngine).buildAdventurerChoicePrompt, (*GameEngine).handleAdventurerChoiceInput, (*GameEngine).handleAdventurerFraudPickSelections)
-	regSpecSingleAndCancel(reg, "elementalist_bonus_card", (*GameEngine).buildElementalistChoicePrompt, (*GameEngine).handleElementalistChoiceInput, (*GameEngine).cancelElementalistBonusCardChoice)
-	regSpecSingleAndCancel(reg, "valkyrie_heroic_discard_card", (*GameEngine).buildValkyrieChoicePrompt, (*GameEngine).handleValkyrieChoiceInput, (*GameEngine).cancelValkyrieHeroicDiscardChoice)
-	regSpecSingleAndCancel(reg, "elf_elemental_shot_cost", (*GameEngine).buildElfArcherChoicePrompt, (*GameEngine).handleElfArcherChoiceInput, (*GameEngine).cancelElfElementalShotCostChoice)
-	regSpecSingleAndCancel(reg, "plague_death_touch_element", (*GameEngine).buildPlagueMageChoicePrompt, (*GameEngine).handlePlagueMageChoiceInput, (*GameEngine).cancelPlagueDeathTouchChoice)
-	regSpecSingleAndCancel(reg, "plague_death_touch_x", (*GameEngine).buildPlagueMageChoicePrompt, (*GameEngine).handlePlagueMageChoiceInput, (*GameEngine).cancelPlagueDeathTouchChoice)
-	regSpecSingleAndCancel(reg, "plague_death_touch_y", (*GameEngine).buildPlagueMageChoicePrompt, (*GameEngine).handlePlagueMageChoiceInput, (*GameEngine).cancelPlagueDeathTouchChoice)
-	regSpecSingleAndMultiAndCancel(reg, "plague_death_touch_cards", (*GameEngine).buildPlagueMageChoicePrompt, (*GameEngine).handlePlagueMageChoiceInput, func(ge *GameEngine, pid string, sels []int) error {
+	regSpecSingleAndCancel(reg, "valkyrie_heroic_discard_card", roleBuildPrompt("valkyrie"), roleSelect("valkyrie"), roleCancel("valkyrie"))
+	regSpecSingleAndCancel(reg, "elf_elemental_shot_cost", roleBuildPrompt("elf_archer"), roleSelect("elf_archer"), roleCancel("elf_archer"))
+	regSpecSingleAndCancel(reg, "plague_death_touch_element", roleBuildPrompt("plague_mage"), roleSelect("plague_mage"), roleCancel("plague_mage"))
+	regSpecSingleAndCancel(reg, "plague_death_touch_x", roleBuildPrompt("plague_mage"), roleSelect("plague_mage"), roleCancel("plague_mage"))
+	regSpecSingleAndCancel(reg, "plague_death_touch_y", roleBuildPrompt("plague_mage"), roleSelect("plague_mage"), roleCancel("plague_mage"))
+	regSpecSingleAndMultiAndCancel(reg, "plague_death_touch_cards", roleBuildPrompt("plague_mage"), roleSelect("plague_mage"), func(ge *GameEngine, pid string, sels []int) error {
 		return ge.runSequentialChoiceSelections(pid, "plague_death_touch_cards", sels)
-	}, (*GameEngine).cancelPlagueDeathTouchChoice)
-	regSpecSingleAndCancel(reg, "plague_death_touch_target", (*GameEngine).buildPlagueMageChoicePrompt, (*GameEngine).handlePlagueMageChoiceInput, (*GameEngine).cancelPlagueDeathTouchChoice)
+	}, roleCancel("plague_mage"))
+	regSpecSingleAndCancel(reg, "plague_death_touch_target", roleBuildPrompt("plague_mage"), roleSelect("plague_mage"), roleCancel("plague_mage"))
 
 	e.bootstrapChoiceSpecsFromCatalog(reg)
+}
+
+// roleBuildPrompt creates a build-prompt callback that delegates to the player/<role>/choices.go via RoleEntry registry.
+func roleBuildPrompt(roleID string) func(*GameEngine, string, string, *model.Player, map[string]any) *model.Prompt {
+	return func(ge *GameEngine, ct, pid string, pl *model.Player, data map[string]any) *model.Prompt {
+		return ge.buildRoleChoicePrompt(roleID, ct, pid, pl, choiceCtxAsInterfaceMap(data))
+	}
+}
+
+// roleSelect creates a select callback that delegates to the player/<role>/choices.go via RoleEntry registry.
+func roleSelect(roleID string) func(*GameEngine, string, int, map[string]any) (bool, error) {
+	return func(ge *GameEngine, pid string, idx int, ctx map[string]any) (bool, error) {
+		return ge.handleRoleChoiceInput(roleID, pid, idx, choiceCtxAsInterfaceMap(ctx))
+	}
+}
+
+// roleCancel creates a cancel callback that delegates to the player/<role>/choices.go via RoleEntry registry.
+func roleCancel(roleID string) func(*GameEngine, string) error {
+	return func(ge *GameEngine, pid string) error {
+		_, err := roleCancelWithContext(roleID)(ge, pid, nil)
+		return err
+	}
+}
+
+func roleCancelWithContext(roleID string) func(*GameEngine, string, map[string]any) (bool, error) {
+	return func(ge *GameEngine, pid string, ctx map[string]any) (bool, error) {
+		return ge.handleRoleChoiceCancel(roleID, pid, choiceCtxAsInterfaceMap(ctx))
+	}
 }

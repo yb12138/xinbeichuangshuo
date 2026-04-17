@@ -284,7 +284,7 @@ func TestMagicBowCharge_DiscardFirstThenChooseX(t *testing.T) {
 	}
 
 	// 新规则：先弃到4张，再让玩家选择X。
-	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptDiscard {
+	if game.State.PendingInterrupt == nil || !isDiscardSelectionInterrupt(game.State.PendingInterrupt) {
 		t.Fatalf("expected discard interrupt first, got %+v", game.State.PendingInterrupt)
 	}
 	data, _ := game.State.PendingInterrupt.Context.(map[string]interface{})
@@ -352,7 +352,7 @@ func TestMagicBowCharge_DrawOverflowMoraleLossWithoutDiscard(t *testing.T) {
 	if game.State.PendingInterrupt == nil || choiceTypeOfInterrupt(game.State.PendingInterrupt) != "mb_charge_place_count" {
 		t.Fatalf("expected enter place-count choice after draw, got %+v", game.State.PendingInterrupt)
 	}
-	if game.State.PendingInterrupt.Type == model.InterruptDiscard {
+	if isDiscardSelectionInterrupt(game.State.PendingInterrupt) {
 		t.Fatalf("should not open discard interrupt after charge overflow draw")
 	}
 
@@ -825,7 +825,7 @@ func TestMagicBowDemonEye_TargetDiscardsThenUserCharges(t *testing.T) {
 	if err := game.UseSkill("p1", "mb_demon_eye", []string{"p2"}, nil); err != nil {
 		t.Fatalf("use demon eye with target discard branch failed: %v", err)
 	}
-	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptDiscard || game.State.PendingInterrupt.PlayerID != "p2" {
+	if game.State.PendingInterrupt == nil || !isDiscardSelectionInterrupt(game.State.PendingInterrupt) || game.State.PendingInterrupt.PlayerID != "p2" {
 		t.Fatalf("expected demon eye force target discard interrupt, got %+v", game.State.PendingInterrupt)
 	}
 	if err := game.ConfirmDiscard("p2", []int{1}); err != nil {

@@ -188,7 +188,7 @@ func TestCrimsonKnightHotForm_DamageOverflowNoMoraleLoss(t *testing.T) {
 		Type:      model.CmdRespond,
 		ExtraArgs: []string{"take"},
 	})
-	if g.State.PendingInterrupt == nil || g.State.PendingInterrupt.Type != model.InterruptDiscard {
+	if g.State.PendingInterrupt == nil || !isDiscardSelectionInterrupt(g.State.PendingInterrupt) {
 		t.Fatalf("expected overflow discard interrupt, got %+v", g.State.PendingInterrupt)
 	}
 	data, _ := g.State.PendingInterrupt.Context.(map[string]interface{})
@@ -269,7 +269,7 @@ func TestHomRuneReforge_ReallocateAndOverflowCheckOnTurnEnd(t *testing.T) {
 	if got := p1.Form; got != "" {
 		t.Fatalf("expected burst form cleared at turn end, got %q", got)
 	}
-	if g.State.PendingInterrupt == nil || g.State.PendingInterrupt.Type != model.InterruptDiscard {
+	if g.State.PendingInterrupt == nil || !isDiscardSelectionInterrupt(g.State.PendingInterrupt) {
 		t.Fatalf("expected discard interrupt after form ends overflow, got %+v", g.State.PendingInterrupt)
 	}
 	data, _ := g.State.PendingInterrupt.Context.(map[string]interface{})
@@ -599,7 +599,7 @@ func TestHomDualEcho_NoMoraleDamageStillOverflowsAndDoesNotDropMorale(t *testing
 	if paused := g.processPendingDamages(); !paused {
 		t.Fatalf("expected overflow discard interrupt from full no-morale damage")
 	}
-	if g.State.PendingInterrupt == nil || g.State.PendingInterrupt.Type != model.InterruptDiscard {
+	if g.State.PendingInterrupt == nil || !isDiscardSelectionInterrupt(g.State.PendingInterrupt) {
 		t.Fatalf("expected discard interrupt after dual echo overflow, got %+v", g.State.PendingInterrupt)
 	}
 	data, _ := g.State.PendingInterrupt.Context.(map[string]interface{})

@@ -169,15 +169,16 @@ func (h *BeastSamuraiBeastSoulAlertHandler) Execute(ctx *model.Context) error {
 		return nil
 	}
 	ctx.Game.PushInterrupt(&model.Interrupt{
-		Type:     model.InterruptDiscard,
+		Type:     model.InterruptChoice,
 		PlayerID: actor.ID,
 		Context: map[string]interface{}{
-			"choice_type":   "bs_alert_source_discard",
-			"user_id":       ctx.User.ID,
-			"actor_id":      actor.ID,
-			"discard_count": 1,
-			"prompt":        "【兽魂警戒】请选择并展示弃置1张手牌：",
-			"resume_phase":  beastSamuraiResumePhase(ctx),
+			"choice_type":     "bs_alert_source_discard",
+			"discard_subflow": true,
+			"user_id":         ctx.User.ID,
+			"actor_id":        actor.ID,
+			"discard_count":   1,
+			"prompt":          "【兽魂警戒】请选择并展示弃置1张手牌：",
+			"resume_phase":    beastSamuraiResumePhase(ctx),
 		},
 	})
 	return nil

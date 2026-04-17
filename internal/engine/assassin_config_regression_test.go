@@ -73,7 +73,7 @@ func TestAssassinWaterShadow_InterruptsNormalDrawAndPublicReveal(t *testing.T) {
 
 	requireResponseSkillPrompt(t, game, "p1")
 	chooseResponseSkillByID(t, game, "p1", "water_shadow")
-	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptDiscard {
+	if game.State.PendingInterrupt == nil || !isDiscardSelectionInterrupt(game.State.PendingInterrupt) {
 		t.Fatalf("expected discard interrupt for water shadow, got %+v", game.State.PendingInterrupt)
 	}
 
@@ -136,7 +136,7 @@ func TestAssassinStealth_DrawChoiceDelaysStealthUntilDrawResolves(t *testing.T) 
 	}
 
 	chooseResponseSkillByID(t, game, "p1", "water_shadow")
-	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptDiscard {
+	if game.State.PendingInterrupt == nil || !isDiscardSelectionInterrupt(game.State.PendingInterrupt) {
 		t.Fatalf("expected discard interrupt after choosing water shadow, got %+v", game.State.PendingInterrupt)
 	}
 
@@ -211,7 +211,7 @@ func TestAssassinStealth_HandLimitMinusOneAndReleasesNextStartup(t *testing.T) {
 	if got := game.GetMaxHand(p1); got != 5 {
 		t.Fatalf("expected stealth to reduce max hand to 5, got %d", got)
 	}
-	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptDiscard {
+	if game.State.PendingInterrupt == nil || !isDiscardSelectionInterrupt(game.State.PendingInterrupt) {
 		t.Fatalf("expected overflow discard after entering stealth with 6 cards, got %+v", game.State.PendingInterrupt)
 	}
 

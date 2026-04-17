@@ -367,7 +367,7 @@ func TestHolyBow_HolyShardStormMiss_NoBranch(t *testing.T) {
 	if got := p1.TurnState.SkillFlowState["hb_shard_miss_pending"]; got != 0 {
 		t.Fatalf("expected shard_miss_pending cleared, got %d", got)
 	}
-	if game.State.PendingInterrupt != nil && game.State.PendingInterrupt.Type == model.InterruptDiscard {
+	if game.State.PendingInterrupt != nil && isDiscardSelectionInterrupt(game.State.PendingInterrupt) {
 		t.Fatalf("did not expect discard interrupt on miss-no branch")
 	}
 }
@@ -515,7 +515,7 @@ func TestHolyBow_HolyShardStormMiss_YesBranch(t *testing.T) {
 		Selections: []int{0}, // 指定 ally
 	})
 
-	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptDiscard || game.State.PendingInterrupt.PlayerID != "p3" {
+	if game.State.PendingInterrupt == nil || !isDiscardSelectionInterrupt(game.State.PendingInterrupt) || game.State.PendingInterrupt.PlayerID != "p3" {
 		t.Fatalf("expected ally discard interrupt for p3, got %+v", game.State.PendingInterrupt)
 	}
 	mustHandleAction(t, game, model.PlayerAction{

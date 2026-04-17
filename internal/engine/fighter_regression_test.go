@@ -156,7 +156,7 @@ func TestFighterChargeStrike_ShieldBlockAfterPendingDamageCountsAsMiss(t *testin
 			SourceID: "p2",
 			Mode:     model.FieldEffect,
 			Effect:   model.EffectShield,
-			Hook: model.FieldHookOnDamaged,
+			Hook:     model.FieldHookOnDamaged,
 			Duration: 1,
 		},
 	}
@@ -670,7 +670,7 @@ func TestFighterWarGodDrive_DiscardToThreeAndHeal(t *testing.T) {
 	if err := game.ConfirmStartupSkill("p1", "fighter_war_god_drive"); err != nil {
 		t.Fatalf("confirm fighter_war_god_drive failed: %v", err)
 	}
-	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptDiscard {
+	if game.State.PendingInterrupt == nil || !isDiscardSelectionInterrupt(game.State.PendingInterrupt) {
 		t.Fatalf("expected discard interrupt for war_god_drive followup")
 	}
 

@@ -262,7 +262,7 @@ func (e *GameEngine) driveActionSelectionPhase(currentPid string, player *model.
 }
 
 func (e *GameEngine) driveDiscardSelectionPhase() driveOutcome {
-	if e.State.PendingInterrupt == nil || !isDiscardSelectionInterruptType(e.State.PendingInterrupt.Type) {
+	if e.State.PendingInterrupt == nil || !isDiscardSelectionInterrupt(e.State.PendingInterrupt) {
 		return driveUnhandled
 	}
 	return driveStop

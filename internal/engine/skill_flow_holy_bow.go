@@ -434,7 +434,7 @@ func (e *GameEngine) handleHolyBowChoiceInputByTypeLegacy(selectionIndex int, ct
 		discardNeed := xValue
 		e.Log(fmt.Sprintf("%s 的 [圣屑飓暴] 未命中分支生效：移除%d点治疗，指定 %s 弃置%d张手牌", user.Name, xValue, target.Name, discardNeed))
 		e.PopInterrupt()
-		e.PushInterrupt(&model.Interrupt{Type: model.InterruptDiscard, PlayerID: target.ID, Context: map[string]interface{}{"discard_count": discardNeed, "prompt": fmt.Sprintf("【圣屑飓暴】请弃置%d张手牌：", discardNeed), "stay_in_turn": true, "is_damage_resolution": true}})
+		e.PushInterrupt(newDiscardChoiceInterrupt(target.ID, map[string]interface{}{"discard_count": discardNeed, "prompt": fmt.Sprintf("【圣屑飓暴】请弃置%d张手牌：", discardNeed), "stay_in_turn": true, "is_damage_resolution": true}))
 		return true, nil
 
 	case "hb_radiant_descent_cost":

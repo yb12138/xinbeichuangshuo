@@ -37,16 +37,12 @@ func (e *GameEngine) handleHolySwordDrawResponse(act model.PlayerAction) error {
 
 	e.DrawCards(player.ID, x)
 	e.Log(fmt.Sprintf("[Skill] %s 摸了 %d 张牌", player.Name, x))
-	e.PushInterrupt(&model.Interrupt{
-		Type:     model.InterruptDiscard,
-		PlayerID: player.ID,
-		Context: map[string]interface{}{
-			"discard_count":        x,
-			"is_holy_sword":        true,
-			"stay_in_turn":         true,
-			"is_damage_resolution": false,
-		},
-	})
+	e.PushInterrupt(newDiscardChoiceInterrupt(player.ID, map[string]interface{}{
+		"discard_count":        x,
+		"is_holy_sword":        true,
+		"stay_in_turn":         true,
+		"is_damage_resolution": false,
+	}))
 	e.Log(fmt.Sprintf("[Skill] %s 需要弃 %d 张牌", player.Name, x))
 	return nil
 }

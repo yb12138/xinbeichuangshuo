@@ -165,6 +165,10 @@ func (e *GameEngine) applyRoleDefaults(player *model.Player) {
 	if player.Tokens == nil {
 		player.Tokens = map[string]int{}
 	}
+	if entry := roleRegistry.Entry(player.Character.ID); entry.ID != "" && entry.Defaults != nil {
+		entry.ApplyDefaults(player)
+		return
+	}
 	if cfg, ok := roleDefaultConfigs[player.Character.ID]; ok {
 		cfg.apply(player)
 	}

@@ -12,21 +12,47 @@ import (
 
 // ConfirmDiscard 确认执行弃牌。
 func (e *GameEngine) ConfirmDiscard(playerID string, indices []int) error {
-	if e.State.PendingInterrupt == nil || e.State.PendingInterrupt.Type != model.InterruptDiscard {
-		return fmt.Errorf("当前没有待处理的弃牌操作")
+	data, err := e.pendingDiscardContext()
+	if err != nil {
+		return err
 	}
-
-	data, _ := e.State.PendingInterrupt.Context.(map[string]interface{})
 	skillID, hasSkillID := data["skill_id"].(string)
 
-	if handled, err := e.handleBeastSamuraiDiscardInput(playerID, indices); handled || err != nil {
-		return err
+	choiceType, _ := data["choice_type"].(string)
+	if isBeastSamuraiDiscardChoiceType(choiceType) {
+		return e.handleBeastSamuraiDiscardSelections(playerID, indices, data)
+	}
+
+	if e.State.PendingInterrupt == nil {
+		return fmt.Errorf("当前没有待处理的弃牌操作")
+	}
+	if e.State.PendingInterrupt.PlayerID != "" && e.State.PendingInterrupt.PlayerID != playerID {
+		return fmt.Errorf("当前不是你的弃牌回合")
 	}
 
 	if hasSkillID && skillID != "" {
 		return e.handleSkillDiscardSelection(playerID, indices, data)
 	}
 
+	return e.handleDiscardSelection(playerID, indices, data)
+}
+
+func (e *GameEngine) confirmDiscardChoiceSelections(playerID string, indices []int, data map[string]interface{}) error {
+	if data == nil {
+		var err error
+		data, err = e.pendingDiscardContext()
+		if err != nil {
+			return err
+		}
+	}
+	skillID, hasSkillID := data["skill_id"].(string)
+	choiceType, _ := data["choice_type"].(string)
+	if isBeastSamuraiDiscardChoiceType(choiceType) {
+		return e.handleBeastSamuraiDiscardSelections(playerID, indices, data)
+	}
+	if hasSkillID && skillID != "" {
+		return e.handleSkillDiscardSelection(playerID, indices, data)
+	}
 	return e.handleDiscardSelection(playerID, indices, data)
 }
 

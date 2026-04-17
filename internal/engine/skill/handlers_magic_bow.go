@@ -308,14 +308,16 @@ func (h *MagicBowChargeHandler) Execute(ctx *model.Context) error {
 	}
 	if discardNeed > 0 {
 		ctx.Game.PushInterrupt(&model.Interrupt{
-			Type:     model.InterruptDiscard,
+			Type:     model.InterruptChoice,
 			PlayerID: ctx.User.ID,
 			Context: map[string]interface{}{
-				"skill_id": "mb_charge_followup_discard",
-				"user_ctx": ctx,
-				"min":      discardNeed,
-				"max":      discardNeed,
-				"prompt":   fmt.Sprintf("【充能】请先弃置%d张手牌至4张：", discardNeed),
+				"choice_type":     "system_discard_cards",
+				"discard_subflow": true,
+				"skill_id":        "mb_charge_followup_discard",
+				"user_ctx":        ctx,
+				"min":             discardNeed,
+				"max":             discardNeed,
+				"prompt":          fmt.Sprintf("【充能】请先弃置%d张手牌至4张：", discardNeed),
 			},
 		})
 		ctx.Game.Log(fmt.Sprintf("%s 发动 [充能]：先弃至4张，再选择摸牌数量X（0~4）", ctx.User.Name))
@@ -370,9 +372,11 @@ func (h *MagicBowDemonEyeHandler) Execute(ctx *model.Context) error {
 	if ctx.Target != nil {
 		if len(ctx.Target.Hand) > 0 {
 			ctx.Game.PushInterrupt(&model.Interrupt{
-				Type:     model.InterruptDiscard,
+				Type:     model.InterruptChoice,
 				PlayerID: ctx.Target.ID,
 				Context: map[string]interface{}{
+					"choice_type":            "system_discard_cards",
+					"discard_subflow":        true,
 					"discard_count":          1,
 					"prompt":                 "【魔眼】请选择弃置1张手牌：",
 					"mb_demon_eye_user_id":   ctx.User.ID,

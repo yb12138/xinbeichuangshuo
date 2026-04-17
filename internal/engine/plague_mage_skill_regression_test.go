@@ -59,7 +59,7 @@ func TestPlagueOutbreak_UsesTurnEndRewardInsteadOfImmediateHeal(t *testing.T) {
 	if p1.Heal != 1 {
 		t.Fatalf("expected outbreak to gain only immortal heal during action resolution, got %d", p1.Heal)
 	}
-	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptDiscard || game.State.PendingInterrupt.PlayerID != "p2" {
+	if game.State.PendingInterrupt == nil || !isDiscardSelectionInterrupt(game.State.PendingInterrupt) || game.State.PendingInterrupt.PlayerID != "p2" {
 		t.Fatalf("expected target overflow discard after outbreak damage, got %+v", game.State.PendingInterrupt)
 	}
 

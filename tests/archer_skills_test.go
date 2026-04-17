@@ -64,8 +64,11 @@ func TestArcher_Skills(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("确认贯穿射击失败: %v", err)
 		}
-		if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptDiscard {
+		if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptChoice {
 			t.Fatalf("预期进入贯穿射击弃牌中断，实际: %+v", game.State.PendingInterrupt)
+		}
+		if ctxData, ok := game.State.PendingInterrupt.Context.(map[string]interface{}); !ok || ctxData["choice_type"] != "system_discard_cards" {
+			t.Fatalf("预期进入 system_discard_cards 中断，实际: %+v", game.State.PendingInterrupt)
 		}
 		if err := game.HandleAction(model.PlayerAction{
 			PlayerID:   "p1",

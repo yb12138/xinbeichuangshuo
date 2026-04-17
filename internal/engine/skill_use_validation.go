@@ -17,18 +17,14 @@ func (e *GameEngine) maybeRequestSkillDiscardSelection(use *skillUseRequest) (bo
 		return false, fmt.Errorf("手牌不足：发动 [%s] 需要弃置 %d 张牌", use.skillDef.Title, use.requiredDiscards)
 	}
 
-	e.State.PendingInterrupt = &model.Interrupt{
-		Type:     model.InterruptDiscard,
-		PlayerID: use.player.ID,
-		SkillIDs: []string{use.skillID},
-		Context: map[string]interface{}{
-			"discard_count": use.requiredDiscards,
-			"skill_id":      use.skillID,
-			"target_ids":    use.targetIDs,
-			"resume_phase":  e.currentChoiceResumePoint(),
-		},
-	}
-	e.enterDiscardSelection()
+	e.State.PendingInterrupt = newDiscardChoiceInterrupt(use.player.ID, map[string]interface{}{
+		"discard_count": use.requiredDiscards,
+		"skill_id":      use.skillID,
+		"target_ids":    use.targetIDs,
+		"resume_phase":  e.currentChoiceResumePoint(),
+	})
+	e.State.PendingInterrupt.SkillIDs = []string{use.skillID}
+	e.syncGamePhaseWithInterrupt(e.State.PendingInterrupt)
 	e.Log(fmt.Sprintf("%s 请选择用于发动 [%s] 的卡牌", use.player.Name, use.skillDef.Title))
 	return true, nil
 }
@@ -73,8 +69,8 @@ func (e *GameEngine) validateSkillDiscardSelection(use *skillUseRequest) error {
 	}
 	use.discardedCards = discardedCards
 
-	if use.policy.validateDiscardedCards != nil {
-		if err := use.policy.validateDiscardedCards(use); err != nil {
+	if use.policy.ValidateDiscardedCards != nil {
+		if err := use.policy.ValidateDiscardedCards(use.policyContext()); err != nil {
 			return err
 		}
 	}
@@ -83,7 +79,7 @@ func (e *GameEngine) validateSkillDiscardSelection(use *skillUseRequest) error {
 		if use.player.Character == nil || use.player.Character.ID == "" {
 			return fmt.Errorf("角色信息缺失，无法校验独有牌")
 		}
-		if use.policy.manualExclusiveCard {
+		if use.policy.ManualExclusiveCard {
 			if !use.player.HasExclusiveCard(use.player.Character.ID, use.skillDef.Title) {
 				return fmt.Errorf("未找到技能 [%s] 对应的专属技能卡", use.skillDef.Title)
 			}
@@ -152,7 +148,7 @@ func (e *GameEngine) resolveSkillTargets(use *skillUseRequest) error {
 	use.target = nil
 
 	if use.skillDef.TargetType == model.TargetNone {
-		return use.policy.targetRules.validate(use)
+		return validateTargetRules(use.policy.TargetRules, use)
 	}
 
 	actualTargets := make([]*model.Player, 0, len(use.targetIDs))
@@ -176,7 +172,7 @@ func (e *GameEngine) resolveSkillTargets(use *skillUseRequest) error {
 	if err := validateTargetTypeConstraints(use); err != nil {
 		return err
 	}
-	return use.policy.targetRules.validate(use)
+	return validateTargetRules(use.policy.TargetRules, use)
 }
 
 func (e *GameEngine) validateSkillFieldPlacement(use *skillUseRequest) error {

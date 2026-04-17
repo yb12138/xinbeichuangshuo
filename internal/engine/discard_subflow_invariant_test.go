@@ -20,7 +20,14 @@ func TestEnterDiscardSelection_RequiresMatchingPendingInterrupt(t *testing.T) {
 		t.Fatalf("expected subflow none for non-discard interrupt, got %s", game.State.Subflow)
 	}
 
-	game.State.PendingInterrupt = &model.Interrupt{Type: model.InterruptDiscard, PlayerID: "p1"}
+	game.State.PendingInterrupt = &model.Interrupt{
+		Type:     model.InterruptChoice,
+		PlayerID: "p1",
+		Context: map[string]interface{}{
+			"choice_type":     choiceTypeSystemDiscardCards,
+			"discard_subflow": true,
+		},
+	}
 	game.enterDiscardSelection()
 	if game.State.Subflow != model.SubflowDiscardSelection {
 		t.Fatalf("expected discard-selection subflow, got %s", game.State.Subflow)
@@ -40,7 +47,14 @@ func TestIsDiscardSelectionActive_RequiresLifecycleConsistency(t *testing.T) {
 		t.Fatal("expected inactive discard selection for non-discard interrupt")
 	}
 
-	game.State.PendingInterrupt = &model.Interrupt{Type: model.InterruptDiscard, PlayerID: "p1"}
+	game.State.PendingInterrupt = &model.Interrupt{
+		Type:     model.InterruptChoice,
+		PlayerID: "p1",
+		Context: map[string]interface{}{
+			"choice_type":     choiceTypeSystemDiscardCards,
+			"discard_subflow": true,
+		},
+	}
 	if !game.isDiscardSelectionActive() {
 		t.Fatal("expected active discard selection with matching discard interrupt")
 	}
@@ -48,7 +62,14 @@ func TestIsDiscardSelectionActive_RequiresLifecycleConsistency(t *testing.T) {
 
 func TestPopInterrupt_ClearsDiscardSelectionSubflow(t *testing.T) {
 	game := NewGameEngine(nil)
-	game.State.PendingInterrupt = &model.Interrupt{Type: model.InterruptDiscard, PlayerID: "p1"}
+	game.State.PendingInterrupt = &model.Interrupt{
+		Type:     model.InterruptChoice,
+		PlayerID: "p1",
+		Context: map[string]interface{}{
+			"choice_type":     choiceTypeSystemDiscardCards,
+			"discard_subflow": true,
+		},
+	}
 	game.enterDiscardSelection()
 
 	game.PopInterrupt()

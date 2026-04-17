@@ -72,7 +72,7 @@
 | **【卡牌与状态流转钩子】** | | | |
 | `TimingBeforeCardDrawn` | 摸牌动作发生前 | **拦截点**：用于修改摸牌数或劫持为弃牌（如暗杀者水影）。 | `Timings` 包含 `TimingBeforeCardDrawn` |
 | `TimingOnCardDrawn` | 摸牌动作完成后 | 结算点：用于触发摸牌后的伴生效果。 | `Timings` 包含 `TimingOnCardDrawn` |
-| `TimingOnCardDiscarded` | 弃牌动作完成后 | 系统传入弃掉的卡牌数组，用于判断是否触发额外技能。 | 由 `InterruptDiscard/Choose` 流程承载（无统一枚举） |
+| `TimingOnCardDiscarded` | 弃牌动作完成后 | 系统传入弃掉的卡牌数组，用于判断是否触发额外技能。 | 由 `InterruptChoice + choice_type` 流程承载（统一选择主通路） |
 | `TimingOnHealOverflow` | 获得治疗且超出自身上限时 | 专用于处理溢出转化机制。 | 在 `Heal`/上限校验逻辑中处理（无统一枚举） |
 | `TimingOnCardPlayedOrRevealed` | 打出或展示卡牌时 | 如封印、冰霜祷言等。 | `Timings` 包含 `TimingOnCardPlayedOrRevealed` |
 | `TimingOnFieldMarkChanged`| 基础效果/场上盖牌发生改变时| **高复用点**：系统传入行为是`Placed`还是`Removed`。 | `Timings` 包含 `TimingOnFieldMarkChanged` |
@@ -497,4 +497,3 @@ type EffectNode struct {
 | 凋零 | 响应技 | `ActionExecution` | `CombatHitCheck/CombatDraw（依技能插入点）` | `TimingActive（或引擎内部派发）` | `EffectDamage + EffectAddToken` | 你每次移除茧时，若该茧为法术牌，可展示并发动：对目标造成1点法术伤害，再对自己造成2点法术伤害；直到你下回合开始前，对方士气最低为1。 |
 | 蛹化 | 主动技 | `ActionExecution` | `不固定/非战斗专属` | `TimingActive` | `EffectAddToken + EffectPlaceStatus` | ［宝石］你+1蛹，并将牌库顶4张牌面朝下放置为茧。 |
 | 倒逆之蝶 | 主动技 | `ActionExecution` | `不固定/非战斗专属` | `TimingActive` | `EffectDamage + EffectHeal + EffectDiscard + EffectAddToken` | ［水晶］你弃2张牌（不足则全弃），再二选一：①对目标造成1点不可用治疗抵御的法术伤害；②移除2个茧或对自己造成4点法术伤害，然后移除1个蛹。 |
-

@@ -6,6 +6,7 @@ angel_bond_heal_target
 arbiter_balance_mode
 assassin_stealth_draw
 basic_effect_pick
+system_discard_cards
 bd_descent_cards
 bd_descent_element
 bd_descent_target

@@ -397,10 +397,10 @@ func (e *GameEngine) handleMagicBowChoiceInput(_ string, selectionIndex int, ctx
 				return true, fmt.Errorf("魔眼不能以自己为目标")
 			}
 			if len(target.Hand) > 0 {
-				e.State.PendingInterrupt.Type = model.InterruptDiscard
+				e.State.PendingInterrupt.Type = model.InterruptChoice
 				e.State.PendingInterrupt.PlayerID = targetID
-				e.State.PendingInterrupt.Context = map[string]interface{}{"discard_count": 1, "prompt": "【魔眼】请选择弃置1张手牌：", "mb_demon_eye_user_id": user.ID, "mb_demon_eye_target_id": targetID}
-				e.enterDiscardSelection()
+				e.State.PendingInterrupt.Context = normalizeDiscardChoiceContext(map[string]interface{}{"discard_count": 1, "prompt": "【魔眼】请选择弃置1张手牌：", "mb_demon_eye_user_id": user.ID, "mb_demon_eye_target_id": targetID})
+				e.syncGamePhaseWithInterrupt(e.State.PendingInterrupt)
 				e.Log(fmt.Sprintf("%s 的 [魔眼] 生效：请选择 %s 弃置1张手牌", user.Name, target.Name))
 				e.notifyInterruptPrompt()
 				return true, nil

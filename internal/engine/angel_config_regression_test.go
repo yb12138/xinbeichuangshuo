@@ -421,7 +421,7 @@ func TestAngelBlessing_ReceiverOverHandLimitTriggersOverflowDiscard(t *testing.T
 		t.Fatalf("giver should be able to give 2 cards, got err=%v", err)
 	}
 
-	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptDiscard {
+	if game.State.PendingInterrupt == nil || !isDiscardSelectionInterrupt(game.State.PendingInterrupt) {
 		t.Fatalf("expected overflow discard interrupt for receiver, got %+v", game.State.PendingInterrupt)
 	}
 	if game.State.PendingInterrupt.PlayerID != "p1" {

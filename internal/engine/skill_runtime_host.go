@@ -201,7 +201,7 @@ func dropQueuedOverflowDiscardForPlayer(e *GameEngine, playerID string) {
 	}
 	filtered := make([]*model.Interrupt, 0, len(e.State.InterruptQueue))
 	for _, intr := range e.State.InterruptQueue {
-		if intr == nil || intr.Type != model.InterruptDiscard || intr.PlayerID != playerID {
+		if intr == nil || intr.PlayerID != playerID || !isDiscardSelectionInterrupt(intr) {
 			filtered = append(filtered, intr)
 			continue
 		}

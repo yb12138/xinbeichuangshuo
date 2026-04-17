@@ -163,15 +163,11 @@ func (e *GameEngine) handlePostAttackHitEffects(pd *model.PendingDamage) bool {
 			e.DrawCards(attacker.ID, maxHand-len(attacker.Hand))
 		}
 		if len(attacker.Hand) >= 2 {
-			e.PushInterrupt(&model.Interrupt{
-				Type:     model.InterruptDiscard,
-				PlayerID: attacker.ID,
-				Context: map[string]interface{}{
-					"discard_count": 2,
-					"stay_in_turn":  true,
-					"prompt":        "【黄泉震颤】攻击命中后，请弃置2张牌：",
-				},
-			})
+			e.PushInterrupt(newDiscardChoiceInterrupt(attacker.ID, map[string]interface{}{
+				"discard_count": 2,
+				"stay_in_turn":  true,
+				"prompt":        "【黄泉震颤】攻击命中后，请弃置2张牌：",
+			}))
 			return true
 		}
 	}
@@ -278,15 +274,11 @@ func (e *GameEngine) handlePostDamageResolved(pd *model.PendingDamage) bool {
 			source.TurnState.SkillFlowState["bw_pain_link_pending_hits"] = 0
 			source.TurnState.SkillFlowState["bw_pain_link_pending_discard"] = 0
 			if len(source.Hand) > 3 {
-				e.PushInterrupt(&model.Interrupt{
-					Type:     model.InterruptDiscard,
-					PlayerID: source.ID,
-					Context: map[string]interface{}{
-						"discard_count": len(source.Hand) - 3,
-						"stay_in_turn":  true,
-						"prompt":        "【痛苦链接】请弃牌至3张手牌：",
-					},
-				})
+				e.PushInterrupt(newDiscardChoiceInterrupt(source.ID, map[string]interface{}{
+					"discard_count": len(source.Hand) - 3,
+					"stay_in_turn":  true,
+					"prompt":        "【痛苦链接】请弃牌至3张手牌：",
+				}))
 				_ = e.tryQueueMoonGoddessBlasphemy(pd)
 				return true
 			}
@@ -323,16 +315,12 @@ func (e *GameEngine) handlePostDamageResolved(pd *model.PendingDamage) bool {
 				e.Log(fmt.Sprintf("%s 的 [智慧法典] 触发：能量已满，红宝石未增加", target.Name))
 			}
 			if len(target.Hand) > 0 {
-				e.PushInterrupt(&model.Interrupt{
-					Type:     model.InterruptDiscard,
-					PlayerID: target.ID,
-					Context: map[string]interface{}{
-						"discard_count":        1,
-						"stay_in_turn":         true,
-						"is_damage_resolution": true,
-						"prompt":               "【智慧法典】请选择弃置1张手牌：",
-					},
-				})
+				e.PushInterrupt(newDiscardChoiceInterrupt(target.ID, map[string]interface{}{
+					"discard_count":        1,
+					"stay_in_turn":         true,
+					"is_damage_resolution": true,
+					"prompt":               "【智慧法典】请选择弃置1张手牌：",
+				}))
 				_ = e.tryQueueMoonGoddessBlasphemy(pd)
 				return true
 			}

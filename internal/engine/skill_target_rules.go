@@ -5,79 +5,46 @@ package engine
 import (
 	"fmt"
 	"starcup-engine/internal/model"
+	"starcup-engine/internal/types"
 )
 
-type targetCampRule string
+// 类型别名，保持 engine 包内兼容性。
+type TargetCampRule = types.TargetCampRule
+type TargetSelfRule = types.TargetSelfRule
+type TargetCheckKind = types.TargetCheckKind
+type TargetCountRule = types.TargetCountRule
+type TargetSlotRule = types.TargetSlotRule
+type TargetCheckRule = types.TargetCheckRule
+type TargetRuleSet = types.TargetRuleSet
 
+// 导出常量。
 const (
-	targetCampAny   targetCampRule = "any"
-	targetCampAlly  targetCampRule = "ally"
-	targetCampEnemy targetCampRule = "enemy"
+	TargetCampAny                    = types.TargetCampAny
+	TargetCampAlly                   = types.TargetCampAlly
+	TargetCampEnemy                  = types.TargetCampEnemy
+	TargetSelfAny                    = types.TargetSelfAny
+	TargetSelfOnly                   = types.TargetSelfOnly
+	TargetSelfOther                  = types.TargetSelfOther
+	TargetCheckHasBasicFieldOnTarget = types.TargetCheckHasBasicFieldOnTarget
+	TargetCheckTargetMinHeal         = types.TargetCheckTargetMinHeal
+	TargetCheckAnyBasicFieldWhenNone = types.TargetCheckAnyBasicFieldWhenNone
 )
 
-type targetSelfRule string
-
-const (
-	targetSelfAny   targetSelfRule = "any"
-	targetSelfOnly  targetSelfRule = "self"
-	targetSelfOther targetSelfRule = "other"
-)
-
-type targetCheckKind string
-
-const (
-	targetCheckHasBasicFieldOnTarget targetCheckKind = "has_basic_field_on_target"
-	targetCheckTargetMinHeal         targetCheckKind = "target_min_heal"
-	targetCheckAnyBasicFieldWhenNone targetCheckKind = "any_basic_field_when_none"
-)
-
-type targetCountRule struct {
-	Min int
-	Max int
-	Err string
-}
-
-type targetSlotRule struct {
-	Index int
-	Camp  targetCampRule
-	Self  targetSelfRule
-	Err   string
-}
-
-type targetCheckRule struct {
-	Kind           targetCheckKind
-	Index          int
-	Min            int
-	Err            string
-	WithTargetName bool
-}
-
-type targetRuleSet struct {
-	Count       targetCountRule
-	Distinct    bool
-	DistinctErr string
-	Slots       []targetSlotRule
-	Checks      []targetCheckRule
-}
-
-func (rules targetRuleSet) hasCountOverride() bool {
-	return rules.Count.Min > 0 || rules.Count.Max > 0 || rules.Count.Err != ""
-}
-
-func (rules targetRuleSet) validate(use *skillUseRequest) error {
+// validateTargetRules 校验技能目标规则（独立函数，而非方法）。
+func validateTargetRules(rules TargetRuleSet, use *skillUseRequest) error {
 	if use == nil {
 		return fmt.Errorf("技能目标校验上下文缺失")
 	}
-	if err := rules.validateDistinct(use); err != nil {
+	if err := validateTargetDistinct(rules, use); err != nil {
 		return err
 	}
-	if err := rules.validateSlots(use); err != nil {
+	if err := validateTargetSlots(rules, use); err != nil {
 		return err
 	}
-	return rules.validateChecks(use)
+	return validateTargetChecks(rules, use)
 }
 
-func (rules targetRuleSet) validateDistinct(use *skillUseRequest) error {
+func validateTargetDistinct(rules TargetRuleSet, use *skillUseRequest) error {
 	if !rules.Distinct || len(use.actualTargets) <= 1 {
 		return nil
 	}
@@ -97,7 +64,7 @@ func (rules targetRuleSet) validateDistinct(use *skillUseRequest) error {
 	return nil
 }
 
-func (rules targetRuleSet) validateSlots(use *skillUseRequest) error {
+func validateTargetSlots(rules TargetRuleSet, use *skillUseRequest) error {
 	for _, rule := range rules.Slots {
 		if rule.Index < 0 || rule.Index >= len(use.actualTargets) {
 			continue
@@ -116,10 +83,10 @@ func (rules targetRuleSet) validateSlots(use *skillUseRequest) error {
 	return nil
 }
 
-func (rules targetRuleSet) validateChecks(use *skillUseRequest) error {
+func validateTargetChecks(rules TargetRuleSet, use *skillUseRequest) error {
 	for _, check := range rules.Checks {
 		switch check.Kind {
-		case targetCheckHasBasicFieldOnTarget:
+		case TargetCheckHasBasicFieldOnTarget:
 			if check.Index < 0 || check.Index >= len(use.actualTargets) {
 				continue
 			}
@@ -134,7 +101,7 @@ func (rules targetRuleSet) validateChecks(use *skillUseRequest) error {
 				return fmt.Errorf(check.Err, target.Name)
 			}
 			return fmt.Errorf(check.Err)
-		case targetCheckTargetMinHeal:
+		case TargetCheckTargetMinHeal:
 			if check.Index < 0 || check.Index >= len(use.actualTargets) {
 				continue
 			}
@@ -145,7 +112,7 @@ func (rules targetRuleSet) validateChecks(use *skillUseRequest) error {
 			if target.Heal < check.Min {
 				return fmt.Errorf(check.Err)
 			}
-		case targetCheckAnyBasicFieldWhenNone:
+		case TargetCheckAnyBasicFieldWhenNone:
 			if len(use.actualTargets) > 0 {
 				continue
 			}
@@ -165,26 +132,26 @@ func (rules targetRuleSet) validateChecks(use *skillUseRequest) error {
 	return nil
 }
 
-func matchTargetCamp(user *model.Player, target *model.Player, rule targetCampRule) bool {
+func matchTargetCamp(user *model.Player, target *model.Player, rule TargetCampRule) bool {
 	switch rule {
-	case "", targetCampAny:
+	case "", TargetCampAny:
 		return true
-	case targetCampAlly:
+	case TargetCampAlly:
 		return user != nil && target != nil && target.Camp == user.Camp
-	case targetCampEnemy:
+	case TargetCampEnemy:
 		return user != nil && target != nil && target.Camp != user.Camp
 	default:
 		return false
 	}
 }
 
-func matchTargetSelf(user *model.Player, target *model.Player, rule targetSelfRule) bool {
+func matchTargetSelf(user *model.Player, target *model.Player, rule TargetSelfRule) bool {
 	switch rule {
-	case "", targetSelfAny:
+	case "", TargetSelfAny:
 		return true
-	case targetSelfOnly:
+	case TargetSelfOnly:
 		return user != nil && target != nil && target.ID == user.ID
-	case targetSelfOther:
+	case TargetSelfOther:
 		return user != nil && target != nil && target.ID != user.ID
 	default:
 		return false
@@ -203,10 +170,10 @@ func effectiveTargetCountRange(use *skillUseRequest) (min int, max int, customEr
 		min = 1
 	}
 	max = use.skillDef.MaxTargets
-	if use.policy.targetRules.hasCountOverride() {
-		min = use.policy.targetRules.Count.Min
-		max = use.policy.targetRules.Count.Max
-		customErr = use.policy.targetRules.Count.Err
+	if use.policy.TargetRules.HasCountOverride() {
+		min = use.policy.TargetRules.Count.Min
+		max = use.policy.TargetRules.Count.Max
+		customErr = use.policy.TargetRules.Count.Err
 	}
 	return min, max, customErr
 }

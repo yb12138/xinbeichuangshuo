@@ -121,21 +121,10 @@ func (e *GameEngine) hasFixedMaxHandCap(player *model.Player) bool {
 	if player == nil {
 		return false
 	}
-	if e.isPrayerMaster(player) && hasPrayerMasterPrayerForm(player) {
+	if _, ok := e.roleFixedMaxHandCapValue(player); ok {
 		return true
 	}
-	if e.isMagicLancer(player) && hasMagicLancerPhantomForm(player) {
-		return true
-	}
-	if e.isHero(player) && hasHeroExhaustionForm(player) {
-		return true
-	}
-	for _, fc := range player.Field {
-		if fc != nil && fc.Mode == model.FieldEffect && fc.Effect == model.EffectMercy {
-			return true
-		}
-	}
-	return false
+	return e.hasMercyFixedMaxHandCap(player)
 }
 
 func (e *GameEngine) bloodPriestessSharedLifeDeltaFor(player *model.Player) int {

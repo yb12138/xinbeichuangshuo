@@ -47,7 +47,6 @@ func registerInterruptActionRules(r *intr.ActionRules) {
 	}
 	r.Register(model.InterruptResponseSkill, &intr.ActionRule{Handler: wrap((*GameEngine).handleInterruptResponseSkillAction)})
 	r.Register(model.InterruptStartupSkill, &intr.ActionRule{Handler: wrap((*GameEngine).handleInterruptStartupSkillAction)})
-	r.Register(model.InterruptDiscard, &intr.ActionRule{Handler: wrap((*GameEngine).handleInterruptDiscardAction)})
 	r.Register(model.InterruptGiveCards, &intr.ActionRule{Handler: wrap((*GameEngine).handleInterruptGiveCardsAction)})
 	r.Register(model.InterruptChoice, &intr.ActionRule{Handler: wrap((*GameEngine).handleInterruptChoiceAction)})
 	r.Register(model.InterruptMagicMissile, &intr.ActionRule{
@@ -90,7 +89,6 @@ func registerInterruptPromptRules(r *intr.PromptRules) {
 	}
 	r.Register(model.InterruptResponseSkill, wrap((*GameEngine).buildResponseSkillPrompt))
 	r.Register(model.InterruptStartupSkill, wrap((*GameEngine).buildStartupSkillPrompt))
-	r.Register(model.InterruptDiscard, wrap((*GameEngine).buildDiscardPrompt))
 	r.Register(model.InterruptChoice, wrap((*GameEngine).buildChoicePrompt))
 	r.Register(model.InterruptMagicMissile, wrap((*GameEngine).buildMagicMissilePrompt))
 	r.Register(model.InterruptGiveCards, wrap((*GameEngine).buildGiveCardsPrompt))
@@ -126,7 +124,7 @@ func (e *GameEngine) ReconcileSubflowAfterInterruptPop(popped *model.Interrupt) 
 	if e == nil || e.State == nil {
 		return
 	}
-	if e.State.Subflow == model.SubflowDiscardSelection && !e.hasDiscardSelectionInterrupt() && popped != nil && isDiscardSelectionInterruptType(popped.Type) {
+	if e.State.Subflow == model.SubflowDiscardSelection && !e.hasDiscardSelectionInterrupt() && isDiscardSelectionInterrupt(popped) {
 		e.clearSubflow()
 	}
 }
@@ -139,8 +137,6 @@ func (e *GameEngine) syncGamePhaseWithInterrupt(interrupt *model.Interrupt) {
 	switch interrupt.Type {
 	case model.InterruptResponseSkill:
 		e.enterResponseWindow()
-	case model.InterruptDiscard:
-		e.enterDiscardSelection()
 	case model.InterruptStartupSkill:
 		e.clearSubflow()
 		e.clearCombatStage()
@@ -148,10 +144,14 @@ func (e *GameEngine) syncGamePhaseWithInterrupt(interrupt *model.Interrupt) {
 			e.setTurnStage(model.TurnStageActionStart)
 		}
 	case model.InterruptChoice:
-		e.clearSubflow()
-		e.clearCombatStage()
-		if e.State.TurnStage == "" {
-			e.setTurnStage(model.TurnStageActionExecution)
+		if isDiscardSelectionInterrupt(interrupt) {
+			e.enterDiscardSelection()
+		} else {
+			e.clearSubflow()
+			e.clearCombatStage()
+			if e.State.TurnStage == "" {
+				e.setTurnStage(model.TurnStageActionExecution)
+			}
 		}
 	case model.InterruptMagicMissile:
 		e.enterResponseWindow()

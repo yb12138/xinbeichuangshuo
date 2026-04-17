@@ -4,14 +4,16 @@ package engine
 
 import (
 	"fmt"
+
 	"starcup-engine/internal/model"
+	"starcup-engine/internal/types"
 )
 
 type skillUseRequest struct {
 	engine                *GameEngine
 	player                *model.Player
 	skillDef              *model.SkillDefinition
-	policy                skillUsePolicy
+	policy                SkillPolicy
 	skillID               string
 	targetIDs             []string
 	discardIndices        []int
@@ -30,6 +32,30 @@ func (use *skillUseRequest) resolvedTargetIDs() []string {
 		}
 	}
 	return ids
+}
+
+func (use *skillUseRequest) policyContext() types.PolicyContext {
+	if use == nil {
+		return types.PolicyContext{}
+	}
+	ctx := types.PolicyContext{
+		SkillID:          use.skillID,
+		RequiredDiscards: use.requiredDiscards,
+		DiscardedCards:   append([]model.Card{}, use.discardedCards...),
+		TargetIDs:        append([]string{}, use.targetIDs...),
+	}
+	if use.player != nil {
+		ctx.PlayerID = use.player.ID
+	}
+	if use.skillDef != nil {
+		ctx.SkillDef = *use.skillDef
+	}
+	for _, target := range use.actualTargets {
+		if target != nil {
+			ctx.ActualTargetIDs = append(ctx.ActualTargetIDs, target.ID)
+		}
+	}
+	return ctx
 }
 
 // UseSkill 使用技能
@@ -68,6 +94,24 @@ func (e *GameEngine) UseSkill(playerID, skillID string, targetIDs []string, disc
 
 	use.player.TurnState.UsedSkillCounts[skillID]++
 
+	// 弃牌后如果产生了 PendingDamage（如封印触发），
+	// 推入通用 followup 让 Drive 先结算伤害再恢复 handler.Execute()。
+	if len(e.State.PendingDamageQueue) > 0 {
+		discardedCards := make([]model.Card, len(use.discardedCards))
+		copy(discardedCards, use.discardedCards)
+		e.enqueueDeferredFollowup(model.DeferredFollowup{
+			Type:      followupTypeSkillEffectResume,
+			UserID:    playerID,
+			SkillID:   skillID,
+			TargetIDs: use.resolvedTargetIDs(),
+			Data: map[string]any{
+				"discarded_cards": discardedCards,
+			},
+		})
+		e.routePendingDamageWithDefaultReturn(model.TurnStageExtraAction)
+		return nil
+	}
+
 	if err := e.executeSkillFlow(use); err != nil {
 		return err
 	}
@@ -93,8 +137,14 @@ func (e *GameEngine) prepareSkillUse(playerID, skillID string, targetIDs []strin
 
 	policy := resolveSkillUsePolicy(skillID)
 	requiredDiscards := skillDef.CostDiscards
-	if policy.resolveDiscardCount != nil {
-		requiredDiscards = policy.resolveDiscardCount(player, skillDef)
+	if policy.ResolveDiscardCount != nil {
+		requiredDiscards = policy.ResolveDiscardCount(types.PolicyContext{
+			SkillID:          skillID,
+			PlayerID:         player.ID,
+			SkillDef:         *skillDef,
+			RequiredDiscards: requiredDiscards,
+			TargetIDs:        append([]string{}, targetIDs...),
+		})
 	}
 
 	return &skillUseRequest{

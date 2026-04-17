@@ -1,60 +1,37 @@
 package engine
 
-type choiceRouteKind string
+import "starcup-engine/internal/types"
 
+// ChoiceRouteKind 是 types.ChoiceRouteKind 的别名，保持 engine 包内兼容性。
+type ChoiceRouteKind = types.ChoiceRouteKind
+
+// ChoiceRouteSpec 是 types.ChoiceRouteSpec 的别名。
+type ChoiceRouteSpec = types.ChoiceRouteSpec
+
+// 导出常量（通过别名自动可用）。
 const (
-	choiceRouteKindRole         choiceRouteKind = "role"
-	choiceRouteKindSystem       choiceRouteKind = "system"
-	choiceRouteKindTargetPrompt choiceRouteKind = "target_prompt"
-	choiceRouteKindSpecial      choiceRouteKind = "special"
+	ChoiceRouteKindRole         = types.ChoiceRouteKindRole
+	ChoiceRouteKindSystem       = types.ChoiceRouteKindSystem
+	ChoiceRouteKindTargetPrompt = types.ChoiceRouteKindTargetPrompt
+	ChoiceRouteKindSpecial      = types.ChoiceRouteKindSpecial
 )
 
-// choiceCatalogRouteSpec 定义 choice_type 的路由目的地（角色路由/系统路由/目标路由/特殊路由）。
-type choiceCatalogRouteSpec struct {
-	Kind         choiceRouteKind
-	Role         string
-	TargetPrompt string
-	Special      string
+// ChoiceRouteRole 调用 types 包的构造函数。
+func ChoiceRouteRole(role string) ChoiceRouteSpec {
+	return types.ChoiceRouteRole(role)
 }
 
-func choiceRouteRole(role string) choiceCatalogRouteSpec {
-	return choiceCatalogRouteSpec{
-		Kind: choiceRouteKindRole,
-		Role: role,
-	}
+// ChoiceRouteSystem 调用 types 包的构造函数。
+func ChoiceRouteSystem() ChoiceRouteSpec {
+	return types.ChoiceRouteSystem()
 }
 
-func choiceRouteSystem() choiceCatalogRouteSpec {
-	return choiceCatalogRouteSpec{
-		Kind: choiceRouteKindSystem,
-	}
+// ChoiceRouteTargetPrompt 调用 types 包的构造函数。
+func ChoiceRouteTargetPrompt(route string) ChoiceRouteSpec {
+	return types.ChoiceRouteTargetPrompt(route)
 }
 
-func choiceRouteTargetPrompt(route string) choiceCatalogRouteSpec {
-	return choiceCatalogRouteSpec{
-		Kind:         choiceRouteKindTargetPrompt,
-		TargetPrompt: route,
-	}
-}
-
-func choiceRouteSpecial(special string) choiceCatalogRouteSpec {
-	return choiceCatalogRouteSpec{
-		Kind:    choiceRouteKindSpecial,
-		Special: special,
-	}
-}
-
-func (s choiceCatalogRouteSpec) valid() bool {
-	switch s.Kind {
-	case choiceRouteKindRole:
-		return s.Role != ""
-	case choiceRouteKindSystem:
-		return true
-	case choiceRouteKindTargetPrompt:
-		return s.TargetPrompt != ""
-	case choiceRouteKindSpecial:
-		return s.Special != ""
-	default:
-		return false
-	}
+// ChoiceRouteSpecial 调用 types 包的构造函数。
+func ChoiceRouteSpecial(special string) ChoiceRouteSpec {
+	return types.ChoiceRouteSpecial(special)
 }

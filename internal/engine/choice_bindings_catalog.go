@@ -4,19 +4,9 @@ package engine
 
 import (
 	"fmt"
+
+	"starcup-engine/internal/model"
 )
-
-func selectOnmyoji(ge *GameEngine, _ string, idx int, ctx map[string]any) (bool, error) {
-	return ge.handleOnmyojiChoiceInput(idx, choiceCtxAsInterfaceMap(ctx))
-}
-
-func selectBeast(ge *GameEngine, _ string, idx int, ctx map[string]any) (bool, error) {
-	return ge.handleBeastSamuraiChoiceInput(idx, choiceCtxAsInterfaceMap(ctx))
-}
-
-func selectSealerChoice(ge *GameEngine, _ string, idx int, ctx map[string]any) (bool, error) {
-	return ge.handleSealerChoiceInput("", idx, choiceCtxAsInterfaceMap(ctx))
-}
 
 func systemChoiceSelect(typ string) func(*GameEngine, string, int, map[string]any) (bool, error) {
 	switch typ {
@@ -36,45 +26,13 @@ func systemChoiceSelect(typ string) func(*GameEngine, string, int, map[string]an
 		return func(ge *GameEngine, pid string, idx int, ctx map[string]any) (bool, error) {
 			return true, ge.handleBasicEffectChoiceInput(pid, idx, choiceCtxAsInterfaceMap(ctx))
 		}
+	case choiceTypeSystemDiscardCards:
+		return func(ge *GameEngine, pid string, idx int, _ map[string]any) (bool, error) {
+			return true, ge.handleSystemDiscardChoiceSelections(pid, []int{idx})
+		}
 	default:
 		panic(fmt.Sprintf("choice: systemChoiceSelect unknown type %q", typ))
 	}
-}
-
-func selectChoiceTargetBard(ge *GameEngine, pid string, idx int, ctx map[string]any) (bool, error) {
-	return ge.handleBardChoiceInput(pid, idx, choiceCtxAsInterfaceMap(ctx))
-}
-
-func selectChoiceTargetElf(ge *GameEngine, pid string, idx int, ctx map[string]any) (bool, error) {
-	return ge.handleElfArcherChoiceInput(pid, idx, choiceCtxAsInterfaceMap(ctx))
-}
-
-func selectChoiceTargetPriest(ge *GameEngine, pid string, idx int, ctx map[string]any) (bool, error) {
-	return ge.handlePriestChoiceInput(pid, idx, choiceCtxAsInterfaceMap(ctx))
-}
-
-func selectChoiceTargetOnmyoji(ge *GameEngine, _ string, idx int, ctx map[string]any) (bool, error) {
-	return ge.handleOnmyojiChoiceInput(idx, choiceCtxAsInterfaceMap(ctx))
-}
-
-func selectChoiceTargetMagicBow(ge *GameEngine, pid string, idx int, ctx map[string]any) (bool, error) {
-	return ge.handleMagicBowChoiceInput(pid, idx, choiceCtxAsInterfaceMap(ctx))
-}
-
-func selectChoiceTargetSpiritCaster(ge *GameEngine, pid string, idx int, ctx map[string]any) (bool, error) {
-	return ge.handleSpiritCasterChoiceInput(pid, idx, choiceCtxAsInterfaceMap(ctx))
-}
-
-func selectChoiceTargetMagicLancer(ge *GameEngine, pid string, idx int, ctx map[string]any) (bool, error) {
-	return ge.handleMagicLancerChoiceInput(pid, idx, choiceCtxAsInterfaceMap(ctx))
-}
-
-func selectChoiceTargetSwordEmperor(ge *GameEngine, pid string, idx int, ctx map[string]any) (bool, error) {
-	return ge.handleSwordEmperorChoiceInput(pid, idx, choiceCtxAsInterfaceMap(ctx))
-}
-
-func selectChoiceTargetFighter(ge *GameEngine, pid string, idx int, ctx map[string]any) (bool, error) {
-	return ge.handleFighterChoiceInput(pid, idx, choiceCtxAsInterfaceMap(ctx))
 }
 
 func catalogChoiceBinding(typ string) catalogSpecPlan {
@@ -82,113 +40,80 @@ func catalogChoiceBinding(typ string) catalogSpecPlan {
 	if !ok {
 		panic(fmt.Sprintf("choice catalog: no route spec row for type %q (sync choice_catalog_route_map.go)", typ))
 	}
-	if !spec.valid() {
+	if !spec.Valid() {
 		panic(fmt.Sprintf("choice catalog: invalid route spec for type %q: %+v", typ, spec))
 	}
 	m := multiSequential(typ)
 	switch spec.Kind {
-	case choiceRouteKindSystem:
-		return catalogSpecPlan{(*GameEngine).buildSystemChoicePrompt, systemChoiceSelect(typ), m}
-	case choiceRouteKindSpecial:
+	case ChoiceRouteKindSystem:
+		return catalogSpecPlan{(*GameEngine).buildSystemChoicePrompt, systemChoiceSelect(typ), m, nil}
+	case ChoiceRouteKindSpecial:
 		switch spec.Special {
 		case "five_elements_bind":
-			return catalogSpecPlan{(*GameEngine).buildSealerChoicePrompt, selectSealerChoice, m}
+			return catalogSpecPlan{
+				func(ge *GameEngine, choiceType, playerID string, player *model.Player, data map[string]any) *model.Prompt {
+					return ge.buildRoleChoicePrompt("sealer", choiceType, playerID, player, choiceCtxAsInterfaceMap(data))
+				},
+				func(ge *GameEngine, playerID string, idx int, ctx map[string]any) (bool, error) {
+					return ge.handleRoleChoiceInput("sealer", playerID, idx, choiceCtxAsInterfaceMap(ctx))
+				},
+				m,
+				roleCancelWithContext("sealer"),
+			}
 		default:
 			panic(fmt.Sprintf("choice catalog: unknown special route %q for type %q", spec.Special, typ))
 		}
-	case choiceRouteKindTargetPrompt:
-		switch spec.TargetPrompt {
-		case "bard":
-			return catalogSpecPlan{(*GameEngine).buildTargetChoicePrompt, selectChoiceTargetBard, m}
-		case "elf":
-			return catalogSpecPlan{(*GameEngine).buildTargetChoicePrompt, selectChoiceTargetElf, m}
-		case "priest":
-			return catalogSpecPlan{(*GameEngine).buildTargetChoicePrompt, selectChoiceTargetPriest, m}
-		case "onmyoji":
-			return catalogSpecPlan{(*GameEngine).buildTargetChoicePrompt, selectChoiceTargetOnmyoji, m}
-		case "mb":
-			return catalogSpecPlan{(*GameEngine).buildTargetChoicePrompt, selectChoiceTargetMagicBow, m}
-		case "sc":
-			return catalogSpecPlan{(*GameEngine).buildTargetChoicePrompt, selectChoiceTargetSpiritCaster, m}
-		case "ml":
-			return catalogSpecPlan{(*GameEngine).buildTargetChoicePrompt, selectChoiceTargetMagicLancer, m}
-		case "se":
-			return catalogSpecPlan{(*GameEngine).buildTargetChoicePrompt, selectChoiceTargetSwordEmperor, m}
-		case "fighter":
-			return catalogSpecPlan{(*GameEngine).buildTargetChoicePrompt, selectChoiceTargetFighter, m}
-		default:
-			panic(fmt.Sprintf("choice catalog: unknown target prompt route %q for type %q", spec.TargetPrompt, typ))
+	case ChoiceRouteKindTargetPrompt:
+		// TargetPrompt 路由：build 阶段走通用 target prompt，select 阶段走角色 choice handler
+		roleID := targetPromptRoleID(spec.TargetPrompt)
+		return catalogSpecPlan{
+			(*GameEngine).buildTargetChoicePrompt,
+			func(ge *GameEngine, playerID string, idx int, ctx map[string]any) (bool, error) {
+				return ge.handleRoleChoiceInput(roleID, playerID, idx, choiceCtxAsInterfaceMap(ctx))
+			},
+			m,
+			roleCancelWithContext(roleID),
 		}
-	case choiceRouteKindRole:
-		switch spec.Role {
-		case "angel":
-			return catalogSpecPlan{(*GameEngine).buildAngelChoicePrompt, (*GameEngine).handleAngelChoiceInput, m}
-		case "saintess":
-			return catalogSpecPlan{(*GameEngine).buildSaintessChoicePrompt, (*GameEngine).handleSaintessChoiceInput, m}
-		case "onmyoji":
-			return catalogSpecPlan{(*GameEngine).buildOnmyojiChoicePrompt, selectOnmyoji, m}
-		case "beast":
-			return catalogSpecPlan{(*GameEngine).buildBeastSamuraiChoicePrompt, selectBeast, m}
-		case "sage":
-			return catalogSpecPlan{(*GameEngine).buildSageChoicePrompt, (*GameEngine).handleSageChoiceInput, m}
-		case "adventurer":
-			return catalogSpecPlan{(*GameEngine).buildAdventurerChoicePrompt, (*GameEngine).handleAdventurerChoiceInput, m}
-		case "priest":
-			return catalogSpecPlan{(*GameEngine).buildPriestChoicePrompt, (*GameEngine).handlePriestChoiceInput, m}
-		case "prayer_master":
-			return catalogSpecPlan{(*GameEngine).buildPrayerMasterChoicePrompt, (*GameEngine).handlePrayerMasterChoiceInput, m}
-		case "crimson_knight":
-			return catalogSpecPlan{(*GameEngine).buildCrimsonKnightChoicePrompt, (*GameEngine).handleCrimsonKnightChoiceInput, m}
-		case "homunculus":
-			return catalogSpecPlan{(*GameEngine).buildWarHomunculusChoicePrompt, (*GameEngine).handleWarHomunculusChoiceInput, m}
-		case "valkyrie":
-			return catalogSpecPlan{(*GameEngine).buildValkyrieChoicePrompt, (*GameEngine).handleValkyrieChoiceInput, m}
-		case "elementalist":
-			return catalogSpecPlan{(*GameEngine).buildElementalistChoicePrompt, (*GameEngine).handleElementalistChoiceInput, m}
-		case "elf_archer":
-			return catalogSpecPlan{(*GameEngine).buildElfArcherChoicePrompt, (*GameEngine).handleElfArcherChoiceInput, m}
-		case "magic_bow":
-			return catalogSpecPlan{(*GameEngine).buildMagicBowChoicePrompt, (*GameEngine).handleMagicBowChoiceInput, m}
-		case "sword_emperor":
-			return catalogSpecPlan{(*GameEngine).buildSwordEmperorChoicePrompt, (*GameEngine).handleSwordEmperorChoiceInput, m}
-		case "magic_lancer":
-			return catalogSpecPlan{(*GameEngine).buildMagicLancerChoicePrompt, (*GameEngine).handleMagicLancerChoiceInput, m}
-		case "soul_sorcerer":
-			return catalogSpecPlan{(*GameEngine).buildSoulSorcererChoicePrompt, (*GameEngine).handleSoulSorcererChoiceInput, m}
-		case "moon_goddess":
-			return catalogSpecPlan{(*GameEngine).buildMoonGoddessChoicePrompt, (*GameEngine).handleMoonGoddessChoiceInput, m}
-		case "blood_priestess":
-			return catalogSpecPlan{(*GameEngine).buildBloodPriestessChoicePrompt, (*GameEngine).handleBloodPriestessChoiceInput, m}
-		case "butterfly":
-			return catalogSpecPlan{(*GameEngine).buildButterflyChoicePrompt, (*GameEngine).handleButterflyChoiceInput, m}
-		case "spirit_caster":
-			return catalogSpecPlan{(*GameEngine).buildSpiritCasterChoicePrompt, (*GameEngine).handleSpiritCasterChoiceInput, m}
-		case "bard":
-			return catalogSpecPlan{(*GameEngine).buildBardChoicePrompt, (*GameEngine).handleBardChoiceInput, m}
-		case "holy_bow":
-			return catalogSpecPlan{(*GameEngine).buildHolyBowChoicePrompt, (*GameEngine).handleHolyBowChoiceInput, m}
-		case "hero":
-			return catalogSpecPlan{(*GameEngine).buildHeroChoicePrompt, (*GameEngine).handleHeroChoiceInput, m}
-		case "assassin":
-			return catalogSpecPlan{(*GameEngine).buildAssassinChoicePrompt, (*GameEngine).handleAssassinChoiceInput, m}
-		case "arbiter":
-			return catalogSpecPlan{(*GameEngine).buildArbiterChoicePrompt, (*GameEngine).handleArbiterChoiceInput, m}
-		case "holy_lancer":
-			return catalogSpecPlan{(*GameEngine).buildHolyLancerChoicePrompt, (*GameEngine).handleHolyLancerChoiceInput, m}
-		case "sealer":
-			return catalogSpecPlan{(*GameEngine).buildSealerChoicePrompt, (*GameEngine).handleSealerChoiceInput, m}
-		case "plague_mage":
-			return catalogSpecPlan{(*GameEngine).buildPlagueMageChoicePrompt, (*GameEngine).handlePlagueMageChoiceInput, m}
-		case "magic_swordsman":
-			return catalogSpecPlan{(*GameEngine).buildMagicSwordsmanChoicePrompt, (*GameEngine).handleMagicSwordsmanChoiceInput, m}
-		case "crimson_sword_spirit":
-			return catalogSpecPlan{(*GameEngine).buildCrimsonSwordSpiritChoicePrompt, (*GameEngine).handleCrimsonSwordSpiritChoiceInput, m}
-		case "blaze_witch":
-			return catalogSpecPlan{(*GameEngine).buildBlazeWitchChoicePrompt, (*GameEngine).handleBlazeWitchChoiceInput, m}
-		default:
-			panic(fmt.Sprintf("choice catalog: unknown role route %q for type %q", spec.Role, typ))
+	case ChoiceRouteKindRole:
+		// 所有角色统一通过 RoleEntry 注册表桥接到 player/<role>/choices.go
+		roleID := spec.Role
+		return catalogSpecPlan{
+			func(ge *GameEngine, choiceType, playerID string, player *model.Player, data map[string]any) *model.Prompt {
+				return ge.buildRoleChoicePrompt(roleID, choiceType, playerID, player, choiceCtxAsInterfaceMap(data))
+			},
+			func(ge *GameEngine, playerID string, idx int, ctx map[string]any) (bool, error) {
+				return ge.handleRoleChoiceInput(roleID, playerID, idx, choiceCtxAsInterfaceMap(ctx))
+			},
+			m,
+			roleCancelWithContext(roleID),
 		}
 	default:
 		panic(fmt.Sprintf("choice catalog: unknown route kind %q for type %q", spec.Kind, typ))
+	}
+}
+
+// targetPromptRoleID 将 TargetPrompt 简写映射到角色 ID。
+func targetPromptRoleID(short string) string {
+	switch short {
+	case "bard":
+		return "bard"
+	case "elf":
+		return "elf_archer"
+	case "priest":
+		return "priest"
+	case "onmyoji":
+		return "onmyoji"
+	case "mb":
+		return "magic_bow"
+	case "sc":
+		return "spirit_caster"
+	case "ml":
+		return "magic_lancer"
+	case "se":
+		return "sword_emperor"
+	case "fighter":
+		return "fighter"
+	default:
+		return short
 	}
 }

@@ -118,7 +118,7 @@ func TestButterflyChrysalis_RunsOverflowDiscardWhenPupaLowersHandLimit(t *testin
 	if got := game.GetMaxHand(p1); got != 5 {
 		t.Fatalf("expected max hand 5 after pupa +1, got %d", got)
 	}
-	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptDiscard || game.State.PendingInterrupt.PlayerID != "p1" {
+	if game.State.PendingInterrupt == nil || !isDiscardSelectionInterrupt(game.State.PendingInterrupt) || game.State.PendingInterrupt.PlayerID != "p1" {
 		t.Fatalf("expected overflow discard interrupt after chrysalis, got %+v", game.State.PendingInterrupt)
 	}
 	data, _ := game.State.PendingInterrupt.Context.(map[string]interface{})
@@ -190,7 +190,7 @@ func TestButterflyReverse_UsesUnifiedDiscardCostBeforeBranchChoice(t *testing.T)
 		SkillID:  "bt_reverse_butterfly",
 	})
 
-	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptDiscard || game.State.PendingInterrupt.PlayerID != "p1" {
+	if game.State.PendingInterrupt == nil || !isDiscardSelectionInterrupt(game.State.PendingInterrupt) || game.State.PendingInterrupt.PlayerID != "p1" {
 		t.Fatalf("expected reverse butterfly to first enter discard interrupt, got %+v", game.State.PendingInterrupt)
 	}
 	data, _ := game.State.PendingInterrupt.Context.(map[string]interface{})

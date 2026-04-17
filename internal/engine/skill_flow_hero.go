@@ -56,7 +56,7 @@ func (e *GameEngine) handleHeroRoarDrawChoice(selectionIndex int, ctxData map[st
 	if drawCount > 0 {
 		e.DrawCards(user.ID, drawCount)
 		markRoarOverflowStayInTurn := func(intr *model.Interrupt) {
-			if intr == nil || intr.Type != model.InterruptDiscard || intr.PlayerID != user.ID {
+			if intr == nil || intr.PlayerID != user.ID || !isDiscardSelectionInterrupt(intr) {
 				return
 			}
 			data, ok := intr.Context.(map[string]interface{})

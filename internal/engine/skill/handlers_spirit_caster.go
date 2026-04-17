@@ -36,7 +36,39 @@ func (h *SpiritCasterTalismanThunderHandler) CanUse(ctx *model.Context) bool {
 }
 
 func (h *SpiritCasterTalismanThunderHandler) Execute(ctx *model.Context) error {
-	// 灵符技能主流程在 engine.UseSkill 中处理（需要先处理封印/念咒/后续串行）。
+	if ctx == nil || ctx.User == nil || ctx.Game == nil {
+		return fmt.Errorf("灵符-雷鸣上下文无效")
+	}
+	user := ctx.User
+	targetIDs := resolvedTargetIDsFromContext(ctx)
+	if len(targetIDs) != 2 {
+		return fmt.Errorf("灵符-雷鸣需要且仅需指定2名角色")
+	}
+	if len(user.Hand) > 0 {
+		ctx.Game.PushInterrupt(&model.Interrupt{
+			Type:     model.InterruptChoice,
+			PlayerID: user.ID,
+			Context: map[string]interface{}{
+				"choice_type": "sc_incant_confirm",
+				"user_id":     user.ID,
+				"skill_id":    "sc_talisman_thunder",
+				"target_ids":  targetIDs,
+			},
+		})
+		ctx.Game.Log(fmt.Sprintf("%s 发动 [灵符-雷鸣]，等待选择是否念咒", user.Name))
+	} else {
+		ctx.Game.PushInterrupt(&model.Interrupt{
+			Type:     model.InterruptChoice,
+			PlayerID: user.ID,
+			Context: map[string]interface{}{
+				"choice_type": "sc_spiritual_collapse_confirm",
+				"user_id":     user.ID,
+				"mode":        "sc_talisman_thunder",
+				"target_ids":  targetIDs,
+			},
+		})
+		ctx.Game.Log(fmt.Sprintf("%s 发动 [灵符-雷鸣]，无手牌可念咒，直接进入灵力崩解选择", user.Name))
+	}
 	return nil
 }
 
@@ -45,8 +77,57 @@ func (h *SpiritCasterTalismanWindHandler) CanUse(ctx *model.Context) bool {
 }
 
 func (h *SpiritCasterTalismanWindHandler) Execute(ctx *model.Context) error {
-	// 灵符技能主流程在 engine.UseSkill 中处理（需要先处理封印/念咒/后续串行）。
+	if ctx == nil || ctx.User == nil || ctx.Game == nil {
+		return fmt.Errorf("灵符-风行上下文无效")
+	}
+	user := ctx.User
+	targetIDs := resolvedTargetIDsFromContext(ctx)
+	if len(targetIDs) != 2 {
+		return fmt.Errorf("灵符-风行需要且仅需指定2名角色")
+	}
+	if len(user.Hand) > 0 {
+		ctx.Game.PushInterrupt(&model.Interrupt{
+			Type:     model.InterruptChoice,
+			PlayerID: user.ID,
+			Context: map[string]interface{}{
+				"choice_type": "sc_incant_confirm",
+				"user_id":     user.ID,
+				"skill_id":    "sc_talisman_wind",
+				"target_ids":  targetIDs,
+			},
+		})
+		ctx.Game.Log(fmt.Sprintf("%s 发动 [灵符-风行]，等待选择是否念咒", user.Name))
+	} else {
+		ctx.Game.PushInterrupt(&model.Interrupt{
+			Type:     model.InterruptChoice,
+			PlayerID: user.ID,
+			Context: map[string]interface{}{
+				"choice_type": "sc_incant_confirm_no_hand",
+				"user_id":     user.ID,
+				"skill_id":    "sc_talisman_wind",
+				"target_ids":  targetIDs,
+			},
+		})
+		ctx.Game.Log(fmt.Sprintf("%s 发动 [灵符-风行]，无手牌可念咒，直接进入风行弃牌", user.Name))
+	}
 	return nil
+}
+
+// resolvedTargetIDsFromContext 从 Context 中提取目标 ID 列表。
+func resolvedTargetIDsFromContext(ctx *model.Context) []string {
+	if ctx == nil {
+		return nil
+	}
+	ids := make([]string, 0, len(ctx.Targets))
+	for _, t := range ctx.Targets {
+		if t != nil {
+			ids = append(ids, t.ID)
+		}
+	}
+	if len(ids) == 0 && ctx.Target != nil {
+		ids = append(ids, ctx.Target.ID)
+	}
+	return ids
 }
 
 func (h *SpiritCasterIncantationHandler) CanUse(ctx *model.Context) bool { return false }

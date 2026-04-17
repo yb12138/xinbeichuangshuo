@@ -31,10 +31,11 @@ func (e *GameEngine) beastSamuraiReplacePendingInterruptWithDiscard(playerID str
 	if e.State.PendingInterrupt == nil {
 		return
 	}
-	e.State.PendingInterrupt.Type = model.InterruptDiscard
+	ctxData = normalizeDiscardChoiceContext(ctxData)
+	e.State.PendingInterrupt.Type = model.InterruptChoice
 	e.State.PendingInterrupt.PlayerID = playerID
 	e.State.PendingInterrupt.Context = ctxData
-	e.enterDiscardSelection()
+	e.syncGamePhaseWithInterrupt(e.State.PendingInterrupt)
 	e.notifyInterruptPrompt()
 }
 
@@ -162,6 +163,12 @@ func (e *GameEngine) buildBeastSamuraiChoicePrompt(choiceType, playerID string, 
 			Min:        1,
 			Max:        1,
 		}
+	case "bs_alert_source_discard",
+		"bs_beast_return_self_discard",
+		"bs_beast_return_source_discard",
+		"bs_iaijutsu_style_discard",
+		"bs_reversal_target_discard":
+		return e.buildDiscardChoicePromptFromData(playerID, data)
 	default:
 		return nil
 	}
@@ -327,13 +334,17 @@ func (e *GameEngine) handleBeastSamuraiChoiceInput(selectionIndex int, ctxData m
 	}
 }
 
-func (e *GameEngine) handleBeastSamuraiDiscardInput(playerID string, selections []int) (bool, error) {
-	if e.State.PendingInterrupt == nil || e.State.PendingInterrupt.Type != model.InterruptDiscard {
-		return false, nil
+func (e *GameEngine) handleBeastSamuraiDiscardSelections(playerID string, selections []int, providedCtx map[string]interface{}) error {
+	if e == nil || e.State == nil || e.State.PendingInterrupt == nil {
+		return fmt.Errorf("当前没有待处理的弃牌操作")
 	}
-	ctxData, ok := e.State.PendingInterrupt.Context.(map[string]interface{})
-	if !ok {
-		return false, nil
+	ctxData := providedCtx
+	if ctxData == nil {
+		var ok bool
+		ctxData, ok = e.State.PendingInterrupt.Context.(map[string]interface{})
+		if !ok || ctxData == nil {
+			return fmt.Errorf("兽魂弃牌上下文错误")
+		}
 	}
 	choiceType, _ := ctxData["choice_type"].(string)
 	switch choiceType {
@@ -343,11 +354,11 @@ func (e *GameEngine) handleBeastSamuraiDiscardInput(playerID string, selections 
 		user := e.State.Players[userID]
 		actor := e.State.Players[actorID]
 		if user == nil || actor == nil {
-			return true, fmt.Errorf("兽魂警戒弃牌上下文不存在")
+			return fmt.Errorf("兽魂警戒弃牌上下文不存在")
 		}
 		removed, err := removeCardsByIndicesFromHand(actor, append([]int{}, selections...))
 		if err != nil {
-			return true, err
+			return err
 		}
 		if len(removed) > 0 {
 			e.NotifyCardRevealed(actor.ID, removed, "discard")
@@ -358,7 +369,7 @@ func (e *GameEngine) handleBeastSamuraiDiscardInput(playerID string, selections 
 			e.Log(fmt.Sprintf("%s 的 [兽魂警戒] 生效：%s 展示弃牌中含法术牌，兽魂+1（当前%d）", user.Name, actor.Name, after))
 		}
 		e.beastSamuraiFinishResume(e.beastSamuraiResumePoint(ctxData, model.TurnStageActionExecution))
-		return true, nil
+		return nil
 
 	case "bs_beast_return_self_discard":
 		userID, _ := ctxData["user_id"].(string)
@@ -366,11 +377,11 @@ func (e *GameEngine) handleBeastSamuraiDiscardInput(playerID string, selections 
 		user := e.State.Players[userID]
 		source := e.State.Players[sourceID]
 		if user == nil {
-			return true, fmt.Errorf("兽返弃牌执行者不存在")
+			return fmt.Errorf("兽返弃牌执行者不存在")
 		}
 		removed, err := removeCardsByIndicesFromHand(user, append([]int{}, selections...))
 		if err != nil {
-			return true, err
+			return err
 		}
 		if len(removed) > 0 {
 			e.NotifyCardHidden(user.ID, removed, "discard")
@@ -386,10 +397,10 @@ func (e *GameEngine) handleBeastSamuraiDiscardInput(playerID string, selections 
 				"prompt":        "【兽返】请选择弃置1张手牌：",
 				"resume_phase":  resumePoint,
 			})
-			return true, nil
+			return nil
 		}
 		e.beastSamuraiFinishResume(resumePoint)
-		return true, nil
+		return nil
 
 	case "bs_beast_return_source_discard":
 		userID, _ := ctxData["user_id"].(string)
@@ -397,11 +408,11 @@ func (e *GameEngine) handleBeastSamuraiDiscardInput(playerID string, selections 
 		user := e.State.Players[userID]
 		source := e.State.Players[sourceID]
 		if user == nil || source == nil {
-			return true, fmt.Errorf("兽返来源弃牌上下文不存在")
+			return fmt.Errorf("兽返来源弃牌上下文不存在")
 		}
 		removed, err := removeCardsByIndicesFromHand(source, append([]int{}, selections...))
 		if err != nil {
-			return true, err
+			return err
 		}
 		if len(removed) > 0 {
 			e.NotifyCardHidden(source.ID, removed, "discard")
@@ -412,45 +423,45 @@ func (e *GameEngine) handleBeastSamuraiDiscardInput(playerID string, selections 
 			e.Log(fmt.Sprintf("%s 的 [兽返] 生效：%s 弃牌中含法术牌，兽魂+1（当前%d）", user.Name, source.Name, after))
 		}
 		e.beastSamuraiFinishResume(e.beastSamuraiResumePoint(ctxData, model.CombatStageCalcDamage))
-		return true, nil
+		return nil
 
 	case "bs_iaijutsu_style_discard":
 		userID, _ := ctxData["user_id"].(string)
 		user := e.State.Players[userID]
 		if user == nil {
-			return true, fmt.Errorf("御魂流居合式弃牌执行者不存在")
+			return fmt.Errorf("御魂流居合式弃牌执行者不存在")
 		}
 		removed, err := removeCardsByIndicesFromHand(user, append([]int{}, selections...))
 		if err != nil {
-			return true, err
+			return err
 		}
 		if len(removed) > 0 {
 			e.NotifyCardHidden(user.ID, removed, "discard")
 			e.State.DiscardPile = append(e.State.DiscardPile, removed...)
 		}
 		e.beastSamuraiFinishResume(e.beastSamuraiResumePoint(ctxData, model.TurnStageActionStart))
-		return true, nil
+		return nil
 
 	case "bs_reversal_target_discard":
 		targetID, _ := ctxData["target_id"].(string)
 		target := e.State.Players[targetID]
 		if target == nil {
-			return true, fmt.Errorf("逆反居合斩目标不存在")
+			return fmt.Errorf("逆反居合斩目标不存在")
 		}
 		rawCtx, _ := ctxData["user_ctx"].(*model.Context)
 		need := runtimeutil.ToIntContextValue(ctxData["need_count"])
 		removed, err := removeCardsByIndicesFromHand(target, append([]int{}, selections...))
 		if err != nil {
-			return true, err
+			return err
 		}
 		if len(removed) > 0 {
 			e.NotifyCardHidden(target.ID, removed, "discard")
 			e.State.DiscardPile = append(e.State.DiscardPile, removed...)
 		}
 		e.beastSamuraiFinishReversal(rawCtx, target, need, len(removed), e.beastSamuraiResumePoint(ctxData, model.CombatStageCalcDamage))
-		return true, nil
+		return nil
 
 	default:
-		return false, nil
+		return fmt.Errorf("非兽魂弃牌选择类型: %s", choiceType)
 	}
 }

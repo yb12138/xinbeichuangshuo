@@ -166,7 +166,7 @@ func TestOnmyojiLifeBarrier_Mode1_X3NoMoraleLoss(t *testing.T) {
 
 	// 推进到爆牌弃牌中断
 	game.Drive()
-	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptDiscard {
+	if game.State.PendingInterrupt == nil || !isDiscardSelectionInterrupt(game.State.PendingInterrupt) {
 		t.Fatalf("expected discard interrupt from overflow, got %+v", game.State.PendingInterrupt)
 	}
 	if err := game.ConfirmDiscard("p1", []int{0, 1, 2}); err != nil {
@@ -238,7 +238,7 @@ func TestOnmyojiLifeBarrier_Mode2_ReleaseFormAndForceAllyDiscard(t *testing.T) {
 	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose release target failed: %v", err)
 	}
-	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptDiscard || game.State.PendingInterrupt.PlayerID != "p2" {
+	if game.State.PendingInterrupt == nil || !isDiscardSelectionInterrupt(game.State.PendingInterrupt) || game.State.PendingInterrupt.PlayerID != "p2" {
 		t.Fatalf("expected ally discard interrupt for p2, got %+v", game.State.PendingInterrupt)
 	}
 	if err := game.ConfirmDiscard("p2", []int{0}); err != nil {

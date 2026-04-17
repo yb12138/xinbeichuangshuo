@@ -156,7 +156,6 @@ type InterruptType string
 const (
 	InterruptResponseSkill        InterruptType = "ResponseSkill"
 	InterruptStartupSkill         InterruptType = "StartupSkill"
-	InterruptDiscard              InterruptType = "Discard"
 	InterruptChoice               InterruptType = "Choice"
 	InterruptMagicMissile         InterruptType = "MagicMissile"
 	InterruptGiveCards            InterruptType = "GiveCards"            // 天使祝福等：选牌交给他人

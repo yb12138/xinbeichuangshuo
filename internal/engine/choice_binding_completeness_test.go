@@ -27,7 +27,7 @@ func TestChoiceCatalogRouteSpecTableMatchesCatalogFile(t *testing.T) {
 		if !ok {
 			t.Fatalf("catalog type %q missing from catalogChoiceRouteSpecTable", typ)
 		}
-		if !spec.valid() {
+		if !spec.Valid() {
 			t.Fatalf("catalog type %q has invalid route spec: %+v", typ, spec)
 		}
 		p := catalogChoiceBinding(typ)

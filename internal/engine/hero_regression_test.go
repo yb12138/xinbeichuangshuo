@@ -558,7 +558,7 @@ func TestHeroRoar_DrawOneWithOverflow_StillContinuesAttackAndPromptsForbiddenPow
 		Type:       model.CmdSelect,
 		Selections: []int{1},
 	})
-	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptDiscard {
+	if game.State.PendingInterrupt == nil || !isDiscardSelectionInterrupt(game.State.PendingInterrupt) {
 		t.Fatalf("expected overflow discard interrupt after roar draw1, got %+v", game.State.PendingInterrupt)
 	}
 	mustHandleAction(t, game, model.PlayerAction{
@@ -672,7 +672,7 @@ func TestHeroExhaustion_ReleaseWithOverflow_StillStartsTurnNormally(t *testing.T
 	game.State.TurnStage = model.TurnStageActionStart
 
 	game.Drive()
-	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptDiscard {
+	if game.State.PendingInterrupt == nil || !isDiscardSelectionInterrupt(game.State.PendingInterrupt) {
 		t.Fatalf("expected overflow discard from exhaustion hand-limit restore, got %+v", game.State.PendingInterrupt)
 	}
 	mustHandleAction(t, game, model.PlayerAction{
@@ -907,7 +907,7 @@ func TestHeroDeadDuel_MagicOverflowMoraleLossFlooredToOne(t *testing.T) {
 	}
 	chooseResponseSkillByID(t, game, "p1", "hero_dead_duel")
 
-	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptDiscard {
+	if game.State.PendingInterrupt == nil || !isDiscardSelectionInterrupt(game.State.PendingInterrupt) {
 		t.Fatalf("expected discard interrupt after magic overflow, got %+v", game.State.PendingInterrupt)
 	}
 	mustHandleAction(t, game, model.PlayerAction{

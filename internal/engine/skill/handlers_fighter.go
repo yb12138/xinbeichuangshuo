@@ -234,14 +234,16 @@ func (h *FighterWarGodDriveHandler) Execute(ctx *model.Context) error {
 	discardCount := len(ctx.User.Hand) - 3
 	if discardCount > 0 {
 		ctx.Game.PushInterrupt(&model.Interrupt{
-			Type:     model.InterruptDiscard,
+			Type:     model.InterruptChoice,
 			PlayerID: ctx.User.ID,
 			Context: map[string]interface{}{
-				"skill_id": "fighter_war_god_drive_followup",
-				"user_ctx": ctx,
-				"min":      discardCount,
-				"max":      discardCount,
-				"prompt":   "【斗神天驱】请选择需要弃置的手牌：",
+				"choice_type":     "system_discard_cards",
+				"discard_subflow": true,
+				"skill_id":        "fighter_war_god_drive_followup",
+				"user_ctx":        ctx,
+				"min":             discardCount,
+				"max":             discardCount,
+				"prompt":          "【斗神天驱】请选择需要弃置的手牌：",
 			},
 		})
 		ctx.Game.Log(fmt.Sprintf("%s 发动 [斗神天驱]：请先弃置%d张牌（弃到3张）", ctx.User.Name, discardCount))

@@ -195,7 +195,7 @@ func TestElfPetEmpower_OverflowConsumesDiscardOnlyOnce(t *testing.T) {
 		},
 	})
 
-	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptDiscard {
+	if game.State.PendingInterrupt == nil || !isDiscardSelectionInterrupt(game.State.PendingInterrupt) {
 		t.Fatalf("expected only overflow discard interrupt, got %+v", game.State.PendingInterrupt)
 	}
 	if game.State.PendingInterrupt.PlayerID != "p2" {

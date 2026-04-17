@@ -18,10 +18,10 @@ func (e *GameEngine) consumeSkillInputs(use *skillUseRequest) error {
 		use.player.Hand = append(use.player.Hand[:idx], use.player.Hand[idx+1:]...)
 	}
 
-	if use.policy.appendDiscardPile != nil {
-		use.policy.appendDiscardPile(e, use)
+	if use.policy.ResolveDiscardPile != nil {
+		e.State.DiscardPile = append(e.State.DiscardPile, use.policy.ResolveDiscardPile(use.policyContext())...)
 	} else {
-		appendDiscardedCardsToPile(e, use)
+		e.State.DiscardPile = append(e.State.DiscardPile, use.discardedCards...)
 	}
 
 	if use.skillDef.PlaceCard {
@@ -61,7 +61,7 @@ func (e *GameEngine) placeSkillFieldCard(use *skillUseRequest) error {
 		SourceID: use.player.ID,  // 谁放置的这个场牌（用于伤害来源）
 		Mode:     use.skillDef.PlaceMode,
 		Effect:   use.skillDef.PlaceEffect,
-		Hook: use.skillDef.PlaceHook,
+		Hook:     use.skillDef.PlaceHook,
 		Meta:     buildFieldCardMeta(use, placedCard), // 【关键】封印会在这里记录绑定元素
 	}
 	fieldTarget.AddFieldCard(fc)
@@ -105,8 +105,8 @@ func (e *GameEngine) consumeSkillEnergyCost(use *skillUseRequest) error {
 }
 
 func (e *GameEngine) executeSkillFlow(use *skillUseRequest) error {
-	if use.policy.afterConsume != nil {
-		handled, err := use.policy.afterConsume(e, use)
+	if use.policy.AfterConsume != nil {
+		handled, err := use.policy.AfterConsume(enginePolicyHost{e: e}, use.policyContext())
 		if err != nil {
 			return err
 		}
@@ -143,7 +143,7 @@ func (e *GameEngine) finishSkillUse(use *skillUseRequest) error {
 	e.recordSkillUsage(use.player.ID, use.skillDef.Title, use.skillDef.Type)
 	e.Log(fmt.Sprintf("[Skill] %s 使用了技能: %s (%s)", use.player.Name, use.skillDef.Title, use.skillDef.Description))
 
-	if use.skillDef.Type == model.SkillTypeAction && !use.policy.skipAutoPhaseEnd {
+	if use.skillDef.Type == model.SkillTypeAction && !use.policy.SkipAutoPhaseEnd {
 		use.player.TurnState.HasActed = true
 		use.player.TurnState.LastActionType = string(model.ActionMagic)
 		use.player.TurnState.LastActionCard = nil

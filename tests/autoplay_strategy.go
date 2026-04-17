@@ -2226,17 +2226,8 @@ func resolveInterrupt(game *engine.GameEngine) error {
 		}
 		return game.HandleAction(model.PlayerAction{PlayerID: pid, Type: model.CmdCancel})
 
-	case model.InterruptDiscard, model.InterruptGiveCards:
-		var selections []int
-		var err error
-		if intr.Type == model.InterruptDiscard {
-			selections, err = pickDiscardSelections(game, game.GetCurrentPrompt())
-			if errors.Is(err, errDiscardPrereqNotMet) {
-				return game.HandleAction(model.PlayerAction{PlayerID: pid, Type: model.CmdCancel})
-			}
-		} else {
-			selections, err = pickCardSelections(game.GetCurrentPrompt())
-		}
+	case model.InterruptGiveCards:
+		selections, err := pickCardSelections(game.GetCurrentPrompt())
 		if err != nil {
 			return err
 		}
@@ -2585,6 +2576,17 @@ func chooseChoiceInterruptSelections(game *engine.GameEngine, intr *model.Interr
 	player := game.State.Players[intr.PlayerID]
 
 	switch choiceType {
+	case "system_discard_cards",
+		"bs_alert_source_discard",
+		"bs_beast_return_self_discard",
+		"bs_beast_return_source_discard",
+		"bs_iaijutsu_style_discard",
+		"bs_reversal_target_discard":
+		selections, err := pickDiscardSelections(game, prompt)
+		if errors.Is(err, errDiscardPrereqNotMet) {
+			return nil, fmt.Errorf("discard prerequisites not met")
+		}
+		return selections, err
 	case "adventurer_fraud_pick":
 		return chooseAdventurerFraudSelections(player, prompt)
 	case "mb_magic_pierce_hit_confirm":

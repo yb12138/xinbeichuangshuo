@@ -317,14 +317,10 @@ func (e *GameEngine) resolveOnmyojiLifeBarrierReleaseTarget(ctxData map[string]i
 	if len(target.Hand) == 0 {
 		return fmt.Errorf("目标队友没有手牌可弃置")
 	}
-	e.PushInterrupt(&model.Interrupt{
-		Type:     model.InterruptDiscard,
-		PlayerID: target.ID,
-		Context: map[string]interface{}{
-			"discard_count": 1,
-			"prompt":        fmt.Sprintf("【生命结界】请弃置1张手牌（由 %s 指定）", user.Name),
-		},
-	})
+	e.PushInterrupt(newDiscardChoiceInterrupt(target.ID, map[string]interface{}{
+		"discard_count": 1,
+		"prompt":        fmt.Sprintf("【生命结界】请弃置1张手牌（由 %s 指定）", user.Name),
+	}))
 	e.Log(fmt.Sprintf("%s 的 [生命结界] 分支②生效：指定 %s 弃置1张手牌", user.Name, target.Name))
 	e.PopInterrupt()
 	return nil

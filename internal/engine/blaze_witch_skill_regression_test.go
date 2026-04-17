@@ -74,7 +74,7 @@ func TestBlazeWitchPainLink_ConsumesCrystalOnceAndQueuesDiscardToThree(t *testin
 	if game.State.PendingInterrupt == nil {
 		t.Fatalf("expected discard interrupt from pain link")
 	}
-	if game.State.PendingInterrupt.Type != model.InterruptDiscard || game.State.PendingInterrupt.PlayerID != "p1" {
+	if !isDiscardSelectionInterrupt(game.State.PendingInterrupt) || game.State.PendingInterrupt.PlayerID != "p1" {
 		t.Fatalf("unexpected interrupt: %+v", game.State.PendingInterrupt)
 	}
 	data, _ := game.State.PendingInterrupt.Context.(map[string]any)
@@ -139,7 +139,7 @@ func TestBlazeWitchRebirthClock_IncreasesOnMagicMoraleLossWithCap(t *testing.T) 
 		},
 	}
 	game.checkHandLimit(p1, damageOverflowCtx)
-	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptDiscard {
+	if game.State.PendingInterrupt == nil || !isDiscardSelectionInterrupt(game.State.PendingInterrupt) {
 		t.Fatalf("expected discard interrupt, got %+v", game.State.PendingInterrupt)
 	}
 	if err := game.ConfirmDiscard("p1", []int{0, 1}); err != nil {
@@ -265,7 +265,7 @@ func TestBlazeWitchFlameForm_AttackUsesPreparedTransformedCard(t *testing.T) {
 		SourceID: "p2",
 		Mode:     model.FieldEffect,
 		Effect:   model.EffectSealFire,
-		Hook: model.FieldHookOnCardPlayedOrRevealed,
+		Hook:     model.FieldHookOnCardPlayedOrRevealed,
 	})
 
 	game.State.Deck = rules.InitDeck()

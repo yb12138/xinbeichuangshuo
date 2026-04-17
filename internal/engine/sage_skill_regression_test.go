@@ -251,7 +251,7 @@ func TestSageWisdomCodex_ForceDiscardAfterHeavyMagicDamage(t *testing.T) {
 	if g.State.PendingInterrupt == nil {
 		t.Fatalf("expected wisdom codex forced discard interrupt, got nil")
 	}
-	if g.State.PendingInterrupt.Type != model.InterruptDiscard {
+	if !isDiscardSelectionInterrupt(g.State.PendingInterrupt) {
 		t.Fatalf("expected forced discard interrupt, got %+v", g.State.PendingInterrupt)
 	}
 	data, _ := g.State.PendingInterrupt.Context.(map[string]interface{})

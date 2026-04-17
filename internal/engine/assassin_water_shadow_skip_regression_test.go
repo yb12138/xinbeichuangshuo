@@ -157,7 +157,7 @@ func TestAssassinWaterShadowConfirm_PreservesRemainingDamageDraw(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("choose water_shadow failed: %v", err)
 	}
-	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptDiscard {
+	if game.State.PendingInterrupt == nil || !isDiscardSelectionInterrupt(game.State.PendingInterrupt) {
 		t.Fatalf("expected discard interrupt after choosing water_shadow, got %+v", game.State.PendingInterrupt)
 	}
 

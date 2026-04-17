@@ -58,7 +58,7 @@ func TestBloodPriestessSharedLife_DrawBeforePlaceOverflowThenApply(t *testing.T)
 		t.Fatalf("choose shared-life target failed: %v", err)
 	}
 
-	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptDiscard {
+	if game.State.PendingInterrupt == nil || !isDiscardSelectionInterrupt(game.State.PendingInterrupt) {
 		t.Fatalf("expected overflow discard interrupt before placing shared life")
 	}
 	mustHandleAction(t, game, model.PlayerAction{
@@ -177,7 +177,7 @@ func TestBloodPriestessSharedLife_OverflowDiscardResumesActionExecution(t *testi
 	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose shared-life target failed: %v", err)
 	}
-	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptDiscard {
+	if game.State.PendingInterrupt == nil || !isDiscardSelectionInterrupt(game.State.PendingInterrupt) {
 		t.Fatalf("expected overflow discard interrupt after draw")
 	}
 	if game.State.Subflow != model.SubflowDiscardSelection {
@@ -232,7 +232,7 @@ func TestBloodPriestessBleeding_EnterOnMoraleLossAndReleaseOnActionEndLowHand(t 
 	damageOverflowCtx := game.buildContext(p1, nil, model.TimingActive, nil)
 	damageOverflowCtx.Flags["FromDamageDraw"] = true
 	game.checkHandLimit(p1, damageOverflowCtx)
-	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptDiscard {
+	if game.State.PendingInterrupt == nil || !isDiscardSelectionInterrupt(game.State.PendingInterrupt) {
 		t.Fatalf("expected discard interrupt")
 	}
 	mustHandleAction(t, game, model.PlayerAction{
@@ -380,7 +380,7 @@ func TestBloodPriestessBloodSorrow_TransferThenRemove(t *testing.T) {
 		t.Fatalf("choose blood sorrow remove mode failed: %v", err)
 	}
 	game.Drive() // 先结算自伤，再执行延迟的移除后续
-	if game.State.PendingInterrupt != nil && game.State.PendingInterrupt.Type == model.InterruptDiscard {
+	if game.State.PendingInterrupt != nil && isDiscardSelectionInterrupt(game.State.PendingInterrupt) {
 		data, _ := game.State.PendingInterrupt.Context.(map[string]interface{})
 		discardCount := runtimeutil.ToIntContextValue(data["discard_count"])
 		if discardCount <= 0 {
@@ -464,7 +464,7 @@ func TestBloodPriestessBloodSorrow_Remove_ShouldEnterBleedWhenDamageCausesMorale
 	})
 
 	// 自伤2应先按上限4结算承伤摸牌并触发爆牌弃牌。
-	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptDiscard {
+	if game.State.PendingInterrupt == nil || !isDiscardSelectionInterrupt(game.State.PendingInterrupt) {
 		t.Fatalf("expected overflow discard interrupt after blood sorrow self-damage, got %+v", game.State.PendingInterrupt)
 	}
 	mustHandleAction(t, game, model.PlayerAction{

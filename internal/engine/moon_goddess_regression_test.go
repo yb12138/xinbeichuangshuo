@@ -48,7 +48,7 @@ func TestMoonGoddessNewMoonShelter_AbsorbsOverflowAndPreventsMoraleLoss(t *testi
 	damageOverflowCtx.Flags["IsMagicDamage"] = false
 	game.checkHandLimit(ally, damageOverflowCtx)
 
-	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptDiscard {
+	if game.State.PendingInterrupt == nil || !isDiscardSelectionInterrupt(game.State.PendingInterrupt) {
 		t.Fatalf("expected discard interrupt from overflow")
 	}
 	mustHandleAction(t, game, model.PlayerAction{
@@ -102,7 +102,7 @@ func TestMoonGoddessNewMoonShelter_NoSoulDevourGainWhenMoraleLossPrevented(t *te
 		damageOverflowCtx.Flags["IsMagicDamage"] = false
 		game.checkHandLimit(soul, damageOverflowCtx)
 
-		if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptDiscard {
+		if game.State.PendingInterrupt == nil || !isDiscardSelectionInterrupt(game.State.PendingInterrupt) {
 			t.Fatalf("round %d: expected discard interrupt from overflow", i)
 		}
 		mustHandleAction(t, game, model.PlayerAction{
@@ -802,7 +802,7 @@ func TestMoonGoddessNewMoonShelter_NotDispatchWhenActualMoraleWillNotDrop(t *tes
 	damageOverflowCtx.Flags["IsMagicDamage"] = false
 	game.checkHandLimit(ally, damageOverflowCtx)
 
-	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptDiscard {
+	if game.State.PendingInterrupt == nil || !isDiscardSelectionInterrupt(game.State.PendingInterrupt) {
 		t.Fatalf("expected discard interrupt from overflow")
 	}
 	mustHandleAction(t, game, model.PlayerAction{

@@ -88,15 +88,11 @@ func (e *GameEngine) handleCrimsonSwordSpiritDanceModeChoice(selectionIndex int,
 		addBlood(user, 2)
 		overflow := len(user.Hand) - 4
 		if overflow > 0 {
-			e.PushInterrupt(&model.Interrupt{
-				Type:     model.InterruptDiscard,
-				PlayerID: user.ID,
-				Context: map[string]interface{}{
-					"discard_count": overflow,
-					"stay_in_turn":  true,
-					"prompt":        fmt.Sprintf("【散华轮舞】请弃置 %d 张手牌至4张：", overflow),
-				},
-			})
+			e.PushInterrupt(newDiscardChoiceInterrupt(user.ID, map[string]interface{}{
+				"discard_count": overflow,
+				"stay_in_turn":  true,
+				"prompt":        fmt.Sprintf("【散华轮舞】请弃置 %d 张手牌至4张：", overflow),
+			}))
 		}
 	}
 

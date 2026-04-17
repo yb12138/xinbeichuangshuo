@@ -3,6 +3,7 @@
 package engine
 
 import (
+	"starcup-engine/internal/engine/core/runtimeutil"
 	"starcup-engine/internal/model"
 )
 
@@ -213,15 +214,32 @@ func (e *GameEngine) isDiscardSelectionActive() bool {
 		e.hasDiscardSelectionInterrupt()
 }
 
-func isDiscardSelectionInterruptType(interruptType model.InterruptType) bool {
-	return interruptType == model.InterruptDiscard || interruptType == model.InterruptGiveCards
+func isDiscardSelectionInterrupt(intr *model.Interrupt) bool {
+	if intr == nil {
+		return false
+	}
+	if intr.Type == model.InterruptGiveCards {
+		return true
+	}
+	if intr.Type != model.InterruptChoice {
+		return false
+	}
+	data, ok := intr.Context.(map[string]interface{})
+	if !ok || data == nil {
+		return false
+	}
+	if runtimeutil.ToBoolContextValue(data["discard_subflow"]) {
+		return true
+	}
+	choiceType, _ := data["choice_type"].(string)
+	return isDiscardChoiceType(choiceType)
 }
 
 func (e *GameEngine) hasDiscardSelectionInterrupt() bool {
 	if e == nil || e.State == nil || e.State.PendingInterrupt == nil {
 		return false
 	}
-	return isDiscardSelectionInterruptType(e.State.PendingInterrupt.Type)
+	return isDiscardSelectionInterrupt(e.State.PendingInterrupt)
 }
 
 func (e *GameEngine) isResponseWindowActive() bool {

@@ -20,9 +20,10 @@ var deferredFollowupHandlers = buildDeferredFollowupHandlers()
 func buildDeferredFollowupHandlers() map[string]deferredFollowupHandler {
 	handlers := map[string]deferredFollowupHandler{}
 	registerDeferredFollowupHandlers(handlers, buildPostActionEndDeferredFollowupHandlers())
+	registerDeferredFollowupHandlers(handlers, buildSkillEffectResumeFollowupHandler())
 	registerDeferredFollowupHandlers(handlers, buildBloodPriestessDeferredFollowupHandlers())
-	registerDeferredFollowupHandlers(handlers, buildSpiritCasterDeferredFollowupHandlers())
 	registerDeferredFollowupHandlers(handlers, buildAssassinDeferredFollowupHandlers())
+	mountPlayerDeferredFollowupSpecs(handlers)
 	return handlers
 }
 

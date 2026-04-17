@@ -65,24 +65,20 @@ func (e *GameEngine) buildHandOverflowContext(ctx *model.Context) handOverflowCo
 }
 
 func (e *GameEngine) pushHandOverflowDiscardInterrupt(player *model.Player, discardCount int, overflowCtx handOverflowContext) {
-	e.PushInterrupt(&model.Interrupt{
-		Type:     model.InterruptDiscard,
-		PlayerID: player.ID,
-		Context: map[string]interface{}{
-			"discard_count":              discardCount,
-			"is_magic":                   overflowCtx.isMagic,
-			"from_damage_draw":           overflowCtx.fromDamageDraw,
-			"no_morale_loss":             overflowCtx.noMoraleLoss,
-			"victim_id":                  player.ID,
-			"stay_in_turn":               overflowCtx.stayInTurn,
-			"is_damage_resolution":       overflowCtx.isDamageResolution,
-			"overflow_morale_loss_fixed": overflowCtx.overflowMoraleLossFixed,
-			"damage_source_id":           overflowCtx.damageSourceID,
-			"damage_source_skill":        overflowCtx.damageSourceSkillID,
-			"draw_resume_phase":          overflowCtx.drawResumePoint,
-			"remaining_indices":          e.handOverflowSelectableIndices(player),
-		},
-	})
+	e.PushInterrupt(newDiscardChoiceInterrupt(player.ID, map[string]interface{}{
+		"discard_count":              discardCount,
+		"is_magic":                   overflowCtx.isMagic,
+		"from_damage_draw":           overflowCtx.fromDamageDraw,
+		"no_morale_loss":             overflowCtx.noMoraleLoss,
+		"victim_id":                  player.ID,
+		"stay_in_turn":               overflowCtx.stayInTurn,
+		"is_damage_resolution":       overflowCtx.isDamageResolution,
+		"overflow_morale_loss_fixed": overflowCtx.overflowMoraleLossFixed,
+		"damage_source_id":           overflowCtx.damageSourceID,
+		"damage_source_skill":        overflowCtx.damageSourceSkillID,
+		"draw_resume_phase":          overflowCtx.drawResumePoint,
+		"remaining_indices":          e.handOverflowSelectableIndices(player),
+	}))
 }
 
 func (e *GameEngine) handOverflowSelectableIndices(player *model.Player) []int {

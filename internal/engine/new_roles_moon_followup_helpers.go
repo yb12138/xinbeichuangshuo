@@ -136,11 +136,11 @@ func (e *GameEngine) tryQueueMoonGoddessBlasphemy(pd *model.PendingDamage) bool 
 		Type:     model.InterruptChoice,
 		PlayerID: source.ID,
 		Context: map[string]interface{}{
-			"choice_type": "mg_blasphemy_target",
-			"user_id":     source.ID,
-			"target_ids":  []string{target.ID},
-			"source_id":   pd.SourceID,
-			"context_pending_damage":  pd,
+			"choice_type":            "mg_blasphemy_target",
+			"user_id":                source.ID,
+			"target_ids":             []string{target.ID},
+			"source_id":              pd.SourceID,
+			"context_pending_damage": pd,
 		},
 	})
 	source.TurnState.SkillFlowState["mg_blasphemy_pending"] = 1
@@ -156,7 +156,7 @@ func (e *GameEngine) campMorale(camp model.Camp) int {
 }
 
 func (e *GameEngine) pendingDiscardVictimID() string {
-	if e.State.PendingInterrupt == nil || e.State.PendingInterrupt.Type != model.InterruptDiscard {
+	if e.State.PendingInterrupt == nil || !isDiscardSelectionInterrupt(e.State.PendingInterrupt) {
 		return ""
 	}
 	data, ok := e.State.PendingInterrupt.Context.(map[string]interface{})

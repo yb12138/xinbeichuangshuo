@@ -37,7 +37,7 @@ func requireBeastSamuraiDiscardInterrupt(t *testing.T, game *GameEngine, playerI
 	if game.State.PendingInterrupt == nil {
 		t.Fatalf("expected pending discard interrupt, got nil")
 	}
-	if game.State.PendingInterrupt.Type != model.InterruptDiscard {
+	if !isDiscardSelectionInterrupt(game.State.PendingInterrupt) {
 		t.Fatalf("expected discard interrupt, got %s", game.State.PendingInterrupt.Type)
 	}
 	if game.State.PendingInterrupt.PlayerID != playerID {

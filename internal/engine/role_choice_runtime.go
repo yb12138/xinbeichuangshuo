@@ -218,5 +218,8 @@ func (e *GameEngine) handleRoleChoiceCancel(roleID, playerID string, ctxData map
 	if entry.ID == "" {
 		return false, nil
 	}
+	if ctxData == nil && e != nil && e.State != nil && e.State.PendingInterrupt != nil {
+		ctxData, _ = e.State.PendingInterrupt.Context.(map[string]interface{})
+	}
 	return entry.HandleChoiceCancel(newRoleChoiceRuntime(e), playerID, ctxData)
 }

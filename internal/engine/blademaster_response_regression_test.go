@@ -768,7 +768,7 @@ func TestBladeMaster_HolySwordDiscardResumesExtraAction(t *testing.T) {
 		t.Fatalf("holy sword x=1 response failed: %v", err)
 	}
 
-	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptDiscard {
+	if game.State.PendingInterrupt == nil || !isDiscardSelectionInterrupt(game.State.PendingInterrupt) {
 		t.Fatalf("expected discard interrupt after holy sword x=1, got %+v", game.State.PendingInterrupt)
 	}
 
