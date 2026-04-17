@@ -1,0 +1,58 @@
+// gameflow: 魔枪模块入口声明。
+
+package magic_lancer
+
+import (
+	"starcup-engine/internal/engine/player"
+	skills "starcup-engine/internal/engine/skill"
+	"starcup-engine/internal/types"
+)
+
+// SkillEntries 导出角色技能与策略绑定入口。
+func SkillEntries() []player.SkillEntry {
+	return []player.SkillEntry{
+		{ID: "ml_dark_release", Handler: &skills.MagicLancerDarkReleaseHandler{}},
+		{
+			ID:      "ml_phantom_stardust",
+			Handler: &skills.MagicLancerPhantomStardustHandler{},
+			Policy: types.SkillPolicy{
+				TargetRules: types.TargetRuleSet{
+					Count: types.TargetCountRule{Min: 0, Max: 1, Err: "幻影星尘需要且仅能指定1名敌方角色"},
+					Slots: []types.TargetSlotRule{
+						{Index: 0, Camp: types.TargetCampEnemy, Err: "幻影星尘目标必须是敌方角色"},
+					},
+				},
+			},
+		},
+		{ID: "ml_dark_bind", Handler: &skills.MagicLancerDarkBindHandler{}},
+		{ID: "ml_dark_barrier", Handler: &skills.MagicLancerDarkBarrierHandler{}},
+		{
+			ID:      "ml_fullness",
+			Handler: &skills.MagicLancerFullnessHandler{},
+			Policy: types.SkillPolicy{
+				TargetRules: types.TargetRuleSet{
+					Count: types.TargetCountRule{Min: 0, Max: 1, Err: "充盈至多指定1名其他队友"},
+					Slots: []types.TargetSlotRule{
+						{Index: 0, Camp: types.TargetCampAlly, Self: types.TargetSelfOther, Err: "充盈的可选目标必须是其他队友"},
+					},
+				},
+			},
+		},
+		{ID: "ml_black_spear", Handler: &skills.MagicLancerBlackSpearHandler{}},
+	}
+}
+
+// ChoiceRouteSpecs 导出角色 choice 路由声明。
+func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
+	return map[string]types.ChoiceRouteSpec{
+		"ml_black_spear_x":         types.ChoiceRouteRole("magic_lancer"),
+		"ml_dark_barrier_cards":    types.ChoiceRouteRole("magic_lancer"),
+		"ml_dark_barrier_mode":     types.ChoiceRouteRole("magic_lancer"),
+		"ml_dark_barrier_x":        types.ChoiceRouteRole("magic_lancer"),
+		"ml_dark_release_pick":     types.ChoiceRouteRole("magic_lancer"),
+		"ml_fullness_cost_card":    types.ChoiceRouteRole("magic_lancer"),
+		"ml_fullness_discard_step": types.ChoiceRouteRole("magic_lancer"),
+		"ml_phantom_stardust_pick": types.ChoiceRouteRole("magic_lancer"),
+		"ml_stardust_target":       types.ChoiceRouteTargetPrompt("ml"),
+	}
+}

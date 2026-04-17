@@ -1,0 +1,49 @@
+// gameflow: 技能策略类型定义（共享包，避免 engine/player 循环依赖）。
+
+package types
+
+import "starcup-engine/internal/model"
+
+// SkillPolicy 定义技能使用策略钩子。
+type SkillPolicy struct {
+	// PrepareSkillUse 阶段覆盖默认 CostDiscards，决定后续弃牌交互/校验需要的张数。
+	ResolveDiscardCount func(ctx PolicyContext) int
+	// ValidateSkillDiscardSelection 阶段的二次校验，用于检查弃牌组合规则。
+	ValidateDiscardedCards func(ctx PolicyContext) error
+	// ResolveSkillTargets 阶段的声明式目标规则。
+	TargetRules TargetRuleSet
+	// ConsumeSkillInputs 阶段自定义弃牌入弃牌堆行为。
+	ResolveDiscardPile func(ctx PolicyContext) []model.Card
+	// ExecuteSkillFlow 阶段的后置钩子。
+	AfterConsume func(host PolicyHost, ctx PolicyContext) (bool, error)
+	// FinishSkillUse 阶段是否跳过默认收尾。
+	SkipAutoPhaseEnd bool
+	// ValidateSkillDiscardSelection 阶段对专属卡改为手动处理。
+	ManualExclusiveCard bool
+}
+
+// PolicyContext 是技能策略回调使用的只读快照。
+type PolicyContext struct {
+	SkillID          string
+	PlayerID         string
+	SkillDef         model.SkillDefinition
+	RequiredDiscards int
+	DiscardedCards   []model.Card
+	TargetIDs        []string
+	ActualTargetIDs  []string
+}
+
+// PolicyHost 抽象角色策略可调用的引擎能力。
+type PolicyHost interface {
+	Log(message string)
+	BeginSkillFollowup(req BeginSkillFollowupReq) error
+}
+
+// BeginSkillFollowupReq 是策略回调发起后续流程的通用请求。
+type BeginSkillFollowupReq struct {
+	Kind           string
+	UserID         string
+	SkillID        string
+	TargetIDs      []string
+	DiscardedCards []model.Card
+}
