@@ -121,11 +121,11 @@ func (e *GameEngine) handleSynthesize(p *model.Player) error {
 		}
 	}
 	if p.Camp == model.RedCamp {
-		e.addCampCup(model.RedCamp)
+		e.AddCampCup(model.RedCamp)
 		e.Log(fmt.Sprintf("[Action] %s 合成星杯！红方星杯+1，蓝方士气-1", p.Name))
 		e.State.BlueMorale--
 	} else {
-		e.addCampCup(model.BlueCamp)
+		e.AddCampCup(model.BlueCamp)
 		e.Log(fmt.Sprintf("[Action] %s 合成星杯！蓝方星杯+1，红方士气-1", p.Name))
 		e.State.RedMorale--
 	}

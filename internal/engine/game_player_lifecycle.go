@@ -61,7 +61,6 @@ func (e *GameEngine) AddPlayer(id, name, role string, camp model.Camp) error {
 	return nil
 }
 
-// buildMagicMissilePrompt 构建魔弹响应提示
 // StartGame 开始游戏
 func (e *GameEngine) StartGame() error {
 	if len(e.State.Players) < 2 {

@@ -93,439 +93,259 @@ func registerAngelRoleEntry(registry *engineplayer.RoleRegistry) {
 	if registry == nil {
 		return
 	}
-	registry.Register(engineplayer.RoleEntry{
-		ID:               "angel",
-		Choices:          angelplayer.NewChoiceHandler(),
-		Skills:           angelplayer.SkillEntries(),
-		ChoiceRouteSpecs: angelplayer.ChoiceRouteSpecs(),
-	})
+	registry.Register(angelplayer.RoleEntry())
 }
 
 func registerArbiterRoleEntry(registry *engineplayer.RoleRegistry) {
 	if registry == nil {
 		return
 	}
-	registry.Register(engineplayer.RoleEntry{
-		ID:               "arbiter",
-		Choices:          arbiterplayer.NewChoiceHandler(),
-		Skills:           arbiterplayer.SkillEntries(),
-		ChoiceRouteSpecs: arbiterplayer.ChoiceRouteSpecs(),
-	})
+	registry.Register(arbiterplayer.RoleEntry())
 }
 
 func registerBlazeWitchRoleEntry(registry *engineplayer.RoleRegistry) {
 	if registry == nil {
 		return
 	}
-	registry.Register(engineplayer.RoleEntry{
-		ID:               "blaze_witch",
-		Choices:          blazewitchplayer.NewChoiceHandler(),
-		Skills:           blazewitchplayer.SkillEntries(),
-		ChoiceRouteSpecs: blazewitchplayer.ChoiceRouteSpecs(),
-	})
+	registry.Register(blazewitchplayer.RoleEntry())
 }
 
 func registerCrimsonSwordSpiritRoleEntry(registry *engineplayer.RoleRegistry) {
 	if registry == nil {
 		return
 	}
-	registry.Register(engineplayer.RoleEntry{
-		ID:               "crimson_sword_spirit",
-		Choices:          crimsonswordspiritplayer.NewChoiceHandler(),
-		Skills:           crimsonswordspiritplayer.SkillEntries(),
-		ChoiceRouteSpecs: crimsonswordspiritplayer.ChoiceRouteSpecs(),
-	})
+	registry.Register(crimsonswordspiritplayer.RoleEntry())
 }
 
 func registerMoonGoddessRoleEntry(registry *engineplayer.RoleRegistry) {
 	if registry == nil {
 		return
 	}
-	registry.Register(engineplayer.RoleEntry{
-		ID:               "moon_goddess",
-		Choices:          moonplayer.NewChoiceHandler(),
-		Skills:           moonplayer.SkillEntries(),
-		ChoiceRouteSpecs: moonplayer.ChoiceRouteSpecs(),
-	})
+	registry.Register(moonplayer.RoleEntry())
 }
 
 func registerOnmyojiRoleEntry(registry *engineplayer.RoleRegistry) {
 	if registry == nil {
 		return
 	}
-	registry.Register(engineplayer.RoleEntry{
-		ID:               "onmyoji",
-		Choices:          onmyojiproplayer.NewChoiceHandler(),
-		Skills:           onmyojiproplayer.SkillEntries(),
-		ChoiceRouteSpecs: onmyojiproplayer.ChoiceRouteSpecs(),
-	})
+	registry.Register(onmyojiproplayer.RoleEntry())
 }
 
 func registerHolyLancerRoleEntry(registry *engineplayer.RoleRegistry) {
 	if registry == nil {
 		return
 	}
-	registry.Register(engineplayer.RoleEntry{
-		ID:               "holy_lancer",
-		Choices:          holylancerplayer.NewChoiceHandler(),
-		Skills:           holylancerplayer.SkillEntries(),
-		ChoiceRouteSpecs: holylancerplayer.ChoiceRouteSpecs(),
-	})
+	registry.Register(holylancerplayer.RoleEntry())
 }
 
 func registerPlagueMageRoleEntry(registry *engineplayer.RoleRegistry) {
 	if registry == nil {
 		return
 	}
-	registry.Register(engineplayer.RoleEntry{
-		ID:               "plague_mage",
-		Choices:          plagueplayer.NewChoiceHandler(),
-		Skills:           plagueplayer.SkillEntries(),
-		ChoiceRouteSpecs: plagueplayer.ChoiceRouteSpecs(),
-	})
+	registry.Register(plagueplayer.RoleEntry())
 }
 
 func registerMagicSwordsmanRoleEntry(registry *engineplayer.RoleRegistry) {
 	if registry == nil {
 		return
 	}
-	registry.Register(engineplayer.RoleEntry{
-		ID:               "magic_swordsman",
-		Choices:          magicswordsmanplayer.NewChoiceHandler(),
-		Skills:           magicswordsmanplayer.SkillEntries(),
-		ChoiceRouteSpecs: magicswordsmanplayer.ChoiceRouteSpecs(),
-	})
+	registry.Register(magicswordsmanplayer.RoleEntry())
 }
 
 func registerSageRoleEntry(registry *engineplayer.RoleRegistry) {
 	if registry == nil {
 		return
 	}
-	registry.Register(engineplayer.RoleEntry{
-		ID:               "sage",
-		Choices:          sageplayer.NewChoiceHandler(),
-		Skills:           sageplayer.SkillEntries(),
-		ChoiceRouteSpecs: sageplayer.ChoiceRouteSpecs(),
-	})
+	registry.Register(sageplayer.RoleEntry())
 }
 
 func registerSealerRoleEntry(registry *engineplayer.RoleRegistry) {
 	if registry == nil {
 		return
 	}
-	registry.Register(engineplayer.RoleEntry{
-		ID:               "sealer",
-		Choices:          sealerplayer.NewChoiceHandler(),
-		Skills:           sealerplayer.SkillEntries(),
-		ChoiceRouteSpecs: sealerplayer.ChoiceRouteSpecs(),
-	})
+	registry.Register(sealerplayer.RoleEntry())
 }
 
 func registerSaintessRoleEntry(registry *engineplayer.RoleRegistry) {
 	if registry == nil {
 		return
 	}
-	registry.Register(engineplayer.RoleEntry{
-		ID:               "saintess",
-		Choices:          saintessplayer.NewChoiceHandler(),
-		Skills:           saintessplayer.SkillEntries(),
-		ChoiceRouteSpecs: saintessplayer.ChoiceRouteSpecs(),
-	})
+	registry.Register(saintessplayer.RoleEntry())
 }
 
 func registerSpiritCasterRoleEntry(registry *engineplayer.RoleRegistry) {
 	if registry == nil {
 		return
 	}
-	registry.Register(engineplayer.RoleEntry{
-		ID:      "spirit_caster",
-		Choices: spiritcasterplayer.NewChoiceHandler(),
-		Skills:  spiritcasterplayer.SkillEntries(),
-	})
+	registry.Register(spiritcasterplayer.RoleEntry())
 }
 
 func registerAdventurerRoleEntry(registry *engineplayer.RoleRegistry) {
 	if registry == nil {
 		return
 	}
-	registry.Register(engineplayer.RoleEntry{
-		ID:               "adventurer",
-		Choices:          adventurerplayer.NewChoiceHandler(),
-		Skills:           adventurerplayer.SkillEntries(),
-		ChoiceRouteSpecs: adventurerplayer.ChoiceRouteSpecs(),
-	})
+	registry.Register(adventurerplayer.RoleEntry())
 }
 
 func registerAssassinRoleEntry(registry *engineplayer.RoleRegistry) {
 	if registry == nil {
 		return
 	}
-	registry.Register(engineplayer.RoleEntry{
-		ID:               "assassin",
-		Choices:          assassinplayer.NewChoiceHandler(),
-		Skills:           assassinplayer.SkillEntries(),
-		ChoiceRouteSpecs: assassinplayer.ChoiceRouteSpecs(),
-	})
+	registry.Register(assassinplayer.RoleEntry())
 }
 
 func registerHeroRoleEntry(registry *engineplayer.RoleRegistry) {
 	if registry == nil {
 		return
 	}
-	registry.Register(engineplayer.RoleEntry{
-		ID:               "hero",
-		Choices:          heroplayer.NewChoiceHandler(),
-		Skills:           heroplayer.SkillEntries(),
-		ChoiceRouteSpecs: heroplayer.ChoiceRouteSpecs(),
-	})
+	registry.Register(heroplayer.RoleEntry())
 }
 
 func registerBerserkerRoleEntry(registry *engineplayer.RoleRegistry) {
 	if registry == nil {
 		return
 	}
-	registry.Register(engineplayer.RoleEntry{
-		ID:      "berserker",
-		Choices: berserkerplayer.NewChoiceHandler(),
-		Skills:  berserkerplayer.SkillEntries(),
-	})
+	registry.Register(berserkerplayer.RoleEntry())
 }
 
 func registerMagicalGirlRoleEntry(registry *engineplayer.RoleRegistry) {
 	if registry == nil {
 		return
 	}
-	registry.Register(engineplayer.RoleEntry{
-		ID:      "magical_girl",
-		Choices: magicalgirlplayer.NewChoiceHandler(),
-		Skills:  magicalgirlplayer.SkillEntries(),
-	})
+	registry.Register(magicalgirlplayer.RoleEntry())
 }
 
 func registerBladeMasterRoleEntry(registry *engineplayer.RoleRegistry) {
 	if registry == nil {
 		return
 	}
-	registry.Register(engineplayer.RoleEntry{
-		ID:      "blade_master",
-		Choices: blademasterplayer.NewChoiceHandler(),
-		Skills:  blademasterplayer.SkillEntries(),
-	})
+	registry.Register(blademasterplayer.RoleEntry())
 }
 
 func registerArcherRoleEntry(registry *engineplayer.RoleRegistry) {
 	if registry == nil {
 		return
 	}
-	registry.Register(engineplayer.RoleEntry{
-		ID:      "archer",
-		Choices: archerplayer.NewChoiceHandler(),
-		Skills:  archerplayer.SkillEntries(),
-	})
+	registry.Register(archerplayer.RoleEntry())
 }
 
 func registerValkyrieRoleEntry(registry *engineplayer.RoleRegistry) {
 	if registry == nil {
 		return
 	}
-	registry.Register(engineplayer.RoleEntry{
-		ID:               "valkyrie",
-		Choices:          valkyrieplayer.NewChoiceHandler(),
-		Skills:           valkyrieplayer.SkillEntries(),
-		ChoiceRouteSpecs: valkyrieplayer.ChoiceRouteSpecs(),
-	})
+	registry.Register(valkyrieplayer.RoleEntry())
 }
 
 func registerElementalistRoleEntry(registry *engineplayer.RoleRegistry) {
 	if registry == nil {
 		return
 	}
-	registry.Register(engineplayer.RoleEntry{
-		ID:               "elementalist",
-		Choices:          elementalistplayer.NewChoiceHandler(),
-		Skills:           elementalistplayer.SkillEntries(),
-		ChoiceRouteSpecs: elementalistplayer.ChoiceRouteSpecs(),
-	})
+	registry.Register(elementalistplayer.RoleEntry())
 }
 
 func registerBardRoleEntry(registry *engineplayer.RoleRegistry) {
 	if registry == nil {
 		return
 	}
-	registry.Register(engineplayer.RoleEntry{
-		ID:               "bard",
-		Choices:          bardplayer.NewChoiceHandler(),
-		Skills:           bardplayer.SkillEntries(),
-		ChoiceRouteSpecs: bardplayer.ChoiceRouteSpecs(),
-	})
+	registry.Register(bardplayer.RoleEntry())
 }
 
 func registerBeastSamuraiRoleEntry(registry *engineplayer.RoleRegistry) {
 	if registry == nil {
 		return
 	}
-	registry.Register(engineplayer.RoleEntry{
-		ID:               "beast_samurai",
-		Choices:          beastsamuraiplayer.NewChoiceHandler(),
-		Skills:           beastsamuraiplayer.SkillEntries(),
-		ChoiceRouteSpecs: beastsamuraiplayer.ChoiceRouteSpecs(),
-	})
+	registry.Register(beastsamuraiplayer.RoleEntry())
 }
 
 func registerBloodPriestessRoleEntry(registry *engineplayer.RoleRegistry) {
 	if registry == nil {
 		return
 	}
-	registry.Register(engineplayer.RoleEntry{
-		ID:               "blood_priestess",
-		Choices:          bloodpriestessplayer.NewChoiceHandler(),
-		Skills:           bloodpriestessplayer.SkillEntries(),
-		ChoiceRouteSpecs: bloodpriestessplayer.ChoiceRouteSpecs(),
-	})
+	registry.Register(bloodpriestessplayer.RoleEntry())
 }
 
 func registerButterflyDancerRoleEntry(registry *engineplayer.RoleRegistry) {
 	if registry == nil {
 		return
 	}
-	registry.Register(engineplayer.RoleEntry{
-		ID:               "butterfly_dancer",
-		Choices:          butterflydancerplayer.NewChoiceHandler(),
-		Skills:           butterflydancerplayer.SkillEntries(),
-		ChoiceRouteSpecs: butterflydancerplayer.ChoiceRouteSpecs(),
-	})
+	registry.Register(butterflydancerplayer.RoleEntry())
 }
 
 func registerCrimsonKnightRoleEntry(registry *engineplayer.RoleRegistry) {
 	if registry == nil {
 		return
 	}
-	registry.Register(engineplayer.RoleEntry{
-		ID:               "crimson_knight",
-		Choices:          crimsonknightplayer.NewChoiceHandler(),
-		Skills:           crimsonknightplayer.SkillEntries(),
-		ChoiceRouteSpecs: crimsonknightplayer.ChoiceRouteSpecs(),
-	})
+	registry.Register(crimsonknightplayer.RoleEntry())
 }
 
 func registerElfArcherRoleEntry(registry *engineplayer.RoleRegistry) {
 	if registry == nil {
 		return
 	}
-	registry.Register(engineplayer.RoleEntry{
-		ID:               "elf_archer",
-		Choices:          elfarcherplayer.NewChoiceHandler(),
-		Skills:           elfarcherplayer.SkillEntries(),
-		ChoiceRouteSpecs: elfarcherplayer.ChoiceRouteSpecs(),
-	})
+	registry.Register(elfarcherplayer.RoleEntry())
 }
 
 func registerFighterRoleEntry(registry *engineplayer.RoleRegistry) {
 	if registry == nil {
 		return
 	}
-	registry.Register(engineplayer.RoleEntry{
-		ID:               "fighter",
-		Choices:          fighterplayer.NewChoiceHandler(),
-		Skills:           fighterplayer.SkillEntries(),
-		ChoiceRouteSpecs: fighterplayer.ChoiceRouteSpecs(),
-	})
+	registry.Register(fighterplayer.RoleEntry())
 }
 
 func registerHolyBowRoleEntry(registry *engineplayer.RoleRegistry) {
 	if registry == nil {
 		return
 	}
-	registry.Register(engineplayer.RoleEntry{
-		ID:               "holy_bow",
-		Choices:          holybowplayer.NewChoiceHandler(),
-		Skills:           holybowplayer.SkillEntries(),
-		ChoiceRouteSpecs: holybowplayer.ChoiceRouteSpecs(),
-	})
+	registry.Register(holybowplayer.RoleEntry())
 }
 
 func registerMagicBowRoleEntry(registry *engineplayer.RoleRegistry) {
 	if registry == nil {
 		return
 	}
-	registry.Register(engineplayer.RoleEntry{
-		ID:               "magic_bow",
-		Choices:          magicbowplayer.NewChoiceHandler(),
-		Skills:           magicbowplayer.SkillEntries(),
-		ChoiceRouteSpecs: magicbowplayer.ChoiceRouteSpecs(),
-	})
+	registry.Register(magicbowplayer.RoleEntry())
 }
 
 func registerMagicLancerRoleEntry(registry *engineplayer.RoleRegistry) {
 	if registry == nil {
 		return
 	}
-	registry.Register(engineplayer.RoleEntry{
-		ID:               "magic_lancer",
-		Choices:          magiclancerplayer.NewChoiceHandler(),
-		Skills:           magiclancerplayer.SkillEntries(),
-		ChoiceRouteSpecs: magiclancerplayer.ChoiceRouteSpecs(),
-	})
+	registry.Register(magiclancerplayer.RoleEntry())
 }
 
 func registerPrayerMasterRoleEntry(registry *engineplayer.RoleRegistry) {
 	if registry == nil {
 		return
 	}
-	registry.Register(engineplayer.RoleEntry{
-		ID:               "prayer_master",
-		Choices:          prayermasterplayer.NewChoiceHandler(),
-		Skills:           prayermasterplayer.SkillEntries(),
-		ChoiceRouteSpecs: prayermasterplayer.ChoiceRouteSpecs(),
-	})
+	registry.Register(prayermasterplayer.RoleEntry())
 }
 
 func registerPriestRoleEntry(registry *engineplayer.RoleRegistry) {
 	if registry == nil {
 		return
 	}
-	registry.Register(engineplayer.RoleEntry{
-		ID:               "priest",
-		Choices:          priestplayer.NewChoiceHandler(),
-		Skills:           priestplayer.SkillEntries(),
-		ChoiceRouteSpecs: priestplayer.ChoiceRouteSpecs(),
-	})
+	registry.Register(priestplayer.RoleEntry())
 }
 
 func registerSoulSorcererRoleEntry(registry *engineplayer.RoleRegistry) {
 	if registry == nil {
 		return
 	}
-	registry.Register(engineplayer.RoleEntry{
-		ID:               "soul_sorcerer",
-		Choices:          soulsocererplayer.NewChoiceHandler(),
-		Skills:           soulsocererplayer.SkillEntries(),
-		ChoiceRouteSpecs: soulsocererplayer.ChoiceRouteSpecs(),
-	})
+	registry.Register(soulsocererplayer.RoleEntry())
 }
 
 func registerSwordEmperorRoleEntry(registry *engineplayer.RoleRegistry) {
 	if registry == nil {
 		return
 	}
-	registry.Register(engineplayer.RoleEntry{
-		ID:               "sword_emperor",
-		Choices:          swordemperorplayer.NewChoiceHandler(),
-		Skills:           swordemperorplayer.SkillEntries(),
-		ChoiceRouteSpecs: swordemperorplayer.ChoiceRouteSpecs(),
-	})
+	registry.Register(swordemperorplayer.RoleEntry())
 }
 
 func registerWarHomunculusRoleEntry(registry *engineplayer.RoleRegistry) {
 	if registry == nil {
 		return
 	}
-	registry.Register(engineplayer.RoleEntry{
-		ID:               "war_homunculus",
-		Choices:          warhomunculusplayer.NewChoiceHandler(),
-		Skills:           warhomunculusplayer.SkillEntries(),
-		ChoiceRouteSpecs: warhomunculusplayer.ChoiceRouteSpecs(),
-	})
+	registry.Register(warhomunculusplayer.RoleEntry())
 }
 
 func registerHandLimitRoleEntries(registry *engineplayer.RoleRegistry) {

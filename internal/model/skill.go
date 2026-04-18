@@ -305,7 +305,9 @@ type IGameEngine interface {
 	RemoveFieldCardBy(targetID string, effect EffectType, sourceID string) bool
 	TakeFieldCard(targetID string, fieldIndex int, sourceID string) (Card, error)
 	GetCampCups(camp string) int
+	AddCampCup(camp Camp) bool
 	GetCampMorale(camp string) int
+	SetCampMorale(camp string, value int)
 	GetCampGems(camp string) int
 	GetCampCrystals(camp string) int
 

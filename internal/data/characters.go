@@ -824,7 +824,7 @@ func GetCharacters() []model.Character {
 					MaxTargets:   1,
 				},
 				{
-					ID: "adventurer_lucky_fortune", Timings: []model.FlowTiming{model.TimingActive}, Title: "强运",
+					ID: "adventurer_lucky_fortune", Timings: []model.FlowTiming{model.TimingOnAttackDeclared}, Title: "强运",
 					Type:         model.SkillTypePassive,
 					Description:  "发动欺诈后，+1蓝水晶。",
 					LogicHandler: "adventurer_lucky_fortune",

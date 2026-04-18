@@ -24,6 +24,7 @@ bd_rousing_mode
 bd_rousing_targets
 bd_victory_extract_stone
 bd_victory_mode
+bp_curse_discard
 bp_blood_sorrow_mode
 bp_blood_sorrow_target
 bp_blood_wail_x
@@ -41,6 +42,7 @@ bt_dance_mode
 bt_mirror_pair
 bt_pilgrimage_pick
 bt_poison_pick
+bt_reverse_branch2_pick
 bt_reverse_branch2_cost
 bt_reverse_mode
 bt_reverse_target
@@ -89,6 +91,7 @@ hb_radiant_descent_cost
 heal
 hero_roar_draw
 holy_lancer_earth_spear_x
+hom_dual_echo_target
 hom_glyph_fusion_cards
 hom_glyph_fusion_x
 hom_glyph_fusion_y
@@ -183,6 +186,7 @@ bp_blood_curse_pick
 bp_shared_life_pick
 bs_iaijutsu_draw_pick
 bs_iaijutsu_mode_pick
+bt_cocoon_overflow_discard
 bt_cocoon_pick
 bt_reverse_branch1_pick
 bd_dissonance_pick
@@ -212,6 +216,7 @@ priest_divine_revelation_pick
 sc_talisman_pick
 se_soul_pick
 sealer_five_elements_bind_pick
+ss_recall_pick
 ss_soul_devour_pick
 ss_soul_recall_pick
 valkyrie_heroic_summon_pick

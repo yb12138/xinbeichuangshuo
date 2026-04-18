@@ -7,6 +7,20 @@ import (
 	"starcup-engine/internal/types"
 )
 
+// InterruptSpec 定义角色包贡献的中断处理条目。
+type InterruptSpec struct {
+	// Type 该 spec 处理的中断类型。
+	Type model.InterruptType
+	// BuildPrompt 构建该中断类型的用户提示。返回 nil 表示无提示。
+	BuildPrompt func(rt ChoiceRuntime) *model.Prompt
+	// HandleAction 处理该中断类型的用户响应。
+	HandleAction func(rt ChoiceRuntime, act model.PlayerAction) error
+	// AllowedActionTypes 允许的玩家操作类型（空=不限制）。
+	AllowedActionTypes []model.PlayerActionType
+	// InvalidActionMessage 操作类型不匹配时的提示。
+	InvalidActionMessage string
+}
+
 // ChoiceRuntime 抽象角色选择流运行时能力。
 type ChoiceRuntime interface {
 	model.IGameEngine
@@ -16,7 +30,10 @@ type ChoiceRuntime interface {
 	PopInterrupt()
 	HasPendingInterrupt() bool
 	NotifyInterruptPrompt()
+	DrawCardsDirect(playerID string, amount int, reason string)
+	EnsureCombatInteractionWindow()
 	ReplacePendingInterruptContext(data map[string]interface{}) error
+	ReplacePendingInterruptPlayerID(playerID string)
 	ResumePendingAttackMiss(ctx *model.Context) bool
 	ResumePendingAttackHit(ctxData map[string]interface{})
 	ApplyChoiceResumePoint(raw interface{})
@@ -33,11 +50,37 @@ type ChoiceRuntime interface {
 	RestorePhaseAfterInterruptedDraw(ctx *model.Context) bool
 	PushInterrupt(intr *model.Interrupt)
 	PendingDamageQueueLen() int
+	GetPendingDamage(index int) (*model.PendingDamage, bool)
 	ActionQueueLen() int
 	AttachExclusiveEffectCard(sourceID, targetID string, effect model.EffectType, card model.Card) error
 	ResumePendingMoraleLoss(ctx *model.Context) bool
 	EnterResponseWindow()
 	ApplyStealthEffect(player *model.Player)
+	EnqueueVirtualAttack(sourceID, targetID string, card model.Card, sourceSkill string)
+	ApplyCampMoraleLoss(camp model.Camp, wantLoss int) int
+	ResolveCounterAttack(counterPlayerID, counterTargetID string, counterCard model.Card)
+	NotifyCombatCue(attackerID, targetID, cueType string)
+	ConsumePlayableCardByCardID(playerID, cardID string) (model.Card, bool)
+	TopCombatRequest() *model.CombatRequest
+	PopCombatRequest()
+
+	// 中断 prompt/response 迁移所需方法。
+	PendingInterrupt() *model.Interrupt
+	RoutePendingDamageWithDefaultReturn(defaultReturn interface{}) bool
+	RestoreReturnPoint() bool
+	PushDiscardChoiceInterrupt(playerID string, data map[string]interface{})
+	EnterActionEndStage()
+	MagicBulletChain() *model.MagicBulletChain
+	SetMagicBulletChain(chain *model.MagicBulletChain)
+	SetReturnPoint(returnTo interface{})
+	GetPlayableCardByIndex(player *model.Player, idx int) (model.Card, bool)
+	ConsumePlayableCardByIndex(player *model.Player, idx int) (model.Card, error)
+	PerformMagic(playerID, targetID string, cardIdx int, isFusion bool) error
+	ExecuteMagicBullet(player *model.Player, reverse, isFusion bool, fusionCard *model.Card) error
+	FindNextMagicBulletTarget(playerID string) string
+	DispatchHitCheckMagicMissileCounter(player *model.Player, chain *model.MagicBulletChain, card *model.Card) error
+	DispatchHitCheckMagicMissileDefend(player *model.Player, chain *model.MagicBulletChain) error
+	AddToDiscardPile(cards ...model.Card)
 }
 
 // ChoiceHandler 抽象角色选择流入口。
@@ -65,7 +108,7 @@ type FollowupHost interface {
 	ResolveSkillFollowup(req ResolveSkillFollowupReq) error
 }
 
-// FollowupSpec 定义角色模块贡献给延迟后续执行表的条目。
+// FollowupSpec 定义角色模块贡献到延迟后续执行表的条目。
 type FollowupSpec struct {
 	Label   string
 	Resolve func(host FollowupHost, f model.DeferredFollowup) error
@@ -82,6 +125,8 @@ type RoleEntry struct {
 	ID string
 	// Defaults 用于初始化角色默认属性。
 	Defaults func(player *model.Player)
+	// StarterCards 返回角色开局专属牌列表。
+	StarterCards func(player *model.Player) []model.Card
 	// HandLimit 角色手牌上限规则。
 	HandLimit HandLimitRule
 	// MaxHeal 角色治疗上限规则。
@@ -94,6 +139,8 @@ type RoleEntry struct {
 	ChoiceRouteSpecs map[string]types.ChoiceRouteSpec
 	// FollowupSpecs 角色贡献到全局 DeferredFollowups 执行映射的条目。
 	FollowupSpecs map[string]FollowupSpec
+	// InterruptSpecs 角色贡献到全局中断处理映射的条目。
+	InterruptSpecs []InterruptSpec
 }
 
 // ApplyDefaults 应用默认角色属性。
@@ -102,6 +149,14 @@ func (e RoleEntry) ApplyDefaults(player *model.Player) {
 		return
 	}
 	e.Defaults(player)
+}
+
+// ApplyStarterCards 应用开局专属牌。
+func (e RoleEntry) ApplyStarterCards(player *model.Player) []model.Card {
+	if e.StarterCards == nil {
+		return nil
+	}
+	return e.StarterCards(player)
 }
 
 // HandLimitRule 返回角色手牌规则。

@@ -5,8 +5,33 @@ package beast_samurai
 import (
 	"starcup-engine/internal/engine/player"
 	skills "starcup-engine/internal/engine/skill"
+	"starcup-engine/internal/model"
 	"starcup-engine/internal/types"
 )
+
+// RoleEntry 导出角色统一入口定义。
+func RoleEntry() player.RoleEntry {
+	return player.RoleEntry{
+		ID:               "beast_samurai",
+		Defaults:         ApplyDefaults,
+		Choices:          NewChoiceHandler(),
+		Skills:           SkillEntries(),
+		ChoiceRouteSpecs: ChoiceRouteSpecs(),
+	}
+}
+
+// ApplyDefaults 初始化角色默认属性。
+func ApplyDefaults(p *model.Player) {
+	if p == nil {
+		return
+	}
+	if p.Tokens == nil {
+		p.Tokens = map[string]int{}
+	}
+	p.Tokens["bs_zanshin"] = 0
+	p.Tokens["bs_beast_soul"] = 0
+	p.Tokens["bs_reversal_pending_x"] = 0
+}
 
 // SkillEntries 导出角色技能与策略绑定入口。
 func SkillEntries() []player.SkillEntry {
@@ -29,15 +54,15 @@ func SkillEntries() []player.SkillEntry {
 // ChoiceRouteSpecs 导出角色 choice 路由声明。
 func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 	return map[string]types.ChoiceRouteSpec{
-		"bs_alert_source_discard":        types.ChoiceRouteRole("beast"),
-		"bs_beast_return_self_discard":   types.ChoiceRouteRole("beast"),
-		"bs_beast_return_source_discard": types.ChoiceRouteRole("beast"),
-		"bs_beast_return_x":              types.ChoiceRouteRole("beast"),
-		"bs_iaijutsu_draw_pick":          types.ChoiceRouteRole("beast"),
-		"bs_iaijutsu_mode_pick":          types.ChoiceRouteRole("beast"),
-		"bs_iaijutsu_style_discard":      types.ChoiceRouteRole("beast"),
-		"bs_iaijutsu_style_mode":         types.ChoiceRouteRole("beast"),
-		"bs_reversal_target_discard":     types.ChoiceRouteRole("beast"),
-		"bs_reversal_x":                  types.ChoiceRouteRole("beast"),
+		"bs_alert_source_discard":        types.ChoiceRouteRole("beast_samurai"),
+		"bs_beast_return_self_discard":   types.ChoiceRouteRole("beast_samurai"),
+		"bs_beast_return_source_discard": types.ChoiceRouteRole("beast_samurai"),
+		"bs_beast_return_x":              types.ChoiceRouteRole("beast_samurai"),
+		"bs_iaijutsu_draw_pick":          types.ChoiceRouteRole("beast_samurai"),
+		"bs_iaijutsu_mode_pick":          types.ChoiceRouteRole("beast_samurai"),
+		"bs_iaijutsu_style_discard":      types.ChoiceRouteRole("beast_samurai"),
+		"bs_iaijutsu_style_mode":         types.ChoiceRouteRole("beast_samurai"),
+		"bs_reversal_target_discard":     types.ChoiceRouteRole("beast_samurai"),
+		"bs_reversal_x":                  types.ChoiceRouteRole("beast_samurai"),
 	}
 }

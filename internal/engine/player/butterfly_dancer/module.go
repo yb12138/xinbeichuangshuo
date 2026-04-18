@@ -5,8 +5,32 @@ package butterfly_dancer
 import (
 	"starcup-engine/internal/engine/player"
 	skills "starcup-engine/internal/engine/skill"
+	"starcup-engine/internal/model"
 	"starcup-engine/internal/types"
 )
+
+// RoleEntry 导出角色统一入口定义。
+func RoleEntry() player.RoleEntry {
+	return player.RoleEntry{
+		ID:               "butterfly_dancer",
+		Defaults:         ApplyDefaults,
+		Choices:          NewChoiceHandler(),
+		Skills:           SkillEntries(),
+		ChoiceRouteSpecs: ChoiceRouteSpecs(),
+	}
+}
+
+// ApplyDefaults 初始化角色默认属性。
+func ApplyDefaults(p *model.Player) {
+	if p == nil {
+		return
+	}
+	if p.Tokens == nil {
+		p.Tokens = map[string]int{}
+	}
+	p.Tokens["bt_pupa"] = 0
+	p.Tokens["bt_wither_active"] = 0
+}
 
 // SkillEntries 导出角色技能与策略绑定入口。
 func SkillEntries() []player.SkillEntry {
@@ -25,17 +49,19 @@ func SkillEntries() []player.SkillEntry {
 // ChoiceRouteSpecs 导出角色 choice 路由声明。
 func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 	return map[string]types.ChoiceRouteSpec{
-		"bt_cocoon_pick":          types.ChoiceRouteRole("butterfly"),
-		"bt_dance_discard":        types.ChoiceRouteRole("butterfly"),
-		"bt_dance_mode":           types.ChoiceRouteRole("butterfly"),
-		"bt_mirror_pair":          types.ChoiceRouteRole("butterfly"),
-		"bt_pilgrimage_pick":      types.ChoiceRouteRole("butterfly"),
-		"bt_poison_pick":          types.ChoiceRouteRole("butterfly"),
-		"bt_reverse_branch1_pick": types.ChoiceRouteRole("butterfly"),
-		"bt_reverse_branch2_cost": types.ChoiceRouteRole("butterfly"),
-		"bt_reverse_mode":         types.ChoiceRouteRole("butterfly"),
-		"bt_reverse_target":       types.ChoiceRouteRole("butterfly"),
-		"bt_wither_confirm":       types.ChoiceRouteRole("butterfly"),
-		"bt_wither_target":        types.ChoiceRouteRole("butterfly"),
+		"bt_cocoon_overflow_discard": types.ChoiceRouteRole("butterfly_dancer"),
+		"bt_cocoon_pick":            types.ChoiceRouteRole("butterfly_dancer"),
+		"bt_dance_discard":          types.ChoiceRouteRole("butterfly_dancer"),
+		"bt_dance_mode":             types.ChoiceRouteRole("butterfly_dancer"),
+		"bt_mirror_pair":            types.ChoiceRouteRole("butterfly_dancer"),
+		"bt_pilgrimage_pick":        types.ChoiceRouteRole("butterfly_dancer"),
+		"bt_poison_pick":            types.ChoiceRouteRole("butterfly_dancer"),
+		"bt_reverse_branch1_pick":   types.ChoiceRouteRole("butterfly_dancer"),
+		"bt_reverse_branch2_cost":   types.ChoiceRouteRole("butterfly_dancer"),
+		"bt_reverse_branch2_pick":   types.ChoiceRouteRole("butterfly_dancer"),
+		"bt_reverse_mode":           types.ChoiceRouteRole("butterfly_dancer"),
+		"bt_reverse_target":         types.ChoiceRouteRole("butterfly_dancer"),
+		"bt_wither_confirm":         types.ChoiceRouteRole("butterfly_dancer"),
+		"bt_wither_target":          types.ChoiceRouteRole("butterfly_dancer"),
 	}
 }

@@ -422,7 +422,10 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		if target == nil {
 			return true, fmt.Errorf("目标角色不存在")
 		}
-		removeMoonGoddessDarkMoonAny(user, 1)
+		removed := removeMoonGoddessDarkMoonAny(user, 1)
+		if removed > 0 {
+			rt.ApplyCampMoraleLoss(user.Camp, removed)
+		}
 		rt.Heal(target.ID, 1)
 		rt.Log(fmt.Sprintf("%s 发动 [月之轮回] 分支①：移除1闇月并令 %s +1治疗", user.Name, target.Name))
 		rt.PopInterrupt()
@@ -514,7 +517,10 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		if pd == nil {
 			return true, fmt.Errorf("未找到对应的攻击伤害结算")
 		}
-		removeMoonGoddessDarkMoonAny(user, x)
+		removed := removeMoonGoddessDarkMoonAny(user, x)
+		if removed > 0 {
+			rt.ApplyCampMoraleLoss(user.Camp, removed)
+		}
 		pd.Damage += x
 		rt.Log(fmt.Sprintf("%s 的 [闇月斩] 生效：移除%d个闇月，本次攻击伤害额外+%d", user.Name, x, x))
 		rt.PopInterrupt()
@@ -853,7 +859,14 @@ func finishMoonGoddessMedusa(rt engineplayer.ChoiceRuntime, rawCtx *model.Contex
 	// enterResponseWindow is not exposed on ChoiceRuntime
 }
 
-func moonGoddessFindPendingAttackDamage(_ engineplayer.ChoiceRuntime, _ *model.Context) *model.PendingDamage {
+func moonGoddessFindPendingAttackDamage(rt engineplayer.ChoiceRuntime, _ *model.Context) *model.PendingDamage {
+	n := rt.PendingDamageQueueLen()
+	for i := 0; i < n; i++ {
+		pd, ok := rt.GetPendingDamage(i)
+		if ok && pd != nil {
+			return pd
+		}
+	}
 	return nil
 }
 

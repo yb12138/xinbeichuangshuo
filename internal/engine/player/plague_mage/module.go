@@ -5,8 +5,28 @@ package plague_mage
 import (
 	"starcup-engine/internal/engine/player"
 	skills "starcup-engine/internal/engine/skill"
+	"starcup-engine/internal/model"
 	"starcup-engine/internal/types"
 )
+
+// RoleEntry 导出角色统一入口定义。
+func RoleEntry() player.RoleEntry {
+	return player.RoleEntry{
+		ID:               "plague_mage",
+		Defaults:         ApplyDefaults,
+		Choices:          NewChoiceHandler(),
+		Skills:           SkillEntries(),
+		ChoiceRouteSpecs: ChoiceRouteSpecs(),
+	}
+}
+
+// ApplyDefaults 初始化角色默认属性。
+func ApplyDefaults(player *model.Player) {
+	if player == nil {
+		return
+	}
+	player.MaxHeal = 5
+}
 
 // SkillEntries 导出角色技能与策略绑定入口。
 func SkillEntries() []player.SkillEntry {

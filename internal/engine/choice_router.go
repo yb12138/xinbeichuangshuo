@@ -66,16 +66,3 @@ func (e *GameEngine) cancelExtractChoice(playerID string) error {
 	}
 	return nil
 }
-
-func (e *GameEngine) cancelHomDualEchoChoice(playerID string) error {
-	e.PopInterrupt()
-	if p := e.State.Players[playerID]; p != nil {
-		e.Log("[System] " + p.Name + " 取消了 [双重回响] 的目标选择")
-	} else {
-		e.Log("[System] " + playerID + " 取消了 [双重回响] 的目标选择")
-	}
-	if e.State.PendingInterrupt == nil && len(e.State.PendingDamageQueue) > 0 {
-		e.enterDamageResolution(nil)
-	}
-	return nil
-}

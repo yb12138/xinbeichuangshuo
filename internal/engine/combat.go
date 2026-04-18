@@ -312,3 +312,15 @@ func (e *GameEngine) applyDamageWithOptions(target *model.Player, damage int, da
 func (e *GameEngine) applyDamage(target *model.Player, damage int, damageType model.DamageType) {
 	e.applyDamageWithOptions(target, damage, damageType, false, "", "", 0)
 }
+
+// resolveCounterAttack resolves a counter attack by popping the current combat
+// from the stack and creating a new reflected combat request.
+func (e *GameEngine) resolveCounterAttack(counterPlayerID, counterTargetID string, counterCard model.Card) {
+	if e.State == nil || len(e.State.CombatStack) == 0 {
+		return
+	}
+	// Pop the original combat
+	e.State.CombatStack = e.State.CombatStack[:len(e.State.CombatStack)-1]
+	// Create the reflected combat
+	e.initCombat(counterPlayerID, counterTargetID, &counterCard, false, true, false, nil, true)
+}

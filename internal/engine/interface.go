@@ -390,6 +390,14 @@ func (e *GameEngine) GetCampMorale(camp string) int {
 	return e.State.BlueMorale
 }
 
+func (e *GameEngine) SetCampMorale(camp string, value int) {
+	if model.Camp(camp) == model.RedCamp {
+		e.State.RedMorale = value
+	} else {
+		e.State.BlueMorale = value
+	}
+}
+
 func (e *GameEngine) GetCampGems(camp string) int {
 	if model.Camp(camp) == model.RedCamp {
 		return e.State.RedGems

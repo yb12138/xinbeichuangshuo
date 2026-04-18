@@ -59,14 +59,14 @@ func TestHolyLancerRevelation_UpdatesWhenCampCupChanges(t *testing.T) {
 		t.Fatalf("expected holy lancer start at max heal 3 when cups are tied, got %d", got)
 	}
 
-	if !game.addCampCup(model.BlueCamp) {
+	if !game.AddCampCup(model.BlueCamp) {
 		t.Fatalf("expected blue camp cup gain to succeed")
 	}
 	if got := p1.MaxHeal; got != 2 {
 		t.Fatalf("expected max heal drop to 2 after enemy camp gains cup, got %d", got)
 	}
 
-	if !game.addCampCup(model.RedCamp) {
+	if !game.AddCampCup(model.RedCamp) {
 		t.Fatalf("expected red camp cup gain to succeed")
 	}
 	if got := p1.MaxHeal; got != 3 {

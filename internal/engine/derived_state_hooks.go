@@ -68,7 +68,7 @@ func (e *GameEngine) refreshTimingDerivedStateOnCampCupChanged(changedCamp model
 	e.runTimingOnCampChangedHooks(nil, changedCamp, timingOnCampChangedCampCup)
 }
 
-func (e *GameEngine) addCampCup(camp model.Camp) bool {
+func (e *GameEngine) AddCampCup(camp model.Camp) bool {
 	if e == nil || e.State == nil {
 		return false
 	}

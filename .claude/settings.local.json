@@ -18,7 +18,14 @@
       "Bash(PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin git worktree *)",
       "Bash(brew info *)",
       "Bash(brew outdated *)",
-      "Bash(brew *)"
+      "Bash(brew *)",
+      "Bash(xxd /Users/yb/xinbeichuangshuo/internal/engine/player/arbiter/module.go)",
+      "Bash(go run *)",
+      "Bash(find *)",
+      "Bash(xargs -I{} bash -c 'echo \"$\\(basename $\\(dirname {}\\)\\)\"; grep \"Defaults:\" {}')",
+      "Bash(xargs -I{} bash -c 'echo \"$\\(basename $\\(dirname {}\\)\\)\"; grep \"StarterCards:\" {}')",
+      "Bash(xargs -I{} bash -c 'echo \"$\\(basename $\\(dirname {}\\)\\)\"; grep \"Choices:\" {}')",
+      "Bash(grep -v \":0$\")"
     ]
   }
 }

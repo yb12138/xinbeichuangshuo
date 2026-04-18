@@ -7,6 +7,15 @@ import (
 	skills "starcup-engine/internal/engine/skill"
 )
 
+// RoleEntry 导出角色统一入口定义。
+func RoleEntry() player.RoleEntry {
+	return player.RoleEntry{
+		ID:      "archer",
+		Choices: NewChoiceHandler(),
+		Skills:  SkillEntries(),
+	}
+}
+
 // SkillEntries 导出角色技能与策略绑定入口。
 func SkillEntries() []player.SkillEntry {
 	return []player.SkillEntry{

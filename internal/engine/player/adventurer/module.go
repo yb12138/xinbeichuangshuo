@@ -5,8 +5,25 @@ package adventurer
 import (
 	"starcup-engine/internal/engine/player"
 	skills "starcup-engine/internal/engine/skill"
+	"starcup-engine/internal/model"
 	"starcup-engine/internal/types"
 )
+
+// RoleEntry 导出角色统一入口定义。
+func RoleEntry() player.RoleEntry {
+	return player.RoleEntry{
+		ID:               "adventurer",
+		Defaults:         ApplyDefaults,
+		Choices:          NewChoiceHandler(),
+		Skills:           SkillEntries(),
+		ChoiceRouteSpecs: ChoiceRouteSpecs(),
+	}
+}
+
+// ApplyDefaults 初始化角色默认属性。
+func ApplyDefaults(p *model.Player) {
+	// adventurer 无特殊默认配置
+}
 
 // SkillEntries 导出角色技能与策略绑定入口。
 func SkillEntries() []player.SkillEntry {

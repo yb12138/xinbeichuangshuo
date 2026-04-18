@@ -719,7 +719,7 @@ func TestBladeMaster_HolySwordDraw_X0ResumesExtraAction(t *testing.T) {
 		t.Fatalf("expected holy sword draw interrupt, got %+v", game.State.PendingInterrupt)
 	}
 
-	if err := game.handleHolySwordDrawResponse(model.PlayerAction{
+	if err := game.handleInterruptAction(model.PlayerAction{
 		PlayerID:   "p1",
 		Type:       model.CmdSelect,
 		Selections: []int{0},
@@ -760,7 +760,7 @@ func TestBladeMaster_HolySwordDiscardResumesExtraAction(t *testing.T) {
 	if !game.holySwordDrawInterruptIfNeeded(p1) {
 		t.Fatalf("expected holy sword draw interrupt to dispatch")
 	}
-	if err := game.handleHolySwordDrawResponse(model.PlayerAction{
+	if err := game.handleInterruptAction(model.PlayerAction{
 		PlayerID:   "p1",
 		Type:       model.CmdSelect,
 		Selections: []int{1},

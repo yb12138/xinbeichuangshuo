@@ -195,58 +195,7 @@ func bootstrapChoiceSpecs(e *GameEngine) {
 		return ge.cancelSystemDiscardChoice(pid, ctxData)
 	})
 
-	regSpecSingleAndMulti(reg, "bs_alert_source_discard", (*GameEngine).buildBeastSamuraiChoicePrompt, func(ge *GameEngine, pid string, idx int, ctx map[string]any) (bool, error) {
-		return true, ge.handleBeastSamuraiDiscardSelections(pid, []int{idx}, choiceCtxAsInterfaceMap(ctx))
-	}, func(ge *GameEngine, pid string, sels []int) error {
-		return ge.handleBeastSamuraiDiscardSelections(pid, sels, nil)
-	})
-
-	regSpecSingleAndMulti(reg, "bs_beast_return_self_discard", (*GameEngine).buildBeastSamuraiChoicePrompt, func(ge *GameEngine, pid string, idx int, ctx map[string]any) (bool, error) {
-		return true, ge.handleBeastSamuraiDiscardSelections(pid, []int{idx}, choiceCtxAsInterfaceMap(ctx))
-	}, func(ge *GameEngine, pid string, sels []int) error {
-		return ge.handleBeastSamuraiDiscardSelections(pid, sels, nil)
-	})
-
-	regSpecSingleAndMulti(reg, "bs_beast_return_source_discard", (*GameEngine).buildBeastSamuraiChoicePrompt, func(ge *GameEngine, pid string, idx int, ctx map[string]any) (bool, error) {
-		return true, ge.handleBeastSamuraiDiscardSelections(pid, []int{idx}, choiceCtxAsInterfaceMap(ctx))
-	}, func(ge *GameEngine, pid string, sels []int) error {
-		return ge.handleBeastSamuraiDiscardSelections(pid, sels, nil)
-	})
-
-	regSpecSingleAndMulti(reg, "bs_iaijutsu_style_discard", (*GameEngine).buildBeastSamuraiChoicePrompt, func(ge *GameEngine, pid string, idx int, ctx map[string]any) (bool, error) {
-		return true, ge.handleBeastSamuraiDiscardSelections(pid, []int{idx}, choiceCtxAsInterfaceMap(ctx))
-	}, func(ge *GameEngine, pid string, sels []int) error {
-		return ge.handleBeastSamuraiDiscardSelections(pid, sels, nil)
-	})
-
-	regSpecSingleAndMulti(reg, "bs_reversal_target_discard", (*GameEngine).buildBeastSamuraiChoicePrompt, func(ge *GameEngine, pid string, idx int, ctx map[string]any) (bool, error) {
-		return true, ge.handleBeastSamuraiDiscardSelections(pid, []int{idx}, choiceCtxAsInterfaceMap(ctx))
-	}, func(ge *GameEngine, pid string, sels []int) error {
-		return ge.handleBeastSamuraiDiscardSelections(pid, sels, nil)
-	})
-
 	regSpecExtractChoice(reg, (*GameEngine).buildSystemChoicePrompt, (*GameEngine).handleExtractChoiceSelections, (*GameEngine).cancelExtractChoice)
-
-	regSpecSingleAndCancel(reg, "hom_dual_echo_target", (*GameEngine).buildTargetChoicePrompt, (*GameEngine).handleWarHomunculusChoiceInput, (*GameEngine).cancelHomDualEchoChoice)
-
-	regSpecSingleAndMulti(reg, "bt_reverse_branch2_pick", (*GameEngine).buildButterflyChoicePrompt, (*GameEngine).handleButterflyChoiceInput, (*GameEngine).handleButterflyReverseBranch2PickSelections)
-
-	regSpecSingleAndMulti(reg, "bt_cocoon_overflow_discard", (*GameEngine).buildButterflyChoicePrompt, (*GameEngine).handleButterflyChoiceInput, (*GameEngine).handleButterflyCocoonOverflowSelections)
-
-	regSpecSingleAndMulti(reg, "bp_curse_discard", (*GameEngine).buildBloodPriestessChoicePrompt, (*GameEngine).handleBloodPriestessChoiceInput, (*GameEngine).handleBloodCurseDiscardSelections)
-
-	regSpecSingleAndMulti(reg, "ss_recall_pick", (*GameEngine).buildSoulSorcererChoicePrompt, (*GameEngine).handleSoulSorcererChoiceInput, (*GameEngine).handleSoulRecallSelections)
-
-	regSpecSingleAndMulti(reg, "adventurer_fraud_pick", (*GameEngine).buildAdventurerChoicePrompt, (*GameEngine).handleAdventurerChoiceInput, (*GameEngine).handleAdventurerFraudPickSelections)
-	regSpecSingleAndCancel(reg, "valkyrie_heroic_discard_card", roleBuildPrompt("valkyrie"), roleSelect("valkyrie"), roleCancel("valkyrie"))
-	regSpecSingleAndCancel(reg, "elf_elemental_shot_cost", roleBuildPrompt("elf_archer"), roleSelect("elf_archer"), roleCancel("elf_archer"))
-	regSpecSingleAndCancel(reg, "plague_death_touch_element", roleBuildPrompt("plague_mage"), roleSelect("plague_mage"), roleCancel("plague_mage"))
-	regSpecSingleAndCancel(reg, "plague_death_touch_x", roleBuildPrompt("plague_mage"), roleSelect("plague_mage"), roleCancel("plague_mage"))
-	regSpecSingleAndCancel(reg, "plague_death_touch_y", roleBuildPrompt("plague_mage"), roleSelect("plague_mage"), roleCancel("plague_mage"))
-	regSpecSingleAndMultiAndCancel(reg, "plague_death_touch_cards", roleBuildPrompt("plague_mage"), roleSelect("plague_mage"), func(ge *GameEngine, pid string, sels []int) error {
-		return ge.runSequentialChoiceSelections(pid, "plague_death_touch_cards", sels)
-	}, roleCancel("plague_mage"))
-	regSpecSingleAndCancel(reg, "plague_death_touch_target", roleBuildPrompt("plague_mage"), roleSelect("plague_mage"), roleCancel("plague_mage"))
 
 	e.bootstrapChoiceSpecsFromCatalog(reg)
 }
@@ -276,5 +225,12 @@ func roleCancel(roleID string) func(*GameEngine, string) error {
 func roleCancelWithContext(roleID string) func(*GameEngine, string, map[string]any) (bool, error) {
 	return func(ge *GameEngine, pid string, ctx map[string]any) (bool, error) {
 		return ge.handleRoleChoiceCancel(roleID, pid, choiceCtxAsInterfaceMap(ctx))
+	}
+}
+
+// roleMultiSequential creates a multi-selection callback that processes selections sequentially via role router.
+func roleMultiSequential(roleID string) func(*GameEngine, string, []int) error {
+	return func(ge *GameEngine, pid string, sels []int) error {
+		return ge.runSequentialChoiceSelections(pid, roleID, sels)
 	}
 }

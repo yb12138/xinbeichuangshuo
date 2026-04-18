@@ -197,6 +197,25 @@ func (h *MercyHandler) Execute(ctx *model.Context) error {
 	return nil
 }
 
+// RoleEntry 导出角色统一入口定义。
+func RoleEntry() player.RoleEntry {
+	return player.RoleEntry{
+		ID:               "saintess",
+		Choices:          NewChoiceHandler(),
+		Skills:           SkillEntries(),
+		ChoiceRouteSpecs: ChoiceRouteSpecs(),
+		InterruptSpecs: []player.InterruptSpec{
+			{
+				Type:                 model.InterruptSaintHeal,
+				BuildPrompt:          buildSaintHealPrompt,
+				HandleAction:         handleSaintHealAction,
+				AllowedActionTypes:   []model.PlayerActionType{model.CmdSelect},
+				InvalidActionMessage: "当前为【圣疗】选择阶段，请提交选择",
+			},
+		},
+	}
+}
+
 // SkillEntries 导出角色技能与策略绑定入口。
 func SkillEntries() []player.SkillEntry {
 	return []player.SkillEntry{

@@ -2,299 +2,152 @@
 
 ## 目标
 
-将 `engine/` 中角色专属的中断 prompt 构建和 response 处理逻辑迁移到 `player/<role>/interrupt.go`，通用框架保留在 engine。
+将 `engine/` 中角色专属的中断 prompt 构建和 response 处理逻辑迁移到 `player/<role>/interrupt.go`，
+通过 `InterruptSpec` 声明式注册机制实现角色与 engine 完全解耦。
 
-## 当前状况
+## 架构设计
 
-### 角色专属文件
+### 核心思路：InterruptSpec 声明式注册
 
-| 文件 | 角色 | 内容 |
-|------|------|------|
-| `interrupt_prompt_blademaster.go` | blade_master | `buildHolySwordDrawPrompt()` — 圣剑摸牌提示 |
-| `interrupt_prompt_saintess.go` | saintess | 圣女系中断 Prompt 构建 |
-| `interrupt_prompt_magic_bullet.go` | magical_girl | 魔弹相关 Prompt 与选项 |
-| `interrupt_response_holy_saint.go` | saintess | 圣系响应（圣击等）分支 |
-| `interrupt_response_magic_blast.go` | magical_girl | 魔爆冲击弃牌响应 |
-| `interrupt_response_magic_missile.go` | magical_girl | 魔弹应战/圣盾抵挡响应 |
+每个角色包通过 `RoleEntry.InterruptSpecs` 声明自己处理的中断类型及其 prompt/action 函数。
+engine 的 `interrupt_install.go` 在初始化时遍历所有角色的 InterruptSpecs 动态注册，
+不再硬编码角色专属的 prompt builder / action handler。
 
-### 通用框架文件（不迁移）
-
-| 文件 | 说明 |
-|------|------|
-| `interrupt_prompt_framework.go` | Prompt 构建公共框架与选项生成 |
-| `interrupt_response_runtime.go` | 响应技能确认后的恢复与回落 |
-| `interrupt_install.go` | 中断安装/注册 |
-| `interrupt_runtime.go` | 中断运行时管理 |
-
-## 核心问题
-
-中断 prompt/response 文件中的函数都是 `(e *GameEngine)` 方法，直接访问 `e.State.PendingInterrupt`、`e.State.Players`、`e.Log()` 等引擎状态。
-
-迁移到角色包后，需要通过接口解耦。
-
-## 详细步骤
-
-### Step 5.1：定义 InterruptRuntime 接口
-
-在 `player/role_entry.go` 中新增中断运行时接口：
-
-```go
-// player/role_entry.go — 新增接口
-type InterruptRuntime interface {
-    ChoiceRuntime  // 内嵌已有的 ChoiceRuntime
-
-    // 中断状态访问
-    PendingInterrupt() *model.Interrupt
-    SetPendingInterrupt(intr *model.Interrupt)
-
-    // Prompt 构建
-    NotifyInterruptPrompt()
-
-    // 伤害与资源
-    InflictDamage(sourceID, targetID string, damage int, damageType model.DamageType)
-    NotifyCardRevealed(playerID string, cards []model.Card, reason string)
-
-    // 弃牌
-    DiscardFromHand(player *model.Player, cardIdx int) (model.Card, error)
-
-    // 攻击流程
-    PopInterrupt()
-    HasPendingInterrupt() bool  // 已在 ChoiceRuntime 中
-}
-```
-
-在 engine 中实现该接口：
-
-```go
-// engine/role_choice_runtime.go — 扩展实现
-func (r roleChoiceRuntime) PendingInterrupt() *model.Interrupt {
-    if r.GameEngine == nil || r.State == nil {
-        return nil
-    }
-    return r.State.PendingInterrupt
-}
-
-func (r roleChoiceRuntime) SetPendingInterrupt(intr *model.Interrupt) {
-    if r.GameEngine == nil || r.State == nil {
-        return
-    }
-    r.State.PendingInterrupt = intr
-}
-
-func (r roleChoiceRuntime) InflictDamage(sourceID, targetID string, damage int, damageType model.DamageType) {
-    if r.GameEngine == nil { return }
-    r.InflictDamage(sourceID, targetID, damage, damageType)
-}
-
-func (r roleChoiceRuntime) DiscardFromHand(player *model.Player, cardIdx int) (model.Card, error) {
-    if r.GameEngine == nil || player == nil { return model.Card{}, fmt.Errorf("invalid") }
-    if cardIdx < 0 || cardIdx >= len(player.Hand) { return model.Card{}, fmt.Errorf("invalid index") }
-    card := player.Hand[cardIdx]
-    player.Hand = append(player.Hand[:cardIdx], player.Hand[cardIdx+1:]...)
-    r.State.DiscardPile = append(r.State.DiscardPile, card)
-    return card, nil
-}
-```
-
-### Step 5.2：迁移 blademaster 中断 prompt
-
-```go
-// player/blade_master/interrupt.go
-package blade_master
-
-import (
-    "starcup-engine/internal/engine/player"
-    "starcup-engine/internal/model"
-)
-
-// BuildHolySwordDrawPrompt 构建圣剑第3次攻击结束后的摸牌弃牌提示。
-func BuildHolySwordDrawPrompt(rt player.InterruptRuntime) *model.Prompt {
-    interrupt := rt.PendingInterrupt()
-    if interrupt == nil {
-        return nil
-    }
-    playerID := interrupt.PlayerID
-
-    return &model.Prompt{
-        Type:     model.PromptConfirm,
-        PlayerID: playerID,
-        Message:  "【圣剑】第3次攻击结束！选择摸X张牌然后弃X张牌 (X=0-3)：",
-        Options: []model.PromptOption{
-            {ID: "0", Label: "X=0"},
-            {ID: "1", Label: "X=1"},
-            {ID: "2", Label: "X=2"},
-            {ID: "3", Label: "X=3"},
-        },
-        Min: 1,
-        Max: 1,
-    }
-}
-```
-
-### Step 5.3：迁移 saintess 中断 prompt 和 response
-
-```go
-// player/saintess/interrupt.go
-package saintess
-
-import (
-    "starcup-engine/internal/engine/player"
-    "starcup-engine/internal/model"
-)
-
-// BuildSaintessPrompt 构建圣女系中断提示。
-func BuildSaintessPrompt(rt player.InterruptRuntime, choiceType, playerID string, player *model.Player, data map[string]interface{}) *model.Prompt {
-    // 原 interrupt_prompt_saintess.go 的逻辑
-    // 将 e.State.PendingInterrupt 替换为 rt.PendingInterrupt()
-    // 将 e.xxx 替换为 rt.xxx
-}
-
-// HandleSaintessResponse 处理圣女系响应。
-func HandleSaintessResponse(rt player.InterruptRuntime, act model.PlayerAction) error {
-    // 原 interrupt_response_holy_saint.go 的逻辑
-}
-```
-
-### Step 5.4：迁移 magical_girl 中断 prompt 和 response
-
-```go
-// player/magical_girl/interrupt.go
-package magical_girl
-
-import (
-    "starcup-engine/internal/engine/player"
-    "starcup-engine/internal/model"
-)
-
-// BuildMagicBulletPrompt 构建魔弹相关提示。
-func BuildMagicBulletPrompt(rt player.InterruptRuntime, ...) *model.Prompt {
-    // 原 interrupt_prompt_magic_bullet.go
-}
-
-// HandleMagicBlastResponse 处理魔爆冲击弃牌响应。
-func HandleMagicBlastResponse(rt player.InterruptRuntime, act model.PlayerAction) error {
-    // 原 interrupt_response_magic_blast.go
-    // 关键转换：
-    //   e.State.PendingInterrupt → rt.PendingInterrupt()
-    //   e.State.Players[id] → rt.LookupPlayer(id)
-    //   e.InflictDamage(...) → rt.InflictDamage(...)
-    //   e.NotifyCardRevealed(...) → rt.NotifyCardRevealed(...)
-    //   e.PopInterrupt() → rt.PopInterrupt()
-    //   e.notifyInterruptPrompt() → rt.NotifyInterruptPrompt()
-}
-
-// HandleMagicMissileResponse 处理魔弹应战/圣盾抵挡响应。
-func HandleMagicMissileResponse(rt player.InterruptRuntime, act model.PlayerAction) error {
-    // 原 interrupt_response_magic_missile.go
-}
-```
-
-### Step 5.5：通过 RoleEntry 注册中断处理器
-
-扩展 `RoleEntry` 新增中断处理字段：
+### InterruptSpec 定义
 
 ```go
 // player/role_entry.go — 新增
-type InterruptHandler interface {
-    BuildPrompt(rt InterruptRuntime, choiceType, playerID string, player *model.Player, data map[string]interface{}) *model.Prompt
-    HandleResponse(rt InterruptRuntime, act model.PlayerAction) error
-}
 
-type RoleEntry struct {
-    // ... 已有字段 ...
-
-    // 新增：角色专属中断处理器
-    Interrupt InterruptHandler
-}
-```
-
-在 `module.go` 中注册：
-
-```go
-// player/blade_master/module.go
-func RoleEntry() player.RoleEntry {
-    return player.RoleEntry{
-        ID:        "blade_master",
-        Defaults:  Defaults,
-        Choices:   NewChoiceHandler(),
-        Skills:    SkillEntries(),
-        Interrupt: bladeMasterInterruptHandler{},  // 新增
-    }
-}
-
-type bladeMasterInterruptHandler struct{}
-
-func (bladeMasterInterruptHandler) BuildPrompt(rt player.InterruptRuntime, choiceType, playerID string, player *model.Player, data map[string]interface{}) *model.Prompt {
-    if choiceType == "holy_sword_draw" {
-        return BuildHolySwordDrawPrompt(rt)
-    }
-    return nil
-}
-
-func (bladeMasterInterruptHandler) HandleResponse(rt player.InterruptRuntime, act model.PlayerAction) error {
-    return nil // blade_master 的中断处理由 prompt 驱动
+// InterruptSpec 定义角色包贡献的中断处理条目。
+type InterruptSpec struct {
+    // Type 该 spec 处理的中断类型。
+    Type model.InterruptType
+    // BuildPrompt 构建该中断类型的用户提示。返回 nil 表示无提示。
+    BuildPrompt func(rt ChoiceRuntime) *model.Prompt
+    // HandleAction 处理该中断类型的用户响应。
+    HandleAction func(rt ChoiceRuntime, act model.PlayerAction) error
+    // AllowedActionTypes 允许的玩家操作类型（空=不限制）。
+    AllowedActionTypes []model.PlayerActionType
+    // InvalidActionMessage 操作类型不匹配时的提示。
+    InvalidActionMessage string
 }
 ```
 
-### Step 5.6：更新 engine 中的调用入口
+### ChoiceRuntime 新增方法
 
-在 engine 的中断处理流程中，优先通过 RoleEntry 调用角色专属处理器：
+迁移需要以下新方法（在 `ChoiceRuntime` 接口和 `roleChoiceRuntime` 实现中添加）：
 
-```go
-// engine/interrupt_runtime.go — 修改
-func (e *GameEngine) buildInterruptPrompt() *model.Prompt {
-    // ... 通用逻辑 ...
+| 方法 | 用途 | 使用方 |
+|------|------|--------|
+| `PendingInterrupt() *model.Interrupt` | 获取当前中断 | blade_master, saintess, magical_girl |
+| `SetPendingInterruptContext(data map[string]interface{})` | 已有 | — |
+| `SetPendingInterruptPlayerID(playerID string)` | 修改中断响应者 | magical_girl (magic_blast, magic_missile) |
+| `MagicBulletChain() *model.MagicBulletChain` | 获取魔弹链 | magical_girl |
+| `SetMagicBulletChain(chain *model.MagicBulletChain)` | 设置魔弹链 | magical_girl |
+| `RoutePendingDamageWithDefaultReturn(defaultReturn interface{}) bool` | 路由到伤害结算 | blade_master |
+| `RestoreReturnPoint() bool` | 恢复返回点 | blade_master |
+| `PushDiscardChoiceInterrupt(playerID string, data map[string]interface{})` | 推入弃牌选择中断 | blade_master |
+| `SetReturnPoint(returnTo interface{})` | 设置返回点 | magical_girl |
+| `EnterActionEndStage()` | 进入行动结束阶段 | saintess |
+| `PerformMagic(playerID, targetID string, cardIdx int, isFusion bool) error` | 执行法术行动 | magical_girl |
+| `ExecuteMagicBullet(player *model.Player, reverse, isFusion bool, fusionCard *model.Card) error` | 执行魔弹传递 | magical_girl |
+| `FindNextMagicBulletTarget(playerID string) string` | 查找下一个魔弹目标 | magical_girl |
+| `DispatchTimingOnHitCheck(ctx interface{}) interface{}` | 命中检查时序派发 | magical_girl |
+| `ConsumePlayableCardByIndex(player *model.Player, cardIdx int) (model.Card, error)` | 消耗可出手牌 | magical_girl |
+| `AddPendingDamage(pd model.PendingDamage)` | 已有 (IGameEngine) | magical_girl |
+| `NotifyActionStep(line string)` | 已有 (IGameEngine) | magical_girl |
 
-    // 尝试角色专属处理器
-    if interrupt := e.State.PendingInterrupt; interrupt != nil {
-        if player := e.State.Players[interrupt.PlayerID]; player != nil && player.Character != nil {
-            if entry := roleRegistry.Entry(player.Character.ID); entry.ID != "" && entry.Interrupt != nil {
-                if prompt := entry.Interrupt.BuildPrompt(newRoleChoiceRuntime(e), ...); prompt != nil {
-                    return prompt
-                }
-            }
-        }
-    }
+**精简策略**：部分方法已在 `IGameEngine` 或 `ChoiceRuntime` 中存在，只需补充缺失的。
+对于 `PerformMagic`、`ExecuteMagicBullet`、`DispatchTimingOnHitCheck` 等复杂方法，
+直接通过接口暴露，避免在角色包中重新实现。
 
-    // 兜底：通用 prompt 构建
-}
+### 角色包文件布局
+
+```
+player/blade_master/
+  module.go          — RoleEntry() 新增 InterruptSpecs
+  interrupt.go       — BuildHolySwordDrawPrompt, HandleHolySwordDrawAction
+
+player/saintess/
+  module.go          — RoleEntry() 新增 InterruptSpecs
+  interrupt.go       — BuildSaintHealPrompt, HandleSaintHealAction + helpers
+
+player/magical_girl/
+  module.go          — RoleEntry() 新增 InterruptSpecs
+  interrupt.go       — 4个 prompt builders + 3个 action handlers + helpers
 ```
 
-### Step 5.7：删除 engine 中的原文件
+### Engine 侧变更
 
-```bash
-rm internal/engine/interrupt_prompt_blademaster.go
-rm internal/engine/interrupt_prompt_saintess.go
-rm internal/engine/interrupt_prompt_magic_bullet.go
-rm internal/engine/interrupt_response_holy_saint.go
-rm internal/engine/interrupt_response_magic_blast.go
-rm internal/engine/interrupt_response_magic_missile.go
-```
+1. **`interrupt_install.go`**：`registerInterruptActionRules` 和 `registerInterruptPromptRules`
+   改为遍历 `roleRegistry` 的 `InterruptSpecs` 动态注册，删除硬编码的角色条目。
 
-### Step 5.8：验证
+2. **`interrupt_response_runtime.go`**：stage 常量移到各自角色包中，
+   engine 只保留通用常量（如有）。
 
-```bash
-go build ./...
-go test ./internal/engine/... -run TestInterrupt -count=1
-go test ./internal/engine/... -run TestMagicBlast -count=1
-go test ./internal/engine/... -run TestSaintess -count=1
-go test ./internal/engine/... -run TestBladeMaster -count=1
-```
+3. **删除 6 个角色专属文件**：
+   - `interrupt_prompt_blademaster.go`
+   - `interrupt_prompt_saintess.go`
+   - `interrupt_prompt_magic_bullet.go`
+   - `interrupt_response_holy_saint.go`
+   - `interrupt_response_magic_missile.go`
+   - `interrupt_response_magic_blast.go`
 
-## 迁移对照表
+## 实施步骤
 
-| 原文件 | 目标文件 | 主要函数 | 接口需求 |
-|--------|---------|---------|---------|
-| `interrupt_prompt_blademaster.go` | `player/blade_master/interrupt.go` | `buildHolySwordDrawPrompt()` | PendingInterrupt() |
-| `interrupt_prompt_saintess.go` | `player/saintess/interrupt.go` | 多个 prompt 构建函数 | PendingInterrupt(), LookupPlayer() |
-| `interrupt_prompt_magic_bullet.go` | `player/magical_girl/interrupt.go` | 魔弹 prompt 构建 | PendingInterrupt(), LookupPlayer() |
-| `interrupt_response_holy_saint.go` | `player/saintess/interrupt_response.go` | 圣系响应处理 | 全套 InterruptRuntime |
-| `interrupt_response_magic_blast.go` | `player/magical_girl/interrupt_blast.go` | 魔爆冲击响应 | 全套 InterruptRuntime + InflictDamage + DiscardFromHand |
-| `interrupt_response_magic_missile.go` | `player/magical_girl/interrupt_missile.go` | 魔弹应战响应 | 全套 InterruptRuntime |
+### Step 1：扩展 ChoiceRuntime 接口 + roleChoiceRuntime 实现
+
+在 `player/role_entry.go` 的 `ChoiceRuntime` 接口中新增方法，
+在 `engine/role_choice_runtime.go` 中实现桥接。
+
+### Step 2：定义 InterruptSpec + RoleEntry 扩展
+
+在 `player/role_entry.go` 中新增 `InterruptSpec` 类型和 `RoleEntry.InterruptSpecs` 字段。
+
+### Step 3：迁移 blade_master（最简单，1 prompt + 1 handler）
+
+- 新建 `player/blade_master/interrupt.go`
+- 在 `module.go` 的 RoleEntry 中注册 InterruptSpecs
+- 验证编译和测试
+
+### Step 4：迁移 saintess（1 prompt + 1 handler + helpers）
+
+- 新建 `player/saintess/interrupt.go`
+- 在 `module.go` 中注册
+- 验证
+
+### Step 5：迁移 magical_girl（4 prompts + 3 handlers + helpers）
+
+- 新建 `player/magical_girl/interrupt.go`
+- 在 `module.go` 中注册
+- 验证
+
+### Step 6：更新 interrupt_install.go 为动态注册
+
+- 遍历 roleRegistry 的 InterruptSpecs 注册
+- 删除硬编码的角色条目
+- 删除 6 个原文件
+- 验证
+
+## 代码量估算
+
+| 操作 | 行数变化 |
+|------|---------|
+| 删除 6 个 engine 文件 | -1023 行 |
+| 新增 3 个角色 interrupt.go | ~+700 行（含接口调用转换） |
+| ChoiceRuntime 接口扩展 | ~+15 行 |
+| roleChoiceRuntime 桥接实现 | ~+80 行 |
+| InterruptSpec 定义 | ~+10 行 |
+| interrupt_install.go 简化 | ~-30 行 |
+| **净减少** | **~-248 行** |
 
 ## 风险
 
-1. **InterruptRuntime 接口膨胀**：魔爆冲击的响应逻辑复杂（多阶段、多玩家切换），可能需要在接口中暴露较多方法
-2. **中断上下文格式**：`interrupt.Context` 是 `map[string]interface{}`，迁移后需确保上下文读写格式一致
-3. **notifyInterruptPrompt vs NotifyInterruptPrompt**：engine 中是小写私有方法，迁移后需通过接口暴露
-4. **测试覆盖**：中断响应的回归测试可能依赖 `GameEngine` 的完整状态，迁移后需适配
+1. **接口方法数量**：ChoiceRuntime 新增约 8 个方法，需权衡是否拆分子接口
+2. **魔弹响应复杂度**：`handleMagicMissileResponse` 涉及 `dispatchTimingOnHitCheck`、
+   `consumePlayableCardByIndex`、`findNextMagicBulletTarget` 等多个 engine 内部方法，
+   需逐一暴露到接口
+3. **上下文格式一致性**：`interrupt.Context` 是 `map[string]interface{}`，
+   迁移后需确保读写格式与 engine 侧一致
+4. **测试覆盖**：中断响应的回归测试在 `package engine` 中，
+   迁移后需确保通过接口调用的行为等价

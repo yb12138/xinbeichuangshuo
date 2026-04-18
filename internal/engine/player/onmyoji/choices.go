@@ -382,10 +382,10 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
 		if selectionIndex == 1 {
+			// Player declines yinyang: pop interrupt and stay in combat interaction window
 			rt.PopInterrupt()
-			if !rt.HasPendingInterrupt() {
-				// 简化处理
-			}
+			// Ensure we stay in combat interaction window
+			rt.EnsureCombatInteractionWindow()
 			return true, nil
 		}
 		cardOptions := parseOnmyojiCardOptions(ctxData["card_options"])
@@ -417,10 +417,60 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		return true, nil
 
 	case "onmyoji_yinyang_counter_target":
-		rt.PopInterrupt()
-		if !rt.HasPendingInterrupt() {
-			// 简化处理
+		counterTargetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["counter_target_ids"])
+		if selectionIndex < 0 || selectionIndex >= len(counterTargetIDs) {
+			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
+		counterTargetID := counterTargetIDs[selectionIndex]
+		actorID, _ := ctxData["actor_id"].(string)
+		selectedCardID, _ := ctxData["selected_card_id"].(string)
+		actor := rt.LookupPlayer(actorID)
+		if actor == nil {
+			return true, fmt.Errorf("阴阳师不存在")
+		}
+
+		// Consume the card from actor's hand
+		card, ok := rt.ConsumePlayableCardByCardID(actorID, selectedCardID)
+		if !ok {
+			return true, fmt.Errorf("无法消耗选定的卡牌")
+		}
+
+		// Apply faction counter bonuses
+		if actor.Tokens == nil {
+			actor.Tokens = map[string]int{}
+		}
+		actor.Tokens["onmyoji_ghost_fire"]++
+		if actor.Tokens["onmyoji_ghost_fire"] > 3 {
+			actor.Tokens["onmyoji_ghost_fire"] = 3
+		}
+		rt.Log(fmt.Sprintf("%s 的 [阴阳转换] 触发，鬼火+1", actor.Name))
+		if hasOnmyojiShikigamiForm(actor) {
+			rt.DrawCards(actorID, 1)
+			actor.Tokens["onmyoji_ghost_fire"]++
+			if actor.Tokens["onmyoji_ghost_fire"] > 3 {
+				actor.Tokens["onmyoji_ghost_fire"] = 3
+			}
+			leaveOnmyojiShikigamiForm(actor)
+			rt.Log(fmt.Sprintf("%s 的 [式神转换] 触发：摸1并鬼火+1，然后脱离式神形态", actor.Name))
+		}
+		card.Damage = actor.Tokens["onmyoji_ghost_fire"]
+		if card.Damage < 0 {
+			card.Damage = 0
+		}
+
+		// Add card to discard pile
+		rt.AppendToDiscard([]model.Card{card})
+		rt.NotifyCardRevealed(actorID, []model.Card{card}, "counter")
+
+		// Get original combat info for cue
+		topCombat := rt.TopCombatRequest()
+		if topCombat != nil {
+			rt.NotifyCombatCue(topCombat.AttackerID, topCombat.TargetID, "counter")
+		}
+
+		// Resolve counter attack: pop original combat and create reflected one
+		rt.PopInterrupt()
+		rt.ResolveCounterAttack(actorID, counterTargetID, card)
 		return true, nil
 
 	case "onmyoji_binding_card":
@@ -583,6 +633,18 @@ func resolveOnmyojiLifeBarrierReleaseTarget(rt engineplayer.ChoiceRuntime, _ map
 	}
 	rt.Log(fmt.Sprintf("%s 的 [生命结界] 分支②生效：指定 %s 弃置1张手牌", user.Name, target.Name))
 	rt.PopInterrupt()
+	// Create discard interrupt for the ally
+	if len(target.Hand) > 0 {
+		rt.PushInterrupt(&model.Interrupt{
+			Type:     model.InterruptChoice,
+			PlayerID: target.ID,
+			Context: map[string]interface{}{
+				"choice_type":   "system_discard_cards",
+				"discard_count": 1,
+				"prompt":        "【生命结界】请弃置1张手牌：",
+			},
+		})
+	}
 	return nil
 }
 

@@ -1,17 +1,19 @@
 // gameflow: 新角色：形态、身份切换相关判定。
+// 形态基础设施已迁移到 player 包，此文件保留 engine 专属逻辑。
 
 package engine
 
 import (
 	"fmt"
 
+	"starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
 )
 
 const elfBlessingPrefix = "elf_blessing:"
 
-func isCharacter(player *model.Player, charID string) bool {
-	return player != nil && player.Character != nil && player.Character.ID == charID
+func isCharacter(p *model.Player, charID string) bool {
+	return player.IsCharacter(p, charID)
 }
 
 func (e *GameEngine) isElfArcher(player *model.Player) bool {
@@ -130,6 +132,8 @@ func (e *GameEngine) isButterflyDancer(player *model.Player) bool {
 	return isCharacter(player, "butterfly_dancer")
 }
 
+// ---- Token cap 常量 ----
+
 const magicBowChargeCapEngine = 8
 const bardInspirationCapEngine = 3
 const holyBowFaithCapEngine = 10
@@ -145,229 +149,211 @@ const moonGoddessNewMoonCapEngine = 2
 const moonGoddessPetrifyCapEngine = 3
 const butterflyCocoonCapEngine = 8
 
+// ---- 形态基础设施（委托到 player 包） ----
+
+func effectivePlayerOrientation(p *model.Player) model.CharacterOrientation {
+	return player.EffectiveOrientation(p)
+}
+
+func effectivePlayerForm(p *model.Player) string {
+	return player.EffectiveForm(p)
+}
+
+func playerHasForm(p *model.Player, form string) bool {
+	return player.HasForm(p, form)
+}
+
+func setPlayerForm(p *model.Player, form string) bool {
+	return player.SetForm(p, form)
+}
+
+func clearPlayerForm(p *model.Player, form string) bool {
+	return player.ClearForm(p, form)
+}
+
+// ---- 角色形态三元组（委托到 player 包） ----
+
+func hasPrayerMasterPrayerForm(p *model.Player) bool {
+	return playerHasForm(p, model.FormPrayerMasterPrayer)
+}
+
+func hasValkyrieHeroicForm(p *model.Player) bool {
+	return playerHasForm(p, model.FormValkyrieHeroic)
+}
+
+func enterValkyrieHeroicForm(p *model.Player) bool {
+	return setPlayerForm(p, model.FormValkyrieHeroic)
+}
+
+func leaveValkyrieHeroicForm(p *model.Player) bool {
+	return clearPlayerForm(p, model.FormValkyrieHeroic)
+}
+
+func hasAssassinStealthForm(p *model.Player) bool {
+	return playerHasForm(p, model.FormAssassinStealth)
+}
+
+func enterAssassinStealthForm(p *model.Player) bool {
+	return setPlayerForm(p, model.FormAssassinStealth)
+}
+
+func leaveAssassinStealthForm(p *model.Player) bool {
+	return clearPlayerForm(p, model.FormAssassinStealth)
+}
+
+func hasCrimsonKnightHotBloodedForm(p *model.Player) bool {
+	return playerHasForm(p, model.FormCrimsonKnightHotBlooded)
+}
+
+func enterCrimsonKnightHotBloodedForm(p *model.Player) bool {
+	return setPlayerForm(p, model.FormCrimsonKnightHotBlooded)
+}
+
+func leaveCrimsonKnightHotBloodedForm(p *model.Player) bool {
+	return clearPlayerForm(p, model.FormCrimsonKnightHotBlooded)
+}
+
+func hasOnmyojiShikigamiForm(p *model.Player) bool {
+	return playerHasForm(p, model.FormOnmyojiShikigami)
+}
+
+func leaveOnmyojiShikigamiForm(p *model.Player) bool {
+	return clearPlayerForm(p, model.FormOnmyojiShikigami)
+}
+
+func hasBlazeWitchFlameForm(p *model.Player) bool {
+	return playerHasForm(p, model.FormBlazeWitchFlame)
+}
+
+func leaveBlazeWitchFlameForm(p *model.Player) bool {
+	return clearPlayerForm(p, model.FormBlazeWitchFlame)
+}
+
+func hasHolyBowHolyGloryForm(p *model.Player) bool {
+	return playerHasForm(p, model.FormHolyBowHolyGlory)
+}
+
+func hasArbiterJudgmentForm(p *model.Player) bool {
+	return playerHasForm(p, model.FormArbiterJudgment)
+}
+
+func enterArbiterJudgmentForm(p *model.Player) bool {
+	return setPlayerForm(p, model.FormArbiterJudgment)
+}
+
+func hasElfArcherRitualForm(p *model.Player) bool {
+	return playerHasForm(p, model.FormElfArcherRitual)
+}
+
+func enterElfArcherRitualForm(p *model.Player) bool {
+	return setPlayerForm(p, model.FormElfArcherRitual)
+}
+
+func leaveElfArcherRitualForm(p *model.Player) bool {
+	return clearPlayerForm(p, model.FormElfArcherRitual)
+}
+
+func hasMagicSwordsmanShadowForm(p *model.Player) bool {
+	return playerHasForm(p, model.FormMagicSwordsmanShadow)
+}
+
+func enterMagicSwordsmanShadowForm(p *model.Player) bool {
+	return setPlayerForm(p, model.FormMagicSwordsmanShadow)
+}
+
+func leaveMagicSwordsmanShadowForm(p *model.Player) bool {
+	return clearPlayerForm(p, model.FormMagicSwordsmanShadow)
+}
+
+func hasWarHomunculusBurstForm(p *model.Player) bool {
+	return playerHasForm(p, model.FormWarHomunculusBurst)
+}
+
+func enterWarHomunculusBurstForm(p *model.Player) bool {
+	return setPlayerForm(p, model.FormWarHomunculusBurst)
+}
+
+func leaveWarHomunculusBurstForm(p *model.Player) bool {
+	return clearPlayerForm(p, model.FormWarHomunculusBurst)
+}
+
+func enterHolyBowHolyGloryForm(p *model.Player) bool {
+	return setPlayerForm(p, model.FormHolyBowHolyGlory)
+}
+
+func leaveHolyBowHolyGloryForm(p *model.Player) bool {
+	return clearPlayerForm(p, model.FormHolyBowHolyGlory)
+}
+
+func hasMagicLancerPhantomForm(p *model.Player) bool {
+	return playerHasForm(p, model.FormMagicLancerPhantom)
+}
+
+func leaveMagicLancerPhantomForm(p *model.Player) bool {
+	return clearPlayerForm(p, model.FormMagicLancerPhantom)
+}
+
+func hasBardEternalPrisonerForm(p *model.Player) bool {
+	return playerHasForm(p, model.FormBardEternalPrisoner)
+}
+
+func enterBardEternalPrisonerForm(p *model.Player) bool {
+	return setPlayerForm(p, model.FormBardEternalPrisoner)
+}
+
+func leaveBardEternalPrisonerForm(p *model.Player) bool {
+	return clearPlayerForm(p, model.FormBardEternalPrisoner)
+}
+
+func hasHeroExhaustionForm(p *model.Player) bool {
+	return playerHasForm(p, model.FormHeroExhaustion)
+}
+
+func leaveHeroExhaustionForm(p *model.Player) bool {
+	return clearPlayerForm(p, model.FormHeroExhaustion)
+}
+
+func hasFighterHundredDragonForm(p *model.Player) bool {
+	return playerHasForm(p, model.FormFighterHundredDragon)
+}
+
+func leaveFighterHundredDragonForm(p *model.Player) bool {
+	return clearPlayerForm(p, model.FormFighterHundredDragon)
+}
+
+func enterMoonGoddessDarkMoonForm(p *model.Player) bool {
+	return setPlayerForm(p, model.FormMoonGoddessDarkMoon)
+}
+
+func leaveMoonGoddessDarkMoonForm(p *model.Player) bool {
+	return clearPlayerForm(p, model.FormMoonGoddessDarkMoon)
+}
+
+func hasBloodPriestessBleedingForm(p *model.Player) bool {
+	return playerHasForm(p, model.FormBloodPriestessBleeding)
+}
+
+func enterBloodPriestessBleedingFormState(p *model.Player) bool {
+	return setPlayerForm(p, model.FormBloodPriestessBleeding)
+}
+
+func leaveBloodPriestessBleedingFormState(p *model.Player) bool {
+	return clearPlayerForm(p, model.FormBloodPriestessBleeding)
+}
+
+// ---- 引擎级形态基础设施（保留在 engine） ----
+
 type poseSnapshot struct {
 	Orientation model.CharacterOrientation
 	Form        string
 }
 
-func effectivePlayerOrientation(player *model.Player) model.CharacterOrientation {
-	if player == nil {
-		return model.OrientationNormal
-	}
-	if player.Orientation != "" {
-		return player.Orientation
-	}
-	return model.OrientationNormal
-}
-
-func effectivePlayerForm(player *model.Player) string {
-	if player == nil {
-		return ""
-	}
-	return player.Form
-}
-
-func playerHasForm(player *model.Player, form string) bool {
-	return player != nil && effectivePlayerForm(player) == form
-}
-
-func setPlayerForm(player *model.Player, form string) bool {
-	if player == nil {
-		return false
-	}
-	changed := effectivePlayerOrientation(player) != model.OrientationTapped || effectivePlayerForm(player) != form
-	player.Orientation = model.OrientationTapped
-	player.Form = form
-	return changed
-}
-
-func clearPlayerForm(player *model.Player, form string) bool {
-	if player == nil {
-		return false
-	}
-	if form != "" && effectivePlayerForm(player) != form {
-		return false
-	}
-	changed := effectivePlayerOrientation(player) != model.OrientationNormal || effectivePlayerForm(player) != ""
-	player.Orientation = model.OrientationNormal
-	player.Form = ""
-	return changed
-}
-
-func hasPrayerMasterPrayerForm(player *model.Player) bool {
-	return playerHasForm(player, model.FormPrayerMasterPrayer)
-}
-
-func hasValkyrieHeroicForm(player *model.Player) bool {
-	return playerHasForm(player, model.FormValkyrieHeroic)
-}
-
-func enterValkyrieHeroicForm(player *model.Player) bool {
-	return setPlayerForm(player, model.FormValkyrieHeroic)
-}
-
-func leaveValkyrieHeroicForm(player *model.Player) bool {
-	return clearPlayerForm(player, model.FormValkyrieHeroic)
-}
-
-func hasAssassinStealthForm(player *model.Player) bool {
-	return playerHasForm(player, model.FormAssassinStealth)
-}
-
-func enterAssassinStealthForm(player *model.Player) bool {
-	return setPlayerForm(player, model.FormAssassinStealth)
-}
-
-func leaveAssassinStealthForm(player *model.Player) bool {
-	return clearPlayerForm(player, model.FormAssassinStealth)
-}
-
-func hasCrimsonKnightHotBloodedForm(player *model.Player) bool {
-	return playerHasForm(player, model.FormCrimsonKnightHotBlooded)
-}
-
-func enterCrimsonKnightHotBloodedForm(player *model.Player) bool {
-	return setPlayerForm(player, model.FormCrimsonKnightHotBlooded)
-}
-
-func leaveCrimsonKnightHotBloodedForm(player *model.Player) bool {
-	return clearPlayerForm(player, model.FormCrimsonKnightHotBlooded)
-}
-
-func hasOnmyojiShikigamiForm(player *model.Player) bool {
-	return playerHasForm(player, model.FormOnmyojiShikigami)
-}
-
-func leaveOnmyojiShikigamiForm(player *model.Player) bool {
-	return clearPlayerForm(player, model.FormOnmyojiShikigami)
-}
-
-func hasBlazeWitchFlameForm(player *model.Player) bool {
-	return playerHasForm(player, model.FormBlazeWitchFlame)
-}
-
-func leaveBlazeWitchFlameForm(player *model.Player) bool {
-	return clearPlayerForm(player, model.FormBlazeWitchFlame)
-}
-
-func hasHolyBowHolyGloryForm(player *model.Player) bool {
-	return playerHasForm(player, model.FormHolyBowHolyGlory)
-}
-
-func hasArbiterJudgmentForm(player *model.Player) bool {
-	return playerHasForm(player, model.FormArbiterJudgment)
-}
-
-func enterArbiterJudgmentForm(player *model.Player) bool {
-	return setPlayerForm(player, model.FormArbiterJudgment)
-}
-
-func hasElfArcherRitualForm(player *model.Player) bool {
-	return playerHasForm(player, model.FormElfArcherRitual)
-}
-
-func enterElfArcherRitualForm(player *model.Player) bool {
-	return setPlayerForm(player, model.FormElfArcherRitual)
-}
-
-func leaveElfArcherRitualForm(player *model.Player) bool {
-	return clearPlayerForm(player, model.FormElfArcherRitual)
-}
-
-func hasMagicSwordsmanShadowForm(player *model.Player) bool {
-	return playerHasForm(player, model.FormMagicSwordsmanShadow)
-}
-
-func enterMagicSwordsmanShadowForm(player *model.Player) bool {
-	return setPlayerForm(player, model.FormMagicSwordsmanShadow)
-}
-
-func leaveMagicSwordsmanShadowForm(player *model.Player) bool {
-	return clearPlayerForm(player, model.FormMagicSwordsmanShadow)
-}
-
-func hasWarHomunculusBurstForm(player *model.Player) bool {
-	return playerHasForm(player, model.FormWarHomunculusBurst)
-}
-
-func enterWarHomunculusBurstForm(player *model.Player) bool {
-	return setPlayerForm(player, model.FormWarHomunculusBurst)
-}
-
-func leaveWarHomunculusBurstForm(player *model.Player) bool {
-	return clearPlayerForm(player, model.FormWarHomunculusBurst)
-}
-
-func enterHolyBowHolyGloryForm(player *model.Player) bool {
-	return setPlayerForm(player, model.FormHolyBowHolyGlory)
-}
-
-func leaveHolyBowHolyGloryForm(player *model.Player) bool {
-	return clearPlayerForm(player, model.FormHolyBowHolyGlory)
-}
-
-func hasMagicLancerPhantomForm(player *model.Player) bool {
-	return playerHasForm(player, model.FormMagicLancerPhantom)
-}
-
-func leaveMagicLancerPhantomForm(player *model.Player) bool {
-	return clearPlayerForm(player, model.FormMagicLancerPhantom)
-}
-
-func hasBardEternalPrisonerForm(player *model.Player) bool {
-	return playerHasForm(player, model.FormBardEternalPrisoner)
-}
-
-func enterBardEternalPrisonerForm(player *model.Player) bool {
-	return setPlayerForm(player, model.FormBardEternalPrisoner)
-}
-
-func leaveBardEternalPrisonerForm(player *model.Player) bool {
-	return clearPlayerForm(player, model.FormBardEternalPrisoner)
-}
-
-func hasHeroExhaustionForm(player *model.Player) bool {
-	return playerHasForm(player, model.FormHeroExhaustion)
-}
-
-func leaveHeroExhaustionForm(player *model.Player) bool {
-	return clearPlayerForm(player, model.FormHeroExhaustion)
-}
-
-func hasFighterHundredDragonForm(player *model.Player) bool {
-	return playerHasForm(player, model.FormFighterHundredDragon)
-}
-
-func leaveFighterHundredDragonForm(player *model.Player) bool {
-	return clearPlayerForm(player, model.FormFighterHundredDragon)
-}
-
-func enterMoonGoddessDarkMoonForm(player *model.Player) bool {
-	return setPlayerForm(player, model.FormMoonGoddessDarkMoon)
-}
-
-func leaveMoonGoddessDarkMoonForm(player *model.Player) bool {
-	return clearPlayerForm(player, model.FormMoonGoddessDarkMoon)
-}
-
-func hasBloodPriestessBleedingForm(player *model.Player) bool {
-	return playerHasForm(player, model.FormBloodPriestessBleeding)
-}
-
-func enterBloodPriestessBleedingFormState(player *model.Player) bool {
-	return setPlayerForm(player, model.FormBloodPriestessBleeding)
-}
-
-func leaveBloodPriestessBleedingFormState(player *model.Player) bool {
-	return clearPlayerForm(player, model.FormBloodPriestessBleeding)
-}
-
 func (e *GameEngine) snapshotPlayerPoses() map[string]poseSnapshot {
 	snapshots := make(map[string]poseSnapshot, len(e.State.Players))
-	for id, player := range e.State.Players {
+	for id, p := range e.State.Players {
 		snapshots[id] = poseSnapshot{
-			Orientation: effectivePlayerOrientation(player),
-			Form:        effectivePlayerForm(player),
+			Orientation: effectivePlayerOrientation(p),
+			Form:        effectivePlayerForm(p),
 		}
 	}
 	return snapshots
@@ -388,14 +374,14 @@ func (e *GameEngine) dispatchOrientationChanges(before map[string]poseSnapshot) 
 		}
 	}
 	for _, playerID := range orderedIDs {
-		player := e.State.Players[playerID]
-		if player == nil {
+		p := e.State.Players[playerID]
+		if p == nil {
 			continue
 		}
 		prev := before[playerID]
 		current := poseSnapshot{
-			Orientation: effectivePlayerOrientation(player),
-			Form:        effectivePlayerForm(player),
+			Orientation: effectivePlayerOrientation(p),
+			Form:        effectivePlayerForm(p),
 		}
 		if prev == current {
 			continue
@@ -410,7 +396,7 @@ func (e *GameEngine) dispatchOrientationChanges(before map[string]poseSnapshot) 
 			PrevForm:        prev.Form,
 			NewForm:         current.Form,
 		}
-		ctx := e.buildContext(player, player, model.TimingOnOrientationChanged, eventCtx)
+		ctx := e.buildContext(p, p, model.TimingOnOrientationChanged, eventCtx)
 		e.dispatcher.OnTiming(ctx.Timing, ctx)
 	}
 }

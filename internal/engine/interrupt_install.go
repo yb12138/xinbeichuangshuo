@@ -45,40 +45,14 @@ func registerInterruptActionRules(r *intr.ActionRules) {
 			return h(en.(*GameEngine), act)
 		}
 	}
+	// 通用中断类型（非角色专属）
 	r.Register(model.InterruptResponseSkill, &intr.ActionRule{Handler: wrap((*GameEngine).handleInterruptResponseSkillAction)})
 	r.Register(model.InterruptStartupSkill, &intr.ActionRule{Handler: wrap((*GameEngine).handleInterruptStartupSkillAction)})
 	r.Register(model.InterruptGiveCards, &intr.ActionRule{Handler: wrap((*GameEngine).handleInterruptGiveCardsAction)})
 	r.Register(model.InterruptChoice, &intr.ActionRule{Handler: wrap((*GameEngine).handleInterruptChoiceAction)})
-	r.Register(model.InterruptMagicMissile, &intr.ActionRule{
-		Allowed:              allowedInterruptActionTypes(model.CmdRespond),
-		InvalidActionMessage: "当前为【魔弹】响应阶段，请使用响应指令",
-		Handler:              wrap((*GameEngine).handleMagicMissileResponse),
-	})
-	r.Register(model.InterruptMagicBulletFusion, &intr.ActionRule{
-		Allowed:              allowedInterruptActionTypes(model.CmdSelect),
-		InvalidActionMessage: "当前为【魔弹融合】确认阶段，请选择是否发动",
-		Handler:              wrap((*GameEngine).handleMagicBulletFusionResponse),
-	})
-	r.Register(model.InterruptMagicBulletDirection, &intr.ActionRule{
-		Allowed:              allowedInterruptActionTypes(model.CmdSelect),
-		InvalidActionMessage: "当前为【魔弹掌控】方向选择阶段，请提交选择",
-		Handler:              wrap((*GameEngine).handleMagicBulletDirectionResponse),
-	})
-	r.Register(model.InterruptHolySwordDraw, &intr.ActionRule{
-		Allowed:              allowedInterruptActionTypes(model.CmdSelect),
-		InvalidActionMessage: "当前为【圣剑】后续选择阶段，请提交选择",
-		Handler:              wrap((*GameEngine).handleHolySwordDrawResponse),
-	})
-	r.Register(model.InterruptSaintHeal, &intr.ActionRule{
-		Allowed:              allowedInterruptActionTypes(model.CmdSelect),
-		InvalidActionMessage: "当前为【圣疗】选择阶段，请提交选择",
-		Handler:              wrap((*GameEngine).handleSaintHealResponse),
-	})
-	r.Register(model.InterruptMagicBlast, &intr.ActionRule{
-		Allowed:              allowedInterruptActionTypes(model.CmdSelect, model.CmdCancel),
-		InvalidActionMessage: "当前为【魔爆冲击】响应阶段，请选择弃牌或取消",
-		Handler:              wrap((*GameEngine).handleMagicBlastResponse),
-	})
+
+	// 角色专属中断类型：通过 InterruptSpecs 动态注册
+	mountRoleInterruptSpecs(r, nil)
 }
 
 func registerInterruptPromptRules(r *intr.PromptRules) {
@@ -87,16 +61,14 @@ func registerInterruptPromptRules(r *intr.PromptRules) {
 			return b(en.(*GameEngine))
 		}
 	}
+	// 通用中断类型（非角色专属）
 	r.Register(model.InterruptResponseSkill, wrap((*GameEngine).buildResponseSkillPrompt))
 	r.Register(model.InterruptStartupSkill, wrap((*GameEngine).buildStartupSkillPrompt))
 	r.Register(model.InterruptChoice, wrap((*GameEngine).buildChoicePrompt))
-	r.Register(model.InterruptMagicMissile, wrap((*GameEngine).buildMagicMissilePrompt))
 	r.Register(model.InterruptGiveCards, wrap((*GameEngine).buildGiveCardsPrompt))
-	r.Register(model.InterruptMagicBulletFusion, wrap((*GameEngine).buildMagicBulletFusionPrompt))
-	r.Register(model.InterruptMagicBulletDirection, wrap((*GameEngine).buildMagicBulletDirectionPrompt))
-	r.Register(model.InterruptHolySwordDraw, wrap((*GameEngine).buildHolySwordDrawPrompt))
-	r.Register(model.InterruptSaintHeal, wrap((*GameEngine).buildSaintHealPrompt))
-	r.Register(model.InterruptMagicBlast, wrap((*GameEngine).buildMagicBlastPrompt))
+
+	// 角色专属中断类型：通过 InterruptSpecs 动态注册
+	mountRoleInterruptSpecs(nil, r)
 }
 
 func (e *GameEngine) buildPendingInterruptPrompt() *model.Prompt {
@@ -169,6 +141,29 @@ func (e *GameEngine) syncGamePhaseWithInterrupt(interrupt *model.Interrupt) {
 		e.setCombatStage(model.CombatStageHeal)
 	case model.InterruptMagicBlast:
 		e.enterResponseWindow()
+	}
+}
+
+// mountRoleInterruptSpecs 遍历所有角色的 InterruptSpecs，注册到 action / prompt rules。
+func mountRoleInterruptSpecs(ar *intr.ActionRules, pr *intr.PromptRules) {
+	for _, entry := range roleRegistry.Entries() {
+		for _, spec := range entry.InterruptSpecs {
+			s := spec
+			if ar != nil && s.HandleAction != nil {
+				ar.Register(s.Type, &intr.ActionRule{
+					Handler: func(en intr.EngineInterface, act model.PlayerAction) error {
+						return s.HandleAction(newRoleChoiceRuntime(en.(*GameEngine)), act)
+					},
+					Allowed:              allowedInterruptActionTypes(s.AllowedActionTypes...),
+					InvalidActionMessage: s.InvalidActionMessage,
+				})
+			}
+			if pr != nil && s.BuildPrompt != nil {
+				pr.Register(s.Type, intr.PromptBuilder(func(en intr.EngineInterface) *model.Prompt {
+					return s.BuildPrompt(newRoleChoiceRuntime(en.(*GameEngine)))
+				}))
+			}
+		}
 	}
 }
 

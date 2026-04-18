@@ -62,7 +62,7 @@ func handleFiveElementsBindChoice(rt engineplayer.ChoiceRuntime, selectionIndex 
 
 		rt.PopInterrupt()
 		if !rt.HasPendingInterrupt() {
-			// setTurnStage is not exposed on ChoiceRuntime
+			rt.ApplyChoiceResumePoint(model.TurnStageActionStart)
 		}
 		return nil
 	case 1:

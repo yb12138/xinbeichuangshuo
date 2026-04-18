@@ -7,6 +7,7 @@ import (
 
 	engineplayer "starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
+	"starcup-engine/internal/rules"
 )
 
 type roleChoiceRuntime struct {
@@ -151,6 +152,13 @@ func (r roleChoiceRuntime) PendingDamageQueueLen() int {
 	return len(r.State.PendingDamageQueue)
 }
 
+func (r roleChoiceRuntime) GetPendingDamage(index int) (*model.PendingDamage, bool) {
+	if r.GameEngine == nil || r.State == nil || index < 0 || index >= len(r.State.PendingDamageQueue) {
+		return nil, false
+	}
+	return &r.State.PendingDamageQueue[index], true
+}
+
 func (r roleChoiceRuntime) ActionQueueLen() int {
 	if r.GameEngine == nil || r.State == nil {
 		return 0
@@ -189,6 +197,225 @@ func (r roleChoiceRuntime) ApplyStealthEffect(player *model.Player) {
 		return
 	}
 	r.applyAssassinStealthEffect(player)
+}
+
+func (r roleChoiceRuntime) EnqueueVirtualAttack(sourceID, targetID string, card model.Card, sourceSkill string) {
+	if r.GameEngine == nil || r.State == nil {
+		return
+	}
+	r.State.ActionQueue = append(r.State.ActionQueue, model.QueuedAction{
+		SourceID:        sourceID,
+		TargetID:        targetID,
+		Type:            model.ActionAttack,
+		Element:         card.Element,
+		Card:            &card,
+		CardIndex:       -1,
+		SourceSkill:     sourceSkill,
+		UsesVirtualCard: true,
+	})
+}
+
+func (r roleChoiceRuntime) ReplacePendingInterruptPlayerID(playerID string) {
+	if r.GameEngine == nil || r.State == nil || r.State.PendingInterrupt == nil {
+		return
+	}
+	r.State.PendingInterrupt.PlayerID = playerID
+}
+
+func (r roleChoiceRuntime) ApplyCampMoraleLoss(camp model.Camp, wantLoss int) int {
+	if r.GameEngine == nil {
+		return 0
+	}
+	return r.applyCampMoraleLoss(camp, wantLoss)
+}
+
+func (r roleChoiceRuntime) ResolveCounterAttack(counterPlayerID, counterTargetID string, counterCard model.Card) {
+	if r.GameEngine == nil || r.State == nil {
+		return
+	}
+	r.resolveCounterAttack(counterPlayerID, counterTargetID, counterCard)
+}
+
+func (r roleChoiceRuntime) NotifyCombatCue(attackerID, targetID, cueType string) {
+	if r.GameEngine == nil {
+		return
+	}
+	r.GameEngine.NotifyCombatCue(attackerID, targetID, cueType)
+}
+
+func (r roleChoiceRuntime) ConsumePlayableCardByCardID(playerID, cardID string) (model.Card, bool) {
+	if r.GameEngine == nil || r.State == nil {
+		return model.Card{}, false
+	}
+	player := r.State.Players[playerID]
+	if player == nil {
+		return model.Card{}, false
+	}
+	cardIdx := findPlayableCardIndexByID(player, cardID)
+	card, _, _, ok := getPlayableCardByIndex(player, cardIdx)
+	if !ok {
+		return model.Card{}, false
+	}
+	if _, err := consumePlayableCardByIndex(player, cardIdx); err != nil {
+		return model.Card{}, false
+	}
+	return card, true
+}
+
+func (r roleChoiceRuntime) TopCombatRequest() *model.CombatRequest {
+	if r.GameEngine == nil || r.State == nil || len(r.State.CombatStack) == 0 {
+		return nil
+	}
+	return &r.State.CombatStack[len(r.State.CombatStack)-1]
+}
+
+func (r roleChoiceRuntime) PopCombatRequest() {
+	if r.GameEngine == nil || r.State == nil || len(r.State.CombatStack) == 0 {
+		return
+	}
+	r.State.CombatStack = r.State.CombatStack[:len(r.State.CombatStack)-1]
+}
+
+func (r roleChoiceRuntime) EnsureCombatInteractionWindow() {
+	if r.GameEngine == nil || r.State == nil {
+		return
+	}
+	if len(r.State.CombatStack) > 0 && r.State.CombatStage == model.CombatStageNone {
+		r.State.CombatStage = model.CombatStageHitCheck
+	}
+}
+
+func (r roleChoiceRuntime) DrawCardsDirect(playerID string, amount int, reason string) {
+	if r.GameEngine == nil || r.State == nil {
+		return
+	}
+	p := r.State.Players[playerID]
+	if p == nil {
+		return
+	}
+	cards, newDeck, newDiscard := rules.DrawCards(r.State.Deck, r.State.DiscardPile, amount)
+	r.State.Deck = newDeck
+	r.State.DiscardPile = newDiscard
+	p.Hand = append(p.Hand, cards...)
+	r.NotifyDrawCards(playerID, amount, reason)
+}
+
+func (r roleChoiceRuntime) PendingInterrupt() *model.Interrupt {
+	if r.GameEngine == nil || r.State == nil {
+		return nil
+	}
+	return r.State.PendingInterrupt
+}
+
+func (r roleChoiceRuntime) RoutePendingDamageWithDefaultReturn(defaultReturn interface{}) bool {
+	if r.GameEngine == nil {
+		return false
+	}
+	return r.routePendingDamageWithDefaultReturn(defaultReturn)
+}
+
+func (r roleChoiceRuntime) RestoreReturnPoint() bool {
+	if r.GameEngine == nil {
+		return false
+	}
+	return r.restoreReturnPoint()
+}
+
+func (r roleChoiceRuntime) PushDiscardChoiceInterrupt(playerID string, data map[string]interface{}) {
+	if r.GameEngine == nil {
+		return
+	}
+	r.PushInterrupt(newDiscardChoiceInterrupt(playerID, data))
+}
+
+func (r roleChoiceRuntime) EnterActionEndStage() {
+	if r.GameEngine == nil {
+		return
+	}
+	r.enterActionEndStage()
+}
+
+func (r roleChoiceRuntime) MagicBulletChain() *model.MagicBulletChain {
+	if r.GameEngine == nil || r.State == nil {
+		return nil
+	}
+	return r.State.MagicBulletChain
+}
+
+func (r roleChoiceRuntime) SetMagicBulletChain(chain *model.MagicBulletChain) {
+	if r.GameEngine == nil || r.State == nil {
+		return
+	}
+	r.State.MagicBulletChain = chain
+}
+
+func (r roleChoiceRuntime) SetReturnPoint(returnTo interface{}) {
+	if r.GameEngine == nil {
+		return
+	}
+	r.setReturnPoint(returnTo)
+}
+
+func (r roleChoiceRuntime) GetPlayableCardByIndex(player *model.Player, idx int) (model.Card, bool) {
+	card, _, _, ok := getPlayableCardByIndex(player, idx)
+	return card, ok
+}
+
+func (r roleChoiceRuntime) ConsumePlayableCardByIndex(player *model.Player, idx int) (model.Card, error) {
+	return consumePlayableCardByIndex(player, idx)
+}
+
+func (r roleChoiceRuntime) PerformMagic(playerID, targetID string, cardIdx int, isFusion bool) error {
+	if r.GameEngine == nil {
+		return fmt.Errorf("engine not available")
+	}
+	return r.performMagic(playerID, targetID, cardIdx, isFusion)
+}
+
+func (r roleChoiceRuntime) ExecuteMagicBullet(player *model.Player, reverse, isFusion bool, fusionCard *model.Card) error {
+	if r.GameEngine == nil {
+		return fmt.Errorf("engine not available")
+	}
+	return r.executeMagicBullet(player, reverse, isFusion, fusionCard)
+}
+
+func (r roleChoiceRuntime) FindNextMagicBulletTarget(playerID string) string {
+	if r.GameEngine == nil {
+		return ""
+	}
+	return r.findNextMagicBulletTarget(playerID)
+}
+
+func (r roleChoiceRuntime) DispatchHitCheckMagicMissileCounter(player *model.Player, chain *model.MagicBulletChain, card *model.Card) error {
+	if r.GameEngine == nil {
+		return nil
+	}
+	res := r.dispatchTimingOnHitCheck(timingOnHitCheckContext{
+		Op:         timingOnHitCheckMagicMissileCounter,
+		Player:     player,
+		MagicChain: chain,
+		Card:       *card,
+	})
+	return res.Err
+}
+
+func (r roleChoiceRuntime) DispatchHitCheckMagicMissileDefend(player *model.Player, chain *model.MagicBulletChain) error {
+	if r.GameEngine == nil {
+		return nil
+	}
+	res := r.dispatchTimingOnHitCheck(timingOnHitCheckContext{
+		Op:         timingOnHitCheckMagicMissileDefend,
+		Player:     player,
+		MagicChain: chain,
+	})
+	return res.Err
+}
+
+func (r roleChoiceRuntime) AddToDiscardPile(cards ...model.Card) {
+	if r.GameEngine == nil || r.State == nil {
+		return
+	}
+	r.State.DiscardPile = append(r.State.DiscardPile, cards...)
 }
 
 var _ engineplayer.ChoiceRuntime = roleChoiceRuntime{}

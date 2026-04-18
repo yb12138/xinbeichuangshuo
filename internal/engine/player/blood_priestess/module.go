@@ -3,10 +3,48 @@
 package blood_priestess
 
 import (
+	"fmt"
 	"starcup-engine/internal/engine/player"
 	skills "starcup-engine/internal/engine/skill"
+	"starcup-engine/internal/model"
 	"starcup-engine/internal/types"
 )
+
+// RoleEntry 导出角色统一入口定义。
+func RoleEntry() player.RoleEntry {
+	return player.RoleEntry{
+		ID:               "blood_priestess",
+		Defaults:         ApplyDefaults,
+		StarterCards:     StarterCards,
+		Choices:          NewChoiceHandler(),
+		Skills:           SkillEntries(),
+		ChoiceRouteSpecs: ChoiceRouteSpecs(),
+	}
+}
+
+// ApplyDefaults 初始化角色默认属性。
+func ApplyDefaults(p *model.Player) {
+	// blood_priestess 无特殊默认配置
+}
+
+// StarterCards 返回开局专属牌列表。
+func StarterCards(p *model.Player) []model.Card {
+	if p == nil || p.Character == nil {
+		return nil
+	}
+	return []model.Card{
+		{
+			ID:              fmt.Sprintf("starter-%s-bp_shared_life", p.ID),
+			Name:            "同生共死",
+			Type:            model.CardTypeMagic,
+			Element:         model.ElementDark,
+			Faction:         p.Character.Faction,
+			Description:     "血之巫女开局自带专属技能卡",
+			ExclusiveChar1:  p.Character.ID,
+			ExclusiveSkill1: "同生共死",
+		},
+	}
+}
 
 // SkillEntries 导出角色技能与策略绑定入口。
 func SkillEntries() []player.SkillEntry {
@@ -27,6 +65,7 @@ func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 		"bp_blood_sorrow_mode":   types.ChoiceRouteRole("blood_priestess"),
 		"bp_blood_sorrow_target": types.ChoiceRouteRole("blood_priestess"),
 		"bp_blood_wail_x":        types.ChoiceRouteRole("blood_priestess"),
+		"bp_curse_discard":       types.ChoiceRouteRole("blood_priestess"),
 		"bp_shared_life_pick":    types.ChoiceRouteRole("blood_priestess"),
 		"bp_shared_life_target":  types.ChoiceRouteRole("blood_priestess"),
 	}

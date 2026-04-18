@@ -35,12 +35,27 @@ var sequentialCardResolvers = map[string]sequentialCountResolver{
 	"bd_descent_cards":              remainingCountFromFixedTotal(2),
 	"bd_rousing_discard_cards":      remainingCountFromFixedTotal(2),
 	"bd_dissonance_discard_step":    remainingCountFromNeedAndSelected("need_count", "selected_count"),
+	"bp_curse_discard":              remainingCountFromSelectionKey("discard_count"),
 	"mb_demon_eye_charge_card": func(ctxData map[string]interface{}) (int, bool) {
 		need := runtimeutil.ToIntContextValue(ctxData["need_count"])
 		if need <= 0 {
 			need = 1
 		}
 		return need - len(runtimeutil.ParseChoiceIntSlice(ctxData["selected_indices"])), true
+	},
+	"adventurer_fraud_pick": func(ctxData map[string]interface{}) (int, bool) {
+		selectedCount := len(runtimeutil.ParseChoiceIntSlice(ctxData["selected_indices"]))
+		// 欺诈允许选择2-3张牌；首次选择返回0表示弹性数量，由用户决定提交几张。
+		if selectedCount == 0 {
+			return 0, true
+		}
+		if selectedCount < 2 {
+			return 2 - selectedCount, true
+		}
+		if selectedCount == 2 {
+			return 1, true // 可选第三张
+		}
+		return 0, true
 	},
 }
 

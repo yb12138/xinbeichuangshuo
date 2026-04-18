@@ -5,7 +5,26 @@ package blade_master
 import (
 	"starcup-engine/internal/engine/player"
 	skills "starcup-engine/internal/engine/skill"
+	"starcup-engine/internal/model"
 )
+
+// RoleEntry 导出角色统一入口定义。
+func RoleEntry() player.RoleEntry {
+	return player.RoleEntry{
+		ID:      "blade_master",
+		Choices: NewChoiceHandler(),
+		Skills:  SkillEntries(),
+		InterruptSpecs: []player.InterruptSpec{
+			{
+				Type:                  model.InterruptHolySwordDraw,
+				BuildPrompt:           buildHolySwordDrawPrompt,
+				HandleAction:          handleHolySwordDrawAction,
+				AllowedActionTypes:    []model.PlayerActionType{model.CmdSelect},
+				InvalidActionMessage:  "当前为【圣剑】后续选择阶段，请提交选择",
+			},
+		},
+	}
+}
 
 // SkillEntries 导出角色技能与策略绑定入口。
 func SkillEntries() []player.SkillEntry {

@@ -1,95 +1,33 @@
 // gameflow: 新角色共用小型运行时函数。
+// 已迁移到 player 包，此文件保留别名供 engine 内部过渡使用。
 
 package engine
 
-import "starcup-engine/internal/model"
+import (
+	"starcup-engine/internal/engine/player"
+	"starcup-engine/internal/model"
+)
 
-// tokenValueBounded 读取并规范化玩家 token 值：
-// 小于 0 归零；cap >= 0 时按上限裁剪；并回写到玩家状态。
-func tokenValueBounded(player *model.Player, key string, cap int) int {
-	if player == nil {
-		return 0
-	}
-	ensurePlayerTokensMap(player)
-	v := player.Tokens[key]
-	if v < 0 {
-		v = 0
-	}
-	if cap >= 0 && v > cap {
-		v = cap
-	}
-	player.Tokens[key] = v
-	return v
+func tokenValueBounded(p *model.Player, key string, cap int) int {
+	return player.TokenValue(p, key, cap)
 }
 
-// addTokenValueBounded 在规范化基础上增减 token，并应用统一上限规则。
-func addTokenValueBounded(player *model.Player, key string, delta int, cap int) int {
-	return addTokenValueBoundedWithIgnoreCap(player, key, delta, cap, false)
+func addTokenValueBounded(p *model.Player, key string, delta int, cap int) int {
+	return player.AddToken(p, key, delta, cap)
 }
 
-// addTokenValueBoundedWithIgnoreCap 允许按场景跳过上限裁剪（仅保留非负约束）。
-func addTokenValueBoundedWithIgnoreCap(player *model.Player, key string, delta int, cap int, ignoreCap bool) int {
-	if player == nil {
-		return 0
-	}
-	ensurePlayerTokensMap(player)
-	baseCap := cap
-	if ignoreCap {
-		baseCap = -1
-	}
-	v := tokenValueBounded(player, key, baseCap) + delta
-	if v < 0 {
-		v = 0
-	}
-	if !ignoreCap && cap >= 0 && v > cap {
-		v = cap
-	}
-	player.Tokens[key] = v
-	return v
+func addTokenValueBoundedWithIgnoreCap(p *model.Player, key string, delta int, cap int, ignoreCap bool) int {
+	return player.AddTokenIgnoreCap(p, key, delta, cap, ignoreCap)
 }
 
-// coverCardsByEffect 收集指定场上盖牌效果的所有卡牌引用（按场上顺序）。
-func coverCardsByEffect(player *model.Player, effect model.EffectType) []*model.FieldCard {
-	if player == nil {
-		return nil
-	}
-	var out []*model.FieldCard
-	for _, fc := range player.Field {
-		if fc == nil || fc.Mode != model.FieldCover || fc.Effect != effect {
-			continue
-		}
-		out = append(out, fc)
-	}
-	return out
+func coverCardsByEffect(p *model.Player, effect model.EffectType) []*model.FieldCard {
+	return player.CoverCardsByEffect(p, effect)
 }
 
-// coverCountByEffectAndElement 统计指定效果（可按元素过滤）的场上盖牌数量。
-func coverCountByEffectAndElement(player *model.Player, effect model.EffectType, element model.Element) int {
-	count := 0
-	for _, fc := range coverCardsByEffect(player, effect) {
-		if element != "" && fc.Card.Element != element {
-			continue
-		}
-		count++
-	}
-	return count
+func coverCountByEffectAndElement(p *model.Player, effect model.EffectType, element model.Element) int {
+	return player.CoverCountByEffectAndElement(p, effect, element)
 }
 
-// removeFirstCoverByEffectAndElement 按场上顺序移除第一张匹配的盖牌。
-func removeFirstCoverByEffectAndElement(player *model.Player, effect model.EffectType, element model.Element) (model.Card, bool) {
-	if player == nil {
-		return model.Card{}, false
-	}
-	for _, fc := range player.Field {
-		if fc == nil || fc.Mode != model.FieldCover || fc.Effect != effect {
-			continue
-		}
-		if element != "" && fc.Card.Element != element {
-			continue
-		}
-		card := fc.Card
-		player.RemoveFieldCard(fc)
-		return card, true
-	}
-	return model.Card{}, false
+func removeFirstCoverByEffectAndElement(p *model.Player, effect model.EffectType, element model.Element) (model.Card, bool) {
+	return player.RemoveFirstCoverByEffectAndElement(p, effect, element)
 }
