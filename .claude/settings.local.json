@@ -25,7 +25,9 @@
       "Bash(xargs -I{} bash -c 'echo \"$\\(basename $\\(dirname {}\\)\\)\"; grep \"Defaults:\" {}')",
       "Bash(xargs -I{} bash -c 'echo \"$\\(basename $\\(dirname {}\\)\\)\"; grep \"StarterCards:\" {}')",
       "Bash(xargs -I{} bash -c 'echo \"$\\(basename $\\(dirname {}\\)\\)\"; grep \"Choices:\" {}')",
-      "Bash(grep -v \":0$\")"
+      "Bash(grep -v \":0$\")",
+      "Bash(awk -F: '{sum+=$2} END {print sum \" total functions\"}')",
+      "Bash(xxd)"
     ]
   }
 }

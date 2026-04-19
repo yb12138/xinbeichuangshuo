@@ -141,6 +141,8 @@ type RoleEntry struct {
 	FollowupSpecs map[string]FollowupSpec
 	// InterruptSpecs 角色贡献到全局中断处理映射的条目。
 	InterruptSpecs []InterruptSpec
+	// TimingHookSpecs 角色贡献到全局 timing hook 链的条目。
+	TimingHookSpecs []TimingHookSpec
 }
 
 // ApplyDefaults 应用默认角色属性。

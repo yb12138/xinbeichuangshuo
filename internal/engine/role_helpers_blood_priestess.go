@@ -1,14 +1,131 @@
-// gameflow: 血祭司：血咒、仪式等。
-
+// gameflow: 血祭司：同生共死与流血形态辅助。
 package engine
 
 import (
 	"fmt"
-	"sort"
-	"starcup-engine/internal/engine/core/runtimeutil"
 
 	"starcup-engine/internal/model"
 )
+
+func (e *GameEngine) findBloodPriestessSharedLife(priestess *model.Player) (*model.Player, *model.FieldCard) {
+	return e.findExclusiveEffectCard(priestess, model.EffectBloodSharedLife)
+}
+
+func (e *GameEngine) detachBloodPriestessSharedLife(priestess *model.Player) (*model.Player, model.Card, bool) {
+	return e.detachExclusiveEffectCard(priestess, model.EffectBloodSharedLife)
+}
+
+func (e *GameEngine) removeBloodPriestessSharedLife(priestess *model.Player, restoreCard bool) bool {
+	return e.removeExclusiveEffectCard(priestess, model.EffectBloodSharedLife, restoreCard)
+}
+
+func (e *GameEngine) placeBloodPriestessSharedLife(priestess *model.Player, target *model.Player, card model.Card) error {
+	if priestess == nil || target == nil {
+		return fmt.Errorf("放置同生共死时角色不存在")
+	}
+
+	return e.attachExclusiveEffectCard(priestess, target, model.EffectBloodSharedLife, card)
+}
+
+func (e *GameEngine) hasFixedMaxHandCap(player *model.Player) bool {
+	if player == nil {
+		return false
+	}
+	if _, ok := e.roleFixedMaxHandCapValue(player); ok {
+		return true
+	}
+	return e.hasMercyFixedMaxHandCap(player)
+}
+
+func (e *GameEngine) bloodPriestessSharedLifeDeltaFor(player *model.Player) int {
+	if player == nil {
+		return 0
+	}
+	delta := 0
+	for _, pid := range e.State.PlayerOrder {
+		holder := e.State.Players[pid]
+		if holder == nil {
+			continue
+		}
+		for _, fc := range holder.Field {
+			if fc == nil || fc.Mode != model.FieldEffect || fc.Effect != model.EffectBloodSharedLife {
+				continue
+			}
+			source := e.State.Players[fc.SourceID]
+			if source == nil || !e.isBloodPriestess(source) {
+				continue
+			}
+			change := -2
+			if hasBloodPriestessBleedingForm(source) {
+				change = 1
+			}
+			if source.ID == player.ID {
+				delta += change
+				continue
+			}
+			if fc.OwnerID == player.ID && !e.hasFixedMaxHandCap(player) {
+				delta += change
+			}
+		}
+	}
+	return delta
+}
+
+func (e *GameEngine) enterBloodPriestessBleedingForm(player *model.Player, reason string) bool {
+	if player == nil || !e.isBloodPriestess(player) {
+		return false
+	}
+	if hasBloodPriestessBleedingForm(player) {
+		return false
+	}
+	beforePoses := e.snapshotPlayerPoses()
+	enterBloodPriestessBleedingFormState(player)
+	if reason == "" {
+		reason = "因承受伤害导致我方士气下降"
+	}
+	e.Log(fmt.Sprintf("%s 的 [流血] 触发：%s，进入流血形态", player.Name, reason))
+	e.dispatchOrientationChanges(beforePoses)
+	return true
+}
+
+func (e *GameEngine) leaveBloodPriestessBleedingForm(player *model.Player, reason string) bool {
+	if player == nil || !e.isBloodPriestess(player) {
+		return false
+	}
+	if !hasBloodPriestessBleedingForm(player) {
+		return false
+	}
+	beforePoses := e.snapshotPlayerPoses()
+	leaveBloodPriestessBleedingFormState(player)
+	if reason == "" {
+		reason = "行动结束时手牌少于3"
+	}
+	e.Log(fmt.Sprintf("%s 的 [流血·手牌不足脱离] 生效：%s，脱离流血形态", player.Name, reason))
+	e.dispatchOrientationChanges(beforePoses)
+	return true
+}
+
+func (e *GameEngine) resolveBloodPriestessBleedExitOnActionEnd() bool {
+	if e == nil || e.State == nil {
+		return false
+	}
+	released := false
+	for _, pid := range e.State.PlayerOrder {
+		player := e.State.Players[pid]
+		if player == nil || !e.isBloodPriestess(player) {
+			continue
+		}
+		if len(player.Hand) >= 3 {
+			continue
+		}
+		if e.leaveBloodPriestessBleedingForm(player, "行动结束时手牌<3") {
+			released = true
+		}
+	}
+	return released
+}
+
+// gameflow: 血祭司：血咒、仪式等。
 
 func buildBloodPriestessDeferredFollowupHandlers() map[string]deferredFollowupHandler {
 	return map[string]deferredFollowupHandler{
@@ -158,83 +275,5 @@ func (e *GameEngine) resolveBloodPriestessCurseDiscardFollowup(f model.DeferredF
 		},
 	})
 	e.Log(fmt.Sprintf("%s 的 [血之诅咒] 后续：伤害结算完成，请弃置%d张牌", user.Name, discardNeed))
-	return nil
-}
-
-func (e *GameEngine) handleBloodCurseDiscardSelections(playerID string, selections []int) error {
-	if e.State.PendingInterrupt == nil || e.State.PendingInterrupt.Type != model.InterruptChoice {
-		return fmt.Errorf("当前不存在可处理的血之诅咒弃牌")
-	}
-	ctxData, ok := e.State.PendingInterrupt.Context.(map[string]interface{})
-	if !ok {
-		return fmt.Errorf("血之诅咒上下文错误")
-	}
-	choiceType, _ := ctxData["choice_type"].(string)
-	if choiceType != "bp_curse_discard" {
-		return fmt.Errorf("当前中断不是血之诅咒弃牌")
-	}
-
-	userID, _ := ctxData["user_id"].(string)
-	if userID == "" {
-		userID = playerID
-	}
-	user := e.State.Players[userID]
-	if user == nil {
-		return fmt.Errorf("玩家不存在")
-	}
-
-	discardNeed := runtimeutil.ToIntContextValue(ctxData["discard_count"])
-	if discardNeed < 0 {
-		discardNeed = 0
-	}
-	if discardNeed > len(user.Hand) {
-		discardNeed = len(user.Hand)
-	}
-	if discardNeed == 0 {
-		e.PopInterrupt()
-		if e.State.PendingInterrupt == nil {
-			if !e.routePendingDamageWithReturn(model.TurnStageExtraAction) {
-				e.enterExtraActionStage()
-			}
-		}
-		return nil
-	}
-
-	if len(selections) != discardNeed {
-		return fmt.Errorf("需要选择 %d 张手牌弃置", discardNeed)
-	}
-
-	chosen := make([]int, 0, discardNeed)
-	seen := make(map[int]struct{}, discardNeed)
-	for _, idx := range selections {
-		if idx < 0 || idx >= len(user.Hand) {
-			return fmt.Errorf("无效的弃牌索引: %d", idx)
-		}
-		if _, ok := seen[idx]; ok {
-			return fmt.Errorf("不能重复选择同一张牌")
-		}
-		seen[idx] = struct{}{}
-		chosen = append(chosen, idx)
-	}
-
-	sort.Sort(sort.Reverse(sort.IntSlice(chosen)))
-	discarded := make([]model.Card, 0, len(chosen))
-	for _, idx := range chosen {
-		discarded = append(discarded, user.Hand[idx])
-		user.Hand = append(user.Hand[:idx], user.Hand[idx+1:]...)
-	}
-
-	if len(discarded) > 0 {
-		e.NotifyCardRevealed(user.ID, discarded, "discard")
-		e.State.DiscardPile = append(e.State.DiscardPile, discarded...)
-	}
-	e.Log(fmt.Sprintf("%s 的 [血之诅咒] 后续：弃置%d张牌", user.Name, len(discarded)))
-
-	e.PopInterrupt()
-	if e.State.PendingInterrupt == nil {
-		if !e.routePendingDamageWithDefaultReturn(model.TurnStageExtraAction) {
-			e.enterExtraActionStage()
-		}
-	}
 	return nil
 }

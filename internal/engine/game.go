@@ -3,6 +3,8 @@
 package engine
 
 import (
+	engineplayer "starcup-engine/internal/engine/player"
+
 	choicert "starcup-engine/internal/engine/runtime/choice"
 	intr "starcup-engine/internal/engine/runtime/interrupt"
 	skillrt "starcup-engine/internal/engine/runtime/skill"
@@ -88,6 +90,8 @@ type GameEngine struct {
 	actionSummaryTurn int
 	// suppressSealOnDiscard 为 true 时跳过某次弃牌链路上的封印检测（避免死循环或特殊剧情）。
 	suppressSealOnDiscard bool
+	// roleTimingHooks 声明式 Timing Hook 注册表（按 timing 分组，已排序）。
+	roleTimingHooks map[engineplayer.TimingPoint][]roleTimingHookEntry
 }
 
 // NewGameEngine 构造引擎：初始化状态、注册技能 handler、装配 TimingOnAttackDeclared 等钩子表。
@@ -108,5 +112,6 @@ func NewGameEngine(observer model.GameObserver) *GameEngine {
 	bootstrapChoiceSpecs(engine)
 	engine.installInterruptOrchestrator()
 	engine.rebuildTimingOnAttackDeclaredRegistry()
+	engine.roleTimingHooks = mountRoleTimingHooks()
 	return engine
 }

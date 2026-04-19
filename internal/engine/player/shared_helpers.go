@@ -2,7 +2,9 @@
 
 package player
 
-import "starcup-engine/internal/model"
+import (
+	"starcup-engine/internal/model"
+)
 
 // EnsurePlayerTokensMap 确保 player.Tokens map 已初始化。
 func EnsurePlayerTokensMap(p *model.Player) {
@@ -53,4 +55,67 @@ func AddTokenIgnoreCap(p *model.Player, key string, delta int, cap int, ignoreCa
 	}
 	p.Tokens[key] = v
 	return v
+}
+
+// ParseIntSliceContextValue 从 interface{} 解析 []int（支持 []int 和 []interface{} 两种输入）。
+func ParseIntSliceContextValue(raw interface{}) []int {
+	result := make([]int, 0)
+	switch value := raw.(type) {
+	case []int:
+		result = append(result, value...)
+	case []interface{}:
+		for _, item := range value {
+			switch v := item.(type) {
+			case int:
+				result = append(result, v)
+			case float64:
+				result = append(result, int(v))
+			}
+		}
+	}
+	return result
+}
+
+// GetFieldEffectCard 返回玩家场上指定效果类型的场地牌（纯函数，无 engine 依赖）。
+func GetFieldEffectCard(p *model.Player, effect model.EffectType) *model.FieldCard {
+	if p == nil {
+		return nil
+	}
+	for _, fc := range p.Field {
+		if fc == nil || fc.Mode != model.FieldEffect || fc.Effect != effect {
+			continue
+		}
+		return fc
+	}
+	return nil
+}
+
+// ClearElfElementalShotCombatState 清理精灵射手元素射击战斗状态。
+func ClearElfElementalShotCombatState(p *model.Player) {
+	if p == nil {
+		return
+	}
+	if p.TurnState.SkillFlowState == nil {
+		p.TurnState.SkillFlowState = make(map[string]int)
+	}
+	p.TurnState.SkillFlowState["elf_elemental_shot_water_pending"] = 0
+	p.TurnState.SkillFlowState["elf_elemental_shot_earth_pending"] = 0
+	p.TurnState.SkillFlowState["elf_elemental_shot_wind_pending"] = 0
+}
+
+// MaxSameElementCount 返回玩家手牌中最大同系牌数量。
+func MaxSameElementCount(p *model.Player) int {
+	elemMap := map[model.Element]int{}
+	for _, c := range p.Hand {
+		if c.Element != "" {
+			elemMap[c.Element]++
+		}
+	}
+	maxCount := 0
+	for _, cnt := range elemMap {
+		if cnt > maxCount {
+			maxCount = cnt
+		}
+	}
+	return maxCount
 }

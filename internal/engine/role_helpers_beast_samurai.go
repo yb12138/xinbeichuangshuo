@@ -1,14 +1,78 @@
-// gameflow: 兽魂武士：兽魂警觉等。
-
+// gameflow: 兽武者：残心/兽魂资源与居合形态辅助。
 package engine
 
 import (
 	"fmt"
-	"starcup-engine/internal/engine/core/runtimeutil"
-	"strings"
 
+	"starcup-engine/internal/engine/core/runtimeutil"
 	"starcup-engine/internal/model"
 )
+
+func (e *GameEngine) beastSamuraiZanshin(player *model.Player) int {
+	return tokenValueBounded(player, "bs_zanshin", beastSamuraiZanshinCapEngine)
+}
+
+func (e *GameEngine) addBeastSamuraiZanshin(player *model.Player, delta int) int {
+	return addTokenValueBounded(player, "bs_zanshin", delta, beastSamuraiZanshinCapEngine)
+}
+
+func (e *GameEngine) beastSamuraiBeastSoul(player *model.Player) int {
+	return tokenValueBounded(player, "bs_beast_soul", beastSamuraiBeastSoulCapEngine)
+}
+
+func (e *GameEngine) addBeastSamuraiBeastSoul(player *model.Player, delta int, ignoreCap bool) int {
+	return addTokenValueBoundedWithIgnoreCap(player, "bs_beast_soul", delta, beastSamuraiBeastSoulCapEngine, ignoreCap)
+}
+
+func (e *GameEngine) consumeBeastSamuraiBeastSoul(player *model.Player, amount int) int {
+	if player == nil || amount <= 0 {
+		return 0
+	}
+	current := e.beastSamuraiBeastSoul(player)
+	if amount > current {
+		amount = current
+	}
+	if amount <= 0 {
+		return 0
+	}
+	e.addBeastSamuraiBeastSoul(player, -amount, true)
+	e.addBeastSamuraiZanshin(player, amount)
+	return amount
+}
+
+func (e *GameEngine) beastSamuraiInIaijutsuForm(player *model.Player) bool {
+	return effectivePlayerForm(player) == model.FormBeastSamuraiIaijutsu
+}
+
+func (e *GameEngine) enterBeastSamuraiIaijutsuForm(player *model.Player) bool {
+	if player == nil {
+		return false
+	}
+	changed := effectivePlayerOrientation(player) != model.OrientationTapped || effectivePlayerForm(player) != model.FormBeastSamuraiIaijutsu
+	player.Orientation = model.OrientationTapped
+	player.Form = model.FormBeastSamuraiIaijutsu
+	return changed
+}
+
+func (e *GameEngine) leaveBeastSamuraiIaijutsuForm(player *model.Player) bool {
+	if player == nil {
+		return false
+	}
+	changed := effectivePlayerOrientation(player) != model.OrientationNormal || effectivePlayerForm(player) != ""
+	player.Orientation = model.OrientationNormal
+	player.Form = ""
+	return changed
+}
+
+func clearBeastSamuraiAttackTokens(player *model.Player) {
+	if player == nil {
+		return
+	}
+	ensurePlayerTokensMap(player)
+	player.Tokens["bs_reversal_pending_x"] = 0
+}
+
+// gameflow: 兽魂武士：兽魂警觉等。
 
 func beastSamuraiDiscardedMagicCount(cards []model.Card) int {
 	count := 0
@@ -57,23 +121,6 @@ func (e *GameEngine) beastSamuraiFinishResume(resumePoint interface{}) {
 		return
 	}
 	e.applyChoiceResumePoint(model.TurnStageExtraAction)
-}
-
-func (e *GameEngine) beastSamuraiFindPendingAttackDamage(rawCtx *model.Context) *model.PendingDamage {
-	if rawCtx == nil || rawCtx.EventCtx == nil {
-		return nil
-	}
-	for i := range e.State.PendingDamageQueue {
-		pd := &e.State.PendingDamageQueue[i]
-		if !strings.EqualFold(string(pd.DamageType), string(model.AttackDamage)) {
-			continue
-		}
-		if pd.SourceID != rawCtx.EventCtx.SourceID || pd.TargetID != rawCtx.EventCtx.TargetID {
-			continue
-		}
-		return pd
-	}
-	return nil
 }
 
 func (e *GameEngine) beastSamuraiFinishReversal(rawCtx *model.Context, target *model.Player, need, actualDiscarded int, resumePoint interface{}) {

@@ -4,8 +4,8 @@ package engine
 
 import (
 	"fmt"
-	"starcup-engine/internal/engine/core/runtimeutil"
 
+	"starcup-engine/internal/engine/core/runtimeutil"
 	"starcup-engine/internal/model"
 )
 
@@ -72,7 +72,7 @@ func (e *GameEngine) updateHomRuneChoiceContext(ctxData map[string]interface{}) 
 	e.notifyInterruptPrompt()
 }
 
-// resolveHomunculusRuneChoice 结算英灵人形“战纹碎击/魔纹融合”的X/Y交互结果。
+// resolveHomunculusRuneChoice 结算英灵人形"战纹碎击/魔纹融合"的X/Y交互结果。
 func (e *GameEngine) resolveHomunculusRuneChoice(ctxData map[string]interface{}, glyph bool) error {
 	userID, _ := ctxData["user_id"].(string)
 	user := e.State.Players[userID]
@@ -163,89 +163,3 @@ func (e *GameEngine) resolveHomunculusRuneChoice(ctxData map[string]interface{},
 	e.resumePendingAttackHit(ctxData)
 	return nil
 }
-
-
-func (e *GameEngine) handleHomRuneXChoice(selectionIndex int, ctxData map[string]interface{}, glyph bool) error {
-	maxX := runtimeutil.ToIntContextValue(ctxData["max_x"])
-	minX := 1
-	nextChoice := "hom_rune_smash_cards"
-	if glyph {
-		minX = 2
-		nextChoice = "hom_glyph_fusion_cards"
-	}
-
-	xValue := selectionIndex
-	if xValue < minX || xValue > maxX {
-		xValue = selectionIndex + minX
-	}
-	if xValue < minX || xValue > maxX {
-		return fmt.Errorf("无效的X值")
-	}
-
-	candidates := parseIntSliceContextValue(ctxData["candidate_indices"])
-	if xValue > len(candidates) {
-		return fmt.Errorf("可选牌数量不足")
-	}
-
-	ctxData["choice_type"] = nextChoice
-	ctxData["x_value"] = xValue
-	ctxData["selected_indices"] = []int{}
-	ctxData["remaining_indices"] = append([]int{}, candidates...)
-	e.updateHomRuneChoiceContext(ctxData)
-	return nil
-}
-
-func (e *GameEngine) handleHomRuneCardsChoice(selectionIndex int, ctxData map[string]interface{}, glyph bool) error {
-	userID, _ := ctxData["user_id"].(string)
-	user := e.State.Players[userID]
-	if user == nil {
-		return fmt.Errorf("玩家不存在")
-	}
-
-	remaining := parseIntSliceContextValue(ctxData["remaining_indices"])
-	selected := parseIntSliceContextValue(ctxData["selected_indices"])
-	xValue := runtimeutil.ToIntContextValue(ctxData["x_value"])
-	cardIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, remaining)
-	if !ok {
-		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
-	}
-	if cardIdx < 0 || cardIdx >= len(user.Hand) {
-		return fmt.Errorf("无效的手牌索引: %d", cardIdx)
-	}
-
-	attackElement, _ := ctxData["attack_element"].(string)
-	nextSelected := append(append([]int{}, selected...), cardIdx)
-	mismatchErr := "战纹碎击需选择与攻击同系的牌"
-	duplicateErr := ""
-	if glyph {
-		mismatchErr = "魔纹融合需选择与攻击异系的牌"
-		duplicateErr = "魔纹融合需选择元素互不相同的异系牌"
-	}
-	if err := validateHomRuneCardSelection(user, nextSelected, attackElement, glyph, mismatchErr, duplicateErr); err != nil {
-		return err
-	}
-
-	nextRemaining := filterHomRuneRemainingCandidates(user, remaining, cardIdx, glyph)
-	if len(nextSelected) < xValue {
-		ctxData["selected_indices"] = nextSelected
-		ctxData["remaining_indices"] = nextRemaining
-		e.updateHomRuneChoiceContext(ctxData)
-		return nil
-	}
-
-	ctxData["selected_indices"] = nextSelected
-	maxY := runtimeutil.ToIntContextValue(ctxData["max_y"])
-	if maxY > 0 {
-		if glyph {
-			ctxData["choice_type"] = "hom_glyph_fusion_y"
-		} else {
-			ctxData["choice_type"] = "hom_rune_smash_y"
-		}
-		e.updateHomRuneChoiceContext(ctxData)
-		return nil
-	}
-
-	ctxData["y_value"] = 0
-	return e.resolveHomunculusRuneChoice(ctxData, glyph)
-}
-

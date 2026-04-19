@@ -1,5 +1,4 @@
 // gameflow: 阴阳师：黑暗祭礼、阴阳转换、式神咒束等辅助函数。
-
 package engine
 
 import (
@@ -305,4 +304,59 @@ func (e *GameEngine) executeOnmyojiBindingCounter(combatReq *model.CombatRequest
 	combatReq.OnmyojiBindingTargetID = ""
 	combatReq.OnmyojiBindingUseFaction = false
 	return true
+}
+
+// gameflow: 阴阳师：式神咒束、命格应战等辅助函数。
+
+func (e *GameEngine) canPayOnmyojiBindingCost(camp model.Camp) bool {
+	gems := e.GetCampGems(string(camp))
+	crystals := e.GetCampCrystals(string(camp))
+	// 需求：严格消耗 1 红宝石 + 1 蓝水晶（不允许替代）。
+	return gems >= 1 && crystals >= 1
+}
+
+func onmyojiCanUseFactionCounter(incoming *model.Card) bool {
+	if incoming == nil {
+		return false
+	}
+	// 欺诈视为攻击但无命格，不可触发阴阳转换。
+	if incoming.Name == "欺诈" {
+		return false
+	}
+	return incoming.Faction != ""
+}
+
+func collectOnmyojiCounterOptions(player *model.Player, incoming *model.Card) []map[string]interface{} {
+	if player == nil || incoming == nil {
+		return nil
+	}
+	var options []map[string]interface{}
+	for i, c := range player.Hand {
+		if c.Type != model.CardTypeAttack {
+			continue
+		}
+		useFaction := false
+		canCounter := false
+		if c.Element == incoming.Element || c.Element == model.ElementDark {
+			canCounter = true
+		}
+		if !canCounter && onmyojiCanUseFactionCounter(incoming) && c.Faction != "" && c.Faction == incoming.Faction {
+			canCounter = true
+			useFaction = true
+		}
+		if !canCounter {
+			continue
+		}
+		label := fmt.Sprintf("%d: %s", i+1, formatCardInfo(c))
+		if useFaction {
+			label += "（阴阳转换）"
+		}
+		options = append(options, map[string]interface{}{
+			"card_id":     c.ID,
+			"card_index":  i,
+			"use_faction": useFaction,
+			"label":       label,
+		})
+	}
+	return options
 }

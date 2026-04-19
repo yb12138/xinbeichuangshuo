@@ -1,12 +1,41 @@
-// gameflow: 通灵师：念咒、百鬼夜行等。
-
+// gameflow: 灵力施法者：灵力盖牌与计数辅助。
 package engine
 
 import (
 	"fmt"
+
 	"starcup-engine/internal/engine/core/runtimeutil"
 	"starcup-engine/internal/model"
 )
+
+func spiritCasterPowerCovers(player *model.Player) []*model.FieldCard {
+	return coverCardsByEffect(player, model.EffectSpiritCasterPower)
+}
+
+func spiritCasterPowerCount(player *model.Player, element model.Element) int {
+	return coverCountByEffectAndElement(player, model.EffectSpiritCasterPower, element)
+}
+
+func syncSpiritCasterPowerToken(player *model.Player) {
+	// no-op: sc_power_count 在服务端 buildStateForPlayer 中按场上盖牌派生写入 PlayerView.tokens
+}
+
+func addSpiritCasterPowerCard(player *model.Player, card model.Card) bool {
+	if player == nil {
+		return false
+	}
+	player.AddFieldCard(&model.FieldCard{
+		Card:     card,
+		OwnerID:  player.ID,
+		SourceID: player.ID,
+		Mode:     model.FieldCover,
+		Effect:   model.EffectSpiritCasterPower,
+	})
+	syncSpiritCasterPowerToken(player)
+	return true
+}
+
+// gameflow: 通灵师：念咒、百鬼夜行等。
 
 func (e *GameEngine) continueSpiritCasterTalisman(user *model.Player, skillID string, targetIDs []string) error {
 	if user == nil {
@@ -112,51 +141,3 @@ func (e *GameEngine) startSpiritCasterWindDiscardFlow(user *model.Player, target
 	})
 	return nil
 }
-
-func (e *GameEngine) resolveSpiritCasterHundredNightSingle(user *model.Player, targetID string, bonus int) error {
-	if user == nil {
-		return fmt.Errorf("玩家不存在")
-	}
-	target := e.State.Players[targetID]
-	if target == nil {
-		return fmt.Errorf("目标不存在")
-	}
-	damage := 1 + bonus
-	e.AddPendingDamage(model.PendingDamage{
-		SourceID:   user.ID,
-		TargetID:   target.ID,
-		Damage:     damage,
-		DamageType: model.MagicAttack,
-	})
-	e.Log(fmt.Sprintf("%s 发动 [百鬼夜行]：对 %s 造成%d点法术伤害", user.Name, target.Name, damage))
-	return nil
-}
-
-func (e *GameEngine) resolveSpiritCasterHundredNightFireAOE(user *model.Player, excludeIDs []string, bonus int) error {
-	if user == nil {
-		return fmt.Errorf("玩家不存在")
-	}
-	exclude := runtimeutil.IDsToSet(runtimeutil.DedupeIDs(excludeIDs))
-	damage := 1 + bonus
-	ordered := e.reverseOrderTargetIDsFrom(user.ID, true)
-	hitCount := 0
-	for _, playerID := range ordered {
-		if exclude[playerID] {
-			continue
-		}
-		target := e.State.Players[playerID]
-		if target == nil {
-			continue
-		}
-		e.AddPendingDamage(model.PendingDamage{
-			SourceID:   user.ID,
-			TargetID:   target.ID,
-			Damage:     damage,
-			DamageType: model.MagicAttack,
-		})
-		hitCount++
-	}
-	e.Log(fmt.Sprintf("%s 发动 [百鬼夜行·火]：对除2名指定角色外的其他角色各造成%d点法术伤害（命中%d名）", user.Name, damage, hitCount))
-	return nil
-}
-
