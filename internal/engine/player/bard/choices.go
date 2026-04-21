@@ -35,8 +35,8 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 	case "bd_descent_cards":
 		chosenEle, _ := data["chosen_element"].(string)
 		chosenEleZh := elementNameForPrompt(chosenEle)
-		remaining := parseIntSliceContextValue(data["remaining_indices"])
-		selected := len(parseIntSliceContextValue(data["selected_indices"]))
+		remaining := ParseIntSliceContextValue(data["remaining_indices"])
+		selected := len(ParseIntSliceContextValue(data["selected_indices"]))
 		options := make([]model.PromptOption, 0, len(remaining))
 		for _, idx := range remaining {
 			if idx < 0 || idx >= len(player.Hand) {
@@ -101,8 +101,8 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		}
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: fmt.Sprintf("【激昂狂想曲】请选择第 %d/2 名目标：", len(selectedSet)+1), Options: options, Min: 1, Max: 1}
 	case "bd_rousing_discard_cards":
-		selected := len(parseIntSliceContextValue(data["selected_indices"]))
-		remaining := parseIntSliceContextValue(data["remaining_indices"])
+		selected := len(ParseIntSliceContextValue(data["selected_indices"]))
+		remaining := ParseIntSliceContextValue(data["remaining_indices"])
 		options := make([]model.PromptOption, 0, len(remaining))
 		for _, idx := range remaining {
 			if idx < 0 || idx >= len(player.Hand) {
@@ -226,8 +226,8 @@ func handleDescentCards(rt engineplayer.ChoiceRuntime, ctxData map[string]interf
 		return fmt.Errorf("玩家不存在")
 	}
 	chosenElement, _ := ctxData["chosen_element"].(string)
-	remaining := parseIntSliceContextValue(ctxData["remaining_indices"])
-	selected := parseIntSliceContextValue(ctxData["selected_indices"])
+	remaining := ParseIntSliceContextValue(ctxData["remaining_indices"])
+	selected := ParseIntSliceContextValue(ctxData["selected_indices"])
 	cardIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, remaining)
 	if !ok || cardIdx < 0 || cardIdx >= len(user.Hand) {
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
@@ -447,8 +447,8 @@ func handleDissonanceDiscardStep(rt engineplayer.ChoiceRuntime, ctxData map[stri
 	}
 	needCount := runtimeutil.ToIntContextValue(ctxData["need_count"])
 	selectedCount := runtimeutil.ToIntContextValue(ctxData["selected_count"])
-	remaining := parseIntSliceContextValue(ctxData["remaining_indices"])
-	selected := parseIntSliceContextValue(ctxData["selected_indices"])
+	remaining := ParseIntSliceContextValue(ctxData["remaining_indices"])
+	selected := ParseIntSliceContextValue(ctxData["selected_indices"])
 	cardIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, remaining)
 	if !ok || cardIdx < 0 || cardIdx >= len(actor.Hand) {
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
@@ -587,8 +587,8 @@ func handleRousingDiscardCards(rt engineplayer.ChoiceRuntime, ctxData map[string
 	if user == nil {
 		return fmt.Errorf("吟游诗人不存在")
 	}
-	remaining := parseIntSliceContextValue(ctxData["remaining_indices"])
-	selected := parseIntSliceContextValue(ctxData["selected_indices"])
+	remaining := ParseIntSliceContextValue(ctxData["remaining_indices"])
+	selected := ParseIntSliceContextValue(ctxData["selected_indices"])
 	cardIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, remaining)
 	if !ok || cardIdx < 0 || cardIdx >= len(user.Hand) {
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
@@ -942,7 +942,7 @@ func allHandIndices(player *model.Player) []int {
 	return out
 }
 
-func parseIntSliceContextValue(raw interface{}) []int {
+func ParseIntSliceContextValue(raw interface{}) []int {
 	result := make([]int, 0)
 	switch value := raw.(type) {
 	case []int:

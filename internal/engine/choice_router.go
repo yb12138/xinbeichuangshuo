@@ -5,8 +5,38 @@ package engine
 import (
 	"fmt"
 
+	choicert "starcup-engine/internal/engine/runtime/choice"
 	"starcup-engine/internal/model"
 )
+
+// choiceHostBridge 将 *GameEngine 注入 runtime/choice（无 Legacy 回退）。
+type choiceHostBridge struct {
+	e *GameEngine
+}
+
+var _ choicert.Host = (*choiceHostBridge)(nil)
+
+func (*choiceHostBridge) ChoiceEngineHost() {}
+
+// choiceCtxAsAnyMap 将中断 Context 转为 map[string]any。
+func choiceCtxAsAnyMap(raw interface{}) (map[string]any, bool) {
+	m, ok := raw.(map[string]any)
+	if !ok {
+		return nil, false
+	}
+	return m, true
+}
+
+func choiceCtxAsInterfaceMap(m map[string]any) map[string]interface{} {
+	if m == nil {
+		return nil
+	}
+	out := make(map[string]interface{}, len(m))
+	for k, v := range m {
+		out[k] = v
+	}
+	return out
+}
 
 func (e *GameEngine) applyInterruptChoiceSelect(playerID string, selectionIndex int, ctxData map[string]any) error {
 	if e.choiceEngine == nil {

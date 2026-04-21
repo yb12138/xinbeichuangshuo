@@ -882,10 +882,8 @@ func handleWitherTarget(rt engineplayer.ChoiceRuntime, ctxData map[string]interf
 		Damage:     2,
 		DamageType: model.MagicAttack,
 	})
-	if user.Tokens == nil {
-		user.Tokens = map[string]int{}
-	}
-	user.Tokens["bt_wither_active"] = 1
+	engineplayer.EnsurePlayerSkillFlowState(user)
+	user.TurnState.SkillFlowState["bt_wither_active"] = 1
 
 	if user.TurnState.SkillFlowState == nil {
 		user.TurnState.SkillFlowState = map[string]int{}

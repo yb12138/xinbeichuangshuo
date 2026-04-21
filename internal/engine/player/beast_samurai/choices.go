@@ -295,10 +295,10 @@ func handleReversalX(rt engineplayer.ChoiceRuntime, ctxData map[string]interface
 
 	x := selectionIndex
 	consumed := consumeBeastSoul(user, x)
-	if user.Tokens == nil {
-		user.Tokens = map[string]int{}
+	if user.TurnState.SkillFlowState == nil {
+		user.TurnState.SkillFlowState = map[string]int{}
 	}
-	user.Tokens["bs_reversal_pending_x"] = x
+	user.TurnState.SkillFlowState["bs_reversal_pending_x"] = x
 
 	// Zero-out the pending attack damage (if still queued) by setting Damage to 0.
 	zeroPendingAttackDamage(rt, ctxData)

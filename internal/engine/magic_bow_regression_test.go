@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"starcup-engine/internal/data"
+	magicbowplayer "starcup-engine/internal/engine/player/magic_bow"
 	"starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 )
@@ -30,7 +31,7 @@ func giveMagicBowCharges(p *model.Player, elements ...model.Element) {
 			ele,
 		))
 	}
-	addMagicBowChargeCards(p, cards)
+	magicbowplayer.AddChargeCards(p, cards)
 }
 
 func pendingChoiceTargetIDs(intr *model.Interrupt) []string {
@@ -183,7 +184,7 @@ func TestMagicBowMultiShot_TargetCannotRepeatPrevious(t *testing.T) {
 	if qa.Card == nil || qa.Card.Element != model.ElementDark || qa.Card.Damage != 1 {
 		t.Fatalf("expected virtual dark attack damage=1, got %+v", qa.Card)
 	}
-	if got := magicBowChargeCount(p1, ""); got != 0 {
+	if got := magicbowplayer.ChargeCount(p1, ""); got != 0 {
 		t.Fatalf("expected wind charge consumed, remaining=%d", got)
 	}
 }
@@ -238,7 +239,7 @@ func TestMagicBowCharge_FollowupPlaceCharges(t *testing.T) {
 		t.Fatalf("choose second charge card failed: %v", err)
 	}
 
-	if got := magicBowChargeCount(p1, ""); got != 2 {
+	if got := magicbowplayer.ChargeCount(p1, ""); got != 2 {
 		t.Fatalf("expected 2 charges placed, got %d", got)
 	}
 	// mb_charge_count 由服务端 buildStateForPlayer 写入 PlayerView.tokens，引擎内不再同步到 Player.Tokens
@@ -365,7 +366,7 @@ func TestMagicBowCharge_DrawOverflowMoraleLossWithoutDiscard(t *testing.T) {
 			t.Fatalf("choose charge place card %d failed: %v", i+1, err)
 		}
 	}
-	if got := magicBowChargeCount(p1, ""); got != 4 {
+	if got := magicbowplayer.ChargeCount(p1, ""); got != 4 {
 		t.Fatalf("expected 4 charges placed, got %d", got)
 	}
 }
@@ -406,7 +407,7 @@ func TestMagicBowThunderScatter_ExtraDamageSplit(t *testing.T) {
 		t.Fatalf("choose thunder scatter target failed: %v", err)
 	}
 
-	if got := magicBowChargeCount(p1, ""); got != 0 {
+	if got := magicbowplayer.ChargeCount(p1, ""); got != 0 {
 		t.Fatalf("expected all thunder charges consumed, remaining=%d", got)
 	}
 	if len(game.State.PendingDamageQueue) != 3 {
@@ -481,7 +482,7 @@ func TestMagicBowMagicPierce_HitBonusCappedAtTwo(t *testing.T) {
 		t.Fatalf("expected hit bonus auto-resolve without extra prompt, got %+v", game.State.PendingInterrupt)
 	}
 
-	if got := magicBowChargeCount(p1, model.ElementFire); got != 1 {
+	if got := magicbowplayer.ChargeCount(p1, model.ElementFire); got != 1 {
 		t.Fatalf("expected remain 1 fire charge after at-most-once hit bonus, got %d", got)
 	}
 	if got := p1.TurnState.SkillFlowState["mb_magic_pierce_pending"]; got != 0 {
@@ -552,7 +553,7 @@ func TestMagicBowMagicPierce_MissDealsExactlyThreeMagicDamage(t *testing.T) {
 	if totalAttackToP2 != 0 {
 		t.Fatalf("expected no pending attack damage on miss branch, got %d", totalAttackToP2)
 	}
-	if got := magicBowChargeCount(p1, model.ElementFire); got != 1 {
+	if got := magicbowplayer.ChargeCount(p1, model.ElementFire); got != 1 {
 		t.Fatalf("expected only first fire charge consumed on miss, remain=%d", got)
 	}
 	if got := p1.TurnState.SkillFlowState["mb_magic_pierce_pending"]; got != 0 {
@@ -591,7 +592,7 @@ func TestMagicBowThunderScatter_ExtraZeroSkipsTargetChoice(t *testing.T) {
 	if game.State.PendingInterrupt != nil {
 		t.Fatalf("expected no target-choice interrupt when extra x=0, got %+v", game.State.PendingInterrupt)
 	}
-	if got := magicBowChargeCount(p1, model.ElementThunder); got != 1 {
+	if got := magicbowplayer.ChargeCount(p1, model.ElementThunder); got != 1 {
 		t.Fatalf("expected only base thunder charge consumed, remain=%d", got)
 	}
 	if len(game.State.PendingDamageQueue) != 2 {
@@ -708,7 +709,7 @@ func TestMagicBowMagicPierce_HitBonusAutoConsumesSecondCharge(t *testing.T) {
 		t.Fatalf("expected hit bonus auto-resolve without prompt, got %+v", game.State.PendingInterrupt)
 	}
 
-	if remainFire := magicBowChargeCount(p1, model.ElementFire); remainFire != 0 {
+	if remainFire := magicbowplayer.ChargeCount(p1, model.ElementFire); remainFire != 0 {
 		t.Fatalf("expected second fire charge auto-consumed on hit bonus, remain=%d", remainFire)
 	}
 	if got := len(game.State.Players["p2"].Hand); got != 3 {
@@ -783,7 +784,7 @@ func TestMagicBowDemonEye_TargetNoHandFallsBackToDrawThreeThenCharge(t *testing.
 	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose demon-eye charge card failed: %v", err)
 	}
-	if got := magicBowChargeCount(p1, ""); got != 1 {
+	if got := magicbowplayer.ChargeCount(p1, ""); got != 1 {
 		t.Fatalf("expected demon eye to place 1 charge after fallback draw, got %d", got)
 	}
 	if got := len(p1.Hand); got != 3 {
@@ -838,7 +839,7 @@ func TestMagicBowDemonEye_TargetDiscardsThenUserCharges(t *testing.T) {
 	if got := len(p2.Hand); got != 1 || p2.Hand[0].ID != "e1" {
 		t.Fatalf("expected target chosen discard applied, remaining hand=%+v", p2.Hand)
 	}
-	if got := magicBowChargeCount(p1, ""); got != 1 {
+	if got := magicbowplayer.ChargeCount(p1, ""); got != 1 {
 		t.Fatalf("expected demon eye to place 1 charge after target discard branch, got %d", got)
 	}
 	if got := p1.Crystal; got != 1 {

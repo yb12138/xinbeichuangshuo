@@ -131,3 +131,52 @@ func buildHitCheckSkillOpHandlers(present map[string]bool) map[timingOnHitCheckS
 	}
 	return handlers
 }
+
+// ---------- Timing 链式调用辅助（原 timing_chain_helpers.go） ----------
+
+func runTimingErrorChain(steps ...func() error) error {
+	for _, step := range steps {
+		if step == nil {
+			continue
+		}
+		if err := step(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ---------- 角色在场过滤（原 timing_presence_registry_helpers.go） ----------
+
+// presenceHookEntry 描述"角色在场 -> 挂载规则函数"的一条声明式配置。
+type presenceHookEntry[T any] struct {
+	requireAny []string
+	hook       T
+}
+
+func requireAny(roleIDs ...string) []string {
+	return roleIDs
+}
+
+func buildPresenceHooks[T any](present map[string]bool, entries []presenceHookEntry[T]) []T {
+	var hooks []T
+	for _, entry := range entries {
+		if !matchPresenceAny(present, entry.requireAny) {
+			continue
+		}
+		hooks = append(hooks, entry.hook)
+	}
+	return hooks
+}
+
+func matchPresenceAny(present map[string]bool, roleIDs []string) bool {
+	if len(roleIDs) == 0 {
+		return true
+	}
+	for _, roleID := range roleIDs {
+		if present[roleID] {
+			return true
+		}
+	}
+	return false
+}

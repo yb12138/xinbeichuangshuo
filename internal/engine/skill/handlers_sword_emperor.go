@@ -115,10 +115,7 @@ func swordEmperorConsumeSwordSoul(ctx *model.Context) bool {
 		newField = append(newField, fc)
 	}
 	ctx.User.Field = newField
-	if ctx.User.Tokens == nil {
-		ctx.User.Tokens = map[string]int{}
-	}
-	ctx.User.Tokens["se_sword_soul_count"] = len(cards) - 1
+	// se_sword_soul_count 已移除，服务端实时计算
 	return true
 }
 
@@ -262,7 +259,7 @@ func (h *SwordEmperorIndomitableWillHandler) CanUse(ctx *model.Context) bool {
 	if ctx.EventCtx.ActionType != model.ActionAttack {
 		return false
 	}
-	return canPayCrystalLike(ctx, 1)
+	return CanPayCrystalLike(ctx, 1)
 }
 
 func (h *SwordEmperorIndomitableWillHandler) Execute(ctx *model.Context) error {

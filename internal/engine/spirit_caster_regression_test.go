@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"starcup-engine/internal/data"
+	spiritcasterplayer "starcup-engine/internal/engine/player/spirit_caster"
 	"starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 )
@@ -31,7 +32,7 @@ func addSpiritCasterPowerForTest(p *model.Player, card model.Card) {
 		Mode:     model.FieldCover,
 		Effect:   model.EffectSpiritCasterPower,
 	})
-	syncSpiritCasterPowerToken(p)
+	spiritcasterplayer.SyncPowerToken(p)
 }
 
 func TestSpiritCasterTalismanThunder_SealThenIncantThenDamage(t *testing.T) {
@@ -94,7 +95,7 @@ func TestSpiritCasterTalismanThunder_SealThenIncantThenDamage(t *testing.T) {
 		t.Fatalf("choose incantation card failed: %v", err)
 	}
 
-	if got := spiritCasterPowerCount(p1, ""); got != 1 {
+	if got := spiritcasterplayer.PowerCount(p1, ""); got != 1 {
 		t.Fatalf("expected 1 spirit power after incantation, got %d", got)
 	}
 	if len(game.State.PendingDamageQueue) != 2 {
@@ -163,7 +164,7 @@ func TestSpiritCasterIncantation_NoCapStillPromptsAndResolvesWind(t *testing.T) 
 	if game.State.PendingInterrupt != nil {
 		t.Fatalf("expected wind flow completed, got pending interrupt %+v", game.State.PendingInterrupt)
 	}
-	if got := spiritCasterPowerCount(p1, ""); got != 3 {
+	if got := spiritcasterplayer.PowerCount(p1, ""); got != 3 {
 		t.Fatalf("expected incantation to add a third spirit power, got %d", got)
 	}
 	if got := len(p2.Hand); got != 1 {

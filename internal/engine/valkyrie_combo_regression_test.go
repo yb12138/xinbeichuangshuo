@@ -3,6 +3,7 @@ package engine
 import (
 	"testing"
 
+	"starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/rules"
 )
@@ -149,7 +150,7 @@ func TestValkyrie_ComboChain_FullFlow(t *testing.T) {
 	}
 
 	// 5) 当前文档口径下，额外治疗只能给当前战斗目标，因此不会再给自己补治疗触发第二次神圣追击。
-	if !hasValkyrieHeroicForm(p1) {
+	if !player.HasForm(p1, model.FormValkyrieHeroic) {
 		t.Fatalf("expected enter heroic form after heroic summon on self turn, got form=%q", p1.Form)
 	}
 	if game.State.PendingInterrupt != nil && game.State.PendingInterrupt.Type == model.InterruptResponseSkill {

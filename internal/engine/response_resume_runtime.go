@@ -168,7 +168,7 @@ func holyLancerEarthSkippedResponseHook(e *GameEngine, state *responseResumeStat
 		return
 	}
 	user := e.State.Players[state.playerID]
-	if user == nil || !e.isHolyLancer(user) {
+	if user == nil || !isCharacter(user, "holy_lancer") {
 		return
 	}
 	if user.TurnState.UsedSkillCounts["holy_lancer_block_sacred_strike"] != 0 {

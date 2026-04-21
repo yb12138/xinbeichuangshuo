@@ -4,7 +4,6 @@ package plague_mage
 
 import (
 	"starcup-engine/internal/engine/player"
-	skills "starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/types"
 )
@@ -17,6 +16,10 @@ func RoleEntry() player.RoleEntry {
 		Choices:          NewChoiceHandler(),
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
+		TimingHookSpecs: []player.TimingHookSpec{
+			{Timing: player.TimingOnHealResist, Priority: 300, Hook: healResistHook},
+			{Timing: player.TimingOnTurnEnd, Priority: 400, Hook: turnEndHook},
+		},
 	}
 }
 
@@ -31,17 +34,17 @@ func ApplyDefaults(player *model.Player) {
 // SkillEntries 导出角色技能与策略绑定入口。
 func SkillEntries() []player.SkillEntry {
 	return []player.SkillEntry{
-		{ID: "plague_immortal", Handler: &skills.PlagueImmortalHandler{}},
-		{ID: "plague_blasphemy", Handler: &skills.PlagueBlasphemyHandler{}},
-		{ID: "plague_outbreak", Handler: &skills.PlagueOutbreakHandler{}},
+		{ID: "plague_immortal", Handler: &PlagueImmortalHandler{}},
+		{ID: "plague_blasphemy", Handler: &PlagueBlasphemyHandler{}},
+		{ID: "plague_outbreak", Handler: &PlagueOutbreakHandler{}},
 		{
 			ID:      "plague_death_touch",
-			Handler: &skills.PlagueDeathTouchHandler{},
+			Handler: &PlagueDeathTouchHandler{},
 			Policy: types.SkillPolicy{
 				SkipAutoPhaseEnd: true,
 			},
 		},
-		{ID: "plague_toxic_nova", Handler: &skills.PlagueToxicNovaHandler{}},
+		{ID: "plague_toxic_nova", Handler: &PlagueToxicNovaHandler{}},
 	}
 }
 

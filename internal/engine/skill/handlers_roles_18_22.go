@@ -160,7 +160,7 @@ func (h *PrayerManaTideHandler) CanUse(ctx *model.Context) bool {
 	if ctx.EventCtx.ActionType != model.ActionMagic {
 		return false
 	}
-	return canPayCrystalLike(ctx, 1)
+	return CanPayCrystalLike(ctx, 1)
 }
 
 func (h *PrayerManaTideHandler) Execute(ctx *model.Context) error {
@@ -313,7 +313,7 @@ func (h *CrimsonKnightCalmMindHandler) CanUse(ctx *model.Context) bool {
 	if ctx.EventCtx.ActionType != model.ActionAttack && ctx.EventCtx.ActionType != model.ActionMagic {
 		return false
 	}
-	return canPayCrystalLike(ctx, 1)
+	return CanPayCrystalLike(ctx, 1)
 }
 
 func (h *CrimsonKnightCalmMindHandler) Execute(ctx *model.Context) error {
@@ -652,14 +652,14 @@ func (h *HomunculusDualEchoHandler) CanUse(ctx *model.Context) bool {
 	if ctx.EventCtx.DamageVal == nil || *ctx.EventCtx.DamageVal <= 0 {
 		return false
 	}
-	return canPayCrystalLike(ctx, 1)
+	return CanPayCrystalLike(ctx, 1)
 }
 
 func (h *HomunculusDualEchoHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.EventCtx == nil || ctx.EventCtx.DamageVal == nil {
 		return fmt.Errorf("双重回响上下文无效")
 	}
-	if !canPayCrystalLike(ctx, 1) {
+	if !CanPayCrystalLike(ctx, 1) {
 		return fmt.Errorf("双重回响需要1蓝水晶（红宝石可替代）")
 	}
 	damage := *ctx.EventCtx.DamageVal
@@ -787,7 +787,7 @@ func (h *PriestDivineContractHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return false
 	}
-	return ctx.User.Heal > 0 && canPayCrystalLike(ctx, 1) && len(priestDivineContractTargets(ctx.Game, ctx.User)) > 0
+	return ctx.User.Heal > 0 && CanPayCrystalLike(ctx, 1) && len(priestDivineContractTargets(ctx.Game, ctx.User)) > 0
 }
 
 func (h *PriestDivineContractHandler) Execute(ctx *model.Context) error {
@@ -873,7 +873,7 @@ func (h *PriestDivineDomainHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil {
 		return false
 	}
-	return canPayCrystalLike(ctx, 1)
+	return CanPayCrystalLike(ctx, 1)
 }
 
 func (h *PriestDivineDomainHandler) Execute(ctx *model.Context) error {
@@ -987,7 +987,7 @@ func (h *OnmyojiLifeBarrierHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return false
 	}
-	if !canPayCrystalLike(ctx, 1) {
+	if !CanPayCrystalLike(ctx, 1) {
 		return false
 	}
 	for _, p := range ctx.Game.GetAllPlayers() {
@@ -1159,7 +1159,7 @@ func (h *BlazeWitchWitchWrathHandler) Execute(ctx *model.Context) error {
 		return fmt.Errorf("魔女之怒上下文无效")
 	}
 	enterForm(ctx.User, model.FormBlazeWitchFlame)
-	setToken(ctx.User, "bw_flame_release_pending", 1)
+	setSkillFlow(ctx.User, "bw_flame_release_pending", 1)
 	ctx.Game.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
@@ -1180,7 +1180,7 @@ func (h *BlazeWitchSubstituteDollHandler) CanUse(ctx *model.Context) bool {
 	if ctx.Timing != model.TimingOnDamageTaken {
 		return false
 	}
-	if getToken(ctx.User, "bw_substitute_lock") > 0 {
+	if getSkillFlow(ctx.User, "bw_substitute_lock") > 0 {
 		return false
 	}
 	if ctx.Flags["IsMagicDamage"] {
@@ -1210,7 +1210,7 @@ func (h *BlazeWitchSubstituteDollHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("替身玩偶上下文无效")
 	}
-	setToken(ctx.User, "bw_substitute_lock", 1)
+	setSkillFlow(ctx.User, "bw_substitute_lock", 1)
 	var magicIndices []int
 	for i, c := range ctx.User.Hand {
 		if c.Type == model.CardTypeMagic {
@@ -1245,7 +1245,7 @@ func (h *BlazeWitchPainLinkHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil {
 		return false
 	}
-	return canPayCrystalLike(ctx, 1)
+	return CanPayCrystalLike(ctx, 1)
 }
 
 func (h *BlazeWitchPainLinkHandler) Execute(ctx *model.Context) error {
@@ -1277,7 +1277,7 @@ func (h *BlazeWitchManaInversionHandler) CanUse(ctx *model.Context) bool {
 	if ctx.Timing != model.TimingOnDamageTaken {
 		return false
 	}
-	if getToken(ctx.User, "bw_mana_inversion_lock") > 0 {
+	if getSkillFlow(ctx.User, "bw_mana_inversion_lock") > 0 {
 		return false
 	}
 	if !ctx.Flags["IsMagicDamage"] {
@@ -1295,7 +1295,7 @@ func (h *BlazeWitchManaInversionHandler) CanUse(ctx *model.Context) bool {
 	if magicCount < 2 {
 		return false
 	}
-	if !canPayCrystalLike(ctx, 1) {
+	if !CanPayCrystalLike(ctx, 1) {
 		return false
 	}
 	for _, p := range ctx.Game.GetAllPlayers() {
@@ -1313,7 +1313,7 @@ func (h *BlazeWitchManaInversionHandler) Execute(ctx *model.Context) error {
 	if !spendCrystalLike(ctx, 1) {
 		return fmt.Errorf("魔能反转需要1蓝水晶（红宝石可替代）")
 	}
-	setToken(ctx.User, "bw_mana_inversion_lock", 1)
+	setSkillFlow(ctx.User, "bw_mana_inversion_lock", 1)
 	magicCount := 0
 	for _, c := range ctx.User.Hand {
 		if c.Type == model.CardTypeMagic {

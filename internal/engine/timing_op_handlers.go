@@ -2,7 +2,10 @@
 
 package engine
 
-import "starcup-engine/internal/model"
+import (
+	engineplayer "starcup-engine/internal/engine/player"
+	"starcup-engine/internal/model"
+)
 
 // 以下 handler 是三大分发器在各 op 下的默认处理单元。
 // 规则层（policy/hook）仍由对应 timing 阶段动态装配，不在这里写角色分支。
@@ -24,6 +27,15 @@ func timingOpAttackDeclaredPreCombat(e *GameEngine, ctx timingOnAttackDeclaredCo
 
 func timingOpAttackDeclaredPendingDamageInit(e *GameEngine, ctx timingOnAttackDeclaredContext, _ *timingOnAttackDeclaredResult) {
 	e.applyTimingOnAttackDeclaredPendingDamageInitRules(ctx.PendingDamage, ctx.Attacker, ctx.Victim)
+	// PD init 已迁移到 TimingOnAttackDeclared TimingHookSpec。
+	if ctx.PendingDamage != nil && ctx.Attacker != nil {
+		e.dispatchAllRoleTimingHooks(engineplayer.TimingOnAttackDeclared, engineplayer.TimingHookContext{
+			SourceID:      ctx.Attacker.ID,
+			TargetID:      ctx.TargetID,
+			PendingDamage: ctx.PendingDamage,
+			ActionType:    model.ActionAttack,
+		})
+	}
 }
 
 func timingOpAttackDeclaredInterrupt(e *GameEngine, ctx timingOnAttackDeclaredContext, result *timingOnAttackDeclaredResult) {
@@ -98,7 +110,15 @@ func timingOpDamageCalculatedHealCap(e *GameEngine, ctx timingOnDamageCalculated
 }
 
 func timingOpDamageCalculatedHealResist(e *GameEngine, ctx timingOnDamageCalculatedContext, result *timingOnDamageCalculatedResult) {
-	result.IgnoreHeal = e.applyTimingOnDamageCalculatedHealResistRules(ctx.PendingDamage, ctx.Target)
+	e.applyTimingOnDamageCalculatedHealResistRules(ctx.PendingDamage, ctx.Target)
+	// 治疗抵抗规则已迁移到 TimingOnHealResist TimingHookSpec。
+	if ctx.PendingDamage != nil && ctx.Target != nil {
+		e.dispatchAllRoleTimingHooks(engineplayer.TimingOnHealResist, engineplayer.TimingHookContext{
+			TargetID:      ctx.Target.ID,
+			PendingDamage: ctx.PendingDamage,
+		})
+		result.IgnoreHeal = ctx.PendingDamage.IgnoreHeal
+	}
 }
 
 // 猩红/瘟疫 overlay 示例：伤害计算阶段保持同一主流程，展示规则组替换能力。

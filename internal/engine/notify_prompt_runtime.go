@@ -7,8 +7,13 @@ import (
 	"strconv"
 	"strings"
 
+	"starcup-engine/internal/engine/hook/promptfmt"
 	"starcup-engine/internal/model"
 )
+
+func elementNameForPrompt(raw string) string {
+	return promptfmt.ElementName(raw)
+}
 
 var promptButtonLabelByID = map[string]string{
 	"confirm":    "发动",

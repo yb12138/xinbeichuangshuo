@@ -4,7 +4,6 @@ package magic_swordsman
 
 import (
 	"starcup-engine/internal/engine/player"
-	skills "starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/types"
 )
 
@@ -16,7 +15,13 @@ func RoleEntry() player.RoleEntry {
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
 		TimingHookSpecs: []player.TimingHookSpec{
+			{Timing: player.TimingOnDamageCalculate, Priority: 200, Hook: damageCalculateHook},
+			{Timing: player.TimingOnAttackStateReset, Priority: 100, Hook: attackStateResetHook},
+			{Timing: player.TimingOnAttackGating, Priority: 200, Hook: attackGatingHook},
 			{Timing: player.TimingPostAttackHit, Priority: 500, Hook: postAttackHitHook},
+		},
+		SkillUsabilityCheckers: map[string]player.SkillUsabilityChecker{
+			"ms_shadow_meteor": CheckShadowMeteorUsability,
 		},
 	}
 }
@@ -24,12 +29,12 @@ func RoleEntry() player.RoleEntry {
 // SkillEntries 导出角色技能与策略绑定入口。
 func SkillEntries() []player.SkillEntry {
 	return []player.SkillEntry{
-		{ID: "ms_asura_combo", Handler: &skills.MagicSwordsmanAsuraComboHandler{}},
-		{ID: "ms_shadow_gather", Handler: &skills.MagicSwordsmanShadowGatherHandler{}},
-		{ID: "ms_shadow_power", Handler: &skills.MagicSwordsmanShadowPowerHandler{}},
-		{ID: "ms_shadow_reject", Handler: &skills.MagicSwordsmanShadowRejectHandler{}},
-		{ID: "ms_shadow_meteor", Handler: &skills.MagicSwordsmanShadowMeteorHandler{}},
-		{ID: "ms_yellow_spring", Handler: &skills.MagicSwordsmanYellowSpringHandler{}},
+		{ID: "ms_asura_combo", Handler: &MagicSwordsmanAsuraComboHandler{}},
+		{ID: "ms_shadow_gather", Handler: &MagicSwordsmanShadowGatherHandler{}},
+		{ID: "ms_shadow_power", Handler: &MagicSwordsmanShadowPowerHandler{}},
+		{ID: "ms_shadow_reject", Handler: &MagicSwordsmanShadowRejectHandler{}},
+		{ID: "ms_shadow_meteor", Handler: &MagicSwordsmanShadowMeteorHandler{}},
+		{ID: "ms_yellow_spring", Handler: &MagicSwordsmanYellowSpringHandler{}},
 	}
 }
 

@@ -3,6 +3,7 @@ package engine
 import (
 	"testing"
 
+	soulsorcererpkg "starcup-engine/internal/engine/player/soul_sorcerer"
 	"starcup-engine/internal/model"
 )
 
@@ -18,15 +19,15 @@ func TestPlaceSoulLink_RejectsRebinding(t *testing.T) {
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]
 	card := makeStarterSoulLinkCard(p1)
-	if err := game.placeSoulLink(p1, p2, card); err != nil {
+	if err := soulsorcererpkg.PlaceSoulLink(newRoleChoiceRuntime(game), p1, p2, card); err != nil {
 		t.Fatalf("place soul link failed: %v", err)
 	}
 
 	second := makeStarterSoulLinkCard(p1)
-	if err := game.placeSoulLink(p1, p2, second); err == nil {
+	if err := soulsorcererpkg.PlaceSoulLink(newRoleChoiceRuntime(game), p1, p2, second); err == nil {
 		t.Fatalf("expected rebinding soul link to fail")
 	}
-	holder, fc := game.findSoulLink(p1)
+	holder, fc := soulsorcererpkg.FindSoulLink(newRoleChoiceRuntime(game), p1)
 	if holder == nil || fc == nil || holder.ID != p2.ID {
 		t.Fatalf("expected original soul link remain on p2, holder=%+v card=%+v", holder, fc)
 	}

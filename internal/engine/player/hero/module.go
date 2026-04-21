@@ -4,8 +4,8 @@ package hero
 
 import (
 	"fmt"
+
 	"starcup-engine/internal/engine/player"
-	skills "starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/types"
 )
@@ -20,6 +20,10 @@ func RoleEntry() player.RoleEntry {
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
 		TimingHookSpecs: []player.TimingHookSpec{
+			{Timing: player.TimingOnDamageCalculate, Priority: 500, Hook: damageCalculateHook},
+			{Timing: player.TimingOnAttackDeclared, Priority: 100, Hook: pendingDamageInitHook},
+			{Timing: player.TimingOnAttackGating, Priority: 200, Hook: attackGatingHook},
+			{Timing: player.TimingOnAttackMiss, Priority: 100, Hook: attackMissHook},
 			{Timing: player.TimingPostActionEnd, Priority: 200, Hook: postActionEndHook},
 		},
 	}
@@ -36,8 +40,6 @@ func ApplyDefaults(p *model.Player) {
 	}
 	p.Tokens["hero_anger"] = 0
 	p.Tokens["hero_wisdom"] = 0
-	p.Tokens["hero_exhaustion_release_pending"] = 0
-	p.Tokens["hero_calm_end_crystal_pending"] = 0
 }
 
 // StarterCards 返回开局专属牌列表。
@@ -62,13 +64,13 @@ func StarterCards(p *model.Player) []model.Card {
 // SkillEntries 导出角色技能与策略绑定入口。
 func SkillEntries() []player.SkillEntry {
 	return []player.SkillEntry{
-		{ID: "hero_heart", Handler: &skills.HeroHeartHandler{}},
-		{ID: "hero_roar", Handler: &skills.HeroRoarHandler{}},
-		{ID: "hero_forbidden_power", Handler: &skills.HeroForbiddenPowerHandler{}},
-		{ID: "hero_exhaustion", Handler: &skills.HeroExhaustionHandler{}},
-		{ID: "hero_calm_mind", Handler: &skills.HeroCalmMindHandler{}},
-		{ID: "hero_taunt", Handler: &skills.HeroTauntHandler{}},
-		{ID: "hero_dead_duel", Handler: &skills.HeroDeadDuelHandler{}},
+		{ID: "hero_heart", Handler: &HeroHeartHandler{}},
+		{ID: "hero_roar", Handler: &HeroRoarHandler{}},
+		{ID: "hero_forbidden_power", Handler: &HeroForbiddenPowerHandler{}},
+		{ID: "hero_exhaustion", Handler: &HeroExhaustionHandler{}},
+		{ID: "hero_calm_mind", Handler: &HeroCalmMindHandler{}},
+		{ID: "hero_taunt", Handler: &HeroTauntHandler{}},
+		{ID: "hero_dead_duel", Handler: &HeroDeadDuelHandler{}},
 	}
 }
 

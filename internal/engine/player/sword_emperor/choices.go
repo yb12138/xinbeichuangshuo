@@ -100,25 +100,3 @@ func handleSwordEmperorSwordQiSlashTargetChoice(rt engineplayer.ChoiceRuntime, s
 	}
 	return nil
 }
-
-func swordEmperorSwordQi(player *model.Player) int {
-	if player == nil || player.Tokens == nil {
-		return 0
-	}
-	return player.Tokens["se_sword_qi"]
-}
-
-func addSwordEmperorSwordQi(player *model.Player, delta int) int {
-	if player == nil {
-		return 0
-	}
-	if player.Tokens == nil {
-		player.Tokens = map[string]int{}
-	}
-	newVal := player.Tokens["se_sword_qi"] + delta
-	if newVal < 0 {
-		newVal = 0
-	}
-	player.Tokens["se_sword_qi"] = newVal
-	return newVal
-}

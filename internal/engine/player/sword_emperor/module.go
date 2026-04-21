@@ -4,7 +4,6 @@ package sword_emperor
 
 import (
 	"starcup-engine/internal/engine/player"
-	skills "starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/types"
 )
@@ -17,6 +16,11 @@ func RoleEntry() player.RoleEntry {
 		Choices:          NewChoiceHandler(),
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
+		TimingHookSpecs: []player.TimingHookSpec{
+			{Timing: player.TimingOnDamageCalculate, Priority: 800, Hook: damageCalculateHook},
+			{Timing: player.TimingOnAttackStateReset, Priority: 100, Hook: attackStateResetHook},
+			{Timing: player.TimingOnAttackMiss, Priority: 500, Hook: attackMissHook},
+		},
 	}
 }
 
@@ -29,21 +33,20 @@ func ApplyDefaults(p *model.Player) {
 		p.Tokens = map[string]int{}
 	}
 	p.Tokens["se_sword_qi"] = 0
-	p.Tokens["se_sword_soul_count"] = 0
 }
 
 // SkillEntries 导出角色技能与策略绑定入口。
 func SkillEntries() []player.SkillEntry {
 	return []player.SkillEntry{
-		{ID: "se_sword_soul_guard", Handler: &skills.SwordEmperorSwordSoulGuardHandler{}},
-		{ID: "se_feint", Handler: &skills.SwordEmperorFeintHandler{}},
-		{ID: "se_sword_qi_slash", Handler: &skills.SwordEmperorSwordQiSlashHandler{}},
-		{ID: "se_angel_soul", Handler: &skills.SwordEmperorAngelSoulHandler{}},
-		{ID: "se_demon_soul", Handler: &skills.SwordEmperorDemonSoulHandler{}},
-		{ID: "se_angel_soul_hit", Handler: &skills.SwordEmperorAngelSoulHitHandler{}},
-		{ID: "se_angel_soul_miss", Handler: &skills.SwordEmperorAngelSoulMissHandler{}},
-		{ID: "se_demon_soul_miss", Handler: &skills.SwordEmperorDemonSoulMissHandler{}},
-		{ID: "se_indomitable_will", Handler: &skills.SwordEmperorIndomitableWillHandler{}},
+		{ID: "se_sword_soul_guard", Handler: &SwordEmperorSwordSoulGuardHandler{}},
+		{ID: "se_feint", Handler: &SwordEmperorFeintHandler{}},
+		{ID: "se_sword_qi_slash", Handler: &SwordEmperorSwordQiSlashHandler{}},
+		{ID: "se_angel_soul", Handler: &SwordEmperorAngelSoulHandler{}},
+		{ID: "se_demon_soul", Handler: &SwordEmperorDemonSoulHandler{}},
+		{ID: "se_angel_soul_hit", Handler: &SwordEmperorAngelSoulHitHandler{}},
+		{ID: "se_angel_soul_miss", Handler: &SwordEmperorAngelSoulMissHandler{}},
+		{ID: "se_demon_soul_miss", Handler: &SwordEmperorDemonSoulMissHandler{}},
+		{ID: "se_indomitable_will", Handler: &SwordEmperorIndomitableWillHandler{}},
 	}
 }
 

@@ -31,6 +31,7 @@ type ChoiceRuntime interface {
 	HasPendingInterrupt() bool
 	NotifyInterruptPrompt()
 	DrawCardsDirect(playerID string, amount int, reason string)
+	DrawRawCards(amount int) ([]model.Card, bool)
 	EnsureCombatInteractionWindow()
 	ReplacePendingInterruptContext(data map[string]interface{}) error
 	ReplacePendingInterruptPlayerID(playerID string)
@@ -81,6 +82,43 @@ type ChoiceRuntime interface {
 	DispatchHitCheckMagicMissileCounter(player *model.Player, chain *model.MagicBulletChain, card *model.Card) error
 	DispatchHitCheckMagicMissileDefend(player *model.Player, chain *model.MagicBulletChain) error
 	AddToDiscardPile(cards ...model.Card)
+
+	// Round 2/3 迁移所需的通用引擎能力。
+	CheckGameEnd()
+	CampEnemyIDs(camp model.Camp) []string
+	CampMorale(camp model.Camp) int
+	AddCampMorale(camp model.Camp, amount int) int
+	PendingDiscardVictimID() string
+	NotifyCardHidden(playerID string, cards []model.Card, actionType model.DamageType)
+	MarkPendingAttackDamageHitProcessed(ctx *model.Context) bool
+	SyncGamePhaseWithInterrupt(intr *model.Interrupt)
+	SnapshotPlayerPoses() map[string]PoseSnapshot
+	DispatchOrientationChanges(before map[string]PoseSnapshot)
+	FindSourceEffectCard(source *model.Player, effect model.EffectType) (*model.Player, *model.FieldCard)
+	AttachSourceEffectCard(source, target *model.Player, effect model.EffectType, card model.Card) error
+	DetachSourceEffectCard(source *model.Player, effect model.EffectType) (*model.Player, model.Card, bool)
+	FindExclusiveEffectCard(source *model.Player, effect model.EffectType) (*model.Player, *model.FieldCard)
+	DetachExclusiveEffectCard(source *model.Player, effect model.EffectType) (*model.Player, model.Card, bool)
+	RemoveExclusiveEffectCard(source *model.Player, effect model.EffectType, restoreCard bool) bool
+	EmitBuffRemovedDispatch(sourceID, targetID string, effect model.EffectType)
+	InitCombat(attackerID, targetID string, card *model.Card, isForcedHit, canBeResponded, ignoreShield bool, interceptTags map[model.CombatInterceptTag]bool, isCounter ...bool)
+	ResolveMagicBowPierceMiss(attackerID, targetID string, attackCard *model.Card, isCounter bool)
+	HasFixedMaxHandCap(player *model.Player) bool
+	HasMercyFixedMaxHandCap(player *model.Player) bool
+	RoleFixedMaxHandCapValue(player *model.Player) (int, bool)
+	RefreshAllPlayerDerivedStates()
+	SyncHolyLancerRevelationMaxHeal(player *model.Player)
+	BuildContext(user, target *model.Player, timing model.FlowTiming, eventCtx *model.EventContext) *model.Context
+	TakeDiscardPileCardByID(cardID string) (model.Card, bool)
+	IsSkillStillUsable(skillID string, user *model.Player, ctx *model.Context) bool
+	CurrentTurnPlayerID() string
+	RecordMagicDamageTarget(sourceID, targetID string)
+	MagicDamageTargetCount(sourceID string) int
+	RecordSkillUsage(playerID, title string, skillType model.SkillType)
+	IsActionSkillUsableForExtraMagic(player *model.Player, skillDef model.SkillDefinition) bool
+	FighterLockedTarget(player *model.Player) *model.Player
+	ClearFighterHundredDragon(player *model.Player, logLine string) bool
+	CanCastMagicInAction(player *model.Player) bool
 }
 
 // ChoiceHandler 抽象角色选择流入口。
@@ -99,6 +137,22 @@ type SkillEntry struct {
 	ID      string
 	Handler model.SkillHandler
 	Policy  types.SkillPolicy
+}
+
+// SkillUsabilityChecker 技能可用性检查器，用于角色特定的技能使用前校验。
+// 返回 true 表示技能可用，false 表示不可用。
+type SkillUsabilityChecker func(engine SkillUsabilityCheckerEngine, player *model.Player, skillDef model.SkillDefinition) bool
+
+// SkillUsabilityCheckerEngine 抽象技能可用性检查所需的引擎能力。
+type SkillUsabilityCheckerEngine interface {
+	// 基础查询方法
+	LookupPlayer(playerID string) *model.Player
+	PlayerOrder() []string
+	GetAllPlayers() []*model.Player
+	HasForm(player *model.Player, form string) bool
+	IsCharacter(player *model.Player, roleID string) bool
+	GetToken(player *model.Player, key string) int
+	CountCoverCardsByEffectAndElement(player *model.Player, effect model.EffectType, element model.Element) int
 }
 
 // FollowupHost 抽象延迟后续回调可用的最小引擎能力。
@@ -143,6 +197,10 @@ type RoleEntry struct {
 	InterruptSpecs []InterruptSpec
 	// TimingHookSpecs 角色贡献到全局 timing hook 链的条目。
 	TimingHookSpecs []TimingHookSpec
+	// SkillUsabilityCheckers 角色贡献的技能可用性检查器，按技能 ID 映射。
+	SkillUsabilityCheckers map[string]SkillUsabilityChecker
+	// AttackCardElementTransform 攻击牌元素变换函数（如苍炎魔女火焰形态）。
+	AttackCardElementTransform func(player *model.Player, card model.Card) model.Element
 }
 
 // ApplyDefaults 应用默认角色属性。

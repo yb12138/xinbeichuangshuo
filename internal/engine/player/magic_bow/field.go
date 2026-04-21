@@ -9,15 +9,17 @@ import (
 
 const ChargeCap = 8
 
-// ChargeCount 统计魔弓充能盖牌数量。
-func ChargeCount(p *model.Player) int {
-	return player.CoverCountByEffect(p, model.EffectMagicBowCharge)
+// ChargeCount 统计魔弓充能盖牌数量。element 为空时统计全部。
+func ChargeCount(p *model.Player, element model.Element) int {
+	if element == "" {
+		return player.CoverCountByEffect(p, model.EffectMagicBowCharge)
+	}
+	return player.CoverCountByEffectAndElement(p, model.EffectMagicBowCharge, element)
 }
 
-// SyncChargeToken 将充能数量同步到玩家 Token。
+// SyncChargeToken 将充能数量同步到玩家 Token（已弃用：派生值实时计算）。
 func SyncChargeToken(p *model.Player) {
-	player.EnsurePlayerTokensMap(p)
-	p.Tokens["mb_charge_count"] = ChargeCount(p)
+	// 不再同步到 Tokens，服务端 buildStateForPlayer 实时计算 ChargeCount
 }
 
 // AddChargeCards 将卡牌作为充能盖牌加入玩家场区，并同步 Token。

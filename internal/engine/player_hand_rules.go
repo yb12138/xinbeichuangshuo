@@ -356,7 +356,7 @@ func registerHandLimitRoleEntries(registry *engineplayer.RoleRegistry) {
 		ID: "prayer_master",
 		HandLimit: engineplayer.HandLimitRuleFuncs{
 			Hard: func(player *model.Player) (int, bool) {
-				if hasPrayerMasterPrayerForm(player) {
+				if engineplayer.HasForm(player, model.FormPrayerMasterPrayer) {
 					return 5, true
 				}
 				return 0, false
@@ -367,7 +367,7 @@ func registerHandLimitRoleEntries(registry *engineplayer.RoleRegistry) {
 		ID: "magic_lancer",
 		HandLimit: engineplayer.HandLimitRuleFuncs{
 			Hard: func(player *model.Player) (int, bool) {
-				if hasMagicLancerPhantomForm(player) {
+				if engineplayer.HasForm(player, model.FormMagicLancerPhantom) {
 					return 5, true
 				}
 				return 0, false
@@ -378,7 +378,7 @@ func registerHandLimitRoleEntries(registry *engineplayer.RoleRegistry) {
 		ID: "hero",
 		HandLimit: engineplayer.HandLimitRuleFuncs{
 			Hard: func(player *model.Player) (int, bool) {
-				if hasHeroExhaustionForm(player) {
+				if engineplayer.HasForm(player, model.FormHeroExhaustion) {
 					return 4, true
 				}
 				return 0, false
@@ -389,7 +389,7 @@ func registerHandLimitRoleEntries(registry *engineplayer.RoleRegistry) {
 		ID: "war_homunculus",
 		HandLimit: engineplayer.HandLimitRuleFuncs{
 			Modifier: func(player *model.Player, current int) int {
-				if hasWarHomunculusBurstForm(player) {
+				if engineplayer.HasForm(player, model.FormWarHomunculusBurst) {
 					return current + 1
 				}
 				return current
@@ -400,7 +400,7 @@ func registerHandLimitRoleEntries(registry *engineplayer.RoleRegistry) {
 		ID: "blaze_witch",
 		HandLimit: engineplayer.HandLimitRuleFuncs{
 			Modifier: func(player *model.Player, current int) int {
-				if hasBlazeWitchFlameForm(player) {
+				if engineplayer.HasForm(player, model.FormBlazeWitchFlame) {
 					return current + player.Tokens["bw_rebirth"] - 2
 				}
 				return current
@@ -411,7 +411,7 @@ func registerHandLimitRoleEntries(registry *engineplayer.RoleRegistry) {
 		ID: "assassin",
 		HandLimit: engineplayer.HandLimitRuleFuncs{
 			Modifier: func(player *model.Player, current int) int {
-				if hasAssassinStealthForm(player) {
+				if engineplayer.HasForm(player, model.FormAssassinStealth) {
 					return current - 1
 				}
 				return current
@@ -422,7 +422,7 @@ func registerHandLimitRoleEntries(registry *engineplayer.RoleRegistry) {
 		ID: "butterfly_dancer",
 		HandLimit: engineplayer.HandLimitRuleFuncs{
 			Modifier: func(player *model.Player, current int) int {
-				current -= butterflyPupa(player)
+				current -= butterflydancerplayer.Pupa(player)
 				if current < 3 {
 					return 3
 				}
@@ -509,6 +509,6 @@ func (e *GameEngine) fixedMaxHandCapValue(player *model.Player) (int, bool) {
 func (e *GameEngine) applyRoleMaxHandModifiers(player *model.Player, maxHand int) int {
 	maxHand = e.roleHandLimitRule(player).ModifierCap(player, maxHand)
 	// 血之巫女：同生共死根据形态动态修正手牌上限。
-	maxHand += e.bloodPriestessSharedLifeDeltaFor(player)
+	maxHand += bloodpriestessplayer.SharedLifeDeltaFor(newRoleChoiceRuntime(e), player)
 	return maxHand
 }

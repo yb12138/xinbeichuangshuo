@@ -4,7 +4,6 @@ package magic_bow
 
 import (
 	"starcup-engine/internal/engine/player"
-	skills "starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/types"
 )
 
@@ -16,7 +15,12 @@ func RoleEntry() player.RoleEntry {
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
 		TimingHookSpecs: []player.TimingHookSpec{
+			{Timing: player.TimingOnAttackMiss, Priority: 300, Hook: attackMissHook},
+			{Timing: player.TimingOnAttackTargetCtx, Priority: 100, Hook: attackTargetCtxHook},
 			{Timing: player.TimingPostAttackHit, Priority: 600, Hook: postAttackHitHook},
+		},
+		SkillUsabilityCheckers: map[string]player.SkillUsabilityChecker{
+			"mb_thunder_scatter": CheckThunderScatterUsability,
 		},
 	}
 }
@@ -24,10 +28,10 @@ func RoleEntry() player.RoleEntry {
 // SkillEntries 导出角色技能与策略绑定入口。
 func SkillEntries() []player.SkillEntry {
 	return []player.SkillEntry{
-		{ID: "mb_magic_pierce", Handler: &skills.MagicBowMagicPierceHandler{}},
+		{ID: "mb_magic_pierce", Handler: &MagicBowMagicPierceHandler{}},
 		{
 			ID:      "mb_thunder_scatter",
-			Handler: &skills.MagicBowThunderScatterHandler{},
+			Handler: &MagicBowThunderScatterHandler{},
 			Policy: types.SkillPolicy{
 				TargetRules: types.TargetRuleSet{
 					Count: types.TargetCountRule{Min: 0, Max: 1, Err: "雷光散射至多指定1名敌方角色作为额外目标"},
@@ -37,11 +41,11 @@ func SkillEntries() []player.SkillEntry {
 				},
 			},
 		},
-		{ID: "mb_multi_shot", Handler: &skills.MagicBowMultiShotHandler{}},
-		{ID: "mb_charge", Handler: &skills.MagicBowChargeHandler{}},
+		{ID: "mb_multi_shot", Handler: &MagicBowMultiShotHandler{}},
+		{ID: "mb_charge", Handler: &MagicBowChargeHandler{}},
 		{
 			ID:      "mb_demon_eye",
-			Handler: &skills.MagicBowDemonEyeHandler{},
+			Handler: &MagicBowDemonEyeHandler{},
 			Policy: types.SkillPolicy{
 				TargetRules: types.TargetRuleSet{
 					Count: types.TargetCountRule{Min: 0, Max: 1, Err: "魔眼需要且仅能指定1名其他角色"},
@@ -52,7 +56,7 @@ func SkillEntries() []player.SkillEntry {
 			},
 		},
 		// 内部回调技能：用于"充能"弃牌后的继续流程
-		{ID: "mb_charge_followup_discard", Handler: &skills.MagicBowChargeFollowupDiscardHandler{}},
+		{ID: "mb_charge_followup_discard", Handler: &MagicBowChargeFollowupDiscardHandler{}},
 	}
 }
 

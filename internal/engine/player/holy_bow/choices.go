@@ -143,7 +143,7 @@ func buildHolyShardMissConfirmPrompt(playerID string) *model.Prompt {
 }
 
 func buildHolyShardMissXPrompt(playerID string, player *model.Player, data map[string]interface{}) *model.Prompt {
-	validX := parseIntSliceContextValue(data["valid_x"])
+	validX := ParseIntSliceContextValue(data["valid_x"])
 	if len(validX) == 0 {
 		maxX := runtimeutil.ToIntContextValue(data["max_x"])
 		if maxX <= 0 {
@@ -269,8 +269,8 @@ func buildLightBurstModeBTargetsPrompt(rt engineplayer.ChoiceRuntime, playerID s
 }
 
 func buildLightBurstModeBDiscardPrompt(playerID string, player *model.Player, data map[string]interface{}) *model.Prompt {
-	remaining := parseIntSliceContextValue(data["remaining_indices"])
-	selectedCount := len(parseIntSliceContextValue(data["selected_indices"]))
+	remaining := ParseIntSliceContextValue(data["remaining_indices"])
+	selectedCount := len(ParseIntSliceContextValue(data["selected_indices"]))
 	xValue := runtimeutil.ToIntContextValue(data["x_value"])
 	options := make([]model.PromptOption, 0, len(remaining))
 	for _, idx := range remaining {
@@ -454,7 +454,7 @@ func handleHolyShardMissConfirm(rt engineplayer.ChoiceRuntime, selectionIndex in
 }
 
 func handleHolyShardMissX(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
-	validX := parseIntSliceContextValue(ctxData["valid_x"])
+	validX := ParseIntSliceContextValue(ctxData["valid_x"])
 	if len(validX) == 0 {
 		maxX := runtimeutil.ToIntContextValue(ctxData["max_x"])
 		for x := 1; x <= maxX; x++ {
@@ -512,9 +512,9 @@ func handleHolyShardMissAllyTarget(rt engineplayer.ChoiceRuntime, selectionIndex
 	rt.Log(fmt.Sprintf("%s 的 [圣屑飓暴] 未命中分支生效：移除%d点治疗，指定 %s 弃置%d张手牌", user.Name, xValue, target.Name, discardNeed))
 	rt.PopInterrupt()
 	rt.PushInterrupt(newDiscardChoiceInterrupt(target.ID, map[string]interface{}{
-		"discard_count":      discardNeed,
-		"prompt":             fmt.Sprintf("【圣屑飓暴】请弃置%d张手牌：", discardNeed),
-		"stay_in_turn":       true,
+		"discard_count":        discardNeed,
+		"prompt":               fmt.Sprintf("【圣屑飓暴】请弃置%d张手牌：", discardNeed),
+		"stay_in_turn":         true,
 		"is_damage_resolution": true,
 	}))
 	return nil
@@ -750,8 +750,8 @@ func handleLightBurstModeBDiscard(rt engineplayer.ChoiceRuntime, selectionIndex 
 	if xValue <= 0 {
 		return fmt.Errorf("X值无效")
 	}
-	remaining := parseIntSliceContextValue(ctxData["remaining_indices"])
-	selected := parseIntSliceContextValue(ctxData["selected_indices"])
+	remaining := ParseIntSliceContextValue(ctxData["remaining_indices"])
+	selected := ParseIntSliceContextValue(ctxData["selected_indices"])
 	cardIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, remaining)
 	if !ok || cardIdx < 0 || cardIdx >= len(user.Hand) {
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
@@ -1037,7 +1037,7 @@ func allHandIndices(player *model.Player) []int {
 
 // parseIntSliceContextValue extracts a []int from an interface{}, handling
 // both []int and []interface{} slices.
-func parseIntSliceContextValue(raw interface{}) []int {
+func ParseIntSliceContextValue(raw interface{}) []int {
 	result := make([]int, 0)
 	switch value := raw.(type) {
 	case []int:

@@ -3,8 +3,50 @@
 package magic_swordsman
 
 import (
+	"fmt"
+
 	"starcup-engine/internal/engine/player"
+	"starcup-engine/internal/model"
 )
+
+// damageCalculateHook 魔剑士·暗影之力被动增伤：暗影形态下主动攻击伤害 +1。
+func damageCalculateHook(rt player.HookRuntime, ctx player.TimingHookContext) player.TimingHookResult {
+	p := rt.GetPlayer(ctx.SourceID)
+	if p == nil || !rt.IsCharacter(p, "magic_swordsman") {
+		return player.TimingHookResult{}
+	}
+	if ctx.ActionType != model.ActionAttack || ctx.CounterInitiator != "" {
+		return player.TimingHookResult{}
+	}
+	if !rt.HasForm(p, model.FormMagicSwordsmanShadow) {
+		return player.TimingHookResult{}
+	}
+	rt.Log(fmt.Sprintf("[Passive] %s 的 [暗影之力] 生效，伤害 +1", p.Name))
+	return player.TimingHookResult{DamageDelta: 1}
+}
+
+// attackStateResetHook resets magic swordsman attack-related state when a new attack is declared.
+func attackStateResetHook(rt player.HookRuntime, ctx player.TimingHookContext) player.TimingHookResult {
+	p := rt.GetPlayer(ctx.SourceID)
+	if p == nil {
+		return player.TimingHookResult{}
+	}
+	p.TurnState.UsedSkillCounts["ms_yellow_spring_pending"] = 0
+	return player.TimingHookResult{}
+}
+
+// attackGatingHook applies magic swordsman yellow spring pending no-counter gating.
+func attackGatingHook(rt player.HookRuntime, ctx player.TimingHookContext) player.TimingHookResult {
+	p := rt.GetPlayer(ctx.SourceID)
+	if p == nil || p.TurnState.UsedSkillCounts["ms_yellow_spring_pending"] <= 0 {
+		return player.TimingHookResult{}
+	}
+	if ctx.AttackInfo == nil {
+		return player.TimingHookResult{}
+	}
+	ctx.AttackInfo.SetInterceptTag(model.CombatInterceptUnrespondable)
+	return player.TimingHookResult{}
+}
 
 func postAttackHitHook(rt player.HookRuntime, ctx player.TimingHookContext) player.TimingHookResult {
 	p := rt.GetPlayer(ctx.SourceID)

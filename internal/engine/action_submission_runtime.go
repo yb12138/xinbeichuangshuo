@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	playerpkg "starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/rules"
 )
@@ -195,7 +196,7 @@ func (e *GameEngine) handleActionSelectionAttackOrMagic(act model.PlayerAction, 
 			if target.Camp == player.Camp {
 				return fmt.Errorf("攻击目标必须是敌方角色")
 			}
-			if hasAssassinStealthForm(target) {
+			if playerpkg.HasForm(target, model.FormAssassinStealth) {
 				return fmt.Errorf("目标处于潜行状态，不能成为主动攻击目标")
 			}
 		}
@@ -284,7 +285,7 @@ func (e *GameEngine) handleActionSelectionCannotAct(player *model.Player) error 
 	e.State.DiscardPile = newDiscard
 	player.Hand = append(player.Hand, cards...)
 	e.NotifyDrawCards(player.ID, handCount, "cannot_act_redraw")
-	if e.isMagicSwordsman(player) {
+	if isCharacter(player, "magic_swordsman") {
 		for len(player.Hand) > 0 {
 			hasAttack := false
 			allMagic := true

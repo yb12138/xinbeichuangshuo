@@ -5,6 +5,9 @@ package engine
 import (
 	"fmt"
 
+	playerpkg "starcup-engine/internal/engine/player"
+	bloodpriestesspkg "starcup-engine/internal/engine/player/blood_priestess"
+	soulsorcererpkg "starcup-engine/internal/engine/player/soul_sorcerer"
 	"starcup-engine/internal/model"
 )
 
@@ -29,7 +32,7 @@ func (e *GameEngine) applyMoraleLossAfterTimingWindow(victim *model.Player, mora
 	}
 
 	finalLoss = e.applyCampMoraleLoss(victim.Camp, finalLoss)
-	e.applySoulSorcererSoulDevour(victim, finalLoss, fromDamageDraw)
+	soulsorcererpkg.ApplySoulDevour(e, victim, finalLoss, fromDamageDraw)
 	e.applyDamageDrivenMoraleLossRoleEffects(victim, finalLoss, isMagic, fromDamageDraw, lossCtx)
 
 	if moraleLoss != finalLoss {
@@ -45,15 +48,15 @@ func (e *GameEngine) applyDamageDrivenMoraleLossRoleEffects(victim *model.Player
 		return
 	}
 
-	if e.isBloodPriestess(victim) {
+	if isCharacter(victim, "blood_priestess") {
 		ensurePlayerTokensMap(victim)
-		if e.enterBloodPriestessBleedingForm(victim, "因承受伤害导致我方士气下降") {
+		if bloodpriestesspkg.EnterBleedingFormWithLog(newRoleChoiceRuntime(e), victim, "因承受伤害导致我方士气下降") {
 			e.Heal(victim.ID, 1)
 			e.Log(fmt.Sprintf("%s 的 [流血] 触发：获得1点治疗", victim.Name))
 		}
 	}
 
-	if isMagic && e.isBlazeWitch(victim) {
+	if isMagic && isCharacter(victim, "blaze_witch") {
 		ensurePlayerTokensMap(victim)
 		before := victim.Tokens["bw_rebirth"]
 		victim.Tokens["bw_rebirth"]++
@@ -66,10 +69,10 @@ func (e *GameEngine) applyDamageDrivenMoraleLossRoleEffects(victim *model.Player
 	}
 
 	// 红莲骑士：仅当“伤害导致且实际发生士气下降”时，强制进入热血沸腾形态。
-	if e.isCrimsonKnight(victim) && !hasCrimsonKnightHotBloodedForm(victim) {
+	if isCharacter(victim, "crimson_knight") && !playerpkg.HasForm(victim, model.FormCrimsonKnightHotBlooded) {
 		ensurePlayerTokensMap(victim)
 		beforePoses := e.snapshotPlayerPoses()
-		enterCrimsonKnightHotBloodedForm(victim)
+		playerpkg.SetForm(victim, model.FormCrimsonKnightHotBlooded)
 		e.Log(fmt.Sprintf("%s 的 [热血沸腾] 触发，进入热血沸腾形态", victim.Name))
 		e.dispatchOrientationChanges(beforePoses)
 	}

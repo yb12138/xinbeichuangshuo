@@ -97,8 +97,8 @@ func handleFighterHundredDragonTargetChoice(rt engineplayer.ChoiceRuntime, selec
 	if targetOrder <= 0 {
 		return fmt.Errorf("目标不存在")
 	}
-	ensurePlayerTokensMap(user)
-	user.Tokens["fighter_hundred_dragon_target_order"] = targetOrder
+	engineplayer.EnsurePlayerSkillFlowState(user)
+	user.TurnState.SkillFlowState["fighter_hundred_dragon_target_order"] = targetOrder
 	rt.Log(fmt.Sprintf("%s 的 [百式幻龙拳] 锁定目标：%s", user.Name, target.Name))
 	rt.PopInterrupt()
 	if !rt.HasPendingInterrupt() {

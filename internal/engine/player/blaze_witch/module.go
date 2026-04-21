@@ -4,7 +4,6 @@ package blaze_witch
 
 import (
 	"starcup-engine/internal/engine/player"
-	skills "starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/types"
 )
@@ -18,8 +17,11 @@ func RoleEntry() player.RoleEntry {
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
 		TimingHookSpecs: []player.TimingHookSpec{
+			{Timing: player.TimingBeforeAction, Priority: 100, Hook: beforeActionFlameReleaseHook},
 			{Timing: player.TimingPostDamageResolved, Priority: 200, Hook: postDamageResolvedHook},
+			{Timing: player.TimingOnDamageAfterApply, Priority: 100, Hook: afterApplyHook},
 		},
+		AttackCardElementTransform: AttackElement,
 	}
 }
 
@@ -32,16 +34,15 @@ func ApplyDefaults(p *model.Player) {
 		p.Tokens = map[string]int{}
 	}
 	p.Tokens["bw_rebirth"] = 0
-	p.Tokens["bw_flame_release_pending"] = 0
 }
 
 // SkillEntries 导出角色技能与策略绑定入口。
 func SkillEntries() []player.SkillEntry {
 	return []player.SkillEntry{
-		{ID: "bw_rebirth_clock", Handler: &skills.BlazeWitchRebirthClockHandler{}},
+		{ID: "bw_rebirth_clock", Handler: &BlazeWitchRebirthClockHandler{}},
 		{
 			ID:      "bw_blazing_codex",
-			Handler: &skills.BlazeWitchBlazingCodexHandler{},
+			Handler: &BlazeWitchBlazingCodexHandler{},
 			Policy: types.SkillPolicy{
 				TargetRules: types.TargetRuleSet{
 					Count: types.TargetCountRule{Min: 1, Max: 1, Err: "苍炎法典需要且仅能指定1名其他角色"},
@@ -53,7 +54,7 @@ func SkillEntries() []player.SkillEntry {
 		},
 		{
 			ID:      "bw_heavenfire_cleave",
-			Handler: &skills.BlazeWitchHeavenfireCleaveHandler{},
+			Handler: &BlazeWitchHeavenfireCleaveHandler{},
 			Policy: types.SkillPolicy{
 				TargetRules: types.TargetRuleSet{
 					Count: types.TargetCountRule{Min: 1, Max: 1, Err: "天火断空需要且仅能指定1名其他角色"},
@@ -63,10 +64,10 @@ func SkillEntries() []player.SkillEntry {
 				},
 			},
 		},
-		{ID: "bw_witch_wrath", Handler: &skills.BlazeWitchWitchWrathHandler{}},
-		{ID: "bw_substitute_doll", Handler: &skills.BlazeWitchSubstituteDollHandler{}},
-		{ID: "bw_pain_link", Handler: &skills.BlazeWitchPainLinkHandler{}},
-		{ID: "bw_mana_inversion", Handler: &skills.BlazeWitchManaInversionHandler{}},
+		{ID: "bw_witch_wrath", Handler: &BlazeWitchWitchWrathHandler{}},
+		{ID: "bw_substitute_doll", Handler: &BlazeWitchSubstituteDollHandler{}},
+		{ID: "bw_pain_link", Handler: &BlazeWitchPainLinkHandler{}},
+		{ID: "bw_mana_inversion", Handler: &BlazeWitchManaInversionHandler{}},
 	}
 }
 

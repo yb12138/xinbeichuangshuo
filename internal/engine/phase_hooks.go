@@ -5,6 +5,11 @@ package engine
 import (
 	"fmt"
 
+	engineplayer "starcup-engine/internal/engine/player"
+	playerpkg "starcup-engine/internal/engine/player"
+	bardpkg "starcup-engine/internal/engine/player/bard"
+	magicswordsman "starcup-engine/internal/engine/player/magic_swordsman"
+	moonpkg "starcup-engine/internal/engine/player/moon"
 	"starcup-engine/internal/model"
 )
 
@@ -46,6 +51,16 @@ func (e *GameEngine) runTimingOnTurnStartStageHooks(player *model.Player, stage 
 				return true
 			}
 		}
+		// TimingHookSpec dispatch for turn start
+		if player != nil {
+			result := e.dispatchAllRoleTimingHooks(engineplayer.TimingOnTurnStart, engineplayer.TimingHookContext{
+				SourceID:     player.ID,
+				TurnPlayerID: player.ID,
+			})
+			if result.Interrupted {
+				return true
+			}
+		}
 		return false
 	default:
 		panic(fmt.Sprintf("unregistered TimingOnTurnStart stage: %d", stage))
@@ -61,10 +76,30 @@ func (e *GameEngine) runTimingOnTurnEndStageHooks(player *model.Player, stage ti
 				return true
 			}
 		}
+		// TimingHookSpec dispatch for turn end (pre-extra)
+		if player != nil {
+			result := e.dispatchAllRoleTimingHooks(engineplayer.TimingOnTurnEnd, engineplayer.TimingHookContext{
+				SourceID:     player.ID,
+				TurnPlayerID: player.ID,
+			})
+			if result.Interrupted {
+				return true
+			}
+		}
 		return false
 	case timingOnTurnEndFinal:
 		for _, hook := range e.turnEndFinalHooks {
 			if hook(e, player) {
+				return true
+			}
+		}
+		// TimingHookSpec dispatch for turn end final
+		if player != nil {
+			result := e.dispatchAllRoleTimingHooks(engineplayer.TimingOnTurnEndFinal, engineplayer.TimingHookContext{
+				SourceID:     player.ID,
+				TurnPlayerID: player.ID,
+			})
+			if result.Interrupted {
 				return true
 			}
 		}
@@ -91,6 +126,16 @@ func (e *GameEngine) runTimingBeforeActionExecuteHooks(player *model.Player) boo
 			return true
 		}
 	}
+	// TimingHookSpec dispatch for before action
+	if player != nil {
+		result := e.dispatchAllRoleTimingHooks(engineplayer.TimingBeforeAction, engineplayer.TimingHookContext{
+			SourceID:     player.ID,
+			TurnPlayerID: player.ID,
+		})
+		if result.Interrupted {
+			return true
+		}
+	}
 	return false
 }
 
@@ -105,23 +150,23 @@ func (e *GameEngine) runTimingOnTurnEndFinalHooks(player *model.Player) bool {
 }
 
 func startupBlazeWitchFlameReleaseHook(e *GameEngine, player *model.Player) bool {
-	if !e.isBlazeWitch(player) || player.TurnState.HasUsedActionSkill || !hasBlazeWitchFlameForm(player) {
+	if !isCharacter(player, "blaze_witch") || player.TurnState.HasUsedActionSkill || !playerpkg.HasForm(player, model.FormBlazeWitchFlame) {
 		return false
 	}
-	ensurePlayerTokensMap(player)
-	if player.Tokens["bw_flame_release_pending"] <= 0 {
+	playerpkg.EnsurePlayerSkillFlowState(player)
+	if player.TurnState.SkillFlowState["bw_flame_release_pending"] <= 0 {
 		return false
 	}
 	beforePoses := e.snapshotPlayerPoses()
-	leaveBlazeWitchFlameForm(player)
-	player.Tokens["bw_flame_release_pending"] = 0
+	playerpkg.ClearForm(player, model.FormBlazeWitchFlame)
+	player.TurnState.SkillFlowState["bw_flame_release_pending"] = 0
 	e.Log(fmt.Sprintf("%s 脱离烈焰形态并转正", player.Name))
 	e.dispatchOrientationChanges(beforePoses)
 	return false
 }
 
 func startupAssassinStealthReleaseHook(e *GameEngine, player *model.Player) bool {
-	if !isCharacter(player, "assassin") || player.TurnState.HasUsedActionSkill || !hasAssassinStealthForm(player) {
+	if !isCharacter(player, "assassin") || player.TurnState.HasUsedActionSkill || !playerpkg.HasForm(player, model.FormAssassinStealth) {
 		return false
 	}
 	e.releaseAssassinStealthEffect(player)
@@ -129,7 +174,7 @@ func startupAssassinStealthReleaseHook(e *GameEngine, player *model.Player) bool
 }
 
 func startupMagicSwordsmanShadowReleaseHook(e *GameEngine, player *model.Player) bool {
-	e.maybeReleaseMagicSwordsmanShadowAtActionStart(player)
+	magicswordsman.MaybeReleaseShadowAtActionStart(e, player)
 	return false
 }
 
@@ -146,11 +191,11 @@ func startupHolyBowTurnResetHook(_ *GameEngine, player *model.Player) bool {
 }
 
 func startupBardRousingHook(e *GameEngine, player *model.Player) bool {
-	return e.maybeBardRousingAtTurnStart(player)
+	return bardpkg.MaybeRousingAtTurnStart(newRoleChoiceRuntime(e), player)
 }
 
 func turnStartArbiterJudgmentUpkeepHook(e *GameEngine, player *model.Player) bool {
-	if !hasArbiterJudgmentForm(player) || player.TurnState.HasUsedActionSkill {
+	if !playerpkg.HasForm(player, model.FormArbiterJudgment) || player.TurnState.HasUsedActionSkill {
 		return false
 	}
 	ensurePlayerTokensMap(player)
@@ -162,179 +207,29 @@ func turnStartArbiterJudgmentUpkeepHook(e *GameEngine, player *model.Player) boo
 	return false
 }
 
-func turnEndBeastSamuraiHook(e *GameEngine, player *model.Player) bool {
-	if !e.isBeastSamurai(player) {
-		return false
-	}
-	ensurePlayerTokensMap(player)
-	if e.beastSamuraiInIaijutsuForm(player) && e.beastSamuraiBeastSoul(player) >= 1 {
-		consumed := e.consumeBeastSamuraiBeastSoul(player, 1)
-		if consumed > 0 {
-			e.Log(fmt.Sprintf("%s 的 [御魂流居合形态·回合结束扣魂] 生效：兽魂-1，残心+1", player.Name))
-		}
-	}
-	if e.beastSamuraiInIaijutsuForm(player) && e.beastSamuraiBeastSoul(player) == 0 {
-		beforePoses := e.snapshotPlayerPoses()
-		if e.leaveBeastSamuraiIaijutsuForm(player) {
-			e.Log(fmt.Sprintf("%s 的 [御魂流居合形态·兽魂归零退场] 生效：转正并脱离御魂流居合形态", player.Name))
-		}
-		e.dispatchOrientationChanges(beforePoses)
-	}
-	player.TurnState.UsedSkillCounts["bs_one_strike_armed"] = 0
-	clearBeastSamuraiAttackTokens(player)
-	return false
-}
-
-func turnEndFighterHook(e *GameEngine, player *model.Player) bool {
-	if e.isFighter(player) && hasFighterHundredDragonForm(player) {
-		e.clearFighterHundredDragon(player, fmt.Sprintf("%s 的 [百式幻龙拳] 在本行动阶段结束时退场并转正", player.Name))
-	}
-	return false
-}
-
-func turnEndElfArcherHook(e *GameEngine, player *model.Player) bool {
-	if !e.isElfArcher(player) || !hasElfArcherRitualForm(player) {
-		return false
-	}
-	syncElfBlessings(player)
-	if countElfBlessings(player) != 0 || player.Tokens["elf_ritual_release_waiting"] != 0 {
-		return false
-	}
-	targetIDs := e.campEnemyIDs(player.Camp)
-	if len(targetIDs) == 0 {
-		leaveElfArcherRitualForm(player)
-		player.Tokens["elf_ritual_release_waiting"] = 0
-		e.Log(fmt.Sprintf("%s 的 [精灵密仪] 结束：无敌方目标，直接转正脱离精灵祝福形态", player.Name))
-		return true
-	}
-	player.Tokens["elf_ritual_release_waiting"] = 1
-	e.PushInterrupt(&model.Interrupt{
-		Type:     model.InterruptChoice,
-		PlayerID: player.ID,
-		Context: map[string]interface{}{
-			"choice_type": "elf_ritual_release_target",
-			"user_id":     player.ID,
-			"target_ids":  targetIDs,
-		},
-	})
-	return true
-}
-
-func turnEndPlagueMageHook(e *GameEngine, player *model.Player) bool {
-	if !e.isPlagueMage(player) || player.TurnState.UsedSkillCounts["plague_outbreak_morale_drop"] <= 0 {
-		return false
-	}
-	player.TurnState.UsedSkillCounts["plague_outbreak_morale_drop"] = 0
-	e.Heal(player.ID, 1)
-	e.Log(fmt.Sprintf("%s 的 [瘟疫] 回合结束奖励生效：+1治疗", player.Name))
-	return false
-}
-
 func turnEndMoonGoddessHook(e *GameEngine, player *model.Player) bool {
-	return e.maybeMoonGoddessMoonCycleAtTurnEnd(player)
+	return moonpkg.MaybeMoonCycleAtTurnEnd(newRoleChoiceRuntime(e), player)
 }
 
 func turnEndBardHook(e *GameEngine, player *model.Player) bool {
-	return e.maybeBardVictoryAtTurnEnd(player)
-}
-
-func turnEndCrimsonSwordSpiritHook(e *GameEngine, player *model.Player) bool {
-	if !e.isCrimsonSwordSpirit(player) {
-		return false
-	}
-	hasCourtyard := false
-	for _, fc := range player.Field {
-		if fc != nil && fc.Mode == model.FieldEffect && fc.Effect == model.EffectRoseCourtyard {
-			hasCourtyard = true
-			break
-		}
-	}
-	if !hasCourtyard {
-		return false
-	}
-	player.Tokens["css_blood_cap"] = 3
-	if player.Tokens["css_blood"] > 3 {
-		player.Tokens["css_blood"] = 3
-	}
-	if e.removeExclusiveEffectCard(player, model.EffectRoseCourtyard, true) {
-		e.Log(fmt.Sprintf("%s 的 [血蔷薇庭院] 回合结束移回专属卡区", player.Name))
-	} else {
-		e.Log(fmt.Sprintf("%s 的 [血蔷薇庭院] 回合结束失效", player.Name))
-	}
-	return false
-}
-
-func turnEndCrimsonKnightHook(e *GameEngine, player *model.Player) bool {
-	e.resolveCrimsonKnightHotFormTurnEnd(player)
-	return false
-}
-
-func turnEndWarHomunculusHook(e *GameEngine, player *model.Player) bool {
-	if !e.isWarHomunculus(player) || !hasWarHomunculusBurstForm(player) {
-		return false
-	}
-	leaveWarHomunculusBurstForm(player)
-	e.Log(fmt.Sprintf("%s 的 [符文改造] 效果结束，脱离蓄势迸发形态", player.Name))
-	e.checkHandLimit(player, nil)
-	return e.State.PendingInterrupt != nil
+	return bardpkg.MaybeVictoryAtTurnEnd(newRoleChoiceRuntime(e), player)
 }
 
 func turnEndOnmyojiHook(e *GameEngine, player *model.Player) bool {
 	return e.maybeOnmyojiDarkRitual(player)
 }
 
-func turnEndHolyBowHook(e *GameEngine, player *model.Player) bool {
-	if !e.isHolyBow(player) {
-		return false
-	}
-	if player.TurnState.UsedSkillCounts["hb_auto_fill"] > 0 {
-		return false
-	}
-	if player.TurnState.UsedSkillCounts["hb_special"] <= 0 {
-		var resourceModes []string
-		if e.CanPayCrystalCost(player.ID, 1) {
-			resourceModes = append(resourceModes, "crystal")
-		}
-		if player.Gem > 0 {
-			resourceModes = append(resourceModes, "gem")
-		}
-		if len(resourceModes) > 0 {
-			player.TurnState.UsedSkillCounts["hb_auto_fill"] = 1
-			e.PushInterrupt(&model.Interrupt{
-				Type:     model.InterruptChoice,
-				PlayerID: player.ID,
-				Context: map[string]interface{}{
-					"choice_type":    "hb_auto_fill_resource",
-					"user_id":        player.ID,
-					"resource_modes": resourceModes,
-				},
-			})
-			e.Log(fmt.Sprintf("%s 的 [自动填充] 触发：请选择消耗资源与增益", player.Name))
-			return true
-		}
-	}
-	player.TurnState.UsedSkillCounts["hb_auto_fill"] = 1
-	return false
-}
-
-func turnEndHolyLancerHook(_ *GameEngine, player *model.Player) bool {
-	if player != nil {
-		player.TurnState.UsedSkillCounts["holy_lancer_prayer"] = 0
-	}
-	return false
-}
-
-// resolveCrimsonKnightHotFormTurnEnd 统一处理红莲骑士“热血沸腾”在回合结束时的退形态逻辑。
+// resolveCrimsonKnightHotFormTurnEnd 统一处理红莲骑士"热血沸腾"在回合结束时的退形态逻辑。
 // 返回 true 表示本次确实触发了退形态与治疗。
 func (e *GameEngine) resolveCrimsonKnightHotFormTurnEnd(player *model.Player) bool {
-	if player == nil || !e.isCrimsonKnight(player) {
+	if player == nil || !isCharacter(player, "crimson_knight") {
 		return false
 	}
-	if !hasCrimsonKnightHotBloodedForm(player) {
+	if !playerpkg.HasForm(player, model.FormCrimsonKnightHotBlooded) {
 		return false
 	}
 	beforePoses := e.snapshotPlayerPoses()
-	leaveCrimsonKnightHotBloodedForm(player)
+	playerpkg.ClearForm(player, model.FormCrimsonKnightHotBlooded)
 	e.Heal(player.ID, 2)
 	e.Log(fmt.Sprintf("%s 回合结束脱离 [热血沸腾形态]，获得2点治疗", player.Name))
 	e.dispatchOrientationChanges(beforePoses)

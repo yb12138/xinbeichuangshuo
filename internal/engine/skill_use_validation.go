@@ -4,6 +4,8 @@ package engine
 
 import (
 	"fmt"
+
+	blazewitchplayer "starcup-engine/internal/engine/player/blaze_witch"
 	"starcup-engine/internal/model"
 )
 
@@ -51,7 +53,7 @@ func (e *GameEngine) validateSkillDiscardSelection(use *skillUseRequest) error {
 		card := use.player.Hand[idx]
 		effectiveElement := card.Element
 		if use.skillDef.DiscardElement != "" {
-			effectiveElement = e.blazeWitchAttackElement(use.player, card)
+			effectiveElement = blazewitchplayer.AttackElement(use.player, card)
 		}
 		if use.skillDef.DiscardElement != "" && effectiveElement != use.skillDef.DiscardElement {
 			return fmt.Errorf("弃牌 %s 不符合元素要求", card.Name)

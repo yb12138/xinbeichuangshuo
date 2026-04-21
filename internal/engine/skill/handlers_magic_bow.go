@@ -290,7 +290,7 @@ func (h *MagicBowChargeHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil {
 		return false
 	}
-	return canPayCrystalLike(ctx, 1)
+	return CanPayCrystalLike(ctx, 1)
 }
 
 func (h *MagicBowChargeHandler) Execute(ctx *model.Context) error {

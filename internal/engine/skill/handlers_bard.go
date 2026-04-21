@@ -172,7 +172,7 @@ func (h *BardHopeFugueHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.User.Character == nil {
 		return false
 	}
-	return canPayCrystalLike(ctx, 1) && ctx.User.HasExclusiveCard(ctx.User.Character.ID, "希望赋格曲")
+	return CanPayCrystalLike(ctx, 1) && ctx.User.HasExclusiveCard(ctx.User.Character.ID, "希望赋格曲")
 }
 
 func (h *BardHopeFugueHandler) Execute(ctx *model.Context) error {

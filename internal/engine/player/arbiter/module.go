@@ -4,7 +4,6 @@ package arbiter
 
 import (
 	"starcup-engine/internal/engine/player"
-	skills "starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/types"
 )
@@ -17,6 +16,10 @@ func RoleEntry() player.RoleEntry {
 		Choices:          NewChoiceHandler(),
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
+		TimingHookSpecs: []player.TimingHookSpec{
+			{Timing: player.TimingOnTurnStart, Priority: 100, Hook: turnStartResetHook},
+			{Timing: player.TimingOnTurnStart, Priority: 200, Hook: turnStartJudgmentUpkeepHook},
+		},
 	}
 }
 
@@ -26,21 +29,17 @@ func ApplyDefaults(p *model.Player) {
 		return
 	}
 	p.Crystal += 2
-	if p.Tokens == nil {
-		p.Tokens = map[string]int{}
-	}
-	p.Tokens["arbiter_law_inited"] = 1
 }
 
 // SkillEntries 导出角色技能与策略绑定入口。
 func SkillEntries() []player.SkillEntry {
 	return []player.SkillEntry{
-		{ID: "arbiter_law", Handler: &skills.ArbiterLawHandler{}},
-		{ID: "arbiter_judgment_tide", Handler: &skills.ArbiterJudgmentTideHandler{}},
-		{ID: "arbiter_ritual", Handler: &skills.ArbiterRitualHandler{}},
-		{ID: "arbiter_ritual_break", Handler: &skills.ArbiterRitualBreakHandler{}},
-		{ID: "arbiter_doomsday", Handler: &skills.ArbiterDoomsdayHandler{}},
-		{ID: "arbiter_balance", Handler: &skills.ArbiterBalanceHandler{}},
+		{ID: "arbiter_law", Handler: &ArbiterLawHandler{}},
+		{ID: "arbiter_judgment_tide", Handler: &ArbiterJudgmentTideHandler{}},
+		{ID: "arbiter_ritual", Handler: &ArbiterRitualHandler{}},
+		{ID: "arbiter_ritual_break", Handler: &ArbiterRitualBreakHandler{}},
+		{ID: "arbiter_doomsday", Handler: &ArbiterDoomsdayHandler{}},
+		{ID: "arbiter_balance", Handler: &ArbiterBalanceHandler{}},
 	}
 }
 

@@ -84,11 +84,11 @@ func buildChargePlaceCardsPrompt(playerID string, player *model.Player, data map
 	if player == nil {
 		return nil
 	}
-	remaining := parseIntSliceContextValue(data["remaining_indices"])
+	remaining := ParseIntSliceContextValue(data["remaining_indices"])
 	if len(remaining) == 0 && choiceType == "mb_demon_eye_charge_card" {
 		remaining = allHandIndices(player)
 	}
-	selectedCount := len(parseIntSliceContextValue(data["selected_indices"]))
+	selectedCount := len(ParseIntSliceContextValue(data["selected_indices"]))
 	needCount := runtimeutil.ToIntContextValue(data["need_count"])
 	if choiceType == "mb_demon_eye_charge_card" && needCount <= 0 {
 		needCount = 1
@@ -196,7 +196,7 @@ func handleChargeDrawX(rt engineplayer.ChoiceRuntime, ctxData map[string]interfa
 		rt.DrawCards(user.ID, xValue)
 	}
 
-	room := ChargeCap - ChargeCount(user)
+	room := ChargeCap - ChargeCount(user, "")
 	maxPlace := xValue
 	if maxPlace > len(user.Hand) {
 		maxPlace = len(user.Hand)
@@ -271,11 +271,11 @@ func handleChargePlaceCards(rt engineplayer.ChoiceRuntime, ctxData map[string]in
 		return fmt.Errorf("玩家不存在")
 	}
 
-	remaining := parseIntSliceContextValue(ctxData["remaining_indices"])
+	remaining := ParseIntSliceContextValue(ctxData["remaining_indices"])
 	if len(remaining) == 0 {
 		remaining = allHandIndices(user)
 	}
-	selected := parseIntSliceContextValue(ctxData["selected_indices"])
+	selected := ParseIntSliceContextValue(ctxData["selected_indices"])
 	needCount := runtimeutil.ToIntContextValue(ctxData["need_count"])
 	if choiceType == "mb_demon_eye_charge_card" && needCount <= 0 {
 		needCount = 1
@@ -308,7 +308,7 @@ func handleChargePlaceCards(rt engineplayer.ChoiceRuntime, ctxData map[string]in
 	removed := removeCardsByIndicesFromHand(user, append([]int{}, selected...))
 
 	// Calculate how many can actually be placed (cap = ChargeCap).
-	room := ChargeCap - ChargeCount(user)
+	room := ChargeCap - ChargeCount(user, "")
 	toPlace := len(removed)
 	if toPlace > room {
 		toPlace = room
@@ -505,11 +505,11 @@ func handleTargetChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]interf
 		if len(target.Hand) > 0 {
 			// Target must discard 1 card
 			discardCtx := map[string]interface{}{
-				"choice_type":           "system_discard_cards",
-				"discard_subflow":       true,
-				"discard_count":         1,
-				"prompt":                "【魔眼】请选择弃置1张手牌：",
-				"mb_demon_eye_user_id":  user.ID,
+				"choice_type":            "system_discard_cards",
+				"discard_subflow":        true,
+				"discard_count":          1,
+				"prompt":                 "【魔眼】请选择弃置1张手牌：",
+				"mb_demon_eye_user_id":   user.ID,
 				"mb_demon_eye_target_id": targetID,
 			}
 			rt.PushInterrupt(&model.Interrupt{
@@ -553,7 +553,7 @@ func allHandIndices(player *model.Player) []int {
 }
 
 // parseIntSliceContextValue extracts a []int from an interface{}.
-func parseIntSliceContextValue(raw interface{}) []int {
+func ParseIntSliceContextValue(raw interface{}) []int {
 	var out []int
 	switch arr := raw.(type) {
 	case []int:

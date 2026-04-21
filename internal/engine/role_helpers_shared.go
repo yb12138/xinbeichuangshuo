@@ -5,47 +5,26 @@ import (
 	"fmt"
 
 	"starcup-engine/internal/engine/player"
+	elfarcher "starcup-engine/internal/engine/player/elf_archer"
+	fighter "starcup-engine/internal/engine/player/fighter"
+	magiclancer "starcup-engine/internal/engine/player/magic_lancer"
+	magicswordsman "starcup-engine/internal/engine/player/magic_swordsman"
 	"starcup-engine/internal/model"
 )
-
-// ---- Token / Cover 委托 ----
-
-func tokenValueBounded(p *model.Player, key string, cap int) int {
-	return player.TokenValue(p, key, cap)
-}
-
-func addTokenValueBounded(p *model.Player, key string, delta int, cap int) int {
-	return player.AddToken(p, key, delta, cap)
-}
-
-func addTokenValueBoundedWithIgnoreCap(p *model.Player, key string, delta int, cap int, ignoreCap bool) int {
-	return player.AddTokenIgnoreCap(p, key, delta, cap, ignoreCap)
-}
-
-func coverCardsByEffect(p *model.Player, effect model.EffectType) []*model.FieldCard {
-	return player.CoverCardsByEffect(p, effect)
-}
-
-func coverCountByEffectAndElement(p *model.Player, effect model.EffectType, element model.Element) int {
-	return player.CoverCountByEffectAndElement(p, effect, element)
-}
-
-func removeFirstCoverByEffectAndElement(p *model.Player, effect model.EffectType, element model.Element) (model.Card, bool) {
-	return player.RemoveFirstCoverByEffectAndElement(p, effect, element)
-}
 
 // ---- 士气辅助 ----
 
 func (e *GameEngine) moraleFloorForCamp(camp model.Camp) int {
 	floor := 0
 	for _, p := range e.State.Players {
-		if p == nil || !e.isButterflyDancer(p) || p.Tokens == nil {
+		if p == nil || !isCharacter(p, "butterfly_dancer") {
 			continue
 		}
 		if p.Camp == camp {
 			continue
 		}
-		if p.Tokens["bt_wither_active"] > 0 {
+		player.EnsurePlayerSkillFlowState(p)
+		if p.TurnState.SkillFlowState["bt_wither_active"] > 0 {
 			if floor < 1 {
 				floor = 1
 			}
@@ -122,9 +101,11 @@ func (e *GameEngine) pendingDiscardVictimID() string {
 	return victimID
 }
 
-// ---- 身份判定 ----
+// ---- Token cap / 士气上限常量 ----
 
-const elfBlessingPrefix = "elf_blessing:"
+const standardCampMoraleCapEngine = 15
+
+// ---- 身份判定 ----
 
 func isCharacter(p *model.Player, charID string) bool {
 	return player.IsCharacter(p, charID)
@@ -231,21 +212,6 @@ func (e *GameEngine) isButterflyDancer(player *model.Player) bool {
 }
 
 // ---- Token cap 常量 ----
-
-const magicBowChargeCapEngine = 8
-const bardInspirationCapEngine = 3
-const holyBowFaithCapEngine = 10
-const holyBowCannonCapEngine = 1
-const standardCampMoraleCapEngine = 15
-const swordEmperorSwordQiCapEngine = 5
-const swordEmperorSwordSoulCapEngine = 3
-const beastSamuraiZanshinCapEngine = 4
-const beastSamuraiBeastSoulCapEngine = 2
-const soulSorcererBlueCapEngine = 6
-const soulSorcererYellowCapEngine = 6
-const moonGoddessNewMoonCapEngine = 2
-const moonGoddessPetrifyCapEngine = 3
-const butterflyCocoonCapEngine = 8
 
 // ---- 形态基础设施（委托到 player 包） ----
 
@@ -519,21 +485,14 @@ func (e *GameEngine) canCastMagicInAction(player *model.Player) bool {
 	if player == nil {
 		return false
 	}
-	// 魔枪黑暗束缚：始终不能使用法术牌。
-	if e.isMagicLancer(player) {
+	if magiclancer.BlocksMagicCasting(player) {
 		return false
 	}
-	// 格斗家百式幻龙拳：形态期间不能执行法术行动。
-	if e.isFighter(player) {
-		if hasFighterHundredDragonForm(player) {
-			return false
-		}
+	if fighter.BlocksMagicCasting(player) {
+		return false
 	}
-	// 魔剑士暗影抗拒：行动阶段不能使用法术牌。
-	if e.isMagicSwordsman(player) {
-		if hasMagicSwordsmanShadowForm(player) {
-			return false
-		}
+	if magicswordsman.BlocksMagicCasting(player) {
+		return false
 	}
 	return true
 }
@@ -544,16 +503,11 @@ func (e *GameEngine) canUseShadowRejectResponseMagic(player *model.Player) bool 
 	if e == nil || player == nil {
 		return false
 	}
-	if !e.isMagicSwordsman(player) {
-		return false
+	currentTurnPlayerID := ""
+	if len(e.State.PlayerOrder) > 0 && e.State.CurrentTurn >= 0 && e.State.CurrentTurn < len(e.State.PlayerOrder) {
+		currentTurnPlayerID = e.State.PlayerOrder[e.State.CurrentTurn]
 	}
-	if len(e.State.PlayerOrder) == 0 {
-		return false
-	}
-	if e.State.CurrentTurn < 0 || e.State.CurrentTurn >= len(e.State.PlayerOrder) {
-		return false
-	}
-	return e.State.PlayerOrder[e.State.CurrentTurn] != player.ID
+	return magicswordsman.CanUseShadowRejectResponse(player, currentTurnPlayerID)
 }
 
 // reverseOrderTargetIDsFrom 按"逆向"顺序返回角色 ID（从 source 的前一位开始）。
@@ -598,37 +552,18 @@ func (e *GameEngine) playerOrderPosition(playerID string) int {
 }
 
 func (e *GameEngine) fighterLockedTarget(player *model.Player) *model.Player {
-	if e == nil || player == nil || player.Tokens == nil {
-		return nil
-	}
-	order := player.Tokens["fighter_hundred_dragon_target_order"]
-	if order <= 0 || order > len(e.State.PlayerOrder) {
-		return nil
-	}
-	return e.State.Players[e.State.PlayerOrder[order-1]]
+	return fighter.LockedTarget(newRoleChoiceRuntime(e), player)
 }
 
 func (e *GameEngine) clearFighterHundredDragon(player *model.Player, logLine string) bool {
-	if e == nil || player == nil || !e.isFighter(player) {
-		return false
-	}
-	ensurePlayerTokensMap(player)
-	beforePoses := e.snapshotPlayerPoses()
-	active := hasFighterHundredDragonForm(player) || player.Tokens["fighter_hundred_dragon_target_order"] > 0
-	leaveFighterHundredDragonForm(player)
-	player.Tokens["fighter_hundred_dragon_target_order"] = 0
-	if active && logLine != "" {
-		e.Log(logLine)
-	}
-	e.dispatchOrientationChanges(beforePoses)
-	return active
+	return fighter.ClearHundredDragon(newRoleChoiceRuntime(e), player, logLine)
 }
 
 func playableCardCount(player *model.Player) int {
 	if player == nil {
 		return 0
 	}
-	return len(player.Hand) + countElfBlessings(player)
+	return len(player.Hand) + elfarcher.CountBlessings(player)
 }
 
 func getPlayableCardByIndex(player *model.Player, index int) (card model.Card, fromBlessing bool, blessingIndex int, ok bool) {
@@ -638,7 +573,7 @@ func getPlayableCardByIndex(player *model.Player, index int) (card model.Card, f
 	if index < len(player.Hand) {
 		return player.Hand[index], false, -1, true
 	}
-	blessings := elfBlessingCards(player)
+	blessings := elfarcher.BlessingCards(player)
 	bidx := index - len(player.Hand)
 	if bidx < 0 || bidx >= len(blessings) {
 		return model.Card{}, false, -1, false
@@ -652,7 +587,7 @@ func consumePlayableCardByIndex(player *model.Player, index int) (model.Card, er
 		return model.Card{}, fmt.Errorf("无效的卡牌索引")
 	}
 	if fromBlessing {
-		removeElfBlessingByCardID(player, card.ID)
+		elfarcher.RemoveBlessingByCardID(player, card.ID)
 		return card, nil
 	}
 	player.Hand = append(player.Hand[:index], player.Hand[index+1:]...)
@@ -669,7 +604,7 @@ func findPlayableCardIndexByID(player *model.Player, cardID string) int {
 		}
 	}
 	base := len(player.Hand)
-	for i, c := range elfBlessingCards(player) {
+	for i, c := range elfarcher.BlessingCards(player) {
 		if c.ID == cardID {
 			return base + i
 		}

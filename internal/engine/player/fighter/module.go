@@ -4,7 +4,6 @@ package fighter
 
 import (
 	"starcup-engine/internal/engine/player"
-	skills "starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/types"
 )
@@ -17,6 +16,14 @@ func RoleEntry() player.RoleEntry {
 		Choices:          NewChoiceHandler(),
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
+		TimingHookSpecs: []player.TimingHookSpec{
+			{Timing: player.TimingOnDamageCalculate, Priority: 400, Hook: damageCalculateHook},
+			{Timing: player.TimingOnAttackDeclared, Priority: 200, Hook: pendingDamageInitHook},
+			{Timing: player.TimingOnAttackStateReset, Priority: 100, Hook: attackStateResetHook},
+			{Timing: player.TimingOnAttackGating, Priority: 200, Hook: attackGatingHook},
+			{Timing: player.TimingOnAttackMiss, Priority: 200, Hook: attackMissHook},
+			{Timing: player.TimingOnTurnEnd, Priority: 200, Hook: turnEndHook},
+		},
 	}
 }
 
@@ -29,19 +36,18 @@ func ApplyDefaults(p *model.Player) {
 		p.Tokens = map[string]int{}
 	}
 	p.Tokens["fighter_qi"] = 0
-	p.Tokens["fighter_hundred_dragon_target_order"] = 0
 }
 
 // SkillEntries 导出角色技能与策略绑定入口。
 func SkillEntries() []player.SkillEntry {
 	return []player.SkillEntry{
-		{ID: "fighter_psi_field", Handler: &skills.FighterPsiFieldHandler{}},
-		{ID: "fighter_charge_strike", Handler: &skills.FighterChargeStrikeHandler{}},
-		{ID: "fighter_psi_bullet", Handler: &skills.FighterPsiBulletHandler{}},
-		{ID: "fighter_hundred_dragon", Handler: &skills.FighterHundredDragonHandler{}},
-		{ID: "fighter_burst_crash", Handler: &skills.FighterBurstCrashHandler{}},
-		{ID: "fighter_war_god_drive", Handler: &skills.FighterWarGodDriveHandler{}},
-		{ID: "fighter_war_god_drive_followup", Handler: &skills.FighterWarGodDriveFollowupHandler{}},
+		{ID: "fighter_psi_field", Handler: &FighterPsiFieldHandler{}},
+		{ID: "fighter_charge_strike", Handler: &FighterChargeStrikeHandler{}},
+		{ID: "fighter_psi_bullet", Handler: &FighterPsiBulletHandler{}},
+		{ID: "fighter_hundred_dragon", Handler: &FighterHundredDragonHandler{}},
+		{ID: "fighter_burst_crash", Handler: &FighterBurstCrashHandler{}},
+		{ID: "fighter_war_god_drive", Handler: &FighterWarGodDriveHandler{}},
+		{ID: "fighter_war_god_drive_followup", Handler: &FighterWarGodDriveFollowupHandler{}},
 	}
 }
 

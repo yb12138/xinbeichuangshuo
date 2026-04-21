@@ -3,6 +3,7 @@ package engine
 import (
 	"testing"
 
+	playerpkg "starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/rules"
 )
@@ -165,7 +166,7 @@ func TestValkyrie_HeroicSummon_DoesNotEnterSpiritOnCounterHit(t *testing.T) {
 	requireResponseSkillPrompt(t, game, "p2")
 	chooseResponseSkillByID(t, game, "p2", "valkyrie_heroic_summon")
 
-	if hasValkyrieHeroicForm(p2) {
+	if playerpkg.HasForm(p2, model.FormValkyrieHeroic) {
 		t.Fatalf("expected counter-hit heroic summon not to enter spirit form, got form=%q", p2.Form)
 	}
 }
@@ -187,7 +188,7 @@ func TestValkyrie_MilitaryGlory_BranchTwoDoesNotExitSpirit(t *testing.T) {
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
 	p2.TurnState = model.NewPlayerTurnState()
-	enterValkyrieHeroicForm(p1)
+	playerpkg.SetForm(p1, model.FormValkyrieHeroic)
 	game.State.RedCrystals = 2
 
 	game.Drive()
@@ -213,7 +214,7 @@ func TestValkyrie_MilitaryGlory_BranchTwoDoesNotExitSpirit(t *testing.T) {
 	}
 	mustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{targetSelection}})
 
-	if !hasValkyrieHeroicForm(p1) {
+	if !playerpkg.HasForm(p1, model.FormValkyrieHeroic) {
 		t.Fatalf("expected branch two to keep spirit form, got form=%q", p1.Form)
 	}
 	if got := p2.Heal; got != 2 {
@@ -236,7 +237,7 @@ func TestValkyrie_PeaceWalker_ReleasesSpiritOnActiveAttack(t *testing.T) {
 	p1 := game.State.Players["p1"]
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
-	enterValkyrieHeroicForm(p1)
+	playerpkg.SetForm(p1, model.FormValkyrieHeroic)
 	p1.Hand = []model.Card{
 		{ID: "atk1", Name: "风斩", Type: model.CardTypeAttack, Element: model.ElementWind, Damage: 1},
 	}
@@ -248,7 +249,7 @@ func TestValkyrie_PeaceWalker_ReleasesSpiritOnActiveAttack(t *testing.T) {
 		CardIndex: 0,
 	})
 
-	if hasValkyrieHeroicForm(p1) {
+	if playerpkg.HasForm(p1, model.FormValkyrieHeroic) {
 		t.Fatalf("expected peace walker to release spirit form on active attack, got form=%q", p1.Form)
 	}
 }

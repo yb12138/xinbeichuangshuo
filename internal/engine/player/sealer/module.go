@@ -5,7 +5,6 @@ package sealer
 import (
 	"fmt"
 	"starcup-engine/internal/engine/player"
-	skills "starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/types"
 )
@@ -49,10 +48,10 @@ func StarterCards(p *model.Player) []model.Card {
 // SkillEntries 导出角色技能与策略绑定入口。
 func SkillEntries() []player.SkillEntry {
 	return []player.SkillEntry{
-		{ID: "magic_surge", Handler: &skills.MagicSurgeHandler{}},
+		{ID: "magic_surge", Handler: &MagicSurgeHandler{}},
 		{
 			ID:      "seal_break",
-			Handler: &skills.SealBreakHandler{},
+			Handler: &SealBreakHandler{},
 			Policy: types.SkillPolicy{
 				TargetRules: types.TargetRuleSet{
 					Count: types.TargetCountRule{Min: 0, Max: 1},
@@ -63,12 +62,12 @@ func SkillEntries() []player.SkillEntry {
 				},
 			},
 		},
-		{ID: "five_elements_bind", Handler: &skills.FiveElementsBindHandler{}},
-		{ID: "water_seal", Handler: skills.NewWaterSealHandler()},
-		{ID: "fire_seal", Handler: skills.NewFireSealHandler()},
-		{ID: "earth_seal", Handler: skills.NewEarthSealHandler()},
-		{ID: "wind_seal", Handler: skills.NewWindSealHandler()},
-		{ID: "thunder_seal", Handler: skills.NewThunderSealHandler()},
+		{ID: "five_elements_bind", Handler: &FiveElementsBindHandler{}},
+		{ID: "water_seal", Handler: NewWaterSealHandler()},
+		{ID: "fire_seal", Handler: NewFireSealHandler()},
+		{ID: "earth_seal", Handler: NewEarthSealHandler()},
+		{ID: "wind_seal", Handler: NewWindSealHandler()},
+		{ID: "thunder_seal", Handler: NewThunderSealHandler()},
 	}
 }
 

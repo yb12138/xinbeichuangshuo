@@ -4,7 +4,7 @@ import (
 	"starcup-engine/internal/engine/core/runtimeutil"
 	"testing"
 
-	"starcup-engine/internal/engine/skill"
+	bloodpriestesspkg "starcup-engine/internal/engine/player/blood_priestess"
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/rules"
 )
@@ -67,7 +67,7 @@ func TestBloodPriestessSharedLife_DrawBeforePlaceOverflowThenApply(t *testing.T)
 		Selections: []int{6, 7},
 	})
 
-	holder, fc := game.findBloodPriestessSharedLife(p1)
+	holder, fc := bloodpriestesspkg.FindSharedLife(newRoleChoiceRuntime(game), p1)
 	if holder == nil || fc == nil {
 		t.Fatalf("expected shared life effect placed after overflow resolution")
 	}
@@ -131,7 +131,7 @@ func TestBloodPriestessSharedLife_ChoiceAndDrawStayInActionExecution(t *testing.
 	}
 
 	game.Drive()
-	holder, fc := game.findBloodPriestessSharedLife(p1)
+	holder, fc := bloodpriestesspkg.FindSharedLife(newRoleChoiceRuntime(game), p1)
 	if holder == nil || fc == nil {
 		t.Fatalf("expected shared life placed after drive")
 	}
@@ -203,7 +203,7 @@ func TestBloodPriestessSharedLife_OverflowDiscardResumesActionExecution(t *testi
 	}
 
 	game.Drive()
-	holder, fc := game.findBloodPriestessSharedLife(p1)
+	holder, fc := bloodpriestesspkg.FindSharedLife(newRoleChoiceRuntime(game), p1)
 	if holder == nil || fc == nil {
 		t.Fatalf("expected shared life placed after overflow recovery")
 	}
@@ -255,7 +255,9 @@ func TestBloodPriestessBleeding_EnterOnMoraleLossAndReleaseOnActionEndLowHand(t 
 	}
 	game.beginActionSummary("skill", "p2", "测试行动", nil)
 	game.State.TurnStage = model.TurnStageActionEnd
-	game.runActionFinalizeHooksIfIdle()
+	p2 := game.State.Players["p2"]
+	// 通过 handlePostActionEndEffects 触发 TimingPostActionEnd hooks（包括流血形态脱离）
+	game.handlePostActionEndEffects(p2, model.ActionMagic)
 	game.finalizeActionSummaryIfIdle()
 	if got := p1.Form; got != "" {
 		t.Fatalf("expected release from bleed form on action end at hand<3, got %q", got)
@@ -328,7 +330,7 @@ func TestBloodPriestessBloodSorrow_TransferThenRemove(t *testing.T) {
 		t.Fatalf("choose shared-life target p2 failed: %v", err)
 	}
 	game.Drive() // 触发 deferred 放置同生共死
-	holder, _ := game.findBloodPriestessSharedLife(p1)
+	holder, _ := bloodpriestesspkg.FindSharedLife(newRoleChoiceRuntime(game), p1)
 	if holder == nil || holder.ID != "p2" {
 		t.Fatalf("expected shared life holder p2 before blood sorrow, got %+v", holder)
 	}
@@ -339,7 +341,7 @@ func TestBloodPriestessBloodSorrow_TransferThenRemove(t *testing.T) {
 	game.State.CurrentTurn = 0
 	p1.IsActive = true
 	ctx := game.buildContext(p1, nil, model.TimingOnTurnStart, nil)
-	h := &skills.BloodPriestessBloodSorrowHandler{}
+	h := &bloodpriestesspkg.BloodSorrowHandler{}
 	if !h.CanUse(ctx) {
 		t.Fatalf("expected blood sorrow can use when shared life exists")
 	}
@@ -355,7 +357,7 @@ func TestBloodPriestessBloodSorrow_TransferThenRemove(t *testing.T) {
 		t.Fatalf("choose blood sorrow transfer target p3 failed: %v", err)
 	}
 	game.Drive() // 先结算自伤，再执行延迟的转移后续
-	holder, _ = game.findBloodPriestessSharedLife(p1)
+	holder, _ = bloodpriestesspkg.FindSharedLife(newRoleChoiceRuntime(game), p1)
 	if holder == nil || holder.ID != "p3" {
 		t.Fatalf("expected shared life holder p3 after transfer, got %+v", holder)
 	}
@@ -396,7 +398,7 @@ func TestBloodPriestessBloodSorrow_TransferThenRemove(t *testing.T) {
 			Selections: picks,
 		})
 	}
-	holder, fc := game.findBloodPriestessSharedLife(p1)
+	holder, fc := bloodpriestesspkg.FindSharedLife(newRoleChoiceRuntime(game), p1)
 	if holder != nil || fc != nil {
 		t.Fatalf("expected shared life removed, holder=%+v card=%+v", holder, fc)
 	}
@@ -437,7 +439,7 @@ func TestBloodPriestessBloodSorrow_Remove_ShouldEnterBleedWhenDamageCausesMorale
 	if !ok {
 		t.Fatalf("expected starter shared life card in exclusive zone")
 	}
-	if err := game.placeBloodPriestessSharedLife(p1, p2, card); err != nil {
+	if err := bloodpriestesspkg.PlaceSharedLife(newRoleChoiceRuntime(game), p1, p2, card); err != nil {
 		t.Fatalf("place shared life failed: %v", err)
 	}
 	if got := game.GetMaxHand(p1); got != 4 {
@@ -449,7 +451,7 @@ func TestBloodPriestessBloodSorrow_Remove_ShouldEnterBleedWhenDamageCausesMorale
 
 	// 发动血之哀伤并选择“移除同生共死”。
 	ctx := game.buildContext(p1, nil, model.TimingOnTurnStart, nil)
-	h := &skills.BloodPriestessBloodSorrowHandler{}
+	h := &bloodpriestesspkg.BloodSorrowHandler{}
 	if !h.CanUse(ctx) {
 		t.Fatalf("expected blood sorrow can use when shared life exists")
 	}
@@ -482,7 +484,7 @@ func TestBloodPriestessBloodSorrow_Remove_ShouldEnterBleedWhenDamageCausesMorale
 	if got := game.State.RedMorale; got != 13 {
 		t.Fatalf("expected red morale loss 2 from overflow discard, got %d", got)
 	}
-	holder, fc := game.findBloodPriestessSharedLife(p1)
+	holder, fc := bloodpriestesspkg.FindSharedLife(newRoleChoiceRuntime(game), p1)
 	if holder != nil || fc != nil {
 		t.Fatalf("expected shared life removed after blood sorrow remove branch, holder=%+v card=%+v", holder, fc)
 	}
@@ -513,7 +515,7 @@ func TestBloodPriestessSharedLife_FixedHandCapTargetExempt(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected starter shared life card in exclusive zone")
 	}
-	if err := game.placeBloodPriestessSharedLife(p1, p2, card); err != nil {
+	if err := bloodpriestesspkg.PlaceSharedLife(newRoleChoiceRuntime(game), p1, p2, card); err != nil {
 		t.Fatalf("place shared life failed: %v", err)
 	}
 

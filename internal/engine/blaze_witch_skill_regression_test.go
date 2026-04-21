@@ -173,7 +173,7 @@ func TestBlazeWitchFlameForm_ReleasesAtStartup(t *testing.T) {
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
 	p1.Form = model.FormBlazeWitchFlame
-	p1.Tokens["bw_flame_release_pending"] = 1
+	p1.TurnState.SkillFlowState["bw_flame_release_pending"] = 1
 	p1.Hand = makeBlazeWitchTestCards(5)
 
 	game.State.CurrentTurn = 0
@@ -184,7 +184,7 @@ func TestBlazeWitchFlameForm_ReleasesAtStartup(t *testing.T) {
 	if got := p1.Form; got != "" {
 		t.Fatalf("expected flame form released at startup, got %q", got)
 	}
-	if got := p1.Tokens["bw_flame_release_pending"]; got != 0 {
+	if got := p1.TurnState.SkillFlowState["bw_flame_release_pending"]; got != 0 {
 		t.Fatalf("expected flame release flag cleared, got %d", got)
 	}
 }

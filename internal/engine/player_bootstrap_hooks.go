@@ -61,3 +61,18 @@ func bootstrapEnsureStarterRoleCards(e *GameEngine, player *model.Player) {
 	}
 	e.ensureStarterRoleCards(player)
 }
+
+// applyRoleDefaults 初始化角色的基础指示物/上限等（与 AddPlayer 保持一致）
+func (e *GameEngine) applyRoleDefaults(player *model.Player) {
+	if player == nil || player.Character == nil {
+		return
+	}
+	player.Orientation = model.OrientationNormal
+	player.Form = ""
+	if player.Tokens == nil {
+		player.Tokens = map[string]int{}
+	}
+	if entry := roleRegistry.Entry(player.Character.ID); entry.ID != "" && entry.Defaults != nil {
+		entry.ApplyDefaults(player)
+	}
+}

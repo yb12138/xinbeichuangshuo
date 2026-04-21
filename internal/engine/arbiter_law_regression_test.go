@@ -49,9 +49,6 @@ func TestArbiterLaw_GrantsInitialCrystalAndDoesNotReactivateOnTurnStart(t *testi
 	if p1.Crystal != 2 {
 		t.Fatalf("expected crystal=2 immediately after arbiter init, got %d", p1.Crystal)
 	}
-	if got := p1.Tokens["arbiter_law_inited"]; got != 1 {
-		t.Fatalf("expected arbiter_law_inited=1 after init, got %d", got)
-	}
 
 	ctx := game.buildContext(p1, nil, model.TimingOnTurnStart, &model.EventContext{
 		Type:     model.EventTurnStart,
@@ -86,8 +83,7 @@ func TestArbiterForm_JudgmentAutoGainAtStartup(t *testing.T) {
 	p1.TurnState = model.NewPlayerTurnState()
 	p1.Gem = 0
 	p1.Tokens = map[string]int{
-		"arbiter_law_inited": 1,
-		"judgment":           3,
+		"judgment": 3,
 	}
 	enterArbiterJudgmentForm(p1)
 

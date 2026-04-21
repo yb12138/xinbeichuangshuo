@@ -80,9 +80,9 @@ func buildRuneXPrompt(playerID string, data map[string]interface{}, glyph bool) 
 }
 
 func buildRuneCardsPrompt(playerID string, player *model.Player, data map[string]interface{}, glyph bool) *model.Prompt {
-	remaining := parseIntSliceContextValue(data["remaining_indices"])
+	remaining := ParseIntSliceContextValue(data["remaining_indices"])
 	xValue := runtimeutil.ToIntContextValue(data["x_value"])
-	selectedCount := len(parseIntSliceContextValue(data["selected_indices"]))
+	selectedCount := len(ParseIntSliceContextValue(data["selected_indices"]))
 	options := make([]model.PromptOption, 0, len(remaining))
 	for _, idx := range remaining {
 		if player == nil || idx < 0 || idx >= len(player.Hand) {
@@ -223,7 +223,7 @@ func handleRuneX(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, 
 		return fmt.Errorf("无效的X值")
 	}
 
-	candidates := parseIntSliceContextValue(ctxData["candidate_indices"])
+	candidates := ParseIntSliceContextValue(ctxData["candidate_indices"])
 	if xValue > len(candidates) {
 		return fmt.Errorf("可选牌数量不足")
 	}
@@ -243,8 +243,8 @@ func handleRuneCards(rt engineplayer.ChoiceRuntime, ctxData map[string]interface
 		return fmt.Errorf("玩家不存在")
 	}
 
-	remaining := parseIntSliceContextValue(ctxData["remaining_indices"])
-	selected := parseIntSliceContextValue(ctxData["selected_indices"])
+	remaining := ParseIntSliceContextValue(ctxData["remaining_indices"])
+	selected := ParseIntSliceContextValue(ctxData["selected_indices"])
 	xValue := runtimeutil.ToIntContextValue(ctxData["x_value"])
 	cardIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, remaining)
 	if !ok {
@@ -545,7 +545,7 @@ func removeCardsByIndicesFromHand(player *model.Player, indices []int) []model.C
 
 // parseIntSliceContextValue extracts a []int from an interface{}, handling both
 // []int and []interface{} slices.
-func parseIntSliceContextValue(raw interface{}) []int {
+func ParseIntSliceContextValue(raw interface{}) []int {
 	var out []int
 	switch arr := raw.(type) {
 	case []int:

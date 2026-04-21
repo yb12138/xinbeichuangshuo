@@ -562,8 +562,8 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 				user.TurnState.UsedSkillCounts = map[string]int{}
 			}
 			user.TurnState.UsedSkillCounts["mg_next_attack_no_counter"]++
-			ensurePlayerTokensMap(user)
-			user.Tokens["mg_extra_turn_pending"]++
+			engineplayer.EnsurePlayerSkillFlowState(user)
+			user.TurnState.SkillFlowState["mg_extra_turn_pending"]++
 			model.AppendAttackAction(user, "苍白之月")
 			rt.Log(fmt.Sprintf("%s 发动 [苍白之月] 分支①：移除3石化，下次主动攻击不可应战，额外+1攻击行动并获得额外回合", user.Name))
 			rt.PopInterrupt()

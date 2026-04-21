@@ -386,7 +386,7 @@ func handleElfElementalShotOrRitualTarget(rt engineplayer.ChoiceRuntime, selecti
 		rt.AddPendingDamage(model.PendingDamage{SourceID: userID, TargetID: targetID, Damage: 1, DamageType: model.MagicAttack})
 	case "elf_ritual_release_target":
 		leaveElfArcherRitualForm(user)
-		user.Tokens["elf_ritual_release_waiting"] = 0
+		user.TurnState.SkillFlowState["elf_ritual_release_waiting"] = 0
 		rt.AddPendingDamage(model.PendingDamage{SourceID: userID, TargetID: targetID, Damage: 2, DamageType: model.MagicAttack})
 	}
 	rt.PopInterrupt()

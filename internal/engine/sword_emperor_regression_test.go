@@ -3,6 +3,7 @@ package engine
 import (
 	"testing"
 
+	swordemperor "starcup-engine/internal/engine/player/sword_emperor"
 	"starcup-engine/internal/model"
 )
 
@@ -27,7 +28,7 @@ func giveSwordEmperorSwordSoul(t *testing.T, game *GameEngine, playerID, cardID 
 		t.Fatalf("player %s not found", playerID)
 	}
 	card := swordEmperorTestCard(cardID, "剑魂牌", model.CardTypeAttack, model.ElementFire, 2)
-	if !game.placeSwordEmperorSwordSoul(player, card) {
+	if !swordemperor.PlaceSwordEmperorSwordSoul(player, card) {
 		t.Fatalf("failed to place sword soul for %s", playerID)
 	}
 }
@@ -58,7 +59,7 @@ func TestSwordEmperor_InitTokens(t *testing.T) {
 	if got := p1.Tokens["se_sword_qi"]; got != 0 {
 		t.Fatalf("expected se_sword_qi=0, got %d", got)
 	}
-	if got := p1.Tokens["se_sword_soul_count"]; got != 0 {
+	if got := swordemperor.SwordSoulCount(p1); got != 0 {
 		t.Fatalf("expected se_sword_soul_count=0, got %d", got)
 	}
 	if got := p1.TurnState.UsedSkillCounts["se_guard_disabled_current_attack"]; got != 0 {
@@ -96,10 +97,10 @@ func TestSwordEmperor_MissAddsSwordSoulAndSwordQi(t *testing.T) {
 		ExtraArgs: []string{"defend"},
 	})
 
-	if got := swordEmperorSwordSoulCount(p1); got != 1 {
+	if got := swordemperor.SwordSoulCount(p1); got != 1 {
 		t.Fatalf("expected 1 sword soul after miss, got %d", got)
 	}
-	if got := p1.Tokens["se_sword_soul_count"]; got != 1 {
+	if got := swordemperor.SwordSoulCount(p1); got != 1 {
 		t.Fatalf("expected sword soul token synced to 1, got %d", got)
 	}
 	if got := p1.Tokens["se_sword_qi"]; got != 1 {
@@ -126,12 +127,12 @@ func TestSwordEmperor_SwordSoulGuard_StopsAtCap(t *testing.T) {
 	attackCard := swordEmperorTestCard("atk_cap", "上限测试斩", model.CardTypeAttack, model.ElementFire, 2)
 	game.State.DiscardPile = append(game.State.DiscardPile, attackCard)
 
-	game.resolveSwordEmperorAttackMiss("p1", &attackCard, false)
+	swordemperor.ResolveAttackMiss(newRoleChoiceRuntime(game), "p1", &attackCard, false)
 
-	if got := swordEmperorSwordSoulCount(p1); got != 3 {
+	if got := swordemperor.SwordSoulCount(p1); got != 3 {
 		t.Fatalf("expected sword soul stay at cap 3, got %d", got)
 	}
-	if got := p1.Tokens["se_sword_soul_count"]; got != 3 {
+	if got := swordemperor.SwordSoulCount(p1); got != 3 {
 		t.Fatalf("expected sword soul token stay at 3, got %d", got)
 	}
 	if got := p1.Tokens["se_sword_qi"]; got != 1 {
@@ -177,7 +178,7 @@ func TestSwordEmperor_AngelSoul_MissDisablesGuardAndAddsMorale(t *testing.T) {
 		ExtraArgs: []string{"defend"},
 	})
 
-	if got := swordEmperorSwordSoulCount(p1); got != 0 {
+	if got := swordemperor.SwordSoulCount(p1); got != 0 {
 		t.Fatalf("expected sword soul consumed and guard disabled, got %d", got)
 	}
 	if got := p1.Tokens["se_sword_qi"]; got != 1 {
@@ -230,7 +231,7 @@ func TestSwordEmperor_AngelSoul_HitHealsTwo(t *testing.T) {
 	if got := p1.Heal; got != 2 {
 		t.Fatalf("expected angel soul hit heal=2, got %d", got)
 	}
-	if got := swordEmperorSwordSoulCount(p1); got != 0 {
+	if got := swordemperor.SwordSoulCount(p1); got != 0 {
 		t.Fatalf("expected sword soul consumed on angel soul hit, got %d", got)
 	}
 	if got := len(game.State.Players["p2"].Hand); got != 2 {
@@ -310,7 +311,7 @@ func TestSwordEmperor_DemonSoul_MissAddsTwoSwordQi(t *testing.T) {
 		ExtraArgs: []string{"defend"},
 	})
 
-	if got := swordEmperorSwordSoulCount(p1); got != 0 {
+	if got := swordemperor.SwordSoulCount(p1); got != 0 {
 		t.Fatalf("expected guard remain disabled after demon soul miss, got sword soul=%d", got)
 	}
 	if got := p1.Tokens["se_sword_qi"]; got != 3 {

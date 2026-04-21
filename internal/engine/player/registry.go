@@ -4,6 +4,8 @@ package player
 
 import (
 	"sort"
+
+	"starcup-engine/internal/model"
 )
 
 // RoleRegistry 统一管理所有角色入口定义。
@@ -63,6 +65,27 @@ func (r *RoleRegistry) Entries() []RoleEntry {
 	return entries
 }
 
+// SkillUsabilityChecker 返回指定角色和技能的可用性检查器。
+func (r *RoleRegistry) SkillUsabilityChecker(roleID, skillID string) SkillUsabilityChecker {
+	if r == nil || roleID == "" || skillID == "" {
+		return nil
+	}
+	entry := r.Entry(roleID)
+	if entry.SkillUsabilityCheckers == nil {
+		return nil
+	}
+	return entry.SkillUsabilityCheckers[skillID]
+}
+
+// AttackCardElementTransform 返回指定角色的攻击牌元素变换函数。
+func (r *RoleRegistry) AttackCardElementTransform(roleID string) func(player *model.Player, card model.Card) model.Element {
+	if r == nil || roleID == "" {
+		return nil
+	}
+	entry := r.Entry(roleID)
+	return entry.AttackCardElementTransform
+}
+
 func mergeRoleEntry(base RoleEntry, overlay RoleEntry) RoleEntry {
 	merged := base
 	if merged.ID == "" {
@@ -85,6 +108,10 @@ func mergeRoleEntry(base RoleEntry, overlay RoleEntry) RoleEntry {
 	}
 	merged.ChoiceRouteSpecs = mergeMap(merged.ChoiceRouteSpecs, overlay.ChoiceRouteSpecs)
 	merged.FollowupSpecs = mergeMap(merged.FollowupSpecs, overlay.FollowupSpecs)
+	merged.SkillUsabilityCheckers = mergeMap(merged.SkillUsabilityCheckers, overlay.SkillUsabilityCheckers)
+	if overlay.AttackCardElementTransform != nil {
+		merged.AttackCardElementTransform = overlay.AttackCardElementTransform
+	}
 	return merged
 }
 

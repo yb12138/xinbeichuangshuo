@@ -4,7 +4,7 @@ package moon
 
 import (
 	"starcup-engine/internal/engine/player"
-	skills "starcup-engine/internal/engine/skill"
+	"starcup-engine/internal/model"
 	"starcup-engine/internal/types"
 )
 
@@ -12,22 +12,36 @@ import (
 func RoleEntry() player.RoleEntry {
 	return player.RoleEntry{
 		ID:               "moon",
+		Defaults:         ApplyDefaults,
 		Choices:          NewChoiceHandler(),
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
+		TimingHookSpecs: []player.TimingHookSpec{
+			{Timing: player.TimingOnAttackGating, Priority: 200, Hook: attackGatingHook},
+			{Timing: player.TimingPostDamageResolved, Priority: 900, Hook: postDamageResolvedHook},
+		},
 	}
+}
+
+// ApplyDefaults 初始化月神的基础指示物。
+func ApplyDefaults(p *model.Player) {
+	if p == nil || p.Tokens == nil {
+		return
+	}
+	p.Tokens["mg_new_moon"] = 0
+	p.Tokens["mg_petrify"] = 0
 }
 
 // SkillEntries 导出角色技能与策略绑定入口。
 func SkillEntries() []player.SkillEntry {
 	return []player.SkillEntry{
-		{ID: "mg_new_moon_shelter", Handler: &skills.MoonGoddessNewMoonShelterHandler{}},
-		{ID: "mg_dark_moon_curse", Handler: &skills.MoonGoddessDarkMoonCurseHandler{}},
-		{ID: "mg_medusa_eye", Handler: &skills.MoonGoddessMedusaEyeHandler{}},
-		{ID: "mg_moon_cycle", Handler: &skills.MoonGoddessMoonCycleHandler{}},
-		{ID: "mg_blasphemy", Handler: &skills.MoonGoddessBlasphemyHandler{}},
-		{ID: "mg_darkmoon_slash", Handler: &skills.MoonGoddessDarkMoonSlashHandler{}},
-		{ID: "mg_pale_moon", Handler: &skills.MoonGoddessPaleMoonHandler{}},
+		{ID: "mg_new_moon_shelter", Handler: &MoonGoddessNewMoonShelterHandler{}},
+		{ID: "mg_dark_moon_curse", Handler: &MoonGoddessDarkMoonCurseHandler{}},
+		{ID: "mg_medusa_eye", Handler: &MoonGoddessMedusaEyeHandler{}},
+		{ID: "mg_moon_cycle", Handler: &MoonGoddessMoonCycleHandler{}},
+		{ID: "mg_blasphemy", Handler: &MoonGoddessBlasphemyHandler{}},
+		{ID: "mg_darkmoon_slash", Handler: &MoonGoddessDarkMoonSlashHandler{}},
+		{ID: "mg_pale_moon", Handler: &MoonGoddessPaleMoonHandler{}},
 	}
 }
 

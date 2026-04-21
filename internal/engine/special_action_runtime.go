@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"sort"
 
+	playerpkg "starcup-engine/internal/engine/player"
+	adventurer "starcup-engine/internal/engine/player/adventurer"
 	"starcup-engine/internal/model"
 )
 
@@ -221,7 +223,7 @@ func (e *GameEngine) getPlayerEnergyCap(player *model.Player) int {
 		return 3
 	}
 	cap := 3
-	if e.isSage(player) {
+	if isCharacter(player, "sage") {
 		cap++
 	}
 	return cap
@@ -320,16 +322,16 @@ func specialActionAdventurerUndergroundLawOverride(e *GameEngine, player *model.
 	if e == nil || player == nil || actionType != model.ActionBuy || !e.playerHasSkill(player, "adventurer_underground_law") {
 		return false, nil
 	}
-	e.resolveAdventurerUndergroundLaw(player)
+	adventurer.ResolveUndergroundLaw(e, player)
 	return true, nil
 }
 
 func specialActionHolyBowHolyGloryExitHook(e *GameEngine, player *model.Player, _ model.ActionType) {
-	if e == nil || player == nil || !e.isHolyBow(player) || !hasHolyBowHolyGloryForm(player) {
+	if e == nil || player == nil || !isCharacter(player, "holy_bow") || !playerpkg.HasForm(player, model.FormHolyBowHolyGlory) {
 		return
 	}
 	beforePoses := e.snapshotPlayerPoses()
-	leaveHolyBowHolyGloryForm(player)
+	playerpkg.ClearForm(player, model.FormHolyBowHolyGlory)
 	e.Heal(player.ID, 1)
 	e.Log(fmt.Sprintf("%s 在圣煌形态下执行特殊行动，脱离圣煌形态并获得1点治疗", player.Name))
 	e.dispatchOrientationChanges(beforePoses)

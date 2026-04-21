@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"starcup-engine/internal/engine/player"
-	skills "starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/types"
 )
@@ -20,6 +19,9 @@ func RoleEntry() player.RoleEntry {
 		Choices:          NewChoiceHandler(),
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
+		SkillUsabilityCheckers: map[string]player.SkillUsabilityChecker{
+			"onmyoji_shikigami_descend": CheckShikigamiDescendUsability,
+		},
 	}
 }
 
@@ -39,7 +41,7 @@ func SkillEntries() []player.SkillEntry {
 	return []player.SkillEntry{
 		{
 			ID:      "onmyoji_shikigami_descend",
-			Handler: &skills.OnmyojiShikigamiDescendHandler{},
+			Handler: &OnmyojiShikigamiDescendHandler{},
 			Policy: types.SkillPolicy{
 				ValidateDiscardedCards: func(ctx types.PolicyContext) error {
 					if len(ctx.DiscardedCards) != 2 {
@@ -54,13 +56,13 @@ func SkillEntries() []player.SkillEntry {
 				},
 			},
 		},
-		{ID: "onmyoji_yinyang_shift", Handler: &skills.OnmyojiYinYangShiftHandler{}},
-		{ID: "onmyoji_shikigami_shift", Handler: &skills.OnmyojiShikigamiShiftHandler{}},
-		{ID: "onmyoji_dark_ritual", Handler: &skills.OnmyojiDarkRitualHandler{}},
-		{ID: "onmyoji_binding", Handler: &skills.OnmyojiBindingHandler{}},
+		{ID: "onmyoji_yinyang_shift", Handler: &OnmyojiYinYangShiftHandler{}},
+		{ID: "onmyoji_shikigami_shift", Handler: &OnmyojiShikigamiShiftHandler{}},
+		{ID: "onmyoji_dark_ritual", Handler: &OnmyojiDarkRitualHandler{}},
+		{ID: "onmyoji_binding", Handler: &OnmyojiBindingHandler{}},
 		{
 			ID:      "onmyoji_life_barrier",
-			Handler: &skills.OnmyojiLifeBarrierHandler{},
+			Handler: &OnmyojiLifeBarrierHandler{},
 			Policy: types.SkillPolicy{
 				TargetRules: types.TargetRuleSet{
 					Count: types.TargetCountRule{Min: 0, Max: 1, Err: "生命结界需要且仅能指定1名其他队友"},

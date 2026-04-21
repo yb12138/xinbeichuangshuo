@@ -226,14 +226,14 @@ go test ./internal/engine/... -run TestRoleDefaults -count=1
 | spirit_caster | | | | | (空) |
 | bard | | | | | bd_inspiration:0 |
 | hero | | | 0 | 2 | hero_anger:0, hero_wisdom:0, hero_exhaustion_release_pending:0, hero_calm_end_crystal_pending:0 |
-| fighter | | | | | fighter_qi:0, fighter_hundred_dragon_target_order:0 |
+| fighter | | | | | fighter_qi:0 |
 | holy_bow | | | 1 | 2 | hb_cannon:1, hb_faith:0 |
 | sword_emperor | | | | | se_sword_qi:0, se_sword_soul_count:0 |
-| beast_samurai | | | | | bs_zanshin:0, bs_beast_soul:0, bs_reversal_pending_x:0 |
+| beast_samurai | | | | | bs_zanshin:0, bs_beast_soul:0 |
 | holy_lancer | true | 2 | | | |
-| arbiter | | | | 2 | arbiter_law_inited:1 |
+| arbiter | | | | 2 | |
 | soul_sorcerer | | | | | ss_blue_soul:0, ss_yellow_soul:0 |
-| moon_goddess | | | | | mg_new_moon:0, mg_petrify:0, mg_extra_turn_pending:0 |
+| moon_goddess | | | | | mg_new_moon:0, mg_petrify:0 |
 | butterfly_dancer | | | | | bt_pupa:0, bt_wither_active:0 |
 | blood_priestess | | | | | (空) |
 

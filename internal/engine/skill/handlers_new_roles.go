@@ -201,11 +201,11 @@ func (h *ValkyrieHeroicSummonHandler) CanUse(ctx *model.Context) bool {
 	if info.ActionType != string(model.ActionAttack) || !info.IsHit {
 		return false
 	}
-	return canPayCrystalLike(ctx, 1)
+	return CanPayCrystalLike(ctx, 1)
 }
 
 func (h *ValkyrieHeroicSummonHandler) Execute(ctx *model.Context) error {
-	if !canPayCrystalLike(ctx, 1) {
+	if !CanPayCrystalLike(ctx, 1) {
 		return nil
 	}
 	if !spendCrystalLike(ctx, 1) {
@@ -531,13 +531,8 @@ type ArbiterDoomsdayHandler struct{ BaseHandler }
 
 type ArbiterBalanceHandler struct{ BaseHandler }
 
-func (h *ArbiterLawHandler) CanUse(ctx *model.Context) bool {
-	return ctx != nil && ctx.User != nil && getToken(ctx.User, "arbiter_law_inited") == 0
-}
-
 func (h *ArbiterLawHandler) Execute(ctx *model.Context) error {
 	ctx.User.Crystal += 2
-	setToken(ctx.User, "arbiter_law_inited", 1)
 	ctx.Game.Log(fmt.Sprintf("%s 的 [仲裁法则] 生效，获得2个蓝水晶", ctx.User.Name))
 	return nil
 }
@@ -603,7 +598,7 @@ func (h *ArbiterDoomsdayHandler) Execute(ctx *model.Context) error {
 }
 
 func (h *ArbiterBalanceHandler) CanUse(ctx *model.Context) bool {
-	return canPayCrystalLike(ctx, 1)
+	return CanPayCrystalLike(ctx, 1)
 }
 
 func (h *ArbiterBalanceHandler) Execute(ctx *model.Context) error {
@@ -787,7 +782,7 @@ func (h *AdventurerParadiseHandler) Execute(ctx *model.Context) error {
 }
 
 func (h *AdventurerStealSkyHandler) CanUse(ctx *model.Context) bool {
-	return canPayCrystalLike(ctx, 1)
+	return CanPayCrystalLike(ctx, 1)
 }
 
 func (h *AdventurerStealSkyHandler) Execute(ctx *model.Context) error {
@@ -1103,7 +1098,7 @@ func (h *ElfRitualHandler) Execute(ctx *model.Context) error {
 }
 
 func (h *ElfPetEmpowerHandler) CanUse(ctx *model.Context) bool {
-	if !canPayCrystalLike(ctx, 1) {
+	if !CanPayCrystalLike(ctx, 1) {
 		return false
 	}
 	if ctx == nil || ctx.User == nil || ctx.Target == nil || ctx.EventCtx == nil || ctx.EventCtx.DamageVal == nil {
@@ -1125,7 +1120,7 @@ func (h *ElfPetEmpowerHandler) CanUse(ctx *model.Context) bool {
 }
 
 func (h *ElfPetEmpowerHandler) Execute(ctx *model.Context) error {
-	if !canPayCrystalLike(ctx, 1) {
+	if !CanPayCrystalLike(ctx, 1) {
 		return fmt.Errorf("宠物强化需要至少1个蓝水晶")
 	}
 	if ctx == nil || ctx.Target == nil {
@@ -1141,147 +1136,6 @@ func (h *ElfPetEmpowerHandler) Execute(ctx *model.Context) error {
 		fmt.Sprintf("【宠物强化】%s 请弃置1张牌：", ctx.Target.Name),
 		ctx.Target.Character != nil && ctx.Target.Character.ID == "elf_archer",
 	)
-}
-
-// --- 15. 瘟疫法师 ---
-
-type PlagueImmortalHandler struct{ BaseHandler }
-
-type PlagueBlasphemyHandler struct{ BaseHandler }
-
-type PlagueOutbreakHandler struct{ BaseHandler }
-
-type PlagueDeathTouchHandler struct{ BaseHandler }
-
-type PlagueToxicNovaHandler struct{ BaseHandler }
-
-func (h *PlagueImmortalHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.Timing != model.TimingOnActionEnd || ctx.EventCtx == nil {
-		return false
-	}
-	if ctx.EventCtx.ActionType != model.ActionMagic {
-		return false
-	}
-	return ctx.User.IsActive
-}
-
-func (h *PlagueImmortalHandler) Execute(ctx *model.Context) error {
-	if ctx.User.TurnState.UsedSkillCounts["plague_block_immortal"] > 0 {
-		ctx.User.TurnState.UsedSkillCounts["plague_block_immortal"] = 0
-		ctx.Game.Log(fmt.Sprintf("%s 的 [不朽] 本次被技能效果抑制", ctx.User.Name))
-		return nil
-	}
-	ctx.Game.Heal(ctx.User.ID, 1)
-	ctx.Game.Log(fmt.Sprintf("%s 的 [不朽] 触发，+1治疗", ctx.User.Name))
-	return nil
-}
-
-func (h *PlagueBlasphemyHandler) Execute(ctx *model.Context) error { return nil }
-
-func (h *PlagueOutbreakHandler) CanUse(ctx *model.Context) bool {
-	return hasElementCard(ctx.User, model.ElementEarth)
-}
-
-func (h *PlagueOutbreakHandler) Execute(ctx *model.Context) error {
-	ordered := reverseOrderPlayers(ctx.Game.GetAllPlayers(), ctx.User.ID)
-	for _, p := range ordered {
-		if p.ID == ctx.User.ID {
-			continue
-		}
-		ctx.Game.AddPendingDamage(model.PendingDamage{
-			SourceID:      ctx.User.ID,
-			TargetID:      p.ID,
-			Damage:        1,
-			DamageType:    model.MagicAttack,
-			SourceSkillID: "plague_outbreak",
-		})
-	}
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [瘟疫]，按逆序对其余角色各造成1点法术伤害", ctx.User.Name))
-	return nil
-}
-
-func (h *PlagueDeathTouchHandler) CanUse(ctx *model.Context) bool {
-	if ctx.User.Heal < 2 {
-		return false
-	}
-	counts := map[model.Element]int{}
-	for _, c := range ctx.User.Hand {
-		if c.Element != "" {
-			counts[c.Element]++
-		}
-	}
-	for _, n := range counts {
-		if n >= 2 {
-			return true
-		}
-	}
-	return false
-}
-
-func (h *PlagueDeathTouchHandler) Execute(ctx *model.Context) error {
-	if ctx.Target == nil {
-		return fmt.Errorf("死亡之触需要1名敌方目标")
-	}
-	if ctx.User.Heal < 2 {
-		return fmt.Errorf("死亡之触需要至少2点治疗")
-	}
-	counts := map[model.Element]int{}
-	for _, c := range ctx.User.Hand {
-		if c.Element != "" {
-			counts[c.Element]++
-		}
-	}
-	var elements []string
-	for _, ele := range []model.Element{
-		model.ElementEarth, model.ElementWater, model.ElementFire,
-		model.ElementWind, model.ElementThunder, model.ElementLight, model.ElementDark,
-	} {
-		if counts[ele] >= 2 {
-			elements = append(elements, string(ele))
-		}
-	}
-	if len(elements) == 0 {
-		return fmt.Errorf("死亡之触需要至少2张同系牌")
-	}
-	// 该技能不触发不朽：先设置抑制标记，覆盖 UseSkill 的阶段结束触发。
-	ctx.User.TurnState.UsedSkillCounts["plague_block_immortal"] = 1
-	ctx.Game.PushInterrupt(&model.Interrupt{
-		Type:     model.InterruptChoice,
-		PlayerID: ctx.User.ID,
-		Context: map[string]interface{}{
-			"choice_type":      "plague_death_touch_element",
-			"user_id":          ctx.User.ID,
-			"target_id":        ctx.Target.ID,
-			"elements":         elements,
-			"max_heal":         ctx.User.Heal,
-			"element_counts":   counts,
-			"selected_indices": []int{},
-		},
-	})
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [死亡之触]，等待选择X/Y与目标", ctx.User.Name))
-	return nil
-}
-
-func (h *PlagueToxicNovaHandler) CanUse(ctx *model.Context) bool {
-	return ctx.User.Gem > 0
-}
-
-func (h *PlagueToxicNovaHandler) Execute(ctx *model.Context) error {
-	ordered := reverseOrderPlayers(ctx.Game.GetAllPlayers(), ctx.User.ID)
-	for _, p := range ordered {
-		if p.ID == ctx.User.ID {
-			continue
-		}
-		ctx.Game.AddPendingDamage(model.PendingDamage{
-			SourceID:   ctx.User.ID,
-			TargetID:   p.ID,
-			Damage:     2,
-			DamageType: model.MagicAttack,
-		})
-	}
-	ctx.Game.Heal(ctx.User.ID, 1)
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [剧毒新星]，对其余角色各造成2点法术伤害", ctx.User.Name))
-	return nil
 }
 
 // --- 16. 魔剑士 ---
@@ -1522,7 +1376,7 @@ func (h *CrimsonBloodBarrierHandler) CanUse(ctx *model.Context) bool {
 	if !ctx.Flags["IsMagicDamage"] {
 		return false
 	}
-	if getToken(ctx.User, "css_blood_barrier_lock") > 0 {
+	if getSkillFlow(ctx.User, "css_blood_barrier_lock") > 0 {
 		return false
 	}
 	return getToken(ctx.User, "css_blood") > 0
@@ -1559,7 +1413,7 @@ func (h *CrimsonDanceHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.User.Character == nil {
 		return false
 	}
-	if !(canPayCrystalLike(ctx, 1) || ctx.User.Gem > 0) {
+	if !(CanPayCrystalLike(ctx, 1) || ctx.User.Gem > 0) {
 		return false
 	}
 	return ctx.User.HasExclusiveCard(ctx.User.Character.ID, "血蔷薇庭院")
@@ -1572,7 +1426,7 @@ func (h *CrimsonDanceHandler) Execute(ctx *model.Context) error {
 		Context: map[string]interface{}{
 			"choice_type": "css_dance_mode",
 			"user_id":     ctx.User.ID,
-			"can_crystal": canPayCrystalLike(ctx, 1),
+			"can_crystal": CanPayCrystalLike(ctx, 1),
 			"can_gem":     ctx.User.Gem > 0,
 		},
 	})

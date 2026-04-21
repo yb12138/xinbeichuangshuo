@@ -67,7 +67,7 @@ func (e *GameEngine) performMagic(sourceID, targetID string, cardIdx int, skipMa
 	}
 
 	// 【魔弹融合】检查：魔法少女使用地系或火系非魔弹法术牌时，询问是否当魔弹使用
-	if !skipMagicBulletFusionCheck && e.isMagicalGirl(player) && card.Name != "魔弹" &&
+	if !skipMagicBulletFusionCheck && isCharacter(player, "magical_girl") && card.Name != "魔弹" &&
 		(card.Element == model.ElementEarth || card.Element == model.ElementFire) {
 		// 先不移除手牌，等玩家确认后再处理
 		e.PushInterrupt(&model.Interrupt{
@@ -101,7 +101,7 @@ func (e *GameEngine) performMagic(sourceID, targetID string, cardIdx int, skipMa
 	switch card.Name {
 	case "魔弹":
 		// 【魔弹掌控】检查：魔法少女使用魔弹时，询问是否逆向传递
-		if e.isMagicalGirl(player) {
+		if isCharacter(player, "magical_girl") {
 			e.PushInterrupt(&model.Interrupt{
 				Type:     model.InterruptMagicBulletDirection,
 				PlayerID: player.ID,
@@ -130,7 +130,7 @@ func (e *GameEngine) performMagic(sourceID, targetID string, cardIdx int, skipMa
 			SourceID: player.ID,
 			Mode:     model.FieldEffect,
 			Effect:   model.EffectPoison,
-			Hook: model.FieldHookOnBeforeAction,
+			Hook:     model.FieldHookOnBeforeAction,
 		}
 		target.AddFieldCard(fc)
 		e.emitBuffAddedDispatch(player.ID, target.ID, fc.Effect)
@@ -149,7 +149,7 @@ func (e *GameEngine) performMagic(sourceID, targetID string, cardIdx int, skipMa
 			SourceID: player.ID,
 			Mode:     model.FieldEffect,
 			Effect:   model.EffectWeak,
-			Hook: model.FieldHookOnBeforeAction,
+			Hook:     model.FieldHookOnBeforeAction,
 		}
 		target.AddFieldCard(fc)
 		e.emitBuffAddedDispatch(player.ID, target.ID, fc.Effect)
@@ -168,7 +168,7 @@ func (e *GameEngine) performMagic(sourceID, targetID string, cardIdx int, skipMa
 			SourceID: player.ID,
 			Mode:     model.FieldEffect,
 			Effect:   model.EffectShield,
-			Hook: model.FieldHookOnDamaged,
+			Hook:     model.FieldHookOnDamaged,
 		}
 		target.AddFieldCard(fc)
 		e.emitBuffAddedDispatch(player.ID, target.ID, fc.Effect)

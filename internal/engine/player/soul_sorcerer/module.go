@@ -5,7 +5,6 @@ package soul_sorcerer
 import (
 	"fmt"
 	"starcup-engine/internal/engine/player"
-	skills "starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/types"
 )
@@ -56,20 +55,20 @@ func StarterCards(p *model.Player) []model.Card {
 // SkillEntries 导出角色技能与策略绑定入口。
 func SkillEntries() []player.SkillEntry {
 	return []player.SkillEntry{
-		{ID: "ss_soul_devour", Handler: &skills.SoulSorcererSoulDevourHandler{}},
-		{ID: "ss_soul_recall", Handler: &skills.SoulSorcererSoulRecallHandler{}},
-		{ID: "ss_soul_convert", Handler: &skills.SoulSorcererSoulConvertHandler{}},
-		{ID: "ss_soul_mirror", Handler: &skills.SoulSorcererSoulMirrorHandler{}},
-		{ID: "ss_soul_blast", Handler: &skills.SoulSorcererSoulBlastHandler{}},
-		{ID: "ss_soul_grant", Handler: &skills.SoulSorcererSoulGrantHandler{}},
+		{ID: "ss_soul_devour", Handler: &SoulSorcererSoulDevourHandler{}},
+		{ID: "ss_soul_recall", Handler: &SoulSorcererSoulRecallHandler{}},
+		{ID: "ss_soul_convert", Handler: &SoulSorcererSoulConvertHandler{}},
+		{ID: "ss_soul_mirror", Handler: &SoulSorcererSoulMirrorHandler{}},
+		{ID: "ss_soul_blast", Handler: &SoulSorcererSoulBlastHandler{}},
+		{ID: "ss_soul_grant", Handler: &SoulSorcererSoulGrantHandler{}},
 		{
 			ID:      "ss_soul_link",
-			Handler: &skills.SoulSorcererSoulLinkHandler{},
+			Handler: &SoulSorcererSoulLinkHandler{},
 			Policy: types.SkillPolicy{
 				ManualExclusiveCard: true,
 			},
 		},
-		{ID: "ss_soul_amp", Handler: &skills.SoulSorcererSoulAmpHandler{}},
+		{ID: "ss_soul_amp", Handler: &SoulSorcererSoulAmpHandler{}},
 	}
 }
 

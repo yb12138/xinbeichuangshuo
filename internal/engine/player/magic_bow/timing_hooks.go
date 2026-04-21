@@ -10,6 +10,24 @@ import (
 	"starcup-engine/internal/model"
 )
 
+// attackTargetCtxHook records the target player order index when an attack is declared.
+func attackTargetCtxHook(rt player.HookRuntime, ctx player.TimingHookContext) player.TimingHookResult {
+	p := rt.GetPlayer(ctx.SourceID)
+	if p == nil || p.TurnState.UsedSkillCounts == nil {
+		return player.TimingHookResult{}
+	}
+	if !player.IsCharacter(p, "magic_bow") {
+		return player.TimingHookResult{}
+	}
+	for i, pid := range rt.PlayerOrder() {
+		if pid == ctx.TargetID {
+			p.TurnState.UsedSkillCounts["mb_last_attack_target_order"] = i + 1
+			return player.TimingHookResult{}
+		}
+	}
+	return player.TimingHookResult{}
+}
+
 func postAttackHitHook(rt player.HookRuntime, ctx player.TimingHookContext) player.TimingHookResult {
 	p := rt.GetPlayer(ctx.SourceID)
 	if p == nil {

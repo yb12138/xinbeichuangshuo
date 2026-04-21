@@ -20,10 +20,9 @@ func CocoonCount(p *model.Player) int {
 	return player.CoverCountByEffect(p, model.EffectButterflyCocoon)
 }
 
-// SyncCocoonToken 将茧盖牌数量同步到 player.Tokens。
+// SyncCocoonToken 将茧盖牌数量同步到 player.Tokens（已弃用：派生值实时计算）。
 func SyncCocoonToken(p *model.Player) {
-	player.EnsurePlayerTokensMap(p)
-	p.Tokens["bt_cocoon_count"] = CocoonCount(p)
+	// 不再同步到 Tokens，服务端 buildStateForPlayer 实时计算 CocoonCount
 }
 
 // AddCocoonCards 将卡牌以茧盖牌形式放入玩家场区，然后同步 token。
@@ -35,7 +34,7 @@ func AddCocoonCards(p *model.Player, cards []model.Card) {
 			Effect:   model.EffectButterflyCocoon,
 			Hook:     model.FieldHookManual,
 			OwnerID:  p.ID,
-			SourceID:  p.ID,
+			SourceID: p.ID,
 		})
 	}
 	SyncCocoonToken(p)

@@ -309,7 +309,7 @@ func handleIncantCard(rt engineplayer.ChoiceRuntime, ctxData map[string]interfac
 	card := user.Hand[selectionIndex]
 	user.Hand = append(user.Hand[:selectionIndex], user.Hand[selectionIndex+1:]...)
 	AddPowerCard(user, card)
-	rt.Log(fmt.Sprintf("%s 发动 [念咒]：将1张手牌盖放为妖力（当前妖力%d）", user.Name, PowerCount(user)))
+	rt.Log(fmt.Sprintf("%s 发动 [念咒]：将1张手牌盖放为妖力（当前妖力%d）", user.Name, PowerCount(user, "")))
 	rt.PopInterrupt()
 	return continueSpiritCasterTalisman(rt, user, skillID, targetIDs)
 }

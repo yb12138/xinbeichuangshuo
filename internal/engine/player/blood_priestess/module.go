@@ -5,7 +5,6 @@ package blood_priestess
 import (
 	"fmt"
 	"starcup-engine/internal/engine/player"
-	skills "starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/types"
 )
@@ -19,6 +18,9 @@ func RoleEntry() player.RoleEntry {
 		Choices:          NewChoiceHandler(),
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
+		TimingHookSpecs: []player.TimingHookSpec{
+			{Timing: player.TimingPostActionEnd, Priority: 100, Hook: postActionEndBleedExitHook},
+		},
 	}
 }
 
@@ -49,12 +51,12 @@ func StarterCards(p *model.Player) []model.Card {
 // SkillEntries 导出角色技能与策略绑定入口。
 func SkillEntries() []player.SkillEntry {
 	return []player.SkillEntry{
-		{ID: "bp_blood_sorrow", Handler: &skills.BloodPriestessBloodSorrowHandler{}},
-		{ID: "bp_bleeding", Handler: &skills.BloodPriestessBleedingHandler{}},
-		{ID: "bp_backflow", Handler: &skills.BloodPriestessBackflowHandler{}},
-		{ID: "bp_blood_wail", Handler: &skills.BloodPriestessBloodWailHandler{}},
-		{ID: "bp_shared_life", Handler: &skills.BloodPriestessSharedLifeHandler{}},
-		{ID: "bp_blood_curse", Handler: &skills.BloodPriestessBloodCurseHandler{}},
+		{ID: "bp_blood_sorrow", Handler: &BloodSorrowHandler{}},
+		{ID: "bp_bleeding", Handler: &BleedingHandler{}},
+		{ID: "bp_backflow", Handler: &BackflowHandler{}},
+		{ID: "bp_blood_wail", Handler: &BloodWailHandler{}},
+		{ID: "bp_shared_life", Handler: &SharedLifeHandler{}},
+		{ID: "bp_blood_curse", Handler: &BloodCurseHandler{}},
 	}
 }
 

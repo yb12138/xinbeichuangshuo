@@ -3,6 +3,8 @@ package engine
 import (
 	"testing"
 
+	engineplayer "starcup-engine/internal/engine/player"
+	butterflydancer "starcup-engine/internal/engine/player/butterfly_dancer"
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/rules"
 )
@@ -74,7 +76,7 @@ func TestButterflyDance_DrawAndGainCocoon(t *testing.T) {
 		Type:       model.CmdSelect,
 		Selections: []int{0},
 	})
-	if got := butterflyCocoonCount(p1); got != 1 {
+	if got := butterflydancer.CocoonCount(p1); got != 1 {
 		t.Fatalf("expected 1 cocoon after dance, got %d", got)
 	}
 	if len(p1.Hand) != 2 {
@@ -222,7 +224,7 @@ func TestButterflyPilgrimage_ResistOneDamage(t *testing.T) {
 	}
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]
-	addButterflyCocoonCards(p1, []model.Card{
+	butterflydancer.AddCocoonCards(p1, []model.Card{
 		butterflyTestCard("c1", model.CardTypeAttack, model.ElementWater),
 	})
 
@@ -244,7 +246,7 @@ func TestButterflyPilgrimage_ResistOneDamage(t *testing.T) {
 		Type:       model.CmdSelect,
 		Selections: []int{1},
 	})
-	if got := butterflyCocoonCount(p1); got != 0 {
+	if got := butterflydancer.CocoonCount(p1); got != 0 {
 		t.Fatalf("expected cocoon consumed by pilgrimage, got %d", got)
 	}
 
@@ -284,7 +286,7 @@ func TestButterflyMirror_ReplaceTwoDamageToTwoHits(t *testing.T) {
 	p3 := game.State.Players["p3"]
 	game.State.Deck = rules.InitDeck()
 
-	addButterflyCocoonCards(p1, []model.Card{
+	butterflydancer.AddCocoonCards(p1, []model.Card{
 		butterflyTestCard("m1", model.CardTypeAttack, model.ElementFire),
 		butterflyTestCard("m2", model.CardTypeAttack, model.ElementFire),
 	})
@@ -307,7 +309,7 @@ func TestButterflyMirror_ReplaceTwoDamageToTwoHits(t *testing.T) {
 		Type:       model.CmdSelect,
 		Selections: []int{1},
 	})
-	if got := butterflyCocoonCount(p1); got != 0 {
+	if got := butterflydancer.CocoonCount(p1); got != 0 {
 		t.Fatalf("expected 2 cocoons consumed by mirror, got remaining=%d", got)
 	}
 
@@ -343,7 +345,8 @@ func TestButterflyWither_MoraleFloorAtOne(t *testing.T) {
 		t.Fatal(err)
 	}
 	p1 := game.State.Players["p1"]
-	p1.Tokens["bt_wither_active"] = 1
+	engineplayer.EnsurePlayerSkillFlowState(p1)
+	p1.TurnState.SkillFlowState["bt_wither_active"] = 1
 
 	game.State.BlueMorale = 1
 	if got := game.applyCampMoraleLoss(model.BlueCamp, 3); got != 0 {
@@ -375,7 +378,7 @@ func TestButterflyWither_CanTargetAnyCharacter(t *testing.T) {
 	}
 
 	p1 := game.State.Players["p1"]
-	game.queueButterflyWitherFollowup(p1)
+	butterflydancer.QueueWitherFollowup(newRoleChoiceRuntime(game), p1)
 	requireChoicePrompt(t, game, "p1", "bt_wither_confirm")
 
 	mustHandleAction(t, game, model.PlayerAction{
@@ -409,7 +412,7 @@ func TestButterflyWither_CanTargetAnyCharacter(t *testing.T) {
 	if got := len(game.State.PendingDamageQueue); got != 0 {
 		t.Fatalf("expected wither damage chain fully resolved, got %d pending entries", got)
 	}
-	if got := p1.Tokens["bt_wither_active"]; got != 1 {
+	if got := p1.TurnState.SkillFlowState["bt_wither_active"]; got != 1 {
 		t.Fatalf("expected wither floor effect active, got %d", got)
 	}
 }

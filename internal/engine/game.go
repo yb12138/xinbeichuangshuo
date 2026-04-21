@@ -94,6 +94,33 @@ type GameEngine struct {
 	roleTimingHooks map[engineplayer.TimingPoint][]roleTimingHookEntry
 }
 
+func (e *GameEngine) resetTurnMagicDamageTracker() {
+	e.turnMagicDamageTargets = map[string]map[string]bool{}
+}
+
+// buildContext：组装 User/Target/Timing/EventCtx。
+func (e *GameEngine) buildContext(user *model.Player, target *model.Player, timing model.FlowTiming, eventCtx *model.EventContext) *model.Context {
+	ctx := &model.Context{
+		Game:             e,
+		User:             user,
+		Target:           target,
+		Timing:           timing,
+		EventCtx:         eventCtx,
+		Selections:       make(map[string]any),
+		Flags:            make(map[string]bool),
+		PendingInterrupt: e.State.PendingInterrupt,
+		Targets:          []*model.Player{},
+	}
+	ctx.Selections["current_resume_point"] = e.currentChoiceResumePoint()
+	ctx.Selections["current_turn_stage"] = e.State.TurnStage
+	ctx.Selections["current_combat_stage"] = e.State.CombatStage
+	ctx.Selections["current_subflow"] = e.State.Subflow
+	if target != nil {
+		ctx.Targets = append(ctx.Targets, target)
+	}
+	return ctx
+}
+
 // NewGameEngine 构造引擎：初始化状态、注册技能 handler、装配 TimingOnAttackDeclared 等钩子表。
 func NewGameEngine(observer model.GameObserver) *GameEngine {
 	skills.InitHandlers()

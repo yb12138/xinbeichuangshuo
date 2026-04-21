@@ -3,6 +3,7 @@ package engine
 import (
 	"testing"
 
+	soulsorcererpkg "starcup-engine/internal/engine/player/soul_sorcerer"
 	"starcup-engine/internal/model"
 )
 
@@ -492,7 +493,7 @@ func TestSoulSorcererSoulLink_TransferDamageBeforeResolve(t *testing.T) {
 		t.Fatalf("choose soul link target failed: %v", err)
 	}
 
-	linkedHolder, _ := game.findSoulLink(p1)
+	linkedHolder, _ := soulsorcererpkg.FindSoulLink(newRoleChoiceRuntime(game), p1)
 	if linkedHolder == nil {
 		t.Fatalf("expected soul link placed on ally")
 	}
@@ -505,7 +506,7 @@ func TestSoulSorcererSoulLink_TransferDamageBeforeResolve(t *testing.T) {
 			DamageType: model.AttackDamage,
 		},
 	}
-	if !game.maybeSoulLinkTransfer(&game.State.PendingDamageQueue[0]) {
+	if !soulsorcererpkg.MaybeSoulLinkTransfer(newRoleChoiceRuntime(game), &game.State.PendingDamageQueue[0]) {
 		t.Fatalf("expected soul link transfer prompt")
 	}
 	requireChoicePrompt(t, game, "p1", "ss_link_transfer_x")
@@ -564,7 +565,7 @@ func TestSoulSorcererSoulLink_Replay_TransferSorcererToAlly_NoRecursiveLinkPromp
 	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose soul link target failed: %v", err)
 	}
-	linkedHolder, _ := game.findSoulLink(p1)
+	linkedHolder, _ := soulsorcererpkg.FindSoulLink(newRoleChoiceRuntime(game), p1)
 	if linkedHolder == nil {
 		t.Fatalf("expected soul link placed on ally")
 	}
@@ -603,7 +604,7 @@ func TestSoulSorcererSoulLink_Replay_TransferSorcererToAlly_NoRecursiveLinkPromp
 	}
 
 	// 转移出来的伤害不应再次触发灵魂链接（防递归）。
-	if game.maybeSoulLinkTransfer(&game.State.PendingDamageQueue[1]) {
+	if soulsorcererpkg.MaybeSoulLinkTransfer(newRoleChoiceRuntime(game), &game.State.PendingDamageQueue[1]) {
 		t.Fatalf("transferred damage should not reactivate soul link transfer")
 	}
 }
@@ -639,7 +640,7 @@ func TestSoulSorcererSoulLink_Replay_TransferAllyToSorcerer_NoRecursiveLinkPromp
 	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose soul link target failed: %v", err)
 	}
-	linkedHolder, _ := game.findSoulLink(p1)
+	linkedHolder, _ := soulsorcererpkg.FindSoulLink(newRoleChoiceRuntime(game), p1)
 	if linkedHolder == nil {
 		t.Fatalf("expected soul link placed on ally")
 	}
@@ -676,7 +677,7 @@ func TestSoulSorcererSoulLink_Replay_TransferAllyToSorcerer_NoRecursiveLinkPromp
 		!transferred.HasCheck(model.PendingDamageCheckFromSoulLink) {
 		t.Fatalf("unexpected transferred damage: %+v", transferred)
 	}
-	if game.maybeSoulLinkTransfer(&game.State.PendingDamageQueue[1]) {
+	if soulsorcererpkg.MaybeSoulLinkTransfer(newRoleChoiceRuntime(game), &game.State.PendingDamageQueue[1]) {
 		t.Fatalf("transferred damage should not reactivate soul link transfer")
 	}
 }
@@ -715,7 +716,7 @@ func TestSoulSorcererSoulLink_Replay_TransferDamageThenRunsResponseChain(t *test
 	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose soul link target failed: %v", err)
 	}
-	linkedHolder, _ := game.findSoulLink(p1)
+	linkedHolder, _ := soulsorcererpkg.FindSoulLink(newRoleChoiceRuntime(game), p1)
 	if linkedHolder == nil || linkedHolder.ID != "p3" {
 		t.Fatalf("expected soul link on hero ally p3, got %+v", linkedHolder)
 	}

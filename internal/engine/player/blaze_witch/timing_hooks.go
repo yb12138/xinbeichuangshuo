@@ -3,8 +3,32 @@
 package blaze_witch
 
 import (
+	"fmt"
+
 	"starcup-engine/internal/engine/player"
+	"starcup-engine/internal/model"
 )
+
+// beforeActionFlameReleaseHook 行动前脱离烈焰形态。
+func beforeActionFlameReleaseHook(rt player.HookRuntime, ctx player.TimingHookContext) player.TimingHookResult {
+	p := rt.GetPlayer(ctx.SourceID)
+	if p == nil || !player.IsCharacter(p, "blaze_witch") {
+		return player.TimingHookResult{}
+	}
+	if rt.HasUsedActionSkill(p) || !rt.HasForm(p, model.FormBlazeWitchFlame) {
+		return player.TimingHookResult{}
+	}
+	player.EnsurePlayerSkillFlowState(p)
+	if p.TurnState.SkillFlowState["bw_flame_release_pending"] <= 0 {
+		return player.TimingHookResult{}
+	}
+	beforePoses := rt.SnapshotPlayerPoses()
+	rt.ClearForm(p, model.FormBlazeWitchFlame)
+	p.TurnState.SkillFlowState["bw_flame_release_pending"] = 0
+	rt.Log(fmt.Sprintf("%s 脱离烈焰形态并转正", p.Name))
+	rt.DispatchOrientationChanges(beforePoses)
+	return player.TimingHookResult{}
+}
 
 // postDamageResolvedHook 痛苦链接弃牌判定。
 func postDamageResolvedHook(rt player.HookRuntime, ctx player.TimingHookContext) player.TimingHookResult {
@@ -31,5 +55,17 @@ func postDamageResolvedHook(rt player.HookRuntime, ctx player.TimingHookContext)
 		})
 		return player.TimingHookResult{Interrupted: true}
 	}
+	return player.TimingHookResult{}
+}
+
+// afterApplyHook 伤害应用后重置替身人偶和魔力反转锁定。
+func afterApplyHook(rt player.HookRuntime, ctx player.TimingHookContext) player.TimingHookResult {
+	target := rt.LookupPlayer(ctx.TargetID)
+	if target == nil {
+		return player.TimingHookResult{}
+	}
+	player.EnsurePlayerSkillFlowState(target)
+	target.TurnState.SkillFlowState["bw_substitute_lock"] = 0
+	target.TurnState.SkillFlowState["bw_mana_inversion_lock"] = 0
 	return player.TimingHookResult{}
 }

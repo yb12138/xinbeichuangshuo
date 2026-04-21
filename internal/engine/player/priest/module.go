@@ -5,7 +5,6 @@ package priest
 import (
 	"fmt"
 	"starcup-engine/internal/engine/player"
-	skills "starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/types"
 )
@@ -18,6 +17,9 @@ func RoleEntry() player.RoleEntry {
 		Choices:          NewChoiceHandler(),
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
+		SkillUsabilityCheckers: map[string]player.SkillUsabilityChecker{
+			"priest_water_power": CheckWaterPowerDiscardUsability,
+		},
 	}
 }
 
@@ -32,11 +34,11 @@ func ApplyDefaults(p *model.Player) {
 // SkillEntries 导出角色技能与策略绑定入口。
 func SkillEntries() []player.SkillEntry {
 	return []player.SkillEntry{
-		{ID: "priest_divine_revelation", Handler: &skills.PriestDivineRevelationHandler{}},
-		{ID: "priest_divine_bless", Handler: &skills.PriestDivineBlessHandler{}},
+		{ID: "priest_divine_revelation", Handler: &PriestDivineRevelationHandler{}},
+		{ID: "priest_divine_bless", Handler: &PriestDivineBlessHandler{}},
 		{
 			ID:      "priest_water_power",
-			Handler: &skills.PriestWaterPowerHandler{},
+			Handler: &PriestWaterPowerHandler{},
 			Policy: types.SkillPolicy{
 				ResolveDiscardCount: func(ctx types.PolicyContext) int {
 					return ctx.SkillDef.CostDiscards
@@ -59,11 +61,11 @@ func SkillEntries() []player.SkillEntry {
 				},
 			},
 		},
-		{ID: "priest_guardian", Handler: &skills.PriestGuardianHandler{}},
-		{ID: "priest_divine_contract", Handler: &skills.PriestDivineContractHandler{}},
+		{ID: "priest_guardian", Handler: &PriestGuardianHandler{}},
+		{ID: "priest_divine_contract", Handler: &PriestDivineContractHandler{}},
 		{
 			ID:      "priest_divine_domain",
-			Handler: &skills.PriestDivineDomainHandler{},
+			Handler: &PriestDivineDomainHandler{},
 			Policy: types.SkillPolicy{
 				ResolveDiscardCount: func(ctx types.PolicyContext) int {
 					return ctx.SkillDef.CostDiscards

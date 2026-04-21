@@ -181,7 +181,7 @@ func TestCrimsonDanceTurnEnd_DoesNotSynthesizeRoseCourtyardWithoutFieldCard(t *t
 	})
 	p1.ExclusiveCards = nil
 
-	turnEndCrimsonSwordSpiritHook(g, p1)
+	g.runTimingOnTurnEndStageHooks(p1, timingOnTurnEndPreExtra)
 
 	if p1.Tokens["css_blood_cap"] != 3 {
 		t.Fatalf("expected blood cap reset to 3, got %d", p1.Tokens["css_blood_cap"])

@@ -5,6 +5,7 @@ package engine
 import (
 	"fmt"
 
+	playerpkg "starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/rules"
 )
@@ -193,7 +194,7 @@ func (e *GameEngine) applyAssassinStealthEffect(player *model.Player) {
 		return
 	}
 	beforePoses := e.snapshotPlayerPoses()
-	enterAssassinStealthForm(player)
+	playerpkg.SetForm(player, model.FormAssassinStealth)
 	e.Log(fmt.Sprintf("%s 进入潜行形态：转为横置，手牌上限-1，无法成为主动攻击目标", player.Name))
 	e.dispatchOrientationChanges(beforePoses)
 	checkCtx := e.buildContext(player, nil, model.TimingActive, nil)
@@ -205,12 +206,12 @@ func (e *GameEngine) releaseAssassinStealthEffect(player *model.Player) {
 	if player == nil {
 		return
 	}
-	if !hasAssassinStealthForm(player) {
+	if !playerpkg.HasForm(player, model.FormAssassinStealth) {
 		return
 	}
 
 	beforePoses := e.snapshotPlayerPoses()
-	leaveAssassinStealthForm(player)
+	playerpkg.ClearForm(player, model.FormAssassinStealth)
 	e.Log(fmt.Sprintf("%s 脱离潜行形态并转正", player.Name))
 	e.dispatchOrientationChanges(beforePoses)
 }

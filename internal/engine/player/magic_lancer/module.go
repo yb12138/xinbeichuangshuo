@@ -4,7 +4,6 @@ package magic_lancer
 
 import (
 	"starcup-engine/internal/engine/player"
-	skills "starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/types"
 )
@@ -18,6 +17,7 @@ func RoleEntry() player.RoleEntry {
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
 		TimingHookSpecs: []player.TimingHookSpec{
+			{Timing: player.TimingOnDamageCalculate, Priority: 300, Hook: damageCalculateHook},
 			{Timing: player.TimingPostDamageResolved, Priority: 300, Hook: postDamageResolvedHook},
 		},
 	}
@@ -31,10 +31,10 @@ func ApplyDefaults(p *model.Player) {
 // SkillEntries 导出角色技能与策略绑定入口。
 func SkillEntries() []player.SkillEntry {
 	return []player.SkillEntry{
-		{ID: "ml_dark_release", Handler: &skills.MagicLancerDarkReleaseHandler{}},
+		{ID: "ml_dark_release", Handler: &MagicLancerDarkReleaseHandler{}},
 		{
 			ID:      "ml_phantom_stardust",
-			Handler: &skills.MagicLancerPhantomStardustHandler{},
+			Handler: &MagicLancerPhantomStardustHandler{},
 			Policy: types.SkillPolicy{
 				TargetRules: types.TargetRuleSet{
 					Count: types.TargetCountRule{Min: 0, Max: 1, Err: "幻影星尘需要且仅能指定1名敌方角色"},
@@ -44,11 +44,11 @@ func SkillEntries() []player.SkillEntry {
 				},
 			},
 		},
-		{ID: "ml_dark_bind", Handler: &skills.MagicLancerDarkBindHandler{}},
-		{ID: "ml_dark_barrier", Handler: &skills.MagicLancerDarkBarrierHandler{}},
+		{ID: "ml_dark_bind", Handler: &MagicLancerDarkBindHandler{}},
+		{ID: "ml_dark_barrier", Handler: &MagicLancerDarkBarrierHandler{}},
 		{
 			ID:      "ml_fullness",
-			Handler: &skills.MagicLancerFullnessHandler{},
+			Handler: &MagicLancerFullnessHandler{},
 			Policy: types.SkillPolicy{
 				TargetRules: types.TargetRuleSet{
 					Count: types.TargetCountRule{Min: 0, Max: 1, Err: "充盈至多指定1名其他队友"},
@@ -58,7 +58,7 @@ func SkillEntries() []player.SkillEntry {
 				},
 			},
 		},
-		{ID: "ml_black_spear", Handler: &skills.MagicLancerBlackSpearHandler{}},
+		{ID: "ml_black_spear", Handler: &MagicLancerBlackSpearHandler{}},
 	}
 }
 

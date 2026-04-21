@@ -16,10 +16,3 @@ func (e *GameEngine) runActionFinalizeHooksIfIdle() bool {
 func (e *GameEngine) runTimingOnActionEndFinalizeEffects() bool {
 	return e.runTimingOnGameStartHooks(nil, timingOnGameStartFinalizeIdle)
 }
-
-func actionFinalizeBloodPriestessBleedHook(e *GameEngine) bool {
-	if e == nil {
-		return false
-	}
-	return e.resolveBloodPriestessBleedExitOnActionEnd()
-}

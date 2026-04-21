@@ -227,7 +227,7 @@ func (h *MagicLancerBlackSpearHandler) CanUse(ctx *model.Context) bool {
 	if handCount != 1 && handCount != 2 {
 		return false
 	}
-	return canPayCrystalLike(ctx, 1)
+	return CanPayCrystalLike(ctx, 1)
 }
 
 func (h *MagicLancerBlackSpearHandler) Execute(ctx *model.Context) error {

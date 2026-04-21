@@ -6,6 +6,8 @@ import (
 	"fmt"
 
 	engineplayer "starcup-engine/internal/engine/player"
+	bloodpriestesspkg "starcup-engine/internal/engine/player/blood_priestess"
+	holylancer "starcup-engine/internal/engine/player/holy_lancer"
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/rules"
 )
@@ -300,6 +302,16 @@ func (r roleChoiceRuntime) DrawCardsDirect(playerID string, amount int, reason s
 	r.NotifyDrawCards(playerID, amount, reason)
 }
 
+func (r roleChoiceRuntime) DrawRawCards(amount int) ([]model.Card, bool) {
+	if r.GameEngine == nil || r.State == nil {
+		return nil, false
+	}
+	cards, newDeck, newDiscard := rules.DrawCards(r.State.Deck, r.State.DiscardPile, amount)
+	r.State.Deck = newDeck
+	r.State.DiscardPile = newDiscard
+	return cards, true
+}
+
 func (r roleChoiceRuntime) PendingInterrupt() *model.Interrupt {
 	if r.GameEngine == nil || r.State == nil {
 		return nil
@@ -416,6 +428,282 @@ func (r roleChoiceRuntime) AddToDiscardPile(cards ...model.Card) {
 		return
 	}
 	r.State.DiscardPile = append(r.State.DiscardPile, cards...)
+}
+
+func (r roleChoiceRuntime) CheckGameEnd() {
+	if r.GameEngine == nil {
+		return
+	}
+	r.checkGameEnd()
+}
+
+func (r roleChoiceRuntime) CampEnemyIDs(camp model.Camp) []string {
+	if r.GameEngine == nil {
+		return nil
+	}
+	return r.campEnemyIDs(camp)
+}
+
+func (r roleChoiceRuntime) CampMorale(camp model.Camp) int {
+	if r.GameEngine == nil || r.State == nil {
+		return 0
+	}
+	return r.campMorale(camp)
+}
+
+func (r roleChoiceRuntime) AddCampMorale(camp model.Camp, amount int) int {
+	if r.GameEngine == nil {
+		return 0
+	}
+	return r.addCampMorale(camp, amount)
+}
+
+func (r roleChoiceRuntime) PendingDiscardVictimID() string {
+	if r.GameEngine == nil {
+		return ""
+	}
+	return r.pendingDiscardVictimID()
+}
+
+func (r roleChoiceRuntime) NotifyCardHidden(playerID string, cards []model.Card, actionType model.DamageType) {
+	if r.GameEngine == nil {
+		return
+	}
+	r.GameEngine.NotifyCardHidden(playerID, cards, actionType)
+}
+
+func (r roleChoiceRuntime) MarkPendingAttackDamageHitProcessed(ctx *model.Context) bool {
+	if r.GameEngine == nil {
+		return false
+	}
+	return r.markPendingAttackDamageHitProcessed(ctx)
+}
+
+func (r roleChoiceRuntime) SyncGamePhaseWithInterrupt(intr *model.Interrupt) {
+	if r.GameEngine == nil {
+		return
+	}
+	r.syncGamePhaseWithInterrupt(intr)
+}
+
+func (r roleChoiceRuntime) SnapshotPlayerPoses() map[string]engineplayer.PoseSnapshot {
+	if r.GameEngine == nil {
+		return nil
+	}
+	internal := r.snapshotPlayerPoses()
+	out := make(map[string]engineplayer.PoseSnapshot, len(internal))
+	for k, v := range internal {
+		out[k] = engineplayer.PoseSnapshot{
+			Orientation: v.Orientation,
+			Form:        v.Form,
+		}
+	}
+	return out
+}
+
+func (r roleChoiceRuntime) DispatchOrientationChanges(before map[string]engineplayer.PoseSnapshot) {
+	if r.GameEngine == nil {
+		return
+	}
+	internal := make(map[string]poseSnapshot, len(before))
+	for k, v := range before {
+		internal[k] = poseSnapshot{
+			Orientation: v.Orientation,
+			Form:        v.Form,
+		}
+	}
+	r.dispatchOrientationChanges(internal)
+}
+
+func (r roleChoiceRuntime) FindSourceEffectCard(source *model.Player, effect model.EffectType) (*model.Player, *model.FieldCard) {
+	if r.GameEngine == nil {
+		return nil, nil
+	}
+	return r.findSourceEffectCard(source, effect)
+}
+
+func (r roleChoiceRuntime) AttachSourceEffectCard(source, target *model.Player, effect model.EffectType, card model.Card) error {
+	if r.GameEngine == nil {
+		return fmt.Errorf("engine not available")
+	}
+	return r.attachSourceEffectCard(source, target, effect, card)
+}
+
+func (r roleChoiceRuntime) DetachSourceEffectCard(source *model.Player, effect model.EffectType) (*model.Player, model.Card, bool) {
+	if r.GameEngine == nil {
+		return nil, model.Card{}, false
+	}
+	return r.detachSourceEffectCard(source, effect)
+}
+
+func (r roleChoiceRuntime) FindExclusiveEffectCard(source *model.Player, effect model.EffectType) (*model.Player, *model.FieldCard) {
+	if r.GameEngine == nil {
+		return nil, nil
+	}
+	return r.findExclusiveEffectCard(source, effect)
+}
+
+func (r roleChoiceRuntime) DetachExclusiveEffectCard(source *model.Player, effect model.EffectType) (*model.Player, model.Card, bool) {
+	if r.GameEngine == nil {
+		return nil, model.Card{}, false
+	}
+	return r.detachExclusiveEffectCard(source, effect)
+}
+
+func (r roleChoiceRuntime) RemoveExclusiveEffectCard(source *model.Player, effect model.EffectType, restoreCard bool) bool {
+	if r.GameEngine == nil {
+		return false
+	}
+	return r.removeExclusiveEffectCard(source, effect, restoreCard)
+}
+
+func (r roleChoiceRuntime) EmitBuffRemovedDispatch(sourceID, targetID string, effect model.EffectType) {
+	if r.GameEngine == nil {
+		return
+	}
+	r.emitBuffRemovedDispatch(sourceID, targetID, effect)
+}
+
+func (r roleChoiceRuntime) InitCombat(attackerID, targetID string, card *model.Card, isForcedHit, canBeResponded, ignoreShield bool, interceptTags map[model.CombatInterceptTag]bool, isCounter ...bool) {
+	if r.GameEngine == nil {
+		return
+	}
+	r.initCombat(attackerID, targetID, card, isForcedHit, canBeResponded, ignoreShield, interceptTags, isCounter...)
+}
+
+func (r roleChoiceRuntime) ResolveMagicBowPierceMiss(attackerID, targetID string, attackCard *model.Card, isCounter bool) {
+	if r.GameEngine == nil {
+		return
+	}
+	r.resolveMagicBowPierceMiss(attackerID, targetID, attackCard, isCounter)
+}
+
+func (r roleChoiceRuntime) HasFixedMaxHandCap(player *model.Player) bool {
+	if r.GameEngine == nil {
+		return false
+	}
+	return bloodpriestesspkg.HasFixedMaxHandCap(r, player)
+}
+
+func (r roleChoiceRuntime) HasMercyFixedMaxHandCap(player *model.Player) bool {
+	if r.GameEngine == nil {
+		return false
+	}
+	return r.hasMercyFixedMaxHandCap(player)
+}
+
+func (r roleChoiceRuntime) RoleFixedMaxHandCapValue(player *model.Player) (int, bool) {
+	if r.GameEngine == nil {
+		return 0, false
+	}
+	return r.roleFixedMaxHandCapValue(player)
+}
+
+func (r roleChoiceRuntime) RefreshAllPlayerDerivedStates() {
+	if r.GameEngine == nil {
+		return
+	}
+	r.refreshAllPlayerDerivedStates()
+}
+
+func (r roleChoiceRuntime) SyncHolyLancerRevelationMaxHeal(player *model.Player) {
+	if r.GameEngine == nil {
+		return
+	}
+	holylancer.SyncRevelationMaxHeal(r, player)
+}
+
+func (r roleChoiceRuntime) BuildContext(user, target *model.Player, timing model.FlowTiming, eventCtx *model.EventContext) *model.Context {
+	if r.GameEngine == nil {
+		return nil
+	}
+	return r.buildContext(user, target, timing, eventCtx)
+}
+
+func (r roleChoiceRuntime) TakeDiscardPileCardByID(cardID string) (model.Card, bool) {
+	if r.GameEngine == nil || cardID == "" {
+		return model.Card{}, false
+	}
+	for i := len(r.State.DiscardPile) - 1; i >= 0; i-- {
+		if r.State.DiscardPile[i].ID != cardID {
+			continue
+		}
+		card := r.State.DiscardPile[i]
+		r.State.DiscardPile = append(r.State.DiscardPile[:i], r.State.DiscardPile[i+1:]...)
+		return card, true
+	}
+	return model.Card{}, false
+}
+func (r roleChoiceRuntime) IsSkillStillUsable(skillID string, user *model.Player, ctx *model.Context) bool {
+	if r.GameEngine == nil || r.dispatcher == nil {
+		return false
+	}
+	return r.dispatcher.isSkillStillUsable(skillID, user, ctx)
+}
+
+func (r roleChoiceRuntime) CurrentTurnPlayerID() string {
+	if r.GameEngine == nil || r.State == nil {
+		return ""
+	}
+	if r.State.CurrentTurn < 0 || r.State.CurrentTurn >= len(r.State.PlayerOrder) {
+		return ""
+	}
+	return r.State.PlayerOrder[r.State.CurrentTurn]
+}
+
+func (r roleChoiceRuntime) RecordMagicDamageTarget(sourceID, targetID string) {
+	if r.GameEngine == nil {
+		return
+	}
+	if r.turnMagicDamageTargets == nil {
+		r.turnMagicDamageTargets = map[string]map[string]bool{}
+	}
+	if _, ok := r.turnMagicDamageTargets[sourceID]; !ok {
+		r.turnMagicDamageTargets[sourceID] = map[string]bool{}
+	}
+	r.turnMagicDamageTargets[sourceID][targetID] = true
+}
+
+func (r roleChoiceRuntime) MagicDamageTargetCount(sourceID string) int {
+	if r.GameEngine == nil || r.turnMagicDamageTargets == nil {
+		return 0
+	}
+	return len(r.turnMagicDamageTargets[sourceID])
+}
+
+func (r roleChoiceRuntime) RecordSkillUsage(playerID, title string, skillType model.SkillType) {
+	if r.GameEngine == nil {
+		return
+	}
+	r.GameEngine.recordSkillUsage(playerID, title, skillType)
+}
+
+func (r roleChoiceRuntime) IsActionSkillUsableForExtraMagic(player *model.Player, skillDef model.SkillDefinition) bool {
+	if r.GameEngine == nil {
+		return false
+	}
+	return r.GameEngine.isActionSkillUsableForExtraMagic(player, skillDef)
+}
+
+func (r roleChoiceRuntime) FighterLockedTarget(player *model.Player) *model.Player {
+	if r.GameEngine == nil {
+		return nil
+	}
+	return r.GameEngine.fighterLockedTarget(player)
+}
+
+func (r roleChoiceRuntime) ClearFighterHundredDragon(player *model.Player, logLine string) bool {
+	if r.GameEngine == nil {
+		return false
+	}
+	return r.GameEngine.clearFighterHundredDragon(player, logLine)
+}
+
+func (r roleChoiceRuntime) CanCastMagicInAction(player *model.Player) bool {
+	if r.GameEngine == nil {
+		return false
+	}
+	return r.GameEngine.canCastMagicInAction(player)
 }
 
 var _ engineplayer.ChoiceRuntime = roleChoiceRuntime{}

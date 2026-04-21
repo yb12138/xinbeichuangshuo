@@ -4,7 +4,6 @@ package prayer_master
 
 import (
 	"starcup-engine/internal/engine/player"
-	skills "starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/types"
 )
@@ -38,13 +37,13 @@ func ApplyDefaults(p *model.Player) {
 // SkillEntries 导出角色技能与策略绑定入口。
 func SkillEntries() []player.SkillEntry {
 	return []player.SkillEntry{
-		{ID: "prayer_enter_form", Handler: &skills.PrayerEnterFormHandler{}},
-		{ID: "prayer_rune_gain", Handler: &skills.PrayerRuneGainHandler{}},
-		{ID: "prayer_radiant_faith", Handler: &skills.PrayerRadiantFaithHandler{}},
-		{ID: "prayer_dark_curse", Handler: &skills.PrayerDarkCurseHandler{}},
-		{ID: "prayer_power_blessing", Handler: &skills.PrayerPowerBlessingHandler{}},
-		{ID: "prayer_swift_blessing", Handler: &skills.PrayerSwiftBlessingHandler{}},
-		{ID: "prayer_mana_tide", Handler: &skills.PrayerManaTideHandler{}},
+		{ID: "prayer_enter_form", Handler: &PrayerEnterFormHandler{}},
+		{ID: "prayer_rune_gain", Handler: &PrayerRuneGainHandler{}},
+		{ID: "prayer_radiant_faith", Handler: &PrayerRadiantFaithHandler{}},
+		{ID: "prayer_dark_curse", Handler: &PrayerDarkCurseHandler{}},
+		{ID: "prayer_power_blessing", Handler: &PrayerPowerBlessingHandler{}},
+		{ID: "prayer_swift_blessing", Handler: &PrayerSwiftBlessingHandler{}},
+		{ID: "prayer_mana_tide", Handler: &PrayerManaTideHandler{}},
 	}
 }
 

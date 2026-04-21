@@ -164,7 +164,7 @@ func (h *FighterHundredDragonHandler) Execute(ctx *model.Context) error {
 	}
 	qi := addToken(ctx.User, "fighter_qi", -3, 0, fighterQiCap)
 	enterForm(ctx.User, model.FormFighterHundredDragon)
-	setToken(ctx.User, "fighter_hundred_dragon_target_order", 0)
+	setSkillFlow(ctx.User, "fighter_hundred_dragon_target_order", 0)
 	ctx.Game.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
@@ -221,7 +221,7 @@ func (h *FighterBurstCrashHandler) Execute(ctx *model.Context) error {
 }
 
 func (h *FighterWarGodDriveHandler) CanUse(ctx *model.Context) bool {
-	return canPayCrystalLike(ctx, 1)
+	return CanPayCrystalLike(ctx, 1)
 }
 
 func (h *FighterWarGodDriveHandler) Execute(ctx *model.Context) error {

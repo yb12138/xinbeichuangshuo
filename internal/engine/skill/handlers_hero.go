@@ -77,7 +77,7 @@ func (h *HeroForbiddenPowerHandler) CanUse(ctx *model.Context) bool {
 	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
-	return canPayCrystalLike(ctx, 1)
+	return CanPayCrystalLike(ctx, 1)
 }
 
 func (h *HeroForbiddenPowerHandler) Execute(ctx *model.Context) error {
@@ -133,7 +133,7 @@ func (h *HeroForbiddenPowerHandler) Execute(ctx *model.Context) error {
 
 	// 精疲力竭：强制进入状态并追加1次攻击行动。
 	enterForm(ctx.User, model.FormHeroExhaustion)
-	setToken(ctx.User, "hero_exhaustion_release_pending", 1)
+	setSkillFlow(ctx.User, "hero_exhaustion_release_pending", 1)
 	addAttackAction(ctx.User, "精疲力竭")
 
 	if isHit {
@@ -171,7 +171,7 @@ func (h *HeroCalmMindHandler) Execute(ctx *model.Context) error {
 		ctx.EventCtx.AttackInfo.CanBeResponded = false
 	}
 	ctx.User.TurnState.UsedSkillCounts["hero_calm_force_no_counter"] = 1
-	setToken(ctx.User, "hero_calm_end_crystal_pending", getToken(ctx.User, "hero_calm_end_crystal_pending")+1)
+	setSkillFlow(ctx.User, "hero_calm_end_crystal_pending", getSkillFlow(ctx.User, "hero_calm_end_crystal_pending")+1)
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [明镜止水]：移除4点知性，本次攻击无法应战（攻击结束时+1水晶）", ctx.User.Name))
 	return nil
 }

@@ -4,7 +4,6 @@ package valkyrie
 
 import (
 	"starcup-engine/internal/engine/player"
-	skills "starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/types"
 )
 
@@ -21,11 +20,11 @@ func RoleEntry() player.RoleEntry {
 // SkillEntries 导出角色技能与策略绑定入口。
 func SkillEntries() []player.SkillEntry {
 	return []player.SkillEntry{
-		{ID: "valkyrie_divine_pursuit", Handler: &skills.ValkyrieDivinePursuitHandler{}},
-		{ID: "valkyrie_order_seal", Handler: &skills.ValkyrieOrderSealHandler{}},
-		{ID: "valkyrie_peace_walker", Handler: &skills.ValkyriePeaceWalkerHandler{}},
-		{ID: "valkyrie_military_glory", Handler: &skills.ValkyrieMilitaryGloryHandler{}},
-		{ID: "valkyrie_heroic_summon", Handler: &skills.ValkyrieHeroicSummonHandler{}},
+		{ID: "valkyrie_divine_pursuit", Handler: &ValkyrieDivinePursuitHandler{}},
+		{ID: "valkyrie_order_seal", Handler: &ValkyrieOrderSealHandler{}},
+		{ID: "valkyrie_peace_walker", Handler: &ValkyriePeaceWalkerHandler{}},
+		{ID: "valkyrie_military_glory", Handler: &ValkyrieMilitaryGloryHandler{}},
+		{ID: "valkyrie_heroic_summon", Handler: &ValkyrieHeroicSummonHandler{}},
 	}
 }
 

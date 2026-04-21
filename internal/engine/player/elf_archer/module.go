@@ -4,7 +4,6 @@ package elf_archer
 
 import (
 	"starcup-engine/internal/engine/player"
-	skills "starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/types"
 )
 
@@ -16,8 +15,11 @@ func RoleEntry() player.RoleEntry {
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
 		TimingHookSpecs: []player.TimingHookSpec{
+			{Timing: player.TimingOnDamageCalculate, Priority: 100, Hook: damageCalculateHook},
 			{Timing: player.TimingPostActionEnd, Priority: 100, Hook: postActionEndHook},
 			{Timing: player.TimingPostAttackHit, Priority: 400, Hook: postAttackHitHook},
+			{Timing: player.TimingPostDamageResolved, Priority: 600, Hook: postDamageResolvedHook},
+			{Timing: player.TimingOnTurnEnd, Priority: 300, Hook: turnEndHook},
 		},
 	}
 }
@@ -25,10 +27,10 @@ func RoleEntry() player.RoleEntry {
 // SkillEntries 导出角色技能与策略绑定入口。
 func SkillEntries() []player.SkillEntry {
 	return []player.SkillEntry{
-		{ID: "elf_elemental_shot", Handler: &skills.ElfElementalShotHandler{}},
-		{ID: "elf_animal_companion", Handler: &skills.ElfAnimalCompanionHandler{}},
-		{ID: "elf_ritual", Handler: &skills.ElfRitualHandler{}},
-		{ID: "elf_pet_empower", Handler: &skills.ElfPetEmpowerHandler{}},
+		{ID: "elf_elemental_shot", Handler: &ElfElementalShotHandler{}},
+		{ID: "elf_animal_companion", Handler: &ElfAnimalCompanionHandler{}},
+		{ID: "elf_ritual", Handler: &ElfRitualHandler{}},
+		{ID: "elf_pet_empower", Handler: &ElfPetEmpowerHandler{}},
 	}
 }
 

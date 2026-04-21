@@ -2,161 +2,77 @@
 
 package engine
 
-import "starcup-engine/internal/model"
+import (
+	"starcup-engine/internal/engine/player"
+	"starcup-engine/internal/model"
+)
 
-func (e *GameEngine) hasUsableActionSkillForExtraMagic(player *model.Player) bool {
-	if player == nil || player.Character == nil {
+func (e *GameEngine) hasUsableActionSkillForExtraMagic(playerObj *model.Player) bool {
+	if playerObj == nil || playerObj.Character == nil {
 		return false
 	}
 
-	for _, skillDef := range player.Character.Skills {
+	for _, skillDef := range playerObj.Character.Skills {
 		if skillDef.Type != model.SkillTypeAction {
 			continue
 		}
-		if e.isActionSkillUsableForExtraMagic(player, skillDef) {
+		if e.isActionSkillUsableForExtraMagic(playerObj, skillDef) {
 			return true
 		}
 	}
 	return false
 }
 
-func (e *GameEngine) isActionSkillUsableForExtraMagic(player *model.Player, skillDef model.SkillDefinition) bool {
+func (e *GameEngine) isActionSkillUsableForExtraMagic(playerObj *model.Player, skillDef model.SkillDefinition) bool {
 	// 回合限定：本回合已用过则不可再用。
-	if model.ContainsSkillTag(skillDef.Tags, model.TagTurnLimit) && player.TurnState.UsedSkillCounts[skillDef.ID] > 0 {
+	if model.ContainsSkillTag(skillDef.Tags, model.TagTurnLimit) && playerObj.TurnState.UsedSkillCounts[skillDef.ID] > 0 {
 		return false
 	}
 	// 资源校验（宝石/水晶）。
-	if !canPaySkillEnergyCost(player, skillDef.CostGem, skillDef.CostCrystal) {
+	if !canPaySkillEnergyCost(playerObj, skillDef.CostGem, skillDef.CostCrystal) {
 		return false
 	}
 	// 独有技：需拥有对应独有牌（手牌或专属卡区）。
-	if skillDef.RequireExclusive && !player.HasExclusiveCard(player.Character.ID, skillDef.Title) {
+	if skillDef.RequireExclusive && !playerObj.HasExclusiveCard(playerObj.Character.ID, skillDef.Title) {
 		return false
 	}
 	// 弃牌成本可达成性。
-	if !e.canSatisfyActionSkillDiscardRequirement(player, skillDef) {
+	if !e.canSatisfyActionSkillDiscardRequirement(playerObj, skillDef) {
 		return false
 	}
 	// 目标可达成性（仅做最小目标数校验）。
-	if !e.hasActionSkillValidTarget(player, skillDef) {
+	if !e.hasActionSkillValidTarget(playerObj, skillDef) {
 		return false
 	}
 
-	// 与前端/房间可用技能筛选保持一致的技能特例。
-	switch skillDef.ID {
-	case "ms_shadow_meteor":
-		// 魔剑士【暗影流星】需要处于暗影形态，且至少可弃2张法术牌。
-		if !hasMagicSwordsmanShadowForm(player) {
-			return false
-		}
-		magicCount := 0
-		for _, card := range player.Hand {
-			if card.Type == model.CardTypeMagic {
-				magicCount++
+	// 角色特定技能可用性检查：通过注册表调用角色包的检查器。
+	if playerObj.Character != nil {
+		checker := roleRegistry.SkillUsabilityChecker(playerObj.Character.ID, skillDef.ID)
+		if checker != nil {
+			if !checker(e, playerObj, skillDef) {
+				return false
 			}
-		}
-		if magicCount < 2 {
-			return false
-		}
-	case "adventurer_fraud":
-		elementCount := map[model.Element]int{}
-		for _, card := range player.Hand {
-			elementCount[card.Element]++
-		}
-		canUseFraud := false
-		for element, count := range elementCount {
-			if element != "" && count >= 2 {
-				canUseFraud = true
-				break
-			}
-			if count >= 3 {
-				canUseFraud = true
-				break
-			}
-		}
-		if !canUseFraud {
-			return false
-		}
-	case "onmyoji_shikigami_descend":
-		factionCount := map[string]int{}
-		hasSameFactionPair := false
-		for _, card := range player.Hand {
-			if card.Faction == "" {
-				continue
-			}
-			factionCount[card.Faction]++
-			if factionCount[card.Faction] >= 2 {
-				hasSameFactionPair = true
-				break
-			}
-		}
-		if !hasSameFactionPair {
-			return false
-		}
-	case "mb_thunder_scatter":
-		if player.TurnState.UsedSkillCounts["mb_charge_lock_turn"] > 0 {
-			return false
-		}
-		if e.countCoverCardsByEffectAndElement(player, model.EffectMagicBowCharge, model.ElementThunder) <= 0 {
-			return false
-		}
-	case "bd_dissonance_chord":
-		inspiration := 0
-		if player.Tokens != nil {
-			inspiration = player.Tokens["bd_inspiration"]
-		}
-		if inspiration <= 1 {
-			return false
-		}
-	case "elementalist_ignite":
-		element := 0
-		if player.Tokens != nil {
-			element = player.Tokens["element"]
-		}
-		if element < 3 {
-			return false
-		}
-	case "holy_lancer_punishment":
-		hasValidTarget := false
-		for _, playerID := range e.State.PlayerOrder {
-			target := e.State.Players[playerID]
-			if target == nil || target.ID == player.ID || target.Heal <= 0 {
-				continue
-			}
-			hasValidTarget = true
-			break
-		}
-		if !hasValidTarget {
-			return false
 		}
 	}
 
 	return true
 }
 
-func (e *GameEngine) canSatisfyActionSkillDiscardRequirement(player *model.Player, skillDef model.SkillDefinition) bool {
-	if skillDef.ID == "priest_water_power" {
-		if len(player.Hand) < 2 {
-			return false
-		}
-		for _, card := range player.Hand {
-			if card.Element == model.ElementWater {
-				return true
-			}
-		}
-		return false
-	}
-
+func (e *GameEngine) canSatisfyActionSkillDiscardRequirement(playerObj *model.Player, skillDef model.SkillDefinition) bool {
 	requiredDiscards := skillDef.CostDiscards
 	if requiredDiscards <= 0 {
 		return true
 	}
 
 	matched := 0
-	for _, card := range player.Hand {
+	for _, card := range playerObj.Hand {
 		effectiveElement := card.Element
-		if skillDef.DiscardElement != "" {
-			effectiveElement = e.blazeWitchAttackElement(player, card)
+		// 如果需要特定元素弃牌，检查是否需要通过角色变换（如苍炎魔女火焰形态）。
+		if skillDef.DiscardElement != "" && playerObj.Character != nil {
+			transformFn := roleRegistry.AttackCardElementTransform(playerObj.Character.ID)
+			if transformFn != nil {
+				effectiveElement = transformFn(playerObj, card)
+			}
 		}
 		if skillDef.DiscardElement != "" && effectiveElement != skillDef.DiscardElement {
 			continue
@@ -167,7 +83,7 @@ func (e *GameEngine) canSatisfyActionSkillDiscardRequirement(player *model.Playe
 		if skillDef.DiscardFate != "" && card.Faction != skillDef.DiscardFate {
 			continue
 		}
-		if skillDef.RequireExclusive && !card.MatchExclusive(player.Character.ID, skillDef.Title) {
+		if skillDef.RequireExclusive && !card.MatchExclusive(playerObj.Character.ID, skillDef.Title) {
 			continue
 		}
 		matched++
@@ -178,7 +94,7 @@ func (e *GameEngine) canSatisfyActionSkillDiscardRequirement(player *model.Playe
 	return false
 }
 
-func (e *GameEngine) hasActionSkillValidTarget(player *model.Player, skillDef model.SkillDefinition) bool {
+func (e *GameEngine) hasActionSkillValidTarget(playerObj *model.Player, skillDef model.SkillDefinition) bool {
 	switch skillDef.TargetType {
 	case model.TargetNone, model.TargetSelf:
 		return true
@@ -204,15 +120,15 @@ func (e *GameEngine) hasActionSkillValidTarget(player *model.Player, skillDef mo
 		}
 		switch skillDef.TargetType {
 		case model.TargetEnemy:
-			if target.Camp != player.Camp {
+			if target.Camp != playerObj.Camp {
 				candidates++
 			}
 		case model.TargetAlly:
-			if target.Camp == player.Camp && target.ID != player.ID {
+			if target.Camp == playerObj.Camp && target.ID != playerObj.ID {
 				candidates++
 			}
 		case model.TargetAllySelf:
-			if target.Camp == player.Camp {
+			if target.Camp == playerObj.Camp {
 				candidates++
 			}
 		case model.TargetAny, model.TargetSpecific:
@@ -223,4 +139,38 @@ func (e *GameEngine) hasActionSkillValidTarget(player *model.Player, skillDef mo
 		}
 	}
 	return false
+}
+
+// SkillUsabilityCheckerEngine 接口实现方法。
+func (e *GameEngine) LookupPlayer(playerID string) *model.Player {
+	if e == nil || e.State == nil {
+		return nil
+	}
+	return e.State.Players[playerID]
+}
+
+func (e *GameEngine) PlayerOrder() []string {
+	if e == nil || e.State == nil {
+		return nil
+	}
+	return e.State.PlayerOrder
+}
+
+func (e *GameEngine) HasForm(p *model.Player, form string) bool {
+	return player.HasForm(p, form)
+}
+
+func (e *GameEngine) IsCharacter(p *model.Player, roleID string) bool {
+	return player.IsCharacter(p, roleID)
+}
+
+func (e *GameEngine) GetToken(p *model.Player, key string) int {
+	if p == nil || p.Tokens == nil {
+		return 0
+	}
+	return p.Tokens[key]
+}
+
+func (e *GameEngine) CountCoverCardsByEffectAndElement(p *model.Player, effect model.EffectType, element model.Element) int {
+	return e.countCoverCardsByEffectAndElement(p, effect, element)
 }

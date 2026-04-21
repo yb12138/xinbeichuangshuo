@@ -3,6 +3,8 @@
 package engine
 
 import (
+	beastsamurai "starcup-engine/internal/engine/player/beast_samurai"
+	moonpkg "starcup-engine/internal/engine/player/moon"
 	"starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 )
@@ -11,7 +13,7 @@ func attackStartMoonGoddessMedusaInterruptHook(e *GameEngine, attacker *model.Pl
 	if e == nil || attacker == nil || target == nil || currentAction == nil {
 		return false
 	}
-	return e.maybeMoonGoddessMedusa(attacker, target, currentAction.SourceSkill, currentAction.Card, userCtx)
+	return moonpkg.MaybeMedusa(newRoleChoiceRuntime(e), attacker, target, currentAction.SourceSkill, currentAction.Card, userCtx)
 }
 
 func actionEndHolySwordInterruptHook(e *GameEngine, ctx *model.Context) bool {
@@ -25,7 +27,7 @@ func augmentBeastSamuraiResponseSkillIDs(sd *SkillDispatcher, skillIDs []string,
 	if sd == nil || sd.engine == nil || ctx == nil || ctx.Timing != model.TimingOnActionEnd || ctx.EventCtx == nil || ctx.EventCtx.ActionType != model.ActionAttack || ctx.User == nil {
 		return skillIDs
 	}
-	if !sd.engine.isBeastSamurai(ctx.User) || ContainsSkillID(skillIDs, "bs_one_strike_no_thought") || sd.engine.beastSamuraiZanshin(ctx.User) < beastSamuraiZanshinCapEngine {
+	if !isCharacter(ctx.User, "beast_samurai") || ContainsSkillID(skillIDs, "bs_one_strike_no_thought") || beastsamurai.Zanshin(ctx.User) < beastsamurai.ZanshinCap {
 		return skillIDs
 	}
 	skillDef := findCharacterSkill(ctx.User.Character, "bs_one_strike_no_thought")
@@ -43,7 +45,7 @@ func normalizeFighterResponseSkillIDs(sd *SkillDispatcher, skillIDs []string, ct
 	if sd == nil || sd.engine == nil || len(skillIDs) <= 1 || ctx == nil || ctx.User == nil {
 		return skillIDs
 	}
-	if ctx.Timing != model.TimingOnAttackDeclared || !sd.engine.isFighter(ctx.User) || ctx.EventCtx == nil || ctx.EventCtx.AttackInfo == nil || ctx.EventCtx.AttackInfo.CounterInitiator != "" {
+	if ctx.Timing != model.TimingOnAttackDeclared || !isCharacter(ctx.User, "fighter") || ctx.EventCtx == nil || ctx.EventCtx.AttackInfo == nil || ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return skillIDs
 	}
 	hasCharge := false

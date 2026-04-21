@@ -67,8 +67,8 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			Max:      1,
 		}
 	case "sage_magic_rebound_cards", "sage_arcane_cards", "sage_holy_cards":
-		remaining := parseIntSliceContextValue(data["remaining_indices"])
-		selectedCount := len(parseIntSliceContextValue(data["selected_indices"]))
+		remaining := ParseIntSliceContextValue(data["remaining_indices"])
+		selectedCount := len(ParseIntSliceContextValue(data["selected_indices"]))
 		targetCount := runtimeutil.ToIntContextValue(data["x_value"])
 		options := make([]model.PromptOption, 0, len(remaining))
 		for _, idx := range remaining {
@@ -280,8 +280,8 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		if xValue <= 0 {
 			return true, fmt.Errorf("X值无效")
 		}
-		remaining := parseIntSliceContextValue(ctxData["remaining_indices"])
-		selected := parseIntSliceContextValue(ctxData["selected_indices"])
+		remaining := ParseIntSliceContextValue(ctxData["remaining_indices"])
+		selected := ParseIntSliceContextValue(ctxData["selected_indices"])
 		cardIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, remaining)
 		if !ok || cardIdx < 0 || cardIdx >= len(user.Hand) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
@@ -420,7 +420,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 			return true, nil
 		}
 
-		selectedCards := parseIntSliceContextValue(ctxData["selected_indices"])
+		selectedCards := ParseIntSliceContextValue(ctxData["selected_indices"])
 		xValue := runtimeutil.ToIntContextValue(ctxData["x_value"])
 		if xValue <= 2 || len(selectedCards) != xValue {
 			return true, fmt.Errorf("圣洁法典弃牌参数无效")
@@ -462,7 +462,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		if selectionIndex < 0 || selectionIndex >= len(targetIDs) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
-		selected := parseIntSliceContextValue(ctxData["selected_indices"])
+		selected := ParseIntSliceContextValue(ctxData["selected_indices"])
 		xValue := runtimeutil.ToIntContextValue(ctxData["x_value"])
 		if xValue <= 1 || len(selected) != xValue {
 			return true, fmt.Errorf("弃牌参数无效")
@@ -643,7 +643,7 @@ func getCardIndicesByElement(player *model.Player, element model.Element) []int 
 	return out
 }
 
-func parseIntSliceContextValue(raw interface{}) []int {
+func ParseIntSliceContextValue(raw interface{}) []int {
 	result := make([]int, 0)
 	switch value := raw.(type) {
 	case []int:

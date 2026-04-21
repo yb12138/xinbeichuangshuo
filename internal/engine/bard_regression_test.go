@@ -3,6 +3,8 @@ package engine
 import (
 	"testing"
 
+	bardpkg "starcup-engine/internal/engine/player/bard"
+
 	"starcup-engine/internal/data"
 	"starcup-engine/internal/model"
 )
@@ -248,7 +250,7 @@ func TestBardHopeFugue_PlaceUsesPlayedCardAsEternalMovement(t *testing.T) {
 		t.Fatalf("choose place target failed: %v", err)
 	}
 
-	if holder := game.bardEternalHolderID(bard); holder != "p2" {
+	if holder := bardpkg.EternalHolderID(newRoleChoiceRuntime(game), bard); holder != "p2" {
 		t.Fatalf("expected eternal movement holder p2, got %q", holder)
 	}
 	fieldCard := findFieldEffectCard(ally, model.EffectBardEternalMovement)
@@ -285,7 +287,7 @@ func TestBardHopeFugue_TransferMovesExistingEternalMovementAndGainsInspiration(t
 	bard.Hand = []model.Card{
 		bardTestCard("discard", "弃牌", model.CardTypeAttack, model.ElementFire),
 	}
-	if err := game.placeBardEternalMovement(bard, allyA); err != nil {
+	if err := bardpkg.PlaceEternalMovement(newRoleChoiceRuntime(game), bard, allyA); err != nil {
 		t.Fatalf("place initial eternal movement failed: %v", err)
 	}
 	game.State.CurrentTurn = 0
@@ -311,7 +313,7 @@ func TestBardHopeFugue_TransferMovesExistingEternalMovementAndGainsInspiration(t
 		t.Fatalf("choose transfer discard failed: %v", err)
 	}
 
-	if holder := game.bardEternalHolderID(bard); holder != "p3" {
+	if holder := bardpkg.EternalHolderID(newRoleChoiceRuntime(game), bard); holder != "p3" {
 		t.Fatalf("expected eternal movement holder p3 after transfer, got %q", holder)
 	}
 	if findFieldEffectCard(allyA, model.EffectBardEternalMovement) != nil {
@@ -346,7 +348,7 @@ func TestBardRousingRhapsody_OnBardTurnStartRunsForbiddenVerse(t *testing.T) {
 	bard := game.State.Players["p1"]
 	ally := game.State.Players["p2"]
 	addBardExclusiveCardsForTest(bard, "激昂狂想曲")
-	if err := game.placeBardEternalMovement(bard, ally); err != nil {
+	if err := bardpkg.PlaceEternalMovement(newRoleChoiceRuntime(game), bard, ally); err != nil {
 		t.Fatalf("place eternal movement failed: %v", err)
 	}
 
@@ -376,7 +378,7 @@ func TestBardRousingRhapsody_OnBardTurnStartRunsForbiddenVerse(t *testing.T) {
 	if got := bard.Tokens["bd_inspiration"]; got != 1 {
 		t.Fatalf("expected forbidden verse add inspiration to 1, got %d", got)
 	}
-	if holder := game.bardEternalHolderID(bard); holder != "" {
+	if holder := bardpkg.EternalHolderID(newRoleChoiceRuntime(game), bard); holder != "" {
 		t.Fatalf("expected eternal movement removed by forbidden verse, holder=%q", holder)
 	}
 	if got := len(game.State.PendingDamageQueue); got != 2 {
@@ -403,7 +405,7 @@ func TestBardVictorySymphony_AtInspirationCapEntersPrisonerAndSelfDamages(t *tes
 	ally := game.State.Players["p2"]
 	addBardExclusiveCardsForTest(bard, "胜利交响诗")
 	bard.Tokens["bd_inspiration"] = 3
-	if err := game.placeBardEternalMovement(bard, ally); err != nil {
+	if err := bardpkg.PlaceEternalMovement(newRoleChoiceRuntime(game), bard, ally); err != nil {
 		t.Fatalf("place eternal movement failed: %v", err)
 	}
 
@@ -460,7 +462,7 @@ func TestBardVictorySymphony_ExtractStoneChoosesGemOrCrystal(t *testing.T) {
 			bard := game.State.Players["p1"]
 			ally := game.State.Players["p2"]
 			addBardExclusiveCardsForTest(bard, "胜利交响诗")
-			if err := game.placeBardEternalMovement(bard, ally); err != nil {
+			if err := bardpkg.PlaceEternalMovement(newRoleChoiceRuntime(game), bard, ally); err != nil {
 				t.Fatalf("place eternal movement failed: %v", err)
 			}
 			game.State.RedGems = tc.gems

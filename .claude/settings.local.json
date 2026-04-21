@@ -27,7 +27,30 @@
       "Bash(xargs -I{} bash -c 'echo \"$\\(basename $\\(dirname {}\\)\\)\"; grep \"Choices:\" {}')",
       "Bash(grep -v \":0$\")",
       "Bash(awk -F: '{sum+=$2} END {print sum \" total functions\"}')",
-      "Bash(xxd)"
+      "Bash(xxd)",
+      "Bash(xxd /Users/yb/xinbeichuangshuo/internal/engine/player/role_entry.go)",
+      "Bash(go vet *)",
+      "Bash(ls internal/engine/skill_flow_*.go)",
+      "Bash(ls internal/engine/player/*/defaults.go)",
+      "Bash(ls internal/engine/player/*/starter_cards.go)",
+      "Bash(ls internal/engine/player/*/helpers.go)",
+      "Bash(ls internal/engine/player/*/interrupt*.go)",
+      "Bash(ls internal/engine/role_defaults.go internal/engine/starter_role_cards.go internal/engine/new_roles_*_helpers.go internal/engine/interrupt_prompt_*.go internal/engine/interrupt_response_*.go)",
+      "Bash(ls internal/engine/new_roles_*_helpers.go)",
+      "Bash(ls internal/engine/interrupt_*.go)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(grep -E \"--- FAIL\")",
+      "Bash(grep -rn \"StarterCards\\\\|func StarterCards\" internal/engine/player/*/module.go internal/engine/player/*/starter_cards.go)",
+      "Bash(ls internal/engine/*_regression_test.go)",
+      "Bash(grep -rl 'isCharacter.*\"angel\"\\\\|\"archer\"\\\\|\"assassin\"\\\\|\"bard\"\\\\|\"beast_samurai\"\\\\|\"berserker\"\\\\|\"blaze_witch\"\\\\|\"blood_priestess\"\\\\|\"butterfly_dancer\"\\\\|\"crimson_knight\"\\\\|\"crimson_sword_spirit\"\\\\|\"elementalist\"\\\\|\"elf_archer\"\\\\|\"fighter\"\\\\|\"hero\"\\\\|\"holy_bow\"\\\\|\"holy_lancer\"\\\\|\"magic_bow\"\\\\|\"magic_lancer\"\\\\|\"magic_swordsman\"\\\\|\"magical_girl\"\\\\|\"moon_goddess\"\\\\|\"onmyoji\"\\\\|\"plague_mage\"\\\\|\"prayer_master\"\\\\|\"priest\"\\\\|\"sage\"\\\\|\"saintess\"\\\\|\"sealer\"\\\\|\"soul_sorcerer\"\\\\|\"spirit_caster\"\\\\|\"sword_emperor\"\\\\|\"valkyrie\"\\\\|\"war_homunculus\"\\\\|\"adventurer\"\\\\|\"arbiter\"\\\\|\"blade_master\"' internal/engine/*.go)",
+      "Bash(grep -l 'func newTest\\\\|func setupTest\\\\|func makeTest\\\\|noopObserver\\\\|mustHandleAction\\\\|requireChoicePrompt\\\\|requireResponseSkillPrompt\\\\|chooseResponseSkillByID\\\\|requireResponseSkill' internal/engine/*_regression_test.go)",
+      "Bash(grep -l \"StarterCards:\" internal/engine/player/*/module.go)",
+      "Bash(ls:*)",
+      "Bash(grep:*)",
+      "Bash(sed -n '177,922p' internal/engine/skill/handlers_roles_18_22.go)",
+      "Read(//tmp/**)",
+      "Bash(sort -t/ -k6)",
+      "Bash(awk '{print $5, $NF}')"
     ]
   }
 }

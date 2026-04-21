@@ -593,7 +593,7 @@ func TestHeroExhaustion_ReleaseAtActionStartAndSelfDamage_StillCanAct(t *testing
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
 	p1.Form = model.FormHeroExhaustion
-	p1.Tokens["hero_exhaustion_release_pending"] = 1
+	p1.TurnState.SkillFlowState["hero_exhaustion_release_pending"] = 1
 	p1.Hand = nil
 	game.State.Deck = []model.Card{
 		heroTestCard("d1", "起手攻击", model.CardTypeAttack, model.ElementFire, 2),
@@ -610,7 +610,7 @@ func TestHeroExhaustion_ReleaseAtActionStartAndSelfDamage_StillCanAct(t *testing
 	if got := p1.Form; got != "" {
 		t.Fatalf("expected exhaustion form released at action start, got %q", got)
 	}
-	if got := p1.Tokens["hero_exhaustion_release_pending"]; got != 0 {
+	if got := p1.TurnState.SkillFlowState["hero_exhaustion_release_pending"]; got != 0 {
 		t.Fatalf("expected exhaustion release pending flag cleared, got %d", got)
 	}
 	if got := len(p1.Hand); got != 3 {
@@ -651,7 +651,7 @@ func TestHeroExhaustion_ReleaseWithOverflow_StillStartsTurnNormally(t *testing.T
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
 	p1.Form = model.FormHeroExhaustion
-	p1.Tokens["hero_exhaustion_release_pending"] = 1
+	p1.TurnState.SkillFlowState["hero_exhaustion_release_pending"] = 1
 	p1.Hand = []model.Card{
 		heroTestCard("h1", "手牌1", model.CardTypeAttack, model.ElementFire, 2),
 		heroTestCard("h2", "手牌2", model.CardTypeAttack, model.ElementWater, 2),

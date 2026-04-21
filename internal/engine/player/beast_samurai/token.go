@@ -25,8 +25,11 @@ func AddBeastSoul(p *model.Player, delta int, ignoreCap bool) int {
 	return player.AddTokenIgnoreCap(p, "bs_beast_soul", delta, BeastSoulCap, ignoreCap)
 }
 
-// ClearAttackTokens zeros the reversal-pending token.
+// ClearAttackTokens zeros the reversal-pending state marker.
 func ClearAttackTokens(p *model.Player) {
 	player.EnsurePlayerTokensMap(p)
-	p.Tokens["bs_reversal_pending_x"] = 0
+	if p.TurnState.SkillFlowState == nil {
+		p.TurnState.SkillFlowState = map[string]int{}
+	}
+	p.TurnState.SkillFlowState["bs_reversal_pending_x"] = 0
 }

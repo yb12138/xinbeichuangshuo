@@ -4,7 +4,6 @@ package holy_bow
 
 import (
 	"starcup-engine/internal/engine/player"
-	skills "starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/types"
 )
@@ -18,7 +17,11 @@ func RoleEntry() player.RoleEntry {
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
 		TimingHookSpecs: []player.TimingHookSpec{
+			{Timing: player.TimingOnTurnStart, Priority: 100, Hook: turnStartResetHook},
+			{Timing: player.TimingOnDamageCalculate, Priority: 700, Hook: damageCalculateHook},
 			{Timing: player.TimingPostAttackHit, Priority: 100, Hook: postAttackHitHook},
+			{Timing: player.TimingOnTurnEndFinal, Priority: 800, Hook: turnEndAutoFillHook},
+			{Timing: player.TimingOnAttackMiss, Priority: 400, Hook: attackMissHook},
 		},
 	}
 }
@@ -40,13 +43,13 @@ func ApplyDefaults(p *model.Player) {
 // SkillEntries 导出角色技能与策略绑定入口。
 func SkillEntries() []player.SkillEntry {
 	return []player.SkillEntry{
-		{ID: "hb_heavenly_bow", Handler: &skills.HolyBowHeavenlyBowHandler{}},
-		{ID: "hb_holy_shard_storm", Handler: &skills.HolyBowShardStormHandler{}},
-		{ID: "hb_radiant_descent", Handler: &skills.HolyBowRadiantDescentHandler{}},
-		{ID: "hb_light_burst", Handler: &skills.HolyBowLightBurstHandler{}},
-		{ID: "hb_meteor_bullet", Handler: &skills.HolyBowMeteorBulletHandler{}},
-		{ID: "hb_radiant_cannon", Handler: &skills.HolyBowRadiantCannonHandler{}},
-		{ID: "hb_auto_fill", Handler: &skills.HolyBowAutoFillHandler{}},
+		{ID: "hb_heavenly_bow", Handler: &HolyBowHeavenlyBowHandler{}},
+		{ID: "hb_holy_shard_storm", Handler: &HolyBowShardStormHandler{}},
+		{ID: "hb_radiant_descent", Handler: &HolyBowRadiantDescentHandler{}},
+		{ID: "hb_light_burst", Handler: &HolyBowLightBurstHandler{}},
+		{ID: "hb_meteor_bullet", Handler: &HolyBowMeteorBulletHandler{}},
+		{ID: "hb_radiant_cannon", Handler: &HolyBowRadiantCannonHandler{}},
+		{ID: "hb_auto_fill", Handler: &HolyBowAutoFillHandler{}},
 	}
 }
 

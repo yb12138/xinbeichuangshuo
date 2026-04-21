@@ -1,4 +1,5 @@
-// gameflow: 按角色身份挂载的承伤/转伤钩子。
+// gameflow: 按角色身份挂载的承伤/转伤/命中钩子。
+// 合并自 damage_attack_hit_hooks.go。
 
 package engine
 
@@ -6,9 +7,31 @@ import (
 	"fmt"
 	"strings"
 
+	engineplayer "starcup-engine/internal/engine/player"
+	butterflydancer "starcup-engine/internal/engine/player/butterfly_dancer"
+	soulsorcererpkg "starcup-engine/internal/engine/player/soul_sorcerer"
+	swordemperor "starcup-engine/internal/engine/player/sword_emperor"
 	"starcup-engine/internal/model"
 )
 
+// ---------- 命中判定规则（原 damage_attack_hit_hooks.go） ----------
+
+// applyTimingOnHitCheckPendingDamageAttackHitRules 在命中判定时处理攻击伤害命中规则。
+func (e *GameEngine) applyTimingOnHitCheckPendingDamageAttackHitRules(pd *model.PendingDamage, attacker *model.Player, victim *model.Player) {
+	pendingDamageBerserkerBloodRoarHook(e, pd, attacker, victim)
+}
+
+func pendingDamageBerserkerBloodRoarHook(e *GameEngine, pd *model.PendingDamage, attacker *model.Player, victim *model.Player) {
+	if e == nil || pd == nil || attacker == nil || victim == nil || pd.IsCounter || !isCharacter(attacker, "berserker") || victim.Heal != 2 {
+		return
+	}
+	pd.SetInterceptTag(model.CombatInterceptForceHit)
+	pd.SetInterceptTag(model.CombatInterceptIgnoreHolyShield)
+	pd.IgnoreHeal = true
+	e.Log(fmt.Sprintf("%s 发动 [血腥咆哮]！目标治疗剂为2，强制命中且无视圣盾", attacker.Name))
+}
+
+// ---------- 承伤/转伤钩子类型 ----------
 type pendingDamageAttackInitHook func(e *GameEngine, pd *model.PendingDamage, attacker *model.Player, victim *model.Player)
 type pendingDamageBeforeTakenHook func(e *GameEngine, pd *model.PendingDamage) bool
 type pendingDamageAfterTakenHook func(e *GameEngine, pd *model.PendingDamage) bool
@@ -72,6 +95,14 @@ func (e *GameEngine) applyTimingOnDamageTakenAfterApplyRules(pd *model.PendingDa
 	for _, hook := range e.damageTakenAfterApplyHooks {
 		hook(e, pd, target)
 	}
+	// 伤害应用后清理已迁移到 TimingOnDamageAfterApply TimingHookSpec。
+	if pd != nil && target != nil {
+		e.dispatchAllRoleTimingHooks(engineplayer.TimingOnDamageAfterApply, engineplayer.TimingHookContext{
+			SourceID:      pd.SourceID,
+			TargetID:      target.ID,
+			PendingDamage: pd,
+		})
+	}
 }
 
 // applyTimingOnDamageTakenAfterResolvedRules 在整次伤害出队后处理结算后规则。
@@ -84,29 +115,11 @@ func (e *GameEngine) applyTimingOnDamageTakenAfterResolvedRules(pd *model.Pendin
 	return false
 }
 
-func pendingDamageHeroRoarMissArmHook(e *GameEngine, pd *model.PendingDamage, attacker *model.Player, _ *model.Player) {
-	if e == nil || pd == nil || attacker == nil || !e.isHero(attacker) {
-		return
-	}
-	if attacker.TurnState.UsedSkillCounts["hero_roar_active"] > 0 {
-		pd.SetCheck(model.PendingDamageCheckHeroRoarMissArmed, true)
-	}
-}
-
-func pendingDamageFighterChargeMissArmHook(e *GameEngine, pd *model.PendingDamage, attacker *model.Player, _ *model.Player) {
-	if e == nil || pd == nil || attacker == nil || !e.isFighter(attacker) || attacker.Tokens == nil {
-		return
-	}
-	if attacker.TurnState.SkillFlowState["fighter_charge_pending"] > 0 {
-		pd.SetCheck(model.PendingDamageCheckFighterChargeMissArmed, true)
-	}
-}
-
 func pendingDamageSoulLinkTransferHook(e *GameEngine, pd *model.PendingDamage) bool {
 	if e == nil || pd == nil {
 		return false
 	}
-	return e.maybeSoulLinkTransfer(pd)
+	return soulsorcererpkg.MaybeSoulLinkTransfer(newRoleChoiceRuntime(e), pd)
 }
 
 // 剑帝命中后置：承伤触发后、治疗抵伤前执行命中分支。
@@ -115,7 +128,7 @@ func pendingDamageSwordEmperorAfterTakenHook(e *GameEngine, pd *model.PendingDam
 	if e == nil || pd == nil || pd.AttackPostHitEffectsDone || pd.HasCheck(model.PendingDamageCheckAttackMissResolved) || !strings.EqualFold(string(pd.DamageType), string(model.AttackDamage)) {
 		return false
 	}
-	e.resolveSwordEmperorAttackHitAftermath(pd)
+	swordemperor.ResolveAttackHitAftermath(newRoleChoiceRuntime(e), pd)
 	pd.AttackPostHitEffectsDone = true
 	return false
 }
@@ -125,7 +138,7 @@ func pendingDamageButterflyBeforeApplyHook(e *GameEngine, pd *model.PendingDamag
 	if e == nil || pd == nil {
 		return false
 	}
-	return e.maybeButterflyDamageResponses(pd)
+	return butterflydancer.MaybeDamageResponses(newRoleChoiceRuntime(e), pd)
 }
 
 // pendingDamageHealResistGateHook 统一承载“治疗抵伤门禁”的角色技能规则。
@@ -161,47 +174,11 @@ func (e *GameEngine) applyTimingOnDamageCalculatedHealResistRules(pd *model.Pend
 	return false
 }
 
-// 血蔷薇庭院：场上效果在场期间，所有伤害均不可被治疗抵伤。
-func pendingDamageRoseCourtyardHealResistRule(e *GameEngine, _ *model.PendingDamage, _ *model.Player) bool {
-	return e != nil && e.isRoseCourtyardActive()
-}
-
-// 红莲骑士：仅允许“腥红信仰白名单”中的自伤使用治疗抵御。
-func pendingDamageCrimsonKnightHealResistRule(e *GameEngine, pd *model.PendingDamage, target *model.Player) bool {
-	if e == nil || pd == nil || target == nil || !e.isCrimsonKnight(target) {
-		return false
-	}
-	return target.ID != pd.SourceID || !pd.AllowCrimsonFaithHeal
-}
-
-// 瘟疫法师圣渎：攻击伤害不可用治疗抵挡，法术伤害可以。
-func pendingDamagePlagueMageHealResistRule(e *GameEngine, pd *model.PendingDamage, target *model.Player) bool {
-	if e == nil || pd == nil || target == nil || !e.isPlagueMage(target) {
-		return false
-	}
-	return pd.DamageType == model.AttackDamage
-}
-
 func pendingDamagePriestHealCapHook(e *GameEngine, _ *model.PendingDamage, target *model.Player, maxHeal int) int {
-	if e == nil || target == nil || !e.isPriest(target) || maxHeal <= 1 {
+	if e == nil || target == nil || !isCharacter(target, "priest") || maxHeal <= 1 {
 		return maxHeal
 	}
 	return 1
-}
-
-func pendingDamageResetCrimsonSwordSpiritLocksHook(_ *GameEngine, _ *model.PendingDamage, target *model.Player) {
-	if target == nil || target.Tokens == nil {
-		return
-	}
-	target.Tokens["css_blood_barrier_lock"] = 0
-}
-
-func pendingDamageResetBlazeWitchLocksHook(_ *GameEngine, _ *model.PendingDamage, target *model.Player) {
-	if target == nil || target.Tokens == nil {
-		return
-	}
-	target.Tokens["bw_substitute_lock"] = 0
-	target.Tokens["bw_mana_inversion_lock"] = 0
 }
 
 // 封印师五系封印：伤害应用后结算封印牌移除。

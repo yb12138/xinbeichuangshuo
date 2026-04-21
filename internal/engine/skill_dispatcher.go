@@ -1,4 +1,4 @@
-// gameflow: SkillDispatcher 薄 facade，代理到 runtime/skill。
+// gameflow: SkillDispatcher、技能注册、策略钩子、后置钩子。
 
 package engine
 
@@ -6,8 +6,12 @@ import (
 	"fmt"
 
 	skillrt "starcup-engine/internal/engine/runtime/skill"
+	"starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
+	"starcup-engine/internal/types"
 )
+
+// ---------- SkillDispatcher（薄 facade） ----------
 
 // SkillDispatcher 统一技能调度器（薄 facade）。
 type SkillDispatcher struct {
@@ -86,4 +90,105 @@ func (sd *SkillDispatcher) getOtherUsableSkills(currentSkillID string, player *m
 		ctx,
 		sd.engine.State.PendingInterrupt.SkillIDs,
 	)
+}
+
+// ---------- 技能注册（原 skill_registry.go） ----------
+
+type playerSkillRegistrarAdapter struct{}
+
+func (playerSkillRegistrarAdapter) Register(id string, handler model.SkillHandler) {
+	skills.Register(id, handler)
+}
+
+func registerRoleEntrySkills() {
+	for _, entry := range roleRegistry.Entries() {
+		for _, skill := range entry.Skills {
+			if skill.ID != "" && skill.Handler != nil {
+				skills.Register(skill.ID, skill.Handler)
+			}
+		}
+	}
+}
+
+func init() {
+	skills.Register("holy_shield", &skills.HolyShieldHandler{})
+	registerRoleEntrySkills()
+}
+
+// ---------- 技能通用工具（原 skill_runtime_utils.go） ----------
+
+// ContainsSkillID 判断列表中是否包含指定技能 ID。
+func ContainsSkillID(skillIDs []string, skillID string) bool {
+	for _, id := range skillIDs {
+		if id == skillID {
+			return true
+		}
+	}
+	return false
+}
+
+// ---------- 技能策略钩子（原 skill_use_policy.go） ----------
+
+// 类型别名，保持 engine 包内兼容性。
+type SkillPolicy = types.SkillPolicy
+type PolicyContext = types.PolicyContext
+type PolicyHost = types.PolicyHost
+type BeginSkillFollowupReq = types.BeginSkillFollowupReq
+
+var skillUsePolicies = map[string]SkillPolicy{}
+
+func init() {
+	mountPlayerSkillPolicySpecs(skillUsePolicies)
+}
+
+func resolveSkillUsePolicy(skillID string) SkillPolicy {
+	if policy, ok := skillUsePolicies[skillID]; ok {
+		return policy
+	}
+	return SkillPolicy{}
+}
+
+func hasBasicFieldEffect(player *model.Player) bool {
+	if player == nil {
+		return false
+	}
+	for _, fc := range player.Field {
+		if fc == nil || fc.Mode != model.FieldEffect {
+			continue
+		}
+		if model.IsBasicEffect(string(fc.Effect)) {
+			return true
+		}
+	}
+	return false
+}
+
+// ---------- 技能后置钩子（原 skill_post_runtime.go） ----------
+
+// skillPostHook 在技能主动发动成功并完成基础收尾后执行。
+type skillPostHook func(e *GameEngine, use *skillUseRequest)
+
+func (e *GameEngine) runTimingOnActionEndSkillPost(use *skillUseRequest) {
+	if e == nil || use == nil {
+		return
+	}
+	for _, hook := range e.skillPostHooks {
+		hook(e, use)
+	}
+}
+
+func skillPostArbiterForcedDoomsdayCleanupHook(e *GameEngine, use *skillUseRequest) {
+	if e == nil || use == nil || use.player == nil {
+		return
+	}
+	if use.skillID != "arbiter_doomsday" {
+		return
+	}
+	player := use.player
+	if player.TurnState.UsedSkillCounts["arbiter_forced_doomsday_pending"] <= 0 {
+		return
+	}
+	player.TurnState.UsedSkillCounts["arbiter_forced_doomsday_pending"] = 0
+	player.TurnState.UsedSkillCounts["arbiter_forced_doomsday_done_turn"] = 1
+	consumeHeroTauntRestriction(e, player)
 }

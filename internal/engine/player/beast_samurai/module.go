@@ -4,7 +4,6 @@ package beast_samurai
 
 import (
 	"starcup-engine/internal/engine/player"
-	skills "starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/types"
 )
@@ -18,8 +17,12 @@ func RoleEntry() player.RoleEntry {
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
 		TimingHookSpecs: []player.TimingHookSpec{
+			{Timing: player.TimingOnDamageCalculate, Priority: 900, Hook: damageCalculateHook},
+			{Timing: player.TimingOnAttackStateReset, Priority: 100, Hook: attackStateResetHook},
+			{Timing: player.TimingOnAttackGating, Priority: 300, Hook: attackGatingHook},
 			{Timing: player.TimingPostAttackHit, Priority: 200, Hook: postAttackHitHook},
 			{Timing: player.TimingPostDamageResolved, Priority: 100, Hook: postDamageResolvedHook},
+			{Timing: player.TimingOnTurnEnd, Priority: 100, Hook: turnEndHook},
 		},
 	}
 }
@@ -34,24 +37,23 @@ func ApplyDefaults(p *model.Player) {
 	}
 	p.Tokens["bs_zanshin"] = 0
 	p.Tokens["bs_beast_soul"] = 0
-	p.Tokens["bs_reversal_pending_x"] = 0
 }
 
 // SkillEntries 导出角色技能与策略绑定入口。
 func SkillEntries() []player.SkillEntry {
 	return []player.SkillEntry{
-		{ID: "bs_warrior_zanshin", Handler: &skills.BeastSamuraiWarriorZanshinHandler{}},
-		{ID: "bs_one_strike_no_thought", Handler: &skills.BeastSamuraiOneStrikeNoThoughtHandler{}},
-		{ID: "bs_one_strike_intercept", Handler: &skills.BeastSamuraiOneStrikeInterceptHandler{}},
-		{ID: "bs_beast_soul_will", Handler: &skills.BeastSamuraiBeastSoulWillHandler{}},
-		{ID: "bs_beast_soul_alert", Handler: &skills.BeastSamuraiBeastSoulAlertHandler{}},
-		{ID: "bs_beast_return", Handler: &skills.BeastSamuraiBeastReturnHandler{}},
-		{ID: "bs_iaijutsu_turn_end_drain", Handler: &skills.BeastSamuraiIaijutsuTurnEndDrainHandler{}},
-		{ID: "bs_iaijutsu_exit_on_deal_damage", Handler: &skills.BeastSamuraiIaijutsuExitOnDealDamageHandler{}},
-		{ID: "bs_iaijutsu_exit_on_zero", Handler: &skills.BeastSamuraiIaijutsuExitOnZeroHandler{}},
-		{ID: "bs_iaijutsu_tapped_target_boost", Handler: &skills.BeastSamuraiIaijutsuTappedBoostHandler{}},
-		{ID: "bs_reversal_iaijutsu", Handler: &skills.BeastSamuraiReversalIaijutsuSlashHandler{}},
-		{ID: "bs_iaijutsu_style", Handler: &skills.BeastSamuraiIaijutsuStyleHandler{}},
+		{ID: "bs_warrior_zanshin", Handler: &BeastSamuraiWarriorZanshinHandler{}},
+		{ID: "bs_one_strike_no_thought", Handler: &BeastSamuraiOneStrikeNoThoughtHandler{}},
+		{ID: "bs_one_strike_intercept", Handler: &BeastSamuraiOneStrikeInterceptHandler{}},
+		{ID: "bs_beast_soul_will", Handler: &BeastSamuraiBeastSoulWillHandler{}},
+		{ID: "bs_beast_soul_alert", Handler: &BeastSamuraiBeastSoulAlertHandler{}},
+		{ID: "bs_beast_return", Handler: &BeastSamuraiBeastReturnHandler{}},
+		{ID: "bs_iaijutsu_turn_end_drain", Handler: &BeastSamuraiIaijutsuTurnEndDrainHandler{}},
+		{ID: "bs_iaijutsu_exit_on_deal_damage", Handler: &BeastSamuraiIaijutsuExitOnDealDamageHandler{}},
+		{ID: "bs_iaijutsu_exit_on_zero", Handler: &BeastSamuraiIaijutsuExitOnZeroHandler{}},
+		{ID: "bs_iaijutsu_tapped_target_boost", Handler: &BeastSamuraiIaijutsuTappedBoostHandler{}},
+		{ID: "bs_reversal_iaijutsu", Handler: &BeastSamuraiReversalIaijutsuSlashHandler{}},
+		{ID: "bs_iaijutsu_style", Handler: &BeastSamuraiIaijutsuStyleHandler{}},
 	}
 }
 

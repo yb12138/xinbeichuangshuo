@@ -7,7 +7,10 @@ import (
 	"sort"
 	"starcup-engine/internal/engine/core/runtimeutil"
 
+	playerpkg "starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
+
+	magiclancer "starcup-engine/internal/engine/player/magic_lancer"
 )
 
 type discardPhaseCandidate int
@@ -23,7 +26,7 @@ func (e *GameEngine) handleDiscardSelection(playerID string, indices []int, data
 	if len(indices) != discardCount {
 		return fmt.Errorf("需要选择 %d 张牌丢弃，你选择了 %d 张", discardCount, len(indices))
 	}
-	if allowed := parseIntSliceContextValue(data["remaining_indices"]); len(allowed) > 0 {
+	if allowed := playerpkg.ParseIntSliceContextValue(data["remaining_indices"]); len(allowed) > 0 {
 		allowedSet := make(map[int]struct{}, len(allowed))
 		for _, idx := range allowed {
 			allowedSet[idx] = struct{}{}
@@ -136,7 +139,7 @@ func (e *GameEngine) resolveDiscardSelectionMoraleLoss(player *model.Player, dis
 		return 0, false, nil
 	}
 
-	if (fromDamageDraw || isDamageResolution) && e.isCrimsonKnight(victim) && hasCrimsonKnightHotBloodedForm(victim) {
+	if (fromDamageDraw || isDamageResolution) && isCharacter(victim, "crimson_knight") && hasCrimsonKnightHotBloodedForm(victim) {
 		moraleLoss = 0
 	}
 
@@ -238,8 +241,8 @@ func (e *GameEngine) handleDiscardSelectionFollowups(player *model.Player, data 
 		return true, nil
 	}
 
-	if e.isMagicLancer(player) && player.TurnState.SkillFlowState != nil && player.TurnState.SkillFlowState["ml_stardust_wait_discard"] > 0 {
-		e.resolveMagicLancerStardustAfterSelf(player)
+	if isCharacter(player, "magic_lancer") && player.TurnState.SkillFlowState != nil && player.TurnState.SkillFlowState["ml_stardust_wait_discard"] > 0 {
+		magiclancer.ResolveStardustAfterSelf(newRoleChoiceRuntime(e), player)
 	}
 	return false, nil
 }
@@ -315,8 +318,8 @@ func (e *GameEngine) resumePendingMoraleLoss(ctx *model.Context) bool {
 		}
 	} else if discardPlayer != nil {
 		e.Log(fmt.Sprintf("[System] %s 丢弃了 %d 张牌！士气 -%d", discardPlayer.Name, len(discardedCards), finalLoss))
-		if e.isMagicLancer(discardPlayer) && discardPlayer.TurnState.SkillFlowState != nil && discardPlayer.TurnState.SkillFlowState["ml_stardust_wait_discard"] > 0 {
-			e.resolveMagicLancerStardustAfterSelf(discardPlayer)
+		if isCharacter(discardPlayer, "magic_lancer") && discardPlayer.TurnState.SkillFlowState != nil && discardPlayer.TurnState.SkillFlowState["ml_stardust_wait_discard"] > 0 {
+			magiclancer.ResolveStardustAfterSelf(newRoleChoiceRuntime(e), discardPlayer)
 		}
 	}
 

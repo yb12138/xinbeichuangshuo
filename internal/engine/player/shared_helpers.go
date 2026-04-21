@@ -13,6 +13,49 @@ func EnsurePlayerTokensMap(p *model.Player) {
 	}
 }
 
+// EnsurePlayerSkillFlowState 确保 player.TurnState.SkillFlowState map 已初始化。
+func EnsurePlayerSkillFlowState(p *model.Player) {
+	if p != nil && p.TurnState.SkillFlowState == nil {
+		p.TurnState.SkillFlowState = map[string]int{}
+	}
+}
+
+// GetToken 安全读取玩家 Token 值。
+func GetToken(p *model.Player, key string) int {
+	if p == nil {
+		return 0
+	}
+	EnsurePlayerTokensMap(p)
+	return p.Tokens[key]
+}
+
+// SetToken 安全设置玩家 Token 值。
+func SetToken(p *model.Player, key string, value int) {
+	if p == nil {
+		return
+	}
+	EnsurePlayerTokensMap(p)
+	p.Tokens[key] = value
+}
+
+// GetSkillFlowState 安全读取玩家回合流程状态值。
+func GetSkillFlowState(p *model.Player, key string) int {
+	if p == nil {
+		return 0
+	}
+	EnsurePlayerSkillFlowState(p)
+	return p.TurnState.SkillFlowState[key]
+}
+
+// SetSkillFlowState 安全设置玩家回合流程状态值。
+func SetSkillFlowState(p *model.Player, key string, value int) {
+	if p == nil {
+		return
+	}
+	EnsurePlayerSkillFlowState(p)
+	p.TurnState.SkillFlowState[key] = value
+}
+
 // TokenValue 读取并规范化玩家 token 值：
 // 小于 0 归零；cap >= 0 时按上限裁剪；并回写到玩家状态。
 func TokenValue(p *model.Player, key string, cap int) int {

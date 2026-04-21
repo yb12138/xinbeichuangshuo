@@ -195,7 +195,6 @@ const TOKEN_DISPLAY: Record<string, { label: string; cls: string }> = {
 }
 
 const HIDDEN_TOKEN_KEYS = new Set([
-  'arbiter_law_inited',
   'arbiter_skip_forced_doomsday',
   'arbiter_forced_doomsday_done_turn',
   'holy_lancer_block_sacred_strike',
@@ -224,7 +223,6 @@ const HIDDEN_TOKEN_KEYS = new Set([
   'fighter_attack_start_skill_lock',
   'fighter_charge_pending',
   'fighter_qiburst_force_no_counter',
-  'fighter_hundred_dragon_target_order',
   'hb_special_used_turn',
   'hb_auto_fill_done_turn',
   'hb_shard_miss_pending',

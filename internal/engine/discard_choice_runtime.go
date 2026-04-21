@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 
+	playerpkg "starcup-engine/internal/engine/player"
+	elfarcherpkg "starcup-engine/internal/engine/player/elf_archer"
 	"starcup-engine/internal/model"
 )
 
@@ -102,7 +104,7 @@ func (e *GameEngine) buildDiscardChoicePromptFromData(playerID string, data map[
 	discardType, _ := data["discard_type"].(model.CardType)
 	discardElement, _ := data["discard_element"].(model.Element)
 	excludeBlessings, _ := data["exclude_blessings"].(bool)
-	remainingIndices := parseIntSliceContextValue(data["remaining_indices"])
+	remainingIndices := playerpkg.ParseIntSliceContextValue(data["remaining_indices"])
 	allowedIndices := map[int]struct{}{}
 	if len(remainingIndices) > 0 {
 		for _, idx := range remainingIndices {
@@ -121,7 +123,7 @@ func (e *GameEngine) buildDiscardChoicePromptFromData(playerID string, data map[
 		if discardElement != "" && card.Element != discardElement {
 			continue
 		}
-		if excludeBlessings && isElfBlessingCard(player, card.ID) {
+		if excludeBlessings && elfarcherpkg.IsBlessingCard(player, card) {
 			continue
 		}
 		options = append(options, model.PromptOption{

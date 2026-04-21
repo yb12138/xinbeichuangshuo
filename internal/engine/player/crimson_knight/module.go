@@ -4,7 +4,6 @@ package crimson_knight
 
 import (
 	"starcup-engine/internal/engine/player"
-	skills "starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/types"
 )
@@ -17,6 +16,10 @@ func RoleEntry() player.RoleEntry {
 		Choices:          NewChoiceHandler(),
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
+		TimingHookSpecs: []player.TimingHookSpec{
+			{Timing: player.TimingOnHealResist, Priority: 200, Hook: healResistHook},
+			{Timing: player.TimingOnTurnEnd, Priority: 600, Hook: turnEndHook},
+		},
 	}
 }
 
@@ -35,13 +38,13 @@ func ApplyDefaults(p *model.Player) {
 // SkillEntries 导出角色技能与策略绑定入口。
 func SkillEntries() []player.SkillEntry {
 	return []player.SkillEntry{
-		{ID: "crk_crimson_pact", Handler: &skills.CrimsonKnightCrimsonPactHandler{}},
-		{ID: "crk_crimson_faith", Handler: &skills.CrimsonKnightCrimsonFaithHandler{}},
-		{ID: "crk_bloody_prayer", Handler: &skills.CrimsonKnightBloodyPrayerHandler{}},
-		{ID: "crk_killing_feast", Handler: &skills.CrimsonKnightKillingFeastHandler{}},
-		{ID: "crk_hot_blood", Handler: &skills.CrimsonKnightHotBloodHandler{}},
-		{ID: "crk_calm_mind", Handler: &skills.CrimsonKnightCalmMindHandler{}},
-		{ID: "crk_crimson_cross", Handler: &skills.CrimsonKnightCrimsonCrossHandler{}},
+		{ID: "crk_crimson_pact", Handler: &CrimsonKnightCrimsonPactHandler{}},
+		{ID: "crk_crimson_faith", Handler: &CrimsonKnightCrimsonFaithHandler{}},
+		{ID: "crk_bloody_prayer", Handler: &CrimsonKnightBloodyPrayerHandler{}},
+		{ID: "crk_killing_feast", Handler: &CrimsonKnightKillingFeastHandler{}},
+		{ID: "crk_hot_blood", Handler: &CrimsonKnightHotBloodHandler{}},
+		{ID: "crk_calm_mind", Handler: &CrimsonKnightCalmMindHandler{}},
+		{ID: "crk_crimson_cross", Handler: &CrimsonKnightCrimsonCrossHandler{}},
 	}
 }
 

@@ -327,7 +327,7 @@ func TestFighterHundredDragon_StartupLocksTargetImmediately(t *testing.T) {
 	if got := p1.Form; got != model.FormFighterHundredDragon {
 		t.Fatalf("expected hundred dragon form active after startup, got %q", got)
 	}
-	if got := p1.Tokens["fighter_hundred_dragon_target_order"]; got != 2 {
+	if got := p1.TurnState.SkillFlowState["fighter_hundred_dragon_target_order"]; got != 2 {
 		t.Fatalf("expected hundred dragon lock target p2(order=2), got %d", got)
 	}
 	if got := game.State.TurnStage; got != model.TurnStageActionExecution {
@@ -374,7 +374,7 @@ func TestFighterHundredDragon_BonusesAndTargetLockReleaseStillContinuesAttack(t 
 	p1.TurnState = model.NewPlayerTurnState()
 	p1.Hand = []model.Card{fighterTestCard("a1", "火斩", model.CardTypeAttack, model.ElementFire, 2)}
 	p1.Form = model.FormFighterHundredDragon
-	p1.Tokens["fighter_hundred_dragon_target_order"] = 2 // 锁定 p2
+	p1.TurnState.SkillFlowState["fighter_hundred_dragon_target_order"] = 2 // 锁定 p2
 	game.State.CurrentTurn = 0
 	game.State.TurnStage = model.TurnStageActionExecution
 
@@ -385,7 +385,7 @@ func TestFighterHundredDragon_BonusesAndTargetLockReleaseStillContinuesAttack(t 
 	if got := p1.Form; got != "" {
 		t.Fatalf("expected hundred dragon form cleared after violating lock, got %q", got)
 	}
-	if got := p1.Tokens["fighter_hundred_dragon_target_order"]; got != 0 {
+	if got := p1.TurnState.SkillFlowState["fighter_hundred_dragon_target_order"]; got != 0 {
 		t.Fatalf("expected hundred dragon target lock cleared after violating lock, got %d", got)
 	}
 	if game.State.TurnStage == model.TurnStageActionExecution &&
@@ -409,7 +409,7 @@ func TestFighterHundredDragon_CannotActEndsFormAtActionPhaseEnd(t *testing.T) {
 	p1.TurnState = model.NewPlayerTurnState()
 	p1.Hand = nil
 	p1.Form = model.FormFighterHundredDragon
-	p1.Tokens["fighter_hundred_dragon_target_order"] = 2
+	p1.TurnState.SkillFlowState["fighter_hundred_dragon_target_order"] = 2
 	game.State.CurrentTurn = 0
 	game.State.TurnStage = model.TurnStageActionExecution
 
@@ -418,7 +418,7 @@ func TestFighterHundredDragon_CannotActEndsFormAtActionPhaseEnd(t *testing.T) {
 	if got := p1.Form; got != "" {
 		t.Fatalf("expected hundred dragon form cleared when action phase ends, got %q", got)
 	}
-	if got := p1.Tokens["fighter_hundred_dragon_target_order"]; got != 0 {
+	if got := p1.TurnState.SkillFlowState["fighter_hundred_dragon_target_order"]; got != 0 {
 		t.Fatalf("expected hundred dragon target lock cleared when action phase ends, got %d", got)
 	}
 }
@@ -439,7 +439,7 @@ func TestFighterHundredDragon_MagicAttemptCancelsFormAndAction(t *testing.T) {
 		fighterTestCard("m1", "圣光", model.CardTypeMagic, model.ElementLight, 0),
 	}
 	p1.Form = model.FormFighterHundredDragon
-	p1.Tokens["fighter_hundred_dragon_target_order"] = 2
+	p1.TurnState.SkillFlowState["fighter_hundred_dragon_target_order"] = 2
 	game.State.CurrentTurn = 0
 	game.State.TurnStage = model.TurnStageActionExecution
 
@@ -456,7 +456,7 @@ func TestFighterHundredDragon_MagicAttemptCancelsFormAndAction(t *testing.T) {
 	if got := p1.Form; got != "" {
 		t.Fatalf("expected hundred dragon form cleared after canceled magic attempt, got %q", got)
 	}
-	if got := p1.Tokens["fighter_hundred_dragon_target_order"]; got != 0 {
+	if got := p1.TurnState.SkillFlowState["fighter_hundred_dragon_target_order"]; got != 0 {
 		t.Fatalf("expected hundred dragon target lock cleared after canceled magic attempt, got %d", got)
 	}
 	if got := len(p1.Hand); got != 1 {
@@ -481,7 +481,7 @@ func TestFighterHundredDragon_SpecialAttemptCancelsFormAndAction(t *testing.T) {
 	p1.TurnState = model.NewPlayerTurnState()
 	p1.Hand = nil
 	p1.Form = model.FormFighterHundredDragon
-	p1.Tokens["fighter_hundred_dragon_target_order"] = 2
+	p1.TurnState.SkillFlowState["fighter_hundred_dragon_target_order"] = 2
 	game.State.CurrentTurn = 0
 	game.State.TurnStage = model.TurnStageActionExecution
 
@@ -493,7 +493,7 @@ func TestFighterHundredDragon_SpecialAttemptCancelsFormAndAction(t *testing.T) {
 	if got := p1.Form; got != "" {
 		t.Fatalf("expected hundred dragon form cleared after canceled special attempt, got %q", got)
 	}
-	if got := p1.Tokens["fighter_hundred_dragon_target_order"]; got != 0 {
+	if got := p1.TurnState.SkillFlowState["fighter_hundred_dragon_target_order"]; got != 0 {
 		t.Fatalf("expected hundred dragon target lock cleared after canceled special attempt, got %d", got)
 	}
 }
@@ -511,7 +511,7 @@ func TestFighterHundredDragon_EndsWhenActionPhaseFinishes(t *testing.T) {
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
 	p1.Form = model.FormFighterHundredDragon
-	p1.Tokens["fighter_hundred_dragon_target_order"] = 2
+	p1.TurnState.SkillFlowState["fighter_hundred_dragon_target_order"] = 2
 	game.State.CurrentTurn = 0
 	game.State.TurnStage = model.TurnStageTurnEnd
 
@@ -520,7 +520,7 @@ func TestFighterHundredDragon_EndsWhenActionPhaseFinishes(t *testing.T) {
 	if got := p1.Form; got != "" {
 		t.Fatalf("expected hundred dragon form end when action phase finishes, got %q", got)
 	}
-	if got := p1.Tokens["fighter_hundred_dragon_target_order"]; got != 0 {
+	if got := p1.TurnState.SkillFlowState["fighter_hundred_dragon_target_order"]; got != 0 {
 		t.Fatalf("expected hundred dragon target lock cleared when action phase finishes, got %d", got)
 	}
 }
@@ -542,7 +542,7 @@ func TestFighterHundredDragon_ActionPromptOnlyKeepsAttackEntry(t *testing.T) {
 		fighterTestCard("m1", "圣光", model.CardTypeMagic, model.ElementLight, 0),
 	}
 	p1.Form = model.FormFighterHundredDragon
-	p1.Tokens["fighter_hundred_dragon_target_order"] = 2
+	p1.TurnState.SkillFlowState["fighter_hundred_dragon_target_order"] = 2
 	game.State.CurrentTurn = 0
 	game.State.TurnStage = model.TurnStageActionExecution
 

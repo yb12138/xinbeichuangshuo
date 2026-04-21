@@ -4,8 +4,8 @@ package bard
 
 import (
 	"fmt"
+
 	"starcup-engine/internal/engine/player"
-	skills "starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/types"
 )
@@ -19,6 +19,12 @@ func RoleEntry() player.RoleEntry {
 		Choices:          NewChoiceHandler(),
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
+		TimingHookSpecs: []player.TimingHookSpec{
+			{Timing: player.TimingPostDamageResolved, Priority: 500, Hook: postDamageResolvedHook},
+		},
+		SkillUsabilityCheckers: map[string]player.SkillUsabilityChecker{
+			"bd_dissonance_chord": CheckDissonanceChordUsability,
+		},
 	}
 }
 
@@ -75,22 +81,22 @@ func StarterCards(p *model.Player) []model.Card {
 // SkillEntries 导出角色技能与策略绑定入口。
 func SkillEntries() []player.SkillEntry {
 	return []player.SkillEntry{
-		{ID: "bd_descent_concerto", Handler: &skills.BardDescentConcertoHandler{}},
+		{ID: "bd_descent_concerto", Handler: &BardDescentConcertoHandler{}},
 		{
 			ID:      "bd_dissonance_chord",
-			Handler: &skills.BardDissonanceChordHandler{},
+			Handler: &BardDissonanceChordHandler{},
 			Policy: types.SkillPolicy{
 				TargetRules: types.TargetRuleSet{
 					Count: types.TargetCountRule{Min: 0, Max: 1},
 				},
 			},
 		},
-		{ID: "bd_forbidden_verse", Handler: &skills.BardForbiddenVerseHandler{}},
-		{ID: "bd_rousing_rhapsody", Handler: &skills.BardRousingRhapsodyHandler{}},
-		{ID: "bd_victory_symphony", Handler: &skills.BardVictorySymphonyHandler{}},
+		{ID: "bd_forbidden_verse", Handler: &BardForbiddenVerseHandler{}},
+		{ID: "bd_rousing_rhapsody", Handler: &BardRousingRhapsodyHandler{}},
+		{ID: "bd_victory_symphony", Handler: &BardVictorySymphonyHandler{}},
 		{
 			ID:      "bd_hope_fugue",
-			Handler: &skills.BardHopeFugueHandler{},
+			Handler: &BardHopeFugueHandler{},
 			Policy: types.SkillPolicy{
 				ManualExclusiveCard: true,
 				TargetRules: types.TargetRuleSet{

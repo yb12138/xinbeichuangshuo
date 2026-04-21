@@ -5,6 +5,7 @@ package engine
 import (
 	"fmt"
 
+	"starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
 )
 
@@ -49,13 +50,17 @@ func (e *GameEngine) NextTurn() {
 	e.prepareNextTurnRuntime(e.State.Players[nextPid])
 }
 
-func (e *GameEngine) consumePendingMoonGoddessExtraTurn(player *model.Player) bool {
-	if player == nil || !e.isMoonGoddess(player) || player.Tokens == nil || player.Tokens["mg_extra_turn_pending"] <= 0 {
+func (e *GameEngine) consumePendingMoonGoddessExtraTurn(p *model.Player) bool {
+	if p == nil || !isCharacter(p, "moon_goddess") {
 		return false
 	}
-	player.Tokens["mg_extra_turn_pending"]--
-	if player.Tokens["mg_extra_turn_pending"] < 0 {
-		player.Tokens["mg_extra_turn_pending"] = 0
+	player.EnsurePlayerSkillFlowState(p)
+	if p.TurnState.SkillFlowState["mg_extra_turn_pending"] <= 0 {
+		return false
+	}
+	p.TurnState.SkillFlowState["mg_extra_turn_pending"]--
+	if p.TurnState.SkillFlowState["mg_extra_turn_pending"] < 0 {
+		p.TurnState.SkillFlowState["mg_extra_turn_pending"] = 0
 	}
 	return true
 }

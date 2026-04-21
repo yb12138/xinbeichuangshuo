@@ -9,6 +9,31 @@ import (
 	"starcup-engine/internal/model"
 )
 
+// damageCalculateHook 魔枪被动增伤：暗之解放 +充盈。
+func damageCalculateHook(rt player.HookRuntime, ctx player.TimingHookContext) player.TimingHookResult {
+	p := rt.GetPlayer(ctx.SourceID)
+	if p == nil || !rt.IsCharacter(p, "magic_lancer") {
+		return player.TimingHookResult{}
+	}
+	if ctx.ActionType != model.ActionAttack || ctx.CounterInitiator != "" {
+		return player.TimingHookResult{}
+	}
+	action := model.Action{Type: ctx.ActionType, Card: ctx.Card}
+	delta := 0
+	if darkBonus := rt.ConsumeAttackDamageRuleBonus(p, "ml_dark_release_next_attack_bonus", action); darkBonus > 0 {
+		delta += darkBonus
+		rt.Log(fmt.Sprintf("[Passive] %s 的 [暗之解放] 生效，本次主动攻击伤害 +1", p.Name))
+	}
+	if additional := rt.ConsumeAttackDamageRuleBonus(p, "ml_fullness_next_attack_bonus", action); additional > 0 {
+		delta += additional
+		rt.Log(fmt.Sprintf("[Passive] %s 的 [充盈] 生效，本次主动攻击伤害 +%d", p.Name, additional))
+	}
+	if delta != 0 {
+		return player.TimingHookResult{DamageDelta: delta}
+	}
+	return player.TimingHookResult{}
+}
+
 // postDamageResolvedHook 幻影星尘自伤后结算。
 func postDamageResolvedHook(rt player.HookRuntime, ctx player.TimingHookContext) player.TimingHookResult {
 	source := rt.GetPlayer(ctx.SourceID)

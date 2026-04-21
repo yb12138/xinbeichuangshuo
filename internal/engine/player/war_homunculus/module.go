@@ -4,7 +4,6 @@ package war_homunculus
 
 import (
 	"starcup-engine/internal/engine/player"
-	skills "starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/types"
 )
@@ -17,6 +16,9 @@ func RoleEntry() player.RoleEntry {
 		Choices:          NewChoiceHandler(),
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
+		TimingHookSpecs: []player.TimingHookSpec{
+			{Timing: player.TimingOnTurnEnd, Priority: 700, Hook: turnEndHook},
+		},
 	}
 }
 
@@ -35,12 +37,12 @@ func ApplyDefaults(p *model.Player) {
 // SkillEntries 导出角色技能与策略绑定入口。
 func SkillEntries() []player.SkillEntry {
 	return []player.SkillEntry{
-		{ID: "hom_battle_pattern", Handler: &skills.HomunculusBattlePatternHandler{}},
-		{ID: "hom_rage_suppress", Handler: &skills.HomunculusRageSuppressHandler{}},
-		{ID: "hom_rune_smash", Handler: &skills.HomunculusRuneSmashHandler{}},
-		{ID: "hom_glyph_fusion", Handler: &skills.HomunculusGlyphFusionHandler{}},
-		{ID: "hom_rune_reforge", Handler: &skills.HomunculusRuneReforgeHandler{}},
-		{ID: "hom_dual_echo", Handler: &skills.HomunculusDualEchoHandler{}},
+		{ID: "hom_battle_pattern", Handler: &HomunculusBattlePatternHandler{}},
+		{ID: "hom_rage_suppress", Handler: &HomunculusRageSuppressHandler{}},
+		{ID: "hom_rune_smash", Handler: &HomunculusRuneSmashHandler{}},
+		{ID: "hom_glyph_fusion", Handler: &HomunculusGlyphFusionHandler{}},
+		{ID: "hom_rune_reforge", Handler: &HomunculusRuneReforgeHandler{}},
+		{ID: "hom_dual_echo", Handler: &HomunculusDualEchoHandler{}},
 	}
 }
 

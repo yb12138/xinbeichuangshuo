@@ -20,8 +20,7 @@ func SwordSoulCount(p *model.Player) int {
 	return player.CoverCountByEffect(p, model.EffectSwordSoul)
 }
 
-// SyncSwordSoulToken 将剑魂盖牌数量同步到 player.Tokens。
+// SyncSwordSoulToken 将剑魂盖牌数量同步到 player.Tokens（已弃用：派生值实时计算）。
 func SyncSwordSoulToken(p *model.Player) {
-	player.EnsurePlayerTokensMap(p)
-	p.Tokens["se_sword_soul_count"] = SwordSoulCount(p)
+	// 不再同步到 Tokens，服务端 buildStateForPlayer 实时计算 SwordSoulCount
 }

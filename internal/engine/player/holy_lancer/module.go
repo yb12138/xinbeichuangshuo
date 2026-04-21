@@ -4,7 +4,6 @@ package holy_lancer
 
 import (
 	"starcup-engine/internal/engine/player"
-	skills "starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/types"
 )
@@ -17,6 +16,14 @@ func RoleEntry() player.RoleEntry {
 		Choices:          NewChoiceHandler(),
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
+		TimingHookSpecs: []player.TimingHookSpec{
+			{Timing: player.TimingOnAttackStateReset, Priority: 100, Hook: attackStateResetHook},
+			{Timing: player.TimingOnAttackGating, Priority: 200, Hook: attackGatingHook},
+			{Timing: player.TimingOnTurnEndFinal, Priority: 900, Hook: turnEndHook},
+		},
+		SkillUsabilityCheckers: map[string]player.SkillUsabilityChecker{
+			"holy_lancer_punishment": CheckPunishmentUsability,
+		},
 	}
 }
 
@@ -31,11 +38,11 @@ func ApplyDefaults(p *model.Player) {
 // SkillEntries 导出角色技能与策略绑定入口。
 func SkillEntries() []player.SkillEntry {
 	return []player.SkillEntry{
-		{ID: "holy_lancer_revelation", Handler: &skills.HolyLancerRevelationHandler{}},
-		{ID: "holy_lancer_radiance", Handler: &skills.HolyLancerRadianceHandler{}},
+		{ID: "holy_lancer_revelation", Handler: &HolyLancerRevelationHandler{}},
+		{ID: "holy_lancer_radiance", Handler: &HolyLancerRadianceHandler{}},
 		{
 			ID:      "holy_lancer_punishment",
-			Handler: &skills.HolyLancerPunishmentHandler{},
+			Handler: &HolyLancerPunishmentHandler{},
 			Policy: types.SkillPolicy{
 				TargetRules: types.TargetRuleSet{
 					Count: types.TargetCountRule{Min: 1, Max: 1, Err: "惩戒需要指定1名其他角色"},
@@ -48,10 +55,10 @@ func SkillEntries() []player.SkillEntry {
 				},
 			},
 		},
-		{ID: "holy_lancer_holy_strike", Handler: &skills.HolyLancerHolyStrikeHandler{}},
-		{ID: "holy_lancer_sky_spear", Handler: &skills.HolyLancerSkySpearHandler{}},
-		{ID: "holy_lancer_earth_spear", Handler: &skills.HolyLancerEarthSpearHandler{}},
-		{ID: "holy_lancer_prayer", Handler: &skills.HolyLancerPrayerHandler{}},
+		{ID: "holy_lancer_holy_strike", Handler: &HolyLancerHolyStrikeHandler{}},
+		{ID: "holy_lancer_sky_spear", Handler: &HolyLancerSkySpearHandler{}},
+		{ID: "holy_lancer_earth_spear", Handler: &HolyLancerEarthSpearHandler{}},
+		{ID: "holy_lancer_prayer", Handler: &HolyLancerPrayerHandler{}},
 	}
 }
 
