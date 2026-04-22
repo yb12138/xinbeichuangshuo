@@ -2,11 +2,6 @@
 
 package engine
 
-import (
-	holylancer "starcup-engine/internal/engine/player/holy_lancer"
-	"starcup-engine/internal/model"
-)
-
 // rebuildTimingOnAttackDeclaredRegistry 根据当前已上场角色，重建攻击宣言阶段的执行表。
 // 同时刷新 TimingOnHitCheck / TimingOnDamageCalculated 的动态执行表，保证三段战斗时序一致。
 func (e *GameEngine) rebuildTimingOnAttackDeclaredRegistry() {
@@ -59,9 +54,8 @@ func (e *GameEngine) rebuildTimingOnHitCheckRegistryWithPresence(present map[str
 		{hook: combatInteractionDarkElementResponsePolicyHook},
 	})
 
-	e.hitCheckCombatDefendValidationPolicies = buildPresenceHooks(present, []presenceHookEntry[combatDefendValidationPolicy]{
-		{requireAny: requireAny("magic_lancer"), hook: combatDefendMagicLancerDarkBindPolicy},
-	})
+	e.hitCheckCombatDefendValidationPolicies = nil
+	// 防御验证已迁移到 TimingOnDefendValidation TimingHookSpec。
 
 	e.hitCheckCombatCounterCardPolicies = buildPresenceHooks(present, []presenceHookEntry[combatCounterCardPolicy]{
 		{requireAny: requireAny("magic_swordsman"), hook: combatCounterShadowRejectMagicBulletPolicy},
@@ -75,16 +69,13 @@ func (e *GameEngine) rebuildTimingOnHitCheckRegistryWithPresence(present map[str
 		{requireAny: requireAny("onmyoji"), hook: combatCounterOnmyojiFactionResolvePolicy},
 	})
 
-	e.hitCheckMagicMissileDefendPolicies = buildPresenceHooks(present, []presenceHookEntry[magicMissileDefendValidationPolicy]{
-		{requireAny: requireAny("magic_lancer"), hook: magicMissileDefendMagicLancerDarkBindPolicy},
-	})
-	e.hitCheckMagicMissileCounterPolicies = buildPresenceHooks(present, []presenceHookEntry[magicMissileCounterValidationPolicy]{
-		{requireAny: requireAny("magic_lancer"), hook: magicMissileCounterMagicLancerDarkBindPolicy},
-	})
+	// 魔弹链防御验证已迁移到 TimingOnMagicMissileDefend TimingHookSpec。
+	e.hitCheckMagicMissileDefendPolicies = nil
+	// 魔弹链反击验证已迁移到 TimingOnMagicMissileCounter TimingHookSpec。
+	e.hitCheckMagicMissileCounterPolicies = nil
 
-	e.hitCheckResponseSkipHooks = buildPresenceHooks(present, []presenceHookEntry[responseSkipHook]{
-		{requireAny: requireAny("holy_lancer"), hook: holyLancerEarthSkippedResponseHook},
-	})
+	e.hitCheckResponseSkipHooks = nil
+	// 响应跳过后效已迁移到 TimingOnResponseSkillSkip TimingHookSpec。
 
 	e.hitCheckResponseSkillIDAugmenters = buildPresenceHooks(present, []presenceHookEntry[responseSkillIDAugmenter]{
 		{requireAny: requireAny("beast_samurai"), hook: augmentBeastSamuraiResponseSkillIDs},
@@ -96,36 +87,9 @@ func (e *GameEngine) rebuildTimingOnHitCheckRegistryWithPresence(present map[str
 }
 
 // rebuildTimingOnDamageCalculatedRegistryWithPresence 装配 TimingOnDamageCalculated 的动态规则表。
+// 所有伤害阶段规则已迁移到 TimingHookSpec，不再需要动态装配。
 func (e *GameEngine) rebuildTimingOnDamageCalculatedRegistryWithPresence(present map[string]bool) {
-	// 攻击被动增伤已迁移到 TimingOnDamageCalculate TimingHookSpec。
 	e.damageCalculatedAttackPassiveHooks = nil
-
-	e.damageCalculatedBeforeTakenHooks = buildPresenceHooks(present, []presenceHookEntry[pendingDamageBeforeTakenHook]{
-		{requireAny: requireAny("crimson_sword_spirit", "crimson_knight", "plague_mage"), hook: pendingDamageHealResistGateHook},
-		{requireAny: requireAny("soul_sorcerer"), hook: pendingDamageSoulLinkTransferHook},
-	})
-
-	e.damageCalculatedHealCapHooks = buildPresenceHooks(present, []presenceHookEntry[pendingDamageHealCapHook]{
-		{requireAny: requireAny("priest"), hook: pendingDamagePriestHealCapHook},
-	})
-
-	e.damageCalculatedHealResistRules = nil
-	// 治疗抵抗规则已迁移到 TimingOnHealResist TimingHookSpec。
-
-	e.damageTakenAfterTakenHooks = buildPresenceHooks(present, []presenceHookEntry[pendingDamageAfterTakenHook]{
-		{requireAny: requireAny("sword_emperor"), hook: pendingDamageSwordEmperorAfterTakenHook},
-	})
-
-	e.damageAppliedBeforeApplyHooks = buildPresenceHooks(present, []presenceHookEntry[pendingDamageBeforeApplyHook]{
-		{requireAny: requireAny("butterfly_dancer"), hook: pendingDamageButterflyBeforeApplyHook},
-	})
-
-	// 伤害应用后清理已迁移到 TimingOnDamageAfterApply TimingHookSpec（角色特定条目）。
-	// 仅保留系统级 elemental seal cleanup。
-	e.damageTakenAfterApplyHooks = buildPresenceHooks(present, []presenceHookEntry[pendingDamageAfterApplyHook]{
-		{hook: pendingDamageElementalSealCleanupHook},
-	})
-
 	e.damageTakenAfterResolvedHooks = buildPresenceHooks(present, []presenceHookEntry[pendingDamageAfterResolvedHook]{
 		{hook: pendingDamageRolePostResolvedHook},
 	})
@@ -133,16 +97,16 @@ func (e *GameEngine) rebuildTimingOnDamageCalculatedRegistryWithPresence(present
 
 // rebuildTurnTimingRegistryWithPresence 装配 Turn 主流程中的 TimingOnTurnStart/OnBeforeAction/OnTurnEnd 阶段钩子。
 func (e *GameEngine) rebuildTurnTimingRegistryWithPresence(present map[string]bool) {
-	e.turnStartBeforeStartHooks = buildPresenceHooks(present, []presenceHookEntry[turnTimingHook]{
-		{requireAny: requireAny("butterfly_dancer"), hook: turnBeforeStartButterflyDancerWitherExpiryHook},
-	})
+	// 凋零过期已迁移到 TimingOnTurnBeforeStart TimingHookSpec。
+	// arbiter turnStart hooks 已迁移到 TimingOnTurnStart TimingHookSpec。
+	// holy_bow turnStart hooks 已迁移到 TimingOnTurnStart TimingHookSpec。
+	// blaze_witch beforeAction 已迁移到 TimingBeforeAction TimingHookSpec。
+	// assassin beforeAction 已迁移到 TimingBeforeAction TimingHookSpec。
+	// crimson_knight turnEnd 已迁移到 TimingOnTurnEnd TimingHookSpec。
 
 	e.turnStartMainHooks = buildPresenceHooks(present, []presenceHookEntry[turnTimingHook]{
-		{requireAny: requireAny("arbiter"), hook: startupArbiterTurnResetHook},
-		{requireAny: requireAny("holy_bow"), hook: startupHolyBowTurnResetHook},
 		{requireAny: requireAny("bard"), hook: startupBardRousingHook},
 		{requireAny: requireAny("blood_priestess"), hook: turnStartBloodPriestessBleedHook},
-		{requireAny: requireAny("arbiter"), hook: turnStartArbiterJudgmentUpkeepHook},
 		{requireAny: requireAny("valkyrie"), hook: turnStartValkyrieMilitaryGloryHook},
 	})
 
@@ -153,9 +117,8 @@ func (e *GameEngine) rebuildTurnTimingRegistryWithPresence(present map[string]bo
 		beforeActionWeakHook,
 	}
 
+	// blaze_witch/assassin hooks 已迁移到 TimingHookSpec，移除重复注册。
 	e.beforeActionExecuteHooks = buildPresenceHooks(present, []presenceHookEntry[turnTimingHook]{
-		{requireAny: requireAny("blaze_witch"), hook: startupBlazeWitchFlameReleaseHook},
-		{requireAny: requireAny("assassin"), hook: startupAssassinStealthReleaseHook},
 		{requireAny: requireAny("magic_swordsman"), hook: startupMagicSwordsmanShadowReleaseHook},
 		{requireAny: requireAny("hero"), hook: startupHeroExhaustionReleaseHook},
 		{requireAny: requireAny("arbiter"), hook: startupArbiterForcedDoomsdayHook},
@@ -216,17 +179,8 @@ func (e *GameEngine) rebuildGameStartTimingRegistryWithPresence(present map[stri
 }
 
 // rebuildCampChangedTimingRegistryWithPresence 装配 TimingOnCampChanged 派生状态同步规则。
+// 已迁移到 TimingOnPlayerSetup / TimingOnCampCupChanged TimingHookSpec，不再需要动态注册。
 func (e *GameEngine) rebuildCampChangedTimingRegistryWithPresence(present map[string]bool) {
-	e.campChangedPlayerSetupHooks = buildPresenceHooks(present, []presenceHookEntry[campChangedPlayerHook]{
-		{requireAny: requireAny("holy_lancer"), hook: func(e *GameEngine, player *model.Player) {
-			holylancer.SyncDerivedStateOnPlayerSetup(newRoleChoiceRuntime(e), player)
-		}},
-	})
-	e.campChangedCampCupHooks = buildPresenceHooks(present, []presenceHookEntry[campChangedCupHook]{
-		{requireAny: requireAny("holy_lancer"), hook: func(e *GameEngine, _ model.Camp) {
-			holylancer.SyncDerivedStateOnCampCupChanged(newRoleChoiceRuntime(e))
-		}},
-	})
 }
 
 // rebuildInterruptTimingRegistryWithPresence 装配战斗时序中的中断策略入口。
@@ -235,9 +189,8 @@ func (e *GameEngine) rebuildInterruptTimingRegistryWithPresence(present map[stri
 		{requireAny: requireAny("moon_goddess"), hook: attackStartMoonGoddessMedusaInterruptHook},
 	})
 
-	e.actionEndInterrupts = buildPresenceHooks(present, []presenceHookEntry[actionEndInterruptHook]{
-		{requireAny: requireAny("blade_master"), hook: actionEndHolySwordInterruptHook},
-	})
+	// HolySword interrupt 已迁移到 blade_master TimingHookSpec
+	e.actionEndInterrupts = nil
 }
 
 func (e *GameEngine) currentCharacterPresence() map[string]bool {

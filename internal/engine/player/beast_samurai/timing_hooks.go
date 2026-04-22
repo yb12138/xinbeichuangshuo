@@ -83,6 +83,16 @@ func attackStateResetHook(rt player.HookRuntime, ctx player.TimingHookContext) p
 	return player.TimingHookResult{}
 }
 
+// attackMissHook 攻击未命中后清除攻击令牌。
+func attackMissHook(rt player.HookRuntime, ctx player.TimingHookContext) player.TimingHookResult {
+	p := rt.GetPlayer(ctx.SourceID)
+	if p == nil {
+		return player.TimingHookResult{}
+	}
+	ClearAttackTokens(p)
+	return player.TimingHookResult{}
+}
+
 // postDamageResolvedHook 伤害结算完成后：清除攻击指示物 + 居合形态退场。
 func postDamageResolvedHook(rt player.HookRuntime, ctx player.TimingHookContext) player.TimingHookResult {
 	source := rt.GetPlayer(ctx.SourceID)
@@ -112,10 +122,14 @@ func turnEndHook(rt player.HookRuntime, ctx player.TimingHookContext) player.Tim
 	}
 	player.EnsurePlayerTokensMap(p)
 	if InIaijutsuForm(p) && BeastSoul(p) >= 1 {
-		consumed := rt.ConsumeBeastSoul(p, 1)
-		if consumed > 0 {
-			rt.Log(fmt.Sprintf("%s 的 [御魂流居合形态·回合结束扣魂] 生效：兽魂-1，残心+1", p.Name))
+		current := BeastSoul(p)
+		consume := 1
+		if consume > current {
+			consume = current
 		}
+		AddBeastSoul(p, -consume, true)
+		AddZanshin(p, consume)
+		rt.Log(fmt.Sprintf("%s 的 [御魂流居合形态·回合结束扣魂] 生效：兽魂-1，残心+1", p.Name))
 	}
 	if InIaijutsuForm(p) && BeastSoul(p) == 0 {
 		before := rt.SnapshotPlayerPoses()

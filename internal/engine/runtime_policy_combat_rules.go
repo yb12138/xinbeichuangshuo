@@ -5,6 +5,7 @@ package engine
 import (
 	"fmt"
 
+	playerpkg "starcup-engine/internal/engine/player"
 	magicswordsman "starcup-engine/internal/engine/player/magic_swordsman"
 	onmyojiplayer "starcup-engine/internal/engine/player/onmyoji"
 	"starcup-engine/internal/model"
@@ -39,7 +40,7 @@ func combatInteractionDarkElementResponsePolicyHook(e *GameEngine, req *model.Co
 }
 
 func combatDefendMagicLancerDarkBindPolicy(e *GameEngine, player *model.Player, req *model.CombatRequest) error {
-	if isCharacter(player, "magic_lancer") {
+	if playerpkg.IsCharacter(player, "magic_lancer") {
 		return fmt.Errorf("魔枪受[黑暗束缚]影响，不能使用法术牌防御")
 	}
 	return nil
@@ -61,7 +62,7 @@ func combatCounterOnmyojiFactionElementPolicy(e *GameEngine, player *model.Playe
 	if req.Card == nil {
 		return false, false
 	}
-	if !isCharacter(player, "onmyoji") || !onmyojiplayer.CanUseFactionCounter(req.Card) {
+	if !playerpkg.IsCharacter(player, "onmyoji") || !onmyojiplayer.CanUseFactionCounter(req.Card) {
 		return false, false
 	}
 	if counterCard.Faction == "" || counterCard.Faction != req.Card.Faction {
@@ -78,14 +79,14 @@ func combatCounterOnmyojiFactionResolvePolicy(e *GameEngine, player *model.Playe
 }
 
 func magicMissileDefendMagicLancerDarkBindPolicy(e *GameEngine, player *model.Player, chain *model.MagicBulletChain) error {
-	if isCharacter(player, "magic_lancer") {
+	if playerpkg.IsCharacter(player, "magic_lancer") {
 		return fmt.Errorf("魔枪受[黑暗束缚]影响，不能使用法术牌防御")
 	}
 	return nil
 }
 
 func magicMissileCounterMagicLancerDarkBindPolicy(e *GameEngine, player *model.Player, chain *model.MagicBulletChain, card model.Card) error {
-	if isCharacter(player, "magic_lancer") {
+	if playerpkg.IsCharacter(player, "magic_lancer") {
 		return fmt.Errorf("魔枪受[黑暗束缚]影响，不能使用法术牌")
 	}
 	return nil
@@ -132,7 +133,7 @@ func (e *GameEngine) tryStartOnmyojiBindingInterrupt(combatReq *model.CombatRequ
 	if attacker.Camp == target.Camp {
 		return false
 	}
-	if isCharacter(target, "onmyoji") {
+	if playerpkg.IsCharacter(target, "onmyoji") {
 		return false
 	}
 
@@ -156,10 +157,10 @@ func (e *GameEngine) tryStartOnmyojiBindingInterrupt(combatReq *model.CombatRequ
 		if actor == nil || actor.ID == target.ID {
 			continue
 		}
-		if !isCharacter(actor, "onmyoji") || actor.Camp != target.Camp {
+		if !playerpkg.IsCharacter(actor, "onmyoji") || actor.Camp != target.Camp {
 			continue
 		}
-		if !hasOnmyojiShikigamiForm(actor) {
+		if !playerpkg.HasForm(actor, model.FormOnmyojiShikigami) {
 			continue
 		}
 		if !e.canPayOnmyojiBindingCost(actor.Camp) {
@@ -205,7 +206,7 @@ func (e *GameEngine) tryStartOnmyojiYinYangInterrupt(combatReq *model.CombatRequ
 
 	target := e.State.Players[combatReq.TargetID]
 	attacker := e.State.Players[combatReq.AttackerID]
-	if target == nil || attacker == nil || !isCharacter(target, "onmyoji") {
+	if target == nil || attacker == nil || !playerpkg.IsCharacter(target, "onmyoji") {
 		return false
 	}
 	if !onmyojiplayer.CanUseFactionCounter(combatReq.Card) {

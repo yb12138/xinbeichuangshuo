@@ -18,6 +18,26 @@ func newHookRuntime(e *GameEngine) engineplayer.HookRuntime {
 	return hookRuntime{GameEngine: e}
 }
 
+type combatPolicyRuntime struct {
+	hookRuntime
+	combatRequest *model.CombatRequest
+	chain         *model.MagicBulletChain
+}
+
+func (r combatPolicyRuntime) GetCombatRequest() *model.CombatRequest {
+	return r.combatRequest
+}
+
+func (r combatPolicyRuntime) GetMagicBulletChain() *model.MagicBulletChain {
+	return r.chain
+}
+
+var _ engineplayer.CombatPolicyRuntime = combatPolicyRuntime{}
+
+func newCombatPolicyRuntime(e *GameEngine, req *model.CombatRequest, chain *model.MagicBulletChain) engineplayer.CombatPolicyRuntime {
+	return combatPolicyRuntime{hookRuntime: hookRuntime{GameEngine: e}, combatRequest: req, chain: chain}
+}
+
 func (r hookRuntime) GetPlayer(playerID string) *model.Player {
 	if r.GameEngine == nil || r.State == nil {
 		return nil
@@ -240,6 +260,13 @@ func (r hookRuntime) AddCampMorale(camp model.Camp, amount int) int {
 	return r.GameEngine.addCampMorale(camp, amount)
 }
 
+func (r hookRuntime) GetCampCups(camp string) int {
+	if r.GameEngine == nil {
+		return 0
+	}
+	return r.GameEngine.GetCampCups(camp)
+}
+
 // 新增 - 战斗上下文
 func (r hookRuntime) GetPendingDamage() *model.PendingDamage {
 	if r.GameEngine == nil || r.GameEngine.State == nil || len(r.GameEngine.State.PendingDamageQueue) == 0 {
@@ -405,34 +432,6 @@ func (r hookRuntime) DrawCardsWithOptions(playerID string, count int, opts model
 	r.GameEngine.DrawCardsWithOptions(playerID, count, opts)
 }
 
-func (r hookRuntime) ConsumeBeastSoul(player *model.Player, amount int) int {
-	if r.GameEngine == nil {
-		return 0
-	}
-	return r.GameEngine.consumeBeastSamuraiBeastSoul(player, amount)
-}
-
-func (r hookRuntime) ClearHundredDragonForm(player *model.Player, logLine string) {
-	if r.GameEngine == nil {
-		return
-	}
-	r.GameEngine.clearFighterHundredDragon(player, logLine)
-}
-
-func (r hookRuntime) ReleaseAssassinStealth(player *model.Player) {
-	if r.GameEngine == nil {
-		return
-	}
-	r.GameEngine.releaseAssassinStealthEffect(player)
-}
-
-func (r hookRuntime) ResolveCrimsonKnightHotFormTurnEnd(player *model.Player) bool {
-	if r.GameEngine == nil {
-		return false
-	}
-	return r.GameEngine.resolveCrimsonKnightHotFormTurnEnd(player)
-}
-
 func (r hookRuntime) NotifyCardRevealed(playerID string, cards []model.Card, actionType model.DamageType) {
 	if r.GameEngine == nil {
 		return
@@ -473,4 +472,34 @@ func (r hookRuntime) GetPlayerOrientation(player *model.Player) model.CharacterO
 		return model.OrientationNormal
 	}
 	return engineplayer.EffectiveOrientation(player)
+}
+
+// 新增 - 场上效果卡查找（用于伤害钩子）
+func (r hookRuntime) FindExclusiveEffectCard(source *model.Player, effect model.EffectType) (*model.Player, *model.FieldCard) {
+	if r.GameEngine == nil {
+		return nil, nil
+	}
+	return r.GameEngine.findExclusiveEffectCard(source, effect)
+}
+
+func (r hookRuntime) FindSourceEffectCard(source *model.Player, effect model.EffectType) (*model.Player, *model.FieldCard) {
+	if r.GameEngine == nil {
+		return nil, nil
+	}
+	return r.GameEngine.findSourceEffectCard(source, effect)
+}
+
+func (r hookRuntime) AttachExclusiveEffectCard(source, target *model.Player, effect model.EffectType, card model.Card) error {
+	if r.GameEngine == nil {
+		return nil
+	}
+	return r.GameEngine.attachExclusiveEffectCard(source, target, effect, card)
+}
+
+// 新增 - 伤害应用钩子所需
+func (r hookRuntime) RemoveFieldCard(targetID string, effect model.EffectType) bool {
+	if r.GameEngine == nil {
+		return false
+	}
+	return r.GameEngine.RemoveFieldCard(targetID, effect)
 }

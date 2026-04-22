@@ -20,6 +20,9 @@ func RoleEntry() player.RoleEntry {
 			{Timing: player.TimingOnAttackStateReset, Priority: 100, Hook: attackStateResetHook},
 			{Timing: player.TimingOnAttackGating, Priority: 200, Hook: attackGatingHook},
 			{Timing: player.TimingOnTurnEndFinal, Priority: 900, Hook: turnEndHook},
+			{Timing: player.TimingOnResponseSkillSkip, Priority: 100, Hook: responseSkillSkipHook},
+			{Timing: player.TimingOnPlayerSetup, Priority: 100, Hook: playerSetupHook},
+			{Timing: player.TimingOnCampCupChanged, Priority: 100, Hook: campCupChangedHook},
 		},
 		SkillUsabilityCheckers: map[string]player.SkillUsabilityChecker{
 			"holy_lancer_punishment": CheckPunishmentUsability,

@@ -2,10 +2,10 @@
 
 package engine
 
-import "starcup-engine/internal/model"
-
-type campChangedPlayerHook func(e *GameEngine, player *model.Player)
-type campChangedCupHook func(e *GameEngine, changedCamp model.Camp)
+import (
+	engineplayer "starcup-engine/internal/engine/player"
+	"starcup-engine/internal/model"
+)
 
 type timingOnCampChangedStage int
 
@@ -15,16 +15,16 @@ const (
 )
 
 // runTimingOnCampChangedHooks 统一处理 TimingOnCampChanged 阶段规则。
-func (e *GameEngine) runTimingOnCampChangedHooks(player *model.Player, changedCamp model.Camp, stage timingOnCampChangedStage) {
+func (e *GameEngine) runTimingOnCampChangedHooks(player *model.Player, _ model.Camp, stage timingOnCampChangedStage) {
 	switch stage {
 	case timingOnCampChangedPlayerSetup:
-		for _, hook := range e.campChangedPlayerSetupHooks {
-			hook(e, player)
+		if player != nil {
+			e.dispatchRoleTimingHook(engineplayer.TimingOnPlayerSetup, engineplayer.TimingHookContext{
+				TargetID: player.ID,
+			})
 		}
 	case timingOnCampChangedCampCup:
-		for _, hook := range e.campChangedCampCupHooks {
-			hook(e, changedCamp)
-		}
+		e.dispatchAllRoleTimingHooks(engineplayer.TimingOnCampCupChanged, engineplayer.TimingHookContext{})
 	default:
 		panic("unregistered TimingOnCampChanged stage")
 	}

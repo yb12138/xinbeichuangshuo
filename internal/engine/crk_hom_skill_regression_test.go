@@ -1,6 +1,7 @@
 package engine
 
 import (
+	playerpkg "starcup-engine/internal/engine/player"
 	"strings"
 	"testing"
 
@@ -227,7 +228,7 @@ func TestHomRuneReforge_ReallocateAndOverflowCheckOnTurnEnd(t *testing.T) {
 	p1.Gem = 1
 	p1.Tokens["hom_war_rune"] = 3
 	p1.Tokens["hom_magic_rune"] = 0
-	leaveWarHomunculusBurstForm(p1)
+	playerpkg.ClearForm(p1, model.FormWarHomunculusBurst)
 	// 进入形态前 6 张手牌，符文改造摸1后=7（形态内上限+1），回合结束转正后应触发弃1。
 	p1.Hand = makeHandCards(6, model.ElementFire)
 
@@ -784,7 +785,7 @@ func TestHomRuneSmash_BurstAddsAttackAndMagicDamage(t *testing.T) {
 	p2.TurnState = model.NewPlayerTurnState()
 	p1.Tokens["hom_war_rune"] = 3
 	p1.Tokens["hom_magic_rune"] = 0
-	enterWarHomunculusBurstForm(p1)
+	playerpkg.SetForm(p1, model.FormWarHomunculusBurst)
 	p1.Hand = []model.Card{
 		{ID: "f1", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2},
 		{ID: "f2", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2},

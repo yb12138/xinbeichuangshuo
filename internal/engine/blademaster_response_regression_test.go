@@ -3,6 +3,7 @@ package engine
 import (
 	"testing"
 
+	blademaster "starcup-engine/internal/engine/player/blade_master"
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/rules"
 )
@@ -712,7 +713,7 @@ func TestBladeMaster_HolySwordDraw_X0ResumesExtraAction(t *testing.T) {
 	p1.TurnState.AttackCount = 3
 	game.State.TurnStage = model.TurnStageActionExecution
 
-	if !game.holySwordDrawInterruptIfNeeded(p1) {
+	if !blademaster.DispatchHolySwordInterruptForTest(game, p1) {
 		t.Fatalf("expected holy sword draw interrupt to dispatch")
 	}
 	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptHolySwordDraw {
@@ -757,7 +758,7 @@ func TestBladeMaster_HolySwordDiscardResumesExtraAction(t *testing.T) {
 	model.AppendAttackAction(p1, "holy-sword-followup")
 	game.State.CurrentTurn = 0
 
-	if !game.holySwordDrawInterruptIfNeeded(p1) {
+	if !blademaster.DispatchHolySwordInterruptForTest(game, p1) {
 		t.Fatalf("expected holy sword draw interrupt to dispatch")
 	}
 	if err := game.handleInterruptAction(model.PlayerAction{

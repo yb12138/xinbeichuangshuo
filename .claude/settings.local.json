@@ -50,7 +50,15 @@
       "Bash(sed -n '177,922p' internal/engine/skill/handlers_roles_18_22.go)",
       "Read(//tmp/**)",
       "Bash(sort -t/ -k6)",
-      "Bash(awk '{print $5, $NF}')"
+      "Bash(awk '{print $5, $NF}')",
+      "Bash(sed -i '' 's/enterAssassinStealthForm\\(p1\\)/player.SetForm\\(p1, model.FormAssassinStealth\\)/g' internal/engine/assassin_config_regression_test.go internal/engine/combat_magic_role_fix_regression_test.go)",
+      "Bash(sed -i '' 's/enterMagicSwordsmanShadowForm\\(p1\\)/player.SetForm\\(p1, model.FormMagicSwordsmanShadow\\)/g' internal/engine/magic_swordsman_shadow_reject_response_regression_test.go internal/engine/magic_swordsman_config_regression_test.go internal/engine/new_roles_regression_test.go internal/engine/action_selection_prompt_options_test.go)",
+      "Bash(sed -i '' 's/enterWarHomunculusBurstForm\\(p1\\)/player.SetForm\\(p1, model.FormWarHomunculusBurst\\)/g' internal/engine/crk_hom_skill_regression_test.go)",
+      "Bash(sed -i '' 's/enterArbiterJudgmentForm\\(p1\\)/player.SetForm\\(p1, model.FormArbiterJudgment\\)/g' internal/engine/arbiter_law_regression_test.go)",
+      "Bash(sed -i '' 's/enterElfArcherRitualForm\\(p1\\)/player.SetForm\\(p1, model.FormElfArcherRitual\\)/g' internal/engine/elf_archer_skill_regression_test.go)",
+      "Bash(sed -i '' 's/player\\\\.SetForm/playerpkg.SetForm/g' internal/engine/action_selection_prompt_options_test.go internal/engine/arbiter_law_regression_test.go internal/engine/assassin_config_regression_test.go internal/engine/combat_magic_role_fix_regression_test.go internal/engine/crk_hom_skill_regression_test.go internal/engine/elf_archer_skill_regression_test.go internal/engine/magic_swordsman_config_regression_test.go internal/engine/magic_swordsman_shadow_reject_response_regression_test.go internal/engine/new_roles_regression_test.go)",
+      "Bash(sed -i '' 's/player\\\\.HasForm/playerpkg.HasForm/g' internal/engine/assassin_config_regression_test.go)",
+      "Bash(sed -i '' 's/player\\\\.ClearForm/playerpkg.ClearForm/g' internal/engine/crk_hom_skill_regression_test.go)"
     ]
   }
 }

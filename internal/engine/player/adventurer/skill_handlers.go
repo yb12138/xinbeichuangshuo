@@ -44,13 +44,6 @@ func canPayCrystalLike(ctx *model.Context, amount int) bool {
 	return ctx.Game.CanPayCrystalCost(ctx.User.ID, amount)
 }
 
-func spendCrystalLike(ctx *model.Context, amount int) bool {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil {
-		return false
-	}
-	return ctx.Game.ConsumeCrystalCost(ctx.User.ID, amount)
-}
-
 // --- 冒险家技能处理器 ---
 
 type AdventurerFraudHandler struct{ skills.BaseHandler }

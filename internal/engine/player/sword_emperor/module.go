@@ -20,6 +20,7 @@ func RoleEntry() player.RoleEntry {
 			{Timing: player.TimingOnDamageCalculate, Priority: 800, Hook: damageCalculateHook},
 			{Timing: player.TimingOnAttackStateReset, Priority: 100, Hook: attackStateResetHook},
 			{Timing: player.TimingOnAttackMiss, Priority: 500, Hook: attackMissHook},
+			{Timing: player.TimingOnDamageAfterTaken, Priority: 100, Hook: damageAfterTakenHook},
 		},
 	}
 }

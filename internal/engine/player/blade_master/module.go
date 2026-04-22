@@ -16,12 +16,15 @@ func RoleEntry() player.RoleEntry {
 		Skills:  SkillEntries(),
 		InterruptSpecs: []player.InterruptSpec{
 			{
-				Type:                  model.InterruptHolySwordDraw,
-				BuildPrompt:           buildHolySwordDrawPrompt,
-				HandleAction:          handleHolySwordDrawAction,
-				AllowedActionTypes:    []model.PlayerActionType{model.CmdSelect},
-				InvalidActionMessage:  "当前为【圣剑】后续选择阶段，请提交选择",
+				Type:                 model.InterruptHolySwordDraw,
+				BuildPrompt:          buildHolySwordDrawPrompt,
+				HandleAction:         handleHolySwordDrawAction,
+				AllowedActionTypes:   []model.PlayerActionType{model.CmdSelect},
+				InvalidActionMessage: "当前为【圣剑】后续选择阶段，请提交选择",
 			},
+		},
+		TimingHookSpecs: []player.TimingHookSpec{
+			{Timing: player.TimingOnActionEnd, Priority: 100, Hook: MaybeHolySwordDrawInterrupt},
 		},
 	}
 }

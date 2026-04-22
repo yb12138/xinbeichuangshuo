@@ -5,6 +5,7 @@ package engine
 import (
 	"fmt"
 
+	engineplayer "starcup-engine/internal/engine/player"
 	bloodpriestesspkg "starcup-engine/internal/engine/player/blood_priestess"
 	"starcup-engine/internal/model"
 )
@@ -89,7 +90,7 @@ func (e *GameEngine) resolveBloodPriestessSharedLifePlaceFollowup(f model.Deferr
 	if user == nil {
 		return fmt.Errorf("执行者不存在: %s", f.UserID)
 	}
-	if !isCharacter(user, "blood_priestess") {
+	if !engineplayer.IsCharacter(user, "blood_priestess") {
 		return fmt.Errorf("仅血之巫女可执行同生共死后续")
 	}
 	if len(f.TargetIDs) != 1 {

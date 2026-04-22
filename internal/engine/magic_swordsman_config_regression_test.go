@@ -1,6 +1,7 @@
 package engine
 
 import (
+	playerpkg "starcup-engine/internal/engine/player"
 	"testing"
 
 	"starcup-engine/internal/model"
@@ -56,7 +57,7 @@ func TestMagicSwordsmanShadowGather_ReleasesBeforeNextActionSelectionPrompt(t *t
 	p1 := g.State.Players["p1"]
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
-	enterMagicSwordsmanShadowForm(p1)
+	playerpkg.SetForm(p1, model.FormMagicSwordsmanShadow)
 	p1.Hand = []model.Card{
 		{ID: "holy", Name: "圣光", Type: model.CardTypeMagic, Element: model.ElementLight},
 	}
@@ -107,7 +108,7 @@ func TestMagicSwordsmanShadowMeteor_TargetsEnemyOnlyAndUsesUnifiedSkillFlow(t *t
 	p1 := g.State.Players["p1"]
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
-	enterMagicSwordsmanShadowForm(p1)
+	playerpkg.SetForm(p1, model.FormMagicSwordsmanShadow)
 	p1.Hand = []model.Card{
 		{ID: "m1", Name: "圣光", Type: model.CardTypeMagic, Element: model.ElementLight},
 		{ID: "m2", Name: "魔弹", Type: model.CardTypeMagic, Element: model.ElementWater, Damage: 2},

@@ -5,8 +5,7 @@ package engine
 import (
 	"fmt"
 
-	playerpkg "starcup-engine/internal/engine/player"
-	bloodpriestesspkg "starcup-engine/internal/engine/player/blood_priestess"
+	engineplayer "starcup-engine/internal/engine/player"
 	soulsorcererpkg "starcup-engine/internal/engine/player/soul_sorcerer"
 	"starcup-engine/internal/model"
 )
@@ -33,7 +32,13 @@ func (e *GameEngine) applyMoraleLossAfterTimingWindow(victim *model.Player, mora
 
 	finalLoss = e.applyCampMoraleLoss(victim.Camp, finalLoss)
 	soulsorcererpkg.ApplySoulDevour(e, victim, finalLoss, fromDamageDraw)
-	e.applyDamageDrivenMoraleLossRoleEffects(victim, finalLoss, isMagic, fromDamageDraw, lossCtx)
+	e.dispatchRoleTimingHook(engineplayer.TimingOnMoraleLossApplied, engineplayer.TimingHookContext{
+		TargetID:       victim.ID,
+		IsMagicDamage:  isMagic,
+		FromDamageDraw: fromDamageDraw,
+		MoraleLoss:     finalLoss,
+	})
+	e.trackPlagueOutbreakMoraleDrop(lossCtx)
 
 	if moraleLoss != finalLoss {
 		e.Log(fmt.Sprintf("[System] 士气损失被抵御！原损失: %d, 实际损失: %d", moraleLoss, finalLoss))
@@ -43,40 +48,8 @@ func (e *GameEngine) applyMoraleLossAfterTimingWindow(victim *model.Player, mora
 	return finalLoss
 }
 
-func (e *GameEngine) applyDamageDrivenMoraleLossRoleEffects(victim *model.Player, finalLoss int, isMagic bool, fromDamageDraw bool, lossCtx *model.Context) {
-	if victim == nil || !fromDamageDraw || finalLoss <= 0 {
-		return
-	}
-
-	if isCharacter(victim, "blood_priestess") {
-		ensurePlayerTokensMap(victim)
-		if bloodpriestesspkg.EnterBleedingFormWithLog(newRoleChoiceRuntime(e), victim, "因承受伤害导致我方士气下降") {
-			e.Heal(victim.ID, 1)
-			e.Log(fmt.Sprintf("%s 的 [流血] 触发：获得1点治疗", victim.Name))
-		}
-	}
-
-	if isMagic && isCharacter(victim, "blaze_witch") {
-		ensurePlayerTokensMap(victim)
-		before := victim.Tokens["bw_rebirth"]
-		victim.Tokens["bw_rebirth"]++
-		if victim.Tokens["bw_rebirth"] > 4 {
-			victim.Tokens["bw_rebirth"] = 4
-		}
-		if victim.Tokens["bw_rebirth"] != before {
-			e.Log(fmt.Sprintf("%s 的 [永生银时计] 触发，重生+1（当前%d）", victim.Name, victim.Tokens["bw_rebirth"]))
-		}
-	}
-
-	// 红莲骑士：仅当“伤害导致且实际发生士气下降”时，强制进入热血沸腾形态。
-	if isCharacter(victim, "crimson_knight") && !playerpkg.HasForm(victim, model.FormCrimsonKnightHotBlooded) {
-		ensurePlayerTokensMap(victim)
-		beforePoses := e.snapshotPlayerPoses()
-		playerpkg.SetForm(victim, model.FormCrimsonKnightHotBlooded)
-		e.Log(fmt.Sprintf("%s 的 [热血沸腾] 触发，进入热血沸腾形态", victim.Name))
-		e.dispatchOrientationChanges(beforePoses)
-	}
-
+// trackPlagueOutbreakMoraleDrop 记录瘟疫爆发导致的士气下降次数（非角色特定逻辑）。
+func (e *GameEngine) trackPlagueOutbreakMoraleDrop(lossCtx *model.Context) {
 	if lossCtx == nil || lossCtx.Selections == nil {
 		return
 	}

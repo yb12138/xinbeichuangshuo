@@ -5,6 +5,7 @@ package engine
 import (
 	"fmt"
 
+	engineplayer "starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
 )
 
@@ -97,12 +98,11 @@ func (e *GameEngine) runTimingOnActionEndInterruptPolicies(ctx *model.Context) b
 
 // applyTimingOnHitCheckCombatDefendValidation 在防御判定时执行校验策略。
 func (e *GameEngine) applyTimingOnHitCheckCombatDefendValidation(player *model.Player, req *model.CombatRequest) error {
-	steps := make([]func() error, 0, len(e.hitCheckCombatDefendValidationPolicies))
-	for _, rule := range e.hitCheckCombatDefendValidationPolicies {
-		r := rule
-		steps = append(steps, func() error { return r(e, player, req) })
-	}
-	return runTimingErrorChain(steps...)
+	result := e.dispatchRoleTimingHook(engineplayer.TimingOnDefendValidation, engineplayer.TimingHookContext{
+		Player:        player,
+		CombatRequest: req,
+	})
+	return result.ValidationError
 }
 
 // applyTimingOnHitCheckCombatCounterCardPolicy 在应战出牌时执行卡牌校验策略。
@@ -139,22 +139,21 @@ func (e *GameEngine) applyTimingOnHitCheckCombatCounterResolvePolicy(player *mod
 
 // applyTimingOnHitCheckMagicMissileDefendValidation 在魔弹防御判定时执行校验策略。
 func (e *GameEngine) applyTimingOnHitCheckMagicMissileDefendValidation(player *model.Player, chain *model.MagicBulletChain) error {
-	steps := make([]func() error, 0, len(e.hitCheckMagicMissileDefendPolicies))
-	for _, rule := range e.hitCheckMagicMissileDefendPolicies {
-		r := rule
-		steps = append(steps, func() error { return r(e, player, chain) })
-	}
-	return runTimingErrorChain(steps...)
+	result := e.dispatchRoleTimingHook(engineplayer.TimingOnMagicMissileDefend, engineplayer.TimingHookContext{
+		Player:           player,
+		MagicBulletChain: chain,
+	})
+	return result.ValidationError
 }
 
 // applyTimingOnHitCheckMagicMissileCounterValidation 在魔弹传递判定时执行校验策略。
 func (e *GameEngine) applyTimingOnHitCheckMagicMissileCounterValidation(player *model.Player, chain *model.MagicBulletChain, card model.Card) error {
-	steps := make([]func() error, 0, len(e.hitCheckMagicMissileCounterPolicies))
-	for _, rule := range e.hitCheckMagicMissileCounterPolicies {
-		r := rule
-		steps = append(steps, func() error { return r(e, player, chain, card) })
-	}
-	return runTimingErrorChain(steps...)
+	result := e.dispatchRoleTimingHook(engineplayer.TimingOnMagicMissileCounter, engineplayer.TimingHookContext{
+		Player:           player,
+		MagicBulletChain: chain,
+		Card:             &card,
+	})
+	return result.ValidationError
 }
 
 // applyTimingOnHitCheckResponseSkillAugment 在响应技能列表构建时追加技能。

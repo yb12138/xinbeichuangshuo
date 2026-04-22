@@ -158,51 +158,6 @@ func (e *GameEngine) clearCombatStack() {
 // 8. 回到额外行动阶段，交由状态机统一处理 PendingActions/回合结束
 // 这里已手动触发过一次 OnPhaseEnd，清空 LastActionType 防止重复触发
 
-// holySwordDrawInterruptIfNeeded 在满足条件时推送圣剑摸X弃X中断
-func (e *GameEngine) holySwordDrawInterruptIfNeeded(attacker *model.Player) bool {
-	if attacker == nil || attacker.Character == nil || attacker.TurnState.AttackCount != 3 {
-		return false
-	}
-	hasHolySword := false
-	for _, skill := range attacker.Character.Skills {
-		if skill.ID == "holy_sword" {
-			hasHolySword = true
-			break
-		}
-	}
-	if !hasHolySword {
-		return false
-	}
-	e.setReturnPoint(model.TurnStageExtraAction)
-
-	e.PushInterrupt(&model.Interrupt{
-		Type:     model.InterruptHolySwordDraw,
-		PlayerID: attacker.ID,
-		Context: map[string]interface{}{
-			"choice_type": "holy_sword_draw",
-			"player_id":   attacker.ID,
-		},
-	})
-	e.Log(fmt.Sprintf("[Skill] %s 的 [圣剑] 第3次攻击结束，需选择摸X弃X (X=0-3)", attacker.Name))
-	return true
-}
-
-func (e *GameEngine) maybeHolySwordDrawFromPhaseEndCtx(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil || ctx.EventCtx.ActionType != model.ActionAttack {
-		return false
-	}
-	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
-		return false
-	}
-	if !e.holySwordDrawInterruptIfNeeded(ctx.User) {
-		return false
-	}
-	// 圣剑中断先打断当前 ActionEnd，处理完后回到同一个 ActionEnd 继续派发风怒/剑影等响应技能。
-	ctx.User.TurnState.MarkActionEndNeedsInterruptHookSkipOnce()
-	e.setReturnPoint(model.TurnStageActionEnd)
-	return true
-}
-
 // addCampResource 添加阵营资源 (水晶或宝石)，战绩区总上限为 5。
 // 返回 true 表示本次成功增加资源。
 func (e *GameEngine) addCampResource(camp model.Camp, resourceType string) bool {

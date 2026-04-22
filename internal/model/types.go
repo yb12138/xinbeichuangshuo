@@ -215,6 +215,9 @@ type GameState struct {
 	ReturnCombatStage CombatStage `json:"return_combat_stage,omitempty"`
 	ReturnSubflow     Subflow     `json:"return_subflow,omitempty"`
 	GameOver          bool        `json:"game_over,omitempty"`
+
+	// 回合控制
+	NextTurnPlayerOverride string `json:"next_turn_player_override,omitempty"` // 下回合玩家覆盖（用于额外回合等）
 }
 
 // DamageType 定义伤害/行动类型枚举文本。

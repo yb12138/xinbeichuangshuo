@@ -69,3 +69,25 @@ func afterApplyHook(rt player.HookRuntime, ctx player.TimingHookContext) player.
 	target.TurnState.SkillFlowState["bw_mana_inversion_lock"] = 0
 	return player.TimingHookResult{}
 }
+
+// moraleLossHook 苍炎魔女：法术伤害导致士气下降时，重生+1（上限4）。
+func moraleLossHook(rt player.HookRuntime, ctx player.TimingHookContext) player.TimingHookResult {
+	if !ctx.FromDamageDraw || !ctx.IsMagicDamage || ctx.MoraleLoss <= 0 {
+		return player.TimingHookResult{}
+	}
+	victim := rt.GetPlayer(ctx.TargetID)
+	if victim == nil || !player.IsCharacter(victim, "blaze_witch") {
+		return player.TimingHookResult{}
+	}
+	before := rt.GetToken(victim, "bw_rebirth")
+	rt.SetToken(victim, "bw_rebirth", before+1)
+	current := rt.GetToken(victim, "bw_rebirth")
+	if current > 4 {
+		rt.SetToken(victim, "bw_rebirth", 4)
+		current = 4
+	}
+	if current != before {
+		rt.Log(fmt.Sprintf("%s 的 [永生银时计] 触发，重生+1（当前%d）", victim.Name, current))
+	}
+	return player.TimingHookResult{}
+}

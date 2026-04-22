@@ -1,6 +1,7 @@
 package engine
 
 import (
+	playerpkg "starcup-engine/internal/engine/player"
 	"testing"
 
 	"starcup-engine/internal/model"
@@ -216,7 +217,7 @@ func TestElfRitualRelease_TargetsEnemyOnly(t *testing.T) {
 	p1.Tokens = map[string]int{
 		"elf_ritual_release_waiting": 0,
 	}
-	enterElfArcherRitualForm(p1)
+	playerpkg.SetForm(p1, model.FormElfArcherRitual)
 
 	game.Drive()
 

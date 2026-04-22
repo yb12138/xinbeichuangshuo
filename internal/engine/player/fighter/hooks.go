@@ -83,7 +83,14 @@ func turnEndHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHookContext
 		return engineplayer.TimingHookResult{}
 	}
 	if rt.HasForm(p, model.FormFighterHundredDragon) {
-		rt.ClearHundredDragonForm(p, fmt.Sprintf("%s 的 [百式幻龙拳] 在本行动阶段结束时退场并转正", p.Name))
+		before := rt.SnapshotPlayerPoses()
+		active := rt.HasForm(p, model.FormFighterHundredDragon) || engineplayer.GetSkillFlowState(p, "fighter_hundred_dragon_target_order") > 0
+		engineplayer.ClearForm(p, model.FormFighterHundredDragon)
+		engineplayer.SetSkillFlowState(p, "fighter_hundred_dragon_target_order", 0)
+		if active {
+			rt.Log(fmt.Sprintf("%s 的 [百式幻龙拳] 在本行动阶段结束时退场并转正", p.Name))
+		}
+		rt.DispatchOrientationChanges(before)
 	}
 	return engineplayer.TimingHookResult{}
 }

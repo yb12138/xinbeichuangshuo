@@ -17,6 +17,9 @@ func RoleEntry() player.RoleEntry {
 		Choices:          NewChoiceHandler(),
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
+		TimingHookSpecs: []player.TimingHookSpec{
+			{Timing: player.TimingOnHealCapCalculate, Priority: 100, Hook: healCapHook},
+		},
 		SkillUsabilityCheckers: map[string]player.SkillUsabilityChecker{
 			"priest_water_power": CheckWaterPowerDiscardUsability,
 		},

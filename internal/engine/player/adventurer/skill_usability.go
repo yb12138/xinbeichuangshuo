@@ -18,9 +18,6 @@ func CheckFraudUsability(engine player.SkillUsabilityCheckerEngine, p *model.Pla
 		if element != "" && count >= 2 {
 			return true
 		}
-		if count >= 3 {
-			return true
-		}
 	}
 	return false
 }

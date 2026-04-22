@@ -13,10 +13,6 @@ import (
 	"starcup-engine/internal/model"
 )
 
-func turnBeforeStartButterflyDancerWitherExpiryHook(e *GameEngine, player *model.Player) bool {
-	return butterflydancer.WitherExpiry(newRoleChoiceRuntime(e), player)
-}
-
 func turnStartBloodPriestessBleedHook(e *GameEngine, player *model.Player) bool {
 	return bloodpriestess.BleedTick(newRoleChoiceRuntime(e), player)
 }

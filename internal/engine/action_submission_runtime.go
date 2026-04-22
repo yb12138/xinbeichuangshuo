@@ -285,7 +285,7 @@ func (e *GameEngine) handleActionSelectionCannotAct(player *model.Player) error 
 	e.State.DiscardPile = newDiscard
 	player.Hand = append(player.Hand, cards...)
 	e.NotifyDrawCards(player.ID, handCount, "cannot_act_redraw")
-	if isCharacter(player, "magic_swordsman") {
+	if playerpkg.IsCharacter(player, "magic_swordsman") {
 		for len(player.Hand) > 0 {
 			hasAttack := false
 			allMagic := true

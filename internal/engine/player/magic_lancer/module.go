@@ -19,7 +19,11 @@ func RoleEntry() player.RoleEntry {
 		TimingHookSpecs: []player.TimingHookSpec{
 			{Timing: player.TimingOnDamageCalculate, Priority: 300, Hook: damageCalculateHook},
 			{Timing: player.TimingPostDamageResolved, Priority: 300, Hook: postDamageResolvedHook},
+			{Timing: player.TimingOnDefendValidation, Priority: 100, Hook: defendValidationHook},
+			{Timing: player.TimingOnMagicMissileDefend, Priority: 100, Hook: magicMissileDefendHook},
+			{Timing: player.TimingOnMagicMissileCounter, Priority: 100, Hook: magicMissileCounterHook},
 		},
+		CombatPolicySpecs: CombatPolicySpecs(),
 	}
 }
 

@@ -221,7 +221,7 @@ func (e *GameEngine) resolveAssassinStealthApplyFollowup(f model.DeferredFollowu
 	if user == nil {
 		return fmt.Errorf("暗杀者潜行后续执行者不存在: %s", f.UserID)
 	}
-	if !isCharacter(user, "assassin") {
+	if !playerpkg.IsCharacter(user, "assassin") {
 		return fmt.Errorf("仅暗杀者可执行潜行后续")
 	}
 

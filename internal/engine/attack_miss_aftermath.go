@@ -4,7 +4,6 @@ package engine
 
 import (
 	engineplayer "starcup-engine/internal/engine/player"
-	beastsamurai "starcup-engine/internal/engine/player/beast_samurai"
 	"starcup-engine/internal/model"
 )
 
@@ -21,6 +20,4 @@ func (e *GameEngine) resolveMagicBowPierceMissWithOverride(attackerID, targetID 
 		ForceFighterChargeMiss: forceFighterChargeMiss,
 		IsCounter:              isCounter,
 	})
-	// 系统级清理：兽武者攻击令牌清除
-	beastsamurai.ClearAttackTokens(e.State.Players[attackerID])
 }

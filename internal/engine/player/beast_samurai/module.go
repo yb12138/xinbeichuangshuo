@@ -21,6 +21,7 @@ func RoleEntry() player.RoleEntry {
 			{Timing: player.TimingOnAttackStateReset, Priority: 100, Hook: attackStateResetHook},
 			{Timing: player.TimingOnAttackGating, Priority: 300, Hook: attackGatingHook},
 			{Timing: player.TimingPostAttackHit, Priority: 200, Hook: postAttackHitHook},
+			{Timing: player.TimingOnAttackMiss, Priority: 100, Hook: attackMissHook},
 			{Timing: player.TimingPostDamageResolved, Priority: 100, Hook: postDamageResolvedHook},
 			{Timing: player.TimingOnTurnEnd, Priority: 100, Hook: turnEndHook},
 		},

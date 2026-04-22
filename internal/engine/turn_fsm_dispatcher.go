@@ -5,6 +5,7 @@ package engine
 import (
 	"fmt"
 
+	playerpkg "starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
 )
 
@@ -385,7 +386,7 @@ func (e *GameEngine) promptAttackElementForCombatResponse(combatReq *model.Comba
 		return string(model.ElementDark)
 	}
 	// 圣枪骑士【天枪】文案口径：本次攻击视为暗灭且无法应战。
-	if attacker != nil && isCharacter(attacker, "holy_lancer") && combatReq.HasInterceptTag(model.CombatInterceptUnrespondable) {
+	if attacker != nil && playerpkg.IsCharacter(attacker, "holy_lancer") && combatReq.HasInterceptTag(model.CombatInterceptUnrespondable) {
 		return string(model.ElementDark)
 	}
 	return string(combatReq.Card.Element)

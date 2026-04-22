@@ -1,6 +1,7 @@
 package engine
 
 import (
+	playerpkg "starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/rules"
 	"testing"
@@ -100,7 +101,7 @@ func TestMagicSwordsmanShadowRejectHidesMagicOption(t *testing.T) {
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
 	p1.TurnState.HasUsedActionSkill = true
-	enterMagicSwordsmanShadowForm(p1)
+	playerpkg.SetForm(p1, model.FormMagicSwordsmanShadow)
 	p1.Hand = []model.Card{
 		{ID: "m1", Name: "中毒", Type: model.CardTypeMagic, Element: model.ElementEarth},
 	}

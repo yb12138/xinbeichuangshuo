@@ -110,7 +110,6 @@ func timingOpDamageCalculatedHealCap(e *GameEngine, ctx timingOnDamageCalculated
 }
 
 func timingOpDamageCalculatedHealResist(e *GameEngine, ctx timingOnDamageCalculatedContext, result *timingOnDamageCalculatedResult) {
-	e.applyTimingOnDamageCalculatedHealResistRules(ctx.PendingDamage, ctx.Target)
 	// 治疗抵抗规则已迁移到 TimingOnHealResist TimingHookSpec。
 	if ctx.PendingDamage != nil && ctx.Target != nil {
 		e.dispatchAllRoleTimingHooks(engineplayer.TimingOnHealResist, engineplayer.TimingHookContext{

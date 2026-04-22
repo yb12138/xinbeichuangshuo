@@ -26,6 +26,23 @@ func attackGatingHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHookCo
 	return engineplayer.TimingHookResult{}
 }
 
+// turnEndFinalHook 回合结束最终阶段：处理额外回合。
+func turnEndFinalHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHookContext) engineplayer.TimingHookResult {
+	p := rt.GetPlayer(ctx.SourceID)
+	if p == nil {
+		return engineplayer.TimingHookResult{}
+	}
+	extraTurnPending := p.TurnState.SkillFlowState["mg_extra_turn_pending"]
+	if extraTurnPending <= 0 {
+		return engineplayer.TimingHookResult{}
+	}
+	// 消耗额外回合标记，设置下一个回合玩家为当前玩家
+	p.TurnState.SkillFlowState["mg_extra_turn_pending"]--
+	rt.SetNextTurnPlayer(p.ID)
+	rt.Log(fmt.Sprintf("%s 获得 [额外回合]", p.Name))
+	return engineplayer.TimingHookResult{}
+}
+
 // postDamageResolvedHook 伤害结算完成后：月渎触发检查。
 func postDamageResolvedHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHookContext) engineplayer.TimingHookResult {
 	pd := ctx.PendingDamage

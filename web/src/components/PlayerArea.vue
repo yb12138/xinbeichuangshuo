@@ -228,7 +228,6 @@ const HIDDEN_TOKEN_KEYS = new Set([
   'hb_shard_miss_pending',
   'mg_blasphemy_used_turn',
   'mg_blasphemy_pending',
-  'mg_extra_turn_pending',
   'bt_wither_pending',
   'adventurer_extract_last_gem',
   'adventurer_extract_last_crystal',

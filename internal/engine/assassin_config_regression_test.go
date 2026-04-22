@@ -1,6 +1,7 @@
 package engine
 
 import (
+	playerpkg "starcup-engine/internal/engine/player"
 	"testing"
 
 	"starcup-engine/internal/model"
@@ -131,7 +132,7 @@ func TestAssassinStealth_DrawChoiceDelaysStealthUntilDrawResolves(t *testing.T) 
 	})
 
 	requireResponseSkillPrompt(t, game, "p1")
-	if hasAssassinStealthForm(p1) {
+	if playerpkg.HasForm(p1, model.FormAssassinStealth) {
 		t.Fatalf("stealth should not apply before the optional draw path fully resolves")
 	}
 
@@ -154,7 +155,7 @@ func TestAssassinStealth_DrawChoiceDelaysStealthUntilDrawResolves(t *testing.T) 
 		Selections: []int{0},
 	})
 
-	if !hasAssassinStealthForm(p1) {
+	if !playerpkg.HasForm(p1, model.FormAssassinStealth) {
 		t.Fatalf("expected stealth followup to apply after the interrupted draw path resolves")
 	}
 	if got := len(p1.Hand); got != 1 {
@@ -205,7 +206,7 @@ func TestAssassinStealth_HandLimitMinusOneAndReleasesNextStartup(t *testing.T) {
 		Selections: []int{1},
 	})
 
-	if !hasAssassinStealthForm(p1) {
+	if !playerpkg.HasForm(p1, model.FormAssassinStealth) {
 		t.Fatalf("expected stealth to apply immediately on the no-draw branch")
 	}
 	if got := game.GetMaxHand(p1); got != 5 {
@@ -233,7 +234,7 @@ func TestAssassinStealth_HandLimitMinusOneAndReleasesNextStartup(t *testing.T) {
 
 	game.Drive()
 
-	if hasAssassinStealthForm(p1) {
+	if playerpkg.HasForm(p1, model.FormAssassinStealth) {
 		t.Fatalf("expected stealth to release at next startup")
 	}
 	if got := game.GetMaxHand(p1); got != 6 {
@@ -286,7 +287,7 @@ func TestAssassinStealth_DrawSkipResponse_ResumesStartupFlow(t *testing.T) {
 	if game.State.PendingInterrupt != nil {
 		t.Fatalf("expected skip response to finish the stealth draw path cleanly, got %+v", game.State.PendingInterrupt)
 	}
-	if !hasAssassinStealthForm(p1) {
+	if !playerpkg.HasForm(p1, model.FormAssassinStealth) {
 		t.Fatalf("expected stealth to apply after skipping water shadow during stealth draw")
 	}
 	if got := len(p1.Hand); got != 2 {

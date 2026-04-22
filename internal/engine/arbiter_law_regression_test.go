@@ -1,6 +1,7 @@
 package engine
 
 import (
+	playerpkg "starcup-engine/internal/engine/player"
 	"strings"
 	"testing"
 
@@ -85,7 +86,7 @@ func TestArbiterForm_JudgmentAutoGainAtStartup(t *testing.T) {
 	p1.Tokens = map[string]int{
 		"judgment": 3,
 	}
-	enterArbiterJudgmentForm(p1)
+	playerpkg.SetForm(p1, model.FormArbiterJudgment)
 
 	game.Drive()
 
@@ -170,7 +171,7 @@ func TestArbiterRitualBreak_RestoresHandLimitAndAddsTeamGem(t *testing.T) {
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
 	p1.MaxHand = 5
-	enterArbiterJudgmentForm(p1)
+	playerpkg.SetForm(p1, model.FormArbiterJudgment)
 
 	game.Drive()
 	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptStartupSkill {

@@ -35,7 +35,7 @@ func mountRoleTimingHooks() map[engineplayer.TimingPoint][]roleTimingHookEntry {
 	return hooks
 }
 
-// dispatchRoleTimingHook 按 timing 点分派 Hook，首个返回 Interrupted/Blocked/SkipNextHook 即停止。
+// dispatchRoleTimingHook 按 timing 点分派 Hook，首个返回 Interrupted/Blocked/SkipNextHook/ValidationError 即停止。
 func (e *GameEngine) dispatchRoleTimingHook(
 	timing engineplayer.TimingPoint,
 	ctx engineplayer.TimingHookContext,
@@ -44,7 +44,7 @@ func (e *GameEngine) dispatchRoleTimingHook(
 	rt := newHookRuntime(e)
 	for _, entry := range hooks {
 		result := entry.Hook(rt, ctx)
-		if result.Interrupted || result.Blocked || result.SkipNextHook {
+		if result.Interrupted || result.Blocked || result.SkipNextHook || result.ValidationError != nil {
 			return result
 		}
 	}
@@ -71,6 +71,10 @@ func (e *GameEngine) dispatchAllRoleTimingHooks(
 			}
 		}
 		aggregated.DamageDelta += result.DamageDelta
+		aggregated.HealCapDelta += result.HealCapDelta
+		if result.ValidationError != nil && aggregated.ValidationError == nil {
+			aggregated.ValidationError = result.ValidationError
+		}
 	}
 	return aggregated
 }

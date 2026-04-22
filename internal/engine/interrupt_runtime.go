@@ -7,6 +7,7 @@ import (
 	"sort"
 
 	"starcup-engine/internal/engine/core/runtimeutil"
+	playerpkg "starcup-engine/internal/engine/player"
 	adventurer "starcup-engine/internal/engine/player/adventurer"
 	"starcup-engine/internal/model"
 )
@@ -299,7 +300,7 @@ func (e *GameEngine) maybeAdvanceResponseSkillSelection() bool {
 
 	if len(intr.SkillIDs) == 1 && intr.SkillIDs[0] == "fighter_charge_strike" &&
 		ctx.Timing == model.TimingOnAttackDeclared && ctx.EventCtx != nil && ctx.EventCtx.AttackInfo != nil &&
-		ctx.EventCtx.AttackInfo.CounterInitiator == "" && isCharacter(player, "fighter") &&
+		ctx.EventCtx.AttackInfo.CounterInitiator == "" && playerpkg.IsCharacter(player, "fighter") &&
 		e.dispatcher.isSkillStillUsable("fighter_burst_crash", player, ctx) {
 		intr.SkillIDs = []string{"fighter_burst_crash"}
 		e.Log(fmt.Sprintf("%s 放弃 [蓄力一击]，继续询问是否发动 [气绝崩击]", player.Name))

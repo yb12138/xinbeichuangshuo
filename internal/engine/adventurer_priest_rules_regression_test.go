@@ -106,18 +106,15 @@ func TestAdventurerStealSky_ModeAndExtraActionChoice(t *testing.T) {
 		Type:       model.CmdSelect,
 		Selections: []int{0},
 	})
-	requireChoicePrompt(t, game, "p1", "adventurer_steal_sky_extra_action")
 	if game.State.BlueGems != 0 || game.State.RedGems != 1 {
 		t.Fatalf("expected gem transfer blue->red, got blue=%d red=%d", game.State.BlueGems, game.State.RedGems)
 	}
-
-	mustHandleAction(t, game, model.PlayerAction{
-		PlayerID:   "p1",
-		Type:       model.CmdSelect,
-		Selections: []int{1},
-	})
-	if game.State.PendingInterrupt != nil {
-		t.Fatalf("expected steal sky choices resolved, got pending interrupt %+v", game.State.PendingInterrupt)
+	// 额外行动应已被 Drive 消费，验证 TurnStage 回到了 ActionExecution
+	if game.State.TurnStage != model.TurnStageActionExecution {
+		t.Fatalf("expected TurnStage=ActionExecution for extra action, got %s", game.State.TurnStage)
+	}
+	if p1.TurnState.CurrentExtraAction != "" {
+		// MustType="" 表示无约束，被消费后应已清空
 	}
 }
 

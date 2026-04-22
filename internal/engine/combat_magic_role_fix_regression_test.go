@@ -1,6 +1,7 @@
 package engine
 
 import (
+	playerpkg "starcup-engine/internal/engine/player"
 	"testing"
 
 	"starcup-engine/internal/model"
@@ -26,7 +27,7 @@ func TestAssassinStealthAttack_NoCounterAndBonusDamage(t *testing.T) {
 	p2.TurnState = model.NewPlayerTurnState()
 	p1.Gem = 1
 	p1.Crystal = 2 // X=3
-	enterAssassinStealthForm(p1)
+	playerpkg.SetForm(p1, model.FormAssassinStealth)
 	p1.Hand = []model.Card{
 		{ID: "atk1", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 1},
 	}

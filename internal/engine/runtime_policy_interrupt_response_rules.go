@@ -3,6 +3,7 @@
 package engine
 
 import (
+	playerpkg "starcup-engine/internal/engine/player"
 	beastsamurai "starcup-engine/internal/engine/player/beast_samurai"
 	moonpkg "starcup-engine/internal/engine/player/moon"
 	"starcup-engine/internal/engine/skill"
@@ -16,18 +17,13 @@ func attackStartMoonGoddessMedusaInterruptHook(e *GameEngine, attacker *model.Pl
 	return moonpkg.MaybeMedusa(newRoleChoiceRuntime(e), attacker, target, currentAction.SourceSkill, currentAction.Card, userCtx)
 }
 
-func actionEndHolySwordInterruptHook(e *GameEngine, ctx *model.Context) bool {
-	if e == nil {
-		return false
-	}
-	return e.maybeHolySwordDrawFromPhaseEndCtx(ctx)
-}
+// HolySword interrupt 已迁移到 blade_master TimingHookSpec
 
 func augmentBeastSamuraiResponseSkillIDs(sd *SkillDispatcher, skillIDs []string, ctx *model.Context) []string {
 	if sd == nil || sd.engine == nil || ctx == nil || ctx.Timing != model.TimingOnActionEnd || ctx.EventCtx == nil || ctx.EventCtx.ActionType != model.ActionAttack || ctx.User == nil {
 		return skillIDs
 	}
-	if !isCharacter(ctx.User, "beast_samurai") || ContainsSkillID(skillIDs, "bs_one_strike_no_thought") || beastsamurai.Zanshin(ctx.User) < beastsamurai.ZanshinCap {
+	if !playerpkg.IsCharacter(ctx.User, "beast_samurai") || ContainsSkillID(skillIDs, "bs_one_strike_no_thought") || beastsamurai.Zanshin(ctx.User) < beastsamurai.ZanshinCap {
 		return skillIDs
 	}
 	skillDef := findCharacterSkill(ctx.User.Character, "bs_one_strike_no_thought")
@@ -45,7 +41,7 @@ func normalizeFighterResponseSkillIDs(sd *SkillDispatcher, skillIDs []string, ct
 	if sd == nil || sd.engine == nil || len(skillIDs) <= 1 || ctx == nil || ctx.User == nil {
 		return skillIDs
 	}
-	if ctx.Timing != model.TimingOnAttackDeclared || !isCharacter(ctx.User, "fighter") || ctx.EventCtx == nil || ctx.EventCtx.AttackInfo == nil || ctx.EventCtx.AttackInfo.CounterInitiator != "" {
+	if ctx.Timing != model.TimingOnAttackDeclared || !playerpkg.IsCharacter(ctx.User, "fighter") || ctx.EventCtx == nil || ctx.EventCtx.AttackInfo == nil || ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return skillIDs
 	}
 	hasCharge := false

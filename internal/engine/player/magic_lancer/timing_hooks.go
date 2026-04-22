@@ -109,3 +109,72 @@ func postDamageResolvedHook(rt player.HookRuntime, ctx player.TimingHookContext)
 	})
 	return player.TimingHookResult{Interrupted: true}
 }
+
+// CombatPolicySpecs 战斗策略声明。
+func CombatPolicySpecs() []player.CombatPolicySpec {
+	return []player.CombatPolicySpec{
+		{Type: player.CombatPolicyDefendValidation, Priority: 100, Policy: defendValidationPolicy{}},
+		{Type: player.CombatPolicyMagicMissileDefend, Priority: 100, Policy: magicMissileDefendPolicy{}},
+		{Type: player.CombatPolicyMagicMissileCounter, Priority: 100, Policy: magicMissileCounterPolicy{}},
+	}
+}
+
+// defendValidationPolicy 黑暗束缚：不能使用法术牌防御。
+type defendValidationPolicy struct{}
+
+func (p defendValidationPolicy) Execute(rt player.CombatPolicyRuntime, ctx player.CombatPolicyContext) error {
+	if ctx.Player == nil || !rt.IsCharacter(ctx.Player, "magic_lancer") {
+		return nil
+	}
+	return fmt.Errorf("魔枪受[黑暗束缚]影响，不能使用法术牌防御")
+}
+
+// magicMissileDefendPolicy 黑暗束缚：魔弹链不能使用法术牌防御。
+type magicMissileDefendPolicy struct{}
+
+func (p magicMissileDefendPolicy) Execute(rt player.CombatPolicyRuntime, ctx player.CombatPolicyContext) error {
+	if ctx.Player == nil || !rt.IsCharacter(ctx.Player, "magic_lancer") {
+		return nil
+	}
+	return fmt.Errorf("魔枪受[黑暗束缚]影响，不能使用法术牌防御")
+}
+
+// magicMissileCounterPolicy 黑暗束缚：魔弹链不能使用法术牌反击。
+type magicMissileCounterPolicy struct{}
+
+func (p magicMissileCounterPolicy) Execute(rt player.CombatPolicyRuntime, ctx player.CombatPolicyContext) error {
+	if ctx.Player == nil || !rt.IsCharacter(ctx.Player, "magic_lancer") {
+		return nil
+	}
+	return fmt.Errorf("魔枪受[黑暗束缚]影响，不能使用法术牌")
+}
+
+// defendValidationHook 黑暗束缚：防御验证 Hook（通过 TimingHookSpec 调用）。
+func defendValidationHook(rt player.HookRuntime, ctx player.TimingHookContext) player.TimingHookResult {
+	if ctx.Player == nil || !rt.IsCharacter(ctx.Player, "magic_lancer") {
+		return player.TimingHookResult{}
+	}
+	return player.TimingHookResult{
+		ValidationError: fmt.Errorf("魔枪受[黑暗束缚]影响，不能使用法术牌防御"),
+	}
+}
+
+// magicMissileDefendHook 黑暗束缚：魔弹链防御验证 Hook。
+func magicMissileDefendHook(rt player.HookRuntime, ctx player.TimingHookContext) player.TimingHookResult {
+	if ctx.Player == nil || !rt.IsCharacter(ctx.Player, "magic_lancer") {
+		return player.TimingHookResult{}
+	}
+	return player.TimingHookResult{
+		ValidationError: fmt.Errorf("魔枪受[黑暗束缚]影响，不能使用法术牌防御"),
+	}
+}
+
+// magicMissileCounterHook 黑暗束缚：魔弹链反击验证 Hook。
+func magicMissileCounterHook(rt player.HookRuntime, ctx player.TimingHookContext) player.TimingHookResult {
+	if ctx.Player == nil || !rt.IsCharacter(ctx.Player, "magic_lancer") {
+		return player.TimingHookResult{}
+	}
+	return player.TimingHookResult{
+		ValidationError: fmt.Errorf("魔枪受[黑暗束缚]影响，不能使用法术牌"),
+	}
+}

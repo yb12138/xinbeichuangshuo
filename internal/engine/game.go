@@ -51,16 +51,9 @@ type GameEngine struct {
 	hitCheckSkillOpHandlers                map[timingOnHitCheckSkillOp]timingOnHitCheckSkillHandler
 	// TimingOnDamageCalculated: 伤害计算阶段动态装配执行表。
 	damageCalculatedAttackPassiveHooks []attackPassiveDamageHook
-	damageCalculatedBeforeTakenHooks   []pendingDamageBeforeTakenHook
-	damageCalculatedHealCapHooks       []pendingDamageHealCapHook
-	damageCalculatedHealResistRules    []pendingDamageHealResistRule
-	damageTakenAfterTakenHooks         []pendingDamageAfterTakenHook
-	damageAppliedBeforeApplyHooks      []pendingDamageBeforeApplyHook
-	damageTakenAfterApplyHooks         []pendingDamageAfterApplyHook
-	damageTakenAfterResolvedHooks      []pendingDamageAfterResolvedHook
 	damageCalculatedOpHandlers         map[timingOnDamageCalculatedOp]timingOnDamageCalculatedHandler
+	damageTakenAfterResolvedHooks      []pendingDamageAfterResolvedHook
 	// Turn 主流程阶段：动态装配阶段钩子与中断策略。
-	turnStartBeforeStartHooks      []turnTimingHook
 	turnStartMainHooks             []turnTimingHook
 	beforeActionFieldHooks         []turnTimingHook
 	beforeActionExecuteHooks       []turnTimingHook
@@ -79,9 +72,6 @@ type GameEngine struct {
 	gameStartAddPlayerHooks   []gameStartPlayerHook
 	gameStartInitialDealHooks []gameStartPlayerHook
 	gameStartFinalizeHooks    []gameStartFinalizeHook
-	// TimingOnCampChanged：玩家入场派生状态 / 星杯变更派生状态。
-	campChangedPlayerSetupHooks []campChangedPlayerHook
-	campChangedCampCupHooks     []campChangedCupHook
 	// turnMagicDamageTargets 本回合「施法者 → 曾对其造成法术伤害的敌方」；用于吟游诗人【沉沦协奏曲】等统计。
 	turnMagicDamageTargets map[string]map[string]bool
 	// actionSummary 当前行动周期内的资源/治疗等汇总，供日志或后续效果读取。

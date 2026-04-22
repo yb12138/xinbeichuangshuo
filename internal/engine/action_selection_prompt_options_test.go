@@ -1,6 +1,7 @@
 package engine
 
 import (
+	playerpkg "starcup-engine/internal/engine/player"
 	"strings"
 	"testing"
 
@@ -380,7 +381,7 @@ func TestActionSelectionPrompt_MagicSwordsmanShadowForm_StillShowsMagicWhenSkill
 	p1 := game.State.Players["p1"]
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
-	enterMagicSwordsmanShadowForm(p1)
+	playerpkg.SetForm(p1, model.FormMagicSwordsmanShadow)
 	// 暗影流星需要至少2张法术牌弃置；暗影抗拒会禁用法术牌直接打出。
 	p1.Hand = []model.Card{
 		{ID: "m1", Name: "圣光", Type: model.CardTypeMagic, Element: model.ElementLight, Damage: 0},

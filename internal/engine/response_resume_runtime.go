@@ -3,8 +3,7 @@
 package engine
 
 import (
-	"fmt"
-
+	engineplayer "starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
 )
 
@@ -147,35 +146,43 @@ func (e *GameEngine) prepareConfirmedResponseResume(state responseResumeState) {
 	}
 }
 
-// runTimingOnResponseSkipEffects 在“跳过响应”时按固定顺序执行后效。
+// runTimingOnResponseSkipEffects 在"跳过响应"时执行后效。
 func (e *GameEngine) runTimingOnResponseSkipEffects(state *responseResumeState) {
 	if state == nil {
 		return
 	}
-	for _, hook := range e.hitCheckResponseSkipHooks {
-		hook(e, state)
-		if e.State.PendingInterrupt != nil {
-			return
-		}
-	}
+	e.dispatchRoleTimingHook(engineplayer.TimingOnResponseSkillSkip, engineplayer.TimingHookContext{
+		TargetID:       state.playerID,
+		OfferedSkillID: state.skillID,
+		OfferedSkills:  state.offeredSkills,
+		ResumePhase:    resumePhaseFromState(state),
+		InterruptType:  string(state.interruptType),
+	})
 }
 
-func holyLancerEarthSkippedResponseHook(e *GameEngine, state *responseResumeState) {
-	if state == nil || state.kind != responseCompletionSkip || state.resumeAttackHitCtx == nil {
-		return
+func resumePhaseFromState(state *responseResumeState) string {
+	if state == nil {
+		return ""
 	}
-	if !state.offeredSkill("holy_lancer_earth_spear") || state.playerID == "" {
-		return
+	if state.resumeAttackHitCtx != nil {
+		return "attack_hit"
 	}
-	user := e.State.Players[state.playerID]
-	if user == nil || !isCharacter(user, "holy_lancer") {
-		return
+	if state.resumeDamageTakenCtx != nil {
+		return "damage_taken"
 	}
-	if user.TurnState.UsedSkillCounts["holy_lancer_block_sacred_strike"] != 0 {
-		return
+	if state.resumeDrawCtx != nil {
+		return "draw"
 	}
-	e.Heal(user.ID, 1)
-	e.Log(fmt.Sprintf("%s 未发动 [地枪]，触发 [圣击]：+1治疗", user.Name))
+	if state.resumeAttackMissCtx != nil {
+		return "attack_miss"
+	}
+	if state.resumeMoraleCtx != nil {
+		return "morale_loss"
+	}
+	if state.resumePhaseEndCtx != nil {
+		return "action_end"
+	}
+	return ""
 }
 
 func (e *GameEngine) restoreSkippedResponseAfterPop(state responseResumeState) bool {

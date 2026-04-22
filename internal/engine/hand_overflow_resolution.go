@@ -139,7 +139,7 @@ func (e *GameEngine) resolveDiscardSelectionMoraleLoss(player *model.Player, dis
 		return 0, false, nil
 	}
 
-	if (fromDamageDraw || isDamageResolution) && isCharacter(victim, "crimson_knight") && hasCrimsonKnightHotBloodedForm(victim) {
+	if (fromDamageDraw || isDamageResolution) && playerpkg.IsCharacter(victim, "crimson_knight") && playerpkg.HasForm(victim, model.FormCrimsonKnightHotBlooded) {
 		moraleLoss = 0
 	}
 
@@ -241,7 +241,7 @@ func (e *GameEngine) handleDiscardSelectionFollowups(player *model.Player, data 
 		return true, nil
 	}
 
-	if isCharacter(player, "magic_lancer") && player.TurnState.SkillFlowState != nil && player.TurnState.SkillFlowState["ml_stardust_wait_discard"] > 0 {
+	if playerpkg.IsCharacter(player, "magic_lancer") && player.TurnState.SkillFlowState != nil && player.TurnState.SkillFlowState["ml_stardust_wait_discard"] > 0 {
 		magiclancer.ResolveStardustAfterSelf(newRoleChoiceRuntime(e), player)
 	}
 	return false, nil
@@ -318,7 +318,7 @@ func (e *GameEngine) resumePendingMoraleLoss(ctx *model.Context) bool {
 		}
 	} else if discardPlayer != nil {
 		e.Log(fmt.Sprintf("[System] %s 丢弃了 %d 张牌！士气 -%d", discardPlayer.Name, len(discardedCards), finalLoss))
-		if isCharacter(discardPlayer, "magic_lancer") && discardPlayer.TurnState.SkillFlowState != nil && discardPlayer.TurnState.SkillFlowState["ml_stardust_wait_discard"] > 0 {
+		if playerpkg.IsCharacter(discardPlayer, "magic_lancer") && discardPlayer.TurnState.SkillFlowState != nil && discardPlayer.TurnState.SkillFlowState["ml_stardust_wait_discard"] > 0 {
 			magiclancer.ResolveStardustAfterSelf(newRoleChoiceRuntime(e), discardPlayer)
 		}
 	}

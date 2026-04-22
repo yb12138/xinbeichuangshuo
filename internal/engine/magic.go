@@ -5,6 +5,8 @@ package engine
 import (
 	"errors"
 	"fmt"
+
+	playerpkg "starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
 )
 
@@ -67,7 +69,7 @@ func (e *GameEngine) performMagic(sourceID, targetID string, cardIdx int, skipMa
 	}
 
 	// 【魔弹融合】检查：魔法少女使用地系或火系非魔弹法术牌时，询问是否当魔弹使用
-	if !skipMagicBulletFusionCheck && isCharacter(player, "magical_girl") && card.Name != "魔弹" &&
+	if !skipMagicBulletFusionCheck && playerpkg.IsCharacter(player, "magical_girl") && card.Name != "魔弹" &&
 		(card.Element == model.ElementEarth || card.Element == model.ElementFire) {
 		// 先不移除手牌，等玩家确认后再处理
 		e.PushInterrupt(&model.Interrupt{
@@ -101,7 +103,7 @@ func (e *GameEngine) performMagic(sourceID, targetID string, cardIdx int, skipMa
 	switch card.Name {
 	case "魔弹":
 		// 【魔弹掌控】检查：魔法少女使用魔弹时，询问是否逆向传递
-		if isCharacter(player, "magical_girl") {
+		if playerpkg.IsCharacter(player, "magical_girl") {
 			e.PushInterrupt(&model.Interrupt{
 				Type:     model.InterruptMagicBulletDirection,
 				PlayerID: player.ID,

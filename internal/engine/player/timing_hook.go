@@ -14,11 +14,12 @@ const (
 	TimingPostDamageResolved TimingPoint = "post_damage_resolved"
 
 	// 新增 - 回合阶段
-	TimingOnTurnStart    TimingPoint = "on_turn_start"     // 回合开始（形态检查、状态清理）
-	TimingOnTurnEnd      TimingPoint = "on_turn_end"       // 回合结束前置（形态释放，额外行动前）
-	TimingOnTurnEndFinal TimingPoint = "on_turn_end_final" // 回合结束最终（额外行动耗尽后）
-	TimingBeforeAction   TimingPoint = "before_action"     // 行动前（场上效果检查）
-	TimingOnActionEnd    TimingPoint = "on_action_end"     // 行动结束（非 post_action_end，用于技能后）
+	TimingOnTurnBeforeStart TimingPoint = "on_turn_before_start" // 回合开始前（效果过期等）
+	TimingOnTurnStart       TimingPoint = "on_turn_start"        // 回合开始（形态检查、状态清理）
+	TimingOnTurnEnd         TimingPoint = "on_turn_end"          // 回合结束前置（形态释放，额外行动前）
+	TimingOnTurnEndFinal    TimingPoint = "on_turn_end_final"    // 回合结束最终（额外行动耗尽后）
+	TimingBeforeAction      TimingPoint = "before_action"        // 行动前（场上效果检查）
+	TimingOnActionEnd       TimingPoint = "on_action_end"        // 行动结束（非 post_action_end，用于技能后）
 
 	// 新增 - 攻击阶段
 	TimingOnAttackDeclared   TimingPoint = "on_attack_declared"    // 攻击宣告时
@@ -29,21 +30,36 @@ const (
 	TimingOnAttackMiss       TimingPoint = "on_attack_miss"        // 攻击未命中后
 
 	// 新增 - 命中判定阶段
-	TimingOnHitCheck         TimingPoint = "on_hit_check"          // 命中判定
-	TimingOnCounterPolicy    TimingPoint = "on_counter_policy"     // 反击策略
-	TimingOnDefendValidation TimingPoint = "on_defend_validation"  // 防御验证
-	TimingOnResponseSkillAug TimingPoint = "on_response_skill_aug" // 响应技能增强/规范化
+	TimingOnHitCheck            TimingPoint = "on_hit_check"             // 命中判定
+	TimingOnCounterPolicy       TimingPoint = "on_counter_policy"        // 反击策略
+	TimingOnDefendValidation    TimingPoint = "on_defend_validation"     // 防御验证
+	TimingOnResponseSkillAug    TimingPoint = "on_response_skill_aug"    // 响应技能增强/规范化
+	TimingOnResponseSkillSkip   TimingPoint = "on_response_skill_skip"   // 响应技能跳过后（圣枪圣击）
+	TimingOnCombatInteraction   TimingPoint = "on_combat_interaction"    // 战斗交互（阴阳师绑定等）
+	TimingOnCounterCardPolicy   TimingPoint = "on_counter_card_policy"   // 反击卡牌策略
+	TimingOnCounterElementCheck TimingPoint = "on_counter_element_check" // 反击元素检查
+	TimingOnCounterResolve      TimingPoint = "on_counter_resolve"       // 反击结算
+	TimingOnMagicMissileDefend  TimingPoint = "on_magic_missile_defend"  // 魔弹链防御验证
+	TimingOnMagicMissileCounter TimingPoint = "on_magic_missile_counter" // 魔弹链反击验证
 
 	// 新增 - 伤害阶段
 	TimingOnDamageCalculate   TimingPoint = "on_damage_calculate"    // 伤害计算（被动增伤）
-	TimingOnDamageBeforeApply TimingPoint = "on_damage_before_apply" // 伤害应用前（蝴蝶舞者等）
-	TimingOnDamageAfterApply  TimingPoint = "on_damage_after_apply"  // 伤害应用后（灵魂链接等）
+	TimingOnDamageBeforeTaken TimingPoint = "on_damage_before_taken" // 承伤触发前（灵魂链接等）
+	TimingOnDamageAfterTaken  TimingPoint = "on_damage_after_taken"  // 承伤触发后（剑帝命中后置）
+	TimingOnDamageBeforeApply TimingPoint = "on_damage_before_apply" // 伤害应用前（蝶舞者等）
+	TimingOnDamageAfterApply  TimingPoint = "on_damage_after_apply"  // 伤害应用后（封印师等）
 	TimingOnHealResist        TimingPoint = "on_heal_resist"         // 治愈抵抗规则
+	TimingOnHealCapCalculate  TimingPoint = "on_heal_cap_calculate"  // 治疗抵伤额度计算（牧师上限）
 
 	// 新增 - 特殊阶段
-	TimingOnGameStart   TimingPoint = "on_game_start"   // 游戏开始
-	TimingOnPlayerAdded TimingPoint = "on_player_added" // 玩家加入
-	TimingOnCampChanged TimingPoint = "on_camp_changed" // 阵营变化
+	TimingOnGameStart      TimingPoint = "on_game_start"       // 游戏开始
+	TimingOnPlayerAdded    TimingPoint = "on_player_added"     // 玩家加入
+	TimingOnCampChanged    TimingPoint = "on_camp_changed"     // 阵营变化
+	TimingOnPlayerSetup    TimingPoint = "on_player_setup"     // 玩家设置（加入后初始化派生状态）
+	TimingOnCampCupChanged TimingPoint = "on_camp_cup_changed" // 阵营杯子变化（派生状态同步）
+
+	// 新增 - 士气损失阶段
+	TimingOnMoraleLossApplied TimingPoint = "on_morale_loss_applied" // 士气损失应用后（伤害驱动的角色效果）
 )
 
 // TimingHookSpec 角色贡献到全局 timing hook 链的条目。
@@ -70,11 +86,15 @@ type TimingHookContext struct {
 	ForceFighterChargeMiss bool // 强制触发格斗家蓄力未命中
 
 	// 新增 - 战斗上下文
-	CombatStage      string                 // "attack_declared", "hit_check", "damage_calculated"
-	CounterInitiator string                 // 反击发起者ID
-	RespondingPlayer string                 // 响应玩家ID
-	AttackAction     *model.PlayerAction    // 原始攻击行动（攻击门控需要）
-	AttackInfo       *model.AttackEventInfo // 攻击劫持上下文（用于设置拦截标签）
+	CombatStage      string                  // "attack_declared", "hit_check", "damage_calculated"
+	CounterInitiator string                  // 反击发起者ID
+	RespondingPlayer string                  // 响应玩家ID
+	AttackAction     *model.PlayerAction     // 原始攻击行动（攻击门控需要）
+	AttackInfo       *model.AttackEventInfo  // 攻击劫持上下文（用于设置拦截标签）
+	CombatRequest    *model.CombatRequest    // 战斗请求（战斗交互策略）
+	MagicBulletChain *model.MagicBulletChain // 魔弹链（魔弹防御/反击策略）
+	CounterCard      *model.Card             // 反击牌（反击元素检查/结算）
+	UseFaction       bool                    // 是否使用阵营元素（阴阳师）
 
 	// 新增 - 技能上下文
 	SkillID   string // 技能 ID
@@ -87,15 +107,37 @@ type TimingHookContext struct {
 	// 新增 - 回合上下文
 	TurnPlayerID string          // 当前回合玩家ID
 	TurnStage    model.TurnStage // 回合阶段
+
+	// 新增 - 治疗抵伤计算上下文
+	HealCap int // 治疗抵伤额度上限（可被 hook 修改）
+
+	// 新增 - 响应技能跳过上下文
+	OfferedSkillID string   // 跳过时被提供的响应技能ID
+	OfferedSkills  []string // 被提供的所有响应技能ID列表
+	ResumePhase    string   // 恢复阶段类型 ("attack_hit", "damage_taken", "draw", "attack_miss", "morale_loss", "action_end")
+	InterruptType  string   // 中断类型
+
+	// 新增 - 战斗策略上下文
+	Player *model.Player // 策略检查的目标玩家
+
+	// 新增 - 士气损失上下文
+	IsMagicDamage  bool // 是否为法术伤害导致
+	FromDamageDraw bool // 是否由伤害驱动的摸牌导致
+	MoraleLoss     int  // 士气损失值
 }
 
 // TimingHookResult Hook 执行结果。
 type TimingHookResult struct {
-	Interrupted  bool   // true = 产生了中断，状态机应暂停
-	Blocked      bool   // true = 攻击门控阻止（攻击不允许执行）
-	BlockReason  string // 阻止原因（用于错误消息）
-	SkipNextHook bool   // true = 跳过后续钩子（用于特殊阻断）
-	DamageDelta  int    // 伤害修正值（正=增伤，负=减伤），用于被动增伤链
+	Interrupted     bool        // true = 产生了中断，状态机应暂停
+	Blocked         bool        // true = 攻击门控阻止（攻击不允许执行）
+	BlockReason     string      // 阻止原因（用于错误消息）
+	SkipNextHook    bool        // true = 跳过后续钩子（用于特殊阻断）
+	DamageDelta     int         // 伤害修正值（正=增伤，负=减伤），用于被动增伤链
+	HealCapDelta    int         // 治疗抵伤上限修正值（负=减少上限）
+	ValidationError error       // 验证策略错误（防御验证、魔弹验证等）
+	CounterAllowed  bool        // 反击允许（反击元素检查）
+	UseFaction      bool        // 使用阵营元素（阴阳师）
+	CounterCard     *model.Card // 反击牌变换（魔弹策略）
 }
 
 // TimingHookFunc 统一 Hook 签名。
@@ -142,6 +184,7 @@ type HookRuntime interface {
 
 	// 新增 - 阵营士气（扩展）
 	AddCampMorale(camp model.Camp, amount int) int
+	GetCampCups(camp string) int // 获取阵营杯子数
 
 	// 新增 - 战斗上下文
 	GetPendingDamage() *model.PendingDamage
@@ -176,10 +219,6 @@ type HookRuntime interface {
 	HasPendingInterrupt() bool
 	CanPayCrystalCost(playerID string, amount int) bool
 	DrawCardsWithOptions(playerID string, count int, opts model.DrawOptions)
-	ConsumeBeastSoul(player *model.Player, amount int) int
-	ClearHundredDragonForm(player *model.Player, logLine string)
-	ReleaseAssassinStealth(player *model.Player)
-	ResolveCrimsonKnightHotFormTurnEnd(player *model.Player) bool
 	NotifyCardRevealed(playerID string, cards []model.Card, actionType model.DamageType)
 	GetAllPlayers() []*model.Player
 	GetAllPlayersMap() map[string]*model.Player
@@ -188,6 +227,17 @@ type HookRuntime interface {
 	// 被动增伤/伤害计算扩展
 	ConsumeAttackDamageRuleBonus(player *model.Player, modifierID string, action model.Action) int
 	GetPlayerOrientation(player *model.Player) model.CharacterOrientation
+
+	// 新增 - 场上效果卡查找（用于伤害钩子）
+	FindExclusiveEffectCard(source *model.Player, effect model.EffectType) (*model.Player, *model.FieldCard)
+	FindSourceEffectCard(source *model.Player, effect model.EffectType) (*model.Player, *model.FieldCard)
+	AttachExclusiveEffectCard(source, target *model.Player, effect model.EffectType, card model.Card) error
+
+	// 新增 - 伤害应用钩子所需
+	RemoveFieldCard(targetID string, effect model.EffectType) bool
+
+	// 新增 - 回合控制
+	SetNextTurnPlayer(playerID string) // 设置下回合玩家（用于额外回合等）
 }
 
 // PoseSnapshot 记录玩家姿态快照（用于 orientation 变更前后对比）。

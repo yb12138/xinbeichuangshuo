@@ -1,6 +1,7 @@
 package engine
 
 import (
+	playerpkg "starcup-engine/internal/engine/player"
 	"testing"
 
 	"starcup-engine/internal/model"
@@ -28,7 +29,7 @@ func TestMagicSwordsmanShadowReject_AllowHolyLightDefendOutsideOwnTurn(t *testin
 	p2 := g.State.Players["p2"]
 	p1.IsActive = false
 	p2.IsActive = true
-	enterMagicSwordsmanShadowForm(p1)
+	playerpkg.SetForm(p1, model.FormMagicSwordsmanShadow)
 	p1.Hand = []model.Card{
 		{ID: "holy_1", Name: "圣光", Type: model.CardTypeMagic, Element: model.ElementLight},
 	}
@@ -71,7 +72,7 @@ func TestMagicSwordsmanShadowReject_AllowMagicBulletCounterOutsideOwnTurn(t *tes
 	p2 := g.State.Players["p2"]
 	p1.IsActive = false
 	p2.IsActive = true
-	enterMagicSwordsmanShadowForm(p1)
+	playerpkg.SetForm(p1, model.FormMagicSwordsmanShadow)
 	p1.Hand = []model.Card{
 		{ID: "mb_1", Name: "魔弹", Type: model.CardTypeMagic, Element: model.ElementWater, Damage: 2},
 	}
@@ -125,7 +126,7 @@ func TestMagicSwordsmanShadowReject_AllowMagicBulletCounterOutsideOwnTurnCombat(
 	p1.IsActive = false
 	p2.IsActive = true
 	p3.IsActive = false
-	enterMagicSwordsmanShadowForm(p1)
+	playerpkg.SetForm(p1, model.FormMagicSwordsmanShadow)
 	p1.Hand = []model.Card{
 		{ID: "mb_1", Name: "魔弹", Type: model.CardTypeMagic, Element: model.ElementWater, Damage: 2},
 	}

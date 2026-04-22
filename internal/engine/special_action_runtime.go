@@ -223,7 +223,7 @@ func (e *GameEngine) getPlayerEnergyCap(player *model.Player) int {
 		return 3
 	}
 	cap := 3
-	if isCharacter(player, "sage") {
+	if playerpkg.IsCharacter(player, "sage") {
 		cap++
 	}
 	return cap
@@ -327,7 +327,7 @@ func specialActionAdventurerUndergroundLawOverride(e *GameEngine, player *model.
 }
 
 func specialActionHolyBowHolyGloryExitHook(e *GameEngine, player *model.Player, _ model.ActionType) {
-	if e == nil || player == nil || !isCharacter(player, "holy_bow") || !playerpkg.HasForm(player, model.FormHolyBowHolyGlory) {
+	if e == nil || player == nil || !playerpkg.IsCharacter(player, "holy_bow") || !playerpkg.HasForm(player, model.FormHolyBowHolyGlory) {
 		return
 	}
 	beforePoses := e.snapshotPlayerPoses()
