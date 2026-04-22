@@ -298,10 +298,7 @@ func (e *GameEngine) driveCombatInteractionPhase(currentPid string, player *mode
 	if !ok {
 		return driveStop
 	}
-	if e.dispatchTimingOnHitCheck(timingOnHitCheckContext{
-		Op:        timingOnHitCheckCombatInteraction,
-		CombatReq: combatReq,
-	}).Stop {
+	if e.runTimingOnHitCheckCombatInteractionPolicies(combatReq) {
 		return driveStop
 	}
 	if e.resolveForcedHitCombat(combatReq) {

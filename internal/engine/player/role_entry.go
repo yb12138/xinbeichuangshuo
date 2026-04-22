@@ -212,8 +212,6 @@ type RoleEntry struct {
 	TimingHookSpecs            []TimingHookSpec
 	SkillUsabilityCheckers     map[string]SkillUsabilityChecker
 	AttackCardElementTransform func(player *model.Player, card model.Card) model.Element
-	// PolicySpecs 策略类型声明（用于 engine 层定义的复杂策略）。
-	PolicySpecs []string
 }
 
 // ApplyDefaults 应用默认角色属性。

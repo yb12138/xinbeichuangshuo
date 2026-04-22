@@ -10,9 +10,6 @@ func (e *GameEngine) rebuildTimingOnAttackDeclaredRegistry() {
 
 	present := e.currentCharacterPresence()
 
-	// 先重建 op-handler 分发表
-	e.rebuildTimingDispatchOpRegistryWithPresence(present)
-
 	// 通用流程钩子
 	e.beforeActionFieldHooks = []turnTimingHook{
 		beforeActionPoisonHook,
@@ -24,12 +21,12 @@ func (e *GameEngine) rebuildTimingOnAttackDeclaredRegistry() {
 	e.gameStartAddPlayerHooks = []gameStartPlayerHook{bootstrapApplyRoleDefaults}
 	e.gameStartInitialDealHooks = []gameStartPlayerHook{bootstrapEnsureStarterRoleCards}
 
-	// 使用 buildPresenceHooks 装配策略（渐进式重构：逐步迁移到角色包 PolicySpecs）
+	// 从角色注册表装配策略钩子
 	e.assembleRolePolicies(present)
 }
 
-// assembleRolePolicies 装配角色策略。
-// 当前保持 buildPresenceHooks 模式，后续逐步迁移到角色包 PolicySpecs 注册。
+// assembleRolePolicies 从 roleRegistry 收集角色注册的策略钩子并装配。
+// 当前使用 RoleEntry.StrategyHooks 字段，角色包在 RoleEntry 中注册策略。
 func (e *GameEngine) assembleRolePolicies(present map[string]bool) {
 	// 战斗交互策略
 	e.hitCheckCombatInteractionHooks = buildPresenceHooks(present, []presenceHookEntry[combatInteractionPolicyHook]{
@@ -112,4 +109,39 @@ func (e *GameEngine) currentCharacterPresence() map[string]bool {
 		presence[player.Character.ID] = true
 	}
 	return presence
+}
+
+// ---------- Presence Hook 辅助函数 ----------
+
+// presenceHookEntry 描述"角色在场 -> 挂载规则函数"的一条声明式配置。
+type presenceHookEntry[T any] struct {
+	requireAny []string
+	hook       T
+}
+
+func requireAny(roleIDs ...string) []string {
+	return roleIDs
+}
+
+func buildPresenceHooks[T any](present map[string]bool, entries []presenceHookEntry[T]) []T {
+	var hooks []T
+	for _, entry := range entries {
+		if !matchPresenceAny(present, entry.requireAny) {
+			continue
+		}
+		hooks = append(hooks, entry.hook)
+	}
+	return hooks
+}
+
+func matchPresenceAny(present map[string]bool, roleIDs []string) bool {
+	if len(roleIDs) == 0 {
+		return true
+	}
+	for _, roleID := range roleIDs {
+		if present[roleID] {
+			return true
+		}
+	}
+	return false
 }

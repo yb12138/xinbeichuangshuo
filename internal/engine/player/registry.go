@@ -115,9 +115,6 @@ func mergeRoleEntry(base RoleEntry, overlay RoleEntry) RoleEntry {
 	if len(overlay.TimingHookSpecs) > 0 {
 		merged.TimingHookSpecs = append(append([]TimingHookSpec{}, merged.TimingHookSpecs...), overlay.TimingHookSpecs...)
 	}
-	if len(overlay.PolicySpecs) > 0 {
-		merged.PolicySpecs = append(append([]string{}, merged.PolicySpecs...), overlay.PolicySpecs...)
-	}
 	return merged
 }
 

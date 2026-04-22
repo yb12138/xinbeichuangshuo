@@ -402,25 +402,14 @@ func (r roleChoiceRuntime) DispatchHitCheckMagicMissileCounter(player *model.Pla
 	if r.GameEngine == nil {
 		return nil
 	}
-	res := r.dispatchTimingOnHitCheck(timingOnHitCheckContext{
-		Op:         timingOnHitCheckMagicMissileCounter,
-		Player:     player,
-		MagicChain: chain,
-		Card:       *card,
-	})
-	return res.Err
+	return r.GameEngine.applyTimingOnHitCheckMagicMissileCounterValidation(player, chain, *card)
 }
 
 func (r roleChoiceRuntime) DispatchHitCheckMagicMissileDefend(player *model.Player, chain *model.MagicBulletChain) error {
 	if r.GameEngine == nil {
 		return nil
 	}
-	res := r.dispatchTimingOnHitCheck(timingOnHitCheckContext{
-		Op:         timingOnHitCheckMagicMissileDefend,
-		Player:     player,
-		MagicChain: chain,
-	})
-	return res.Err
+	return r.GameEngine.applyTimingOnHitCheckMagicMissileDefendValidation(player, chain)
 }
 
 func (r roleChoiceRuntime) AddToDiscardPile(cards ...model.Card) {

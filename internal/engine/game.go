@@ -30,28 +30,17 @@ type GameEngine struct {
 	// interruptOrchestrator 中断动作与 Prompt 编排。
 	interruptOrchestrator *intr.Orchestrator
 	// TimingOnAttackDeclared: 按已上场角色动态装配的执行表。
-	attackDeclaredCardTransformHooks   []attackCardRuntimeTransformHook
-	attackDeclaredTargetContextHooks   []attackTargetContextHook
-	attackDeclaredStateResetHooks      []attackStartStateResetHook
-	attackDeclaredPreCombatHooks       []attackPreCombatHook
-	attackDeclaredPendingDamageInitOps []pendingDamageAttackInitHook
-	attackDeclaredOpHandlers           map[timingOnAttackDeclaredOp]timingOnAttackDeclaredHandler
+	attackDeclaredCardTransformHooks []attackCardRuntimeTransformHook
+	attackDeclaredInterrupts         []attackDeclaredInterruptHook
 	// TimingOnHitCheck: 命中判定阶段动态装配执行表。
-	hitCheckCombatInteractionHooks         []combatInteractionPolicyHook
-	hitCheckCombatDefendValidationPolicies []combatDefendValidationPolicy
-	hitCheckCombatCounterCardPolicies      []combatCounterCardPolicy
-	hitCheckCombatCounterElementPolicies   []combatCounterElementPolicy
-	hitCheckCombatCounterResolvePolicies   []combatCounterResolvePolicy
-	hitCheckMagicMissileDefendPolicies     []magicMissileDefendValidationPolicy
-	hitCheckMagicMissileCounterPolicies    []magicMissileCounterValidationPolicy
-	hitCheckResponseSkipHooks              []responseSkipHook
-	hitCheckResponseSkillIDAugmenters      []responseSkillIDAugmenter
-	hitCheckResponseSkillIDNormalizers     []responseSkillIDNormalizer
-	hitCheckOpHandlers                     map[timingOnHitCheckOp]timingOnHitCheckHandler
-	hitCheckSkillOpHandlers                map[timingOnHitCheckSkillOp]timingOnHitCheckSkillHandler
+	hitCheckCombatInteractionHooks       []combatInteractionPolicyHook
+	hitCheckCombatCounterCardPolicies    []combatCounterCardPolicy
+	hitCheckCombatCounterElementPolicies []combatCounterElementPolicy
+	hitCheckCombatCounterResolvePolicies []combatCounterResolvePolicy
+	hitCheckResponseSkillIDAugmenters    []responseSkillIDAugmenter
+	hitCheckResponseSkillIDNormalizers   []responseSkillIDNormalizer
 	// TimingOnDamageCalculated: 伤害计算阶段动态装配执行表。
 	damageCalculatedAttackPassiveHooks []attackPassiveDamageHook
-	damageCalculatedOpHandlers         map[timingOnDamageCalculatedOp]timingOnDamageCalculatedHandler
 	damageTakenAfterResolvedHooks      []pendingDamageAfterResolvedHook
 	// Turn 主流程阶段：动态装配阶段钩子与中断策略。
 	turnStartMainHooks             []turnTimingHook
@@ -61,7 +50,6 @@ type GameEngine struct {
 	beforeActionValidationPolicies []actionSelectionValidationPolicy
 	turnEndPreExtraHooks           []turnTimingHook
 	turnEndFinalHooks              []turnTimingHook
-	attackDeclaredInterrupts       []attackDeclaredInterruptHook
 	actionEndInterrupts            []actionEndInterruptHook
 	// TimingBeforeActionExecute / TimingOnActionEnd：特殊行动策略装配表。
 	specialActionOverridePolicies []specialActionOverridePolicy

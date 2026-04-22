@@ -222,12 +222,7 @@ func (e *GameEngine) resolvePendingDamageHealChoice(pd *model.PendingDamage) boo
 		if pd.Damage < maxHeal {
 			maxHeal = pd.Damage
 		}
-		maxHeal = e.dispatchTimingOnDamageCalculated(timingOnDamageCalculatedContext{
-			Op:            timingOnDamageCalculatedHealCap,
-			PendingDamage: pd,
-			Target:        target,
-			MaxHeal:       maxHeal,
-		}).MaxHeal
+		maxHeal = e.applyTimingOnDamageCalculatedHealCapRules(pd, target, maxHeal)
 		if maxHeal > 0 {
 			e.PushInterrupt(&model.Interrupt{
 				Type:     model.InterruptChoice,

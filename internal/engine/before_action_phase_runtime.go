@@ -138,13 +138,7 @@ func (e *GameEngine) driveBeforeActionAttack(currentPid string, player *model.Pl
 		if e.State.PendingInterrupt != nil {
 			return driveStop
 		}
-		if e.dispatchTimingOnAttackDeclared(timingOnAttackDeclaredContext{
-			Op:            timingOnAttackDeclaredInterrupt,
-			Player:        player,
-			Target:        target,
-			CurrentAction: head,
-			UserCtx:       attackStartCtx,
-		}).Stop {
+		if e.runTimingOnAttackDeclaredInterruptPolicies(player, target, head, attackStartCtx) {
 			return driveStop
 		}
 	}

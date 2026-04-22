@@ -60,7 +60,13 @@
       "Bash(sed -i '' 's/player\\\\.HasForm/playerpkg.HasForm/g' internal/engine/assassin_config_regression_test.go)",
       "Bash(sed -i '' 's/player\\\\.ClearForm/playerpkg.ClearForm/g' internal/engine/crk_hom_skill_regression_test.go)",
       "Bash([ -f \"$dir/module.go\" ])",
-      "Bash(sed -i '' '/PolicySpecs: PolicySpecs,/d' __TRACKED_VAR__/module.go)"
+      "Bash(sed -i '' '/PolicySpecs: PolicySpecs,/d' __TRACKED_VAR__/module.go)",
+      "Bash(sed -i '' '/PolicySpecs/d' /Users/yb/xinbeichuangshuo/internal/engine/player/registry.go)",
+      "Bash(sed -i '' '/PolicySpecs/d' /Users/yb/xinbeichuangshuo/internal/engine/player/onmyoji/module.go)",
+      "Bash(rm -f /Users/yb/xinbeichuangshuo/internal/engine/player/*/policies.go)",
+      "Bash(head -20 /Users/yb/xinbeichuangshuo/internal/engine/player/arbiter/*.go)",
+      "Bash(sed -i '' '/mergeStrategyHooks/d' /Users/yb/xinbeichuangshuo/internal/engine/player/registry.go)",
+      "Bash(sed -i '' '/StrategyHooks: mergeStrategyHooks/d' /Users/yb/xinbeichuangshuo/internal/engine/player/registry.go)"
     ]
   }
 }

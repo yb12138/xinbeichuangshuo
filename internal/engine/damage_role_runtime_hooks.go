@@ -27,14 +27,11 @@ func (e *GameEngine) applyTimingOnHitCheckPendingDamageAttackHitRules(pd *model.
 }
 
 // ---------- 承伤/转伤钩子类型 ----------
-type pendingDamageAttackInitHook func(e *GameEngine, pd *model.PendingDamage, attacker *model.Player, victim *model.Player)
 type pendingDamageAfterResolvedHook func(e *GameEngine, pd *model.PendingDamage) bool
 
 // applyTimingOnAttackDeclaredPendingDamageInitRules 在攻击宣言后初始化伤害运行态。
 func (e *GameEngine) applyTimingOnAttackDeclaredPendingDamageInitRules(pd *model.PendingDamage, attacker *model.Player, victim *model.Player) {
-	for _, hook := range e.attackDeclaredPendingDamageInitOps {
-		hook(e, pd, attacker, victim)
-	}
+	// 默认流程：仅设置基础字段，角色效果通过 TimingOnAttackDeclared hook 处理
 }
 
 // applyTimingOnDamageCalculatedBeforeTakenRules 在承伤触发前处理伤害计算阶段规则。

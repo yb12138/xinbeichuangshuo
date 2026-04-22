@@ -80,10 +80,7 @@ func (e *GameEngine) removePendingDamageIfAttackMissed(pd *model.PendingDamage) 
 
 func (e *GameEngine) processPendingDamageBeforeApply(pd *model.PendingDamage) bool {
 	// 承伤前统一阶段：角色规则通过 hooks 注入，主流程不写角色特判。
-	if e.dispatchTimingOnDamageCalculated(timingOnDamageCalculatedContext{
-		Op:            timingOnDamageCalculatedBeforeTaken,
-		PendingDamage: pd,
-	}).Stop {
+	if e.applyTimingOnDamageCalculatedBeforeTakenRules(pd) {
 		return true
 	}
 	if e.dispatchPendingDamageTaken(pd) {

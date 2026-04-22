@@ -281,12 +281,8 @@ func (e *GameEngine) handleCombatDefendResponse(act model.PlayerAction, player *
 	if !e.canUseHolyDefend(&combatReq) {
 		return errors.New("本次攻击受【一击无念】影响，不能使用【圣光】防御")
 	}
-	if res := e.dispatchTimingOnHitCheck(timingOnHitCheckContext{
-		Op:        timingOnHitCheckCombatDefendValidation,
-		Player:    player,
-		CombatReq: &combatReq,
-	}); res.Err != nil {
-		return res.Err
+	if res := e.applyTimingOnHitCheckCombatDefendValidation(player, &combatReq); res != nil {
+		return res
 	}
 	card, _, _, ok := getPlayableCardByIndex(player, act.CardIndex)
 	if !ok {
@@ -355,13 +351,7 @@ func (e *GameEngine) handleCombatCounterResponse(act model.PlayerAction, player 
 	if !ok {
 		return errors.New("无效的卡牌索引")
 	}
-	res := e.dispatchTimingOnHitCheck(timingOnHitCheckContext{
-		Op:        timingOnHitCheckCombatCounterCard,
-		Player:    player,
-		CombatReq: &combatReq,
-		Card:      card,
-	})
-	useSpecialCounterCard, counterCard, err := res.Handled, res.Card, res.Err
+	useSpecialCounterCard, counterCard, err := e.applyTimingOnHitCheckCombatCounterCardPolicy(player, &combatReq, card)
 	if err != nil {
 		return err
 	}
@@ -378,13 +368,7 @@ func (e *GameEngine) handleCombatCounterResponse(act model.PlayerAction, player 
 			return errors.New("暗灭无法被应战，只能承受伤害或使用圣光抵挡（场上圣盾会自动生效）")
 		}
 		if card.Element != combatReq.Card.Element && card.Element != model.ElementDark {
-			res := e.dispatchTimingOnHitCheck(timingOnHitCheckContext{
-				Op:        timingOnHitCheckCombatCounterElement,
-				Player:    player,
-				CombatReq: &combatReq,
-				Card:      card,
-			})
-			allowedByPolicy, useFaction := res.Allowed, res.UseFaction
+			allowedByPolicy, useFaction := e.applyTimingOnHitCheckCombatCounterElementPolicy(player, &combatReq, card)
 			if allowedByPolicy {
 				useFactionCounter = useFaction
 			} else {
@@ -420,13 +404,7 @@ func (e *GameEngine) handleCombatCounterResponse(act model.PlayerAction, player 
 		return err
 	}
 	e.State.DiscardPile = append(e.State.DiscardPile, card)
-	e.dispatchTimingOnHitCheck(timingOnHitCheckContext{
-		Op:         timingOnHitCheckCombatCounterResolve,
-		Player:     player,
-		CombatReq:  &combatReq,
-		CardPtr:    &card,
-		UseFaction: useFactionCounter,
-	})
+	e.applyTimingOnHitCheckCombatCounterResolvePolicy(player, &combatReq, &card, useFactionCounter)
 
 	missCtx := &model.EventContext{
 		Type:     model.EventAttack,
