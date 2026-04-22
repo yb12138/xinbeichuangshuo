@@ -38,6 +38,13 @@ func newCombatPolicyRuntime(e *GameEngine, req *model.CombatRequest, chain *mode
 	return combatPolicyRuntime{hookRuntime: hookRuntime{GameEngine: e}, combatRequest: req, chain: chain}
 }
 
+func (r combatPolicyRuntime) AsChoiceRuntime() engineplayer.ChoiceRuntime {
+	if r.GameEngine == nil {
+		return nil
+	}
+	return newRoleChoiceRuntime(r.GameEngine)
+}
+
 func (r hookRuntime) GetPlayer(playerID string) *model.Player {
 	if r.GameEngine == nil || r.State == nil {
 		return nil
@@ -502,4 +509,11 @@ func (r hookRuntime) RemoveFieldCard(targetID string, effect model.EffectType) b
 		return false
 	}
 	return r.GameEngine.RemoveFieldCard(targetID, effect)
+}
+
+func (r hookRuntime) AsChoiceRuntime() engineplayer.ChoiceRuntime {
+	if r.GameEngine == nil {
+		return nil
+	}
+	return newRoleChoiceRuntime(r.GameEngine)
 }

@@ -7,27 +7,45 @@ import (
 	"starcup-engine/internal/types"
 )
 
+// CombatPolicyType 战斗策略类型（用于 TimingHook 分派）。
+type CombatPolicyType string
+
+const (
+	CombatPolicyDefendValidation    CombatPolicyType = "defend_validation"
+	CombatPolicyMagicMissileDefend  CombatPolicyType = "magic_missile_defend"
+	CombatPolicyMagicMissileCounter CombatPolicyType = "magic_missile_counter"
+)
+
+// CombatPolicyRuntime 战斗策略运行时接口（用于 TimingHook 中需要战斗上下文的场景）。
+type CombatPolicyRuntime interface {
+	HookRuntime
+	GetCombatRequest() *model.CombatRequest
+	GetMagicBulletChain() *model.MagicBulletChain
+}
+
+// CombatPolicyContext 战斗策略上下文。
+type CombatPolicyContext struct {
+	Player        *model.Player
+	CombatRequest *model.CombatRequest
+	Chain         *model.MagicBulletChain
+	Card          model.Card
+	CounterCard   *model.Card
+	UseFaction    bool
+}
+
 // InterruptSpec 定义角色包贡献的中断处理条目。
 type InterruptSpec struct {
-	// Type 该 spec 处理的中断类型。
-	Type model.InterruptType
-	// BuildPrompt 构建该中断类型的用户提示。返回 nil 表示无提示。
-	BuildPrompt func(rt ChoiceRuntime) *model.Prompt
-	// HandleAction 处理该中断类型的用户响应。
-	HandleAction func(rt ChoiceRuntime, act model.PlayerAction) error
-	// AllowedActionTypes 允许的玩家操作类型（空=不限制）。
-	AllowedActionTypes []model.PlayerActionType
-	// InvalidActionMessage 操作类型不匹配时的提示。
+	Type                 model.InterruptType
+	BuildPrompt          func(rt ChoiceRuntime) *model.Prompt
+	HandleAction         func(rt ChoiceRuntime, act model.PlayerAction) error
+	AllowedActionTypes   []model.PlayerActionType
 	InvalidActionMessage string
 }
 
-// ChoiceSpec 定义声明式选择流程条目（替代 switch-case 分发器）。
+// ChoiceSpec 定义声明式选择流程条目。
 type ChoiceSpec struct {
-	// ChoiceType 选择类型标识（如 "adventurer_steal_sky_mode"）。
-	ChoiceType string
-	// BuildPrompt 构建提示。返回 nil 表示无法构建。
-	BuildPrompt func(rt ChoiceRuntime, playerID string, player *model.Player, data map[string]interface{}) *model.Prompt
-	// HandleChoice 处理选择。返回 (handled, error)。
+	ChoiceType   string
+	BuildPrompt  func(rt ChoiceRuntime, playerID string, player *model.Player, data map[string]interface{}) *model.Prompt
 	HandleChoice func(rt ChoiceRuntime, playerID string, selectionIndex int, data map[string]interface{}) (bool, error)
 }
 
@@ -74,8 +92,6 @@ type ChoiceRuntime interface {
 	ConsumePlayableCardByCardID(playerID, cardID string) (model.Card, bool)
 	TopCombatRequest() *model.CombatRequest
 	PopCombatRequest()
-
-	// 中断 prompt/response 迁移所需方法。
 	PendingInterrupt() *model.Interrupt
 	RoutePendingDamageWithDefaultReturn(defaultReturn interface{}) bool
 	RestoreReturnPoint() bool
@@ -92,8 +108,6 @@ type ChoiceRuntime interface {
 	DispatchHitCheckMagicMissileCounter(player *model.Player, chain *model.MagicBulletChain, card *model.Card) error
 	DispatchHitCheckMagicMissileDefend(player *model.Player, chain *model.MagicBulletChain) error
 	AddToDiscardPile(cards ...model.Card)
-
-	// Round 2/3 迁移所需的通用引擎能力。
 	CheckGameEnd()
 	CampEnemyIDs(camp model.Camp) []string
 	CampMorale(camp model.Camp) int
@@ -149,13 +163,11 @@ type SkillEntry struct {
 	Policy  types.SkillPolicy
 }
 
-// SkillUsabilityChecker 技能可用性检查器，用于角色特定的技能使用前校验。
-// 返回 true 表示技能可用，false 表示不可用。
+// SkillUsabilityChecker 技能可用性检查器。
 type SkillUsabilityChecker func(engine SkillUsabilityCheckerEngine, player *model.Player, skillDef model.SkillDefinition) bool
 
 // SkillUsabilityCheckerEngine 抽象技能可用性检查所需的引擎能力。
 type SkillUsabilityCheckerEngine interface {
-	// 基础查询方法
 	LookupPlayer(playerID string) *model.Player
 	PlayerOrder() []string
 	GetAllPlayers() []*model.Player
@@ -186,93 +198,22 @@ type ResolveSkillFollowupReq struct {
 
 // RoleEntry 表示单个角色在 player 子目录的统一入口定义。
 type RoleEntry struct {
-	ID string
-	// Defaults 用于初始化角色默认属性。
-	Defaults func(player *model.Player)
-	// StarterCards 返回角色开局专属牌列表。
-	StarterCards func(player *model.Player) []model.Card
-	// HandLimit 角色手牌上限规则。
-	HandLimit HandLimitRule
-	// MaxHeal 角色治疗上限规则。
-	MaxHeal func(player *model.Player, current int) int
-	// Choices 角色专属选择流程（旧接口，逐步迁移到 ChoiceSpecs）。
-	Choices ChoiceHandler
-	// ChoiceSpecs 声明式选择流程条目（新接口）。
-	ChoiceSpecs []ChoiceSpec
-	// Skills 角色技能与策略绑定入口（统一机制）。
-	Skills []SkillEntry
-	// ChoiceRouteSpecs 角色贡献到全局 choice 路由映射的条目。
-	ChoiceRouteSpecs map[string]types.ChoiceRouteSpec
-	// FollowupSpecs 角色贡献到全局 DeferredFollowups 执行映射的条目。
-	FollowupSpecs map[string]FollowupSpec
-	// InterruptSpecs 角色贡献到全局中断处理映射的条目。
-	InterruptSpecs []InterruptSpec
-	// TimingHookSpecs 角色贡献到全局 timing hook 链的条目。
-	TimingHookSpecs []TimingHookSpec
-	// SkillUsabilityCheckers 角色贡献的技能可用性检查器，按技能 ID 映射。
-	SkillUsabilityCheckers map[string]SkillUsabilityChecker
-	// AttackCardElementTransform 攻击牌元素变换函数（如苍炎魔女火焰形态）。
+	ID                         string
+	Defaults                   func(player *model.Player)
+	StarterCards               func(player *model.Player) []model.Card
+	HandLimit                  HandLimitRule
+	MaxHeal                    func(player *model.Player, current int) int
+	Choices                    ChoiceHandler
+	ChoiceSpecs                []ChoiceSpec
+	Skills                     []SkillEntry
+	ChoiceRouteSpecs           map[string]types.ChoiceRouteSpec
+	FollowupSpecs              map[string]FollowupSpec
+	InterruptSpecs             []InterruptSpec
+	TimingHookSpecs            []TimingHookSpec
+	SkillUsabilityCheckers     map[string]SkillUsabilityChecker
 	AttackCardElementTransform func(player *model.Player, card model.Card) model.Element
-	// CombatPolicySpecs 角色贡献的战斗策略（阴阳师绑定、魔枪暗绑等）。
-	CombatPolicySpecs []CombatPolicySpec
-}
-
-// CombatPolicyType 战斗策略类型。
-type CombatPolicyType string
-
-const (
-	// CombatPolicyInteraction 战斗交互策略（如阴阳师式神咒束中断）。
-	CombatPolicyInteraction CombatPolicyType = "interaction"
-	// CombatPolicyDefendValidation 防御验证策略（如魔枪黑暗束缚）。
-	CombatPolicyDefendValidation CombatPolicyType = "defend_validation"
-	// CombatPolicyCounterCard 反击卡牌策略（如魔剑士暗影抗拒魔弹）。
-	CombatPolicyCounterCard CombatPolicyType = "counter_card"
-	// CombatPolicyCounterElement 反击元素策略（如阴阳师阵营元素）。
-	CombatPolicyCounterElement CombatPolicyType = "counter_element"
-	// CombatPolicyCounterResolve 反击结算策略（如阴阳师阵营反击奖励）。
-	CombatPolicyCounterResolve CombatPolicyType = "counter_resolve"
-	// CombatPolicyMagicMissileDefend 魔弹链防御策略。
-	CombatPolicyMagicMissileDefend CombatPolicyType = "magic_missile_defend"
-	// CombatPolicyMagicMissileCounter 魔弹链反击策略。
-	CombatPolicyMagicMissileCounter CombatPolicyType = "magic_missile_counter"
-	// CombatPolicyResponseSkillAug 响应技能增强策略（如兽武者增加响应技能）。
-	CombatPolicyResponseSkillAug CombatPolicyType = "response_skill_aug"
-	// CombatPolicyResponseSkillNormalize 响应技能规范化策略（如格斗家规范化）。
-	CombatPolicyResponseSkillNormalize CombatPolicyType = "response_skill_normalize"
-)
-
-// CombatPolicySpec 战斗策略声明。
-type CombatPolicySpec struct {
-	Type     CombatPolicyType
-	Priority int
-	Policy   CombatPolicyFunc
-}
-
-// CombatPolicyFunc 战斗策略函数类型。
-// 不同类型的策略有不同的签名，这里使用通用接口。
-type CombatPolicyFunc interface{}
-
-// CombatPolicyRuntime 战斗策略运行时接口。
-type CombatPolicyRuntime interface {
-	HookRuntime
-	// Combat-specific methods
-	GetCombatRequest() *model.CombatRequest
-	GetMagicBulletChain() *model.MagicBulletChain
-}
-
-// CombatPolicyContext 战斗策略上下文。
-type CombatPolicyContext struct {
-	Player        *model.Player
-	CombatRequest *model.CombatRequest
-	Chain         *model.MagicBulletChain
-	Card          model.Card
-	CounterCard   *model.Card
-	UseFaction    bool
-}
-
-// CombatPolicyExecutable 可执行的战斗策略接口。
-type CombatPolicyExecutable interface {
-	Execute(rt CombatPolicyRuntime, ctx CombatPolicyContext) error
+	// PolicySpecs 策略类型声明（用于 engine 层定义的复杂策略）。
+	PolicySpecs []string
 }
 
 // ApplyDefaults 应用默认角色属性。

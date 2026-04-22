@@ -89,3 +89,43 @@ func postDamageResolvedHook(rt engineplayer.HookRuntime, ctx engineplayer.Timing
 	rt.Log(fmt.Sprintf("%s 的 [月渎] 可触发：请选择目标（或跳过）", source.Name))
 	return engineplayer.TimingHookResult{Interrupted: true}
 }
+
+// turnEndMoonCycleHook 回合结束时月之轮回触发检查。
+func turnEndMoonCycleHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHookContext) engineplayer.TimingHookResult {
+	player := rt.GetPlayer(ctx.SourceID)
+	if player == nil || !engineplayer.IsCharacter(player, "moon_goddess") {
+		return engineplayer.TimingHookResult{}
+	}
+	ensureTokens(player)
+	if player.TurnState.UsedSkillCounts == nil {
+		player.TurnState.UsedSkillCounts = map[string]int{}
+	}
+	if player.TurnState.UsedSkillCounts["mg_moon_cycle"] > 0 {
+		return engineplayer.TimingHookResult{}
+	}
+	canBranch1 := DarkMoonCount(player) > 0
+	canBranch2 := player.Heal > 0
+	if !canBranch1 && !canBranch2 {
+		return engineplayer.TimingHookResult{}
+	}
+	var modes []string
+	if canBranch1 {
+		modes = append(modes, "branch1")
+	}
+	if canBranch2 {
+		modes = append(modes, "branch2")
+	}
+	player.TurnState.UsedSkillCounts["mg_moon_cycle"] = 1
+	rt.PushInterrupt(&model.Interrupt{
+		Type:     model.InterruptChoice,
+		PlayerID: player.ID,
+		Context: map[string]interface{}{
+			"choice_type": "mg_moon_cycle_mode",
+			"user_id":     player.ID,
+			"modes":       modes,
+			"target_ids":  rt.PlayerOrder(),
+		},
+	})
+	rt.Log(fmt.Sprintf("%s 的 [月之轮回] 触发：请选择发动分支", player.Name))
+	return engineplayer.TimingHookResult{Interrupted: true}
+}

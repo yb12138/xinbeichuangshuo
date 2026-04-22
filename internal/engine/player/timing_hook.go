@@ -238,6 +238,9 @@ type HookRuntime interface {
 
 	// 新增 - 回合控制
 	SetNextTurnPlayer(playerID string) // 设置下回合玩家（用于额外回合等）
+
+	// 新增 - ChoiceRuntime 转换（用于需要完整运行时的场景）
+	AsChoiceRuntime() ChoiceRuntime
 }
 
 // PoseSnapshot 记录玩家姿态快照（用于 orientation 变更前后对比）。

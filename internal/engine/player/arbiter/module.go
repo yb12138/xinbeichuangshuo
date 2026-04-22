@@ -19,6 +19,7 @@ func RoleEntry() player.RoleEntry {
 		TimingHookSpecs: []player.TimingHookSpec{
 			{Timing: player.TimingOnTurnStart, Priority: 100, Hook: turnStartResetHook},
 			{Timing: player.TimingOnTurnStart, Priority: 200, Hook: turnStartJudgmentUpkeepHook},
+			{Timing: player.TimingOnTurnStart, Priority: 300, Hook: turnStartForcedDoomsdayHook},
 		},
 	}
 }

@@ -71,3 +71,22 @@ func postAttackHitHook(rt player.HookRuntime, ctx player.TimingHookContext) play
 	}
 	return player.TimingHookResult{}
 }
+
+// beforeActionShadowReleaseHook 行动开始时检查是否脱离暗影形态。
+func beforeActionShadowReleaseHook(rt player.HookRuntime, ctx player.TimingHookContext) player.TimingHookResult {
+	p := rt.GetPlayer(ctx.SourceID)
+	if p == nil || !rt.IsCharacter(p, "magic_swordsman") {
+		return player.TimingHookResult{}
+	}
+	if p.Tokens == nil || p.TurnState.HasUsedActionSkill {
+		return player.TimingHookResult{}
+	}
+	if !rt.HasForm(p, model.FormMagicSwordsmanShadow) {
+		return player.TimingHookResult{}
+	}
+	beforePoses := rt.SnapshotPlayerPoses()
+	rt.ClearForm(p, model.FormMagicSwordsmanShadow)
+	rt.DispatchOrientationChanges(beforePoses)
+	rt.Log(fmt.Sprintf("%s 脱离暗影形态并转正", p.Name))
+	return player.TimingHookResult{}
+}

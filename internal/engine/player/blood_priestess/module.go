@@ -21,6 +21,7 @@ func RoleEntry() player.RoleEntry {
 		TimingHookSpecs: []player.TimingHookSpec{
 			{Timing: player.TimingPostActionEnd, Priority: 100, Hook: postActionEndBleedExitHook},
 			{Timing: player.TimingOnMoraleLossApplied, Priority: 100, Hook: moraleLossHook},
+			{Timing: player.TimingOnTurnStart, Priority: 100, Hook: turnStartBleedTickHook},
 		},
 	}
 }

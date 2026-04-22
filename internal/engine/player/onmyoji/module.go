@@ -19,6 +19,9 @@ func RoleEntry() player.RoleEntry {
 		Choices:          NewChoiceHandler(),
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
+		TimingHookSpecs: []player.TimingHookSpec{
+			{Timing: player.TimingOnTurnEnd, Priority: 100, Hook: turnEndDarkRitualHook},
+		},
 		SkillUsabilityCheckers: map[string]player.SkillUsabilityChecker{
 			"onmyoji_shikigami_descend": CheckShikigamiDescendUsability,
 		},

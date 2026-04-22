@@ -5,17 +5,12 @@ package engine
 import (
 	"fmt"
 
-	arbiterpkg "starcup-engine/internal/engine/player/arbiter"
-	bloodpriestess "starcup-engine/internal/engine/player/blood_priestess"
 	butterflydancer "starcup-engine/internal/engine/player/butterfly_dancer"
 	heropkg "starcup-engine/internal/engine/player/hero"
-	valkyriepkg "starcup-engine/internal/engine/player/valkyrie"
 	"starcup-engine/internal/model"
 )
 
-func turnStartBloodPriestessBleedHook(e *GameEngine, player *model.Player) bool {
-	return bloodpriestess.BleedTick(newRoleChoiceRuntime(e), player)
-}
+// ---- 通用场效果钩子（BeforeAction 阶段） ----
 
 func beforeActionPoisonHook(e *GameEngine, player *model.Player) bool {
 	if player == nil {
@@ -99,29 +94,7 @@ func beforeActionWeakHook(e *GameEngine, player *model.Player) bool {
 	return true
 }
 
-func turnStartValkyrieMilitaryGloryHook(e *GameEngine, player *model.Player) bool {
-	return valkyriepkg.MilitaryGlory(newRoleChoiceRuntime(e), player)
-}
-
-func startupHeroExhaustionReleaseHook(e *GameEngine, player *model.Player) bool {
-	return heropkg.ExhaustionRelease(newRoleChoiceRuntime(e), player)
-}
-
-func startupArbiterForcedDoomsdayHook(e *GameEngine, player *model.Player) bool {
-	return arbiterpkg.ForcedDoomsdayStartup(newRoleChoiceRuntime(e), player)
-}
-
-func startupHeroTauntHook(e *GameEngine, player *model.Player) bool {
-	return heropkg.TauntStartup(newRoleChoiceRuntime(e), player)
-}
-
-func activeHeroTauntSource(e *GameEngine, player *model.Player) *model.Player {
-	return heropkg.ActiveTauntSource(newRoleChoiceRuntime(e), player)
-}
-
-func clearHeroTauntRestriction(e *GameEngine, player *model.Player) {
-	consumeHeroTauntRestriction(e, player)
-}
+// ---- 勇者挑衅辅助函数 ----
 
 func consumeHeroTauntRestriction(e *GameEngine, player *model.Player) {
 	heropkg.ConsumeTauntRestriction(newRoleChoiceRuntime(e), player)
@@ -139,6 +112,8 @@ func hasPlayableAttackCard(player *model.Player) bool {
 	}
 	return false
 }
+
+// ---- 蝴蝶舞者技能入口 ----
 
 func (e *GameEngine) ResolveButterflyChrysalis(userID string) error {
 	return butterflydancer.ResolveChrysalis(newRoleChoiceRuntime(e), userID)

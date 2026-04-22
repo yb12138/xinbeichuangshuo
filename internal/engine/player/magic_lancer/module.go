@@ -23,7 +23,6 @@ func RoleEntry() player.RoleEntry {
 			{Timing: player.TimingOnMagicMissileDefend, Priority: 100, Hook: magicMissileDefendHook},
 			{Timing: player.TimingOnMagicMissileCounter, Priority: 100, Hook: magicMissileCounterHook},
 		},
-		CombatPolicySpecs: CombatPolicySpecs(),
 	}
 }
 
