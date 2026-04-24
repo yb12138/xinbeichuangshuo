@@ -20,12 +20,12 @@ func TestMountPlayerDeferredFollowupSpecs_MountsAndExecutes(t *testing.T) {
 		FollowupSpecs: map[string]engineplayer.FollowupSpec{
 			"test_role_followup": {
 				Label: "RoleFollowupTest",
-				Resolve: func(host engineplayer.FollowupHost, f model.DeferredFollowup) error {
+				Resolve: func(rt engineplayer.ChoiceRuntime, f model.DeferredFollowup) error {
 					called = true
-					if host.LookupPlayer(f.UserID) == nil {
-						t.Fatalf("expected followup host to resolve player %s", f.UserID)
+					if rt.LookupPlayer(f.UserID) == nil {
+						t.Fatalf("expected followup runtime to resolve player %s", f.UserID)
 					}
-					host.Log("test role followup executed")
+					rt.Log("test role followup executed")
 					return nil
 				},
 			},

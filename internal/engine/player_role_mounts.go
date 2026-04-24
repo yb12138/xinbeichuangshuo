@@ -59,7 +59,8 @@ func toDeferredFollowupHandler(spec engineplayer.FollowupSpec) (deferredFollowup
 	return deferredFollowupHandler{
 		label: label,
 		resolve: func(e *GameEngine, f model.DeferredFollowup) error {
-			return spec.Resolve(engineFollowupHost{e: e}, f)
+			rt := newRoleChoiceRuntime(e)
+			return spec.Resolve(rt, f)
 		},
 	}, true
 }

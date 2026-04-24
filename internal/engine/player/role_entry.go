@@ -185,23 +185,10 @@ type SkillUsabilityCheckerEngine interface {
 // player 参数已包含手牌、形态等信息，大多数角色只需要检查 player 即可。
 type CannotActChecker func(player *model.Player) (bool, string)
 
-// FollowupHost 抽象延迟后续回调可用的最小引擎能力。
-type FollowupHost interface {
-	Log(message string)
-	LookupPlayer(playerID string) *model.Player
-	ResolveSkillFollowup(req ResolveSkillFollowupReq) error
-}
-
 // FollowupSpec 定义角色模块贡献到延迟后续执行表的条目。
 type FollowupSpec struct {
 	Label   string
-	Resolve func(host FollowupHost, f model.DeferredFollowup) error
-}
-
-// ResolveSkillFollowupReq 是角色 followup resolver 发起引擎后续结算的通用请求。
-type ResolveSkillFollowupReq struct {
-	Kind     string
-	Followup model.DeferredFollowup
+	Resolve func(rt ChoiceRuntime, f model.DeferredFollowup) error
 }
 
 // RoleEntry 表示单个角色在 player 子目录的统一入口定义。

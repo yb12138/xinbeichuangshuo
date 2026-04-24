@@ -21,6 +21,7 @@ func RoleEntry() player.RoleEntry {
 				return current
 			},
 		},
+		FollowupSpecs:    FollowupSpecs(),
 		Choices:          NewChoiceHandler(),
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),

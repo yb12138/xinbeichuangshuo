@@ -16,6 +16,7 @@ func RoleEntry() player.RoleEntry {
 		Defaults:          ApplyDefaults,
 		StarterCards:      StarterCards,
 		HandLimitModifier: SharedLifeHandLimitModifier,
+		FollowupSpecs:     FollowupSpecs(),
 		Choices:           NewChoiceHandler(),
 		Skills:            SkillEntries(),
 		ChoiceRouteSpecs:  ChoiceRouteSpecs(),

@@ -67,15 +67,6 @@ func (e *GameEngine) resumePendingDraw(ctx *model.Context) {
 	e.enqueuePendingDrawFollowup(ctx)
 }
 
-func buildAssassinDeferredFollowupHandlers() map[string]deferredFollowupHandler {
-	return map[string]deferredFollowupHandler{
-		"assassin_stealth_apply": {
-			label:   "Assassin",
-			resolve: (*GameEngine).resolveAssassinStealthApplyFollowup,
-		},
-	}
-}
-
 func (e *GameEngine) newDrawContext(player *model.Player, amount int, reason string) *model.Context {
 	return e.newDrawContextWithOptions(player, amount, reason, model.DrawOptions{})
 }
@@ -214,19 +205,6 @@ func (e *GameEngine) releaseAssassinStealthEffect(player *model.Player) {
 	playerpkg.ClearForm(player, model.FormAssassinStealth)
 	e.Log(fmt.Sprintf("%s 脱离潜行形态并转正", player.Name))
 	e.dispatchOrientationChanges(beforePoses)
-}
-
-func (e *GameEngine) resolveAssassinStealthApplyFollowup(f model.DeferredFollowup) error {
-	user := e.State.Players[f.UserID]
-	if user == nil {
-		return fmt.Errorf("暗杀者潜行后续执行者不存在: %s", f.UserID)
-	}
-	if !playerpkg.IsCharacter(user, "assassin") {
-		return fmt.Errorf("仅暗杀者可执行潜行后续")
-	}
-
-	e.applyAssassinStealthEffect(user)
-	return nil
 }
 
 func (e *GameEngine) executeResolvedDraw(ctx *model.Context, drawCount int, reason string) {
