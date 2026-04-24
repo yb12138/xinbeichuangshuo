@@ -9,7 +9,6 @@ import (
 
 	playerpkg "starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
-	"starcup-engine/internal/rules"
 )
 
 // handleActionSelection 处理行动选择阶段的行动
@@ -234,79 +233,23 @@ func (e *GameEngine) handleActionSelectionAttackOrMagic(act model.PlayerAction, 
 }
 
 func (e *GameEngine) handleActionSelectionCannotAct(player *model.Player) error {
+	// === 额外行动阶段：直接跳过 ===
 	if player.TurnState.CurrentExtraAction != "" {
 		if e.checkExtraActionCards(player, player.TurnState.CurrentExtraAction, player.TurnState.CurrentExtraElement) {
 			return errors.New("当前额外行动仍有可执行动作，不能跳过")
 		}
-		constraintInfo := e.buildConstraintInfo(player.TurnState.CurrentExtraAction, player.TurnState.CurrentExtraElement)
-		e.beginActionSummary("cannot_act", player.ID, "跳过额外行动", nil)
-		e.Log(fmt.Sprintf("[Turn] %s 宣告【无法行动】，跳过本次额外行动%s", player.Name, constraintInfo))
-		player.TurnState.CurrentExtraAction = ""
-		player.TurnState.CurrentExtraElement = nil
-		e.enterTurnEndStage()
+		e.skipExtraAction(player)
 		return nil
 	}
 
-	e.beginActionSummary("cannot_act", player.ID, "无法行动", nil)
-	handCount := len(player.Hand)
-	if handCount == 0 {
-		e.Log(fmt.Sprintf("[Action] %s 宣告【无法行动】（无手牌），结束本回合行动阶段", player.Name))
-		player.TurnState.LockSpecialActionsForRemainderOfTurn()
-		e.enterTurnEndStage()
-		return nil
+	// === 主行动回合：无法行动判断 ===
+	canCannotAct, _ := e.checkPlayerCannotAct(player)
+	if !canCannotAct {
+		return errors.New("你还有可用的攻击/法术牌或技能，无法宣告无法行动")
 	}
-	canUseMagic := e.canCastMagicInAction(player)
-	for idx := 0; idx < playableCardCount(player); idx++ {
-		c, _, _, ok := getPlayableCardByIndex(player, idx)
-		if !ok {
-			continue
-		}
-		if c.Type == model.CardTypeAttack || (c.Type == model.CardTypeMagic && canUseMagic) {
-			return errors.New("你还有可用的攻击/法术牌，无法宣告无法行动")
-		}
-	}
-	e.Log(fmt.Sprintf("[Action] %s 宣告【无法行动】，展示并弃掉全部手牌(%d张)", player.Name, handCount))
-	e.NotifyCardRevealed(player.ID, append([]model.Card{}, player.Hand...), "discard")
-	for _, c := range player.Hand {
-		e.State.DiscardPile = append(e.State.DiscardPile, c)
-	}
-	player.Hand = player.Hand[:0]
-	cards, newDeck, newDiscard := rules.DrawCards(e.State.Deck, e.State.DiscardPile, handCount)
-	e.State.Deck = newDeck
-	e.State.DiscardPile = newDiscard
-	player.Hand = append(player.Hand, cards...)
-	e.NotifyDrawCards(player.ID, handCount, "cannot_act_redraw")
-	if playerpkg.IsCharacter(player, "magic_swordsman") {
-		for len(player.Hand) > 0 {
-			hasAttack := false
-			allMagic := true
-			for _, c := range player.Hand {
-				if c.Type == model.CardTypeAttack {
-					hasAttack = true
-					break
-				}
-				if c.Type != model.CardTypeMagic {
-					allMagic = false
-				}
-			}
-			if hasAttack || !allMagic {
-				break
-			}
-			redrawCount := len(player.Hand)
-			e.NotifyCardRevealed(player.ID, append([]model.Card{}, player.Hand...), "discard")
-			e.State.DiscardPile = append(e.State.DiscardPile, player.Hand...)
-			player.Hand = player.Hand[:0]
-			nextCards, deck2, discard2 := rules.DrawCards(e.State.Deck, e.State.DiscardPile, redrawCount)
-			e.State.Deck = deck2
-			e.State.DiscardPile = discard2
-			player.Hand = append(player.Hand, nextCards...)
-			e.NotifyDrawCards(player.ID, redrawCount, "magic_swordsman_redraw")
-			e.Log(fmt.Sprintf("[Action] %s 触发魔剑士重摸：全法术手牌已弃置并重摸%d张", player.Name, redrawCount))
-		}
-	}
-	e.Log(fmt.Sprintf("[Action] %s 重新摸了%d张牌，且本回合不可执行特殊行动", player.Name, handCount))
-	player.TurnState.LockSpecialActionsForRemainderOfTurn()
-	e.enterActionExecutionStage()
+
+	// === 执行无法行动流程 ===
+	e.executeCannotActFlow(player)
 	return nil
 }
 

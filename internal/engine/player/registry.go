@@ -86,6 +86,15 @@ func (r *RoleRegistry) AttackCardElementTransform(roleID string) func(player *mo
 	return entry.AttackCardElementTransform
 }
 
+// CannotActChecker 返回指定角色的无法行动判断函数。
+func (r *RoleRegistry) CannotActChecker(roleID string) CannotActChecker {
+	if r == nil || roleID == "" {
+		return nil
+	}
+	entry := r.Entry(roleID)
+	return entry.CannotActChecker
+}
+
 func mergeRoleEntry(base RoleEntry, overlay RoleEntry) RoleEntry {
 	merged := base
 	if merged.ID == "" {
@@ -111,6 +120,9 @@ func mergeRoleEntry(base RoleEntry, overlay RoleEntry) RoleEntry {
 	merged.SkillUsabilityCheckers = mergeMap(merged.SkillUsabilityCheckers, overlay.SkillUsabilityCheckers)
 	if overlay.AttackCardElementTransform != nil {
 		merged.AttackCardElementTransform = overlay.AttackCardElementTransform
+	}
+	if overlay.CannotActChecker != nil {
+		merged.CannotActChecker = overlay.CannotActChecker
 	}
 	if len(overlay.TimingHookSpecs) > 0 {
 		merged.TimingHookSpecs = append(append([]TimingHookSpec{}, merged.TimingHookSpecs...), overlay.TimingHookSpecs...)

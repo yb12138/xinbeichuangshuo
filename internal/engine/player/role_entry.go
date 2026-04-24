@@ -177,6 +177,14 @@ type SkillUsabilityCheckerEngine interface {
 	CountCoverCardsByEffectAndElement(player *model.Player, effect model.EffectType, element model.Element) int
 }
 
+// CannotActChecker 无法行动判断函数。
+// 返回 (canCannotAct, reason)：
+//   - canCannotAct=true: 该角色认为当前可以宣告无法行动
+//   - canCannotAct=false: 该角色认为当前不能宣告无法行动，继续走默认判断
+//
+// player 参数已包含手牌、形态等信息，大多数角色只需要检查 player 即可。
+type CannotActChecker func(player *model.Player) (bool, string)
+
 // FollowupHost 抽象延迟后续回调可用的最小引擎能力。
 type FollowupHost interface {
 	Log(message string)
@@ -213,6 +221,7 @@ type RoleEntry struct {
 	PolicySpecs                []PolicySpec // 角色策略声明
 	SkillUsabilityCheckers     map[string]SkillUsabilityChecker
 	AttackCardElementTransform func(player *model.Player, card model.Card) model.Element
+	CannotActChecker           CannotActChecker // 角色自定义无法行动判断hook（可选）
 }
 
 // ApplyDefaults 应用默认角色属性。

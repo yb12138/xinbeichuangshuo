@@ -192,31 +192,12 @@ func (e *GameEngine) appendBaseActionSelectionOptions(player *model.Player, stat
 	}
 
 	if !state.isRestrictedExtraAction {
-		hasAttackCard := false
-		hasMagicCard := false
-		for idx := 0; idx < playableCardCount(player); idx++ {
-			card, _, _, ok := getPlayableCardByIndex(player, idx)
-			if !ok {
-				continue
-			}
-			if card.Type == model.CardTypeAttack {
-				hasAttackCard = true
-			}
-			if card.Type == model.CardTypeMagic && state.canMagicAction {
-				hasMagicCard = true
-			}
-		}
-		canNormalAction := hasAttackCard || hasMagicCard || state.canMagicSkillAction
-		if state.actionRuleMode == actionSelectionRuleForceSkillAsMagic {
-			canNormalAction = state.canMagicSkillAction
-		} else if state.actionRuleMode == actionSelectionRuleForceAttack {
-			canNormalAction = hasAttackCard
-		}
 		if state.actionRuleMode == actionSelectionRuleForceAttackOrSkip {
 			state.validOptions = append(state.validOptions, model.PromptOption{ID: "cannot_act", Label: "跳过行动（移除挑衅）"})
 			return
 		}
-		if !canNormalAction {
+		canCannotAct, _ := e.checkPlayerCannotAct(player)
+		if canCannotAct {
 			state.validOptions = append(state.validOptions, model.PromptOption{ID: "cannot_act", Label: "无法行动（展示手牌）"})
 		}
 	} else if !state.hasRestrictedExtraAction {
