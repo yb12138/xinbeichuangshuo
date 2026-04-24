@@ -12,12 +12,13 @@ import (
 // RoleEntry 导出角色统一入口定义。
 func RoleEntry() player.RoleEntry {
 	return player.RoleEntry{
-		ID:               "blood_priestess",
-		Defaults:         ApplyDefaults,
-		StarterCards:     StarterCards,
-		Choices:          NewChoiceHandler(),
-		Skills:           SkillEntries(),
-		ChoiceRouteSpecs: ChoiceRouteSpecs(),
+		ID:                "blood_priestess",
+		Defaults:          ApplyDefaults,
+		StarterCards:      StarterCards,
+		HandLimitModifier: SharedLifeHandLimitModifier,
+		Choices:           NewChoiceHandler(),
+		Skills:            SkillEntries(),
+		ChoiceRouteSpecs:  ChoiceRouteSpecs(),
 		TimingHookSpecs: []player.TimingHookSpec{
 			{Timing: player.TimingPostActionEnd, Priority: 100, Hook: postActionEndBleedExitHook},
 			{Timing: player.TimingOnMoraleLossApplied, Priority: 100, Hook: moraleLossHook},

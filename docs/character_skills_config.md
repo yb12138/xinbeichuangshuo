@@ -3627,11 +3627,6 @@
     * `Value`: `0`
     * `FormRef`: `"prayer_master_prayer_form"`
     * `Ref`: `None`
-  * **Effect[2]**:
-    * `EffectType`: `EffectSetHandLimitFixed`
-    * `Target`: `TargetSelf`
-    * `Value`: `5`
-    * `Ref`: `None`
 
 #### 【祈祷·攻击增符】 (Prayer Attack Rune Gain)
 * **说明**：祈祷形态下，每次你发动主动攻击时，你+2［祈祷符文］。

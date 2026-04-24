@@ -11,8 +11,16 @@ import (
 // RoleEntry 导出角色统一入口定义。
 func RoleEntry() player.RoleEntry {
 	return player.RoleEntry{
-		ID:               "blaze_witch",
-		Defaults:         ApplyDefaults,
+		ID:       "blaze_witch",
+		Defaults: ApplyDefaults,
+		HandLimit: player.HandLimitRuleFuncs{
+			Modifier: func(p *model.Player, current int) int {
+				if player.HasForm(p, model.FormBlazeWitchFlame) {
+					return current + p.Tokens["bw_rebirth"] - 2
+				}
+				return current
+			},
+		},
 		Choices:          NewChoiceHandler(),
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),

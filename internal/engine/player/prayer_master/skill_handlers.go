@@ -119,8 +119,7 @@ func (h *PrayerEnterFormHandler) Execute(ctx *model.Context) error {
 	}
 	ctx.User.Gem--
 	enterForm(ctx.User, model.FormPrayerMasterPrayer)
-	ctx.User.MaxHand = 5
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [祈祷]，进入祈祷形态，手牌上限固定为5", ctx.User.Name))
+	ctx.Game.Log(fmt.Sprintf("%s 发动 [祈祷]，进入祈祷形态", ctx.User.Name))
 	return nil
 }
 

@@ -13,9 +13,17 @@ import (
 // RoleEntry 导出角色统一入口定义。
 func RoleEntry() player.RoleEntry {
 	return player.RoleEntry{
-		ID:               "hero",
-		Defaults:         ApplyDefaults,
-		StarterCards:     StarterCards,
+		ID:           "hero",
+		Defaults:     ApplyDefaults,
+		StarterCards: StarterCards,
+		HandLimit: player.HandLimitRuleFuncs{
+			Hard: func(p *model.Player) (int, bool) {
+				if player.HasForm(p, model.FormHeroExhaustion) {
+					return 4, true
+				}
+				return 0, false
+			},
+		},
 		Choices:          NewChoiceHandler(),
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),

@@ -124,6 +124,9 @@ func mergeRoleEntry(base RoleEntry, overlay RoleEntry) RoleEntry {
 	if overlay.CannotActChecker != nil {
 		merged.CannotActChecker = overlay.CannotActChecker
 	}
+	if overlay.HandLimitModifier != nil {
+		merged.HandLimitModifier = overlay.HandLimitModifier
+	}
 	if len(overlay.TimingHookSpecs) > 0 {
 		merged.TimingHookSpecs = append(append([]TimingHookSpec{}, merged.TimingHookSpecs...), overlay.TimingHookSpecs...)
 	}

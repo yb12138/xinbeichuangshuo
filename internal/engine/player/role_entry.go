@@ -221,7 +221,8 @@ type RoleEntry struct {
 	PolicySpecs                []PolicySpec // 角色策略声明
 	SkillUsabilityCheckers     map[string]SkillUsabilityChecker
 	AttackCardElementTransform func(player *model.Player, card model.Card) model.Element
-	CannotActChecker           CannotActChecker // 角色自定义无法行动判断hook（可选）
+	CannotActChecker           CannotActChecker  // 角色自定义无法行动判断hook（可选）
+	HandLimitModifier          HandLimitModifier // 全局手牌上限修改器（可选，如血之巫女同生共死）
 }
 
 // ApplyDefaults 应用默认角色属性。

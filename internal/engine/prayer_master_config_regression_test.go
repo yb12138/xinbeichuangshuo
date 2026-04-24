@@ -6,7 +6,7 @@ import (
 	"starcup-engine/internal/model"
 )
 
-func TestPrayerEnterForm_FixesMaxHandAtFive(t *testing.T) {
+func TestPrayerEnterForm_ConsumesGemAndSetsForm(t *testing.T) {
 	game := NewGameEngine(noopObserver{})
 	if err := game.AddPlayer("p1", "Prayer", "prayer_master", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -35,9 +35,6 @@ func TestPrayerEnterForm_FixesMaxHandAtFive(t *testing.T) {
 	}
 	if p1.Form != model.FormPrayerMasterPrayer {
 		t.Fatalf("expected prayer form %q, got %q", model.FormPrayerMasterPrayer, p1.Form)
-	}
-	if got := game.GetMaxHand(p1); got != 5 {
-		t.Fatalf("expected fixed max hand=5 after prayer, got %d", got)
 	}
 }
 

@@ -5,13 +5,22 @@ package assassin
 import (
 	"starcup-engine/internal/engine/player"
 	skills "starcup-engine/internal/engine/skill"
+	"starcup-engine/internal/model"
 	"starcup-engine/internal/types"
 )
 
 // RoleEntry 导出角色统一入口定义。
 func RoleEntry() player.RoleEntry {
 	return player.RoleEntry{
-		ID:               "assassin",
+		ID: "assassin",
+		HandLimit: player.HandLimitRuleFuncs{
+			Modifier: func(p *model.Player, current int) int {
+				if player.HasForm(p, model.FormAssassinStealth) {
+					return current - 1
+				}
+				return current
+			},
+		},
 		Choices:          NewChoiceHandler(),
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),

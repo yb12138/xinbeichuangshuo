@@ -11,8 +11,17 @@ import (
 // RoleEntry 导出角色统一入口定义。
 func RoleEntry() player.RoleEntry {
 	return player.RoleEntry{
-		ID:               "butterfly_dancer",
-		Defaults:         ApplyDefaults,
+		ID:       "butterfly_dancer",
+		Defaults: ApplyDefaults,
+		HandLimit: player.HandLimitRuleFuncs{
+			Modifier: func(p *model.Player, current int) int {
+				current -= Pupa(p)
+				if current < 3 {
+					return 3
+				}
+				return current
+			},
+		},
 		Choices:          NewChoiceHandler(),
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),

@@ -11,8 +11,16 @@ import (
 // RoleEntry 导出角色统一入口定义。
 func RoleEntry() player.RoleEntry {
 	return player.RoleEntry{
-		ID:               "magic_lancer",
-		Defaults:         ApplyDefaults,
+		ID:       "magic_lancer",
+		Defaults: ApplyDefaults,
+		HandLimit: player.HandLimitRuleFuncs{
+			Hard: func(p *model.Player) (int, bool) {
+				if player.HasForm(p, model.FormMagicLancerPhantom) {
+					return 5, true
+				}
+				return 0, false
+			},
+		},
 		Choices:          NewChoiceHandler(),
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),

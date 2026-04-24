@@ -34,7 +34,4 @@ func TestPrayerForm_PersistsAfterTurnEnd(t *testing.T) {
 	if got := p1.Tokens["prayer_rune"]; got != 3 {
 		t.Fatalf("expected prayer_rune remain 3 after turn end, got %d", got)
 	}
-	if got := game.GetMaxHand(p1); got != 5 {
-		t.Fatalf("expected prayer form fixed max hand=5, got %d", got)
-	}
 }
