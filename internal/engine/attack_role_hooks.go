@@ -5,7 +5,6 @@ package engine
 
 import (
 	engineplayer "starcup-engine/internal/engine/player"
-	blazewitchplayer "starcup-engine/internal/engine/player/blaze_witch"
 	"starcup-engine/internal/model"
 )
 
@@ -80,21 +79,17 @@ func applyDarkElementNoCounterRule(_ *GameEngine, _ *model.Player, _ *model.Play
 	eventCtx.AttackInfo.SetInterceptTag(model.CombatInterceptUnrespondable)
 }
 
-// ---------- 攻击卡牌变换（原 attack_card_runtime_hooks.go） ----------
-
-type attackCardRuntimeTransformHook func(e *GameEngine, player *model.Player, card model.Card) model.Card
-
-func applyBlazeWitchAttackCardRuntimeHook(e *GameEngine, player *model.Player, card model.Card) model.Card {
-	if e == nil {
-		return card
-	}
-	return blazewitchplayer.ApplyAttackCardTransform(player, card)
-}
+// ---------- 攻击卡牌变换 ----------
 
 // applyTimingOnAttackDeclaredCardTransforms 在攻击宣言时按固定顺序应用卡面变换规则。
 func (e *GameEngine) applyTimingOnAttackDeclaredCardTransforms(player *model.Player, card model.Card) model.Card {
-	for _, hook := range e.attackDeclaredCardTransformHooks {
-		card = hook(e, player, card)
+	ctx := engineplayer.PolicyHookContext{
+		Player:      player,
+		CounterCard: card,
+	}
+	result := e.dispatchPolicyHook(engineplayer.PolicyAttackCardTransform, ctx)
+	if result.Handled && result.Stop {
+		return result.Card
 	}
 	return card
 }

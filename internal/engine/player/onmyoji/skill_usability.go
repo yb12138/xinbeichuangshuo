@@ -8,7 +8,7 @@ import (
 )
 
 // CheckShikigamiDescendUsability 检查式神降临技能是否可用。
-// 需要：手牌中有至少2张相同阵营的牌。
+// 需要：手牌中有至少2张相同命格的牌。
 func CheckShikigamiDescendUsability(engine player.SkillUsabilityCheckerEngine, p *model.Player, skillDef model.SkillDefinition) bool {
 	factionCount := map[string]int{}
 	for _, card := range p.Hand {

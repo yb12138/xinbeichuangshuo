@@ -31,12 +31,16 @@ func MaybeDarkRitual(rt engineplayer.ChoiceRuntime, player *model.Player) bool {
 	return true
 }
 
-// ApplyFactionCounterBonuses 应用阴阳转换的鬼火+1和式神转换效果。
+// ApplyFactionCounterBonuses 应用阴阳转换与式神转换效果。
+// 阴阳转换：鬼火+1；若处于式神形态则脱离式神形态；攻击伤害=当前鬼火数。
+// 式神转换：阴阳转换生效时自动触发，强制摸1张牌，然后+1鬼火。
 func ApplyFactionCounterBonuses(rt engineplayer.ChoiceRuntime, actor *model.Player, card *model.Card) {
 	if actor == nil || card == nil {
 		return
 	}
 	beforePoses := rt.SnapshotPlayerPoses()
+
+	// 阴阳转换：鬼火+1
 	if actor.Tokens == nil {
 		actor.Tokens = map[string]int{}
 	}
@@ -45,20 +49,32 @@ func ApplyFactionCounterBonuses(rt engineplayer.ChoiceRuntime, actor *model.Play
 		actor.Tokens["onmyoji_ghost_fire"] = 3
 	}
 	rt.Log(fmt.Sprintf("%s 的 [阴阳转换] 触发，鬼火+1", actor.Name))
+
+	// 式神转换：阴阳转换生效时自动触发（无条件）
+	triggerShikigamiShift(rt, actor)
+
+	// 阴阳转换：若处于式神形态则脱离式神形态
 	if InShikigamiForm(actor) {
-		rt.DrawCards(actor.ID, 1)
-		actor.Tokens["onmyoji_ghost_fire"]++
-		if actor.Tokens["onmyoji_ghost_fire"] > 3 {
-			actor.Tokens["onmyoji_ghost_fire"] = 3
-		}
 		LeaveShikigamiForm(actor)
-		rt.Log(fmt.Sprintf("%s 的 [式神转换] 触发：摸1并鬼火+1，然后脱离式神形态", actor.Name))
+		rt.Log(fmt.Sprintf("%s 的 [阴阳转换] 效果：脱离式神形态", actor.Name))
 	}
+
+	// 阴阳转换：攻击伤害=当前鬼火数
 	card.Damage = actor.Tokens["onmyoji_ghost_fire"]
 	if card.Damage < 0 {
 		card.Damage = 0
 	}
 	rt.DispatchOrientationChanges(beforePoses)
+}
+
+// triggerShikigamiShift 通过正式技能 handler 触发式神转换。
+func triggerShikigamiShift(rt engineplayer.ChoiceRuntime, actor *model.Player) {
+	ctx := rt.BuildContext(actor, nil, model.TimingActive, nil)
+	ctx.Flags["yinyang_counter_active"] = true
+	handler := &OnmyojiShikigamiShiftHandler{}
+	if handler.CanUse(ctx) {
+		handler.Execute(ctx)
+	}
 }
 
 // CanPayBindingCost 检查阵营是否有资源支付式神咒束代价。

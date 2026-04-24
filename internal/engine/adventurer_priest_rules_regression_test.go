@@ -129,28 +129,29 @@ func TestAdventurerUndergroundLaw_RewritesBuyInsteadOfDefaultSettlement(t *testi
 
 	game.State.CurrentTurn = 0
 	game.State.TurnStage = model.TurnStageActionExecution
+	// 初始化牌堆，确保有牌可摸
+	game.State.Deck = rules.InitDeck()
 	p1 := game.State.Players["p1"]
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
+	// 手牌留3张，还有3张上限空间，购买摸3张刚好
 	p1.Hand = []model.Card{
 		{ID: "c1", Name: "火斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 1},
 		{ID: "c2", Name: "水盾", Type: model.CardTypeMagic, Element: model.ElementWater},
 		{ID: "c3", Name: "圣光", Type: model.CardTypeMagic, Element: model.ElementLight},
-		{ID: "c4", Name: "风斩", Type: model.CardTypeAttack, Element: model.ElementWind, Damage: 1},
-		{ID: "c5", Name: "雷击", Type: model.CardTypeMagic, Element: model.ElementThunder},
-		{ID: "c6", Name: "地刺", Type: model.CardTypeMagic, Element: model.ElementEarth},
 	}
 
 	mustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdBuy})
 
+	// 地下法则：正常摸3张（3+3=6），战绩区+2宝石（原为+1宝石+1水晶）
 	if got := len(p1.Hand); got != 6 {
-		t.Fatalf("expected underground law buy rewrite not to draw cards, got hand=%d", got)
+		t.Fatalf("expected hand to be 6 after buy, got %d", got)
 	}
 	if got := game.State.RedGems; got != 2 {
 		t.Fatalf("expected underground law to add 2 team gems, got %d", got)
 	}
 	if got := game.State.RedCrystals; got != 0 {
-		t.Fatalf("expected underground law rewrite not to add team crystals, got %d", got)
+		t.Fatalf("expected underground law to not add team crystals, got %d", got)
 	}
 }
 

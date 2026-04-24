@@ -127,9 +127,23 @@ func (h *OnmyojiYinYangShiftHandler) Execute(ctx *model.Context) error { return 
 
 type OnmyojiShikigamiShiftHandler struct{ skills.BaseHandler }
 
-func (h *OnmyojiShikigamiShiftHandler) CanUse(ctx *model.Context) bool { return false }
+func (h *OnmyojiShikigamiShiftHandler) CanUse(ctx *model.Context) bool {
+	if ctx == nil || ctx.User == nil {
+		return false
+	}
+	// 仅在阴阳转换结算期间触发，防止标准响应技能系统误触发
+	return ctx.Flags["yinyang_counter_active"]
+}
 
-func (h *OnmyojiShikigamiShiftHandler) Execute(ctx *model.Context) error { return nil }
+func (h *OnmyojiShikigamiShiftHandler) Execute(ctx *model.Context) error {
+	if ctx == nil || ctx.User == nil || ctx.Game == nil {
+		return fmt.Errorf("上下文无效")
+	}
+	ctx.Game.DrawCards(ctx.User.ID, 1)
+	addToken(ctx.User, "onmyoji_ghost_fire", 1, 0, 3)
+	ctx.Game.Log(fmt.Sprintf("%s 的 [式神转换] 触发：摸1并鬼火+1", ctx.User.Name))
+	return nil
+}
 
 type OnmyojiDarkRitualHandler struct{ skills.BaseHandler }
 

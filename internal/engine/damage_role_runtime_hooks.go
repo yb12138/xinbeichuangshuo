@@ -26,8 +26,7 @@ func (e *GameEngine) applyTimingOnHitCheckPendingDamageAttackHitRules(pd *model.
 	}
 }
 
-// ---------- 承伤/转伤钩子类型 ----------
-type pendingDamageAfterResolvedHook func(e *GameEngine, pd *model.PendingDamage) bool
+// ---------- 承伤/转伤钩子 ----------
 
 // applyTimingOnAttackDeclaredPendingDamageInitRules 在攻击宣言后初始化伤害运行态。
 func (e *GameEngine) applyTimingOnAttackDeclaredPendingDamageInitRules(pd *model.PendingDamage, attacker *model.Player, victim *model.Player) {
@@ -116,17 +115,15 @@ func (e *GameEngine) applyTimingOnDamageTakenAfterApplyRules(pd *model.PendingDa
 
 // applyTimingOnDamageTakenAfterResolvedRules 在整次伤害出队后处理结算后规则。
 func (e *GameEngine) applyTimingOnDamageTakenAfterResolvedRules(pd *model.PendingDamage) bool {
-	for _, hook := range e.damageTakenAfterResolvedHooks {
-		if hook(e, pd) {
-			return true
-		}
-	}
-	return false
-}
-
-func pendingDamageRolePostResolvedHook(e *GameEngine, pd *model.PendingDamage) bool {
-	if e == nil || pd == nil {
+	if pd == nil {
 		return false
 	}
-	return e.handlePostDamageResolved(pd)
+	result := e.dispatchAllRoleTimingHooks(engineplayer.TimingPostDamageResolved, engineplayer.TimingHookContext{
+		SourceID:      pd.SourceID,
+		TargetID:      pd.TargetID,
+		DamageType:    pd.DamageType,
+		Damage:        pd.Damage,
+		PendingDamage: pd,
+	})
+	return result.Interrupted
 }

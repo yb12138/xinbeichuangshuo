@@ -29,33 +29,15 @@ type GameEngine struct {
 	choiceEngine *choicert.Engine
 	// interruptOrchestrator 中断动作与 Prompt 编排。
 	interruptOrchestrator *intr.Orchestrator
-	// TimingOnAttackDeclared: 按已上场角色动态装配的执行表。
-	attackDeclaredCardTransformHooks []attackCardRuntimeTransformHook
-	attackDeclaredInterrupts         []attackDeclaredInterruptHook
-	// TimingOnHitCheck: 命中判定阶段动态装配执行表。
-	hitCheckCombatInteractionHooks       []combatInteractionPolicyHook
-	hitCheckCombatCounterCardPolicies    []combatCounterCardPolicy
-	hitCheckCombatCounterElementPolicies []combatCounterElementPolicy
-	hitCheckCombatCounterResolvePolicies []combatCounterResolvePolicy
-	hitCheckResponseSkillIDAugmenters    []responseSkillIDAugmenter
-	hitCheckResponseSkillIDNormalizers   []responseSkillIDNormalizer
 	// TimingOnDamageCalculated: 伤害计算阶段动态装配执行表。
 	damageCalculatedAttackPassiveHooks []attackPassiveDamageHook
-	damageTakenAfterResolvedHooks      []pendingDamageAfterResolvedHook
 	// Turn 主流程阶段：动态装配阶段钩子与中断策略。
-	turnStartMainHooks             []turnTimingHook
-	beforeActionFieldHooks         []turnTimingHook
-	beforeActionExecuteHooks       []turnTimingHook
-	beforeActionOptionPolicies     []actionSelectionOptionPolicy
-	beforeActionValidationPolicies []actionSelectionValidationPolicy
-	turnEndPreExtraHooks           []turnTimingHook
-	turnEndFinalHooks              []turnTimingHook
-	actionEndInterrupts            []actionEndInterruptHook
-	// TimingBeforeActionExecute / TimingOnActionEnd：特殊行动策略装配表。
-	specialActionOverridePolicies []specialActionOverridePolicy
-	specialActionPostHooks        []specialActionPostHook
-	// Skill 主动发动成功后的后置策略装配表。
-	skillPostHooks []skillPostHook
+	turnStartMainHooks       []turnTimingHook
+	beforeActionFieldHooks   []turnTimingHook
+	beforeActionExecuteHooks []turnTimingHook
+	turnEndPreExtraHooks     []turnTimingHook
+	turnEndFinalHooks        []turnTimingHook
+
 	// TimingOnGameStart：入场初始化 / 开局发牌后 / 行动收尾。
 	gameStartAddPlayerHooks   []gameStartPlayerHook
 	gameStartInitialDealHooks []gameStartPlayerHook
@@ -70,6 +52,8 @@ type GameEngine struct {
 	suppressSealOnDiscard bool
 	// roleTimingHooks 声明式 Timing Hook 注册表（按 timing 分组，已排序）。
 	roleTimingHooks map[engineplayer.TimingPoint][]roleTimingHookEntry
+	// policyHooks 声明式策略 Hook 注册表（按策略类型分组，已排序）。
+	policyHooks map[engineplayer.PolicyType][]policyHookEntry
 }
 
 func (e *GameEngine) resetTurnMagicDamageTracker() {
@@ -118,5 +102,6 @@ func NewGameEngine(observer model.GameObserver) *GameEngine {
 	engine.installInterruptOrchestrator()
 	engine.rebuildTimingOnAttackDeclaredRegistry()
 	engine.roleTimingHooks = mountRoleTimingHooks()
+	engine.policyHooks = mountRolePolicyHooks()
 	return engine
 }

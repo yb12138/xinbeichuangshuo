@@ -10,7 +10,6 @@ import (
 
 // HandleAction 核心路由器：处理所有 Action
 func (e *GameEngine) HandleAction(act model.PlayerAction) error {
-	e.Log(fmt.Sprintf("[Debug] HandleAction 收到指令: %s", act.Type))
 	// 规则顺序（统一入口）：
 	// 1) 系统指令；2) 中断输入；3) 终局拦截；4) 回合权校验；5) 主流程路由；6) Drive 推进。
 	if handled, err := e.handleImmediateAction(act); handled {

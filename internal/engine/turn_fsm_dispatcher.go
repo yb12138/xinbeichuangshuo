@@ -444,17 +444,18 @@ func (e *GameEngine) driveActionEndStage(currentPid string, player *model.Player
 
 	if player.TurnState.LastActionType != "" {
 		lastActionType := model.ActionType(player.TurnState.LastActionType)
-		skipActionEndInterruptHooks := player.TurnState.ConsumeActionEndInterruptHookSkipOnce()
-		if e.runActionEndSequence(currentPid, player, lastActionType, skipActionEndInterruptHooks) {
+		if e.runActionEndSequence(currentPid, player, lastActionType) {
 			return driveStop
 		}
 	}
 
-	e.enterExtraActionStage()
+	if !e.routePendingDamageWithReturn(model.TurnStageExtraAction) {
+		e.enterExtraActionStage()
+	}
 	return driveContinueLoop
 }
 
-func (e *GameEngine) runActionEndSequence(currentPid string, player *model.Player, actionType model.ActionType, skipActionEndInterruptHooks bool) bool {
+func (e *GameEngine) runActionEndSequence(currentPid string, player *model.Player, actionType model.ActionType) bool {
 	if e == nil || player == nil || actionType == "" {
 		return false
 	}
@@ -483,10 +484,6 @@ func (e *GameEngine) runActionEndSequence(currentPid string, player *model.Playe
 	skillCtx.Selections["response_resume_phase"] = model.TurnStageActionEnd
 
 	// 攻击结束钩子优先于 OnPhaseEnd（例如圣剑三连击中断）。
-	if !skipActionEndInterruptHooks && e.runTimingOnActionEndInterruptPolicies(skillCtx) {
-		return true
-	}
-
 	// 先清理行动结束标记，再派发 OnPhaseEnd，避免恢复路径重复派发。
 	player.TurnState.LastActionType = ""
 	player.TurnState.LastActionCard = nil

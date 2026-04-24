@@ -14,6 +14,7 @@ func RoleEntry() player.RoleEntry {
 		Choices:          NewChoiceHandler(),
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
+		PolicySpecs:      PolicySpecs(),
 		SkillUsabilityCheckers: map[string]player.SkillUsabilityChecker{
 			"adventurer_fraud": CheckFraudUsability,
 		},

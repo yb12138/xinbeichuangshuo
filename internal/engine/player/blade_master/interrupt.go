@@ -77,13 +77,16 @@ func buildHolySwordDrawPrompt(rt engineplayer.ChoiceRuntime) *model.Prompt {
 
 // handleHolySwordDrawAction 处理圣剑摸X弃X响应。
 func handleHolySwordDrawAction(rt engineplayer.ChoiceRuntime, act model.PlayerAction) error {
+	rt.Log("[Skill] [DEBUG] handleHolySwordDrawAction called")
 	interrupt := rt.PendingInterrupt()
 	if interrupt == nil {
+		rt.Log("[Skill] [DEBUG] no pending interrupt")
 		return fmt.Errorf("没有待处理的中断")
 	}
 
 	p := rt.LookupPlayer(act.PlayerID)
 	if p == nil {
+		rt.Log("[Skill] [DEBUG] player not found")
 		return fmt.Errorf("玩家不存在")
 	}
 
@@ -94,15 +97,19 @@ func handleHolySwordDrawAction(rt engineplayer.ChoiceRuntime, act model.PlayerAc
 	if x < 0 || x > 3 {
 		x = 0
 	}
+	rt.Log(fmt.Sprintf("[Skill] [DEBUG] x=%d, player=%s, hand_count=%d", x, p.ID, len(p.Hand)))
 
 	rt.PopInterrupt()
+	rt.Log("[Skill] [DEBUG] interrupt popped")
 	if x == 0 {
 		rt.Log(fmt.Sprintf("[Skill] %s 选择不摸不弃", p.Name))
 		resumeHolySwordAftermath(rt)
 		return nil
 	}
 
+	rt.Log(fmt.Sprintf("[Skill] [DEBUG] calling DrawCards for player %s, amount %d", p.ID, x))
 	rt.DrawCards(p.ID, x)
+	rt.Log(fmt.Sprintf("[Skill] [DEBUG] DrawCards returned, hand_count=%d", len(p.Hand)))
 	rt.Log(fmt.Sprintf("[Skill] %s 摸了 %d 张牌", p.Name, x))
 	rt.PushDiscardChoiceInterrupt(p.ID, map[string]any{
 		"discard_count":        x,
@@ -126,35 +133,4 @@ func resumeHolySwordAftermath(rt engineplayer.ChoiceRuntime) {
 		return
 	}
 	rt.EnterExtraActionStage()
-}
-
-// DispatchHolySwordInterruptForTest 测试辅助函数，直接触发圣剑摸X弃X中断。
-// 在生产环境中通过 TimingOnActionEnd 的 TimingHookSpec 自动触发。
-func DispatchHolySwordInterruptForTest(engine interface {
-	PushInterrupt(intr *model.Interrupt)
-	Log(msg string)
-}, attacker *model.Player) bool {
-	if attacker == nil || attacker.Character == nil || attacker.TurnState.AttackCount != 3 {
-		return false
-	}
-	hasHolySword := false
-	for _, skill := range attacker.Character.Skills {
-		if skill.ID == "holy_sword" {
-			hasHolySword = true
-			break
-		}
-	}
-	if !hasHolySword {
-		return false
-	}
-	engine.PushInterrupt(&model.Interrupt{
-		Type:     model.InterruptHolySwordDraw,
-		PlayerID: attacker.ID,
-		Context: map[string]any{
-			"choice_type": "holy_sword_draw",
-			"player_id":   attacker.ID,
-		},
-	})
-	engine.Log(fmt.Sprintf("[Skill] %s 的 [圣剑] 第3次攻击结束，需选择摸X弃X (X=0-3)", attacker.Name))
-	return true
 }

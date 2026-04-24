@@ -23,6 +23,7 @@ func RoleEntry() player.RoleEntry {
 			{Timing: player.TimingOnMoraleLossApplied, Priority: 100, Hook: moraleLossHook},
 		},
 		AttackCardElementTransform: AttackElement,
+		PolicySpecs:                PolicySpecs(),
 	}
 }
 

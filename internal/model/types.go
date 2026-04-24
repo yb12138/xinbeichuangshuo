@@ -129,16 +129,10 @@ type CombatRequest struct {
 	IgnoreShield   bool                        `json:"ignore_shield"`    // 是否无视圣盾
 	CanBeResponded bool                        `json:"can_be_responded"` // 是否可被应战
 	IsCounter      bool                        `json:"is_counter"`       // 是否为应战反弹攻击（命中加水晶）
-	InterceptTags  map[CombatInterceptTag]bool `json:"intercept_tags,omitempty"`
+	InterceptTags  map[CombatInterceptTag]bool `json:”intercept_tags,omitempty”`
 
-	// 阴阳师“式神咒束”链路专用上下文
-	OnmyojiBindingChecked    bool   `json:"onmyoji_binding_checked,omitempty"`    // 本次战斗是否已检查过代应战
-	OnmyojiBindingActorID    string `json:"onmyoji_binding_actor_id,omitempty"`   // 代应战阴阳师ID
-	OnmyojiBindingCounterID  string `json:"onmyoji_binding_counter_id,omitempty"` // 预选应战牌ID
-	OnmyojiBindingTargetID   string `json:"onmyoji_binding_target_id,omitempty"`  // 预选反弹目标ID
-	OnmyojiBindingUseFaction bool   `json:"onmyoji_binding_use_faction,omitempty"`
-	// 阴阳师“阴阳转换”交互标记：仅用于控制“先询问是否发动”流程不重复弹出
-	OnmyojiYinYangChecked bool `json:"onmyoji_yinyang_checked,omitempty"`
+	// 阴阳师”阴阳转换”交互标记：仅用于控制”先询问是否发动”流程不重复弹出
+	OnmyojiYinYangChecked bool `json:”onmyoji_yinyang_checked,omitempty”`
 }
 
 // GameState 游戏状态

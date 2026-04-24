@@ -30,6 +30,7 @@ func (t *Trigger) ProcessSkillBatch(h Host, skillBatch []model.SkillDefinition, 
 	var optionalSkillIDs []string
 	var sharedCtx *model.Context
 
+	// 第一轮：执行启动技能（收集）和静默/强制技能（立即执行）
 	for _, sk := range skillBatch {
 		if ctx != nil && ctx.Timing == model.TimingBeforeMoraleLoss && sk.ID == "ss_soul_devour" {
 			continue
@@ -50,17 +51,24 @@ func (t *Trigger) ProcessSkillBatch(h Host, skillBatch []model.SkillDefinition, 
 			continue
 		}
 
-		switch sk.ResponseType {
-		case model.ResponseOptional:
-			handler := skillhandlers.GetHandler(ResolveHandlerID(sk))
-			if handler == nil || !handler.CanUse(ctx) {
-				continue
-			}
-			optionalSkillIDs = append(optionalSkillIDs, sk.ID)
-			sharedCtx = ctx
-
-		case model.ResponseSilent, model.ResponseMandatory:
+		// 静默和强制响应技能立即执行
+		if sk.ResponseType == model.ResponseSilent || sk.ResponseType == model.ResponseMandatory {
 			t.exec.ExecuteSkill(h, sk, ctx)
+		}
+	}
+
+	// 第二轮：在静默技能执行后，收集可选响应技能（此时可选技能的 CanUse 会反映最新状态）
+	for _, sk := range skillBatch {
+		if sk.Type == model.SkillTypeStartup {
+			continue
+		}
+
+		if sk.ResponseType == model.ResponseOptional {
+			handler := skillhandlers.GetHandler(ResolveHandlerID(sk))
+			if handler != nil && handler.CanUse(ctx) {
+				optionalSkillIDs = append(optionalSkillIDs, sk.ID)
+				sharedCtx = ctx
+			}
 		}
 	}
 

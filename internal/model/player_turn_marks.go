@@ -17,20 +17,3 @@ func (t *PlayerTurnState) LockSpecialActionsForRemainderOfTurn() {
 	}
 	t.SpecialActionsLockedThisTurn = true
 }
-
-// MarkActionEndNeedsInterruptHookSkipOnce 在 ActionEnd 中 OnPhaseEnd 又产生 PendingInterrupt 时调用；恢复后再次进入 ActionEnd 时须先跳过一轮行动结束中断钩子。
-func (t *PlayerTurnState) MarkActionEndNeedsInterruptHookSkipOnce() {
-	if t == nil {
-		return
-	}
-	t.ActionEndSkipInterruptHooksOnce = true
-}
-
-// ConsumeActionEndInterruptHookSkipOnce 若已标记则清除并返回 true，表示本轮应跳过 runActionEndInterruptHooks。
-func (t *PlayerTurnState) ConsumeActionEndInterruptHookSkipOnce() bool {
-	if t == nil || !t.ActionEndSkipInterruptHooksOnce {
-		return false
-	}
-	t.ActionEndSkipInterruptHooksOnce = false
-	return true
-}

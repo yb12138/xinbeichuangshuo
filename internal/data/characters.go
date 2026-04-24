@@ -1527,7 +1527,7 @@ func GetCharacters() []model.Character {
 				{
 					ID: "onmyoji_shikigami_shift", Timings: []model.FlowTiming{model.TimingOnAttackDeclared}, Title: "式神转换",
 					Type:        model.SkillTypeResponse,
-					Description: "当阴阳转换生效且你处于式神形态时：你强制摸1张牌并+1［鬼火］，随后脱离式神形态。",
+					Description: "当阴阳转换生效时自动触发：你强制摸1张牌，然后+1［鬼火］。",
 
 					ResponseType: model.ResponseSilent,
 					LogicHandler: "onmyoji_shikigami_shift",

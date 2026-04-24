@@ -24,7 +24,7 @@ func RoleEntry() player.RoleEntry {
 			},
 		},
 		TimingHookSpecs: []player.TimingHookSpec{
-			{Timing: player.TimingOnActionEnd, Priority: 100, Hook: MaybeHolySwordDrawInterrupt},
+			{Timing: player.TimingPostActionEnd, Priority: 100, Hook: MaybeHolySwordDrawInterrupt},
 		},
 	}
 }

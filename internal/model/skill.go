@@ -99,10 +99,10 @@ type SkillDefinition struct {
 	RequireExclusive bool     `json:"require_exclusive"` // 是否必须使用独有牌
 
 	// --- 新增：场上牌放置 ---
-	PlaceCard    bool          `json:"place_card"`    // 是否放置牌到场上
-	PlaceMode    FieldCardMode `json:"place_mode"`    // 放置模式 (Effect/Cover)
-	PlaceEffect  EffectType    `json:"place_effect"`  // 效果类型 (仅Effect模式)
-	PlaceHook FieldHook `json:"place_hook"` // 触发时机 (仅Effect模式)
+	PlaceCard   bool          `json:"place_card"`   // 是否放置牌到场上
+	PlaceMode   FieldCardMode `json:"place_mode"`   // 放置模式 (Effect/Cover)
+	PlaceEffect EffectType    `json:"place_effect"` // 效果类型 (仅Effect模式)
+	PlaceHook   FieldHook     `json:"place_hook"`   // 触发时机 (仅Effect模式)
 
 	// --- 新增：盖牌消耗 ---
 	CostCoverCards int `json:"cost_cover_cards"` // 消耗盖牌数量
@@ -394,19 +394,18 @@ type ActionContext struct {
 
 // PlayerTurnState 玩家回合内状态
 type PlayerTurnState struct {
-	HasUsedActionSkill              bool            `json:"has_used_action_skill"`                          // 本回合是否已在行动开始阶段使用过启动技
-	SpecialActionsLockedThisTurn    bool            `json:"special_actions_locked_this_turn"`               // 本回合锁定购买/合成/提炼（读写见 player_turn_marks.go）
-	ActionEndSkipInterruptHooksOnce bool            `json:"action_end_skip_interrupt_hooks_once,omitempty"` // ActionEnd 重入时跳过一轮中断钩子（读写见 player_turn_marks.go）
-	HasProcessedTurnStart           bool            `json:"has_processed_turn_start"`                       // 是否已完成本回合 TurnStart 钩子
-	HasActed                        bool            `json:"has_acted"`                                      // 是否已执行行动
-	UsedSkillCounts                 map[string]int  `json:"used_skill_counts"`                              // 技能ID -> 本回合使用次数
-	PendingActions                  []ActionContext `json:"pending_actions"`                                // 待执行的行动队列
-	CurrentExtraAction              string          `json:"current_extra_action"`                           // 当前额外行动类型: "Attack", "Magic", ""
-	CurrentExtraElement             []Element       `json:"current_extra_element"`                          // 当前额外行动元素限制: "Wind", "Fire", etc.
-	AttackCount                     int             `json:"attack_count"`                                   // 本回合攻击行动次数
-	LastActionType                  string          `json:"last_action_type"`                               // 记录刚刚结束的行动类型 (Attack/Magic)
-	LastActionCard                  *Card           `json:"last_action_card,omitempty"`                     // 记录刚刚结束行动对应的卡牌快照（供 ActionEnd 统一构建 OnPhaseEnd 上下文）
-	SkillFlowState                  map[string]int  `json:"skill_flow_state"`                               // 多步技能中间态（如星尘/痛苦链接/冒险者提炼），回合重置时自动清空
+	HasUsedActionSkill           bool            `json:"has_used_action_skill"`            // 本回合是否已在行动开始阶段使用过启动技
+	SpecialActionsLockedThisTurn bool            `json:"special_actions_locked_this_turn"` // 本回合锁定购买/合成/提炼（读写见 player_turn_marks.go）
+	HasProcessedTurnStart        bool            `json:"has_processed_turn_start"`         // 是否已完成本回合 TurnStart 钩子
+	HasActed                     bool            `json:"has_acted"`                        // 是否已执行行动
+	UsedSkillCounts              map[string]int  `json:"used_skill_counts"`                // 技能ID -> 本回合使用次数
+	PendingActions               []ActionContext `json:"pending_actions"`                  // 待执行的行动队列
+	CurrentExtraAction           string          `json:"current_extra_action"`             // 当前额外行动类型: "Attack", "Magic", ""
+	CurrentExtraElement          []Element       `json:"current_extra_element"`            // 当前额外行动元素限制: "Wind", "Fire", etc.
+	AttackCount                  int             `json:"attack_count"`                     // 本回合攻击行动次数
+	LastActionType               string          `json:"last_action_type"`                 // 记录刚刚结束的行动类型 (Attack/Magic)
+	LastActionCard               *Card           `json:"last_action_card,omitempty"`       // 记录刚刚结束行动对应的卡牌快照（供 ActionEnd 统一构建 OnPhaseEnd 上下文）
+	SkillFlowState               map[string]int  `json:"skill_flow_state"`                 // 多步技能中间态（如星尘/痛苦链接/冒险者提炼），回合重置时自动清空
 }
 
 // NewPlayerTurnState 初始化回合状态

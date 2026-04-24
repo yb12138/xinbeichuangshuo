@@ -23,6 +23,7 @@ func RoleEntry() player.RoleEntry {
 			{Timing: player.TimingOnTurnEndFinal, Priority: 800, Hook: turnEndAutoFillHook},
 			{Timing: player.TimingOnAttackMiss, Priority: 400, Hook: attackMissHook},
 		},
+		PolicySpecs: PolicySpecs(),
 	}
 }
 

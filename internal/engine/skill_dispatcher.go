@@ -5,6 +5,7 @@ package engine
 import (
 	"fmt"
 
+	playerpkg "starcup-engine/internal/engine/player"
 	skillrt "starcup-engine/internal/engine/runtime/skill"
 	"starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
@@ -163,18 +164,17 @@ func hasBasicFieldEffect(player *model.Player) bool {
 	return false
 }
 
-// ---------- 技能后置钩子（原 skill_post_runtime.go） ----------
-
-// skillPostHook 在技能主动发动成功并完成基础收尾后执行。
-type skillPostHook func(e *GameEngine, use *skillUseRequest)
+// ---------- 技能后置钩子 ----------
 
 func (e *GameEngine) runTimingOnActionEndSkillPost(use *skillUseRequest) {
-	if e == nil || use == nil {
+	if e == nil || use == nil || use.player == nil {
 		return
 	}
-	for _, hook := range e.skillPostHooks {
-		hook(e, use)
+	ctx := playerpkg.PolicyHookContext{
+		Player:  use.player,
+		SkillID: use.skillID,
 	}
+	e.dispatchAllPolicyHooks(playerpkg.PolicySkillPost, ctx)
 }
 
 func skillPostArbiterForcedDoomsdayCleanupHook(e *GameEngine, use *skillUseRequest) {

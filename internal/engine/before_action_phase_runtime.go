@@ -105,6 +105,8 @@ func (e *GameEngine) driveBeforeActionAttack(currentPid string, player *model.Pl
 	var cardForUsed *model.Card
 	if !head.UsesVirtualCard {
 		c := *head.Card
+		// 先变换卡牌（如烈焰魔女火焰形态），再触发 TimingOnCardPlayedOrRevealed
+		c = e.transformAttackCard(player, c)
 		cardForUsed = &c
 	}
 	if out, stop := e.beforeActionRunCardUsedIfNeeded(player, currentPid, targetID, head, cardForUsed, head.UsesVirtualCard); stop {

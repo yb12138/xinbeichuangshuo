@@ -51,8 +51,8 @@ func TauntValidationPolicy(rt engineplayer.ChoiceRuntime, player *model.Player, 
 		return true, nil
 	})
 	mod.SetOnAttackAccepted(func(rt engineplayer.ChoiceRuntime, player *model.Player, act model.PlayerAction) error {
-		// Mark that hero taunt should be consumed after the attack is processed.
-		// This is handled by the engine's action submission runtime.
+		// 标记攻击后消耗挑衅效果
+		mod.MarkConsumeHeroTauntOnAttack()
 		return nil
 	})
 }

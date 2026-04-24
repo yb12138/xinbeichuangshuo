@@ -21,6 +21,7 @@ func RoleEntry() player.RoleEntry {
 			{Timing: player.TimingPostAttackHit, Priority: 500, Hook: postAttackHitHook},
 			{Timing: player.TimingBeforeAction, Priority: 100, Hook: beforeActionShadowReleaseHook},
 		},
+		PolicySpecs: PolicySpecs(),
 		SkillUsabilityCheckers: map[string]player.SkillUsabilityChecker{
 			"ms_shadow_meteor": CheckShadowMeteorUsability,
 		},

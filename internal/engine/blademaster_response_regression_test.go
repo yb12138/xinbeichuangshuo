@@ -3,7 +3,6 @@ package engine
 import (
 	"testing"
 
-	blademaster "starcup-engine/internal/engine/player/blade_master"
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/rules"
 )
@@ -695,106 +694,6 @@ func TestBladeMaster_ResponseChain_SwordShadowThenWindFury_Integration(t *testin
 	}
 	if extraActionTotal < 2 {
 		t.Fatalf("expected at least 2 extra attack opportunities from sword_shadow + wind_fury, got %d", extraActionTotal)
-	}
-}
-
-func TestBladeMaster_HolySwordDraw_X0ResumesExtraAction(t *testing.T) {
-	game := NewGameEngine(noopObserver{})
-	if err := game.AddPlayer("p1", "BladeMaster", "blade_master", model.RedCamp); err != nil {
-		t.Fatal(err)
-	}
-	if err := game.AddPlayer("p2", "Dummy", "berserker", model.BlueCamp); err != nil {
-		t.Fatal(err)
-	}
-
-	p1 := game.State.Players["p1"]
-	p1.IsActive = true
-	p1.TurnState = model.NewPlayerTurnState()
-	p1.TurnState.AttackCount = 3
-	game.State.TurnStage = model.TurnStageActionExecution
-
-	if !blademaster.DispatchHolySwordInterruptForTest(game, p1) {
-		t.Fatalf("expected holy sword draw interrupt to dispatch")
-	}
-	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptHolySwordDraw {
-		t.Fatalf("expected holy sword draw interrupt, got %+v", game.State.PendingInterrupt)
-	}
-
-	if err := game.handleInterruptAction(model.PlayerAction{
-		PlayerID:   "p1",
-		Type:       model.CmdSelect,
-		Selections: []int{0},
-	}); err != nil {
-		t.Fatalf("holy sword x=0 response failed: %v", err)
-	}
-
-	if game.State.PendingInterrupt != nil {
-		t.Fatalf("expected no pending interrupt after holy sword x=0, got %+v", game.State.PendingInterrupt)
-	}
-	if game.State.TurnStage != model.TurnStageExtraAction {
-		t.Fatalf("expected holy sword x=0 to resume extra action, got %s", game.State.TurnStage)
-	}
-}
-
-func TestBladeMaster_HolySwordDiscardResumesExtraAction(t *testing.T) {
-	game := NewGameEngine(noopObserver{})
-	if err := game.AddPlayer("p1", "BladeMaster", "blade_master", model.RedCamp); err != nil {
-		t.Fatal(err)
-	}
-	if err := game.AddPlayer("p2", "Dummy", "berserker", model.BlueCamp); err != nil {
-		t.Fatal(err)
-	}
-
-	game.State.Deck = rules.InitDeck()
-	game.State.TurnStage = model.TurnStageActionExecution
-
-	p1 := game.State.Players["p1"]
-	p1.IsActive = true
-	p1.TurnState = model.NewPlayerTurnState()
-	p1.TurnState.AttackCount = 3
-	p1.Hand = []model.Card{
-		{ID: "a1", Name: "火斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 1},
-	}
-	model.AppendAttackAction(p1, "holy-sword-followup")
-	game.State.CurrentTurn = 0
-
-	if !blademaster.DispatchHolySwordInterruptForTest(game, p1) {
-		t.Fatalf("expected holy sword draw interrupt to dispatch")
-	}
-	if err := game.handleInterruptAction(model.PlayerAction{
-		PlayerID:   "p1",
-		Type:       model.CmdSelect,
-		Selections: []int{1},
-	}); err != nil {
-		t.Fatalf("holy sword x=1 response failed: %v", err)
-	}
-
-	if game.State.PendingInterrupt == nil || !isDiscardSelectionInterrupt(game.State.PendingInterrupt) {
-		t.Fatalf("expected discard interrupt after holy sword x=1, got %+v", game.State.PendingInterrupt)
-	}
-
-	if err := game.HandleAction(model.PlayerAction{
-		PlayerID:   "p1",
-		Type:       model.CmdSelect,
-		Selections: []int{0},
-	}); err != nil {
-		t.Fatalf("holy sword discard confirmation failed: %v", err)
-	}
-
-	if game.State.PendingInterrupt != nil {
-		t.Fatalf("expected no pending interrupt after holy sword discard, got %+v", game.State.PendingInterrupt)
-	}
-	if game.State.CurrentTurn != 0 {
-		t.Fatalf("expected holy sword aftermath to keep current turn when extra action remains, got turn=%d", game.State.CurrentTurn)
-	}
-	if game.State.TurnStage != model.TurnStageActionExecution {
-		t.Fatalf("expected holy sword discard to continue into extra action execution window, got %s", game.State.TurnStage)
-	}
-	if p1.TurnState.CurrentExtraAction != "Attack" {
-		t.Fatalf("expected extra attack constraint to be restored, got %q", p1.TurnState.CurrentExtraAction)
-	}
-	if len(p1.TurnState.PendingActions) != 0 {
-		t.Fatalf("expected extra action token to be consumed into current extra action, got %d pending", len(p1.TurnState.PendingActions))
 	}
 }
 

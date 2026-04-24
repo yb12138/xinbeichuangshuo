@@ -109,16 +109,7 @@ func (e *GameEngine) handleActionSelectionSpecialOrSkill(act model.PlayerAction,
 		if e.State.PendingInterrupt != nil {
 			return nil
 		}
-
-		if player.TurnState.LastActionType != "" {
-			lastActionType := model.ActionType(player.TurnState.LastActionType)
-			if e.runActionEndSequence(currentPid, player, lastActionType, false) {
-				return nil
-			}
-		}
-		if !e.routePendingDamageWithReturn(model.TurnStageExtraAction) {
-			e.enterExtraActionStage()
-		}
+		e.enterActionEndStage()
 		return nil
 	}
 

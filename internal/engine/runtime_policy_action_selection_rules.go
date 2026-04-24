@@ -70,8 +70,22 @@ func (a actionSelectionValidationModifierAdapter) SetOnNonAttackChosen(callback 
 }
 func (a actionSelectionValidationModifierAdapter) SetOnAttackAccepted(callback func(rt engineplayer.ChoiceRuntime, player *model.Player, act model.PlayerAction) error) {
 	a.state.onAttackAccepted = func(e *GameEngine, player *model.Player, act model.PlayerAction, result *actionSelectionValidationResult) error {
-		return callback(newRoleChoiceRuntime(e), player, act)
+		// 在调用回调前，设置一个临时标记，让回调可以修改 result
+		// 通过 adapter 的 engine 字段来传递 result
+		if err := callback(newRoleChoiceRuntime(e), player, act); err != nil {
+			return err
+		}
+		// 回调可能通过 MarkConsumeHeroTauntOnAttack 设置了 state.markConsumeHeroTaunt
+		// 在回调完成后，将标记转移到 result
+		if a.state.markConsumeHeroTaunt && result != nil {
+			result.consumeHeroTauntOnAttack = true
+		}
+		return nil
 	}
+}
+
+func (a actionSelectionValidationModifierAdapter) MarkConsumeHeroTauntOnAttack() {
+	a.state.markConsumeHeroTaunt = true
 }
 
 func actionSelectionArbiterForcedDoomsdayOptionsPolicy(e *GameEngine, player *model.Player, state *actionSelectionState) {

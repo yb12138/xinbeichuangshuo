@@ -210,6 +210,7 @@ type RoleEntry struct {
 	FollowupSpecs              map[string]FollowupSpec
 	InterruptSpecs             []InterruptSpec
 	TimingHookSpecs            []TimingHookSpec
+	PolicySpecs                []PolicySpec // 角色策略声明
 	SkillUsabilityCheckers     map[string]SkillUsabilityChecker
 	AttackCardElementTransform func(player *model.Player, card model.Card) model.Element
 }

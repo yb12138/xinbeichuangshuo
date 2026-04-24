@@ -19,6 +19,7 @@ func RoleEntry() player.RoleEntry {
 		Choices:          NewChoiceHandler(),
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
+		PolicySpecs:      PolicySpecs(),
 		TimingHookSpecs: []player.TimingHookSpec{
 			{Timing: player.TimingOnDamageCalculate, Priority: 500, Hook: damageCalculateHook},
 			{Timing: player.TimingOnAttackDeclared, Priority: 100, Hook: pendingDamageInitHook},

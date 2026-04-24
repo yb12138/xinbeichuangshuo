@@ -16,20 +16,6 @@ const (
 	timingOnBeforeActionResolveActionStart
 )
 
-type combatInteractionPolicyHook func(e *GameEngine, req *model.CombatRequest) bool
-type combatDefendValidationPolicy func(e *GameEngine, player *model.Player, req *model.CombatRequest) error
-type combatCounterCardPolicy func(e *GameEngine, player *model.Player, req *model.CombatRequest, card model.Card) (bool, model.Card, error)
-type combatCounterElementPolicy func(e *GameEngine, player *model.Player, req *model.CombatRequest, counterCard model.Card) (bool, bool)
-type combatCounterResolvePolicy func(e *GameEngine, player *model.Player, req *model.CombatRequest, counterCard *model.Card, useFaction bool)
-type magicMissileDefendValidationPolicy func(e *GameEngine, player *model.Player, chain *model.MagicBulletChain) error
-type magicMissileCounterValidationPolicy func(e *GameEngine, player *model.Player, chain *model.MagicBulletChain, card model.Card) error
-type responseSkillIDAugmenter func(sd *SkillDispatcher, skillIDs []string, ctx *model.Context) []string
-type responseSkillIDNormalizer func(sd *SkillDispatcher, skillIDs []string, ctx *model.Context) []string
-type attackDeclaredInterruptHook func(e *GameEngine, attacker *model.Player, target *model.Player, currentAction *model.QueuedAction, userCtx *model.Context) bool
-type actionEndInterruptHook func(e *GameEngine, ctx *model.Context) bool
-type actionSelectionOptionPolicy func(e *GameEngine, player *model.Player, state *actionSelectionState)
-type actionSelectionValidationPolicy func(e *GameEngine, player *model.Player, state *actionSelectionState)
-
 // runTimingOnBeforeActionStageHooks 统一处理 TimingOnBeforeAction 阶段规则。
 func (e *GameEngine) runTimingOnBeforeActionStageHooks(player *model.Player, stage timingOnBeforeActionStage) bool {
 	switch stage {
@@ -54,46 +40,47 @@ func (e *GameEngine) runTimingOnBeforeActionHooks(player *model.Player) bool {
 
 // applyTimingBeforeActionExecuteOptionPolicies 在行动入口生成选项前应用规则约束。
 func (e *GameEngine) applyTimingBeforeActionExecuteOptionPolicies(player *model.Player, state *actionSelectionState) {
-	for _, policy := range e.beforeActionOptionPolicies {
-		policy(e, player, state)
+	ctx := engineplayer.PolicyHookContext{
+		Player:         player,
+		ChoiceRuntime:  newRoleChoiceRuntime(e),
+		OptionModifier: actionSelectionModifierAdapter{state: state},
 	}
+	e.dispatchAllPolicyHooks(engineplayer.PolicyBeforeActionOption, ctx)
 }
 
 // applyTimingBeforeActionExecuteValidationPolicies 在行动输入校验前应用规则约束。
 func (e *GameEngine) applyTimingBeforeActionExecuteValidationPolicies(player *model.Player, state *actionSelectionState) {
-	for _, policy := range e.beforeActionValidationPolicies {
-		policy(e, player, state)
+	ctx := engineplayer.PolicyHookContext{
+		Player:         player,
+		ChoiceRuntime:  newRoleChoiceRuntime(e),
+		OptionModifier: actionSelectionModifierAdapter{state: state},
+		ValidationModifier: actionSelectionValidationModifierAdapter{
+			actionSelectionModifierAdapter: actionSelectionModifierAdapter{state: state},
+			result:                         nil,
+			engine:                         e,
+		},
 	}
+	e.dispatchAllPolicyHooks(engineplayer.PolicyBeforeActionValidation, ctx)
 }
 
 // runTimingOnHitCheckCombatInteractionPolicies 在战斗交互阶段执行命中判定策略链。
 func (e *GameEngine) runTimingOnHitCheckCombatInteractionPolicies(req *model.CombatRequest) bool {
-	for _, hook := range e.hitCheckCombatInteractionHooks {
-		if hook(e, req) {
-			return true
-		}
-	}
-	return false
+	result := e.dispatchRoleTimingHook(engineplayer.TimingOnCombatInteraction, engineplayer.TimingHookContext{
+		CombatRequest: req,
+	})
+	return result.Interrupted
 }
 
 // runTimingOnAttackDeclaredInterruptPolicies 在攻击宣言后执行中断策略。
 func (e *GameEngine) runTimingOnAttackDeclaredInterruptPolicies(attacker *model.Player, target *model.Player, currentAction *model.QueuedAction, userCtx *model.Context) bool {
-	for _, hook := range e.attackDeclaredInterrupts {
-		if hook(e, attacker, target, currentAction, userCtx) {
-			return true
-		}
+	ctx := engineplayer.PolicyHookContext{
+		Attacker: attacker,
+		Target:   target,
+		Action:   currentAction,
+		UserCtx:  userCtx,
 	}
-	return false
-}
-
-// runTimingOnActionEndInterruptPolicies 在行动结束时执行中断策略。
-func (e *GameEngine) runTimingOnActionEndInterruptPolicies(ctx *model.Context) bool {
-	for _, hook := range e.actionEndInterrupts {
-		if hook(e, ctx) {
-			return true
-		}
-	}
-	return false
+	result := e.dispatchPolicyHook(engineplayer.PolicyAttackDeclaredInterrupt, ctx)
+	return result.Handled && result.Stop
 }
 
 // applyTimingOnHitCheckCombatDefendValidation 在防御判定时执行校验策略。
@@ -107,34 +94,38 @@ func (e *GameEngine) applyTimingOnHitCheckCombatDefendValidation(player *model.P
 
 // applyTimingOnHitCheckCombatCounterCardPolicy 在应战出牌时执行卡牌校验策略。
 func (e *GameEngine) applyTimingOnHitCheckCombatCounterCardPolicy(player *model.Player, req *model.CombatRequest, card model.Card) (bool, model.Card, error) {
-	for _, policy := range e.hitCheckCombatCounterCardPolicies {
-		handled, transformed, err := policy(e, player, req, card)
-		if err != nil {
-			return false, model.Card{}, err
-		}
-		if handled {
-			return true, transformed, nil
-		}
+	ctx := engineplayer.PolicyHookContext{
+		Player:        player,
+		CombatRequest: req,
+		CounterCard:   card,
 	}
-	return false, card, nil
+	result := e.dispatchPolicyHook(engineplayer.PolicyCombatCounterCard, ctx)
+	if result.Err != nil {
+		return false, model.Card{}, result.Err
+	}
+	return result.Handled, result.Card, nil
 }
 
 // applyTimingOnHitCheckCombatCounterElementPolicy 在应战元素判定时执行校验策略。
 func (e *GameEngine) applyTimingOnHitCheckCombatCounterElementPolicy(player *model.Player, req *model.CombatRequest, counterCard model.Card) (bool, bool) {
-	for _, policy := range e.hitCheckCombatCounterElementPolicies {
-		allowed, useFaction := policy(e, player, req, counterCard)
-		if allowed {
-			return true, useFaction
-		}
+	ctx := engineplayer.PolicyHookContext{
+		Player:        player,
+		CombatRequest: req,
+		CounterCard:   counterCard,
 	}
-	return false, false
+	result := e.dispatchPolicyHook(engineplayer.PolicyCombatCounterElement, ctx)
+	return result.Handled, result.UseFaction
 }
 
 // applyTimingOnHitCheckCombatCounterResolvePolicy 在应战成立后执行结算策略。
 func (e *GameEngine) applyTimingOnHitCheckCombatCounterResolvePolicy(player *model.Player, req *model.CombatRequest, counterCard *model.Card, useFaction bool) {
-	for _, policy := range e.hitCheckCombatCounterResolvePolicies {
-		policy(e, player, req, counterCard, useFaction)
+	ctx := engineplayer.PolicyHookContext{
+		Player:         player,
+		CombatRequest:  req,
+		CounterCardPtr: counterCard,
+		UseFaction:     useFaction,
 	}
+	e.dispatchAllPolicyHooks(engineplayer.PolicyCombatCounterResolve, ctx)
 }
 
 // applyTimingOnHitCheckMagicMissileDefendValidation 在魔弹防御判定时执行校验策略。
@@ -161,11 +152,15 @@ func (sd *SkillDispatcher) applyTimingOnHitCheckResponseSkillAugment(skillIDs []
 	if sd == nil || sd.engine == nil {
 		return skillIDs
 	}
-	current := skillIDs
-	for _, augmenter := range sd.engine.hitCheckResponseSkillIDAugmenters {
-		current = augmenter(sd, current, ctx)
+	policyCtx := engineplayer.PolicyHookContext{
+		SkillIDs: skillIDs,
+		UserCtx:  ctx,
 	}
-	return current
+	result := sd.engine.dispatchAllPolicyHooks(engineplayer.PolicyResponseSkillAugment, policyCtx)
+	if len(result.SkillIDs) > 0 {
+		return result.SkillIDs
+	}
+	return skillIDs
 }
 
 // applyTimingOnHitCheckResponseSkillNormalize 在响应技能列表展示前规范化顺序/互斥项。
@@ -173,9 +168,13 @@ func (sd *SkillDispatcher) applyTimingOnHitCheckResponseSkillNormalize(skillIDs 
 	if sd == nil || sd.engine == nil {
 		return skillIDs
 	}
-	current := skillIDs
-	for _, normalizer := range sd.engine.hitCheckResponseSkillIDNormalizers {
-		current = normalizer(sd, current, ctx)
+	policyCtx := engineplayer.PolicyHookContext{
+		SkillIDs: skillIDs,
+		UserCtx:  ctx,
 	}
-	return current
+	result := sd.engine.dispatchAllPolicyHooks(engineplayer.PolicyResponseSkillNormalize, policyCtx)
+	if len(result.SkillIDs) > 0 {
+		return result.SkillIDs
+	}
+	return skillIDs
 }

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"starcup-engine/internal/model"
+	"starcup-engine/internal/rules"
 )
 
 type actionPromptObserver struct {
@@ -246,12 +247,18 @@ func TestActionSelection_ExtraMagicAllowsSkill(t *testing.T) {
 
 	game.State.CurrentTurn = 0
 	game.State.TurnStage = model.TurnStageActionExecution
+	game.State.Deck = rules.InitDeck()
 	p1 := game.State.Players["p1"]
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
 	p1.TurnState.CurrentExtraAction = "Magic"
 	p1.Tokens["element"] = 3
 
+	t.Logf("Before HandleAction: TurnStage=%s, PendingInterrupt=%v, ActionQueue=%d, PlayerOrder=%v, CurrentTurn=%d",
+		game.State.TurnStage, game.State.PendingInterrupt, len(game.State.ActionQueue), game.State.PlayerOrder, game.State.CurrentTurn)
+	t.Logf("p1.Character=%v, p1.Tokens=%v", p1.Character != nil, p1.Tokens)
+	// 测试额外法术行动时可以使用技能
+	// 直接调用 handleActionSelection 测试技能执行流程
 	err := game.handleActionSelection(model.PlayerAction{
 		PlayerID:  "p1",
 		Type:      model.CmdSkill,
@@ -261,11 +268,20 @@ func TestActionSelection_ExtraMagicAllowsSkill(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected extra magic action can use skill, got err: %v", err)
 	}
-	if len(game.State.PendingDamageQueue) == 0 {
-		t.Fatalf("expected ignite queued pending damage")
+	// 验证技能执行后的状态
+	t.Logf("After handleActionSelection: TurnStage=%s, PendingDamageQueue=%d, PendingActions=%d",
+		game.State.TurnStage, len(game.State.PendingDamageQueue), len(p1.TurnState.PendingActions))
+	// 技能执行后应该进入 ActionEnd 阶段，等待状态机推进
+	if game.State.TurnStage != model.TurnStageActionEnd {
+		t.Fatalf("expected TurnStage=ActionEnd, got %s", game.State.TurnStage)
 	}
-	if game.State.ReturnTurnStage != model.TurnStageExtraAction {
-		t.Fatalf("expected return turn stage extra action, got %s", game.State.ReturnTurnStage)
+	// 伤害应该已入队
+	if len(game.State.PendingDamageQueue) == 0 {
+		t.Fatalf("expected pending damage queued")
+	}
+	// 额外法术行动应该已添加
+	if len(p1.TurnState.PendingActions) == 0 {
+		t.Fatalf("expected extra magic action added to pending actions")
 	}
 }
 

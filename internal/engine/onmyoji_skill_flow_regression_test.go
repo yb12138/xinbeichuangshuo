@@ -96,7 +96,7 @@ func TestOnmyojiBinding_RequiresGemAndCrystal(t *testing.T) {
 	// 仅2宝石，0水晶：不满足式神咒束代应战成本
 	game.State.BlueGems = 2
 	game.State.BlueCrystals = 0
-	if ok := game.tryStartOnmyojiBindingInterrupt(&req); ok {
+	if game.runTimingOnHitCheckCombatInteractionPolicies(&req) {
 		t.Fatalf("binding should not start without crystal")
 	}
 
@@ -109,11 +109,14 @@ func TestOnmyojiBinding_RequiresGemAndCrystal(t *testing.T) {
 	}
 	game.State.BlueGems = 1
 	game.State.BlueCrystals = 1
-	if ok := game.tryStartOnmyojiBindingInterrupt(&req2); !ok {
+	if !game.runTimingOnHitCheckCombatInteractionPolicies(&req2) {
 		t.Fatalf("binding should start with 1 gem + 1 crystal")
 	}
-	if game.State.PendingInterrupt == nil || choiceTypeOf(game.State.PendingInterrupt) != "onmyoji_binding_confirm" {
+	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptChoice {
 		t.Fatalf("expected binding confirm interrupt, got %+v", game.State.PendingInterrupt)
+	}
+	if got := choiceTypeOf(game.State.PendingInterrupt); got != "onmyoji_binding_confirm" {
+		t.Fatalf("expected onmyoji_binding_confirm, got %s", got)
 	}
 }
 

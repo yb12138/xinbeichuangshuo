@@ -834,6 +834,7 @@ func TestHeroTaunt_InvalidAttackDeclarationKeepsEffectUntilValidAttack(t *testin
 	p1.IsActive = false
 	p2.IsActive = true
 	p2.TurnState = model.NewPlayerTurnState()
+	p2.TurnState.UsedSkillCounts["hero_taunt_active_turn"] = 1 // 模拟 TurnStart hook 设置的标记
 	p2.Hand = []model.Card{
 		heroTestCard("m1", "圣光", model.CardTypeMagic, model.ElementLight, 0),
 		heroTestCard("a1", "光刃", model.CardTypeAttack, model.ElementLight, 2),

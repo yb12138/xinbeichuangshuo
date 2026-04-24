@@ -25,6 +25,7 @@ func RoleEntry() player.RoleEntry {
 			{Timing: player.TimingPostDamageResolved, Priority: 100, Hook: postDamageResolvedHook},
 			{Timing: player.TimingOnTurnEnd, Priority: 100, Hook: turnEndHook},
 		},
+		PolicySpecs: PolicySpecs(),
 	}
 }
 

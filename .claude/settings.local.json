@@ -66,7 +66,9 @@
       "Bash(rm -f /Users/yb/xinbeichuangshuo/internal/engine/player/*/policies.go)",
       "Bash(head -20 /Users/yb/xinbeichuangshuo/internal/engine/player/arbiter/*.go)",
       "Bash(sed -i '' '/mergeStrategyHooks/d' /Users/yb/xinbeichuangshuo/internal/engine/player/registry.go)",
-      "Bash(sed -i '' '/StrategyHooks: mergeStrategyHooks/d' /Users/yb/xinbeichuangshuo/internal/engine/player/registry.go)"
+      "Bash(sed -i '' '/StrategyHooks: mergeStrategyHooks/d' /Users/yb/xinbeichuangshuo/internal/engine/player/registry.go)",
+      "Bash(xxd /Users/yb/xinbeichuangshuo/internal/engine/player/onmyoji/module.go)",
+      "Bash(go clean:*)"
     ]
   }
 }

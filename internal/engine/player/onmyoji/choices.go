@@ -435,28 +435,8 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 			return true, fmt.Errorf("无法消耗选定的卡牌")
 		}
 
-		// Apply faction counter bonuses
-		if actor.Tokens == nil {
-			actor.Tokens = map[string]int{}
-		}
-		actor.Tokens["onmyoji_ghost_fire"]++
-		if actor.Tokens["onmyoji_ghost_fire"] > 3 {
-			actor.Tokens["onmyoji_ghost_fire"] = 3
-		}
-		rt.Log(fmt.Sprintf("%s 的 [阴阳转换] 触发，鬼火+1", actor.Name))
-		if hasOnmyojiShikigamiForm(actor) {
-			rt.DrawCards(actorID, 1)
-			actor.Tokens["onmyoji_ghost_fire"]++
-			if actor.Tokens["onmyoji_ghost_fire"] > 3 {
-				actor.Tokens["onmyoji_ghost_fire"] = 3
-			}
-			leaveOnmyojiShikigamiForm(actor)
-			rt.Log(fmt.Sprintf("%s 的 [式神转换] 触发：摸1并鬼火+1，然后脱离式神形态", actor.Name))
-		}
-		card.Damage = actor.Tokens["onmyoji_ghost_fire"]
-		if card.Damage < 0 {
-			card.Damage = 0
-		}
+		// Apply 阴阳转换 + 式神转换 bonuses (统一入口)
+		ApplyFactionCounterBonuses(rt, actor, &card)
 
 		// Add card to discard pile
 		rt.AppendToDiscard([]model.Card{card})

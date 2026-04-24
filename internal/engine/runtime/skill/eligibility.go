@@ -52,6 +52,30 @@ func (e *Eligibility) CollectCandidates(
 			continue
 		}
 
+		// 可选响应技能在 TimingOnActionEnd 时延迟 CanUse 检查（让静默技能先执行更新状态）
+		if sk.ResponseType == model.ResponseOptional && timing == model.TimingOnActionEnd {
+			// 只检查基本条件，不调用 handler.CanUse
+			if !CanPaySkillEnergyCost(player, sk.CostGem, sk.CostCrystal) {
+				continue
+			}
+			if sk.CostCoverCards > 0 {
+				if len(player.GetCoverCards()) < sk.CostCoverCards {
+					continue
+				}
+			}
+			if model.ContainsSkillTag(sk.Tags, model.TagTurnLimit) {
+				if count, exists := player.TurnState.UsedSkillCounts[sk.ID]; exists && count > 0 {
+					continue
+				}
+			}
+			if !e.uniqueSkillCardMatches(player, sk, ctx) {
+				continue
+			}
+			// 收集但不检查 CanUse，延迟到 Trigger 层
+			skillBatch = append(skillBatch, sk)
+			continue
+		}
+
 		if !CanPaySkillEnergyCost(player, sk.CostGem, sk.CostCrystal) {
 			continue
 		}

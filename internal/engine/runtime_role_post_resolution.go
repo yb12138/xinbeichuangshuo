@@ -50,10 +50,6 @@ func (e *GameEngine) handlePostDamageResolved(pd *model.PendingDamage) bool {
 	if pd == nil {
 		return false
 	}
-	source := e.State.Players[pd.SourceID]
-	if source == nil {
-		return false
-	}
 	result := e.dispatchAllRoleTimingHooks(engineplayer.TimingPostDamageResolved, engineplayer.TimingHookContext{
 		SourceID:      pd.SourceID,
 		TargetID:      pd.TargetID,

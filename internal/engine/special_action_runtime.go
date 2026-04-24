@@ -12,9 +12,6 @@ import (
 	"starcup-engine/internal/model"
 )
 
-type specialActionOverridePolicy func(e *GameEngine, player *model.Player, actionType model.ActionType) (bool, error)
-type specialActionPostHook func(e *GameEngine, player *model.Player, actionType model.ActionType)
-
 func (e *GameEngine) executeSpecialActionWithRuntime(player *model.Player, actionType model.ActionType) error {
 	handled, err := e.applyTimingBeforeActionExecuteSpecialActionOverride(player, actionType)
 	if err != nil {
@@ -46,6 +43,13 @@ func (e *GameEngine) handleBuy(p *model.Player) error {
 	}
 
 	e.drawForAction(p, 3)
+
+	// 检查是否有改写购买战绩区奖励的被动技能（如冒险家的地下法则）
+	if e.hasBuyRewriteSkill(p) {
+		e.executeBuyRewrite(p)
+		return nil
+	}
+
 	const maxStones = 5
 	var stones int
 	if p.Camp == model.RedCamp {
@@ -86,6 +90,33 @@ func (e *GameEngine) handleBuy(p *model.Player) error {
 	}
 	e.Log(fmt.Sprintf("[Action] %s 购买：摸3牌，战绩区+1宝石+1水晶", p.Name))
 	return nil
+}
+
+// hasBuyRewriteSkill 检查玩家是否有改写购买战绩区奖励的被动技能。
+func (e *GameEngine) hasBuyRewriteSkill(p *model.Player) bool {
+	if p == nil || p.Character == nil {
+		return false
+	}
+	// 冒险家的地下法则改写购买的战绩区奖励为+2宝石
+	if p.Character.ID == "adventurer" {
+		return true
+	}
+	return false
+}
+
+// executeBuyRewrite 执行改写后的购买战绩区奖励。
+func (e *GameEngine) executeBuyRewrite(p *model.Player) {
+	maxStones := 5
+	if p.Camp == model.RedCamp {
+		if e.State.RedGems+e.State.RedCrystals < maxStones {
+			e.State.RedGems += 2
+		}
+	} else {
+		if e.State.BlueGems+e.State.BlueCrystals < maxStones {
+			e.State.BlueGems += 2
+		}
+	}
+	e.Log(fmt.Sprintf("[Action] %s 购买（地下法则改写）：战绩区+2宝石", p.Name))
 }
 
 func (e *GameEngine) handleSynthesize(p *model.Player) error {
@@ -299,23 +330,21 @@ func (e *GameEngine) runPostSpecialActionRuntime(player *model.Player, actionTyp
 
 // applyTimingBeforeActionExecuteSpecialActionOverride 在执行特殊行动前应用覆盖策略。
 func (e *GameEngine) applyTimingBeforeActionExecuteSpecialActionOverride(player *model.Player, actionType model.ActionType) (bool, error) {
-	for _, policy := range e.specialActionOverridePolicies {
-		handled, err := policy(e, player, actionType)
-		if err != nil {
-			return false, err
-		}
-		if handled {
-			return true, nil
-		}
+	ctx := playerpkg.PolicyHookContext{
+		Player:     player,
+		ActionType: actionType,
 	}
-	return false, nil
+	result := e.dispatchPolicyHook(playerpkg.PolicySpecialActionOverride, ctx)
+	return result.Handled, result.Err
 }
 
 // runTimingOnActionEndSpecialActionPost 在特殊行动完成后执行后置规则。
 func (e *GameEngine) runTimingOnActionEndSpecialActionPost(player *model.Player, actionType model.ActionType) {
-	for _, hook := range e.specialActionPostHooks {
-		hook(e, player, actionType)
+	ctx := playerpkg.PolicyHookContext{
+		Player:     player,
+		ActionType: actionType,
 	}
+	e.dispatchAllPolicyHooks(playerpkg.PolicySpecialActionPost, ctx)
 }
 
 func specialActionAdventurerUndergroundLawOverride(e *GameEngine, player *model.Player, actionType model.ActionType) (bool, error) {
