@@ -40,6 +40,6 @@ type HandLimitModifier func(engine HandLimitModifierEngine, target *model.Player
 // HandLimitModifierEngine 抽象手牌上限修改器所需的引擎能力。
 type HandLimitModifierEngine interface {
 	GetAllPlayers() []*model.Player
-	LookupPlayer(playerID string) *model.Player
-	HasFixedMaxHandCap(player *model.Player) bool
+	GetPlayers() map[string]*model.Player
+	RoleFixedMaxHandCapValue(player *model.Player) (int, bool)
 }

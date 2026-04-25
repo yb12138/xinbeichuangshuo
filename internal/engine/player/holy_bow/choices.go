@@ -192,7 +192,7 @@ func buildLightBurstModePrompt(rt engineplayer.ChoiceRuntime, playerID string, p
 			limit := handCount - x
 			eligible := 0
 			for _, enemyID := range enemyIDs {
-				if enemy := rt.LookupPlayer(enemyID); enemy != nil && len(enemy.Hand) <= limit {
+				if enemy := rt.GetPlayers()[enemyID]; enemy != nil && len(enemy.Hand) <= limit {
 					eligible++
 				}
 			}
@@ -232,7 +232,7 @@ func buildLightBurstModeBXPrompt(rt engineplayer.ChoiceRuntime, playerID string,
 			limit := len(player.Hand) - x
 			eligible := 0
 			for _, enemyID := range enemyIDs {
-				if enemy := rt.LookupPlayer(enemyID); enemy != nil && len(enemy.Hand) <= limit {
+				if enemy := rt.GetPlayers()[enemyID]; enemy != nil && len(enemy.Hand) <= limit {
 					eligible++
 				}
 			}
@@ -253,7 +253,7 @@ func buildLightBurstModeBTargetsPrompt(rt engineplayer.ChoiceRuntime, playerID s
 		if selectedSet[targetID] {
 			continue
 		}
-		if target := rt.LookupPlayer(targetID); target != nil {
+		if target := rt.GetPlayers()[targetID]; target != nil {
 			options = append(options, model.PromptOption{ID: targetID, Label: target.Name})
 		}
 	}
@@ -341,7 +341,7 @@ func buildAutoFillGainPrompt(playerID string, data map[string]interface{}) *mode
 
 func handleHolyShardCombo(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -374,14 +374,16 @@ func handleHolyShardCombo(rt engineplayer.ChoiceRuntime, selectionIndex int, ctx
 	rt.AppendToDiscard(removed)
 	ctxData["selected_element"] = element
 	ctxData["choice_type"] = "hb_holy_shard_target"
-	_ = rt.ReplacePendingInterruptContext(ctxData)
+	if intr := rt.GetPendingInterrupt(); intr != nil {
+		intr.Context = ctxData
+	}
 	rt.NotifyInterruptPrompt()
 	return nil
 }
 
 func handleHolyShardTarget(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -390,7 +392,7 @@ func handleHolyShardTarget(rt engineplayer.ChoiceRuntime, selectionIndex int, ct
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
 	targetID := targetIDs[selectionIndex]
-	target := rt.LookupPlayer(targetID)
+	target := rt.GetPlayers()[targetID]
 	if target == nil {
 		return fmt.Errorf("目标不存在")
 	}
@@ -418,7 +420,7 @@ func handleHolyShardTarget(rt engineplayer.ChoiceRuntime, selectionIndex int, ct
 	rt.EnqueueVirtualAttack(user.ID, target.ID, virtualCard, "hb_holy_shard_storm")
 	rt.Log(fmt.Sprintf("%s 发动 [圣屑飓暴]：对 %s 发起1次%s系圣命格主动攻击", user.Name, target.Name, ele))
 	rt.PopInterrupt()
-	if !rt.HasPendingInterrupt() {
+	if rt.GetPendingInterrupt() == nil {
 		rt.EnterActionExecutionStage()
 	}
 	return nil
@@ -428,10 +430,10 @@ func handleHolyShardMissConfirm(rt engineplayer.ChoiceRuntime, selectionIndex in
 	if selectionIndex == 1 {
 		// Decline: skip the miss branch
 		rt.PopInterrupt()
-		if !rt.HasPendingInterrupt() {
-			if rt.PendingDamageQueueLen() > 0 {
+		if rt.GetPendingInterrupt() == nil {
+			if len(rt.GetPendingDamageQueue()) > 0 {
 				rt.EnterDamageResolution(nil)
-			} else if rt.ActionQueueLen() > 0 {
+			} else if len(rt.GetActionQueue()) > 0 {
 				rt.EnterActionExecutionStage()
 			} else {
 				rt.EnterExtraActionStage()
@@ -448,7 +450,9 @@ func handleHolyShardMissConfirm(rt engineplayer.ChoiceRuntime, selectionIndex in
 		return nil
 	}
 	ctxData["choice_type"] = "hb_holy_shard_miss_x"
-	_ = rt.ReplacePendingInterruptContext(ctxData)
+	if intr := rt.GetPendingInterrupt(); intr != nil {
+		intr.Context = ctxData
+	}
 	rt.NotifyInterruptPrompt()
 	return nil
 }
@@ -466,7 +470,7 @@ func handleHolyShardMissX(rt engineplayer.ChoiceRuntime, selectionIndex int, ctx
 	}
 	xValue := validX[selectionIndex]
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -477,14 +481,16 @@ func handleHolyShardMissX(rt engineplayer.ChoiceRuntime, selectionIndex int, ctx
 	ctxData["x_value"] = xValue
 	ctxData["ally_ids"] = allyIDs
 	ctxData["choice_type"] = "hb_holy_shard_miss_ally_target"
-	_ = rt.ReplacePendingInterruptContext(ctxData)
+	if intr := rt.GetPendingInterrupt(); intr != nil {
+		intr.Context = ctxData
+	}
 	rt.NotifyInterruptPrompt()
 	return nil
 }
 
 func handleHolyShardMissAllyTarget(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -493,7 +499,7 @@ func handleHolyShardMissAllyTarget(rt engineplayer.ChoiceRuntime, selectionIndex
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
 	targetID := allyIDs[selectionIndex]
-	target := rt.LookupPlayer(targetID)
+	target := rt.GetPlayers()[targetID]
 	if target == nil {
 		return fmt.Errorf("目标队友不存在")
 	}
@@ -522,7 +528,7 @@ func handleHolyShardMissAllyTarget(rt engineplayer.ChoiceRuntime, selectionIndex
 
 func handleRadiantDescentCost(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -551,7 +557,7 @@ func handleRadiantDescentCost(rt engineplayer.ChoiceRuntime, selectionIndex int,
 	model.AppendMagicAction(user, "圣煌降临")
 	rt.Log(fmt.Sprintf("%s 发动 [圣煌降临]：进入圣煌形态并获得额外法术行动", user.Name))
 	rt.PopInterrupt()
-	if !rt.HasPendingInterrupt() {
+	if rt.GetPendingInterrupt() == nil {
 		resumePoint := mustChoiceResumePointFromMap(ctxData, "resume_phase")
 		rt.ApplyChoiceResumePoint(resumePoint)
 	}
@@ -560,7 +566,7 @@ func handleRadiantDescentCost(rt engineplayer.ChoiceRuntime, selectionIndex int,
 
 func handleLightBurstMode(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -577,7 +583,7 @@ func handleLightBurstMode(rt engineplayer.ChoiceRuntime, selectionIndex int, ctx
 		for x := 1; x <= maxX; x++ {
 			limit := handCount - x
 			for _, enemyID := range enemyIDs {
-				if enemy := rt.LookupPlayer(enemyID); enemy != nil && len(enemy.Hand) <= limit {
+				if enemy := rt.GetPlayers()[enemyID]; enemy != nil && len(enemy.Hand) <= limit {
 					canModeB = true
 					break
 				}
@@ -601,14 +607,16 @@ func handleLightBurstMode(rt engineplayer.ChoiceRuntime, selectionIndex int, ctx
 	default:
 		return fmt.Errorf("无效的分支")
 	}
-	_ = rt.ReplacePendingInterruptContext(ctxData)
+	if intr := rt.GetPendingInterrupt(); intr != nil {
+		intr.Context = ctxData
+	}
 	rt.NotifyInterruptPrompt()
 	return nil
 }
 
 func handleLightBurstModeATarget(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -625,12 +633,12 @@ func handleLightBurstModeATarget(rt engineplayer.ChoiceRuntime, selectionIndex i
 	faith := AddFaith(user, 1)
 	rt.Heal(targetID, 1)
 	targetName := targetID
-	if target := rt.LookupPlayer(targetID); target != nil {
+	if target := rt.GetPlayers()[targetID]; target != nil {
 		targetName = target.Name
 	}
 	rt.Log(fmt.Sprintf("%s 的 [圣光爆裂] 分支①生效：摸1、移除1治疗、信仰+1（当前%d），%s +1治疗", user.Name, faith, targetName))
 	rt.PopInterrupt()
-	if !rt.HasPendingInterrupt() {
+	if rt.GetPendingInterrupt() == nil {
 		if !rt.RoutePendingDamageWithReturn(model.TurnStageExtraAction) {
 			rt.EnterExtraActionStage()
 		}
@@ -640,7 +648,7 @@ func handleLightBurstModeATarget(rt engineplayer.ChoiceRuntime, selectionIndex i
 
 func handleLightBurstModeBX(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -651,7 +659,7 @@ func handleLightBurstModeBX(rt engineplayer.ChoiceRuntime, selectionIndex int, c
 		limit := len(user.Hand) - x
 		eligible := 0
 		for _, enemyID := range enemyIDs {
-			if enemy := rt.LookupPlayer(enemyID); enemy != nil && len(enemy.Hand) <= limit {
+			if enemy := rt.GetPlayers()[enemyID]; enemy != nil && len(enemy.Hand) <= limit {
 				eligible++
 			}
 		}
@@ -666,7 +674,7 @@ func handleLightBurstModeBX(rt engineplayer.ChoiceRuntime, selectionIndex int, c
 	limit := len(user.Hand) - xValue
 	candidateTargets := make([]string, 0, len(enemyIDs))
 	for _, enemyID := range enemyIDs {
-		if enemy := rt.LookupPlayer(enemyID); enemy != nil && len(enemy.Hand) <= limit {
+		if enemy := rt.GetPlayers()[enemyID]; enemy != nil && len(enemy.Hand) <= limit {
 			candidateTargets = append(candidateTargets, enemyID)
 		}
 	}
@@ -677,7 +685,9 @@ func handleLightBurstModeBX(rt engineplayer.ChoiceRuntime, selectionIndex int, c
 	ctxData["candidate_target_ids"] = candidateTargets
 	ctxData["selected_target_ids"] = []string{}
 	ctxData["choice_type"] = "hb_light_burst_mode_b_targets"
-	_ = rt.ReplacePendingInterruptContext(ctxData)
+	if intr := rt.GetPendingInterrupt(); intr != nil {
+		intr.Context = ctxData
+	}
 	rt.NotifyInterruptPrompt()
 	return nil
 }
@@ -718,7 +728,9 @@ func handleLightBurstModeBTargets(rt engineplayer.ChoiceRuntime, selectionIndex 
 		selected = append(selected, remaining[selectionIndex])
 		ctxData["selected_target_ids"] = selected
 		if len(selected) < maxTargets {
-			_ = rt.ReplacePendingInterruptContext(ctxData)
+			if intr := rt.GetPendingInterrupt(); intr != nil {
+				intr.Context = ctxData
+			}
 			rt.NotifyInterruptPrompt()
 			return nil
 		}
@@ -728,21 +740,23 @@ func handleLightBurstModeBTargets(rt engineplayer.ChoiceRuntime, selectionIndex 
 		return fmt.Errorf("至少需要选择1名目标")
 	}
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
 	ctxData["selected_indices"] = []int{}
 	ctxData["remaining_indices"] = allHandIndices(user)
 	ctxData["choice_type"] = "hb_light_burst_mode_b_discard"
-	_ = rt.ReplacePendingInterruptContext(ctxData)
+	if intr := rt.GetPendingInterrupt(); intr != nil {
+		intr.Context = ctxData
+	}
 	rt.NotifyInterruptPrompt()
 	return nil
 }
 
 func handleLightBurstModeBDiscard(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -766,7 +780,9 @@ func handleLightBurstModeBDiscard(rt engineplayer.ChoiceRuntime, selectionIndex 
 	if len(selected) < xValue {
 		ctxData["selected_indices"] = selected
 		ctxData["remaining_indices"] = nextRemaining
-		_ = rt.ReplacePendingInterruptContext(ctxData)
+		if intr := rt.GetPendingInterrupt(); intr != nil {
+			intr.Context = ctxData
+		}
 		rt.NotifyInterruptPrompt()
 		return nil
 	}
@@ -780,20 +796,20 @@ func handleLightBurstModeBDiscard(rt engineplayer.ChoiceRuntime, selectionIndex 
 	targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["selected_target_ids"])
 	yValue := 0
 	for _, tid := range targetIDs {
-		if t := rt.LookupPlayer(tid); t != nil && t.Heal > 0 {
+		if t := rt.GetPlayers()[tid]; t != nil && t.Heal > 0 {
 			yValue++
 		}
 	}
 	damage := yValue + 2
 	for _, tid := range targetIDs {
-		if rt.LookupPlayer(tid) == nil {
+		if rt.GetPlayers()[tid] == nil {
 			continue
 		}
 		rt.AddPendingDamage(model.PendingDamage{SourceID: user.ID, TargetID: tid, Damage: damage, DamageType: model.AttackDamage})
 	}
 	rt.Log(fmt.Sprintf("%s 的 [圣光爆裂] 分支②生效：移除%d治疗并弃%d张牌，对%d名目标各造成%d点攻击伤害（Y=%d）", user.Name, xValue, xValue, len(targetIDs), damage, yValue))
 	rt.PopInterrupt()
-	if !rt.HasPendingInterrupt() {
+	if rt.GetPendingInterrupt() == nil {
 		if !rt.RoutePendingDamageWithReturn(model.TurnStageExtraAction) {
 			rt.EnterExtraActionStage()
 		}
@@ -808,14 +824,16 @@ func handleMeteorBulletCost(rt engineplayer.ChoiceRuntime, selectionIndex int, c
 	}
 	ctxData["chosen_cost_mode"] = modes[selectionIndex]
 	ctxData["choice_type"] = "hb_meteor_bullet_target"
-	_ = rt.ReplacePendingInterruptContext(ctxData)
+	if intr := rt.GetPendingInterrupt(); intr != nil {
+		intr.Context = ctxData
+	}
 	rt.NotifyInterruptPrompt()
 	return nil
 }
 
 func handleMeteorBulletTarget(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -841,15 +859,15 @@ func handleMeteorBulletTarget(rt engineplayer.ChoiceRuntime, selectionIndex int,
 	}
 	rt.Heal(targetID, 1)
 	targetName := targetID
-	if target := rt.LookupPlayer(targetID); target != nil {
+	if target := rt.GetPlayers()[targetID]; target != nil {
 		targetName = target.Name
 	}
 	rt.Log(fmt.Sprintf("%s 发动 [流星圣弹]：移除1点%s，令 %s +1治疗", user.Name, map[string]string{"heal": "治疗", "faith": "信仰"}[mode], targetName))
 	rawCtx, _ := ctxData["user_ctx"].(*model.Context)
 	rt.PopInterrupt()
-	if !rt.HasPendingInterrupt() {
+	if rt.GetPendingInterrupt() == nil {
 		if rawCtx != nil && rawCtx.AttackDeclaredPhase() {
-			if rt.ActionQueueLen() > 0 {
+			if len(rt.GetActionQueue()) > 0 {
 				rt.EnterActionExecutionStage()
 			} else {
 				rt.EnterTurnEndStage()
@@ -863,7 +881,7 @@ func handleMeteorBulletTarget(rt engineplayer.ChoiceRuntime, selectionIndex int,
 
 func handleRadiantCannonSide(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -890,8 +908,8 @@ func handleRadiantCannonSide(rt engineplayer.ChoiceRuntime, selectionIndex int, 
 	AddFaith(user, -requiredFaith)
 
 	// Adjust all players' hands to 4 cards
-	for _, pid := range rt.PlayerOrder() {
-		p := rt.LookupPlayer(pid)
+	for _, pid := range rt.GetPlayerOrder() {
+		p := rt.GetPlayers()[pid]
 		if p == nil {
 			continue
 		}
@@ -917,7 +935,7 @@ func handleRadiantCannonSide(rt engineplayer.ChoiceRuntime, selectionIndex int, 
 	}
 	rt.Log(fmt.Sprintf("%s 发动 [圣煌辉光炮]：全员手牌调整至4，我方星杯+1，并完成士气对齐", user.Name))
 	rt.PopInterrupt()
-	if !rt.HasPendingInterrupt() {
+	if rt.GetPendingInterrupt() == nil {
 		if !rt.RoutePendingDamageWithReturn(model.TurnStageExtraAction) {
 			rt.EnterExtraActionStage()
 		}
@@ -927,7 +945,7 @@ func handleRadiantCannonSide(rt engineplayer.ChoiceRuntime, selectionIndex int, 
 
 func handleAutoFillResource(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -964,14 +982,16 @@ func handleAutoFillResource(rt engineplayer.ChoiceRuntime, selectionIndex int, c
 	}
 	ctxData["branch"] = branch
 	ctxData["choice_type"] = "hb_auto_fill_gain"
-	_ = rt.ReplacePendingInterruptContext(ctxData)
+	if intr := rt.GetPendingInterrupt(); intr != nil {
+		intr.Context = ctxData
+	}
 	rt.NotifyInterruptPrompt()
 	return nil
 }
 
 func handleAutoFillGain(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -997,7 +1017,7 @@ func handleAutoFillGain(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxDa
 		}
 	}
 	rt.PopInterrupt()
-	if !rt.HasPendingInterrupt() {
+	if rt.GetPendingInterrupt() == nil {
 		rt.EnterTurnEndStage()
 	}
 	return nil
@@ -1011,7 +1031,7 @@ func handleAutoFillGain(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxDa
 func playerOptions(rt engineplayer.ChoiceRuntime, playerIDs []string) []model.PromptOption {
 	options := make([]model.PromptOption, 0, len(playerIDs))
 	for _, pid := range playerIDs {
-		if p := rt.LookupPlayer(pid); p != nil {
+		if p := rt.GetPlayers()[pid]; p != nil {
 			options = append(options, model.PromptOption{ID: pid, Label: p.Name})
 		}
 	}
@@ -1106,8 +1126,8 @@ func holyBowShardMissEligibleAllies(rt engineplayer.ChoiceRuntime, user *model.P
 		return nil
 	}
 	allyIDs := make([]string, 0)
-	for _, pid := range rt.PlayerOrder() {
-		p := rt.LookupPlayer(pid)
+	for _, pid := range rt.GetPlayerOrder() {
+		p := rt.GetPlayers()[pid]
 		if p == nil || p.Camp != user.Camp || p.ID == user.ID {
 			continue
 		}

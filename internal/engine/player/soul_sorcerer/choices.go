@@ -61,7 +61,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		}
 		var options []model.PromptOption
 		for _, aid := range allyIDs {
-			if p := rt.LookupPlayer(aid); p != nil {
+			if p := rt.GetPlayers()[aid]; p != nil {
 				options = append(options, model.PromptOption{ID: aid, Label: p.Name})
 			}
 		}
@@ -166,7 +166,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 
 func handleSoulConvertColorChoice(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -203,9 +203,9 @@ func handleSoulConvertColorChoice(rt engineplayer.ChoiceRuntime, selectionIndex 
 	}
 
 	rt.PopInterrupt()
-	if !rt.HasPendingInterrupt() {
+	if rt.GetPendingInterrupt() == nil {
 		rt.RoutePendingDamageOr(model.TurnStageExtraAction, func() {
-			if rt.ActionQueueLen() > 0 {
+			if len(rt.GetActionQueue()) > 0 {
 				rt.EnterActionExecutionStage()
 			} else {
 				rt.EnterExtraActionStage()
@@ -217,7 +217,7 @@ func handleSoulConvertColorChoice(rt engineplayer.ChoiceRuntime, selectionIndex 
 
 func handleSoulLinkTargetChoice(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -227,7 +227,7 @@ func handleSoulLinkTargetChoice(rt engineplayer.ChoiceRuntime, selectionIndex in
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
 
-	target := rt.LookupPlayer(allyIDs[selectionIndex])
+	target := rt.GetPlayers()[allyIDs[selectionIndex]]
 	if target == nil {
 		return fmt.Errorf("目标队友不存在")
 	}
@@ -249,7 +249,7 @@ func handleSoulLinkTargetChoice(rt engineplayer.ChoiceRuntime, selectionIndex in
 	AddYellowSoul(user, -1)
 	AddBlueSoul(user, -1)
 
-	if err := rt.AttachExclusiveEffectCard(user.ID, target.ID, model.EffectSoulLink, linkCard); err != nil {
+	if err := rt.AttachEffectCard(user, target, model.EffectSoulLink, linkCard); err != nil {
 		user.RestoreExclusiveCard(linkCard)
 		AddYellowSoul(user, 1)
 		AddBlueSoul(user, 1)
@@ -259,7 +259,7 @@ func handleSoulLinkTargetChoice(rt engineplayer.ChoiceRuntime, selectionIndex in
 	rt.Log(fmt.Sprintf("%s 发动 [灵魂链接]：移除1黄魂+1蓝魂，并将灵魂链接放置于 %s 面前", user.Name, target.Name))
 
 	rt.PopInterrupt()
-	if !rt.HasPendingInterrupt() {
+	if rt.GetPendingInterrupt() == nil {
 		rt.ApplyChoiceResumePoint(model.TurnStageActionStart)
 	}
 	return nil
@@ -267,13 +267,14 @@ func handleSoulLinkTargetChoice(rt engineplayer.ChoiceRuntime, selectionIndex in
 
 func handleSoulLinkTransferXChoice(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
 	sorcererID, _ := ctxData["sorcerer_id"].(string)
-	sorcerer := rt.LookupPlayer(sorcererID)
+	sorcerer := rt.GetPlayers()[sorcererID]
 	if sorcerer == nil {
 		return fmt.Errorf("灵魂术士不存在")
 	}
 
 	damageIdx := runtimeutil.ToIntContextValue(ctxData["damage_index"])
-	if damageIdx < 0 || damageIdx >= rt.PendingDamageQueueLen() {
+	pdQueue := rt.GetPendingDamageQueue()
+	if damageIdx < 0 || damageIdx >= len(pdQueue) {
 		return fmt.Errorf("伤害上下文不存在")
 	}
 
@@ -293,13 +294,10 @@ func handleSoulLinkTransferXChoice(rt engineplayer.ChoiceRuntime, selectionIndex
 
 	counterpartID, _ := ctxData["counterpart_id"].(string)
 	sourceID, _ := ctxData["source_id"].(string)
-	counterpart := rt.LookupPlayer(counterpartID)
+	counterpart := rt.GetPlayers()[counterpartID]
 
 	// Reduce the original damage by x before adding the transferred damage.
-	pd, ok := rt.GetPendingDamage(damageIdx)
-	if !ok {
-		return fmt.Errorf("伤害上下文不存在")
-	}
+	pd := &pdQueue[damageIdx]
 	if x > pd.Damage {
 		x = pd.Damage
 	}
@@ -328,7 +326,7 @@ func handleSoulLinkTransferXChoice(rt engineplayer.ChoiceRuntime, selectionIndex
 	}
 
 	rt.PopInterrupt()
-	if !rt.HasPendingInterrupt() {
+	if rt.GetPendingInterrupt() == nil {
 		rt.EnterDamageResolution(nil)
 	}
 	return nil
@@ -343,7 +341,7 @@ func handleSoulRecallPickChoice(rt engineplayer.ChoiceRuntime, selectionIndex in
 	if userID == "" {
 		return fmt.Errorf("玩家ID缺失")
 	}
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -389,7 +387,7 @@ func handleSoulRecallPickChoice(rt engineplayer.ChoiceRuntime, selectionIndex in
 	rt.Log(fmt.Sprintf("%s 发动 [灵魂召还]：弃置%d张法术牌，蓝色灵魂 +%d（%d→%d）", user.Name, gain, gain, before, after))
 
 	rt.PopInterrupt()
-	if !rt.HasPendingInterrupt() {
+	if rt.GetPendingInterrupt() == nil {
 		if !rt.RoutePendingDamageWithReturn(model.TurnStageExtraAction) {
 			rt.EnterExtraActionStage()
 		}

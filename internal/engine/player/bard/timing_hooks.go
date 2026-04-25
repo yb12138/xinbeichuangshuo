@@ -85,8 +85,8 @@ func postDamageResolvedHook(rt engineplayer.HookRuntime, ctx engineplayer.Timing
 	if ctx.Damage <= 0 || !rt.IsMagicDamageType(ctx.DamageType) {
 		return engineplayer.TimingHookResult{}
 	}
-	source := rt.LookupPlayer(ctx.SourceID)
-	target := rt.LookupPlayer(ctx.TargetID)
+	source := rt.GetPlayers()[ctx.SourceID]
+	target := rt.GetPlayers()[ctx.TargetID]
 	if source == nil || target == nil || source.Camp == target.Camp {
 		return engineplayer.TimingHookResult{}
 	}

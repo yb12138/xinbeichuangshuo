@@ -16,7 +16,7 @@ func NewChoiceHandler() engineplayer.ChoiceHandler {
 	return choiceHandler{}
 }
 
-func (choiceHandler) BuildPrompt(_ engineplayer.ChoiceRuntime, choiceType, playerID string, _ *model.Player, data map[string]interface{}) *model.Prompt {
+func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, playerID string, player *model.Player, data map[string]interface{}) *model.Prompt {
 	switch choiceType {
 	case "se_sword_qi_slash_x":
 		maxX := runtimeutil.ToIntContextValue(data["max_x"])
@@ -28,8 +28,51 @@ func (choiceHandler) BuildPrompt(_ engineplayer.ChoiceRuntime, choiceType, playe
 			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", xValue), Label: fmt.Sprintf("移除%d点剑气，对另一名角色造成%d点法术伤害", xValue, xValue)})
 		}
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【剑气斩】请选择X值：", Options: options, Min: 1, Max: 1}
+	case "se_sword_rain_target":
+		targetIDs := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
+		options := make([]model.PromptOption, 0, len(targetIDs))
+		for _, targetID := range targetIDs {
+			if target := rt.GetPlayers()[targetID]; target != nil {
+				options = append(options, model.PromptOption{
+					ID:    targetID,
+					Label: target.Name,
+				})
+			}
+		}
+		return &model.Prompt{
+			Type:     model.PromptConfirm,
+			PlayerID: playerID,
+			Message:  "【剑雨】请选择攻击目标：",
+			Options:  options,
+			Min:      1,
+			Max:      1,
+		}
+	case "se_sword_rain_discard":
+		if player == nil {
+			return nil
+		}
+		indices := runtimeutil.ParseChoiceIntSlice(data["discard_indices"])
+		options := make([]model.PromptOption, 0, len(indices))
+		for _, idx := range indices {
+			if idx < 0 || idx >= len(player.Hand) {
+				continue
+			}
+			options = append(options, model.PromptOption{
+				ID:    fmt.Sprintf("%d", idx),
+				Label: fmt.Sprintf("%d: %s", idx+1, player.Hand[idx].Name),
+			})
+		}
+		return &model.Prompt{
+			Type:     model.PromptChooseCards,
+			PlayerID: playerID,
+			Message:  "【剑雨】请选择要弃置的手牌：",
+			Options:  options,
+			Min:      1,
+			Max:      1,
+		}
+	default:
+		return nil
 	}
-	return nil
 }
 
 func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
@@ -39,6 +82,10 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		return true, handleSwordEmperorSwordQiSlashXChoice(rt, selectionIndex, ctxData)
 	case "se_sword_qi_slash_target":
 		return true, handleSwordEmperorSwordQiSlashTargetChoice(rt, selectionIndex, ctxData)
+	case "se_sword_rain_target":
+		return true, handleSwordRainTarget(rt, selectionIndex, ctxData)
+	case "se_sword_rain_discard":
+		return true, handleSwordRainDiscard(rt, selectionIndex, ctxData)
 	default:
 		return false, nil
 	}
@@ -46,7 +93,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 
 func handleSwordEmperorSwordQiSlashXChoice(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -60,8 +107,9 @@ func handleSwordEmperorSwordQiSlashXChoice(rt engineplayer.ChoiceRuntime, select
 	xValue := selectionIndex + 1
 	ctxData["x_value"] = xValue
 	ctxData["choice_type"] = "se_sword_qi_slash_target"
-	if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-		return err
+	intr := rt.GetPendingInterrupt()
+	if intr != nil {
+		intr.Context = ctxData
 	}
 	rt.NotifyInterruptPrompt()
 	return nil
@@ -69,7 +117,7 @@ func handleSwordEmperorSwordQiSlashXChoice(rt engineplayer.ChoiceRuntime, select
 
 func handleSwordEmperorSwordQiSlashTargetChoice(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -78,7 +126,7 @@ func handleSwordEmperorSwordQiSlashTargetChoice(rt engineplayer.ChoiceRuntime, s
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
 	targetID := targetIDs[selectionIndex]
-	target := rt.LookupPlayer(targetID)
+	target := rt.GetPlayers()[targetID]
 	if target == nil {
 		return fmt.Errorf("目标不存在")
 	}
@@ -95,8 +143,101 @@ func handleSwordEmperorSwordQiSlashTargetChoice(rt engineplayer.ChoiceRuntime, s
 	rt.AddPendingDamage(model.PendingDamage{SourceID: user.ID, TargetID: targetID, Damage: xValue, DamageType: model.MagicAttack})
 	rt.Log(fmt.Sprintf("%s 发动 [剑气斩]：移除%d点剑气（当前%d），对 %s 造成%d点法术伤害", user.Name, xValue, nowQi, target.Name, xValue))
 	rt.PopInterrupt()
-	if !rt.HasPendingInterrupt() {
+	if rt.GetPendingInterrupt() == nil {
 		rt.ResumePendingAttackHit(ctxData)
 	}
 	return nil
+}
+
+func handleSwordRainTarget(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
+	userID, _ := ctxData["user_id"].(string)
+	user := rt.GetPlayers()[userID]
+	if user == nil {
+		return fmt.Errorf("玩家不存在")
+	}
+	targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
+	if selectionIndex < 0 || selectionIndex >= len(targetIDs) {
+		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
+	}
+	targetID := targetIDs[selectionIndex]
+	target := rt.GetPlayers()[targetID]
+	if target == nil {
+		return fmt.Errorf("目标不存在")
+	}
+
+	// Proceed to discard phase
+	discardIndices := allHandIndices(user)
+	if len(discardIndices) == 0 {
+		// No cards to discard, proceed with attack
+		performSwordRainAttack(rt, user, target, ctxData)
+		rt.PopInterrupt()
+		if rt.GetPendingInterrupt() == nil {
+			rt.EnterActionExecutionStage()
+		}
+		return nil
+	}
+
+	ctxData["choice_type"] = "se_sword_rain_discard"
+	ctxData["discard_indices"] = discardIndices
+	ctxData["selected_target_id"] = targetID
+	intr := rt.GetPendingInterrupt()
+	if intr != nil {
+		intr.Context = ctxData
+	}
+	rt.NotifyInterruptPrompt()
+	return nil
+}
+
+func handleSwordRainDiscard(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
+	userID, _ := ctxData["user_id"].(string)
+	user := rt.GetPlayers()[userID]
+	if user == nil {
+		return fmt.Errorf("玩家不存在")
+	}
+	discardIndices := runtimeutil.ParseChoiceIntSlice(ctxData["discard_indices"])
+	cardIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, discardIndices)
+	if !ok || cardIdx < 0 || cardIdx >= len(user.Hand) {
+		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
+	}
+
+	card := user.Hand[cardIdx]
+	user.Hand = append(user.Hand[:cardIdx], user.Hand[cardIdx+1:]...)
+	rt.NotifyCardRevealed(user.ID, []model.Card{card}, "discard")
+	rt.AppendToDiscard([]model.Card{card})
+	rt.Log(fmt.Sprintf("%s 发动 [剑雨]：弃置了1张手牌", user.Name))
+
+	targetID, _ := ctxData["selected_target_id"].(string)
+	target := rt.GetPlayers()[targetID]
+	if target == nil {
+		return fmt.Errorf("目标不存在")
+	}
+
+	performSwordRainAttack(rt, user, target, ctxData)
+	rt.PopInterrupt()
+	if rt.GetPendingInterrupt() == nil {
+		rt.EnterActionExecutionStage()
+	}
+	return nil
+}
+
+func performSwordRainAttack(rt engineplayer.ChoiceRuntime, user *model.Player, target *model.Player, ctxData map[string]interface{}) {
+	damage := 2
+	rt.AddPendingDamage(model.PendingDamage{
+		SourceID:   user.ID,
+		TargetID:   target.ID,
+		Damage:     damage,
+		DamageType: model.AttackDamage,
+	})
+	rt.Log(fmt.Sprintf("%s 发动 [剑雨]：对 %s 造成%d点攻击伤害", user.Name, target.Name, damage))
+}
+
+func allHandIndices(player *model.Player) []int {
+	if player == nil {
+		return nil
+	}
+	out := make([]int, 0, len(player.Hand))
+	for i := range player.Hand {
+		out = append(out, i)
+	}
+	return out
 }

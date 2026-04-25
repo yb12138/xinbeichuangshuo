@@ -19,7 +19,7 @@ func attackTargetCtxHook(rt player.HookRuntime, ctx player.TimingHookContext) pl
 	if !player.IsCharacter(p, "magic_bow") {
 		return player.TimingHookResult{}
 	}
-	for i, pid := range rt.PlayerOrder() {
+	for i, pid := range rt.GetPlayerOrder() {
 		if pid == ctx.TargetID {
 			p.TurnState.UsedSkillCounts["mb_last_attack_target_order"] = i + 1
 			return player.TimingHookResult{}

@@ -19,7 +19,13 @@ func ForcedDoomsdayStartup(rt engineplayer.ChoiceRuntime, player *model.Player) 
 		player.TurnState.UsedSkillCounts["arbiter_forced_doomsday_pending"] = 0
 		return false
 	}
-	if len(rt.CampEnemyIDs(player.Camp)) == 0 {
+	enemyCount := 0
+	for _, p := range rt.GetPlayers() {
+		if p != nil && p.Camp != player.Camp {
+			enemyCount++
+		}
+	}
+	if enemyCount == 0 {
 		player.TurnState.UsedSkillCounts["arbiter_forced_doomsday_pending"] = 0
 		return false
 	}

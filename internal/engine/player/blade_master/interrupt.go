@@ -54,7 +54,7 @@ func MaybeHolySwordDrawInterrupt(rt engineplayer.HookRuntime, ctx engineplayer.T
 
 // buildHolySwordDrawPrompt 构建圣剑第3次攻击结束后的摸牌弃牌提示。
 func buildHolySwordDrawPrompt(rt engineplayer.ChoiceRuntime) *model.Prompt {
-	interrupt := rt.PendingInterrupt()
+	interrupt := rt.GetPendingInterrupt()
 	if interrupt == nil {
 		return nil
 	}
@@ -78,13 +78,13 @@ func buildHolySwordDrawPrompt(rt engineplayer.ChoiceRuntime) *model.Prompt {
 // handleHolySwordDrawAction 处理圣剑摸X弃X响应。
 func handleHolySwordDrawAction(rt engineplayer.ChoiceRuntime, act model.PlayerAction) error {
 	rt.Log("[Skill] [DEBUG] handleHolySwordDrawAction called")
-	interrupt := rt.PendingInterrupt()
+	interrupt := rt.GetPendingInterrupt()
 	if interrupt == nil {
 		rt.Log("[Skill] [DEBUG] no pending interrupt")
 		return fmt.Errorf("没有待处理的中断")
 	}
 
-	p := rt.LookupPlayer(act.PlayerID)
+	p := rt.GetPlayers()[act.PlayerID]
 	if p == nil {
 		rt.Log("[Skill] [DEBUG] player not found")
 		return fmt.Errorf("玩家不存在")
@@ -123,14 +123,11 @@ func handleHolySwordDrawAction(rt engineplayer.ChoiceRuntime, act model.PlayerAc
 
 // resumeHolySwordAftermath 圣剑后续恢复流程。
 func resumeHolySwordAftermath(rt engineplayer.ChoiceRuntime) {
-	if rt.HasPendingInterrupt() {
+	if rt.GetPendingInterrupt() != nil {
 		return
 	}
-	if rt.RoutePendingDamageWithDefaultReturn(model.TurnStageExtraAction) {
+	if rt.RoutePendingDamageWithReturn(model.TurnStageExtraAction) {
 		return
 	}
-	if rt.RestoreReturnPoint() {
-		return
-	}
-	rt.EnterExtraActionStage()
+	rt.ApplyChoiceResumePoint(model.TurnStageExtraAction)
 }

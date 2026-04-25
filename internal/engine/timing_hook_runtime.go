@@ -101,13 +101,6 @@ func (r hookRuntime) DrawCards(playerID string, amount int) {
 	r.GameEngine.DrawCards(playerID, amount)
 }
 
-func (r hookRuntime) GetPendingDamageQueue() []model.PendingDamage {
-	if r.GameEngine == nil || r.State == nil {
-		return nil
-	}
-	return r.State.PendingDamageQueue
-}
-
 func (r hookRuntime) SetPendingDamageQueue(queue []model.PendingDamage) {
 	if r.GameEngine == nil || r.State == nil {
 		return
@@ -115,40 +108,14 @@ func (r hookRuntime) SetPendingDamageQueue(queue []model.PendingDamage) {
 	r.State.PendingDamageQueue = queue
 }
 
-func (r hookRuntime) SnapshotPlayerPoses() map[string]engineplayer.PoseSnapshot {
+func (r hookRuntime) PoseChangeGuard() func() {
 	if r.GameEngine == nil {
-		return nil
+		return func() {}
 	}
-	internal := r.GameEngine.snapshotPlayerPoses()
-	out := make(map[string]engineplayer.PoseSnapshot, len(internal))
-	for id, ps := range internal {
-		out[id] = engineplayer.PoseSnapshot{
-			Orientation: ps.Orientation,
-			Form:        ps.Form,
-		}
+	before := r.GameEngine.snapshotPlayerPoses()
+	return func() {
+		r.GameEngine.dispatchOrientationChanges(before)
 	}
-	return out
-}
-
-func (r hookRuntime) DispatchOrientationChanges(before map[string]engineplayer.PoseSnapshot) {
-	if r.GameEngine == nil {
-		return
-	}
-	internal := make(map[string]poseSnapshot, len(before))
-	for id, ps := range before {
-		internal[id] = poseSnapshot{
-			Orientation: ps.Orientation,
-			Form:        ps.Form,
-		}
-	}
-	r.GameEngine.dispatchOrientationChanges(internal)
-}
-
-func (r hookRuntime) CampMorale(camp model.Camp) int {
-	if r.GameEngine == nil {
-		return 0
-	}
-	return r.GameEngine.campMorale(camp)
 }
 
 func (r hookRuntime) HasPendingDiscardFor(playerID string) bool {
@@ -158,11 +125,104 @@ func (r hookRuntime) HasPendingDiscardFor(playerID string) bool {
 	return r.GameEngine.pendingDiscardVictimID() == playerID
 }
 
-func (r hookRuntime) PlayerOrder() []string {
-	if r.GameEngine == nil || r.GameEngine.State == nil {
+// StateReader implementation
+
+func (r hookRuntime) GetPlayers() map[string]*model.Player {
+	if r.GameEngine == nil || r.State == nil {
 		return nil
 	}
-	return r.GameEngine.State.PlayerOrder
+	return r.State.Players
+}
+
+func (r hookRuntime) GetPlayerOrder() []string {
+	if r.GameEngine == nil || r.State == nil {
+		return nil
+	}
+	return r.State.PlayerOrder
+}
+
+func (r hookRuntime) GetCurrentTurnIndex() int {
+	if r.GameEngine == nil || r.State == nil {
+		return -1
+	}
+	return r.State.CurrentTurn
+}
+
+func (r hookRuntime) GetRedMorale() int {
+	if r.GameEngine == nil || r.State == nil {
+		return 0
+	}
+	return r.State.RedMorale
+}
+
+func (r hookRuntime) GetBlueMorale() int {
+	if r.GameEngine == nil || r.State == nil {
+		return 0
+	}
+	return r.State.BlueMorale
+}
+
+func (r hookRuntime) GetPendingInterrupt() *model.Interrupt {
+	if r.GameEngine == nil || r.State == nil {
+		return nil
+	}
+	return r.State.PendingInterrupt
+}
+
+func (r hookRuntime) GetPendingDamageQueue() []model.PendingDamage {
+	if r.GameEngine == nil || r.State == nil {
+		return nil
+	}
+	return r.State.PendingDamageQueue
+}
+
+func (r hookRuntime) GetCombatStack() []model.CombatRequest {
+	if r.GameEngine == nil || r.State == nil {
+		return nil
+	}
+	return r.State.CombatStack
+}
+
+func (r hookRuntime) GetActionQueue() []model.QueuedAction {
+	if r.GameEngine == nil || r.State == nil {
+		return nil
+	}
+	return r.State.ActionQueue
+}
+
+func (r hookRuntime) GetDiscardPile() []model.Card {
+	if r.GameEngine == nil || r.State == nil {
+		return nil
+	}
+	return r.State.DiscardPile
+}
+
+func (r hookRuntime) GetDeck() []model.Card {
+	if r.GameEngine == nil || r.State == nil {
+		return nil
+	}
+	return r.State.Deck
+}
+
+func (r hookRuntime) GetCombatStage() model.CombatStage {
+	if r.GameEngine == nil || r.State == nil {
+		return ""
+	}
+	return r.State.CombatStage
+}
+
+func (r hookRuntime) GetSubflow() model.Subflow {
+	if r.GameEngine == nil || r.State == nil {
+		return ""
+	}
+	return r.State.Subflow
+}
+
+func (r hookRuntime) GetMagicBulletChain() *model.MagicBulletChain {
+	if r.GameEngine == nil || r.State == nil {
+		return nil
+	}
+	return r.State.MagicBulletChain
 }
 
 func (r hookRuntime) RecordMagicDamageTarget(sourceID, targetID string) {
@@ -183,23 +243,6 @@ func (r hookRuntime) MagicDamageTargetCount(sourceID string) int {
 		return 0
 	}
 	return len(r.GameEngine.turnMagicDamageTargets[sourceID])
-}
-
-func (r hookRuntime) LookupPlayer(playerID string) *model.Player {
-	if r.GameEngine == nil || r.State == nil {
-		return nil
-	}
-	return r.State.Players[playerID]
-}
-
-func (r hookRuntime) CurrentTurnPlayerID() string {
-	if r.GameEngine == nil || r.State == nil {
-		return ""
-	}
-	if r.State.CurrentTurn < 0 || r.State.CurrentTurn >= len(r.State.PlayerOrder) {
-		return ""
-	}
-	return r.State.PlayerOrder[r.State.CurrentTurn]
 }
 
 func (r hookRuntime) BuildContext(user, target *model.Player, timing model.FlowTiming, eventCtx *model.EventContext) *model.Context {

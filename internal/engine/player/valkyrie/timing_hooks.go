@@ -37,7 +37,7 @@ func turnStartMilitaryGloryHook(rt engineplayer.HookRuntime, ctx engineplayer.Ti
 		return engineplayer.TimingHookResult{}
 	}
 	crt.RecordSkillUsage(player.ID, "军威神光", model.SkillTypeStartup)
-	if rt.HasPendingInterrupt() {
+	if rt.GetPendingInterrupt() != nil {
 		return engineplayer.TimingHookResult{Interrupted: true}
 	}
 	return engineplayer.TimingHookResult{}

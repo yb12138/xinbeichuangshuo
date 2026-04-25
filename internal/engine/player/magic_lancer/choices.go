@@ -57,7 +57,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 	case "ml_dark_barrier_cards":
 		remaining := runtimeutil.ParseChoiceIntSlice(data["remaining_indices"])
 		selectedCount := len(runtimeutil.ParseChoiceIntSlice(data["selected_indices"]))
-		xValue := runtimeutil.ToIntContextValue(data["x_value"])
+		xValue := runtimeutil.ToIntContextValue(data["max_x"])
 		options := make([]model.PromptOption, 0, len(remaining))
 		for _, idx := range remaining {
 			if player == nil || idx < 0 || idx >= len(player.Hand) {
@@ -86,7 +86,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 
 	case "ml_fullness_discard_step":
 		currentID, _ := data["current_player_id"].(string)
-		target := rt.LookupPlayer(currentID)
+		target := rt.GetPlayers()[currentID]
 		if target == nil {
 			return nil
 		}
@@ -112,7 +112,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		targetIDs := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
 		options := make([]model.PromptOption, 0, len(targetIDs))
 		for _, targetID := range targetIDs {
-			if target := rt.LookupPlayer(targetID); target != nil {
+			if target := rt.GetPlayers()[targetID]; target != nil {
 				options = append(options, model.PromptOption{ID: targetID, Label: target.Name})
 			}
 		}
@@ -145,7 +145,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 
 func handleMagicLancerBlackSpearXChoice(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -160,11 +160,9 @@ func handleMagicLancerBlackSpearXChoice(rt engineplayer.ChoiceRuntime, selection
 	targetID, _ := ctxData["target_id"].(string)
 	bonus := xValue + 2
 	applied := false
-	for i := 0; i < rt.PendingDamageQueueLen(); i++ {
-		pd, ok := rt.GetPendingDamage(i)
-		if !ok {
-			continue
-		}
+	queue := rt.GetPendingDamageQueue()
+	for i := 0; i < len(queue); i++ {
+		pd := queue[i]
 		if !strings.EqualFold(string(pd.DamageType), string(model.AttackDamage)) {
 			continue
 		}
@@ -174,7 +172,7 @@ func handleMagicLancerBlackSpearXChoice(rt engineplayer.ChoiceRuntime, selection
 		if targetID != "" && pd.TargetID != targetID {
 			continue
 		}
-		pd.Damage += bonus
+		queue[i].Damage += bonus
 		applied = true
 		break
 	}
@@ -183,7 +181,7 @@ func handleMagicLancerBlackSpearXChoice(rt engineplayer.ChoiceRuntime, selection
 	}
 	rt.Log(fmt.Sprintf("%s 的 [漆黑之枪] 生效：消耗%d点蓝水晶，本次攻击伤害额外+%d", user.Name, xValue, bonus))
 	rt.PopInterrupt()
-	if !rt.HasPendingInterrupt() {
+	if rt.GetPendingInterrupt() == nil {
 		rt.EnterDamageResolution(nil)
 	}
 	return nil
@@ -191,7 +189,7 @@ func handleMagicLancerBlackSpearXChoice(rt engineplayer.ChoiceRuntime, selection
 
 func handleMagicLancerDarkBarrierModeChoice(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -218,14 +216,16 @@ func handleMagicLancerDarkBarrierModeChoice(rt engineplayer.ChoiceRuntime, selec
 	ctxData["mode"] = mode
 	ctxData["max_x"] = maxX
 	ctxData["choice_type"] = "ml_dark_barrier_x"
-	_ = rt.ReplacePendingInterruptContext(ctxData)
+	if intr := rt.GetPendingInterrupt(); intr != nil {
+		intr.Context = ctxData
+	}
 	rt.NotifyInterruptPrompt()
 	return nil
 }
 
 func handleMagicLancerDarkBarrierXChoice(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -252,14 +252,16 @@ func handleMagicLancerDarkBarrierXChoice(rt engineplayer.ChoiceRuntime, selectio
 	ctxData["selected_indices"] = []int{}
 	ctxData["remaining_indices"] = remaining
 	ctxData["choice_type"] = "ml_dark_barrier_cards"
-	_ = rt.ReplacePendingInterruptContext(ctxData)
+	if intr := rt.GetPendingInterrupt(); intr != nil {
+		intr.Context = ctxData
+	}
 	rt.NotifyInterruptPrompt()
 	return nil
 }
 
 func handleMagicLancerDarkBarrierCardsChoice(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -288,7 +290,9 @@ func handleMagicLancerDarkBarrierCardsChoice(rt engineplayer.ChoiceRuntime, sele
 	if len(selected) < xValue {
 		ctxData["selected_indices"] = selected
 		ctxData["remaining_indices"] = nextRemaining
-		_ = rt.ReplacePendingInterruptContext(ctxData)
+		if intr := rt.GetPendingInterrupt(); intr != nil {
+			intr.Context = ctxData
+		}
 		rt.NotifyInterruptPrompt()
 		return nil
 	}
@@ -301,10 +305,10 @@ func handleMagicLancerDarkBarrierCardsChoice(rt engineplayer.ChoiceRuntime, sele
 	modeLabel := map[string]string{"magic": "法术", "thunder": "雷系"}[mode]
 	rt.Log(fmt.Sprintf("%s 的 [暗之障壁] 生效：弃置%d张%s牌", user.Name, xValue, modeLabel))
 	rt.PopInterrupt()
-	if !rt.HasPendingInterrupt() {
-		if rt.PendingDamageQueueLen() > 0 {
+	if rt.GetPendingInterrupt() == nil {
+		if len(rt.GetPendingDamageQueue()) > 0 {
 			rt.EnterDamageResolution(nil)
-		} else if rt.ActionQueueLen() > 0 {
+		} else if len(rt.GetActionQueue()) > 0 {
 			rt.EnterResponseWindow()
 		}
 	}
@@ -313,7 +317,7 @@ func handleMagicLancerDarkBarrierCardsChoice(rt engineplayer.ChoiceRuntime, sele
 
 func handleMagicLancerFullnessCostCardChoice(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -336,7 +340,7 @@ func handleMagicLancerFullnessCostCardChoice(rt engineplayer.ChoiceRuntime, sele
 	orderIDs := reverseOrderEnemies(rt, user.ID)
 	lockedAllyID, _ := ctxData["locked_ally_id"].(string)
 	if lockedAllyID != "" {
-		target := rt.LookupPlayer(lockedAllyID)
+		target := rt.GetPlayers()[lockedAllyID]
 		if target != nil && target.Camp == user.Camp && target.ID != user.ID {
 			orderIDs = append(orderIDs, lockedAllyID)
 		}
@@ -354,24 +358,26 @@ func handleMagicLancerFullnessCostCardChoice(rt engineplayer.ChoiceRuntime, sele
 		model.AppendAttackAction(user, "充盈")
 		rt.Log(fmt.Sprintf("%s 的 [充盈] 生效：无可处理弃牌目标，获得额外1次攻击行动", user.Name))
 		rt.PopInterrupt()
-		if !rt.HasPendingInterrupt() {
+		if rt.GetPendingInterrupt() == nil {
 			rt.EnterExtraActionStage()
 		}
 		return nil
 	}
-	_ = rt.ReplacePendingInterruptContext(ctxData)
+	if intr := rt.GetPendingInterrupt(); intr != nil {
+		intr.Context = ctxData
+	}
 	rt.NotifyInterruptPrompt()
 	return nil
 }
 
 func handleMagicLancerFullnessDiscardStepChoice(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
 	currentID, _ := ctxData["current_player_id"].(string)
-	target := rt.LookupPlayer(currentID)
+	target := rt.GetPlayers()[currentID]
 	if target == nil {
 		return fmt.Errorf("弃牌目标不存在")
 	}
@@ -410,7 +416,9 @@ func handleMagicLancerFullnessDiscardStepChoice(rt engineplayer.ChoiceRuntime, s
 	ctxData["order_index"] = runtimeutil.ToIntContextValue(ctxData["order_index"]) + 1
 	done := prepareFullnessStep(rt, ctxData, user)
 	if !done {
-		_ = rt.ReplacePendingInterruptContext(ctxData)
+		if intr := rt.GetPendingInterrupt(); intr != nil {
+			intr.Context = ctxData
+		}
 		rt.NotifyInterruptPrompt()
 		return nil
 	}
@@ -422,7 +430,7 @@ func handleMagicLancerFullnessDiscardStepChoice(rt engineplayer.ChoiceRuntime, s
 	model.AppendAttackAction(user, "充盈")
 	rt.Log(fmt.Sprintf("%s 的 [充盈] 结算完成：本回合下次主动攻击伤害额外+%d，额外获得1次攻击行动", user.Name, bonus))
 	rt.PopInterrupt()
-	if !rt.HasPendingInterrupt() {
+	if rt.GetPendingInterrupt() == nil {
 		if !rt.RoutePendingDamageWithReturn(model.TurnStageExtraAction) {
 			rt.EnterExtraActionStage()
 		}
@@ -432,7 +440,7 @@ func handleMagicLancerFullnessDiscardStepChoice(rt engineplayer.ChoiceRuntime, s
 
 func handleMagicLancerStardustTargetChoice(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -447,12 +455,12 @@ func handleMagicLancerStardustTargetChoice(rt engineplayer.ChoiceRuntime, select
 		Damage:     2,
 		DamageType: model.MagicAttack,
 	})
-	if target := rt.LookupPlayer(targetID); target != nil {
+	if target := rt.GetPlayers()[targetID]; target != nil {
 		rt.Log(fmt.Sprintf("%s 发动 [幻影星尘]：对 %s 造成2点法术伤害", user.Name, target.Name))
 	}
 	rt.PopInterrupt()
-	if !rt.HasPendingInterrupt() {
-		if rt.PendingDamageQueueLen() > 0 {
+	if rt.GetPendingInterrupt() == nil {
+		if len(rt.GetPendingDamageQueue()) > 0 {
 			rt.EnterDamageResolution(nil)
 		} else {
 			rt.EnterExtraActionStage()
@@ -494,11 +502,11 @@ func removeCardsByIndicesFromHandLocal(player *model.Player, indices []int) ([]m
 
 // reverseOrderEnemies returns enemy player IDs in reverse play order from the source.
 func reverseOrderEnemies(rt engineplayer.ChoiceRuntime, sourceID string) []string {
-	playerOrder := rt.PlayerOrder()
+	playerOrder := rt.GetPlayerOrder()
 	if len(playerOrder) == 0 {
 		return nil
 	}
-	source := rt.LookupPlayer(sourceID)
+	source := rt.GetPlayers()[sourceID]
 	if source == nil {
 		return nil
 	}
@@ -517,7 +525,7 @@ func reverseOrderEnemies(rt engineplayer.ChoiceRuntime, sourceID string) []strin
 	for step := 1; step < n; step++ {
 		idx := (start - step + n) % n
 		pid := playerOrder[idx]
-		if p := rt.LookupPlayer(pid); p != nil && p.Camp != source.Camp {
+		if p := rt.GetPlayers()[pid]; p != nil && p.Camp != source.Camp {
 			ids = append(ids, pid)
 		}
 	}
@@ -537,7 +545,7 @@ func prepareFullnessStep(rt engineplayer.ChoiceRuntime, ctxData map[string]inter
 	}
 	for idx < len(orderIDs) {
 		pid := orderIDs[idx]
-		target := rt.LookupPlayer(pid)
+		target := rt.GetPlayers()[pid]
 		if target == nil {
 			idx++
 			continue

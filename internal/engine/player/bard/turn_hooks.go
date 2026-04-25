@@ -71,8 +71,8 @@ func TryDescentAfterMagicDamage(rt engineplayer.ChoiceRuntime, pd *model.Pending
 	if pd == nil || pd.Damage <= 0 {
 		return false
 	}
-	source := rt.LookupPlayer(pd.SourceID)
-	target := rt.LookupPlayer(pd.TargetID)
+	source := rt.GetPlayers()[pd.SourceID]
+	target := rt.GetPlayers()[pd.TargetID]
 	if source == nil || target == nil || source.Camp == target.Camp {
 		return false
 	}

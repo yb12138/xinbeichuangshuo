@@ -226,8 +226,8 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, playerID string
 func handleBeastReturnX(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	userID, _ := ctxData["user_id"].(string)
 	sourceID, _ := ctxData["source_id"].(string)
-	user := rt.LookupPlayer(userID)
-	source := rt.LookupPlayer(sourceID)
+	user := rt.GetPlayers()[userID]
+	source := rt.GetPlayers()[sourceID]
 	if user == nil {
 		return fmt.Errorf("兽返执行者不存在")
 	}
@@ -279,8 +279,8 @@ func handleBeastReturnX(rt engineplayer.ChoiceRuntime, ctxData map[string]interf
 func handleReversalX(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	userID, _ := ctxData["user_id"].(string)
 	targetID, _ := ctxData["target_id"].(string)
-	user := rt.LookupPlayer(userID)
-	target := rt.LookupPlayer(targetID)
+	user := rt.GetPlayers()[userID]
+	target := rt.GetPlayers()[targetID]
 	if user == nil || target == nil {
 		return fmt.Errorf("逆反居合斩上下文目标不存在")
 	}
@@ -331,7 +331,7 @@ func handleReversalX(rt engineplayer.ChoiceRuntime, ctxData map[string]interface
 
 func handleIaijutsuStyleMode(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("御魂流居合式执行者不存在")
 	}
@@ -385,8 +385,8 @@ func handleIaijutsuStyleMode(rt engineplayer.ChoiceRuntime, ctxData map[string]i
 func handleAlertSourceDiscard(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	userID, _ := ctxData["user_id"].(string)
 	actorID, _ := ctxData["actor_id"].(string)
-	user := rt.LookupPlayer(userID)
-	actor := rt.LookupPlayer(actorID)
+	user := rt.GetPlayers()[userID]
+	actor := rt.GetPlayers()[actorID]
 	if user == nil || actor == nil {
 		return fmt.Errorf("兽魂警戒弃牌上下文不存在")
 	}
@@ -407,8 +407,8 @@ func handleAlertSourceDiscard(rt engineplayer.ChoiceRuntime, ctxData map[string]
 func handleBeastReturnSelfDiscard(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	userID, _ := ctxData["user_id"].(string)
 	sourceID, _ := ctxData["source_id"].(string)
-	user := rt.LookupPlayer(userID)
-	source := rt.LookupPlayer(sourceID)
+	user := rt.GetPlayers()[userID]
+	source := rt.GetPlayers()[sourceID]
 	if user == nil {
 		return fmt.Errorf("兽返弃牌执行者不存在")
 	}
@@ -438,8 +438,8 @@ func handleBeastReturnSelfDiscard(rt engineplayer.ChoiceRuntime, ctxData map[str
 func handleBeastReturnSourceDiscard(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	userID, _ := ctxData["user_id"].(string)
 	sourceID, _ := ctxData["source_id"].(string)
-	user := rt.LookupPlayer(userID)
-	source := rt.LookupPlayer(sourceID)
+	user := rt.GetPlayers()[userID]
+	source := rt.GetPlayers()[sourceID]
 	if user == nil || source == nil {
 		return fmt.Errorf("兽返来源弃牌上下文不存在")
 	}
@@ -459,7 +459,7 @@ func handleBeastReturnSourceDiscard(rt engineplayer.ChoiceRuntime, ctxData map[s
 
 func handleIaijutsuStyleDiscard(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("御魂流居合式弃牌执行者不存在")
 	}
@@ -475,7 +475,7 @@ func handleIaijutsuStyleDiscard(rt engineplayer.ChoiceRuntime, ctxData map[strin
 
 func handleReversalTargetDiscard(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	targetID, _ := ctxData["target_id"].(string)
-	target := rt.LookupPlayer(targetID)
+	target := rt.GetPlayers()[targetID]
 	if target == nil {
 		return fmt.Errorf("逆反居合斩目标不存在")
 	}
@@ -546,18 +546,18 @@ func choiceResumePointValue(raw interface{}) (interface{}, bool) {
 // to the appropriate next phase.
 func finishResume(rt engineplayer.ChoiceRuntime, resumePoint interface{}) {
 	rt.PopInterrupt()
-	if rt.HasPendingInterrupt() {
+	if rt.GetPendingInterrupt() != nil {
 		return
 	}
 	if _, ok := choiceResumePointValue(resumePoint); ok {
 		rt.ApplyChoiceResumePoint(resumePoint)
 		return
 	}
-	if rt.PendingDamageQueueLen() > 0 {
+	if len(rt.GetPendingDamageQueue()) > 0 {
 		rt.EnterDamageResolution(nil)
 		return
 	}
-	if rt.ActionQueueLen() > 0 {
+	if len(rt.GetActionQueue()) > 0 {
 		rt.EnterActionExecutionStage()
 		return
 	}
@@ -570,7 +570,7 @@ func finishReversal(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{
 	if target != nil && actualDiscarded < need {
 		userName := "兽灵武士"
 		if userID, ok := ctxData["user_id"].(string); ok {
-			if user := rt.LookupPlayer(userID); user != nil {
+			if user := rt.GetPlayers()[userID]; user != nil {
 				userName = user.Name
 			}
 		}
@@ -620,8 +620,10 @@ func replaceDiscardInterrupt(rt engineplayer.ChoiceRuntime, playerID string, ctx
 	if _, ok := ctxData["choice_type"].(string); !ok || ctxData["choice_type"] == "" {
 		ctxData["choice_type"] = "system_discard_cards"
 	}
-	_ = rt.ReplacePendingInterruptContext(ctxData)
-	rt.ReplacePendingInterruptPlayerID(playerID)
+	if intr := rt.GetPendingInterrupt(); intr != nil {
+		intr.Context = ctxData
+		intr.PlayerID = playerID
+	}
 	rt.NotifyInterruptPrompt()
 }
 
@@ -682,9 +684,10 @@ func zeroPendingAttackDamage(rt engineplayer.ChoiceRuntime, ctxData map[string]i
 		return
 	}
 	// Walk the pending damage queue via ChoiceRuntime and zero-out the matching attack damage.
-	for i := 0; i < rt.PendingDamageQueueLen(); i++ {
-		pd, ok := rt.GetPendingDamage(i)
-		if !ok || pd == nil {
+	queue := rt.GetPendingDamageQueue()
+	for i := range queue {
+		pd := &queue[i]
+		if pd == nil {
 			continue
 		}
 		if pd.SourceID == rawCtx.User.ID && pd.DamageType == model.AttackDamage && pd.Card != nil {

@@ -94,7 +94,7 @@ func saintHealStageFromContext(data map[string]interface{}, targetIDs []string) 
 func saintHealAllocationSummary(rt player.ChoiceRuntime, targetIDs []string, allocations map[string]int) string {
 	parts := make([]string, 0, len(targetIDs))
 	for _, targetID := range targetIDs {
-		target := rt.LookupPlayer(targetID)
+		target := rt.GetPlayers()[targetID]
 		if target == nil {
 			continue
 		}
@@ -121,7 +121,7 @@ func parseSaintHealExtraActionSelection(selection int) (string, string, error) {
 // --- SaintHeal prompt ---
 
 func buildSaintHealPrompt(rt player.ChoiceRuntime) *model.Prompt {
-	interrupt := rt.PendingInterrupt()
+	interrupt := rt.GetPendingInterrupt()
 	if interrupt == nil {
 		return nil
 	}
@@ -139,8 +139,8 @@ func buildSaintHealPrompt(rt player.ChoiceRuntime) *model.Prompt {
 		if len(targetIDs) != 2 {
 			return nil
 		}
-		first := rt.LookupPlayer(targetIDs[0])
-		second := rt.LookupPlayer(targetIDs[1])
+		first := rt.GetPlayers()[targetIDs[0]]
+		second := rt.GetPlayers()[targetIDs[1]]
 		if first == nil || second == nil {
 			return nil
 		}
@@ -181,7 +181,7 @@ func buildSaintHealPrompt(rt player.ChoiceRuntime) *model.Prompt {
 // --- SaintHeal action ---
 
 func handleSaintHealAction(rt player.ChoiceRuntime, act model.PlayerAction) error {
-	interrupt := rt.PendingInterrupt()
+	interrupt := rt.GetPendingInterrupt()
 	if interrupt == nil {
 		return fmt.Errorf("没有待处理的中断")
 	}
@@ -237,8 +237,9 @@ func resolveSaintHealAllocationStage(
 
 	data["allocations"] = allocations
 	data["stage"] = saintHealStageChooseExtraAction
-	if err := rt.ReplacePendingInterruptContext(data); err != nil {
-		return err
+	intr := rt.GetPendingInterrupt()
+	if intr != nil {
+		intr.Context = data
 	}
 	rt.NotifyInterruptPrompt()
 	return nil
@@ -250,7 +251,7 @@ func resolveSaintHealExtraActionStage(
 	data map[string]interface{},
 	targetIDs []string,
 ) error {
-	p := rt.LookupPlayer(act.PlayerID)
+	p := rt.GetPlayers()[act.PlayerID]
 	if p == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -273,7 +274,7 @@ func resolveSaintHealExtraActionStage(
 			continue
 		}
 		rt.Heal(targetID, healAmount)
-		if target := rt.LookupPlayer(targetID); target != nil {
+		if target := rt.GetPlayers()[targetID]; target != nil {
 			rt.Log(fmt.Sprintf("[Skill] %s 获得 %d 点治疗", target.Name, healAmount))
 		}
 	}

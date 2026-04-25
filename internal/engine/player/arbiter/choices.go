@@ -45,7 +45,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, playerID string
 }
 
 func handleArbiterBalanceChoice(rt engineplayer.ChoiceRuntime, playerID string, selectionIndex int, ctxData map[string]interface{}) error {
-	user := rt.LookupPlayer(playerID)
+	user := rt.GetPlayers()[playerID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}

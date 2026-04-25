@@ -38,7 +38,7 @@ func ApplyFactionCounterBonuses(rt engineplayer.ChoiceRuntime, actor *model.Play
 	if actor == nil || card == nil {
 		return
 	}
-	beforePoses := rt.SnapshotPlayerPoses()
+	defer rt.PoseChangeGuard()
 
 	// 阴阳转换：鬼火+1
 	if actor.Tokens == nil {
@@ -64,7 +64,6 @@ func ApplyFactionCounterBonuses(rt engineplayer.ChoiceRuntime, actor *model.Play
 	if card.Damage < 0 {
 		card.Damage = 0
 	}
-	rt.DispatchOrientationChanges(beforePoses)
 }
 
 // triggerShikigamiShift 通过正式技能 handler 触发式神转换。

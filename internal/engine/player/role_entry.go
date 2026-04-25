@@ -23,6 +23,137 @@ type CombatPolicyRuntime interface {
 	GetMagicBulletChain() *model.MagicBulletChain
 }
 
+// StateReader 状态读取器，暴露 GameState 的只读访问。
+type StateReader interface {
+	// 玩家
+	GetPlayers() map[string]*model.Player
+	GetPlayerOrder() []string
+	GetCurrentTurnIndex() int
+
+	// 阵营士气
+	GetRedMorale() int
+	GetBlueMorale() int
+
+	// 中断与队列
+	GetPendingInterrupt() *model.Interrupt
+	GetPendingDamageQueue() []model.PendingDamage
+	GetCombatStack() []model.CombatRequest
+	GetActionQueue() []model.QueuedAction
+
+	// 牌堆
+	GetDiscardPile() []model.Card
+	GetDeck() []model.Card
+
+	// 阶段状态
+	GetTurnStage() model.TurnStage
+	GetCombatStage() model.CombatStage
+	GetSubflow() model.Subflow
+
+	// 魔弹链
+	GetMagicBulletChain() *model.MagicBulletChain
+}
+
+// EffectCardOps 效果牌增删改查。
+type EffectCardOps interface {
+	FindEffectCard(source *model.Player, effect model.EffectType) (*model.Player, *model.FieldCard)
+	AttachEffectCard(source, target *model.Player, effect model.EffectType, card model.Card) error
+	DetachEffectCard(source *model.Player, effect model.EffectType) (*model.Player, model.Card, bool)
+	RemoveEffectCard(source *model.Player, effect model.EffectType, restoreCard bool) bool
+	EmitBuffRemovedDispatch(sourceID, targetID string, effect model.EffectType)
+}
+
+// InterruptOps 中断流程管理（仅保留 orchestrator 调用）。
+type InterruptOps interface {
+	PopInterrupt()
+	NotifyInterruptPrompt()
+	PushInterrupt(intr *model.Interrupt)
+	PushDiscardChoiceInterrupt(playerID string, data map[string]interface{})
+}
+
+// StageOps 阶段切换。
+type StageOps interface {
+	EnterExtraActionStage()
+	EnterTurnEndStage()
+	EnterDamageResolution(returnTo interface{})
+	EnterActionExecutionStage()
+	EnterActionEndStage()
+	EnterResponseWindow()
+	ApplyChoiceResumePoint(raw interface{})
+}
+
+// DamageOps 伤害路由。
+type DamageOps interface {
+	RoutePendingDamageOr(defaultReturn interface{}, onNoPending func()) bool
+	RoutePendingDamageWithReturn(returnTo interface{}) bool
+	ResumePendingMoraleLoss(ctx *model.Context) bool
+}
+
+// CombatOps 战斗操作。
+type CombatOps interface {
+	EnsureCombatInteractionWindow()
+	ResolveCounterAttack(counterPlayerID, counterTargetID string, counterCard model.Card)
+	NotifyCombatCue(attackerID, targetID, cueType string)
+	ConsumePlayableCardByCardID(playerID, cardID string) (model.Card, bool)
+	ApplyStealthEffect(player *model.Player)
+	EnqueueVirtualAttack(sourceID, targetID string, card model.Card, sourceSkill string)
+	ResumePendingAttackMiss(ctx *model.Context) bool
+	ResumePendingAttackHit(ctxData map[string]interface{})
+}
+
+// DrawOps 抽牌流程。
+type DrawOps interface {
+	DrawCardsDirect(playerID string, amount int, reason string)
+	DrawRawCards(amount int) ([]model.Card, bool)
+	StartDraw(ctx *model.Context)
+	NewDrawContext(player *model.Player, amount int, reason string) *model.Context
+	RestorePhaseAfterInterruptedDraw(ctx *model.Context) bool
+}
+
+// HandOps 手牌上限 + 弃牌堆特殊操作。
+type HandOps interface {
+	RoleFixedMaxHandCapValue(player *model.Player) (int, bool)
+	TakeDiscardPileCardByID(cardID string) (model.Card, bool)
+}
+
+// PoseOps 姿态快照。
+type PoseOps interface {
+	PoseChangeGuard() func()
+}
+
+// MagicBulletOps 魔弹系统。
+type MagicBulletOps interface {
+	SetMagicBulletChain(chain *model.MagicBulletChain)
+	GetPlayableCardByIndex(player *model.Player, idx int) (model.Card, bool)
+	ConsumePlayableCardByIndex(player *model.Player, idx int) (model.Card, error)
+	PerformMagic(playerID, targetID string, cardIdx int, isFusion bool) error
+	ExecuteMagicBullet(player *model.Player, reverse, isFusion bool, fusionCard *model.Card) error
+	FindNextMagicBulletTarget(playerID string) string
+	DispatchHitCheckMagicMissileCounter(player *model.Player, chain *model.MagicBulletChain, card *model.Card) error
+	DispatchHitCheckMagicMissileDefend(player *model.Player, chain *model.MagicBulletChain) error
+}
+
+// SkillOps 技能状态与记录。
+type SkillOps interface {
+	IsSkillStillUsable(skillID string, user *model.Player, ctx *model.Context) bool
+	RecordSkillUsage(playerID, title string, skillType model.SkillType)
+	IsActionSkillUsableForExtraMagic(player *model.Player, skillDef model.SkillDefinition) bool
+	RecordMagicDamageTarget(sourceID, targetID string)
+	MagicDamageTargetCount(sourceID string) int
+}
+
+// MoraleOps 士气操作（仅保留有逻辑的）。
+type MoraleOps interface {
+	AddCampMorale(camp model.Camp, amount int) int
+	ApplyCampMoraleLoss(camp model.Camp, wantLoss int) int
+}
+
+// GameOps 游戏状态。
+type GameOps interface {
+	CheckGameEnd()
+	RefreshAllPlayerDerivedStates()
+	BuildContext(user, target *model.Player, timing model.FlowTiming, eventCtx *model.EventContext) *model.Context
+}
+
 // CombatPolicyContext 战斗策略上下文。
 type CombatPolicyContext struct {
 	Player        *model.Player
@@ -49,100 +180,46 @@ type ChoiceSpec struct {
 	HandleChoice func(rt ChoiceRuntime, playerID string, selectionIndex int, data map[string]interface{}) (bool, error)
 }
 
-// ChoiceRuntime 抽象角色选择流运行时能力。
+// ChoiceRuntime 抽象角色选择流运行时能力（嵌入子接口的组合接口）。
 type ChoiceRuntime interface {
 	model.IGameEngine
+	StateReader    // 状态读取（通用字段访问）
+	EffectCardOps  // 效果牌增删改查
+	InterruptOps   // 中断流程管理
+	StageOps       // 阶段切换
+	DamageOps      // 伤害路由
+	CombatOps      // 战斗操作
+	DrawOps        // 抽牌流程
+	HandOps        // 手牌上限 + 弃牌堆特殊操作
+	PoseOps        // 姿态快照
+	MagicBulletOps // 魔弹系统
+	SkillOps       // 技能状态与记录
+	MoraleOps      // 士气操作
+	GameOps        // 游戏状态
+
+	// PendingDamage direct access for choice handlers
+	GetPendingDamage() *model.PendingDamage
+	GetPendingDamageByIndex(index int) (*model.PendingDamage, bool)
+
+	// PendingDiscard victim helper
+	PendingDiscardVictimID() string
+
+	// Convenience methods for backward compatibility
 	LookupPlayer(playerID string) *model.Player
-	AllPlayers() map[string]*model.Player
-	PlayerOrder() []string
-	PopInterrupt()
 	HasPendingInterrupt() bool
-	NotifyInterruptPrompt()
-	DrawCardsDirect(playerID string, amount int, reason string)
-	DrawRawCards(amount int) ([]model.Card, bool)
-	EnsureCombatInteractionWindow()
+	PendingDamageQueueLen() int
+	ActionQueueLen() int
+	AllPlayers() []*model.Player
 	ReplacePendingInterruptContext(data map[string]interface{}) error
 	ReplacePendingInterruptPlayerID(playerID string)
-	ResumePendingAttackMiss(ctx *model.Context) bool
-	ResumePendingAttackHit(ctxData map[string]interface{})
-	ApplyChoiceResumePoint(raw interface{})
-	RoutePendingDamageOr(defaultReturn interface{}, onNoPending func()) bool
-	RoutePendingDamageWithReturn(returnTo interface{}) bool
-	EnterExtraActionStage()
-	EnterTurnEndStage()
-	EnterDamageResolution(returnTo interface{})
-	EnterActionExecutionStage()
-	AllOtherPlayerIDs(userID string) []string
-	PlayerOrderPosition(playerID string) int
-	StartDraw(ctx *model.Context)
-	NewDrawContext(player *model.Player, amount int, reason string) *model.Context
-	RestorePhaseAfterInterruptedDraw(ctx *model.Context) bool
-	PushInterrupt(intr *model.Interrupt)
-	PendingDamageQueueLen() int
-	GetPendingDamage(index int) (*model.PendingDamage, bool)
-	ActionQueueLen() int
-	AttachExclusiveEffectCard(sourceID, targetID string, effect model.EffectType, card model.Card) error
-	ResumePendingMoraleLoss(ctx *model.Context) bool
-	EnterResponseWindow()
-	ApplyStealthEffect(player *model.Player)
-	EnqueueVirtualAttack(sourceID, targetID string, card model.Card, sourceSkill string)
-	ApplyCampMoraleLoss(camp model.Camp, wantLoss int) int
-	ResolveCounterAttack(counterPlayerID, counterTargetID string, counterCard model.Card)
-	NotifyCombatCue(attackerID, targetID, cueType string)
-	ConsumePlayableCardByCardID(playerID, cardID string) (model.Card, bool)
-	TopCombatRequest() *model.CombatRequest
-	PopCombatRequest()
 	PendingInterrupt() *model.Interrupt
-	RoutePendingDamageWithDefaultReturn(defaultReturn interface{}) bool
-	RestoreReturnPoint() bool
-	PushDiscardChoiceInterrupt(playerID string, data map[string]interface{})
-	EnterActionEndStage()
-	MagicBulletChain() *model.MagicBulletChain
-	SetMagicBulletChain(chain *model.MagicBulletChain)
-	SetReturnPoint(returnTo interface{})
-	GetPlayableCardByIndex(player *model.Player, idx int) (model.Card, bool)
-	ConsumePlayableCardByIndex(player *model.Player, idx int) (model.Card, error)
-	PerformMagic(playerID, targetID string, cardIdx int, isFusion bool) error
-	ExecuteMagicBullet(player *model.Player, reverse, isFusion bool, fusionCard *model.Card) error
-	FindNextMagicBulletTarget(playerID string) string
-	DispatchHitCheckMagicMissileCounter(player *model.Player, chain *model.MagicBulletChain, card *model.Card) error
-	DispatchHitCheckMagicMissileDefend(player *model.Player, chain *model.MagicBulletChain) error
 	AddToDiscardPile(cards ...model.Card)
-	CheckGameEnd()
+	SetReturnPoint(returnTo interface{})
+	MagicBulletChain() *model.MagicBulletChain
+	PlayerOrder() []string
+	TopCombatRequest() *model.CombatRequest
 	CampEnemyIDs(camp model.Camp) []string
-	CampMorale(camp model.Camp) int
-	AddCampMorale(camp model.Camp, amount int) int
-	PendingDiscardVictimID() string
-	NotifyCardHidden(playerID string, cards []model.Card, actionType model.DamageType)
-	MarkPendingAttackDamageHitProcessed(ctx *model.Context) bool
-	SyncGamePhaseWithInterrupt(intr *model.Interrupt)
-	SnapshotPlayerPoses() map[string]PoseSnapshot
-	DispatchOrientationChanges(before map[string]PoseSnapshot)
-	FindSourceEffectCard(source *model.Player, effect model.EffectType) (*model.Player, *model.FieldCard)
-	AttachSourceEffectCard(source, target *model.Player, effect model.EffectType, card model.Card) error
-	DetachSourceEffectCard(source *model.Player, effect model.EffectType) (*model.Player, model.Card, bool)
-	FindExclusiveEffectCard(source *model.Player, effect model.EffectType) (*model.Player, *model.FieldCard)
-	DetachExclusiveEffectCard(source *model.Player, effect model.EffectType) (*model.Player, model.Card, bool)
-	RemoveExclusiveEffectCard(source *model.Player, effect model.EffectType, restoreCard bool) bool
-	EmitBuffRemovedDispatch(sourceID, targetID string, effect model.EffectType)
-	InitCombat(attackerID, targetID string, card *model.Card, isForcedHit, canBeResponded, ignoreShield bool, interceptTags map[model.CombatInterceptTag]bool, isCounter ...bool)
-	ResolveMagicBowPierceMiss(attackerID, targetID string, attackCard *model.Card, isCounter bool)
-	HasFixedMaxHandCap(player *model.Player) bool
-	HasMercyFixedMaxHandCap(player *model.Player) bool
-	RoleFixedMaxHandCapValue(player *model.Player) (int, bool)
-	RefreshAllPlayerDerivedStates()
-	SyncHolyLancerRevelationMaxHeal(player *model.Player)
-	BuildContext(user, target *model.Player, timing model.FlowTiming, eventCtx *model.EventContext) *model.Context
-	TakeDiscardPileCardByID(cardID string) (model.Card, bool)
-	IsSkillStillUsable(skillID string, user *model.Player, ctx *model.Context) bool
-	CurrentTurnPlayerID() string
-	RecordMagicDamageTarget(sourceID, targetID string)
-	MagicDamageTargetCount(sourceID string) int
-	RecordSkillUsage(playerID, title string, skillType model.SkillType)
-	IsActionSkillUsableForExtraMagic(player *model.Player, skillDef model.SkillDefinition) bool
-	FighterLockedTarget(player *model.Player) *model.Player
-	ClearFighterHundredDragon(player *model.Player, logLine string) bool
-	CanCastMagicInAction(player *model.Player) bool
+	AllOtherPlayerIDs(userID string) []string
 }
 
 // ChoiceHandler 抽象角色选择流入口。

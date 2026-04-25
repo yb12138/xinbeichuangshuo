@@ -23,7 +23,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 	}
 	switch choiceType {
 	case "frost_prayer_target":
-		options := buildPromptOptionsForPlayerIDs(rt.AllPlayers(), runtimeutil.ParseStringSliceContextValue(data["target_ids"]))
+		options := buildPromptOptionsForPlayerIDs(rt.GetPlayers(), runtimeutil.ParseStringSliceContextValue(data["target_ids"]))
 		if len(options) == 0 {
 			return nil
 		}
@@ -55,7 +55,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 
 func handleFrostPrayerChoice(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -65,7 +65,7 @@ func handleFrostPrayerChoice(rt engineplayer.ChoiceRuntime, selectionIndex int, 
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
 	targetID := targetIDs[selectionIndex]
-	target := rt.LookupPlayer(targetID)
+	target := rt.GetPlayers()[targetID]
 	if target == nil {
 		return fmt.Errorf("目标不存在")
 	}
@@ -74,7 +74,7 @@ func handleFrostPrayerChoice(rt engineplayer.ChoiceRuntime, selectionIndex int, 
 	rt.Log(fmt.Sprintf("%s 的 [冰霜祷言] 生效：%s +1治疗", user.Name, target.Name))
 	rt.PopInterrupt()
 
-	if !rt.HasPendingInterrupt() {
+	if rt.GetPendingInterrupt() == nil {
 		if rawCtx, _ := ctxData["user_ctx"].(*model.Context); rawCtx != nil && rawCtx.ResumeAttackMissPhase() {
 			if rt.ResumePendingAttackMiss(rawCtx) {
 				return nil

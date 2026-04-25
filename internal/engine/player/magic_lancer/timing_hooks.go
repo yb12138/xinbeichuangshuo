@@ -53,16 +53,20 @@ func postDamageResolvedHook(rt player.HookRuntime, ctx player.TimingHookContext)
 		return player.TimingHookResult{}
 	}
 	before := source.TurnState.SkillFlowState["ml_stardust_morale_before"]
-	current := rt.CampMorale(source.Camp)
+	var current int
+	if source.Camp == model.RedCamp {
+		current = rt.GetRedMorale()
+	} else {
+		current = rt.GetBlueMorale()
+	}
 	source.TurnState.SkillFlowState["ml_stardust_pending"] = 0
 	source.TurnState.SkillFlowState["ml_stardust_wait_discard"] = 0
 	source.TurnState.SkillFlowState["ml_stardust_morale_before"] = 0
 	// Leave phantom form if applicable
 	if player.HasForm(source, model.FormMagicLancerPhantom) {
-		beforePoses := rt.SnapshotPlayerPoses()
+		defer rt.PoseChangeGuard()
 		player.ClearForm(source, model.FormMagicLancerPhantom)
 		rt.Log(fmt.Sprintf("%s 的 [幻影星尘] 结算完成，脱离幻影形态并转正", source.Name))
-		rt.DispatchOrientationChanges(beforePoses)
 	}
 	if before > 0 && current < before {
 		rt.Log(fmt.Sprintf("%s 的 [幻影星尘] 未触发后续伤害：本次自伤导致己方士气下降", source.Name))
@@ -70,8 +74,8 @@ func postDamageResolvedHook(rt player.HookRuntime, ctx player.TimingHookContext)
 	}
 	// Find enemy targets
 	targetIDs := make([]string, 0)
-	for _, pid := range rt.PlayerOrder() {
-		if p := rt.GetPlayer(pid); p != nil && p.Camp != source.Camp {
+	for _, pid := range rt.GetPlayerOrder() {
+		if p := rt.GetPlayers()[pid]; p != nil && p.Camp != source.Camp {
 			targetIDs = append(targetIDs, pid)
 		}
 	}
@@ -80,8 +84,8 @@ func postDamageResolvedHook(rt player.HookRuntime, ctx player.TimingHookContext)
 	if len(targetIDs) == 0 {
 		return player.TimingHookResult{}
 	}
-	if lockedOrder > 0 && lockedOrder <= len(rt.PlayerOrder()) {
-		lockedID := rt.PlayerOrder()[lockedOrder-1]
+	if lockedOrder > 0 && lockedOrder <= len(rt.GetPlayerOrder()) {
+		lockedID := rt.GetPlayerOrder()[lockedOrder-1]
 		for _, tid := range targetIDs {
 			if tid != lockedID {
 				continue

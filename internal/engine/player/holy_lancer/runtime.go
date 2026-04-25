@@ -21,11 +21,6 @@ func SyncRevelationMaxHeal(rt engineplayer.ChoiceRuntime, player *model.Player) 
 	player.MaxHeal = maxHeal
 }
 
-// SyncDerivedStateOnPlayerSetup refreshes holy lancer derived state on player setup.
-func SyncDerivedStateOnPlayerSetup(rt engineplayer.ChoiceRuntime, player *model.Player) {
-	SyncRevelationMaxHeal(rt, player)
-}
-
 // SyncDerivedStateOnCampCupChanged refreshes all player derived states when a camp cup changes.
 func SyncDerivedStateOnCampCupChanged(rt engineplayer.ChoiceRuntime) {
 	rt.RefreshAllPlayerDerivedStates()

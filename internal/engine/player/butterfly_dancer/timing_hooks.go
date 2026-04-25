@@ -67,7 +67,7 @@ func damageBeforeApplyHook(rt player.HookRuntime, ctx player.TimingHookContext) 
 
 	// 毒粉：伤害为1时，蝶舞者可移除1个茧令伤害+1
 	if pd.Damage == 1 {
-		for _, pid := range rt.PlayerOrder() {
+		for _, pid := range rt.GetPlayerOrder() {
 			user := rt.GetPlayer(pid)
 			if user == nil || !rt.IsCharacter(user, "butterfly_dancer") || CocoonCount(user) <= 0 {
 				continue
@@ -96,7 +96,7 @@ func damageBeforeApplyHook(rt player.HookRuntime, ctx player.TimingHookContext) 
 
 	// 镜花水月：伤害为2时，蝶舞者可移除2张同系茧改写伤害来源
 	if pd.Damage == 2 {
-		for _, pid := range rt.PlayerOrder() {
+		for _, pid := range rt.GetPlayerOrder() {
 			user := rt.GetPlayer(pid)
 			if user == nil || !rt.IsCharacter(user, "butterfly_dancer") || CocoonCount(user) < 2 {
 				continue

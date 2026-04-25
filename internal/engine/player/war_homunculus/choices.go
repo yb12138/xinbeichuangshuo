@@ -124,7 +124,7 @@ func buildDualEchoTargetPrompt(rt engineplayer.ChoiceRuntime, playerID string, d
 	targetIDs := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
 	options := make([]model.PromptOption, 0, len(targetIDs)+1)
 	for _, targetID := range targetIDs {
-		if target := rt.LookupPlayer(targetID); target != nil {
+		if target := rt.GetPlayers()[targetID]; target != nil {
 			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", len(options)), Label: target.Name})
 		}
 	}
@@ -181,7 +181,7 @@ func (choiceHandler) HandleCancel(rt engineplayer.ChoiceRuntime, _ string, ctxDa
 
 func handleRuneReforgeDistribution(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -200,7 +200,7 @@ func handleRuneReforgeDistribution(rt engineplayer.ChoiceRuntime, ctxData map[st
 	user.Tokens["hom_magic_rune"] = total - warRunes
 	rt.Log(fmt.Sprintf("%s 的 [符文改造]：战纹=%d，魔纹=%d", user.Name, user.Tokens["hom_war_rune"], user.Tokens["hom_magic_rune"]))
 	rt.PopInterrupt()
-	if !rt.HasPendingInterrupt() {
+	if rt.GetPendingInterrupt() == nil {
 		rt.ApplyChoiceResumePoint(model.TurnStageActionStart)
 	}
 	return nil
@@ -238,7 +238,7 @@ func handleRuneX(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, 
 
 func handleRuneCards(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int, glyph bool) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -302,7 +302,7 @@ func handleRuneY(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, 
 
 func handleDualEchoTarget(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -323,11 +323,11 @@ func handleDualEchoTarget(rt engineplayer.ChoiceRuntime, ctxData map[string]inte
 	}
 	targetID := targetIDs[selectionIndex]
 	rt.AddPendingDamage(model.PendingDamage{SourceID: user.ID, TargetID: targetID, Damage: damage, DamageType: "magic_no_morale"})
-	if target := rt.LookupPlayer(targetID); target != nil {
+	if target := rt.GetPlayers()[targetID]; target != nil {
 		rt.Log(fmt.Sprintf("%s 的 [双重回响] 对 %s 造成%d点法术伤害", user.Name, target.Name, damage))
 	}
 	rt.PopInterrupt()
-	if !rt.HasPendingInterrupt() && rt.PendingDamageQueueLen() > 0 {
+	if rt.GetPendingInterrupt() == nil && rt.PendingDamageQueueLen() > 0 {
 		rt.EnterDamageResolution(nil)
 	}
 	return nil
@@ -340,7 +340,7 @@ func handleDualEchoTarget(rt engineplayer.ChoiceRuntime, ctxData map[string]inte
 // resolveRuneChoice resolves the final outcome of 战纹碎击/魔纹融合.
 func resolveRuneChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, glyph bool) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -394,12 +394,12 @@ func resolveRuneChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]interfa
 		}
 		rt.Log(fmt.Sprintf("%s 发动 [魔纹融合]：弃%d张异系牌，翻转%d个魔纹为战纹，额外造成%d点法术伤害", user.Name, xVal, flipCount, damage))
 		rt.PopInterrupt()
-		if !rt.HasPendingInterrupt() && rawCtx.ResumeAttackMissPhase() {
+		if rt.GetPendingInterrupt() == nil && rawCtx.ResumeAttackMissPhase() {
 			if rt.ResumePendingAttackMiss(rawCtx) {
 				return nil
 			}
 		}
-		if !rt.HasPendingInterrupt() && rt.PendingDamageQueueLen() > 0 {
+		if rt.GetPendingInterrupt() == nil && rt.PendingDamageQueueLen() > 0 {
 			rt.EnterDamageResolution(nil)
 		}
 		return nil
@@ -433,7 +433,9 @@ func resolveRuneChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]interfa
 // updateRuneChoiceContext replaces the current pending interrupt context and
 // re-notifies the prompt.
 func updateRuneChoiceContext(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}) {
-	_ = rt.ReplacePendingInterruptContext(ctxData)
+	if intr := rt.GetPendingInterrupt(); intr != nil {
+		intr.Context = ctxData
+	}
 	rt.NotifyInterruptPrompt()
 }
 

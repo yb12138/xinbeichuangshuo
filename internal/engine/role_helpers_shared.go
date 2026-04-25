@@ -258,14 +258,6 @@ func (e *GameEngine) playerOrderPosition(playerID string) int {
 	return 0
 }
 
-func (e *GameEngine) fighterLockedTarget(player *model.Player) *model.Player {
-	return fighter.LockedTarget(newRoleChoiceRuntime(e), player)
-}
-
-func (e *GameEngine) clearFighterHundredDragon(player *model.Player, logLine string) bool {
-	return fighter.ClearHundredDragon(newRoleChoiceRuntime(e), player, logLine)
-}
-
 func playableCardCount(player *model.Player) int {
 	if player == nil {
 		return 0

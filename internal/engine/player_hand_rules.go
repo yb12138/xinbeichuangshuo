@@ -42,18 +42,6 @@ func (e *GameEngine) roleFixedMaxHandCapValue(player *model.Player) (int, bool) 
 	return e.roleHandLimitRule(player).HardCap(player)
 }
 
-func (e *GameEngine) hasMercyFixedMaxHandCap(player *model.Player) bool {
-	if player == nil {
-		return false
-	}
-	for _, fc := range player.Field {
-		if fc != nil && fc.Mode == model.FieldEffect && fc.Effect == model.EffectMercy {
-			return true
-		}
-	}
-	return false
-}
-
 // GetMaxHand 计算玩家的动态手牌上限
 func (e *GameEngine) GetMaxHand(player *model.Player) int {
 	if player == nil {
@@ -78,16 +66,19 @@ func (e *GameEngine) fixedMaxHandCapValue(player *model.Player) (int, bool) {
 	if fixed, ok := e.roleFixedMaxHandCapValue(player); ok {
 		return fixed, true
 	}
-	if e.hasMercyFixedMaxHandCap(player) {
-		return 7, true
-	}
 	return 0, false
 }
 
-// HasFixedMaxHandCap 判断玩家是否有固定手牌上限（实现 HandLimitModifierEngine 接口）。
+// HasFixedMaxHandCap 判断玩家是否有固定手牌上限。
+// Deprecated: Use RoleFixedMaxHandCapValue instead.
 func (e *GameEngine) HasFixedMaxHandCap(player *model.Player) bool {
 	_, ok := e.fixedMaxHandCapValue(player)
 	return ok
+}
+
+// RoleFixedMaxHandCapValue 返回角色固定手牌上限（实现 HandLimitModifierEngine 接口）。
+func (e *GameEngine) RoleFixedMaxHandCapValue(player *model.Player) (int, bool) {
+	return e.fixedMaxHandCapValue(player)
 }
 
 func (e *GameEngine) applyRoleMaxHandModifiers(player *model.Player, maxHand int) int {

@@ -101,7 +101,7 @@ func (h *HolyLancerSkySpearHandler) Execute(ctx *model.Context) error {
 	if ctx.EventCtx != nil && ctx.EventCtx.AttackInfo != nil {
 		ctx.EventCtx.AttackInfo.CanBeResponded = false
 	}
-	// 通过令牌持久化"本次攻击无法应战"，避免攻击开始响应后的二次进入覆盖状态。
+	// 通过令牌持久化"本次攻击无法应战"，由 attackGatingHook 在流控阶段应用到 CombatRequest。
 	ctx.User.TurnState.UsedSkillCounts["holy_lancer_sky_spear_no_counter"] = 1
 	ctx.User.TurnState.UsedSkillCounts["holy_lancer_block_sacred_strike"] = 1
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [天枪]，移除2治疗，本次攻击不可应战", ctx.User.Name))

@@ -27,7 +27,7 @@ func PlaceSwordEmperorSwordSoul(player *model.Player, card model.Card) bool {
 
 // ResolveAttackMiss 处理剑帝攻击未命中后的完整结算。
 func ResolveAttackMiss(rt engineplayer.ChoiceRuntime, attackerID string, attackCard *model.Card, isCounter bool) {
-	attacker := rt.LookupPlayer(attackerID)
+	attacker := rt.GetPlayers()[attackerID]
 	if attacker == nil || !engineplayer.IsCharacter(attacker, "sword_emperor") || isCounter {
 		return
 	}
@@ -62,7 +62,7 @@ func ResolveAttackHitAftermath(rt engineplayer.ChoiceRuntime, pd *model.PendingD
 	if pd == nil || pd.IsCounter || pd.HasCheck(model.PendingDamageCheckAttackMissResolved) {
 		return
 	}
-	attacker := rt.LookupPlayer(pd.SourceID)
+	attacker := rt.GetPlayers()[pd.SourceID]
 	if attacker == nil || !engineplayer.IsCharacter(attacker, "sword_emperor") {
 		return
 	}

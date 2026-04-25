@@ -104,7 +104,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			Type:     model.PromptConfirm,
 			PlayerID: playerID,
 			Message:  "【替身玩偶】请选择摸1张牌的队友：",
-			Options:  buildPromptOptionsForPlayerIDs(rt.AllPlayers(), runtimeutil.ParseStringSliceContextValue(data["target_ids"])),
+			Options:  buildPromptOptionsForPlayerIDs(rt.GetPlayers(), runtimeutil.ParseStringSliceContextValue(data["target_ids"])),
 			Min:      1,
 			Max:      1,
 		}
@@ -113,7 +113,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			Type:     model.PromptConfirm,
 			PlayerID: playerID,
 			Message:  "【魔能反转】请选择法术伤害目标：",
-			Options:  buildPromptOptionsForPlayerIDs(rt.AllPlayers(), runtimeutil.ParseStringSliceContextValue(data["target_ids"])),
+			Options:  buildPromptOptionsForPlayerIDs(rt.GetPlayers(), runtimeutil.ParseStringSliceContextValue(data["target_ids"])),
 			Min:      1,
 			Max:      1,
 		}
@@ -141,7 +141,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, playerID string
 }
 
 func handleBlazeWitchWrathDrawChoice(rt engineplayer.ChoiceRuntime, playerID string, selectionIndex int, ctxData map[string]interface{}) error {
-	user := rt.LookupPlayer(playerID)
+	user := rt.GetPlayers()[playerID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -153,14 +153,14 @@ func handleBlazeWitchWrathDrawChoice(rt engineplayer.ChoiceRuntime, playerID str
 	}
 	rt.Log(fmt.Sprintf("%s 的 [魔女之怒]：选择摸%d张牌", user.Name, selectionIndex))
 	rt.PopInterrupt()
-	if !rt.HasPendingInterrupt() {
+	if rt.GetPendingInterrupt() == nil {
 		rt.ApplyChoiceResumePoint(ctxData["resume_phase"])
 	}
 	return nil
 }
 
 func handleBlazeWitchSubstituteCardChoice(rt engineplayer.ChoiceRuntime, playerID string, selectionIndex int, ctxData map[string]interface{}) error {
-	user := rt.LookupPlayer(playerID)
+	user := rt.GetPlayers()[playerID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -175,13 +175,16 @@ func handleBlazeWitchSubstituteCardChoice(rt engineplayer.ChoiceRuntime, playerI
 	ctxData["selected_card_index"] = cardIdx
 	ctxData["choice_type"] = "bw_substitute_doll_target"
 	ctxData["target_ids"] = runtimeutil.ParseStringSliceContextValue(ctxData["ally_ids"])
-	rt.ReplacePendingInterruptContext(ctxData)
+	intr := rt.GetPendingInterrupt()
+	if intr != nil {
+		intr.Context = ctxData
+	}
 	rt.NotifyInterruptPrompt()
 	return nil
 }
 
 func handleBlazeWitchManaInversionXChoice(rt engineplayer.ChoiceRuntime, playerID string, selectionIndex int, ctxData map[string]interface{}) error {
-	user := rt.LookupPlayer(playerID)
+	user := rt.GetPlayers()[playerID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -203,13 +206,16 @@ func handleBlazeWitchManaInversionXChoice(rt engineplayer.ChoiceRuntime, playerI
 	ctxData["x_value"] = xValue
 	ctxData["selected_indices"] = []int{}
 	ctxData["remaining_indices"] = magicIndices
-	rt.ReplacePendingInterruptContext(ctxData)
+	intr := rt.GetPendingInterrupt()
+	if intr != nil {
+		intr.Context = ctxData
+	}
 	rt.NotifyInterruptPrompt()
 	return nil
 }
 
 func handleBlazeWitchManaInversionCardsChoice(rt engineplayer.ChoiceRuntime, playerID string, selectionIndex int, ctxData map[string]interface{}) error {
-	user := rt.LookupPlayer(playerID)
+	user := rt.GetPlayers()[playerID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -234,14 +240,17 @@ func handleBlazeWitchManaInversionCardsChoice(rt engineplayer.ChoiceRuntime, pla
 	if len(selected) < xValue {
 		ctxData["selected_indices"] = selected
 		ctxData["remaining_indices"] = nextRemaining
-		rt.ReplacePendingInterruptContext(ctxData)
+		intr := rt.GetPendingInterrupt()
+		if intr != nil {
+			intr.Context = ctxData
+		}
 		rt.NotifyInterruptPrompt()
 		return nil
 	}
 
 	enemyIDs := make([]string, 0)
-	for _, pID := range rt.PlayerOrder() {
-		target := rt.LookupPlayer(pID)
+	for _, pID := range rt.GetPlayerOrder() {
+		target := rt.GetPlayers()[pID]
 		if target == nil || target.Camp == user.Camp {
 			continue
 		}
@@ -253,13 +262,16 @@ func handleBlazeWitchManaInversionCardsChoice(rt engineplayer.ChoiceRuntime, pla
 	ctxData["selected_indices"] = selected
 	ctxData["choice_type"] = "bw_mana_inversion_target"
 	ctxData["target_ids"] = enemyIDs
-	rt.ReplacePendingInterruptContext(ctxData)
+	intr := rt.GetPendingInterrupt()
+	if intr != nil {
+		intr.Context = ctxData
+	}
 	rt.NotifyInterruptPrompt()
 	return nil
 }
 
 func handleBlazeWitchTargetChoice(rt engineplayer.ChoiceRuntime, playerID string, selectionIndex int, ctxData map[string]interface{}) error {
-	user := rt.LookupPlayer(playerID)
+	user := rt.GetPlayers()[playerID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -268,7 +280,7 @@ func handleBlazeWitchTargetChoice(rt engineplayer.ChoiceRuntime, playerID string
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
 	targetID := targetIDs[selectionIndex]
-	target := rt.LookupPlayer(targetID)
+	target := rt.GetPlayers()[targetID]
 	if target == nil {
 		return fmt.Errorf("目标不存在")
 	}
@@ -316,7 +328,7 @@ func handleBlazeWitchTargetChoice(rt engineplayer.ChoiceRuntime, playerID string
 	}
 
 	rt.PopInterrupt()
-	if !rt.HasPendingInterrupt() && rt.PendingDamageQueueLen() > 0 {
+	if rt.GetPendingInterrupt() == nil && len(rt.GetPendingDamageQueue()) > 0 {
 		rt.EnterDamageResolution(nil)
 	}
 	return nil

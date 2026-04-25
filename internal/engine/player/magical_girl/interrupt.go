@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strconv"
 
-	"starcup-engine/internal/engine/player"
 	"starcup-engine/internal/engine/hook/promptfmt"
+	"starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
 )
 
@@ -25,7 +25,7 @@ func buildMagicMissilePrompt(rt player.ChoiceRuntime) *model.Prompt {
 	}
 
 	playerID := chain.TargetID
-	p := rt.LookupPlayer(playerID)
+	p := rt.GetPlayers()[playerID]
 	if p == nil {
 		return nil
 	}
@@ -58,12 +58,12 @@ func buildMagicMissilePrompt(rt player.ChoiceRuntime) *model.Prompt {
 }
 
 func buildMagicBulletFusionPrompt(rt player.ChoiceRuntime) *model.Prompt {
-	interrupt := rt.PendingInterrupt()
+	interrupt := rt.GetPendingInterrupt()
 	if interrupt == nil {
 		return nil
 	}
 	playerID := interrupt.PlayerID
-	p := rt.LookupPlayer(playerID)
+	p := rt.GetPlayers()[playerID]
 	if p == nil {
 		return nil
 	}
@@ -92,7 +92,7 @@ func buildMagicBulletFusionPrompt(rt player.ChoiceRuntime) *model.Prompt {
 }
 
 func buildMagicBulletDirectionPrompt(rt player.ChoiceRuntime) *model.Prompt {
-	interrupt := rt.PendingInterrupt()
+	interrupt := rt.GetPendingInterrupt()
 	if interrupt == nil {
 		return nil
 	}
@@ -112,13 +112,13 @@ func buildMagicBulletDirectionPrompt(rt player.ChoiceRuntime) *model.Prompt {
 }
 
 func buildMagicBlastPrompt(rt player.ChoiceRuntime) *model.Prompt {
-	interrupt := rt.PendingInterrupt()
+	interrupt := rt.GetPendingInterrupt()
 	if interrupt == nil {
 		return nil
 	}
 
 	playerID := interrupt.PlayerID
-	p := rt.LookupPlayer(playerID)
+	p := rt.GetPlayers()[playerID]
 	if p == nil {
 		return nil
 	}
@@ -203,7 +203,7 @@ func handleMagicMissileAction(rt player.ChoiceRuntime, act model.PlayerAction) e
 		return fmt.Errorf("缺少响应类型")
 	}
 
-	p := rt.LookupPlayer(act.PlayerID)
+	p := rt.GetPlayers()[act.PlayerID]
 	if p == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -298,7 +298,7 @@ func resolveMagicMissileCounter(rt player.ChoiceRuntime, p *model.Player, chain 
 	chain.CurrentDamage += 1
 	chain.SourcePlayerID = p.ID
 	chain.InvolvedIDs = append(chain.InvolvedIDs, p.ID)
-	aliveCount := len(rt.PlayerOrder())
+	aliveCount := len(rt.GetPlayerOrder())
 	if len(chain.InvolvedIDs) >= aliveCount {
 		rt.Log("[Magic] 本轮魔弹传递已覆盖所有角色，魔弹结算结束")
 		rt.SetMagicBulletChain(nil)
@@ -314,14 +314,18 @@ func resolveMagicMissileCounter(rt player.ChoiceRuntime, p *model.Player, chain 
 		return nil
 	}
 
-	nextTarget := rt.LookupPlayer(nextTargetID)
+	nextTarget := rt.GetPlayers()[nextTargetID]
 	chain.TargetID = nextTargetID
 	rt.ReplacePendingInterruptPlayerID(nextTargetID)
 	data := map[string]interface{}{
 		"damage":    chain.CurrentDamage,
 		"source_id": p.ID,
 	}
-	rt.ReplacePendingInterruptContext(data)
+	func() {
+		if intr := rt.GetPendingInterrupt(); intr != nil {
+			intr.Context = data
+		}
+	}()
 	rt.NotifyInterruptPrompt()
 	if nextTarget != nil {
 		rt.Log(fmt.Sprintf("[Magic] 魔弹指向 %s (伤害: %d)，等待响应...", nextTarget.Name, chain.CurrentDamage))
@@ -356,7 +360,7 @@ func resolveMagicMissileDefend(rt player.ChoiceRuntime, p *model.Player, chain *
 }
 
 func handleMagicBulletFusionAction(rt player.ChoiceRuntime, act model.PlayerAction) error {
-	interrupt := rt.PendingInterrupt()
+	interrupt := rt.GetPendingInterrupt()
 	if interrupt == nil {
 		return fmt.Errorf("没有待处理的中断")
 	}
@@ -366,7 +370,7 @@ func handleMagicBulletFusionAction(rt player.ChoiceRuntime, act model.PlayerActi
 		return fmt.Errorf("中断上下文格式错误")
 	}
 
-	p := rt.LookupPlayer(act.PlayerID)
+	p := rt.GetPlayers()[act.PlayerID]
 	if p == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -408,7 +412,7 @@ func handleMagicBulletFusionAction(rt player.ChoiceRuntime, act model.PlayerActi
 }
 
 func handleMagicBulletDirectionAction(rt player.ChoiceRuntime, act model.PlayerAction) error {
-	interrupt := rt.PendingInterrupt()
+	interrupt := rt.GetPendingInterrupt()
 	if interrupt == nil {
 		return fmt.Errorf("没有待处理的中断")
 	}
@@ -418,7 +422,7 @@ func handleMagicBulletDirectionAction(rt player.ChoiceRuntime, act model.PlayerA
 		return fmt.Errorf("中断上下文格式错误")
 	}
 
-	p := rt.LookupPlayer(act.PlayerID)
+	p := rt.GetPlayers()[act.PlayerID]
 	if p == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -446,7 +450,7 @@ func handleMagicBulletDirectionAction(rt player.ChoiceRuntime, act model.PlayerA
 }
 
 func handleMagicBlastAction(rt player.ChoiceRuntime, act model.PlayerAction) error {
-	interrupt := rt.PendingInterrupt()
+	interrupt := rt.GetPendingInterrupt()
 	if interrupt == nil {
 		return fmt.Errorf("没有待处理的中断")
 	}
@@ -503,7 +507,7 @@ func resolveMagicBlastTargetDiscard(
 	targetIDs []string,
 	currentTargetIdx int,
 ) error {
-	p := rt.LookupPlayer(act.PlayerID)
+	p := rt.GetPlayers()[act.PlayerID]
 	if p == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -525,7 +529,7 @@ func resolveMagicBlastTargetDiscard(
 	rt.InflictDamage(casterID, p.ID, 2, model.MagicAttack)
 	rt.Log(fmt.Sprintf("[Skill] %s 未弃法术牌，受到2点伤害", p.Name))
 
-	caster := rt.LookupPlayer(casterID)
+	caster := rt.GetPlayers()[casterID]
 	if caster != nil && len(caster.Hand) > 0 {
 		return enterMagicBlastCasterForcedDiscard(rt, data, casterID, nextTargetIdx)
 	}
@@ -566,7 +570,7 @@ func resolveMagicBlastCasterForcedDiscard(
 	targetIDs []string,
 	currentTargetIdx int,
 ) error {
-	p := rt.LookupPlayer(act.PlayerID)
+	p := rt.GetPlayers()[act.PlayerID]
 	if p == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -590,7 +594,11 @@ func enterMagicBlastCasterForcedDiscard(rt player.ChoiceRuntime, data map[string
 	data["stage"] = magicBlastStageCasterForcedDiscard
 	data["current_target"] = nextTargetIdx
 	rt.ReplacePendingInterruptPlayerID(casterID)
-	rt.ReplacePendingInterruptContext(data)
+	func() {
+		if intr := rt.GetPendingInterrupt(); intr != nil {
+			intr.Context = data
+		}
+	}()
 	rt.NotifyInterruptPrompt()
 	return nil
 }
@@ -603,8 +611,12 @@ func advanceMagicBlastToNextTarget(rt player.ChoiceRuntime, data map[string]inte
 	data["stage"] = magicBlastStageTargetDiscard
 	nextTargetID := targetIDs[nextTargetIdx]
 	rt.ReplacePendingInterruptPlayerID(nextTargetID)
-	rt.ReplacePendingInterruptContext(data)
-	if nextTarget := rt.LookupPlayer(nextTargetID); nextTarget != nil {
+	func() {
+		if intr := rt.GetPendingInterrupt(); intr != nil {
+			intr.Context = data
+		}
+	}()
+	if nextTarget := rt.GetPlayers()[nextTargetID]; nextTarget != nil {
 		rt.Log(fmt.Sprintf("[Skill] %s 需要选择弃一张法术牌或受到2点伤害", nextTarget.Name))
 	}
 	rt.NotifyInterruptPrompt()

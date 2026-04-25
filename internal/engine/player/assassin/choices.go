@@ -47,7 +47,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 
 func handleAssassinStealthDrawChoice(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -67,7 +67,7 @@ func handleAssassinStealthDrawChoice(rt engineplayer.ChoiceRuntime, selectionInd
 		rt.Log(fmt.Sprintf("%s 的 [潜行]：选择先摸1张牌，再进入潜行状态", user.Name))
 
 		rt.PopInterrupt()
-		if !rt.HasPendingInterrupt() {
+		if rt.GetPendingInterrupt() == nil {
 			rt.RestorePhaseAfterInterruptedDraw(drawCtx)
 		}
 		return nil
@@ -76,7 +76,7 @@ func handleAssassinStealthDrawChoice(rt engineplayer.ChoiceRuntime, selectionInd
 		rt.Log(fmt.Sprintf("%s 的 [潜行]：选择不摸牌，直接进入潜行状态", user.Name))
 
 		rt.PopInterrupt()
-		if !rt.HasPendingInterrupt() {
+		if rt.GetPendingInterrupt() == nil {
 			// 规则：潜行选择结束后要回到触发前的等待阶段，不允许隐式回落到任意默认阶段。
 			rt.ApplyChoiceResumePoint(mustChoiceResumePointFromMap(ctxData, "waiting_phase"))
 		}

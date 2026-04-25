@@ -19,7 +19,7 @@ func SharedLifeHandLimitModifier(engine engineplayer.HandLimitModifierEngine, ta
 			if fieldCard == nil || fieldCard.Mode != model.FieldEffect || fieldCard.Effect != model.EffectBloodSharedLife {
 				continue
 			}
-			source := engine.LookupPlayer(fieldCard.SourceID)
+			source := engine.GetPlayers()[fieldCard.SourceID]
 			if source == nil || !engineplayer.IsCharacter(source, "blood_priestess") {
 				continue
 			}
@@ -32,7 +32,7 @@ func SharedLifeHandLimitModifier(engine engineplayer.HandLimitModifierEngine, ta
 				continue
 			}
 			if fieldCard.OwnerID == target.ID {
-				if !engine.HasFixedMaxHandCap(target) {
+				if _, ok := engine.RoleFixedMaxHandCapValue(target); !ok {
 					delta += change
 				}
 			}

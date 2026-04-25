@@ -222,7 +222,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 	switch choiceType {
 	case "onmyoji_life_barrier_mode":
 		userID, _ := ctxData["user_id"].(string)
-		user := rt.LookupPlayer(userID)
+		user := rt.GetPlayers()[userID]
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
@@ -238,8 +238,8 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 			}
 			ctxData["choice_type"] = "onmyoji_life_barrier_support_target"
 			ctxData["target_ids"] = targetIDs
-			if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-				return true, err
+			if intr := rt.GetPendingInterrupt(); intr != nil {
+				intr.Context = ctxData
 			}
 			rt.NotifyInterruptPrompt()
 			return true, nil
@@ -257,8 +257,8 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 			}
 			ctxData["choice_type"] = "onmyoji_life_barrier_release_combo"
 			ctxData["target_ids"] = targetIDs
-			if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-				return true, err
+			if intr := rt.GetPendingInterrupt(); intr != nil {
+				intr.Context = ctxData
 			}
 			rt.NotifyInterruptPrompt()
 			return true, nil
@@ -268,7 +268,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 
 	case "onmyoji_life_barrier_release_combo":
 		userID, _ := ctxData["user_id"].(string)
-		user := rt.LookupPlayer(userID)
+		user := rt.GetPlayers()[userID]
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
@@ -309,15 +309,15 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		}
 
 		ctxData["choice_type"] = "onmyoji_life_barrier_release_target"
-		if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-			return true, err
+		if intr := rt.GetPendingInterrupt(); intr != nil {
+			intr.Context = ctxData
 		}
 		rt.NotifyInterruptPrompt()
 		return true, nil
 
 	case "onmyoji_life_barrier_support_target":
 		userID, _ := ctxData["user_id"].(string)
-		user := rt.LookupPlayer(userID)
+		user := rt.GetPlayers()[userID]
 		targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
@@ -329,7 +329,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 
 	case "onmyoji_life_barrier_release_target":
 		userID, _ := ctxData["user_id"].(string)
-		user := rt.LookupPlayer(userID)
+		user := rt.GetPlayers()[userID]
 		targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
@@ -341,7 +341,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 
 	case "onmyoji_dark_ritual_target":
 		userID, _ := ctxData["user_id"].(string)
-		user := rt.LookupPlayer(userID)
+		user := rt.GetPlayers()[userID]
 		targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
@@ -357,7 +357,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		}
 		if selectionIndex == 1 {
 			rt.PopInterrupt()
-			if !rt.HasPendingInterrupt() {
+			if rt.GetPendingInterrupt() == nil {
 				// 简化处理
 			}
 			return true, nil
@@ -365,14 +365,14 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		cardOptions := parseOnmyojiCardOptions(ctxData["card_options"])
 		if len(cardOptions) == 0 {
 			rt.PopInterrupt()
-			if !rt.HasPendingInterrupt() {
+			if rt.GetPendingInterrupt() == nil {
 				// 简化处理
 			}
 			return true, nil
 		}
 		ctxData["choice_type"] = "onmyoji_binding_card"
-		if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-			return true, err
+		if intr := rt.GetPendingInterrupt(); intr != nil {
+			intr.Context = ctxData
 		}
 		rt.NotifyInterruptPrompt()
 		return true, nil
@@ -391,14 +391,14 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		cardOptions := parseOnmyojiCardOptions(ctxData["card_options"])
 		if len(cardOptions) == 0 {
 			rt.PopInterrupt()
-			if !rt.HasPendingInterrupt() {
+			if rt.GetPendingInterrupt() == nil {
 				// 简化处理
 			}
 			return true, nil
 		}
 		ctxData["choice_type"] = "onmyoji_yinyang_card"
-		if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-			return true, err
+		if intr := rt.GetPendingInterrupt(); intr != nil {
+			intr.Context = ctxData
 		}
 		rt.NotifyInterruptPrompt()
 		return true, nil
@@ -410,8 +410,8 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		}
 		ctxData["selected_card_id"] = cardOptions[selectionIndex].CardID
 		ctxData["choice_type"] = "onmyoji_yinyang_counter_target"
-		if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-			return true, err
+		if intr := rt.GetPendingInterrupt(); intr != nil {
+			intr.Context = ctxData
 		}
 		rt.NotifyInterruptPrompt()
 		return true, nil
@@ -424,7 +424,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		counterTargetID := counterTargetIDs[selectionIndex]
 		actorID, _ := ctxData["actor_id"].(string)
 		selectedCardID, _ := ctxData["selected_card_id"].(string)
-		actor := rt.LookupPlayer(actorID)
+		actor := rt.GetPlayers()[actorID]
 		if actor == nil {
 			return true, fmt.Errorf("阴阳师不存在")
 		}
@@ -461,15 +461,15 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		ctxData["selected_card_id"] = cardOptions[selectionIndex].CardID
 		ctxData["selected_use_faction"] = cardOptions[selectionIndex].UseFaction
 		ctxData["choice_type"] = "onmyoji_binding_counter_target"
-		if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-			return true, err
+		if intr := rt.GetPendingInterrupt(); intr != nil {
+			intr.Context = ctxData
 		}
 		rt.NotifyInterruptPrompt()
 		return true, nil
 
 	case "onmyoji_binding_counter_target":
 		rt.PopInterrupt()
-		if !rt.HasPendingInterrupt() {
+		if rt.GetPendingInterrupt() == nil {
 			// 简化处理
 		}
 		return true, nil
@@ -524,7 +524,7 @@ func parseOnmyojiCardOption(data map[string]interface{}) (onmyojiCardOption, boo
 func buildPromptOptionsForPlayerIDs(rt engineplayer.ChoiceRuntime, targetIDs []string) []model.PromptOption {
 	options := make([]model.PromptOption, 0, len(targetIDs))
 	for _, targetID := range targetIDs {
-		if player := rt.LookupPlayer(targetID); player != nil {
+		if player := rt.GetPlayers()[targetID]; player != nil {
 			options = append(options, model.PromptOption{
 				ID:    targetID,
 				Label: player.Name,
@@ -574,7 +574,7 @@ func resolveOnmyojiLifeBarrierSupportTarget(rt engineplayer.ChoiceRuntime, ctxDa
 	if !stringSliceContains(targetIDs, targetID) {
 		return fmt.Errorf("生命结界分支①目标不合法")
 	}
-	target := rt.LookupPlayer(targetID)
+	target := rt.GetPlayers()[targetID]
 	if target == nil {
 		return fmt.Errorf("目标不存在")
 	}
@@ -592,7 +592,7 @@ func resolveOnmyojiLifeBarrierSupportTarget(rt engineplayer.ChoiceRuntime, ctxDa
 	}
 	rt.Log(fmt.Sprintf("%s 的 [生命结界] 分支①生效：%s +1宝石+1治疗，自身承受%d点法术伤害", user.Name, target.Name, ghostFire))
 	rt.PopInterrupt()
-	if !rt.HasPendingInterrupt() {
+	if rt.GetPendingInterrupt() == nil {
 		rt.RoutePendingDamageOr(model.TurnStageTurnEnd, func() {
 			rt.EnterTurnEndStage()
 		})
@@ -604,7 +604,7 @@ func resolveOnmyojiLifeBarrierReleaseTarget(rt engineplayer.ChoiceRuntime, _ map
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
-	target := rt.LookupPlayer(targetID)
+	target := rt.GetPlayers()[targetID]
 	if target == nil {
 		return fmt.Errorf("目标不存在")
 	}
@@ -636,7 +636,7 @@ func resolveOnmyojiDarkRitualTarget(rt engineplayer.ChoiceRuntime, ctxData map[s
 	if !stringSliceContains(targetIDs, targetID) {
 		return fmt.Errorf("黑暗祭礼目标不合法")
 	}
-	target := rt.LookupPlayer(targetID)
+	target := rt.GetPlayers()[targetID]
 	if target == nil {
 		return fmt.Errorf("目标不存在")
 	}
@@ -655,7 +655,7 @@ func resolveOnmyojiDarkRitualTarget(rt engineplayer.ChoiceRuntime, ctxData map[s
 	})
 	rt.Log(fmt.Sprintf("%s 的 [黑暗祭礼] 生效：对 %s 造成2点法术伤害", user.Name, target.Name))
 	rt.PopInterrupt()
-	if !rt.HasPendingInterrupt() {
+	if rt.GetPendingInterrupt() == nil {
 		rt.ApplyChoiceResumePoint(model.TurnStageTurnEnd)
 		rt.EnterDamageResolution(nil)
 	}

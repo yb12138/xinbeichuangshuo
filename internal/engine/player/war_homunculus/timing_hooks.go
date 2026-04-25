@@ -21,7 +21,7 @@ func turnEndHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHookContext
 	rt.ClearForm(p, model.FormWarHomunculusBurst)
 	rt.Log(fmt.Sprintf("%s 的 [符文改造] 效果结束，脱离蓄势迸发形态", p.Name))
 	rt.CheckHandLimit(p)
-	if rt.HasPendingInterrupt() {
+	if rt.GetPendingInterrupt() != nil {
 		return engineplayer.TimingHookResult{Interrupted: true}
 	}
 	return engineplayer.TimingHookResult{}

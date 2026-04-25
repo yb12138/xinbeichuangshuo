@@ -12,9 +12,9 @@ const CocoonCap = 8
 
 // ActionTargetIDs returns all active player IDs.
 func ActionTargetIDs(rt engineplayer.ChoiceRuntime) []string {
-	targetIDs := make([]string, 0, len(rt.PlayerOrder()))
-	for _, pid := range rt.PlayerOrder() {
-		if rt.LookupPlayer(pid) != nil {
+	targetIDs := make([]string, 0, len(rt.GetPlayerOrder()))
+	for _, pid := range rt.GetPlayerOrder() {
+		if rt.GetPlayers()[pid] != nil {
 			targetIDs = append(targetIDs, pid)
 		}
 	}
@@ -47,7 +47,7 @@ func QueueWitherFollowup(rt engineplayer.ChoiceRuntime, user *model.Player) {
 
 // ResolveChrysalis handles the chrysalis (蛹化) skill execution.
 func ResolveChrysalis(rt engineplayer.ChoiceRuntime, userID string) error {
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -76,7 +76,7 @@ func ResolveChrysalis(rt engineplayer.ChoiceRuntime, userID string) error {
 
 // StartReverse handles the reverse butterfly (倒逆之蝶) skill execution.
 func StartReverse(rt engineplayer.ChoiceRuntime, userID string) error {
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -101,7 +101,7 @@ func MaybeDamageResponses(rt engineplayer.ChoiceRuntime, pd *model.PendingDamage
 	}
 	if !pd.HasCheck(model.PendingDamageCheckBeforeApplyDefend) {
 		pd.SetCheck(model.PendingDamageCheckBeforeApplyDefend, true)
-		target := rt.LookupPlayer(pd.TargetID)
+		target := rt.GetPlayers()[pd.TargetID]
 		if target != nil && engineplayer.IsCharacter(target, "butterfly_dancer") && CocoonCount(target) > 0 {
 			indices := CocoonFieldIndices(target)
 			if len(indices) > 0 {
@@ -131,8 +131,8 @@ func MaybeDamageResponses(rt engineplayer.ChoiceRuntime, pd *model.PendingDamage
 	pd.SetCheck(model.PendingDamageCheckBeforeApplyResponse, true)
 
 	if pd.Damage == 1 {
-		for _, pid := range rt.PlayerOrder() {
-			user := rt.LookupPlayer(pid)
+		for _, pid := range rt.GetPlayerOrder() {
+			user := rt.GetPlayers()[pid]
 			if user == nil || !engineplayer.IsCharacter(user, "butterfly_dancer") || CocoonCount(user) <= 0 {
 				continue
 			}
@@ -159,8 +159,8 @@ func MaybeDamageResponses(rt engineplayer.ChoiceRuntime, pd *model.PendingDamage
 	}
 
 	if pd.Damage == 2 {
-		for _, pid := range rt.PlayerOrder() {
-			user := rt.LookupPlayer(pid)
+		for _, pid := range rt.GetPlayerOrder() {
+			user := rt.GetPlayers()[pid]
 			if user == nil || !engineplayer.IsCharacter(user, "butterfly_dancer") || CocoonCount(user) < 2 {
 				continue
 			}

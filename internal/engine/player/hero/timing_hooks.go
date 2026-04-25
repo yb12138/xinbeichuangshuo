@@ -91,11 +91,10 @@ func turnStartExhaustionReleaseHook(rt player.HookRuntime, ctx player.TimingHook
 	if p.TurnState.SkillFlowState["hero_exhaustion_release_pending"] <= 0 {
 		return player.TimingHookResult{}
 	}
-	beforePoses := rt.SnapshotPlayerPoses()
+	defer rt.PoseChangeGuard()
 	LeaveExhaustionForm(p)
 	p.TurnState.SkillFlowState["hero_exhaustion_release_pending"] = 0
 	rt.Log(fmt.Sprintf("%s 的 [精疲力竭] 结束：转正，手牌上限恢复，并对自己造成3点法术伤害", p.Name))
-	rt.DispatchOrientationChanges(beforePoses)
 	rt.AddPendingDamage(model.PendingDamage{
 		SourceID:   p.ID,
 		TargetID:   p.ID,
@@ -121,7 +120,7 @@ func turnStartTauntStartupHook(rt player.HookRuntime, ctx player.TimingHookConte
 		ConsumeTauntRestrictionInternal(rt, p)
 		return player.TimingHookResult{}
 	}
-	src := rt.LookupPlayer(tauntCard.SourceID)
+	src := rt.GetPlayers()[tauntCard.SourceID]
 	if src == nil || src.Camp == p.Camp {
 		ConsumeTauntRestrictionInternal(rt, p)
 		return player.TimingHookResult{}

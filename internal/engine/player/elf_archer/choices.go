@@ -70,7 +70,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		targetIDs := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
 		options := make([]model.PromptOption, 0, len(targetIDs))
 		for _, targetID := range targetIDs {
-			if p := rt.LookupPlayer(targetID); p != nil {
+			if p := rt.GetPlayers()[targetID]; p != nil {
 				options = append(options, model.PromptOption{
 					ID:    targetID,
 					Label: p.Name,
@@ -83,7 +83,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		targetIDs := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
 		options := make([]model.PromptOption, 0, len(targetIDs))
 		for _, targetID := range targetIDs {
-			if p := rt.LookupPlayer(targetID); p != nil {
+			if p := rt.GetPlayers()[targetID]; p != nil {
 				options = append(options, model.PromptOption{
 					ID:    targetID,
 					Label: p.Name,
@@ -96,7 +96,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		targetIDs := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
 		options := make([]model.PromptOption, 0, len(targetIDs))
 		for _, targetID := range targetIDs {
-			if p := rt.LookupPlayer(targetID); p != nil {
+			if p := rt.GetPlayers()[targetID]; p != nil {
 				options = append(options, model.PromptOption{
 					ID:    targetID,
 					Label: p.Name,
@@ -109,7 +109,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		targetIDs := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
 		options := make([]model.PromptOption, 0, len(targetIDs))
 		for _, targetID := range targetIDs {
-			if p := rt.LookupPlayer(targetID); p != nil {
+			if p := rt.GetPlayers()[targetID]; p != nil {
 				options = append(options, model.PromptOption{
 					ID:    targetID,
 					Label: p.Name,
@@ -154,13 +154,13 @@ func (choiceHandler) HandleCancel(rt engineplayer.ChoiceRuntime, playerID string
 	}
 
 	rt.PopInterrupt()
-	if user := rt.LookupPlayer(playerID); user != nil {
+	if user := rt.GetPlayers()[playerID]; user != nil {
 		rt.Log(fmt.Sprintf("%s 放弃发动 [元素射击]", user.Name))
 	}
-	if !rt.HasPendingInterrupt() {
-		if rt.ActionQueueLen() > 0 {
+	if rt.GetPendingInterrupt() == nil {
+		if len(rt.GetActionQueue()) > 0 {
 			rt.EnterActionExecutionStage()
-		} else if rt.PendingDamageQueueLen() > 0 {
+		} else if len(rt.GetPendingDamageQueue()) > 0 {
 			rt.EnterDamageResolution(nil)
 		}
 	}
@@ -169,7 +169,7 @@ func (choiceHandler) HandleCancel(rt engineplayer.ChoiceRuntime, playerID string
 
 func handleElfElementalShotCost(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -186,22 +186,22 @@ func handleElfElementalShotCost(rt engineplayer.ChoiceRuntime, selectionIndex in
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
 	if modeList[selectionIndex] == 0 {
-		if err := rt.ReplacePendingInterruptContext(map[string]interface{}{
-			"choice_type":    "elf_elemental_shot_discard_magic",
-			"user_id":        userID,
-			"magic_indices":  getCardIndicesByType(user, model.CardTypeMagic),
-			"attack_element": ctxData["attack_element"],
-		}); err != nil {
-			return err
+		if intr := rt.GetPendingInterrupt(); intr != nil {
+			intr.Context = map[string]interface{}{
+				"choice_type":    "elf_elemental_shot_discard_magic",
+				"user_id":        userID,
+				"magic_indices":  getCardIndicesByType(user, model.CardTypeMagic),
+				"attack_element": ctxData["attack_element"],
+			}
 		}
 	} else {
-		if err := rt.ReplacePendingInterruptContext(map[string]interface{}{
-			"choice_type":      "elf_elemental_shot_remove_blessing",
-			"user_id":          userID,
-			"blessing_indices": elfBlessingHandIndices(user),
-			"attack_element":   ctxData["attack_element"],
-		}); err != nil {
-			return err
+		if intr := rt.GetPendingInterrupt(); intr != nil {
+			intr.Context = map[string]interface{}{
+				"choice_type":      "elf_elemental_shot_remove_blessing",
+				"user_id":          userID,
+				"blessing_indices": elfBlessingHandIndices(user),
+				"attack_element":   ctxData["attack_element"],
+			}
 		}
 	}
 	rt.NotifyInterruptPrompt()
@@ -210,7 +210,7 @@ func handleElfElementalShotCost(rt engineplayer.ChoiceRuntime, selectionIndex in
 
 func handleElfElementalShotDiscardOrRemoveBlessing(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -265,10 +265,10 @@ func handleElfElementalShotDiscardOrRemoveBlessing(rt engineplayer.ChoiceRuntime
 	}
 	rt.Log(fmt.Sprintf("%s 发动 [元素射击]（%s）", user.Name, attackElement))
 	rt.PopInterrupt()
-	if !rt.HasPendingInterrupt() {
-		if rt.ActionQueueLen() > 0 {
+	if rt.GetPendingInterrupt() == nil {
+		if len(rt.GetActionQueue()) > 0 {
 			rt.EnterActionExecutionStage()
-		} else if rt.PendingDamageQueueLen() > 0 {
+		} else if len(rt.GetPendingDamageQueue()) > 0 {
 			rt.EnterDamageResolution(nil)
 		}
 	}
@@ -277,13 +277,13 @@ func handleElfElementalShotDiscardOrRemoveBlessing(rt engineplayer.ChoiceRuntime
 
 func handleElfAnimalCompanionConfirm(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
 	if selectionIndex == 1 {
 		rt.PopInterrupt()
-		if !rt.HasPendingInterrupt() && rt.PendingDamageQueueLen() > 0 {
+		if rt.GetPendingInterrupt() == nil && len(rt.GetPendingDamageQueue()) > 0 {
 			rt.EnterDamageResolution(nil)
 		}
 		return nil
@@ -292,11 +292,11 @@ func handleElfAnimalCompanionConfirm(rt engineplayer.ChoiceRuntime, selectionInd
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
 	if rt.CanPayCrystalCost(userID, 1) {
-		if err := rt.ReplacePendingInterruptContext(map[string]interface{}{
-			"choice_type": "elf_pet_empower_confirm",
-			"user_id":     userID,
-		}); err != nil {
-			return err
+		if intr := rt.GetPendingInterrupt(); intr != nil {
+			intr.Context = map[string]interface{}{
+				"choice_type": "elf_pet_empower_confirm",
+				"user_id":     userID,
+			}
 		}
 		rt.NotifyInterruptPrompt()
 		return nil
@@ -314,18 +314,18 @@ func handleElfAnimalCompanionConfirm(rt engineplayer.ChoiceRuntime, selectionInd
 
 func handleElfPetEmpowerConfirm(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
 	if selectionIndex == 0 && rt.ConsumeCrystalCost(userID, 1) {
 		targetIDs := rt.PlayerOrder()
-		if err := rt.ReplacePendingInterruptContext(map[string]interface{}{
-			"choice_type": "elf_pet_empower_target",
-			"user_id":     userID,
-			"target_ids":  targetIDs,
-		}); err != nil {
-			return err
+		if intr := rt.GetPendingInterrupt(); intr != nil {
+			intr.Context = map[string]interface{}{
+				"choice_type": "elf_pet_empower_target",
+				"user_id":     userID,
+				"target_ids":  targetIDs,
+			}
 		}
 		rt.NotifyInterruptPrompt()
 		return nil
@@ -347,7 +347,7 @@ func handleElfPetEmpowerTarget(rt engineplayer.ChoiceRuntime, selectionIndex int
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
 	targetID := targetIDs[selectionIndex]
-	target := rt.LookupPlayer(targetID)
+	target := rt.GetPlayers()[targetID]
 	if target == nil {
 		return fmt.Errorf("目标不存在")
 	}
@@ -369,7 +369,7 @@ func handleElfPetEmpowerTarget(rt engineplayer.ChoiceRuntime, selectionIndex int
 
 func handleElfElementalShotOrRitualTarget(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -390,7 +390,7 @@ func handleElfElementalShotOrRitualTarget(rt engineplayer.ChoiceRuntime, selecti
 		rt.AddPendingDamage(model.PendingDamage{SourceID: userID, TargetID: targetID, Damage: 2, DamageType: model.MagicAttack})
 	}
 	rt.PopInterrupt()
-	if !rt.HasPendingInterrupt() && rt.PendingDamageQueueLen() > 0 {
+	if rt.GetPendingInterrupt() == nil && len(rt.GetPendingDamageQueue()) > 0 {
 		rt.EnterDamageResolution(nil)
 	}
 	return nil

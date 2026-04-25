@@ -84,9 +84,8 @@ func beforeActionShadowReleaseHook(rt player.HookRuntime, ctx player.TimingHookC
 	if !rt.HasForm(p, model.FormMagicSwordsmanShadow) {
 		return player.TimingHookResult{}
 	}
-	beforePoses := rt.SnapshotPlayerPoses()
+	defer rt.PoseChangeGuard()
 	rt.ClearForm(p, model.FormMagicSwordsmanShadow)
-	rt.DispatchOrientationChanges(beforePoses)
 	rt.Log(fmt.Sprintf("%s 脱离暗影形态并转正", p.Name))
 	return player.TimingHookResult{}
 }

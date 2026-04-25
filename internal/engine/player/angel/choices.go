@@ -19,7 +19,7 @@ func NewChoiceHandler() engineplayer.ChoiceHandler {
 func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, playerID string, _ *model.Player, data map[string]interface{}) *model.Prompt {
 	switch choiceType {
 	case "angel_bond_heal_target":
-		options := buildPromptOptionsForPlayerIDs(rt.AllPlayers(), runtimeutil.ParseStringSliceContextValue(data["target_ids"]))
+		options := buildPromptOptionsForPlayerIDs(rt.GetPlayers(), runtimeutil.ParseStringSliceContextValue(data["target_ids"]))
 		if len(options) == 0 {
 			return nil
 		}
@@ -70,7 +70,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, playerID string
 
 func handleGodProtectionChoice(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -96,10 +96,10 @@ func handleGodProtectionChoice(rt engineplayer.ChoiceRuntime, selectionIndex int
 	rt.Log(fmt.Sprintf("%s 发动 [神之庇护]，消耗%d点水晶（可由红宝石替代）抵御了%d点士气下降", user.Name, x, x))
 
 	rt.PopInterrupt()
-	if !rt.HasPendingInterrupt() && rt.ResumePendingMoraleLoss(userCtx) {
+	if rt.GetPendingInterrupt() == nil && rt.ResumePendingMoraleLoss(userCtx) {
 		return nil
 	}
-	if !rt.HasPendingInterrupt() {
+	if rt.GetPendingInterrupt() == nil {
 		rt.EnterResponseWindow()
 	}
 	return nil
@@ -111,18 +111,18 @@ func handleAngelBondHealChoice(rt engineplayer.ChoiceRuntime, playerID string, s
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
 	targetID := targetIDs[selectionIndex]
-	target := rt.LookupPlayer(targetID)
+	target := rt.GetPlayers()[targetID]
 	if target == nil {
 		return fmt.Errorf("目标不存在")
 	}
 	rt.Heal(target.ID, 1)
 	userName := playerID
-	if user := rt.LookupPlayer(playerID); user != nil {
+	if user := rt.GetPlayers()[playerID]; user != nil {
 		userName = user.Name
 	}
 	rt.Log(fmt.Sprintf("%s 的 [天使羁绊] 生效：%s 获得 +1 治疗", userName, target.Name))
 	rt.PopInterrupt()
-	if !rt.HasPendingInterrupt() {
+	if rt.GetPendingInterrupt() == nil {
 		rt.ApplyChoiceResumePoint(ctxData["resume_phase"])
 	}
 	return nil

@@ -44,7 +44,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 
 func handleMagicSwordsmanShadowMeteorReleaseConfirmChoice(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -64,7 +64,7 @@ func handleMagicSwordsmanShadowMeteorReleaseConfirmChoice(rt engineplayer.Choice
 		rt.Log(fmt.Sprintf("%s 通过[暗影流星]额外效果转正并获得1红宝石", user.Name))
 	}
 	rt.PopInterrupt()
-	if !rt.HasPendingInterrupt() {
+	if rt.GetPendingInterrupt() == nil {
 		rt.RoutePendingDamageOr(model.TurnStageExtraAction, func() {
 			rt.EnterExtraActionStage()
 		})

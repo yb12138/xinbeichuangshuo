@@ -51,7 +51,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			if selectedSet[allyID] {
 				continue
 			}
-			if target := rt.LookupPlayer(allyID); target != nil {
+			if target := rt.GetPlayers()[allyID]; target != nil {
 				options = append(options, model.PromptOption{ID: allyID, Label: target.Name})
 			}
 		}
@@ -67,8 +67,8 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		if xValue < 2 {
 			return nil
 		}
-		first := rt.LookupPlayer(selected[0])
-		second := rt.LookupPlayer(selected[1])
+		first := rt.GetPlayers()[selected[0]]
+		second := rt.GetPlayers()[selected[1]]
 		if first == nil || second == nil {
 			return nil
 		}
@@ -121,8 +121,9 @@ func handleCrimsonKnightBloodyPrayerX(rt engineplayer.ChoiceRuntime, selectionIn
 		ctxData["ally_count"] = 1
 		ctxData["choice_type"] = "crk_bloody_prayer_target"
 	}
-	if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-		return err
+	intr := rt.GetPendingInterrupt()
+	if intr != nil {
+		intr.Context = ctxData
 	}
 	rt.NotifyInterruptPrompt()
 	return nil
@@ -142,8 +143,9 @@ func handleCrimsonKnightBloodyPrayerAllyCount(rt engineplayer.ChoiceRuntime, sel
 	ctxData["ally_count"] = allyCount
 	ctxData["selected_ally_ids"] = []string{}
 	ctxData["choice_type"] = "crk_bloody_prayer_target"
-	if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-		return err
+	intr := rt.GetPendingInterrupt()
+	if intr != nil {
+		intr.Context = ctxData
 	}
 	rt.NotifyInterruptPrompt()
 	return nil
@@ -151,7 +153,7 @@ func handleCrimsonKnightBloodyPrayerAllyCount(rt engineplayer.ChoiceRuntime, sel
 
 func handleCrimsonKnightBloodyPrayerTarget(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -181,8 +183,9 @@ func handleCrimsonKnightBloodyPrayerTarget(rt engineplayer.ChoiceRuntime, select
 	}
 	if len(selected) < allyCount {
 		ctxData["choice_type"] = "crk_bloody_prayer_target"
-		if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-			return err
+		intr := rt.GetPendingInterrupt()
+		if intr != nil {
+			intr.Context = ctxData
 		}
 		rt.NotifyInterruptPrompt()
 		return nil
@@ -197,15 +200,16 @@ func handleCrimsonKnightBloodyPrayerTarget(rt engineplayer.ChoiceRuntime, select
 			return fmt.Errorf("X不足以分配给2名队友")
 		}
 		ctxData["choice_type"] = "crk_bloody_prayer_split"
-		if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-			return err
+		intr := rt.GetPendingInterrupt()
+		if intr != nil {
+			intr.Context = ctxData
 		}
 		rt.NotifyInterruptPrompt()
 		return nil
 	}
 
 	rt.PopInterrupt()
-	if !rt.HasPendingInterrupt() && rt.PendingDamageQueueLen() > 0 {
+	if rt.GetPendingInterrupt() == nil && len(rt.GetPendingDamageQueue()) > 0 {
 		rt.EnterDamageResolution(nil)
 	}
 	return nil
@@ -213,7 +217,7 @@ func handleCrimsonKnightBloodyPrayerTarget(rt engineplayer.ChoiceRuntime, select
 
 func handleCrimsonKnightBloodyPrayerSplit(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -235,7 +239,7 @@ func handleCrimsonKnightBloodyPrayerSplit(rt engineplayer.ChoiceRuntime, selecti
 		return err
 	}
 	rt.PopInterrupt()
-	if !rt.HasPendingInterrupt() && rt.PendingDamageQueueLen() > 0 {
+	if rt.GetPendingInterrupt() == nil && len(rt.GetPendingDamageQueue()) > 0 {
 		rt.EnterDamageResolution(nil)
 	}
 	return nil
@@ -253,7 +257,7 @@ func resolveCrimsonKnightBloodyPrayer(rt engineplayer.ChoiceRuntime, user *model
 	}
 
 	user.Heal -= x
-	for _, pid := range rt.PlayerOrder() {
+	for _, pid := range rt.GetPlayerOrder() {
 		amt := allocations[pid]
 		if amt <= 0 {
 			continue
@@ -276,12 +280,12 @@ func resolveCrimsonKnightBloodyPrayer(rt engineplayer.ChoiceRuntime, user *model
 	}
 
 	var parts []string
-	for _, pid := range rt.PlayerOrder() {
+	for _, pid := range rt.GetPlayerOrder() {
 		amt := allocations[pid]
 		if amt <= 0 {
 			continue
 		}
-		if p := rt.LookupPlayer(pid); p != nil {
+		if p := rt.GetPlayers()[pid]; p != nil {
 			parts = append(parts, fmt.Sprintf("%s +%d治疗", p.Name, amt))
 		}
 	}

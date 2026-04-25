@@ -22,7 +22,7 @@ func eternalMovementCard(bard *model.Player) model.Card {
 }
 
 func FindEternalMovement(rt engineplayer.ChoiceRuntime, bard *model.Player) (*model.Player, *model.FieldCard) {
-	return rt.FindSourceEffectCard(bard, model.EffectBardEternalMovement)
+	return rt.FindEffectCard(bard, model.EffectBardEternalMovement)
 }
 
 func EternalHolderID(rt engineplayer.ChoiceRuntime, bard *model.Player) string {
@@ -34,11 +34,11 @@ func EternalHolderID(rt engineplayer.ChoiceRuntime, bard *model.Player) string {
 }
 
 func RemoveEternalMovement(rt engineplayer.ChoiceRuntime, bard *model.Player) bool {
-	holder, card, ok := rt.DetachSourceEffectCard(bard, model.EffectBardEternalMovement)
+	holder, card, ok := rt.DetachEffectCard(bard, model.EffectBardEternalMovement)
 	if !ok {
 		return false
 	}
-	rt.AddToDiscardPile(card)
+	rt.AppendToDiscard([]model.Card{card})
 	rt.EmitBuffRemovedDispatch(bard.ID, holder.ID, model.EffectBardEternalMovement)
 	return true
 }
@@ -55,5 +55,5 @@ func PlaceEternalMovementWithCard(rt engineplayer.ChoiceRuntime, bard, target *m
 		return fmt.Errorf("永恒乐章只能放置在我方角色面前")
 	}
 	RemoveEternalMovement(rt, bard)
-	return rt.AttachSourceEffectCard(bard, target, model.EffectBardEternalMovement, card)
+	return rt.AttachEffectCard(bard, target, model.EffectBardEternalMovement, card)
 }

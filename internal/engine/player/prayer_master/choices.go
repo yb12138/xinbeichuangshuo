@@ -55,7 +55,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 
 func handlePrayerPowerBlessingFollowupChoice(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -64,7 +64,7 @@ func handlePrayerPowerBlessingFollowupChoice(rt engineplayer.ChoiceRuntime, sele
 		rt.Log(fmt.Sprintf("%s 的 [威力赐福] 生效，本次攻击伤害+2", user.Name))
 	}
 	rt.PopInterrupt()
-	if !rt.HasPendingInterrupt() && rt.PendingDamageQueueLen() > 0 {
+	if rt.GetPendingInterrupt() == nil && len(rt.GetPendingDamageQueue()) > 0 {
 		rt.EnterDamageResolution(nil)
 	}
 	return nil
@@ -72,7 +72,7 @@ func handlePrayerPowerBlessingFollowupChoice(rt engineplayer.ChoiceRuntime, sele
 
 func handlePrayerSwiftBlessingFollowupChoice(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -82,7 +82,7 @@ func handlePrayerSwiftBlessingFollowupChoice(rt engineplayer.ChoiceRuntime, sele
 		rt.Log(fmt.Sprintf("%s 的 [迅捷赐福] 生效，获得额外攻击行动", user.Name))
 	}
 	rt.PopInterrupt()
-	if !rt.HasPendingInterrupt() {
+	if rt.GetPendingInterrupt() == nil {
 		rt.EnterExtraActionStage()
 	}
 	return nil

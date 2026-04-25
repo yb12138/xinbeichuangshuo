@@ -158,7 +158,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			if selectedSet[targetID] {
 				continue
 			}
-			if target := rt.LookupPlayer(targetID); target != nil {
+			if target := rt.GetPlayers()[targetID]; target != nil {
 				options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", len(options)), Label: target.Name})
 			}
 		}
@@ -174,7 +174,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		targetIDs := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
 		options := make([]model.PromptOption, 0, len(targetIDs))
 		for _, targetID := range targetIDs {
-			if target := rt.LookupPlayer(targetID); target != nil {
+			if target := rt.GetPlayers()[targetID]; target != nil {
 				options = append(options, model.PromptOption{ID: targetID, Label: target.Name})
 			}
 		}
@@ -203,13 +203,13 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 	switch choiceType {
 	case "sage_magic_rebound_confirm":
 		userID, _ := ctxData["user_id"].(string)
-		user := rt.LookupPlayer(userID)
+		user := rt.GetPlayers()[userID]
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
 		if selectionIndex == 1 {
 			rt.PopInterrupt()
-			if !rt.HasPendingInterrupt() && rt.PendingDamageQueueLen() > 0 {
+			if rt.GetPendingInterrupt() == nil && len(rt.GetPendingDamageQueue()) > 0 {
 				rt.EnterDamageResolution(nil)
 			}
 			return true, nil
@@ -223,15 +223,15 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		}
 		ctxData["choice_type"] = "sage_magic_rebound_x"
 		ctxData["max_x"] = maxX
-		if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-			return true, err
+		if intr := rt.GetPendingInterrupt(); intr != nil {
+			intr.Context = ctxData
 		}
 		rt.NotifyInterruptPrompt()
 		return true, nil
 
 	case "sage_magic_rebound_x":
 		userID, _ := ctxData["user_id"].(string)
-		user := rt.LookupPlayer(userID)
+		user := rt.GetPlayers()[userID]
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
@@ -242,15 +242,15 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		}
 		ctxData["x_value"] = xValue
 		ctxData["choice_type"] = "sage_magic_rebound_element"
-		if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-			return true, err
+		if intr := rt.GetPendingInterrupt(); intr != nil {
+			intr.Context = ctxData
 		}
 		rt.NotifyInterruptPrompt()
 		return true, nil
 
 	case "sage_magic_rebound_element":
 		userID, _ := ctxData["user_id"].(string)
-		user := rt.LookupPlayer(userID)
+		user := rt.GetPlayers()[userID]
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
@@ -264,15 +264,15 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		ctxData["choice_type"] = "sage_magic_rebound_cards"
 		ctxData["selected_indices"] = []int{}
 		ctxData["remaining_indices"] = getCardIndicesByElement(user, chosenElement)
-		if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-			return true, err
+		if intr := rt.GetPendingInterrupt(); intr != nil {
+			intr.Context = ctxData
 		}
 		rt.NotifyInterruptPrompt()
 		return true, nil
 
 	case "sage_magic_rebound_cards", "sage_arcane_cards", "sage_holy_cards":
 		userID, _ := ctxData["user_id"].(string)
-		user := rt.LookupPlayer(userID)
+		user := rt.GetPlayers()[userID]
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
@@ -314,8 +314,8 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		if len(selected) < xValue {
 			ctxData["selected_indices"] = selected
 			ctxData["remaining_indices"] = nextRemaining
-			if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-				return true, err
+			if intr := rt.GetPendingInterrupt(); intr != nil {
+				intr.Context = ctxData
 			}
 			rt.NotifyInterruptPrompt()
 			return true, nil
@@ -336,17 +336,17 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 			}
 			ctxData["choice_type"] = "sage_holy_target_count"
 			ctxData["max_target_count"] = maxTargetCount
-			ctxData["target_ids"] = append([]string{}, rt.PlayerOrder()...)
+			ctxData["target_ids"] = append([]string{}, rt.GetPlayerOrder()...)
 		}
-		if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-			return true, err
+		if intr := rt.GetPendingInterrupt(); intr != nil {
+			intr.Context = ctxData
 		}
 		rt.NotifyInterruptPrompt()
 		return true, nil
 
 	case "sage_arcane_x", "sage_holy_x":
 		userID, _ := ctxData["user_id"].(string)
-		user := rt.LookupPlayer(userID)
+		user := rt.GetPlayers()[userID]
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
@@ -367,8 +367,8 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		} else {
 			ctxData["choice_type"] = "sage_holy_cards"
 		}
-		if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-			return true, err
+		if intr := rt.GetPendingInterrupt(); intr != nil {
+			intr.Context = ctxData
 		}
 		rt.NotifyInterruptPrompt()
 		return true, nil
@@ -382,15 +382,15 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		ctxData["target_count"] = targetCount
 		ctxData["selected_target_ids"] = []string{}
 		ctxData["choice_type"] = "sage_holy_targets"
-		if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-			return true, err
+		if intr := rt.GetPendingInterrupt(); intr != nil {
+			intr.Context = ctxData
 		}
 		rt.NotifyInterruptPrompt()
 		return true, nil
 
 	case "sage_holy_targets":
 		userID, _ := ctxData["user_id"].(string)
-		user := rt.LookupPlayer(userID)
+		user := rt.GetPlayers()[userID]
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
@@ -413,8 +413,8 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		selected = append(selected, remaining[selectionIndex])
 		ctxData["selected_target_ids"] = selected
 		if len(selected) < targetCount {
-			if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-				return true, err
+			if intr := rt.GetPendingInterrupt(); intr != nil {
+				intr.Context = ctxData
 			}
 			rt.NotifyInterruptPrompt()
 			return true, nil
@@ -445,7 +445,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		}
 		rt.Log(fmt.Sprintf("%s 发动 [圣洁法典]：为%d名角色各+2治疗，并对自己造成%d点法术伤害", user.Name, len(selected), damage))
 		rt.PopInterrupt()
-		if !rt.HasPendingInterrupt() {
+		if rt.GetPendingInterrupt() == nil {
 			if !rt.RoutePendingDamageWithReturn(model.TurnStageExtraAction) {
 				rt.EnterExtraActionStage()
 			}
@@ -454,7 +454,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 
 	case "sage_magic_rebound_target", "sage_arcane_target":
 		userID, _ := ctxData["user_id"].(string)
-		user := rt.LookupPlayer(userID)
+		user := rt.GetPlayers()[userID]
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
@@ -477,7 +477,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		if targetID == user.ID {
 			return true, fmt.Errorf("该技能不能以自己为目标")
 		}
-		target := rt.LookupPlayer(targetID)
+		target := rt.GetPlayers()[targetID]
 		if target == nil {
 			return true, fmt.Errorf("目标不存在")
 		}
@@ -525,7 +525,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		}
 
 		rt.PopInterrupt()
-		if !rt.HasPendingInterrupt() {
+		if rt.GetPendingInterrupt() == nil {
 			if !rt.RoutePendingDamageWithReturn(model.TurnStageExtraAction) {
 				rt.EnterExtraActionStage()
 			}

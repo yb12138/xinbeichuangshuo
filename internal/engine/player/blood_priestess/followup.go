@@ -19,7 +19,7 @@ func FollowupSpecs() map[string]engineplayer.FollowupSpec {
 }
 
 func resolveSharedLifePlace(rt engineplayer.ChoiceRuntime, f model.DeferredFollowup) error {
-	user := rt.LookupPlayer(f.UserID)
+	user := rt.GetPlayers()[f.UserID]
 	if user == nil {
 		return fmt.Errorf("执行者不存在: %s", f.UserID)
 	}
@@ -29,7 +29,7 @@ func resolveSharedLifePlace(rt engineplayer.ChoiceRuntime, f model.DeferredFollo
 	if len(f.TargetIDs) != 1 {
 		return fmt.Errorf("同生共死后续目标数量错误: %d", len(f.TargetIDs))
 	}
-	target := rt.LookupPlayer(f.TargetIDs[0])
+	target := rt.GetPlayers()[f.TargetIDs[0]]
 	if target == nil {
 		return fmt.Errorf("同生共死目标不存在: %s", f.TargetIDs[0])
 	}
@@ -51,7 +51,7 @@ func resolveSharedLifePlace(rt engineplayer.ChoiceRuntime, f model.DeferredFollo
 		return fmt.Errorf("同生共死后续缺少原始专属卡")
 	}
 
-	if err := rt.AttachExclusiveEffectCard(user.ID, target.ID, model.EffectBloodSharedLife, card); err != nil {
+	if err := rt.AttachEffectCard(user, target, model.EffectBloodSharedLife, card); err != nil {
 		user.RestoreExclusiveCard(card)
 		return err
 	}
@@ -65,7 +65,7 @@ func resolveSharedLifePlace(rt engineplayer.ChoiceRuntime, f model.DeferredFollo
 }
 
 func resolveBloodSorrowApply(rt engineplayer.ChoiceRuntime, f model.DeferredFollowup) error {
-	user := rt.LookupPlayer(f.UserID)
+	user := rt.GetPlayers()[f.UserID]
 	if user == nil {
 		return fmt.Errorf("执行者不存在: %s", f.UserID)
 	}
@@ -89,7 +89,7 @@ func resolveBloodSorrowApply(rt engineplayer.ChoiceRuntime, f model.DeferredFoll
 
 	switch mode {
 	case "remove":
-		if !rt.RemoveExclusiveEffectCard(user, model.EffectBloodSharedLife, true) {
+		if !rt.RemoveEffectCard(user, model.EffectBloodSharedLife, true) {
 			return fmt.Errorf("当前没有可移除的同生共死")
 		}
 		rt.Log(fmt.Sprintf("%s 的 [血之哀伤] 后续结算：移除【同生共死】", user.Name))
@@ -102,17 +102,17 @@ func resolveBloodSorrowApply(rt engineplayer.ChoiceRuntime, f model.DeferredFoll
 				targetID = raw
 			}
 		}
-		target := rt.LookupPlayer(targetID)
+		target := rt.GetPlayers()[targetID]
 		if target == nil {
 			return fmt.Errorf("转移目标不存在: %s", targetID)
 		}
-		holder, card, ok := rt.DetachExclusiveEffectCard(user, model.EffectBloodSharedLife)
+		holder, card, ok := rt.DetachEffectCard(user, model.EffectBloodSharedLife)
 		if !ok {
 			return fmt.Errorf("当前没有可转移的同生共死")
 		}
-		if err := rt.AttachExclusiveEffectCard(user.ID, target.ID, model.EffectBloodSharedLife, card); err != nil {
+		if err := rt.AttachEffectCard(user, target, model.EffectBloodSharedLife, card); err != nil {
 			if holder != nil {
-				_ = rt.AttachExclusiveEffectCard(user.ID, holder.ID, model.EffectBloodSharedLife, card)
+				_ = rt.AttachEffectCard(user, holder, model.EffectBloodSharedLife, card)
 			}
 			return err
 		}
@@ -127,7 +127,7 @@ func resolveBloodSorrowApply(rt engineplayer.ChoiceRuntime, f model.DeferredFoll
 }
 
 func resolveCurseDiscard(rt engineplayer.ChoiceRuntime, f model.DeferredFollowup) error {
-	user := rt.LookupPlayer(f.UserID)
+	user := rt.GetPlayers()[f.UserID]
 	if user == nil {
 		return fmt.Errorf("执行者不存在: %s", f.UserID)
 	}

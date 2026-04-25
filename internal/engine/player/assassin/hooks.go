@@ -52,9 +52,8 @@ func beforeActionStealthReleaseHook(rt engineplayer.HookRuntime, ctx engineplaye
 	if rt.HasUsedActionSkill(p) || !rt.HasForm(p, model.FormAssassinStealth) {
 		return engineplayer.TimingHookResult{}
 	}
-	before := rt.SnapshotPlayerPoses()
+	defer rt.PoseChangeGuard()
 	engineplayer.ClearForm(p, model.FormAssassinStealth)
 	rt.Log(fmt.Sprintf("%s 脱离潜行形态并转正", p.Name))
-	rt.DispatchOrientationChanges(before)
 	return engineplayer.TimingHookResult{}
 }

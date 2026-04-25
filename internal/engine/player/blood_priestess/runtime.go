@@ -9,17 +9,17 @@ import (
 
 // FindSharedLife 查找血祭司的同生共死场牌。
 func FindSharedLife(rt engineplayer.ChoiceRuntime, priestess *model.Player) (*model.Player, *model.FieldCard) {
-	return rt.FindExclusiveEffectCard(priestess, model.EffectBloodSharedLife)
+	return rt.FindEffectCard(priestess, model.EffectBloodSharedLife)
 }
 
 // DetachSharedLife 分离血祭司的同生共死场牌。
 func DetachSharedLife(rt engineplayer.ChoiceRuntime, priestess *model.Player) (*model.Player, model.Card, bool) {
-	return rt.DetachExclusiveEffectCard(priestess, model.EffectBloodSharedLife)
+	return rt.DetachEffectCard(priestess, model.EffectBloodSharedLife)
 }
 
 // RemoveSharedLife 移除血祭司的同生共死场牌。
 func RemoveSharedLife(rt engineplayer.ChoiceRuntime, priestess *model.Player, restoreCard bool) bool {
-	return rt.RemoveExclusiveEffectCard(priestess, model.EffectBloodSharedLife, restoreCard)
+	return rt.RemoveEffectCard(priestess, model.EffectBloodSharedLife, restoreCard)
 }
 
 // PlaceSharedLife 放置血祭司的同生共死场牌。
@@ -27,7 +27,7 @@ func PlaceSharedLife(rt engineplayer.ChoiceRuntime, priestess, target *model.Pla
 	if priestess == nil || target == nil {
 		return fmt.Errorf("放置同生共死时角色不存在")
 	}
-	return rt.AttachExclusiveEffectCard(priestess.ID, target.ID, model.EffectBloodSharedLife, card)
+	return rt.AttachEffectCard(priestess, target, model.EffectBloodSharedLife, card)
 }
 
 // HasFixedMaxHandCap 判断玩家是否有固定手牌上限。
@@ -35,10 +35,8 @@ func HasFixedMaxHandCap(rt engineplayer.ChoiceRuntime, player *model.Player) boo
 	if player == nil {
 		return false
 	}
-	if _, ok := rt.RoleFixedMaxHandCapValue(player); ok {
-		return true
-	}
-	return rt.HasMercyFixedMaxHandCap(player)
+	_, ok := rt.RoleFixedMaxHandCapValue(player)
+	return ok
 }
 
 // SharedLifeDeltaFor 计算同生共死对指定玩家手牌上限的增量。
@@ -47,8 +45,8 @@ func SharedLifeDeltaFor(rt engineplayer.ChoiceRuntime, player *model.Player) int
 		return 0
 	}
 	delta := 0
-	for _, pid := range rt.PlayerOrder() {
-		holder := rt.LookupPlayer(pid)
+	for _, pid := range rt.GetPlayerOrder() {
+		holder := rt.GetPlayers()[pid]
 		if holder == nil {
 			continue
 		}
@@ -56,7 +54,7 @@ func SharedLifeDeltaFor(rt engineplayer.ChoiceRuntime, player *model.Player) int
 			if fc == nil || fc.Mode != model.FieldEffect || fc.Effect != model.EffectBloodSharedLife {
 				continue
 			}
-			source := rt.LookupPlayer(fc.SourceID)
+			source := rt.GetPlayers()[fc.SourceID]
 			if source == nil || !engineplayer.IsCharacter(source, "blood_priestess") {
 				continue
 			}
@@ -84,13 +82,12 @@ func EnterBleedingFormWithLog(rt engineplayer.ChoiceRuntime, player *model.Playe
 	if InBleedingForm(player) {
 		return false
 	}
-	beforePoses := rt.SnapshotPlayerPoses()
+	defer rt.PoseChangeGuard()
 	EnterBleedingForm(player)
 	if reason == "" {
 		reason = "因承受伤害导致我方士气下降"
 	}
 	rt.Log(fmt.Sprintf("%s 的 [流血] 触发：%s，进入流血形态", player.Name, reason))
-	rt.DispatchOrientationChanges(beforePoses)
 	return true
 }
 
@@ -102,21 +99,20 @@ func LeaveBleedingFormWithLog(rt engineplayer.ChoiceRuntime, player *model.Playe
 	if !InBleedingForm(player) {
 		return false
 	}
-	beforePoses := rt.SnapshotPlayerPoses()
+	defer rt.PoseChangeGuard()
 	LeaveBleedingForm(player)
 	if reason == "" {
 		reason = "行动结束时手牌少于3"
 	}
 	rt.Log(fmt.Sprintf("%s 的 [流血·手牌不足脱离] 生效：%s，脱离流血形态", player.Name, reason))
-	rt.DispatchOrientationChanges(beforePoses)
 	return true
 }
 
 // ResolveBleedExitOnActionEnd 在行动结束时检查所有血祭司是否需要脱离流血形态。
 func ResolveBleedExitOnActionEnd(rt engineplayer.ChoiceRuntime) bool {
 	released := false
-	for _, pid := range rt.PlayerOrder() {
-		player := rt.LookupPlayer(pid)
+	for _, pid := range rt.GetPlayerOrder() {
+		player := rt.GetPlayers()[pid]
 		if player == nil || !engineplayer.IsCharacter(player, "blood_priestess") {
 			continue
 		}

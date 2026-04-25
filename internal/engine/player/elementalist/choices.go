@@ -82,12 +82,12 @@ func handleElementalistBonusCardChoice(rt engineplayer.ChoiceRuntime, selectionI
 
 func resolveElementalistBonus(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, bonus bool, discardIdx int) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
 	targetID, _ := ctxData["damage_target_id"].(string)
-	target := rt.LookupPlayer(targetID)
+	target := rt.GetPlayers()[targetID]
 	if target == nil {
 		return fmt.Errorf("目标不存在")
 	}
@@ -114,7 +114,7 @@ func resolveElementalistBonus(rt engineplayer.ChoiceRuntime, ctxData map[string]
 	rt.InflictDamage(userID, targetID, damage, model.MagicAttack)
 
 	if healTargetID, ok := ctxData["heal_target_id"].(string); ok && healTargetID != "" {
-		if healTarget := rt.LookupPlayer(healTargetID); healTarget != nil {
+		if healTarget := rt.GetPlayers()[healTargetID]; healTarget != nil {
 			rt.Heal(healTargetID, 1)
 			rt.Log(fmt.Sprintf("[元素师] %s 为 %s 提供了1点治疗", skillName, healTarget.Name))
 		}

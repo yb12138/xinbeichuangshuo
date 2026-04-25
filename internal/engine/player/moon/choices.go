@@ -112,7 +112,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		}
 		var options []model.PromptOption
 		for _, tid := range targetIDs {
-			if p := rt.LookupPlayer(tid); p != nil {
+			if p := rt.GetPlayers()[tid]; p != nil {
 				options = append(options, model.PromptOption{ID: tid, Label: p.Name})
 			}
 		}
@@ -139,7 +139,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		}
 		options := []model.PromptOption{{ID: "0", Label: "跳过月渎"}}
 		for _, tid := range targetIDs {
-			if p := rt.LookupPlayer(tid); p != nil {
+			if p := rt.GetPlayers()[tid]; p != nil {
 				options = append(options, model.PromptOption{
 					ID:    fmt.Sprintf("%d", len(options)),
 					Label: fmt.Sprintf("对 %s 造成1点法术伤害", p.Name),
@@ -243,7 +243,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		}
 		var options []model.PromptOption
 		for _, tid := range targetIDs {
-			if p := rt.LookupPlayer(tid); p != nil {
+			if p := rt.GetPlayers()[tid]; p != nil {
 				options = append(options, model.PromptOption{ID: tid, Label: p.Name})
 			}
 		}
@@ -284,7 +284,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 	switch choiceType {
 	case "mg_medusa_darkmoon_pick":
 		userID, _ := ctxData["user_id"].(string)
-		user := rt.LookupPlayer(userID)
+		user := rt.GetPlayers()[userID]
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
@@ -316,8 +316,9 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		if card.Type == model.CardTypeMagic {
 			if len(user.Hand) > 0 {
 				ctxData["choice_type"] = "mg_medusa_magic_discard"
-				if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-					return true, err
+				intr := rt.GetPendingInterrupt()
+				if intr != nil {
+					intr.Context = ctxData
 				}
 				rt.NotifyInterruptPrompt()
 				return true, nil
@@ -329,7 +330,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 
 	case "mg_medusa_magic_discard":
 		userID, _ := ctxData["user_id"].(string)
-		user := rt.LookupPlayer(userID)
+		user := rt.GetPlayers()[userID]
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
@@ -351,7 +352,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 
 	case "mg_moon_cycle_mode":
 		userID, _ := ctxData["user_id"].(string)
-		user := rt.LookupPlayer(userID)
+		user := rt.GetPlayers()[userID]
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
@@ -375,8 +376,9 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 				return true, fmt.Errorf("闇月不足，无法发动分支①")
 			}
 			ctxData["choice_type"] = "mg_moon_cycle_heal_target"
-			if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-				return true, err
+			intr := rt.GetPendingInterrupt()
+			if intr != nil {
+				intr.Context = ctxData
 			}
 			rt.NotifyInterruptPrompt()
 			return true, nil
@@ -388,7 +390,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 			now := addMoonGoddessNewMoon(user, 1)
 			rt.Log(fmt.Sprintf("%s 发动 [月之轮回] 分支②：移除1治疗，+1新月（当前%d）", user.Name, now))
 			rt.PopInterrupt()
-			if !rt.HasPendingInterrupt() {
+			if rt.GetPendingInterrupt() == nil {
 				rt.EnterTurnEndStage()
 			}
 			return true, nil
@@ -398,7 +400,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 
 	case "mg_moon_cycle_heal_target":
 		userID, _ := ctxData["user_id"].(string)
-		user := rt.LookupPlayer(userID)
+		user := rt.GetPlayers()[userID]
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
@@ -418,7 +420,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		if selectionIndex < 0 || selectionIndex >= len(targetIDs) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
-		target := rt.LookupPlayer(targetIDs[selectionIndex])
+		target := rt.GetPlayers()[targetIDs[selectionIndex]]
 		if target == nil {
 			return true, fmt.Errorf("目标角色不存在")
 		}
@@ -429,14 +431,14 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		rt.Heal(target.ID, 1)
 		rt.Log(fmt.Sprintf("%s 发动 [月之轮回] 分支①：移除1闇月并令 %s +1治疗", user.Name, target.Name))
 		rt.PopInterrupt()
-		if !rt.HasPendingInterrupt() {
+		if rt.GetPendingInterrupt() == nil {
 			rt.EnterTurnEndStage()
 		}
 		return true, nil
 
 	case "mg_blasphemy_target":
 		userID, _ := ctxData["user_id"].(string)
-		user := rt.LookupPlayer(userID)
+		user := rt.GetPlayers()[userID]
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
@@ -457,7 +459,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 			user.TurnState.SkillFlowState["mg_blasphemy_pending"] = 0
 			rt.Log(fmt.Sprintf("%s 选择跳过 [月渎]", user.Name))
 			rt.PopInterrupt()
-			if !rt.HasPendingInterrupt() {
+			if rt.GetPendingInterrupt() == nil {
 				rt.EnterDamageResolution(nil)
 			}
 			return true, nil
@@ -466,7 +468,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		if choice < 0 || choice >= len(targetIDs) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
-		target := rt.LookupPlayer(targetIDs[choice])
+		target := rt.GetPlayers()[targetIDs[choice]]
 		if target == nil {
 			return true, fmt.Errorf("目标角色不存在")
 		}
@@ -490,14 +492,14 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		})
 		rt.Log(fmt.Sprintf("%s 发动 [月渎]：移除1治疗，对 %s 造成1点法术伤害", user.Name, target.Name))
 		rt.PopInterrupt()
-		if !rt.HasPendingInterrupt() {
+		if rt.GetPendingInterrupt() == nil {
 			rt.EnterDamageResolution(nil)
 		}
 		return true, nil
 
 	case "mg_darkmoon_slash_x":
 		userID, _ := ctxData["user_id"].(string)
-		user := rt.LookupPlayer(userID)
+		user := rt.GetPlayers()[userID]
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
@@ -524,7 +526,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		pd.Damage += x
 		rt.Log(fmt.Sprintf("%s 的 [闇月斩] 生效：移除%d个闇月，本次攻击伤害额外+%d", user.Name, x, x))
 		rt.PopInterrupt()
-		if !rt.HasPendingInterrupt() {
+		if rt.GetPendingInterrupt() == nil {
 			if rawCtx != nil && rawCtx.ResumeAttackHitPhase() {
 				rt.ResumePendingAttackHit(ctxData)
 			}
@@ -534,7 +536,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 
 	case "mg_pale_moon_mode":
 		userID, _ := ctxData["user_id"].(string)
-		user := rt.LookupPlayer(userID)
+		user := rt.GetPlayers()[userID]
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
@@ -567,7 +569,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 			model.AppendAttackAction(user, "苍白之月")
 			rt.Log(fmt.Sprintf("%s 发动 [苍白之月] 分支①：移除3石化，下次主动攻击不可应战，额外+1攻击行动并获得额外回合", user.Name))
 			rt.PopInterrupt()
-			if !rt.HasPendingInterrupt() {
+			if rt.GetPendingInterrupt() == nil {
 				rt.EnterExtraActionStage()
 			}
 			return true, nil
@@ -581,8 +583,9 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 			maxX := moonGoddessNewMoon(user)
 			ctxData["choice_type"] = "mg_pale_moon_x"
 			ctxData["max_x"] = maxX
-			if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-				return true, err
+			intr := rt.GetPendingInterrupt()
+			if intr != nil {
+				intr.Context = ctxData
 			}
 			rt.NotifyInterruptPrompt()
 			return true, nil
@@ -592,7 +595,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 
 	case "mg_pale_moon_x":
 		userID, _ := ctxData["user_id"].(string)
-		user := rt.LookupPlayer(userID)
+		user := rt.GetPlayers()[userID]
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
@@ -610,8 +613,9 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		ctxData["x"] = selectionIndex + 1
 		ctxData["target_ids"] = targetIDs
 		ctxData["choice_type"] = "mg_pale_moon_target"
-		if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-			return true, err
+		intr := rt.GetPendingInterrupt()
+		if intr != nil {
+			intr.Context = ctxData
 		}
 		rt.NotifyInterruptPrompt()
 		return true, nil
@@ -632,15 +636,16 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		}
 		ctxData["target_id"] = targetIDs[selectionIndex]
 		ctxData["choice_type"] = "mg_pale_moon_discard"
-		if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-			return true, err
+		intr := rt.GetPendingInterrupt()
+		if intr != nil {
+			intr.Context = ctxData
 		}
 		rt.NotifyInterruptPrompt()
 		return true, nil
 
 	case "mg_pale_moon_discard":
 		userID, _ := ctxData["user_id"].(string)
-		user := rt.LookupPlayer(userID)
+		user := rt.GetPlayers()[userID]
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
@@ -649,7 +654,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 			return true, fmt.Errorf("无效的弃牌索引: %d", selectionIndex)
 		}
 		targetID, _ := ctxData["target_id"].(string)
-		target := rt.LookupPlayer(targetID)
+		target := rt.GetPlayers()[targetID]
 		if target == nil {
 			return true, fmt.Errorf("目标角色不存在")
 		}
@@ -676,7 +681,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		rt.Log(fmt.Sprintf("%s 发动 [苍白之月] 分支②：移除%d新月，石化+1（当前%d），弃1张牌并对 %s 造成%d点法术伤害",
 			user.Name, x, nowPetrify, target.Name, damage))
 		rt.PopInterrupt()
-		if !rt.HasPendingInterrupt() {
+		if rt.GetPendingInterrupt() == nil {
 			rt.ApplyChoiceResumePoint(model.TurnStageExtraAction)
 			rt.EnterDamageResolution(nil)
 		}
@@ -823,7 +828,7 @@ func queueMoonGoddessMedusaMagicDamage(rt engineplayer.ChoiceRuntime, user *mode
 	if user == nil || attackerID == "" {
 		return
 	}
-	attacker := rt.LookupPlayer(attackerID)
+	attacker := rt.GetPlayers()[attackerID]
 	if attacker == nil {
 		return
 	}
@@ -838,7 +843,7 @@ func queueMoonGoddessMedusaMagicDamage(rt engineplayer.ChoiceRuntime, user *mode
 
 func finishMoonGoddessMedusa(rt engineplayer.ChoiceRuntime, rawCtx *model.Context) {
 	rt.PopInterrupt()
-	if rt.HasPendingInterrupt() {
+	if rt.GetPendingInterrupt() != nil {
 		return
 	}
 	defaultReturn := interface{}(nil)
@@ -849,7 +854,7 @@ func finishMoonGoddessMedusa(rt engineplayer.ChoiceRuntime, rawCtx *model.Contex
 		return
 	}
 	if rawCtx != nil && rawCtx.AttackDeclaredPhase() {
-		if rt.ActionQueueLen() > 0 {
+		if len(rt.GetActionQueue()) > 0 {
 			rt.EnterActionExecutionStage()
 		} else {
 			// enterResponseWindow is not exposed on ChoiceRuntime
@@ -860,11 +865,10 @@ func finishMoonGoddessMedusa(rt engineplayer.ChoiceRuntime, rawCtx *model.Contex
 }
 
 func moonGoddessFindPendingAttackDamage(rt engineplayer.ChoiceRuntime, _ *model.Context) *model.PendingDamage {
-	n := rt.PendingDamageQueueLen()
-	for i := 0; i < n; i++ {
-		pd, ok := rt.GetPendingDamage(i)
-		if ok && pd != nil {
-			return pd
+	queue := rt.GetPendingDamageQueue()
+	for i := range queue {
+		if queue[i].Damage > 0 {
+			return &queue[i]
 		}
 	}
 	return nil
@@ -875,8 +879,8 @@ func moonGoddessEnemyIDs(rt engineplayer.ChoiceRuntime, user *model.Player) []st
 		return nil
 	}
 	var ids []string
-	for _, pid := range rt.PlayerOrder() {
-		p := rt.LookupPlayer(pid)
+	for _, pid := range rt.GetPlayerOrder() {
+		p := rt.GetPlayers()[pid]
 		if p == nil || p.Camp == user.Camp {
 			continue
 		}

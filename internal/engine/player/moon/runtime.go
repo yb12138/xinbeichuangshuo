@@ -30,10 +30,9 @@ func applyDarkMoonCurse(rt engineplayer.ChoiceRuntime, p *model.Player, removed 
 	if p == nil || removed <= 0 {
 		return
 	}
-	beforePoses := rt.SnapshotPlayerPoses()
+	defer rt.PoseChangeGuard()
 	actual := rt.ApplyCampMoraleLoss(p.Camp, removed)
 	rt.Log(fmt.Sprintf("%s 的 [暗月诅咒] 触发：移除%d个暗月，我方士气-%d", p.Name, removed, actual))
-	rt.DispatchOrientationChanges(beforePoses)
 	rt.CheckGameEnd()
 }
 
@@ -79,7 +78,15 @@ func EnemyIDs(rt engineplayer.ChoiceRuntime, user *model.Player) []string {
 	if rt == nil || user == nil {
 		return nil
 	}
-	return rt.CampEnemyIDs(user.Camp)
+	var ids []string
+	for _, pid := range rt.GetPlayerOrder() {
+		p := rt.GetPlayers()[pid]
+		if p == nil || p.Camp == user.Camp {
+			continue
+		}
+		ids = append(ids, p.ID)
+	}
+	return ids
 }
 
 // TryQueueBlasphemy queues the blasphemy (月渎) interrupt.
@@ -90,15 +97,17 @@ func TryQueueBlasphemy(rt engineplayer.ChoiceRuntime, pd *model.PendingDamage) b
 	if !runtimeutil.IsMagicDamageType(pd.DamageType) {
 		return false
 	}
-	source := rt.LookupPlayer(pd.SourceID)
+	source := rt.GetPlayers()[pd.SourceID]
 	if source == nil || !engineplayer.IsCharacter(source, "moon_goddess") {
 		return false
 	}
-	currentTurnSource := rt.CurrentTurnPlayerID() == source.ID
+	order := rt.GetPlayerOrder()
+	idx := rt.GetCurrentTurnIndex()
+	currentTurnSource := idx >= 0 && idx < len(order) && order[idx] == source.ID
 	if !source.IsActive && !currentTurnSource {
 		return false
 	}
-	target := rt.LookupPlayer(pd.TargetID)
+	target := rt.GetPlayers()[pd.TargetID]
 	if target == nil || target.Camp == source.Camp {
 		return false
 	}
@@ -142,8 +151,8 @@ func MaybeMedusa(rt engineplayer.ChoiceRuntime, attacker, target *model.Player, 
 	if attackCard.Element == "" {
 		return false
 	}
-	for _, pid := range rt.PlayerOrder() {
-		p := rt.LookupPlayer(pid)
+	for _, pid := range rt.GetPlayerOrder() {
+		p := rt.GetPlayers()[pid]
 		if p == nil || p.Camp == attacker.Camp || !engineplayer.IsCharacter(p, "moon_goddess") {
 			continue
 		}
@@ -214,7 +223,7 @@ func MaybeMoonCycleAtTurnEnd(rt engineplayer.ChoiceRuntime, p *model.Player) boo
 			"choice_type": "mg_moon_cycle_mode",
 			"user_id":     p.ID,
 			"modes":       modes,
-			"target_ids":  rt.PlayerOrder(),
+			"target_ids":  rt.GetPlayerOrder(),
 		},
 	})
 	rt.Log(fmt.Sprintf("%s 的 [月之轮回] 触发：请选择发动分支", p.Name))

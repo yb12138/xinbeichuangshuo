@@ -199,6 +199,14 @@ func (e *GameEngine) GetAllPlayers() []*model.Player {
 	return players
 }
 
+// GetPlayers 返回玩家映射表（实现 HandLimitModifierEngine 接口）。
+func (e *GameEngine) GetPlayers() map[string]*model.Player {
+	if e.State == nil {
+		return map[string]*model.Player{}
+	}
+	return e.State.Players
+}
+
 func (e *GameEngine) DrawCards(playerID string, amount int) {
 	p := e.State.Players[playerID]
 	if p == nil {

@@ -11,7 +11,7 @@ import (
 
 // FindSoulLink 查找灵魂术士已放置的灵魂链接效果。
 func FindSoulLink(rt engineplayer.ChoiceRuntime, sorcerer *model.Player) (*model.Player, *model.FieldCard) {
-	return rt.FindExclusiveEffectCard(sorcerer, model.EffectSoulLink)
+	return rt.FindEffectCard(sorcerer, model.EffectSoulLink)
 }
 
 // PlaceSoulLink 将灵魂链接放置于指定队友面前。
@@ -25,7 +25,7 @@ func PlaceSoulLink(rt engineplayer.ChoiceRuntime, sorcerer, target *model.Player
 	if holder, _ := FindSoulLink(rt, sorcerer); holder != nil {
 		return fmt.Errorf("灵魂链接已绑定，不能再次放置或移除")
 	}
-	return rt.AttachExclusiveEffectCard(sorcerer.ID, target.ID, model.EffectSoulLink, card)
+	return rt.AttachEffectCard(sorcerer, target, model.EffectSoulLink, card)
 }
 
 // ApplySoulDevour 灵魂吞噬：当队友因伤害导致士气下降时，灵魂术士获得黄色灵魂。
@@ -53,7 +53,7 @@ func MaybeSoulLinkTransfer(rt engineplayer.ChoiceRuntime, pd *model.PendingDamag
 	}
 	pd.SetCheck(model.PendingDamageCheckSoulLinkChecked, true)
 
-	target := rt.LookupPlayer(pd.TargetID)
+	target := rt.GetPlayers()[pd.TargetID]
 	if target == nil {
 		return false
 	}
@@ -73,7 +73,7 @@ func MaybeSoulLinkTransfer(rt engineplayer.ChoiceRuntime, pd *model.PendingDamag
 			if fc == nil || fc.Mode != model.FieldEffect || fc.Effect != model.EffectSoulLink {
 				continue
 			}
-			p := rt.LookupPlayer(fc.SourceID)
+			p := rt.GetPlayers()[fc.SourceID]
 			if p == nil || !engineplayer.IsCharacter(p, "soul_sorcerer") {
 				continue
 			}

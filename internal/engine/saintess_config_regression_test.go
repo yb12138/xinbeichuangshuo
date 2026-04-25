@@ -168,8 +168,8 @@ func TestSaintess_Mercy_BecomesPersistentFixedHandCapState(t *testing.T) {
 	if p1.Crystal != 1 {
 		t.Fatalf("expected mercy to grant 1 crystal to self, got %d", p1.Crystal)
 	}
-	if !p1.HasFieldEffect(model.EffectMercy) {
-		t.Fatalf("expected mercy field effect to persist on self")
+	if p1.Form != model.FormSaintessMercy {
+		t.Fatalf("expected mercy form to be set, got %q", p1.Form)
 	}
 	if got := game.GetMaxHand(p1); got != 7 {
 		t.Fatalf("expected mercy fixed max hand 7, got %d", got)

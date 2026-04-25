@@ -47,7 +47,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 
 func handleHeroRoarDrawChoice(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -65,7 +65,7 @@ func handleHeroRoarDrawChoice(rt engineplayer.ChoiceRuntime, selectionIndex int,
 	}
 	rt.Log(fmt.Sprintf("%s 的 [怒吼] 结算：摸%d张牌", user.Name, drawCount))
 	rt.PopInterrupt()
-	if !rt.HasPendingInterrupt() {
+	if rt.GetPendingInterrupt() == nil {
 		rt.EnterActionExecutionStage()
 	}
 	return nil

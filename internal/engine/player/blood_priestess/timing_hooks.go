@@ -21,10 +21,9 @@ func moraleLossHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHookCont
 	if InBleedingForm(victim) {
 		return engineplayer.TimingHookResult{}
 	}
-	beforePoses := rt.SnapshotPlayerPoses()
+	defer rt.PoseChangeGuard()
 	EnterBleedingForm(victim)
 	rt.Log(fmt.Sprintf("%s 的 [流血] 触发：因承受伤害导致我方士气下降，进入流血形态", victim.Name))
-	rt.DispatchOrientationChanges(beforePoses)
 	rt.Heal(victim.ID, 1)
 	rt.Log(fmt.Sprintf("%s 的 [流血] 触发：获得1点治疗", victim.Name))
 	return engineplayer.TimingHookResult{}

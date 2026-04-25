@@ -17,7 +17,7 @@ func FollowupSpecs() map[string]engineplayer.FollowupSpec {
 }
 
 func resolveStealthApply(rt engineplayer.ChoiceRuntime, f model.DeferredFollowup) error {
-	user := rt.LookupPlayer(f.UserID)
+	user := rt.GetPlayers()[f.UserID]
 	if user == nil {
 		return fmt.Errorf("暗杀者潜行后续执行者不存在: %s", f.UserID)
 	}

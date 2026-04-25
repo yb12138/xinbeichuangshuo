@@ -163,7 +163,7 @@ func buildHundredNightExcludePickPrompt(rt engineplayer.ChoiceRuntime, playerID 
 		if selectedSet[targetID] {
 			continue
 		}
-		if target := rt.LookupPlayer(targetID); target != nil {
+		if target := rt.GetPlayers()[targetID]; target != nil {
 			options = append(options, model.PromptOption{ID: targetID, Label: target.Name})
 		}
 	}
@@ -181,7 +181,7 @@ func buildHundredNightTargetPrompt(rt engineplayer.ChoiceRuntime, playerID strin
 	targetIDs := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
 	options := make([]model.PromptOption, 0, len(targetIDs))
 	for _, targetID := range targetIDs {
-		if target := rt.LookupPlayer(targetID); target != nil {
+		if target := rt.GetPlayers()[targetID]; target != nil {
 			options = append(options, model.PromptOption{ID: targetID, Label: target.Name})
 		}
 	}
@@ -208,7 +208,7 @@ func buildSpiritualCollapseConfirmPrompt(playerID string) *model.Prompt {
 
 func buildTalismanWindDiscardPrompt(rt engineplayer.ChoiceRuntime, playerID string, data map[string]interface{}) *model.Prompt {
 	currentTargetID, _ := data["current_target_id"].(string)
-	target := rt.LookupPlayer(currentTargetID)
+	target := rt.GetPlayers()[currentTargetID]
 	if target == nil {
 		return nil
 	}
@@ -246,7 +246,7 @@ func buildTalismanPickPrompt(playerID string, player *model.Player) *model.Promp
 
 func handleIncantConfirm(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -260,8 +260,8 @@ func handleIncantConfirm(rt engineplayer.ChoiceRuntime, ctxData map[string]inter
 			return continueSpiritCasterTalisman(rt, user, skillID, targetIDs)
 		}
 		ctxData["choice_type"] = "sc_incant_card"
-		if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-			return err
+		if intr := rt.GetPendingInterrupt(); intr != nil {
+			intr.Context = ctxData
 		}
 		rt.NotifyInterruptPrompt()
 		return nil
@@ -275,7 +275,7 @@ func handleIncantConfirm(rt engineplayer.ChoiceRuntime, ctxData map[string]inter
 
 func handleIncantConfirmNoHand(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -297,7 +297,7 @@ func handleIncantConfirmNoHand(rt engineplayer.ChoiceRuntime, ctxData map[string
 
 func handleIncantCard(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -316,7 +316,7 @@ func handleIncantCard(rt engineplayer.ChoiceRuntime, ctxData map[string]interfac
 
 func handleHundredNightPower(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -346,17 +346,17 @@ func handleHundredNightPower(rt engineplayer.ChoiceRuntime, ctxData map[string]i
 		ctxData["removed_element"] = string(card.Element)
 		ctxData["removed_name"] = card.Name
 		ctxData["choice_type"] = "sc_hundred_night_fire_reveal"
-		ctxData["target_ids"] = append([]string{}, rt.PlayerOrder()...)
-		if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-			return err
+		ctxData["target_ids"] = append([]string{}, rt.GetPlayerOrder()...)
+		if intr := rt.GetPendingInterrupt(); intr != nil {
+			intr.Context = ctxData
 		}
 		rt.NotifyInterruptPrompt()
 		return nil
 	}
 	ctxData["choice_type"] = "sc_hundred_night_target"
-	ctxData["target_ids"] = append([]string{}, rt.PlayerOrder()...)
-	if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-		return err
+	ctxData["target_ids"] = append([]string{}, rt.GetPlayerOrder()...)
+	if intr := rt.GetPendingInterrupt(); intr != nil {
+		intr.Context = ctxData
 	}
 	rt.NotifyInterruptPrompt()
 	return nil
@@ -366,7 +366,7 @@ func handleHundredNightFireReveal(rt engineplayer.ChoiceRuntime, ctxData map[str
 	switch selectionIndex {
 	case 0:
 		userID, _ := ctxData["user_id"].(string)
-		user := rt.LookupPlayer(userID)
+		user := rt.GetPlayers()[userID]
 		if user != nil {
 			if removedCard, ok := ctxData["removed_card"].(model.Card); ok {
 				rt.NotifyCardRevealed(user.ID, []model.Card{removedCard}, "discard")
@@ -374,18 +374,18 @@ func handleHundredNightFireReveal(rt engineplayer.ChoiceRuntime, ctxData map[str
 			rt.Log(fmt.Sprintf("%s 展示了火系妖力，触发 [百鬼夜行] 范围分支", user.Name))
 		}
 		ctxData["choice_type"] = "sc_hundred_night_exclude_pick"
-		ctxData["target_ids"] = append([]string{}, rt.PlayerOrder()...)
+		ctxData["target_ids"] = append([]string{}, rt.GetPlayerOrder()...)
 		ctxData["selected_exclude_ids"] = []string{}
-		if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-			return err
+		if intr := rt.GetPendingInterrupt(); intr != nil {
+			intr.Context = ctxData
 		}
 		rt.NotifyInterruptPrompt()
 		return nil
 	case 1:
 		ctxData["choice_type"] = "sc_hundred_night_target"
-		ctxData["target_ids"] = append([]string{}, rt.PlayerOrder()...)
-		if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-			return err
+		ctxData["target_ids"] = append([]string{}, rt.GetPlayerOrder()...)
+		if intr := rt.GetPendingInterrupt(); intr != nil {
+			intr.Context = ctxData
 		}
 		rt.NotifyInterruptPrompt()
 		return nil
@@ -396,7 +396,7 @@ func handleHundredNightFireReveal(rt engineplayer.ChoiceRuntime, ctxData map[str
 
 func handleHundredNightExcludePick(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -418,8 +418,8 @@ func handleHundredNightExcludePick(rt engineplayer.ChoiceRuntime, ctxData map[st
 	selected = append(selected, remaining[selectionIndex])
 	if len(selected) < 2 {
 		ctxData["selected_exclude_ids"] = selected
-		if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-			return err
+		if intr := rt.GetPendingInterrupt(); intr != nil {
+			intr.Context = ctxData
 		}
 		rt.NotifyInterruptPrompt()
 		return nil
@@ -428,16 +428,16 @@ func handleHundredNightExcludePick(rt engineplayer.ChoiceRuntime, ctxData map[st
 		ctxData["choice_type"] = "sc_spiritual_collapse_confirm"
 		ctxData["mode"] = "sc_hundred_night_fire_aoe"
 		ctxData["exclude_ids"] = selected
-		if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-			return err
+		if intr := rt.GetPendingInterrupt(); intr != nil {
+			intr.Context = ctxData
 		}
 		rt.NotifyInterruptPrompt()
 		return nil
 	}
 	resolveHundredNightFireAOE(rt, user, selected, 0)
 	rt.PopInterrupt()
-	if !rt.HasPendingInterrupt() {
-		if rt.PendingDamageQueueLen() > 0 {
+	if rt.GetPendingInterrupt() == nil {
+		if len(rt.GetPendingDamageQueue()) > 0 {
 			rt.EnterDamageResolution(nil)
 		}
 	}
@@ -446,7 +446,7 @@ func handleHundredNightExcludePick(rt engineplayer.ChoiceRuntime, ctxData map[st
 
 func handleHundredNightTarget(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -459,16 +459,16 @@ func handleHundredNightTarget(rt engineplayer.ChoiceRuntime, ctxData map[string]
 		ctxData["choice_type"] = "sc_spiritual_collapse_confirm"
 		ctxData["mode"] = "sc_hundred_night_single"
 		ctxData["target_id"] = targetID
-		if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-			return err
+		if intr := rt.GetPendingInterrupt(); intr != nil {
+			intr.Context = ctxData
 		}
 		rt.NotifyInterruptPrompt()
 		return nil
 	}
 	resolveHundredNightSingle(rt, user, targetID, 0)
 	rt.PopInterrupt()
-	if !rt.HasPendingInterrupt() {
-		if rt.PendingDamageQueueLen() > 0 {
+	if rt.GetPendingInterrupt() == nil {
+		if len(rt.GetPendingDamageQueue()) > 0 {
 			rt.EnterDamageResolution(nil)
 		}
 	}
@@ -477,7 +477,7 @@ func handleHundredNightTarget(rt engineplayer.ChoiceRuntime, ctxData map[string]
 
 func handleSpiritualCollapseConfirm(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -514,7 +514,7 @@ func handleSpiritualCollapseConfirm(rt engineplayer.ChoiceRuntime, ctxData map[s
 	default:
 		return fmt.Errorf("灵力崩解上下文无效")
 	}
-	if !rt.HasPendingInterrupt() && rt.PendingDamageQueueLen() > 0 {
+	if rt.GetPendingInterrupt() == nil && len(rt.GetPendingDamageQueue()) > 0 {
 		rt.EnterDamageResolution(nil)
 	}
 	return nil
@@ -522,7 +522,7 @@ func handleSpiritualCollapseConfirm(rt engineplayer.ChoiceRuntime, ctxData map[s
 
 func handleTalismanWindDiscard(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("灵符师不存在")
 	}
@@ -538,7 +538,7 @@ func handleTalismanWindDiscard(rt engineplayer.ChoiceRuntime, ctxData map[string
 	if currentTargetID == "" {
 		currentTargetID = ordered[cursor]
 	}
-	target := rt.LookupPlayer(currentTargetID)
+	target := rt.GetPlayers()[currentTargetID]
 	if target == nil {
 		return fmt.Errorf("弃牌目标不存在")
 	}
@@ -559,7 +559,7 @@ func handleTalismanWindDiscard(rt engineplayer.ChoiceRuntime, ctxData map[string
 
 	nextCursor := cursor + 1
 	for nextCursor < len(ordered) {
-		nextTarget := rt.LookupPlayer(ordered[nextCursor])
+		nextTarget := rt.GetPlayers()[ordered[nextCursor]]
 		if nextTarget == nil {
 			nextCursor++
 			continue
@@ -571,8 +571,8 @@ func handleTalismanWindDiscard(rt engineplayer.ChoiceRuntime, ctxData map[string
 		}
 		ctxData["cursor"] = nextCursor
 		ctxData["current_target_id"] = nextTarget.ID
-		if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-			return err
+		if intr := rt.GetPendingInterrupt(); intr != nil {
+			intr.Context = ctxData
 		}
 		// Update the interrupt's PlayerID so the prompt goes to the right player
 		rt.ReplacePendingInterruptPlayerID(nextTarget.ID)
@@ -582,7 +582,7 @@ func handleTalismanWindDiscard(rt engineplayer.ChoiceRuntime, ctxData map[string
 
 	rt.Log(fmt.Sprintf("%s 的 [灵符-风行] 结算完成", user.Name))
 	rt.PopInterrupt()
-	if !rt.HasPendingInterrupt() && rt.PendingDamageQueueLen() > 0 {
+	if rt.GetPendingInterrupt() == nil && len(rt.GetPendingDamageQueue()) > 0 {
 		rt.EnterDamageResolution(nil)
 	}
 	return nil
@@ -590,7 +590,7 @@ func handleTalismanWindDiscard(rt engineplayer.ChoiceRuntime, ctxData map[string
 
 func handleTalismanPick(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -664,7 +664,7 @@ func startWindDiscardFlow(rt engineplayer.ChoiceRuntime, user *model.Player, tar
 
 	cursor := 0
 	for cursor < len(ordered) {
-		target := rt.LookupPlayer(ordered[cursor])
+		target := rt.GetPlayers()[ordered[cursor]]
 		if target == nil || len(target.Hand) == 0 {
 			if target != nil {
 				rt.Log(fmt.Sprintf("%s 的 [灵符-风行]：%s 无手牌可弃置", user.Name, target.Name))
@@ -724,7 +724,7 @@ func resolveThunderDamage(rt engineplayer.ChoiceRuntime, user *model.Player, tar
 		hitCount++
 	}
 	rt.Log(fmt.Sprintf("%s 发动 [灵符-雷鸣]：对%d名角色各造成%d点法术伤害", user.Name, hitCount, damage))
-	if rt.PendingDamageQueueLen() > 0 {
+	if len(rt.GetPendingDamageQueue()) > 0 {
 		rt.RoutePendingDamageWithReturn(model.TurnStageExtraAction)
 	}
 }
@@ -734,7 +734,7 @@ func resolveHundredNightSingle(rt engineplayer.ChoiceRuntime, user *model.Player
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
-	target := rt.LookupPlayer(targetID)
+	target := rt.GetPlayers()[targetID]
 	if target == nil {
 		return fmt.Errorf("目标不存在")
 	}
@@ -763,7 +763,7 @@ func resolveHundredNightFireAOE(rt engineplayer.ChoiceRuntime, user *model.Playe
 		if exclude[playerID] {
 			continue
 		}
-		target := rt.LookupPlayer(playerID)
+		target := rt.GetPlayers()[playerID]
 		if target == nil {
 			continue
 		}
@@ -786,7 +786,7 @@ func resolveHundredNightFireAOE(rt engineplayer.ChoiceRuntime, user *model.Playe
 // reverseOrderTargetIDsFrom returns player IDs in reverse play order starting
 // from the source player's position.
 func reverseOrderTargetIDsFrom(rt engineplayer.ChoiceRuntime, sourceID string, includeSelf bool) []string {
-	playerOrder := rt.PlayerOrder()
+	playerOrder := rt.GetPlayerOrder()
 	if len(playerOrder) == 0 {
 		return nil
 	}

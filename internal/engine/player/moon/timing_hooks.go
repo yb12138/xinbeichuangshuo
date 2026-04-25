@@ -52,15 +52,17 @@ func postDamageResolvedHook(rt engineplayer.HookRuntime, ctx engineplayer.Timing
 	if !rt.IsMagicDamageType(pd.DamageType) {
 		return engineplayer.TimingHookResult{}
 	}
-	source := rt.LookupPlayer(pd.SourceID)
+	source := rt.GetPlayers()[pd.SourceID]
 	if source == nil || !engineplayer.IsCharacter(source, "moon_goddess") {
 		return engineplayer.TimingHookResult{}
 	}
-	currentTurnSource := rt.CurrentTurnPlayerID() == source.ID
+	order := rt.GetPlayerOrder()
+	currentTurnPlayerID := order[rt.GetCurrentTurnIndex()]
+	currentTurnSource := currentTurnPlayerID == source.ID
 	if !source.IsActive && !currentTurnSource {
 		return engineplayer.TimingHookResult{}
 	}
-	target := rt.LookupPlayer(pd.TargetID)
+	target := rt.GetPlayers()[pd.TargetID]
 	if target == nil || target.Camp == source.Camp {
 		return engineplayer.TimingHookResult{}
 	}
@@ -123,7 +125,7 @@ func turnEndMoonCycleHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHo
 			"choice_type": "mg_moon_cycle_mode",
 			"user_id":     player.ID,
 			"modes":       modes,
-			"target_ids":  rt.PlayerOrder(),
+			"target_ids":  rt.GetPlayerOrder(),
 		},
 	})
 	rt.Log(fmt.Sprintf("%s 的 [月之轮回] 触发：请选择发动分支", player.Name))

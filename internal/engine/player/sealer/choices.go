@@ -47,7 +47,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 func handleFiveElementsBindChoice(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
 	drawCount := runtimeutil.ToIntContextValue(ctxData["draw_count"])
 	targetPlayerID, _ := ctxData["player_id"].(string)
-	player := rt.LookupPlayer(targetPlayerID)
+	player := rt.GetPlayers()[targetPlayerID]
 	if player == nil {
 		rt.PopInterrupt()
 		return fmt.Errorf("五系束缚目标玩家不存在")
@@ -61,7 +61,7 @@ func handleFiveElementsBindChoice(rt engineplayer.ChoiceRuntime, selectionIndex 
 		rt.DrawCards(player.ID, drawCount)
 
 		rt.PopInterrupt()
-		if !rt.HasPendingInterrupt() {
+		if rt.GetPendingInterrupt() == nil {
 			rt.ApplyChoiceResumePoint(model.TurnStageActionStart)
 		}
 		return nil
@@ -73,7 +73,7 @@ func handleFiveElementsBindChoice(rt engineplayer.ChoiceRuntime, selectionIndex 
 		player.TurnState.UsedSkillCounts["arbiter_skip_forced_doomsday"] = 1
 
 		rt.PopInterrupt()
-		if !rt.HasPendingInterrupt() {
+		if rt.GetPendingInterrupt() == nil {
 			rt.EnterTurnEndStage()
 		}
 		return nil

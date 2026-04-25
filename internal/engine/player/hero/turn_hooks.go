@@ -18,11 +18,10 @@ func ExhaustionRelease(rt engineplayer.ChoiceRuntime, player *model.Player) bool
 	if player.TurnState.SkillFlowState["hero_exhaustion_release_pending"] <= 0 {
 		return false
 	}
-	beforePoses := rt.SnapshotPlayerPoses()
+	defer rt.PoseChangeGuard()
 	LeaveExhaustionForm(player)
 	player.TurnState.SkillFlowState["hero_exhaustion_release_pending"] = 0
 	rt.Log(fmt.Sprintf("%s 的 [精疲力竭] 结束：转正，手牌上限恢复，并对自己造成3点法术伤害", player.Name))
-	rt.DispatchOrientationChanges(beforePoses)
 	rt.AddPendingDamage(model.PendingDamage{
 		SourceID:   player.ID,
 		TargetID:   player.ID,
@@ -60,7 +59,7 @@ func ActiveTauntSource(rt engineplayer.ChoiceRuntime, player *model.Player) *mod
 		ConsumeTauntRestriction(rt, player)
 		return nil
 	}
-	src := rt.LookupPlayer(tauntCard.SourceID)
+	src := rt.GetPlayers()[tauntCard.SourceID]
 	if src == nil || src.Camp == player.Camp {
 		ConsumeTauntRestriction(rt, player)
 		return nil

@@ -39,7 +39,7 @@ func buildStealSkyModePrompt(_ engineplayer.ChoiceRuntime, playerID string, _ *m
 }
 
 func handleStealSkyMode(rt engineplayer.ChoiceRuntime, playerID string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
-	user := rt.LookupPlayer(playerID)
+	user := rt.GetPlayers()[playerID]
 	if user == nil {
 		return true, fmt.Errorf("玩家不存在")
 	}
@@ -92,7 +92,9 @@ func buildParadisePickPrompt(_ engineplayer.ChoiceRuntime, playerID string, _ *m
 func handleParadisePick(rt engineplayer.ChoiceRuntime, _ string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
 	ctxData["paradise_transfer_count"] = selectionIndex
 	ctxData["choice_type"] = "adventurer_paradise_target"
-	_ = rt.ReplacePendingInterruptContext(ctxData)
+	if intr := rt.GetPendingInterrupt(); intr != nil {
+		intr.Context = ctxData
+	}
 	rt.NotifyInterruptPrompt()
 	return true, nil
 }
@@ -107,7 +109,7 @@ func buildParadiseTargetPrompt(rt engineplayer.ChoiceRuntime, playerID string, _
 	}
 	opts := make([]engineplayer.PromptOptionSpec, 0, len(eligibleIDs))
 	for _, targetID := range eligibleIDs {
-		target := rt.LookupPlayer(targetID)
+		target := rt.GetPlayers()[targetID]
 		if target != nil {
 			opts = append(opts, engineplayer.Option(targetID, target.Name))
 		}
@@ -124,7 +126,7 @@ func handleParadiseTarget(rt engineplayer.ChoiceRuntime, _ string, selectionInde
 		return true, fmt.Errorf("无效的目标索引")
 	}
 	targetID := eligibleIDs[selectionIndex]
-	target := rt.LookupPlayer(targetID)
+	target := rt.GetPlayers()[targetID]
 	if target == nil {
 		return true, fmt.Errorf("目标不存在")
 	}
@@ -137,7 +139,7 @@ func handleParadiseTarget(rt engineplayer.ChoiceRuntime, _ string, selectionInde
 	transferGem := runtimeutil.ToIntContextValue(ctxData["transfer_gem"])
 	transferCrystal := runtimeutil.ToIntContextValue(ctxData["transfer_crystal"])
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 
 	if fromPending {
 		target.Gem += transferGem
@@ -196,7 +198,7 @@ func buildFraudPickPrompt(_ engineplayer.ChoiceRuntime, playerID string, player 
 }
 
 func handleFraudPick(rt engineplayer.ChoiceRuntime, playerID string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
-	user := rt.LookupPlayer(playerID)
+	user := rt.GetPlayers()[playerID]
 	if user == nil {
 		return true, fmt.Errorf("玩家不存在")
 	}
@@ -228,7 +230,9 @@ func handleFraudPick(rt engineplayer.ChoiceRuntime, playerID string, selectionIn
 
 	// 还没选够，继续选
 	if len(selectedIndices) < needCount {
-		_ = rt.ReplacePendingInterruptContext(ctxData)
+		if intr := rt.GetPendingInterrupt(); intr != nil {
+			intr.Context = ctxData
+		}
 		rt.NotifyInterruptPrompt()
 		return true, nil
 	}
@@ -236,7 +240,9 @@ func handleFraudPick(rt engineplayer.ChoiceRuntime, playerID string, selectionIn
 	// 选够后：检查是否还有顺序选牌未完成（多选批次中间步骤）
 	seqRemaining := runtimeutil.ToIntContextValue(ctxData["sequential_remaining"])
 	if seqRemaining > 0 {
-		_ = rt.ReplacePendingInterruptContext(ctxData)
+		if intr := rt.GetPendingInterrupt(); intr != nil {
+			intr.Context = ctxData
+		}
 		rt.NotifyInterruptPrompt()
 		return true, nil
 	}
@@ -251,14 +257,18 @@ func handleFraudPick(rt engineplayer.ChoiceRuntime, playerID string, selectionIn
 	}
 	if commonElement == "" {
 		// 2张不同系，重新选
-		_ = rt.ReplacePendingInterruptContext(ctxData)
+		if intr := rt.GetPendingInterrupt(); intr != nil {
+			intr.Context = ctxData
+		}
 		rt.NotifyInterruptPrompt()
 		return true, nil
 	}
 	// 2张同系 → 进入五系选择
 	ctxData["choice_type"] = "adventurer_fraud_attack_element"
 	ctxData["selected_element"] = string(commonElement)
-	_ = rt.ReplacePendingInterruptContext(ctxData)
+	if intr := rt.GetPendingInterrupt(); intr != nil {
+		intr.Context = ctxData
+	}
 	rt.NotifyInterruptPrompt()
 	return true, nil
 }
@@ -280,7 +290,7 @@ func handleFraudElement(rt engineplayer.ChoiceRuntime, playerID string, selectio
 	if selectionIndex < 0 || selectionIndex >= len(elements) {
 		return true, fmt.Errorf("无效的元素索引: %d", selectionIndex)
 	}
-	user := rt.LookupPlayer(playerID)
+	user := rt.GetPlayers()[playerID]
 	if user == nil {
 		return true, fmt.Errorf("玩家不存在")
 	}
@@ -291,7 +301,7 @@ func handleFraudElement(rt engineplayer.ChoiceRuntime, playerID string, selectio
 // resolveFraudAttack 统一处理欺诈攻击结算：弃牌、构建虚拟攻击、入队。
 func resolveFraudAttack(rt engineplayer.ChoiceRuntime, user *model.Player, indices []int, ctxData map[string]interface{}, element model.Element) (bool, error) {
 	targetID, _ := ctxData["fraud_target_id"].(string)
-	target := rt.LookupPlayer(targetID)
+	target := rt.GetPlayers()[targetID]
 	if target == nil {
 		return true, fmt.Errorf("欺诈目标不存在")
 	}

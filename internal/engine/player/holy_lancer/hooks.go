@@ -89,7 +89,7 @@ func playerSetupHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHookCon
 
 // campCupChangedHook 阵营杯子变化时同步所有圣枪派生状态。
 func campCupChangedHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHookContext) engineplayer.TimingHookResult {
-	for _, player := range rt.GetAllPlayers() {
+	for _, player := range rt.GetPlayers() {
 		if player == nil || !rt.IsCharacter(player, "holy_lancer") {
 			continue
 		}

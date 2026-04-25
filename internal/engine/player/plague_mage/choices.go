@@ -103,7 +103,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		targetIDs := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
 		options := make([]model.PromptOption, 0, len(targetIDs))
 		for i, targetID := range targetIDs {
-			if target := rt.LookupPlayer(targetID); target != nil {
+			if target := rt.GetPlayers()[targetID]; target != nil {
 				options = append(options, model.PromptOption{
 					ID:    fmt.Sprintf("%d", i),
 					Label: target.Name,
@@ -154,7 +154,7 @@ func (choiceHandler) HandleCancel(rt engineplayer.ChoiceRuntime, playerID string
 
 func handlePlagueDeathTouchElementChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -165,16 +165,16 @@ func handlePlagueDeathTouchElementChoice(rt engineplayer.ChoiceRuntime, ctxData 
 	}
 
 	chosenElement := elements[selectionIndex]
-	if err := rt.ReplacePendingInterruptContext(map[string]interface{}{
-		"choice_type":      "plague_death_touch_x",
-		"user_id":          userID,
-		"target_id":        ctxData["target_id"],
-		"chosen_element":   chosenElement,
-		"max_heal":         user.Heal,
-		"max_cards":        len(getCardIndicesByElement(user, model.Element(chosenElement))),
-		"selected_indices": []int{},
-	}); err != nil {
-		return err
+	if intr := rt.GetPendingInterrupt(); intr != nil {
+		intr.Context = map[string]interface{}{
+			"choice_type":      "plague_death_touch_x",
+			"user_id":          userID,
+			"target_id":        ctxData["target_id"],
+			"chosen_element":   chosenElement,
+			"max_heal":         user.Heal,
+			"max_cards":        len(getCardIndicesByElement(user, model.Element(chosenElement))),
+			"selected_indices": []int{},
+		}
 	}
 	rt.NotifyInterruptPrompt()
 	return nil
@@ -187,8 +187,8 @@ func handlePlagueDeathTouchXChoice(rt engineplayer.ChoiceRuntime, ctxData map[st
 	}
 	ctxData["choice_type"] = "plague_death_touch_y"
 	ctxData["x_value"] = xValue
-	if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-		return err
+	if intr := rt.GetPendingInterrupt(); intr != nil {
+		intr.Context = ctxData
 	}
 	rt.NotifyInterruptPrompt()
 	return nil
@@ -196,7 +196,7 @@ func handlePlagueDeathTouchXChoice(rt engineplayer.ChoiceRuntime, ctxData map[st
 
 func handlePlagueDeathTouchYChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -211,8 +211,8 @@ func handlePlagueDeathTouchYChoice(rt engineplayer.ChoiceRuntime, ctxData map[st
 	ctxData["y_value"] = yValue
 	ctxData["selected_indices"] = []int{}
 	ctxData["remaining_indices"] = getCardIndicesByElement(user, model.Element(chosenElement))
-	if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-		return err
+	if intr := rt.GetPendingInterrupt(); intr != nil {
+		intr.Context = ctxData
 	}
 	rt.NotifyInterruptPrompt()
 	return nil
@@ -239,8 +239,8 @@ func handlePlagueDeathTouchCardsChoice(rt engineplayer.ChoiceRuntime, ctxData ma
 	if len(selected) < yValue {
 		ctxData["selected_indices"] = selected
 		ctxData["remaining_indices"] = nextRemaining
-		if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-			return err
+		if intr := rt.GetPendingInterrupt(); intr != nil {
+			intr.Context = ctxData
 		}
 		rt.NotifyInterruptPrompt()
 		return nil
@@ -252,14 +252,14 @@ func handlePlagueDeathTouchCardsChoice(rt engineplayer.ChoiceRuntime, ctxData ma
 	}
 
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
 	ctxData["choice_type"] = "plague_death_touch_target"
 	ctxData["target_ids"] = campEnemyIDs(rt, user)
-	if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-		return err
+	if intr := rt.GetPendingInterrupt(); intr != nil {
+		intr.Context = ctxData
 	}
 	rt.NotifyInterruptPrompt()
 	return nil
@@ -275,11 +275,11 @@ func handlePlagueDeathTouchTargetChoice(rt engineplayer.ChoiceRuntime, ctxData m
 
 func resolvePlagueDeathTouchFinal(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, targetID string) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
-	if rt.LookupPlayer(targetID) == nil {
+	if rt.GetPlayers()[targetID] == nil {
 		return fmt.Errorf("目标不存在")
 	}
 
@@ -316,7 +316,7 @@ func resolvePlagueDeathTouchFinal(rt engineplayer.ChoiceRuntime, ctxData map[str
 	})
 
 	rt.PopInterrupt()
-	if !rt.HasPendingInterrupt() {
+	if rt.GetPendingInterrupt() == nil {
 		if !rt.RoutePendingDamageWithReturn(model.TurnStageExtraAction) {
 			rt.EnterExtraActionStage()
 		}
@@ -329,7 +329,7 @@ func cancelPlagueDeathTouchChoice(rt engineplayer.ChoiceRuntime, playerID string
 	if userID == "" {
 		userID = playerID
 	}
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -341,7 +341,7 @@ func cancelPlagueDeathTouchChoice(rt engineplayer.ChoiceRuntime, playerID string
 
 	rt.PopInterrupt()
 	rt.Log(fmt.Sprintf("%s 取消了 [死亡之触] 的发动", user.Name))
-	if !rt.HasPendingInterrupt() {
+	if rt.GetPendingInterrupt() == nil {
 		rt.EnterActionExecutionStage()
 	}
 	return nil
@@ -367,8 +367,8 @@ func campEnemyIDs(rt engineplayer.ChoiceRuntime, user *model.Player) []string {
 		return nil
 	}
 	var ids []string
-	for _, pid := range rt.PlayerOrder() {
-		p := rt.LookupPlayer(pid)
+	for _, pid := range rt.GetPlayerOrder() {
+		p := rt.GetPlayers()[pid]
 		if p == nil || p.Camp == user.Camp {
 			continue
 		}

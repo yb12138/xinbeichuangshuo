@@ -35,7 +35,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 
 func resolveFighterChoiceTarget(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) (*model.Player, *model.Player, string, error) {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return nil, nil, "", fmt.Errorf("玩家不存在")
 	}
@@ -44,7 +44,7 @@ func resolveFighterChoiceTarget(rt engineplayer.ChoiceRuntime, selectionIndex in
 		return nil, nil, "", fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
 	targetID := targetIDs[selectionIndex]
-	target := rt.LookupPlayer(targetID)
+	target := rt.GetPlayers()[targetID]
 	if target == nil {
 		return nil, nil, "", fmt.Errorf("目标不存在")
 	}
@@ -80,7 +80,7 @@ func handleFighterPsiBulletTargetChoice(rt engineplayer.ChoiceRuntime, selection
 		rt.Log(fmt.Sprintf("%s 的 [念弹] 生效：对 %s 造成1点法术伤害", user.Name, target.Name))
 	}
 	rt.PopInterrupt()
-	if !rt.HasPendingInterrupt() {
+	if rt.GetPendingInterrupt() == nil {
 		rt.RoutePendingDamageOr(model.TurnStageExtraAction, func() {
 			rt.EnterExtraActionStage()
 		})
@@ -93,7 +93,7 @@ func handleFighterHundredDragonTargetChoice(rt engineplayer.ChoiceRuntime, selec
 	if err != nil {
 		return err
 	}
-	targetOrder := rt.PlayerOrderPosition(targetID)
+	targetOrder := playerOrderPosition(rt, targetID)
 	if targetOrder <= 0 {
 		return fmt.Errorf("目标不存在")
 	}
@@ -101,7 +101,7 @@ func handleFighterHundredDragonTargetChoice(rt engineplayer.ChoiceRuntime, selec
 	user.TurnState.SkillFlowState["fighter_hundred_dragon_target_order"] = targetOrder
 	rt.Log(fmt.Sprintf("%s 的 [百式幻龙拳] 锁定目标：%s", user.Name, target.Name))
 	rt.PopInterrupt()
-	if !rt.HasPendingInterrupt() {
+	if rt.GetPendingInterrupt() == nil {
 		// 规则：百式幻龙拳的"锁定目标"仅是中间步骤，结算后必须回到 waiting_phase 指定的行动窗口。
 		rt.ApplyChoiceResumePoint(mustChoiceResumePointFromMap(ctxData, "waiting_phase"))
 	}

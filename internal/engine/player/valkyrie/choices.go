@@ -62,7 +62,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		targetIDs := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
 		options := make([]model.PromptOption, 0, len(targetIDs))
 		for _, targetID := range targetIDs {
-			if target := rt.LookupPlayer(targetID); target != nil {
+			if target := rt.GetPlayers()[targetID]; target != nil {
 				options = append(options, model.PromptOption{
 					ID:    targetID,
 					Label: target.Name,
@@ -129,7 +129,7 @@ func (choiceHandler) HandleCancel(rt engineplayer.ChoiceRuntime, playerID string
 		return false, nil
 	}
 	rt.PopInterrupt()
-	if user := rt.LookupPlayer(playerID); user != nil {
+	if user := rt.GetPlayers()[playerID]; user != nil {
 		rt.Log(fmt.Sprintf("%s 放弃了 [英灵召唤] 的额外弃法术效果", user.Name))
 	}
 	rt.ResumePendingAttackHit(ctxData)
@@ -139,7 +139,7 @@ func (choiceHandler) HandleCancel(rt engineplayer.ChoiceRuntime, playerID string
 func handleMilitaryGloryMode(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
 	userID, _ := ctxData["user_id"].(string)
 	camp, _ := ctxData["camp"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -155,13 +155,13 @@ func handleMilitaryGloryMode(rt engineplayer.ChoiceRuntime, selectionIndex int, 
 		if maxX <= 0 {
 			return fmt.Errorf("当前阵营无可用能量")
 		}
-		if err := rt.ReplacePendingInterruptContext(map[string]interface{}{
-			"choice_type": "valkyrie_military_glory_x",
-			"user_id":     userID,
-			"camp":        camp,
-			"max_x":       maxX,
-		}); err != nil {
-			return err
+		if intr := rt.GetPendingInterrupt(); intr != nil {
+			intr.Context = map[string]interface{}{
+				"choice_type": "valkyrie_military_glory_x",
+				"user_id":     userID,
+				"camp":        camp,
+				"max_x":       maxX,
+			}
 		}
 		rt.NotifyInterruptPrompt()
 		return nil
@@ -181,20 +181,20 @@ func handleMilitaryGloryX(rt engineplayer.ChoiceRuntime, selectionIndex int, ctx
 	if x <= 0 || x > maxX || x >= 3 {
 		return fmt.Errorf("无效的X值")
 	}
-	targetIDs := make([]string, 0, len(rt.PlayerOrder()))
-	for _, pid := range rt.PlayerOrder() {
-		if rt.LookupPlayer(pid) != nil {
+	targetIDs := make([]string, 0, len(rt.GetPlayerOrder()))
+	for _, pid := range rt.GetPlayerOrder() {
+		if rt.GetPlayers()[pid] != nil {
 			targetIDs = append(targetIDs, pid)
 		}
 	}
-	if err := rt.ReplacePendingInterruptContext(map[string]interface{}{
-		"choice_type": "valkyrie_military_glory_target",
-		"user_id":     userID,
-		"camp":        camp,
-		"x":           x,
-		"target_ids":  targetIDs,
-	}); err != nil {
-		return err
+	if intr := rt.GetPendingInterrupt(); intr != nil {
+		intr.Context = map[string]interface{}{
+			"choice_type": "valkyrie_military_glory_target",
+			"user_id":     userID,
+			"camp":        camp,
+			"x":           x,
+			"target_ids":  targetIDs,
+		}
 	}
 	rt.NotifyInterruptPrompt()
 	return nil
@@ -203,7 +203,7 @@ func handleMilitaryGloryX(rt engineplayer.ChoiceRuntime, selectionIndex int, ctx
 func handleMilitaryGloryTarget(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
 	userID, _ := ctxData["user_id"].(string)
 	camp, _ := ctxData["camp"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -212,7 +212,7 @@ func handleMilitaryGloryTarget(rt engineplayer.ChoiceRuntime, selectionIndex int
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
 	targetID := targetIDs[selectionIndex]
-	target := rt.LookupPlayer(targetID)
+	target := rt.GetPlayers()[targetID]
 	if target == nil {
 		return fmt.Errorf("目标不存在")
 	}
@@ -242,7 +242,7 @@ func handleMilitaryGloryTarget(rt engineplayer.ChoiceRuntime, selectionIndex int
 
 func handleHeroicDiscardCard(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -269,7 +269,7 @@ func handleHeroicDiscardCard(rt engineplayer.ChoiceRuntime, selectionIndex int, 
 	}
 	if targetID != "" {
 		rt.Heal(targetID, 1)
-		if target := rt.LookupPlayer(targetID); target != nil {
+		if target := rt.GetPlayers()[targetID]; target != nil {
 			rt.Log(fmt.Sprintf("%s 因英灵召唤额外效果，获得1点治疗", target.Name))
 		}
 	}

@@ -22,7 +22,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		allyIDs := runtimeutil.ParseStringSliceContextValue(data["ally_ids"])
 		options := make([]model.PromptOption, 0, len(allyIDs))
 		for _, allyID := range allyIDs {
-			if target := rt.LookupPlayer(allyID); target != nil {
+			if target := rt.GetPlayers()[allyID]; target != nil {
 				options = append(options, model.PromptOption{ID: allyID, Label: target.Name})
 			}
 		}
@@ -33,7 +33,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		targetID, _ := data["target_id"].(string)
 		targetName := targetID
 		targetHeal := -1
-		if target := rt.LookupPlayer(targetID); target != nil {
+		if target := rt.GetPlayers()[targetID]; target != nil {
 			targetName = target.Name
 			targetHeal = target.Heal
 		}
@@ -68,7 +68,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		targetIDs := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
 		options := make([]model.PromptOption, 0, len(targetIDs))
 		for _, targetID := range targetIDs {
-			if target := rt.LookupPlayer(targetID); target != nil {
+			if target := rt.GetPlayers()[targetID]; target != nil {
 				options = append(options, model.PromptOption{ID: targetID, Label: target.Name})
 			}
 		}
@@ -90,7 +90,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 	switch choiceType {
 	case "priest_divine_contract_target":
 		userID, _ := ctxData["user_id"].(string)
-		user := rt.LookupPlayer(userID)
+		user := rt.GetPlayers()[userID]
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
@@ -98,7 +98,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		if selectionIndex < 0 || selectionIndex >= len(allyIDs) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
-		target := rt.LookupPlayer(allyIDs[selectionIndex])
+		target := rt.GetPlayers()[allyIDs[selectionIndex]]
 		if target == nil {
 			return true, fmt.Errorf("队友不存在")
 		}
@@ -125,8 +125,8 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 	case "priest_divine_contract_x":
 		userID, _ := ctxData["user_id"].(string)
 		targetID, _ := ctxData["target_id"].(string)
-		user := rt.LookupPlayer(userID)
-		target := rt.LookupPlayer(targetID)
+		user := rt.GetPlayers()[userID]
+		target := rt.GetPlayers()[targetID]
 		if user == nil || target == nil {
 			return true, fmt.Errorf("神圣契约目标不存在")
 		}
@@ -158,7 +158,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		}
 
 		rt.PopInterrupt()
-		if !rt.HasPendingInterrupt() {
+		if rt.GetPendingInterrupt() == nil {
 			// 规则：神圣契约是"选择目标+选择X"的两段式结算，最终恢复点必须由上游显式给出。
 			rt.ApplyChoiceResumePoint(mustChoiceResumePointFromMap(ctxData, "resume_phase"))
 		}
@@ -166,7 +166,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 
 	case "priest_divine_domain_mode":
 		userID, _ := ctxData["user_id"].(string)
-		user := rt.LookupPlayer(userID)
+		user := rt.GetPlayers()[userID]
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
@@ -183,8 +183,9 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 			}
 			ctxData["choice_type"] = "priest_divine_domain_damage_target"
 			ctxData["target_ids"] = allTargets
-			if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-				return true, err
+			intr := rt.GetPendingInterrupt()
+			if intr != nil {
+				intr.Context = ctxData
 			}
 			rt.NotifyInterruptPrompt()
 			return true, nil
@@ -195,8 +196,9 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 			}
 			ctxData["choice_type"] = "priest_divine_domain_heal_target"
 			ctxData["target_ids"] = allyTargets
-			if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-				return true, err
+			intr := rt.GetPendingInterrupt()
+			if intr != nil {
+				intr.Context = ctxData
 			}
 			rt.NotifyInterruptPrompt()
 			return true, nil
@@ -206,7 +208,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 
 	case "priest_divine_domain_damage_target", "priest_divine_domain_heal_target":
 		userID, _ := ctxData["user_id"].(string)
-		user := rt.LookupPlayer(userID)
+		user := rt.GetPlayers()[userID]
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
@@ -215,7 +217,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
 		targetID := targetIDs[selectionIndex]
-		target := rt.LookupPlayer(targetID)
+		target := rt.GetPlayers()[targetID]
 		if target == nil {
 			return true, fmt.Errorf("目标不存在")
 		}
@@ -228,7 +230,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 			rt.AddPendingDamage(model.PendingDamage{SourceID: user.ID, TargetID: targetID, Damage: 2, DamageType: model.MagicAttack})
 			rt.Log(fmt.Sprintf("%s 的 [神圣领域] 分支①生效：移除1点治疗，对 %s 造成2点法术伤害", user.Name, target.Name))
 			rt.PopInterrupt()
-			if !rt.HasPendingInterrupt() {
+			if rt.GetPendingInterrupt() == nil {
 				rt.RoutePendingDamageOr(model.TurnStageExtraAction, func() {
 					rt.EnterExtraActionStage()
 				})
@@ -243,7 +245,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		rt.Heal(targetID, 1)
 		rt.Log(fmt.Sprintf("%s 的 [神圣领域] 分支②生效：自身+2治疗，%s +1治疗", user.Name, target.Name))
 		rt.PopInterrupt()
-		if !rt.HasPendingInterrupt() {
+		if rt.GetPendingInterrupt() == nil {
 			rt.EnterExtraActionStage()
 		}
 		return true, nil

@@ -26,7 +26,7 @@ func attackMissHook(rt player.HookRuntime, ctx player.TimingHookContext) player.
 		rt.Log(fmt.Sprintf("%s 的 [圣屑飓暴] 未命中，但治疗不足，未触发后续效果", p.Name))
 		return player.TimingHookResult{}
 	}
-	validX := ShardMissValidXValues(rt.GetAllPlayersMap(), rt.PlayerOrder(), p, maxX)
+	validX := ShardMissValidXValues(rt.GetPlayers(), rt.GetPlayerOrder(), p, maxX)
 	if len(validX) == 0 {
 		rt.Log(fmt.Sprintf("%s 的 [圣屑飓暴] 未命中，但没有能弃满牌数的队友可供选择", p.Name))
 		return player.TimingHookResult{}

@@ -176,19 +176,3 @@ func (e *GameEngine) runTimingOnActionEndSkillPost(use *skillUseRequest) {
 	}
 	e.dispatchAllPolicyHooks(playerpkg.PolicySkillPost, ctx)
 }
-
-func skillPostArbiterForcedDoomsdayCleanupHook(e *GameEngine, use *skillUseRequest) {
-	if e == nil || use == nil || use.player == nil {
-		return
-	}
-	if use.skillID != "arbiter_doomsday" {
-		return
-	}
-	player := use.player
-	if player.TurnState.UsedSkillCounts["arbiter_forced_doomsday_pending"] <= 0 {
-		return
-	}
-	player.TurnState.UsedSkillCounts["arbiter_forced_doomsday_pending"] = 0
-	player.TurnState.UsedSkillCounts["arbiter_forced_doomsday_done_turn"] = 1
-	consumeHeroTauntRestriction(e, player)
-}

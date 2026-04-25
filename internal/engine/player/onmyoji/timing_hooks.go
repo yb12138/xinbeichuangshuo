@@ -121,7 +121,7 @@ func tryBindingInterrupt(rt engineplayer.HookRuntime, req *model.CombatRequest, 
 		return engineplayer.TimingHookResult{}
 	}
 
-	for _, pid := range rt.PlayerOrder() {
+	for _, pid := range rt.GetPlayerOrder() {
 		actor := rt.GetPlayer(pid)
 		if actor == nil || actor.ID == target.ID {
 			continue
@@ -160,7 +160,7 @@ func tryBindingInterrupt(rt engineplayer.HookRuntime, req *model.CombatRequest, 
 // buildCounterTargetIDs 构建反击目标列表（攻击者阵营中非攻击者本人）。
 func buildCounterTargetIDs(rt engineplayer.HookRuntime, attacker *model.Player) []string {
 	var ids []string
-	for _, pid := range rt.PlayerOrder() {
+	for _, pid := range rt.GetPlayerOrder() {
 		if pid == attacker.ID {
 			continue
 		}

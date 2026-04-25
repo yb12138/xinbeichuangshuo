@@ -21,16 +21,20 @@ func ResolveStardustAfterSelf(rt engineplayer.ChoiceRuntime, user *model.Player)
 	}
 
 	before := user.TurnState.SkillFlowState["ml_stardust_morale_before"]
-	current := rt.CampMorale(user.Camp)
+	var current int
+	if user.Camp == model.RedCamp {
+		current = rt.GetRedMorale()
+	} else {
+		current = rt.GetBlueMorale()
+	}
 	user.TurnState.SkillFlowState["ml_stardust_pending"] = 0
 	user.TurnState.SkillFlowState["ml_stardust_wait_discard"] = 0
 	user.TurnState.SkillFlowState["ml_stardust_morale_before"] = 0
 
 	if engineplayer.HasForm(user, model.FormMagicLancerPhantom) {
-		beforePoses := rt.SnapshotPlayerPoses()
+		defer rt.PoseChangeGuard()
 		engineplayer.ClearForm(user, model.FormMagicLancerPhantom)
 		rt.Log(fmt.Sprintf("%s 的 [幻影星尘] 结算完成，脱离幻影形态并转正", user.Name))
-		rt.DispatchOrientationChanges(beforePoses)
 	}
 
 	if before > 0 && current < before {
@@ -38,9 +42,9 @@ func ResolveStardustAfterSelf(rt engineplayer.ChoiceRuntime, user *model.Player)
 		return false
 	}
 
-	targetIDs := make([]string, 0, len(rt.PlayerOrder()))
-	for _, pid := range rt.PlayerOrder() {
-		if p := rt.LookupPlayer(pid); p != nil && p.Camp != user.Camp {
+	targetIDs := make([]string, 0, len(rt.GetPlayerOrder()))
+	for _, pid := range rt.GetPlayerOrder() {
+		if p := rt.GetPlayers()[pid]; p != nil && p.Camp != user.Camp {
 			targetIDs = append(targetIDs, pid)
 		}
 	}
@@ -49,8 +53,8 @@ func ResolveStardustAfterSelf(rt engineplayer.ChoiceRuntime, user *model.Player)
 	if len(targetIDs) == 0 {
 		return false
 	}
-	if lockedOrder > 0 && lockedOrder <= len(rt.PlayerOrder()) {
-		lockedID := rt.PlayerOrder()[lockedOrder-1]
+	if lockedOrder > 0 && lockedOrder <= len(rt.GetPlayerOrder()) {
+		lockedID := rt.GetPlayerOrder()[lockedOrder-1]
 		for _, tid := range targetIDs {
 			if tid != lockedID {
 				continue
@@ -61,7 +65,7 @@ func ResolveStardustAfterSelf(rt engineplayer.ChoiceRuntime, user *model.Player)
 				Damage:     2,
 				DamageType: model.MagicDamage,
 			})
-			if target := rt.LookupPlayer(lockedID); target != nil {
+			if target := rt.GetPlayers()[lockedID]; target != nil {
 				rt.Log(fmt.Sprintf("%s 的 [幻影星尘] 生效：对 %s 造成2点法术伤害", user.Name, target.Name))
 			}
 			return false

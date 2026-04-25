@@ -6,8 +6,6 @@ import (
 	"fmt"
 
 	engineplayer "starcup-engine/internal/engine/player"
-	bloodpriestesspkg "starcup-engine/internal/engine/player/blood_priestess"
-	holylancer "starcup-engine/internal/engine/player/holy_lancer"
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/rules"
 )
@@ -16,66 +14,195 @@ type roleChoiceRuntime struct {
 	*GameEngine
 }
 
-func (r roleChoiceRuntime) LookupPlayer(playerID string) *model.Player {
-	if r.GameEngine == nil || r.State == nil || playerID == "" {
-		return nil
-	}
-	return r.State.Players[playerID]
-}
+// ---- StateReader 实现 ----
 
-func (r roleChoiceRuntime) AllPlayers() map[string]*model.Player {
+func (r roleChoiceRuntime) GetPlayers() map[string]*model.Player {
 	if r.GameEngine == nil || r.State == nil {
 		return map[string]*model.Player{}
 	}
 	return r.State.Players
 }
 
-func (r roleChoiceRuntime) PlayerOrder() []string {
+func (r roleChoiceRuntime) GetPlayerOrder() []string {
 	if r.GameEngine == nil || r.State == nil || len(r.State.PlayerOrder) == 0 {
 		return nil
 	}
 	return append([]string(nil), r.State.PlayerOrder...)
 }
 
-func (r roleChoiceRuntime) HasPendingInterrupt() bool {
-	return r.GameEngine != nil && r.State != nil && r.State.PendingInterrupt != nil
-}
-
-func (r roleChoiceRuntime) ReplacePendingInterruptContext(data map[string]interface{}) error {
-	if r.GameEngine == nil || r.State == nil || r.State.PendingInterrupt == nil {
-		return fmt.Errorf("当前没有待处理的选择流程")
+func (r roleChoiceRuntime) GetCurrentTurnIndex() int {
+	if r.GameEngine == nil || r.State == nil {
+		return -1
 	}
-	r.State.PendingInterrupt.Context = data
-	return nil
+	return r.State.CurrentTurn
 }
 
-func (r roleChoiceRuntime) ResumePendingAttackMiss(ctx *model.Context) bool {
+func (r roleChoiceRuntime) GetRedMorale() int {
+	if r.GameEngine == nil || r.State == nil {
+		return 0
+	}
+	return r.State.RedMorale
+}
+
+func (r roleChoiceRuntime) GetBlueMorale() int {
+	if r.GameEngine == nil || r.State == nil {
+		return 0
+	}
+	return r.State.BlueMorale
+}
+
+func (r roleChoiceRuntime) GetPendingInterrupt() *model.Interrupt {
+	if r.GameEngine == nil || r.State == nil {
+		return nil
+	}
+	return r.State.PendingInterrupt
+}
+
+func (r roleChoiceRuntime) GetPendingDamageQueue() []model.PendingDamage {
+	if r.GameEngine == nil || r.State == nil {
+		return nil
+	}
+	return r.State.PendingDamageQueue
+}
+
+func (r roleChoiceRuntime) GetPendingDamage() *model.PendingDamage {
+	if r.GameEngine == nil || r.State == nil || len(r.State.PendingDamageQueue) == 0 {
+		return nil
+	}
+	return &r.State.PendingDamageQueue[0]
+}
+
+func (r roleChoiceRuntime) GetPendingDamageByIndex(index int) (*model.PendingDamage, bool) {
+	if r.GameEngine == nil || r.State == nil || index < 0 || index >= len(r.State.PendingDamageQueue) {
+		return nil, false
+	}
+	return &r.State.PendingDamageQueue[index], true
+}
+
+func (r roleChoiceRuntime) GetCombatStack() []model.CombatRequest {
+	if r.GameEngine == nil || r.State == nil {
+		return nil
+	}
+	return append([]model.CombatRequest(nil), r.State.CombatStack...)
+}
+
+func (r roleChoiceRuntime) GetActionQueue() []model.QueuedAction {
+	if r.GameEngine == nil || r.State == nil {
+		return nil
+	}
+	return append([]model.QueuedAction(nil), r.State.ActionQueue...)
+}
+
+func (r roleChoiceRuntime) GetDiscardPile() []model.Card {
+	if r.GameEngine == nil || r.State == nil {
+		return nil
+	}
+	return append([]model.Card(nil), r.State.DiscardPile...)
+}
+
+func (r roleChoiceRuntime) GetDeck() []model.Card {
+	if r.GameEngine == nil || r.State == nil {
+		return nil
+	}
+	return append([]model.Card(nil), r.State.Deck...)
+}
+
+func (r roleChoiceRuntime) GetTurnStage() model.TurnStage {
+	if r.GameEngine == nil || r.State == nil {
+		return ""
+	}
+	return r.State.TurnStage
+}
+
+func (r roleChoiceRuntime) GetCombatStage() model.CombatStage {
+	if r.GameEngine == nil || r.State == nil {
+		return model.CombatStageNone
+	}
+	return r.State.CombatStage
+}
+
+func (r roleChoiceRuntime) GetSubflow() model.Subflow {
+	if r.GameEngine == nil || r.State == nil {
+		return model.SubflowNone
+	}
+	return r.State.Subflow
+}
+
+func (r roleChoiceRuntime) GetMagicBulletChain() *model.MagicBulletChain {
+	if r.GameEngine == nil || r.State == nil {
+		return nil
+	}
+	return r.State.MagicBulletChain
+}
+
+// ---- EffectCardOps 实现（统一 API）----
+
+func (r roleChoiceRuntime) FindEffectCard(source *model.Player, effect model.EffectType) (*model.Player, *model.FieldCard) {
+	if r.GameEngine == nil {
+		return nil, nil
+	}
+	return r.findSourceEffectCard(source, effect)
+}
+
+func (r roleChoiceRuntime) AttachEffectCard(source, target *model.Player, effect model.EffectType, card model.Card) error {
+	if r.GameEngine == nil {
+		return fmt.Errorf("engine not available")
+	}
+	return r.attachSourceEffectCard(source, target, effect, card)
+}
+
+func (r roleChoiceRuntime) DetachEffectCard(source *model.Player, effect model.EffectType) (*model.Player, model.Card, bool) {
+	if r.GameEngine == nil {
+		return nil, model.Card{}, false
+	}
+	return r.detachSourceEffectCard(source, effect)
+}
+
+func (r roleChoiceRuntime) RemoveEffectCard(source *model.Player, effect model.EffectType, restoreCard bool) bool {
 	if r.GameEngine == nil {
 		return false
 	}
-	return r.resumePendingAttackMiss(ctx)
+	return r.removeExclusiveEffectCard(source, effect, restoreCard)
 }
 
-func (r roleChoiceRuntime) ResumePendingAttackHit(ctxData map[string]interface{}) {
+func (r roleChoiceRuntime) EmitBuffRemovedDispatch(sourceID, targetID string, effect model.EffectType) {
 	if r.GameEngine == nil {
 		return
 	}
-	r.resumePendingAttackHit(ctxData)
+	r.emitBuffRemovedDispatch(sourceID, targetID, effect)
 }
 
-func (r roleChoiceRuntime) ApplyChoiceResumePoint(raw interface{}) {
+// ---- InterruptOps 实现 ----
+
+func (r roleChoiceRuntime) PopInterrupt() {
 	if r.GameEngine == nil {
 		return
 	}
-	r.applyChoiceResumePoint(raw)
+	r.GameEngine.PopInterrupt()
 }
 
-func (r roleChoiceRuntime) RoutePendingDamageOr(defaultReturn interface{}, onNoPending func()) bool {
+func (r roleChoiceRuntime) NotifyInterruptPrompt() {
 	if r.GameEngine == nil {
-		return false
+		return
 	}
-	return r.routePendingDamageOr(defaultReturn, onNoPending)
+	r.GameEngine.notifyInterruptPrompt()
 }
+
+func (r roleChoiceRuntime) PushInterrupt(intr *model.Interrupt) {
+	if r.GameEngine == nil {
+		return
+	}
+	r.GameEngine.PushInterrupt(intr)
+}
+
+func (r roleChoiceRuntime) PushDiscardChoiceInterrupt(playerID string, data map[string]interface{}) {
+	if r.GameEngine == nil {
+		return
+	}
+	r.PushInterrupt(newDiscardChoiceInterrupt(playerID, data))
+}
+
+// ---- StageOps 实现 ----
 
 func (r roleChoiceRuntime) EnterExtraActionStage() {
 	if r.GameEngine == nil {
@@ -105,86 +232,11 @@ func (r roleChoiceRuntime) EnterActionExecutionStage() {
 	r.enterActionExecutionStage()
 }
 
-func (r roleChoiceRuntime) RoutePendingDamageWithReturn(returnTo interface{}) bool {
-	if r.GameEngine == nil {
-		return false
-	}
-	return r.routePendingDamageWithReturn(returnTo)
-}
-
-func (r roleChoiceRuntime) AllOtherPlayerIDs(userID string) []string {
-	if r.GameEngine == nil {
-		return nil
-	}
-	return r.allOtherPlayerIDs(userID)
-}
-
-func (r roleChoiceRuntime) PlayerOrderPosition(playerID string) int {
-	if r.GameEngine == nil {
-		return 0
-	}
-	return r.playerOrderPosition(playerID)
-}
-
-func (r roleChoiceRuntime) StartDraw(ctx *model.Context) {
+func (r roleChoiceRuntime) EnterActionEndStage() {
 	if r.GameEngine == nil {
 		return
 	}
-	r.startDraw(ctx)
-}
-
-func (r roleChoiceRuntime) NewDrawContext(player *model.Player, amount int, reason string) *model.Context {
-	if r.GameEngine == nil {
-		return nil
-	}
-	return r.newDrawContext(player, amount, reason)
-}
-
-func (r roleChoiceRuntime) RestorePhaseAfterInterruptedDraw(ctx *model.Context) bool {
-	if r.GameEngine == nil {
-		return false
-	}
-	return r.restorePhaseAfterInterruptedDraw(ctx)
-}
-
-func (r roleChoiceRuntime) PendingDamageQueueLen() int {
-	if r.GameEngine == nil || r.State == nil {
-		return 0
-	}
-	return len(r.State.PendingDamageQueue)
-}
-
-func (r roleChoiceRuntime) GetPendingDamage(index int) (*model.PendingDamage, bool) {
-	if r.GameEngine == nil || r.State == nil || index < 0 || index >= len(r.State.PendingDamageQueue) {
-		return nil, false
-	}
-	return &r.State.PendingDamageQueue[index], true
-}
-
-func (r roleChoiceRuntime) ActionQueueLen() int {
-	if r.GameEngine == nil || r.State == nil {
-		return 0
-	}
-	return len(r.State.ActionQueue)
-}
-
-func (r roleChoiceRuntime) AttachExclusiveEffectCard(sourceID, targetID string, effect model.EffectType, card model.Card) error {
-	if r.GameEngine == nil {
-		return fmt.Errorf("engine not available")
-	}
-	source := r.State.Players[sourceID]
-	target := r.State.Players[targetID]
-	if source == nil || target == nil {
-		return fmt.Errorf("source or target player not found")
-	}
-	return r.attachExclusiveEffectCard(source, target, effect, card)
-}
-
-func (r roleChoiceRuntime) ResumePendingMoraleLoss(ctx *model.Context) bool {
-	if r.GameEngine == nil {
-		return false
-	}
-	return r.resumePendingMoraleLoss(ctx)
+	r.enterActionEndStage()
 }
 
 func (r roleChoiceRuntime) EnterResponseWindow() {
@@ -194,41 +246,45 @@ func (r roleChoiceRuntime) EnterResponseWindow() {
 	r.enterResponseWindow()
 }
 
-func (r roleChoiceRuntime) ApplyStealthEffect(player *model.Player) {
+func (r roleChoiceRuntime) ApplyChoiceResumePoint(raw interface{}) {
 	if r.GameEngine == nil {
 		return
 	}
-	r.applyAssassinStealthEffect(player)
+	r.applyChoiceResumePoint(raw)
 }
 
-func (r roleChoiceRuntime) EnqueueVirtualAttack(sourceID, targetID string, card model.Card, sourceSkill string) {
+// ---- DamageOps 实现 ----
+
+func (r roleChoiceRuntime) RoutePendingDamageOr(defaultReturn interface{}, onNoPending func()) bool {
+	if r.GameEngine == nil {
+		return false
+	}
+	return r.routePendingDamageOr(defaultReturn, onNoPending)
+}
+
+func (r roleChoiceRuntime) RoutePendingDamageWithReturn(returnTo interface{}) bool {
+	if r.GameEngine == nil {
+		return false
+	}
+	return r.routePendingDamageWithReturn(returnTo)
+}
+
+func (r roleChoiceRuntime) ResumePendingMoraleLoss(ctx *model.Context) bool {
+	if r.GameEngine == nil {
+		return false
+	}
+	return r.resumePendingMoraleLoss(ctx)
+}
+
+// ---- CombatOps 实现 ----
+
+func (r roleChoiceRuntime) EnsureCombatInteractionWindow() {
 	if r.GameEngine == nil || r.State == nil {
 		return
 	}
-	r.State.ActionQueue = append(r.State.ActionQueue, model.QueuedAction{
-		SourceID:        sourceID,
-		TargetID:        targetID,
-		Type:            model.ActionAttack,
-		Element:         card.Element,
-		Card:            &card,
-		CardIndex:       -1,
-		SourceSkill:     sourceSkill,
-		UsesVirtualCard: true,
-	})
-}
-
-func (r roleChoiceRuntime) ReplacePendingInterruptPlayerID(playerID string) {
-	if r.GameEngine == nil || r.State == nil || r.State.PendingInterrupt == nil {
-		return
+	if len(r.State.CombatStack) > 0 && r.State.CombatStage == model.CombatStageNone {
+		r.State.CombatStage = model.CombatStageHitCheck
 	}
-	r.State.PendingInterrupt.PlayerID = playerID
-}
-
-func (r roleChoiceRuntime) ApplyCampMoraleLoss(camp model.Camp, wantLoss int) int {
-	if r.GameEngine == nil {
-		return 0
-	}
-	return r.applyCampMoraleLoss(camp, wantLoss)
 }
 
 func (r roleChoiceRuntime) ResolveCounterAttack(counterPlayerID, counterTargetID string, counterCard model.Card) {
@@ -264,28 +320,44 @@ func (r roleChoiceRuntime) ConsumePlayableCardByCardID(playerID, cardID string) 
 	return card, true
 }
 
-func (r roleChoiceRuntime) TopCombatRequest() *model.CombatRequest {
-	if r.GameEngine == nil || r.State == nil || len(r.State.CombatStack) == 0 {
-		return nil
-	}
-	return &r.State.CombatStack[len(r.State.CombatStack)-1]
-}
-
-func (r roleChoiceRuntime) PopCombatRequest() {
-	if r.GameEngine == nil || r.State == nil || len(r.State.CombatStack) == 0 {
+func (r roleChoiceRuntime) ApplyStealthEffect(player *model.Player) {
+	if r.GameEngine == nil {
 		return
 	}
-	r.State.CombatStack = r.State.CombatStack[:len(r.State.CombatStack)-1]
+	r.applyAssassinStealthEffect(player)
 }
 
-func (r roleChoiceRuntime) EnsureCombatInteractionWindow() {
+func (r roleChoiceRuntime) EnqueueVirtualAttack(sourceID, targetID string, card model.Card, sourceSkill string) {
 	if r.GameEngine == nil || r.State == nil {
 		return
 	}
-	if len(r.State.CombatStack) > 0 && r.State.CombatStage == model.CombatStageNone {
-		r.State.CombatStage = model.CombatStageHitCheck
-	}
+	r.State.ActionQueue = append(r.State.ActionQueue, model.QueuedAction{
+		SourceID:        sourceID,
+		TargetID:        targetID,
+		Type:            model.ActionAttack,
+		Element:         card.Element,
+		Card:            &card,
+		CardIndex:       -1,
+		SourceSkill:     sourceSkill,
+		UsesVirtualCard: true,
+	})
 }
+
+func (r roleChoiceRuntime) ResumePendingAttackMiss(ctx *model.Context) bool {
+	if r.GameEngine == nil {
+		return false
+	}
+	return r.resumePendingAttackMiss(ctx)
+}
+
+func (r roleChoiceRuntime) ResumePendingAttackHit(ctxData map[string]interface{}) {
+	if r.GameEngine == nil {
+		return
+	}
+	r.resumePendingAttackHit(ctxData)
+}
+
+// ---- DrawOps 实现 ----
 
 func (r roleChoiceRuntime) DrawCardsDirect(playerID string, amount int, reason string) {
 	if r.GameEngine == nil || r.State == nil {
@@ -312,60 +384,70 @@ func (r roleChoiceRuntime) DrawRawCards(amount int) ([]model.Card, bool) {
 	return cards, true
 }
 
-func (r roleChoiceRuntime) PendingInterrupt() *model.Interrupt {
-	if r.GameEngine == nil || r.State == nil {
-		return nil
-	}
-	return r.State.PendingInterrupt
-}
-
-func (r roleChoiceRuntime) RoutePendingDamageWithDefaultReturn(defaultReturn interface{}) bool {
-	if r.GameEngine == nil {
-		return false
-	}
-	return r.routePendingDamageWithDefaultReturn(defaultReturn)
-}
-
-func (r roleChoiceRuntime) RestoreReturnPoint() bool {
-	if r.GameEngine == nil {
-		return false
-	}
-	return r.restoreReturnPoint()
-}
-
-func (r roleChoiceRuntime) PushDiscardChoiceInterrupt(playerID string, data map[string]interface{}) {
+func (r roleChoiceRuntime) StartDraw(ctx *model.Context) {
 	if r.GameEngine == nil {
 		return
 	}
-	r.PushInterrupt(newDiscardChoiceInterrupt(playerID, data))
+	r.startDraw(ctx)
 }
 
-func (r roleChoiceRuntime) EnterActionEndStage() {
+func (r roleChoiceRuntime) NewDrawContext(player *model.Player, amount int, reason string) *model.Context {
 	if r.GameEngine == nil {
-		return
-	}
-	r.enterActionEndStage()
-}
-
-func (r roleChoiceRuntime) MagicBulletChain() *model.MagicBulletChain {
-	if r.GameEngine == nil || r.State == nil {
 		return nil
 	}
-	return r.State.MagicBulletChain
+	return r.newDrawContext(player, amount, reason)
 }
+
+func (r roleChoiceRuntime) RestorePhaseAfterInterruptedDraw(ctx *model.Context) bool {
+	if r.GameEngine == nil {
+		return false
+	}
+	return r.restorePhaseAfterInterruptedDraw(ctx)
+}
+
+// ---- HandOps 实现 ----
+
+func (r roleChoiceRuntime) RoleFixedMaxHandCapValue(player *model.Player) (int, bool) {
+	if r.GameEngine == nil {
+		return 0, false
+	}
+	return r.roleFixedMaxHandCapValue(player)
+}
+
+func (r roleChoiceRuntime) TakeDiscardPileCardByID(cardID string) (model.Card, bool) {
+	if r.GameEngine == nil || r.State == nil || cardID == "" {
+		return model.Card{}, false
+	}
+	for i := len(r.State.DiscardPile) - 1; i >= 0; i-- {
+		if r.State.DiscardPile[i].ID != cardID {
+			continue
+		}
+		card := r.State.DiscardPile[i]
+		r.State.DiscardPile = append(r.State.DiscardPile[:i], r.State.DiscardPile[i+1:]...)
+		return card, true
+	}
+	return model.Card{}, false
+}
+
+// ---- PoseOps 实现 ----
+
+func (r roleChoiceRuntime) PoseChangeGuard() func() {
+	if r.GameEngine == nil {
+		return func() {}
+	}
+	before := r.snapshotPlayerPoses()
+	return func() {
+		r.dispatchOrientationChanges(before)
+	}
+}
+
+// ---- MagicBulletOps 实现 ----
 
 func (r roleChoiceRuntime) SetMagicBulletChain(chain *model.MagicBulletChain) {
 	if r.GameEngine == nil || r.State == nil {
 		return
 	}
 	r.State.MagicBulletChain = chain
-}
-
-func (r roleChoiceRuntime) SetReturnPoint(returnTo interface{}) {
-	if r.GameEngine == nil {
-		return
-	}
-	r.setReturnPoint(returnTo)
 }
 
 func (r roleChoiceRuntime) GetPlayableCardByIndex(player *model.Player, idx int) (model.Card, bool) {
@@ -412,217 +494,8 @@ func (r roleChoiceRuntime) DispatchHitCheckMagicMissileDefend(player *model.Play
 	return r.GameEngine.applyTimingOnHitCheckMagicMissileDefendValidation(player, chain)
 }
 
-func (r roleChoiceRuntime) AddToDiscardPile(cards ...model.Card) {
-	if r.GameEngine == nil || r.State == nil {
-		return
-	}
-	r.State.DiscardPile = append(r.State.DiscardPile, cards...)
-}
+// ---- SkillOps 实现 ----
 
-func (r roleChoiceRuntime) CheckGameEnd() {
-	if r.GameEngine == nil {
-		return
-	}
-	r.checkGameEnd()
-}
-
-func (r roleChoiceRuntime) CampEnemyIDs(camp model.Camp) []string {
-	if r.GameEngine == nil {
-		return nil
-	}
-	return r.campEnemyIDs(camp)
-}
-
-func (r roleChoiceRuntime) CampMorale(camp model.Camp) int {
-	if r.GameEngine == nil || r.State == nil {
-		return 0
-	}
-	return r.campMorale(camp)
-}
-
-func (r roleChoiceRuntime) AddCampMorale(camp model.Camp, amount int) int {
-	if r.GameEngine == nil {
-		return 0
-	}
-	return r.addCampMorale(camp, amount)
-}
-
-func (r roleChoiceRuntime) PendingDiscardVictimID() string {
-	if r.GameEngine == nil {
-		return ""
-	}
-	return r.pendingDiscardVictimID()
-}
-
-func (r roleChoiceRuntime) NotifyCardHidden(playerID string, cards []model.Card, actionType model.DamageType) {
-	if r.GameEngine == nil {
-		return
-	}
-	r.GameEngine.NotifyCardHidden(playerID, cards, actionType)
-}
-
-func (r roleChoiceRuntime) MarkPendingAttackDamageHitProcessed(ctx *model.Context) bool {
-	if r.GameEngine == nil {
-		return false
-	}
-	return r.markPendingAttackDamageHitProcessed(ctx)
-}
-
-func (r roleChoiceRuntime) SyncGamePhaseWithInterrupt(intr *model.Interrupt) {
-	if r.GameEngine == nil {
-		return
-	}
-	r.syncGamePhaseWithInterrupt(intr)
-}
-
-func (r roleChoiceRuntime) SnapshotPlayerPoses() map[string]engineplayer.PoseSnapshot {
-	if r.GameEngine == nil {
-		return nil
-	}
-	internal := r.snapshotPlayerPoses()
-	out := make(map[string]engineplayer.PoseSnapshot, len(internal))
-	for k, v := range internal {
-		out[k] = engineplayer.PoseSnapshot{
-			Orientation: v.Orientation,
-			Form:        v.Form,
-		}
-	}
-	return out
-}
-
-func (r roleChoiceRuntime) DispatchOrientationChanges(before map[string]engineplayer.PoseSnapshot) {
-	if r.GameEngine == nil {
-		return
-	}
-	internal := make(map[string]poseSnapshot, len(before))
-	for k, v := range before {
-		internal[k] = poseSnapshot{
-			Orientation: v.Orientation,
-			Form:        v.Form,
-		}
-	}
-	r.dispatchOrientationChanges(internal)
-}
-
-func (r roleChoiceRuntime) FindSourceEffectCard(source *model.Player, effect model.EffectType) (*model.Player, *model.FieldCard) {
-	if r.GameEngine == nil {
-		return nil, nil
-	}
-	return r.findSourceEffectCard(source, effect)
-}
-
-func (r roleChoiceRuntime) AttachSourceEffectCard(source, target *model.Player, effect model.EffectType, card model.Card) error {
-	if r.GameEngine == nil {
-		return fmt.Errorf("engine not available")
-	}
-	return r.attachSourceEffectCard(source, target, effect, card)
-}
-
-func (r roleChoiceRuntime) DetachSourceEffectCard(source *model.Player, effect model.EffectType) (*model.Player, model.Card, bool) {
-	if r.GameEngine == nil {
-		return nil, model.Card{}, false
-	}
-	return r.detachSourceEffectCard(source, effect)
-}
-
-func (r roleChoiceRuntime) FindExclusiveEffectCard(source *model.Player, effect model.EffectType) (*model.Player, *model.FieldCard) {
-	if r.GameEngine == nil {
-		return nil, nil
-	}
-	return r.findExclusiveEffectCard(source, effect)
-}
-
-func (r roleChoiceRuntime) DetachExclusiveEffectCard(source *model.Player, effect model.EffectType) (*model.Player, model.Card, bool) {
-	if r.GameEngine == nil {
-		return nil, model.Card{}, false
-	}
-	return r.detachExclusiveEffectCard(source, effect)
-}
-
-func (r roleChoiceRuntime) RemoveExclusiveEffectCard(source *model.Player, effect model.EffectType, restoreCard bool) bool {
-	if r.GameEngine == nil {
-		return false
-	}
-	return r.removeExclusiveEffectCard(source, effect, restoreCard)
-}
-
-func (r roleChoiceRuntime) EmitBuffRemovedDispatch(sourceID, targetID string, effect model.EffectType) {
-	if r.GameEngine == nil {
-		return
-	}
-	r.emitBuffRemovedDispatch(sourceID, targetID, effect)
-}
-
-func (r roleChoiceRuntime) InitCombat(attackerID, targetID string, card *model.Card, isForcedHit, canBeResponded, ignoreShield bool, interceptTags map[model.CombatInterceptTag]bool, isCounter ...bool) {
-	if r.GameEngine == nil {
-		return
-	}
-	r.initCombat(attackerID, targetID, card, isForcedHit, canBeResponded, ignoreShield, interceptTags, isCounter...)
-}
-
-func (r roleChoiceRuntime) ResolveMagicBowPierceMiss(attackerID, targetID string, attackCard *model.Card, isCounter bool) {
-	if r.GameEngine == nil {
-		return
-	}
-	r.resolveMagicBowPierceMiss(attackerID, targetID, attackCard, isCounter)
-}
-
-func (r roleChoiceRuntime) HasFixedMaxHandCap(player *model.Player) bool {
-	if r.GameEngine == nil {
-		return false
-	}
-	return bloodpriestesspkg.HasFixedMaxHandCap(r, player)
-}
-
-func (r roleChoiceRuntime) HasMercyFixedMaxHandCap(player *model.Player) bool {
-	if r.GameEngine == nil {
-		return false
-	}
-	return r.hasMercyFixedMaxHandCap(player)
-}
-
-func (r roleChoiceRuntime) RoleFixedMaxHandCapValue(player *model.Player) (int, bool) {
-	if r.GameEngine == nil {
-		return 0, false
-	}
-	return r.roleFixedMaxHandCapValue(player)
-}
-
-func (r roleChoiceRuntime) RefreshAllPlayerDerivedStates() {
-	if r.GameEngine == nil {
-		return
-	}
-	r.refreshAllPlayerDerivedStates()
-}
-
-func (r roleChoiceRuntime) SyncHolyLancerRevelationMaxHeal(player *model.Player) {
-	if r.GameEngine == nil {
-		return
-	}
-	holylancer.SyncRevelationMaxHeal(r, player)
-}
-
-func (r roleChoiceRuntime) BuildContext(user, target *model.Player, timing model.FlowTiming, eventCtx *model.EventContext) *model.Context {
-	if r.GameEngine == nil {
-		return nil
-	}
-	return r.buildContext(user, target, timing, eventCtx)
-}
-
-func (r roleChoiceRuntime) TakeDiscardPileCardByID(cardID string) (model.Card, bool) {
-	if r.GameEngine == nil || cardID == "" {
-		return model.Card{}, false
-	}
-	for i := len(r.State.DiscardPile) - 1; i >= 0; i-- {
-		if r.State.DiscardPile[i].ID != cardID {
-			continue
-		}
-		card := r.State.DiscardPile[i]
-		r.State.DiscardPile = append(r.State.DiscardPile[:i], r.State.DiscardPile[i+1:]...)
-		return card, true
-	}
-	return model.Card{}, false
-}
 func (r roleChoiceRuntime) IsSkillStillUsable(skillID string, user *model.Player, ctx *model.Context) bool {
 	if r.GameEngine == nil || r.dispatcher == nil {
 		return false
@@ -630,14 +503,18 @@ func (r roleChoiceRuntime) IsSkillStillUsable(skillID string, user *model.Player
 	return r.dispatcher.isSkillStillUsable(skillID, user, ctx)
 }
 
-func (r roleChoiceRuntime) CurrentTurnPlayerID() string {
-	if r.GameEngine == nil || r.State == nil {
-		return ""
+func (r roleChoiceRuntime) RecordSkillUsage(playerID, title string, skillType model.SkillType) {
+	if r.GameEngine == nil {
+		return
 	}
-	if r.State.CurrentTurn < 0 || r.State.CurrentTurn >= len(r.State.PlayerOrder) {
-		return ""
+	r.GameEngine.recordSkillUsage(playerID, title, skillType)
+}
+
+func (r roleChoiceRuntime) IsActionSkillUsableForExtraMagic(player *model.Player, skillDef model.SkillDefinition) bool {
+	if r.GameEngine == nil {
+		return false
 	}
-	return r.State.PlayerOrder[r.State.CurrentTurn]
+	return r.GameEngine.isActionSkillUsableForExtraMagic(player, skillDef)
 }
 
 func (r roleChoiceRuntime) RecordMagicDamageTarget(sourceID, targetID string) {
@@ -660,42 +537,179 @@ func (r roleChoiceRuntime) MagicDamageTargetCount(sourceID string) int {
 	return len(r.turnMagicDamageTargets[sourceID])
 }
 
-func (r roleChoiceRuntime) RecordSkillUsage(playerID, title string, skillType model.SkillType) {
+// ---- MoraleOps 实现 ----
+
+func (r roleChoiceRuntime) AddCampMorale(camp model.Camp, amount int) int {
+	if r.GameEngine == nil {
+		return 0
+	}
+	return r.addCampMorale(camp, amount)
+}
+
+func (r roleChoiceRuntime) ApplyCampMoraleLoss(camp model.Camp, wantLoss int) int {
+	if r.GameEngine == nil {
+		return 0
+	}
+	return r.applyCampMoraleLoss(camp, wantLoss)
+}
+
+// ---- GameOps 实现 ----
+
+func (r roleChoiceRuntime) CheckGameEnd() {
 	if r.GameEngine == nil {
 		return
 	}
-	r.GameEngine.recordSkillUsage(playerID, title, skillType)
+	r.checkGameEnd()
 }
 
-func (r roleChoiceRuntime) IsActionSkillUsableForExtraMagic(player *model.Player, skillDef model.SkillDefinition) bool {
+func (r roleChoiceRuntime) RefreshAllPlayerDerivedStates() {
 	if r.GameEngine == nil {
-		return false
+		return
 	}
-	return r.GameEngine.isActionSkillUsableForExtraMagic(player, skillDef)
+	r.refreshAllPlayerDerivedStates()
 }
 
-func (r roleChoiceRuntime) FighterLockedTarget(player *model.Player) *model.Player {
+func (r roleChoiceRuntime) BuildContext(user, target *model.Player, timing model.FlowTiming, eventCtx *model.EventContext) *model.Context {
 	if r.GameEngine == nil {
 		return nil
 	}
-	return r.GameEngine.fighterLockedTarget(player)
-}
-
-func (r roleChoiceRuntime) ClearFighterHundredDragon(player *model.Player, logLine string) bool {
-	if r.GameEngine == nil {
-		return false
-	}
-	return r.GameEngine.clearFighterHundredDragon(player, logLine)
-}
-
-func (r roleChoiceRuntime) CanCastMagicInAction(player *model.Player) bool {
-	if r.GameEngine == nil {
-		return false
-	}
-	return r.GameEngine.canCastMagicInAction(player)
+	return r.buildContext(user, target, timing, eventCtx)
 }
 
 var _ engineplayer.ChoiceRuntime = roleChoiceRuntime{}
+
+// Helper methods for common patterns (not in interface, but useful for role packages)
+
+func (r roleChoiceRuntime) CampEnemyIDs(camp model.Camp) []string {
+	if r.GameEngine == nil {
+		return nil
+	}
+	return r.campEnemyIDs(camp)
+}
+
+func (r roleChoiceRuntime) CurrentTurnPlayerID() string {
+	if r.GameEngine == nil || r.State == nil {
+		return ""
+	}
+	if r.State.CurrentTurn < 0 || r.State.CurrentTurn >= len(r.State.PlayerOrder) {
+		return ""
+	}
+	return r.State.PlayerOrder[r.State.CurrentTurn]
+}
+
+func (r roleChoiceRuntime) PendingDiscardVictimID() string {
+	if r.GameEngine == nil {
+		return ""
+	}
+	return r.pendingDiscardVictimID()
+}
+
+func (r roleChoiceRuntime) TopCombatRequest() *model.CombatRequest {
+	if r.GameEngine == nil || r.State == nil || len(r.State.CombatStack) == 0 {
+		return nil
+	}
+	return &r.State.CombatStack[len(r.State.CombatStack)-1]
+}
+
+func (r roleChoiceRuntime) MagicBulletChain() *model.MagicBulletChain {
+	if r.GameEngine == nil || r.State == nil {
+		return nil
+	}
+	return r.State.MagicBulletChain
+}
+
+func (r roleChoiceRuntime) PendingInterrupt() *model.Interrupt {
+	if r.GameEngine == nil || r.State == nil {
+		return nil
+	}
+	return r.State.PendingInterrupt
+}
+
+func (r roleChoiceRuntime) AddToDiscardPile(cards ...model.Card) {
+	if r.GameEngine == nil || r.State == nil {
+		return
+	}
+	r.State.DiscardPile = append(r.State.DiscardPile, cards...)
+}
+
+func (r roleChoiceRuntime) SetReturnPoint(returnTo interface{}) {
+	// Note: Interrupt does not have a Return field.
+	// This method is kept for compatibility but does nothing.
+	// Return points are managed elsewhere in the game flow.
+}
+
+func (r roleChoiceRuntime) ReplacePendingInterruptPlayerID(newPlayerID string) {
+	if r.GameEngine == nil || r.State == nil || r.State.PendingInterrupt == nil {
+		return
+	}
+	r.State.PendingInterrupt.PlayerID = newPlayerID
+}
+
+func (r roleChoiceRuntime) PlayerOrder() []string {
+	if r.GameEngine == nil || r.State == nil {
+		return nil
+	}
+	return r.State.PlayerOrder
+}
+
+func (r roleChoiceRuntime) LookupPlayer(playerID string) *model.Player {
+	if r.GameEngine == nil || r.State == nil {
+		return nil
+	}
+	return r.State.Players[playerID]
+}
+
+func (r roleChoiceRuntime) HasPendingInterrupt() bool {
+	return r.GetPendingInterrupt() != nil
+}
+
+func (r roleChoiceRuntime) PendingDamageQueueLen() int {
+	if r.GameEngine == nil || r.State == nil {
+		return 0
+	}
+	return len(r.State.PendingDamageQueue)
+}
+
+func (r roleChoiceRuntime) ActionQueueLen() int {
+	if r.GameEngine == nil || r.State == nil {
+		return 0
+	}
+	return len(r.State.ActionQueue)
+}
+
+func (r roleChoiceRuntime) AllPlayers() []*model.Player {
+	if r.GameEngine == nil || r.State == nil {
+		return nil
+	}
+	out := make([]*model.Player, 0, len(r.State.Players))
+	for _, pid := range r.State.PlayerOrder {
+		if p := r.State.Players[pid]; p != nil {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+func (r roleChoiceRuntime) ReplacePendingInterruptContext(data map[string]interface{}) error {
+	if r.GameEngine == nil || r.State == nil || r.State.PendingInterrupt == nil {
+		return fmt.Errorf("no pending interrupt")
+	}
+	r.State.PendingInterrupt.Context = data
+	return nil
+}
+
+func (r roleChoiceRuntime) AllOtherPlayerIDs(userID string) []string {
+	if r.GameEngine == nil || r.State == nil {
+		return nil
+	}
+	out := make([]string, 0, len(r.State.PlayerOrder))
+	for _, pid := range r.State.PlayerOrder {
+		if pid != userID {
+			out = append(out, pid)
+		}
+	}
+	return out
+}
 
 func newRoleChoiceRuntime(e *GameEngine) engineplayer.ChoiceRuntime {
 	return roleChoiceRuntime{GameEngine: e}

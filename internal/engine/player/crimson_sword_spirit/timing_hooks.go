@@ -11,7 +11,7 @@ import (
 
 // afterApplyHook 伤害应用后重置血色屏障锁定。
 func afterApplyHook(rt player.HookRuntime, ctx player.TimingHookContext) player.TimingHookResult {
-	target := rt.LookupPlayer(ctx.TargetID)
+	target := rt.GetPlayers()[ctx.TargetID]
 	if target == nil {
 		return player.TimingHookResult{}
 	}
@@ -25,7 +25,7 @@ func healResistHook(rt player.HookRuntime, ctx player.TimingHookContext) player.
 	if ctx.PendingDamage == nil || ctx.PendingDamage.IgnoreHeal {
 		return player.TimingHookResult{}
 	}
-	for _, p := range rt.GetAllPlayers() {
+	for _, p := range rt.GetPlayers() {
 		if p == nil || !player.IsCharacter(p, "crimson_sword_spirit") {
 			continue
 		}

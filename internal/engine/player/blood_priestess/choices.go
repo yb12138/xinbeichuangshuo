@@ -41,7 +41,7 @@ func buildSharedLifeTargetPrompt(rt engineplayer.ChoiceRuntime, playerID string,
 	targetIDs := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
 	options := make([]model.PromptOption, 0, len(targetIDs))
 	for _, tid := range targetIDs {
-		if p := rt.LookupPlayer(tid); p != nil {
+		if p := rt.GetPlayers()[tid]; p != nil {
 			options = append(options, model.PromptOption{ID: tid, Label: p.Name})
 		}
 	}
@@ -75,7 +75,7 @@ func buildBloodSorrowTargetPrompt(rt engineplayer.ChoiceRuntime, playerID string
 	targetIDs := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
 	options := make([]model.PromptOption, 0, len(targetIDs))
 	for _, tid := range targetIDs {
-		if p := rt.LookupPlayer(tid); p != nil {
+		if p := rt.GetPlayers()[tid]; p != nil {
 			options = append(options, model.PromptOption{ID: tid, Label: p.Name})
 		}
 	}
@@ -155,7 +155,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 // bp_shared_life_target: 玩家选择同生共死放置目标后，消耗专属卡、创建摸牌上下文并开始摸牌。
 func handleSharedLifeTargetChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -164,7 +164,7 @@ func handleSharedLifeTargetChoice(rt engineplayer.ChoiceRuntime, ctxData map[str
 	if selectionIndex < 0 || selectionIndex >= len(targetIDs) {
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
-	target := rt.LookupPlayer(targetIDs[selectionIndex])
+	target := rt.GetPlayers()[targetIDs[selectionIndex]]
 	if target == nil {
 		return fmt.Errorf("同生共死目标不存在")
 	}
@@ -195,7 +195,7 @@ func handleSharedLifeTargetChoice(rt engineplayer.ChoiceRuntime, ctxData map[str
 	rt.Log(fmt.Sprintf("%s 发动 [同生共死]：先摸2张牌，待爆牌结算后放置于 %s 面前", user.Name, target.Name))
 
 	rt.PopInterrupt()
-	if !rt.HasPendingInterrupt() {
+	if rt.GetPendingInterrupt() == nil {
 		if !rt.RoutePendingDamageWithReturn(model.TurnStageActionExecution) {
 			rt.RestorePhaseAfterInterruptedDraw(drawCtx)
 		}
@@ -206,7 +206,7 @@ func handleSharedLifeTargetChoice(rt engineplayer.ChoiceRuntime, ctxData map[str
 // bp_blood_sorrow_mode: 选择血之哀伤模式（移除 or 转移同生共死）。
 func handleBloodSorrowModeChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -235,7 +235,7 @@ func handleBloodSorrowModeChoice(rt engineplayer.ChoiceRuntime, ctxData map[stri
 		})
 		rt.Log(fmt.Sprintf("%s 发动 [血之哀伤]：先对自己造成2点法术伤害，伤害结算后移除【同生共死】", user.Name))
 		rt.PopInterrupt()
-		if !rt.HasPendingInterrupt() {
+		if rt.GetPendingInterrupt() == nil {
 			rt.EnterDamageResolution(model.TurnStageActionStart)
 		}
 		return nil
@@ -247,8 +247,9 @@ func handleBloodSorrowModeChoice(rt engineplayer.ChoiceRuntime, ctxData map[stri
 		return fmt.Errorf("无可转移目标")
 	}
 	ctxData["choice_type"] = "bp_blood_sorrow_target"
-	if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-		return err
+	intr := rt.GetPendingInterrupt()
+	if intr != nil {
+		intr.Context = ctxData
 	}
 	rt.NotifyInterruptPrompt()
 	return nil
@@ -257,7 +258,7 @@ func handleBloodSorrowModeChoice(rt engineplayer.ChoiceRuntime, ctxData map[stri
 // bp_blood_sorrow_target: 选择血之哀伤转移目标。
 func handleBloodSorrowTargetChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -277,7 +278,7 @@ func handleBloodSorrowTargetChoice(rt engineplayer.ChoiceRuntime, ctxData map[st
 		ctxData["damage_queued"] = true
 	}
 
-	target := rt.LookupPlayer(targetIDs[selectionIndex])
+	target := rt.GetPlayers()[targetIDs[selectionIndex]]
 	if target == nil {
 		return fmt.Errorf("转移目标不存在")
 	}
@@ -292,7 +293,7 @@ func handleBloodSorrowTargetChoice(rt engineplayer.ChoiceRuntime, ctxData map[st
 	})
 	rt.Log(fmt.Sprintf("%s 发动 [血之哀伤]：先对自己造成2点法术伤害，伤害结算后将【同生共死】转移至 %s", user.Name, target.Name))
 	rt.PopInterrupt()
-	if !rt.HasPendingInterrupt() {
+	if rt.GetPendingInterrupt() == nil {
 		rt.EnterDamageResolution(model.TurnStageActionStart)
 	}
 	return nil
@@ -301,7 +302,7 @@ func handleBloodSorrowTargetChoice(rt engineplayer.ChoiceRuntime, ctxData map[st
 // bp_blood_wail_x: 选择血之悲鸣 X 值，对目标和自己各造成 (X+1) 点法术伤害。
 func handleBloodWailXChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -310,7 +311,7 @@ func handleBloodWailXChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]in
 	}
 
 	targetID, _ := ctxData["target_id"].(string)
-	target := rt.LookupPlayer(targetID)
+	target := rt.GetPlayers()[targetID]
 	if target == nil {
 		return fmt.Errorf("目标角色不存在")
 	}
@@ -334,7 +335,7 @@ func handleBloodWailXChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]in
 	rt.Log(fmt.Sprintf("%s 发动 [血之悲鸣]：对 %s 和自己各造成%d点法术伤害", user.Name, target.Name, damage))
 
 	rt.PopInterrupt()
-	if !rt.HasPendingInterrupt() {
+	if rt.GetPendingInterrupt() == nil {
 		rt.RoutePendingDamageOr(model.TurnStageExtraAction, nil)
 	}
 	return nil
@@ -347,7 +348,7 @@ func handleCurseDiscardChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]
 	}
 
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -361,7 +362,7 @@ func handleCurseDiscardChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]
 	}
 	if discardNeed == 0 {
 		rt.PopInterrupt()
-		if !rt.HasPendingInterrupt() {
+		if rt.GetPendingInterrupt() == nil {
 			rt.RoutePendingDamageOr(model.TurnStageExtraAction, func() {
 				rt.EnterExtraActionStage()
 			})
@@ -398,15 +399,16 @@ func handleCurseDiscardChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]
 			rt.Log(fmt.Sprintf("%s 的 [血之诅咒] 后续：弃置%d张牌", user.Name, len(removed)))
 
 			rt.PopInterrupt()
-			if !rt.HasPendingInterrupt() {
+			if rt.GetPendingInterrupt() == nil {
 				rt.RoutePendingDamageOr(model.TurnStageExtraAction, func() {
 					rt.EnterExtraActionStage()
 				})
 			}
 		} else {
 			// Persist context for next iteration in batch flow
-			if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-				return err
+			intr := rt.GetPendingInterrupt()
+			if intr != nil {
+				intr.Context = ctxData
 			}
 		}
 		return nil
@@ -437,7 +439,7 @@ func handleCurseDiscardChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]
 
 	// 弃牌完成
 	rt.PopInterrupt()
-	if !rt.HasPendingInterrupt() {
+	if rt.GetPendingInterrupt() == nil {
 		rt.RoutePendingDamageOr(model.TurnStageExtraAction, func() {
 			rt.EnterExtraActionStage()
 		})

@@ -12,8 +12,9 @@ import (
 
 // postDamageResolvedHook 伤害结算完成后：动物伙伴响应。
 func postDamageResolvedHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHookContext) engineplayer.TimingHookResult {
-	source := rt.LookupPlayer(ctx.SourceID)
-	target := rt.LookupPlayer(ctx.TargetID)
+	players := rt.GetPlayers()
+	source := players[ctx.SourceID]
+	target := players[ctx.TargetID]
 	if rt == nil || source == nil || target == nil || ctx.PendingDamage == nil {
 		return engineplayer.TimingHookResult{}
 	}

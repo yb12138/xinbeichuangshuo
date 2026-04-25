@@ -164,7 +164,7 @@ func (h *MercyHandler) CanUse(ctx *model.Context) bool {
 	if ctx.User.Gem < 1 {
 		return false
 	}
-	return !ctx.User.HasFieldEffect(model.EffectMercy)
+	return !player.HasForm(ctx.User, model.FormSaintessMercy)
 }
 
 func (h *MercyHandler) Execute(ctx *model.Context) error {
@@ -176,23 +176,12 @@ func (h *MercyHandler) Execute(ctx *model.Context) error {
 	if user.Gem < 1 {
 		return fmt.Errorf("宝石不足，无法发动怜悯")
 	}
-	if user.HasFieldEffect(model.EffectMercy) {
+	if player.HasForm(user, model.FormSaintessMercy) {
 		return fmt.Errorf("已处于怜悯状态")
 	}
 	user.Gem -= 1
 	user.Crystal += 1
-	user.AddFieldCard(&model.FieldCard{
-		Card: model.Card{
-			ID:      fmt.Sprintf("effect-mercy-%s-%d", user.ID, len(user.Field)),
-			Name:    "怜悯",
-			Type:    model.CardTypeMagic,
-			Element: model.ElementLight,
-		},
-		OwnerID:  user.ID,
-		SourceID: user.ID,
-		Mode:     model.FieldEffect,
-		Effect:   model.EffectMercy,
-	})
+	player.SetForm(user, model.FormSaintessMercy)
 	game.Log(fmt.Sprintf("%s 发动 [怜悯]：横置并获得1水晶，手牌上限恒定为7", user.Name))
 	return nil
 }
@@ -200,7 +189,15 @@ func (h *MercyHandler) Execute(ctx *model.Context) error {
 // RoleEntry 导出角色统一入口定义。
 func RoleEntry() player.RoleEntry {
 	return player.RoleEntry{
-		ID:               "saintess",
+		ID: "saintess",
+		HandLimit: player.HandLimitRuleFuncs{
+			Hard: func(p *model.Player) (int, bool) {
+				if player.HasForm(p, model.FormSaintessMercy) {
+					return 7, true
+				}
+				return 0, false
+			},
+		},
 		Choices:          NewChoiceHandler(),
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),

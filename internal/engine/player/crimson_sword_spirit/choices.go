@@ -50,7 +50,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 
 func handleCrimsonSwordSpiritDanceModeChoice(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -75,7 +75,7 @@ func handleCrimsonSwordSpiritDanceModeChoice(rt engineplayer.ChoiceRuntime, sele
 	if !ok {
 		return fmt.Errorf("未找到【血蔷薇庭院】专属技能卡")
 	}
-	if err := rt.AttachExclusiveEffectCard(user.ID, user.ID, model.EffectRoseCourtyard, courtyardCard); err != nil {
+	if err := rt.AttachEffectCard(user, user, model.EffectRoseCourtyard, courtyardCard); err != nil {
 		user.RestoreExclusiveCard(courtyardCard)
 		return err
 	}

@@ -14,7 +14,7 @@ func healResistHook(rt player.HookRuntime, ctx player.TimingHookContext) player.
 	if ctx.PendingDamage == nil || ctx.PendingDamage.IgnoreHeal {
 		return player.TimingHookResult{}
 	}
-	target := rt.LookupPlayer(ctx.TargetID)
+	target := rt.GetPlayers()[ctx.TargetID]
 	if target == nil || !player.IsCharacter(target, "plague_mage") {
 		return player.TimingHookResult{}
 	}

@@ -67,7 +67,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: fmt.Sprintf("【不谐和弦】请选择分支（X=%d）：", xValue), Options: []model.PromptOption{{ID: "0", Label: fmt.Sprintf("你与目标各摸%d张牌", xValue-1)}, {ID: "1", Label: fmt.Sprintf("你与目标各弃%d张牌", xValue-1)}}, Min: 1, Max: 1}
 	case "bd_dissonance_discard_step":
 		currentActorID, _ := data["current_actor_id"].(string)
-		actor := rt.LookupPlayer(currentActorID)
+		actor := rt.GetPlayers()[currentActorID]
 		if actor == nil {
 			return nil
 		}
@@ -95,7 +95,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			if selectedSet[targetID] {
 				continue
 			}
-			if target := rt.LookupPlayer(targetID); target != nil {
+			if target := rt.GetPlayers()[targetID]; target != nil {
 				options = append(options, model.PromptOption{ID: targetID, Label: target.Name})
 			}
 		}
@@ -193,7 +193,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 
 func handleDescentElement(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -212,8 +212,9 @@ func handleDescentElement(rt engineplayer.ChoiceRuntime, ctxData map[string]inte
 	ctxData["selected_indices"] = []int{}
 	ctxData["remaining_indices"] = getCardIndicesByElement(user, chosen)
 	ctxData["choice_type"] = "bd_descent_cards"
-	if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-		return err
+	intr := rt.GetPendingInterrupt()
+	if intr != nil {
+		intr.Context = ctxData
 	}
 	rt.NotifyInterruptPrompt()
 	return nil
@@ -221,7 +222,7 @@ func handleDescentElement(rt engineplayer.ChoiceRuntime, ctxData map[string]inte
 
 func handleDescentCards(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -245,8 +246,9 @@ func handleDescentCards(rt engineplayer.ChoiceRuntime, ctxData map[string]interf
 	if len(selected) < 2 {
 		ctxData["selected_indices"] = selected
 		ctxData["remaining_indices"] = nextRemaining
-		if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-			return err
+		intr := rt.GetPendingInterrupt()
+		if intr != nil {
+			intr.Context = ctxData
 		}
 		rt.NotifyInterruptPrompt()
 		return nil
@@ -271,14 +273,15 @@ func handleDescentCards(rt engineplayer.ChoiceRuntime, ctxData map[string]interf
 	if hasMagic {
 		ctxData["choice_type"] = "bd_descent_target"
 		ctxData["target_ids"] = campEnemyIDs(rt, user)
-		if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-			return err
+		intr := rt.GetPendingInterrupt()
+		if intr != nil {
+			intr.Context = ctxData
 		}
 		rt.NotifyInterruptPrompt()
 		return nil
 	}
 	rt.PopInterrupt()
-	if !rt.HasPendingInterrupt() && rt.PendingDamageQueueLen() > 0 {
+	if rt.GetPendingInterrupt() == nil && len(rt.GetPendingDamageQueue()) > 0 {
 		rt.EnterDamageResolution(nil)
 	}
 	return nil
@@ -286,7 +289,7 @@ func handleDescentCards(rt engineplayer.ChoiceRuntime, ctxData map[string]interf
 
 func handleDescentTarget(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -295,14 +298,14 @@ func handleDescentTarget(rt engineplayer.ChoiceRuntime, ctxData map[string]inter
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
 	targetID := targetIDs[selectionIndex]
-	target := rt.LookupPlayer(targetID)
+	target := rt.GetPlayers()[targetID]
 	if target == nil {
 		return fmt.Errorf("目标不存在")
 	}
 	rt.AddPendingDamage(model.PendingDamage{SourceID: user.ID, TargetID: target.ID, Damage: 1, DamageType: model.MagicAttack})
 	rt.Log(fmt.Sprintf("%s 的 [沉沦协奏曲] 追加效果：对 %s 造成1点法术伤害", user.Name, target.Name))
 	rt.PopInterrupt()
-	if !rt.HasPendingInterrupt() {
+	if rt.GetPendingInterrupt() == nil {
 		rt.EnterDamageResolution(nil)
 	}
 	return nil
@@ -312,7 +315,7 @@ func handleDescentTarget(rt engineplayer.ChoiceRuntime, ctxData map[string]inter
 
 func handleDissonanceX(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -331,8 +334,9 @@ func handleDissonanceX(rt engineplayer.ChoiceRuntime, ctxData map[string]interfa
 	}
 	ctxData["x_value"] = xValue
 	ctxData["choice_type"] = "bd_dissonance_mode"
-	if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-		return err
+	intr := rt.GetPendingInterrupt()
+	if intr != nil {
+		intr.Context = ctxData
 	}
 	rt.NotifyInterruptPrompt()
 	return nil
@@ -340,7 +344,7 @@ func handleDissonanceX(rt engineplayer.ChoiceRuntime, ctxData map[string]interfa
 
 func handleDissonanceMode(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -349,9 +353,10 @@ func handleDissonanceMode(rt engineplayer.ChoiceRuntime, ctxData map[string]inte
 	}
 	ctxData["mode"] = selectionIndex
 	ctxData["choice_type"] = "bd_dissonance_target"
-	ctxData["target_ids"] = append([]string{}, rt.PlayerOrder()...)
-	if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-		return err
+	ctxData["target_ids"] = append([]string{}, rt.GetPlayerOrder()...)
+	intr := rt.GetPendingInterrupt()
+	if intr != nil {
+		intr.Context = ctxData
 	}
 	rt.NotifyInterruptPrompt()
 	return nil
@@ -359,7 +364,7 @@ func handleDissonanceMode(rt engineplayer.ChoiceRuntime, ctxData map[string]inte
 
 func handleDissonanceTarget(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -368,7 +373,7 @@ func handleDissonanceTarget(rt engineplayer.ChoiceRuntime, ctxData map[string]in
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
 	targetID := targetIDs[selectionIndex]
-	target := rt.LookupPlayer(targetID)
+	target := rt.GetPlayers()[targetID]
 	if target == nil {
 		return fmt.Errorf("目标不存在")
 	}
@@ -385,7 +390,7 @@ func handleDissonanceTarget(rt engineplayer.ChoiceRuntime, ctxData map[string]in
 		}
 		rt.Log(fmt.Sprintf("%s 发动 [不谐和弦]：与 %s 各摸%d张牌", user.Name, target.Name, n))
 		rt.PopInterrupt()
-		if !rt.HasPendingInterrupt() {
+		if rt.GetPendingInterrupt() == nil {
 			rt.RoutePendingDamageOr(model.TurnStageExtraAction, func() {
 				rt.EnterExtraActionStage()
 			})
@@ -396,7 +401,7 @@ func handleDissonanceTarget(rt engineplayer.ChoiceRuntime, ctxData map[string]in
 	actors := []string{user.ID, target.ID}
 	startCursor := 0
 	for startCursor < len(actors) {
-		actor := rt.LookupPlayer(actors[startCursor])
+		actor := rt.GetPlayers()[actors[startCursor]]
 		if actor != nil && len(actor.Hand) > 0 && n > 0 {
 			break
 		}
@@ -405,12 +410,12 @@ func handleDissonanceTarget(rt engineplayer.ChoiceRuntime, ctxData map[string]in
 	if n <= 0 || startCursor >= len(actors) {
 		rt.Log(fmt.Sprintf("%s 发动 [不谐和弦]：弃牌分支无可执行弃牌", user.Name))
 		rt.PopInterrupt()
-		if !rt.HasPendingInterrupt() {
+		if rt.GetPendingInterrupt() == nil {
 			rt.EnterExtraActionStage()
 		}
 		return nil
 	}
-	currentActor := rt.LookupPlayer(actors[startCursor])
+	currentActor := rt.GetPlayers()[actors[startCursor]]
 	ctxData["choice_type"] = "bd_dissonance_discard_step"
 	ctxData["actor_ids"] = actors
 	ctxData["cursor"] = startCursor
@@ -419,8 +424,9 @@ func handleDissonanceTarget(rt engineplayer.ChoiceRuntime, ctxData map[string]in
 	ctxData["selected_count"] = 0
 	ctxData["selected_indices"] = []int{}
 	ctxData["remaining_indices"] = allHandIndices(currentActor)
-	if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-		return err
+	intr := rt.GetPendingInterrupt()
+	if intr != nil {
+		intr.Context = ctxData
 	}
 	rt.NotifyInterruptPrompt()
 	return nil
@@ -428,7 +434,7 @@ func handleDissonanceTarget(rt engineplayer.ChoiceRuntime, ctxData map[string]in
 
 func handleDissonanceDiscardStep(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -441,7 +447,7 @@ func handleDissonanceDiscardStep(rt engineplayer.ChoiceRuntime, ctxData map[stri
 	if currentActorID == "" {
 		currentActorID = actorIDs[cursor]
 	}
-	actor := rt.LookupPlayer(currentActorID)
+	actor := rt.GetPlayers()[currentActorID]
 	if actor == nil {
 		return fmt.Errorf("弃牌角色不存在")
 	}
@@ -465,8 +471,9 @@ func handleDissonanceDiscardStep(rt engineplayer.ChoiceRuntime, ctxData map[stri
 		ctxData["selected_count"] = selectedCount
 		ctxData["selected_indices"] = selected
 		ctxData["remaining_indices"] = nextRemaining
-		if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-			return err
+		intr := rt.GetPendingInterrupt()
+		if intr != nil {
+			intr.Context = ctxData
 		}
 		rt.NotifyInterruptPrompt()
 		return nil
@@ -481,7 +488,7 @@ func handleDissonanceDiscardStep(rt engineplayer.ChoiceRuntime, ctxData map[stri
 
 	nextCursor := cursor + 1
 	for nextCursor < len(actorIDs) {
-		nextActor := rt.LookupPlayer(actorIDs[nextCursor])
+		nextActor := rt.GetPlayers()[actorIDs[nextCursor]]
 		if nextActor == nil || len(nextActor.Hand) == 0 || needCount <= 0 {
 			nextCursor++
 			continue
@@ -491,14 +498,15 @@ func handleDissonanceDiscardStep(rt engineplayer.ChoiceRuntime, ctxData map[stri
 		ctxData["selected_count"] = 0
 		ctxData["selected_indices"] = []int{}
 		ctxData["remaining_indices"] = allHandIndices(nextActor)
-		if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-			return err
+		intr := rt.GetPendingInterrupt()
+		if intr != nil {
+			intr.Context = ctxData
 		}
 		rt.NotifyInterruptPrompt()
 		return nil
 	}
 	rt.PopInterrupt()
-	if !rt.HasPendingInterrupt() {
+	if rt.GetPendingInterrupt() == nil {
 		rt.RoutePendingDamageOr(model.TurnStageExtraAction, func() {
 			rt.EnterExtraActionStage()
 		})
@@ -510,7 +518,7 @@ func handleDissonanceDiscardStep(rt engineplayer.ChoiceRuntime, ctxData map[stri
 
 func handleRousingMode(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("吟游诗人不存在")
 	}
@@ -518,8 +526,9 @@ func handleRousingMode(rt engineplayer.ChoiceRuntime, ctxData map[string]interfa
 	case 0:
 		ctxData["choice_type"] = "bd_rousing_targets"
 		ctxData["selected_target_ids"] = []string{}
-		if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-			return err
+		intr := rt.GetPendingInterrupt()
+		if intr != nil {
+			intr.Context = ctxData
 		}
 		rt.NotifyInterruptPrompt()
 		return nil
@@ -530,8 +539,9 @@ func handleRousingMode(rt engineplayer.ChoiceRuntime, ctxData map[string]interfa
 		ctxData["choice_type"] = "bd_rousing_discard_cards"
 		ctxData["selected_indices"] = []int{}
 		ctxData["remaining_indices"] = allHandIndices(user)
-		if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-			return err
+		intr := rt.GetPendingInterrupt()
+		if intr != nil {
+			intr.Context = ctxData
 		}
 		rt.NotifyInterruptPrompt()
 		return nil
@@ -542,7 +552,7 @@ func handleRousingMode(rt engineplayer.ChoiceRuntime, ctxData map[string]interfa
 
 func handleRousingTargets(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("吟游诗人不存在")
 	}
@@ -561,8 +571,9 @@ func handleRousingTargets(rt engineplayer.ChoiceRuntime, ctxData map[string]inte
 	selected = append(selected, remaining[selectionIndex])
 	if len(selected) < 2 {
 		ctxData["selected_target_ids"] = selected
-		if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-			return err
+		intr := rt.GetPendingInterrupt()
+		if intr != nil {
+			intr.Context = ctxData
 		}
 		rt.NotifyInterruptPrompt()
 		return nil
@@ -573,7 +584,7 @@ func handleRousingTargets(rt engineplayer.ChoiceRuntime, ctxData map[string]inte
 	rt.Log(fmt.Sprintf("%s 发动 [激昂狂想曲]：对2名目标各造成1点法术伤害", user.Name))
 	resolveBardForbiddenVerseAfterSong(rt, user, "激昂狂想曲")
 	rt.PopInterrupt()
-	if !rt.HasPendingInterrupt() {
+	if rt.GetPendingInterrupt() == nil {
 		if !rt.RoutePendingDamageWithReturn(model.TurnStageActionStart) {
 			rt.ApplyChoiceResumePoint(model.TurnStageActionStart)
 		}
@@ -583,7 +594,7 @@ func handleRousingTargets(rt engineplayer.ChoiceRuntime, ctxData map[string]inte
 
 func handleRousingDiscardCards(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("吟游诗人不存在")
 	}
@@ -603,8 +614,9 @@ func handleRousingDiscardCards(rt engineplayer.ChoiceRuntime, ctxData map[string
 	if len(selected) < 2 {
 		ctxData["selected_indices"] = selected
 		ctxData["remaining_indices"] = nextRemaining
-		if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-			return err
+		intr := rt.GetPendingInterrupt()
+		if intr != nil {
+			intr.Context = ctxData
 		}
 		rt.NotifyInterruptPrompt()
 		return nil
@@ -618,7 +630,7 @@ func handleRousingDiscardCards(rt engineplayer.ChoiceRuntime, ctxData map[string
 	rt.Log(fmt.Sprintf("%s 发动 [激昂狂想曲]：选择弃2张牌", user.Name))
 	resolveBardForbiddenVerseAfterSong(rt, user, "激昂狂想曲")
 	rt.PopInterrupt()
-	if !rt.HasPendingInterrupt() {
+	if rt.GetPendingInterrupt() == nil {
 		if !rt.RoutePendingDamageWithReturn(model.TurnStageActionStart) {
 			rt.ApplyChoiceResumePoint(model.TurnStageActionStart)
 		}
@@ -630,7 +642,7 @@ func handleRousingDiscardCards(rt engineplayer.ChoiceRuntime, ctxData map[string
 
 func handleVictoryMode(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("吟游诗人不存在")
 	}
@@ -641,8 +653,9 @@ func handleVictoryMode(rt engineplayer.ChoiceRuntime, ctxData map[string]interfa
 			return fmt.Errorf("我方战绩区没有可提炼的星石")
 		}
 		ctxData["choice_type"] = "bd_victory_extract_stone"
-		if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-			return err
+		intr := rt.GetPendingInterrupt()
+		if intr != nil {
+			intr.Context = ctxData
 		}
 		rt.NotifyInterruptPrompt()
 		return nil
@@ -656,7 +669,7 @@ func handleVictoryMode(rt engineplayer.ChoiceRuntime, ctxData map[string]interfa
 	}
 	resolveBardForbiddenVerseAfterSong(rt, user, "胜利交响诗")
 	rt.PopInterrupt()
-	if !rt.HasPendingInterrupt() {
+	if rt.GetPendingInterrupt() == nil {
 		rt.RoutePendingDamageOr(model.TurnStageTurnEnd, func() {
 			rt.EnterTurnEndStage()
 		})
@@ -666,7 +679,7 @@ func handleVictoryMode(rt engineplayer.ChoiceRuntime, ctxData map[string]interfa
 
 func handleVictoryExtractStone(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("吟游诗人不存在")
 	}
@@ -711,7 +724,7 @@ func handleVictoryExtractStone(rt engineplayer.ChoiceRuntime, ctxData map[string
 	}
 	resolveBardForbiddenVerseAfterSong(rt, user, "胜利交响诗")
 	rt.PopInterrupt()
-	if !rt.HasPendingInterrupt() {
+	if rt.GetPendingInterrupt() == nil {
 		rt.RoutePendingDamageOr(model.TurnStageTurnEnd, func() {
 			rt.EnterTurnEndStage()
 		})
@@ -723,7 +736,7 @@ func handleVictoryExtractStone(rt engineplayer.ChoiceRuntime, ctxData map[string
 
 func handleHopeDrawConfirm(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("吟游诗人不存在")
 	}
@@ -733,8 +746,9 @@ func handleHopeDrawConfirm(rt engineplayer.ChoiceRuntime, ctxData map[string]int
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
 	ctxData["choice_type"] = "bd_hope_mode"
-	if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-		return err
+	intr := rt.GetPendingInterrupt()
+	if intr != nil {
+		intr.Context = ctxData
 	}
 	rt.NotifyInterruptPrompt()
 	return nil
@@ -742,7 +756,7 @@ func handleHopeDrawConfirm(rt engineplayer.ChoiceRuntime, ctxData map[string]int
 
 func handleHopeMode(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("吟游诗人不存在")
 	}
@@ -754,8 +768,9 @@ func handleHopeMode(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{
 		}
 		ctxData["choice_type"] = "bd_hope_place_target"
 		ctxData["target_ids"] = targetIDs
-		if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-			return err
+		intr := rt.GetPendingInterrupt()
+		if intr != nil {
+			intr.Context = ctxData
 		}
 		rt.NotifyInterruptPrompt()
 		return nil
@@ -780,8 +795,9 @@ func handleHopeMode(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{
 		ctxData["mode"] = selectionIndex
 		ctxData["choice_type"] = "bd_hope_transfer_target"
 		ctxData["target_ids"] = targetIDs
-		if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-			return err
+		intr := rt.GetPendingInterrupt()
+		if intr != nil {
+			intr.Context = ctxData
 		}
 		rt.NotifyInterruptPrompt()
 		return nil
@@ -792,7 +808,7 @@ func handleHopeMode(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{
 
 func handleHopePlaceTarget(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("吟游诗人不存在")
 	}
@@ -800,7 +816,7 @@ func handleHopePlaceTarget(rt engineplayer.ChoiceRuntime, ctxData map[string]int
 	if selectionIndex < 0 || selectionIndex >= len(targetIDs) {
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
-	target := rt.LookupPlayer(targetIDs[selectionIndex])
+	target := rt.GetPlayers()[targetIDs[selectionIndex]]
 	if target == nil {
 		return fmt.Errorf("目标不存在")
 	}
@@ -813,7 +829,7 @@ func handleHopePlaceTarget(rt engineplayer.ChoiceRuntime, ctxData map[string]int
 	}
 	rt.Log(fmt.Sprintf("%s 发动 [希望赋格曲]：将永恒乐章放置于 %s 面前", user.Name, target.Name))
 	rt.PopInterrupt()
-	if !rt.HasPendingInterrupt() {
+	if rt.GetPendingInterrupt() == nil {
 		rt.ApplyChoiceResumePoint(model.TurnStageActionStart)
 	}
 	return nil
@@ -821,7 +837,7 @@ func handleHopePlaceTarget(rt engineplayer.ChoiceRuntime, ctxData map[string]int
 
 func handleHopeTransferTarget(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("吟游诗人不存在")
 	}
@@ -829,7 +845,7 @@ func handleHopeTransferTarget(rt engineplayer.ChoiceRuntime, ctxData map[string]
 	if selectionIndex < 0 || selectionIndex >= len(targetIDs) {
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
-	target := rt.LookupPlayer(targetIDs[selectionIndex])
+	target := rt.GetPlayers()[targetIDs[selectionIndex]]
 	if target == nil {
 		return fmt.Errorf("目标不存在")
 	}
@@ -837,8 +853,9 @@ func handleHopeTransferTarget(rt engineplayer.ChoiceRuntime, ctxData map[string]
 		return err
 	}
 	ctxData["choice_type"] = "bd_hope_transfer_discard"
-	if err := rt.ReplacePendingInterruptContext(ctxData); err != nil {
-		return err
+	intr := rt.GetPendingInterrupt()
+	if intr != nil {
+		intr.Context = ctxData
 	}
 	rt.NotifyInterruptPrompt()
 	return nil
@@ -846,7 +863,7 @@ func handleHopeTransferTarget(rt engineplayer.ChoiceRuntime, ctxData map[string]
 
 func handleHopeTransferDiscard(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("吟游诗人不存在")
 	}
@@ -874,7 +891,7 @@ func handleHopeTransferDiscard(rt engineplayer.ChoiceRuntime, ctxData map[string
 		return fmt.Errorf("希望赋格曲转移分支模式无效")
 	}
 	rt.PopInterrupt()
-	if !rt.HasPendingInterrupt() {
+	if rt.GetPendingInterrupt() == nil {
 		rt.ApplyChoiceResumePoint(model.TurnStageActionStart)
 	}
 	return nil
@@ -1072,8 +1089,8 @@ func campEnemyIDs(rt engineplayer.ChoiceRuntime, user *model.Player) []string {
 		return nil
 	}
 	var ids []string
-	for _, pid := range rt.PlayerOrder() {
-		p := rt.LookupPlayer(pid)
+	for _, pid := range rt.GetPlayerOrder() {
+		p := rt.GetPlayers()[pid]
 		if p == nil || p.Camp == user.Camp {
 			continue
 		}
@@ -1084,8 +1101,8 @@ func campEnemyIDs(rt engineplayer.ChoiceRuntime, user *model.Player) []string {
 
 func bardAlliesExcluding(rt engineplayer.ChoiceRuntime, camp model.Camp, excludeID string) []string {
 	var ids []string
-	for _, pid := range rt.PlayerOrder() {
-		p := rt.LookupPlayer(pid)
+	for _, pid := range rt.GetPlayerOrder() {
+		p := rt.GetPlayers()[pid]
 		if p == nil || p.Camp != camp || p.ID == excludeID {
 			continue
 		}
@@ -1097,7 +1114,7 @@ func bardAlliesExcluding(rt engineplayer.ChoiceRuntime, camp model.Camp, exclude
 // Bard eternal movement helpers
 
 func bardEternalHolderID(rt engineplayer.ChoiceRuntime, bard *model.Player) string {
-	holder, _ := rt.FindFieldEffectBySource(model.EffectBardEternalMovement, bard.ID)
+	holder, _ := rt.FindEffectCard(bard, model.EffectBardEternalMovement)
 	if holder == nil {
 		return ""
 	}
@@ -1112,7 +1129,7 @@ func placeBardEternalMovementWithCard(rt engineplayer.ChoiceRuntime, bard *model
 		return fmt.Errorf("永恒乐章只能放置在我方角色面前")
 	}
 	removeBardEternalMovement(rt, bard)
-	return rt.AttachExclusiveEffectCard(bard.ID, target.ID, model.EffectBardEternalMovement, card)
+	return rt.AttachEffectCard(bard, target, model.EffectBardEternalMovement, card)
 }
 
 func transferBardEternalMovement(rt engineplayer.ChoiceRuntime, bard *model.Player, target *model.Player) error {
@@ -1122,7 +1139,7 @@ func transferBardEternalMovement(rt engineplayer.ChoiceRuntime, bard *model.Play
 	if target.Camp != bard.Camp {
 		return fmt.Errorf("永恒乐章只能转移给我方角色")
 	}
-	holder, _ := rt.FindFieldEffectBySource(model.EffectBardEternalMovement, bard.ID)
+	holder, _ := rt.FindEffectCard(bard, model.EffectBardEternalMovement)
 	if holder == nil {
 		return fmt.Errorf("当前没有永恒乐章可转移")
 	}
@@ -1131,7 +1148,7 @@ func transferBardEternalMovement(rt engineplayer.ChoiceRuntime, bard *model.Play
 	}
 	// Detach from current holder and attach to new target.
 	// We need to find the existing card first.
-	_, existingCard := rt.FindFieldEffectBySource(model.EffectBardEternalMovement, bard.ID)
+	_, existingCard := rt.FindEffectCard(bard, model.EffectBardEternalMovement)
 	if existingCard == nil {
 		return fmt.Errorf("当前没有永恒乐章可转移")
 	}
@@ -1139,11 +1156,11 @@ func transferBardEternalMovement(rt engineplayer.ChoiceRuntime, bard *model.Play
 	// Remove from current holder by removing the field card.
 	holder.RemoveFieldCard(existingCard)
 	// Attach to new target.
-	return rt.AttachExclusiveEffectCard(bard.ID, target.ID, model.EffectBardEternalMovement, card)
+	return rt.AttachEffectCard(bard, target, model.EffectBardEternalMovement, card)
 }
 
 func removeBardEternalMovement(rt engineplayer.ChoiceRuntime, bard *model.Player) bool {
-	holder, fc := rt.FindFieldEffectBySource(model.EffectBardEternalMovement, bard.ID)
+	holder, fc := rt.FindEffectCard(bard, model.EffectBardEternalMovement)
 	if holder == nil || fc == nil {
 		return false
 	}

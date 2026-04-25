@@ -15,7 +15,7 @@ func healResistHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHookCont
 	if ctx.PendingDamage == nil || ctx.PendingDamage.IgnoreHeal {
 		return engineplayer.TimingHookResult{}
 	}
-	target := rt.LookupPlayer(ctx.TargetID)
+	target := rt.GetPlayers()[ctx.TargetID]
 	if target == nil || !engineplayer.IsCharacter(target, "crimson_knight") {
 		return engineplayer.TimingHookResult{}
 	}
@@ -37,11 +37,10 @@ func turnEndHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHookContext
 	if !rt.HasForm(p, model.FormCrimsonKnightHotBlooded) {
 		return engineplayer.TimingHookResult{}
 	}
-	before := rt.SnapshotPlayerPoses()
+	defer rt.PoseChangeGuard()
 	engineplayer.ClearForm(p, model.FormCrimsonKnightHotBlooded)
 	rt.Heal(p.ID, 2)
 	rt.Log(fmt.Sprintf("%s 回合结束脱离 [热血沸腾形态]，获得2点治疗", p.Name))
-	rt.DispatchOrientationChanges(before)
 	return engineplayer.TimingHookResult{}
 }
 
@@ -57,9 +56,8 @@ func moraleLossHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHookCont
 	if engineplayer.HasForm(victim, model.FormCrimsonKnightHotBlooded) {
 		return engineplayer.TimingHookResult{}
 	}
-	beforePoses := rt.SnapshotPlayerPoses()
+	defer rt.PoseChangeGuard()
 	engineplayer.SetForm(victim, model.FormCrimsonKnightHotBlooded)
 	rt.Log(fmt.Sprintf("%s 的 [热血沸腾] 触发，进入热血沸腾形态", victim.Name))
-	rt.DispatchOrientationChanges(beforePoses)
 	return engineplayer.TimingHookResult{}
 }

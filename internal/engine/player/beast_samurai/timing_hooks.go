@@ -22,7 +22,7 @@ func damageCalculateHook(rt player.HookRuntime, ctx player.TimingHookContext) pl
 	if !InIaijutsuForm(p) {
 		return player.TimingHookResult{}
 	}
-	target := rt.LookupPlayer(ctx.TargetID)
+	target := rt.GetPlayers()[ctx.TargetID]
 	if target == nil {
 		return player.TimingHookResult{}
 	}
@@ -105,11 +105,10 @@ func postDamageResolvedHook(rt player.HookRuntime, ctx player.TimingHookContext)
 	}
 	// Leave iaijutsu form on damage dealt
 	if ctx.Damage > 0 && InIaijutsuForm(source) {
-		before := rt.SnapshotPlayerPoses()
+		defer rt.PoseChangeGuard()
 		if LeaveIaijutsuForm(source) {
 			rt.Log(fmt.Sprintf("%s 的 [御魂流居合形态·造成伤害退场] 生效：转正并脱离御魂流居合形态", source.Name))
 		}
-		rt.DispatchOrientationChanges(before)
 	}
 	return player.TimingHookResult{}
 }
@@ -132,11 +131,10 @@ func turnEndHook(rt player.HookRuntime, ctx player.TimingHookContext) player.Tim
 		rt.Log(fmt.Sprintf("%s 的 [御魂流居合形态·回合结束扣魂] 生效：兽魂-1，残心+1", p.Name))
 	}
 	if InIaijutsuForm(p) && BeastSoul(p) == 0 {
-		before := rt.SnapshotPlayerPoses()
+		defer rt.PoseChangeGuard()
 		if player.ClearForm(p, model.FormBeastSamuraiIaijutsu) {
 			rt.Log(fmt.Sprintf("%s 的 [御魂流居合形态·兽魂归零退场] 生效：转正并脱离御魂流居合形态", p.Name))
 		}
-		rt.DispatchOrientationChanges(before)
 	}
 	p.TurnState.UsedSkillCounts["bs_one_strike_armed"] = 0
 	ClearAttackTokens(p)

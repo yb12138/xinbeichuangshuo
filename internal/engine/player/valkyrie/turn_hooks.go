@@ -32,5 +32,5 @@ func MilitaryGlory(rt engineplayer.ChoiceRuntime, player *model.Player) bool {
 		return false
 	}
 	rt.RecordSkillUsage(player.ID, "军威神光", model.SkillTypeStartup)
-	return rt.HasPendingInterrupt()
+	return rt.GetPendingInterrupt() != nil
 }

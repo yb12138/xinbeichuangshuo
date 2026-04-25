@@ -31,8 +31,8 @@ func BleedTick(rt engineplayer.ChoiceRuntime, player *model.Player) bool {
 
 // postActionEndBleedExitHook 行动结束后检查是否需要脱离流血形态。
 func postActionEndBleedExitHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHookContext) engineplayer.TimingHookResult {
-	for _, pid := range rt.PlayerOrder() {
-		player := rt.LookupPlayer(pid)
+	for _, pid := range rt.GetPlayerOrder() {
+		player := rt.GetPlayers()[pid]
 		if player == nil || !engineplayer.IsCharacter(player, "blood_priestess") {
 			continue
 		}
@@ -42,10 +42,9 @@ func postActionEndBleedExitHook(rt engineplayer.HookRuntime, ctx engineplayer.Ti
 		if len(player.Hand) >= 3 {
 			continue
 		}
-		beforePoses := rt.SnapshotPlayerPoses()
+		defer rt.PoseChangeGuard()
 		LeaveBleedingForm(player)
 		rt.Log(fmt.Sprintf("%s 的 [流血·手牌不足脱离] 生效：行动结束时手牌<3，脱离流血形态", player.Name))
-		rt.DispatchOrientationChanges(beforePoses)
 	}
 	return engineplayer.TimingHookResult{}
 }

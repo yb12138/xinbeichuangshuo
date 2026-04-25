@@ -178,7 +178,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 
 func handleChargeDrawX(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -216,7 +216,7 @@ func handleChargeDrawX(rt engineplayer.ChoiceRuntime, ctxData map[string]interfa
 	if maxPlace <= 0 {
 		rt.Log(fmt.Sprintf("%s 的 [充能] 生效：摸%d张，不放置充能", user.Name, xValue))
 		rt.PopInterrupt()
-		if !rt.HasPendingInterrupt() {
+		if rt.GetPendingInterrupt() == nil {
 			rt.ApplyChoiceResumePoint(model.TurnStageActionStart)
 		}
 		return nil
@@ -224,7 +224,9 @@ func handleChargeDrawX(rt engineplayer.ChoiceRuntime, ctxData map[string]interfa
 
 	ctxData["choice_type"] = "mb_charge_place_count"
 	ctxData["max_place"] = maxPlace
-	_ = rt.ReplacePendingInterruptContext(ctxData)
+	if intr := rt.GetPendingInterrupt(); intr != nil {
+		intr.Context = ctxData
+	}
 	rt.NotifyInterruptPrompt()
 	rt.Log(fmt.Sprintf("%s 的 [充能] 生效：摸%d张，可放置最多%d张充能", user.Name, xValue, maxPlace))
 	return nil
@@ -232,7 +234,7 @@ func handleChargeDrawX(rt engineplayer.ChoiceRuntime, ctxData map[string]interfa
 
 func handleChargePlaceCount(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -248,7 +250,7 @@ func handleChargePlaceCount(rt engineplayer.ChoiceRuntime, ctxData map[string]in
 	if needCount == 0 {
 		rt.Log(fmt.Sprintf("%s 选择不放置充能", user.Name))
 		rt.PopInterrupt()
-		if !rt.HasPendingInterrupt() {
+		if rt.GetPendingInterrupt() == nil {
 			rt.ApplyChoiceResumePoint(model.TurnStageActionStart)
 		}
 		return nil
@@ -258,7 +260,9 @@ func handleChargePlaceCount(rt engineplayer.ChoiceRuntime, ctxData map[string]in
 	ctxData["need_count"] = needCount
 	ctxData["selected_indices"] = []int{}
 	ctxData["remaining_indices"] = allHandIndices(user)
-	_ = rt.ReplacePendingInterruptContext(ctxData)
+	if intr := rt.GetPendingInterrupt(); intr != nil {
+		intr.Context = ctxData
+	}
 	rt.NotifyInterruptPrompt()
 	return nil
 }
@@ -266,7 +270,7 @@ func handleChargePlaceCount(rt engineplayer.ChoiceRuntime, ctxData map[string]in
 func handleChargePlaceCards(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	choiceType, _ := ctxData["choice_type"].(string)
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -300,7 +304,9 @@ func handleChargePlaceCards(rt engineplayer.ChoiceRuntime, ctxData map[string]in
 	if len(selected) < needCount {
 		ctxData["selected_indices"] = selected
 		ctxData["remaining_indices"] = nextRemaining
-		_ = rt.ReplacePendingInterruptContext(ctxData)
+		if intr := rt.GetPendingInterrupt(); intr != nil {
+			intr.Context = ctxData
+		}
 		rt.NotifyInterruptPrompt()
 		return nil
 	}
@@ -336,7 +342,7 @@ func handleChargePlaceCards(rt engineplayer.ChoiceRuntime, ctxData map[string]in
 	}
 
 	rt.PopInterrupt()
-	if !rt.HasPendingInterrupt() {
+	if rt.GetPendingInterrupt() == nil {
 		rt.ApplyChoiceResumePoint(model.TurnStageActionStart)
 	}
 	return nil
@@ -344,7 +350,7 @@ func handleChargePlaceCards(rt engineplayer.ChoiceRuntime, ctxData map[string]in
 
 func handleThunderScatterExtra(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -380,9 +386,9 @@ func handleThunderScatterExtra(rt engineplayer.ChoiceRuntime, ctxData map[string
 	if actualExtra <= 0 {
 		rt.Log(fmt.Sprintf("%s 的 [雷光散射] 生效：对所有对手各造成1点法术伤害", user.Name))
 		rt.PopInterrupt()
-		if !rt.HasPendingInterrupt() {
+		if rt.GetPendingInterrupt() == nil {
 			rt.ApplyChoiceResumePoint(model.TurnStageExtraAction)
-			if rt.PendingDamageQueueLen() > 0 {
+			if len(rt.GetPendingDamageQueue()) > 0 {
 				rt.EnterDamageResolution(nil)
 			}
 		}
@@ -401,7 +407,7 @@ func handleThunderScatterExtra(rt engineplayer.ChoiceRuntime, ctxData map[string
 		if !lockedValid {
 			return fmt.Errorf("雷光散射预选目标无效")
 		}
-		target := rt.LookupPlayer(lockedTargetID)
+		target := rt.GetPlayers()[lockedTargetID]
 		if target == nil {
 			return fmt.Errorf("目标不存在")
 		}
@@ -413,9 +419,9 @@ func handleThunderScatterExtra(rt engineplayer.ChoiceRuntime, ctxData map[string
 		})
 		rt.Log(fmt.Sprintf("%s 的 [雷光散射] 生效：对所有对手各1点，并对 %s 额外造成%d点法术伤害", user.Name, target.Name, actualExtra))
 		rt.PopInterrupt()
-		if !rt.HasPendingInterrupt() {
+		if rt.GetPendingInterrupt() == nil {
 			rt.ApplyChoiceResumePoint(model.TurnStageExtraAction)
-			if rt.PendingDamageQueueLen() > 0 {
+			if len(rt.GetPendingDamageQueue()) > 0 {
 				rt.EnterDamageResolution(nil)
 			}
 		}
@@ -424,7 +430,9 @@ func handleThunderScatterExtra(rt engineplayer.ChoiceRuntime, ctxData map[string
 
 	ctxData["choice_type"] = "mb_thunder_scatter_target"
 	ctxData["extra_x"] = actualExtra
-	_ = rt.ReplacePendingInterruptContext(ctxData)
+	if intr := rt.GetPendingInterrupt(); intr != nil {
+		intr.Context = ctxData
+	}
 	rt.NotifyInterruptPrompt()
 	return nil
 }
@@ -432,7 +440,7 @@ func handleThunderScatterExtra(rt engineplayer.ChoiceRuntime, ctxData map[string
 func handleTargetChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	choiceType, _ := ctxData["choice_type"].(string)
 	userID, _ := ctxData["user_id"].(string)
-	user := rt.LookupPlayer(userID)
+	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
@@ -442,7 +450,7 @@ func handleTargetChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]interf
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
 	targetID := targetIDs[selectionIndex]
-	target := rt.LookupPlayer(targetID)
+	target := rt.GetPlayers()[targetID]
 	if target == nil {
 		return fmt.Errorf("目标不存在")
 	}
@@ -460,9 +468,9 @@ func handleTargetChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]interf
 		}
 		rt.Log(fmt.Sprintf("%s 的 [雷光散射] 生效：对所有对手各1点，并对 %s 额外造成%d点法术伤害", user.Name, target.Name, extraX))
 		rt.PopInterrupt()
-		if !rt.HasPendingInterrupt() {
+		if rt.GetPendingInterrupt() == nil {
 			rt.ApplyChoiceResumePoint(model.TurnStageExtraAction)
-			if rt.PendingDamageQueueLen() > 0 {
+			if len(rt.GetPendingDamageQueue()) > 0 {
 				rt.EnterDamageResolution(nil)
 			}
 		}
@@ -474,7 +482,7 @@ func handleTargetChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]interf
 			prevOrder = user.TurnState.SkillFlowState["mb_last_attack_target_order"]
 		}
 		if prevOrder > 0 {
-			playerOrder := rt.PlayerOrder()
+			playerOrder := rt.GetPlayerOrder()
 			for idx, pid := range playerOrder {
 				if idx+1 == prevOrder && pid == targetID {
 					return fmt.Errorf("多重射击不能选择上次攻击目标")
@@ -493,7 +501,7 @@ func handleTargetChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]interf
 		RemoveChargeByElement(user, model.ElementWind)
 		rt.Log(fmt.Sprintf("%s 的 [多重射击] 生效：对 %s 发起1次暗系追加攻击（伤害-1）", user.Name, target.Name))
 		rt.PopInterrupt()
-		if !rt.HasPendingInterrupt() {
+		if rt.GetPendingInterrupt() == nil {
 			rt.EnterActionExecutionStage()
 		}
 		return nil
@@ -527,7 +535,9 @@ func handleTargetChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]interf
 		ctxData["need_count"] = 1
 		ctxData["selected_indices"] = []int{}
 		ctxData["remaining_indices"] = allHandIndices(user)
-		_ = rt.ReplacePendingInterruptContext(ctxData)
+		if intr := rt.GetPendingInterrupt(); intr != nil {
+			intr.Context = ctxData
+		}
 		rt.NotifyInterruptPrompt()
 		rt.Log(fmt.Sprintf("%s 的 [魔眼] 生效：%s 无法弃牌，改为自己摸3张牌并选择1张作为充能", user.Name, target.Name))
 		return nil

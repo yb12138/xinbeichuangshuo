@@ -22,11 +22,10 @@ func beforeActionFlameReleaseHook(rt player.HookRuntime, ctx player.TimingHookCo
 	if p.TurnState.SkillFlowState["bw_flame_release_pending"] <= 0 {
 		return player.TimingHookResult{}
 	}
-	beforePoses := rt.SnapshotPlayerPoses()
+	defer rt.PoseChangeGuard()
 	rt.ClearForm(p, model.FormBlazeWitchFlame)
 	p.TurnState.SkillFlowState["bw_flame_release_pending"] = 0
 	rt.Log(fmt.Sprintf("%s 脱离烈焰形态并转正", p.Name))
-	rt.DispatchOrientationChanges(beforePoses)
 	return player.TimingHookResult{}
 }
 
@@ -60,7 +59,7 @@ func postDamageResolvedHook(rt player.HookRuntime, ctx player.TimingHookContext)
 
 // afterApplyHook 伤害应用后重置替身人偶和魔力反转锁定。
 func afterApplyHook(rt player.HookRuntime, ctx player.TimingHookContext) player.TimingHookResult {
-	target := rt.LookupPlayer(ctx.TargetID)
+	target := rt.GetPlayers()[ctx.TargetID]
 	if target == nil {
 		return player.TimingHookResult{}
 	}

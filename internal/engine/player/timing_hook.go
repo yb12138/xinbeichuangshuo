@@ -145,6 +145,7 @@ type TimingHookFunc func(rt HookRuntime, ctx TimingHookContext) TimingHookResult
 
 // HookRuntime 抽象 Timing Hook 运行时能力（窄接口）。
 type HookRuntime interface {
+	StateReader // 状态读取（通用字段访问）
 	// 基础方法（已有）
 	Log(message string)
 	GetPlayer(playerID string) *model.Player
@@ -155,17 +156,11 @@ type HookRuntime interface {
 	GetMaxHand(player *model.Player) int
 	GetPlayerEnergyCap(player *model.Player) int
 	DrawCards(playerID string, amount int)
-	GetPendingDamageQueue() []model.PendingDamage
 	SetPendingDamageQueue(queue []model.PendingDamage)
-	SnapshotPlayerPoses() map[string]PoseSnapshot
-	DispatchOrientationChanges(before map[string]PoseSnapshot)
-	CampMorale(camp model.Camp) int
+	PoseChangeGuard() func()
 	HasPendingDiscardFor(playerID string) bool
-	PlayerOrder() []string
 	RecordMagicDamageTarget(sourceID, targetID string)
 	MagicDamageTargetCount(sourceID string) int
-	LookupPlayer(playerID string) *model.Player
-	CurrentTurnPlayerID() string
 	BuildContext(user, target *model.Player, timing model.FlowTiming, eventCtx *model.EventContext) *model.Context
 	IsSkillStillUsable(skillID string, user *model.Player, ctx *model.Context) bool
 	IsMagicDamageType(damageType model.DamageType) bool
@@ -216,12 +211,9 @@ type HookRuntime interface {
 	CampEnemyIDs(camp model.Camp) []string
 	RemoveExclusiveEffectCard(source *model.Player, effect model.EffectType, restoreCard bool) bool
 	CheckHandLimit(player *model.Player)
-	HasPendingInterrupt() bool
 	CanPayCrystalCost(playerID string, amount int) bool
 	DrawCardsWithOptions(playerID string, count int, opts model.DrawOptions)
 	NotifyCardRevealed(playerID string, cards []model.Card, actionType model.DamageType)
-	GetAllPlayers() []*model.Player
-	GetAllPlayersMap() map[string]*model.Player
 	HasUsedActionSkill(player *model.Player) bool
 
 	// 被动增伤/伤害计算扩展
