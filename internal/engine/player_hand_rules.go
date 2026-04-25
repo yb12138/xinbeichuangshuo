@@ -69,13 +69,6 @@ func (e *GameEngine) fixedMaxHandCapValue(player *model.Player) (int, bool) {
 	return 0, false
 }
 
-// HasFixedMaxHandCap 判断玩家是否有固定手牌上限。
-// Deprecated: Use RoleFixedMaxHandCapValue instead.
-func (e *GameEngine) HasFixedMaxHandCap(player *model.Player) bool {
-	_, ok := e.fixedMaxHandCapValue(player)
-	return ok
-}
-
 // RoleFixedMaxHandCapValue 返回角色固定手牌上限（实现 HandLimitModifierEngine 接口）。
 func (e *GameEngine) RoleFixedMaxHandCapValue(player *model.Player) (int, bool) {
 	return e.fixedMaxHandCapValue(player)

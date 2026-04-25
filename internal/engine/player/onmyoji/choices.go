@@ -443,7 +443,10 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		rt.NotifyCardRevealed(actorID, []model.Card{card}, "counter")
 
 		// Get original combat info for cue
-		topCombat := rt.TopCombatRequest()
+		var topCombat *model.CombatRequest
+		if stack := rt.GetCombatStack(); len(stack) > 0 {
+			topCombat = &stack[len(stack)-1]
+		}
 		if topCombat != nil {
 			rt.NotifyCombatCue(topCombat.AttackerID, topCombat.TargetID, "counter")
 		}

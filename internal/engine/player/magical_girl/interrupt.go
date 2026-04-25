@@ -19,7 +19,7 @@ const (
 // --- Prompt builders ---
 
 func buildMagicMissilePrompt(rt player.ChoiceRuntime) *model.Prompt {
-	chain := rt.MagicBulletChain()
+	chain := rt.GetMagicBulletChain()
 	if chain == nil {
 		return nil
 	}
@@ -188,7 +188,7 @@ func magicBlastTargetDiscardOptions(p *model.Player) []model.PromptOption {
 // --- Action handlers ---
 
 func handleMagicMissileAction(rt player.ChoiceRuntime, act model.PlayerAction) error {
-	chain := rt.MagicBulletChain()
+	chain := rt.GetMagicBulletChain()
 	if chain == nil {
 		return fmt.Errorf("魔弹链条不存在")
 	}
@@ -229,7 +229,7 @@ func resolveMagicMissileTake(rt player.ChoiceRuntime, p *model.Player, chain *mo
 				continue
 			}
 			p.RemoveFieldCard(fc)
-			rt.AddToDiscardPile(fc.Card)
+			rt.AppendToDiscard([]model.Card{fc.Card})
 			removed = true
 			break
 		}
@@ -292,7 +292,7 @@ func resolveMagicMissileCounter(rt player.ChoiceRuntime, p *model.Player, chain 
 	if err != nil {
 		return err
 	}
-	rt.AddToDiscardPile(consumed)
+	rt.AppendToDiscard([]model.Card{consumed})
 	rt.Log(fmt.Sprintf("[Magic] %s 打出魔弹，将伤害传递给下一位！伤害+1", p.Name))
 
 	chain.CurrentDamage += 1
@@ -316,7 +316,9 @@ func resolveMagicMissileCounter(rt player.ChoiceRuntime, p *model.Player, chain 
 
 	nextTarget := rt.GetPlayers()[nextTargetID]
 	chain.TargetID = nextTargetID
-	rt.ReplacePendingInterruptPlayerID(nextTargetID)
+	if intr := rt.GetPendingInterrupt(); intr != nil {
+		intr.PlayerID = nextTargetID
+	}
 	data := map[string]interface{}{
 		"damage":    chain.CurrentDamage,
 		"source_id": p.ID,
@@ -352,7 +354,7 @@ func resolveMagicMissileDefend(rt player.ChoiceRuntime, p *model.Player, chain *
 	if err != nil {
 		return err
 	}
-	rt.AddToDiscardPile(consumed)
+	rt.AppendToDiscard([]model.Card{consumed})
 
 	rt.SetMagicBulletChain(nil)
 	rt.PopInterrupt()
@@ -394,7 +396,7 @@ func handleMagicBulletFusionAction(rt player.ChoiceRuntime, act model.PlayerActi
 		if _, err := rt.ConsumePlayableCardByIndex(p, cardIdx); err != nil {
 			return err
 		}
-		rt.AddToDiscardPile(card)
+		rt.AppendToDiscard([]model.Card{card})
 		rt.PushInterrupt(&model.Interrupt{
 			Type:     model.InterruptMagicBulletDirection,
 			PlayerID: p.ID,
@@ -558,7 +560,7 @@ func discardMagicBlastMagicCard(rt player.ChoiceRuntime, p *model.Player, cardId
 	}
 	rt.NotifyCardRevealed(p.ID, []model.Card{card}, "discard")
 	p.Hand = append(p.Hand[:cardIdx], p.Hand[cardIdx+1:]...)
-	rt.AddToDiscardPile(card)
+	rt.AppendToDiscard([]model.Card{card})
 	rt.Log(fmt.Sprintf("[Skill] %s 弃掉了法术牌 %s", p.Name, card.Name))
 	return nil
 }
@@ -584,7 +586,7 @@ func resolveMagicBlastCasterForcedDiscard(
 	}
 	card := p.Hand[cardIdx]
 	p.Hand = append(p.Hand[:cardIdx], p.Hand[cardIdx+1:]...)
-	rt.AddToDiscardPile(card)
+	rt.AppendToDiscard([]model.Card{card})
 	rt.Log(fmt.Sprintf("[Skill] %s 因【魔爆冲击】弃掉了 %s", p.Name, card.Name))
 
 	return advanceMagicBlastToNextTarget(rt, data, targetIDs, currentTargetIdx)
@@ -593,7 +595,9 @@ func resolveMagicBlastCasterForcedDiscard(
 func enterMagicBlastCasterForcedDiscard(rt player.ChoiceRuntime, data map[string]interface{}, casterID string, nextTargetIdx int) error {
 	data["stage"] = magicBlastStageCasterForcedDiscard
 	data["current_target"] = nextTargetIdx
-	rt.ReplacePendingInterruptPlayerID(casterID)
+	if intr := rt.GetPendingInterrupt(); intr != nil {
+		intr.PlayerID = casterID
+	}
 	func() {
 		if intr := rt.GetPendingInterrupt(); intr != nil {
 			intr.Context = data
@@ -610,7 +614,9 @@ func advanceMagicBlastToNextTarget(rt player.ChoiceRuntime, data map[string]inte
 	}
 	data["stage"] = magicBlastStageTargetDiscard
 	nextTargetID := targetIDs[nextTargetIdx]
-	rt.ReplacePendingInterruptPlayerID(nextTargetID)
+	if intr := rt.GetPendingInterrupt(); intr != nil {
+		intr.PlayerID = nextTargetID
+	}
 	func() {
 		if intr := rt.GetPendingInterrupt(); intr != nil {
 			intr.Context = data

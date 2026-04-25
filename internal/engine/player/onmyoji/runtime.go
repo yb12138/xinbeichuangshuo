@@ -8,12 +8,23 @@ import (
 	"starcup-engine/internal/model"
 )
 
+// campEnemyIDs 返回与指定阵营不同的所有玩家ID。
+func campEnemyIDs(rt engineplayer.ChoiceRuntime, camp model.Camp) []string {
+	var ids []string
+	for _, pid := range rt.GetPlayerOrder() {
+		if p := rt.GetPlayers()[pid]; p != nil && p.Camp != camp {
+			ids = append(ids, pid)
+		}
+	}
+	return ids
+}
+
 // MaybeDarkRitual 检查阴阳师是否满足黑暗祭礼的发动条件。
 func MaybeDarkRitual(rt engineplayer.ChoiceRuntime, player *model.Player) bool {
 	if player == nil || !engineplayer.IsCharacter(player, "onmyoji") || player.Tokens == nil || player.Tokens["onmyoji_ghost_fire"] < 3 {
 		return false
 	}
-	targetIDs := rt.CampEnemyIDs(player.Camp)
+	targetIDs := campEnemyIDs(rt, player.Camp)
 	if len(targetIDs) == 0 {
 		return false
 	}

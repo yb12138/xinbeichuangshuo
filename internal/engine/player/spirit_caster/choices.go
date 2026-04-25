@@ -575,7 +575,9 @@ func handleTalismanWindDiscard(rt engineplayer.ChoiceRuntime, ctxData map[string
 			intr.Context = ctxData
 		}
 		// Update the interrupt's PlayerID so the prompt goes to the right player
-		rt.ReplacePendingInterruptPlayerID(nextTarget.ID)
+		if intr := rt.GetPendingInterrupt(); intr != nil {
+			intr.PlayerID = nextTarget.ID
+		}
 		rt.NotifyInterruptPrompt()
 		return nil
 	}

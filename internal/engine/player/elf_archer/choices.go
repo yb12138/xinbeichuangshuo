@@ -319,7 +319,7 @@ func handleElfPetEmpowerConfirm(rt engineplayer.ChoiceRuntime, selectionIndex in
 		return fmt.Errorf("玩家不存在")
 	}
 	if selectionIndex == 0 && rt.ConsumeCrystalCost(userID, 1) {
-		targetIDs := rt.PlayerOrder()
+		targetIDs := rt.GetPlayerOrder()
 		if intr := rt.GetPendingInterrupt(); intr != nil {
 			intr.Context = map[string]interface{}{
 				"choice_type": "elf_pet_empower_target",

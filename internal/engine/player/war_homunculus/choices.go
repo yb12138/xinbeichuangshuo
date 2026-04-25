@@ -327,7 +327,7 @@ func handleDualEchoTarget(rt engineplayer.ChoiceRuntime, ctxData map[string]inte
 		rt.Log(fmt.Sprintf("%s 的 [双重回响] 对 %s 造成%d点法术伤害", user.Name, target.Name, damage))
 	}
 	rt.PopInterrupt()
-	if rt.GetPendingInterrupt() == nil && rt.PendingDamageQueueLen() > 0 {
+	if rt.GetPendingInterrupt() == nil && len(rt.GetPendingDamageQueue()) > 0 {
 		rt.EnterDamageResolution(nil)
 	}
 	return nil
@@ -399,7 +399,7 @@ func resolveRuneChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]interfa
 				return nil
 			}
 		}
-		if rt.GetPendingInterrupt() == nil && rt.PendingDamageQueueLen() > 0 {
+		if rt.GetPendingInterrupt() == nil && len(rt.GetPendingDamageQueue()) > 0 {
 			rt.EnterDamageResolution(nil)
 		}
 		return nil

@@ -547,7 +547,13 @@ func formatCardInfo(card model.Card) string {
 }
 
 func allOtherPlayerIDs(rt engineplayer.ChoiceRuntime, userID string) []string {
-	return rt.AllOtherPlayerIDs(userID)
+	var otherIDs []string
+	for _, pid := range rt.GetPlayerOrder() {
+		if pid != userID {
+			otherIDs = append(otherIDs, pid)
+		}
+	}
+	return otherIDs
 }
 
 func buildElementCardIndexMap(player *model.Player) map[model.Element][]int {

@@ -198,7 +198,6 @@ type HookRuntime interface {
 	PushInterruptForPlayer(playerID string, intr *model.Interrupt)
 
 	// 新增 - 回合状态
-	GetTurnStage() model.TurnStage
 	SetTurnStage(stage model.TurnStage)
 	IsPlayerActive(player *model.Player) bool
 
