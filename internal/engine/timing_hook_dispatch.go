@@ -75,6 +75,27 @@ func (e *GameEngine) dispatchAllRoleTimingHooks(
 		if result.ValidationError != nil && aggregated.ValidationError == nil {
 			aggregated.ValidationError = result.ValidationError
 		}
+		if result.Handled {
+			aggregated.Handled = true
+		}
+		if result.UseFaction {
+			aggregated.UseFaction = true
+		}
+		if result.CounterAllowed {
+			aggregated.CounterAllowed = true
+		}
+		if result.CounterCard != nil {
+			aggregated.CounterCard = result.CounterCard
+		}
+		if result.Card.Name != "" {
+			aggregated.Card = result.Card
+		}
+		if len(result.SkillIDs) > 0 {
+			aggregated.SkillIDs = append(aggregated.SkillIDs, result.SkillIDs...)
+		}
+		if result.PlayerAction.Type != "" {
+			aggregated.PlayerAction = result.PlayerAction
+		}
 	}
 	return aggregated
 }

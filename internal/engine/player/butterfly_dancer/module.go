@@ -25,9 +25,26 @@ func RoleEntry() player.RoleEntry {
 		Choices:          NewChoiceHandler(),
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
+		ResolveChrysalis: ResolveChrysalis,
+		StartReverse:     StartReverse,
 		TimingHookSpecs: []player.TimingHookSpec{
 			{Timing: player.TimingOnTurnBeforeStart, Priority: 100, Hook: witherExpiryHook},
 			{Timing: player.TimingOnDamageBeforeApply, Priority: 100, Hook: damageBeforeApplyHook},
+		},
+		MoraleLossModifier: func(engine player.MoraleLossModifierEngine, camp model.Camp, current int, proposedLoss int) int {
+			for _, p := range engine.GetAllPlayers() {
+				if p.Camp != camp && WitherActive(p) {
+					maxLoss := current - 1
+					if maxLoss < 0 {
+						maxLoss = 0
+					}
+					if proposedLoss > maxLoss {
+						return maxLoss
+					}
+					return proposedLoss
+				}
+			}
+			return proposedLoss
 		},
 	}
 }

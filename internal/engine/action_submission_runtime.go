@@ -140,7 +140,7 @@ func (e *GameEngine) handleActionSelectionAttackOrMagic(act model.PlayerAction, 
 		return fmt.Errorf("需要指定卡牌索引")
 	}
 
-	card, _, _, ok := getPlayableCardByIndex(player, act.CardIndex)
+	card, _, _, ok := e.getPlayableCardByIndex(player, act.CardIndex)
 	if !ok {
 		return fmt.Errorf("无效的卡牌索引")
 	}
@@ -284,7 +284,7 @@ func (e *GameEngine) validateExtraActionConstraint(p *model.Player, act model.Pl
 	}
 
 	if len(p.TurnState.CurrentExtraElement) > 0 && (act.Type == model.CmdAttack || act.Type == model.CmdMagic) {
-		if card, _, _, ok := getPlayableCardByIndex(p, act.CardIndex); ok {
+		if card, _, _, ok := e.getPlayableCardByIndex(p, act.CardIndex); ok {
 			if act.Type == model.CmdAttack {
 				card = e.transformAttackCard(p, card)
 			}
@@ -317,9 +317,9 @@ func (e *GameEngine) validateExtraActionConstraint(p *model.Player, act model.Pl
 
 // checkExtraActionCards 检查玩家是否有符合额外行动约束的牌
 func (e *GameEngine) checkExtraActionCards(p *model.Player, mustType string, mustElement []model.Element) bool {
-	total := playableCardCount(p)
+	total := e.playableCardCount(p)
 	for idx := 0; idx < total; idx++ {
-		card, _, _, ok := getPlayableCardByIndex(p, idx)
+		card, _, _, ok := e.getPlayableCardByIndex(p, idx)
 		if !ok {
 			continue
 		}
@@ -389,8 +389,8 @@ func (e *GameEngine) repairQueuedActionCard(player *model.Player, qa *model.Queu
 	}
 
 	if qa.Card != nil {
-		if idx := findPlayableCardIndexByID(player, qa.Card.ID); idx >= 0 {
-			if card, _, _, ok := getPlayableCardByIndex(player, idx); ok && card.Type == requiredType {
+		if idx := e.findPlayableCardIndexByID(player, qa.Card.ID); idx >= 0 {
+			if card, _, _, ok := e.getPlayableCardByIndex(player, idx); ok && card.Type == requiredType {
 				if requiredType == model.CardTypeAttack {
 					card = e.transformAttackCard(player, card)
 				}

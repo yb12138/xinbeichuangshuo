@@ -24,6 +24,10 @@ func RoleEntry() player.RoleEntry {
 		Choices:          NewChoiceHandler(),
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
+		BlocksActionType: func(p *model.Player, at model.ActionType) bool {
+			return at == model.ActionMagic && BlocksMagicCasting(p)
+		},
+		AfterDiscardFollowup: ResolveStardustAfterSelf,
 		TimingHookSpecs: []player.TimingHookSpec{
 			{Timing: player.TimingOnDamageCalculate, Priority: 300, Hook: damageCalculateHook},
 			{Timing: player.TimingPostDamageResolved, Priority: 300, Hook: postDamageResolvedHook},

@@ -4,6 +4,7 @@ package magic_swordsman
 
 import (
 	"starcup-engine/internal/engine/player"
+	"starcup-engine/internal/model"
 	"starcup-engine/internal/types"
 )
 
@@ -21,10 +22,14 @@ func RoleEntry() player.RoleEntry {
 			{Timing: player.TimingOnAttackGating, Priority: 200, Hook: attackGatingHook},
 			{Timing: player.TimingPostAttackHit, Priority: 500, Hook: postAttackHitHook},
 			{Timing: player.TimingBeforeAction, Priority: 100, Hook: beforeActionShadowReleaseHook},
+			{Timing: player.TimingOnCombatInteraction, Priority: 400, Hook: darkElementResponseHook},
+			{Timing: player.TimingOnCombatCounterCard, Priority: 100, Hook: shadowRejectMagicBulletHook},
 		},
-		PolicySpecs: PolicySpecs(),
 		SkillUsabilityCheckers: map[string]player.SkillUsabilityChecker{
 			"ms_shadow_meteor": CheckShadowMeteorUsability,
+		},
+		BlocksActionType: func(p *model.Player, at model.ActionType) bool {
+			return at == model.ActionMagic && BlocksMagicCasting(p)
 		},
 	}
 }

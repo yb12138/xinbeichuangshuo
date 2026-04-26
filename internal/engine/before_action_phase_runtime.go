@@ -151,7 +151,7 @@ func (e *GameEngine) driveBeforeActionAttack(currentPid string, player *model.Pl
 
 	card := *head.Card
 	if !head.UsesVirtualCard {
-		if _, err := consumePlayableCardByIndex(player, head.CardIndex); err != nil {
+		if _, err := e.consumePlayableCardByIndex(player, head.CardIndex); err != nil {
 			e.Log("[Warn] PhaseBeforeAction: 卡牌索引失效，丢弃该行动")
 			e.enterExtraActionStage()
 			return driveContinueLoop

@@ -7,17 +7,17 @@ import (
 	"starcup-engine/internal/model"
 )
 
-func ResolveStardustAfterSelf(rt engineplayer.ChoiceRuntime, user *model.Player) bool {
+func ResolveStardustAfterSelf(rt engineplayer.ChoiceRuntime, user *model.Player) {
 	if user == nil || !engineplayer.IsCharacter(user, "magic_lancer") {
-		return false
+		return
 	}
 	if user.TurnState.SkillFlowState == nil || user.TurnState.SkillFlowState["ml_stardust_pending"] <= 0 {
-		return false
+		return
 	}
 
 	if rt.PendingDiscardVictimID() == user.ID {
 		user.TurnState.SkillFlowState["ml_stardust_wait_discard"] = 1
-		return false
+		return
 	}
 
 	before := user.TurnState.SkillFlowState["ml_stardust_morale_before"]
@@ -39,7 +39,7 @@ func ResolveStardustAfterSelf(rt engineplayer.ChoiceRuntime, user *model.Player)
 
 	if before > 0 && current < before {
 		rt.Log(fmt.Sprintf("%s 的 [幻影星尘] 未触发后续伤害：本次自伤导致己方士气下降", user.Name))
-		return false
+		return
 	}
 
 	targetIDs := make([]string, 0, len(rt.GetPlayerOrder()))
@@ -51,7 +51,7 @@ func ResolveStardustAfterSelf(rt engineplayer.ChoiceRuntime, user *model.Player)
 	lockedOrder := user.TurnState.SkillFlowState["ml_stardust_locked_target_order"]
 	user.TurnState.SkillFlowState["ml_stardust_locked_target_order"] = 0
 	if len(targetIDs) == 0 {
-		return false
+		return
 	}
 	if lockedOrder > 0 && lockedOrder <= len(rt.GetPlayerOrder()) {
 		lockedID := rt.GetPlayerOrder()[lockedOrder-1]
@@ -68,7 +68,7 @@ func ResolveStardustAfterSelf(rt engineplayer.ChoiceRuntime, user *model.Player)
 			if target := rt.GetPlayers()[lockedID]; target != nil {
 				rt.Log(fmt.Sprintf("%s 的 [幻影星尘] 生效：对 %s 造成2点法术伤害", user.Name, target.Name))
 			}
-			return false
+			return
 		}
 	}
 
@@ -81,5 +81,4 @@ func ResolveStardustAfterSelf(rt engineplayer.ChoiceRuntime, user *model.Player)
 			"target_ids":  targetIDs,
 		},
 	})
-	return true
 }

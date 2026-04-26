@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	engineplayer "starcup-engine/internal/engine/player"
-	soulsorcererpkg "starcup-engine/internal/engine/player/soul_sorcerer"
 	"starcup-engine/internal/model"
 )
 
@@ -31,7 +30,11 @@ func (e *GameEngine) applyMoraleLossAfterTimingWindow(victim *model.Player, mora
 	}
 
 	finalLoss = e.applyCampMoraleLoss(victim.Camp, finalLoss)
-	soulsorcererpkg.ApplySoulDevour(e, victim, finalLoss, fromDamageDraw)
+	for _, entry := range roleRegistry.Entries() {
+		if entry.AfterMoraleLossHook != nil {
+			entry.AfterMoraleLossHook(e, victim, finalLoss, fromDamageDraw)
+		}
+	}
 	e.dispatchRoleTimingHook(engineplayer.TimingOnMoraleLossApplied, engineplayer.TimingHookContext{
 		TargetID:       victim.ID,
 		IsMagicDamage:  isMagic,

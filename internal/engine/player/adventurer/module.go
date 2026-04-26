@@ -14,10 +14,13 @@ func RoleEntry() player.RoleEntry {
 		Choices:          NewChoiceHandler(),
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
-		PolicySpecs:      PolicySpecs(),
+		TimingHookSpecs: []player.TimingHookSpec{
+			{Timing: player.TimingOnSpecialActionOverride, Priority: 100, Hook: undergroundLawOverrideHook},
+		},
 		SkillUsabilityCheckers: map[string]player.SkillUsabilityChecker{
 			"adventurer_fraud": CheckFraudUsability,
 		},
+		IsForcedParadiseResponse: IsForcedParadiseResponse,
 	}
 }
 

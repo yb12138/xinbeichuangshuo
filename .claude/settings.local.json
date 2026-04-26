@@ -68,7 +68,12 @@
       "Bash(sed -i '' '/mergeStrategyHooks/d' /Users/yb/xinbeichuangshuo/internal/engine/player/registry.go)",
       "Bash(sed -i '' '/StrategyHooks: mergeStrategyHooks/d' /Users/yb/xinbeichuangshuo/internal/engine/player/registry.go)",
       "Bash(xxd /Users/yb/xinbeichuangshuo/internal/engine/player/onmyoji/module.go)",
-      "Bash(go clean:*)"
+      "Bash(go clean:*)",
+      "Bash(sort -t: -k1,1 -k2,2)",
+      "Bash(xxd /Users/yb/xinbeichuangshuo/internal/engine/player/magic_swordsman/module.go)",
+      "Bash(xxd /Users/yb/xinbeichuangshuo/internal/engine/player/hero/module.go)",
+      "Bash(ed -s /Users/yb/xinbeichuangshuo/internal/engine/player/soul_sorcerer/module.go)",
+      "Bash(xxd /Users/yb/xinbeichuangshuo/internal/engine/skill_use_validation.go)"
     ]
   }
 }

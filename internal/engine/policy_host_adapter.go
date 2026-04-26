@@ -1,4 +1,4 @@
-// gameflow: player.PolicyHost 的 engine 适配实现。
+// gameflow: types.PolicyHost 的 engine 适配实现（技能使用策略）。
 
 package engine
 

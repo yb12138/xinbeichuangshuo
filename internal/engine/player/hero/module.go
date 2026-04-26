@@ -24,10 +24,10 @@ func RoleEntry() player.RoleEntry {
 				return 0, false
 			},
 		},
-		Choices:          NewChoiceHandler(),
-		Skills:           SkillEntries(),
-		ChoiceRouteSpecs: ChoiceRouteSpecs(),
-		PolicySpecs:      PolicySpecs(),
+		Choices:                 NewChoiceHandler(),
+		Skills:                  SkillEntries(),
+		ChoiceRouteSpecs:        ChoiceRouteSpecs(),
+		ConsumeTauntRestriction: ConsumeTauntRestriction,
 		TimingHookSpecs: []player.TimingHookSpec{
 			{Timing: player.TimingOnDamageCalculate, Priority: 500, Hook: damageCalculateHook},
 			{Timing: player.TimingOnAttackDeclared, Priority: 100, Hook: pendingDamageInitHook},
@@ -36,6 +36,8 @@ func RoleEntry() player.RoleEntry {
 			{Timing: player.TimingPostActionEnd, Priority: 200, Hook: postActionEndHook},
 			{Timing: player.TimingBeforeAction, Priority: 100, Hook: turnStartExhaustionReleaseHook},
 			{Timing: player.TimingOnTurnStart, Priority: 200, Hook: turnStartTauntStartupHook},
+			{Timing: player.TimingBeforeActionOption, Priority: 200, Hook: beforeActionOptionHook},
+			{Timing: player.TimingBeforeActionValidation, Priority: 200, Hook: beforeActionValidationHook},
 		},
 	}
 }

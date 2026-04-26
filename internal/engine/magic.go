@@ -37,7 +37,7 @@ func (e *GameEngine) performMagic(sourceID, targetID string, cardIdx int, skipMa
 	}
 
 	// 2. 验证卡牌
-	card, _, _, ok := getPlayableCardByIndex(player, cardIdx)
+	card, _, _, ok := e.getPlayableCardByIndex(player, cardIdx)
 	if !ok {
 		return errors.New("无效的手牌索引")
 	}
@@ -93,7 +93,7 @@ func (e *GameEngine) performMagic(sourceID, targetID string, cardIdx int, skipMa
 	e.NotifyCardRevealed(sourceID, []model.Card{card}, "magic")
 
 	// 3. 从可打出牌区移除卡牌 (注意：暂时不进弃牌堆，看是否放置到场上)
-	if _, err := consumePlayableCardByIndex(player, cardIdx); err != nil {
+	if _, err := e.consumePlayableCardByIndex(player, cardIdx); err != nil {
 		return err
 	}
 

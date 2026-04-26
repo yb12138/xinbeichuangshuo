@@ -4,53 +4,32 @@ package hero
 
 import (
 	engineplayer "starcup-engine/internal/engine/player"
-	"starcup-engine/internal/model"
 )
 
-// PolicySpecs 导出英雄策略声明。
-func PolicySpecs() []engineplayer.PolicySpec {
-	return []engineplayer.PolicySpec{
-		// 行动选项策略（嘲讽）
-		{Type: engineplayer.PolicyBeforeActionOption, Priority: 200, Hook: beforeActionOptionHook},
-		// 行动验证策略（嘲讽）
-		{Type: engineplayer.PolicyBeforeActionValidation, Priority: 200, Hook: beforeActionValidationHook},
-	}
-}
-
-// hasPlayableAttackCard 检查是否有可用的攻击牌。
-func hasPlayableAttackCard(p *model.Player) bool {
-	for _, card := range p.Hand {
-		if card.Type == model.CardTypeAttack {
-			return true
-		}
-	}
-	return false
-}
-
 // beforeActionOptionHook 行动选项策略。
-func beforeActionOptionHook(host engineplayer.PolicyHost, ctx engineplayer.PolicyHookContext) engineplayer.PolicyHookResult {
+func beforeActionOptionHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHookContext) engineplayer.TimingHookResult {
 	player := ctx.Player
 	modifier := ctx.OptionModifier
-	rt := ctx.ChoiceRuntime
+	choiceRt := ctx.ChoiceRuntime
 
-	if player == nil || modifier == nil || rt == nil {
-		return engineplayer.PolicyHookResult{}
+	if player == nil || modifier == nil || choiceRt == nil {
+		return engineplayer.TimingHookResult{}
 	}
 
-	TauntOptionPolicy(rt, player, modifier, hasPlayableAttackCard)
-	return engineplayer.PolicyHookResult{Handled: true}
+	TauntOptionPolicy(choiceRt, player, modifier, rt.HasPlayableAttackCard)
+	return engineplayer.TimingHookResult{Handled: true}
 }
 
 // beforeActionValidationHook 行动验证策略。
-func beforeActionValidationHook(host engineplayer.PolicyHost, ctx engineplayer.PolicyHookContext) engineplayer.PolicyHookResult {
+func beforeActionValidationHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHookContext) engineplayer.TimingHookResult {
 	player := ctx.Player
 	modifier := ctx.ValidationModifier
-	rt := ctx.ChoiceRuntime
+	choiceRt := ctx.ChoiceRuntime
 
-	if player == nil || modifier == nil || rt == nil {
-		return engineplayer.PolicyHookResult{}
+	if player == nil || modifier == nil || choiceRt == nil {
+		return engineplayer.TimingHookResult{}
 	}
 
-	TauntValidationPolicy(rt, player, modifier, hasPlayableAttackCard)
-	return engineplayer.PolicyHookResult{Handled: true}
+	TauntValidationPolicy(choiceRt, player, modifier, rt.HasPlayableAttackCard)
+	return engineplayer.TimingHookResult{Handled: true}
 }

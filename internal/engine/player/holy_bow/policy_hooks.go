@@ -3,24 +3,29 @@
 package holy_bow
 
 import (
+	"fmt"
+
 	engineplayer "starcup-engine/internal/engine/player"
+	"starcup-engine/internal/model"
 )
 
-// PolicySpecs 导出圣弓策略声明。
-func PolicySpecs() []engineplayer.PolicySpec {
-	return []engineplayer.PolicySpec{
-		// 特殊行动后置策略（圣光荣耀退出）
-		{Type: engineplayer.PolicySpecialActionPost, Priority: 100, Hook: holyGloryExitHook},
-	}
-}
-
 // holyGloryExitHook 圣光荣耀退出策略。
-func holyGloryExitHook(host engineplayer.PolicyHost, ctx engineplayer.PolicyHookContext) engineplayer.PolicyHookResult {
+func holyGloryExitHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHookContext) engineplayer.TimingHookResult {
 	player := ctx.Player
 	if player == nil {
-		return engineplayer.PolicyHookResult{}
+		return engineplayer.TimingHookResult{}
 	}
 
-	host.ApplyHolyBowHolyGloryExitHook(player, ctx.ActionType)
-	return engineplayer.PolicyHookResult{Handled: true}
+	// 检查是否为圣弓角色且处于圣煌形态
+	if !rt.IsCharacter(player, "holy_bow") || !rt.HasForm(player, model.FormHolyBowHolyGlory) {
+		return engineplayer.TimingHookResult{}
+	}
+
+	beforePoses := rt.SnapshotPlayerPoses()
+	rt.ClearForm(player, model.FormHolyBowHolyGlory)
+	rt.Heal(player.ID, 1)
+	rt.Log(fmt.Sprintf("%s 在圣煌形态下执行特殊行动，脱离圣煌形态并获得1点治疗", player.Name))
+	rt.DispatchOrientationChanges(beforePoses)
+
+	return engineplayer.TimingHookResult{Handled: true}
 }

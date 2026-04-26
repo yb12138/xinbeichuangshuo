@@ -54,3 +54,20 @@ func RemoveFirstCoverByEffectAndElement(p *model.Player, effect model.EffectType
 	}
 	return model.Card{}, false
 }
+
+// RemoveCoverCardByEffectAndID 按效果和卡牌ID移除盖牌。
+func RemoveCoverCardByEffectAndID(p *model.Player, effect model.EffectType, cardID string) bool {
+	if p == nil || cardID == "" {
+		return false
+	}
+	for _, fc := range p.Field {
+		if fc == nil || fc.Mode != model.FieldCover || fc.Effect != effect {
+			continue
+		}
+		if fc.Card.ID == cardID {
+			p.RemoveFieldCard(fc)
+			return true
+		}
+	}
+	return false
+}

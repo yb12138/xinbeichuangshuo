@@ -362,7 +362,7 @@ func (r hookRuntime) GetCardByIndex(player *model.Player, idx int) (model.Card, 
 }
 
 func (r hookRuntime) ConsumeCardByIndex(player *model.Player, idx int) (model.Card, error) {
-	return consumePlayableCardByIndex(player, idx)
+	return r.GameEngine.consumePlayableCardByIndex(player, idx)
 }
 
 func (r hookRuntime) AddToDiscardPile(cards ...model.Card) {
@@ -559,4 +559,73 @@ func (r hookRuntime) AsChoiceRuntime() engineplayer.ChoiceRuntime {
 		return nil
 	}
 	return newRoleChoiceRuntime(r.GameEngine)
+}
+
+// 新增 - 原 PolicySpec 需要的基础设施
+
+func (r hookRuntime) AllPlayers() map[string]*model.Player {
+	if r.GameEngine == nil || r.GameEngine.State == nil {
+		return nil
+	}
+	return r.GameEngine.State.Players
+}
+
+func (r hookRuntime) NotifyCombatCue(attackerID, targetID, cueType string) {
+	if r.GameEngine == nil {
+		return
+	}
+	r.GameEngine.NotifyCombatCue(attackerID, targetID, cueType)
+}
+
+func (r hookRuntime) InitCombat(attackerID, targetID string, card *model.Card, isForcedHit, canBeResponded, ignoreShield bool, interceptTags map[model.CombatInterceptTag]bool, isCounter ...bool) {
+	if r.GameEngine == nil {
+		return
+	}
+	r.GameEngine.initCombat(attackerID, targetID, card, isForcedHit, canBeResponded, ignoreShield, interceptTags, isCounter...)
+}
+
+func (r hookRuntime) DispatchOnTiming(ctx *model.Context) {
+	if r.GameEngine == nil || r.GameEngine.dispatcher == nil || ctx == nil {
+		return
+	}
+	r.GameEngine.dispatcher.OnTiming(ctx.Timing, ctx)
+}
+
+func (r hookRuntime) PendingInterrupt() *model.Interrupt {
+	if r.GameEngine == nil || r.GameEngine.State == nil {
+		return nil
+	}
+	return r.GameEngine.State.PendingInterrupt
+}
+
+func (r hookRuntime) CurrentTurnPlayerID() string {
+	if r.GameEngine == nil || r.GameEngine.State == nil {
+		return ""
+	}
+	idx := r.GameEngine.State.CurrentTurn
+	if idx < 0 || idx >= len(r.GameEngine.State.PlayerOrder) {
+		return ""
+	}
+	return r.GameEngine.State.PlayerOrder[idx]
+}
+
+func (r hookRuntime) SnapshotPlayerPoses() map[string]engineplayer.PoseSnapshot {
+	if r.GameEngine == nil {
+		return nil
+	}
+	return r.GameEngine.snapshotPlayerPoses()
+}
+
+func (r hookRuntime) DispatchOrientationChanges(before map[string]engineplayer.PoseSnapshot) {
+	if r.GameEngine == nil {
+		return
+	}
+	r.GameEngine.dispatchOrientationChanges(before)
+}
+
+func (r hookRuntime) HasPlayableAttackCard(player *model.Player) bool {
+	if r.GameEngine == nil {
+		return false
+	}
+	return r.GameEngine.hasPlayableAttackCard(player)
 }

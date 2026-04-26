@@ -8,7 +8,6 @@ import (
 
 	"starcup-engine/internal/engine/core/runtimeutil"
 	playerpkg "starcup-engine/internal/engine/player"
-	adventurer "starcup-engine/internal/engine/player/adventurer"
 	"starcup-engine/internal/model"
 )
 
@@ -35,7 +34,14 @@ func (e *GameEngine) handleInterruptResponseSkillAction(act model.PlayerAction) 
 		e.clearAdventurerExtractState(e.State.Players[act.PlayerID])
 		return e.SkipResponse()
 	}
-	forceParadise := adventurer.IsForcedParadiseResponse(e.State.PendingInterrupt, e.State.Players, act.PlayerID)
+	forceParadise := func() bool {
+		for _, entry := range roleRegistry.Entries() {
+			if entry.IsForcedParadiseResponse != nil && entry.IsForcedParadiseResponse(e.State.PendingInterrupt, e.State.Players, act.PlayerID) {
+				return true
+			}
+		}
+		return false
+	}()
 	if act.Type == model.CmdCancel {
 		if forceParadise {
 			return fmt.Errorf("本次提炼结果需先发动[冒险者天堂]分配给队友")

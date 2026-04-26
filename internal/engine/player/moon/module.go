@@ -21,8 +21,8 @@ func RoleEntry() player.RoleEntry {
 			{Timing: player.TimingOnTurnEnd, Priority: 100, Hook: turnEndMoonCycleHook},
 			{Timing: player.TimingPostDamageResolved, Priority: 900, Hook: postDamageResolvedHook},
 			{Timing: player.TimingOnTurnEndFinal, Priority: 100, Hook: turnEndFinalHook},
+			{Timing: player.TimingOnAttackDeclaredInterrupt, Priority: 100, Hook: medusaInterruptHook},
 		},
-		PolicySpecs: PolicySpecs(),
 	}
 }
 

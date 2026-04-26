@@ -30,17 +30,18 @@ const (
 	TimingOnAttackMiss       TimingPoint = "on_attack_miss"        // 攻击未命中后
 
 	// 新增 - 命中判定阶段
-	TimingOnHitCheck            TimingPoint = "on_hit_check"             // 命中判定
-	TimingOnCounterPolicy       TimingPoint = "on_counter_policy"        // 反击策略
-	TimingOnDefendValidation    TimingPoint = "on_defend_validation"     // 防御验证
-	TimingOnResponseSkillAug    TimingPoint = "on_response_skill_aug"    // 响应技能增强/规范化
-	TimingOnResponseSkillSkip   TimingPoint = "on_response_skill_skip"   // 响应技能跳过后（圣枪圣击）
-	TimingOnCombatInteraction   TimingPoint = "on_combat_interaction"    // 战斗交互（阴阳师绑定等）
-	TimingOnCounterCardPolicy   TimingPoint = "on_counter_card_policy"   // 反击卡牌策略
-	TimingOnCounterElementCheck TimingPoint = "on_counter_element_check" // 反击元素检查
-	TimingOnCounterResolve      TimingPoint = "on_counter_resolve"       // 反击结算
-	TimingOnMagicMissileDefend  TimingPoint = "on_magic_missile_defend"  // 魔弹链防御验证
-	TimingOnMagicMissileCounter TimingPoint = "on_magic_missile_counter" // 魔弹链反击验证
+	TimingOnHitCheck               TimingPoint = "on_hit_check"                // 命中判定
+	TimingOnCounterPolicy          TimingPoint = "on_counter_policy"           // 反击策略
+	TimingOnDefendValidation       TimingPoint = "on_defend_validation"        // 防御验证
+	TimingOnResponseSkillAug       TimingPoint = "on_response_skill_aug"       // 响应技能增强
+	TimingOnResponseSkillNormalize TimingPoint = "on_response_skill_normalize" // 响应技能规范化
+	TimingOnResponseSkillSkip      TimingPoint = "on_response_skill_skip"      // 响应技能跳过后（圣枪圣击）
+	TimingOnCombatInteraction      TimingPoint = "on_combat_interaction"       // 战斗交互（阴阳师绑定等）
+	TimingOnCounterCardPolicy      TimingPoint = "on_counter_card_policy"      // 反击卡牌策略
+	TimingOnCounterElementCheck    TimingPoint = "on_counter_element_check"    // 反击元素检查
+	TimingOnCounterResolve         TimingPoint = "on_counter_resolve"          // 反击结算
+	TimingOnMagicMissileDefend     TimingPoint = "on_magic_missile_defend"     // 魔弹链防御验证
+	TimingOnMagicMissileCounter    TimingPoint = "on_magic_missile_counter"    // 魔弹链反击验证
 
 	// 新增 - 伤害阶段
 	TimingOnDamageCalculate   TimingPoint = "on_damage_calculate"    // 伤害计算（被动增伤）
@@ -60,6 +61,16 @@ const (
 
 	// 新增 - 士气损失阶段
 	TimingOnMoraleLossApplied TimingPoint = "on_morale_loss_applied" // 士气损失应用后（伤害驱动的角色效果）
+
+	// 新增 - 行动选择策略（原 PolicySpec）
+	TimingBeforeActionOption        TimingPoint = "before_action_option"         // 行动选项策略
+	TimingBeforeActionValidation    TimingPoint = "before_action_validation"     // 行动验证策略
+	TimingOnAttackDeclaredInterrupt TimingPoint = "on_attack_declared_interrupt" // 攻击宣言中断
+	TimingOnCombatCounterCard       TimingPoint = "on_combat_counter_card"       // 反击卡牌策略
+	TimingOnSpecialActionOverride   TimingPoint = "on_special_action_override"   // 特殊行动覆盖
+	TimingOnSpecialActionPost       TimingPoint = "on_special_action_post"       // 特殊行动后置
+	TimingOnSkillPost               TimingPoint = "on_skill_post"                // 技能后置钩子
+	TimingOnAttackCardTransform     TimingPoint = "on_attack_card_transform"     // 攻击牌变换
 )
 
 // TimingHookSpec 角色贡献到全局 timing hook 链的条目。
@@ -124,6 +135,25 @@ type TimingHookContext struct {
 	IsMagicDamage  bool // 是否为法术伤害导致
 	FromDamageDraw bool // 是否由伤害驱动的摸牌导致
 	MoraleLoss     int  // 士气损失值
+
+	// 新增 - 行动选择策略上下文（原 PolicySpec）
+	ChoiceRuntime      ChoiceRuntime                     // 选择运行时
+	OptionModifier     ActionSelectionModifier           // 行动选项修改器
+	ValidationModifier ActionSelectionValidationModifier // 行动验证修改器
+
+	// 新增 - 攻击宣言中断上下文
+	Attacker *model.Player       // 攻击者（美杜莎等）
+	Target   *model.Player       // 目标
+	Action   *model.QueuedAction // 行动队列条目
+	UserCtx  *model.Context      // 用户上下文
+
+	// 新增 - 反击/响应策略上下文
+	PlayerAction    model.PlayerAction // 行动（地下法则覆盖等）
+	OfferedSkillIDs []string           // 被提供的响应技能列表
+	CounterCardPtr  *model.Card        // 可变反击牌指针（反击结算需要修改卡牌）
+
+	// 新增 - 特殊行动上下文
+	// ActionType 已在上方声明（post_action_end, attack hooks 等），此处复用
 }
 
 // TimingHookResult Hook 执行结果。
@@ -138,6 +168,12 @@ type TimingHookResult struct {
 	CounterAllowed  bool        // 反击允许（反击元素检查）
 	UseFaction      bool        // 使用阵营元素（阴阳师）
 	CounterCard     *model.Card // 反击牌变换（魔弹策略）
+
+	// 新增 - 原 PolicySpec 独有字段
+	Handled      bool               // 是否处理了此策略
+	Card         model.Card         // 返回卡牌（攻击牌变换等）
+	SkillIDs     []string           // 增强/规范化后的技能列表
+	PlayerAction model.PlayerAction // 返回修改后的行动（地下法则覆盖）
 }
 
 // TimingHookFunc 统一 Hook 签名。
@@ -232,10 +268,48 @@ type HookRuntime interface {
 
 	// 新增 - ChoiceRuntime 转换（用于需要完整运行时的场景）
 	AsChoiceRuntime() ChoiceRuntime
+
+	// 新增 - 原 PolicySpec 需要的基础设施
+	AllPlayers() map[string]*model.Player
+	NotifyCombatCue(attackerID, targetID, cueType string)
+	InitCombat(attackerID, targetID string, card *model.Card, isForcedHit, canBeResponded, ignoreShield bool, interceptTags map[model.CombatInterceptTag]bool, isCounter ...bool)
+	DispatchOnTiming(ctx *model.Context)
+	PendingInterrupt() *model.Interrupt
+	CurrentTurnPlayerID() string
+	SnapshotPlayerPoses() map[string]PoseSnapshot
+	DispatchOrientationChanges(before map[string]PoseSnapshot)
+	HasPlayableAttackCard(player *model.Player) bool
 }
 
 // PoseSnapshot 记录玩家姿态快照（用于 orientation 变更前后对比）。
 type PoseSnapshot struct {
 	Orientation model.CharacterOrientation
 	Form        string
+}
+
+// ---------- 行动选择策略接口（原 policy_hook.go 迁入） ----------
+
+// ActionSelectionModifier 抽象行动选择状态的可变字段。
+type ActionSelectionModifier interface {
+	SetActionRule(mode string, source string, priority int)
+	SetCanMagicAction(v bool)
+	SetCanMagicSkillAction(v bool)
+	SetPromptChoiceType(ct string)
+	SetPromptSkillID(sid string)
+	SetActionRulePromptMessage(msg string)
+	SetConstrainedTarget(id, name string)
+	SetRuleRequiresSkipOnly(v bool)
+}
+
+// ActionSelectionValidationModifier 扩展行动选择校验阶段可用的回调设置。
+type ActionSelectionValidationModifier interface {
+	ActionSelectionModifier
+	SetRequiredSkillID(sid string)
+	SetForceSkillMustUseMessage(msg string)
+	SetForceSkillOnlyMessage(msg string)
+	SetForceAttackOnlyMessage(msg string)
+	SetOnSkipChosen(callback func(rt ChoiceRuntime, player *model.Player) (bool, error))
+	SetOnNonAttackChosen(callback func(rt ChoiceRuntime, player *model.Player, act model.PlayerAction) error)
+	SetOnAttackAccepted(callback func(rt ChoiceRuntime, player *model.Player, act model.PlayerAction) error)
+	MarkConsumeHeroTauntOnAttack() // 标记攻击后消耗挑衅效果
 }

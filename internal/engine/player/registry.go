@@ -95,6 +95,33 @@ func (r *RoleRegistry) CannotActChecker(roleID string) CannotActChecker {
 	return entry.CannotActChecker
 }
 
+// ConsumeTauntRestriction 返回指定角色的挑衅约束消耗函数。
+func (r *RoleRegistry) ConsumeTauntRestriction(roleID string) func(rt ChoiceRuntime, player *model.Player) {
+	if r == nil || roleID == "" {
+		return nil
+	}
+	entry := r.Entry(roleID)
+	return entry.ConsumeTauntRestriction
+}
+
+// ResolveChrysalis 返回指定角色的蛹化直接结算函数。
+func (r *RoleRegistry) ResolveChrysalis(roleID string) func(rt ChoiceRuntime, userID string) error {
+	if r == nil || roleID == "" {
+		return nil
+	}
+	entry := r.Entry(roleID)
+	return entry.ResolveChrysalis
+}
+
+// StartReverse 返回指定角色的倒逆之蝶分支编排函数。
+func (r *RoleRegistry) StartReverse(roleID string) func(rt ChoiceRuntime, userID string) error {
+	if r == nil || roleID == "" {
+		return nil
+	}
+	entry := r.Entry(roleID)
+	return entry.StartReverse
+}
+
 func mergeRoleEntry(base RoleEntry, overlay RoleEntry) RoleEntry {
 	merged := base
 	if merged.ID == "" {
@@ -121,11 +148,23 @@ func mergeRoleEntry(base RoleEntry, overlay RoleEntry) RoleEntry {
 	if overlay.AttackCardElementTransform != nil {
 		merged.AttackCardElementTransform = overlay.AttackCardElementTransform
 	}
+	if overlay.AttackElementResolver != nil {
+		merged.AttackElementResolver = overlay.AttackElementResolver
+	}
 	if overlay.CannotActChecker != nil {
 		merged.CannotActChecker = overlay.CannotActChecker
 	}
 	if overlay.HandLimitModifier != nil {
 		merged.HandLimitModifier = overlay.HandLimitModifier
+	}
+	if overlay.ConsumeTauntRestriction != nil {
+		merged.ConsumeTauntRestriction = overlay.ConsumeTauntRestriction
+	}
+	if overlay.ResolveChrysalis != nil {
+		merged.ResolveChrysalis = overlay.ResolveChrysalis
+	}
+	if overlay.StartReverse != nil {
+		merged.StartReverse = overlay.StartReverse
 	}
 	if len(overlay.TimingHookSpecs) > 0 {
 		merged.TimingHookSpecs = append(append([]TimingHookSpec{}, merged.TimingHookSpecs...), overlay.TimingHookSpecs...)

@@ -1,12 +1,9 @@
-// gameflow: 行动选择阶段可选项过滤规则（委托到 player/<role>/ 包）。
+// gameflow: 行动选择阶段可选项过滤规则（适配器）。
 
 package engine
 
 import (
 	engineplayer "starcup-engine/internal/engine/player"
-	arbiterpkg "starcup-engine/internal/engine/player/arbiter"
-	fighterpkg "starcup-engine/internal/engine/player/fighter"
-	heropkg "starcup-engine/internal/engine/player/hero"
 	"starcup-engine/internal/model"
 )
 
@@ -70,13 +67,9 @@ func (a actionSelectionValidationModifierAdapter) SetOnNonAttackChosen(callback 
 }
 func (a actionSelectionValidationModifierAdapter) SetOnAttackAccepted(callback func(rt engineplayer.ChoiceRuntime, player *model.Player, act model.PlayerAction) error) {
 	a.state.onAttackAccepted = func(e *GameEngine, player *model.Player, act model.PlayerAction, result *actionSelectionValidationResult) error {
-		// 在调用回调前，设置一个临时标记，让回调可以修改 result
-		// 通过 adapter 的 engine 字段来传递 result
 		if err := callback(newRoleChoiceRuntime(e), player, act); err != nil {
 			return err
 		}
-		// 回调可能通过 MarkConsumeHeroTauntOnAttack 设置了 state.markConsumeHeroTaunt
-		// 在回调完成后，将标记转移到 result
 		if a.state.markConsumeHeroTaunt && result != nil {
 			result.consumeHeroTauntOnAttack = true
 		}
@@ -86,49 +79,4 @@ func (a actionSelectionValidationModifierAdapter) SetOnAttackAccepted(callback f
 
 func (a actionSelectionValidationModifierAdapter) MarkConsumeHeroTauntOnAttack() {
 	a.state.markConsumeHeroTaunt = true
-}
-
-func actionSelectionArbiterForcedDoomsdayOptionsPolicy(e *GameEngine, player *model.Player, state *actionSelectionState) {
-	arbiterpkg.ForcedDoomsdayOptionPolicy(newRoleChoiceRuntime(e), player, actionSelectionModifierAdapter{state: state})
-}
-
-func actionSelectionHeroTauntOptionsPolicy(e *GameEngine, player *model.Player, state *actionSelectionState) {
-	heropkg.TauntOptionPolicy(newRoleChoiceRuntime(e), player, actionSelectionModifierAdapter{state: state}, hasPlayableAttackCard)
-}
-
-func actionSelectionFighterHundredDragonOptionsPolicy(e *GameEngine, player *model.Player, state *actionSelectionState) {
-	fighterpkg.HundredDragonOptionPolicy(newRoleChoiceRuntime(e), player, actionSelectionModifierAdapter{state: state})
-}
-
-func actionSelectionArbiterForcedDoomsdayValidationPolicy(e *GameEngine, player *model.Player, state *actionSelectionState) {
-	arbiterpkg.ForcedDoomsdayValidationPolicy(newRoleChoiceRuntime(e), player, actionSelectionValidationModifierAdapter{
-		actionSelectionModifierAdapter: actionSelectionModifierAdapter{state: state},
-		result:                         nil,
-	})
-}
-
-func actionSelectionHeroTauntValidationPolicy(e *GameEngine, player *model.Player, state *actionSelectionState) {
-	heropkg.TauntValidationPolicy(newRoleChoiceRuntime(e), player, actionSelectionValidationModifierAdapter{
-		actionSelectionModifierAdapter: actionSelectionModifierAdapter{state: state},
-		result:                         nil,
-		engine:                         e,
-	}, hasPlayableAttackCard)
-	// Mark consumeHeroTauntOnAttack flag so the action submission runtime
-	// consumes the taunt restriction after a valid attack.
-	if state.onAttackAccepted != nil {
-		prevCallback := state.onAttackAccepted
-		state.onAttackAccepted = func(e *GameEngine, player *model.Player, act model.PlayerAction, result *actionSelectionValidationResult) error {
-			if result != nil {
-				result.consumeHeroTauntOnAttack = true
-			}
-			return prevCallback(e, player, act, result)
-		}
-	}
-}
-
-func actionSelectionFighterHundredDragonValidationPolicy(e *GameEngine, player *model.Player, state *actionSelectionState) {
-	fighterpkg.HundredDragonValidationPolicy(newRoleChoiceRuntime(e), player, actionSelectionValidationModifierAdapter{
-		actionSelectionModifierAdapter: actionSelectionModifierAdapter{state: state},
-		result:                         nil,
-	})
 }

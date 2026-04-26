@@ -3,12 +3,7 @@
 package engine
 
 import (
-	"fmt"
-
 	engineplayer "starcup-engine/internal/engine/player"
-	bardpkg "starcup-engine/internal/engine/player/bard"
-	magicswordsman "starcup-engine/internal/engine/player/magic_swordsman"
-	moonpkg "starcup-engine/internal/engine/player/moon"
 	"starcup-engine/internal/model"
 )
 
@@ -37,11 +32,6 @@ const (
 func (e *GameEngine) runTimingOnTurnStartStageHooks(player *model.Player, stage timingOnTurnStartStage) bool {
 	switch stage {
 	case timingOnTurnStartMain:
-		for _, hook := range e.turnStartMainHooks {
-			if hook(e, player) {
-				return true
-			}
-		}
 		if player != nil {
 			result := e.dispatchAllRoleTimingHooks(engineplayer.TimingOnTurnStart, engineplayer.TimingHookContext{
 				SourceID:     player.ID,
@@ -53,7 +43,7 @@ func (e *GameEngine) runTimingOnTurnStartStageHooks(player *model.Player, stage 
 		}
 		return false
 	default:
-		panic(fmt.Sprintf("unregistered TimingOnTurnStart stage: %d", stage))
+		panic("unregistered TimingOnTurnStart stage")
 	}
 }
 
@@ -61,11 +51,6 @@ func (e *GameEngine) runTimingOnTurnStartStageHooks(player *model.Player, stage 
 func (e *GameEngine) runTimingOnTurnEndStageHooks(player *model.Player, stage timingOnTurnEndStage) bool {
 	switch stage {
 	case timingOnTurnEndPreExtra:
-		for _, hook := range e.turnEndPreExtraHooks {
-			if hook(e, player) {
-				return true
-			}
-		}
 		// TimingHookSpec dispatch for turn end (pre-extra)
 		if player != nil {
 			result := e.dispatchAllRoleTimingHooks(engineplayer.TimingOnTurnEnd, engineplayer.TimingHookContext{
@@ -78,11 +63,6 @@ func (e *GameEngine) runTimingOnTurnEndStageHooks(player *model.Player, stage ti
 		}
 		return false
 	case timingOnTurnEndFinal:
-		for _, hook := range e.turnEndFinalHooks {
-			if hook(e, player) {
-				return true
-			}
-		}
 		// TimingHookSpec dispatch for turn end final
 		if player != nil {
 			result := e.dispatchAllRoleTimingHooks(engineplayer.TimingOnTurnEndFinal, engineplayer.TimingHookContext{
@@ -95,7 +75,7 @@ func (e *GameEngine) runTimingOnTurnEndStageHooks(player *model.Player, stage ti
 		}
 		return false
 	default:
-		panic(fmt.Sprintf("unregistered TimingOnTurnEnd stage: %d", stage))
+		panic("unregistered TimingOnTurnEnd stage")
 	}
 }
 
@@ -119,11 +99,6 @@ func (e *GameEngine) runTimingOnTurnStartHooks(player *model.Player) bool {
 
 // runTimingBeforeActionExecuteHooks 行动开始（ActionStart）固定结算点。
 func (e *GameEngine) runTimingBeforeActionExecuteHooks(player *model.Player) bool {
-	for _, hook := range e.beforeActionExecuteHooks {
-		if hook(e, player) {
-			return true
-		}
-	}
 	// TimingHookSpec dispatch for before action
 	if player != nil {
 		result := e.dispatchAllRoleTimingHooks(engineplayer.TimingBeforeAction, engineplayer.TimingHookContext{
@@ -150,24 +125,4 @@ func (e *GameEngine) runTimingOnTurnEndFinalHooks(player *model.Player) bool {
 // blaze_witch/assassin hooks 已迁移到 TimingHookSpec
 // arbiter/holy_bow turnStart hooks 已迁移到 TimingHookSpec
 // crimson_knight turnEnd hooks 已迁移到 TimingHookSpec
-
-func startupMagicSwordsmanShadowReleaseHook(e *GameEngine, player *model.Player) bool {
-	magicswordsman.MaybeReleaseShadowAtActionStart(e, player)
-	return false
-}
-
-func startupBardRousingHook(e *GameEngine, player *model.Player) bool {
-	return bardpkg.MaybeRousingAtTurnStart(newRoleChoiceRuntime(e), player)
-}
-
-func turnEndMoonGoddessHook(e *GameEngine, player *model.Player) bool {
-	return moonpkg.MaybeMoonCycleAtTurnEnd(newRoleChoiceRuntime(e), player)
-}
-
-func turnEndBardHook(e *GameEngine, player *model.Player) bool {
-	return bardpkg.MaybeVictoryAtTurnEnd(newRoleChoiceRuntime(e), player)
-}
-
-func turnEndOnmyojiHook(e *GameEngine, player *model.Player) bool {
-	return e.maybeOnmyojiDarkRitual(player)
-}
+// magic_swordsman/bard/moon/onmyoji hooks 已迁移到 TimingHookSpec

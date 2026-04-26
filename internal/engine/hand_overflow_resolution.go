@@ -9,8 +9,6 @@ import (
 
 	playerpkg "starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
-
-	magiclancer "starcup-engine/internal/engine/player/magic_lancer"
 )
 
 type discardPhaseCandidate int
@@ -144,13 +142,7 @@ func (e *GameEngine) resolveDiscardSelectionMoraleLoss(player *model.Player, dis
 	}
 
 	isMagic := runtimeutil.ToBoolContextValue(data["is_magic"])
-	allowedByFloor := e.campMorale(victim.Camp) - e.moraleFloorForCamp(victim.Camp)
-	if allowedByFloor < 0 {
-		allowedByFloor = 0
-	}
-	if moraleLoss > allowedByFloor {
-		moraleLoss = allowedByFloor
-	}
+	moraleLoss = e.capMoraleLoss(victim.Camp, moraleLoss)
 	if moraleLoss <= 0 {
 		finalLoss = e.applyMoraleLossAfterTimingWindow(victim, moraleLoss, isMagic, fromDamageDraw, overflowMoraleLossFixed, discardedCards, nil)
 		return finalLoss, false, nil
@@ -242,7 +234,11 @@ func (e *GameEngine) handleDiscardSelectionFollowups(player *model.Player, data 
 	}
 
 	if playerpkg.IsCharacter(player, "magic_lancer") && player.TurnState.SkillFlowState != nil && player.TurnState.SkillFlowState["ml_stardust_wait_discard"] > 0 {
-		magiclancer.ResolveStardustAfterSelf(newRoleChoiceRuntime(e), player)
+		for _, entry := range roleRegistry.Entries() {
+			if entry.AfterDiscardFollowup != nil {
+				entry.AfterDiscardFollowup(newRoleChoiceRuntime(e), player)
+			}
+		}
 	}
 	return false, nil
 }
@@ -319,7 +315,11 @@ func (e *GameEngine) resumePendingMoraleLoss(ctx *model.Context) bool {
 	} else if discardPlayer != nil {
 		e.Log(fmt.Sprintf("[System] %s 丢弃了 %d 张牌！士气 -%d", discardPlayer.Name, len(discardedCards), finalLoss))
 		if playerpkg.IsCharacter(discardPlayer, "magic_lancer") && discardPlayer.TurnState.SkillFlowState != nil && discardPlayer.TurnState.SkillFlowState["ml_stardust_wait_discard"] > 0 {
-			magiclancer.ResolveStardustAfterSelf(newRoleChoiceRuntime(e), discardPlayer)
+			for _, entry := range roleRegistry.Entries() {
+				if entry.AfterDiscardFollowup != nil {
+					entry.AfterDiscardFollowup(newRoleChoiceRuntime(e), discardPlayer)
+				}
+			}
 		}
 	}
 

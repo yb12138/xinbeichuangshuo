@@ -23,8 +23,13 @@ func RoleEntry() player.RoleEntry {
 			{Timing: player.TimingOnAttackGating, Priority: 200, Hook: attackGatingHook},
 			{Timing: player.TimingOnAttackMiss, Priority: 200, Hook: attackMissHook},
 			{Timing: player.TimingOnTurnEnd, Priority: 200, Hook: turnEndHook},
+			{Timing: player.TimingBeforeActionOption, Priority: 300, Hook: beforeActionOptionHook},
+			{Timing: player.TimingBeforeActionValidation, Priority: 300, Hook: beforeActionValidationHook},
+			{Timing: player.TimingOnResponseSkillNormalize, Priority: 100, Hook: responseSkillNormalizeHook},
 		},
-		PolicySpecs: PolicySpecs(),
+		BlocksActionType: func(p *model.Player, at model.ActionType) bool {
+			return at == model.ActionMagic && BlocksMagicCasting(p)
+		},
 	}
 }
 

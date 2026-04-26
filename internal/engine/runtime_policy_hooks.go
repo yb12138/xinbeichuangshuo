@@ -40,17 +40,17 @@ func (e *GameEngine) runTimingOnBeforeActionHooks(player *model.Player) bool {
 
 // applyTimingBeforeActionExecuteOptionPolicies 在行动入口生成选项前应用规则约束。
 func (e *GameEngine) applyTimingBeforeActionExecuteOptionPolicies(player *model.Player, state *actionSelectionState) {
-	ctx := engineplayer.PolicyHookContext{
+	ctx := engineplayer.TimingHookContext{
 		Player:         player,
 		ChoiceRuntime:  newRoleChoiceRuntime(e),
 		OptionModifier: actionSelectionModifierAdapter{state: state},
 	}
-	e.dispatchAllPolicyHooks(engineplayer.PolicyBeforeActionOption, ctx)
+	e.dispatchAllRoleTimingHooks(engineplayer.TimingBeforeActionOption, ctx)
 }
 
 // applyTimingBeforeActionExecuteValidationPolicies 在行动输入校验前应用规则约束。
 func (e *GameEngine) applyTimingBeforeActionExecuteValidationPolicies(player *model.Player, state *actionSelectionState) {
-	ctx := engineplayer.PolicyHookContext{
+	ctx := engineplayer.TimingHookContext{
 		Player:         player,
 		ChoiceRuntime:  newRoleChoiceRuntime(e),
 		OptionModifier: actionSelectionModifierAdapter{state: state},
@@ -60,7 +60,7 @@ func (e *GameEngine) applyTimingBeforeActionExecuteValidationPolicies(player *mo
 			engine:                         e,
 		},
 	}
-	e.dispatchAllPolicyHooks(engineplayer.PolicyBeforeActionValidation, ctx)
+	e.dispatchAllRoleTimingHooks(engineplayer.TimingBeforeActionValidation, ctx)
 }
 
 // runTimingOnHitCheckCombatInteractionPolicies 在战斗交互阶段执行命中判定策略链。
@@ -73,14 +73,14 @@ func (e *GameEngine) runTimingOnHitCheckCombatInteractionPolicies(req *model.Com
 
 // runTimingOnAttackDeclaredInterruptPolicies 在攻击宣言后执行中断策略。
 func (e *GameEngine) runTimingOnAttackDeclaredInterruptPolicies(attacker *model.Player, target *model.Player, currentAction *model.QueuedAction, userCtx *model.Context) bool {
-	ctx := engineplayer.PolicyHookContext{
+	ctx := engineplayer.TimingHookContext{
 		Attacker: attacker,
 		Target:   target,
 		Action:   currentAction,
 		UserCtx:  userCtx,
 	}
-	result := e.dispatchPolicyHook(engineplayer.PolicyAttackDeclaredInterrupt, ctx)
-	return result.Handled && result.Stop
+	result := e.dispatchRoleTimingHook(engineplayer.TimingOnAttackDeclaredInterrupt, ctx)
+	return result.Interrupted
 }
 
 // applyTimingOnHitCheckCombatDefendValidation 在防御判定时执行校验策略。
@@ -94,38 +94,38 @@ func (e *GameEngine) applyTimingOnHitCheckCombatDefendValidation(player *model.P
 
 // applyTimingOnHitCheckCombatCounterCardPolicy 在应战出牌时执行卡牌校验策略。
 func (e *GameEngine) applyTimingOnHitCheckCombatCounterCardPolicy(player *model.Player, req *model.CombatRequest, card model.Card) (bool, model.Card, error) {
-	ctx := engineplayer.PolicyHookContext{
+	ctx := engineplayer.TimingHookContext{
 		Player:        player,
 		CombatRequest: req,
-		CounterCard:   card,
+		CounterCard:   &card,
 	}
-	result := e.dispatchPolicyHook(engineplayer.PolicyCombatCounterCard, ctx)
-	if result.Err != nil {
-		return false, model.Card{}, result.Err
+	result := e.dispatchRoleTimingHook(engineplayer.TimingOnCombatCounterCard, ctx)
+	if result.ValidationError != nil {
+		return false, model.Card{}, result.ValidationError
 	}
 	return result.Handled, result.Card, nil
 }
 
 // applyTimingOnHitCheckCombatCounterElementPolicy 在应战元素判定时执行校验策略。
 func (e *GameEngine) applyTimingOnHitCheckCombatCounterElementPolicy(player *model.Player, req *model.CombatRequest, counterCard model.Card) (bool, bool) {
-	ctx := engineplayer.PolicyHookContext{
+	ctx := engineplayer.TimingHookContext{
 		Player:        player,
 		CombatRequest: req,
-		CounterCard:   counterCard,
+		CounterCard:   &counterCard,
 	}
-	result := e.dispatchPolicyHook(engineplayer.PolicyCombatCounterElement, ctx)
+	result := e.dispatchRoleTimingHook(engineplayer.TimingOnCounterElementCheck, ctx)
 	return result.Handled, result.UseFaction
 }
 
 // applyTimingOnHitCheckCombatCounterResolvePolicy 在应战成立后执行结算策略。
 func (e *GameEngine) applyTimingOnHitCheckCombatCounterResolvePolicy(player *model.Player, req *model.CombatRequest, counterCard *model.Card, useFaction bool) {
-	ctx := engineplayer.PolicyHookContext{
+	ctx := engineplayer.TimingHookContext{
 		Player:         player,
 		CombatRequest:  req,
 		CounterCardPtr: counterCard,
 		UseFaction:     useFaction,
 	}
-	e.dispatchAllPolicyHooks(engineplayer.PolicyCombatCounterResolve, ctx)
+	e.dispatchAllRoleTimingHooks(engineplayer.TimingOnCounterResolve, ctx)
 }
 
 // applyTimingOnHitCheckMagicMissileDefendValidation 在魔弹防御判定时执行校验策略。
@@ -152,11 +152,11 @@ func (sd *SkillDispatcher) applyTimingOnHitCheckResponseSkillAugment(skillIDs []
 	if sd == nil || sd.engine == nil {
 		return skillIDs
 	}
-	policyCtx := engineplayer.PolicyHookContext{
-		SkillIDs: skillIDs,
-		UserCtx:  ctx,
+	timingCtx := engineplayer.TimingHookContext{
+		OfferedSkillIDs: skillIDs,
+		UserCtx:         ctx,
 	}
-	result := sd.engine.dispatchAllPolicyHooks(engineplayer.PolicyResponseSkillAugment, policyCtx)
+	result := sd.engine.dispatchAllRoleTimingHooks(engineplayer.TimingOnResponseSkillAug, timingCtx)
 	if len(result.SkillIDs) > 0 {
 		return result.SkillIDs
 	}
@@ -168,11 +168,11 @@ func (sd *SkillDispatcher) applyTimingOnHitCheckResponseSkillNormalize(skillIDs 
 	if sd == nil || sd.engine == nil {
 		return skillIDs
 	}
-	policyCtx := engineplayer.PolicyHookContext{
-		SkillIDs: skillIDs,
-		UserCtx:  ctx,
+	timingCtx := engineplayer.TimingHookContext{
+		OfferedSkillIDs: skillIDs,
+		UserCtx:         ctx,
 	}
-	result := sd.engine.dispatchAllPolicyHooks(engineplayer.PolicyResponseSkillNormalize, policyCtx)
+	result := sd.engine.dispatchAllRoleTimingHooks(engineplayer.TimingOnResponseSkillNormalize, timingCtx)
 	if len(result.SkillIDs) > 0 {
 		return result.SkillIDs
 	}

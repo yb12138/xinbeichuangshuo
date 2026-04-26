@@ -7,54 +7,41 @@ import (
 	"starcup-engine/internal/model"
 )
 
-// PolicySpecs 导出仲裁者策略声明。
-func PolicySpecs() []engineplayer.PolicySpec {
-	return []engineplayer.PolicySpec{
-		// 行动选项策略（强制末日审判）
-		{Type: engineplayer.PolicyBeforeActionOption, Priority: 100, Hook: beforeActionOptionHook},
-		// 行动验证策略（强制末日审判）
-		{Type: engineplayer.PolicyBeforeActionValidation, Priority: 100, Hook: beforeActionValidationHook},
-		// 技能后置清理策略（末日审判清理）
-		{Type: engineplayer.PolicySkillPost, Priority: 100, Hook: skillPostCleanupHook},
-	}
-}
-
 // beforeActionOptionHook 行动选项策略。
-func beforeActionOptionHook(host engineplayer.PolicyHost, ctx engineplayer.PolicyHookContext) engineplayer.PolicyHookResult {
+func beforeActionOptionHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHookContext) engineplayer.TimingHookResult {
 	player := ctx.Player
 	modifier := ctx.OptionModifier
-	rt := ctx.ChoiceRuntime
+	crt := ctx.ChoiceRuntime
 
-	if player == nil || modifier == nil || rt == nil {
-		return engineplayer.PolicyHookResult{}
+	if player == nil || modifier == nil || crt == nil {
+		return engineplayer.TimingHookResult{}
 	}
 
-	ForcedDoomsdayOptionPolicy(rt, player, modifier)
-	return engineplayer.PolicyHookResult{Handled: true}
+	ForcedDoomsdayOptionPolicy(crt, player, modifier)
+	return engineplayer.TimingHookResult{Handled: true}
 }
 
 // beforeActionValidationHook 行动验证策略。
-func beforeActionValidationHook(host engineplayer.PolicyHost, ctx engineplayer.PolicyHookContext) engineplayer.PolicyHookResult {
+func beforeActionValidationHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHookContext) engineplayer.TimingHookResult {
 	player := ctx.Player
 	modifier := ctx.ValidationModifier
-	rt := ctx.ChoiceRuntime
+	crt := ctx.ChoiceRuntime
 
-	if player == nil || modifier == nil || rt == nil {
-		return engineplayer.PolicyHookResult{}
+	if player == nil || modifier == nil || crt == nil {
+		return engineplayer.TimingHookResult{}
 	}
 
-	ForcedDoomsdayValidationPolicy(rt, player, modifier)
-	return engineplayer.PolicyHookResult{Handled: true}
+	ForcedDoomsdayValidationPolicy(crt, player, modifier)
+	return engineplayer.TimingHookResult{Handled: true}
 }
 
 // skillPostCleanupHook 技能后置清理策略。
-func skillPostCleanupHook(host engineplayer.PolicyHost, ctx engineplayer.PolicyHookContext) engineplayer.PolicyHookResult {
+func skillPostCleanupHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHookContext) engineplayer.TimingHookResult {
 	skillID := ctx.SkillID
 	player := ctx.Player
-	rt := ctx.ChoiceRuntime
 
 	if skillID != "arbiter_doomsday" || player == nil {
-		return engineplayer.PolicyHookResult{}
+		return engineplayer.TimingHookResult{}
 	}
 
 	// 清理末日审判状态
@@ -75,7 +62,6 @@ func skillPostCleanupHook(host engineplayer.PolicyHost, ctx engineplayer.PolicyH
 			}
 		}
 		player.Field = newField
-		_ = rt // rt 不需要使用（已经在上面直接清理了状态）
 	}
-	return engineplayer.PolicyHookResult{Handled: true}
+	return engineplayer.TimingHookResult{Handled: true}
 }

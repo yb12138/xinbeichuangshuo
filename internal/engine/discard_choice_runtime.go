@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	playerpkg "starcup-engine/internal/engine/player"
-	elfarcherpkg "starcup-engine/internal/engine/player/elf_archer"
 	"starcup-engine/internal/model"
 )
 
@@ -39,6 +38,16 @@ func isBeastSamuraiDiscardChoiceType(choiceType string) bool {
 
 func isDiscardChoiceType(choiceType string) bool {
 	return choiceType == choiceTypeSystemDiscardCards || isBeastSamuraiDiscardChoiceType(choiceType)
+}
+
+// shouldExcludeCardFromDiscard 遍历所有角色条目，判断某张牌是否应从弃牌选项中排除。
+func shouldExcludeCardFromDiscard(player *model.Player, card model.Card) bool {
+	for _, entry := range roleRegistry.Entries() {
+		if entry.ExcludeCardFromDiscard != nil && entry.ExcludeCardFromDiscard(player, card) {
+			return true
+		}
+	}
+	return false
 }
 
 func (e *GameEngine) pendingDiscardContext() (map[string]interface{}, error) {
@@ -123,7 +132,7 @@ func (e *GameEngine) buildDiscardChoicePromptFromData(playerID string, data map[
 		if discardElement != "" && card.Element != discardElement {
 			continue
 		}
-		if excludeBlessings && elfarcherpkg.IsBlessingCard(player, card) {
+		if excludeBlessings && shouldExcludeCardFromDiscard(player, card) {
 			continue
 		}
 		options = append(options, model.PromptOption{

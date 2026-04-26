@@ -4,55 +4,63 @@ package engine
 import (
 	"fmt"
 
-	"starcup-engine/internal/engine/player"
-	butterflydancer "starcup-engine/internal/engine/player/butterfly_dancer"
-	elfarcher "starcup-engine/internal/engine/player/elf_archer"
-	fighter "starcup-engine/internal/engine/player/fighter"
-	magiclancer "starcup-engine/internal/engine/player/magic_lancer"
-	magicswordsman "starcup-engine/internal/engine/player/magic_swordsman"
+	engineplayer "starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
 )
 
 // ---- 士气辅助 ----
 
-func (e *GameEngine) moraleFloorForCamp(camp model.Camp) int {
-	floor := 0
-	for _, p := range e.State.Players {
-		if p == nil || p.Camp == camp {
-			continue
-		}
-		if butterflydancer.WitherActive(p) {
-			if floor < 1 {
-				floor = 1
-			}
+// capMoraleLoss 计算士气损失上限（不实际扣除），用于弃牌结算的前置判断。
+func (e *GameEngine) capMoraleLoss(camp model.Camp, wantLoss int) int {
+	if wantLoss <= 0 {
+		return 0
+	}
+	current := e.campMorale(camp)
+	loss := wantLoss
+	for _, entry := range roleRegistry.Entries() {
+		if entry.MoraleLossModifier != nil {
+			loss = entry.MoraleLossModifier(e, camp, current, loss)
 		}
 	}
-	return floor
+	if loss < 0 {
+		loss = 0
+	}
+	if current-loss < 0 {
+		loss = current
+	}
+	if loss <= 0 {
+		return 0
+	}
+	return loss
 }
 
+// applyCampMoraleLoss 应用士气损失（实际扣除），先经过 MoraleLossModifier 链调整。
 func (e *GameEngine) applyCampMoraleLoss(camp model.Camp, wantLoss int) int {
 	if wantLoss <= 0 {
 		return 0
 	}
 	current := e.campMorale(camp)
-	floor := e.moraleFloorForCamp(camp)
-	maxLoss := current - floor
-	if maxLoss < 0 {
-		maxLoss = 0
+	loss := wantLoss
+	for _, entry := range roleRegistry.Entries() {
+		if entry.MoraleLossModifier != nil {
+			loss = entry.MoraleLossModifier(e, camp, current, loss)
+		}
 	}
-	actual := wantLoss
-	if actual > maxLoss {
-		actual = maxLoss
+	if loss < 0 {
+		loss = 0
 	}
-	if actual <= 0 {
+	if current-loss < 0 {
+		loss = current
+	}
+	if loss <= 0 {
 		return 0
 	}
 	if camp == model.RedCamp {
-		e.State.RedMorale -= actual
+		e.State.RedMorale -= loss
 	} else {
-		e.State.BlueMorale -= actual
+		e.State.BlueMorale -= loss
 	}
-	return actual
+	return loss
 }
 
 func (e *GameEngine) addCampMorale(camp model.Camp, amount int) int {
@@ -105,19 +113,16 @@ const standardCampMoraleCapEngine = 15
 // ---- 形态基础设施（委托到 player 包） ----
 
 func effectivePlayerOrientation(p *model.Player) model.CharacterOrientation {
-	return player.EffectiveOrientation(p)
+	return engineplayer.EffectiveOrientation(p)
 }
 
 func effectivePlayerForm(p *model.Player) string {
-	return player.EffectiveForm(p)
+	return engineplayer.EffectiveForm(p)
 }
 
 // ---- 引擎级形态基础设施 ----
 
-type poseSnapshot struct {
-	Orientation model.CharacterOrientation
-	Form        string
-}
+type poseSnapshot = engineplayer.PoseSnapshot
 
 func (e *GameEngine) snapshotPlayerPoses() map[string]poseSnapshot {
 	snapshots := make(map[string]poseSnapshot, len(e.State.Players))
@@ -187,129 +192,102 @@ func getFieldEffectCard(player *model.Player, effect model.EffectType) *model.Fi
 	return nil
 }
 
+// ---- 行动类型限制 ----
+
+// isActionTypeBlocked 判断玩家的行动类型是否被角色能力限制。
+func (e *GameEngine) isActionTypeBlocked(p *model.Player, actionType model.ActionType) bool {
+	for _, entry := range roleRegistry.Entries() {
+		if entry.BlocksActionType != nil && entry.BlocksActionType(p, actionType) {
+			return true
+		}
+	}
+	return false
+}
+
 // canCastMagicInAction 判断玩家在自己行动阶段能否使用法术牌。
-func (e *GameEngine) canCastMagicInAction(player *model.Player) bool {
-	if player == nil {
+func (e *GameEngine) canCastMagicInAction(p *model.Player) bool {
+	if p == nil {
 		return false
 	}
-	if magiclancer.BlocksMagicCasting(player) {
-		return false
-	}
-	if fighter.BlocksMagicCasting(player) {
-		return false
-	}
-	if magicswordsman.BlocksMagicCasting(player) {
-		return false
-	}
-	return true
+	return !e.isActionTypeBlocked(p, model.ActionMagic)
 }
 
-// canUseShadowRejectResponseMagic 判断魔剑士【暗影抗拒】是否允许在"非自己行动阶段"用法术响应。
-// 规则：必须不是当前回合玩家本人。
-func (e *GameEngine) canUseShadowRejectResponseMagic(player *model.Player) bool {
-	if e == nil || player == nil {
-		return false
+// ---- 可打牌（手牌 + 可打盖牌） ----
+
+// collectPlayableCoverEffects 收集所有角色声明的可打盖牌效果类型。
+func (e *GameEngine) collectPlayableCoverEffects() []model.EffectType {
+	var effects []model.EffectType
+	for _, entry := range roleRegistry.Entries() {
+		effects = append(effects, entry.PlayableCoverEffects...)
 	}
-	currentTurnPlayerID := ""
-	if len(e.State.PlayerOrder) > 0 && e.State.CurrentTurn >= 0 && e.State.CurrentTurn < len(e.State.PlayerOrder) {
-		currentTurnPlayerID = e.State.PlayerOrder[e.State.CurrentTurn]
-	}
-	return magicswordsman.CanUseShadowRejectResponse(player, currentTurnPlayerID)
+	return effects
 }
 
-// reverseOrderTargetIDsFrom 按"逆向"顺序返回角色 ID（从 source 的前一位开始）。
-func (e *GameEngine) reverseOrderTargetIDsFrom(sourceID string, includeSelf bool) []string {
-	if len(e.State.PlayerOrder) == 0 {
-		return nil
-	}
-	start := -1
-	for i, pid := range e.State.PlayerOrder {
-		if pid == sourceID {
-			start = i
-			break
-		}
-	}
-	if start < 0 {
-		return nil
-	}
-	n := len(e.State.PlayerOrder)
-	var ids []string
-	stepStart := 1
-	stepEnd := n
-	if includeSelf {
-		stepStart = 0
-	}
-	for step := stepStart; step < stepEnd; step++ {
-		idx := (start - step + n) % n
-		ids = append(ids, e.State.PlayerOrder[idx])
-	}
-	return ids
-}
-
-func (e *GameEngine) playerOrderPosition(playerID string) int {
-	if e == nil || playerID == "" {
+func (e *GameEngine) playableCardCount(p *model.Player) int {
+	if p == nil {
 		return 0
 	}
-	for i, pid := range e.State.PlayerOrder {
-		if pid == playerID {
-			return i + 1
+	count := len(p.Hand)
+	for _, effect := range e.collectPlayableCoverEffects() {
+		count += engineplayer.CoverCountByEffect(p, effect)
+	}
+	return count
+}
+
+func (e *GameEngine) getPlayableCardByIndex(p *model.Player, index int) (card model.Card, fromCover bool, coverEffect model.EffectType, ok bool) {
+	if p == nil || index < 0 {
+		return model.Card{}, false, "", false
+	}
+	if index < len(p.Hand) {
+		return p.Hand[index], false, "", true
+	}
+	offset := index - len(p.Hand)
+	for _, effect := range e.collectPlayableCoverEffects() {
+		covers := engineplayer.CoverCardsByEffect(p, effect)
+		if offset < len(covers) {
+			return covers[offset].Card, true, effect, true
 		}
+		offset -= len(covers)
 	}
-	return 0
+	return model.Card{}, false, "", false
 }
 
-func playableCardCount(player *model.Player) int {
-	if player == nil {
-		return 0
-	}
-	return len(player.Hand) + elfarcher.CountBlessings(player)
-}
-
-func getPlayableCardByIndex(player *model.Player, index int) (card model.Card, fromBlessing bool, blessingIndex int, ok bool) {
-	if player == nil || index < 0 {
-		return model.Card{}, false, -1, false
-	}
-	if index < len(player.Hand) {
-		return player.Hand[index], false, -1, true
-	}
-	blessings := elfarcher.BlessingCards(player)
-	bidx := index - len(player.Hand)
-	if bidx < 0 || bidx >= len(blessings) {
-		return model.Card{}, false, -1, false
-	}
-	return blessings[bidx], true, bidx, true
-}
-
-func consumePlayableCardByIndex(player *model.Player, index int) (model.Card, error) {
-	card, fromBlessing, _, ok := getPlayableCardByIndex(player, index)
+func (e *GameEngine) consumePlayableCardByIndex(p *model.Player, index int) (model.Card, error) {
+	card, fromCover, coverEffect, ok := e.getPlayableCardByIndex(p, index)
 	if !ok {
 		return model.Card{}, fmt.Errorf("无效的卡牌索引")
 	}
-	if fromBlessing {
-		elfarcher.RemoveBlessingByCardID(player, card.ID)
+	if fromCover {
+		engineplayer.RemoveCoverCardByEffectAndID(p, coverEffect, card.ID)
 		return card, nil
 	}
-	player.Hand = append(player.Hand[:index], player.Hand[index+1:]...)
+	p.Hand = append(p.Hand[:index], p.Hand[index+1:]...)
 	return card, nil
 }
 
-func findPlayableCardIndexByID(player *model.Player, cardID string) int {
-	if player == nil || cardID == "" {
+func (e *GameEngine) findPlayableCardIndexByID(p *model.Player, cardID string) int {
+	if p == nil || cardID == "" {
 		return -1
 	}
-	for i, c := range player.Hand {
+	for i, c := range p.Hand {
 		if c.ID == cardID {
 			return i
 		}
 	}
-	base := len(player.Hand)
-	for i, c := range elfarcher.BlessingCards(player) {
-		if c.ID == cardID {
-			return base + i
+	offset := len(p.Hand)
+	for _, effect := range e.collectPlayableCoverEffects() {
+		covers := engineplayer.CoverCardsByEffect(p, effect)
+		for i, fc := range covers {
+			if fc.Card.ID == cardID {
+				return offset + i
+			}
 		}
+		offset += len(covers)
 	}
 	return -1
 }
+
+// ---- 其他共享辅助 ----
 
 func (e *GameEngine) canUseHealToResist(target *model.Player, sourceID string, damageType model.DamageType, ignoreHeal bool, allowCrimsonFaithHeal bool) bool {
 	if target == nil || target.Heal <= 0 {

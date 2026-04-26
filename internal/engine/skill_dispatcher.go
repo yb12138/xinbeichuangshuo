@@ -170,9 +170,9 @@ func (e *GameEngine) runTimingOnActionEndSkillPost(use *skillUseRequest) {
 	if e == nil || use == nil || use.player == nil {
 		return
 	}
-	ctx := playerpkg.PolicyHookContext{
+	ctx := playerpkg.TimingHookContext{
 		Player:  use.player,
 		SkillID: use.skillID,
 	}
-	e.dispatchAllPolicyHooks(playerpkg.PolicySkillPost, ctx)
+	e.dispatchAllRoleTimingHooks(playerpkg.TimingOnSkillPost, ctx)
 }

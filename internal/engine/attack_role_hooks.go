@@ -83,12 +83,12 @@ func applyDarkElementNoCounterRule(_ *GameEngine, _ *model.Player, _ *model.Play
 
 // applyTimingOnAttackDeclaredCardTransforms 在攻击宣言时按固定顺序应用卡面变换规则。
 func (e *GameEngine) applyTimingOnAttackDeclaredCardTransforms(player *model.Player, card model.Card) model.Card {
-	ctx := engineplayer.PolicyHookContext{
+	ctx := engineplayer.TimingHookContext{
 		Player:      player,
-		CounterCard: card,
+		CounterCard: &card,
 	}
-	result := e.dispatchPolicyHook(engineplayer.PolicyAttackCardTransform, ctx)
-	if result.Handled && result.Stop {
+	result := e.dispatchRoleTimingHook(engineplayer.TimingOnAttackCardTransform, ctx)
+	if result.Handled && result.Card.Name != "" {
 		return result.Card
 	}
 	return card

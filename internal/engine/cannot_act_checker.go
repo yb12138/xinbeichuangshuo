@@ -15,9 +15,9 @@ func DefaultCannotActChecker(e *GameEngine, player *model.Player) (bool, string)
 	// 1. 检查手牌是否有可执行动作
 	if len(player.Hand) > 0 {
 		canUseMagic := e.canCastMagicInAction(player)
-		total := playableCardCount(player)
+		total := e.playableCardCount(player)
 		for idx := 0; idx < total; idx++ {
-			card, _, _, ok := getPlayableCardByIndex(player, idx)
+			card, _, _, ok := e.getPlayableCardByIndex(player, idx)
 			if !ok {
 				continue
 			}

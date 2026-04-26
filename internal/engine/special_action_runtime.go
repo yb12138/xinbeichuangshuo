@@ -8,7 +8,6 @@ import (
 	"sort"
 
 	playerpkg "starcup-engine/internal/engine/player"
-	adventurer "starcup-engine/internal/engine/player/adventurer"
 	"starcup-engine/internal/model"
 )
 
@@ -330,38 +329,22 @@ func (e *GameEngine) runPostSpecialActionRuntime(player *model.Player, actionTyp
 
 // applyTimingBeforeActionExecuteSpecialActionOverride 在执行特殊行动前应用覆盖策略。
 func (e *GameEngine) applyTimingBeforeActionExecuteSpecialActionOverride(player *model.Player, actionType model.ActionType) (bool, error) {
-	ctx := playerpkg.PolicyHookContext{
+	ctx := playerpkg.TimingHookContext{
 		Player:     player,
 		ActionType: actionType,
 	}
-	result := e.dispatchPolicyHook(playerpkg.PolicySpecialActionOverride, ctx)
-	return result.Handled, result.Err
+	result := e.dispatchRoleTimingHook(playerpkg.TimingOnSpecialActionOverride, ctx)
+	if result.ValidationError != nil {
+		return false, result.ValidationError
+	}
+	return result.Handled, nil
 }
 
 // runTimingOnActionEndSpecialActionPost 在特殊行动完成后执行后置规则。
 func (e *GameEngine) runTimingOnActionEndSpecialActionPost(player *model.Player, actionType model.ActionType) {
-	ctx := playerpkg.PolicyHookContext{
+	ctx := playerpkg.TimingHookContext{
 		Player:     player,
 		ActionType: actionType,
 	}
-	e.dispatchAllPolicyHooks(playerpkg.PolicySpecialActionPost, ctx)
-}
-
-func specialActionAdventurerUndergroundLawOverride(e *GameEngine, player *model.Player, actionType model.ActionType) (bool, error) {
-	if e == nil || player == nil || actionType != model.ActionBuy || !e.playerHasSkill(player, "adventurer_underground_law") {
-		return false, nil
-	}
-	adventurer.ResolveUndergroundLaw(e, player)
-	return true, nil
-}
-
-func specialActionHolyBowHolyGloryExitHook(e *GameEngine, player *model.Player, _ model.ActionType) {
-	if e == nil || player == nil || !playerpkg.IsCharacter(player, "holy_bow") || !playerpkg.HasForm(player, model.FormHolyBowHolyGlory) {
-		return
-	}
-	beforePoses := e.snapshotPlayerPoses()
-	playerpkg.ClearForm(player, model.FormHolyBowHolyGlory)
-	e.Heal(player.ID, 1)
-	e.Log(fmt.Sprintf("%s 在圣煌形态下执行特殊行动，脱离圣煌形态并获得1点治疗", player.Name))
-	e.dispatchOrientationChanges(beforePoses)
+	e.dispatchAllRoleTimingHooks(playerpkg.TimingOnSpecialActionPost, ctx)
 }

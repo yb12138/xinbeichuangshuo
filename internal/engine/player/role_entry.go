@@ -254,6 +254,16 @@ type SkillUsabilityCheckerEngine interface {
 	CountCoverCardsByEffectAndElement(player *model.Player, effect model.EffectType, element model.Element) int
 }
 
+// MoraleLossModifierEngine 士气损失修改器所需的引擎能力。
+type MoraleLossModifierEngine interface {
+	GetAllPlayers() []*model.Player
+}
+
+// MoraleLossModifier 调整指定阵营的士气损失量。
+// 接收 (engine, camp, currentMorale, proposedLoss)，返回修改后的损失量。
+// 按 roleRegistry 顺序链式调用，前一个修改器的输出是后一个的输入。
+type MoraleLossModifier func(engine MoraleLossModifierEngine, camp model.Camp, currentMorale int, proposedLoss int) int
+
 // CannotActChecker 无法行动判断函数。
 // 返回 (canCannotAct, reason)：
 //   - canCannotAct=true: 该角色认为当前可以宣告无法行动
@@ -282,11 +292,22 @@ type RoleEntry struct {
 	FollowupSpecs              map[string]FollowupSpec
 	InterruptSpecs             []InterruptSpec
 	TimingHookSpecs            []TimingHookSpec
-	PolicySpecs                []PolicySpec // 角色策略声明
 	SkillUsabilityCheckers     map[string]SkillUsabilityChecker
 	AttackCardElementTransform func(player *model.Player, card model.Card) model.Element
-	CannotActChecker           CannotActChecker  // 角色自定义无法行动判断hook（可选）
-	HandLimitModifier          HandLimitModifier // 全局手牌上限修改器（可选，如血之巫女同生共死）
+	AttackElementResolver      func(player *model.Player, card model.Card) model.Element                            // 攻击牌元素解析（可选，如烈焰魔女火焰形态）
+	CannotActChecker           CannotActChecker                                                                     // 角色自定义无法行动判断hook（可选）
+	HandLimitModifier          HandLimitModifier                                                                    // 全局手牌上限修改器（可选，如血之巫女同生共死）
+	MoraleLossModifier         MoraleLossModifier                                                                   // 全局士气损失修改器（可选，如蝶舞者枯萎）
+	BlocksActionType           func(player *model.Player, actionType model.ActionType) bool                         // 行动类型限制（可选）
+	PlayableCoverEffects       []model.EffectType                                                                   // 可作为可打牌使用的盖牌效果类型（可选）
+	ExcludeCardFromDiscard     func(player *model.Player, card model.Card) bool                                     // 弃牌时排除特定卡牌（可选，如精灵射手祝福牌）
+	AfterMoraleLossHook        func(rt model.IGameEngine, victim *model.Player, finalLoss int, fromDamageDraw bool) // 士气损失后置钩子（可选，如灵魂巫师灵魂吞噬）
+	MaybeDarkRitual            func(rt ChoiceRuntime, player *model.Player) bool                                    // 暗仪发动检查（可选，如阴阳师暗仪）
+	IsForcedParadiseResponse   func(intr *model.Interrupt, players map[string]*model.Player, playerID string) bool  // 强制天堂响应判断（可选，如冒险者提炼强制天堂）
+	AfterDiscardFollowup       func(rt ChoiceRuntime, player *model.Player)                                         // 弃牌后续处理（可选，如魔枪幻影星尘）
+	ConsumeTauntRestriction    func(rt ChoiceRuntime, player *model.Player)                                         // 挑衅约束消耗（可选，如勇者挑衅）
+	ResolveChrysalis           func(rt ChoiceRuntime, userID string) error                                          // 蛹化直接结算（可选，如蝶舞者蛹化）
+	StartReverse               func(rt ChoiceRuntime, userID string) error                                          // 倒逆之蝶分支编排（可选，如蝶舞者倒逆之蝶）
 }
 
 // ApplyDefaults 应用默认角色属性。

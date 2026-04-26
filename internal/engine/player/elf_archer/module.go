@@ -4,6 +4,7 @@ package elf_archer
 
 import (
 	"starcup-engine/internal/engine/player"
+	"starcup-engine/internal/model"
 	"starcup-engine/internal/types"
 )
 
@@ -21,6 +22,8 @@ func RoleEntry() player.RoleEntry {
 			{Timing: player.TimingPostDamageResolved, Priority: 600, Hook: postDamageResolvedHook},
 			{Timing: player.TimingOnTurnEnd, Priority: 300, Hook: turnEndHook},
 		},
+		PlayableCoverEffects:   []model.EffectType{model.EffectElfBlessing},
+		ExcludeCardFromDiscard: IsBlessingCard,
 	}
 }
 

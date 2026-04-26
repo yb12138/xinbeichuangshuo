@@ -12,12 +12,13 @@ import (
 // RoleEntry 导出角色统一入口定义。
 func RoleEntry() player.RoleEntry {
 	return player.RoleEntry{
-		ID:               "soul_sorcerer",
-		Defaults:         ApplyDefaults,
-		StarterCards:     StarterCards,
-		Choices:          NewChoiceHandler(),
-		Skills:           SkillEntries(),
-		ChoiceRouteSpecs: ChoiceRouteSpecs(),
+		ID:                  "soul_sorcerer",
+		Defaults:            ApplyDefaults,
+		StarterCards:        StarterCards,
+		Choices:             NewChoiceHandler(),
+		Skills:              SkillEntries(),
+		ChoiceRouteSpecs:    ChoiceRouteSpecs(),
+		AfterMoraleLossHook: ApplySoulDevour,
 		TimingHookSpecs: []player.TimingHookSpec{
 			{Timing: player.TimingOnDamageBeforeTaken, Priority: 100, Hook: damageBeforeTakenHook},
 		},

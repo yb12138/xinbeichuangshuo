@@ -4,57 +4,69 @@ package fighter
 
 import (
 	engineplayer "starcup-engine/internal/engine/player"
+	"starcup-engine/internal/model"
 )
 
-// PolicySpecs 导出格斗家策略声明。
-func PolicySpecs() []engineplayer.PolicySpec {
-	return []engineplayer.PolicySpec{
-		// 行动选项策略（百式幻龙拳）
-		{Type: engineplayer.PolicyBeforeActionOption, Priority: 300, Hook: beforeActionOptionHook},
-		// 行动验证策略（百式幻龙拳）
-		{Type: engineplayer.PolicyBeforeActionValidation, Priority: 300, Hook: beforeActionValidationHook},
-		// 响应技能规范化策略（百式幻龙拳形态）
-		{Type: engineplayer.PolicyResponseSkillNormalize, Priority: 100, Hook: responseSkillNormalizeHook},
-	}
-}
-
 // beforeActionOptionHook 行动选项策略。
-func beforeActionOptionHook(host engineplayer.PolicyHost, ctx engineplayer.PolicyHookContext) engineplayer.PolicyHookResult {
+func beforeActionOptionHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHookContext) engineplayer.TimingHookResult {
 	player := ctx.Player
 	modifier := ctx.OptionModifier
-	rt := ctx.ChoiceRuntime
+	choiceRt := ctx.ChoiceRuntime
 
-	if player == nil || modifier == nil || rt == nil {
-		return engineplayer.PolicyHookResult{}
+	if player == nil || modifier == nil || choiceRt == nil {
+		return engineplayer.TimingHookResult{}
 	}
 
-	HundredDragonOptionPolicy(rt, player, modifier)
-	return engineplayer.PolicyHookResult{Handled: true}
+	HundredDragonOptionPolicy(choiceRt, player, modifier)
+	return engineplayer.TimingHookResult{Handled: true}
 }
 
 // beforeActionValidationHook 行动验证策略。
-func beforeActionValidationHook(host engineplayer.PolicyHost, ctx engineplayer.PolicyHookContext) engineplayer.PolicyHookResult {
+func beforeActionValidationHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHookContext) engineplayer.TimingHookResult {
 	player := ctx.Player
 	modifier := ctx.ValidationModifier
-	rt := ctx.ChoiceRuntime
+	choiceRt := ctx.ChoiceRuntime
 
-	if player == nil || modifier == nil || rt == nil {
-		return engineplayer.PolicyHookResult{}
+	if player == nil || modifier == nil || choiceRt == nil {
+		return engineplayer.TimingHookResult{}
 	}
 
-	HundredDragonValidationPolicy(rt, player, modifier)
-	return engineplayer.PolicyHookResult{Handled: true}
+	HundredDragonValidationPolicy(choiceRt, player, modifier)
+	return engineplayer.TimingHookResult{Handled: true}
 }
 
 // responseSkillNormalizeHook 响应技能规范化策略。
-func responseSkillNormalizeHook(host engineplayer.PolicyHost, ctx engineplayer.PolicyHookContext) engineplayer.PolicyHookResult {
-	skillIDs := ctx.SkillIDs
+// 百式幻龙拳形态下，若蓄力打击和爆裂冲击同时可用，仅保留蓄力打击。
+func responseSkillNormalizeHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHookContext) engineplayer.TimingHookResult {
+	skillIDs := ctx.OfferedSkillIDs
 	userCtx := ctx.UserCtx
 
-	if len(skillIDs) == 0 || userCtx == nil {
-		return engineplayer.PolicyHookResult{SkillIDs: skillIDs}
+	if len(skillIDs) <= 1 || userCtx == nil || userCtx.User == nil {
+		return engineplayer.TimingHookResult{SkillIDs: skillIDs}
 	}
 
-	normalized := host.ApplyFighterResponseSkillNormalize(skillIDs, userCtx)
-	return engineplayer.PolicyHookResult{Handled: true, SkillIDs: normalized}
+	// 条件：必须是攻击宣告阶段、格斗家角色、非反击场景
+	if userCtx.Timing != model.TimingOnAttackDeclared ||
+		!engineplayer.IsCharacter(userCtx.User, "fighter") ||
+		userCtx.EventCtx == nil ||
+		userCtx.EventCtx.AttackInfo == nil ||
+		userCtx.EventCtx.AttackInfo.CounterInitiator != "" {
+		return engineplayer.TimingHookResult{SkillIDs: skillIDs}
+	}
+
+	// 检查是否同时拥有蓄力打击和爆裂冲击
+	hasCharge := false
+	hasBurst := false
+	for _, sid := range skillIDs {
+		if sid == "fighter_charge_strike" {
+			hasCharge = true
+		} else if sid == "fighter_burst_crash" {
+			hasBurst = true
+		}
+	}
+
+	if hasCharge && hasBurst {
+		return engineplayer.TimingHookResult{Handled: true, SkillIDs: []string{"fighter_charge_strike"}}
+	}
+	return engineplayer.TimingHookResult{SkillIDs: skillIDs}
 }

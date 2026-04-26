@@ -20,8 +20,10 @@ func RoleEntry() player.RoleEntry {
 			{Timing: player.TimingOnTurnStart, Priority: 100, Hook: turnStartResetHook},
 			{Timing: player.TimingOnTurnStart, Priority: 200, Hook: turnStartJudgmentUpkeepHook},
 			{Timing: player.TimingOnTurnStart, Priority: 300, Hook: turnStartForcedDoomsdayHook},
+			{Timing: player.TimingBeforeActionOption, Priority: 100, Hook: beforeActionOptionHook},
+			{Timing: player.TimingBeforeActionValidation, Priority: 100, Hook: beforeActionValidationHook},
+			{Timing: player.TimingOnSkillPost, Priority: 100, Hook: skillPostCleanupHook},
 		},
-		PolicySpecs: PolicySpecs(),
 	}
 }
 

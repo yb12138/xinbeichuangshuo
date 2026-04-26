@@ -309,12 +309,12 @@ func (r roleChoiceRuntime) ConsumePlayableCardByCardID(playerID, cardID string) 
 	if player == nil {
 		return model.Card{}, false
 	}
-	cardIdx := findPlayableCardIndexByID(player, cardID)
-	card, _, _, ok := getPlayableCardByIndex(player, cardIdx)
+	cardIdx := r.GameEngine.findPlayableCardIndexByID(player, cardID)
+	card, _, _, ok := r.GameEngine.getPlayableCardByIndex(player, cardIdx)
 	if !ok {
 		return model.Card{}, false
 	}
-	if _, err := consumePlayableCardByIndex(player, cardIdx); err != nil {
+	if _, err := r.GameEngine.consumePlayableCardByIndex(player, cardIdx); err != nil {
 		return model.Card{}, false
 	}
 	return card, true
@@ -451,12 +451,12 @@ func (r roleChoiceRuntime) SetMagicBulletChain(chain *model.MagicBulletChain) {
 }
 
 func (r roleChoiceRuntime) GetPlayableCardByIndex(player *model.Player, idx int) (model.Card, bool) {
-	card, _, _, ok := getPlayableCardByIndex(player, idx)
+	card, _, _, ok := r.GameEngine.getPlayableCardByIndex(player, idx)
 	return card, ok
 }
 
 func (r roleChoiceRuntime) ConsumePlayableCardByIndex(player *model.Player, idx int) (model.Card, error) {
-	return consumePlayableCardByIndex(player, idx)
+	return r.GameEngine.consumePlayableCardByIndex(player, idx)
 }
 
 func (r roleChoiceRuntime) PerformMagic(playerID, targetID string, cardIdx int, isFusion bool) error {
