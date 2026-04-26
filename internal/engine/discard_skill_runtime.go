@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"starcup-engine/internal/engine/core/runtimeutil"
-	beastsamurai "starcup-engine/internal/engine/player/beast_samurai"
+	playerpkg "starcup-engine/internal/engine/player"
 	"starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 )
@@ -190,15 +190,15 @@ func (e *GameEngine) consumeBeastSamuraiBeastSoul(player *model.Player, amount i
 	if player == nil || amount <= 0 {
 		return 0
 	}
-	current := beastsamurai.BeastSoul(player)
+	current := playerpkg.TokenValue(player, "bs_beast_soul", 2)
 	if amount > current {
 		amount = current
 	}
 	if amount <= 0 {
 		return 0
 	}
-	beastsamurai.AddBeastSoul(player, -amount, true)
-	beastsamurai.AddZanshin(player, amount)
+	playerpkg.AddTokenIgnoreCap(player, "bs_beast_soul", -amount, 2, true)
+	playerpkg.AddToken(player, "bs_zanshin", amount, 4)
 	return amount
 }
 
@@ -321,7 +321,7 @@ func (e *GameEngine) handleBeastSamuraiDiscardSelections(playerID string, select
 			e.State.DiscardPile = append(e.State.DiscardPile, removed...)
 		}
 		if beastSamuraiDiscardedMagicCount(removed) > 0 {
-			after := beastsamurai.AddBeastSoul(user, 1, false)
+			after := playerpkg.AddTokenIgnoreCap(user, "bs_beast_soul", 1, 2, false)
 			e.Log(fmt.Sprintf("%s 的 [兽魂警戒] 生效：%s 展示弃牌中含法术牌，兽魂+1（当前%d）", user.Name, actor.Name, after))
 		}
 		e.beastSamuraiFinishResume(e.beastSamuraiResumePoint(ctxData, model.TurnStageActionExecution))
@@ -375,7 +375,7 @@ func (e *GameEngine) handleBeastSamuraiDiscardSelections(playerID string, select
 			e.State.DiscardPile = append(e.State.DiscardPile, removed...)
 		}
 		if beastSamuraiDiscardedMagicCount(removed) > 0 {
-			after := beastsamurai.AddBeastSoul(user, 1, false)
+			after := playerpkg.AddTokenIgnoreCap(user, "bs_beast_soul", 1, 2, false)
 			e.Log(fmt.Sprintf("%s 的 [兽返] 生效：%s 弃牌中含法术牌，兽魂+1（当前%d）", user.Name, source.Name, after))
 		}
 		e.beastSamuraiFinishResume(e.beastSamuraiResumePoint(ctxData, model.CombatStageCalcDamage))
