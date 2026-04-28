@@ -74,6 +74,7 @@ func SkillEntries() []player.SkillEntry {
 // ChoiceRouteSpecs 导出角色 choice 路由声明。
 func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 	return map[string]types.ChoiceRouteSpec{
+		"five_elements_bind":             types.ChoiceRouteRole("sealer"),
 		"sealer_five_elements_bind_pick": types.ChoiceRouteRole("sealer"),
 	}
 }

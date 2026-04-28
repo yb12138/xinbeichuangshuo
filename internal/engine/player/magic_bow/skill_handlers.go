@@ -341,6 +341,8 @@ func (h *MagicBowChargeHandler) Execute(ctx *model.Context) error {
 				"choice_type":     "system_discard_cards",
 				"discard_subflow": true,
 				"skill_id":        "mb_charge_followup_discard",
+				"discard_forced":  true,
+				"forced_reason":   "【充能】弃牌为强制步骤，不能取消",
 				"user_ctx":        ctx,
 				"min":             discardNeed,
 				"max":             discardNeed,

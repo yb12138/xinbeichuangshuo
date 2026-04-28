@@ -75,7 +75,10 @@
       "Bash(ed -s /Users/yb/xinbeichuangshuo/internal/engine/player/soul_sorcerer/module.go)",
       "Bash(xxd /Users/yb/xinbeichuangshuo/internal/engine/skill_use_validation.go)",
       "Bash(xxd /Users/yb/xinbeichuangshuo/internal/model/types.go)",
-      "Bash(echo \"=== Remaining IsCharacter in core engine \\(excluding tests and player/ package\\) ===\" grep -rn 'IsCharacter\\(' internal/engine/*.go)"
+      "Bash(echo \"=== Remaining IsCharacter in core engine \\(excluding tests and player/ package\\) ===\" grep -rn 'IsCharacter\\(' internal/engine/*.go)",
+      "Bash(head -n 83 /Users/yb/xinbeichuangshuo/internal/engine/player/magic_lancer/runtime.go)",
+      "Bash(printf '\\\\treturn false\\\\n}\\\\n')",
+      "Bash(mv /tmp/ml_runtime_head.go /Users/yb/xinbeichuangshuo/internal/engine/player/magic_lancer/runtime.go)"
     ]
   }
 }

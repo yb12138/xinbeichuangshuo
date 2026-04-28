@@ -403,6 +403,7 @@ type PlayerTurnState struct {
 	SpecialActionsLockedThisTurn bool            `json:"special_actions_locked_this_turn"` // 本回合锁定购买/合成/提炼（读写见 player_turn_marks.go）
 	HasProcessedTurnStart        bool            `json:"has_processed_turn_start"`         // 是否已完成本回合 TurnStart 钩子
 	HasActed                     bool            `json:"has_acted"`                        // 是否已执行行动
+	ActionPhaseSkippedThisTurn   bool            `json:"action_phase_skipped_this_turn"`   // 本回合行动阶段被跳过（虚弱/五行封印/无法行动等）
 	UsedSkillCounts              map[string]int  `json:"used_skill_counts"`                // 技能ID -> 本回合使用次数
 	PendingActions               []ActionContext `json:"pending_actions"`                  // 待执行的行动队列
 	CurrentExtraAction           string          `json:"current_extra_action"`             // 当前额外行动类型: "Attack", "Magic", ""

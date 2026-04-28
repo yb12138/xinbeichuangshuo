@@ -9,7 +9,6 @@ var catalogChoiceRouteSpecTable = map[string]ChoiceRouteSpec{
 	"buy_resource":         ChoiceRouteSystem(),
 	"heal":                 ChoiceRouteSystem(),
 	"weak":                 ChoiceRouteSystem(),
-	"five_elements_bind":   ChoiceRouteSpecial("five_elements_bind"),
 }
 
 func init() {

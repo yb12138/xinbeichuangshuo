@@ -47,33 +47,6 @@ func catalogChoiceBinding(typ string) catalogSpecPlan {
 	switch spec.Kind {
 	case ChoiceRouteKindSystem:
 		return catalogSpecPlan{(*GameEngine).buildSystemChoicePrompt, systemChoiceSelect(typ), m, nil}
-	case ChoiceRouteKindSpecial:
-		switch spec.Special {
-		case "five_elements_bind":
-			return catalogSpecPlan{
-				func(ge *GameEngine, choiceType, playerID string, player *model.Player, data map[string]any) *model.Prompt {
-					return ge.buildRoleChoicePrompt("sealer", choiceType, playerID, player, choiceCtxAsInterfaceMap(data))
-				},
-				func(ge *GameEngine, playerID string, idx int, ctx map[string]any) (bool, error) {
-					return ge.handleRoleChoiceInput("sealer", playerID, idx, choiceCtxAsInterfaceMap(ctx))
-				},
-				m,
-				roleCancelWithContext("sealer"),
-			}
-		default:
-			panic(fmt.Sprintf("choice catalog: unknown special route %q for type %q", spec.Special, typ))
-		}
-	case ChoiceRouteKindTargetPrompt:
-		// TargetPrompt 路由：build 阶段走通用 target prompt，select 阶段走角色 choice handler
-		roleID := targetPromptRoleID(spec.TargetPrompt)
-		return catalogSpecPlan{
-			(*GameEngine).buildTargetChoicePrompt,
-			func(ge *GameEngine, playerID string, idx int, ctx map[string]any) (bool, error) {
-				return ge.handleRoleChoiceInput(roleID, playerID, idx, choiceCtxAsInterfaceMap(ctx))
-			},
-			m,
-			roleCancelWithContext(roleID),
-		}
 	case ChoiceRouteKindRole:
 		// 所有角色统一通过 RoleEntry 注册表桥接到 player/<role>/choices.go
 		roleID := spec.Role
@@ -89,31 +62,5 @@ func catalogChoiceBinding(typ string) catalogSpecPlan {
 		}
 	default:
 		panic(fmt.Sprintf("choice catalog: unknown route kind %q for type %q", spec.Kind, typ))
-	}
-}
-
-// targetPromptRoleID 将 TargetPrompt 简写映射到角色 ID。
-func targetPromptRoleID(short string) string {
-	switch short {
-	case "bard":
-		return "bard"
-	case "elf":
-		return "elf_archer"
-	case "priest":
-		return "priest"
-	case "onmyoji":
-		return "onmyoji"
-	case "mb":
-		return "magic_bow"
-	case "sc":
-		return "spirit_caster"
-	case "ml":
-		return "magic_lancer"
-	case "se":
-		return "sword_emperor"
-	case "fighter":
-		return "fighter"
-	default:
-		return short
 	}
 }

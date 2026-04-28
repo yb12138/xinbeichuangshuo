@@ -697,24 +697,7 @@ func zeroPendingAttackDamage(rt engineplayer.ChoiceRuntime, ctxData map[string]i
 }
 
 // applyCampMoraleLoss reduces camp morale by the given amount (respecting
-// floor). Returns the actual loss applied.
+// floor and role modifier chain). Returns the actual loss applied.
 func applyCampMoraleLoss(rt engineplayer.ChoiceRuntime, camp model.Camp, wantLoss int) int {
-	if wantLoss <= 0 {
-		return 0
-	}
-	current := rt.GetCampMorale(string(camp))
-	// Morale floor is 0 in the simplified version.
-	maxLoss := current
-	if maxLoss < 0 {
-		maxLoss = 0
-	}
-	actual := wantLoss
-	if actual > maxLoss {
-		actual = maxLoss
-	}
-	if actual <= 0 {
-		return 0
-	}
-	rt.ModifyGem(string(camp), -actual)
-	return actual
+	return rt.ApplyCampMoraleLoss(camp, wantLoss)
 }

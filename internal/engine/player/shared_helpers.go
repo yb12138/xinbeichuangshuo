@@ -3,6 +3,9 @@
 package player
 
 import (
+	"fmt"
+
+	"starcup-engine/internal/engine/core/runtimeutil"
 	"starcup-engine/internal/model"
 )
 
@@ -161,4 +164,26 @@ func MaxSameElementCount(p *model.Player) int {
 		}
 	}
 	return maxCount
+}
+
+// BuildTargetChoicePrompt 构造通用目标选择 Prompt（目标列表由 data["target_ids"] 提供）。
+func BuildTargetChoicePrompt(rt ChoiceRuntime, playerID string, message string, data map[string]interface{}, allowCancel bool) *model.Prompt {
+	targetIDs := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
+	options := make([]model.PromptOption, 0, len(targetIDs)+1)
+	for _, targetID := range targetIDs {
+		if target := rt.GetPlayers()[targetID]; target != nil {
+			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", len(options)), Label: target.Name})
+		}
+	}
+	if allowCancel {
+		options = append(options, model.PromptOption{ID: "cancel", Label: "取消"})
+	}
+	return &model.Prompt{
+		Type:     model.PromptConfirm,
+		PlayerID: playerID,
+		Message:  message,
+		Options:  options,
+		Min:      1,
+		Max:      1,
+	}
 }

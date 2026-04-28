@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"starcup-engine/internal/engine/core/runtimeutil"
 	playerpkg "starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
 )
@@ -32,12 +33,14 @@ func newDiscardChoiceInterrupt(playerID string, data map[string]interface{}) *mo
 	}
 }
 
-func isBeastSamuraiDiscardChoiceType(choiceType string) bool {
-	return strings.HasPrefix(choiceType, "bs_") && strings.HasSuffix(choiceType, "_discard")
+func isDiscardChoiceType(choiceType string) bool {
+	return choiceType == choiceTypeSystemDiscardCards
 }
 
-func isDiscardChoiceType(choiceType string) bool {
-	return choiceType == choiceTypeSystemDiscardCards || isBeastSamuraiDiscardChoiceType(choiceType)
+// isDiscardSubflow checks whether the interrupt context represents a discard
+// sub-flow (regardless of which role owns the choice_type).
+func isDiscardSubflow(data map[string]interface{}) bool {
+	return runtimeutil.ToBoolContextValue(data["discard_subflow"])
 }
 
 // shouldExcludeCardFromDiscard 遍历所有角色条目，判断某张牌是否应从弃牌选项中排除。
@@ -61,7 +64,7 @@ func (e *GameEngine) pendingDiscardContext() (map[string]interface{}, error) {
 			return nil, fmt.Errorf("弃牌中断上下文格式错误")
 		}
 		choiceType, _ := data["choice_type"].(string)
-		if isDiscardChoiceType(choiceType) || isDiscardSelectionInterrupt(intr) {
+		if isDiscardChoiceType(choiceType) || isDiscardSubflow(data) || isDiscardSelectionInterrupt(intr) {
 			return data, nil
 		}
 	}

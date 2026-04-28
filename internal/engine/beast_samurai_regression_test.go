@@ -277,7 +277,7 @@ func TestBeastSamurai_BeastSoulAlert_RunsOnOtherPlayerTapped(t *testing.T) {
 	}
 	requireBeastSamuraiDiscardInterrupt(t, game, "p2", "bs_alert_source_discard")
 
-	if err := game.ConfirmDiscard("p2", []int{0}); err != nil {
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{0}}); err != nil {
 		t.Fatalf("confirm alert discard failed: %v", err)
 	}
 
@@ -330,12 +330,12 @@ func TestBeastSamurai_BeastReturn_XFlowAndMagicDiscardGainSoul(t *testing.T) {
 	}
 	requireBeastSamuraiDiscardInterrupt(t, game, "p1", "bs_beast_return_self_discard")
 
-	if err := game.ConfirmDiscard("p1", []int{0}); err != nil {
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("confirm self discard failed: %v", err)
 	}
 	requireBeastSamuraiDiscardInterrupt(t, game, "p2", "bs_beast_return_source_discard")
 
-	if err := game.ConfirmDiscard("p2", []int{0}); err != nil {
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{0}}); err != nil {
 		t.Fatalf("confirm source discard failed: %v", err)
 	}
 
@@ -467,8 +467,11 @@ func TestBeastSamurai_ReversalIaijutsu_ReplacesDamageWithDiscard(t *testing.T) {
 	}
 	requireBeastSamuraiDiscardInterrupt(t, game, "p2", "bs_reversal_target_discard")
 
-	if err := game.ConfirmDiscard("p2", []int{0, 1}); err != nil {
-		t.Fatalf("confirm reversal discard failed: %v", err)
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{0}}); err != nil {
+		t.Fatalf("confirm reversal discard (1st) failed: %v", err)
+	}
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{0}}); err != nil {
+		t.Fatalf("confirm reversal discard (2nd) failed: %v", err)
 	}
 	if paused := game.processPendingDamages(); paused {
 		t.Fatalf("expected zero-damage attack to finish after reversal discard")

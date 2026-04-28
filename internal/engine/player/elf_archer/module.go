@@ -46,7 +46,7 @@ func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 		"elf_elemental_shot_discard_magic":   types.ChoiceRouteRole("elf_archer"),
 		"elf_elemental_shot_remove_blessing": types.ChoiceRouteRole("elf_archer"),
 		"elf_pet_empower_confirm":            types.ChoiceRouteRole("elf_archer"),
-		"elf_pet_empower_target":             types.ChoiceRouteTargetPrompt("elf"),
-		"elf_ritual_release_target":          types.ChoiceRouteTargetPrompt("elf"),
+		"elf_pet_empower_target":             types.ChoiceRouteRole("elf_archer"),
+		"elf_ritual_release_target":          types.ChoiceRouteRole("elf_archer"),
 	}
 }

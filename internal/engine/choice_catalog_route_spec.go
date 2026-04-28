@@ -10,10 +10,8 @@ type ChoiceRouteSpec = types.ChoiceRouteSpec
 
 // 导出常量（通过别名自动可用）。
 const (
-	ChoiceRouteKindRole         = types.ChoiceRouteKindRole
-	ChoiceRouteKindSystem       = types.ChoiceRouteKindSystem
-	ChoiceRouteKindTargetPrompt = types.ChoiceRouteKindTargetPrompt
-	ChoiceRouteKindSpecial      = types.ChoiceRouteKindSpecial
+	ChoiceRouteKindRole   = types.ChoiceRouteKindRole
+	ChoiceRouteKindSystem = types.ChoiceRouteKindSystem
 )
 
 // ChoiceRouteRole 调用 types 包的构造函数。
@@ -24,14 +22,4 @@ func ChoiceRouteRole(role string) ChoiceRouteSpec {
 // ChoiceRouteSystem 调用 types 包的构造函数。
 func ChoiceRouteSystem() ChoiceRouteSpec {
 	return types.ChoiceRouteSystem()
-}
-
-// ChoiceRouteTargetPrompt 调用 types 包的构造函数。
-func ChoiceRouteTargetPrompt(route string) ChoiceRouteSpec {
-	return types.ChoiceRouteTargetPrompt(route)
-}
-
-// ChoiceRouteSpecial 调用 types 包的构造函数。
-func ChoiceRouteSpecial(special string) ChoiceRouteSpec {
-	return types.ChoiceRouteSpecial(special)
 }

@@ -83,8 +83,8 @@ func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 	return map[string]types.ChoiceRouteSpec{
 		"priest_divine_contract_target":      types.ChoiceRouteRole("priest"),
 		"priest_divine_contract_x":           types.ChoiceRouteRole("priest"),
-		"priest_divine_domain_damage_target": types.ChoiceRouteTargetPrompt("priest"),
-		"priest_divine_domain_heal_target":   types.ChoiceRouteTargetPrompt("priest"),
+		"priest_divine_domain_damage_target": types.ChoiceRouteRole("priest"),
+		"priest_divine_domain_heal_target":   types.ChoiceRouteRole("priest"),
 		"priest_divine_domain_mode":          types.ChoiceRouteRole("priest"),
 		"priest_divine_domain_pick":          types.ChoiceRouteRole("priest"),
 		"priest_divine_revelation_pick":      types.ChoiceRouteRole("priest"),

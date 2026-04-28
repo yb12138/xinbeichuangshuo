@@ -21,7 +21,7 @@ func NewChoiceHandler() engineplayer.ChoiceHandler {
 // BuildPrompt
 // ---------------------------------------------------------------------------
 
-func (choiceHandler) BuildPrompt(_ engineplayer.ChoiceRuntime, choiceType, playerID string, player *model.Player, data map[string]interface{}) *model.Prompt {
+func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, playerID string, player *model.Player, data map[string]interface{}) *model.Prompt {
 	switch choiceType {
 	case "mb_charge_draw_x":
 		return buildChargeDrawXPrompt(playerID, data)
@@ -31,6 +31,12 @@ func (choiceHandler) BuildPrompt(_ engineplayer.ChoiceRuntime, choiceType, playe
 		return buildChargePlaceCardsPrompt(playerID, player, data, choiceType)
 	case "mb_thunder_scatter_extra":
 		return buildThunderScatterExtraPrompt(playerID, data)
+	case "mb_demon_eye_target":
+		return engineplayer.BuildTargetChoicePrompt(rt, playerID, "【魔眼】请选择弃1张牌的目标角色：", data, false)
+	case "mb_multi_shot_target":
+		return engineplayer.BuildTargetChoicePrompt(rt, playerID, "【多重射击】请选择暗系追加攻击目标：", data, false)
+	case "mb_thunder_scatter_target":
+		return engineplayer.BuildTargetChoicePrompt(rt, playerID, fmt.Sprintf("【雷光散射】请选择额外受到%d点法术伤害的目标：", runtimeutil.ToIntContextValue(data["extra_x"])), data, false)
 	default:
 		return nil
 	}
@@ -544,6 +550,66 @@ func handleTargetChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]interf
 	}
 
 	return nil
+}
+
+// ---------------------------------------------------------------------------
+// AfterDiscardFollowup: 魔眼弃牌后续
+// ---------------------------------------------------------------------------
+
+// demonEyeAfterDiscardFollowup 处理魔眼目标弃牌后的后续流程。
+// 当弃牌中断的 context 中包含 mb_demon_eye_user_id 时：
+//   - 魔弓无手牌 → 获得1点蓝水晶，恢复行动阶段
+//   - 魔弓有手牌 → 推入 mb_demon_eye_charge_card 选择中断
+func demonEyeAfterDiscardFollowup(rt engineplayer.ChoiceRuntime, discardPlayer *model.Player) bool {
+	pending := rt.GetPendingInterrupt()
+	if pending == nil {
+		return false
+	}
+	data, ok := pending.Context.(map[string]interface{})
+	if !ok {
+		return false
+	}
+	demonEyeUserID, _ := data["mb_demon_eye_user_id"].(string)
+	if demonEyeUserID == "" {
+		return false
+	}
+	user := rt.GetPlayers()[demonEyeUserID]
+	if user == nil {
+		return false
+	}
+
+	if len(user.Hand) == 0 {
+		// 无手牌：获得1点蓝水晶
+		maxEnergy := rt.GetPlayerEnergyCap(user)
+		if user.Gem+user.Crystal < maxEnergy {
+			user.Crystal++
+			if user.Gem+user.Crystal > maxEnergy {
+				user.Crystal -= user.Gem + user.Crystal - maxEnergy
+			}
+		}
+		rt.Log(fmt.Sprintf("%s 的 [魔眼] 生效：已完成目标弃牌，但自己无手牌可充能，改为仅获得1点蓝水晶", user.Name))
+		rt.PopInterrupt()
+		if rt.GetPendingInterrupt() == nil {
+			rt.ApplyChoiceResumePoint(model.TurnStageActionStart)
+		}
+		return true
+	}
+
+	// 有手牌：推入充能选择中断
+	rt.PopInterrupt()
+	rt.PushInterrupt(&model.Interrupt{
+		Type:     model.InterruptChoice,
+		PlayerID: demonEyeUserID,
+		Context: map[string]interface{}{
+			"choice_type":       "mb_demon_eye_charge_card",
+			"user_id":           demonEyeUserID,
+			"need_count":        1,
+			"selected_indices":  []int{},
+			"remaining_indices": allHandIndices(user),
+		},
+	})
+	rt.Log(fmt.Sprintf("%s 的 [魔眼] 生效：%s 已弃置1张手牌，请选择1张手牌作为充能", user.Name, discardPlayer.Name))
+	return true
 }
 
 // ---------------------------------------------------------------------------

@@ -109,14 +109,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: msg, Options: options, Min: 1, Max: 1}
 
 	case "ml_stardust_target":
-		targetIDs := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
-		options := make([]model.PromptOption, 0, len(targetIDs))
-		for _, targetID := range targetIDs {
-			if target := rt.GetPlayers()[targetID]; target != nil {
-				options = append(options, model.PromptOption{ID: targetID, Label: target.Name})
-			}
-		}
-		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【幻影星尘】请选择2点法术伤害目标：", Options: options, Min: 1, Max: 1}
+		return engineplayer.BuildTargetChoicePrompt(rt, playerID, "【幻影星尘】请选择2点法术伤害目标：", data, false)
 	}
 	return nil
 }

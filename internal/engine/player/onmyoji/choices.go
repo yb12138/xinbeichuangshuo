@@ -81,46 +81,13 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		}
 
 	case "onmyoji_dark_ritual_target":
-		options := buildPromptOptionsForPlayerIDs(rt, runtimeutil.ParseStringSliceContextValue(data["target_ids"]))
-		if len(options) == 0 {
-			return nil
-		}
-		return &model.Prompt{
-			Type:     model.PromptConfirm,
-			PlayerID: playerID,
-			Message:  "【黑暗祭礼】请选择2点法术伤害目标：",
-			Options:  options,
-			Min:      1,
-			Max:      1,
-		}
+		return engineplayer.BuildTargetChoicePrompt(rt, playerID, "【黑暗祭礼】请选择2点法术伤害目标：", data, false)
 
 	case "onmyoji_life_barrier_support_target":
-		options := buildPromptOptionsForPlayerIDs(rt, runtimeutil.ParseStringSliceContextValue(data["target_ids"]))
-		if len(options) == 0 {
-			return nil
-		}
-		return &model.Prompt{
-			Type:     model.PromptConfirm,
-			PlayerID: playerID,
-			Message:  "【生命结界·分支①】请选择获得+1宝石/+1治疗的队友：",
-			Options:  options,
-			Min:      1,
-			Max:      1,
-		}
+		return engineplayer.BuildTargetChoicePrompt(rt, playerID, "【生命结界·分支①】请选择获得+1宝石/+1治疗的队友：", data, false)
 
 	case "onmyoji_life_barrier_release_target":
-		options := buildPromptOptionsForPlayerIDs(rt, runtimeutil.ParseStringSliceContextValue(data["target_ids"]))
-		if len(options) == 0 {
-			return nil
-		}
-		return &model.Prompt{
-			Type:     model.PromptConfirm,
-			PlayerID: playerID,
-			Message:  "【生命结界·分支②】请选择弃1张手牌的队友：",
-			Options:  options,
-			Min:      1,
-			Max:      1,
-		}
+		return engineplayer.BuildTargetChoicePrompt(rt, playerID, "【生命结界·分支②】请选择弃1张手牌的队友：", data, false)
 
 	case "onmyoji_yinyang_confirm":
 		return &model.Prompt{

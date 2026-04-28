@@ -15,7 +15,7 @@ func turnStartResetHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHook
 	if p == nil || !engineplayer.IsCharacter(p, "arbiter") {
 		return engineplayer.TimingHookResult{}
 	}
-	p.TurnState.UsedSkillCounts["arbiter_skip_forced_doomsday"] = 0
+	p.TurnState.ActionPhaseSkippedThisTurn = false
 	p.TurnState.UsedSkillCounts["arbiter_forced_doomsday_done_turn"] = 0
 	return engineplayer.TimingHookResult{}
 }
@@ -45,7 +45,7 @@ func turnStartForcedDoomsdayHook(rt engineplayer.HookRuntime, ctx engineplayer.T
 		return engineplayer.TimingHookResult{}
 	}
 	engineplayer.EnsurePlayerTokensMap(p)
-	if p.Tokens["judgment"] < 4 || p.TurnState.UsedSkillCounts["arbiter_skip_forced_doomsday"] != 0 || p.TurnState.UsedSkillCounts["arbiter_forced_doomsday_done_turn"] != 0 {
+	if p.Tokens["judgment"] < 4 || p.TurnState.ActionPhaseSkippedThisTurn || p.TurnState.UsedSkillCounts["arbiter_forced_doomsday_done_turn"] != 0 {
 		p.TurnState.UsedSkillCounts["arbiter_forced_doomsday_pending"] = 0
 		return engineplayer.TimingHookResult{}
 	}

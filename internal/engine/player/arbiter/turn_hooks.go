@@ -15,7 +15,7 @@ func ForcedDoomsdayStartup(rt engineplayer.ChoiceRuntime, player *model.Player) 
 		return false
 	}
 	engineplayer.EnsurePlayerTokensMap(player)
-	if player.Tokens["judgment"] < 4 || player.TurnState.UsedSkillCounts["arbiter_skip_forced_doomsday"] != 0 || player.TurnState.UsedSkillCounts["arbiter_forced_doomsday_done_turn"] != 0 {
+	if player.Tokens["judgment"] < 4 || player.TurnState.ActionPhaseSkippedThisTurn || player.TurnState.UsedSkillCounts["arbiter_forced_doomsday_done_turn"] != 0 {
 		player.TurnState.UsedSkillCounts["arbiter_forced_doomsday_pending"] = 0
 		return false
 	}

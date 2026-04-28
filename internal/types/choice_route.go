@@ -6,18 +6,14 @@ package types
 type ChoiceRouteKind string
 
 const (
-	ChoiceRouteKindRole         ChoiceRouteKind = "role"
-	ChoiceRouteKindSystem       ChoiceRouteKind = "system"
-	ChoiceRouteKindTargetPrompt ChoiceRouteKind = "target_prompt"
-	ChoiceRouteKindSpecial      ChoiceRouteKind = "special"
+	ChoiceRouteKindRole   ChoiceRouteKind = "role"
+	ChoiceRouteKindSystem ChoiceRouteKind = "system"
 )
 
-// ChoiceRouteSpec 定义 choice_type 的路由目的地（角色路由/系统路由/目标路由/特殊路由）。
+// ChoiceRouteSpec 定义 choice_type 的路由目的地（角色路由/系统路由）。
 type ChoiceRouteSpec struct {
-	Kind         ChoiceRouteKind
-	Role         string
-	TargetPrompt string
-	Special      string
+	Kind ChoiceRouteKind
+	Role string
 }
 
 // ChoiceRouteRole 返回角色路由规格。
@@ -35,22 +31,6 @@ func ChoiceRouteSystem() ChoiceRouteSpec {
 	}
 }
 
-// ChoiceRouteTargetPrompt 返回目标模板路由规格。
-func ChoiceRouteTargetPrompt(route string) ChoiceRouteSpec {
-	return ChoiceRouteSpec{
-		Kind:         ChoiceRouteKindTargetPrompt,
-		TargetPrompt: route,
-	}
-}
-
-// ChoiceRouteSpecial 返回特殊路由规格。
-func ChoiceRouteSpecial(special string) ChoiceRouteSpec {
-	return ChoiceRouteSpec{
-		Kind:    ChoiceRouteKindSpecial,
-		Special: special,
-	}
-}
-
 // Valid 检查路由规格是否有效。
 func (s ChoiceRouteSpec) Valid() bool {
 	switch s.Kind {
@@ -58,10 +38,6 @@ func (s ChoiceRouteSpec) Valid() bool {
 		return s.Role != ""
 	case ChoiceRouteKindSystem:
 		return true
-	case ChoiceRouteKindTargetPrompt:
-		return s.TargetPrompt != ""
-	case ChoiceRouteKindSpecial:
-		return s.Special != ""
 	default:
 		return false
 	}

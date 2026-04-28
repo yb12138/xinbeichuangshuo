@@ -36,7 +36,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 	case "sc_hundred_night_exclude_pick":
 		return buildHundredNightExcludePickPrompt(rt, playerID, data)
 	case "sc_hundred_night_target":
-		return buildHundredNightTargetPrompt(rt, playerID, data)
+		return engineplayer.BuildTargetChoicePrompt(rt, playerID, "【百鬼夜行】请选择1点法术伤害目标：", data, false)
 	case "sc_spiritual_collapse_confirm":
 		return buildSpiritualCollapseConfirmPrompt(playerID)
 	case "sc_talisman_wind_discard":
@@ -171,24 +171,6 @@ func buildHundredNightExcludePickPrompt(rt engineplayer.ChoiceRuntime, playerID 
 		Type:     model.PromptConfirm,
 		PlayerID: playerID,
 		Message:  fmt.Sprintf("【百鬼夜行】请选择第 %d/2 名排除目标：", len(selectedSet)+1),
-		Options:  options,
-		Min:      1,
-		Max:      1,
-	}
-}
-
-func buildHundredNightTargetPrompt(rt engineplayer.ChoiceRuntime, playerID string, data map[string]interface{}) *model.Prompt {
-	targetIDs := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
-	options := make([]model.PromptOption, 0, len(targetIDs))
-	for _, targetID := range targetIDs {
-		if target := rt.GetPlayers()[targetID]; target != nil {
-			options = append(options, model.PromptOption{ID: targetID, Label: target.Name})
-		}
-	}
-	return &model.Prompt{
-		Type:     model.PromptConfirm,
-		PlayerID: playerID,
-		Message:  "【百鬼夜行】请选择1点法术伤害目标：",
 		Options:  options,
 		Min:      1,
 		Max:      1,

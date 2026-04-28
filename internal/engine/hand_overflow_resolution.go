@@ -198,44 +198,11 @@ func (e *GameEngine) handleDiscardSelectionFollowups(player *model.Player, data 
 		return false, fmt.Errorf("玩家不存在")
 	}
 
-	if demonEyeUserID, _ := data["mb_demon_eye_user_id"].(string); demonEyeUserID != "" {
-		user := e.State.Players[demonEyeUserID]
-		if user == nil {
-			return false, fmt.Errorf("魔眼施法者不存在")
-		}
-		if len(user.Hand) == 0 {
-			maxEnergy := e.getPlayerEnergyCap(user)
-			if user.Gem+user.Crystal < maxEnergy {
-				user.Crystal++
-				if user.Gem+user.Crystal > maxEnergy {
-					user.Crystal -= user.Gem + user.Crystal - maxEnergy
-				}
-			}
-			e.Log(fmt.Sprintf("%s 的 [魔眼] 生效：已完成目标弃牌，但自己无手牌可充能，改为仅获得1点蓝水晶", user.Name))
-			e.PopInterrupt()
-			if e.State.PendingInterrupt == nil {
-				e.setTurnStage(model.TurnStageActionStart)
-			}
-			return true, nil
-		}
-		e.State.PendingInterrupt.Type = model.InterruptChoice
-		e.State.PendingInterrupt.PlayerID = demonEyeUserID
-		e.State.PendingInterrupt.Context = map[string]interface{}{
-			"choice_type":       "mb_demon_eye_charge_card",
-			"user_id":           demonEyeUserID,
-			"need_count":        1,
-			"selected_indices":  []int{},
-			"remaining_indices": allHandIndices(user),
-		}
-		e.syncGamePhaseWithInterrupt(e.State.PendingInterrupt)
-		e.Log(fmt.Sprintf("%s 的 [魔眼] 生效：%s 已弃置1张手牌，请选择1张手牌作为充能", user.Name, player.Name))
-		e.notifyInterruptPrompt()
-		return true, nil
-	}
-
 	for _, entry := range roleRegistry.Entries() {
 		if entry.AfterDiscardFollowup != nil {
-			entry.AfterDiscardFollowup(newRoleChoiceRuntime(e), player)
+			if entry.AfterDiscardFollowup(newRoleChoiceRuntime(e), player) {
+				return true, nil
+			}
 		}
 	}
 	return false, nil
@@ -299,18 +266,13 @@ func (e *GameEngine) resumePendingMoraleLoss(ctx *model.Context) bool {
 	discardedCards := discardedCardsFromContext(ctx.Selections["discarded_cards"])
 
 	finalLoss := e.applyMoraleLossAfterTimingWindow(victim, moraleLoss, isMagic, fromDamageDraw, overflowMoraleLossFixed, discardedCards, ctx)
-	mbChargeResume := runtimeutil.ToBoolContextValue(ctx.Selections["mb_charge_resume"])
 	discardPlayerID, _ := ctx.Selections["discard_player_id"].(string)
 	discardPlayer := e.State.Players[discardPlayerID]
 	if discardPlayer == nil {
 		discardPlayer = victim
 	}
 
-	if mbChargeResume {
-		if victim != nil {
-			e.Log(fmt.Sprintf("%s 的 [充能] 爆士气结算完成：士气-%d（本次不弃牌）", victim.Name, finalLoss))
-		}
-	} else if discardPlayer != nil {
+	if discardPlayer != nil {
 		e.Log(fmt.Sprintf("[System] %s 丢弃了 %d 张牌！士气 -%d", discardPlayer.Name, len(discardedCards), finalLoss))
 		for _, entry := range roleRegistry.Entries() {
 			if entry.AfterDiscardFollowup != nil {
@@ -321,31 +283,6 @@ func (e *GameEngine) resumePendingMoraleLoss(ctx *model.Context) bool {
 
 	ctx.Selections["morale_loss_pending"] = false
 	e.checkGameEnd()
-
-	if mbChargeResume {
-		if e.State.GameOver {
-			return true
-		}
-		maxPlace := runtimeutil.ToIntContextValue(ctx.Selections["mb_charge_max_place"])
-		userID, _ := ctx.Selections["mb_charge_user_id"].(string)
-		user := e.State.Players[userID]
-		if e.State.PendingInterrupt == nil {
-			if user != nil && maxPlace > 0 {
-				e.PushInterrupt(&model.Interrupt{
-					Type:     model.InterruptChoice,
-					PlayerID: user.ID,
-					Context: map[string]interface{}{
-						"choice_type": "mb_charge_place_count",
-						"user_id":     user.ID,
-						"max_place":   maxPlace,
-					},
-				})
-			} else {
-				e.setTurnStage(model.TurnStageActionStart)
-			}
-		}
-		return true
-	}
 
 	if e.State.PendingInterrupt == nil {
 		e.restorePhaseAfterDiscardResolution(

@@ -55,7 +55,7 @@ func SkillEntries() []player.SkillEntry {
 func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 	return map[string]types.ChoiceRouteSpec{
 		"se_soul_pick":             types.ChoiceRouteRole("sword_emperor"),
-		"se_sword_qi_slash_target": types.ChoiceRouteTargetPrompt("se"),
+		"se_sword_qi_slash_target": types.ChoiceRouteRole("sword_emperor"),
 		"se_sword_qi_slash_x":      types.ChoiceRouteRole("sword_emperor"),
 	}
 }

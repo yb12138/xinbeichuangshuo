@@ -66,57 +66,14 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 	case "elf_pet_empower_confirm":
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【宠物强化】是否消耗1蓝水晶，将效果改为任意角色摸1弃1？", Options: []model.PromptOption{{ID: "0", Label: "是"}, {ID: "1", Label: "否"}}, Min: 1, Max: 1}
 
-	case "elf_pet_empower_target":
-		targetIDs := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
-		options := make([]model.PromptOption, 0, len(targetIDs))
-		for _, targetID := range targetIDs {
-			if p := rt.GetPlayers()[targetID]; p != nil {
-				options = append(options, model.PromptOption{
-					ID:    targetID,
-					Label: p.Name,
-				})
-			}
-		}
-		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【宠物强化】请选择目标角色：", Options: options, Min: 1, Max: 1}
-
 	case "elf_elemental_shot_water_target":
-		targetIDs := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
-		options := make([]model.PromptOption, 0, len(targetIDs))
-		for _, targetID := range targetIDs {
-			if p := rt.GetPlayers()[targetID]; p != nil {
-				options = append(options, model.PromptOption{
-					ID:    targetID,
-					Label: p.Name,
-				})
-			}
-		}
-		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【元素射击·水之矢】请选择治疗目标：", Options: options, Min: 1, Max: 1}
-
+		return engineplayer.BuildTargetChoicePrompt(rt, playerID, "【水之矢】请选择+1治疗目标：", data, false)
 	case "elf_elemental_shot_earth_target":
-		targetIDs := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
-		options := make([]model.PromptOption, 0, len(targetIDs))
-		for _, targetID := range targetIDs {
-			if p := rt.GetPlayers()[targetID]; p != nil {
-				options = append(options, model.PromptOption{
-					ID:    targetID,
-					Label: p.Name,
-				})
-			}
-		}
-		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【元素射击·地之矢】请选择伤害目标：", Options: options, Min: 1, Max: 1}
-
+		return engineplayer.BuildTargetChoicePrompt(rt, playerID, "【地之矢】请选择1点法术伤害目标：", data, false)
+	case "elf_pet_empower_target":
+		return engineplayer.BuildTargetChoicePrompt(rt, playerID, "【宠物强化】请选择摸1弃1目标：", data, false)
 	case "elf_ritual_release_target":
-		targetIDs := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
-		options := make([]model.PromptOption, 0, len(targetIDs))
-		for _, targetID := range targetIDs {
-			if p := rt.GetPlayers()[targetID]; p != nil {
-				options = append(options, model.PromptOption{
-					ID:    targetID,
-					Label: p.Name,
-				})
-			}
-		}
-		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【仪式】请选择伤害目标：", Options: options, Min: 1, Max: 1}
+		return engineplayer.BuildTargetChoicePrompt(rt, playerID, "【精灵密仪】你已无祝福，转正并请选择1名敌方角色承受2点法术伤害：", data, false)
 	}
 	return nil
 }

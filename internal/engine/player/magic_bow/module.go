@@ -10,10 +10,11 @@ import (
 // RoleEntry 导出角色统一入口定义。
 func RoleEntry() player.RoleEntry {
 	return player.RoleEntry{
-		ID:               "magic_bow",
-		Choices:          NewChoiceHandler(),
-		Skills:           SkillEntries(),
-		ChoiceRouteSpecs: ChoiceRouteSpecs(),
+		ID:                   "magic_bow",
+		Choices:              NewChoiceHandler(),
+		Skills:               SkillEntries(),
+		ChoiceRouteSpecs:     ChoiceRouteSpecs(),
+		AfterDiscardFollowup: demonEyeAfterDiscardFollowup,
 		TimingHookSpecs: []player.TimingHookSpec{
 			{Timing: player.TimingOnAttackMiss, Priority: 300, Hook: attackMissHook},
 			{Timing: player.TimingOnAttackTargetCtx, Priority: 100, Hook: attackTargetCtxHook},
@@ -69,9 +70,9 @@ func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 		"mb_charge_place_count":     types.ChoiceRouteRole("magic_bow"),
 		"mb_demon_eye_charge_card":  types.ChoiceRouteRole("magic_bow"),
 		"mb_demon_eye_pick":         types.ChoiceRouteRole("magic_bow"),
-		"mb_demon_eye_target":       types.ChoiceRouteTargetPrompt("mb"),
-		"mb_multi_shot_target":      types.ChoiceRouteTargetPrompt("mb"),
+		"mb_demon_eye_target":       types.ChoiceRouteRole("magic_bow"),
+		"mb_multi_shot_target":      types.ChoiceRouteRole("magic_bow"),
 		"mb_thunder_scatter_extra":  types.ChoiceRouteRole("magic_bow"),
-		"mb_thunder_scatter_target": types.ChoiceRouteTargetPrompt("mb"),
+		"mb_thunder_scatter_target": types.ChoiceRouteRole("magic_bow"),
 	}
 }

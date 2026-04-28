@@ -88,6 +88,6 @@ func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 		"ml_fullness_cost_card":    types.ChoiceRouteRole("magic_lancer"),
 		"ml_fullness_discard_step": types.ChoiceRouteRole("magic_lancer"),
 		"ml_phantom_stardust_pick": types.ChoiceRouteRole("magic_lancer"),
-		"ml_stardust_target":       types.ChoiceRouteTargetPrompt("ml"),
+		"ml_stardust_target":       types.ChoiceRouteRole("magic_lancer"),
 	}
 }

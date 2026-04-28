@@ -114,7 +114,7 @@ func (e *GameEngine) handleSystemWeakChoice(playerID string, selectionIndex int)
 	switch selectionIndex {
 	case 0:
 		e.Log(fmt.Sprintf("[Weak] %s 选择跳过行动阶段", player.Name))
-		player.TurnState.UsedSkillCounts["arbiter_skip_forced_doomsday"] = 1
+		player.TurnState.ActionPhaseSkippedThisTurn = true
 		e.PopInterrupt()
 		if e.State.PendingInterrupt == nil {
 			e.enterTurnEndStage()
@@ -221,8 +221,12 @@ func (e *GameEngine) cancelSystemDiscardChoice(playerID string, ctxData map[stri
 	if skillID == "" {
 		return fmt.Errorf("当前弃牌为强制操作，不能取消")
 	}
-	if skillID == "mb_charge_followup_discard" {
-		return fmt.Errorf("【充能】弃牌为强制步骤，不能取消")
+	if forced, _ := ctxData["discard_forced"].(bool); forced {
+		reason, _ := ctxData["forced_reason"].(string)
+		if reason == "" {
+			reason = "当前弃牌为强制步骤，不能取消"
+		}
+		return fmt.Errorf(reason)
 	}
 	if _, hasUserCtx := ctxData["user_ctx"]; hasUserCtx {
 		return e.SkipResponse()

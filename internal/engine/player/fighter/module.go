@@ -61,7 +61,7 @@ func SkillEntries() []player.SkillEntry {
 // ChoiceRouteSpecs 导出角色 choice 路由声明。
 func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 	return map[string]types.ChoiceRouteSpec{
-		"fighter_hundred_dragon_target": types.ChoiceRouteTargetPrompt("fighter"),
-		"fighter_psi_bullet_target":     types.ChoiceRouteTargetPrompt("fighter"),
+		"fighter_hundred_dragon_target": types.ChoiceRouteRole("fighter"),
+		"fighter_psi_bullet_target":     types.ChoiceRouteRole("fighter"),
 	}
 }

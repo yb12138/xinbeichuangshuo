@@ -30,7 +30,7 @@ func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 		"sc_hundred_night_exclude_pick": types.ChoiceRouteRole("spirit_caster"),
 		"sc_hundred_night_fire_reveal":  types.ChoiceRouteRole("spirit_caster"),
 		"sc_hundred_night_power":        types.ChoiceRouteRole("spirit_caster"),
-		"sc_hundred_night_target":       types.ChoiceRouteTargetPrompt("sc"),
+		"sc_hundred_night_target":       types.ChoiceRouteRole("spirit_caster"),
 		"sc_incant_card":                types.ChoiceRouteRole("spirit_caster"),
 		"sc_incant_confirm":             types.ChoiceRouteRole("spirit_caster"),
 		"sc_spiritual_collapse_confirm": types.ChoiceRouteRole("spirit_caster"),
