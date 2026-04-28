@@ -4,7 +4,7 @@ package beast_samurai
 
 import (
 	"fmt"
-	skills "starcup-engine/internal/engine/skill"
+	engineplayer "starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
 )
 
@@ -13,29 +13,29 @@ const (
 	beastSamuraiBeastSoulCap = 2
 )
 
-type BeastSamuraiWarriorZanshinHandler struct{ skills.BaseHandler }
+type BeastSamuraiWarriorZanshinHandler struct{ engineplayer.BaseHandler }
 
-type BeastSamuraiOneStrikeNoThoughtHandler struct{ skills.BaseHandler }
+type BeastSamuraiOneStrikeNoThoughtHandler struct{ engineplayer.BaseHandler }
 
-type BeastSamuraiOneStrikeInterceptHandler struct{ skills.BaseHandler }
+type BeastSamuraiOneStrikeInterceptHandler struct{ engineplayer.BaseHandler }
 
-type BeastSamuraiBeastSoulWillHandler struct{ skills.BaseHandler }
+type BeastSamuraiBeastSoulWillHandler struct{ engineplayer.BaseHandler }
 
-type BeastSamuraiBeastSoulAlertHandler struct{ skills.BaseHandler }
+type BeastSamuraiBeastSoulAlertHandler struct{ engineplayer.BaseHandler }
 
-type BeastSamuraiBeastReturnHandler struct{ skills.BaseHandler }
+type BeastSamuraiBeastReturnHandler struct{ engineplayer.BaseHandler }
 
-type BeastSamuraiIaijutsuTurnEndDrainHandler struct{ skills.BaseHandler }
+type BeastSamuraiIaijutsuTurnEndDrainHandler struct{ engineplayer.BaseHandler }
 
-type BeastSamuraiIaijutsuExitOnDealDamageHandler struct{ skills.BaseHandler }
+type BeastSamuraiIaijutsuExitOnDealDamageHandler struct{ engineplayer.BaseHandler }
 
-type BeastSamuraiIaijutsuExitOnZeroHandler struct{ skills.BaseHandler }
+type BeastSamuraiIaijutsuExitOnZeroHandler struct{ engineplayer.BaseHandler }
 
-type BeastSamuraiIaijutsuTappedBoostHandler struct{ skills.BaseHandler }
+type BeastSamuraiIaijutsuTappedBoostHandler struct{ engineplayer.BaseHandler }
 
-type BeastSamuraiReversalIaijutsuSlashHandler struct{ skills.BaseHandler }
+type BeastSamuraiReversalIaijutsuSlashHandler struct{ engineplayer.BaseHandler }
 
-type BeastSamuraiIaijutsuStyleHandler struct{ skills.BaseHandler }
+type BeastSamuraiIaijutsuStyleHandler struct{ engineplayer.BaseHandler }
 
 func getToken(p *model.Player, key string) int {
 	if p == nil {

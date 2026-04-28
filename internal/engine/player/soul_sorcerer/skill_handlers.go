@@ -4,7 +4,7 @@ package soul_sorcerer
 
 import (
 	"fmt"
-	skills "starcup-engine/internal/engine/skill"
+	engineplayer "starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
 )
 
@@ -13,21 +13,21 @@ const (
 	soulSorcererYellowCap = 6
 )
 
-type SoulSorcererSoulDevourHandler struct{ skills.BaseHandler }
+type SoulSorcererSoulDevourHandler struct{ engineplayer.BaseHandler }
 
-type SoulSorcererSoulRecallHandler struct{ skills.BaseHandler }
+type SoulSorcererSoulRecallHandler struct{ engineplayer.BaseHandler }
 
-type SoulSorcererSoulConvertHandler struct{ skills.BaseHandler }
+type SoulSorcererSoulConvertHandler struct{ engineplayer.BaseHandler }
 
-type SoulSorcererSoulMirrorHandler struct{ skills.BaseHandler }
+type SoulSorcererSoulMirrorHandler struct{ engineplayer.BaseHandler }
 
-type SoulSorcererSoulBlastHandler struct{ skills.BaseHandler }
+type SoulSorcererSoulBlastHandler struct{ engineplayer.BaseHandler }
 
-type SoulSorcererSoulGrantHandler struct{ skills.BaseHandler }
+type SoulSorcererSoulGrantHandler struct{ engineplayer.BaseHandler }
 
-type SoulSorcererSoulLinkHandler struct{ skills.BaseHandler }
+type SoulSorcererSoulLinkHandler struct{ engineplayer.BaseHandler }
 
-type SoulSorcererSoulAmpHandler struct{ skills.BaseHandler }
+type SoulSorcererSoulAmpHandler struct{ engineplayer.BaseHandler }
 
 func getToken(p *model.Player, key string) int {
 	if p == nil {

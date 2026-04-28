@@ -9,6 +9,22 @@ import (
 	"starcup-engine/internal/model"
 )
 
+// CanPayCrystalLike 红宝石可替代蓝水晶（仅水晶消耗方向）。
+func CanPayCrystalLike(ctx *model.Context, amount int) bool {
+	if ctx == nil || ctx.User == nil || ctx.Game == nil {
+		return false
+	}
+	return ctx.Game.CanPayCrystalCost(ctx.User.ID, amount)
+}
+
+// SpendCrystalLike 红宝石可替代蓝水晶消耗。
+func SpendCrystalLike(ctx *model.Context, amount int) bool {
+	if ctx == nil || ctx.User == nil || ctx.Game == nil {
+		return false
+	}
+	return ctx.Game.ConsumeCrystalCost(ctx.User.ID, amount)
+}
+
 // EnsurePlayerTokensMap 确保 player.Tokens map 已初始化。
 func EnsurePlayerTokensMap(p *model.Player) {
 	if p != nil && p.Tokens == nil {

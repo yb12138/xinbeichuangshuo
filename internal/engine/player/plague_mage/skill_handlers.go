@@ -4,8 +4,8 @@ package plague_mage
 
 import (
 	"fmt"
+	engineplayer "starcup-engine/internal/engine/player"
 
-	skills "starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 )
 
@@ -47,7 +47,7 @@ func reverseOrderPlayers(players []*model.Player, sourceID string) []*model.Play
 
 // --- 瘟疫法师技能处理器 ---
 
-type PlagueImmortalHandler struct{ skills.BaseHandler }
+type PlagueImmortalHandler struct{ engineplayer.BaseHandler }
 
 func (h *PlagueImmortalHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.Timing != model.TimingOnActionEnd || ctx.EventCtx == nil {
@@ -70,11 +70,11 @@ func (h *PlagueImmortalHandler) Execute(ctx *model.Context) error {
 	return nil
 }
 
-type PlagueBlasphemyHandler struct{ skills.BaseHandler }
+type PlagueBlasphemyHandler struct{ engineplayer.BaseHandler }
 
 func (h *PlagueBlasphemyHandler) Execute(ctx *model.Context) error { return nil }
 
-type PlagueOutbreakHandler struct{ skills.BaseHandler }
+type PlagueOutbreakHandler struct{ engineplayer.BaseHandler }
 
 func (h *PlagueOutbreakHandler) CanUse(ctx *model.Context) bool {
 	return hasElementCard(ctx.User, model.ElementEarth)
@@ -98,7 +98,7 @@ func (h *PlagueOutbreakHandler) Execute(ctx *model.Context) error {
 	return nil
 }
 
-type PlagueDeathTouchHandler struct{ skills.BaseHandler }
+type PlagueDeathTouchHandler struct{ engineplayer.BaseHandler }
 
 func (h *PlagueDeathTouchHandler) CanUse(ctx *model.Context) bool {
 	if ctx.User.Heal < 2 {
@@ -162,7 +162,7 @@ func (h *PlagueDeathTouchHandler) Execute(ctx *model.Context) error {
 	return nil
 }
 
-type PlagueToxicNovaHandler struct{ skills.BaseHandler }
+type PlagueToxicNovaHandler struct{ engineplayer.BaseHandler }
 
 func (h *PlagueToxicNovaHandler) CanUse(ctx *model.Context) bool {
 	return ctx.User.Gem > 0

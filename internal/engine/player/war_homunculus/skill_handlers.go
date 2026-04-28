@@ -4,7 +4,7 @@ package war_homunculus
 
 import (
 	"fmt"
-	skills "starcup-engine/internal/engine/skill"
+	engineplayer "starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
 	"strings"
 )
@@ -57,26 +57,26 @@ func enterForm(p *model.Player, form string) {
 }
 
 func canPayCrystalLike(ctx *model.Context, amount int) bool {
-	return skills.CanPayCrystalLike(ctx, amount)
+	return engineplayer.CanPayCrystalLike(ctx, amount)
 }
 
 func spendCrystalLike(ctx *model.Context, amount int) bool {
-	return skills.SpendCrystalLike(ctx, amount)
+	return engineplayer.SpendCrystalLike(ctx, amount)
 }
 
 // --- 20. 英灵人形 ---
 
-type HomunculusBattlePatternHandler struct{ skills.BaseHandler }
+type HomunculusBattlePatternHandler struct{ engineplayer.BaseHandler }
 
-type HomunculusRageSuppressHandler struct{ skills.BaseHandler }
+type HomunculusRageSuppressHandler struct{ engineplayer.BaseHandler }
 
-type HomunculusRuneSmashHandler struct{ skills.BaseHandler }
+type HomunculusRuneSmashHandler struct{ engineplayer.BaseHandler }
 
-type HomunculusGlyphFusionHandler struct{ skills.BaseHandler }
+type HomunculusGlyphFusionHandler struct{ engineplayer.BaseHandler }
 
-type HomunculusRuneReforgeHandler struct{ skills.BaseHandler }
+type HomunculusRuneReforgeHandler struct{ engineplayer.BaseHandler }
 
-type HomunculusDualEchoHandler struct{ skills.BaseHandler }
+type HomunculusDualEchoHandler struct{ engineplayer.BaseHandler }
 
 func (h *HomunculusBattlePatternHandler) Execute(ctx *model.Context) error { return nil }
 

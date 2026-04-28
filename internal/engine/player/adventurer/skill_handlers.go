@@ -4,7 +4,7 @@ package adventurer
 
 import (
 	"fmt"
-	skills "starcup-engine/internal/engine/skill"
+	engineplayer "starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
 )
 
@@ -35,7 +35,7 @@ func canPayCrystalLike(ctx *model.Context, amount int) bool {
 
 // --- 冒险家技能处理器 ---
 
-type AdventurerFraudHandler struct{ skills.BaseHandler }
+type AdventurerFraudHandler struct{ engineplayer.BaseHandler }
 
 func (h *AdventurerFraudHandler) CanUse(ctx *model.Context) bool {
 	counts := map[model.Element]int{}
@@ -92,7 +92,7 @@ func (h *AdventurerFraudHandler) Execute(ctx *model.Context) error {
 	return nil
 }
 
-type AdventurerLuckyFortuneHandler struct{ skills.BaseHandler }
+type AdventurerLuckyFortuneHandler struct{ engineplayer.BaseHandler }
 
 func (h *AdventurerLuckyFortuneHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.Timing != model.TimingOnAttackDeclared {
@@ -115,7 +115,7 @@ func (h *AdventurerLuckyFortuneHandler) Execute(ctx *model.Context) error {
 	return nil
 }
 
-type AdventurerUndergroundLawHandler struct{ skills.BaseHandler }
+type AdventurerUndergroundLawHandler struct{ engineplayer.BaseHandler }
 
 func (h *AdventurerUndergroundLawHandler) CanUse(ctx *model.Context) bool {
 	return ctx.EventCtx != nil && ctx.EventCtx.ActionType == model.ActionBuy
@@ -127,7 +127,7 @@ func (h *AdventurerUndergroundLawHandler) Execute(ctx *model.Context) error {
 	return nil
 }
 
-type AdventurerStealSkyHandler struct{ skills.BaseHandler }
+type AdventurerStealSkyHandler struct{ engineplayer.BaseHandler }
 
 func (h *AdventurerStealSkyHandler) CanUse(ctx *model.Context) bool {
 	return canPayCrystalLike(ctx, 1)

@@ -4,21 +4,21 @@ package magic_lancer
 
 import (
 	"fmt"
-	skills "starcup-engine/internal/engine/skill"
+	engineplayer "starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
 )
 
-type MagicLancerDarkReleaseHandler struct{ skills.BaseHandler }
+type MagicLancerDarkReleaseHandler struct{ engineplayer.BaseHandler }
 
-type MagicLancerPhantomStardustHandler struct{ skills.BaseHandler }
+type MagicLancerPhantomStardustHandler struct{ engineplayer.BaseHandler }
 
-type MagicLancerDarkBindHandler struct{ skills.BaseHandler }
+type MagicLancerDarkBindHandler struct{ engineplayer.BaseHandler }
 
-type MagicLancerDarkBarrierHandler struct{ skills.BaseHandler }
+type MagicLancerDarkBarrierHandler struct{ engineplayer.BaseHandler }
 
-type MagicLancerFullnessHandler struct{ skills.BaseHandler }
+type MagicLancerFullnessHandler struct{ engineplayer.BaseHandler }
 
-type MagicLancerBlackSpearHandler struct{ skills.BaseHandler }
+type MagicLancerBlackSpearHandler struct{ engineplayer.BaseHandler }
 
 func magicLancerMagicCardCount(user *model.Player) int {
 	if user == nil {

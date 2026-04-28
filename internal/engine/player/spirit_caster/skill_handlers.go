@@ -4,7 +4,7 @@ package spirit_caster
 
 import (
 	"fmt"
-	skills "starcup-engine/internal/engine/skill"
+	engineplayer "starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
 )
 
@@ -22,15 +22,15 @@ func spiritCasterPowerCount(user *model.Player) int {
 	return count
 }
 
-type SpiritCasterTalismanThunderHandler struct{ skills.BaseHandler }
+type SpiritCasterTalismanThunderHandler struct{ engineplayer.BaseHandler }
 
-type SpiritCasterTalismanWindHandler struct{ skills.BaseHandler }
+type SpiritCasterTalismanWindHandler struct{ engineplayer.BaseHandler }
 
-type SpiritCasterIncantationHandler struct{ skills.BaseHandler }
+type SpiritCasterIncantationHandler struct{ engineplayer.BaseHandler }
 
-type SpiritCasterHundredNightHandler struct{ skills.BaseHandler }
+type SpiritCasterHundredNightHandler struct{ engineplayer.BaseHandler }
 
-type SpiritCasterSpiritualCollapseHandler struct{ skills.BaseHandler }
+type SpiritCasterSpiritualCollapseHandler struct{ engineplayer.BaseHandler }
 
 func (h *SpiritCasterTalismanThunderHandler) CanUse(ctx *model.Context) bool {
 	return ctx != nil && ctx.User != nil

@@ -5,25 +5,25 @@ package fighter
 import (
 	"fmt"
 	"sort"
-	skills "starcup-engine/internal/engine/skill"
+	engineplayer "starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
 )
 
 const fighterQiCap = 8
 
-type FighterPsiFieldHandler struct{ skills.BaseHandler }
+type FighterPsiFieldHandler struct{ engineplayer.BaseHandler }
 
-type FighterChargeStrikeHandler struct{ skills.BaseHandler }
+type FighterChargeStrikeHandler struct{ engineplayer.BaseHandler }
 
-type FighterPsiBulletHandler struct{ skills.BaseHandler }
+type FighterPsiBulletHandler struct{ engineplayer.BaseHandler }
 
-type FighterHundredDragonHandler struct{ skills.BaseHandler }
+type FighterHundredDragonHandler struct{ engineplayer.BaseHandler }
 
-type FighterBurstCrashHandler struct{ skills.BaseHandler }
+type FighterBurstCrashHandler struct{ engineplayer.BaseHandler }
 
-type FighterWarGodDriveHandler struct{ skills.BaseHandler }
+type FighterWarGodDriveHandler struct{ engineplayer.BaseHandler }
 
-type FighterWarGodDriveFollowupHandler struct{ skills.BaseHandler }
+type FighterWarGodDriveFollowupHandler struct{ engineplayer.BaseHandler }
 
 func (h *FighterPsiFieldHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.EventCtx == nil || ctx.EventCtx.DamageVal == nil {

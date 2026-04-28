@@ -4,14 +4,14 @@ package sealer
 
 import (
 	"fmt"
+	engineplayer "starcup-engine/internal/engine/player"
 
-	skills "starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 )
 
 // --- Magic Surge Handler ---
 
-type MagicSurgeHandler struct{ skills.BaseHandler }
+type MagicSurgeHandler struct{ engineplayer.BaseHandler }
 
 func (h *MagicSurgeHandler) CanUse(ctx *model.Context) bool {
 	if ctx.EventCtx == nil {
@@ -31,7 +31,7 @@ func (h *MagicSurgeHandler) Execute(ctx *model.Context) error {
 
 // --- Seal Break Handler ---
 
-type SealBreakHandler struct{ skills.BaseHandler }
+type SealBreakHandler struct{ engineplayer.BaseHandler }
 
 type basicEffectOption struct {
 	TargetID    string
@@ -153,7 +153,7 @@ func (h *SealBreakHandler) Execute(ctx *model.Context) error {
 
 // --- Five Elements Bind Handler ---
 
-type FiveElementsBindHandler struct{ skills.BaseHandler }
+type FiveElementsBindHandler struct{ engineplayer.BaseHandler }
 
 func (h *FiveElementsBindHandler) CanUse(ctx *model.Context) bool {
 	return ctx != nil && ctx.Timing == model.TimingActive && ctx.User != nil && ctx.Target != nil

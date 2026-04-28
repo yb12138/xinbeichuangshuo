@@ -4,7 +4,7 @@ package valkyrie
 
 import (
 	"fmt"
-	skills "starcup-engine/internal/engine/skill"
+	engineplayer "starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
 )
 
@@ -92,7 +92,7 @@ func minInt(a, b int) int {
 
 // --- 女武神技能处理器 ---
 
-type ValkyrieDivinePursuitHandler struct{ skills.BaseHandler }
+type ValkyrieDivinePursuitHandler struct{ engineplayer.BaseHandler }
 
 func (h *ValkyrieDivinePursuitHandler) CanUse(ctx *model.Context) bool {
 	if ctx.Timing != model.TimingOnActionEnd || ctx.EventCtx == nil {
@@ -117,7 +117,7 @@ func (h *ValkyrieDivinePursuitHandler) Execute(ctx *model.Context) error {
 	return nil
 }
 
-type ValkyrieOrderSealHandler struct{ skills.BaseHandler }
+type ValkyrieOrderSealHandler struct{ engineplayer.BaseHandler }
 
 func (h *ValkyrieOrderSealHandler) Execute(ctx *model.Context) error {
 	ctx.Game.DrawCards(ctx.User.ID, 2)
@@ -127,7 +127,7 @@ func (h *ValkyrieOrderSealHandler) Execute(ctx *model.Context) error {
 	return nil
 }
 
-type ValkyriePeaceWalkerHandler struct{ skills.BaseHandler }
+type ValkyriePeaceWalkerHandler struct{ engineplayer.BaseHandler }
 
 func (h *ValkyriePeaceWalkerHandler) CanUse(ctx *model.Context) bool {
 	if ctx.EventCtx != nil && ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
@@ -145,7 +145,7 @@ func (h *ValkyriePeaceWalkerHandler) Execute(ctx *model.Context) error {
 	return nil
 }
 
-type ValkyrieMilitaryGloryHandler struct{ skills.BaseHandler }
+type ValkyrieMilitaryGloryHandler struct{ engineplayer.BaseHandler }
 
 func (h *ValkyrieMilitaryGloryHandler) CanUse(ctx *model.Context) bool {
 	return ctx != nil && ctx.Timing == model.TimingOnTurnStart && hasForm(ctx.User, model.FormValkyrieHeroic)
@@ -168,7 +168,7 @@ func (h *ValkyrieMilitaryGloryHandler) Execute(ctx *model.Context) error {
 	return nil
 }
 
-type ValkyrieHeroicSummonHandler struct{ skills.BaseHandler }
+type ValkyrieHeroicSummonHandler struct{ engineplayer.BaseHandler }
 
 func (h *ValkyrieHeroicSummonHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.EventCtx == nil || ctx.EventCtx.AttackInfo == nil {

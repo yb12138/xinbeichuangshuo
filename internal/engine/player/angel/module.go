@@ -4,7 +4,6 @@ package angel
 
 import (
 	"starcup-engine/internal/engine/player"
-	skills "starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/types"
 )
 
@@ -21,10 +20,10 @@ func RoleEntry() player.RoleEntry {
 // SkillEntries 导出角色技能与策略绑定入口。
 func SkillEntries() []player.SkillEntry {
 	return []player.SkillEntry{
-		{ID: "angel_bond", Handler: &skills.AngelBondHandler{}},
+		{ID: "angel_bond", Handler: &AngelBondHandler{}},
 		{
 			ID:      "angel_blessing",
-			Handler: &skills.AngelBlessingHandler{},
+			Handler: &AngelBlessingHandler{},
 			Policy: types.SkillPolicy{
 				TargetRules: types.TargetRuleSet{
 					Count:       types.TargetCountRule{Min: 1, Max: 2, Err: "天使祝福只能指定 1 名或 2 名目标"},
@@ -35,16 +34,16 @@ func SkillEntries() []player.SkillEntry {
 		},
 		{
 			ID:      "angel_cleanse",
-			Handler: &skills.AngelCleanseHandler{},
+			Handler: &AngelCleanseHandler{},
 			Policy: types.SkillPolicy{
 				TargetRules: types.TargetRuleSet{
 					Count: types.TargetCountRule{Min: 0, Max: 1, Err: "风之洁净最多指定1名目标"},
 				},
 			},
 		},
-		{ID: "angel_song", Handler: &skills.AngelSongHandler{}},
-		{ID: "god_protection", Handler: &skills.GodProtectionHandler{}},
-		{ID: "angel_wall", Handler: &skills.AngelWallHandler{}},
+		{ID: "angel_song", Handler: &AngelSongHandler{}},
+		{ID: "god_protection", Handler: &GodProtectionHandler{}},
+		{ID: "angel_wall", Handler: &AngelWallHandler{}},
 	}
 }
 

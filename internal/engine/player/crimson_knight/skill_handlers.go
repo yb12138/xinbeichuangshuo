@@ -4,7 +4,7 @@ package crimson_knight
 
 import (
 	"fmt"
-	skills "starcup-engine/internal/engine/skill"
+	engineplayer "starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
 )
 
@@ -44,11 +44,11 @@ func addToken(p *model.Player, key string, delta int, minV int, maxV int) int {
 }
 
 func canPayCrystalLike(ctx *model.Context, amount int) bool {
-	return skills.CanPayCrystalLike(ctx, amount)
+	return engineplayer.CanPayCrystalLike(ctx, amount)
 }
 
 func spendCrystalLike(ctx *model.Context, amount int) bool {
-	return skills.SpendCrystalLike(ctx, amount)
+	return engineplayer.SpendCrystalLike(ctx, amount)
 }
 
 func hasForm(p *model.Player, form string) bool {
@@ -80,19 +80,19 @@ func addAttackAction(p *model.Player, source string) {
 
 // --- 19. 红莲骑士 ---
 
-type CrimsonKnightCrimsonPactHandler struct{ skills.BaseHandler }
+type CrimsonKnightCrimsonPactHandler struct{ engineplayer.BaseHandler }
 
-type CrimsonKnightCrimsonFaithHandler struct{ skills.BaseHandler }
+type CrimsonKnightCrimsonFaithHandler struct{ engineplayer.BaseHandler }
 
-type CrimsonKnightBloodyPrayerHandler struct{ skills.BaseHandler }
+type CrimsonKnightBloodyPrayerHandler struct{ engineplayer.BaseHandler }
 
-type CrimsonKnightKillingFeastHandler struct{ skills.BaseHandler }
+type CrimsonKnightKillingFeastHandler struct{ engineplayer.BaseHandler }
 
-type CrimsonKnightHotBloodHandler struct{ skills.BaseHandler }
+type CrimsonKnightHotBloodHandler struct{ engineplayer.BaseHandler }
 
-type CrimsonKnightCalmMindHandler struct{ skills.BaseHandler }
+type CrimsonKnightCalmMindHandler struct{ engineplayer.BaseHandler }
 
-type CrimsonKnightCrimsonCrossHandler struct{ skills.BaseHandler }
+type CrimsonKnightCrimsonCrossHandler struct{ engineplayer.BaseHandler }
 
 func (h *CrimsonKnightCrimsonPactHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {

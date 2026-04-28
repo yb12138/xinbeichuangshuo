@@ -5,7 +5,7 @@ package magic_bow
 import (
 	"fmt"
 	"sort"
-	skills "starcup-engine/internal/engine/skill"
+	engineplayer "starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
 )
 
@@ -125,18 +125,18 @@ func setSkillFlow(p *model.Player, key string, v int) {
 
 // --- 魔弓 ---
 
-type MagicBowMagicPierceHandler struct{ skills.BaseHandler }
+type MagicBowMagicPierceHandler struct{ engineplayer.BaseHandler }
 
-type MagicBowThunderScatterHandler struct{ skills.BaseHandler }
+type MagicBowThunderScatterHandler struct{ engineplayer.BaseHandler }
 
-type MagicBowMultiShotHandler struct{ skills.BaseHandler }
+type MagicBowMultiShotHandler struct{ engineplayer.BaseHandler }
 
-type MagicBowChargeHandler struct{ skills.BaseHandler }
+type MagicBowChargeHandler struct{ engineplayer.BaseHandler }
 
-type MagicBowDemonEyeHandler struct{ skills.BaseHandler }
+type MagicBowDemonEyeHandler struct{ engineplayer.BaseHandler }
 
 // 内部回调：用于"充能"在弃牌后继续执行摸牌/置充能流程。
-type MagicBowChargeFollowupDiscardHandler struct{ skills.BaseHandler }
+type MagicBowChargeFollowupDiscardHandler struct{ engineplayer.BaseHandler }
 
 func (h *MagicBowMagicPierceHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.Target == nil || ctx.EventCtx == nil {

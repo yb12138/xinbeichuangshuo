@@ -4,8 +4,8 @@ package onmyoji
 
 import (
 	"fmt"
+	engineplayer "starcup-engine/internal/engine/player"
 
-	skills "starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 )
 
@@ -80,7 +80,7 @@ func canPayCrystalLike(ctx *model.Context, amount int) bool {
 
 // --- Onmyoji Handlers ---
 
-type OnmyojiShikigamiDescendHandler struct{ skills.BaseHandler }
+type OnmyojiShikigamiDescendHandler struct{ engineplayer.BaseHandler }
 
 func (h *OnmyojiShikigamiDescendHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil {
@@ -119,13 +119,13 @@ func (h *OnmyojiShikigamiDescendHandler) Execute(ctx *model.Context) error {
 	return nil
 }
 
-type OnmyojiYinYangShiftHandler struct{ skills.BaseHandler }
+type OnmyojiYinYangShiftHandler struct{ engineplayer.BaseHandler }
 
 func (h *OnmyojiYinYangShiftHandler) CanUse(ctx *model.Context) bool { return false }
 
 func (h *OnmyojiYinYangShiftHandler) Execute(ctx *model.Context) error { return nil }
 
-type OnmyojiShikigamiShiftHandler struct{ skills.BaseHandler }
+type OnmyojiShikigamiShiftHandler struct{ engineplayer.BaseHandler }
 
 func (h *OnmyojiShikigamiShiftHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil {
@@ -145,17 +145,17 @@ func (h *OnmyojiShikigamiShiftHandler) Execute(ctx *model.Context) error {
 	return nil
 }
 
-type OnmyojiDarkRitualHandler struct{ skills.BaseHandler }
+type OnmyojiDarkRitualHandler struct{ engineplayer.BaseHandler }
 
 func (h *OnmyojiDarkRitualHandler) Execute(ctx *model.Context) error { return nil }
 
-type OnmyojiBindingHandler struct{ skills.BaseHandler }
+type OnmyojiBindingHandler struct{ engineplayer.BaseHandler }
 
 func (h *OnmyojiBindingHandler) CanUse(ctx *model.Context) bool { return false }
 
 func (h *OnmyojiBindingHandler) Execute(ctx *model.Context) error { return nil }
 
-type OnmyojiLifeBarrierHandler struct{ skills.BaseHandler }
+type OnmyojiLifeBarrierHandler struct{ engineplayer.BaseHandler }
 
 func (h *OnmyojiLifeBarrierHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {

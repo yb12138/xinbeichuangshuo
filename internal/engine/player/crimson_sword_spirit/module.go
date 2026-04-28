@@ -5,7 +5,6 @@ package crimson_sword_spirit
 import (
 	"fmt"
 	"starcup-engine/internal/engine/player"
-	skills "starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/types"
 )
@@ -61,11 +60,11 @@ func StarterCards(p *model.Player) []model.Card {
 // SkillEntries 导出角色技能与策略绑定入口。
 func SkillEntries() []player.SkillEntry {
 	return []player.SkillEntry{
-		{ID: "css_blood_thorns", Handler: &skills.CrimsonBloodThornsHandler{}},
-		{ID: "css_crimson_flash", Handler: &skills.CrimsonFlashHandler{}},
+		{ID: "css_blood_thorns", Handler: &CrimsonBloodThornsHandler{}},
+		{ID: "css_crimson_flash", Handler: &CrimsonFlashHandler{}},
 		{
 			ID:      "css_blood_rose",
-			Handler: &skills.CrimsonBloodRoseHandler{},
+			Handler: &CrimsonBloodRoseHandler{},
 			Policy: types.SkillPolicy{
 				TargetRules: types.TargetRuleSet{
 					Count: types.TargetCountRule{Min: 2, Max: 2, Err: "血染蔷薇需要恰好指定2名目标"},
@@ -75,9 +74,9 @@ func SkillEntries() []player.SkillEntry {
 				},
 			},
 		},
-		{ID: "css_blood_barrier", Handler: &skills.CrimsonBloodBarrierHandler{}},
-		{ID: "css_rose_courtyard", Handler: &skills.CrimsonRoseCourtyardHandler{}},
-		{ID: "css_dance", Handler: &skills.CrimsonDanceHandler{}},
+		{ID: "css_blood_barrier", Handler: &CrimsonBloodBarrierHandler{}},
+		{ID: "css_rose_courtyard", Handler: &CrimsonRoseCourtyardHandler{}},
+		{ID: "css_dance", Handler: &CrimsonDanceHandler{}},
 	}
 }
 

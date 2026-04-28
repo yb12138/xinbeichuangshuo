@@ -4,8 +4,8 @@ package moon
 
 import (
 	"fmt"
+	engineplayer "starcup-engine/internal/engine/player"
 
-	skills "starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 )
 
@@ -42,19 +42,19 @@ func moonGoddessEnemyIDsFromGame(game model.IGameEngine, user *model.Player) []s
 }
 
 // Handlers
-type MoonGoddessNewMoonShelterHandler struct{ skills.BaseHandler }
+type MoonGoddessNewMoonShelterHandler struct{ engineplayer.BaseHandler }
 
-type MoonGoddessDarkMoonCurseHandler struct{ skills.BaseHandler }
+type MoonGoddessDarkMoonCurseHandler struct{ engineplayer.BaseHandler }
 
-type MoonGoddessMedusaEyeHandler struct{ skills.BaseHandler }
+type MoonGoddessMedusaEyeHandler struct{ engineplayer.BaseHandler }
 
-type MoonGoddessMoonCycleHandler struct{ skills.BaseHandler }
+type MoonGoddessMoonCycleHandler struct{ engineplayer.BaseHandler }
 
-type MoonGoddessBlasphemyHandler struct{ skills.BaseHandler }
+type MoonGoddessBlasphemyHandler struct{ engineplayer.BaseHandler }
 
-type MoonGoddessDarkMoonSlashHandler struct{ skills.BaseHandler }
+type MoonGoddessDarkMoonSlashHandler struct{ engineplayer.BaseHandler }
 
-type MoonGoddessPaleMoonHandler struct{ skills.BaseHandler }
+type MoonGoddessPaleMoonHandler struct{ engineplayer.BaseHandler }
 
 func (h *MoonGoddessNewMoonShelterHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil || ctx.EventCtx.DamageVal == nil {

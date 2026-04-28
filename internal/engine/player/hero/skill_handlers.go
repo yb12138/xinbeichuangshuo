@@ -4,9 +4,9 @@ package hero
 
 import (
 	"fmt"
+	engineplayer "starcup-engine/internal/engine/player"
 
 	"starcup-engine/internal/engine/player"
-	skills "starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 )
 
@@ -114,19 +114,19 @@ func spendCrystalLike(ctx *model.Context, amount int) bool {
 }
 
 // Handlers
-type HeroHeartHandler struct{ skills.BaseHandler }
+type HeroHeartHandler struct{ engineplayer.BaseHandler }
 
-type HeroRoarHandler struct{ skills.BaseHandler }
+type HeroRoarHandler struct{ engineplayer.BaseHandler }
 
-type HeroForbiddenPowerHandler struct{ skills.BaseHandler }
+type HeroForbiddenPowerHandler struct{ engineplayer.BaseHandler }
 
-type HeroExhaustionHandler struct{ skills.BaseHandler }
+type HeroExhaustionHandler struct{ engineplayer.BaseHandler }
 
-type HeroCalmMindHandler struct{ skills.BaseHandler }
+type HeroCalmMindHandler struct{ engineplayer.BaseHandler }
 
-type HeroTauntHandler struct{ skills.BaseHandler }
+type HeroTauntHandler struct{ engineplayer.BaseHandler }
 
-type HeroDeadDuelHandler struct{ skills.BaseHandler }
+type HeroDeadDuelHandler struct{ engineplayer.BaseHandler }
 
 func (h *HeroHeartHandler) CanUse(ctx *model.Context) bool { return false }
 

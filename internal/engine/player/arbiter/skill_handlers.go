@@ -4,7 +4,7 @@ package arbiter
 
 import (
 	"fmt"
-	skills "starcup-engine/internal/engine/skill"
+	engineplayer "starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
 )
 
@@ -68,17 +68,17 @@ func leaveForm(p *model.Player, form string) {
 
 // --- Arbiter handlers ---
 
-type ArbiterLawHandler struct{ skills.BaseHandler }
+type ArbiterLawHandler struct{ engineplayer.BaseHandler }
 
-type ArbiterJudgmentTideHandler struct{ skills.BaseHandler }
+type ArbiterJudgmentTideHandler struct{ engineplayer.BaseHandler }
 
-type ArbiterRitualHandler struct{ skills.BaseHandler }
+type ArbiterRitualHandler struct{ engineplayer.BaseHandler }
 
-type ArbiterRitualBreakHandler struct{ skills.BaseHandler }
+type ArbiterRitualBreakHandler struct{ engineplayer.BaseHandler }
 
-type ArbiterDoomsdayHandler struct{ skills.BaseHandler }
+type ArbiterDoomsdayHandler struct{ engineplayer.BaseHandler }
 
-type ArbiterBalanceHandler struct{ skills.BaseHandler }
+type ArbiterBalanceHandler struct{ engineplayer.BaseHandler }
 
 func (h *ArbiterLawHandler) Execute(ctx *model.Context) error {
 	ctx.User.Crystal += 2
@@ -147,7 +147,7 @@ func (h *ArbiterDoomsdayHandler) Execute(ctx *model.Context) error {
 }
 
 func (h *ArbiterBalanceHandler) CanUse(ctx *model.Context) bool {
-	return skills.CanPayCrystalLike(ctx, 1)
+	return engineplayer.CanPayCrystalLike(ctx, 1)
 }
 
 func (h *ArbiterBalanceHandler) Execute(ctx *model.Context) error {

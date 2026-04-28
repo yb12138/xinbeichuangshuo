@@ -4,25 +4,25 @@ package butterfly_dancer
 
 import (
 	"fmt"
-	skills "starcup-engine/internal/engine/skill"
+	engineplayer "starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
 )
 
-type ButterflyLifeFireHandler struct{ skills.BaseHandler }
+type ButterflyLifeFireHandler struct{ engineplayer.BaseHandler }
 
-type ButterflyDanceHandler struct{ skills.BaseHandler }
+type ButterflyDanceHandler struct{ engineplayer.BaseHandler }
 
-type ButterflyPoisonPowderHandler struct{ skills.BaseHandler }
+type ButterflyPoisonPowderHandler struct{ engineplayer.BaseHandler }
 
-type ButterflyPilgrimageHandler struct{ skills.BaseHandler }
+type ButterflyPilgrimageHandler struct{ engineplayer.BaseHandler }
 
-type ButterflyMirrorHandler struct{ skills.BaseHandler }
+type ButterflyMirrorHandler struct{ engineplayer.BaseHandler }
 
-type ButterflyWitherHandler struct{ skills.BaseHandler }
+type ButterflyWitherHandler struct{ engineplayer.BaseHandler }
 
-type ButterflyChrysalisHandler struct{ skills.BaseHandler }
+type ButterflyChrysalisHandler struct{ engineplayer.BaseHandler }
 
-type ButterflyReverseHandler struct{ skills.BaseHandler }
+type ButterflyReverseHandler struct{ engineplayer.BaseHandler }
 
 type butterflyChrysalisResolver interface {
 	ResolveButterflyChrysalis(userID string) error

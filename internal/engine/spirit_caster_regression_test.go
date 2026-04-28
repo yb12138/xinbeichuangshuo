@@ -6,7 +6,6 @@ import (
 
 	"starcup-engine/internal/data"
 	spiritcasterplayer "starcup-engine/internal/engine/player/spirit_caster"
-	"starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 )
 
@@ -206,7 +205,7 @@ func TestSpiritCasterHundredNight_FireRevealAOEWithCollapse(t *testing.T) {
 			CounterInitiator: "",
 		},
 	})
-	h := &skills.SpiritCasterHundredNightHandler{}
+	h := &spiritcasterplayer.SpiritCasterHundredNightHandler{}
 	if !h.CanUse(ctx) {
 		t.Fatalf("expected hundred-night available with fire power")
 	}
@@ -279,7 +278,7 @@ func TestSpiritCasterHundredNight_NonFireSingleTarget(t *testing.T) {
 			CounterInitiator: "",
 		},
 	})
-	h := &skills.SpiritCasterHundredNightHandler{}
+	h := &spiritcasterplayer.SpiritCasterHundredNightHandler{}
 	if !h.CanUse(ctx) {
 		t.Fatalf("expected hundred-night available with non-fire power")
 	}

@@ -4,8 +4,8 @@ package blaze_witch
 
 import (
 	"fmt"
+	engineplayer "starcup-engine/internal/engine/player"
 
-	skills "starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 )
 
@@ -100,19 +100,19 @@ func spendCrystalLike(ctx *model.Context, amount int) bool {
 
 // --- BlazeWitch Handlers ---
 
-type BlazeWitchRebirthClockHandler struct{ skills.BaseHandler }
+type BlazeWitchRebirthClockHandler struct{ engineplayer.BaseHandler }
 
-type BlazeWitchBlazingCodexHandler struct{ skills.BaseHandler }
+type BlazeWitchBlazingCodexHandler struct{ engineplayer.BaseHandler }
 
-type BlazeWitchHeavenfireCleaveHandler struct{ skills.BaseHandler }
+type BlazeWitchHeavenfireCleaveHandler struct{ engineplayer.BaseHandler }
 
-type BlazeWitchWitchWrathHandler struct{ skills.BaseHandler }
+type BlazeWitchWitchWrathHandler struct{ engineplayer.BaseHandler }
 
-type BlazeWitchSubstituteDollHandler struct{ skills.BaseHandler }
+type BlazeWitchSubstituteDollHandler struct{ engineplayer.BaseHandler }
 
-type BlazeWitchPainLinkHandler struct{ skills.BaseHandler }
+type BlazeWitchPainLinkHandler struct{ engineplayer.BaseHandler }
 
-type BlazeWitchManaInversionHandler struct{ skills.BaseHandler }
+type BlazeWitchManaInversionHandler struct{ engineplayer.BaseHandler }
 
 func (h *BlazeWitchRebirthClockHandler) CanUse(ctx *model.Context) bool { return false }
 

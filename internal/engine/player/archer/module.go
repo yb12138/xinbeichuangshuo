@@ -4,7 +4,6 @@ package archer
 
 import (
 	"starcup-engine/internal/engine/player"
-	skills "starcup-engine/internal/engine/skill"
 )
 
 // RoleEntry 导出角色统一入口定义。
@@ -19,10 +18,10 @@ func RoleEntry() player.RoleEntry {
 // SkillEntries 导出角色技能与策略绑定入口。
 func SkillEntries() []player.SkillEntry {
 	return []player.SkillEntry{
-		{ID: "piercing_shot", Handler: &skills.PiercingShotHandler{}},
-		{ID: "lightning_arrow", Handler: &skills.LightningArrowHandler{}},
-		{ID: "snipe", Handler: &skills.SnipeHandler{}},
-		{ID: "precise_shot", Handler: &skills.PreciseShotHandler{}},
-		{ID: "flash_trap", Handler: &skills.FlashTrapHandler{}},
+		{ID: "piercing_shot", Handler: &PiercingShotHandler{}},
+		{ID: "lightning_arrow", Handler: &LightningArrowHandler{}},
+		{ID: "snipe", Handler: &SnipeHandler{}},
+		{ID: "precise_shot", Handler: &PreciseShotHandler{}},
+		{ID: "flash_trap", Handler: &FlashTrapHandler{}},
 	}
 }

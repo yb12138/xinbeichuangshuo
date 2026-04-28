@@ -4,7 +4,6 @@ package assassin
 
 import (
 	"starcup-engine/internal/engine/player"
-	skills "starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/types"
 )
@@ -41,9 +40,9 @@ func RoleEntry() player.RoleEntry {
 // SkillEntries 导出角色技能与策略绑定入口。
 func SkillEntries() []player.SkillEntry {
 	return []player.SkillEntry{
-		{ID: "backlash", Handler: &skills.BacklashHandler{}},
-		{ID: "water_shadow", Handler: &skills.WaterShadowHandler{}},
-		{ID: "stealth", Handler: &skills.StealthHandler{}},
+		{ID: "backlash", Handler: &BacklashHandler{}},
+		{ID: "water_shadow", Handler: &WaterShadowHandler{}},
+		{ID: "stealth", Handler: &StealthHandler{}},
 	}
 }
 

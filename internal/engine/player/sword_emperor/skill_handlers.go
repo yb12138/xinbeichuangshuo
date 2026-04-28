@@ -4,29 +4,29 @@ package sword_emperor
 
 import (
 	"fmt"
-	skills "starcup-engine/internal/engine/skill"
+	engineplayer "starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
 )
 
 const swordEmperorSwordQiCap = 5
 
-type SwordEmperorSwordSoulGuardHandler struct{ skills.BaseHandler }
+type SwordEmperorSwordSoulGuardHandler struct{ engineplayer.BaseHandler }
 
-type SwordEmperorFeintHandler struct{ skills.BaseHandler }
+type SwordEmperorFeintHandler struct{ engineplayer.BaseHandler }
 
-type SwordEmperorSwordQiSlashHandler struct{ skills.BaseHandler }
+type SwordEmperorSwordQiSlashHandler struct{ engineplayer.BaseHandler }
 
-type SwordEmperorAngelSoulHandler struct{ skills.BaseHandler }
+type SwordEmperorAngelSoulHandler struct{ engineplayer.BaseHandler }
 
-type SwordEmperorDemonSoulHandler struct{ skills.BaseHandler }
+type SwordEmperorDemonSoulHandler struct{ engineplayer.BaseHandler }
 
-type SwordEmperorAngelSoulHitHandler struct{ skills.BaseHandler }
+type SwordEmperorAngelSoulHitHandler struct{ engineplayer.BaseHandler }
 
-type SwordEmperorAngelSoulMissHandler struct{ skills.BaseHandler }
+type SwordEmperorAngelSoulMissHandler struct{ engineplayer.BaseHandler }
 
-type SwordEmperorDemonSoulMissHandler struct{ skills.BaseHandler }
+type SwordEmperorDemonSoulMissHandler struct{ engineplayer.BaseHandler }
 
-type SwordEmperorIndomitableWillHandler struct{ skills.BaseHandler }
+type SwordEmperorIndomitableWillHandler struct{ engineplayer.BaseHandler }
 
 func (h *SwordEmperorSwordSoulGuardHandler) CanUse(ctx *model.Context) bool { return false }
 

@@ -4,7 +4,7 @@ package magic_swordsman
 
 import (
 	"fmt"
-	skills "starcup-engine/internal/engine/skill"
+	engineplayer "starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
 )
 
@@ -64,17 +64,17 @@ func leaveForm(p *model.Player, form string) {
 	p.Form = ""
 }
 
-type MagicSwordsmanAsuraComboHandler struct{ skills.BaseHandler }
+type MagicSwordsmanAsuraComboHandler struct{ engineplayer.BaseHandler }
 
-type MagicSwordsmanShadowGatherHandler struct{ skills.BaseHandler }
+type MagicSwordsmanShadowGatherHandler struct{ engineplayer.BaseHandler }
 
-type MagicSwordsmanShadowPowerHandler struct{ skills.BaseHandler }
+type MagicSwordsmanShadowPowerHandler struct{ engineplayer.BaseHandler }
 
-type MagicSwordsmanShadowRejectHandler struct{ skills.BaseHandler }
+type MagicSwordsmanShadowRejectHandler struct{ engineplayer.BaseHandler }
 
-type MagicSwordsmanShadowMeteorHandler struct{ skills.BaseHandler }
+type MagicSwordsmanShadowMeteorHandler struct{ engineplayer.BaseHandler }
 
-type MagicSwordsmanYellowSpringHandler struct{ skills.BaseHandler }
+type MagicSwordsmanYellowSpringHandler struct{ engineplayer.BaseHandler }
 
 func (h *MagicSwordsmanAsuraComboHandler) CanUse(ctx *model.Context) bool {
 	if ctx.Timing != model.TimingOnActionEnd || ctx.EventCtx == nil {

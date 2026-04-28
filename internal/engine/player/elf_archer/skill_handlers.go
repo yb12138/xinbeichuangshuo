@@ -4,26 +4,26 @@ package elf_archer
 
 import (
 	"fmt"
+	engineplayer "starcup-engine/internal/engine/player"
 	"strings"
 
 	"starcup-engine/internal/engine/player"
-	skills "starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 )
 
 // ElfElementalShotHandler 元素射击
-type ElfElementalShotHandler struct{ skills.BaseHandler }
+type ElfElementalShotHandler struct{ engineplayer.BaseHandler }
 
 // ElfAnimalCompanionHandler 动物伙伴
-type ElfAnimalCompanionHandler struct{ skills.BaseHandler }
+type ElfAnimalCompanionHandler struct{ engineplayer.BaseHandler }
 
 // ElfRitualHandler 精灵密仪
-type ElfRitualHandler struct{ skills.BaseHandler }
+type ElfRitualHandler struct{ engineplayer.BaseHandler }
 
 // ElfPetEmpowerHandler 宠物强化
-type ElfPetEmpowerHandler struct{ skills.BaseHandler }
+type ElfPetEmpowerHandler struct{ engineplayer.BaseHandler }
 
-// CanUse implements skills.BaseHandler for ElfElementalShotHandler.
+// CanUse implements engineplayer.BaseHandler for ElfElementalShotHandler.
 func (h *ElfElementalShotHandler) CanUse(ctx *model.Context) bool {
 	if ctx.Timing != model.TimingOnAttackDeclared || ctx.EventCtx == nil || ctx.EventCtx.Card == nil {
 		return false
@@ -44,7 +44,7 @@ func (h *ElfElementalShotHandler) CanUse(ctx *model.Context) bool {
 	return hasMagic || countElfBlessings(ctx.User) > 0
 }
 
-// Execute implements skills.BaseHandler for ElfElementalShotHandler.
+// Execute implements engineplayer.BaseHandler for ElfElementalShotHandler.
 func (h *ElfElementalShotHandler) Execute(ctx *model.Context) error {
 	if ctx.EventCtx == nil || ctx.EventCtx.Card == nil {
 		return nil
@@ -73,7 +73,7 @@ func (h *ElfElementalShotHandler) Execute(ctx *model.Context) error {
 	return nil
 }
 
-// CanUse implements skills.BaseHandler for ElfAnimalCompanionHandler.
+// CanUse implements engineplayer.BaseHandler for ElfAnimalCompanionHandler.
 func (h *ElfAnimalCompanionHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.Target == nil || ctx.EventCtx == nil || ctx.EventCtx.DamageVal == nil {
 		return false
@@ -93,17 +93,17 @@ func (h *ElfAnimalCompanionHandler) CanUse(ctx *model.Context) bool {
 	return ctx.User.IsActive
 }
 
-// Execute implements skills.BaseHandler for ElfAnimalCompanionHandler.
+// Execute implements engineplayer.BaseHandler for ElfAnimalCompanionHandler.
 func (h *ElfAnimalCompanionHandler) Execute(ctx *model.Context) error {
 	return resolveElfForcedDrawDiscard(ctx.Game, ctx.User, "【动物伙伴】请选择弃置1张牌：", true)
 }
 
-// CanUse implements skills.BaseHandler for ElfRitualHandler.
+// CanUse implements engineplayer.BaseHandler for ElfRitualHandler.
 func (h *ElfRitualHandler) CanUse(ctx *model.Context) bool {
 	return ctx.User.Gem > 0 && !player.HasForm(ctx.User, model.FormElfArcherRitual)
 }
 
-// Execute implements skills.BaseHandler for ElfRitualHandler.
+// Execute implements engineplayer.BaseHandler for ElfRitualHandler.
 func (h *ElfRitualHandler) Execute(ctx *model.Context) error {
 	if ctx.User.Gem <= 0 {
 		return fmt.Errorf("精灵密仪需要至少1个红宝石")
@@ -126,9 +126,9 @@ func (h *ElfRitualHandler) Execute(ctx *model.Context) error {
 	return nil
 }
 
-// CanUse implements skills.BaseHandler for ElfPetEmpowerHandler.
+// CanUse implements engineplayer.BaseHandler for ElfPetEmpowerHandler.
 func (h *ElfPetEmpowerHandler) CanUse(ctx *model.Context) bool {
-	if !skills.CanPayCrystalLike(ctx, 1) {
+	if !engineplayer.CanPayCrystalLike(ctx, 1) {
 		return false
 	}
 	if ctx == nil || ctx.User == nil || ctx.Target == nil || ctx.EventCtx == nil || ctx.EventCtx.DamageVal == nil {
@@ -149,15 +149,15 @@ func (h *ElfPetEmpowerHandler) CanUse(ctx *model.Context) bool {
 	return ctx.User.IsActive && ctx.Target.Camp != ctx.User.Camp
 }
 
-// Execute implements skills.BaseHandler for ElfPetEmpowerHandler.
+// Execute implements engineplayer.BaseHandler for ElfPetEmpowerHandler.
 func (h *ElfPetEmpowerHandler) Execute(ctx *model.Context) error {
-	if !skills.CanPayCrystalLike(ctx, 1) {
+	if !engineplayer.CanPayCrystalLike(ctx, 1) {
 		return fmt.Errorf("宠物强化需要至少1个蓝水晶")
 	}
 	if ctx == nil || ctx.Target == nil {
 		return fmt.Errorf("宠物强化缺少受伤目标")
 	}
-	if !skills.SpendCrystalLike(ctx, 1) {
+	if !engineplayer.SpendCrystalLike(ctx, 1) {
 		return fmt.Errorf("宠物强化结算失败：水晶不足（红宝石可替代）")
 	}
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [宠物强化]，动物伙伴效果改为目标摸1弃1", ctx.User.Name))

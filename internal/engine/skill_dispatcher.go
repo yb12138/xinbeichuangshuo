@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	playerpkg "starcup-engine/internal/engine/player"
+	"starcup-engine/internal/engine/player/angel"
 	skillrt "starcup-engine/internal/engine/runtime/skill"
 	"starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
@@ -112,7 +113,7 @@ func registerRoleEntrySkills() {
 }
 
 func init() {
-	skills.Register("holy_shield", &skills.HolyShieldHandler{})
+	skills.Register("holy_shield", &angel.HolyShieldHandler{})
 	registerRoleEntrySkills()
 }
 

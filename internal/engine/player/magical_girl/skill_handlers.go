@@ -4,12 +4,12 @@ package magical_girl
 
 import (
 	"fmt"
+	engineplayer "starcup-engine/internal/engine/player"
 
-	skills "starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 )
 
-type MagicBulletControlHandler struct{ skills.BaseHandler }
+type MagicBulletControlHandler struct{ engineplayer.BaseHandler }
 
 func (h *MagicBulletControlHandler) Execute(ctx *model.Context) error {
 	// 魔弹掌控由 magic.go/game.go 中的魔弹中断链路直接处理；
@@ -17,7 +17,7 @@ func (h *MagicBulletControlHandler) Execute(ctx *model.Context) error {
 	return nil
 }
 
-type MagicBulletFusionHandler struct{ skills.BaseHandler }
+type MagicBulletFusionHandler struct{ engineplayer.BaseHandler }
 
 func (h *MagicBulletFusionHandler) Execute(ctx *model.Context) error {
 	// 魔弹融合由 PerformMagic 触发的确认中断统一处理；
@@ -25,7 +25,7 @@ func (h *MagicBulletFusionHandler) Execute(ctx *model.Context) error {
 	return nil
 }
 
-type MagicBlastHandler struct{ skills.BaseHandler }
+type MagicBlastHandler struct{ engineplayer.BaseHandler }
 
 func (h *MagicBlastHandler) CanUse(ctx *model.Context) bool {
 	// 需要有法术牌可弃才能发动
@@ -71,7 +71,7 @@ func (h *MagicBlastHandler) Execute(ctx *model.Context) error {
 	return nil
 }
 
-type DestructionStormHandler struct{ skills.BaseHandler }
+type DestructionStormHandler struct{ engineplayer.BaseHandler }
 
 func (h *DestructionStormHandler) Execute(ctx *model.Context) error {
 	// 毁灭风暴：[宝石] 对任2名目标对手各造成2点法术伤害

@@ -1,30 +1,27 @@
-// gameflow: 技能内共用的资源校验/消耗辅助。
+// gameflow: 技能内共用的资源校验/消耗辅助（委托到 player 包）。
 
 package skills
 
-import "starcup-engine/internal/model"
+import (
+	"starcup-engine/internal/engine/player"
+	"starcup-engine/internal/model"
+)
 
 // CanPayCrystalLike 红宝石可替代蓝水晶（仅水晶消耗方向）
 func CanPayCrystalLike(ctx *model.Context, amount int) bool {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil {
-		return false
-	}
-	return ctx.Game.CanPayCrystalCost(ctx.User.ID, amount)
+	return player.CanPayCrystalLike(ctx, amount)
 }
 
 // SpendCrystalLike 红宝石可替代蓝水晶消耗
 func SpendCrystalLike(ctx *model.Context, amount int) bool {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil {
-		return false
-	}
-	return ctx.Game.ConsumeCrystalCost(ctx.User.ID, amount)
+	return player.SpendCrystalLike(ctx, amount)
 }
 
 // 内部别名（保持向后兼容）
 func canPayCrystalLike(ctx *model.Context, amount int) bool {
-	return CanPayCrystalLike(ctx, amount)
+	return player.CanPayCrystalLike(ctx, amount)
 }
 
 func spendCrystalLike(ctx *model.Context, amount int) bool {
-	return SpendCrystalLike(ctx, amount)
+	return player.SpendCrystalLike(ctx, amount)
 }

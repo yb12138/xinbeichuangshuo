@@ -4,8 +4,8 @@ package bard
 
 import (
 	"fmt"
+	engineplayer "starcup-engine/internal/engine/player"
 
-	skills "starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 )
 
@@ -49,17 +49,17 @@ func bardEnemyIDs(game model.IGameEngine, bard *model.Player) []string {
 	return ids
 }
 
-type BardDescentConcertoHandler struct{ skills.BaseHandler }
+type BardDescentConcertoHandler struct{ engineplayer.BaseHandler }
 
-type BardDissonanceChordHandler struct{ skills.BaseHandler }
+type BardDissonanceChordHandler struct{ engineplayer.BaseHandler }
 
-type BardForbiddenVerseHandler struct{ skills.BaseHandler }
+type BardForbiddenVerseHandler struct{ engineplayer.BaseHandler }
 
-type BardRousingRhapsodyHandler struct{ skills.BaseHandler }
+type BardRousingRhapsodyHandler struct{ engineplayer.BaseHandler }
 
-type BardVictorySymphonyHandler struct{ skills.BaseHandler }
+type BardVictorySymphonyHandler struct{ engineplayer.BaseHandler }
 
-type BardHopeFugueHandler struct{ skills.BaseHandler }
+type BardHopeFugueHandler struct{ engineplayer.BaseHandler }
 
 func (h *BardDescentConcertoHandler) CanUse(ctx *model.Context) bool { return false }
 

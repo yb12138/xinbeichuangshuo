@@ -4,25 +4,25 @@ package holy_bow
 
 import (
 	"fmt"
+	engineplayer "starcup-engine/internal/engine/player"
 
-	skills "starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 )
 
 // Handler structs for Holy Bow skills.
-type HolyBowHeavenlyBowHandler struct{ skills.BaseHandler }
+type HolyBowHeavenlyBowHandler struct{ engineplayer.BaseHandler }
 
-type HolyBowShardStormHandler struct{ skills.BaseHandler }
+type HolyBowShardStormHandler struct{ engineplayer.BaseHandler }
 
-type HolyBowRadiantDescentHandler struct{ skills.BaseHandler }
+type HolyBowRadiantDescentHandler struct{ engineplayer.BaseHandler }
 
-type HolyBowLightBurstHandler struct{ skills.BaseHandler }
+type HolyBowLightBurstHandler struct{ engineplayer.BaseHandler }
 
-type HolyBowMeteorBulletHandler struct{ skills.BaseHandler }
+type HolyBowMeteorBulletHandler struct{ engineplayer.BaseHandler }
 
-type HolyBowRadiantCannonHandler struct{ skills.BaseHandler }
+type HolyBowRadiantCannonHandler struct{ engineplayer.BaseHandler }
 
-type HolyBowAutoFillHandler struct{ skills.BaseHandler }
+type HolyBowAutoFillHandler struct{ engineplayer.BaseHandler }
 
 // HolyBowHeavenlyBowHandler implementations.
 

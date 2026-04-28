@@ -4,8 +4,8 @@ package holy_lancer
 
 import (
 	"fmt"
+	engineplayer "starcup-engine/internal/engine/player"
 
-	skills "starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 )
 
@@ -15,7 +15,7 @@ func addAttackAction(p *model.Player, source string) {
 
 // --- 圣枪骑士技能处理器 ---
 
-type HolyLancerRevelationHandler struct{ skills.BaseHandler }
+type HolyLancerRevelationHandler struct{ engineplayer.BaseHandler }
 
 func (h *HolyLancerRevelationHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.Game == nil || ctx.User == nil {
@@ -25,7 +25,7 @@ func (h *HolyLancerRevelationHandler) Execute(ctx *model.Context) error {
 	return nil
 }
 
-type HolyLancerRadianceHandler struct{ skills.BaseHandler }
+type HolyLancerRadianceHandler struct{ engineplayer.BaseHandler }
 
 func (h *HolyLancerRadianceHandler) Execute(ctx *model.Context) error {
 	for _, p := range ctx.Game.GetAllPlayers() {
@@ -36,7 +36,7 @@ func (h *HolyLancerRadianceHandler) Execute(ctx *model.Context) error {
 	return nil
 }
 
-type HolyLancerPunishmentHandler struct{ skills.BaseHandler }
+type HolyLancerPunishmentHandler struct{ engineplayer.BaseHandler }
 
 func (h *HolyLancerPunishmentHandler) Execute(ctx *model.Context) error {
 	if ctx.Target == nil {
@@ -57,7 +57,7 @@ func (h *HolyLancerPunishmentHandler) Execute(ctx *model.Context) error {
 	return nil
 }
 
-type HolyLancerHolyStrikeHandler struct{ skills.BaseHandler }
+type HolyLancerHolyStrikeHandler struct{ engineplayer.BaseHandler }
 
 func (h *HolyLancerHolyStrikeHandler) CanUse(ctx *model.Context) bool {
 	// 与地枪互斥：
@@ -81,7 +81,7 @@ func (h *HolyLancerHolyStrikeHandler) Execute(ctx *model.Context) error {
 	return nil
 }
 
-type HolyLancerSkySpearHandler struct{ skills.BaseHandler }
+type HolyLancerSkySpearHandler struct{ engineplayer.BaseHandler }
 
 func (h *HolyLancerSkySpearHandler) CanUse(ctx *model.Context) bool {
 	if ctx.User.Heal < 2 {
@@ -108,7 +108,7 @@ func (h *HolyLancerSkySpearHandler) Execute(ctx *model.Context) error {
 	return nil
 }
 
-type HolyLancerEarthSpearHandler struct{ skills.BaseHandler }
+type HolyLancerEarthSpearHandler struct{ engineplayer.BaseHandler }
 
 func (h *HolyLancerEarthSpearHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
@@ -158,7 +158,7 @@ func (h *HolyLancerEarthSpearHandler) Execute(ctx *model.Context) error {
 	return nil
 }
 
-type HolyLancerPrayerHandler struct{ skills.BaseHandler }
+type HolyLancerPrayerHandler struct{ engineplayer.BaseHandler }
 
 func (h *HolyLancerPrayerHandler) CanUse(ctx *model.Context) bool {
 	return ctx.User.Gem > 0

@@ -4,7 +4,6 @@ package sage
 
 import (
 	"starcup-engine/internal/engine/player"
-	skills "starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/types"
 )
@@ -28,11 +27,11 @@ func RoleEntry() player.RoleEntry {
 // SkillEntries 导出角色技能与策略绑定入口。
 func SkillEntries() []player.SkillEntry {
 	return []player.SkillEntry{
-		{ID: "sage_wisdom_codex", Handler: &skills.SageWisdomCodexHandler{}},
-		{ID: "sage_magic_rebound", Handler: &skills.SageMagicReboundHandler{}},
+		{ID: "sage_wisdom_codex", Handler: &SageWisdomCodexHandler{}},
+		{ID: "sage_magic_rebound", Handler: &SageMagicReboundHandler{}},
 		{
 			ID:      "sage_arcane_codex",
-			Handler: &skills.SageArcaneCodexHandler{},
+			Handler: &SageArcaneCodexHandler{},
 			Policy: types.SkillPolicy{
 				TargetRules: types.TargetRuleSet{
 					Count: types.TargetCountRule{Min: 0, Max: 1, Err: "魔道法典需要且仅能指定1名其他角色"},
@@ -44,7 +43,7 @@ func SkillEntries() []player.SkillEntry {
 		},
 		{
 			ID:      "sage_holy_codex",
-			Handler: &skills.SageHolyCodexHandler{},
+			Handler: &SageHolyCodexHandler{},
 			Policy: types.SkillPolicy{
 				TargetRules: types.TargetRuleSet{
 					Count: types.TargetCountRule{Min: 0, Max: 6},

@@ -6,7 +6,6 @@ import (
 
 	"starcup-engine/internal/data"
 	magicbowplayer "starcup-engine/internal/engine/player/magic_bow"
-	"starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 )
 
@@ -125,7 +124,7 @@ func TestMagicBowMagicPierce_MissDealsMagicDamageAndLocksMultiShot(t *testing.T)
 			CounterInitiator: "",
 		},
 	})
-	if (&skills.MagicBowMultiShotHandler{}).CanUse(multiShotCtx) {
+	if (&magicbowplayer.MagicBowMultiShotHandler{}).CanUse(multiShotCtx) {
 		t.Fatalf("expected multi-shot disabled after using magic pierce in same turn")
 	}
 }
@@ -157,7 +156,7 @@ func TestMagicBowMultiShot_TargetCannotRepeatPrevious(t *testing.T) {
 			CounterInitiator: "",
 		},
 	})
-	h := &skills.MagicBowMultiShotHandler{}
+	h := &magicbowplayer.MagicBowMultiShotHandler{}
 	if !h.CanUse(ctx) {
 		t.Fatalf("expected multi-shot usable with wind charge and valid alternate target")
 	}
@@ -218,7 +217,7 @@ func TestMagicBowCharge_FollowupPlaceCharges(t *testing.T) {
 		Type:     model.EventTurnStart,
 		SourceID: "p1",
 	})
-	if err := (&skills.MagicBowChargeHandler{}).Execute(ctx); err != nil {
+	if err := (&magicbowplayer.MagicBowChargeHandler{}).Execute(ctx); err != nil {
 		t.Fatalf("execute charge failed: %v", err)
 	}
 	requireChoicePrompt(t, game, "p1", "mb_charge_draw_x")
@@ -280,7 +279,7 @@ func TestMagicBowCharge_DiscardFirstThenChooseX(t *testing.T) {
 		Type:     model.EventTurnStart,
 		SourceID: "p1",
 	})
-	if err := (&skills.MagicBowChargeHandler{}).Execute(ctx); err != nil {
+	if err := (&magicbowplayer.MagicBowChargeHandler{}).Execute(ctx); err != nil {
 		t.Fatalf("execute charge failed: %v", err)
 	}
 
@@ -335,7 +334,7 @@ func TestMagicBowCharge_DrawOverflowMoraleLossWithoutDiscard(t *testing.T) {
 		Type:     model.EventTurnStart,
 		SourceID: "p1",
 	})
-	if err := (&skills.MagicBowChargeHandler{}).Execute(ctx); err != nil {
+	if err := (&magicbowplayer.MagicBowChargeHandler{}).Execute(ctx); err != nil {
 		t.Fatalf("execute charge failed: %v", err)
 	}
 	requireChoicePrompt(t, game, "p1", "mb_charge_draw_x")
@@ -628,7 +627,7 @@ func TestMagicBowCharge_LockTurnDisablesPierceAndScatter(t *testing.T) {
 		Type:     model.EventTurnStart,
 		SourceID: p1.ID,
 	})
-	if err := (&skills.MagicBowChargeHandler{}).Execute(ctx); err != nil {
+	if err := (&magicbowplayer.MagicBowChargeHandler{}).Execute(ctx); err != nil {
 		t.Fatalf("execute charge failed: %v", err)
 	}
 	requireChoicePrompt(t, game, "p1", "mb_charge_draw_x")
@@ -656,7 +655,7 @@ func TestMagicBowCharge_LockTurnDisablesPierceAndScatter(t *testing.T) {
 			ActionType: string(model.ActionAttack),
 		},
 	})
-	if (&skills.MagicBowMagicPierceHandler{}).CanUse(pierceCtx) {
+	if (&magicbowplayer.MagicBowMagicPierceHandler{}).CanUse(pierceCtx) {
 		t.Fatalf("expected magic pierce disabled in charge-lock turn")
 	}
 }

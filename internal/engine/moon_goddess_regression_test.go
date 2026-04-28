@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	moonplayer "starcup-engine/internal/engine/player/moon"
-	"starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 )
 
@@ -364,7 +363,7 @@ func TestMoonGoddessDarkMoonSlash_AddsDamageAndConsumesDarkMoon(t *testing.T) {
 			CounterInitiator: "",
 		},
 	})
-	h := &skills.MoonGoddessDarkMoonSlashHandler{}
+	h := &moonplayer.MoonGoddessDarkMoonSlashHandler{}
 	if !h.CanUse(ctx) {
 		t.Fatalf("expected dark moon slash can use")
 	}
@@ -890,7 +889,7 @@ func TestMoonGoddessDarkMoonSlash_XBoundaries_CurseAndDamage(t *testing.T) {
 				},
 			})
 
-			h := &skills.MoonGoddessDarkMoonSlashHandler{}
+			h := &moonplayer.MoonGoddessDarkMoonSlashHandler{}
 			if !h.CanUse(ctx) {
 				t.Fatalf("expected dark moon slash can use")
 			}

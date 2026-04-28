@@ -4,7 +4,7 @@ package prayer_master
 
 import (
 	"fmt"
-	skills "starcup-engine/internal/engine/skill"
+	engineplayer "starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
 )
 
@@ -86,19 +86,19 @@ func addMagicAction(p *model.Player, source string) {
 
 // --- 18. 祈祷师 ---
 
-type PrayerEnterFormHandler struct{ skills.BaseHandler }
+type PrayerEnterFormHandler struct{ engineplayer.BaseHandler }
 
-type PrayerRuneGainHandler struct{ skills.BaseHandler }
+type PrayerRuneGainHandler struct{ engineplayer.BaseHandler }
 
-type PrayerRadiantFaithHandler struct{ skills.BaseHandler }
+type PrayerRadiantFaithHandler struct{ engineplayer.BaseHandler }
 
-type PrayerDarkCurseHandler struct{ skills.BaseHandler }
+type PrayerDarkCurseHandler struct{ engineplayer.BaseHandler }
 
-type PrayerPowerBlessingHandler struct{ skills.BaseHandler }
+type PrayerPowerBlessingHandler struct{ engineplayer.BaseHandler }
 
-type PrayerSwiftBlessingHandler struct{ skills.BaseHandler }
+type PrayerSwiftBlessingHandler struct{ engineplayer.BaseHandler }
 
-type PrayerManaTideHandler struct{ skills.BaseHandler }
+type PrayerManaTideHandler struct{ engineplayer.BaseHandler }
 
 func (h *PrayerEnterFormHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil {
