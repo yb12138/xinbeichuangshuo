@@ -11,15 +11,19 @@ import (
 // ---- 士气辅助 ----
 
 // capMoraleLoss 计算士气损失上限（不实际扣除），用于弃牌结算的前置判断。
-func (e *GameEngine) capMoraleLoss(camp model.Camp, wantLoss int) int {
+func (e *GameEngine) capMoraleLoss(camp model.Camp, wantLoss int, extra ...engineplayer.MoraleLossModifierExtra) int {
 	if wantLoss <= 0 {
 		return 0
 	}
 	current := e.campMorale(camp)
 	loss := wantLoss
+	var ex engineplayer.MoraleLossModifierExtra
+	if len(extra) > 0 {
+		ex = extra[0]
+	}
 	for _, entry := range roleRegistry.Entries() {
 		if entry.MoraleLossModifier != nil {
-			loss = entry.MoraleLossModifier(e, camp, current, loss)
+			loss = entry.MoraleLossModifier(e, camp, current, loss, ex)
 		}
 	}
 	if loss < 0 {
@@ -35,15 +39,19 @@ func (e *GameEngine) capMoraleLoss(camp model.Camp, wantLoss int) int {
 }
 
 // applyCampMoraleLoss 应用士气损失（实际扣除），先经过 MoraleLossModifier 链调整。
-func (e *GameEngine) applyCampMoraleLoss(camp model.Camp, wantLoss int) int {
+func (e *GameEngine) applyCampMoraleLoss(camp model.Camp, wantLoss int, extra ...engineplayer.MoraleLossModifierExtra) int {
 	if wantLoss <= 0 {
 		return 0
 	}
 	current := e.campMorale(camp)
 	loss := wantLoss
+	var ex engineplayer.MoraleLossModifierExtra
+	if len(extra) > 0 {
+		ex = extra[0]
+	}
 	for _, entry := range roleRegistry.Entries() {
 		if entry.MoraleLossModifier != nil {
-			loss = entry.MoraleLossModifier(e, camp, current, loss)
+			loss = entry.MoraleLossModifier(e, camp, current, loss, ex)
 		}
 	}
 	if loss < 0 {

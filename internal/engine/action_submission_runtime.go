@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"strings"
 
-	playerpkg "starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
 )
 
@@ -127,7 +126,6 @@ func (e *GameEngine) handleActionSelectionSpecialOrSkill(act model.PlayerAction,
 	if err := e.executeSpecialActionWithRuntime(player, actionType); err != nil {
 		return err
 	}
-	player.TurnState.UsedSkillCounts["hb_special"] = 1
 	e.runPostSpecialActionRuntime(player, actionType)
 	player.TurnState.LastActionType = string(actionType)
 	player.TurnState.LastActionCard = nil
@@ -186,8 +184,10 @@ func (e *GameEngine) handleActionSelectionAttackOrMagic(act model.PlayerAction, 
 			if target.Camp == player.Camp {
 				return fmt.Errorf("攻击目标必须是敌方角色")
 			}
-			if playerpkg.HasForm(target, model.FormAssassinStealth) {
-				return fmt.Errorf("目标处于潜行状态，不能成为主动攻击目标")
+			if target.Character != nil {
+				if entry := roleRegistry.Entry(target.Character.ID); entry.TargetFilter != nil && entry.TargetFilter.CannotBeActiveAttackTarget(target) {
+					return fmt.Errorf("目标处于潜行状态，不能成为主动攻击目标")
+				}
 			}
 		}
 	}

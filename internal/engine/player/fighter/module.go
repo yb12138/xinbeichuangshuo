@@ -26,6 +26,7 @@ func RoleEntry() player.RoleEntry {
 			{Timing: player.TimingBeforeActionOption, Priority: 300, Hook: beforeActionOptionHook},
 			{Timing: player.TimingBeforeActionValidation, Priority: 300, Hook: beforeActionValidationHook},
 			{Timing: player.TimingOnResponseSkillNormalize, Priority: 100, Hook: responseSkillNormalizeHook},
+			{Timing: player.TimingOnResponseSkillAdvance, Priority: 200, Hook: responseSkillAdvanceHook},
 		},
 		BlocksActionType: func(p *model.Player, at model.ActionType) bool {
 			return at == model.ActionMagic && BlocksMagicCasting(p)

@@ -5,7 +5,6 @@ package engine
 import (
 	"fmt"
 
-	playerpkg "starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/rules"
 )
@@ -37,7 +36,6 @@ func (e *GameEngine) resumePendingDraw(ctx *model.Context) {
 
 	if ctx.Flags["cancelDraw"] {
 		e.Log(fmt.Sprintf("[Draw] %s 的摸牌被替换/取消", target.Name))
-		e.enqueuePendingDrawFollowup(ctx)
 		return
 	}
 	if ctx.Flags["capToHandLimit"] {
@@ -53,7 +51,6 @@ func (e *GameEngine) resumePendingDraw(ctx *model.Context) {
 	}
 	if drawCount <= 0 {
 		e.Log(fmt.Sprintf("[Draw] %s 本次无需摸牌", target.Name))
-		e.enqueuePendingDrawFollowup(ctx)
 		return
 	}
 
@@ -64,7 +61,6 @@ func (e *GameEngine) resumePendingDraw(ctx *model.Context) {
 
 	e.Log(fmt.Sprintf("[Draw] %s 摸牌 %d 张", target.Name, drawCount))
 	e.executeResolvedDraw(ctx, drawCount, reason)
-	e.enqueuePendingDrawFollowup(ctx)
 }
 
 func (e *GameEngine) newDrawContext(player *model.Player, amount int, reason string) *model.Context {
@@ -134,24 +130,6 @@ func (e *GameEngine) startDraw(ctx *model.Context) bool {
 	return e.State.PendingInterrupt == nil
 }
 
-func (e *GameEngine) enqueuePendingDrawFollowup(ctx *model.Context) {
-	if ctx == nil || ctx.Selections == nil {
-		return
-	}
-	if queued, _ := ctx.Selections["draw_followup_queued"].(bool); queued {
-		return
-	}
-
-	raw := ctx.Selections["draw_followup"]
-	followup, ok := raw.(model.DeferredFollowup)
-	if !ok || followup.Type == "" {
-		return
-	}
-
-	e.State.DeferredFollowups = append([]model.DeferredFollowup{followup}, e.State.DeferredFollowups...)
-	ctx.Selections["draw_followup_queued"] = true
-}
-
 func (e *GameEngine) restorePhaseAfterInterruptedDraw(ctx *model.Context) bool {
 	if ctx == nil {
 		return false
@@ -178,33 +156,6 @@ func (e *GameEngine) restorePhaseAfterInterruptedDraw(ctx *model.Context) bool {
 		e.enterTurnEndStage()
 	}
 	return true
-}
-
-func (e *GameEngine) applyAssassinStealthEffect(player *model.Player) {
-	if player == nil {
-		return
-	}
-	beforePoses := e.snapshotPlayerPoses()
-	playerpkg.SetForm(player, model.FormAssassinStealth)
-	e.Log(fmt.Sprintf("%s 进入潜行形态：转为横置，手牌上限-1，无法成为主动攻击目标", player.Name))
-	e.dispatchOrientationChanges(beforePoses)
-	checkCtx := e.buildContext(player, nil, model.TimingActive, nil)
-	checkCtx.Flags["StayInTurn"] = true
-	e.checkHandLimit(player, checkCtx)
-}
-
-func (e *GameEngine) releaseAssassinStealthEffect(player *model.Player) {
-	if player == nil {
-		return
-	}
-	if !playerpkg.HasForm(player, model.FormAssassinStealth) {
-		return
-	}
-
-	beforePoses := e.snapshotPlayerPoses()
-	playerpkg.ClearForm(player, model.FormAssassinStealth)
-	e.Log(fmt.Sprintf("%s 脱离潜行形态并转正", player.Name))
-	e.dispatchOrientationChanges(beforePoses)
 }
 
 func (e *GameEngine) executeResolvedDraw(ctx *model.Context, drawCount int, reason string) {

@@ -68,5 +68,37 @@ func responseSkillNormalizeHook(rt engineplayer.HookRuntime, ctx engineplayer.Ti
 	if hasCharge && hasBurst {
 		return engineplayer.TimingHookResult{Handled: true, SkillIDs: []string{"fighter_charge_strike"}}
 	}
+	if hasCharge && hasBurst {
+		return engineplayer.TimingHookResult{Handled: true, SkillIDs: []string{"fighter_charge_strike"}}
+	}
 	return engineplayer.TimingHookResult{SkillIDs: skillIDs}
+}
+
+// responseSkillAdvanceHook 响应技能推进策略。
+// 蓄力一击被跳过时，推进到气绝崩击。
+func responseSkillAdvanceHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHookContext) engineplayer.TimingHookResult {
+	skillIDs := ctx.OfferedSkillIDs
+	userCtx := ctx.UserCtx
+
+	if len(skillIDs) != 1 || skillIDs[0] != "fighter_charge_strike" {
+		return engineplayer.TimingHookResult{}
+	}
+	if userCtx == nil || userCtx.User == nil {
+		return engineplayer.TimingHookResult{}
+	}
+	if userCtx.Timing != model.TimingOnAttackDeclared ||
+		!engineplayer.IsCharacter(userCtx.User, "fighter") ||
+		userCtx.EventCtx == nil ||
+		userCtx.EventCtx.AttackInfo == nil ||
+		userCtx.EventCtx.AttackInfo.CounterInitiator != "" {
+		return engineplayer.TimingHookResult{}
+	}
+	if !rt.IsSkillStillUsable("fighter_burst_crash", userCtx.User, userCtx) {
+		return engineplayer.TimingHookResult{}
+	}
+
+	return engineplayer.TimingHookResult{
+		Handled:  true,
+		SkillIDs: []string{"fighter_burst_crash"},
+	}
 }

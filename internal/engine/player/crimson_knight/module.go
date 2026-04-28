@@ -21,6 +21,14 @@ func RoleEntry() player.RoleEntry {
 			{Timing: player.TimingOnTurnEnd, Priority: 600, Hook: turnEndHook},
 			{Timing: player.TimingOnMoraleLossApplied, Priority: 100, Hook: moraleLossHook},
 		},
+		MoraleLossModifier: func(engine player.MoraleLossModifierEngine, camp model.Camp, current int, proposedLoss int, extra player.MoraleLossModifierExtra) int {
+			if extra.Victim != nil && (extra.FromDamageDraw || extra.IsDamageResolution) {
+				if player.IsCharacter(extra.Victim, "crimson_knight") && player.HasForm(extra.Victim, model.FormCrimsonKnightHotBlooded) {
+					return 0
+				}
+			}
+			return proposedLoss
+		},
 	}
 }
 

@@ -122,14 +122,15 @@ type QueuedAction struct {
 
 // CombatRequest 战斗请求（用于战斗交互阶段）
 type CombatRequest struct {
-	AttackerID     string                      `json:"attacker_id"`      // 攻击者ID
-	TargetID       string                      `json:"target_id"`        // 目标ID
-	Card           *Card                       `json:"card"`             // 使用的攻击卡牌
-	IsForcedHit    bool                        `json:"is_forced_hit"`    // 是否强制命中
-	IgnoreShield   bool                        `json:"ignore_shield"`    // 是否无视圣盾
-	CanBeResponded bool                        `json:"can_be_responded"` // 是否可被应战
-	IsCounter      bool                        `json:"is_counter"`       // 是否为应战反弹攻击（命中加水晶）
-	InterceptTags  map[CombatInterceptTag]bool `json:”intercept_tags,omitempty”`
+	AttackerID      string                      `json:"attacker_id"`      // 攻击者ID
+	TargetID        string                      `json:"target_id"`        // 目标ID
+	Card            *Card                       `json:"card"`             // 使用的攻击卡牌
+	IsForcedHit     bool                        `json:"is_forced_hit"`    // 是否强制命中
+	IgnoreShield    bool                        `json:"ignore_shield"`    // 是否无视圣盾
+	CanBeResponded  bool                        `json:"can_be_responded"` // 是否可被应战
+	IsCounter       bool                        `json:"is_counter"`       // 是否为应战反弹攻击（命中加水晶）
+	InterceptTags   map[CombatInterceptTag]bool `json:”intercept_tags,omitempty”`
+	ElementOverride string                      `json:"element_override,omitempty"` // 非-empty 时覆盖卡牌元素的显示
 
 	// 阴阳师”阴阳转换”交互标记：仅用于控制”先询问是否发动”流程不重复弹出
 	OnmyojiYinYangChecked bool `json:”onmyoji_yinyang_checked,omitempty”`

@@ -5,7 +5,6 @@ package engine
 import (
 	"errors"
 	"fmt"
-	"sort"
 
 	playerpkg "starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
@@ -43,10 +42,27 @@ func (e *GameEngine) handleBuy(p *model.Player) error {
 
 	e.drawForAction(p, 3)
 
-	// 检查是否有改写购买战绩区奖励的被动技能（如冒险家的地下法则）
-	if e.hasBuyRewriteSkill(p) {
-		e.executeBuyRewrite(p)
-		return nil
+	// 检查是否有改写购买战绩区奖励的被动技能（如冒险者的地下法则）
+	if entry := roleRegistry.Entry(p.Character.ID); entry.SpecialActionHook.BuyRewardOverride != nil {
+		var campStones int
+		if p.Camp == model.RedCamp {
+			campStones = e.State.RedGems + e.State.RedCrystals
+		} else {
+			campStones = e.State.BlueGems + e.State.BlueCrystals
+		}
+		result := entry.SpecialActionHook.BuyRewardOverride(p, campStones, 5)
+		if result.Handled {
+			if result.AddGems > 0 {
+				e.ModifyGem(string(p.Camp), result.AddGems)
+			}
+			if result.AddCrystals > 0 {
+				e.ModifyCrystal(string(p.Camp), result.AddCrystals)
+			}
+			if result.LogMessage != "" {
+				e.Log(result.LogMessage)
+			}
+			return nil
+		}
 	}
 
 	const maxStones = 5
@@ -89,33 +105,6 @@ func (e *GameEngine) handleBuy(p *model.Player) error {
 	}
 	e.Log(fmt.Sprintf("[Action] %s 购买：摸3牌，战绩区+1宝石+1水晶", p.Name))
 	return nil
-}
-
-// hasBuyRewriteSkill 检查玩家是否有改写购买战绩区奖励的被动技能。
-func (e *GameEngine) hasBuyRewriteSkill(p *model.Player) bool {
-	if p == nil || p.Character == nil {
-		return false
-	}
-	// 冒险家的地下法则改写购买的战绩区奖励为+2宝石
-	if p.Character.ID == "adventurer" {
-		return true
-	}
-	return false
-}
-
-// executeBuyRewrite 执行改写后的购买战绩区奖励。
-func (e *GameEngine) executeBuyRewrite(p *model.Player) {
-	maxStones := 5
-	if p.Camp == model.RedCamp {
-		if e.State.RedGems+e.State.RedCrystals < maxStones {
-			e.State.RedGems += 2
-		}
-	} else {
-		if e.State.BlueGems+e.State.BlueCrystals < maxStones {
-			e.State.BlueGems += 2
-		}
-	}
-	e.Log(fmt.Sprintf("[Action] %s 购买（地下法则改写）：战绩区+2宝石", p.Name))
 }
 
 func (e *GameEngine) handleSynthesize(p *model.Player) error {
@@ -166,8 +155,6 @@ func (e *GameEngine) handleSynthesize(p *model.Player) error {
 }
 
 func (e *GameEngine) handleExtract(p *model.Player) error {
-	e.clearAdventurerExtractState(p)
-
 	currentEnergy := p.Gem + p.Crystal
 	maxEnergy := e.getPlayerEnergyCap(p)
 
@@ -186,17 +173,8 @@ func (e *GameEngine) handleExtract(p *model.Player) error {
 	}
 
 	energyRoom := maxEnergy - currentEnergy
-	allowParadise := e.playerHasSkill(p, "adventurer_paradise")
-	maxAllyRoom := 0
-	if allowParadise {
-		maxAllyRoom = e.maxAllyEnergyRoom(p)
-	}
-	maxRecipientRoom := energyRoom
-	if maxAllyRoom > maxRecipientRoom {
-		maxRecipientRoom = maxAllyRoom
-	}
-	if maxRecipientRoom <= 0 {
-		return errors.New("能量已达上限，且没有可承接提炼能量的队友")
+	if energyRoom <= 0 {
+		return errors.New("能量已达上限，无法提炼")
 	}
 
 	var opts []interface{}
@@ -208,8 +186,8 @@ func (e *GameEngine) handleExtract(p *model.Player) error {
 	}
 
 	maxSelect := 2
-	if maxRecipientRoom < maxSelect {
-		maxSelect = maxRecipientRoom
+	if energyRoom < maxSelect {
+		maxSelect = energyRoom
 	}
 	if totalAvailable < maxSelect {
 		maxSelect = totalAvailable
@@ -219,33 +197,15 @@ func (e *GameEngine) handleExtract(p *model.Player) error {
 		Type:     model.InterruptChoice,
 		PlayerID: p.ID,
 		Context: map[string]interface{}{
-			"choice_type":            "extract",
-			"extract_options":        opts,
-			"extract_min":            1,
-			"extract_max":            maxSelect,
-			"extract_self_room":      energyRoom,
-			"extract_max_ally_room":  maxAllyRoom,
-			"extract_allow_paradise": allowParadise,
+			"choice_type":       "extract",
+			"extract_options":   opts,
+			"extract_min":       1,
+			"extract_max":       maxSelect,
+			"extract_self_room": energyRoom,
 		},
 	})
-	if allowParadise && maxAllyRoom > 0 {
-		e.Log(fmt.Sprintf("[Action] %s 提炼：战绩区有 %d 红宝石 %d 蓝水晶，请选择 1-%d 个提炼（可通过冒险者天堂转移给队友）", p.Name, availableGems, availableCrystals, maxSelect))
-	} else {
-		e.Log(fmt.Sprintf("[Action] %s 提炼：战绩区有 %d 红宝石 %d 蓝水晶，请选择 1-%d 个提炼", p.Name, availableGems, availableCrystals, maxSelect))
-	}
+	e.Log(fmt.Sprintf("[Action] %s 提炼：战绩区有 %d 宝石 %d 水晶，请选择 1-%d 个提炼", p.Name, availableGems, availableCrystals, maxSelect))
 	return nil
-}
-
-func (e *GameEngine) playerHasSkill(p *model.Player, skillID string) bool {
-	if p == nil || p.Character == nil {
-		return false
-	}
-	for _, s := range p.Character.Skills {
-		if s.ID == skillID {
-			return true
-		}
-	}
-	return false
 }
 
 func (e *GameEngine) getPlayerEnergyCap(player *model.Player) int {
@@ -253,74 +213,27 @@ func (e *GameEngine) getPlayerEnergyCap(player *model.Player) int {
 		return 3
 	}
 	cap := 3
-	if playerpkg.IsCharacter(player, "sage") {
-		cap++
+	if player.Character != nil {
+		entry := roleRegistry.Entry(player.Character.ID)
+		if entry.EnergyCapRule != nil {
+			cap = entry.EnergyCapRule.ModifierCap(player, cap)
+		}
 	}
 	return cap
 }
 
-func (e *GameEngine) maxAllyEnergyRoom(p *model.Player) int {
-	if p == nil {
-		return 0
-	}
-	maxRoom := 0
-	for _, ally := range e.State.Players {
-		if ally == nil || ally.Camp != p.Camp || ally.ID == p.ID {
-			continue
-		}
-		maxEnergy := e.getPlayerEnergyCap(ally)
-		room := maxEnergy - (ally.Gem + ally.Crystal)
-		if room > maxRoom {
-			maxRoom = room
-		}
-	}
-	return maxRoom
+// GetPlayerEnergyCap 公开方法，供 IGameEngine 接口使用。
+func (e *GameEngine) GetPlayerEnergyCap(player *model.Player) int {
+	return e.getPlayerEnergyCap(player)
 }
 
-func (e *GameEngine) adventurerParadiseEligibleAllies(user *model.Player, transferTotal int) []string {
-	if user == nil || transferTotal <= 0 {
-		return nil
+// StartExtractForPlayer 为指定玩家启动提炼流程（由角色包调用）。
+func (e *GameEngine) StartExtractForPlayer(playerID string) error {
+	p, ok := e.State.Players[playerID]
+	if !ok || p == nil {
+		return fmt.Errorf("玩家不存在: %s", playerID)
 	}
-	var allyIDs []string
-	for _, ally := range e.State.Players {
-		if ally == nil || ally.Camp != user.Camp || ally.ID == user.ID {
-			continue
-		}
-		room := e.getPlayerEnergyCap(ally) - (ally.Gem + ally.Crystal)
-		if room >= transferTotal {
-			allyIDs = append(allyIDs, ally.ID)
-		}
-	}
-	sort.Strings(allyIDs)
-	return allyIDs
-}
-
-func (e *GameEngine) clearAdventurerExtractState(p *model.Player) {
-	if p == nil {
-		return
-	}
-	if p.TurnState.SkillFlowState == nil {
-		p.TurnState.SkillFlowState = make(map[string]int)
-	}
-	p.TurnState.SkillFlowState["adventurer_extract_last_gem"] = 0
-	p.TurnState.SkillFlowState["adventurer_extract_last_crystal"] = 0
-	p.TurnState.SkillFlowState["adventurer_extract_requires_paradise"] = 0
-}
-
-func (e *GameEngine) recordAdventurerExtractResult(p *model.Player, gem, crystal int, requiresParadise bool) {
-	if p == nil {
-		return
-	}
-	if p.TurnState.SkillFlowState == nil {
-		p.TurnState.SkillFlowState = make(map[string]int)
-	}
-	p.TurnState.SkillFlowState["adventurer_extract_last_gem"] = gem
-	p.TurnState.SkillFlowState["adventurer_extract_last_crystal"] = crystal
-	if requiresParadise {
-		p.TurnState.SkillFlowState["adventurer_extract_requires_paradise"] = 1
-	} else {
-		p.TurnState.SkillFlowState["adventurer_extract_requires_paradise"] = 0
-	}
+	return e.handleExtract(p)
 }
 
 func (e *GameEngine) runPostSpecialActionRuntime(player *model.Player, actionType model.ActionType) {

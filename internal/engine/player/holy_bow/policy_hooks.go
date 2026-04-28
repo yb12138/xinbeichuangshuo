@@ -24,6 +24,10 @@ func holyGloryExitHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHookC
 	beforePoses := rt.SnapshotPlayerPoses()
 	rt.ClearForm(player, model.FormHolyBowHolyGlory)
 	rt.Heal(player.ID, 1)
+	if player.TurnState.UsedSkillCounts == nil {
+		player.TurnState.UsedSkillCounts = map[string]int{}
+	}
+	player.TurnState.UsedSkillCounts["hb_special"] = 1
 	rt.Log(fmt.Sprintf("%s 在圣煌形态下执行特殊行动，脱离圣煌形态并获得1点治疗", player.Name))
 	rt.DispatchOrientationChanges(beforePoses)
 

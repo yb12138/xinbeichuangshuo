@@ -137,12 +137,12 @@ func (e *GameEngine) resolveDiscardSelectionMoraleLoss(player *model.Player, dis
 		return 0, false, nil
 	}
 
-	if (fromDamageDraw || isDamageResolution) && playerpkg.IsCharacter(victim, "crimson_knight") && playerpkg.HasForm(victim, model.FormCrimsonKnightHotBlooded) {
-		moraleLoss = 0
-	}
-
 	isMagic := runtimeutil.ToBoolContextValue(data["is_magic"])
-	moraleLoss = e.capMoraleLoss(victim.Camp, moraleLoss)
+	moraleLoss = e.capMoraleLoss(victim.Camp, moraleLoss, playerpkg.MoraleLossModifierExtra{
+		Victim:             victim,
+		FromDamageDraw:     fromDamageDraw,
+		IsDamageResolution: isDamageResolution,
+	})
 	if moraleLoss <= 0 {
 		finalLoss = e.applyMoraleLossAfterTimingWindow(victim, moraleLoss, isMagic, fromDamageDraw, overflowMoraleLossFixed, discardedCards, nil)
 		return finalLoss, false, nil
@@ -233,11 +233,9 @@ func (e *GameEngine) handleDiscardSelectionFollowups(player *model.Player, data 
 		return true, nil
 	}
 
-	if playerpkg.IsCharacter(player, "magic_lancer") && player.TurnState.SkillFlowState != nil && player.TurnState.SkillFlowState["ml_stardust_wait_discard"] > 0 {
-		for _, entry := range roleRegistry.Entries() {
-			if entry.AfterDiscardFollowup != nil {
-				entry.AfterDiscardFollowup(newRoleChoiceRuntime(e), player)
-			}
+	for _, entry := range roleRegistry.Entries() {
+		if entry.AfterDiscardFollowup != nil {
+			entry.AfterDiscardFollowup(newRoleChoiceRuntime(e), player)
 		}
 	}
 	return false, nil
@@ -314,11 +312,9 @@ func (e *GameEngine) resumePendingMoraleLoss(ctx *model.Context) bool {
 		}
 	} else if discardPlayer != nil {
 		e.Log(fmt.Sprintf("[System] %s 丢弃了 %d 张牌！士气 -%d", discardPlayer.Name, len(discardedCards), finalLoss))
-		if playerpkg.IsCharacter(discardPlayer, "magic_lancer") && discardPlayer.TurnState.SkillFlowState != nil && discardPlayer.TurnState.SkillFlowState["ml_stardust_wait_discard"] > 0 {
-			for _, entry := range roleRegistry.Entries() {
-				if entry.AfterDiscardFollowup != nil {
-					entry.AfterDiscardFollowup(newRoleChoiceRuntime(e), discardPlayer)
-				}
+		for _, entry := range roleRegistry.Entries() {
+			if entry.AfterDiscardFollowup != nil {
+				entry.AfterDiscardFollowup(newRoleChoiceRuntime(e), discardPlayer)
 			}
 		}
 	}

@@ -1,5 +1,5 @@
+adventurer_extract_paradise_check
 adventurer_fraud_attack_element
-adventurer_paradise_target
 adventurer_steal_sky_mode
 angel_bond_heal_target
 arbiter_balance_mode

@@ -54,14 +54,14 @@ func handleAssassinStealthDrawChoice(rt engineplayer.ChoiceRuntime, selectionInd
 
 	switch selectionIndex {
 	case 0:
-		drawCtx := rt.NewDrawContext(user, 1, "assassin_stealth_draw")
-		if drawCtx == nil {
-			return fmt.Errorf("潜行摸牌上下文创建失败")
-		}
-		drawCtx.Selections["draw_followup"] = model.DeferredFollowup{
+		rt.EnqueueDeferredFollowup(model.DeferredFollowup{
 			Type:    "assassin_stealth_apply",
 			UserID:  user.ID,
 			SkillID: "stealth",
+		})
+		drawCtx := rt.NewDrawContext(user, 1, "assassin_stealth_draw")
+		if drawCtx == nil {
+			return fmt.Errorf("潜行摸牌上下文创建失败")
 		}
 		rt.StartDraw(drawCtx)
 		rt.Log(fmt.Sprintf("%s 的 [潜行]：选择先摸1张牌，再进入潜行状态", user.Name))
@@ -72,7 +72,7 @@ func handleAssassinStealthDrawChoice(rt engineplayer.ChoiceRuntime, selectionInd
 		}
 		return nil
 	case 1:
-		rt.ApplyStealthEffect(user)
+		applyStealth(rt, user)
 		rt.Log(fmt.Sprintf("%s 的 [潜行]：选择不摸牌，直接进入潜行状态", user.Name))
 
 		rt.PopInterrupt()

@@ -25,17 +25,6 @@ func setSkillFlow(p *model.Player, key string, v int) {
 	p.TurnState.SkillFlowState[key] = v
 }
 
-func playerEnergyCap(p *model.Player) int {
-	if p == nil {
-		return 3
-	}
-	cap := 3
-	if p.Character != nil && p.Character.ID == "sage" {
-		cap++
-	}
-	return cap
-}
-
 // 红宝石可替代蓝水晶（仅水晶消耗方向）
 func canPayCrystalLike(ctx *model.Context, amount int) bool {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
@@ -135,74 +124,6 @@ func (h *AdventurerUndergroundLawHandler) CanUse(ctx *model.Context) bool {
 func (h *AdventurerUndergroundLawHandler) Execute(ctx *model.Context) error {
 	ctx.Game.ModifyGem(string(ctx.User.Camp), 2)
 	ctx.Game.Log(fmt.Sprintf("%s 的 [地下法则] 触发，战绩区+2红宝石", ctx.User.Name))
-	return nil
-}
-
-type AdventurerParadiseHandler struct{ skills.BaseHandler }
-
-func (h *AdventurerParadiseHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.EventCtx == nil {
-		return false
-	}
-	if ctx.EventCtx.ActionType != model.ActionExtract {
-		return false
-	}
-	all := ctx.Game.GetAllPlayers()
-	for _, p := range all {
-		if p != nil && p.Camp == ctx.User.Camp && p.ID != ctx.User.ID {
-			return true
-		}
-	}
-	return false
-}
-
-func (h *AdventurerParadiseHandler) Execute(ctx *model.Context) error {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil {
-		return nil
-	}
-	transferGem := getSkillFlow(ctx.User, "adventurer_extract_last_gem")
-	transferCrystal := getSkillFlow(ctx.User, "adventurer_extract_last_crystal")
-	transferTotal := transferGem + transferCrystal
-	if transferTotal <= 0 {
-		setSkillFlow(ctx.User, "adventurer_extract_requires_paradise", 0)
-		ctx.Game.Log(fmt.Sprintf("%s 的 [冒险者天堂] 未检测到本次提炼结果，效果取消", ctx.User.Name))
-		return nil
-	}
-
-	all := ctx.Game.GetAllPlayers()
-	var allyIDs []string
-	for _, p := range all {
-		if p == nil {
-			continue
-		}
-		if p.Camp != ctx.User.Camp || p.ID == ctx.User.ID {
-			continue
-		}
-		room := playerEnergyCap(p) - (p.Gem + p.Crystal)
-		if room >= transferTotal {
-			allyIDs = append(allyIDs, p.ID)
-		}
-	}
-	if len(allyIDs) == 0 {
-		setSkillFlow(ctx.User, "adventurer_extract_requires_paradise", 0)
-		ctx.Game.Log(fmt.Sprintf("%s 的 [冒险者天堂] 无法发动：没有可完整承接%d点提炼能量的队友", ctx.User.Name, transferTotal))
-		return nil
-	}
-	forceTransfer := getSkillFlow(ctx.User, "adventurer_extract_requires_paradise") > 0
-	ctx.Game.PushInterrupt(&model.Interrupt{
-		Type:     model.InterruptChoice,
-		PlayerID: ctx.User.ID,
-		Context: map[string]interface{}{
-			"choice_type":      "adventurer_paradise_target",
-			"user_id":          ctx.User.ID,
-			"ally_ids":         allyIDs,
-			"transfer_gem":     transferGem,
-			"transfer_crystal": transferCrystal,
-			"transfer_total":   transferTotal,
-			"from_pending":     forceTransfer,
-		},
-	})
-	ctx.Game.Log(fmt.Sprintf("%s 的 [冒险者天堂] 触发，等待选择接收%d点提炼能量的队友", ctx.User.Name, transferTotal))
 	return nil
 }
 

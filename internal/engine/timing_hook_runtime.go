@@ -3,9 +3,12 @@
 package engine
 
 import (
+	"fmt"
+
 	"starcup-engine/internal/engine/core/runtimeutil"
 	engineplayer "starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
+	"starcup-engine/internal/rules"
 )
 
 type hookRuntime struct {
@@ -581,7 +584,7 @@ func (r hookRuntime) InitCombat(attackerID, targetID string, card *model.Card, i
 	if r.GameEngine == nil {
 		return
 	}
-	r.GameEngine.initCombat(attackerID, targetID, card, isForcedHit, canBeResponded, ignoreShield, interceptTags, isCounter...)
+	r.GameEngine.initCombat(attackerID, targetID, card, isForcedHit, canBeResponded, ignoreShield, interceptTags, "", isCounter...)
 }
 
 func (r hookRuntime) DispatchOnTiming(ctx *model.Context) {
@@ -628,4 +631,28 @@ func (r hookRuntime) HasPlayableAttackCard(player *model.Player) bool {
 		return false
 	}
 	return r.GameEngine.hasPlayableAttackCard(player)
+}
+
+func (r hookRuntime) NotifyDrawCards(playerID string, count int, reason string) {
+	if r.GameEngine == nil {
+		return
+	}
+	r.GameEngine.NotifyDrawCards(playerID, count, reason)
+}
+
+func (r hookRuntime) DrawCardsRaw(playerID string, count int) []model.Card {
+	if r.GameEngine == nil || r.GameEngine.State == nil {
+		return nil
+	}
+	drawn, deck, discard := rules.DrawCards(r.GameEngine.State.Deck, r.GameEngine.State.DiscardPile, count)
+	r.GameEngine.State.Deck = deck
+	r.GameEngine.State.DiscardPile = discard
+	return drawn
+}
+
+func (r hookRuntime) StartExtractForPlayer(playerID string) error {
+	if r.GameEngine == nil {
+		return fmt.Errorf("引擎未初始化")
+	}
+	return r.GameEngine.StartExtractForPlayer(playerID)
 }

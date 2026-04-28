@@ -182,7 +182,7 @@ func (e *GameEngine) appendBaseActionSelectionOptions(player *model.Player, stat
 		}
 
 		currentEnergy := player.Gem + player.Crystal
-		if totalStones > 0 && currentEnergy < 3 {
+		if totalStones > 0 && currentEnergy < e.getPlayerEnergyCap(player) {
 			state.specialOptions = append(state.specialOptions, model.PromptOption{ID: "extract", Label: "提炼"})
 		}
 

@@ -133,6 +133,12 @@ func mergeRoleEntry(base RoleEntry, overlay RoleEntry) RoleEntry {
 	if overlay.HandLimit != nil {
 		merged.HandLimit = overlay.HandLimit
 	}
+	if overlay.TargetFilter != nil {
+		merged.TargetFilter = overlay.TargetFilter
+	}
+	if overlay.EnergyCapRule != nil {
+		merged.EnergyCapRule = overlay.EnergyCapRule
+	}
 	if overlay.MaxHeal != nil {
 		merged.MaxHeal = overlay.MaxHeal
 	}
@@ -168,6 +174,9 @@ func mergeRoleEntry(base RoleEntry, overlay RoleEntry) RoleEntry {
 	}
 	if len(overlay.TimingHookSpecs) > 0 {
 		merged.TimingHookSpecs = append(append([]TimingHookSpec{}, merged.TimingHookSpecs...), overlay.TimingHookSpecs...)
+	}
+	if overlay.SpecialActionHook.BuyRewardOverride != nil {
+		merged.SpecialActionHook = overlay.SpecialActionHook
 	}
 	return merged
 }

@@ -96,7 +96,7 @@
 
 ---
 
-### 3. 弓手 (Archer)
+### 3. 神箭手 (Archer)
 
 **测试文件**：`internal/engine/archer_config_regression_test.go`、`tests/archer_skills_test.go`
 

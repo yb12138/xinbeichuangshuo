@@ -155,7 +155,7 @@ func TestAdventurerUndergroundLaw_RewritesBuyInsteadOfDefaultSettlement(t *testi
 	}
 }
 
-func TestAdventurerExtractFullEnergy_ForceParadiseTransfer(t *testing.T) {
+func TestAdventurerExtractFullEnergy_AutoParadiseAllyExtract(t *testing.T) {
 	game := NewGameEngine(noopObserver{})
 	if err := game.AddPlayer("p1", "Adventurer", "adventurer", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -179,35 +179,27 @@ func TestAdventurerExtractFullEnergy_ForceParadiseTransfer(t *testing.T) {
 	p2.Gem = 1
 	game.State.RedCrystals = 2
 
+	// 提炼 → 自身能量满，override hook 自动跳转到队友选择
 	mustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdExtract})
-	requireChoicePrompt(t, game, "p1", "extract")
+	requireChoicePrompt(t, game, "p1", "adventurer_paradise_pick")
 
-	mustHandleAction(t, game, model.PlayerAction{
-		PlayerID:   "p1",
-		Type:       model.CmdSelect,
-		Selections: []int{0, 1},
-	})
-	requireResponseSkillPrompt(t, game, "p1")
-
-	skipIdx := len(game.State.PendingInterrupt.SkillIDs)
-	if err := game.HandleAction(model.PlayerAction{
-		PlayerID:   "p1",
-		Type:       model.CmdSelect,
-		Selections: []int{skipIdx},
-	}); err == nil {
-		t.Fatalf("expected forced paradise transfer to reject skip")
-	}
-
-	chooseResponseSkillByID(t, game, "p1", "adventurer_paradise")
-	requireChoicePrompt(t, game, "p1", "adventurer_paradise_target")
 	mustHandleAction(t, game, model.PlayerAction{
 		PlayerID:   "p1",
 		Type:       model.CmdSelect,
 		Selections: []int{0},
 	})
 
-	if p1.Gem+p1.Crystal != 2 {
-		t.Fatalf("expected p1 energy reduced to 2 after paradise cost, got gem=%d crystal=%d", p1.Gem, p1.Crystal)
+	// 队友看到提炼提示
+	requireChoicePrompt(t, game, "p2", "extract")
+	mustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p2",
+		Type:       model.CmdSelect,
+		Selections: []int{0, 1},
+	})
+
+	// p1 能量不变（未提炼），p2 从提炼中获得2水晶
+	if p1.Gem+p1.Crystal != 3 {
+		t.Fatalf("expected p1 energy unchanged (full), got gem=%d crystal=%d", p1.Gem, p1.Crystal)
 	}
 	if p2.Gem+p2.Crystal != 3 {
 		t.Fatalf("expected p2 receive two extracted energies, got gem=%d crystal=%d", p2.Gem, p2.Crystal)
@@ -217,7 +209,7 @@ func TestAdventurerExtractFullEnergy_ForceParadiseTransfer(t *testing.T) {
 	}
 }
 
-func TestAdventurerParadise_TransferOnlyExtractedEnergy(t *testing.T) {
+func TestAdventurerParadise_AllyDirectExtract(t *testing.T) {
 	game := NewGameEngine(noopObserver{})
 	if err := game.AddPlayer("p1", "Adventurer", "adventurer", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -236,30 +228,42 @@ func TestAdventurerParadise_TransferOnlyExtractedEnergy(t *testing.T) {
 	p2 := game.State.Players["p2"]
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
-	p1.Gem = 2 // 已有能量，不应被整体转移
+	p1.Gem = 2 // 已有能量
 	game.State.RedGems = 1
 
+	// 提炼 → 询问是否发动天堂
 	mustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdExtract})
-	requireChoicePrompt(t, game, "p1", "extract")
+	requireChoicePrompt(t, game, "p1", "adventurer_extract_paradise_check")
+
+	// 选择"是，发动冒险者天堂"
 	mustHandleAction(t, game, model.PlayerAction{
 		PlayerID:   "p1",
 		Type:       model.CmdSelect,
 		Selections: []int{0},
 	})
 
-	chooseResponseSkillByID(t, game, "p1", "adventurer_paradise")
-	requireChoicePrompt(t, game, "p1", "adventurer_paradise_target")
+	// 选择队友
+	requireChoicePrompt(t, game, "p1", "adventurer_paradise_pick")
 	mustHandleAction(t, game, model.PlayerAction{
 		PlayerID:   "p1",
 		Type:       model.CmdSelect,
 		Selections: []int{0},
 	})
 
-	if p2.Gem != 1 || p2.Crystal != 0 {
-		t.Fatalf("expected ally only receive extracted gem, got gem=%d crystal=%d", p2.Gem, p2.Crystal)
+	// 队友看到提炼提示
+	requireChoicePrompt(t, game, "p2", "extract")
+	mustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p2",
+		Type:       model.CmdSelect,
+		Selections: []int{0},
+	})
+
+	// p1 能量不变（队友提炼而非冒险者提炼），p2 获得提炼的1宝石
+	if p1.Gem != 2 || p1.Crystal != 0 {
+		t.Fatalf("expected p1 keep pre-existing energy, got gem=%d crystal=%d", p1.Gem, p1.Crystal)
 	}
-	if p1.Gem != 1 || p1.Crystal != 0 {
-		t.Fatalf("expected p1 keep pre-existing energy except mandatory -1, got gem=%d crystal=%d", p1.Gem, p1.Crystal)
+	if p2.Gem != 1 || p2.Crystal != 0 {
+		t.Fatalf("expected ally receive extracted gem, got gem=%d crystal=%d", p2.Gem, p2.Crystal)
 	}
 }
 
@@ -287,23 +291,17 @@ func TestAdventurerParadise_TargetsFilteredByExtractCapacity(t *testing.T) {
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
 	p1.Gem = 1
-	p1.Crystal = 2 // 能量已满，提炼后必须走冒险者天堂转移
+	p1.Crystal = 2 // 能量已满，提炼后自动走冒险者天堂
 	p2.Gem = 1
-	p2.Crystal = 1 // 仅剩1格，不可接收2点提炼
+	p2.Crystal = 1 // 仅剩1格
 	p3.Gem = 1
-	p3.Crystal = 0 // 剩余2格，可完整接收
+	p3.Crystal = 0 // 剩余2格
 	game.State.RedCrystals = 2
 
+	// 提炼 → 自身能量满，自动跳转到队友选择
 	mustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdExtract})
-	requireChoicePrompt(t, game, "p1", "extract")
-	mustHandleAction(t, game, model.PlayerAction{
-		PlayerID:   "p1",
-		Type:       model.CmdSelect,
-		Selections: []int{0, 1},
-	})
+	ctx := requireChoiceContext(t, game, "p1", "adventurer_paradise_pick")
 
-	chooseResponseSkillByID(t, game, "p1", "adventurer_paradise")
-	ctx := requireChoiceContext(t, game, "p1", "adventurer_paradise_target")
 	var allyIDs []string
 	if arr, ok := ctx["ally_ids"].([]string); ok {
 		allyIDs = append(allyIDs, arr...)
@@ -314,26 +312,43 @@ func TestAdventurerParadise_TargetsFilteredByExtractCapacity(t *testing.T) {
 			}
 		}
 	}
-	if len(allyIDs) != 1 || allyIDs[0] != "p3" {
-		t.Fatalf("expected only p3 can receive extracted energy, got ally_ids=%v", allyIDs)
+	// p2（仅1格空间）和 p3（2格空间）都有空间，都应出现在候选列表中
+	if len(allyIDs) != 2 {
+		t.Fatalf("expected both allies with room, got ally_ids=%v", allyIDs)
 	}
 
+	// 选择 p3（有2格空间的队友）
+	p3Idx := 0
+	for i, id := range allyIDs {
+		if id == "p3" {
+			p3Idx = i
+			break
+		}
+	}
 	mustHandleAction(t, game, model.PlayerAction{
 		PlayerID:   "p1",
 		Type:       model.CmdSelect,
-		Selections: []int{0},
+		Selections: []int{p3Idx},
+	})
+
+	// p3 看到提炼提示
+	requireChoicePrompt(t, game, "p3", "extract")
+	mustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p3",
+		Type:       model.CmdSelect,
+		Selections: []int{0, 1},
 	})
 
 	if p2.Gem+p2.Crystal != 2 {
-		t.Fatalf("expected p2 unchanged (cannot receive), got gem=%d crystal=%d", p2.Gem, p2.Crystal)
+		t.Fatalf("expected p2 unchanged (not selected), got gem=%d crystal=%d", p2.Gem, p2.Crystal)
 	}
 	if p3.Gem+p3.Crystal != 3 {
-		t.Fatalf("expected p3 receive all extracted energy, got gem=%d crystal=%d", p3.Gem, p3.Crystal)
+		t.Fatalf("expected p3 receive extracted energy, got gem=%d crystal=%d", p3.Gem, p3.Crystal)
 	}
 }
 
-// 回归：提炼后切换到【冒险者天堂】响应时，应立即下发新的响应技能提示，避免前端停留在 choose_extract。
-func TestAdventurerExtract_ParadisePromptRefreshAfterSelection(t *testing.T) {
+// 回归：冒险者提炼时，override hook 应先询问是否发动天堂，而非直接显示提炼提示。
+func TestAdventurerExtract_ParadiseCheckBeforeExtract(t *testing.T) {
 	obs := &captureObserver{}
 	game := NewGameEngine(obs)
 	if err := game.AddPlayer("p1", "Adventurer", "adventurer", model.RedCamp); err != nil {
@@ -356,31 +371,19 @@ func TestAdventurerExtract_ParadisePromptRefreshAfterSelection(t *testing.T) {
 	game.State.RedGems = 1
 
 	mustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdExtract})
-	firstPrompt := latestAskPromptForPlayer(obs, "p1")
-	if firstPrompt == nil || firstPrompt.Type != model.PromptChooseExtract {
-		t.Fatalf("expected first prompt choose_extract, got %+v", firstPrompt)
-	}
-	beforeSelectAskCount := countAskPromptsForPlayer(obs, "p1")
 
+	// 新流程：override hook 拦截提炼，先询问是否发动天堂
+	requireChoicePrompt(t, game, "p1", "adventurer_extract_paradise_check")
+
+	// 选择"否，自行提炼"
 	mustHandleAction(t, game, model.PlayerAction{
 		PlayerID:   "p1",
 		Type:       model.CmdSelect,
-		Selections: []int{0},
+		Selections: []int{1},
 	})
-	requireResponseSkillPrompt(t, game, "p1")
 
-	afterSelectAskCount := countAskPromptsForPlayer(obs, "p1")
-	if afterSelectAskCount <= beforeSelectAskCount {
-		t.Fatalf("expected a fresh ask-input prompt after extract select, before=%d after=%d",
-			beforeSelectAskCount, afterSelectAskCount)
-	}
-	latestPrompt := latestAskPromptForPlayer(obs, "p1")
-	if latestPrompt == nil || latestPrompt.Type != model.PromptChooseSkill {
-		t.Fatalf("expected latest prompt choose_skill for paradise response, got %+v", latestPrompt)
-	}
-	if !promptHasOptionID(latestPrompt, "adventurer_paradise") {
-		t.Fatalf("expected paradise response option in prompt, got options=%+v", latestPrompt.Options)
-	}
+	// 应显示标准提炼提示
+	requireChoicePrompt(t, game, "p1", "extract")
 }
 
 func TestPriestDivineDomain_HealBranchRequiresTwoDiscards(t *testing.T) {

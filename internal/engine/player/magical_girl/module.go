@@ -10,9 +10,10 @@ import (
 // RoleEntry 导出角色统一入口定义。
 func RoleEntry() player.RoleEntry {
 	return player.RoleEntry{
-		ID:      "magical_girl",
-		Choices: NewChoiceHandler(),
-		Skills:  SkillEntries(),
+		ID:          "magical_girl",
+		MagicBullet: player.MagicBulletAbilities{CanFuse: true, CanDirect: true},
+		Choices:     NewChoiceHandler(),
+		Skills:      SkillEntries(),
 		InterruptSpecs: []player.InterruptSpec{
 			{
 				Type:                 model.InterruptMagicMissile,

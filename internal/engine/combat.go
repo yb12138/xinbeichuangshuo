@@ -10,7 +10,7 @@ import (
 )
 
 // initCombat 初始化战斗，将 CombatRequest 推入栈并进入战斗交互阶段
-func (e *GameEngine) initCombat(attackerID, targetID string, card *model.Card, isForcedHit, canBeResponded, ignoreShield bool, interceptTags map[model.CombatInterceptTag]bool, isCounter ...bool) {
+func (e *GameEngine) initCombat(attackerID, targetID string, card *model.Card, isForcedHit, canBeResponded, ignoreShield bool, interceptTags map[model.CombatInterceptTag]bool, elementOverride string, isCounter ...bool) {
 	e.setCombatStage(model.CombatStageDeclare)
 	e.clearSubflow()
 	attacker := e.State.Players[attackerID]
@@ -20,14 +20,15 @@ func (e *GameEngine) initCombat(attackerID, targetID string, card *model.Card, i
 		e.NotifyCombatCue(attackerID, targetID, "attack")
 	}
 	combatReq := model.CombatRequest{
-		AttackerID:     attackerID,
-		TargetID:       targetID,
-		Card:           card,
-		IsForcedHit:    isForcedHit,
-		IgnoreShield:   ignoreShield,
-		CanBeResponded: canBeResponded,
-		IsCounter:      len(isCounter) > 0 && isCounter[0],
-		InterceptTags:  model.CloneCombatInterceptTags(interceptTags),
+		AttackerID:      attackerID,
+		TargetID:        targetID,
+		Card:            card,
+		IsForcedHit:     isForcedHit,
+		IgnoreShield:    ignoreShield,
+		CanBeResponded:  canBeResponded,
+		IsCounter:       len(isCounter) > 0 && isCounter[0],
+		InterceptTags:   model.CloneCombatInterceptTags(interceptTags),
+		ElementOverride: elementOverride,
 	}
 	if combatReq.IsForcedHit {
 		combatReq.SetInterceptTag(model.CombatInterceptForceHit)
@@ -271,5 +272,5 @@ func (e *GameEngine) resolveCounterAttack(counterPlayerID, counterTargetID strin
 	// Pop the original combat
 	e.State.CombatStack = e.State.CombatStack[:len(e.State.CombatStack)-1]
 	// Create the reflected combat
-	e.initCombat(counterPlayerID, counterTargetID, &counterCard, false, true, false, nil, true)
+	e.initCombat(counterPlayerID, counterTargetID, &counterCard, false, true, false, nil, "", true)
 }

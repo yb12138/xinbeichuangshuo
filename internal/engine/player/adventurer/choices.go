@@ -15,10 +15,10 @@ import (
 // ChoiceSpecs 声明式选择流程条目。
 func ChoiceSpecs() []engineplayer.ChoiceSpec {
 	return []engineplayer.ChoiceSpec{
+		{ChoiceType: "adventurer_extract_paradise_check", BuildPrompt: buildExtractParadiseCheckPrompt, HandleChoice: handleExtractParadiseCheck},
+		{ChoiceType: "adventurer_paradise_pick", BuildPrompt: buildParadiseAllyPickPrompt, HandleChoice: handleParadiseAllyPick},
 		{ChoiceType: "adventurer_fraud_pick", BuildPrompt: buildFraudPickPrompt, HandleChoice: handleFraudPick},
 		{ChoiceType: "adventurer_fraud_attack_element", BuildPrompt: buildFraudElementPrompt, HandleChoice: handleFraudElement},
-		{ChoiceType: "adventurer_paradise_pick", BuildPrompt: buildParadisePickPrompt, HandleChoice: handleParadisePick},
-		{ChoiceType: "adventurer_paradise_target", BuildPrompt: buildParadiseTargetPrompt, HandleChoice: handleParadiseTarget},
 		{ChoiceType: "adventurer_steal_sky_mode", BuildPrompt: buildStealSkyModePrompt, HandleChoice: handleStealSkyMode},
 	}
 }
@@ -76,94 +76,109 @@ func handleStealSkyMode(rt engineplayer.ChoiceRuntime, playerID string, selectio
 }
 
 // ---------------------------------------------------------------------------
-// 冒险者天堂 - 转移资源
+// 冒险者天堂 - 选择队友直接提炼
 // ---------------------------------------------------------------------------
 
-func buildParadisePickPrompt(_ engineplayer.ChoiceRuntime, playerID string, _ *model.Player, _ map[string]interface{}) *model.Prompt {
-	labels := make([]string, 5)
-	for i := 0; i <= 4; i++ {
-		labels[i] = fmt.Sprintf("转移%d个提炼成果给队友", i)
+func buildParadiseAllyPickPrompt(rt engineplayer.ChoiceRuntime, playerID string, _ *model.Player, data map[string]interface{}) *model.Prompt {
+	allyIDs := runtimeutil.ParseStringSliceContextValue(data["ally_ids"])
+	if len(allyIDs) == 0 {
+		return nil
 	}
-	return engineplayer.NewPrompt(playerID, "【冒险者天堂】选择要转移的提炼成果数量：").
-		OptionsFromLabels(labels...).
+	opts := make([]engineplayer.PromptOptionSpec, 0, len(allyIDs))
+	for _, allyID := range allyIDs {
+		ally := rt.GetPlayers()[allyID]
+		if ally != nil {
+			opts = append(opts, engineplayer.Option(allyID, ally.Name))
+		}
+	}
+	return engineplayer.NewPrompt(playerID, "【冒险者天堂】选择队友代为提炼：").Options(opts...).Build()
+}
+
+func handleParadiseAllyPick(rt engineplayer.ChoiceRuntime, playerID string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
+	allyIDs := runtimeutil.ParseStringSliceContextValue(ctxData["ally_ids"])
+	if selectionIndex < 0 || selectionIndex >= len(allyIDs) {
+		return true, fmt.Errorf("无效的队友索引")
+	}
+	allyID := allyIDs[selectionIndex]
+	ally := rt.GetPlayers()[allyID]
+	if ally == nil {
+		return true, fmt.Errorf("队友不存在")
+	}
+	rt.Log(fmt.Sprintf("[冒险者天堂] %s 选择队友 %s 代为提炼", playerID, ally.Name))
+	rt.PopInterrupt()
+	rt.StartExtractForPlayer(allyID)
+	return true, nil
+}
+
+// ---------------------------------------------------------------------------
+// 冒险者天堂 - 提炼时询问是否发动
+// ---------------------------------------------------------------------------
+
+func buildExtractParadiseCheckPrompt(_ engineplayer.ChoiceRuntime, playerID string, _ *model.Player, _ map[string]interface{}) *model.Prompt {
+	return engineplayer.NewPrompt(playerID, "是否发动[冒险者天堂]，让队友代为提炼？").
+		Options(
+			engineplayer.Option("yes", "是，发动冒险者天堂"),
+			engineplayer.Option("no", "否，自行提炼"),
+		).
 		Build()
 }
 
-func handleParadisePick(rt engineplayer.ChoiceRuntime, _ string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
-	ctxData["paradise_transfer_count"] = selectionIndex
-	ctxData["choice_type"] = "adventurer_paradise_target"
-	if intr := rt.GetPendingInterrupt(); intr != nil {
-		intr.Context = ctxData
+func handleExtractParadiseCheck(rt engineplayer.ChoiceRuntime, playerID string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
+	user := rt.GetPlayers()[playerID]
+	if user == nil {
+		return true, fmt.Errorf("玩家不存在")
 	}
-	rt.NotifyInterruptPrompt()
-	return true, nil
-}
-
-func buildParadiseTargetPrompt(rt engineplayer.ChoiceRuntime, playerID string, _ *model.Player, data map[string]interface{}) *model.Prompt {
-	eligibleIDs := runtimeutil.ParseStringSliceContextValue(data["eligible_targets"])
-	if len(eligibleIDs) == 0 {
-		eligibleIDs = runtimeutil.ParseStringSliceContextValue(data["ally_ids"])
-	}
-	if len(eligibleIDs) == 0 {
-		return nil
-	}
-	opts := make([]engineplayer.PromptOptionSpec, 0, len(eligibleIDs))
-	for _, targetID := range eligibleIDs {
-		target := rt.GetPlayers()[targetID]
-		if target != nil {
-			opts = append(opts, engineplayer.Option(targetID, target.Name))
-		}
-	}
-	return engineplayer.NewPrompt(playerID, "【冒险者天堂】选择转移目标：").Options(opts...).Build()
-}
-
-func handleParadiseTarget(rt engineplayer.ChoiceRuntime, _ string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
-	eligibleIDs := runtimeutil.ParseStringSliceContextValue(ctxData["eligible_targets"])
-	if len(eligibleIDs) == 0 {
-		eligibleIDs = runtimeutil.ParseStringSliceContextValue(ctxData["ally_ids"])
-	}
-	if selectionIndex < 0 || selectionIndex >= len(eligibleIDs) {
-		return true, fmt.Errorf("无效的目标索引")
-	}
-	targetID := eligibleIDs[selectionIndex]
-	target := rt.GetPlayers()[targetID]
-	if target == nil {
-		return true, fmt.Errorf("目标不存在")
-	}
-	transferCount := runtimeutil.ToIntContextValue(ctxData["paradise_transfer_count"])
-	transferTotal := runtimeutil.ToIntContextValue(ctxData["transfer_total"])
-	if transferTotal <= 0 {
-		transferTotal = transferCount
-	}
-	fromPending, _ := ctxData["from_pending"].(bool)
-	transferGem := runtimeutil.ToIntContextValue(ctxData["transfer_gem"])
-	transferCrystal := runtimeutil.ToIntContextValue(ctxData["transfer_crystal"])
-	userID, _ := ctxData["user_id"].(string)
-	user := rt.GetPlayers()[userID]
-
-	if fromPending {
-		target.Gem += transferGem
-		target.Crystal += transferCrystal
-	} else if user != nil {
-		if transferGem > 0 && user.Gem >= transferGem {
-			user.Gem -= transferGem
-			target.Gem += transferGem
-		}
-		if transferCrystal > 0 && user.Crystal >= transferCrystal {
-			user.Crystal -= transferCrystal
-			target.Crystal += transferCrystal
-		}
-	}
-	if user != nil {
-		if user.Gem > 0 {
-			user.Gem--
-		} else if user.Crystal > 0 {
-			user.Crystal--
-		}
-	}
-	rt.Log(fmt.Sprintf("[冒险者天堂] 转移 %d 个提炼成果给 %s", transferTotal, target.Name))
 	rt.PopInterrupt()
+	if selectionIndex == 0 {
+		// 是 → 推送队友选择
+		allies := eligibleAllyIDsForChoice(rt, user)
+		if len(allies) == 0 {
+			// 没有可选队友，退回自行提炼
+			setDeclinedParadise(user)
+			rt.StartExtractForPlayer(playerID)
+			return true, nil
+		}
+		rt.PushInterrupt(&model.Interrupt{
+			Type:     model.InterruptChoice,
+			PlayerID: playerID,
+			Context: map[string]interface{}{
+				"choice_type": "adventurer_paradise_pick",
+				"user_id":     playerID,
+				"ally_ids":    allies,
+			},
+		})
+		rt.NotifyInterruptPrompt()
+		return true, nil
+	}
+	// 否 → 正常提炼（设置标志防止 override hook 再次拦截）
+	setDeclinedParadise(user)
+	rt.StartExtractForPlayer(playerID)
 	return true, nil
+}
+
+func setDeclinedParadise(p *model.Player) {
+	if p == nil {
+		return
+	}
+	if p.TurnState.SkillFlowState == nil {
+		p.TurnState.SkillFlowState = map[string]int{}
+	}
+	p.TurnState.SkillFlowState["adventurer_declined_paradise"] = 1
+}
+
+func eligibleAllyIDsForChoice(rt engineplayer.ChoiceRuntime, p *model.Player) []string {
+	var ids []string
+	for _, pid := range rt.GetPlayerOrder() {
+		ally := rt.GetPlayers()[pid]
+		if ally == nil || ally.Camp != p.Camp || ally.ID == p.ID {
+			continue
+		}
+		maxEnergy := rt.GetPlayerEnergyCap(ally)
+		if ally.Gem+ally.Crystal < maxEnergy {
+			ids = append(ids, pid)
+		}
+	}
+	return ids
 }
 
 // ---------------------------------------------------------------------------

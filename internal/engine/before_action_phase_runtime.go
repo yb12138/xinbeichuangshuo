@@ -163,7 +163,7 @@ func (e *GameEngine) driveBeforeActionAttack(currentPid string, player *model.Pl
 	player.TurnState.AttackCount++
 	e.State.ActionQueue = e.State.ActionQueue[1:]
 	// initCombat：进入战斗交互（应战窗口）或强制命中时直接转入伤害队列；与桌游中「攻击已打出、等待对方响应」一致。
-	e.initCombat(currentPid, targetID, &card, isForcedHit, eventCtx.AttackInfo.CanBeResponded, ignoreShield, eventCtx.AttackInfo.InterceptTags)
+	e.initCombat(currentPid, targetID, &card, isForcedHit, eventCtx.AttackInfo.CanBeResponded, ignoreShield, eventCtx.AttackInfo.InterceptTags, eventCtx.AttackInfo.ElementOverride)
 	return driveContinueLoop
 }
 

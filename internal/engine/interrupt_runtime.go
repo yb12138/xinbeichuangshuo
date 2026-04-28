@@ -28,25 +28,9 @@ func (e *GameEngine) ConfirmResponseSkill(playerID string, skillID string) error
 
 func (e *GameEngine) handleInterruptResponseSkillAction(act model.PlayerAction) error {
 	if e.prunePendingResponseSkills() {
-		if p := e.State.Players[act.PlayerID]; p != nil && p.TurnState.SkillFlowState != nil && p.TurnState.SkillFlowState["adventurer_extract_requires_paradise"] > 0 {
-			return fmt.Errorf("本次提炼结果需先发动[冒险者天堂]分配给队友")
-		}
-		e.clearAdventurerExtractState(e.State.Players[act.PlayerID])
 		return e.SkipResponse()
 	}
-	forceParadise := func() bool {
-		for _, entry := range roleRegistry.Entries() {
-			if entry.IsForcedParadiseResponse != nil && entry.IsForcedParadiseResponse(e.State.PendingInterrupt, e.State.Players, act.PlayerID) {
-				return true
-			}
-		}
-		return false
-	}()
 	if act.Type == model.CmdCancel {
-		if forceParadise {
-			return fmt.Errorf("本次提炼结果需先发动[冒险者天堂]分配给队友")
-		}
-		e.clearAdventurerExtractState(e.State.Players[act.PlayerID])
 		return e.SkipResponse()
 	}
 	if act.Type == model.CmdSelect {
@@ -58,10 +42,6 @@ func (e *GameEngine) handleInterruptResponseSkillAction(act model.PlayerAction) 
 			return fmt.Errorf("无效的选择")
 		}
 		if idx == len(e.State.PendingInterrupt.SkillIDs) {
-			if forceParadise {
-				return fmt.Errorf("本次提炼结果需先发动[冒险者天堂]分配给队友")
-			}
-			e.clearAdventurerExtractState(e.State.Players[act.PlayerID])
 			return e.SkipResponse()
 		}
 		return e.ConfirmResponseSkill(act.PlayerID, e.State.PendingInterrupt.SkillIDs[idx])
@@ -301,12 +281,14 @@ func (e *GameEngine) maybeAdvanceResponseSkillSelection() bool {
 		return false
 	}
 
-	if len(intr.SkillIDs) == 1 && intr.SkillIDs[0] == "fighter_charge_strike" &&
-		ctx.Timing == model.TimingOnAttackDeclared && ctx.EventCtx != nil && ctx.EventCtx.AttackInfo != nil &&
-		ctx.EventCtx.AttackInfo.CounterInitiator == "" && playerpkg.IsCharacter(player, "fighter") &&
-		e.dispatcher.isSkillStillUsable("fighter_burst_crash", player, ctx) {
-		intr.SkillIDs = []string{"fighter_burst_crash"}
-		e.Log(fmt.Sprintf("%s 放弃 [蓄力一击]，继续询问是否发动 [气绝崩击]", player.Name))
+	// 角色响应技能推进（如格斗家蓄力→气绝）
+	advanceResult := e.dispatchRoleTimingHook(playerpkg.TimingOnResponseSkillAdvance, playerpkg.TimingHookContext{
+		Player:          player,
+		OfferedSkillIDs: intr.SkillIDs,
+		UserCtx:         ctx,
+	})
+	if advanceResult.Handled && len(advanceResult.SkillIDs) > 0 {
+		intr.SkillIDs = advanceResult.SkillIDs
 		e.notifyInterruptPrompt()
 		return true
 	}

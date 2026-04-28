@@ -44,7 +44,7 @@ func (e *GameEngine) dispatchRoleTimingHook(
 	rt := newHookRuntime(e)
 	for _, entry := range hooks {
 		result := entry.Hook(rt, ctx)
-		if result.Interrupted || result.Blocked || result.SkipNextHook || result.ValidationError != nil {
+		if result.Handled || result.Interrupted || result.Blocked || result.SkipNextHook || result.ValidationError != nil {
 			return result
 		}
 	}

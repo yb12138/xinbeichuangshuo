@@ -120,6 +120,13 @@ func (h *gameSkillHost) GetMaxHand(player *model.Player) int {
 	return h.sd.engine.GetMaxHand(player)
 }
 
+func (h *gameSkillHost) GetPlayerEnergyCap(player *model.Player) int {
+	if h == nil || h.sd == nil || h.sd.engine == nil {
+		return 0
+	}
+	return h.sd.engine.GetPlayerEnergyCap(player)
+}
+
 func (h *gameSkillHost) DropQueuedOverflowDiscardForPlayer(playerID string) {
 	if h == nil || h.sd == nil || h.sd.engine == nil {
 		return

@@ -6,26 +6,6 @@ import (
 	"starcup-engine/internal/model"
 )
 
-// IsForcedParadiseResponse returns true when the pending interrupt is a
-// response-skill prompt for the given player that requires selecting
-// "adventurer_paradise" and the player has the extract_requires_paradise flag.
-func IsForcedParadiseResponse(pendingInterrupt *model.Interrupt, players map[string]*model.Player, playerID string) bool {
-	intr := pendingInterrupt
-	if intr == nil || intr.Type != model.InterruptResponseSkill || intr.PlayerID != playerID {
-		return false
-	}
-	p := players[playerID]
-	if p == nil || p.TurnState.SkillFlowState == nil || p.TurnState.SkillFlowState["adventurer_extract_requires_paradise"] <= 0 {
-		return false
-	}
-	for _, sid := range intr.SkillIDs {
-		if sid == "adventurer_paradise" {
-			return true
-		}
-	}
-	return false
-}
-
 // ResolveUndergroundLaw applies the Underground Law effect: instead of buying,
 // the player's camp gains 2 gems.
 func ResolveUndergroundLaw(rt model.IGameEngine, user *model.Player) {

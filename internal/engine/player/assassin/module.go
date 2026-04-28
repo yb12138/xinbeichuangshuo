@@ -21,6 +21,11 @@ func RoleEntry() player.RoleEntry {
 				return current
 			},
 		},
+		TargetFilter: player.TargetFilterRuleFuncs{
+			CannotBeTarget: func(p *model.Player) bool {
+				return player.HasForm(p, model.FormAssassinStealth)
+			},
+		},
 		FollowupSpecs:    FollowupSpecs(),
 		Choices:          NewChoiceHandler(),
 		Skills:           SkillEntries(),

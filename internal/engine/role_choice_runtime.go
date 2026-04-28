@@ -320,13 +320,6 @@ func (r roleChoiceRuntime) ConsumePlayableCardByCardID(playerID, cardID string) 
 	return card, true
 }
 
-func (r roleChoiceRuntime) ApplyStealthEffect(player *model.Player) {
-	if r.GameEngine == nil {
-		return
-	}
-	r.applyAssassinStealthEffect(player)
-}
-
 func (r roleChoiceRuntime) EnqueueVirtualAttack(sourceID, targetID string, card model.Card, sourceSkill string) {
 	if r.GameEngine == nil || r.State == nil {
 		return

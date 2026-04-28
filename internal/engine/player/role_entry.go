@@ -88,13 +88,29 @@ type DamageOps interface {
 	ResumePendingMoraleLoss(ctx *model.Context) bool
 }
 
+// TargetFilterRule 目标过滤规则 — 角色模块声明哪些玩家不能成为主动攻击目标。
+type TargetFilterRule interface {
+	CannotBeActiveAttackTarget(player *model.Player) bool
+}
+
+// TargetFilterRuleFuncs 函数式适配器。
+type TargetFilterRuleFuncs struct {
+	CannotBeTarget func(p *model.Player) bool
+}
+
+func (r TargetFilterRuleFuncs) CannotBeActiveAttackTarget(player *model.Player) bool {
+	if r.CannotBeTarget == nil {
+		return false
+	}
+	return r.CannotBeTarget(player)
+}
+
 // CombatOps 战斗操作。
 type CombatOps interface {
 	EnsureCombatInteractionWindow()
 	ResolveCounterAttack(counterPlayerID, counterTargetID string, counterCard model.Card)
 	NotifyCombatCue(attackerID, targetID, cueType string)
 	ConsumePlayableCardByCardID(playerID, cardID string) (model.Card, bool)
-	ApplyStealthEffect(player *model.Player)
 	EnqueueVirtualAttack(sourceID, targetID string, card model.Card, sourceSkill string)
 	ResumePendingAttackMiss(ctx *model.Context) bool
 	ResumePendingAttackHit(ctxData map[string]interface{})
@@ -259,10 +275,17 @@ type MoraleLossModifierEngine interface {
 	GetAllPlayers() []*model.Player
 }
 
+// MoraleLossModifierExtra 士气损失修改器的额外上下文（可选）。
+type MoraleLossModifierExtra struct {
+	Victim             *model.Player
+	FromDamageDraw     bool
+	IsDamageResolution bool
+}
+
 // MoraleLossModifier 调整指定阵营的士气损失量。
-// 接收 (engine, camp, currentMorale, proposedLoss)，返回修改后的损失量。
+// 接收 (engine, camp, currentMorale, proposedLoss, extra)，返回修改后的损失量。
 // 按 roleRegistry 顺序链式调用，前一个修改器的输出是后一个的输入。
-type MoraleLossModifier func(engine MoraleLossModifierEngine, camp model.Camp, currentMorale int, proposedLoss int) int
+type MoraleLossModifier func(engine MoraleLossModifierEngine, camp model.Camp, currentMorale int, proposedLoss int, extra MoraleLossModifierExtra) int
 
 // CannotActChecker 无法行动判断函数。
 // 返回 (canCannotAct, reason)：
@@ -271,6 +294,26 @@ type MoraleLossModifier func(engine MoraleLossModifierEngine, camp model.Camp, c
 //
 // player 参数已包含手牌、形态等信息，大多数角色只需要检查 player 即可。
 type CannotActChecker func(player *model.Player) (bool, string)
+
+// BuyRewardResult 购买奖励改写结果（纯数据，由引擎应用）。
+type BuyRewardResult struct {
+	Handled     bool   // true 表示已处理（跳过默认奖励逻辑）
+	AddGems     int    // 向阵营战绩区添加的宝石数
+	AddCrystals int    // 向阵营战绩区添加的水晶数
+	LogMessage  string // 日志消息
+}
+
+// SpecialActionHookSpec 特殊行动钩子：角色模块可改写特殊行动的执行内容。
+type SpecialActionHookSpec struct {
+	// BuyRewardOverride 改写购买奖励（如冒险者地下法则：+2宝石代替+1宝石+1水晶）。
+	BuyRewardOverride func(p *model.Player, campStones int, maxStones int) BuyRewardResult
+}
+
+// MagicBulletAbilities 魔弹相关能力声明（数据驱动，引擎不再硬编码角色 ID）。
+type MagicBulletAbilities struct {
+	CanFuse   bool // 可将地系或火系法术牌当魔弹使用
+	CanDirect bool // 可选择魔弹传递方向
+}
 
 // FollowupSpec 定义角色模块贡献到延迟后续执行表的条目。
 type FollowupSpec struct {
@@ -284,6 +327,10 @@ type RoleEntry struct {
 	Defaults                   func(player *model.Player)
 	StarterCards               func(player *model.Player) []model.Card
 	HandLimit                  HandLimitRule
+	TargetFilter               TargetFilterRule
+	EnergyCapRule              EnergyCapRule
+	SpecialActionHook          SpecialActionHookSpec
+	MagicBullet                MagicBulletAbilities
 	MaxHeal                    func(player *model.Player, current int) int
 	Choices                    ChoiceHandler
 	ChoiceSpecs                []ChoiceSpec
@@ -303,7 +350,6 @@ type RoleEntry struct {
 	ExcludeCardFromDiscard     func(player *model.Player, card model.Card) bool                                     // 弃牌时排除特定卡牌（可选，如精灵射手祝福牌）
 	AfterMoraleLossHook        func(rt model.IGameEngine, victim *model.Player, finalLoss int, fromDamageDraw bool) // 士气损失后置钩子（可选，如灵魂巫师灵魂吞噬）
 	MaybeDarkRitual            func(rt ChoiceRuntime, player *model.Player) bool                                    // 暗仪发动检查（可选，如阴阳师暗仪）
-	IsForcedParadiseResponse   func(intr *model.Interrupt, players map[string]*model.Player, playerID string) bool  // 强制天堂响应判断（可选，如冒险者提炼强制天堂）
 	AfterDiscardFollowup       func(rt ChoiceRuntime, player *model.Player)                                         // 弃牌后续处理（可选，如魔枪幻影星尘）
 	ConsumeTauntRestriction    func(rt ChoiceRuntime, player *model.Player)                                         // 挑衅约束消耗（可选，如勇者挑衅）
 	ResolveChrysalis           func(rt ChoiceRuntime, userID string) error                                          // 蛹化直接结算（可选，如蝶舞者蛹化）

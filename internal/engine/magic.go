@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 
-	playerpkg "starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
 )
 
@@ -69,7 +68,7 @@ func (e *GameEngine) performMagic(sourceID, targetID string, cardIdx int, skipMa
 	}
 
 	// 【魔弹融合】检查：魔法少女使用地系或火系非魔弹法术牌时，询问是否当魔弹使用
-	if !skipMagicBulletFusionCheck && playerpkg.IsCharacter(player, "magical_girl") && card.Name != "魔弹" &&
+	if !skipMagicBulletFusionCheck && roleRegistry.Entry(player.Character.ID).MagicBullet.CanFuse && card.Name != "魔弹" &&
 		(card.Element == model.ElementEarth || card.Element == model.ElementFire) {
 		// 先不移除手牌，等玩家确认后再处理
 		e.PushInterrupt(&model.Interrupt{
@@ -103,7 +102,7 @@ func (e *GameEngine) performMagic(sourceID, targetID string, cardIdx int, skipMa
 	switch card.Name {
 	case "魔弹":
 		// 【魔弹掌控】检查：魔法少女使用魔弹时，询问是否逆向传递
-		if playerpkg.IsCharacter(player, "magical_girl") {
+		if roleRegistry.Entry(player.Character.ID).MagicBullet.CanDirect {
 			e.PushInterrupt(&model.Interrupt{
 				Type:     model.InterruptMagicBulletDirection,
 				PlayerID: player.ID,
@@ -243,15 +242,6 @@ func (e *GameEngine) findNextMagicBulletTarget(currentPID string) string {
 	}
 
 	return ""
-}
-
-// isMagicalGirl 检查玩家是否是魔法少女
-func (e *GameEngine) isMagicalGirl(player *model.Player) bool {
-	if player == nil || player.Character == nil {
-		return false
-	}
-	return player.Character.ID == "magical_girl" ||
-		player.Character.ID == "magic_bullet_girl"
 }
 
 // executeMagicBullet 执行魔弹效果

@@ -108,7 +108,7 @@ func (e *GameEngine) resumePendingAttackMiss(ctx *model.Context) bool {
 		}
 		e.resolveMagicBowPierceMiss(top.AttackerID, top.TargetID, top.Card, top.IsCounter)
 		e.State.CombatStack = e.State.CombatStack[:len(e.State.CombatStack)-1]
-		e.initCombat(counterPlayerID, counterTargetID, &counterCard, false, true, false, nil, true)
+		e.initCombat(counterPlayerID, counterTargetID, &counterCard, false, true, false, nil, "", true)
 		if counterPlayer != nil && counterTarget != nil {
 			e.Log(fmt.Sprintf("[Combat] %s 应战成功！攻击转移向 %s", counterPlayer.Name, counterTarget.Name))
 		}
@@ -438,7 +438,7 @@ func (e *GameEngine) handleCombatCounterResponse(act model.PlayerAction, player 
 	e.Log(fmt.Sprintf("[Combat] %s 使用 %s 应战成功！攻击反弹给 %s", player.Name, card.Name, target.Name))
 	e.resolveMagicBowPierceMiss(combatReq.AttackerID, combatReq.TargetID, combatReq.Card, combatReq.IsCounter)
 	e.State.CombatStack = e.State.CombatStack[:len(e.State.CombatStack)-1]
-	e.initCombat(act.PlayerID, targetID, &card, false, true, false, nil, true)
+	e.initCombat(act.PlayerID, targetID, &card, false, true, false, nil, "", true)
 	e.Log(fmt.Sprintf("[Combat] %s 应战成功！攻击转移向 %s", player.Name, target.Name))
 	if len(e.State.PendingDamageQueue) > 0 {
 		e.setReturnPoint(model.CombatStageHitCheck)

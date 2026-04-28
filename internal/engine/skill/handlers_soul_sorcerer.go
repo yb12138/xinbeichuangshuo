@@ -243,7 +243,7 @@ func (h *SoulSorcererSoulGrantHandler) Execute(ctx *model.Context) error {
 		return fmt.Errorf("蓝色灵魂不足3点")
 	}
 	addSoulBlue(ctx.User, -3)
-	cap := playerEnergyCap(target)
+	cap := ctx.Game.GetPlayerEnergyCap(target)
 	room := cap - (target.Gem + target.Crystal)
 	if room < 0 {
 		room = 0

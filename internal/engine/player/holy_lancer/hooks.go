@@ -30,6 +30,7 @@ func attackGatingHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHookCo
 		return engineplayer.TimingHookResult{}
 	}
 	ctx.AttackInfo.SetInterceptTag(model.CombatInterceptUnrespondable)
+	ctx.AttackInfo.ElementOverride = string(model.ElementDark)
 	p.TurnState.UsedSkillCounts["holy_lancer_sky_spear_no_counter"] = 0
 	return engineplayer.TimingHookResult{}
 }

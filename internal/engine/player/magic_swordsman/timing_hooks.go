@@ -89,3 +89,36 @@ func beforeActionShadowReleaseHook(rt player.HookRuntime, ctx player.TimingHookC
 	rt.Log(fmt.Sprintf("%s 脱离暗影形态并转正", p.Name))
 	return player.TimingHookResult{}
 }
+
+// cannotActFollowupHook 魔剑士无法行动后续处理：全法术手牌时继续重摸。
+func cannotActFollowupHook(rt player.HookRuntime, ctx player.TimingHookContext) player.TimingHookResult {
+	p := ctx.Player
+	if p == nil || !rt.IsCharacter(p, "magic_swordsman") {
+		return player.TimingHookResult{}
+	}
+	for len(p.Hand) > 0 {
+		hasAttack := false
+		allMagic := true
+		for _, c := range p.Hand {
+			if c.Type == model.CardTypeAttack {
+				hasAttack = true
+				break
+			}
+			if c.Type != model.CardTypeMagic {
+				allMagic = false
+			}
+		}
+		if hasAttack || !allMagic {
+			break
+		}
+		redrawCount := len(p.Hand)
+		rt.NotifyCardRevealed(p.ID, append([]model.Card{}, p.Hand...), "discard")
+		rt.AddToDiscardPile(p.Hand...)
+		p.Hand = p.Hand[:0]
+		drawn := rt.DrawCardsRaw(p.ID, redrawCount)
+		p.Hand = append(p.Hand, drawn...)
+		rt.NotifyDrawCards(p.ID, redrawCount, "magic_swordsman_redraw")
+		rt.Log(fmt.Sprintf("[Action] %s 触发魔剑士重摸：全法术手牌已弃置并重摸%d张", p.Name, redrawCount))
+	}
+	return player.TimingHookResult{}
+}

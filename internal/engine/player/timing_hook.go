@@ -35,6 +35,7 @@ const (
 	TimingOnDefendValidation       TimingPoint = "on_defend_validation"        // 防御验证
 	TimingOnResponseSkillAug       TimingPoint = "on_response_skill_aug"       // 响应技能增强
 	TimingOnResponseSkillNormalize TimingPoint = "on_response_skill_normalize" // 响应技能规范化
+	TimingOnResponseSkillAdvance   TimingPoint = "on_response_skill_advance"   // 响应技能推进（格斗家蓄力→气绝）
 	TimingOnResponseSkillSkip      TimingPoint = "on_response_skill_skip"      // 响应技能跳过后（圣枪圣击）
 	TimingOnCombatInteraction      TimingPoint = "on_combat_interaction"       // 战斗交互（阴阳师绑定等）
 	TimingOnCounterCardPolicy      TimingPoint = "on_counter_card_policy"      // 反击卡牌策略
@@ -67,6 +68,7 @@ const (
 	TimingBeforeActionValidation    TimingPoint = "before_action_validation"     // 行动验证策略
 	TimingOnAttackDeclaredInterrupt TimingPoint = "on_attack_declared_interrupt" // 攻击宣言中断
 	TimingOnCombatCounterCard       TimingPoint = "on_combat_counter_card"       // 反击卡牌策略
+	TimingOnCannotActFollowup       TimingPoint = "on_cannot_act_followup"       // 无法行动后续
 	TimingOnSpecialActionOverride   TimingPoint = "on_special_action_override"   // 特殊行动覆盖
 	TimingOnSpecialActionPost       TimingPoint = "on_special_action_post"       // 特殊行动后置
 	TimingOnSkillPost               TimingPoint = "on_skill_post"                // 技能后置钩子
@@ -279,6 +281,9 @@ type HookRuntime interface {
 	SnapshotPlayerPoses() map[string]PoseSnapshot
 	DispatchOrientationChanges(before map[string]PoseSnapshot)
 	HasPlayableAttackCard(player *model.Player) bool
+	NotifyDrawCards(playerID string, count int, reason string)
+	DrawCardsRaw(playerID string, count int) []model.Card
+	StartExtractForPlayer(playerID string) error
 }
 
 // PoseSnapshot 记录玩家姿态快照（用于 orientation 变更前后对比）。

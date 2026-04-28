@@ -179,6 +179,7 @@ type AttackEventInfo struct {
 	ActionType       string // 行动类型 (Attack)
 	CounterInitiator string // 原始应战发起者 (空表示主动攻击)
 	InterceptTags    map[CombatInterceptTag]bool
+	ElementOverride  string // 非-empty 时覆盖卡牌元素的显示（如天枪暗属性）
 }
 
 // PromptType 定义用户交互类型
@@ -292,6 +293,7 @@ type IGameEngine interface {
 	GetAllPlayers() []*Player // 获取所有玩家
 	FindFieldEffectBySource(effect EffectType, sourceID string) (*Player, *FieldCard)
 	GetMaxHand(player *Player) int
+	GetPlayerEnergyCap(player *Player) int
 	GetPlayerOrientation(playerID string) CharacterOrientation
 	GetPlayerForm(playerID string) string
 	RefreshPlayerDerivedState(playerID string)
@@ -312,6 +314,9 @@ type IGameEngine interface {
 	GetCampCrystals(camp string) int
 
 	// 日志
+	// 提炼流程（由角色包调用）
+	StartExtractForPlayer(playerID string) error
+
 	Log(msg string)
 
 	// 行动步骤（桌面展示）

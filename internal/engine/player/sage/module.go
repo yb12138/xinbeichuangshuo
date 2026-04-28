@@ -5,13 +5,17 @@ package sage
 import (
 	"starcup-engine/internal/engine/player"
 	skills "starcup-engine/internal/engine/skill"
+	"starcup-engine/internal/model"
 	"starcup-engine/internal/types"
 )
 
 // RoleEntry 导出角色统一入口定义。
 func RoleEntry() player.RoleEntry {
 	return player.RoleEntry{
-		ID:               "sage",
+		ID: "sage",
+		EnergyCapRule: player.EnergyCapRuleFuncs{
+			Modifier: func(_ *model.Player, current int) int { return current + 1 },
+		},
 		Choices:          NewChoiceHandler(),
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),

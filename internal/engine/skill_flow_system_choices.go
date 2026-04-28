@@ -309,18 +309,6 @@ func (e *GameEngine) handleExtractChoiceSelections(playerID string, selections [
 		}
 	}
 
-	selfRoom := runtimeutil.ToIntContextValue(data["extract_self_room"])
-	if selfRoom < 0 {
-		selfRoom = 0
-	}
-	maxAllyRoom := runtimeutil.ToIntContextValue(data["extract_max_ally_room"])
-	allowParadise, _ := data["extract_allow_paradise"].(bool)
-	totalExtracted := extractedGems + extractedCrystals
-	requiresParadise := totalExtracted > selfRoom
-	if requiresParadise && (!allowParadise || maxAllyRoom < totalExtracted) {
-		return fmt.Errorf("本次提炼超出自身能量上限，且没有可承接的队友")
-	}
-
 	if player.Camp == model.RedCamp {
 		if extractedGems > e.State.RedGems || extractedCrystals > e.State.RedCrystals {
 			return fmt.Errorf("战绩区星石不足")
@@ -334,47 +322,12 @@ func (e *GameEngine) handleExtractChoiceSelections(playerID string, selections [
 		e.State.BlueGems -= extractedGems
 		e.State.BlueCrystals -= extractedCrystals
 	}
-	e.recordAdventurerExtractResult(player, extractedGems, extractedCrystals, requiresParadise)
-	if requiresParadise {
-		e.State.PendingInterrupt = &model.Interrupt{
-			Type:     model.InterruptResponseSkill,
-			PlayerID: player.ID,
-			SkillIDs: []string{"adventurer_paradise"},
-			Context: e.buildContext(player, nil, model.TimingActive, &model.EventContext{
-				Type:       model.EventNone,
-				SourceID:   player.ID,
-				ActionType: model.ActionExtract,
-			}),
-		}
-		e.Log(fmt.Sprintf("[Action] %s 提炼：获得 %d 宝石 %d 水晶，必须先通过[冒险者天堂]分配给队友",
-			player.Name, extractedGems, extractedCrystals))
-		e.notifyInterruptPrompt()
-		return nil
-	}
 
 	player.Gem += extractedGems
 	player.Crystal += extractedCrystals
 	e.Log(fmt.Sprintf("[Action] %s 提炼：从战绩区获得 %d 宝石 %d 水晶（当前能量: %d）",
 		player.Name, extractedGems, extractedCrystals, player.Gem+player.Crystal))
 
-	if e.playerHasSkill(player, "adventurer_paradise") &&
-		len(e.adventurerParadiseEligibleAllies(player, totalExtracted)) > 0 {
-		e.State.PendingInterrupt = &model.Interrupt{
-			Type:     model.InterruptResponseSkill,
-			PlayerID: player.ID,
-			SkillIDs: []string{"adventurer_paradise"},
-			Context: e.buildContext(player, nil, model.TimingActive, &model.EventContext{
-				Type:       model.EventNone,
-				SourceID:   player.ID,
-				ActionType: model.ActionExtract,
-			}),
-		}
-		e.Log(fmt.Sprintf("[Action] %s 提炼完成，可发动[冒险者天堂]转移本次提炼结果", player.Name))
-		e.notifyInterruptPrompt()
-		return nil
-	}
-
-	e.clearAdventurerExtractState(player)
 	e.PopInterrupt()
 	if e.State.PendingInterrupt == nil {
 		e.enterTurnEndStage()

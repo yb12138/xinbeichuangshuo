@@ -31,7 +31,7 @@ func RoleEntry() player.RoleEntry {
 			{Timing: player.TimingOnTurnBeforeStart, Priority: 100, Hook: witherExpiryHook},
 			{Timing: player.TimingOnDamageBeforeApply, Priority: 100, Hook: damageBeforeApplyHook},
 		},
-		MoraleLossModifier: func(engine player.MoraleLossModifierEngine, camp model.Camp, current int, proposedLoss int) int {
+		MoraleLossModifier: func(engine player.MoraleLossModifierEngine, camp model.Camp, current int, proposedLoss int, extra player.MoraleLossModifierExtra) int {
 			for _, p := range engine.GetAllPlayers() {
 				if p.Camp != camp && WitherActive(p) {
 					maxLoss := current - 1

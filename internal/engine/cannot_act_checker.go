@@ -102,50 +102,11 @@ func (e *GameEngine) executeCannotActFlow(player *model.Player) {
 	e.NotifyDrawCards(player.ID, handCount, "cannot_act_redraw")
 
 	// 角色特定后续处理（如魔剑士全法术重摸）
-	e.runCannotActFollowup(player)
+	e.dispatchAllRoleTimingHooks(playerpkg.TimingOnCannotActFollowup, playerpkg.TimingHookContext{
+		Player: player,
+	})
 
 	e.Log(fmt.Sprintf("[Action] %s 重新摸了%d张牌，且本回合不可执行特殊行动", player.Name, handCount))
 	player.TurnState.LockSpecialActionsForRemainderOfTurn()
 	e.enterActionExecutionStage()
-}
-
-// runCannotActFollowup 无法行动后的角色特定后续处理。
-func (e *GameEngine) runCannotActFollowup(player *model.Player) {
-	// 魔剑士特殊规则：全法术牌时继续重摸
-	if playerpkg.IsCharacter(player, "magic_swordsman") {
-		e.runMagicSwordsmanCannotActFollowup(player)
-	}
-	// 其他角色如有特殊规则，可在此扩展
-}
-
-// runMagicSwordsmanCannotActFollowup 魔剑士无法行动后续处理。
-// 如果新摸的手牌全是法术牌，则继续弃掉并重摸，直到有攻击牌或非纯法术牌。
-func (e *GameEngine) runMagicSwordsmanCannotActFollowup(player *model.Player) {
-	for len(player.Hand) > 0 {
-		hasAttack := false
-		allMagic := true
-		for _, c := range player.Hand {
-			if c.Type == model.CardTypeAttack {
-				hasAttack = true
-				break
-			}
-			if c.Type != model.CardTypeMagic {
-				allMagic = false
-			}
-		}
-		if hasAttack || !allMagic {
-			break
-		}
-
-		redrawCount := len(player.Hand)
-		e.NotifyCardRevealed(player.ID, append([]model.Card{}, player.Hand...), "discard")
-		e.State.DiscardPile = append(e.State.DiscardPile, player.Hand...)
-		player.Hand = player.Hand[:0]
-		nextCards, deck2, discard2 := rules.DrawCards(e.State.Deck, e.State.DiscardPile, redrawCount)
-		e.State.Deck = deck2
-		e.State.DiscardPile = discard2
-		player.Hand = append(player.Hand, nextCards...)
-		e.NotifyDrawCards(player.ID, redrawCount, "magic_swordsman_redraw")
-		e.Log(fmt.Sprintf("[Action] %s 触发魔剑士重摸：全法术手牌已弃置并重摸%d张", player.Name, redrawCount))
-	}
 }

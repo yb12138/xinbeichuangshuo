@@ -82,17 +82,6 @@ func leaveForm(p *model.Player, form string) {
 	p.Form = ""
 }
 
-func playerEnergyCap(p *model.Player) int {
-	if p == nil {
-		return 3
-	}
-	cap := 3
-	if p.Character != nil && p.Character.ID == "sage" {
-		cap++
-	}
-	return cap
-}
-
 func addAttackAction(p *model.Player, source string) {
 	model.AppendAttackAction(p, source)
 }
@@ -753,7 +742,7 @@ func (h *AdventurerParadiseHandler) Execute(ctx *model.Context) error {
 		if p.Camp != ctx.User.Camp || p.ID == ctx.User.ID {
 			continue
 		}
-		room := playerEnergyCap(p) - (p.Gem + p.Crystal)
+		room := ctx.Game.GetPlayerEnergyCap(p) - (p.Gem + p.Crystal)
 		if room >= transferTotal {
 			allyIDs = append(allyIDs, p.ID)
 		}

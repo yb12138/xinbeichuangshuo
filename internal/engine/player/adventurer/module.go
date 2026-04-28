@@ -3,7 +3,10 @@
 package adventurer
 
 import (
+	"fmt"
+
 	"starcup-engine/internal/engine/player"
+	"starcup-engine/internal/model"
 	"starcup-engine/internal/types"
 )
 
@@ -16,11 +19,23 @@ func RoleEntry() player.RoleEntry {
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
 		TimingHookSpecs: []player.TimingHookSpec{
 			{Timing: player.TimingOnSpecialActionOverride, Priority: 100, Hook: undergroundLawOverrideHook},
+			{Timing: player.TimingOnSpecialActionOverride, Priority: 200, Hook: extractOverrideHook},
+		},
+		SpecialActionHook: player.SpecialActionHookSpec{
+			BuyRewardOverride: func(p *model.Player, campStones int, maxStones int) player.BuyRewardResult {
+				if campStones >= maxStones {
+					return player.BuyRewardResult{Handled: true}
+				}
+				return player.BuyRewardResult{
+					Handled:    true,
+					AddGems:    2,
+					LogMessage: fmt.Sprintf("[Action] %s 购买（地下法则改写）：战绩区+2宝石", p.Name),
+				}
+			},
 		},
 		SkillUsabilityCheckers: map[string]player.SkillUsabilityChecker{
 			"adventurer_fraud": CheckFraudUsability,
 		},
-		IsForcedParadiseResponse: IsForcedParadiseResponse,
 	}
 }
 
@@ -36,7 +51,6 @@ func SkillEntries() []player.SkillEntry {
 		},
 		{ID: "adventurer_lucky_fortune", Handler: &AdventurerLuckyFortuneHandler{}},
 		{ID: "adventurer_underground_law", Handler: &AdventurerUndergroundLawHandler{}},
-		{ID: "adventurer_paradise", Handler: &AdventurerParadiseHandler{}},
 		{ID: "adventurer_steal_sky", Handler: &AdventurerStealSkyHandler{}},
 	}
 }
@@ -44,10 +58,10 @@ func SkillEntries() []player.SkillEntry {
 // ChoiceRouteSpecs 导出角色 choice 路由声明。
 func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 	return map[string]types.ChoiceRouteSpec{
-		"adventurer_fraud_attack_element": types.ChoiceRouteRole("adventurer"),
-		"adventurer_fraud_pick":           types.ChoiceRouteRole("adventurer"),
-		"adventurer_paradise_pick":        types.ChoiceRouteRole("adventurer"),
-		"adventurer_paradise_target":      types.ChoiceRouteRole("adventurer"),
-		"adventurer_steal_sky_mode":       types.ChoiceRouteRole("adventurer"),
+		"adventurer_extract_paradise_check": types.ChoiceRouteRole("adventurer"),
+		"adventurer_fraud_attack_element":   types.ChoiceRouteRole("adventurer"),
+		"adventurer_fraud_pick":             types.ChoiceRouteRole("adventurer"),
+		"adventurer_paradise_pick":          types.ChoiceRouteRole("adventurer"),
+		"adventurer_steal_sky_mode":         types.ChoiceRouteRole("adventurer"),
 	}
 }

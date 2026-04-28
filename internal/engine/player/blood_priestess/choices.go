@@ -183,14 +183,14 @@ func handleSharedLifeTargetChoice(rt engineplayer.ChoiceRuntime, ctxData map[str
 		return fmt.Errorf("同生共死摸牌上下文创建失败")
 	}
 	drawCtx.Selections["draw_resume_phase"] = model.TurnStageActionExecution
-	drawCtx.Selections["draw_followup"] = model.DeferredFollowup{
+	rt.EnqueueDeferredFollowup(model.DeferredFollowup{
 		Type:      "blood_priestess_shared_life_place",
 		UserID:    user.ID,
 		TargetIDs: []string{target.ID},
 		Data: map[string]interface{}{
 			"card": linkCard,
 		},
-	}
+	})
 	rt.StartDraw(drawCtx)
 	rt.Log(fmt.Sprintf("%s 发动 [同生共死]：先摸2张牌，待爆牌结算后放置于 %s 面前", user.Name, target.Name))
 
