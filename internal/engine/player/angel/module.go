@@ -20,6 +20,7 @@ func RoleEntry() player.RoleEntry {
 // SkillEntries 导出角色技能与策略绑定入口。
 func SkillEntries() []player.SkillEntry {
 	return []player.SkillEntry{
+		{ID: "holy_shield", Handler: &HolyShieldHandler{}},
 		{ID: "angel_bond", Handler: &AngelBondHandler{}},
 		{
 			ID:      "angel_blessing",
