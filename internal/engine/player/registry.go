@@ -149,7 +149,7 @@ func mergeRoleEntry(base RoleEntry, overlay RoleEntry) RoleEntry {
 		merged.Skills = append(append([]SkillEntry{}, merged.Skills...), overlay.Skills...)
 	}
 	merged.ChoiceRouteSpecs = mergeMap(merged.ChoiceRouteSpecs, overlay.ChoiceRouteSpecs)
-	merged.FollowupSpecs = mergeMap(merged.FollowupSpecs, overlay.FollowupSpecs)
+	merged.FlowContinuationHandlers = mergeMap(merged.FlowContinuationHandlers, overlay.FlowContinuationHandlers)
 	merged.SkillUsabilityCheckers = mergeMap(merged.SkillUsabilityCheckers, overlay.SkillUsabilityCheckers)
 	if overlay.AttackCardElementTransform != nil {
 		merged.AttackCardElementTransform = overlay.AttackCardElementTransform

@@ -67,6 +67,10 @@ func (e *GameEngine) processPendingDamages() bool {
 			return true
 		}
 	}
+
+	// 伤害队列清空后，触发 after_damage 流程边界恢复点
+	e.processFlowContinuations(model.FlowContinuationAfterDamage)
+
 	return false
 }
 

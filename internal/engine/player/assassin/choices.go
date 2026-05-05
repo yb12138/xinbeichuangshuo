@@ -54,10 +54,11 @@ func handleAssassinStealthDrawChoice(rt engineplayer.ChoiceRuntime, selectionInd
 
 	switch selectionIndex {
 	case 0:
-		rt.EnqueueDeferredFollowup(model.DeferredFollowup{
-			Type:    "assassin_stealth_apply",
-			UserID:  user.ID,
-			SkillID: "stealth",
+		rt.AppendFlowContinuation(model.FlowContinuation{
+			Kind:     model.FlowContinuationAfterDraw,
+			RoleID:   "assassin",
+			PlayerID: user.ID,
+			SkillID:  "stealth",
 		})
 		drawCtx := rt.NewDrawContext(user, 1, "assassin_stealth_draw")
 		if drawCtx == nil {

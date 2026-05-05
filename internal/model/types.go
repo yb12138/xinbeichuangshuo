@@ -202,8 +202,10 @@ type GameState struct {
 
 	// 延迟伤害队列（用于避免嵌套的伤害结算中断）
 	PendingDamageQueue []PendingDamage `json:"pending_damage_queue,omitempty"`
-	// 延迟后续队列（用于“先结算伤害/中断，再继续技能后续”）。
-	DeferredFollowups []DeferredFollowup `json:"deferred_followups,omitempty"`
+	// 延迟后续队列（用于”先结算伤害/中断，再继续技能后续”）。
+	DeferredFollowups []DeferredFollowup `json:”deferred_followups,omitempty”`
+	// 流程边界恢复点队列（角色级，用于 after_draw/after_damage 等边界触发）。
+	FlowContinuations []FlowContinuation `json:”flow_continuations,omitempty”`
 
 	// 状态机返回阶段
 	ReturnTurnStage   TurnStage   `json:"return_turn_stage,omitempty"`
@@ -296,6 +298,24 @@ type DeferredFollowup struct {
 }
 
 const DeferredFollowupPostActionEnd = "post_action_end"
+
+// FlowContinuationKind 流程边界类型（枚举，替代字符串 type）。
+type FlowContinuationKind string
+
+const (
+	FlowContinuationAfterDraw   FlowContinuationKind = "after_draw"
+	FlowContinuationAfterDamage FlowContinuationKind = "after_damage"
+)
+
+// FlowContinuation 流程边界恢复点（角色级）。
+type FlowContinuation struct {
+	Kind      FlowContinuationKind `json:"kind"`
+	RoleID    string               `json:"role_id"`
+	PlayerID  string               `json:"player_id"`
+	SkillID   string               `json:"skill_id,omitempty"`
+	TargetIDs []string             `json:"target_ids,omitempty"`
+	Data      map[string]any       `json:"data,omitempty"`
+}
 
 // PendingSkill 等待确认的可选技能
 type PendingSkill struct {

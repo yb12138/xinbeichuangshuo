@@ -237,6 +237,10 @@ func (e *GameEngine) EnqueueDeferredFollowup(f model.DeferredFollowup) {
 	e.enqueueDeferredFollowup(f)
 }
 
+func (e *GameEngine) AppendFlowContinuation(cont model.FlowContinuation) {
+	e.State.FlowContinuations = append(e.State.FlowContinuations, cont)
+}
+
 func (e *GameEngine) AppendExtraAction(player *model.Player, source string, mustType string, mustElement ...model.Element) {
 	model.AppendExtraAction(player, source, mustType, mustElement...)
 }

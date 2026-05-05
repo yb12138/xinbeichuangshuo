@@ -345,6 +345,9 @@ type IGameEngine interface {
 	AddPendingDamage(pd PendingDamage)
 	AddPendingDamageFront(pd PendingDamage)
 	EnqueueDeferredFollowup(f DeferredFollowup)
+
+	// FlowContinuation 接口（角色级流程边界恢复）
+	AppendFlowContinuation(cont FlowContinuation)
 }
 
 // Context 技能执行上下文

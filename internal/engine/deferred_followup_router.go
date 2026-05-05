@@ -21,7 +21,7 @@ func buildDeferredFollowupHandlers() map[string]deferredFollowupHandler {
 	handlers := map[string]deferredFollowupHandler{}
 	registerDeferredFollowupHandlers(handlers, buildPostActionEndDeferredFollowupHandlers())
 	registerDeferredFollowupHandlers(handlers, buildSkillEffectResumeFollowupHandler())
-	mountPlayerDeferredFollowupSpecs(handlers)
+	// mountPlayerDeferredFollowupSpecs(handlers) — 已删除，角色 FollowupSpecs 改为 FlowContinuationHandlers
 	return handlers
 }
 

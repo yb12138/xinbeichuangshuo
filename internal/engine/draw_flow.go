@@ -138,6 +138,9 @@ func (e *GameEngine) restorePhaseAfterInterruptedDraw(ctx *model.Context) bool {
 		return true
 	}
 
+	// 触发 after_draw 流程边界恢复点（在任何阶段转换之前）
+	e.processFlowContinuations(model.FlowContinuationAfterDraw)
+
 	if ctx.Flags["FromDamageDraw"] {
 		e.enterDamageResolution(nil)
 		return true
@@ -155,6 +158,7 @@ func (e *GameEngine) restorePhaseAfterInterruptedDraw(ctx *model.Context) bool {
 	} else {
 		e.enterTurnEndStage()
 	}
+
 	return true
 }
 

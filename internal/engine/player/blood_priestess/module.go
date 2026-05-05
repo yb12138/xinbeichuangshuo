@@ -16,10 +16,13 @@ func RoleEntry() player.RoleEntry {
 		Defaults:          ApplyDefaults,
 		StarterCards:      StarterCards,
 		HandLimitModifier: SharedLifeHandLimitModifier,
-		FollowupSpecs:     FollowupSpecs(),
-		Choices:           NewChoiceHandler(),
-		Skills:            SkillEntries(),
-		ChoiceRouteSpecs:  ChoiceRouteSpecs(),
+		FlowContinuationHandlers: map[model.FlowContinuationKind]player.FlowContinuationHandler{
+			model.FlowContinuationAfterDraw:   handleSharedLifeAfterDraw,
+			model.FlowContinuationAfterDamage: handleBloodPriestessAfterDamage,
+		},
+		Choices:          NewChoiceHandler(),
+		Skills:           SkillEntries(),
+		ChoiceRouteSpecs: ChoiceRouteSpecs(),
 		TimingHookSpecs: []player.TimingHookSpec{
 			{Timing: player.TimingPostActionEnd, Priority: 100, Hook: postActionEndBleedExitHook},
 			{Timing: player.TimingOnMoraleLossApplied, Priority: 100, Hook: moraleLossHook},

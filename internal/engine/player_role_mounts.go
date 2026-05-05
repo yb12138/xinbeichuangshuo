@@ -2,13 +2,6 @@
 
 package engine
 
-import (
-	"strings"
-
-	engineplayer "starcup-engine/internal/engine/player"
-	"starcup-engine/internal/model"
-)
-
 func mountPlayerChoiceRouteSpecs(table map[string]ChoiceRouteSpec) {
 	if table == nil || roleRegistry == nil {
 		return
@@ -33,34 +26,5 @@ func mountPlayerSkillPolicySpecs(table map[string]SkillPolicy) {
 	}
 }
 
-func mountPlayerDeferredFollowupSpecs(table map[string]deferredFollowupHandler) {
-	if table == nil || roleRegistry == nil {
-		return
-	}
-	for _, entry := range roleRegistry.Entries() {
-		for followupType, spec := range entry.Followups() {
-			handler, ok := toDeferredFollowupHandler(spec)
-			if !ok {
-				continue
-			}
-			table[followupType] = handler
-		}
-	}
-}
-
-func toDeferredFollowupHandler(spec engineplayer.FollowupSpec) (deferredFollowupHandler, bool) {
-	if spec.Resolve == nil {
-		return deferredFollowupHandler{}, false
-	}
-	label := strings.TrimSpace(spec.Label)
-	if label == "" {
-		label = "RoleFollowup"
-	}
-	return deferredFollowupHandler{
-		label: label,
-		resolve: func(e *GameEngine, f model.DeferredFollowup) error {
-			rt := newRoleChoiceRuntime(e)
-			return spec.Resolve(rt, f)
-		},
-	}, true
-}
+// mountPlayerDeferredFollowupSpecs 已删除 — 角色 FollowupSpecs 改为 FlowContinuationHandlers。
+// FlowContinuation 在核心流程边界直接触发，不需要全局注册表。

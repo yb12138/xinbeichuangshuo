@@ -25,7 +25,9 @@ func RoleEntry() player.RoleEntry {
 				return player.HasForm(p, model.FormAssassinStealth)
 			},
 		},
-		FollowupSpecs:    FollowupSpecs(),
+		FlowContinuationHandlers: map[model.FlowContinuationKind]player.FlowContinuationHandler{
+			model.FlowContinuationAfterDraw: handleStealthAfterDraw,
+		},
 		Choices:          NewChoiceHandler(),
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),

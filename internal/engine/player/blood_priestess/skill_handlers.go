@@ -177,9 +177,11 @@ func (h *BloodCurseHandler) Execute(ctx *model.Context) error {
 		Damage:     2,
 		DamageType: model.MagicAttack,
 	})
-	ctx.Game.EnqueueDeferredFollowup(model.DeferredFollowup{
-		Type:   "blood_priestess_curse_discard",
-		UserID: ctx.User.ID,
+	ctx.Game.AppendFlowContinuation(model.FlowContinuation{
+		Kind:     model.FlowContinuationAfterDamage,
+		RoleID:   "blood_priestess",
+		PlayerID: ctx.User.ID,
+		SkillID:  "bp_blood_curse",
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [血之诅咒]：先对 %s 造成2点法术伤害，伤害结算后再弃3张牌", ctx.User.Name, target.Name))
 	return nil

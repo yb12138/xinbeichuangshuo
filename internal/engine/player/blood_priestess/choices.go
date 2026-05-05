@@ -183,14 +183,16 @@ func handleSharedLifeTargetChoice(rt engineplayer.ChoiceRuntime, ctxData map[str
 		return fmt.Errorf("同生共死摸牌上下文创建失败")
 	}
 	drawCtx.Selections["draw_resume_phase"] = model.TurnStageActionExecution
-	rt.EnqueueDeferredFollowup(model.DeferredFollowup{
-		Type:      "blood_priestess_shared_life_place",
-		UserID:    user.ID,
+	rt.AppendFlowContinuation(model.FlowContinuation{
+		Kind:      model.FlowContinuationAfterDraw,
+		RoleID:    "blood_priestess",
+		PlayerID:  user.ID,
 		TargetIDs: []string{target.ID},
-		Data: map[string]interface{}{
+		Data: map[string]any{
 			"card": linkCard,
 		},
 	})
+	rt.Log(fmt.Sprintf("[DEBUG] FlowContinuation appended: kind=%s, role=%s, player=%s", model.FlowContinuationAfterDraw, "blood_priestess", user.ID))
 	rt.StartDraw(drawCtx)
 	rt.Log(fmt.Sprintf("%s 发动 [同生共死]：先摸2张牌，待爆牌结算后放置于 %s 面前", user.Name, target.Name))
 
@@ -226,10 +228,12 @@ func handleBloodSorrowModeChoice(rt engineplayer.ChoiceRuntime, ctxData map[stri
 
 	// mode 0: 移除同生共死
 	if selectionIndex == 0 {
-		rt.EnqueueDeferredFollowup(model.DeferredFollowup{
-			Type:   "blood_priestess_blood_sorrow_apply",
-			UserID: user.ID,
-			Data: map[string]interface{}{
+		rt.AppendFlowContinuation(model.FlowContinuation{
+			Kind:     model.FlowContinuationAfterDamage,
+			RoleID:   "blood_priestess",
+			PlayerID: user.ID,
+			SkillID:  "bp_blood_sorrow",
+			Data: map[string]any{
 				"mode": "remove",
 			},
 		})
@@ -283,10 +287,12 @@ func handleBloodSorrowTargetChoice(rt engineplayer.ChoiceRuntime, ctxData map[st
 		return fmt.Errorf("转移目标不存在")
 	}
 
-	rt.EnqueueDeferredFollowup(model.DeferredFollowup{
-		Type:   "blood_priestess_blood_sorrow_apply",
-		UserID: user.ID,
-		Data: map[string]interface{}{
+	rt.AppendFlowContinuation(model.FlowContinuation{
+		Kind:     model.FlowContinuationAfterDamage,
+		RoleID:   "blood_priestess",
+		PlayerID: user.ID,
+		SkillID:  "bp_blood_sorrow",
+		Data: map[string]any{
 			"mode":      "transfer",
 			"target_id": target.ID,
 		},

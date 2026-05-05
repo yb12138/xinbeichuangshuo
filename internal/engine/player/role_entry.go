@@ -315,11 +315,8 @@ type MagicBulletAbilities struct {
 	CanDirect bool // 可选择魔弹传递方向
 }
 
-// FollowupSpec 定义角色模块贡献到延迟后续执行表的条目。
-type FollowupSpec struct {
-	Label   string
-	Resolve func(rt ChoiceRuntime, f model.DeferredFollowup) error
-}
+// FlowContinuationHandler 角色流程边界处理函数（用函数类型，不用接口）。
+type FlowContinuationHandler func(rt ChoiceRuntime, cont model.FlowContinuation) error
 
 // RoleEntry 表示单个角色在 player 子目录的统一入口定义。
 type RoleEntry struct {
@@ -336,7 +333,7 @@ type RoleEntry struct {
 	ChoiceSpecs                []ChoiceSpec
 	Skills                     []SkillEntry
 	ChoiceRouteSpecs           map[string]types.ChoiceRouteSpec
-	FollowupSpecs              map[string]FollowupSpec
+	FlowContinuationHandlers   map[model.FlowContinuationKind]FlowContinuationHandler // 流程边界处理器（替代 FollowupSpecs）
 	InterruptSpecs             []InterruptSpec
 	TimingHookSpecs            []TimingHookSpec
 	SkillUsabilityCheckers     map[string]SkillUsabilityChecker
@@ -433,9 +430,4 @@ func (e RoleEntry) SkillPolicies() map[string]types.SkillPolicy {
 		}
 	}
 	return out
-}
-
-// Followups 返回角色延迟后续声明。
-func (e RoleEntry) Followups() map[string]FollowupSpec {
-	return e.FollowupSpecs
 }
