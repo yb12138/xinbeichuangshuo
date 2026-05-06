@@ -205,7 +205,7 @@ func RoleEntry() player.RoleEntry {
 			{
 				Type:                 model.InterruptSaintHeal,
 				BuildPrompt:          buildSaintHealPrompt,
-				HandleAction:         handleSaintHealAction,
+				HandleActionResult:   handleSaintHealAction,
 				AllowedActionTypes:   []model.PlayerActionType{model.CmdSelect},
 				InvalidActionMessage: "当前为【圣疗】选择阶段，请提交选择",
 			},

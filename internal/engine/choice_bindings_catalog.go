@@ -11,8 +11,8 @@ import (
 func systemChoiceSelect(typ string) func(*GameEngine, string, int, map[string]any) (bool, error) {
 	switch typ {
 	case "weak":
-		return func(ge *GameEngine, pid string, idx int, _ map[string]any) (bool, error) {
-			return true, ge.handleSystemWeakChoice(pid, idx)
+		return func(ge *GameEngine, pid string, idx int, ctx map[string]any) (bool, error) {
+			return true, ge.handleSystemWeakChoice(pid, idx, choiceCtxAsInterfaceMap(ctx))
 		}
 	case "buy_resource":
 		return func(ge *GameEngine, pid string, idx int, ctx map[string]any) (bool, error) {
@@ -46,21 +46,44 @@ func catalogChoiceBinding(typ string) catalogSpecPlan {
 	m := multiSequential(typ)
 	switch spec.Kind {
 	case ChoiceRouteKindSystem:
-		return catalogSpecPlan{(*GameEngine).buildSystemChoicePrompt, systemChoiceSelect(typ), m, nil}
+		return catalogSpecPlan{
+			autoConsume: true,
+			build:       (*GameEngine).buildSystemChoicePrompt,
+			sel:         systemChoiceSelect(typ),
+			multi:       m,
+			after:       systemChoiceAfterConsume(typ),
+		}
 	case ChoiceRouteKindRole:
 		// 所有角色统一通过 RoleEntry 注册表桥接到 player/<role>/choices.go
 		roleID := spec.Role
 		return catalogSpecPlan{
-			func(ge *GameEngine, choiceType, playerID string, player *model.Player, data map[string]any) *model.Prompt {
+			build: func(ge *GameEngine, choiceType, playerID string, player *model.Player, data map[string]any) *model.Prompt {
 				return ge.buildRoleChoicePrompt(roleID, choiceType, playerID, player, choiceCtxAsInterfaceMap(data))
 			},
-			func(ge *GameEngine, playerID string, idx int, ctx map[string]any) (bool, error) {
+			sel: func(ge *GameEngine, playerID string, idx int, ctx map[string]any) (bool, error) {
 				return ge.handleRoleChoiceInput(roleID, playerID, idx, choiceCtxAsInterfaceMap(ctx))
 			},
-			m,
-			roleCancelWithContext(roleID),
+			multi:  m,
+			cancel: roleCancelWithContext(roleID),
 		}
 	default:
 		panic(fmt.Sprintf("choice catalog: unknown route kind %q for type %q", spec.Kind, typ))
+	}
+}
+
+func systemChoiceAfterConsume(typ string) func(*GameEngine, map[string]any) {
+	switch typ {
+	case "weak":
+		return func(ge *GameEngine, ctx map[string]any) { ge.afterSystemWeakChoice(ctx) }
+	case "buy_resource":
+		return func(ge *GameEngine, _ map[string]any) { ge.enterExtraActionStage() }
+	case "heal":
+		return func(ge *GameEngine, _ map[string]any) { ge.enterDamageResolution(nil) }
+	case "basic_effect_pick":
+		return func(ge *GameEngine, ctx map[string]any) { ge.afterBasicEffectChoice(ctx) }
+	case choiceTypeSystemDiscardCards:
+		return func(ge *GameEngine, ctx map[string]any) { ge.afterSystemDiscardChoice(ctx) }
+	default:
+		return nil
 	}
 }

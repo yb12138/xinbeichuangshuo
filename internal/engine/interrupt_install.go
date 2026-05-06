@@ -40,16 +40,16 @@ func allowedInterruptActionTypes(types ...model.PlayerActionType) map[model.Play
 }
 
 func registerInterruptActionRules(r *intr.ActionRules) {
-	wrap := func(h func(*GameEngine, model.PlayerAction) error) intr.ActionHandler {
-		return func(en intr.EngineInterface, act model.PlayerAction) error {
+	wrapResult := func(h func(*GameEngine, model.PlayerAction) (intr.ActionResult, error)) intr.ActionResultHandler {
+		return func(en intr.EngineInterface, act model.PlayerAction) (intr.ActionResult, error) {
 			return h(en.(*GameEngine), act)
 		}
 	}
 	// 通用中断类型（非角色专属）
-	r.Register(model.InterruptResponseSkill, &intr.ActionRule{Handler: wrap((*GameEngine).handleInterruptResponseSkillAction)})
-	r.Register(model.InterruptStartupSkill, &intr.ActionRule{Handler: wrap((*GameEngine).handleInterruptStartupSkillAction)})
-	r.Register(model.InterruptGiveCards, &intr.ActionRule{Handler: wrap((*GameEngine).handleInterruptGiveCardsAction)})
-	r.Register(model.InterruptChoice, &intr.ActionRule{Handler: wrap((*GameEngine).handleInterruptChoiceAction)})
+	r.Register(model.InterruptResponseSkill, &intr.ActionRule{HandleResult: wrapResult((*GameEngine).handleInterruptResponseSkillAction)})
+	r.Register(model.InterruptStartupSkill, &intr.ActionRule{HandleResult: wrapResult((*GameEngine).handleInterruptStartupSkillAction)})
+	r.Register(model.InterruptGiveCards, &intr.ActionRule{HandleResult: wrapResult((*GameEngine).handleInterruptGiveCardsAction)})
+	r.Register(model.InterruptChoice, &intr.ActionRule{HandleResult: wrapResult((*GameEngine).handleInterruptChoiceAction)})
 
 	// 角色专属中断类型：通过 InterruptSpecs 动态注册
 	mountRoleInterruptSpecs(r, nil)
@@ -149,10 +149,19 @@ func mountRoleInterruptSpecs(ar *intr.ActionRules, pr *intr.PromptRules) {
 	for _, entry := range roleRegistry.Entries() {
 		for _, spec := range entry.InterruptSpecs {
 			s := spec
-			if ar != nil && s.HandleAction != nil {
+			if ar != nil && s.HandleActionResult != nil {
 				ar.Register(s.Type, &intr.ActionRule{
-					Handler: func(en intr.EngineInterface, act model.PlayerAction) error {
-						return s.HandleAction(newRoleChoiceRuntime(en.(*GameEngine)), act)
+					HandleResult: func(en intr.EngineInterface, act model.PlayerAction) (intr.ActionResult, error) {
+						rt := newRoleChoiceRuntime(en.(*GameEngine))
+						result, err := s.HandleActionResult(rt, act)
+						return intr.ActionResult{
+							Consumed: result.Consumed,
+							AfterPop: func(_ intr.EngineInterface) {
+								if result.AfterConsume != nil {
+									result.AfterConsume(rt)
+								}
+							},
+						}, err
 					},
 					Allowed:              allowedInterruptActionTypes(s.AllowedActionTypes...),
 					InvalidActionMessage: s.InvalidActionMessage,

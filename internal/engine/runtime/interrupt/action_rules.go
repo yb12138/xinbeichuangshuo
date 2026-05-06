@@ -8,14 +8,20 @@ import (
 	"starcup-engine/internal/model"
 )
 
-// ActionHandler 处理某类中断下的玩家指令。
-type ActionHandler func(e EngineInterface, act model.PlayerAction) error
+// ActionResult 描述一次中断输入处理后的消费结果。
+type ActionResult struct {
+	Consumed bool
+	AfterPop func(e EngineInterface)
+}
+
+// ActionResultHandler 处理某类中断下的玩家指令，并显式返回是否消费当前中断。
+type ActionResultHandler func(e EngineInterface, act model.PlayerAction) (ActionResult, error)
 
 // ActionRule 单条中断的动作规则。
 type ActionRule struct {
 	Allowed              map[model.PlayerActionType]bool
 	InvalidActionMessage string
-	Handler              ActionHandler
+	HandleResult         ActionResultHandler
 }
 
 // ActionRules 动作规则注册表。

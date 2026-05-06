@@ -17,166 +17,80 @@ func engFromHost(h choicert.Host) *GameEngine {
 	return b.e
 }
 
-func regSpecSingle(reg *choicert.SpecRegistry, typ string,
-	build func(*GameEngine, string, string, *model.Player, map[string]any) *model.Prompt,
-	sel func(*GameEngine, string, int, map[string]any) (bool, error),
-) {
+func registerChoiceSpec(reg *choicert.SpecRegistry, typ string, p catalogSpecPlan) {
 	reg.Register(&choicert.ChoiceSpec{
-		Type: typ,
-		BuildPrompt: func(h choicert.Host, ct, pid string, pl *model.Player, data map[string]any) *model.Prompt {
-			ge := engFromHost(h)
-			if ge == nil {
-				return nil
-			}
-			return build(ge, ct, pid, pl, data)
-		},
-		OnSelect: func(h choicert.Host, pid string, idx int, ctx map[string]any) (bool, error) {
-			ge := engFromHost(h)
-			if ge == nil {
-				return false, fmt.Errorf("choice: engine bridge unavailable")
-			}
-			return sel(ge, pid, idx, ctx)
-		},
+		Type:              typ,
+		AutoConsume:       p.autoConsume,
+		ConsumesInterrupt: p.consumes,
+		BuildPrompt:       wrapChoiceBuild(p.build),
+		OnSelect:          wrapChoiceSelect(p.sel),
+		OnMultiSelect:     wrapChoiceMulti(p.multi),
+		OnCancel:          wrapChoiceCancel(p.cancel),
+		AfterConsume:      wrapChoiceAfter(p.after),
 	})
 }
 
-func regSpecSingleAndMulti(reg *choicert.SpecRegistry, typ string,
-	build func(*GameEngine, string, string, *model.Player, map[string]any) *model.Prompt,
-	sel func(*GameEngine, string, int, map[string]any) (bool, error),
-	multi func(*GameEngine, string, []int) error,
-) {
-	reg.Register(&choicert.ChoiceSpec{
-		Type: typ,
-		BuildPrompt: func(h choicert.Host, ct, pid string, pl *model.Player, data map[string]any) *model.Prompt {
-			ge := engFromHost(h)
-			if ge == nil {
-				return nil
-			}
-			return build(ge, ct, pid, pl, data)
-		},
-		OnSelect: func(h choicert.Host, pid string, idx int, ctx map[string]any) (bool, error) {
-			ge := engFromHost(h)
-			if ge == nil {
-				return false, fmt.Errorf("choice: engine bridge unavailable")
-			}
-			return sel(ge, pid, idx, ctx)
-		},
-		OnMultiSelect: func(h choicert.Host, pid string, sel []int, _ map[string]any) (bool, error) {
-			ge := engFromHost(h)
-			if ge == nil {
-				return false, fmt.Errorf("choice: engine bridge unavailable")
-			}
-			return true, multi(ge, pid, sel)
-		},
-	})
+func wrapChoiceBuild(build func(*GameEngine, string, string, *model.Player, map[string]any) *model.Prompt) func(choicert.Host, string, string, *model.Player, map[string]any) *model.Prompt {
+	if build == nil {
+		return nil
+	}
+	return func(h choicert.Host, ct, pid string, pl *model.Player, data map[string]any) *model.Prompt {
+		ge := engFromHost(h)
+		if ge == nil {
+			return nil
+		}
+		return build(ge, ct, pid, pl, data)
+	}
 }
 
-func regSpecSingleAndMultiAndCancel(reg *choicert.SpecRegistry, typ string,
-	build func(*GameEngine, string, string, *model.Player, map[string]any) *model.Prompt,
-	sel func(*GameEngine, string, int, map[string]any) (bool, error),
-	multi func(*GameEngine, string, []int) error,
-	cancel func(*GameEngine, string) error,
-) {
-	reg.Register(&choicert.ChoiceSpec{
-		Type: typ,
-		BuildPrompt: func(h choicert.Host, ct, pid string, pl *model.Player, data map[string]any) *model.Prompt {
-			ge := engFromHost(h)
-			if ge == nil {
-				return nil
-			}
-			return build(ge, ct, pid, pl, data)
-		},
-		OnSelect: func(h choicert.Host, pid string, idx int, ctx map[string]any) (bool, error) {
-			ge := engFromHost(h)
-			if ge == nil {
-				return false, fmt.Errorf("choice: engine bridge unavailable")
-			}
-			return sel(ge, pid, idx, ctx)
-		},
-		OnMultiSelect: func(h choicert.Host, pid string, sel []int, _ map[string]any) (bool, error) {
-			ge := engFromHost(h)
-			if ge == nil {
-				return false, fmt.Errorf("choice: engine bridge unavailable")
-			}
-			return true, multi(ge, pid, sel)
-		},
-		OnCancel: func(h choicert.Host, pid string, _ map[string]any) (bool, error) {
-			ge := engFromHost(h)
-			if ge == nil {
-				return false, fmt.Errorf("choice: engine bridge unavailable")
-			}
-			return true, cancel(ge, pid)
-		},
-	})
+func wrapChoiceSelect(sel func(*GameEngine, string, int, map[string]any) (bool, error)) func(choicert.Host, string, int, map[string]any) (bool, error) {
+	if sel == nil {
+		return nil
+	}
+	return func(h choicert.Host, pid string, idx int, ctx map[string]any) (bool, error) {
+		ge := engFromHost(h)
+		if ge == nil {
+			return false, fmt.Errorf("choice: engine bridge unavailable")
+		}
+		return sel(ge, pid, idx, ctx)
+	}
 }
 
-func regSpecExtractChoice(reg *choicert.SpecRegistry,
-	build func(*GameEngine, string, string, *model.Player, map[string]any) *model.Prompt,
-	multi func(*GameEngine, string, []int) error,
-	cancel func(*GameEngine, string) error,
-) {
-	reg.Register(&choicert.ChoiceSpec{
-		Type: "extract",
-		BuildPrompt: func(h choicert.Host, ct, pid string, pl *model.Player, data map[string]any) *model.Prompt {
-			ge := engFromHost(h)
-			if ge == nil {
-				return nil
-			}
-			return build(ge, ct, pid, pl, data)
-		},
-		OnSelect: func(h choicert.Host, pid string, idx int, _ map[string]any) (bool, error) {
-			ge := engFromHost(h)
-			if ge == nil {
-				return false, fmt.Errorf("choice: engine bridge unavailable")
-			}
-			return true, multi(ge, pid, []int{idx})
-		},
-		OnMultiSelect: func(h choicert.Host, pid string, sel []int, _ map[string]any) (bool, error) {
-			ge := engFromHost(h)
-			if ge == nil {
-				return false, fmt.Errorf("choice: engine bridge unavailable")
-			}
-			return true, multi(ge, pid, sel)
-		},
-		OnCancel: func(h choicert.Host, pid string, _ map[string]any) (bool, error) {
-			ge := engFromHost(h)
-			if ge == nil {
-				return false, fmt.Errorf("choice: engine bridge unavailable")
-			}
-			return true, cancel(ge, pid)
-		},
-	})
+func wrapChoiceMulti(multi func(*GameEngine, string, []int) error) func(choicert.Host, string, []int, map[string]any) (bool, error) {
+	if multi == nil {
+		return nil
+	}
+	return func(h choicert.Host, pid string, sel []int, _ map[string]any) (bool, error) {
+		ge := engFromHost(h)
+		if ge == nil {
+			return false, fmt.Errorf("choice: engine bridge unavailable")
+		}
+		return true, multi(ge, pid, sel)
+	}
 }
 
-func regSpecSingleAndCancel(reg *choicert.SpecRegistry, typ string,
-	build func(*GameEngine, string, string, *model.Player, map[string]any) *model.Prompt,
-	sel func(*GameEngine, string, int, map[string]any) (bool, error),
-	cancel func(*GameEngine, string) error,
-) {
-	reg.Register(&choicert.ChoiceSpec{
-		Type: typ,
-		BuildPrompt: func(h choicert.Host, ct, pid string, pl *model.Player, data map[string]any) *model.Prompt {
-			ge := engFromHost(h)
-			if ge == nil {
-				return nil
-			}
-			return build(ge, ct, pid, pl, data)
-		},
-		OnSelect: func(h choicert.Host, pid string, idx int, ctx map[string]any) (bool, error) {
-			ge := engFromHost(h)
-			if ge == nil {
-				return false, fmt.Errorf("choice: engine bridge unavailable")
-			}
-			return sel(ge, pid, idx, ctx)
-		},
-		OnCancel: func(h choicert.Host, pid string, _ map[string]any) (bool, error) {
-			ge := engFromHost(h)
-			if ge == nil {
-				return false, fmt.Errorf("choice: engine bridge unavailable")
-			}
-			return true, cancel(ge, pid)
-		},
-	})
+func wrapChoiceCancel(cancel func(*GameEngine, string, map[string]any) (bool, error)) func(choicert.Host, string, map[string]any) (bool, error) {
+	if cancel == nil {
+		return nil
+	}
+	return func(h choicert.Host, pid string, ctx map[string]any) (bool, error) {
+		ge := engFromHost(h)
+		if ge == nil {
+			return false, fmt.Errorf("choice: engine bridge unavailable")
+		}
+		return cancel(ge, pid, ctx)
+	}
+}
+
+func wrapChoiceAfter(after func(*GameEngine, map[string]any)) func(choicert.Host, map[string]any) {
+	if after == nil {
+		return nil
+	}
+	return func(h choicert.Host, ctx map[string]any) {
+		if ge := engFromHost(h); ge != nil {
+			after(ge, ctx)
+		}
+	}
 }
 
 func bootstrapChoiceSpecs(e *GameEngine) {
@@ -185,17 +99,43 @@ func bootstrapChoiceSpecs(e *GameEngine) {
 	}
 	reg := e.choiceEngine.Registry()
 
-	regSpecSingleAndMultiAndCancel(reg, choiceTypeSystemDiscardCards, (*GameEngine).buildSystemChoicePrompt, func(ge *GameEngine, pid string, idx int, _ map[string]any) (bool, error) {
-		return true, ge.handleSystemDiscardChoiceSelections(pid, []int{idx})
-	}, (*GameEngine).handleSystemDiscardChoiceSelections, func(ge *GameEngine, pid string) error {
-		if ge.State == nil || ge.State.PendingInterrupt == nil {
-			return fmt.Errorf("当前没有待处理的弃牌操作")
-		}
-		ctxData, _ := ge.State.PendingInterrupt.Context.(map[string]interface{})
-		return ge.cancelSystemDiscardChoice(pid, ctxData)
+	registerChoiceSpec(reg, choiceTypeSystemDiscardCards, catalogSpecPlan{
+		build: (*GameEngine).buildSystemChoicePrompt,
+		sel: func(ge *GameEngine, pid string, idx int, _ map[string]any) (bool, error) {
+			return true, ge.handleSystemDiscardChoiceSelections(pid, []int{idx})
+		},
+		multi: (*GameEngine).handleSystemDiscardChoiceSelections,
+		cancel: func(ge *GameEngine, pid string, _ map[string]any) (bool, error) {
+			if ge.State == nil || ge.State.PendingInterrupt == nil {
+				return false, fmt.Errorf("当前没有待处理的弃牌操作")
+			}
+			ctxData, _ := ge.State.PendingInterrupt.Context.(map[string]interface{})
+			return true, ge.cancelSystemDiscardChoice(pid, ctxData)
+		},
+		consumes: func(ctx map[string]any) bool {
+			if ctx == nil {
+				return false
+			}
+			skillID, _ := ctx["skill_id"].(string)
+			return skillID == ""
+		},
+		after: (*GameEngine).afterSystemDiscardChoice,
 	})
 
-	regSpecExtractChoice(reg, (*GameEngine).buildSystemChoicePrompt, (*GameEngine).handleExtractChoiceSelections, (*GameEngine).cancelExtractChoice)
+	registerChoiceSpec(reg, "extract", catalogSpecPlan{
+		autoConsume: true,
+		build:       (*GameEngine).buildSystemChoicePrompt,
+		sel: func(ge *GameEngine, pid string, idx int, _ map[string]any) (bool, error) {
+			return true, ge.handleExtractChoiceSelections(pid, []int{idx})
+		},
+		multi: func(ge *GameEngine, pid string, sel []int) error {
+			return ge.handleExtractChoiceSelections(pid, sel)
+		},
+		cancel: func(ge *GameEngine, pid string, _ map[string]any) (bool, error) {
+			return true, ge.cancelExtractChoice(pid)
+		},
+		after: func(ge *GameEngine, _ map[string]any) { ge.enterTurnEndStage() },
+	})
 
 	e.bootstrapChoiceSpecsFromCatalog(reg)
 }

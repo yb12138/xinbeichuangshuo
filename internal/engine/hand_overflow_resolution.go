@@ -20,6 +20,17 @@ const (
 )
 
 func (e *GameEngine) handleDiscardSelection(playerID string, indices []int, data map[string]interface{}) error {
+	if err := e.resolveDiscardSelection(playerID, indices, data); err != nil {
+		return err
+	}
+	e.PopInterrupt()
+	if e.State.PendingInterrupt == nil {
+		e.afterSystemDiscardChoice(data)
+	}
+	return nil
+}
+
+func (e *GameEngine) resolveDiscardSelection(playerID string, indices []int, data map[string]interface{}) error {
 	discardCount := runtimeutil.ToIntContextValue(data["discard_count"])
 	if len(indices) != discardCount {
 		return fmt.Errorf("需要选择 %d 张牌丢弃，你选择了 %d 张", discardCount, len(indices))
@@ -58,22 +69,21 @@ func (e *GameEngine) handleDiscardSelection(playerID string, indices []int, data
 		// 角色后续可能已插入新的中断；若无中断，继续恢复流程。
 	}
 
-	e.PopInterrupt()
-	if e.State.PendingInterrupt == nil {
-		if hasChoiceResumePoint(data["draw_resume_phase"]) && !e.hasReturnPoint() {
-			e.setReturnPoint(data["draw_resume_phase"])
-		}
-		e.processFlowContinuations(model.FlowContinuationAfterDraw)
-		e.restorePhaseAfterDiscardResolution(
-			runtimeutil.ToBoolContextValue(data["stay_in_turn"]),
-			runtimeutil.ToBoolContextValue(data["is_damage_resolution"]),
-			[]discardPhaseCandidate{discardPhasePendingDamage, discardPhaseReturn},
-			[]discardPhaseCandidate{discardPhasePendingDamage, discardPhaseReturn, discardPhaseActionQueue},
-		)
-	}
-
 	e.checkGameEnd()
 	return nil
+}
+
+func (e *GameEngine) afterSystemDiscardChoice(data map[string]any) {
+	if hasChoiceResumePoint(data["draw_resume_phase"]) && !e.hasReturnPoint() {
+		e.setReturnPoint(data["draw_resume_phase"])
+	}
+	e.processFlowContinuations(model.FlowContinuationAfterDraw)
+	e.restorePhaseAfterDiscardResolution(
+		runtimeutil.ToBoolContextValue(data["stay_in_turn"]),
+		runtimeutil.ToBoolContextValue(data["is_damage_resolution"]),
+		[]discardPhaseCandidate{discardPhasePendingDamage, discardPhaseReturn},
+		[]discardPhaseCandidate{discardPhasePendingDamage, discardPhaseReturn, discardPhaseActionQueue},
+	)
 }
 
 func (e *GameEngine) discardCardsFromHand(player *model.Player, indices []int) ([]model.Card, error) {

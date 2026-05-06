@@ -187,7 +187,13 @@ func magicBlastTargetDiscardOptions(p *model.Player) []model.PromptOption {
 
 // --- Action handlers ---
 
-func handleMagicMissileAction(rt player.ChoiceRuntime, act model.PlayerAction) error {
+func handleMagicMissileAction(rt player.ChoiceRuntime, act model.PlayerAction) (player.InterruptActionResult, error) {
+	return resultAfterMagicGirlInterrupt(rt, func() error {
+		return resolveMagicMissileAction(rt, act)
+	})
+}
+
+func resolveMagicMissileAction(rt player.ChoiceRuntime, act model.PlayerAction) error {
 	chain := rt.GetMagicBulletChain()
 	if chain == nil {
 		return fmt.Errorf("魔弹链条不存在")
@@ -259,7 +265,6 @@ func resolveMagicMissileTake(rt player.ChoiceRuntime, p *model.Player, chain *mo
 		DamageType: model.MagicDamage,
 		Card:       magicCard,
 	})
-	rt.SetReturnPoint(model.TurnStageExtraAction)
 	rt.EnterDamageResolution(nil)
 	rt.SetMagicBulletChain(nil)
 	return nil
@@ -361,7 +366,13 @@ func resolveMagicMissileDefend(rt player.ChoiceRuntime, p *model.Player, chain *
 	return nil
 }
 
-func handleMagicBulletFusionAction(rt player.ChoiceRuntime, act model.PlayerAction) error {
+func handleMagicBulletFusionAction(rt player.ChoiceRuntime, act model.PlayerAction) (player.InterruptActionResult, error) {
+	return resultAfterMagicGirlInterrupt(rt, func() error {
+		return resolveMagicBulletFusionAction(rt, act)
+	})
+}
+
+func resolveMagicBulletFusionAction(rt player.ChoiceRuntime, act model.PlayerAction) error {
 	interrupt := rt.GetPendingInterrupt()
 	if interrupt == nil {
 		return fmt.Errorf("没有待处理的中断")
@@ -413,7 +424,13 @@ func handleMagicBulletFusionAction(rt player.ChoiceRuntime, act model.PlayerActi
 	return rt.PerformMagic(act.PlayerID, targetID, cardIdx, true)
 }
 
-func handleMagicBulletDirectionAction(rt player.ChoiceRuntime, act model.PlayerAction) error {
+func handleMagicBulletDirectionAction(rt player.ChoiceRuntime, act model.PlayerAction) (player.InterruptActionResult, error) {
+	return resultAfterMagicGirlInterrupt(rt, func() error {
+		return resolveMagicBulletDirectionAction(rt, act)
+	})
+}
+
+func resolveMagicBulletDirectionAction(rt player.ChoiceRuntime, act model.PlayerAction) error {
 	interrupt := rt.GetPendingInterrupt()
 	if interrupt == nil {
 		return fmt.Errorf("没有待处理的中断")
@@ -451,7 +468,13 @@ func handleMagicBulletDirectionAction(rt player.ChoiceRuntime, act model.PlayerA
 	return rt.ExecuteMagicBullet(p, reverse, isFusion, fusionCard)
 }
 
-func handleMagicBlastAction(rt player.ChoiceRuntime, act model.PlayerAction) error {
+func handleMagicBlastAction(rt player.ChoiceRuntime, act model.PlayerAction) (player.InterruptActionResult, error) {
+	return resultAfterMagicGirlInterrupt(rt, func() error {
+		return resolveMagicBlastAction(rt, act)
+	})
+}
+
+func resolveMagicBlastAction(rt player.ChoiceRuntime, act model.PlayerAction) error {
 	interrupt := rt.GetPendingInterrupt()
 	if interrupt == nil {
 		return fmt.Errorf("没有待处理的中断")
@@ -473,6 +496,17 @@ func handleMagicBlastAction(rt player.ChoiceRuntime, act model.PlayerAction) err
 	default:
 		return fmt.Errorf("未知的魔爆冲击阶段: %s", stage)
 	}
+}
+
+func resultAfterMagicGirlInterrupt(rt player.ChoiceRuntime, run func() error) (player.InterruptActionResult, error) {
+	before := rt.GetPendingInterrupt()
+	if err := run(); err != nil {
+		return player.InterruptActionResult{}, err
+	}
+	if before != nil && rt.GetPendingInterrupt() == before {
+		return player.InterruptActionResult{}, nil
+	}
+	return player.InterruptActionResult{Consumed: true}, nil
 }
 
 // --- MagicBlast helpers ---

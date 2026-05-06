@@ -47,10 +47,21 @@ func (o *Orchestrator) DispatchAction(act model.PlayerAction) error {
 		}
 		return fmt.Errorf("当前中断类型不支持该指令")
 	}
-	if rule.Handler == nil {
+	if rule.HandleResult == nil {
 		return fmt.Errorf("中断规则未配置处理器: %s", intr.Type)
 	}
-	return rule.Handler(o.engine, act)
+	before := st.PendingInterrupt
+	result, err := rule.HandleResult(o.engine, act)
+	if err != nil {
+		return err
+	}
+	if result.Consumed && before != nil && st.PendingInterrupt == before {
+		o.PopInterrupt()
+		if result.AfterPop != nil && st.PendingInterrupt == nil {
+			result.AfterPop(o.engine)
+		}
+	}
+	return nil
 }
 
 // BuildInterruptPrompt 构建当前挂起中断的 Prompt。

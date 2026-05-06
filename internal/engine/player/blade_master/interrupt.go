@@ -76,18 +76,18 @@ func buildHolySwordDrawPrompt(rt engineplayer.ChoiceRuntime) *model.Prompt {
 }
 
 // handleHolySwordDrawAction 处理圣剑摸X弃X响应。
-func handleHolySwordDrawAction(rt engineplayer.ChoiceRuntime, act model.PlayerAction) error {
+func handleHolySwordDrawAction(rt engineplayer.ChoiceRuntime, act model.PlayerAction) (engineplayer.InterruptActionResult, error) {
 	rt.Log("[Skill] [DEBUG] handleHolySwordDrawAction called")
 	interrupt := rt.GetPendingInterrupt()
 	if interrupt == nil {
 		rt.Log("[Skill] [DEBUG] no pending interrupt")
-		return fmt.Errorf("没有待处理的中断")
+		return engineplayer.InterruptActionResult{}, fmt.Errorf("没有待处理的中断")
 	}
 
 	p := rt.GetPlayers()[act.PlayerID]
 	if p == nil {
 		rt.Log("[Skill] [DEBUG] player not found")
-		return fmt.Errorf("玩家不存在")
+		return engineplayer.InterruptActionResult{}, fmt.Errorf("玩家不存在")
 	}
 
 	x := 0
@@ -99,12 +99,9 @@ func handleHolySwordDrawAction(rt engineplayer.ChoiceRuntime, act model.PlayerAc
 	}
 	rt.Log(fmt.Sprintf("[Skill] [DEBUG] x=%d, player=%s, hand_count=%d", x, p.ID, len(p.Hand)))
 
-	rt.PopInterrupt()
-	rt.Log("[Skill] [DEBUG] interrupt popped")
 	if x == 0 {
 		rt.Log(fmt.Sprintf("[Skill] %s 选择不摸不弃", p.Name))
-		resumeHolySwordAftermath(rt)
-		return nil
+		return engineplayer.InterruptActionResult{Consumed: true, AfterConsume: resumeHolySwordAftermath}, nil
 	}
 
 	rt.Log(fmt.Sprintf("[Skill] [DEBUG] calling DrawCards for player %s, amount %d", p.ID, x))
@@ -118,7 +115,7 @@ func handleHolySwordDrawAction(rt engineplayer.ChoiceRuntime, act model.PlayerAc
 		"is_damage_resolution": false,
 	})
 	rt.Log(fmt.Sprintf("[Skill] %s 需要弃 %d 张牌", p.Name, x))
-	return nil
+	return engineplayer.InterruptActionResult{Consumed: true}, nil
 }
 
 // resumeHolySwordAftermath 圣剑后续恢复流程。

@@ -180,30 +180,33 @@ func buildSaintHealPrompt(rt player.ChoiceRuntime) *model.Prompt {
 
 // --- SaintHeal action ---
 
-func handleSaintHealAction(rt player.ChoiceRuntime, act model.PlayerAction) error {
+func handleSaintHealAction(rt player.ChoiceRuntime, act model.PlayerAction) (player.InterruptActionResult, error) {
 	interrupt := rt.GetPendingInterrupt()
 	if interrupt == nil {
-		return fmt.Errorf("没有待处理的中断")
+		return player.InterruptActionResult{}, fmt.Errorf("没有待处理的中断")
 	}
 	if act.PlayerID != interrupt.PlayerID {
-		return fmt.Errorf("不是你的响应回合")
+		return player.InterruptActionResult{}, fmt.Errorf("不是你的响应回合")
 	}
 
 	data, ok := interrupt.Context.(map[string]interface{})
 	if !ok {
-		return fmt.Errorf("中断上下文格式错误")
+		return player.InterruptActionResult{}, fmt.Errorf("中断上下文格式错误")
 	}
 	targetIDs := saintHealTargetIDsFromContext(data)
 	if len(targetIDs) == 0 {
-		return fmt.Errorf("圣疗缺少目标")
+		return player.InterruptActionResult{}, fmt.Errorf("圣疗缺少目标")
 	}
 	stage, err := saintHealStageFromContext(data, targetIDs)
 	if err != nil {
-		return err
+		return player.InterruptActionResult{}, err
 	}
 
 	if stage == saintHealStageAllocateHeal {
-		return resolveSaintHealAllocationStage(rt, act, data, targetIDs)
+		if err := resolveSaintHealAllocationStage(rt, act, data, targetIDs); err != nil {
+			return player.InterruptActionResult{}, err
+		}
+		return player.InterruptActionResult{}, nil
 	}
 	return resolveSaintHealExtraActionStage(rt, act, data, targetIDs)
 }
@@ -250,22 +253,22 @@ func resolveSaintHealExtraActionStage(
 	act model.PlayerAction,
 	data map[string]interface{},
 	targetIDs []string,
-) error {
+) (player.InterruptActionResult, error) {
 	p := rt.GetPlayers()[act.PlayerID]
 	if p == nil {
-		return fmt.Errorf("玩家不存在")
+		return player.InterruptActionResult{}, fmt.Errorf("玩家不存在")
 	}
 	if act.Type != model.CmdSelect || len(act.Selections) != 1 {
-		return fmt.Errorf("请选择额外行动类型")
+		return player.InterruptActionResult{}, fmt.Errorf("请选择额外行动类型")
 	}
 
 	extraActionType, extraActionLabel, err := parseSaintHealExtraActionSelection(act.Selections[0])
 	if err != nil {
-		return err
+		return player.InterruptActionResult{}, err
 	}
 	allocations, err := saintHealAllocationsFromContext(data, targetIDs)
 	if err != nil {
-		return err
+		return player.InterruptActionResult{}, err
 	}
 
 	for _, targetID := range targetIDs {
@@ -279,14 +282,14 @@ func resolveSaintHealExtraActionStage(
 		}
 	}
 
-	rt.PopInterrupt()
 	model.AppendExtraAction(p, "圣疗", extraActionType)
 	rt.Log(fmt.Sprintf("[Skill] %s 发动 [圣疗]，获得额外%s行动", p.Name, extraActionLabel))
 	p.TurnState.HasActed = true
 	p.TurnState.LastActionType = string(model.ActionMagic)
 	p.TurnState.LastActionCard = nil
-	if !rt.RoutePendingDamageWithReturn(model.TurnStageActionEnd) {
-		rt.EnterActionEndStage()
-	}
-	return nil
+	return player.InterruptActionResult{Consumed: true, AfterConsume: func(rt player.ChoiceRuntime) {
+		if !rt.RoutePendingDamageWithReturn(model.TurnStageActionEnd) {
+			rt.EnterActionEndStage()
+		}
+	}}, nil
 }

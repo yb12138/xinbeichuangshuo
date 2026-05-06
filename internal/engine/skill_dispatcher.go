@@ -48,6 +48,13 @@ func (sd *SkillDispatcher) ConfirmStartupSkill(playerID string, skillID string) 
 	return sd.runtime.ConfirmStartupSkill(sd.skillHost(), playerID, skillID)
 }
 
+func (sd *SkillDispatcher) ConfirmStartupSkillAction(playerID string, skillID string) (skillrt.InterruptActionResult, error) {
+	if sd == nil || sd.runtime == nil {
+		return skillrt.InterruptActionResult{}, fmt.Errorf("技能运行时未初始化")
+	}
+	return sd.runtime.ConfirmStartupSkillAction(sd.skillHost(), playerID, skillID)
+}
+
 // SkipStartupSkill 跳过启动技能。
 func (sd *SkillDispatcher) SkipStartupSkill(playerID string) error {
 	if sd == nil || sd.runtime == nil {
@@ -56,12 +63,26 @@ func (sd *SkillDispatcher) SkipStartupSkill(playerID string) error {
 	return sd.runtime.SkipStartupSkill(sd.skillHost(), playerID)
 }
 
+func (sd *SkillDispatcher) SkipStartupSkillAction(playerID string) (skillrt.InterruptActionResult, error) {
+	if sd == nil || sd.runtime == nil {
+		return skillrt.InterruptActionResult{}, fmt.Errorf("技能运行时未初始化")
+	}
+	return sd.runtime.SkipStartupSkillAction(sd.skillHost(), playerID)
+}
+
 // ConfirmResponseSkill 确认执行响应技能。
 func (sd *SkillDispatcher) ConfirmResponseSkill(playerID string, skillID string) error {
 	if sd == nil || sd.runtime == nil {
 		return fmt.Errorf("技能运行时未初始化")
 	}
 	return sd.runtime.ConfirmResponseSkill(sd.skillHost(), playerID, skillID)
+}
+
+func (sd *SkillDispatcher) ConfirmResponseSkillAction(playerID string, skillID string) (skillrt.InterruptActionResult, error) {
+	if sd == nil || sd.runtime == nil {
+		return skillrt.InterruptActionResult{}, fmt.Errorf("技能运行时未初始化")
+	}
+	return sd.runtime.ConfirmResponseSkillAction(sd.skillHost(), playerID, skillID)
 }
 
 // processSkills 处理收集到的技能（调试/作弊等内部路径）。

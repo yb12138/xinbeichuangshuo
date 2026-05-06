@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	choicert "starcup-engine/internal/engine/runtime/choice"
+	intr "starcup-engine/internal/engine/runtime/interrupt"
 	"starcup-engine/internal/model"
 )
 
@@ -38,44 +39,55 @@ func choiceCtxAsInterfaceMap(m map[string]any) map[string]interface{} {
 	return out
 }
 
-func (e *GameEngine) applyInterruptChoiceSelect(playerID string, selectionIndex int, ctxData map[string]any) error {
+func (e *GameEngine) applyInterruptChoiceSelect(playerID string, selectionIndex int, ctxData map[string]any) (choicert.HandleResult, error) {
 	if e.choiceEngine == nil {
-		return fmt.Errorf("选择引擎未初始化")
+		return choicert.HandleResult{}, fmt.Errorf("选择引擎未初始化")
 	}
-	_, err := e.choiceEngine.HandleSelect(playerID, selectionIndex, ctxData)
-	return err
+	return e.choiceEngine.HandleSelectResult(playerID, selectionIndex, ctxData)
 }
 
-func (e *GameEngine) handleInterruptChoiceAction(act model.PlayerAction) error {
+func (e *GameEngine) handleInterruptChoiceAction(act model.PlayerAction) (intr.ActionResult, error) {
 	if e.State.PendingInterrupt == nil {
-		return fmt.Errorf("没有待处理的中断")
+		return intr.ActionResult{}, fmt.Errorf("没有待处理的中断")
 	}
 	if e.choiceEngine == nil {
-		return fmt.Errorf("选择引擎未初始化")
+		return intr.ActionResult{}, fmt.Errorf("选择引擎未初始化")
 	}
 	data, ok := choiceCtxAsAnyMap(e.State.PendingInterrupt.Context)
 	if !ok {
-		return fmt.Errorf("中断上下文格式错误")
+		return intr.ActionResult{}, fmt.Errorf("中断上下文格式错误")
 	}
+	var result choicert.HandleResult
+	var err error
 	if act.Type == model.CmdCancel {
-		_, err := e.choiceEngine.HandleCancel(act.PlayerID, data)
-		return err
-	}
-	if act.Type == model.CmdSelect {
+		result, err = e.choiceEngine.HandleCancelResult(act.PlayerID, data)
+	} else if act.Type == model.CmdSelect {
 		ct, _ := data["choice_type"].(string)
 		if ct == "" {
-			return fmt.Errorf("中断上下文缺少 choice_type")
+			return intr.ActionResult{}, fmt.Errorf("中断上下文缺少 choice_type")
 		}
 		if len(act.Selections) > 1 {
-			_, err := e.choiceEngine.HandleMultiSelect(act.PlayerID, ct, act.Selections, data)
-			return err
+			result, err = e.choiceEngine.HandleMultiSelectResult(act.PlayerID, ct, act.Selections, data)
+		} else {
+			if len(act.Selections) != 1 {
+				return intr.ActionResult{}, fmt.Errorf("请选择一个选项")
+			}
+			result, err = e.applyInterruptChoiceSelect(act.PlayerID, act.Selections[0], data)
 		}
-		if len(act.Selections) != 1 {
-			return fmt.Errorf("请选择一个选项")
-		}
-		return e.applyInterruptChoiceSelect(act.PlayerID, act.Selections[0], data)
+	} else {
+		return intr.ActionResult{}, fmt.Errorf("当前中断类型不支持该指令")
 	}
-	return fmt.Errorf("当前中断类型不支持该指令")
+	if err != nil {
+		return intr.ActionResult{}, err
+	}
+	return intr.ActionResult{
+		Consumed: result.ConsumedInterrupt,
+		AfterPop: func(_ intr.EngineInterface) {
+			if result.AfterConsume != nil {
+				result.AfterConsume(&choiceHostBridge{e: e})
+			}
+		},
+	}, nil
 }
 
 func (e *GameEngine) cancelExtractChoice(playerID string) error {

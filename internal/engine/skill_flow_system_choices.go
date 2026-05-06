@@ -102,7 +102,7 @@ func (e *GameEngine) buildSystemChoicePrompt(choiceType, playerID string, player
 	return nil
 }
 
-func (e *GameEngine) handleSystemWeakChoice(playerID string, selectionIndex int) error {
+func (e *GameEngine) handleSystemWeakChoice(playerID string, selectionIndex int, ctxData map[string]interface{}) error {
 	player := e.State.Players[playerID]
 	if player == nil {
 		return fmt.Errorf("玩家不存在")
@@ -115,10 +115,7 @@ func (e *GameEngine) handleSystemWeakChoice(playerID string, selectionIndex int)
 	case 0:
 		e.Log(fmt.Sprintf("[Weak] %s 选择跳过行动阶段", player.Name))
 		player.TurnState.ActionPhaseSkippedThisTurn = true
-		e.PopInterrupt()
-		if e.State.PendingInterrupt == nil {
-			e.enterTurnEndStage()
-		}
+		ctxData["weak_next_stage"] = "turn_end"
 		return nil
 	case 1:
 		e.Log(fmt.Sprintf("[Weak] %s 选择摸3张牌后继续行动阶段", player.Name))
@@ -132,12 +129,7 @@ func (e *GameEngine) handleSystemWeakChoice(playerID string, selectionIndex int)
 		checkCtx.Flags["StayInTurn"] = true
 		e.checkHandLimit(player, checkCtx)
 
-		e.PopInterrupt()
-		if e.State.PendingInterrupt == nil {
-			e.setTurnStage(model.TurnStageActionStart)
-			e.clearCombatStage()
-			e.clearSubflow()
-		}
+		ctxData["weak_next_stage"] = "action_start"
 		return nil
 	default:
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
@@ -166,11 +158,17 @@ func (e *GameEngine) handleSystemBuyResourceChoice(playerID string, selectionInd
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
 
-	e.PopInterrupt()
-	if e.State.PendingInterrupt == nil {
-		e.enterExtraActionStage()
-	}
 	return nil
+}
+
+func (e *GameEngine) afterSystemWeakChoice(ctxData map[string]any) {
+	if nextStage, _ := ctxData["weak_next_stage"].(string); nextStage == "turn_end" {
+		e.enterTurnEndStage()
+		return
+	}
+	e.setTurnStage(model.TurnStageActionStart)
+	e.clearCombatStage()
+	e.clearSubflow()
 }
 
 func (e *GameEngine) handleSystemHealChoice(selectionIndex int, ctxData map[string]interface{}) error {
@@ -202,15 +200,18 @@ func (e *GameEngine) handleSystemHealChoice(selectionIndex int, ctxData map[stri
 	}
 	pd.HealResolved = true
 
-	e.PopInterrupt()
-	if e.State.PendingInterrupt == nil {
-		e.enterDamageResolution(nil)
-	}
 	return nil
 }
 
 func (e *GameEngine) handleSystemDiscardChoiceSelections(playerID string, selections []int) error {
-	return e.ConfirmDiscard(playerID, selections)
+	data, err := e.pendingDiscardContext()
+	if err != nil {
+		return err
+	}
+	if hasSkillDiscardID(data) {
+		return e.handleSkillDiscardSelection(playerID, selections, data)
+	}
+	return e.resolveDiscardSelection(playerID, selections, data)
 }
 
 func (e *GameEngine) cancelSystemDiscardChoice(playerID string, ctxData map[string]interface{}) error {
@@ -232,11 +233,7 @@ func (e *GameEngine) cancelSystemDiscardChoice(playerID string, ctxData map[stri
 		return e.SkipResponse()
 	}
 
-	e.PopInterrupt()
 	e.Log(fmt.Sprintf("[System] %s 取消了技能 [%s] 的弃牌发动", playerID, skillID))
-	if e.State.PendingInterrupt == nil {
-		e.enterActionExecutionStage()
-	}
 	return nil
 }
 
@@ -332,9 +329,5 @@ func (e *GameEngine) handleExtractChoiceSelections(playerID string, selections [
 	e.Log(fmt.Sprintf("[Action] %s 提炼：从战绩区获得 %d 宝石 %d 水晶（当前能量: %d）",
 		player.Name, extractedGems, extractedCrystals, player.Gem+player.Crystal))
 
-	e.PopInterrupt()
-	if e.State.PendingInterrupt == nil {
-		e.enterTurnEndStage()
-	}
 	return nil
 }

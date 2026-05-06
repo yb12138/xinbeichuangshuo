@@ -17,7 +17,7 @@ func RoleEntry() player.RoleEntry {
 			{
 				Type:                 model.InterruptHolySwordDraw,
 				BuildPrompt:          buildHolySwordDrawPrompt,
-				HandleAction:         handleHolySwordDrawAction,
+				HandleActionResult:   handleHolySwordDrawAction,
 				AllowedActionTypes:   []model.PlayerActionType{model.CmdSelect},
 				InvalidActionMessage: "当前为【圣剑】后续选择阶段，请提交选择",
 			},

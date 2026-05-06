@@ -8,6 +8,7 @@ import (
 
 	"starcup-engine/internal/engine/core/runtimeutil"
 	playerpkg "starcup-engine/internal/engine/player"
+	intr "starcup-engine/internal/engine/runtime/interrupt"
 	"starcup-engine/internal/model"
 )
 
@@ -26,59 +27,79 @@ func (e *GameEngine) ConfirmResponseSkill(playerID string, skillID string) error
 	return e.dispatcher.ConfirmResponseSkill(playerID, skillID)
 }
 
-func (e *GameEngine) handleInterruptResponseSkillAction(act model.PlayerAction) error {
+func (e *GameEngine) handleInterruptResponseSkillAction(act model.PlayerAction) (intr.ActionResult, error) {
 	if e.prunePendingResponseSkills() {
-		return e.SkipResponse()
+		return e.skipResponseActionResult()
 	}
 	if act.Type == model.CmdCancel {
-		return e.SkipResponse()
+		return e.skipResponseActionResult()
 	}
 	if act.Type == model.CmdSelect {
 		if len(act.Selections) != 1 {
-			return fmt.Errorf("请选择一个选项")
+			return intr.ActionResult{}, fmt.Errorf("请选择一个选项")
 		}
 		idx := act.Selections[0]
 		if idx < 0 || idx > len(e.State.PendingInterrupt.SkillIDs) {
-			return fmt.Errorf("无效的选择")
+			return intr.ActionResult{}, fmt.Errorf("无效的选择")
 		}
 		if idx == len(e.State.PendingInterrupt.SkillIDs) {
-			return e.SkipResponse()
+			return e.skipResponseActionResult()
 		}
-		return e.ConfirmResponseSkill(act.PlayerID, e.State.PendingInterrupt.SkillIDs[idx])
+		result, err := e.dispatcher.ConfirmResponseSkillAction(act.PlayerID, e.State.PendingInterrupt.SkillIDs[idx])
+		return intr.ActionResult{Consumed: result.Consumed, AfterPop: func(intr.EngineInterface) {
+			if result.AfterPop != nil {
+				result.AfterPop()
+			}
+		}}, err
 	}
-	return fmt.Errorf("当前中断类型不支持该指令")
+	return intr.ActionResult{}, fmt.Errorf("当前中断类型不支持该指令")
 }
 
-func (e *GameEngine) handleInterruptStartupSkillAction(act model.PlayerAction) error {
+func (e *GameEngine) handleInterruptStartupSkillAction(act model.PlayerAction) (intr.ActionResult, error) {
 	if act.Type == model.CmdCancel {
-		return e.SkipStartupSkill(act.PlayerID)
+		result, err := e.dispatcher.SkipStartupSkillAction(act.PlayerID)
+		return intr.ActionResult{Consumed: result.Consumed}, err
 	}
 	if act.Type == model.CmdSelect {
 		if len(act.Selections) != 1 {
-			return fmt.Errorf("请选择一个选项")
+			return intr.ActionResult{}, fmt.Errorf("请选择一个选项")
 		}
 		idx := act.Selections[0]
 		if idx < 0 || idx > len(e.State.PendingInterrupt.SkillIDs) {
-			return fmt.Errorf("无效的选择")
+			return intr.ActionResult{}, fmt.Errorf("无效的选择")
 		}
 		if idx == len(e.State.PendingInterrupt.SkillIDs) {
-			return e.SkipStartupSkill(act.PlayerID)
+			result, err := e.dispatcher.SkipStartupSkillAction(act.PlayerID)
+			return intr.ActionResult{Consumed: result.Consumed}, err
 		}
-		return e.ConfirmStartupSkill(act.PlayerID, e.State.PendingInterrupt.SkillIDs[idx])
+		result, err := e.dispatcher.ConfirmStartupSkillAction(act.PlayerID, e.State.PendingInterrupt.SkillIDs[idx])
+		return intr.ActionResult{Consumed: result.Consumed}, err
 	}
-	return fmt.Errorf("当前中断类型不支持该指令")
+	return intr.ActionResult{}, fmt.Errorf("当前中断类型不支持该指令")
 }
 
-func (e *GameEngine) handleInterruptGiveCardsAction(act model.PlayerAction) error {
+func (e *GameEngine) skipResponseActionResult() (intr.ActionResult, error) {
+	before := e.State.PendingInterrupt
+	if !isBeforeDrawResponseInterrupt(before) && e.maybeAdvanceResponseSkillSelection() {
+		return intr.ActionResult{}, nil
+	}
+	state := e.captureResponseResumeStateFromInterrupt(responseCompletionSkip, "", before)
+	return intr.ActionResult{Consumed: true, AfterPop: func(intr.EngineInterface) {
+		e.runTimingOnResponseSkipEffects(&state)
+		e.restoreSkippedResponseAfterPop(state)
+	}}, nil
+}
+
+func (e *GameEngine) handleInterruptGiveCardsAction(act model.PlayerAction) (intr.ActionResult, error) {
 	if act.Type != model.CmdSelect {
-		return fmt.Errorf("当前中断类型不支持该指令")
+		return intr.ActionResult{}, fmt.Errorf("当前中断类型不支持该指令")
 	}
 	data, ok := e.State.PendingInterrupt.Context.(map[string]interface{})
 	if !ok {
-		return fmt.Errorf("给牌中断上下文错误")
+		return intr.ActionResult{}, fmt.Errorf("给牌中断上下文错误")
 	}
 	receiverID, _ := data["receiver_id"].(string)
-	return e.ConfirmGiveCards(act.PlayerID, receiverID, act.Selections)
+	return intr.ActionResult{Consumed: true}, e.resolveGiveCardsInterrupt(act.PlayerID, receiverID, act.Selections)
 }
 
 // GetCurrentPrompt 获取当前用户交互提示。
@@ -153,6 +174,14 @@ func (e *GameEngine) prunePendingResponseSkills() bool {
 
 // ConfirmGiveCards 确认选牌交给他人。
 func (e *GameEngine) ConfirmGiveCards(giverID, receiverID string, indices []int) error {
+	if err := e.resolveGiveCardsInterrupt(giverID, receiverID, indices); err != nil {
+		return err
+	}
+	e.PopInterrupt()
+	return nil
+}
+
+func (e *GameEngine) resolveGiveCardsInterrupt(giverID, receiverID string, indices []int) error {
 	if e.State.PendingInterrupt == nil || e.State.PendingInterrupt.Type != model.InterruptGiveCards {
 		return fmt.Errorf("当前没有待处理的给牌操作")
 	}
@@ -215,14 +244,6 @@ func (e *GameEngine) ConfirmGiveCards(giverID, receiverID string, indices []int)
 	}
 	e.checkHandLimit(receiver, overflowCtx)
 	e.Log(fmt.Sprintf("[Debug] 给牌完成，队列中还有 %d 个中断", len(e.State.InterruptQueue)))
-
-	e.PopInterrupt()
-	if e.State.PendingInterrupt != nil {
-		e.Log(fmt.Sprintf("[Debug] 新的中断已设置: Type=%s, PlayerID=%s", e.State.PendingInterrupt.Type, e.State.PendingInterrupt.PlayerID))
-	} else {
-		e.Log("[Debug] 所有给牌中断已处理完毕")
-	}
-
 	return nil
 }
 

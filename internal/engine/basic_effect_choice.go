@@ -4,6 +4,7 @@ package engine
 
 import (
 	"fmt"
+
 	"starcup-engine/internal/model"
 )
 
@@ -129,13 +130,13 @@ func (e *GameEngine) handleBasicEffectChoiceInput(playerID string, selectionInde
 		return fmt.Errorf("未知的基础效果选择操作: %s", operation)
 	}
 
-	e.PopInterrupt()
-	if e.State.PendingInterrupt == nil {
-		// 规则：这里是技能执行中的“目标选择子步骤”，不是系统自动阶段结算。
-		// 选择完成后按技能声明的 resume_phase 继续流程，保证后续仍在该技能约束的阶段节点上。
-		e.applyChoiceResumePoint(mustChoiceResumePointFromMap(data, "resume_phase"))
-	}
 	return nil
+}
+
+func (e *GameEngine) afterBasicEffectChoice(data map[string]any) {
+	// 规则：这里是技能执行中的“目标选择子步骤”，不是系统自动阶段结算。
+	// 选择完成后按技能声明的 resume_phase 继续流程，保证后续仍在该技能约束的阶段节点上。
+	e.applyChoiceResumePoint(mustChoiceResumePointFromMap(choiceCtxAsInterfaceMap(data), "resume_phase"))
 }
 
 func (e *GameEngine) RemoveFieldCardAt(targetID string, fieldIndex int, sourceID string) (model.Card, error) {

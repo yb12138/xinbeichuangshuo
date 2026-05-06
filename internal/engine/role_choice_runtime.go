@@ -625,12 +625,6 @@ func (r roleChoiceRuntime) AddToDiscardPile(cards ...model.Card) {
 	r.State.DiscardPile = append(r.State.DiscardPile, cards...)
 }
 
-func (r roleChoiceRuntime) SetReturnPoint(returnTo interface{}) {
-	// Note: Interrupt does not have a Return field.
-	// This method is kept for compatibility but does nothing.
-	// Return points are managed elsewhere in the game flow.
-}
-
 func (r roleChoiceRuntime) ReplacePendingInterruptPlayerID(newPlayerID string) {
 	if r.GameEngine == nil || r.State == nil || r.State.PendingInterrupt == nil {
 		return

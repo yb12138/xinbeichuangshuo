@@ -24,14 +24,14 @@ func (e *GameEngine) Drive() {
 		if e.State.PendingInterrupt != nil {
 			return
 		}
-		if e.processPendingSkillResume() {
-			if e.State.PendingInterrupt != nil {
+		if handled, shouldStop := e.runDriveStep(e.processPendingSkillResume); handled {
+			if shouldStop {
 				return
 			}
 			continue
 		}
-		if e.processPostActionEndResume() {
-			if e.State.PendingInterrupt != nil {
+		if handled, shouldStop := e.runDriveStep(e.processPostActionEndResume); handled {
+			if shouldStop {
 				return
 			}
 			continue
@@ -43,8 +43,8 @@ func (e *GameEngine) Drive() {
 		}
 
 		// 行动收尾：先跑行动结束后的全局 hook，再输出汇总信息。
-		if e.runActionFinalizeHooksIfIdle() {
-			if e.State.PendingInterrupt != nil {
+		if handled, shouldStop := e.runDriveStep(e.runActionFinalizeHooksIfIdle); handled {
+			if shouldStop {
 				return
 			}
 			if !e.isActionFinalizeIdle() {
@@ -71,4 +71,11 @@ func (e *GameEngine) Drive() {
 		}
 		return
 	}
+}
+
+func (e *GameEngine) runDriveStep(step func() bool) (handled bool, shouldStop bool) {
+	if step == nil || !step() {
+		return false, false
+	}
+	return true, e.State.PendingInterrupt != nil
 }

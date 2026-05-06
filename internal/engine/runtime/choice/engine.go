@@ -57,70 +57,94 @@ func (e *Engine) BuildPrompt(choiceType, playerID string, player *model.Player, 
 	return p, nil
 }
 
-// HandleSelect 单选；必须存在 OnSelect。
-func (e *Engine) HandleSelect(playerID string, selectionIndex int, ctxData map[string]any) (bool, error) {
+// HandleSelectResult 单选；必须存在 OnSelect，并显式返回消费结果。
+func (e *Engine) HandleSelectResult(playerID string, selectionIndex int, ctxData map[string]any) (HandleResult, error) {
 	if e == nil || e.host == nil {
-		return false, fmt.Errorf("choice: engine or host is nil")
+		return HandleResult{}, fmt.Errorf("choice: engine or host is nil")
 	}
 	choiceType, _ := ctxData["choice_type"].(string)
 	if choiceType == "" {
-		return false, fmt.Errorf("choice: context missing choice_type")
+		return HandleResult{}, fmt.Errorf("choice: context missing choice_type")
 	}
 	spec := e.reg.Get(choiceType)
 	if spec == nil || spec.OnSelect == nil {
-		return false, fmt.Errorf("choice: unregistered or no OnSelect for %q", choiceType)
+		return HandleResult{}, fmt.Errorf("choice: unregistered or no OnSelect for %q", choiceType)
 	}
 	handled, err := spec.OnSelect(e.host, playerID, selectionIndex, ctxData)
 	if err != nil {
-		return false, err
+		return HandleResult{}, err
 	}
 	if !handled {
-		return false, fmt.Errorf("choice: OnSelect returned unhandled for %q", choiceType)
+		return HandleResult{}, fmt.Errorf("choice: OnSelect returned unhandled for %q", choiceType)
 	}
-	return true, nil
+	return e.choiceResult(spec, ctxData), nil
 }
 
-// HandleMultiSelect 多选；必须存在 OnMultiSelect。
-func (e *Engine) HandleMultiSelect(playerID, choiceType string, selections []int, ctxData map[string]any) (bool, error) {
+// HandleMultiSelectResult 多选；必须存在 OnMultiSelect，并显式返回消费结果。
+func (e *Engine) HandleMultiSelectResult(playerID, choiceType string, selections []int, ctxData map[string]any) (HandleResult, error) {
 	if e == nil || e.host == nil {
-		return false, fmt.Errorf("choice: engine or host is nil")
+		return HandleResult{}, fmt.Errorf("choice: engine or host is nil")
 	}
 	if choiceType == "" {
-		return false, fmt.Errorf("choice: empty choice_type for multi-select")
+		return HandleResult{}, fmt.Errorf("choice: empty choice_type for multi-select")
 	}
 	spec := e.reg.Get(choiceType)
 	if spec == nil || spec.OnMultiSelect == nil {
-		return false, fmt.Errorf("choice: unregistered or no OnMultiSelect for %q", choiceType)
+		return HandleResult{}, fmt.Errorf("choice: unregistered or no OnMultiSelect for %q", choiceType)
 	}
 	handled, err := spec.OnMultiSelect(e.host, playerID, selections, ctxData)
 	if err != nil {
-		return false, err
+		return HandleResult{}, err
 	}
 	if !handled {
-		return false, fmt.Errorf("choice: OnMultiSelect returned unhandled for %q", choiceType)
+		return HandleResult{}, fmt.Errorf("choice: OnMultiSelect returned unhandled for %q", choiceType)
 	}
-	return true, nil
+	return e.choiceResult(spec, ctxData), nil
 }
 
-// HandleCancel 取消；必须存在 OnCancel。
-func (e *Engine) HandleCancel(playerID string, ctxData map[string]any) (bool, error) {
+// HandleCancelResult 取消；必须存在 OnCancel，并显式返回消费结果。
+func (e *Engine) HandleCancelResult(playerID string, ctxData map[string]any) (HandleResult, error) {
 	if e == nil || e.host == nil {
-		return false, fmt.Errorf("choice: engine or host is nil")
+		return HandleResult{}, fmt.Errorf("choice: engine or host is nil")
 	}
 	choiceType, _ := ctxData["choice_type"].(string)
 	if choiceType == "" {
-		return false, fmt.Errorf("choice: context missing choice_type for cancel")
+		return HandleResult{}, fmt.Errorf("choice: context missing choice_type for cancel")
 	}
 	spec := e.reg.Get(choiceType)
 	if spec == nil || spec.OnCancel == nil {
-		return false, fmt.Errorf("choice: unregistered or no OnCancel for %q", choiceType)
+		return HandleResult{}, fmt.Errorf("choice: unregistered or no OnCancel for %q", choiceType)
 	}
 	handled, err := spec.OnCancel(e.host, playerID, ctxData)
 	if err != nil {
-		return false, err
+		return HandleResult{}, err
 	}
 	if !handled {
-		return false, fmt.Errorf("choice: OnCancel returned unhandled for %q", choiceType)
+		return HandleResult{}, fmt.Errorf("choice: OnCancel returned unhandled for %q", choiceType)
 	}
-	return true, nil
+	return e.choiceResult(spec, ctxData), nil
+}
+
+func (e *Engine) choiceResult(spec *ChoiceSpec, ctxData map[string]any) HandleResult {
+	return HandleResult{
+		ConsumedInterrupt: choiceAutoConsume(spec, ctxData),
+		AfterConsume:      choiceAfterConsume(spec, ctxData),
+	}
+}
+
+func choiceAutoConsume(spec *ChoiceSpec, ctxData map[string]any) bool {
+	if spec == nil {
+		return false
+	}
+	if spec.ConsumesInterrupt != nil {
+		return spec.ConsumesInterrupt(ctxData)
+	}
+	return spec.AutoConsume
+}
+
+func choiceAfterConsume(spec *ChoiceSpec, ctxData map[string]any) func(h Host) {
+	if spec == nil || spec.AfterConsume == nil {
+		return nil
+	}
+	return func(h Host) { spec.AfterConsume(h, ctxData) }
 }

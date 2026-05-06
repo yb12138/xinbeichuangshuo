@@ -184,9 +184,15 @@ type CombatPolicyContext struct {
 type InterruptSpec struct {
 	Type                 model.InterruptType
 	BuildPrompt          func(rt ChoiceRuntime) *model.Prompt
-	HandleAction         func(rt ChoiceRuntime, act model.PlayerAction) error
+	HandleActionResult   func(rt ChoiceRuntime, act model.PlayerAction) (InterruptActionResult, error)
 	AllowedActionTypes   []model.PlayerActionType
 	InvalidActionMessage string
+}
+
+// InterruptActionResult 描述角色中断输入是否消费当前中断。
+type InterruptActionResult struct {
+	Consumed     bool
+	AfterConsume func(rt ChoiceRuntime)
 }
 
 // ChoiceSpec 定义声明式选择流程条目。
@@ -230,7 +236,6 @@ type ChoiceRuntime interface {
 	ReplacePendingInterruptPlayerID(playerID string)
 	PendingInterrupt() *model.Interrupt
 	AddToDiscardPile(cards ...model.Card)
-	SetReturnPoint(returnTo interface{})
 	MagicBulletChain() *model.MagicBulletChain
 	PlayerOrder() []string
 	TopCombatRequest() *model.CombatRequest

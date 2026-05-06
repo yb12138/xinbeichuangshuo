@@ -59,7 +59,7 @@ func (e *GameEngine) runSequentialChoiceSelections(playerID, choiceType string, 
 		}
 		// sequential_remaining = 本轮之后还有多少张牌待处理（0 = 最后一张）
 		ctxData["sequential_remaining"] = totalCount - loopIdx - 1
-		if _, err := e.choiceEngine.HandleSelect(playerID, idx, ctxData); err != nil {
+		if _, err := e.choiceEngine.HandleSelectResult(playerID, idx, ctxData); err != nil {
 			return err
 		}
 		if e.State.PendingInterrupt != nil {
