@@ -36,20 +36,10 @@ func (e *GameEngine) Drive() {
 			}
 			continue
 		}
-		// 仅在没有待处理延迟伤害时推进“延迟后续”。
-		// 这样可保证诸如“封印伤害先结算，再继续技能后续”的严格顺序。
+		// 仅在没有待处理延迟伤害时推进”延迟后续”。
+		// 这样可保证诸如”封印伤害先结算，再继续技能后续”的严格顺序。
 		if !e.isDamageResolutionActive() && len(e.State.PendingDamageQueue) == 0 {
 			e.processFlowContinuations(model.FlowContinuationAfterDamage)
-		}
-
-		// 行动收尾：先跑行动结束后的全局 hook，再输出汇总信息。
-		if handled, shouldStop := e.runDriveStep(e.runActionFinalizeHooksIfIdle); handled {
-			if shouldStop {
-				return
-			}
-			if !e.isActionFinalizeIdle() {
-				continue
-			}
 		}
 
 		// 行动汇总：当系统回到可继续行动的空闲状态时输出汇总信息

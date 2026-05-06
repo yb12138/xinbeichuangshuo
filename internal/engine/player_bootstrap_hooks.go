@@ -5,14 +5,12 @@ package engine
 import "starcup-engine/internal/model"
 
 type gameStartPlayerHook func(e *GameEngine, player *model.Player)
-type gameStartFinalizeHook func(e *GameEngine) bool
 
 type timingOnGameStartStage int
 
 const (
 	timingOnGameStartAddPlayer timingOnGameStartStage = iota
 	timingOnGameStartInitialDeal
-	timingOnGameStartFinalizeIdle
 )
 
 // runTimingOnGameStartHooks 统一处理 TimingOnGameStart 阶段规则。
@@ -25,12 +23,6 @@ func (e *GameEngine) runTimingOnGameStartHooks(player *model.Player, stage timin
 	case timingOnGameStartInitialDeal:
 		for _, hook := range e.gameStartInitialDealHooks {
 			hook(e, player)
-		}
-	case timingOnGameStartFinalizeIdle:
-		for _, hook := range e.gameStartFinalizeHooks {
-			if hook(e) {
-				return true
-			}
 		}
 	default:
 		panic("unregistered TimingOnGameStart stage")
