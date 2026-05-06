@@ -9,11 +9,6 @@ import (
 	"starcup-engine/internal/model"
 )
 
-var turnScopedResetKeys = []string{
-	// 全部迁出到 PlayerTurnState（UsedSkillCounts / SkillFlowState），
-	// 由 NewPlayerTurnState() 在活跃玩家回合开始时自动清零。
-}
-
 // SetNextTurnPlayer 设置下回合玩家（用于额外回合等特殊机制）。
 func (e *GameEngine) SetNextTurnPlayer(playerID string) {
 	e.State.NextTurnPlayerOverride = playerID
@@ -68,18 +63,6 @@ func (e *GameEngine) NextTurn() {
 	e.prepareNextTurnRuntime(e.State.Players[nextPid])
 }
 
-func (e *GameEngine) resetTurnScopedPlayerTokens() {
-	for _, player := range e.State.Players {
-		if player == nil {
-			continue
-		}
-		ensurePlayerTokensMap(player)
-		for _, key := range turnScopedResetKeys {
-			player.Tokens[key] = 0
-		}
-	}
-}
-
 func (e *GameEngine) prepareNextTurnRuntime(nextPlayer *model.Player) {
 	if nextPlayer == nil {
 		return
@@ -88,7 +71,6 @@ func (e *GameEngine) prepareNextTurnRuntime(nextPlayer *model.Player) {
 	nextPlayer.IsActive = true
 	nextPlayer.TurnState = model.NewPlayerTurnState()
 
-	e.resetTurnScopedPlayerTokens()
 	e.resetTurnMagicDamageTracker()
 
 	// 重置 Engine / FSM 级状态

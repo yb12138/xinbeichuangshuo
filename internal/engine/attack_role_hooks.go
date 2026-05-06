@@ -10,10 +10,6 @@ import (
 
 // ---------- 攻击目标上下文 / 状态重置 / 预战斗规则 ----------
 
-type attackTargetContextHook func(e *GameEngine, player *model.Player, targetID string)
-type attackStartStateResetHook func(e *GameEngine, player *model.Player)
-type attackPreCombatHook func(e *GameEngine, player *model.Player, target *model.Player, currentAction *model.QueuedAction, eventCtx *model.EventContext)
-
 // recordTimingOnAttackDeclaredTargetContext 在攻击宣言时写入目标上下文。
 func (e *GameEngine) recordTimingOnAttackDeclaredTargetContext(player *model.Player, targetID string) {
 	if player == nil {
@@ -96,17 +92,9 @@ func (e *GameEngine) applyTimingOnAttackDeclaredCardTransforms(player *model.Pla
 
 // ---------- 攻击被动增伤（原 attack_passive_runtime_hooks.go） ----------
 
-type attackPassiveDamageHook func(e *GameEngine, attacker *model.Player, target *model.Player, action model.Action, damage int) int
-
 // applyTimingOnDamageCalculatedAttackPassiveModifiers 在伤害计算时按固定顺序应用攻击方被动修正。
 func (e *GameEngine) applyTimingOnDamageCalculatedAttackPassiveModifiers(attacker *model.Player, target *model.Player, action model.Action, baseDamage int) int {
 	damage := baseDamage
-	for _, hook := range e.damageCalculatedAttackPassiveHooks {
-		damage = hook(e, attacker, target, action, damage)
-		if damage < 0 {
-			damage = 0
-		}
-	}
 	if attacker != nil {
 		var targetID string
 		if target != nil {

@@ -29,8 +29,6 @@ type GameEngine struct {
 	choiceEngine *choicert.Engine
 	// interruptOrchestrator 中断动作与 Prompt 编排。
 	interruptOrchestrator *intr.Orchestrator
-	// TimingOnDamageCalculated: 伤害计算阶段动态装配执行表。
-	damageCalculatedAttackPassiveHooks []attackPassiveDamageHook
 	// Turn 主流程阶段：动态装配阶段钩子与中断策略。
 	beforeActionFieldHooks []turnTimingHook
 

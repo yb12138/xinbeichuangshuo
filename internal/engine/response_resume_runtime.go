@@ -31,8 +31,6 @@ type responseResumeState struct {
 	responseResumePoint interface{}
 }
 
-type responseSkipHook func(e *GameEngine, state *responseResumeState)
-
 func (e *GameEngine) clearActionEndCatchupMarkerAfterResponse(state responseResumeState) {
 	if state.resumePhaseEndCtx == nil || state.playerID == "" {
 		return
