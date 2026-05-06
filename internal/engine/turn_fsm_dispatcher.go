@@ -361,8 +361,7 @@ func (e *GameEngine) resolveForcedHitCombat(combatReq *model.CombatRequest) bool
 		IgnoreShield:  combatReq.IgnoreShield,
 		InterceptTags: model.CloneCombatInterceptTags(combatReq.InterceptTags),
 	})
-	e.setReturnPoint(model.TurnStageActionEnd)
-	e.enterDamageResolution(nil)
+	e.enterDamageResolution(model.TurnStageActionEnd)
 	return true
 }
 

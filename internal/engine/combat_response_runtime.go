@@ -272,8 +272,7 @@ func (e *GameEngine) handleCombatTakeResponse(player *model.Player, combatReq mo
 	e.NotifyActionStep(fmt.Sprintf("%s承受伤害", model.GetPlayerDisplayName(player)))
 	e.NotifyCombatCue(combatReq.AttackerID, combatReq.TargetID, "take")
 	e.Log(fmt.Sprintf("[Combat] %s 选择承受伤害，进入伤害结算流程", player.Name))
-	e.setReturnPoint(model.TurnStageActionEnd)
-	e.enterDamageResolution(nil)
+	e.enterDamageResolution(model.TurnStageActionEnd)
 	return nil
 }
 
@@ -441,8 +440,7 @@ func (e *GameEngine) handleCombatCounterResponse(act model.PlayerAction, player 
 	e.initCombat(act.PlayerID, targetID, &card, false, true, false, nil, "", true)
 	e.Log(fmt.Sprintf("[Combat] %s 应战成功！攻击转移向 %s", player.Name, target.Name))
 	if len(e.State.PendingDamageQueue) > 0 {
-		e.setReturnPoint(model.CombatStageHitCheck)
-		e.enterDamageResolution(nil)
+		e.enterDamageResolution(model.CombatStageHitCheck)
 	}
 	return nil
 }
