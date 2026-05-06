@@ -60,15 +60,15 @@ starcup-engine/
 **场上牌系统 (FieldCard)**:
 - Card(原始卡), OwnerID/SourceID
 - Mode(FieldEffect/FieldCover), Effect(具体效果类型)
-- Trigger(触发时机), Locked(锁定状态)
+- FieldHook(结算钩子), Locked(锁定状态)
 - **效果类型**: Shield/Poison/Weak/各种Seal/FiveElementsBind
 
 **技能系统 (SkillDefinition)**:
 - ID, Title, Type(4种), Tags(消耗/限制标签)
 - **资源消耗**: CostGem/Crystal, CostDiscards, CostCoverCards
 - **弃牌约束**: DiscardElement/Type/Fate, RequireExclusive
-- **场上牌放置**: PlaceCard, PlaceMode/Effect/Trigger
-- Trigger(触发时机), ResponseType(Mandatory/Optional/Silent)
+- **场上牌放置**: PlaceCard, PlaceMode/Effect/Hook
+- Timings(参与窗口), ResponseType(Mandatory/Optional/Silent)
 - TargetType(目标选择逻辑), MaxTargets
 
 #### 2. **Engine (控制层)**
@@ -80,8 +80,8 @@ starcup-engine/
 - **战斗接口**: PerformAttack, PerformMagic, ResolveResponse
 
 **技能分发器 (SkillDispatcher)**:
-- **事件驱动**: OnTrigger() 处理各种TriggerType
-- **技能扫描**: processSkills() 收集可触发技能
+- **事件驱动**: `OnTiming(FlowTiming)` 按窗口分发技能
+- **技能扫描**: processSkills() 收集本窗口候选技能
 - **中断管理**: pushResponseInterrupt() 创建玩家确认中断
 - **统一处理**: Mandatory/Optional/Silent 三种响应类型
 
@@ -89,7 +89,7 @@ starcup-engine/
 - **攻击流程**: PerformAttack() → 响应阶段 → 伤害结算
 - **响应处理**: handleTakeHit/handleCounter/handleDefend
 - **伤害机制**: applyDamage(), 摸牌伤害, 爆牌扣士气
-- **被动效果**: applyPassiveAttackEffects(), triggerFieldEffects()
+- **被动效果**: applyPassiveAttackEffects(), runFieldCardsForHook()
 - **状态结算**: checkHandLimit(), addCampResource()
 
 #### 3. **Skills (技能系统)**
@@ -148,7 +148,7 @@ starcup-engine/
 
 ### Phase 2: 回合流程与状态机 ✅
 *   **任务 2.1** ✅: 完整的回合循环，6人轮转，支持中途加入
-*   **任务 2.2** ✅: 7阶段流转系统(Start/WeakChoice/Trigger/Action/Response/Discard/End)
+*   **任务 2.2** ✅: 7阶段流转系统(Start/WeakChoice/Timing/Action/Response/Discard/End)
 *   **任务 2.3** ✅: 特殊行动系统(Buy/Synthesize/Extract)，资源转换逻辑
 *   **任务 2.4** ✅: 完整的CLI命令系统，状态查询，操作指令
 
@@ -173,7 +173,7 @@ starcup-engine/
 
 ### Phase 5: 技能系统 (最大难点) ✅
 *   **任务 5.1** ✅: 技能架构设计：
-    *   触发器系统(TriggerType): OnAttackStart/Hit/Miss/DamageTaken/TurnStart
+    *   触发窗口 (`SkillDefinition.Timings` / `FlowTiming`): 如 `TimingOnAttackDeclared`、`TimingOnHitCheck`、`TimingOnDamageTaken`、`TimingOnTurnStart` 等
     *   技能类型(SkillType): Passive/Startup/Action/Response
     *   目标选择(TargetType): Self/Enemy/Ally/Any/Specific
 *   **任务 5.2** ✅: 技能处理器实现：
@@ -187,7 +187,7 @@ starcup-engine/
 
 ### Phase 6: 场上牌与Buff系统 ✅
 *   **任务 6.1** ✅: 场上牌架构：
-    *   FieldCard系统：Mode(Effect/Cover), Trigger时机
+    *   FieldCard系统：Mode(Effect/Cover), FieldHook 时机
     *   效果类型：Shield/Poison/Weak/各种Seal/FiveElementsBind
 *   **任务 6.2** ✅: Buff状态系统：
     *   基础效果：中毒/虚弱/圣盾
@@ -323,7 +323,7 @@ Warrior's hand:
 - **伤害结算**: 摸牌伤害 → 爆牌检查 → 士气扣减 → 治疗抵消
 
 ### 5.3 技能系统架构
-- **触发器驱动**: 8个触发时机点，统一OnTrigger()处理
+- **触发器驱动**: 8个触发时机点，统一OnTiming()处理
 - **资源消耗**: Gem/Crystal自动扣除，弃牌约束验证
 - **场上牌放置**: Effect/Cover双模式，触发器自动管理
 - **中断集成**: Mandatory/Optional/Silent三种响应处理

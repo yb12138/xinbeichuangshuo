@@ -18,7 +18,7 @@ func TestOnmyojiShikigamiDescend_RequiresSameFactionDiscards(t *testing.T) {
 	}
 
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	p1 := game.State.Players["p1"]
 	p1.IsActive = true
@@ -38,8 +38,8 @@ func TestOnmyojiShikigamiDescend_RequiresSameFactionDiscards(t *testing.T) {
 		t.Fatalf("use skill with same-faction discards failed: %v", err)
 	}
 
-	if got := p1.Tokens["onmyoji_form"]; got != 1 {
-		t.Fatalf("expected onmyoji_form=1, got %d", got)
+	if got := p1.Form; got != model.FormOnmyojiShikigami {
+		t.Fatalf("expected onmyoji form %q, got %q", model.FormOnmyojiShikigami, got)
 	}
 	if got := p1.Tokens["onmyoji_ghost_fire"]; got != 1 {
 		t.Fatalf("expected onmyoji_ghost_fire=1, got %d", got)
@@ -69,7 +69,7 @@ func TestOnmyojiYinYangShift_InShikigamiForm(t *testing.T) {
 
 	game.State.CurrentTurn = 0
 	game.State.Deck = rules.InitDeck()
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]
@@ -78,7 +78,7 @@ func TestOnmyojiYinYangShift_InShikigamiForm(t *testing.T) {
 	p1.TurnState = model.NewPlayerTurnState()
 	p2.TurnState = model.NewPlayerTurnState()
 	p3.TurnState = model.NewPlayerTurnState()
-	p2.Tokens["onmyoji_form"] = 1
+	p2.Form = model.FormOnmyojiShikigami
 	p2.Tokens["onmyoji_ghost_fire"] = 1
 
 	p1.Hand = []model.Card{
@@ -100,27 +100,27 @@ func TestOnmyojiYinYangShift_InShikigamiForm(t *testing.T) {
 	if game.State.PendingInterrupt == nil || choiceTypeOf(game.State.PendingInterrupt) != "onmyoji_yinyang_confirm" {
 		t.Fatalf("expected onmyoji_yinyang_confirm prompt, got %+v", game.State.PendingInterrupt)
 	}
-	if err := game.handleWeakChoiceInput("p2", 0); err != nil {
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{0}}); err != nil {
 		t.Fatalf("confirm yinyang failed: %v", err)
 	}
 	if got := choiceTypeOf(game.State.PendingInterrupt); got != "onmyoji_yinyang_card" {
 		t.Fatalf("expected onmyoji_yinyang_card prompt, got %s", got)
 	}
-	if err := game.handleWeakChoiceInput("p2", 0); err != nil {
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose yinyang card failed: %v", err)
 	}
 	if got := choiceTypeOf(game.State.PendingInterrupt); got != "onmyoji_yinyang_counter_target" {
 		t.Fatalf("expected onmyoji_yinyang_counter_target prompt, got %s", got)
 	}
-	if err := game.handleWeakChoiceInput("p2", 0); err != nil {
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose yinyang counter target failed: %v", err)
 	}
 
 	if got := p2.Tokens["onmyoji_ghost_fire"]; got != 3 {
 		t.Fatalf("expected ghost fire=3 after 阴阳转换+式神转换, got %d", got)
 	}
-	if got := p2.Tokens["onmyoji_form"]; got != 0 {
-		t.Fatalf("expected leave shikigami form, got onmyoji_form=%d", got)
+	if got := p2.Form; got != "" {
+		t.Fatalf("expected leave shikigami form, got %q", got)
 	}
 	if got := len(p2.Hand); got != 1 {
 		t.Fatalf("expected hand size 1 (counter consume 1 then draw 1), got %d", got)

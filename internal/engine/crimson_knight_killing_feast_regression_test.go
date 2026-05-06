@@ -3,12 +3,12 @@ package engine
 import (
 	"testing"
 
-	"starcup-engine/internal/engine/skills"
+	"starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/rules"
 )
 
-func containsSkillID(skillIDs []string, want string) bool {
+func hasCrimsonKnightSkillID(skillIDs []string, want string) bool {
 	for _, id := range skillIDs {
 		if id == want {
 			return true
@@ -38,7 +38,7 @@ func TestCrimsonKnightKillingFeast_BoostsCurrentHitDamage(t *testing.T) {
 	p1.Tokens["crk_blood_mark"] = 1
 
 	game.State.Deck = rules.InitDeck()
-	game.State.Phase = model.PhasePendingDamageResolution
+	game.State.CombatStage = model.CombatStageCalcDamage
 
 	attackCard := model.Card{
 		ID:      "atk-fiery-cut",
@@ -54,9 +54,8 @@ func TestCrimsonKnightKillingFeast_BoostsCurrentHitDamage(t *testing.T) {
 		SourceID:   "p1",
 		TargetID:   "p2",
 		Damage:     2,
-		DamageType: "Attack",
+		DamageType: model.AttackDamage,
 		Card:       &attackCard,
-		Stage:      0,
 	}
 
 	paused := game.processPendingDamages()
@@ -69,7 +68,7 @@ func TestCrimsonKnightKillingFeast_BoostsCurrentHitDamage(t *testing.T) {
 	if game.State.PendingInterrupt.PlayerID != "p1" {
 		t.Fatalf("expected p1 to respond killing feast, got player=%s", game.State.PendingInterrupt.PlayerID)
 	}
-	if !containsSkillID(game.State.PendingInterrupt.SkillIDs, "crk_killing_feast") {
+	if !hasCrimsonKnightSkillID(game.State.PendingInterrupt.SkillIDs, "crk_killing_feast") {
 		t.Fatalf("expected crk_killing_feast in response list, got %+v", game.State.PendingInterrupt.SkillIDs)
 	}
 
@@ -116,7 +115,7 @@ func TestCrimsonKnightKillingFeast_SelfDamageResolvesBeforeAttackDamage(t *testi
 	p2.Heal = 1
 	p1.Tokens["crk_blood_mark"] = 1
 	game.State.Deck = rules.InitDeck()
-	game.State.Phase = model.PhasePendingDamageResolution
+	game.State.CombatStage = model.CombatStageCalcDamage
 
 	attackCard := model.Card{
 		ID:      "atk-fiery-cut-order",
@@ -130,9 +129,8 @@ func TestCrimsonKnightKillingFeast_SelfDamageResolvesBeforeAttackDamage(t *testi
 			SourceID:   "p1",
 			TargetID:   "p2",
 			Damage:     2,
-			DamageType: "Attack",
+			DamageType: model.AttackDamage,
 			Card:       &attackCard,
-			Stage:      0,
 		},
 	}
 
@@ -180,14 +178,14 @@ func TestCrimsonKnightCrimsonCross_SelfDamageResolvesBeforeTargetDamage(t *testi
 	if h == nil {
 		t.Fatalf("crk_crimson_cross handler not found")
 	}
-	ctx := game.buildContext(p1, p2, model.TriggerNone, nil)
+	ctx := game.buildContext(p1, p2, model.TimingActive, nil)
 	if !h.CanUse(ctx) {
 		t.Fatalf("expected crimson cross can use with blood mark and 2 magic cards")
 	}
 	if err := h.Execute(ctx); err != nil {
 		t.Fatalf("execute crimson cross failed: %v", err)
 	}
-	game.State.Phase = model.PhasePendingDamageResolution
+	game.State.CombatStage = model.CombatStageCalcDamage
 
 	if paused := game.processPendingDamages(); !paused {
 		t.Fatalf("expected heal choice interrupt from crimson cross self-damage")
@@ -197,5 +195,43 @@ func TestCrimsonKnightCrimsonCross_SelfDamageResolvesBeforeTargetDamage(t *testi
 	}
 	if game.State.PendingInterrupt.PlayerID != "p1" {
 		t.Fatalf("expected self-damage heal choice for p1 first, got %s", game.State.PendingInterrupt.PlayerID)
+	}
+}
+
+func TestCrimsonKnightCrimsonCross_OnlyTargetsEnemy(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "Crimson", "crimson_knight", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Ally", "berserker", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p3", "Enemy", "angel", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Crystal = 1
+	p1.Tokens["crk_blood_mark"] = 1
+	p1.Hand = []model.Card{
+		{ID: "m1", Name: "魔弹", Type: model.CardTypeMagic, Element: model.ElementFire},
+		{ID: "m2", Name: "圣光", Type: model.CardTypeMagic, Element: model.ElementWater},
+	}
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	if err := game.UseSkill("p1", "crk_crimson_cross", []string{"p2"}, []int{0, 1}); err == nil {
+		t.Fatalf("expected crimson cross to reject ally target")
+	}
+
+	p1.Crystal = 1
+	p1.Tokens["crk_blood_mark"] = 1
+	p1.Hand = []model.Card{
+		{ID: "m1", Name: "魔弹", Type: model.CardTypeMagic, Element: model.ElementFire},
+		{ID: "m2", Name: "圣光", Type: model.CardTypeMagic, Element: model.ElementWater},
+	}
+	if err := game.UseSkill("p1", "crk_crimson_cross", []string{"p3"}, []int{0, 1}); err != nil {
+		t.Fatalf("expected crimson cross to accept enemy target: %v", err)
 	}
 }

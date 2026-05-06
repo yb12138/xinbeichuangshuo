@@ -20,7 +20,7 @@ func TestCombatDefend_CannotPlayShieldFromHand(t *testing.T) {
 
 	game.State.Deck = rules.InitDeck()
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]
@@ -73,7 +73,7 @@ func TestCombatDefend_HolyLightStillValid(t *testing.T) {
 
 	game.State.Deck = rules.InitDeck()
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]
@@ -126,7 +126,7 @@ func TestMagicBulletDefend_CannotPlayShieldFromHand(t *testing.T) {
 
 	game.State.Deck = rules.InitDeck()
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]
@@ -170,6 +170,62 @@ func TestMagicBulletDefend_CannotPlayShieldFromHand(t *testing.T) {
 	}
 }
 
+// 回归：魔弹防御必须显式选择【圣光】索引；不再自动兜底查找。
+func TestMagicBulletDefend_RequiresExplicitHolyLightIndex(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "Caster", "berserker", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Target", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	game.State.Deck = rules.InitDeck()
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p2.TurnState = model.NewPlayerTurnState()
+
+	p1.Hand = []model.Card{
+		{ID: "mb1", Name: "魔弹", Type: model.CardTypeMagic, Element: model.ElementWater, Damage: 2},
+	}
+	p2.Hand = []model.Card{
+		{ID: "holy1", Name: "圣光", Type: model.CardTypeMagic, Element: model.ElementLight},
+	}
+
+	if err := game.HandleAction(model.PlayerAction{
+		PlayerID:  "p1",
+		Type:      model.CmdMagic,
+		TargetID:  "p2",
+		CardIndex: 0,
+	}); err != nil {
+		t.Fatalf("magic bullet failed: %v", err)
+	}
+
+	err := game.HandleAction(model.PlayerAction{
+		PlayerID:  "p2",
+		Type:      model.CmdRespond,
+		ExtraArgs: []string{"defend"},
+		CardIndex: -1,
+	})
+	if err == nil {
+		t.Fatalf("expected defend with invalid index to fail")
+	}
+	if !strings.Contains(err.Error(), "无效的卡牌索引") {
+		t.Fatalf("expected invalid index error, got: %v", err)
+	}
+	if len(p2.Hand) != 1 {
+		t.Fatalf("holy light should not be consumed on invalid defend, hand=%d", len(p2.Hand))
+	}
+	if game.State.MagicBulletChain == nil {
+		t.Fatalf("magic bullet chain should remain pending after invalid defend index")
+	}
+}
+
 // 回归：场上有【圣盾】时，魔弹不会提前自动结算；玩家先选择响应，选择承受后才触发圣盾。
 func TestMagicBullet_FieldShieldAutoBlocks(t *testing.T) {
 	game := NewGameEngine(noopObserver{})
@@ -182,7 +238,7 @@ func TestMagicBullet_FieldShieldAutoBlocks(t *testing.T) {
 
 	game.State.Deck = rules.InitDeck()
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]
@@ -206,7 +262,7 @@ func TestMagicBullet_FieldShieldAutoBlocks(t *testing.T) {
 			SourceID: "p2",
 			Mode:     model.FieldEffect,
 			Effect:   model.EffectShield,
-			Trigger:  model.EffectTriggerOnDamaged,
+			Hook: model.FieldHookOnDamaged,
 			Duration: 1,
 		},
 	}
@@ -261,7 +317,7 @@ func TestMagicBullet_FieldShieldCanStillDefendWithHolyLight(t *testing.T) {
 
 	game.State.Deck = rules.InitDeck()
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]
@@ -288,7 +344,7 @@ func TestMagicBullet_FieldShieldCanStillDefendWithHolyLight(t *testing.T) {
 			SourceID: "p2",
 			Mode:     model.FieldEffect,
 			Effect:   model.EffectShield,
-			Trigger:  model.EffectTriggerOnDamaged,
+			Hook: model.FieldHookOnDamaged,
 			Duration: 1,
 		},
 	}
@@ -340,7 +396,7 @@ func TestMagicBullet_PassToShieldedNextTargetNeedsPromptFirst(t *testing.T) {
 
 	game.State.Deck = rules.InitDeck()
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 	game.State.PlayerOrder = []string{"p1", "p3", "p2"}
 
 	p1 := game.State.Players["p1"]
@@ -370,7 +426,7 @@ func TestMagicBullet_PassToShieldedNextTargetNeedsPromptFirst(t *testing.T) {
 			SourceID: "p1",
 			Mode:     model.FieldEffect,
 			Effect:   model.EffectShield,
-			Trigger:  model.EffectTriggerOnDamaged,
+			Hook: model.FieldHookOnDamaged,
 			Duration: 1,
 		},
 	}
@@ -439,7 +495,7 @@ func TestCombatShield_WaitsForPlayerChoice(t *testing.T) {
 
 	game.State.Deck = rules.InitDeck()
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]
@@ -462,7 +518,7 @@ func TestCombatShield_WaitsForPlayerChoice(t *testing.T) {
 			SourceID: "p2",
 			Mode:     model.FieldEffect,
 			Effect:   model.EffectShield,
-			Trigger:  model.EffectTriggerOnDamaged,
+			Hook: model.FieldHookOnDamaged,
 			Duration: 1,
 		},
 	}
@@ -476,8 +532,8 @@ func TestCombatShield_WaitsForPlayerChoice(t *testing.T) {
 		t.Fatalf("attack failed: %v", err)
 	}
 
-	if game.State.Phase != model.PhaseCombatInteraction {
-		t.Fatalf("expected phase CombatInteraction, got=%s", game.State.Phase)
+	if !game.isCombatInteractionWindow() {
+		t.Fatalf("expected combat interaction window, got=%s", game.runtimeStateLabel())
 	}
 	if len(game.State.CombatStack) != 1 {
 		t.Fatalf("combat stack should wait for response, got=%d", len(game.State.CombatStack))
@@ -499,7 +555,7 @@ func TestCombatShield_ConsumeOnTake(t *testing.T) {
 
 	game.State.Deck = rules.InitDeck()
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]
@@ -523,7 +579,7 @@ func TestCombatShield_ConsumeOnTake(t *testing.T) {
 			SourceID: "p2",
 			Mode:     model.FieldEffect,
 			Effect:   model.EffectShield,
-			Trigger:  model.EffectTriggerOnDamaged,
+			Hook: model.FieldHookOnDamaged,
 			Duration: 1,
 		},
 	}
@@ -571,7 +627,7 @@ func TestCombatShield_CounterChoiceKeepsShield(t *testing.T) {
 
 	game.State.Deck = rules.InitDeck()
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]
@@ -599,7 +655,7 @@ func TestCombatShield_CounterChoiceKeepsShield(t *testing.T) {
 			SourceID: "p2",
 			Mode:     model.FieldEffect,
 			Effect:   model.EffectShield,
-			Trigger:  model.EffectTriggerOnDamaged,
+			Hook: model.FieldHookOnDamaged,
 			Duration: 1,
 		},
 	}

@@ -23,8 +23,8 @@ func mustDo(t *testing.T, g *GameEngine, act model.PlayerAction) {
 	}
 }
 
-// 回归：应战攻击命中不应被当作“主动攻击命中”触发主动攻击类被动（如血色荆棘）。
-func TestCounterHit_DoesNotTriggerActiveOnlyOnAttackHitSkills(t *testing.T) {
+// 文档口径：血色剑灵【血色荆棘】没有“主动攻击”限定，应战攻击命中同样应获得鲜血。
+func TestCounterHit_CrimsonBloodThornsAlsoRunsOnCounterHit(t *testing.T) {
 	g := NewGameEngine(noopObserver{})
 	if err := g.AddPlayer("p1", "Attacker", "berserker", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -38,7 +38,7 @@ func TestCounterHit_DoesNotTriggerActiveOnlyOnAttackHitSkills(t *testing.T) {
 
 	g.State.CurrentTurn = 0
 	g.State.Deck = rules.InitDeck()
-	g.State.Phase = model.PhaseActionSelection
+	g.State.TurnStage = model.TurnStageActionExecution
 
 	p1 := g.State.Players["p1"]
 	p2 := g.State.Players["p2"]
@@ -76,13 +76,13 @@ func TestCounterHit_DoesNotTriggerActiveOnlyOnAttackHitSkills(t *testing.T) {
 		ExtraArgs: []string{"take"},
 	})
 
-	if got := p2.Tokens["css_blood"]; got != 0 {
-		t.Fatalf("expected css_blood=0 on counter hit, got %d", got)
+	if got := p2.Tokens["css_blood"]; got != 1 {
+		t.Fatalf("expected css_blood=1 on counter hit, got %d", got)
 	}
 }
 
 // 回归：应战攻击未命中不应触发“主动攻击未命中”类技能（如贯穿射击）。
-func TestCounterMiss_DoesNotTriggerActiveOnlyOnAttackMissSkills(t *testing.T) {
+func TestCounterMiss_DoesNotDispatchActiveOnlyOnAttackMissSkills(t *testing.T) {
 	g := NewGameEngine(noopObserver{})
 	if err := g.AddPlayer("p1", "Attacker", "berserker", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -96,7 +96,7 @@ func TestCounterMiss_DoesNotTriggerActiveOnlyOnAttackMissSkills(t *testing.T) {
 
 	g.State.CurrentTurn = 0
 	g.State.Deck = rules.InitDeck()
-	g.State.Phase = model.PhaseActionSelection
+	g.State.TurnStage = model.TurnStageActionExecution
 
 	p1 := g.State.Players["p1"]
 	p2 := g.State.Players["p2"]
@@ -141,12 +141,12 @@ func TestCounterMiss_DoesNotTriggerActiveOnlyOnAttackMissSkills(t *testing.T) {
 		g.State.PendingInterrupt.Type == model.InterruptResponseSkill &&
 		g.State.PendingInterrupt.PlayerID == "p2" &&
 		hasSkillID(g.State.PendingInterrupt.SkillIDs, "piercing_shot") {
-		t.Fatalf("piercing_shot should not trigger on counter-attack miss")
+		t.Fatalf("piercing_shot should not dispatch on counter-attack miss")
 	}
 }
 
 // 回归：应战命中后即使触发命中响应，也不应在“攻击行动结束”阶段继续触发主动攻击类连击技能。
-func TestCounterHit_PhaseEndSkillsNotTriggeredForCounterAction(t *testing.T) {
+func TestCounterHit_PhaseEndSkillsNotActivatedForCounterAction(t *testing.T) {
 	g := NewGameEngine(noopObserver{})
 	if err := g.AddPlayer("p1", "Attacker", "berserker", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -160,7 +160,7 @@ func TestCounterHit_PhaseEndSkillsNotTriggeredForCounterAction(t *testing.T) {
 
 	g.State.CurrentTurn = 0
 	g.State.Deck = rules.InitDeck()
-	g.State.Phase = model.PhaseActionSelection
+	g.State.TurnStage = model.TurnStageActionExecution
 
 	p1 := g.State.Players["p1"]
 	p2 := g.State.Players["p2"]
@@ -225,6 +225,6 @@ func TestCounterHit_PhaseEndSkillsNotTriggeredForCounterAction(t *testing.T) {
 		g.State.PendingInterrupt.Type == model.InterruptResponseSkill &&
 		g.State.PendingInterrupt.PlayerID == "p2" &&
 		hasSkillID(g.State.PendingInterrupt.SkillIDs, "valkyrie_divine_pursuit") {
-		t.Fatalf("valkyrie_divine_pursuit should not trigger from counter-attack phase end")
+		t.Fatalf("valkyrie_divine_pursuit should not dispatch from counter-attack phase end")
 	}
 }

@@ -3,7 +3,7 @@ package engine
 import (
 	"testing"
 
-	"starcup-engine/internal/engine/skills"
+	"starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 )
 
@@ -36,7 +36,7 @@ func TestCrimsonKnightBloodyPrayer_CanSplitHealToTwoAllies(t *testing.T) {
 	if handler == nil {
 		t.Fatalf("crk_bloody_prayer handler not found")
 	}
-	ctx := game.buildContext(p1, nil, model.TriggerOnTurnStart, nil)
+	ctx := game.buildContext(p1, nil, model.TimingOnTurnStart, nil)
 	if !handler.CanUse(ctx) {
 		t.Fatalf("expected bloody prayer can use when heal>0 and has allies")
 	}
@@ -48,23 +48,23 @@ func TestCrimsonKnightBloodyPrayer_CanSplitHealToTwoAllies(t *testing.T) {
 	}
 
 	// X = 3
-	if err := game.handleWeakChoiceInput("p1", 2); err != nil {
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{2}}); err != nil {
 		t.Fatalf("choose x failed: %v", err)
 	}
 	// 选择 2 名队友
-	if err := game.handleWeakChoiceInput("p1", 1); err != nil {
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
 		t.Fatalf("choose ally count failed: %v", err)
 	}
 	// 第一个队友：p2（当前列表第一项）
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose first ally failed: %v", err)
 	}
 	// 第二个队友：只剩 p3，索引仍为 0
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose second ally failed: %v", err)
 	}
 	// 分配：p2 +2，p3 +1（X=3 时索引1）
-	if err := game.handleWeakChoiceInput("p1", 1); err != nil {
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
 		t.Fatalf("choose split failed: %v", err)
 	}
 
@@ -86,5 +86,71 @@ func TestCrimsonKnightBloodyPrayer_CanSplitHealToTwoAllies(t *testing.T) {
 	pd := game.State.PendingDamageQueue[0]
 	if pd.SourceID != "p1" || pd.TargetID != "p1" || pd.Damage != 3 || pd.DamageType != "magic" {
 		t.Fatalf("unexpected pending damage: %+v", pd)
+	}
+}
+
+func TestCrimsonKnightBloodyPrayer_XOneDirectlyChoosesOtherAlly(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "Crimson", "crimson_knight", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "AllyA", "berserker", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p3", "AllyB", "angel", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p4", "Enemy", "onmyoji", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p3 := game.State.Players["p3"]
+	p1.TurnState = model.NewPlayerTurnState()
+	p2.TurnState = model.NewPlayerTurnState()
+	p3.TurnState = model.NewPlayerTurnState()
+	p1.Heal = 1
+
+	handler := skills.GetHandler("crk_bloody_prayer")
+	if handler == nil {
+		t.Fatalf("crk_bloody_prayer handler not found")
+	}
+	ctx := game.buildContext(p1, nil, model.TimingOnTurnStart, nil)
+	if !handler.CanUse(ctx) {
+		t.Fatalf("expected bloody prayer can use when heal>0 and has allies")
+	}
+	if err := handler.Execute(ctx); err != nil {
+		t.Fatalf("execute bloody prayer failed: %v", err)
+	}
+
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
+		t.Fatalf("choose x=1 failed: %v", err)
+	}
+	if got := choiceTypeOfInterrupt(game.State.PendingInterrupt); got != "crk_bloody_prayer_target" {
+		t.Fatalf("expected x=1 to enter direct ally targeting, got %s", got)
+	}
+	prompt := game.GetCurrentPrompt()
+	if prompt == nil {
+		t.Fatalf("expected bloody prayer target prompt")
+	}
+	if promptHasOptionID(prompt, "p1") {
+		t.Fatalf("expected bloody prayer prompt to exclude self")
+	}
+	if !promptHasOptionID(prompt, "p2") || !promptHasOptionID(prompt, "p3") {
+		t.Fatalf("expected bloody prayer prompt to include both allies, got %+v", prompt.Options)
+	}
+
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
+		t.Fatalf("choose ally failed: %v", err)
+	}
+	if got := p1.Heal; got != 0 {
+		t.Fatalf("expected p1 heal=0 after remove 1, got %d", got)
+	}
+	if got := p2.Heal; got != 0 {
+		t.Fatalf("expected unselected ally heal=0, got %d", got)
+	}
+	if got := p3.Heal; got != 1 {
+		t.Fatalf("expected selected ally heal=1, got %d", got)
 	}
 }

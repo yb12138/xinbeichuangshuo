@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useGameStore } from './stores/gameStore'
+import { useSessionStore } from './stores/session.store'
 import RoomLobby from './components/RoomLobby.vue'
 import GameBoard from './components/GameBoard.vue'
 import { useMobileLandscapeGuard } from './composables/useMobileLandscapeGuard'
 
-const store = useGameStore()
+const sessionStore = useSessionStore()
 
-const showGame = computed(() => store.gameStarted)
+const showGame = computed(() => sessionStore.gameStarted)
 const { needsLandscapeGuard, requestLandscapeLock } = useMobileLandscapeGuard()
 </script>
 

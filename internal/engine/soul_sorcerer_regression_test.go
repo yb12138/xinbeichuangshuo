@@ -3,6 +3,7 @@ package engine
 import (
 	"testing"
 
+	soulsorcererpkg "starcup-engine/internal/engine/player/soul_sorcerer"
 	"starcup-engine/internal/model"
 )
 
@@ -18,7 +19,7 @@ func soulSorcererTestCard(id, name string, cardType model.CardType, ele model.El
 	}
 }
 
-func soulSorcererExclusiveCard(charName, skillTitle string) model.Card {
+func soulSorcererExclusiveCard(charID, skillTitle string) model.Card {
 	return model.Card{
 		ID:              "ss_ex_" + skillTitle,
 		Name:            skillTitle,
@@ -27,7 +28,7 @@ func soulSorcererExclusiveCard(charName, skillTitle string) model.Card {
 		Faction:         "幻",
 		Damage:          0,
 		Description:     "灵魂术士测试专属卡",
-		ExclusiveChar1:  charName,
+		ExclusiveChar1:  charID,
 		ExclusiveSkill1: skillTitle,
 	}
 }
@@ -46,7 +47,7 @@ func setupSoulSorcererActionTurn(t *testing.T) (*GameEngine, *model.Player, *mod
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 	return game, p1, p2
 }
 
@@ -71,14 +72,84 @@ func TestSoulSorcerer_StartGameInitAndStarterCard(t *testing.T) {
 	if got := p1.Tokens["ss_yellow_soul"]; got != 0 {
 		t.Fatalf("expected ss_yellow_soul=0, got %d", got)
 	}
-	if got := p1.Tokens["ss_link_active"]; got != 0 {
-		t.Fatalf("expected ss_link_active=0, got %d", got)
-	}
 	if p1.Character == nil {
 		t.Fatalf("character missing")
 	}
-	if !p1.HasExclusiveCard(p1.Character.Name, "灵魂链接") {
+	if !p1.HasExclusiveCard(p1.Character.ID, "灵魂链接") {
 		t.Fatalf("expected starter exclusive card 【灵魂链接】")
+	}
+}
+
+func TestSoulSorcererSoulDevour_OnlyRunsOnDamageOverflowMoraleLoss(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "Soul", "soul_sorcerer", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Ally", "angel", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p3", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	soul := game.State.Players["p1"]
+	ally := game.State.Players["p2"]
+	loss := 2
+	lossCtx := game.buildContext(ally, nil, model.TimingBeforeMoraleLoss, &model.EventContext{
+		Type:      model.EventDamage,
+		DamageVal: &loss,
+	})
+	lossCtx.Selections = map[string]interface{}{
+		"from_damage_draw":  false,
+		"victim_id":         ally.ID,
+		"discard_player_id": ally.ID,
+	}
+
+	game.dispatcher.OnTiming(lossCtx.Timing, lossCtx)
+	finalLoss := game.applyMoraleLossAfterTimingWindow(ally, loss, false, false, 0, nil, lossCtx)
+
+	if finalLoss != 2 {
+		t.Fatalf("expected final morale loss 2, got %d", finalLoss)
+	}
+	if got := soul.Tokens["ss_yellow_soul"]; got != 0 {
+		t.Fatalf("expected soul devour not dispatch on non-damage overflow morale loss, got %d", got)
+	}
+}
+
+func TestSoulSorcererSoulDevour_UsesFinalAppliedMoraleLoss(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "Soul", "soul_sorcerer", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Ally", "angel", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p3", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	soul := game.State.Players["p1"]
+	ally := game.State.Players["p2"]
+	loss := 3
+	lossCtx := game.buildContext(ally, nil, model.TimingBeforeMoraleLoss, &model.EventContext{
+		Type:      model.EventDamage,
+		DamageVal: &loss,
+	})
+	lossCtx.Selections = map[string]interface{}{
+		"from_damage_draw":  true,
+		"victim_id":         ally.ID,
+		"discard_player_id": ally.ID,
+	}
+
+	game.dispatcher.OnTiming(lossCtx.Timing, lossCtx)
+	loss = 1 // 模拟其他“士气下降前”效果将本次实际士气下降改写为1。
+	finalLoss := game.applyMoraleLossAfterTimingWindow(ally, 3, false, true, 0, nil, lossCtx)
+
+	if finalLoss != 1 {
+		t.Fatalf("expected final morale loss 1, got %d", finalLoss)
+	}
+	if got := soul.Tokens["ss_yellow_soul"]; got != 1 {
+		t.Fatalf("expected soul devour gain by final applied morale loss, got %d", got)
 	}
 }
 
@@ -143,8 +214,8 @@ func TestSoulSorcererSoulConvert_OnAttackStartChoice_DoesNotStallInResponsePhase
 		Selections: []int{0},
 	})
 
-	if game.State.Phase == model.PhaseResponse && game.State.PendingInterrupt == nil {
-		t.Fatalf("phase should not stay in empty response after ss_convert_color")
+	if game.State.Subflow == model.SubflowResponse && game.State.PendingInterrupt == nil {
+		t.Fatalf("flow should not stay in empty response after ss_convert_color")
 	}
 	if got := p1.Tokens["ss_blue_soul"]; got != 0 {
 		t.Fatalf("expected blue soul converted to 0, got %d", got)
@@ -164,7 +235,7 @@ func TestSoulSorcererSoulConvert_ChoiceFallback_NoUserCtxShouldNotStayResponse(t
 
 	// 构造一个缺少 user_ctx 的选择中断，模拟线上异常链路；
 	// 即使当前阶段是 Response，也不应在选择后停留在空 Response。
-	game.State.Phase = model.PhaseResponse
+	game.State.Subflow = model.SubflowResponse
 	game.State.ActionStack = []model.Action{
 		{Type: model.ActionAttack, SourceID: "p1", TargetID: "p2"},
 	}
@@ -178,15 +249,15 @@ func TestSoulSorcererSoulConvert_ChoiceFallback_NoUserCtxShouldNotStayResponse(t
 		},
 	}
 
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("ss_convert_color fallback resolve failed: %v", err)
 	}
 
 	if game.State.PendingInterrupt != nil {
 		t.Fatalf("expected interrupt cleared, got %+v", game.State.PendingInterrupt)
 	}
-	if game.State.Phase == model.PhaseResponse {
-		t.Fatalf("phase should not stay in empty response after ss_convert_color fallback")
+	if game.State.Subflow == model.SubflowResponse {
+		t.Fatalf("flow should not stay in empty response after ss_convert_color fallback")
 	}
 	if got := p1.Tokens["ss_blue_soul"]; got != 0 {
 		t.Fatalf("expected blue soul converted to 0, got %d", got)
@@ -232,10 +303,53 @@ func TestSoulSorcererSoulMirror_DrawUpToMaxHand(t *testing.T) {
 	}
 }
 
+func TestSoulSorcererSoulMirror_UsesDynamicMaxHand(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "Soul", "soul_sorcerer", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Hero", "hero", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Tokens["ss_yellow_soul"] = 2
+	p1.Hand = []model.Card{
+		soulSorcererTestCard("h1", "弃牌1", model.CardTypeAttack, model.ElementFire),
+		soulSorcererTestCard("h2", "弃牌2", model.CardTypeMagic, model.ElementWater),
+		soulSorcererTestCard("h3", "保留", model.CardTypeAttack, model.ElementWind),
+	}
+	p2.Form = model.FormHeroExhaustion
+	p2.Hand = []model.Card{
+		soulSorcererTestCard("t1", "现有1", model.CardTypeAttack, model.ElementFire),
+		soulSorcererTestCard("t2", "现有2", model.CardTypeAttack, model.ElementFire),
+		soulSorcererTestCard("t3", "现有3", model.CardTypeAttack, model.ElementFire),
+	}
+	game.State.Deck = []model.Card{
+		soulSorcererTestCard("d1", "补牌1", model.CardTypeMagic, model.ElementLight),
+		soulSorcererTestCard("d2", "补牌2", model.CardTypeMagic, model.ElementDark),
+	}
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	if got := game.GetMaxHand(p2); got != 4 {
+		t.Fatalf("expected dynamic max hand 4, got %d", got)
+	}
+	if err := game.UseSkill("p1", "ss_soul_mirror", []string{"p2"}, []int{0, 1}); err != nil {
+		t.Fatalf("use ss_soul_mirror failed: %v", err)
+	}
+	if got := len(p2.Hand); got != 4 {
+		t.Fatalf("target should only draw to dynamic max hand 4, got %d", got)
+	}
+}
+
 func TestSoulSorcererSoulBlast_ConditionalBonusDamage(t *testing.T) {
 	game, p1, p2 := setupSoulSorcererActionTurn(t)
 	p1.Tokens["ss_yellow_soul"] = 3
-	p1.ExclusiveCards = append(p1.ExclusiveCards, soulSorcererExclusiveCard(p1.Character.Name, "灵魂震爆"))
+	p1.ExclusiveCards = append(p1.ExclusiveCards, soulSorcererExclusiveCard(p1.Character.ID, "灵魂震爆"))
 	p2.MaxHand = 6
 	p2.Hand = []model.Card{
 		soulSorcererTestCard("t1", "少牌1", model.CardTypeAttack, model.ElementFire),
@@ -271,15 +385,15 @@ func TestSoulSorcererSoulBlast_NoBonusWhenDynamicMaxHandIsNotGreaterThanFive(t *
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
 	p1.Tokens["ss_yellow_soul"] = 3
-	p1.ExclusiveCards = append(p1.ExclusiveCards, soulSorcererExclusiveCard(p1.Character.Name, "灵魂震爆"))
+	p1.ExclusiveCards = append(p1.ExclusiveCards, soulSorcererExclusiveCard(p1.Character.ID, "灵魂震爆"))
 	// 勇者精疲力竭时动态手牌上限应为4，不满足“上限>5”的加伤条件。
-	p2.Tokens["hero_exhaustion_form"] = 1
+	p2.Form = model.FormHeroExhaustion
 	p2.Hand = []model.Card{
 		soulSorcererTestCard("t1", "少牌1", model.CardTypeAttack, model.ElementFire),
 		soulSorcererTestCard("t2", "少牌2", model.CardTypeAttack, model.ElementWater),
 	}
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	if got := game.GetMaxHand(p2); got != 4 {
 		t.Fatalf("expected exhausted hero dynamic max hand=4, got %d", got)
@@ -299,7 +413,7 @@ func TestSoulSorcererSoulBlast_NoBonusWhenDynamicMaxHandIsNotGreaterThanFive(t *
 func TestSoulSorcererSoulGrant_RespectsEnergyCap(t *testing.T) {
 	game, p1, p2 := setupSoulSorcererActionTurn(t)
 	p1.Tokens["ss_blue_soul"] = 3
-	p1.ExclusiveCards = append(p1.ExclusiveCards, soulSorcererExclusiveCard(p1.Character.Name, "灵魂赐予"))
+	p1.ExclusiveCards = append(p1.ExclusiveCards, soulSorcererExclusiveCard(p1.Character.ID, "灵魂赐予"))
 	p2.Gem = 2
 	p2.Crystal = 0
 
@@ -312,6 +426,38 @@ func TestSoulSorcererSoulGrant_RespectsEnergyCap(t *testing.T) {
 	}
 	if got := p2.Gem + p2.Crystal; got != 3 {
 		t.Fatalf("target energy should cap at 3, got %d", got)
+	}
+}
+
+func TestSoulSorcererSoulAmp_ConsumesGemAndCapsSouls(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "Soul", "soul_sorcerer", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "angel", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Gem = 1
+	p1.Tokens["ss_yellow_soul"] = 5
+	p1.Tokens["ss_blue_soul"] = 5
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionStart
+
+	if err := game.UseSkill("p1", "ss_soul_amp", nil, nil); err != nil {
+		t.Fatalf("use ss_soul_amp failed: %v", err)
+	}
+	if got := p1.Gem; got != 0 {
+		t.Fatalf("expected gem consumed to 0, got %d", got)
+	}
+	if got := p1.Tokens["ss_yellow_soul"]; got != 6 {
+		t.Fatalf("expected yellow soul capped at 6, got %d", got)
+	}
+	if got := p1.Tokens["ss_blue_soul"]; got != 6 {
+		t.Fatalf("expected blue soul capped at 6, got %d", got)
 	}
 }
 
@@ -335,19 +481,19 @@ func TestSoulSorcererSoulLink_TransferDamageBeforeResolve(t *testing.T) {
 	p1.TurnState = model.NewPlayerTurnState()
 	p1.Tokens["ss_blue_soul"] = 2
 	p1.Tokens["ss_yellow_soul"] = 1
-	p1.ExclusiveCards = append(p1.ExclusiveCards, soulSorcererExclusiveCard(p1.Character.Name, "灵魂链接"))
+	p1.ExclusiveCards = append(p1.ExclusiveCards, soulSorcererExclusiveCard(p1.Character.ID, "灵魂链接"))
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseStartup
+	game.State.TurnStage = model.TurnStageActionStart
 
 	if err := game.UseSkill("p1", "ss_soul_link", nil, nil); err != nil {
 		t.Fatalf("use ss_soul_link failed: %v", err)
 	}
 	requireChoicePrompt(t, game, "p1", "ss_link_target")
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose soul link target failed: %v", err)
 	}
 
-	linkedHolder, _ := game.findSoulLink(p1)
+	linkedHolder, _ := soulsorcererpkg.FindSoulLink(newRoleChoiceRuntime(game), p1)
 	if linkedHolder == nil {
 		t.Fatalf("expected soul link placed on ally")
 	}
@@ -357,15 +503,14 @@ func TestSoulSorcererSoulLink_TransferDamageBeforeResolve(t *testing.T) {
 			SourceID:   "p2",
 			TargetID:   linkedHolder.ID,
 			Damage:     2,
-			DamageType: "Attack",
-			Stage:      0,
+			DamageType: model.AttackDamage,
 		},
 	}
-	if !game.maybeTriggerSoulLinkTransfer(&game.State.PendingDamageQueue[0]) {
+	if !soulsorcererpkg.MaybeSoulLinkTransfer(newRoleChoiceRuntime(game), &game.State.PendingDamageQueue[0]) {
 		t.Fatalf("expected soul link transfer prompt")
 	}
 	requireChoicePrompt(t, game, "p1", "ss_link_transfer_x")
-	if err := game.handleWeakChoiceInput("p1", 1); err != nil {
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
 		t.Fatalf("choose transfer x failed: %v", err)
 	}
 
@@ -377,7 +522,8 @@ func TestSoulSorcererSoulLink_TransferDamageBeforeResolve(t *testing.T) {
 	}
 	foundTransfer := false
 	for _, pd := range game.State.PendingDamageQueue {
-		if pd.TargetID == "p1" && pd.DamageType == "magic" && pd.Damage == 1 && pd.FromSoulLink {
+		if pd.TargetID == "p1" && pd.DamageType == model.MagicAttack && pd.Damage == 1 &&
+			pd.HasCheck(model.PendingDamageCheckFromSoulLink) {
 			foundTransfer = true
 			break
 		}
@@ -407,19 +553,19 @@ func TestSoulSorcererSoulLink_Replay_TransferSorcererToAlly_NoRecursiveLinkPromp
 	p1.TurnState = model.NewPlayerTurnState()
 	p1.Tokens["ss_blue_soul"] = 3
 	p1.Tokens["ss_yellow_soul"] = 1
-	p1.ExclusiveCards = append(p1.ExclusiveCards, soulSorcererExclusiveCard(p1.Character.Name, "灵魂链接"))
+	p1.ExclusiveCards = append(p1.ExclusiveCards, soulSorcererExclusiveCard(p1.Character.ID, "灵魂链接"))
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseStartup
+	game.State.TurnStage = model.TurnStageActionStart
 
 	// 1) 启动阶段先放置灵魂链接给队友。
 	if err := game.UseSkill("p1", "ss_soul_link", nil, nil); err != nil {
 		t.Fatalf("use ss_soul_link failed: %v", err)
 	}
 	requireChoicePrompt(t, game, "p1", "ss_link_target")
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose soul link target failed: %v", err)
 	}
-	linkedHolder, _ := game.findSoulLink(p1)
+	linkedHolder, _ := soulsorcererpkg.FindSoulLink(newRoleChoiceRuntime(game), p1)
 	if linkedHolder == nil {
 		t.Fatalf("expected soul link placed on ally")
 	}
@@ -430,15 +576,14 @@ func TestSoulSorcererSoulLink_Replay_TransferSorcererToAlly_NoRecursiveLinkPromp
 			SourceID:   "p2",
 			TargetID:   "p1",
 			Damage:     2,
-			DamageType: "Attack",
-			Stage:      0,
+			DamageType: model.AttackDamage,
 		},
 	}
 	if interrupted := game.processPendingDamages(); !interrupted {
 		t.Fatalf("expected ss_link_transfer_x interrupt")
 	}
 	requireChoicePrompt(t, game, "p1", "ss_link_transfer_x")
-	if err := game.handleWeakChoiceInput("p1", 1); err != nil {
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
 		t.Fatalf("choose transfer x failed: %v", err)
 	}
 
@@ -453,13 +598,14 @@ func TestSoulSorcererSoulLink_Replay_TransferSorcererToAlly_NoRecursiveLinkPromp
 		t.Fatalf("expected original damage reduced to 1 on p1, got %+v", original)
 	}
 	transferred := game.State.PendingDamageQueue[1]
-	if transferred.TargetID != linkedHolder.ID || transferred.DamageType != "magic" || transferred.Damage != 1 || !transferred.FromSoulLink {
+	if transferred.TargetID != linkedHolder.ID || transferred.DamageType != "magic" || transferred.Damage != 1 ||
+		!transferred.HasCheck(model.PendingDamageCheckFromSoulLink) {
 		t.Fatalf("unexpected transferred damage: %+v", transferred)
 	}
 
 	// 转移出来的伤害不应再次触发灵魂链接（防递归）。
-	if game.maybeTriggerSoulLinkTransfer(&game.State.PendingDamageQueue[1]) {
-		t.Fatalf("transferred damage should not retrigger soul link transfer")
+	if soulsorcererpkg.MaybeSoulLinkTransfer(newRoleChoiceRuntime(game), &game.State.PendingDamageQueue[1]) {
+		t.Fatalf("transferred damage should not reactivate soul link transfer")
 	}
 }
 
@@ -483,18 +629,18 @@ func TestSoulSorcererSoulLink_Replay_TransferAllyToSorcerer_NoRecursiveLinkPromp
 	p1.TurnState = model.NewPlayerTurnState()
 	p1.Tokens["ss_blue_soul"] = 3
 	p1.Tokens["ss_yellow_soul"] = 1
-	p1.ExclusiveCards = append(p1.ExclusiveCards, soulSorcererExclusiveCard(p1.Character.Name, "灵魂链接"))
+	p1.ExclusiveCards = append(p1.ExclusiveCards, soulSorcererExclusiveCard(p1.Character.ID, "灵魂链接"))
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseStartup
+	game.State.TurnStage = model.TurnStageActionStart
 
 	if err := game.UseSkill("p1", "ss_soul_link", nil, nil); err != nil {
 		t.Fatalf("use ss_soul_link failed: %v", err)
 	}
 	requireChoicePrompt(t, game, "p1", "ss_link_target")
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose soul link target failed: %v", err)
 	}
-	linkedHolder, _ := game.findSoulLink(p1)
+	linkedHolder, _ := soulsorcererpkg.FindSoulLink(newRoleChoiceRuntime(game), p1)
 	if linkedHolder == nil {
 		t.Fatalf("expected soul link placed on ally")
 	}
@@ -505,15 +651,14 @@ func TestSoulSorcererSoulLink_Replay_TransferAllyToSorcerer_NoRecursiveLinkPromp
 			SourceID:   "p2",
 			TargetID:   linkedHolder.ID,
 			Damage:     2,
-			DamageType: "Attack",
-			Stage:      0,
+			DamageType: model.AttackDamage,
 		},
 	}
 	if interrupted := game.processPendingDamages(); !interrupted {
 		t.Fatalf("expected ss_link_transfer_x interrupt")
 	}
 	requireChoicePrompt(t, game, "p1", "ss_link_transfer_x")
-	if err := game.handleWeakChoiceInput("p1", 1); err != nil {
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
 		t.Fatalf("choose transfer x failed: %v", err)
 	}
 
@@ -528,15 +673,16 @@ func TestSoulSorcererSoulLink_Replay_TransferAllyToSorcerer_NoRecursiveLinkPromp
 		t.Fatalf("expected original damage reduced to 1 on ally, got %+v", original)
 	}
 	transferred := game.State.PendingDamageQueue[1]
-	if transferred.TargetID != "p1" || transferred.DamageType != "magic" || transferred.Damage != 1 || !transferred.FromSoulLink {
+	if transferred.TargetID != "p1" || transferred.DamageType != "magic" || transferred.Damage != 1 ||
+		!transferred.HasCheck(model.PendingDamageCheckFromSoulLink) {
 		t.Fatalf("unexpected transferred damage: %+v", transferred)
 	}
-	if game.maybeTriggerSoulLinkTransfer(&game.State.PendingDamageQueue[1]) {
-		t.Fatalf("transferred damage should not retrigger soul link transfer")
+	if soulsorcererpkg.MaybeSoulLinkTransfer(newRoleChoiceRuntime(game), &game.State.PendingDamageQueue[1]) {
+		t.Fatalf("transferred damage should not reactivate soul link transfer")
 	}
 }
 
-func TestSoulSorcererSoulLink_Replay_TransferDamageThenTriggersResponseChain(t *testing.T) {
+func TestSoulSorcererSoulLink_Replay_TransferDamageThenRunsResponseChain(t *testing.T) {
 	game := NewGameEngine(noopObserver{})
 	if err := game.AddPlayer("p1", "Soul", "soul_sorcerer", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -557,20 +703,20 @@ func TestSoulSorcererSoulLink_Replay_TransferDamageThenTriggersResponseChain(t *
 	p1.TurnState = model.NewPlayerTurnState()
 	p1.Tokens["ss_blue_soul"] = 3
 	p1.Tokens["ss_yellow_soul"] = 1
-	p1.ExclusiveCards = append(p1.ExclusiveCards, soulSorcererExclusiveCard(p1.Character.Name, "灵魂链接"))
+	p1.ExclusiveCards = append(p1.ExclusiveCards, soulSorcererExclusiveCard(p1.Character.ID, "灵魂链接"))
 	p3.Gem = 1 // 让死斗可触发
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseStartup
+	game.State.TurnStage = model.TurnStageActionStart
 
 	// 放置链接给勇者队友。
 	if err := game.UseSkill("p1", "ss_soul_link", nil, nil); err != nil {
 		t.Fatalf("use ss_soul_link failed: %v", err)
 	}
 	requireChoicePrompt(t, game, "p1", "ss_link_target")
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose soul link target failed: %v", err)
 	}
-	linkedHolder, _ := game.findSoulLink(p1)
+	linkedHolder, _ := soulsorcererpkg.FindSoulLink(newRoleChoiceRuntime(game), p1)
 	if linkedHolder == nil || linkedHolder.ID != "p3" {
 		t.Fatalf("expected soul link on hero ally p3, got %+v", linkedHolder)
 	}
@@ -581,15 +727,14 @@ func TestSoulSorcererSoulLink_Replay_TransferDamageThenTriggersResponseChain(t *
 			SourceID:   "p2",
 			TargetID:   "p1",
 			Damage:     2,
-			DamageType: "Attack",
-			Stage:      0,
+			DamageType: model.AttackDamage,
 		},
 	}
 	if interrupted := game.processPendingDamages(); !interrupted {
 		t.Fatalf("expected ss_link_transfer_x interrupt")
 	}
 	requireChoicePrompt(t, game, "p1", "ss_link_transfer_x")
-	if err := game.handleWeakChoiceInput("p1", 1); err != nil {
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
 		t.Fatalf("choose transfer x failed: %v", err)
 	}
 

@@ -3,6 +3,8 @@ package engine
 import (
 	"testing"
 
+	engineplayer "starcup-engine/internal/engine/player"
+	butterflydancer "starcup-engine/internal/engine/player/butterfly_dancer"
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/rules"
 )
@@ -59,7 +61,7 @@ func TestButterflyDance_DrawAndGainCocoon(t *testing.T) {
 	}
 	game.State.Deck = rules.InitDeck()
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	mustHandleAction(t, game, model.PlayerAction{
 		PlayerID: "p1",
@@ -74,7 +76,7 @@ func TestButterflyDance_DrawAndGainCocoon(t *testing.T) {
 		Type:       model.CmdSelect,
 		Selections: []int{0},
 	})
-	if got := butterflyCocoonCount(p1); got != 1 {
+	if got := butterflydancer.CocoonCount(p1); got != 1 {
 		t.Fatalf("expected 1 cocoon after dance, got %d", got)
 	}
 	if len(p1.Hand) != 2 {
@@ -82,7 +84,7 @@ func TestButterflyDance_DrawAndGainCocoon(t *testing.T) {
 	}
 }
 
-func TestButterflyChrysalis_TriggersOverflowDiscardWhenPupaLowersHandLimit(t *testing.T) {
+func TestButterflyChrysalis_RunsOverflowDiscardWhenPupaLowersHandLimit(t *testing.T) {
 	game := NewGameEngine(noopObserver{})
 	if err := game.AddPlayer("p1", "Butterfly", "butterfly_dancer", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -104,20 +106,12 @@ func TestButterflyChrysalis_TriggersOverflowDiscardWhenPupaLowersHandLimit(t *te
 	}
 	game.State.Deck = rules.InitDeck()
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	mustHandleAction(t, game, model.PlayerAction{
 		PlayerID: "p1",
 		Type:     model.CmdSkill,
 		SkillID:  "bt_chrysalis",
-	})
-	requireChoicePrompt(t, game, "p1", "bt_chrysalis_resolve")
-
-	// 选择确认结算蛹化。
-	mustHandleAction(t, game, model.PlayerAction{
-		PlayerID:   "p1",
-		Type:       model.CmdSelect,
-		Selections: []int{0},
 	})
 
 	if got := p1.Tokens["bt_pupa"]; got != 1 {
@@ -126,12 +120,97 @@ func TestButterflyChrysalis_TriggersOverflowDiscardWhenPupaLowersHandLimit(t *te
 	if got := game.GetMaxHand(p1); got != 5 {
 		t.Fatalf("expected max hand 5 after pupa +1, got %d", got)
 	}
-	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptDiscard || game.State.PendingInterrupt.PlayerID != "p1" {
+	if game.State.PendingInterrupt == nil || !isDiscardSelectionInterrupt(game.State.PendingInterrupt) || game.State.PendingInterrupt.PlayerID != "p1" {
 		t.Fatalf("expected overflow discard interrupt after chrysalis, got %+v", game.State.PendingInterrupt)
 	}
 	data, _ := game.State.PendingInterrupt.Context.(map[string]interface{})
 	if dc, _ := data["discard_count"].(int); dc != 1 {
 		t.Fatalf("expected discard_count=1 after hand limit shrink, got %v", data["discard_count"])
+	}
+}
+
+func TestButterflyReverse_RequiresTwoDiscardCardsByConfig(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "Butterfly", "butterfly_dancer", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Crystal = 1
+	p1.Hand = []model.Card{
+		butterflyTestCard("h1", model.CardTypeAttack, model.ElementFire),
+	}
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	sd := findCharacterSkill(p1.Character, "bt_reverse_butterfly")
+	if sd == nil {
+		t.Fatal("expected bt_reverse_butterfly skill definition")
+	}
+	if !game.canSatisfyActionSkillDiscardRequirement(p1, *sd) {
+		// 满足这里说明当前实现会在可用技能层面阻止手牌不足时发动。
+	} else {
+		t.Fatalf("expected reverse butterfly discard requirement to fail with only 1 hand card")
+	}
+
+	err := game.HandleAction(model.PlayerAction{
+		PlayerID: "p1",
+		Type:     model.CmdSkill,
+		SkillID:  "bt_reverse_butterfly",
+	})
+	if err == nil {
+		t.Fatal("expected using reverse butterfly with only 1 hand card to fail")
+	}
+}
+
+func TestButterflyReverse_UsesUnifiedDiscardCostBeforeBranchChoice(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "Butterfly", "butterfly_dancer", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Crystal = 1
+	p1.Hand = []model.Card{
+		butterflyTestCard("h1", model.CardTypeAttack, model.ElementFire),
+		butterflyTestCard("h2", model.CardTypeMagic, model.ElementWater),
+	}
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	mustHandleAction(t, game, model.PlayerAction{
+		PlayerID: "p1",
+		Type:     model.CmdSkill,
+		SkillID:  "bt_reverse_butterfly",
+	})
+
+	if game.State.PendingInterrupt == nil || !isDiscardSelectionInterrupt(game.State.PendingInterrupt) || game.State.PendingInterrupt.PlayerID != "p1" {
+		t.Fatalf("expected reverse butterfly to first enter discard interrupt, got %+v", game.State.PendingInterrupt)
+	}
+	data, _ := game.State.PendingInterrupt.Context.(map[string]interface{})
+	if skillID, _ := data["skill_id"].(string); skillID != "bt_reverse_butterfly" {
+		t.Fatalf("expected discard interrupt skill_id=bt_reverse_butterfly, got %v", data["skill_id"])
+	}
+	if discardCount, _ := data["discard_count"].(int); discardCount != 2 {
+		t.Fatalf("expected discard_count=2, got %v", data["discard_count"])
+	}
+
+	mustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{0, 1},
+	})
+	requireChoicePrompt(t, game, "p1", "bt_reverse_mode")
+	if got := len(p1.Hand); got != 0 {
+		t.Fatalf("expected 2 cards consumed before branch choice, got hand=%d", got)
 	}
 }
 
@@ -145,7 +224,7 @@ func TestButterflyPilgrimage_ResistOneDamage(t *testing.T) {
 	}
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]
-	addButterflyCocoonCards(p1, []model.Card{
+	butterflydancer.AddCocoonCards(p1, []model.Card{
 		butterflyTestCard("c1", model.CardTypeAttack, model.ElementWater),
 	})
 
@@ -153,11 +232,10 @@ func TestButterflyPilgrimage_ResistOneDamage(t *testing.T) {
 		SourceID:   p2.ID,
 		TargetID:   p1.ID,
 		Damage:     1,
-		DamageType: "magic",
-		Stage:      0,
+		DamageType: model.MagicAttack,
 	})
-	game.State.Phase = model.PhasePendingDamageResolution
-	game.State.ReturnPhase = model.PhaseExtraAction
+	game.State.CombatStage = model.CombatStageCalcDamage
+	game.State.ReturnTurnStage = model.TurnStageExtraAction
 
 	game.Drive()
 	requireChoicePrompt(t, game, "p1", "bt_pilgrimage_pick")
@@ -168,7 +246,7 @@ func TestButterflyPilgrimage_ResistOneDamage(t *testing.T) {
 		Type:       model.CmdSelect,
 		Selections: []int{1},
 	})
-	if got := butterflyCocoonCount(p1); got != 0 {
+	if got := butterflydancer.CocoonCount(p1); got != 0 {
 		t.Fatalf("expected cocoon consumed by pilgrimage, got %d", got)
 	}
 
@@ -208,7 +286,7 @@ func TestButterflyMirror_ReplaceTwoDamageToTwoHits(t *testing.T) {
 	p3 := game.State.Players["p3"]
 	game.State.Deck = rules.InitDeck()
 
-	addButterflyCocoonCards(p1, []model.Card{
+	butterflydancer.AddCocoonCards(p1, []model.Card{
 		butterflyTestCard("m1", model.CardTypeAttack, model.ElementFire),
 		butterflyTestCard("m2", model.CardTypeAttack, model.ElementFire),
 	})
@@ -217,11 +295,10 @@ func TestButterflyMirror_ReplaceTwoDamageToTwoHits(t *testing.T) {
 		SourceID:   p2.ID,
 		TargetID:   p3.ID,
 		Damage:     2,
-		DamageType: "magic",
-		Stage:      0,
+		DamageType: model.MagicAttack,
 	})
-	game.State.Phase = model.PhasePendingDamageResolution
-	game.State.ReturnPhase = model.PhaseExtraAction
+	game.State.CombatStage = model.CombatStageCalcDamage
+	game.State.ReturnTurnStage = model.TurnStageExtraAction
 
 	game.Drive()
 	requireChoicePrompt(t, game, "p1", "bt_mirror_pair")
@@ -232,7 +309,7 @@ func TestButterflyMirror_ReplaceTwoDamageToTwoHits(t *testing.T) {
 		Type:       model.CmdSelect,
 		Selections: []int{1},
 	})
-	if got := butterflyCocoonCount(p1); got != 0 {
+	if got := butterflydancer.CocoonCount(p1); got != 0 {
 		t.Fatalf("expected 2 cocoons consumed by mirror, got remaining=%d", got)
 	}
 
@@ -251,8 +328,11 @@ func TestButterflyMirror_ReplaceTwoDamageToTwoHits(t *testing.T) {
 	if got := len(game.State.PendingDamageQueue); got != 0 {
 		t.Fatalf("pending damage queue not drained, len=%d", got)
 	}
-	if got := len(p3.Hand); got != 2 {
-		t.Fatalf("expected target draw 2 cards from two 1-damage hits, got hand=%d", got)
+	if got := len(p2.Hand); got != 2 {
+		t.Fatalf("expected damage source draw 2 cards from two 1-damage hits, got hand=%d", got)
+	}
+	if got := len(p3.Hand); got != 0 {
+		t.Fatalf("expected original target take no replacement damage, got hand=%d", got)
 	}
 }
 
@@ -265,7 +345,8 @@ func TestButterflyWither_MoraleFloorAtOne(t *testing.T) {
 		t.Fatal(err)
 	}
 	p1 := game.State.Players["p1"]
-	p1.Tokens["bt_wither_active"] = 1
+	engineplayer.EnsurePlayerSkillFlowState(p1)
+	p1.TurnState.SkillFlowState["bt_wither_active"] = 1
 
 	game.State.BlueMorale = 1
 	if got := game.applyCampMoraleLoss(model.BlueCamp, 3); got != 0 {
@@ -281,5 +362,57 @@ func TestButterflyWither_MoraleFloorAtOne(t *testing.T) {
 	}
 	if game.State.BlueMorale != 1 {
 		t.Fatalf("expected blue morale clamped to 1, got %d", game.State.BlueMorale)
+	}
+}
+
+func TestButterflyWither_CanTargetAnyCharacter(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "Butterfly", "butterfly_dancer", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Ally", "angel", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p3", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := game.State.Players["p1"]
+	butterflydancer.QueueWitherChoice(newRoleChoiceRuntime(game), p1)
+	requireChoicePrompt(t, game, "p1", "bt_wither_confirm")
+
+	mustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{0},
+	})
+	requireChoicePrompt(t, game, "p1", "bt_wither_target")
+	prompt := game.GetCurrentPrompt()
+	if prompt == nil {
+		t.Fatalf("expected wither target prompt")
+	}
+	foundAlly := false
+	for _, opt := range prompt.Options {
+		if opt.Label == "Ally" {
+			foundAlly = true
+			break
+		}
+	}
+	if !foundAlly {
+		t.Fatalf("expected wither target prompt to include ally target, got %+v", prompt.Options)
+	}
+
+	// 玩家顺序为 p1, p2, p3；这里选择己方队友 p2，验证目标不限于敌人。
+	mustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{1},
+	})
+
+	if got := len(game.State.PendingDamageQueue); got != 0 {
+		t.Fatalf("expected wither damage chain fully resolved, got %d pending entries", got)
+	}
+	if got := p1.TurnState.SkillFlowState["bt_wither_active"]; got != 1 {
+		t.Fatalf("expected wither floor effect active, got %d", got)
 	}
 }

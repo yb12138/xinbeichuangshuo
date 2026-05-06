@@ -155,12 +155,12 @@ func TestDebugCheat_CardFiltersAndExclusive(t *testing.T) {
 	p1.Hand = nil
 	available := 0
 	for _, c := range game.State.Deck {
-		if c.MatchExclusive(char.Name, skill.Title) {
+		if c.MatchExclusive(char.ID, skill.Title) {
 			available++
 		}
 	}
 	if available == 0 {
-		t.Fatalf("precondition failed: no deck cards match [%s·%s]", char.Name, skill.Title)
+		t.Fatalf("precondition failed: no deck cards match [%s·%s]", char.ID, skill.Title)
 	}
 	beforeStock := len(game.State.Deck) + len(game.State.DiscardPile)
 	if err := game.handleCheat(model.PlayerAction{
@@ -176,7 +176,7 @@ func TestDebugCheat_CardFiltersAndExclusive(t *testing.T) {
 	if len(p1.Hand) != 1 {
 		t.Fatalf("expected 1 card after card_exclusive, got=%d", len(p1.Hand))
 	}
-	if !p1.Hand[0].MatchExclusive(char.Name, skill.Title) {
+	if !p1.Hand[0].MatchExclusive(char.ID, skill.Title) {
 		t.Fatalf("unexpected exclusive mark: char1=%s skill1=%s char2=%s skill2=%s",
 			p1.Hand[0].ExclusiveChar1, p1.Hand[0].ExclusiveSkill1, p1.Hand[0].ExclusiveChar2, p1.Hand[0].ExclusiveSkill2)
 	}
@@ -186,5 +186,59 @@ func TestDebugCheat_CardFiltersAndExclusive(t *testing.T) {
 	afterStock := len(game.State.Deck) + len(game.State.DiscardPile)
 	if afterStock != beforeStock-1 {
 		t.Fatalf("expected deck/discard stock reduce by 1 after card_exclusive, before=%d after=%d", beforeStock, afterStock)
+	}
+}
+
+func TestDebugCheat_DiscardByCount(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "A", "angel", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "B", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := game.State.Players["p1"]
+	if p1 == nil {
+		t.Fatal("p1 not found")
+	}
+	p1.Hand = []model.Card{
+		{ID: "h1", Name: "圣光", Type: model.CardTypeMagic, Element: model.ElementLight},
+		{ID: "h2", Name: "闪电", Type: model.CardTypeMagic, Element: model.ElementThunder},
+		{ID: "h3", Name: "烈焰斩", Type: model.CardTypeAttack, Element: model.ElementFire},
+	}
+
+	if err := game.handleCheat(model.PlayerAction{
+		PlayerID: "p1",
+		Type:     model.CmdCheat,
+		TargetID: "discard",
+		ExtraArgs: []string{
+			"p1", "2",
+		},
+	}); err != nil {
+		t.Fatalf("discard cheat failed: %v", err)
+	}
+	if len(p1.Hand) != 1 {
+		t.Fatalf("expected 1 hand card after discard 2, got=%d", len(p1.Hand))
+	}
+	if len(game.State.DiscardPile) != 2 {
+		t.Fatalf("expected discard pile +2, got=%d", len(game.State.DiscardPile))
+	}
+
+	if err := game.handleCheat(model.PlayerAction{
+		PlayerID: "p1",
+		Type:     model.CmdCheat,
+		TargetID: "discard",
+		ExtraArgs: []string{
+			"p1", "99",
+		},
+	}); err != nil {
+		t.Fatalf("discard cheat with overflow count failed: %v", err)
+	}
+	if len(p1.Hand) != 0 {
+		t.Fatalf("expected hand to be empty after overflow discard, got=%d", len(p1.Hand))
+	}
+	if len(game.State.DiscardPile) != 3 {
+		t.Fatalf("expected discard pile total=3, got=%d", len(game.State.DiscardPile))
 	}
 }

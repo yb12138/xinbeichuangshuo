@@ -34,23 +34,6 @@ func newBotIntel() *botIntel {
 	}
 }
 
-func clonePrompt(src *model.Prompt) *model.Prompt {
-	if src == nil {
-		return nil
-	}
-	cp := *src
-	if src.Options != nil {
-		cp.Options = append([]model.PromptOption{}, src.Options...)
-	}
-	if src.SpecialOptions != nil {
-		cp.SpecialOptions = append([]model.PromptOption{}, src.SpecialOptions...)
-	}
-	if src.CounterTargetIDs != nil {
-		cp.CounterTargetIDs = append([]string{}, src.CounterTargetIDs...)
-	}
-	return &cp
-}
-
 func (bi *botIntel) ensurePlayer(playerID string) *playerRevealStats {
 	ps, ok := bi.players[playerID]
 	if ok {
@@ -250,24 +233,30 @@ func (r *Room) scheduleBotIfNeeded(playerID string, prompt *model.Prompt, expect
 
 	delay := time.Duration(220+rand.Intn(360)) * time.Millisecond
 	time.AfterFunc(delay, func() {
-		if err := r.runBotTurn(playerID, prompt, expectedEpoch); err != nil {
+		r.enqueueViaActor(func() error {
+			return r.runBotTurn(playerID, prompt, expectedEpoch)
+		}, func(err error) {
 			log.Printf("[Bot] player=%s decide failed: %v", playerID, err)
 			// 给一次“最新状态重试”机会，避免旧快照导致的卡局。
 			time.AfterFunc(120*time.Millisecond, func() {
-				if retryErr := r.runBotTurn(playerID, nil, 0); retryErr != nil {
+				r.enqueueViaActor(func() error {
+					return r.runBotTurn(playerID, nil, 0)
+				}, func(retryErr error) {
 					log.Printf("[Bot] player=%s retry failed: %v", playerID, retryErr)
-				}
+				})
 			})
-		}
+		})
 	})
 
 	// 守护重试：若提示仍挂在该机器人身上，补一次执行，降低“偶发漏调度”导致的卡局概率。
 	time.AfterFunc(delay+1600*time.Millisecond, func() {
 		if r.shouldRetryBotTurn(playerID, expectedEpoch) {
 			log.Printf("[Bot] player=%s watchdog retry (epoch=%d)", playerID, expectedEpoch)
-			if err := r.runBotTurn(playerID, nil, expectedEpoch); err != nil {
+			r.enqueueViaActor(func() error {
+				return r.runBotTurn(playerID, nil, expectedEpoch)
+			}, func(err error) {
 				log.Printf("[Bot] player=%s watchdog failed: %v", playerID, err)
-			}
+			})
 		}
 	})
 }
@@ -364,7 +353,8 @@ func (r *Room) isPromptActionableLocked(playerID string, prompt *model.Prompt) b
 
 	// 战斗响应提示。
 	if hasPromptOption(prompt, "take") || hasPromptOption(prompt, "defend") || hasPromptOption(prompt, "counter") {
-		if state.Phase != model.PhaseCombatInteraction || len(state.CombatStack) == 0 {
+		if len(state.CombatStack) == 0 || state.Subflow != model.SubflowNone ||
+			(state.CombatStage != model.CombatStageDeclare && state.CombatStage != model.CombatStageHitCheck) {
 			return false
 		}
 		combatReq := state.CombatStack[len(state.CombatStack)-1]
@@ -375,7 +365,8 @@ func (r *Room) isPromptActionableLocked(playerID string, prompt *model.Prompt) b
 	if hasPromptOption(prompt, "attack") || hasPromptOption(prompt, "magic") || hasPromptOption(prompt, "special") ||
 		hasPromptOption(prompt, "buy") || hasPromptOption(prompt, "extract") ||
 		hasPromptOption(prompt, "synthesize") || hasPromptOption(prompt, "cannot_act") {
-		if state.Phase != model.PhaseActionSelection || len(state.PlayerOrder) == 0 {
+		if state.Subflow != model.SubflowNone || state.CombatStage != model.CombatStageNone ||
+			state.TurnStage != model.TurnStageActionExecution || len(state.ActionQueue) > 0 || len(state.PlayerOrder) == 0 {
 			return false
 		}
 		if state.CurrentTurn < 0 || state.CurrentTurn >= len(state.PlayerOrder) {
@@ -492,12 +483,19 @@ func buildFallbackAction(playerID string, prompt *model.Prompt, state GameStateU
 }
 
 func botPlayableCards(me PlayerView) []model.Card {
-	if len(me.Blessings) == 0 {
+	blessings := make([]model.Card, 0)
+	for _, fc := range me.Field {
+		if fc == nil || fc.Mode != model.FieldCover || fc.Effect != model.EffectElfBlessing {
+			continue
+		}
+		blessings = append(blessings, fc.Card)
+	}
+	if len(blessings) == 0 {
 		return me.Hand
 	}
-	out := make([]model.Card, 0, len(me.Hand)+len(me.Blessings))
+	out := make([]model.Card, 0, len(me.Hand)+len(blessings))
 	out = append(out, me.Hand...)
-	out = append(out, me.Blessings...)
+	out = append(out, blessings...)
 	return out
 }
 
@@ -802,8 +800,8 @@ func (r *Room) decideChooseCards(playerID string, state GameStateUpdate, prompt 
 		maxPick = len(candidates)
 	}
 
-	// 水影特化：优先弃水系，潜行状态可额外弃1法术
-	if strings.Contains(prompt.Message, "水影") {
+	// 暗杀者【水影】特化：优先弃水系，潜行状态可额外弃1法术
+	if prompt.SkillID == "water_shadow" {
 		selections := r.pickWaterShadowDiscards(candidates, hand, me, minPick, maxPick)
 		return model.PlayerAction{
 			PlayerID:   playerID,
@@ -833,13 +831,7 @@ func (r *Room) decideChooseCards(playerID string, state GameStateUpdate, prompt 
 }
 
 func (r *Room) pickWaterShadowDiscards(candidates []int, hand []model.Card, me PlayerView, minPick, maxPick int) []int {
-	isStealth := false
-	for _, fc := range me.Field {
-		if fc.Effect == model.EffectStealth {
-			isStealth = true
-			break
-		}
-	}
+	isStealth := me.Form == model.FormAssassinStealth
 
 	var water, magic, other []int
 	for _, idx := range candidates {
@@ -994,6 +986,15 @@ func (r *Room) decideChooseExtract(playerID string, state GameStateUpdate, promp
 func (r *Room) decideConfirmChoice(playerID string, state GameStateUpdate, prompt *model.Prompt, me PlayerView) (model.PlayerAction, bool) {
 	handPressure := float64(len(me.Hand)) / float64(estimateMaxHand(me.Role))
 	enemyThreat := estimateEnemyThreat(state, playerID)
+
+	if prompt.ChoiceType == "assassin_stealth_draw" {
+		// 暗杀者【潜行】：手牌压力高时优先不摸，避免刚入潜行就因上限-1触发爆牌；
+		// 否则偏向摸1，保留技能的资源转换收益。
+		if handPressure >= 0.9 && len(prompt.Options) >= 2 {
+			return model.PlayerAction{PlayerID: playerID, Type: model.CmdSelect, Selections: []int{1}}, true
+		}
+		return model.PlayerAction{PlayerID: playerID, Type: model.CmdSelect, Selections: []int{0}}, true
+	}
 
 	// 通用偏好：优先非跳过项
 	bestIdx := -1

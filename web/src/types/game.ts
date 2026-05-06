@@ -57,7 +57,7 @@ export interface FieldCard {
   source_id: string
   mode: 'Effect' | 'Cover'
   effect: string
-  trigger: string
+  field_hook: string
   locked: boolean
   duration: number
 }
@@ -68,6 +68,8 @@ export interface PlayerView {
   name: string
   camp: string
   role: string
+  orientation?: string
+  form?: string
   hand_count: number
   max_hand: number
   exclusive_card_count: number
@@ -81,7 +83,7 @@ export interface PlayerView {
   crystal: number // 个人能量：水晶
   is_active: boolean
   buffs: Buff[]
-  tokens?: Record<string, number>
+  tokens?: Record<string, number> // 指示物，不含角色形态
 }
 
 // 技能摘要（后端 CharacterView.Skills）
@@ -112,7 +114,9 @@ export interface CharacterView {
 
 // 游戏状态更新
 export interface GameStateUpdate {
-  phase: string
+  turn_stage?: string
+  combat_stage?: string
+  subflow?: string
   current_player: string
   has_performed_startup?: boolean
   players: Record<string, PlayerView>
@@ -146,6 +150,8 @@ export interface Prompt {
   type: PromptType
   player_id: string
   message: string
+  choice_type?: string
+  skill_id?: string
   options: PromptOption[]
   /** 行动选择时“特殊”按钮对应的子选项（购买/合成/提炼） */
   special_options?: PromptOption[]

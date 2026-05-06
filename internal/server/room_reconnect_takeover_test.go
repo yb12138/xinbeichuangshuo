@@ -22,11 +22,11 @@ func waitRoomEvent(t *testing.T, ch <-chan []byte, action string) RoomEvent {
 			if err := json.Unmarshal(raw, &msg); err != nil {
 				continue
 			}
-			if msg.Type != "room" {
+			if msg.Cmd != CmdRoomEvent {
 				continue
 			}
 			var ev RoomEvent
-			if err := json.Unmarshal(msg.Payload, &ev); err != nil {
+			if err := json.Unmarshal(msg.Data, &ev); err != nil {
 				continue
 			}
 			if ev.Action == action {

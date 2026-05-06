@@ -33,6 +33,30 @@ const (
 	CmdCheat PlayerActionType = "Cheat"
 )
 
+func IsKnownPlayerActionType(actionType PlayerActionType) bool {
+	switch actionType {
+	case CmdStart,
+		CmdQuit,
+		CmdPass,
+		CmdHelp,
+		CmdAttack,
+		CmdMagic,
+		CmdBuy,
+		CmdSynthesize,
+		CmdExtract,
+		CmdSkill,
+		CmdCannotAct,
+		CmdConfirm,
+		CmdCancel,
+		CmdSelect,
+		CmdRespond,
+		CmdCheat:
+		return true
+	default:
+		return false
+	}
+}
+
 // PlayerAction 玩家发送给引擎的唯一数据包
 type PlayerAction struct {
 	PlayerID string           `json:"player_id"`

@@ -13,8 +13,8 @@ type Card struct {
 
 	// [新增] 命格和独有技相关字段
 	Faction         string `json:"faction,omitempty"`          // 命格 (e.g., "圣", "血", "幻", "技")
-	ExclusiveChar1  string `json:"exclusive_char1,omitempty"`  // 独有技角色1
-	ExclusiveChar2  string `json:"exclusive_char2,omitempty"`  // 独有技角色2
+	ExclusiveChar1  string `json:"exclusive_char1,omitempty"`  // 独有技角色 ID
+	ExclusiveChar2  string `json:"exclusive_char2,omitempty"`  // 独有技角色 ID
 	ExclusiveSkill1 string `json:"exclusive_skill1,omitempty"` // 独有技1
 	ExclusiveSkill2 string `json:"exclusive_skill2,omitempty"` // 独有技2
 }
@@ -25,6 +25,13 @@ const (
 	BuffTypeBasic   BuffType = iota // 基础效果 (圣盾, 虚弱, 中毒)
 	BuffTypeSpecial                 // 特殊效果 (五系束缚, 挑衅)
 	BuffTypeMorph                   // 形态 (英灵形态, 审判形态)
+)
+
+type CharacterOrientation string
+
+const (
+	OrientationNormal CharacterOrientation = "Normal"
+	OrientationTapped CharacterOrientation = "Tapped"
 )
 
 // Buff 状态效果
@@ -45,7 +52,7 @@ type Player struct {
 	Role string `json:"role"` // 角色 (前端展示)
 	Camp Camp   `json:"camp"`
 	Hand []Card `json:"hand"`
-	// 精灵射手“祝福”独立牌区：不计入手牌上限，但可按手牌方式打出。
+	// 仅用于协议视图的“精灵祝福”派生展示字段（真源在 Field 中的 EffectElfBlessing 盖牌）。
 	Blessings []Card `json:"blessings,omitempty"`
 	// 角色专属技能卡区：不计入手牌，不参与爆牌；用于五系束缚/血蔷薇庭院等专属卡。
 	ExclusiveCards []Card       `json:"exclusive_cards,omitempty"`
@@ -62,7 +69,13 @@ type Player struct {
 	IsActive bool   `json:"is_active"` // 是否为当前回合行动者
 
 	Tokens    map[string]int `json:"tokens"`
+	Status    map[string]int `json:"status"`
 	CharaZone []string       `json:"chara_zone"`
+
+	ActiveRuleModifiers map[string]*RuleModifierInstance `json:"active_rule_modifiers,omitempty"`
+
+	Orientation CharacterOrientation `json:"orientation,omitempty"`
+	Form        string               `json:"form,omitempty"`
 
 	Character       *Character      `json:"character,omitempty"`
 	TurnState       PlayerTurnState `json:"turn_state"`
@@ -89,47 +102,38 @@ type Action struct {
 	CardIdx   int        `json:"card_idx"`
 	ExtraArgs []string   `json:"extra_args"`
 
-	CounterInitiator string   `json:"counter_initiator,omitempty"` // 原始应战发起者
-	IsDarkCounter    bool     `json:"is_dark_counter,omitempty"`   // 是否为暗灭应战反弹
-	ExcludedPlayers  []string `json:"excluded_players,omitempty"`  // 反弹时排除的玩家
-	CanBeResponded   bool     `json:"can_be_responded"`            // 是否可被应战
-	IsHitForced      bool     `json:"is_hit_forced"`               // 是否强制命中
-
-	Extra   string `json:"extra,omitempty"`
-	SkillID string `json:"skill_id,omitempty"`
+	CounterInitiator string `json:"counter_initiator,omitempty"` // 原始应战发起者
 }
 
 // QueuedAction 队列中的行动（用于额外行动处理）
 type QueuedAction struct {
-	SourceID                string     `json:"source_id"`                  // 发起者ID
-	TargetID                string     `json:"target_id"`                  // 目标ID（攻击/法术的目标）
-	TargetIDs               []string   `json:"target_ids,omitempty"`       // 多目标ID (新增支持)
-	Type                    ActionType `json:"type"`                       // Attack 或 Magic
-	Element                 Element    `json:"element"`                    // 可选：元素限制（如疾风技要求风系）
-	Card                    *Card      `json:"card"`                       // 可选：预定义的卡牌（如果已选择）
-	CardIndex               int        `json:"card_index"`                 // 卡牌在手牌中的索引
-	SourceSkill             string     `json:"source_skill"`               // 来源技能ID（如疾风技、烈风技）
-	HasTriggeredCardUsed    bool       `json:"has_triggered_card_used"`    // 是否已触发卡牌使用事件
-	HasTriggeredAttackStart bool       `json:"has_triggered_attack_start"` // 是否已触发攻击开始（避免确认响应技能后再次触发）
+	SourceID                    string     `json:"source_id"`                      // 发起者ID
+	TargetID                    string     `json:"target_id"`                      // 目标ID（攻击/法术的目标）
+	TargetIDs                   []string   `json:"target_ids,omitempty"`           // 多目标ID (新增支持)
+	Type                        ActionType `json:"type"`                           // Attack 或 Magic
+	Element                     Element    `json:"element"`                        // 可选：元素限制（如疾风技要求风系）
+	Card                        *Card      `json:"card"`                           // 可选：预定义的卡牌（如果已选择）
+	CardIndex                   int        `json:"card_index"`                     // 卡牌在手牌中的索引
+	SourceSkill                 string     `json:"source_skill"`                   // 来源技能ID（如疾风技、烈风技）
+	UsesVirtualCard             bool       `json:"uses_virtual_card,omitempty"`    // 是否为非手牌实体驱动的虚拟牌行动
+	HasDispatchedCardUsed       bool       `json:"has_dispatched_card_used"`       // 是否已触发卡牌使用事件
+	HasDispatchedAttackDeclared bool       `json:"has_dispatched_attack_declared"` // 是否已触发攻击开始（避免确认响应技能后再次触发）
 }
 
 // CombatRequest 战斗请求（用于战斗交互阶段）
 type CombatRequest struct {
-	AttackerID     string `json:"attacker_id"`      // 攻击者ID
-	TargetID       string `json:"target_id"`        // 目标ID
-	Card           *Card  `json:"card"`             // 使用的攻击卡牌
-	IsForcedHit    bool   `json:"is_forced_hit"`    // 是否强制命中
-	CanBeResponded bool   `json:"can_be_responded"` // 是否可被应战
-	IsCounter      bool   `json:"is_counter"`       // 是否为应战反弹攻击（命中加水晶）
+	AttackerID      string                      `json:"attacker_id"`      // 攻击者ID
+	TargetID        string                      `json:"target_id"`        // 目标ID
+	Card            *Card                       `json:"card"`             // 使用的攻击卡牌
+	IsForcedHit     bool                        `json:"is_forced_hit"`    // 是否强制命中
+	IgnoreShield    bool                        `json:"ignore_shield"`    // 是否无视圣盾
+	CanBeResponded  bool                        `json:"can_be_responded"` // 是否可被应战
+	IsCounter       bool                        `json:"is_counter"`       // 是否为应战反弹攻击（命中加水晶）
+	InterceptTags   map[CombatInterceptTag]bool `json:”intercept_tags,omitempty”`
+	ElementOverride string                      `json:"element_override,omitempty"` // 非-empty 时覆盖卡牌元素的显示
 
-	// 阴阳师“式神咒束”链路专用上下文
-	OnmyojiBindingChecked    bool   `json:"onmyoji_binding_checked,omitempty"`    // 本次战斗是否已检查过代应战
-	OnmyojiBindingActorID    string `json:"onmyoji_binding_actor_id,omitempty"`   // 代应战阴阳师ID
-	OnmyojiBindingCounterID  string `json:"onmyoji_binding_counter_id,omitempty"` // 预选应战牌ID
-	OnmyojiBindingTargetID   string `json:"onmyoji_binding_target_id,omitempty"`  // 预选反弹目标ID
-	OnmyojiBindingUseFaction bool   `json:"onmyoji_binding_use_faction,omitempty"`
-	// 阴阳师“阴阳转换”交互标记：仅用于控制“先询问是否发动”流程不重复弹出
-	OnmyojiYinYangChecked bool `json:"onmyoji_yinyang_checked,omitempty"`
+	// 阴阳师”阴阳转换”交互标记：仅用于控制”先询问是否发动”流程不重复弹出
+	OnmyojiYinYangChecked bool `json:”onmyoji_yinyang_checked,omitempty”`
 }
 
 // GameState 游戏状态
@@ -147,7 +151,6 @@ type InterruptType string
 const (
 	InterruptResponseSkill        InterruptType = "ResponseSkill"
 	InterruptStartupSkill         InterruptType = "StartupSkill"
-	InterruptDiscard              InterruptType = "Discard"
 	InterruptChoice               InterruptType = "Choice"
 	InterruptMagicMissile         InterruptType = "MagicMissile"
 	InterruptGiveCards            InterruptType = "GiveCards"            // 天使祝福等：选牌交给他人
@@ -159,7 +162,9 @@ const (
 )
 
 type GameState struct {
-	Phase       GamePhase          `json:"phase"`
+	TurnStage   TurnStage          `json:"turn_stage,omitempty"`
+	CombatStage CombatStage        `json:"combat_stage,omitempty"`
+	Subflow     Subflow            `json:"subflow,omitempty"`
 	Players     map[string]*Player `json:"players"`
 	PlayerOrder []string           `json:"player_order"` // Add this if missing
 	TurnOrder   []string           `json:"turn_order"`   // Maybe same as PlayerOrder?
@@ -190,67 +195,130 @@ type GameState struct {
 	InterruptQueue   []*Interrupt `json:"interrupt_queue,omitempty"`   // Wait list for interrupts
 
 	// 11步回合结构新增字段
-	ActionQueue         []QueuedAction  `json:"action_queue,omitempty"` // 额外行动队列
-	CombatStack         []CombatRequest `json:"combat_stack,omitempty"` // 战斗请求栈
-	HasPerformedStartup bool            `json:"has_performed_startup"`  // 是否已执行启动技能（限制特殊行动）
+	ActionQueue []QueuedAction  `json:"action_queue,omitempty"` // 额外行动队列
+	CombatStack []CombatRequest `json:"combat_stack,omitempty"` // 战斗请求栈
 
 	MagicBulletChain *MagicBulletChain `json:"magic_bullet_chain,omitempty"` // 魔弹链条
 
 	// 延迟伤害队列（用于避免嵌套的伤害结算中断）
 	PendingDamageQueue []PendingDamage `json:"pending_damage_queue,omitempty"`
-	// 延迟后续队列（用于“先结算伤害/中断，再继续技能后续”）。
-	DeferredFollowups []DeferredFollowup `json:"deferred_followups,omitempty"`
+	// 流程边界恢复点队列（角色级，用于 after_draw/after_damage 等边界触发）。
+	FlowContinuations []FlowContinuation `json:”flow_continuations,omitempty”`
 
-	// 状态机返回阶段 (用于 PendingDamageResolution 等临时阶段结束后恢复)
-	ReturnPhase GamePhase `json:"return_phase,omitempty"`
+	// 状态机返回阶段
+	ReturnTurnStage   TurnStage   `json:"return_turn_stage,omitempty"`
+	ReturnCombatStage CombatStage `json:"return_combat_stage,omitempty"`
+	ReturnSubflow     Subflow     `json:"return_subflow,omitempty"`
+	GameOver          bool        `json:"game_over,omitempty"`
+
+	// 回合控制
+	NextTurnPlayerOverride string `json:"next_turn_player_override,omitempty"` // 下回合玩家覆盖（用于额外回合等）
 }
+
+// DamageType 定义伤害/行动类型枚举文本。
+type DamageType string
+
+const (
+	AttackDamage DamageType = "Attack"
+	MagicAttack  DamageType = "magic"
+	// MagicDamage 保留兼容别名，逐步迁移到 MagicAttack。
+	MagicDamage DamageType = MagicAttack
+)
 
 // PendingDamage 代表一个待处理的伤害事件
 type PendingDamage struct {
-	SourceID                   string     `json:"source_id"`
-	TargetID                   string     `json:"target_id"`
-	Damage                     int        `json:"damage"`
-	DamageType                 string     `json:"damage_type"`
-	IgnoreHeal                 bool       `json:"ignore_heal,omitempty"`                  // 本次伤害是否不可被治疗抵御
-	CapDrawToHandLimit         bool       `json:"cap_draw_to_hand_limit,omitempty"`       // 本次伤害摸牌是否“最多摸到手牌上限”
-	AllowCrimsonFaithHeal      bool       `json:"allow_crimson_faith_heal,omitempty"`     // 红莲骑士[腥红信仰]是否可用治疗抵御本次自伤
-	EffectTypeToRemove         EffectType `json:"effect_type_to_remove,omitempty"`        // 伤害结算后需要移除的场上效果 (例如封印)
-	Card                       *Card      `json:"card,omitempty"`                         // 关联的卡牌 (用于攻击伤害判定)
-	Stage                      int        `json:"stage"`                                  // 处理阶段: 0=Init, 1=HitProcessed, 2=DamageProcessed
-	HealResolved               bool       `json:"heal_resolved"`                          // 是否已处理治疗选择
-	IsCounter                  bool       `json:"is_counter"`                             // 是否为应战攻击（命中加水晶而非宝石）
-	AttackHitResourceType      string     `json:"attack_hit_resource_type,omitempty"`     // 攻击命中后发放的战绩资源类型(gem/crystal)
-	AttackHitResourceGranted   bool       `json:"attack_hit_resource_granted,omitempty"`  // 是否已成功发放命中战绩资源
-	HeroRoarMissArmed          bool       `json:"hero_roar_miss_armed,omitempty"`         // 本次攻击是否携带怒吼未命中分支
-	FighterChargeMissArmed     bool       `json:"fighter_charge_miss_armed,omitempty"`    // 本次攻击是否携带蓄力一击未命中分支
-	AttackMissResolved         bool       `json:"attack_miss_resolved,omitempty"`         // 本次攻击是否已按未命中分支结算
-	SoulLinkChecked            bool       `json:"soul_link_checked,omitempty"`            // 灵魂链接“承伤前”是否已检查
-	FromSoulLink               bool       `json:"from_soul_link,omitempty"`               // 是否为灵魂链接转移产生的法术伤害
-	ButterflyPilgrimageChecked bool       `json:"butterfly_pilgrimage_checked,omitempty"` // 本次伤害是否已检查过朝圣
-	ButterflyStage5Checked     bool       `json:"butterfly_stage5_checked,omitempty"`     // 本次伤害是否已检查过毒粉/镜花水月
+	SourceID                  string                         `json:"source_id"`
+	TargetID                  string                         `json:"target_id"`
+	Damage                    int                            `json:"damage"`
+	DamageType                DamageType                     `json:"damage_type"`
+	OverflowMoraleLossFixed   int                            `json:"overflow_morale_loss_fixed,omitempty"` // 本次伤害摸牌若导致士气下降，则固定为该值
+	IgnoreHeal                bool                           `json:"ignore_heal,omitempty"`                // 本次伤害是否不可被治疗抵御
+	CapDrawToHandLimit        bool                           `json:"cap_draw_to_hand_limit,omitempty"`     // 本次伤害摸牌是否“最多摸到手牌上限”
+	AllowCrimsonFaithHeal     bool                           `json:"allow_crimson_faith_heal,omitempty"`   // 红莲骑士[腥红信仰]是否可用治疗抵御本次自伤
+	EffectTypeToRemove        EffectType                     `json:"effect_type_to_remove,omitempty"`      // 伤害结算后需要移除的场上效果 (例如封印)
+	SourceSkillID             string                         `json:"source_skill_id,omitempty"`            // 伤害来源技能ID（用于回合内追踪）
+	Card                      *Card                          `json:"card,omitempty"`                       // 关联的卡牌 (用于攻击伤害判定)
+	IgnoreShield              bool                           `json:"ignore_shield,omitempty"`              // 本次攻击伤害是否无视圣盾
+	InterceptTags             map[CombatInterceptTag]bool    `json:"intercept_tags,omitempty"`
+	AttackHitFlowDispatched   bool                           `json:"attack_hit_flow_dispatched,omitempty"`   // 本次攻击伤害是否已完成 OnAttackHit 分发
+	HealResolved              bool                           `json:"heal_resolved"`                          // 是否已处理治疗选择
+	DamageTakenFlowDispatched bool                           `json:"damage_taken_flow_dispatched,omitempty"` // 本次伤害是否已完成 OnDamageTaken 响应分发
+	IsCounter                 bool                           `json:"is_counter"`                             // 是否为应战攻击（命中加水晶而非宝石）
+	AttackHitResourceType     string                         `json:"attack_hit_resource_type,omitempty"`     // 攻击命中后发放的战绩资源类型(gem/crystal)
+	AttackHitResourceGranted  bool                           `json:"attack_hit_resource_granted,omitempty"`  // 是否已成功发放命中战绩资源
+	AttackPostHitEffectsDone  bool                           `json:"attack_post_hit_effects_done,omitempty"` // 命中后、承伤前的一次性后效是否已处理
+	Checks                    map[PendingDamageCheckKey]bool `json:"checks,omitempty"`                       // 伤害实例运行时检查位（按 key 标记一次性检查/来源属性）
 }
 
-// DeferredFollowup 代表一个待执行的技能后续结算。
-type DeferredFollowup struct {
-	Type      string                 `json:"type"`                 // 后续类型
-	UserID    string                 `json:"user_id"`              // 执行者ID
-	SkillID   string                 `json:"skill_id,omitempty"`   // 关联技能ID
-	TargetIDs []string               `json:"target_ids,omitempty"` // 关联目标ID列表
-	Data      map[string]interface{} `json:"data,omitempty"`       // 附加上下文
+type PendingDamageCheckKey string
+
+const (
+	PendingDamageCheckHeroRoarMissArmed      PendingDamageCheckKey = "hero_roar_miss_armed"
+	PendingDamageCheckFighterChargeMissArmed PendingDamageCheckKey = "fighter_charge_miss_armed"
+	PendingDamageCheckAttackMissResolved     PendingDamageCheckKey = "attack_miss_resolved"
+	PendingDamageCheckSoulLinkChecked        PendingDamageCheckKey = "soul_link_checked"
+	PendingDamageCheckFromSoulLink           PendingDamageCheckKey = "from_soul_link"
+	PendingDamageCheckBeforeApplyDefend      PendingDamageCheckKey = "before_apply_defend_checked"
+	PendingDamageCheckBeforeApplyResponse    PendingDamageCheckKey = "before_apply_response_checked"
+)
+
+func (pd *PendingDamage) HasCheck(key PendingDamageCheckKey) bool {
+	return pd != nil && pd.Checks != nil && pd.Checks[key]
+}
+
+func (pd *PendingDamage) SetCheck(key PendingDamageCheckKey, enabled bool) {
+	if pd == nil || key == "" {
+		return
+	}
+	if enabled {
+		if pd.Checks == nil {
+			pd.Checks = map[PendingDamageCheckKey]bool{}
+		}
+		pd.Checks[key] = true
+		return
+	}
+	if pd.Checks == nil {
+		return
+	}
+	delete(pd.Checks, key)
+	if len(pd.Checks) == 0 {
+		pd.Checks = nil
+	}
+}
+
+// FlowContinuationKind 流程边界类型（枚举，替代字符串 type）。
+type FlowContinuationKind string
+
+const (
+	FlowContinuationAfterDraw    FlowContinuationKind = "after_draw"
+	FlowContinuationAfterDamage  FlowContinuationKind = "after_damage"
+	FlowContinuationAfterDiscard FlowContinuationKind = "after_discard"
+)
+
+// FlowContinuation 流程边界恢复点（角色级）。
+type FlowContinuation struct {
+	Kind      FlowContinuationKind `json:"kind"`
+	RoleID    string               `json:"role_id"`
+	PlayerID  string               `json:"player_id"`
+	SkillID   string               `json:"skill_id,omitempty"`
+	TargetIDs []string             `json:"target_ids,omitempty"`
+	Data      map[string]any       `json:"data,omitempty"`
 }
 
 // PendingSkill 等待确认的可选技能
 type PendingSkill struct {
-	SkillID     string      `json:"skill_id"`
-	UserID      string      `json:"user_id"`
-	TargetID    string      `json:"target_id"`
-	TriggerType TriggerType `json:"trigger_type"`
+	SkillID  string     `json:"skill_id"`
+	UserID   string     `json:"user_id"`
+	TargetID string     `json:"target_id"`
+	Timing   FlowTiming `json:"timing,omitempty"`
 }
 
 // NewGameState creates a new game state
 func NewGameState() *GameState {
 	return &GameState{
-		Phase:       "",
+		TurnStage:   "",
+		CombatStage: CombatStageNone,
+		Subflow:     SubflowNone,
 		Players:     make(map[string]*Player),
 		PlayerOrder: []string{}, // Initialize
 		TurnOrder:   []string{},
@@ -259,48 +327,46 @@ func NewGameState() *GameState {
 		Deck:        make([]Card, 0),
 		DiscardPile: make([]Card, 0),
 
-		RedMorale:           15,
-		BlueMorale:          15,
-		RedCups:             0,
-		BlueCups:            0,
-		RedGems:             0,
-		BlueGems:            0,
-		RedCrystals:         0,
-		BlueCrystals:        0,
-		ActionStack:         []Action{},
-		PendingInterrupt:    nil, // No interrupt initially
-		ActionQueue:         []QueuedAction{},
-		CombatStack:         []CombatRequest{},
-		HasPerformedStartup: false,
-		MagicBulletChain:    nil,
-		PendingDamageQueue:  []PendingDamage{}, // 初始化延迟伤害队列
-		DeferredFollowups:   []DeferredFollowup{},
+		RedMorale:          15,
+		BlueMorale:         15,
+		RedCups:            0,
+		BlueCups:           0,
+		RedGems:            0,
+		BlueGems:           0,
+		RedCrystals:        0,
+		BlueCrystals:       0,
+		ActionStack:        []Action{},
+		PendingInterrupt:   nil, // No interrupt initially
+		ActionQueue:        []QueuedAction{},
+		CombatStack:        []CombatRequest{},
+		MagicBulletChain:   nil,
+		PendingDamageQueue: []PendingDamage{}, // 初始化延迟伤害队列
 	}
 }
 
-// MatchExclusive 检查卡牌是否匹配指定角色和独有技
-func (c Card) MatchExclusive(characterName, skillTitle string) bool {
-	if c.ExclusiveChar1 == characterName && c.ExclusiveSkill1 == skillTitle {
+// MatchExclusive 检查卡牌是否匹配指定角色 ID 与独有技名
+func (c Card) MatchExclusive(characterID, skillTitle string) bool {
+	if c.ExclusiveChar1 == characterID && c.ExclusiveSkill1 == skillTitle {
 		return true
 	}
-	if c.ExclusiveChar2 == characterName && c.ExclusiveSkill2 == skillTitle {
+	if c.ExclusiveChar2 == characterID && c.ExclusiveSkill2 == skillTitle {
 		return true
 	}
 	return false
 }
 
 // HasExclusiveCard 检查玩家是否持有指定技能对应的独有牌（优先专属卡区，其次手牌兼容旧逻辑）
-func (p *Player) HasExclusiveCard(characterName, skillTitle string) bool {
-	if p == nil || characterName == "" || skillTitle == "" {
+func (p *Player) HasExclusiveCard(characterID, skillTitle string) bool {
+	if p == nil || characterID == "" || skillTitle == "" {
 		return false
 	}
 	for _, c := range p.ExclusiveCards {
-		if c.MatchExclusive(characterName, skillTitle) {
+		if c.MatchExclusive(characterID, skillTitle) {
 			return true
 		}
 	}
 	for _, c := range p.Hand {
-		if c.MatchExclusive(characterName, skillTitle) {
+		if c.MatchExclusive(characterID, skillTitle) {
 			return true
 		}
 	}
@@ -309,19 +375,19 @@ func (p *Player) HasExclusiveCard(characterName, skillTitle string) bool {
 
 // ConsumeExclusiveCard 消耗指定技能对应的独有牌。
 // 优先从专属卡区消耗；若不存在则回退到手牌（兼容旧测试与历史流程）。
-func (p *Player) ConsumeExclusiveCard(characterName, skillTitle string) (Card, bool) {
-	if p == nil || characterName == "" || skillTitle == "" {
+func (p *Player) ConsumeExclusiveCard(characterID, skillTitle string) (Card, bool) {
+	if p == nil || characterID == "" || skillTitle == "" {
 		return Card{}, false
 	}
 	for i, c := range p.ExclusiveCards {
-		if !c.MatchExclusive(characterName, skillTitle) {
+		if !c.MatchExclusive(characterID, skillTitle) {
 			continue
 		}
 		p.ExclusiveCards = append(p.ExclusiveCards[:i], p.ExclusiveCards[i+1:]...)
 		return c, true
 	}
 	for i, c := range p.Hand {
-		if !c.MatchExclusive(characterName, skillTitle) {
+		if !c.MatchExclusive(characterID, skillTitle) {
 			continue
 		}
 		p.Hand = append(p.Hand[:i], p.Hand[i+1:]...)
@@ -369,10 +435,10 @@ func (p *Player) RemoveFieldCard(fc *FieldCard) {
 }
 
 // GetFieldEffects 获取指定触发时机的效果牌
-func (p *Player) GetFieldEffects(trigger EffectTrigger) []*FieldCard {
+func (p *Player) GetFieldEffects(hook FieldHook) []*FieldCard {
 	var effects []*FieldCard
 	for _, fc := range p.Field {
-		if fc.Mode == FieldEffect && fc.Trigger == trigger {
+		if fc.Mode == FieldEffect && fc.Hook == hook {
 			effects = append(effects, fc)
 		}
 	}
@@ -386,6 +452,21 @@ func (p *Player) GetCoverCards() []*FieldCard {
 		if fc.Mode == FieldCover {
 			covers = append(covers, fc)
 		}
+	}
+	return covers
+}
+
+// GetCoverCardsByEffect 获取指定效果类型的盖牌。
+func (p *Player) GetCoverCardsByEffect(effect EffectType) []*FieldCard {
+	if p == nil {
+		return nil
+	}
+	var covers []*FieldCard
+	for _, fc := range p.Field {
+		if fc == nil || fc.Mode != FieldCover || fc.Effect != effect {
+			continue
+		}
+		covers = append(covers, fc)
 	}
 	return covers
 }
@@ -423,14 +504,16 @@ const (
 	FieldCover  FieldCardMode = "Cover"  // 盖牌：作为资源/条件
 )
 
-// EffectTrigger 定义效果触发时机
-type EffectTrigger string
+// FieldHook 场上效果牌在何时参与结算（与技能 FlowTiming 无关）
+type FieldHook string
 
 const (
-	EffectTriggerOnAttack    EffectTrigger = "OnAttack"    // 攻击时触发
-	EffectTriggerOnDamaged   EffectTrigger = "OnDamaged"   // 受到伤害时触发
-	EffectTriggerOnTurnStart EffectTrigger = "OnTurnStart" // 回合开始时触发
-	EffectTriggerManual      EffectTrigger = "Manual"      // 被技能点名时触发
+	FieldHookOnAttack               FieldHook = "OnAttack"               // 攻击时结算
+	FieldHookOnDamaged              FieldHook = "OnDamaged"              // 受到伤害时结算
+	FieldHookOnTurnStart            FieldHook = "OnTurnStart"            // 回合开始时结算
+	FieldHookOnBeforeAction         FieldHook = "OnBeforeAction"         // 行动阶段开始前结算
+	FieldHookOnCardPlayedOrRevealed FieldHook = "OnCardPlayedOrRevealed" // 打出或展示卡牌时结算
+	FieldHookManual                 FieldHook = "Manual"                 // 由技能逻辑显式调用
 )
 
 // EffectType 定义效果类型
@@ -450,7 +533,6 @@ const (
 	EffectPowerBlessing    EffectType = "PowerBlessing"    // 威力赐福
 	EffectSwiftBlessing    EffectType = "SwiftBlessing"    // 迅捷赐福
 	EffectMercy            EffectType = "Mercy"            // 怜悯
-	EffectStealth          EffectType = "Stealth"          // 潜行
 	// 魔弓“充能”使用的盖牌效果标识（Mode=Cover）。
 	EffectMagicBowCharge EffectType = "MagicBowCharge"
 	// 灵符师“妖力”使用的盖牌效果标识（Mode=Cover）。
@@ -459,6 +541,8 @@ const (
 	EffectBardEternalMovement EffectType = "BardEternalMovement"
 	// 勇者“挑衅”场上效果标识（Mode=Effect）。
 	EffectHeroTaunt EffectType = "HeroTaunt"
+	// 剑帝“剑魂”盖牌效果标识（Mode=Cover）。
+	EffectSwordSoul EffectType = "SwordSoul"
 	// 灵魂术士“灵魂链接”场上效果标识（Mode=Effect）。
 	EffectSoulLink EffectType = "SoulLink"
 	// 月之女神“暗月”盖牌效果标识（Mode=Cover）。
@@ -467,18 +551,21 @@ const (
 	EffectBloodSharedLife EffectType = "BloodSharedLife"
 	// 蝶舞者“茧”盖牌效果标识（Mode=Cover）。
 	EffectButterflyCocoon EffectType = "ButterflyCocoon"
+	// 精灵射手“祝福区”盖牌效果标识（Mode=Cover，可按手牌方式打出）。
+	EffectElfBlessing EffectType = "ElfBlessing"
 )
 
 // FieldCard 表示场上放置的卡牌
 type FieldCard struct {
-	Card     Card          `json:"card"`      // 原始卡牌
-	OwnerID  string        `json:"owner_id"`  // 牌当前在哪个玩家面前
-	SourceID string        `json:"source_id"` // 谁放的牌
-	Mode     FieldCardMode `json:"mode"`      // 效果牌还是盖牌
-	Effect   EffectType    `json:"effect"`    // 仅Effect模式下有意义
-	Trigger  EffectTrigger `json:"trigger"`   // 触发时机
-	Locked   bool          `json:"locked"`    // 是否锁定
-	Duration int           `json:"duration"`  // 持续回合数 (-1为永久)
+	Card     Card              `json:"card"`           // 原始卡牌
+	OwnerID  string            `json:"owner_id"`       // 牌当前在哪个玩家面前
+	SourceID string            `json:"source_id"`      // 谁放的牌
+	Mode     FieldCardMode     `json:"mode"`           // 效果牌还是盖牌
+	Effect   EffectType        `json:"effect"`         // 仅Effect模式下有意义
+	Hook     FieldHook         `json:"field_hook"`     // 结算钩子
+	Locked   bool              `json:"locked"`         // 是否锁定
+	Duration int               `json:"duration"`       // 持续回合数 (-1为永久)
+	Meta     map[string]string `json:"meta,omitempty"` // 状态运行时元数据（如绑定元素）
 }
 
 func IsBasicEffect(name string) bool {

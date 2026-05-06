@@ -15,7 +15,7 @@ func TestFullGame3v3_AllRolesCoverage(t *testing.T) {
 	}
 
 	lineups := buildCoverageLineups(roleIDs, autoGamePlayers)
-	globalTriggeredSkills := make(map[string]int)
+	globalObservedSkillCounts := make(map[string]int)
 	globalExpectedActionSkills := make(map[string]struct{})
 
 	for idx, lineup := range lineups {
@@ -28,7 +28,7 @@ func TestFullGame3v3_AllRolesCoverage(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			mergeTriggered(globalTriggeredSkills, result.triggeredSkills)
+			mergeSkillCountMaps(globalObservedSkillCounts, result.skillBatch)
 			mergeSkillSet(globalExpectedActionSkills, result.expectedActionSkills)
 		})
 	}
@@ -37,10 +37,10 @@ func TestFullGame3v3_AllRolesCoverage(t *testing.T) {
 		t.Fatalf("no action skills discovered from role definitions")
 	}
 
-	triggeredActionSkills, totalActions, coverageRatio := coverageStats(globalExpectedActionSkills, globalTriggeredSkills)
-	t.Logf("aggressive action-skill coverage: %d/%d (%.2f)", triggeredActionSkills, totalActions, coverageRatio)
-	if top := topTriggeredActionSkills(globalExpectedActionSkills, globalTriggeredSkills, 10); len(top) > 0 {
-		t.Logf("top triggered action skills: %s", strings.Join(top, ", "))
+	activatedActionSkills, totalActions, coverageRatio := coverageStats(globalExpectedActionSkills, globalObservedSkillCounts)
+	t.Logf("aggressive action-skill coverage: %d/%d (%.2f)", activatedActionSkills, totalActions, coverageRatio)
+	if top := topObservedActionSkills(globalExpectedActionSkills, globalObservedSkillCounts, 10); len(top) > 0 {
+		t.Logf("top activated action skills: %s", strings.Join(top, ", "))
 	}
 
 	minCoverage := 0.30
@@ -50,10 +50,10 @@ func TestFullGame3v3_AllRolesCoverage(t *testing.T) {
 		minCoverage = 0.28
 	}
 	if coverageRatio < minCoverage {
-		missing := missingSkillList(globalExpectedActionSkills, globalTriggeredSkills)
+		missing := missingSkillList(globalExpectedActionSkills, globalObservedSkillCounts)
 		t.Fatalf(
 			"aggressive coverage too low: %d/%d (%.2f < %.2f), missing=%v",
-			triggeredActionSkills,
+			activatedActionSkills,
 			totalActions,
 			coverageRatio,
 			minCoverage,

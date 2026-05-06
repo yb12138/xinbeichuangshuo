@@ -52,7 +52,9 @@ func TestBotAutoRespondsInCombat(t *testing.T) {
 	}
 
 	state.CurrentTurn = turnIdx
-	state.Phase = model.PhaseActionSelection
+	state.TurnStage = model.TurnStageActionExecution
+	state.Subflow = model.SubflowNone
+	state.CombatStage = model.CombatStageNone
 	for pid, p := range state.Players {
 		p.IsActive = pid == human.PlayerID
 	}
@@ -81,15 +83,18 @@ func TestBotAutoRespondsInCombat(t *testing.T) {
 	deadline := time.Now().Add(3 * time.Second)
 	for {
 		room.engineMu.Lock()
-		phase := room.Engine.State.Phase
+		combatStage := room.Engine.State.CombatStage
+		subflow := room.Engine.State.Subflow
 		combatDepth := len(room.Engine.State.CombatStack)
 		room.engineMu.Unlock()
 
-		if phase != model.PhaseCombatInteraction || combatDepth == 0 {
+		inCombatInteraction := subflow == model.SubflowNone &&
+			(combatStage == model.CombatStageDeclare || combatStage == model.CombatStageHitCheck)
+		if !inCombatInteraction || combatDepth == 0 {
 			break
 		}
 		if time.Now().After(deadline) {
-			t.Fatalf("bot did not respond in time, phase=%s combatDepth=%d", phase, combatDepth)
+			t.Fatalf("bot did not respond in time, combat_stage=%s subflow=%s combatDepth=%d", combatStage, subflow, combatDepth)
 		}
 		time.Sleep(30 * time.Millisecond)
 	}
@@ -126,7 +131,9 @@ func TestRunBotTurnIgnoresStaleCombatPrompt(t *testing.T) {
 	// 当前是行动选择，不是战斗响应阶段。
 	room.engineMu.Lock()
 	state := room.Engine.State
-	state.Phase = model.PhaseActionSelection
+	state.TurnStage = model.TurnStageActionExecution
+	state.Subflow = model.SubflowNone
+	state.CombatStage = model.CombatStageNone
 	state.CombatStack = nil
 	state.Players[bot.PlayerID].Hand = []model.Card{
 		{
@@ -199,7 +206,8 @@ func TestPromptActionableForMagicMissileInterrupt(t *testing.T) {
 	}
 
 	room.engineMu.Lock()
-	room.Engine.State.Phase = model.PhaseResponse
+	room.Engine.State.Subflow = model.SubflowResponse
+	room.Engine.State.TurnStage = ""
 	room.Engine.State.CombatStack = nil
 	room.Engine.State.PendingInterrupt = &model.Interrupt{
 		Type:     model.InterruptMagicMissile,

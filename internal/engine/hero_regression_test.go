@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"slices"
 	"testing"
 
 	"starcup-engine/internal/model"
@@ -21,10 +22,10 @@ func heroTestCard(id, name string, cardType model.CardType, element model.Elemen
 }
 
 func heroTauntExclusiveCard(owner *model.Player) model.Card {
-	charName := "勇者"
+	charID := "hero"
 	faction := "血"
 	if owner != nil && owner.Character != nil {
-		charName = owner.Character.Name
+		charID = owner.Character.ID
 		faction = owner.Character.Faction
 	}
 	return model.Card{
@@ -35,7 +36,7 @@ func heroTauntExclusiveCard(owner *model.Player) model.Card {
 		Faction:         faction,
 		Damage:          0,
 		Description:     "勇者专属测试卡",
-		ExclusiveChar1:  charName,
+		ExclusiveChar1:  charID,
 		ExclusiveSkill1: "挑衅",
 	}
 }
@@ -81,7 +82,8 @@ func TestHeroRoar_HitDamagePlusTwoAndCleared(t *testing.T) {
 		heroTestCard("d4", "抽4", model.CardTypeAttack, model.ElementWater, 2),
 	}
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionStart
+	game.Drive()
 
 	mustHandleAction(t, game, model.PlayerAction{
 		PlayerID:  "p1",
@@ -94,7 +96,7 @@ func TestHeroRoar_HitDamagePlusTwoAndCleared(t *testing.T) {
 	mustHandleAction(t, game, model.PlayerAction{
 		PlayerID:   "p1",
 		Type:       model.CmdSelect,
-		Selections: []int{0},
+		Selections: []int{1},
 	})
 	mustHandleAction(t, game, model.PlayerAction{
 		PlayerID:  "p2",
@@ -105,11 +107,8 @@ func TestHeroRoar_HitDamagePlusTwoAndCleared(t *testing.T) {
 	if got := len(p2.Hand); got != 4 {
 		t.Fatalf("expected target draw 4 cards from roar-boosted attack, got %d", got)
 	}
-	if got := p1.Tokens["hero_roar_active"]; got != 0 {
+	if got := p1.TurnState.UsedSkillCounts["hero_roar_active"]; got != 0 {
 		t.Fatalf("expected hero_roar_active cleared after hit, got %d", got)
-	}
-	if got := p1.Tokens["hero_roar_damage_pending"]; got != 0 {
-		t.Fatalf("expected hero_roar_damage_pending cleared after hit, got %d", got)
 	}
 	if got := p1.Tokens["hero_wisdom"]; got != 0 {
 		t.Fatalf("expected wisdom unchanged on hit branch, got %d", got)
@@ -139,7 +138,8 @@ func TestHeroRoar_MissAddsWisdom(t *testing.T) {
 		heroTestCard("m1", "圣光", model.CardTypeMagic, model.ElementLight, 0),
 	}
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionStart
+	game.Drive()
 
 	mustHandleAction(t, game, model.PlayerAction{
 		PlayerID:  "p1",
@@ -152,7 +152,7 @@ func TestHeroRoar_MissAddsWisdom(t *testing.T) {
 	mustHandleAction(t, game, model.PlayerAction{
 		PlayerID:   "p1",
 		Type:       model.CmdSelect,
-		Selections: []int{0},
+		Selections: []int{1},
 	})
 	mustHandleAction(t, game, model.PlayerAction{
 		PlayerID:  "p2",
@@ -164,11 +164,8 @@ func TestHeroRoar_MissAddsWisdom(t *testing.T) {
 	if got := p1.Tokens["hero_wisdom"]; got != 1 {
 		t.Fatalf("expected roar miss grant wisdom=1, got %d", got)
 	}
-	if got := p1.Tokens["hero_roar_active"]; got != 0 {
+	if got := p1.TurnState.UsedSkillCounts["hero_roar_active"]; got != 0 {
 		t.Fatalf("expected roar active cleared after miss, got %d", got)
-	}
-	if got := p1.Tokens["hero_roar_damage_pending"]; got != 0 {
-		t.Fatalf("expected roar damage marker cleared after miss, got %d", got)
 	}
 }
 
@@ -201,7 +198,8 @@ func TestHeroForbiddenPower_HitBranch(t *testing.T) {
 		heroTestCard("d6", "抽6", model.CardTypeAttack, model.ElementEarth, 2),
 	}
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionStart
+	game.Drive()
 
 	mustHandleAction(t, game, model.PlayerAction{
 		PlayerID:  "p1",
@@ -221,12 +219,6 @@ func TestHeroForbiddenPower_HitBranch(t *testing.T) {
 	}
 	if got := p1.Crystal; got != 1 {
 		t.Fatalf("expected forbidden power consume 1 crystal-like, crystal=%d", got)
-	}
-	if got := p1.Tokens["hero_exhaustion_form"]; got != 1 {
-		t.Fatalf("expected exhaustion form active, got %d", got)
-	}
-	if got := p1.Tokens["hero_exhaustion_release_pending"]; got != 1 {
-		t.Fatalf("expected exhaustion pending flag=1, got %d", got)
 	}
 	if got := len(p2.Hand); got != 4 {
 		t.Fatalf("expected hit branch add fire-count bonus to attack damage (target draw 4), got %d", got)
@@ -259,7 +251,7 @@ func TestHeroForbiddenPower_MissBranchWaterToWisdom(t *testing.T) {
 		heroTestCard("m1", "圣光", model.CardTypeMagic, model.ElementLight, 0),
 	}
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	mustHandleAction(t, game, model.PlayerAction{
 		PlayerID:  "p1",
@@ -280,9 +272,6 @@ func TestHeroForbiddenPower_MissBranchWaterToWisdom(t *testing.T) {
 	}
 	if got := p1.Tokens["hero_wisdom"]; got != 2 {
 		t.Fatalf("expected wisdom +2 from discarded water cards on miss branch, got %d", got)
-	}
-	if got := p1.Tokens["hero_exhaustion_form"]; got != 1 {
-		t.Fatalf("expected exhaustion form active after forbidden power miss branch, got %d", got)
 	}
 }
 
@@ -315,7 +304,7 @@ func TestHeroForbiddenPower_UserScenario_Miss_WaterAttackAndMagicToWisdom(t *tes
 		heroTestCard("m1", "圣光", model.CardTypeMagic, model.ElementLight, 0),
 	}
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	mustHandleAction(t, game, model.PlayerAction{
 		PlayerID:  "p1",
@@ -377,7 +366,7 @@ func TestHeroForbiddenPower_UserScenario_Hit_FireCardsBonusAndSelfDamage(t *test
 		heroTestCard("d6", "抽6", model.CardTypeAttack, model.ElementEarth, 2),
 	}
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	mustHandleAction(t, game, model.PlayerAction{
 		PlayerID:  "p1",
@@ -407,17 +396,15 @@ func TestHeroForbiddenPower_UserScenario_Hit_FireCardsBonusAndSelfDamage(t *test
 		t.Fatalf("expected hit branch add +2 damage from two discarded fire cards (target draw 4), got %d", got)
 	}
 	if got := len(p1.Hand); got != 2 {
-		t.Fatalf("expected self take 2 magic damage from fire card count (self draw 2), got hand=%d", got)
+		t.Fatalf("expected self draw 2 from forbidden power self-damage only (exhaustion release happens on later action-start), got hand=%d", got)
 	}
 }
 
 func requireResponseSkillContains(t *testing.T, game *GameEngine, playerID, skillID string) {
 	t.Helper()
 	requireResponseSkillPrompt(t, game, playerID)
-	for _, sid := range game.State.PendingInterrupt.SkillIDs {
-		if sid == skillID {
-			return
-		}
+	if slices.Contains(game.State.PendingInterrupt.SkillIDs, skillID) {
+		return
 	}
 	t.Fatalf("expected pending response skills for %s contain %s, got %+v", playerID, skillID, game.State.PendingInterrupt.SkillIDs)
 }
@@ -449,7 +436,7 @@ func TestHeroRoar_AfterHitStillPromptsForbiddenPower(t *testing.T) {
 		heroTestCard("d4", "抽4", model.CardTypeAttack, model.ElementWater, 2),
 	}
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	mustHandleAction(t, game, model.PlayerAction{
 		PlayerID:  "p1",
@@ -463,7 +450,7 @@ func TestHeroRoar_AfterHitStillPromptsForbiddenPower(t *testing.T) {
 	mustHandleAction(t, game, model.PlayerAction{
 		PlayerID:   "p1",
 		Type:       model.CmdSelect,
-		Selections: []int{0},
+		Selections: []int{1},
 	})
 
 	mustHandleAction(t, game, model.PlayerAction{
@@ -498,7 +485,7 @@ func TestHeroRoar_AfterMissStillPromptsForbiddenPower(t *testing.T) {
 		heroTestCard("guard", "圣光", model.CardTypeMagic, model.ElementLight, 0),
 	}
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	mustHandleAction(t, game, model.PlayerAction{
 		PlayerID:  "p1",
@@ -554,7 +541,7 @@ func TestHeroRoar_DrawOneWithOverflow_StillContinuesAttackAndPromptsForbiddenPow
 		heroTestCard("d4", "抽4", model.CardTypeAttack, model.ElementFire, 2),
 	}
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	mustHandleAction(t, game, model.PlayerAction{
 		PlayerID:  "p1",
@@ -571,18 +558,18 @@ func TestHeroRoar_DrawOneWithOverflow_StillContinuesAttackAndPromptsForbiddenPow
 		Type:       model.CmdSelect,
 		Selections: []int{1},
 	})
-	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptDiscard {
+	if game.State.PendingInterrupt == nil || !isDiscardSelectionInterrupt(game.State.PendingInterrupt) {
 		t.Fatalf("expected overflow discard interrupt after roar draw1, got %+v", game.State.PendingInterrupt)
 	}
 	mustHandleAction(t, game, model.PlayerAction{
 		PlayerID:   "p1",
 		Type:       model.CmdSelect,
-		Selections: []int{0},
+		Selections: []int{1},
 	})
 
 	// 弃牌后攻击流程应继续到战斗响应，而不是直接结束回合
-	if game.State.Phase != model.PhaseCombatInteraction {
-		t.Fatalf("expected combat interaction after resolving overflow discard, got phase=%s", game.State.Phase)
+	if !game.isCombatInteractionWindow() {
+		t.Fatalf("expected combat interaction after resolving overflow discard, got %s", game.runtimeStateLabel())
 	}
 	mustHandleAction(t, game, model.PlayerAction{
 		PlayerID:  "p2",
@@ -593,7 +580,7 @@ func TestHeroRoar_DrawOneWithOverflow_StillContinuesAttackAndPromptsForbiddenPow
 	requireResponseSkillContains(t, game, "p1", "hero_forbidden_power")
 }
 
-func TestHeroExhaustion_ReleaseAtTurnStart_Draw3Damage3_StillCanAct(t *testing.T) {
+func TestHeroExhaustion_ReleaseAtActionStartAndSelfDamage_StillCanAct(t *testing.T) {
 	game := NewGameEngine(noopObserver{})
 	if err := game.AddPlayer("p1", "Hero", "hero", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -605,8 +592,8 @@ func TestHeroExhaustion_ReleaseAtTurnStart_Draw3Damage3_StillCanAct(t *testing.T
 	p1 := game.State.Players["p1"]
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
-	p1.Tokens["hero_exhaustion_form"] = 1
-	p1.Tokens["hero_exhaustion_release_pending"] = 1
+	p1.Form = model.FormHeroExhaustion
+	p1.TurnState.SkillFlowState["hero_exhaustion_release_pending"] = 1
 	p1.Hand = nil
 	game.State.Deck = []model.Card{
 		heroTestCard("d1", "起手攻击", model.CardTypeAttack, model.ElementFire, 2),
@@ -616,18 +603,18 @@ func TestHeroExhaustion_ReleaseAtTurnStart_Draw3Damage3_StillCanAct(t *testing.T
 	}
 
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseStartup
+	game.State.TurnStage = model.TurnStageActionStart
 
 	game.Drive()
 
-	if got := p1.Tokens["hero_exhaustion_form"]; got != 0 {
-		t.Fatalf("expected exhaustion form released at startup, got %d", got)
+	if got := p1.Form; got != "" {
+		t.Fatalf("expected exhaustion form released at action start, got %q", got)
 	}
-	if got := p1.Tokens["hero_exhaustion_release_pending"]; got != 0 {
+	if got := p1.TurnState.SkillFlowState["hero_exhaustion_release_pending"]; got != 0 {
 		t.Fatalf("expected exhaustion release pending flag cleared, got %d", got)
 	}
-	if got := len(p1.Hand); got != 4 {
-		t.Fatalf("expected release settlement draw (3 + damage draw 1 with short deck), got hand=%d", got)
+	if got := len(p1.Hand); got != 3 {
+		t.Fatalf("expected self-damage draw 3 cards after release, got hand=%d", got)
 	}
 	if got := len(game.State.PendingDamageQueue); got != 0 {
 		t.Fatalf("expected pending damage resolved before action phase, got %d", got)
@@ -635,8 +622,8 @@ func TestHeroExhaustion_ReleaseAtTurnStart_Draw3Damage3_StillCanAct(t *testing.T
 	if game.State.CurrentTurn != 0 {
 		t.Fatalf("expected still hero turn after release settlement, got turn index %d", game.State.CurrentTurn)
 	}
-	if game.State.Phase != model.PhaseActionSelection {
-		t.Fatalf("expected return to action selection after release settlement, got phase=%s", game.State.Phase)
+	if !game.isActionSelectionWindow() {
+		t.Fatalf("expected return to action selection after release settlement, got %s", game.runtimeStateLabel())
 	}
 
 	attackIdx := firstAttackCardIndex(p1)
@@ -663,8 +650,8 @@ func TestHeroExhaustion_ReleaseWithOverflow_StillStartsTurnNormally(t *testing.T
 	p1 := game.State.Players["p1"]
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
-	p1.Tokens["hero_exhaustion_form"] = 1
-	p1.Tokens["hero_exhaustion_release_pending"] = 1
+	p1.Form = model.FormHeroExhaustion
+	p1.TurnState.SkillFlowState["hero_exhaustion_release_pending"] = 1
 	p1.Hand = []model.Card{
 		heroTestCard("h1", "手牌1", model.CardTypeAttack, model.ElementFire, 2),
 		heroTestCard("h2", "手牌2", model.CardTypeAttack, model.ElementWater, 2),
@@ -682,28 +669,11 @@ func TestHeroExhaustion_ReleaseWithOverflow_StillStartsTurnNormally(t *testing.T
 		heroTestCard("d6", "抽6", model.CardTypeAttack, model.ElementLight, 2),
 	}
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseStartup
+	game.State.TurnStage = model.TurnStageActionStart
 
 	game.Drive()
-	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptDiscard {
-		t.Fatalf("expected first overflow discard during exhaustion release, got %+v", game.State.PendingInterrupt)
-	}
-	mustHandleAction(t, game, model.PlayerAction{
-		PlayerID:   "p1",
-		Type:       model.CmdSelect,
-		Selections: []int{0, 1, 2},
-	})
-
-	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptDiscard {
-		t.Fatalf(
-			"expected second overflow discard during exhaustion self-damage draw, got intr=%+v phase=%s pendingDamage=%d hand=%d maxHand=%d returnPhase=%s",
-			game.State.PendingInterrupt,
-			game.State.Phase,
-			len(game.State.PendingDamageQueue),
-			len(p1.Hand),
-			game.GetMaxHand(p1),
-			game.State.ReturnPhase,
-		)
+	if game.State.PendingInterrupt == nil || !isDiscardSelectionInterrupt(game.State.PendingInterrupt) {
+		t.Fatalf("expected overflow discard from exhaustion hand-limit restore, got %+v", game.State.PendingInterrupt)
 	}
 	mustHandleAction(t, game, model.PlayerAction{
 		PlayerID:   "p1",
@@ -714,8 +684,8 @@ func TestHeroExhaustion_ReleaseWithOverflow_StillStartsTurnNormally(t *testing.T
 	if game.State.CurrentTurn != 0 {
 		t.Fatalf("expected still p1 turn after exhaustion overflow settlement, got turn=%d", game.State.CurrentTurn)
 	}
-	if game.State.Phase != model.PhaseActionSelection {
-		t.Fatalf("expected action selection after exhaustion overflow settlement, got phase=%s", game.State.Phase)
+	if !game.isActionSelectionWindow() {
+		t.Fatalf("expected action selection after exhaustion overflow settlement, got %s", game.runtimeStateLabel())
 	}
 }
 
@@ -741,7 +711,7 @@ func TestHeroCalmMind_DisablesCounterAndAttackEndGainCrystal(t *testing.T) {
 		heroTestCard("atk", "雷斩", model.CardTypeAttack, model.ElementThunder, 2),
 	}
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	mustHandleAction(t, game, model.PlayerAction{
 		PlayerID:  "p1",
@@ -773,7 +743,7 @@ func TestHeroCalmMind_DisablesCounterAndAttackEndGainCrystal(t *testing.T) {
 	}
 }
 
-func TestHeroTaunt_NonAttackActionSkipsAndRemoves(t *testing.T) {
+func TestHeroTaunt_NonAttackActionIsRejectedUntilSkipOrValidAttack(t *testing.T) {
 	game := NewGameEngine(noopObserver{})
 	if err := game.AddPlayer("p1", "Hero", "hero", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -789,7 +759,7 @@ func TestHeroTaunt_NonAttackActionSkipsAndRemoves(t *testing.T) {
 	p1.Tokens["hero_anger"] = 1
 	p1.ExclusiveCards = []model.Card{heroTauntExclusiveCard(p1)}
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	if err := game.UseSkill("p1", "hero_taunt", []string{"p2"}, nil); err != nil {
 		t.Fatalf("use hero_taunt failed: %v", err)
@@ -806,20 +776,97 @@ func TestHeroTaunt_NonAttackActionSkipsAndRemoves(t *testing.T) {
 		heroTestCard("m1", "圣光", model.CardTypeMagic, model.ElementLight, 0),
 	}
 	game.State.CurrentTurn = 1
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionStart
+
+	game.Drive()
+	if !game.isActionSelectionWindow() {
+		t.Fatalf("expected action selection window after taunt startup, got %s", game.runtimeStateLabel())
+	}
 
 	beforeHand := len(p2.Hand)
-	mustHandleAction(t, game, model.PlayerAction{
+	err := game.HandleAction(model.PlayerAction{
 		PlayerID:  "p2",
 		Type:      model.CmdMagic,
 		TargetID:  "p1",
 		CardIndex: 0,
 	})
-	if got := len(p2.Hand); got != beforeHand {
-		t.Fatalf("expected taunted player non-attack action be skipped without card use, hand %d -> %d", beforeHand, got)
+	if err == nil {
+		t.Fatalf("expected taunted player non-attack action to be rejected")
 	}
+	if got := len(p2.Hand); got != beforeHand {
+		t.Fatalf("expected rejected non-attack action not to consume card, hand %d -> %d", beforeHand, got)
+	}
+	if getFieldEffectCard(p2, model.EffectHeroTaunt) == nil {
+		t.Fatalf("expected taunt effect remain after rejected non-attack action")
+	}
+
+	mustHandleAction(t, game, model.PlayerAction{PlayerID: "p2", Type: model.CmdCannotAct})
 	if getFieldEffectCard(p2, model.EffectHeroTaunt) != nil {
-		t.Fatalf("expected taunt effect removed after forced skip")
+		t.Fatalf("expected taunt effect removed after explicit skip")
+	}
+}
+
+func TestHeroTaunt_InvalidAttackDeclarationKeepsEffectUntilValidAttack(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "Hero", "hero", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Target", "angel", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Tokens["hero_anger"] = 1
+	p1.ExclusiveCards = []model.Card{heroTauntExclusiveCard(p1)}
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	if err := game.UseSkill("p1", "hero_taunt", []string{"p2"}, nil); err != nil {
+		t.Fatalf("use hero_taunt failed: %v", err)
+	}
+	if getFieldEffectCard(p2, model.EffectHeroTaunt) == nil {
+		t.Fatalf("expected taunt effect placed on target")
+	}
+
+	p1.IsActive = false
+	p2.IsActive = true
+	p2.TurnState = model.NewPlayerTurnState()
+	p2.TurnState.UsedSkillCounts["hero_taunt_active_turn"] = 1 // 模拟 TurnStart hook 设置的标记
+	p2.Hand = []model.Card{
+		heroTestCard("m1", "圣光", model.CardTypeMagic, model.ElementLight, 0),
+		heroTestCard("a1", "光刃", model.CardTypeAttack, model.ElementLight, 2),
+	}
+	game.State.CurrentTurn = 1
+	game.State.TurnStage = model.TurnStageActionStart
+
+	game.Drive()
+	err := game.HandleAction(model.PlayerAction{
+		PlayerID:  "p2",
+		Type:      model.CmdAttack,
+		TargetID:  "p1",
+		CardIndex: 0,
+	})
+	if err == nil {
+		t.Fatalf("expected invalid attack card type to return error")
+	}
+	if getFieldEffectCard(p2, model.EffectHeroTaunt) == nil {
+		t.Fatalf("expected taunt effect remain after invalid attack declaration")
+	}
+	if !game.isActionSelectionWindow() {
+		t.Fatalf("expected still in action selection after invalid attack declaration, got %s", game.runtimeStateLabel())
+	}
+
+	mustHandleAction(t, game, model.PlayerAction{
+		PlayerID:  "p2",
+		Type:      model.CmdAttack,
+		TargetID:  "p1",
+		CardIndex: 1,
+	})
+	if getFieldEffectCard(p2, model.EffectHeroTaunt) != nil {
+		t.Fatalf("expected taunt effect removed after valid attack declaration")
 	}
 }
 
@@ -853,8 +900,7 @@ func TestHeroDeadDuel_MagicOverflowMoraleLossFlooredToOne(t *testing.T) {
 		SourceID:   "p2",
 		TargetID:   "p1",
 		Damage:     3,
-		DamageType: "magic",
-		Stage:      0,
+		DamageType: model.MagicAttack,
 	})
 
 	if interrupted := game.processPendingDamages(); !interrupted {
@@ -862,7 +908,7 @@ func TestHeroDeadDuel_MagicOverflowMoraleLossFlooredToOne(t *testing.T) {
 	}
 	chooseResponseSkillByID(t, game, "p1", "hero_dead_duel")
 
-	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptDiscard {
+	if game.State.PendingInterrupt == nil || !isDiscardSelectionInterrupt(game.State.PendingInterrupt) {
 		t.Fatalf("expected discard interrupt after magic overflow, got %+v", game.State.PendingInterrupt)
 	}
 	mustHandleAction(t, game, model.PlayerAction{

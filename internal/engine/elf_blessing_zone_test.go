@@ -3,7 +3,8 @@ package engine
 import (
 	"testing"
 
-	"starcup-engine/internal/engine/skills"
+	elfarcher "starcup-engine/internal/engine/player/elf_archer"
+	"starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/rules"
 )
@@ -26,7 +27,7 @@ func buildElfBlessingGame(t *testing.T) *GameEngine {
 	}
 
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 	game.State.PlayerOrder = []string{"p1", "p2"}
 
 	p1 := game.State.Players["p1"]
@@ -36,6 +37,17 @@ func buildElfBlessingGame(t *testing.T) *GameEngine {
 	return game
 }
 
+// markElfBlessings adds cards as elf blessing field covers for testing.
+func markElfBlessings(p *model.Player, cards []model.Card) {
+	for _, c := range cards {
+		p.Field = append(p.Field, &model.FieldCard{
+			Mode:   model.FieldCover,
+			Effect: model.EffectElfBlessing,
+			Card:   c,
+		})
+		p.CharaZone = append(p.CharaZone, "elf_blessing:"+c.ID)
+	}
+}
 func TestElfRitualStoresBlessingsOutsideHand(t *testing.T) {
 	game := buildElfBlessingGame(t)
 	p1 := game.State.Players["p1"]
@@ -70,17 +82,17 @@ func TestElfRitualStoresBlessingsOutsideHand(t *testing.T) {
 	if got := len(p1.Hand); got != beforeHand {
 		t.Fatalf("ritual should not change normal hand size, got=%d want=%d", got, beforeHand)
 	}
-	if got := len(p1.Blessings); got != 3 {
+	if got := elfarcher.CountBlessings(p1); got != 3 {
 		t.Fatalf("ritual should create 3 blessings, got=%d", got)
 	}
 	if game.State.PendingInterrupt != nil {
-		t.Fatalf("ritual draw should not trigger overflow discard interrupt")
+		t.Fatalf("ritual draw should not dispatch overflow discard interrupt")
 	}
 	if p1.Gem != 0 {
 		t.Fatalf("ritual should consume 1 gem, got=%d", p1.Gem)
 	}
-	if p1.Tokens["elf_ritual_form"] != 1 {
-		t.Fatalf("elf_ritual_form token should be 1, got=%d", p1.Tokens["elf_ritual_form"])
+	if p1.Form != model.FormElfArcherRitual {
+		t.Fatalf("elf ritual should enter Player.Form, got=%q", p1.Form)
 	}
 }
 
@@ -89,10 +101,9 @@ func TestElfBlessingCanBePlayedAsMagic(t *testing.T) {
 	p1 := game.State.Players["p1"]
 
 	p1.Hand = nil
-	p1.Blessings = []model.Card{
+	markElfBlessings(p1, []model.Card{
 		{ID: "bless-magic", Name: "圣盾", Type: model.CardTypeMagic, Element: model.ElementLight, Damage: 0},
-	}
-	syncElfBlessings(p1)
+	})
 
 	if err := game.HandleAction(model.PlayerAction{
 		PlayerID:  "p1",
@@ -103,7 +114,7 @@ func TestElfBlessingCanBePlayedAsMagic(t *testing.T) {
 		t.Fatalf("magic with blessing should succeed: %v", err)
 	}
 
-	if got := len(p1.Blessings); got != 0 {
+	if got := elfarcher.CountBlessings(p1); got != 0 {
 		t.Fatalf("blessing should be consumed after play, got=%d", got)
 	}
 	if p1.HasFieldEffect(model.EffectShield) == false {
@@ -119,11 +130,10 @@ func TestElfBlessingCanBePlayedAsAttack(t *testing.T) {
 	p1 := game.State.Players["p1"]
 
 	p1.Hand = nil
-	p1.Blessings = []model.Card{
+	markElfBlessings(p1, []model.Card{
 		// 使用暗系避免触发「元素射击」中断，聚焦验证“祝福可作为攻击牌打出”。
 		{ID: "bless-attack", Name: "祝福之刃", Type: model.CardTypeAttack, Element: model.ElementDark, Damage: 1},
-	}
-	syncElfBlessings(p1)
+	})
 
 	if err := game.HandleAction(model.PlayerAction{
 		PlayerID:  "p1",
@@ -136,7 +146,7 @@ func TestElfBlessingCanBePlayedAsAttack(t *testing.T) {
 
 	game.Drive()
 
-	if got := len(p1.Blessings); got != 0 {
+	if got := elfarcher.CountBlessings(p1); got != 0 {
 		t.Fatalf("blessing should be consumed after attack, got=%d", got)
 	}
 	if got := len(game.State.CombatStack); got != 1 {
@@ -164,7 +174,7 @@ func TestElfRitualStartupConfirmShouldNotLeaveOverflowDiscard(t *testing.T) {
 		{ID: "h6", Name: "手牌6", Type: model.CardTypeMagic, Element: model.ElementLight, Damage: 0},
 	}
 
-	startupCtx := game.buildContext(p1, nil, model.TriggerOnTurnStart, &model.EventContext{
+	startupCtx := game.buildContext(p1, nil, model.TimingOnTurnStart, &model.EventContext{
 		Type:     model.EventTurnStart,
 		SourceID: p1.ID,
 	})
@@ -174,7 +184,7 @@ func TestElfRitualStartupConfirmShouldNotLeaveOverflowDiscard(t *testing.T) {
 		SkillIDs: []string{"elf_ritual"},
 		Context:  startupCtx,
 	}
-	game.State.Phase = model.PhaseStartup
+	game.State.TurnStage = model.TurnStageActionStart
 
 	if err := game.ConfirmStartupSkill(p1.ID, "elf_ritual"); err != nil {
 		t.Fatalf("confirm startup ritual failed: %v", err)
@@ -183,14 +193,14 @@ func TestElfRitualStartupConfirmShouldNotLeaveOverflowDiscard(t *testing.T) {
 	if got := len(p1.Hand); got != 6 {
 		t.Fatalf("ritual startup confirm should keep normal hand size 6, got=%d", got)
 	}
-	if got := len(p1.Blessings); got != 3 {
+	if got := elfarcher.CountBlessings(p1); got != 3 {
 		t.Fatalf("ritual startup confirm should create 3 blessings, got=%d", got)
 	}
-	if game.State.PendingInterrupt != nil && game.State.PendingInterrupt.Type == model.InterruptDiscard {
+	if game.State.PendingInterrupt != nil && isDiscardSelectionInterrupt(game.State.PendingInterrupt) {
 		t.Fatalf("should not leave pending discard interrupt after ritual")
 	}
 	for _, intr := range game.State.InterruptQueue {
-		if intr != nil && intr.Type == model.InterruptDiscard && intr.PlayerID == p1.ID {
+		if intr != nil && isDiscardSelectionInterrupt(intr) && intr.PlayerID == p1.ID {
 			t.Fatalf("should not keep queued discard interrupt for ritual player")
 		}
 	}

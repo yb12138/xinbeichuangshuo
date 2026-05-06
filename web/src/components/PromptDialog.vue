@@ -1,23 +1,44 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { useGameStore } from '../stores/gameStore'
-import { useWebSocket } from '../composables/useWebSocket'
+import { useInterruptStore } from '../stores/interrupt.store'
+import { useSessionStore } from '../stores/session.store'
+import { useSnapshotStore } from '../stores/snapshot.store'
+import { useSubmitAction } from '../composables/useSubmitAction'
+import { useBattleInteractionState } from '../composables/useBattleInteractionState'
+import { ROLE_NAME_MAP } from '../constants/roleNameMap'
+import type { PlayerView } from '../types/game'
 
-const store = useGameStore()
-const ws = useWebSocket()
+const interruptStore = useInterruptStore()
+const sessionStore = useSessionStore()
+const snapshotStore = useSnapshotStore()
+const actions = useSubmitAction()
+const { myPlayableCards } = useBattleInteractionState()
 
-const prompt = computed(() => store.currentPrompt)
+const prompt = computed(() => interruptStore.currentPrompt)
+const myPlayerId = computed(() => sessionStore.myPlayerId)
+const playerViews = computed(() => snapshotStore.players)
+const myHand = computed(() => playerViews.value[myPlayerId.value]?.hand || [])
+
+function getRoleDisplayName(roleId?: string): string {
+  if (!roleId) return '未知角色'
+  return snapshotStore.characters[roleId]?.name || ROLE_NAME_MAP[roleId] || '未知角色'
+}
+
+function showPromptError(message: string) {
+  interruptStore.showError(message)
+}
 
 // 行动选择（攻击/法术/购买/提取/合成）不在这里显示，由 ActionPanel 承载
 const isActionSelectionPrompt = computed(() => {
   if (!prompt.value) return false
   if (prompt.value.ui_mode === 'action_hub') return true
   if (!prompt.value.message) return false
-  return prompt.value.message.includes('行动类型')
+  // 仅识别主流程“请选择行动类型”，避免把“请选择额外行动类型”误判并隐藏内联提示。
+  return String(prompt.value.message).includes('请选择行动类型')
 })
 
 const isVisible = computed(() =>
-  prompt.value !== null && store.isPromptForMe && !isActionSelectionPrompt.value
+  prompt.value !== null && prompt.value.player_id === myPlayerId.value && !isActionSelectionPrompt.value
 )
 
 const selectedExtractIndices = ref<number[]>([])
@@ -25,7 +46,7 @@ const selectedInlineCardOptionIndices = ref<number[]>([])
 const autoResolvedPromptKey = ref('')
 
 watch(() => prompt.value, () => {
-  store.setPromptCounterTarget('')
+  interruptStore.setPromptCounterTarget('')
   selectedExtractIndices.value = []
   selectedInlineCardOptionIndices.value = []
   if (!prompt.value) {
@@ -37,12 +58,14 @@ type ResponseOptionKind = 'take' | 'counter' | 'defend' | null
 
 function responseOptionKind(option: { id?: string; label?: string; button_label?: string }): ResponseOptionKind {
   const id = String(option.id || '').trim().toLowerCase()
+  // 魔弹掌控方向选择不是战斗应答（take/defend/counter），避免被“传递”关键词误判为应战。
+  if (id === 'normal' || id === 'reverse') return null
   const label = String(option.label || '').trim()
   const buttonLabel = String(option.button_label || '').trim()
   const text = `${label} ${buttonLabel}`.toLowerCase()
   if (id === 'take' || id === 'take_damage' || text.includes('承受') || text.includes('命中')) return 'take'
   if (id === 'defend' || text.includes('防御')) return 'defend'
-  if (id === 'counter' || text.includes('应战') || text.includes('传递')) return 'counter'
+  if (id === 'counter' || text.includes('应战')) return 'counter'
   return null
 }
 
@@ -61,13 +84,58 @@ const hasCounterOrDefend = computed(() => {
   return hasCounterOption.value || hasDefendOption.value
 })
 
+const responsePromptUnrespondable = computed(() => {
+  if (!prompt.value || !hasCounterOrDefend.value) return false
+  const effectHints = Array.isArray(prompt.value.effect_hints) ? prompt.value.effect_hints : []
+  return effectHints.some((hint) => String(hint || '').includes('无法应战'))
+})
+
+function promptAttackElementName(raw: string): string {
+  const lower = String(raw || '').trim().toLowerCase()
+  if (lower === 'water') return '水系'
+  if (lower === 'fire') return '火系'
+  if (lower === 'earth') return '地系'
+  if (lower === 'wind') return '风系'
+  if (lower === 'thunder') return '雷系'
+  if (lower === 'light') return '光系'
+  if (lower === 'dark') return '暗灭'
+  return String(raw || '').trim()
+}
+
+const responseAttackElementHintText = computed(() => {
+  if (!prompt.value || !hasCounterOrDefend.value) return ''
+  const attackElement = String(prompt.value.attack_element || '').trim()
+  if (!attackElement) return ''
+  const displayName = promptAttackElementName(attackElement)
+  if (!displayName) return ''
+  if (responsePromptUnrespondable.value || !hasCounterOption.value) return `此次攻击系别：${displayName}（无法应战）`
+  if (hasCounterOption.value) return `此次攻击系别：${displayName}（应战需同系或暗灭）`
+  return `此次攻击系别：${displayName}`
+})
+
+const isDarkAttackResponsePrompt = computed(() => {
+  if (!prompt.value || !hasCounterOrDefend.value) return false
+  return String(prompt.value.attack_element || '').trim().toLowerCase() === 'dark'
+})
+
 const isMagicMissilePrompt = computed(() => {
   const msg = prompt.value?.message ?? ''
   return msg.includes('魔弹')
 })
 
+const isPlagueDeathTouchElementPrompt = computed(() =>
+  prompt.value?.choice_type === 'plague_death_touch_element'
+)
+
+const isElfElementalShotRemoveBlessingPrompt = computed(() =>
+  prompt.value?.choice_type === 'elf_elemental_shot_remove_blessing'
+)
+
 const needsCardSelection = computed(() => {
   if (!prompt.value) return false
+  if (isElfElementalShotRemoveBlessingPrompt.value) return true
+  if (isPlagueDeathTouchElementPrompt.value) return true
+  if (promptHasHandCardOptions.value) return true
   if (prompt.value.type === 'choose_card' || prompt.value.type === 'choose_cards') return true
   if (hasCounterOrDefend.value) return true
   return false
@@ -91,6 +159,10 @@ const isConfirmType = computed(() => {
 
 const isExtractPrompt = computed(() => prompt.value?.type === 'choose_extract')
 
+const NON_HAND_INDEXED_PROMPT_CHOICE_TYPES = new Set([
+  'elf_elemental_shot_remove_blessing',
+])
+
 function toggleExtractOption(index: number) {
   const idx = selectedExtractIndices.value.indexOf(index)
   if (idx >= 0) {
@@ -109,30 +181,30 @@ function confirmExtractSelection() {
   const max = prompt.value?.max ?? 2
   const sel = selectedExtractIndices.value
   if (sel.length < min || sel.length > max) return
-  ws.select(sel)
+  actions.submitSelect(sel)
 }
 
 function resolveOptionPlayerId(option: { id: string; label: string }): string | null {
-  if (store.players[option.id]) return option.id
+  if (playerViews.value[option.id]) return option.id
   const label = String(option.label || '')
   if (!label) return null
   const lowLabel = label.toLowerCase()
 
   const markersFor = (playerId: string): string[] => {
-    const p = store.players[playerId]
+    const p = playerViews.value[playerId]
     if (!p) return []
     const markers = new Set<string>()
     if (p.id) markers.add(p.id)
     if (p.name) markers.add(p.name)
     if (p.role) {
       markers.add(p.role)
-      const roleName = store.getRoleDisplayName(p.role)
+      const roleName = getRoleDisplayName(p.role)
       if (roleName && roleName !== '未知角色') markers.add(roleName)
     }
     return [...markers]
   }
 
-  const matched = Object.values(store.players).filter((p) => {
+  const matched = Object.values(playerViews.value).filter((p) => {
     const markers = markersFor(p.id)
     return markers.some((marker) => {
       const token = marker.trim().toLowerCase()
@@ -150,11 +222,11 @@ const playerOptionEntries = computed(() => {
     .map((option, index) => {
       const playerId = resolveOptionPlayerId(option)
       if (!playerId) return null
-      const player = store.players[playerId]
+      const player = playerViews.value[playerId]
       if (!player) return null
       return { index, option, player }
     })
-    .filter((entry): entry is { index: number; option: { id: string; label: string }; player: NonNullable<typeof store.players[string]> } => entry != null)
+    .filter((entry): entry is { index: number; option: { id: string; label: string }; player: PlayerView } => entry != null)
 })
 
 const playerOptionIndexSet = computed(() => {
@@ -190,74 +262,96 @@ const isResponseSkillConfirmPrompt = computed(() => {
   return /是否发动【.+】/.test(message) || /【.+】是否发动/.test(message)
 })
 
+function isActivationCostText(raw: string): boolean {
+  const text = String(raw || '').replace(/\s+/g, '')
+  if (!text) return false
+  return text.includes('发动') && /(弃|弃置|移除|消耗|支付)/.test(text)
+}
+
+function isPromptActivationCostCancelable(p: NonNullable<typeof prompt.value>): boolean {
+  const choiceType = String(p.choice_type || '').trim()
+  // 发动前置消耗：允许玩家取消并回到原流程。
+  if (choiceType === 'elf_elemental_shot_cost') return true
+  if (choiceType === 'plague_death_touch_element' || choiceType === 'plague_death_touch_cards') return true
+  return false
+}
+
 const canCancelPrompt = computed(() => {
   if (!prompt.value) return false
+  if (isPromptActivationCostCancelable(prompt.value)) return true
   if (prompt.value.type === 'choose_skill' || isResponseSkillConfirmPrompt.value) return true
-  return (prompt.value.options ?? []).some((option: { id: string }) => option.id === 'skip' || option.id === 'cancel')
+  return (prompt.value.options ?? []).some((option: { id: string }) =>
+    option.id === 'skip' || option.id === 'cancel' || option.id === 'refuse'
+  )
 })
 
 function handleOptionClick(optionId: string) {
   if (optionId === 'counter_disabled') {
-    store.setError('此攻击无法应战')
+    showPromptError('此攻击无法应战')
     return
   }
   if (prompt.value?.type === 'choose_skill') {
     const idx = prompt.value.options.findIndex((o: { id: string }) => o.id === optionId)
     if (idx >= 0) {
-      ws.select([idx])
+      actions.submitSelect([idx])
     } else {
       if (!canCancelPrompt.value) {
-        store.setError('当前步骤不可取消，请先完成本次操作')
+        showPromptError('当前步骤不可取消，请先完成本次操作')
         return
       }
-      ws.cancel()
+      actions.submitCancel()
     }
     return
   }
   if (optionId === 'skip' || optionId === 'cancel') {
     if (!canCancelPrompt.value) {
-      store.setError('当前步骤不可取消，请先完成本次操作')
+      showPromptError('当前步骤不可取消，请先完成本次操作')
       return
     }
-    ws.cancel()
+    actions.submitCancel()
+    return
+  }
+  if (optionId === 'refuse') {
+    // 魔爆冲击“不弃牌”是规则内显式选项，直接走 Cancel 语义。
+    actions.submitCancel()
     return
   }
   if (optionId === 'confirm') {
-    ws.confirm()
+    actions.submitConfirm()
     return
   }
   // 魔弹融合等确认选项：yes=0, no=1
   if (optionId === 'yes' || optionId === 'no') {
-    ws.select([optionId === 'yes' ? 0 : 1])
+    actions.submitSelect([optionId === 'yes' ? 0 : 1])
     return
   }
   // 魔弹掌控方向选择：normal=0, reverse=1
   if (optionId === 'normal' || optionId === 'reverse') {
-    ws.select([optionId === 'normal' ? 0 : 1])
+    actions.submitSelect([optionId === 'normal' ? 0 : 1])
     return
   }
   if (optionId === 'take') {
-    ws.respond('take')
+    actions.submitRespondTake()
     return
   }
   if (optionId === 'counter') {
-    if (store.selectedCards.length === 0) {
-      store.setError(isMagicMissilePrompt.value ? '请先选择一张【魔弹】进行传递' : '请先选择一张攻击牌进行应战')
+    if (interruptStore.selectedCards.length === 0) {
+      showPromptError(isMagicMissilePrompt.value ? '请先选择一张【魔弹】进行传递' : '请先选择一张攻击牌进行应战')
       return
     }
-    if (needsCounterTargetSelection.value && !store.promptCounterTarget) {
-      store.setError('请先选择反弹目标（攻击方的队友）')
+    if (needsCounterTargetSelection.value && !interruptStore.promptCounterTarget) {
+      showPromptError('请先选择反弹目标（攻击方的队友）')
       return
     }
-    ws.respond('counter', store.selectedCards[0], store.promptCounterTarget || undefined)
+    if (!actions.submitRespondCounter(isMagicMissilePrompt.value)) return
     return
   }
   if (optionId === 'defend') {
-    if (store.selectedCards.length === 0) {
-      store.setError('请先选择一张【圣光】进行防御（圣盾需提前放置）')
+    if (interruptStore.selectedCards.length === 0) {
+      showPromptError('请先选择一张【圣光】进行防御（圣盾需提前放置）')
       return
     }
-    ws.respond('defend', store.selectedCards[0])
+    if (!actions.submitRespondDefend()) return
     return
   }
   if (isNonHandChooseCardsMultiMode.value && isNonHandChooseCardOption(optionId)) {
@@ -267,14 +361,14 @@ function handleOptionClick(optionId: string) {
   {
     const optionIndex = prompt.value?.options?.findIndex((o: { id: string }) => o.id === optionId) ?? -1
     if (optionIndex >= 0) {
-      ws.select([optionIndex])
+      actions.submitSelect([optionIndex])
     } else {
       const index = parseInt(optionId, 10)
       if (!Number.isNaN(index)) {
-        ws.select([index])
+        actions.submitSelect([index])
       } else {
-        ws.sendAction({
-          player_id: store.myPlayerId,
+        actions.submitAction({
+          player_id: myPlayerId.value,
           type: 'Select',
           skill_id: optionId
         })
@@ -283,16 +377,76 @@ function handleOptionClick(optionId: string) {
   }
 }
 
+function normalizeElementToken(raw: string): string {
+  const text = String(raw || '').trim().toLowerCase()
+  if (!text) return ''
+  if (text.includes('water') || text.includes('水')) return 'Water'
+  if (text.includes('fire') || text.includes('火')) return 'Fire'
+  if (text.includes('earth') || text.includes('地')) return 'Earth'
+  if (text.includes('wind') || text.includes('风')) return 'Wind'
+  if (text.includes('thunder') || text.includes('雷')) return 'Thunder'
+  if (text.includes('light') || text.includes('光')) return 'Light'
+  if (text.includes('dark') || text.includes('暗')) return 'Dark'
+  return ''
+}
+
+function resolvePlagueDeathTouchElementOptionIndex(): number | null {
+  if (!isPlagueDeathTouchElementPrompt.value || !prompt.value) return null
+  if (interruptStore.selectedCards.length <= 0) return null
+  const selectedIndex = interruptStore.selectedCards[0]
+  if (selectedIndex == null || selectedIndex < 0 || selectedIndex >= myHand.value.length) return null
+  const selectedCard = myHand.value[selectedIndex]
+  if (!selectedCard?.element) return null
+
+  const targetElement = selectedCard.element
+  for (let i = 0; i < prompt.value.options.length; i++) {
+    const option = prompt.value.options[i]
+    if (!option) continue
+    const optionElement = normalizeElementToken(`${option.label || ''} ${option.button_label || ''}`) || normalizeElementToken(option.id || '')
+    if (optionElement && optionElement === targetElement) return i
+  }
+  return null
+}
+
+function resolveElfBlessingSelectionIndices(): number[] {
+  if (!prompt.value || !isElfElementalShotRemoveBlessingPrompt.value) return []
+  const optionIds = new Set((prompt.value.options || []).map((option) => String(option.id || '')))
+  const blessingCount = myPlayableCards.value.filter((item) => item.source === 'blessing').length
+  const mapped = interruptStore.selectedCards
+    .map((playableIndex) => {
+      const playable = myPlayableCards.value.find((item) => item.index === playableIndex)
+      if (!playable || playable.source !== 'blessing') return null
+      const blessingIndex = playableIndex - myHand.value.length
+      if (blessingIndex < 0 || blessingIndex >= blessingCount) return null
+      if (optionIds.size > 0 && !optionIds.has(String(blessingIndex))) return null
+      return blessingIndex
+    })
+    .filter((idx): idx is number => idx !== null)
+  return [...new Set(mapped)]
+}
+
 const canConfirmPrompt = computed(() => {
   if (!prompt.value) return false
+  if (isElfElementalShotRemoveBlessingPrompt.value) {
+    const mapped = resolveElfBlessingSelectionIndices()
+    if (mapped.length !== interruptStore.selectedCards.length) return false
+    return mapped.length >= prompt.value.min && mapped.length <= prompt.value.max
+  }
+  if (isPlagueDeathTouchElementPrompt.value) {
+    return resolvePlagueDeathTouchElementOptionIndex() !== null
+  }
+  if (promptHasHandCardOptions.value) {
+    const cCount = interruptStore.selectedCards.length
+    return cCount >= prompt.value.min && cCount <= prompt.value.max
+  }
   if (prompt.value.type === 'choose_target') {
-    const tCount = store.selectedTargets.length
+    const tCount = interruptStore.selectedTargets.length
     return tCount >= prompt.value.min && tCount <= prompt.value.max
   }
   if (prompt.value.type === 'choose_card' || prompt.value.type === 'choose_cards') {
     const cCount = isNonHandChooseCardsMultiMode.value
       ? selectedInlineCardOptionIndices.value.length
-      : store.selectedCards.length
+      : interruptStore.selectedCards.length
     return cCount >= prompt.value.min && cCount <= prompt.value.max
   }
   return true
@@ -301,18 +455,36 @@ const canConfirmPrompt = computed(() => {
 function confirmPromptAction() {
   if (!canConfirmPrompt.value) return
 
-  if (prompt.value?.type === 'choose_target' && store.selectedTargets.length > 0) {
-    if (store.selectedTargets.length === 1) {
-      ws.sendAction({
-        player_id: store.myPlayerId,
-        type: 'Select',
-        target_id: store.selectedTargets[0]
-      })
+  if (isElfElementalShotRemoveBlessingPrompt.value) {
+    const mapped = resolveElfBlessingSelectionIndices()
+    if (mapped.length <= 0) {
+      showPromptError('请先在扩展区选择要移除的祝福牌')
+      return
+    }
+    actions.submitSelect(mapped)
+    return
+  }
+
+  if (isPlagueDeathTouchElementPrompt.value) {
+    const optionIndex = resolvePlagueDeathTouchElementOptionIndex()
+    if (optionIndex === null) {
+      showPromptError('请先在手牌区选择可用于死亡之触的同系牌')
+      return
+    }
+    actions.submitSelect([optionIndex])
+    return
+  }
+
+  if (prompt.value?.type === 'choose_target' && interruptStore.selectedTargets.length > 0) {
+    if (interruptStore.selectedTargets.length === 1) {
+      const targetId = interruptStore.selectedTargets[0]
+      if (!targetId) return
+      actions.submitPromptTarget(targetId)
     } else {
-      ws.sendAction({
-        player_id: store.myPlayerId,
+      actions.submitAction({
+        player_id: myPlayerId.value,
         type: 'Select',
-        target_ids: store.selectedTargets
+        target_ids: interruptStore.selectedTargets
       })
     }
     return
@@ -320,9 +492,9 @@ function confirmPromptAction() {
 
   const indices = isNonHandChooseCardsMultiMode.value
     ? selectedInlineCardOptionIndices.value
-    : store.selectedCards
+    : interruptStore.selectedCards
   if (indices.length > 0) {
-    ws.select(indices)
+    actions.submitSelect(indices)
   }
 }
 
@@ -335,9 +507,18 @@ function parsePromptCardIndex(optionId: string): number | null {
 }
 
 function parseHandIndexFromOptionLabel(label: string): number | null {
-  const matched = String(label || '').trim().match(/^(\d+)\s*:/)
-  if (!matched) return null
-  const displayIndex = Number.parseInt(matched[1] || '', 10)
+  const text = String(label || '').trim()
+  let displayIndex: number | null = null
+  const prefixed = text.match(/^(\d+)\s*[:：]/)
+  if (prefixed) {
+    displayIndex = Number.parseInt(prefixed[1] || '', 10)
+  } else {
+    const nth = text.match(/第\s*(\d+)\s*张\s*[:：]/)
+    if (nth) {
+      displayIndex = Number.parseInt(nth[1] || '', 10)
+    }
+  }
+  if (displayIndex === null) return null
   if (!Number.isFinite(displayIndex) || displayIndex <= 0) return null
   return displayIndex - 1
 }
@@ -355,8 +536,10 @@ function isIndexedCocoonOption(option: { label?: string }): boolean {
 }
 
 function isPromptHandCardOption(option: { id: string; label: string }): boolean {
+  const choiceType = String(prompt.value?.choice_type || '').trim()
+  if (NON_HAND_INDEXED_PROMPT_CHOICE_TYPES.has(choiceType)) return false
   const idx = parsePromptCardIndex(option.id)
-  if (idx === null || idx < 0 || idx >= store.myHand.length) return false
+  if (idx === null || idx < 0 || idx >= myHand.value.length) return false
   const labelIndex = parseHandIndexFromOptionLabel(option.label)
   return labelIndex === idx
 }
@@ -371,6 +554,8 @@ const promptCardOptionIndexSet = computed(() => {
   }
   return set
 })
+
+const promptHasHandCardOptions = computed(() => promptCardOptionIndexSet.value.size > 0)
 
 const hasIndexedCocoonOptions = computed(() => {
   if (!prompt.value?.options?.length) return false
@@ -447,14 +632,23 @@ type SkillPromptButton = {
   cancel: boolean
 }
 
-type PromptImageButtonKind = 'take' | 'counter' | 'defend' | 'cancel' | 'confirm'
+type FraudElementCardOption = {
+  id: string
+  title: string
+  glyph: string
+  tone: string
+}
+
+type PromptImageButtonKind = 'take' | 'counter' | 'defend' | 'cancel' | 'confirm' | 'card' | 'action'
 
 const PROMPT_IMAGE_BUTTON_CANDIDATES: Record<PromptImageButtonKind, string[]> = {
   take: ['/assets/ui/prompt_btn_take.png'],
   counter: ['/assets/ui/prompt_btn_counter.png'],
   defend: ['/assets/ui/prompt_btn_defend.png'],
-  cancel: ['/assets/ui/prompt_btn_cancel.png'],
-  confirm: ['/assets/ui/prompt_btn_confirm.png'],
+  cancel: ['/assets/ui/action_cancel_btn.png'],
+  confirm: ['/assets/ui/action_confirm.png'],
+  card: ['/assets/ui/action_card.png'],
+  action: ['/assets/ui/action_special_btn.png'],
 }
 
 const promptImageButtonIndex = ref<Record<PromptImageButtonKind, number>>({
@@ -463,6 +657,8 @@ const promptImageButtonIndex = ref<Record<PromptImageButtonKind, number>>({
   defend: 0,
   cancel: 0,
   confirm: 0,
+  card: 0,
+  action: 0,
 })
 
 const promptImageButtonFailed = ref<Record<PromptImageButtonKind, boolean>>({
@@ -471,6 +667,8 @@ const promptImageButtonFailed = ref<Record<PromptImageButtonKind, boolean>>({
   defend: false,
   cancel: false,
   confirm: false,
+  card: false,
+  action: false,
 })
 
 const optionButtonLabelById: Record<string, string> = {
@@ -482,13 +680,14 @@ const optionButtonLabelById: Record<string, string> = {
   take: '命中',
   counter: '应战',
   defend: '防御',
-  normal: '顺序',
-  reverse: '反向',
+  normal: '顺时针',
+  reverse: '逆时针',
+  refuse: '不弃牌',
   cannot_act: '取消',
   pass: '取消',
 }
 
-const plainNoHintButtons = new Set(['发动', '确认', '确定', '是', '取消', '应战', '防御', '命中', '顺序', '反向'])
+const plainNoHintButtons = new Set(['发动', '确认', '确定', '是', '取消', '不弃牌', '应战', '防御', '命中', '顺序', '反向'])
 
 function parseNonNegativeOptionId(optionId: string): number | null {
   const normalized = String(optionId || '').trim()
@@ -520,7 +719,14 @@ function shouldUseNumericButtonMode(options: RawDockOption[]): { useNumeric: boo
 
 function isDeclineLabel(label: string): boolean {
   const text = String(label || '').trim()
-  return text.includes('不发动') || text.includes('放弃') || text.includes('跳过') || text.includes('无法行动') || text.includes('拒绝') || text.includes('取消')
+  if (!text) return false
+  const compact = text.replace(/\s+/g, '')
+  const lower = compact.toLowerCase()
+  if (compact.includes('不发动') || compact.includes('无法行动') || compact.includes('不弃牌')) return true
+  if (compact.startsWith('放弃') || compact.startsWith('跳过') || compact.startsWith('拒绝')) return true
+  if (compact === '取消' || compact.startsWith('取消并') || compact.startsWith('取消本次') || compact.startsWith('取消行动')) return true
+  if (lower === 'cancel' || lower === 'pass' || lower === 'skip' || lower === 'refuse') return true
+  return false
 }
 
 function isConfirmLikeLabel(label: string): boolean {
@@ -531,10 +737,21 @@ function isConfirmLikeLabel(label: string): boolean {
   return false
 }
 
-function promptImageButtonKindByOption(option: { id?: string; label?: string; buttonLabel?: string }): PromptImageButtonKind | null {
+function isCardSelectionLikeText(text: string): boolean {
+  const normalized = String(text || '').trim()
+  if (!normalized) return false
+  if (/^\d+\s*[:：]/.test(normalized)) return true
+  if (/第\d+张\s*[:：]/.test(normalized)) return true
+  if (/^茧\[\d+\]\s*[:：]/.test(normalized)) return true
+  if (/^移除茧\[\d+\]\s*[:：]/.test(normalized)) return true
+  return false
+}
+
+function promptImageButtonKindByOption(option: { id?: string; label?: string; buttonLabel?: string; hint?: string }): PromptImageButtonKind {
   const id = String(option.id || '').trim().toLowerCase()
   const label = String(option.label || '').trim()
   const buttonLabel = String(option.buttonLabel || '').trim()
+  const hint = String(option.hint || '').trim()
   const combinedText = `${label} ${buttonLabel}`
   const hasExplicitResponseText =
     combinedText.includes('命中') ||
@@ -542,15 +759,26 @@ function promptImageButtonKindByOption(option: { id?: string; label?: string; bu
     combinedText.includes('防御') ||
     combinedText.includes('应战') ||
     combinedText.includes('传递')
+  if (isCardSelectionLikeText(label) || isCardSelectionLikeText(buttonLabel)) {
+    return 'card'
+  }
   if ((isConfirmLikeLabel(buttonLabel) || isConfirmLikeLabel(label)) && !hasExplicitResponseText) {
     return 'confirm'
   }
   const responseKind = responseOptionKind({ id, label, button_label: buttonLabel })
   if (responseKind) return responseKind
+  if (
+    (isActivationCostText(hint) || isActivationCostText(label) || isActivationCostText(buttonLabel)) &&
+    !isDeclineLabel(hint) &&
+    !isDeclineLabel(label) &&
+    !isDeclineLabel(buttonLabel)
+  ) {
+    return 'confirm'
+  }
   if (id === 'confirm' || id === 'yes') return 'confirm'
   if (id === 'skip' || id === 'cancel' || id === 'no' || id === 'pass' || id === 'cannot_act') return 'cancel'
   if (buttonLabel === '取消' || isDeclineLabel(buttonLabel) || isDeclineLabel(label)) return 'cancel'
-  return null
+  return 'action'
 }
 
 function promptImageButtonAsset(kind: PromptImageButtonKind): string {
@@ -573,12 +801,14 @@ function onPromptImageButtonError(kind: PromptImageButtonKind) {
   promptImageButtonFailed.value[kind] = true
 }
 
-function promptImageButtonFallbackText(kind: PromptImageButtonKind | null): string {
+function promptImageButtonFallbackText(kind: PromptImageButtonKind | null, buttonLabel: string = ''): string {
   if (kind === 'take') return '命'
   if (kind === 'defend') return '防'
   if (kind === 'counter') return '应'
   if (kind === 'cancel') return '消'
   if (kind === 'confirm') return '确'
+  if (kind === 'card') return '牌'
+  if (kind === 'action') return buttonLabel ? buttonLabel.charAt(0) : '动'
   return ''
 }
 
@@ -587,7 +817,8 @@ function dockButtonImageKind(option: DockButtonOption): PromptImageButtonKind | 
   return promptImageButtonKindByOption({
     id: option.id,
     label: option.label,
-    buttonLabel: option.buttonLabel
+    buttonLabel: option.buttonLabel,
+    hint: option.hint
   })
 }
 
@@ -613,7 +844,7 @@ function onDockButtonImageError(option: DockButtonOption) {
 }
 
 function dockButtonFallbackText(option: DockButtonOption): string {
-  return promptImageButtonFallbackText(dockButtonImageKind(option))
+  return promptImageButtonFallbackText(dockButtonImageKind(option), option.buttonLabel)
 }
 
 function isPromptConfirmImageReady(): boolean {
@@ -654,7 +885,7 @@ function normalizeButtonLabel(rawLabel: string, optionId: string, optionLabel: s
   if (responseKind === 'take' || lowerId === 'take' || lowerId === 'take_damage' || text.includes('承受') || text.includes('命中')) {
     return '命中'
   }
-  if (responseKind === 'counter' || lowerId === 'counter' || text.includes('应战') || text.includes('传递')) {
+  if (responseKind === 'counter' || lowerId === 'counter' || text.includes('应战')) {
     return '应战'
   }
   if (responseKind === 'defend' || lowerId === 'defend' || text.includes('防御')) {
@@ -663,6 +894,7 @@ function normalizeButtonLabel(rawLabel: string, optionId: string, optionLabel: s
   if (
     lowerId === 'cancel' ||
     lowerId === 'skip' ||
+    lowerId === 'refuse' ||
     lowerId === 'no' ||
     lowerId === 'pass' ||
     lowerId === 'cannot_act' ||
@@ -697,6 +929,9 @@ function normalizeDockOption(option: RawDockOption, useNumeric: boolean, plusOne
       buttonLabel = String(plusOne ? n + 1 : n)
     }
   }
+  if (!buttonLabel && isCardSelectionLikeText(label)) {
+    buttonLabel = '打出卡牌'
+  }
   if (!buttonLabel && isDeclineLabel(label)) {
     buttonLabel = '取消'
   }
@@ -709,8 +944,15 @@ function normalizeDockOption(option: RawDockOption, useNumeric: boolean, plusOne
   if (!buttonLabel && responseKind === 'counter') {
     buttonLabel = '应战'
   }
+  if (!buttonLabel && (isActivationCostText(hint) || isActivationCostText(label) || isActivationCostText(String(prompt.value?.message || '')))) {
+    buttonLabel = '确认'
+  }
   if (!buttonLabel) {
-    buttonLabel = label && label.length <= 6 ? label : '执行'
+    if (prompt.value?.type === 'confirm') {
+      buttonLabel = '确认'
+    } else {
+      buttonLabel = label && label.length <= 6 ? label : '执行'
+    }
   }
 
   if (responseOptionKind({ id, label, button_label: buttonLabel }) !== null) {
@@ -738,6 +980,47 @@ function buildDockButtons(options: RawDockOption[]): DockButtonOption[] {
   const mode = shouldUseNumericButtonMode(options)
   return options.map((option) => normalizeDockOption(option, mode.useNumeric, mode.plusOne))
 }
+
+const fraudElementCardMetaById: Record<string, Omit<FraudElementCardOption, 'id' | 'title'>> = {
+  water: { glyph: '水', tone: 'prompt-fraud-card--water' },
+  fire: { glyph: '火', tone: 'prompt-fraud-card--fire' },
+  earth: { glyph: '地', tone: 'prompt-fraud-card--earth' },
+  wind: { glyph: '风', tone: 'prompt-fraud-card--wind' },
+  thunder: { glyph: '雷', tone: 'prompt-fraud-card--thunder' },
+}
+
+function fraudAttackCardName(optionId: string, fallback: string): string {
+  const lower = String(optionId || '').trim().toLowerCase()
+  if (lower === 'water') return '水涟斩'
+  if (lower === 'fire') return '火焰斩'
+  if (lower === 'earth') return '地裂斩'
+  if (lower === 'wind') return '风神斩'
+  if (lower === 'thunder') return '雷光斩'
+  const normalizedFallback = String(fallback || '').trim()
+  if (normalizedFallback) return normalizedFallback
+  return String(optionId || '').trim() || '系别'
+}
+
+const isFraudElementCardPickerPrompt = computed(() =>
+  prompt.value?.choice_type === 'adventurer_fraud_attack_element' && (prompt.value?.options?.length ?? 0) > 0
+)
+
+const fraudElementCardOptions = computed<FraudElementCardOption[]>(() => {
+  if (!isFraudElementCardPickerPrompt.value || !prompt.value?.options?.length) return []
+  return prompt.value.options.map((option) => {
+    const lower = String(option.id || '').trim().toLowerCase()
+    const meta = fraudElementCardMetaById[lower] ?? {
+      glyph: '系',
+      tone: 'prompt-fraud-card--generic',
+    }
+    return {
+      id: option.id,
+      title: fraudAttackCardName(option.id, option.label),
+      glyph: meta.glyph,
+      tone: meta.tone,
+    }
+  })
+})
 
 const cardFooterOptions = computed<RawDockOption[]>(() => {
   if (!prompt.value?.options || !needsCardSelection.value) return []
@@ -767,23 +1050,14 @@ const cardFooterOptions = computed<RawDockOption[]>(() => {
       }))
   }
   if (prompt.value.type !== 'choose_card' && prompt.value.type !== 'choose_cards') return []
-  return prompt.value.options
-    .filter((option: { id: string; label?: string }) => {
-      if (isIndexedCocoonOption(option)) return false
-      const idx = parsePromptCardIndex(option.id)
-      return idx === null || !promptCardOptionIndexSet.value.has(idx)
-    })
-    .map((option) => ({
-      id: option.id,
-      label: option.label,
-      button_label: option.button_label,
-      hint: option.hint,
-      disabled: false
-    }))
+  // 选牌类提示统一在手牌区完成，行动区不再展示“选哪张牌”的按钮。
+  return []
 })
 
 const promptNeedsHandCardConfirm = computed(() => {
   if (!prompt.value || !needsCardSelection.value || hasCounterOrDefend.value) return false
+  if (isElfElementalShotRemoveBlessingPrompt.value) return true
+  if (isPlagueDeathTouchElementPrompt.value) return true
   if (isNonHandChooseCardsMultiMode.value) return false
   if (promptCardOptionIndexSet.value.size > 0) return true
   return !prompt.value.options?.length
@@ -798,12 +1072,74 @@ const promptNeedsCardConfirm = computed(() =>
 )
 
 const cardConfirmHintText = computed(() => {
+  if (isElfElementalShotRemoveBlessingPrompt.value) return '请在扩展区选择要移除的祝福牌并点击发动'
+  if (isPlagueDeathTouchElementPrompt.value) return '请选择同系手牌并点击确认'
+  if (prompt.value?.choice_type === 'plague_death_touch_cards') return '请选择要弃置的同系手牌并点击确认'
   if (promptNeedsInlineCardOptionConfirm.value) return '完成选择后点击发动'
+  if (prompt.value?.choice_type === 'adventurer_fraud_pick') return '请选择2~3张同系牌，3张将自动转为暗灭攻击'
   return '完成选牌后点击发动'
+})
+
+const cardConfirmPromptMessage = computed(() => {
+  const message = String(prompt.value?.message || '').trim()
+  if (message) return message
+  return cardConfirmHintText.value
+})
+
+const showCardConfirmCancelRow = computed(() =>
+  promptNeedsCardConfirm.value && canCancelPrompt.value && !isSkillChoicePrompt.value
+)
+
+const targetSelectionPromptMessage = computed(() => {
+  if (!prompt.value) return ''
+  const message = String(prompt.value.message || '').trim()
+  if (message) return message
+  if (needsCounterTargetSelection.value) return '请选择反弹目标角色'
+  if (needsTargetSelection.value) return '请选择目标角色'
+  return ''
+})
+
+const showTargetSelectionHintRow = computed(() =>
+  !isSkillChoicePrompt.value &&
+  !promptNeedsCardConfirm.value &&
+  inlinePrimaryButtons.value.length === 0 &&
+  (needsTargetSelection.value || needsCounterTargetSelection.value)
+)
+
+const singleActivationCostConfirmOption = computed<DockButtonOption | null>(() => {
+  if (!prompt.value) return null
+  if (promptNeedsCardConfirm.value || isSkillChoicePrompt.value) return null
+  if (!canCancelPrompt.value) return null
+  if (inlinePrimaryButtons.value.length !== 1) return null
+  const option = inlinePrimaryButtons.value[0]
+  if (!option || option.numeric || option.disabled) return null
+  if (responseOptionKind({ id: option.id, label: option.label, button_label: option.buttonLabel }) !== null) return null
+  const message = String(prompt.value.message || '').trim()
+  const optionHint = String(option.hint || '').trim()
+  const optionLabel = String(option.label || '').trim()
+  if (!isActivationCostText(optionHint) && !isActivationCostText(optionLabel) && !isActivationCostText(message)) {
+    return null
+  }
+  return option
+})
+
+const singleActivationCostConfirmHintText = computed(() => {
+  if (!singleActivationCostConfirmOption.value) return ''
+  const hint = String(singleActivationCostConfirmOption.value.hint || '').trim()
+  if (hint) return hint
+  const label = String(singleActivationCostConfirmOption.value.label || '').trim()
+  if (label) return label
+  return String(prompt.value?.message || '').trim()
+})
+
+const inlinePrimaryPromptMessage = computed(() => {
+  if (!showConfirmButtonSection.value) return ''
+  return String(prompt.value?.message || '').trim()
 })
 
 const inlinePrimaryButtons = computed<DockButtonOption[]>(() => {
   if (isExtractPrompt.value) return []
+  if (isFraudElementCardPickerPrompt.value) return []
   if (needsCardSelection.value) return buildDockButtons(cardFooterOptions.value)
   if (showConfirmButtonSection.value) {
     const options = nonPlayerOptions.value
@@ -932,7 +1268,9 @@ const autoResolveOptionId = computed(() => {
 
 const hasAnyInlineButton = computed(() => {
   if (!isVisible.value) return false
+  if (isFraudElementCardPickerPrompt.value) return false
   if (isExtractPrompt.value && !!prompt.value?.options?.length) return true
+  if (showTargetSelectionHintRow.value) return true
   if (inlinePrimaryButtons.value.length > 0) return true
   if (promptNeedsCardConfirm.value) return true
   if (canCancelPrompt.value) return true
@@ -941,9 +1279,10 @@ const hasAnyInlineButton = computed(() => {
 
 const cancelDockButton = computed<DockButtonOption>(() => {
   const promptOptions = prompt.value?.options ?? []
+  const refuseOption = promptOptions.find((option) => option.id === 'refuse')
   const cancelOption = promptOptions.find((option) => option.id === 'cancel')
   const skipOption = promptOptions.find((option) => option.id === 'skip')
-  const option = cancelOption ?? skipOption ?? {
+  const option = refuseOption ?? cancelOption ?? skipOption ?? {
     id: 'cancel',
     label: canCancelPrompt.value ? '取消' : ''
   }
@@ -966,7 +1305,7 @@ function getDockButtonClass(optionId: string): string {
   if (kind === 'counter') return 'prompt-inline-btn--counter'
   if (kind === 'defend') return 'prompt-inline-btn--defend'
   if (lowerOptionId === 'confirm' || lowerOptionId === 'yes') return 'prompt-inline-btn--success'
-  if (lowerOptionId === 'skip' || lowerOptionId === 'cancel' || lowerOptionId === 'no' || lowerOptionId === 'pass' || lowerOptionId === 'cannot_act') {
+  if (lowerOptionId === 'skip' || lowerOptionId === 'cancel' || lowerOptionId === 'refuse' || lowerOptionId === 'no' || lowerOptionId === 'pass' || lowerOptionId === 'cannot_act') {
     return 'prompt-inline-btn--cancel'
   }
   return 'prompt-inline-btn--normal'
@@ -974,6 +1313,12 @@ function getDockButtonClass(optionId: string): string {
 
 function shouldHideOptionHint(option: DockButtonOption): boolean {
   return responseOptionKind({ id: option.id, label: option.label, button_label: option.buttonLabel }) !== null
+}
+
+function shouldEnlargeResponseActionButton(option: DockButtonOption): boolean {
+  if (!isDarkAttackResponsePrompt.value) return false
+  const kind = responseOptionKind({ id: option.id, label: option.label, button_label: option.buttonLabel })
+  return kind === 'take' || kind === 'defend'
 }
 
 watch(autoResolveOptionId, (optionId) => {
@@ -1001,14 +1346,25 @@ watch(autoResolveOptionId, (optionId) => {
               {{ option.label === '红宝石' ? '♦ 红宝石' : '🔷 蓝水晶' }}
             </button>
           </div>
-          <button
-            class="prompt-inline-btn prompt-inline-btn--success"
-            :class="{ 'prompt-inline-btn--disabled': selectedExtractIndices.length < (prompt?.min ?? 1) || selectedExtractIndices.length > (prompt?.max ?? 2) }"
-            :disabled="selectedExtractIndices.length < (prompt?.min ?? 1) || selectedExtractIndices.length > (prompt?.max ?? 2)"
-            @click="confirmExtractSelection"
-          >
-            确认提炼（{{ selectedExtractIndices.length }}/{{ prompt?.max ?? 2 }}）
-          </button>
+          <div class="flex justify-center mt-2">
+            <button
+              class="prompt-inline-btn prompt-inline-btn--success action-image-btn"
+              :class="{ 'prompt-inline-btn--disabled': selectedExtractIndices.length < (prompt?.min ?? 1) || selectedExtractIndices.length > (prompt?.max ?? 2) }"
+              :disabled="selectedExtractIndices.length < (prompt?.min ?? 1) || selectedExtractIndices.length > (prompt?.max ?? 2)"
+              @click="confirmExtractSelection"
+              :title="`确认提炼（${selectedExtractIndices.length}/${prompt?.max ?? 2}）`"
+              :aria-label="`确认提炼（${selectedExtractIndices.length}/${prompt?.max ?? 2}）`"
+            >
+              <img
+                v-if="isPromptConfirmImageReady()"
+                class="action-image-btn-fill"
+                :src="promptConfirmImageSrc()"
+                alt=""
+                @error="onPromptConfirmImageError"
+              />
+              <span v-else class="action-image-fallback-text">确</span>
+            </button>
+          </div>
         </template>
 
         <template v-else>
@@ -1027,6 +1383,8 @@ watch(autoResolveOptionId, (optionId) => {
                     option.disabled ? 'prompt-inline-btn--disabled' : ''
                   ]"
                   :disabled="option.disabled"
+                  :title="!isMultiSkillNameChoiceMode ? option.label : undefined"
+                  :aria-label="!isMultiSkillNameChoiceMode ? option.label : undefined"
                   @click="handleOptionClick(option.id)"
                 >
                   <template v-if="!isMultiSkillNameChoiceMode">
@@ -1038,7 +1396,6 @@ watch(autoResolveOptionId, (optionId) => {
                       @error="onSkillButtonImageError(option)"
                     />
                     <span v-else class="action-image-fallback-text">{{ skillButtonFallbackText(option) }}</span>
-                    <span class="action-image-btn-label">{{ option.label }}</span>
                   </template>
                   <template v-else>
                     {{ option.label }}
@@ -1048,23 +1405,45 @@ watch(autoResolveOptionId, (optionId) => {
             </div>
           </div>
 
-          <div v-else-if="inlinePrimaryButtons.length > 0" class="prompt-inline-grid" :class="inlinePrimaryGridClass">
+          <div v-else-if="showTargetSelectionHintRow" class="prompt-inline-entry">
+            <div class="prompt-inline-hint">{{ targetSelectionPromptMessage }}</div>
+          </div>
+
+          <div v-else-if="inlinePrimaryButtons.length > 0 && !singleActivationCostConfirmOption">
+            <div v-if="inlinePrimaryPromptMessage" class="prompt-inline-hint">
+              {{ inlinePrimaryPromptMessage }}
+            </div>
+            <div v-if="responseAttackElementHintText" class="prompt-inline-hint prompt-inline-hint--attack-element">
+              {{ responseAttackElementHintText }}
+            </div>
+            <div class="prompt-inline-grid" :class="inlinePrimaryGridClass">
             <div
               v-for="option in inlinePrimaryButtons"
               :key="option.id"
               class="prompt-inline-entry"
+              :class="{ 'prompt-inline-entry--hinted-numeric': option.numeric && !!option.hint }"
             >
-              <div v-if="option.hint && !shouldHideOptionHint(option)" class="prompt-inline-hint">{{ option.hint }}</div>
+              <div
+                v-if="option.hint && !shouldHideOptionHint(option)"
+                class="prompt-inline-hint"
+                :class="{ 'prompt-inline-hint--hinted-numeric': option.numeric }"
+              >
+                {{ option.hint }}
+              </div>
               <button
                 class="prompt-inline-btn"
                 :class="[
                   isDockButtonImageStyle(option) ? 'action-image-btn' : '',
                   getDockButtonClass(option.id),
+                  shouldEnlargeResponseActionButton(option) ? 'prompt-inline-btn--response-large' : '',
                   option.numeric ? 'prompt-inline-btn--numeric' : '',
+                  option.numeric && !!option.hint ? 'prompt-inline-btn--hinted-numeric' : '',
                   isInlineCardOptionSelected(option.id) ? 'prompt-inline-btn--selected' : '',
                   option.disabled ? 'prompt-inline-btn--disabled' : ''
                 ]"
                 :disabled="!!option.disabled"
+                :title="isDockButtonImageStyle(option) ? option.buttonLabel : undefined"
+                :aria-label="isDockButtonImageStyle(option) ? option.buttonLabel : undefined"
                 @click="handleOptionClick(option.id)"
               >
                 <template v-if="isDockButtonImageStyle(option)">
@@ -1076,21 +1455,105 @@ watch(autoResolveOptionId, (optionId) => {
                     @error="onDockButtonImageError(option)"
                   />
                   <span v-else class="action-image-fallback-text">{{ dockButtonFallbackText(option) }}</span>
-                  <span class="action-image-btn-label">{{ option.buttonLabel }}</span>
                 </template>
                 <template v-else>
-                  {{ option.buttonLabel }}
+                  <template v-if="option.numeric && !!option.hint">
+                    <span class="prompt-inline-btn-number">{{ option.buttonLabel }}</span>
+                    <span class="prompt-inline-btn-caption">选择</span>
+                  </template>
+                  <template v-else>
+                    {{ option.buttonLabel }}
+                  </template>
                 </template>
               </button>
             </div>
           </div>
+          </div>
 
-          <div v-if="promptNeedsCardConfirm" class="prompt-inline-entry">
+          <div v-if="singleActivationCostConfirmOption" class="prompt-inline-entry">
+            <div class="prompt-inline-hint">{{ singleActivationCostConfirmHintText }}</div>
+            <div class="prompt-inline-actions-row">
+              <button
+                class="prompt-inline-btn prompt-inline-btn--success action-image-btn"
+                :class="{ 'prompt-inline-btn--disabled': !!singleActivationCostConfirmOption.disabled }"
+                :disabled="!!singleActivationCostConfirmOption.disabled"
+                title="确认"
+                aria-label="确认"
+                @click="handleOptionClick(singleActivationCostConfirmOption.id)"
+              >
+                <img
+                  v-if="isPromptConfirmImageReady()"
+                  class="action-image-btn-fill"
+                  :src="promptConfirmImageSrc()"
+                  alt=""
+                  @error="onPromptConfirmImageError"
+                />
+                <span v-else class="action-image-fallback-text">确</span>
+              </button>
+              <button
+                class="prompt-inline-btn prompt-inline-btn--cancel action-image-btn"
+                :title="isDockButtonImageStyle(cancelDockButton) ? cancelDockButton.buttonLabel : undefined"
+                :aria-label="isDockButtonImageStyle(cancelDockButton) ? cancelDockButton.buttonLabel : undefined"
+                @click="handleOptionClick(cancelDockButton.id)"
+              >
+                <img
+                  v-if="isDockButtonImageReady(cancelDockButton)"
+                  class="action-image-btn-fill"
+                  :src="dockButtonImageSrc(cancelDockButton)"
+                  alt=""
+                  @error="onDockButtonImageError(cancelDockButton)"
+                />
+                <span v-else class="action-image-fallback-text">{{ dockButtonFallbackText(cancelDockButton) }}</span>
+              </button>
+            </div>
+          </div>
+
+          <div v-else-if="showCardConfirmCancelRow" class="prompt-inline-entry">
+            <div class="prompt-inline-hint">{{ cardConfirmPromptMessage }}</div>
+            <div class="prompt-inline-actions-row">
+              <button
+                class="prompt-inline-btn prompt-inline-btn--success action-image-btn"
+                :class="{ 'prompt-inline-btn--disabled': !canConfirmPrompt }"
+                :disabled="!canConfirmPrompt"
+                title="发动"
+                aria-label="发动"
+                @click="confirmPromptAction"
+              >
+                <img
+                  v-if="isPromptConfirmImageReady()"
+                  class="action-image-btn-fill"
+                  :src="promptConfirmImageSrc()"
+                  alt=""
+                  @error="onPromptConfirmImageError"
+                />
+                <span v-else class="action-image-fallback-text">确</span>
+              </button>
+              <button
+                class="prompt-inline-btn prompt-inline-btn--cancel action-image-btn"
+                :title="isDockButtonImageStyle(cancelDockButton) ? cancelDockButton.buttonLabel : undefined"
+                :aria-label="isDockButtonImageStyle(cancelDockButton) ? cancelDockButton.buttonLabel : undefined"
+                @click="handleOptionClick(cancelDockButton.id)"
+              >
+                <img
+                  v-if="isDockButtonImageReady(cancelDockButton)"
+                  class="action-image-btn-fill"
+                  :src="dockButtonImageSrc(cancelDockButton)"
+                  alt=""
+                  @error="onDockButtonImageError(cancelDockButton)"
+                />
+                <span v-else class="action-image-fallback-text">{{ dockButtonFallbackText(cancelDockButton) }}</span>
+              </button>
+            </div>
+          </div>
+
+          <div v-else-if="promptNeedsCardConfirm" class="prompt-inline-entry">
             <div class="prompt-inline-hint">{{ cardConfirmHintText }}</div>
             <button
               class="prompt-inline-btn prompt-inline-btn--success action-image-btn"
               :class="{ 'prompt-inline-btn--disabled': !canConfirmPrompt }"
               :disabled="!canConfirmPrompt"
+              title="发动"
+              aria-label="发动"
               @click="confirmPromptAction"
             >
               <img
@@ -1101,16 +1564,20 @@ watch(autoResolveOptionId, (optionId) => {
                 @error="onPromptConfirmImageError"
               />
               <span v-else class="action-image-fallback-text">确</span>
-              <span class="action-image-btn-label">发动</span>
             </button>
           </div>
         </template>
 
-        <div v-if="canCancelPrompt && !isSkillChoicePrompt" class="prompt-inline-entry">
+        <div
+          v-if="canCancelPrompt && !isSkillChoicePrompt && !showCardConfirmCancelRow && !singleActivationCostConfirmOption"
+          class="prompt-inline-entry"
+        >
           <div v-if="cancelDockButton.hint" class="prompt-inline-hint">{{ cancelDockButton.hint }}</div>
           <button
             class="prompt-inline-btn prompt-inline-btn--cancel"
             :class="isDockButtonImageStyle(cancelDockButton) ? 'action-image-btn' : ''"
+            :title="isDockButtonImageStyle(cancelDockButton) ? cancelDockButton.buttonLabel : undefined"
+            :aria-label="isDockButtonImageStyle(cancelDockButton) ? cancelDockButton.buttonLabel : undefined"
             @click="handleOptionClick(cancelDockButton.id)"
           >
             <template v-if="isDockButtonImageStyle(cancelDockButton)">
@@ -1122,7 +1589,6 @@ watch(autoResolveOptionId, (optionId) => {
                 @error="onDockButtonImageError(cancelDockButton)"
               />
               <span v-else class="action-image-fallback-text">{{ dockButtonFallbackText(cancelDockButton) }}</span>
-              <span class="action-image-btn-label">{{ cancelDockButton.buttonLabel }}</span>
             </template>
             <template v-else>
               {{ cancelDockButton.buttonLabel }}
@@ -1132,6 +1598,42 @@ watch(autoResolveOptionId, (optionId) => {
       </div>
     </div>
   </Transition>
+
+  <Teleport to="body">
+    <Transition name="prompt-fraud-side-pop">
+      <div
+        v-if="isFraudElementCardPickerPrompt && fraudElementCardOptions.length > 0"
+        class="prompt-fraud-global-layer"
+      >
+        <div class="prompt-fraud-global-panel">
+          <div class="prompt-fraud-dialog prompt-fraud-dialog--global">
+            <div class="prompt-fraud-title">{{ prompt?.message || '请选择本次攻击系别' }}</div>
+            <div class="prompt-fraud-grid">
+              <button
+                v-for="option in fraudElementCardOptions"
+                :key="option.id"
+                class="prompt-fraud-card"
+                :class="option.tone"
+                :title="option.title"
+                :aria-label="option.title"
+                @click="handleOptionClick(option.id)"
+              >
+                <span class="prompt-fraud-card-title-banner">
+                  <span class="prompt-fraud-card-title">{{ option.title }}</span>
+                </span>
+                <span class="prompt-fraud-card-medal">
+                  <span>{{ option.glyph }}</span>
+                </span>
+                <span class="prompt-fraud-card-art">
+                  <span class="prompt-fraud-card-glyph">{{ option.glyph }}</span>
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
 </template>
 
 <style scoped>
@@ -1213,18 +1715,307 @@ watch(autoResolveOptionId, (optionId) => {
   filter: brightness(1.08);
 }
 
+.prompt-fraud-global-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(7, 14, 24, 0.38);
+  backdrop-filter: blur(7px) saturate(0.98);
+  -webkit-backdrop-filter: blur(7px) saturate(0.98);
+  padding:
+    max(16px, calc(var(--safe-top, 0px) + 8px))
+    max(16px, calc(var(--safe-right, 0px) + 8px))
+    max(16px, calc(var(--safe-bottom, 0px) + 8px))
+    max(16px, calc(var(--safe-left, 0px) + 8px));
+}
+
+.prompt-fraud-global-panel {
+  pointer-events: auto;
+  width: min(860px, calc(100vw - 40px));
+  max-height: calc(100vh - 40px);
+  overflow: auto;
+  border-radius: 14px;
+  border: 1px solid rgba(146, 183, 207, 0.42);
+  background:
+    linear-gradient(180deg, rgba(9, 20, 34, 0.96), rgba(6, 14, 24, 0.97));
+  box-shadow:
+    0 18px 34px rgba(2, 8, 18, 0.52),
+    inset 0 1px 0 rgba(236, 246, 254, 0.12);
+  padding: 10px;
+}
+
+.prompt-fraud-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 2px 2px;
+}
+
+.prompt-fraud-dialog--global {
+  padding: 4px;
+}
+
+.prompt-fraud-title {
+  font-size: 13px;
+  line-height: 1.4;
+  color: rgba(225, 238, 249, 0.96);
+  text-align: center;
+  letter-spacing: 0.01em;
+}
+
+.prompt-fraud-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.prompt-fraud-card {
+  --fraud-edge-color: rgba(185, 152, 102, 0.78);
+  --fraud-edge-glow: rgba(232, 191, 121, 0.38);
+  --fraud-base-top: #2f2520;
+  --fraud-base-bottom: #17120f;
+  --fraud-ribbon-start: #8c5a2f;
+  --fraud-ribbon-end: #60401f;
+  --fraud-medal-bg: radial-gradient(circle at 32% 28%, #f1d79b, #c6924f 58%, #784d1d);
+  --fraud-medal-fg: #fff7ea;
+  --fraud-art-top: rgba(214, 174, 116, 0.3);
+  --fraud-art-bottom: rgba(71, 45, 24, 0.82);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  position: relative;
+  min-height: 136px;
+  border-radius: 10px;
+  border: 2px solid var(--fraud-edge-color);
+  background: linear-gradient(180deg, var(--fraud-base-top), var(--fraud-base-bottom));
+  color: rgba(245, 250, 255, 0.97);
+  box-shadow:
+    0 8px 16px rgba(0, 0, 0, 0.55),
+    0 0 12px var(--fraud-edge-glow),
+    inset 0 0 0 1px rgba(255, 244, 214, 0.24),
+    inset 0 0 10px rgba(255, 255, 255, 0.08);
+  transition: transform 0.16s ease, filter 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+  overflow: hidden;
+  text-align: center;
+}
+
+.prompt-fraud-card:hover:not(:disabled) {
+  transform: translateY(-2px);
+  border-color: rgba(255, 228, 170, 0.96);
+  box-shadow:
+    0 12px 22px rgba(0, 0, 0, 0.62),
+    0 0 16px rgba(255, 214, 138, 0.44),
+    inset 0 0 0 1px rgba(255, 247, 229, 0.38);
+}
+
+.prompt-fraud-card-title-banner {
+  position: absolute;
+  top: 6px;
+  left: 16px;
+  right: 16px;
+  height: 20px;
+  border-radius: 4px;
+  border: 1px solid rgba(202, 184, 148, 0.88);
+  background: linear-gradient(180deg, rgba(251, 249, 243, 0.96), rgba(222, 214, 197, 0.94));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 4;
+}
+
+.prompt-fraud-card-title {
+  color: rgba(46, 34, 22, 0.94);
+  font-size: 11px;
+  font-weight: 820;
+  letter-spacing: 0.04em;
+  line-height: 1;
+}
+
+.prompt-fraud-card-medal {
+  position: absolute;
+  top: 2px;
+  left: 3px;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.95), rgba(201, 191, 176, 0.8) 42%, rgba(61, 53, 47, 0.88));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 8;
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.55),
+    0 0 8px rgba(255, 244, 189, 0.44);
+}
+
+.prompt-fraud-card-medal > span {
+  width: 72%;
+  height: 72%;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--fraud-medal-bg);
+  color: var(--fraud-medal-fg);
+  font-size: 13px;
+  font-weight: 900;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+}
+
+.prompt-fraud-card-art {
+  margin: 30px 7px 8px;
+  height: 88px;
+  border-radius: 4px;
+  border: 1px solid rgba(175, 161, 132, 0.8);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(100% 120% at 50% 0%, var(--fraud-art-top), transparent 56%),
+    linear-gradient(180deg, rgba(255, 250, 235, 0.12), var(--fraud-art-bottom));
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 236, 196, 0.3),
+    inset 0 0 16px rgba(0, 0, 0, 0.38);
+}
+
+.prompt-fraud-card-glyph {
+  font-size: 38px;
+  font-weight: 900;
+  line-height: 1;
+  color: rgba(247, 253, 255, 0.96);
+  text-shadow:
+    0 0 10px rgba(255, 255, 255, 0.24),
+    0 2px 5px rgba(0, 0, 0, 0.6);
+}
+
+.prompt-fraud-card--water {
+  --fraud-edge-color: rgba(102, 152, 196, 0.78);
+  --fraud-edge-glow: rgba(124, 196, 255, 0.38);
+  --fraud-base-top: #1a2a3e;
+  --fraud-base-bottom: #0f1826;
+  --fraud-ribbon-start: #25689f;
+  --fraud-ribbon-end: #1b446c;
+  --fraud-medal-bg: radial-gradient(circle at 32% 28%, #ccf3ff, #4ea1d6 58%, #195580);
+  --fraud-medal-fg: #effbff;
+  --fraud-art-top: rgba(138, 206, 255, 0.4);
+  --fraud-art-bottom: rgba(18, 48, 78, 0.84);
+}
+
+.prompt-fraud-card--fire {
+  --fraud-edge-color: rgba(205, 123, 82, 0.78);
+  --fraud-edge-glow: rgba(255, 140, 98, 0.4);
+  --fraud-base-top: #3c1f18;
+  --fraud-base-bottom: #1c120f;
+  --fraud-ribbon-start: #c6352f;
+  --fraud-ribbon-end: #8e1b17;
+  --fraud-medal-bg: radial-gradient(circle at 32% 28%, #ffca7f, #f36d33 58%, #9b2e1a);
+  --fraud-medal-fg: #fff8eb;
+  --fraud-art-top: rgba(255, 176, 126, 0.42);
+  --fraud-art-bottom: rgba(88, 30, 20, 0.84);
+}
+
+.prompt-fraud-card--earth {
+  --fraud-edge-color: rgba(174, 138, 93, 0.8);
+  --fraud-edge-glow: rgba(225, 186, 113, 0.34);
+  --fraud-base-top: #32261a;
+  --fraud-base-bottom: #1a1410;
+  --fraud-ribbon-start: #8a5d2f;
+  --fraud-ribbon-end: #60401f;
+  --fraud-medal-bg: radial-gradient(circle at 32% 28%, #f1d79b, #c6924f 58%, #784d1d);
+  --fraud-medal-fg: #fff6e4;
+  --fraud-art-top: rgba(236, 199, 128, 0.36);
+  --fraud-art-bottom: rgba(85, 57, 22, 0.84);
+}
+
+.prompt-fraud-card--wind {
+  --fraud-edge-color: rgba(96, 169, 145, 0.78);
+  --fraud-edge-glow: rgba(116, 223, 181, 0.34);
+  --fraud-base-top: #183329;
+  --fraud-base-bottom: #101f1b;
+  --fraud-ribbon-start: #237258;
+  --fraud-ribbon-end: #194e3d;
+  --fraud-medal-bg: radial-gradient(circle at 32% 28%, #c8f9e6, #55b68d 58%, #216f54);
+  --fraud-medal-fg: #edfff6;
+  --fraud-art-top: rgba(145, 241, 205, 0.36);
+  --fraud-art-bottom: rgba(25, 73, 56, 0.84);
+}
+
+.prompt-fraud-card--thunder {
+  --fraud-edge-color: rgba(140, 124, 200, 0.8);
+  --fraud-edge-glow: rgba(183, 148, 255, 0.36);
+  --fraud-base-top: #24213d;
+  --fraud-base-bottom: #171427;
+  --fraud-ribbon-start: #5f4a99;
+  --fraud-ribbon-end: #40306f;
+  --fraud-medal-bg: radial-gradient(circle at 32% 28%, #efe2ff, #9c79dc 58%, #4e3385);
+  --fraud-medal-fg: #faf3ff;
+  --fraud-art-top: rgba(208, 180, 255, 0.38);
+  --fraud-art-bottom: rgba(54, 36, 89, 0.84);
+}
+
+.prompt-fraud-card--generic {
+  --fraud-edge-color: rgba(170, 190, 216, 0.56);
+  --fraud-edge-glow: rgba(166, 193, 227, 0.34);
+  --fraud-base-top: #223044;
+  --fraud-base-bottom: #121c29;
+  --fraud-ribbon-start: #44648a;
+  --fraud-ribbon-end: #2d4159;
+  --fraud-medal-bg: radial-gradient(circle at 32% 28%, #dfe9f7, #8ba5cc 58%, #4d6283);
+  --fraud-medal-fg: #f2f7ff;
+  --fraud-art-top: rgba(170, 200, 235, 0.34);
+  --fraud-art-bottom: rgba(35, 51, 72, 0.84);
+}
+
 .prompt-inline-entry {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  align-items: center;
+}
+
+.prompt-inline-actions-row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  justify-items: center;
+  align-items: center;
+}
+
+.prompt-inline-entry--hinted-numeric {
+  padding: 6px;
+  border-radius: 12px;
+  border: 1px solid rgba(114, 150, 177, 0.3);
+  background:
+    linear-gradient(180deg, rgba(26, 41, 58, 0.78), rgba(17, 30, 45, 0.82));
+  box-shadow:
+    inset 0 1px 0 rgba(208, 226, 241, 0.08),
+    0 6px 14px rgba(3, 9, 18, 0.26);
 }
 
 .prompt-inline-btn.action-image-btn {
-  width: min(100%, 132px);
+  width: 72px;
+  height: 72px;
   min-height: 0;
+  max-width: 72px;
   aspect-ratio: 1 / 1;
   border-radius: 12px !important;
   align-self: center;
+  justify-self: center;
+  flex-shrink: 0;
+}
+
+.prompt-inline-btn.action-image-btn.prompt-inline-btn--response-large {
+  width: 96px;
+  height: 96px;
+  max-width: 96px;
+  border-radius: 14px !important;
 }
 
 .prompt-inline-hint {
@@ -1234,6 +2025,27 @@ watch(autoResolveOptionId, (optionId) => {
   color: rgba(199, 219, 237, 0.88);
   font-size: 11px;
   line-height: 1.35;
+  letter-spacing: 0.01em;
+}
+
+.prompt-inline-hint--hinted-numeric {
+  min-height: 0;
+  padding: 2px 6px 0;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: rgba(214, 231, 246, 0.96);
+}
+
+.prompt-inline-hint--attack-element {
+  min-height: 0;
+  margin: 0 0 6px;
+  padding: 4px 8px;
+  border-radius: 9px;
+  border: 1px solid rgba(132, 165, 187, 0.36);
+  background: linear-gradient(180deg, rgba(28, 43, 61, 0.72), rgba(17, 30, 45, 0.75));
+  color: rgba(223, 239, 250, 0.96);
+  font-size: 12px;
+  font-weight: 640;
   letter-spacing: 0.01em;
 }
 
@@ -1255,6 +2067,8 @@ watch(autoResolveOptionId, (optionId) => {
 
 .prompt-inline-btn {
   min-height: 40px;
+  width: 100%;
+  max-width: 100%;
   border-radius: 10px;
   border: 1px solid rgba(137, 167, 186, 0.42);
   background: rgba(32, 48, 67, 0.68);
@@ -1290,13 +2104,12 @@ watch(autoResolveOptionId, (optionId) => {
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
   pointer-events: none;
   user-select: none;
 }
 
 .prompt-inline-btn.action-image-btn .action-image-btn-fill {
-  transform: scale(1.14);
   transform-origin: center;
 }
 
@@ -1307,18 +2120,6 @@ watch(autoResolveOptionId, (optionId) => {
   font-weight: 700;
   color: #f2f8ff;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
-}
-
-.action-image-btn-label {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
 }
 
 .prompt-inline-btn:hover:not(:disabled) {
@@ -1334,6 +2135,49 @@ watch(autoResolveOptionId, (optionId) => {
 .prompt-inline-btn--numeric {
   font-size: 15px;
   font-weight: 800;
+}
+
+.prompt-inline-btn--hinted-numeric {
+  min-height: 42px;
+  border-radius: 10px;
+  border-color: rgba(175, 197, 223, 0.52);
+  background:
+    linear-gradient(180deg, rgba(74, 101, 128, 0.92), rgba(54, 77, 99, 0.94));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow:
+    inset 0 1px 0 rgba(228, 239, 252, 0.26),
+    0 6px 12px rgba(5, 12, 21, 0.28);
+}
+
+.prompt-inline-btn-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.8em;
+  min-height: 1.8em;
+  padding: 0 0.45em;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1;
+  color: #f6fbff;
+  background: rgba(16, 29, 45, 0.46);
+  border: 1px solid rgba(197, 220, 245, 0.38);
+}
+
+.prompt-inline-btn-caption {
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.03em;
+  color: rgba(234, 244, 255, 0.94);
+}
+
+.prompt-inline-btn--hinted-numeric:hover:not(:disabled) {
+  filter: brightness(1.06);
+  border-color: rgba(197, 220, 246, 0.75);
 }
 
 .prompt-inline-btn--success {
@@ -1372,7 +2216,7 @@ watch(autoResolveOptionId, (optionId) => {
 
 .prompt-inline-btn--cancel {
   border-color: rgba(196, 152, 102, 0.56);
-  background-image: url('/assets/ui/prompt_btn_cancel.png');
+  background-image: url('/assets/ui/action_cancel_btn.png');
 }
 
 .prompt-inline-btn--extract {
@@ -1404,6 +2248,17 @@ watch(autoResolveOptionId, (optionId) => {
   transform: translateY(10px) scale(0.98);
 }
 
+.prompt-fraud-side-pop-enter-active,
+.prompt-fraud-side-pop-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.prompt-fraud-side-pop-enter-from,
+.prompt-fraud-side-pop-leave-to {
+  opacity: 0;
+  transform: translateX(18px) scale(0.98);
+}
+
 @media (max-width: 900px) {
   .prompt-inline-surface {
     width: min(92vw, 680px);
@@ -1422,8 +2277,17 @@ watch(autoResolveOptionId, (optionId) => {
   }
 
   .prompt-inline-btn.action-image-btn {
-    width: min(100%, 116px);
+    width: 72px;
+    height: 72px;
     min-height: 0;
+    max-width: 72px;
+    justify-self: center;
+  }
+
+  .prompt-inline-btn.action-image-btn.prompt-inline-btn--response-large {
+    width: 88px;
+    height: 88px;
+    max-width: 88px;
   }
 
   .prompt-inline-hint {
@@ -1431,8 +2295,38 @@ watch(autoResolveOptionId, (optionId) => {
     font-size: 10px;
   }
 
+  .prompt-inline-hint--hinted-numeric {
+    font-size: 10.5px;
+  }
+
+  .prompt-inline-btn--hinted-numeric {
+    min-height: 38px;
+    gap: 6px;
+  }
+
+  .prompt-inline-btn-number {
+    font-size: 12px;
+  }
+
+  .prompt-inline-btn-caption {
+    font-size: 11px;
+  }
+
   .prompt-skill-text {
     font-size: 12px;
+  }
+
+  .prompt-fraud-global-panel {
+    width: min(760px, calc(100vw - 28px));
+    max-height: calc(100vh - 28px);
+  }
+
+  .prompt-fraud-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .prompt-fraud-card {
+    min-height: 126px;
   }
 }
 
@@ -1459,9 +2353,46 @@ watch(autoResolveOptionId, (optionId) => {
     text-align: center;
   }
 
+  .prompt-fraud-global-layer {
+    justify-content: center;
+    align-items: center;
+    padding:
+      max(10px, calc(var(--safe-top, 0px) + 4px))
+      max(8px, calc(var(--safe-right, 0px) + 4px))
+      max(10px, calc(var(--safe-bottom, 0px) + 4px))
+      max(8px, calc(var(--safe-left, 0px) + 4px));
+  }
+
+  .prompt-fraud-global-panel {
+    width: min(100%, 620px);
+    border-radius: 12px;
+    padding: 8px;
+  }
+
   .prompt-inline-btn.action-image-btn {
-    width: min(100%, 98px);
+    width: 72px;
+    height: 72px;
     min-height: 0;
+    max-width: 72px;
+    justify-self: center;
+  }
+
+  .prompt-inline-btn.action-image-btn.prompt-inline-btn--response-large {
+    width: 84px;
+    height: 84px;
+    max-width: 84px;
+  }
+
+  .prompt-fraud-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .prompt-fraud-card {
+    min-height: 120px;
+  }
+
+  .prompt-fraud-card-glyph {
+    font-size: 32px;
   }
 }
 </style>

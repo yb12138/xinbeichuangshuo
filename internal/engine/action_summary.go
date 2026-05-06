@@ -1,8 +1,9 @@
+// gameflow: 行动周期内资源变动汇总，供日志或技能读取。
+
 package engine
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 
 	"starcup-engine/internal/model"
@@ -70,13 +71,6 @@ func (e *GameEngine) clearActionSummary() {
 		return
 	}
 	e.actionSummary = nil
-}
-
-func (e *GameEngine) addActionTarget(targetID string) {
-	if e.actionSummary == nil || !e.actionSummary.active || targetID == "" {
-		return
-	}
-	e.actionSummary.targets[targetID] = true
 }
 
 func (e *GameEngine) addActionResponse(text string) {
@@ -213,110 +207,43 @@ func (e *GameEngine) actionSummaryMessage() string {
 	return fmt.Sprintf("回合%d：%s", turn, strings.Join(parts, "；"))
 }
 
-func (e *GameEngine) formatTargetNames(targets map[string]bool) []string {
-	if len(targets) == 0 || e == nil || e.State == nil {
-		return nil
-	}
-	var ordered []string
-	for _, pid := range e.State.PlayerOrder {
-		if targets[pid] {
-			ordered = append(ordered, e.playerName(pid))
-		}
-	}
-	for pid := range targets {
-		found := false
-		for _, existing := range ordered {
-			if existing == e.playerName(pid) {
-				found = true
-				break
-			}
-		}
-		if !found {
-			ordered = append(ordered, e.playerName(pid))
-		}
-	}
-	return ordered
-}
+// 稳定排序：按行动顺序优先
 
-func (e *GameEngine) formatCountMap(counts map[string]int, unit string, sign string) string {
-	if len(counts) == 0 {
-		return ""
+// 判断当前行动是否结束
+func (e *GameEngine) isActionFinalizeIdle() bool {
+	if e == nil || e.State == nil {
+		return false
 	}
-	type entry struct {
-		id    string
-		count int
+	if e.State.PendingInterrupt != nil {
+		return false
 	}
-	var entries []entry
-	for id, count := range counts {
-		if count <= 0 {
-			continue
-		}
-		entries = append(entries, entry{id: id, count: count})
+	if len(e.State.PendingDamageQueue) > 0 {
+		return false
 	}
-	if len(entries) == 0 {
-		return ""
+	if len(e.State.CombatStack) > 0 {
+		return false
 	}
-	// 稳定排序：按行动顺序优先
-	sort.SliceStable(entries, func(i, j int) bool {
-		if e == nil || e.State == nil {
-			return entries[i].id < entries[j].id
-		}
-		order := map[string]int{}
-		for idx, pid := range e.State.PlayerOrder {
-			order[pid] = idx
-		}
-		oi, okI := order[entries[i].id]
-		oj, okJ := order[entries[j].id]
-		if okI && okJ {
-			return oi < oj
-		}
-		if okI {
-			return true
-		}
-		if okJ {
-			return false
-		}
-		return entries[i].id < entries[j].id
-	})
-	parts := make([]string, 0, len(entries))
-	for _, it := range entries {
-		name := e.playerName(it.id)
-		val := fmt.Sprintf("%d%s", it.count, unit)
-		if sign != "" {
-			val = fmt.Sprintf("%s%d%s", sign, it.count, unit)
-		}
-		parts = append(parts, fmt.Sprintf("%s%s", name, val))
+	if e.State.Subflow != model.SubflowNone || e.State.CombatStage != model.CombatStageNone {
+		return false
 	}
-	return strings.Join(parts, "、")
+	switch e.State.TurnStage {
+	case model.TurnStageActionEnd, model.TurnStageExtraAction, model.TurnStageTurnEnd:
+		return true
+	default:
+		return false
+	}
 }
 
 func (e *GameEngine) finalizeActionSummaryIfIdle() {
 	if e == nil || e.actionSummary == nil || !e.actionSummary.active {
 		return
 	}
-	if e.State == nil {
+	if !e.isActionFinalizeIdle() {
 		return
 	}
-	if e.State.PendingInterrupt != nil {
-		return
+	msg := e.actionSummaryMessage()
+	if msg != "" {
+		e.NotifyActionSummary(msg)
 	}
-	if len(e.State.PendingDamageQueue) > 0 {
-		return
-	}
-	if len(e.State.DeferredFollowups) > 0 {
-		return
-	}
-	if len(e.State.CombatStack) > 0 {
-		return
-	}
-	switch e.State.Phase {
-	case model.PhaseActionSelection, model.PhaseExtraAction, model.PhaseTurnEnd:
-		msg := e.actionSummaryMessage()
-		if msg != "" {
-			e.NotifyActionSummary(msg)
-		}
-		e.clearActionSummary()
-	default:
-		return
-	}
+	e.clearActionSummary()
 }

@@ -44,99 +44,99 @@ func InitDeck() []model.Card {
 	// 1. 火焰斩 (Attack, 火)
 	// 幻命格 * 5
 	addExclusiveCards("火焰斩", model.CardTypeAttack, model.ElementFire, 5, 2, "基础攻击，持有者可使用独有技",
-		"幻", "封印师", "灵魂术士", "火之封印", "灵魂震爆")
+		"幻", "sealer", "soul_sorcerer", "火之封印", "灵魂震爆")
 	// 咏命格 * 4
 	addExclusiveCards("火焰斩", model.CardTypeAttack, model.ElementFire, 4, 2, "基础攻击，持有者可使用独有技",
-		"咏", "祈祷师", "元素师", "威力赐福", "火球")
+		"咏", "prayer_master", "elementalist", "威力赐福", "火球")
 	// 血命格 * 4
 	addExclusiveCards("火焰斩", model.CardTypeAttack, model.ElementFire, 4, 2, "基础攻击，持有者可使用独有技",
-		"血", "狂战士", "血之巫女", "血腥咆哮", "血之悲鸣")
+		"血", "berserker", "blood_priestess", "血腥咆哮", "血之悲鸣")
 	// 技命格 * 4
 	addExclusiveCards("火焰斩", model.CardTypeAttack, model.ElementFire, 4, 2, "基础攻击，持有者可使用独有技",
-		"技", "风之剑圣", "神箭手", "疾风技", "闪光陷阱")
+		"技", "blade_master", "archer", "疾风技", "闪光陷阱")
 	// 圣命格 * 4
 	addExclusiveCards("火焰斩", model.CardTypeAttack, model.ElementFire, 4, 2, "基础攻击，持有者可使用独有技",
-		"圣", "圣女", "天使", "治疗术", "天使之墙")
+		"圣", "saintess", "angel", "治疗术", "天使之墙")
 
 	// 2. 水涟斩 (Attack, 水)
 	// 幻命格 * 4 (水之封印/灵魂震爆 * 2, 水之封印/灵魂赐予 * 2)
 	addExclusiveCards("水涟斩", model.CardTypeAttack, model.ElementWater, 2, 2, "基础攻击，持有者可使用独有技",
-		"幻", "封印师", "灵魂术士", "水之封印", "灵魂震爆")
+		"幻", "sealer", "soul_sorcerer", "水之封印", "灵魂震爆")
 	addExclusiveCards("水涟斩", model.CardTypeAttack, model.ElementWater, 2, 2, "基础攻击，持有者可使用独有技",
-		"幻", "封印师", "灵魂术士", "水之封印", "灵魂赐予")
+		"幻", "sealer", "soul_sorcerer", "水之封印", "灵魂赐予")
 	// 咏命格 * 6
 	addExclusiveCards("水涟斩", model.CardTypeAttack, model.ElementWater, 6, 2, "基础攻击，持有者可使用独有技",
-		"咏", "祈祷师", "元素师", "威力赐福", "冰冻")
+		"咏", "prayer_master", "elementalist", "威力赐福", "冰冻")
 	// 血命格 * 4
 	addExclusiveCards("水涟斩", model.CardTypeAttack, model.ElementWater, 4, 2, "基础攻击，持有者可使用独有技",
-		"血", "狂战士", "血之巫女", "血影狂刀", "血之悲鸣")
+		"血", "berserker", "blood_priestess", "血影狂刀", "血之悲鸣")
 	// 技命格 * 4
 	addExclusiveCards("水涟斩", model.CardTypeAttack, model.ElementWater, 4, 2, "基础攻击，持有者可使用独有技",
-		"技", "风之剑圣", "神箭手", "疾风技", "闪光陷阱")
+		"技", "blade_master", "archer", "疾风技", "闪光陷阱")
 	// 圣命格 * 3
 	addExclusiveCards("水涟斩", model.CardTypeAttack, model.ElementWater, 3, 2, "基础攻击，持有者可使用独有技",
-		"圣", "圣女", "天使", "治愈之光", "天使之墙")
+		"圣", "saintess", "angel", "治愈之光", "天使之墙")
 
 	// 3. 地裂斩 (Attack, 地)
 	// 幻命格 * 4 (地之封印/灵魂震爆 * 2, 地之封印/灵魂赐予 * 2)
 	addExclusiveCards("地裂斩", model.CardTypeAttack, model.ElementEarth, 2, 2, "基础攻击，持有者可使用独有技",
-		"幻", "封印师", "灵魂术士", "地之封印", "灵魂震爆")
+		"幻", "sealer", "soul_sorcerer", "地之封印", "灵魂震爆")
 	addExclusiveCards("地裂斩", model.CardTypeAttack, model.ElementEarth, 2, 2, "基础攻击，持有者可使用独有技",
-		"幻", "封印师", "灵魂术士", "地之封印", "灵魂赐予")
+		"幻", "sealer", "soul_sorcerer", "地之封印", "灵魂赐予")
 	// 咏命格 * 4 (威力赐福/陨石 * 2, 迅捷赐福/陨石 * 2)
 	addExclusiveCards("地裂斩", model.CardTypeAttack, model.ElementEarth, 2, 2, "基础攻击，持有者可使用独有技",
-		"咏", "祈祷师", "元素师", "威力赐福", "陨石")
+		"咏", "prayer_master", "elementalist", "威力赐福", "陨石")
 	addExclusiveCards("地裂斩", model.CardTypeAttack, model.ElementEarth, 2, 2, "基础攻击，持有者可使用独有技",
-		"咏", "祈祷师", "元素师", "迅捷赐福", "陨石")
+		"咏", "prayer_master", "elementalist", "迅捷赐福", "陨石")
 	// 血命格 * 5 (血影狂刀/血之悲鸣 * 3, 血腥咆哮/血之悲鸣 * 2)
 	addExclusiveCards("地裂斩", model.CardTypeAttack, model.ElementEarth, 3, 2, "基础攻击，持有者可使用独有技",
-		"血", "狂战士", "血之巫女", "血影狂刀", "血之悲鸣")
+		"血", "berserker", "blood_priestess", "血影狂刀", "血之悲鸣")
 	addExclusiveCards("地裂斩", model.CardTypeAttack, model.ElementEarth, 2, 2, "基础攻击，持有者可使用独有技",
-		"血", "狂战士", "血之巫女", "血腥咆哮", "血之悲鸣")
+		"血", "berserker", "blood_priestess", "血腥咆哮", "血之悲鸣")
 	// 技命格 * 5
 	addExclusiveCards("地裂斩", model.CardTypeAttack, model.ElementEarth, 5, 2, "基础攻击，持有者可使用独有技",
-		"技", "风之剑圣", "神箭手", "烈风技", "精准射击")
+		"技", "blade_master", "archer", "列风技", "精准射击")
 	// 圣命格 * 3
 	addExclusiveCards("地裂斩", model.CardTypeAttack, model.ElementEarth, 3, 2, "基础攻击，持有者可使用独有技",
-		"圣", "圣女", "", "治疗术", "")
+		"圣", "saintess", "", "治疗术", "")
 
 	// 4. 风神斩 (Attack, 风)
 	// 幻命格 * 4
 	addExclusiveCards("风神斩", model.CardTypeAttack, model.ElementWind, 4, 2, "基础攻击，持有者可使用独有技",
-		"幻", "封印师", "灵魂术士", "风之封印", "灵魂赐予")
+		"幻", "sealer", "soul_sorcerer", "风之封印", "灵魂赐予")
 	// 咏命格 * 5
 	addExclusiveCards("风神斩", model.CardTypeAttack, model.ElementWind, 5, 2, "基础攻击，持有者可使用独有技",
-		"咏", "祈祷师", "元素师", "迅捷赐福", "风刃")
+		"咏", "prayer_master", "elementalist", "迅捷赐福", "风刃")
 	// 血命格 * 4
 	addExclusiveCards("风神斩", model.CardTypeAttack, model.ElementWind, 4, 2, "基础攻击，持有者可使用独有技",
-		"血", "狂战士", "血之巫女", "血腥咆哮", "血之悲鸣")
-	// 技命格 * 5 (烈风技/精准射击 * 2, 疾风技/精准射击 * 3)
+		"血", "berserker", "blood_priestess", "血腥咆哮", "血之悲鸣")
+	// 技命格 * 5 (列风技/精准射击 * 2, 疾风技/精准射击 * 3)
 	addExclusiveCards("风神斩", model.CardTypeAttack, model.ElementWind, 2, 2, "基础攻击，持有者可使用独有技",
-		"技", "风之剑圣", "神箭手", "烈风技", "精准射击")
+		"技", "blade_master", "archer", "列风技", "精准射击")
 	addExclusiveCards("风神斩", model.CardTypeAttack, model.ElementWind, 3, 2, "基础攻击，持有者可使用独有技",
-		"技", "风之剑圣", "神箭手", "疾风技", "精准射击")
+		"技", "blade_master", "archer", "疾风技", "精准射击")
 	// 圣命格 * 3
 	addExclusiveCards("风神斩", model.CardTypeAttack, model.ElementWind, 3, 2, "基础攻击，持有者可使用独有技",
-		"圣", "圣女", "天使", "治愈之光", "天使之墙")
+		"圣", "saintess", "angel", "治愈之光", "天使之墙")
 
 	// 5. 雷光斩 (Attack, 雷)
 	// 幻命格 * 5
 	addExclusiveCards("雷光斩", model.CardTypeAttack, model.ElementThunder, 5, 2, "基础攻击，持有者可使用独有技",
-		"幻", "封印师", "灵魂术士", "雷之封印", "灵魂震爆")
+		"幻", "sealer", "soul_sorcerer", "雷之封印", "灵魂震爆")
 	// 咏命格 * 4
 	addExclusiveCards("雷光斩", model.CardTypeAttack, model.ElementThunder, 4, 2, "基础攻击，持有者可使用独有技",
-		"咏", "祈祷师", "元素师", "迅捷赐福", "雷击")
+		"咏", "prayer_master", "elementalist", "迅捷赐福", "雷击")
 	// 血命格 * 4
 	addExclusiveCards("雷光斩", model.CardTypeAttack, model.ElementThunder, 4, 2, "基础攻击，持有者可使用独有技",
-		"血", "狂战士", "血之巫女", "血影狂刀", "血之悲鸣")
-	// 技命格 * 4 (烈风技/精准射击 * 2, 疾风技/精准射击 * 2)
+		"血", "berserker", "blood_priestess", "血影狂刀", "血之悲鸣")
+	// 技命格 * 4 (列风技/精准射击 * 2, 疾风技/精准射击 * 2)
 	addExclusiveCards("雷光斩", model.CardTypeAttack, model.ElementThunder, 2, 2, "基础攻击，持有者可使用独有技",
-		"技", "风之剑圣", "神箭手", "烈风技", "精准射击")
+		"技", "blade_master", "archer", "列风技", "精准射击")
 	addExclusiveCards("雷光斩", model.CardTypeAttack, model.ElementThunder, 2, 2, "基础攻击，持有者可使用独有技",
-		"技", "风之剑圣", "神箭手", "疾风技", "精准射击")
+		"技", "blade_master", "archer", "疾风技", "精准射击")
 	// 圣命格 * 4
 	addExclusiveCards("雷光斩", model.CardTypeAttack, model.ElementThunder, 4, 2, "基础攻击，持有者可使用独有技",
-		"圣", "圣女", "天使", "治疗术", "天使之墙")
+		"圣", "saintess", "angel", "治疗术", "天使之墙")
 
 	// 6. 暗灭 (Attack, 暗)
 	// 咏命格 * 2
@@ -238,9 +238,9 @@ func InitDeck() []model.Card {
 		"技", "", "", "", "")
 	// 圣命格 * 3 (治疗术 * 2, 治愈之光 * 1)
 	addExclusiveCards("圣光", model.CardTypeMagic, model.ElementLight, 2, 0, "抵挡伤害或作为响应",
-		"圣", "圣女", "", "治疗术", "")
+		"圣", "saintess", "", "治疗术", "")
 	addExclusiveCards("圣光", model.CardTypeMagic, model.ElementLight, 1, 0, "抵挡伤害或作为响应",
-		"圣", "圣女", "", "治愈之光", "")
+		"圣", "saintess", "", "治愈之光", "")
 
 	return deck
 }
@@ -634,69 +634,8 @@ func cardsAreSimilar(a, b model.Card) bool {
 // 相似定义：同名，或同类型+同元素。
 // 采用“逐位构造 + 相似度优先散列”策略：每一步优先放置与上一张不相似的牌，
 // 并倾向先放置“剩余相似牌较多”的牌，尽量避免尾部形成连续同类。
-func declusterAdjacentSimilarCards(deck []model.Card, r *rand.Rand) {
-	if len(deck) < 3 || r == nil {
-		return
-	}
-	pool := make([]model.Card, len(deck))
-	copy(pool, deck)
-	result := make([]model.Card, 0, len(deck))
 
-	countSimilarInPool := func(idx int) int {
-		if idx < 0 || idx >= len(pool) {
-			return 0
-		}
-		score := 0
-		for j := range pool {
-			if j == idx {
-				continue
-			}
-			if cardsAreSimilar(pool[idx], pool[j]) {
-				score++
-			}
-		}
-		return score
-	}
-
-	for len(pool) > 0 {
-		candidates := make([]int, 0, len(pool))
-		if len(result) == 0 {
-			for i := range pool {
-				candidates = append(candidates, i)
-			}
-		} else {
-			prev := result[len(result)-1]
-			for i := range pool {
-				if !cardsAreSimilar(prev, pool[i]) {
-					candidates = append(candidates, i)
-				}
-			}
-		}
-		if len(candidates) == 0 {
-			// 无法继续打散（例如牌库剩余全是同类），退化为普通抽取。
-			for i := range pool {
-				candidates = append(candidates, i)
-			}
-		}
-
-		bestScore := -1
-		best := make([]int, 0, len(candidates))
-		for _, idx := range candidates {
-			score := countSimilarInPool(idx)
-			if score > bestScore {
-				bestScore = score
-				best = []int{idx}
-			} else if score == bestScore {
-				best = append(best, idx)
-			}
-		}
-		chosen := best[r.Intn(len(best))]
-		result = append(result, pool[chosen])
-		pool = append(pool[:chosen], pool[chosen+1:]...)
-	}
-
-	copy(deck, result)
-}
+// 无法继续打散（例如牌库剩余全是同类），退化为普通抽取。
 
 func adjacentSimilarityScore(deck []model.Card) int {
 	if len(deck) <= 1 {

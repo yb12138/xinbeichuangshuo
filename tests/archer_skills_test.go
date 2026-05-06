@@ -26,7 +26,7 @@ func TestArcher_Skills(t *testing.T) {
 		p2 := game.State.Players["p2"]
 		p1.IsActive = true
 		p1.TurnState = model.NewPlayerTurnState()
-		game.State.Phase = model.PhaseActionSelection
+		game.State.TurnStage = model.TurnStageActionExecution
 
 		// P1 攻击牌 + 法术牌(用于消耗)
 		p1.Hand = []model.Card{
@@ -64,8 +64,11 @@ func TestArcher_Skills(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("确认贯穿射击失败: %v", err)
 		}
-		if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptDiscard {
+		if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptChoice {
 			t.Fatalf("预期进入贯穿射击弃牌中断，实际: %+v", game.State.PendingInterrupt)
+		}
+		if ctxData, ok := game.State.PendingInterrupt.Context.(map[string]interface{}); !ok || ctxData["choice_type"] != "system_discard_cards" {
+			t.Fatalf("预期进入 system_discard_cards 中断，实际: %+v", game.State.PendingInterrupt)
 		}
 		if err := game.HandleAction(model.PlayerAction{
 			PlayerID:   "p1",
@@ -76,8 +79,9 @@ func TestArcher_Skills(t *testing.T) {
 		}
 
 		// 贯穿射击结算后，战斗应继续到反弹目标 p3。
-		if game.State.Phase != model.PhaseCombatInteraction {
-			t.Fatalf("预期处于 CombatInteraction，实际: %s", game.State.Phase)
+		if !(game.State.Subflow == model.SubflowNone &&
+			(game.State.CombatStage == model.CombatStageDeclare || game.State.CombatStage == model.CombatStageHitCheck)) {
+			t.Fatalf("预期处于战斗交互窗口，实际: turn=%s combat=%s subflow=%s", game.State.TurnStage, game.State.CombatStage, game.State.Subflow)
 		}
 		if len(game.State.CombatStack) == 0 || game.State.CombatStack[len(game.State.CombatStack)-1].TargetID != "p3" {
 			t.Fatalf("预期当前被反弹攻击目标是 p3，实际战斗栈: %+v", game.State.CombatStack)
@@ -116,7 +120,7 @@ func TestArcher_Skills(t *testing.T) {
 		// p2 := game.State.Players["p2"] // Unused
 		p1.IsActive = true
 		p1.TurnState = model.NewPlayerTurnState()
-		game.State.Phase = model.PhaseActionSelection
+		game.State.TurnStage = model.TurnStageActionExecution
 
 		p1.Crystal = 1
 		p1.Hand = []model.Card{{}} // 1 card
@@ -159,12 +163,12 @@ func TestArcher_Skills(t *testing.T) {
 		p2 := game.State.Players["p2"]
 		p1.IsActive = true
 		p1.TurnState = model.NewPlayerTurnState()
-		game.State.Phase = model.PhaseActionSelection
+		game.State.TurnStage = model.TurnStageActionExecution
 
 		p1.Hand = []model.Card{
 			{
 				ID: "ft_card", Name: "闪光陷阱", Type: model.CardTypeMagic, Element: model.ElementFire,
-				ExclusiveChar1: "神箭手", ExclusiveSkill1: "闪光陷阱",
+				ExclusiveChar1: "archer", ExclusiveSkill1: "闪光陷阱",
 			},
 		}
 		p2.Heal = 0

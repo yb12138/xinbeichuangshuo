@@ -4,7 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"starcup-engine/internal/engine/skills"
+	"starcup-engine/internal/data"
+	"starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 )
 
@@ -37,13 +38,13 @@ func TestMagicLancerDarkRelease_HandCapAndAttackBonusAndLock(t *testing.T) {
 	p1.Crystal = 1
 
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseStartup
+	game.State.TurnStage = model.TurnStageActionStart
 	if err := game.UseSkill("p1", "ml_dark_release", nil, nil); err != nil {
 		t.Fatalf("use ml_dark_release failed: %v", err)
 	}
 
-	if got := p1.Tokens["ml_phantom_form"]; got != 1 {
-		t.Fatalf("expected ml_phantom_form=1, got %d", got)
+	if got := p1.Form; got != model.FormMagicLancerPhantom {
+		t.Fatalf("expected magic lancer phantom form, got %q", got)
 	}
 	if got := game.GetMaxHand(p1); got != 5 {
 		t.Fatalf("expected max hand=5 in phantom form, got %d", got)
@@ -53,9 +54,12 @@ func TestMagicLancerDarkRelease_HandCapAndAttackBonusAndLock(t *testing.T) {
 	if fullnessHandler == nil {
 		t.Fatal("ml_fullness handler not found")
 	}
-	ctx := game.buildContext(p1, nil, model.TriggerNone, nil)
+	ctx := game.buildContext(p1, nil, model.TimingActive, nil)
 	if fullnessHandler.CanUse(ctx) {
 		t.Fatal("ml_fullness should be locked in the same turn after dark release")
+	}
+	if !game.IsSkillBlocked("p1", "ml_fullness") {
+		t.Fatal("expected ml_fullness to be blocked by active rule modifier")
 	}
 
 	blackSpearHandler := skills.GetHandler("ml_black_spear")
@@ -63,17 +67,21 @@ func TestMagicLancerDarkRelease_HandCapAndAttackBonusAndLock(t *testing.T) {
 		t.Fatal("ml_black_spear handler not found")
 	}
 	p2.Hand = []model.Card{magicLancerTestCard("h1", "火焰斩", model.CardTypeAttack, model.ElementFire, 2)}
-	hitCtx := game.buildContext(p1, p2, model.TriggerOnAttackHit, &model.EventContext{
+	hitCtx := game.buildContext(p1, p2, model.TimingOnHitCheck, &model.EventContext{
 		Type:     model.EventAttack,
 		SourceID: p1.ID,
 		TargetID: p2.ID,
 		AttackInfo: &model.AttackEventInfo{
 			ActionType:       "Attack",
+			IsHit:            true,
 			CounterInitiator: "",
 		},
 	})
 	if blackSpearHandler.CanUse(hitCtx) {
 		t.Fatal("ml_black_spear should be locked in the same turn after dark release")
+	}
+	if !game.IsSkillBlocked("p1", "ml_black_spear") {
+		t.Fatal("expected ml_black_spear to be blocked by active rule modifier")
 	}
 
 	attackCard := magicLancerTestCard("atk1", "雷斩", model.CardTypeAttack, model.ElementThunder, 2)
@@ -87,7 +95,7 @@ func TestMagicLancerDarkRelease_HandCapAndAttackBonusAndLock(t *testing.T) {
 	if dmg1 != 3 {
 		t.Fatalf("expected first active attack damage=3, got %d", dmg1)
 	}
-	if got := p1.TurnState.UsedSkillCounts["ml_dark_release_next_attack_bonus"]; got != 0 {
+	if got := attackDamageRuleBonusForModifier(p1, "ml_dark_release_next_attack_bonus"); got != 0 {
 		t.Fatalf("expected dark release bonus consumed, got %d", got)
 	}
 	dmg2 := game.applyPassiveAttackEffects(p1, p2, 2, model.Action{
@@ -99,6 +107,11 @@ func TestMagicLancerDarkRelease_HandCapAndAttackBonusAndLock(t *testing.T) {
 	})
 	if dmg2 != 2 {
 		t.Fatalf("expected subsequent active attack damage back to 2, got %d", dmg2)
+	}
+
+	game.NextTurn()
+	if game.IsSkillBlocked("p1", "ml_fullness") || game.IsSkillBlocked("p1", "ml_black_spear") {
+		t.Fatal("expected dark release lock to expire at turn end")
 	}
 }
 
@@ -112,13 +125,23 @@ func TestMagicLancerPhantomStardust_LeaveFormAndPromptTarget(t *testing.T) {
 	}
 
 	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
-	p1.Tokens["ml_phantom_form"] = 1
+	p1.Form = model.FormMagicLancerPhantom
 	p1.Hand = []model.Card{}
+	p2.Hand = []model.Card{
+		magicLancerTestCard("seed", "起始牌", model.CardTypeAttack, model.ElementFire, 2),
+	}
+	game.State.Deck = []model.Card{
+		magicLancerTestCard("d1", "补牌1", model.CardTypeAttack, model.ElementFire, 2),
+		magicLancerTestCard("d2", "补牌2", model.CardTypeAttack, model.ElementWater, 2),
+		magicLancerTestCard("d3", "补牌3", model.CardTypeAttack, model.ElementWind, 2),
+		magicLancerTestCard("d4", "补牌4", model.CardTypeAttack, model.ElementThunder, 2),
+	}
 
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseStartup
+	game.State.TurnStage = model.TurnStageActionStart
 	if err := game.UseSkill("p1", "ml_phantom_stardust", nil, nil); err != nil {
 		t.Fatalf("use ml_phantom_stardust failed: %v", err)
 	}
@@ -130,10 +153,10 @@ func TestMagicLancerPhantomStardust_LeaveFormAndPromptTarget(t *testing.T) {
 	if !interrupted {
 		t.Fatalf("expected processPendingDamages to pause on stardust target prompt")
 	}
-	if got := p1.Tokens["ml_phantom_form"]; got != 0 {
-		t.Fatalf("expected leave phantom form after stardust self damage, got %d", got)
+	if got := p1.Form; got != "" {
+		t.Fatalf("expected leave phantom form after stardust self damage, got %q", got)
 	}
-	if got := p1.Tokens["ml_stardust_pending"]; got != 0 {
+	if got := p1.TurnState.SkillFlowState["ml_stardust_pending"]; got != 0 {
 		t.Fatalf("expected ml_stardust_pending cleared, got %d", got)
 	}
 	if game.State.PendingInterrupt == nil {
@@ -141,6 +164,56 @@ func TestMagicLancerPhantomStardust_LeaveFormAndPromptTarget(t *testing.T) {
 	}
 	if got := choiceTypeOf(game.State.PendingInterrupt); got != "ml_stardust_target" {
 		t.Fatalf("expected choice_type ml_stardust_target, got %q", got)
+	}
+	targetIDs := pendingChoiceTargetIDs(game.State.PendingInterrupt)
+	if len(targetIDs) != 1 || targetIDs[0] != "p2" {
+		t.Fatalf("expected stardust target pool to include enemy only, got %v", targetIDs)
+	}
+}
+
+func TestMagicLancerPhantomStardust_PreselectedEnemySkipsTargetPrompt(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "Lancer", "magic_lancer", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "angel", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Form = model.FormMagicLancerPhantom
+	p1.Hand = []model.Card{}
+	p2.Hand = []model.Card{
+		magicLancerTestCard("seed", "起始牌", model.CardTypeAttack, model.ElementFire, 2),
+	}
+	game.State.Deck = []model.Card{
+		magicLancerTestCard("d1", "补牌1", model.CardTypeAttack, model.ElementFire, 2),
+		magicLancerTestCard("d2", "补牌2", model.CardTypeAttack, model.ElementWater, 2),
+		magicLancerTestCard("d3", "补牌3", model.CardTypeAttack, model.ElementWind, 2),
+		magicLancerTestCard("d4", "补牌4", model.CardTypeAttack, model.ElementThunder, 2),
+	}
+
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionStart
+	if err := game.UseSkill("p1", "ml_phantom_stardust", []string{"p2"}, nil); err != nil {
+		t.Fatalf("use ml_phantom_stardust with preselected target failed: %v", err)
+	}
+	if len(game.State.PendingDamageQueue) == 0 {
+		t.Fatalf("expected pending self magic damage from ml_phantom_stardust")
+	}
+
+	interrupted := game.processPendingDamages()
+	if interrupted {
+		t.Fatalf("expected preselected stardust target to skip second target prompt, got %+v", game.State.PendingInterrupt)
+	}
+	if game.State.PendingInterrupt != nil {
+		t.Fatalf("expected no pending interrupt after preselected stardust target, got %+v", game.State.PendingInterrupt)
+	}
+	if got := len(game.State.Players["p2"].Hand); got != 3 {
+		t.Fatalf("expected preselected enemy to immediately resolve 2 magic damage, got hand=%d", got)
 	}
 }
 
@@ -159,7 +232,7 @@ func TestMagicLancerDarkBind_BlocksMagicUseAndDefend(t *testing.T) {
 	p1.Hand = []model.Card{magicLancerTestCard("m1", "圣光", model.CardTypeMagic, model.ElementLight, 0)}
 
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseBeforeAction
+	game.State.TurnStage = model.TurnStageActionExecution
 	if err := game.PerformMagic("p1", "p2", 0); err == nil || !strings.Contains(err.Error(), "法术牌") {
 		t.Fatalf("expected dark bind to block PerformMagic, got err=%v", err)
 	}
@@ -170,7 +243,7 @@ func TestMagicLancerDarkBind_BlocksMagicUseAndDefend(t *testing.T) {
 		Card:           &model.Card{ID: "a1", Name: "火斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2},
 		CanBeResponded: true,
 	}}
-	game.State.Phase = model.PhaseCombatInteraction
+	game.State.CombatStage = model.CombatStageDeclare
 	err := game.handleCombatResponse(model.PlayerAction{
 		PlayerID:  "p1",
 		Type:      model.CmdRespond,
@@ -207,35 +280,31 @@ func TestMagicLancerFullness_FlowBonusAndExtraAttack(t *testing.T) {
 	p3.Hand = []model.Card{magicLancerTestCard("enemy", "圣光", model.CardTypeMagic, model.ElementLight, 0)}
 
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
-	if err := game.UseSkill("p1", "ml_fullness", nil, nil); err != nil {
+	game.State.TurnStage = model.TurnStageActionExecution
+	if err := game.UseSkill("p1", "ml_fullness", []string{"p2"}, nil); err != nil {
 		t.Fatalf("use ml_fullness failed: %v", err)
 	}
 	if got := choiceTypeOf(game.State.PendingInterrupt); got != "ml_fullness_cost_card" {
 		t.Fatalf("expected ml_fullness_cost_card prompt, got %q", got)
 	}
 
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose fullness cost card failed: %v", err)
 	}
 	if got := choiceTypeOf(game.State.PendingInterrupt); got != "ml_fullness_discard_step" {
 		t.Fatalf("expected ml_fullness_discard_step prompt, got %q", got)
 	}
 
-	// 自己：可跳过
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
-		t.Fatalf("self skip failed: %v", err)
-	}
-	// 队友：可跳过
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
-		t.Fatalf("ally skip failed: %v", err)
-	}
-	// 敌方：必须弃牌，仅有1项可选
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil {
+	// 敌方：必须弃牌，仅有1项可选。
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("enemy discard failed: %v", err)
 	}
+	// 预选队友：可选择不弃。
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
+		t.Fatalf("ally skip failed: %v", err)
+	}
 
-	if got := p1.TurnState.UsedSkillCounts["ml_fullness_next_attack_bonus"]; got != 1 {
+	if got := attackDamageRuleBonusForModifier(p1, "ml_fullness_next_attack_bonus"); got != 1 {
 		t.Fatalf("expected ml_fullness_next_attack_bonus=1, got %d", got)
 	}
 	if len(p1.TurnState.PendingActions) == 0 {
@@ -259,8 +328,43 @@ func TestMagicLancerFullness_FlowBonusAndExtraAttack(t *testing.T) {
 	if dmg != 3 {
 		t.Fatalf("expected fullness bonus damage to apply once (2+1), got %d", dmg)
 	}
-	if got := p1.TurnState.UsedSkillCounts["ml_fullness_next_attack_bonus"]; got != 0 {
+	if got := attackDamageRuleBonusForModifier(p1, "ml_fullness_next_attack_bonus"); got != 0 {
 		t.Fatalf("expected fullness bonus consumed, got %d", got)
+	}
+}
+
+func TestMagicLancerConfig_MetadataAlignsWithDocument(t *testing.T) {
+	characters := data.GetCharacters()
+	var lancer *model.Character
+	for _, character := range characters {
+		if character.ID == "magic_lancer" {
+			copy := character
+			lancer = &copy
+			break
+		}
+	}
+	if lancer == nil {
+		t.Fatalf("magic_lancer character not found")
+	}
+
+	var stardust *model.SkillDefinition
+	var fullness *model.SkillDefinition
+	for i := range lancer.Skills {
+		switch lancer.Skills[i].ID {
+		case "ml_phantom_stardust":
+			stardust = &lancer.Skills[i]
+		case "ml_fullness":
+			fullness = &lancer.Skills[i]
+		}
+	}
+	if stardust == nil || fullness == nil {
+		t.Fatalf("expected phantom stardust and fullness skills present")
+	}
+	if stardust.TargetType != model.TargetEnemy || stardust.MinTargets != 1 || stardust.MaxTargets != 1 {
+		t.Fatalf("expected phantom stardust target metadata enemy(1), got type=%v min=%d max=%d", stardust.TargetType, stardust.MinTargets, stardust.MaxTargets)
+	}
+	if fullness.TargetType != model.TargetAlly || fullness.MinTargets != 0 || fullness.MaxTargets != 1 {
+		t.Fatalf("expected fullness target metadata ally(0..1), got type=%v min=%d max=%d", fullness.TargetType, fullness.MinTargets, fullness.MaxTargets)
 	}
 }
 
@@ -275,7 +379,7 @@ func TestMagicLancerBlackSpear_ConsumesCrystalAndAddsDamage(t *testing.T) {
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]
 	p1.TurnState = model.NewPlayerTurnState()
-	p1.Tokens["ml_phantom_form"] = 1
+	p1.Form = model.FormMagicLancerPhantom
 	p1.Crystal = 2
 	p2.Hand = []model.Card{magicLancerTestCard("h1", "火斩", model.CardTypeAttack, model.ElementFire, 2)}
 
@@ -283,12 +387,13 @@ func TestMagicLancerBlackSpear_ConsumesCrystalAndAddsDamage(t *testing.T) {
 	if handler == nil {
 		t.Fatal("ml_black_spear handler not found")
 	}
-	ctx := game.buildContext(p1, p2, model.TriggerOnAttackHit, &model.EventContext{
+	ctx := game.buildContext(p1, p2, model.TimingOnHitCheck, &model.EventContext{
 		Type:     model.EventAttack,
 		SourceID: p1.ID,
 		TargetID: p2.ID,
 		AttackInfo: &model.AttackEventInfo{
 			ActionType:       "Attack",
+			IsHit:            true,
 			CounterInitiator: "",
 		},
 	})
@@ -299,8 +404,7 @@ func TestMagicLancerBlackSpear_ConsumesCrystalAndAddsDamage(t *testing.T) {
 		SourceID:   p1.ID,
 		TargetID:   p2.ID,
 		Damage:     2,
-		DamageType: "Attack",
-		Stage:      1,
+		DamageType: model.AttackDamage,
 	}}
 	if err := handler.Execute(ctx); err != nil {
 		t.Fatalf("execute ml_black_spear failed: %v", err)
@@ -310,7 +414,7 @@ func TestMagicLancerBlackSpear_ConsumesCrystalAndAddsDamage(t *testing.T) {
 	}
 
 	// selection=1 -> X=2
-	if err := game.handleWeakChoiceInput("p1", 1); err != nil {
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
 		t.Fatalf("choose black spear x failed: %v", err)
 	}
 	if p1.Crystal != 0 || p1.Gem != 0 {

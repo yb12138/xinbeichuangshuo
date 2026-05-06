@@ -43,10 +43,10 @@ type directedScenarioPlan struct {
 }
 
 type autoGameObserver struct {
-	gameEnded     bool
-	endMessage    string
-	logs          []string
-	skillTriggers map[string]int
+	gameEnded             bool
+	endMessage            string
+	logs                  []string
+	skillInvocationCounts map[string]int
 }
 
 var actionSkillCursor = map[string]int{}
@@ -65,13 +65,13 @@ func (o *autoGameObserver) OnGameEvent(event model.GameEvent) {
 		if len(o.logs) > 240 {
 			o.logs = o.logs[len(o.logs)-240:]
 		}
-		o.captureSkillTrigger(event.Message)
+		o.recordSkillInvocationFromLog(event.Message)
 	}
 }
 
-func (o *autoGameObserver) captureSkillTrigger(msg string) {
-	if o.skillTriggers == nil {
-		o.skillTriggers = make(map[string]int)
+func (o *autoGameObserver) recordSkillInvocationFromLog(msg string) {
+	if o.skillInvocationCounts == nil {
+		o.skillInvocationCounts = make(map[string]int)
 	}
 
 	seenInMsg := make(map[string]struct{})
@@ -87,7 +87,7 @@ func (o *autoGameObserver) captureSkillTrigger(msg string) {
 			return
 		}
 		seenInMsg[name] = struct{}{}
-		o.skillTriggers[name]++
+		o.skillInvocationCounts[name]++
 	}
 
 	// 格式一: "[Skill] xxx 使用了技能: 技能名"
@@ -182,7 +182,7 @@ func extractBracketSkillCandidates(msg string) []string {
 }
 
 type autoGameResult struct {
-	triggeredSkills      map[string]int
+	skillBatch           map[string]int
 	expectedActionSkills map[string]struct{}
 	expectedAllSkills    map[string]struct{}
 	logs                 []string
@@ -286,7 +286,7 @@ func mirrorLineup(lineup []string) []string {
 	return out
 }
 
-func mergeTriggered(dst map[string]int, src map[string]int) {
+func mergeSkillCountMaps(dst map[string]int, src map[string]int) {
 	for name, cnt := range src {
 		dst[name] += cnt
 	}
@@ -298,26 +298,22 @@ func mergeSkillSet(dst map[string]struct{}, src map[string]struct{}) {
 	}
 }
 
-func coverageStats(expected map[string]struct{}, triggered map[string]int) (triggeredCount, total int, ratio float64) {
+func coverageStats(expected map[string]struct{}, activated map[string]int) (activatedCount, total int, ratio float64) {
 	total = len(expected)
 	if total == 0 {
 		return 0, 0, 0
 	}
 	for name := range expected {
-		if triggered[name] > 0 {
-			triggeredCount++
+		if activated[name] > 0 {
+			activatedCount++
 		}
 	}
-	ratio = float64(triggeredCount) / float64(total)
-	return triggeredCount, total, ratio
+	ratio = float64(activatedCount) / float64(total)
+	return activatedCount, total, ratio
 }
 
 func runAutoGame(lineup []string, maxSteps int) (*autoGameResult, error) {
 	return runAutoGameWithScenarioSeedTag(lineup, maxSteps, nil, "baseline")
-}
-
-func runAutoGameWithScenario(lineup []string, maxSteps int, scenario *directedScenarioPlan) (*autoGameResult, error) {
-	return runAutoGameWithScenarioSeedTag(lineup, maxSteps, scenario, "scenario_default")
 }
 
 func runAutoGameWithScenarioSeedTag(
@@ -370,7 +366,7 @@ func runAutoGameWithScenarioSeedTag(
 	lastSnapshot := ""
 	stagnant := 0
 
-	for step := 0; step < maxSteps && game.State.Phase != model.PhaseEnd; step++ {
+	for step := 0; step < maxSteps && !isGameFinishedForAuto(game); step++ {
 		snapshot := gameplaySnapshot(game)
 		if snapshot == lastSnapshot {
 			stagnant++
@@ -395,16 +391,16 @@ func runAutoGameWithScenarioSeedTag(
 			return nil, fmt.Errorf("stagnated state for too long: %s\nlast logs:\n%s", summarizeGameState(game), observerTailLogs(observer, 20))
 		}
 
-		switch game.State.Phase {
-		case model.PhaseActionSelection:
+		switch {
+		case isActionSelectionWindowForAuto(game):
 			if err := performAggressiveActionSelection(game); err != nil {
 				return nil, fmt.Errorf("step %d action selection failed: %w", step, err)
 			}
-		case model.PhaseCombatInteraction:
+		case isCombatInteractionWindowForAuto(game):
 			if err := resolveCombatAsTake(game); err != nil {
 				return nil, fmt.Errorf("step %d combat response failed: %w", step, err)
 			}
-		case model.PhaseResponse:
+		case isResponseWindowForAuto(game):
 			if len(game.State.ActionStack) > 0 {
 				top := game.State.ActionStack[len(game.State.ActionStack)-1]
 				if err := game.HandleAction(model.PlayerAction{
@@ -422,7 +418,7 @@ func runAutoGameWithScenarioSeedTag(
 		}
 	}
 
-	if game.State.Phase != model.PhaseEnd {
+	if !isGameFinishedForAuto(game) {
 		return nil, fmt.Errorf(
 			"game did not finish within %d steps, %s\nlast logs:\n%s",
 			maxSteps,
@@ -435,7 +431,7 @@ func runAutoGameWithScenarioSeedTag(
 	}
 
 	return &autoGameResult{
-		triggeredSkills:      observer.skillTriggers,
+		skillBatch:           observer.skillInvocationCounts,
 		expectedActionSkills: expectedActionSkills,
 		expectedAllSkills:    expectedAllSkills,
 		logs:                 append([]string{}, observer.logs...),
@@ -480,6 +476,15 @@ func startAutoGameDeterministically(game *engine.GameEngine, seed int64) error {
 	applyDirectedScenarioPrestartState(game)
 
 	startIndex := deterministicStartIndex(seed, len(game.State.PlayerOrder))
+	if scenarioTargetsSkill("希望赋格曲") {
+		for idx, pid := range game.State.PlayerOrder {
+			player := game.State.Players[pid]
+			if player != nil && player.Role == "bard" {
+				startIndex = idx
+				break
+			}
+		}
+	}
 	firstPlayerID := game.State.PlayerOrder[startIndex]
 	game.State.CurrentTurn = startIndex
 
@@ -489,26 +494,25 @@ func startAutoGameDeterministically(game *engine.GameEngine, seed int64) error {
 
 	game.Log(fmt.Sprintf("[Game] 游戏开始! 首发玩家: %s (%s)", first.Name, first.Camp))
 
-	game.State.Phase = model.PhaseBuffResolve
+	enterTurnBeforeActionForAuto(game)
 	game.Drive()
 	return nil
 }
 
 // ensureStarterRoleCardsForAuto 与后端开局规则保持一致：
-// - 封印师开局自带五系束缚专属牌（专属卡区）
-// - 血色剑灵开局自带血蔷薇庭院专属牌（专属卡区）
+// - 为拥有“开局自带专属技能卡”的角色补齐专属卡区
 func ensureStarterRoleCardsForAuto(player *model.Player) {
 	if player == nil || player.Character == nil {
 		return
 	}
 	ensureZoneCard := func(skillTitle string, card model.Card) {
 		for _, c := range player.ExclusiveCards {
-			if c.MatchExclusive(player.Character.Name, skillTitle) {
+			if c.MatchExclusive(player.Character.ID, skillTitle) {
 				return
 			}
 		}
 		for i, c := range player.Hand {
-			if !c.MatchExclusive(player.Character.Name, skillTitle) {
+			if !c.MatchExclusive(player.Character.ID, skillTitle) {
 				continue
 			}
 			player.Hand = append(player.Hand[:i], player.Hand[i+1:]...)
@@ -528,7 +532,7 @@ func ensureStarterRoleCardsForAuto(player *model.Player) {
 			Faction:         player.Character.Faction,
 			Damage:          0,
 			Description:     "封印师开局自带专属技能卡",
-			ExclusiveChar1:  player.Character.Name,
+			ExclusiveChar1:  player.Character.ID,
 			ExclusiveSkill1: "五系束缚",
 		})
 	case "crimson_sword_spirit":
@@ -540,8 +544,78 @@ func ensureStarterRoleCardsForAuto(player *model.Player) {
 			Faction:         player.Character.Faction,
 			Damage:          0,
 			Description:     "血色剑灵开局自带专属技能卡",
-			ExclusiveChar1:  player.Character.Name,
+			ExclusiveChar1:  player.Character.ID,
 			ExclusiveSkill1: "血蔷薇庭院",
+		})
+	case "hero":
+		ensureZoneCard("挑衅", model.Card{
+			ID:              "starter-" + player.ID + "-hero_taunt",
+			Name:            "挑衅",
+			Type:            model.CardTypeMagic,
+			Element:         model.ElementEarth,
+			Faction:         player.Character.Faction,
+			Damage:          0,
+			Description:     "勇者开局自带专属技能卡",
+			ExclusiveChar1:  player.Character.ID,
+			ExclusiveSkill1: "挑衅",
+		})
+	case "soul_sorcerer":
+		ensureZoneCard("灵魂链接", model.Card{
+			ID:              "starter-" + player.ID + "-ss_soul_link",
+			Name:            "灵魂链接",
+			Type:            model.CardTypeMagic,
+			Element:         model.ElementDark,
+			Faction:         player.Character.Faction,
+			Damage:          0,
+			Description:     "灵魂术士开局自带专属技能卡",
+			ExclusiveChar1:  player.Character.ID,
+			ExclusiveSkill1: "灵魂链接",
+		})
+	case "blood_priestess":
+		ensureZoneCard("同生共死", model.Card{
+			ID:              "starter-" + player.ID + "-blood_shared_life",
+			Name:            "同生共死",
+			Type:            model.CardTypeMagic,
+			Element:         model.ElementDark,
+			Faction:         player.Character.Faction,
+			Damage:          0,
+			Description:     "血之巫女开局自带专属技能卡",
+			ExclusiveChar1:  player.Character.ID,
+			ExclusiveSkill1: "同生共死",
+		})
+	case "bard":
+		ensureZoneCard("激昂狂想曲", model.Card{
+			ID:              "starter-" + player.ID + "-bd_rousing_rhapsody",
+			Name:            "激昂狂想曲",
+			Type:            model.CardTypeMagic,
+			Element:         model.ElementDark,
+			Faction:         player.Character.Faction,
+			Damage:          0,
+			Description:     "吟游诗人开局自带专属技能卡",
+			ExclusiveChar1:  player.Character.ID,
+			ExclusiveSkill1: "激昂狂想曲",
+		})
+		ensureZoneCard("胜利交响诗", model.Card{
+			ID:              "starter-" + player.ID + "-bd_victory_symphony",
+			Name:            "胜利交响诗",
+			Type:            model.CardTypeMagic,
+			Element:         model.ElementDark,
+			Faction:         player.Character.Faction,
+			Damage:          0,
+			Description:     "吟游诗人开局自带专属技能卡",
+			ExclusiveChar1:  player.Character.ID,
+			ExclusiveSkill1: "胜利交响诗",
+		})
+		ensureZoneCard("希望赋格曲", model.Card{
+			ID:              "starter-" + player.ID + "-bd_hope_fugue",
+			Name:            "希望赋格曲",
+			Type:            model.CardTypeMagic,
+			Element:         model.ElementDark,
+			Faction:         player.Character.Faction,
+			Damage:          0,
+			Description:     "吟游诗人开局自带专属技能卡",
+			ExclusiveChar1:  player.Character.ID,
+			ExclusiveSkill1: "希望赋格曲",
 		})
 	}
 }
@@ -563,7 +637,8 @@ func applyDirectedScenarioPrestartState(game *engine.GameEngine) {
 			}
 			// 预置审判形态，使“仪式中断”在首个启动阶段可触发；
 			// 同时保留1红宝石，确保后续回合仍可触发“仲裁仪式”。
-			p.Tokens["arbiter_form"] = 1
+			p.Form = model.FormArbiterJudgment
+			p.Orientation = model.OrientationTapped
 			if p.Gem < 1 {
 				p.Gem = 1
 			}
@@ -600,7 +675,7 @@ func applyDirectedScenarioPrestartState(game *engine.GameEngine) {
 		}
 	}
 
-	if scenarioTargetsSkill("烈风技") {
+	if scenarioTargetsSkill("列风技") {
 		var bladeMaster *model.Player
 		for _, pid := range game.State.PlayerOrder {
 			p := game.State.Players[pid]
@@ -611,10 +686,10 @@ func applyDirectedScenarioPrestartState(game *engine.GameEngine) {
 			break
 		}
 		if bladeMaster != nil && bladeMaster.Character != nil {
-			// 烈风技需要“打出匹配独有牌 + 目标有圣盾”，这里在定向场景预置硬前提。
+			// 列风技需要“打出匹配独有牌 + 目标有圣盾”，这里在定向场景预置硬前提。
 			hasGaleSlashCard := false
 			for _, c := range bladeMaster.Hand {
-				if c.Type == model.CardTypeAttack && c.MatchExclusive(bladeMaster.Character.Name, "烈风技") {
+				if c.Type == model.CardTypeAttack && c.MatchExclusive(bladeMaster.Character.ID, "列风技") {
 					hasGaleSlashCard = true
 					break
 				}
@@ -622,13 +697,13 @@ func applyDirectedScenarioPrestartState(game *engine.GameEngine) {
 			if !hasGaleSlashCard {
 				bladeMaster.Hand = append([]model.Card{{
 					ID:              "scenario-" + bladeMaster.ID + "-gale_slash",
-					Name:            "烈风技",
+					Name:            "列风技",
 					Type:            model.CardTypeAttack,
 					Element:         model.ElementWind,
 					Damage:          2,
 					Faction:         bladeMaster.Character.Faction,
-					ExclusiveChar1:  bladeMaster.Character.Name,
-					ExclusiveSkill1: "烈风技",
+					ExclusiveChar1:  bladeMaster.Character.ID,
+					ExclusiveSkill1: "列风技",
 				}}, bladeMaster.Hand...)
 			}
 
@@ -647,7 +722,7 @@ func applyDirectedScenarioPrestartState(game *engine.GameEngine) {
 					},
 					Mode:     model.FieldEffect,
 					Effect:   model.EffectShield,
-					Trigger:  model.EffectTriggerOnDamaged,
+					Hook:     model.FieldHookOnDamaged,
 					SourceID: bladeMaster.ID,
 				})
 			}
@@ -821,6 +896,18 @@ func performAggressiveActionSelection(game *engine.GameEngine) error {
 		}
 	}
 
+	// 基线前提：剑帝技能链主要依赖“攻击结束时有可支付资源”或“后续未命中分支”。
+	// 当自身无资源且阵营资源池可提炼时，优先先提炼，避免长期卡在“只打普攻但无技能触发”的路径。
+	if currentDirectedScenarioPlan == nil &&
+		player.TurnState.CurrentExtraAction == "" &&
+		player.Role == "sword_emperor" &&
+		player.Gem+player.Crystal == 0 &&
+		canAttemptExtract(game, player) {
+		if err := game.HandleAction(model.PlayerAction{PlayerID: pid, Type: model.CmdExtract}); err == nil {
+			return nil
+		}
+	}
+
 	if currentDirectedScenarioPlan != nil && player.TurnState.CurrentExtraAction == "" {
 		if ok, err := tryScenarioActionPlan(game, player, enemies, attackIdx, magicIdx); err != nil {
 			return err
@@ -881,12 +968,12 @@ func performAggressiveActionSelection(game *engine.GameEngine) error {
 	// 回归兜底：若自动策略无法找到任何合法输入，强制结束本次行动阶段，避免整局回归中断。
 	// 该分支仅用于测试自动驾驶，不影响正式对局逻辑。
 	game.Log(fmt.Sprintf(
-		"[Auto] %s 无可执行动作（Phase=%s Extra=%s），强制结束行动阶段",
-		player.Name, game.State.Phase, player.TurnState.CurrentExtraAction,
+		"[Auto] %s 无可执行动作（Flow=%s Extra=%s），强制结束行动阶段",
+		player.Name, autoFlowLabel(game), player.TurnState.CurrentExtraAction,
 	))
 	player.TurnState.CurrentExtraAction = ""
 	player.TurnState.CurrentExtraElement = nil
-	game.State.Phase = model.PhaseTurnEnd
+	enterTurnEndForAuto(game)
 	return nil
 }
 
@@ -1072,7 +1159,7 @@ func scenarioActionOrderForPlayer(game *engine.GameEngine, player *model.Player)
 				base = prioritizeActions(base, autoPlanActionAttack)
 			}
 		}
-		if scenarioTargetsSkill("剑影") || scenarioTargetsSkill("烈风技") {
+		if scenarioTargetsSkill("剑影") || scenarioTargetsSkill("列风技") {
 			base = prioritizeActions(base, autoPlanActionAttack)
 		}
 	}
@@ -1229,7 +1316,7 @@ func canAttemptBuy(game *engine.GameEngine, player *model.Player) bool {
 	if game == nil || player == nil {
 		return false
 	}
-	if game.State.HasPerformedStartup {
+	if player.TurnState.HasStartupSkillOrSpecialActionsLocked() {
 		return false
 	}
 	maxHand := player.MaxHand
@@ -1243,7 +1330,7 @@ func canAttemptExtract(game *engine.GameEngine, player *model.Player) bool {
 	if game == nil || player == nil {
 		return false
 	}
-	if game.State.HasPerformedStartup {
+	if player.TurnState.HasStartupSkillOrSpecialActionsLocked() {
 		return false
 	}
 	if player.Gem+player.Crystal >= 3 {
@@ -1625,7 +1712,7 @@ func cardMatchesSkillDiscard(player *model.Player, skill model.SkillDefinition, 
 		if player == nil || player.Character == nil {
 			return false
 		}
-		if !card.MatchExclusive(player.Character.Name, skill.Title) {
+		if !card.MatchExclusive(player.Character.ID, skill.Title) {
 			return false
 		}
 	}
@@ -1706,7 +1793,7 @@ func orderScenarioTargetsForAttack(game *engine.GameEngine, attacker *model.Play
 		}
 		score := 0
 
-		if attacker.Role == "blade_master" && scenarioTargetsSkill("烈风技") && playerHasShield(target) {
+		if attacker.Role == "blade_master" && scenarioTargetsSkill("列风技") && playerHasShield(target) {
 			score += 4
 		}
 		if attacker.Role == "archer" && scenarioTargetsSkill("贯穿射击") {
@@ -1824,12 +1911,12 @@ func hasExclusiveCardForSkill(player *model.Player, skillTitle string) bool {
 		return false
 	}
 	for _, c := range player.ExclusiveCards {
-		if c.MatchExclusive(player.Character.Name, skillTitle) {
+		if c.MatchExclusive(player.Character.ID, skillTitle) {
 			return true
 		}
 	}
 	for _, c := range player.Hand {
-		if c.MatchExclusive(player.Character.Name, skillTitle) {
+		if c.MatchExclusive(player.Character.ID, skillTitle) {
 			return true
 		}
 	}
@@ -1844,7 +1931,7 @@ func hasAttackExclusiveCardForSkill(player *model.Player, skillTitle string) boo
 		if c.Type != model.CardTypeAttack {
 			continue
 		}
-		if c.MatchExclusive(player.Character.Name, skillTitle) {
+		if c.MatchExclusive(player.Character.ID, skillTitle) {
 			return true
 		}
 	}
@@ -1855,6 +1942,7 @@ func collectPlayableCards(player *model.Player) (attackIdx []int, magicIdx []int
 	attackIdx = make([]int, 0)
 	magicIdx = make([]int, 0)
 	handCount := len(player.Hand)
+	blessings := collectElfBlessings(player)
 
 	playableCardAt := func(playIdx int) (model.Card, bool) {
 		if playIdx < 0 {
@@ -1864,8 +1952,8 @@ func collectPlayableCards(player *model.Player) (attackIdx []int, magicIdx []int
 			return player.Hand[playIdx], true
 		}
 		bIdx := playIdx - handCount
-		if bIdx >= 0 && bIdx < len(player.Blessings) {
-			return player.Blessings[bIdx], true
+		if bIdx >= 0 && bIdx < len(blessings) {
+			return blessings[bIdx], true
 		}
 		return model.Card{}, false
 	}
@@ -1881,7 +1969,7 @@ func collectPlayableCards(player *model.Player) (attackIdx []int, magicIdx []int
 			magicIdx = append(magicIdx, idx)
 		}
 	}
-	for idx, card := range player.Blessings {
+	for idx, card := range blessings {
 		playIdx := handCount + idx
 		if !matchesExtraElement(player.TurnState.CurrentExtraElement, card.Element) {
 			continue
@@ -1902,8 +1990,8 @@ func collectPlayableCards(player *model.Player) (attackIdx []int, magicIdx []int
 			if !okI || !okJ {
 				return attackIdx[i] < attackIdx[j]
 			}
-			ei := ci.MatchExclusive(player.Character.Name, "血影狂刀")
-			ej := cj.MatchExclusive(player.Character.Name, "血影狂刀")
+			ei := ci.MatchExclusive(player.Character.ID, "血影狂刀")
+			ej := cj.MatchExclusive(player.Character.ID, "血影狂刀")
 			if ei != ej {
 				return ei
 			}
@@ -1929,6 +2017,20 @@ func collectPlayableCards(player *model.Player) (attackIdx []int, magicIdx []int
 	})
 
 	return attackIdx, magicIdx
+}
+
+func collectElfBlessings(player *model.Player) []model.Card {
+	if player == nil {
+		return nil
+	}
+	out := make([]model.Card, 0)
+	for _, fc := range player.Field {
+		if fc == nil || fc.Mode != model.FieldCover || fc.Effect != model.EffectElfBlessing {
+			continue
+		}
+		out = append(out, fc.Card)
+	}
+	return out
 }
 
 func tryAttackActions(game *engine.GameEngine, pid string, enemies []string, attackIdx []int) error {
@@ -2124,17 +2226,8 @@ func resolveInterrupt(game *engine.GameEngine) error {
 		}
 		return game.HandleAction(model.PlayerAction{PlayerID: pid, Type: model.CmdCancel})
 
-	case model.InterruptDiscard, model.InterruptGiveCards:
-		var selections []int
-		var err error
-		if intr.Type == model.InterruptDiscard {
-			selections, err = pickDiscardSelections(game, game.GetCurrentPrompt())
-			if errors.Is(err, errDiscardPrereqNotMet) {
-				return game.HandleAction(model.PlayerAction{PlayerID: pid, Type: model.CmdCancel})
-			}
-		} else {
-			selections, err = pickCardSelections(game.GetCurrentPrompt())
-		}
+	case model.InterruptGiveCards:
+		selections, err := pickCardSelections(game.GetCurrentPrompt())
 		if err != nil {
 			return err
 		}
@@ -2157,11 +2250,10 @@ func resolveInterrupt(game *engine.GameEngine) error {
 		if prompt == nil || len(prompt.Options) == 0 {
 			return game.HandleAction(model.PlayerAction{PlayerID: pid, Type: model.CmdCancel})
 		}
-		selections, err := pickCardSelections(prompt)
-		if err != nil {
-			return game.HandleAction(model.PlayerAction{PlayerID: pid, Type: model.CmdCancel})
+		if selection, ok := firstNumericPromptOptionID(prompt); ok {
+			return game.HandleAction(model.PlayerAction{PlayerID: pid, Type: model.CmdSelect, Selections: []int{selection}})
 		}
-		return game.HandleAction(model.PlayerAction{PlayerID: pid, Type: model.CmdSelect, Selections: selections})
+		return game.HandleAction(model.PlayerAction{PlayerID: pid, Type: model.CmdCancel})
 	}
 
 	if prompt := game.GetCurrentPrompt(); prompt != nil && len(prompt.Options) > 0 {
@@ -2203,6 +2295,9 @@ func chooseInterruptSkillIndex(game *engine.GameEngine, intr *model.Interrupt) i
 					if !isSkillDiscardFeasible(player, skill) {
 						continue
 					}
+					if !isInterruptSkillAutoplayFeasible(player, skillID) {
+						continue
+					}
 					return idx
 				}
 			}
@@ -2226,6 +2321,9 @@ func chooseInterruptSkillIndex(game *engine.GameEngine, intr *model.Interrupt) i
 				if !isSkillDiscardFeasible(player, skill) {
 					continue
 				}
+				if !isInterruptSkillAutoplayFeasible(player, skillID) {
+					continue
+				}
 				return idx
 			}
 		}
@@ -2245,9 +2343,25 @@ func chooseInterruptSkillIndex(game *engine.GameEngine, intr *model.Interrupt) i
 		if !isSkillDiscardFeasible(player, skill) {
 			continue
 		}
+		if !isInterruptSkillAutoplayFeasible(player, skillID) {
+			continue
+		}
 		return idx
 	}
 	return -1
+}
+
+func isInterruptSkillAutoplayFeasible(player *model.Player, skillID string) bool {
+	if player == nil || skillID == "" {
+		return false
+	}
+	if player.Role == "beast_samurai" {
+		switch skillID {
+		case "bs_beast_return", "bs_reversal_iaijutsu":
+			return player.Tokens["bs_beast_soul"] > 0
+		}
+	}
+	return true
 }
 
 func shouldSkipInterruptSkillInScenario(player *model.Player, skillID string) bool {
@@ -2462,6 +2576,19 @@ func chooseChoiceInterruptSelections(game *engine.GameEngine, intr *model.Interr
 	player := game.State.Players[intr.PlayerID]
 
 	switch choiceType {
+	case "system_discard_cards",
+		"bs_alert_source_discard",
+		"bs_beast_return_self_discard",
+		"bs_beast_return_source_discard",
+		"bs_iaijutsu_style_discard",
+		"bs_reversal_target_discard":
+		selections, err := pickDiscardSelections(game, prompt)
+		if errors.Is(err, errDiscardPrereqNotMet) {
+			return nil, fmt.Errorf("discard prerequisites not met")
+		}
+		return selections, err
+	case "adventurer_fraud_pick":
+		return chooseAdventurerFraudSelections(player, prompt)
 	case "mb_magic_pierce_hit_confirm":
 		// 魔贯冲击命中后默认吃满收益。
 		return []int{0}, nil
@@ -2553,12 +2680,87 @@ func chooseChoiceInterruptSelections(game *engine.GameEngine, intr *model.Interr
 			return []int{len(prompt.Options) - 1}, nil
 		}
 		return []int{0}, nil
+	case "bs_beast_return_x", "bs_reversal_x":
+		// 兽返/兽返居合若总选 X=0，会让同一笔待结算伤害反复回到响应窗口。
+		// 有正数选项时优先取最大的正数，确保 pending-damage 链条实际推进。
+		if len(prompt.Options) > 1 {
+			return []int{len(prompt.Options) - 1}, nil
+		}
+		return []int{0}, nil
 	case "adventurer_steal_sky_extra_action":
 		// 冒险家定向回归优先攻击链路，制造响应窗口。
 		return []int{0}, nil
 	default:
 		return []int{0}, nil
 	}
+}
+
+func chooseAdventurerFraudSelections(player *model.Player, prompt *model.Prompt) ([]int, error) {
+	if prompt == nil {
+		return nil, fmt.Errorf("missing prompt for adventurer fraud selection")
+	}
+	if player == nil {
+		return pickCardSelections(prompt)
+	}
+
+	// 欺诈要求选择 2~3 张同系牌：优先 3 张（自动暗灭），其次 2 张（再选五系）。
+	type grouped struct {
+		element model.Element
+		indices []int
+	}
+	byElement := map[model.Element][]int{}
+	for _, opt := range prompt.Options {
+		idx, err := strconv.Atoi(opt.ID)
+		if err != nil {
+			continue
+		}
+		if idx < 0 || idx >= len(player.Hand) {
+			continue
+		}
+		ele := player.Hand[idx].Element
+		if ele == "" {
+			continue
+		}
+		byElement[ele] = append(byElement[ele], idx)
+	}
+
+	groups := make([]grouped, 0, len(byElement))
+	for ele, idxs := range byElement {
+		groups = append(groups, grouped{element: ele, indices: idxs})
+	}
+	sort.Slice(groups, func(i, j int) bool {
+		if len(groups[i].indices) != len(groups[j].indices) {
+			return len(groups[i].indices) > len(groups[j].indices)
+		}
+		return string(groups[i].element) < string(groups[j].element)
+	})
+
+	if len(groups) > 0 {
+		best := groups[0].indices
+		if len(best) >= 3 {
+			return []int{best[0], best[1], best[2]}, nil
+		}
+		if len(best) >= 2 {
+			return []int{best[0], best[1]}, nil
+		}
+	}
+
+	// 回退：至少保证满足 Min 要求（若策略数据异常时不阻塞流程）。
+	return pickCardSelections(prompt)
+}
+
+func firstNumericPromptOptionID(prompt *model.Prompt) (int, bool) {
+	if prompt == nil {
+		return 0, false
+	}
+	for _, opt := range prompt.Options {
+		idx, err := strconv.Atoi(opt.ID)
+		if err != nil {
+			continue
+		}
+		return idx, true
+	}
+	return 0, false
 }
 
 func findPromptOptionIndex(prompt *model.Prompt, keyword string) int {
@@ -2731,6 +2933,9 @@ func countMagicBowChargeCards(player *model.Player) int {
 
 func resolveCombatAsTake(game *engine.GameEngine) error {
 	if len(game.State.CombatStack) == 0 {
+		if recoverBrokenPhaseWithoutInterrupt(game) {
+			return nil
+		}
 		return fmt.Errorf("combat stack is empty")
 	}
 	top := game.State.CombatStack[len(game.State.CombatStack)-1]
@@ -2844,18 +3049,6 @@ func shouldPreferCounterForCrystal(game *engine.GameEngine, attacker *model.Play
 	return false
 }
 
-func promptHasOption(prompt *model.Prompt, id string) bool {
-	if prompt == nil {
-		return false
-	}
-	for _, opt := range prompt.Options {
-		if opt.ID == id {
-			return true
-		}
-	}
-	return false
-}
-
 func findDefendCardIndex(player *model.Player) (int, bool) {
 	if player == nil {
 		return -1, false
@@ -2953,7 +3146,7 @@ func hasBasicFieldEffectOnBoard(game *engine.GameEngine) bool {
 }
 
 func normalizeQueuedActionForBeforeAction(game *engine.GameEngine) {
-	if game.State.Phase != model.PhaseBeforeAction {
+	if !isBeforeActionQueueWindowForAuto(game) {
 		return
 	}
 	if len(game.State.ActionQueue) == 0 {
@@ -3038,10 +3231,10 @@ func dropQueuedAction(game *engine.GameEngine) {
 	}
 	game.State.ActionQueue = game.State.ActionQueue[1:]
 	if len(game.State.ActionQueue) > 0 {
-		game.State.Phase = model.PhaseBeforeAction
+		enterBeforeActionQueueForAuto(game)
 		return
 	}
-	game.State.Phase = model.PhaseExtraAction
+	enterExtraActionForAuto(game)
 }
 
 func recoverBrokenPhaseWithoutInterrupt(game *engine.GameEngine) bool {
@@ -3049,44 +3242,44 @@ func recoverBrokenPhaseWithoutInterrupt(game *engine.GameEngine) bool {
 		return false
 	}
 
-	switch game.State.Phase {
-	case model.PhaseDiscardSelection:
+	switch {
+	case isDiscardSelectionWindowForAuto(game):
 		if len(game.State.PendingDamageQueue) > 0 {
-			game.State.Phase = model.PhasePendingDamageResolution
+			enterDamageResolutionForAuto(game)
 		} else if len(game.State.ActionQueue) > 0 {
-			game.State.Phase = model.PhaseBeforeAction
+			enterBeforeActionQueueForAuto(game)
 		} else if len(game.State.CombatStack) > 0 {
-			game.State.Phase = model.PhaseCombatInteraction
+			enterCombatInteractionForAuto(game)
 		} else {
-			game.State.Phase = model.PhaseTurnEnd
+			enterTurnEndForAuto(game)
 		}
 		game.Drive()
 		return true
 
-	case model.PhaseBeforeAction:
+	case isBeforeActionQueueWindowForAuto(game):
 		if len(game.State.ActionQueue) == 0 {
-			game.State.Phase = model.PhaseExtraAction
+			enterExtraActionForAuto(game)
 			game.Drive()
 			return true
 		}
 
-	case model.PhaseCombatInteraction:
+	case isCombatInteractionWindowForAuto(game):
 		if len(game.State.CombatStack) == 0 {
 			if len(game.State.PendingDamageQueue) > 0 {
-				game.State.Phase = model.PhasePendingDamageResolution
+				enterDamageResolutionForAuto(game)
 			} else {
-				game.State.Phase = model.PhaseExtraAction
+				enterExtraActionForAuto(game)
 			}
 			game.Drive()
 			return true
 		}
 
-	case model.PhaseResponse:
+	case isResponseWindowForAuto(game):
 		if len(game.State.ActionStack) == 0 && len(game.State.CombatStack) == 0 {
 			if len(game.State.PendingDamageQueue) > 0 {
-				game.State.Phase = model.PhasePendingDamageResolution
+				enterDamageResolutionForAuto(game)
 			} else {
-				game.State.Phase = model.PhaseExtraAction
+				enterExtraActionForAuto(game)
 			}
 			game.Drive()
 			return true
@@ -3101,10 +3294,10 @@ func tryRecoverFromStall(game *engine.GameEngine) bool {
 		return true
 	}
 
-	if game.State.Phase == model.PhaseBeforeAction {
+	if isBeforeActionQueueWindowForAuto(game) {
 		normalizeQueuedActionForBeforeAction(game)
 		if len(game.State.ActionQueue) == 0 {
-			game.State.Phase = model.PhaseExtraAction
+			enterExtraActionForAuto(game)
 			game.Drive()
 			return true
 		}
@@ -3119,8 +3312,8 @@ func tryRecoverFromStall(game *engine.GameEngine) bool {
 		return true
 	}
 
-	if game.State.Phase == model.PhaseDiscardSelection && game.State.PendingInterrupt == nil {
-		game.State.Phase = model.PhaseTurnEnd
+	if isDiscardSelectionWindowForAuto(game) && game.State.PendingInterrupt == nil {
+		enterTurnEndForAuto(game)
 		game.Drive()
 		return true
 	}
@@ -3131,7 +3324,7 @@ func tryRecoverFromStall(game *engine.GameEngine) bool {
 
 func gameplaySnapshot(game *engine.GameEngine) string {
 	b := strings.Builder{}
-	b.WriteString(string(game.State.Phase))
+	b.WriteString(autoFlowLabel(game))
 	b.WriteString("|")
 	b.WriteString(strconv.Itoa(game.State.CurrentTurn))
 	b.WriteString("|")
@@ -3174,10 +3367,10 @@ func observerTailLogs(observer *autoGameObserver, n int) string {
 	return strings.Join(observer.logs[start:], "\n")
 }
 
-func missingSkillList(expected map[string]struct{}, triggered map[string]int) []string {
+func missingSkillList(expected map[string]struct{}, activated map[string]int) []string {
 	missing := make([]string, 0)
 	for sid := range expected {
-		if triggered[sid] == 0 {
+		if activated[sid] == 0 {
 			missing = append(missing, sid)
 		}
 	}
@@ -3185,15 +3378,15 @@ func missingSkillList(expected map[string]struct{}, triggered map[string]int) []
 	return missing
 }
 
-func topTriggeredActionSkills(expected map[string]struct{}, triggered map[string]int, limit int) []string {
+func topObservedActionSkills(expected map[string]struct{}, activated map[string]int, limit int) []string {
 	type kv struct {
 		name  string
 		count int
 	}
 	list := make([]kv, 0)
 	for name := range expected {
-		if triggered[name] > 0 {
-			list = append(list, kv{name: name, count: triggered[name]})
+		if activated[name] > 0 {
+			list = append(list, kv{name: name, count: activated[name]})
 		}
 	}
 	sort.Slice(list, func(i, j int) bool {
@@ -3222,8 +3415,8 @@ func summarizeGameState(game *engine.GameEngine) string {
 		pending = string(game.State.PendingInterrupt.Type)
 	}
 	return fmt.Sprintf(
-		"phase=%s turn=%s pending=%s queue=%d combat=%d pendingDmg=%d redMorale=%d blueMorale=%d redCups=%d blueCups=%d",
-		game.State.Phase,
+		"flow=%s turn=%s pending=%s queue=%d combat=%d pendingDmg=%d redMorale=%d blueMorale=%d redCups=%d blueCups=%d",
+		autoFlowLabel(game),
 		pid,
 		pending,
 		len(game.State.ActionQueue),
@@ -3234,4 +3427,92 @@ func summarizeGameState(game *engine.GameEngine) string {
 		game.State.RedCups,
 		game.State.BlueCups,
 	)
+}
+
+func autoFlowLabel(game *engine.GameEngine) string {
+	if game == nil || game.State == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("turn=%s combat=%s subflow=%s", game.State.TurnStage, game.State.CombatStage, game.State.Subflow)
+}
+
+func isGameFinishedForAuto(game *engine.GameEngine) bool {
+	return game != nil && game.State != nil && game.State.GameOver
+}
+
+func isActionSelectionWindowForAuto(game *engine.GameEngine) bool {
+	return game != nil && game.State != nil &&
+		game.State.Subflow == model.SubflowNone &&
+		game.State.CombatStage == model.CombatStageNone &&
+		game.State.TurnStage == model.TurnStageActionExecution &&
+		len(game.State.ActionQueue) == 0
+}
+
+func isBeforeActionQueueWindowForAuto(game *engine.GameEngine) bool {
+	return game != nil && game.State != nil &&
+		game.State.Subflow == model.SubflowNone &&
+		game.State.CombatStage == model.CombatStageNone &&
+		game.State.TurnStage == model.TurnStageActionExecution &&
+		len(game.State.ActionQueue) > 0
+}
+
+func isCombatInteractionWindowForAuto(game *engine.GameEngine) bool {
+	return game != nil && game.State != nil &&
+		game.State.Subflow == model.SubflowNone &&
+		len(game.State.CombatStack) > 0 &&
+		(game.State.CombatStage == model.CombatStageDeclare || game.State.CombatStage == model.CombatStageHitCheck)
+}
+
+func isResponseWindowForAuto(game *engine.GameEngine) bool {
+	return game != nil && game.State != nil && game.State.Subflow == model.SubflowResponse
+}
+
+func isDiscardSelectionWindowForAuto(game *engine.GameEngine) bool {
+	return game != nil && game.State != nil && game.State.Subflow == model.SubflowDiscardSelection
+}
+
+func clearFlowAxesForAuto(game *engine.GameEngine) {
+	if game == nil || game.State == nil {
+		return
+	}
+	game.State.Subflow = model.SubflowNone
+	game.State.CombatStage = model.CombatStageNone
+}
+
+func enterTurnBeforeActionForAuto(game *engine.GameEngine) {
+	clearFlowAxesForAuto(game)
+	game.State.TurnStage = model.TurnStageBeforeAction
+}
+
+func enterBeforeActionQueueForAuto(game *engine.GameEngine) {
+	clearFlowAxesForAuto(game)
+	game.State.TurnStage = model.TurnStageActionExecution
+}
+
+func enterExtraActionForAuto(game *engine.GameEngine) {
+	clearFlowAxesForAuto(game)
+	game.State.TurnStage = model.TurnStageExtraAction
+}
+
+func enterTurnEndForAuto(game *engine.GameEngine) {
+	clearFlowAxesForAuto(game)
+	game.State.TurnStage = model.TurnStageTurnEnd
+}
+
+func enterDamageResolutionForAuto(game *engine.GameEngine) {
+	if game == nil || game.State == nil {
+		return
+	}
+	game.State.Subflow = model.SubflowNone
+	game.State.CombatStage = model.CombatStageCalcDamage
+}
+
+func enterCombatInteractionForAuto(game *engine.GameEngine) {
+	if game == nil || game.State == nil {
+		return
+	}
+	game.State.Subflow = model.SubflowNone
+	if game.State.CombatStage != model.CombatStageDeclare && game.State.CombatStage != model.CombatStageHitCheck {
+		game.State.CombatStage = model.CombatStageDeclare
+	}
 }

@@ -19,7 +19,7 @@ func TestExtractCancel_ReturnsToActionSelection(t *testing.T) {
 
 	g.State.CurrentTurn = 0
 	g.State.Deck = rules.InitDeck()
-	g.State.Phase = model.PhaseActionSelection
+	g.State.TurnStage = model.TurnStageActionExecution
 
 	p1 := g.State.Players["p1"]
 	p1.IsActive = true
@@ -57,8 +57,8 @@ func TestExtractCancel_ReturnsToActionSelection(t *testing.T) {
 	if g.State.PendingInterrupt != nil {
 		t.Fatalf("expected no pending interrupt after cancel, got %+v", g.State.PendingInterrupt)
 	}
-	if g.State.Phase != model.PhaseActionSelection {
-		t.Fatalf("expected phase ActionSelection after cancel, got %s", g.State.Phase)
+	if g.State.TurnStage != model.TurnStageActionExecution {
+		t.Fatalf("expected action execution window after cancel, got %s", g.State.TurnStage)
 	}
 	if g.State.CurrentTurn != 0 || g.State.PlayerOrder[g.State.CurrentTurn] != "p1" {
 		t.Fatalf("expected turn to stay on p1, got turn=%d player=%s", g.State.CurrentTurn, g.State.PlayerOrder[g.State.CurrentTurn])

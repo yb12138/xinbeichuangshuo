@@ -30,7 +30,7 @@ func TestSealer_SealBreak(t *testing.T) {
 	p2 := game.State.Players["p2"]
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	// 2. 准备状态
 	// P1 需要 1 水晶
@@ -49,7 +49,7 @@ func TestSealer_SealBreak(t *testing.T) {
 		SourceID: "p2", // 假设自己上的
 		Mode:     model.FieldEffect,
 		Effect:   model.EffectShield,
-		Trigger:  model.EffectTriggerOnDamaged, // 圣盾通常是OnDamaged或者特殊Trigger
+		Hook: model.FieldHookOnDamaged, // 圣盾通常是OnDamaged或者特殊Dispatch
 	}
 	p2.AddFieldCard(shieldCard)
 

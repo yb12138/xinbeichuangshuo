@@ -1,9 +1,22 @@
 <script setup lang="ts">
+import { storeToRefs } from 'pinia'
 import { computed, ref, watch } from 'vue'
 import type { PlayerView } from '../types/game'
-import { useGameStore } from '../stores/gameStore'
+import { useBattleFxStore } from '../stores/battlefx.store'
+import { useBattleReviewStore } from '../stores/battleReview.store'
+import { useInterruptStore } from '../stores/interrupt.store'
+import { useUiStore } from '../stores/ui.store'
+import { useBattleInteractionState } from '../composables/useBattleInteractionState'
 
-const store = useGameStore()
+const battleFxStore = useBattleFxStore()
+const battleReviewStore = useBattleReviewStore()
+const interruptStore = useInterruptStore()
+const uiStore = useUiStore()
+const { damageEffects } = storeToRefs(battleFxStore)
+const { currentPrompt, actionMode, selectedCardForAction, skillMode } = storeToRefs(interruptStore)
+const { skillModalCharacterId } = storeToRefs(uiStore)
+const { getCharacter, getRoleDisplayName, isPromptForMe } = useBattleInteractionState()
+
 const props = defineProps<{
   player: PlayerView
   isMe?: boolean
@@ -19,8 +32,8 @@ const emit = defineEmits<{
   select: [playerId: string]
 }>()
 
-const charInfo = computed(() => (props.player.role ? store.getCharacter(props.player.role) : null))
-const roleDisplayName = computed(() => store.getRoleDisplayName(props.player.role))
+const charInfo = computed(() => (props.player.role ? getCharacter(props.player.role) : null))
+const roleDisplayName = computed(() => getRoleDisplayName(props.player.role))
 const playerDisplayName = computed(() => props.player.name || props.player.id)
 
 // 立绘路径：/characters/{role}.png，role 与角色ID对应
@@ -40,14 +53,14 @@ function onCharImageError() {
 
 function openSkillModal(event?: MouseEvent) {
   if (!props.player.role) return
-  if (store.skillModalCharacterId === props.player.role) {
-    store.openSkillModal(null)
+  if (skillModalCharacterId.value === props.player.role) {
+    uiStore.openSkillModal(null)
     return
   }
-  const trigger = event?.currentTarget as HTMLElement | null
-  if (trigger) {
-    const rect = trigger.getBoundingClientRect()
-    store.openSkillModal(props.player.role, {
+  const anchorEl = event?.currentTarget as HTMLElement | null
+  if (anchorEl) {
+    const rect = anchorEl.getBoundingClientRect()
+    uiStore.openSkillModal(props.player.role, {
       x: rect.left,
       y: rect.top,
       width: rect.width,
@@ -55,7 +68,7 @@ function openSkillModal(event?: MouseEvent) {
     })
     return
   }
-  store.openSkillModal(props.player.role)
+  uiStore.openSkillModal(props.player.role)
 }
 
 const campClass = computed(() => {
@@ -103,56 +116,77 @@ const fieldEffects = computed(() => {
 
 // 当前玩家身上的伤害特效（暴血）
 const myDamageEffects = computed(() =>
-  store.damageEffects.filter(d => d.targetId === props.player.id)
+  damageEffects.value.filter(d => d.targetId === props.player.id)
 )
+
+const FORM_DISPLAY: Record<string, { label: string; cls: string }> = {
+  heroic_form: { label: '英灵形态', cls: 'bg-amber-800/70 text-amber-100 border-amber-500/40' },
+  arbiter_judgment_form: { label: '审判形态', cls: 'bg-violet-800/70 text-violet-100 border-violet-500/40' },
+  elf_archer_ritual_form: { label: '祝福形态', cls: 'bg-emerald-800/70 text-emerald-100 border-emerald-500/40' },
+  magic_swordsman_shadow_form: { label: '暗影形态', cls: 'bg-slate-800/80 text-slate-100 border-slate-500/40' },
+  war_homunculus_burst_form: { label: '蓄势形态', cls: 'bg-purple-900/70 text-purple-100 border-purple-500/40' },
+  prayer_master_prayer_form: { label: '祈祷形态', cls: 'bg-amber-900/70 text-amber-100 border-amber-500/40' },
+  crimson_knight_hot_blooded_form: { label: '热血形态', cls: 'bg-orange-900/70 text-orange-100 border-orange-500/40' },
+  onmyoji_shikigami_form: { label: '式神形态', cls: 'bg-sky-900/70 text-sky-100 border-sky-500/40' },
+  blaze_witch_flame_form: { label: '烈焰形态', cls: 'bg-orange-900/70 text-orange-100 border-orange-500/40' },
+  beast_samurai_iaijutsu_form: { label: '居合形态', cls: 'bg-zinc-900/75 text-zinc-100 border-zinc-500/40' },
+  holy_bow_holy_glory_form: { label: '圣煌形态', cls: 'bg-sky-900/70 text-sky-100 border-sky-500/40' },
+  magic_lance_phantom_form: { label: '幻影形态', cls: 'bg-slate-900/75 text-slate-100 border-slate-500/40' },
+  bard_eternal_prisoner_form: { label: '囚徒形态', cls: 'bg-purple-900/70 text-purple-100 border-purple-500/40' },
+  hero_exhaustion_form: { label: '精疲力竭', cls: 'bg-amber-900/70 text-amber-100 border-amber-500/40' },
+  fighter_hundred_dragon_form: { label: '幻龙拳形态', cls: 'bg-red-900/70 text-red-100 border-red-500/40' },
+  moon_goddess_dark_moon_form: { label: '暗月形态', cls: 'bg-slate-900/75 text-slate-100 border-slate-500/40' },
+  blood_witch_bleeding_form: { label: '流血形态', cls: 'bg-red-900/70 text-red-100 border-red-500/40' },
+}
+
+const FORM_TOKEN_KEYS = new Set([
+  'arbiter_form',
+  'elf_ritual_form',
+  'ms_shadow_form',
+  'hom_burst_form',
+  'prayer_form',
+  'crk_hot_form',
+  'onmyoji_form',
+  'bw_flame_form',
+  'hb_form',
+  'ml_phantom_form',
+  'bd_prisoner_form',
+  'hero_exhaustion_form',
+  'fighter_hundred_dragon_form',
+  'mg_dark_form',
+  'bp_bleed_form',
+])
 
 const TOKEN_DISPLAY: Record<string, { label: string; cls: string }> = {
   element: { label: '元素', cls: 'bg-cyan-800/70 text-cyan-100 border-cyan-500/40' },
   judgment: { label: '审判', cls: 'bg-fuchsia-800/70 text-fuchsia-100 border-fuchsia-500/40' },
   valkyrie_spirit: { label: '英灵', cls: 'bg-amber-800/70 text-amber-100 border-amber-500/40' },
-  arbiter_form: { label: '审判形态', cls: 'bg-violet-800/70 text-violet-100 border-violet-500/40' },
-  elf_ritual_form: { label: '祝福形态', cls: 'bg-emerald-800/70 text-emerald-100 border-emerald-500/40' },
   elf_blessing_count: { label: '祝福', cls: 'bg-teal-800/70 text-teal-100 border-teal-500/40' },
-  ms_shadow_form: { label: '暗影形态', cls: 'bg-slate-800/80 text-slate-100 border-slate-500/40' },
   css_blood: { label: '鲜血', cls: 'bg-rose-800/70 text-rose-100 border-rose-500/40' },
   css_blood_cap: { label: '鲜血上限', cls: 'bg-rose-900/60 text-rose-100 border-rose-600/40' },
-  css_rose_courtyard_active: { label: '庭院在场', cls: 'bg-red-900/65 text-red-100 border-red-500/40' },
-  prayer_form: { label: '祈祷形态', cls: 'bg-amber-900/70 text-amber-100 border-amber-500/40' },
   prayer_rune: { label: '祈祷符文', cls: 'bg-yellow-900/70 text-yellow-100 border-yellow-500/40' },
   crk_blood_mark: { label: '血印', cls: 'bg-red-900/70 text-red-100 border-red-500/40' },
-  crk_hot_form: { label: '热血形态', cls: 'bg-orange-900/70 text-orange-100 border-orange-500/40' },
   hom_war_rune: { label: '战纹', cls: 'bg-indigo-900/70 text-indigo-100 border-indigo-500/40' },
   hom_magic_rune: { label: '魔纹', cls: 'bg-violet-900/70 text-violet-100 border-violet-500/40' },
-  hom_burst_form: { label: '蓄势形态', cls: 'bg-purple-900/70 text-purple-100 border-purple-500/40' },
-  onmyoji_form: { label: '式神形态', cls: 'bg-sky-900/70 text-sky-100 border-sky-500/40' },
   onmyoji_ghost_fire: { label: '鬼火', cls: 'bg-teal-900/70 text-teal-100 border-teal-500/40' },
   bw_rebirth: { label: '重生', cls: 'bg-rose-900/70 text-rose-100 border-rose-500/40' },
-  bw_flame_form: { label: '烈焰形态', cls: 'bg-orange-900/70 text-orange-100 border-orange-500/40' },
   mb_charge_count: { label: '充能', cls: 'bg-indigo-900/70 text-indigo-100 border-indigo-500/40' },
   bd_inspiration: { label: '灵感', cls: 'bg-violet-900/70 text-violet-100 border-violet-500/40' },
-  bd_prisoner_form: { label: '囚徒形态', cls: 'bg-purple-900/70 text-purple-100 border-purple-500/40' },
-  ml_phantom_form: { label: '幻影形态', cls: 'bg-slate-900/75 text-slate-100 border-slate-500/40' },
   ml_dark_release_next_attack_bonus: { label: '下次主动攻+伤', cls: 'bg-rose-900/70 text-rose-100 border-rose-500/40' },
   ml_fullness_next_attack_bonus: { label: '充盈下次攻+伤', cls: 'bg-orange-900/70 text-orange-100 border-orange-500/40' },
   ml_dark_release_lock_turn: { label: '本回合锁技能', cls: 'bg-zinc-800/75 text-zinc-100 border-zinc-500/40' },
   hero_anger: { label: '怒气', cls: 'bg-rose-900/70 text-rose-100 border-rose-500/40' },
   hero_wisdom: { label: '知性', cls: 'bg-sky-900/70 text-sky-100 border-sky-500/40' },
-  hero_exhaustion_form: { label: '精疲力竭', cls: 'bg-amber-900/70 text-amber-100 border-amber-500/40' },
   hero_calm_end_crystal_pending: { label: '止水回晶', cls: 'bg-cyan-900/70 text-cyan-100 border-cyan-500/40' },
   fighter_qi: { label: '斗气', cls: 'bg-orange-900/70 text-orange-100 border-orange-500/40' },
-  fighter_hundred_dragon_form: { label: '幻龙拳形态', cls: 'bg-red-900/70 text-red-100 border-red-500/40' },
   hb_cannon: { label: '圣煌辉光炮', cls: 'bg-amber-900/70 text-amber-100 border-amber-500/40' },
   hb_faith: { label: '信仰', cls: 'bg-yellow-900/70 text-yellow-100 border-yellow-500/40' },
-  hb_form: { label: '圣煌形态', cls: 'bg-sky-900/70 text-sky-100 border-sky-500/40' },
   ss_blue_soul: { label: '蓝色灵魂', cls: 'bg-blue-900/70 text-blue-100 border-blue-500/40' },
   ss_yellow_soul: { label: '黄色灵魂', cls: 'bg-amber-900/70 text-amber-100 border-amber-500/40' },
-  ss_link_active: { label: '灵魂链接在场', cls: 'bg-indigo-900/70 text-indigo-100 border-indigo-500/40' },
-  mg_dark_form: { label: '暗月形态', cls: 'bg-slate-900/75 text-slate-100 border-slate-500/40' },
   mg_new_moon: { label: '新月', cls: 'bg-cyan-900/70 text-cyan-100 border-cyan-500/40' },
   mg_petrify: { label: '石化', cls: 'bg-zinc-900/70 text-zinc-100 border-zinc-500/40' },
   mg_dark_moon_count: { label: '暗月', cls: 'bg-indigo-900/70 text-indigo-100 border-indigo-500/40' },
   mg_next_attack_no_counter: { label: '下次攻不可应战', cls: 'bg-rose-900/70 text-rose-100 border-rose-500/40' },
-  bp_bleed_form: { label: '流血形态', cls: 'bg-red-900/70 text-red-100 border-red-500/40' },
   bp_shared_life_active: { label: '同生共死在场', cls: 'bg-rose-900/70 text-rose-100 border-rose-500/40' },
   bp_shared_life_bound: { label: '同生共死绑定', cls: 'bg-rose-950/75 text-rose-100 border-rose-400/50' },
   bt_pupa: { label: '蛹', cls: 'bg-amber-900/70 text-amber-100 border-amber-500/40' },
@@ -161,20 +195,13 @@ const TOKEN_DISPLAY: Record<string, { label: string; cls: string }> = {
 }
 
 const HIDDEN_TOKEN_KEYS = new Set([
-  'arbiter_law_inited',
   'arbiter_skip_forced_doomsday',
   'arbiter_forced_doomsday_done_turn',
   'holy_lancer_block_sacred_strike',
   'holy_lancer_prayer_used_turn',
   // 新角色内部流程标记：不应直接展示给玩家
-  'elf_elemental_shot_fire_pending',
-  'elf_elemental_shot_water_pending',
-  'elf_elemental_shot_earth_pending',
-  'elf_elemental_shot_thunder_pending',
   'elf_ritual_release_waiting',
-  'elf_ritual_suppress_overflow',
   'plague_block_immortal',
-  'ms_shadow_release_pending',
   'ms_yellow_spring_pending',
   'css_blood_barrier_lock',
   'prayer_power_blessing_used',
@@ -191,21 +218,16 @@ const HIDDEN_TOKEN_KEYS = new Set([
   'ml_stardust_morale_before',
   'hero_exhaustion_release_pending',
   'hero_roar_active',
-  'hero_roar_damage_pending',
   'hero_calm_force_no_counter',
   'hero_dead_duel_pending',
   'fighter_attack_start_skill_lock',
   'fighter_charge_pending',
-  'fighter_charge_damage_pending',
   'fighter_qiburst_force_no_counter',
-  'fighter_hundred_dragon_target_order',
   'hb_special_used_turn',
   'hb_auto_fill_done_turn',
   'hb_shard_miss_pending',
   'mg_blasphemy_used_turn',
   'mg_blasphemy_pending',
-  'mg_extra_turn_pending',
-  'bp_bleed_tick_done_turn',
   'bt_wither_pending',
   'adventurer_extract_last_gem',
   'adventurer_extract_last_crystal',
@@ -213,7 +235,7 @@ const HIDDEN_TOKEN_KEYS = new Set([
 
 const tokenIndicators = computed(() => {
   const entries = Object.entries(props.player.tokens ?? {})
-    .filter(([key, value]) => !HIDDEN_TOKEN_KEYS.has(key) && typeof value === 'number' && value > 0)
+    .filter(([key, value]) => !HIDDEN_TOKEN_KEYS.has(key) && !FORM_TOKEN_KEYS.has(key) && typeof value === 'number' && value > 0)
     .filter(([key, value]) => !(key === 'css_blood_cap' && value <= 3))
     .map(([key, value]) => {
       const cfg = TOKEN_DISPLAY[key]
@@ -223,15 +245,33 @@ const tokenIndicators = computed(() => {
         label: cfg?.label ?? key,
         cls: cfg?.cls ?? 'bg-gray-700/70 text-gray-100 border-gray-500/40'
       }
-    })
+  })
   return entries
+})
+
+const formIndicator = computed(() => {
+  const form = props.player.form
+  if (!form) return null
+  const cfg = FORM_DISPLAY[form]
+  if (!cfg) {
+    return {
+      key: form,
+      label: '形态',
+      cls: 'bg-gray-700/70 text-gray-100 border-gray-500/40',
+    }
+  }
+  return {
+    key: form,
+    label: cfg.label,
+    cls: cfg.cls,
+  }
 })
 
 const showStealthBlockedHint = computed(() => {
   if (props.selectable) return false
   if (!props.isOpponent) return false
-  if (store.actionMode !== 'attack') return false
-  if (store.selectedCardForAction === null) return false
+  if (actionMode.value !== 'attack') return false
+  if (selectedCardForAction.value === null) return false
   return !!props.player.field?.some((fc) => fc.mode === 'Effect' && fc.effect === 'Stealth')
 })
 
@@ -250,14 +290,14 @@ function logTargetDebug(stage: string, payload?: Record<string, unknown>) {
     selectable: !!props.selectable,
     selected: !!props.selected,
     reason: props.debugTargetReason || '',
-    actionMode: store.actionMode,
-    skillMode: store.skillMode,
-    promptType: store.currentPrompt?.type || '',
-    isPromptForMe: store.isPromptForMe,
+    actionMode: actionMode.value,
+    skillMode: skillMode.value,
+    promptType: currentPrompt.value?.type || '',
+    isPromptForMe: isPromptForMe.value,
     ...payload
   }
   console.log('[TargetDebug][PlayerArea]', data)
-  store.addLog(
+  battleReviewStore.addLog(
     `[TargetDebug][PlayerArea] ${stage} p=${props.player.id} selectable=${String(!!props.selectable)} selected=${String(!!props.selected)} reason=${props.debugTargetReason || ''}`
   )
 }
@@ -309,6 +349,10 @@ function handleClick(e: MouseEvent) {
 
     <div v-if="typeof turnOrder === 'number'" class="turn-order-badge" :title="`行动顺序 #${turnOrder}`">
       #{{ turnOrder }}
+    </div>
+
+    <div v-if="formIndicator" class="form-badge" :class="formIndicator.cls" :title="formIndicator.label">
+      {{ formIndicator.label }}
     </div>
 
     <div class="player-overlay">
@@ -471,6 +515,30 @@ function handleClick(e: MouseEvent) {
   text-align: center;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.62);
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.34);
+}
+
+.form-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 5;
+  padding: 1px 5px;
+  border-radius: 4px;
+  border-width: 1px;
+  border-style: solid;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.4;
+  text-align: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5), inset 0 1px 2px rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(2px);
+  animation: glowPulse 2s infinite ease-in-out;
+}
+
+@keyframes glowPulse {
+  0% { filter: brightness(1); }
+  50% { filter: brightness(1.2); }
+  100% { filter: brightness(1); }
 }
 
 .player-overlay {

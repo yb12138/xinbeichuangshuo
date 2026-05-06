@@ -28,7 +28,7 @@ func TestBerserker_Skills(t *testing.T) {
 			p2 := game.State.Players["p2"]
 			p1.IsActive = true
 			p1.TurnState = model.NewPlayerTurnState()
-			game.State.Phase = model.PhaseActionSelection
+			game.State.TurnStage = model.TurnStageActionExecution
 
 			p1.Hand = attackerHand
 			p2.Heal = 0
@@ -75,20 +75,20 @@ func TestBerserker_Skills(t *testing.T) {
 		game := engine.NewGameEngine(observer)
 		game.AddPlayer("p1", "Berserker", "berserker", model.RedCamp)
 		game.AddPlayer("p2", "Target", "angel", model.BlueCamp)
-		
+
 		game.State.CurrentTurn = 0
 		game.State.Deck = rules.InitDeck()
 		p1 := game.State.Players["p1"]
 		p2 := game.State.Players["p2"]
 		p1.IsActive = true
 		p1.TurnState = model.NewPlayerTurnState()
-		game.State.Phase = model.PhaseActionSelection
+		game.State.TurnStage = model.TurnStageActionExecution
 
 		// 给 P1 独有牌 血腥咆哮
 		p1.Hand = []model.Card{
 			{
 				ID: "br_card", Name: "血腥咆哮", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2,
-				ExclusiveChar1: "狂战士", ExclusiveSkill1: "血腥咆哮",
+				ExclusiveChar1: "berserker", ExclusiveSkill1: "血腥咆哮",
 			},
 		}
 
@@ -103,9 +103,9 @@ func TestBerserker_Skills(t *testing.T) {
 		action := model.PlayerAction{
 			PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardIndex: 0,
 		}
-		
+
 		// 执行攻击
-		// 引擎应该检测到 BloodRoar 技能触发 (TriggerOnAttackStart, Silent response)
+		// 引擎应该检测到 BloodRoar 技能触发 (TimingOnAttackStart, Silent response)
 		// 并且 IsHitForced 被设为 true
 		if err := game.HandleAction(action); err != nil {
 			t.Fatalf("攻击失败: %v", err)
@@ -122,12 +122,12 @@ func TestBerserker_Skills(t *testing.T) {
 			}
 			err := game.HandleAction(actionCounter)
 			if err == nil {
-				t.Errorf("预期强制命中无法应战，但 P2 应战成功了") 
+				t.Errorf("预期强制命中无法应战，但 P2 应战成功了")
 			} else {
 				t.Logf("✅ P2 无法应战 (符合预期): %v", err)
 			}
 		}
-		
+
 		t.Logf("✅ 血腥咆哮测试通过 (触发了强制命中逻辑)")
 	})
 
@@ -146,12 +146,12 @@ func TestBerserker_Skills(t *testing.T) {
 			p2 := game.State.Players["p2"]
 			p1.IsActive = true
 			p1.TurnState = model.NewPlayerTurnState()
-			game.State.Phase = model.PhaseActionSelection
+			game.State.TurnStage = model.TurnStageActionExecution
 
 			p1.Hand = []model.Card{
 				{
 					ID: "bb_card", Name: "血影狂刀", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2,
-					ExclusiveChar1: "狂战士", ExclusiveSkill1: "血影狂刀",
+					ExclusiveChar1: "berserker", ExclusiveSkill1: "血影狂刀",
 				},
 			}
 			p2.Heal = 0
@@ -183,7 +183,7 @@ func TestBerserker_Skills(t *testing.T) {
 		if actualDrawB != 4 {
 			t.Errorf("血影狂刀(手牌3)伤害错误: 预期摸 4 张，实际摸 %d 张", actualDrawB)
 		}
-		
+
 		t.Logf("✅ 血影狂刀测试通过")
 	})
 }

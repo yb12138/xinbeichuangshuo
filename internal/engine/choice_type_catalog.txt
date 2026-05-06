@@ -1,0 +1,5 @@
+basic_effect_pick
+system_discard_cards
+buy_resource
+heal
+weak

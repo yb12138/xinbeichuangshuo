@@ -1,15 +1,28 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { useGameStore } from '../stores/gameStore'
-import { useWebSocket } from '../composables/useWebSocket'
+import { useInterruptStore } from '../stores/interrupt.store'
+import { useSessionStore } from '../stores/session.store'
+import { useSnapshotStore } from '../stores/snapshot.store'
+import { useBattleInteractionState } from '../composables/useBattleInteractionState'
+import { useSubmitAction } from '../composables/useSubmitAction'
 import type { AvailableSkill, PromptOption, PlayerView } from '../types/game'
-import CardComponent from './CardComponent.vue'
 import PromptDialog from './PromptDialog.vue'
 
-const store = useGameStore()
-const ws = useWebSocket()
+const interruptStore = useInterruptStore()
+const sessionStore = useSessionStore()
+const snapshotStore = useSnapshotStore()
+const actions = useSubmitAction()
+const {
+    myPlayer,
+    myHand,
+    targetablePlayers,
+    effectiveAvailableSkills,
+    canConfirmSkill,
+    cardMatchesExclusive,
+} = useBattleInteractionState()
 
-const prompt = computed(() => store.currentPrompt)
+const prompt = computed(() => interruptStore.currentPrompt)
+const isPromptForMe = computed(() => prompt.value?.player_id === sessionStore.myPlayerId)
 
 const debugOpen = ref(false)
 const debugTargetPlayerId = ref('')
@@ -28,15 +41,17 @@ const debugFaction = ref('圣')
 const debugFactionCount = ref(1)
 const debugMagicCardName = ref('')
 const debugMagicCardCount = ref(1)
+const debugDiscardCount = ref(1)
 const debugStatus = ref('')
 
 const debugAvailable = computed(() => {
     if (typeof window === 'undefined') return false
     const query = new URLSearchParams(window.location.search)
-    return import.meta.env.DEV || query.has('debug')
+    return import.meta.env.DEV || query.has('debug') || query.has('debug_target')
 })
 
-type MainActionIconId = 'attack' | 'magic' | 'special'
+type MainActionIconId = 'attack' | 'magic' | 'special' | 'cannot_act' | 'skill' | 'pass' | 'cancel' | 'confirm' | 'card'
+
 type SpecialActionId = 'buy' | 'synthesize' | 'extract'
 
 interface SpecialActionMeta {
@@ -54,9 +69,15 @@ interface SpecialActionDisplayItem extends SpecialActionMeta {
 }
 
 const MAIN_ACTION_IMAGE_CANDIDATES: Record<MainActionIconId, string[]> = {
-    attack: ['/assets/ui/action_attack_btn.png', '/assets/ui/action_attack.png', '/assets/ui/action_attack.svg'],
-    magic: ['/assets/ui/action_magic_btn.png', '/assets/ui/action_magic.png', '/assets/ui/action_magic.svg'],
-    special: ['/assets/ui/action_special_btn.png', '/assets/ui/action_special.png', '/assets/ui/action_special.svg'],
+    attack: ['/assets/ui/action_attack.png'],
+    magic: ['/assets/ui/action_magic_btn.png'],
+    special: ['/assets/ui/action_special_btn.png'],
+    cannot_act: ['/assets/ui/action_cannot_act.png'],
+    skill: ['/assets/ui/action_skill.png'],
+    pass: ['/assets/ui/action_pass_btn.png'],
+    cancel: ['/assets/ui/action_cancel_btn.png'],
+    confirm: ['/assets/ui/action_confirm.png'],
+    card: ['/assets/ui/action_card.png'],
 }
 
 const SPECIAL_ACTION_CATALOG: SpecialActionMeta[] = [
@@ -82,21 +103,24 @@ const SPECIAL_ACTION_CATALOG: SpecialActionMeta[] = [
         icon: '⛏',
     },
 ]
-const isMyTurn = computed(() => store.isMyTurn)
+const isMyTurn = computed(() => snapshotStore.currentPlayer === sessionStore.myPlayerId)
 const waitingName = computed(() => {
-    if (!store.waitingFor) return ''
-    return store.players[store.waitingFor]?.name || store.waitingFor
+    if (!interruptStore.waitingFor) return ''
+    return snapshotStore.players[interruptStore.waitingFor]?.name || interruptStore.waitingFor
 })
 const specialActionModalVisible = ref(false)
 const isIdleMainTurnPanel = computed(() =>
     isMyTurn.value &&
     !prompt.value &&
-    store.actionMode === 'none' &&
-    store.skillMode === 'none'
+    interruptStore.actionMode === 'none' &&
+    interruptStore.skillMode === 'none'
 )
 
 function isActionSelectionPromptMessage(message: string): boolean {
-    return message.includes('行动类型')
+    const normalized = String(message || '').trim()
+    // 仅识别主流程“请选择行动类型”提示；
+    // 避免把【圣疗】“请选择额外行动类型”误判为行动枢纽。
+    return normalized.includes('请选择行动类型')
 }
 
 type ActionHubOptionId = 'attack' | 'magic' | 'special' | 'cannot_act'
@@ -117,7 +141,7 @@ function normalizeActionHubOptionId(option: PromptOption): ActionHubOptionId | n
 
 const isActionSelectionPrompt = computed(() => {
     const p = prompt.value
-    if (!p || !store.isPromptForMe) return false
+    if (!p || !isPromptForMe.value) return false
     if (p.ui_mode === 'action_hub') return true
     if (p.type !== 'confirm') return false
     if (!isActionSelectionPromptMessage(p.message || '')) return false
@@ -126,16 +150,16 @@ const isActionSelectionPrompt = computed(() => {
 
 const isActionHubContext = computed(() =>
     (isIdleMainTurnPanel.value || isActionSelectionPrompt.value) &&
-    store.actionMode === 'none' &&
-    store.skillMode === 'none'
+    interruptStore.actionMode === 'none' &&
+    interruptStore.skillMode === 'none'
 )
 
 const isInlinePromptContext = computed(() =>
     !!prompt.value &&
-    store.isPromptForMe &&
+    isPromptForMe.value &&
     !isActionHubContext.value &&
-    store.actionMode === 'none' &&
-    store.skillMode === 'none'
+    interruptStore.actionMode === 'none' &&
+    interruptStore.skillMode === 'none'
 )
 
 const actionPanelRootClass = computed(() => ({
@@ -164,7 +188,7 @@ const actionPromptOptionMap = computed(() => {
 })
 
 const specialActionOptions = computed<PromptOption[]>(() => {
-    if (store.hasPerformedStartup) {
+    if (snapshotStore.hasPerformedStartup) {
         return []
     }
     if (isActionSelectionPrompt.value) {
@@ -184,7 +208,7 @@ const specialActionOptions = computed<PromptOption[]>(() => {
 
 const hasHubSpecialActions = computed(() => specialActionOptions.value.length > 0)
 const showSpecialHubEntry = computed(() => isActionHubContext.value)
-const isStartupSpecialLocked = computed(() => store.hasPerformedStartup)
+const isStartupSpecialLocked = computed(() => snapshotStore.hasPerformedStartup)
 const isExtraActionPrompt = computed(() => {
     const message = prompt.value?.message ?? ''
     return message.includes('额外攻击行动') || message.includes('额外法术行动') || message.includes('额外行动阶段')
@@ -195,12 +219,12 @@ const cannotActButtonLabel = computed(() =>
         : actionPromptLabel('cannot_act', '无法行动')
 )
 const teamStoneCount = computed(() =>
-    store.myCamp === 'Red'
-        ? store.redGems + store.redCrystals
-        : store.blueGems + store.blueCrystals
+    sessionStore.myCamp === 'Red'
+        ? snapshotStore.redGems + snapshotStore.redCrystals
+        : snapshotStore.blueGems + snapshotStore.blueCrystals
 )
 const personalEnergy = computed(() => {
-    const me = store.myPlayer
+    const me = myPlayer.value
     if (!me) return 0
     return (me.gem || 0) + (me.crystal || 0)
 })
@@ -226,15 +250,15 @@ const specialActionDisplayItems = computed<SpecialActionDisplayItem[]>(() => {
 })
 
 const debugTargetPlayers = computed(() =>
-    Object.values(store.players).sort((a, b) => a.name.localeCompare(b.name, 'zh-Hans-CN'))
+    Object.values(snapshotStore.players).sort((a, b) => a.name.localeCompare(b.name, 'zh-Hans-CN'))
 )
 
 const debugRoleList = computed(() =>
-    Object.values(store.characters).sort((a, b) => a.name.localeCompare(b.name, 'zh-Hans-CN'))
+    Object.values(snapshotStore.characters).sort((a, b) => a.name.localeCompare(b.name, 'zh-Hans-CN'))
 )
 
 const debugExclusiveSkillOptions = computed(() => {
-    const role = store.characters[debugExclusiveRoleId.value]
+    const role = snapshotStore.characters[debugExclusiveRoleId.value]
     if (!role || !Array.isArray(role.skills)) return []
     return role.skills
 })
@@ -243,11 +267,23 @@ const mainActionImageIndex = ref<Record<MainActionIconId, number>>({
     attack: 0,
     magic: 0,
     special: 0,
+    cannot_act: 0,
+    skill: 0,
+    pass: 0,
+    cancel: 0,
+    confirm: 0,
+    card: 0,
 })
 const mainActionImageFailed = ref<Record<MainActionIconId, boolean>>({
     attack: false,
     magic: false,
     special: false,
+    cannot_act: false,
+    skill: false,
+    pass: false,
+    cancel: false,
+    confirm: false,
+    card: false,
 })
 
 function hasActionPromptOption(optionId: string): boolean {
@@ -314,7 +350,7 @@ function resolveSpecialActionDisabledReason(optionId: SpecialActionId): string {
     return '当前条件不足，无法执行该行动。'
 }
 
-function triggerActionHubOption(optionId: string) {
+function invokeActionHubOption(optionId: string) {
     specialActionModalVisible.value = false
     if (isActionSelectionPrompt.value) {
         handlePromptOption(actionPromptRawOptionId(optionId))
@@ -337,7 +373,7 @@ function triggerActionHubOption(optionId: string) {
             openExtractAction()
             return
         case 'cannot_act':
-            ws.sendAction({ player_id: store.myPlayerId, type: 'CannotAct' })
+            actions.submitCannotAct()
             return
         case 'pass':
             openPassAction()
@@ -352,7 +388,7 @@ function triggerActionHubOption(optionId: string) {
 
 function openSpecialActionModal() {
     if (isStartupSpecialLocked.value) {
-        store.setError('你本回合已执行启动技能，不能执行特殊行动')
+        interruptStore.showError('你本回合已执行启动技能，不能执行特殊行动')
         return
     }
     specialActionModalVisible.value = true
@@ -365,43 +401,43 @@ function closeSpecialActionModal() {
 function chooseSpecialAction(optionId: string) {
     const chosen = specialActionDisplayItems.value.find((item) => item.id === optionId)
     if (chosen && !chosen.available) {
-        store.setError(chosen.disabledReason || '该特殊行动当前不可执行')
+        interruptStore.showError(chosen.disabledReason || '该特殊行动当前不可执行')
         return
     }
     specialActionModalVisible.value = false
-    triggerActionHubOption(optionId)
+    invokeActionHubOption(optionId)
 }
 
 function openActionHubAttack() {
-    store.setActionModeForAttack('attack')
+    interruptStore.setActionMode('attack')
 }
 
 function openActionHubMagic() {
-    store.setActionModeForAttack('magic')
+    interruptStore.setActionMode('magic')
 }
 
 function openSkillAction() {
-    if (store.effectiveAvailableSkills.length === 0) {
-        store.setError('当前没有可发动技能')
+    if (effectiveAvailableSkills.value.length === 0) {
+        interruptStore.showError('当前没有可发动技能')
         return
     }
-    store.setSkillMode('choosing_skill')
+    interruptStore.setSkillMode('choosing_skill')
 }
 
 function openBuyAction() {
-    ws.buy()
+    actions.submitBuy()
 }
 
 function openSynthesizeAction() {
-    ws.sendAction({ player_id: store.myPlayerId, type: 'Synthesize' })
+    actions.submitSynthesize()
 }
 
 function openExtractAction() {
-    ws.extract()
+    actions.submitExtract()
 }
 
 function openPassAction() {
-    ws.pass()
+    actions.submitPass()
 }
 
 watch(isActionHubContext, (isOpen) => {
@@ -425,63 +461,55 @@ function handlePromptOption(optionId: string) {
     if (!prompt.value) return
     if (optionId === 'special') {
         if (isStartupSpecialLocked.value) {
-            store.setError('你本回合已执行启动技能，不能执行特殊行动')
+            interruptStore.showError('你本回合已执行启动技能，不能执行特殊行动')
             return
         }
         openSpecialActionModal()
         return
     } else if (optionId === 'buy') {
-        ws.buy()
+        actions.submitBuy()
     } else if (optionId === 'extract') {
-        ws.extract()
+        actions.submitExtract()
     } else if (optionId === 'synthesize') {
-        ws.sendAction({ player_id: store.myPlayerId, type: 'Synthesize' })
+        actions.submitSynthesize()
     } else if (optionId === 'attack') {
-        store.setActionModeForAttack('attack')
+        interruptStore.setActionMode('attack')
     } else if (optionId === 'magic') {
-        store.setActionModeForAttack('magic')
+        interruptStore.setActionMode('magic')
     } else if (optionId === 'cannot_act') {
-        ws.sendAction({ player_id: store.myPlayerId, type: 'CannotAct' })
+        actions.submitCannotAct()
     } else if (optionId === 'skip' || optionId === 'cancel') {
-        ws.cancel()
+        actions.submitCancel()
         return
     } else if (optionId === 'confirm') {
-        ws.confirm()
+        actions.submitConfirm()
     } else if (optionId === 'take') {
-        ws.respond('take')
+        actions.submitRespondTake()
     } else if (optionId === 'counter') {
-        if (store.selectedCards.length === 0) {
-            store.setError(isMagicMissilePromptMessage() ? '请先选择一张【魔弹】再传递' : '请先选择一张应战牌')
-            return
-        }
-        ws.respond('counter', store.selectedCards[0])
+        if (!actions.submitRespondCounter(isMagicMissilePromptMessage())) return
     } else if (optionId === 'defend') {
-        if (store.selectedCards.length === 0) {
-            store.setError('请先选择一张【圣光】进行防御（圣盾需提前放置）')
-            return
-        }
-        ws.respond('defend', store.selectedCards[0])
+        if (!actions.submitRespondDefend()) return
     } else if (optionId === 'yes' || optionId === 'no') {
         // 魔弹融合等确认选项：yes=0, no=1
-        ws.select([optionId === 'yes' ? 0 : 1])
+        actions.submitSelect([optionId === 'yes' ? 0 : 1])
     } else if (optionId === 'normal' || optionId === 'reverse') {
         // 魔弹掌控方向选择：normal=0, reverse=1
-        ws.select([optionId === 'normal' ? 0 : 1])
+        actions.submitSelect([optionId === 'normal' ? 0 : 1])
     } else if (prompt.value.type === 'choose_skill') {
         const idx = prompt.value.options.findIndex((o: { id: string }) => o.id === optionId)
         if (idx >= 0) {
-            ws.select([idx])
+            actions.submitSelect([idx])
         } else {
-            ws.cancel()
+            actions.submitCancel()
             return
         }
     } else {
         const index = parseInt(optionId)
         if (!isNaN(index)) {
-            ws.select([index])
+            actions.submitSelect([index])
         } else {
-            ws.sendAction({
-                player_id: store.myPlayerId,
+            actions.submitAction({
+                player_id: sessionStore.myPlayerId,
                 type: 'Select',
                 skill_id: optionId
             })
@@ -492,53 +520,27 @@ function handlePromptOption(optionId: string) {
 }
 
 function backFromMagicCard() {
-    store.setMagicSubChoice('none')
-    store.setSelectedCardForAction(null)
+    interruptStore.setMagicSubChoice('none')
+    interruptStore.setSelectedCardForAction(null)
 }
 
 const attackTargetCandidates = computed(() => {
-    if (store.actionMode !== 'attack') return []
-    return Object.values(store.players).filter((p) => p.camp !== store.myCamp)
+    if (interruptStore.actionMode !== 'attack') return []
+    return Object.values(snapshotStore.players).filter((p) => p.camp !== sessionStore.myCamp)
 })
 
-function isAllyTarget(player: PlayerView): boolean {
-    if (store.myCamp) return player.camp === store.myCamp
-    const myCamp = store.players[store.myPlayerId]?.camp
-    if (myCamp) return player.camp === myCamp
-    return player.id === store.myPlayerId
-}
-
-function splitTargetsByCamp(targets: PlayerView[]): { enemies: PlayerView[]; allies: PlayerView[] } {
-    const enemies: PlayerView[] = []
-    const allies: PlayerView[] = []
-    for (const target of targets) {
-        if (isAllyTarget(target)) allies.push(target)
-        else enemies.push(target)
-    }
-    return { enemies, allies }
-}
-
 const actionTargets = computed<PlayerView[]>(() => {
-    if (store.actionMode === 'attack') return attackTargetCandidates.value
-    if (store.actionMode === 'magic') return store.targetablePlayers
+    if (interruptStore.actionMode === 'attack') return attackTargetCandidates.value
+    if (interruptStore.actionMode === 'magic') return targetablePlayers.value
     return []
 })
 
 const hasActionTargets = computed(() => actionTargets.value.length > 0)
-const groupedSkillTargets = computed(() => splitTargetsByCamp(store.targetablePlayersForSkill))
-
-function targetBasicInfo(targetId: string): string {
-    const player = store.players[targetId]
-    if (!player) return ''
-    const handCount = Number.isFinite(player.hand_count) ? player.hand_count : (player.hand?.length ?? 0)
-    const heal = Number.isFinite(player.heal) ? player.heal : 0
-    return `手牌 ${handCount} · 治疗 ${heal}`
-}
 
 function isStealthBlockedTarget(playerId: string): boolean {
-    if (store.actionMode !== 'attack') return false
-    if (store.targetablePlayers.some((p) => p.id === playerId)) return false
-    const p = store.players[playerId]
+    if (interruptStore.actionMode !== 'attack') return false
+    if (targetablePlayers.value.some((p) => p.id === playerId)) return false
+    const p = snapshotStore.players[playerId]
     if (!p || !Array.isArray(p.field)) return false
     return p.field.some((fc) => fc.mode === 'Effect' && fc.effect === 'Stealth')
 }
@@ -547,30 +549,25 @@ const hasStealthBlockedAttackTarget = computed(() =>
     attackTargetCandidates.value.some((p) => isStealthBlockedTarget(p.id))
 )
 
-const BOARD_GUIDED_SKILL_IDS = new Set(['ss_soul_mirror'])
-const isBoardGuidedSkillFlow = computed(() => {
-    const skillId = store.selectedSkill?.id
+const SKILL_REQUIRE_MANUAL_TARGET_CONFIRM_IDS = new Set([
+    'water_seal',
+    'fire_seal',
+    'earth_seal',
+    'wind_seal',
+    'thunder_seal',
+])
+const isManualTargetConfirmSkillFlow = computed(() => {
+    const skillId = interruptStore.selectedSkill?.id
     if (!skillId) return false
-    return BOARD_GUIDED_SKILL_IDS.has(skillId)
+    return SKILL_REQUIRE_MANUAL_TARGET_CONFIRM_IDS.has(skillId)
 })
-
-function confirmSkill() {
-    const skill = store.selectedSkill
-    if (!skill) return
-    const targetIds = [...store.skillTargetIds]
-    const selections = store.skillDiscardIndices.length > 0 ? [...store.skillDiscardIndices] : undefined
-    // 技能已发送后立即退出选择态，避免在服务端下发下一步 prompt 前重复发送 Skill。
-    store.clearSkillMode()
-    // 发送时带上弃牌索引
-    ws.useSkill(skill.id, targetIds, selections)
-}
 
 function selectSkill(skill: AvailableSkill) {
     if (!canSelectSkill(skill)) {
-        store.setError(skillDisabledReason(skill))
+        interruptStore.showError(skillDisabledReason(skill))
         return
     }
-    store.setSelectedSkill(skill)
+    interruptStore.setSelectedSkill(skill)
     // 如果技能需要弃牌，先进入弃牌选择模式
     if (skill.cost_discards > 0) {
         const required = requiredDiscardCount(skill)
@@ -578,17 +575,22 @@ function selectSkill(skill: AvailableSkill) {
             proceedAfterDiscard(skill)
             return
         }
-        store.setSkillMode('choosing_discard')
+        interruptStore.setSkillMode('choosing_discard')
         return
     }
     // 无需弃牌，直接进入目标选择或发动
     proceedAfterDiscard(skill)
 }
 
+function resolveMyRoleIdForExclusive(): string {
+    const roleId = (sessionStore.myCharRole || myPlayer.value?.role || '').trim()
+    return roleId
+}
+
 function cardMatchesSkillDiscard(card: { type: string; element: string; faction?: string; exclusive_char1?: string; exclusive_char2?: string; exclusive_skill1?: string; exclusive_skill2?: string }, skill: AvailableSkill): boolean {
     if (skill.require_exclusive) {
-        const char = store.getCharacter(store.myCharRole)
-        if (!char || !store.cardMatchesExclusive(card, char.name, skill.title)) return false
+        const roleId = resolveMyRoleIdForExclusive()
+        if (!roleId || !cardMatchesExclusive(card, roleId, skill.title)) return false
     }
     if (skill.discard_type && card.type !== skill.discard_type) return false
     if (skill.discard_element) return card.element === skill.discard_element
@@ -598,33 +600,18 @@ function cardMatchesSkillDiscard(card: { type: string; element: string; faction?
 
 function countSkillDiscardCandidates(skill: AvailableSkill): number {
     if (!skill || skill.cost_discards <= 0) return 0
-    return store.myHand.filter(card => cardMatchesSkillDiscard(card, skill)).length
+    return myHand.value.filter(card => cardMatchesSkillDiscard(card, skill)).length
 }
 
 function hasOnmyojiSameFactionPair(): boolean {
     const countByFaction = new Map<string, number>()
-    for (const card of store.myHand) {
+    for (const card of myHand.value) {
         if (!card.faction) continue
         const next = (countByFaction.get(card.faction) || 0) + 1
         if (next >= 2) return true
         countByFaction.set(card.faction, next)
     }
     return false
-}
-
-function hasAnyBasicEffectTarget(): boolean {
-    const isBasicEffect = (effect?: string) => {
-        return effect === 'Shield' || effect === 'Weak' || effect === 'Poison' ||
-            effect === 'SealFire' || effect === 'SealWater' || effect === 'SealEarth' ||
-            effect === 'SealWind' || effect === 'SealThunder' ||
-            effect === 'PowerBlessing' || effect === 'SwiftBlessing'
-    }
-    return Object.values(store.players).some((p) => {
-        if (!p || !Array.isArray(p.field)) return false
-        return p.field.some((fc) =>
-            fc.mode === 'Effect' && isBasicEffect(fc.effect)
-        )
-    })
 }
 
 type SkillTokenRule = {
@@ -656,12 +643,15 @@ const SKILL_TOKEN_RULES: Record<string, SkillTokenRule[]> = {
         { token: 'ss_blue_soul', min: 1, label: '蓝色灵魂' },
     ],
     arbiter_balance: [{ token: 'judgment', min: 1, label: '审判' }],
-    ms_shadow_meteor: [{ token: 'ms_shadow_form', min: 1, label: '暗影形态' }],
     bw_heavenfire_cleave: [{ token: 'bw_rebirth', min: 1, label: '重生' }],
 }
 
 function getMyTokenValue(token: string): number {
-    return store.myPlayer?.tokens?.[token] ?? 0
+    return myPlayer.value?.tokens?.[token] ?? 0
+}
+
+function hasMyForm(form: string): boolean {
+    return myPlayer.value?.form === form
 }
 
 function skillTokenDisabledReason(skill: AvailableSkill): string {
@@ -673,33 +663,34 @@ function skillTokenDisabledReason(skill: AvailableSkill): string {
         }
     }
     if (skill.id === 'hb_radiant_descent') {
-        const form = getMyTokenValue('hb_form')
+        const form = hasMyForm('holy_bow_holy_glory_form')
         const faith = getMyTokenValue('hb_faith')
-        const heal = store.myPlayer?.heal ?? 0
-        if (form > 0) return '已处于圣煌形态，无法再次发动。'
+        const heal = myPlayer.value?.heal ?? 0
+        if (form) return '已处于圣煌形态，无法再次发动。'
         if (heal < 2 && faith < 2) return '治疗与信仰均不足2，无法发动。'
     }
     if (skill.id === 'hb_light_burst') {
-        const form = getMyTokenValue('hb_form')
-        if (form <= 0) return '仅圣煌形态下可发动。'
+        if (!hasMyForm('holy_bow_holy_glory_form')) return '仅圣煌形态下可发动。'
     }
     if (skill.id === 'hb_radiant_cannon') {
-        const form = getMyTokenValue('hb_form')
         const cannon = getMyTokenValue('hb_cannon')
         const faith = getMyTokenValue('hb_faith')
-        const myMorale = store.myCamp === 'Red' ? store.redMorale : store.blueMorale
-        const enemyMorale = store.myCamp === 'Red' ? store.blueMorale : store.redMorale
+        const myMorale = sessionStore.myCamp === 'Red' ? snapshotStore.redMorale : snapshotStore.blueMorale
+        const enemyMorale = sessionStore.myCamp === 'Red' ? snapshotStore.blueMorale : snapshotStore.redMorale
         const moraleGap = Math.max(0, enemyMorale - myMorale)
         const requiredFaith = 4 + moraleGap
-        if (form <= 0) return '仅圣煌形态下可发动。'
+        if (!hasMyForm('holy_bow_holy_glory_form')) return '仅圣煌形态下可发动。'
         if (cannon <= 0) return '圣煌辉光炮指示物不足。'
         if (faith < requiredFaith) return `信仰不足（需要 ${requiredFaith}，当前 ${faith}）。`
+    }
+    if (skill.id === 'ms_shadow_meteor' && !hasMyForm('magic_swordsman_shadow_form')) {
+        return '仅暗影形态下可发动。'
     }
     return ''
 }
 
 function canPaySkillEnergy(skill: AvailableSkill): boolean {
-    const me = store.myPlayer
+    const me = myPlayer.value
     if (!me) return false
     const gemNeed = skill.cost_gem || 0
     const crystalNeed = skill.cost_crystal || 0
@@ -708,30 +699,38 @@ function canPaySkillEnergy(skill: AvailableSkill): boolean {
     return usableCrystal >= crystalNeed
 }
 
+function isServerPublishedAvailableSkill(skill: AvailableSkill): boolean {
+    if (!skill) return false
+    const list = snapshotStore.availableSkills || []
+    if (list.length === 0) return false
+    const normalize = (v: unknown) => String(v ?? '').trim().toLowerCase()
+    const sid = normalize(skill.id)
+    if (!sid) return false
+    return list.some((item) => normalize(item.id) === sid)
+}
+
 function canSelectSkill(skill: AvailableSkill): boolean {
     if (!skill) return false
+    // 服务端已下发 available_skills 时，以后端可用态为准，避免前端本地预检与后端规则漂移导致误置灰。
+    if (isServerPublishedAvailableSkill(skill)) return true
     if (!canPaySkillEnergy(skill)) return false
-    if (skillTokenDisabledReason(skill)) return false
+    const tokenReason = skillTokenDisabledReason(skill)
+    if (tokenReason) return false
     if (skill.id === 'prayer_radiant_faith' || skill.id === 'prayer_dark_curse') {
-        const prayerForm = store.myPlayer?.tokens?.prayer_form ?? 0
-        const prayerRune = store.myPlayer?.tokens?.prayer_rune ?? 0
-        if (prayerForm <= 0 || prayerRune <= 0) return false
+        const prayerForm = hasMyForm('prayer_master_prayer_form')
+        const prayerRune = myPlayer.value?.tokens?.prayer_rune ?? 0
+        if (!prayerForm || prayerRune <= 0) return false
     }
     if (skill.id === 'elementalist_ignite') {
-        const element = store.myPlayer?.tokens?.element ?? 0
+        const element = myPlayer.value?.tokens?.element ?? 0
         if (element < 3) return false
     }
     if (skill.id === 'onmyoji_shikigami_descend') {
         return hasOnmyojiSameFactionPair()
     }
-    if (skill.id === 'angel_cleanse' && !hasAnyBasicEffectTarget()) {
-        return false
-    }
     if (skill.cost_discards > 0) {
         const required = requiredDiscardCount(skill)
-        if (required > 0 && countSkillDiscardCandidates(skill) < required) {
-            return false
-        }
+        if (required > 0 && countSkillDiscardCandidates(skill) < required) return false
     }
     return true
 }
@@ -744,9 +743,9 @@ function skillDisabledReason(skill: AvailableSkill): string {
     const tokenReason = skillTokenDisabledReason(skill)
     if (tokenReason) return tokenReason
     if (skill.id === 'prayer_radiant_faith' || skill.id === 'prayer_dark_curse') {
-        const prayerForm = store.myPlayer?.tokens?.prayer_form ?? 0
-        const prayerRune = store.myPlayer?.tokens?.prayer_rune ?? 0
-        if (prayerForm <= 0) return '仅祈祷形态下可发动。'
+        const prayerForm = hasMyForm('prayer_master_prayer_form')
+        const prayerRune = myPlayer.value?.tokens?.prayer_rune ?? 0
+        if (!prayerForm) return '仅祈祷形态下可发动。'
         if (prayerRune <= 0) return '祈祷符文不足，无法发动。'
     }
     if (skill.id === 'elementalist_ignite') {
@@ -756,9 +755,6 @@ function skillDisabledReason(skill: AvailableSkill): string {
         return '手牌中没有水系牌，无法发动【天使祝福】。'
     }
     if (skill.id === 'angel_cleanse') {
-        if (!hasAnyBasicEffectTarget()) {
-            return '场上没有可移除的基础效果，无法发动【风之洁净】。'
-        }
         return '手牌中没有风系牌，无法发动【风之洁净】。'
     }
     if (skill.id === 'onmyoji_shikigami_descend') {
@@ -780,37 +776,41 @@ function skillDisabledReason(skill: AvailableSkill): string {
 function proceedAfterDiscard(skill: AvailableSkill) {
     // target_type=0 (None): 无需目标，直接发动
     if (skill.target_type === 0) {
-        const selections = store.skillDiscardIndices.length > 0 ? [...store.skillDiscardIndices] : undefined
-        store.clearSkillMode()
-        ws.useSkill(skill.id, [], selections)
+        const selections = interruptStore.skillDiscardIndices.length > 0 ? [...interruptStore.skillDiscardIndices] : undefined
+        actions.submitUseSkill(skill.id, [], selections, { clearSkillMode: true })
         return
     }
     // target_type=1 (Self): 自动选中自己并发动
     if (skill.target_type === 1) {
-        const selections = store.skillDiscardIndices.length > 0 ? [...store.skillDiscardIndices] : undefined
-        store.clearSkillMode()
-        ws.useSkill(skill.id, [store.myPlayerId], selections)
+        const selections = interruptStore.skillDiscardIndices.length > 0 ? [...interruptStore.skillDiscardIndices] : undefined
+        actions.submitUseSkill(skill.id, [sessionStore.myPlayerId], selections, { clearSkillMode: true })
         return
     }
-    store.setSkillMode('choosing_target')
+    interruptStore.setSkillMode('choosing_target')
 }
 
-function confirmSkillDiscard() {
-    const skill = store.selectedSkill
+function confirmSkill() {
+    const skill = interruptStore.selectedSkill
     if (!skill) return
-    const required = requiredDiscardCount(skill)
-    if (store.skillDiscardIndices.length < required) {
-        store.setError(`请选择 ${required} 张牌`)
+    if (!canConfirmSkill.value) {
+        const minTargets = (skill.min_targets || 0) > 0 ? (skill.min_targets || 0) : (skill.target_type >= 2 ? 1 : 0)
+        const maxTargets = (skill.max_targets || 0) > 0 ? (skill.max_targets || 0) : 1
+        if (minTargets === maxTargets) {
+            interruptStore.showError(`请先选择 ${minTargets} 个目标`)
+        } else {
+            interruptStore.showError(`请选择 ${minTargets}-${maxTargets} 个目标`)
+        }
         return
     }
-    proceedAfterDiscard(skill)
+    const selections = interruptStore.skillDiscardIndices.length > 0 ? [...interruptStore.skillDiscardIndices] : undefined
+    actions.submitUseSkill(skill.id, [...interruptStore.skillTargetIds], selections, { clearSkillMode: true })
 }
 
 watch(
-    () => [store.skillMode, store.selectedSkill?.id, store.skillDiscardIndices.length] as const,
-    ([mode, skillId, selectedCount]) => {
-        if (mode !== 'choosing_discard' || skillId !== 'ss_soul_mirror') return
-        const skill = store.selectedSkill
+    () => [interruptStore.skillMode, interruptStore.selectedSkill?.id, interruptStore.skillDiscardIndices.length] as const,
+    ([mode, _skillId, selectedCount]) => {
+        if (mode !== 'choosing_discard') return
+        const skill = interruptStore.selectedSkill
         if (!skill) return
         const required = requiredDiscardCount(skill)
         if (required > 0 && selectedCount >= required) {
@@ -818,19 +818,6 @@ watch(
         }
     }
 )
-
-function onSkillTargetClick(playerId: string) {
-    store.toggleSkillTarget(playerId)
-    const skill = store.selectedSkill
-    if (!skill) return
-    // 单目标技能选中后自动确认
-    if (skill.max_targets === 1 && store.skillTargetIds.length === 1) {
-        const targetIds = [...store.skillTargetIds]
-        const selections = store.skillDiscardIndices.length > 0 ? [...store.skillDiscardIndices] : undefined
-        store.clearSkillMode()
-        ws.useSkill(skill.id, targetIds, selections)
-    }
-}
 
 function skillCostText(skill: AvailableSkill): string {
     if (skill.id === 'priest_water_power') {
@@ -851,10 +838,10 @@ function openDebugPanel() {
     debugOpen.value = true
     debugStatus.value = ''
     if (!debugTargetPlayerId.value) {
-        debugTargetPlayerId.value = store.myPlayerId
+        debugTargetPlayerId.value = sessionStore.myPlayerId
     }
     if (!debugExclusiveRoleId.value) {
-        debugExclusiveRoleId.value = store.myCharRole || debugRoleList.value[0]?.id || ''
+        debugExclusiveRoleId.value = sessionStore.myCharRole || debugRoleList.value[0]?.id || ''
     }
     if (!debugExclusiveSkillId.value) {
         debugExclusiveSkillId.value = debugExclusiveSkillOptions.value[0]?.id || ''
@@ -866,16 +853,16 @@ function closeDebugPanel() {
 }
 
 function ensureDebugTargetPlayerId(): string | null {
-    const pid = debugTargetPlayerId.value || store.myPlayerId
-    if (!pid || !store.players[pid]) {
-        store.setError('请选择有效的目标角色')
+    const pid = debugTargetPlayerId.value || sessionStore.myPlayerId
+    if (!pid || !snapshotStore.players[pid]) {
+        interruptStore.showError('请选择有效的目标角色')
         return null
     }
     return pid
 }
 
 function debugTargetName(pid: string): string {
-    return store.players[pid]?.name || pid
+    return snapshotStore.players[pid]?.name || pid
 }
 
 function applyDebugEffect() {
@@ -883,10 +870,10 @@ function applyDebugEffect() {
     if (!pid) return
     const count = Number(debugEffectCount.value)
     if (!Number.isFinite(count) || count < 0) {
-        store.setError('基础效果数量需为 >= 0 的数字')
+        interruptStore.showError('基础效果数量需为 >= 0 的数字')
         return
     }
-    ws.cheatEffect(pid, debugEffectType.value, Math.floor(count))
+    actions.cheatEffect(pid, debugEffectType.value, Math.floor(count))
     debugStatus.value = `已设置 ${debugTargetName(pid)} 的基础效果 ${debugEffectType.value}=${Math.floor(count)}`
 }
 
@@ -895,10 +882,10 @@ function applyDebugSet() {
     if (!pid) return
     const value = Number(debugSetValue.value)
     if (!Number.isFinite(value)) {
-        store.setError('请输入有效数字')
+        interruptStore.showError('请输入有效数字')
         return
     }
-    ws.cheatSet(pid, debugSetField.value, Math.floor(value))
+    actions.cheatSet(pid, debugSetField.value, Math.floor(value))
     debugStatus.value = `已设置 ${debugTargetName(pid)} 的 ${debugSetField.value}=${Math.floor(value)}`
 }
 
@@ -908,14 +895,14 @@ function applyDebugToken() {
     const key = debugTokenKey.value.trim()
     const value = Number(debugTokenValue.value)
     if (!key) {
-        store.setError('请输入指示物 key')
+        interruptStore.showError('请输入指示物 key')
         return
     }
     if (!Number.isFinite(value)) {
-        store.setError('请输入有效数字')
+        interruptStore.showError('请输入有效数字')
         return
     }
-    ws.cheatToken(pid, key, Math.floor(value))
+    actions.cheatToken(pid, key, Math.floor(value))
     debugStatus.value = `已设置 ${debugTargetName(pid)} 的指示物 ${key}=${Math.floor(value)}`
 }
 
@@ -923,19 +910,19 @@ function applyDebugExclusiveCard() {
     const pid = ensureDebugTargetPlayerId()
     if (!pid) return
     if (!debugExclusiveRoleId.value) {
-        store.setError('请选择角色来源')
+        interruptStore.showError('请选择角色来源')
         return
     }
     if (!debugExclusiveSkillId.value) {
-        store.setError('请选择独有技')
+        interruptStore.showError('请选择独有技')
         return
     }
     const count = Number(debugExclusiveCount.value)
     if (!Number.isFinite(count) || count <= 0) {
-        store.setError('独有牌数量需为 > 0 的数字')
+        interruptStore.showError('独有牌数量需为 > 0 的数字')
         return
     }
-    ws.cheatGiveExclusive(pid, debugExclusiveRoleId.value, debugExclusiveSkillId.value, Math.floor(count))
+    actions.cheatGiveExclusive(pid, debugExclusiveRoleId.value, debugExclusiveSkillId.value, Math.floor(count))
     debugStatus.value = `已给 ${debugTargetName(pid)} 添加 ${Math.floor(count)} 张独有技手牌`
 }
 
@@ -944,10 +931,10 @@ function applyDebugElementCards() {
     if (!pid) return
     const count = Number(debugElementCount.value)
     if (!Number.isFinite(count) || count <= 0) {
-        store.setError('系别手牌数量需为 > 0 的数字')
+        interruptStore.showError('系别手牌数量需为 > 0 的数字')
         return
     }
-    ws.cheatGiveByElement(pid, debugElement.value, Math.floor(count))
+    actions.cheatGiveByElement(pid, debugElement.value, Math.floor(count))
     debugStatus.value = `已给 ${debugTargetName(pid)} 添加 ${Math.floor(count)} 张 ${elementName(debugElement.value)}手牌`
 }
 
@@ -956,15 +943,15 @@ function applyDebugFactionCards() {
     if (!pid) return
     const faction = debugFaction.value.trim()
     if (!faction) {
-        store.setError('请输入命格')
+        interruptStore.showError('请输入命格')
         return
     }
     const count = Number(debugFactionCount.value)
     if (!Number.isFinite(count) || count <= 0) {
-        store.setError('命格手牌数量需为 > 0 的数字')
+        interruptStore.showError('命格手牌数量需为 > 0 的数字')
         return
     }
-    ws.cheatGiveByFaction(pid, faction, Math.floor(count))
+    actions.cheatGiveByFaction(pid, faction, Math.floor(count))
     debugStatus.value = `已给 ${debugTargetName(pid)} 添加 ${Math.floor(count)} 张 ${faction}命格手牌`
 }
 
@@ -973,133 +960,63 @@ function applyDebugMagicCard() {
     if (!pid) return
     const cardName = debugMagicCardName.value.trim()
     if (!cardName) {
-        store.setError('请输入法术牌名称')
+        interruptStore.showError('请输入法术牌名称')
         return
     }
     const count = Number(debugMagicCardCount.value)
     if (!Number.isFinite(count) || count <= 0) {
-        store.setError('法术牌数量需为 > 0 的数字')
+        interruptStore.showError('法术牌数量需为 > 0 的数字')
         return
     }
-    ws.cheatGiveMagicByName(pid, cardName, Math.floor(count))
+    actions.cheatGiveMagicByName(pid, cardName, Math.floor(count))
     debugStatus.value = `已给 ${debugTargetName(pid)} 添加 ${Math.floor(count)} 张法术牌【${cardName}】`
+}
+
+function applyDebugDiscard() {
+    const pid = ensureDebugTargetPlayerId()
+    if (!pid) return
+    const count = Number(debugDiscardCount.value)
+    if (!Number.isFinite(count) || count <= 0) {
+        interruptStore.showError('弃牌数量需为 > 0 的数字')
+        return
+    }
+    actions.cheatDiscard(pid, Math.floor(count))
+    debugStatus.value = `已让 ${debugTargetName(pid)} 弃置最多 ${Math.floor(count)} 张手牌`
 }
 
 function requiredDiscardCount(skill: AvailableSkill): number {
     if (!skill || skill.cost_discards <= 0) return 0
     // 神官-神圣领域：手牌不足2时，改为弃全部手牌。
     if (skill.id === 'priest_divine_domain') {
-        return Math.min(skill.cost_discards, store.myHand.length)
+        return Math.min(skill.cost_discards, myHand.value.length)
     }
     // 神官-水之神力：若弃完水系后无剩余手牌，则仅需弃1张水系牌。
     if (skill.id === 'priest_water_power') {
-        return Math.min(skill.cost_discards, store.myHand.length)
+        return Math.min(skill.cost_discards, myHand.value.length)
     }
     return skill.cost_discards
 }
 
-function isCardSelectableForSkillDiscard(card: { type: string; element: string; faction?: string; exclusive_char1?: string; exclusive_char2?: string; exclusive_skill1?: string; exclusive_skill2?: string }): boolean {
-    const skill = store.selectedSkill
-    if (!skill) return false
+function skillDiscardGuideText(skill: AvailableSkill): string {
+    if (skill.require_exclusive) {
+        return `弃标有「${skill.title}」的独有牌`
+    }
+    if (skill.discard_element) {
+        return `弃置${elementName(skill.discard_element)}牌`
+    }
+    if (skill.discard_type) {
+        return `弃置${skill.discard_type === 'Magic' ? '法术牌' : '攻击牌'}`
+    }
     if (skill.id === 'priest_water_power') {
-        const selected = store.skillDiscardIndices
-            .map((i) => store.myHand[i])
-            .filter((c): c is NonNullable<typeof c> => !!c)
-        if (selected.length === 0) {
-            return card.element === 'Water'
-        }
-        // 第一张已是水系后，第二张可为任意手牌（但上限仍由 requiredDiscardCount 控制）。
-        return selected[0]?.element === 'Water'
+        return '第一张需水系；若仍有手牌，第二张将交给目标队友'
     }
-    // 独有技：必须使用卡牌下标了该技能名的牌
-    if (skill.require_exclusive) {
-        const char = store.getCharacter(store.myCharRole)
-        if (!char) return false
-        if (!store.cardMatchesExclusive(card, char.name, skill.title)) return false
-    }
-    if (skill.discard_type && card.type !== skill.discard_type) return false
-    // 元素要求
-    if (skill.discard_element) return card.element === skill.discard_element
     if (skill.id === 'magic_bullet_fusion') {
-        return card.element === 'Fire' || card.element === 'Earth'
+        return '需要火系或地系牌'
     }
-    // 阴阳师：式神降临需要两张同命格手牌
     if (skill.id === 'onmyoji_shikigami_descend') {
-        if (!card.faction) return false
-        const selected = store.skillDiscardIndices
-            .map((i) => store.myHand[i])
-            .filter((c): c is NonNullable<typeof c> => !!c)
-        if (selected.length > 0) {
-            const reqFaction = selected[0]?.faction
-            if (reqFaction && card.faction !== reqFaction) return false
-        }
+        return '需要2张命格相同的手牌'
     }
-    return true
-}
-
-function toggleSkillDiscardCard(idx: number) {
-    const skill = store.selectedSkill
-    if (!skill) return
-    const required = requiredDiscardCount(skill)
-    const card = store.myHand[idx]
-    if (!card) return
-    // 独有技：必须使用卡牌下标了该技能名的牌
-    if (skill.require_exclusive) {
-        const char = store.getCharacter(store.myCharRole)
-        if (!char || !store.cardMatchesExclusive(card, char.name, skill.title)) {
-            store.setError('必须使用标有该技能名的独有牌')
-            return
-        }
-    }
-    // 检查元素要求
-    if (skill.discard_element && card.element !== skill.discard_element) {
-        store.setError(`需要弃置${elementName(skill.discard_element)}牌`)
-        return
-    }
-    if (skill.discard_type && card.type !== skill.discard_type) {
-        store.setError(`需要弃置${skill.discard_type === 'Magic' ? '法术' : '攻击'}牌`)
-        return
-    }
-    if (skill.id === 'priest_water_power' && !store.skillDiscardIndices.includes(idx)) {
-        const selected = store.skillDiscardIndices
-            .map((i) => store.myHand[i])
-            .filter((c): c is NonNullable<typeof c> => !!c)
-        if (selected.length === 0 && card.element !== 'Water') {
-            store.setError('水之神力第一张需弃置水系牌')
-            return
-        }
-        if (selected.length > 0 && selected[0]?.element !== 'Water') {
-            store.setError('水之神力第一张需弃置水系牌')
-            return
-        }
-    }
-    if (skill.id === 'magic_bullet_fusion' && card.element !== 'Fire' && card.element !== 'Earth') {
-        store.setError('魔弹融合需要弃置1张火系或地系牌')
-        return
-    }
-    // 阴阳师：式神降临必须弃置两张同命格手牌
-    if (skill.id === 'onmyoji_shikigami_descend' && !store.skillDiscardIndices.includes(idx)) {
-        if (!card.faction) {
-            store.setError('式神降临需要弃置有命格的手牌')
-            return
-        }
-        const selected = store.skillDiscardIndices
-            .map((i) => store.myHand[i])
-            .filter((c): c is NonNullable<typeof c> => !!c)
-        if (selected.length > 0) {
-            const reqFaction = selected[0]?.faction
-            if (reqFaction && card.faction !== reqFaction) {
-                store.setError('式神降临需要弃置2张命格相同的手牌')
-                return
-            }
-        }
-    }
-    // 如果已选满且不是取消选择，不允许继续选
-    if (!store.skillDiscardIndices.includes(idx) && store.skillDiscardIndices.length >= required) {
-        store.setError(`最多选择 ${required} 张牌`)
-        return
-    }
-    store.toggleSkillDiscard(idx)
+    return '请在下方手牌区选择要弃置的牌'
 }
 
 function elementName(el: string): string {
@@ -1107,18 +1024,6 @@ function elementName(el: string): string {
     return map[el] || el
 }
 
-function basicEffectSummary(playerId: string): string {
-    const player = store.players[playerId]
-    if (!player) return ''
-    const labels: string[] = []
-    for (const fc of player.field) {
-        if (fc.mode !== 'Effect') continue
-        if (fc.effect === 'Shield') labels.push('圣盾')
-        else if (fc.effect === 'Weak') labels.push('虚弱')
-        else if (fc.effect === 'Poison') labels.push('中毒')
-    }
-    return labels.join('、')
-}
 </script>
 
 <template>
@@ -1127,41 +1032,50 @@ function basicEffectSummary(playerId: string): string {
         :class="actionPanelRootClass"
     >
         <!-- 攻击/法术模式 -->
-        <div v-if="store.actionMode !== 'none'" class="space-y-3 action-mode-panel">
+        <div v-if="interruptStore.actionMode !== 'none'" class="space-y-3 action-mode-panel">
             <!-- 法术行动：先选择 出牌 或 发动技能 -->
-            <template v-if="store.actionMode === 'magic' && store.magicSubChoice === 'none'">
+            <template v-if="interruptStore.actionMode === 'magic' && interruptStore.magicSubChoice === 'none'">
                 <div class="text-amber-400 text-sm font-bold">✨ 法术行动</div>
                 <div class="text-xs text-gray-400">发动法术有两种方式：打出法术牌或发动角色技能</div>
-                <div class="flex gap-2 flex-wrap">
-                    <button class="btn-primary px-4 py-2.5" @click="store.setMagicSubChoice('card')">
-                        打出法术牌
+                <div class="flex gap-3 justify-center mt-2">
+                    <button class="action-image-btn w-[72px] sm:w-[88px]" title="打出法术牌" @click="interruptStore.setMagicSubChoice('card')">
+                        <img v-if="isMainActionImageReady('card')" class="action-image-btn-fill" :src="mainActionButtonImage('card')" alt="" @error="onMainActionImageError('card')" />
+                        <span v-else class="action-image-fallback-text">牌</span>
+                        <span class="action-image-btn-label">打出法术牌</span>
                     </button>
                     <button
-                        v-if="store.effectiveAvailableSkills.length > 0"
-                        class="btn-skill px-4 py-2.5"
-                        @click="store.setSkillMode('choosing_skill'); store.clearActionMode()"
+                        v-if="effectiveAvailableSkills.length > 0"
+                        class="action-image-btn w-[72px] sm:w-[88px]"
+                        title="发动技能"
+                        @click="interruptStore.setSkillMode('choosing_skill'); interruptStore.clearActionMode()"
                     >
-                        发动技能
+                        <img v-if="isMainActionImageReady('skill')" class="action-image-btn-fill" :src="mainActionButtonImage('skill')" alt="" @error="onMainActionImageError('skill')" />
+                        <span v-else class="action-image-fallback-text">技</span>
+                        <span class="action-image-btn-label">发动技能</span>
                     </button>
-                    <button class="btn-secondary flex-1 py-2.5" @click="store.clearActionMode()">取消</button>
+                    <button class="action-image-btn w-[72px] sm:w-[88px]" title="取消" @click="interruptStore.clearActionMode()">
+                        <img v-if="isMainActionImageReady('cancel')" class="action-image-btn-fill" :src="mainActionButtonImage('cancel')" alt="" @error="onMainActionImageError('cancel')" />
+                        <span v-else class="action-image-fallback-text">消</span>
+                        <span class="action-image-btn-label">取消</span>
+                    </button>
                 </div>
             </template>
             <!-- 攻击模式 或 法术已选「出牌」：选牌 + 选目标 -->
             <template v-else>
                 <div class="flex items-center justify-between">
           <span class="text-amber-400 text-sm font-bold">
-            {{ store.actionMode === 'attack' ? '⚔️ 攻击模式' : '✨ 法术模式' }}
+            {{ interruptStore.actionMode === 'attack' ? '⚔️ 攻击模式' : '✨ 法术模式' }}
           </span>
                     <span class="step-indicator">
-            {{ store.selectedCardForAction === null ? '步骤 1/2' : '步骤 2/2' }} · {{ store.selectedCardForAction === null ? '选牌' : '选目标' }}
+            {{ interruptStore.selectedCardForAction === null ? '步骤 1/2' : '步骤 2/2' }} · {{ interruptStore.selectedCardForAction === null ? '选牌' : '选目标' }}
           </span>
                 </div>
-                <div v-if="store.selectedCardForAction !== null" class="space-y-2">
+                <div v-if="interruptStore.selectedCardForAction !== null" class="space-y-2">
                     <div
                         v-if="hasActionTargets"
                         class="text-xs text-gray-400"
                     >
-                        请直接点击战场角色立绘完成{{ store.actionMode === 'attack' ? '攻击' : '施法' }}。
+                        请直接点击战场角色立绘完成{{ interruptStore.actionMode === 'attack' ? '攻击' : '施法' }}。
                     </div>
                     <div v-else class="text-xs text-gray-400">当前法术无需手动选目标，将按规则自动结算。</div>
                     <div v-if="hasStealthBlockedAttackTarget" class="text-[11px] text-gray-400">
@@ -1169,29 +1083,34 @@ function basicEffectSummary(playerId: string): string {
                     </div>
                 </div>
                 <div v-else class="text-xs text-gray-400 py-1">
-                    先在下方手牌选一张{{ store.actionMode === 'attack' ? '攻击' : '法术' }}牌
+                    先在下方手牌选一张{{ interruptStore.actionMode === 'attack' ? '攻击' : '法术' }}牌
                 </div>
-                <div class="flex gap-2 flex-wrap">
-                    <button class="btn-secondary text-sm flex-1 py-2" @click="store.actionMode === 'magic' ? backFromMagicCard() : store.clearActionMode()">
-                        {{ store.actionMode === 'magic' ? '返回' : '取消' }}
+                <div class="flex gap-3 justify-center mt-2">
+                    <button class="action-image-btn w-[72px] sm:w-[88px]" :title="interruptStore.actionMode === 'magic' ? '返回' : '取消'" @click="interruptStore.actionMode === 'magic' ? backFromMagicCard() : interruptStore.clearActionMode()">
+                        <img v-if="isMainActionImageReady('cancel')" class="action-image-btn-fill" :src="mainActionButtonImage('cancel')" alt="" @error="onMainActionImageError('cancel')" />
+                        <span v-else class="action-image-fallback-text">{{ interruptStore.actionMode === 'magic' ? '返' : '消' }}</span>
+                        <span class="action-image-btn-label">{{ interruptStore.actionMode === 'magic' ? '返回' : '取消' }}</span>
                     </button>
                     <button
-                        v-if="store.actionMode === 'magic' && store.effectiveAvailableSkills.length > 0"
-                        class="btn-skill text-sm px-4 py-2"
-                        @click="store.setSkillMode('choosing_skill'); store.clearActionMode()"
+                        v-if="interruptStore.actionMode === 'magic' && effectiveAvailableSkills.length > 0"
+                        class="action-image-btn w-[72px] sm:w-[88px]"
+                        title="改用技能"
+                        @click="interruptStore.setSkillMode('choosing_skill'); interruptStore.clearActionMode()"
                     >
-                        改用技能
+                        <img v-if="isMainActionImageReady('skill')" class="action-image-btn-fill" :src="mainActionButtonImage('skill')" alt="" @error="onMainActionImageError('skill')" />
+                        <span v-else class="action-image-fallback-text">技</span>
+                        <span class="action-image-btn-label">改用技能</span>
                     </button>
                 </div>
             </template>
         </div>
 
         <!-- 技能发动流程：选择技能 -->
-        <div v-else-if="store.skillMode === 'choosing_skill'" class="space-y-3 skill-select-panel">
+        <div v-else-if="interruptStore.skillMode === 'choosing_skill'" class="space-y-3 skill-select-panel">
             <div class="text-amber-400 text-sm font-bold">选择要发动的技能</div>
             <div class="flex flex-col gap-2">
                 <button
-                    v-for="skill in store.effectiveAvailableSkills"
+                    v-for="skill in effectiveAvailableSkills"
                     :key="skill.id"
                     class="btn-skill px-4 py-2.5 rounded-lg text-sm text-left w-full"
                     :class="{ 'skill-btn-disabled': !canSelectSkill(skill) }"
@@ -1207,170 +1126,93 @@ function basicEffectSummary(playerId: string): string {
                     <span v-if="!canSelectSkill(skill)" class="block text-[11px] text-gray-400 mt-1">{{ skillDisabledReason(skill) }}</span>
                 </button>
             </div>
-            <button class="btn-secondary text-sm w-full py-2" @click="store.clearSkillMode()">
-                取消
-            </button>
+            <div class="flex gap-3 justify-center mt-2">
+                <button class="action-image-btn w-[72px] sm:w-[88px]" title="取消" @click="interruptStore.clearSkillMode()">
+                    <img v-if="isMainActionImageReady('cancel')" class="action-image-btn-fill" :src="mainActionButtonImage('cancel')" alt="" @error="onMainActionImageError('cancel')" />
+                    <span v-else class="action-image-fallback-text">消</span>
+                    <span class="action-image-btn-label">取消</span>
+                </button>
+            </div>
         </div>
 
         <!-- 技能发动流程：选择弃牌 -->
-        <div v-else-if="store.skillMode === 'choosing_discard' && store.selectedSkill" class="space-y-3 skill-discard-panel">
+        <div v-else-if="interruptStore.skillMode === 'choosing_discard' && interruptStore.selectedSkill" class="space-y-3 skill-discard-panel">
             <div class="flex items-center justify-between">
-                <span class="text-amber-400 text-sm font-bold">{{ store.selectedSkill.title }}</span>
+                <span class="text-amber-400 text-sm font-bold">{{ interruptStore.selectedSkill.title }}</span>
                 <span class="step-indicator">
-          {{ store.skillDiscardIndices.length }}/{{ requiredDiscardCount(store.selectedSkill) }}
+          {{ interruptStore.skillDiscardIndices.length }}/{{ requiredDiscardCount(interruptStore.selectedSkill) }}
         </span>
             </div>
-            <template v-if="isBoardGuidedSkillFlow">
-                <div class="text-xs text-gray-400">
-                    请在下方手牌区选择要弃置的牌
-                    <span class="text-amber-300">（已选 {{ store.skillDiscardIndices.length }}/{{ requiredDiscardCount(store.selectedSkill) }}）</span>
-                </div>
-                <div class="text-[11px] text-gray-500">选满后将自动进入目标选择</div>
-                <div class="flex gap-2">
-                    <button class="btn-secondary w-full py-2" @click="store.clearSkillMode()">取消</button>
-                </div>
-            </template>
-            <template v-else>
-                <div class="text-xs text-gray-400">
-                    请选择要弃置的牌
-                    <span v-if="store.selectedSkill.require_exclusive" class="text-amber-300">
-          （须为标有「{{ store.selectedSkill.title }}」的独有牌）
-        </span>
-                    <span v-else-if="store.selectedSkill.discard_element" class="text-amber-300">
-          （需要{{ elementName(store.selectedSkill.discard_element) }}牌）
-                    </span>
-                    <span v-else-if="store.selectedSkill.discard_type" class="text-amber-300">
-          （需要{{ store.selectedSkill.discard_type === 'Magic' ? '法术牌' : '攻击牌' }}）
-                    </span>
-                    <span v-else-if="store.selectedSkill.id === 'priest_water_power'" class="text-amber-300">
-          （第一张需水系；若仍有手牌，第二张将交给目标队友）
-                    </span>
-                    <span v-else-if="store.selectedSkill.id === 'magic_bullet_fusion'" class="text-amber-300">
-          （需要火系或地系牌）
-                    </span>
-                    <span v-else-if="store.selectedSkill.id === 'onmyoji_shikigami_descend'" class="text-amber-300">
-          （需要2张命格相同的手牌）
-                    </span>
-                </div>
-                <div class="flex gap-1 flex-wrap justify-center skill-discard-card-row">
-                    <CardComponent
-                        v-for="(card, idx) in store.myHand"
-                        :key="idx"
-                        :card="card"
-                        :index="idx"
-                        medium
-                        :selectable="isCardSelectableForSkillDiscard(card)"
-                        :selected="store.skillDiscardIndices.includes(idx)"
-                        @click="toggleSkillDiscardCard(idx)"
-                    />
-                </div>
-                <div class="flex gap-2">
-                    <button
-                        class="btn-success flex-1 py-2"
-                        :class="{ 'opacity-50 cursor-not-allowed': store.skillDiscardIndices.length < requiredDiscardCount(store.selectedSkill) }"
-                        :disabled="store.skillDiscardIndices.length < requiredDiscardCount(store.selectedSkill)"
-                        @click="confirmSkillDiscard()"
-                    >
-                        确认弃牌 ({{ store.skillDiscardIndices.length }}/{{ requiredDiscardCount(store.selectedSkill) }})
-                    </button>
-                    <button class="btn-secondary py-2 px-4" @click="store.clearSkillMode()">取消</button>
-                </div>
-            </template>
+            <div class="text-xs text-gray-400">
+                {{ skillDiscardGuideText(interruptStore.selectedSkill) }}
+                <span class="text-amber-300">（已选 {{ interruptStore.skillDiscardIndices.length }}/{{ requiredDiscardCount(interruptStore.selectedSkill) }}）</span>
+            </div>
+            <div class="text-[11px] text-gray-500">请在下方手牌区点击选择，选满后自动进入下一步</div>
+            <div class="flex gap-3 justify-center">
+                <button class="action-image-btn w-[72px] sm:w-[88px]" title="取消" @click="interruptStore.clearSkillMode()">
+                    <img v-if="isMainActionImageReady('cancel')" class="action-image-btn-fill" :src="mainActionButtonImage('cancel')" alt="" @error="onMainActionImageError('cancel')" />
+                    <span v-else class="action-image-fallback-text">消</span>
+                    <span class="action-image-btn-label">取消</span>
+                </button>
+            </div>
         </div>
 
         <!-- 技能发动流程：选择目标 -->
-        <div v-else-if="store.skillMode === 'choosing_target' && store.selectedSkill" class="space-y-3 skill-target-panel">
+        <div v-else-if="interruptStore.skillMode === 'choosing_target' && interruptStore.selectedSkill" class="space-y-3 skill-target-panel">
             <div class="flex items-center justify-between">
-                <span class="text-amber-400 text-sm font-bold">{{ store.selectedSkill.title }}</span>
+                <span class="text-amber-400 text-sm font-bold">{{ interruptStore.selectedSkill.title }}</span>
                 <span class="step-indicator">
-          {{ store.skillTargetIds.length }}/{{ (store.selectedSkill.max_targets > 0 ? store.selectedSkill.max_targets : 1) }}
+          {{ interruptStore.skillTargetIds.length }}/{{ (interruptStore.selectedSkill.max_targets > 0 ? interruptStore.selectedSkill.max_targets : 1) }}
         </span>
             </div>
-            <template v-if="isBoardGuidedSkillFlow">
-                <div class="text-xs text-gray-400">
-                    请直接点击角色立绘选择目标
-                    <span v-if="(store.selectedSkill.max_targets || 1) === 1">（单目标将自动发动）</span>
-                </div>
-                <div class="flex gap-2">
-                    <button class="btn-secondary w-full py-2" @click="store.clearSkillMode()">取消</button>
-                </div>
-            </template>
-            <template v-else>
-                <p v-if="store.selectedSkill.description" class="text-xs text-gray-400 whitespace-pre-wrap break-words">{{ store.selectedSkill.description }}</p>
-                <div class="text-xs text-gray-400">
-                    点击玩家头像或下方按钮选择目标
-                    <span v-if="store.selectedSkill.min_targets > 0">（至少 {{ store.selectedSkill.min_targets }} 个）</span>
-                    <span v-if="(store.selectedSkill.max_targets || 1) === 1"> · 选中后自动发动</span>
-                </div>
-                <div class="target-group-stack">
-                    <div v-if="groupedSkillTargets.enemies.length > 0" class="target-group-card">
-                        <div class="target-group-title target-group-title--enemy">敌方阵营</div>
-                        <div class="target-grid">
-                            <button
-                                v-for="target in groupedSkillTargets.enemies"
-                                :key="target.id"
-                                class="btn-target target-grid-btn px-3 py-2 rounded-lg text-sm font-medium text-left"
-                                :class="[
-                                    store.skillTargetIds.includes(target.id)
-                                      ? 'ring-2 ring-yellow-400 bg-amber-900/70'
-                                      : 'bg-gray-700 hover:bg-gray-600',
-                                    target.camp === 'Red' ? 'border border-red-500/50' : 'border border-blue-500/50'
-                                ]"
-                                @click="onSkillTargetClick(target.id)"
-                            >
-                                <div class="target-grid-name">{{ target.id === store.myPlayerId ? '自己' : target.name }}</div>
-                                <div class="target-grid-meta">{{ targetBasicInfo(target.id) }}</div>
-                                <div v-if="store.selectedSkill?.id === 'angel_cleanse'" class="text-[11px] opacity-80 mt-0.5">
-                                    可移除：{{ basicEffectSummary(target.id) || '无' }}
-                                </div>
-                            </button>
-                        </div>
-                    </div>
-                    <div v-if="groupedSkillTargets.allies.length > 0" class="target-group-card">
-                        <div class="target-group-title target-group-title--ally">我方阵营</div>
-                        <div class="target-grid">
-                            <button
-                                v-for="target in groupedSkillTargets.allies"
-                                :key="target.id"
-                                class="btn-target target-grid-btn px-3 py-2 rounded-lg text-sm font-medium text-left"
-                                :class="[
-                                    store.skillTargetIds.includes(target.id)
-                                      ? 'ring-2 ring-yellow-400 bg-amber-900/70'
-                                      : 'bg-gray-700 hover:bg-gray-600',
-                                    target.camp === 'Red' ? 'border border-red-500/50' : 'border border-blue-500/50'
-                                ]"
-                                @click="onSkillTargetClick(target.id)"
-                            >
-                                <div class="target-grid-name">{{ target.id === store.myPlayerId ? '自己' : target.name }}</div>
-                                <div class="target-grid-meta">{{ targetBasicInfo(target.id) }}</div>
-                                <div v-if="store.selectedSkill?.id === 'angel_cleanse'" class="text-[11px] opacity-80 mt-0.5">
-                                    可移除：{{ basicEffectSummary(target.id) || '无' }}
-                                </div>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-                <div class="flex gap-2">
-                    <button
-                        class="btn-success flex-1 py-2"
-                        :class="{ 'opacity-50 cursor-not-allowed': !store.canConfirmSkill }"
-                        :disabled="!store.canConfirmSkill"
-                        @click="confirmSkill()"
-                    >
-                        确认发动
-                    </button>
-                    <button class="btn-secondary py-2 px-4" @click="store.clearSkillMode()">取消</button>
-                </div>
-            </template>
+            <p v-if="interruptStore.selectedSkill.description" class="text-xs text-gray-400 whitespace-pre-wrap break-words">{{ interruptStore.selectedSkill.description }}</p>
+            <div class="text-xs text-gray-400">
+                <template v-if="isManualTargetConfirmSkillFlow">
+                    点击角色头像选择目标，然后点击“确认发动”
+                </template>
+                <template v-else>
+                    请直接点击角色头像选择目标并自动发动
+                    <span v-if="(interruptStore.selectedSkill.max_targets || 1) === 1">（单目标：点击即发动）</span>
+                    <span v-else-if="(interruptStore.selectedSkill.min_targets || 0) >= (interruptStore.selectedSkill.max_targets || 1)">
+                        （选满 {{ interruptStore.selectedSkill.max_targets || 1 }} 个目标后自动发动）
+                    </span>
+                    <span v-else>
+                        （多目标：先点头像选择，再点击任一已选头像确认发动）
+                    </span>
+                </template>
+            </div>
+            <div v-if="interruptStore.skillTargetIds.length > 0" class="text-[11px] text-amber-300">
+                已选目标：
+                {{ interruptStore.skillTargetIds.map((id) => snapshotStore.players[id]?.name || id).join('、') }}
+            </div>
+            <div class="flex gap-3 justify-center mt-2">
+                <button
+                    v-if="isManualTargetConfirmSkillFlow"
+                    class="action-image-btn w-[72px] sm:w-[88px]"
+                    :class="{ 'opacity-50 cursor-not-allowed': !canConfirmSkill }"
+                    title="确认发动"
+                    :disabled="!canConfirmSkill"
+                    @click="confirmSkill()"
+                >
+                    <img v-if="isMainActionImageReady('confirm')" class="action-image-btn-fill" :src="mainActionButtonImage('confirm')" alt="" @error="onMainActionImageError('confirm')" />
+                    <span v-else class="action-image-fallback-text">确</span>
+                    <span class="action-image-btn-label">确认发动</span>
+                </button>
+                <button class="action-image-btn w-[72px] sm:w-[88px]" title="取消" @click="interruptStore.clearSkillMode()">
+                    <img v-if="isMainActionImageReady('cancel')" class="action-image-btn-fill" :src="mainActionButtonImage('cancel')" alt="" @error="onMainActionImageError('cancel')" />
+                    <span v-else class="action-image-fallback-text">消</span>
+                    <span class="action-image-btn-label">取消</span>
+                </button>
+            </div>
         </div>
 
         <!-- 等待提示 -->
-        <div v-else-if="store.waitingFor && !prompt" class="text-center py-2 sm:py-3 text-gray-400 text-sm">
-            <div class="animate-pulse">等待 {{ waitingName || store.waitingFor }} 操作...</div>
+        <div v-else-if="interruptStore.waitingFor && !prompt" class="text-center py-2 sm:py-3 text-gray-400 text-sm">
+            <div class="animate-pulse">等待 {{ waitingName || interruptStore.waitingFor }} 操作...</div>
         </div>
 
         <!-- 非行动类 Prompt：在行动区内直接显示按钮操作 -->
-        <div v-else-if="prompt && store.isPromptForMe && !isActionHubContext" class="prompt-inline-host">
+        <div v-else-if="prompt && isPromptForMe && !isActionHubContext" class="prompt-inline-host">
             <PromptDialog />
         </div>
 
@@ -1382,7 +1224,7 @@ function basicEffectSummary(playerId: string): string {
                     class="action-hub-desktop-btn action-image-btn action-image-btn--attack"
                     :title="actionPromptLabel('attack', '攻击')"
                     :aria-label="actionPromptLabel('attack', '攻击')"
-                    @click="triggerActionHubOption('attack')"
+                    @click="invokeActionHubOption('attack')"
                 >
                     <img
                         v-if="isMainActionImageReady('attack')"
@@ -1399,7 +1241,7 @@ function basicEffectSummary(playerId: string): string {
                     class="action-hub-desktop-btn action-image-btn action-image-btn--magic"
                     :title="actionPromptLabel('magic', '法术')"
                     :aria-label="actionPromptLabel('magic', '法术')"
-                    @click="triggerActionHubOption('magic')"
+                    @click="invokeActionHubOption('magic')"
                 >
                     <img
                         v-if="isMainActionImageReady('magic')"
@@ -1433,26 +1275,55 @@ function basicEffectSummary(playerId: string): string {
                 <template v-if="isActionSelectionPrompt">
                     <button
                         v-if="hasActionPromptOption('cannot_act')"
-                        class="btn-secondary action-hub-desktop-btn action-hub-desktop-btn--cannot-act"
-                        :class="{ 'action-hub-desktop-btn--cannot-act-extra': isExtraActionPrompt }"
-                        @click="triggerActionHubOption('cannot_act')"
+                        class="action-hub-desktop-btn action-image-btn action-image-btn--cannot-act"
+                        :title="isExtraActionPrompt ? '跳过' : cannotActButtonLabel"
+                        :aria-label="isExtraActionPrompt ? '跳过' : cannotActButtonLabel"
+                        @click="invokeActionHubOption('cannot_act')"
                     >
-                        <span class="cannot-act-btn__kicker">
-                            {{ isExtraActionPrompt ? '额外行动阶段' : '行动阶段' }}
-                        </span>
-                        <span class="cannot-act-btn__label">{{ cannotActButtonLabel }}</span>
+                        <img
+                            v-if="isMainActionImageReady('cannot_act')"
+                            class="action-image-btn-fill"
+                            :src="mainActionButtonImage('cannot_act')"
+                            alt=""
+                            @error="onMainActionImageError('cannot_act')"
+                        />
+                        <span v-else class="action-image-fallback-text">{{ isExtraActionPrompt ? '跳过' : '无法' }}</span>
+                        <span class="action-image-btn-label">{{ isExtraActionPrompt ? '跳过' : cannotActButtonLabel }}</span>
                     </button>
                 </template>
                 <template v-else>
                     <button
-                        v-if="store.effectiveAvailableSkills.length > 0"
-                        class="btn-skill action-hub-desktop-btn"
-                        @click="triggerActionHubOption('skill')"
+                        v-if="effectiveAvailableSkills.length > 0"
+                        class="action-hub-desktop-btn action-image-btn action-image-btn--skill"
+                        title="发动技能"
+                        aria-label="发动技能"
+                        @click="invokeActionHubOption('skill')"
                     >
-                        发动技能
+                        <img
+                            v-if="isMainActionImageReady('skill')"
+                            class="action-image-btn-fill"
+                            :src="mainActionButtonImage('skill')"
+                            alt=""
+                            @error="onMainActionImageError('skill')"
+                        />
+                        <span v-else class="action-image-fallback-text">技</span>
+                        <span class="action-image-btn-label">发动技能</span>
                     </button>
-                    <button class="btn-secondary action-hub-desktop-btn" @click="triggerActionHubOption('pass')">
-                        结束回合
+                    <button
+                        class="action-hub-desktop-btn action-image-btn action-image-btn--pass"
+                        title="结束回合"
+                        aria-label="结束回合"
+                        @click="invokeActionHubOption('pass')"
+                    >
+                        <img
+                            v-if="isMainActionImageReady('pass')"
+                            class="action-image-btn-fill"
+                            :src="mainActionButtonImage('pass')"
+                            alt=""
+                            @error="onMainActionImageError('pass')"
+                        />
+                        <span v-else class="action-image-fallback-text">过</span>
+                        <span class="action-image-btn-label">结束回合</span>
                     </button>
                 </template>
             </div>
@@ -1532,7 +1403,7 @@ function basicEffectSummary(playerId: string): string {
                     <div class="debug-modal-header">
                         <div>
                             <div class="debug-modal-title">调试控制台</div>
-                            <div class="debug-modal-subtitle">可给任意角色设置基础效果、资源/治疗/指示物，并按条件补牌。</div>
+                            <div class="debug-modal-subtitle">可给任意角色设置基础效果、资源/治疗/指示物，并按条件补牌或强制弃牌。</div>
                         </div>
                         <button class="debug-modal-close" type="button" @click="closeDebugPanel">关闭</button>
                     </div>
@@ -1627,6 +1498,11 @@ function basicEffectSummary(playerId: string): string {
                                 <input v-model="debugMagicCardName" class="debug-input" placeholder="法术牌名称（如：魔弹）" />
                                 <input v-model="debugMagicCardCount" type="number" min="1" class="debug-input" />
                                 <button class="debug-mini-btn" type="button" @click="applyDebugMagicCard">获取指定法术牌</button>
+                            </div>
+
+                            <div class="debug-manual-row">
+                                <input v-model="debugDiscardCount" type="number" min="1" class="debug-input" placeholder="弃牌数量" />
+                                <button class="debug-mini-btn" type="button" @click="applyDebugDiscard">强制弃牌</button>
                             </div>
                         </div>
                     </div>
@@ -1746,130 +1622,49 @@ function basicEffectSummary(playerId: string): string {
 }
 
 .action-hub-desktop-btn--cannot-act {
-    position: relative;
-    isolation: isolate;
-    overflow: hidden;
-    min-height: 48px;
-    padding: 7px 10px !important;
+    min-height: 33px;
+    padding: 0.52rem 0.65rem !important;
     display: flex;
-    flex-direction: column;
     justify-content: center;
     align-items: center;
-    gap: 3px;
-    border-radius: 13px;
-    border: 1px solid rgba(208, 178, 121, 0.82) !important;
-    background:
-        radial-gradient(150% 90% at 50% 0%, rgba(255, 226, 164, 0.18), rgba(255, 226, 164, 0) 54%),
-        linear-gradient(180deg, rgba(84, 61, 32, 0.97), rgba(44, 31, 16, 0.98)),
-        url('/assets/ui/panel-ornament.svg') center/cover no-repeat !important;
-    box-shadow:
-        inset 0 1px 0 rgba(255, 244, 214, 0.34),
-        inset 0 -1px 0 rgba(65, 43, 17, 0.48),
-        0 8px 18px rgba(8, 6, 3, 0.34),
-        0 0 0 1px rgba(163, 118, 59, 0.38) !important;
-    color: #faebce !important;
-    text-shadow: 0 1px 2px rgba(4, 4, 7, 0.55);
-    transition: transform 0.16s ease, filter 0.16s ease, box-shadow 0.18s ease;
-}
-
-.action-hub-desktop-btn--cannot-act::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    background:
-        linear-gradient(138deg, rgba(255, 236, 190, 0.3), rgba(255, 236, 190, 0) 42%),
-        linear-gradient(328deg, rgba(255, 214, 140, 0.14), rgba(255, 214, 140, 0) 54%);
-    pointer-events: none;
-    z-index: 0;
-}
-
-.action-hub-desktop-btn--cannot-act::after {
-    content: '';
-    position: absolute;
-    inset: 1px;
-    border-radius: 11px;
-    border: 1px solid rgba(255, 233, 192, 0.28);
-    pointer-events: none;
-    z-index: 0;
+    border-radius: 10px;
+    border: 1px solid #b8c3d8 !important;
+    background: linear-gradient(180deg, #5a6577, #3b4554) !important;
+    box-shadow: 0 3px 8px rgba(7, 15, 25, 0.28) !important;
+    color: #eef4ff !important;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
+    transition:
+        transform 0.16s ease,
+        filter 0.16s ease,
+        box-shadow 0.18s ease,
+        border-color 0.18s ease;
 }
 
 .action-hub-desktop-btn--cannot-act:hover {
-    transform: translateY(-2px);
-    filter: brightness(1.07) saturate(1.04);
-    box-shadow:
-        inset 0 1px 0 rgba(255, 248, 223, 0.36),
-        inset 0 -1px 0 rgba(82, 56, 24, 0.44),
-        0 14px 24px rgba(8, 6, 3, 0.42),
-        0 0 0 1px rgba(199, 145, 73, 0.5) !important;
+    transform: translateY(-1px);
+    filter: brightness(1.03);
+    border-color: #c6d2e7 !important;
+    box-shadow: 0 5px 10px rgba(7, 15, 25, 0.34) !important;
 }
 
 .action-hub-desktop-btn--cannot-act:active {
-    transform: translateY(0);
-    filter: brightness(0.98);
+    transform: translateY(1px);
+    filter: brightness(0.96);
+    box-shadow: 0 2px 6px rgba(7, 15, 25, 0.24) !important;
+}
+
+.action-hub-desktop-btn--cannot-act:focus-visible {
+    outline: none;
+    border-color: #cde4ff !important;
     box-shadow:
-        inset 0 1px 0 rgba(255, 239, 200, 0.28),
-        inset 0 -1px 0 rgba(58, 39, 17, 0.52),
-        0 8px 16px rgba(8, 6, 3, 0.32),
-        0 0 0 1px rgba(174, 127, 64, 0.42) !important;
+        0 0 0 2px rgba(85, 170, 255, 0.38),
+        0 5px 10px rgba(7, 15, 25, 0.32) !important;
 }
 
 .action-hub-desktop-btn--cannot-act-extra {
-    border-color: rgba(242, 207, 136, 0.92) !important;
-    background:
-        radial-gradient(150% 100% at 50% 0%, rgba(255, 229, 162, 0.24), rgba(255, 229, 162, 0) 56%),
-        linear-gradient(180deg, rgba(95, 68, 33, 0.98), rgba(48, 33, 16, 0.99)),
-        url('/assets/ui/panel-ornament.svg') center/cover no-repeat !important;
-    box-shadow:
-        inset 0 1px 0 rgba(255, 247, 220, 0.42),
-        inset 0 0 26px rgba(191, 138, 59, 0.23),
-        0 12px 24px rgba(9, 7, 3, 0.42),
-        0 0 0 1px rgba(208, 154, 73, 0.58) !important;
-    animation: cannotActExtraGlow 2.1s ease-in-out infinite;
-}
-
-.cannot-act-btn__kicker,
-.cannot-act-btn__label {
-    position: relative;
-    z-index: 1;
-}
-
-.cannot-act-btn__kicker {
-    padding: 1px 7px;
-    border-radius: 999px;
-    border: 1px solid rgba(255, 232, 180, 0.32);
-    background: linear-gradient(180deg, rgba(253, 229, 172, 0.16), rgba(253, 229, 172, 0.05));
-    font-size: 9px;
-    line-height: 1.1;
-    font-weight: 700;
-    letter-spacing: 0.07em;
-    color: rgba(252, 227, 177, 0.92);
-}
-
-.cannot-act-btn__label {
-    font-size: 12px;
-    line-height: 1.15;
-    font-weight: 900;
-    letter-spacing: 0.03em;
-    color: #fff3da;
-}
-
-@keyframes cannotActExtraGlow {
-    0%,
-    100% {
-        box-shadow:
-            inset 0 1px 0 rgba(255, 247, 220, 0.42),
-            inset 0 0 22px rgba(191, 138, 59, 0.2),
-            0 11px 22px rgba(9, 7, 3, 0.38),
-            0 0 0 1px rgba(206, 152, 72, 0.5);
-    }
-    50% {
-        box-shadow:
-            inset 0 1px 0 rgba(255, 250, 230, 0.5),
-            inset 0 0 30px rgba(208, 151, 63, 0.28),
-            0 14px 28px rgba(9, 7, 3, 0.46),
-            0 0 0 1px rgba(226, 170, 85, 0.74);
-    }
+    border-color: #c6dfff !important;
+    background: linear-gradient(180deg, #60799a, #3f5c7d) !important;
+    color: #f2f8ff !important;
 }
 
 .debug-toggle-btn {
@@ -2074,10 +1869,7 @@ function basicEffectSummary(playerId: string): string {
     border: none !important;
     background: transparent !important;
     border-radius: 12px !important;
-    width: 100%;
-    max-width: 100%;
     aspect-ratio: 1 / 1;
-    min-height: 0;
     padding: 0 !important;
     box-shadow: none !important;
     display: inline-flex;
@@ -2086,6 +1878,13 @@ function basicEffectSummary(playerId: string): string {
     position: relative;
     overflow: hidden;
     transition: transform 0.14s ease, filter 0.14s ease;
+    flex-shrink: 0 !important;
+}
+
+.action-hub-desktop-btn.action-image-btn {
+    width: 100%;
+    max-width: 100%;
+    min-height: 0;
 }
 
 .action-image-btn:hover {
@@ -2119,7 +1918,7 @@ function basicEffectSummary(playerId: string): string {
     inset: 0;
     width: 100%;
     height: 100%;
-    object-fit: contain;
+    object-fit: cover;
     pointer-events: none;
     user-select: none;
 }
@@ -2442,15 +2241,22 @@ function basicEffectSummary(playerId: string): string {
         min-width: 0;
     }
 
-    .skill-select-panel button,
-    .skill-target-panel button,
-    .skill-discard-panel button {
+    .skill-select-panel button:not(.action-image-btn),
+    .skill-target-panel button:not(.action-image-btn),
+    .skill-discard-panel button:not(.action-image-btn) {
         min-height: 34px;
     }
 
-    .action-panel-root--panel button {
-        padding-top: 0.4rem !important;
-        padding-bottom: 0.4rem !important;
+    .action-panel-root--panel button:not(.action-image-btn) {
+        padding-top: 0.4rem;
+        padding-bottom: 0.4rem;
+    }
+
+    .skill-select-panel .action-image-btn,
+    .skill-target-panel .action-image-btn,
+    .skill-discard-panel .action-image-btn,
+    .action-mode-panel .action-image-btn {
+        flex: 0 0 auto !important;
     }
 
     .action-panel-root--panel .text-lg {
@@ -2464,22 +2270,8 @@ function basicEffectSummary(playerId: string): string {
     }
 
     .action-hub-desktop-btn--cannot-act {
-        min-height: 40px;
-        padding: 5px 7px !important;
-    }
-
-    .cannot-act-btn__kicker {
-        font-size: 8px;
-        padding: 1px 6px;
-    }
-
-    .cannot-act-btn__label {
-        font-size: 11px;
-    }
-
-    .action-image-btn {
-        min-height: 40px;
-        padding: 0 !important;
+        min-height: 29px;
+        padding: 0.32rem 0.45rem !important;
     }
 
     .prompt-option-btn {

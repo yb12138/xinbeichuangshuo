@@ -40,7 +40,7 @@ func countDamageEvents(obs *captureObserver, sourceID, targetID, damageType stri
 
 // 回归：反噬仅在暗杀者承受“攻击伤害”时触发；
 // 承受法术伤害时不应触发，也不能出现连锁死循环。
-func TestAssassinBacklash_DoesNotTriggerOnMagicDamage(t *testing.T) {
+func TestAssassinBacklash_DoesNotTimingOnMagicDamage(t *testing.T) {
 	obs := &captureObserver{}
 	game := NewGameEngine(obs)
 	if err := game.AddPlayer("p1", "Caster", "angel", model.RedCamp); err != nil {
@@ -51,19 +51,19 @@ func TestAssassinBacklash_DoesNotTriggerOnMagicDamage(t *testing.T) {
 	}
 
 	game.State.Deck = rules.InitDeck()
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 	game.State.CurrentTurn = 0
 	game.State.Players["p1"].TurnState = model.NewPlayerTurnState()
 	game.State.Players["p2"].TurnState = model.NewPlayerTurnState()
 
-	game.InflictDamage("p1", "p2", 1, "magic")
+	game.InflictDamage("p1", "p2", 1, model.MagicAttack)
 	game.Drive()
 
 	if got := countDamageEvents(obs, "p1", "p2", "magic"); got != 1 {
 		t.Fatalf("expected one magic damage event p1->p2, got %d", got)
 	}
 	if got := countDamageEvents(obs, "p2", "p1", "magic"); got != 0 {
-		t.Fatalf("backlash should not trigger on magic damage, but got %d reflected events", got)
+		t.Fatalf("backlash should not dispatch on magic damage, but got %d reflected events", got)
 	}
 	if got := countDamageEvents(obs, "p2", "p1", "backlash"); got != 0 {
 		t.Fatalf("unexpected legacy backlash pseudo-damage events: %d", got)
@@ -81,7 +81,7 @@ func TestAssassinBacklash_DoesNotTriggerOnMagicDamage(t *testing.T) {
 }
 
 // 回归：反噬在承受攻击伤害后触发，并强制让攻击者摸1张牌（非伤害）。
-func TestAssassinBacklash_TriggersOnAttackDamage(t *testing.T) {
+func TestAssassinBacklash_RunsOnAttackDamage(t *testing.T) {
 	obs := &captureObserver{}
 	game := NewGameEngine(obs)
 	if err := game.AddPlayer("p1", "Attacker", "angel", model.RedCamp); err != nil {
@@ -93,7 +93,7 @@ func TestAssassinBacklash_TriggersOnAttackDamage(t *testing.T) {
 
 	game.State.Deck = rules.InitDeck()
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]
 	p1.IsActive = true

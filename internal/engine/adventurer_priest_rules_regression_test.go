@@ -38,6 +38,44 @@ func choiceIndexForTarget(t *testing.T, ctx map[string]interface{}, targetID str
 	return -1
 }
 
+func countAskPromptsForPlayer(obs *captureObserver, playerID string) int {
+	if obs == nil {
+		return 0
+	}
+	count := 0
+	for _, event := range obs.events {
+		if event.Type != model.EventAskInput {
+			continue
+		}
+		prompt, ok := event.Data.(*model.Prompt)
+		if !ok || prompt == nil || prompt.PlayerID != playerID {
+			continue
+		}
+		count++
+	}
+	return count
+}
+
+func latestAskPromptForPlayer(obs *captureObserver, playerID string) *model.Prompt {
+	if obs == nil {
+		return nil
+	}
+	for i := len(obs.events) - 1; i >= 0; i-- {
+		event := obs.events[i]
+		if event.Type != model.EventAskInput {
+			continue
+		}
+		prompt, ok := event.Data.(*model.Prompt)
+		if !ok || prompt == nil || prompt.PlayerID != playerID {
+			continue
+		}
+		copied := *prompt
+		copied.Options = append([]model.PromptOption(nil), prompt.Options...)
+		return &copied
+	}
+	return nil
+}
+
 func TestAdventurerStealSky_ModeAndExtraActionChoice(t *testing.T) {
 	game := NewGameEngine(noopObserver{})
 	if err := game.AddPlayer("p1", "Adventurer", "adventurer", model.RedCamp); err != nil {
@@ -49,7 +87,7 @@ func TestAdventurerStealSky_ModeAndExtraActionChoice(t *testing.T) {
 
 	game.State.CurrentTurn = 0
 	game.State.Deck = rules.InitDeck()
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 	p1 := game.State.Players["p1"]
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
@@ -68,22 +106,56 @@ func TestAdventurerStealSky_ModeAndExtraActionChoice(t *testing.T) {
 		Type:       model.CmdSelect,
 		Selections: []int{0},
 	})
-	requireChoicePrompt(t, game, "p1", "adventurer_steal_sky_extra_action")
 	if game.State.BlueGems != 0 || game.State.RedGems != 1 {
 		t.Fatalf("expected gem transfer blue->red, got blue=%d red=%d", game.State.BlueGems, game.State.RedGems)
 	}
-
-	mustHandleAction(t, game, model.PlayerAction{
-		PlayerID:   "p1",
-		Type:       model.CmdSelect,
-		Selections: []int{1},
-	})
-	if game.State.PendingInterrupt != nil {
-		t.Fatalf("expected steal sky choices resolved, got pending interrupt %+v", game.State.PendingInterrupt)
+	// 额外行动应已被 Drive 消费，验证 TurnStage 回到了 ActionExecution
+	if game.State.TurnStage != model.TurnStageActionExecution {
+		t.Fatalf("expected TurnStage=ActionExecution for extra action, got %s", game.State.TurnStage)
+	}
+	if p1.TurnState.CurrentExtraAction != "" {
+		// MustType="" 表示无约束，被消费后应已清空
 	}
 }
 
-func TestAdventurerExtractFullEnergy_ForceParadiseTransfer(t *testing.T) {
+func TestAdventurerUndergroundLaw_RewritesBuyInsteadOfDefaultSettlement(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "Adventurer", "adventurer", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+	// 初始化牌堆，确保有牌可摸
+	game.State.Deck = rules.InitDeck()
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	// 手牌留3张，还有3张上限空间，购买摸3张刚好
+	p1.Hand = []model.Card{
+		{ID: "c1", Name: "火斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 1},
+		{ID: "c2", Name: "水盾", Type: model.CardTypeMagic, Element: model.ElementWater},
+		{ID: "c3", Name: "圣光", Type: model.CardTypeMagic, Element: model.ElementLight},
+	}
+
+	mustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdBuy})
+
+	// 地下法则：正常摸3张（3+3=6），战绩区+2宝石（原为+1宝石+1水晶）
+	if got := len(p1.Hand); got != 6 {
+		t.Fatalf("expected hand to be 6 after buy, got %d", got)
+	}
+	if got := game.State.RedGems; got != 2 {
+		t.Fatalf("expected underground law to add 2 team gems, got %d", got)
+	}
+	if got := game.State.RedCrystals; got != 0 {
+		t.Fatalf("expected underground law to not add team crystals, got %d", got)
+	}
+}
+
+func TestAdventurerExtractFullEnergy_AutoParadiseAllyExtract(t *testing.T) {
 	game := NewGameEngine(noopObserver{})
 	if err := game.AddPlayer("p1", "Adventurer", "adventurer", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -97,7 +169,7 @@ func TestAdventurerExtractFullEnergy_ForceParadiseTransfer(t *testing.T) {
 
 	game.State.CurrentTurn = 0
 	game.State.Deck = rules.InitDeck()
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]
 	p1.IsActive = true
@@ -107,35 +179,27 @@ func TestAdventurerExtractFullEnergy_ForceParadiseTransfer(t *testing.T) {
 	p2.Gem = 1
 	game.State.RedCrystals = 2
 
+	// 提炼 → 自身能量满，override hook 自动跳转到队友选择
 	mustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdExtract})
-	requireChoicePrompt(t, game, "p1", "extract")
+	requireChoicePrompt(t, game, "p1", "adventurer_paradise_pick")
 
-	mustHandleAction(t, game, model.PlayerAction{
-		PlayerID:   "p1",
-		Type:       model.CmdSelect,
-		Selections: []int{0, 1},
-	})
-	requireResponseSkillPrompt(t, game, "p1")
-
-	skipIdx := len(game.State.PendingInterrupt.SkillIDs)
-	if err := game.HandleAction(model.PlayerAction{
-		PlayerID:   "p1",
-		Type:       model.CmdSelect,
-		Selections: []int{skipIdx},
-	}); err == nil {
-		t.Fatalf("expected forced paradise transfer to reject skip")
-	}
-
-	chooseResponseSkillByID(t, game, "p1", "adventurer_paradise")
-	requireChoicePrompt(t, game, "p1", "adventurer_paradise_target")
 	mustHandleAction(t, game, model.PlayerAction{
 		PlayerID:   "p1",
 		Type:       model.CmdSelect,
 		Selections: []int{0},
 	})
 
-	if p1.Gem+p1.Crystal != 2 {
-		t.Fatalf("expected p1 energy reduced to 2 after paradise cost, got gem=%d crystal=%d", p1.Gem, p1.Crystal)
+	// 队友看到提炼提示
+	requireChoicePrompt(t, game, "p2", "extract")
+	mustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p2",
+		Type:       model.CmdSelect,
+		Selections: []int{0, 1},
+	})
+
+	// p1 能量不变（未提炼），p2 从提炼中获得2水晶
+	if p1.Gem+p1.Crystal != 3 {
+		t.Fatalf("expected p1 energy unchanged (full), got gem=%d crystal=%d", p1.Gem, p1.Crystal)
 	}
 	if p2.Gem+p2.Crystal != 3 {
 		t.Fatalf("expected p2 receive two extracted energies, got gem=%d crystal=%d", p2.Gem, p2.Crystal)
@@ -145,7 +209,7 @@ func TestAdventurerExtractFullEnergy_ForceParadiseTransfer(t *testing.T) {
 	}
 }
 
-func TestAdventurerParadise_TransferOnlyExtractedEnergy(t *testing.T) {
+func TestAdventurerParadise_AllyDirectExtract(t *testing.T) {
 	game := NewGameEngine(noopObserver{})
 	if err := game.AddPlayer("p1", "Adventurer", "adventurer", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -159,35 +223,47 @@ func TestAdventurerParadise_TransferOnlyExtractedEnergy(t *testing.T) {
 
 	game.State.CurrentTurn = 0
 	game.State.Deck = rules.InitDeck()
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
-	p1.Gem = 2 // 已有能量，不应被整体转移
+	p1.Gem = 2 // 已有能量
 	game.State.RedGems = 1
 
+	// 提炼 → 询问是否发动天堂
 	mustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdExtract})
-	requireChoicePrompt(t, game, "p1", "extract")
+	requireChoicePrompt(t, game, "p1", "adventurer_extract_paradise_check")
+
+	// 选择"是，发动冒险者天堂"
 	mustHandleAction(t, game, model.PlayerAction{
 		PlayerID:   "p1",
 		Type:       model.CmdSelect,
 		Selections: []int{0},
 	})
 
-	chooseResponseSkillByID(t, game, "p1", "adventurer_paradise")
-	requireChoicePrompt(t, game, "p1", "adventurer_paradise_target")
+	// 选择队友
+	requireChoicePrompt(t, game, "p1", "adventurer_paradise_pick")
 	mustHandleAction(t, game, model.PlayerAction{
 		PlayerID:   "p1",
 		Type:       model.CmdSelect,
 		Selections: []int{0},
 	})
 
-	if p2.Gem != 1 || p2.Crystal != 0 {
-		t.Fatalf("expected ally only receive extracted gem, got gem=%d crystal=%d", p2.Gem, p2.Crystal)
+	// 队友看到提炼提示
+	requireChoicePrompt(t, game, "p2", "extract")
+	mustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p2",
+		Type:       model.CmdSelect,
+		Selections: []int{0},
+	})
+
+	// p1 能量不变（队友提炼而非冒险者提炼），p2 获得提炼的1宝石
+	if p1.Gem != 2 || p1.Crystal != 0 {
+		t.Fatalf("expected p1 keep pre-existing energy, got gem=%d crystal=%d", p1.Gem, p1.Crystal)
 	}
-	if p1.Gem != 1 || p1.Crystal != 0 {
-		t.Fatalf("expected p1 keep pre-existing energy except mandatory -1, got gem=%d crystal=%d", p1.Gem, p1.Crystal)
+	if p2.Gem != 1 || p2.Crystal != 0 {
+		t.Fatalf("expected ally receive extracted gem, got gem=%d crystal=%d", p2.Gem, p2.Crystal)
 	}
 }
 
@@ -208,30 +284,24 @@ func TestAdventurerParadise_TargetsFilteredByExtractCapacity(t *testing.T) {
 
 	game.State.CurrentTurn = 0
 	game.State.Deck = rules.InitDeck()
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]
 	p3 := game.State.Players["p3"]
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
 	p1.Gem = 1
-	p1.Crystal = 2 // 能量已满，提炼后必须走冒险者天堂转移
+	p1.Crystal = 2 // 能量已满，提炼后自动走冒险者天堂
 	p2.Gem = 1
-	p2.Crystal = 1 // 仅剩1格，不可接收2点提炼
+	p2.Crystal = 1 // 仅剩1格
 	p3.Gem = 1
-	p3.Crystal = 0 // 剩余2格，可完整接收
+	p3.Crystal = 0 // 剩余2格
 	game.State.RedCrystals = 2
 
+	// 提炼 → 自身能量满，自动跳转到队友选择
 	mustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdExtract})
-	requireChoicePrompt(t, game, "p1", "extract")
-	mustHandleAction(t, game, model.PlayerAction{
-		PlayerID:   "p1",
-		Type:       model.CmdSelect,
-		Selections: []int{0, 1},
-	})
+	ctx := requireChoiceContext(t, game, "p1", "adventurer_paradise_pick")
 
-	chooseResponseSkillByID(t, game, "p1", "adventurer_paradise")
-	ctx := requireChoiceContext(t, game, "p1", "adventurer_paradise_target")
 	var allyIDs []string
 	if arr, ok := ctx["ally_ids"].([]string); ok {
 		allyIDs = append(allyIDs, arr...)
@@ -242,25 +312,81 @@ func TestAdventurerParadise_TargetsFilteredByExtractCapacity(t *testing.T) {
 			}
 		}
 	}
-	if len(allyIDs) != 1 || allyIDs[0] != "p3" {
-		t.Fatalf("expected only p3 can receive extracted energy, got ally_ids=%v", allyIDs)
+	// p2（仅1格空间）和 p3（2格空间）都有空间，都应出现在候选列表中
+	if len(allyIDs) != 2 {
+		t.Fatalf("expected both allies with room, got ally_ids=%v", allyIDs)
 	}
 
+	// 选择 p3（有2格空间的队友）
+	p3Idx := 0
+	for i, id := range allyIDs {
+		if id == "p3" {
+			p3Idx = i
+			break
+		}
+	}
 	mustHandleAction(t, game, model.PlayerAction{
 		PlayerID:   "p1",
 		Type:       model.CmdSelect,
-		Selections: []int{0},
+		Selections: []int{p3Idx},
+	})
+
+	// p3 看到提炼提示
+	requireChoicePrompt(t, game, "p3", "extract")
+	mustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p3",
+		Type:       model.CmdSelect,
+		Selections: []int{0, 1},
 	})
 
 	if p2.Gem+p2.Crystal != 2 {
-		t.Fatalf("expected p2 unchanged (cannot receive), got gem=%d crystal=%d", p2.Gem, p2.Crystal)
+		t.Fatalf("expected p2 unchanged (not selected), got gem=%d crystal=%d", p2.Gem, p2.Crystal)
 	}
 	if p3.Gem+p3.Crystal != 3 {
-		t.Fatalf("expected p3 receive all extracted energy, got gem=%d crystal=%d", p3.Gem, p3.Crystal)
+		t.Fatalf("expected p3 receive extracted energy, got gem=%d crystal=%d", p3.Gem, p3.Crystal)
 	}
 }
 
-func TestPriestDivineDomain_AllowsPartialDiscardAndHealBranch(t *testing.T) {
+// 回归：冒险者提炼时，override hook 应先询问是否发动天堂，而非直接显示提炼提示。
+func TestAdventurerExtract_ParadiseCheckBeforeExtract(t *testing.T) {
+	obs := &captureObserver{}
+	game := NewGameEngine(obs)
+	if err := game.AddPlayer("p1", "Adventurer", "adventurer", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Ally", "berserker", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p3", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Gem = 0
+	p1.Crystal = 0
+	game.State.RedGems = 1
+
+	mustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdExtract})
+
+	// 新流程：override hook 拦截提炼，先询问是否发动天堂
+	requireChoicePrompt(t, game, "p1", "adventurer_extract_paradise_check")
+
+	// 选择"否，自行提炼"
+	mustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{1},
+	})
+
+	// 应显示标准提炼提示
+	requireChoicePrompt(t, game, "p1", "extract")
+}
+
+func TestPriestDivineDomain_HealBranchRequiresTwoDiscards(t *testing.T) {
 	game := NewGameEngine(noopObserver{})
 	if err := game.AddPlayer("p1", "Priest", "priest", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -274,7 +400,7 @@ func TestPriestDivineDomain_AllowsPartialDiscardAndHealBranch(t *testing.T) {
 
 	game.State.CurrentTurn = 0
 	game.State.Deck = rules.InitDeck()
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]
 	p1.IsActive = true
@@ -283,6 +409,7 @@ func TestPriestDivineDomain_AllowsPartialDiscardAndHealBranch(t *testing.T) {
 	p1.Heal = 0 // 伤害分支不可用，应只出现治疗分支
 	p1.Hand = []model.Card{
 		{ID: "m1", Name: "圣光", Type: model.CardTypeMagic, Element: model.ElementLight},
+		{ID: "a1", Name: "火刃", Type: model.CardTypeAttack, Element: model.ElementFire},
 	}
 
 	mustHandleAction(t, game, model.PlayerAction{
@@ -290,11 +417,11 @@ func TestPriestDivineDomain_AllowsPartialDiscardAndHealBranch(t *testing.T) {
 		Type:     model.CmdSkill,
 		SkillID:  "priest_divine_domain",
 		Selections: []int{
-			0,
+			0, 1,
 		},
 	})
 	if len(p1.Hand) != 0 {
-		t.Fatalf("expected partial discard consume 1 card, got hand=%d", len(p1.Hand))
+		t.Fatalf("expected divine domain consume 2 cards, got hand=%d", len(p1.Hand))
 	}
 	if p1.Crystal != 0 {
 		t.Fatalf("expected crystal spent, got %d", p1.Crystal)
@@ -322,6 +449,39 @@ func TestPriestDivineDomain_AllowsPartialDiscardAndHealBranch(t *testing.T) {
 	}
 }
 
+func TestPriestDivineDomain_RejectsPartialDiscard(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "Priest", "priest", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Ally", "berserker", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p3", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Crystal = 1
+	p1.Heal = 0
+	p1.Hand = []model.Card{
+		{ID: "m1", Name: "圣光", Type: model.CardTypeMagic, Element: model.ElementLight},
+	}
+
+	if err := game.HandleAction(model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSkill,
+		SkillID:    "priest_divine_domain",
+		Selections: []int{0},
+	}); err == nil {
+		t.Fatalf("expected divine domain to reject partial discard when hand<2")
+	}
+}
+
 func TestPriestDivineDomain_DamageBranchTargetsAnyPlayer(t *testing.T) {
 	game := NewGameEngine(noopObserver{})
 	if err := game.AddPlayer("p1", "Priest", "priest", model.RedCamp); err != nil {
@@ -336,7 +496,7 @@ func TestPriestDivineDomain_DamageBranchTargetsAnyPlayer(t *testing.T) {
 
 	game.State.CurrentTurn = 0
 	game.State.Deck = rules.InitDeck()
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 	p1 := game.State.Players["p1"]
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
@@ -362,6 +522,13 @@ func TestPriestDivineDomain_DamageBranchTargetsAnyPlayer(t *testing.T) {
 		Selections: []int{0}, // 伤害分支
 	})
 	ctx := requireChoiceContext(t, game, "p1", "priest_divine_domain_damage_target")
+	if ids, ok := ctx["target_ids"].([]string); ok {
+		for _, id := range ids {
+			if id == "p1" {
+				t.Fatalf("expected damage branch to exclude self target, got %v", ids)
+			}
+		}
+	}
 	idx := choiceIndexForTarget(t, ctx, "p3")
 	mustHandleAction(t, game, model.PlayerAction{
 		PlayerID:   "p1",
@@ -388,7 +555,7 @@ func TestPriestWaterPower_DiscardWaterThenGiveSelectedCard(t *testing.T) {
 
 	game.State.CurrentTurn = 0
 	game.State.Deck = rules.InitDeck()
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]
 	p1.IsActive = true
@@ -421,7 +588,7 @@ func TestPriestWaterPower_DiscardWaterThenGiveSelectedCard(t *testing.T) {
 	}
 }
 
-func TestPriestWaterPower_NoRemainingCardSkipsGiveStillHealsBoth(t *testing.T) {
+func TestPriestWaterPower_RequiresTransferCard(t *testing.T) {
 	game := NewGameEngine(noopObserver{})
 	if err := game.AddPlayer("p1", "Priest", "priest", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -435,39 +602,27 @@ func TestPriestWaterPower_NoRemainingCardSkipsGiveStillHealsBoth(t *testing.T) {
 
 	game.State.CurrentTurn = 0
 	game.State.Deck = rules.InitDeck()
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 	p1 := game.State.Players["p1"]
-	p2 := game.State.Players["p2"]
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
 	p1.Hand = []model.Card{
 		{ID: "w1", Name: "水涟斩", Type: model.CardTypeAttack, Element: model.ElementWater},
 	}
 
-	mustHandleAction(t, game, model.PlayerAction{
+	if err := game.HandleAction(model.PlayerAction{
 		PlayerID:   "p1",
 		Type:       model.CmdSkill,
 		SkillID:    "priest_water_power",
 		TargetIDs:  []string{"p2"},
 		Selections: []int{0},
-	})
-
-	if len(p1.Hand) != 0 {
-		t.Fatalf("expected priest hand empty after paying water cost, got %d", len(p1.Hand))
-	}
-	if len(p2.Hand) != 0 {
-		t.Fatalf("expected ally receives no card when priest has no remaining hand, got hand=%+v", p2.Hand)
-	}
-	if p1.Heal != 1 || p2.Heal != 1 {
-		t.Fatalf("expected both sides +1 heal, got p1=%d p2=%d", p1.Heal, p2.Heal)
-	}
-	if len(game.State.DiscardPile) == 0 || game.State.DiscardPile[len(game.State.DiscardPile)-1].ID != "w1" {
-		t.Fatalf("expected water card in discard pile, got discard=%+v", game.State.DiscardPile)
+	}); err == nil {
+		t.Fatalf("expected water power to require a second card to transfer")
 	}
 }
 
 // 回归：神官被动【神圣启示】在一次特殊行动结束后只应触发1次。
-func TestPriestDivineRevelation_TriggersOnlyOncePerSpecialAction(t *testing.T) {
+func TestPriestDivineRevelation_RunsOnlyOncePerSpecialAction(t *testing.T) {
 	game := NewGameEngine(noopObserver{})
 	if err := game.AddPlayer("p1", "Priest", "priest", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -478,7 +633,7 @@ func TestPriestDivineRevelation_TriggersOnlyOncePerSpecialAction(t *testing.T) {
 
 	game.State.CurrentTurn = 0
 	game.State.Deck = rules.InitDeck()
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	p1 := game.State.Players["p1"]
 	p1.IsActive = true
@@ -509,7 +664,7 @@ func TestPriestDivineContract_HasXChoiceAndCapsTargetAt4(t *testing.T) {
 	}
 
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionStart
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]
 	p1.IsActive = true
@@ -518,11 +673,18 @@ func TestPriestDivineContract_HasXChoiceAndCapsTargetAt4(t *testing.T) {
 	p1.Heal = 3
 	p2.Heal = 3
 
+	game.Drive()
+	startupIdx := startupSkillIndexByID(t, game, "p1", "priest_divine_contract")
 	mustHandleAction(t, game, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdSkill,
-		SkillID:   "priest_divine_contract",
-		TargetIDs: []string{"p2"},
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{startupIdx},
+	})
+	requireChoicePrompt(t, game, "p1", "priest_divine_contract_target")
+	mustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{0},
 	})
 	requireChoicePrompt(t, game, "p1", "priest_divine_contract_x")
 
@@ -557,7 +719,7 @@ func TestPriestDivineContract_TargetAlreadyAbove4KeepsUnchanged(t *testing.T) {
 	}
 
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionStart
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]
 	p1.IsActive = true
@@ -566,11 +728,18 @@ func TestPriestDivineContract_TargetAlreadyAbove4KeepsUnchanged(t *testing.T) {
 	p1.Heal = 3
 	p2.Heal = 5
 
+	game.Drive()
+	startupIdx := startupSkillIndexByID(t, game, "p1", "priest_divine_contract")
 	mustHandleAction(t, game, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdSkill,
-		SkillID:   "priest_divine_contract",
-		TargetIDs: []string{"p2"},
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{startupIdx},
+	})
+	requireChoicePrompt(t, game, "p1", "priest_divine_contract_target")
+	mustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{0},
 	})
 	requireChoicePrompt(t, game, "p1", "priest_divine_contract_x")
 

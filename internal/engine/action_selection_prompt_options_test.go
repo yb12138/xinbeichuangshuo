@@ -1,10 +1,12 @@
 package engine
 
 import (
+	playerpkg "starcup-engine/internal/engine/player"
 	"strings"
 	"testing"
 
 	"starcup-engine/internal/model"
+	"starcup-engine/internal/rules"
 )
 
 type actionPromptObserver struct {
@@ -55,7 +57,7 @@ func buildActionSelectionEngine(t *testing.T, extraAction string) (*GameEngine, 
 	}
 
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	p1 := game.State.Players["p1"]
 	p1.IsActive = true
@@ -83,7 +85,7 @@ func buildActionSelectionElementalistEngine(t *testing.T, extraAction string) (*
 	}
 
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	p1 := game.State.Players["p1"]
 	p1.IsActive = true
@@ -214,8 +216,8 @@ func TestActionSelection_ExtraActionCannotActSkipsWhenNoLegalAction(t *testing.T
 	if len(p1.TurnState.CurrentExtraElement) != 0 {
 		t.Fatalf("expected extra-action element constraint cleared, got %+v", p1.TurnState.CurrentExtraElement)
 	}
-	if game.State.Phase != model.PhaseTurnEnd {
-		t.Fatalf("expected phase turn_end after skipping extra action, got %s", game.State.Phase)
+	if game.State.TurnStage != model.TurnStageTurnEnd {
+		t.Fatalf("expected turn stage turn_end after skipping extra action, got %s", game.State.TurnStage)
 	}
 }
 
@@ -244,13 +246,19 @@ func TestActionSelection_ExtraMagicAllowsSkill(t *testing.T) {
 	}
 
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
+	game.State.Deck = rules.InitDeck()
 	p1 := game.State.Players["p1"]
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
 	p1.TurnState.CurrentExtraAction = "Magic"
 	p1.Tokens["element"] = 3
 
+	t.Logf("Before HandleAction: TurnStage=%s, PendingInterrupt=%v, ActionQueue=%d, PlayerOrder=%v, CurrentTurn=%d",
+		game.State.TurnStage, game.State.PendingInterrupt, len(game.State.ActionQueue), game.State.PlayerOrder, game.State.CurrentTurn)
+	t.Logf("p1.Character=%v, p1.Tokens=%v", p1.Character != nil, p1.Tokens)
+	// 测试额外法术行动时可以使用技能
+	// 直接调用 handleActionSelection 测试技能执行流程
 	err := game.handleActionSelection(model.PlayerAction{
 		PlayerID:  "p1",
 		Type:      model.CmdSkill,
@@ -260,11 +268,20 @@ func TestActionSelection_ExtraMagicAllowsSkill(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected extra magic action can use skill, got err: %v", err)
 	}
-	if len(game.State.PendingDamageQueue) == 0 {
-		t.Fatalf("expected ignite queued pending damage")
+	// 验证技能执行后的状态
+	t.Logf("After handleActionSelection: TurnStage=%s, PendingDamageQueue=%d, PendingActions=%d",
+		game.State.TurnStage, len(game.State.PendingDamageQueue), len(p1.TurnState.PendingActions))
+	// 技能执行后应该进入 ActionEnd 阶段，等待状态机推进
+	if game.State.TurnStage != model.TurnStageActionEnd {
+		t.Fatalf("expected TurnStage=ActionEnd, got %s", game.State.TurnStage)
 	}
-	if game.State.ReturnPhase != model.PhaseExtraAction {
-		t.Fatalf("expected return phase extra action, got %s", game.State.ReturnPhase)
+	// 伤害应该已入队
+	if len(game.State.PendingDamageQueue) == 0 {
+		t.Fatalf("expected pending damage queued")
+	}
+	// 额外法术行动应该已添加
+	if len(p1.TurnState.PendingActions) == 0 {
+		t.Fatalf("expected extra magic action added to pending actions")
 	}
 }
 
@@ -283,6 +300,86 @@ func TestActionSelection_ExtraMagicCannotActRejectedWhenSkillAvailable(t *testin
 	}
 }
 
+func TestActionSelectionPrompt_ArbiterForcedDoomsdayOnlyShowsMagic(t *testing.T) {
+	obs := &actionPromptObserver{}
+	game := NewGameEngine(obs)
+
+	if err := game.AddPlayer("p1", "Arbiter", "arbiter", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Tokens["judgment"] = 4
+	p1.TurnState.UsedSkillCounts["arbiter_forced_doomsday_pending"] = 1
+
+	game.Drive()
+
+	if obs.lastPrompt == nil {
+		t.Fatalf("expected action selection prompt, got nil")
+	}
+	options := promptOptionSet(obs.lastPrompt)
+	if !options["magic"] {
+		t.Fatalf("expected magic option for forced doomsday, got %+v", obs.lastPrompt.Options)
+	}
+	if options["attack"] || options["buy"] || options["extract"] || options["synthesize"] {
+		t.Fatalf("unexpected options for forced doomsday prompt: %+v", obs.lastPrompt.Options)
+	}
+	if obs.lastPrompt.SkillID != "arbiter_doomsday" {
+		t.Fatalf("expected prompt skill id arbiter_doomsday, got %q", obs.lastPrompt.SkillID)
+	}
+}
+
+func TestActionSelectionPrompt_TauntWithoutAttackOnlyShowsSkip(t *testing.T) {
+	obs := &actionPromptObserver{}
+	game := NewGameEngine(obs)
+
+	if err := game.AddPlayer("p1", "Hero", "hero", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Target", "angel", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	game.State.CurrentTurn = 1
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p1.IsActive = false
+	p2.IsActive = true
+	p2.TurnState = model.NewPlayerTurnState()
+	p2.TurnState.UsedSkillCounts["hero_taunt_active_turn"] = 1
+	p2.Field = []*model.FieldCard{{
+		Card:     model.Card{ID: "taunt", Name: "挑衅", Type: model.CardTypeMagic, Element: model.ElementLight},
+		OwnerID:  p2.ID,
+		SourceID: p1.ID,
+		Mode:     model.FieldEffect,
+		Effect:   model.EffectHeroTaunt,
+	}}
+	p2.Hand = []model.Card{{ID: "m1", Name: "圣光", Type: model.CardTypeMagic, Element: model.ElementLight, Damage: 0}}
+
+	game.Drive()
+
+	if obs.lastPrompt == nil {
+		t.Fatalf("expected action selection prompt, got nil")
+	}
+	options := promptOptionSet(obs.lastPrompt)
+	if !options["cannot_act"] {
+		t.Fatalf("expected cannot_act option for taunt without attack card, got %+v", obs.lastPrompt.Options)
+	}
+	if options["attack"] || options["magic"] {
+		t.Fatalf("unexpected action options for taunt without attack card: %+v", obs.lastPrompt.Options)
+	}
+}
+
 func TestActionSelectionPrompt_MagicSwordsmanShadowForm_StillShowsMagicWhenSkillUsable(t *testing.T) {
 	obs := &actionPromptObserver{}
 	game := NewGameEngine(obs)
@@ -295,12 +392,12 @@ func TestActionSelectionPrompt_MagicSwordsmanShadowForm_StillShowsMagicWhenSkill
 	}
 
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	p1 := game.State.Players["p1"]
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
-	p1.Tokens["ms_shadow_form"] = 1
+	playerpkg.SetForm(p1, model.FormMagicSwordsmanShadow)
 	// 暗影流星需要至少2张法术牌弃置；暗影抗拒会禁用法术牌直接打出。
 	p1.Hand = []model.Card{
 		{ID: "m1", Name: "圣光", Type: model.CardTypeMagic, Element: model.ElementLight, Damage: 0},

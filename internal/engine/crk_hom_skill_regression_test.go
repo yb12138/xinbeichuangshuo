@@ -1,10 +1,11 @@
 package engine
 
 import (
+	playerpkg "starcup-engine/internal/engine/player"
 	"strings"
 	"testing"
 
-	"starcup-engine/internal/engine/skills"
+	"starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/rules"
 )
@@ -48,7 +49,7 @@ func makeHandCards(n int, element model.Element) []model.Card {
 	return out
 }
 
-func TestCrimsonKnightCalmMind_AllowsActionTypeChoice(t *testing.T) {
+func TestCrimsonKnightCalmMind_AutoGrantsEndedActionType(t *testing.T) {
 	g := NewGameEngine(noopObserver{})
 	if err := g.AddPlayer("p1", "Crimson", "crimson_knight", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -59,14 +60,14 @@ func TestCrimsonKnightCalmMind_AllowsActionTypeChoice(t *testing.T) {
 
 	p1 := g.State.Players["p1"]
 	p1.TurnState = model.NewPlayerTurnState()
-	p1.Tokens["crk_hot_form"] = 1
+	p1.Form = model.FormCrimsonKnightHotBlooded
 	p1.Crystal = 1
 
 	h := skills.GetHandler("crk_calm_mind")
 	if h == nil {
 		t.Fatalf("crk_calm_mind handler not found")
 	}
-	ctx := g.buildContext(p1, nil, model.TriggerOnPhaseEnd, &model.EventContext{
+	ctx := g.buildContext(p1, nil, model.TimingOnActionEnd, &model.EventContext{
 		Type:       model.EventPhaseEnd,
 		SourceID:   p1.ID,
 		ActionType: model.ActionMagic, // 法术行动结束后，仍应允许选择“攻击行动”
@@ -77,23 +78,18 @@ func TestCrimsonKnightCalmMind_AllowsActionTypeChoice(t *testing.T) {
 	if err := h.Execute(ctx); err != nil {
 		t.Fatalf("execute calm mind failed: %v", err)
 	}
-	if got := p1.Tokens["crk_hot_form"]; got != 0 {
-		t.Fatalf("expected hot form reset to 0, got %d", got)
+	if got := p1.Form; got != "" {
+		t.Fatalf("expected hot form cleared, got %q", got)
 	}
-	if g.State.PendingInterrupt == nil || choiceTypeOfInterrupt(g.State.PendingInterrupt) != "crk_calm_mind_action" {
-		t.Fatalf("expected crk_calm_mind_action choice, got %+v", g.State.PendingInterrupt)
-	}
-
-	// 选择“额外攻击行动”
-	if err := g.handleWeakChoiceInput("p1", 0); err != nil {
-		t.Fatalf("choose calm mind action failed: %v", err)
+	if g.State.PendingInterrupt != nil {
+		t.Fatalf("expected calm mind to resolve without extra choice prompt, got %+v", g.State.PendingInterrupt)
 	}
 	if len(p1.TurnState.PendingActions) == 0 {
 		t.Fatalf("expected one pending action from calm mind")
 	}
 	last := p1.TurnState.PendingActions[len(p1.TurnState.PendingActions)-1]
-	if last.MustType != "Attack" {
-		t.Fatalf("expected calm mind chosen attack action, got %+v", last)
+	if last.MustType != string(model.ActionMagic) {
+		t.Fatalf("expected calm mind to grant extra magic action, got %+v", last)
 	}
 }
 
@@ -109,21 +105,21 @@ func TestCrimsonKnightHotBlood_AutoReleaseOnTurnEnd(t *testing.T) {
 	p1 := g.State.Players["p1"]
 	p1.IsActive = true
 	p1.Heal = 0
-	p1.Tokens["crk_hot_form"] = 1
+	p1.Form = model.FormCrimsonKnightHotBlooded
 	g.State.CurrentTurn = 0
-	g.State.Phase = model.PhaseTurnEnd
+	g.State.TurnStage = model.TurnStageTurnEnd
 
 	g.Drive()
 
-	if got := p1.Tokens["crk_hot_form"]; got != 0 {
-		t.Fatalf("expected hot form reset to 0 at turn end, got %d", got)
+	if got := p1.Form; got != "" {
+		t.Fatalf("expected hot form cleared at turn end, got %q", got)
 	}
 	if got := p1.Heal; got != 2 {
 		t.Fatalf("expected heal +2 at turn end, got %d", got)
 	}
 }
 
-func TestCrimsonKnightHotBlood_NextTurnFallbackStillReleases(t *testing.T) {
+func TestCrimsonKnightHotBlood_NextTurnNoFallbackRelease(t *testing.T) {
 	g := NewGameEngine(noopObserver{})
 	if err := g.AddPlayer("p1", "Crimson", "crimson_knight", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -135,17 +131,17 @@ func TestCrimsonKnightHotBlood_NextTurnFallbackStillReleases(t *testing.T) {
 	p1 := g.State.Players["p1"]
 	p1.IsActive = true
 	p1.Heal = 0
-	p1.Tokens["crk_hot_form"] = 1
+	p1.Form = model.FormCrimsonKnightHotBlooded
 	g.State.CurrentTurn = 0
 
-	// 模拟“跳过 PhaseTurnEnd 直接调用 NextTurn”的路径，仍应触发回合结束退形态。
+	// 规则约束：回合结束退形态只在 TurnEnd 固定时序触发，NextTurn 不再做兜底处理。
 	g.NextTurn()
 
-	if got := p1.Tokens["crk_hot_form"]; got != 0 {
-		t.Fatalf("expected hot form reset to 0 in NextTurn fallback, got %d", got)
+	if got := p1.Form; got != model.FormCrimsonKnightHotBlooded {
+		t.Fatalf("expected hot form unchanged when bypassing TurnEnd, got %q", got)
 	}
-	if got := p1.Heal; got != 2 {
-		t.Fatalf("expected heal +2 in NextTurn fallback, got %d", got)
+	if got := p1.Heal; got != 0 {
+		t.Fatalf("expected no heal when bypassing TurnEnd, got %d", got)
 	}
 }
 
@@ -159,14 +155,14 @@ func TestCrimsonKnightHotForm_DamageOverflowNoMoraleLoss(t *testing.T) {
 	}
 
 	g.State.CurrentTurn = 0
-	g.State.Phase = model.PhaseActionSelection
+	g.State.TurnStage = model.TurnStageActionExecution
 
 	p1 := g.State.Players["p1"]
 	p2 := g.State.Players["p2"]
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
 	p2.TurnState = model.NewPlayerTurnState()
-	p2.Tokens["crk_hot_form"] = 1
+	p2.Form = model.FormCrimsonKnightHotBlooded
 
 	p1.Hand = []model.Card{
 		{ID: "atk1", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2, Faction: "咏"},
@@ -193,7 +189,7 @@ func TestCrimsonKnightHotForm_DamageOverflowNoMoraleLoss(t *testing.T) {
 		Type:      model.CmdRespond,
 		ExtraArgs: []string{"take"},
 	})
-	if g.State.PendingInterrupt == nil || g.State.PendingInterrupt.Type != model.InterruptDiscard {
+	if g.State.PendingInterrupt == nil || !isDiscardSelectionInterrupt(g.State.PendingInterrupt) {
 		t.Fatalf("expected overflow discard interrupt, got %+v", g.State.PendingInterrupt)
 	}
 	data, _ := g.State.PendingInterrupt.Context.(map[string]interface{})
@@ -232,7 +228,7 @@ func TestHomRuneReforge_ReallocateAndOverflowCheckOnTurnEnd(t *testing.T) {
 	p1.Gem = 1
 	p1.Tokens["hom_war_rune"] = 3
 	p1.Tokens["hom_magic_rune"] = 0
-	p1.Tokens["hom_burst_form"] = 0
+	playerpkg.ClearForm(p1, model.FormWarHomunculusBurst)
 	// 进入形态前 6 张手牌，符文改造摸1后=7（形态内上限+1），回合结束转正后应触发弃1。
 	p1.Hand = makeHandCards(6, model.ElementFire)
 
@@ -240,7 +236,7 @@ func TestHomRuneReforge_ReallocateAndOverflowCheckOnTurnEnd(t *testing.T) {
 	if h == nil {
 		t.Fatalf("hom_rune_reforge handler not found")
 	}
-	ctx := g.buildContext(p1, nil, model.TriggerOnTurnStart, &model.EventContext{
+	ctx := g.buildContext(p1, nil, model.TimingOnTurnStart, &model.EventContext{
 		SourceID: p1.ID,
 	})
 	if !h.CanUse(ctx) {
@@ -252,15 +248,15 @@ func TestHomRuneReforge_ReallocateAndOverflowCheckOnTurnEnd(t *testing.T) {
 	if got := p1.Gem; got != 0 {
 		t.Fatalf("expected gem consumed to 0, got %d", got)
 	}
-	if got := p1.Tokens["hom_burst_form"]; got != 1 {
-		t.Fatalf("expected burst form entered, got %d", got)
+	if got := p1.Form; got != model.FormWarHomunculusBurst {
+		t.Fatalf("expected burst form entered, got %q", got)
 	}
 	if g.State.PendingInterrupt == nil || choiceTypeOfInterrupt(g.State.PendingInterrupt) != "hom_rune_reforge_distribution" {
 		t.Fatalf("expected hom_rune_reforge_distribution choice, got %+v", g.State.PendingInterrupt)
 	}
 
 	// 选择 战纹2 / 魔纹1
-	if err := g.handleWeakChoiceInput("p1", 2); err != nil {
+	if err := g.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{2}}); err != nil {
 		t.Fatalf("choose rune distribution failed: %v", err)
 	}
 	if p1.Tokens["hom_war_rune"] != 2 || p1.Tokens["hom_magic_rune"] != 1 {
@@ -268,13 +264,13 @@ func TestHomRuneReforge_ReallocateAndOverflowCheckOnTurnEnd(t *testing.T) {
 	}
 
 	g.State.CurrentTurn = 0
-	g.State.Phase = model.PhaseTurnEnd
+	g.State.TurnStage = model.TurnStageTurnEnd
 	g.Drive()
 
-	if got := p1.Tokens["hom_burst_form"]; got != 0 {
-		t.Fatalf("expected burst form cleared at turn end, got %d", got)
+	if got := p1.Form; got != "" {
+		t.Fatalf("expected burst form cleared at turn end, got %q", got)
 	}
-	if g.State.PendingInterrupt == nil || g.State.PendingInterrupt.Type != model.InterruptDiscard {
+	if g.State.PendingInterrupt == nil || !isDiscardSelectionInterrupt(g.State.PendingInterrupt) {
 		t.Fatalf("expected discard interrupt after form ends overflow, got %+v", g.State.PendingInterrupt)
 	}
 	data, _ := g.State.PendingInterrupt.Context.(map[string]interface{})
@@ -305,7 +301,7 @@ func TestHomGlyphFusion_MaxXUsesDistinctElements(t *testing.T) {
 		t.Fatalf("hom_glyph_fusion handler not found")
 	}
 	damageVal := 2
-	ctx := g.buildContext(p1, g.State.Players["p2"], model.TriggerOnAttackMiss, &model.EventContext{
+	ctx := g.buildContext(p1, g.State.Players["p2"], model.TimingOnHitCheck, &model.EventContext{
 		Type:      model.EventAttack,
 		SourceID:  p1.ID,
 		TargetID:  "p2",
@@ -332,11 +328,11 @@ func TestHomGlyphFusion_MaxXUsesDistinctElements(t *testing.T) {
 	}
 
 	// 选择 X=2（通过选项值）
-	if err := g.handleWeakChoiceInput("p1", 2); err != nil {
+	if err := g.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{2}}); err != nil {
 		t.Fatalf("choose glyph x failed: %v", err)
 	}
 	// 先选一张水系牌（索引0）
-	if err := g.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := g.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose first glyph card failed: %v", err)
 	}
 	// 剩余候选中不应再有另一张水系（索引1），只保留风系（索引2）
@@ -344,6 +340,57 @@ func TestHomGlyphFusion_MaxXUsesDistinctElements(t *testing.T) {
 	remaining, _ := data["remaining_indices"].([]int)
 	if len(remaining) != 1 || remaining[0] != 2 {
 		t.Fatalf("expected remaining only index 2 after distinct filter, got %+v", remaining)
+	}
+}
+
+func TestHomAttackMissResponseGroup_ChooseOneOnly(t *testing.T) {
+	g := NewGameEngine(noopObserver{})
+	if err := g.AddPlayer("p1", "Hom", "war_homunculus", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := g.State.Players["p1"]
+	p2 := g.State.Players["p2"]
+	p1.TurnState = model.NewPlayerTurnState()
+	p2.TurnState = model.NewPlayerTurnState()
+	p1.Tokens["hom_war_rune"] = 1
+	p1.Tokens["hom_magic_rune"] = 1
+	p1.Hand = []model.Card{
+		{ID: "w1", Name: "水涟斩", Type: model.CardTypeAttack, Element: model.ElementWater, Damage: 2},
+		{ID: "g1", Name: "风神斩", Type: model.CardTypeAttack, Element: model.ElementWind, Damage: 2},
+	}
+
+	ctx := g.buildContext(p1, p2, model.TimingOnHitCheck, &model.EventContext{
+		Type:     model.EventAttack,
+		SourceID: p1.ID,
+		TargetID: p2.ID,
+		Card: &model.Card{
+			ID:      "atk",
+			Name:    "火焰斩",
+			Type:    model.CardTypeAttack,
+			Element: model.ElementFire,
+			Damage:  2,
+		},
+		AttackInfo: &model.AttackEventInfo{ActionType: "Attack", IsHit: false},
+	})
+
+	g.dispatcher.OnTiming(ctx.Timing, ctx)
+	if g.State.PendingInterrupt == nil || g.State.PendingInterrupt.Type != model.InterruptResponseSkill {
+		t.Fatalf("expected attack miss response interrupt, got %+v", g.State.PendingInterrupt)
+	}
+	if !ContainsSkillID(g.State.PendingInterrupt.SkillIDs, "hom_rage_suppress") ||
+		!ContainsSkillID(g.State.PendingInterrupt.SkillIDs, "hom_glyph_fusion") {
+		t.Fatalf("expected both miss-response skills before choosing, got %+v", g.State.PendingInterrupt.SkillIDs)
+	}
+
+	if err := g.ConfirmResponseSkill("p1", "hom_rage_suppress"); err != nil {
+		t.Fatalf("confirm rage suppress failed: %v", err)
+	}
+	if g.State.PendingInterrupt != nil && ContainsSkillID(g.State.PendingInterrupt.SkillIDs, "hom_glyph_fusion") {
+		t.Fatalf("expected glyph fusion to be removed after choosing rage suppress, got %+v", g.State.PendingInterrupt)
 	}
 }
 
@@ -366,7 +413,7 @@ func TestHomDualEcho_TargetChoiceCanCancel(t *testing.T) {
 	}
 
 	damageVal := 2
-	ctx := g.buildContext(p1, p1, model.TriggerOnDamageTaken, &model.EventContext{
+	ctx := g.buildContext(p1, p1, model.TimingOnDamageTaken, &model.EventContext{
 		Type:      model.EventDamage,
 		SourceID:  p1.ID,
 		TargetID:  p1.ID,
@@ -408,6 +455,51 @@ func TestHomDualEcho_TargetChoiceCanCancel(t *testing.T) {
 	}
 }
 
+func TestHomDualEcho_WhenDamagingEnemyInTwoPlayerGameCanTargetSelf(t *testing.T) {
+	g := NewGameEngine(noopObserver{})
+	if err := g.AddPlayer("p1", "Hom", "war_homunculus", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := g.State.Players["p1"]
+	p2 := g.State.Players["p2"]
+	p1.TurnState = model.NewPlayerTurnState()
+	p2.TurnState = model.NewPlayerTurnState()
+	p1.Crystal = 1
+
+	h := skills.GetHandler("hom_dual_echo")
+	if h == nil {
+		t.Fatalf("hom_dual_echo handler not found")
+	}
+
+	damageVal := 2
+	ctx := g.buildContext(p1, p2, model.TimingOnDamageTaken, &model.EventContext{
+		Type:      model.EventDamage,
+		SourceID:  p1.ID,
+		TargetID:  p2.ID,
+		DamageVal: &damageVal,
+	})
+	if !h.CanUse(ctx) {
+		t.Fatalf("expected dual echo can use when damaging enemy")
+	}
+	if err := h.Execute(ctx); err != nil {
+		t.Fatalf("execute dual echo failed: %v", err)
+	}
+	if g.State.PendingInterrupt == nil || choiceTypeOfInterrupt(g.State.PendingInterrupt) != "hom_dual_echo_target" {
+		t.Fatalf("expected hom_dual_echo_target interrupt, got %+v", g.State.PendingInterrupt)
+	}
+	prompt := g.GetCurrentPrompt()
+	if prompt == nil {
+		t.Fatalf("expected dual echo target prompt")
+	}
+	if len(prompt.Options) < 1 || prompt.Options[0].Label != p1.Name {
+		t.Fatalf("expected self to be the valid alternate target in two-player game, got %+v", prompt.Options)
+	}
+}
+
 func TestHomDualEcho_TargetConfirmConsumesCostAndQueuesDamage(t *testing.T) {
 	g := NewGameEngine(noopObserver{})
 	if err := g.AddPlayer("p1", "Hom", "war_homunculus", model.RedCamp); err != nil {
@@ -426,7 +518,7 @@ func TestHomDualEcho_TargetConfirmConsumesCostAndQueuesDamage(t *testing.T) {
 		t.Fatalf("hom_dual_echo handler not found")
 	}
 	damageVal := 2
-	ctx := g.buildContext(p1, p1, model.TriggerOnDamageTaken, &model.EventContext{
+	ctx := g.buildContext(p1, p1, model.TimingOnDamageTaken, &model.EventContext{
 		Type:      model.EventDamage,
 		SourceID:  p1.ID,
 		TargetID:  p1.ID,
@@ -453,15 +545,15 @@ func TestHomDualEcho_TargetConfirmConsumesCostAndQueuesDamage(t *testing.T) {
 		t.Fatalf("expected one pending damage after confirm, got %d", len(g.State.PendingDamageQueue))
 	}
 	pd := g.State.PendingDamageQueue[0]
-	if pd.SourceID != "p1" || pd.TargetID != "p2" || pd.Damage != 2 || pd.DamageType != "magic" {
+	if pd.SourceID != "p1" || pd.TargetID != "p2" || pd.Damage != 2 || pd.DamageType != "magic_no_morale" {
 		t.Fatalf("unexpected pending damage %+v", pd)
 	}
-	if !pd.CapDrawToHandLimit {
-		t.Fatalf("expected dual echo pending damage to cap draw to hand limit")
+	if pd.CapDrawToHandLimit {
+		t.Fatalf("expected dual echo to keep full damage draw instead of capping at hand limit")
 	}
 }
 
-func TestHomDualEcho_DamageDrawCapsAtHandLimit(t *testing.T) {
+func TestHomDualEcho_NoMoraleDamageStillOverflowsAndDoesNotDropMorale(t *testing.T) {
 	g := NewGameEngine(noopObserver{})
 	if err := g.AddPlayer("p1", "Hom", "war_homunculus", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -478,13 +570,14 @@ func TestHomDualEcho_DamageDrawCapsAtHandLimit(t *testing.T) {
 	p1.Crystal = 1
 	p2.Heal = 0
 	p2.Hand = makeHandCards(5, model.ElementFire) // 默认上限6，仅剩1手牌空间
+	blueMoraleBefore := g.State.BlueMorale
 
 	h := skills.GetHandler("hom_dual_echo")
 	if h == nil {
 		t.Fatalf("hom_dual_echo handler not found")
 	}
 	damageVal := 2
-	ctx := g.buildContext(p1, p1, model.TriggerOnDamageTaken, &model.EventContext{
+	ctx := g.buildContext(p1, p1, model.TimingOnDamageTaken, &model.EventContext{
 		Type:      model.EventDamage,
 		SourceID:  p1.ID,
 		TargetID:  p1.ID,
@@ -503,17 +596,29 @@ func TestHomDualEcho_DamageDrawCapsAtHandLimit(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("confirm dual echo target failed: %v", err)
 	}
-	g.State.Phase = model.PhasePendingDamageResolution
-	for i := 0; i < 8 && len(g.State.PendingDamageQueue) > 0; i++ {
-		if paused := g.processPendingDamages(); paused {
-			t.Fatalf("unexpected interrupt while resolving dual echo damage: %+v", g.State.PendingInterrupt)
-		}
+	g.State.CombatStage = model.CombatStageCalcDamage
+	if paused := g.processPendingDamages(); !paused {
+		t.Fatalf("expected overflow discard interrupt from full no-morale damage")
 	}
-	if len(g.State.PendingDamageQueue) != 0 {
-		t.Fatalf("pending damage queue not drained, len=%d", len(g.State.PendingDamageQueue))
+	if g.State.PendingInterrupt == nil || !isDiscardSelectionInterrupt(g.State.PendingInterrupt) {
+		t.Fatalf("expected discard interrupt after dual echo overflow, got %+v", g.State.PendingInterrupt)
 	}
-	if got := len(p2.Hand); got != g.GetMaxHand(p2) {
-		t.Fatalf("expected dual echo draw capped at max hand=%d, got hand=%d", g.GetMaxHand(p2), got)
+	data, _ := g.State.PendingInterrupt.Context.(map[string]interface{})
+	if dc, _ := data["discard_count"].(int); dc != 1 {
+		t.Fatalf("expected discard_count=1 after overflow, got %v", data["discard_count"])
+	}
+	if noMorale, _ := data["no_morale_loss"].(bool); !noMorale {
+		t.Fatalf("expected overflow discard to carry no_morale_loss flag")
+	}
+	if err := g.handleInterruptAction(model.PlayerAction{
+		PlayerID:   "p2",
+		Type:       model.CmdSelect,
+		Selections: []int{0},
+	}); err != nil {
+		t.Fatalf("resolve dual echo overflow discard failed: %v", err)
+	}
+	if got := g.State.BlueMorale; got != blueMoraleBefore {
+		t.Fatalf("expected no morale loss from dual echo overflow, before=%d after=%d", blueMoraleBefore, got)
 	}
 }
 
@@ -526,7 +631,7 @@ func TestCrimsonKnightFaith_OnlyWhitelistedSelfDamageCanUseHeal(t *testing.T) {
 		t.Fatal(err)
 	}
 	g.State.Deck = rules.InitDeck()
-	g.State.Phase = model.PhasePendingDamageResolution
+	g.State.CombatStage = model.CombatStageCalcDamage
 
 	p1 := g.State.Players["p1"]
 	p1.TurnState = model.NewPlayerTurnState()
@@ -539,8 +644,7 @@ func TestCrimsonKnightFaith_OnlyWhitelistedSelfDamageCanUseHeal(t *testing.T) {
 			SourceID:   p1.ID,
 			TargetID:   p1.ID,
 			Damage:     1,
-			DamageType: "magic",
-			Stage:      0,
+			DamageType: model.MagicAttack,
 		},
 	}
 	for i := 0; i < 5 && len(g.State.PendingDamageQueue) > 0; i++ {
@@ -561,9 +665,8 @@ func TestCrimsonKnightFaith_OnlyWhitelistedSelfDamageCanUseHeal(t *testing.T) {
 			SourceID:              p1.ID,
 			TargetID:              p1.ID,
 			Damage:                1,
-			DamageType:            "magic",
+			DamageType:            model.MagicAttack,
 			AllowCrimsonFaithHeal: true,
-			Stage:                 0,
 		},
 	}
 	g.State.PendingInterrupt = nil
@@ -586,7 +689,7 @@ func TestCrimsonKnightFaith_SelfPoisonCanUseHeal(t *testing.T) {
 	if err := g.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
 		t.Fatal(err)
 	}
-	g.State.Phase = model.PhasePendingDamageResolution
+	g.State.CombatStage = model.CombatStageCalcDamage
 
 	p1 := g.State.Players["p1"]
 	p1.TurnState = model.NewPlayerTurnState()
@@ -602,10 +705,10 @@ func TestCrimsonKnightFaith_SelfPoisonCanUseHeal(t *testing.T) {
 		SourceID: p1.ID,
 		Mode:     model.FieldEffect,
 		Effect:   model.EffectPoison,
-		Trigger:  model.EffectTriggerOnTurnStart,
+		Hook:     model.FieldHookOnBeforeAction,
 	})
 
-	g.triggerFieldEffects(p1, model.EffectTriggerOnTurnStart, nil)
+	g.runFieldCardsForHook(p1, model.FieldHookOnBeforeAction, nil)
 	if len(g.State.PendingDamageQueue) != 1 {
 		t.Fatalf("expected one poison pending damage, got %d", len(g.State.PendingDamageQueue))
 	}
@@ -645,7 +748,7 @@ func TestCrimsonKnightBloodyPrayerXPrompt_NoZeroOption(t *testing.T) {
 	if h == nil {
 		t.Fatalf("crk_bloody_prayer handler not found")
 	}
-	ctx := g.buildContext(p1, nil, model.TriggerNone, nil)
+	ctx := g.buildContext(p1, nil, model.TimingActive, nil)
 	if !h.CanUse(ctx) {
 		t.Fatalf("expected bloody prayer can use with heal>0 and ally exists")
 	}
@@ -682,7 +785,7 @@ func TestHomRuneSmash_BurstAddsAttackAndMagicDamage(t *testing.T) {
 	p2.TurnState = model.NewPlayerTurnState()
 	p1.Tokens["hom_war_rune"] = 3
 	p1.Tokens["hom_magic_rune"] = 0
-	p1.Tokens["hom_burst_form"] = 1
+	playerpkg.SetForm(p1, model.FormWarHomunculusBurst)
 	p1.Hand = []model.Card{
 		{ID: "f1", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2},
 		{ID: "f2", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2},
@@ -693,7 +796,7 @@ func TestHomRuneSmash_BurstAddsAttackAndMagicDamage(t *testing.T) {
 	if h == nil {
 		t.Fatalf("hom_rune_smash handler not found")
 	}
-	ctx := g.buildContext(p1, p2, model.TriggerOnAttackHit, &model.EventContext{
+	ctx := g.buildContext(p1, p2, model.TimingOnHitCheck, &model.EventContext{
 		Type:      model.EventAttack,
 		SourceID:  p1.ID,
 		TargetID:  p2.ID,
@@ -717,18 +820,19 @@ func TestHomRuneSmash_BurstAddsAttackAndMagicDamage(t *testing.T) {
 		t.Fatalf("expected hom_rune_smash_x choice, got %+v", g.State.PendingInterrupt)
 	}
 
+	// 与 HomDualEcho 等测例一致：用 handleInterruptAction 避免 HandleAction 尾随 Drive 提前清空 PendingDamageQueue。
 	// X=2，弃2张同系牌
-	if err := g.handleWeakChoiceInput("p1", 2); err != nil {
+	if err := g.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{2}}); err != nil {
 		t.Fatalf("choose rune smash x failed: %v", err)
 	}
-	if err := g.handleWeakChoiceInput("p1", 0); err != nil {
+	if err := g.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose first card failed: %v", err)
 	}
-	if err := g.handleWeakChoiceInput("p1", 1); err != nil {
+	if err := g.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
 		t.Fatalf("choose second card failed: %v", err)
 	}
 	// Y=1：额外翻转1战纹并造成1点法伤
-	if err := g.handleWeakChoiceInput("p1", 1); err != nil {
+	if err := g.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
 		t.Fatalf("choose rune smash y failed: %v", err)
 	}
 

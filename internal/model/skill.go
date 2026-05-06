@@ -44,27 +44,6 @@ const (
 	TargetSpecific                   // 特殊逻辑 (由后端检查，前端可能需要根据上下文高亮)
 )
 
-// TriggerType 触发时机
-type TriggerType int
-
-const (
-	TriggerNone             TriggerType = iota
-	TriggerOnBuffPhase                  // 计算Buff前
-	TriggerOnAttackStart                // 主动攻击前
-	TriggerOnAttackHit                  // 主动攻击命中时
-	TriggerOnAttackMiss                 // 主动攻击未命中
-	TriggerOnDamageTaken                // 承受伤害时
-	TriggerOnPhaseEnd                   // 某阶段结束时
-	TriggerOnCardUsed                   // 使用卡牌时
-	TriggerOnCardRevealed               // 展示卡牌时 (如：封印触发、冰霜祷言)
-	TriggerOnBuffRemoved                // 移除Buff时
-	TriggerOnTurnStart                  // 回合开始时
-	TriggerBeforeDraw                   // 摸牌前
-	TriggerAfterDraw                    // 摸牌后
-	TriggerModifyDamage                 // 伤害计算时 (修改伤害值)
-	TriggerBeforeMoraleLoss             // 士气下降前
-)
-
 // ResponseType 响应类型
 type ResponseType int
 
@@ -106,6 +85,8 @@ type SkillDefinition struct {
 	Type        SkillType  `json:"type"`
 	Tags        []SkillTag `json:"tags"`
 	Description string     `json:"description"`
+	// 同一触发窗口内的执行优先级（大者先执行）。
+	Priority int `json:"priority"`
 
 	// --- 自动化校验字段 ---
 	CostGem      int `json:"cost_gem"`      // 基础宝石消耗 (若为-1代表需要动态计算)
@@ -118,10 +99,10 @@ type SkillDefinition struct {
 	RequireExclusive bool     `json:"require_exclusive"` // 是否必须使用独有牌
 
 	// --- 新增：场上牌放置 ---
-	PlaceCard    bool          `json:"place_card"`    // 是否放置牌到场上
-	PlaceMode    FieldCardMode `json:"place_mode"`    // 放置模式 (Effect/Cover)
-	PlaceEffect  EffectType    `json:"place_effect"`  // 效果类型 (仅Effect模式)
-	PlaceTrigger EffectTrigger `json:"place_trigger"` // 触发时机 (仅Effect模式)
+	PlaceCard   bool          `json:"place_card"`   // 是否放置牌到场上
+	PlaceMode   FieldCardMode `json:"place_mode"`   // 放置模式 (Effect/Cover)
+	PlaceEffect EffectType    `json:"place_effect"` // 效果类型 (仅Effect模式)
+	PlaceHook   FieldHook     `json:"place_hook"`   // 触发时机 (仅Effect模式)
 
 	// --- 新增：盖牌消耗 ---
 	CostCoverCards int `json:"cost_cover_cards"` // 消耗盖牌数量
@@ -136,10 +117,29 @@ type SkillDefinition struct {
 	MaxTargets   int        `json:"max_targets"` // 最大目标数 (通常为1，部分技能如 AOE 可能更多)
 	RequiredRole SkillRole  `json:"required_role"`
 
-	Trigger       TriggerType   `json:"trigger"`
-	ExtraTriggers []TriggerType `json:"extra_triggers"`
-	ResponseType  ResponseType  `json:"response_type"`
-	LogicHandler  string        `json:"logic_handler"`
+	// Timings 是统一触发窗口声明（与引擎 OnTiming / collectSkillsForTiming 对齐）。
+	Timings []FlowTiming `json:"timings"`
+
+	ResponseType ResponseType `json:"response_type"`
+	LogicHandler string       `json:"logic_handler"`
+}
+
+// HasTiming 报告 Timings 是否包含给定触发窗口。
+func (s SkillDefinition) HasTiming(t FlowTiming) bool {
+	for _, x := range s.Timings {
+		if x == t {
+			return true
+		}
+	}
+	return false
+}
+
+// PrimaryTimingOrLegacy 返回 Timings 的首项；空则视为主动/即时窗口。
+func (s SkillDefinition) PrimaryTimingOrLegacy() FlowTiming {
+	if len(s.Timings) > 0 {
+		return s.Timings[0]
+	}
+	return TimingActive
 }
 
 // 3. 增强：事件上下文 (支持数据修改)
@@ -156,6 +156,13 @@ type EventContext struct {
 	DamageVal *int
 
 	BuffID string
+	// 姿态/形态相关
+	OperatorID          string
+	PrevOrientation     CharacterOrientation
+	NewOrientation      CharacterOrientation
+	PrevForm            string
+	NewForm             string
+	DiscardedMagicCount int
 	// 攻击详情
 	AttackInfo *AttackEventInfo
 
@@ -166,10 +173,13 @@ type EventContext struct {
 type AttackEventInfo struct {
 	IsHit            bool   // 是否命中
 	IsHitForced      bool   // 是否强制命中 (如: 圣剑)
+	IgnoreShield     bool   // 是否无视圣盾 (如: 列风技)
 	Element          string // 攻击属性
 	CanBeResponded   bool   // 是否可被应战 (如: 暗灭=false)
 	ActionType       string // 行动类型 (Attack)
 	CounterInitiator string // 原始应战发起者 (空表示主动攻击)
+	InterceptTags    map[CombatInterceptTag]bool
+	ElementOverride  string // 非-empty 时覆盖卡牌元素的显示（如天枪暗属性）
 }
 
 // PromptType 定义用户交互类型
@@ -196,10 +206,13 @@ type PromptOption struct {
 
 // Prompt 定义用户交互提示
 type Prompt struct {
-	Type     PromptType     `json:"type"`      // 交互类型
-	PlayerID string         `json:"player_id"` // 目标玩家
-	Message  string         `json:"message"`   // 提示消息
-	Options  []PromptOption `json:"options"`   // 可选项
+	Type     PromptType `json:"type"`      // 交互类型
+	PlayerID string     `json:"player_id"` // 目标玩家
+	Message  string     `json:"message"`   // 提示消息
+	// 结构化提示语义：用于前端/机器人避免依赖 message 文案做判断。
+	ChoiceType string         `json:"choice_type,omitempty"`
+	SkillID    string         `json:"skill_id,omitempty"`
+	Options    []PromptOption `json:"options"` // 可选项
 	// 行动选择场景下“特殊”按钮对应的子选项（如：购买/合成/提炼）
 	SpecialOptions []PromptOption `json:"special_options,omitempty"`
 	// 可选 UI 渲染模式；action_hub 表示由底部行动半球承载
@@ -253,6 +266,11 @@ type Character struct {
 	ExclusiveCards []string          `json:"exclusive_cards"`
 }
 
+type DrawOptions struct {
+	PreventOverflow bool
+	Reason          string
+}
+
 // 2. 增强：IGameEngine 接口定义
 // 这里必须定义 `Execute` 方法能调用的实际动作
 type IGameEngine interface {
@@ -265,29 +283,48 @@ type IGameEngine interface {
 	ConsumeCrystalCost(playerID string, amount int) bool
 
 	// 玩家操作
+	GetPlayers() map[string]*Player
+	PlayerOrder() []string
 	DrawCards(playerID string, amount int)
-	NotifyCardRevealed(playerID string, cards []Card, actionType string)
+	DrawCardsWithOptions(playerID string, amount int, opts DrawOptions)
+	DrawRawCards(amount int) ([]Card, bool)
+	NotifyCardRevealed(playerID string, cards []Card, actionType DamageType)
 	DiscardCard(card *FieldCard) error //丢弃指定牌
 	AppendToDiscard(cards []Card)
 	Heal(playerID string, amount int)
 	CheckHandLimit(playerID string, stayInTurn bool)
 	GetAllPlayers() []*Player // 获取所有玩家
+	FindFieldEffectBySource(effect EffectType, sourceID string) (*Player, *FieldCard)
+	GetMaxHand(player *Player) int
+	GetPlayerEnergyCap(player *Player) int
+	GetPlayerOrientation(playerID string) CharacterOrientation
+	GetPlayerForm(playerID string) string
+	RefreshPlayerDerivedState(playerID string)
+	ApplySkillGateRule(playerID string, modifierID string, sourceSkillID string, skillIDs []string, lifetime RuleModifierLifetimeType)
+	ApplyNextAttackDamageRule(playerID string, modifierID string, sourceSkillID string, bonus int, lifetime RuleModifierLifetimeType)
+	ApplyNextAttackInterceptTagRule(playerID string, modifierID string, sourceSkillID string, tag CombatInterceptTag, lifetime RuleModifierLifetimeType)
+	IsSkillBlocked(playerID string, skillID string) bool
 
-	InflictDamage(sourceID, targetID string, amount int, damageType string)
+	InflictDamage(sourceID, targetID string, amount int, damageType DamageType)
 	RemoveFieldCard(targetID string, effect EffectType) bool
 	RemoveFieldCardBy(targetID string, effect EffectType, sourceID string) bool
 	TakeFieldCard(targetID string, fieldIndex int, sourceID string) (Card, error)
 	GetCampCups(camp string) int
+	AddCampCup(camp Camp) bool
 	GetCampMorale(camp string) int
+	SetCampMorale(camp string, value int)
 	GetCampGems(camp string) int
 	GetCampCrystals(camp string) int
 
 	// 日志
+	// 提炼流程（由角色包调用）
+	StartExtractForPlayer(playerID string) error
+
 	Log(msg string)
 
 	// 行动步骤（桌面展示）
 	NotifyActionStep(line string)
-	NotifyDamageDealt(sourceID, targetID string, damage int, damageType string)
+	NotifyDamageDealt(sourceID, targetID string, damage int, damageType DamageType)
 
 	// 启动技能确认
 	ConfirmStartupSkill(playerID string, skillID string) error
@@ -307,9 +344,12 @@ type IGameEngine interface {
 
 	PushInterrupt(intr *Interrupt)
 
-	ResolveDamage(sourceID, targetID string, card *Card, damageType string) error
+	ResolveDamage(sourceID, targetID string, card *Card, damageType DamageType) error
 	AddPendingDamage(pd PendingDamage)
 	AddPendingDamageFront(pd PendingDamage)
+
+	// FlowContinuation 接口（角色级流程边界恢复）
+	AppendFlowContinuation(cont FlowContinuation)
 }
 
 // Context 技能执行上下文
@@ -320,10 +360,10 @@ type Context struct {
 	// 【修改点 2】新增多目标支持
 	Targets []*Player
 
-	Trigger TriggerType
+	Timing FlowTiming
 
 	// 触发上下文（可选，用于复杂事件）
-	TriggerCtx *EventContext
+	EventCtx *EventContext
 
 	// 命令行参数（向后兼容）
 	Args []string
@@ -364,32 +404,56 @@ type ActionContext struct {
 
 // PlayerTurnState 玩家回合内状态
 type PlayerTurnState struct {
-	HasUsedTriggerSkill bool            `json:"has_used_trigger"`      // 是否已使用启动技
-	HasActed            bool            `json:"has_acted"`             // 是否已执行行动
-	UsedSkillCounts     map[string]int  `json:"used_skill_counts"`     // 技能ID -> 本回合使用次数
-	PendingActions      []ActionContext `json:"pending_actions"`       // 待执行的行动队列
-	CurrentExtraAction  string          `json:"current_extra_action"`  // 当前额外行动类型: "Attack", "Magic", ""
-	CurrentExtraElement []Element       `json:"current_extra_element"` // 当前额外行动元素限制: "Wind", "Fire", etc.
-	AttackCount         int             `json:"attack_count"`          // 本回合攻击行动次数
-	GaleSlashActive     bool            `json:"gale_slash_active"`     // 当前攻击是否发动了烈风技
-	PreciseShotActive   bool            `json:"precise_shot_active"`   // 当前攻击是否发动了精准射击
-	LastActionType      string          `json:"last_action_type"`      // 记录刚刚结束的行动类型 (Attack/Magic)
-	SkipFusionCheck     bool            `json:"skip_fusion_check"`     // 跳过魔弹融合检查（已经询问过了）
+	HasUsedActionSkill           bool            `json:"has_used_action_skill"`            // 本回合是否已在行动开始阶段使用过启动技
+	SpecialActionsLockedThisTurn bool            `json:"special_actions_locked_this_turn"` // 本回合锁定购买/合成/提炼（读写见 player_turn_marks.go）
+	HasProcessedTurnStart        bool            `json:"has_processed_turn_start"`         // 是否已完成本回合 TurnStart 钩子
+	HasActed                     bool            `json:"has_acted"`                        // 是否已执行行动
+	ActionPhaseSkippedThisTurn   bool            `json:"action_phase_skipped_this_turn"`   // 本回合行动阶段被跳过（虚弱/五行封印/无法行动等）
+	UsedSkillCounts              map[string]int  `json:"used_skill_counts"`                // 技能ID -> 本回合使用次数
+	PendingActions               []ActionContext `json:"pending_actions"`                  // 待执行的行动队列
+	CurrentExtraAction           string          `json:"current_extra_action"`             // 当前额外行动类型: "Attack", "Magic", ""
+	CurrentExtraElement          []Element       `json:"current_extra_element"`            // 当前额外行动元素限制: "Wind", "Fire", etc.
+	AttackCount                  int             `json:"attack_count"`                     // 本回合攻击行动次数
+	LastActionType               string          `json:"last_action_type"`                 // 记录刚刚结束的行动类型 (Attack/Magic)
+	LastActionCard               *Card           `json:"last_action_card,omitempty"`       // 记录刚刚结束行动对应的卡牌快照（供 ActionEnd 统一构建 OnPhaseEnd 上下文）
+	SkillFlowState               map[string]int  `json:"skill_flow_state"`                 // 多步技能中间态（如星尘/痛苦链接/冒险者提炼），回合重置时自动清空
 }
 
 // NewPlayerTurnState 初始化回合状态
 func NewPlayerTurnState() PlayerTurnState {
 	return PlayerTurnState{
-		HasUsedTriggerSkill: false,
-		HasActed:            false,
-		UsedSkillCounts:     make(map[string]int),
-		PendingActions:      []ActionContext{}, // 初始化为空队列
-		CurrentExtraAction:  "",
-		CurrentExtraElement: nil,
-		AttackCount:         0,
-		GaleSlashActive:     false,
-		PreciseShotActive:   false,
+		HasUsedActionSkill:    false,
+		HasProcessedTurnStart: false,
+		HasActed:              false,
+		UsedSkillCounts:       make(map[string]int),
+		SkillFlowState:        make(map[string]int),
+		PendingActions:        []ActionContext{}, // 初始化为空队列
+		CurrentExtraAction:    "",
+		CurrentExtraElement:   nil,
+		AttackCount:           0,
 	}
+}
+
+func AppendExtraAction(p *Player, source string, mustType string, mustElement ...Element) {
+	if p == nil {
+		return
+	}
+	ctx := ActionContext{
+		Source:   source,
+		MustType: mustType,
+	}
+	if len(mustElement) > 0 {
+		ctx.MustElement = append([]Element{}, mustElement...)
+	}
+	p.TurnState.PendingActions = append(p.TurnState.PendingActions, ctx)
+}
+
+func AppendAttackAction(p *Player, source string, mustElement ...Element) {
+	AppendExtraAction(p, source, "Attack", mustElement...)
+}
+
+func AppendMagicAction(p *Player, source string, mustElement ...Element) {
+	AppendExtraAction(p, source, "Magic", mustElement...)
 }
 
 // Contains 检查技能标签列表是否包含指定标签
@@ -407,8 +471,6 @@ func GetHandlerIDByEffect(effect EffectType) string {
 	switch effect {
 	case EffectShield:
 		return "holy_shield"
-	case EffectFiveElementsBind:
-		return "five_elements_bind"
 	case EffectSealWater:
 		return "water_seal"
 	case EffectSealFire:
@@ -419,10 +481,6 @@ func GetHandlerIDByEffect(effect EffectType) string {
 		return "wind_seal"
 	case EffectSealThunder:
 		return "thunder_seal"
-	case EffectPoison:
-		return "poison"
-	case EffectWeak:
-		return "weakness"
 
 	default:
 		return ""

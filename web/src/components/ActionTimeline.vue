@@ -1,24 +1,68 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useGameStore } from '../stores/gameStore'
-import type { BattleFeedType } from '../stores/gameStore'
+import { useInterruptStore } from '../stores/interrupt.store'
+import { useSessionStore } from '../stores/session.store'
+import { useSnapshotStore } from '../stores/snapshot.store'
+import { useTimelineStore } from '../stores/timeline.store'
+import { useUiStore } from '../stores/ui.store'
+import type { TimelineFeedEntry, TimelineFeedType } from '../stores/timeline.store'
 
-const store = useGameStore()
+const interruptStore = useInterruptStore()
+const sessionStore = useSessionStore()
+const snapshotStore = useSnapshotStore()
+const timelineStore = useTimelineStore()
+const uiStore = useUiStore()
 const showHistory = ref(false)
 const nowTs = ref(Date.now())
 const waitingSinceTs = ref(0)
 let timer: ReturnType<typeof setInterval> | null = null
 
+function playerNameByID(playerId?: string) {
+  if (!playerId) return ''
+  const snapshotName = snapshotStore.players[playerId]?.name
+  if (snapshotName) return snapshotName
+  const roomPlayer = sessionStore.roomPlayers.find(player => player.id === playerId)
+  return roomPlayer?.name || playerId
+}
+
+function buildEntryDetail(entry: TimelineFeedEntry): string {
+  const actor = playerNameByID(entry.actorUserId)
+  const targets = entry.targetUserIds
+    .map((playerId) => playerNameByID(playerId))
+    .filter(Boolean)
+
+  if (actor && targets.length > 0) {
+    return `${actor} -> ${targets.join(' / ')}`
+  }
+  if (actor) return actor
+  if (targets.length > 0) return targets.join(' / ')
+  return ''
+}
+
+type TimelineDisplayEntry = TimelineFeedEntry & {
+  detail: string
+}
+
 const recentFeed = computed(() => {
-  const rows = store.battleFeed.slice(-30)
+  const rows = timelineStore.entries.slice(-30).map((entry) => ({
+    ...entry,
+    detail: buildEntryDetail(entry),
+  }))
   return [...rows].reverse()
 })
 
-const latestEntry = computed(() => store.battleFeed[store.battleFeed.length - 1] || null)
+const latestEntry = computed<TimelineDisplayEntry | null>(() => {
+  const entry = timelineStore.latestEntry
+  if (!entry) return null
+  return {
+    ...entry,
+    detail: buildEntryDetail(entry),
+  }
+})
 
 const waitingBotName = computed(() => {
-  if (!store.waitingFor) return ''
-  const p = store.roomPlayers.find(player => player.id === store.waitingFor)
+  if (!interruptStore.waitingFor) return ''
+  const p = sessionStore.roomPlayers.find(player => player.id === interruptStore.waitingFor)
   if (!p || !p.is_bot) return ''
   return p.name || p.id
 })
@@ -47,12 +91,12 @@ const currentLine = computed(() => {
   return detail ? `${title} · ${detail}` : title
 })
 
-const currentType = computed<BattleFeedType>(() => {
+const currentType = computed<TimelineFeedType>(() => {
   if (waitingBotName.value) return 'system'
   return latestEntry.value?.type || 'system'
 })
 
-function iconByType(type: BattleFeedType) {
+function iconByType(type: TimelineFeedType) {
   switch (type) {
     case 'turn':
       return '⏳'
@@ -73,7 +117,7 @@ function iconByType(type: BattleFeedType) {
   }
 }
 
-function classByType(type: BattleFeedType) {
+function classByType(type: TimelineFeedType) {
   switch (type) {
     case 'turn':
       return 'row-turn'
@@ -121,7 +165,7 @@ onBeforeUnmount(() => {
       <div class="line-icon">{{ iconByType(currentType) }}</div>
       <div class="line-text">{{ currentLine }}</div>
       <button class="history-btn" type="button" @click="showHistory = !showHistory">
-        {{ showHistory ? '收起历史' : '查看历史' }} ({{ store.battleFeed.length }})
+        {{ showHistory ? '收起历史' : '查看历史' }} ({{ timelineStore.historyCount }})
       </button>
     </div>
 
@@ -131,9 +175,9 @@ onBeforeUnmount(() => {
           <div class="history-title">战斗历史</div>
           <label class="history-switch">
             <input
-              :checked="store.cinematicMode"
+              :checked="uiStore.cinematicMode"
               type="checkbox"
-              @change="store.setCinematicMode(($event.target as HTMLInputElement).checked)"
+              @change="uiStore.setCinematicMode(($event.target as HTMLInputElement).checked)"
             />
             <span>慢放演出</span>
           </label>

@@ -9,10 +9,10 @@ import (
 )
 
 func elementalistExclusiveCard(owner *model.Player, skillTitle string, element model.Element) model.Card {
-	charName := "元素师"
+	charID := "elementalist"
 	faction := "咏"
 	if owner != nil && owner.Character != nil {
-		charName = owner.Character.Name
+		charID = owner.Character.ID
 		faction = owner.Character.Faction
 	}
 	return model.Card{
@@ -23,7 +23,7 @@ func elementalistExclusiveCard(owner *model.Player, skillTitle string, element m
 		Faction:         faction,
 		Damage:          0,
 		Description:     "元素师独有技测试卡",
-		ExclusiveChar1:  charName,
+		ExclusiveChar1:  charID,
 		ExclusiveSkill1: skillTitle,
 	}
 }
@@ -43,10 +43,11 @@ func TestElementalistFreeze_RequiresTwoTargets(t *testing.T) {
 	p1.TurnState = model.NewPlayerTurnState()
 	p1.Hand = []model.Card{
 		elementalistExclusiveCard(p1, "冰冻", model.ElementFire),
+		elementalistExclusiveCard(p1, "冰冻", model.ElementFire),
 	}
 	p2.Hand = nil
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 	game.State.Deck = rules.InitDeck()
 
 	err := game.HandleAction(model.PlayerAction{
@@ -56,7 +57,7 @@ func TestElementalistFreeze_RequiresTwoTargets(t *testing.T) {
 		TargetIDs:  []string{"p2"},
 		Selections: []int{0},
 	})
-	if err == nil || !strings.Contains(err.Error(), "最少需要指定 2 个目标") {
+	if err == nil || !strings.Contains(err.Error(), "冰冻需要指定2名目标") {
 		t.Fatalf("expected freeze single-target rejection, got err=%v", err)
 	}
 
@@ -64,15 +65,15 @@ func TestElementalistFreeze_RequiresTwoTargets(t *testing.T) {
 		PlayerID:   "p1",
 		Type:       model.CmdSkill,
 		SkillID:    "elementalist_freeze",
-		TargetIDs:  []string{"p2", "p1"},
+		TargetIDs:  []string{"p1", "p1"},
 		Selections: []int{0},
 	})
 
 	if got := p1.Heal; got != 1 {
 		t.Fatalf("expected freeze heal target gain 1 heal, got %d", got)
 	}
-	if got := len(p2.Hand); got != 1 {
-		t.Fatalf("expected freeze deal 1 damage (draw 1), got hand=%d", got)
+	if got := len(p2.Hand); got != 0 {
+		t.Fatalf("expected freeze not force enemy as damage target, got enemy hand=%d", got)
 	}
 }
 
@@ -91,7 +92,7 @@ func TestElementalistMoonlight_ConsumesGemAndRequiresGem(t *testing.T) {
 	p1.TurnState = model.NewPlayerTurnState()
 	p2.Hand = nil
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 	game.State.Deck = rules.InitDeck()
 
 	p1.Gem = 0
@@ -139,7 +140,7 @@ func TestElementalistIgnite_RequiresThreeElement(t *testing.T) {
 	p1.Tokens["element"] = 2
 	p2.Hand = nil
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 	game.State.Deck = rules.InitDeck()
 
 	err := game.HandleAction(model.PlayerAction{
@@ -168,5 +169,190 @@ func TestElementalistIgnite_RequiresThreeElement(t *testing.T) {
 	}
 	if p1.TurnState.CurrentExtraAction != "Magic" && len(p1.TurnState.PendingActions) == 0 {
 		t.Fatalf("expected ignite grant extra magic action, current=%q pending=%d", p1.TurnState.CurrentExtraAction, len(p1.TurnState.PendingActions))
+	}
+}
+
+func TestElementalistOffenseSkills_RejectAllyTargets(t *testing.T) {
+	skillCard := func(owner *model.Player, skillTitle string, element model.Element) []int {
+		owner.Hand = []model.Card{elementalistExclusiveCard(owner, skillTitle, element)}
+		return []int{0}
+	}
+
+	tests := []struct {
+		name    string
+		skillID string
+		setup   func(p1 *model.Player) []int
+	}{
+		{
+			name:    "ignite",
+			skillID: "elementalist_ignite",
+			setup: func(p1 *model.Player) []int {
+				p1.Tokens["element"] = 3
+				return nil
+			},
+		},
+		{
+			name:    "thunder_strike",
+			skillID: "elementalist_thunder_strike",
+			setup: func(p1 *model.Player) []int {
+				return skillCard(p1, "雷击", model.ElementThunder)
+			},
+		},
+		{
+			name:    "wind_blade",
+			skillID: "elementalist_wind_blade",
+			setup: func(p1 *model.Player) []int {
+				return skillCard(p1, "风刃", model.ElementWind)
+			},
+		},
+		{
+			name:    "meteor",
+			skillID: "elementalist_meteor",
+			setup: func(p1 *model.Player) []int {
+				return skillCard(p1, "陨石", model.ElementEarth)
+			},
+		},
+		{
+			name:    "fireball",
+			skillID: "elementalist_fireball",
+			setup: func(p1 *model.Player) []int {
+				return skillCard(p1, "火球", model.ElementFire)
+			},
+		},
+		{
+			name:    "moonlight",
+			skillID: "elementalist_moonlight",
+			setup: func(p1 *model.Player) []int {
+				p1.Gem = 1
+				p1.Crystal = 0
+				return nil
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			game := NewGameEngine(noopObserver{})
+			if err := game.AddPlayer("p1", "Elem", "elementalist", model.RedCamp); err != nil {
+				t.Fatal(err)
+			}
+			if err := game.AddPlayer("p2", "Ally", "angel", model.RedCamp); err != nil {
+				t.Fatal(err)
+			}
+			if err := game.AddPlayer("p3", "Enemy", "berserker", model.BlueCamp); err != nil {
+				t.Fatal(err)
+			}
+
+			p1 := game.State.Players["p1"]
+			p1.IsActive = true
+			p1.TurnState = model.NewPlayerTurnState()
+			game.State.CurrentTurn = 0
+			game.State.TurnStage = model.TurnStageActionExecution
+			selections := tc.setup(p1)
+
+			err := game.HandleAction(model.PlayerAction{
+				PlayerID:   "p1",
+				Type:       model.CmdSkill,
+				SkillID:    tc.skillID,
+				TargetIDs:  []string{"p2"},
+				Selections: selections,
+			})
+			if err == nil || !strings.Contains(err.Error(), "skill can only target enemies") {
+				t.Fatalf("expected ally target rejection, got err=%v", err)
+			}
+		})
+	}
+}
+
+func TestElementalistThunderStrike_BonusFlow_DirectCardPickWithCancel(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "Elem", "elementalist", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Dummy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Hand = []model.Card{
+		elementalistExclusiveCard(p1, "雷击", model.ElementThunder),
+		{ID: "thunder-bonus", Name: "雷系弃牌", Type: model.CardTypeAttack, Element: model.ElementThunder, Damage: 1},
+	}
+	p2.Hand = nil
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+	game.State.Deck = rules.InitDeck()
+
+	mustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSkill,
+		SkillID:    "elementalist_thunder_strike",
+		TargetIDs:  []string{"p2"},
+		Selections: []int{0},
+	})
+	requireChoiceType(t, game, "p1", "elementalist_bonus_card")
+	prompt := game.buildPendingInterruptPrompt()
+	if prompt == nil {
+		t.Fatalf("expected elementalist bonus prompt")
+	}
+	if prompt.Type != model.PromptChooseCards {
+		t.Fatalf("expected choose_cards prompt, got %s", prompt.Type)
+	}
+	if got := len(prompt.Options); got < 2 {
+		t.Fatalf("expected card options plus cancel option, got %d", got)
+	}
+
+	beforeCancelHand := len(p1.Hand)
+	mustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdCancel})
+
+	if got := len(p1.Hand); got != beforeCancelHand {
+		t.Fatalf("expected cancel keep hand unchanged, got %d -> %d", beforeCancelHand, got)
+	}
+	if got := len(p2.Hand); got != 1 {
+		t.Fatalf("expected cancel path resolve base 1 magic damage, got hand=%d", got)
+	}
+}
+
+func TestElementalistThunderStrike_BonusFlow_DirectCardPickWithConfirm(t *testing.T) {
+	game := NewGameEngine(noopObserver{})
+	if err := game.AddPlayer("p1", "Elem", "elementalist", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Dummy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Hand = []model.Card{
+		elementalistExclusiveCard(p1, "雷击", model.ElementThunder),
+		{ID: "thunder-bonus", Name: "雷系弃牌", Type: model.CardTypeAttack, Element: model.ElementThunder, Damage: 1},
+	}
+	p2.Hand = nil
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+	game.State.Deck = rules.InitDeck()
+
+	mustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSkill,
+		SkillID:    "elementalist_thunder_strike",
+		TargetIDs:  []string{"p2"},
+		Selections: []int{0},
+	})
+	requireChoiceType(t, game, "p1", "elementalist_bonus_card")
+	beforeSelectHand := len(p1.Hand)
+	mustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0}})
+
+	if got := len(p1.Hand); got != beforeSelectHand-1 {
+		t.Fatalf("expected bonus discard consume 1 card, got %d -> %d", beforeSelectHand, got)
+	}
+	if got := len(p2.Hand); got != 2 {
+		t.Fatalf("expected bonus path resolve 2 magic damage, got hand=%d", got)
 	}
 }

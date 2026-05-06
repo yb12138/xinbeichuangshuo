@@ -1,7 +1,10 @@
+// gameflow: IGameEngine 资源/治疗/伤害/场上牌等接口实现（供 model.Context.Game 调用）。
+
 package engine
 
 import (
 	"fmt"
+	"sort"
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/rules"
 )
@@ -62,6 +65,23 @@ func (e *GameEngine) GetUsableCrystal(playerID string) int {
 		return 0
 	}
 	return p.Crystal + p.Gem
+}
+
+func (e *GameEngine) GetPlayerOrientation(playerID string) model.CharacterOrientation {
+	player := e.State.Players[playerID]
+	return effectivePlayerOrientation(player)
+}
+
+func (e *GameEngine) GetPlayerForm(playerID string) string {
+	player := e.State.Players[playerID]
+	return effectivePlayerForm(player)
+}
+
+func (e *GameEngine) RefreshPlayerDerivedState(playerID string) {
+	if e == nil || e.State == nil {
+		return
+	}
+	e.refreshPlayerDerivedState(e.State.Players[playerID])
 }
 
 func (e *GameEngine) CanPayCrystalCost(playerID string, amount int) bool {
@@ -137,45 +157,107 @@ func consumeSkillEnergyCost(p *model.Player, gemCost, crystalCost int) bool {
 	return true
 }
 
+// CheckHandLimit 提供给技能处理器的手牌上限检查入口。
+func (e *GameEngine) CheckHandLimit(playerID string, stayInTurn bool) {
+	player := e.State.Players[playerID]
+	if player == nil {
+		return
+	}
+	ctx := e.buildContext(player, nil, model.TimingActive, nil)
+	if stayInTurn {
+		ctx.Flags["StayInTurn"] = true
+	}
+	e.checkHandLimit(player, ctx)
+}
+
+// GetAllPlayers 返回所有玩家的切片。
+func (e *GameEngine) GetAllPlayers() []*model.Player {
+	players := make([]*model.Player, 0, len(e.State.Players))
+	seen := make(map[string]struct{}, len(e.State.PlayerOrder))
+	for _, pid := range e.State.PlayerOrder {
+		p := e.State.Players[pid]
+		if p == nil {
+			continue
+		}
+		players = append(players, p)
+		seen[pid] = struct{}{}
+	}
+
+	extraIDs := make([]string, 0)
+	for pid := range e.State.Players {
+		if _, ok := seen[pid]; ok {
+			continue
+		}
+		extraIDs = append(extraIDs, pid)
+	}
+	sort.Strings(extraIDs)
+	for _, pid := range extraIDs {
+		if p := e.State.Players[pid]; p != nil {
+			players = append(players, p)
+		}
+	}
+
+	return players
+}
+
+// GetPlayers 返回玩家映射表（实现 HandLimitModifierEngine 接口）。
+func (e *GameEngine) GetPlayers() map[string]*model.Player {
+	if e.State == nil {
+		return map[string]*model.Player{}
+	}
+	return e.State.Players
+}
+
+func (e *GameEngine) DrawRawCards(amount int) ([]model.Card, bool) {
+	if e == nil || e.State == nil {
+		return nil, false
+	}
+	cards, newDeck, newDiscard := rules.DrawCards(e.State.Deck, e.State.DiscardPile, amount)
+	e.State.Deck = newDeck
+	e.State.DiscardPile = newDiscard
+	return cards, true
+}
+
 func (e *GameEngine) DrawCards(playerID string, amount int) {
 	p := e.State.Players[playerID]
 	if p == nil {
 		return
 	}
 
-	// 摸牌前触发（需携带 DrawCount 供水影等技能在中断后恢复摸牌）
-	drawCount := amount
-	drawEventCtx := &model.EventContext{
-		Type:      model.EventBeforeDraw,
-		SourceID:  playerID,
-		TargetID:  playerID,
-		DrawCount: &drawCount,
+	ctx := e.newDrawContextWithOptions(p, amount, "draw", model.DrawOptions{})
+	if ctx == nil {
+		return
 	}
-	ctx := e.buildContext(p, nil, model.TriggerBeforeDraw, drawEventCtx)
-	if p.Tokens != nil && p.Tokens["elf_ritual_suppress_overflow"] > 0 {
-		ctx.Flags["preventOverflow"] = true
-	}
+	e.startDraw(ctx)
+}
 
-	e.dispatcher.OnTrigger(model.TriggerBeforeDraw, ctx)
-
-	if ctx.Flags["cancelDraw"] {
-		e.Log(fmt.Sprintf("%s 的摸牌被取消", p.Name))
+func (e *GameEngine) DrawCardsWithOptions(playerID string, amount int, opts model.DrawOptions) {
+	p := e.State.Players[playerID]
+	if p == nil {
 		return
 	}
 
-	// 真正摸牌
-	cards, newDeck, newDiscard := rules.DrawCards(e.State.Deck, e.State.DiscardPile, amount)
-	e.State.Deck = newDeck
-	e.State.DiscardPile = newDiscard
-	p.Hand = append(p.Hand, cards...)
-	e.NotifyDrawCards(playerID, amount, "draw")
+	ctx := e.newDrawContextWithOptions(p, amount, opts.Reason, opts)
+	if ctx == nil {
+		return
+	}
+	e.startDraw(ctx)
+}
 
-	// 摸牌后触发
-	ctx.Trigger = model.TriggerAfterDraw
-	e.dispatcher.OnTrigger(model.TriggerAfterDraw, ctx)
+func (e *GameEngine) AppendFlowContinuation(cont model.FlowContinuation) {
+	e.State.FlowContinuations = append(e.State.FlowContinuations, cont)
+}
 
-	e.checkHandLimit(p, ctx)
-	e.Log(fmt.Sprintf("%s 摸了 %d 张牌", p.Name, amount))
+func (e *GameEngine) AppendExtraAction(player *model.Player, source string, mustType string, mustElement ...model.Element) {
+	model.AppendExtraAction(player, source, mustType, mustElement...)
+}
+
+func (e *GameEngine) AppendAttackAction(player *model.Player, source string, mustElement ...model.Element) {
+	model.AppendAttackAction(player, source, mustElement...)
+}
+
+func (e *GameEngine) AppendMagicAction(player *model.Player, source string, mustElement ...model.Element) {
+	model.AppendMagicAction(player, source, mustElement...)
 }
 
 func (e *GameEngine) AppendToDiscard(cards []model.Card) {
@@ -211,14 +293,13 @@ func (e *GameEngine) Heal(playerID string, amount int) {
 	e.Log(fmt.Sprintf("%s 获得了 %d 点治疗，当前治疗: %d", p.Name, amount, p.Heal))
 }
 
-func (e *GameEngine) InflictDamage(sourceID, targetID string, amount int, damageType string) {
+func (e *GameEngine) InflictDamage(sourceID, targetID string, amount int, damageType model.DamageType) {
 	// 将伤害推入延迟伤害队列，以便支持中断和触发器
 	e.AddPendingDamage(model.PendingDamage{
 		SourceID:   sourceID,
 		TargetID:   targetID,
 		Damage:     amount,
 		DamageType: damageType,
-		Stage:      0,
 		Card: &model.Card{
 			Name:        "直接伤害",
 			Type:        model.CardTypeMagic, // 默认为法术类型，如果是Attack通常走Combat流程
@@ -232,13 +313,10 @@ func (e *GameEngine) InflictDamage(sourceID, targetID string, amount int, damage
 	// 通常 InflictDamage 由 Handler 调用，Handler 返回后 Drive 会处理 PendingDamageResolution
 }
 
-func (e *GameEngine) emitBuffRemovedTrigger(sourceID, targetID string, effect model.EffectType) {
+func (e *GameEngine) emitBuffRemovedDispatch(sourceID, targetID string, effect model.EffectType) {
 	target := e.State.Players[targetID]
 	if target == nil {
 		return
-	}
-	if sourceID == "" {
-		sourceID = targetID
 	}
 	eventCtx := &model.EventContext{
 		Type:     model.EventBuffRemoved,
@@ -246,8 +324,23 @@ func (e *GameEngine) emitBuffRemovedTrigger(sourceID, targetID string, effect mo
 		TargetID: targetID, // 哪个目标身上的基础效果被移除
 		BuffID:   string(effect),
 	}
-	ctx := e.buildContext(target, nil, model.TriggerOnBuffRemoved, eventCtx)
-	e.dispatcher.OnTrigger(model.TriggerOnBuffRemoved, ctx)
+	ctx := e.buildContext(target, nil, model.TimingOnFieldMarkChanged, eventCtx)
+	e.dispatcher.OnTiming(ctx.Timing, ctx)
+}
+
+func (e *GameEngine) emitBuffAddedDispatch(sourceID, targetID string, effect model.EffectType) {
+	target := e.State.Players[targetID]
+	if target == nil {
+		return
+	}
+	eventCtx := &model.EventContext{
+		Type:     model.EventBuff,
+		SourceID: sourceID,
+		TargetID: targetID,
+		BuffID:   string(effect),
+	}
+	ctx := e.buildContext(target, nil, model.TimingOnFieldMarkChanged, eventCtx)
+	e.dispatcher.OnTiming(ctx.Timing, ctx)
 }
 
 func (e *GameEngine) RemoveFieldCard(targetID string, effect model.EffectType) bool {
@@ -276,7 +369,7 @@ func (e *GameEngine) RemoveFieldCardBy(targetID string, effect model.EffectType,
 	if removed && removedCard != nil {
 		e.State.DiscardPile = append(e.State.DiscardPile, *removedCard)
 		e.Log(fmt.Sprintf("%s 移除了场上效果牌: %s", target.Name, effect))
-		e.emitBuffRemovedTrigger(sourceID, targetID, effect)
+		e.emitBuffRemovedDispatch(sourceID, targetID, effect)
 	}
 	return removed
 }
@@ -297,7 +390,7 @@ func (e *GameEngine) TakeFieldCard(targetID string, fieldIndex int, sourceID str
 	target.Field = append(target.Field[:fieldIndex], target.Field[fieldIndex+1:]...)
 	e.Log(fmt.Sprintf("%s 的场上牌被收回: %s", target.Name, fc.Effect))
 	if fc.Mode == model.FieldEffect {
-		e.emitBuffRemovedTrigger(sourceID, targetID, fc.Effect)
+		e.emitBuffRemovedDispatch(sourceID, targetID, fc.Effect)
 	}
 	return fc.Card, nil
 }
@@ -314,6 +407,14 @@ func (e *GameEngine) GetCampMorale(camp string) int {
 		return e.State.RedMorale
 	}
 	return e.State.BlueMorale
+}
+
+func (e *GameEngine) SetCampMorale(camp string, value int) {
+	if model.Camp(camp) == model.RedCamp {
+		e.State.RedMorale = value
+	} else {
+		e.State.BlueMorale = value
+	}
 }
 
 func (e *GameEngine) GetCampGems(camp string) int {

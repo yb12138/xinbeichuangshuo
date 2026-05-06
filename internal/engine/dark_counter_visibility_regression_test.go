@@ -10,7 +10,8 @@ import (
 // 回归：暗灭攻击不可应战，战斗请求应直接标记 CanBeResponded=false，
 // 前端响应弹框不应出现“应战”按钮。
 func TestDarkAttack_CombatRequestNotRespondable(t *testing.T) {
-	g := NewGameEngine(noopObserver{})
+	obs := &captureObserver{}
+	g := NewGameEngine(obs)
 	if err := g.AddPlayer("p1", "Attacker", "berserker", model.RedCamp); err != nil {
 		t.Fatal(err)
 	}
@@ -20,7 +21,7 @@ func TestDarkAttack_CombatRequestNotRespondable(t *testing.T) {
 
 	g.State.CurrentTurn = 0
 	g.State.Deck = rules.InitDeck()
-	g.State.Phase = model.PhaseActionSelection
+	g.State.TurnStage = model.TurnStageActionExecution
 
 	p1 := g.State.Players["p1"]
 	p2 := g.State.Players["p2"]
@@ -50,5 +51,18 @@ func TestDarkAttack_CombatRequestNotRespondable(t *testing.T) {
 	}
 	if req.CanBeResponded {
 		t.Fatalf("dark attack should be non-counterable")
+	}
+	prompt := findLatestCombatPromptForPlayer(obs, "p2")
+	if prompt == nil {
+		t.Fatalf("expected combat response prompt for defender")
+	}
+	if got := prompt.AttackElement; got != string(model.ElementDark) {
+		t.Fatalf("expected dark prompt attack_element, got %q", got)
+	}
+	if !promptHasEffectHintContains(prompt, "无法应战") {
+		t.Fatalf("expected dark prompt to include unrespondable hint, got %+v", prompt.EffectHints)
+	}
+	if promptHasOptionID(prompt, "counter") {
+		t.Fatalf("dark prompt should not include counter option, got %+v", prompt.Options)
 	}
 }

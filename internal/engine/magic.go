@@ -1,15 +1,25 @@
+// gameflow: 法术行动：消耗、目标、进入战斗或直伤等。
+
 package engine
 
 import (
 	"errors"
 	"fmt"
+
 	"starcup-engine/internal/model"
 )
 
-// PerformMagic 发动法术
+// PerformMagic 发动法术（含魔弹融合是否询问等入口逻辑）。
 func (e *GameEngine) PerformMagic(sourceID, targetID string, cardIdx int) error {
+	return e.performMagic(sourceID, targetID, cardIdx, false)
+}
+
+// performMagic 发动法术。skipMagicBulletFusionCheck 为 true 时不弹出魔弹融合询问，用于中断里已选「正常使用」后的重入，避免死循环。
+func (e *GameEngine) performMagic(sourceID, targetID string, cardIdx int, skipMagicBulletFusionCheck bool) error {
 	// 1. 验证阶段
-	if e.State.Phase != model.PhaseBeforeAction && e.State.Phase != model.PhaseActionExecution {
+	if e.State.Subflow != model.SubflowNone ||
+		e.State.CombatStage != model.CombatStageNone ||
+		e.State.TurnStage != model.TurnStageActionExecution {
 		return errors.New("当前不是行动阶段")
 	}
 	player := e.State.Players[sourceID]
@@ -26,7 +36,7 @@ func (e *GameEngine) PerformMagic(sourceID, targetID string, cardIdx int) error 
 	}
 
 	// 2. 验证卡牌
-	card, _, _, ok := getPlayableCardByIndex(player, cardIdx)
+	card, _, _, ok := e.getPlayableCardByIndex(player, cardIdx)
 	if !ok {
 		return errors.New("无效的手牌索引")
 	}
@@ -58,8 +68,7 @@ func (e *GameEngine) PerformMagic(sourceID, targetID string, cardIdx int) error 
 	}
 
 	// 【魔弹融合】检查：魔法少女使用地系或火系非魔弹法术牌时，询问是否当魔弹使用
-	// SkipFusionCheck=true 表示已经询问过了，玩家选择正常使用
-	if !player.TurnState.SkipFusionCheck && e.isMagicalGirl(player) && card.Name != "魔弹" &&
+	if !skipMagicBulletFusionCheck && roleRegistry.Entry(player.Character.ID).MagicBullet.CanFuse && card.Name != "魔弹" &&
 		(card.Element == model.ElementEarth || card.Element == model.ElementFire) {
 		// 先不移除手牌，等玩家确认后再处理
 		e.PushInterrupt(&model.Interrupt{
@@ -83,10 +92,9 @@ func (e *GameEngine) PerformMagic(sourceID, targetID string, cardIdx int) error 
 	e.NotifyCardRevealed(sourceID, []model.Card{card}, "magic")
 
 	// 3. 从可打出牌区移除卡牌 (注意：暂时不进弃牌堆，看是否放置到场上)
-	if _, err := consumePlayableCardByIndex(player, cardIdx); err != nil {
+	if _, err := e.consumePlayableCardByIndex(player, cardIdx); err != nil {
 		return err
 	}
-	_ = e.maybeAutoReleaseBloodPriestessByHand(player, "手牌<3强制脱离流血形态")
 
 	// 4. 处理效果
 	placedOnField := false // 标记卡牌是否留在了场上
@@ -94,7 +102,7 @@ func (e *GameEngine) PerformMagic(sourceID, targetID string, cardIdx int) error 
 	switch card.Name {
 	case "魔弹":
 		// 【魔弹掌控】检查：魔法少女使用魔弹时，询问是否逆向传递
-		if e.isMagicalGirl(player) {
+		if roleRegistry.Entry(player.Character.ID).MagicBullet.CanDirect {
 			e.PushInterrupt(&model.Interrupt{
 				Type:     model.InterruptMagicBulletDirection,
 				PlayerID: player.ID,
@@ -108,7 +116,7 @@ func (e *GameEngine) PerformMagic(sourceID, targetID string, cardIdx int) error 
 		// 非魔法少女直接执行魔弹
 		return e.executeMagicBullet(player, false, false, nil)
 
-		// 此时函数返回 nil，但在 Game 循环中会检测到 PendingInterrupt 并暂停
+	// 此时函数返回 nil，但在 Game 循环中会检测到 PendingInterrupt 并暂停
 
 	case "中毒":
 		// 放置场上牌：中毒 (回合开始触发)
@@ -123,9 +131,10 @@ func (e *GameEngine) PerformMagic(sourceID, targetID string, cardIdx int) error 
 			SourceID: player.ID,
 			Mode:     model.FieldEffect,
 			Effect:   model.EffectPoison,
-			Trigger:  model.EffectTriggerOnTurnStart,
+			Hook:     model.FieldHookOnBeforeAction,
 		}
 		target.AddFieldCard(fc)
+		e.emitBuffAddedDispatch(player.ID, target.ID, fc.Effect)
 		placedOnField = true
 		e.Log(fmt.Sprintf("[Magic] %s 面前放置了【中毒】", target.Name))
 
@@ -141,9 +150,10 @@ func (e *GameEngine) PerformMagic(sourceID, targetID string, cardIdx int) error 
 			SourceID: player.ID,
 			Mode:     model.FieldEffect,
 			Effect:   model.EffectWeak,
-			Trigger:  model.EffectTriggerOnTurnStart,
+			Hook:     model.FieldHookOnBeforeAction,
 		}
 		target.AddFieldCard(fc)
+		e.emitBuffAddedDispatch(player.ID, target.ID, fc.Effect)
 		placedOnField = true
 		e.Log(fmt.Sprintf("[Magic] %s 面前放置了【虚弱】", target.Name))
 
@@ -159,9 +169,10 @@ func (e *GameEngine) PerformMagic(sourceID, targetID string, cardIdx int) error 
 			SourceID: player.ID,
 			Mode:     model.FieldEffect,
 			Effect:   model.EffectShield,
-			Trigger:  model.EffectTriggerOnDamaged,
+			Hook:     model.FieldHookOnDamaged,
 		}
 		target.AddFieldCard(fc)
+		e.emitBuffAddedDispatch(player.ID, target.ID, fc.Effect)
 		placedOnField = true
 		e.Log(fmt.Sprintf("[Magic] %s 获得了【圣盾】保护", target.Name))
 
@@ -179,16 +190,6 @@ func (e *GameEngine) PerformMagic(sourceID, targetID string, cardIdx int) error 
 	if !placedOnField {
 		e.State.DiscardPile = append(e.State.DiscardPile, card)
 	}
-
-	// === 【新增】 5. 触发法术行动结束事件 (为了触发法术激荡等技能) ===
-	phaseEventCtx := &model.EventContext{
-		Type:       model.EventPhaseEnd,
-		SourceID:   player.ID,
-		Card:       &card,
-		ActionType: model.ActionMagic,
-	}
-	phaseCtx := e.buildContext(player, nil, model.TriggerOnPhaseEnd, phaseEventCtx)
-	e.dispatcher.OnTrigger(model.TriggerOnPhaseEnd, phaseCtx)
 
 	return nil
 }
@@ -230,6 +231,9 @@ func (e *GameEngine) findNextMagicBulletTarget(currentPID string) string {
 		}
 		pid := e.State.PlayerOrder[idx]
 		target := e.State.Players[pid]
+		if target == nil {
+			continue
+		}
 
 		// 必须是对手 (不同阵营)
 		if target.Camp != currentPlayer.Camp {
@@ -238,17 +242,6 @@ func (e *GameEngine) findNextMagicBulletTarget(currentPID string) string {
 	}
 
 	return ""
-}
-
-// isMagicalGirl 检查玩家是否是魔法少女
-func (e *GameEngine) isMagicalGirl(player *model.Player) bool {
-	if player == nil || player.Character == nil {
-		return false
-	}
-	return player.Character.ID == "magical_girl" ||
-		player.Character.ID == "magic_bullet_girl" ||
-		player.Character.Name == "魔法少女" ||
-		player.Character.Name == "魔弹少女"
 }
 
 // executeMagicBullet 执行魔弹效果

@@ -17,10 +17,10 @@ func TestMagicBullet_ChainAndDamage(t *testing.T) {
 	game.State.Deck = rules.InitDeck()
 
 	// 添加4名玩家: P1(Red), P2(Blue), P3(Red), P4(Blue)
-	game.AddPlayer("p1", "Player1", "Hero", model.RedCamp)
-	game.AddPlayer("p2", "Player2", "Mage", model.BlueCamp)
-	game.AddPlayer("p3", "Player3", "Warrior", model.RedCamp)
-	game.AddPlayer("p4", "Player4", "Archer", model.BlueCamp)
+	game.AddPlayer("p1", "Player1", "berserker", model.RedCamp)
+	game.AddPlayer("p2", "Player2", "angel", model.BlueCamp)
+	game.AddPlayer("p3", "Player3", "sealer", model.RedCamp)
+	game.AddPlayer("p4", "Player4", "archer", model.BlueCamp)
 
 	game.StartGame()
 
@@ -43,7 +43,7 @@ func TestMagicBullet_ChainAndDamage(t *testing.T) {
 
 	// 3. P1 回合，使用魔弹
 	game.State.CurrentTurn = 0 // P1's turn
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
 
@@ -160,8 +160,8 @@ func TestMagicBullet_Defend(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NewTestObserver(t))
 	game.State.Deck = rules.InitDeck()
 
-	game.AddPlayer("p1", "Player1", "Hero", model.RedCamp)
-	game.AddPlayer("p2", "Player2", "Mage", model.BlueCamp)
+	game.AddPlayer("p1", "Player1", "berserker", model.RedCamp)
+	game.AddPlayer("p2", "Player2", "angel", model.BlueCamp)
 	game.StartGame()
 
 	p1 := game.State.Players["p1"]
@@ -178,7 +178,7 @@ func TestMagicBullet_Defend(t *testing.T) {
 	p2.Heal = 3
 
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 	p1.IsActive = true
 
 	t.Logf("Step 1: P1 对 P2 使用魔弹")
@@ -230,8 +230,8 @@ func TestMagicBullet_CounterEndsWhenRoundCovered(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NewTestObserver(t))
 	game.State.Deck = rules.InitDeck()
 
-	game.AddPlayer("p1", "Player1", "Hero", model.RedCamp)
-	game.AddPlayer("p2", "Player2", "Mage", model.BlueCamp)
+	game.AddPlayer("p1", "Player1", "berserker", model.RedCamp)
+	game.AddPlayer("p2", "Player2", "angel", model.BlueCamp)
 	if err := game.StartGame(); err != nil {
 		t.Fatalf("start game failed: %v", err)
 	}
@@ -246,7 +246,7 @@ func TestMagicBullet_CounterEndsWhenRoundCovered(t *testing.T) {
 	}
 
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
 

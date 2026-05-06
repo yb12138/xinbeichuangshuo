@@ -23,7 +23,7 @@ func TestStartupSkillSkip_OnlyPromptsOncePerTurn(t *testing.T) {
 	p1.Gem = 1 // 潜行启动技可用
 
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseStartup
+	game.State.TurnStage = model.TurnStageActionStart
 
 	game.Drive()
 	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptStartupSkill {
@@ -43,14 +43,14 @@ func TestStartupSkillSkip_OnlyPromptsOncePerTurn(t *testing.T) {
 		t.Fatalf("skip startup skill failed: %v", err)
 	}
 
-	if !p1.TurnState.HasUsedTriggerSkill {
-		t.Fatalf("expected HasUsedTriggerSkill=true after skip")
+	if !p1.TurnState.HasUsedActionSkill {
+		t.Fatalf("expected HasUsedActionSkill=true after skip")
 	}
 	if game.State.PendingInterrupt != nil && game.State.PendingInterrupt.Type == model.InterruptStartupSkill {
 		t.Fatalf("startup interrupt should not reappear in same turn")
 	}
-	if game.State.Phase != model.PhaseActionSelection {
-		t.Fatalf("expected phase to move to ActionSelection, got %s", game.State.Phase)
+	if !game.isActionSelectionWindow() {
+		t.Fatalf("expected flow to move to action selection window, got %s", game.runtimeStateLabel())
 	}
 }
 
@@ -70,7 +70,7 @@ func TestStartupSkillConfirm_EndsStartupPhaseAfterOneSkill(t *testing.T) {
 	p1.Gem = 1 // 仲裁仪式可用
 
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseStartup
+	game.State.TurnStage = model.TurnStageActionStart
 
 	game.Drive()
 	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptStartupSkill {
@@ -96,20 +96,20 @@ func TestStartupSkillConfirm_EndsStartupPhaseAfterOneSkill(t *testing.T) {
 		t.Fatalf("confirm startup skill failed: %v", err)
 	}
 
-	if !p1.TurnState.HasUsedTriggerSkill {
-		t.Fatalf("expected HasUsedTriggerSkill=true after confirming startup skill")
+	if !p1.TurnState.HasUsedActionSkill {
+		t.Fatalf("expected HasUsedActionSkill=true after confirming startup skill")
 	}
-	if !game.State.HasPerformedStartup {
-		t.Fatalf("expected HasPerformedStartup=true after confirming startup skill")
+	if !p1.TurnState.HasStartupSkillOrSpecialActionsLocked() {
+		t.Fatalf("expected startup lock=true after confirming startup skill")
 	}
-	if p1.Tokens["arbiter_form"] != 1 {
-		t.Fatalf("expected arbiter_form=1 after ritual, got %d", p1.Tokens["arbiter_form"])
+	if p1.Form != model.FormArbiterJudgment {
+		t.Fatalf("expected judgment form after ritual, got %q", p1.Form)
 	}
 	if game.State.PendingInterrupt != nil && game.State.PendingInterrupt.Type == model.InterruptStartupSkill {
 		t.Fatalf("startup interrupt should not reappear after confirming one startup skill")
 	}
-	if game.State.Phase != model.PhaseActionSelection {
-		t.Fatalf("expected phase to move to ActionSelection, got %s", game.State.Phase)
+	if !game.isActionSelectionWindow() {
+		t.Fatalf("expected flow to move to action selection window, got %s", game.runtimeStateLabel())
 	}
 }
 
@@ -129,7 +129,7 @@ func TestStartupSkillConfirm_DisablesSpecialActionsInSameTurn(t *testing.T) {
 	p1.Gem = 1 // 仲裁仪式可用
 
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseStartup
+	game.State.TurnStage = model.TurnStageActionStart
 
 	game.Drive()
 	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptStartupSkill {
@@ -155,11 +155,11 @@ func TestStartupSkillConfirm_DisablesSpecialActionsInSameTurn(t *testing.T) {
 		t.Fatalf("confirm startup skill failed: %v", err)
 	}
 
-	if game.State.Phase != model.PhaseActionSelection {
-		t.Fatalf("expected phase to move to ActionSelection, got %s", game.State.Phase)
+	if !game.isActionSelectionWindow() {
+		t.Fatalf("expected flow to move to action selection window, got %s", game.runtimeStateLabel())
 	}
-	if !game.State.HasPerformedStartup {
-		t.Fatalf("expected HasPerformedStartup=true after confirming startup skill")
+	if !p1.TurnState.HasStartupSkillOrSpecialActionsLocked() {
+		t.Fatalf("expected startup lock=true after confirming startup skill")
 	}
 
 	beforeHand := len(p1.Hand)

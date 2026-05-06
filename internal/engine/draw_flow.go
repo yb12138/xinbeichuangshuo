@@ -1,0 +1,182 @@
+// gameflow: 摸牌流程：牌库、爆牌前检测、Timing 窗口。
+
+package engine
+
+import (
+	"fmt"
+
+	"starcup-engine/internal/model"
+	"starcup-engine/internal/rules"
+)
+
+func (e *GameEngine) drawForAction(p *model.Player, count int) {
+	if p == nil {
+		return
+	}
+	ctx := e.newDrawContextWithOptions(p, count, "action", model.DrawOptions{})
+	if ctx == nil {
+		return
+	}
+	e.startDraw(ctx)
+}
+
+// resumePendingDraw 恢复暂停的扣卡流程。
+func (e *GameEngine) resumePendingDraw(ctx *model.Context) {
+	if ctx == nil || !ctx.BeforeDrawPhase() || ctx.EventCtx == nil || ctx.EventCtx.DrawCount == nil {
+		e.Log("[Draw] 跳过恢复摸牌：上下文不完整")
+		return
+	}
+
+	drawCount := *ctx.EventCtx.DrawCount
+	target := ctx.User
+	if target == nil {
+		e.Log("[Draw] 跳过恢复摸牌：目标不存在")
+		return
+	}
+
+	if ctx.Flags["cancelDraw"] {
+		e.Log(fmt.Sprintf("[Draw] %s 的摸牌被替换/取消", target.Name))
+		return
+	}
+	if ctx.Flags["capToHandLimit"] {
+		room := e.GetMaxHand(target) - len(target.Hand)
+		if room < 0 {
+			room = 0
+		}
+		if drawCount > room {
+			e.Log(fmt.Sprintf("[Draw] %s 的伤害摸牌受上限保护：%d -> %d", target.Name, drawCount, room))
+			drawCount = room
+			*ctx.EventCtx.DrawCount = drawCount
+		}
+	}
+	if drawCount <= 0 {
+		e.Log(fmt.Sprintf("[Draw] %s 本次无需摸牌", target.Name))
+		return
+	}
+
+	reason, _ := ctx.Selections["draw_reason"].(string)
+	if reason == "" {
+		reason = "resume_draw"
+	}
+
+	e.Log(fmt.Sprintf("[Draw] %s 摸牌 %d 张", target.Name, drawCount))
+	e.executeResolvedDraw(ctx, drawCount, reason)
+}
+
+func (e *GameEngine) newDrawContext(player *model.Player, amount int, reason string) *model.Context {
+	return e.newDrawContextWithOptions(player, amount, reason, model.DrawOptions{})
+}
+
+func (e *GameEngine) newDrawContextWithOptions(player *model.Player, amount int, reason string, opts model.DrawOptions) *model.Context {
+	if player == nil || amount < 0 {
+		return nil
+	}
+
+	resumePoint := e.currentChoiceResumePoint()
+	if intr := e.State.PendingInterrupt; intr != nil && intr.Type == model.InterruptChoice {
+		if data, ok := intr.Context.(map[string]interface{}); ok {
+			if waitingPoint, ok := choiceResumePointValue(data["waiting_phase"]); ok {
+				resumePoint = waitingPoint
+			}
+		}
+	}
+
+	drawCount := amount
+	eventCtx := &model.EventContext{
+		Type:      model.EventBeforeDraw,
+		SourceID:  player.ID,
+		TargetID:  player.ID,
+		DrawCount: &drawCount,
+		ActionType: func() model.ActionType {
+			if player.TurnState.LastActionType == "" {
+				return ""
+			}
+			return model.ActionType(player.TurnState.LastActionType)
+		}(),
+	}
+	ctx := e.buildContext(player, player, model.TimingBeforeCardDrawn, eventCtx)
+	if opts.PreventOverflow {
+		ctx.Flags["preventOverflow"] = true
+	}
+	if hasChoiceResumePoint(resumePoint) && !isChoiceResumeTurnStage(resumePoint, model.TurnStageTurnEnd) {
+		ctx.Flags["StayInTurn"] = true
+	}
+	if reason == "" {
+		reason = opts.Reason
+	}
+	if reason == "" {
+		reason = "draw"
+	}
+	ctx.Selections["draw_reason"] = reason
+	ctx.Selections["draw_resume_phase"] = resumePoint
+	return ctx
+}
+
+func (e *GameEngine) startDraw(ctx *model.Context) bool {
+	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil || ctx.EventCtx.DrawCount == nil {
+		return false
+	}
+
+	prevPending := e.State.PendingInterrupt
+	prevQueueLen := len(e.State.InterruptQueue)
+	e.dispatcher.OnTiming(ctx.Timing, ctx)
+
+	if e.State.PendingInterrupt != prevPending || len(e.State.InterruptQueue) > prevQueueLen {
+		e.Log("[System] 等待响应前暂停摸牌...")
+		return false
+	}
+
+	e.resumePendingDraw(ctx)
+	return e.State.PendingInterrupt == nil
+}
+
+func (e *GameEngine) restorePhaseAfterInterruptedDraw(ctx *model.Context) bool {
+	if ctx == nil {
+		return false
+	}
+	if e.State.PendingInterrupt != nil {
+		return true
+	}
+
+	// 触发 after_draw 流程边界恢复点（在任何阶段转换之前）
+	e.processFlowContinuations(model.FlowContinuationAfterDraw)
+
+	if ctx.Flags["FromDamageDraw"] {
+		e.enterDamageResolution(nil)
+		return true
+	}
+
+	if hasChoiceResumePoint(ctx.Selections["draw_resume_phase"]) {
+		e.applyChoiceResumePoint(ctx.Selections["draw_resume_phase"])
+		return true
+	}
+
+	if len(e.State.ActionStack) > 0 {
+		e.enterResponseWindow()
+	} else if len(e.State.ActionQueue) > 0 {
+		e.enterActionExecutionStage()
+	} else {
+		e.enterTurnEndStage()
+	}
+
+	return true
+}
+
+func (e *GameEngine) executeResolvedDraw(ctx *model.Context, drawCount int, reason string) {
+	target := ctx.User
+	cards, newDeck, newDiscard := rules.DrawCards(e.State.Deck, e.State.DiscardPile, drawCount)
+	e.State.Deck = newDeck
+	e.State.DiscardPile = newDiscard
+	target.Hand = append(target.Hand, cards...)
+	e.NotifyDrawCards(target.ID, drawCount, reason)
+
+	ctx.Timing = model.TimingOnCardDrawn
+	if ctx.EventCtx != nil {
+		ctx.EventCtx.Type = model.EventAfterDraw
+		ctx.EventCtx.DrawCount = &drawCount
+	}
+	e.dispatcher.OnTiming(ctx.Timing, ctx)
+
+	e.checkHandLimit(target, ctx)
+	e.Log(fmt.Sprintf("%s 摸了 %d 张牌", target.Name, drawCount))
+}

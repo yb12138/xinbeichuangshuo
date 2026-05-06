@@ -33,12 +33,14 @@
 </template>
 
 <script setup lang="ts">
+import { storeToRefs } from 'pinia'
 import { ref, watch, nextTick } from 'vue'
-import { useGameStore } from '../stores/gameStore'
+import { useBattleFxStore } from '../stores/battlefx.store'
 import CardComponent from './CardComponent.vue'
 import type { Card } from '../types/game'
 
-const store = useGameStore()
+const battleFxStore = useBattleFxStore()
+const { flyingCards, combatCue, damageEffects } = storeToRefs(battleFxStore)
 
 interface Explosion {
   id: number
@@ -104,7 +106,7 @@ function getBattleCenter() {
   }
 }
 
-watch(() => store.flyingCards, (newVals) => {
+watch(flyingCards, (newVals) => {
   // 1. 处理新增的卡牌
   newVals.forEach(batch => {
     if (!displayCards.value.some(f => f.id === batch.id)) {
@@ -159,17 +161,17 @@ watch(() => store.flyingCards, (newVals) => {
     if (!currentIds.includes(fc.id) && !fc.isRemoving) {
       fc.isRemoving = true
       
-      const cue = store.combatCue
+      const cue = combatCue.value
       const isAttackOrMagic = fc.actionType === 'attack' || fc.actionType === 'counter' || fc.actionType === 'magic'
       
       let targetId = cue?.targetId
       // 如果没有对战提示，但有刚产生的伤害记录，也认为命中了
-      if (!targetId && store.damageEffects.length > 0) {
-        targetId = store.damageEffects[store.damageEffects.length - 1]?.targetId
+      if (!targetId && damageEffects.value.length > 0) {
+        targetId = damageEffects.value[damageEffects.value.length - 1]?.targetId
       }
       
       // 如果是攻击且目标承受了伤害/产生了伤害特效
-      const isHit = isAttackOrMagic && targetId && (cue?.phase === 'take' || store.damageEffects.length > 0)
+      const isHit = isAttackOrMagic && targetId && (cue?.phase === 'take' || damageEffects.value.length > 0)
 
       if (isHit && targetId) {
         const tCenter = getElementCenter(`[data-player-anchor="${targetId}"]`)
@@ -182,8 +184,8 @@ watch(() => store.flyingCards, (newVals) => {
           setTimeout(() => {
             fc.opacity = 0
             let dmgValue = 0
-            if (store.damageEffects.length > 0) {
-              const lastDmg = store.damageEffects[store.damageEffects.length - 1]
+            if (damageEffects.value.length > 0) {
+              const lastDmg = damageEffects.value[damageEffects.value.length - 1]
               if (lastDmg && lastDmg.targetId === targetId) {
                 dmgValue = lastDmg.damage
               }

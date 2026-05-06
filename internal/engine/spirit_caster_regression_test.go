@@ -1,9 +1,11 @@
 package engine
 
 import (
+	"strings"
 	"testing"
 
-	"starcup-engine/internal/engine/skills"
+	"starcup-engine/internal/data"
+	spiritcasterplayer "starcup-engine/internal/engine/player/spirit_caster"
 	"starcup-engine/internal/model"
 )
 
@@ -29,7 +31,7 @@ func addSpiritCasterPowerForTest(p *model.Player, card model.Card) {
 		Mode:     model.FieldCover,
 		Effect:   model.EffectSpiritCasterPower,
 	})
-	syncSpiritCasterPowerToken(p)
+	spiritcasterplayer.SyncPowerToken(p)
 }
 
 func TestSpiritCasterTalismanThunder_SealThenIncantThenDamage(t *testing.T) {
@@ -58,11 +60,11 @@ func TestSpiritCasterTalismanThunder_SealThenIncantThenDamage(t *testing.T) {
 		SourceID: "p2",
 		Mode:     model.FieldEffect,
 		Effect:   model.EffectSealThunder,
-		Trigger:  model.EffectTriggerManual,
+		Hook:     model.FieldHookManual,
 	})
 
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 
 	if err := game.UseSkill("p1", "sc_talisman_thunder", []string{"p2", "p3"}, []int{0}); err != nil {
 		t.Fatalf("use talisman thunder failed: %v", err)
@@ -70,8 +72,8 @@ func TestSpiritCasterTalismanThunder_SealThenIncantThenDamage(t *testing.T) {
 	if len(game.State.PendingDamageQueue) != 1 {
 		t.Fatalf("expected only seal damage pending first, got %d", len(game.State.PendingDamageQueue))
 	}
-	if len(game.State.DeferredFollowups) != 1 {
-		t.Fatalf("expected deferred talisman followup, got %d", len(game.State.DeferredFollowups))
+	if game.skillResume == nil {
+		t.Fatalf("expected pending talisman skill resume")
 	}
 
 	// 先结算封印伤害，再继续灵符后续。
@@ -81,18 +83,18 @@ func TestSpiritCasterTalismanThunder_SealThenIncantThenDamage(t *testing.T) {
 	if len(game.State.PendingDamageQueue) != 0 {
 		t.Fatalf("expected seal damage queue consumed")
 	}
-	game.processDeferredFollowups()
+	game.processPendingSkillResume()
 	requireChoicePrompt(t, game, "p1", "sc_incant_confirm")
 
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil { // 发动念咒
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil { // 发动念咒
 		t.Fatalf("confirm incantation failed: %v", err)
 	}
 	requireChoicePrompt(t, game, "p1", "sc_incant_card")
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil { // 盖放补牌
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil { // 盖放补牌
 		t.Fatalf("choose incantation card failed: %v", err)
 	}
 
-	if got := spiritCasterPowerCount(p1, ""); got != 1 {
+	if got := spiritcasterplayer.PowerCount(p1, ""); got != 1 {
 		t.Fatalf("expected 1 spirit power after incantation, got %d", got)
 	}
 	if len(game.State.PendingDamageQueue) != 2 {
@@ -103,7 +105,7 @@ func TestSpiritCasterTalismanThunder_SealThenIncantThenDamage(t *testing.T) {
 	}
 }
 
-func TestSpiritCasterIncantation_CapBlocksPromptAndResolvesWind(t *testing.T) {
+func TestSpiritCasterIncantation_NoCapStillPromptsAndResolvesWind(t *testing.T) {
 	game := NewGameEngine(noopObserver{})
 	if err := game.AddPlayer("p1", "SpiritCaster", "spirit_caster", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -121,7 +123,8 @@ func TestSpiritCasterIncantation_CapBlocksPromptAndResolvesWind(t *testing.T) {
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
 	p1.Hand = []model.Card{
-		spiritCasterTestCard("w1", "风符", model.CardTypeMagic, model.ElementWind),
+		spiritCasterTestCard("w1", "风符", model.CardTypeMagic, model.ElementWind),  // 发动成本
+		spiritCasterTestCard("h1", "补牌", model.CardTypeAttack, model.ElementFire), // 念咒盖放
 	}
 	p2.Hand = []model.Card{
 		spiritCasterTestCard("a1", "攻击A1", model.CardTypeAttack, model.ElementFire),
@@ -135,26 +138,33 @@ func TestSpiritCasterIncantation_CapBlocksPromptAndResolvesWind(t *testing.T) {
 	addSpiritCasterPowerForTest(p1, spiritCasterTestCard("pow2", "妖力2", model.CardTypeMagic, model.ElementThunder))
 
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 	if err := game.UseSkill("p1", "sc_talisman_wind", []string{"p2", "p3"}, []int{0}); err != nil {
 		t.Fatalf("use talisman wind failed: %v", err)
 	}
-	game.processDeferredFollowups()
+	game.processPendingSkillResume()
 
-	// 念咒满层不会弹念咒提示，直接进入“由目标自行选择弃牌”流程。
+	requireChoicePrompt(t, game, "p1", "sc_incant_confirm")
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
+		t.Fatalf("confirm incantation failed: %v", err)
+	}
+	requireChoicePrompt(t, game, "p1", "sc_incant_card")
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
+		t.Fatalf("choose incantation card failed: %v", err)
+	}
 	requireChoicePrompt(t, game, "p3", "sc_talisman_wind_discard")
-	if err := game.handleWeakChoiceInput("p3", 1); err != nil { // p3 弃第2张
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p3", Selections: []int{1}}); err != nil { // p3 弃第2张
 		t.Fatalf("p3 choose discard failed: %v", err)
 	}
 	requireChoicePrompt(t, game, "p2", "sc_talisman_wind_discard")
-	if err := game.handleWeakChoiceInput("p2", 0); err != nil { // p2 弃第1张
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{0}}); err != nil { // p2 弃第1张
 		t.Fatalf("p2 choose discard failed: %v", err)
 	}
 	if game.State.PendingInterrupt != nil {
 		t.Fatalf("expected wind flow completed, got pending interrupt %+v", game.State.PendingInterrupt)
 	}
-	if got := spiritCasterPowerCount(p1, ""); got != 2 {
-		t.Fatalf("expected power count keep at cap=2, got %d", got)
+	if got := spiritcasterplayer.PowerCount(p1, ""); got != 3 {
+		t.Fatalf("expected incantation to add a third spirit power, got %d", got)
 	}
 	if got := len(p2.Hand); got != 1 {
 		t.Fatalf("expected p2 discarded exactly 1 card, hand=%d", got)
@@ -165,7 +175,8 @@ func TestSpiritCasterIncantation_CapBlocksPromptAndResolvesWind(t *testing.T) {
 }
 
 func TestSpiritCasterHundredNight_FireRevealAOEWithCollapse(t *testing.T) {
-	game := NewGameEngine(noopObserver{})
+	obs := &captureObserver{}
+	game := NewGameEngine(obs)
 	if err := game.AddPlayer("p1", "SpiritCaster", "spirit_caster", model.RedCamp); err != nil {
 		t.Fatal(err)
 	}
@@ -184,16 +195,17 @@ func TestSpiritCasterHundredNight_FireRevealAOEWithCollapse(t *testing.T) {
 	p1.Crystal = 1
 	addSpiritCasterPowerForTest(p1, spiritCasterTestCard("pow_fire", "火妖力", model.CardTypeMagic, model.ElementFire))
 
-	ctx := game.buildContext(p1, p2, model.TriggerOnAttackHit, &model.EventContext{
+	ctx := game.buildContext(p1, p2, model.TimingOnHitCheck, &model.EventContext{
 		Type:     model.EventAttack,
 		SourceID: "p1",
 		TargetID: "p2",
 		AttackInfo: &model.AttackEventInfo{
 			ActionType:       string(model.ActionAttack),
+			IsHit:            true,
 			CounterInitiator: "",
 		},
 	})
-	h := &skills.SpiritCasterHundredNightHandler{}
+	h := &spiritcasterplayer.SpiritCasterHundredNightHandler{}
 	if !h.CanUse(ctx) {
 		t.Fatalf("expected hundred-night available with fire power")
 	}
@@ -202,22 +214,25 @@ func TestSpiritCasterHundredNight_FireRevealAOEWithCollapse(t *testing.T) {
 	}
 	requireChoicePrompt(t, game, "p1", "sc_hundred_night_power")
 
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil { // 选火妖力
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil { // 选火妖力
 		t.Fatalf("choose power failed: %v", err)
 	}
 	requireChoicePrompt(t, game, "p1", "sc_hundred_night_fire_reveal")
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil { // 展示并走AOE
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil { // 展示并走AOE
 		t.Fatalf("choose reveal failed: %v", err)
 	}
+	if reveal := findPublicDiscardReveal(obs, "p1"); reveal == nil {
+		t.Fatalf("expected revealed fire spirit power to emit a public discard reveal event")
+	}
 	requireChoicePrompt(t, game, "p1", "sc_hundred_night_exclude_pick")
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil { // 排除 p1
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil { // 排除 p1
 		t.Fatalf("pick first excluded target failed: %v", err)
 	}
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil { // 排除 p2（此时索引重排后仍是0）
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil { // 排除 p2（此时索引重排后仍是0）
 		t.Fatalf("pick second excluded target failed: %v", err)
 	}
 	requireChoicePrompt(t, game, "p1", "sc_spiritual_collapse_confirm")
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil { // 发动灵力崩解
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil { // 发动灵力崩解
 		t.Fatalf("confirm spiritual collapse failed: %v", err)
 	}
 
@@ -253,27 +268,28 @@ func TestSpiritCasterHundredNight_NonFireSingleTarget(t *testing.T) {
 	p2 := game.State.Players["p2"]
 	addSpiritCasterPowerForTest(p1, spiritCasterTestCard("pow_w", "水妖力", model.CardTypeMagic, model.ElementWater))
 
-	ctx := game.buildContext(p1, p2, model.TriggerOnAttackHit, &model.EventContext{
+	ctx := game.buildContext(p1, p2, model.TimingOnHitCheck, &model.EventContext{
 		Type:     model.EventAttack,
 		SourceID: "p1",
 		TargetID: "p2",
 		AttackInfo: &model.AttackEventInfo{
 			ActionType:       string(model.ActionAttack),
+			IsHit:            true,
 			CounterInitiator: "",
 		},
 	})
-	h := &skills.SpiritCasterHundredNightHandler{}
+	h := &spiritcasterplayer.SpiritCasterHundredNightHandler{}
 	if !h.CanUse(ctx) {
 		t.Fatalf("expected hundred-night available with non-fire power")
 	}
 	if err := h.Execute(ctx); err != nil {
 		t.Fatalf("execute hundred-night failed: %v", err)
 	}
-	if err := game.handleWeakChoiceInput("p1", 0); err != nil { // 选水妖力
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil { // 选水妖力
 		t.Fatalf("choose power failed: %v", err)
 	}
 	requireChoicePrompt(t, game, "p1", "sc_hundred_night_target")
-	if err := game.handleWeakChoiceInput("p1", 2); err != nil { // 目标选 p3
+	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{2}}); err != nil { // 目标选 p3
 		t.Fatalf("choose target failed: %v", err)
 	}
 	if len(game.State.PendingDamageQueue) != 1 {
@@ -283,4 +299,49 @@ func TestSpiritCasterHundredNight_NonFireSingleTarget(t *testing.T) {
 	if pd.TargetID != "p3" || pd.Damage != 1 || pd.DamageType != "magic" {
 		t.Fatalf("unexpected pending damage: %+v", pd)
 	}
+}
+
+func TestSpiritCasterConfig_MetadataAlignsWithDocument(t *testing.T) {
+	characters := data.GetCharacters()
+	var spiritCaster *model.Character
+	for _, character := range characters {
+		if character.ID == "spirit_caster" {
+			copy := character
+			spiritCaster = &copy
+			break
+		}
+	}
+	if spiritCaster == nil {
+		t.Fatalf("spirit_caster character not found")
+	}
+
+	var incantation *model.SkillDefinition
+	var hundredNight *model.SkillDefinition
+	var collapse *model.SkillDefinition
+	for i := range spiritCaster.Skills {
+		switch spiritCaster.Skills[i].ID {
+		case "sc_incantation":
+			incantation = &spiritCaster.Skills[i]
+		case "sc_hundred_night":
+			hundredNight = &spiritCaster.Skills[i]
+		case "sc_spiritual_collapse":
+			collapse = &spiritCaster.Skills[i]
+		}
+	}
+	if incantation == nil || hundredNight == nil || collapse == nil {
+		t.Fatalf("expected incantation, hundred night, and spiritual collapse skills present")
+	}
+	if hundredNight.TargetType != model.TargetAny || hundredNight.MinTargets != 1 || hundredNight.MaxTargets != 2 {
+		t.Fatalf("expected hundred night target metadata any(1..2), got type=%v min=%d max=%d", hundredNight.TargetType, hundredNight.MinTargets, hundredNight.MaxTargets)
+	}
+	if collapse.CostCrystal != 1 {
+		t.Fatalf("expected spiritual collapse crystal cost=1, got %d", collapse.CostCrystal)
+	}
+	if incantation.Description == "" || containsSpiritCasterCapText(incantation.Description) {
+		t.Fatalf("expected incantation description to omit legacy cap text, got %q", incantation.Description)
+	}
+}
+
+func containsSpiritCasterCapText(desc string) bool {
+	return len(desc) > 0 && (strings.Contains(desc, "上限2") || strings.Contains(desc, "上限 2"))
 }

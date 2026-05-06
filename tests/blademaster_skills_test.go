@@ -18,14 +18,15 @@ func TestBladeMaster_Skills(t *testing.T) {
 		game := engine.NewGameEngine(observer)
 		game.AddPlayer("p1", "BladeMaster", "blade_master", model.RedCamp)
 		game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp)
-		
+
 		game.State.CurrentTurn = 0
 		game.State.Deck = rules.InitDeck()
 		p1 := game.State.Players["p1"]
 		// p2 := game.State.Players["p2"] // Unused
 		p1.IsActive = true
 		p1.TurnState = model.NewPlayerTurnState()
-		game.State.Phase = model.PhaseActionSelection
+		game.State.TurnStage = model.TurnStageActionExecution
+		p1.TurnState.UsedSkillCounts["wind_fury"] = 1
 
 		// 给 P1 3 张攻击牌
 		p1.Hand = []model.Card{
@@ -35,13 +36,13 @@ func TestBladeMaster_Skills(t *testing.T) {
 		}
 
 		// 模拟前两次攻击 (手动增加 AttackCount，省去完整 Action 流程)
-		p1.TurnState.AttackCount = 2 
-		
+		p1.TurnState.AttackCount = 2
+
 		// 发起第 3 次攻击
 		action := model.PlayerAction{
 			PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardIndex: 0,
 		}
-		
+
 		// 应该触发 Holy Sword
 		if err := game.HandleAction(action); err != nil {
 			t.Fatalf("第三次攻击失败: %v", err)
@@ -57,7 +58,7 @@ func TestBladeMaster_Skills(t *testing.T) {
 		if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptHolySwordDraw {
 			t.Fatalf("预期第3次攻击后触发圣剑摸X弃X中断")
 		}
-		
+
 		t.Logf("✅ 圣剑测试通过 (假设强制命中生效)")
 	})
 
@@ -68,14 +69,14 @@ func TestBladeMaster_Skills(t *testing.T) {
 		game := engine.NewGameEngine(observer)
 		game.AddPlayer("p1", "BladeMaster", "blade_master", model.RedCamp)
 		game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp)
-		
+
 		game.State.CurrentTurn = 0
 		game.State.Deck = rules.InitDeck()
 		p1 := game.State.Players["p1"]
 		// p2 := game.State.Players["p2"] // Unused
 		p1.IsActive = true
 		p1.TurnState = model.NewPlayerTurnState()
-		game.State.Phase = model.PhaseActionSelection
+		game.State.TurnStage = model.TurnStageActionExecution
 
 		p1.Crystal = 1
 		p1.Hand = []model.Card{
@@ -92,10 +93,10 @@ func TestBladeMaster_Skills(t *testing.T) {
 		if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptResponseSkill {
 			t.Fatalf("预期产生剑影响应中断")
 		}
-		
+
 		// 确认剑影
 		game.ConfirmResponseSkill("p1", "sword_shadow")
-		
+
 		// 验证水晶消耗和 Token
 		if p1.Crystal != 0 {
 			t.Errorf("剑影未消耗水晶")
@@ -107,56 +108,52 @@ func TestBladeMaster_Skills(t *testing.T) {
 	})
 
 	// -------------------------------------------------------------------------
-	// Case 3: 烈风技 (Gale Slash) - 无视圣盾
+	// Case 3: 列风技 (Gale Slash) - 无视圣盾
 	// -------------------------------------------------------------------------
 	t.Run("GaleSlash_IgnoreShield", func(t *testing.T) {
 		game := engine.NewGameEngine(observer)
 		game.AddPlayer("p1", "BladeMaster", "blade_master", model.RedCamp)
 		game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp)
-		
+
 		game.State.CurrentTurn = 0
 		game.State.Deck = rules.InitDeck()
 		p1 := game.State.Players["p1"]
 		p2 := game.State.Players["p2"]
 		p1.IsActive = true
 		p1.TurnState = model.NewPlayerTurnState()
-		game.State.Phase = model.PhaseActionSelection
+		game.State.TurnStage = model.TurnStageActionExecution
 
 		// 给 P1 独有牌
 		p1.Hand = []model.Card{
 			{
-				ID: "gs_card", Name: "烈风技", Type: model.CardTypeAttack, Element: model.ElementWind, Damage: 2,
-				ExclusiveChar1: "风之剑圣", ExclusiveSkill1: "烈风技", // 名字修正
+				ID: "gs_card", Name: "列风技", Type: model.CardTypeAttack, Element: model.ElementWind, Damage: 2,
+				ExclusiveChar1: "blade_master", ExclusiveSkill1: "列风技",
 			},
 		}
 
 		// P2 有圣盾
 		p2.AddFieldCard(&model.FieldCard{Mode: model.FieldEffect, Effect: model.EffectShield})
-		p2.Heal = 5
+		p2.Heal = 0
 		initialHandP2 := len(p2.Hand)
 
 		// P1 攻击
 		action := model.PlayerAction{PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardIndex: 0}
 		game.HandleAction(action)
-		
-		// P2 Take (圣盾本应抵挡，但烈风技无视)
-		// 如果烈风技生效，GaleSlashActive = true
-		// 圣盾的 Handler (HolyShieldHandler) 应该检查 GaleSlashActive?
-		// 或者 GaleSlashHandler Execute 只是设了个 Flag?
-		// 检查 handlers_impl.go: GaleSlashHandler sets `GaleSlashActive = true`
-		// 那么 HolyShieldHandler 必须检查这个 Flag。
-		// 让我们假设 HolyShieldHandler 逻辑里已经包含了这个检查 (CanUse check?)
-		// 如果没包含，这个测试会失败，发现Bug。
-		
-		game.HandleAction(model.PlayerAction{PlayerID: "p2", Type: model.CmdRespond, ExtraArgs: []string{"take"}})
+
+		// P2 Take（圣盾本应抵挡，但列风技会在当前攻击上下文里标记 IgnoreShield）
+		// HolyShieldHandler 应当从 damage ctx 的 flags 中读取该标记并跳过结算。
+
+		if err := game.HandleAction(model.PlayerAction{PlayerID: "p2", Type: model.CmdRespond, ExtraArgs: []string{"take"}}); err != nil {
+			t.Fatalf("P2 take failed: %v", err)
+		}
 		game.Drive() // 结算
 
-		// 当前伤害模型是“受伤摸牌”。若烈风技生效，目标应实际受伤并摸牌，且圣盾不应自动抵挡这次攻击
+		// 当前伤害模型是“受伤摸牌”。若列风技生效，目标应实际受伤并摸牌，且圣盾不应自动抵挡这次攻击。
 		if len(p2.Hand)-initialHandP2 != 2 {
-			t.Errorf("烈风技未造成预期伤害: 预期摸2张，实际摸%d张", len(p2.Hand)-initialHandP2)
+			t.Errorf("列风技未造成预期伤害: 预期摸2张，实际摸%d张", len(p2.Hand)-initialHandP2)
 		}
 		if !p2.HasFieldEffect(model.EffectShield) {
-			t.Errorf("烈风技应无视圣盾而非消耗圣盾，但当前圣盾已被移除")
+			t.Errorf("列风技应无视圣盾而非消耗圣盾，但当前圣盾已被移除")
 		}
 	})
 }

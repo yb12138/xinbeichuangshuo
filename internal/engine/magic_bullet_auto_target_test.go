@@ -25,7 +25,7 @@ func buildMagicActionGame(t *testing.T) *GameEngine {
 	}
 
 	game.State.CurrentTurn = 0
-	game.State.Phase = model.PhaseActionSelection
+	game.State.TurnStage = model.TurnStageActionExecution
 	game.State.PlayerOrder = []string{"p1", "p2"}
 
 	p1 := game.State.Players["p1"]

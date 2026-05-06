@@ -18,14 +18,14 @@ func TestAssassin_Skills(t *testing.T) {
 		game := engine.NewGameEngine(observer)
 		game.AddPlayer("p1", "Assassin", "assassin", model.RedCamp)
 		game.AddPlayer("p2", "Attacker", "berserker", model.BlueCamp)
-		
+
 		game.State.CurrentTurn = 1 // P2 Turn
 		game.State.Deck = rules.InitDeck()
 		// p1 := game.State.Players["p1"] // Unused
 		p2 := game.State.Players["p2"]
 		p2.IsActive = true
 		p2.TurnState = model.NewPlayerTurnState()
-		game.State.Phase = model.PhaseActionSelection
+		game.State.TurnStage = model.TurnStageActionExecution
 
 		// P2 攻击 P1
 		p2.Hand = []model.Card{{ID: "atk", Name: "斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2}}
@@ -33,14 +33,14 @@ func TestAssassin_Skills(t *testing.T) {
 
 		action := model.PlayerAction{PlayerID: "p2", Type: model.CmdAttack, TargetID: "p1", CardIndex: 0}
 		game.HandleAction(action)
-		
+
 		// P1 承受
 		// P2 Damage = 2.
 		// P1 Heal = 0 (assumed default). Damage = 2 -> Draw 2 cards.
-		// TriggerOnDamageTaken (Backlash) triggers. P2 draws 1 card.
-		
+		// TimingOnDamageTaken (Backlash) runs. P2 draws 1 card.
+
 		game.HandleAction(model.PlayerAction{PlayerID: "p1", Type: model.CmdRespond, ExtraArgs: []string{"take"}})
-		game.Drive() // 结算伤害 -> TriggerOnDamageTaken -> Backlash
+		game.Drive() // 结算伤害 -> TimingOnDamageTaken -> Backlash
 
 		// 验证 P2 手牌
 		// P2 Hand initial 1. Played 1 -> 0.
@@ -58,13 +58,13 @@ func TestAssassin_Skills(t *testing.T) {
 		game := engine.NewGameEngine(observer)
 		game.AddPlayer("p1", "Assassin", "assassin", model.RedCamp)
 		game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp)
-		
+
 		game.State.CurrentTurn = 0
 		game.State.Deck = rules.InitDeck()
 		p1 := game.State.Players["p1"]
 		p1.IsActive = true
 		p1.TurnState = model.NewPlayerTurnState()
-		game.State.Phase = model.PhaseStartup
+		game.State.TurnStage = model.TurnStageActionStart
 
 		p1.Gem = 1
 
@@ -85,20 +85,31 @@ func TestAssassin_Skills(t *testing.T) {
 			t.Fatalf("确认潜行失败: %v", err)
 		}
 
+		if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptChoice {
+			t.Fatalf("确认潜行后应进入可选摸牌选择，实际: %+v", game.State.PendingInterrupt)
+		}
+		ctxData, _ := game.State.PendingInterrupt.Context.(map[string]interface{})
+		choiceType, _ := ctxData["choice_type"].(string)
+		if choiceType != "assassin_stealth_draw" {
+			t.Fatalf("潜行后续选择类型错误: %v", ctxData)
+		}
+
+		// 选择“不摸牌”，直接进入潜行
+		if err := game.HandleAction(model.PlayerAction{
+			PlayerID:   "p1",
+			Type:       model.CmdSelect,
+			Selections: []int{1},
+		}); err != nil {
+			t.Fatalf("潜行后续选择失败: %v", err)
+		}
+
 		// 验证 Gem 消耗
 		if p1.Gem != 0 {
 			t.Errorf("潜行未消耗宝石")
 		}
-		// 验证是否获得潜行效果
-		hasStealth := false
-		for _, fc := range p1.Field {
-			if fc.Effect == model.EffectStealth {
-				hasStealth = true
-				break
-			}
-		}
-		if !hasStealth {
-			t.Errorf("未获得潜行状态")
+		// 验证是否进入潜行形态
+		if got := game.GetPlayerForm("p1"); got != model.FormAssassinStealth {
+			t.Errorf("未获得潜行形态，got=%q", got)
 		}
 		t.Logf("✅ 潜行测试通过")
 	})
