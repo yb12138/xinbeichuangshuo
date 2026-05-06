@@ -54,7 +54,6 @@ type actionSelectionState struct {
 	forceSkillMustUseMessage string
 	forceSkillOnlyMessage    string
 	forceAttackOnlyMessage   string
-	markConsumeHeroTaunt     bool // 标记攻击后消耗挑衅效果
 
 	onSkipChosen      func(e *GameEngine, player *model.Player, result *actionSelectionValidationResult) (handled bool, err error)
 	onNonAttackChosen func(e *GameEngine, player *model.Player, act model.PlayerAction, result *actionSelectionValidationResult) error
@@ -88,15 +87,14 @@ func (s *actionSelectionState) setActionRule(mode actionSelectionRuleMode, sourc
 	s.forceSkillMustUseMessage = ""
 	s.forceSkillOnlyMessage = ""
 	s.forceAttackOnlyMessage = ""
-	s.markConsumeHeroTaunt = false
 	s.onSkipChosen = nil
 	s.onNonAttackChosen = nil
 	s.onAttackAccepted = nil
 }
 
 type actionSelectionValidationResult struct {
-	consumeHeroTauntOnAttack bool
-	handled                  bool
+	handled             bool
+	afterAttackAccepted func(e *GameEngine, player *model.Player, act model.PlayerAction) error
 }
 
 func (e *GameEngine) buildActionSelectionState(currentPID string, player *model.Player) actionSelectionState {
@@ -329,14 +327,10 @@ func (e *GameEngine) validateActionSelectionRule(player *model.Player, act model
 			}
 			return fmt.Errorf("你受到约束效果影响：本次行动阶段只能主动攻击 %s", targetName)
 		}
-		if state.onAttackAccepted != nil {
-			if err := state.onAttackAccepted(e, player, act, result); err != nil {
-				return err
+		if state.onAttackAccepted != nil && result != nil {
+			result.afterAttackAccepted = func(e *GameEngine, player *model.Player, act model.PlayerAction) error {
+				return state.onAttackAccepted(e, player, act, result)
 			}
-		}
-		// 检查是否需要消耗挑衅效果（通过 MarkConsumeHeroTauntOnAttack 设置）
-		if state.markConsumeHeroTaunt && result != nil {
-			result.consumeHeroTauntOnAttack = true
 		}
 		return nil
 	default:

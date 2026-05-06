@@ -8,7 +8,6 @@ import (
 	choicert "starcup-engine/internal/engine/runtime/choice"
 	intr "starcup-engine/internal/engine/runtime/interrupt"
 	skillrt "starcup-engine/internal/engine/runtime/skill"
-	"starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 )
 
@@ -92,7 +91,6 @@ func (e *GameEngine) buildContext(user *model.Player, target *model.Player, timi
 
 // NewGameEngine 构造引擎：初始化状态、注册技能 handler、装配 TimingOnAttackDeclared 等钩子表。
 func NewGameEngine(observer model.GameObserver) *GameEngine {
-	skills.InitHandlers()
 	engine := &GameEngine{
 		State:                  model.NewGameState(),
 		observer:               observer,

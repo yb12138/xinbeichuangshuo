@@ -17,6 +17,7 @@ func RoleEntry() player.RoleEntry {
 		Defaults:         ApplyDefaults,
 		StarterCards:     StarterCards,
 		Choices:          NewChoiceHandler(),
+		ChoiceSpecs:      ChoiceSpecs(),
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
 		TimingHookSpecs: []player.TimingHookSpec{
@@ -27,6 +28,15 @@ func RoleEntry() player.RoleEntry {
 		SkillUsabilityCheckers: map[string]player.SkillUsabilityChecker{
 			"bd_dissonance_chord": CheckDissonanceChordUsability,
 		},
+	}
+}
+
+// ChoiceSpecs 导出角色 choice 声明。
+func ChoiceSpecs() []player.ChoiceSpec {
+	return []player.ChoiceSpec{
+		{ChoiceType: "bd_descent_cards", SequentialRemaining: player.ChoiceRemainingFromFixedTotal(2)},
+		{ChoiceType: "bd_dissonance_discard_step", SequentialRemaining: player.ChoiceRemainingFromNeedAndSelected("need_count", "selected_count")},
+		{ChoiceType: "bd_rousing_discard_cards", SequentialRemaining: player.ChoiceRemainingFromFixedTotal(2)},
 	}
 }
 

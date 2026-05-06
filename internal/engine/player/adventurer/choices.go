@@ -17,7 +17,12 @@ func ChoiceSpecs() []engineplayer.ChoiceSpec {
 	return []engineplayer.ChoiceSpec{
 		{ChoiceType: "adventurer_extract_paradise_check", BuildPrompt: buildExtractParadiseCheckPrompt, HandleChoice: handleExtractParadiseCheck},
 		{ChoiceType: "adventurer_paradise_pick", BuildPrompt: buildParadiseAllyPickPrompt, HandleChoice: handleParadiseAllyPick},
-		{ChoiceType: "adventurer_fraud_pick", BuildPrompt: buildFraudPickPrompt, HandleChoice: handleFraudPick},
+		{
+			ChoiceType:          "adventurer_fraud_pick",
+			BuildPrompt:         buildFraudPickPrompt,
+			HandleChoice:        handleFraudPick,
+			SequentialRemaining: engineplayer.ChoiceRemainingFromFlexibleRange(2, 3),
+		},
 		{ChoiceType: "adventurer_fraud_attack_element", BuildPrompt: buildFraudElementPrompt, HandleChoice: handleFraudElement},
 		{ChoiceType: "adventurer_steal_sky_mode", BuildPrompt: buildStealSkyModePrompt, HandleChoice: handleStealSkyMode},
 	}

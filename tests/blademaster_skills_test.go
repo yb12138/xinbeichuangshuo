@@ -26,6 +26,7 @@ func TestBladeMaster_Skills(t *testing.T) {
 		p1.IsActive = true
 		p1.TurnState = model.NewPlayerTurnState()
 		game.State.TurnStage = model.TurnStageActionExecution
+		p1.TurnState.UsedSkillCounts["wind_fury"] = 1
 
 		// 给 P1 3 张攻击牌
 		p1.Hand = []model.Card{

@@ -137,6 +137,7 @@ type TimingHookContext struct {
 	IsMagicDamage  bool // 是否为法术伤害导致
 	FromDamageDraw bool // 是否由伤害驱动的摸牌导致
 	MoraleLoss     int  // 士气损失值
+	SourceSkillID  string
 
 	// 新增 - 行动选择策略上下文（原 PolicySpec）
 	ChoiceRuntime      ChoiceRuntime                     // 选择运行时
@@ -316,5 +317,4 @@ type ActionSelectionValidationModifier interface {
 	SetOnSkipChosen(callback func(rt ChoiceRuntime, player *model.Player) (bool, error))
 	SetOnNonAttackChosen(callback func(rt ChoiceRuntime, player *model.Player, act model.PlayerAction) error)
 	SetOnAttackAccepted(callback func(rt ChoiceRuntime, player *model.Player, act model.PlayerAction) error)
-	MarkConsumeHeroTauntOnAttack() // 标记攻击后消耗挑衅效果
 }

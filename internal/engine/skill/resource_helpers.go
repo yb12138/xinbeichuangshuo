@@ -16,12 +16,3 @@ func CanPayCrystalLike(ctx *model.Context, amount int) bool {
 func SpendCrystalLike(ctx *model.Context, amount int) bool {
 	return player.SpendCrystalLike(ctx, amount)
 }
-
-// 内部别名（保持向后兼容）
-func canPayCrystalLike(ctx *model.Context, amount int) bool {
-	return player.CanPayCrystalLike(ctx, amount)
-}
-
-func spendCrystalLike(ctx *model.Context, amount int) bool {
-	return player.SpendCrystalLike(ctx, amount)
-}

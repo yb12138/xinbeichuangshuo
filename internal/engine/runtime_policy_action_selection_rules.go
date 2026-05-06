@@ -67,16 +67,6 @@ func (a actionSelectionValidationModifierAdapter) SetOnNonAttackChosen(callback 
 }
 func (a actionSelectionValidationModifierAdapter) SetOnAttackAccepted(callback func(rt engineplayer.ChoiceRuntime, player *model.Player, act model.PlayerAction) error) {
 	a.state.onAttackAccepted = func(e *GameEngine, player *model.Player, act model.PlayerAction, result *actionSelectionValidationResult) error {
-		if err := callback(newRoleChoiceRuntime(e), player, act); err != nil {
-			return err
-		}
-		if a.state.markConsumeHeroTaunt && result != nil {
-			result.consumeHeroTauntOnAttack = true
-		}
-		return nil
+		return callback(newRoleChoiceRuntime(e), player, act)
 	}
-}
-
-func (a actionSelectionValidationModifierAdapter) MarkConsumeHeroTauntOnAttack() {
-	a.state.markConsumeHeroTaunt = true
 }

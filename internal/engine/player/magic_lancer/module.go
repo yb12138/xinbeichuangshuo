@@ -22,6 +22,7 @@ func RoleEntry() player.RoleEntry {
 			},
 		},
 		Choices:          NewChoiceHandler(),
+		ChoiceSpecs:      ChoiceSpecs(),
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
 		BlocksActionType: func(p *model.Player, at model.ActionType) bool {
@@ -37,6 +38,13 @@ func RoleEntry() player.RoleEntry {
 			{Timing: player.TimingOnMagicMissileDefend, Priority: 100, Hook: magicMissileDefendHook},
 			{Timing: player.TimingOnMagicMissileCounter, Priority: 100, Hook: magicMissileCounterHook},
 		},
+	}
+}
+
+// ChoiceSpecs 导出角色 choice 声明。
+func ChoiceSpecs() []player.ChoiceSpec {
+	return []player.ChoiceSpec{
+		{ChoiceType: "ml_dark_barrier_cards", SequentialRemaining: player.ChoiceRemainingFromSelectionKey("x_value")},
 	}
 }
 

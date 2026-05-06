@@ -16,6 +16,7 @@ func RoleEntry() player.RoleEntry {
 		InterruptSpecs: []player.InterruptSpec{
 			{
 				Type:                 model.InterruptHolySwordDraw,
+				PhaseSync:            player.InterruptPhaseSyncCombatDraw,
 				BuildPrompt:          buildHolySwordDrawPrompt,
 				HandleActionResult:   handleHolySwordDrawAction,
 				AllowedActionTypes:   []model.PlayerActionType{model.CmdSelect},

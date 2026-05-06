@@ -14,8 +14,9 @@ type HandleResult struct {
 type ChoiceSpec struct {
 	Type string
 
-	AutoConsume       bool
-	ConsumesInterrupt func(ctxData map[string]any) bool
+	AutoConsume         bool
+	ConsumesInterrupt   func(ctxData map[string]any) bool
+	SequentialRemaining func(ctxData map[string]any) (int, bool)
 
 	BuildPrompt func(h Host, choiceType, playerID string, player *model.Player, data map[string]any) *model.Prompt
 

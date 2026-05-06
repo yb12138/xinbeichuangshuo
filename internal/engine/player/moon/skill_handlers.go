@@ -73,7 +73,7 @@ func (h *MoonGoddessNewMoonShelterHandler) CanUse(ctx *model.Context) bool {
 	if !fromDamage {
 		return false
 	}
-	if _, used := ctx.Selections["mg_new_moon_absorb_by"].(string); used {
+	if destination, _ := ctx.Selections["discard_destination"].(string); destination != "" {
 		return false
 	}
 	cards, ok := ctx.Selections["discarded_cards"].([]model.Card)
@@ -105,7 +105,8 @@ func (h *MoonGoddessNewMoonShelterHandler) Execute(ctx *model.Context) error {
 		added++
 	}
 	moonGoddessDarkMoonCount(ctx.User)
-	ctx.Selections["mg_new_moon_absorb_by"] = ctx.User.ID
+	ctx.Selections["discard_destination"] = "absorbed"
+	ctx.Selections["discard_absorbed_by"] = ctx.User.ID
 	*ctx.EventCtx.DamageVal = 0
 	ctx.Game.Log(fmt.Sprintf("%s 的 [新月庇护] 触发：进入暗月形态并吸收%d张爆牌为暗月，本次士气不下降",
 		ctx.User.Name, added))

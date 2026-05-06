@@ -15,4 +15,11 @@ func (h enginePolicyHost) Log(message string) {
 	h.e.Log(message)
 }
 
+func (h enginePolicyHost) DropQueuedOverflowDiscardForPlayer(playerID string) {
+	if h.e == nil {
+		return
+	}
+	dropQueuedOverflowDiscardForPlayer(h.e, playerID)
+}
+
 var _ types.PolicyHost = enginePolicyHost{}

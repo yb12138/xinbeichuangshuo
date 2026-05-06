@@ -24,14 +24,6 @@ type ButterflyChrysalisHandler struct{ engineplayer.BaseHandler }
 
 type ButterflyReverseHandler struct{ engineplayer.BaseHandler }
 
-type butterflyChrysalisResolver interface {
-	ResolveButterflyChrysalis(userID string) error
-}
-
-type butterflyReverseStarter interface {
-	StartButterflyReverse(userID string) error
-}
-
 func (h *ButterflyLifeFireHandler) CanUse(ctx *model.Context) bool { return false }
 
 func (h *ButterflyLifeFireHandler) Execute(ctx *model.Context) error { return nil }
@@ -75,11 +67,7 @@ func (h *ButterflyChrysalisHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("蛹化上下文无效")
 	}
-	resolver, ok := ctx.Game.(butterflyChrysalisResolver)
-	if !ok {
-		return fmt.Errorf("当前引擎不支持蛹化直接结算")
-	}
-	return resolver.ResolveButterflyChrysalis(ctx.User.ID)
+	return ResolveChrysalis(ctx.Game, ctx.User.ID)
 }
 
 func (h *ButterflyReverseHandler) CanUse(ctx *model.Context) bool {
@@ -90,9 +78,5 @@ func (h *ButterflyReverseHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("倒逆之蝶上下文无效")
 	}
-	starter, ok := ctx.Game.(butterflyReverseStarter)
-	if !ok {
-		return fmt.Errorf("当前引擎不支持倒逆之蝶分支编排")
-	}
-	return starter.StartButterflyReverse(ctx.User.ID)
+	return StartReverse(ctx.Game, ctx.User.ID)
 }

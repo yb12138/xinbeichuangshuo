@@ -14,12 +14,21 @@ func RoleEntry() player.RoleEntry {
 		ID:               "plague_mage",
 		Defaults:         ApplyDefaults,
 		Choices:          NewChoiceHandler(),
+		ChoiceSpecs:      ChoiceSpecs(),
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
 		TimingHookSpecs: []player.TimingHookSpec{
 			{Timing: player.TimingOnHealResist, Priority: 300, Hook: healResistHook},
+			{Timing: player.TimingOnMoraleLossApplied, Priority: 100, Hook: moraleLossAppliedHook},
 			{Timing: player.TimingOnTurnEnd, Priority: 400, Hook: turnEndHook},
 		},
+	}
+}
+
+// ChoiceSpecs 导出角色 choice 声明。
+func ChoiceSpecs() []player.ChoiceSpec {
+	return []player.ChoiceSpec{
+		{ChoiceType: "plague_death_touch_cards", SequentialRemaining: player.ChoiceRemainingFromSelectionKey("y_value")},
 	}
 }
 

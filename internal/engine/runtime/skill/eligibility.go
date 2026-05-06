@@ -5,16 +5,26 @@ package skill
 import (
 	skillhandlers "starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
+	"starcup-engine/internal/types"
 )
 
 // Eligibility 负责技能候选收集与可用性检查。
 type Eligibility struct {
-	cat *Catalog
+	cat      *Catalog
+	policies map[string]types.SkillPolicy
 }
 
 // NewEligibility 创建检查器。
 func NewEligibility(cat *Catalog) *Eligibility {
 	return &Eligibility{cat: cat}
+}
+
+// SetSkillPolicies injects role-declared skill policies used by eligibility checks.
+func (e *Eligibility) SetSkillPolicies(policies map[string]types.SkillPolicy) {
+	if e == nil {
+		return
+	}
+	e.policies = policies
 }
 
 // CollectCandidates 收集指定玩家在指定时机下可触发的技能（含场上 Effect 伪技能）。
@@ -196,7 +206,7 @@ func (e *Eligibility) FilterRemainingUsable(
 		if sid == currentSkillID {
 			continue
 		}
-		if MutuallyExclusiveResponseSkill(currentSkillID, sid) {
+		if e.mutuallyExclusiveResponseSkill(currentSkillID, sid) {
 			continue
 		}
 		if e.IsStillUsable(sid, player, ctx) {
@@ -204,4 +214,15 @@ func (e *Eligibility) FilterRemainingUsable(
 		}
 	}
 	return remaining
+}
+
+func (e *Eligibility) mutuallyExclusiveResponseSkill(currentSkillID, otherSkillID string) bool {
+	if currentSkillID == "" || otherSkillID == "" || e == nil || e.policies == nil {
+		return false
+	}
+	currentGroup := e.policies[currentSkillID].ExclusiveResponseGroup
+	if currentGroup == "" {
+		return false
+	}
+	return currentGroup == e.policies[otherSkillID].ExclusiveResponseGroup
 }

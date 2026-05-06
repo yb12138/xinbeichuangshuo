@@ -40,8 +40,9 @@ func (e *GameEngine) applyMoraleLossAfterTimingWindow(victim *model.Player, mora
 		IsMagicDamage:  isMagic,
 		FromDamageDraw: fromDamageDraw,
 		MoraleLoss:     finalLoss,
+		SourceID:       moraleLossSourceID(lossCtx),
+		SourceSkillID:  moraleLossSourceSkillID(lossCtx),
 	})
-	e.trackPlagueOutbreakMoraleDrop(lossCtx)
 
 	if moraleLoss != finalLoss {
 		e.Log(fmt.Sprintf("[System] 士气损失被抵御！原损失: %d, 实际损失: %d", moraleLoss, finalLoss))
@@ -51,29 +52,34 @@ func (e *GameEngine) applyMoraleLossAfterTimingWindow(victim *model.Player, mora
 	return finalLoss
 }
 
-// trackPlagueOutbreakMoraleDrop 记录瘟疫爆发导致的士气下降次数（非角色特定逻辑）。
-func (e *GameEngine) trackPlagueOutbreakMoraleDrop(lossCtx *model.Context) {
-	if lossCtx == nil || lossCtx.Selections == nil {
-		return
-	}
-	sourceSkillID, _ := lossCtx.Selections["damage_source_skill"].(string)
-	sourceID, _ := lossCtx.Selections["damage_source_id"].(string)
-	if sourceSkillID != "plague_outbreak" || sourceID == "" {
-		return
-	}
-	if source := e.State.Players[sourceID]; source != nil {
-		source.TurnState.UsedSkillCounts["plague_outbreak_morale_drop"] = 1
-	}
-}
-
 func (e *GameEngine) finalizeMoraleLossDiscard(victim *model.Player, discardedCards []model.Card, lossCtx *model.Context) {
-	absorbByMoonID := ""
-	if lossCtx != nil && lossCtx.Selections != nil {
-		absorbByMoonID, _ = lossCtx.Selections["mg_new_moon_absorb_by"].(string)
-	}
-	if absorbByMoonID == "" {
+	if moraleLossDiscardDestination(lossCtx) != "absorbed" {
 		e.State.DiscardPile = append(e.State.DiscardPile, discardedCards...)
 		return
 	}
-	e.Log(fmt.Sprintf("[Skill] %s 的爆牌被 [新月庇护] 吸收为暗月（未进入弃牌堆）", victim.Name))
+	e.Log(fmt.Sprintf("[System] %s 的爆牌已被技能效果吸收（未进入弃牌堆）", victim.Name))
+}
+
+func moraleLossSourceID(lossCtx *model.Context) string {
+	if lossCtx == nil || lossCtx.Selections == nil {
+		return ""
+	}
+	sourceID, _ := lossCtx.Selections["damage_source_id"].(string)
+	return sourceID
+}
+
+func moraleLossSourceSkillID(lossCtx *model.Context) string {
+	if lossCtx == nil || lossCtx.Selections == nil {
+		return ""
+	}
+	sourceSkillID, _ := lossCtx.Selections["damage_source_skill"].(string)
+	return sourceSkillID
+}
+
+func moraleLossDiscardDestination(lossCtx *model.Context) string {
+	if lossCtx == nil || lossCtx.Selections == nil {
+		return ""
+	}
+	destination, _ := lossCtx.Selections["discard_destination"].(string)
+	return destination
 }

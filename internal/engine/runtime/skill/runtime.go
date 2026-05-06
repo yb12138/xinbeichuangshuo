@@ -6,14 +6,16 @@ import (
 	"fmt"
 
 	"starcup-engine/internal/model"
+	"starcup-engine/internal/types"
 )
 
 // Runtime 技能运行时：收集、触发、执行。
 type Runtime struct {
-	cat  *Catalog
-	elig *Eligibility
-	exec *Executor
-	trig *Trigger
+	cat      *Catalog
+	elig     *Eligibility
+	exec     *Executor
+	trig     *Trigger
+	policies map[string]types.SkillPolicy
 }
 
 // NewRuntime 创建并装配技能运行时。
@@ -28,6 +30,24 @@ func NewRuntime() *Runtime {
 		exec: exec,
 		trig: trig,
 	}
+}
+
+// SetSkillPolicies injects role-declared skill policies into the runtime.
+func (r *Runtime) SetSkillPolicies(policies map[string]types.SkillPolicy) {
+	if r == nil {
+		return
+	}
+	r.policies = policies
+	if r.elig != nil {
+		r.elig.SetSkillPolicies(policies)
+	}
+}
+
+func (r *Runtime) skillPolicy(skillID string) types.SkillPolicy {
+	if r == nil || r.policies == nil || skillID == "" {
+		return types.SkillPolicy{}
+	}
+	return r.policies[skillID]
 }
 
 // OnTiming 在某个 Timing 窗口触发技能分发。
@@ -126,8 +146,8 @@ func (r *Runtime) ConfirmStartupSkillAction(h Host, playerID, skillID string) (I
 	}
 
 	r.exec.ExecuteSkill(h, *skillDef, ctx)
-	if skillID == "elf_ritual" {
-		h.DropQueuedOverflowDiscardForPlayer(playerID)
+	if err := r.runAfterExecute(h, *skillDef, playerID); err != nil {
+		return InterruptActionResult{}, err
 	}
 
 	if player.TurnState.UsedSkillCounts == nil {
@@ -253,6 +273,9 @@ func (r *Runtime) ConfirmResponseSkillAction(h Host, playerID, skillID string) (
 	case model.InteractionNone:
 		resumeState := h.CaptureResponseResumeStateOnConfirm(skillID, ctx)
 		r.exec.ExecuteSkill(h, *skillDef, ctx)
+		if err := r.runAfterExecute(h, *skillDef, playerID); err != nil {
+			return InterruptActionResult{}, err
+		}
 		h.PrepareConfirmedResponseResume(resumeState)
 
 		remainingSkillIDs := r.elig.FilterRemainingUsable(skillID, player, ctx, h.PendingInterrupt().SkillIDs)
@@ -268,4 +291,16 @@ func (r *Runtime) ConfirmResponseSkillAction(h Host, playerID, skillID string) (
 	default:
 		return InterruptActionResult{}, fmt.Errorf("未知的交互类型: %s", skillDef.InteractionType)
 	}
+}
+
+func (r *Runtime) runAfterExecute(h Host, skillDef model.SkillDefinition, playerID string) error {
+	policy := r.skillPolicy(skillDef.ID)
+	if policy.AfterExecute == nil {
+		return nil
+	}
+	return policy.AfterExecute(h, types.PolicyContext{
+		SkillID:  skillDef.ID,
+		PlayerID: playerID,
+		SkillDef: skillDef,
+	})
 }

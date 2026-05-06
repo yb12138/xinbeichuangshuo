@@ -17,10 +17,10 @@ func TestMagicBullet_ChainAndDamage(t *testing.T) {
 	game.State.Deck = rules.InitDeck()
 
 	// 添加4名玩家: P1(Red), P2(Blue), P3(Red), P4(Blue)
-	game.AddPlayer("p1", "Player1", "Hero", model.RedCamp)
-	game.AddPlayer("p2", "Player2", "Mage", model.BlueCamp)
-	game.AddPlayer("p3", "Player3", "Warrior", model.RedCamp)
-	game.AddPlayer("p4", "Player4", "Archer", model.BlueCamp)
+	game.AddPlayer("p1", "Player1", "berserker", model.RedCamp)
+	game.AddPlayer("p2", "Player2", "angel", model.BlueCamp)
+	game.AddPlayer("p3", "Player3", "sealer", model.RedCamp)
+	game.AddPlayer("p4", "Player4", "archer", model.BlueCamp)
 
 	game.StartGame()
 
@@ -160,8 +160,8 @@ func TestMagicBullet_Defend(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NewTestObserver(t))
 	game.State.Deck = rules.InitDeck()
 
-	game.AddPlayer("p1", "Player1", "Hero", model.RedCamp)
-	game.AddPlayer("p2", "Player2", "Mage", model.BlueCamp)
+	game.AddPlayer("p1", "Player1", "berserker", model.RedCamp)
+	game.AddPlayer("p2", "Player2", "angel", model.BlueCamp)
 	game.StartGame()
 
 	p1 := game.State.Players["p1"]
@@ -230,8 +230,8 @@ func TestMagicBullet_CounterEndsWhenRoundCovered(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NewTestObserver(t))
 	game.State.Deck = rules.InitDeck()
 
-	game.AddPlayer("p1", "Player1", "Hero", model.RedCamp)
-	game.AddPlayer("p2", "Player2", "Mage", model.BlueCamp)
+	game.AddPlayer("p1", "Player1", "berserker", model.RedCamp)
+	game.AddPlayer("p2", "Player2", "angel", model.BlueCamp)
 	if err := game.StartGame(); err != nil {
 		t.Fatalf("start game failed: %v", err)
 	}

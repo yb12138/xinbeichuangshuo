@@ -25,8 +25,6 @@ func RoleEntry() player.RoleEntry {
 		Choices:          NewChoiceHandler(),
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
-		ResolveChrysalis: ResolveChrysalis,
-		StartReverse:     StartReverse,
 		TimingHookSpecs: []player.TimingHookSpec{
 			{Timing: player.TimingOnTurnBeforeStart, Priority: 100, Hook: witherExpiryHook},
 			{Timing: player.TimingOnDamageBeforeApply, Priority: 100, Hook: damageBeforeApplyHook},

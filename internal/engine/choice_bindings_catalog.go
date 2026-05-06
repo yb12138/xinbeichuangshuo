@@ -43,18 +43,15 @@ func catalogChoiceBinding(typ string) catalogSpecPlan {
 	if !spec.Valid() {
 		panic(fmt.Sprintf("choice catalog: invalid route spec for type %q: %+v", typ, spec))
 	}
-	m := multiSequential(typ)
 	switch spec.Kind {
 	case ChoiceRouteKindSystem:
 		return catalogSpecPlan{
 			autoConsume: true,
 			build:       (*GameEngine).buildSystemChoicePrompt,
 			sel:         systemChoiceSelect(typ),
-			multi:       m,
 			after:       systemChoiceAfterConsume(typ),
 		}
 	case ChoiceRouteKindRole:
-		// 所有角色统一通过 RoleEntry 注册表桥接到 player/<role>/choices.go
 		roleID := spec.Role
 		return catalogSpecPlan{
 			build: func(ge *GameEngine, choiceType, playerID string, player *model.Player, data map[string]any) *model.Prompt {
@@ -63,8 +60,9 @@ func catalogChoiceBinding(typ string) catalogSpecPlan {
 			sel: func(ge *GameEngine, playerID string, idx int, ctx map[string]any) (bool, error) {
 				return ge.handleRoleChoiceInput(roleID, playerID, idx, choiceCtxAsInterfaceMap(ctx))
 			},
-			multi:  m,
-			cancel: roleCancelWithContext(roleID),
+			cancel: func(ge *GameEngine, playerID string, ctx map[string]any) (bool, error) {
+				return ge.handleRoleChoiceCancel(roleID, playerID, choiceCtxAsInterfaceMap(ctx))
+			},
 		}
 	default:
 		panic(fmt.Sprintf("choice catalog: unknown route kind %q for type %q", spec.Kind, typ))

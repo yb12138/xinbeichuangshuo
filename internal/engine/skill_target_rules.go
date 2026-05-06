@@ -8,7 +8,7 @@ import (
 	"starcup-engine/internal/types"
 )
 
-// 类型别名，保持 engine 包内兼容性。
+// 技能目标规则类型直接复用 types 包定义。
 type TargetCampRule = types.TargetCampRule
 type TargetSelfRule = types.TargetSelfRule
 type TargetCheckKind = types.TargetCheckKind
@@ -17,7 +17,7 @@ type TargetSlotRule = types.TargetSlotRule
 type TargetCheckRule = types.TargetCheckRule
 type TargetRuleSet = types.TargetRuleSet
 
-// 导出常量。
+// 目标规则常量。
 const (
 	TargetCampAny                    = types.TargetCampAny
 	TargetCampAlly                   = types.TargetCampAlly
@@ -30,7 +30,7 @@ const (
 	TargetCheckAnyBasicFieldWhenNone = types.TargetCheckAnyBasicFieldWhenNone
 )
 
-// validateTargetRules 校验技能目标规则（独立函数，而非方法）。
+// validateTargetRules 校验技能目标规则。
 func validateTargetRules(rules TargetRuleSet, use *skillUseRequest) error {
 	if use == nil {
 		return fmt.Errorf("技能目标校验上下文缺失")

@@ -204,6 +204,7 @@ func RoleEntry() player.RoleEntry {
 		InterruptSpecs: []player.InterruptSpec{
 			{
 				Type:                 model.InterruptSaintHeal,
+				PhaseSync:            player.InterruptPhaseSyncCombatHeal,
 				BuildPrompt:          buildSaintHealPrompt,
 				HandleActionResult:   handleSaintHealAction,
 				AllowedActionTypes:   []model.PlayerActionType{model.CmdSelect},

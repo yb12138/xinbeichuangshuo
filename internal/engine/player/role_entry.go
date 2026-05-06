@@ -181,8 +181,19 @@ type CombatPolicyContext struct {
 }
 
 // InterruptSpec 定义角色包贡献的中断处理条目。
+type InterruptPhaseSync string
+
+const (
+	InterruptPhaseSyncNone            InterruptPhaseSync = ""
+	InterruptPhaseSyncResponseWindow  InterruptPhaseSync = "response_window"
+	InterruptPhaseSyncActionExecution InterruptPhaseSync = "action_execution"
+	InterruptPhaseSyncCombatDraw      InterruptPhaseSync = "combat_draw"
+	InterruptPhaseSyncCombatHeal      InterruptPhaseSync = "combat_heal"
+)
+
 type InterruptSpec struct {
 	Type                 model.InterruptType
+	PhaseSync            InterruptPhaseSync
 	BuildPrompt          func(rt ChoiceRuntime) *model.Prompt
 	HandleActionResult   func(rt ChoiceRuntime, act model.PlayerAction) (InterruptActionResult, error)
 	AllowedActionTypes   []model.PlayerActionType
@@ -196,10 +207,13 @@ type InterruptActionResult struct {
 }
 
 // ChoiceSpec 定义声明式选择流程条目。
+type ChoiceSequentialRemaining func(ctxData map[string]interface{}) (int, bool)
+
 type ChoiceSpec struct {
-	ChoiceType   string
-	BuildPrompt  func(rt ChoiceRuntime, playerID string, player *model.Player, data map[string]interface{}) *model.Prompt
-	HandleChoice func(rt ChoiceRuntime, playerID string, selectionIndex int, data map[string]interface{}) (bool, error)
+	ChoiceType          string
+	BuildPrompt         func(rt ChoiceRuntime, playerID string, player *model.Player, data map[string]interface{}) *model.Prompt
+	HandleChoice        func(rt ChoiceRuntime, playerID string, selectionIndex int, data map[string]interface{}) (bool, error)
+	SequentialRemaining ChoiceSequentialRemaining
 }
 
 // ChoiceRuntime 抽象角色选择流运行时能力（嵌入子接口的组合接口）。
@@ -226,7 +240,6 @@ type ChoiceRuntime interface {
 	// PendingDiscard victim helper
 	PendingDiscardVictimID() string
 
-	// Convenience methods for backward compatibility
 	LookupPlayer(playerID string) *model.Player
 	HasPendingInterrupt() bool
 	PendingDamageQueueLen() int
@@ -352,9 +365,6 @@ type RoleEntry struct {
 	ExcludeCardFromDiscard     func(player *model.Player, card model.Card) bool                                     // 弃牌时排除特定卡牌（可选，如精灵射手祝福牌）
 	AfterMoraleLossHook        func(rt model.IGameEngine, victim *model.Player, finalLoss int, fromDamageDraw bool) // 士气损失后置钩子（可选，如灵魂巫师灵魂吞噬）
 	MaybeDarkRitual            func(rt ChoiceRuntime, player *model.Player) bool                                    // 暗仪发动检查（可选，如阴阳师暗仪）
-	ConsumeTauntRestriction    func(rt ChoiceRuntime, player *model.Player)                                         // 挑衅约束消耗（可选，如勇者挑衅）
-	ResolveChrysalis           func(rt ChoiceRuntime, userID string) error                                          // 蛹化直接结算（可选，如蝶舞者蛹化）
-	StartReverse               func(rt ChoiceRuntime, userID string) error                                          // 倒逆之蝶分支编排（可选，如蝶舞者倒逆之蝶）
 }
 
 // ApplyDefaults 应用默认角色属性。
@@ -420,6 +430,16 @@ func (e RoleEntry) HandleChoiceCancel(rt ChoiceRuntime, playerID string, ctxData
 // ChoiceRoutes 返回角色 choice 路由声明。
 func (e RoleEntry) ChoiceRoutes() map[string]types.ChoiceRouteSpec {
 	return e.ChoiceRouteSpecs
+}
+
+// ChoiceSpecFor 返回指定 choice_type 的声明式选择定义。
+func (e RoleEntry) ChoiceSpecFor(choiceType string) (ChoiceSpec, bool) {
+	for _, spec := range e.ChoiceSpecs {
+		if spec.ChoiceType == choiceType {
+			return spec, true
+		}
+	}
+	return ChoiceSpec{}, false
 }
 
 // SkillPolicies 返回角色技能策略声明。

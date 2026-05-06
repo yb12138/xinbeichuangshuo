@@ -132,6 +132,11 @@ func (e *GameEngine) executeSkillFlow(use *skillUseRequest) error {
 		return fmt.Errorf("skill execution failed: %v", err)
 	}
 	e.dispatchOrientationChanges(beforePoses)
+	if use.policy.AfterExecute != nil {
+		if err := use.policy.AfterExecute(enginePolicyHost{e: e}, use.policyContext()); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

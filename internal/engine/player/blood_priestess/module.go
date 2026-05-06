@@ -21,6 +21,7 @@ func RoleEntry() player.RoleEntry {
 			model.FlowContinuationAfterDamage: handleBloodPriestessAfterDamage,
 		},
 		Choices:          NewChoiceHandler(),
+		ChoiceSpecs:      ChoiceSpecs(),
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
 		TimingHookSpecs: []player.TimingHookSpec{
@@ -28,6 +29,13 @@ func RoleEntry() player.RoleEntry {
 			{Timing: player.TimingOnMoraleLossApplied, Priority: 100, Hook: moraleLossHook},
 			{Timing: player.TimingOnTurnStart, Priority: 100, Hook: turnStartBleedTickHook},
 		},
+	}
+}
+
+// ChoiceSpecs 导出角色 choice 声明。
+func ChoiceSpecs() []player.ChoiceSpec {
+	return []player.ChoiceSpec{
+		{ChoiceType: "bp_curse_discard", SequentialRemaining: player.ChoiceRemainingFromSelectionKey("discard_count")},
 	}
 }
 

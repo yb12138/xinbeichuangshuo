@@ -24,10 +24,9 @@ func RoleEntry() player.RoleEntry {
 				return 0, false
 			},
 		},
-		Choices:                 NewChoiceHandler(),
-		Skills:                  SkillEntries(),
-		ChoiceRouteSpecs:        ChoiceRouteSpecs(),
-		ConsumeTauntRestriction: ConsumeTauntRestriction,
+		Choices:          NewChoiceHandler(),
+		Skills:           SkillEntries(),
+		ChoiceRouteSpecs: ChoiceRouteSpecs(),
 		TimingHookSpecs: []player.TimingHookSpec{
 			{Timing: player.TimingOnDamageCalculate, Priority: 500, Hook: damageCalculateHook},
 			{Timing: player.TimingOnAttackDeclared, Priority: 100, Hook: pendingDamageInitHook},

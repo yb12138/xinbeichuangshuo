@@ -31,9 +31,30 @@ func RoleEntry() player.RoleEntry {
 func SkillEntries() []player.SkillEntry {
 	return []player.SkillEntry{
 		{ID: "elf_elemental_shot", Handler: &ElfElementalShotHandler{}},
-		{ID: "elf_animal_companion", Handler: &ElfAnimalCompanionHandler{}},
-		{ID: "elf_ritual", Handler: &ElfRitualHandler{}},
-		{ID: "elf_pet_empower", Handler: &ElfPetEmpowerHandler{}},
+		{
+			ID:      "elf_animal_companion",
+			Handler: &ElfAnimalCompanionHandler{},
+			Policy: types.SkillPolicy{
+				ExclusiveResponseGroup: "elf_archer_pet_response",
+			},
+		},
+		{
+			ID:      "elf_ritual",
+			Handler: &ElfRitualHandler{},
+			Policy: types.SkillPolicy{
+				AfterExecute: func(host types.PolicyHost, ctx types.PolicyContext) error {
+					host.DropQueuedOverflowDiscardForPlayer(ctx.PlayerID)
+					return nil
+				},
+			},
+		},
+		{
+			ID:      "elf_pet_empower",
+			Handler: &ElfPetEmpowerHandler{},
+			Policy: types.SkillPolicy{
+				ExclusiveResponseGroup: "elf_archer_pet_response",
+			},
+		},
 	}
 }
 

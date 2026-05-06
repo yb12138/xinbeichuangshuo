@@ -44,6 +44,15 @@ func (r *SpecRegistry) Has(choiceType string) bool {
 	return ok
 }
 
+// SequentialRemainingCount 返回指定 choice_type 的顺序多选剩余张数解析结果。
+func (r *SpecRegistry) SequentialRemainingCount(choiceType string, ctxData map[string]any) (int, bool) {
+	spec := r.Get(choiceType)
+	if spec == nil || spec.SequentialRemaining == nil {
+		return 0, false
+	}
+	return spec.SequentialRemaining(ctxData)
+}
+
 // ListTypes 列出已注册的 choice_type（用于测试与诊断）。
 func (r *SpecRegistry) ListTypes() []string {
 	if r == nil {

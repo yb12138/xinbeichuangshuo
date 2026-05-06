@@ -15,6 +15,7 @@ func RoleEntry() player.RoleEntry {
 	return player.RoleEntry{
 		ID:               "adventurer",
 		Choices:          NewChoiceHandler(),
+		ChoiceSpecs:      ChoiceSpecs(),
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
 		TimingHookSpecs: []player.TimingHookSpec{
@@ -29,7 +30,7 @@ func RoleEntry() player.RoleEntry {
 				return player.BuyRewardResult{
 					Handled:    true,
 					AddGems:    2,
-					LogMessage: fmt.Sprintf("[Action] %s 购买（地下法则改写）：战绩区+2宝石", p.Name),
+					LogMessage: fmt.Sprintf("[Skill] %s 使用了技能: 地下法则（购买改写：战绩区+2宝石）", p.Name),
 				}
 			},
 		},

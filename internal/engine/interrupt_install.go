@@ -3,6 +3,7 @@
 package engine
 
 import (
+	engineplayer "starcup-engine/internal/engine/player"
 	intr "starcup-engine/internal/engine/runtime/interrupt"
 	"starcup-engine/internal/model"
 )
@@ -125,22 +126,38 @@ func (e *GameEngine) syncGamePhaseWithInterrupt(interrupt *model.Interrupt) {
 				e.setTurnStage(model.TurnStageActionExecution)
 			}
 		}
-	case model.InterruptMagicMissile:
-		e.enterResponseWindow()
 	case model.InterruptGiveCards:
 		e.enterDiscardSelection()
-	case model.InterruptMagicBulletFusion, model.InterruptMagicBulletDirection:
+	default:
+		e.syncRoleInterruptPhase(interrupt.Type)
+	}
+}
+
+func (e *GameEngine) syncRoleInterruptPhase(interruptType model.InterruptType) {
+	for _, entry := range roleRegistry.Entries() {
+		for _, spec := range entry.InterruptSpecs {
+			if spec.Type == interruptType {
+				e.applyInterruptPhaseSync(spec.PhaseSync)
+				return
+			}
+		}
+	}
+}
+
+func (e *GameEngine) applyInterruptPhaseSync(sync engineplayer.InterruptPhaseSync) {
+	switch sync {
+	case engineplayer.InterruptPhaseSyncResponseWindow:
+		e.enterResponseWindow()
+	case engineplayer.InterruptPhaseSyncActionExecution:
 		e.clearSubflow()
 		e.clearCombatStage()
 		e.setTurnStage(model.TurnStageActionExecution)
-	case model.InterruptHolySwordDraw:
+	case engineplayer.InterruptPhaseSyncCombatDraw:
 		e.clearSubflow()
 		e.setCombatStage(model.CombatStageDraw)
-	case model.InterruptSaintHeal:
+	case engineplayer.InterruptPhaseSyncCombatHeal:
 		e.clearSubflow()
 		e.setCombatStage(model.CombatStageHeal)
-	case model.InterruptMagicBlast:
-		e.enterResponseWindow()
 	}
 }
 

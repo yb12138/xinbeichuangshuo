@@ -16,11 +16,21 @@ func RoleEntry() player.RoleEntry {
 			Modifier: func(_ *model.Player, current int) int { return current + 1 },
 		},
 		Choices:          NewChoiceHandler(),
+		ChoiceSpecs:      ChoiceSpecs(),
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
 		TimingHookSpecs: []player.TimingHookSpec{
 			{Timing: player.TimingPostDamageResolved, Priority: 400, Hook: postDamageResolvedHook},
 		},
+	}
+}
+
+// ChoiceSpecs 导出角色 choice 声明。
+func ChoiceSpecs() []player.ChoiceSpec {
+	return []player.ChoiceSpec{
+		{ChoiceType: "sage_arcane_cards", SequentialRemaining: player.ChoiceRemainingFromSelectionKey("x_value")},
+		{ChoiceType: "sage_holy_cards", SequentialRemaining: player.ChoiceRemainingFromSelectionKey("x_value")},
+		{ChoiceType: "sage_magic_rebound_cards", SequentialRemaining: player.ChoiceRemainingFromSelectionKey("x_value")},
 	}
 }
 

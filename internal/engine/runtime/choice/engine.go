@@ -35,6 +35,13 @@ func (e *Engine) Registry() *SpecRegistry {
 	return e.reg
 }
 
+func (e *Engine) SequentialRemainingCount(choiceType string, ctxData map[string]any) (int, bool) {
+	if e == nil || e.reg == nil {
+		return 0, false
+	}
+	return e.reg.SequentialRemainingCount(choiceType, ctxData)
+}
+
 // BuildPrompt 构建 Prompt；必须存在带 BuildPrompt 的 ChoiceSpec。
 func (e *Engine) BuildPrompt(choiceType, playerID string, player *model.Player, data map[string]any) (*model.Prompt, error) {
 	if e == nil || e.host == nil {

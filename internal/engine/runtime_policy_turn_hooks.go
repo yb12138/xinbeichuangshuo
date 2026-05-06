@@ -92,15 +92,6 @@ func beforeActionWeakHook(e *GameEngine, player *model.Player) bool {
 	return true
 }
 
-// ---- 勇者挑衅辅助函数 ----
-
-func consumeHeroTauntRestriction(e *GameEngine, player *model.Player) {
-	fn := roleRegistry.ConsumeTauntRestriction("hero")
-	if fn != nil {
-		fn(newRoleChoiceRuntime(e), player)
-	}
-}
-
 func (e *GameEngine) hasPlayableAttackCard(player *model.Player) bool {
 	if player == nil {
 		return false
@@ -115,19 +106,3 @@ func (e *GameEngine) hasPlayableAttackCard(player *model.Player) bool {
 }
 
 // ---- 蝴蝶舞者技能入口 ----
-
-func (e *GameEngine) ResolveButterflyChrysalis(userID string) error {
-	fn := roleRegistry.ResolveChrysalis("butterfly_dancer")
-	if fn == nil {
-		return fmt.Errorf("蝶舞者蛹化技能未注册")
-	}
-	return fn(newRoleChoiceRuntime(e), userID)
-}
-
-func (e *GameEngine) StartButterflyReverse(userID string) error {
-	fn := roleRegistry.StartReverse("butterfly_dancer")
-	if fn == nil {
-		return fmt.Errorf("蝶舞者倒逆之蝶技能未注册")
-	}
-	return fn(newRoleChoiceRuntime(e), userID)
-}

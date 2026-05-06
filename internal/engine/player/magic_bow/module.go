@@ -13,6 +13,7 @@ func RoleEntry() player.RoleEntry {
 	return player.RoleEntry{
 		ID:               "magic_bow",
 		Choices:          NewChoiceHandler(),
+		ChoiceSpecs:      ChoiceSpecs(),
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
 		FlowContinuationHandlers: map[model.FlowContinuationKind]player.FlowContinuationHandler{
@@ -26,6 +27,14 @@ func RoleEntry() player.RoleEntry {
 		SkillUsabilityCheckers: map[string]player.SkillUsabilityChecker{
 			"mb_thunder_scatter": CheckThunderScatterUsability,
 		},
+	}
+}
+
+// ChoiceSpecs 导出角色 choice 声明。
+func ChoiceSpecs() []player.ChoiceSpec {
+	return []player.ChoiceSpec{
+		{ChoiceType: "mb_charge_place_cards", SequentialRemaining: player.ChoiceRemainingFromSelectionKey("need_count")},
+		{ChoiceType: "mb_demon_eye_charge_card", SequentialRemaining: player.ChoiceRemainingFromSelectionKeyFloor("need_count", 1)},
 	}
 }
 

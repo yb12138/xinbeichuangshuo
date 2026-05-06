@@ -51,8 +51,7 @@ func TauntValidationPolicy(rt engineplayer.ChoiceRuntime, player *model.Player, 
 		return true, nil
 	})
 	mod.SetOnAttackAccepted(func(rt engineplayer.ChoiceRuntime, player *model.Player, act model.PlayerAction) error {
-		// 标记攻击后消耗挑衅效果
-		mod.MarkConsumeHeroTauntOnAttack()
+		ConsumeTauntRestriction(rt, player)
 		return nil
 	})
 }

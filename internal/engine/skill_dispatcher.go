@@ -30,6 +30,9 @@ func NewSkillDispatcher(engine *GameEngine) *SkillDispatcher {
 // SetRuntime 设置 skill.Runtime（在 runtime 初始化后调用）。
 func (sd *SkillDispatcher) SetRuntime(rt *skillrt.Runtime) {
 	sd.runtime = rt
+	if sd.runtime != nil {
+		sd.runtime.SetSkillPolicies(skillUsePolicies)
+	}
 }
 
 // OnTiming 在某个 Timing 窗口触发技能分发。
@@ -150,7 +153,7 @@ func ContainsSkillID(skillIDs []string, skillID string) bool {
 
 // ---------- 技能策略钩子（原 skill_use_policy.go） ----------
 
-// 类型别名，保持 engine 包内兼容性。
+// 技能策略类型直接复用 types 包定义。
 type SkillPolicy = types.SkillPolicy
 type PolicyContext = types.PolicyContext
 type PolicyHost = types.PolicyHost

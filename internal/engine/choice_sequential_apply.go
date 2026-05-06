@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"starcup-engine/internal/engine/core/runtimeutil"
-	choicert "starcup-engine/internal/engine/runtime/choice"
 	"starcup-engine/internal/model"
 )
 
@@ -26,12 +25,12 @@ func (e *GameEngine) runSequentialChoiceSelections(playerID, choiceType string, 
 	if ctxChoiceType, ok := ctxData["choice_type"].(string); ok && ctxChoiceType != "" {
 		actualChoiceType = ctxChoiceType
 	}
-	need, supported := choicert.SequentialRemainingCount(actualChoiceType, choiceCtxAsInterfaceMap(ctxData))
-	if !supported {
-		return fmt.Errorf("当前选择类型不支持多选提交流程")
-	}
 	if e.choiceEngine == nil {
 		return fmt.Errorf("选择引擎未初始化")
+	}
+	need, supported := e.choiceEngine.SequentialRemainingCount(actualChoiceType, choiceCtxAsInterfaceMap(ctxData))
+	if !supported {
+		return fmt.Errorf("当前选择类型不支持多选提交流程")
 	}
 	// need=0 表示弹性数量（如欺诈允许2-3张），由用户决定提交几张。
 	if need == 0 {

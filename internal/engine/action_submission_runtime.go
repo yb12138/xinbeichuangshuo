@@ -224,10 +224,13 @@ func (e *GameEngine) handleActionSelectionAttackOrMagic(act model.PlayerAction, 
 		e.beginActionSummary("magic", player.ID, card.Name, targets)
 	}
 
-	e.State.ActionQueue = append(e.State.ActionQueue, queuedAction)
-	if validationResult.consumeHeroTauntOnAttack {
-		consumeHeroTauntRestriction(e, player)
+	if actionType == model.ActionAttack && validationResult.afterAttackAccepted != nil {
+		if err := validationResult.afterAttackAccepted(e, player, act); err != nil {
+			return err
+		}
 	}
+
+	e.State.ActionQueue = append(e.State.ActionQueue, queuedAction)
 	e.enterActionExecutionStage()
 	return nil
 }

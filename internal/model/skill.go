@@ -283,8 +283,11 @@ type IGameEngine interface {
 	ConsumeCrystalCost(playerID string, amount int) bool
 
 	// 玩家操作
+	GetPlayers() map[string]*Player
+	PlayerOrder() []string
 	DrawCards(playerID string, amount int)
 	DrawCardsWithOptions(playerID string, amount int, opts DrawOptions)
+	DrawRawCards(amount int) ([]Card, bool)
 	NotifyCardRevealed(playerID string, cards []Card, actionType DamageType)
 	DiscardCard(card *FieldCard) error //丢弃指定牌
 	AppendToDiscard(cards []Card)

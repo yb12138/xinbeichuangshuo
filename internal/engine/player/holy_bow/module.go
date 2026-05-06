@@ -14,6 +14,7 @@ func RoleEntry() player.RoleEntry {
 		ID:               "holy_bow",
 		Defaults:         ApplyDefaults,
 		Choices:          NewChoiceHandler(),
+		ChoiceSpecs:      ChoiceSpecs(),
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
 		TimingHookSpecs: []player.TimingHookSpec{
@@ -24,6 +25,13 @@ func RoleEntry() player.RoleEntry {
 			{Timing: player.TimingOnAttackMiss, Priority: 400, Hook: attackMissHook},
 			{Timing: player.TimingOnSpecialActionPost, Priority: 100, Hook: holyGloryExitHook},
 		},
+	}
+}
+
+// ChoiceSpecs 导出角色 choice 声明。
+func ChoiceSpecs() []player.ChoiceSpec {
+	return []player.ChoiceSpec{
+		{ChoiceType: "hb_light_burst_mode_b_discard", SequentialRemaining: player.ChoiceRemainingFromSelectionKey("x_value")},
 	}
 }
 

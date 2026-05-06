@@ -5,6 +5,7 @@ package engine
 import (
 	"fmt"
 
+	engineplayer "starcup-engine/internal/engine/player"
 	choicert "starcup-engine/internal/engine/runtime/choice"
 	"starcup-engine/internal/model"
 )
@@ -19,14 +20,62 @@ func engFromHost(h choicert.Host) *GameEngine {
 
 func registerChoiceSpec(reg *choicert.SpecRegistry, typ string, p catalogSpecPlan) {
 	reg.Register(&choicert.ChoiceSpec{
-		Type:              typ,
-		AutoConsume:       p.autoConsume,
-		ConsumesInterrupt: p.consumes,
-		BuildPrompt:       wrapChoiceBuild(p.build),
-		OnSelect:          wrapChoiceSelect(p.sel),
-		OnMultiSelect:     wrapChoiceMulti(p.multi),
-		OnCancel:          wrapChoiceCancel(p.cancel),
-		AfterConsume:      wrapChoiceAfter(p.after),
+		Type:                typ,
+		AutoConsume:         p.autoConsume,
+		ConsumesInterrupt:   p.consumes,
+		SequentialRemaining: nil,
+		BuildPrompt:         wrapChoiceBuild(p.build),
+		OnSelect:            wrapChoiceSelect(p.sel),
+		OnMultiSelect:       wrapChoiceMulti(p.multi),
+		OnCancel:            wrapChoiceCancel(p.cancel),
+		AfterConsume:        wrapChoiceAfter(p.after),
+	})
+}
+
+func registerRoleChoiceSpec(reg *choicert.SpecRegistry, roleID string, spec engineplayer.ChoiceSpec) {
+	if reg == nil || roleID == "" || spec.ChoiceType == "" {
+		return
+	}
+	var multi func(choicert.Host, string, []int, map[string]any) (bool, error)
+	if spec.SequentialRemaining != nil {
+		multi = func(h choicert.Host, playerID string, selections []int, _ map[string]any) (bool, error) {
+			ge := engFromHost(h)
+			if ge == nil {
+				return false, fmt.Errorf("choice: engine bridge unavailable")
+			}
+			return true, ge.runSequentialChoiceSelections(playerID, spec.ChoiceType, selections)
+		}
+	}
+	reg.Register(&choicert.ChoiceSpec{
+		Type: spec.ChoiceType,
+		BuildPrompt: func(h choicert.Host, choiceType, playerID string, player *model.Player, data map[string]any) *model.Prompt {
+			ge := engFromHost(h)
+			if ge == nil {
+				return nil
+			}
+			return ge.buildRoleChoicePrompt(roleID, choiceType, playerID, player, choiceCtxAsInterfaceMap(data))
+		},
+		OnSelect: func(h choicert.Host, playerID string, selectionIndex int, ctxData map[string]any) (bool, error) {
+			ge := engFromHost(h)
+			if ge == nil {
+				return false, fmt.Errorf("choice: engine bridge unavailable")
+			}
+			return ge.handleRoleChoiceInput(roleID, playerID, selectionIndex, choiceCtxAsInterfaceMap(ctxData))
+		},
+		OnMultiSelect: multi,
+		OnCancel: func(h choicert.Host, playerID string, ctxData map[string]any) (bool, error) {
+			ge := engFromHost(h)
+			if ge == nil {
+				return false, fmt.Errorf("choice: engine bridge unavailable")
+			}
+			return ge.handleRoleChoiceCancel(roleID, playerID, choiceCtxAsInterfaceMap(ctxData))
+		},
+		SequentialRemaining: func(ctxData map[string]any) (int, bool) {
+			if spec.SequentialRemaining == nil {
+				return 0, false
+			}
+			return spec.SequentialRemaining(choiceCtxAsInterfaceMap(ctxData))
+		},
 	})
 }
 
@@ -137,40 +186,33 @@ func bootstrapChoiceSpecs(e *GameEngine) {
 		after: func(ge *GameEngine, _ map[string]any) { ge.enterTurnEndStage() },
 	})
 
+	e.bootstrapRoleChoiceSpecs(reg)
 	e.bootstrapChoiceSpecsFromCatalog(reg)
 }
 
-// roleBuildPrompt creates a build-prompt callback that delegates to the player/<role>/choices.go via RoleEntry registry.
-func roleBuildPrompt(roleID string) func(*GameEngine, string, string, *model.Player, map[string]any) *model.Prompt {
-	return func(ge *GameEngine, ct, pid string, pl *model.Player, data map[string]any) *model.Prompt {
-		return ge.buildRoleChoicePrompt(roleID, ct, pid, pl, choiceCtxAsInterfaceMap(data))
+func (e *GameEngine) bootstrapRoleChoiceSpecs(reg *choicert.SpecRegistry) {
+	if reg == nil || roleRegistry == nil {
+		return
 	}
-}
-
-// roleSelect creates a select callback that delegates to the player/<role>/choices.go via RoleEntry registry.
-func roleSelect(roleID string) func(*GameEngine, string, int, map[string]any) (bool, error) {
-	return func(ge *GameEngine, pid string, idx int, ctx map[string]any) (bool, error) {
-		return ge.handleRoleChoiceInput(roleID, pid, idx, choiceCtxAsInterfaceMap(ctx))
-	}
-}
-
-// roleCancel creates a cancel callback that delegates to the player/<role>/choices.go via RoleEntry registry.
-func roleCancel(roleID string) func(*GameEngine, string) error {
-	return func(ge *GameEngine, pid string) error {
-		_, err := roleCancelWithContext(roleID)(ge, pid, nil)
-		return err
-	}
-}
-
-func roleCancelWithContext(roleID string) func(*GameEngine, string, map[string]any) (bool, error) {
-	return func(ge *GameEngine, pid string, ctx map[string]any) (bool, error) {
-		return ge.handleRoleChoiceCancel(roleID, pid, choiceCtxAsInterfaceMap(ctx))
-	}
-}
-
-// roleMultiSequential creates a multi-selection callback that processes selections sequentially via role router.
-func roleMultiSequential(roleID string) func(*GameEngine, string, []int) error {
-	return func(ge *GameEngine, pid string, sels []int) error {
-		return ge.runSequentialChoiceSelections(pid, roleID, sels)
+	for _, entry := range roleRegistry.Entries() {
+		for _, spec := range entry.ChoiceSpecs {
+			if spec.ChoiceType != "" && !reg.Has(spec.ChoiceType) {
+				registerRoleChoiceSpec(reg, entry.ID, spec)
+			}
+		}
+		for choiceType, route := range entry.ChoiceRoutes() {
+			if choiceType == "" || reg.Has(choiceType) || route.Kind != ChoiceRouteKindRole {
+				continue
+			}
+			roleID := route.Role
+			if roleID == "" {
+				roleID = entry.ID
+			}
+			if spec, ok := entry.ChoiceSpecFor(choiceType); ok {
+				registerRoleChoiceSpec(reg, roleID, spec)
+				continue
+			}
+			registerRoleChoiceSpec(reg, roleID, engineplayer.ChoiceSpec{ChoiceType: choiceType})
+		}
 	}
 }

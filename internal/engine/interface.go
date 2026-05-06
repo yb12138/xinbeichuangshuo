@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 	"starcup-engine/internal/model"
+	"starcup-engine/internal/rules"
 )
 
 // Ensure GameEngine implements IGameEngine
@@ -205,6 +206,16 @@ func (e *GameEngine) GetPlayers() map[string]*model.Player {
 		return map[string]*model.Player{}
 	}
 	return e.State.Players
+}
+
+func (e *GameEngine) DrawRawCards(amount int) ([]model.Card, bool) {
+	if e == nil || e.State == nil {
+		return nil, false
+	}
+	cards, newDeck, newDiscard := rules.DrawCards(e.State.Deck, e.State.DiscardPile, amount)
+	e.State.Deck = newDeck
+	e.State.DiscardPile = newDiscard
+	return cards, true
 }
 
 func (e *GameEngine) DrawCards(playerID string, amount int) {

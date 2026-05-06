@@ -24,15 +24,6 @@ type catalogSpecPlan struct {
 	after       func(*GameEngine, map[string]any)
 }
 
-func multiSequential(typ string) func(*GameEngine, string, []int) error {
-	if !choicert.HasSequentialMulti(typ) {
-		return nil
-	}
-	return func(ge *GameEngine, pid string, sels []int) error {
-		return ge.runSequentialChoiceSelections(pid, typ, sels)
-	}
-}
-
 func registerCatalogPlan(reg *choicert.SpecRegistry, typ string, p catalogSpecPlan) {
 	if p.build == nil || p.sel == nil {
 		panic(fmt.Sprintf("choice catalog: incomplete spec for %q", typ))

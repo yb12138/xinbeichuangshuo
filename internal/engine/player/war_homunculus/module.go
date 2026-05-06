@@ -22,11 +22,20 @@ func RoleEntry() player.RoleEntry {
 			},
 		},
 		Choices:          NewChoiceHandler(),
+		ChoiceSpecs:      ChoiceSpecs(),
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
 		TimingHookSpecs: []player.TimingHookSpec{
 			{Timing: player.TimingOnTurnEnd, Priority: 700, Hook: turnEndHook},
 		},
+	}
+}
+
+// ChoiceSpecs 导出角色 choice 声明。
+func ChoiceSpecs() []player.ChoiceSpec {
+	return []player.ChoiceSpec{
+		{ChoiceType: "hom_glyph_fusion_cards", SequentialRemaining: player.ChoiceRemainingFromSelectionKey("x_value")},
+		{ChoiceType: "hom_rune_smash_cards", SequentialRemaining: player.ChoiceRemainingFromSelectionKey("x_value")},
 	}
 }
 
@@ -46,9 +55,21 @@ func ApplyDefaults(p *model.Player) {
 func SkillEntries() []player.SkillEntry {
 	return []player.SkillEntry{
 		{ID: "hom_battle_pattern", Handler: &HomunculusBattlePatternHandler{}},
-		{ID: "hom_rage_suppress", Handler: &HomunculusRageSuppressHandler{}},
+		{
+			ID:      "hom_rage_suppress",
+			Handler: &HomunculusRageSuppressHandler{},
+			Policy: types.SkillPolicy{
+				ExclusiveResponseGroup: "war_homunculus_rage_response",
+			},
+		},
 		{ID: "hom_rune_smash", Handler: &HomunculusRuneSmashHandler{}},
-		{ID: "hom_glyph_fusion", Handler: &HomunculusGlyphFusionHandler{}},
+		{
+			ID:      "hom_glyph_fusion",
+			Handler: &HomunculusGlyphFusionHandler{},
+			Policy: types.SkillPolicy{
+				ExclusiveResponseGroup: "war_homunculus_rage_response",
+			},
+		},
 		{ID: "hom_rune_reforge", Handler: &HomunculusRuneReforgeHandler{}},
 		{ID: "hom_dual_echo", Handler: &HomunculusDualEchoHandler{}},
 	}

@@ -11,9 +11,18 @@ import (
 const CocoonCap = 8
 
 // ActionTargetIDs returns all active player IDs.
-func ActionTargetIDs(rt engineplayer.ChoiceRuntime) []string {
-	targetIDs := make([]string, 0, len(rt.GetPlayerOrder()))
-	for _, pid := range rt.GetPlayerOrder() {
+type butterflyRuntime interface {
+	GetPlayers() map[string]*model.Player
+	PlayerOrder() []string
+	DrawRawCards(amount int) ([]model.Card, bool)
+	CheckHandLimit(playerID string, stayInTurn bool)
+	PushInterrupt(intr *model.Interrupt)
+	Log(msg string)
+}
+
+func ActionTargetIDs(rt butterflyRuntime) []string {
+	targetIDs := make([]string, 0, len(rt.PlayerOrder()))
+	for _, pid := range rt.PlayerOrder() {
 		if rt.GetPlayers()[pid] != nil {
 			targetIDs = append(targetIDs, pid)
 		}
@@ -46,7 +55,7 @@ func QueueWitherChoice(rt engineplayer.ChoiceRuntime, user *model.Player) {
 }
 
 // ResolveChrysalis handles the chrysalis (蛹化) skill execution.
-func ResolveChrysalis(rt engineplayer.ChoiceRuntime, userID string) error {
+func ResolveChrysalis(rt butterflyRuntime, userID string) error {
 	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
@@ -75,7 +84,7 @@ func ResolveChrysalis(rt engineplayer.ChoiceRuntime, userID string) error {
 }
 
 // StartReverse handles the reverse butterfly (倒逆之蝶) skill execution.
-func StartReverse(rt engineplayer.ChoiceRuntime, userID string) error {
+func StartReverse(rt butterflyRuntime, userID string) error {
 	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")

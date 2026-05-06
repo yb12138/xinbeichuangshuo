@@ -17,6 +17,7 @@ func RoleEntry() player.RoleEntry {
 		InterruptSpecs: []player.InterruptSpec{
 			{
 				Type:                 model.InterruptMagicMissile,
+				PhaseSync:            player.InterruptPhaseSyncResponseWindow,
 				BuildPrompt:          buildMagicMissilePrompt,
 				HandleActionResult:   handleMagicMissileAction,
 				AllowedActionTypes:   []model.PlayerActionType{model.CmdRespond},
@@ -24,6 +25,7 @@ func RoleEntry() player.RoleEntry {
 			},
 			{
 				Type:                 model.InterruptMagicBulletFusion,
+				PhaseSync:            player.InterruptPhaseSyncActionExecution,
 				BuildPrompt:          buildMagicBulletFusionPrompt,
 				HandleActionResult:   handleMagicBulletFusionAction,
 				AllowedActionTypes:   []model.PlayerActionType{model.CmdSelect},
@@ -31,6 +33,7 @@ func RoleEntry() player.RoleEntry {
 			},
 			{
 				Type:                 model.InterruptMagicBulletDirection,
+				PhaseSync:            player.InterruptPhaseSyncActionExecution,
 				BuildPrompt:          buildMagicBulletDirectionPrompt,
 				HandleActionResult:   handleMagicBulletDirectionAction,
 				AllowedActionTypes:   []model.PlayerActionType{model.CmdSelect},
@@ -38,6 +41,7 @@ func RoleEntry() player.RoleEntry {
 			},
 			{
 				Type:                 model.InterruptMagicBlast,
+				PhaseSync:            player.InterruptPhaseSyncResponseWindow,
 				BuildPrompt:          buildMagicBlastPrompt,
 				HandleActionResult:   handleMagicBlastAction,
 				AllowedActionTypes:   []model.PlayerActionType{model.CmdSelect, model.CmdCancel},
