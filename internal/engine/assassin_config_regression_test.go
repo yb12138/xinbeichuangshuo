@@ -156,7 +156,7 @@ func TestAssassinStealth_DrawChoiceDelaysStealthUntilDrawResolves(t *testing.T) 
 	})
 
 	if !playerpkg.HasForm(p1, model.FormAssassinStealth) {
-		t.Fatalf("expected stealth followup to apply after the interrupted draw path resolves")
+		t.Fatalf("expected stealth continuation to apply after the interrupted draw path resolves")
 	}
 	if got := len(p1.Hand); got != 1 {
 		t.Fatalf("expected draw to be replaced by 1 discard, leaving 1 card in hand, got %d", got)

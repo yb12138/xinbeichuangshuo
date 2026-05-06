@@ -258,8 +258,8 @@ func TestPrayerSwiftBlessing_StillRunsAfterPhaseEndInterrupt(t *testing.T) {
 	if g.State.PendingInterrupt == nil || g.State.PendingInterrupt.Type != model.InterruptChoice {
 		t.Fatalf("expected swift blessing choice interrupt after mana tide, got %+v", g.State.PendingInterrupt)
 	}
-	if ct := pendingChoiceType(g.State.PendingInterrupt); ct != "prayer_swift_blessing_followup" {
-		t.Fatalf("expected prayer_swift_blessing_followup, got %q", ct)
+	if ct := pendingChoiceType(g.State.PendingInterrupt); ct != "prayer_swift_blessing_response" {
+		t.Fatalf("expected prayer_swift_blessing_response, got %q", ct)
 	}
 }
 
@@ -322,8 +322,8 @@ func TestPrayerSwiftBlessing_AttackFollowupSurvivesPhaseEndResponseInterrupt(t *
 	if g.State.PendingInterrupt == nil || g.State.PendingInterrupt.Type != model.InterruptChoice {
 		t.Fatalf("expected swift blessing choice after attack-end response, got %+v", g.State.PendingInterrupt)
 	}
-	if ct := pendingChoiceType(g.State.PendingInterrupt); ct != "prayer_swift_blessing_followup" {
-		t.Fatalf("expected prayer_swift_blessing_followup after sword_shadow, got %q", ct)
+	if ct := pendingChoiceType(g.State.PendingInterrupt); ct != "prayer_swift_blessing_response" {
+		t.Fatalf("expected prayer_swift_blessing_response after sword_shadow, got %q", ct)
 	}
 
 	if err := g.HandleAction(model.PlayerAction{
@@ -343,7 +343,7 @@ func TestPrayerSwiftBlessing_AttackFollowupSurvivesPhaseEndResponseInterrupt(t *
 	if p1.TurnState.CurrentExtraAction != string(model.ActionAttack) {
 		t.Fatalf("expected current extra action Attack, got %q", p1.TurnState.CurrentExtraAction)
 	}
-	if len(g.State.DeferredFollowups) != 0 {
-		t.Fatalf("expected deferred followups drained, got %+v", g.State.DeferredFollowups)
+	if g.skillResume != nil || g.postActionEndResume != nil {
+		t.Fatalf("expected flow resumes drained, got skill=%+v post_action=%+v", g.skillResume, g.postActionEndResume)
 	}
 }

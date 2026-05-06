@@ -23,8 +23,6 @@ type FighterBurstCrashHandler struct{ engineplayer.BaseHandler }
 
 type FighterWarGodDriveHandler struct{ engineplayer.BaseHandler }
 
-type FighterWarGodDriveFollowupHandler struct{ engineplayer.BaseHandler }
-
 func (h *FighterPsiFieldHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.EventCtx == nil || ctx.EventCtx.DamageVal == nil {
 		return false
@@ -239,13 +237,14 @@ func (h *FighterWarGodDriveHandler) Execute(ctx *model.Context) error {
 			Type:     model.InterruptChoice,
 			PlayerID: ctx.User.ID,
 			Context: map[string]interface{}{
-				"choice_type":     "system_discard_cards",
-				"discard_subflow": true,
-				"skill_id":        "fighter_war_god_drive_followup",
-				"user_ctx":        ctx,
-				"min":             discardCount,
-				"max":             discardCount,
-				"prompt":          "【斗神天驱】请选择需要弃置的手牌：",
+				"choice_type":                 "system_discard_cards",
+				"discard_subflow":             true,
+				"flow_continuation_role_id":   "fighter",
+				"flow_continuation_player_id": ctx.User.ID,
+				"flow_continuation_skill_id":  "fighter_war_god_drive",
+				"discard_count":               discardCount,
+				"stay_in_turn":                true,
+				"prompt":                      "【斗神天驱】请选择需要弃置的手牌：",
 			},
 		})
 		ctx.Game.Log(fmt.Sprintf("%s 发动 [斗神天驱]：请先弃置%d张牌（弃到3张）", ctx.User.Name, discardCount))
@@ -253,34 +252,6 @@ func (h *FighterWarGodDriveHandler) Execute(ctx *model.Context) error {
 	}
 	ctx.Game.Heal(ctx.User.ID, 2)
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [斗神天驱]：手牌无需弃置，获得2点治疗", ctx.User.Name))
-	return nil
-}
-
-func (h *FighterWarGodDriveFollowupHandler) CanUse(ctx *model.Context) bool { return false }
-
-func (h *FighterWarGodDriveFollowupHandler) Execute(ctx *model.Context) error {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil {
-		return fmt.Errorf("斗神天驱后续结算上下文无效")
-	}
-	raw, _ := ctx.Selections["discard_indices"]
-	indices := make([]int, 0)
-	switch v := raw.(type) {
-	case []int:
-		indices = append(indices, v...)
-	case []interface{}:
-		for _, item := range v {
-			if f, ok := item.(float64); ok {
-				indices = append(indices, int(f))
-			}
-		}
-	}
-	discarded := removeHandByIndices(ctx.User, indices)
-	if len(discarded) > 0 {
-		ctx.Game.NotifyCardRevealed(ctx.User.ID, discarded, "discard")
-		ctx.Selections["discardedCards"] = discarded
-	}
-	ctx.Game.Heal(ctx.User.ID, 2)
-	ctx.Game.Log(fmt.Sprintf("%s 的 [斗神天驱] 后续结算完成：弃置%d张牌并获得2点治疗", ctx.User.Name, len(discarded)))
 	return nil
 }
 

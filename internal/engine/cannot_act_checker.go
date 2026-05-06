@@ -102,7 +102,7 @@ func (e *GameEngine) executeCannotActFlow(player *model.Player) {
 	e.NotifyDrawCards(player.ID, handCount, "cannot_act_redraw")
 
 	// 角色特定后续处理（如魔剑士全法术重摸）
-	e.dispatchAllRoleTimingHooks(playerpkg.TimingOnCannotActFollowup, playerpkg.TimingHookContext{
+	e.dispatchAllRoleTimingHooks(playerpkg.TimingAfterCannotAct, playerpkg.TimingHookContext{
 		Player: player,
 	})
 

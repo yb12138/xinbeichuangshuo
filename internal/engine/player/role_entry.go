@@ -333,7 +333,7 @@ type RoleEntry struct {
 	ChoiceSpecs                []ChoiceSpec
 	Skills                     []SkillEntry
 	ChoiceRouteSpecs           map[string]types.ChoiceRouteSpec
-	FlowContinuationHandlers   map[model.FlowContinuationKind]FlowContinuationHandler // 流程边界处理器（替代 FollowupSpecs）
+	FlowContinuationHandlers   map[model.FlowContinuationKind]FlowContinuationHandler // 流程边界恢复处理器
 	InterruptSpecs             []InterruptSpec
 	TimingHookSpecs            []TimingHookSpec
 	SkillUsabilityCheckers     map[string]SkillUsabilityChecker
@@ -347,7 +347,6 @@ type RoleEntry struct {
 	ExcludeCardFromDiscard     func(player *model.Player, card model.Card) bool                                     // 弃牌时排除特定卡牌（可选，如精灵射手祝福牌）
 	AfterMoraleLossHook        func(rt model.IGameEngine, victim *model.Player, finalLoss int, fromDamageDraw bool) // 士气损失后置钩子（可选，如灵魂巫师灵魂吞噬）
 	MaybeDarkRitual            func(rt ChoiceRuntime, player *model.Player) bool                                    // 暗仪发动检查（可选，如阴阳师暗仪）
-	AfterDiscardFollowup       func(rt ChoiceRuntime, player *model.Player) bool                                    // 弃牌后续处理（可选，如魔枪幻影星尘/魔弓魔眼）；返回 true 表示已接管后续流程
 	ConsumeTauntRestriction    func(rt ChoiceRuntime, player *model.Player)                                         // 挑衅约束消耗（可选，如勇者挑衅）
 	ResolveChrysalis           func(rt ChoiceRuntime, userID string) error                                          // 蛹化直接结算（可选，如蝶舞者蛹化）
 	StartReverse               func(rt ChoiceRuntime, userID string) error                                          // 倒逆之蝶分支编排（可选，如蝶舞者倒逆之蝶）

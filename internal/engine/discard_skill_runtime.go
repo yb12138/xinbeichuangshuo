@@ -16,7 +16,6 @@ func (e *GameEngine) ConfirmDiscard(playerID string, indices []int) error {
 	if err != nil {
 		return err
 	}
-	skillID, hasSkillID := data["skill_id"].(string)
 
 	if e.State.PendingInterrupt == nil {
 		return fmt.Errorf("当前没有待处理的弃牌操作")
@@ -24,8 +23,7 @@ func (e *GameEngine) ConfirmDiscard(playerID string, indices []int) error {
 	if e.State.PendingInterrupt.PlayerID != "" && e.State.PendingInterrupt.PlayerID != playerID {
 		return fmt.Errorf("当前不是你的弃牌回合")
 	}
-
-	if hasSkillID && skillID != "" {
+	if hasSkillDiscardID(data) {
 		return e.handleSkillDiscardSelection(playerID, indices, data)
 	}
 
@@ -40,11 +38,18 @@ func (e *GameEngine) confirmDiscardChoiceSelections(playerID string, indices []i
 			return err
 		}
 	}
-	skillID, hasSkillID := data["skill_id"].(string)
-	if hasSkillID && skillID != "" {
+	if hasSkillDiscardID(data) {
 		return e.handleSkillDiscardSelection(playerID, indices, data)
 	}
 	return e.handleDiscardSelection(playerID, indices, data)
+}
+
+func hasSkillDiscardID(data map[string]interface{}) bool {
+	if data == nil {
+		return false
+	}
+	skillID, _ := data["skill_id"].(string)
+	return skillID != ""
 }
 
 func (e *GameEngine) handleSkillDiscardSelection(playerID string, indices []int, data map[string]interface{}) error {
@@ -53,12 +58,12 @@ func (e *GameEngine) handleSkillDiscardSelection(playerID string, indices []int,
 		return fmt.Errorf("技能弃牌上下文缺少 skill_id")
 	}
 	if _, hasCtx := data["user_ctx"]; !hasCtx {
-		return e.handleDeferredSkillDiscardSelection(playerID, skillID, indices, data)
+		return e.handleSkillDiscardResume(playerID, skillID, indices, data)
 	}
 	return e.handleContextSkillDiscardSelection(skillID, indices, data)
 }
 
-func (e *GameEngine) handleDeferredSkillDiscardSelection(playerID, skillID string, indices []int, data map[string]interface{}) error {
+func (e *GameEngine) handleSkillDiscardResume(playerID, skillID string, indices []int, data map[string]interface{}) error {
 	targetIDs := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
 	resumePoint := data["resume_phase"]
 

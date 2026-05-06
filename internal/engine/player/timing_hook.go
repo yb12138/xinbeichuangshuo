@@ -68,7 +68,7 @@ const (
 	TimingBeforeActionValidation    TimingPoint = "before_action_validation"     // 行动验证策略
 	TimingOnAttackDeclaredInterrupt TimingPoint = "on_attack_declared_interrupt" // 攻击宣言中断
 	TimingOnCombatCounterCard       TimingPoint = "on_combat_counter_card"       // 反击卡牌策略
-	TimingOnCannotActFollowup       TimingPoint = "on_cannot_act_followup"       // 无法行动后续
+	TimingAfterCannotAct            TimingPoint = "on_after_cannot_act"          // 无法行动后续
 	TimingOnSpecialActionOverride   TimingPoint = "on_special_action_override"   // 特殊行动覆盖
 	TimingOnSpecialActionPost       TimingPoint = "on_special_action_post"       // 特殊行动后置
 	TimingOnSkillPost               TimingPoint = "on_skill_post"                // 技能后置钩子

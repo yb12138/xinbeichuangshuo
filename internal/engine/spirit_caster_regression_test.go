@@ -72,8 +72,8 @@ func TestSpiritCasterTalismanThunder_SealThenIncantThenDamage(t *testing.T) {
 	if len(game.State.PendingDamageQueue) != 1 {
 		t.Fatalf("expected only seal damage pending first, got %d", len(game.State.PendingDamageQueue))
 	}
-	if len(game.State.DeferredFollowups) != 1 {
-		t.Fatalf("expected deferred talisman followup, got %d", len(game.State.DeferredFollowups))
+	if game.skillResume == nil {
+		t.Fatalf("expected pending talisman skill resume")
 	}
 
 	// 先结算封印伤害，再继续灵符后续。
@@ -83,7 +83,7 @@ func TestSpiritCasterTalismanThunder_SealThenIncantThenDamage(t *testing.T) {
 	if len(game.State.PendingDamageQueue) != 0 {
 		t.Fatalf("expected seal damage queue consumed")
 	}
-	game.processDeferredFollowups()
+	game.processPendingSkillResume()
 	requireChoicePrompt(t, game, "p1", "sc_incant_confirm")
 
 	if err := game.handleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil { // 发动念咒
@@ -142,7 +142,7 @@ func TestSpiritCasterIncantation_NoCapStillPromptsAndResolvesWind(t *testing.T) 
 	if err := game.UseSkill("p1", "sc_talisman_wind", []string{"p2", "p3"}, []int{0}); err != nil {
 		t.Fatalf("use talisman wind failed: %v", err)
 	}
-	game.processDeferredFollowups()
+	game.processPendingSkillResume()
 
 	requireChoicePrompt(t, game, "p1", "sc_incant_confirm")
 	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {

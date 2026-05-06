@@ -25,6 +25,3 @@ func mountPlayerSkillPolicySpecs(table map[string]SkillPolicy) {
 		}
 	}
 }
-
-// mountPlayerDeferredFollowupSpecs 已删除 — 角色 FollowupSpecs 改为 FlowContinuationHandlers。
-// FlowContinuation 在核心流程边界直接触发，不需要全局注册表。

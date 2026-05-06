@@ -17,7 +17,7 @@ func NewChoiceHandler() engineplayer.ChoiceHandler {
 
 func (choiceHandler) BuildPrompt(_ engineplayer.ChoiceRuntime, choiceType, playerID string, _ *model.Player, _ map[string]interface{}) *model.Prompt {
 	switch choiceType {
-	case "prayer_power_blessing_followup":
+	case "prayer_power_blessing_response":
 		return &model.Prompt{
 			Type:       model.PromptConfirm,
 			PlayerID:   playerID,
@@ -27,7 +27,7 @@ func (choiceHandler) BuildPrompt(_ engineplayer.ChoiceRuntime, choiceType, playe
 			Min:        1,
 			Max:        1,
 		}
-	case "prayer_swift_blessing_followup":
+	case "prayer_swift_blessing_response":
 		return &model.Prompt{
 			Type:       model.PromptConfirm,
 			PlayerID:   playerID,
@@ -44,16 +44,16 @@ func (choiceHandler) BuildPrompt(_ engineplayer.ChoiceRuntime, choiceType, playe
 func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
 	choiceType, _ := ctxData["choice_type"].(string)
 	switch choiceType {
-	case "prayer_power_blessing_followup":
-		return true, handlePrayerPowerBlessingFollowupChoice(rt, selectionIndex, ctxData)
-	case "prayer_swift_blessing_followup":
-		return true, handlePrayerSwiftBlessingFollowupChoice(rt, selectionIndex, ctxData)
+	case "prayer_power_blessing_response":
+		return true, handlePrayerPowerBlessingResponseChoice(rt, selectionIndex, ctxData)
+	case "prayer_swift_blessing_response":
+		return true, handlePrayerSwiftBlessingResponseChoice(rt, selectionIndex, ctxData)
 	default:
 		return false, nil
 	}
 }
 
-func handlePrayerPowerBlessingFollowupChoice(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
+func handlePrayerPowerBlessingResponseChoice(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
 	userID, _ := ctxData["user_id"].(string)
 	user := rt.GetPlayers()[userID]
 	if user == nil {
@@ -70,7 +70,7 @@ func handlePrayerPowerBlessingFollowupChoice(rt engineplayer.ChoiceRuntime, sele
 	return nil
 }
 
-func handlePrayerSwiftBlessingFollowupChoice(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
+func handlePrayerSwiftBlessingResponseChoice(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
 	userID, _ := ctxData["user_id"].(string)
 	user := rt.GetPlayers()[userID]
 	if user == nil {

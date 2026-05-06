@@ -13,15 +13,15 @@ func TestSkillPolicyMountedFromRoleEntriesForPilotRoles(t *testing.T) {
 		t.Fatalf("expected saint_heal SkipAutoPhaseEnd from player role entry")
 	}
 
-	// 灵符师的 AfterConsume 已迁移为框架自动的 skill_effect_resume；
+	// 灵符师的 AfterConsume 已迁移为框架自动的技能恢复状态；
 	// sc_talisman_thunder 和 sc_talisman_wind 不再有 AfterConsume policy。
 	thunder := resolveSkillUsePolicy("sc_talisman_thunder")
 	if thunder.AfterConsume != nil {
-		t.Fatalf("expected sc_talisman_thunder AfterConsume to be nil after migration to skill_effect_resume")
+		t.Fatalf("expected sc_talisman_thunder AfterConsume to be nil after migration to skill_resume")
 	}
 	wind := resolveSkillUsePolicy("sc_talisman_wind")
 	if wind.AfterConsume != nil {
-		t.Fatalf("expected sc_talisman_wind AfterConsume to be nil after migration to skill_effect_resume")
+		t.Fatalf("expected sc_talisman_wind AfterConsume to be nil after migration to skill_resume")
 	}
 }
 

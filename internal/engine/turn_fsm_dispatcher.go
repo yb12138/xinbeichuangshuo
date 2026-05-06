@@ -490,7 +490,7 @@ func (e *GameEngine) runActionEndSequence(currentPid string, player *model.Playe
 	e.dispatcher.OnTiming(skillCtx.Timing, skillCtx)
 	if e.State.PendingInterrupt != nil {
 		// OnPhaseEnd 已派发，后续仅补执行行动后场上追加效果。
-		e.enqueuePostActionEndFollowup(player.ID, actionType)
+		e.queuePostActionEndResume(player.ID, actionType)
 		return true
 	}
 	return e.handlePostActionEndEffects(player, actionType)

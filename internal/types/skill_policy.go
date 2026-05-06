@@ -36,14 +36,4 @@ type PolicyContext struct {
 // PolicyHost 抽象角色策略可调用的引擎能力。
 type PolicyHost interface {
 	Log(message string)
-	BeginSkillFollowup(req BeginSkillFollowupReq) error
-}
-
-// BeginSkillFollowupReq 是策略回调发起后续流程的通用请求。
-type BeginSkillFollowupReq struct {
-	Kind           string
-	UserID         string
-	SkillID        string
-	TargetIDs      []string
-	DiscardedCards []model.Card
 }

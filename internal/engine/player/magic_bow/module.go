@@ -4,17 +4,20 @@ package magic_bow
 
 import (
 	"starcup-engine/internal/engine/player"
+	"starcup-engine/internal/model"
 	"starcup-engine/internal/types"
 )
 
 // RoleEntry 导出角色统一入口定义。
 func RoleEntry() player.RoleEntry {
 	return player.RoleEntry{
-		ID:                   "magic_bow",
-		Choices:              NewChoiceHandler(),
-		Skills:               SkillEntries(),
-		ChoiceRouteSpecs:     ChoiceRouteSpecs(),
-		AfterDiscardFollowup: demonEyeAfterDiscardFollowup,
+		ID:               "magic_bow",
+		Choices:          NewChoiceHandler(),
+		Skills:           SkillEntries(),
+		ChoiceRouteSpecs: ChoiceRouteSpecs(),
+		FlowContinuationHandlers: map[model.FlowContinuationKind]player.FlowContinuationHandler{
+			model.FlowContinuationAfterDiscard: handleMagicBowAfterDiscard,
+		},
 		TimingHookSpecs: []player.TimingHookSpec{
 			{Timing: player.TimingOnAttackMiss, Priority: 300, Hook: attackMissHook},
 			{Timing: player.TimingOnAttackTargetCtx, Priority: 100, Hook: attackTargetCtxHook},
@@ -56,8 +59,6 @@ func SkillEntries() []player.SkillEntry {
 				},
 			},
 		},
-		// 内部回调技能：用于"充能"弃牌后的继续流程
-		{ID: "mb_charge_followup_discard", Handler: &MagicBowChargeFollowupDiscardHandler{}},
 	}
 }
 

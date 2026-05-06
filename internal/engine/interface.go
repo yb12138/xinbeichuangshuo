@@ -233,10 +233,6 @@ func (e *GameEngine) DrawCardsWithOptions(playerID string, amount int, opts mode
 	e.startDraw(ctx)
 }
 
-func (e *GameEngine) EnqueueDeferredFollowup(f model.DeferredFollowup) {
-	e.enqueueDeferredFollowup(f)
-}
-
 func (e *GameEngine) AppendFlowContinuation(cont model.FlowContinuation) {
 	e.State.FlowContinuations = append(e.State.FlowContinuations, cont)
 }

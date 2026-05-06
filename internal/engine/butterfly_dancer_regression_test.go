@@ -378,7 +378,7 @@ func TestButterflyWither_CanTargetAnyCharacter(t *testing.T) {
 	}
 
 	p1 := game.State.Players["p1"]
-	butterflydancer.QueueWitherFollowup(newRoleChoiceRuntime(game), p1)
+	butterflydancer.QueueWitherChoice(newRoleChoiceRuntime(game), p1)
 	requireChoicePrompt(t, game, "p1", "bt_wither_confirm")
 
 	mustHandleAction(t, game, model.PlayerAction{

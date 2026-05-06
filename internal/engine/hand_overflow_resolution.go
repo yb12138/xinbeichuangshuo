@@ -54,8 +54,8 @@ func (e *GameEngine) handleDiscardSelection(playerID string, indices []int, data
 
 	e.Log(fmt.Sprintf("[System] %s 丢弃了 %d 张牌！士气 -%d", player.Name, len(discardedCards), finalLoss))
 
-	if handled, err := e.handleDiscardSelectionFollowups(player, data); handled || err != nil {
-		return err
+	if e.processAfterDiscardFlowContinuations(player.ID, discardedCards, data) {
+		// 角色后续可能已插入新的中断；若无中断，继续恢复流程。
 	}
 
 	e.PopInterrupt()
@@ -63,6 +63,7 @@ func (e *GameEngine) handleDiscardSelection(playerID string, indices []int, data
 		if hasChoiceResumePoint(data["draw_resume_phase"]) && !e.hasReturnPoint() {
 			e.setReturnPoint(data["draw_resume_phase"])
 		}
+		e.processFlowContinuations(model.FlowContinuationAfterDraw)
 		e.restorePhaseAfterDiscardResolution(
 			runtimeutil.ToBoolContextValue(data["stay_in_turn"]),
 			runtimeutil.ToBoolContextValue(data["is_damage_resolution"]),
@@ -193,19 +194,45 @@ func (e *GameEngine) hasQueuedMoraleLossResponse() bool {
 	return false
 }
 
-func (e *GameEngine) handleDiscardSelectionFollowups(player *model.Player, data map[string]interface{}) (bool, error) {
-	if player == nil {
-		return false, fmt.Errorf("玩家不存在")
+func (e *GameEngine) processAfterDiscardFlowContinuations(playerID string, discardedCards []model.Card, data map[string]interface{}) bool {
+	if e == nil || e.State == nil || playerID == "" {
+		return false
 	}
+	if roleID, ok := data["flow_continuation_role_id"].(string); ok && roleID != "" {
+		cont := e.buildAfterDiscardFlowContinuation(roleID, playerID, discardedCards, data)
+		e.AppendFlowContinuation(cont)
+		e.processFlowContinuations(model.FlowContinuationAfterDiscard)
+		return true
+	}
+	return false
+}
 
-	for _, entry := range roleRegistry.Entries() {
-		if entry.AfterDiscardFollowup != nil {
-			if entry.AfterDiscardFollowup(newRoleChoiceRuntime(e), player) {
-				return true, nil
-			}
-		}
+func (e *GameEngine) buildAfterDiscardFlowContinuation(roleID string, discardPlayerID string, discardedCards []model.Card, data map[string]interface{}) model.FlowContinuation {
+	playerID := discardPlayerID
+	if explicitPlayerID, _ := data["flow_continuation_player_id"].(string); explicitPlayerID != "" {
+		playerID = explicitPlayerID
 	}
-	return false, nil
+	skillID, _ := data["flow_continuation_skill_id"].(string)
+	if skillID == "" {
+		skillID, _ = data["skill_id"].(string)
+	}
+	cont := model.FlowContinuation{
+		Kind:     model.FlowContinuationAfterDiscard,
+		RoleID:   roleID,
+		PlayerID: playerID,
+		SkillID:  skillID,
+		Data: map[string]any{
+			"discard_player_id": discardPlayerID,
+			"discarded_cards":   append([]model.Card{}, discardedCards...),
+		},
+	}
+	for key, value := range data {
+		if _, exists := cont.Data[key]; exists {
+			continue
+		}
+		cont.Data[key] = value
+	}
+	return cont
 }
 
 func (e *GameEngine) restorePhaseAfterDiscardResolution(stayInTurn bool, isDamageResolution bool, damageResolutionOrder []discardPhaseCandidate, stayInTurnOrder []discardPhaseCandidate) {
@@ -274,17 +301,14 @@ func (e *GameEngine) resumePendingMoraleLoss(ctx *model.Context) bool {
 
 	if discardPlayer != nil {
 		e.Log(fmt.Sprintf("[System] %s 丢弃了 %d 张牌！士气 -%d", discardPlayer.Name, len(discardedCards), finalLoss))
-		for _, entry := range roleRegistry.Entries() {
-			if entry.AfterDiscardFollowup != nil {
-				entry.AfterDiscardFollowup(newRoleChoiceRuntime(e), discardPlayer)
-			}
-		}
+		e.processAfterDiscardFlowContinuations(discardPlayer.ID, discardedCards, nil)
 	}
 
 	ctx.Selections["morale_loss_pending"] = false
 	e.checkGameEnd()
 
 	if e.State.PendingInterrupt == nil {
+		e.processFlowContinuations(model.FlowContinuationAfterDraw)
 		e.restorePhaseAfterDiscardResolution(
 			runtimeutil.ToBoolContextValue(ctx.Selections["morale_loss_stay_in_turn"]),
 			runtimeutil.ToBoolContextValue(ctx.Selections["morale_loss_is_damage_resolution"]),

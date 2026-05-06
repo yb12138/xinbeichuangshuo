@@ -344,7 +344,6 @@ type IGameEngine interface {
 	ResolveDamage(sourceID, targetID string, card *Card, damageType DamageType) error
 	AddPendingDamage(pd PendingDamage)
 	AddPendingDamageFront(pd PendingDamage)
-	EnqueueDeferredFollowup(f DeferredFollowup)
 
 	// FlowContinuation 接口（角色级流程边界恢复）
 	AppendFlowContinuation(cont FlowContinuation)

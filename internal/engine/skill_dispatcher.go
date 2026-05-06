@@ -133,7 +133,6 @@ func ContainsSkillID(skillIDs []string, skillID string) bool {
 type SkillPolicy = types.SkillPolicy
 type PolicyContext = types.PolicyContext
 type PolicyHost = types.PolicyHost
-type BeginSkillFollowupReq = types.BeginSkillFollowupReq
 
 var skillUsePolicies = map[string]SkillPolicy{}
 

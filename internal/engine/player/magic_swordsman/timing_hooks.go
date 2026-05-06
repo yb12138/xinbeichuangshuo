@@ -90,8 +90,8 @@ func beforeActionShadowReleaseHook(rt player.HookRuntime, ctx player.TimingHookC
 	return player.TimingHookResult{}
 }
 
-// cannotActFollowupHook 魔剑士无法行动后续处理：全法术手牌时继续重摸。
-func cannotActFollowupHook(rt player.HookRuntime, ctx player.TimingHookContext) player.TimingHookResult {
+// cannotActRedrawHook 魔剑士无法行动后：全法术手牌时继续重摸。
+func cannotActRedrawHook(rt player.HookRuntime, ctx player.TimingHookContext) player.TimingHookResult {
 	p := ctx.Player
 	if p == nil || !rt.IsCharacter(p, "magic_swordsman") {
 		return player.TimingHookResult{}

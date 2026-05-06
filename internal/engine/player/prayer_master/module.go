@@ -52,7 +52,7 @@ func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 	return map[string]types.ChoiceRouteSpec{
 		"prayer_master_extra_action_pick": types.ChoiceRouteRole("prayer_master"),
 		"prayer_master_rune_pick":         types.ChoiceRouteRole("prayer_master"),
-		"prayer_power_blessing_followup":  types.ChoiceRouteRole("prayer_master"),
-		"prayer_swift_blessing_followup":  types.ChoiceRouteRole("prayer_master"),
+		"prayer_power_blessing_response":  types.ChoiceRouteRole("prayer_master"),
+		"prayer_swift_blessing_response":  types.ChoiceRouteRole("prayer_master"),
 	}
 }

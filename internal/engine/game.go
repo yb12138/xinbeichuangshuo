@@ -48,6 +48,22 @@ type GameEngine struct {
 	suppressSealOnDiscard bool
 	// roleTimingHooks 声明式 Timing Hook 注册表（按 timing 分组，已排序）。
 	roleTimingHooks map[engineplayer.TimingPoint][]roleTimingHookEntry
+	// skillResume 当前待恢复的技能执行上下文。
+	skillResume *skillResumeState
+	// postActionEndResume 当前待补执行的行动后效果。
+	postActionEndResume *postActionEndResumeState
+}
+
+type skillResumeState struct {
+	playerID       string
+	skillID        string
+	targetIDs      []string
+	discardedCards []model.Card
+}
+
+type postActionEndResumeState struct {
+	playerID   string
+	actionType model.ActionType
 }
 
 func (e *GameEngine) resetTurnMagicDamageTracker() {

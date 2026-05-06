@@ -7,6 +7,12 @@ import (
 	"starcup-engine/internal/model"
 )
 
+func handleMagicLancerAfterDiscard(rt engineplayer.ChoiceRuntime, cont model.FlowContinuation) error {
+	user := rt.GetPlayers()[cont.PlayerID]
+	ResolveStardustAfterSelf(rt, user)
+	return nil
+}
+
 func ResolveStardustAfterSelf(rt engineplayer.ChoiceRuntime, user *model.Player) bool {
 	if user == nil || !engineplayer.IsCharacter(user, "magic_lancer") {
 		return false

@@ -239,7 +239,7 @@ func handleIncantConfirm(rt engineplayer.ChoiceRuntime, ctxData map[string]inter
 		if len(user.Hand) == 0 {
 			rt.Log(fmt.Sprintf("%s 的 [念咒] 未触发：无手牌可放置为妖力", user.Name))
 			rt.PopInterrupt()
-			return continueSpiritCasterTalisman(rt, user, skillID, targetIDs)
+			return continueSpiritCasterResolution(rt, user, skillID, targetIDs)
 		}
 		ctxData["choice_type"] = "sc_incant_card"
 		if intr := rt.GetPendingInterrupt(); intr != nil {
@@ -249,7 +249,7 @@ func handleIncantConfirm(rt engineplayer.ChoiceRuntime, ctxData map[string]inter
 		return nil
 	case 1:
 		rt.PopInterrupt()
-		return continueSpiritCasterTalisman(rt, user, skillID, targetIDs)
+		return continueSpiritCasterResolution(rt, user, skillID, targetIDs)
 	default:
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
@@ -267,7 +267,7 @@ func handleIncantConfirmNoHand(rt engineplayer.ChoiceRuntime, ctxData map[string
 	case 0:
 		// Skip incant, go directly to the talisman flow
 		rt.PopInterrupt()
-		return continueSpiritCasterTalisman(rt, user, skillID, targetIDs)
+		return continueSpiritCasterResolution(rt, user, skillID, targetIDs)
 	case 1:
 		// Cancel
 		rt.PopInterrupt()
@@ -293,7 +293,7 @@ func handleIncantCard(rt engineplayer.ChoiceRuntime, ctxData map[string]interfac
 	AddPowerCard(user, card)
 	rt.Log(fmt.Sprintf("%s 发动 [念咒]：将1张手牌盖放为妖力（当前妖力%d）", user.Name, PowerCount(user, "")))
 	rt.PopInterrupt()
-	return continueSpiritCasterTalisman(rt, user, skillID, targetIDs)
+	return continueSpiritCasterResolution(rt, user, skillID, targetIDs)
 }
 
 func handleHundredNightPower(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
@@ -583,11 +583,11 @@ func handleTalismanPick(rt engineplayer.ChoiceRuntime, ctxData map[string]interf
 	case 0:
 		// Thunder talisman
 		rt.PopInterrupt()
-		return continueSpiritCasterTalisman(rt, user, "sc_talisman_thunder", targetIDs)
+		return continueSpiritCasterResolution(rt, user, "sc_talisman_thunder", targetIDs)
 	case 1:
 		// Wind talisman
 		rt.PopInterrupt()
-		return continueSpiritCasterTalisman(rt, user, "sc_talisman_wind", targetIDs)
+		return continueSpiritCasterResolution(rt, user, "sc_talisman_wind", targetIDs)
 	default:
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
@@ -597,9 +597,9 @@ func handleTalismanPick(rt engineplayer.ChoiceRuntime, ctxData map[string]interf
 // Talisman flow continuation
 // ===========================================================================
 
-// continueSpiritCasterTalisman handles the post-incantation flow for both
+// continueSpiritCasterResolution handles the post-incantation flow for both
 // talisman types, pushing the appropriate next interrupt.
-func continueSpiritCasterTalisman(rt engineplayer.ChoiceRuntime, user *model.Player, skillID string, targetIDs []string) error {
+func continueSpiritCasterResolution(rt engineplayer.ChoiceRuntime, user *model.Player, skillID string, targetIDs []string) error {
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}

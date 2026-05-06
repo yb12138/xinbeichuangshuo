@@ -220,9 +220,6 @@ func (e *GameEngine) isActionFinalizeIdle() bool {
 	if len(e.State.PendingDamageQueue) > 0 {
 		return false
 	}
-	if len(e.State.DeferredFollowups) > 0 {
-		return false
-	}
 	if len(e.State.CombatStack) > 0 {
 		return false
 	}

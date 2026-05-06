@@ -126,14 +126,9 @@ func TestBloodPriestessSharedLife_ChoiceAndDrawStayInActionExecution(t *testing.
 	if game.State.TurnStage != model.TurnStageActionExecution {
 		t.Fatalf("expected shared-life draw to resume action execution, got %s", game.State.TurnStage)
 	}
-	if got := len(game.State.FlowContinuations); got != 1 {
-		t.Fatalf("expected 1 flow continuation after draw, got %d", got)
-	}
-
-	game.Drive()
 	holder, fc := bloodpriestesspkg.FindSharedLife(newRoleChoiceRuntime(game), p1)
 	if holder == nil || fc == nil {
-		t.Fatalf("expected shared life placed after drive")
+		t.Fatalf("expected shared life placed after draw continuation")
 	}
 }
 
@@ -198,11 +193,6 @@ func TestBloodPriestessSharedLife_OverflowDiscardResumesActionExecution(t *testi
 	if game.State.TurnStage != model.TurnStageActionExecution {
 		t.Fatalf("expected overflow discard to resume action execution, got %s", game.State.TurnStage)
 	}
-	if got := len(game.State.FlowContinuations); got != 1 {
-		t.Fatalf("expected 1 flow continuation after overflow discard, got %d", got)
-	}
-
-	game.Drive()
 	holder, fc := bloodpriestesspkg.FindSharedLife(newRoleChoiceRuntime(game), p1)
 	if holder == nil || fc == nil {
 		t.Fatalf("expected shared life placed after overflow recovery")

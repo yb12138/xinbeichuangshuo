@@ -24,7 +24,7 @@ func RoleEntry() player.RoleEntry {
 			{Timing: player.TimingBeforeAction, Priority: 100, Hook: beforeActionShadowReleaseHook},
 			{Timing: player.TimingOnCombatInteraction, Priority: 400, Hook: darkElementResponseHook},
 			{Timing: player.TimingOnCombatCounterCard, Priority: 100, Hook: shadowRejectMagicBulletHook},
-			{Timing: player.TimingOnCannotActFollowup, Priority: 100, Hook: cannotActFollowupHook},
+			{Timing: player.TimingAfterCannotAct, Priority: 100, Hook: cannotActRedrawHook},
 		},
 		SkillUsabilityCheckers: map[string]player.SkillUsabilityChecker{
 			"ms_shadow_meteor": CheckShadowMeteorUsability,

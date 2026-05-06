@@ -202,8 +202,6 @@ type GameState struct {
 
 	// 延迟伤害队列（用于避免嵌套的伤害结算中断）
 	PendingDamageQueue []PendingDamage `json:"pending_damage_queue,omitempty"`
-	// 延迟后续队列（用于”先结算伤害/中断，再继续技能后续”）。
-	DeferredFollowups []DeferredFollowup `json:”deferred_followups,omitempty”`
 	// 流程边界恢复点队列（角色级，用于 after_draw/after_damage 等边界触发）。
 	FlowContinuations []FlowContinuation `json:”flow_continuations,omitempty”`
 
@@ -288,23 +286,13 @@ func (pd *PendingDamage) SetCheck(key PendingDamageCheckKey, enabled bool) {
 	}
 }
 
-// DeferredFollowup 代表一个待执行的技能后续结算。
-type DeferredFollowup struct {
-	Type      string                 `json:"type"`                 // 后续类型
-	UserID    string                 `json:"user_id"`              // 执行者ID
-	SkillID   string                 `json:"skill_id,omitempty"`   // 关联技能ID
-	TargetIDs []string               `json:"target_ids,omitempty"` // 关联目标ID列表
-	Data      map[string]interface{} `json:"data,omitempty"`       // 附加上下文
-}
-
-const DeferredFollowupPostActionEnd = "post_action_end"
-
 // FlowContinuationKind 流程边界类型（枚举，替代字符串 type）。
 type FlowContinuationKind string
 
 const (
-	FlowContinuationAfterDraw   FlowContinuationKind = "after_draw"
-	FlowContinuationAfterDamage FlowContinuationKind = "after_damage"
+	FlowContinuationAfterDraw    FlowContinuationKind = "after_draw"
+	FlowContinuationAfterDamage  FlowContinuationKind = "after_damage"
+	FlowContinuationAfterDiscard FlowContinuationKind = "after_discard"
 )
 
 // FlowContinuation 流程边界恢复点（角色级）。
@@ -353,7 +341,6 @@ func NewGameState() *GameState {
 		CombatStack:        []CombatRequest{},
 		MagicBulletChain:   nil,
 		PendingDamageQueue: []PendingDamage{}, // 初始化延迟伤害队列
-		DeferredFollowups:  []DeferredFollowup{},
 	}
 }
 

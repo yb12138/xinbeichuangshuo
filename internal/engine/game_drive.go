@@ -1,8 +1,12 @@
-// gameflow: Drive 主循环：中断优先、延迟后续、回合/非回合阶段推进。
+// gameflow: Drive 主循环：中断优先、恢复点、回合/非回合阶段推进。
 
 package engine
 
-import "fmt"
+import (
+	"fmt"
+
+	"starcup-engine/internal/model"
+)
 
 // Drive 状态机驱动函数，自动在阶段间转换或等待用户输入
 func (e *GameEngine) Drive() {
@@ -20,16 +24,22 @@ func (e *GameEngine) Drive() {
 		if e.State.PendingInterrupt != nil {
 			return
 		}
-		// 仅在没有待处理延迟伤害时推进“延迟后续”。
-		// 这样可保证诸如“封印伤害先结算，再继续技能后续”的严格顺序。
-		if !e.isDamageResolutionActive() &&
-			len(e.State.PendingDamageQueue) == 0 &&
-			len(e.State.DeferredFollowups) > 0 {
-			e.processDeferredFollowups()
+		if e.processPendingSkillResume() {
 			if e.State.PendingInterrupt != nil {
 				return
 			}
 			continue
+		}
+		if e.processPostActionEndResume() {
+			if e.State.PendingInterrupt != nil {
+				return
+			}
+			continue
+		}
+		// 仅在没有待处理延迟伤害时推进“延迟后续”。
+		// 这样可保证诸如“封印伤害先结算，再继续技能后续”的严格顺序。
+		if !e.isDamageResolutionActive() && len(e.State.PendingDamageQueue) == 0 {
+			e.processFlowContinuations(model.FlowContinuationAfterDamage)
 		}
 
 		// 行动收尾：先跑行动结束后的全局 hook，再输出汇总信息。

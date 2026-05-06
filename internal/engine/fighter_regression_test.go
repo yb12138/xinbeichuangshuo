@@ -671,7 +671,7 @@ func TestFighterWarGodDrive_DiscardToThreeAndHeal(t *testing.T) {
 		t.Fatalf("confirm fighter_war_god_drive failed: %v", err)
 	}
 	if game.State.PendingInterrupt == nil || !isDiscardSelectionInterrupt(game.State.PendingInterrupt) {
-		t.Fatalf("expected discard interrupt for war_god_drive followup")
+		t.Fatalf("expected discard interrupt for war_god_drive continuation")
 	}
 
 	mustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0, 1}})
@@ -689,6 +689,6 @@ func TestFighterWarGodDrive_DiscardToThreeAndHeal(t *testing.T) {
 		t.Fatalf("expected fighter turn continue after war_god_drive, current_turn=%d", got)
 	}
 	if got := game.State.TurnStage; got != model.TurnStageActionExecution {
-		t.Fatalf("expected action execution window after war_god_drive followup, got %s", got)
+		t.Fatalf("expected action execution window after war_god_drive continuation, got %s", got)
 	}
 }

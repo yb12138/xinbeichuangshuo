@@ -95,19 +95,16 @@ func (e *GameEngine) UseSkill(playerID, skillID string, targetIDs []string, disc
 	use.player.TurnState.UsedSkillCounts[skillID]++
 
 	// 弃牌后如果产生了 PendingDamage（如封印触发），
-	// 推入通用 followup 让 Drive 先结算伤害再恢复 handler.Execute()。
+	// 记录待恢复技能状态，让 Drive 先结算伤害再恢复 handler.Execute()。
 	if len(e.State.PendingDamageQueue) > 0 {
 		discardedCards := make([]model.Card, len(use.discardedCards))
 		copy(discardedCards, use.discardedCards)
-		e.enqueueDeferredFollowup(model.DeferredFollowup{
-			Type:      followupTypeSkillEffectResume,
-			UserID:    playerID,
-			SkillID:   skillID,
-			TargetIDs: use.resolvedTargetIDs(),
-			Data: map[string]any{
-				"discarded_cards": discardedCards,
-			},
-		})
+		e.skillResume = &skillResumeState{
+			playerID:       playerID,
+			skillID:        skillID,
+			targetIDs:      use.resolvedTargetIDs(),
+			discardedCards: discardedCards,
+		}
 		e.routePendingDamageWithDefaultReturn(model.TurnStageExtraAction)
 		return nil
 	}

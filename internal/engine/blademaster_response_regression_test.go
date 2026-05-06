@@ -541,7 +541,7 @@ func TestBladeMaster_MultiResponse_ConfirmOneSettlesBeforeRemaining(t *testing.T
 			Type:     model.InterruptChoice,
 			PlayerID: "p1",
 			Context: map[string]interface{}{
-				"choice_type": "test_followup_choice",
+				"choice_type": "test_response_choice",
 			},
 		},
 	}

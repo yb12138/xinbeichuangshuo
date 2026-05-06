@@ -27,7 +27,9 @@ func RoleEntry() player.RoleEntry {
 		BlocksActionType: func(p *model.Player, at model.ActionType) bool {
 			return at == model.ActionMagic && BlocksMagicCasting(p)
 		},
-		AfterDiscardFollowup: ResolveStardustAfterSelf,
+		FlowContinuationHandlers: map[model.FlowContinuationKind]player.FlowContinuationHandler{
+			model.FlowContinuationAfterDiscard: handleMagicLancerAfterDiscard,
+		},
 		TimingHookSpecs: []player.TimingHookSpec{
 			{Timing: player.TimingOnDamageCalculate, Priority: 300, Hook: damageCalculateHook},
 			{Timing: player.TimingPostDamageResolved, Priority: 300, Hook: postDamageResolvedHook},

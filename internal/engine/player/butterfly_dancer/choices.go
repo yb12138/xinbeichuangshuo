@@ -637,7 +637,7 @@ func handleReverseBranch2Pick(rt engineplayer.ChoiceRuntime, ctxData map[string]
 	// Check for magic cards among removed to queue wither
 	for _, c := range removed {
 		if c.Type == model.CardTypeMagic {
-			queueWitherFollowup(rt, user)
+			queueWitherChoice(rt, user)
 		}
 	}
 	now := AddPupa(user, -1)
@@ -706,7 +706,7 @@ func handlePilgrimageOrPoisonPick(rt engineplayer.ChoiceRuntime, ctxData map[str
 	}
 
 	if removedCard.Type == model.CardTypeMagic {
-		queueWitherFollowup(rt, user)
+		queueWitherChoice(rt, user)
 	}
 
 	rt.PopInterrupt()
@@ -801,7 +801,7 @@ func handleMirrorPair(rt engineplayer.ChoiceRuntime, ctxData map[string]interfac
 
 	for _, c := range removedCards {
 		if c.Type == model.CardTypeMagic {
-			queueWitherFollowup(rt, user)
+			queueWitherChoice(rt, user)
 		}
 	}
 
@@ -974,9 +974,8 @@ func parseIntSlice(v interface{}) []int {
 	return out
 }
 
-// queueWitherFollowup replicates the engine's queueButterflyWitherFollowup logic.
-// When a cocoon card of type Magic is removed, the butterfly dancer may activate Wither.
-func queueWitherFollowup(rt engineplayer.ChoiceRuntime, user *model.Player) {
+// queueWitherChoice 在魔法茧移除后询问蝶舞者是否发动枯萎。
+func queueWitherChoice(rt engineplayer.ChoiceRuntime, user *model.Player) {
 	if user == nil {
 		return
 	}

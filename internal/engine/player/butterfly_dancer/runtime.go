@@ -21,8 +21,8 @@ func ActionTargetIDs(rt engineplayer.ChoiceRuntime) []string {
 	return targetIDs
 }
 
-// QueueWitherFollowup queues the wither (凋零) confirmation interrupt.
-func QueueWitherFollowup(rt engineplayer.ChoiceRuntime, user *model.Player) {
+// QueueWitherChoice queues the wither (凋零) confirmation interrupt.
+func QueueWitherChoice(rt engineplayer.ChoiceRuntime, user *model.Player) {
 	if user == nil || !engineplayer.IsCharacter(user, "butterfly_dancer") {
 		return
 	}

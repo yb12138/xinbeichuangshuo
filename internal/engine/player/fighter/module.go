@@ -16,6 +16,9 @@ func RoleEntry() player.RoleEntry {
 		Choices:          NewChoiceHandler(),
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
+		FlowContinuationHandlers: map[model.FlowContinuationKind]player.FlowContinuationHandler{
+			model.FlowContinuationAfterDiscard: handleFighterAfterDiscard,
+		},
 		TimingHookSpecs: []player.TimingHookSpec{
 			{Timing: player.TimingOnDamageCalculate, Priority: 400, Hook: damageCalculateHook},
 			{Timing: player.TimingOnAttackDeclared, Priority: 200, Hook: pendingDamageInitHook},
@@ -54,7 +57,6 @@ func SkillEntries() []player.SkillEntry {
 		{ID: "fighter_hundred_dragon", Handler: &FighterHundredDragonHandler{}},
 		{ID: "fighter_burst_crash", Handler: &FighterBurstCrashHandler{}},
 		{ID: "fighter_war_god_drive", Handler: &FighterWarGodDriveHandler{}},
-		{ID: "fighter_war_god_drive_followup", Handler: &FighterWarGodDriveFollowupHandler{}},
 	}
 }
 
