@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"starcup-engine/internal/model"
+	skillrt "starcup-engine/internal/engine/runtime/skill"
 )
 
 func (e *GameEngine) ProcessPendingSkillResume() bool {
@@ -46,7 +47,7 @@ func (e *GameEngine) resumeSkillExecution(state *skillResumeState) bool {
 }
 
 func (e *GameEngine) buildSkillResumeUse(state *skillResumeState, user *model.Player) (*skillUseRequest, error) {
-	skillDef := FindCharacterSkill(user.Character, state.skillID)
+	skillDef := skillrt.FindCharacterSkill(user.Character, state.skillID)
 	if skillDef == nil {
 		e.Log(fmt.Sprintf("[Warn] 技能恢复失败：技能不存在 %s", state.skillID))
 		return nil, fmt.Errorf("技能不存在 %s", state.skillID)

@@ -3,7 +3,6 @@
 package engine
 
 import (
-	"errors"
 	"fmt"
 	"starcup-engine/internal/model"
 	"strings"
@@ -44,70 +43,6 @@ func (e *GameEngine) initCombat(attackerID, targetID string, card *model.Card, i
 	e.State.CombatStack = append(e.State.CombatStack, combatReq)
 }
 
-// ResolveDamage 结算伤害（Step 7 & 8）
-func (e *GameEngine) ResolveDamage(attackerID, victimID string, card *model.Card, damageType model.DamageType) error {
-	e.setCombatStage(model.CombatStageCalcDamage)
-	attacker := e.State.Players[attackerID]
-	victim := e.State.Players[victimID]
-
-	if attacker == nil || victim == nil {
-		return errors.New("攻击者或受害者不存在")
-	}
-
-	if card == nil {
-		return errors.New("卡牌不存在")
-	}
-
-	// 1. 计算基础伤害
-	damage := card.Damage
-
-	// 2. 应用攻击者的被动技能效果（仅对攻击伤害）
-	if damageType == model.AttackDamage {
-		action := model.Action{
-			SourceID: attackerID,
-			TargetID: victimID,
-			Type:     model.ActionAttack,
-			Card:     card,
-		}
-		damage = e.ApplyAttackDamageModifiers(attacker, victim, damage, action)
-	}
-
-	// 3. 触发 TimingOnDamageTaken 检查减伤技能
-	damageVal := damage
-	damageEventCtx := &model.EventContext{
-		Type:      model.EventDamage,
-		SourceID:  attackerID,
-		TargetID:  victimID,
-		DamageVal: &damageVal, // 允许技能修改伤害值
-		Card:      card,
-	}
-	damageSkillCtx := e.BuildContext(victim, attacker, model.TimingOnDamageTaken, damageEventCtx)
-	damageSkillCtx.Flags["IsMagicDamage"] = !strings.EqualFold(string(damageType), string(model.AttackDamage))
-	if damageSkillCtx.Selections == nil {
-		damageSkillCtx.Selections = map[string]any{}
-	}
-	damageSkillCtx.Selections["damage_type"] = damageType
-	e.dispatcher.OnTiming(model.TimingOnDamageTaken, damageSkillCtx)
-
-	// 检查是否有中断（如减伤技能需要确认）
-	if e.State.PendingInterrupt != nil {
-		e.Log("等待减伤技能响应...")
-		return nil // 暂停执行，等待中断处理
-	}
-
-	// 4. 使用修改后的伤害值
-	finalDamage := damageVal
-	if finalDamage < 0 {
-		finalDamage = 0
-	}
-
-	// 6. 应用伤害（扣除生命值/摸牌）
-	e.setCombatStage(model.CombatStageApply)
-	e.applyDamage(victim, finalDamage, damageType)
-
-	return nil
-}
-
 func (e *GameEngine) ApplyAttackDamageModifiers(attacker, target *model.Player, baseDamage int, action model.Action) int {
 	damage := baseDamage
 	if attacker != nil && target != nil {
@@ -130,34 +65,11 @@ func (e *GameEngine) ApplyAttackDamageModifiers(attacker, target *model.Player, 
 	return e.ApplyPassiveAttackEffects(attacker, target, damage, action)
 }
 
-// resolveCombatDamage 结算战斗伤害（从 CombatStack 栈顶）
-
-// 使用新的 ResolveDamage 函数
-
 // clearCombatStack 清空战斗栈
 func (e *GameEngine) clearCombatStack() {
 	e.State.CombatStack = []model.CombatRequest{}
 	e.clearCombatStage()
 }
-
-// finishTakeHit 完成受到伤害后的流程 (扣血、事件、回合结束)
-
-// 4. 执行扣血
-
-// 5. 触发伤害承受事件
-
-// 受伤响应可能产生中断（例如减伤/弃牌等），等待用户处理后继续
-
-// 6. 触发攻击行动结束事件
-
-// 攻击后响应（如神圣追击）出现中断时，暂停，避免提前切回合
-
-// 7. 检查圣剑第3次攻击的摸X弃X效果
-
-// 等待中断处理完成后再继续
-
-// 8. 回到额外行动阶段，交由状态机统一处理 PendingActions/回合结束
-// 这里已手动触发过一次 OnPhaseEnd，清空 LastActionType 防止重复触发
 
 // addCampResource 添加阵营资源 (水晶或宝石)，战绩区总上限为 5。
 // 返回 true 表示本次成功增加资源。
@@ -204,10 +116,6 @@ func (e *GameEngine) addCampResource(camp model.Camp, resourceType string) bool 
 	}
 	return false
 }
-
-// rollbackCampResource 回滚一次命中后发放的战绩资源，返回 true 表示回滚成功。
-
-// containsString 检查字符串切片是否包含指定字符串
 
 // ApplyPassiveAttackEffects 应用攻击者的被动技能效果
 func (e *GameEngine) ApplyPassiveAttackEffects(attacker, target *model.Player, baseDamage int, action model.Action) int {

@@ -58,11 +58,6 @@ func (r *Runtime) OnTiming(h Host, timing model.FlowTiming, ctx *model.Context) 
 	r.runOnTiming(h, timing, ctx)
 }
 
-// OnTimingWithAugment 预留与旧 dispatcher 相同的 augment 签名（augment 在 Host 的 ApplyHitCheck* 中完成）。
-func (r *Runtime) OnTimingWithAugment(h Host, timing model.FlowTiming, ctx *model.Context, _ /* augmenters */ []any, _ /* normalizers */ []any) {
-	r.OnTiming(h, timing, ctx)
-}
-
 // ProcessSkillBatch 供调试/作弊路径直接处理一批技能定义。
 func (r *Runtime) ProcessSkillBatch(h Host, batch []model.SkillDefinition, ctx *model.Context) {
 	if h == nil {
@@ -71,12 +66,12 @@ func (r *Runtime) ProcessSkillBatch(h Host, batch []model.SkillDefinition, ctx *
 	r.trig.ProcessSkillBatch(h, batch, ctx)
 }
 
-// IsSkillStillUsable 与旧 dispatcher.isSkillStillUsable 一致。
+// IsSkillStillUsable 判断技能是否仍可用。
 func (r *Runtime) IsSkillStillUsable(skillID string, user *model.Player, ctx *model.Context) bool {
 	return r.elig.IsStillUsable(skillID, user, ctx)
 }
 
-// GetOtherUsableResponseSkills 从中断提供的技能列表中，排除当前技能后仍可用且不互斥的 ID（与旧 getOtherUsableSkills 一致）。
+// GetOtherUsableResponseSkills 从中断提供的技能列表中，排除当前技能后仍可用且不互斥的 ID。
 func (r *Runtime) GetOtherUsableResponseSkills(currentSkillID string, player *model.Player, ctx *model.Context, interruptSkillIDs []string) []string {
 	return r.elig.FilterRemainingUsable(currentSkillID, player, ctx, interruptSkillIDs)
 }

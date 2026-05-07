@@ -1,4 +1,4 @@
-// gameflow: 技能候选收集与可用性判定（与旧 collectSkillsForTiming / isSkillStillUsable 对齐）。
+// gameflow: 技能候选收集与可用性判定。
 
 package skill
 

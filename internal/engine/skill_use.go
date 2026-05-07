@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"starcup-engine/internal/model"
+	skillrt "starcup-engine/internal/engine/runtime/skill"
 	"starcup-engine/internal/types"
 )
 
@@ -127,7 +128,7 @@ func (e *GameEngine) prepareSkillUse(playerID, skillID string, targetIDs []strin
 		return nil, fmt.Errorf("no character assigned")
 	}
 
-	skillDef := FindCharacterSkill(player.Character, skillID)
+	skillDef := skillrt.FindCharacterSkill(player.Character, skillID)
 	if skillDef == nil {
 		return nil, fmt.Errorf("skill %s not found for character %s", skillID, player.Character.ID)
 	}
@@ -154,16 +155,4 @@ func (e *GameEngine) prepareSkillUse(playerID, skillID string, targetIDs []strin
 		discardIndices:   append([]int{}, discardIndices...),
 		requiredDiscards: requiredDiscards,
 	}, nil
-}
-
-func FindCharacterSkill(character *model.Character, skillID string) *model.SkillDefinition {
-	if character == nil {
-		return nil
-	}
-	for i := range character.Skills {
-		if character.Skills[i].ID == skillID {
-			return &character.Skills[i]
-		}
-	}
-	return nil
 }

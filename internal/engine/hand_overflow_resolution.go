@@ -19,17 +19,6 @@ const (
 	discardPhaseActionQueue
 )
 
-func (e *GameEngine) HandleDiscardSelection(playerID string, indices []int, data map[string]interface{}) error {
-	if err := e.resolveDiscardSelection(playerID, indices, data); err != nil {
-		return err
-	}
-	e.PopInterrupt()
-	if e.State.PendingInterrupt == nil {
-		e.afterSystemDiscardChoice(data)
-	}
-	return nil
-}
-
 func (e *GameEngine) resolveDiscardSelection(playerID string, indices []int, data map[string]interface{}) error {
 	discardCount := runtimeutil.ToIntContextValue(data["discard_count"])
 	if len(indices) != discardCount {

@@ -28,7 +28,7 @@ func damageBeforeTakenHook(rt player.HookRuntime, ctx player.TimingHookContext) 
 	var counterpart *model.Player
 	// 场景1：灵魂术士本人受伤，另一方是其链接队友。
 	if rt.IsCharacter(target, "soul_sorcerer") {
-		holder, _ := rt.FindExclusiveEffectCard(target, model.EffectSoulLink)
+		holder, _ := rt.FindSourceEffectCard(target, model.EffectSoulLink)
 		if holder != nil {
 			sorcerer = target
 			counterpart = holder

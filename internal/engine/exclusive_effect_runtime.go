@@ -84,18 +84,6 @@ func (e *GameEngine) detachSourceEffectCard(source *model.Player, effect model.E
 	return holder, fc.Card, true
 }
 
-func (e *GameEngine) findExclusiveEffectCard(source *model.Player, effect model.EffectType) (*model.Player, *model.FieldCard) {
-	return e.findSourceEffectCard(source, effect)
-}
-
-func (e *GameEngine) attachExclusiveEffectCard(source *model.Player, target *model.Player, effect model.EffectType, card model.Card) error {
-	return e.attachSourceEffectCard(source, target, effect, card)
-}
-
-func (e *GameEngine) detachExclusiveEffectCard(source *model.Player, effect model.EffectType) (*model.Player, model.Card, bool) {
-	return e.detachSourceEffectCard(source, effect)
-}
-
 func (e *GameEngine) removeExclusiveEffectCard(source *model.Player, effect model.EffectType, restoreCard bool) bool {
 	_, card, ok := e.detachSourceEffectCard(source, effect)
 	if !ok {

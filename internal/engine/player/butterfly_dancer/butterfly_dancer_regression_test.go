@@ -2,6 +2,7 @@ package butterfly_dancer_test
 
 import (
 	"starcup-engine/internal/engine"
+	skillrt "starcup-engine/internal/engine/runtime/skill"
 	"starcup-engine/internal/testutils"
 	"testing"
 
@@ -149,7 +150,7 @@ func TestButterflyReverse_RequiresTwoDiscardCardsByConfig(t *testing.T) {
 	}
 	game.State.TurnStage = model.TurnStageActionExecution
 
-	sd := engine.FindCharacterSkill(p1.Character, "bt_reverse_butterfly")
+	sd := skillrt.FindCharacterSkill(p1.Character, "bt_reverse_butterfly")
 	if sd == nil {
 		t.Fatal("expected bt_reverse_butterfly skill definition")
 	}

@@ -331,3 +331,22 @@ func (e *GameEngine) HandleExtractChoiceSelections(playerID string, selections [
 
 	return nil
 }
+
+func (e *GameEngine) cancelExtractChoice(playerID string) error {
+	e.PopInterrupt()
+	if p := e.State.Players[playerID]; p != nil {
+		// 提炼取消属于"行动未提交"，需要回滚预写入的行动收尾标记。
+		p.TurnState.LastActionType = ""
+		p.TurnState.LastActionCard = nil
+		p.TurnState.HasActed = false
+	}
+	if e.State.PendingInterrupt == nil {
+		e.enterActionExecutionStage()
+	}
+	if p := e.State.Players[playerID]; p != nil {
+		e.Log("[System] " + p.Name + " 取消了提炼操作")
+	} else {
+		e.Log("[System] " + playerID + " 取消了提炼操作")
+	}
+	return nil
+}

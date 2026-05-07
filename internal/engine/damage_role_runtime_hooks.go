@@ -110,15 +110,5 @@ func (e *GameEngine) applyTimingOnDamageTakenAfterApplyRules(pd *model.PendingDa
 
 // applyTimingOnDamageTakenAfterResolvedRules 在整次伤害出队后处理结算后规则。
 func (e *GameEngine) applyTimingOnDamageTakenAfterResolvedRules(pd *model.PendingDamage) bool {
-	if pd == nil {
-		return false
-	}
-	result := e.dispatchAllRoleTimingHooks(engineplayer.TimingPostDamageResolved, engineplayer.TimingHookContext{
-		SourceID:      pd.SourceID,
-		TargetID:      pd.TargetID,
-		DamageType:    pd.DamageType,
-		Damage:        pd.Damage,
-		PendingDamage: pd,
-	})
-	return result.Interrupted
+	return e.HandlePostDamageResolved(pd)
 }

@@ -59,9 +59,15 @@ func TestFighterPsiField_CapsDamageAtFour(t *testing.T) {
 	}
 
 	sourceCard := fighterTestCard("m1", "高伤法术", model.CardTypeMagic, model.ElementFire, 6)
-	if err := game.ResolveDamage("p2", "p1", &sourceCard, model.MagicAttack); err != nil {
-		t.Fatalf("resolve damage failed: %v", err)
-	}
+	game.AddPendingDamage(model.PendingDamage{
+		SourceID:   "p2",
+		TargetID:   "p1",
+		Damage:     sourceCard.Damage,
+		DamageType: model.MagicAttack,
+		Card:       &sourceCard,
+	})
+	game.ProcessPendingDamages()
+	game.Drive()
 	if got := len(p1.Hand); got != 4 {
 		t.Fatalf("expected psi field cap damage draw to 4 cards, got %d", got)
 	}

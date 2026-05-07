@@ -46,7 +46,7 @@
 | `CombatCalcDamage` | ③ 计算伤害阶段 | 增减伤结算点：处理狂化、撕裂等数值变化被动。 | `TimingOnDamageCalculated` + `applyPassiveAttackEffects` |
 | `CombatHeal` | ④ 治疗响应阶段 | 询问遭受伤害者是否消耗【治疗】抵挡伤害。 | `PendingDamage` 中治疗处理 |
 | `CombatApply` | ⑤ 实际产生伤害阶段 | 真实伤害落地，为攻击方结算阵营星石收入。 | `applyDamage` + 阵营资源发放 |
-| `CombatDraw` | ⑥ 实际承受伤害阶段 | 承受伤害方摸牌，并执行爆牌检测及扣除士气逻辑。 | `ResolveDamage` + `checkHandLimit` |
+| `CombatDraw` | ⑥ 实际承受伤害阶段 | 承受伤害方摸牌，并执行爆牌检测及扣除士气逻辑。 | `applyDamageWithOptions` + `checkHandLimit` |
 
 ### 4.4 事件触发时机钩子 (`FlowTiming`)
 

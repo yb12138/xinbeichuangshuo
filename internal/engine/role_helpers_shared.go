@@ -38,28 +38,9 @@ func (e *GameEngine) capMoraleLoss(camp model.Camp, wantLoss int, extra ...engin
 	return loss
 }
 
-// ApplyCampMoraleLoss 应用士气损失（实际扣除），先经过 MoraleLossModifier 链调整。
+// ApplyCampMoraleLoss 应用士气损失（实际扣除），委托 capMoraleLoss 计算实际扣除量。
 func (e *GameEngine) ApplyCampMoraleLoss(camp model.Camp, wantLoss int, extra ...engineplayer.MoraleLossModifierExtra) int {
-	if wantLoss <= 0 {
-		return 0
-	}
-	current := e.campMorale(camp)
-	loss := wantLoss
-	var ex engineplayer.MoraleLossModifierExtra
-	if len(extra) > 0 {
-		ex = extra[0]
-	}
-	for _, entry := range roleRegistry.Entries() {
-		if entry.MoraleLossModifier != nil {
-			loss = entry.MoraleLossModifier(e, camp, current, loss, ex)
-		}
-	}
-	if loss < 0 {
-		loss = 0
-	}
-	if current-loss < 0 {
-		loss = current
-	}
+	loss := e.capMoraleLoss(camp, wantLoss, extra...)
 	if loss <= 0 {
 		return 0
 	}

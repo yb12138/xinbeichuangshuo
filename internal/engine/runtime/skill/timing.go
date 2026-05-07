@@ -21,7 +21,7 @@ type targetSkillsBatch struct {
 	seatOrder int
 }
 
-// runOnTiming 在某个 Timing 窗口触发技能分发（与旧 skill_dispatcher_trigger 一致）。
+// runOnTiming 在某个 Timing 窗口触发技能分发。
 func (r *Runtime) runOnTiming(h Host, timing model.FlowTiming, ctx *model.Context) {
 	if ctx == nil || h == nil {
 		return

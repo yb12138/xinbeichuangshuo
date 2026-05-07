@@ -189,7 +189,7 @@ func TestBloodPriestessSharedLife_OverflowDiscardResumesActionExecution(t *testi
 		t.Fatalf("expected overflow discard to carry action-execution resume stage, got %s", resumeStage)
 	}
 
-	if err := game.HandleDiscardSelection("p1", []int{6, 7}, data); err != nil {
+	if err := game.ConfirmDiscard("p1", []int{6, 7}); err != nil {
 		t.Fatalf("resolve overflow discard failed: %v", err)
 	}
 	if game.State.TurnStage != model.TurnStageActionExecution {

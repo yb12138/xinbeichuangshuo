@@ -528,25 +528,11 @@ func (r hookRuntime) GetPlayerOrientation(player *model.Player) model.CharacterO
 }
 
 // 新增 - 场上效果卡查找（用于伤害钩子）
-func (r hookRuntime) FindExclusiveEffectCard(source *model.Player, effect model.EffectType) (*model.Player, *model.FieldCard) {
-	if r.GameEngine == nil {
-		return nil, nil
-	}
-	return r.GameEngine.findExclusiveEffectCard(source, effect)
-}
-
 func (r hookRuntime) FindSourceEffectCard(source *model.Player, effect model.EffectType) (*model.Player, *model.FieldCard) {
 	if r.GameEngine == nil {
 		return nil, nil
 	}
 	return r.GameEngine.findSourceEffectCard(source, effect)
-}
-
-func (r hookRuntime) AttachExclusiveEffectCard(source, target *model.Player, effect model.EffectType, card model.Card) error {
-	if r.GameEngine == nil {
-		return nil
-	}
-	return r.GameEngine.attachExclusiveEffectCard(source, target, effect, card)
 }
 
 // 新增 - 伤害应用钩子所需

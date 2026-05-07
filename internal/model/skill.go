@@ -344,7 +344,6 @@ type IGameEngine interface {
 
 	PushInterrupt(intr *Interrupt)
 
-	ResolveDamage(sourceID, targetID string, card *Card, damageType DamageType) error
 	AddPendingDamage(pd PendingDamage)
 	AddPendingDamageFront(pd PendingDamage)
 

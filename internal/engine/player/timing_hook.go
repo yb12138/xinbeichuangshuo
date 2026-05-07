@@ -259,9 +259,7 @@ type HookRuntime interface {
 	GetPlayerOrientation(player *model.Player) model.CharacterOrientation
 
 	// 新增 - 场上效果卡查找（用于伤害钩子）
-	FindExclusiveEffectCard(source *model.Player, effect model.EffectType) (*model.Player, *model.FieldCard)
 	FindSourceEffectCard(source *model.Player, effect model.EffectType) (*model.Player, *model.FieldCard)
-	AttachExclusiveEffectCard(source, target *model.Player, effect model.EffectType, card model.Card) error
 
 	// 新增 - 伤害应用钩子所需
 	RemoveFieldCard(targetID string, effect model.EffectType) bool

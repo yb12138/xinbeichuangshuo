@@ -10,38 +10,36 @@ import (
 	"starcup-engine/internal/model"
 )
 
-// ConfirmDiscard 确认执行弃牌。
+// ConfirmDiscard 确认执行弃牌（外部命令入口，走 ChoiceEngine 消费语义）。
 func (e *GameEngine) ConfirmDiscard(playerID string, indices []int) error {
-	data, err := e.pendingDiscardContext()
-	if err != nil {
-		return err
-	}
-
 	if e.State.PendingInterrupt == nil {
 		return fmt.Errorf("当前没有待处理的弃牌操作")
 	}
 	if e.State.PendingInterrupt.PlayerID != "" && e.State.PendingInterrupt.PlayerID != playerID {
 		return fmt.Errorf("当前不是你的弃牌回合")
 	}
-	if hasSkillDiscardID(data) {
-		return e.handleSkillDiscardSelection(playerID, indices, data)
+	if e.choiceEngine == nil {
+		return fmt.Errorf("选择引擎未初始化")
 	}
-
-	return e.HandleDiscardSelection(playerID, indices, data)
-}
-
-func (e *GameEngine) confirmDiscardChoiceSelections(playerID string, indices []int, data map[string]interface{}) error {
-	if data == nil {
-		var err error
-		data, err = e.pendingDiscardContext()
-		if err != nil {
-			return err
+	data, ok := choiceCtxAsAnyMap(e.State.PendingInterrupt.Context)
+	if !ok {
+		return fmt.Errorf("中断上下文格式错误")
+	}
+	ct, _ := data["choice_type"].(string)
+	if ct == "" {
+		ct = choiceTypeSystemDiscardCards
+	}
+	result, err := e.choiceEngine.HandleMultiSelectResult(playerID, ct, indices, data)
+	if err != nil {
+		return err
+	}
+	if result.ConsumedInterrupt {
+		e.PopInterrupt()
+		if result.AfterConsume != nil {
+			result.AfterConsume(&choiceHostBridge{e: e})
 		}
 	}
-	if hasSkillDiscardID(data) {
-		return e.handleSkillDiscardSelection(playerID, indices, data)
-	}
-	return e.HandleDiscardSelection(playerID, indices, data)
+	return nil
 }
 
 func hasSkillDiscardID(data map[string]interface{}) bool {

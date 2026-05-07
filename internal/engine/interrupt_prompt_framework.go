@@ -34,18 +34,10 @@ func (e *GameEngine) buildStandardResponsePrompt() *model.Prompt {
 func (e *GameEngine) buildResponseSkillPrompt() *model.Prompt {
 	playerID := e.State.PendingInterrupt.PlayerID
 	player := e.State.Players[playerID]
-
 	skillIDs := e.State.PendingInterrupt.SkillIDs
+
+	skillByID := buildSkillLookupMap(player)
 	n := len(skillIDs)
-	options := make([]model.PromptOption, 0, len(skillIDs)+1)
-
-	skillByID := make(map[string]model.SkillDefinition)
-	if player != nil && player.Character != nil {
-		for _, skill := range player.Character.Skills {
-			skillByID[skill.ID] = skill
-		}
-	}
-
 	message := "你触发了响应技能，请选择要发动的技能。"
 	if n > 1 {
 		message = fmt.Sprintf("你触发了 %d 个响应技能，请选择 1 个发动，或跳过。", n)
@@ -55,35 +47,7 @@ func (e *GameEngine) buildResponseSkillPrompt() *model.Prompt {
 		}
 	}
 
-	for i, skillID := range skillIDs {
-		skill, ok := skillByID[skillID]
-		if !ok {
-			options = append(options, model.PromptOption{
-				ID:    skillID,
-				Label: fmt.Sprintf("技能 %d", i+1),
-			})
-			continue
-		}
-
-		label := strings.TrimSpace(skill.Title)
-		if label == "" {
-			label = fmt.Sprintf("技能 %d", i+1)
-		}
-		costStr := ""
-		if skill.CostGem > 0 || skill.CostCrystal > 0 {
-			costStr = fmt.Sprintf(" [💎%d 🔷%d]", skill.CostGem, skill.CostCrystal)
-		}
-		if costStr != "" {
-			label = fmt.Sprintf("%s%s", label, costStr)
-		}
-		hint := strings.TrimSpace(skill.Description)
-		options = append(options, model.PromptOption{
-			ID:    skill.ID,
-			Label: label,
-			Hint:  hint,
-		})
-	}
-
+	options := buildSkillSelectionOptions(skillIDs, skillByID)
 	options = append(options, model.PromptOption{
 		ID:    "skip",
 		Label: "跳过",
@@ -103,18 +67,39 @@ func (e *GameEngine) buildResponseSkillPrompt() *model.Prompt {
 func (e *GameEngine) buildStartupSkillPrompt() *model.Prompt {
 	playerID := e.State.PendingInterrupt.PlayerID
 	player := e.State.Players[playerID]
-
 	skillIDs := e.State.PendingInterrupt.SkillIDs
-	message := "你可以发动启动技能，请选择 1 个发动，或跳过。"
-	options := make([]model.PromptOption, 0, len(skillIDs)+1)
 
+	options := buildSkillSelectionOptions(skillIDs, buildSkillLookupMap(player))
+	options = append(options, model.PromptOption{
+		ID:    "skip",
+		Label: "跳过",
+		Hint:  "本回合不发动启动技能",
+	})
+
+	return &model.Prompt{
+		Type:     model.PromptChooseSkill,
+		PlayerID: playerID,
+		Message:  "你可以发动启动技能，请选择 1 个发动，或跳过。",
+		Options:  options,
+		Min:      1,
+		Max:      1,
+	}
+}
+
+// buildSkillLookupMap 从玩家角色技能列表构建 ID→SkillDefinition 映射。
+func buildSkillLookupMap(player *model.Player) map[string]model.SkillDefinition {
 	skillByID := make(map[string]model.SkillDefinition)
 	if player != nil && player.Character != nil {
 		for _, skill := range player.Character.Skills {
 			skillByID[skill.ID] = skill
 		}
 	}
+	return skillByID
+}
 
+// buildSkillSelectionOptions 从技能 ID 列表构建选项（不含跳过项，由调用方追加）。
+func buildSkillSelectionOptions(skillIDs []string, skillByID map[string]model.SkillDefinition) []model.PromptOption {
+	options := make([]model.PromptOption, 0, len(skillIDs)+1)
 	for i, skillID := range skillIDs {
 		skill, ok := skillByID[skillID]
 		if !ok {
@@ -143,21 +128,7 @@ func (e *GameEngine) buildStartupSkillPrompt() *model.Prompt {
 			Hint:  hint,
 		})
 	}
-
-	options = append(options, model.PromptOption{
-		ID:    "skip",
-		Label: "跳过",
-		Hint:  "本回合不发动启动技能",
-	})
-
-	return &model.Prompt{
-		Type:     model.PromptChooseSkill,
-		PlayerID: playerID,
-		Message:  message,
-		Options:  options,
-		Min:      1,
-		Max:      1,
-	}
+	return options
 }
 
 func formatCardInfo(card model.Card) string {

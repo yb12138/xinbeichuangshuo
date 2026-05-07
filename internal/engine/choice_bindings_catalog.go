@@ -35,6 +35,45 @@ func systemChoiceSelect(typ string) func(*GameEngine, string, int, map[string]an
 	}
 }
 
+func systemChoiceMulti(typ string) func(*GameEngine, string, []int) error {
+	switch typ {
+	case choiceTypeSystemDiscardCards:
+		return (*GameEngine).handleSystemDiscardChoiceSelections
+	default:
+		return nil
+	}
+}
+
+func systemChoiceCancel(typ string) func(*GameEngine, string, map[string]any) (bool, error) {
+	switch typ {
+	case choiceTypeSystemDiscardCards:
+		return func(ge *GameEngine, pid string, _ map[string]any) (bool, error) {
+			if ge.State == nil || ge.State.PendingInterrupt == nil {
+				return false, fmt.Errorf("当前没有待处理的弃牌操作")
+			}
+			ctxData, _ := ge.State.PendingInterrupt.Context.(map[string]interface{})
+			return true, ge.cancelSystemDiscardChoice(pid, ctxData)
+		}
+	default:
+		return nil
+	}
+}
+
+func systemChoiceConsumes(typ string) func(map[string]any) bool {
+	switch typ {
+	case choiceTypeSystemDiscardCards:
+		return func(ctx map[string]any) bool {
+			if ctx == nil {
+				return false
+			}
+			skillID, _ := ctx["skill_id"].(string)
+			return skillID == ""
+		}
+	default:
+		return nil
+	}
+}
+
 func catalogChoiceBinding(typ string) catalogSpecPlan {
 	spec, ok := catalogChoiceRouteSpecTable[typ]
 	if !ok {
@@ -45,10 +84,15 @@ func catalogChoiceBinding(typ string) catalogSpecPlan {
 	}
 	switch spec.Kind {
 	case ChoiceRouteKindSystem:
+		consumesFn := systemChoiceConsumes(typ)
+		autoConsume := consumesFn == nil // 只有无自定义 consumes 规则的才自动消费
 		return catalogSpecPlan{
-			autoConsume: true,
+			autoConsume: autoConsume,
+			consumes:    consumesFn,
 			build:       (*GameEngine).buildSystemChoicePrompt,
 			sel:         systemChoiceSelect(typ),
+			multi:       systemChoiceMulti(typ),
+			cancel:      systemChoiceCancel(typ),
 			after:       systemChoiceAfterConsume(typ),
 		}
 	case ChoiceRouteKindRole:

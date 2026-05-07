@@ -148,29 +148,6 @@ func bootstrapChoiceSpecs(e *GameEngine) {
 	}
 	reg := e.choiceEngine.Registry()
 
-	registerChoiceSpec(reg, choiceTypeSystemDiscardCards, catalogSpecPlan{
-		build: (*GameEngine).buildSystemChoicePrompt,
-		sel: func(ge *GameEngine, pid string, idx int, _ map[string]any) (bool, error) {
-			return true, ge.handleSystemDiscardChoiceSelections(pid, []int{idx})
-		},
-		multi: (*GameEngine).handleSystemDiscardChoiceSelections,
-		cancel: func(ge *GameEngine, pid string, _ map[string]any) (bool, error) {
-			if ge.State == nil || ge.State.PendingInterrupt == nil {
-				return false, fmt.Errorf("当前没有待处理的弃牌操作")
-			}
-			ctxData, _ := ge.State.PendingInterrupt.Context.(map[string]interface{})
-			return true, ge.cancelSystemDiscardChoice(pid, ctxData)
-		},
-		consumes: func(ctx map[string]any) bool {
-			if ctx == nil {
-				return false
-			}
-			skillID, _ := ctx["skill_id"].(string)
-			return skillID == ""
-		},
-		after: (*GameEngine).afterSystemDiscardChoice,
-	})
-
 	registerChoiceSpec(reg, "extract", catalogSpecPlan{
 		autoConsume: true,
 		build:       (*GameEngine).buildSystemChoicePrompt,

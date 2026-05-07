@@ -158,6 +158,21 @@ func matchTargetSelf(user *model.Player, target *model.Player, rule TargetSelfRu
 	}
 }
 
+func hasBasicFieldEffect(player *model.Player) bool {
+	if player == nil {
+		return false
+	}
+	for _, fc := range player.Field {
+		if fc == nil || fc.Mode != model.FieldEffect {
+			continue
+		}
+		if model.IsBasicEffect(string(fc.Effect)) {
+			return true
+		}
+	}
+	return false
+}
+
 func effectiveTargetCountRange(use *skillUseRequest) (min int, max int, customErr string) {
 	if use == nil || use.skillDef == nil {
 		return 0, 0, ""

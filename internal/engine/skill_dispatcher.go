@@ -162,21 +162,6 @@ func resolveSkillUsePolicy(skillID string) SkillPolicy {
 	return SkillPolicy{}
 }
 
-func hasBasicFieldEffect(player *model.Player) bool {
-	if player == nil {
-		return false
-	}
-	for _, fc := range player.Field {
-		if fc == nil || fc.Mode != model.FieldEffect {
-			continue
-		}
-		if model.IsBasicEffect(string(fc.Effect)) {
-			return true
-		}
-	}
-	return false
-}
-
 // ---------- 技能后置钩子 ----------
 
 func (e *GameEngine) runTimingOnActionEndSkillPost(use *skillUseRequest) {
