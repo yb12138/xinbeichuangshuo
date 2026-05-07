@@ -29,39 +29,6 @@ type SoulSorcererSoulLinkHandler struct{ engineplayer.BaseHandler }
 
 type SoulSorcererSoulAmpHandler struct{ engineplayer.BaseHandler }
 
-func getToken(p *model.Player, key string) int {
-	if p == nil {
-		return 0
-	}
-	if p.Tokens == nil {
-		p.Tokens = map[string]int{}
-	}
-	return p.Tokens[key]
-}
-
-func setToken(p *model.Player, key string, v int) {
-	if p == nil {
-		return
-	}
-	if p.Tokens == nil {
-		p.Tokens = map[string]int{}
-	}
-	p.Tokens[key] = v
-}
-
-func addToken(p *model.Player, key string, delta int, minV int, maxV int) int {
-	cur := getToken(p, key)
-	cur += delta
-	if cur < minV {
-		cur = minV
-	}
-	if maxV >= minV && cur > maxV {
-		cur = maxV
-	}
-	setToken(p, key, cur)
-	return cur
-}
-
 func playerEnergyCap(p *model.Player) int {
 	if p == nil {
 		return 3
@@ -74,19 +41,19 @@ func playerEnergyCap(p *model.Player) int {
 }
 
 func soulBlue(user *model.Player) int {
-	return addToken(user, "ss_blue_soul", 0, 0, soulSorcererBlueCap)
+	return engineplayer.AddToken(user, "ss_blue_soul", 0, soulSorcererBlueCap)
 }
 
 func soulYellow(user *model.Player) int {
-	return addToken(user, "ss_yellow_soul", 0, 0, soulSorcererYellowCap)
+	return engineplayer.AddToken(user, "ss_yellow_soul", 0, soulSorcererYellowCap)
 }
 
 func addSoulBlue(user *model.Player, delta int) int {
-	return addToken(user, "ss_blue_soul", delta, 0, soulSorcererBlueCap)
+	return engineplayer.AddToken(user, "ss_blue_soul", delta, soulSorcererBlueCap)
 }
 
 func addSoulYellow(user *model.Player, delta int) int {
-	return addToken(user, "ss_yellow_soul", delta, 0, soulSorcererYellowCap)
+	return engineplayer.AddToken(user, "ss_yellow_soul", delta, soulSorcererYellowCap)
 }
 
 func soulSorcererAllyIDs(game model.IGameEngine, user *model.Player, includeSelf bool) []string {

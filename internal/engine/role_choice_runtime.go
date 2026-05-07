@@ -428,9 +428,9 @@ func (r roleChoiceRuntime) PoseChangeGuard() func() {
 	if r.GameEngine == nil {
 		return func() {}
 	}
-	before := r.snapshotPlayerPoses()
+	before := r.SnapshotPlayerPoses()
 	return func() {
-		r.dispatchOrientationChanges(before)
+		r.DispatchOrientationChanges(before)
 	}
 }
 
@@ -493,7 +493,7 @@ func (r roleChoiceRuntime) IsSkillStillUsable(skillID string, user *model.Player
 	if r.GameEngine == nil || r.dispatcher == nil {
 		return false
 	}
-	return r.dispatcher.isSkillStillUsable(skillID, user, ctx)
+	return r.dispatcher.IsSkillStillUsable(skillID, user, ctx)
 }
 
 func (r roleChoiceRuntime) RecordSkillUsage(playerID, title string, skillType model.SkillType) {
@@ -543,7 +543,7 @@ func (r roleChoiceRuntime) ApplyCampMoraleLoss(camp model.Camp, wantLoss int) in
 	if r.GameEngine == nil {
 		return 0
 	}
-	return r.applyCampMoraleLoss(camp, wantLoss)
+	return r.GameEngine.ApplyCampMoraleLoss(camp, wantLoss)
 }
 
 // ---- GameOps 实现 ----
@@ -559,14 +559,14 @@ func (r roleChoiceRuntime) RefreshAllPlayerDerivedStates() {
 	if r.GameEngine == nil {
 		return
 	}
-	r.refreshAllPlayerDerivedStates()
+	r.RefreshAllPlayerDerivedStates()
 }
 
 func (r roleChoiceRuntime) BuildContext(user, target *model.Player, timing model.FlowTiming, eventCtx *model.EventContext) *model.Context {
 	if r.GameEngine == nil {
 		return nil
 	}
-	return r.buildContext(user, target, timing, eventCtx)
+	return r.GameEngine.BuildContext(user, target, timing, eventCtx)
 }
 
 var _ engineplayer.ChoiceRuntime = roleChoiceRuntime{}
@@ -698,7 +698,7 @@ func (r roleChoiceRuntime) AllOtherPlayerIDs(userID string) []string {
 	return out
 }
 
-func newRoleChoiceRuntime(e *GameEngine) engineplayer.ChoiceRuntime {
+func NewRoleChoiceRuntime(e *GameEngine) engineplayer.ChoiceRuntime {
 	return roleChoiceRuntime{GameEngine: e}
 }
 
@@ -707,7 +707,7 @@ func (e *GameEngine) buildRoleChoicePrompt(roleID, choiceType, playerID string, 
 	if entry.ID == "" {
 		return nil
 	}
-	return entry.BuildChoicePrompt(newRoleChoiceRuntime(e), choiceType, playerID, player, data)
+	return entry.BuildChoicePrompt(NewRoleChoiceRuntime(e), choiceType, playerID, player, data)
 }
 
 func (e *GameEngine) handleRoleChoiceInput(roleID, playerID string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
@@ -715,7 +715,7 @@ func (e *GameEngine) handleRoleChoiceInput(roleID, playerID string, selectionInd
 	if entry.ID == "" {
 		return false, nil
 	}
-	return entry.HandleChoice(newRoleChoiceRuntime(e), playerID, selectionIndex, ctxData)
+	return entry.HandleChoice(NewRoleChoiceRuntime(e), playerID, selectionIndex, ctxData)
 }
 
 func (e *GameEngine) handleRoleChoiceCancel(roleID, playerID string, ctxData map[string]interface{}) (bool, error) {
@@ -726,5 +726,5 @@ func (e *GameEngine) handleRoleChoiceCancel(roleID, playerID string, ctxData map
 	if ctxData == nil && e != nil && e.State != nil && e.State.PendingInterrupt != nil {
 		ctxData, _ = e.State.PendingInterrupt.Context.(map[string]interface{})
 	}
-	return entry.HandleChoiceCancel(newRoleChoiceRuntime(e), playerID, ctxData)
+	return entry.HandleChoiceCancel(NewRoleChoiceRuntime(e), playerID, ctxData)
 }

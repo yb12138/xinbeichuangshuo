@@ -60,7 +60,6 @@ func (l *defaultAttackLifecycle) RunPendingDamageAttackInit(pd *model.PendingDam
 	if l == nil || l.engine == nil {
 		return
 	}
-	l.engine.applyTimingOnAttackDeclaredPendingDamageInitRules(pd, attacker, victim)
 	// PD init 后触发角色 TimingHook
 	if pd != nil && attacker != nil {
 		var targetID string
@@ -83,57 +82,36 @@ func (l *defaultAttackLifecycle) RunPendingDamageAttackHit(pd *model.PendingDama
 	l.engine.applyTimingOnHitCheckPendingDamageAttackHitRules(pd, attacker, victim)
 }
 
-// ---------- 备用入口（无 lifecycle 时的直接调用） ----------
+// ---------- 备用入口（直接委托 lifecycle） ----------
 
 func (e *GameEngine) transformAttackCard(player *model.Player, card model.Card) model.Card {
 	if e != nil && e.lifecycle != nil {
 		return e.lifecycle.TransformAttackCard(player, card)
 	}
-	return e.applyTimingOnAttackDeclaredCardTransforms(player, card)
+	return card
 }
 
 func (e *GameEngine) recordAttackTargetLifecycle(player *model.Player, targetID string) {
 	if e != nil && e.lifecycle != nil {
 		e.lifecycle.RecordAttackTargetContext(player, targetID)
-		return
 	}
-	e.recordTimingOnAttackDeclaredTargetContext(player, targetID)
 }
 
 func (e *GameEngine) resetAttackStartLifecycle(player *model.Player) {
 	if e != nil && e.lifecycle != nil {
 		e.lifecycle.ResetAttackStartState(player)
-		return
 	}
-	e.resetTimingOnAttackDeclaredState(player)
 }
 
 func (e *GameEngine) applyAttackPreCombatLifecycle(player *model.Player, target *model.Player, currentAction *model.QueuedAction, eventCtx *model.EventContext) {
 	if e != nil && e.lifecycle != nil {
 		e.lifecycle.ApplyPreCombatRules(player, target, currentAction, eventCtx)
-		return
 	}
-	e.applyTimingOnAttackDeclaredPreCombatRules(player, target, currentAction, eventCtx)
 }
 
 func (e *GameEngine) runPendingDamageAttackLifecycle(pd *model.PendingDamage, attacker *model.Player, victim *model.Player) {
 	if e != nil && e.lifecycle != nil {
 		e.lifecycle.RunPendingDamageAttackInit(pd, attacker, victim)
 		e.lifecycle.RunPendingDamageAttackHit(pd, attacker, victim)
-		return
 	}
-	e.applyTimingOnAttackDeclaredPendingDamageInitRules(pd, attacker, victim)
-	if pd != nil && attacker != nil {
-		var targetID string
-		if victim != nil {
-			targetID = victim.ID
-		}
-		e.dispatchAllRoleTimingHooks(engineplayer.TimingOnAttackDeclared, engineplayer.TimingHookContext{
-			SourceID:      attacker.ID,
-			TargetID:      targetID,
-			PendingDamage: pd,
-			ActionType:    model.ActionAttack,
-		})
-	}
-	e.applyTimingOnHitCheckPendingDamageAttackHitRules(pd, attacker, victim)
 }

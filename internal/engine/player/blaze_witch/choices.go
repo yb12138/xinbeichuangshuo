@@ -312,7 +312,7 @@ func handleBlazeWitchTargetChoice(rt engineplayer.ChoiceRuntime, playerID string
 				return fmt.Errorf("魔能反转弃牌必须为法术牌")
 			}
 		}
-		removed := removeCardsByIndicesFromHand(user, selected)
+		removed, _ := engineplayer.RemoveCardsByIndicesFromHand(user, selected)
 		rt.NotifyCardRevealed(user.ID, removed, "discard")
 		rt.AppendToDiscard(removed)
 		damage := xValue - 1
@@ -332,33 +332,6 @@ func handleBlazeWitchTargetChoice(rt engineplayer.ChoiceRuntime, playerID string
 		rt.EnterDamageResolution(nil)
 	}
 	return nil
-}
-
-func removeCardsByIndicesFromHand(player *model.Player, indices []int) []model.Card {
-	if player == nil || len(indices) == 0 {
-		return nil
-	}
-	removed := make([]model.Card, 0, len(indices))
-	for _, idx := range indices {
-		if idx >= 0 && idx < len(player.Hand) {
-			removed = append(removed, player.Hand[idx])
-		}
-	}
-	newHand := make([]model.Card, 0, len(player.Hand)-len(indices))
-	for i, card := range player.Hand {
-		keep := true
-		for _, idx := range indices {
-			if i == idx {
-				keep = false
-				break
-			}
-		}
-		if keep {
-			newHand = append(newHand, card)
-		}
-	}
-	player.Hand = newHand
-	return removed
 }
 
 func buildPromptOptionsForPlayerIDs(players map[string]*model.Player, ids []string) []model.PromptOption {

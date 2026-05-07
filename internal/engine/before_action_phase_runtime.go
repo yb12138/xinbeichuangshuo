@@ -73,13 +73,13 @@ func (e *GameEngine) beforeActionRunCardUsedIfNeeded(player *model.Player, curre
 		SourceID: currentPid,
 		TargetID: targetID,
 	}
-	skillCtx := e.buildContext(player, nil, model.TimingOnCardPlayedOrRevealed, cardCtx)
+	skillCtx := e.BuildContext(player, nil, model.TimingOnCardPlayedOrRevealed, cardCtx)
 	e.dispatcher.OnTiming(skillCtx.Timing, skillCtx)
 	head.HasDispatchedCardUsed = true
 	if e.State.PendingInterrupt != nil {
 		return driveStop, true
 	}
-	if e.processPendingDamages() {
+	if e.ProcessPendingDamages() {
 		return driveStop, true
 	}
 	if e.State.PendingInterrupt != nil {
@@ -132,7 +132,7 @@ func (e *GameEngine) driveBeforeActionAttack(currentPid string, player *model.Pl
 	if !head.HasDispatchedAttackDeclared {
 		e.resetAttackStartLifecycle(player)
 		head.HasDispatchedAttackDeclared = true
-		attackStartCtx := e.buildContext(player, target, model.TimingOnAttackDeclared, eventCtx)
+		attackStartCtx := e.BuildContext(player, target, model.TimingOnAttackDeclared, eventCtx)
 		player.TurnState.LastActionType = string(model.ActionAttack)
 		cardSnapshot := *head.Card
 		player.TurnState.LastActionCard = &cardSnapshot

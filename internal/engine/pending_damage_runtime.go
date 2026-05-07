@@ -135,7 +135,7 @@ func (e *GameEngine) processPendingAttackHit(pd *model.PendingDamage) bool {
 			return ""
 		}(),
 	}
-	pd.Damage = e.applyAttackDamageModifiers(attacker, victim, pd.Damage, action)
+	pd.Damage = e.ApplyAttackDamageModifiers(attacker, victim, pd.Damage, action)
 
 	resourceType := "gem"
 	if pd.IsCounter {
@@ -170,12 +170,12 @@ func (e *GameEngine) processPendingAttackHit(pd *model.PendingDamage) bool {
 			}(),
 		},
 	}
-	hitCtx := e.buildContext(attacker, victim, model.TimingOnHitCheck, hitEventCtx)
+	hitCtx := e.BuildContext(attacker, victim, model.TimingOnHitCheck, hitEventCtx)
 	e.dispatcher.OnTiming(hitCtx.Timing, hitCtx)
 	if e.State.PendingInterrupt != nil {
 		return true
 	}
-	if e.handlePostAttackHitEffects(pd) {
+	if e.HandlePostAttackHitEffects(pd) {
 		pd.AttackHitFlowDispatched = true
 		return true
 	}
@@ -196,7 +196,7 @@ func (e *GameEngine) dispatchPendingDamageTaken(pd *model.PendingDamage) bool {
 		DamageVal: &pd.Damage,
 		Card:      pd.Card,
 	}
-	damageCtx := e.buildContext(e.State.Players[pd.TargetID], e.State.Players[pd.SourceID], model.TimingOnDamageTaken, damageEventCtx)
+	damageCtx := e.BuildContext(e.State.Players[pd.TargetID], e.State.Players[pd.SourceID], model.TimingOnDamageTaken, damageEventCtx)
 	damageCtx.Flags["IsMagicDamage"] = !strings.EqualFold(string(pd.DamageType), string(model.AttackDamage))
 	damageCtx.Flags["holy_shield_eligible"] = strings.EqualFold(string(pd.DamageType), string(model.AttackDamage)) ||
 		(pd.Card != nil && strings.TrimSpace(pd.Card.Name) == "魔弹")

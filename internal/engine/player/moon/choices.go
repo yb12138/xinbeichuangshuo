@@ -56,7 +56,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		for idx, c := range player.Hand {
 			options = append(options, model.PromptOption{
 				ID:    fmt.Sprintf("%d", idx),
-				Label: fmt.Sprintf("%d: %s", idx+1, formatCardInfo(c)),
+				Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(c)),
 			})
 		}
 		return &model.Prompt{
@@ -262,7 +262,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		for idx, c := range player.Hand {
 			options = append(options, model.PromptOption{
 				ID:    fmt.Sprintf("%d", idx),
-				Label: fmt.Sprintf("%d: %s", idx+1, formatCardInfo(c)),
+				Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(c)),
 			})
 		}
 		return &model.Prompt{
@@ -698,10 +698,6 @@ const (
 	moonGoddessPetrifyCapEngine = 10
 )
 
-func formatCardInfo(card model.Card) string {
-	return promptfmt.FormatCardInfo(card)
-}
-
 func addTokenValueBounded(player *model.Player, key string, delta int, cap int) int {
 	if player == nil {
 		return 0
@@ -721,29 +717,12 @@ func addTokenValueBounded(player *model.Player, key string, delta int, cap int) 
 	return newVal
 }
 
-func tokenValueBounded(player *model.Player, key string, cap int) int {
-	if player == nil {
-		return 0
-	}
-	if player.Tokens == nil {
-		return 0
-	}
-	val := player.Tokens[key]
-	if val < 0 {
-		return 0
-	}
-	if cap > 0 && val > cap {
-		return cap
-	}
-	return val
-}
-
 func addMoonGoddessNewMoon(player *model.Player, delta int) int {
 	return addTokenValueBounded(player, "mg_new_moon", delta, moonGoddessNewMoonCapEngine)
 }
 
 func moonGoddessPetrify(player *model.Player) int {
-	return tokenValueBounded(player, "mg_petrify", moonGoddessPetrifyCapEngine)
+	return engineplayer.TokenValue(player, "mg_petrify", moonGoddessPetrifyCapEngine)
 }
 
 func addMoonGoddessPetrify(player *model.Player, delta int) int {
@@ -751,7 +730,7 @@ func addMoonGoddessPetrify(player *model.Player, delta int) int {
 }
 
 func moonGoddessNewMoon(player *model.Player) int {
-	return tokenValueBounded(player, "mg_new_moon", moonGoddessNewMoonCapEngine)
+	return engineplayer.TokenValue(player, "mg_new_moon", moonGoddessNewMoonCapEngine)
 }
 
 func moonGoddessDarkMoonCovers(player *model.Player) []*model.FieldCard {
@@ -775,23 +754,8 @@ func moonGoddessDarkMoonCount(player *model.Player) int {
 	return count
 }
 
-func playerHasForm(player *model.Player, form string) bool {
-	if player == nil {
-		return false
-	}
-	return player.Form == form
-}
-
-func clearPlayerForm(player *model.Player, form string) bool {
-	if player == nil || player.Form != form {
-		return false
-	}
-	player.Form = ""
-	return true
-}
-
 func leaveMoonGoddessDarkMoonForm(player *model.Player) bool {
-	return clearPlayerForm(player, model.FormMoonGoddessDarkMoon)
+	return engineplayer.ClearForm(player, model.FormMoonGoddessDarkMoon)
 }
 
 func removeMoonGoddessDarkMoonByFieldIndex(player *model.Player, idx int) (model.Card, bool) {
@@ -887,10 +851,4 @@ func moonGoddessEnemyIDs(rt engineplayer.ChoiceRuntime, user *model.Player) []st
 		ids = append(ids, p.ID)
 	}
 	return ids
-}
-
-func ensurePlayerTokensMap(player *model.Player) {
-	if player.Tokens == nil {
-		player.Tokens = map[string]int{}
-	}
 }

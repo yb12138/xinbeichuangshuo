@@ -79,7 +79,7 @@ func handleAssassinStealthDrawChoice(rt engineplayer.ChoiceRuntime, selectionInd
 		rt.PopInterrupt()
 		if rt.GetPendingInterrupt() == nil {
 			// 规则：潜行选择结束后要回到触发前的等待阶段，不允许隐式回落到任意默认阶段。
-			rt.ApplyChoiceResumePoint(mustChoiceResumePointFromMap(ctxData, "waiting_phase"))
+			rt.ApplyChoiceResumePoint(engineplayer.MustChoiceResumePointFromMap(ctxData, "waiting_phase"))
 		}
 		return nil
 	default:
@@ -87,20 +87,3 @@ func handleAssassinStealthDrawChoice(rt engineplayer.ChoiceRuntime, selectionInd
 	}
 }
 
-func mustChoiceResumePointFromMap(data map[string]interface{}, key string) interface{} {
-	if data == nil {
-		panic(fmt.Sprintf("missing resume point map for key %q", key))
-	}
-	raw, ok := data[key]
-	if !ok {
-		panic(fmt.Sprintf("missing resume point key %q", key))
-	}
-	return mustChoiceResumePoint(raw, key)
-}
-
-func mustChoiceResumePoint(raw interface{}, key string) interface{} {
-	if raw == nil {
-		panic(fmt.Sprintf("nil resume point for key %q", key))
-	}
-	return raw
-}

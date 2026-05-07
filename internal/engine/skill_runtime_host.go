@@ -38,7 +38,7 @@ func (h *gameSkillHost) SnapshotPlayerPoses() any {
 	if h == nil || h.sd == nil || h.sd.engine == nil {
 		return nil
 	}
-	return h.sd.engine.snapshotPlayerPoses()
+	return h.sd.engine.SnapshotPlayerPoses()
 }
 
 func (h *gameSkillHost) DispatchOrientationChanges(before any) {
@@ -46,7 +46,7 @@ func (h *gameSkillHost) DispatchOrientationChanges(before any) {
 		return
 	}
 	if m, ok := before.(map[string]poseSnapshot); ok {
-		h.sd.engine.dispatchOrientationChanges(m)
+		h.sd.engine.DispatchOrientationChanges(m)
 	}
 }
 
@@ -159,7 +159,7 @@ func (h *gameSkillHost) EnterDiscardSelection() {
 	if h == nil || h.sd == nil || h.sd.engine == nil {
 		return
 	}
-	h.sd.engine.enterDiscardSelection()
+	h.sd.engine.EnterDiscardSelection()
 }
 
 func (h *gameSkillHost) NotifyInterruptPrompt() {
@@ -208,7 +208,7 @@ func dropQueuedOverflowDiscardForPlayer(e *GameEngine, playerID string) {
 	}
 	filtered := make([]*model.Interrupt, 0, len(e.State.InterruptQueue))
 	for _, intr := range e.State.InterruptQueue {
-		if intr == nil || intr.PlayerID != playerID || !isDiscardSelectionInterrupt(intr) {
+		if intr == nil || intr.PlayerID != playerID || !IsDiscardSelectionInterrupt(intr) {
 			filtered = append(filtered, intr)
 			continue
 		}

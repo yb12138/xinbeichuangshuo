@@ -120,18 +120,18 @@ func (e *GameEngine) executeSkillFlow(use *skillUseRequest) error {
 		return fmt.Errorf("skill handler not found for %s", use.skillID)
 	}
 
-	ctx := e.buildContext(use.player, use.target, model.TimingActive, nil)
+	ctx := e.BuildContext(use.player, use.target, model.TimingActive, nil)
 	ctx.Targets = use.actualTargets
 	if ctx.Selections == nil {
 		ctx.Selections = map[string]interface{}{}
 	}
 	ctx.Selections["discardedCards"] = use.discardedCards
 
-	beforePoses := e.snapshotPlayerPoses()
+	beforePoses := e.SnapshotPlayerPoses()
 	if err := handler.Execute(ctx); err != nil {
 		return fmt.Errorf("skill execution failed: %v", err)
 	}
-	e.dispatchOrientationChanges(beforePoses)
+	e.DispatchOrientationChanges(beforePoses)
 	if use.policy.AfterExecute != nil {
 		if err := use.policy.AfterExecute(enginePolicyHost{e: e}, use.policyContext()); err != nil {
 			return err

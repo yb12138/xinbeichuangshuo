@@ -69,7 +69,7 @@ func (e *GameEngine) ResolveDamage(attackerID, victimID string, card *model.Card
 			Type:     model.ActionAttack,
 			Card:     card,
 		}
-		damage = e.applyAttackDamageModifiers(attacker, victim, damage, action)
+		damage = e.ApplyAttackDamageModifiers(attacker, victim, damage, action)
 	}
 
 	// 3. 触发 TimingOnDamageTaken 检查减伤技能
@@ -81,7 +81,7 @@ func (e *GameEngine) ResolveDamage(attackerID, victimID string, card *model.Card
 		DamageVal: &damageVal, // 允许技能修改伤害值
 		Card:      card,
 	}
-	damageSkillCtx := e.buildContext(victim, attacker, model.TimingOnDamageTaken, damageEventCtx)
+	damageSkillCtx := e.BuildContext(victim, attacker, model.TimingOnDamageTaken, damageEventCtx)
 	damageSkillCtx.Flags["IsMagicDamage"] = !strings.EqualFold(string(damageType), string(model.AttackDamage))
 	if damageSkillCtx.Selections == nil {
 		damageSkillCtx.Selections = map[string]any{}
@@ -108,7 +108,7 @@ func (e *GameEngine) ResolveDamage(attackerID, victimID string, card *model.Card
 	return nil
 }
 
-func (e *GameEngine) applyAttackDamageModifiers(attacker, target *model.Player, baseDamage int, action model.Action) int {
+func (e *GameEngine) ApplyAttackDamageModifiers(attacker, target *model.Player, baseDamage int, action model.Action) int {
 	damage := baseDamage
 	if attacker != nil && target != nil {
 		modifyDamageCtx := &model.EventContext{
@@ -124,10 +124,10 @@ func (e *GameEngine) applyAttackDamageModifiers(attacker, target *model.Player, 
 				CounterInitiator: action.CounterInitiator,
 			},
 		}
-		modifyCtx := e.buildContext(attacker, target, model.TimingOnDamageCalculated, modifyDamageCtx)
+		modifyCtx := e.BuildContext(attacker, target, model.TimingOnDamageCalculated, modifyDamageCtx)
 		e.dispatcher.OnTiming(modifyCtx.Timing, modifyCtx)
 	}
-	return e.applyPassiveAttackEffects(attacker, target, damage, action)
+	return e.ApplyPassiveAttackEffects(attacker, target, damage, action)
 }
 
 // resolveCombatDamage 结算战斗伤害（从 CombatStack 栈顶）
@@ -209,8 +209,8 @@ func (e *GameEngine) addCampResource(camp model.Camp, resourceType string) bool 
 
 // containsString 检查字符串切片是否包含指定字符串
 
-// applyPassiveAttackEffects 应用攻击者的被动技能效果
-func (e *GameEngine) applyPassiveAttackEffects(attacker, target *model.Player, baseDamage int, action model.Action) int {
+// ApplyPassiveAttackEffects 应用攻击者的被动技能效果
+func (e *GameEngine) ApplyPassiveAttackEffects(attacker, target *model.Player, baseDamage int, action model.Action) int {
 	return e.applyTimingOnDamageCalculatedAttackPassiveModifiers(attacker, target, action, baseDamage)
 }
 

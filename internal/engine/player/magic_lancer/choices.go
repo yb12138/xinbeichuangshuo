@@ -289,7 +289,7 @@ func handleMagicLancerDarkBarrierCardsChoice(rt engineplayer.ChoiceRuntime, sele
 		rt.NotifyInterruptPrompt()
 		return nil
 	}
-	removed, err := removeCardsByIndicesFromHandLocal(user, append([]int{}, selected...))
+	removed, err := engineplayer.RemoveCardsByIndicesFromHand(user, append([]int{}, selected...))
 	if err != nil {
 		return err
 	}
@@ -466,33 +466,6 @@ func handleMagicLancerStardustTargetChoice(rt engineplayer.ChoiceRuntime, select
 // Helpers
 // ---------------------------------------------------------------------------
 
-// removeCardsByIndicesFromHandLocal removes cards at the given indices from the player's hand.
-func removeCardsByIndicesFromHandLocal(player *model.Player, indices []int) ([]model.Card, error) {
-	if player == nil {
-		return nil, fmt.Errorf("玩家不存在")
-	}
-	for _, idx := range indices {
-		if idx < 0 || idx >= len(player.Hand) {
-			return nil, fmt.Errorf("无效的手牌索引: %d", idx)
-		}
-	}
-	// Sort descending to avoid shift.
-	sorted := append([]int{}, indices...)
-	for i := 0; i < len(sorted); i++ {
-		for j := i + 1; j < len(sorted); j++ {
-			if sorted[i] < sorted[j] {
-				sorted[i], sorted[j] = sorted[j], sorted[i]
-			}
-		}
-	}
-	var removed []model.Card
-	for _, idx := range sorted {
-		removed = append(removed, player.Hand[idx])
-		player.Hand = append(player.Hand[:idx], player.Hand[idx+1:]...)
-	}
-	return removed, nil
-}
-
 // reverseOrderEnemies returns enemy player IDs in reverse play order from the source.
 func reverseOrderEnemies(rt engineplayer.ChoiceRuntime, sourceID string) []string {
 	playerOrder := rt.GetPlayerOrder()
@@ -544,7 +517,7 @@ func prepareFullnessStep(rt engineplayer.ChoiceRuntime, ctxData map[string]inter
 			continue
 		}
 		allowSkip := target.Camp == user.Camp
-		candidates := allHandIndices(target)
+		candidates := engineplayer.AllHandIndices(target)
 		if len(candidates) == 0 {
 			rt.Log(fmt.Sprintf("%s 的 [充盈] 结算：%s 无手牌可弃，跳过", user.Name, target.Name))
 			idx++
@@ -559,14 +532,3 @@ func prepareFullnessStep(rt engineplayer.ChoiceRuntime, ctxData map[string]inter
 	return true
 }
 
-// allHandIndices returns [0, 1, ..., len(hand)-1].
-func allHandIndices(player *model.Player) []int {
-	if player == nil {
-		return nil
-	}
-	indices := make([]int, len(player.Hand))
-	for i := range player.Hand {
-		indices[i] = i
-	}
-	return indices
-}

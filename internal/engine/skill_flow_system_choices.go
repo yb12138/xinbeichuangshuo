@@ -125,9 +125,9 @@ func (e *GameEngine) handleSystemWeakChoice(playerID string, selectionIndex int,
 		player.Hand = append(player.Hand, cards...)
 		e.NotifyDrawCards(player.ID, 3, "weak_choice")
 
-		checkCtx := e.buildContext(player, nil, model.TimingActive, nil)
+		checkCtx := e.BuildContext(player, nil, model.TimingActive, nil)
 		checkCtx.Flags["StayInTurn"] = true
-		e.checkHandLimit(player, checkCtx)
+		e.CheckHandLimitCtx(player, checkCtx)
 
 		ctxData["weak_next_stage"] = "action_start"
 		return nil
@@ -260,7 +260,7 @@ func buildExtractChoicePromptOptions(raw interface{}) []model.PromptOption {
 	return options
 }
 
-func (e *GameEngine) handleExtractChoiceSelections(playerID string, selections []int) error {
+func (e *GameEngine) HandleExtractChoiceSelections(playerID string, selections []int) error {
 	if e.State.PendingInterrupt == nil {
 		return fmt.Errorf("没有待处理的中断")
 	}

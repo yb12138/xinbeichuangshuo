@@ -175,10 +175,10 @@ func bootstrapChoiceSpecs(e *GameEngine) {
 		autoConsume: true,
 		build:       (*GameEngine).buildSystemChoicePrompt,
 		sel: func(ge *GameEngine, pid string, idx int, _ map[string]any) (bool, error) {
-			return true, ge.handleExtractChoiceSelections(pid, []int{idx})
+			return true, ge.HandleExtractChoiceSelections(pid, []int{idx})
 		},
 		multi: func(ge *GameEngine, pid string, sel []int) error {
-			return ge.handleExtractChoiceSelections(pid, sel)
+			return ge.HandleExtractChoiceSelections(pid, sel)
 		},
 		cancel: func(ge *GameEngine, pid string, _ map[string]any) (bool, error) {
 			return true, ge.cancelExtractChoice(pid)

@@ -174,7 +174,7 @@ func (h *BardHopeFugueHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.User.Character == nil {
 		return false
 	}
-	return canPayCrystalLike(ctx, 1) && ctx.User.HasExclusiveCard(ctx.User.Character.ID, "希望赋格曲")
+	return engineplayer.CanPayCrystalLike(ctx, 1) && ctx.User.HasExclusiveCard(ctx.User.Character.ID, "希望赋格曲")
 }
 
 func (h *BardHopeFugueHandler) Execute(ctx *model.Context) error {
@@ -197,12 +197,4 @@ func (h *BardHopeFugueHandler) Execute(ctx *model.Context) error {
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [希望赋格曲]，请先选择是否摸1张牌", ctx.User.Name))
 	return nil
-}
-
-// canPayCrystalLike 检查是否可以用类似水晶的资源支付。
-func canPayCrystalLike(ctx *model.Context, amount int) bool {
-	if ctx == nil || ctx.User == nil {
-		return false
-	}
-	return ctx.User.Crystal >= amount || ctx.User.Gem >= amount
 }

@@ -51,25 +51,25 @@ func (h *FighterChargeStrikeHandler) CanUse(ctx *model.Context) bool {
 	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
-	if hasForm(ctx.User, model.FormFighterHundredDragon) {
+	if engineplayer.HasForm(ctx.User, model.FormFighterHundredDragon) {
 		return false
 	}
-	if getSkillFlow(ctx.User, "fighter_attack_start_skill_lock") > 0 {
+	if engineplayer.GetSkillFlowState(ctx.User, "fighter_attack_start_skill_lock") > 0 {
 		return false
 	}
-	return getToken(ctx.User, "fighter_qi") < fighterQiCap
+	return engineplayer.GetToken(ctx.User, "fighter_qi") < fighterQiCap
 }
 
 func (h *FighterChargeStrikeHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("蓄力一击上下文无效")
 	}
-	if getToken(ctx.User, "fighter_qi") >= fighterQiCap {
+	if engineplayer.GetToken(ctx.User, "fighter_qi") >= fighterQiCap {
 		return fmt.Errorf("斗气已达上限，不能发动蓄力一击")
 	}
-	qi := addToken(ctx.User, "fighter_qi", 1, 0, fighterQiCap)
-	setSkillFlow(ctx.User, "fighter_attack_start_skill_lock", 1)
-	setSkillFlow(ctx.User, "fighter_charge_pending", 1)
+	qi := engineplayer.AddToken(ctx.User, "fighter_qi", 1, fighterQiCap)
+	engineplayer.SetSkillFlowState(ctx.User, "fighter_attack_start_skill_lock", 1)
+	engineplayer.SetSkillFlowState(ctx.User, "fighter_charge_pending", 1)
 	ctx.Game.ApplyNextAttackDamageRule(ctx.User.ID, "fighter_charge_attack_bonus", "fighter_charge_strike", 1, model.RuleLifeThisEffectChain)
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [蓄力一击]：斗气+1（当前%d），本次攻击伤害额外+1；若未命中将按斗气自伤", ctx.User.Name, qi))
 	return nil
@@ -85,7 +85,7 @@ func (h *FighterPsiBulletHandler) CanUse(ctx *model.Context) bool {
 	if ctx.EventCtx.ActionType != model.ActionMagic {
 		return false
 	}
-	if getToken(ctx.User, "fighter_qi") >= fighterQiCap {
+	if engineplayer.GetToken(ctx.User, "fighter_qi") >= fighterQiCap {
 		return false
 	}
 	for _, p := range ctx.Game.GetAllPlayers() {
@@ -100,7 +100,7 @@ func (h *FighterPsiBulletHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("念弹上下文无效")
 	}
-	if getToken(ctx.User, "fighter_qi") >= fighterQiCap {
+	if engineplayer.GetToken(ctx.User, "fighter_qi") >= fighterQiCap {
 		return fmt.Errorf("斗气已达上限，不能发动念弹")
 	}
 	targetIDs := make([]string, 0)
@@ -113,7 +113,7 @@ func (h *FighterPsiBulletHandler) Execute(ctx *model.Context) error {
 	if len(targetIDs) == 0 {
 		return nil
 	}
-	qi := addToken(ctx.User, "fighter_qi", 1, 0, fighterQiCap)
+	qi := engineplayer.AddToken(ctx.User, "fighter_qi", 1, fighterQiCap)
 	ctx.Game.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
@@ -131,10 +131,10 @@ func (h *FighterHundredDragonHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil {
 		return false
 	}
-	if hasForm(ctx.User, model.FormFighterHundredDragon) {
+	if engineplayer.HasForm(ctx.User, model.FormFighterHundredDragon) {
 		return false
 	}
-	if getToken(ctx.User, "fighter_qi") < 3 || ctx.Game == nil {
+	if engineplayer.GetToken(ctx.User, "fighter_qi") < 3 || ctx.Game == nil {
 		return false
 	}
 	for _, p := range ctx.Game.GetAllPlayers() {
@@ -149,7 +149,7 @@ func (h *FighterHundredDragonHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("百式幻龙拳上下文无效")
 	}
-	if getToken(ctx.User, "fighter_qi") < 3 {
+	if engineplayer.GetToken(ctx.User, "fighter_qi") < 3 {
 		return fmt.Errorf("斗气不足3，无法发动百式幻龙拳")
 	}
 	targetIDs := make([]string, 0)
@@ -162,9 +162,9 @@ func (h *FighterHundredDragonHandler) Execute(ctx *model.Context) error {
 	if len(targetIDs) == 0 {
 		return fmt.Errorf("百式幻龙拳没有可锁定的敌方目标")
 	}
-	qi := addToken(ctx.User, "fighter_qi", -3, 0, fighterQiCap)
-	enterForm(ctx.User, model.FormFighterHundredDragon)
-	setSkillFlow(ctx.User, "fighter_hundred_dragon_target_order", 0)
+	qi := engineplayer.AddToken(ctx.User, "fighter_qi", -3, fighterQiCap)
+	engineplayer.SetForm(ctx.User, model.FormFighterHundredDragon)
+	engineplayer.SetSkillFlowState(ctx.User, "fighter_hundred_dragon_target_order", 0)
 	ctx.Game.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
@@ -189,22 +189,22 @@ func (h *FighterBurstCrashHandler) CanUse(ctx *model.Context) bool {
 	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
-	if getSkillFlow(ctx.User, "fighter_attack_start_skill_lock") > 0 {
+	if engineplayer.GetSkillFlowState(ctx.User, "fighter_attack_start_skill_lock") > 0 {
 		return false
 	}
-	return getToken(ctx.User, "fighter_qi") > 0
+	return engineplayer.GetToken(ctx.User, "fighter_qi") > 0
 }
 
 func (h *FighterBurstCrashHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("气绝崩击上下文无效")
 	}
-	if getToken(ctx.User, "fighter_qi") <= 0 {
+	if engineplayer.GetToken(ctx.User, "fighter_qi") <= 0 {
 		return fmt.Errorf("斗气不足，无法发动气绝崩击")
 	}
-	qi := addToken(ctx.User, "fighter_qi", -1, 0, fighterQiCap)
-	setSkillFlow(ctx.User, "fighter_attack_start_skill_lock", 2)
-	setSkillFlow(ctx.User, "fighter_qiburst_force_no_counter", 1)
+	qi := engineplayer.AddToken(ctx.User, "fighter_qi", -1, fighterQiCap)
+	engineplayer.SetSkillFlowState(ctx.User, "fighter_attack_start_skill_lock", 2)
+	engineplayer.SetSkillFlowState(ctx.User, "fighter_qiburst_force_no_counter", 1)
 	if ctx.EventCtx != nil && ctx.EventCtx.AttackInfo != nil {
 		ctx.EventCtx.AttackInfo.CanBeResponded = false
 	}
@@ -221,14 +221,14 @@ func (h *FighterBurstCrashHandler) Execute(ctx *model.Context) error {
 }
 
 func (h *FighterWarGodDriveHandler) CanUse(ctx *model.Context) bool {
-	return canPayCrystalLike(ctx, 1)
+	return engineplayer.CanPayCrystalLike(ctx, 1)
 }
 
 func (h *FighterWarGodDriveHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("斗神天驱上下文无效")
 	}
-	if !spendCrystalLike(ctx, 1) {
+	if !engineplayer.SpendCrystalLike(ctx, 1) {
 		return fmt.Errorf("斗神天驱需要1点蓝水晶（红宝石可替代）")
 	}
 	discardCount := len(ctx.User.Hand) - 3
@@ -257,68 +257,6 @@ func (h *FighterWarGodDriveHandler) Execute(ctx *model.Context) error {
 
 // Helper functions
 
-func getToken(p *model.Player, key string) int {
-	if p == nil {
-		return 0
-	}
-	if p.Tokens == nil {
-		p.Tokens = map[string]int{}
-	}
-	return p.Tokens[key]
-}
-
-func setToken(p *model.Player, key string, v int) {
-	if p == nil {
-		return
-	}
-	if p.Tokens == nil {
-		p.Tokens = map[string]int{}
-	}
-	p.Tokens[key] = v
-}
-
-func getSkillFlow(p *model.Player, key string) int {
-	if p == nil || p.TurnState.SkillFlowState == nil {
-		return 0
-	}
-	return p.TurnState.SkillFlowState[key]
-}
-
-func setSkillFlow(p *model.Player, key string, v int) {
-	if p == nil {
-		return
-	}
-	if p.TurnState.SkillFlowState == nil {
-		p.TurnState.SkillFlowState = make(map[string]int)
-	}
-	p.TurnState.SkillFlowState[key] = v
-}
-
-func addToken(p *model.Player, key string, delta int, minV int, maxV int) int {
-	cur := getToken(p, key)
-	cur += delta
-	if cur < minV {
-		cur = minV
-	}
-	if maxV >= minV && cur > maxV {
-		cur = maxV
-	}
-	setToken(p, key, cur)
-	return cur
-}
-
-func hasForm(p *model.Player, form string) bool {
-	return p != nil && p.Form == form
-}
-
-func enterForm(p *model.Player, form string) {
-	if p == nil {
-		return
-	}
-	p.Orientation = model.OrientationTapped
-	p.Form = form
-}
-
 // 工具：为了避免不同阶段删除手牌导致索引错乱，批量删除时统一按降序处理。
 func removeHandByIndices(p *model.Player, indices []int) []model.Card {
 	sort.Sort(sort.Reverse(sort.IntSlice(indices)))
@@ -331,19 +269,4 @@ func removeHandByIndices(p *model.Player, indices []int) []model.Card {
 		p.Hand = append(p.Hand[:i], p.Hand[i+1:]...)
 	}
 	return out
-}
-
-// 红宝石可替代蓝水晶（仅水晶消耗方向）
-func canPayCrystalLike(ctx *model.Context, amount int) bool {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil {
-		return false
-	}
-	return ctx.Game.CanPayCrystalCost(ctx.User.ID, amount)
-}
-
-func spendCrystalLike(ctx *model.Context, amount int) bool {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil {
-		return false
-	}
-	return ctx.Game.ConsumeCrystalCost(ctx.User.ID, amount)
 }

@@ -143,7 +143,7 @@ func buildHolyShardMissConfirmPrompt(playerID string) *model.Prompt {
 }
 
 func buildHolyShardMissXPrompt(playerID string, player *model.Player, data map[string]interface{}) *model.Prompt {
-	validX := ParseIntSliceContextValue(data["valid_x"])
+	validX := engineplayer.ParseIntSliceContextValue(data["valid_x"])
 	if len(validX) == 0 {
 		maxX := runtimeutil.ToIntContextValue(data["max_x"])
 		if maxX <= 0 {
@@ -269,15 +269,15 @@ func buildLightBurstModeBTargetsPrompt(rt engineplayer.ChoiceRuntime, playerID s
 }
 
 func buildLightBurstModeBDiscardPrompt(playerID string, player *model.Player, data map[string]interface{}) *model.Prompt {
-	remaining := ParseIntSliceContextValue(data["remaining_indices"])
-	selectedCount := len(ParseIntSliceContextValue(data["selected_indices"]))
+	remaining := engineplayer.ParseIntSliceContextValue(data["remaining_indices"])
+	selectedCount := len(engineplayer.ParseIntSliceContextValue(data["selected_indices"]))
 	xValue := runtimeutil.ToIntContextValue(data["x_value"])
 	options := make([]model.PromptOption, 0, len(remaining))
 	for _, idx := range remaining {
 		if player == nil || idx < 0 || idx >= len(player.Hand) {
 			continue
 		}
-		options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", idx), Label: fmt.Sprintf("%d: %s", idx+1, formatCardInfo(player.Hand[idx]))})
+		options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", idx), Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(player.Hand[idx]))})
 	}
 	remainingPick := xValue - selectedCount
 	if remainingPick < 1 {
@@ -369,7 +369,7 @@ func handleHolyShardCombo(rt engineplayer.ChoiceRuntime, selectionIndex int, ctx
 	if c1.Type != model.CardTypeAttack || c2.Type != model.CardTypeAttack || c1.Element != c2.Element {
 		return fmt.Errorf("圣屑飓暴需要弃置2张同系攻击牌")
 	}
-	removed := removeCardsByIndicesFromHand(user, []int{i, j})
+	removed, _ := engineplayer.RemoveCardsByIndicesFromHand(user, []int{i, j})
 	rt.NotifyCardRevealed(user.ID, removed, "discard")
 	rt.AppendToDiscard(removed)
 	ctxData["selected_element"] = element
@@ -458,7 +458,7 @@ func handleHolyShardMissConfirm(rt engineplayer.ChoiceRuntime, selectionIndex in
 }
 
 func handleHolyShardMissX(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
-	validX := ParseIntSliceContextValue(ctxData["valid_x"])
+	validX := engineplayer.ParseIntSliceContextValue(ctxData["valid_x"])
 	if len(validX) == 0 {
 		maxX := runtimeutil.ToIntContextValue(ctxData["max_x"])
 		for x := 1; x <= maxX; x++ {
@@ -558,7 +558,7 @@ func handleRadiantDescentCost(rt engineplayer.ChoiceRuntime, selectionIndex int,
 	rt.Log(fmt.Sprintf("%s 发动 [圣煌降临]：进入圣煌形态并获得额外法术行动", user.Name))
 	rt.PopInterrupt()
 	if rt.GetPendingInterrupt() == nil {
-		resumePoint := mustChoiceResumePointFromMap(ctxData, "resume_phase")
+		resumePoint := engineplayer.MustChoiceResumePointFromMap(ctxData, "resume_phase")
 		rt.ApplyChoiceResumePoint(resumePoint)
 	}
 	return nil
@@ -745,7 +745,7 @@ func handleLightBurstModeBTargets(rt engineplayer.ChoiceRuntime, selectionIndex 
 		return fmt.Errorf("玩家不存在")
 	}
 	ctxData["selected_indices"] = []int{}
-	ctxData["remaining_indices"] = allHandIndices(user)
+	ctxData["remaining_indices"] = engineplayer.AllHandIndices(user)
 	ctxData["choice_type"] = "hb_light_burst_mode_b_discard"
 	if intr := rt.GetPendingInterrupt(); intr != nil {
 		intr.Context = ctxData
@@ -764,8 +764,8 @@ func handleLightBurstModeBDiscard(rt engineplayer.ChoiceRuntime, selectionIndex 
 	if xValue <= 0 {
 		return fmt.Errorf("X值无效")
 	}
-	remaining := ParseIntSliceContextValue(ctxData["remaining_indices"])
-	selected := ParseIntSliceContextValue(ctxData["selected_indices"])
+	remaining := engineplayer.ParseIntSliceContextValue(ctxData["remaining_indices"])
+	selected := engineplayer.ParseIntSliceContextValue(ctxData["selected_indices"])
 	cardIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, remaining)
 	if !ok || cardIdx < 0 || cardIdx >= len(user.Hand) {
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
@@ -789,7 +789,7 @@ func handleLightBurstModeBDiscard(rt engineplayer.ChoiceRuntime, selectionIndex 
 	if user.Heal < xValue {
 		return fmt.Errorf("治疗不足，无法移除%d点治疗", xValue)
 	}
-	removed := removeCardsByIndicesFromHand(user, append([]int{}, selected...))
+	removed, _ := engineplayer.RemoveCardsByIndicesFromHand(user, append([]int{}, selected...))
 	rt.NotifyCardRevealed(user.ID, removed, "discard")
 	rt.AppendToDiscard(removed)
 	user.Heal -= xValue
@@ -1038,71 +1038,6 @@ func playerOptions(rt engineplayer.ChoiceRuntime, playerIDs []string) []model.Pr
 	return options
 }
 
-// formatCardInfo formats a card for display in prompts.
-func formatCardInfo(card model.Card) string {
-	return promptfmt.FormatCardInfo(card)
-}
-
-// allHandIndices returns all indices of a player's hand.
-func allHandIndices(player *model.Player) []int {
-	if player == nil {
-		return nil
-	}
-	out := make([]int, 0, len(player.Hand))
-	for i := range player.Hand {
-		out = append(out, i)
-	}
-	return out
-}
-
-// parseIntSliceContextValue extracts a []int from an interface{}, handling
-// both []int and []interface{} slices.
-func ParseIntSliceContextValue(raw interface{}) []int {
-	result := make([]int, 0)
-	switch value := raw.(type) {
-	case []int:
-		result = append(result, value...)
-	case []interface{}:
-		for _, item := range value {
-			switch v := item.(type) {
-			case int:
-				result = append(result, v)
-			case float64:
-				result = append(result, int(v))
-			}
-		}
-	}
-	return result
-}
-
-// removeCardsByIndicesFromHand removes cards at the given indices from a
-// player's hand and returns the removed cards.
-func removeCardsByIndicesFromHand(player *model.Player, indices []int) []model.Card {
-	if player == nil || len(indices) == 0 {
-		return nil
-	}
-	removed := make([]model.Card, 0, len(indices))
-	for _, idx := range indices {
-		if idx >= 0 && idx < len(player.Hand) {
-			removed = append(removed, player.Hand[idx])
-		}
-	}
-	newHand := make([]model.Card, 0, len(player.Hand)-len(indices))
-	for i, card := range player.Hand {
-		keep := true
-		for _, idx := range indices {
-			if i == idx {
-				keep = false
-				break
-			}
-		}
-		if keep {
-			newHand = append(newHand, card)
-		}
-	}
-	player.Hand = newHand
-	return removed
-}
 
 // newDiscardChoiceInterrupt creates a normalized discard-choice interrupt.
 func newDiscardChoiceInterrupt(playerID string, data map[string]interface{}) *model.Interrupt {
@@ -1139,28 +1074,3 @@ func holyBowShardMissEligibleAllies(rt engineplayer.ChoiceRuntime, user *model.P
 	return allyIDs
 }
 
-// mustChoiceResumePointFromMap extracts a resume point from context data.
-func mustChoiceResumePointFromMap(data map[string]interface{}, key string) interface{} {
-	if data == nil {
-		return model.TurnStageExtraAction
-	}
-	raw, ok := data[key]
-	if !ok {
-		return model.TurnStageExtraAction
-	}
-	switch value := raw.(type) {
-	case model.TurnStage:
-		if value != "" && model.IsKnownTurnStage(value) {
-			return value
-		}
-	case model.CombatStage:
-		if value != model.CombatStageNone && model.IsKnownCombatStage(value) {
-			return value
-		}
-	case model.Subflow:
-		if value != model.SubflowNone && model.IsKnownSubflow(value) {
-			return value
-		}
-	}
-	return model.TurnStageExtraAction
-}

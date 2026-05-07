@@ -72,7 +72,7 @@ func (e *GameEngine) newDrawContextWithOptions(player *model.Player, amount int,
 		return nil
 	}
 
-	resumePoint := e.currentChoiceResumePoint()
+	resumePoint := e.CurrentChoiceResumePoint()
 	if intr := e.State.PendingInterrupt; intr != nil && intr.Type == model.InterruptChoice {
 		if data, ok := intr.Context.(map[string]interface{}); ok {
 			if waitingPoint, ok := choiceResumePointValue(data["waiting_phase"]); ok {
@@ -94,7 +94,7 @@ func (e *GameEngine) newDrawContextWithOptions(player *model.Player, amount int,
 			return model.ActionType(player.TurnState.LastActionType)
 		}(),
 	}
-	ctx := e.buildContext(player, player, model.TimingBeforeCardDrawn, eventCtx)
+	ctx := e.BuildContext(player, player, model.TimingBeforeCardDrawn, eventCtx)
 	if opts.PreventOverflow {
 		ctx.Flags["preventOverflow"] = true
 	}
@@ -177,6 +177,6 @@ func (e *GameEngine) executeResolvedDraw(ctx *model.Context, drawCount int, reas
 	}
 	e.dispatcher.OnTiming(ctx.Timing, ctx)
 
-	e.checkHandLimit(target, ctx)
+	e.CheckHandLimitCtx(target, ctx)
 	e.Log(fmt.Sprintf("%s 摸了 %d 张牌", target.Name, drawCount))
 }

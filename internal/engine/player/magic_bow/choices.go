@@ -90,11 +90,11 @@ func buildChargePlaceCardsPrompt(playerID string, player *model.Player, data map
 	if player == nil {
 		return nil
 	}
-	remaining := ParseIntSliceContextValue(data["remaining_indices"])
+	remaining := engineplayer.ParseIntSliceContextValue(data["remaining_indices"])
 	if len(remaining) == 0 && choiceType == "mb_demon_eye_charge_card" {
-		remaining = allHandIndices(player)
+		remaining = engineplayer.AllHandIndices(player)
 	}
-	selectedCount := len(ParseIntSliceContextValue(data["selected_indices"]))
+	selectedCount := len(engineplayer.ParseIntSliceContextValue(data["selected_indices"]))
 	needCount := runtimeutil.ToIntContextValue(data["need_count"])
 	if choiceType == "mb_demon_eye_charge_card" && needCount <= 0 {
 		needCount = 1
@@ -265,7 +265,7 @@ func handleChargePlaceCount(rt engineplayer.ChoiceRuntime, ctxData map[string]in
 	ctxData["choice_type"] = "mb_charge_place_cards"
 	ctxData["need_count"] = needCount
 	ctxData["selected_indices"] = []int{}
-	ctxData["remaining_indices"] = allHandIndices(user)
+	ctxData["remaining_indices"] = engineplayer.AllHandIndices(user)
 	if intr := rt.GetPendingInterrupt(); intr != nil {
 		intr.Context = ctxData
 	}
@@ -281,11 +281,11 @@ func handleChargePlaceCards(rt engineplayer.ChoiceRuntime, ctxData map[string]in
 		return fmt.Errorf("玩家不存在")
 	}
 
-	remaining := ParseIntSliceContextValue(ctxData["remaining_indices"])
+	remaining := engineplayer.ParseIntSliceContextValue(ctxData["remaining_indices"])
 	if len(remaining) == 0 {
-		remaining = allHandIndices(user)
+		remaining = engineplayer.AllHandIndices(user)
 	}
-	selected := ParseIntSliceContextValue(ctxData["selected_indices"])
+	selected := engineplayer.ParseIntSliceContextValue(ctxData["selected_indices"])
 	needCount := runtimeutil.ToIntContextValue(ctxData["need_count"])
 	if choiceType == "mb_demon_eye_charge_card" && needCount <= 0 {
 		needCount = 1
@@ -317,7 +317,7 @@ func handleChargePlaceCards(rt engineplayer.ChoiceRuntime, ctxData map[string]in
 		return nil
 	}
 
-	removed := removeCardsByIndicesFromHand(user, append([]int{}, selected...))
+	removed, _ := engineplayer.RemoveCardsByIndicesFromHand(user, append([]int{}, selected...))
 
 	// Calculate how many can actually be placed (cap = ChargeCap).
 	room := ChargeCap - ChargeCount(user, "")
@@ -540,7 +540,7 @@ func handleTargetChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]interf
 		ctxData["choice_type"] = "mb_demon_eye_charge_card"
 		ctxData["need_count"] = 1
 		ctxData["selected_indices"] = []int{}
-		ctxData["remaining_indices"] = allHandIndices(user)
+		ctxData["remaining_indices"] = engineplayer.AllHandIndices(user)
 		if intr := rt.GetPendingInterrupt(); intr != nil {
 			intr.Context = ctxData
 		}
@@ -644,7 +644,7 @@ func demonEyeAfterDiscardData(rt engineplayer.ChoiceRuntime, discardPlayer *mode
 			"user_id":           demonEyeUserID,
 			"need_count":        1,
 			"selected_indices":  []int{},
-			"remaining_indices": allHandIndices(user),
+			"remaining_indices": engineplayer.AllHandIndices(user),
 		},
 	})
 	rt.Log(fmt.Sprintf("%s 的 [魔眼] 生效：%s 已弃置1张手牌，请选择1张手牌作为充能", user.Name, discardPlayer.Name))
@@ -655,62 +655,6 @@ func demonEyeAfterDiscardData(rt engineplayer.ChoiceRuntime, discardPlayer *mode
 // Local helpers
 // ---------------------------------------------------------------------------
 
-// allHandIndices returns [0, 1, ..., len(hand)-1].
-func allHandIndices(player *model.Player) []int {
-	if player == nil {
-		return nil
-	}
-	indices := make([]int, len(player.Hand))
-	for i := range player.Hand {
-		indices[i] = i
-	}
-	return indices
-}
-
-// parseIntSliceContextValue extracts a []int from an interface{}.
-func ParseIntSliceContextValue(raw interface{}) []int {
-	var out []int
-	switch arr := raw.(type) {
-	case []int:
-		out = append(out, arr...)
-	case []interface{}:
-		for _, item := range arr {
-			if f, ok := item.(float64); ok {
-				out = append(out, int(f))
-			}
-		}
-	}
-	return out
-}
-
-// removeCardsByIndicesFromHand removes the cards at the given indices from the
-// player's hand and returns the removed cards. Indices must be valid.
-func removeCardsByIndicesFromHand(player *model.Player, indices []int) []model.Card {
-	if player == nil || len(indices) == 0 {
-		return nil
-	}
-	removed := make([]model.Card, 0, len(indices))
-	for _, idx := range indices {
-		if idx >= 0 && idx < len(player.Hand) {
-			removed = append(removed, player.Hand[idx])
-		}
-	}
-	newHand := make([]model.Card, 0, len(player.Hand)-len(indices))
-	for i, card := range player.Hand {
-		keep := true
-		for _, idx := range indices {
-			if i == idx {
-				keep = false
-				break
-			}
-		}
-		if keep {
-			newHand = append(newHand, card)
-		}
-	}
-	player.Hand = newHand
-	return removed
-}
 
 // getPlayerEnergyCap returns the energy capacity for a player (default 3).
 func getPlayerEnergyCap(player *model.Player) int {

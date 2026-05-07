@@ -58,57 +58,22 @@ func magicLancerHasMagicOrThunder(user *model.Player) bool {
 	return false
 }
 
-func hasForm(p *model.Player, form string) bool {
-	return p != nil && p.Form == form
-}
-
-func enterForm(p *model.Player, form string) {
-	if p == nil {
-		return
-	}
-	p.Orientation = model.OrientationTapped
-	p.Form = form
-}
-
-func getSkillFlow(p *model.Player, key string) int {
-	if p == nil || p.TurnState.SkillFlowState == nil {
-		return 0
-	}
-	return p.TurnState.SkillFlowState[key]
-}
-
-func setSkillFlow(p *model.Player, key string, v int) {
-	if p == nil {
-		return
-	}
-	if p.TurnState.SkillFlowState == nil {
-		p.TurnState.SkillFlowState = make(map[string]int)
-	}
-	p.TurnState.SkillFlowState[key] = v
-}
-
-func canPayCrystalLike(ctx *model.Context, amount int) bool {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil {
-		return false
-	}
-	return ctx.Game.CanPayCrystalCost(ctx.User.ID, amount)
-}
 
 func (h *MagicLancerDarkReleaseHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil {
 		return false
 	}
-	return !hasForm(ctx.User, model.FormMagicLancerPhantom)
+	return !engineplayer.HasForm(ctx.User, model.FormMagicLancerPhantom)
 }
 
 func (h *MagicLancerDarkReleaseHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("暗之解放上下文无效")
 	}
-	if hasForm(ctx.User, model.FormMagicLancerPhantom) {
+	if engineplayer.HasForm(ctx.User, model.FormMagicLancerPhantom) {
 		return fmt.Errorf("已处于幻影形态，不能再次发动暗之解放")
 	}
-	enterForm(ctx.User, model.FormMagicLancerPhantom)
+	engineplayer.SetForm(ctx.User, model.FormMagicLancerPhantom)
 	ctx.Game.ApplyNextAttackDamageRule(ctx.User.ID, "ml_dark_release_next_attack_bonus", "ml_dark_release", 1, model.RuleLifeUntilTurnEnd)
 	ctx.Game.ApplySkillGateRule(ctx.User.ID, "ml_dark_release_lock_turn", "ml_dark_release", []string{"ml_fullness", "ml_black_spear"}, model.RuleLifeUntilTurnEnd)
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [暗之解放]，进入幻影形态：手牌上限恒定为5，本回合下一次主动攻击伤害+1，且本回合不能发动充盈/漆黑之枪", ctx.User.Name))
@@ -119,14 +84,14 @@ func (h *MagicLancerPhantomStardustHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil {
 		return false
 	}
-	return hasForm(ctx.User, model.FormMagicLancerPhantom)
+	return engineplayer.HasForm(ctx.User, model.FormMagicLancerPhantom)
 }
 
 func (h *MagicLancerPhantomStardustHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("幻影星尘上下文无效")
 	}
-	if !hasForm(ctx.User, model.FormMagicLancerPhantom) {
+	if !engineplayer.HasForm(ctx.User, model.FormMagicLancerPhantom) {
 		return fmt.Errorf("仅幻影形态下可发动幻影星尘")
 	}
 	if ctx.Target != nil {
@@ -135,17 +100,17 @@ func (h *MagicLancerPhantomStardustHandler) Execute(ctx *model.Context) error {
 		}
 		for i, p := range ctx.Game.GetAllPlayers() {
 			if p != nil && p.ID == ctx.Target.ID {
-				setSkillFlow(ctx.User, "ml_stardust_locked_target_order", i+1)
+				engineplayer.SetSkillFlowState(ctx.User, "ml_stardust_locked_target_order", i+1)
 				break
 			}
 		}
 	} else {
-		setSkillFlow(ctx.User, "ml_stardust_locked_target_order", 0)
+		engineplayer.SetSkillFlowState(ctx.User, "ml_stardust_locked_target_order", 0)
 	}
 	before := ctx.Game.GetCampMorale(string(ctx.User.Camp))
-	setSkillFlow(ctx.User, "ml_stardust_pending", 1)
-	setSkillFlow(ctx.User, "ml_stardust_wait_discard", 0)
-	setSkillFlow(ctx.User, "ml_stardust_morale_before", before)
+	engineplayer.SetSkillFlowState(ctx.User, "ml_stardust_pending", 1)
+	engineplayer.SetSkillFlowState(ctx.User, "ml_stardust_wait_discard", 0)
+	engineplayer.SetSkillFlowState(ctx.User, "ml_stardust_morale_before", before)
 	ctx.Game.InflictDamage(ctx.User.ID, ctx.User.ID, 2, model.MagicAttack)
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [幻影星尘]：先对自己造成2点法术伤害，待完全结算后转正，并根据士气变化判定是否追加目标伤害", ctx.User.Name))
 	return nil
@@ -254,7 +219,7 @@ func (h *MagicLancerBlackSpearHandler) CanUse(ctx *model.Context) bool {
 	if ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
-	if !hasForm(ctx.User, model.FormMagicLancerPhantom) {
+	if !engineplayer.HasForm(ctx.User, model.FormMagicLancerPhantom) {
 		return false
 	}
 	if ctx.Game != nil && ctx.Game.IsSkillBlocked(ctx.User.ID, "ml_black_spear") {
@@ -264,14 +229,14 @@ func (h *MagicLancerBlackSpearHandler) CanUse(ctx *model.Context) bool {
 	if handCount != 1 && handCount != 2 {
 		return false
 	}
-	return canPayCrystalLike(ctx, 1)
+	return engineplayer.CanPayCrystalLike(ctx, 1)
 }
 
 func (h *MagicLancerBlackSpearHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Target == nil || ctx.Game == nil {
 		return fmt.Errorf("漆黑之枪上下文无效")
 	}
-	if !hasForm(ctx.User, model.FormMagicLancerPhantom) {
+	if !engineplayer.HasForm(ctx.User, model.FormMagicLancerPhantom) {
 		return fmt.Errorf("仅幻影形态下可发动漆黑之枪")
 	}
 	if ctx.Game.IsSkillBlocked(ctx.User.ID, "ml_black_spear") {

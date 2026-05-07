@@ -374,7 +374,7 @@ func handleSoulRecallPickChoice(rt engineplayer.ChoiceRuntime, selectionIndex in
 
 	picked := []int{resolvedIdx}
 
-	removed, err := removeCardsByIndicesFromHand(user, picked)
+	removed, err := engineplayer.RemoveCardsByIndicesFromHand(user, picked)
 	if err != nil {
 		return err
 	}
@@ -395,36 +395,3 @@ func handleSoulRecallPickChoice(rt engineplayer.ChoiceRuntime, selectionIndex in
 	return nil
 }
 
-// removeCardsByIndicesFromHand removes cards at the given indices from a player's hand,
-// returning the removed cards. Indices must be valid and unique.
-func removeCardsByIndicesFromHand(player *model.Player, indices []int) ([]model.Card, error) {
-	if player == nil {
-		return nil, fmt.Errorf("玩家不存在")
-	}
-	for _, idx := range indices {
-		if idx < 0 || idx >= len(player.Hand) {
-			return nil, fmt.Errorf("无效的手牌索引: %d", idx)
-		}
-	}
-	seen := map[int]bool{}
-	for _, idx := range indices {
-		if seen[idx] {
-			return nil, fmt.Errorf("不能重复选择同一张牌")
-		}
-		seen[idx] = true
-	}
-	// Sort indices descending to avoid shift during removal.
-	for i := 0; i < len(indices); i++ {
-		for j := i + 1; j < len(indices); j++ {
-			if indices[i] < indices[j] {
-				indices[i], indices[j] = indices[j], indices[i]
-			}
-		}
-	}
-	var removed []model.Card
-	for _, idx := range indices {
-		removed = append(removed, player.Hand[idx])
-		player.Hand = append(player.Hand[:idx], player.Hand[idx+1:]...)
-	}
-	return removed, nil
-}

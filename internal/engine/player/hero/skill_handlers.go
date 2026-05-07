@@ -5,113 +5,10 @@ package hero
 import (
 	"fmt"
 	engineplayer "starcup-engine/internal/engine/player"
-
-	"starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
 )
 
 const heroTokenCap = 4
-
-// 辅助函数
-func getToken(p *model.Player, key string) int {
-	if p == nil || p.Tokens == nil {
-		return 0
-	}
-	return p.Tokens[key]
-}
-
-func setToken(p *model.Player, key string, v int) {
-	if p == nil {
-		return
-	}
-	if p.Tokens == nil {
-		p.Tokens = map[string]int{}
-	}
-	p.Tokens[key] = v
-}
-
-func addToken(p *model.Player, key string, delta int, minV int, maxV int) int {
-	if p == nil {
-		return 0
-	}
-	if p.Tokens == nil {
-		p.Tokens = map[string]int{}
-	}
-	v := p.Tokens[key] + delta
-	if v < minV {
-		v = minV
-	}
-	if v > maxV {
-		v = maxV
-	}
-	p.Tokens[key] = v
-	return v
-}
-
-func getSkillFlowState(p *model.Player, key string) int {
-	if p == nil {
-		return 0
-	}
-	player.EnsurePlayerSkillFlowState(p)
-	return p.TurnState.SkillFlowState[key]
-}
-
-func setSkillFlowState(p *model.Player, key string, v int) {
-	if p == nil {
-		return
-	}
-	player.EnsurePlayerSkillFlowState(p)
-	p.TurnState.SkillFlowState[key] = v
-}
-
-func addSkillFlowState(p *model.Player, key string, delta int, minV int, maxV int) int {
-	cur := getSkillFlowState(p, key)
-	cur += delta
-	if cur < minV {
-		cur = minV
-	}
-	if maxV >= minV && cur > maxV {
-		cur = maxV
-	}
-	setSkillFlowState(p, key, cur)
-	return cur
-}
-
-func enterForm(p *model.Player, form string) {
-	if p == nil {
-		return
-	}
-	p.Form = form
-	if p.Orientation != model.OrientationTapped {
-		p.Orientation = model.OrientationTapped
-	}
-}
-
-func addAttackAction(p *model.Player, source string) {
-	model.AppendAttackAction(p, source)
-}
-
-func canPayCrystalLike(ctx *model.Context, amount int) bool {
-	if ctx == nil || ctx.User == nil {
-		return false
-	}
-	return ctx.User.Crystal >= amount || ctx.User.Gem >= amount
-}
-
-func spendCrystalLike(ctx *model.Context, amount int) bool {
-	if ctx == nil || ctx.User == nil {
-		return false
-	}
-	if ctx.User.Crystal >= amount {
-		ctx.User.Crystal -= amount
-		return true
-	}
-	if ctx.User.Gem >= amount {
-		ctx.User.Gem -= amount
-		return true
-	}
-	return false
-}
 
 // Handlers
 type HeroHeartHandler struct{ engineplayer.BaseHandler }
@@ -146,17 +43,17 @@ func (h *HeroRoarHandler) CanUse(ctx *model.Context) bool {
 	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
-	return getToken(ctx.User, "hero_anger") > 0
+	return engineplayer.GetToken(ctx.User, "hero_anger") > 0
 }
 
 func (h *HeroRoarHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("怒吼上下文无效")
 	}
-	if getToken(ctx.User, "hero_anger") <= 0 {
+	if engineplayer.GetToken(ctx.User, "hero_anger") <= 0 {
 		return fmt.Errorf("怒气不足，无法发动怒吼")
 	}
-	addToken(ctx.User, "hero_anger", -1, 0, heroTokenCap)
+	engineplayer.AddToken(ctx.User, "hero_anger", -1, heroTokenCap)
 	ctx.User.TurnState.UsedSkillCounts["hero_roar_active"] = 1
 	ctx.Game.ApplyNextAttackDamageRule(ctx.User.ID, "hero_roar_attack_bonus", "hero_roar", 2, model.RuleLifeThisEffectChain)
 	ctx.Game.PushInterrupt(&model.Interrupt{
@@ -182,14 +79,14 @@ func (h *HeroForbiddenPowerHandler) CanUse(ctx *model.Context) bool {
 	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
-	return canPayCrystalLike(ctx, 1)
+	return engineplayer.CanPayCrystalLike(ctx, 1)
 }
 
 func (h *HeroForbiddenPowerHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("禁断之力上下文无效")
 	}
-	if !spendCrystalLike(ctx, 1) {
+	if !engineplayer.SpendCrystalLike(ctx, 1) {
 		return fmt.Errorf("禁断之力需要1点蓝水晶（红宝石可替代）")
 	}
 
@@ -215,12 +112,12 @@ func (h *HeroForbiddenPowerHandler) Execute(ctx *model.Context) error {
 		ctx.User.Hand = ctx.User.Hand[:0]
 	}
 
-	anger := addToken(ctx.User, "hero_anger", magicCount, 0, heroTokenCap)
+	anger := engineplayer.AddToken(ctx.User, "hero_anger", magicCount, heroTokenCap)
 	isHit := ctx.EventCtx != nil && ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.IsHit
 	wisdomGain := 0
 	if !isHit {
-		before := getToken(ctx.User, "hero_wisdom")
-		after := addToken(ctx.User, "hero_wisdom", waterCount, 0, heroTokenCap)
+		before := engineplayer.GetToken(ctx.User, "hero_wisdom")
+		after := engineplayer.AddToken(ctx.User, "hero_wisdom", waterCount, heroTokenCap)
 		wisdomGain = after - before
 	}
 
@@ -237,9 +134,9 @@ func (h *HeroForbiddenPowerHandler) Execute(ctx *model.Context) error {
 	}
 
 	// 精疲力竭：强制进入状态并追加1次攻击行动。
-	enterForm(ctx.User, model.FormHeroExhaustion)
-	setSkillFlowState(ctx.User, "hero_exhaustion_release_pending", 1)
-	addAttackAction(ctx.User, "精疲力竭")
+	engineplayer.SetForm(ctx.User, model.FormHeroExhaustion)
+	engineplayer.SetSkillFlowState(ctx.User, "hero_exhaustion_release_pending", 1)
+	model.AppendAttackAction(ctx.User, "精疲力竭")
 
 	if isHit {
 		ctx.Game.Log(fmt.Sprintf("%s 发动 [禁断之力]：弃掉%d张手牌（法术%d/火%d），怒气=%d；本次攻击伤害额外+%d并对自己造成%d点法术伤害；进入精疲力竭并获得额外攻击行动",
@@ -261,35 +158,35 @@ func (h *HeroCalmMindHandler) CanUse(ctx *model.Context) bool {
 	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
-	return getToken(ctx.User, "hero_wisdom") >= 4
+	return engineplayer.GetToken(ctx.User, "hero_wisdom") >= 4
 }
 
 func (h *HeroCalmMindHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return fmt.Errorf("明镜止水上下文无效")
 	}
-	if getToken(ctx.User, "hero_wisdom") < 4 {
+	if engineplayer.GetToken(ctx.User, "hero_wisdom") < 4 {
 		return fmt.Errorf("知性不足，无法发动明镜止水")
 	}
-	addToken(ctx.User, "hero_wisdom", -4, 0, heroTokenCap)
+	engineplayer.AddToken(ctx.User, "hero_wisdom", -4, heroTokenCap)
 	if ctx.EventCtx.AttackInfo != nil {
 		ctx.EventCtx.AttackInfo.CanBeResponded = false
 	}
 	ctx.User.TurnState.UsedSkillCounts["hero_calm_force_no_counter"] = 1
-	addSkillFlowState(ctx.User, "hero_calm_end_crystal_pending", 1, 0, -1)
+	engineplayer.SetSkillFlowState(ctx.User, "hero_calm_end_crystal_pending", engineplayer.GetSkillFlowState(ctx.User, "hero_calm_end_crystal_pending")+1)
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [明镜止水]：移除4点知性，本次攻击无法应战（攻击结束时+1水晶）", ctx.User.Name))
 	return nil
 }
 
 func (h *HeroTauntHandler) CanUse(ctx *model.Context) bool {
-	return ctx != nil && ctx.User != nil && getToken(ctx.User, "hero_anger") > 0
+	return ctx != nil && ctx.User != nil && engineplayer.GetToken(ctx.User, "hero_anger") > 0
 }
 
 func (h *HeroTauntHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("挑衅上下文无效")
 	}
-	if getToken(ctx.User, "hero_anger") <= 0 {
+	if engineplayer.GetToken(ctx.User, "hero_anger") <= 0 {
 		return fmt.Errorf("怒气不足，无法发动挑衅")
 	}
 	target := ctx.Target
@@ -302,8 +199,8 @@ func (h *HeroTauntHandler) Execute(ctx *model.Context) error {
 	if target.Camp == ctx.User.Camp {
 		return fmt.Errorf("挑衅只能指定敌方角色")
 	}
-	addToken(ctx.User, "hero_anger", -1, 0, heroTokenCap)
-	wisdom := addToken(ctx.User, "hero_wisdom", 1, 0, heroTokenCap)
+	engineplayer.AddToken(ctx.User, "hero_anger", -1, heroTokenCap)
+	wisdom := engineplayer.AddToken(ctx.User, "hero_wisdom", 1, heroTokenCap)
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [挑衅] 指向 %s：移除1点怒气并使自己知性+1（当前%d）", ctx.User.Name, target.Name, wisdom))
 	return nil
 }
@@ -332,7 +229,7 @@ func (h *HeroDeadDuelHandler) Execute(ctx *model.Context) error {
 		return fmt.Errorf("死斗需要1个红宝石")
 	}
 	ctx.User.Gem--
-	anger := addToken(ctx.User, "hero_anger", 3, 0, heroTokenCap)
+	anger := engineplayer.AddToken(ctx.User, "hero_anger", 3, heroTokenCap)
 	if ctx.Selections == nil {
 		ctx.Selections = map[string]any{}
 	}

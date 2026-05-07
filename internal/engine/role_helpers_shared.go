@@ -38,8 +38,8 @@ func (e *GameEngine) capMoraleLoss(camp model.Camp, wantLoss int, extra ...engin
 	return loss
 }
 
-// applyCampMoraleLoss 应用士气损失（实际扣除），先经过 MoraleLossModifier 链调整。
-func (e *GameEngine) applyCampMoraleLoss(camp model.Camp, wantLoss int, extra ...engineplayer.MoraleLossModifierExtra) int {
+// ApplyCampMoraleLoss 应用士气损失（实际扣除），先经过 MoraleLossModifier 链调整。
+func (e *GameEngine) ApplyCampMoraleLoss(camp model.Camp, wantLoss int, extra ...engineplayer.MoraleLossModifierExtra) int {
 	if wantLoss <= 0 {
 		return 0
 	}
@@ -103,7 +103,7 @@ func (e *GameEngine) campMorale(camp model.Camp) int {
 }
 
 func (e *GameEngine) pendingDiscardVictimID() string {
-	if e.State.PendingInterrupt == nil || !isDiscardSelectionInterrupt(e.State.PendingInterrupt) {
+	if e.State.PendingInterrupt == nil || !IsDiscardSelectionInterrupt(e.State.PendingInterrupt) {
 		return ""
 	}
 	data, ok := e.State.PendingInterrupt.Context.(map[string]interface{})
@@ -132,7 +132,7 @@ func effectivePlayerForm(p *model.Player) string {
 
 type poseSnapshot = engineplayer.PoseSnapshot
 
-func (e *GameEngine) snapshotPlayerPoses() map[string]poseSnapshot {
+func (e *GameEngine) SnapshotPlayerPoses() map[string]poseSnapshot {
 	snapshots := make(map[string]poseSnapshot, len(e.State.Players))
 	for id, p := range e.State.Players {
 		snapshots[id] = poseSnapshot{
@@ -143,7 +143,7 @@ func (e *GameEngine) snapshotPlayerPoses() map[string]poseSnapshot {
 	return snapshots
 }
 
-func (e *GameEngine) dispatchOrientationChanges(before map[string]poseSnapshot) {
+func (e *GameEngine) DispatchOrientationChanges(before map[string]poseSnapshot) {
 	if e == nil || len(before) == 0 {
 		return
 	}
@@ -180,24 +180,9 @@ func (e *GameEngine) dispatchOrientationChanges(before map[string]poseSnapshot) 
 			PrevForm:        prev.Form,
 			NewForm:         current.Form,
 		}
-		ctx := e.buildContext(p, p, model.TimingOnOrientationChanged, eventCtx)
+		ctx := e.BuildContext(p, p, model.TimingOnOrientationChanged, eventCtx)
 		e.dispatcher.OnTiming(ctx.Timing, ctx)
 	}
-}
-
-// ---- Shared card counter helpers ----
-
-func getFieldEffectCard(player *model.Player, effect model.EffectType) *model.FieldCard {
-	if player == nil {
-		return nil
-	}
-	for _, fc := range player.Field {
-		if fc == nil || fc.Mode != model.FieldEffect || fc.Effect != effect {
-			continue
-		}
-		return fc
-	}
-	return nil
 }
 
 // ---- 行动类型限制 ----
@@ -310,34 +295,3 @@ func (e *GameEngine) canUseHealToResist(target *model.Player, sourceID string, d
 	return true
 }
 
-func removeCardsByIndicesFromHand(player *model.Player, indices []int) ([]model.Card, error) {
-	if player == nil {
-		return nil, fmt.Errorf("玩家不存在")
-	}
-	for _, idx := range indices {
-		if idx < 0 || idx >= len(player.Hand) {
-			return nil, fmt.Errorf("无效的手牌索引: %d", idx)
-		}
-	}
-	seen := map[int]bool{}
-	for _, idx := range indices {
-		if seen[idx] {
-			return nil, fmt.Errorf("不能重复选择同一张牌")
-		}
-		seen[idx] = true
-	}
-	// 从大到小删除，避免索引位移。
-	for i := 0; i < len(indices); i++ {
-		for j := i + 1; j < len(indices); j++ {
-			if indices[i] < indices[j] {
-				indices[i], indices[j] = indices[j], indices[i]
-			}
-		}
-	}
-	var removed []model.Card
-	for _, idx := range indices {
-		removed = append(removed, player.Hand[idx])
-		player.Hand = append(player.Hand[:idx], player.Hand[idx+1:]...)
-	}
-	return removed, nil
-}

@@ -9,13 +9,13 @@ import (
 func TestEnterDiscardSelection_RequiresMatchingPendingInterrupt(t *testing.T) {
 	game := NewGameEngine(nil)
 
-	game.enterDiscardSelection()
+	game.EnterDiscardSelection()
 	if game.State.Subflow != model.SubflowNone {
 		t.Fatalf("expected subflow none without pending interrupt, got %s", game.State.Subflow)
 	}
 
 	game.State.PendingInterrupt = &model.Interrupt{Type: model.InterruptChoice, PlayerID: "p1"}
-	game.enterDiscardSelection()
+	game.EnterDiscardSelection()
 	if game.State.Subflow != model.SubflowNone {
 		t.Fatalf("expected subflow none for non-discard interrupt, got %s", game.State.Subflow)
 	}
@@ -28,7 +28,7 @@ func TestEnterDiscardSelection_RequiresMatchingPendingInterrupt(t *testing.T) {
 			"discard_subflow": true,
 		},
 	}
-	game.enterDiscardSelection()
+	game.EnterDiscardSelection()
 	if game.State.Subflow != model.SubflowDiscardSelection {
 		t.Fatalf("expected discard-selection subflow, got %s", game.State.Subflow)
 	}
@@ -38,12 +38,12 @@ func TestIsDiscardSelectionActive_RequiresLifecycleConsistency(t *testing.T) {
 	game := NewGameEngine(nil)
 	game.State.Subflow = model.SubflowDiscardSelection
 
-	if game.isDiscardSelectionActive() {
+	if game.IsDiscardSelectionActive() {
 		t.Fatal("expected inactive discard selection without pending interrupt")
 	}
 
 	game.State.PendingInterrupt = &model.Interrupt{Type: model.InterruptChoice, PlayerID: "p1"}
-	if game.isDiscardSelectionActive() {
+	if game.IsDiscardSelectionActive() {
 		t.Fatal("expected inactive discard selection for non-discard interrupt")
 	}
 
@@ -55,7 +55,7 @@ func TestIsDiscardSelectionActive_RequiresLifecycleConsistency(t *testing.T) {
 			"discard_subflow": true,
 		},
 	}
-	if !game.isDiscardSelectionActive() {
+	if !game.IsDiscardSelectionActive() {
 		t.Fatal("expected active discard selection with matching discard interrupt")
 	}
 }
@@ -70,7 +70,7 @@ func TestPopInterrupt_ClearsDiscardSelectionSubflow(t *testing.T) {
 			"discard_subflow": true,
 		},
 	}
-	game.enterDiscardSelection()
+	game.EnterDiscardSelection()
 
 	game.PopInterrupt()
 
@@ -90,7 +90,7 @@ func TestDriveDiscardSelectionPhase_DoesNotAutoRepairOnMismatch(t *testing.T) {
 	game.State.ActionQueue = []model.QueuedAction{{SourceID: "p1", Type: model.ActionAttack}}
 	game.State.PendingDamageQueue = []model.PendingDamage{{SourceID: "p1", TargetID: "p2", Damage: 1}}
 
-	outcome := game.driveDiscardSelectionPhase()
+	outcome := game.DriveDiscardSelectionPhase()
 	if outcome != driveUnhandled {
 		t.Fatalf("expected driveUnhandled on discard-subflow mismatch, got %v", outcome)
 	}

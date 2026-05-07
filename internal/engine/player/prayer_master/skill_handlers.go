@@ -10,76 +10,6 @@ import (
 
 // --- Helper functions ---
 
-func getToken(p *model.Player, key string) int {
-	if p == nil {
-		return 0
-	}
-	if p.Tokens == nil {
-		p.Tokens = map[string]int{}
-	}
-	return p.Tokens[key]
-}
-
-func setToken(p *model.Player, key string, v int) {
-	if p == nil {
-		return
-	}
-	if p.Tokens == nil {
-		p.Tokens = map[string]int{}
-	}
-	p.Tokens[key] = v
-}
-
-func addToken(p *model.Player, key string, delta int, minV int, maxV int) int {
-	cur := getToken(p, key)
-	cur += delta
-	if cur < minV {
-		cur = minV
-	}
-	if maxV >= minV && cur > maxV {
-		cur = maxV
-	}
-	setToken(p, key, cur)
-	return cur
-}
-
-func hasForm(p *model.Player, form string) bool {
-	return p != nil && p.Form == form
-}
-
-func enterForm(p *model.Player, form string) {
-	if p == nil {
-		return
-	}
-	p.Orientation = model.OrientationTapped
-	p.Form = form
-}
-
-func leaveForm(p *model.Player, form string) {
-	if p == nil {
-		return
-	}
-	if form != "" && p.Form != form {
-		return
-	}
-	p.Orientation = model.OrientationNormal
-	p.Form = ""
-}
-
-func canPayCrystalLike(ctx *model.Context, amount int) bool {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil {
-		return false
-	}
-	return ctx.Game.CanPayCrystalCost(ctx.User.ID, amount)
-}
-
-func spendCrystalLike(ctx *model.Context, amount int) bool {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil {
-		return false
-	}
-	return ctx.Game.ConsumeCrystalCost(ctx.User.ID, amount)
-}
-
 func addMagicAction(p *model.Player, source string) {
 	model.AppendMagicAction(p, source)
 }
@@ -104,7 +34,7 @@ func (h *PrayerEnterFormHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil {
 		return false
 	}
-	return ctx.User.Gem > 0 && !hasForm(ctx.User, model.FormPrayerMasterPrayer)
+	return ctx.User.Gem > 0 && !engineplayer.HasForm(ctx.User, model.FormPrayerMasterPrayer)
 }
 
 func (h *PrayerEnterFormHandler) Execute(ctx *model.Context) error {
@@ -114,11 +44,11 @@ func (h *PrayerEnterFormHandler) Execute(ctx *model.Context) error {
 	if ctx.User.Gem <= 0 {
 		return fmt.Errorf("祈祷需要至少1个红宝石")
 	}
-	if hasForm(ctx.User, model.FormPrayerMasterPrayer) {
+	if engineplayer.HasForm(ctx.User, model.FormPrayerMasterPrayer) {
 		return nil
 	}
 	ctx.User.Gem--
-	enterForm(ctx.User, model.FormPrayerMasterPrayer)
+	engineplayer.SetForm(ctx.User, model.FormPrayerMasterPrayer)
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [祈祷]，进入祈祷形态", ctx.User.Name))
 	return nil
 }
@@ -127,7 +57,7 @@ func (h *PrayerRuneGainHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if !hasForm(ctx.User, model.FormPrayerMasterPrayer) {
+	if !engineplayer.HasForm(ctx.User, model.FormPrayerMasterPrayer) {
 		return false
 	}
 	if ctx.Timing != model.TimingOnAttackDeclared {
@@ -141,7 +71,7 @@ func (h *PrayerRuneGainHandler) CanUse(ctx *model.Context) bool {
 }
 
 func (h *PrayerRuneGainHandler) Execute(ctx *model.Context) error {
-	v := addToken(ctx.User, "prayer_rune", 2, 0, 3)
+	v := engineplayer.AddToken(ctx.User, "prayer_rune", 2, 3)
 	ctx.Game.Log(fmt.Sprintf("%s 的 [祈祷符文] 触发，祈祷符文=%d", ctx.User.Name, v))
 	return nil
 }
@@ -150,24 +80,24 @@ func (h *PrayerRadiantFaithHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil {
 		return false
 	}
-	return hasForm(ctx.User, model.FormPrayerMasterPrayer) && getToken(ctx.User, "prayer_rune") > 0
+	return engineplayer.HasForm(ctx.User, model.FormPrayerMasterPrayer) && engineplayer.GetToken(ctx.User, "prayer_rune") > 0
 }
 
 func (h *PrayerRadiantFaithHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("上下文无效")
 	}
-	if !hasForm(ctx.User, model.FormPrayerMasterPrayer) {
+	if !engineplayer.HasForm(ctx.User, model.FormPrayerMasterPrayer) {
 		return fmt.Errorf("不在祈祷形态，无法发动光辉信仰")
 	}
-	if getToken(ctx.User, "prayer_rune") <= 0 {
+	if engineplayer.GetToken(ctx.User, "prayer_rune") <= 0 {
 		return fmt.Errorf("祈祷符文不足")
 	}
 	target := ctx.Target
 	if target == nil || target.Camp != ctx.User.Camp || target.ID == ctx.User.ID {
 		return fmt.Errorf("光辉信仰需要1名其他队友目标")
 	}
-	addToken(ctx.User, "prayer_rune", -1, 0, 3)
+	engineplayer.AddToken(ctx.User, "prayer_rune", -1, 3)
 	ctx.Game.ModifyGem(string(ctx.User.Camp), 1)
 	ctx.Game.Heal(target.ID, 1)
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [光辉信仰]，移除1祈祷符文，战绩区+1红宝石，并治疗 %s 1点", ctx.User.Name, target.Name))
@@ -178,20 +108,20 @@ func (h *PrayerDarkCurseHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil {
 		return false
 	}
-	return hasForm(ctx.User, model.FormPrayerMasterPrayer) && getToken(ctx.User, "prayer_rune") > 0
+	return engineplayer.HasForm(ctx.User, model.FormPrayerMasterPrayer) && engineplayer.GetToken(ctx.User, "prayer_rune") > 0
 }
 
 func (h *PrayerDarkCurseHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Target == nil || ctx.Game == nil {
 		return fmt.Errorf("黑暗诅咒需要目标")
 	}
-	if !hasForm(ctx.User, model.FormPrayerMasterPrayer) {
+	if !engineplayer.HasForm(ctx.User, model.FormPrayerMasterPrayer) {
 		return fmt.Errorf("不在祈祷形态，无法发动黑暗诅咒")
 	}
-	if getToken(ctx.User, "prayer_rune") <= 0 {
+	if engineplayer.GetToken(ctx.User, "prayer_rune") <= 0 {
 		return fmt.Errorf("祈祷符文不足")
 	}
-	addToken(ctx.User, "prayer_rune", -1, 0, 3)
+	engineplayer.AddToken(ctx.User, "prayer_rune", -1, 3)
 	// 先结算对方，再结算自己
 	ctx.Game.AddPendingDamage(model.PendingDamage{
 		SourceID:   ctx.User.ID,
@@ -235,11 +165,11 @@ func (h *PrayerManaTideHandler) CanUse(ctx *model.Context) bool {
 	if ctx.EventCtx.ActionType != model.ActionMagic {
 		return false
 	}
-	return canPayCrystalLike(ctx, 1)
+	return engineplayer.CanPayCrystalLike(ctx, 1)
 }
 
 func (h *PrayerManaTideHandler) Execute(ctx *model.Context) error {
-	if !spendCrystalLike(ctx, 1) {
+	if !engineplayer.SpendCrystalLike(ctx, 1) {
 		return fmt.Errorf("法力潮汐需要1蓝水晶（红宝石可替代）")
 	}
 	addMagicAction(ctx.User, "法力潮汐")

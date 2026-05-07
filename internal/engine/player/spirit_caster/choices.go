@@ -109,7 +109,7 @@ func buildIncantConfirmNoHandPrompt(playerID string) *model.Prompt {
 func buildIncantCardPrompt(playerID string, player *model.Player) *model.Prompt {
 	options := make([]model.PromptOption, 0, len(player.Hand))
 	for idx, c := range player.Hand {
-		options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", idx), Label: fmt.Sprintf("%d: %s", idx+1, formatCardInfo(c))})
+		options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", idx), Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(c))})
 	}
 	return &model.Prompt{
 		Type:     model.PromptConfirm,
@@ -196,7 +196,7 @@ func buildTalismanWindDiscardPrompt(rt engineplayer.ChoiceRuntime, playerID stri
 	}
 	options := make([]model.PromptOption, 0, len(target.Hand))
 	for idx, c := range target.Hand {
-		options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", idx), Label: fmt.Sprintf("%d: %s", idx+1, formatCardInfo(c))})
+		options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", idx), Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(c))})
 	}
 	return &model.Prompt{
 		Type:     model.PromptConfirm,
@@ -527,7 +527,7 @@ func handleTalismanWindDiscard(rt engineplayer.ChoiceRuntime, ctxData map[string
 	if len(target.Hand) == 0 {
 		rt.Log(fmt.Sprintf("%s 的 [灵符-风行]：%s 已无手牌，跳过", user.Name, target.Name))
 	} else {
-		candidates := allHandIndices(target)
+		candidates := engineplayer.AllHandIndices(target)
 		cardIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, candidates)
 		if !ok || cardIdx < 0 || cardIdx >= len(target.Hand) {
 			return fmt.Errorf("无效的选项索引: %d", selectionIndex)
@@ -796,21 +796,4 @@ func reverseOrderTargetIDsFrom(rt engineplayer.ChoiceRuntime, sourceID string, i
 		ids = append(ids, playerOrder[idx])
 	}
 	return ids
-}
-
-// allHandIndices returns a slice of all valid hand indices for the player.
-func allHandIndices(player *model.Player) []int {
-	if player == nil {
-		return nil
-	}
-	out := make([]int, 0, len(player.Hand))
-	for i := range player.Hand {
-		out = append(out, i)
-	}
-	return out
-}
-
-// formatCardInfo formats card information for prompt display.
-func formatCardInfo(card model.Card) string {
-	return promptfmt.FormatCardInfo(card)
 }

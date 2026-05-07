@@ -138,6 +138,19 @@ func ParseIntSliceContextValue(raw interface{}) []int {
 	return result
 }
 
+// ElementOrderForPrompt returns the canonical element order for prompts.
+func ElementOrderForPrompt() []model.Element {
+	return []model.Element{
+		model.ElementEarth,
+		model.ElementWater,
+		model.ElementFire,
+		model.ElementWind,
+		model.ElementThunder,
+		model.ElementLight,
+		model.ElementDark,
+	}
+}
+
 // GetFieldEffectCard 返回玩家场上指定效果类型的场地牌（纯函数，无 engine 依赖）。
 func GetFieldEffectCard(p *model.Player, effect model.EffectType) *model.FieldCard {
 	if p == nil {
@@ -180,6 +193,86 @@ func MaxSameElementCount(p *model.Player) int {
 		}
 	}
 	return maxCount
+}
+
+// RemoveCardsByIndicesFromHand 从玩家手牌中移除指定索引的牌，返回移除的牌列表。
+// 索引从大到小排序后删除，避免索引位移。重复索引会报错。
+func RemoveCardsByIndicesFromHand(player *model.Player, indices []int) ([]model.Card, error) {
+	if player == nil {
+		return nil, fmt.Errorf("玩家不存在")
+	}
+	if len(indices) == 0 {
+		return nil, nil
+	}
+	for _, idx := range indices {
+		if idx < 0 || idx >= len(player.Hand) {
+			return nil, fmt.Errorf("无效的手牌索引: %d", idx)
+		}
+	}
+	seen := map[int]bool{}
+	for _, idx := range indices {
+		if seen[idx] {
+			return nil, fmt.Errorf("不能重复选择同一张牌")
+		}
+		seen[idx] = true
+	}
+	// 从大到小删除，避免索引位移。
+	sorted := make([]int, len(indices))
+	copy(sorted, indices)
+	for i := 0; i < len(sorted); i++ {
+		for j := i + 1; j < len(sorted); j++ {
+			if sorted[i] < sorted[j] {
+				sorted[i], sorted[j] = sorted[j], sorted[i]
+			}
+		}
+	}
+	var removed []model.Card
+	for _, idx := range sorted {
+		removed = append(removed, player.Hand[idx])
+		player.Hand = append(player.Hand[:idx], player.Hand[idx+1:]...)
+	}
+	return removed, nil
+}
+
+// AllHandIndices 返回玩家手牌的所有索引 [0, 1, ..., len(hand)-1]。
+func AllHandIndices(p *model.Player) []int {
+	if p == nil {
+		return nil
+	}
+	out := make([]int, 0, len(p.Hand))
+	for i := range p.Hand {
+		out = append(out, i)
+	}
+	return out
+}
+
+// GetCardIndicesByElement 返回玩家手牌中指定元素牌的索引列表。
+func GetCardIndicesByElement(p *model.Player, element model.Element) []int {
+	if p == nil {
+		return nil
+	}
+	var out []int
+	for i, c := range p.Hand {
+		if c.Element == element {
+			out = append(out, i)
+		}
+	}
+	return out
+}
+
+// MustChoiceResumePointFromMap 从选择上下文中提取恢复点，缺失则 panic。
+func MustChoiceResumePointFromMap(data map[string]interface{}, key string) interface{} {
+	if data == nil {
+		panic(fmt.Sprintf("missing resume point map for key %q", key))
+	}
+	raw, ok := data[key]
+	if !ok {
+		panic(fmt.Sprintf("missing resume point key %q", key))
+	}
+	if raw == nil {
+		panic(fmt.Sprintf("nil resume point for key %q", key))
+	}
+	return raw
 }
 
 // BuildTargetChoicePrompt 构造通用目标选择 Prompt（目标列表由 data["target_ids"] 提供）。

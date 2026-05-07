@@ -8,30 +8,6 @@ import (
 	"starcup-engine/internal/model"
 )
 
-func getSkillFlow(p *model.Player, key string) int {
-	if p == nil || p.TurnState.SkillFlowState == nil {
-		return 0
-	}
-	return p.TurnState.SkillFlowState[key]
-}
-
-func setSkillFlow(p *model.Player, key string, v int) {
-	if p == nil {
-		return
-	}
-	if p.TurnState.SkillFlowState == nil {
-		p.TurnState.SkillFlowState = make(map[string]int)
-	}
-	p.TurnState.SkillFlowState[key] = v
-}
-
-// 红宝石可替代蓝水晶（仅水晶消耗方向）
-func canPayCrystalLike(ctx *model.Context, amount int) bool {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil {
-		return false
-	}
-	return ctx.Game.CanPayCrystalCost(ctx.User.ID, amount)
-}
 
 // --- 冒险家技能处理器 ---
 
@@ -130,7 +106,7 @@ func (h *AdventurerUndergroundLawHandler) Execute(ctx *model.Context) error {
 type AdventurerStealSkyHandler struct{ engineplayer.BaseHandler }
 
 func (h *AdventurerStealSkyHandler) CanUse(ctx *model.Context) bool {
-	return canPayCrystalLike(ctx, 1)
+	return engineplayer.CanPayCrystalLike(ctx, 1)
 }
 
 func (h *AdventurerStealSkyHandler) Execute(ctx *model.Context) error {

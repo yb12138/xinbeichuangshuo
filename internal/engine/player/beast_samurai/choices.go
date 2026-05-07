@@ -391,7 +391,7 @@ func handleAlertSourceDiscard(rt engineplayer.ChoiceRuntime, ctxData map[string]
 		return fmt.Errorf("兽魂警戒弃牌上下文不存在")
 	}
 
-	removed := removeCardsByIndicesFromHand(actor, []int{selectionIndex})
+	removed, _ := engineplayer.RemoveCardsByIndicesFromHand(actor, []int{selectionIndex})
 	if len(removed) > 0 {
 		rt.NotifyCardRevealed(actor.ID, removed, "discard")
 		rt.AppendToDiscard(removed)
@@ -413,7 +413,7 @@ func handleBeastReturnSelfDiscard(rt engineplayer.ChoiceRuntime, ctxData map[str
 		return fmt.Errorf("兽返弃牌执行者不存在")
 	}
 
-	removed := removeCardsByIndicesFromHand(user, []int{selectionIndex})
+	removed, _ := engineplayer.RemoveCardsByIndicesFromHand(user, []int{selectionIndex})
 	if len(removed) > 0 {
 		rt.NotifyCardRevealed(user.ID, removed, "discard")
 		rt.AppendToDiscard(removed)
@@ -444,7 +444,7 @@ func handleBeastReturnSourceDiscard(rt engineplayer.ChoiceRuntime, ctxData map[s
 		return fmt.Errorf("兽返来源弃牌上下文不存在")
 	}
 
-	removed := removeCardsByIndicesFromHand(source, []int{selectionIndex})
+	removed, _ := engineplayer.RemoveCardsByIndicesFromHand(source, []int{selectionIndex})
 	if len(removed) > 0 {
 		rt.NotifyCardRevealed(source.ID, removed, "discard")
 		rt.AppendToDiscard(removed)
@@ -464,7 +464,7 @@ func handleIaijutsuStyleDiscard(rt engineplayer.ChoiceRuntime, ctxData map[strin
 		return fmt.Errorf("御魂流居合式弃牌执行者不存在")
 	}
 
-	removed := removeCardsByIndicesFromHand(user, []int{selectionIndex})
+	removed, _ := engineplayer.RemoveCardsByIndicesFromHand(user, []int{selectionIndex})
 	if len(removed) > 0 {
 		rt.NotifyCardRevealed(user.ID, removed, "discard")
 		rt.AppendToDiscard(removed)
@@ -481,7 +481,7 @@ func handleReversalTargetDiscard(rt engineplayer.ChoiceRuntime, ctxData map[stri
 	}
 
 	need := runtimeutil.ToIntContextValue(ctxData["need_count"])
-	removed := removeCardsByIndicesFromHand(target, []int{selectionIndex})
+	removed, _ := engineplayer.RemoveCardsByIndicesFromHand(target, []int{selectionIndex})
 	if len(removed) > 0 {
 		rt.NotifyCardRevealed(target.ID, removed, "discard")
 		rt.AppendToDiscard(removed)
@@ -640,35 +640,6 @@ func discardedMagicCount(cards []model.Card) int {
 		}
 	}
 	return count
-}
-
-// removeCardsByIndicesFromHand removes the cards at the given indices from the
-// player's hand and returns the removed cards. Indices must be valid.
-func removeCardsByIndicesFromHand(player *model.Player, indices []int) []model.Card {
-	if player == nil || len(indices) == 0 {
-		return nil
-	}
-	removed := make([]model.Card, 0, len(indices))
-	for _, idx := range indices {
-		if idx >= 0 && idx < len(player.Hand) {
-			removed = append(removed, player.Hand[idx])
-		}
-	}
-	newHand := make([]model.Card, 0, len(player.Hand)-len(indices))
-	for i, card := range player.Hand {
-		keep := true
-		for _, idx := range indices {
-			if i == idx {
-				keep = false
-				break
-			}
-		}
-		if keep {
-			newHand = append(newHand, card)
-		}
-	}
-	player.Hand = newHand
-	return removed
 }
 
 // ---------------------------------------------------------------------------

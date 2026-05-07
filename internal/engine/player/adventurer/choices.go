@@ -196,7 +196,7 @@ func buildFraudPickPrompt(_ engineplayer.ChoiceRuntime, playerID string, player 
 	}
 	remainingIndices := runtimeutil.ParseChoiceIntSlice(data["remaining_indices"])
 	if len(remainingIndices) == 0 {
-		remainingIndices = allHandIndices(player)
+		remainingIndices = engineplayer.AllHandIndices(player)
 	}
 	selectedIndices := runtimeutil.ParseChoiceIntSlice(data["selected_indices"])
 	needCount := runtimeutil.ToIntContextValue(data["need_count"])
@@ -225,7 +225,7 @@ func handleFraudPick(rt engineplayer.ChoiceRuntime, playerID string, selectionIn
 	selectedIndices := runtimeutil.ParseChoiceIntSlice(ctxData["selected_indices"])
 	remainingIndices := runtimeutil.ParseChoiceIntSlice(ctxData["remaining_indices"])
 	if len(remainingIndices) == 0 {
-		remainingIndices = allHandIndices(user)
+		remainingIndices = engineplayer.AllHandIndices(user)
 	}
 
 	cardIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, remainingIndices)
@@ -325,7 +325,7 @@ func resolveFraudAttack(rt engineplayer.ChoiceRuntime, user *model.Player, indic
 	if target == nil {
 		return true, fmt.Errorf("欺诈目标不存在")
 	}
-	removed := removeCardsByIndicesFromHand(user, indices)
+	removed, _ := engineplayer.RemoveCardsByIndicesFromHand(user, indices)
 	rt.NotifyCardRevealed(user.ID, removed, "discard")
 	rt.AppendToDiscard(removed)
 	virtualCard := model.Card{
@@ -350,14 +350,6 @@ func resolveFraudAttack(rt engineplayer.ChoiceRuntime, user *model.Player, indic
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-func allHandIndices(player *model.Player) []int {
-	indices := make([]int, 0, len(player.Hand))
-	for i := range player.Hand {
-		indices = append(indices, i)
-	}
-	return indices
-}
 
 func collectCards(player *model.Player, indices []int) []model.Card {
 	cards := make([]model.Card, 0, len(indices))
@@ -394,25 +386,3 @@ func removeInt(slice []int, val int) []int {
 	return out
 }
 
-func removeCardsByIndicesFromHand(player *model.Player, indices []int) []model.Card {
-	if len(indices) == 0 || player == nil {
-		return nil
-	}
-	sorted := make([]int, len(indices))
-	copy(sorted, indices)
-	for i := 0; i < len(sorted)-1; i++ {
-		for j := i + 1; j < len(sorted); j++ {
-			if sorted[j] > sorted[i] {
-				sorted[i], sorted[j] = sorted[j], sorted[i]
-			}
-		}
-	}
-	removed := make([]model.Card, 0, len(sorted))
-	for _, removeIdx := range sorted {
-		if removeIdx >= 0 && removeIdx < len(player.Hand) {
-			removed = append(removed, player.Hand[removeIdx])
-			player.Hand = append(player.Hand[:removeIdx], player.Hand[removeIdx+1:]...)
-		}
-	}
-	return removed
-}

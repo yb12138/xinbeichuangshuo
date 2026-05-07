@@ -40,7 +40,7 @@ func (e *GameEngine) forceTurnTo(targetPID string) error {
 	return nil
 }
 
-func (e *GameEngine) debugFindCharacter(roleID string) *model.Character {
+func (e *GameEngine) DebugFindCharacter(roleID string) *model.Character {
 	if roleID == "" {
 		return nil
 	}
@@ -539,28 +539,28 @@ func (e *GameEngine) debugBuildContext(user *model.Player, skill model.SkillDefi
 type cheatCommandHandler func(e *GameEngine, act model.PlayerAction) error
 
 var cheatCommandHandlers = map[string]cheatCommandHandler{
-	"turn":           (*GameEngine).handleCheatTurn,
-	"role":           (*GameEngine).handleCheatRole,
-	"token":          (*GameEngine).handleCheatToken,
-	"set":            (*GameEngine).handleCheatSet,
-	"effect":         (*GameEngine).handleCheatEffect,
-	"card_exclusive": (*GameEngine).handleCheatCardExclusive,
-	"card_element":   (*GameEngine).handleCheatCardElement,
-	"card_faction":   (*GameEngine).handleCheatCardFaction,
-	"card_magic":     (*GameEngine).handleCheatCardMagic,
-	"discard":        (*GameEngine).handleCheatDiscard,
-	"skill":          (*GameEngine).handleCheatSkill,
+	"turn":           (*GameEngine).HandleCheatTurn,
+	"role":           (*GameEngine).HandleCheatRole,
+	"token":          (*GameEngine).HandleCheatToken,
+	"set":            (*GameEngine).HandleCheatSet,
+	"effect":         (*GameEngine).HandleCheatEffect,
+	"card_exclusive": (*GameEngine).HandleCheatCardExclusive,
+	"card_element":   (*GameEngine).HandleCheatCardElement,
+	"card_faction":   (*GameEngine).HandleCheatCardFaction,
+	"card_magic":     (*GameEngine).HandleCheatCardMagic,
+	"discard":        (*GameEngine).HandleCheatDiscard,
+	"skill":          (*GameEngine).HandleCheatSkill,
 }
 
-// handleCheat 处理作弊指令 (用于测试)
-func (e *GameEngine) handleCheat(act model.PlayerAction) error {
+// HandleCheat 处理作弊指令 (用于测试)
+func (e *GameEngine) HandleCheat(act model.PlayerAction) error {
 	if handler, ok := cheatCommandHandlers[act.TargetID]; ok {
 		return handler(e, act)
 	}
-	return e.handleCheatAddCardByName(act)
+	return e.HandleCheatAddCardByName(act)
 }
 
-func (e *GameEngine) handleCheatTurn(act model.PlayerAction) error {
+func (e *GameEngine) HandleCheatTurn(act model.PlayerAction) error {
 	if len(act.ExtraArgs) == 0 {
 		return fmt.Errorf("未指定目标玩家ID")
 	}
@@ -572,7 +572,7 @@ func (e *GameEngine) handleCheatTurn(act model.PlayerAction) error {
 	return nil
 }
 
-func (e *GameEngine) handleCheatRole(act model.PlayerAction) error {
+func (e *GameEngine) HandleCheatRole(act model.PlayerAction) error {
 	if len(act.ExtraArgs) < 2 {
 		return fmt.Errorf("用法: cheat role <pid> <role_id>")
 	}
@@ -582,7 +582,7 @@ func (e *GameEngine) handleCheatRole(act model.PlayerAction) error {
 	if err != nil {
 		return err
 	}
-	char := e.debugFindCharacter(roleID)
+	char := e.DebugFindCharacter(roleID)
 	if char == nil {
 		return fmt.Errorf("角色不存在: %s", roleID)
 	}
@@ -591,7 +591,7 @@ func (e *GameEngine) handleCheatRole(act model.PlayerAction) error {
 	return nil
 }
 
-func (e *GameEngine) handleCheatToken(act model.PlayerAction) error {
+func (e *GameEngine) HandleCheatToken(act model.PlayerAction) error {
 	if len(act.ExtraArgs) < 3 {
 		return fmt.Errorf("用法: cheat token <pid> <token_key> <value>")
 	}
@@ -611,7 +611,7 @@ func (e *GameEngine) handleCheatToken(act model.PlayerAction) error {
 	return nil
 }
 
-func (e *GameEngine) handleCheatSet(act model.PlayerAction) error {
+func (e *GameEngine) HandleCheatSet(act model.PlayerAction) error {
 	if len(act.ExtraArgs) < 3 {
 		return fmt.Errorf("用法: cheat set <pid> <field> <value>")
 	}
@@ -641,7 +641,7 @@ func (e *GameEngine) handleCheatSet(act model.PlayerAction) error {
 	return nil
 }
 
-func (e *GameEngine) handleCheatEffect(act model.PlayerAction) error {
+func (e *GameEngine) HandleCheatEffect(act model.PlayerAction) error {
 	if len(act.ExtraArgs) < 3 {
 		return fmt.Errorf("用法: cheat effect <pid> <effect_type> <count>")
 	}
@@ -664,7 +664,7 @@ func (e *GameEngine) handleCheatEffect(act model.PlayerAction) error {
 	return nil
 }
 
-func (e *GameEngine) handleCheatCardExclusive(act model.PlayerAction) error {
+func (e *GameEngine) HandleCheatCardExclusive(act model.PlayerAction) error {
 	if len(act.ExtraArgs) < 3 {
 		return fmt.Errorf("用法: cheat card_exclusive <pid> <role_id> <skill_id> [count]")
 	}
@@ -682,7 +682,7 @@ func (e *GameEngine) handleCheatCardExclusive(act model.PlayerAction) error {
 	if err != nil {
 		return err
 	}
-	char := e.debugFindCharacter(roleID)
+	char := e.DebugFindCharacter(roleID)
 	if char == nil {
 		return fmt.Errorf("角色不存在: %s", roleID)
 	}
@@ -706,7 +706,7 @@ func (e *GameEngine) handleCheatCardExclusive(act model.PlayerAction) error {
 	return nil
 }
 
-func (e *GameEngine) handleCheatCardElement(act model.PlayerAction) error {
+func (e *GameEngine) HandleCheatCardElement(act model.PlayerAction) error {
 	if len(act.ExtraArgs) < 2 {
 		return fmt.Errorf("用法: cheat card_element <pid> <element> [count]")
 	}
@@ -734,7 +734,7 @@ func (e *GameEngine) handleCheatCardElement(act model.PlayerAction) error {
 	return nil
 }
 
-func (e *GameEngine) handleCheatCardFaction(act model.PlayerAction) error {
+func (e *GameEngine) HandleCheatCardFaction(act model.PlayerAction) error {
 	if len(act.ExtraArgs) < 2 {
 		return fmt.Errorf("用法: cheat card_faction <pid> <faction> [count]")
 	}
@@ -762,7 +762,7 @@ func (e *GameEngine) handleCheatCardFaction(act model.PlayerAction) error {
 	return nil
 }
 
-func (e *GameEngine) handleCheatCardMagic(act model.PlayerAction) error {
+func (e *GameEngine) HandleCheatCardMagic(act model.PlayerAction) error {
 	if len(act.ExtraArgs) < 2 {
 		return fmt.Errorf("用法: cheat card_magic <pid> <card_name> [count]")
 	}
@@ -789,7 +789,7 @@ func (e *GameEngine) handleCheatCardMagic(act model.PlayerAction) error {
 	return nil
 }
 
-func (e *GameEngine) handleCheatDiscard(act model.PlayerAction) error {
+func (e *GameEngine) HandleCheatDiscard(act model.PlayerAction) error {
 	if len(act.ExtraArgs) < 2 {
 		return fmt.Errorf("用法: cheat discard <pid> <count>")
 	}
@@ -821,7 +821,7 @@ func (e *GameEngine) handleCheatDiscard(act model.PlayerAction) error {
 	return nil
 }
 
-func (e *GameEngine) handleCheatSkill(act model.PlayerAction) error {
+func (e *GameEngine) HandleCheatSkill(act model.PlayerAction) error {
 	if len(act.ExtraArgs) < 2 {
 		return fmt.Errorf("用法: cheat skill <pid> [role_id] <skill_id>")
 	}
@@ -841,7 +841,7 @@ func (e *GameEngine) handleCheatSkill(act model.PlayerAction) error {
 	}
 
 	if roleID != "" {
-		char := e.debugFindCharacter(roleID)
+		char := e.DebugFindCharacter(roleID)
 		if char == nil {
 			return fmt.Errorf("角色不存在: %s", roleID)
 		}
@@ -883,7 +883,7 @@ func (e *GameEngine) handleCheatSkill(act model.PlayerAction) error {
 }
 
 // 未命中预定义 cheat 子命令时，按“给玩家添加指定名称卡牌”处理。
-func (e *GameEngine) handleCheatAddCardByName(act model.PlayerAction) error {
+func (e *GameEngine) HandleCheatAddCardByName(act model.PlayerAction) error {
 	pid := act.TargetID
 	if pid == "" {
 		return fmt.Errorf("未指定玩家ID")

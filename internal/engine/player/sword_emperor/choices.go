@@ -168,7 +168,7 @@ func handleSwordRainTarget(rt engineplayer.ChoiceRuntime, selectionIndex int, ct
 	}
 
 	// Proceed to discard phase
-	discardIndices := allHandIndices(user)
+	discardIndices := engineplayer.AllHandIndices(user)
 	if len(discardIndices) == 0 {
 		// No cards to discard, proceed with attack
 		performSwordRainAttack(rt, user, target, ctxData)
@@ -233,13 +233,3 @@ func performSwordRainAttack(rt engineplayer.ChoiceRuntime, user *model.Player, t
 	rt.Log(fmt.Sprintf("%s 发动 [剑雨]：对 %s 造成%d点攻击伤害", user.Name, target.Name, damage))
 }
 
-func allHandIndices(player *model.Player) []int {
-	if player == nil {
-		return nil
-	}
-	out := make([]int, 0, len(player.Hand))
-	for i := range player.Hand {
-		out = append(out, i)
-	}
-	return out
-}

@@ -38,7 +38,7 @@ func (e *GameEngine) processFlowContinuations(kind model.FlowContinuationKind) {
 		}
 
 		// 执行
-		rt := newRoleChoiceRuntime(e)
+		rt := NewRoleChoiceRuntime(e)
 		if err := handler(rt, cont); err != nil {
 			e.Log(fmt.Sprintf("[Error] FlowContinuation 处理失败: %s/%s - %v", cont.RoleID, kind, err))
 		}

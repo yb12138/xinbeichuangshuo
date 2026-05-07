@@ -66,8 +66,13 @@ func (e *GameEngine) resetTurnMagicDamageTracker() {
 	e.turnMagicDamageTargets = map[string]map[string]bool{}
 }
 
-// buildContext：组装 User/Target/Timing/EventCtx。
-func (e *GameEngine) buildContext(user *model.Player, target *model.Player, timing model.FlowTiming, eventCtx *model.EventContext) *model.Context {
+// HasPostActionEndResume reports whether there is a pending post-action-end resume state (for testing).
+func (e *GameEngine) HasPostActionEndResume() bool {
+	return e != nil && e.postActionEndResume != nil
+}
+
+// BuildContext：组装 User/Target/Timing/EventCtx。
+func (e *GameEngine) BuildContext(user *model.Player, target *model.Player, timing model.FlowTiming, eventCtx *model.EventContext) *model.Context {
 	ctx := &model.Context{
 		Game:             e,
 		User:             user,
@@ -79,7 +84,7 @@ func (e *GameEngine) buildContext(user *model.Player, target *model.Player, timi
 		PendingInterrupt: e.State.PendingInterrupt,
 		Targets:          []*model.Player{},
 	}
-	ctx.Selections["current_resume_point"] = e.currentChoiceResumePoint()
+	ctx.Selections["current_resume_point"] = e.CurrentChoiceResumePoint()
 	ctx.Selections["current_turn_stage"] = e.State.TurnStage
 	ctx.Selections["current_combat_stage"] = e.State.CombatStage
 	ctx.Selections["current_subflow"] = e.State.Subflow
@@ -108,4 +113,14 @@ func NewGameEngine(observer model.GameObserver) *GameEngine {
 	engine.rebuildTimingOnAttackDeclaredRegistry()
 	engine.roleTimingHooks = mountRoleTimingHooks()
 	return engine
+}
+
+// Dispatcher returns the internal skill dispatcher for testing.
+func (e *GameEngine) Dispatcher() *SkillDispatcher {
+	return e.dispatcher
+}
+
+// HasSkillResume reports whether a skill resume context is pending.
+func (e *GameEngine) HasSkillResume() bool {
+	return e.skillResume != nil
 }

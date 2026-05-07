@@ -220,7 +220,7 @@ func (e *GameEngine) dispatchCardTiming(player *model.Player, timing model.FlowT
 		TargetID: targetID,
 		Card:     &cardCopy,
 	}
-	skillCtx := e.buildContext(player, nil, timing, cardCtx)
+	skillCtx := e.BuildContext(player, nil, timing, cardCtx)
 	e.dispatcher.OnTiming(skillCtx.Timing, skillCtx)
 }
 
@@ -359,13 +359,13 @@ func (e *GameEngine) notifyInterruptPrompt() {
 		}
 		return
 	}
-	prompt := e.buildPendingInterruptPrompt()
+	prompt := e.BuildPendingInterruptPrompt()
 	if prompt != nil {
 		e.Notify(model.EventAskInput, "", prompt)
 	}
 }
 
-func (e *GameEngine) buildChoicePrompt() *model.Prompt {
+func (e *GameEngine) BuildChoicePrompt() *model.Prompt {
 	if e.State.PendingInterrupt == nil {
 		return nil
 	}
@@ -381,7 +381,7 @@ func (e *GameEngine) buildChoicePrompt() *model.Prompt {
 	player := e.State.Players[playerID]
 	p, err := e.choiceEngine.BuildPrompt(choiceType, playerID, player, data)
 	if err != nil {
-		e.Log(fmt.Sprintf("[System] buildChoicePrompt: %v", err))
+		e.Log(fmt.Sprintf("[System] BuildChoicePrompt: %v", err))
 		return nil
 	}
 	return p

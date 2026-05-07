@@ -163,11 +163,11 @@ func (e *GameEngine) CheckHandLimit(playerID string, stayInTurn bool) {
 	if player == nil {
 		return
 	}
-	ctx := e.buildContext(player, nil, model.TimingActive, nil)
+	ctx := e.BuildContext(player, nil, model.TimingActive, nil)
 	if stayInTurn {
 		ctx.Flags["StayInTurn"] = true
 	}
-	e.checkHandLimit(player, ctx)
+	e.CheckHandLimitCtx(player, ctx)
 }
 
 // GetAllPlayers 返回所有玩家的切片。
@@ -324,7 +324,7 @@ func (e *GameEngine) emitBuffRemovedDispatch(sourceID, targetID string, effect m
 		TargetID: targetID, // 哪个目标身上的基础效果被移除
 		BuffID:   string(effect),
 	}
-	ctx := e.buildContext(target, nil, model.TimingOnFieldMarkChanged, eventCtx)
+	ctx := e.BuildContext(target, nil, model.TimingOnFieldMarkChanged, eventCtx)
 	e.dispatcher.OnTiming(ctx.Timing, ctx)
 }
 
@@ -339,7 +339,7 @@ func (e *GameEngine) emitBuffAddedDispatch(sourceID, targetID string, effect mod
 		TargetID: targetID,
 		BuffID:   string(effect),
 	}
-	ctx := e.buildContext(target, nil, model.TimingOnFieldMarkChanged, eventCtx)
+	ctx := e.BuildContext(target, nil, model.TimingOnFieldMarkChanged, eventCtx)
 	e.dispatcher.OnTiming(ctx.Timing, ctx)
 }
 

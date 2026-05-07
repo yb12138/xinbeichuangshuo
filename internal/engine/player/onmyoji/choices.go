@@ -513,27 +513,12 @@ func stringSliceContains(items []string, want string) bool {
 	return false
 }
 
-func playerHasForm(player *model.Player, form string) bool {
-	if player == nil {
-		return false
-	}
-	return player.Form == form
-}
-
 func hasOnmyojiShikigamiForm(player *model.Player) bool {
-	return playerHasForm(player, model.FormOnmyojiShikigami)
-}
-
-func clearPlayerForm(player *model.Player, form string) bool {
-	if player == nil || player.Form != form {
-		return false
-	}
-	player.Form = ""
-	return true
+	return engineplayer.HasForm(player, model.FormOnmyojiShikigami)
 }
 
 func leaveOnmyojiShikigamiForm(player *model.Player) bool {
-	return clearPlayerForm(player, model.FormOnmyojiShikigami)
+	return engineplayer.ClearForm(player, model.FormOnmyojiShikigami)
 }
 
 func resolveOnmyojiLifeBarrierSupportTarget(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, user *model.Player, targetID string) error {

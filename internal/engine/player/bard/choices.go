@@ -22,27 +22,27 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 	case "bd_descent_element":
 		elemCounts := getSameElementCounts(player)
 		elems := make([]model.Element, 0)
-		for _, ele := range elementOrderForPrompt() {
+		for _, ele := range engineplayer.ElementOrderForPrompt() {
 			if elemCounts[ele] >= 2 {
 				elems = append(elems, ele)
 			}
 		}
 		options := make([]model.PromptOption, 0, len(elems))
 		for _, ele := range elems {
-			options = append(options, model.PromptOption{ID: string(ele), Label: fmt.Sprintf("%s系", elementNameForPrompt(string(ele)))})
+			options = append(options, model.PromptOption{ID: string(ele), Label: fmt.Sprintf("%s系", promptfmt.ElementName(string(ele)))})
 		}
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【沉沦协奏曲】请选择要弃置的同系元素：", Options: options, Min: 1, Max: 1}
 	case "bd_descent_cards":
 		chosenEle, _ := data["chosen_element"].(string)
-		chosenEleZh := elementNameForPrompt(chosenEle)
-		remaining := ParseIntSliceContextValue(data["remaining_indices"])
-		selected := len(ParseIntSliceContextValue(data["selected_indices"]))
+		chosenEleZh := promptfmt.ElementName(chosenEle)
+		remaining := engineplayer.ParseIntSliceContextValue(data["remaining_indices"])
+		selected := len(engineplayer.ParseIntSliceContextValue(data["selected_indices"]))
 		options := make([]model.PromptOption, 0, len(remaining))
 		for _, idx := range remaining {
 			if idx < 0 || idx >= len(player.Hand) {
 				continue
 			}
-			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", idx), Label: fmt.Sprintf("%d: %s", idx+1, formatCardInfo(player.Hand[idx]))})
+			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", idx), Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(player.Hand[idx]))})
 		}
 		remainingPick := 2 - selected
 		if remainingPick < 1 {
@@ -75,7 +75,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		selected := runtimeutil.ToIntContextValue(data["selected_count"])
 		options := make([]model.PromptOption, 0, len(actor.Hand))
 		for idx, c := range actor.Hand {
-			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", idx), Label: fmt.Sprintf("%d: %s", idx+1, formatCardInfo(c))})
+			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", idx), Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(c))})
 		}
 		remainingPick := need - selected
 		if remainingPick < 1 {
@@ -101,14 +101,14 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		}
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: fmt.Sprintf("【激昂狂想曲】请选择第 %d/2 名目标：", len(selectedSet)+1), Options: options, Min: 1, Max: 1}
 	case "bd_rousing_discard_cards":
-		selected := len(ParseIntSliceContextValue(data["selected_indices"]))
-		remaining := ParseIntSliceContextValue(data["remaining_indices"])
+		selected := len(engineplayer.ParseIntSliceContextValue(data["selected_indices"]))
+		remaining := engineplayer.ParseIntSliceContextValue(data["remaining_indices"])
 		options := make([]model.PromptOption, 0, len(remaining))
 		for _, idx := range remaining {
 			if idx < 0 || idx >= len(player.Hand) {
 				continue
 			}
-			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", idx), Label: fmt.Sprintf("%d: %s", idx+1, formatCardInfo(player.Hand[idx]))})
+			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", idx), Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(player.Hand[idx]))})
 		}
 		remainingPick := 2 - selected
 		if remainingPick < 1 {
@@ -139,7 +139,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 	case "bd_hope_transfer_discard":
 		options := make([]model.PromptOption, 0, len(player.Hand))
 		for idx, c := range player.Hand {
-			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", idx), Label: fmt.Sprintf("%d: %s", idx+1, formatCardInfo(c))})
+			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", idx), Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(c))})
 		}
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【希望赋格曲】请选择弃置1张手牌：", Options: options, Min: 1, Max: 1}
 	case "bd_descent_target":
@@ -207,7 +207,7 @@ func handleDescentElement(rt engineplayer.ChoiceRuntime, ctxData map[string]inte
 	}
 	elemCounts := getSameElementCounts(user)
 	elems := make([]model.Element, 0)
-	for _, ele := range elementOrderForPrompt() {
+	for _, ele := range engineplayer.ElementOrderForPrompt() {
 		if elemCounts[ele] >= 2 {
 			elems = append(elems, ele)
 		}
@@ -218,7 +218,7 @@ func handleDescentElement(rt engineplayer.ChoiceRuntime, ctxData map[string]inte
 	chosen := elems[selectionIndex]
 	ctxData["chosen_element"] = string(chosen)
 	ctxData["selected_indices"] = []int{}
-	ctxData["remaining_indices"] = getCardIndicesByElement(user, chosen)
+	ctxData["remaining_indices"] = engineplayer.GetCardIndicesByElement(user, chosen)
 	ctxData["choice_type"] = "bd_descent_cards"
 	intr := rt.GetPendingInterrupt()
 	if intr != nil {
@@ -235,8 +235,8 @@ func handleDescentCards(rt engineplayer.ChoiceRuntime, ctxData map[string]interf
 		return fmt.Errorf("玩家不存在")
 	}
 	chosenElement, _ := ctxData["chosen_element"].(string)
-	remaining := ParseIntSliceContextValue(ctxData["remaining_indices"])
-	selected := ParseIntSliceContextValue(ctxData["selected_indices"])
+	remaining := engineplayer.ParseIntSliceContextValue(ctxData["remaining_indices"])
+	selected := engineplayer.ParseIntSliceContextValue(ctxData["selected_indices"])
 	cardIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, remaining)
 	if !ok || cardIdx < 0 || cardIdx >= len(user.Hand) {
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
@@ -261,7 +261,7 @@ func handleDescentCards(rt engineplayer.ChoiceRuntime, ctxData map[string]interf
 		rt.NotifyInterruptPrompt()
 		return nil
 	}
-	removed, err := removeCardsByIndicesFromHand(user, append([]int{}, selected...))
+	removed, err := engineplayer.RemoveCardsByIndicesFromHand(user, append([]int{}, selected...))
 	if err != nil {
 		return err
 	}
@@ -431,7 +431,7 @@ func handleDissonanceTarget(rt engineplayer.ChoiceRuntime, ctxData map[string]in
 	ctxData["need_count"] = n
 	ctxData["selected_count"] = 0
 	ctxData["selected_indices"] = []int{}
-	ctxData["remaining_indices"] = allHandIndices(currentActor)
+	ctxData["remaining_indices"] = engineplayer.AllHandIndices(currentActor)
 	intr := rt.GetPendingInterrupt()
 	if intr != nil {
 		intr.Context = ctxData
@@ -461,8 +461,8 @@ func handleDissonanceDiscardStep(rt engineplayer.ChoiceRuntime, ctxData map[stri
 	}
 	needCount := runtimeutil.ToIntContextValue(ctxData["need_count"])
 	selectedCount := runtimeutil.ToIntContextValue(ctxData["selected_count"])
-	remaining := ParseIntSliceContextValue(ctxData["remaining_indices"])
-	selected := ParseIntSliceContextValue(ctxData["selected_indices"])
+	remaining := engineplayer.ParseIntSliceContextValue(ctxData["remaining_indices"])
+	selected := engineplayer.ParseIntSliceContextValue(ctxData["selected_indices"])
 	cardIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, remaining)
 	if !ok || cardIdx < 0 || cardIdx >= len(actor.Hand) {
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
@@ -486,7 +486,7 @@ func handleDissonanceDiscardStep(rt engineplayer.ChoiceRuntime, ctxData map[stri
 		rt.NotifyInterruptPrompt()
 		return nil
 	}
-	removed, err := removeCardsByIndicesFromHand(actor, append([]int{}, selected...))
+	removed, err := engineplayer.RemoveCardsByIndicesFromHand(actor, append([]int{}, selected...))
 	if err != nil {
 		return err
 	}
@@ -505,7 +505,7 @@ func handleDissonanceDiscardStep(rt engineplayer.ChoiceRuntime, ctxData map[stri
 		ctxData["current_actor_id"] = nextActor.ID
 		ctxData["selected_count"] = 0
 		ctxData["selected_indices"] = []int{}
-		ctxData["remaining_indices"] = allHandIndices(nextActor)
+		ctxData["remaining_indices"] = engineplayer.AllHandIndices(nextActor)
 		intr := rt.GetPendingInterrupt()
 		if intr != nil {
 			intr.Context = ctxData
@@ -546,7 +546,7 @@ func handleRousingMode(rt engineplayer.ChoiceRuntime, ctxData map[string]interfa
 		}
 		ctxData["choice_type"] = "bd_rousing_discard_cards"
 		ctxData["selected_indices"] = []int{}
-		ctxData["remaining_indices"] = allHandIndices(user)
+		ctxData["remaining_indices"] = engineplayer.AllHandIndices(user)
 		intr := rt.GetPendingInterrupt()
 		if intr != nil {
 			intr.Context = ctxData
@@ -606,8 +606,8 @@ func handleRousingDiscardCards(rt engineplayer.ChoiceRuntime, ctxData map[string
 	if user == nil {
 		return fmt.Errorf("吟游诗人不存在")
 	}
-	remaining := ParseIntSliceContextValue(ctxData["remaining_indices"])
-	selected := ParseIntSliceContextValue(ctxData["selected_indices"])
+	remaining := engineplayer.ParseIntSliceContextValue(ctxData["remaining_indices"])
+	selected := engineplayer.ParseIntSliceContextValue(ctxData["selected_indices"])
 	cardIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, remaining)
 	if !ok || cardIdx < 0 || cardIdx >= len(user.Hand) {
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
@@ -629,7 +629,7 @@ func handleRousingDiscardCards(rt engineplayer.ChoiceRuntime, ctxData map[string
 		rt.NotifyInterruptPrompt()
 		return nil
 	}
-	removed, err := removeCardsByIndicesFromHand(user, append([]int{}, selected...))
+	removed, err := engineplayer.RemoveCardsByIndicesFromHand(user, append([]int{}, selected...))
 	if err != nil {
 		return err
 	}
@@ -909,26 +909,6 @@ func handleHopeTransferDiscard(rt engineplayer.ChoiceRuntime, ctxData map[string
 
 const bardInspirationCap = 3
 
-func elementNameForPrompt(raw string) string {
-	return promptfmt.ElementName(raw)
-}
-
-func formatCardInfo(card model.Card) string {
-	return promptfmt.FormatCardInfo(card)
-}
-
-func elementOrderForPrompt() []model.Element {
-	return []model.Element{
-		model.ElementEarth,
-		model.ElementWater,
-		model.ElementFire,
-		model.ElementWind,
-		model.ElementThunder,
-		model.ElementLight,
-		model.ElementDark,
-	}
-}
-
 func getSameElementCounts(player *model.Player) map[model.Element]int {
 	out := map[model.Element]int{}
 	if player == nil {
@@ -943,104 +923,8 @@ func getSameElementCounts(player *model.Player) map[model.Element]int {
 	return out
 }
 
-func getCardIndicesByElement(player *model.Player, element model.Element) []int {
-	if player == nil {
-		return nil
-	}
-	var out []int
-	for i, c := range player.Hand {
-		if c.Element == element {
-			out = append(out, i)
-		}
-	}
-	return out
-}
-
-func allHandIndices(player *model.Player) []int {
-	if player == nil {
-		return nil
-	}
-	out := make([]int, 0, len(player.Hand))
-	for i := range player.Hand {
-		out = append(out, i)
-	}
-	return out
-}
-
-func ParseIntSliceContextValue(raw interface{}) []int {
-	result := make([]int, 0)
-	switch value := raw.(type) {
-	case []int:
-		result = append(result, value...)
-	case []interface{}:
-		for _, item := range value {
-			switch v := item.(type) {
-			case int:
-				result = append(result, v)
-			case float64:
-				result = append(result, int(v))
-			}
-		}
-	}
-	return result
-}
-
-func removeCardsByIndicesFromHand(player *model.Player, indices []int) ([]model.Card, error) {
-	if player == nil {
-		return nil, fmt.Errorf("玩家不存在")
-	}
-	for _, idx := range indices {
-		if idx < 0 || idx >= len(player.Hand) {
-			return nil, fmt.Errorf("无效的手牌索引: %d", idx)
-		}
-	}
-	seen := map[int]bool{}
-	for _, idx := range indices {
-		if seen[idx] {
-			return nil, fmt.Errorf("不能重复选择同一张牌")
-		}
-		seen[idx] = true
-	}
-	// 从大到小删除，避免索引位移。
-	for i := 0; i < len(indices); i++ {
-		for j := i + 1; j < len(indices); j++ {
-			if indices[i] < indices[j] {
-				indices[i], indices[j] = indices[j], indices[i]
-			}
-		}
-	}
-	var removed []model.Card
-	for _, idx := range indices {
-		removed = append(removed, player.Hand[idx])
-		player.Hand = append(player.Hand[:idx], player.Hand[idx+1:]...)
-	}
-	return removed, nil
-}
 
 // Token helpers
-
-func ensurePlayerTokensMap(player *model.Player) {
-	if player != nil && player.Tokens == nil {
-		player.Tokens = map[string]int{}
-	}
-}
-
-func tokenValueBounded(player *model.Player, key string, cap int) int {
-	if player == nil {
-		return 0
-	}
-	if player.Tokens == nil {
-		return 0
-	}
-	val := player.Tokens[key]
-	if val < 0 {
-		return 0
-	}
-	if cap > 0 && val > cap {
-		return cap
-	}
-	return val
-}
 
 func addTokenValueBounded(player *model.Player, key string, delta int, cap int) int {
 	if player == nil {
@@ -1062,7 +946,7 @@ func addTokenValueBounded(player *model.Player, key string, delta int, cap int) 
 }
 
 func bardInspiration(player *model.Player) int {
-	return tokenValueBounded(player, "bd_inspiration", bardInspirationCap)
+	return engineplayer.TokenValue(player, "bd_inspiration", bardInspirationCap)
 }
 
 func addBardInspiration(player *model.Player, delta int) int {
@@ -1071,23 +955,12 @@ func addBardInspiration(player *model.Player, delta int) int {
 
 // Form helpers
 
-func playerHasForm(player *model.Player, form string) bool {
-	if player == nil {
-		return false
-	}
-	return player.Form == form
-}
-
 func hasBardEternalPrisonerForm(player *model.Player) bool {
-	return playerHasForm(player, model.FormBardEternalPrisoner)
+	return engineplayer.HasForm(player, model.FormBardEternalPrisoner)
 }
 
 func leaveBardEternalPrisonerForm(player *model.Player) bool {
-	if player == nil || player.Form != model.FormBardEternalPrisoner {
-		return false
-	}
-	player.Form = ""
-	return true
+	return engineplayer.ClearForm(player, model.FormBardEternalPrisoner)
 }
 
 // Camp helpers
@@ -1182,7 +1055,7 @@ func resolveBardForbiddenVerseAfterSong(rt engineplayer.ChoiceRuntime, bard *mod
 	if bard == nil {
 		return
 	}
-	ensurePlayerTokensMap(bard)
+	engineplayer.EnsurePlayerTokensMap(bard)
 	if bardInspiration(bard) < bardInspirationCap {
 		now := addBardInspiration(bard, 1)
 		removed := removeBardEternalMovement(rt, bard)

@@ -55,7 +55,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		for idx, ele := range elements {
 			options = append(options, model.PromptOption{
 				ID:    fmt.Sprintf("%d", idx),
-				Label: fmt.Sprintf("%s系", elementNameForPrompt(ele)),
+				Label: fmt.Sprintf("%s系", promptfmt.ElementName(ele)),
 			})
 		}
 		return &model.Prompt{
@@ -67,8 +67,8 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			Max:      1,
 		}
 	case "sage_magic_rebound_cards", "sage_arcane_cards", "sage_holy_cards":
-		remaining := ParseIntSliceContextValue(data["remaining_indices"])
-		selectedCount := len(ParseIntSliceContextValue(data["selected_indices"]))
+		remaining := engineplayer.ParseIntSliceContextValue(data["remaining_indices"])
+		selectedCount := len(engineplayer.ParseIntSliceContextValue(data["selected_indices"]))
 		targetCount := runtimeutil.ToIntContextValue(data["x_value"])
 		options := make([]model.PromptOption, 0, len(remaining))
 		for _, idx := range remaining {
@@ -77,7 +77,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			}
 			options = append(options, model.PromptOption{
 				ID:    fmt.Sprintf("%d", idx),
-				Label: fmt.Sprintf("%d: %s", idx+1, formatCardInfo(player.Hand[idx])),
+				Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(player.Hand[idx])),
 			})
 		}
 		remainingPick := targetCount - selectedCount
@@ -217,7 +217,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		if selectionIndex != 0 {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
-		maxX := maxSameElementCount(user)
+		maxX := engineplayer.MaxSameElementCount(user)
 		if maxX < 2 {
 			return true, fmt.Errorf("同系手牌不足2张，无法发动法术反弹")
 		}
@@ -236,7 +236,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 			return true, fmt.Errorf("玩家不存在")
 		}
 		xValue := selectionIndex + 2
-		maxX := maxSameElementCount(user)
+		maxX := engineplayer.MaxSameElementCount(user)
 		if xValue < 2 || xValue > maxX {
 			return true, fmt.Errorf("无效的X值")
 		}
@@ -263,7 +263,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		ctxData["chosen_element"] = string(chosenElement)
 		ctxData["choice_type"] = "sage_magic_rebound_cards"
 		ctxData["selected_indices"] = []int{}
-		ctxData["remaining_indices"] = getCardIndicesByElement(user, chosenElement)
+		ctxData["remaining_indices"] = engineplayer.GetCardIndicesByElement(user, chosenElement)
 		if intr := rt.GetPendingInterrupt(); intr != nil {
 			intr.Context = ctxData
 		}
@@ -280,8 +280,8 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		if xValue <= 0 {
 			return true, fmt.Errorf("X值无效")
 		}
-		remaining := ParseIntSliceContextValue(ctxData["remaining_indices"])
-		selected := ParseIntSliceContextValue(ctxData["selected_indices"])
+		remaining := engineplayer.ParseIntSliceContextValue(ctxData["remaining_indices"])
+		selected := engineplayer.ParseIntSliceContextValue(ctxData["selected_indices"])
 		cardIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, remaining)
 		if !ok || cardIdx < 0 || cardIdx >= len(user.Hand) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
@@ -361,7 +361,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		}
 		ctxData["x_value"] = xValue
 		ctxData["selected_indices"] = []int{}
-		ctxData["remaining_indices"] = allHandIndices(user)
+		ctxData["remaining_indices"] = engineplayer.AllHandIndices(user)
 		if choiceType == "sage_arcane_x" {
 			ctxData["choice_type"] = "sage_arcane_cards"
 		} else {
@@ -420,12 +420,12 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 			return true, nil
 		}
 
-		selectedCards := ParseIntSliceContextValue(ctxData["selected_indices"])
+		selectedCards := engineplayer.ParseIntSliceContextValue(ctxData["selected_indices"])
 		xValue := runtimeutil.ToIntContextValue(ctxData["x_value"])
 		if xValue <= 2 || len(selectedCards) != xValue {
 			return true, fmt.Errorf("圣洁法典弃牌参数无效")
 		}
-		removed, err := removeCardsByIndicesFromHand(user, append([]int{}, selectedCards...))
+		removed, err := engineplayer.RemoveCardsByIndicesFromHand(user, append([]int{}, selectedCards...))
 		if err != nil {
 			return true, err
 		}
@@ -462,12 +462,12 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		if selectionIndex < 0 || selectionIndex >= len(targetIDs) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
-		selected := ParseIntSliceContextValue(ctxData["selected_indices"])
+		selected := engineplayer.ParseIntSliceContextValue(ctxData["selected_indices"])
 		xValue := runtimeutil.ToIntContextValue(ctxData["x_value"])
 		if xValue <= 1 || len(selected) != xValue {
 			return true, fmt.Errorf("弃牌参数无效")
 		}
-		removed, err := removeCardsByIndicesFromHand(user, append([]int{}, selected...))
+		removed, err := engineplayer.RemoveCardsByIndicesFromHand(user, append([]int{}, selected...))
 		if err != nil {
 			return true, err
 		}
@@ -538,14 +538,6 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 
 // Helper functions for sage
 
-func elementNameForPrompt(raw string) string {
-	return promptfmt.ElementName(raw)
-}
-
-func formatCardInfo(card model.Card) string {
-	return promptfmt.FormatCardInfo(card)
-}
-
 func allOtherPlayerIDs(rt engineplayer.ChoiceRuntime, userID string) []string {
 	var otherIDs []string
 	for _, pid := range rt.GetPlayerOrder() {
@@ -569,49 +561,16 @@ func buildElementCardIndexMap(player *model.Player) map[model.Element][]int {
 	return out
 }
 
-func maxSameElementCount(player *model.Player) int {
-	maxCount := 0
-	for _, idxs := range buildElementCardIndexMap(player) {
-		if len(idxs) > maxCount {
-			maxCount = len(idxs)
-		}
-	}
-	return maxCount
-}
-
-func elementOrderForPrompt() []model.Element {
-	return []model.Element{
-		model.ElementEarth,
-		model.ElementWater,
-		model.ElementFire,
-		model.ElementWind,
-		model.ElementThunder,
-		model.ElementLight,
-		model.ElementDark,
-	}
-}
-
 func availableElementsByMinCount(player *model.Player, minCount int) []string {
 	if minCount <= 0 {
 		minCount = 1
 	}
 	elemMap := buildElementCardIndexMap(player)
 	var out []string
-	for _, ele := range elementOrderForPrompt() {
+	for _, ele := range engineplayer.ElementOrderForPrompt() {
 		if len(elemMap[ele]) >= minCount {
 			out = append(out, string(ele))
 		}
-	}
-	return out
-}
-
-func allHandIndices(player *model.Player) []int {
-	if player == nil {
-		return nil
-	}
-	out := make([]int, 0, len(player.Hand))
-	for i := range player.Hand {
-		out = append(out, i)
 	}
 	return out
 }
@@ -636,68 +595,6 @@ func removeElementIndices(indices []int, player *model.Player, element model.Ele
 	return out
 }
 
-func getCardIndicesByElement(player *model.Player, element model.Element) []int {
-	if player == nil {
-		return nil
-	}
-	var out []int
-	for i, c := range player.Hand {
-		if c.Element == element {
-			out = append(out, i)
-		}
-	}
-	return out
-}
-
-func ParseIntSliceContextValue(raw interface{}) []int {
-	result := make([]int, 0)
-	switch value := raw.(type) {
-	case []int:
-		result = append(result, value...)
-	case []interface{}:
-		for _, item := range value {
-			switch v := item.(type) {
-			case int:
-				result = append(result, v)
-			case float64:
-				result = append(result, int(v))
-			}
-		}
-	}
-	return result
-}
-
-func removeCardsByIndicesFromHand(player *model.Player, indices []int) ([]model.Card, error) {
-	if player == nil {
-		return nil, fmt.Errorf("玩家不存在")
-	}
-	for _, idx := range indices {
-		if idx < 0 || idx >= len(player.Hand) {
-			return nil, fmt.Errorf("无效的手牌索引: %d", idx)
-		}
-	}
-	seen := map[int]bool{}
-	for _, idx := range indices {
-		if seen[idx] {
-			return nil, fmt.Errorf("不能重复选择同一张牌")
-		}
-		seen[idx] = true
-	}
-	// 从大到小删除，避免索引位移。
-	for i := 0; i < len(indices); i++ {
-		for j := i + 1; j < len(indices); j++ {
-			if indices[i] < indices[j] {
-				indices[i], indices[j] = indices[j], indices[i]
-			}
-		}
-	}
-	var removed []model.Card
-	for _, idx := range indices {
-		removed = append(removed, player.Hand[idx])
-		player.Hand = append(player.Hand[:idx], player.Hand[idx+1:]...)
-	}
-	return removed, nil
-}
 
 func prependPendingDamages(rt engineplayer.ChoiceRuntime, pending []model.PendingDamage) {
 	for i := len(pending) - 1; i >= 0; i-- {

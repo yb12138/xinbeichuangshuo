@@ -81,7 +81,16 @@
       "Bash(mv /tmp/ml_runtime_head.go /Users/yb/xinbeichuangshuo/internal/engine/player/magic_lancer/runtime.go)",
       "Bash(awk '{print $5, $9}')",
       "Bash([ -f \"$dir/skill_handlers.go\" ])",
-      "Bash(xxd /Users/yb/xinbeichuangshuo/internal/engine/player/blade_master/module.go)"
+      "Bash(xxd /Users/yb/xinbeichuangshuo/internal/engine/player/blade_master/module.go)",
+      "Bash(sed -i '' 's/buildContext/BuildContext/g' *.go)",
+      "Bash(sed -i '' 's/handleInterruptAction/HandleInterruptAction/g' *.go)",
+      "Bash(sed -i '' 's/processPendingDamages/ProcessPendingDamages/g' *.go)",
+      "Bash(sed -i '' 's/runtimeStateLabel/RuntimeStateLabel/g' *.go)",
+      "Bash(sed -i '' 's/isActionSelectionWindow/IsActionSelectionWindow/g' *.go)",
+      "Bash(cat)",
+      "Bash(cp /tmp/test_import.go /Users/yb/xinbeichuangshuo/internal/engine/test_import_test.go)",
+      "Bash(chmod +x:*)",
+      "Bash(bash:*)"
     ]
   }
 }

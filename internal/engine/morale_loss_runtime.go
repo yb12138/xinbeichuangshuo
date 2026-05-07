@@ -9,8 +9,8 @@ import (
 	"starcup-engine/internal/model"
 )
 
-// applyMoraleLossAfterTimingWindow 在 TimingBeforeMoraleLoss 窗口处理完毕后应用士气损失与联动效果。
-func (e *GameEngine) applyMoraleLossAfterTimingWindow(victim *model.Player, moraleLoss int, isMagic bool, fromDamageDraw bool, overflowMoraleLossFixed int, discardedCards []model.Card, lossCtx *model.Context) int {
+// ApplyMoraleLossAfterTimingWindow 在 TimingBeforeMoraleLoss 窗口处理完毕后应用士气损失与联动效果。
+func (e *GameEngine) ApplyMoraleLossAfterTimingWindow(victim *model.Player, moraleLoss int, isMagic bool, fromDamageDraw bool, overflowMoraleLossFixed int, discardedCards []model.Card, lossCtx *model.Context) int {
 	if victim == nil {
 		if len(discardedCards) > 0 {
 			e.State.DiscardPile = append(e.State.DiscardPile, discardedCards...)
@@ -29,7 +29,7 @@ func (e *GameEngine) applyMoraleLossAfterTimingWindow(victim *model.Player, mora
 		finalLoss = overflowMoraleLossFixed
 	}
 
-	finalLoss = e.applyCampMoraleLoss(victim.Camp, finalLoss)
+	finalLoss = e.ApplyCampMoraleLoss(victim.Camp, finalLoss)
 	for _, entry := range roleRegistry.Entries() {
 		if entry.AfterMoraleLossHook != nil {
 			entry.AfterMoraleLossHook(e, victim, finalLoss, fromDamageDraw)

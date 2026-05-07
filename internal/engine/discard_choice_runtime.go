@@ -33,7 +33,7 @@ func newDiscardChoiceInterrupt(playerID string, data map[string]interface{}) *mo
 	}
 }
 
-func isDiscardChoiceType(choiceType string) bool {
+func IsDiscardChoiceType(choiceType string) bool {
 	return choiceType == choiceTypeSystemDiscardCards
 }
 
@@ -64,7 +64,7 @@ func (e *GameEngine) pendingDiscardContext() (map[string]interface{}, error) {
 			return nil, fmt.Errorf("弃牌中断上下文格式错误")
 		}
 		choiceType, _ := data["choice_type"].(string)
-		if isDiscardChoiceType(choiceType) || isDiscardSubflow(data) || isDiscardSelectionInterrupt(intr) {
+		if IsDiscardChoiceType(choiceType) || isDiscardSubflow(data) || IsDiscardSelectionInterrupt(intr) {
 			return data, nil
 		}
 	}

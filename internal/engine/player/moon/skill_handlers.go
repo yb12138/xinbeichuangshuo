@@ -148,7 +148,7 @@ func (h *MoonGoddessDarkMoonSlashHandler) CanUse(ctx *model.Context) bool {
 	if ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
-	if !playerHasForm(ctx.User, model.FormMoonGoddessDarkMoon) {
+	if !engineplayer.HasForm(ctx.User, model.FormMoonGoddessDarkMoon) {
 		return false
 	}
 	if moonGoddessDarkMoonCount(ctx.User) <= 0 {
@@ -161,7 +161,7 @@ func (h *MoonGoddessDarkMoonSlashHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("暗月斩上下文无效")
 	}
-	if !playerHasForm(ctx.User, model.FormMoonGoddessDarkMoon) {
+	if !engineplayer.HasForm(ctx.User, model.FormMoonGoddessDarkMoon) {
 		return fmt.Errorf("仅暗月形态可发动暗月斩")
 	}
 	if moonGoddessDarkMoonCount(ctx.User) <= 0 {

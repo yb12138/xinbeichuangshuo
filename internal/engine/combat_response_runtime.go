@@ -137,7 +137,7 @@ func (e *GameEngine) bindPendingChoiceUserCtxIfMissing(userCtx *model.Context) {
 	intr.Context = ctxData
 }
 
-func (e *GameEngine) hasUsableShieldForCombat(target *model.Player, combatReq model.CombatRequest) bool {
+func (e *GameEngine) HasUsableShieldForCombat(target *model.Player, combatReq model.CombatRequest) bool {
 	if target == nil {
 		return false
 	}
@@ -153,7 +153,7 @@ func (e *GameEngine) hasUsableShieldForCombat(target *model.Player, combatReq mo
 }
 
 func (e *GameEngine) consumeShieldForCombatTake(target *model.Player, combatReq model.CombatRequest) bool {
-	if !e.hasUsableShieldForCombat(target, combatReq) {
+	if !e.HasUsableShieldForCombat(target, combatReq) {
 		return false
 	}
 	if target == nil {
@@ -194,7 +194,7 @@ func (e *GameEngine) consumeShieldForCombatTake(target *model.Player, combatReq 
 			}(),
 		},
 	}
-	skillCtx := e.buildContext(e.State.Players[combatReq.AttackerID], e.State.Players[combatReq.TargetID], model.TimingOnHitCheck, missCtx)
+	skillCtx := e.BuildContext(e.State.Players[combatReq.AttackerID], e.State.Players[combatReq.TargetID], model.TimingOnHitCheck, missCtx)
 	skillCtx.Selections["attack_miss_resume"] = map[string]interface{}{
 		"mode":        "shield",
 		"attacker_id": combatReq.AttackerID,
@@ -213,8 +213,8 @@ func (e *GameEngine) consumeShieldForCombatTake(target *model.Player, combatReq 
 	return true
 }
 
-// handleCombatResponse 处理战斗交互阶段的响应。
-func (e *GameEngine) handleCombatResponse(act model.PlayerAction) error {
+// HandleCombatResponse 处理战斗交互阶段的响应。
+func (e *GameEngine) HandleCombatResponse(act model.PlayerAction) error {
 	if len(e.State.CombatStack) == 0 {
 		return errors.New("响应时，战斗栈为空")
 	}
@@ -320,7 +320,7 @@ func (e *GameEngine) handleCombatDefendResponse(act model.PlayerAction, player *
 			}(),
 		},
 	}
-	skillCtx := e.buildContext(e.State.Players[combatReq.AttackerID], e.State.Players[combatReq.TargetID], model.TimingOnHitCheck, missCtx)
+	skillCtx := e.BuildContext(e.State.Players[combatReq.AttackerID], e.State.Players[combatReq.TargetID], model.TimingOnHitCheck, missCtx)
 	skillCtx.Selections["attack_miss_resume"] = map[string]interface{}{
 		"mode":        "defend",
 		"attacker_id": combatReq.AttackerID,
@@ -420,7 +420,7 @@ func (e *GameEngine) handleCombatCounterResponse(act model.PlayerAction, player 
 			}(),
 		},
 	}
-	skillCtx := e.buildContext(e.State.Players[combatReq.AttackerID], e.State.Players[combatReq.TargetID], model.TimingOnHitCheck, missCtx)
+	skillCtx := e.BuildContext(e.State.Players[combatReq.AttackerID], e.State.Players[combatReq.TargetID], model.TimingOnHitCheck, missCtx)
 	skillCtx.Selections["attack_miss_resume"] = map[string]interface{}{
 		"mode":              "counter",
 		"attacker_id":       combatReq.AttackerID,

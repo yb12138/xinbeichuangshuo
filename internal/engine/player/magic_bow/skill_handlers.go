@@ -97,31 +97,6 @@ func magicBowAllHandIndices(user *model.Player) []int {
 	return out
 }
 
-// --- 资源校验/消耗辅助 ---
-// 红宝石可替代蓝水晶（仅水晶消耗方向）
-func canPayCrystalLike(ctx *model.Context, amount int) bool {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil {
-		return false
-	}
-	return ctx.Game.CanPayCrystalCost(ctx.User.ID, amount)
-}
-
-func spendCrystalLike(ctx *model.Context, amount int) bool {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil {
-		return false
-	}
-	return ctx.Game.ConsumeCrystalCost(ctx.User.ID, amount)
-}
-
-func setSkillFlow(p *model.Player, key string, v int) {
-	if p == nil {
-		return
-	}
-	if p.TurnState.SkillFlowState == nil {
-		p.TurnState.SkillFlowState = make(map[string]int)
-	}
-	p.TurnState.SkillFlowState[key] = v
-}
 
 // --- 魔弓 ---
 
@@ -169,7 +144,7 @@ func (h *MagicBowMagicPierceHandler) Execute(ctx *model.Context) error {
 		return fmt.Errorf("火系充能不足")
 	}
 	ctx.User.TurnState.UsedSkillCounts["mb_magic_pierce_used_turn"]++
-	setSkillFlow(ctx.User, "mb_magic_pierce_pending", 1)
+	engineplayer.SetSkillFlowState(ctx.User, "mb_magic_pierce_pending", 1)
 	ctx.EventCtx.Card.Damage++
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [魔贯冲击]：移除1个火系充能，本次攻击伤害+1", ctx.User.Name))
 	return nil
@@ -314,14 +289,14 @@ func (h *MagicBowChargeHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil {
 		return false
 	}
-	return canPayCrystalLike(ctx, 1)
+	return engineplayer.CanPayCrystalLike(ctx, 1)
 }
 
 func (h *MagicBowChargeHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("充能上下文无效")
 	}
-	if ctx.Timing != model.TimingActive && !spendCrystalLike(ctx, 1) {
+	if ctx.Timing != model.TimingActive && !engineplayer.SpendCrystalLike(ctx, 1) {
 		return fmt.Errorf("充能需要1蓝水晶（红宝石可替代）")
 	}
 	ctx.User.TurnState.UsedSkillCounts["mb_charge_lock_turn"] = 1

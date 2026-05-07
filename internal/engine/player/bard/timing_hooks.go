@@ -101,7 +101,7 @@ func postDamageResolvedHook(rt engineplayer.HookRuntime, ctx engineplayer.Timing
 	if InEternalPrisonerForm(source) || source.TurnState.UsedSkillCounts["bd_descent"] > 0 {
 		return engineplayer.TimingHookResult{}
 	}
-	if maxSameElementCount(source) < 2 {
+	if engineplayer.MaxSameElementCount(source) < 2 {
 		return engineplayer.TimingHookResult{}
 	}
 	rt.PushInterrupt(&model.Interrupt{

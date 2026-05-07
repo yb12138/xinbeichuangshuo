@@ -7,13 +7,13 @@ import (
 	"starcup-engine/internal/model"
 )
 
-// actionSelectionModifierAdapter 适配 engine 内部的 actionSelectionState 到 player.ActionSelectionModifier。
+// actionSelectionModifierAdapter 适配 engine 内部的 ActionSelectionState 到 player.ActionSelectionModifier。
 type actionSelectionModifierAdapter struct {
-	state *actionSelectionState
+	state *ActionSelectionState
 }
 
 func (a actionSelectionModifierAdapter) SetActionRule(mode string, source string, priority int) {
-	a.state.setActionRule(actionSelectionRuleMode(mode), source, priority)
+	a.state.setActionRule(ActionSelectionRuleMode(mode), source, priority)
 }
 func (a actionSelectionModifierAdapter) SetCanMagicAction(v bool) { a.state.canMagicAction = v }
 func (a actionSelectionModifierAdapter) SetCanMagicSkillAction(v bool) {
@@ -53,7 +53,7 @@ func (a actionSelectionValidationModifierAdapter) SetForceAttackOnlyMessage(msg 
 }
 func (a actionSelectionValidationModifierAdapter) SetOnSkipChosen(callback func(rt engineplayer.ChoiceRuntime, player *model.Player) (bool, error)) {
 	a.state.onSkipChosen = func(e *GameEngine, player *model.Player, result *actionSelectionValidationResult) (bool, error) {
-		handled, err := callback(newRoleChoiceRuntime(e), player)
+		handled, err := callback(NewRoleChoiceRuntime(e), player)
 		if handled && result != nil {
 			result.handled = true
 		}
@@ -62,11 +62,11 @@ func (a actionSelectionValidationModifierAdapter) SetOnSkipChosen(callback func(
 }
 func (a actionSelectionValidationModifierAdapter) SetOnNonAttackChosen(callback func(rt engineplayer.ChoiceRuntime, player *model.Player, act model.PlayerAction) error) {
 	a.state.onNonAttackChosen = func(e *GameEngine, player *model.Player, act model.PlayerAction, result *actionSelectionValidationResult) error {
-		return callback(newRoleChoiceRuntime(e), player, act)
+		return callback(NewRoleChoiceRuntime(e), player, act)
 	}
 }
 func (a actionSelectionValidationModifierAdapter) SetOnAttackAccepted(callback func(rt engineplayer.ChoiceRuntime, player *model.Player, act model.PlayerAction) error) {
 	a.state.onAttackAccepted = func(e *GameEngine, player *model.Player, act model.PlayerAction, result *actionSelectionValidationResult) error {
-		return callback(newRoleChoiceRuntime(e), player, act)
+		return callback(NewRoleChoiceRuntime(e), player, act)
 	}
 }

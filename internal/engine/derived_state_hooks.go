@@ -39,7 +39,7 @@ func (e *GameEngine) refreshTimingDerivedStateOnPlayerSetup(player *model.Player
 	e.runTimingOnCampChangedHooks(player, "", timingOnCampChangedPlayerSetup)
 }
 
-func (e *GameEngine) refreshAllPlayerDerivedStates() {
+func (e *GameEngine) RefreshAllPlayerDerivedStates() {
 	if e == nil || e.State == nil {
 		return
 	}

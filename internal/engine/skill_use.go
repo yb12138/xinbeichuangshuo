@@ -127,7 +127,7 @@ func (e *GameEngine) prepareSkillUse(playerID, skillID string, targetIDs []strin
 		return nil, fmt.Errorf("no character assigned")
 	}
 
-	skillDef := findCharacterSkill(player.Character, skillID)
+	skillDef := FindCharacterSkill(player.Character, skillID)
 	if skillDef == nil {
 		return nil, fmt.Errorf("skill %s not found for character %s", skillID, player.Character.ID)
 	}
@@ -156,7 +156,7 @@ func (e *GameEngine) prepareSkillUse(playerID, skillID string, targetIDs []strin
 	}, nil
 }
 
-func findCharacterSkill(character *model.Character, skillID string) *model.SkillDefinition {
+func FindCharacterSkill(character *model.Character, skillID string) *model.SkillDefinition {
 	if character == nil {
 		return nil
 	}

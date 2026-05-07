@@ -20,11 +20,11 @@ func (e *GameEngine) driveNonTurnPhase(currentPid string, player *model.Player) 
 	switch {
 	case e.isDamageResolutionActive():
 		return e.drivePendingDamageResolutionPhase()
-	case e.isDiscardSelectionActive():
-		return e.driveDiscardSelectionPhase()
+	case e.IsDiscardSelectionActive():
+		return e.DriveDiscardSelectionPhase()
 	case e.isResponseWindowActive():
 		return e.driveResponseRecoveryPhase()
-	case e.isCombatInteractionWindow():
+	case e.IsCombatInteractionWindow():
 		return e.driveCombatInteractionPhase(currentPid, player)
 	default:
 		return driveUnhandled
@@ -123,7 +123,7 @@ func (e *GameEngine) driveBeforeActionStage(currentPid string, player *model.Pla
 		return driveContinueLoop
 	}
 	// 其余 TimingOnBeforeAction 的通用技能/状态仍走 dispatcher 主流程。
-	skillCtx := e.buildContext(player, nil, model.TimingOnBeforeAction, nil)
+	skillCtx := e.BuildContext(player, nil, model.TimingOnBeforeAction, nil)
 	e.dispatcher.OnTiming(skillCtx.Timing, skillCtx)
 	if e.State.PendingInterrupt != nil {
 		return driveStop
@@ -144,12 +144,12 @@ func (e *GameEngine) driveBeforeActionStage(currentPid string, player *model.Pla
 
 func (e *GameEngine) drivePendingDamageResolutionPhase() driveOutcome {
 	// 延迟伤害结算阶段
-	if e.processPendingDamages() {
+	if e.ProcessPendingDamages() {
 		return driveStop // 有中断，暂停
 	}
 
 	// 队列处理完毕，进入下一阶段
-	if e.restoreReturnPoint() {
+	if e.RestoreReturnPoint() {
 	} else {
 		e.clearSubflow()
 		e.clearCombatStage()
@@ -183,7 +183,7 @@ func (e *GameEngine) driveTurnStartStage(currentPid string, player *model.Player
 		return driveContinueLoop
 	}
 	player.TurnState.HasProcessedTurnStart = true
-	turnStartCtx := e.buildTimedContext(player, nil, model.TimingOnTurnStart, eventCtx)
+	turnStartCtx := e.BuildTimedContext(player, nil, model.TimingOnTurnStart, eventCtx)
 	e.dispatcher.OnTiming(turnStartCtx.Timing, turnStartCtx)
 	if e.State.PendingInterrupt != nil {
 		return driveStop
@@ -204,7 +204,7 @@ func (e *GameEngine) driveActionStartStage(currentPid string, player *model.Play
 		}
 		return driveContinueLoop
 	}
-	startupCtx := e.buildTimedContext(player, nil, model.TimingStartup, &model.EventContext{
+	startupCtx := e.BuildTimedContext(player, nil, model.TimingStartup, &model.EventContext{
 		Type:     model.EventTurnStart,
 		SourceID: currentPid,
 	})
@@ -232,9 +232,9 @@ func (e *GameEngine) driveActionExecutionStage(currentPid string, player *model.
 		}
 		e.Log(fmt.Sprintf("[Debug] ActionExecution 命中 ActionEnd 补结算: player=%s last_action_type=%s action_queue=%d", currentPid, lastActionType, len(e.State.ActionQueue)))
 		return e.driveActionExecutionRecoveryPhase(currentPid, player)
-	case e.isActionSelectionWindow():
+	case e.IsActionSelectionWindow():
 		return e.driveActionSelectionPhase(currentPid, player)
-	case e.isBeforeActionWindow():
+	case e.IsBeforeActionWindow():
 		return e.driveBeforeActionPhase(currentPid, player)
 	case e.State.Subflow == model.SubflowNone && len(e.State.CombatStack) == 0 && e.State.TurnStage == model.TurnStageActionExecution:
 		return e.driveActionExecutionRecoveryPhase(currentPid, player)
@@ -246,14 +246,14 @@ func (e *GameEngine) driveActionExecutionStage(currentPid string, player *model.
 func (e *GameEngine) driveActionSelectionPhase(currentPid string, player *model.Player) driveOutcome {
 	e.setTurnStage(model.TurnStageActionExecution)
 
-	state := e.buildActionSelectionOptions(currentPid, player)
+	state := e.BuildActionSelectionOptions(currentPid, player)
 	prompt := &model.Prompt{
 		Type:           model.PromptConfirm,
 		PlayerID:       currentPid,
 		Message:        state.promptMessage,
 		ChoiceType:     state.promptChoiceType,
 		SkillID:        state.promptSkillID,
-		Options:        state.validOptions,
+		Options:        state.ValidOptions,
 		SpecialOptions: state.specialOptions,
 		UIMode:         model.PromptUIModeActionHub,
 	}
@@ -261,8 +261,8 @@ func (e *GameEngine) driveActionSelectionPhase(currentPid string, player *model.
 	return driveStop
 }
 
-func (e *GameEngine) driveDiscardSelectionPhase() driveOutcome {
-	if e.State.PendingInterrupt == nil || !isDiscardSelectionInterrupt(e.State.PendingInterrupt) {
+func (e *GameEngine) DriveDiscardSelectionPhase() driveOutcome {
+	if e.State.PendingInterrupt == nil || !IsDiscardSelectionInterrupt(e.State.PendingInterrupt) {
 		return driveUnhandled
 	}
 	return driveStop
@@ -297,14 +297,14 @@ func (e *GameEngine) driveCombatInteractionPhase(currentPid string, player *mode
 	if !ok {
 		return driveStop
 	}
-	if e.runTimingOnHitCheckCombatInteractionPolicies(combatReq) {
+	if e.RunTimingOnHitCheckCombatInteractionPolicies(combatReq) {
 		return driveStop
 	}
 	if e.resolveForcedHitCombat(combatReq) {
 		return driveContinueLoop
 	}
 
-	shieldFallbackReady := e.hasUsableShieldForCombat(target, *combatReq)
+	shieldFallbackReady := e.HasUsableShieldForCombat(target, *combatReq)
 	counterTargets := e.buildCombatCounterTargets(combatReq.AttackerID)
 	options := e.buildCombatResponseOptions(combatReq, shieldFallbackReady, counterTargets)
 	hints := e.buildCombatInteractionHints(*combatReq, shieldFallbackReady)
@@ -475,7 +475,7 @@ func (e *GameEngine) runActionEndSequence(currentPid string, player *model.Playe
 			CounterInitiator: "",
 		}
 	}
-	skillCtx := e.buildContext(player, nil, model.TimingOnActionEnd, eventCtx)
+	skillCtx := e.BuildContext(player, nil, model.TimingOnActionEnd, eventCtx)
 	if skillCtx.Selections == nil {
 		skillCtx.Selections = map[string]interface{}{}
 	}
@@ -492,7 +492,7 @@ func (e *GameEngine) runActionEndSequence(currentPid string, player *model.Playe
 		e.queuePostActionEndResume(player.ID, actionType)
 		return true
 	}
-	return e.handlePostActionEndEffects(player, actionType)
+	return e.HandlePostActionEndEffects(player, actionType)
 }
 
 func (e *GameEngine) driveExtraActionStage(currentPid string, player *model.Player) driveOutcome {

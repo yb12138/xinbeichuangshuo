@@ -109,31 +109,8 @@ func handleFighterHundredDragonTargetChoice(rt engineplayer.ChoiceRuntime, selec
 	rt.PopInterrupt()
 	if rt.GetPendingInterrupt() == nil {
 		// 规则：百式幻龙拳的"锁定目标"仅是中间步骤，结算后必须回到 waiting_phase 指定的行动窗口。
-		rt.ApplyChoiceResumePoint(mustChoiceResumePointFromMap(ctxData, "waiting_phase"))
+		rt.ApplyChoiceResumePoint(engineplayer.MustChoiceResumePointFromMap(ctxData, "waiting_phase"))
 	}
 	return nil
 }
 
-func ensurePlayerTokensMap(player *model.Player) {
-	if player != nil && player.Tokens == nil {
-		player.Tokens = map[string]int{}
-	}
-}
-
-func mustChoiceResumePointFromMap(data map[string]interface{}, key string) interface{} {
-	if data == nil {
-		panic(fmt.Sprintf("missing resume point map for key %q", key))
-	}
-	raw, ok := data[key]
-	if !ok {
-		panic(fmt.Sprintf("missing resume point key %q", key))
-	}
-	return mustChoiceResumePoint(raw, key)
-}
-
-func mustChoiceResumePoint(raw interface{}, key string) interface{} {
-	if raw == nil {
-		panic(fmt.Sprintf("nil resume point for key %q", key))
-	}
-	return raw
-}

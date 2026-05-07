@@ -16,7 +16,7 @@ func (e *GameEngine) AddPendingDamage(pd model.PendingDamage) {
 
 	if !e.isDamageResolutionActive() {
 		if e.State.ReturnTurnStage == "" && e.State.ReturnCombatStage == model.CombatStageNone && e.State.ReturnSubflow == model.SubflowNone {
-			if point := e.currentChoiceResumePoint(); hasChoiceResumePoint(point) {
+			if point := e.CurrentChoiceResumePoint(); hasChoiceResumePoint(point) {
 				e.setReturnPoint(point)
 			}
 		}
@@ -32,7 +32,7 @@ func (e *GameEngine) AddPendingDamageFront(pd model.PendingDamage) {
 
 	if !e.isDamageResolutionActive() {
 		if e.State.ReturnTurnStage == "" && e.State.ReturnCombatStage == model.CombatStageNone && e.State.ReturnSubflow == model.SubflowNone {
-			if point := e.currentChoiceResumePoint(); hasChoiceResumePoint(point) {
+			if point := e.CurrentChoiceResumePoint(); hasChoiceResumePoint(point) {
 				e.setReturnPoint(point)
 			}
 		}
@@ -40,9 +40,9 @@ func (e *GameEngine) AddPendingDamageFront(pd model.PendingDamage) {
 	}
 }
 
-// processPendingDamages 处理伤害队列中的所有伤害
+// ProcessPendingDamages 处理伤害队列中的所有伤害
 // 返回 true 如果产生了中断需要暂停 Drive
-func (e *GameEngine) processPendingDamages() bool {
+func (e *GameEngine) ProcessPendingDamages() bool {
 	for len(e.State.PendingDamageQueue) > 0 {
 		// 伤害流水线固定顺序：
 		// 1) 攻击命中链 -> 2) 承伤前规则 -> 3) 承伤触发 -> 4) 扣血前规则 -> 5) 扣血 -> 6) 结算后规则。

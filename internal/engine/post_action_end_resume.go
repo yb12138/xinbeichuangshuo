@@ -29,6 +29,6 @@ func (e *GameEngine) processPostActionEndResume() bool {
 		e.Log(fmt.Sprintf("[Warn] 行动结束恢复失败：执行者不存在 %s", state.playerID))
 		return true
 	}
-	e.handlePostActionEndEffects(player, state.actionType)
+	e.HandlePostActionEndEffects(player, state.actionType)
 	return true
 }

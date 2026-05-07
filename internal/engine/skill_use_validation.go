@@ -22,7 +22,7 @@ func (e *GameEngine) maybeRequestSkillDiscardSelection(use *skillUseRequest) (bo
 		"discard_count": use.requiredDiscards,
 		"skill_id":      use.skillID,
 		"target_ids":    use.targetIDs,
-		"resume_phase":  e.currentChoiceResumePoint(),
+		"resume_phase":  e.CurrentChoiceResumePoint(),
 	})
 	e.State.PendingInterrupt.SkillIDs = []string{use.skillID}
 	e.syncGamePhaseWithInterrupt(e.State.PendingInterrupt)
@@ -104,11 +104,11 @@ func (e *GameEngine) validateSkillDiscardSelection(use *skillUseRequest) error {
 func (e *GameEngine) validateSkillActivation(use *skillUseRequest) error {
 	switch use.skillDef.Type {
 	case model.SkillTypeStartup:
-		if !e.isStartupWindow() {
+		if !e.IsStartupWindow() {
 			return fmt.Errorf("startup skills can only be used during the startup skill window")
 		}
 	case model.SkillTypeAction:
-		if !e.isActionSelectionWindow() {
+		if !e.IsActionSelectionWindow() {
 			return fmt.Errorf("action skills can only be used during action phase")
 		}
 	case model.SkillTypeResponse:

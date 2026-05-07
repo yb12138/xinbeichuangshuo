@@ -73,19 +73,19 @@ func parseChoiceResumeSubflow(raw interface{}) model.Subflow {
 	return model.ParseResumePointSubflow(raw)
 }
 
-func (e *GameEngine) currentChoiceResumePoint() interface{} {
+func (e *GameEngine) CurrentChoiceResumePoint() interface{} {
 	if e == nil || e.State == nil {
-		panic("currentChoiceResumePoint: engine/state is nil")
+		panic("CurrentChoiceResumePoint: engine/state is nil")
 	}
 	if e.State.Subflow != model.SubflowNone {
 		if !model.IsKnownSubflow(e.State.Subflow) {
-			panic(fmt.Sprintf("currentChoiceResumePoint: unknown subflow %q", e.State.Subflow))
+			panic(fmt.Sprintf("CurrentChoiceResumePoint: unknown subflow %q", e.State.Subflow))
 		}
 		return e.State.Subflow
 	}
 	if e.State.CombatStage != model.CombatStageNone {
 		if !model.IsKnownCombatStage(e.State.CombatStage) {
-			panic(fmt.Sprintf("currentChoiceResumePoint: unknown combat stage %q", e.State.CombatStage))
+			panic(fmt.Sprintf("CurrentChoiceResumePoint: unknown combat stage %q", e.State.CombatStage))
 		}
 		return e.State.CombatStage
 	}
@@ -93,7 +93,7 @@ func (e *GameEngine) currentChoiceResumePoint() interface{} {
 		return nil
 	}
 	if !model.IsKnownTurnStage(e.State.TurnStage) {
-		panic(fmt.Sprintf("currentChoiceResumePoint: unknown turn stage %q", e.State.TurnStage))
+		panic(fmt.Sprintf("CurrentChoiceResumePoint: unknown turn stage %q", e.State.TurnStage))
 	}
 	return e.State.TurnStage
 }
@@ -131,7 +131,7 @@ func (e *GameEngine) setReturnPoint(raw interface{}) bool {
 	return true
 }
 
-func (e *GameEngine) restoreReturnPoint() bool {
+func (e *GameEngine) RestoreReturnPoint() bool {
 	if e == nil || e.State == nil {
 		return false
 	}

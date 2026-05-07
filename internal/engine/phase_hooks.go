@@ -21,11 +21,11 @@ const (
 	timingOnTurnStartMain timingOnTurnStartStage = iota
 )
 
-type timingOnTurnEndStage int
+type TimingOnTurnEndStage int
 
 const (
-	timingOnTurnEndPreExtra timingOnTurnEndStage = iota
-	timingOnTurnEndFinal
+	TimingOnTurnEndPreExtra TimingOnTurnEndStage = iota
+	TimingOnTurnEndFinal
 )
 
 // runTimingOnTurnStartStageHooks 统一处理 TimingOnTurnStart 阶段规则。
@@ -47,10 +47,10 @@ func (e *GameEngine) runTimingOnTurnStartStageHooks(player *model.Player, stage 
 	}
 }
 
-// runTimingOnTurnEndStageHooks 统一处理 TimingOnTurnEnd 阶段规则。
-func (e *GameEngine) runTimingOnTurnEndStageHooks(player *model.Player, stage timingOnTurnEndStage) bool {
+// RunTimingOnTurnEndStageHooks 统一处理 TimingOnTurnEnd 阶段规则。
+func (e *GameEngine) RunTimingOnTurnEndStageHooks(player *model.Player, stage TimingOnTurnEndStage) bool {
 	switch stage {
-	case timingOnTurnEndPreExtra:
+	case TimingOnTurnEndPreExtra:
 		// TimingHookSpec dispatch for turn end (pre-extra)
 		if player != nil {
 			result := e.dispatchAllRoleTimingHooks(engineplayer.TimingOnTurnEnd, engineplayer.TimingHookContext{
@@ -62,7 +62,7 @@ func (e *GameEngine) runTimingOnTurnEndStageHooks(player *model.Player, stage ti
 			}
 		}
 		return false
-	case timingOnTurnEndFinal:
+	case TimingOnTurnEndFinal:
 		// TimingHookSpec dispatch for turn end final
 		if player != nil {
 			result := e.dispatchAllRoleTimingHooks(engineplayer.TimingOnTurnEndFinal, engineplayer.TimingHookContext{
@@ -114,12 +114,12 @@ func (e *GameEngine) runTimingBeforeActionExecuteHooks(player *model.Player) boo
 
 // runTimingOnTurnEndPreExtraHooks 回合结束前置结算（额外行动判定前）。
 func (e *GameEngine) runTimingOnTurnEndPreExtraHooks(player *model.Player) bool {
-	return e.runTimingOnTurnEndStageHooks(player, timingOnTurnEndPreExtra)
+	return e.RunTimingOnTurnEndStageHooks(player, TimingOnTurnEndPreExtra)
 }
 
 // runTimingOnTurnEndFinalHooks 回合结束最终结算点。
 func (e *GameEngine) runTimingOnTurnEndFinalHooks(player *model.Player) bool {
-	return e.runTimingOnTurnEndStageHooks(player, timingOnTurnEndFinal)
+	return e.RunTimingOnTurnEndStageHooks(player, TimingOnTurnEndFinal)
 }
 
 // blaze_witch/assassin hooks 已迁移到 TimingHookSpec

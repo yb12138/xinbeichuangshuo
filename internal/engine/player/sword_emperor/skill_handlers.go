@@ -145,19 +145,6 @@ func swordEmperorSlashTargets(game model.IGameEngine, user *model.Player, exclud
 	return ids
 }
 
-func canPayCrystalLike(ctx *model.Context, amount int) bool {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil {
-		return false
-	}
-	return ctx.Game.CanPayCrystalCost(ctx.User.ID, amount)
-}
-
-func spendCrystalLike(ctx *model.Context, amount int) bool {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil {
-		return false
-	}
-	return ctx.Game.ConsumeCrystalCost(ctx.User.ID, amount)
-}
 
 func (h *SwordEmperorSwordQiSlashHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.EventCtx == nil {
@@ -285,14 +272,14 @@ func (h *SwordEmperorIndomitableWillHandler) CanUse(ctx *model.Context) bool {
 	if ctx.EventCtx.ActionType != model.ActionAttack {
 		return false
 	}
-	return canPayCrystalLike(ctx, 1)
+	return engineplayer.CanPayCrystalLike(ctx, 1)
 }
 
 func (h *SwordEmperorIndomitableWillHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("不屈意志上下文无效")
 	}
-	if !spendCrystalLike(ctx, 1) {
+	if !engineplayer.SpendCrystalLike(ctx, 1) {
 		return fmt.Errorf("不屈意志需要1点蓝水晶（红宝石可替代）")
 	}
 	ctx.Game.DrawCards(ctx.User.ID, 1)

@@ -112,7 +112,7 @@ func buildDanceDiscardPrompt(playerID string, player *model.Player) *model.Promp
 	for idx, c := range player.Hand {
 		options = append(options, model.PromptOption{
 			ID:    fmt.Sprintf("%d", idx),
-			Label: fmt.Sprintf("%d: %s", idx+1, formatCardInfo(c)),
+			Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(c)),
 		})
 	}
 	return &model.Prompt{
@@ -146,7 +146,7 @@ func buildCocoonOverflowDiscardPrompt(playerID string, player *model.Player, dat
 		}
 		options = append(options, model.PromptOption{
 			ID:    fmt.Sprintf("%d", idx),
-			Label: fmt.Sprintf("茧[%d]: %s", idx, formatCardInfo(fc.Card)),
+			Label: fmt.Sprintf("茧[%d]: %s", idx, promptfmt.FormatCardInfo(fc.Card)),
 		})
 	}
 	return &model.Prompt{
@@ -231,7 +231,7 @@ func buildReverseBranch2PickPrompt(playerID string, player *model.Player) *model
 		}
 		options = append(options, model.PromptOption{
 			ID:    fmt.Sprintf("%d", idx),
-			Label: fmt.Sprintf("茧[%d]: %s", idx, formatCardInfo(fc.Card)),
+			Label: fmt.Sprintf("茧[%d]: %s", idx, promptfmt.FormatCardInfo(fc.Card)),
 		})
 	}
 	return &model.Prompt{
@@ -258,7 +258,7 @@ func buildPilgrimageOrPoisonPickPrompt(playerID string, player *model.Player, da
 		}
 		options = append(options, model.PromptOption{
 			ID:    fmt.Sprintf("%d", len(options)),
-			Label: fmt.Sprintf("移除茧[%d]: %s", idx, formatCardInfo(fc.Card)),
+			Label: fmt.Sprintf("移除茧[%d]: %s", idx, promptfmt.FormatCardInfo(fc.Card)),
 		})
 	}
 	msg := "【朝圣】是否移除1个茧抵御1点伤害？"
@@ -924,10 +924,6 @@ func handleWitherTarget(rt engineplayer.ChoiceRuntime, ctxData map[string]interf
 // ===========================================================================
 // Local helpers
 // ===========================================================================
-
-func formatCardInfo(card model.Card) string {
-	return promptfmt.FormatCardInfo(card)
-}
 
 // allPlayerIDs returns all player IDs in order.
 func allPlayerIDs(rt engineplayer.ChoiceRuntime) []string {

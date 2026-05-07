@@ -172,7 +172,7 @@ func handlePlagueDeathTouchElementChoice(rt engineplayer.ChoiceRuntime, ctxData 
 			"target_id":        ctxData["target_id"],
 			"chosen_element":   chosenElement,
 			"max_heal":         user.Heal,
-			"max_cards":        len(getCardIndicesByElement(user, model.Element(chosenElement))),
+			"max_cards":        len(engineplayer.GetCardIndicesByElement(user, model.Element(chosenElement))),
 			"selected_indices": []int{},
 		}
 	}
@@ -210,7 +210,7 @@ func handlePlagueDeathTouchYChoice(rt engineplayer.ChoiceRuntime, ctxData map[st
 	ctxData["choice_type"] = "plague_death_touch_cards"
 	ctxData["y_value"] = yValue
 	ctxData["selected_indices"] = []int{}
-	ctxData["remaining_indices"] = getCardIndicesByElement(user, model.Element(chosenElement))
+	ctxData["remaining_indices"] = engineplayer.GetCardIndicesByElement(user, model.Element(chosenElement))
 	if intr := rt.GetPendingInterrupt(); intr != nil {
 		intr.Context = ctxData
 	}
@@ -287,7 +287,7 @@ func resolvePlagueDeathTouchFinal(rt engineplayer.ChoiceRuntime, ctxData map[str
 	xValue := runtimeutil.ToIntContextValue(ctxData["x_value"])
 	yValue := runtimeutil.ToIntContextValue(ctxData["y_value"])
 
-	removed, err := removeCardsByIndicesFromHand(user, selected)
+	removed, err := engineplayer.RemoveCardsByIndicesFromHand(user, selected)
 	if err != nil {
 		return err
 	}
@@ -349,19 +349,6 @@ func cancelPlagueDeathTouchChoice(rt engineplayer.ChoiceRuntime, playerID string
 
 // Helper functions for plague_mage
 
-func getCardIndicesByElement(player *model.Player, element model.Element) []int {
-	if player == nil {
-		return nil
-	}
-	var out []int
-	for i, c := range player.Hand {
-		if c.Element == element {
-			out = append(out, i)
-		}
-	}
-	return out
-}
-
 func campEnemyIDs(rt engineplayer.ChoiceRuntime, user *model.Player) []string {
 	if user == nil {
 		return nil
@@ -375,38 +362,6 @@ func campEnemyIDs(rt engineplayer.ChoiceRuntime, user *model.Player) []string {
 		ids = append(ids, p.ID)
 	}
 	return ids
-}
-
-func removeCardsByIndicesFromHand(player *model.Player, indices []int) ([]model.Card, error) {
-	if player == nil {
-		return nil, fmt.Errorf("玩家不存在")
-	}
-	for _, idx := range indices {
-		if idx < 0 || idx >= len(player.Hand) {
-			return nil, fmt.Errorf("无效的手牌索引: %d", idx)
-		}
-	}
-	seen := map[int]bool{}
-	for _, idx := range indices {
-		if seen[idx] {
-			return nil, fmt.Errorf("不能重复选择同一张牌")
-		}
-		seen[idx] = true
-	}
-	// 从大到小删除，避免索引位移。
-	for i := 0; i < len(indices); i++ {
-		for j := i + 1; j < len(indices); j++ {
-			if indices[i] < indices[j] {
-				indices[i], indices[j] = indices[j], indices[i]
-			}
-		}
-	}
-	var removed []model.Card
-	for _, idx := range indices {
-		removed = append(removed, player.Hand[idx])
-		player.Hand = append(player.Hand[:idx], player.Hand[idx+1:]...)
-	}
-	return removed, nil
 }
 
 var _ engineplayer.CancelChoiceHandler = choiceHandler{}

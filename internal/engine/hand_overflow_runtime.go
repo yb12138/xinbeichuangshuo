@@ -5,6 +5,7 @@ package engine
 import (
 	"fmt"
 	"starcup-engine/internal/engine/core/runtimeutil"
+	engineplayer "starcup-engine/internal/engine/player"
 
 	"starcup-engine/internal/model"
 )
@@ -21,7 +22,7 @@ type handOverflowContext struct {
 	drawResumePoint         interface{}
 }
 
-func (e *GameEngine) checkHandLimit(player *model.Player, ctx *model.Context) {
+func (e *GameEngine) CheckHandLimitCtx(player *model.Player, ctx *model.Context) {
 	if player == nil {
 		return
 	}
@@ -34,7 +35,7 @@ func (e *GameEngine) checkHandLimit(player *model.Player, ctx *model.Context) {
 	over := len(player.Hand) - e.GetMaxHand(player)
 	if over > 0 {
 		e.pushHandOverflowDiscardInterrupt(player, over, overflowCtx)
-		e.enterDiscardSelection()
+		e.EnterDiscardSelection()
 		e.Log(fmt.Sprintf("[System] %s 手牌超出上限 %d 张！需要选择 %d 张牌丢弃", player.Name, len(player.Hand), over))
 		return
 	}
@@ -85,7 +86,7 @@ func (e *GameEngine) handOverflowSelectableIndices(player *model.Player) []int {
 	if player == nil {
 		return nil
 	}
-	indices := allHandIndices(player)
+	indices := engineplayer.AllHandIndices(player)
 	if len(e.State.ActionQueue) == 0 {
 		return indices
 	}

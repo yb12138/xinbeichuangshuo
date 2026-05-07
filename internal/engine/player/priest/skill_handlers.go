@@ -5,6 +5,7 @@ package priest
 import (
 	"fmt"
 
+	engineplayer "starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
 )
 
@@ -106,7 +107,7 @@ func (h *PriestDivineContractHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return false
 	}
-	return ctx.User.Heal > 0 && canPayCrystalLike(ctx, 1) && len(priestDivineContractTargets(ctx.Game, ctx.User)) > 0
+	return ctx.User.Heal > 0 && engineplayer.CanPayCrystalLike(ctx, 1) && len(priestDivineContractTargets(ctx.Game, ctx.User)) > 0
 }
 
 func (h *PriestDivineContractHandler) Execute(ctx *model.Context) error {
@@ -120,7 +121,7 @@ func (h *PriestDivineContractHandler) Execute(ctx *model.Context) error {
 	if len(targetIDs) == 0 {
 		return fmt.Errorf("神圣契约需要至少1名其他队友")
 	}
-	if !spendCrystalLike(ctx, 1) {
+	if !engineplayer.SpendCrystalLike(ctx, 1) {
 		return fmt.Errorf("神圣契约需要1蓝水晶（红宝石可替代）")
 	}
 	waitingPhase := priestDivineContractWaitingPhase(ctx)
@@ -192,7 +193,7 @@ func (h *PriestDivineDomainHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil {
 		return false
 	}
-	return canPayCrystalLike(ctx, 1)
+	return engineplayer.CanPayCrystalLike(ctx, 1)
 }
 
 func (h *PriestDivineDomainHandler) Execute(ctx *model.Context) error {
@@ -248,16 +249,3 @@ func hasElementCard(p *model.Player, element model.Element) bool {
 	return false
 }
 
-func canPayCrystalLike(ctx *model.Context, amount int) bool {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil {
-		return false
-	}
-	return ctx.Game.CanPayCrystalCost(ctx.User.ID, amount)
-}
-
-func spendCrystalLike(ctx *model.Context, amount int) bool {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil {
-		return false
-	}
-	return ctx.Game.ConsumeCrystalCost(ctx.User.ID, amount)
-}

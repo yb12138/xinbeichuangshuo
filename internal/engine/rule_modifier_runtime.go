@@ -170,7 +170,7 @@ func combatPolicyRuleMatchesAction(modifier *model.RuleModifierInstance, action 
 	return true
 }
 
-func attackDamageRuleBonusForModifier(player *model.Player, modifierID string) int {
+func AttackDamageRuleBonusForModifier(player *model.Player, modifierID string) int {
 	if player == nil || modifierID == "" || len(player.ActiveRuleModifiers) == 0 {
 		return 0
 	}

@@ -20,16 +20,3 @@ func (e *GameEngine) rebuildTimingOnAttackDeclaredRegistry() {
 	e.gameStartInitialDealHooks = []gameStartPlayerHook{bootstrapEnsureStarterRoleCards}
 }
 
-func (e *GameEngine) currentCharacterPresence() map[string]bool {
-	presence := map[string]bool{}
-	if e == nil || e.State == nil {
-		return presence
-	}
-	for _, player := range e.State.Players {
-		if player == nil || player.Character == nil || player.Character.ID == "" {
-			continue
-		}
-		presence[player.Character.ID] = true
-	}
-	return presence
-}

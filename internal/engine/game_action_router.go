@@ -41,7 +41,7 @@ func (e *GameEngine) handleImmediateAction(act model.PlayerAction) (bool, error)
 		return true, nil
 	case model.CmdCheat:
 		// Debug 指令：成功后立刻尝试推进，保持状态提示同步。
-		if err := e.handleCheat(act); err != nil {
+		if err := e.HandleCheat(act); err != nil {
 			return true, err
 		}
 		e.driveAfterSuccessfulAction()
@@ -55,7 +55,7 @@ func (e *GameEngine) handlePendingInterruptInput(act model.PlayerAction) (bool, 
 	if e.State.PendingInterrupt == nil {
 		return false, nil
 	}
-	if err := e.handleInterruptAction(act); err != nil {
+	if err := e.HandleInterruptAction(act); err != nil {
 		return true, err
 	}
 	// 中断响应成功后立即推进：若中断已弹出则继续主流程，若仍有中断则 Drive 会自然停在等待点。
@@ -69,7 +69,7 @@ func (e *GameEngine) validateActionTurnOwnership(act model.PlayerAction) error {
 		return nil
 	}
 	// 战斗交互窗口由响应函数校验“是否轮到该目标响应”。
-	if e.isCombatInteractionWindow() {
+	if e.IsCombatInteractionWindow() {
 		return nil
 	}
 	if len(e.State.PlayerOrder) == 0 {
@@ -84,26 +84,26 @@ func (e *GameEngine) validateActionTurnOwnership(act model.PlayerAction) error {
 
 func (e *GameEngine) dispatchActionByWindow(act model.PlayerAction) error {
 	switch {
-	case e.isActionSelectionWindow():
+	case e.IsActionSelectionWindow():
 		// 行动选择窗口：攻击、法术、技能等主动指令。
-		return e.handleActionSelection(act)
-	case e.isCombatInteractionWindow():
+		return e.HandleActionSelection(act)
+	case e.IsCombatInteractionWindow():
 		// 战斗交互窗口：仅接收响应指令。
 		if act.Type != model.CmdRespond {
 			return fmt.Errorf("当前必须响应战斗 (使用 take/defend/counter)")
 		}
-		return e.handleCombatResponse(act)
+		return e.HandleCombatResponse(act)
 	default:
 		// 其余状态仅保留 Start 作为流程入口。
 		if act.Type == model.CmdStart {
 			return e.StartGame()
 		}
-		return fmt.Errorf("当前状态 (%s) 不支持该指令", e.runtimeStateLabel())
+		return fmt.Errorf("当前状态 (%s) 不支持该指令", e.RuntimeStateLabel())
 	}
 }
 
 func (e *GameEngine) driveAfterSuccessfulAction() {
-	e.Log(fmt.Sprintf("[Debug] 指令执行成功，准备 Drive. %s, Interrupt: %v", e.runtimeStateLabel(), e.State.PendingInterrupt))
+	e.Log(fmt.Sprintf("[Debug] 指令执行成功，准备 Drive. %s, Interrupt: %v", e.RuntimeStateLabel(), e.State.PendingInterrupt))
 	if e.State.PendingInterrupt != nil {
 		e.Log("[Debug] 存在挂起中断，暂不 Drive")
 		return
@@ -111,8 +111,8 @@ func (e *GameEngine) driveAfterSuccessfulAction() {
 	e.Drive()
 }
 
-// handleInterruptAction 专门处理中断状态下的输入
-func (e *GameEngine) handleInterruptAction(act model.PlayerAction) error {
+// HandleInterruptAction 专门处理中断状态下的输入
+func (e *GameEngine) HandleInterruptAction(act model.PlayerAction) error {
 	if e.interruptOrchestrator == nil {
 		return fmt.Errorf("中断编排器未初始化")
 	}

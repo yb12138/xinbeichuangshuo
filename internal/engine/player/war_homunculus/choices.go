@@ -80,9 +80,9 @@ func buildRuneXPrompt(playerID string, data map[string]interface{}, glyph bool) 
 }
 
 func buildRuneCardsPrompt(playerID string, player *model.Player, data map[string]interface{}, glyph bool) *model.Prompt {
-	remaining := ParseIntSliceContextValue(data["remaining_indices"])
+	remaining := engineplayer.ParseIntSliceContextValue(data["remaining_indices"])
 	xValue := runtimeutil.ToIntContextValue(data["x_value"])
-	selectedCount := len(ParseIntSliceContextValue(data["selected_indices"]))
+	selectedCount := len(engineplayer.ParseIntSliceContextValue(data["selected_indices"]))
 	options := make([]model.PromptOption, 0, len(remaining))
 	for _, idx := range remaining {
 		if player == nil || idx < 0 || idx >= len(player.Hand) {
@@ -223,7 +223,7 @@ func handleRuneX(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, 
 		return fmt.Errorf("无效的X值")
 	}
 
-	candidates := ParseIntSliceContextValue(ctxData["candidate_indices"])
+	candidates := engineplayer.ParseIntSliceContextValue(ctxData["candidate_indices"])
 	if xValue > len(candidates) {
 		return fmt.Errorf("可选牌数量不足")
 	}
@@ -243,8 +243,8 @@ func handleRuneCards(rt engineplayer.ChoiceRuntime, ctxData map[string]interface
 		return fmt.Errorf("玩家不存在")
 	}
 
-	remaining := ParseIntSliceContextValue(ctxData["remaining_indices"])
-	selected := ParseIntSliceContextValue(ctxData["selected_indices"])
+	remaining := engineplayer.ParseIntSliceContextValue(ctxData["remaining_indices"])
+	selected := engineplayer.ParseIntSliceContextValue(ctxData["selected_indices"])
 	xValue := runtimeutil.ToIntContextValue(ctxData["x_value"])
 	cardIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, remaining)
 	if !ok {
@@ -374,7 +374,7 @@ func resolveRuneChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]interfa
 		return err
 	}
 
-	removed := removeCardsByIndicesFromHand(user, append([]int{}, selected...))
+	removed, _ := engineplayer.RemoveCardsByIndicesFromHand(user, append([]int{}, selected...))
 	rt.NotifyCardRevealed(user.ID, removed, "discard")
 	rt.AppendToDiscard(removed)
 
@@ -512,52 +512,7 @@ func filterRuneRemainingCandidates(user *model.Player, remaining []int, picked i
 // Card helpers
 // ---------------------------------------------------------------------------
 
-// removeCardsByIndicesFromHand removes the cards at the given indices from the
-// player's hand and returns the removed cards.
-func removeCardsByIndicesFromHand(player *model.Player, indices []int) []model.Card {
-	if player == nil || len(indices) == 0 {
-		return nil
-	}
-	removed := make([]model.Card, 0, len(indices))
-	for _, idx := range indices {
-		if idx >= 0 && idx < len(player.Hand) {
-			removed = append(removed, player.Hand[idx])
-		}
-	}
-	newHand := make([]model.Card, 0, len(player.Hand)-len(indices))
-	for i, card := range player.Hand {
-		keep := true
-		for _, idx := range indices {
-			if i == idx {
-				keep = false
-				break
-			}
-		}
-		if keep {
-			newHand = append(newHand, card)
-		}
-	}
-	player.Hand = newHand
-	return removed
-}
-
 // ---------------------------------------------------------------------------
 // Context value helpers
 // ---------------------------------------------------------------------------
 
-// parseIntSliceContextValue extracts a []int from an interface{}, handling both
-// []int and []interface{} slices.
-func ParseIntSliceContextValue(raw interface{}) []int {
-	var out []int
-	switch arr := raw.(type) {
-	case []int:
-		out = append(out, arr...)
-	case []interface{}:
-		for _, item := range arr {
-			if f, ok := item.(float64); ok {
-				out = append(out, int(f))
-			}
-		}
-	}
-	return out
-}

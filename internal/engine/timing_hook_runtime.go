@@ -45,7 +45,7 @@ func (r combatPolicyRuntime) AsChoiceRuntime() engineplayer.ChoiceRuntime {
 	if r.GameEngine == nil {
 		return nil
 	}
-	return newRoleChoiceRuntime(r.GameEngine)
+	return NewRoleChoiceRuntime(r.GameEngine)
 }
 
 func (r hookRuntime) GetPlayer(playerID string) *model.Player {
@@ -115,9 +115,9 @@ func (r hookRuntime) PoseChangeGuard() func() {
 	if r.GameEngine == nil {
 		return func() {}
 	}
-	before := r.GameEngine.snapshotPlayerPoses()
+	before := r.GameEngine.SnapshotPlayerPoses()
 	return func() {
-		r.GameEngine.dispatchOrientationChanges(before)
+		r.GameEngine.DispatchOrientationChanges(before)
 	}
 }
 
@@ -252,14 +252,14 @@ func (r hookRuntime) BuildContext(user, target *model.Player, timing model.FlowT
 	if r.GameEngine == nil {
 		return nil
 	}
-	return r.GameEngine.buildContext(user, target, timing, eventCtx)
+	return r.GameEngine.BuildContext(user, target, timing, eventCtx)
 }
 
 func (r hookRuntime) IsSkillStillUsable(skillID string, user *model.Player, ctx *model.Context) bool {
 	if r.GameEngine == nil || r.GameEngine.dispatcher == nil {
 		return false
 	}
-	return r.GameEngine.dispatcher.isSkillStillUsable(skillID, user, ctx)
+	return r.GameEngine.dispatcher.IsSkillStillUsable(skillID, user, ctx)
 }
 
 func (r hookRuntime) IsMagicDamageType(damageType model.DamageType) bool {
@@ -461,7 +461,7 @@ func (r hookRuntime) CheckHandLimit(player *model.Player) {
 	if r.GameEngine == nil {
 		return
 	}
-	r.GameEngine.checkHandLimit(player, nil)
+	r.GameEngine.CheckHandLimitCtx(player, nil)
 }
 
 func (r hookRuntime) HasPendingInterrupt() bool {
@@ -561,7 +561,7 @@ func (r hookRuntime) AsChoiceRuntime() engineplayer.ChoiceRuntime {
 	if r.GameEngine == nil {
 		return nil
 	}
-	return newRoleChoiceRuntime(r.GameEngine)
+	return NewRoleChoiceRuntime(r.GameEngine)
 }
 
 // 新增 - 原 PolicySpec 需要的基础设施
@@ -616,14 +616,14 @@ func (r hookRuntime) SnapshotPlayerPoses() map[string]engineplayer.PoseSnapshot 
 	if r.GameEngine == nil {
 		return nil
 	}
-	return r.GameEngine.snapshotPlayerPoses()
+	return r.GameEngine.SnapshotPlayerPoses()
 }
 
 func (r hookRuntime) DispatchOrientationChanges(before map[string]engineplayer.PoseSnapshot) {
 	if r.GameEngine == nil {
 		return
 	}
-	r.GameEngine.dispatchOrientationChanges(before)
+	r.GameEngine.DispatchOrientationChanges(before)
 }
 
 func (r hookRuntime) HasPlayableAttackCard(player *model.Player) bool {

@@ -96,8 +96,8 @@ func (sd *SkillDispatcher) processSkills(skillBatch []model.SkillDefinition, ctx
 	sd.runtime.ProcessSkillBatch(sd.skillHost(), skillBatch, ctx)
 }
 
-// isSkillStillUsable 检查技能在响应链中是否仍可用。
-func (sd *SkillDispatcher) isSkillStillUsable(skillID string, user *model.Player, ctx *model.Context) bool {
+// IsSkillStillUsable 检查技能在响应链中是否仍可用。
+func (sd *SkillDispatcher) IsSkillStillUsable(skillID string, user *model.Player, ctx *model.Context) bool {
 	if sd == nil || sd.runtime == nil {
 		return false
 	}
@@ -141,15 +141,6 @@ func init() {
 
 // ---------- 技能通用工具（原 skill_runtime_utils.go） ----------
 
-// ContainsSkillID 判断列表中是否包含指定技能 ID。
-func ContainsSkillID(skillIDs []string, skillID string) bool {
-	for _, id := range skillIDs {
-		if id == skillID {
-			return true
-		}
-	}
-	return false
-}
 
 // ---------- 技能策略钩子（原 skill_use_policy.go） ----------
 

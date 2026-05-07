@@ -10,74 +10,6 @@ import (
 
 // --- Helper functions ---
 
-func getToken(p *model.Player, key string) int {
-	if p == nil {
-		return 0
-	}
-	if p.Tokens == nil {
-		p.Tokens = map[string]int{}
-	}
-	return p.Tokens[key]
-}
-
-func setToken(p *model.Player, key string, v int) {
-	if p == nil {
-		return
-	}
-	if p.Tokens == nil {
-		p.Tokens = map[string]int{}
-	}
-	p.Tokens[key] = v
-}
-
-func addToken(p *model.Player, key string, delta int, minV int, maxV int) int {
-	cur := getToken(p, key)
-	cur += delta
-	if cur < minV {
-		cur = minV
-	}
-	if maxV >= minV && cur > maxV {
-		cur = maxV
-	}
-	setToken(p, key, cur)
-	return cur
-}
-
-func canPayCrystalLike(ctx *model.Context, amount int) bool {
-	return engineplayer.CanPayCrystalLike(ctx, amount)
-}
-
-func spendCrystalLike(ctx *model.Context, amount int) bool {
-	return engineplayer.SpendCrystalLike(ctx, amount)
-}
-
-func hasForm(p *model.Player, form string) bool {
-	return p != nil && p.Form == form
-}
-
-func enterForm(p *model.Player, form string) {
-	if p == nil {
-		return
-	}
-	p.Orientation = model.OrientationTapped
-	p.Form = form
-}
-
-func leaveForm(p *model.Player, form string) {
-	if p == nil {
-		return
-	}
-	if form != "" && p.Form != form {
-		return
-	}
-	p.Orientation = model.OrientationNormal
-	p.Form = ""
-}
-
-func addAttackAction(p *model.Player, source string) {
-	model.AppendAttackAction(p, source)
-}
-
 // --- 19. 红莲骑士 ---
 
 type CrimsonKnightCrimsonPactHandler struct{ engineplayer.BaseHandler }
@@ -179,14 +111,14 @@ func (h *CrimsonKnightKillingFeastHandler) CanUse(ctx *model.Context) bool {
 	if ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
-	return getToken(ctx.User, "crk_blood_mark") > 0
+	return engineplayer.GetToken(ctx.User, "crk_blood_mark") > 0
 }
 
 func (h *CrimsonKnightKillingFeastHandler) Execute(ctx *model.Context) error {
-	if getToken(ctx.User, "crk_blood_mark") <= 0 {
+	if engineplayer.GetToken(ctx.User, "crk_blood_mark") <= 0 {
 		return nil
 	}
-	addToken(ctx.User, "crk_blood_mark", -1, 0, 3)
+	engineplayer.AddToken(ctx.User, "crk_blood_mark", -1, 3)
 	// 先提升本次命中伤害，再追加自伤到 PendingDamageQueue。
 	// 否则 append 触发底层扩容时，DamageVal 可能指向旧切片元素导致加伤丢失。
 	if ctx.EventCtx != nil && ctx.EventCtx.DamageVal != nil {
@@ -213,13 +145,13 @@ func (h *CrimsonKnightCalmMindHandler) CanUse(ctx *model.Context) bool {
 	if ctx.Timing != model.TimingOnActionEnd {
 		return false
 	}
-	if !hasForm(ctx.User, model.FormCrimsonKnightHotBlooded) {
+	if !engineplayer.HasForm(ctx.User, model.FormCrimsonKnightHotBlooded) {
 		return false
 	}
 	if ctx.EventCtx.ActionType != model.ActionAttack && ctx.EventCtx.ActionType != model.ActionMagic {
 		return false
 	}
-	return canPayCrystalLike(ctx, 1)
+	return engineplayer.CanPayCrystalLike(ctx, 1)
 }
 
 func (h *CrimsonKnightCalmMindHandler) Execute(ctx *model.Context) error {
@@ -229,10 +161,10 @@ func (h *CrimsonKnightCalmMindHandler) Execute(ctx *model.Context) error {
 	if ctx.EventCtx == nil {
 		return fmt.Errorf("戒骄戒躁缺少行动结束上下文")
 	}
-	if !spendCrystalLike(ctx, 1) {
+	if !engineplayer.SpendCrystalLike(ctx, 1) {
 		return fmt.Errorf("戒骄戒躁需要1蓝水晶（红宝石可替代）")
 	}
-	leaveForm(ctx.User, model.FormCrimsonKnightHotBlooded)
+	engineplayer.ClearForm(ctx.User, model.FormCrimsonKnightHotBlooded)
 
 	actionType := ctx.EventCtx.ActionType
 	if actionType != model.ActionAttack && actionType != model.ActionMagic {
@@ -255,7 +187,7 @@ func (h *CrimsonKnightCrimsonCrossHandler) CanUse(ctx *model.Context) bool {
 	if ctx.Target.Camp == ctx.User.Camp {
 		return false
 	}
-	if getToken(ctx.User, "crk_blood_mark") <= 0 {
+	if engineplayer.GetToken(ctx.User, "crk_blood_mark") <= 0 {
 		return false
 	}
 	magicCount := 0
@@ -274,10 +206,10 @@ func (h *CrimsonKnightCrimsonCrossHandler) Execute(ctx *model.Context) error {
 	if ctx.Target.Camp == ctx.User.Camp {
 		return fmt.Errorf("腥红十字只能指定敌方角色")
 	}
-	if getToken(ctx.User, "crk_blood_mark") <= 0 {
+	if engineplayer.GetToken(ctx.User, "crk_blood_mark") <= 0 {
 		return fmt.Errorf("血印不足")
 	}
-	addToken(ctx.User, "crk_blood_mark", -1, 0, 3)
+	engineplayer.AddToken(ctx.User, "crk_blood_mark", -1, 3)
 	ctx.Game.AddPendingDamage(model.PendingDamage{
 		SourceID:              ctx.User.ID,
 		TargetID:              ctx.User.ID,

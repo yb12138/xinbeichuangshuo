@@ -87,7 +87,7 @@ func TryDescentAfterMagicDamage(rt engineplayer.ChoiceRuntime, pd *model.Pending
 	if InEternalPrisonerForm(source) || source.TurnState.UsedSkillCounts["bd_descent"] > 0 {
 		return false
 	}
-	if maxSameElementCount(source) < 2 {
+	if engineplayer.MaxSameElementCount(source) < 2 {
 		return false
 	}
 	rt.PushInterrupt(&model.Interrupt{
@@ -112,18 +112,3 @@ func responseContext(rt engineplayer.ChoiceRuntime, user *model.Player, stage st
 	return ctx
 }
 
-func maxSameElementCount(player *model.Player) int {
-	counts := map[model.Element]int{}
-	for _, c := range player.Hand {
-		if c.Element != "" {
-			counts[c.Element]++
-		}
-	}
-	maxCount := 0
-	for _, cnt := range counts {
-		if cnt > maxCount {
-			maxCount = cnt
-		}
-	}
-	return maxCount
-}

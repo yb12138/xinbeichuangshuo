@@ -9,10 +9,6 @@ import (
 	"starcup-engine/internal/model"
 )
 
-func addAttackAction(p *model.Player, source string) {
-	model.AppendAttackAction(p, source)
-}
-
 // --- 圣枪骑士技能处理器 ---
 
 type HolyLancerRevelationHandler struct{ engineplayer.BaseHandler }
@@ -31,7 +27,7 @@ func (h *HolyLancerRadianceHandler) Execute(ctx *model.Context) error {
 	for _, p := range ctx.Game.GetAllPlayers() {
 		ctx.Game.Heal(p.ID, 1)
 	}
-	addAttackAction(ctx.User, "辉耀")
+	model.AppendAttackAction(ctx.User, "辉耀")
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [辉耀]，全场+1治疗并获得额外攻击行动", ctx.User.Name))
 	return nil
 }
@@ -52,7 +48,7 @@ func (h *HolyLancerPunishmentHandler) Execute(ctx *model.Context) error {
 	if ctx.User.Heal < ctx.User.MaxHeal {
 		ctx.User.Heal++
 	}
-	addAttackAction(ctx.User, "惩戒")
+	model.AppendAttackAction(ctx.User, "惩戒")
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [惩戒]，从 %s 转移1点治疗并获得额外攻击行动", ctx.User.Name, ctx.Target.Name))
 	return nil
 }
@@ -170,7 +166,7 @@ func (h *HolyLancerPrayerHandler) Execute(ctx *model.Context) error {
 		ctx.User.Heal = 5
 	}
 	ctx.User.TurnState.UsedSkillCounts["holy_lancer_prayer"] = 1
-	addAttackAction(ctx.User, "圣光祈愈")
+	model.AppendAttackAction(ctx.User, "圣光祈愈")
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [圣光祈愈]，治疗+2（上限5）并获得额外攻击行动", ctx.User.Name))
 	return nil
 }

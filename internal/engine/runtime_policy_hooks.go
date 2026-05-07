@@ -20,7 +20,7 @@ const (
 func (e *GameEngine) runTimingOnBeforeActionStageHooks(player *model.Player, stage timingOnBeforeActionStage) bool {
 	switch stage {
 	case timingOnBeforeActionResolveField:
-		return e.runTimingOnBeforeActionHooks(player)
+		return e.RunTimingOnBeforeActionHooks(player)
 	case timingOnBeforeActionResolveActionStart:
 		return e.runTimingBeforeActionExecuteHooks(player)
 	default:
@@ -28,8 +28,8 @@ func (e *GameEngine) runTimingOnBeforeActionStageHooks(player *model.Player, sta
 	}
 }
 
-// runTimingOnBeforeActionHooks 在回合 before-action 固定阶段按顺序处理场上效果。
-func (e *GameEngine) runTimingOnBeforeActionHooks(player *model.Player) bool {
+// RunTimingOnBeforeActionHooks 在回合 before-action 固定阶段按顺序处理场上效果。
+func (e *GameEngine) RunTimingOnBeforeActionHooks(player *model.Player) bool {
 	for _, hook := range e.beforeActionFieldHooks {
 		if hook(e, player) {
 			return true
@@ -39,20 +39,20 @@ func (e *GameEngine) runTimingOnBeforeActionHooks(player *model.Player) bool {
 }
 
 // applyTimingBeforeActionExecuteOptionPolicies 在行动入口生成选项前应用规则约束。
-func (e *GameEngine) applyTimingBeforeActionExecuteOptionPolicies(player *model.Player, state *actionSelectionState) {
+func (e *GameEngine) applyTimingBeforeActionExecuteOptionPolicies(player *model.Player, state *ActionSelectionState) {
 	ctx := engineplayer.TimingHookContext{
 		Player:         player,
-		ChoiceRuntime:  newRoleChoiceRuntime(e),
+		ChoiceRuntime:  NewRoleChoiceRuntime(e),
 		OptionModifier: actionSelectionModifierAdapter{state: state},
 	}
 	e.dispatchAllRoleTimingHooks(engineplayer.TimingBeforeActionOption, ctx)
 }
 
 // applyTimingBeforeActionExecuteValidationPolicies 在行动输入校验前应用规则约束。
-func (e *GameEngine) applyTimingBeforeActionExecuteValidationPolicies(player *model.Player, state *actionSelectionState) {
+func (e *GameEngine) applyTimingBeforeActionExecuteValidationPolicies(player *model.Player, state *ActionSelectionState) {
 	ctx := engineplayer.TimingHookContext{
 		Player:         player,
-		ChoiceRuntime:  newRoleChoiceRuntime(e),
+		ChoiceRuntime:  NewRoleChoiceRuntime(e),
 		OptionModifier: actionSelectionModifierAdapter{state: state},
 		ValidationModifier: actionSelectionValidationModifierAdapter{
 			actionSelectionModifierAdapter: actionSelectionModifierAdapter{state: state},
@@ -63,8 +63,8 @@ func (e *GameEngine) applyTimingBeforeActionExecuteValidationPolicies(player *mo
 	e.dispatchAllRoleTimingHooks(engineplayer.TimingBeforeActionValidation, ctx)
 }
 
-// runTimingOnHitCheckCombatInteractionPolicies 在战斗交互阶段执行命中判定策略链。
-func (e *GameEngine) runTimingOnHitCheckCombatInteractionPolicies(req *model.CombatRequest) bool {
+// RunTimingOnHitCheckCombatInteractionPolicies 在战斗交互阶段执行命中判定策略链。
+func (e *GameEngine) RunTimingOnHitCheckCombatInteractionPolicies(req *model.CombatRequest) bool {
 	result := e.dispatchRoleTimingHook(engineplayer.TimingOnCombatInteraction, engineplayer.TimingHookContext{
 		CombatRequest: req,
 	})

@@ -10,8 +10,8 @@ import (
 	"starcup-engine/internal/model"
 )
 
-// handleActionSelection 处理行动选择阶段的行动
-func (e *GameEngine) handleActionSelection(act model.PlayerAction) error {
+// HandleActionSelection 处理行动选择阶段的行动
+func (e *GameEngine) HandleActionSelection(act model.PlayerAction) error {
 	currentPid := e.State.PlayerOrder[e.State.CurrentTurn]
 	player := e.State.Players[currentPid]
 
@@ -33,25 +33,25 @@ func (e *GameEngine) handleActionSelection(act model.PlayerAction) error {
 
 	handlers := map[model.PlayerActionType]func() error{
 		model.CmdBuy: func() error {
-			return e.handleActionSelectionSpecialOrSkill(act, currentPid, player)
+			return e.HandleActionSelectionSpecialOrSkill(act, currentPid, player)
 		},
 		model.CmdSynthesize: func() error {
-			return e.handleActionSelectionSpecialOrSkill(act, currentPid, player)
+			return e.HandleActionSelectionSpecialOrSkill(act, currentPid, player)
 		},
 		model.CmdExtract: func() error {
-			return e.handleActionSelectionSpecialOrSkill(act, currentPid, player)
+			return e.HandleActionSelectionSpecialOrSkill(act, currentPid, player)
 		},
 		model.CmdSkill: func() error {
-			return e.handleActionSelectionSpecialOrSkill(act, currentPid, player)
+			return e.HandleActionSelectionSpecialOrSkill(act, currentPid, player)
 		},
 		model.CmdAttack: func() error {
-			return e.handleActionSelectionAttackOrMagic(act, currentPid, player, validationResult)
+			return e.HandleActionSelectionAttackOrMagic(act, currentPid, player, validationResult)
 		},
 		model.CmdMagic: func() error {
-			return e.handleActionSelectionAttackOrMagic(act, currentPid, player, validationResult)
+			return e.HandleActionSelectionAttackOrMagic(act, currentPid, player, validationResult)
 		},
 		model.CmdCannotAct: func() error {
-			return e.handleActionSelectionCannotAct(player)
+			return e.HandleActionSelectionCannotAct(player)
 		},
 	}
 	handler, ok := handlers[act.Type]
@@ -61,7 +61,7 @@ func (e *GameEngine) handleActionSelection(act model.PlayerAction) error {
 	return handler()
 }
 
-func (e *GameEngine) handleActionSelectionSpecialOrSkill(act model.PlayerAction, currentPid string, player *model.Player) error {
+func (e *GameEngine) HandleActionSelectionSpecialOrSkill(act model.PlayerAction, currentPid string, player *model.Player) error {
 	if player.TurnState.HasStartupSkillOrSpecialActionsLocked() &&
 		(act.Type == model.CmdBuy || act.Type == model.CmdSynthesize || act.Type == model.CmdExtract) {
 		return fmt.Errorf("你本回合已执行启动技能，不能执行特殊行动")
@@ -103,7 +103,7 @@ func (e *GameEngine) handleActionSelectionSpecialOrSkill(act model.PlayerAction,
 		if len(act.TargetIDs) > 0 {
 			targets = append(targets, act.TargetIDs...)
 		}
-		e.beginActionSummary("skill", player.ID, skillTitle, targets)
+		e.BeginActionSummary("skill", player.ID, skillTitle, targets)
 		if e.State.PendingInterrupt != nil {
 			return nil
 		}
@@ -121,7 +121,7 @@ func (e *GameEngine) handleActionSelectionSpecialOrSkill(act model.PlayerAction,
 		specialName = "提炼"
 	}
 	if specialName != "" {
-		e.beginActionSummary("special", player.ID, specialName, nil)
+		e.BeginActionSummary("special", player.ID, specialName, nil)
 	}
 	if err := e.executeSpecialActionWithRuntime(player, actionType); err != nil {
 		return err
@@ -133,7 +133,7 @@ func (e *GameEngine) handleActionSelectionSpecialOrSkill(act model.PlayerAction,
 	return nil
 }
 
-func (e *GameEngine) handleActionSelectionAttackOrMagic(act model.PlayerAction, currentPid string, player *model.Player, validationResult actionSelectionValidationResult) error {
+func (e *GameEngine) HandleActionSelectionAttackOrMagic(act model.PlayerAction, currentPid string, player *model.Player, validationResult actionSelectionValidationResult) error {
 	if act.CardIndex < 0 {
 		return fmt.Errorf("需要指定卡牌索引")
 	}
@@ -219,9 +219,9 @@ func (e *GameEngine) handleActionSelectionAttackOrMagic(act model.PlayerAction, 
 		targets = append(targets, act.TargetIDs...)
 	}
 	if actionType == model.ActionAttack {
-		e.beginActionSummary("attack", player.ID, card.Name, targets)
+		e.BeginActionSummary("attack", player.ID, card.Name, targets)
 	} else {
-		e.beginActionSummary("magic", player.ID, card.Name, targets)
+		e.BeginActionSummary("magic", player.ID, card.Name, targets)
 	}
 
 	if actionType == model.ActionAttack && validationResult.afterAttackAccepted != nil {
@@ -235,7 +235,7 @@ func (e *GameEngine) handleActionSelectionAttackOrMagic(act model.PlayerAction, 
 	return nil
 }
 
-func (e *GameEngine) handleActionSelectionCannotAct(player *model.Player) error {
+func (e *GameEngine) HandleActionSelectionCannotAct(player *model.Player) error {
 	// === 额外行动阶段：直接跳过 ===
 	if player.TurnState.CurrentExtraAction != "" {
 		if e.checkExtraActionCards(player, player.TurnState.CurrentExtraAction, player.TurnState.CurrentExtraElement) {

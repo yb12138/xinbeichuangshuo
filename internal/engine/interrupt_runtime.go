@@ -110,7 +110,7 @@ func (e *GameEngine) GetCurrentPrompt() *model.Prompt {
 			_ = e.SkipResponse()
 			return nil
 		}
-		prompt = e.buildPendingInterruptPrompt()
+		prompt = e.BuildPendingInterruptPrompt()
 	}
 	if prompt != nil {
 		return e.decoratePromptForClient(prompt)
@@ -159,7 +159,7 @@ func (e *GameEngine) prunePendingResponseSkills() bool {
 		if skillID == "" {
 			continue
 		}
-		if e.dispatcher.isSkillStillUsable(skillID, player, ctx) {
+		if e.dispatcher.IsSkillStillUsable(skillID, player, ctx) {
 			filtered = append(filtered, skillID)
 		}
 	}
@@ -234,7 +234,7 @@ func (e *GameEngine) resolveGiveCardsInterrupt(giverID, receiverID string, indic
 
 	receiver.Hand = append(receiver.Hand, givenCards...)
 	e.Log(fmt.Sprintf("[Skill] %s 将 %d 张牌交给了 %s", giver.Name, len(givenCards), receiver.Name))
-	overflowCtx := e.buildContext(receiver, nil, model.TimingActive, nil)
+	overflowCtx := e.BuildContext(receiver, nil, model.TimingActive, nil)
 	if runtimeutil.ToBoolContextValue(data["stay_in_turn"]) {
 		overflowCtx.Flags["StayInTurn"] = true
 	}
@@ -242,7 +242,7 @@ func (e *GameEngine) resolveGiveCardsInterrupt(giverID, receiverID string, indic
 		overflowCtx.Flags["StayInTurn"] = true
 		overflowCtx.Selections["draw_resume_phase"] = point
 	}
-	e.checkHandLimit(receiver, overflowCtx)
+	e.CheckHandLimitCtx(receiver, overflowCtx)
 	e.Log(fmt.Sprintf("[Debug] 给牌完成，队列中还有 %d 个中断", len(e.State.InterruptQueue)))
 	return nil
 }

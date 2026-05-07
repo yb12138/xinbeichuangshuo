@@ -150,7 +150,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		rt.PopInterrupt()
 		if rt.GetPendingInterrupt() == nil {
 			// 规则：神圣契约是"选择目标+选择X"的两段式结算，最终恢复点必须由上游显式给出。
-			rt.ApplyChoiceResumePoint(mustChoiceResumePointFromMap(ctxData, "resume_phase"))
+			rt.ApplyChoiceResumePoint(engineplayer.MustChoiceResumePointFromMap(ctxData, "resume_phase"))
 		}
 		return true, nil
 
@@ -244,11 +244,4 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 	return false, nil
 }
 
-// Helper functions for priest
 
-func mustChoiceResumePointFromMap(data map[string]interface{}, key string) interface{} {
-	if data == nil {
-		return nil
-	}
-	return data[key]
-}

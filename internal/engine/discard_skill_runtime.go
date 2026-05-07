@@ -27,7 +27,7 @@ func (e *GameEngine) ConfirmDiscard(playerID string, indices []int) error {
 		return e.handleSkillDiscardSelection(playerID, indices, data)
 	}
 
-	return e.handleDiscardSelection(playerID, indices, data)
+	return e.HandleDiscardSelection(playerID, indices, data)
 }
 
 func (e *GameEngine) confirmDiscardChoiceSelections(playerID string, indices []int, data map[string]interface{}) error {
@@ -41,7 +41,7 @@ func (e *GameEngine) confirmDiscardChoiceSelections(playerID string, indices []i
 	if hasSkillDiscardID(data) {
 		return e.handleSkillDiscardSelection(playerID, indices, data)
 	}
-	return e.handleDiscardSelection(playerID, indices, data)
+	return e.HandleDiscardSelection(playerID, indices, data)
 }
 
 func hasSkillDiscardID(data map[string]interface{}) bool {
@@ -104,11 +104,11 @@ func (e *GameEngine) handleContextSkillDiscardSelection(skillID string, indices 
 		return fmt.Errorf("技能处理器不存在")
 	}
 
-	beforePoses := e.snapshotPlayerPoses()
+	beforePoses := e.SnapshotPlayerPoses()
 	if err := handler.Execute(ctx); err != nil {
 		return fmt.Errorf("技能执行失败: %v", err)
 	}
-	e.dispatchOrientationChanges(beforePoses)
+	e.DispatchOrientationChanges(beforePoses)
 
 	if discardedCards, ok := ctx.Selections["discardedCards"].([]model.Card); ok {
 		e.State.DiscardPile = append(e.State.DiscardPile, discardedCards...)
@@ -128,12 +128,12 @@ func (e *GameEngine) handleContextSkillDiscardSelection(skillID string, indices 
 
 	e.PopInterrupt()
 	if e.State.PendingInterrupt == nil {
-		e.resumePhaseAfterSkillDiscardContext(ctx)
+		e.ResumePhaseAfterSkillDiscardContext(ctx)
 	}
 	return nil
 }
 
-func (e *GameEngine) resumePhaseAfterSkillDiscardContext(ctx *model.Context) bool {
+func (e *GameEngine) ResumePhaseAfterSkillDiscardContext(ctx *model.Context) bool {
 	if ctx == nil || e.State.PendingInterrupt != nil {
 		return false
 	}
