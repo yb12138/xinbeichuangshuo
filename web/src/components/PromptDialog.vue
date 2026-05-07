@@ -1292,10 +1292,36 @@ const autoResolveOptionId = computed(() => {
   return onlyOption.id
 })
 
+// 是否显示通用决策弹窗（覆盖：X值选择、分支选择、模式选择、发动确认）
+const showDecisionOverlay = computed(() => {
+  if (!isVisible.value || !prompt.value) return false
+  if (isSkillChoicePrompt.value) return false
+  if (isFraudElementCardPickerPrompt.value) return false
+  if (isExtractPrompt.value) return false
+  if (needsCardSelection.value) return false
+  if (singleActivationCostConfirmOption.value) return true
+  if (inlinePrimaryButtons.value.length > 0 && showConfirmButtonSection.value) return true
+  return false
+})
+
+const decisionOverlayMode = computed<'numeric' | 'text' | 'activation-cost'>(() => {
+  if (singleActivationCostConfirmOption.value) return 'activation-cost'
+  if (inlinePrimaryButtons.value.some(opt => opt.numeric)) return 'numeric'
+  return 'text'
+})
+
+const decisionOverlayTitle = computed(() => {
+  if (singleActivationCostConfirmOption.value) {
+    return String(prompt.value?.message || '确认发动').trim()
+  }
+  return inlinePrimaryPromptMessage.value || '请选择'
+})
+
 const hasAnyInlineButton = computed(() => {
   if (!isVisible.value) return false
   if (isFraudElementCardPickerPrompt.value) return false
   if (prompt.value?.type === 'choose_skill') return false
+  if (showDecisionOverlay.value) return false
   if (isExtractPrompt.value && !!prompt.value?.options?.length) return true
   if (showTargetSelectionHintRow.value) return true
   if (inlinePrimaryButtons.value.length > 0) return true
@@ -1436,7 +1462,7 @@ watch(autoResolveOptionId, (optionId) => {
             <div class="prompt-inline-hint">{{ targetSelectionPromptMessage }}</div>
           </div>
 
-          <div v-else-if="inlinePrimaryButtons.length > 0 && !singleActivationCostConfirmOption">
+          <div v-else-if="inlinePrimaryButtons.length > 0 && !singleActivationCostConfirmOption && !showDecisionOverlay">
             <div v-if="inlinePrimaryPromptMessage" class="prompt-inline-hint">
               {{ inlinePrimaryPromptMessage }}
             </div>
@@ -1497,7 +1523,7 @@ watch(autoResolveOptionId, (optionId) => {
           </div>
           </div>
 
-          <div v-if="singleActivationCostConfirmOption" class="prompt-inline-entry">
+          <div v-if="singleActivationCostConfirmOption && !showDecisionOverlay" class="prompt-inline-entry">
             <div class="prompt-inline-hint">{{ singleActivationCostConfirmHintText }}</div>
             <div class="prompt-inline-actions-row">
               <button
@@ -1596,7 +1622,7 @@ watch(autoResolveOptionId, (optionId) => {
         </template>
 
         <div
-          v-if="canCancelPrompt && !isSkillChoicePrompt && !showCardConfirmCancelRow && !singleActivationCostConfirmOption"
+          v-if="canCancelPrompt && !isSkillChoicePrompt && !showCardConfirmCancelRow && !singleActivationCostConfirmOption && !showDecisionOverlay"
           class="prompt-inline-entry"
         >
           <div v-if="cancelDockButton.hint" class="prompt-inline-hint">{{ cancelDockButton.hint }}</div>
@@ -1687,6 +1713,65 @@ watch(autoResolveOptionId, (optionId) => {
           </div>
           <div class="skill-branch-footer">
             <button class="skill-branch-skip" @click="handleOptionClick('skip')">跳过</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
+
+  <Teleport to="body">
+    <Transition name="modal">
+      <div v-if="showDecisionOverlay" class="decision-overlay">
+        <div class="decision-panel" @click.stop>
+          <div class="decision-header">
+            <h2>{{ decisionOverlayTitle }}</h2>
+          </div>
+
+          <div v-if="decisionOverlayMode === 'activation-cost'" class="decision-body decision-body--cost">
+            <div class="decision-cost-card">
+              <span class="decision-cost-text">{{ singleActivationCostConfirmHintText }}</span>
+            </div>
+            <button
+              class="decision-confirm-btn"
+              :disabled="!!singleActivationCostConfirmOption?.disabled"
+              @click="handleOptionClick(singleActivationCostConfirmOption!.id)"
+            >
+              确认发动
+            </button>
+          </div>
+
+          <div v-else-if="decisionOverlayMode === 'numeric'" class="decision-body decision-body--numeric">
+            <div class="decision-numeric-grid">
+              <button
+                v-for="option in inlinePrimaryButtons"
+                :key="option.id"
+                class="decision-numeric-tile"
+                :disabled="!!option.disabled"
+                @click="handleOptionClick(option.id)"
+              >
+                <span class="decision-numeric-value">{{ option.buttonLabel }}</span>
+                <span v-if="option.hint" class="decision-numeric-hint">{{ option.hint }}</span>
+              </button>
+            </div>
+          </div>
+
+          <div v-else class="decision-body decision-body--text">
+            <button
+              v-for="option in inlinePrimaryButtons"
+              :key="option.id"
+              class="decision-text-item"
+              :disabled="!!option.disabled"
+              @click="handleOptionClick(option.id)"
+            >
+              <div class="decision-text-item-label">{{ option.buttonLabel }}</div>
+              <div v-if="option.hint" class="decision-text-item-hint">{{ option.hint }}</div>
+            </button>
+          </div>
+
+          <div v-if="canCancelPrompt" class="decision-footer">
+            <button class="decision-cancel-btn" @click="handleOptionClick(cancelDockButton.id)">
+              {{ cancelDockButton.buttonLabel || '取消' }}
+            </button>
           </div>
         </div>
       </div>
@@ -2585,6 +2670,219 @@ watch(autoResolveOptionId, (optionId) => {
   border-color: rgba(156, 166, 184, 0.5);
 }
 
+/* ── Decision Overlay (board-game style choice dialog) ── */
+.decision-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 13050;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background:
+    radial-gradient(380px 200px at 50% 46%, rgba(180, 140, 60, 0.12), transparent 70%),
+    rgba(0, 0, 0, 0.74);
+  backdrop-filter: blur(3px);
+}
+
+.decision-panel {
+  position: relative;
+  width: min(480px, calc(100vw - 2rem));
+  max-height: 85vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border-radius: 14px;
+  border: 1px solid rgba(180, 150, 90, 0.32);
+  box-shadow: 0 18px 34px rgba(2, 8, 18, 0.52),
+              inset 0 1px 0 rgba(255, 240, 200, 0.1);
+  background: linear-gradient(180deg, rgba(10, 18, 30, 0.94), rgba(6, 12, 22, 0.96));
+}
+
+.decision-header {
+  flex-shrink: 0;
+  padding: 18px 24px 14px;
+  background: linear-gradient(110deg, rgba(40, 56, 80, 0.9), rgba(80, 60, 30, 0.85));
+  border-bottom: 1px solid rgba(180, 150, 90, 0.24);
+  text-align: center;
+}
+.decision-header h2 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #ffd98a;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.decision-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
+  background: rgba(6, 14, 24, 0.4);
+}
+
+.decision-body--numeric {
+  padding: 20px 16px;
+}
+.decision-numeric-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+.decision-numeric-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  min-height: 64px;
+  border-radius: 12px;
+  border: 1px solid rgba(180, 150, 90, 0.36);
+  background: rgba(20, 32, 48, 0.7);
+  cursor: pointer;
+  transition: all 0.18s ease;
+  padding: 8px 4px;
+  font-family: inherit;
+}
+.decision-numeric-tile:hover:not(:disabled) {
+  border-color: rgba(255, 210, 120, 0.7);
+  background: rgba(30, 44, 60, 0.85);
+  box-shadow: 0 0 14px rgba(255, 210, 120, 0.18);
+}
+.decision-numeric-tile:active:not(:disabled) {
+  transform: scale(0.95);
+}
+.decision-numeric-tile:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.decision-numeric-value {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #ffd98a;
+  line-height: 1;
+}
+.decision-numeric-hint {
+  font-size: 0.7rem;
+  color: rgba(199, 219, 237, 0.7);
+  margin-top: 4px;
+  text-align: center;
+  line-height: 1.3;
+  max-width: 58px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.decision-body--text {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.decision-text-item {
+  width: 100%;
+  text-align: left;
+  padding: 14px 18px;
+  border-radius: 10px;
+  border: 1px solid rgba(150, 130, 80, 0.3);
+  background: rgba(14, 28, 44, 0.56);
+  box-shadow: inset 0 1px 0 rgba(255, 240, 200, 0.05);
+  cursor: pointer;
+  transition: all 0.18s ease;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+}
+.decision-text-item:hover:not(:disabled) {
+  border-color: rgba(255, 210, 120, 0.55);
+  background: rgba(22, 38, 56, 0.72);
+  box-shadow: 0 0 12px rgba(255, 210, 120, 0.12),
+              inset 0 1px 0 rgba(255, 240, 200, 0.08);
+}
+.decision-text-item:active:not(:disabled) {
+  transform: scale(0.98);
+}
+.decision-text-item:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.decision-text-item-label {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #ffd98a;
+}
+.decision-text-item-hint {
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: rgba(199, 219, 237, 0.75);
+  margin-top: 4px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.decision-body--cost {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 24px 20px;
+}
+.decision-cost-card {
+  padding: 16px 24px;
+  border-radius: 10px;
+  border: 1px solid rgba(180, 150, 90, 0.3);
+  background: rgba(14, 28, 44, 0.6);
+  text-align: center;
+}
+.decision-cost-text {
+  font-size: 0.9rem;
+  color: rgba(225, 238, 249, 0.92);
+  line-height: 1.5;
+}
+.decision-confirm-btn {
+  padding: 10px 36px;
+  border-radius: 10px;
+  border: 1px solid rgba(180, 150, 90, 0.5);
+  background: linear-gradient(180deg, rgba(120, 90, 30, 0.7), rgba(80, 60, 20, 0.8));
+  color: #ffe2ad;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+.decision-confirm-btn:hover:not(:disabled) {
+  background: linear-gradient(180deg, rgba(140, 105, 35, 0.85), rgba(100, 75, 25, 0.9));
+  border-color: rgba(255, 210, 120, 0.7);
+}
+.decision-confirm-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.decision-footer {
+  flex-shrink: 0;
+  padding: 12px 20px 16px;
+  text-align: center;
+  background: rgba(6, 14, 24, 0.66);
+  border-top: 1px solid rgba(150, 130, 80, 0.2);
+}
+.decision-cancel-btn {
+  padding: 8px 32px;
+  border-radius: 8px;
+  border: 1px solid rgba(156, 166, 184, 0.3);
+  background: rgba(59, 67, 84, 0.6);
+  color: rgba(199, 219, 237, 0.7);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+.decision-cancel-btn:hover {
+  background: rgba(59, 67, 84, 0.9);
+  color: rgba(199, 219, 237, 0.95);
+  border-color: rgba(156, 166, 184, 0.5);
 }
 </style>
 
@@ -2604,6 +2902,24 @@ watch(autoResolveOptionId, (optionId) => {
 }
 .skill-branch-overlay.modal-enter-from .skill-branch-panel,
 .skill-branch-overlay.modal-leave-to .skill-branch-panel {
+  transform: scale(0.95) translateY(8px);
+}
+
+/* Decision overlay transitions */
+.decision-overlay.modal-enter-active,
+.decision-overlay.modal-leave-active {
+  transition: opacity 0.24s ease;
+}
+.decision-overlay.modal-enter-from,
+.decision-overlay.modal-leave-to {
+  opacity: 0;
+}
+.decision-overlay.modal-enter-active .decision-panel,
+.decision-overlay.modal-leave-active .decision-panel {
+  transition: transform 0.24s ease;
+}
+.decision-overlay.modal-enter-from .decision-panel,
+.decision-overlay.modal-leave-to .decision-panel {
   transform: scale(0.95) translateY(8px);
 }
 </style>
