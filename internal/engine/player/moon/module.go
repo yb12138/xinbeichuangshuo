@@ -11,7 +11,7 @@ import (
 // RoleEntry 导出角色统一入口定义。
 func RoleEntry() player.RoleEntry {
 	return player.RoleEntry{
-		ID:               "moon",
+		ID:               "moon_goddess",
 		Defaults:         ApplyDefaults,
 		Choices:          NewChoiceHandler(),
 		Skills:           SkillEntries(),
@@ -51,16 +51,16 @@ func SkillEntries() []player.SkillEntry {
 // ChoiceRouteSpecs 导出角色 choice 路由声明。
 func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 	return map[string]types.ChoiceRouteSpec{
-		"mg_blasphemy_target":       types.ChoiceRouteRole("moon"),
-		"mg_dark_moon_curse_pick":   types.ChoiceRouteRole("moon"),
-		"mg_darkmoon_slash_x":       types.ChoiceRouteRole("moon"),
-		"mg_medusa_darkmoon_pick":   types.ChoiceRouteRole("moon"),
-		"mg_medusa_magic_discard":   types.ChoiceRouteRole("moon"),
-		"mg_moon_cycle_heal_target": types.ChoiceRouteRole("moon"),
-		"mg_moon_cycle_mode":        types.ChoiceRouteRole("moon"),
-		"mg_pale_moon_discard":      types.ChoiceRouteRole("moon"),
-		"mg_pale_moon_mode":         types.ChoiceRouteRole("moon"),
-		"mg_pale_moon_target":       types.ChoiceRouteRole("moon"),
-		"mg_pale_moon_x":            types.ChoiceRouteRole("moon"),
+		"mg_blasphemy_target":       types.ChoiceRouteRole("moon_goddess"),
+		"mg_dark_moon_curse_pick":   types.ChoiceRouteRole("moon_goddess"),
+		"mg_darkmoon_slash_x":       types.ChoiceRouteRole("moon_goddess"),
+		"mg_medusa_darkmoon_pick":   types.ChoiceRouteRole("moon_goddess"),
+		"mg_medusa_magic_discard":   types.ChoiceRouteRole("moon_goddess"),
+		"mg_moon_cycle_heal_target": types.ChoiceRouteRole("moon_goddess"),
+		"mg_moon_cycle_mode":        types.ChoiceRouteRole("moon_goddess"),
+		"mg_pale_moon_discard":      types.ChoiceRouteRole("moon_goddess"),
+		"mg_pale_moon_mode":         types.ChoiceRouteRole("moon_goddess"),
+		"mg_pale_moon_target":       types.ChoiceRouteRole("moon_goddess"),
+		"mg_pale_moon_x":            types.ChoiceRouteRole("moon_goddess"),
 	}
 }

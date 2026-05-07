@@ -59,7 +59,7 @@ func attackGatingHook(rt player.HookRuntime, ctx player.TimingHookContext) playe
 
 func postAttackHitHook(rt player.HookRuntime, ctx player.TimingHookContext) player.TimingHookResult {
 	p := rt.GetPlayer(ctx.SourceID)
-	if p == nil {
+	if p == nil || !player.IsCharacter(p, "beast_samurai") {
 		return player.TimingHookResult{}
 	}
 	if ctx.IsCounter || InIaijutsuForm(p) {
@@ -76,7 +76,7 @@ func postAttackHitHook(rt player.HookRuntime, ctx player.TimingHookContext) play
 // attackStateResetHook resets beast samurai attack-related tokens when a new attack is declared.
 func attackStateResetHook(rt player.HookRuntime, ctx player.TimingHookContext) player.TimingHookResult {
 	p := rt.GetPlayer(ctx.SourceID)
-	if p == nil {
+	if p == nil || !player.IsCharacter(p, "beast_samurai") {
 		return player.TimingHookResult{}
 	}
 	ClearAttackTokens(p)
@@ -86,7 +86,7 @@ func attackStateResetHook(rt player.HookRuntime, ctx player.TimingHookContext) p
 // attackMissHook 攻击未命中后清除攻击令牌。
 func attackMissHook(rt player.HookRuntime, ctx player.TimingHookContext) player.TimingHookResult {
 	p := rt.GetPlayer(ctx.SourceID)
-	if p == nil {
+	if p == nil || !player.IsCharacter(p, "beast_samurai") {
 		return player.TimingHookResult{}
 	}
 	ClearAttackTokens(p)
@@ -96,7 +96,7 @@ func attackMissHook(rt player.HookRuntime, ctx player.TimingHookContext) player.
 // postDamageResolvedHook 伤害结算完成后：清除攻击指示物 + 居合形态退场。
 func postDamageResolvedHook(rt player.HookRuntime, ctx player.TimingHookContext) player.TimingHookResult {
 	source := rt.GetPlayer(ctx.SourceID)
-	if source == nil {
+	if source == nil || !player.IsCharacter(source, "beast_samurai") {
 		return player.TimingHookResult{}
 	}
 	// Clear attack tokens for attack damage

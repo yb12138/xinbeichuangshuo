@@ -80,7 +80,14 @@ type TimingHookSpec struct {
 	Timing   TimingPoint
 	Priority int // 数值越小越先执行
 	Hook     TimingHookFunc
+	// RoleFilter 声明 hook 的角色过滤规则：
+	//   nil（默认）= 按 SourceID 玩家的 Character.ID == RoleID 过滤
+	//   "none"     = 不按角色过滤，全局执行（跨角色 hook 使用）
+	RoleFilter *string
 }
+
+// HookRoleNone 标记 hook 不按角色过滤（跨角色场景）。
+var HookRoleNone = "none"
 
 // TimingHookContext 传递给 Hook 的上下文。
 type TimingHookContext struct {

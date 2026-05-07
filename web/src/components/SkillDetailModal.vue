@@ -49,6 +49,26 @@ onBeforeUnmount(() => {
 
 const isAnchored = computed(() => !!props.anchor)
 
+function skillTypeLabel(type?: number): string {
+  switch (type) {
+    case 0: return '被动'
+    case 1: return '启动'
+    case 2: return '法术'
+    case 3: return '响应'
+    default: return '法术'
+  }
+}
+
+function skillTypeClass(type?: number): string {
+  switch (type) {
+    case 0: return 'bg-gray-600/60 text-gray-300'
+    case 1: return 'bg-cyan-700/50 text-cyan-300'
+    case 2: return 'bg-amber-700/50 text-amber-300'
+    case 3: return 'bg-purple-700/50 text-purple-300'
+    default: return 'bg-amber-700/50 text-amber-300'
+  }
+}
+
 const panelStyle = computed(() => {
   if (!props.anchor) return {}
   const margin = 12
@@ -119,7 +139,13 @@ const panelStyle = computed(() => {
               :key="skill.id"
               class="skill-item rounded-xl p-4"
             >
-              <div class="font-semibold text-amber-400 text-base mb-2">{{ skill.title }}</div>
+              <div class="flex items-center gap-2 mb-2">
+                <span class="font-semibold text-amber-400 text-base">{{ skill.title }}</span>
+                <span
+                  class="inline-block px-1.5 py-0.5 rounded text-[11px] font-medium leading-tight"
+                  :class="skillTypeClass(skill.type)"
+                >{{ skillTypeLabel(skill.type) }}</span>
+              </div>
               <div class="text-gray-300 text-sm leading-relaxed whitespace-pre-wrap break-words">
                 {{ skill.description }}
               </div>

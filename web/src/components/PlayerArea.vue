@@ -192,6 +192,8 @@ const TOKEN_DISPLAY: Record<string, { label: string; cls: string }> = {
   bt_pupa: { label: '蛹', cls: 'bg-amber-900/70 text-amber-100 border-amber-500/40' },
   bt_cocoon_count: { label: '茧', cls: 'bg-indigo-900/70 text-indigo-100 border-indigo-500/40' },
   bt_wither_active: { label: '凋零生效', cls: 'bg-red-900/70 text-red-100 border-red-500/40' },
+  bs_beast_soul: { label: '兽魂', cls: 'bg-orange-900/70 text-orange-100 border-orange-500/40' },
+  bs_zanshin: { label: '残心', cls: 'bg-cyan-900/70 text-cyan-100 border-cyan-500/40' },
 }
 
 const HIDDEN_TOKEN_KEYS = new Set([

@@ -1235,6 +1235,32 @@ const isMultiSkillNameChoiceMode = computed(() =>
   prompt.value?.type === 'choose_skill' && skillPromptEntries.value.length > 1
 )
 
+interface SkillBranchOption {
+  id: string
+  title: string
+  description?: string
+  cost?: string
+  disabled: boolean
+}
+
+const skillBranchOptions = computed<SkillBranchOption[]>(() => {
+  if (prompt.value?.type !== 'choose_skill') return []
+  return inlinePrimaryButtons.value
+    .filter((opt) => opt.id !== 'skip' && opt.id !== 'cancel')
+    .map((option, index) => {
+      const rawLabel = String(option.label || '').trim()
+      const title = parseSkillTitle(option, index)
+      const costMatch = rawLabel.match(/\[[^\]]+\]/)
+      return {
+        id: option.id,
+        title,
+        description: option.hint || undefined,
+        cost: costMatch ? costMatch[0] : undefined,
+        disabled: !!option.disabled,
+      }
+    })
+})
+
 const inlinePrimaryGridClass = computed(() => {
   const count = inlinePrimaryButtons.value.length
   if (count <= 1) return 'prompt-inline-grid--1'
@@ -1269,6 +1295,7 @@ const autoResolveOptionId = computed(() => {
 const hasAnyInlineButton = computed(() => {
   if (!isVisible.value) return false
   if (isFraudElementCardPickerPrompt.value) return false
+  if (prompt.value?.type === 'choose_skill') return false
   if (isExtractPrompt.value && !!prompt.value?.options?.length) return true
   if (showTargetSelectionHintRow.value) return true
   if (inlinePrimaryButtons.value.length > 0) return true
@@ -1368,7 +1395,7 @@ watch(autoResolveOptionId, (optionId) => {
         </template>
 
         <template v-else>
-          <div v-if="isSkillChoicePrompt && skillPromptButtons.length > 0" class="prompt-skill-list">
+          <div v-if="isSkillChoicePrompt && skillPromptButtons.length > 0 && prompt?.type !== 'choose_skill'" class="prompt-skill-list">
             <div class="prompt-skill-row">
               <div class="prompt-skill-text" :title="skillPromptTitle">{{ skillPromptTitle }}</div>
               <div class="prompt-skill-actions">
@@ -1629,6 +1656,37 @@ watch(autoResolveOptionId, (optionId) => {
                 </span>
               </button>
             </div>
+          </div>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
+
+  <Teleport to="body">
+    <Transition name="modal">
+      <div
+        v-if="prompt?.type === 'choose_skill' && skillBranchOptions.length > 0"
+        class="skill-branch-overlay"
+      >
+        <div class="skill-branch-panel" @click.stop>
+          <div class="skill-branch-header">
+            <h2>{{ skillPromptTitle }}</h2>
+          </div>
+          <div class="skill-branch-body">
+            <button
+              v-for="entry in skillBranchOptions"
+              :key="entry.id"
+              class="skill-branch-item"
+              :disabled="entry.disabled"
+              @click="handleOptionClick(entry.id)"
+            >
+              <div class="skill-branch-item-title">{{ entry.title }}</div>
+              <div v-if="entry.description" class="skill-branch-item-desc">{{ entry.description }}</div>
+              <div v-if="entry.cost" class="skill-branch-item-cost">{{ entry.cost }}</div>
+            </button>
+          </div>
+          <div class="skill-branch-footer">
+            <button class="skill-branch-skip" @click="handleOptionClick('skip')">跳过</button>
           </div>
         </div>
       </div>
@@ -2394,5 +2452,158 @@ watch(autoResolveOptionId, (optionId) => {
   .prompt-fraud-card-glyph {
     font-size: 32px;
   }
+}
+
+/* ── Skill Branch Overlay (RPG-style choice dialog) ── */
+.skill-branch-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 13050;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background:
+    radial-gradient(420px 220px at 50% 44%, rgba(136, 188, 195, 0.18), transparent 70%),
+    rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(3px);
+}
+
+.skill-branch-panel {
+  position: relative;
+  width: min(520px, calc(100vw - 2rem));
+  max-height: 85vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border-radius: 14px;
+  border: 1px solid rgba(132, 167, 186, 0.36);
+  box-shadow: 0 18px 34px rgba(2, 8, 18, 0.52),
+              inset 0 1px 0 rgba(236, 246, 254, 0.12);
+  background:
+    linear-gradient(180deg, rgba(8, 20, 34, 0.92), rgba(6, 15, 28, 0.95)),
+    url('/assets/ui/modal-aura.svg') center/cover no-repeat;
+}
+
+.skill-branch-header {
+  flex-shrink: 0;
+  padding: 20px 24px 16px;
+  background: linear-gradient(110deg, rgba(34, 74, 97, 0.88), rgba(94, 72, 43, 0.88));
+  border-bottom: 1px solid rgba(149, 186, 204, 0.26);
+  text-align: center;
+}
+.skill-branch-header h2 {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #ffe2ad;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.skill-branch-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: rgba(6, 17, 29, 0.42);
+}
+
+.skill-branch-item {
+  position: relative;
+  width: 100%;
+  text-align: left;
+  padding: 14px 18px;
+  border-radius: 10px;
+  border: 1px solid rgba(118, 152, 173, 0.34);
+  background: rgba(14, 32, 48, 0.56);
+  box-shadow: inset 0 1px 0 rgba(237, 247, 254, 0.06);
+  cursor: pointer;
+  transition: all 0.18s ease;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+}
+.skill-branch-item:hover:not(:disabled) {
+  border-color: rgba(211, 188, 142, 0.6);
+  background: rgba(20, 42, 60, 0.72);
+  box-shadow: 0 0 12px rgba(211, 188, 142, 0.15),
+              inset 0 1px 0 rgba(237, 247, 254, 0.1);
+}
+.skill-branch-item:active:not(:disabled) {
+  transform: scale(0.98);
+}
+.skill-branch-item:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.skill-branch-item-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #ffe2ad;
+  margin-bottom: 4px;
+}
+
+.skill-branch-item-desc {
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: rgba(199, 219, 237, 0.78);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.skill-branch-item-cost {
+  margin-top: 6px;
+  font-size: 0.75rem;
+  color: rgba(156, 166, 184, 0.8);
+}
+
+.skill-branch-footer {
+  flex-shrink: 0;
+  padding: 12px 20px 16px;
+  text-align: center;
+  background: rgba(6, 16, 28, 0.66);
+  border-top: 1px solid rgba(118, 153, 173, 0.24);
+}
+
+.skill-branch-skip {
+  padding: 8px 32px;
+  border-radius: 8px;
+  border: 1px solid rgba(156, 166, 184, 0.3);
+  background: rgba(59, 67, 84, 0.6);
+  color: rgba(199, 219, 237, 0.7);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+.skill-branch-skip:hover {
+  background: rgba(59, 67, 84, 0.9);
+  color: rgba(199, 219, 237, 0.95);
+  border-color: rgba(156, 166, 184, 0.5);
+}
+
+}
+</style>
+
+<style>
+/* Skill branch overlay transitions (unscoped for Vue Transition compatibility) */
+.skill-branch-overlay.modal-enter-active,
+.skill-branch-overlay.modal-leave-active {
+  transition: opacity 0.24s ease;
+}
+.skill-branch-overlay.modal-enter-from,
+.skill-branch-overlay.modal-leave-to {
+  opacity: 0;
+}
+.skill-branch-overlay.modal-enter-active .skill-branch-panel,
+.skill-branch-overlay.modal-leave-active .skill-branch-panel {
+  transition: transform 0.24s ease;
+}
+.skill-branch-overlay.modal-enter-from .skill-branch-panel,
+.skill-branch-overlay.modal-leave-to .skill-branch-panel {
+  transform: scale(0.95) translateY(8px);
 }
 </style>

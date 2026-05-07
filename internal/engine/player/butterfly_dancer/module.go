@@ -27,7 +27,7 @@ func RoleEntry() player.RoleEntry {
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
 		TimingHookSpecs: []player.TimingHookSpec{
 			{Timing: player.TimingOnTurnBeforeStart, Priority: 100, Hook: witherExpiryHook},
-			{Timing: player.TimingOnDamageBeforeApply, Priority: 100, Hook: damageBeforeApplyHook},
+			{Timing: player.TimingOnDamageBeforeApply, Priority: 100, Hook: damageBeforeApplyHook, RoleFilter: &player.HookRoleNone},
 		},
 		MoraleLossModifier: func(engine player.MoraleLossModifierEngine, camp model.Camp, current int, proposedLoss int, extra player.MoraleLossModifierExtra) int {
 			for _, p := range engine.GetAllPlayers() {
