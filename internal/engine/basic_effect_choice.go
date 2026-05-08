@@ -81,11 +81,18 @@ func buildBasicEffectChoicePrompt(playerID string, data map[string]interface{}) 
 	if promptMessage == "" {
 		promptMessage = "请选择要处理的基础效果："
 	}
-	promptOptions := make([]model.PromptOption, 0, len(options))
+	promptOptions := make([]model.PromptOption, 0, len(options)+1)
 	for _, option := range options {
 		promptOptions = append(promptOptions, model.PromptOption{
 			ID:    option.ID,
 			Label: option.Label,
+		})
+	}
+	// 当标记为可取消时，添加跳过选项
+	if cancelable, _ := data["cancelable"].(bool); cancelable {
+		promptOptions = append(promptOptions, model.PromptOption{
+			ID:    "skip",
+			Label: "放弃移除",
 		})
 	}
 	return &model.Prompt{
@@ -138,4 +145,3 @@ func (e *GameEngine) afterBasicEffectChoice(data map[string]any) {
 	// 选择完成后按技能声明的 resume_phase 继续流程，保证后续仍在该技能约束的阶段节点上。
 	e.applyChoiceResumePoint(mustChoiceResumePointFromMap(choiceCtxAsInterfaceMap(data), "resume_phase"))
 }
-

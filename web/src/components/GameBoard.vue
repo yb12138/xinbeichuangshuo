@@ -30,6 +30,7 @@ const {
   myHand,
   myExclusiveCards,
   myPlayableCards,
+  extraActionElementConstraint,
   isMyTurn,
   isPromptForMe,
   targetablePlayers,
@@ -1338,7 +1339,12 @@ function isCardSelectableForAction(idx: number): boolean {
   if (skillMode.value === 'choosing_discard') return isCardSelectableForSkillDiscard(idx)
   if (actionMode.value === 'attack') {
     const card = myPlayableCards.value.find(item => item.index === idx)?.card
-    return !!card && card.type === 'Attack'
+    if (!card || card.type !== 'Attack') return false
+    // 额外行动元素约束：只有符合元素要求的攻击牌可选
+    if (extraActionElementConstraint.value && !extraActionElementConstraint.value.includes(card.element.toLowerCase())) {
+      return false
+    }
+    return true
   }
   if (actionMode.value === 'magic' && magicSubChoice.value === 'card') {
     const card = myPlayableCards.value.find(item => item.index === idx)?.card
@@ -1372,6 +1378,10 @@ function onCardClick(idx: number) {
     }
     if (actionMode.value === 'attack' && card && card.type !== 'Attack') {
       interruptStore.showError('请选择攻击牌')
+      return
+    }
+    if (actionMode.value === 'attack' && card && extraActionElementConstraint.value && !extraActionElementConstraint.value.includes(card.element.toLowerCase())) {
+      interruptStore.showError('当前为额外攻击行动，只能使用对应系别的攻击牌')
       return
     }
     if (actionMode.value === 'magic' && isMagicBulletCard(idx)) {

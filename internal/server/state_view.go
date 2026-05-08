@@ -118,6 +118,13 @@ func (r *Room) buildStateForPlayer(playerID string) GameStateUpdate {
 		if pid == playerID {
 			view.Hand = p.Hand
 			view.ExclusiveCards = p.ExclusiveCards
+			view.CurrentExtraAction = p.TurnState.CurrentExtraAction
+			if len(p.TurnState.CurrentExtraElement) > 0 {
+				view.CurrentExtraElement = make([]string, len(p.TurnState.CurrentExtraElement))
+				for i, e := range p.TurnState.CurrentExtraElement {
+					view.CurrentExtraElement[i] = string(e)
+				}
+			}
 		}
 		players[pid] = view
 	}

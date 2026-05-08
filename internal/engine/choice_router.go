@@ -5,6 +5,7 @@ package engine
 import (
 	"fmt"
 
+	runtimeutil "starcup-engine/internal/engine/core/runtimeutil"
 	choicert "starcup-engine/internal/engine/runtime/choice"
 	intr "starcup-engine/internal/engine/runtime/interrupt"
 	"starcup-engine/internal/model"
@@ -66,13 +67,24 @@ func (e *GameEngine) handleInterruptChoiceAction(act model.PlayerAction) (intr.A
 		if ct == "" {
 			return intr.ActionResult{}, fmt.Errorf("中断上下文缺少 choice_type")
 		}
-		if len(act.Selections) > 1 {
-			result, err = e.choiceEngine.HandleMultiSelectResult(act.PlayerID, ct, act.Selections, data)
+		// 当 Selections 为空但 TargetID 非空时，从 target_ids 列表解析索引
+		selections := act.Selections
+		if len(selections) == 0 && act.TargetID != "" {
+			ids := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
+			for i, id := range ids {
+				if id == act.TargetID {
+					selections = []int{i}
+					break
+				}
+			}
+		}
+		if len(selections) > 1 {
+			result, err = e.choiceEngine.HandleMultiSelectResult(act.PlayerID, ct, selections, data)
 		} else {
-			if len(act.Selections) != 1 {
+			if len(selections) != 1 {
 				return intr.ActionResult{}, fmt.Errorf("请选择一个选项")
 			}
-			result, err = e.applyInterruptChoiceSelect(act.PlayerID, act.Selections[0], data)
+			result, err = e.applyInterruptChoiceSelect(act.PlayerID, selections[0], data)
 		}
 	} else {
 		return intr.ActionResult{}, fmt.Errorf("当前中断类型不支持该指令")
@@ -89,4 +101,3 @@ func (e *GameEngine) handleInterruptChoiceAction(act model.PlayerAction) (intr.A
 		},
 	}, nil
 }
-

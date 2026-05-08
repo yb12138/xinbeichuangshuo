@@ -90,7 +90,9 @@
       "Bash(cat)",
       "Bash(cp /tmp/test_import.go /Users/yb/xinbeichuangshuo/internal/engine/test_import_test.go)",
       "Bash(chmod +x:*)",
-      "Bash(bash:*)"
+      "Bash(bash:*)",
+      "Bash(npx vue-tsc:*)",
+      "Bash(npx vite:*)"
     ]
   }
 }

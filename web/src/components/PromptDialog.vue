@@ -218,6 +218,8 @@ function resolveOptionPlayerId(option: { id: string; label: string }): string | 
 
 const playerOptionEntries = computed(() => {
   if (!prompt.value?.options?.length) return []
+  // choose_skill 类型的选项是技能，不是玩家目标
+  if (prompt.value.type === 'choose_skill') return []
   return prompt.value.options
     .map((option, index) => {
       const playerId = resolveOptionPlayerId(option)
@@ -1166,7 +1168,7 @@ function parseSkillTitle(option: DockButtonOption, index: number): string {
   const rawLabel = String(option.label || '').trim()
   let title = rawLabel || `技能 ${index + 1}`
 
-  // 兼容旧服务端：若 label 仍为“标题：说明”，前端兜底只截标题。
+  // 兼容旧服务端：若 label 仍为”标题：说明”，前端兜底只截标题。
   const separatorIndex = rawLabel.indexOf('：')
   if (separatorIndex > 0) {
     const parsedTitle = rawLabel.slice(0, separatorIndex).trim()
@@ -1177,7 +1179,25 @@ function parseSkillTitle(option: DockButtonOption, index: number): string {
   title = title.replace(/^\d+\s*[.)、]\s*/, '').trim()
   title = title.replace(/\s*\[[^\]]+\]\s*$/, '').trim()
 
+  // 若 title 仍为英文 ID 格式（如 wind_fury），尝试从角色数据中查找真实名称
+  if (/^[a-z][a-z0-9_]*$/.test(title)) {
+    const resolved = resolveSkillTitleById(title)
+    if (resolved) title = resolved
+  }
+
   return title
+}
+
+function resolveSkillTitleById(skillId: string): string | null {
+  const chars = snapshotStore.characters
+  for (const charId in chars) {
+    const skills = chars[charId]?.skills
+    if (!skills) continue
+    for (const sk of skills) {
+      if (sk.id === skillId && sk.title) return sk.title
+    }
+  }
+  return null
 }
 
 const skillPromptEntries = computed<SkillPromptEntry[]>(() => {
@@ -1295,6 +1315,7 @@ const autoResolveOptionId = computed(() => {
 // 是否显示通用决策弹窗（覆盖：X值选择、分支选择、模式选择、发动确认）
 const showDecisionOverlay = computed(() => {
   if (!isVisible.value || !prompt.value) return false
+  if (prompt.value.ui_mode === 'action_hub') return false
   if (isSkillChoicePrompt.value) return false
   if (isFraudElementCardPickerPrompt.value) return false
   if (isExtractPrompt.value) return false
@@ -1319,6 +1340,7 @@ const decisionOverlayTitle = computed(() => {
 
 const hasAnyInlineButton = computed(() => {
   if (!isVisible.value) return false
+  if (prompt.value?.ui_mode === 'action_hub') return false
   if (isFraudElementCardPickerPrompt.value) return false
   if (prompt.value?.type === 'choose_skill') return false
   if (showDecisionOverlay.value) return false
@@ -1462,7 +1484,7 @@ watch(autoResolveOptionId, (optionId) => {
             <div class="prompt-inline-hint">{{ targetSelectionPromptMessage }}</div>
           </div>
 
-          <div v-else-if="inlinePrimaryButtons.length > 0 && !singleActivationCostConfirmOption && !showDecisionOverlay">
+          <div v-else-if="inlinePrimaryButtons.length > 0 && !singleActivationCostConfirmOption && !showDecisionOverlay && prompt?.ui_mode !== 'action_hub'">
             <div v-if="inlinePrimaryPromptMessage" class="prompt-inline-hint">
               {{ inlinePrimaryPromptMessage }}
             </div>
@@ -1749,8 +1771,7 @@ watch(autoResolveOptionId, (optionId) => {
                 :disabled="!!option.disabled"
                 @click="handleOptionClick(option.id)"
               >
-                <span class="decision-numeric-value">{{ option.buttonLabel }}</span>
-                <span v-if="option.hint" class="decision-numeric-hint">{{ option.hint }}</span>
+                <span class="decision-numeric-value">{{ option.id }}</span>
               </button>
             </div>
           </div>
@@ -2735,8 +2756,8 @@ watch(autoResolveOptionId, (optionId) => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  width: 64px;
-  min-height: 64px;
+  width: 56px;
+  min-height: 56px;
   border-radius: 12px;
   border: 1px solid rgba(180, 150, 90, 0.36);
   background: rgba(20, 32, 48, 0.7);
@@ -2762,17 +2783,6 @@ watch(autoResolveOptionId, (optionId) => {
   font-weight: 700;
   color: #ffd98a;
   line-height: 1;
-}
-.decision-numeric-hint {
-  font-size: 0.7rem;
-  color: rgba(199, 219, 237, 0.7);
-  margin-top: 4px;
-  text-align: center;
-  line-height: 1.3;
-  max-width: 58px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .decision-body--text {

@@ -54,6 +54,18 @@ func systemChoiceCancel(typ string) func(*GameEngine, string, map[string]any) (b
 			ctxData, _ := ge.State.PendingInterrupt.Context.(map[string]interface{})
 			return true, ge.cancelSystemDiscardChoice(pid, ctxData)
 		}
+	case "basic_effect_pick":
+		return func(ge *GameEngine, pid string, ctx map[string]any) (bool, error) {
+			cancelable, _ := ctx["cancelable"].(bool)
+			if !cancelable {
+				return false, fmt.Errorf("当前选择不可取消")
+			}
+			skillName, _ := ctx["skill_name"].(string)
+			if user := ge.State.Players[pid]; user != nil && skillName != "" {
+				ge.Log(fmt.Sprintf("%s 放弃了 [%s] 的效果移除", user.Name, skillName))
+			}
+			return true, nil
+		}
 	default:
 		return nil
 	}

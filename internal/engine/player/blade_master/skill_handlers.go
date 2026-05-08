@@ -31,6 +31,17 @@ func (h *WindFuryHandler) CanUse(ctx *model.Context) bool {
 	if ctx.User.TurnState.UsedSkillCounts["wind_fury"] > 0 {
 		return false
 	}
+	// 手牌中必须存在风系攻击牌才可触发
+	hasWindAttack := false
+	for _, c := range ctx.User.Hand {
+		if c.Type == model.CardTypeAttack && c.Element == model.ElementWind {
+			hasWindAttack = true
+			break
+		}
+	}
+	if !hasWindAttack {
+		return false
+	}
 	return true
 }
 

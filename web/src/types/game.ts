@@ -84,6 +84,8 @@ export interface PlayerView {
   is_active: boolean
   buffs: Buff[]
   tokens?: Record<string, number> // 指示物，不含角色形态
+  current_extra_action?: string    // 额外行动约束类型（仅自身）
+  current_extra_element?: string[] // 额外行动元素约束（仅自身）
 }
 
 // 技能摘要（后端 CharacterView.Skills）

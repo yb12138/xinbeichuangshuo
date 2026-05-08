@@ -50,8 +50,8 @@ export function useBattleInteractionState() {
     return myPlayer.value?.blessings || []
   })
   const myExclusiveCards = computed(() => myPlayer.value?.exclusive_cards || [])
-  const myPlayableCards = computed(() =>
-    [
+  const myPlayableCards = computed(() => {
+    const all = [
       ...myHand.value.map((card, index) => ({
         card,
         index,
@@ -63,7 +63,16 @@ export function useBattleInteractionState() {
         source: 'blessing' as const
       }))
     ]
-  )
+    return all
+  })
+  const extraActionElementConstraint = computed<string[] | null>(() => {
+    const extraAction = myPlayer.value?.current_extra_action
+    const extraElements = myPlayer.value?.current_extra_element
+    if (extraAction === 'Attack' && extraElements && extraElements.length > 0) {
+      return extraElements.map(e => e.toLowerCase())
+    }
+    return null
+  })
   const isMyTurn = computed(() => currentPlayer.value === myPlayerId.value)
   const isPromptForMe = computed(() => currentPrompt.value?.player_id === myPlayerId.value)
 
@@ -270,6 +279,7 @@ export function useBattleInteractionState() {
     myBlessings,
     myExclusiveCards,
     myPlayableCards,
+    extraActionElementConstraint,
     isMyTurn,
     isPromptForMe,
     selectedActionCard,

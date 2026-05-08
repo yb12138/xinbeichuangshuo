@@ -128,4 +128,8 @@ type PlayerView struct {
 	MagicLancerFullnessBonus       int `json:"ml_fullness_next_attack_bonus,omitempty"`
 	MagicLancerDarkReleaseLockTurn int `json:"ml_dark_release_lock_turn,omitempty"` // 0/1，与 tokens 分离
 	SwordEmperorSwordSoulCount     int `json:"se_sword_soul_count,omitempty"`
+
+	// 额外行动约束（仅自身可见）
+	CurrentExtraAction  string   `json:"current_extra_action,omitempty"`
+	CurrentExtraElement []string `json:"current_extra_element,omitempty"`
 }

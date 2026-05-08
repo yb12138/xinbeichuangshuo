@@ -140,7 +140,6 @@ export const useInterruptStore = defineStore('interrupt', () => {
 
   function syncAfterStateUpdate() {
     waitingFor.value = ''
-    currentPrompt.value = null
     clearSelections()
     clearActionState()
   }

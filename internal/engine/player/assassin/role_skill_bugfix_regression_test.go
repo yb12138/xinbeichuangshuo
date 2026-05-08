@@ -94,7 +94,22 @@ func TestBloodRoar_ForcedHitIgnoresShield(t *testing.T) {
 		t.Fatalf("attack failed: %v", err)
 	}
 
-	// 血腥咆哮应无视圣盾并造成伤害（狂化基础+1 => 至少摸3张）。
+	// 血腥咆哮强制命中+无视圣盾，但目标仍可使用治疗抵消。
+	// 现在应弹出治疗选择中断，让目标选择是否使用治疗。
+	if game.State.PendingInterrupt == nil {
+		t.Fatalf("expected heal choice interrupt after blood roar forced hit")
+	}
+
+	// 目标选择不使用治疗（选择0）
+	if err := game.HandleAction(model.PlayerAction{
+		PlayerID:   "p2",
+		Type:       model.CmdSelect,
+		Selections: []int{0},
+	}); err != nil {
+		t.Fatalf("heal choice failed: %v", err)
+	}
+
+	// 不使用治疗时，伤害正常结算（狂化基础+1 => 至少摸3张）。
 	if got := len(p2.Hand); got < 3 {
 		t.Fatalf("expected blood roar damage to land despite shield, target hand=%d", got)
 	}

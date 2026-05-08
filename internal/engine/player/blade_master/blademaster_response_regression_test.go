@@ -157,7 +157,7 @@ func TestBladeMaster_WindFury_ReAskOnEachAttackEnd(t *testing.T) {
 	}
 }
 
-func TestBladeMaster_WindFury_StillRunsWithoutRemainingWindAttack(t *testing.T) {
+func TestBladeMaster_WindFury_DoesNotTriggerWithoutRemainingWindAttack(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "BladeMaster", "blade_master", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -176,8 +176,8 @@ func TestBladeMaster_WindFury_StillRunsWithoutRemainingWindAttack(t *testing.T) 
 	p1.TurnState = model.NewPlayerTurnState()
 	p2.Heal = 0
 
-	// 只有这一张风系攻击牌；按文档，风怒追击仍应在攻击结束时触发，
-	// 随后若没有合法风系攻击可执行，可在额外行动阶段选择“无法行动”跳过。
+	// 只有这一张风系攻击牌，打出后手牌中不再有风系攻击牌，
+	// 风怒追击不应触发。
 	p1.Hand = []model.Card{
 		{ID: "a1", Name: "风斩", Type: model.CardTypeAttack, Element: model.ElementWind, Damage: 1},
 	}
@@ -192,36 +192,14 @@ func TestBladeMaster_WindFury_StillRunsWithoutRemainingWindAttack(t *testing.T) 
 	}); err != nil {
 		t.Fatalf("take failed: %v", err)
 	}
-	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptResponseSkill {
-		t.Fatalf("expected response prompt after attack end, got %+v", game.State.PendingInterrupt)
-	}
-	if len(game.State.PendingInterrupt.SkillIDs) != 1 || game.State.PendingInterrupt.SkillIDs[0] != "wind_fury" {
-		t.Fatalf("expected only wind_fury after attack end, got %+v", game.State.PendingInterrupt.SkillIDs)
-	}
 
-	if err := game.ConfirmResponseSkill("p1", "wind_fury"); err != nil {
-		t.Fatalf("confirm wind_fury failed: %v", err)
-	}
-
-	game.Drive()
-	if game.State.TurnStage != model.TurnStageActionExecution {
-		t.Fatalf("expected extra action to enter action execution window, got %s", game.State.TurnStage)
-	}
-	if p1.TurnState.CurrentExtraAction != "Attack" {
-		t.Fatalf("expected extra attack constraint, got %q", p1.TurnState.CurrentExtraAction)
-	}
-	if p1.TurnState.CurrentExtraElement == nil || len(p1.TurnState.CurrentExtraElement) != 1 || p1.TurnState.CurrentExtraElement[0] != model.ElementWind {
-		t.Fatalf("expected wind-only extra attack constraint, got %+v", p1.TurnState.CurrentExtraElement)
-	}
-
-	if err := game.HandleAction(model.PlayerAction{
-		PlayerID: "p1",
-		Type:     model.CmdCannotAct,
-	}); err != nil {
-		t.Fatalf("expected cannot_act to skip unusable wind-only extra action, got %v", err)
-	}
-	if p1.TurnState.CurrentExtraAction != "" {
-		t.Fatalf("expected extra action constraint cleared after cannot_act, got %q", p1.TurnState.CurrentExtraAction)
+	// 风怒追击不应出现在响应技能列表中
+	if game.State.PendingInterrupt != nil && game.State.PendingInterrupt.Type == model.InterruptResponseSkill {
+		for _, sid := range game.State.PendingInterrupt.SkillIDs {
+			if sid == "wind_fury" {
+				t.Fatalf("wind_fury should not trigger when no wind attack cards remain in hand")
+			}
+		}
 	}
 }
 
@@ -245,7 +223,7 @@ func TestBladeMaster_GaleSkillExtraAction_PreservedWhenWindFuryCanceled(t *testi
 	p1.TurnState = model.NewPlayerTurnState()
 	p2.Heal = 0
 
-	// 第一张为带“疾风技”的独有攻击牌；第二张用于验证额外行动仍可执行。
+	// 第一张为带"疾风技"的独有攻击牌；第二张风系牌用于满足风怒追击的手牌检查；第三张用于验证额外行动仍可执行。
 	p1.Hand = []model.Card{
 		{
 			ID:              "gale-attack",
@@ -255,6 +233,13 @@ func TestBladeMaster_GaleSkillExtraAction_PreservedWhenWindFuryCanceled(t *testi
 			Damage:          1,
 			ExclusiveChar1:  "blade_master",
 			ExclusiveSkill1: "疾风技",
+		},
+		{
+			ID:      "wind-attack",
+			Name:    "风斩",
+			Type:    model.CardTypeAttack,
+			Element: model.ElementWind,
+			Damage:  1,
 		},
 		{
 			ID:      "follow-attack",
@@ -343,6 +328,13 @@ func TestBladeMaster_GaleSkillExtraAction_PreservedWhenWindFuryCanceled_AfterShi
 			Damage:          1,
 			ExclusiveChar1:  "blade_master",
 			ExclusiveSkill1: "疾风技",
+		},
+		{
+			ID:      "wind-attack",
+			Name:    "风斩",
+			Type:    model.CardTypeAttack,
+			Element: model.ElementWind,
+			Damage:  1,
 		},
 		{
 			ID:      "follow-attack",
@@ -515,6 +507,9 @@ func TestBladeMaster_MultiResponse_ConfirmOneSettlesBeforeRemaining(t *testing.T
 	p1.IsActive = true
 	p1.Crystal = 1
 	p1.TurnState = model.NewPlayerTurnState()
+	p1.Hand = []model.Card{
+		{ID: "wind-1", Name: "风斩", Type: model.CardTypeAttack, Element: model.ElementWind, Damage: 1},
+	}
 	game.State.CurrentTurn = 0
 	game.State.TurnStage = model.TurnStageActionEnd
 	game.State.Subflow = model.SubflowResponse
@@ -573,7 +568,7 @@ func TestBladeMaster_MultiResponse_ConfirmOneSettlesBeforeRemaining(t *testing.T
 	}
 }
 
-// 集成回归：真实走一轮“攻击命中后双响应 -> 先选剑影 -> 再问风怒追击 -> 再选风怒追击”。
+// 集成回归：真实走一轮"攻击命中后双响应 -> 先选剑影 -> 再问风怒追击 -> 再选风怒追击"。
 func TestBladeMaster_ResponseChain_SwordShadowThenWindFury_Integration(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "BladeMaster", "blade_master", model.RedCamp); err != nil {
@@ -595,6 +590,7 @@ func TestBladeMaster_ResponseChain_SwordShadowThenWindFury_Integration(t *testin
 	p2.Heal = 0
 	p1.Hand = []model.Card{
 		{ID: "atk-1", Name: "火斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 1},
+		{ID: "wind-1", Name: "风斩", Type: model.CardTypeAttack, Element: model.ElementWind, Damage: 1},
 	}
 
 	if err := game.HandleAction(model.PlayerAction{
