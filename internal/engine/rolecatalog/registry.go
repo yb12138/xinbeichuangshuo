@@ -27,7 +27,7 @@ import (
 	magiclancerplayer "starcup-engine/internal/engine/player/magic_lancer"
 	magicswordsmanplayer "starcup-engine/internal/engine/player/magic_swordsman"
 	magicalgirlplayer "starcup-engine/internal/engine/player/magical_girl"
-	moonplayer "starcup-engine/internal/engine/player/moon"
+	moonplayer "starcup-engine/internal/engine/player/moon_goddess"
 	onmyojiproplayer "starcup-engine/internal/engine/player/onmyoji"
 	plagueplayer "starcup-engine/internal/engine/player/plague_mage"
 	prayermasterplayer "starcup-engine/internal/engine/player/prayer_master"

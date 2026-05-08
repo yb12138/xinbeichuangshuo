@@ -78,6 +78,9 @@ func (e *GameEngine) handleInterruptChoiceAction(act model.PlayerAction) (intr.A
 				}
 			}
 		}
+		if len(selections) == 0 && act.TargetID != "" {
+			return intr.ActionResult{}, fmt.Errorf("目标 %q 不在可选列表中", act.TargetID)
+		}
 		if len(selections) > 1 {
 			result, err = e.choiceEngine.HandleMultiSelectResult(act.PlayerID, ct, selections, data)
 		} else {

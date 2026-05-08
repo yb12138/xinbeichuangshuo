@@ -282,6 +282,7 @@ const canCancelPrompt = computed(() => {
   if (!prompt.value) return false
   if (isPromptActivationCostCancelable(prompt.value)) return true
   if (prompt.value.type === 'choose_skill' || isResponseSkillConfirmPrompt.value) return true
+  if (prompt.value.cancelable) return true
   return (prompt.value.options ?? []).some((option: { id: string }) =>
     option.id === 'skip' || option.id === 'cancel' || option.id === 'refuse'
   )
@@ -1188,16 +1189,21 @@ function parseSkillTitle(option: DockButtonOption, index: number): string {
   return title
 }
 
-function resolveSkillTitleById(skillId: string): string | null {
+const skillTitleMap = computed(() => {
+  const map = new Map<string, string>()
   const chars = snapshotStore.characters
   for (const charId in chars) {
     const skills = chars[charId]?.skills
     if (!skills) continue
     for (const sk of skills) {
-      if (sk.id === skillId && sk.title) return sk.title
+      if (sk.id && sk.title) map.set(sk.id, sk.title)
     }
   }
-  return null
+  return map
+})
+
+function resolveSkillTitleById(skillId: string): string | null {
+  return skillTitleMap.value.get(skillId) ?? null
 }
 
 const skillPromptEntries = computed<SkillPromptEntry[]>(() => {
@@ -1312,14 +1318,17 @@ const autoResolveOptionId = computed(() => {
   return onlyOption.id
 })
 
-// 是否显示通用决策弹窗（覆盖：X值选择、分支选择、模式选择、发动确认）
+// 是否显示通用决策弹窗（X值选择、分支选择、模式选择、发动确认）
+// 排除条件：每种有专属 UI 的 prompt 类型都不走通用弹窗。
 const showDecisionOverlay = computed(() => {
   if (!isVisible.value || !prompt.value) return false
+  // 专属 UI 模式排除
   if (prompt.value.ui_mode === 'action_hub') return false
-  if (isSkillChoicePrompt.value) return false
-  if (isFraudElementCardPickerPrompt.value) return false
-  if (isExtractPrompt.value) return false
-  if (needsCardSelection.value) return false
+  if (isSkillChoicePrompt.value) return false        // → skill-branch-overlay
+  if (isFraudElementCardPickerPrompt.value) return false  // → 欺诈选牌弹窗
+  if (isExtractPrompt.value) return false              // → 提取选择网格
+  if (needsCardSelection.value) return false           // → 卡牌选择流程（命中/防御/应战按钮留内联）
+  // 符合通用弹窗条件
   if (singleActivationCostConfirmOption.value) return true
   if (inlinePrimaryButtons.value.length > 0 && showConfirmButtonSection.value) return true
   return false
@@ -1714,27 +1723,27 @@ watch(autoResolveOptionId, (optionId) => {
     <Transition name="modal">
       <div
         v-if="prompt?.type === 'choose_skill' && skillBranchOptions.length > 0"
-        class="skill-branch-overlay"
+        class="overlay-panel-root overlay-panel-root--skill"
       >
-        <div class="skill-branch-panel" @click.stop>
-          <div class="skill-branch-header">
+        <div class="overlay-panel" @click.stop>
+          <div class="overlay-panel-header">
             <h2>{{ skillPromptTitle }}</h2>
           </div>
-          <div class="skill-branch-body">
+          <div class="overlay-panel-body">
             <button
               v-for="entry in skillBranchOptions"
               :key="entry.id"
-              class="skill-branch-item"
+              class="overlay-panel-item"
               :disabled="entry.disabled"
               @click="handleOptionClick(entry.id)"
             >
-              <div class="skill-branch-item-title">{{ entry.title }}</div>
-              <div v-if="entry.description" class="skill-branch-item-desc">{{ entry.description }}</div>
-              <div v-if="entry.cost" class="skill-branch-item-cost">{{ entry.cost }}</div>
+              <div class="overlay-panel-item-title">{{ entry.title }}</div>
+              <div v-if="entry.description" class="overlay-panel-item-desc">{{ entry.description }}</div>
+              <div v-if="entry.cost" class="overlay-panel-item-cost">{{ entry.cost }}</div>
             </button>
           </div>
-          <div class="skill-branch-footer">
-            <button class="skill-branch-skip" @click="handleOptionClick('skip')">跳过</button>
+          <div class="overlay-panel-footer">
+            <button class="overlay-panel-cancel" @click="handleOptionClick('skip')">跳过</button>
           </div>
         </div>
       </div>
@@ -1743,18 +1752,18 @@ watch(autoResolveOptionId, (optionId) => {
 
   <Teleport to="body">
     <Transition name="modal">
-      <div v-if="showDecisionOverlay" class="decision-overlay">
-        <div class="decision-panel" @click.stop>
-          <div class="decision-header">
+      <div v-if="showDecisionOverlay" class="overlay-panel-root overlay-panel-root--decision">
+        <div class="overlay-panel" @click.stop>
+          <div class="overlay-panel-header overlay-panel-header--decision">
             <h2>{{ decisionOverlayTitle }}</h2>
           </div>
 
-          <div v-if="decisionOverlayMode === 'activation-cost'" class="decision-body decision-body--cost">
-            <div class="decision-cost-card">
-              <span class="decision-cost-text">{{ singleActivationCostConfirmHintText }}</span>
+          <div v-if="decisionOverlayMode === 'activation-cost'" class="overlay-panel-body overlay-panel-body--cost">
+            <div class="overlay-cost-card">
+              <span class="overlay-cost-text">{{ singleActivationCostConfirmHintText }}</span>
             </div>
             <button
-              class="decision-confirm-btn"
+              class="overlay-confirm-btn"
               :disabled="!!singleActivationCostConfirmOption?.disabled"
               @click="handleOptionClick(singleActivationCostConfirmOption!.id)"
             >
@@ -1762,35 +1771,35 @@ watch(autoResolveOptionId, (optionId) => {
             </button>
           </div>
 
-          <div v-else-if="decisionOverlayMode === 'numeric'" class="decision-body decision-body--numeric">
-            <div class="decision-numeric-grid">
+          <div v-else-if="decisionOverlayMode === 'numeric'" class="overlay-panel-body overlay-panel-body--numeric">
+            <div class="overlay-numeric-grid">
               <button
                 v-for="option in inlinePrimaryButtons"
                 :key="option.id"
-                class="decision-numeric-tile"
+                class="overlay-numeric-tile"
                 :disabled="!!option.disabled"
                 @click="handleOptionClick(option.id)"
               >
-                <span class="decision-numeric-value">{{ option.id }}</span>
+                <span class="overlay-numeric-value">{{ option.buttonLabel }}</span>
               </button>
             </div>
           </div>
 
-          <div v-else class="decision-body decision-body--text">
+          <div v-else class="overlay-panel-body overlay-panel-body--text">
             <button
               v-for="option in inlinePrimaryButtons"
               :key="option.id"
-              class="decision-text-item"
+              class="overlay-panel-item overlay-panel-item--text"
               :disabled="!!option.disabled"
               @click="handleOptionClick(option.id)"
             >
-              <div class="decision-text-item-label">{{ option.buttonLabel }}</div>
-              <div v-if="option.hint" class="decision-text-item-hint">{{ option.hint }}</div>
+              <div class="overlay-panel-item-title">{{ option.buttonLabel }}</div>
+              <div v-if="option.hint" class="overlay-panel-item-desc">{{ option.hint }}</div>
             </button>
           </div>
 
-          <div v-if="canCancelPrompt" class="decision-footer">
-            <button class="decision-cancel-btn" @click="handleOptionClick(cancelDockButton.id)">
+          <div v-if="canCancelPrompt" class="overlay-panel-footer">
+            <button class="overlay-panel-cancel" @click="handleOptionClick(cancelDockButton.id)">
               {{ cancelDockButton.buttonLabel || '取消' }}
             </button>
           </div>
@@ -2560,8 +2569,8 @@ watch(autoResolveOptionId, (optionId) => {
   }
 }
 
-/* ── Skill Branch Overlay (RPG-style choice dialog) ── */
-.skill-branch-overlay {
+/* ── Overlay Panel (shared: skill-branch & decision) ── */
+.overlay-panel-root {
   position: fixed;
   inset: 0;
   z-index: 13050;
@@ -2569,15 +2578,22 @@ watch(autoResolveOptionId, (optionId) => {
   align-items: center;
   justify-content: center;
   padding: 1rem;
+  backdrop-filter: blur(3px);
+}
+.overlay-panel-root--skill {
   background:
     radial-gradient(420px 220px at 50% 44%, rgba(136, 188, 195, 0.18), transparent 70%),
     rgba(0, 0, 0, 0.72);
-  backdrop-filter: blur(3px);
+}
+.overlay-panel-root--decision {
+  background:
+    radial-gradient(380px 200px at 50% 46%, rgba(180, 140, 60, 0.12), transparent 70%),
+    rgba(0, 0, 0, 0.74);
 }
 
-.skill-branch-panel {
+.overlay-panel {
   position: relative;
-  width: min(520px, calc(100vw - 2rem));
+  width: min(480px, calc(100vw - 2rem));
   max-height: 85vh;
   overflow: hidden;
   display: flex;
@@ -2586,27 +2602,41 @@ watch(autoResolveOptionId, (optionId) => {
   border: 1px solid rgba(132, 167, 186, 0.36);
   box-shadow: 0 18px 34px rgba(2, 8, 18, 0.52),
               inset 0 1px 0 rgba(236, 246, 254, 0.12);
-  background:
-    linear-gradient(180deg, rgba(8, 20, 34, 0.92), rgba(6, 15, 28, 0.95)),
-    url('/assets/ui/modal-aura.svg') center/cover no-repeat;
+  background: linear-gradient(180deg, rgba(8, 20, 34, 0.92), rgba(6, 15, 28, 0.95)),
+              url('/assets/ui/modal-aura.svg') center/cover no-repeat;
+}
+.overlay-panel-root--decision .overlay-panel {
+  border-color: rgba(180, 150, 90, 0.32);
+  box-shadow: 0 18px 34px rgba(2, 8, 18, 0.52),
+              inset 0 1px 0 rgba(255, 240, 200, 0.1);
+  background: linear-gradient(180deg, rgba(10, 18, 30, 0.94), rgba(6, 12, 22, 0.96));
 }
 
-.skill-branch-header {
+.overlay-panel-header {
   flex-shrink: 0;
   padding: 20px 24px 16px;
   background: linear-gradient(110deg, rgba(34, 74, 97, 0.88), rgba(94, 72, 43, 0.88));
   border-bottom: 1px solid rgba(149, 186, 204, 0.26);
   text-align: center;
 }
-.skill-branch-header h2 {
+.overlay-panel-header h2 {
   font-size: 1.05rem;
   font-weight: 600;
   color: #ffe2ad;
   margin: 0;
   line-height: 1.5;
 }
+.overlay-panel-header--decision {
+  padding: 18px 24px 14px;
+  background: linear-gradient(110deg, rgba(40, 56, 80, 0.9), rgba(80, 60, 30, 0.85));
+  border-bottom-color: rgba(180, 150, 90, 0.24);
+}
+.overlay-panel-header--decision h2 {
+  font-size: 1rem;
+  color: #ffd98a;
+}
 
-.skill-branch-body {
+.overlay-panel-body {
   flex: 1;
   overflow-y: auto;
   padding: 16px 20px;
@@ -2615,8 +2645,11 @@ watch(autoResolveOptionId, (optionId) => {
   gap: 10px;
   background: rgba(6, 17, 29, 0.42);
 }
+.overlay-panel-root--decision .overlay-panel-body {
+  background: rgba(6, 14, 24, 0.4);
+}
 
-.skill-branch-item {
+.overlay-panel-item {
   position: relative;
   width: 100%;
   text-align: left;
@@ -2631,28 +2664,42 @@ watch(autoResolveOptionId, (optionId) => {
   font-size: inherit;
   line-height: inherit;
 }
-.skill-branch-item:hover:not(:disabled) {
+.overlay-panel-item:hover:not(:disabled) {
   border-color: rgba(211, 188, 142, 0.6);
   background: rgba(20, 42, 60, 0.72);
   box-shadow: 0 0 12px rgba(211, 188, 142, 0.15),
               inset 0 1px 0 rgba(237, 247, 254, 0.1);
 }
-.skill-branch-item:active:not(:disabled) {
+.overlay-panel-item:active:not(:disabled) {
   transform: scale(0.98);
 }
-.skill-branch-item:disabled {
+.overlay-panel-item:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
+.overlay-panel-item--text {
+  border-color: rgba(150, 130, 80, 0.3);
+  background: rgba(14, 28, 44, 0.56);
+  box-shadow: inset 0 1px 0 rgba(255, 240, 200, 0.05);
+}
+.overlay-panel-item--text:hover:not(:disabled) {
+  border-color: rgba(255, 210, 120, 0.55);
+  background: rgba(22, 38, 56, 0.72);
+  box-shadow: 0 0 12px rgba(255, 210, 120, 0.12),
+              inset 0 1px 0 rgba(255, 240, 200, 0.08);
+}
 
-.skill-branch-item-title {
+.overlay-panel-item-title {
   font-size: 0.95rem;
   font-weight: 600;
   color: #ffe2ad;
   margin-bottom: 4px;
 }
+.overlay-panel-root--decision .overlay-panel-item-title {
+  color: #ffd98a;
+}
 
-.skill-branch-item-desc {
+.overlay-panel-item-desc {
   font-size: 0.8rem;
   line-height: 1.5;
   color: rgba(199, 219, 237, 0.78);
@@ -2660,21 +2707,25 @@ watch(autoResolveOptionId, (optionId) => {
   word-break: break-word;
 }
 
-.skill-branch-item-cost {
+.overlay-panel-item-cost {
   margin-top: 6px;
   font-size: 0.75rem;
   color: rgba(156, 166, 184, 0.8);
 }
 
-.skill-branch-footer {
+.overlay-panel-footer {
   flex-shrink: 0;
   padding: 12px 20px 16px;
   text-align: center;
   background: rgba(6, 16, 28, 0.66);
   border-top: 1px solid rgba(118, 153, 173, 0.24);
 }
+.overlay-panel-root--decision .overlay-panel-footer {
+  background: rgba(6, 14, 24, 0.66);
+  border-top-color: rgba(150, 130, 80, 0.2);
+}
 
-.skill-branch-skip {
+.overlay-panel-cancel {
   padding: 8px 32px;
   border-radius: 8px;
   border: 1px solid rgba(156, 166, 184, 0.3);
@@ -2685,73 +2736,23 @@ watch(autoResolveOptionId, (optionId) => {
   transition: all 0.15s ease;
   font-family: inherit;
 }
-.skill-branch-skip:hover {
+.overlay-panel-cancel:hover {
   background: rgba(59, 67, 84, 0.9);
   color: rgba(199, 219, 237, 0.95);
   border-color: rgba(156, 166, 184, 0.5);
 }
 
-/* ── Decision Overlay (board-game style choice dialog) ── */
-.decision-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 13050;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1rem;
-  background:
-    radial-gradient(380px 200px at 50% 46%, rgba(180, 140, 60, 0.12), transparent 70%),
-    rgba(0, 0, 0, 0.74);
-  backdrop-filter: blur(3px);
-}
-
-.decision-panel {
-  position: relative;
-  width: min(480px, calc(100vw - 2rem));
-  max-height: 85vh;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  border-radius: 14px;
-  border: 1px solid rgba(180, 150, 90, 0.32);
-  box-shadow: 0 18px 34px rgba(2, 8, 18, 0.52),
-              inset 0 1px 0 rgba(255, 240, 200, 0.1);
-  background: linear-gradient(180deg, rgba(10, 18, 30, 0.94), rgba(6, 12, 22, 0.96));
-}
-
-.decision-header {
-  flex-shrink: 0;
-  padding: 18px 24px 14px;
-  background: linear-gradient(110deg, rgba(40, 56, 80, 0.9), rgba(80, 60, 30, 0.85));
-  border-bottom: 1px solid rgba(180, 150, 90, 0.24);
-  text-align: center;
-}
-.decision-header h2 {
-  font-size: 1rem;
-  font-weight: 600;
-  color: #ffd98a;
-  margin: 0;
-  line-height: 1.5;
-}
-
-.decision-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 16px 20px;
-  background: rgba(6, 14, 24, 0.4);
-}
-
-.decision-body--numeric {
+/* ── Decision-specific body variants ── */
+.overlay-panel-body--numeric {
   padding: 20px 16px;
 }
-.decision-numeric-grid {
+.overlay-numeric-grid {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
   gap: 10px;
 }
-.decision-numeric-tile {
+.overlay-numeric-tile {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -2766,91 +2767,51 @@ watch(autoResolveOptionId, (optionId) => {
   padding: 8px 4px;
   font-family: inherit;
 }
-.decision-numeric-tile:hover:not(:disabled) {
+.overlay-numeric-tile:hover:not(:disabled) {
   border-color: rgba(255, 210, 120, 0.7);
   background: rgba(30, 44, 60, 0.85);
   box-shadow: 0 0 14px rgba(255, 210, 120, 0.18);
 }
-.decision-numeric-tile:active:not(:disabled) {
+.overlay-numeric-tile:active:not(:disabled) {
   transform: scale(0.95);
 }
-.decision-numeric-tile:disabled {
+.overlay-numeric-tile:disabled {
   opacity: 0.35;
   cursor: not-allowed;
 }
-.decision-numeric-value {
+.overlay-numeric-value {
   font-size: 1.4rem;
   font-weight: 700;
   color: #ffd98a;
   line-height: 1;
 }
 
-.decision-body--text {
+.overlay-panel-body--text {
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
-.decision-text-item {
-  width: 100%;
-  text-align: left;
-  padding: 14px 18px;
-  border-radius: 10px;
-  border: 1px solid rgba(150, 130, 80, 0.3);
-  background: rgba(14, 28, 44, 0.56);
-  box-shadow: inset 0 1px 0 rgba(255, 240, 200, 0.05);
-  cursor: pointer;
-  transition: all 0.18s ease;
-  font-family: inherit;
-  font-size: inherit;
-  line-height: inherit;
-}
-.decision-text-item:hover:not(:disabled) {
-  border-color: rgba(255, 210, 120, 0.55);
-  background: rgba(22, 38, 56, 0.72);
-  box-shadow: 0 0 12px rgba(255, 210, 120, 0.12),
-              inset 0 1px 0 rgba(255, 240, 200, 0.08);
-}
-.decision-text-item:active:not(:disabled) {
-  transform: scale(0.98);
-}
-.decision-text-item:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-.decision-text-item-label {
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: #ffd98a;
-}
-.decision-text-item-hint {
-  font-size: 0.8rem;
-  line-height: 1.5;
-  color: rgba(199, 219, 237, 0.75);
-  margin-top: 4px;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
 
-.decision-body--cost {
+.overlay-panel-body--cost {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 16px;
   padding: 24px 20px;
 }
-.decision-cost-card {
+.overlay-cost-card {
   padding: 16px 24px;
   border-radius: 10px;
   border: 1px solid rgba(180, 150, 90, 0.3);
   background: rgba(14, 28, 44, 0.6);
   text-align: center;
 }
-.decision-cost-text {
+.overlay-cost-text {
   font-size: 0.9rem;
   color: rgba(225, 238, 249, 0.92);
   line-height: 1.5;
 }
-.decision-confirm-btn {
+.overlay-confirm-btn {
   padding: 10px 36px;
   border-radius: 10px;
   border: 1px solid rgba(180, 150, 90, 0.5);
@@ -2862,74 +2823,32 @@ watch(autoResolveOptionId, (optionId) => {
   transition: all 0.15s ease;
   font-family: inherit;
 }
-.decision-confirm-btn:hover:not(:disabled) {
+.overlay-confirm-btn:hover:not(:disabled) {
   background: linear-gradient(180deg, rgba(140, 105, 35, 0.85), rgba(100, 75, 25, 0.9));
   border-color: rgba(255, 210, 120, 0.7);
 }
-.decision-confirm-btn:disabled {
+.overlay-confirm-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
-}
-
-.decision-footer {
-  flex-shrink: 0;
-  padding: 12px 20px 16px;
-  text-align: center;
-  background: rgba(6, 14, 24, 0.66);
-  border-top: 1px solid rgba(150, 130, 80, 0.2);
-}
-.decision-cancel-btn {
-  padding: 8px 32px;
-  border-radius: 8px;
-  border: 1px solid rgba(156, 166, 184, 0.3);
-  background: rgba(59, 67, 84, 0.6);
-  color: rgba(199, 219, 237, 0.7);
-  font-size: 0.85rem;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  font-family: inherit;
-}
-.decision-cancel-btn:hover {
-  background: rgba(59, 67, 84, 0.9);
-  color: rgba(199, 219, 237, 0.95);
-  border-color: rgba(156, 166, 184, 0.5);
 }
 </style>
 
 <style>
-/* Skill branch overlay transitions (unscoped for Vue Transition compatibility) */
-.skill-branch-overlay.modal-enter-active,
-.skill-branch-overlay.modal-leave-active {
+/* Overlay panel transitions (unscoped for Vue Transition compatibility) */
+.overlay-panel-root.modal-enter-active,
+.overlay-panel-root.modal-leave-active {
   transition: opacity 0.24s ease;
 }
-.skill-branch-overlay.modal-enter-from,
-.skill-branch-overlay.modal-leave-to {
+.overlay-panel-root.modal-enter-from,
+.overlay-panel-root.modal-leave-to {
   opacity: 0;
 }
-.skill-branch-overlay.modal-enter-active .skill-branch-panel,
-.skill-branch-overlay.modal-leave-active .skill-branch-panel {
+.overlay-panel-root.modal-enter-active .overlay-panel,
+.overlay-panel-root.modal-leave-active .overlay-panel {
   transition: transform 0.24s ease;
 }
-.skill-branch-overlay.modal-enter-from .skill-branch-panel,
-.skill-branch-overlay.modal-leave-to .skill-branch-panel {
-  transform: scale(0.95) translateY(8px);
-}
-
-/* Decision overlay transitions */
-.decision-overlay.modal-enter-active,
-.decision-overlay.modal-leave-active {
-  transition: opacity 0.24s ease;
-}
-.decision-overlay.modal-enter-from,
-.decision-overlay.modal-leave-to {
-  opacity: 0;
-}
-.decision-overlay.modal-enter-active .decision-panel,
-.decision-overlay.modal-leave-active .decision-panel {
-  transition: transform 0.24s ease;
-}
-.decision-overlay.modal-enter-from .decision-panel,
-.decision-overlay.modal-leave-to .decision-panel {
+.overlay-panel-root.modal-enter-from .overlay-panel,
+.overlay-panel-root.modal-leave-to .overlay-panel {
   transform: scale(0.95) translateY(8px);
 }
 </style>

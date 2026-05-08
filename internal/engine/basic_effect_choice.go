@@ -81,27 +81,22 @@ func buildBasicEffectChoicePrompt(playerID string, data map[string]interface{}) 
 	if promptMessage == "" {
 		promptMessage = "请选择要处理的基础效果："
 	}
-	promptOptions := make([]model.PromptOption, 0, len(options)+1)
+	promptOptions := make([]model.PromptOption, 0, len(options))
 	for _, option := range options {
 		promptOptions = append(promptOptions, model.PromptOption{
 			ID:    option.ID,
 			Label: option.Label,
 		})
 	}
-	// 当标记为可取消时，添加跳过选项
-	if cancelable, _ := data["cancelable"].(bool); cancelable {
-		promptOptions = append(promptOptions, model.PromptOption{
-			ID:    "skip",
-			Label: "放弃移除",
-		})
-	}
+	cancelable, _ := data["cancelable"].(bool)
 	return &model.Prompt{
-		Type:     model.PromptConfirm,
-		PlayerID: playerID,
-		Message:  promptMessage,
-		Options:  promptOptions,
-		Min:      1,
-		Max:      1,
+		Type:       model.PromptConfirm,
+		PlayerID:   playerID,
+		Message:    promptMessage,
+		Options:    promptOptions,
+		Min:        1,
+		Max:        1,
+		Cancelable: cancelable,
 	}
 }
 

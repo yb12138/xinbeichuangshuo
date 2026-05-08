@@ -217,8 +217,11 @@ type Prompt struct {
 	SpecialOptions []PromptOption `json:"special_options,omitempty"`
 	// 可选 UI 渲染模式；action_hub 表示由底部行动半球承载
 	UIMode string `json:"ui_mode,omitempty"`
-	// 额外效果提示（用于前端在响应弹窗中解释“为何可/不可应战、命中后附加效果”等）
-	EffectHints []string `json:"effect_hints,omitempty"`
+	// 额外效果提示（用于前端在响应弹窗中解释”为何可/不可应战、命中后附加效果”等）
+	EffectHints []string `json:”effect_hints,omitempty”`
+
+	// 可取消标记：前端据此决定是否显示取消/跳过按钮，无需依赖 phantom option。
+	Cancelable bool `json:”cancelable,omitempty”`
 
 	// 选择约束 (CLI只展示，不理解语义)
 	Min int `json:"min"` // 最少选择数

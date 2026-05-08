@@ -139,6 +139,9 @@ export const useInterruptStore = defineStore('interrupt', () => {
   }
 
   function syncAfterStateUpdate() {
+    // 注意：不在此处清除 currentPrompt，因为 WebSocket state_update 到达时
+    // 新的 prompt 可能尚未推送（或本轮无 prompt），清除会导致闪烁/丢失。
+    // prompt 的生命周期由 setPrompt / reset 管理。
     waitingFor.value = ''
     clearSelections()
     clearActionState()

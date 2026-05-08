@@ -5,7 +5,7 @@ import (
 	"starcup-engine/internal/testutils"
 	"testing"
 
-	moonplayer "starcup-engine/internal/engine/player/moon"
+	moonplayer "starcup-engine/internal/engine/player/moon_goddess"
 	"starcup-engine/internal/model"
 )
 

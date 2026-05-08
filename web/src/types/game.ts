@@ -160,6 +160,8 @@ export interface Prompt {
   /** 前端渲染提示：action_hub 表示用底部半球行动面板承载，不弹大面板 */
   ui_mode?: string
   effect_hints?: string[]
+  /** 可取消标记：后端显式声明此 prompt 允许取消/跳过，前端据此显示取消按钮 */
+  cancelable?: boolean
   min: number
   max: number
   /** 应战专用：发起攻击方ID */

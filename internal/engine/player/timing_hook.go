@@ -87,6 +87,8 @@ type TimingHookSpec struct {
 }
 
 // HookRoleNone 标记 hook 不按角色过滤（跨角色场景）。
+// HookRoleNone 标记 hook 不按角色过滤（跨角色场景）。
+// 声明为 var 以便取地址赋值给 *string 类型的 RoleFilter 字段；请勿修改此值。
 var HookRoleNone = "none"
 
 // TimingHookContext 传递给 Hook 的上下文。
