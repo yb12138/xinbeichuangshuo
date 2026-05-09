@@ -55,13 +55,14 @@ func buildBeastReturnXPrompt(playerID string, data map[string]interface{}) *mode
 		})
 	}
 	return &model.Prompt{
-		Type:       model.PromptConfirm,
-		PlayerID:   playerID,
-		ChoiceType: "bs_beast_return_x",
-		Message:    fmt.Sprintf("【兽返】请选择要移除的兽魂数量（0-%d）：", maxX),
-		Options:    options,
-		Min:        1,
-		Max:        1,
+		Type:         model.PromptConfirm,
+		PlayerID:     playerID,
+		ChoiceType:   "bs_beast_return_x",
+		Message:      fmt.Sprintf("【兽返】请选择要移除的兽魂数量（0-%d）：", maxX),
+		Options:      options,
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 1},
 	}
 }
 
@@ -75,13 +76,14 @@ func buildReversalXPrompt(playerID string, data map[string]interface{}) *model.P
 		})
 	}
 	return &model.Prompt{
-		Type:       model.PromptConfirm,
-		PlayerID:   playerID,
-		ChoiceType: "bs_reversal_x",
-		Message:    fmt.Sprintf("【逆反居合斩】请选择要移除的兽魂数量（0-%d）：", maxX),
-		Options:    options,
-		Min:        1,
-		Max:        1,
+		Type:         model.PromptConfirm,
+		PlayerID:     playerID,
+		ChoiceType:   "bs_reversal_x",
+		Message:      fmt.Sprintf("【逆反居合斩】请选择要移除的兽魂数量（0-%d）：", maxX),
+		Options:      options,
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 1},
 	}
 }
 
@@ -110,6 +112,7 @@ func buildIaijutsuStyleModePrompt(playerID string, data map[string]interface{}) 
 		Options:    options,
 		Min:        1,
 		Max:        1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 	}
 }
 

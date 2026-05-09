@@ -256,6 +256,7 @@ func (e *GameEngine) driveActionSelectionPhase(currentPid string, player *model.
 		Options:        state.ValidOptions,
 		SpecialOptions: state.specialOptions,
 		UIMode:         model.PromptUIModeActionHub,
+		Presentation:   &model.PromptPresentation{Kind: model.PresentationActionHub},
 	}
 	e.Notify(model.EventAskInput, "请选择行动类型", prompt)
 	return driveStop

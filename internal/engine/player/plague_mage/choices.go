@@ -46,12 +46,13 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			})
 		}
 		return &model.Prompt{
-			Type:     model.PromptConfirm,
-			PlayerID: playerID,
-			Message:  "【死亡之触】请选择X值：",
-			Options:  options,
-			Min:      1,
-			Max:      1,
+			Type:         model.PromptConfirm,
+			PlayerID:     playerID,
+			Message:      "【死亡之触】请选择X值：",
+			Options:      options,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 1},
 		}
 	case "plague_death_touch_y":
 		maxCards := runtimeutil.ToIntContextValue(data["max_cards"])
@@ -63,12 +64,13 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			})
 		}
 		return &model.Prompt{
-			Type:     model.PromptConfirm,
-			PlayerID: playerID,
-			Message:  "【死亡之触】请选择Y值：",
-			Options:  options,
-			Min:      1,
-			Max:      1,
+			Type:         model.PromptConfirm,
+			PlayerID:     playerID,
+			Message:      "【死亡之触】请选择Y值：",
+			Options:      options,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 1},
 		}
 	case "plague_death_touch_cards":
 		remaining := runtimeutil.ParseChoiceIntSlice(data["remaining_indices"])

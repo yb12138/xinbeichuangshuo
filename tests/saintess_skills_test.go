@@ -163,11 +163,11 @@ func TestSaintess_Skills(t *testing.T) {
 			t.Fatalf("预期圣疗第一阶段为 allocate_heal，实际: %q", got)
 		}
 
-		// 选第一项：Ally1 +2，Ally2 +1。
+		// 分配：Ally1 +2，Ally2 +1。
 		if err := game.HandleAction(model.PlayerAction{
 			PlayerID:   "p1",
 			Type:       model.CmdSelect,
-			Selections: []int{0},
+			Selections: []int{2, 1},
 		}); err != nil {
 			t.Fatalf("圣疗分配治疗失败: %v", err)
 		}

@@ -199,6 +199,8 @@ type InterruptSpec struct {
 	HandleActionResult   func(rt ChoiceRuntime, act model.PlayerAction) (InterruptActionResult, error)
 	AllowedActionTypes   []model.PlayerActionType
 	InvalidActionMessage string
+	// Presentation 声明弹框展示类型（后端显式声明，前端按此渲染）
+	Presentation *model.PromptPresentation
 }
 
 // InterruptActionResult 描述角色中断输入是否消费当前中断。
@@ -215,6 +217,8 @@ type ChoiceSpec struct {
 	BuildPrompt         func(rt ChoiceRuntime, playerID string, player *model.Player, data map[string]interface{}) *model.Prompt
 	HandleChoice        func(rt ChoiceRuntime, playerID string, selectionIndex int, data map[string]interface{}) (bool, error)
 	SequentialRemaining ChoiceSequentialRemaining
+	// Presentation 声明弹框展示类型（后端显式声明，前端按此渲染）
+	Presentation *model.PromptPresentation
 }
 
 // ChoiceRuntime 抽象角色选择流运行时能力（嵌入子接口的组合接口）。

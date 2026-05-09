@@ -192,6 +192,27 @@ const (
 	PromptChooseExtract PromptType = "choose_extract" // 提炼：多选星石
 )
 
+// PresentationKind 定义弹框展示类型（用于前端渲染决策）
+type PresentationKind string
+
+const (
+	PresentationResponse      PresentationKind = "response"      // 命中/应战/防御（图标按钮）
+	PresentationBranchSelect  PresentationKind = "branch_select" // 分支选择（长文案按钮）
+	PresentationNumeric       PresentationKind = "numeric"       // 数字选择（X值/治疗点数）
+	PresentationCardPicker    PresentationKind = "card_picker"   // 卡牌选择
+	PresentationTargetPicker  PresentationKind = "target_picker" // 目标选择
+	PresentationSkillChoice   PresentationKind = "skill_choice"  // 技能选择
+	PresentationActionHub     PresentationKind = "action_hub"    // 行动枢纽
+)
+
+// PromptPresentation 定义弹框展示细节（后端显式声明，前端只渲染）
+type PromptPresentation struct {
+	Kind        PresentationKind `json:"kind"`                    // 必填：展示类型
+	Layout      string           `json:"layout,omitempty"`        // 可选："inline"/"overlay"/"grid"/"heal_allocate"
+	NumericBase int              `json:"numeric_base,omitempty"`  // numeric 类型的数字起始值（0 或 1）
+	CancelPolicy string          `json:"cancel_policy,omitempty"` // 可选："allow"/"deny"/"implicit"
+}
+
 const (
 	PromptUIModeActionHub = "action_hub"
 )
@@ -213,15 +234,17 @@ type Prompt struct {
 	ChoiceType string         `json:"choice_type,omitempty"`
 	SkillID    string         `json:"skill_id,omitempty"`
 	Options    []PromptOption `json:"options"` // 可选项
-	// 行动选择场景下“特殊”按钮对应的子选项（如：购买/合成/提炼）
+	// 行动选择场景下"特殊"按钮对应的子选项（如：购买/合成/提炼）
 	SpecialOptions []PromptOption `json:"special_options,omitempty"`
 	// 可选 UI 渲染模式；action_hub 表示由底部行动半球承载
 	UIMode string `json:"ui_mode,omitempty"`
-	// 额外效果提示（用于前端在响应弹窗中解释”为何可/不可应战、命中后附加效果”等）
-	EffectHints []string `json:”effect_hints,omitempty”`
+	// 展示协议：后端显式声明展示类型，前端按此渲染（不再猜测）
+	Presentation *PromptPresentation `json:"presentation,omitempty"`
+	// 额外效果提示（用于前端在响应弹窗中解释"为何可/不可应战、命中后附加效果"等）
+	EffectHints []string `json:"effect_hints,omitempty"`
 
 	// 可取消标记：前端据此决定是否显示取消/跳过按钮，无需依赖 phantom option。
-	Cancelable bool `json:”cancelable,omitempty”`
+	Cancelable bool `json:"cancelable,omitempty"`
 
 	// 选择约束 (CLI只展示，不理解语义)
 	Min int `json:"min"` // 最少选择数
@@ -280,7 +303,7 @@ type IGameEngine interface {
 	// 资源操作
 	ModifyGem(camp string, amount int)
 	ModifyCrystal(camp string, amount int)
-	// 红宝石可作为蓝水晶替代（仅“水晶消耗”方向）
+	// 红宝石可作为蓝水晶替代（仅"水晶消耗"方向）
 	GetUsableCrystal(playerID string) int
 	CanPayCrystalCost(playerID string, amount int) bool
 	ConsumeCrystalCost(playerID string, amount int) bool

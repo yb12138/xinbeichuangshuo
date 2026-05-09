@@ -157,7 +157,16 @@ func buildHolyShardMissXPrompt(playerID string, player *model.Player, data map[s
 	for _, x := range validX {
 		options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", x), Label: fmt.Sprintf("移除%d点治疗，并令队友弃%d张牌", x, x)})
 	}
-	return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, ChoiceType: "hb_holy_shard_miss_x", Message: "【圣屑飓暴】请选择移除治疗点数X：", Options: options, Min: 1, Max: 1}
+	return &model.Prompt{
+		Type:         model.PromptConfirm,
+		PlayerID:     playerID,
+		ChoiceType:   "hb_holy_shard_miss_x",
+		Message:      "【圣屑飓暴】请选择移除治疗点数X：",
+		Options:      options,
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 1},
+	}
 }
 
 func buildHolyShardMissAllyTargetPrompt(rt engineplayer.ChoiceRuntime, playerID string, data map[string]interface{}) *model.Prompt {
@@ -209,7 +218,16 @@ func buildLightBurstModePrompt(rt engineplayer.ChoiceRuntime, playerID string, p
 	if canModeB {
 		options = append(options, model.PromptOption{ID: "1", Label: "分支②：移除X治疗并弃X牌，至多X名对手各受攻击伤害"})
 	}
-	return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, ChoiceType: "hb_light_burst_mode", Message: "【圣光爆裂】请选择发动分支：", Options: options, Min: 1, Max: 1}
+	return &model.Prompt{
+		Type:         model.PromptConfirm,
+		PlayerID:     playerID,
+		ChoiceType:   "hb_light_burst_mode",
+		Message:      "【圣光爆裂】请选择发动分支：",
+		Options:      options,
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
+	}
 }
 
 func buildAllyTargetPrompt(rt engineplayer.ChoiceRuntime, playerID string, data map[string]interface{}, choiceType string) *model.Prompt {
@@ -242,7 +260,16 @@ func buildLightBurstModeBXPrompt(rt engineplayer.ChoiceRuntime, playerID string,
 			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", x), Label: fmt.Sprintf("X=%d（移除%d治疗并弃%d张牌）", x, x, x)})
 		}
 	}
-	return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, ChoiceType: "hb_light_burst_mode_b_x", Message: "【圣光爆裂】分支②请选择X值：", Options: options, Min: 1, Max: 1}
+	return &model.Prompt{
+		Type:         model.PromptConfirm,
+		PlayerID:     playerID,
+		ChoiceType:   "hb_light_burst_mode_b_x",
+		Message:      "【圣光爆裂】分支②请选择X值：",
+		Options:      options,
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 1},
+	}
 }
 
 func buildLightBurstModeBTargetsPrompt(rt engineplayer.ChoiceRuntime, playerID string, data map[string]interface{}) *model.Prompt {
@@ -319,7 +346,16 @@ func buildAutoFillResourcePrompt(playerID string, data map[string]interface{}) *
 			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", len(options)), Label: "分支②：消耗1红宝石并获得1蓝水晶"})
 		}
 	}
-	return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, ChoiceType: "hb_auto_fill_resource", Message: "【自动填充】请选择要发动的分支：", Options: options, Min: 1, Max: 1}
+	return &model.Prompt{
+		Type:         model.PromptConfirm,
+		PlayerID:     playerID,
+		ChoiceType:   "hb_auto_fill_resource",
+		Message:      "【自动填充】请选择要发动的分支：",
+		Options:      options,
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
+	}
 }
 
 func buildAutoFillGainPrompt(playerID string, data map[string]interface{}) *model.Prompt {
@@ -332,7 +368,7 @@ func buildAutoFillGainPrompt(playerID string, data map[string]interface{}) *mode
 		options = append(options, model.PromptOption{ID: "0", Label: "+1信仰"})
 		options = append(options, model.PromptOption{ID: "1", Label: "+1治疗"})
 	}
-	return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, ChoiceType: "hb_auto_fill_gain", Message: "【自动填充】请选择增益：", Options: options, Min: 1, Max: 1}
+	return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, ChoiceType: "hb_auto_fill_gain", Message: "【自动填充】请选择增益：", Options: options, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"}}
 }
 
 // ===========================================================================

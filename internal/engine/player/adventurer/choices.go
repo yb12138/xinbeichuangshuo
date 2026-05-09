@@ -38,9 +38,11 @@ func NewChoiceHandler() engineplayer.ChoiceHandler {
 // ---------------------------------------------------------------------------
 
 func buildStealSkyModePrompt(_ engineplayer.ChoiceRuntime, playerID string, _ *model.Player, _ map[string]interface{}) *model.Prompt {
-	return engineplayer.NewPrompt(playerID, "【偷天换日】请选择效果：").
+	p := engineplayer.NewPrompt(playerID, "【偷天换日】请选择效果：").
 		OptionsFromLabels("转移对方战绩区1红宝石到我方", "将我方战绩区全部蓝水晶转换成红宝石").
 		Build()
+	p.Presentation = &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"}
+	return p
 }
 
 func handleStealSkyMode(rt engineplayer.ChoiceRuntime, playerID string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {

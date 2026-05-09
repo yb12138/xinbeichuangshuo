@@ -26,8 +26,9 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 				{ID: "0", Label: "弃掉当前手上的所有手牌"},
 				{ID: "1", Label: "将手牌补到上限，并我方战绩区+1红宝石"},
 			},
-			Min: 1,
-			Max: 1,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 		}
 	default:
 		return nil

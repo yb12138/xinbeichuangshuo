@@ -49,12 +49,13 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			})
 		}
 		return &model.Prompt{
-			Type:     model.PromptConfirm,
-			PlayerID: playerID,
-			Message:  "【神之庇护】请选择X值：",
-			Options:  options,
-			Min:      1,
-			Max:      1,
+			Type:         model.PromptConfirm,
+			PlayerID:     playerID,
+			Message:      "【神之庇护】请选择X值：",
+			Options:      options,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 1},
 		}
 	default:
 		return nil

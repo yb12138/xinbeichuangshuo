@@ -32,12 +32,13 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			})
 		}
 		return &model.Prompt{
-			Type:     model.PromptConfirm,
-			PlayerID: playerID,
-			Message:  "【军威神光】请选择效果：",
-			Options:  options,
-			Min:      1,
-			Max:      1,
+			Type:          model.PromptConfirm,
+			PlayerID:      playerID,
+			Message:       "【军威神光】请选择效果：",
+			Options:       options,
+			Min:           1,
+			Max:           1,
+			Presentation:  &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 		}
 
 	case "valkyrie_military_glory_x":
@@ -50,12 +51,13 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			})
 		}
 		return &model.Prompt{
-			Type:     model.PromptConfirm,
-			PlayerID: playerID,
-			Message:  "【军威神光】请选择X：",
-			Options:  options,
-			Min:      1,
-			Max:      1,
+			Type:         model.PromptConfirm,
+			PlayerID:     playerID,
+			Message:      "【军威神光】请选择X：",
+			Options:      options,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 1},
 		}
 
 	case "valkyrie_military_glory_target":

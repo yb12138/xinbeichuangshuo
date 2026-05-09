@@ -55,12 +55,13 @@ func buildChargeDrawXPrompt(playerID string, data map[string]interface{}) *model
 		})
 	}
 	return &model.Prompt{
-		Type:     model.PromptConfirm,
-		PlayerID: playerID,
-		Message:  "【充能】请选择摸牌数量X（0~4）：",
-		Options:  options,
-		Min:      1,
-		Max:      1,
+		Type:         model.PromptConfirm,
+		PlayerID:     playerID,
+		Message:      "【充能】请选择摸牌数量X（0~4）：",
+		Options:      options,
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 1},
 	}
 }
 

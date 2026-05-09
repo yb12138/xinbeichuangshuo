@@ -97,6 +97,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			Options:    options,
 			Min:        1,
 			Max:        1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 		}
 
 	case "mg_moon_cycle_heal_target":
@@ -169,13 +170,14 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			})
 		}
 		return &model.Prompt{
-			Type:       model.PromptConfirm,
-			PlayerID:   playerID,
-			ChoiceType: choiceType,
-			Message:    "【闇月斩】请选择X值：",
-			Options:    options,
-			Min:        1,
-			Max:        1,
+			Type:         model.PromptConfirm,
+			PlayerID:     playerID,
+			ChoiceType:   choiceType,
+			Message:      "【闇月斩】请选择X值：",
+			Options:      options,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 1},
 		}
 
 	case "mg_pale_moon_mode":
@@ -206,6 +208,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			Options:    options,
 			Min:        1,
 			Max:        1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 		}
 
 	case "mg_pale_moon_x":
@@ -221,13 +224,14 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			})
 		}
 		return &model.Prompt{
-			Type:       model.PromptConfirm,
-			PlayerID:   playerID,
-			ChoiceType: choiceType,
-			Message:    "【苍白之月】分支②请选择X值：",
-			Options:    options,
-			Min:        1,
-			Max:        1,
+			Type:         model.PromptConfirm,
+			PlayerID:     playerID,
+			ChoiceType:   choiceType,
+			Message:      "【苍白之月】分支②请选择X值：",
+			Options:      options,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 1},
 		}
 
 	case "mg_pale_moon_target":

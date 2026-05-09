@@ -41,12 +41,13 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			})
 		}
 		return &model.Prompt{
-			Type:     model.PromptConfirm,
-			PlayerID: playerID,
-			Message:  "【法术反弹】请选择X值：",
-			Options:  options,
-			Min:      1,
-			Max:      1,
+			Type:         model.PromptConfirm,
+			PlayerID:     playerID,
+			Message:      "【法术反弹】请选择X值：",
+			Options:      options,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 1},
 		}
 	case "sage_magic_rebound_element":
 		xValue := runtimeutil.ToIntContextValue(data["x_value"])
@@ -122,12 +123,13 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			msg = "【圣洁法典】请选择X值："
 		}
 		return &model.Prompt{
-			Type:     model.PromptConfirm,
-			PlayerID: playerID,
-			Message:  msg,
-			Options:  options,
-			Min:      1,
-			Max:      1,
+			Type:         model.PromptConfirm,
+			PlayerID:     playerID,
+			Message:      msg,
+			Options:      options,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 1},
 		}
 	case "sage_holy_target_count":
 		maxCount := runtimeutil.ToIntContextValue(data["max_target_count"])

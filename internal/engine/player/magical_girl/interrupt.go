@@ -65,15 +65,16 @@ func buildMagicBulletDirectionPrompt(rt player.ChoiceRuntime) *model.Prompt {
 	playerID := interrupt.PlayerID
 
 	return &model.Prompt{
-		Type:     model.PromptConfirm,
-		PlayerID: playerID,
-		Message:  "【魔弹掌控】选择魔弹传递方向：",
+		Type:         model.PromptConfirm,
+		PlayerID:     playerID,
+		Message:      "【魔弹掌控】选择魔弹传递方向：",
 		Options: []model.PromptOption{
 			{ID: "normal", Label: "默认方向 (右手边，前一位对手)"},
 			{ID: "reverse", Label: "逆向传递 (左手边，后一位对手)"},
 		},
-		Min: 1,
-		Max: 1,
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 	}
 }
 

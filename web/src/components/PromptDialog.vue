@@ -6,6 +6,18 @@ import { useSnapshotStore } from '../stores/snapshot.store'
 import { useSubmitAction } from '../composables/useSubmitAction'
 import { useBattleInteractionState } from '../composables/useBattleInteractionState'
 import { ROLE_NAME_MAP } from '../constants/roleNameMap'
+import {
+  isActivationCostText,
+  isCardSelectionLikeText,
+  isDeclineLabel,
+  normalizeButtonLabel,
+  PLAIN_NO_HINT_BUTTONS,
+  PROMPT_OPTION_BUTTON_LABELS,
+  promptImageButtonKindByOption,
+  responseOptionKind,
+  type PromptImageButtonKind,
+  type ResponseOptionKind,
+} from '../constants/promptButtonRules'
 import type { PlayerView } from '../types/game'
 
 const interruptStore = useInterruptStore()
@@ -53,21 +65,6 @@ watch(() => prompt.value, () => {
     autoResolvedPromptKey.value = ''
   }
 })
-
-type ResponseOptionKind = 'take' | 'counter' | 'defend' | null
-
-function responseOptionKind(option: { id?: string; label?: string; button_label?: string }): ResponseOptionKind {
-  const id = String(option.id || '').trim().toLowerCase()
-  // 魔弹掌控方向选择不是战斗应答（take/defend/counter），避免被“传递”关键词误判为应战。
-  if (id === 'normal' || id === 'reverse') return null
-  const label = String(option.label || '').trim()
-  const buttonLabel = String(option.button_label || '').trim()
-  const text = `${label} ${buttonLabel}`.toLowerCase()
-  if (id === 'take' || id === 'take_damage' || text.includes('承受') || text.includes('命中')) return 'take'
-  if (id === 'defend' || text.includes('防御')) return 'defend'
-  if (id === 'counter' || text.includes('应战')) return 'counter'
-  return null
-}
 
 const hasCounterOption = computed(() => {
   if (!prompt.value?.options?.length) return false
@@ -158,6 +155,54 @@ const isConfirmType = computed(() => {
 })
 
 const isExtractPrompt = computed(() => prompt.value?.type === 'choose_extract')
+
+// 圣疗 3 点治疗分配：每个目标独立 0..3 数字选择，要求总和=3。
+const isSaintHealAllocatePrompt = computed(() => prompt.value?.choice_type === 'saint_heal_allocate')
+const saintHealAllocations = ref<number[]>([])
+const SAINT_HEAL_TOTAL = 3
+
+watch(
+  () => prompt.value,
+  () => {
+    if (isSaintHealAllocatePrompt.value && prompt.value) {
+      saintHealAllocations.value = prompt.value.options.map(() => 0)
+    } else {
+      saintHealAllocations.value = []
+    }
+  },
+  { immediate: true }
+)
+
+const saintHealRemaining = computed(() => {
+  const used = saintHealAllocations.value.reduce((s, v) => s + (v || 0), 0)
+  return SAINT_HEAL_TOTAL - used
+})
+
+function setSaintHealAllocation(index: number, value: number) {
+  if (!isSaintHealAllocatePrompt.value) return
+  const current = saintHealAllocations.value[index] || 0
+  const otherSum = saintHealAllocations.value.reduce((s, v, i) => s + (i === index ? 0 : (v || 0)), 0)
+  const maxAllowed = Math.max(0, SAINT_HEAL_TOTAL - otherSum)
+  const clamped = Math.max(0, Math.min(value, Math.min(SAINT_HEAL_TOTAL, maxAllowed)))
+  if (clamped === current) return
+  const next = saintHealAllocations.value.slice()
+  next[index] = clamped
+  saintHealAllocations.value = next
+}
+
+const canSubmitSaintHeal = computed(() => {
+  if (!isSaintHealAllocatePrompt.value) return false
+  if (saintHealAllocations.value.length === 0) return false
+  return saintHealAllocations.value.reduce((s, v) => s + (v || 0), 0) === SAINT_HEAL_TOTAL
+})
+
+function submitSaintHealAllocation() {
+  if (!canSubmitSaintHeal.value) {
+    showPromptError(`请将 ${SAINT_HEAL_TOTAL} 点治疗全部分配（剩余 ${saintHealRemaining.value} 点）`)
+    return
+  }
+  actions.submitSelect([...saintHealAllocations.value])
+}
 
 const NON_HAND_INDEXED_PROMPT_CHOICE_TYPES = new Set([
   'elf_elemental_shot_remove_blessing',
@@ -263,12 +308,6 @@ const isResponseSkillConfirmPrompt = computed(() => {
   if (message.includes('是否发动')) return true
   return /是否发动【.+】/.test(message) || /【.+】是否发动/.test(message)
 })
-
-function isActivationCostText(raw: string): boolean {
-  const text = String(raw || '').replace(/\s+/g, '')
-  if (!text) return false
-  return text.includes('发动') && /(弃|弃置|移除|消耗|支付)/.test(text)
-}
 
 function isPromptActivationCostCancelable(p: NonNullable<typeof prompt.value>): boolean {
   const choiceType = String(p.choice_type || '').trim()
@@ -642,8 +681,6 @@ type FraudElementCardOption = {
   tone: string
 }
 
-type PromptImageButtonKind = 'take' | 'counter' | 'defend' | 'cancel' | 'confirm' | 'card' | 'action'
-
 const PROMPT_IMAGE_BUTTON_CANDIDATES: Record<PromptImageButtonKind, string[]> = {
   take: ['/assets/ui/prompt_btn_take.png'],
   counter: ['/assets/ui/prompt_btn_counter.png'],
@@ -674,24 +711,6 @@ const promptImageButtonFailed = ref<Record<PromptImageButtonKind, boolean>>({
   action: false,
 })
 
-const optionButtonLabelById: Record<string, string> = {
-  confirm: '发动',
-  yes: '发动',
-  no: '取消',
-  cancel: '取消',
-  skip: '取消',
-  take: '命中',
-  counter: '应战',
-  defend: '防御',
-  normal: '顺时针',
-  reverse: '逆时针',
-  refuse: '不弃牌',
-  cannot_act: '取消',
-  pass: '取消',
-}
-
-const plainNoHintButtons = new Set(['发动', '确认', '确定', '是', '取消', '不弃牌', '应战', '防御', '命中', '顺序', '反向'])
-
 function parseNonNegativeOptionId(optionId: string): number | null {
   const normalized = String(optionId || '').trim()
   if (!/^\d+$/.test(normalized)) return null
@@ -703,6 +722,22 @@ function parseNonNegativeOptionId(optionId: string): number | null {
 function shouldUseNumericButtonMode(options: RawDockOption[]): { useNumeric: boolean; plusOne: boolean } {
   if (!prompt.value || options.length < 2) return { useNumeric: false, plusOne: false }
   if (prompt.value.type === 'choose_card' || prompt.value.type === 'choose_cards') return { useNumeric: false, plusOne: false }
+
+  // 优先读取 Presentation（后端显式声明）
+  const presentation = prompt.value.presentation
+  if (presentation?.kind === 'numeric') {
+    const plusOne = presentation.numeric_base !== 0
+    return { useNumeric: true, plusOne }
+  }
+  // 分支选择、卡牌选择、目标选择等非数字类型，明确不使用数字模式
+  if (presentation?.kind === 'branch_select' ||
+      presentation?.kind === 'card_picker' ||
+      presentation?.kind === 'target_picker' ||
+      presentation?.kind === 'skill_choice') {
+    return { useNumeric: false, plusOne: false }
+  }
+
+  // Fallback：旧逻辑兼容无 Presentation 的 prompt
   const numericIds: number[] = []
   for (const option of options) {
     const n = parseNonNegativeOptionId(option.id)
@@ -735,70 +770,6 @@ function shouldUseNumericButtonMode(options: RawDockOption[]): { useNumeric: boo
   if (isHealChoice || labelHasHeal) return { useNumeric: true, plusOne: false }
   const minNumeric = Math.min(...numericIds)
   return { useNumeric: true, plusOne: minNumeric === 0 }
-}
-
-function isDeclineLabel(label: string): boolean {
-  const text = String(label || '').trim()
-  if (!text) return false
-  const compact = text.replace(/\s+/g, '')
-  const lower = compact.toLowerCase()
-  if (compact.includes('不发动') || compact.includes('无法行动') || compact.includes('不弃牌')) return true
-  if (compact.startsWith('放弃') || compact.startsWith('跳过') || compact.startsWith('拒绝')) return true
-  if (compact === '取消' || compact.startsWith('取消并') || compact.startsWith('取消本次') || compact.startsWith('取消行动')) return true
-  if (lower === 'cancel' || lower === 'pass' || lower === 'skip' || lower === 'refuse') return true
-  return false
-}
-
-function isConfirmLikeLabel(label: string): boolean {
-  const text = String(label || '').trim().replace(/\s+/g, '')
-  if (!text) return false
-  if (text === '是' || text === '发动' || text === '确认' || text === '确定') return true
-  if (text.startsWith('发动') || text.startsWith('确认') || text.startsWith('确定')) return true
-  return false
-}
-
-function isCardSelectionLikeText(text: string): boolean {
-  const normalized = String(text || '').trim()
-  if (!normalized) return false
-  if (/^\d+\s*[:：]/.test(normalized)) return true
-  if (/第\d+张\s*[:：]/.test(normalized)) return true
-  if (/^茧\[\d+\]\s*[:：]/.test(normalized)) return true
-  if (/^移除茧\[\d+\]\s*[:：]/.test(normalized)) return true
-  return false
-}
-
-function promptImageButtonKindByOption(option: { id?: string; label?: string; buttonLabel?: string; hint?: string }): PromptImageButtonKind {
-  const id = String(option.id || '').trim().toLowerCase()
-  const label = String(option.label || '').trim()
-  const buttonLabel = String(option.buttonLabel || '').trim()
-  const hint = String(option.hint || '').trim()
-  const combinedText = `${label} ${buttonLabel}`
-  const hasExplicitResponseText =
-    combinedText.includes('命中') ||
-    combinedText.includes('承受') ||
-    combinedText.includes('防御') ||
-    combinedText.includes('应战') ||
-    combinedText.includes('传递')
-  if (isCardSelectionLikeText(label) || isCardSelectionLikeText(buttonLabel)) {
-    return 'card'
-  }
-  if ((isConfirmLikeLabel(buttonLabel) || isConfirmLikeLabel(label)) && !hasExplicitResponseText) {
-    return 'confirm'
-  }
-  const responseKind = responseOptionKind({ id, label, button_label: buttonLabel })
-  if (responseKind) return responseKind
-  if (
-    (isActivationCostText(hint) || isActivationCostText(label) || isActivationCostText(buttonLabel)) &&
-    !isDeclineLabel(hint) &&
-    !isDeclineLabel(label) &&
-    !isDeclineLabel(buttonLabel)
-  ) {
-    return 'confirm'
-  }
-  if (id === 'confirm' || id === 'yes') return 'confirm'
-  if (id === 'skip' || id === 'cancel' || id === 'no' || id === 'pass' || id === 'cannot_act') return 'cancel'
-  if (buttonLabel === '取消' || isDeclineLabel(buttonLabel) || isDeclineLabel(label)) return 'cancel'
-  return 'action'
 }
 
 function promptImageButtonAsset(kind: PromptImageButtonKind): string {
@@ -899,33 +870,6 @@ function skillButtonFallbackText(option: SkillPromptButton): string {
   return option.cancel ? '消' : '确'
 }
 
-function normalizeButtonLabel(rawLabel: string, optionId: string, optionLabel: string, responseKind: ResponseOptionKind): string {
-  const text = String(rawLabel || '').trim()
-  const lowerId = String(optionId || '').trim().toLowerCase()
-  if (responseKind === 'take' || lowerId === 'take' || lowerId === 'take_damage' || text.includes('承受') || text.includes('命中')) {
-    return '命中'
-  }
-  if (responseKind === 'counter' || lowerId === 'counter' || text.includes('应战')) {
-    return '应战'
-  }
-  if (responseKind === 'defend' || lowerId === 'defend' || text.includes('防御')) {
-    return '防御'
-  }
-  if (
-    lowerId === 'cancel' ||
-    lowerId === 'skip' ||
-    lowerId === 'refuse' ||
-    lowerId === 'no' ||
-    lowerId === 'pass' ||
-    lowerId === 'cannot_act' ||
-    isDeclineLabel(text) ||
-    isDeclineLabel(optionLabel)
-  ) {
-    return '取消'
-  }
-  return text
-}
-
 function normalizeDockOption(option: RawDockOption, useNumeric: boolean, plusOne: boolean): DockButtonOption {
   const id = String(option.id || '').trim()
   const label = String(option.label || '').trim()
@@ -934,8 +878,8 @@ function normalizeDockOption(option: RawDockOption, useNumeric: boolean, plusOne
   let buttonLabel = normalizeButtonLabel(String(option.button_label || ''), id, label, responseKind)
   let hint = String(option.hint || '').trim()
 
-  if (!buttonLabel && optionButtonLabelById[lowerID]) {
-    buttonLabel = optionButtonLabelById[lowerID]
+  if (!buttonLabel && PROMPT_OPTION_BUTTON_LABELS[lowerID]) {
+    buttonLabel = PROMPT_OPTION_BUTTON_LABELS[lowerID]
   }
   if (!buttonLabel && prompt.value?.type === 'choose_skill') {
     buttonLabel = '发动'
@@ -967,6 +911,11 @@ function normalizeDockOption(option: RawDockOption, useNumeric: boolean, plusOne
   if (!buttonLabel && (isActivationCostText(hint) || isActivationCostText(label) || isActivationCostText(String(prompt.value?.message || '')))) {
     buttonLabel = '确认'
   }
+  // 分支选择：按钮直接显示完整文案（如判决天平的两个分支）
+  const presentation = prompt.value?.presentation
+  if (!buttonLabel && presentation?.kind === 'branch_select') {
+    buttonLabel = label
+  }
   if (!buttonLabel) {
     if (prompt.value?.type === 'confirm') {
       buttonLabel = '确认'
@@ -980,7 +929,7 @@ function normalizeDockOption(option: RawDockOption, useNumeric: boolean, plusOne
   }
 
   if (!hint && label && label !== buttonLabel) {
-    if (!(plainNoHintButtons.has(buttonLabel) && (label === buttonLabel || isDeclineLabel(label)))) {
+    if (!(PLAIN_NO_HINT_BUTTONS.has(buttonLabel) && (label === buttonLabel || isDeclineLabel(label)))) {
       hint = label
     }
   }
@@ -1160,6 +1109,7 @@ const inlinePrimaryPromptMessage = computed(() => {
 const inlinePrimaryButtons = computed<DockButtonOption[]>(() => {
   if (isExtractPrompt.value) return []
   if (isFraudElementCardPickerPrompt.value) return []
+  if (isSaintHealAllocatePrompt.value) return []
   if (needsCardSelection.value) return buildDockButtons(cardFooterOptions.value)
   if (showConfirmButtonSection.value) {
     const options = nonPlayerOptions.value
@@ -1344,6 +1294,7 @@ const showDecisionOverlay = computed(() => {
   if (isSkillChoicePrompt.value) return false        // → skill-branch-overlay
   if (isFraudElementCardPickerPrompt.value) return false  // → 欺诈选牌弹窗
   if (isExtractPrompt.value) return false              // → 提取选择网格
+  if (isSaintHealAllocatePrompt.value) return false    // → 圣疗分配专属弹窗
   if (needsCardSelection.value) return false           // → 卡牌选择流程（命中/防御/应战按钮留内联）
   // 符合通用弹窗条件
   if (singleActivationCostConfirmOption.value) return true
@@ -1818,6 +1769,49 @@ watch(autoResolveOptionId, (optionId) => {
           <div v-if="canCancelPrompt" class="overlay-panel-footer">
             <button class="overlay-panel-cancel" @click="handleOptionClick(cancelDockButton.id)">
               {{ cancelDockButton.buttonLabel || '取消' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
+
+  <Teleport to="body">
+    <Transition name="modal">
+      <div v-if="isVisible && isSaintHealAllocatePrompt" class="overlay-panel-root overlay-panel-root--decision">
+        <div class="overlay-panel" @click.stop>
+          <div class="overlay-panel-header overlay-panel-header--decision">
+            <h2>{{ prompt?.message || '请分配治疗' }}</h2>
+          </div>
+          <div class="overlay-panel-body overlay-saint-heal">
+            <div class="overlay-saint-heal-summary">
+              剩余可分配：{{ saintHealRemaining }} / {{ SAINT_HEAL_TOTAL }}
+            </div>
+            <div
+              v-for="(option, index) in prompt?.options || []"
+              :key="option.id"
+              class="overlay-saint-heal-row"
+            >
+              <div class="overlay-saint-heal-row-label">{{ option.label }}</div>
+              <div class="overlay-saint-heal-row-grid">
+                <button
+                  v-for="n in [0, 1, 2, 3]"
+                  :key="n"
+                  class="overlay-numeric-tile overlay-saint-heal-tile"
+                  :class="{ 'overlay-saint-heal-tile--active': (saintHealAllocations[index] || 0) === n }"
+                  :disabled="n > (saintHealAllocations[index] || 0) + saintHealRemaining"
+                  @click="setSaintHealAllocation(index, n)"
+                >
+                  <span class="overlay-numeric-value">{{ n }}</span>
+                </button>
+              </div>
+            </div>
+            <button
+              class="overlay-confirm-btn"
+              :disabled="!canSubmitSaintHeal"
+              @click="submitSaintHealAllocation"
+            >
+              确认分配
             </button>
           </div>
         </div>
@@ -2847,6 +2841,44 @@ watch(autoResolveOptionId, (optionId) => {
 .overlay-confirm-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+.overlay-saint-heal {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 24px 20px;
+}
+.overlay-saint-heal-summary {
+  text-align: center;
+  font-size: 0.9rem;
+  color: rgba(255, 217, 138, 0.92);
+}
+.overlay-saint-heal-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(10, 22, 38, 0.55);
+  border: 1px solid rgba(118, 153, 173, 0.22);
+}
+.overlay-saint-heal-row-label {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #ffd98a;
+}
+.overlay-saint-heal-row-grid {
+  display: flex;
+  gap: 8px;
+}
+.overlay-saint-heal-tile {
+  flex: 1;
+}
+.overlay-saint-heal-tile--active {
+  border-color: rgba(255, 210, 120, 0.85);
+  background: linear-gradient(180deg, rgba(140, 100, 35, 0.7), rgba(90, 65, 20, 0.85));
+  color: #ffe9b8;
 }
 </style>
 

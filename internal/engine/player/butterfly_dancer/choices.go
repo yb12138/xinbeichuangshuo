@@ -104,6 +104,7 @@ func buildDanceModePrompt(playerID string, data map[string]interface{}) *model.P
 		Options:    options,
 		Min:        1,
 		Max:        1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 	}
 }
 
@@ -174,6 +175,7 @@ func buildReverseModePrompt(playerID string, data map[string]interface{}) *model
 		Options:    options,
 		Min:        1,
 		Max:        1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 	}
 }
 

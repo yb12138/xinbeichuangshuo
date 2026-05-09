@@ -63,9 +63,19 @@ func shouldUseNumericPromptButtons(prompt *model.Prompt, options []model.PromptO
 	if prompt.Type == model.PromptChooseCards {
 		return false, false
 	}
+
+	// 优先读取 Presentation（后端显式声明）
+	if prompt.Presentation != nil && prompt.Presentation.Kind == model.PresentationNumeric {
+		plusOne := prompt.Presentation.NumericBase != 0
+		return true, plusOne
+	}
+
+	// Fallback：旧逻辑兼容无 Presentation 的 prompt
 	numericIDs := make([]int, 0, len(options))
 	hasLongLabel := false
 	hasXHint := strings.ContainsAny(strings.ToLower(prompt.Message), "xｘ")
+	isHealChoice := strings.Contains(prompt.Message, "治疗") || strings.Contains(prompt.Message, "抵消")
+	labelHasHeal := false
 	for _, option := range options {
 		if n, ok := parsePromptNonNegativeInt(option.ID); ok {
 			numericIDs = append(numericIDs, n)
@@ -78,9 +88,16 @@ func shouldUseNumericPromptButtons(prompt *model.Prompt, options []model.PromptO
 		if strings.Contains(lowLabel, "x=") || strings.Contains(label, "X=") || strings.Contains(lowLabel, "x值") || strings.ContainsAny(lowLabel, "xｘ") {
 			hasXHint = true
 		}
+		if strings.Contains(label, "治疗") || strings.Contains(label, "抵消") {
+			labelHasHeal = true
+		}
 	}
 	if len(numericIDs) < 2 || (!hasLongLabel && !hasXHint) {
 		return false, false
+	}
+	// 治疗选择：选项 ID 即治疗点数（从 0 开始），按钮文本应直接显示该值，不能 +1。
+	if isHealChoice || labelHasHeal {
+		return true, false
 	}
 	minID := numericIDs[0]
 	for _, id := range numericIDs[1:] {

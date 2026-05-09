@@ -76,7 +76,7 @@ func buildRuneXPrompt(playerID string, data map[string]interface{}, glyph bool) 
 	for xValue := minX; xValue <= maxX; xValue++ {
 		options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", xValue), Label: fmt.Sprintf("X=%d", xValue)})
 	}
-	return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: message, Options: options, Min: 1, Max: 1}
+	return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: message, Options: options, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 1}}
 }
 
 func buildRuneCardsPrompt(playerID string, player *model.Player, data map[string]interface{}, glyph bool) *model.Prompt {
@@ -117,7 +117,7 @@ func buildRuneYPrompt(playerID string, data map[string]interface{}, glyph bool) 
 	if glyph {
 		message = "【魔纹融合】请选择Y（额外翻转魔纹数）："
 	}
-	return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: message, Options: options, Min: 1, Max: 1}
+	return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: message, Options: options, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 1}}
 }
 
 func buildDualEchoTargetPrompt(rt engineplayer.ChoiceRuntime, playerID string, data map[string]interface{}) *model.Prompt {

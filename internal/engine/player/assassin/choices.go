@@ -27,8 +27,9 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 				{ID: "0", Label: "摸1张牌"},
 				{ID: "1", Label: "不摸牌"},
 			},
-			Min: 1,
-			Max: 1,
+			Min:          1,
+			Max:          1,
+				Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 		}
 	default:
 		return nil

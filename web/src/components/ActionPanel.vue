@@ -5,6 +5,12 @@ import { useSessionStore } from '../stores/session.store'
 import { useSnapshotStore } from '../stores/snapshot.store'
 import { useBattleInteractionState } from '../composables/useBattleInteractionState'
 import { useSubmitAction } from '../composables/useSubmitAction'
+import {
+    skillCanUseDiscardCard,
+    skillCostTextOverride,
+    skillDiscardGuideText as skillDiscardGuideTextById,
+    skillSpecificDisabledReason,
+} from '../constants/skillDisplayRules'
 import type { AvailableSkill, PromptOption, PlayerView } from '../types/game'
 import PromptDialog from './PromptDialog.vue'
 
@@ -594,9 +600,7 @@ function cardMatchesSkillDiscard(card: { type: string; element: string; faction?
     }
     if (skill.discard_type && card.type !== skill.discard_type) return false
     if (skill.discard_element) return card.element === skill.discard_element
-    if (skill.id === 'magic_bullet_fusion' || skill.id === 'magic_bullet_fusion_chain') {
-      return card.element === 'Fire' || card.element === 'Earth'
-    }
+    if (!skillCanUseDiscardCard(skill.id, card)) return false
     return true
 }
 
@@ -744,6 +748,8 @@ function skillDisabledReason(skill: AvailableSkill): string {
     }
     const tokenReason = skillTokenDisabledReason(skill)
     if (tokenReason) return tokenReason
+    const specificReason = skillSpecificDisabledReason(skill.id)
+    if (specificReason) return specificReason
     if (skill.id === 'prayer_radiant_faith' || skill.id === 'prayer_dark_curse') {
         const prayerForm = hasMyForm('prayer_master_prayer_form')
         const prayerRune = myPlayer.value?.tokens?.prayer_rune ?? 0
@@ -758,15 +764,6 @@ function skillDisabledReason(skill: AvailableSkill): string {
     }
     if (skill.id === 'angel_cleanse') {
         return '手牌中没有风系牌，无法发动【风之洁净】。'
-    }
-    if (skill.id === 'onmyoji_shikigami_descend') {
-        return '需要弃置2张命格相同的手牌才能发动。'
-    }
-    if (skill.id === 'magic_blast') {
-        return '手牌中没有法术牌，无法发动【魔爆冲击】。'
-    }
-    if (skill.id === 'magic_bullet_fusion' || skill.id === 'magic_bullet_fusion_chain') {
-        return '需要弃置1张火系或地系牌，才能发动【魔弹融合】。'
     }
     if (skill.cost_discards > 0) {
         const required = requiredDiscardCount(skill)
@@ -822,8 +819,9 @@ watch(
 )
 
 function skillCostText(skill: AvailableSkill): string {
-    if (skill.id === 'priest_water_power') {
-        return '弃1水牌+交1手牌(若有)'
+    const override = skillCostTextOverride(skill.id)
+    if (override) {
+        return override
     }
     const parts: string[] = []
     if (skill.cost_gem > 0) parts.push(`${skill.cost_gem}宝石`)
@@ -1009,14 +1007,9 @@ function skillDiscardGuideText(skill: AvailableSkill): string {
     if (skill.discard_type) {
         return `弃置${skill.discard_type === 'Magic' ? '法术牌' : '攻击牌'}`
     }
-    if (skill.id === 'priest_water_power') {
-        return '第一张需水系；若仍有手牌，第二张将交给目标队友'
-    }
-    if (skill.id === 'magic_bullet_fusion' || skill.id === 'magic_bullet_fusion_chain') {
-        return '需要火系或地系牌'
-    }
-    if (skill.id === 'onmyoji_shikigami_descend') {
-        return '需要2张命格相同的手牌'
+    const guide = skillDiscardGuideTextById(skill.id)
+    if (guide) {
+        return guide
     }
     return '请在下方手牌区选择要弃置的牌'
 }

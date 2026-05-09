@@ -2564,7 +2564,20 @@ func chooseInterruptSelections(game *engine.GameEngine, intr *model.Interrupt, p
 	case model.InterruptChoice:
 		return chooseChoiceInterruptSelections(game, intr, prompt)
 	case model.InterruptSaintHeal:
-		// 圣疗默认选择第一个目标，交互链路可走通即可。
+		// 圣疗：双目标分配阶段需提交 [a,b]（a+b=3）；其他阶段（额外行动选择）仍走默认。
+		if intr != nil {
+			if data, ok := intr.Context.(map[string]interface{}); ok {
+				stage, _ := data["stage"].(string)
+				if stage == "" {
+					if ids, ok := data["targets"].([]string); ok && len(ids) == 2 {
+						stage = "allocate_heal"
+					}
+				}
+				if stage == "allocate_heal" {
+					return []int{2, 1}, nil
+				}
+			}
+		}
 		return []int{0}, nil
 	default:
 		return []int{0}, nil

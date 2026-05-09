@@ -61,12 +61,13 @@ func (e *GameEngine) buildSystemChoicePrompt(choiceType, playerID string, player
 			})
 		}
 		return &model.Prompt{
-			Type:     model.PromptConfirm,
-			PlayerID: playerID,
-			Message:  fmt.Sprintf("%s 受到伤害，可选择使用治疗抵消：", playerName),
-			Options:  options,
-			Min:      1,
-			Max:      1,
+			Type:         model.PromptConfirm,
+			PlayerID:     playerID,
+			Message:      fmt.Sprintf("%s 受到伤害，可选择使用治疗抵消：", playerName),
+			Options:      options,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 0},
 		}
 
 	case "basic_effect_pick":

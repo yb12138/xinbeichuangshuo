@@ -62,7 +62,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 				options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", len(options)), Label: "分支②：你+2治疗，1名队友+1治疗"})
 			}
 		}
-		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【神圣领域】请选择发动分支：", Options: options, Min: 1, Max: 1}
+		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【神圣领域】请选择发动分支：", Options: options, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"}}
 
 	case "priest_divine_domain_damage_target":
 		return engineplayer.BuildTargetChoicePrompt(rt, playerID, "【神圣领域·分支①】请选择2点法术伤害目标：", data, false)

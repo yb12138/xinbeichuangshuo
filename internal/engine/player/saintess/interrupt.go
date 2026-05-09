@@ -69,7 +69,7 @@ func saintHealAllocationsFromContext(data map[string]interface{}, targetIDs []st
 	}
 	a := out[targetIDs[0]]
 	b := out[targetIDs[1]]
-	if a <= 0 || b <= 0 || a+b != 3 {
+	if a < 0 || b < 0 || a+b != 3 {
 		return nil, fmt.Errorf("圣疗双目标治疗分配无效")
 	}
 	return out, nil
@@ -144,16 +144,20 @@ func buildSaintHealPrompt(rt player.ChoiceRuntime) *model.Prompt {
 		if first == nil || second == nil {
 			return nil
 		}
+		// 选项顺序对应 selections：selections[0]=第一目标治疗点数，selections[1]=第二目标治疗点数。
+		// 前端据 ChoiceType 识别为分配模式，渲染每个目标独立的 0-3 数字选择器并约束总和=3。
 		return &model.Prompt{
-			Type:     model.PromptConfirm,
-			PlayerID: interrupt.PlayerID,
-			Message:  "【圣疗】请选择3点治疗的分配方式：",
+			Type:       model.PromptConfirm,
+			ChoiceType: "saint_heal_allocate",
+			PlayerID:   interrupt.PlayerID,
+			Message:    "【圣疗】请分配 3 点治疗（两名角色之和等于 3，单项可为 0）：",
 			Options: []model.PromptOption{
-				{ID: "0", Label: fmt.Sprintf("%s +2，%s +1", first.Name, second.Name)},
-				{ID: "1", Label: fmt.Sprintf("%s +1，%s +2", first.Name, second.Name)},
+				{ID: targetIDs[0], Label: first.Name, Hint: "max:3"},
+				{ID: targetIDs[1], Label: second.Name, Hint: "max:3"},
 			},
-			Min: 1,
-			Max: 1,
+			Min:          2,
+			Max:          2,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, Layout: "heal_allocate", NumericBase: 0},
 		}
 	}
 
@@ -220,22 +224,19 @@ func resolveSaintHealAllocationStage(
 	if len(targetIDs) != 2 {
 		return fmt.Errorf("圣疗双目标分配配置无效")
 	}
-	if act.Type != model.CmdSelect || len(act.Selections) != 1 {
-		return fmt.Errorf("请选择一种治疗分配方式")
+	if act.Type != model.CmdSelect || len(act.Selections) != 2 {
+		return fmt.Errorf("请为两名角色分别选择治疗点数")
 	}
 
-	choice := act.Selections[0]
-	if choice != 0 && choice != 1 {
-		return fmt.Errorf("无效的圣疗分配选项: %d", choice)
+	first := act.Selections[0]
+	second := act.Selections[1]
+	if first < 0 || second < 0 || first > 3 || second > 3 || first+second != 3 {
+		return fmt.Errorf("圣疗分配必须满足两项之和=3 且单项在 0..3 之间，当前：%d/%d", first, second)
 	}
 
-	allocations := map[string]int{}
-	if choice == 0 {
-		allocations[targetIDs[0]] = 2
-		allocations[targetIDs[1]] = 1
-	} else {
-		allocations[targetIDs[0]] = 1
-		allocations[targetIDs[1]] = 2
+	allocations := map[string]int{
+		targetIDs[0]: first,
+		targetIDs[1]: second,
 	}
 
 	data["allocations"] = allocations

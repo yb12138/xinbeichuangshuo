@@ -147,6 +147,17 @@ export interface PromptOption {
 // Prompt 类型
 export type PromptType = 'choose_card' | 'choose_cards' | 'choose_target' | 'choose_skill' | 'confirm' | 'choose_extract'
 
+// PresentationKind 弹框展示类型（用于前端渲染决策）
+export type PresentationKind = 'response' | 'branch_select' | 'numeric' | 'card_picker' | 'target_picker' | 'skill_choice' | 'action_hub'
+
+// PromptPresentation 弹框展示细节（后端显式声明，前端只渲染）
+export interface PromptPresentation {
+  kind: PresentationKind
+  layout?: string // “inline”/”overlay”/”grid”/”heal_allocate”
+  numeric_base?: number // numeric 类型的数字起始值（0 或 1）
+  cancel_policy?: string // “allow”/”deny”/”implicit”
+}
+
 // Prompt（请求玩家输入）
 export interface Prompt {
   type: PromptType
@@ -155,10 +166,12 @@ export interface Prompt {
   choice_type?: string
   skill_id?: string
   options: PromptOption[]
-  /** 行动选择时“特殊”按钮对应的子选项（购买/合成/提炼） */
+  /** 行动选择时”特殊”按钮对应的子选项（购买/合成/提炼） */
   special_options?: PromptOption[]
   /** 前端渲染提示：action_hub 表示用底部半球行动面板承载，不弹大面板 */
   ui_mode?: string
+  /** 展示协议：后端显式声明展示类型，前端按此渲染（不再猜测） */
+  presentation?: PromptPresentation
   effect_hints?: string[]
   /** 可取消标记：后端显式声明此 prompt 允许取消/跳过，前端据此显示取消按钮 */
   cancelable?: boolean

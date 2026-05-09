@@ -28,6 +28,10 @@ func (e *GameEngine) buildStandardResponsePrompt() *model.Prompt {
 			{ID: "counter", Label: "应战 (counter <idx>) - 尝试反击"},
 			{ID: "defend", Label: "防御 (defend) - 使用圣光（圣盾需提前放置）"},
 		},
+		Presentation: &model.PromptPresentation{
+			Kind:   model.PresentationResponse,
+			Layout: "inline",
+		},
 	}
 }
 
@@ -61,6 +65,10 @@ func (e *GameEngine) buildResponseSkillPrompt() *model.Prompt {
 		Options:  options,
 		Min:      1,
 		Max:      1,
+		Presentation: &model.PromptPresentation{
+			Kind:   model.PresentationSkillChoice,
+			Layout: "overlay",
+		},
 	}
 }
 
@@ -83,6 +91,10 @@ func (e *GameEngine) buildStartupSkillPrompt() *model.Prompt {
 		Options:  options,
 		Min:      1,
 		Max:      1,
+		Presentation: &model.PromptPresentation{
+			Kind:   model.PresentationSkillChoice,
+			Layout: "overlay",
+		},
 	}
 }
 

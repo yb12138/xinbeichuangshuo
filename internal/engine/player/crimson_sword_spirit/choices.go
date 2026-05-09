@@ -29,12 +29,13 @@ func (choiceHandler) BuildPrompt(_ engineplayer.ChoiceRuntime, choiceType, playe
 		options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", len(options)), Label: "消耗1红宝石：放置庭院并+2鲜血（上限4）且弃牌至4"})
 	}
 	return &model.Prompt{
-		Type:     model.PromptConfirm,
-		PlayerID: playerID,
-		Message:  "【散华轮舞】请选择发动分支：",
-		Options:  options,
-		Min:      1,
-		Max:      1,
+		Type:         model.PromptConfirm,
+		PlayerID:     playerID,
+		Message:      "【散华轮舞】请选择发动分支：",
+		Options:      options,
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 	}
 }
 

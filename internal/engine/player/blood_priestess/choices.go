@@ -66,8 +66,9 @@ func buildBloodSorrowModePrompt(playerID string) *model.Prompt {
 			{ID: "0", Label: "移除同生共死"},
 			{ID: "1", Label: "转移同生共死目标"},
 		},
-		Min: 1,
-		Max: 1,
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 	}
 }
 
@@ -92,17 +93,18 @@ func buildBloodSorrowTargetPrompt(rt engineplayer.ChoiceRuntime, playerID string
 
 func buildBloodWailXPrompt(playerID string) *model.Prompt {
 	return &model.Prompt{
-		Type:       model.PromptConfirm,
-		PlayerID:   playerID,
-		ChoiceType: "bp_blood_wail_x",
-		Message:    "【血之悲鸣】请选择X值：",
+		Type:         model.PromptConfirm,
+		PlayerID:     playerID,
+		ChoiceType:   "bp_blood_wail_x",
+		Message:      "【血之悲鸣】请选择X值：",
 		Options: []model.PromptOption{
 			{ID: "0", Label: "X=0（伤害=1）"},
 			{ID: "1", Label: "X=1（伤害=2）"},
 			{ID: "2", Label: "X=2（伤害=3）"},
 		},
-		Min: 1,
-		Max: 1,
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 1},
 	}
 }
 

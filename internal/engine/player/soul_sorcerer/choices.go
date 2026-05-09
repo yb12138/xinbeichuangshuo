@@ -88,13 +88,14 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			xOptions = append(xOptions, model.PromptOption{ID: fmt.Sprintf("%d", x), Label: label})
 		}
 		return &model.Prompt{
-			Type:       model.PromptConfirm,
-			PlayerID:   playerID,
-			ChoiceType: choiceType,
-			Message:    "【灵魂链接】请选择要转移的伤害点数X：",
-			Options:    xOptions,
-			Min:        1,
-			Max:        1,
+			Type:         model.PromptConfirm,
+			PlayerID:     playerID,
+			ChoiceType:   choiceType,
+			Message:      "【灵魂链接】请选择要转移的伤害点数X：",
+			Options:      xOptions,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 1},
 		}
 	case "ss_recall_pick":
 		var magicIndices []int
