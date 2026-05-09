@@ -5,6 +5,7 @@ package crimson_sword_spirit
 import (
 	"fmt"
 
+	"starcup-engine/internal/engine/core/runtimeutil"
 	engineplayer "starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
 )
@@ -15,38 +16,170 @@ func NewChoiceHandler() engineplayer.ChoiceHandler {
 	return choiceHandler{}
 }
 
-func (choiceHandler) BuildPrompt(_ engineplayer.ChoiceRuntime, choiceType, playerID string, _ *model.Player, data map[string]interface{}) *model.Prompt {
-	if choiceType != "css_dance_mode" {
+func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, playerID string, _ *model.Player, data map[string]interface{}) *model.Prompt {
+	switch choiceType {
+	case "css_blood_rose_remove_heal_target":
+		return engineplayer.BuildTargetChoicePrompt(rt, playerID, "【血染蔷薇】请选择移除治疗的目标：", data, false)
+	case "css_blood_rose_gain_heal_target":
+		prompt := engineplayer.BuildTargetChoicePrompt(rt, playerID, "【血染蔷薇】请选择获得治疗的队友：", data, false)
+		if prompt != nil {
+			prompt.EffectHints = []string{"仅可选择我方角色"}
+			prompt.Presentation = &model.PromptPresentation{Kind: model.PresentationTargetPicker}
+		}
+		return prompt
+	case "css_dance_mode":
+		canCrystal, _ := data["can_crystal"].(bool)
+		canGem, _ := data["can_gem"].(bool)
+		options := make([]model.PromptOption, 0, 2)
+		if canCrystal {
+			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", len(options)), Label: "消耗1蓝水晶（可用红宝石替代）：放置庭院并+2鲜血"})
+		}
+		if canGem {
+			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", len(options)), Label: "消耗1红宝石：放置庭院并+2鲜血（上限4）且弃牌至4"})
+		}
+		return &model.Prompt{
+			Type:         model.PromptConfirm,
+			PlayerID:     playerID,
+			Message:      "【散华轮舞】请选择发动分支：",
+			Options:      options,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
+		}
+	default:
 		return nil
-	}
-	canCrystal, _ := data["can_crystal"].(bool)
-	canGem, _ := data["can_gem"].(bool)
-	options := make([]model.PromptOption, 0, 2)
-	if canCrystal {
-		options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", len(options)), Label: "消耗1蓝水晶（可用红宝石替代）：放置庭院并+2鲜血"})
-	}
-	if canGem {
-		options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", len(options)), Label: "消耗1红宝石：放置庭院并+2鲜血（上限4）且弃牌至4"})
-	}
-	return &model.Prompt{
-		Type:         model.PromptConfirm,
-		PlayerID:     playerID,
-		Message:      "【散华轮舞】请选择发动分支：",
-		Options:      options,
-		Min:          1,
-		Max:          1,
-		Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 	}
 }
 
 func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
 	choiceType, _ := ctxData["choice_type"].(string)
 	switch choiceType {
+	case "css_blood_rose_remove_heal_target":
+		return true, handleBloodRoseRemoveHealTargetChoice(rt, selectionIndex, ctxData)
+	case "css_blood_rose_gain_heal_target":
+		return true, handleBloodRoseGainHealTargetChoice(rt, selectionIndex, ctxData)
 	case "css_dance_mode":
 		return true, handleCrimsonSwordSpiritDanceModeChoice(rt, selectionIndex, ctxData)
 	default:
 		return false, nil
 	}
+}
+
+// handleBloodRoseRemoveHealTargetChoice 处理血染蔷薇第1步：选择移除治疗目标后切换到第2步
+func handleBloodRoseRemoveHealTargetChoice(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
+	userID, _ := ctxData["user_id"].(string)
+	user := rt.GetPlayers()[userID]
+	if user == nil {
+		return fmt.Errorf("玩家不存在")
+	}
+
+	targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
+	if selectionIndex < 0 || selectionIndex >= len(targetIDs) {
+		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
+	}
+	removeHealTargetID := targetIDs[selectionIndex]
+	removeHealTarget := rt.GetPlayers()[removeHealTargetID]
+	if removeHealTarget == nil {
+		return fmt.Errorf("目标不存在")
+	}
+
+	// 构建第2阶段的目标列表（仅队友）
+	allyIDs := make([]string, 0, len(rt.GetPlayers()))
+	for _, p := range rt.GetAllPlayers() {
+		if p.Camp == user.Camp {
+			allyIDs = append(allyIDs, p.ID)
+		}
+	}
+	if len(allyIDs) == 0 {
+		return fmt.Errorf("血染蔷薇需要至少1名队友作为治疗目标")
+	}
+
+	// 存储移除目标，切换到队友治疗选择阶段
+	ctxData["remove_heal_target_id"] = removeHealTargetID
+	ctxData["target_ids"] = allyIDs
+	ctxData["choice_type"] = "css_blood_rose_gain_heal_target"
+
+	intr := rt.GetPendingInterrupt()
+	if intr != nil {
+		intr.Context = ctxData
+	}
+	rt.NotifyInterruptPrompt()
+	rt.Log(fmt.Sprintf("%s 的 [血染蔷薇] 选择 %s 为移除治疗目标，继续选择队友获得治疗", user.Name, removeHealTarget.Name))
+	return nil
+}
+
+// handleBloodRoseGainHealTargetChoice 处理血染蔷薇第2步：选择队友获得治疗后结算效果
+func handleBloodRoseGainHealTargetChoice(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
+	userID, _ := ctxData["user_id"].(string)
+	user := rt.GetPlayers()[userID]
+	if user == nil {
+		return fmt.Errorf("玩家不存在")
+	}
+
+	removeHealTargetID, _ := ctxData["remove_heal_target_id"].(string)
+	removeHealTarget := rt.GetPlayers()[removeHealTargetID]
+	if removeHealTarget == nil {
+		return fmt.Errorf("移除治疗目标不存在")
+	}
+
+	targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
+	if selectionIndex < 0 || selectionIndex >= len(targetIDs) {
+		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
+	}
+	gainHealTargetID := targetIDs[selectionIndex]
+	gainHealTarget := rt.GetPlayers()[gainHealTargetID]
+	if gainHealTarget == nil {
+		return fmt.Errorf("治疗目标不存在")
+	}
+
+	// 验证阵营约束
+	if gainHealTarget.Camp != user.Camp {
+		return fmt.Errorf("血染蔷薇的治疗目标必须是我方角色")
+	}
+
+	// 消耗鲜血
+	addBlood(user, -2)
+
+	// 移除目标的治疗
+	if removeHealTarget.Heal > 0 {
+		loss := 2
+		if removeHealTarget.Heal < loss {
+			loss = removeHealTarget.Heal
+		}
+		removeHealTarget.Heal -= loss
+	}
+
+	// 阵营水晶转宝石
+	if rt.GetCampCrystals(string(user.Camp)) > 0 {
+		rt.ModifyCrystal(string(user.Camp), -1)
+		rt.ModifyGem(string(user.Camp), 1)
+	}
+
+	// 队友获得治疗
+	rt.Heal(gainHealTargetID, 1)
+
+	// 血蔷薇庭院在场效果
+	hasRoseCourtyard := false
+	for _, fc := range user.Field {
+		if fc != nil && fc.Mode == model.FieldEffect && fc.Effect == model.EffectRoseCourtyard {
+			hasRoseCourtyard = true
+			break
+		}
+	}
+	if hasRoseCourtyard {
+		for _, p := range rt.GetAllPlayers() {
+			rt.AddPendingDamage(model.PendingDamage{
+				SourceID:   user.ID,
+				TargetID:   p.ID,
+				Damage:     1,
+				DamageType: model.MagicAttack,
+			})
+		}
+	}
+
+	rt.Log(fmt.Sprintf("%s 发动 [血染蔷薇]：%s -2治疗，阵营1水晶转1宝石，%s +1治疗", user.Name, removeHealTarget.Name, gainHealTarget.Name))
+	rt.PopInterrupt()
+	return nil
 }
 
 func handleCrimsonSwordSpiritDanceModeChoice(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {

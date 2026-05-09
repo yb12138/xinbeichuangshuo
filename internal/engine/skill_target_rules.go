@@ -194,6 +194,10 @@ func effectiveTargetCountRange(use *skillUseRequest) (min int, max int, customEr
 }
 
 func formatTargetCountError(selected, min, max int, customErr string) error {
+	// 分步选择模式：由后端流程控制目标，前端不需要预先选择
+	if customErr == "分步选择" {
+		return nil
+	}
 	if customErr != "" {
 		return fmt.Errorf(customErr)
 	}

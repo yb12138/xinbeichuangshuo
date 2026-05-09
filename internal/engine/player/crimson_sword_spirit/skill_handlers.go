@@ -68,51 +68,26 @@ func (h *CrimsonBloodRoseHandler) CanUse(ctx *model.Context) bool {
 }
 
 func (h *CrimsonBloodRoseHandler) Execute(ctx *model.Context) error {
-	if len(ctx.Targets) != 2 {
-		return fmt.Errorf("血染蔷薇需要恰好2名目标")
-	}
 	if engineplayer.GetToken(ctx.User, "css_blood") < 2 {
 		return fmt.Errorf("鲜血不足")
 	}
-	healReduceTarget := ctx.Targets[0]
-	healGainTarget := ctx.Targets[1]
-	if healReduceTarget == nil || healGainTarget == nil {
-		return fmt.Errorf("血染蔷薇目标无效")
+
+	// 分步选择流程：先选移除治疗目标，再选队友获得治疗
+	allPlayerIDs := make([]string, 0, len(ctx.Game.GetPlayers()))
+	for _, p := range ctx.Game.GetAllPlayers() {
+		allPlayerIDs = append(allPlayerIDs, p.ID)
 	}
-	if healGainTarget.Camp != ctx.User.Camp {
-		return fmt.Errorf("血染蔷薇的第2个目标必须是我方角色")
-	}
-	addBlood(ctx.User, -2)
-	if healReduceTarget.Heal > 0 {
-		loss := 2
-		if healReduceTarget.Heal < loss {
-			loss = healReduceTarget.Heal
-		}
-		healReduceTarget.Heal -= loss
-	}
-	if ctx.Game.GetCampCrystals(string(ctx.User.Camp)) > 0 {
-		ctx.Game.ModifyCrystal(string(ctx.User.Camp), -1)
-		ctx.Game.ModifyGem(string(ctx.User.Camp), 1)
-	}
-	ctx.Game.Heal(healGainTarget.ID, 1)
-	hasRoseCourtyard := false
-	for _, fc := range ctx.User.Field {
-		if fc != nil && fc.Mode == model.FieldEffect && fc.Effect == model.EffectRoseCourtyard {
-			hasRoseCourtyard = true
-			break
-		}
-	}
-	if hasRoseCourtyard {
-		for _, p := range ctx.Game.GetAllPlayers() {
-			ctx.Game.AddPendingDamage(model.PendingDamage{
-				SourceID:   ctx.User.ID,
-				TargetID:   p.ID,
-				Damage:     1,
-				DamageType: model.MagicAttack,
-			})
-		}
-	}
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [血染蔷薇]：%s -2治疗，阵营1水晶转1宝石，%s +1治疗", ctx.User.Name, healReduceTarget.Name, healGainTarget.Name))
+
+	ctx.Game.PushInterrupt(&model.Interrupt{
+		Type:     model.InterruptChoice,
+		PlayerID: ctx.User.ID,
+		Context: map[string]interface{}{
+			"choice_type": "css_blood_rose_remove_heal_target",
+			"user_id":     ctx.User.ID,
+			"target_ids":  allPlayerIDs,
+		},
+	})
+	ctx.Game.Log(fmt.Sprintf("%s 发动 [血染蔷薇]，等待选择移除治疗目标", ctx.User.Name))
 	return nil
 }
 

@@ -30,12 +30,12 @@ func elementalistExclusiveCard(owner *model.Player, skillTitle string, element m
 	}
 }
 
-func TestElementalistFreeze_RequiresTwoTargets(t *testing.T) {
+func TestElementalistFreeze_StepByStepTargetSelection(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "Elem", "elementalist", model.RedCamp); err != nil {
 		t.Fatal(err)
 	}
-	if err := game.AddPlayer("p2", "Dummy", "berserker", model.BlueCamp); err != nil {
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
 		t.Fatal(err)
 	}
 
@@ -45,37 +45,58 @@ func TestElementalistFreeze_RequiresTwoTargets(t *testing.T) {
 	p1.TurnState = model.NewPlayerTurnState()
 	p1.Hand = []model.Card{
 		elementalistExclusiveCard(p1, "冰冻", model.ElementFire),
-		elementalistExclusiveCard(p1, "冰冻", model.ElementFire),
 	}
 	p2.Hand = nil
 	game.State.CurrentTurn = 0
 	game.State.TurnStage = model.TurnStageActionExecution
 	game.State.Deck = rules.InitDeck()
 
-	err := game.HandleAction(model.PlayerAction{
-		PlayerID:   "p1",
-		Type:       model.CmdSkill,
-		SkillID:    "elementalist_freeze",
-		TargetIDs:  []string{"p2"},
-		Selections: []int{0},
-	})
-	if err == nil || !strings.Contains(err.Error(), "冰冻需要指定2名目标") {
-		t.Fatalf("expected freeze single-target rejection, got err=%v", err)
-	}
-
+	// 发动冰冻，应进入分步选择流程（不再需要一次性选2个目标）
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID:   "p1",
 		Type:       model.CmdSkill,
 		SkillID:    "elementalist_freeze",
-		TargetIDs:  []string{"p1", "p1"},
+		TargetIDs:  nil,  // 分步模式不需要预先选目标
 		Selections: []int{0},
 	})
 
+	// 检查第一步：选择法术伤害目标
+	testutils.RequireChoiceContext(t, game, "p1", "elementalist_freeze_damage_target")
+	prompt := game.BuildPendingInterruptPrompt()
+	if prompt == nil {
+		t.Fatalf("expected freeze damage target prompt")
+	}
+	if !strings.Contains(prompt.Message, "法术伤害目标") {
+		t.Fatalf("expected damage target hint in message, got: %s", prompt.Message)
+	}
+
+	// 选择伤害目标（p2）
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{1},  // p2 是第二个选项（p1=0, p2=1）
+	})
+
+	// 检查第二步：选择治疗目标
+	testutils.RequireChoiceContext(t, game, "p1", "elementalist_freeze_heal_target")
+	prompt = game.BuildPendingInterruptPrompt()
+	if prompt == nil {
+		t.Fatalf("expected freeze heal target prompt")
+	}
+	if !strings.Contains(prompt.Message, "治疗目标") {
+		t.Fatalf("expected heal target hint in message, got: %s", prompt.Message)
+	}
+
+	// 选择治疗目标（p1 自己）
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{0},  // p1 是第一个选项
+	})
+
+	// 验证效果：p1 治疗+1
 	if got := p1.Heal; got != 1 {
 		t.Fatalf("expected freeze heal target gain 1 heal, got %d", got)
-	}
-	if got := len(p2.Hand); got != 0 {
-		t.Fatalf("expected freeze not force enemy as damage target, got enemy hand=%d", got)
 	}
 }
 

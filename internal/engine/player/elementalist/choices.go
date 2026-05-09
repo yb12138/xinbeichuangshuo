@@ -17,8 +17,16 @@ func NewChoiceHandler() engineplayer.ChoiceHandler {
 	return choiceHandler{}
 }
 
-func (choiceHandler) BuildPrompt(_ engineplayer.ChoiceRuntime, choiceType, playerID string, player *model.Player, data map[string]interface{}) *model.Prompt {
+func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, playerID string, player *model.Player, data map[string]interface{}) *model.Prompt {
 	switch choiceType {
+	case "elementalist_freeze_damage_target":
+		return engineplayer.BuildTargetChoicePrompt(rt, playerID, "【冰冻】请选择法术伤害目标：", data, false)
+	case "elementalist_freeze_heal_target":
+		prompt := engineplayer.BuildTargetChoicePrompt(rt, playerID, "【冰冻】请选择治疗目标（可选择自己）：", data, false)
+		if prompt != nil {
+			prompt.Presentation = &model.PromptPresentation{Kind: model.PresentationTargetPicker}
+		}
+		return prompt
 	case "elementalist_bonus_card":
 		if player == nil {
 			return nil
@@ -56,6 +64,10 @@ func (choiceHandler) BuildPrompt(_ engineplayer.ChoiceRuntime, choiceType, playe
 func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
 	choiceType, _ := ctxData["choice_type"].(string)
 	switch choiceType {
+	case "elementalist_freeze_damage_target":
+		return true, handleFreezeDamageTargetChoice(rt, selectionIndex, ctxData)
+	case "elementalist_freeze_heal_target":
+		return true, handleFreezeHealTargetChoice(rt, selectionIndex, ctxData)
 	case "elementalist_bonus_card":
 		return true, handleElementalistBonusCardChoice(rt, selectionIndex, ctxData)
 	default:
@@ -134,6 +146,104 @@ func resolveElementalistBonus(rt engineplayer.ChoiceRuntime, ctxData map[string]
 
 	rt.Log(fmt.Sprintf("%s 发动 [%s]，对 %s 造成%d点法术伤害", user.Name, skillName, target.Name, damage))
 	rt.PopInterrupt()
+	return nil
+}
+
+// handleFreezeDamageTargetChoice 处理冰冻第1步：选择伤害目标后切换到第2步
+func handleFreezeDamageTargetChoice(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
+	userID, _ := ctxData["user_id"].(string)
+	user := rt.GetPlayers()[userID]
+	if user == nil {
+		return fmt.Errorf("玩家不存在")
+	}
+
+	targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
+	if selectionIndex < 0 || selectionIndex >= len(targetIDs) {
+		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
+	}
+	damageTargetID := targetIDs[selectionIndex]
+	damageTarget := rt.GetPlayers()[damageTargetID]
+	if damageTarget == nil {
+		return fmt.Errorf("目标不存在")
+	}
+
+	// 存储伤害目标，切换到治疗目标选择阶段
+	allPlayerIDs := make([]string, 0, len(rt.GetPlayers()))
+	for _, p := range rt.GetAllPlayers() {
+		allPlayerIDs = append(allPlayerIDs, p.ID)
+	}
+
+	ctxData["damage_target_id"] = damageTargetID
+	ctxData["target_ids"] = allPlayerIDs
+	ctxData["choice_type"] = "elementalist_freeze_heal_target"
+
+	intr := rt.GetPendingInterrupt()
+	if intr != nil {
+		intr.Context = ctxData
+	}
+	rt.NotifyInterruptPrompt()
+	rt.Log(fmt.Sprintf("%s 的 [冰冻] 选择 %s 为法术伤害目标，继续选择治疗目标", user.Name, damageTarget.Name))
+	return nil
+}
+
+// handleFreezeHealTargetChoice 处理冰冻第2步：选择治疗目标后结算效果
+func handleFreezeHealTargetChoice(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
+	userID, _ := ctxData["user_id"].(string)
+	user := rt.GetPlayers()[userID]
+	if user == nil {
+		return fmt.Errorf("玩家不存在")
+	}
+
+	damageTargetID, _ := ctxData["damage_target_id"].(string)
+	damageTarget := rt.GetPlayers()[damageTargetID]
+	if damageTarget == nil {
+		return fmt.Errorf("伤害目标不存在")
+	}
+
+	targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
+	if selectionIndex < 0 || selectionIndex >= len(targetIDs) {
+		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
+	}
+	healTargetID := targetIDs[selectionIndex]
+	healTarget := rt.GetPlayers()[healTargetID]
+	if healTarget == nil {
+		return fmt.Errorf("治疗目标不存在")
+	}
+
+	// 检查是否有水系牌额外效果
+	if !user.HasElement(model.ElementWater) {
+		rt.InflictDamage(userID, damageTargetID, 1, model.MagicAttack)
+		rt.Heal(healTargetID, 1)
+		rt.Log(fmt.Sprintf("%s 发动 [冰冻]，对 %s 造成1点法术伤害，%s +1治疗", user.Name, damageTarget.Name, healTarget.Name))
+		rt.PopInterrupt()
+		return nil
+	}
+
+	matching := matchingElementCardIndices(user, model.ElementWater)
+	if len(matching) == 0 {
+		rt.InflictDamage(userID, damageTargetID, 1, model.MagicAttack)
+		rt.Heal(healTargetID, 1)
+		rt.Log(fmt.Sprintf("%s 发动 [冰冻]，对 %s 造成1点法术伤害，%s +1治疗", user.Name, damageTarget.Name, healTarget.Name))
+		rt.PopInterrupt()
+		return nil
+	}
+
+	// 有水系牌，切换到额外弃牌选择阶段
+	ctxData["heal_target_id"] = healTargetID
+	ctxData["base_damage"] = 1
+	ctxData["bonus_element"] = string(model.ElementWater)
+	ctxData["matching_indices"] = matching
+	ctxData["camp_gem_bonus"] = 0
+	ctxData["grant_attack"] = false
+	ctxData["grant_magic"] = false
+	ctxData["choice_type"] = "elementalist_bonus_card"
+
+	intr := rt.GetPendingInterrupt()
+	if intr != nil {
+		intr.Context = ctxData
+	}
+	rt.NotifyInterruptPrompt()
+	rt.Log(fmt.Sprintf("%s 的 [冰冻] 选择 %s 为治疗目标，可选择弃水系牌增强效果", user.Name, healTarget.Name))
 	return nil
 }
 
