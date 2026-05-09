@@ -193,12 +193,13 @@ function setSaintHealAllocation(index: number, value: number) {
 const canSubmitSaintHeal = computed(() => {
   if (!isSaintHealAllocatePrompt.value) return false
   if (saintHealAllocations.value.length === 0) return false
-  return saintHealAllocations.value.reduce((s, v) => s + (v || 0), 0) === SAINT_HEAL_TOTAL
+  // 允许总和 <= 3（不强制等于 3）
+  return saintHealAllocations.value.reduce((s, v) => s + (v || 0), 0) <= SAINT_HEAL_TOTAL
 })
 
 function submitSaintHealAllocation() {
   if (!canSubmitSaintHeal.value) {
-    showPromptError(`请将 ${SAINT_HEAL_TOTAL} 点治疗全部分配（剩余 ${saintHealRemaining.value} 点）`)
+    showPromptError(`治疗分配无效（总和不能超过 ${SAINT_HEAL_TOTAL}）`)
     return
   }
   actions.submitSelect([...saintHealAllocations.value])

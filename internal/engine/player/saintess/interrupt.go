@@ -69,7 +69,7 @@ func saintHealAllocationsFromContext(data map[string]interface{}, targetIDs []st
 	}
 	a := out[targetIDs[0]]
 	b := out[targetIDs[1]]
-	if a < 0 || b < 0 || a+b != 3 {
+	if a < 0 || b < 0 || a+b > 3 {
 		return nil, fmt.Errorf("圣疗双目标治疗分配无效")
 	}
 	return out, nil
@@ -145,15 +145,18 @@ func buildSaintHealPrompt(rt player.ChoiceRuntime) *model.Prompt {
 			return nil
 		}
 		// 选项顺序对应 selections：selections[0]=第一目标治疗点数，selections[1]=第二目标治疗点数。
-		// 前端据 ChoiceType 识别为分配模式，渲染每个目标独立的 0-3 数字选择器并约束总和=3。
+		// 前端据 ChoiceType 识别为分配模式，渲染每个目标独立的 0-3 数字选择器并约束总和<=3。
+		// 显示角色名和当前治疗量，便于玩家判断分配策略。
+		firstLabel := fmt.Sprintf("%s（治疗:%d）", first.Character.Name, first.Heal)
+		secondLabel := fmt.Sprintf("%s（治疗:%d）", second.Character.Name, second.Heal)
 		return &model.Prompt{
 			Type:       model.PromptConfirm,
 			ChoiceType: "saint_heal_allocate",
 			PlayerID:   interrupt.PlayerID,
-			Message:    "【圣疗】请分配 3 点治疗（两名角色之和等于 3，单项可为 0）：",
+			Message:    "【圣疗】请分配治疗（两名角色之和不超过 3，单项可为 0）：",
 			Options: []model.PromptOption{
-				{ID: targetIDs[0], Label: first.Name, Hint: "max:3"},
-				{ID: targetIDs[1], Label: second.Name, Hint: "max:3"},
+				{ID: targetIDs[0], Label: firstLabel, Hint: "max:3"},
+				{ID: targetIDs[1], Label: secondLabel, Hint: "max:3"},
 			},
 			Min:          2,
 			Max:          2,
