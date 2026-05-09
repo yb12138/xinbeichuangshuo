@@ -46,7 +46,7 @@ func (h *AdventurerFraudHandler) Execute(ctx *model.Context) error {
 		}
 	}
 	if !canPick {
-		return nil
+		return fmt.Errorf("欺诈需要至少2张同系手牌")
 	}
 	ctx.Game.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
