@@ -59,11 +59,11 @@ func TestSaintess_SaintHeal_TwoTargetSplitCanChooseMagicExtraAction(t *testing.T
 	})
 	requireSaintHealStage(t, game, "p1", "allocate_heal")
 
-	// 选择第二名目标获得2点治疗，自己获得1点治疗。
+	// 分配 1 点给 p1，2 点给 p2。
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID:   "p1",
 		Type:       model.CmdSelect,
-		Selections: []int{1},
+		Selections: []int{1, 2},
 	})
 	requireSaintHealStage(t, game, "p1", "choose_extra_action")
 
