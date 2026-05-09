@@ -107,17 +107,18 @@ type Action struct {
 
 // QueuedAction 队列中的行动（用于额外行动处理）
 type QueuedAction struct {
-	SourceID                    string     `json:"source_id"`                      // 发起者ID
-	TargetID                    string     `json:"target_id"`                      // 目标ID（攻击/法术的目标）
-	TargetIDs                   []string   `json:"target_ids,omitempty"`           // 多目标ID (新增支持)
-	Type                        ActionType `json:"type"`                           // Attack 或 Magic
-	Element                     Element    `json:"element"`                        // 可选：元素限制（如疾风技要求风系）
-	Card                        *Card      `json:"card"`                           // 可选：预定义的卡牌（如果已选择）
-	CardIndex                   int        `json:"card_index"`                     // 卡牌在手牌中的索引
-	SourceSkill                 string     `json:"source_skill"`                   // 来源技能ID（如疾风技、烈风技）
-	UsesVirtualCard             bool       `json:"uses_virtual_card,omitempty"`    // 是否为非手牌实体驱动的虚拟牌行动
-	HasDispatchedCardUsed       bool       `json:"has_dispatched_card_used"`       // 是否已触发卡牌使用事件
-	HasDispatchedAttackDeclared bool       `json:"has_dispatched_attack_declared"` // 是否已触发攻击开始（避免确认响应技能后再次触发）
+	SourceID                    string        `json:"source_id"`                      // 发起者ID
+	TargetID                    string        `json:"target_id"`                      // 目标ID（攻击/法术的目标）
+	TargetIDs                   []string      `json:"target_ids,omitempty"`           // 多目标ID (新增支持)
+	Type                        ActionType    `json:"type"`                           // Attack 或 Magic
+	Element                     Element       `json:"element"`                        // 可选：元素限制（如疾风技要求风系）
+	Card                        *Card         `json:"card"`                           // 可选：预定义的卡牌（如果已选择）
+	CardIndex                   int           `json:"card_index"`                     // 卡牌在手牌中的索引
+	SourceSkill                 string        `json:"source_skill"`                   // 来源技能ID（如疾风技、烈风技）
+	UsesVirtualCard             bool          `json:"uses_virtual_card,omitempty"`    // 是否为非手牌实体驱动的虚拟牌行动
+	HasDispatchedCardUsed       bool          `json:"has_dispatched_card_used"`       // 是否已触发卡牌使用事件
+	HasDispatchedAttackDeclared bool          `json:"has_dispatched_attack_declared"` // 是否已触发攻击开始（避免确认响应技能后再次触发）
+	SavedAttackEventCtx         *EventContext `json:"-"`                              // 攻击宣言时保存的事件上下文（响应技能中断后复用，技能可能修改 AttackInfo）
 }
 
 // CombatRequest 战斗请求（用于战斗交互阶段）

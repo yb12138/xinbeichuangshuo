@@ -251,31 +251,45 @@ func TestPreciseShot_ModifyDamage_ReducesOwnerAttack(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	g.State.CurrentTurn = 0
+	g.State.TurnStage = model.TurnStageActionExecution
+
 	p1 := g.State.Players["p1"]
 	p2 := g.State.Players["p2"]
+	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
+	p2.TurnState = model.NewPlayerTurnState()
+	p2.Heal = 0
 
-	card := model.Card{
-		ID:              "atk-2",
-		Name:            "雷光斩",
-		Type:            model.CardTypeAttack,
-		Element:         model.ElementThunder,
-		Damage:          2,
-		Faction:         "技",
-		ExclusiveChar1:  "blade_master",
-		ExclusiveChar2:  "archer",
-		ExclusiveSkill1: "列风技",
-		ExclusiveSkill2: "精准射击",
+	p1.Hand = []model.Card{
+		{
+			ID:              "atk-2",
+			Name:            "雷光斩",
+			Type:            model.CardTypeAttack,
+			Element:         model.ElementThunder,
+			Damage:          2,
+			Faction:         "技",
+			ExclusiveChar1:  "blade_master",
+			ExclusiveChar2:  "archer",
+			ExclusiveSkill1: "列风技",
+			ExclusiveSkill2: "精准射击",
+		},
 	}
 
-	damage := g.ApplyAttackDamageModifiers(p1, p2, 2, model.Action{
-		SourceID: p1.ID,
-		TargetID: p2.ID,
-		Type:     model.ActionAttack,
-		Card:     &card,
+	testutils.MustHandleAction(t, g, model.PlayerAction{
+		PlayerID:  "p1",
+		Type:      model.CmdAttack,
+		TargetID:  "p2",
+		CardIndex: 0,
 	})
-	if damage != 1 {
-		t.Fatalf("expected precise shot to reduce owner attack damage to 1, got %d", damage)
+
+	// 精准射击为可选响应，确认发动后强制命中且伤害-1
+	testutils.ChooseResponseSkillByID(t, g, "p1", "precise_shot")
+	g.Drive()
+
+	// 伤害 = 2 - 1 = 1，目标摸1张牌
+	if len(p2.Hand) != 1 {
+		t.Fatalf("expected precise shot to reduce owner attack damage to 1 (draw 1), got hand=%d", len(p2.Hand))
 	}
 }
 

@@ -704,18 +704,35 @@ function shouldUseNumericButtonMode(options: RawDockOption[]): { useNumeric: boo
   if (!prompt.value || options.length < 2) return { useNumeric: false, plusOne: false }
   if (prompt.value.type === 'choose_card' || prompt.value.type === 'choose_cards') return { useNumeric: false, plusOne: false }
   const numericIds: number[] = []
-  let hasLongLabel = false
-  let hasXHint = /[xXＸ]/.test(String(prompt.value.message || ''))
   for (const option of options) {
     const n = parseNonNegativeOptionId(option.id)
     if (n !== null) numericIds.push(n)
-    const label = String(option.label || '').trim()
-    if (label.length >= 8 || label.includes('分支')) hasLongLabel = true
-    if (/[xXＸ]\s*=/.test(label) || /[xXＸ]值/.test(label) || /[xXＸ]/.test(label)) hasXHint = true
   }
-  if (numericIds.length < 2 || (!hasLongLabel && !hasXHint)) {
+  if (numericIds.length < 2) return { useNumeric: false, plusOne: false }
+
+  // 仅当选项是真正的数值选择时才用数字模式：
+  // 1. X值选择：消息或 label 包含 X
+  // 2. 治疗选择：消息包含"治疗/抵消"或 label 包含数量语义
+  // 其他所有场景（分支选择、模式选择、确认等）一律文本模式
+  const message = String(prompt.value.message || '')
+  const hasXHint = /[xXＸ]/.test(message)
+  let labelHasX = false
+  for (const option of options) {
+    const label = String(option.label || '').trim()
+    if (/[xXＸ]\s*=/.test(label) || /[xXＸ]值/.test(label) || /[xXＸ]/.test(label)) labelHasX = true
+  }
+  const isHealChoice = message.includes('治疗') || message.includes('抵消')
+  const labelHasHeal = options.some((option) => {
+    const label = String(option.label || '').trim()
+    return /使用\s*\d+\s*点/.test(label) || label.includes('治疗') || label.includes('抵消')
+  })
+
+  if (!hasXHint && !labelHasX && !isHealChoice && !labelHasHeal) {
     return { useNumeric: false, plusOne: false }
   }
+
+  // 治疗选择：ID 就是实际值，不应 +1
+  if (isHealChoice || labelHasHeal) return { useNumeric: true, plusOne: false }
   const minNumeric = Math.min(...numericIds)
   return { useNumeric: true, plusOne: minNumeric === 0 }
 }

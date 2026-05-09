@@ -115,18 +115,24 @@ func (e *GameEngine) driveBeforeActionAttack(currentPid string, player *model.Pl
 
 	e.recordAttackTargetLifecycle(player, targetID)
 
-	eventCtx := &model.EventContext{
-		Type:     model.EventAttack,
-		SourceID: currentPid,
-		TargetID: targetID,
-		Card:     head.Card,
-		AttackInfo: &model.AttackEventInfo{
-			IsHit:            false,
-			CanBeResponded:   true,
-			ActionType:       string(model.ActionAttack),
-			CounterInitiator: "",
-			InterceptTags:    map[model.CombatInterceptTag]bool{},
-		},
+	// 复用已保存的事件上下文（响应技能中断后恢复时，技能可能已修改 AttackInfo）
+	var eventCtx *model.EventContext
+	if head.HasDispatchedAttackDeclared && head.SavedAttackEventCtx != nil {
+		eventCtx = head.SavedAttackEventCtx
+	} else {
+		eventCtx = &model.EventContext{
+			Type:     model.EventAttack,
+			SourceID: currentPid,
+			TargetID: targetID,
+			Card:     head.Card,
+			AttackInfo: &model.AttackEventInfo{
+				IsHit:            false,
+				CanBeResponded:   true,
+				ActionType:       string(model.ActionAttack),
+				CounterInitiator: "",
+				InterceptTags:    map[model.CombatInterceptTag]bool{},
+			},
+		}
 	}
 
 	if !head.HasDispatchedAttackDeclared {
@@ -137,6 +143,8 @@ func (e *GameEngine) driveBeforeActionAttack(currentPid string, player *model.Pl
 		cardSnapshot := *head.Card
 		player.TurnState.LastActionCard = &cardSnapshot
 		e.dispatcher.OnTiming(attackStartCtx.Timing, attackStartCtx)
+		// 保存事件上下文，响应技能中断后复用（技能可能修改了 AttackInfo）
+		head.SavedAttackEventCtx = eventCtx
 		if e.State.PendingInterrupt != nil {
 			return driveStop
 		}

@@ -391,14 +391,14 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetAny,
 				},
 				{
-					ID: "precise_shot", Timings: []model.FlowTiming{model.TimingOnAttackDeclared, model.TimingOnDamageCalculated}, Title: "精准射击",
+					ID: "precise_shot", Timings: []model.FlowTiming{model.TimingOnAttackDeclared}, Title: "精准射击",
 					Type:        model.SkillTypeResponse,
 					Tags:        []model.SkillTag{model.TagUnique},
 					Description: "此攻击强制命中，但本次攻击伤害-1。",
 
-					RequiredRole:     model.RoleAttacker,   // Only runs when attacking
-					RequireExclusive: true,                 // 必须打出独有牌
-					ResponseType:     model.ResponseSilent, // 文档口径：打出该独有牌时自动生效
+					RequiredRole:     model.RoleAttacker,     // Only runs when attacking
+					RequireExclusive: true,                   // 必须打出独有牌
+					ResponseType:     model.ResponseOptional, // 打出独有牌时询问是否发动
 					LogicHandler:     "precise_shot",
 					TargetType:       model.TargetNone,
 				},

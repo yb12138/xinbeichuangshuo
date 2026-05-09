@@ -12,6 +12,9 @@ func RoleEntry() player.RoleEntry {
 		ID:      "archer",
 		Choices: NewChoiceHandler(),
 		Skills:  SkillEntries(),
+		TimingHookSpecs: []player.TimingHookSpec{
+			{Timing: player.TimingOnDamageCalculate, Priority: 350, Hook: damageCalculateHook},
+		},
 	}
 }
 

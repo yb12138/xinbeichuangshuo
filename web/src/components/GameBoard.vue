@@ -1526,6 +1526,7 @@ function handleResize() {
   if (drawBursts.value.length > 0) {
     rebuildDrawFlights()
   }
+  rebuildLinkLines()
 }
 
 function toggleExpansionCards() {
@@ -1555,6 +1556,92 @@ function dissolveRoomByHost() {
   if (!confirmed) return
   actions.sendRoomAction('dissolve_room')
 }
+
+// === 双人关联连线 ===
+const LINK_EFFECT_COLORS: Record<string, string> = {
+  SoulLink: 'rgba(139, 92, 246, 0.9)',
+  HeroTaunt: 'rgba(239, 68, 68, 0.9)',
+  BloodSharedLife: 'rgba(244, 63, 94, 0.9)',
+}
+
+type LinkLine = {
+  id: string
+  path: string
+  color: string
+}
+
+const linkLines = ref<LinkLine[]>([])
+
+function buildLinkPath(x1: number, y1: number, x2: number, y2: number): string {
+  const mx = (x1 + x2) / 2
+  const my = (y1 + y2) / 2
+  const dist = Math.hypot(x2 - x1, y2 - y1)
+  const offset = Math.min(dist * 0.3, 60)
+  return `M ${x1} ${y1} Q ${mx} ${my - offset} ${x2} ${y2}`
+}
+
+function rebuildLinkLines() {
+  const root = boardRootRef.value
+  if (!root) { linkLines.value = []; return }
+
+  const allPlayers = players.value
+  if (!allPlayers) { linkLines.value = []; return }
+
+  const rootRect = root.getBoundingClientRect()
+  const seen = new Set<string>()
+  const lines: LinkLine[] = []
+
+  for (const player of Object.values(allPlayers) as PlayerView[]) {
+    if (!player.field?.length) continue
+    for (const fc of player.field) {
+      if (fc.mode !== 'Effect' || !LINK_EFFECT_COLORS[fc.effect]) continue
+      const sourceId = fc.source_id
+      const ownerId = player.id
+      if (!sourceId || sourceId === ownerId) continue
+
+      const pairKey = [sourceId, ownerId].sort().join('|') + '|' + fc.effect
+      if (seen.has(pairKey)) continue
+      seen.add(pairKey)
+
+      const srcEl = root.querySelector<HTMLElement>(`[data-player-anchor="${sourceId}"]`)
+      const tgtEl = root.querySelector<HTMLElement>(`[data-player-anchor="${ownerId}"]`)
+      if (!srcEl || !tgtEl) continue
+
+      const srcRect = srcEl.getBoundingClientRect()
+      const tgtRect = tgtEl.getBoundingClientRect()
+      const x1 = srcRect.left + srcRect.width / 2 - rootRect.left
+      const y1 = srcRect.top + srcRect.height / 2 - rootRect.top
+      const x2 = tgtRect.left + tgtRect.width / 2 - rootRect.left
+      const y2 = tgtRect.top + tgtRect.height / 2 - rootRect.top
+
+      lines.push({
+        id: pairKey,
+        path: buildLinkPath(x1, y1, x2, y2),
+        color: LINK_EFFECT_COLORS[fc.effect],
+      })
+    }
+  }
+
+  linkLines.value = lines
+}
+
+function refreshLinkLinesSoon() {
+  nextTick(() => rebuildLinkLines())
+}
+
+watch(
+  () => {
+    const allPlayers = players.value
+    if (!allPlayers) return ''
+    return Object.values(allPlayers)
+      .map((p: PlayerView) => (p.field || []).filter(fc => fc.mode === 'Effect' && LINK_EFFECT_COLORS[fc.effect]).map(fc => `${p.id}:${fc.effect}:${fc.source_id}`).join(','))
+      .join('|')
+  },
+  () => refreshLinkLinesSoon(),
+  { immediate: true }
+)
+
+// 窗口 resize 时也更新连线坐标（已集成到 handleResize）
 </script>
 
 <template>
@@ -1950,11 +2037,45 @@ function dissolveRoomByHost() {
         </div>
       </div>
     </Transition>
+    <!-- 双人关联连线 SVG 层 -->
+    <svg v-if="linkLines.length" class="link-lines-layer" aria-hidden="true">
+      <defs>
+        <filter id="link-glow">
+          <feGaussianBlur stdDeviation="2" result="blur" />
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+      <path
+        v-for="link in linkLines"
+        :key="link.id"
+        :d="link.path"
+        :stroke="link.color"
+        stroke-width="1.5"
+        fill="none"
+        opacity="0.18"
+        stroke-dasharray="6 4"
+        filter="url(#link-glow)"
+        class="link-line"
+      />
+    </svg>
     <VfxLayer />
   </div>
 </template>
 
 <style scoped>
+.link-lines-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 50;
+  pointer-events: none;
+  overflow: visible;
+}
+.link-line {
+  transition: opacity 0.3s ease;
+}
+
 .game-end-enter-active,
 .game-end-leave-active {
   transition: opacity 0.24s ease;
