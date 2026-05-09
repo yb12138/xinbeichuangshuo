@@ -80,6 +80,13 @@ func (e *GameEngine) handleInterruptStartupSkillAction(act model.PlayerAction) (
 
 func (e *GameEngine) skipResponseActionResult() (intr.ActionResult, error) {
 	before := e.State.PendingInterrupt
+	if missileInterrupt, ok := magicMissileInterruptFromResponse(before); ok {
+		return intr.ActionResult{Consumed: true, AfterPop: func(intr.EngineInterface) {
+			e.State.PendingInterrupt = missileInterrupt
+			e.syncGamePhaseWithInterrupt(missileInterrupt)
+			e.NotifyInterruptPrompt()
+		}}, nil
+	}
 	if !isBeforeDrawResponseInterrupt(before) && e.maybeAdvanceResponseSkillSelection() {
 		return intr.ActionResult{}, nil
 	}
@@ -88,6 +95,21 @@ func (e *GameEngine) skipResponseActionResult() (intr.ActionResult, error) {
 		e.runTimingOnResponseSkipEffects(&state)
 		e.restoreSkippedResponseAfterPop(state)
 	}}, nil
+}
+
+func magicMissileInterruptFromResponse(intr *model.Interrupt) (*model.Interrupt, bool) {
+	if intr == nil || intr.Type != model.InterruptResponseSkill {
+		return nil, false
+	}
+	ctx, ok := intr.Context.(*model.Context)
+	if !ok || ctx == nil || ctx.Selections == nil {
+		return nil, false
+	}
+	missileInterrupt, ok := ctx.Selections["magic_missile_interrupt"].(*model.Interrupt)
+	if !ok || missileInterrupt == nil || missileInterrupt.Type != model.InterruptMagicMissile {
+		return nil, false
+	}
+	return cloneInterrupt(missileInterrupt), true
 }
 
 func (e *GameEngine) handleInterruptGiveCardsAction(act model.PlayerAction) (intr.ActionResult, error) {

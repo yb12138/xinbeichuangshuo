@@ -141,9 +141,10 @@ type MagicBulletOps interface {
 	SetMagicBulletChain(chain *model.MagicBulletChain)
 	GetPlayableCardByIndex(player *model.Player, idx int) (model.Card, bool)
 	ConsumePlayableCardByIndex(player *model.Player, idx int) (model.Card, error)
-	PerformMagic(playerID, targetID string, cardIdx int, isFusion bool) error
+	PerformMagic(playerID, targetID string, cardIdx int) error
 	ExecuteMagicBullet(player *model.Player, reverse, isFusion bool, fusionCard *model.Card) error
 	FindNextMagicBulletTarget(playerID string) string
+	OfferMagicMissileResponseSkills()
 	DispatchHitCheckMagicMissileCounter(player *model.Player, chain *model.MagicBulletChain, card *model.Card) error
 	DispatchHitCheckMagicMissileDefend(player *model.Player, chain *model.MagicBulletChain) error
 }

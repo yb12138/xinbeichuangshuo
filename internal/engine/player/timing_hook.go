@@ -30,19 +30,20 @@ const (
 	TimingOnAttackMiss       TimingPoint = "on_attack_miss"        // 攻击未命中后
 
 	// 新增 - 命中判定阶段
-	TimingOnHitCheck               TimingPoint = "on_hit_check"                // 命中判定
-	TimingOnCounterPolicy          TimingPoint = "on_counter_policy"           // 反击策略
-	TimingOnDefendValidation       TimingPoint = "on_defend_validation"        // 防御验证
-	TimingOnResponseSkillAug       TimingPoint = "on_response_skill_aug"       // 响应技能增强
-	TimingOnResponseSkillNormalize TimingPoint = "on_response_skill_normalize" // 响应技能规范化
-	TimingOnResponseSkillAdvance   TimingPoint = "on_response_skill_advance"   // 响应技能推进（格斗家蓄力→气绝）
-	TimingOnResponseSkillSkip      TimingPoint = "on_response_skill_skip"      // 响应技能跳过后（圣枪圣击）
-	TimingOnCombatInteraction      TimingPoint = "on_combat_interaction"       // 战斗交互（阴阳师绑定等）
-	TimingOnCounterCardPolicy      TimingPoint = "on_counter_card_policy"      // 反击卡牌策略
-	TimingOnCounterElementCheck    TimingPoint = "on_counter_element_check"    // 反击元素检查
-	TimingOnCounterResolve         TimingPoint = "on_counter_resolve"          // 反击结算
-	TimingOnMagicMissileDefend     TimingPoint = "on_magic_missile_defend"     // 魔弹链防御验证
-	TimingOnMagicMissileCounter    TimingPoint = "on_magic_missile_counter"    // 魔弹链反击验证
+	TimingOnHitCheck                     TimingPoint = "on_hit_check"                        // 命中判定
+	TimingOnCounterPolicy                TimingPoint = "on_counter_policy"                   // 反击策略
+	TimingOnDefendValidation             TimingPoint = "on_defend_validation"                // 防御验证
+	TimingOnResponseSkillAug             TimingPoint = "on_response_skill_aug"               // 响应技能增强
+	TimingOnResponseSkillNormalize       TimingPoint = "on_response_skill_normalize"         // 响应技能规范化
+	TimingOnResponseSkillAdvance         TimingPoint = "on_response_skill_advance"           // 响应技能推进（格斗家蓄力→气绝）
+	TimingOnResponseSkillSkip            TimingPoint = "on_response_skill_skip"              // 响应技能跳过后（圣枪圣击）
+	TimingOnCombatInteraction            TimingPoint = "on_combat_interaction"               // 战斗交互（阴阳师绑定等）
+	TimingOnCounterCardPolicy            TimingPoint = "on_counter_card_policy"              // 反击卡牌策略
+	TimingOnCounterElementCheck          TimingPoint = "on_counter_element_check"            // 反击元素检查
+	TimingOnCounterResolve               TimingPoint = "on_counter_resolve"                  // 反击结算
+	TimingOnMagicMissileDefend           TimingPoint = "on_magic_missile_defend"             // 魔弹链防御验证
+	TimingOnMagicMissileCounter          TimingPoint = "on_magic_missile_counter"            // 魔弹链反击验证
+	TimingOnMagicMissileResponseSkillAug TimingPoint = "on_magic_missile_response_skill_aug" // 魔弹响应技能增强
 
 	// 新增 - 伤害阶段
 	TimingOnDamageCalculate   TimingPoint = "on_damage_calculate"    // 伤害计算（被动增伤）

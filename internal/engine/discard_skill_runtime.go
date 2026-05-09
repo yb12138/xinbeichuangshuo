@@ -96,6 +96,7 @@ func (e *GameEngine) handleContextSkillDiscardSelection(skillID string, indices 
 		ctx.Selections = make(map[string]any)
 	}
 	ctx.Selections["discard_indices"] = indices
+	wasBeforeDraw := ctx.BeforeDrawPhase()
 
 	handler := skills.GetHandler(skillID)
 	if handler == nil {
@@ -111,7 +112,7 @@ func (e *GameEngine) handleContextSkillDiscardSelection(skillID string, indices 
 	if discardedCards, ok := ctx.Selections["discardedCards"].([]model.Card); ok {
 		e.State.DiscardPile = append(e.State.DiscardPile, discardedCards...)
 	}
-	if ctx.BeforeDrawPhase() {
+	if wasBeforeDraw {
 		e.resumePendingDraw(ctx)
 	}
 
@@ -126,6 +127,19 @@ func (e *GameEngine) handleContextSkillDiscardSelection(skillID string, indices 
 
 	e.PopInterrupt()
 	if e.State.PendingInterrupt == nil {
+		if missileInterrupt, ok := ctx.Selections["magic_missile_interrupt"].(*model.Interrupt); ok && missileInterrupt != nil {
+			if e.resumeMagicMissileAfterResponseSkill(ctx, missileInterrupt) {
+				return nil
+			}
+			e.State.PendingInterrupt = missileInterrupt
+			e.syncGamePhaseWithInterrupt(missileInterrupt)
+			e.NotifyInterruptPrompt()
+			return nil
+		}
+		if wasBeforeDraw {
+			e.restorePhaseAfterInterruptedDraw(ctx)
+			return nil
+		}
 		e.ResumePhaseAfterSkillDiscardContext(ctx)
 	}
 	return nil

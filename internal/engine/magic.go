@@ -9,13 +9,8 @@ import (
 	"starcup-engine/internal/model"
 )
 
-// PerformMagic 发动法术（含魔弹融合是否询问等入口逻辑）。
+// PerformMagic 发动法术。
 func (e *GameEngine) PerformMagic(sourceID, targetID string, cardIdx int) error {
-	return e.performMagic(sourceID, targetID, cardIdx, false)
-}
-
-// performMagic 发动法术。skipMagicBulletFusionCheck 为 true 时不弹出魔弹融合询问，用于中断里已选「正常使用」后的重入，避免死循环。
-func (e *GameEngine) performMagic(sourceID, targetID string, cardIdx int, skipMagicBulletFusionCheck bool) error {
 	// 1. 验证阶段
 	if e.State.Subflow != model.SubflowNone ||
 		e.State.CombatStage != model.CombatStageNone ||
@@ -65,22 +60,6 @@ func (e *GameEngine) performMagic(sourceID, targetID string, cardIdx int, skipMa
 		}
 	} else if card.Name != "魔弹" {
 		return errors.New("该法术需要指定目标")
-	}
-
-	// 【魔弹融合】检查：魔法少女使用地系或火系非魔弹法术牌时，询问是否当魔弹使用
-	if !skipMagicBulletFusionCheck && roleRegistry.Entry(player.Character.ID).MagicBullet.CanFuse && card.Name != "魔弹" &&
-		(card.Element == model.ElementEarth || card.Element == model.ElementFire) {
-		// 先不移除手牌，等玩家确认后再处理
-		e.PushInterrupt(&model.Interrupt{
-			Type:     model.InterruptMagicBulletFusion,
-			PlayerID: player.ID,
-			Context: map[string]interface{}{
-				"card_idx":  cardIdx,
-				"target_id": targetID,
-			},
-		})
-		e.Log(fmt.Sprintf("[Skill] %s 可以发动【魔弹融合】将 %s 当魔弹使用", player.Name, card.Name))
-		return nil
 	}
 
 	if target != nil {
@@ -280,6 +259,7 @@ func (e *GameEngine) executeMagicBullet(player *model.Player, reverse bool, isFu
 			"source_id": player.ID,
 		},
 	})
+	e.offerMagicMissileResponseSkills()
 
 	direction := "顺时针"
 	if reverse {
@@ -294,4 +274,92 @@ func (e *GameEngine) executeMagicBullet(player *model.Player, reverse bool, isFu
 	}
 
 	return nil
+}
+
+func (e *GameEngine) offerMagicMissileResponseSkills() {
+	if e == nil || e.State == nil || e.State.PendingInterrupt == nil || e.State.PendingInterrupt.Type != model.InterruptMagicMissile {
+		return
+	}
+	chain := e.State.MagicBulletChain
+	if chain == nil || chain.TargetID == "" {
+		return
+	}
+	player := e.State.Players[chain.TargetID]
+	if player == nil {
+		return
+	}
+	skillIDs := e.applyTimingOnMagicMissileResponseSkillAugment(nil, player, chain)
+	if len(skillIDs) == 0 {
+		return
+	}
+
+	missileInterrupt := cloneInterrupt(e.State.PendingInterrupt)
+	ctx := e.BuildContext(player, player, model.TimingOnHitCheck, &model.EventContext{
+		Type:     model.EventMagic,
+		SourceID: chain.SourcePlayerID,
+		TargetID: chain.TargetID,
+	})
+	ctx.Selections["magic_missile_interrupt"] = missileInterrupt
+	ctx.Selections["magic_missile_response"] = true
+	ctx.Selections["magic_missile_chain"] = chain
+	e.State.PendingInterrupt = &model.Interrupt{
+		Type:     model.InterruptResponseSkill,
+		PlayerID: player.ID,
+		SkillIDs: skillIDs,
+		Context:  ctx,
+	}
+	e.syncGamePhaseWithInterrupt(e.State.PendingInterrupt)
+	e.NotifyInterruptPrompt()
+}
+
+func cloneInterrupt(intr *model.Interrupt) *model.Interrupt {
+	if intr == nil {
+		return nil
+	}
+	copied := *intr
+	copied.SkillIDs = append([]string{}, intr.SkillIDs...)
+	return &copied
+}
+
+func (e *GameEngine) resumeMagicMissileAfterResponseSkill(ctx *model.Context, missileInterrupt *model.Interrupt) bool {
+	if e == nil || ctx == nil || missileInterrupt == nil {
+		return false
+	}
+	chain, _ := ctx.Selections["magic_missile_chain"].(*model.MagicBulletChain)
+	if chain == nil || chain.TargetID == "" || ctx.User == nil {
+		return false
+	}
+	resolved, _ := ctx.Selections["magic_missile_fusion_chain_resolved"].(bool)
+	if !resolved {
+		return false
+	}
+	aliveCount := len(e.State.PlayerOrder)
+	if len(chain.InvolvedIDs) >= aliveCount {
+		e.Log("[Magic] 本轮魔弹传递已覆盖所有角色，魔弹结算结束")
+		e.State.MagicBulletChain = nil
+		return true
+	}
+	nextTargetID := e.findNextMagicBulletTarget(ctx.User.ID)
+	if nextTargetID == "" {
+		e.Log("[Magic] 没有下一个目标，魔弹失效")
+		e.State.MagicBulletChain = nil
+		return true
+	}
+	nextTarget := e.State.Players[nextTargetID]
+	chain.TargetID = nextTargetID
+	missileInterrupt.PlayerID = nextTargetID
+	missileInterrupt.Context = map[string]interface{}{
+		"damage":    chain.CurrentDamage,
+		"source_id": ctx.User.ID,
+	}
+	e.State.PendingInterrupt = missileInterrupt
+	e.syncGamePhaseWithInterrupt(missileInterrupt)
+	e.offerMagicMissileResponseSkills()
+	if e.State.PendingInterrupt == missileInterrupt {
+		e.NotifyInterruptPrompt()
+	}
+	if nextTarget != nil {
+		e.Log(fmt.Sprintf("[Magic] 魔弹指向 %s (伤害: %d)，等待响应...", nextTarget.Name, chain.CurrentDamage))
+	}
+	return true
 }

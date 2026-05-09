@@ -49,11 +49,55 @@ func TestAssassinWaterShadow_InterruptsNormalDrawAndPublicReveal(t *testing.T) {
 	if game.State.PendingInterrupt != nil {
 		t.Fatalf("expected draw replacement to resolve cleanly, got %+v", game.State.PendingInterrupt)
 	}
-	if got := len(p1.Hand); got != 2 {
-		t.Fatalf("expected hand size 2 after replacing 1 draw with 1 public discard, got %d", got)
+	if got := len(p1.Hand); got != 3 {
+		t.Fatalf("expected hand size 3 after discarding 1 water card then drawing 2, got %d", got)
 	}
 	if reveal := testutils.FindPublicDiscardReveal(obs, "p1"); reveal == nil {
 		t.Fatalf("expected water shadow discard to emit public reveal event")
+	}
+}
+
+func TestAssassinWaterShadow_DiscardMultipleWaterCardsDoesNotReduceDrawCount(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Assassin", "assassin", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Dummy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	game.State.CurrentTurn = 0
+	game.State.Deck = rules.InitDeck()
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Hand = []model.Card{
+		{ID: "water-1", Name: "水弹", Type: model.CardTypeMagic, Element: model.ElementWater},
+		{ID: "water-2", Name: "水刃", Type: model.CardTypeAttack, Element: model.ElementWater, Damage: 1},
+		{ID: "fire-1", Name: "火球", Type: model.CardTypeMagic, Element: model.ElementFire},
+	}
+
+	game.DrawCards("p1", 2)
+
+	testutils.RequireResponseSkillPrompt(t, game, "p1")
+	testutils.ChooseResponseSkillByID(t, game, "p1", "water_shadow")
+	if game.State.PendingInterrupt == nil || !engine.IsDiscardSelectionInterrupt(game.State.PendingInterrupt) {
+		t.Fatalf("expected discard interrupt for water shadow, got %+v", game.State.PendingInterrupt)
+	}
+
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{0, 1},
+	})
+
+	if game.State.PendingInterrupt != nil {
+		t.Fatalf("expected water shadow to resolve cleanly, got %+v", game.State.PendingInterrupt)
+	}
+	if got := len(p1.Hand); got != 3 {
+		t.Fatalf("expected hand size 3 after discarding 2 water cards then drawing 2, got %d", got)
 	}
 }
 
@@ -120,8 +164,8 @@ func TestAssassinStealth_DrawChoiceDelaysStealthUntilDrawResolves(t *testing.T) 
 	if !playerpkg.HasForm(p1, model.FormAssassinStealth) {
 		t.Fatalf("expected stealth continuation to apply after the interrupted draw path resolves")
 	}
-	if got := len(p1.Hand); got != 1 {
-		t.Fatalf("expected draw to be replaced by 1 discard, leaving 1 card in hand, got %d", got)
+	if got := len(p1.Hand); got != 2 {
+		t.Fatalf("expected 2 cards after discarding 1 water card then drawing 1 (draw count unchanged), got %d", got)
 	}
 	if got := game.GetMaxHand(p1); got != 5 {
 		t.Fatalf("expected stealth hand limit to be 5, got %d", got)

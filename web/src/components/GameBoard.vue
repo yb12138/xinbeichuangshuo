@@ -1294,7 +1294,7 @@ function cardPassesSkillDiscardRules(idx: number): PromptCardSelectionState {
       error: `需要弃置${skill.discard_type === 'Magic' ? '法术' : '攻击'}牌`,
     }
   }
-  if (skill.id === 'magic_bullet_fusion' && card.element !== 'Fire' && card.element !== 'Earth') {
+  if ((skill.id === 'magic_bullet_fusion' || skill.id === 'magic_bullet_fusion_chain') && card.element !== 'Fire' && card.element !== 'Earth') {
     return {
       selectable: false,
       reason: 'skill_discard_magic_bullet_fusion_mismatch',
@@ -1617,7 +1617,7 @@ function rebuildLinkLines() {
       lines.push({
         id: pairKey,
         path: buildLinkPath(x1, y1, x2, y2),
-        color: LINK_EFFECT_COLORS[fc.effect],
+        color: LINK_EFFECT_COLORS[fc.effect]!,
       })
     }
   }

@@ -5,6 +5,7 @@ package magical_girl
 import (
 	"starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
+	"starcup-engine/internal/types"
 )
 
 // RoleEntry 导出角色统一入口定义。
@@ -14,6 +15,9 @@ func RoleEntry() player.RoleEntry {
 		MagicBullet: player.MagicBulletAbilities{CanFuse: true, CanDirect: true},
 		Choices:     NewChoiceHandler(),
 		Skills:      SkillEntries(),
+		TimingHookSpecs: []player.TimingHookSpec{
+			{Timing: player.TimingOnMagicMissileResponseSkillAug, Priority: 100, Hook: magicMissileResponseSkillAugHook},
+		},
 		InterruptSpecs: []player.InterruptSpec{
 			{
 				Type:                 model.InterruptMagicMissile,
@@ -23,14 +27,7 @@ func RoleEntry() player.RoleEntry {
 				AllowedActionTypes:   []model.PlayerActionType{model.CmdRespond},
 				InvalidActionMessage: "当前为【魔弹】响应阶段，请使用响应指令",
 			},
-			{
-				Type:                 model.InterruptMagicBulletFusion,
-				PhaseSync:            player.InterruptPhaseSyncActionExecution,
-				BuildPrompt:          buildMagicBulletFusionPrompt,
-				HandleActionResult:   handleMagicBulletFusionAction,
-				AllowedActionTypes:   []model.PlayerActionType{model.CmdSelect},
-				InvalidActionMessage: "当前为【魔弹融合】确认阶段，请选择是否发动",
-			},
+
 			{
 				Type:                 model.InterruptMagicBulletDirection,
 				PhaseSync:            player.InterruptPhaseSyncActionExecution,
@@ -55,7 +52,10 @@ func RoleEntry() player.RoleEntry {
 func SkillEntries() []player.SkillEntry {
 	return []player.SkillEntry{
 		{ID: "magic_bullet_control", Handler: &MagicBulletControlHandler{}},
-		{ID: "magic_bullet_fusion", Handler: &MagicBulletFusionHandler{}},
+		{ID: "magic_bullet_fusion", Handler: &MagicBulletFusionHandler{}, Policy: types.SkillPolicy{
+			ValidateDiscardedCards: validateFusionDiscard,
+		}},
+		{ID: "magic_bullet_fusion_chain", Handler: &MagicBulletFusionChainHandler{}},
 		{ID: "magic_blast", Handler: &MagicBlastHandler{}},
 		{ID: "destruction_storm", Handler: &DestructionStormHandler{}},
 	}

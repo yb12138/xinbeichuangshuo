@@ -594,7 +594,9 @@ function cardMatchesSkillDiscard(card: { type: string; element: string; faction?
     }
     if (skill.discard_type && card.type !== skill.discard_type) return false
     if (skill.discard_element) return card.element === skill.discard_element
-    if (skill.id === 'magic_bullet_fusion') return card.element === 'Fire' || card.element === 'Earth'
+    if (skill.id === 'magic_bullet_fusion' || skill.id === 'magic_bullet_fusion_chain') {
+      return card.element === 'Fire' || card.element === 'Earth'
+    }
     return true
 }
 
@@ -763,7 +765,7 @@ function skillDisabledReason(skill: AvailableSkill): string {
     if (skill.id === 'magic_blast') {
         return '手牌中没有法术牌，无法发动【魔爆冲击】。'
     }
-    if (skill.id === 'magic_bullet_fusion') {
+    if (skill.id === 'magic_bullet_fusion' || skill.id === 'magic_bullet_fusion_chain') {
         return '需要弃置1张火系或地系牌，才能发动【魔弹融合】。'
     }
     if (skill.cost_discards > 0) {
@@ -1010,7 +1012,7 @@ function skillDiscardGuideText(skill: AvailableSkill): string {
     if (skill.id === 'priest_water_power') {
         return '第一张需水系；若仍有手牌，第二张将交给目标队友'
     }
-    if (skill.id === 'magic_bullet_fusion') {
+    if (skill.id === 'magic_bullet_fusion' || skill.id === 'magic_bullet_fusion_chain') {
         return '需要火系或地系牌'
     }
     if (skill.id === 'onmyoji_shikigami_descend') {

@@ -452,11 +452,11 @@ func (r roleChoiceRuntime) ConsumePlayableCardByIndex(player *model.Player, idx 
 	return r.GameEngine.consumePlayableCardByIndex(player, idx)
 }
 
-func (r roleChoiceRuntime) PerformMagic(playerID, targetID string, cardIdx int, isFusion bool) error {
+func (r roleChoiceRuntime) PerformMagic(playerID, targetID string, cardIdx int) error {
 	if r.GameEngine == nil {
 		return fmt.Errorf("engine not available")
 	}
-	return r.performMagic(playerID, targetID, cardIdx, isFusion)
+	return r.GameEngine.PerformMagic(playerID, targetID, cardIdx)
 }
 
 func (r roleChoiceRuntime) ExecuteMagicBullet(player *model.Player, reverse, isFusion bool, fusionCard *model.Card) error {
@@ -471,6 +471,13 @@ func (r roleChoiceRuntime) FindNextMagicBulletTarget(playerID string) string {
 		return ""
 	}
 	return r.findNextMagicBulletTarget(playerID)
+}
+
+func (r roleChoiceRuntime) OfferMagicMissileResponseSkills() {
+	if r.GameEngine == nil {
+		return
+	}
+	r.offerMagicMissileResponseSkills()
 }
 
 func (r roleChoiceRuntime) DispatchHitCheckMagicMissileCounter(player *model.Player, chain *model.MagicBulletChain, card *model.Card) error {

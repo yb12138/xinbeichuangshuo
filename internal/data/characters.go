@@ -547,13 +547,27 @@ func GetCharacters() []model.Character {
 				},
 				{
 					ID: "magic_bullet_fusion", Timings: []model.FlowTiming{model.TimingActive}, Title: "魔弹融合",
-					Type:        model.SkillTypeResponse,
-					Tags:        []model.SkillTag{},
-					Description: "你的地系或火系牌可以当魔弹使用。",
-					// 由 PerformMagic 的法术改写链路主动触发
+					Type:         model.SkillTypeAction,
+					Tags:         []model.SkillTag{},
+					Description:  "你的地系或火系牌可以当魔弹使用。",
 					LogicHandler: "magic_bullet_fusion",
 					TargetType:   model.TargetNone,
-					ResponseType: model.ResponseOptional,
+					CostDiscards: 1,
+				},
+				{
+					ID: "magic_bullet_fusion_chain", Timings: []model.FlowTiming{model.TimingOnHitCheck}, Title: "魔弹融合",
+					Type:            model.SkillTypeResponse,
+					Tags:            []model.SkillTag{},
+					Description:     "当你成为魔弹目标时，可以打出1张地系或火系牌视为魔弹继续传递。",
+					LogicHandler:    "magic_bullet_fusion_chain",
+					TargetType:      model.TargetNone,
+					ResponseType:    model.ResponseOptional,
+					InteractionType: model.InteractionDiscard,
+					InteractionConfig: model.InteractionConfig{
+						MinSelect: 1,
+						MaxSelect: 1,
+						Prompt:    "请选择1张地系或火系牌发动魔弹融合",
+					},
 				},
 				{
 					ID: "magic_blast", Timings: []model.FlowTiming{model.TimingActive}, Title: "魔爆冲击",

@@ -141,7 +141,7 @@ func TestSaintessFrostPrayer_PromptTargetAndHeal(t *testing.T) {
 	}
 }
 
-func TestMagicalGirlMagicBulletFusion_PromptsOnFireMagic(t *testing.T) {
+func TestMagicalGirlMagicBulletFusion_DirectFireMagicDoesNotPromptFusion(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "Girl", "magical_girl", model.RedCamp); err != nil {
 		t.Fatalf("add p1 failed: %v", err)
@@ -168,7 +168,10 @@ func TestMagicalGirlMagicBulletFusion_PromptsOnFireMagic(t *testing.T) {
 		t.Fatalf("magic cast failed: %v", err)
 	}
 
-	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptMagicBulletFusion {
-		t.Fatalf("expected magic bullet fusion prompt, got %+v", game.State.PendingInterrupt)
+	if game.State.PendingInterrupt != nil && game.State.PendingInterrupt.Type == model.InterruptMagicBulletFusion {
+		t.Fatalf("direct fire magic should not prompt old fusion interrupt")
+	}
+	if game.State.MagicBulletChain != nil {
+		t.Fatalf("direct fire magic should not start magic bullet chain, got %+v", game.State.MagicBulletChain)
 	}
 }

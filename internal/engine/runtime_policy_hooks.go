@@ -147,6 +147,23 @@ func (e *GameEngine) applyTimingOnHitCheckMagicMissileCounterValidation(player *
 	return result.ValidationError
 }
 
+// applyTimingOnMagicMissileResponseSkillAugment 在魔弹响应窗口构建前追加可用响应技能。
+func (e *GameEngine) applyTimingOnMagicMissileResponseSkillAugment(skillIDs []string, player *model.Player, chain *model.MagicBulletChain) []string {
+	if e == nil || player == nil || chain == nil {
+		return skillIDs
+	}
+	timingCtx := engineplayer.TimingHookContext{
+		OfferedSkillIDs:  skillIDs,
+		Player:           player,
+		MagicBulletChain: chain,
+	}
+	result := e.dispatchAllRoleTimingHooks(engineplayer.TimingOnMagicMissileResponseSkillAug, timingCtx)
+	if len(result.SkillIDs) > 0 {
+		return result.SkillIDs
+	}
+	return skillIDs
+}
+
 // applyTimingOnHitCheckResponseSkillAugment 在响应技能列表构建时追加技能。
 func (sd *SkillDispatcher) applyTimingOnHitCheckResponseSkillAugment(skillIDs []string, ctx *model.Context) []string {
 	if sd == nil || sd.engine == nil {

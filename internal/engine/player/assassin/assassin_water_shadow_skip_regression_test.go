@@ -90,8 +90,8 @@ func TestAssassinWaterShadowSkip_ResumesPendingDamageResolution(t *testing.T) {
 	}
 }
 
-// 回归：暗杀者发动【水影】后，仅应按弃置的水系牌数量抵扣本次摸牌；
-// 不能把原有待结算伤害对应摸牌整体清空。
+// 回归：暗杀者发动【水影】后，仅弃置水系牌，不改变摸牌数；
+// 弃牌后摸牌数应保持不变。
 func TestAssassinWaterShadowConfirm_PreservesRemainingDamageDraw(t *testing.T) {
 	game := engine.NewGameEngine(&testutils.CaptureObserver{})
 	if err := game.AddPlayer("p1", "Attacker", "berserker", model.RedCamp); err != nil {
@@ -173,12 +173,9 @@ func TestAssassinWaterShadowConfirm_PreservesRemainingDamageDraw(t *testing.T) {
 	if game.State.PendingInterrupt != nil {
 		t.Fatalf("expected no pending interrupt after water_shadow resolves, got %+v", game.State.PendingInterrupt)
 	}
-	expectedRemainingDraw := pendingDrawCount - 1 // 弃 1 张水系牌抵扣 1 点摸牌
-	if expectedRemainingDraw < 0 {
-		expectedRemainingDraw = 0
-	}
-	expectedHand := initialHand - 1 + expectedRemainingDraw
+	// 水影不改变摸牌数，仅弃置水系牌
+	expectedHand := initialHand - 1 + pendingDrawCount
 	if got := len(p2.Hand); got != expectedHand {
-		t.Fatalf("expected hand size %d (initial=%d discard=1 remaining_draw=%d), got %d", expectedHand, initialHand, expectedRemainingDraw, got)
+		t.Fatalf("expected hand size %d (initial=%d discard=1 draw=%d), got %d", expectedHand, initialHand, pendingDrawCount, got)
 	}
 }
