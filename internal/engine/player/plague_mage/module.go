@@ -28,7 +28,7 @@ func RoleEntry() player.RoleEntry {
 // ChoiceSpecs 导出角色 choice 声明。
 func ChoiceSpecs() []player.ChoiceSpec {
 	return []player.ChoiceSpec{
-		{ChoiceType: "plague_death_touch_cards", SequentialRemaining: player.ChoiceRemainingFromSelectionKey("y_value")},
+		{ChoiceType: "plague_death_touch_cards", HandleMultiSelect: handleDeathTouchCardsMultiSelect},
 	}
 }
 
@@ -64,7 +64,6 @@ func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 		"plague_death_touch_element":  types.ChoiceRouteRole("plague_mage"),
 		"plague_death_touch_target":   types.ChoiceRouteRole("plague_mage"),
 		"plague_death_touch_x":        types.ChoiceRouteRole("plague_mage"),
-		"plague_death_touch_y":        types.ChoiceRouteRole("plague_mage"),
 		"plague_mage_toxic_nova_pick": types.ChoiceRouteRole("plague_mage"),
 	}
 }

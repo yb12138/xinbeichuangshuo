@@ -31,27 +31,9 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			Min: 1,
 			Max: 1,
 		}
-	case "sage_magic_rebound_x":
-		maxX := runtimeutil.ToIntContextValue(data["max_x"])
-		options := make([]model.PromptOption, 0, max(0, maxX-1))
-		for x := 2; x <= maxX; x++ {
-			options = append(options, model.PromptOption{
-				ID:    fmt.Sprintf("%d", x),
-				Label: fmt.Sprintf("X=%d（弃%d张同系牌）", x, x),
-			})
-		}
-		return &model.Prompt{
-			Type:         model.PromptConfirm,
-			PlayerID:     playerID,
-			Message:      "【法术反弹】请选择X值：",
-			Options:      options,
-			Min:          1,
-			Max:          1,
-			Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 0},
-		}
 	case "sage_magic_rebound_element":
-		xValue := runtimeutil.ToIntContextValue(data["x_value"])
-		elements := availableElementsByMinCount(player, xValue)
+		// 元素列表：只要有至少2张同系牌即可
+		elements := availableElementsByMinCount(player, 2)
 		options := make([]model.PromptOption, 0, len(elements))
 		for idx, ele := range elements {
 			options = append(options, model.PromptOption{
@@ -67,69 +49,57 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			Min:      1,
 			Max:      1,
 		}
-	case "sage_magic_rebound_cards", "sage_arcane_cards", "sage_holy_cards":
-		remaining := engineplayer.ParseIntSliceContextValue(data["remaining_indices"])
-		selectedCount := len(engineplayer.ParseIntSliceContextValue(data["selected_indices"]))
-		targetCount := runtimeutil.ToIntContextValue(data["x_value"])
-		options := make([]model.PromptOption, 0, len(remaining))
-		for _, idx := range remaining {
-			if player == nil || idx < 0 || idx >= len(player.Hand) {
-				continue
-			}
+	case "sage_magic_rebound_cards":
+		// 多选提示：显示所选元素的所有牌
+		chosenElement, _ := data["chosen_element"].(string)
+		cardIndices := engineplayer.GetCardIndicesByElement(player, model.Element(chosenElement))
+		options := make([]model.PromptOption, 0, len(cardIndices))
+		for _, idx := range cardIndices {
 			options = append(options, model.PromptOption{
 				ID:    fmt.Sprintf("%d", idx),
 				Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(player.Hand[idx])),
 			})
 		}
-		remainingPick := targetCount - selectedCount
-		if remainingPick < 1 {
-			remainingPick = 1
+		return &model.Prompt{
+			Type:     model.PromptChooseCards,
+			PlayerID: playerID,
+			Message:  "【法术反弹】请选择同系牌（选几张X即为几）：",
+			Options:  options,
+			Min:      2,
+			Max:      len(cardIndices),
 		}
-		if len(options) > 0 && remainingPick > len(options) {
-			remainingPick = len(options)
-		}
-		msg := fmt.Sprintf("请选择%d张牌：", remainingPick)
-		switch choiceType {
-		case "sage_magic_rebound_cards":
-			msg = fmt.Sprintf("【法术反弹】请选择%d张同系牌：", remainingPick)
-		case "sage_arcane_cards":
-			msg = fmt.Sprintf("【魔道法典】请选择%d张异系牌：", remainingPick)
-		case "sage_holy_cards":
-			msg = fmt.Sprintf("【圣洁法典】请选择%d张异系牌：", remainingPick)
+	case "sage_holy_cards":
+		// 多选提示：显示所有手牌
+		options := make([]model.PromptOption, 0, len(player.Hand))
+		for idx, card := range player.Hand {
+			options = append(options, model.PromptOption{
+				ID:    fmt.Sprintf("%d", idx),
+				Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(card)),
+			})
 		}
 		return &model.Prompt{
 			Type:     model.PromptChooseCards,
 			PlayerID: playerID,
-			Message:  msg,
+			Message:  "【圣洁法典】请选择异系牌（选几张X即为几）：",
 			Options:  options,
-			Min:      remainingPick,
-			Max:      remainingPick,
+			Min:      3,
+			Max:      len(player.Hand),
 		}
-	case "sage_arcane_x", "sage_holy_x":
-		maxX := runtimeutil.ToIntContextValue(data["max_x"])
-		minX := 2
-		if choiceType == "sage_holy_x" {
-			minX = 3
-		}
-		options := make([]model.PromptOption, 0, max(0, maxX-minX+1))
-		for x := minX; x <= maxX; x++ {
+	case "sage_arcane_cards":
+		options := make([]model.PromptOption, 0, len(player.Hand))
+		for idx, card := range player.Hand {
 			options = append(options, model.PromptOption{
-				ID:    fmt.Sprintf("%d", x),
-				Label: fmt.Sprintf("X=%d（弃%d张异系牌）", x, x),
+				ID:    fmt.Sprintf("%d", idx),
+				Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(card)),
 			})
 		}
-		msg := "【魔道法典】请选择X值："
-		if choiceType == "sage_holy_x" {
-			msg = "【圣洁法典】请选择X值："
-		}
 		return &model.Prompt{
-			Type:         model.PromptConfirm,
-			PlayerID:     playerID,
-			Message:      msg,
-			Options:      options,
-			Min:          1,
-			Max:          1,
-			Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 0},
+			Type:     model.PromptChooseCards,
+			PlayerID: playerID,
+			Message:  "【魔道法典】请选择异系牌（选几张X即为几）：",
+			Options:  options,
+			Min:      2,
+			Max:      len(player.Hand),
 		}
 	case "sage_holy_target_count":
 		maxCount := runtimeutil.ToIntContextValue(data["max_target_count"])
@@ -219,30 +189,12 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		if selectionIndex != 0 {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
+		// 检查是否有至少2张同系牌
 		maxX := engineplayer.MaxSameElementCount(user)
 		if maxX < 2 {
 			return true, fmt.Errorf("同系手牌不足2张，无法发动法术反弹")
 		}
-		ctxData["choice_type"] = "sage_magic_rebound_x"
-		ctxData["max_x"] = maxX
-		if intr := rt.GetPendingInterrupt(); intr != nil {
-			intr.Context = ctxData
-		}
-		rt.NotifyInterruptPrompt()
-		return true, nil
-
-	case "sage_magic_rebound_x":
-		userID, _ := ctxData["user_id"].(string)
-		user := rt.GetPlayers()[userID]
-		if user == nil {
-			return true, fmt.Errorf("玩家不存在")
-		}
-		xValue := selectionIndex + 2
-		maxX := engineplayer.MaxSameElementCount(user)
-		if xValue < 2 || xValue > maxX {
-			return true, fmt.Errorf("无效的X值")
-		}
-		ctxData["x_value"] = xValue
+		// 直接进入元素选择，不再选择X
 		ctxData["choice_type"] = "sage_magic_rebound_element"
 		if intr := rt.GetPendingInterrupt(); intr != nil {
 			intr.Context = ctxData
@@ -256,119 +208,13 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
-		xValue := runtimeutil.ToIntContextValue(ctxData["x_value"])
-		elements := availableElementsByMinCount(user, xValue)
+		elements := availableElementsByMinCount(user, 2)
 		if selectionIndex < 0 || selectionIndex >= len(elements) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
 		chosenElement := model.Element(elements[selectionIndex])
 		ctxData["chosen_element"] = string(chosenElement)
 		ctxData["choice_type"] = "sage_magic_rebound_cards"
-		ctxData["selected_indices"] = []int{}
-		ctxData["remaining_indices"] = engineplayer.GetCardIndicesByElement(user, chosenElement)
-		if intr := rt.GetPendingInterrupt(); intr != nil {
-			intr.Context = ctxData
-		}
-		rt.NotifyInterruptPrompt()
-		return true, nil
-
-	case "sage_magic_rebound_cards", "sage_arcane_cards", "sage_holy_cards":
-		userID, _ := ctxData["user_id"].(string)
-		user := rt.GetPlayers()[userID]
-		if user == nil {
-			return true, fmt.Errorf("玩家不存在")
-		}
-		xValue := runtimeutil.ToIntContextValue(ctxData["x_value"])
-		if xValue <= 0 {
-			return true, fmt.Errorf("X值无效")
-		}
-		remaining := engineplayer.ParseIntSliceContextValue(ctxData["remaining_indices"])
-		selected := engineplayer.ParseIntSliceContextValue(ctxData["selected_indices"])
-		cardIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, remaining)
-		if !ok || cardIdx < 0 || cardIdx >= len(user.Hand) {
-			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
-		}
-		chosenCard := user.Hand[cardIdx]
-		for _, idx := range selected {
-			if choiceType != "sage_magic_rebound_cards" &&
-				idx >= 0 && idx < len(user.Hand) &&
-				user.Hand[idx].Element == chosenCard.Element {
-				return true, fmt.Errorf("需弃置异系牌，不能重复选择同系")
-			}
-		}
-		if choiceType == "sage_magic_rebound_cards" {
-			chosenElement, _ := ctxData["chosen_element"].(string)
-			if string(chosenCard.Element) != chosenElement {
-				return true, fmt.Errorf("法术反弹需弃置同系牌")
-			}
-		}
-		selected = append(selected, cardIdx)
-		nextRemaining := make([]int, 0, len(remaining))
-		if choiceType == "sage_magic_rebound_cards" {
-			for _, idx := range remaining {
-				if idx != cardIdx {
-					nextRemaining = append(nextRemaining, idx)
-				}
-			}
-		} else {
-			nextRemaining = removeElementIndices(remaining, user, chosenCard.Element, cardIdx)
-		}
-		if len(selected) < xValue {
-			ctxData["selected_indices"] = selected
-			ctxData["remaining_indices"] = nextRemaining
-			if intr := rt.GetPendingInterrupt(); intr != nil {
-				intr.Context = ctxData
-			}
-			rt.NotifyInterruptPrompt()
-			return true, nil
-		}
-
-		ctxData["selected_indices"] = selected
-		switch choiceType {
-		case "sage_magic_rebound_cards":
-			ctxData["choice_type"] = "sage_magic_rebound_target"
-			ctxData["target_ids"] = append([]string{}, rt.GetPlayerOrder()...)
-		case "sage_arcane_cards":
-			ctxData["choice_type"] = "sage_arcane_target"
-			ctxData["target_ids"] = append([]string{}, rt.GetPlayerOrder()...)
-		case "sage_holy_cards":
-			maxTargetCount := xValue - 2
-			if maxTargetCount < 1 {
-				return true, fmt.Errorf("圣洁法典治疗目标数量无效")
-			}
-			ctxData["choice_type"] = "sage_holy_target_count"
-			ctxData["max_target_count"] = maxTargetCount
-			ctxData["target_ids"] = append([]string{}, rt.GetPlayerOrder()...)
-		}
-		if intr := rt.GetPendingInterrupt(); intr != nil {
-			intr.Context = ctxData
-		}
-		rt.NotifyInterruptPrompt()
-		return true, nil
-
-	case "sage_arcane_x", "sage_holy_x":
-		userID, _ := ctxData["user_id"].(string)
-		user := rt.GetPlayers()[userID]
-		if user == nil {
-			return true, fmt.Errorf("玩家不存在")
-		}
-		maxX := runtimeutil.ToIntContextValue(ctxData["max_x"])
-		minX := 2
-		if choiceType == "sage_holy_x" {
-			minX = 3
-		}
-		xValue := selectionIndex + minX
-		if xValue < minX || xValue > maxX {
-			return true, fmt.Errorf("无效的X值")
-		}
-		ctxData["x_value"] = xValue
-		ctxData["selected_indices"] = []int{}
-		ctxData["remaining_indices"] = engineplayer.AllHandIndices(user)
-		if choiceType == "sage_arcane_x" {
-			ctxData["choice_type"] = "sage_arcane_cards"
-		} else {
-			ctxData["choice_type"] = "sage_holy_cards"
-		}
 		if intr := rt.GetPendingInterrupt(); intr != nil {
 			intr.Context = ctxData
 		}
@@ -539,6 +385,109 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 	return false, nil
 }
 
+// handleArcaneCardsMultiSelect 处理魔道法典异系牌多选。
+func handleArcaneCardsMultiSelect(rt engineplayer.ChoiceRuntime, playerID string, selections []int, ctxData map[string]interface{}) (bool, error) {
+	userID, _ := ctxData["user_id"].(string)
+	user := rt.GetPlayers()[userID]
+	if user == nil {
+		return false, fmt.Errorf("玩家不存在")
+	}
+	if len(selections) < 2 {
+		return false, fmt.Errorf("魔道法典至少需要选择2张异系牌")
+	}
+	// 验证所选牌元素互不相同
+	seenElements := map[model.Element]bool{}
+	for _, idx := range selections {
+		if idx < 0 || idx >= len(user.Hand) {
+			return false, fmt.Errorf("无效的选项索引: %d", idx)
+		}
+		card := user.Hand[idx]
+		if seenElements[card.Element] {
+			return false, fmt.Errorf("魔道法典需弃置异系牌，不能重复选择同系")
+		}
+		seenElements[card.Element] = true
+	}
+	ctxData["selected_indices"] = selections
+	ctxData["x_value"] = len(selections)
+	ctxData["choice_type"] = "sage_arcane_target"
+	ctxData["target_ids"] = append([]string{}, rt.GetPlayerOrder()...)
+	if intr := rt.GetPendingInterrupt(); intr != nil {
+		intr.Context = ctxData
+	}
+	rt.NotifyInterruptPrompt()
+	return true, nil
+}
+
+// handleReboundCardsMultiSelect 处理法术反弹同系牌多选。
+func handleReboundCardsMultiSelect(rt engineplayer.ChoiceRuntime, playerID string, selections []int, ctxData map[string]interface{}) (bool, error) {
+	userID, _ := ctxData["user_id"].(string)
+	user := rt.GetPlayers()[userID]
+	if user == nil {
+		return false, fmt.Errorf("玩家不存在")
+	}
+	if len(selections) < 2 {
+		return false, fmt.Errorf("法术反弹至少需要选择2张同系牌")
+	}
+	// 验证所选牌都是同一元素
+	chosenElement, _ := ctxData["chosen_element"].(string)
+	for _, idx := range selections {
+		if idx < 0 || idx >= len(user.Hand) {
+			return false, fmt.Errorf("无效的选项索引: %d", idx)
+		}
+		card := user.Hand[idx]
+		if string(card.Element) != chosenElement {
+			return false, fmt.Errorf("法术反弹需弃置同系牌")
+		}
+	}
+	ctxData["selected_indices"] = selections
+	ctxData["x_value"] = len(selections)
+	ctxData["choice_type"] = "sage_magic_rebound_target"
+	ctxData["target_ids"] = append([]string{}, rt.GetPlayerOrder()...)
+	if intr := rt.GetPendingInterrupt(); intr != nil {
+		intr.Context = ctxData
+	}
+	rt.NotifyInterruptPrompt()
+	return true, nil
+}
+
+// handleHolyCardsMultiSelect 处理圣洁法典异系牌多选。
+func handleHolyCardsMultiSelect(rt engineplayer.ChoiceRuntime, playerID string, selections []int, ctxData map[string]interface{}) (bool, error) {
+	userID, _ := ctxData["user_id"].(string)
+	user := rt.GetPlayers()[userID]
+	if user == nil {
+		return false, fmt.Errorf("玩家不存在")
+	}
+	if len(selections) < 3 {
+		return false, fmt.Errorf("圣洁法典至少需要选择3张异系牌")
+	}
+	// 验证所选牌元素互不相同
+	seenElements := map[model.Element]bool{}
+	for _, idx := range selections {
+		if idx < 0 || idx >= len(user.Hand) {
+			return false, fmt.Errorf("无效的选项索引: %d", idx)
+		}
+		card := user.Hand[idx]
+		if seenElements[card.Element] {
+			return false, fmt.Errorf("圣洁法典需弃置异系牌，不能重复选择同系")
+		}
+		seenElements[card.Element] = true
+	}
+	ctxData["selected_indices"] = selections
+	ctxData["x_value"] = len(selections)
+	maxTargetCount := len(selections) - 2
+	if maxTargetCount < 1 {
+		return false, fmt.Errorf("圣洁法典治疗目标数量无效")
+	}
+	ctxData["choice_type"] = "sage_holy_target_count"
+	ctxData["max_target_count"] = maxTargetCount
+	ctxData["target_ids"] = append([]string{}, rt.GetPlayerOrder()...)
+	if intr := rt.GetPendingInterrupt(); intr != nil {
+		intr.Context = ctxData
+	}
+	rt.NotifyInterruptPrompt()
+	return true, nil
+}
+
 // Helper functions for sage
 
 func buildElementCardIndexMap(player *model.Player) map[model.Element][]int {
@@ -564,26 +513,6 @@ func availableElementsByMinCount(player *model.Player, minCount int) []string {
 		if len(elemMap[ele]) >= minCount {
 			out = append(out, string(ele))
 		}
-	}
-	return out
-}
-
-func removeElementIndices(indices []int, player *model.Player, element model.Element, keepIndex int) []int {
-	if len(indices) == 0 {
-		return nil
-	}
-	var out []int
-	for _, idx := range indices {
-		if idx == keepIndex {
-			continue
-		}
-		if idx < 0 || player == nil || idx >= len(player.Hand) {
-			continue
-		}
-		if player.Hand[idx].Element == element {
-			continue
-		}
-		out = append(out, idx)
 	}
 	return out
 }

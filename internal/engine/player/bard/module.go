@@ -58,34 +58,13 @@ func StarterCards(p *model.Player) []model.Card {
 	}
 	return []model.Card{
 		{
-			ID:              fmt.Sprintf("starter-%s-bd_rousing_rhapsody", p.ID),
-			Name:            "激昂狂想曲",
+			ID:              fmt.Sprintf("starter-%s-bd_eternal_movement", p.ID),
+			Name:            "永恒乐章",
 			Type:            model.CardTypeMagic,
 			Element:         model.ElementDark,
 			Faction:         p.Character.Faction,
-			Description:     "吟游诗人开局自带专属技能卡",
+			Description:     "吟游诗人开局自带专属牌",
 			ExclusiveChar1:  p.Character.ID,
-			ExclusiveSkill1: "激昂狂想曲",
-		},
-		{
-			ID:              fmt.Sprintf("starter-%s-bd_victory_symphony", p.ID),
-			Name:            "胜利交响诗",
-			Type:            model.CardTypeMagic,
-			Element:         model.ElementDark,
-			Faction:         p.Character.Faction,
-			Description:     "吟游诗人开局自带专属技能卡",
-			ExclusiveChar1:  p.Character.ID,
-			ExclusiveSkill1: "胜利交响诗",
-		},
-		{
-			ID:              fmt.Sprintf("starter-%s-bd_hope_fugue", p.ID),
-			Name:            "希望赋格曲",
-			Type:            model.CardTypeMagic,
-			Element:         model.ElementDark,
-			Faction:         p.Character.Faction,
-			Description:     "吟游诗人开局自带专属技能卡",
-			ExclusiveChar1:  p.Character.ID,
-			ExclusiveSkill1: "希望赋格曲",
 		},
 	}
 }

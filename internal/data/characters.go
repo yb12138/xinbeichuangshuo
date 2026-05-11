@@ -1773,13 +1773,13 @@ func GetCharacters() []model.Character {
 					Type:        model.SkillTypeStartup,
 					Tags:        []model.SkillTag{model.TagGem, model.TagUltimate},
 					CostGem:     1,
-					Description: "［宝石］目标其他角色弃1张牌；若其无法弃置则你摸3张牌。然后将1张手牌作为充能，并获得1蓝水晶。",
+					Description: "［宝石］选择一项：令1名角色弃1张牌；或你摸3张牌。然后将1张手牌作为充能，并获得1蓝水晶。",
 
 					ResponseType: model.ResponseOptional,
 					LogicHandler: "mb_demon_eye",
-					TargetType:   model.TargetAny,
-					MinTargets:   1,
-					MaxTargets:   1,
+					TargetType:   model.TargetNone,
+					MinTargets:   0,
+					MaxTargets:   0,
 				},
 			},
 			ExclusiveCards: []string{},
@@ -1950,7 +1950,6 @@ func GetCharacters() []model.Character {
 				{
 					ID: "bd_rousing_rhapsody", Timings: []model.FlowTiming{model.TimingActive}, Title: "激昂狂想曲",
 					Type:             model.SkillTypeResponse,
-					RequireExclusive: true,
 					Description:      "回合开始时，若我方存在永恒乐章：选择一项——吟游诗人对2名目标对手各造成1点法术伤害；或你弃2张牌。",
 					LogicHandler:     "bd_rousing_rhapsody",
 					TargetType:       model.TargetEnemy,
@@ -1960,7 +1959,6 @@ func GetCharacters() []model.Character {
 				{
 					ID: "bd_victory_symphony", Timings: []model.FlowTiming{model.TimingActive}, Title: "胜利交响诗",
 					Type:             model.SkillTypeResponse,
-					RequireExclusive: true,
 					Description:      "回合结束时，若我方存在永恒乐章：选择一项——将我方战绩区1个指定星石提炼为你的能量；或我方战绩区+1宝石且你+1治疗。",
 					LogicHandler:     "bd_victory_symphony",
 					TargetType:       model.TargetNone,
@@ -1970,7 +1968,6 @@ func GetCharacters() []model.Character {
 					Type:             model.SkillTypeStartup,
 					Tags:             []model.SkillTag{model.TagCrystal, model.TagUltimate},
 					CostCrystal:      1,
-					RequireExclusive: true,
 					Description:      "［水晶］你可以先摸1张牌；然后选择：将永恒乐章放置于目标队友面前；或将永恒乐章转移给我方另一名目标角色，你弃1张牌并获得+1治疗或+1灵感。",
 
 					ResponseType: model.ResponseOptional,
@@ -1980,7 +1977,7 @@ func GetCharacters() []model.Character {
 					MaxTargets:   1,
 				},
 			},
-			ExclusiveCards: []string{"bd_rousing_rhapsody", "bd_victory_symphony", "bd_hope_fugue"},
+			ExclusiveCards: []string{"bd_eternal_movement"},
 		},
 		// 29. 勇者
 		{

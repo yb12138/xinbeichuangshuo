@@ -1306,13 +1306,8 @@ const showDecisionOverlay = computed(() => {
   if (isSaintHealAllocatePrompt.value) return false    // → 圣疗分配专属弹窗
   if (isRuneReforgeAllocatePrompt.value) return false  // → 符文改造分配专属弹窗
   if (needsCardSelection.value) return false           // → 卡牌选择流程（命中/防御/应战按钮留内联）
-  // 简单确认弹框（是/否两个按钮）→ 走内联按钮而非 overlay
-  if (prompt.value?.type === 'confirm' && inlinePrimaryButtons.value.length === 2) {
-    const labels = inlinePrimaryButtons.value.map(opt => String(opt.label || '').trim())
-    if (labels.includes('是') || labels.includes('否')) {
-      return false
-    }
-  }
+  // 简单确认弹框（是/否两个按钮）→ 也走 overlay 决策弹框，便于统一展示
+  // 注意：已删除旧的 return false 逻辑，让 是/否 弹框也进入 overlay
   // 符合通用弹窗条件
   if (singleActivationCostConfirmOption.value) return true
   if (inlinePrimaryButtons.value.length > 0 && showConfirmButtonSection.value) return true

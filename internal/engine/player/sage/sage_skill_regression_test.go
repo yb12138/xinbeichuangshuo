@@ -73,19 +73,12 @@ func TestSageMagicRebound_SameElementDiscardChain(t *testing.T) {
 	if err := g.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("confirm rebound failed: %v", err)
 	}
-	if got := testutils.ChoiceTypeOfInterrupt(g.State.PendingInterrupt); got != "sage_magic_rebound_x" {
-		t.Fatalf("expected choice_type sage_magic_rebound_x, got %q", got)
-	}
-
-	// 选择 X=3（选项从 X=2 开始，索引 1 -> X=3）
-	if err := g.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
-		t.Fatalf("choose rebound x failed: %v", err)
-	}
+	// 新流程：确认后直接进入元素选择（不再有X选择）
 	if got := testutils.ChoiceTypeOfInterrupt(g.State.PendingInterrupt); got != "sage_magic_rebound_element" {
 		t.Fatalf("expected choice_type sage_magic_rebound_element, got %q", got)
 	}
 
-	// 仅有火系满足 X=3。
+	// 仅有火系满足至少2张。
 	if err := g.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose rebound element failed: %v", err)
 	}
@@ -93,11 +86,9 @@ func TestSageMagicRebound_SameElementDiscardChain(t *testing.T) {
 		t.Fatalf("expected choice_type sage_magic_rebound_cards, got %q", got)
 	}
 
-	// 连续3次选择同系牌（同系允许，不能被"异系去重"误伤）。
-	for i := 0; i < 3; i++ {
-		if err := g.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
-			t.Fatalf("choose rebound cards step=%d failed: %v", i+1, err)
-		}
+	// 多选3张同系牌（火系索引0,1,2）
+	if err := g.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0, 1, 2}}); err != nil {
+		t.Fatalf("choose rebound cards (multi-select 3 fire) failed: %v", err)
 	}
 	if got := testutils.ChoiceTypeOfInterrupt(g.State.PendingInterrupt); got != "sage_magic_rebound_target" {
 		t.Fatalf("expected choice_type sage_magic_rebound_target, got %q", got)
@@ -302,24 +293,13 @@ func TestSageArcaneCodex_TargetPoolIncludesSelfAndSelfDamageStillRunsRebound(t *
 	if got := p1.Gem; got != 0 {
 		t.Fatalf("expected arcane codex consume 1 gem, got %d", got)
 	}
-	if got := testutils.ChoiceTypeOfInterrupt(g.State.PendingInterrupt); got != "sage_arcane_x" {
-		t.Fatalf("expected choice_type sage_arcane_x, got %q", got)
-	}
-
-	// 选 X=2（minX=2，索引0）。
-	if err := g.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
-		t.Fatalf("choose arcane x=2 failed: %v", err)
-	}
 	if got := testutils.ChoiceTypeOfInterrupt(g.State.PendingInterrupt); got != "sage_arcane_cards" {
 		t.Fatalf("expected choice_type sage_arcane_cards, got %q", got)
 	}
 
-	// 弃2张异系（水、地）。
-	if err := g.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{2}}); err != nil {
-		t.Fatalf("choose arcane card#1(water) failed: %v", err)
-	}
-	if err := g.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{2}}); err != nil {
-		t.Fatalf("choose arcane card#2(earth) failed: %v", err)
+	// 多选2张异系（水索引2、地索引3）。
+	if err := g.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{2, 3}}); err != nil {
+		t.Fatalf("choose arcane cards (water+earth) failed: %v", err)
 	}
 	if got := testutils.ChoiceTypeOfInterrupt(g.State.PendingInterrupt); got != "sage_arcane_target" {
 		t.Fatalf("expected choice_type sage_arcane_target, got %q", got)
@@ -361,7 +341,7 @@ func TestSageArcaneCodex_TargetPoolIncludesSelfAndSelfDamageStillRunsRebound(t *
 	}
 }
 
-func TestSageHolyCodex_XAndTargetCountBoundaries(t *testing.T) {
+func TestSageHolyCodex_MultiSelectCardsAndTargetCountBoundaries(t *testing.T) {
 	g := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := g.AddPlayer("p1", "Sage", "sage", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -396,31 +376,19 @@ func TestSageHolyCodex_XAndTargetCountBoundaries(t *testing.T) {
 	if got := p1.Gem; got != 0 {
 		t.Fatalf("expected holy codex consume exactly 1 gem, got gem=%d", got)
 	}
-	if got := testutils.ChoiceTypeOfInterrupt(g.State.PendingInterrupt); got != "sage_holy_x" {
-		t.Fatalf("expected choice_type sage_holy_x, got %q", got)
-	}
-
-	// 越界：maxX=4 时，索引2 -> X=5，应报错。
-	if err := g.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{2}}); err == nil || !strings.Contains(err.Error(), "无效的X值") {
-		t.Fatalf("expected invalid X boundary error, got %v", err)
-	}
-	if got := testutils.ChoiceTypeOfInterrupt(g.State.PendingInterrupt); got != "sage_holy_x" {
-		t.Fatalf("expected still stay at sage_holy_x after invalid input, got %q", got)
-	}
-
-	// 选择最大 X=4（索引1）。
-	if err := g.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
-		t.Fatalf("choose holy x=4 failed: %v", err)
-	}
+	// 新流程：直接进入卡牌多选（不再有X选择）
 	if got := testutils.ChoiceTypeOfInterrupt(g.State.PendingInterrupt); got != "sage_holy_cards" {
 		t.Fatalf("expected choice_type sage_holy_cards, got %q", got)
 	}
 
-	// 依次选择4张异系牌（每次选当前候选第一张）。
-	for i := 0; i < 4; i++ {
-		if err := g.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
-			t.Fatalf("choose holy cards step=%d failed: %v", i+1, err)
-		}
+	// 越界：只选2张牌（少于最小值3）
+	if err := g.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0, 1}}); err == nil || !strings.Contains(err.Error(), "至少需要选择3张") {
+		t.Fatalf("expected too few cards error, got %v", err)
+	}
+
+	// 选择4张异系牌（多选）
+	if err := g.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0, 1, 2, 3}}); err != nil {
+		t.Fatalf("choose holy cards (multi-select 4) failed: %v", err)
 	}
 	if got := testutils.ChoiceTypeOfInterrupt(g.State.PendingInterrupt); got != "sage_holy_target_count" {
 		t.Fatalf("expected choice_type sage_holy_target_count, got %q", got)
@@ -429,6 +397,7 @@ func TestSageHolyCodex_XAndTargetCountBoundaries(t *testing.T) {
 	if prompt == nil {
 		t.Fatalf("expected holy target count prompt")
 	}
+	// X=4时，最多治疗目标 = X-2 = 2
 	if len(prompt.Options) != 2 {
 		t.Fatalf("expected holy target count options only for 1..2 targets, got %d", len(prompt.Options))
 	}
@@ -623,23 +592,15 @@ func TestSageArcaneCodex_SelfTargetReboundCombo(t *testing.T) {
 		t.Fatalf("use arcane codex failed: %v", err)
 	}
 
-	// --- Step 2: 选择 X=2 ---
-	if got := testutils.ChoiceTypeOfInterrupt(g.State.PendingInterrupt); got != "sage_arcane_x" {
-		t.Fatalf("expected choice_type sage_arcane_x, got %q", got)
+	// --- Step 2: 多选2张异系牌（水索引3、地索引4）---
+	if got := testutils.ChoiceTypeOfInterrupt(g.State.PendingInterrupt); got != "sage_arcane_cards" {
+		t.Fatalf("expected choice_type sage_arcane_cards, got %q", got)
 	}
-	if err := g.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
-		t.Fatalf("choose arcane x=2 failed: %v", err)
-	}
-
-	// --- Step 3: 弃2张异系牌（水、地） ---
-	if err := g.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{3}}); err != nil {
-		t.Fatalf("choose arcane card#1(water) failed: %v", err)
-	}
-	if err := g.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{3}}); err != nil {
-		t.Fatalf("choose arcane card#2(earth) failed: %v", err)
+	if err := g.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{3, 4}}); err != nil {
+		t.Fatalf("choose arcane cards (water+earth) failed: %v", err)
 	}
 
-	// --- Step 4: 选择目标为自己 ---
+	// --- Step 3: 选择目标为自己 ---
 	if got := testutils.ChoiceTypeOfInterrupt(g.State.PendingInterrupt); got != "sage_arcane_target" {
 		t.Fatalf("expected choice_type sage_arcane_target, got %q", got)
 	}
@@ -653,44 +614,42 @@ func TestSageArcaneCodex_SelfTargetReboundCombo(t *testing.T) {
 		t.Fatalf("expected 2 pending magic damages (target=self, two hits), got %d", got)
 	}
 
-	// --- Step 5: 结算第一次1点法伤 → 摸1牌（火系）→ 触发法术反弹 ---
+	// --- Step 4: 结算第一次1点法伤 → 摸1牌（火系）→ 触发法术反弹 ---
 	runUntilChoiceInterrupt(g, 16)
 	if got := testutils.ChoiceTypeOfInterrupt(g.State.PendingInterrupt); got != "sage_magic_rebound_confirm" {
 		t.Fatalf("expected sage_magic_rebound_confirm, got %q", got)
 	}
 
-	// --- Step 6: 确认发动法术反弹 ---
+	// --- Step 5: 确认发动法术反弹 ---
 	if err := g.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("confirm rebound failed: %v", err)
 	}
 
-	// --- Step 7: 选择 X=4（弃4张同系牌） ---
-	if got := testutils.ChoiceTypeOfInterrupt(g.State.PendingInterrupt); got != "sage_magic_rebound_x" {
-		t.Fatalf("expected sage_magic_rebound_x, got %q", got)
+	// --- Step 6: 选择元素（火系） ---
+	// 新流程：确认后直接进入元素选择
+	if got := testutils.ChoiceTypeOfInterrupt(g.State.PendingInterrupt); got != "sage_magic_rebound_element" {
+		t.Fatalf("expected sage_magic_rebound_element, got %q", got)
 	}
-	// X=4 对应索引2（X从2开始，索引0=X2, 索引2=X4）
-	if err := g.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{2}}); err != nil {
-		t.Fatalf("choose rebound x=4 failed: %v", err)
-	}
-
-	// --- Step 8: 选择元素（火系） ---
 	if err := g.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose fire element failed: %v", err)
 	}
 
-	// --- Step 9: 弃4张同系牌 ---
-	for i := 0; i < 4; i++ {
-		if err := g.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
-			t.Fatalf("choose rebound card#%d failed: %v", i+1, err)
-		}
+	// --- Step 7: 多选4张同系牌 ---
+	// 新流程：多选卡牌，X=选中数量
+	if got := testutils.ChoiceTypeOfInterrupt(g.State.PendingInterrupt); got != "sage_magic_rebound_cards" {
+		t.Fatalf("expected sage_magic_rebound_cards, got %q", got)
+	}
+	// 选择4张火系牌（索引0,1,2,3）
+	if err := g.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0, 1, 2, 3}}); err != nil {
+		t.Fatalf("choose rebound cards (multi-select 4 fire) failed: %v", err)
 	}
 
-	// --- Step 10: 选择法术反弹目标 → p2 ---
+	// --- Step 8: 选择法术反弹目标 → p2 ---
 	if err := g.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
 		t.Fatalf("choose rebound target p2 failed: %v", err)
 	}
 
-	// --- Step 11: 结算法术反弹的伤害 ---
+	// --- Step 9: 结算法术反弹的伤害 ---
 	// 反弹伤害队列：4点法伤给p1 + 3点法伤给p2
 	// 4点法伤 > 3 → 触发智慧法典（+2宝石，弃1牌）
 	runUntilChoiceInterrupt(g, 32)
@@ -705,7 +664,6 @@ func TestSageArcaneCodex_SelfTargetReboundCombo(t *testing.T) {
 			if err := g.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 				t.Fatalf("discard failed (type=%s): %v", ct, err)
 			}
-			// 不用 runUntilChoiceInterrupt，直接检查状态
 			t.Logf("After discard: interrupt=%v, damageQueue=%d, hand=%d",
 				g.State.PendingInterrupt != nil, len(g.State.PendingDamageQueue), len(p1.Hand))
 		} else if strings.HasPrefix(ct, "sage_") {
@@ -717,8 +675,7 @@ func TestSageArcaneCodex_SelfTargetReboundCombo(t *testing.T) {
 	t.Logf("After loop: interrupt=%v, damageQueue=%d, hand=%d",
 		g.State.PendingInterrupt != nil, len(g.State.PendingDamageQueue), len(p1.Hand))
 
-	// --- Step 12: 继续结算魔道法典的第二次1点法伤 → 应触发第二次法术反弹 ---
-	// 手动处理每一步伤害结算，观察状态变化
+	// --- Step 10: 继续结算魔道法典的第二次1点法伤 → 应触发第二次法术反弹 ---
 	for i := 0; i < 16; i++ {
 		if g.State.PendingInterrupt != nil {
 			break

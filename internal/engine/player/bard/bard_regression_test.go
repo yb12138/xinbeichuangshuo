@@ -1,6 +1,7 @@
 package bard_test
 
 import (
+	"fmt"
 	"starcup-engine/internal/engine"
 	"starcup-engine/internal/testutils"
 	"testing"
@@ -26,14 +27,18 @@ func addBardExclusiveCardsForTest(p *model.Player, titles ...string) {
 	if p == nil {
 		return
 	}
+	// Now bard only has one exclusive card "永恒乐章"
 	for _, title := range titles {
 		switch title {
-		case "激昂狂想曲":
-			p.RestoreExclusiveCard(testutils.MakeStarterBardRousingRhapsodyCard(p))
-		case "胜利交响诗":
-			p.RestoreExclusiveCard(testutils.MakeStarterBardVictorySymphonyCard(p))
-		case "希望赋格曲":
-			p.RestoreExclusiveCard(testutils.MakeStarterBardHopeFugueCard(p))
+		case "永恒乐章":
+			p.RestoreExclusiveCard(model.Card{
+				ID:             fmt.Sprintf("starter-%s-bd_eternal_movement", p.ID),
+				Name:           "永恒乐章",
+				Type:           model.CardTypeMagic,
+				Element:        model.ElementDark,
+				Description:    "吟游诗人专属牌",
+				ExclusiveChar1: p.Character.ID,
+			})
 		}
 	}
 }
@@ -229,7 +234,7 @@ func TestBardHopeFugue_PlaceUsesPlayedCardAsEternalMovement(t *testing.T) {
 
 	bard := game.State.Players["p1"]
 	ally := game.State.Players["p2"]
-	addBardExclusiveCardsForTest(bard, "希望赋格曲")
+	// No longer need exclusive cards for hope_fugue - it's a character skill now
 	bard.IsActive = true
 	bard.TurnState = model.NewPlayerTurnState()
 	bard.Crystal = 1
@@ -259,11 +264,8 @@ func TestBardHopeFugue_PlaceUsesPlayedCardAsEternalMovement(t *testing.T) {
 	if fieldCard == nil {
 		t.Fatalf("expected ally to hold eternal movement field card")
 	}
-	if fieldCard.Card.Name != "希望赋格曲" {
-		t.Fatalf("expected played hope fugue card to become field entity, got %s", fieldCard.Card.Name)
-	}
-	if bard.HasExclusiveCard(bard.Character.ID, "希望赋格曲") {
-		t.Fatalf("expected hope fugue exclusive card consumed from exclusive zone")
+	if fieldCard.Card.Name != "永恒乐章" {
+		t.Fatalf("expected eternal movement field entity, got %s", fieldCard.Card.Name)
 	}
 }
 
@@ -282,7 +284,7 @@ func TestBardHopeFugue_TransferMovesExistingEternalMovementAndGainsInspiration(t
 	bard := game.State.Players["p1"]
 	allyA := game.State.Players["p2"]
 	allyB := game.State.Players["p3"]
-	addBardExclusiveCardsForTest(bard, "希望赋格曲")
+	// No longer need exclusive cards - hope_fugue is a character skill now
 	bard.IsActive = true
 	bard.TurnState = model.NewPlayerTurnState()
 	bard.Crystal = 1
@@ -327,8 +329,9 @@ func TestBardHopeFugue_TransferMovesExistingEternalMovementAndGainsInspiration(t
 	if got := bard.Tokens["bd_inspiration"]; got != 1 {
 		t.Fatalf("expected bard inspiration +1 after transfer mode 2, got %d", got)
 	}
-	if got := len(game.State.DiscardPile); got != 2 {
-		t.Fatalf("expected discard pile contain played hope fugue + discarded hand, got %d", got)
+	// Only the discarded hand card is in discard pile (no exclusive card consumed)
+	if got := len(game.State.DiscardPile); got != 1 {
+		t.Fatalf("expected discard pile contain only discarded hand card, got %d", got)
 	}
 }
 
@@ -349,7 +352,7 @@ func TestBardRousingRhapsody_OnBardTurnStartRunsForbiddenVerse(t *testing.T) {
 
 	bard := game.State.Players["p1"]
 	ally := game.State.Players["p2"]
-	addBardExclusiveCardsForTest(bard, "激昂狂想曲")
+	// Rousing rhapsody no longer requires exclusive card - only needs eternal movement on field
 	if err := bardpkg.PlaceEternalMovement(engine.NewRoleChoiceRuntime(game), bard, ally); err != nil {
 		t.Fatalf("place eternal movement failed: %v", err)
 	}
@@ -405,7 +408,7 @@ func TestBardVictorySymphony_AtInspirationCapEntersPrisonerAndSelfDamages(t *tes
 
 	bard := game.State.Players["p1"]
 	ally := game.State.Players["p2"]
-	addBardExclusiveCardsForTest(bard, "胜利交响诗")
+	// Victory symphony no longer requires exclusive card - only needs eternal movement on field
 	bard.Tokens["bd_inspiration"] = 3
 	if err := bardpkg.PlaceEternalMovement(engine.NewRoleChoiceRuntime(game), bard, ally); err != nil {
 		t.Fatalf("place eternal movement failed: %v", err)
@@ -463,7 +466,7 @@ func TestBardVictorySymphony_ExtractStoneChoosesGemOrCrystal(t *testing.T) {
 
 			bard := game.State.Players["p1"]
 			ally := game.State.Players["p2"]
-			addBardExclusiveCardsForTest(bard, "胜利交响诗")
+			// Victory symphony no longer requires exclusive card
 			if err := bardpkg.PlaceEternalMovement(engine.NewRoleChoiceRuntime(game), bard, ally); err != nil {
 				t.Fatalf("place eternal movement failed: %v", err)
 			}
@@ -536,14 +539,15 @@ func TestBardConfig_MetadataAlignsWithDocument(t *testing.T) {
 	if dissonance.TargetType != model.TargetAny || dissonance.MinTargets != 1 || dissonance.MaxTargets != 1 {
 		t.Fatalf("expected dissonance target metadata any(1), got type=%v min=%d max=%d", dissonance.TargetType, dissonance.MinTargets, dissonance.MaxTargets)
 	}
-	if !rousing.RequireExclusive || rousing.TargetType != model.TargetEnemy || rousing.MinTargets != 0 || rousing.MaxTargets != 2 {
-		t.Fatalf("expected rousing metadata require exclusive + enemy(0..2), got requireExclusive=%v type=%v min=%d max=%d",
+	// Rousing, Victory, and Hope are now character skills (RequireExclusive=false)
+	if rousing.RequireExclusive || rousing.TargetType != model.TargetEnemy || rousing.MinTargets != 0 || rousing.MaxTargets != 2 {
+		t.Fatalf("expected rousing metadata NO exclusive + enemy(0..2), got requireExclusive=%v type=%v min=%d max=%d",
 			rousing.RequireExclusive, rousing.TargetType, rousing.MinTargets, rousing.MaxTargets)
 	}
-	if !victory.RequireExclusive {
-		t.Fatalf("expected victory symphony require exclusive")
+	if victory.RequireExclusive {
+		t.Fatalf("expected victory symphony NO require exclusive")
 	}
-	if !hope.RequireExclusive || hope.TargetType != model.TargetAlly || hope.MinTargets != 1 || hope.MaxTargets != 1 {
+	if hope.RequireExclusive || hope.TargetType != model.TargetAlly || hope.MinTargets != 1 || hope.MaxTargets != 1 {
 		t.Fatalf("expected hope metadata require exclusive + ally(1), got requireExclusive=%v type=%v min=%d max=%d",
 			hope.RequireExclusive, hope.TargetType, hope.MinTargets, hope.MaxTargets)
 	}
@@ -569,9 +573,11 @@ func TestBardStarterExclusiveCards_NotInHand(t *testing.T) {
 	if got := len(bard.Hand); got != 4 {
 		t.Fatalf("expected bard starting hand remain 4, got %d", got)
 	}
-	if !bard.HasExclusiveCard(bard.Character.ID, "激昂狂想曲") ||
-		!bard.HasExclusiveCard(bard.Character.ID, "胜利交响诗") ||
-		!bard.HasExclusiveCard(bard.Character.ID, "希望赋格曲") {
-		t.Fatalf("expected bard starter exclusive cards in exclusive zone, got %+v", bard.ExclusiveCards)
+	// Bard now has only one exclusive card: 永恒乐章
+	if len(bard.ExclusiveCards) != 1 {
+		t.Fatalf("expected exactly 1 exclusive card, got %d", len(bard.ExclusiveCards))
+	}
+	if bard.ExclusiveCards[0].Name != "永恒乐章" {
+		t.Fatalf("expected bard starter exclusive card 永恒乐章, got %s", bard.ExclusiveCards[0].Name)
 	}
 }

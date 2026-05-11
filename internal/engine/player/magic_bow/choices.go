@@ -31,8 +31,18 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		return buildChargePlaceCardsPrompt(playerID, player, data, choiceType)
 	case "mb_thunder_scatter_extra":
 		return buildThunderScatterExtraPrompt(playerID, data)
+	case "mb_demon_eye_mode":
+		return &model.Prompt{
+			Type:          model.PromptConfirm,
+			PlayerID:      playerID,
+			Message:       "【魔眼】请选择发动分支：",
+			Options:       []model.PromptOption{{ID: "0", Label: "分支①：令1名角色弃1张牌"}, {ID: "1", Label: "分支②：你摸3张牌"}},
+			Min:           1,
+			Max:           1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
+		}
 	case "mb_demon_eye_target":
-		return engineplayer.BuildTargetChoicePrompt(rt, playerID, "【魔眼】请选择弃1张牌的目标角色：", data, false)
+		return engineplayer.BuildTargetChoicePrompt(rt, playerID, "【魔眼·分支①】请选择弃1张牌的目标角色：", data, false)
 	case "mb_multi_shot_target":
 		return engineplayer.BuildTargetChoicePrompt(rt, playerID, "【多重射击】请选择暗系追加攻击目标：", data, false)
 	case "mb_thunder_scatter_target":
@@ -170,6 +180,8 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		return true, handleChargePlaceCount(rt, ctxData, selectionIndex)
 	case "mb_charge_place_cards", "mb_demon_eye_charge_card":
 		return true, handleChargePlaceCards(rt, ctxData, selectionIndex)
+	case "mb_demon_eye_mode":
+		return true, handleDemonEyeMode(rt, ctxData, selectionIndex)
 	case "mb_thunder_scatter_extra":
 		return true, handleThunderScatterExtra(rt, ctxData, selectionIndex)
 	case "mb_thunder_scatter_target", "mb_multi_shot_target", "mb_demon_eye_target":
@@ -444,6 +456,59 @@ func handleThunderScatterExtra(rt engineplayer.ChoiceRuntime, ctxData map[string
 	return nil
 }
 
+func handleDemonEyeMode(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
+	userID, _ := ctxData["user_id"].(string)
+	user := rt.GetPlayers()[userID]
+	if user == nil {
+		return fmt.Errorf("魔弓不存在")
+	}
+
+	switch selectionIndex {
+	case 0:
+		// Branch 1: Target selection - select any character to discard 1 card
+		targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
+		if len(targetIDs) == 0 {
+			return fmt.Errorf("魔眼分支①没有可选目标")
+		}
+		ctxData["choice_type"] = "mb_demon_eye_target"
+		if intr := rt.GetPendingInterrupt(); intr != nil {
+			intr.Context = ctxData
+		}
+		rt.NotifyInterruptPrompt()
+		return nil
+	case 1:
+		// Branch 2: Draw 3 cards
+		rt.DrawCards(user.ID, 3)
+		rt.Log(fmt.Sprintf("%s 的 [魔眼] 分支②生效：摸3张牌", user.Name))
+		if len(user.Hand) == 0 {
+			// No cards to charge: just grant +1 crystal
+			maxEnergy := getPlayerEnergyCap(user)
+			if user.Gem+user.Crystal < maxEnergy {
+				user.Crystal++
+			}
+			rt.Log(fmt.Sprintf("%s 的 [魔眼]：无手牌可充能，改为仅获得1点蓝水晶", user.Name))
+			rt.PopInterrupt()
+			if rt.GetPendingInterrupt() == nil {
+				rt.ApplyChoiceResumePoint(model.TurnStageActionStart)
+			}
+			return nil
+		}
+		// Push charge card selection
+		ctxData["choice_type"] = "mb_demon_eye_charge_card"
+		ctxData["need_count"] = 1
+		ctxData["selected_indices"] = []int{}
+		ctxData["remaining_indices"] = engineplayer.AllHandIndices(user)
+		if intr := rt.GetPendingInterrupt(); intr != nil {
+			intr.Context = ctxData
+		}
+		rt.NotifyInterruptPrompt()
+		rt.Log(fmt.Sprintf("%s 的 [魔眼] 分支②：请选择1张手牌作为充能", user.Name))
+		return nil
+	default:
+		return fmt.Errorf("无效的魔眼分支选择")
+	}
+}
+
 func handleTargetChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	choiceType, _ := ctxData["choice_type"].(string)
 	userID, _ := ctxData["user_id"].(string)
@@ -514,18 +579,19 @@ func handleTargetChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]interf
 		return nil
 
 	case "mb_demon_eye_target":
-		if targetID == user.ID {
-			return fmt.Errorf("魔眼不能以自己为目标")
-		}
+		rt.PopInterrupt()
 		if len(target.Hand) > 0 {
 			// Target must discard 1 card
 			discardCtx := map[string]interface{}{
-				"choice_type":            "system_discard_cards",
-				"discard_subflow":        true,
-				"discard_count":          1,
-				"prompt":                 "【魔眼】请选择弃置1张手牌：",
-				"mb_demon_eye_user_id":   user.ID,
-				"mb_demon_eye_target_id": targetID,
+				"choice_type":                 "system_discard_cards",
+				"discard_subflow":             true,
+				"discard_count":               1,
+				"prompt":                      "【魔眼】请选择弃置1张手牌：",
+				"flow_continuation_role_id":   "magic_bow",
+				"flow_continuation_player_id": user.ID,
+				"flow_continuation_skill_id":  "mb_demon_eye",
+				"mb_demon_eye_user_id":        user.ID,
+				"mb_demon_eye_target_id":      targetID,
 			}
 			rt.PushInterrupt(&model.Interrupt{
 				Type:     model.InterruptChoice,
@@ -542,9 +608,11 @@ func handleTargetChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]interf
 		ctxData["need_count"] = 1
 		ctxData["selected_indices"] = []int{}
 		ctxData["remaining_indices"] = engineplayer.AllHandIndices(user)
-		if intr := rt.GetPendingInterrupt(); intr != nil {
-			intr.Context = ctxData
-		}
+		rt.PushInterrupt(&model.Interrupt{
+			Type:     model.InterruptChoice,
+			PlayerID: user.ID,
+			Context:  ctxData,
+		})
 		rt.NotifyInterruptPrompt()
 		rt.Log(fmt.Sprintf("%s 的 [魔眼] 生效：%s 无法弃牌，改为自己摸3张牌并选择1张作为充能", user.Name, target.Name))
 		return nil

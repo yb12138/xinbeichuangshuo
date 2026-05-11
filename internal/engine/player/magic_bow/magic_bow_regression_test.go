@@ -717,7 +717,7 @@ func TestMagicBowMagicPierce_HitBonusAutoConsumesSecondCharge(t *testing.T) {
 	}
 }
 
-func TestMagicBowDemonEye_TargetPoolExcludesSelf(t *testing.T) {
+func TestMagicBowDemonEye_TargetPoolIncludesAll(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "MagicBow", "magic_bow", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -743,15 +743,23 @@ func TestMagicBowDemonEye_TargetPoolExcludesSelf(t *testing.T) {
 	if err := game.UseSkill("p1", "mb_demon_eye", nil, nil); err != nil {
 		t.Fatalf("use demon eye failed: %v", err)
 	}
+	// Now shows branch selection first
+	testutils.RequireChoicePrompt(t, game, "p1", "mb_demon_eye_mode")
+
+	// Choose branch 1 (target discards)
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
+		t.Fatalf("choose branch 1 failed: %v", err)
+	}
 	testutils.RequireChoicePrompt(t, game, "p1", "mb_demon_eye_target")
 
 	targetIDs := pendingChoiceTargetIDs(game.State.PendingInterrupt)
-	if len(targetIDs) != 2 || targetIDs[0] != "p2" || targetIDs[1] != "p3" {
-		t.Fatalf("expected demon eye target pool exclude self and keep other roles, got %v", targetIDs)
+	// Now includes self (p1) + all others
+	if len(targetIDs) != 3 || targetIDs[0] != "p1" || targetIDs[1] != "p2" || targetIDs[2] != "p3" {
+		t.Fatalf("expected demon eye target pool include all roles, got %v", targetIDs)
 	}
 }
 
-func TestMagicBowDemonEye_TargetNoHandFallsBackToDrawThreeThenCharge(t *testing.T) {
+func TestMagicBowDemonEye_Branch2DrawThreeThenCharge(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "MagicBow", "magic_bow", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -776,8 +784,15 @@ func TestMagicBowDemonEye_TargetNoHandFallsBackToDrawThreeThenCharge(t *testing.
 	game.State.CurrentTurn = 0
 	game.State.TurnStage = model.TurnStageActionStart
 
-	if err := game.UseSkill("p1", "mb_demon_eye", []string{"p2"}, nil); err != nil {
-		t.Fatalf("use demon eye with preselected target failed: %v", err)
+	if err := game.UseSkill("p1", "mb_demon_eye", nil, nil); err != nil {
+		t.Fatalf("use demon eye failed: %v", err)
+	}
+	// Now shows branch selection first
+	testutils.RequireChoicePrompt(t, game, "p1", "mb_demon_eye_mode")
+
+	// Choose branch 2 (draw 3 cards)
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
+		t.Fatalf("choose branch 2 failed: %v", err)
 	}
 	testutils.RequireChoicePrompt(t, game, "p1", "mb_demon_eye_charge_card")
 
@@ -785,7 +800,7 @@ func TestMagicBowDemonEye_TargetNoHandFallsBackToDrawThreeThenCharge(t *testing.
 		t.Fatalf("choose demon-eye charge card failed: %v", err)
 	}
 	if got := magicbowplayer.ChargeCount(p1, ""); got != 1 {
-		t.Fatalf("expected demon eye to place 1 charge after fallback draw, got %d", got)
+		t.Fatalf("expected demon eye to place 1 charge after draw3, got %d", got)
 	}
 	if got := len(p1.Hand); got != 3 {
 		t.Fatalf("expected hand=3 after draw3 then place1 charge, got %d", got)
@@ -798,7 +813,7 @@ func TestMagicBowDemonEye_TargetNoHandFallsBackToDrawThreeThenCharge(t *testing.
 	}
 }
 
-func TestMagicBowDemonEye_TargetDiscardsThenUserCharges(t *testing.T) {
+func TestMagicBowDemonEye_Branch1TargetDiscardsThenUserCharges(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "MagicBow", "magic_bow", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -823,8 +838,21 @@ func TestMagicBowDemonEye_TargetDiscardsThenUserCharges(t *testing.T) {
 	game.State.CurrentTurn = 0
 	game.State.TurnStage = model.TurnStageActionStart
 
-	if err := game.UseSkill("p1", "mb_demon_eye", []string{"p2"}, nil); err != nil {
-		t.Fatalf("use demon eye with target discard branch failed: %v", err)
+	if err := game.UseSkill("p1", "mb_demon_eye", nil, nil); err != nil {
+		t.Fatalf("use demon eye failed: %v", err)
+	}
+	// Now shows branch selection first
+	testutils.RequireChoicePrompt(t, game, "p1", "mb_demon_eye_mode")
+
+	// Choose branch 1 (target discards)
+	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
+		t.Fatalf("choose branch 1 failed: %v", err)
+	}
+	testutils.RequireChoicePrompt(t, game, "p1", "mb_demon_eye_target")
+
+	// Choose target p2 (index 1 since p1 is index 0 now)
+	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
+		t.Fatalf("choose target failed: %v", err)
 	}
 	if game.State.PendingInterrupt == nil || !engine.IsDiscardSelectionInterrupt(game.State.PendingInterrupt) || game.State.PendingInterrupt.PlayerID != "p2" {
 		t.Fatalf("expected demon eye force target discard interrupt, got %+v", game.State.PendingInterrupt)
@@ -877,8 +905,8 @@ func TestMagicBowConfig_MetadataAlignsWithDocument(t *testing.T) {
 	if thunderScatter.TargetType != model.TargetEnemy || thunderScatter.MinTargets != 0 || thunderScatter.MaxTargets != 1 {
 		t.Fatalf("expected thunder scatter target metadata enemy(0..1), got type=%v min=%d max=%d", thunderScatter.TargetType, thunderScatter.MinTargets, thunderScatter.MaxTargets)
 	}
-	if demonEye.TargetType != model.TargetAny || demonEye.MinTargets != 1 || demonEye.MaxTargets != 1 {
-		t.Fatalf("expected demon eye target metadata any(1), got type=%v min=%d max=%d", demonEye.TargetType, demonEye.MinTargets, demonEye.MaxTargets)
+	if demonEye.TargetType != model.TargetNone || demonEye.MinTargets != 0 || demonEye.MaxTargets != 0 {
+		t.Fatalf("expected demon eye target metadata none(0), got type=%v min=%d max=%d", demonEye.TargetType, demonEye.MinTargets, demonEye.MaxTargets)
 	}
 	if strings.Contains(demonEye.Description, "选择：") {
 		t.Fatalf("expected demon eye description to remove old optional mode wording, got %q", demonEye.Description)

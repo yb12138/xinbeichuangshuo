@@ -828,11 +828,7 @@ func handleHopePlaceTarget(rt engineplayer.ChoiceRuntime, ctxData map[string]int
 	if target == nil {
 		return fmt.Errorf("目标不存在")
 	}
-	playedCard, ok := ctxData["played_card"].(model.Card)
-	if !ok {
-		return fmt.Errorf("希望赋格曲的专属牌上下文丢失")
-	}
-	if err := placeBardEternalMovementWithCard(rt, user, target, playedCard); err != nil {
+	if err := PlaceEternalMovement(rt, user, target); err != nil {
 		return err
 	}
 	rt.Log(fmt.Sprintf("%s 发动 [希望赋格曲]：将永恒乐章放置于 %s 面前", user.Name, target.Name))
@@ -882,11 +878,6 @@ func handleHopeTransferDiscard(rt engineplayer.ChoiceRuntime, ctxData map[string
 	user.Hand = append(user.Hand[:selectionIndex], user.Hand[selectionIndex+1:]...)
 	rt.NotifyCardRevealed(user.ID, []model.Card{card}, "discard")
 	rt.AppendToDiscard([]model.Card{card})
-	playedCard, ok := ctxData["played_card"].(model.Card)
-	if !ok {
-		return fmt.Errorf("希望赋格曲的专属牌上下文丢失")
-	}
-	rt.AppendToDiscard([]model.Card{playedCard})
 	mode := runtimeutil.ToIntContextValue(ctxData["mode"])
 	switch mode {
 	case 1:

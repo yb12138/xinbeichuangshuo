@@ -63,12 +63,11 @@ func (h *SageArcaneCodexHandler) Execute(ctx *model.Context) error {
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
 		Context: map[string]interface{}{
-			"choice_type": "sage_arcane_x",
+			"choice_type": "sage_arcane_cards",
 			"user_id":     ctx.User.ID,
-			"max_x":       maxX,
 		},
 	})
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [魔道法典]，请选择X并弃置异系牌", ctx.User.Name))
+	ctx.Game.Log(fmt.Sprintf("%s 发动 [魔道法典]，请选择异系牌", ctx.User.Name))
 	return nil
 }
 
@@ -85,20 +84,14 @@ func (h *SageHolyCodexHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("圣洁法典上下文无效")
 	}
-	distinct := sageDistinctElements(ctx.User)
-	maxX := len(distinct)
-	if maxX < 3 {
-		return fmt.Errorf("圣洁法典需要至少3种不同元素手牌")
-	}
 	ctx.Game.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
 		Context: map[string]interface{}{
-			"choice_type": "sage_holy_x",
+			"choice_type": "sage_holy_cards",
 			"user_id":     ctx.User.ID,
-			"max_x":       maxX,
 		},
 	})
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [圣洁法典]，请选择X并弃置异系牌", ctx.User.Name))
+	ctx.Game.Log(fmt.Sprintf("%s 发动 [圣洁法典]，请选择异系牌", ctx.User.Name))
 	return nil
 }

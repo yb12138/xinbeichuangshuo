@@ -28,9 +28,9 @@ func RoleEntry() player.RoleEntry {
 // ChoiceSpecs 导出角色 choice 声明。
 func ChoiceSpecs() []player.ChoiceSpec {
 	return []player.ChoiceSpec{
-		{ChoiceType: "sage_arcane_cards", SequentialRemaining: player.ChoiceRemainingFromSelectionKey("x_value")},
-		{ChoiceType: "sage_holy_cards", SequentialRemaining: player.ChoiceRemainingFromSelectionKey("x_value")},
-		{ChoiceType: "sage_magic_rebound_cards", SequentialRemaining: player.ChoiceRemainingFromSelectionKey("x_value")},
+		{ChoiceType: "sage_magic_rebound_cards", HandleMultiSelect: handleReboundCardsMultiSelect},
+		{ChoiceType: "sage_arcane_cards", HandleMultiSelect: handleArcaneCardsMultiSelect},
+		{ChoiceType: "sage_holy_cards", HandleMultiSelect: handleHolyCardsMultiSelect},
 	}
 }
 
@@ -64,15 +64,12 @@ func SkillEntries() []player.SkillEntry {
 func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 	return map[string]types.ChoiceRouteSpec{
 		"sage_magic_rebound_confirm": types.ChoiceRouteRole("sage"),
-		"sage_magic_rebound_x":       types.ChoiceRouteRole("sage"),
 		"sage_magic_rebound_element": types.ChoiceRouteRole("sage"),
 		"sage_magic_rebound_cards":   types.ChoiceRouteRole("sage"),
 		"sage_magic_rebound_target":  types.ChoiceRouteRole("sage"),
 		"sage_arcane_cards":          types.ChoiceRouteRole("sage"),
-		"sage_arcane_x":              types.ChoiceRouteRole("sage"),
 		"sage_arcane_target":         types.ChoiceRouteRole("sage"),
 		"sage_holy_cards":            types.ChoiceRouteRole("sage"),
-		"sage_holy_x":                types.ChoiceRouteRole("sage"),
 		"sage_holy_target_count":     types.ChoiceRouteRole("sage"),
 		"sage_holy_targets":          types.ChoiceRouteRole("sage"),
 	}

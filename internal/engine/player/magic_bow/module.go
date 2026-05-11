@@ -61,10 +61,7 @@ func SkillEntries() []player.SkillEntry {
 			Handler: &MagicBowDemonEyeHandler{},
 			Policy: types.SkillPolicy{
 				TargetRules: types.TargetRuleSet{
-					Count: types.TargetCountRule{Min: 0, Max: 1, Err: "魔眼需要且仅能指定1名其他角色"},
-					Slots: []types.TargetSlotRule{
-						{Index: 0, Self: types.TargetSelfOther, Err: "魔眼不能以自己为目标"},
-					},
+					Count: types.TargetCountRule{Min: 0, Max: 0},
 				},
 			},
 		},
@@ -79,6 +76,7 @@ func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 		"mb_charge_place_cards":     types.ChoiceRouteRole("magic_bow"),
 		"mb_charge_place_count":     types.ChoiceRouteRole("magic_bow"),
 		"mb_demon_eye_charge_card":  types.ChoiceRouteRole("magic_bow"),
+		"mb_demon_eye_mode":         types.ChoiceRouteRole("magic_bow"),
 		"mb_demon_eye_pick":         types.ChoiceRouteRole("magic_bow"),
 		"mb_demon_eye_target":       types.ChoiceRouteRole("magic_bow"),
 		"mb_multi_shot_target":      types.ChoiceRouteRole("magic_bow"),

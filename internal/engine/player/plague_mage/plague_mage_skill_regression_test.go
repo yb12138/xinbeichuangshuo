@@ -129,12 +129,10 @@ func TestPlagueDeathTouch_TargetsEnemyOnlyAndSuppressesImmortal(t *testing.T) {
 	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0}})
 	testutils.RequireChoicePrompt(t, game, "p1", "plague_death_touch_x")
 	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0}})
-	testutils.RequireChoicePrompt(t, game, "p1", "plague_death_touch_y")
-	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0}})
+	// After X selection, directly multi-select cards (no Y selection anymore)
 	testutils.RequireChoicePrompt(t, game, "p1", "plague_death_touch_cards")
-	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0}})
-	testutils.RequireChoicePrompt(t, game, "p1", "plague_death_touch_cards")
-	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0}})
+	// Multi-select both fire cards at once
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0, 1}})
 	if p1.Heal != 1 {
 		t.Fatalf("expected death touch to remove 2 heal immediately after final choice, got %d", p1.Heal)
 	}
@@ -244,8 +242,7 @@ func TestPlagueDeathTouch_CancelAtCardPickRestoresActionWindow(t *testing.T) {
 	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0}})
 	testutils.RequireChoicePrompt(t, game, "p1", "plague_death_touch_x")
 	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0}})
-	testutils.RequireChoicePrompt(t, game, "p1", "plague_death_touch_y")
-	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0}})
+	// After X selection, directly go to multi-select cards (no Y selection)
 	testutils.RequireChoicePrompt(t, game, "p1", "plague_death_touch_cards")
 
 	testutils.MustHandleAction(t, game, model.PlayerAction{

@@ -349,68 +349,27 @@ func (h *MagicBowDemonEyeHandler) Execute(ctx *model.Context) error {
 	if ctx.Timing != model.TimingActive && ctx.User.Gem <= 0 {
 		return fmt.Errorf("魔眼需要1个红宝石")
 	}
+	if ctx.Timing != model.TimingActive {
+		ctx.User.Gem--
+	}
+	// Build target list for branch 1 (includes self)
 	targetIDs := make([]string, 0)
 	for _, p := range ctx.Game.GetAllPlayers() {
-		if p == nil || p.ID == ctx.User.ID {
+		if p == nil {
 			continue
 		}
 		targetIDs = append(targetIDs, p.ID)
 	}
-	if ctx.Target == nil && len(targetIDs) == 0 {
-		return fmt.Errorf("魔眼没有可选目标")
-	}
-	if ctx.Target != nil {
-		if ctx.Target.ID == ctx.User.ID {
-			return fmt.Errorf("魔眼不能以自己为目标")
-		}
-	}
-	if ctx.Timing != model.TimingActive {
-		ctx.User.Gem--
-	}
-	if ctx.Target != nil {
-		if len(ctx.Target.Hand) > 0 {
-			ctx.Game.PushInterrupt(&model.Interrupt{
-				Type:     model.InterruptChoice,
-				PlayerID: ctx.Target.ID,
-				Context: map[string]interface{}{
-					"choice_type":                 "system_discard_cards",
-					"discard_subflow":             true,
-					"discard_count":               1,
-					"flow_continuation_role_id":   "magic_bow",
-					"flow_continuation_player_id": ctx.User.ID,
-					"flow_continuation_skill_id":  "mb_demon_eye",
-					"prompt":                      "【魔眼】请选择弃置1张手牌：",
-					"mb_demon_eye_user_id":        ctx.User.ID,
-					"mb_demon_eye_target_id":      ctx.Target.ID,
-				},
-			})
-			ctx.Game.Log(fmt.Sprintf("%s 发动 [魔眼]：请选择 %s 弃置1张手牌", ctx.User.Name, ctx.Target.Name))
-			return nil
-		}
-		ctx.Game.DrawCards(ctx.User.ID, 3)
-		ctx.Game.PushInterrupt(&model.Interrupt{
-			Type:     model.InterruptChoice,
-			PlayerID: ctx.User.ID,
-			Context: map[string]interface{}{
-				"choice_type":       "mb_demon_eye_charge_card",
-				"user_id":           ctx.User.ID,
-				"need_count":        1,
-				"selected_indices":  []int{},
-				"remaining_indices": magicBowAllHandIndices(ctx.User),
-			},
-		})
-		ctx.Game.Log(fmt.Sprintf("%s 发动 [魔眼]：%s 无法弃牌，改为自己摸3张牌并选择1张作为充能", ctx.User.Name, ctx.Target.Name))
-		return nil
-	}
+	// Push branch selection first
 	ctx.Game.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
 		Context: map[string]interface{}{
-			"choice_type": "mb_demon_eye_target",
+			"choice_type": "mb_demon_eye_mode",
 			"user_id":     ctx.User.ID,
 			"target_ids":  targetIDs,
 		},
 	})
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [魔眼]：请选择目标角色", ctx.User.Name))
+	ctx.Game.Log(fmt.Sprintf("%s 发动 [魔眼]，请选择分支", ctx.User.Name))
 	return nil
 }

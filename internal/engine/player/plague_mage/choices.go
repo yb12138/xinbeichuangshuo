@@ -54,52 +54,23 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			Max:          1,
 			Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 0},
 		}
-	case "plague_death_touch_y":
-		maxCards := runtimeutil.ToIntContextValue(data["max_cards"])
-		options := make([]model.PromptOption, 0, maxCards-1)
-		for y := 2; y <= maxCards; y++ {
-			options = append(options, model.PromptOption{
-				ID:    fmt.Sprintf("%d", y),
-				Label: fmt.Sprintf("Y=%d（弃%d张同系牌）", y, y),
-			})
-		}
-		return &model.Prompt{
-			Type:         model.PromptConfirm,
-			PlayerID:     playerID,
-			Message:      "【死亡之触】请选择Y值：",
-			Options:      options,
-			Min:          1,
-			Max:          1,
-			Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 0},
-		}
 	case "plague_death_touch_cards":
-		remaining := runtimeutil.ParseChoiceIntSlice(data["remaining_indices"])
-		yNeed := runtimeutil.ToIntContextValue(data["y_value"])
-		selectedCount := len(runtimeutil.ParseChoiceIntSlice(data["selected_indices"]))
-		options := make([]model.PromptOption, 0, len(remaining))
-		for _, idx := range remaining {
-			if player == nil || idx < 0 || idx >= len(player.Hand) {
-				continue
-			}
+		chosenElement, _ := data["chosen_element"].(string)
+		cardIndices := engineplayer.GetCardIndicesByElement(player, model.Element(chosenElement))
+		options := make([]model.PromptOption, 0, len(cardIndices))
+		for _, idx := range cardIndices {
 			options = append(options, model.PromptOption{
 				ID:    fmt.Sprintf("%d", idx),
 				Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(player.Hand[idx])),
 			})
 		}
-		remainingPick := yNeed - selectedCount
-		if remainingPick < 1 {
-			remainingPick = 1
-		}
-		if len(options) > 0 && remainingPick > len(options) {
-			remainingPick = len(options)
-		}
 		return &model.Prompt{
 			Type:     model.PromptChooseCards,
 			PlayerID: playerID,
-			Message:  fmt.Sprintf("【死亡之触】请选择要弃置的%d张牌：", remainingPick),
+			Message:  "【死亡之触】请选择同系牌（选几张Y即为几）：",
 			Options:  options,
-			Min:      remainingPick,
-			Max:      remainingPick,
+			Min:      2,
+			Max:      len(cardIndices),
 		}
 	case "plague_death_touch_target":
 		targetIDs := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
@@ -132,10 +103,6 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		return true, handlePlagueDeathTouchElementChoice(rt, ctxData, selectionIndex)
 	case "plague_death_touch_x":
 		return true, handlePlagueDeathTouchXChoice(rt, ctxData, selectionIndex)
-	case "plague_death_touch_y":
-		return true, handlePlagueDeathTouchYChoice(rt, ctxData, selectionIndex)
-	case "plague_death_touch_cards":
-		return true, handlePlagueDeathTouchCardsChoice(rt, ctxData, selectionIndex)
 	case "plague_death_touch_target":
 		return true, handlePlagueDeathTouchTargetChoice(rt, ctxData, selectionIndex)
 	default:
@@ -146,7 +113,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 func (choiceHandler) HandleCancel(rt engineplayer.ChoiceRuntime, playerID string, ctxData map[string]interface{}) (bool, error) {
 	choiceType, _ := ctxData["choice_type"].(string)
 	switch choiceType {
-	case "plague_death_touch_element", "plague_death_touch_x", "plague_death_touch_y",
+	case "plague_death_touch_element", "plague_death_touch_x",
 		"plague_death_touch_cards", "plague_death_touch_target":
 		return true, cancelPlagueDeathTouchChoice(rt, playerID, ctxData)
 	default:
@@ -167,52 +134,27 @@ func handlePlagueDeathTouchElementChoice(rt engineplayer.ChoiceRuntime, ctxData 
 	}
 
 	chosenElement := elements[selectionIndex]
+	ctxData["chosen_element"] = chosenElement
+	ctxData["choice_type"] = "plague_death_touch_x"
 	if intr := rt.GetPendingInterrupt(); intr != nil {
-		intr.Context = map[string]interface{}{
-			"choice_type":      "plague_death_touch_x",
-			"user_id":          userID,
-			"target_id":        ctxData["target_id"],
-			"chosen_element":   chosenElement,
-			"max_heal":         user.Heal,
-			"max_cards":        len(engineplayer.GetCardIndicesByElement(user, model.Element(chosenElement))),
-			"selected_indices": []int{},
-		}
+		intr.Context = ctxData
 	}
 	rt.NotifyInterruptPrompt()
 	return nil
 }
 
 func handlePlagueDeathTouchXChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
+	userID, _ := ctxData["user_id"].(string)
+	user := rt.GetPlayers()[userID]
+	if user == nil {
+		return fmt.Errorf("玩家不存在")
+	}
 	xValue := selectionIndex + 2
 	if maxHeal := runtimeutil.ToIntContextValue(ctxData["max_heal"]); xValue < 2 || xValue > maxHeal {
 		return fmt.Errorf("无效的X值")
 	}
-	ctxData["choice_type"] = "plague_death_touch_y"
 	ctxData["x_value"] = xValue
-	if intr := rt.GetPendingInterrupt(); intr != nil {
-		intr.Context = ctxData
-	}
-	rt.NotifyInterruptPrompt()
-	return nil
-}
-
-func handlePlagueDeathTouchYChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
-	userID, _ := ctxData["user_id"].(string)
-	user := rt.GetPlayers()[userID]
-	if user == nil {
-		return fmt.Errorf("玩家不存在")
-	}
-
-	yValue := selectionIndex + 2
-	if maxCards := runtimeutil.ToIntContextValue(ctxData["max_cards"]); yValue < 2 || yValue > maxCards {
-		return fmt.Errorf("无效的Y值")
-	}
-
-	chosenElement, _ := ctxData["chosen_element"].(string)
 	ctxData["choice_type"] = "plague_death_touch_cards"
-	ctxData["y_value"] = yValue
-	ctxData["selected_indices"] = []int{}
-	ctxData["remaining_indices"] = engineplayer.GetCardIndicesByElement(user, model.Element(chosenElement))
 	if intr := rt.GetPendingInterrupt(); intr != nil {
 		intr.Context = ctxData
 	}
@@ -220,43 +162,31 @@ func handlePlagueDeathTouchYChoice(rt engineplayer.ChoiceRuntime, ctxData map[st
 	return nil
 }
 
-func handlePlagueDeathTouchCardsChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
-	remaining := runtimeutil.ParseChoiceIntSlice(ctxData["remaining_indices"])
-	selected := append([]int{}, runtimeutil.ParseChoiceIntSlice(ctxData["selected_indices"])...)
-	yValue := runtimeutil.ToIntContextValue(ctxData["y_value"])
-
-	cardIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, remaining)
-	if !ok {
-		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
-	}
-	selected = append(selected, cardIdx)
-
-	nextRemaining := make([]int, 0, len(remaining))
-	for _, idx := range remaining {
-		if idx != cardIdx {
-			nextRemaining = append(nextRemaining, idx)
-		}
-	}
-
-	if len(selected) < yValue {
-		ctxData["selected_indices"] = selected
-		ctxData["remaining_indices"] = nextRemaining
-		if intr := rt.GetPendingInterrupt(); intr != nil {
-			intr.Context = ctxData
-		}
-		rt.NotifyInterruptPrompt()
-		return nil
-	}
-
-	ctxData["selected_indices"] = selected
-	if targetID, _ := ctxData["target_id"].(string); targetID != "" {
-		return resolvePlagueDeathTouchFinal(rt, ctxData, targetID)
-	}
-
+// handleDeathTouchCardsMultiSelect 处理死亡之触同系牌多选。
+func handleDeathTouchCardsMultiSelect(rt engineplayer.ChoiceRuntime, playerID string, selections []int, ctxData map[string]interface{}) (bool, error) {
 	userID, _ := ctxData["user_id"].(string)
 	user := rt.GetPlayers()[userID]
 	if user == nil {
-		return fmt.Errorf("玩家不存在")
+		return false, fmt.Errorf("玩家不存在")
+	}
+	if len(selections) < 2 {
+		return false, fmt.Errorf("死亡之触至少需要选择2张同系牌")
+	}
+	chosenElement, _ := ctxData["chosen_element"].(string)
+	for _, idx := range selections {
+		if idx < 0 || idx >= len(user.Hand) {
+			return false, fmt.Errorf("无效的选项索引: %d", idx)
+		}
+		card := user.Hand[idx]
+		if string(card.Element) != chosenElement {
+			return false, fmt.Errorf("死亡之触需弃置同系牌")
+		}
+	}
+	ctxData["selected_indices"] = selections
+	ctxData["y_value"] = len(selections)
+	if targetID, _ := ctxData["target_id"].(string); targetID != "" {
+		err := resolvePlagueDeathTouchFinal(rt, ctxData, targetID)
+		return err == nil, err
 	}
 	ctxData["choice_type"] = "plague_death_touch_target"
 	ctxData["target_ids"] = campEnemyIDs(rt, user)
@@ -264,7 +194,7 @@ func handlePlagueDeathTouchCardsChoice(rt engineplayer.ChoiceRuntime, ctxData ma
 		intr.Context = ctxData
 	}
 	rt.NotifyInterruptPrompt()
-	return nil
+	return true, nil
 }
 
 func handlePlagueDeathTouchTargetChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {

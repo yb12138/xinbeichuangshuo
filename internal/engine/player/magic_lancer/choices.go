@@ -43,36 +43,17 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		}
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【暗之障壁】请选择本次弃牌类型：", Options: options, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"}}
 
-	case "ml_dark_barrier_x":
-		maxX := runtimeutil.ToIntContextValue(data["max_x"])
-		if maxX < 1 {
-			maxX = 1
-		}
-		options := make([]model.PromptOption, 0, maxX)
-		for x := 1; x <= maxX; x++ {
-			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", x), Label: fmt.Sprintf("弃置%d张", x)})
-		}
-		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【暗之障壁】请选择X值：", Options: options, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 0}}
-
 	case "ml_dark_barrier_cards":
-		remaining := runtimeutil.ParseChoiceIntSlice(data["remaining_indices"])
-		selectedCount := len(runtimeutil.ParseChoiceIntSlice(data["selected_indices"]))
-		xValue := runtimeutil.ToIntContextValue(data["max_x"])
-		options := make([]model.PromptOption, 0, len(remaining))
-		for _, idx := range remaining {
-			if player == nil || idx < 0 || idx >= len(player.Hand) {
-				continue
+		mode, _ := data["mode"].(string)
+		options := make([]model.PromptOption, 0, len(player.Hand))
+		for idx, card := range player.Hand {
+			if mode == "magic" && card.Type == model.CardTypeMagic {
+				options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", idx), Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(card))})
+			} else if mode == "thunder" && card.Element == model.ElementThunder {
+				options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", idx), Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(card))})
 			}
-			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", idx), Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(player.Hand[idx]))})
 		}
-		remainingPick := xValue - selectedCount
-		if remainingPick < 1 {
-			remainingPick = 1
-		}
-		if len(options) > 0 && remainingPick > len(options) {
-			remainingPick = len(options)
-		}
-		return &model.Prompt{Type: model.PromptChooseCards, PlayerID: playerID, Message: fmt.Sprintf("【暗之障壁】请选择要弃置的%d张牌：", remainingPick), Options: options, Min: remainingPick, Max: remainingPick}
+		return &model.Prompt{Type: model.PromptChooseCards, PlayerID: playerID, Message: "【暗之障壁】请选择要弃置的牌（选几张X即为几）：", Options: options, Min: 1, Max: len(options)}
 
 	case "ml_fullness_cost_card":
 		options := make([]model.PromptOption, 0, len(player.Hand))
@@ -121,10 +102,6 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		return true, handleMagicLancerBlackSpearXChoice(rt, selectionIndex, ctxData)
 	case "ml_dark_barrier_mode":
 		return true, handleMagicLancerDarkBarrierModeChoice(rt, selectionIndex, ctxData)
-	case "ml_dark_barrier_x":
-		return true, handleMagicLancerDarkBarrierXChoice(rt, selectionIndex, ctxData)
-	case "ml_dark_barrier_cards":
-		return true, handleMagicLancerDarkBarrierCardsChoice(rt, selectionIndex, ctxData)
 	case "ml_fullness_cost_card":
 		return true, handleMagicLancerFullnessCostCardChoice(rt, selectionIndex, ctxData)
 	case "ml_fullness_discard_step":
@@ -199,51 +176,7 @@ func handleMagicLancerDarkBarrierModeChoice(rt engineplayer.ChoiceRuntime, selec
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
 	mode := modes[selectionIndex]
-	maxX := maxMagic
-	if mode == "thunder" {
-		maxX = maxThunder
-	}
-	if maxX <= 0 {
-		return fmt.Errorf("可弃牌数量不足")
-	}
 	ctxData["mode"] = mode
-	ctxData["max_x"] = maxX
-	ctxData["choice_type"] = "ml_dark_barrier_x"
-	if intr := rt.GetPendingInterrupt(); intr != nil {
-		intr.Context = ctxData
-	}
-	rt.NotifyInterruptPrompt()
-	return nil
-}
-
-func handleMagicLancerDarkBarrierXChoice(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
-	userID, _ := ctxData["user_id"].(string)
-	user := rt.GetPlayers()[userID]
-	if user == nil {
-		return fmt.Errorf("玩家不存在")
-	}
-	mode, _ := ctxData["mode"].(string)
-	maxX := runtimeutil.ToIntContextValue(ctxData["max_x"])
-	xValue := selectionIndex + 1
-	if xValue < 1 || xValue > maxX {
-		return fmt.Errorf("无效的X值")
-	}
-	remaining := make([]int, 0)
-	for idx, card := range user.Hand {
-		if mode == "magic" {
-			if card.Type == model.CardTypeMagic {
-				remaining = append(remaining, idx)
-			}
-		} else if mode == "thunder" && card.Element == model.ElementThunder {
-			remaining = append(remaining, idx)
-		}
-	}
-	if len(remaining) < xValue {
-		return fmt.Errorf("可选弃牌不足，无法选择X=%d", xValue)
-	}
-	ctxData["x_value"] = xValue
-	ctxData["selected_indices"] = []int{}
-	ctxData["remaining_indices"] = remaining
 	ctxData["choice_type"] = "ml_dark_barrier_cards"
 	if intr := rt.GetPendingInterrupt(); intr != nil {
 		intr.Context = ctxData
@@ -252,46 +185,33 @@ func handleMagicLancerDarkBarrierXChoice(rt engineplayer.ChoiceRuntime, selectio
 	return nil
 }
 
-func handleMagicLancerDarkBarrierCardsChoice(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
+// handleDarkBarrierCardsMultiSelect 处理暗之障壁弃牌多选。
+func handleDarkBarrierCardsMultiSelect(rt engineplayer.ChoiceRuntime, playerID string, selections []int, ctxData map[string]interface{}) (bool, error) {
 	userID, _ := ctxData["user_id"].(string)
 	user := rt.GetPlayers()[userID]
 	if user == nil {
-		return fmt.Errorf("玩家不存在")
+		return false, fmt.Errorf("玩家不存在")
+	}
+	if len(selections) < 1 {
+		return false, fmt.Errorf("暗之障壁至少需要选择1张牌")
 	}
 	mode, _ := ctxData["mode"].(string)
-	xValue := runtimeutil.ToIntContextValue(ctxData["x_value"])
-	remaining := runtimeutil.ParseChoiceIntSlice(ctxData["remaining_indices"])
-	selected := runtimeutil.ParseChoiceIntSlice(ctxData["selected_indices"])
-	cardIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, remaining)
-	if !ok || cardIdx < 0 || cardIdx >= len(user.Hand) {
-		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
-	}
-	card := user.Hand[cardIdx]
-	if mode == "magic" && card.Type != model.CardTypeMagic {
-		return fmt.Errorf("暗之障壁当前需要弃法术牌")
-	}
-	if mode == "thunder" && card.Element != model.ElementThunder {
-		return fmt.Errorf("暗之障壁当前需要弃雷系牌")
-	}
-	selected = append(selected, cardIdx)
-	nextRemaining := make([]int, 0, len(remaining))
-	for _, idx := range remaining {
-		if idx != cardIdx {
-			nextRemaining = append(nextRemaining, idx)
+	for _, idx := range selections {
+		if idx < 0 || idx >= len(user.Hand) {
+			return false, fmt.Errorf("无效的选项索引: %d", idx)
+		}
+		card := user.Hand[idx]
+		if mode == "magic" && card.Type != model.CardTypeMagic {
+			return false, fmt.Errorf("暗之障壁当前模式需弃法术牌")
+		}
+		if mode == "thunder" && card.Element != model.ElementThunder {
+			return false, fmt.Errorf("暗之障壁当前模式需弃雷系牌")
 		}
 	}
-	if len(selected) < xValue {
-		ctxData["selected_indices"] = selected
-		ctxData["remaining_indices"] = nextRemaining
-		if intr := rt.GetPendingInterrupt(); intr != nil {
-			intr.Context = ctxData
-		}
-		rt.NotifyInterruptPrompt()
-		return nil
-	}
-	removed, err := engineplayer.RemoveCardsByIndicesFromHand(user, append([]int{}, selected...))
+	xValue := len(selections)
+	removed, err := engineplayer.RemoveCardsByIndicesFromHand(user, append([]int{}, selections...))
 	if err != nil {
-		return err
+		return false, err
 	}
 	rt.NotifyCardRevealed(user.ID, removed, "discard")
 	rt.AppendToDiscard(removed)
@@ -305,7 +225,7 @@ func handleMagicLancerDarkBarrierCardsChoice(rt engineplayer.ChoiceRuntime, sele
 			rt.EnterResponseWindow()
 		}
 	}
-	return nil
+	return true, nil
 }
 
 func handleMagicLancerFullnessCostCardChoice(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
@@ -531,4 +451,3 @@ func prepareFullnessStep(rt engineplayer.ChoiceRuntime, ctxData map[string]inter
 	}
 	return true
 }
-
