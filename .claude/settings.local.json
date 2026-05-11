@@ -92,7 +92,19 @@
       "Bash(chmod +x:*)",
       "Bash(bash:*)",
       "Bash(npx vue-tsc:*)",
-      "Bash(npx vite:*)"
+      "Bash(npx vite:*)",
+      "Bash(npm run:*)",
+      "Bash(xxd /Users/yb/xinbeichuangshuo/internal/engine/player/assassin/skill_handlers.go)",
+      "Bash(echo \"EXIT=$?\")",
+      "Bash(wc:*)",
+      "Bash(head -n 483 /Users/yb/xinbeichuangshuo/internal/engine/player/onmyoji/onmyoji_skill_flow_regression_test.go)",
+      "Bash(mv /tmp/onmyoji_test.go /Users/yb/xinbeichuangshuo/internal/engine/player/onmyoji/onmyoji_skill_flow_regression_test.go)",
+      "Bash(head -n 123 /Users/yb/xinbeichuangshuo/internal/engine/player/onmyoji/onmyoji_skill_flow_regression_test.go)",
+      "Bash(sed -n '42,56p' /Users/yb/xinbeichuangshuo/internal/engine/player/plague_mage/choices.go)",
+      "Bash(sed -n '59,73p' /Users/yb/xinbeichuangshuo/internal/engine/player/blaze_witch/choices.go)",
+      "Bash(claude mcp:*)",
+      "Bash(xxd /Users/yb/xinbeichuangshuo/internal/engine/player/sage/choices.go)",
+      "mcp__chrome-devtools__list_pages"
     ]
   }
 }
