@@ -72,10 +72,7 @@ func SkillEntries() []player.SkillEntry {
 			Handler: &OnmyojiLifeBarrierHandler{},
 			Policy: types.SkillPolicy{
 				TargetRules: types.TargetRuleSet{
-					Count: types.TargetCountRule{Min: 0, Max: 1, Err: "生命结界需要且仅能指定1名其他队友"},
-					Slots: []types.TargetSlotRule{
-						{Index: 0, Camp: types.TargetCampAlly, Self: types.TargetSelfOther, Err: "生命结界目标必须是其他队友"},
-					},
+					Count: types.TargetCountRule{Min: 0, Max: 0},
 				},
 			},
 		},

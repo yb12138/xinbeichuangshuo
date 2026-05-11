@@ -89,35 +89,24 @@ func (h *HomunculusRuneSmashHandler) CanUse(ctx *model.Context) bool {
 	if engineplayer.GetToken(ctx.User, "hom_war_rune") <= 0 {
 		return false
 	}
-	if ctx.EventCtx.Card == nil {
-		return false
-	}
-	ele := ctx.EventCtx.Card.Element
-	sameCnt := 0
-	for _, c := range ctx.User.Hand {
-		if c.Element == ele {
-			sameCnt++
-		}
-	}
-	return sameCnt > 0
+	// 战纹碎击：只要有手牌就可以发动，选择的牌彼此同系即可（不要求与攻击牌同系）
+	return len(ctx.User.Hand) > 0
 }
 
 func (h *HomunculusRuneSmashHandler) Execute(ctx *model.Context) error {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.EventCtx == nil || ctx.EventCtx.Card == nil {
+	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.EventCtx == nil {
 		return fmt.Errorf("战纹碎击上下文无效")
 	}
 	if engineplayer.GetToken(ctx.User, "hom_war_rune") <= 0 {
 		return fmt.Errorf("战纹不足")
 	}
-	attackEle := ctx.EventCtx.Card.Element
+	// 战纹碎击：所有手牌都可作为候选，选择的牌彼此同系即可
 	var candidates []int
-	for i, c := range ctx.User.Hand {
-		if c.Element == attackEle {
-			candidates = append(candidates, i)
-		}
+	for i := range ctx.User.Hand {
+		candidates = append(candidates, i)
 	}
 	if len(candidates) == 0 {
-		return fmt.Errorf("没有可弃置的同系牌")
+		return fmt.Errorf("没有可弃置的手牌")
 	}
 	maxY := 0
 	if engineplayer.HasForm(ctx.User, model.FormWarHomunculusBurst) {
@@ -134,7 +123,7 @@ func (h *HomunculusRuneSmashHandler) Execute(ctx *model.Context) error {
 			"choice_type":       "hom_rune_smash_cards",
 			"user_id":           ctx.User.ID,
 			"user_ctx":          ctx,
-			"attack_element":    string(attackEle),
+			"attack_element":    "", // 不再限制与攻击牌同系
 			"candidate_indices": candidates,
 			"max_y":             maxY,
 			"selected_indices":  []int{},
@@ -142,7 +131,7 @@ func (h *HomunculusRuneSmashHandler) Execute(ctx *model.Context) error {
 			"x_value":           0, // 由玩家选牌数量决定
 		},
 	})
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [战纹碎击]，请选择要弃置的同系牌", ctx.User.Name))
+	ctx.Game.Log(fmt.Sprintf("%s 发动 [战纹碎击]，请选择要弃置的同系牌（所选牌彼此同系）", ctx.User.Name))
 	return nil
 }
 
@@ -168,17 +157,9 @@ func (h *HomunculusGlyphFusionHandler) CanUse(ctx *model.Context) bool {
 	if engineplayer.GetToken(ctx.User, "hom_magic_rune") <= 0 {
 		return false
 	}
-	attackEle := model.Element("")
-	if ctx.EventCtx.Card != nil {
-		attackEle = ctx.EventCtx.Card.Element
-	}
-	uniqueElements := map[model.Element]bool{}
-	for _, c := range ctx.User.Hand {
-		if c.Element != attackEle {
-			uniqueElements[c.Element] = true
-		}
-	}
-	return len(uniqueElements) >= 2
+	// 魔纹融合：只要有至少2张手牌就可以发动，选择的牌彼此异系即可（不要求与攻击牌异系）
+	// 至少需要2张牌才能选择彼此异系的牌
+	return len(ctx.User.Hand) >= 2
 }
 
 func (h *HomunculusGlyphFusionHandler) Execute(ctx *model.Context) error {
@@ -188,22 +169,13 @@ func (h *HomunculusGlyphFusionHandler) Execute(ctx *model.Context) error {
 	if engineplayer.GetToken(ctx.User, "hom_magic_rune") <= 0 {
 		return fmt.Errorf("魔纹不足")
 	}
-	attackEle := model.Element("")
-	if ctx.EventCtx.Card != nil {
-		attackEle = ctx.EventCtx.Card.Element
-	}
+	// 魔纹融合：所有手牌都可作为候选，选择的牌彼此异系即可
 	var candidates []int
-	for i, c := range ctx.User.Hand {
-		if c.Element != attackEle {
-			candidates = append(candidates, i)
-		}
+	for i := range ctx.User.Hand {
+		candidates = append(candidates, i)
 	}
-	uniqueElements := map[model.Element]bool{}
-	for _, idx := range candidates {
-		uniqueElements[ctx.User.Hand[idx].Element] = true
-	}
-	if len(uniqueElements) < 2 {
-		return fmt.Errorf("异系牌不足2张")
+	if len(candidates) < 2 {
+		return fmt.Errorf("手牌不足2张")
 	}
 	maxY := 0
 	if engineplayer.HasForm(ctx.User, model.FormWarHomunculusBurst) {
@@ -213,7 +185,7 @@ func (h *HomunculusGlyphFusionHandler) Execute(ctx *model.Context) error {
 		}
 	}
 	// 直接弹出选牌 interrupt，跳过 X 数值选择
-	// 魔纹融合至少需要2张异系牌（元素不重复）
+	// 魔纹融合至少需要2张异系牌（元素互不相同）
 	minPick := 2
 	ctx.Game.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
@@ -222,7 +194,7 @@ func (h *HomunculusGlyphFusionHandler) Execute(ctx *model.Context) error {
 			"choice_type":       "hom_glyph_fusion_cards",
 			"user_id":           ctx.User.ID,
 			"user_ctx":          ctx,
-			"attack_element":    string(attackEle),
+			"attack_element":    "", // 不再限制与攻击牌异系
 			"candidate_indices": candidates,
 			"max_y":             maxY,
 			"selected_indices":  []int{},
@@ -230,7 +202,7 @@ func (h *HomunculusGlyphFusionHandler) Execute(ctx *model.Context) error {
 			"x_value":           0, // 由玩家选牌数量决定
 		},
 	})
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [魔纹融合]，请选择要弃置的异系牌（元素不可重复）", ctx.User.Name))
+	ctx.Game.Log(fmt.Sprintf("%s 发动 [魔纹融合]，请选择要弃置的异系牌（所选牌彼此异系）", ctx.User.Name))
 	return nil
 }
 

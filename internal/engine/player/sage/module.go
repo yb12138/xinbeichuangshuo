@@ -44,10 +44,7 @@ func SkillEntries() []player.SkillEntry {
 			Handler: &SageArcaneCodexHandler{},
 			Policy: types.SkillPolicy{
 				TargetRules: types.TargetRuleSet{
-					Count: types.TargetCountRule{Min: 0, Max: 1, Err: "魔道法典需要且仅能指定1名其他角色"},
-					Slots: []types.TargetSlotRule{
-						{Index: 0, Self: types.TargetSelfOther, Err: "魔道法典不能以自己为目标"},
-					},
+					Count: types.TargetCountRule{Min: 0, Max: 1},
 				},
 			},
 		},

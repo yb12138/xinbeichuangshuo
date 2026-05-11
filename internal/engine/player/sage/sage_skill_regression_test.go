@@ -1,14 +1,14 @@
 package sage_test
 
 import (
-	"starcup-engine/internal/engine"
-	"starcup-engine/internal/engine/core/runtimeutil"
-	"starcup-engine/internal/testutils"
 	"strings"
 	"testing"
 
 	"starcup-engine/internal/data"
+	"starcup-engine/internal/engine"
+	"starcup-engine/internal/engine/core/runtimeutil"
 	"starcup-engine/internal/model"
+	"starcup-engine/internal/testutils"
 )
 
 func sageTestCard(id, name string, cardType model.CardType, ele model.Element) model.Card {
@@ -49,7 +49,7 @@ func TestSageMagicRebound_SameElementDiscardChain(t *testing.T) {
 		sageTestCard("f2", "烈焰击", model.CardTypeAttack, model.ElementFire),
 		sageTestCard("f3", "炎刃", model.CardTypeMagic, model.ElementFire),
 	}
-	// 伤害摸牌固定为非火系，确保“同系弃牌”候选稳定为上述3张火系牌。
+	// 伤害摸牌固定为非火系，确保"同系弃牌"候选稳定为上述3张火系牌。
 	g.State.Deck = []model.Card{
 		sageTestCard("d1", "水涟斩", model.CardTypeAttack, model.ElementWater),
 	}
@@ -93,7 +93,7 @@ func TestSageMagicRebound_SameElementDiscardChain(t *testing.T) {
 		t.Fatalf("expected choice_type sage_magic_rebound_cards, got %q", got)
 	}
 
-	// 连续3次选择同系牌（同系允许，不能被“异系去重”误伤）。
+	// 连续3次选择同系牌（同系允许，不能被"异系去重"误伤）。
 	for i := 0; i < 3; i++ {
 		if err := g.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 			t.Fatalf("choose rebound cards step=%d failed: %v", i+1, err)
@@ -104,12 +104,12 @@ func TestSageMagicRebound_SameElementDiscardChain(t *testing.T) {
 	}
 	ctxData, _ := g.State.PendingInterrupt.Context.(map[string]interface{})
 	targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
-	if len(targetIDs) != 1 || targetIDs[0] != "p2" {
-		t.Fatalf("expected rebound target pool exclude self and keep only p2, got %v", targetIDs)
+	if len(targetIDs) != 2 {
+		t.Fatalf("expected rebound target pool include self (2 players), got %v", targetIDs)
 	}
 
-	// 目标池已排除自己，仅剩 p2。
-	if err := g.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
+	// 目标池包含自己，选 p2 作为目标（索引1）。
+	if err := g.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
 		t.Fatalf("choose rebound target failed: %v", err)
 	}
 	if g.State.PendingInterrupt != nil {
@@ -133,7 +133,7 @@ func TestSageMagicRebound_SameElementDiscardChain(t *testing.T) {
 	}
 }
 
-// 回归：法术反弹的触发时点必须在“承伤摸牌完成之后”。
+// 回归：法术反弹的触发时点必须在"承伤摸牌完成之后"。
 // 若触发早于摸牌，本用例中将无法凑出2张同系牌，不会出现反弹询问。
 func TestSageMagicRebound_DispatchAfterDamageDraw(t *testing.T) {
 	g := engine.NewGameEngine(testutils.NoopObserver{})
@@ -148,7 +148,7 @@ func TestSageMagicRebound_DispatchAfterDamageDraw(t *testing.T) {
 	p1.Hand = []model.Card{
 		sageTestCard("f1", "火焰斩", model.CardTypeAttack, model.ElementFire),
 	}
-	// 受1点法伤后会摸1张；这张牌补成“第2张同系牌”，使法术反弹满足 X>1。
+	// 受1点法伤后会摸1张；这张牌补成"第2张同系牌"，使法术反弹满足 X>1。
 	g.State.Deck = []model.Card{
 		sageTestCard("f2", "炎流", model.CardTypeMagic, model.ElementFire),
 	}
@@ -268,7 +268,7 @@ func TestSageWisdomCodex_ForceDiscardAfterHeavyMagicDamage(t *testing.T) {
 	}
 }
 
-func TestSageArcaneCodex_TargetPoolExcludesSelfAndSelfDamageStillRunsRebound(t *testing.T) {
+func TestSageArcaneCodex_TargetPoolIncludesSelfAndSelfDamageStillRunsRebound(t *testing.T) {
 	g := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := g.AddPlayer("p1", "Sage", "sage", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -326,12 +326,12 @@ func TestSageArcaneCodex_TargetPoolExcludesSelfAndSelfDamageStillRunsRebound(t *
 	}
 	ctxData, _ := g.State.PendingInterrupt.Context.(map[string]interface{})
 	targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
-	if len(targetIDs) != 1 || targetIDs[0] != "p2" {
-		t.Fatalf("expected arcane target pool exclude self and keep only p2, got %v", targetIDs)
+	if len(targetIDs) != 2 {
+		t.Fatalf("expected arcane target pool include self (2 players), got %v", targetIDs)
 	}
 
-	// 目标池已排除自己，仅剩 p2。
-	if err := g.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
+	// 目标池包含自己，选 p2 作为目标（索引1）。
+	if err := g.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
 		t.Fatalf("choose arcane target failed: %v", err)
 	}
 	if got := len(g.State.PendingDamageQueue); got < 2 {
@@ -571,4 +571,177 @@ func TestSageConfig_MetadataAlignsWithDocument(t *testing.T) {
 	if holy.CostGem != 1 || holy.TargetType != model.TargetAny || holy.MinTargets != 1 || holy.MaxTargets != 6 {
 		t.Fatalf("expected holy codex metadata gem=1 target any(1..6), got gem=%d type=%v min=%d max=%d", holy.CostGem, holy.TargetType, holy.MinTargets, holy.MaxTargets)
 	}
+}
+
+// TestSageArcaneCodex_SelfTargetReboundCombo 验证贤者自洗牌套路：
+// 1. 魔道法典以自己为目标，弃2张异系牌，对自己造成2次各1点法术伤害
+// 2. 第一次1点法伤：摸1牌（与3张同系一致），触发法术反弹(X=4)
+// 3. 法术反弹：弃4张同系牌，对敌方造成3点伤害，自己受4点法伤摸4牌
+// 4. 智慧法典触发（4点>3）：+2宝石弃1牌
+// 5. 第二次1点法伤（魔道法典的自身伤害）：再触发法术反弹
+func TestSageArcaneCodex_SelfTargetReboundCombo(t *testing.T) {
+	g := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := g.AddPlayer("p1", "Sage", "sage", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := g.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Gem = 1
+	// 手牌含 3 张火系 + 水/地各1张：
+	// 魔道法典弃2张异系（水、地）后，保留3张同系（火）。
+	// 第一次1点法伤摸1牌后，若抽到火系则变成4张同系可触发法术反弹。
+	p1.Hand = []model.Card{
+		sageTestCard("f1", "火焰斩", model.CardTypeAttack, model.ElementFire),
+		sageTestCard("f2", "烈焰击", model.CardTypeMagic, model.ElementFire),
+		sageTestCard("f3", "炎刃", model.CardTypeAttack, model.ElementFire),
+		sageTestCard("w1", "水涟斩", model.CardTypeAttack, model.ElementWater),
+		sageTestCard("e1", "地裂斩", model.CardTypeAttack, model.ElementEarth),
+	}
+	// 牌堆：确保每次伤害摸牌后都能凑出同系牌
+	g.State.Deck = []model.Card{
+		sageTestCard("d1", "火补1", model.CardTypeAttack, model.ElementFire), // 第一次1点法伤摸牌
+		sageTestCard("d2", "火补2", model.CardTypeAttack, model.ElementFire), // 反弹4点自伤摸牌
+		sageTestCard("d3", "火补3", model.CardTypeAttack, model.ElementFire),
+		sageTestCard("d4", "火补4", model.CardTypeAttack, model.ElementFire),
+		sageTestCard("d5", "火补5", model.CardTypeAttack, model.ElementFire), // 第二次1点法伤摸牌
+		sageTestCard("d6", "火补6", model.CardTypeAttack, model.ElementFire), // 第二次反弹自伤摸牌
+		sageTestCard("d7", "火补7", model.CardTypeAttack, model.ElementFire),
+		sageTestCard("d8", "水补1", model.CardTypeAttack, model.ElementWater),
+		sageTestCard("d9", "水补2", model.CardTypeAttack, model.ElementWater),
+		sageTestCard("d10", "水补3", model.CardTypeAttack, model.ElementWater),
+	}
+	g.State.CurrentTurn = 0
+	g.State.TurnStage = model.TurnStageActionExecution
+
+	// --- Step 1: 使用魔道法典 ---
+	if err := g.UseSkill("p1", "sage_arcane_codex", nil, nil); err != nil {
+		t.Fatalf("use arcane codex failed: %v", err)
+	}
+
+	// --- Step 2: 选择 X=2 ---
+	if got := testutils.ChoiceTypeOfInterrupt(g.State.PendingInterrupt); got != "sage_arcane_x" {
+		t.Fatalf("expected choice_type sage_arcane_x, got %q", got)
+	}
+	if err := g.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
+		t.Fatalf("choose arcane x=2 failed: %v", err)
+	}
+
+	// --- Step 3: 弃2张异系牌（水、地） ---
+	if err := g.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{3}}); err != nil {
+		t.Fatalf("choose arcane card#1(water) failed: %v", err)
+	}
+	if err := g.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{3}}); err != nil {
+		t.Fatalf("choose arcane card#2(earth) failed: %v", err)
+	}
+
+	// --- Step 4: 选择目标为自己 ---
+	if got := testutils.ChoiceTypeOfInterrupt(g.State.PendingInterrupt); got != "sage_arcane_target" {
+		t.Fatalf("expected choice_type sage_arcane_target, got %q", got)
+	}
+	// 选 p1（自己），索引0
+	if err := g.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
+		t.Fatalf("choose self as arcane target failed: %v", err)
+	}
+
+	// 验证伤害队列：目标(p1)受1点 + 自身(p1)受1点，共2条
+	if got := len(g.State.PendingDamageQueue); got < 2 {
+		t.Fatalf("expected 2 pending magic damages (target=self, two hits), got %d", got)
+	}
+
+	// --- Step 5: 结算第一次1点法伤 → 摸1牌（火系）→ 触发法术反弹 ---
+	runUntilChoiceInterrupt(g, 16)
+	if got := testutils.ChoiceTypeOfInterrupt(g.State.PendingInterrupt); got != "sage_magic_rebound_confirm" {
+		t.Fatalf("expected sage_magic_rebound_confirm, got %q", got)
+	}
+
+	// --- Step 6: 确认发动法术反弹 ---
+	if err := g.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
+		t.Fatalf("confirm rebound failed: %v", err)
+	}
+
+	// --- Step 7: 选择 X=4（弃4张同系牌） ---
+	if got := testutils.ChoiceTypeOfInterrupt(g.State.PendingInterrupt); got != "sage_magic_rebound_x" {
+		t.Fatalf("expected sage_magic_rebound_x, got %q", got)
+	}
+	// X=4 对应索引2（X从2开始，索引0=X2, 索引2=X4）
+	if err := g.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{2}}); err != nil {
+		t.Fatalf("choose rebound x=4 failed: %v", err)
+	}
+
+	// --- Step 8: 选择元素（火系） ---
+	if err := g.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
+		t.Fatalf("choose fire element failed: %v", err)
+	}
+
+	// --- Step 9: 弃4张同系牌 ---
+	for i := 0; i < 4; i++ {
+		if err := g.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
+			t.Fatalf("choose rebound card#%d failed: %v", i+1, err)
+		}
+	}
+
+	// --- Step 10: 选择法术反弹目标 → p2 ---
+	if err := g.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
+		t.Fatalf("choose rebound target p2 failed: %v", err)
+	}
+
+	// --- Step 11: 结算法术反弹的伤害 ---
+	// 反弹伤害队列：4点法伤给p1 + 3点法伤给p2
+	// 4点法伤 > 3 → 触发智慧法典（+2宝石，弃1牌）
+	runUntilChoiceInterrupt(g, 32)
+	t.Logf("After rebound resolution: interrupt=%v, damageQueue=%d, hand=%d",
+		g.State.PendingInterrupt != nil, len(g.State.PendingDamageQueue), len(p1.Hand))
+
+	// 处理所有中断直到遇到贤者技能中断或队列为空
+	for g.State.PendingInterrupt != nil {
+		ct := testutils.ChoiceTypeOfInterrupt(g.State.PendingInterrupt)
+		t.Logf("Handling interrupt: type=%s, damageQueue=%d, hand=%d", ct, len(g.State.PendingDamageQueue), len(p1.Hand))
+		if ct == "discard_card" || ct == "system_discard_cards" {
+			if err := g.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
+				t.Fatalf("discard failed (type=%s): %v", ct, err)
+			}
+			// 不用 runUntilChoiceInterrupt，直接检查状态
+			t.Logf("After discard: interrupt=%v, damageQueue=%d, hand=%d",
+				g.State.PendingInterrupt != nil, len(g.State.PendingDamageQueue), len(p1.Hand))
+		} else if strings.HasPrefix(ct, "sage_") {
+			break
+		} else {
+			break
+		}
+	}
+	t.Logf("After loop: interrupt=%v, damageQueue=%d, hand=%d",
+		g.State.PendingInterrupt != nil, len(g.State.PendingDamageQueue), len(p1.Hand))
+
+	// --- Step 12: 继续结算魔道法典的第二次1点法伤 → 应触发第二次法术反弹 ---
+	// 手动处理每一步伤害结算，观察状态变化
+	for i := 0; i < 16; i++ {
+		if g.State.PendingInterrupt != nil {
+			break
+		}
+		if len(g.State.PendingDamageQueue) == 0 {
+			break
+		}
+		t.Logf("Step %d: processing damage, queueLen=%d, hand=%d", i, len(g.State.PendingDamageQueue), len(p1.Hand))
+		g.ProcessPendingDamages()
+		t.Logf("Step %d: after damage, interrupt=%v, queueLen=%d, hand=%d", i, g.State.PendingInterrupt != nil, len(g.State.PendingDamageQueue), len(p1.Hand))
+	}
+	if g.State.PendingInterrupt == nil {
+		fireCount2 := 0
+		for _, c := range p1.Hand {
+			if c.Element == model.ElementFire {
+				fireCount2++
+			}
+		}
+		t.Fatalf("expected rebound confirm after second 1-damage, but interrupt is nil. damageQueue=%d, hand=%d, fireCount=%d", len(g.State.PendingDamageQueue), len(p1.Hand), fireCount2)
+	}
+	if got := testutils.ChoiceTypeOfInterrupt(g.State.PendingInterrupt); got != "sage_magic_rebound_confirm" {
+		ct := testutils.ChoiceTypeOfInterrupt(g.State.PendingInterrupt)
+		t.Fatalf("expected second rebound confirm, got %q", ct)
+	}
+	// 第二次法术反弹成功触发，套路验证通过
 }

@@ -327,10 +327,10 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		switch choiceType {
 		case "sage_magic_rebound_cards":
 			ctxData["choice_type"] = "sage_magic_rebound_target"
-			ctxData["target_ids"] = allOtherPlayerIDs(rt, user.ID)
+			ctxData["target_ids"] = append([]string{}, rt.GetPlayerOrder()...)
 		case "sage_arcane_cards":
 			ctxData["choice_type"] = "sage_arcane_target"
-			ctxData["target_ids"] = allOtherPlayerIDs(rt, user.ID)
+			ctxData["target_ids"] = append([]string{}, rt.GetPlayerOrder()...)
 		case "sage_holy_cards":
 			maxTargetCount := xValue - 2
 			if maxTargetCount < 1 {
@@ -476,9 +476,6 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		rt.NotifyCardRevealed(user.ID, removed, "discard")
 		rt.AppendToDiscard(removed)
 		targetID := targetIDs[selectionIndex]
-		if targetID == user.ID {
-			return true, fmt.Errorf("该技能不能以自己为目标")
-		}
 		target := rt.GetPlayers()[targetID]
 		if target == nil {
 			return true, fmt.Errorf("目标不存在")
@@ -523,7 +520,11 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 					DamageType: model.MagicAttack,
 				})
 			}
-			rt.Log(fmt.Sprintf("%s 发动 [魔道法典]：弃%d张异系牌，对 %s 与自己各造成%d点法术伤害", user.Name, xValue, target.Name, damage))
+			if targetID == user.ID {
+				rt.Log(fmt.Sprintf("%s 发动 [魔道法典]：弃%d张异系牌，对自己造成%d点法术伤害（目标为自己，两次各1点）", user.Name, xValue, damage))
+			} else {
+				rt.Log(fmt.Sprintf("%s 发动 [魔道法典]：弃%d张异系牌，对 %s 与自己各造成%d点法术伤害", user.Name, xValue, target.Name, damage))
+			}
 		}
 
 		rt.PopInterrupt()
@@ -539,16 +540,6 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 }
 
 // Helper functions for sage
-
-func allOtherPlayerIDs(rt engineplayer.ChoiceRuntime, userID string) []string {
-	var otherIDs []string
-	for _, pid := range rt.GetPlayerOrder() {
-		if pid != userID {
-			otherIDs = append(otherIDs, pid)
-		}
-	}
-	return otherIDs
-}
 
 func buildElementCardIndexMap(player *model.Player) map[model.Element][]int {
 	if player == nil {
@@ -597,9 +588,8 @@ func removeElementIndices(indices []int, player *model.Player, element model.Ele
 	return out
 }
 
-
 func prependPendingDamages(rt engineplayer.ChoiceRuntime, pending []model.PendingDamage) {
-	for i := len(pending) - 1; i >= 0; i-- {
-		rt.AddPendingDamage(pending[i])
+	for _, pd := range pending {
+		rt.AddPendingDamageFront(pd)
 	}
 }

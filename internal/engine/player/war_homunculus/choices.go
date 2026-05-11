@@ -116,9 +116,9 @@ func buildRuneCardsPrompt(playerID string, player *model.Player, data map[string
 	if len(options) > 0 && remainingPick > len(options) {
 		remainingPick = len(options)
 	}
-	message := fmt.Sprintf("【战纹碎击】请选择要弃置的同系牌（至少%d张）：", minPick)
+	message := fmt.Sprintf("【战纹碎击】请选择要弃置的同系牌（所选牌彼此同系，至少%d张）：", minPick)
 	if glyph {
-		message = fmt.Sprintf("【魔纹融合】请选择要弃置的异系牌（至少%d张，元素不可重复）：", minPick)
+		message = fmt.Sprintf("【魔纹融合】请选择要弃置的异系牌（所选牌彼此异系，至少%d张）：", minPick)
 	}
 	return &model.Prompt{Type: model.PromptChooseCards, PlayerID: playerID, Message: message, Options: options, Min: remainingPick, Max: maxPick}
 }
@@ -272,10 +272,10 @@ func handleRuneCards(rt engineplayer.ChoiceRuntime, ctxData map[string]interface
 
 	attackElement, _ := ctxData["attack_element"].(string)
 	nextSelected := append(append([]int{}, selected...), cardIdx)
-	mismatchErr := "战纹碎击需选择与攻击同系的牌"
+	mismatchErr := "战纹碎击需选择彼此同系的牌"
 	duplicateErr := ""
 	if glyph {
-		mismatchErr = "魔纹融合需选择与攻击异系的牌"
+		mismatchErr = "魔纹融合需选择彼此异系的牌"
 		duplicateErr = "魔纹融合需选择元素互不相同的异系牌"
 	}
 	if err := validateRuneCardSelection(user, nextSelected, attackElement, glyph, mismatchErr, duplicateErr); err != nil {
@@ -364,10 +364,10 @@ func handleRuneCardsMultiSelect(glyph bool) func(rt engineplayer.ChoiceRuntime, 
 		}
 
 		attackElement, _ := ctxData["attack_element"].(string)
-		mismatchErr := "战纹碎击需选择与攻击同系的牌"
+		mismatchErr := "战纹碎击需选择彼此同系的牌"
 		duplicateErr := ""
 		if glyph {
-			mismatchErr = "魔纹融合需选择与攻击异系的牌"
+			mismatchErr = "魔纹融合需选择彼此异系的牌"
 			duplicateErr = "魔纹融合需选择元素互不相同的异系牌"
 		}
 		if err := validateRuneCardSelection(user, selections, attackElement, glyph, mismatchErr, duplicateErr); err != nil {
@@ -502,10 +502,10 @@ func resolveRuneChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]interfa
 	}
 
 	attackElement, _ := ctxData["attack_element"].(string)
-	mismatchErr := "战纹碎击需弃置同系牌"
+	mismatchErr := "战纹碎击需弃置彼此同系的牌"
 	duplicateErr := ""
 	if glyph {
-		mismatchErr = "魔纹融合需弃置异系牌"
+		mismatchErr = "魔纹融合需弃置彼此异系的牌"
 		duplicateErr = "魔纹融合需弃置元素互不相同的异系牌"
 	}
 	if err := validateRuneCardSelection(user, selected, attackElement, glyph, mismatchErr, duplicateErr); err != nil {
@@ -587,8 +587,8 @@ func updateRuneChoiceContext(rt engineplayer.ChoiceRuntime, ctxData map[string]i
 // ---------------------------------------------------------------------------
 
 // validateRuneCardSelection checks that the selected hand indices satisfy the
-// element-matching rules for 战纹碎击 (same element) or 魔纹融合 (different
-// element from attack element, no duplicates).
+// element-matching rules for 战纹碎击 (selected cards must be same element with each other)
+// or 魔纹融合 (selected cards must be different elements from each other).
 func validateRuneCardSelection(user *model.Player, selected []int, attackElement string, glyph bool, mismatchErr, duplicateErr string) error {
 	seen := map[model.Element]bool{}
 	for _, idx := range selected {
@@ -597,16 +597,20 @@ func validateRuneCardSelection(user *model.Player, selected []int, attackElement
 		}
 		elem := user.Hand[idx].Element
 		if glyph {
-			if attackElement != "" && string(elem) == attackElement {
-				return fmt.Errorf(mismatchErr)
-			}
+			// 魔纹融合：选择的牌彼此异系（元素互不相同）
 			if duplicateErr != "" && seen[elem] {
 				return fmt.Errorf(duplicateErr)
 			}
 			seen[elem] = true
 			continue
 		}
-		if attackElement != "" && string(elem) != attackElement {
+		// 战纹碎击：选择的牌彼此同系
+		// 第一张牌确定元素，后续牌必须与第一张牌元素相同
+		if len(seen) == 0 {
+			seen[elem] = true
+			continue
+		}
+		if !seen[elem] || len(seen) > 1 {
 			return fmt.Errorf(mismatchErr)
 		}
 	}
@@ -635,16 +639,26 @@ func applyRuneFlip(user *model.Player, glyph bool, flipCount int) error {
 }
 
 // filterRuneRemainingCandidates filters out the picked card index from the
-// remaining candidate list. For glyph mode, it also removes cards with the
-// same element as the picked card.
+// remaining candidate list.
+// For glyph mode (魔纹融合), it removes cards with the same element as the picked card (彼此异系).
+// For rune smash mode (战纹碎击), it removes cards with different element from the picked card (彼此同系).
 func filterRuneRemainingCandidates(user *model.Player, remaining []int, picked int, glyph bool) []int {
 	nextRemaining := make([]int, 0, len(remaining))
 	for _, idx := range remaining {
 		if idx == picked {
 			continue
 		}
-		if glyph && idx >= 0 && idx < len(user.Hand) && picked >= 0 && picked < len(user.Hand) && user.Hand[idx].Element == user.Hand[picked].Element {
-			continue
+		if idx >= 0 && idx < len(user.Hand) && picked >= 0 && picked < len(user.Hand) {
+			pickedElem := user.Hand[picked].Element
+			currentElem := user.Hand[idx].Element
+			if glyph && currentElem == pickedElem {
+				// 魔纹融合：过滤掉相同元素的牌（彼此异系）
+				continue
+			}
+			if !glyph && currentElem != pickedElem {
+				// 战纹碎击：过滤掉不同元素的牌（彼此同系）
+				continue
+			}
 		}
 		nextRemaining = append(nextRemaining, idx)
 	}

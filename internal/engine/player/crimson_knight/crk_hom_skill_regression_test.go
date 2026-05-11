@@ -319,7 +319,7 @@ func TestHomGlyphFusion_MaxXUsesDistinctElements(t *testing.T) {
 	})
 
 	if !h.CanUse(ctx) {
-		t.Fatalf("expected glyph fusion can use with 2 distinct off-elements")
+		t.Fatalf("expected glyph fusion can use with at least 2 hand cards")
 	}
 	if err := h.Execute(ctx); err != nil {
 		t.Fatalf("execute glyph fusion failed: %v", err)
@@ -334,10 +334,57 @@ func TestHomGlyphFusion_MaxXUsesDistinctElements(t *testing.T) {
 		t.Fatalf("expected min_pick=2, got %v", data["min_pick"])
 	}
 
-	// 直接多选两张异系牌（水系索引0和风系索引2，元素互不相同）
+	// 直接多选两张彼此异系的牌（水系索引0和风系索引2，元素互不相同）
 	if err := g.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0, 2}}); err != nil {
 		t.Fatalf("choose glyph cards failed: %v", err)
 	}
+}
+
+// TestHomGlyphFusion_CanTriggerWithSameElementAsAttack 验证：
+// 攻击牌元素与手牌元素相同时，魔纹融合仍然可以触发（新规则：选择的牌彼此异系，不要求与攻击牌异系）
+func TestHomGlyphFusion_CanTriggerWithSameElementAsAttack(t *testing.T) {
+	g := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := g.AddPlayer("p1", "Hom", "war_homunculus", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := g.State.Players["p1"]
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Tokens["hom_magic_rune"] = 1
+	// 手牌有火系和水系牌，攻击牌也是火系
+	// 新规则下魔纹融合仍可触发：选择火系和水系彼此异系的牌即可
+	p1.Hand = []model.Card{
+		{ID: "f1", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2},
+		{ID: "w1", Name: "水涟斩", Type: model.CardTypeAttack, Element: model.ElementWater, Damage: 2},
+	}
+	h := skills.GetHandler("hom_glyph_fusion")
+	if h == nil {
+		t.Fatalf("hom_glyph_fusion handler not found")
+	}
+	damageVal := 2
+	ctx := g.BuildContext(p1, g.State.Players["p2"], model.TimingOnHitCheck, &model.EventContext{
+		Type:      model.EventAttack,
+		SourceID:  p1.ID,
+		TargetID:  "p2",
+		DamageVal: &damageVal,
+		Card: &model.Card{
+			ID:      "atk",
+			Name:    "火焰斩",
+			Type:    model.CardTypeAttack,
+			Element: model.ElementFire, // 攻击牌是火系，与手牌火系牌元素相同
+			Damage:  2,
+		},
+		AttackInfo: &model.AttackEventInfo{ActionType: "Attack", IsHit: false},
+	})
+
+	// 检查魔纹融合是否可以触发（即使攻击牌元素与部分手牌相同）
+	if !h.CanUse(ctx) {
+		t.Fatalf("expected glyph fusion can trigger even when attack element matches some hand cards")
+	}
+	t.Logf("SUCCESS: hom_glyph_fusion triggers even when attack element (Fire) matches some hand cards (Fire, Water)")
 }
 
 func TestHomAttackMissResponseGroup_ChooseOneOnly(t *testing.T) {
@@ -856,7 +903,7 @@ func TestHomRuneSmash_ResponseSkillOnAttackHit(t *testing.T) {
 	p2.TurnState = model.NewPlayerTurnState()
 	p1.Tokens["hom_war_rune"] = 1
 	p1.Tokens["hom_magic_rune"] = 0
-	// 需要有同系牌才能触发战纹碎击
+	// 只要有手牌就可以触发战纹碎击，选择的牌彼此同系即可（不要求与攻击牌同系）
 	p1.Hand = []model.Card{
 		{ID: "f1", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2},
 	}
@@ -887,7 +934,57 @@ func TestHomRuneSmash_ResponseSkillOnAttackHit(t *testing.T) {
 	if !testutils.InterruptHasSkillID(g.State.PendingInterrupt, "hom_rune_smash") {
 		t.Fatalf("expected hom_rune_smash in response skills, got %+v", g.State.PendingInterrupt.SkillIDs)
 	}
-	t.Logf("SUCCESS: hom_rune_smash is in response skills: %+v", g.State.PendingInterrupt.SkillIDs)
+	t.Logf("SUCCESS: hom_rune_smash is in response skills: %v", g.State.PendingInterrupt.SkillIDs)
+}
+
+// TestHomRuneSmash_CanTriggerWithDifferentElementFromAttack 验证：
+// 攻击牌元素与手牌元素不同时，战纹碎击仍然可以触发（新规则：选择的牌彼此同系，不要求与攻击牌同系）
+func TestHomRuneSmash_CanTriggerWithDifferentElementFromAttack(t *testing.T) {
+	g := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := g.AddPlayer("p1", "Hom", "war_homunculus", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := g.State.Players["p1"]
+	p2 := g.State.Players["p2"]
+	p1.TurnState = model.NewPlayerTurnState()
+	p2.TurnState = model.NewPlayerTurnState()
+	p1.Tokens["hom_war_rune"] = 1
+	p1.Tokens["hom_magic_rune"] = 0
+	// 手牌有火系和水系牌，攻击牌是风系
+	// 新规则下战纹碎击仍可触发：选择火系牌彼此同系即可
+	p1.Hand = []model.Card{
+		{ID: "f1", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2},
+		{ID: "w1", Name: "水涟斩", Type: model.CardTypeAttack, Element: model.ElementWater, Damage: 2},
+	}
+
+	ctx := g.BuildContext(p1, p2, model.TimingOnHitCheck, &model.EventContext{
+		Type:     model.EventAttack,
+		SourceID: p1.ID,
+		TargetID: p2.ID,
+		Card: &model.Card{
+			ID:      "atk",
+			Name:    "风神斩",
+			Type:    model.CardTypeAttack,
+			Element: model.ElementWind, // 攻击牌是风系，与手牌元素不同
+			Damage:  2,
+		},
+		AttackInfo: &model.AttackEventInfo{ActionType: "Attack", IsHit: true},
+	})
+
+	g.Dispatcher().OnTiming(ctx.Timing, ctx)
+
+	// 检查是否有响应技能中断（即使攻击牌元素与手牌元素不同，也应能触发）
+	if g.State.PendingInterrupt == nil {
+		t.Fatalf("expected response skill interrupt on attack hit even with different element, got nil")
+	}
+	if !testutils.InterruptHasSkillID(g.State.PendingInterrupt, "hom_rune_smash") {
+		t.Fatalf("expected hom_rune_smash to trigger even when attack element differs from hand, got %+v", g.State.PendingInterrupt.SkillIDs)
+	}
+	t.Logf("SUCCESS: hom_rune_smash triggers even when attack element (Wind) differs from hand elements (Fire, Water)")
 }
 
 func TestHomRuneSmash_FullAttackFlow(t *testing.T) {
@@ -910,7 +1007,7 @@ func TestHomRuneSmash_FullAttackFlow(t *testing.T) {
 	p2.TurnState = model.NewPlayerTurnState()
 	p1.Tokens["hom_war_rune"] = 1
 	p1.Tokens["hom_magic_rune"] = 0
-	// 需要有同系牌才能触发战纹碎击
+	// 只要有手牌就可以触发战纹碎击，选择的牌彼此同系即可（不要求与攻击牌同系）
 	p1.Hand = []model.Card{
 		{ID: "atk-fire", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2},
 		{ID: "same-fire", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2},
