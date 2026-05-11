@@ -126,21 +126,23 @@ func (h *HomunculusRuneSmashHandler) Execute(ctx *model.Context) error {
 			maxY = warRunes - 1
 		}
 	}
+	// 直接弹出选牌 interrupt，跳过 X 数值选择
 	ctx.Game.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
 		Context: map[string]interface{}{
-			"choice_type":       "hom_rune_smash_x",
+			"choice_type":       "hom_rune_smash_cards",
 			"user_id":           ctx.User.ID,
 			"user_ctx":          ctx,
 			"attack_element":    string(attackEle),
-			"max_x":             len(candidates),
 			"candidate_indices": candidates,
 			"max_y":             maxY,
 			"selected_indices":  []int{},
+			"min_pick":          1,
+			"x_value":           0, // 由玩家选牌数量决定
 		},
 	})
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [战纹碎击]，请选择X、弃牌与Y", ctx.User.Name))
+	ctx.Game.Log(fmt.Sprintf("%s 发动 [战纹碎击]，请选择要弃置的同系牌", ctx.User.Name))
 	return nil
 }
 
@@ -203,7 +205,6 @@ func (h *HomunculusGlyphFusionHandler) Execute(ctx *model.Context) error {
 	if len(uniqueElements) < 2 {
 		return fmt.Errorf("异系牌不足2张")
 	}
-	maxX := len(uniqueElements)
 	maxY := 0
 	if engineplayer.HasForm(ctx.User, model.FormWarHomunculusBurst) {
 		magicRunes := engineplayer.GetToken(ctx.User, "hom_magic_rune")
@@ -211,21 +212,25 @@ func (h *HomunculusGlyphFusionHandler) Execute(ctx *model.Context) error {
 			maxY = magicRunes - 1
 		}
 	}
+	// 直接弹出选牌 interrupt，跳过 X 数值选择
+	// 魔纹融合至少需要2张异系牌（元素不重复）
+	minPick := 2
 	ctx.Game.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
 		Context: map[string]interface{}{
-			"choice_type":       "hom_glyph_fusion_x",
+			"choice_type":       "hom_glyph_fusion_cards",
 			"user_id":           ctx.User.ID,
 			"user_ctx":          ctx,
 			"attack_element":    string(attackEle),
-			"max_x":             maxX,
 			"candidate_indices": candidates,
 			"max_y":             maxY,
 			"selected_indices":  []int{},
+			"min_pick":          minPick,
+			"x_value":           0, // 由玩家选牌数量决定
 		},
 	})
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [魔纹融合]，请选择X、弃牌与Y", ctx.User.Name))
+	ctx.Game.Log(fmt.Sprintf("%s 发动 [魔纹融合]，请选择要弃置的异系牌（元素不可重复）", ctx.User.Name))
 	return nil
 }
 

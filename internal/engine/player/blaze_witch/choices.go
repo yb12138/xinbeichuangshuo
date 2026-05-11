@@ -58,7 +58,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		options := make([]model.PromptOption, 0, maxX-1)
 		for x := 2; x <= maxX; x++ {
 			options = append(options, model.PromptOption{
-				ID:    fmt.Sprintf("%d", x-2),
+				ID:    fmt.Sprintf("%d", x),
 				Label: fmt.Sprintf("X=%d（弃%d张法术牌，造成%d点法术伤害）", x, x, x-1),
 			})
 		}
@@ -69,7 +69,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			Options:      options,
 			Min:          1,
 			Max:          1,
-			Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 1},
+			Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 0},
 		}
 	case "bw_mana_inversion_cards":
 		remaining := runtimeutil.ParseChoiceIntSlice(data["remaining_indices"])

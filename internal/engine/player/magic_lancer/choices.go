@@ -29,7 +29,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		for x := 1; x <= maxX; x++ {
 			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", x), Label: fmt.Sprintf("X=%d（消耗%d蓝水晶，伤害额外+%d）", x, x, x+2)})
 		}
-		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【漆黑之枪】请选择X值：", Options: options, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 1}}
+		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【漆黑之枪】请选择X值：", Options: options, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 0}}
 
 	case "ml_dark_barrier_mode":
 		maxMagic := runtimeutil.ToIntContextValue(data["max_magic"])
@@ -52,7 +52,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		for x := 1; x <= maxX; x++ {
 			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", x), Label: fmt.Sprintf("弃置%d张", x)})
 		}
-		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【暗之障壁】请选择X值：", Options: options, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 1}}
+		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【暗之障壁】请选择X值：", Options: options, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 0}}
 
 	case "ml_dark_barrier_cards":
 		remaining := runtimeutil.ParseChoiceIntSlice(data["remaining_indices"])

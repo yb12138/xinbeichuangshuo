@@ -41,7 +41,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		options := make([]model.PromptOption, 0, maxHeal-1)
 		for x := 2; x <= maxHeal; x++ {
 			options = append(options, model.PromptOption{
-				ID:    fmt.Sprintf("%d", x-2),
+				ID:    fmt.Sprintf("%d", x),
 				Label: fmt.Sprintf("X=%d（移除%d点治疗）", x, x),
 			})
 		}
@@ -52,14 +52,14 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			Options:      options,
 			Min:          1,
 			Max:          1,
-			Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 1},
+			Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 0},
 		}
 	case "plague_death_touch_y":
 		maxCards := runtimeutil.ToIntContextValue(data["max_cards"])
 		options := make([]model.PromptOption, 0, maxCards-1)
 		for y := 2; y <= maxCards; y++ {
 			options = append(options, model.PromptOption{
-				ID:    fmt.Sprintf("%d", y-2),
+				ID:    fmt.Sprintf("%d", y),
 				Label: fmt.Sprintf("Y=%d（弃%d张同系牌）", y, y),
 			})
 		}
@@ -70,7 +70,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			Options:      options,
 			Min:          1,
 			Max:          1,
-			Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 1},
+			Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 0},
 		}
 	case "plague_death_touch_cards":
 		remaining := runtimeutil.ParseChoiceIntSlice(data["remaining_indices"])

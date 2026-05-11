@@ -34,8 +34,22 @@ func RoleEntry() player.RoleEntry {
 // ChoiceSpecs 导出角色 choice 声明。
 func ChoiceSpecs() []player.ChoiceSpec {
 	return []player.ChoiceSpec{
-		{ChoiceType: "hom_glyph_fusion_cards", SequentialRemaining: player.ChoiceRemainingFromSelectionKey("x_value")},
-		{ChoiceType: "hom_rune_smash_cards", SequentialRemaining: player.ChoiceRemainingFromSelectionKey("x_value")},
+		{
+			ChoiceType:        "hom_glyph_fusion_cards",
+			HandleMultiSelect: handleRuneCardsMultiSelect(true),
+		},
+		{
+			ChoiceType:        "hom_rune_smash_cards",
+			HandleMultiSelect: handleRuneCardsMultiSelect(false),
+		},
+		{
+			ChoiceType:        "hom_rune_reforge_distribution",
+			HandleMultiSelect: handleRuneReforgeAllocate,
+		},
+		{
+			ChoiceType:        "hom_rune_reforge_allocate",
+			HandleMultiSelect: handleRuneReforgeAllocate,
+		},
 	}
 }
 
@@ -83,6 +97,7 @@ func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 		"hom_glyph_fusion_pick":         types.ChoiceRouteRole("war_homunculus"),
 		"hom_glyph_fusion_x":            types.ChoiceRouteRole("war_homunculus"),
 		"hom_glyph_fusion_y":            types.ChoiceRouteRole("war_homunculus"),
+		"hom_rune_reforge_allocate":     types.ChoiceRouteRole("war_homunculus"),
 		"hom_rune_reforge_distribution": types.ChoiceRouteRole("war_homunculus"),
 		"hom_rune_reforge_pick":         types.ChoiceRouteRole("war_homunculus"),
 		"hom_rune_smash_cards":          types.ChoiceRouteRole("war_homunculus"),

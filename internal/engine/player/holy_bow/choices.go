@@ -165,7 +165,7 @@ func buildHolyShardMissXPrompt(playerID string, player *model.Player, data map[s
 		Options:      options,
 		Min:          1,
 		Max:          1,
-		Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 1},
+		Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 0},
 	}
 }
 
@@ -268,7 +268,7 @@ func buildLightBurstModeBXPrompt(rt engineplayer.ChoiceRuntime, playerID string,
 		Options:      options,
 		Min:          1,
 		Max:          1,
-		Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 1},
+		Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 0},
 	}
 }
 

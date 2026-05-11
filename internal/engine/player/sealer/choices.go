@@ -30,9 +30,9 @@ func buildFiveElementsBindPrompt(playerID string, data map[string]interface{}) *
 		drawCount = dc
 	}
 	return &model.Prompt{
-		Type:         model.PromptConfirm,
-		PlayerID:     playerID,
-		Message:      "【五行封印】请选择：",
+		Type:     model.PromptConfirm,
+		PlayerID: playerID,
+		Message:  "【五系束缚】请选择：",
 		Options: []model.PromptOption{
 			{ID: "0", Label: fmt.Sprintf("摸%d张牌", drawCount)},
 			{ID: "1", Label: "放弃行动"},

@@ -95,7 +95,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			Options:      xOptions,
 			Min:          1,
 			Max:          1,
-			Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 1},
+			Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 0},
 		}
 	case "ss_recall_pick":
 		var magicIndices []int

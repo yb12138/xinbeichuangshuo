@@ -49,7 +49,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 				message = fmt.Sprintf("【神圣契约】请选择转移治疗值X（目标：%s）：", targetName)
 			}
 		}
-		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: message, Options: options, Min: 1, Max: 1}
+		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: message, Options: options, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 0}}
 
 	case "priest_divine_domain_mode":
 		modeOptions := runtimeutil.ParseStringSliceContextValue(data["mode_options"])

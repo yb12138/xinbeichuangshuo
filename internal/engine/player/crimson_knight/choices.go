@@ -25,7 +25,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		for x := 1; x <= maxX; x++ {
 			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", x), Label: fmt.Sprintf("X=%d（移除%d治疗并对自己造成%d法伤）", x, x, x)})
 		}
-		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【血腥祷言】请选择X值：", Options: options, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 1}}
+		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【血腥祷言】请选择X值：", Options: options, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 0}}
 
 	case "crk_bloody_prayer_ally_count":
 		allyIDs := runtimeutil.ParseStringSliceContextValue(data["ally_ids"])

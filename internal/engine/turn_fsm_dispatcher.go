@@ -579,10 +579,18 @@ func (e *GameEngine) driveTurnEndStage(currentPid string, player *model.Player) 
 
 func (e *GameEngine) driveActionExecutionRecoveryPhase(currentPid string, player *model.Player) driveOutcome {
 	e.setTurnStage(model.TurnStageActionExecution)
-	// 行动执行阶段通常用于“行动中弹出的中断”（如魔弹融合/圣疗等）。
+	// 行动执行阶段通常用于"行动中弹出的中断"（如魔弹融合/圣疗等）。
 	// 当中断被消费后，如果没有显式阶段回切，这里负责把流程接回主状态机，
 	// 避免停在 ActionExecution 导致 Drive 直接返回而卡局。
-	if e.routePendingDamageWithDefaultReturn(model.TurnStageExtraAction) {
+	//
+	// 返回点判断：
+	// - 启动技能场景（LastActionType == ""）：伤害结算后应回到 ActionExecution，进入行动选择
+	// - 正常行动结束场景（LastActionType != ""）：伤害结算后应回到 ExtraAction，检查额外行动队列
+	defaultReturn := model.TurnStageExtraAction
+	if player != nil && player.TurnState.LastActionType == "" {
+		defaultReturn = model.TurnStageActionExecution
+	}
+	if e.routePendingDamageWithDefaultReturn(defaultReturn) {
 		return driveContinueLoop
 	}
 	if len(e.State.CombatStack) > 0 {

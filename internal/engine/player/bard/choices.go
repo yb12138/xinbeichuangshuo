@@ -64,7 +64,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【不谐和弦】请选择X值：", Options: options, Min: 1, Max: 1}
 	case "bd_dissonance_mode":
 		xValue := runtimeutil.ToIntContextValue(data["x_value"])
-		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: fmt.Sprintf("【不谐和弦】请选择分支（X=%d）：", xValue), Options: []model.PromptOption{{ID: "0", Label: fmt.Sprintf("你与目标各摸%d张牌", xValue-1)}, {ID: "1", Label: fmt.Sprintf("你与目标各弃%d张牌", xValue-1)}}, Min: 1, Max: 1}
+		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: fmt.Sprintf("【不谐和弦】请选择分支（X=%d）：", xValue), Options: []model.PromptOption{{ID: "0", Label: fmt.Sprintf("你与目标各摸%d张牌", xValue-1)}, {ID: "1", Label: fmt.Sprintf("你与目标各弃%d张牌", xValue-1)}}, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"}}
 	case "bd_dissonance_discard_step":
 		currentActorID, _ := data["current_actor_id"].(string)
 		actor := rt.GetPlayers()[currentActorID]
@@ -922,7 +922,6 @@ func getSameElementCounts(player *model.Player) map[model.Element]int {
 	}
 	return out
 }
-
 
 // Token helpers
 

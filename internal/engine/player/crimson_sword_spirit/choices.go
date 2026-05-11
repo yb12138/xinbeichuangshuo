@@ -239,7 +239,7 @@ func handleCrimsonSwordSpiritDanceModeChoice(rt engineplayer.ChoiceRuntime, sele
 				Type:     model.InterruptChoice,
 				PlayerID: user.ID,
 				Context: map[string]interface{}{
-					"choice_type":   "discard_selection",
+					"choice_type":   "system_discard_cards",
 					"discard_count": overflow,
 					"stay_in_turn":  true,
 					"prompt":        fmt.Sprintf("【散华轮舞】请弃置 %d 张手牌至4张：", overflow),

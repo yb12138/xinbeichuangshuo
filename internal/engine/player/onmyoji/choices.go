@@ -113,7 +113,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			return nil
 		}
 		return &model.Prompt{
-			Type:     model.PromptConfirm,
+			Type:     model.PromptChooseCards,
 			PlayerID: playerID,
 			Message:  "【阴阳转换】请选择用于同命格应战的攻击牌：",
 			Options:  options,
@@ -158,7 +158,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			return nil
 		}
 		return &model.Prompt{
-			Type:     model.PromptConfirm,
+			Type:     model.PromptChooseCards,
 			PlayerID: playerID,
 			Message:  "【式神咒束】请选择用于代应战的攻击牌：",
 			Options:  options,
@@ -439,10 +439,47 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		return true, nil
 
 	case "onmyoji_binding_counter_target":
-		rt.PopInterrupt()
-		if rt.GetPendingInterrupt() == nil {
-			// 简化处理
+		counterTargetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["counter_target_ids"])
+		if selectionIndex < 0 || selectionIndex >= len(counterTargetIDs) {
+			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
+		counterTargetID := counterTargetIDs[selectionIndex]
+		actorID, _ := ctxData["actor_id"].(string)
+		selectedCardID, _ := ctxData["selected_card_id"].(string)
+		selectedUseFaction, _ := ctxData["selected_use_faction"].(bool)
+		actor := rt.GetPlayers()[actorID]
+		if actor == nil {
+			return true, fmt.Errorf("阴阳师不存在")
+		}
+
+		// Consume the card from actor's hand
+		card, ok := rt.ConsumePlayableCardByCardID(actorID, selectedCardID)
+		if !ok {
+			return true, fmt.Errorf("无法消耗选定的卡牌")
+		}
+
+		// Apply 阴阳转换 + 式神转换 bonuses (统一入口)
+		// 注意：selectedUseFaction 表示是否使用同命格应战（阴阳转换）
+		if selectedUseFaction {
+			ApplyFactionCounterBonuses(rt, actor, &card)
+		}
+
+		// Add card to discard pile
+		rt.AppendToDiscard([]model.Card{card})
+		rt.NotifyCardRevealed(actorID, []model.Card{card}, "counter")
+
+		// Get original combat info for cue
+		var topCombat *model.CombatRequest
+		if stack := rt.GetCombatStack(); len(stack) > 0 {
+			topCombat = &stack[len(stack)-1]
+		}
+		if topCombat != nil {
+			rt.NotifyCombatCue(topCombat.AttackerID, topCombat.TargetID, "counter")
+		}
+
+		// Resolve counter attack: pop original combat and create reflected one
+		rt.PopInterrupt()
+		rt.ResolveCounterAttack(actorID, counterTargetID, card)
 		return true, nil
 	}
 

@@ -325,23 +325,18 @@ func TestHomGlyphFusion_MaxXUsesDistinctElements(t *testing.T) {
 		t.Fatalf("execute glyph fusion failed: %v", err)
 	}
 	data, _ := g.State.PendingInterrupt.Context.(map[string]interface{})
-	if maxX, _ := data["max_x"].(int); maxX != 2 {
-		t.Fatalf("expected max_x=2 by distinct elements, got %v", data["max_x"])
+	// 验证是直接选牌模式
+	if choiceType, _ := data["choice_type"].(string); choiceType != "hom_glyph_fusion_cards" {
+		t.Fatalf("expected choice_type=hom_glyph_fusion_cards, got %s", choiceType)
+	}
+	// 验证 min_pick 为 2
+	if minPick, _ := data["min_pick"].(int); minPick != 2 {
+		t.Fatalf("expected min_pick=2, got %v", data["min_pick"])
 	}
 
-	// 选择 X=2（通过选项值）
-	if err := g.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{2}}); err != nil {
-		t.Fatalf("choose glyph x failed: %v", err)
-	}
-	// 先选一张水系牌（索引0）
-	if err := g.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
-		t.Fatalf("choose first glyph card failed: %v", err)
-	}
-	// 剩余候选中不应再有另一张水系（索引1），只保留风系（索引2）
-	data, _ = g.State.PendingInterrupt.Context.(map[string]interface{})
-	remaining, _ := data["remaining_indices"].([]int)
-	if len(remaining) != 1 || remaining[0] != 2 {
-		t.Fatalf("expected remaining only index 2 after distinct filter, got %+v", remaining)
+	// 直接多选两张异系牌（水系索引0和风系索引2，元素互不相同）
+	if err := g.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0, 2}}); err != nil {
+		t.Fatalf("choose glyph cards failed: %v", err)
 	}
 }
 
@@ -818,20 +813,13 @@ func TestHomRuneSmash_BurstAddsAttackAndMagicDamage(t *testing.T) {
 	if err := h.Execute(ctx); err != nil {
 		t.Fatalf("execute rune smash failed: %v", err)
 	}
-	if g.State.PendingInterrupt == nil || choiceTypeOfInterrupt(g.State.PendingInterrupt) != "hom_rune_smash_x" {
-		t.Fatalf("expected hom_rune_smash_x choice, got %+v", g.State.PendingInterrupt)
+	if g.State.PendingInterrupt == nil || choiceTypeOfInterrupt(g.State.PendingInterrupt) != "hom_rune_smash_cards" {
+		t.Fatalf("expected hom_rune_smash_cards choice for direct card selection, got %+v", g.State.PendingInterrupt)
 	}
 
-	// 与 HomDualEcho 等测例一致：用 HandleInterruptAction 避免 HandleAction 尾随 Drive 提前清空 PendingDamageQueue。
-	// X=2，弃2张同系牌
-	if err := g.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{2}}); err != nil {
-		t.Fatalf("choose rune smash x failed: %v", err)
-	}
-	if err := g.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
-		t.Fatalf("choose first card failed: %v", err)
-	}
-	if err := g.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
-		t.Fatalf("choose second card failed: %v", err)
+	// 直接多选两张同系牌（索引0和1），不再需要先选择X
+	if err := g.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0, 1}}); err != nil {
+		t.Fatalf("choose rune smash cards failed: %v", err)
 	}
 	// Y=1：额外翻转1战纹并造成1点法伤
 	if err := g.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
@@ -851,4 +839,120 @@ func TestHomRuneSmash_BurstAddsAttackAndMagicDamage(t *testing.T) {
 	if pd.TargetID != p2.ID || pd.Damage != 1 || pd.DamageType != "magic" {
 		t.Fatalf("unexpected rune smash pending damage: %+v", pd)
 	}
+}
+
+func TestHomRuneSmash_ResponseSkillOnAttackHit(t *testing.T) {
+	g := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := g.AddPlayer("p1", "Hom", "war_homunculus", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := g.State.Players["p1"]
+	p2 := g.State.Players["p2"]
+	p1.TurnState = model.NewPlayerTurnState()
+	p2.TurnState = model.NewPlayerTurnState()
+	p1.Tokens["hom_war_rune"] = 1
+	p1.Tokens["hom_magic_rune"] = 0
+	// 需要有同系牌才能触发战纹碎击
+	p1.Hand = []model.Card{
+		{ID: "f1", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2},
+	}
+
+	ctx := g.BuildContext(p1, p2, model.TimingOnHitCheck, &model.EventContext{
+		Type:     model.EventAttack,
+		SourceID: p1.ID,
+		TargetID: p2.ID,
+		Card: &model.Card{
+			ID:      "atk",
+			Name:    "火焰斩",
+			Type:    model.CardTypeAttack,
+			Element: model.ElementFire,
+			Damage:  2,
+		},
+		AttackInfo: &model.AttackEventInfo{ActionType: "Attack", IsHit: true},
+	})
+
+	g.Dispatcher().OnTiming(ctx.Timing, ctx)
+	
+	// 检查是否有响应技能中断
+	if g.State.PendingInterrupt == nil {
+		t.Fatalf("expected response skill interrupt on attack hit, got nil")
+	}
+	if g.State.PendingInterrupt.Type != model.InterruptResponseSkill {
+		t.Fatalf("expected InterruptResponseSkill, got %s", g.State.PendingInterrupt.Type)
+	}
+	if !testutils.InterruptHasSkillID(g.State.PendingInterrupt, "hom_rune_smash") {
+		t.Fatalf("expected hom_rune_smash in response skills, got %+v", g.State.PendingInterrupt.SkillIDs)
+	}
+	t.Logf("SUCCESS: hom_rune_smash is in response skills: %+v", g.State.PendingInterrupt.SkillIDs)
+}
+
+func TestHomRuneSmash_FullAttackFlow(t *testing.T) {
+	g := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := g.AddPlayer("p1", "Hom", "war_homunculus", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	g.State.CurrentTurn = 0
+	g.State.Deck = rules.InitDeck()
+	g.State.TurnStage = model.TurnStageActionExecution
+
+	p1 := g.State.Players["p1"]
+	p2 := g.State.Players["p2"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p2.TurnState = model.NewPlayerTurnState()
+	p1.Tokens["hom_war_rune"] = 1
+	p1.Tokens["hom_magic_rune"] = 0
+	// 需要有同系牌才能触发战纹碎击
+	p1.Hand = []model.Card{
+		{ID: "atk-fire", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2},
+		{ID: "same-fire", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2},
+	}
+	p2.Hand = []model.Card{
+		{ID: "def-light", Name: "圣光", Type: model.CardTypeMagic, Element: model.ElementLight},
+	}
+
+	// 发起攻击
+	testutils.MustHandleAction(t, g, model.PlayerAction{
+		PlayerID:  "p1",
+		Type:      model.CmdAttack,
+		TargetID:  "p2",
+		CardIndex: 0,
+	})
+
+	// Drive 进入战斗响应阶段
+	g.Drive()
+	t.Logf("After attack Drive: TurnStage=%s, PendingInterrupt=%+v, CombatStage=%s", g.State.TurnStage, g.State.PendingInterrupt, g.State.CombatStage)
+
+	// 目标承受伤害（跳过防御/应战）
+	testutils.MustHandleAction(t, g, model.PlayerAction{
+		PlayerID:  "p2",
+		Type:      model.CmdRespond,
+		ExtraArgs: []string{"take"},
+	})
+
+	// Drive 处理伤害结算和后续
+	g.Drive()
+	t.Logf("After take Drive: TurnStage=%s, PendingInterrupt=%+v, CombatStage=%s", g.State.TurnStage, g.State.PendingInterrupt, g.State.CombatStage)
+
+	// 伤害结算后应出现战纹碎击响应技能中断
+	if g.State.PendingInterrupt == nil {
+		t.Fatalf("expected response skill prompt after damage resolution, got nil")
+	}
+	if g.State.PendingInterrupt.Type != model.InterruptResponseSkill {
+		t.Fatalf("expected ResponseSkill interrupt, got %+v", g.State.PendingInterrupt)
+	}
+
+	testutils.RequireResponseSkillPrompt(t, g, "p1")
+	if !testutils.InterruptHasSkillID(g.State.PendingInterrupt, "hom_rune_smash") {
+		t.Fatalf("expected hom_rune_smash in response skills, got %+v", g.State.PendingInterrupt.SkillIDs)
+	}
+	t.Logf("SUCCESS: hom_rune_smash triggered after attack hit in full flow")
 }

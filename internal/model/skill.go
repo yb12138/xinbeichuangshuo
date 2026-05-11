@@ -209,7 +209,7 @@ const (
 type PromptPresentation struct {
 	Kind        PresentationKind `json:"kind"`                    // 必填：展示类型
 	Layout      string           `json:"layout,omitempty"`        // 可选："inline"/"overlay"/"grid"/"heal_allocate"
-	NumericBase int              `json:"numeric_base,omitempty"`  // numeric 类型的数字起始值（0 或 1）
+	NumericBase int              `json:"numeric_base"`            // numeric 类型的数字起始值（0 或 1）
 	CancelPolicy string          `json:"cancel_policy,omitempty"` // 可选："allow"/"deny"/"implicit"
 }
 

@@ -104,7 +104,7 @@ func buildBloodWailXPrompt(playerID string) *model.Prompt {
 		},
 		Min:          1,
 		Max:          1,
-		Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 1},
+		Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 0},
 	}
 }
 

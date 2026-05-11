@@ -62,7 +62,7 @@ func buildBeastReturnXPrompt(playerID string, data map[string]interface{}) *mode
 		Options:      options,
 		Min:          1,
 		Max:          1,
-		Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 1},
+		Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 0},
 	}
 }
 
@@ -83,7 +83,7 @@ func buildReversalXPrompt(playerID string, data map[string]interface{}) *model.P
 		Options:      options,
 		Min:          1,
 		Max:          1,
-		Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 1},
+		Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 0},
 	}
 }
 

@@ -36,7 +36,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		options := make([]model.PromptOption, 0, max(0, maxX-1))
 		for x := 2; x <= maxX; x++ {
 			options = append(options, model.PromptOption{
-				ID:    fmt.Sprintf("%d", x-2),
+				ID:    fmt.Sprintf("%d", x),
 				Label: fmt.Sprintf("X=%d（弃%d张同系牌）", x, x),
 			})
 		}
@@ -47,7 +47,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			Options:      options,
 			Min:          1,
 			Max:          1,
-			Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 1},
+			Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 0},
 		}
 	case "sage_magic_rebound_element":
 		xValue := runtimeutil.ToIntContextValue(data["x_value"])
@@ -114,7 +114,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		options := make([]model.PromptOption, 0, max(0, maxX-minX+1))
 		for x := minX; x <= maxX; x++ {
 			options = append(options, model.PromptOption{
-				ID:    fmt.Sprintf("%d", x-minX),
+				ID:    fmt.Sprintf("%d", x),
 				Label: fmt.Sprintf("X=%d（弃%d张异系牌）", x, x),
 			})
 		}
@@ -129,7 +129,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			Options:      options,
 			Min:          1,
 			Max:          1,
-			Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 1},
+			Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 0},
 		}
 	case "sage_holy_target_count":
 		maxCount := runtimeutil.ToIntContextValue(data["max_target_count"])
