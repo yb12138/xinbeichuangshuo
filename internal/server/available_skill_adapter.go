@@ -3,6 +3,7 @@ package server
 import (
 	"starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
+	"starcup-engine/internal/server/bot"
 	"starcup-engine/internal/server/stateview"
 )
 
@@ -215,4 +216,28 @@ func (r *Room) canUseActionSkillNow(user *model.Player, sd model.SkillDefinition
 		ctx.Targets = []*model.Player{probeTarget}
 	}
 	return handler.CanUse(ctx)
+}
+
+// buildBotAvailableSkills 构建 bot 决策所需的可用技能列表
+func buildBotAvailableSkills(skills []AvailableSkill) []bot.AvailableSkill {
+	result := make([]bot.AvailableSkill, 0, len(skills))
+	for _, sk := range skills {
+		result = append(result, bot.AvailableSkill{
+			ID:               sk.ID,
+			Title:            sk.Title,
+			Description:      sk.Description,
+			MinTargets:       sk.MinTargets,
+			MaxTargets:       sk.MaxTargets,
+			TargetType:       sk.TargetType,
+			CostGem:          sk.CostGem,
+			CostCrystal:      sk.CostCrystal,
+			CostDiscards:     sk.CostDiscards,
+			DiscardType:      sk.DiscardType,
+			DiscardElement:   sk.DiscardElement,
+			RequireExclusive: sk.RequireExclusive,
+			PlaceCard:        sk.PlaceCard,
+			PlaceEffect:      sk.PlaceEffect,
+		})
+	}
+	return result
 }

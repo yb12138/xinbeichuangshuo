@@ -88,14 +88,14 @@ type SyncStatePayload struct {
 }
 
 type RequireActionPayload struct {
-	InterruptType string        `json:"interrupt_type"`
-	TargetUserID  string        `json:"target_user_id"`
-	Timeout       int           `json:"timeout"`
-	Msg           string        `json:"msg"`
-	ValidActions  []string      `json:"valid_actions,omitempty"`
-	RequireCount  int           `json:"require_count,omitempty"`
-	PromptType    string        `json:"prompt_type,omitempty"`
-	Prompt        *model.Prompt `json:"prompt,omitempty"`
+	InterruptType string              `json:"interrupt_type"`
+	TargetUserID  string              `json:"target_user_id"`
+	Timeout       int                 `json:"timeout"`
+	Msg           string              `json:"msg"`
+	ValidActions  []string            `json:"valid_actions,omitempty"`
+	RequireCount  int                 `json:"require_count,omitempty"`
+	PromptType    string              `json:"prompt_type,omitempty"`
+	Prompt        *viewmodel.PromptDTO `json:"prompt,omitempty"`
 }
 
 type TimelineDelta struct {

@@ -1,7 +1,6 @@
 package server
 
 import (
-	"encoding/json"
 	"fmt"
 	"math/rand"
 	"sync"
@@ -9,6 +8,7 @@ import (
 
 	"starcup-engine/internal/engine"
 	"starcup-engine/internal/model"
+	"starcup-engine/internal/server/bot"
 )
 
 // Room represents a game room.
@@ -30,7 +30,7 @@ type Room struct {
 	engineMu sync.Mutex
 
 	// 机器人全局观察信息（用于手牌类型推断）。
-	botIntel *botIntel
+	botIntel *bot.Memory
 	// 机器人最近一次收到的 Prompt 缓存（用于非中断提示，如 CombatInteraction/ActionSelection）。
 	botPromptCache map[string]*model.Prompt
 	// AskInput 全局版本号：每次新提示+1，用于丢弃旧定时器动作。
@@ -51,7 +51,7 @@ func NewRoom(code string) *Room {
 		Broadcast:      make(chan []byte, 256),
 		actorInbox:     make(chan roomActorCall, 128),
 		Started:        false,
-		botIntel:       newBotIntel(),
+		botIntel:       bot.NewMemory(),
 		botPromptCache: make(map[string]*model.Prompt),
 		botPromptEpoch: 0,
 	}
@@ -76,25 +76,4 @@ func (r *Room) Run() {
 
 func generateReconnectToken() string {
 	return fmt.Sprintf("%d-%d", time.Now().UnixNano(), rand.Int63())
-}
-
-func (r *Room) broadcastRoomEvent(event RoomEvent) {
-	r.broadcastHumans(CmdRoomEvent, event)
-}
-
-func (r *Room) broadcastToAll(message []byte) {
-	for _, client := range r.Clients {
-		if client.IsBot || client.Disconnected {
-			continue
-		}
-		select {
-		case client.Send <- message:
-		default:
-		}
-	}
-}
-
-func mustMarshal(v interface{}) json.RawMessage {
-	data, _ := json.Marshal(v)
-	return data
 }

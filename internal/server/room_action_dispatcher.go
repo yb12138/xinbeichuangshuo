@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"starcup-engine/internal/model"
+	"starcup-engine/internal/server/bot"
 )
 
 func (r *Room) handleRoomAction(client *Client, payload json.RawMessage) {
@@ -72,7 +73,7 @@ func (r *Room) handleDissolveRoomAction(client *Client) {
 	r.HostID = ""
 	r.botPromptCache = make(map[string]*model.Prompt)
 	r.botPromptEpoch++
-	r.botIntel = newBotIntel()
+	r.botIntel = bot.NewMemory()
 	r.mu.Unlock()
 
 	r.engineMu.Lock()

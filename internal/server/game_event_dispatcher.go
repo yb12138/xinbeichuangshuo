@@ -2,6 +2,7 @@ package server
 
 import (
 	"starcup-engine/internal/model"
+	"starcup-engine/internal/server/prompting"
 	"starcup-engine/internal/server/timeline"
 )
 
@@ -74,7 +75,7 @@ func (r *Room) handleAskInputGameEvent(event model.GameEvent) scheduledBotPrompt
 
 	// 一次 AskInput 仅有一个有效提示，清空旧缓存避免旧定时器误动作。
 	r.botPromptCache = map[string]*model.Prompt{
-		prompt.PlayerID: clonePrompt(prompt),
+		prompt.PlayerID: prompting.ClonePrompt(prompt),
 	}
 	for _, client := range r.Clients {
 		r.sendSyncStateToClient(client)
@@ -84,7 +85,7 @@ func (r *Room) handleAskInputGameEvent(event model.GameEvent) scheduledBotPrompt
 	if client, exists := r.Clients[prompt.PlayerID]; exists {
 		if client.IsBot {
 			scheduledBot.playerID = client.PlayerID
-			scheduledBot.prompt = clonePrompt(prompt)
+			scheduledBot.prompt = prompting.ClonePrompt(prompt)
 		} else if client.Disconnected {
 			// 真人离线且未托管：暂停等待重连或房主手动托管。
 		} else {
@@ -124,7 +125,7 @@ func (r *Room) handleCardRevealedGameEvent(event model.GameEvent) {
 	if !ok {
 		return
 	}
-	r.botIntel.observeReveal(data)
+	r.botIntel.ObserveReveal(data)
 	r.broadcastTimeline("card_revealed", data, timeline.StringValue(data["message"]))
 }
 

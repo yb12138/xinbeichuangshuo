@@ -3,6 +3,7 @@ package elf_archer_test
 import (
 	"starcup-engine/internal/engine"
 	playerpkg "starcup-engine/internal/engine/player"
+	elfarcher "starcup-engine/internal/engine/player/elf_archer"
 	"starcup-engine/internal/testutils"
 	"testing"
 
@@ -10,16 +11,10 @@ import (
 	"starcup-engine/internal/rules"
 )
 
-func activateElfElementalShotByDiscardMagic(t *testing.T, game *engine.GameEngine, playerID string) {
+func activateElfElementalShotByPickingCard(t *testing.T, game *engine.GameEngine, playerID string) {
 	t.Helper()
 	testutils.ChooseResponseSkillByID(t, game, playerID, "elf_elemental_shot")
-	testutils.RequireChoicePrompt(t, game, playerID, "elf_elemental_shot_cost")
-	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:   playerID,
-		Type:       model.CmdSelect,
-		Selections: []int{0},
-	})
-	testutils.RequireChoicePrompt(t, game, playerID, "elf_elemental_shot_discard_magic")
+	testutils.RequireChoicePrompt(t, game, playerID, "elf_archer_elemental_shot_pick")
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID:   playerID,
 		Type:       model.CmdSelect,
@@ -27,7 +22,7 @@ func activateElfElementalShotByDiscardMagic(t *testing.T, game *engine.GameEngin
 	})
 }
 
-func TestElfElementalShotCostChoice_CancelSupported(t *testing.T) {
+func TestElfElementalShotPick_CancelSupported(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "Elf", "elf_archer", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -60,15 +55,15 @@ func TestElfElementalShotCostChoice_CancelSupported(t *testing.T) {
 		CardIndex: 0,
 	})
 	testutils.ChooseResponseSkillByID(t, game, "p1", "elf_elemental_shot")
-	testutils.RequireChoicePrompt(t, game, "p1", "elf_elemental_shot_cost")
+	testutils.RequireChoicePrompt(t, game, "p1", "elf_archer_elemental_shot_pick")
 
 	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdCancel})
 
 	if game.State.PendingInterrupt != nil {
 		if game.State.PendingInterrupt.Type == model.InterruptChoice {
 			ctxData, _ := game.State.PendingInterrupt.Context.(map[string]interface{})
-			if got, _ := ctxData["choice_type"].(string); got == "elf_elemental_shot_cost" {
-				t.Fatalf("expected elemental-shot cost prompt closed after cancel")
+			if got, _ := ctxData["choice_type"].(string); got == "elf_archer_elemental_shot_pick" {
+				t.Fatalf("expected elemental-shot pick prompt closed after cancel")
 			}
 		}
 	}
@@ -115,7 +110,7 @@ func TestElfElementalShotWind_GrantsExtraAttackOnlyAfterActionEnd(t *testing.T) 
 		TargetID:  "p2",
 		CardIndex: 0,
 	})
-	activateElfElementalShotByDiscardMagic(t, game, "p1")
+	activateElfElementalShotByPickingCard(t, game, "p1")
 
 	if len(p1.TurnState.PendingActions) != 0 {
 		t.Fatalf("wind shot should not grant extra action before attack ends, got %+v", p1.TurnState.PendingActions)
@@ -177,7 +172,7 @@ func TestElfElementalShotWater_AutoResolvesOnCurrentTarget(t *testing.T) {
 		TargetID:  "p2",
 		CardIndex: 0,
 	})
-	activateElfElementalShotByDiscardMagic(t, game, "p1")
+	activateElfElementalShotByPickingCard(t, game, "p1")
 
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID:  "p2",
@@ -191,6 +186,61 @@ func TestElfElementalShotWater_AutoResolvesOnCurrentTarget(t *testing.T) {
 	}
 	if p3.Heal != 0 {
 		t.Fatalf("expected non-target player to stay unchanged, got heal=%d", p3.Heal)
+	}
+}
+
+func TestElfElementalShotPickAllowsBlessingMagic(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Elf", "elf_archer", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	game.State.CurrentTurn = 0
+	game.State.Deck = rules.InitDeck()
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p2.TurnState = model.NewPlayerTurnState()
+	p1.Hand = []model.Card{
+		{ID: "hand-attack", Name: "火斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 1},
+	}
+	playerpkg.SetForm(p1, model.FormElfArcherRitual)
+	markElfBlessings(p1, []model.Card{
+		{ID: "bless-magic", Name: "圣盾", Type: model.CardTypeMagic, Element: model.ElementLight, Damage: 0},
+	})
+
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID:  "p1",
+		Type:      model.CmdAttack,
+		TargetID:  "p2",
+		CardIndex: 0,
+	})
+	testutils.ChooseResponseSkillByID(t, game, "p1", "elf_elemental_shot")
+	testutils.RequireChoicePrompt(t, game, "p1", "elf_archer_elemental_shot_pick")
+	ctxData, ok := game.State.PendingInterrupt.Context.(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected elemental shot context map")
+	}
+	if got, _ := ctxData["choice_type"].(string); got != "elf_archer_elemental_shot_pick" {
+		t.Fatalf("expected direct elemental shot pick prompt, got %q", got)
+	}
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID:  "p1",
+		Type:      model.CmdSelect,
+		Selections: []int{0},
+	})
+
+	if got := elfarcher.CountBlessings(p1); got != 0 {
+		t.Fatalf("expected blessing to be consumed after elemental shot, got %d", got)
+	}
+	if got := len(p1.Hand); got != 0 {
+		t.Fatalf("expected attack card to be consumed and no hand card left, got %d", got)
 	}
 }
 

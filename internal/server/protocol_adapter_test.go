@@ -7,6 +7,7 @@ import (
 
 	"starcup-engine/internal/engine"
 	"starcup-engine/internal/model"
+	"starcup-engine/internal/server/prompting"
 )
 
 func TestTranslateClientAction_AttackUsesUUIDAndTargets(t *testing.T) {
@@ -184,7 +185,7 @@ func TestBuildRequireActionPayload_UsesStructuredPromptField(t *testing.T) {
 		AttackElement:    string(model.ElementFire),
 	}
 
-	payload := buildRequireActionPayload(prompt)
+	payload := prompting.BuildRequireActionPayload(prompt)
 	if payload.Prompt == nil {
 		t.Fatalf("expected structured prompt payload")
 	}

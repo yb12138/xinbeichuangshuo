@@ -1,6 +1,10 @@
 package server
 
-import "starcup-engine/internal/server/protocol"
+import (
+	"encoding/json"
+
+	"starcup-engine/internal/server/protocol"
+)
 
 const (
 	CmdSyncState      = protocol.CmdSyncState
@@ -38,4 +42,9 @@ func newWSMessage(cmd string, data interface{}) WSMessage {
 		Cmd:  cmd,
 		Data: mustMarshal(data),
 	}
+}
+
+func mustMarshal(v interface{}) json.RawMessage {
+	data, _ := json.Marshal(v)
+	return data
 }

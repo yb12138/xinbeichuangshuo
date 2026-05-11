@@ -105,20 +105,12 @@ func TestElfElementalShotThunder_DisablesCounterResponse(t *testing.T) {
 		Selections: []int{shotIdx},
 	})
 	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptChoice {
-		t.Fatalf("expected elemental-shot cost choice interrupt, got %+v", game.State.PendingInterrupt)
+		t.Fatalf("expected elemental-shot pick choice interrupt, got %+v", game.State.PendingInterrupt)
 	}
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID:   "p1",
 		Type:       model.CmdSelect,
-		Selections: []int{0}, // 选择“弃法术牌”
-	})
-	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptChoice {
-		t.Fatalf("expected elemental-shot discard choice interrupt, got %+v", game.State.PendingInterrupt)
-	}
-	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:   "p1",
-		Type:       model.CmdSelect,
-		Selections: []int{0}, // 弃唯一法术牌
+		Selections: []int{0}, // 直接选择唯一法术牌
 	})
 
 	if got := len(game.State.CombatStack); got != 1 {

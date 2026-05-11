@@ -127,16 +127,18 @@ function playableIndexForBlessingCover(fieldIndex: number): number | null {
   const cover = myCoverCards.value.find((entry) => entry.fieldIndex === fieldIndex)
   if (!cover) return null
   if (cover.fieldCard.effect !== ELF_BLESSING_EFFECT) return null
+
   const blessingPlayableCards = myPlayableCards.value.filter((item) => item.source === 'blessing')
   if (blessingPlayableCards.length <= 0) return null
 
-  // 优先按卡牌 ID 精确匹配；若服务端未下发可见 ID，再回退到祝福区顺序映射。
+  // 优先按卡牌 ID 精确匹配
   const coverCardID = String(cover.fieldCard.card?.id || '').trim()
   if (coverCardID) {
     const playable = blessingPlayableCards.find((item) => String(item.card?.id || '').trim() === coverCardID)
     if (playable) return playable.index
   }
 
+  // 回退到顺序匹配
   const blessingCoverEntries = myCoverCards.value.filter((entry) => entry.fieldCard.effect === ELF_BLESSING_EFFECT)
   const blessingOrdinal = blessingCoverEntries.findIndex((entry) => entry.fieldIndex === fieldIndex)
   if (blessingOrdinal < 0 || blessingOrdinal >= blessingPlayableCards.length) return null
@@ -410,10 +412,16 @@ const selectedCocoonFieldIndices = ref<number[]>([])
 
 const promptNeedsCocoonGuide = computed(() => cocoonPromptContext.value.active)
 
-const promptNeedsBlessingRemoveGuide = computed(() => {
+const promptNeedsElementalShotGuide = computed(() => {
   const p = promptGuideContext.value
   if (!p || !isPromptForMe.value) return false
-  return p.choice_type === 'elf_elemental_shot_remove_blessing'
+  return p.choice_type === 'elf_archer_elemental_shot_pick'
+})
+
+const promptNeedsCardSelectionGuide = computed(() => {
+  const p = promptGuideContext.value
+  if (!p || !isPromptForMe.value) return false
+  return p.choice_type === 'elf_archer_elemental_shot_pick'
 })
 
 const cocoonGuideText = computed(() => {
@@ -447,7 +455,16 @@ watch(
 )
 
 watch(
-  () => promptNeedsBlessingRemoveGuide.value,
+  () => promptNeedsElementalShotGuide.value,
+  (active) => {
+    if (active) {
+      showExpansionCards.value = true
+    }
+  }
+)
+
+watch(
+  () => promptNeedsCardSelectionGuide.value,
   (active) => {
     if (active) {
       showExpansionCards.value = true
@@ -464,7 +481,8 @@ watch(
 
 const promptNeedsCardGuide = computed(() => {
   if (promptNeedsCocoonGuide.value) return false
-  if (promptNeedsBlessingRemoveGuide.value) return false
+  if (promptNeedsElementalShotGuide.value) return false
+  if (promptNeedsCardSelectionGuide.value) return false
   const p = promptGuideContext.value
   if (!p) return false
   if (p.choice_type === 'plague_death_touch_element') return true
@@ -532,6 +550,18 @@ function isCoverSelectable(fieldIndex: number): boolean {
   if (ctx.active) {
     return isCocoonCoverSelectable(fieldIndex)
   }
+  // 元素射击：祝福盖牌根据 prompt.options 判断可选性
+  if (currentPrompt.value?.choice_type === 'elf_archer_elemental_shot_pick') {
+    const cover = myCoverCards.value.find((entry) => entry.fieldIndex === fieldIndex)
+    if (cover && cover.fieldCard.effect === ELF_BLESSING_EFFECT) {
+      const blessingCovers = myCoverCards.value.filter(e => e.fieldCard.effect === ELF_BLESSING_EFFECT)
+      const blessingOrdinal = blessingCovers.findIndex(e => e.fieldIndex === fieldIndex)
+      if (blessingOrdinal < 0) return false
+      const playableIdx = myHand.value.length + blessingOrdinal
+      const validIds = new Set((currentPrompt.value?.options || []).map((o: any) => String(o?.id || '')))
+      return validIds.has(String(playableIdx))
+    }
+  }
   const playableIndex = playableIndexForBlessingCover(fieldIndex)
   if (playableIndex === null) return false
   return isCardSelectableForAction(playableIndex)
@@ -541,6 +571,19 @@ function isCoverSelected(fieldIndex: number): boolean {
   const ctx = cocoonPromptContext.value
   if (ctx.active) {
     return isCocoonCoverSelected(fieldIndex)
+  }
+  // 元素射击：祝福盖牌的选择状态
+  if (currentPrompt.value?.choice_type === 'elf_archer_elemental_shot_pick') {
+    const cover = myCoverCards.value.find((entry) => entry.fieldIndex === fieldIndex)
+    if (cover && cover.fieldCard.effect === ELF_BLESSING_EFFECT) {
+      const blessingCovers = myCoverCards.value.filter(e => e.fieldCard.effect === ELF_BLESSING_EFFECT)
+      const blessingOrdinal = blessingCovers.findIndex(e => e.fieldIndex === fieldIndex)
+      if (blessingOrdinal < 0) return false
+      const playableIdx = myHand.value.length + blessingOrdinal
+      return selectedCards.value.includes(playableIdx) ||
+        selectedCardForAction.value === playableIdx ||
+        skillDiscardIndices.value.includes(playableIdx)
+    }
   }
   const playableIndex = playableIndexForBlessingCover(fieldIndex)
   if (playableIndex === null) return false
@@ -584,6 +627,22 @@ function onCoverCardClick(fieldIndex: number) {
     selectedCocoonFieldIndices.value.push(fieldIndex)
     selectedCocoonFieldIndices.value.sort((a, b) => a - b)
     return
+  }
+
+  // 元素射击：祝福盖牌直接计算可操作索引
+  if (currentPrompt.value?.choice_type === 'elf_archer_elemental_shot_pick') {
+    const cover = myCoverCards.value.find((entry) => entry.fieldIndex === fieldIndex)
+    if (cover && cover.fieldCard.effect === ELF_BLESSING_EFFECT) {
+      const blessingCovers = myCoverCards.value.filter(e => e.fieldCard.effect === ELF_BLESSING_EFFECT)
+      const blessingOrdinal = blessingCovers.findIndex(e => e.fieldIndex === fieldIndex)
+      if (blessingOrdinal < 0) {
+        interruptStore.showError('当前步骤不可选择该盖牌')
+        return
+      }
+      const playableIdx = myHand.value.length + blessingOrdinal
+      onCardClick(playableIdx)
+      return
+    }
   }
 
   const playableIndex = playableIndexForBlessingCover(fieldIndex)
@@ -1044,7 +1103,7 @@ type PromptCardSelectionState = {
 }
 
 const NON_HAND_INDEXED_PROMPT_CHOICE_TYPES = new Set([
-  'elf_elemental_shot_remove_blessing',
+  'elf_archer_elemental_shot_pick',
 ])
 
 function promptCardSelectionState(idx: number): PromptCardSelectionState {
@@ -1058,6 +1117,16 @@ function promptCardSelectionState(idx: number): PromptCardSelectionState {
 
   const playableItem = myPlayableCards.value.find((item) => item.index === idx)
   const playableCard = playableItem?.card
+
+  // 对于元素射击，根据 prompt.options 判断可选性（后端已排除攻击牌）
+  if (prompt.choice_type === 'elf_archer_elemental_shot_pick') {
+    const validIds = new Set((prompt.options || []).map((o: any) => String(o?.id || '')))
+    if (!validIds.has(String(idx))) {
+      return { selectable: false, reason: 'prompt_elf_elemental_shot_pick_not_in_options' }
+    }
+    return { selectable: true, reason: 'prompt_elf_elemental_shot_pick_valid' }
+  }
+
   if (!playableCard) {
     return { selectable: false, reason: 'card_not_playable', error: '请从手牌区选择有效卡牌' }
   }
@@ -1111,34 +1180,6 @@ function promptCardSelectionState(idx: number): PromptCardSelectionState {
       reason: 'prompt_defend_invalid',
       error: '防御只能选择【圣光】（圣盾需提前放置）'
     }
-  }
-
-  if (prompt.choice_type === 'elf_elemental_shot_remove_blessing') {
-    if (playableItem?.source !== 'blessing') {
-      return {
-        selectable: false,
-        reason: 'prompt_elf_blessing_remove_requires_blessing_cover',
-        error: '请在扩展区选择要移除的祝福牌'
-      }
-    }
-    const blessingIndex = idx - myHand.value.length
-    const blessingCount = myPlayableCards.value.filter((item) => item.source === 'blessing').length
-    if (blessingIndex < 0 || blessingIndex >= blessingCount) {
-      return {
-        selectable: false,
-        reason: 'prompt_elf_blessing_remove_invalid_index',
-        error: '当前祝福牌索引无效，请重新选择'
-      }
-    }
-    const optionIds = new Set((prompt.options || []).map((option: any) => String(option?.id || '')))
-    if (optionIds.size > 0 && !optionIds.has(String(blessingIndex))) {
-      return {
-        selectable: false,
-        reason: 'prompt_elf_blessing_remove_not_in_candidates',
-        error: '该祝福不在本次可移除范围内'
-      }
-    }
-    return { selectable: true, reason: 'prompt_elf_blessing_remove_selectable' }
   }
 
   const card = myHand.value[idx]
@@ -1815,8 +1856,10 @@ watch(
                     确认选择
                   </button>
     </div>
-                <div v-else-if="promptNeedsBlessingRemoveGuide" class="expansion-cocoon-guide">
-                  <div class="expansion-cocoon-guide-text">请在扩展区选择要移除的祝福牌，然后在行动区点击确认。</div>
+                <div v-else-if="promptNeedsElementalShotGuide" class="expansion-cocoon-guide">
+                  <div class="expansion-cocoon-guide-text">
+                    请点击手牌区或扩展区的法术牌/祝福牌完成元素射击消耗选择。
+                  </div>
                 </div>
                 <div class="expansion-zone-scroll">
                   <div class="expansion-zone-content">

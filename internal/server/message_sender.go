@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 
 	"starcup-engine/internal/model"
+	"starcup-engine/internal/server/prompting"
 )
 
 func (r *Room) sendToClient(client *Client, cmd string, data interface{}) {
@@ -35,7 +36,7 @@ func (r *Room) sendRequireActionToClient(client *Client, prompt *model.Prompt) {
 	if prompt == nil {
 		return
 	}
-	r.sendToClient(client, CmdRequireAction, buildRequireActionPayload(prompt))
+	r.sendToClient(client, CmdRequireAction, prompting.BuildRequireActionPayload(prompt))
 }
 
 func (r *Room) broadcastHumans(cmd string, data interface{}) {
@@ -47,6 +48,22 @@ func (r *Room) broadcastHumans(cmd string, data interface{}) {
 		}
 		select {
 		case c.Send <- raw:
+		default:
+		}
+	}
+}
+
+func (r *Room) broadcastRoomEvent(event RoomEvent) {
+	r.broadcastHumans(CmdRoomEvent, event)
+}
+
+func (r *Room) broadcastToAll(message []byte) {
+	for _, client := range r.Clients {
+		if client.IsBot || client.Disconnected {
+			continue
+		}
+		select {
+		case client.Send <- message:
 		default:
 		}
 	}

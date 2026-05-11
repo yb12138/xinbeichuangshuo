@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"starcup-engine/internal/model"
+	"starcup-engine/internal/server/prompting"
 )
 
 func (r *Room) handleRegister(client *Client) {
@@ -280,9 +281,9 @@ func (r *Room) reconnectIntoSeatLocked(client *Client, existing *Client, success
 		r.engineMu.Lock()
 		var prompt *model.Prompt
 		if p := r.Engine.GetCurrentPrompt(); p != nil && p.PlayerID == client.PlayerID {
-			prompt = clonePrompt(p)
+			prompt = prompting.ClonePrompt(p)
 		} else if cachedPrompt != nil {
-			prompt = clonePrompt(cachedPrompt)
+			prompt = prompting.ClonePrompt(cachedPrompt)
 		}
 		r.engineMu.Unlock()
 

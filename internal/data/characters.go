@@ -961,7 +961,7 @@ func GetCharacters() []model.Character {
 					ID: "elf_elemental_shot", Timings: []model.FlowTiming{model.TimingOnAttackDeclared}, Title: "元素射击",
 					Type:        model.SkillTypeResponse,
 					Tags:        []model.SkillTag{model.TagTurnLimit, model.TagOptional},
-					Description: "每回合一次：主动攻击前（非暗系）可弃1法术牌或移除1祝福，按攻击系别附加元素箭效果。",
+					Description: "[回合限定]（主动攻击时①，若攻击牌非暗系，弃1张法术牌[展示]或移除1个[祝福]）根据攻击牌系别附加以下[元素箭]效果：\n[火之矢]：本次攻击伤害额外+1。\n[水之矢]：（主动攻击命中时②）目标角色+1[治疗]。\n[风之矢]：（[攻击行动]结束后）+1[攻击行动]。\n[雷之矢]：本次攻击无法应战。\n[地之矢]：（主动攻击命中时②）对目标角色造成1点法术伤害③。",
 
 					RequiredRole:    model.RoleAttacker,
 					ResponseType:    model.ResponseOptional,
@@ -1212,7 +1212,7 @@ func GetCharacters() []model.Character {
 					Type:        model.SkillTypeStartup,
 					Tags:        []model.SkillTag{model.TagGem, model.TagUltimate},
 					CostGem:     1,
-					Description: "启动阶段消耗1红宝石进入祈祷形态；祈祷形态下手牌上限固定为5，主动攻击会累计祈祷符文。",
+					Description: "启动阶段消耗1红宝石进入祈祷形态；主动攻击会累计祈祷符文。",
 
 					ResponseType: model.ResponseOptional,
 					LogicHandler: "prayer_enter_form",

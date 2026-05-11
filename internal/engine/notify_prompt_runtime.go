@@ -65,9 +65,19 @@ func shouldUseNumericPromptButtons(prompt *model.Prompt, options []model.PromptO
 	}
 
 	// 优先读取 Presentation（后端显式声明）
-	if prompt.Presentation != nil && prompt.Presentation.Kind == model.PresentationNumeric {
-		plusOne := prompt.Presentation.NumericBase != 0
-		return true, plusOne
+	if prompt.Presentation != nil {
+		switch prompt.Presentation.Kind {
+		case model.PresentationNumeric:
+			plusOne := prompt.Presentation.NumericBase != 0
+			return true, plusOne
+		case model.PresentationBranchSelect,
+			model.PresentationCardPicker,
+			model.PresentationTargetPicker,
+			model.PresentationSkillChoice,
+			model.PresentationActionHub,
+			model.PresentationResponse:
+			return false, false
+		}
 	}
 
 	// Fallback：旧逻辑兼容无 Presentation 的 prompt
@@ -140,6 +150,9 @@ func normalizePromptOptionForClient(option model.PromptOption, prompt *model.Pro
 	}
 	if button == "" && isPromptDeclineLabel(label) {
 		button = "放弃"
+	}
+	if button == "" && prompt != nil && prompt.Presentation != nil && prompt.Presentation.Kind == model.PresentationBranchSelect {
+		button = label
 	}
 	if button == "" {
 		if label != "" && len([]rune(label)) <= 6 {
@@ -400,6 +413,9 @@ func (e *GameEngine) BuildChoicePrompt() *model.Prompt {
 	if err != nil {
 		e.Log(fmt.Sprintf("[System] BuildChoicePrompt: %v", err))
 		return nil
+	}
+	if p != nil && choiceType != "" && p.ChoiceType == "" {
+		p.ChoiceType = choiceType
 	}
 	return p
 }

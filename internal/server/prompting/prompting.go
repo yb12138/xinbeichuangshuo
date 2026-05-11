@@ -3,6 +3,7 @@ package prompting
 import (
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/server/protocol"
+	"starcup-engine/internal/server/viewmodel"
 )
 
 func ClonePrompt(src *model.Prompt) *model.Prompt {
@@ -31,7 +32,7 @@ func BuildRequireActionPayload(prompt *model.Prompt) protocol.RequireActionPaylo
 		ValidActions:  []string{protocol.CmdSubmitAction},
 		RequireCount:  prompt.Max,
 		PromptType:    string(prompt.Type),
-		Prompt:        ClonePrompt(prompt),
+		Prompt:        viewmodel.ToPromptDTO(prompt),
 	}
 	if payload.RequireCount <= 0 {
 		payload.RequireCount = prompt.Min

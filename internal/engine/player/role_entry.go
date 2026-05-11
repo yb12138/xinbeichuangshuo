@@ -216,6 +216,7 @@ type ChoiceSpec struct {
 	ChoiceType          string
 	BuildPrompt         func(rt ChoiceRuntime, playerID string, player *model.Player, data map[string]interface{}) *model.Prompt
 	HandleChoice        func(rt ChoiceRuntime, playerID string, selectionIndex int, data map[string]interface{}) (bool, error)
+	HandleMultiSelect   func(rt ChoiceRuntime, playerID string, selections []int, data map[string]interface{}) (bool, error)
 	SequentialRemaining ChoiceSequentialRemaining
 	// Presentation 声明弹框展示类型（后端显式声明，前端按此渲染）
 	Presentation *model.PromptPresentation

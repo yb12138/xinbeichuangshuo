@@ -4,7 +4,6 @@ import { useInterruptStore } from '../stores/interrupt.store'
 import { useSessionStore } from '../stores/session.store'
 import { useSnapshotStore } from '../stores/snapshot.store'
 import { useSubmitAction } from '../composables/useSubmitAction'
-import { useBattleInteractionState } from '../composables/useBattleInteractionState'
 import { ROLE_NAME_MAP } from '../constants/roleNameMap'
 import {
   isActivationCostText,
@@ -24,7 +23,6 @@ const interruptStore = useInterruptStore()
 const sessionStore = useSessionStore()
 const snapshotStore = useSnapshotStore()
 const actions = useSubmitAction()
-const { myPlayableCards } = useBattleInteractionState()
 
 const prompt = computed(() => interruptStore.currentPrompt)
 const myPlayerId = computed(() => sessionStore.myPlayerId)
@@ -124,13 +122,13 @@ const isPlagueDeathTouchElementPrompt = computed(() =>
   prompt.value?.choice_type === 'plague_death_touch_element'
 )
 
-const isElfElementalShotRemoveBlessingPrompt = computed(() =>
-  prompt.value?.choice_type === 'elf_elemental_shot_remove_blessing'
+const isElfElementalShotPickPrompt = computed(() =>
+  prompt.value?.choice_type === 'elf_archer_elemental_shot_pick'
 )
 
 const needsCardSelection = computed(() => {
   if (!prompt.value) return false
-  if (isElfElementalShotRemoveBlessingPrompt.value) return true
+  if (isElfElementalShotPickPrompt.value) return true
   if (isPlagueDeathTouchElementPrompt.value) return true
   if (promptHasHandCardOptions.value) return true
   if (prompt.value.type === 'choose_card' || prompt.value.type === 'choose_cards') return true
@@ -161,6 +159,11 @@ const isSaintHealAllocatePrompt = computed(() => prompt.value?.choice_type === '
 const saintHealAllocations = ref<number[]>([])
 const SAINT_HEAL_TOTAL = 3
 
+// 符文改造分配：战纹/魔纹 0..3 数字选择，要求总和=3。
+const isRuneReforgeAllocatePrompt = computed(() => prompt.value?.choice_type === 'hom_rune_reforge_allocate')
+const runeReforgeAllocations = ref<number[]>([])
+const RUNE_REFORGE_TOTAL = 3
+
 watch(
   () => prompt.value,
   () => {
@@ -169,6 +172,11 @@ watch(
     } else {
       saintHealAllocations.value = []
     }
+    if (isRuneReforgeAllocatePrompt.value && prompt.value) {
+      runeReforgeAllocations.value = prompt.value.options.map(() => 0)
+    } else {
+      runeReforgeAllocations.value = []
+    }
   },
   { immediate: true }
 )
@@ -176,6 +184,11 @@ watch(
 const saintHealRemaining = computed(() => {
   const used = saintHealAllocations.value.reduce((s, v) => s + (v || 0), 0)
   return SAINT_HEAL_TOTAL - used
+})
+
+const runeReforgeRemaining = computed(() => {
+  const used = runeReforgeAllocations.value.reduce((s, v) => s + (v || 0), 0)
+  return RUNE_REFORGE_TOTAL - used
 })
 
 function setSaintHealAllocation(index: number, value: number) {
@@ -190,11 +203,30 @@ function setSaintHealAllocation(index: number, value: number) {
   saintHealAllocations.value = next
 }
 
+function setRuneReforgeAllocation(index: number, value: number) {
+  if (!isRuneReforgeAllocatePrompt.value) return
+  const current = runeReforgeAllocations.value[index] || 0
+  const otherSum = runeReforgeAllocations.value.reduce((s, v, i) => s + (i === index ? 0 : (v || 0)), 0)
+  const maxAllowed = Math.max(0, RUNE_REFORGE_TOTAL - otherSum)
+  const clamped = Math.max(0, Math.min(value, Math.min(RUNE_REFORGE_TOTAL, maxAllowed)))
+  if (clamped === current) return
+  const next = runeReforgeAllocations.value.slice()
+  next[index] = clamped
+  runeReforgeAllocations.value = next
+}
+
 const canSubmitSaintHeal = computed(() => {
   if (!isSaintHealAllocatePrompt.value) return false
   if (saintHealAllocations.value.length === 0) return false
   // 允许总和 <= 3（不强制等于 3）
   return saintHealAllocations.value.reduce((s, v) => s + (v || 0), 0) <= SAINT_HEAL_TOTAL
+})
+
+const canSubmitRuneReforge = computed(() => {
+  if (!isRuneReforgeAllocatePrompt.value) return false
+  if (runeReforgeAllocations.value.length === 0) return false
+  // 符文改造强制总和 = 3
+  return runeReforgeAllocations.value.reduce((s, v) => s + (v || 0), 0) === RUNE_REFORGE_TOTAL
 })
 
 function submitSaintHealAllocation() {
@@ -205,8 +237,16 @@ function submitSaintHealAllocation() {
   actions.submitSelect([...saintHealAllocations.value])
 }
 
-const NON_HAND_INDEXED_PROMPT_CHOICE_TYPES = new Set([
-  'elf_elemental_shot_remove_blessing',
+function submitRuneReforgeAllocation() {
+  if (!canSubmitRuneReforge.value) {
+    showPromptError(`分配无效（战纹+魔纹之和必须等于 ${RUNE_REFORGE_TOTAL}）`)
+    return
+  }
+  actions.submitSelect([...runeReforgeAllocations.value])
+}
+
+const NON_HAND_INDEXED_PROMPT_CHOICE_TYPES = new Set<string>([
+  'elf_archer_elemental_shot_pick',
 ])
 
 function toggleExtractOption(index: number) {
@@ -313,7 +353,6 @@ const isResponseSkillConfirmPrompt = computed(() => {
 function isPromptActivationCostCancelable(p: NonNullable<typeof prompt.value>): boolean {
   const choiceType = String(p.choice_type || '').trim()
   // 发动前置消耗：允许玩家取消并回到原流程。
-  if (choiceType === 'elf_elemental_shot_cost') return true
   if (choiceType === 'plague_death_touch_element' || choiceType === 'plague_death_touch_cards') return true
   return false
 }
@@ -451,30 +490,8 @@ function resolvePlagueDeathTouchElementOptionIndex(): number | null {
   return null
 }
 
-function resolveElfBlessingSelectionIndices(): number[] {
-  if (!prompt.value || !isElfElementalShotRemoveBlessingPrompt.value) return []
-  const optionIds = new Set((prompt.value.options || []).map((option) => String(option.id || '')))
-  const blessingCount = myPlayableCards.value.filter((item) => item.source === 'blessing').length
-  const mapped = interruptStore.selectedCards
-    .map((playableIndex) => {
-      const playable = myPlayableCards.value.find((item) => item.index === playableIndex)
-      if (!playable || playable.source !== 'blessing') return null
-      const blessingIndex = playableIndex - myHand.value.length
-      if (blessingIndex < 0 || blessingIndex >= blessingCount) return null
-      if (optionIds.size > 0 && !optionIds.has(String(blessingIndex))) return null
-      return blessingIndex
-    })
-    .filter((idx): idx is number => idx !== null)
-  return [...new Set(mapped)]
-}
-
 const canConfirmPrompt = computed(() => {
   if (!prompt.value) return false
-  if (isElfElementalShotRemoveBlessingPrompt.value) {
-    const mapped = resolveElfBlessingSelectionIndices()
-    if (mapped.length !== interruptStore.selectedCards.length) return false
-    return mapped.length >= prompt.value.min && mapped.length <= prompt.value.max
-  }
   if (isPlagueDeathTouchElementPrompt.value) {
     return resolvePlagueDeathTouchElementOptionIndex() !== null
   }
@@ -497,16 +514,6 @@ const canConfirmPrompt = computed(() => {
 
 function confirmPromptAction() {
   if (!canConfirmPrompt.value) return
-
-  if (isElfElementalShotRemoveBlessingPrompt.value) {
-    const mapped = resolveElfBlessingSelectionIndices()
-    if (mapped.length <= 0) {
-      showPromptError('请先在扩展区选择要移除的祝福牌')
-      return
-    }
-    actions.submitSelect(mapped)
-    return
-  }
 
   if (isPlagueDeathTouchElementPrompt.value) {
     const optionIndex = resolvePlagueDeathTouchElementOptionIndex()
@@ -1026,7 +1033,7 @@ const cardFooterOptions = computed<RawDockOption[]>(() => {
 
 const promptNeedsHandCardConfirm = computed(() => {
   if (!prompt.value || !needsCardSelection.value || hasCounterOrDefend.value) return false
-  if (isElfElementalShotRemoveBlessingPrompt.value) return true
+  if (isElfElementalShotPickPrompt.value) return true
   if (isPlagueDeathTouchElementPrompt.value) return true
   if (isNonHandChooseCardsMultiMode.value) return false
   if (promptCardOptionIndexSet.value.size > 0) return true
@@ -1042,7 +1049,7 @@ const promptNeedsCardConfirm = computed(() =>
 )
 
 const cardConfirmHintText = computed(() => {
-  if (isElfElementalShotRemoveBlessingPrompt.value) return '请在扩展区选择要移除的祝福牌并点击发动'
+  if (isElfElementalShotPickPrompt.value) return '请从手牌区或扩展区选择法术牌/祝福牌并点击发动'
   if (isPlagueDeathTouchElementPrompt.value) return '请选择同系手牌并点击确认'
   if (prompt.value?.choice_type === 'plague_death_touch_cards') return '请选择要弃置的同系手牌并点击确认'
   if (promptNeedsInlineCardOptionConfirm.value) return '完成选择后点击发动'
@@ -1111,6 +1118,7 @@ const inlinePrimaryButtons = computed<DockButtonOption[]>(() => {
   if (isExtractPrompt.value) return []
   if (isFraudElementCardPickerPrompt.value) return []
   if (isSaintHealAllocatePrompt.value) return []
+  if (isRuneReforgeAllocatePrompt.value) return []
   if (needsCardSelection.value) return buildDockButtons(cardFooterOptions.value)
   if (showConfirmButtonSection.value) {
     const options = nonPlayerOptions.value
@@ -1296,7 +1304,15 @@ const showDecisionOverlay = computed(() => {
   if (isFraudElementCardPickerPrompt.value) return false  // → 欺诈选牌弹窗
   if (isExtractPrompt.value) return false              // → 提取选择网格
   if (isSaintHealAllocatePrompt.value) return false    // → 圣疗分配专属弹窗
+  if (isRuneReforgeAllocatePrompt.value) return false  // → 符文改造分配专属弹窗
   if (needsCardSelection.value) return false           // → 卡牌选择流程（命中/防御/应战按钮留内联）
+  // 简单确认弹框（是/否两个按钮）→ 走内联按钮而非 overlay
+  if (prompt.value?.type === 'confirm' && inlinePrimaryButtons.value.length === 2) {
+    const labels = inlinePrimaryButtons.value.map(opt => String(opt.label || '').trim())
+    if (labels.includes('是') || labels.includes('否')) {
+      return false
+    }
+  }
   // 符合通用弹窗条件
   if (singleActivationCostConfirmOption.value) return true
   if (inlinePrimaryButtons.value.length > 0 && showConfirmButtonSection.value) return true
@@ -1811,6 +1827,49 @@ watch(autoResolveOptionId, (optionId) => {
               class="overlay-confirm-btn"
               :disabled="!canSubmitSaintHeal"
               @click="submitSaintHealAllocation"
+            >
+              确认分配
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
+
+  <Teleport to="body">
+    <Transition name="modal">
+      <div v-if="isVisible && isRuneReforgeAllocatePrompt" class="overlay-panel-root overlay-panel-root--decision">
+        <div class="overlay-panel" @click.stop>
+          <div class="overlay-panel-header overlay-panel-header--decision">
+            <h2>{{ prompt?.message || '请分配战纹/魔纹' }}</h2>
+          </div>
+          <div class="overlay-panel-body overlay-saint-heal">
+            <div class="overlay-saint-heal-summary">
+              剩余可分配：{{ runeReforgeRemaining }} / {{ RUNE_REFORGE_TOTAL }}
+            </div>
+            <div
+              v-for="(option, index) in prompt?.options || []"
+              :key="option.id"
+              class="overlay-saint-heal-row"
+            >
+              <div class="overlay-saint-heal-row-label">{{ option.label }}</div>
+              <div class="overlay-saint-heal-row-grid">
+                <button
+                  v-for="n in [0, 1, 2, 3]"
+                  :key="n"
+                  class="overlay-numeric-tile overlay-saint-heal-tile"
+                  :class="{ 'overlay-saint-heal-tile--active': (runeReforgeAllocations[index] || 0) === n }"
+                  :disabled="n > (runeReforgeAllocations[index] || 0) + runeReforgeRemaining"
+                  @click="setRuneReforgeAllocation(index, n)"
+                >
+                  <span class="overlay-numeric-value">{{ n }}</span>
+                </button>
+              </div>
+            </div>
+            <button
+              class="overlay-confirm-btn"
+              :disabled="!canSubmitRuneReforge"
+              @click="submitRuneReforgeAllocation"
             >
               确认分配
             </button>

@@ -2,6 +2,7 @@ package server
 
 import (
 	"starcup-engine/internal/model"
+	"starcup-engine/internal/server/bot"
 	"starcup-engine/internal/server/stateview"
 )
 
@@ -155,5 +156,68 @@ func (r *Room) buildStateForPlayer(playerID string) GameStateUpdate {
 		DiscardCount:        len(state.DiscardPile),
 		AvailableSkills:     availableSkills,
 		Characters:          buildCharacterViews(),
+	}
+}
+
+// buildBotStateSnapshot 构建 bot 决策所需的状态快照（精简版，不依赖 viewmodel）
+func (r *Room) buildBotStateSnapshot(playerID string) bot.StateSnapshot {
+	state := r.Engine.State
+	hasPerformedStartup := false
+	if state != nil && len(state.PlayerOrder) > 0 && state.CurrentTurn >= 0 && state.CurrentTurn < len(state.PlayerOrder) {
+		currentPlayer := state.Players[state.PlayerOrder[state.CurrentTurn]]
+		if currentPlayer != nil {
+			hasPerformedStartup = currentPlayer.TurnState.HasStartupSkillOrSpecialActionsLocked()
+		}
+	}
+
+	players := make(map[string]bot.PlayerSnapshot)
+	for pid, p := range state.Players {
+		snapshot := bot.PlayerSnapshot{
+			ID:               p.ID,
+			Name:             p.Name,
+			Camp:             string(p.Camp),
+			Role:             p.Role,
+			Form:             r.Engine.GetPlayerForm(pid),
+			Orientation:      string(r.Engine.GetPlayerOrientation(pid)),
+			HandCount:        len(p.Hand),
+			MaxHand:          r.previewMaxHand(p),
+			ExclusiveCardCount: len(p.ExclusiveCards),
+			Field:            buildMaskedFieldForViewer(p, playerID),
+			Heal:             p.Heal,
+			MaxHeal:          p.MaxHeal,
+			Gem:              p.Gem,
+			Crystal:          p.Crystal,
+			IsActive:         p.IsActive,
+			Buffs:            p.Buffs,
+			Tokens:           map[string]int{},
+		}
+		for k, v := range p.Tokens {
+			snapshot.Tokens[k] = v
+		}
+		// 仅自己可见手牌具体内容
+		if pid == playerID {
+			snapshot.Hand = p.Hand
+			snapshot.ExclusiveCards = p.ExclusiveCards
+		}
+		players[pid] = snapshot
+	}
+
+	return bot.StateSnapshot{
+		TurnStage:           string(state.TurnStage),
+		CombatStage:         string(state.CombatStage),
+		Subflow:             string(state.Subflow),
+		CurrentPlayer:       state.CurrentPlayer,
+		HasPerformedStartup: hasPerformedStartup,
+		Players:             players,
+		RedMorale:           state.RedMorale,
+		BlueMorale:          state.BlueMorale,
+		RedCups:             state.RedCups,
+		BlueCups:            state.BlueCups,
+		RedGems:             state.RedGems,
+		BlueGems:            state.BlueGems,
+		RedCrystals:         state.RedCrystals,
+		BlueCrystals:        state.BlueCrystals,
+		DeckCount:           len(state.Deck),
+		DiscardCount:        len(state.DiscardPile),
 	}
 }

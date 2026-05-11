@@ -37,7 +37,15 @@ func registerRoleChoiceSpec(reg *choicert.SpecRegistry, roleID string, spec engi
 		return
 	}
 	var multi func(choicert.Host, string, []int, map[string]any) (bool, error)
-	if spec.SequentialRemaining != nil {
+	if spec.HandleMultiSelect != nil {
+		multi = func(h choicert.Host, playerID string, selections []int, ctx map[string]any) (bool, error) {
+			ge := engFromHost(h)
+			if ge == nil {
+				return false, fmt.Errorf("choice: engine bridge unavailable")
+			}
+			return spec.HandleMultiSelect(NewRoleChoiceRuntime(ge), playerID, selections, choiceCtxAsInterfaceMap(ctx))
+		}
+	} else if spec.SequentialRemaining != nil {
 		multi = func(h choicert.Host, playerID string, selections []int, _ map[string]any) (bool, error) {
 			ge := engFromHost(h)
 			if ge == nil {
