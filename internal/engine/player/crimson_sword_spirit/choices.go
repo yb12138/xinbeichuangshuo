@@ -233,16 +233,15 @@ func handleCrimsonSwordSpiritDanceModeChoice(rt engineplayer.ChoiceRuntime, sele
 		}
 		user.Tokens["css_blood_cap"] = 4
 		addBlood(user, 2)
-		overflow := len(user.Hand) - 4
-		if overflow > 0 {
+		if len(user.Hand) > 4 {
 			rt.PushInterrupt(&model.Interrupt{
 				Type:     model.InterruptChoice,
 				PlayerID: user.ID,
 				Context: map[string]interface{}{
-					"choice_type":   "system_discard_cards",
-					"discard_count": overflow,
-					"stay_in_turn":  true,
-					"prompt":        fmt.Sprintf("【散华轮舞】请弃置 %d 张手牌至4张：", overflow),
+					"choice_type":     "system_discard_cards",
+					"discard_down_to": 4,
+					"stay_in_turn":    true,
+					"prompt":          "【散华轮舞】请弃置手牌至4张：",
 				},
 			})
 		}

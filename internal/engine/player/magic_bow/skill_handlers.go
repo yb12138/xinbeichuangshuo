@@ -301,11 +301,7 @@ func (h *MagicBowChargeHandler) Execute(ctx *model.Context) error {
 	}
 	ctx.User.TurnState.UsedSkillCounts["mb_charge_lock_turn"] = 1
 
-	discardNeed := len(ctx.User.Hand) - 4
-	if discardNeed < 0 {
-		discardNeed = 0
-	}
-	if discardNeed > 0 {
+	if len(ctx.User.Hand) > 4 {
 		ctx.Game.PushInterrupt(&model.Interrupt{
 			Type:     model.InterruptChoice,
 			PlayerID: ctx.User.ID,
@@ -315,12 +311,11 @@ func (h *MagicBowChargeHandler) Execute(ctx *model.Context) error {
 				"flow_continuation_role_id":   "magic_bow",
 				"flow_continuation_player_id": ctx.User.ID,
 				"flow_continuation_skill_id":  "mb_charge",
-				"discard_count":               discardNeed,
-				"min":                         discardNeed,
-				"max":                         discardNeed,
+				"discard_down_to":             4,
+				"stay_in_turn":                true,
 				"discard_forced":              true,
 				"forced_reason":               "【充能】弃牌为强制步骤，不能取消",
-				"prompt":                      fmt.Sprintf("【充能】请先弃置%d张手牌至4张：", discardNeed),
+				"prompt":                      "【充能】请先弃置手牌至4张：",
 			},
 		})
 		ctx.Game.Log(fmt.Sprintf("%s 发动 [充能]：先弃至4张，再选择摸牌数量X（0~4）", ctx.User.Name))

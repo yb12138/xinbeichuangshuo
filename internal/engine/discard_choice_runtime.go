@@ -94,6 +94,17 @@ func (e *GameEngine) buildDiscardChoicePromptFromData(playerID string, data map[
 		if customMsg, ok := data["prompt"].(string); ok && customMsg != "" {
 			message = customMsg
 		}
+	} else if downTo, ok := data["discard_down_to"].(int); ok && downTo >= 0 {
+		count := len(player.Hand) - downTo
+		if count <= 0 {
+			return nil
+		}
+		min = count
+		max = count
+		message = fmt.Sprintf("请弃置 %d 张牌（弃至%d张）：", count, downTo)
+		if customMsg, ok := data["prompt"].(string); ok && customMsg != "" {
+			message = customMsg
+		}
 	} else {
 		if v, ok := data["min"].(int); ok {
 			min = v

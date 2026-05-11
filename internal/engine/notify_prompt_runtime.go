@@ -392,6 +392,49 @@ func (e *GameEngine) notifyInterruptPrompt() {
 	prompt := e.BuildPendingInterruptPrompt()
 	if prompt != nil {
 		e.Notify(model.EventAskInput, "", prompt)
+	} else if e.shouldAutoSkipDiscardDownTo() {
+		e.autoSkipPendingDiscardDownTo()
+	}
+}
+
+// shouldAutoSkipDiscardDownTo 判断当前中断是否为 discard_down_to 且手牌已不超目标，
+// 无需弃牌操作可自动跳过。
+func (e *GameEngine) shouldAutoSkipDiscardDownTo() bool {
+	intr := e.State.PendingInterrupt
+	if intr == nil || intr.Type != model.InterruptChoice {
+		return false
+	}
+	data, ok := choiceCtxAsAnyMap(intr.Context)
+	if !ok {
+		return false
+	}
+	downTo, _ := data["discard_down_to"].(int)
+	if downTo <= 0 {
+		return false
+	}
+	player := e.State.Players[intr.PlayerID]
+	if player == nil {
+		return false
+	}
+	return len(player.Hand) <= downTo
+}
+
+// autoSkipPendingDiscardDownTo 自动跳过无需弃牌的中断，执行后续回调以继续游戏流程。
+func (e *GameEngine) autoSkipPendingDiscardDownTo() {
+	intr := e.State.PendingInterrupt
+	data, _ := choiceCtxAsAnyMap(intr.Context)
+	choiceType, _ := data["choice_type"].(string)
+	player := e.State.Players[intr.PlayerID]
+	playerName := intr.PlayerID
+	if player != nil && player.Name != "" {
+		playerName = player.Name
+	}
+	e.Log(fmt.Sprintf("[System] %s 手牌未超过目标，自动跳过弃牌: %s", playerName, choiceType))
+
+	afterFn := systemChoiceAfterConsume(choiceType)
+	e.PopInterrupt()
+	if afterFn != nil {
+		afterFn(e, data)
 	}
 }
 

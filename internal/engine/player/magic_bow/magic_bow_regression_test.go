@@ -290,10 +290,9 @@ func TestMagicBowCharge_DiscardFirstThenChooseX(t *testing.T) {
 		t.Fatalf("expected discard interrupt first, got %+v", game.State.PendingInterrupt)
 	}
 	data, _ := game.State.PendingInterrupt.Context.(map[string]interface{})
-	minNeed, _ := data["min"].(int)
-	maxNeed, _ := data["max"].(int)
-	if minNeed != 2 || maxNeed != 2 {
-		t.Fatalf("expected forced discard min/max=2 before choosing x, got min=%v max=%v", data["min"], data["max"])
+	downTo, _ := data["discard_down_to"].(int)
+	if downTo != 4 {
+		t.Fatalf("expected discard_down_to=4, got %v", data["discard_down_to"])
 	}
 
 	if err := game.ConfirmDiscard("p1", []int{4, 5}); err != nil {

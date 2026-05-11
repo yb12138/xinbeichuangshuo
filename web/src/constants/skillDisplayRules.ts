@@ -18,6 +18,7 @@ const SKILL_DISABLED_REASONS: Record<string, string> = {
   magic_blast: '手牌中没有法术牌，无法发动【魔爆冲击】。',
   magic_bullet_fusion: '需要弃置1张火系或地系牌，才能发动【魔弹融合】。',
   magic_bullet_fusion_chain: '需要弃置1张火系或地系牌，才能发动【魔弹融合】。',
+  bw_blazing_codex: '手牌中没有火系牌，无法发动【苍炎法典】。',
   onmyoji_shikigami_descend: '需要弃置2张命格相同的手牌才能发动。',
 }
 

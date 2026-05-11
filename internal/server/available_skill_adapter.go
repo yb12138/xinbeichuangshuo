@@ -113,7 +113,12 @@ func (r *Room) buildAvailableActionSkills(playerID string) []AvailableSkill {
 				continue
 			}
 		}
-		// 通用可用性兜底：复用技能 Handler 的 CanUse，提前过滤“指示物不足/形态不符”等条件。
+		// 弃牌成本可达成性（非独有技）：检查手牌中是否有满足元素/类型要求的牌。
+		// 独有技的可用性已由上方 HasExclusiveCard 保证，其 DiscardElement 仅为元数据，不作为发动门控。
+		if !sd.RequireExclusive && !r.Engine.CanSatisfyActionSkillDiscardRequirement(p, sd) {
+			continue
+		}
+		// 通用可用性兜底：复用技能 Handler 的 CanUse，提前过滤”指示物不足/形态不符”等条件。
 		// 这样前端会直接把技能置灰（或不展示），避免点击后才报“技能发动失败”。
 		if !r.canUseActionSkillNow(p, sd) {
 			continue

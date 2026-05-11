@@ -80,12 +80,9 @@ func TestBlazeWitchPainLink_ConsumesCrystalOnceAndQueuesDiscardToThree(t *testin
 		t.Fatalf("unexpected interrupt: %+v", game.State.PendingInterrupt)
 	}
 	data, _ := game.State.PendingInterrupt.Context.(map[string]any)
-	discardCount, _ := data["discard_count"].(int)
-	if discardCount != len(p1.Hand)-3 {
-		t.Fatalf("expected discard_count=len(hand)-3, got discard=%d hand=%d", discardCount, len(p1.Hand))
-	}
-	if discardCount <= 0 {
-		t.Fatalf("expected positive discard count after pain link, got %d", discardCount)
+	downTo, _ := data["discard_down_to"].(int)
+	if downTo != 3 {
+		t.Fatalf("expected discard_down_to=3, got %d", downTo)
 	}
 }
 

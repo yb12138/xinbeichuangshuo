@@ -231,8 +231,7 @@ func (h *FighterWarGodDriveHandler) Execute(ctx *model.Context) error {
 	if !engineplayer.SpendCrystalLike(ctx, 1) {
 		return fmt.Errorf("斗神天驱需要1点蓝水晶（红宝石可替代）")
 	}
-	discardCount := len(ctx.User.Hand) - 3
-	if discardCount > 0 {
+	if len(ctx.User.Hand) > 3 {
 		ctx.Game.PushInterrupt(&model.Interrupt{
 			Type:     model.InterruptChoice,
 			PlayerID: ctx.User.ID,
@@ -242,12 +241,12 @@ func (h *FighterWarGodDriveHandler) Execute(ctx *model.Context) error {
 				"flow_continuation_role_id":   "fighter",
 				"flow_continuation_player_id": ctx.User.ID,
 				"flow_continuation_skill_id":  "fighter_war_god_drive",
-				"discard_count":               discardCount,
+				"discard_down_to":             3,
 				"stay_in_turn":                true,
 				"prompt":                      "【斗神天驱】请选择需要弃置的手牌：",
 			},
 		})
-		ctx.Game.Log(fmt.Sprintf("%s 发动 [斗神天驱]：请先弃置%d张牌（弃到3张）", ctx.User.Name, discardCount))
+		ctx.Game.Log(fmt.Sprintf("%s 发动 [斗神天驱]：请先弃置手牌至3张", ctx.User.Name))
 		return nil
 	}
 	ctx.Game.Heal(ctx.User.ID, 2)

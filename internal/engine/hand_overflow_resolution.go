@@ -21,6 +21,14 @@ const (
 
 func (e *GameEngine) resolveDiscardSelection(playerID string, indices []int, data map[string]interface{}) error {
 	discardCount := runtimeutil.ToIntContextValue(data["discard_count"])
+	if discardCount <= 0 {
+		if downTo := runtimeutil.ToIntContextValue(data["discard_down_to"]); downTo > 0 {
+			player := e.State.Players[playerID]
+			if player != nil {
+				discardCount = len(player.Hand) - downTo
+			}
+		}
+	}
 	if len(indices) != discardCount {
 		return fmt.Errorf("需要选择 %d 张牌丢弃，你选择了 %d 张", discardCount, len(indices))
 	}
