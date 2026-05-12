@@ -237,7 +237,22 @@ func (r *Runtime) ConfirmResponseSkillAction(h Host, playerID, skillID string) (
 	if player == nil || player.Character == nil {
 		return InterruptActionResult{}, fmt.Errorf("玩家不存在")
 	}
-	skillDef := r.cat.FindCharacterSkillOnPlayer(player, skillID)
+
+	// 吟游诗人响应技能特殊处理：技能定义属于 bard，但弹窗给持有者。
+	// 从 ctx.Selections["bard_id"] 获取 bardID，然后从 bard 身上查找技能定义。
+	var skillDef *model.SkillDefinition
+	if skillID == "bd_rousing_rhapsody" || skillID == "bd_victory_symphony" {
+		bardID, _ := ctx.Selections["bard_id"].(string)
+		if bardID != "" {
+			bard := h.GameState().Players[bardID]
+			if bard != nil {
+				skillDef = r.cat.FindCharacterSkillOnPlayer(bard, skillID)
+			}
+		}
+	}
+	if skillDef == nil {
+		skillDef = r.cat.FindCharacterSkillOnPlayer(player, skillID)
+	}
 	if skillDef == nil {
 		return InterruptActionResult{}, fmt.Errorf("技能不存在")
 	}

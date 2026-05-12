@@ -61,22 +61,19 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			return nil
 		}
 		allowSkip, _ := data["allow_skip"].(bool)
-		options := make([]model.PromptOption, 0, len(target.Hand)+1)
-		if allowSkip {
-			options = append(options, model.PromptOption{ID: "skip", Label: "不弃置"})
-		}
 		candidates := runtimeutil.ParseChoiceIntSlice(data["candidates"])
+		options := make([]model.PromptOption, 0, len(candidates))
 		for _, idx := range candidates {
 			if idx < 0 || idx >= len(target.Hand) {
 				continue
 			}
-			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", idx), Label: fmt.Sprintf("弃置：%s", promptfmt.FormatCardInfo(target.Hand[idx]))})
+			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", idx), Label: promptfmt.FormatCardInfo(target.Hand[idx])})
 		}
 		msg := "【充盈】请选择弃置1张手牌："
 		if allowSkip {
 			msg = "【充盈】请选择是否弃置1张手牌："
 		}
-		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: msg, Options: options, Min: 1, Max: 1, ChoiceType: "ml_fullness_discard_step"}
+		return &model.Prompt{Type: model.PromptChooseCards, PlayerID: playerID, Message: msg, Options: options, Min: 1, Max: 1, ChoiceType: "ml_fullness_discard_step", Cancelable: allowSkip}
 
 	case "ml_stardust_target":
 		return engineplayer.BuildTargetChoicePrompt(rt, playerID, "【幻影星尘】请选择2点法术伤害目标：", data, false)

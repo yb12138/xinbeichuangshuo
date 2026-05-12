@@ -9,6 +9,7 @@ import (
 	"starcup-engine/internal/engine/core/runtimeutil"
 	playerpkg "starcup-engine/internal/engine/player"
 	intr "starcup-engine/internal/engine/runtime/interrupt"
+	skillhandlers "starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 )
 
@@ -179,6 +180,17 @@ func (e *GameEngine) prunePendingResponseSkills() bool {
 	filtered := make([]string, 0, len(intr.SkillIDs))
 	for _, skillID := range intr.SkillIDs {
 		if skillID == "" {
+			continue
+		}
+		// 吟游诗人响应技能特殊处理：技能定义属于 bard，但弹窗给持有者。
+		// 实时校验时直接调用 handler.CanUse(ctx)，因为 ctx.Selections["bard_id"] 已存在。
+		if skillID == "bd_rousing_rhapsody" || skillID == "bd_victory_symphony" {
+			handler := skillhandlers.GetHandler(skillID)
+			if handler != nil && handler.CanUse(ctx) {
+				filtered = append(filtered, skillID)
+				continue
+			}
+			// handler 找不到或 CanUse 返回 false，跳过此技能
 			continue
 		}
 		if e.dispatcher.IsSkillStillUsable(skillID, player, ctx) {
