@@ -1834,9 +1834,7 @@ func GetCharacters() []model.Character {
 					Type:         model.SkillTypeAction,
 					Description:  "弃1张法术牌或雷系牌：全体角色按逆时针各弃1张牌（我方可选择不弃）；除你外每有1名角色以此法弃置法术牌或雷系牌，你本回合下次主动攻击伤害+1；额外+1次攻击行动。",
 					LogicHandler: "ml_fullness",
-					TargetType:   model.TargetAlly,
-					MinTargets:   0,
-					MaxTargets:   1,
+					TargetType:   model.TargetNone,
 				},
 				{
 					ID: "ml_black_spear", Timings: []model.FlowTiming{model.TimingOnHitCheck}, Title: "漆黑之枪",

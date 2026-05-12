@@ -365,8 +365,8 @@ func TestMagicLancerConfig_MetadataAlignsWithDocument(t *testing.T) {
 	if stardust.TargetType != model.TargetEnemy || stardust.MinTargets != 1 || stardust.MaxTargets != 1 {
 		t.Fatalf("expected phantom stardust target metadata enemy(1), got type=%v min=%d max=%d", stardust.TargetType, stardust.MinTargets, stardust.MaxTargets)
 	}
-	if fullness.TargetType != model.TargetAlly || fullness.MinTargets != 0 || fullness.MaxTargets != 1 {
-		t.Fatalf("expected fullness target metadata ally(0..1), got type=%v min=%d max=%d", fullness.TargetType, fullness.MinTargets, fullness.MaxTargets)
+	if fullness.TargetType != model.TargetNone {
+		t.Fatalf("expected fullness target metadata none, got type=%v", fullness.TargetType)
 	}
 }
 

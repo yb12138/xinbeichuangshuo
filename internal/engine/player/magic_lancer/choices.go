@@ -227,15 +227,8 @@ func handleMagicLancerFullnessCostCardChoice(rt engineplayer.ChoiceRuntime, sele
 	rt.NotifyCardRevealed(user.ID, []model.Card{costCard}, "discard")
 	rt.AppendToDiscard([]model.Card{costCard})
 
-	// Build enemy order in reverse.
-	orderIDs := reverseOrderEnemies(rt, user.ID)
-	lockedAllyID, _ := ctxData["locked_ally_id"].(string)
-	if lockedAllyID != "" {
-		target := rt.GetPlayers()[lockedAllyID]
-		if target != nil && target.Camp == user.Camp && target.ID != user.ID {
-			orderIDs = append(orderIDs, lockedAllyID)
-		}
-	}
+	// Build order: all players in reverse order from the user (excluding user themselves).
+	orderIDs := reverseOrderAllPlayers(rt, user.ID)
 	ctxData["order_ids"] = orderIDs
 	ctxData["order_index"] = 0
 	ctxData["bonus"] = 0
@@ -390,6 +383,34 @@ func reverseOrderEnemies(rt engineplayer.ChoiceRuntime, sourceID string) []strin
 		idx := (start - step + n) % n
 		pid := playerOrder[idx]
 		if p := rt.GetPlayers()[pid]; p != nil && p.Camp != source.Camp {
+			ids = append(ids, pid)
+		}
+	}
+	return ids
+}
+
+// reverseOrderAllPlayers returns all player IDs in reverse play order from the source (excluding source themselves).
+func reverseOrderAllPlayers(rt engineplayer.ChoiceRuntime, sourceID string) []string {
+	playerOrder := rt.GetPlayerOrder()
+	if len(playerOrder) == 0 {
+		return nil
+	}
+	start := -1
+	for i, pid := range playerOrder {
+		if pid == sourceID {
+			start = i
+			break
+		}
+	}
+	if start < 0 {
+		return nil
+	}
+	n := len(playerOrder)
+	ids := make([]string, 0, n-1)
+	for step := 1; step < n; step++ {
+		idx := (start - step + n) % n
+		pid := playerOrder[idx]
+		if rt.GetPlayers()[pid] != nil {
 			ids = append(ids, pid)
 		}
 	}

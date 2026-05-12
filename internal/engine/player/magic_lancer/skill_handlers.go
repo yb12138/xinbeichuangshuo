@@ -183,12 +183,6 @@ func (h *MagicLancerFullnessHandler) Execute(ctx *model.Context) error {
 		Context: map[string]interface{}{
 			"choice_type": "ml_fullness_cost_card",
 			"user_id":     ctx.User.ID,
-			"locked_ally_id": func() string {
-				if ctx.Target == nil {
-					return ""
-				}
-				return ctx.Target.ID
-			}(),
 		},
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [充盈]，请先弃置1张法术牌或雷系牌", ctx.User.Name))
