@@ -633,7 +633,7 @@ func startWindDiscardFlow(rt engineplayer.ChoiceRuntime, user *model.Player, tar
 		return fmt.Errorf("玩家不存在")
 	}
 	targetSet := runtimeutil.IDsToSet(runtimeutil.DedupeIDs(targetIDs))
-	orderedAll := reverseOrderTargetIDsFrom(rt, user.ID, true)
+	orderedAll := engineplayer.ReversePlayerIDsFromRuntime(rt, user.ID, engineplayer.ReverseOrderOption{IncludeSelf: true})
 	ordered := make([]string, 0, len(targetIDs))
 	for _, playerID := range orderedAll {
 		if !targetSet[playerID] {
@@ -693,7 +693,7 @@ func resolveThunderDamage(rt engineplayer.ChoiceRuntime, user *model.Player, tar
 		damage = 0
 	}
 	targetSet := runtimeutil.IDsToSet(runtimeutil.DedupeIDs(targetIDs))
-	ordered := reverseOrderTargetIDsFrom(rt, user.ID, true)
+	ordered := engineplayer.ReversePlayerIDsFromRuntime(rt, user.ID, engineplayer.ReverseOrderOption{IncludeSelf: true})
 	hitCount := 0
 	for _, targetID := range ordered {
 		if !targetSet[targetID] {
@@ -741,7 +741,7 @@ func resolveHundredNightFireAOE(rt engineplayer.ChoiceRuntime, user *model.Playe
 	}
 	exclude := runtimeutil.IDsToSet(runtimeutil.DedupeIDs(excludeIDs))
 	damage := 1 + bonus
-	ordered := reverseOrderTargetIDsFrom(rt, user.ID, true)
+	ordered := engineplayer.ReversePlayerIDsFromRuntime(rt, user.ID, engineplayer.ReverseOrderOption{IncludeSelf: true})
 	hitCount := 0
 	for _, playerID := range ordered {
 		if exclude[playerID] {
@@ -767,33 +767,3 @@ func resolveHundredNightFireAOE(rt engineplayer.ChoiceRuntime, user *model.Playe
 // Utility helpers
 // ===========================================================================
 
-// reverseOrderTargetIDsFrom returns player IDs in reverse play order starting
-// from the source player's position.
-func reverseOrderTargetIDsFrom(rt engineplayer.ChoiceRuntime, sourceID string, includeSelf bool) []string {
-	playerOrder := rt.GetPlayerOrder()
-	if len(playerOrder) == 0 {
-		return nil
-	}
-	start := -1
-	for i, pid := range playerOrder {
-		if pid == sourceID {
-			start = i
-			break
-		}
-	}
-	if start < 0 {
-		return nil
-	}
-	n := len(playerOrder)
-	var ids []string
-	stepStart := 1
-	stepEnd := n
-	if includeSelf {
-		stepStart = 0
-	}
-	for step := stepStart; step < stepEnd; step++ {
-		idx := (start - step + n) % n
-		ids = append(ids, playerOrder[idx])
-	}
-	return ids
-}

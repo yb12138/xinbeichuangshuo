@@ -128,7 +128,7 @@ func buildDiscardPrompt(rt engineplayer.ChoiceRuntime, playerID string, player *
 	var message string
 	var min, max int
 
-	if count, ok := data["discard_count"].(int); ok && count > 0 {
+	if count := runtimeutil.ToIntContextValue(data["discard_count"]); count > 0 {
 		min = count
 		max = count
 		message = fmt.Sprintf("请弃置 %d 张牌：", count)
@@ -136,12 +136,12 @@ func buildDiscardPrompt(rt engineplayer.ChoiceRuntime, playerID string, player *
 			message = customMsg
 		}
 	} else {
-		if v, ok := data["min"].(int); ok {
+		if v := runtimeutil.ToIntContextValue(data["min"]); v > 0 {
 			min = v
 		} else {
 			min = 1
 		}
-		if v, ok := data["max"].(int); ok && v > 0 {
+		if v := runtimeutil.ToIntContextValue(data["max"]); v > 0 {
 			max = v
 		} else {
 			max = len(player.Hand)

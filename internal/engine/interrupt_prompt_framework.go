@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"starcup-engine/internal/engine/core/runtimeutil"
 	"starcup-engine/internal/engine/hook/promptfmt"
 	"starcup-engine/internal/model"
 )
@@ -159,12 +160,7 @@ func (e *GameEngine) buildGiveCardsPrompt() *model.Prompt {
 		return nil
 	}
 
-	var giveCount int
-	if gc, ok := data["give_count"].(int); ok {
-		giveCount = gc
-	} else if gcf, ok := data["give_count"].(float64); ok {
-		giveCount = int(gcf)
-	}
+	giveCount := runtimeutil.ToIntContextValue(data["give_count"])
 	receiverID, _ := data["receiver_id"].(string)
 	if giveCount <= 0 || receiverID == "" {
 		return nil

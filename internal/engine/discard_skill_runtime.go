@@ -75,8 +75,8 @@ func (e *GameEngine) handleSkillDiscardResume(playerID, skillID string, indices 
 }
 
 func (e *GameEngine) handleContextSkillDiscardSelection(skillID string, indices []int, data map[string]interface{}) error {
-	minSelect, _ := data["min"].(int)
-	maxSelect, _ := data["max"].(int)
+	minSelect := runtimeutil.ToIntContextValue(data["min"])
+	maxSelect := runtimeutil.ToIntContextValue(data["max"])
 	if len(indices) < minSelect {
 		return fmt.Errorf("至少需要选择 %d 张牌，你选择了 %d 张", minSelect, len(indices))
 	}

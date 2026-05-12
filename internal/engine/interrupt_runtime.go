@@ -216,12 +216,7 @@ func (e *GameEngine) resolveGiveCardsInterrupt(giverID, receiverID string, indic
 		return fmt.Errorf("中断上下文错误")
 	}
 
-	var giveCount int
-	if gc, ok := data["give_count"].(int); ok {
-		giveCount = gc
-	} else if gcf, ok := data["give_count"].(float64); ok {
-		giveCount = int(gcf)
-	}
+	giveCount := runtimeutil.ToIntContextValue(data["give_count"])
 	ctxReceiverID, _ := data["receiver_id"].(string)
 	if ctxReceiverID != receiverID {
 		return fmt.Errorf("接收者不匹配")

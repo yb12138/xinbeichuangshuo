@@ -114,16 +114,16 @@ func (e *GameEngine) buildDiscardChoicePromptFromData(playerID string, data map[
 		if customMsg, ok := data["prompt"].(string); ok && customMsg != "" {
 			message = customMsg
 		}
-	} else if _, hasDownTo := data["discard_down_to"].(int); hasDownTo {
+	} else if downTo := runtimeutil.ToIntContextValue(data["discard_down_to"]); downTo > 0 {
 		// discard_down_to 已指定但无需弃牌（手牌已 ≤ 目标）
 		return nil
 	} else {
-		if v, ok := data["min"].(int); ok {
+		if v := runtimeutil.ToIntContextValue(data["min"]); v > 0 {
 			min = v
 		} else {
 			min = 1
 		}
-		if v, ok := data["max"].(int); ok && v > 0 {
+		if v := runtimeutil.ToIntContextValue(data["max"]); v > 0 {
 			max = v
 		} else {
 			max = len(player.Hand)

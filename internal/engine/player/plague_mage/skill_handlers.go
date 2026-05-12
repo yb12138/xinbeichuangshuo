@@ -20,31 +20,6 @@ func hasElementCard(p *model.Player, element model.Element) bool {
 	return false
 }
 
-func reverseOrderPlayers(players []*model.Player, sourceID string) []*model.Player {
-	if len(players) == 0 {
-		return nil
-	}
-	start := -1
-	for i, p := range players {
-		if p != nil && p.ID == sourceID {
-			start = i
-			break
-		}
-	}
-	if start < 0 {
-		return players
-	}
-	n := len(players)
-	out := make([]*model.Player, 0, n-1)
-	for step := 1; step < n; step++ {
-		idx := (start - step + n) % n
-		if players[idx] != nil {
-			out = append(out, players[idx])
-		}
-	}
-	return out
-}
-
 // --- 瘟疫法师技能处理器 ---
 
 type PlagueImmortalHandler struct{ engineplayer.BaseHandler }
@@ -81,7 +56,7 @@ func (h *PlagueOutbreakHandler) CanUse(ctx *model.Context) bool {
 }
 
 func (h *PlagueOutbreakHandler) Execute(ctx *model.Context) error {
-	ordered := reverseOrderPlayers(ctx.Game.GetAllPlayers(), ctx.User.ID)
+	ordered := engineplayer.ReversePlayersFromSlice(ctx.Game.GetAllPlayers(), ctx.User.ID)
 	for _, p := range ordered {
 		if p.ID == ctx.User.ID {
 			continue
@@ -169,7 +144,7 @@ func (h *PlagueToxicNovaHandler) CanUse(ctx *model.Context) bool {
 }
 
 func (h *PlagueToxicNovaHandler) Execute(ctx *model.Context) error {
-	ordered := reverseOrderPlayers(ctx.Game.GetAllPlayers(), ctx.User.ID)
+	ordered := engineplayer.ReversePlayersFromSlice(ctx.Game.GetAllPlayers(), ctx.User.ID)
 	for _, p := range ordered {
 		if p.ID == ctx.User.ID {
 			continue

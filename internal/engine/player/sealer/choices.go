@@ -5,6 +5,7 @@ package sealer
 import (
 	"fmt"
 
+	"starcup-engine/internal/engine/core/runtimeutil"
 	engineplayer "starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
 )
@@ -26,7 +27,7 @@ func (choiceHandler) BuildPrompt(_ engineplayer.ChoiceRuntime, choiceType, playe
 
 func buildFiveElementsBindPrompt(playerID string, data map[string]interface{}) *model.Prompt {
 	drawCount := 2
-	if dc, ok := data["draw_count"].(int); ok && dc > 0 {
+	if dc := runtimeutil.ToIntContextValue(data["draw_count"]); dc > 0 {
 		drawCount = dc
 	}
 	return &model.Prompt{

@@ -228,7 +228,7 @@ func handleMagicLancerFullnessCostCardChoice(rt engineplayer.ChoiceRuntime, sele
 	rt.AppendToDiscard([]model.Card{costCard})
 
 	// Build order: all players in reverse order from the user (excluding user themselves).
-	orderIDs := reverseOrderAllPlayers(rt, user.ID)
+	orderIDs := engineplayer.ReversePlayerIDsFromRuntime(rt, user.ID, engineplayer.ReverseOrderOption{})
 	ctxData["order_ids"] = orderIDs
 	ctxData["order_index"] = 0
 	ctxData["bonus"] = 0
@@ -364,66 +364,6 @@ func handleMagicLancerStardustTargetChoice(rt engineplayer.ChoiceRuntime, select
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-// reverseOrderEnemies returns enemy player IDs in reverse play order from the source.
-func reverseOrderEnemies(rt engineplayer.ChoiceRuntime, sourceID string) []string {
-	playerOrder := rt.GetPlayerOrder()
-	if len(playerOrder) == 0 {
-		return nil
-	}
-	source := rt.GetPlayers()[sourceID]
-	if source == nil {
-		return nil
-	}
-	start := -1
-	for i, pid := range playerOrder {
-		if pid == sourceID {
-			start = i
-			break
-		}
-	}
-	if start < 0 {
-		return nil
-	}
-	n := len(playerOrder)
-	var ids []string
-	for step := 1; step < n; step++ {
-		idx := (start - step + n) % n
-		pid := playerOrder[idx]
-		if p := rt.GetPlayers()[pid]; p != nil && p.Camp != source.Camp {
-			ids = append(ids, pid)
-		}
-	}
-	return ids
-}
-
-// reverseOrderAllPlayers returns all player IDs in reverse play order from the source (excluding source themselves).
-func reverseOrderAllPlayers(rt engineplayer.ChoiceRuntime, sourceID string) []string {
-	playerOrder := rt.GetPlayerOrder()
-	if len(playerOrder) == 0 {
-		return nil
-	}
-	start := -1
-	for i, pid := range playerOrder {
-		if pid == sourceID {
-			start = i
-			break
-		}
-	}
-	if start < 0 {
-		return nil
-	}
-	n := len(playerOrder)
-	ids := make([]string, 0, n-1)
-	for step := 1; step < n; step++ {
-		idx := (start - step + n) % n
-		pid := playerOrder[idx]
-		if rt.GetPlayers()[pid] != nil {
-			ids = append(ids, pid)
-		}
-	}
-	return ids
-}
 
 // prepareFullnessStep advances the fullness discard step to the next target.
 // Returns true if all targets have been processed.

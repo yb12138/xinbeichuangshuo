@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"starcup-engine/internal/engine/core/runtimeutil"
 	"starcup-engine/internal/engine/hook/promptfmt"
 	"starcup-engine/internal/model"
 )
@@ -408,7 +409,7 @@ func (e *GameEngine) shouldAutoSkipDiscardDownTo() bool {
 	if !ok {
 		return false
 	}
-	downTo, _ := data["discard_down_to"].(int)
+	downTo := runtimeutil.ToIntContextValue(data["discard_down_to"])
 	if downTo <= 0 {
 		return false
 	}

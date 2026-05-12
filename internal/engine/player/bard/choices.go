@@ -136,7 +136,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【希望赋格曲】是否先摸1张牌？", Options: []model.PromptOption{{ID: "0", Label: "是"}, {ID: "1", Label: "否"}}, Min: 1, Max: 1}
 	case "bd_hope_mode":
 		opts := []model.PromptOption{{ID: "0", Label: "将永恒乐章放置于目标队友面前"}}
-		if bardEternalHolderID(rt, player) != "" {
+		if EternalHolderID(rt, player) != "" {
 			opts = append(opts,
 				model.PromptOption{ID: "1", Label: "转移永恒乐章，弃1张牌并+1治疗"},
 				model.PromptOption{ID: "2", Label: "转移永恒乐章，弃1张牌并+1灵感"},
@@ -790,7 +790,7 @@ func handleHopeMode(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{
 		rt.NotifyInterruptPrompt()
 		return nil
 	case 1, 2:
-		holderID := bardEternalHolderID(rt, user)
+		holderID := EternalHolderID(rt, user)
 		if holderID == "" {
 			return fmt.Errorf("当前没有永恒乐章可转移")
 		}
@@ -981,25 +981,6 @@ func bardAlliesExcluding(rt engineplayer.ChoiceRuntime, camp model.Camp, exclude
 
 // Bard eternal movement helpers
 
-func bardEternalHolderID(rt engineplayer.ChoiceRuntime, bard *model.Player) string {
-	holder, _ := rt.FindEffectCard(bard, model.EffectBardEternalMovement)
-	if holder == nil {
-		return ""
-	}
-	return holder.ID
-}
-
-func placeBardEternalMovementWithCard(rt engineplayer.ChoiceRuntime, bard *model.Player, target *model.Player, card model.Card) error {
-	if bard == nil || target == nil {
-		return fmt.Errorf("放置永恒乐章时角色不存在")
-	}
-	if target.Camp != bard.Camp {
-		return fmt.Errorf("永恒乐章只能放置在我方角色面前")
-	}
-	removeBardEternalMovement(rt, bard)
-	return rt.AttachEffectCard(bard, target, model.EffectBardEternalMovement, card)
-}
-
 func transferBardEternalMovement(rt engineplayer.ChoiceRuntime, bard *model.Player, target *model.Player) error {
 	if bard == nil || target == nil {
 		return fmt.Errorf("转移永恒乐章时角色不存在")
@@ -1027,17 +1008,6 @@ func transferBardEternalMovement(rt engineplayer.ChoiceRuntime, bard *model.Play
 	return rt.AttachEffectCard(bard, target, model.EffectBardEternalMovement, card)
 }
 
-func removeBardEternalMovement(rt engineplayer.ChoiceRuntime, bard *model.Player) bool {
-	holder, fc := rt.FindEffectCard(bard, model.EffectBardEternalMovement)
-	if holder == nil || fc == nil {
-		return false
-	}
-	holder.RemoveFieldCard(fc)
-	bard.RestoreExclusiveCard(fc.Card)
-	rt.EmitBuffRemovedDispatch(bard.ID, holder.ID, model.EffectBardEternalMovement)
-	return true
-}
-
 // resolveBardForbiddenVerseAfterSong implements the forbidden verse after-song logic.
 func resolveBardForbiddenVerseAfterSong(rt engineplayer.ChoiceRuntime, bard *model.Player, songName string) {
 	if bard == nil {
@@ -1046,7 +1016,7 @@ func resolveBardForbiddenVerseAfterSong(rt engineplayer.ChoiceRuntime, bard *mod
 	engineplayer.EnsurePlayerTokensMap(bard)
 	if bardInspiration(bard) < bardInspirationCap {
 		now := addBardInspiration(bard, 1)
-		removed := removeBardEternalMovement(rt, bard)
+		removed := RemoveEternalMovement(rt, bard)
 		if removed {
 			rt.Log(fmt.Sprintf("%s 的 [禁忌诗篇] 生效：灵感+1（当前%d），并移除永恒乐章", bard.Name, now))
 		} else {

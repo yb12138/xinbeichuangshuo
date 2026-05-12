@@ -112,7 +112,7 @@ func (o *Orchestrator) PushInterrupt(interrupt *model.Interrupt) {
 
 // RemoveQueuedInterruptByPredicate 从中断队列中移除所有满足 predicate 的中断。
 func (o *Orchestrator) RemoveQueuedInterruptByPredicate(predicate func(*model.Interrupt) bool) {
-	if o == nil || o.engine == nil {
+	if o == nil || o.engine == nil || predicate == nil {
 		return
 	}
 	st := o.engine.GetState()
