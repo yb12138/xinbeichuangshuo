@@ -84,6 +84,10 @@ export interface PlayerView {
   is_active: boolean
   buffs: Buff[]
   tokens?: Record<string, number> // 指示物，不含角色形态
+  // 派生计数字段（后端已发送，不在 tokens map 中）
+  ml_dark_release_next_attack_bonus?: number
+  ml_fullness_next_attack_bonus?: number
+  ml_dark_release_lock_turn?: number
   current_extra_action?: string    // 额外行动约束类型（仅自身）
   current_extra_element?: string[] // 额外行动元素约束（仅自身）
 }

@@ -134,6 +134,7 @@ const EFFECT_DISPLAY: Record<string, { icon: string; label: string; cls: string;
   BloodSharedLife: { icon: '🩸', label: '同生共死', cls: 'bg-rose-900/75' },
 }
 
+// @ts-expect-error fieldEffects computed is used for future field effect display feature
 const fieldEffects = computed(() => {
   if (!props.player.field?.length) return []
   return props.player.field
@@ -308,6 +309,32 @@ const tokenIndicators = computed(() => {
   return entries
 })
 
+// 派生指示物：后端作为 PlayerView 独立字段发送（不在 tokens map 中）
+const DERIVED_INDICATOR_KEYS: Record<string, { label: string; cls: string }> = {
+  ml_dark_release_next_attack_bonus: { label: '下次主动攻+伤', cls: 'bg-rose-900/70 text-rose-100 border-rose-500/40' },
+  ml_fullness_next_attack_bonus: { label: '充盈下次攻+伤', cls: 'bg-orange-900/70 text-orange-100 border-orange-500/40' },
+  ml_dark_release_lock_turn: { label: '本回合锁技能', cls: 'bg-zinc-800/75 text-zinc-100 border-zinc-500/40' },
+}
+
+const derivedIndicators = computed(() => {
+  const player = props.player
+  if (!player) return []
+  const entries: Array<{ key: string; value: number; label: string; cls: string }> = []
+  // 使用 keyof 类型安全访问
+  const bonusKeys = ['ml_dark_release_next_attack_bonus', 'ml_fullness_next_attack_bonus', 'ml_dark_release_lock_turn'] as const
+  for (const key of bonusKeys) {
+    const cfg = DERIVED_INDICATOR_KEYS[key]
+    if (!cfg) continue
+    const value = player[key]
+    if (typeof value === 'number' && value > 0) {
+      entries.push({ key, value, label: cfg.label, cls: cfg.cls })
+    }
+  }
+  return entries
+})
+
+const allIndicators = computed(() => [...tokenIndicators.value, ...derivedIndicators.value])
+
 const formIndicator = computed(() => {
   const form = props.player.form
   if (!form) return null
@@ -479,9 +506,9 @@ function handleClick(e: MouseEvent) {
         </div>
       </div>
 
-      <div v-if="tokenIndicators.length" class="player-overlay-tokens">
+      <div v-if="allIndicators.length" class="player-overlay-tokens">
         <span
-          v-for="token in tokenIndicators"
+          v-for="token in allIndicators"
           :key="token.key"
           class="inline-flex items-center gap-1 px-1 py-0.5 rounded border text-[9px] leading-none"
           :class="token.cls"

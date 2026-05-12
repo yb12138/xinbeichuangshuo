@@ -590,8 +590,12 @@ function isPromptHandCardOption(option: { id: string; label: string }): boolean 
   if (NON_HAND_INDEXED_PROMPT_CHOICE_TYPES.has(choiceType)) return false
   const idx = parsePromptCardIndex(option.id)
   if (idx === null || idx < 0 || idx >= myHand.value.length) return false
+  // 严格匹配：label 包含索引前缀且与 id 一致
   const labelIndex = parseHandIndexFromOptionLabel(option.label)
-  return labelIndex === idx
+  if (labelIndex !== null) return labelIndex === idx
+  // 放宽匹配：id 是有效手牌索引，label 不包含索引但也不包含非手牌标记（如"茧"）
+  if (isIndexedCocoonOption(option)) return false
+  return true
 }
 
 const promptCardOptionIndexSet = computed(() => {
@@ -1120,6 +1124,19 @@ const inlinePrimaryButtons = computed<DockButtonOption[]>(() => {
   if (isSaintHealAllocatePrompt.value) return []
   if (isRuneReforgeAllocatePrompt.value) return []
   if (needsCardSelection.value) return buildDockButtons(cardFooterOptions.value)
+  // 响应技能选择（choose_skill）：直接从 prompt.options 构建按钮
+  if (prompt.value?.type === 'choose_skill') {
+    const options = (prompt.value.options || [])
+      .filter((option) => option.id !== 'skip' && option.id !== 'cancel')
+      .map((option) => ({
+        id: option.id,
+        label: option.label,
+        button_label: option.button_label,
+        hint: option.hint,
+        disabled: false
+      }))
+    return buildDockButtons(options)
+  }
   if (showConfirmButtonSection.value) {
     const options = nonPlayerOptions.value
       .filter((option) => option.id !== 'cancel' && option.id !== 'skip')

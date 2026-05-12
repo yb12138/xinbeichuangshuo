@@ -487,6 +487,7 @@ const promptNeedsCardGuide = computed(() => {
   const p = promptGuideContext.value
   if (!p) return false
   if (p.choice_type === 'plague_death_touch_element') return true
+  if (p.choice_type === 'ml_fullness_discard_step') return true
   if (promptHandCardIndexSet().size > 0) return true
   if (p.type === 'choose_card' || p.type === 'choose_cards') return true
   const optionIds = new Set((p.options || []).map((option: any) => String(option?.id || '')))
@@ -1324,6 +1325,24 @@ function promptCardSelectionState(idx: number): PromptCardSelectionState {
       }
     }
     return { selectable: true, reason: 'prompt_dark_barrier_same_type' }
+  }
+
+  // 充盈弃牌步骤：从手牌区选择弃牌
+  if (prompt.choice_type === 'ml_fullness_discard_step') {
+    const validIndices = new Set(
+      (prompt.options || []).map((o: any) => {
+        const idx = parseInt(String(o?.id || ''), 10)
+        return Number.isFinite(idx) && idx >= 0 ? idx : null
+      }).filter((i): i is number => i !== null)
+    )
+    if (validIndices.size > 0 && !validIndices.has(idx)) {
+      return {
+        selectable: false,
+        reason: 'prompt_fullness_discard_not_in_candidates',
+        error: '当前步骤只能选择提示中的手牌'
+      }
+    }
+    return { selectable: true, reason: 'prompt_fullness_discard_valid' }
   }
 
   const handOptionSet = promptHandCardIndexSet()
