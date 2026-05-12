@@ -297,12 +297,12 @@ func TestMagicLancerFullness_FlowBonusAndExtraAttack(t *testing.T) {
 		t.Fatalf("expected ml_fullness_discard_step prompt, got %q", got)
 	}
 
-	// 敌方：必须弃牌，仅有1项可选。
-	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
+	// 敌方：必须弃牌（PlayerID = p3 自己），仅有1项可选。
+	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p3", Selections: []int{0}}); err != nil {
 		t.Fatalf("enemy discard failed: %v", err)
 	}
-	// 预选队友：可选择不弃。
-	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
+	// 队友：可选择不弃（PlayerID = p2 自己），index 0 = "不弃置"。
+	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{0}}); err != nil {
 		t.Fatalf("ally skip failed: %v", err)
 	}
 

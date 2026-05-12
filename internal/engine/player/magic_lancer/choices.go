@@ -70,13 +70,13 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			if idx < 0 || idx >= len(target.Hand) {
 				continue
 			}
-			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", idx), Label: fmt.Sprintf("%s 的第%d张：%s", target.Name, idx+1, promptfmt.FormatCardInfo(target.Hand[idx]))})
+			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", idx), Label: fmt.Sprintf("弃置：%s", promptfmt.FormatCardInfo(target.Hand[idx]))})
 		}
-		msg := fmt.Sprintf("【充盈】请选择 %s 的弃牌：", target.Name)
+		msg := "【充盈】请选择弃置1张手牌："
 		if allowSkip {
-			msg = fmt.Sprintf("【充盈】请选择 %s 是否弃牌：", target.Name)
+			msg = "【充盈】请选择是否弃置1张手牌："
 		}
-		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: msg, Options: options, Min: 1, Max: 1}
+		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: msg, Options: options, Min: 1, Max: 1, ChoiceType: "ml_fullness_discard_step"}
 
 	case "ml_stardust_target":
 		return engineplayer.BuildTargetChoicePrompt(rt, playerID, "【幻影星尘】请选择2点法术伤害目标：", data, false)
@@ -247,9 +247,13 @@ func handleMagicLancerFullnessCostCardChoice(rt engineplayer.ChoiceRuntime, sele
 		}
 		return nil
 	}
-	if intr := rt.GetPendingInterrupt(); intr != nil {
-		intr.Context = ctxData
-	}
+	rt.PopInterrupt()
+	currentID, _ := ctxData["current_player_id"].(string)
+	rt.PushInterrupt(&model.Interrupt{
+		Type:     model.InterruptChoice,
+		PlayerID: currentID,
+		Context:  ctxData,
+	})
 	rt.NotifyInterruptPrompt()
 	return nil
 }
@@ -300,9 +304,13 @@ func handleMagicLancerFullnessDiscardStepChoice(rt engineplayer.ChoiceRuntime, s
 	ctxData["order_index"] = runtimeutil.ToIntContextValue(ctxData["order_index"]) + 1
 	done := prepareFullnessStep(rt, ctxData, user)
 	if !done {
-		if intr := rt.GetPendingInterrupt(); intr != nil {
-			intr.Context = ctxData
-		}
+		rt.PopInterrupt()
+		nextID, _ := ctxData["current_player_id"].(string)
+		rt.PushInterrupt(&model.Interrupt{
+			Type:     model.InterruptChoice,
+			PlayerID: nextID,
+			Context:  ctxData,
+		})
 		rt.NotifyInterruptPrompt()
 		return nil
 	}
@@ -419,6 +427,9 @@ func reverseOrderAllPlayers(rt engineplayer.ChoiceRuntime, sourceID string) []st
 
 // prepareFullnessStep advances the fullness discard step to the next target.
 // Returns true if all targets have been processed.
+// Each player with cards gets their own interrupt (PlayerID = target), so they
+// choose which card to discard on their own action panel.
+// Allies get a "skip" option; enemies must discard.
 func prepareFullnessStep(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, user *model.Player) bool {
 	orderIDs := runtimeutil.ParseStringSliceContextValue(ctxData["order_ids"])
 	if len(orderIDs) == 0 {
@@ -435,18 +446,18 @@ func prepareFullnessStep(rt engineplayer.ChoiceRuntime, ctxData map[string]inter
 			idx++
 			continue
 		}
-		allowSkip := target.Camp == user.Camp
 		candidates := engineplayer.AllHandIndices(target)
 		if len(candidates) == 0 {
-			rt.Log(fmt.Sprintf("%s 的 [充盈] 结算：%s 无手牌可弃，跳过", user.Name, target.Name))
+			rt.Log(fmt.Sprintf("%s 的 [充盈]：%s 无手牌可弃，跳过", user.Name, target.Name))
 			idx++
 			continue
 		}
 		ctxData["order_index"] = idx
 		ctxData["current_player_id"] = pid
-		ctxData["allow_skip"] = allowSkip
+		ctxData["allow_skip"] = target.Camp == user.Camp // 队友可跳过，敌方不可
 		ctxData["candidates"] = candidates
 		return false
 	}
+	ctxData["order_index"] = idx
 	return true
 }
