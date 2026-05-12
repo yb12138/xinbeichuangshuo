@@ -383,19 +383,19 @@ func TestBardRousingRhapsody_OnAllyTurnStartRunsForbiddenVerse(t *testing.T) {
 
 	game.Drive()
 
-	// 响应询问发给吟游诗人（bard），因为 bard 才是技能的主人
-	testutils.RequireResponseSkillPrompt(t, game, "p1")
-	testutils.ChooseResponseSkillByID(t, game, "p1", "bd_rousing_rhapsody")
-	testutils.RequireChoicePrompt(t, game, "p1", "bd_rousing_mode")
-	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil { // 选伤害分支
+	// 响应询问发给永恒乐章持有者（ally/p2），因为持有者决定是否发动
+	testutils.RequireResponseSkillPrompt(t, game, "p2")
+	testutils.ChooseResponseSkillByID(t, game, "p2", "bd_rousing_rhapsody")
+	testutils.RequireChoicePrompt(t, game, "p2", "bd_rousing_mode")
+	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{0}}); err != nil { // 选伤害分支
 		t.Fatalf("choose rousing mode failed: %v", err)
 	}
-	testutils.RequireChoicePrompt(t, game, "p1", "bd_rousing_targets")
-	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil { // 先选 p3
+	testutils.RequireChoicePrompt(t, game, "p2", "bd_rousing_targets")
+	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{0}}); err != nil { // 先选 p3
 		t.Fatalf("choose rousing first target failed: %v", err)
 	}
-	testutils.RequireChoicePrompt(t, game, "p1", "bd_rousing_targets")
-	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil { // 再选 p4
+	testutils.RequireChoicePrompt(t, game, "p2", "bd_rousing_targets")
+	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{0}}); err != nil { // 再选 p4
 		t.Fatalf("choose rousing second target failed: %v", err)
 	}
 
@@ -453,10 +453,10 @@ func TestBardVictorySymphony_AtInspirationCapEntersPrisonerAndSelfDamages(t *tes
 
 	game.Drive()
 
-	testutils.RequireResponseSkillPrompt(t, game, "p1")
-	testutils.ChooseResponseSkillByID(t, game, "p1", "bd_victory_symphony")
-	testutils.RequireChoicePrompt(t, game, "p1", "bd_victory_mode")
-	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil { // 分支②
+	testutils.RequireResponseSkillPrompt(t, game, "p2")
+	testutils.ChooseResponseSkillByID(t, game, "p2", "bd_victory_symphony")
+	testutils.RequireChoicePrompt(t, game, "p2", "bd_victory_mode")
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{1}}); err != nil { // 分支②
 		t.Fatalf("choose victory mode failed: %v", err)
 	}
 
@@ -510,18 +510,18 @@ func TestBardVictorySymphony_ExtractStoneChoosesGemOrCrystal(t *testing.T) {
 			game.State.TurnStage = model.TurnStageTurnEnd
 
 			game.Drive()
-			testutils.RequireResponseSkillPrompt(t, game, "p1")
-			testutils.ChooseResponseSkillByID(t, game, "p1", "bd_victory_symphony")
-			testutils.RequireChoicePrompt(t, game, "p1", "bd_victory_mode")
-			if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
+			testutils.RequireResponseSkillPrompt(t, game, "p2")
+			testutils.ChooseResponseSkillByID(t, game, "p2", "bd_victory_symphony")
+			testutils.RequireChoicePrompt(t, game, "p2", "bd_victory_mode")
+			if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{0}}); err != nil {
 				t.Fatalf("choose extract mode failed: %v", err)
 			}
-			testutils.RequireChoicePrompt(t, game, "p1", "bd_victory_extract_stone")
-			if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{tc.choiceIndex}}); err != nil {
+			testutils.RequireChoicePrompt(t, game, "p2", "bd_victory_extract_stone")
+			if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{tc.choiceIndex}}); err != nil {
 				t.Fatalf("choose stone failed: %v", err)
 			}
 
-			if bard.Gem != tc.wantGem || bard.Crystal != tc.wantCrystal {
+			if ally.Gem != tc.wantGem || ally.Crystal != tc.wantCrystal {
 				t.Fatalf("unexpected energy after extract: gem=%d crystal=%d", bard.Gem, bard.Crystal)
 			}
 		})

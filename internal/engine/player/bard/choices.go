@@ -532,10 +532,10 @@ func handleDissonanceDiscardStep(rt engineplayer.ChoiceRuntime, ctxData map[stri
 // ---- 激昂狂想曲 ----
 
 func handleRousingMode(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
-	userID, _ := ctxData["user_id"].(string)
-	user := rt.GetPlayers()[userID]
-	if user == nil {
-		return fmt.Errorf("吟游诗人不存在")
+	holderID, _ := ctxData["user_id"].(string)
+	holder := rt.GetPlayers()[holderID]
+	if holder == nil {
+		return fmt.Errorf("永恒乐章持有者不存在")
 	}
 	switch selectionIndex {
 	case 0:
@@ -548,12 +548,12 @@ func handleRousingMode(rt engineplayer.ChoiceRuntime, ctxData map[string]interfa
 		rt.NotifyInterruptPrompt()
 		return nil
 	case 1:
-		if len(user.Hand) < 2 {
+		if len(holder.Hand) < 2 {
 			return fmt.Errorf("手牌不足2张，无法执行弃2张牌分支")
 		}
 		ctxData["choice_type"] = "bd_rousing_discard_cards"
 		ctxData["selected_indices"] = []int{}
-		ctxData["remaining_indices"] = engineplayer.AllHandIndices(user)
+		ctxData["remaining_indices"] = engineplayer.AllHandIndices(holder)
 		intr := rt.GetPendingInterrupt()
 		if intr != nil {
 			intr.Context = ctxData
@@ -566,10 +566,12 @@ func handleRousingMode(rt engineplayer.ChoiceRuntime, ctxData map[string]interfa
 }
 
 func handleRousingTargets(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
-	userID, _ := ctxData["user_id"].(string)
-	user := rt.GetPlayers()[userID]
-	if user == nil {
-		return fmt.Errorf("吟游诗人不存在")
+	bardID, _ := ctxData["bard_id"].(string)
+	bard := rt.GetPlayers()[bardID]
+	holderID, _ := ctxData["user_id"].(string)
+	holder := rt.GetPlayers()[holderID]
+	if bard == nil || holder == nil {
+		return fmt.Errorf("吟游诗人或持有者不存在")
 	}
 	targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
 	selected := runtimeutil.DedupeIDs(runtimeutil.ParseStringSliceContextValue(ctxData["selected_target_ids"]))
@@ -594,10 +596,10 @@ func handleRousingTargets(rt engineplayer.ChoiceRuntime, ctxData map[string]inte
 		return nil
 	}
 	for _, targetID := range selected {
-		rt.AddPendingDamage(model.PendingDamage{SourceID: user.ID, TargetID: targetID, Damage: 1, DamageType: model.MagicAttack})
+		rt.AddPendingDamage(model.PendingDamage{SourceID: bard.ID, TargetID: targetID, Damage: 1, DamageType: model.MagicAttack})
 	}
-	rt.Log(fmt.Sprintf("%s 发动 [激昂狂想曲]：对2名目标各造成1点法术伤害", user.Name))
-	resolveBardForbiddenVerseAfterSong(rt, user, "激昂狂想曲")
+	rt.Log(fmt.Sprintf("%s 发动 [激昂狂想曲]（%s 触发）：对2名目标各造成1点法术伤害", bard.Name, holder.Name))
+	resolveBardForbiddenVerseAfterSong(rt, bard, "激昂狂想曲")
 	rt.PopInterrupt()
 	if rt.GetPendingInterrupt() == nil {
 		if !rt.RoutePendingDamageWithReturn(model.TurnStageActionStart) {
@@ -608,15 +610,17 @@ func handleRousingTargets(rt engineplayer.ChoiceRuntime, ctxData map[string]inte
 }
 
 func handleRousingDiscardCards(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
-	userID, _ := ctxData["user_id"].(string)
-	user := rt.GetPlayers()[userID]
-	if user == nil {
-		return fmt.Errorf("吟游诗人不存在")
+	bardID, _ := ctxData["bard_id"].(string)
+	bard := rt.GetPlayers()[bardID]
+	holderID, _ := ctxData["user_id"].(string)
+	holder := rt.GetPlayers()[holderID]
+	if bard == nil || holder == nil {
+		return fmt.Errorf("吟游诗人或持有者不存在")
 	}
 	remaining := engineplayer.ParseIntSliceContextValue(ctxData["remaining_indices"])
 	selected := engineplayer.ParseIntSliceContextValue(ctxData["selected_indices"])
 	cardIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, remaining)
-	if !ok || cardIdx < 0 || cardIdx >= len(user.Hand) {
+	if !ok || cardIdx < 0 || cardIdx >= len(holder.Hand) {
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
 	selected = append(selected, cardIdx)
@@ -636,14 +640,14 @@ func handleRousingDiscardCards(rt engineplayer.ChoiceRuntime, ctxData map[string
 		rt.NotifyInterruptPrompt()
 		return nil
 	}
-	removed, err := engineplayer.RemoveCardsByIndicesFromHand(user, append([]int{}, selected...))
+	removed, err := engineplayer.RemoveCardsByIndicesFromHand(holder, append([]int{}, selected...))
 	if err != nil {
 		return err
 	}
-	rt.NotifyCardRevealed(user.ID, removed, "discard")
+	rt.NotifyCardRevealed(holder.ID, removed, "discard")
 	rt.AppendToDiscard(removed)
-	rt.Log(fmt.Sprintf("%s 发动 [激昂狂想曲]：选择弃2张牌", user.Name))
-	resolveBardForbiddenVerseAfterSong(rt, user, "激昂狂想曲")
+	rt.Log(fmt.Sprintf("%s 发动 [激昂狂想曲]（%s 触发）：选择弃2张牌", bard.Name, holder.Name))
+	resolveBardForbiddenVerseAfterSong(rt, bard, "激昂狂想曲")
 	rt.PopInterrupt()
 	if rt.GetPendingInterrupt() == nil {
 		if !rt.RoutePendingDamageWithReturn(model.TurnStageActionStart) {
@@ -656,14 +660,16 @@ func handleRousingDiscardCards(rt engineplayer.ChoiceRuntime, ctxData map[string
 // ---- 胜利交响诗 ----
 
 func handleVictoryMode(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
-	userID, _ := ctxData["user_id"].(string)
-	user := rt.GetPlayers()[userID]
-	if user == nil {
-		return fmt.Errorf("吟游诗人不存在")
+	bardID, _ := ctxData["bard_id"].(string)
+	bard := rt.GetPlayers()[bardID]
+	holderID, _ := ctxData["user_id"].(string)
+	holder := rt.GetPlayers()[holderID]
+	if bard == nil || holder == nil {
+		return fmt.Errorf("吟游诗人或持有者不存在")
 	}
 	switch selectionIndex {
 	case 0:
-		camp := string(user.Camp)
+		camp := string(holder.Camp)
 		if rt.GetCampGems(camp)+rt.GetCampCrystals(camp) <= 0 {
 			return fmt.Errorf("我方战绩区没有可提炼的星石")
 		}
@@ -675,14 +681,14 @@ func handleVictoryMode(rt engineplayer.ChoiceRuntime, ctxData map[string]interfa
 		rt.NotifyInterruptPrompt()
 		return nil
 	case 1:
-		camp := string(user.Camp)
+		camp := string(holder.Camp)
 		addCampResource(rt, camp, "gem")
-		rt.Heal(user.ID, 1)
-		rt.Log(fmt.Sprintf("%s 发动 [胜利交响诗]：我方战绩区+1宝石，自己+1治疗", user.Name))
+		rt.Heal(holder.ID, 1)
+		rt.Log(fmt.Sprintf("%s 发动 [胜利交响诗]（%s 触发）：我方战绩区+1宝石，%s+1治疗", bard.Name, holder.Name, holder.Name))
 	default:
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
-	resolveBardForbiddenVerseAfterSong(rt, user, "胜利交响诗")
+	resolveBardForbiddenVerseAfterSong(rt, bard, "胜利交响诗")
 	rt.PopInterrupt()
 	if rt.GetPendingInterrupt() == nil {
 		rt.RoutePendingDamageOr(model.TurnStageTurnEnd, func() {
@@ -693,12 +699,14 @@ func handleVictoryMode(rt engineplayer.ChoiceRuntime, ctxData map[string]interfa
 }
 
 func handleVictoryExtractStone(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
-	userID, _ := ctxData["user_id"].(string)
-	user := rt.GetPlayers()[userID]
-	if user == nil {
-		return fmt.Errorf("吟游诗人不存在")
+	bardID, _ := ctxData["bard_id"].(string)
+	bard := rt.GetPlayers()[bardID]
+	holderID, _ := ctxData["user_id"].(string)
+	holder := rt.GetPlayers()[holderID]
+	if bard == nil || holder == nil {
+		return fmt.Errorf("吟游诗人或持有者不存在")
 	}
-	camp := string(user.Camp)
+	camp := string(holder.Camp)
 	available := make([]string, 0, 2)
 	if rt.GetCampGems(camp) > 0 {
 		available = append(available, "gem")
@@ -720,10 +728,10 @@ func handleVictoryExtractStone(rt engineplayer.ChoiceRuntime, ctxData map[string
 	default:
 		return fmt.Errorf("无效的星石类型")
 	}
-	maxEnergy := getPlayerEnergyCap(user)
-	room := maxEnergy - (user.Gem + user.Crystal)
+	maxEnergy := getPlayerEnergyCap(holder)
+	room := maxEnergy - (holder.Gem + holder.Crystal)
 	if room <= 0 {
-		rt.Log(fmt.Sprintf("%s 的 [胜利交响诗]：提炼成功但能量已满，未增加个人能量", user.Name))
+		rt.Log(fmt.Sprintf("%s 的 [胜利交响诗]：提炼成功但能量已满，未增加个人能量", holder.Name))
 	} else {
 		if addGem > room {
 			addGem = room
@@ -733,11 +741,11 @@ func handleVictoryExtractStone(rt engineplayer.ChoiceRuntime, ctxData map[string
 			addCrystal = room
 			addGem = 0
 		}
-		user.Gem += addGem
-		user.Crystal += addCrystal
-		rt.Log(fmt.Sprintf("%s 发动 [胜利交响诗]：提炼1个星石为个人能量（+%d宝石 +%d水晶）", user.Name, addGem, addCrystal))
+		holder.Gem += addGem
+		holder.Crystal += addCrystal
+		rt.Log(fmt.Sprintf("%s 发动 [胜利交响诗]（%s 触发）：提炼1个星石为个人能量（+%d宝石 +%d水晶）", bard.Name, holder.Name, addGem, addCrystal))
 	}
-	resolveBardForbiddenVerseAfterSong(rt, user, "胜利交响诗")
+	resolveBardForbiddenVerseAfterSong(rt, bard, "胜利交响诗")
 	rt.PopInterrupt()
 	if rt.GetPendingInterrupt() == nil {
 		rt.RoutePendingDamageOr(model.TurnStageTurnEnd, func() {

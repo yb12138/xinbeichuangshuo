@@ -21,7 +21,7 @@ func findBardPlayer(rt engineplayer.HookRuntime) *model.Player {
 }
 
 // turnStartRousingHook 回合开始时激昂狂想曲触发检查。
-// 当永恒乐章持有者的回合开始时，向吟游诗人推送响应询问。
+// 当永恒乐章持有者的回合开始时，向持有者推送响应询问（持有者决定是否发动）。
 // 优先级 200：低于血祭司流血（100），确保流血效果先结算。
 func turnStartRousingHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHookContext) engineplayer.TimingHookResult {
 	// 找到吟游诗人
@@ -59,26 +59,27 @@ func turnStartRousingHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHo
 	}
 	currentPlayer.TurnState.UsedSkillCounts["bd_rousing_prompted"] = 1
 
-	// 检查技能发动条件：ctx.User 设为吟游诗人（技能主人），而非持有者
-	ctx2 := responseContext(crt, bard, "turn_start", model.TurnStageActionStart)
+	// ctx.User 设为持有者（弹窗给持有者），同时存 bard_id 供 handler 使用
+	ctx2 := responseContext(crt, currentPlayer, "turn_start", model.TurnStageActionStart)
+	ctx2.Selections["bard_id"] = bard.ID
 	handler := skills.GetHandler("bd_rousing_rhapsody")
 	if handler == nil || !handler.CanUse(ctx2) {
 		return engineplayer.TimingHookResult{}
 	}
 
-	// 向吟游诗人推送响应询问（PlayerID 是吟游诗人）
+	// 向永恒乐章持有者推送响应询问（PlayerID 是持有者）
 	rt.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptResponseSkill,
-		PlayerID: bard.ID,
+		PlayerID: currentPlayer.ID,
 		SkillIDs: []string{"bd_rousing_rhapsody"},
 		Context:  ctx2,
 	})
-	rt.Log(fmt.Sprintf("%s 持有永恒乐章，回合开始时满足 [激昂狂想曲] 的发动条件，询问 %s 是否发动", currentPlayer.Name, bard.Name))
+	rt.Log(fmt.Sprintf("%s 持有永恒乐章，回合开始时满足 [激昂狂想曲] 的发动条件，询问是否发动", currentPlayer.Name))
 	return engineplayer.TimingHookResult{Interrupted: true}
 }
 
 // turnEndVictoryHook 回合结束时胜利交响诗触发检查。
-// 当永恒乐章持有者的回合结束时，向吟游诗人推送响应询问。
+// 当永恒乐章持有者的回合结束时，向持有者推送响应询问。
 func turnEndVictoryHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHookContext) engineplayer.TimingHookResult {
 	// 找到吟游诗人
 	bard := findBardPlayer(rt)
@@ -108,21 +109,22 @@ func turnEndVictoryHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHook
 	}
 	currentPlayer.TurnState.UsedSkillCounts["bd_victory_prompted"] = 1
 
-	// 检查技能发动条件：ctx.User 设为吟游诗人（技能主人），而非持有者
-	ctx2 := responseContext(crt, bard, "turn_end", model.TurnStageTurnEnd)
+	// ctx.User 设为持有者（弹窗给持有者），同时存 bard_id 供 handler 使用
+	ctx2 := responseContext(crt, currentPlayer, "turn_end", model.TurnStageTurnEnd)
+	ctx2.Selections["bard_id"] = bard.ID
 	handler := skills.GetHandler("bd_victory_symphony")
 	if handler == nil || !handler.CanUse(ctx2) {
 		return engineplayer.TimingHookResult{}
 	}
 
-	// 向吟游诗人推送响应询问（PlayerID 是吟游诗人）
+	// 向永恒乐章持有者推送响应询问（PlayerID 是持有者）
 	rt.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptResponseSkill,
-		PlayerID: bard.ID,
+		PlayerID: currentPlayer.ID,
 		SkillIDs: []string{"bd_victory_symphony"},
 		Context:  ctx2,
 	})
-	rt.Log(fmt.Sprintf("%s 持有永恒乐章，回合结束时满足 [胜利交响诗] 的发动条件，询问 %s 是否发动", currentPlayer.Name, bard.Name))
+	rt.Log(fmt.Sprintf("%s 持有永恒乐章，回合结束时满足 [胜利交响诗] 的发动条件，询问是否发动", currentPlayer.Name))
 	return engineplayer.TimingHookResult{Interrupted: true}
 }
 

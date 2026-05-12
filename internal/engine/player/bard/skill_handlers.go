@@ -95,60 +95,77 @@ func (h *BardForbiddenVerseHandler) CanUse(ctx *model.Context) bool { return fal
 func (h *BardForbiddenVerseHandler) Execute(ctx *model.Context) error { return nil }
 
 func (h *BardRousingRhapsodyHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.User.Character == nil {
+	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return false
 	}
 	stage, _ := ctx.Selections["bd_song_stage"].(string)
 	if stage != "turn_start" {
 		return false
 	}
-	if !bardHasEternalMovement(ctx.Game, ctx.User) {
+	bardID, _ := ctx.Selections["bard_id"].(string)
+	if bardID == "" {
 		return false
 	}
-	return len(bardEnemyIDs(ctx.Game, ctx.User)) >= 2 || len(ctx.User.Hand) >= 2
+	bard := ctx.Game.GetPlayers()[bardID]
+	if bard == nil || !bardHasEternalMovement(ctx.Game, bard) {
+		return false
+	}
+	holder := ctx.User
+	return len(bardEnemyIDs(ctx.Game, holder)) >= 2 || len(holder.Hand) >= 2
 }
 
 func (h *BardRousingRhapsodyHandler) Execute(ctx *model.Context) error {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.User.Character == nil {
+	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("激昂狂想曲上下文无效")
 	}
+	bardID, _ := ctx.Selections["bard_id"].(string)
+	holder := ctx.User
 	ctx.Game.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
-		PlayerID: ctx.User.ID,
+		PlayerID: holder.ID,
 		Context: map[string]interface{}{
 			"choice_type": "bd_rousing_mode",
-			"user_id":     ctx.User.ID,
-			"target_ids":  bardEnemyIDs(ctx.Game, ctx.User),
+			"user_id":     holder.ID,
+			"bard_id":     bardID,
+			"target_ids":  bardEnemyIDs(ctx.Game, holder),
 		},
 	})
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [激昂狂想曲]，请选择效果", ctx.User.Name))
+	ctx.Game.Log(fmt.Sprintf("%s 发动 [激昂狂想曲]，请选择效果", holder.Name))
 	return nil
 }
 
 func (h *BardVictorySymphonyHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.User.Character == nil {
+	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return false
 	}
 	stage, _ := ctx.Selections["bd_song_stage"].(string)
 	if stage != "turn_end" {
 		return false
 	}
-	if !bardHasEternalMovement(ctx.Game, ctx.User) {
+	bardID, _ := ctx.Selections["bard_id"].(string)
+	if bardID == "" {
+		return false
+	}
+	bard := ctx.Game.GetPlayers()[bardID]
+	if bard == nil || !bardHasEternalMovement(ctx.Game, bard) {
 		return false
 	}
 	return true
 }
 
 func (h *BardVictorySymphonyHandler) Execute(ctx *model.Context) error {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.User.Character == nil {
+	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("胜利交响诗上下文无效")
 	}
+	bardID, _ := ctx.Selections["bard_id"].(string)
+	holder := ctx.User
 	ctx.Game.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
-		PlayerID: ctx.User.ID,
+		PlayerID: holder.ID,
 		Context: map[string]interface{}{
 			"choice_type": "bd_victory_mode",
-			"user_id":     ctx.User.ID,
+			"user_id":     holder.ID,
+			"bard_id":     bardID,
 		},
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [胜利交响诗]，请选择效果", ctx.User.Name))

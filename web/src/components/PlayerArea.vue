@@ -97,18 +97,9 @@ type EffectOverlay = {
 }
 
 const EFFECT_DISPLAY: Record<string, { icon: string; label: string; cls: string; overlay?: EffectOverlay }> = {
-  Shield: { icon: '🛡️', label: '圣盾', cls: 'bg-yellow-800/60', overlay: {
-    gradient: 'linear-gradient(135deg, rgba(255,215,0,0.8) 0%, rgba(255,215,0,0.4) 50%, rgba(255,215,0,0.6) 100%)',
-    animation: 'effectShieldShimmer', opacity: 0.6, duration: '8s', backgroundSize: '200% 200%',
-  }},
-  Poison: { icon: '☠️', label: '中毒', cls: 'bg-green-800/60', overlay: {
-    gradient: 'linear-gradient(180deg, rgba(34,197,94,0.9) 0%, rgba(22,163,74,0.5) 50%, transparent 100%)',
-    animation: 'effectPoisonDrift', opacity: 0.55, duration: '6s',
-  }},
-  Weak: { icon: '💫', label: '虚弱', cls: 'bg-purple-800/60', overlay: {
-    gradient: 'radial-gradient(ellipse at center, rgba(147,51,234,0.7) 0%, rgba(107,33,168,0.5) 50%, transparent 100%)',
-    animation: 'effectWeakPulse', opacity: 0.5, duration: '5s',
-  }},
+  Shield: { icon: '🛡️', label: '圣盾', cls: 'bg-yellow-800/60' },
+  Poison: { icon: '☠️', label: '中毒', cls: 'bg-green-800/60' },
+  Weak: { icon: '💫', label: '虚弱', cls: 'bg-purple-800/60' },
   SealFire: { icon: '🔥', label: '火封印', cls: 'bg-red-800/60', overlay: {
     gradient: 'conic-gradient(from 0deg, rgba(239,68,68,0.7) 0%, rgba(239,68,68,0.5) 25%, rgba(239,68,68,0.7) 50%, rgba(239,68,68,0.5) 75%, rgba(239,68,68,0.7) 100%)',
     animation: 'effectSealRotate', opacity: 0.5, duration: '12s',
