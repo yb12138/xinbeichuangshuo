@@ -118,9 +118,11 @@ func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 		"bd_hope_place_target":       types.ChoiceRouteRole("bard"),
 		"bd_hope_transfer_discard":   types.ChoiceRouteRole("bard"),
 		"bd_hope_transfer_target":    types.ChoiceRouteRole("bard"),
+		"bd_rousing_confirm":         types.ChoiceRouteRole("bard"),
 		"bd_rousing_discard_cards":   types.ChoiceRouteRole("bard"),
 		"bd_rousing_mode":            types.ChoiceRouteRole("bard"),
 		"bd_rousing_targets":         types.ChoiceRouteRole("bard"),
+		"bd_victory_confirm":         types.ChoiceRouteRole("bard"),
 		"bd_victory_extract_stone":   types.ChoiceRouteRole("bard"),
 		"bd_victory_mode":            types.ChoiceRouteRole("bard"),
 	}

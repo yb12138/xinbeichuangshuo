@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	engineplayer "starcup-engine/internal/engine/player"
-	skills "starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 )
 
@@ -59,20 +58,32 @@ func turnStartRousingHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHo
 	}
 	currentPlayer.TurnState.UsedSkillCounts["bd_rousing_prompted"] = 1
 
-	// ctx.User 设为持有者（弹窗给持有者），同时存 bard_id 供 handler 使用
-	ctx2 := responseContext(crt, currentPlayer, "turn_start", model.TurnStageActionStart)
-	ctx2.Selections["bard_id"] = bard.ID
-	handler := skills.GetHandler("bd_rousing_rhapsody")
-	if handler == nil || !handler.CanUse(ctx2) {
+	// 检查技能发动条件：持有者是否可以发动
+	holder := currentPlayer
+	bardID := bard.ID
+	// 获取敌人列表
+	targetIDs := make([]string, 0)
+	for _, p := range rt.GetPlayers() {
+		if p != nil && p.Camp != holder.Camp {
+			targetIDs = append(targetIDs, p.ID)
+		}
+	}
+	canDamage := len(targetIDs) >= 2
+	canDiscard := len(holder.Hand) >= 2
+	if !canDamage && !canDiscard {
 		return engineplayer.TimingHookResult{}
 	}
 
-	// 向永恒乐章持有者推送响应询问（PlayerID 是持有者）
+	// 向永恒乐章持有者推送确认弹窗（是否发动）
 	rt.PushInterrupt(&model.Interrupt{
-		Type:     model.InterruptResponseSkill,
+		Type:     model.InterruptChoice,
 		PlayerID: currentPlayer.ID,
-		SkillIDs: []string{"bd_rousing_rhapsody"},
-		Context:  ctx2,
+		Context: map[string]interface{}{
+			"choice_type": "bd_rousing_confirm",
+			"user_id":     holder.ID,
+			"bard_id":     bardID,
+			"target_ids":  targetIDs,
+		},
 	})
 	rt.Log(fmt.Sprintf("%s 持有永恒乐章，回合开始时满足 [激昂狂想曲] 的发动条件，询问是否发动", currentPlayer.Name))
 	return engineplayer.TimingHookResult{Interrupted: true}
@@ -109,20 +120,19 @@ func turnEndVictoryHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHook
 	}
 	currentPlayer.TurnState.UsedSkillCounts["bd_victory_prompted"] = 1
 
-	// ctx.User 设为持有者（弹窗给持有者），同时存 bard_id 供 handler 使用
-	ctx2 := responseContext(crt, currentPlayer, "turn_end", model.TurnStageTurnEnd)
-	ctx2.Selections["bard_id"] = bard.ID
-	handler := skills.GetHandler("bd_victory_symphony")
-	if handler == nil || !handler.CanUse(ctx2) {
-		return engineplayer.TimingHookResult{}
-	}
+	// 检查技能发动条件：胜利交响诗总是可以发动（分支2不需要阵营资源）
+	holder := currentPlayer
+	bardID := bard.ID
 
-	// 向永恒乐章持有者推送响应询问（PlayerID 是持有者）
+	// 向永恒乐章持有者推送确认弹窗（是否发动）
 	rt.PushInterrupt(&model.Interrupt{
-		Type:     model.InterruptResponseSkill,
+		Type:     model.InterruptChoice,
 		PlayerID: currentPlayer.ID,
-		SkillIDs: []string{"bd_victory_symphony"},
-		Context:  ctx2,
+		Context: map[string]interface{}{
+			"choice_type": "bd_victory_confirm",
+			"user_id":     holder.ID,
+			"bard_id":     bardID,
+		},
 	})
 	rt.Log(fmt.Sprintf("%s 持有永恒乐章，回合结束时满足 [胜利交响诗] 的发动条件，询问是否发动", currentPlayer.Name))
 	return engineplayer.TimingHookResult{Interrupted: true}
