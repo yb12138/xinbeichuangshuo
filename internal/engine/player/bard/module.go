@@ -109,7 +109,6 @@ func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 		"bd_descent_target":          types.ChoiceRouteRole("bard"),
 		"bd_dissonance_discard_step": types.ChoiceRouteRole("bard"),
 		"bd_dissonance_mode":         types.ChoiceRouteRole("bard"),
-		"bd_dissonance_pick":         types.ChoiceRouteRole("bard"),
 		"bd_dissonance_target":       types.ChoiceRouteRole("bard"),
 		"bd_dissonance_x":            types.ChoiceRouteRole("bard"),
 		"bd_forbidden_verse_pick":    types.ChoiceRouteRole("bard"),

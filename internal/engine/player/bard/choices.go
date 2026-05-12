@@ -504,7 +504,7 @@ func handleDissonanceDiscardStep(rt engineplayer.ChoiceRuntime, ctxData map[stri
 	nextCursor := cursor + 1
 	for nextCursor < len(actorIDs) {
 		nextActor := rt.GetPlayers()[actorIDs[nextCursor]]
-		if nextActor == nil || len(nextActor.Hand) == 0 || needCount <= 0 {
+		if nextActor == nil || len(nextActor.Hand) == 0 {
 			nextCursor++
 			continue
 		}
