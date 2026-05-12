@@ -137,19 +137,15 @@ func (h *MagicLancerDarkBarrierHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("暗之障壁上下文无效")
 	}
-	magicCount := magicLancerMagicCardCount(ctx.User)
-	thunderCount := magicLancerThunderCardCount(ctx.User)
-	if magicCount <= 0 && thunderCount <= 0 {
+	if !magicLancerHasMagicOrThunder(ctx.User) {
 		return fmt.Errorf("暗之障壁需要法术牌或雷系牌")
 	}
 	ctx.Game.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
 		Context: map[string]interface{}{
-			"choice_type": "ml_dark_barrier_mode",
+			"choice_type": "ml_dark_barrier_cards",
 			"user_id":     ctx.User.ID,
-			"max_magic":   magicCount,
-			"max_thunder": thunderCount,
 			"source_player_id": func() string {
 				if ctx.EventCtx != nil {
 					return ctx.EventCtx.SourceID
@@ -158,7 +154,7 @@ func (h *MagicLancerDarkBarrierHandler) Execute(ctx *model.Context) error {
 			}(),
 		},
 	})
-	ctx.Game.Log(fmt.Sprintf("%s 可发动 [暗之障壁]，请选择弃牌类型与数量", ctx.User.Name))
+	ctx.Game.Log(fmt.Sprintf("%s 可发动 [暗之障壁]，请选择弃置的法术牌或雷系牌", ctx.User.Name))
 	return nil
 }
 

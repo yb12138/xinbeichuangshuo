@@ -1286,6 +1286,45 @@ function promptCardSelectionState(idx: number): PromptCardSelectionState {
     return { selectable: true, reason: 'prompt_plague_death_touch_element_match' }
   }
 
+  // 暗之障壁：单步选择法术牌或雷系牌，级联约束（选了法术牌就只能继续选法术牌）
+  if (prompt.choice_type === 'ml_dark_barrier_cards') {
+    const isMagic = card.type === 'Magic'
+    const isThunder = card.element === 'Thunder'
+    if (!isMagic && !isThunder) {
+      return {
+        selectable: false,
+        reason: 'prompt_dark_barrier_not_magic_or_thunder',
+        error: '暗之障壁需选择法术牌或雷系牌'
+      }
+    }
+    if (selectedCards.value.includes(idx)) {
+      return { selectable: true, reason: 'prompt_dark_barrier_keep_selected' }
+    }
+    const selectedTypes = selectedCards.value.map(i => {
+      const c = myHand.value[i]
+      return { isMagic: c?.type === 'Magic', isThunder: c?.element === 'Thunder' }
+    })
+    const selectedHasMagic = selectedTypes.some(t => t.isMagic)
+    const selectedHasThunder = selectedTypes.some(t => t.isThunder)
+    // 级联约束：已选法术牌 → 只能继续选法术牌（雷系牌灰显）
+    if (selectedHasMagic && !isMagic) {
+      return {
+        selectable: false,
+        reason: 'prompt_dark_barrier_magic_only',
+        error: '已选择法术牌，需继续选择法术牌'
+      }
+    }
+    // 级联约束：已选雷系牌 → 只能继续选雷系牌（法术牌灰显）
+    if (selectedHasThunder && !isThunder) {
+      return {
+        selectable: false,
+        reason: 'prompt_dark_barrier_thunder_only',
+        error: '已选择雷系牌，需继续选择雷系牌'
+      }
+    }
+    return { selectable: true, reason: 'prompt_dark_barrier_same_type' }
+  }
+
   const handOptionSet = promptHandCardIndexSet()
   if (handOptionSet.size > 0) {
     if (handOptionSet.has(idx)) {
