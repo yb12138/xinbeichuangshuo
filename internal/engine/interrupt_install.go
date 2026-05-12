@@ -214,3 +214,11 @@ func (e *GameEngine) PopInterrupt() {
 	}
 	e.interruptOrchestrator.PopInterrupt()
 }
+
+// RemoveQueuedInterruptByPredicate 经 interrupt.Orchestrator 从队列中移除满足条件的中断。
+func (e *GameEngine) RemoveQueuedInterruptByPredicate(predicate func(*model.Interrupt) bool) {
+	if e == nil || e.interruptOrchestrator == nil {
+		return
+	}
+	e.interruptOrchestrator.RemoveQueuedInterruptByPredicate(predicate)
+}

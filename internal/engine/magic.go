@@ -302,14 +302,13 @@ func (e *GameEngine) offerMagicMissileResponseSkills() {
 	ctx.Selections["magic_missile_interrupt"] = missileInterrupt
 	ctx.Selections["magic_missile_response"] = true
 	ctx.Selections["magic_missile_chain"] = chain
-	e.State.PendingInterrupt = &model.Interrupt{
+	e.PopInterrupt()
+	e.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptResponseSkill,
 		PlayerID: player.ID,
 		SkillIDs: skillIDs,
 		Context:  ctx,
-	}
-	e.syncGamePhaseWithInterrupt(e.State.PendingInterrupt)
-	e.NotifyInterruptPrompt()
+	})
 }
 
 func cloneInterrupt(intr *model.Interrupt) *model.Interrupt {

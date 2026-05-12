@@ -117,11 +117,15 @@ func (e *GameEngine) handleContextSkillDiscardSelection(skillID string, indices 
 	}
 
 	if nextSkillIDs, ok := data["remaining_skills"].([]string); ok && len(nextSkillIDs) > 0 {
-		e.State.PendingInterrupt.Type = model.InterruptResponseSkill
-		e.State.PendingInterrupt.SkillIDs = nextSkillIDs
-		e.State.PendingInterrupt.Context = ctx
+		playerID := e.State.PendingInterrupt.PlayerID
+		e.PopInterrupt()
+		e.PushInterrupt(&model.Interrupt{
+			Type:     model.InterruptResponseSkill,
+			PlayerID: playerID,
+			SkillIDs: nextSkillIDs,
+			Context:  ctx,
+		})
 		e.Log("[System] 弃牌技能执行完毕，你还可以选择发动其他技能")
-		e.enterResponseWindow()
 		return nil
 	}
 
@@ -131,9 +135,7 @@ func (e *GameEngine) handleContextSkillDiscardSelection(skillID string, indices 
 			if e.resumeMagicMissileAfterResponseSkill(ctx, missileInterrupt) {
 				return nil
 			}
-			e.State.PendingInterrupt = missileInterrupt
-			e.syncGamePhaseWithInterrupt(missileInterrupt)
-			e.NotifyInterruptPrompt()
+			e.PushInterrupt(missileInterrupt)
 			return nil
 		}
 		if wasBeforeDraw {

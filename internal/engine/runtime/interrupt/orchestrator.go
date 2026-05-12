@@ -110,6 +110,24 @@ func (o *Orchestrator) PushInterrupt(interrupt *model.Interrupt) {
 	o.engine.Log(fmt.Sprintf("新中断入队等待: %s (Player: %s)", interrupt.Type, interrupt.PlayerID))
 }
 
+// RemoveQueuedInterruptByPredicate 从中断队列中移除所有满足 predicate 的中断。
+func (o *Orchestrator) RemoveQueuedInterruptByPredicate(predicate func(*model.Interrupt) bool) {
+	if o == nil || o.engine == nil {
+		return
+	}
+	st := o.engine.GetState()
+	if st == nil || len(st.InterruptQueue) == 0 {
+		return
+	}
+	filtered := make([]*model.Interrupt, 0, len(st.InterruptQueue))
+	for _, intr := range st.InterruptQueue {
+		if !predicate(intr) {
+			filtered = append(filtered, intr)
+		}
+	}
+	st.InterruptQueue = filtered
+}
+
 // PopInterrupt 弹出当前中断；若队列非空则激活下一个并同步阶段。
 func (o *Orchestrator) PopInterrupt() {
 	if o == nil || o.engine == nil {

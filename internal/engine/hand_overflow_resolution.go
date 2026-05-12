@@ -20,15 +20,7 @@ const (
 )
 
 func (e *GameEngine) resolveDiscardSelection(playerID string, indices []int, data map[string]interface{}) error {
-	discardCount := runtimeutil.ToIntContextValue(data["discard_count"])
-	if discardCount <= 0 {
-		if downTo := runtimeutil.ToIntContextValue(data["discard_down_to"]); downTo > 0 {
-			player := e.State.Players[playerID]
-			if player != nil {
-				discardCount = len(player.Hand) - downTo
-			}
-		}
-	}
+	discardCount := resolveDiscardCount(data, e.State.Players[playerID])
 	if len(indices) != discardCount {
 		return fmt.Errorf("需要选择 %d 张牌丢弃，你选择了 %d 张", discardCount, len(indices))
 	}
@@ -49,11 +41,10 @@ func (e *GameEngine) resolveDiscardSelection(playerID string, indices []int, dat
 		return fmt.Errorf("玩家不存在")
 	}
 
-	discardedCards, err := e.discardCardsFromHand(player, indices)
+	discardedCards, err := e.PerformDiscardFromHand(player, indices)
 	if err != nil {
 		return err
 	}
-	e.notifyHiddenDiscard(playerID, discardedCards)
 
 	finalLoss, pending, err := e.resolveDiscardSelectionMoraleLoss(player, discardedCards, data)
 	if err != nil || pending {

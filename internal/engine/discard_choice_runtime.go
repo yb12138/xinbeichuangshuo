@@ -14,6 +14,21 @@ import (
 
 const choiceTypeSystemDiscardCards = "system_discard_cards"
 
+// resolveDiscardCount 统一计算弃牌数量：优先取 discard_count，其次从 discard_down_to 推算。
+func resolveDiscardCount(data map[string]interface{}, player *model.Player) int {
+	if count := runtimeutil.ToIntContextValue(data["discard_count"]); count > 0 {
+		return count
+	}
+	if downTo := runtimeutil.ToIntContextValue(data["discard_down_to"]); downTo > 0 && player != nil {
+		c := len(player.Hand) - downTo
+		if c < 0 {
+			c = 0
+		}
+		return c
+	}
+	return 0
+}
+
 func normalizeDiscardChoiceContext(data map[string]interface{}) map[string]interface{} {
 	if data == nil {
 		data = map[string]interface{}{}
@@ -87,24 +102,21 @@ func (e *GameEngine) buildDiscardChoicePromptFromData(playerID string, data map[
 	var message string
 	var min, max int
 
-	if count, ok := data["discard_count"].(int); ok && count > 0 {
+	if count := resolveDiscardCount(data, player); count > 0 {
 		min = count
 		max = count
-		message = fmt.Sprintf("手牌上限溢出！请弃置 %d 张牌：", count)
+		downTo := runtimeutil.ToIntContextValue(data["discard_down_to"])
+		if downTo > 0 {
+			message = fmt.Sprintf("请弃置 %d 张牌（弃至%d张）：", count, downTo)
+		} else {
+			message = fmt.Sprintf("手牌上限溢出！请弃置 %d 张牌：", count)
+		}
 		if customMsg, ok := data["prompt"].(string); ok && customMsg != "" {
 			message = customMsg
 		}
-	} else if downTo, ok := data["discard_down_to"].(int); ok && downTo >= 0 {
-		count := len(player.Hand) - downTo
-		if count <= 0 {
-			return nil
-		}
-		min = count
-		max = count
-		message = fmt.Sprintf("请弃置 %d 张牌（弃至%d张）：", count, downTo)
-		if customMsg, ok := data["prompt"].(string); ok && customMsg != "" {
-			message = customMsg
-		}
+	} else if _, hasDownTo := data["discard_down_to"].(int); hasDownTo {
+		// discard_down_to 已指定但无需弃牌（手牌已 ≤ 目标）
+		return nil
 	} else {
 		if v, ok := data["min"].(int); ok {
 			min = v

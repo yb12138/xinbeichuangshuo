@@ -80,12 +80,12 @@ func (sd *SkillDispatcher) PublishStartupInterrupt(playerID string, skillIDs []s
 	if sd == nil || sd.engine == nil {
 		return
 	}
-	sd.engine.State.PendingInterrupt = &model.Interrupt{
+	sd.engine.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptStartupSkill,
 		PlayerID: playerID,
 		SkillIDs: skillIDs,
 		Context:  sharedCtx,
-	}
+	})
 }
 
 func (sd *SkillDispatcher) PublishResponseInterrupt(player *model.Player, skillIDs []string, sharedCtx *model.Context) {
@@ -195,23 +195,19 @@ func dropQueuedOverflowDiscardForPlayer(e *GameEngine, playerID string) {
 	if len(player.Hand) > e.GetMaxHand(player) {
 		return
 	}
-	filtered := make([]*model.Interrupt, 0, len(e.State.InterruptQueue))
-	for _, intr := range e.State.InterruptQueue {
+	e.RemoveQueuedInterruptByPredicate(func(intr *model.Interrupt) bool {
 		if intr == nil || intr.PlayerID != playerID || !IsDiscardSelectionInterrupt(intr) {
-			filtered = append(filtered, intr)
-			continue
+			return false
 		}
 		data, ok := intr.Context.(map[string]interface{})
 		if !ok {
-			filtered = append(filtered, intr)
-			continue
+			return false
 		}
 		victimID, _ := data["victim_id"].(string)
 		if victimID == playerID {
 			e.Log(fmt.Sprintf("[System] 清理过期中断: %s 的爆牌弃牌请求", player.Name))
-			continue
+			return true
 		}
-		filtered = append(filtered, intr)
-	}
-	e.State.InterruptQueue = filtered
+		return false
+	})
 }
