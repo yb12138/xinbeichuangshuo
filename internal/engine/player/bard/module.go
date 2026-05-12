@@ -21,8 +21,8 @@ func RoleEntry() player.RoleEntry {
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
 		TimingHookSpecs: []player.TimingHookSpec{
-			{Timing: player.TimingOnTurnStart, Priority: 100, Hook: turnStartRousingHook},
-			{Timing: player.TimingOnTurnEnd, Priority: 100, Hook: turnEndVictoryHook},
+			{Timing: player.TimingOnTurnStart, Priority: 200, Hook: turnStartRousingHook, RoleFilter: &player.HookRoleNone},
+			{Timing: player.TimingOnTurnEnd, Priority: 200, Hook: turnEndVictoryHook, RoleFilter: &player.HookRoleNone},
 			{Timing: player.TimingPostDamageResolved, Priority: 500, Hook: postDamageResolvedHook},
 		},
 		SkillUsabilityCheckers: map[string]player.SkillUsabilityChecker{

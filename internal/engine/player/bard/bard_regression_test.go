@@ -10,6 +10,7 @@ import (
 
 	"starcup-engine/internal/data"
 	"starcup-engine/internal/model"
+	"strings"
 )
 
 func bardTestCard(id, name string, cardType model.CardType, ele model.Element) model.Card {
@@ -335,7 +336,7 @@ func TestBardHopeFugue_TransferMovesExistingEternalMovementAndGainsInspiration(t
 	}
 }
 
-func TestBardRousingRhapsody_OnBardTurnStartRunsForbiddenVerse(t *testing.T) {
+func TestBardRousingRhapsody_OnAllyTurnStartRunsForbiddenVerse(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "Bard", "bard", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -352,19 +353,22 @@ func TestBardRousingRhapsody_OnBardTurnStartRunsForbiddenVerse(t *testing.T) {
 
 	bard := game.State.Players["p1"]
 	ally := game.State.Players["p2"]
-	// Rousing rhapsody no longer requires exclusive card - only needs eternal movement on field
+	// 永恒乐章放置在队友身上，队友回合开始时触发响应询问
 	if err := bardpkg.PlaceEternalMovement(engine.NewRoleChoiceRuntime(game), bard, ally); err != nil {
 		t.Fatalf("place eternal movement failed: %v", err)
 	}
 
-	bard.IsActive = true
-	bard.TurnState = model.NewPlayerTurnState()
-	game.State.CurrentTurn = 0
-	game.State.TurnStage = model.TurnStageActionStart
+	// ally 是当前回合玩家（永恒乐章持有者）
+	ally.IsActive = true
+	ally.TurnState = model.NewPlayerTurnState()
+	ally.TurnState.HasProcessedTurnStart = false // 确保 TurnStart hooks 能被触发
+	game.State.CurrentTurn = 1 // p2 是 index 1
+	game.State.TurnStage = model.TurnStageTurnStart // 回合开始阶段触发激昂狂想曲
 	game.State.PendingInterrupt = nil
 
 	game.Drive()
 
+	// 响应询问发给吟游诗人（bard），因为 bard 才是技能的主人
 	testutils.RequireResponseSkillPrompt(t, game, "p1")
 	testutils.ChooseResponseSkillByID(t, game, "p1", "bd_rousing_rhapsody")
 	testutils.RequireChoicePrompt(t, game, "p1", "bd_rousing_mode")
@@ -414,10 +418,11 @@ func TestBardVictorySymphony_AtInspirationCapEntersPrisonerAndSelfDamages(t *tes
 		t.Fatalf("place eternal movement failed: %v", err)
 	}
 
-	bard.IsActive = true
-	bard.TurnState = model.NewPlayerTurnState()
-	game.State.CurrentTurn = 0
-	game.State.TurnStage = model.TurnStageTurnEnd
+	// ally 是当前回合玩家（永恒乐章持有者），回合结束时触发响应询问
+	ally.IsActive = true
+	ally.TurnState = model.NewPlayerTurnState()
+	game.State.CurrentTurn = 1 // p2 是 index 1
+	game.State.TurnStage = model.TurnStageTurnEnd // 回合结束阶段触发胜利交响诗
 	game.State.PendingInterrupt = nil
 
 	game.Drive()
@@ -473,9 +478,9 @@ func TestBardVictorySymphony_ExtractStoneChoosesGemOrCrystal(t *testing.T) {
 			game.State.RedGems = tc.gems
 			game.State.RedCrystals = tc.crystals
 
-			bard.IsActive = true
-			bard.TurnState = model.NewPlayerTurnState()
-			game.State.CurrentTurn = 0
+			ally.IsActive = true
+			ally.TurnState = model.NewPlayerTurnState()
+			game.State.CurrentTurn = 1 // p2 是 index 1
 			game.State.TurnStage = model.TurnStageTurnEnd
 
 			game.Drive()
@@ -579,5 +584,71 @@ func TestBardStarterExclusiveCards_NotInHand(t *testing.T) {
 	}
 	if bard.ExclusiveCards[0].Name != "永恒乐章" {
 		t.Fatalf("expected bard starter exclusive card 永恒乐章, got %s", bard.ExclusiveCards[0].Name)
+	}
+}
+
+// TestBardRousingRhapsody_BleedTickRunsFirst 验证当血之巫女在流血形态且持有永恒乐章时，
+// 回合开始先触发流血效果（伤害结算），再触发激昂狂想曲的响应询问。
+func TestBardRousingRhapsody_BleedTickRunsFirst(t *testing.T) {
+	obs := &testutils.CaptureObserver{}
+	game := engine.NewGameEngine(obs)
+	if err := game.AddPlayer("p1", "Bard", "bard", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "BloodWitch", "blood_priestess", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p3", "EnemyA", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p4", "EnemyB", "angel", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	bard := game.State.Players["p1"]
+	witch := game.State.Players["p2"]
+
+	// 永恒乐章放置在血之巫女身上
+	if err := bardpkg.PlaceEternalMovement(engine.NewRoleChoiceRuntime(game), bard, witch); err != nil {
+		t.Fatalf("place eternal movement failed: %v", err)
+	}
+
+	// 血之巫女进入流血形态
+	witch.Form = model.FormBloodPriestessBleeding
+
+	// 血之巫女回合开始
+	witch.IsActive = true
+	witch.TurnState = model.NewPlayerTurnState()
+	witch.TurnState.HasProcessedTurnStart = false
+	game.State.CurrentTurn = 1 // p2 是 index 1
+	game.State.TurnStage = model.TurnStageTurnStart
+	game.State.PendingInterrupt = nil
+
+	game.Drive()
+
+	// Drive 会自动处理：流血伤害先结算 → 然后激昂狂想曲弹出响应询问
+	// 最终状态应为等待吟游诗人响应技能
+	testutils.RequireResponseSkillPrompt(t, game, "p1")
+
+	// 验证日志顺序：流血在前，激昂狂想曲在后
+	var bleedIdx, rousingIdx int = -1, -1
+	for i, e := range obs.Events {
+		if e.Type == model.EventLog {
+			if bleedIdx < 0 && strings.Contains(e.Message, "流血") {
+				bleedIdx = i
+			}
+			if rousingIdx < 0 && strings.Contains(e.Message, "激昂狂想曲") {
+				rousingIdx = i
+			}
+		}
+	}
+	if bleedIdx < 0 {
+		t.Fatal("expected bleed log entry")
+	}
+	if rousingIdx < 0 {
+		t.Fatal("expected rousing rhapsody log entry")
+	}
+	if bleedIdx > rousingIdx {
+		t.Fatalf("expected bleed log before rousing log, got bleed at %d and rousing at %d", bleedIdx, rousingIdx)
 	}
 }

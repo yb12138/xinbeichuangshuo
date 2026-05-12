@@ -99,7 +99,7 @@ func (h *BardRousingRhapsodyHandler) CanUse(ctx *model.Context) bool {
 		return false
 	}
 	stage, _ := ctx.Selections["bd_song_stage"].(string)
-	if stage != "turn_start" || !ctx.User.IsActive {
+	if stage != "turn_start" {
 		return false
 	}
 	if !bardHasEternalMovement(ctx.Game, ctx.User) {
@@ -130,7 +130,7 @@ func (h *BardVictorySymphonyHandler) CanUse(ctx *model.Context) bool {
 		return false
 	}
 	stage, _ := ctx.Selections["bd_song_stage"].(string)
-	if stage != "turn_end" || !ctx.User.IsActive {
+	if stage != "turn_end" {
 		return false
 	}
 	if !bardHasEternalMovement(ctx.Game, ctx.User) {
