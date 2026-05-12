@@ -343,8 +343,8 @@ func handleDissonanceX(rt engineplayer.ChoiceRuntime, ctxData map[string]interfa
 		return fmt.Errorf("灵感不足")
 	}
 	addBardInspiration(user, -xValue)
-	if hasBardEternalPrisonerForm(user) {
-		leaveBardEternalPrisonerForm(user)
+	if InEternalPrisonerForm(user) {
+		LeaveEternalPrisonerForm(user)
 		rt.Log(fmt.Sprintf("%s 发动 [不谐和弦]：脱离永恒囚徒形态", user.Name))
 	}
 	ctxData["x_value"] = xValue
@@ -950,16 +950,6 @@ func addBardInspiration(player *model.Player, delta int) int {
 	return addTokenValueBounded(player, "bd_inspiration", delta, bardInspirationCap)
 }
 
-// Form helpers
-
-func hasBardEternalPrisonerForm(player *model.Player) bool {
-	return engineplayer.HasForm(player, model.FormBardEternalPrisoner)
-}
-
-func leaveBardEternalPrisonerForm(player *model.Player) bool {
-	return engineplayer.ClearForm(player, model.FormBardEternalPrisoner)
-}
-
 // Camp helpers
 
 func campEnemyIDs(rt engineplayer.ChoiceRuntime, user *model.Player) []string {
@@ -1043,7 +1033,8 @@ func removeBardEternalMovement(rt engineplayer.ChoiceRuntime, bard *model.Player
 		return false
 	}
 	holder.RemoveFieldCard(fc)
-	rt.AppendToDiscard([]model.Card{fc.Card})
+	bard.RestoreExclusiveCard(fc.Card)
+	rt.EmitBuffRemovedDispatch(bard.ID, holder.ID, model.EffectBardEternalMovement)
 	return true
 }
 
@@ -1064,9 +1055,8 @@ func resolveBardForbiddenVerseAfterSong(rt engineplayer.ChoiceRuntime, bard *mod
 		return
 	}
 
-	if !hasBardEternalPrisonerForm(bard) {
-		leaveBardEternalPrisonerForm(bard) // no-op if not in form
-		bard.Form = model.FormBardEternalPrisoner
+	if !InEternalPrisonerForm(bard) {
+		EnterEternalPrisonerForm(bard)
 		rt.Log(fmt.Sprintf("%s 的 [禁忌诗篇] 生效：转为永恒囚徒形态", bard.Name))
 	}
 	rt.AddPendingDamage(model.PendingDamage{

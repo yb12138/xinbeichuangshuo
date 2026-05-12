@@ -80,15 +80,21 @@ func TestBardDescentConcerto_RunsAndResolves(t *testing.T) {
 		bardTestCard("w_attack", "水攻击", model.CardTypeAttack, model.ElementWater),
 	}
 
+	// 伤害结算后只做追踪，不触发
 	if paused := game.HandlePostDamageResolved(&model.PendingDamage{
 		SourceID: "p1", TargetID: "p3", Damage: 1, DamageType: model.MagicAttack,
 	}); paused {
-		t.Fatalf("first magic damage should not dispatch descent yet")
+		t.Fatalf("first magic damage should only track, not trigger")
 	}
 	if paused := game.HandlePostDamageResolved(&model.PendingDamage{
 		SourceID: "p1", TargetID: "p4", Damage: 1, DamageType: model.MagicAttack,
-	}); !paused {
-		t.Fatalf("second self magic damage should dispatch descent interrupt")
+	}); paused {
+		t.Fatalf("second magic damage should only track, not trigger")
+	}
+
+	// 回合结束时触发沉沦协奏曲
+	if paused := game.RunTimingOnTurnEndStageHooks(bard, engine.TimingOnTurnEndPreExtra); !paused {
+		t.Fatalf("turn-end descent hook should trigger with 2+ magic damage targets")
 	}
 	testutils.RequireChoicePrompt(t, game, "p1", "bd_descent_element")
 
@@ -128,7 +134,7 @@ func TestBardDescentConcerto_RunsAndResolves(t *testing.T) {
 	}
 }
 
-func TestBardDescentConcerto_DoesNotTimingOnAllyMagicDamage(t *testing.T) {
+func TestBardDescentConcerto_AllyMagicDamageTriggersAtTurnEnd(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "Bard", "bard", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -143,23 +149,32 @@ func TestBardDescentConcerto_DoesNotTimingOnAllyMagicDamage(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	bard := game.State.Players["p1"]
 	ally := game.State.Players["p2"]
-	ally.IsActive = true
-	ally.TurnState = model.NewPlayerTurnState()
+	bard.IsActive = true
+	bard.TurnState = model.NewPlayerTurnState()
+	bard.Hand = []model.Card{
+		bardTestCard("f_magic", "火法术", model.CardTypeMagic, model.ElementFire),
+		bardTestCard("f_attack", "火攻击", model.CardTypeAttack, model.ElementFire),
+	}
 
+	// 队友法术伤害应该被追踪（不立即触发）
 	if paused := game.HandlePostDamageResolved(&model.PendingDamage{
 		SourceID: "p2", TargetID: "p3", Damage: 1, DamageType: model.MagicAttack,
 	}); paused {
-		t.Fatalf("ally magic damage should not dispatch bard descent on first hit")
+		t.Fatalf("ally magic damage should only track, not trigger immediately")
 	}
 	if paused := game.HandlePostDamageResolved(&model.PendingDamage{
 		SourceID: "p2", TargetID: "p4", Damage: 1, DamageType: model.MagicAttack,
 	}); paused {
-		t.Fatalf("ally magic damage should not dispatch bard descent on second hit")
+		t.Fatalf("ally magic damage should only track, not trigger immediately")
 	}
-	if game.State.PendingInterrupt != nil {
-		t.Fatalf("expected no pending interrupt, got %+v", game.State.PendingInterrupt)
+
+	// 回合结束时队友伤害已记录到诗人名下，触发沉沦协奏曲
+	if paused := game.RunTimingOnTurnEndStageHooks(ally, engine.TimingOnTurnEndPreExtra); !paused {
+		t.Fatalf("turn-end descent hook should trigger from ally magic damage")
 	}
+	testutils.RequireChoicePrompt(t, game, "p1", "bd_descent_element")
 }
 
 func TestBardDissonanceChord_DrawModeAndReleasePrisoner(t *testing.T) {
@@ -389,6 +404,17 @@ func TestBardRousingRhapsody_OnAllyTurnStartRunsForbiddenVerse(t *testing.T) {
 	}
 	if holder := bardpkg.EternalHolderID(engine.NewRoleChoiceRuntime(game), bard); holder != "" {
 		t.Fatalf("expected eternal movement removed by forbidden verse, holder=%q", holder)
+	}
+	// 永恒乐章应归还专属牌区，而非进入弃牌堆
+	var hasEternalInExclusive bool
+	for _, c := range bard.ExclusiveCards {
+		if c.Name == "永恒乐章" {
+			hasEternalInExclusive = true
+			break
+		}
+	}
+	if !hasEternalInExclusive {
+		t.Fatalf("expected eternal movement restored to exclusive cards after forbidden verse")
 	}
 	if got := len(game.State.PendingDamageQueue); got != 2 {
 		t.Fatalf("expected rousing queued 2 magic damages, got %d", got)

@@ -126,7 +126,8 @@ func turnEndVictoryHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHook
 	return engineplayer.TimingHookResult{Interrupted: true}
 }
 
-// postDamageResolvedHook 伤害结算完成后：沉沦协奏曲触发检查。
+// postDamageResolvedHook 伤害结算完成后：记录全队法术伤害目标（供回合末沉沦协奏曲检查）。
+// 仅做追踪，不触发技能。触发逻辑在 turnEndDescentHook 中。
 func postDamageResolvedHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHookContext) engineplayer.TimingHookResult {
 	if ctx.Damage <= 0 || !rt.IsMagicDamageType(ctx.DamageType) {
 		return engineplayer.TimingHookResult{}
@@ -136,26 +137,41 @@ func postDamageResolvedHook(rt engineplayer.HookRuntime, ctx engineplayer.Timing
 	if source == nil || target == nil || source.Camp == target.Camp {
 		return engineplayer.TimingHookResult{}
 	}
-	if !engineplayer.IsCharacter(source, "bard") || !source.IsActive {
+
+	// 找到吟游诗人，将队友的法术伤害目标记录到诗人名下
+	bard := findBardPlayer(rt)
+	if bard == nil || bard.Camp != source.Camp {
 		return engineplayer.TimingHookResult{}
 	}
 
-	rt.RecordMagicDamageTarget(source.ID, target.ID)
-	if rt.MagicDamageTargetCount(source.ID) < 2 {
+	rt.RecordMagicDamageTarget(bard.ID, target.ID)
+	return engineplayer.TimingHookResult{}
+}
+
+// turnEndDescentHook 回合结束时检查沉沦协奏曲触发条件。
+// 当全队在本回合对至少2名不同敌方目标造成过法术伤害时触发。
+func turnEndDescentHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHookContext) engineplayer.TimingHookResult {
+	bard := findBardPlayer(rt)
+	if bard == nil {
 		return engineplayer.TimingHookResult{}
 	}
-	if InEternalPrisonerForm(source) || source.TurnState.UsedSkillCounts["bd_descent"] > 0 {
+
+	if rt.MagicDamageTargetCount(bard.ID) < 2 {
 		return engineplayer.TimingHookResult{}
 	}
-	if engineplayer.MaxSameElementCount(source) < 2 {
+	if InEternalPrisonerForm(bard) || bard.TurnState.UsedSkillCounts["bd_descent"] > 0 {
 		return engineplayer.TimingHookResult{}
 	}
+	if engineplayer.MaxSameElementCount(bard) < 2 {
+		return engineplayer.TimingHookResult{}
+	}
+
 	rt.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
-		PlayerID: source.ID,
+		PlayerID: bard.ID,
 		Context: map[string]interface{}{
 			"choice_type": "bd_descent_element",
-			"user_id":     source.ID,
+			"user_id":     bard.ID,
 		},
 	})
 	return engineplayer.TimingHookResult{Interrupted: true}

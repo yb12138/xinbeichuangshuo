@@ -23,7 +23,8 @@ func RoleEntry() player.RoleEntry {
 		TimingHookSpecs: []player.TimingHookSpec{
 			{Timing: player.TimingOnTurnStart, Priority: 200, Hook: turnStartRousingHook, RoleFilter: &player.HookRoleNone},
 			{Timing: player.TimingOnTurnEnd, Priority: 200, Hook: turnEndVictoryHook, RoleFilter: &player.HookRoleNone},
-			{Timing: player.TimingPostDamageResolved, Priority: 500, Hook: postDamageResolvedHook},
+			{Timing: player.TimingPostDamageResolved, Priority: 500, Hook: postDamageResolvedHook, RoleFilter: &player.HookRoleNone},
+			{Timing: player.TimingOnTurnEnd, Priority: 300, Hook: turnEndDescentHook, RoleFilter: &player.HookRoleNone},
 		},
 		SkillUsabilityCheckers: map[string]player.SkillUsabilityChecker{
 			"bd_dissonance_chord": CheckDissonanceChordUsability,
