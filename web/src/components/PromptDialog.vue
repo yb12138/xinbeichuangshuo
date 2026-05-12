@@ -1314,9 +1314,21 @@ const showDecisionOverlay = computed(() => {
   return false
 })
 
-const decisionOverlayMode = computed<'numeric' | 'text' | 'activation-cost'>(() => {
+const isYesNoDecision = computed(() => {
+  if (!prompt.value) return false
+  if (singleActivationCostConfirmOption.value) return false
+  if (inlinePrimaryButtons.value.some(opt => opt.numeric)) return false
+  const options = prompt.value.options || []
+  if (options.length !== 2) return false
+  // 检测原始 label 是否为简短的是/否式文本
+  const labels = options.map(o => String(o.label || '').trim())
+  return labels.every(l => l.length > 0 && l.length <= 3)
+})
+
+const decisionOverlayMode = computed<'numeric' | 'text' | 'activation-cost' | 'yes-no'>(() => {
   if (singleActivationCostConfirmOption.value) return 'activation-cost'
   if (inlinePrimaryButtons.value.some(opt => opt.numeric)) return 'numeric'
+  if (isYesNoDecision.value) return 'yes-no'
   return 'text'
 })
 
@@ -1765,6 +1777,21 @@ watch(autoResolveOptionId, (optionId) => {
             </div>
           </div>
 
+          <div v-else-if="decisionOverlayMode === 'yes-no'" class="overlay-panel-body overlay-panel-body--yesno">
+            <div class="overlay-yesno-row">
+              <button
+                v-for="option in prompt?.options || []"
+                :key="option.id"
+                class="overlay-yesno-btn"
+                :class="option.id === '0' || option.id === 'yes' ? 'overlay-yesno-btn--yes' : 'overlay-yesno-btn--no'"
+                :disabled="!!inlinePrimaryButtons.find(b => b.id === option.id)?.disabled"
+                @click="handleOptionClick(option.id)"
+              >
+                {{ String(option.label || '').trim() }}
+              </button>
+            </div>
+          </div>
+
           <div v-else class="overlay-panel-body overlay-panel-body--text">
             <button
               v-for="option in inlinePrimaryButtons"
@@ -1778,7 +1805,7 @@ watch(autoResolveOptionId, (optionId) => {
             </button>
           </div>
 
-          <div v-if="canCancelPrompt" class="overlay-panel-footer">
+          <div v-if="canCancelPrompt && decisionOverlayMode !== 'yes-no'" class="overlay-panel-footer">
             <button class="overlay-panel-cancel" @click="handleOptionClick(cancelDockButton.id)">
               {{ cancelDockButton.buttonLabel || '取消' }}
             </button>
@@ -2856,6 +2883,74 @@ watch(autoResolveOptionId, (optionId) => {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.overlay-panel-body--yesno {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 20px;
+}
+
+.overlay-yesno-row {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  width: 100%;
+  max-width: 320px;
+}
+
+.overlay-yesno-btn {
+  padding: 14px 24px;
+  border-radius: 10px;
+  border: 1px solid rgba(150, 130, 80, 0.36);
+  background: rgba(14, 28, 44, 0.56);
+  color: #ffd98a;
+  font-size: 1.1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  font-family: inherit;
+  text-align: center;
+}
+
+.overlay-yesno-btn:hover:not(:disabled) {
+  border-color: rgba(255, 210, 120, 0.7);
+  background: rgba(22, 38, 56, 0.72);
+  box-shadow: 0 0 12px rgba(255, 210, 120, 0.12);
+}
+
+.overlay-yesno-btn:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.overlay-yesno-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.overlay-yesno-btn--yes {
+  border-color: rgba(180, 150, 90, 0.5);
+  background: linear-gradient(180deg, rgba(100, 75, 30, 0.7), rgba(70, 52, 20, 0.8));
+  color: #ffe2ad;
+}
+
+.overlay-yesno-btn--yes:hover:not(:disabled) {
+  border-color: rgba(255, 210, 120, 0.7);
+  background: linear-gradient(180deg, rgba(120, 90, 35, 0.85), rgba(85, 62, 25, 0.9));
+  box-shadow: 0 0 12px rgba(255, 210, 120, 0.15);
+}
+
+.overlay-yesno-btn--no {
+  border-color: rgba(180, 130, 90, 0.4);
+  background: linear-gradient(180deg, rgba(80, 55, 25, 0.6), rgba(55, 38, 18, 0.7));
+  color: #ffd98a;
+}
+
+.overlay-yesno-btn--no:hover:not(:disabled) {
+  border-color: rgba(255, 200, 120, 0.6);
+  background: linear-gradient(180deg, rgba(95, 65, 30, 0.75), rgba(65, 45, 22, 0.85));
+  box-shadow: 0 0 12px rgba(255, 200, 120, 0.12);
 }
 
 .overlay-panel-body--cost {

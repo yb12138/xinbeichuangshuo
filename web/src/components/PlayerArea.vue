@@ -97,40 +97,40 @@ type EffectOverlay = {
 
 const EFFECT_DISPLAY: Record<string, { icon: string; label: string; cls: string; overlay?: EffectOverlay }> = {
   Shield: { icon: '🛡️', label: '圣盾', cls: 'bg-yellow-800/60', overlay: {
-    gradient: 'linear-gradient(135deg, rgba(255,215,0,0.3) 0%, transparent 40%, transparent 60%, rgba(255,215,0,0.15) 100%)',
-    animation: 'effectShieldShimmer', opacity: 0.13, duration: '8s', backgroundSize: '200% 200%',
+    gradient: 'linear-gradient(135deg, rgba(255,215,0,0.55) 0%, transparent 40%, transparent 60%, rgba(255,215,0,0.35) 100%)',
+    animation: 'effectShieldShimmer', opacity: 0.35, duration: '8s', backgroundSize: '200% 200%',
   }},
   Poison: { icon: '☠️', label: '中毒', cls: 'bg-green-800/60', overlay: {
-    gradient: 'linear-gradient(0deg, rgba(34,197,94,0.35) 0%, rgba(22,163,74,0.12) 40%, transparent 70%)',
-    animation: 'effectPoisonDrift', opacity: 0.14, duration: '6s',
+    gradient: 'linear-gradient(0deg, rgba(34,197,94,0.65) 0%, rgba(22,163,74,0.3) 40%, transparent 70%)',
+    animation: 'effectPoisonDrift', opacity: 0.38, duration: '6s',
   }},
   Weak: { icon: '💫', label: '虚弱', cls: 'bg-purple-800/60', overlay: {
-    gradient: 'radial-gradient(ellipse at center, transparent 30%, rgba(147,51,234,0.25) 70%, rgba(107,33,168,0.35) 100%)',
-    animation: 'effectWeakPulse', opacity: 0.12, duration: '5s',
+    gradient: 'radial-gradient(ellipse at center, transparent 30%, rgba(147,51,234,0.45) 70%, rgba(107,33,168,0.6) 100%)',
+    animation: 'effectWeakPulse', opacity: 0.32, duration: '5s',
   }},
   SealFire: { icon: '🔥', label: '火封印', cls: 'bg-red-800/60', overlay: {
-    gradient: 'conic-gradient(from 0deg, transparent 0%, rgba(239,68,68,0.2) 25%, transparent 50%, rgba(239,68,68,0.15) 75%, transparent 100%)',
-    animation: 'effectSealRotate', opacity: 0.12, duration: '12s',
+    gradient: 'conic-gradient(from 0deg, transparent 0%, rgba(239,68,68,0.4) 25%, transparent 50%, rgba(239,68,68,0.3) 75%, transparent 100%)',
+    animation: 'effectSealRotate', opacity: 0.35, duration: '12s',
   }},
   SealWater: { icon: '💧', label: '水封印', cls: 'bg-blue-800/60', overlay: {
-    gradient: 'conic-gradient(from 0deg, transparent 0%, rgba(59,130,246,0.2) 25%, transparent 50%, rgba(59,130,246,0.15) 75%, transparent 100%)',
-    animation: 'effectSealRotate', opacity: 0.12, duration: '12s',
+    gradient: 'conic-gradient(from 0deg, transparent 0%, rgba(59,130,246,0.4) 25%, transparent 50%, rgba(59,130,246,0.3) 75%, transparent 100%)',
+    animation: 'effectSealRotate', opacity: 0.35, duration: '12s',
   }},
   SealEarth: { icon: '🪨', label: '地封印', cls: 'bg-amber-800/60', overlay: {
-    gradient: 'conic-gradient(from 0deg, transparent 0%, rgba(217,119,6,0.2) 25%, transparent 50%, rgba(217,119,6,0.15) 75%, transparent 100%)',
-    animation: 'effectSealRotate', opacity: 0.12, duration: '12s',
+    gradient: 'conic-gradient(from 0deg, transparent 0%, rgba(217,119,6,0.4) 25%, transparent 50%, rgba(217,119,6,0.3) 75%, transparent 100%)',
+    animation: 'effectSealRotate', opacity: 0.35, duration: '12s',
   }},
   SealWind: { icon: '🌪️', label: '风封印', cls: 'bg-teal-800/60', overlay: {
-    gradient: 'conic-gradient(from 0deg, transparent 0%, rgba(20,184,166,0.2) 25%, transparent 50%, rgba(20,184,166,0.15) 75%, transparent 100%)',
-    animation: 'effectSealRotate', opacity: 0.12, duration: '12s',
+    gradient: 'conic-gradient(from 0deg, transparent 0%, rgba(20,184,166,0.4) 25%, transparent 50%, rgba(20,184,166,0.3) 75%, transparent 100%)',
+    animation: 'effectSealRotate', opacity: 0.35, duration: '12s',
   }},
   SealThunder: { icon: '⚡', label: '雷封印', cls: 'bg-indigo-800/60', overlay: {
-    gradient: 'conic-gradient(from 0deg, transparent 0%, rgba(99,102,241,0.2) 25%, transparent 50%, rgba(99,102,241,0.15) 75%, transparent 100%)',
-    animation: 'effectSealRotate', opacity: 0.12, duration: '12s',
+    gradient: 'conic-gradient(from 0deg, transparent 0%, rgba(99,102,241,0.4) 25%, transparent 50%, rgba(99,102,241,0.3) 75%, transparent 100%)',
+    animation: 'effectSealRotate', opacity: 0.35, duration: '12s',
   }},
   FiveElementsBind: { icon: '⛓️', label: '五系束缚', cls: 'bg-gray-700/80', overlay: {
-    gradient: 'conic-gradient(from 0deg, rgba(107,114,128,0.2) 0%, transparent 20%, rgba(107,114,128,0.15) 40%, transparent 60%, rgba(107,114,128,0.2) 80%, transparent 100%)',
-    animation: 'effectSealRotate', opacity: 0.10, duration: '10s',
+    gradient: 'conic-gradient(from 0deg, rgba(107,114,128,0.4) 0%, transparent 20%, rgba(107,114,128,0.3) 40%, transparent 60%, rgba(107,114,128,0.4) 80%, transparent 100%)',
+    animation: 'effectSealRotate', opacity: 0.3, duration: '10s',
   }},
   RoseCourtyard: { icon: '🌹', label: '血蔷薇庭院', cls: 'bg-rose-900/75' },
   PowerBlessing: { icon: '✨', label: '威力赐福', cls: 'bg-orange-900/75' },
@@ -916,7 +916,6 @@ function handleClick(e: MouseEvent) {
   inset: 0;
   z-index: 3;
   pointer-events: none;
-  mix-blend-mode: screen;
   animation-timing-function: ease-in-out;
   animation-iteration-count: infinite;
 }
@@ -927,13 +926,13 @@ function handleClick(e: MouseEvent) {
 }
 
 @keyframes effectPoisonDrift {
-  0%, 100% { transform: translateY(0); opacity: 1; }
-  50% { transform: translateY(-8px); opacity: 0.6; }
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
 }
 
 @keyframes effectWeakPulse {
-  0%, 100% { transform: scale(0.95); opacity: 0.8; }
-  50% { transform: scale(1.05); opacity: 1; }
+  0%, 100% { transform: scale(0.95); }
+  50% { transform: scale(1.05); }
 }
 
 @keyframes effectShieldShimmer {

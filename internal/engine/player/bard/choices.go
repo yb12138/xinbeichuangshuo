@@ -135,7 +135,14 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 	case "bd_hope_draw_confirm":
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【希望赋格曲】是否先摸1张牌？", Options: []model.PromptOption{{ID: "0", Label: "是"}, {ID: "1", Label: "否"}}, Min: 1, Max: 1}
 	case "bd_hope_mode":
-		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【希望赋格曲】请选择分支：", Options: []model.PromptOption{{ID: "0", Label: "将永恒乐章放置于目标队友面前"}, {ID: "1", Label: "转移永恒乐章，弃1张牌并+1治疗"}, {ID: "2", Label: "转移永恒乐章，弃1张牌并+1灵感"}}, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"}}
+		opts := []model.PromptOption{{ID: "0", Label: "将永恒乐章放置于目标队友面前"}}
+		if bardEternalHolderID(rt, player) != "" {
+			opts = append(opts,
+				model.PromptOption{ID: "1", Label: "转移永恒乐章，弃1张牌并+1治疗"},
+				model.PromptOption{ID: "2", Label: "转移永恒乐章，弃1张牌并+1灵感"},
+			)
+		}
+		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【希望赋格曲】请选择分支：", Options: opts, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"}}
 	case "bd_hope_transfer_discard":
 		options := make([]model.PromptOption, 0, len(player.Hand))
 		for idx, c := range player.Hand {

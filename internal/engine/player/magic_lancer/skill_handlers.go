@@ -58,7 +58,6 @@ func magicLancerHasMagicOrThunder(user *model.Player) bool {
 	return false
 }
 
-
 func (h *MagicLancerDarkReleaseHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil {
 		return false
