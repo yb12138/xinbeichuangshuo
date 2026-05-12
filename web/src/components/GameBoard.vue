@@ -15,6 +15,7 @@ import SkillDetailModal from './SkillDetailModal.vue'
 import BattleZone from './BattleZone.vue'
 import VfxLayer from './VfxLayer.vue'
 import ActionTimeline from './ActionTimeline.vue'
+import StatusEffectIcon from './StatusIcons/StatusEffectIcon.vue'
 import { useSubmitAction } from '../composables/useSubmitAction'
 import { useBattleInteractionState } from '../composables/useBattleInteractionState'
 
@@ -1644,10 +1645,21 @@ const LINK_EFFECT_COLORS: Record<string, string> = {
   BloodSharedLife: 'rgba(244, 63, 94, 0.9)',
 }
 
+const LINK_EFFECT_INFO: Record<string, { label: string; description: string }> = {
+  HeroTaunt: { label: '挑衅', description: '该玩家在下回合必须且只能主动攻击勇者，否则跳过该阶段' },
+  SoulLink: { label: '灵魂链接', description: '两名玩家绑定在一起，灵魂术士消耗蓝色灵魂可转移伤害' },
+  BloodSharedLife: { label: '同生共死', description: '双方手牌上限保持一致' },
+}
+
 type LinkLine = {
   id: string
   path: string
   color: string
+  effect: string
+  midX: number
+  midY: number
+  label: string
+  description: string
 }
 
 const linkLines = ref<LinkLine[]>([])
@@ -1694,10 +1706,16 @@ function rebuildLinkLines() {
       const x2 = tgtRect.left + tgtRect.width / 2 - rootRect.left
       const y2 = tgtRect.top + tgtRect.height / 2 - rootRect.top
 
+      const info = LINK_EFFECT_INFO[fc.effect]
       lines.push({
         id: pairKey,
         path: buildLinkPath(x1, y1, x2, y2),
         color: LINK_EFFECT_COLORS[fc.effect]!,
+        effect: fc.effect,
+        midX: (x1 + x2) / 2,
+        midY: (y1 + y2) / 2,
+        label: info?.label ?? fc.effect,
+        description: info?.description ?? '',
       })
     }
   }
@@ -2140,6 +2158,19 @@ watch(
         class="link-line"
       />
     </svg>
+
+    <!-- 连线中点图标 -->
+    <div
+      v-for="link in linkLines"
+      :key="'icon-' + link.id"
+      class="link-icon-anchor"
+      :style="{ left: link.midX + 'px', top: link.midY + 'px' }"
+      :title="`${link.label}: ${link.description}`"
+    >
+      <StatusEffectIcon :effect="link.effect" />
+      <span class="link-icon-label">{{ link.label }}</span>
+    </div>
+
     <VfxLayer />
   </div>
 </template>
@@ -2156,6 +2187,49 @@ watch(
 }
 .link-line {
   transition: opacity 0.3s ease;
+}
+
+/* 连线中点图标 */
+.link-icon-anchor {
+  position: absolute;
+  z-index: 51;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  pointer-events: auto;
+  cursor: help;
+}
+
+.link-icon-anchor > :deep(.status-effect-icon) {
+  width: 40px;
+  height: 40px;
+  background: rgba(0, 0, 0, 0.85);
+  border-radius: 10px;
+  padding: 5px;
+  backdrop-filter: blur(6px);
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  transition: all 0.2s ease;
+}
+
+.link-icon-anchor:hover > :deep(.status-effect-icon) {
+  transform: scale(1.1);
+  border-color: rgba(255, 255, 255, 0.5);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.7);
+}
+
+.link-icon-label {
+  font-size: 10px;
+  font-weight: bold;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.85);
+  padding: 1px 6px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  white-space: nowrap;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
 }
 
 .game-end-enter-active,

@@ -7,6 +7,7 @@ import { useBattleReviewStore } from '../stores/battleReview.store'
 import { useInterruptStore } from '../stores/interrupt.store'
 import { useUiStore } from '../stores/ui.store'
 import { useBattleInteractionState } from '../composables/useBattleInteractionState'
+import StatusEffectIcon from './StatusIcons/StatusEffectIcon.vue'
 
 const battleFxStore = useBattleFxStore()
 const battleReviewStore = useBattleReviewStore()
@@ -97,40 +98,40 @@ type EffectOverlay = {
 
 const EFFECT_DISPLAY: Record<string, { icon: string; label: string; cls: string; overlay?: EffectOverlay }> = {
   Shield: { icon: '🛡️', label: '圣盾', cls: 'bg-yellow-800/60', overlay: {
-    gradient: 'linear-gradient(135deg, rgba(255,215,0,0.55) 0%, transparent 40%, transparent 60%, rgba(255,215,0,0.35) 100%)',
-    animation: 'effectShieldShimmer', opacity: 0.35, duration: '8s', backgroundSize: '200% 200%',
+    gradient: 'linear-gradient(135deg, rgba(255,215,0,0.8) 0%, rgba(255,215,0,0.4) 50%, rgba(255,215,0,0.6) 100%)',
+    animation: 'effectShieldShimmer', opacity: 0.6, duration: '8s', backgroundSize: '200% 200%',
   }},
   Poison: { icon: '☠️', label: '中毒', cls: 'bg-green-800/60', overlay: {
-    gradient: 'linear-gradient(0deg, rgba(34,197,94,0.65) 0%, rgba(22,163,74,0.3) 40%, transparent 70%)',
-    animation: 'effectPoisonDrift', opacity: 0.38, duration: '6s',
+    gradient: 'linear-gradient(180deg, rgba(34,197,94,0.9) 0%, rgba(22,163,74,0.5) 50%, transparent 100%)',
+    animation: 'effectPoisonDrift', opacity: 0.55, duration: '6s',
   }},
   Weak: { icon: '💫', label: '虚弱', cls: 'bg-purple-800/60', overlay: {
-    gradient: 'radial-gradient(ellipse at center, transparent 30%, rgba(147,51,234,0.45) 70%, rgba(107,33,168,0.6) 100%)',
-    animation: 'effectWeakPulse', opacity: 0.32, duration: '5s',
+    gradient: 'radial-gradient(ellipse at center, rgba(147,51,234,0.7) 0%, rgba(107,33,168,0.5) 50%, transparent 100%)',
+    animation: 'effectWeakPulse', opacity: 0.5, duration: '5s',
   }},
   SealFire: { icon: '🔥', label: '火封印', cls: 'bg-red-800/60', overlay: {
-    gradient: 'conic-gradient(from 0deg, transparent 0%, rgba(239,68,68,0.4) 25%, transparent 50%, rgba(239,68,68,0.3) 75%, transparent 100%)',
-    animation: 'effectSealRotate', opacity: 0.35, duration: '12s',
+    gradient: 'conic-gradient(from 0deg, rgba(239,68,68,0.7) 0%, rgba(239,68,68,0.5) 25%, rgba(239,68,68,0.7) 50%, rgba(239,68,68,0.5) 75%, rgba(239,68,68,0.7) 100%)',
+    animation: 'effectSealRotate', opacity: 0.5, duration: '12s',
   }},
   SealWater: { icon: '💧', label: '水封印', cls: 'bg-blue-800/60', overlay: {
-    gradient: 'conic-gradient(from 0deg, transparent 0%, rgba(59,130,246,0.4) 25%, transparent 50%, rgba(59,130,246,0.3) 75%, transparent 100%)',
-    animation: 'effectSealRotate', opacity: 0.35, duration: '12s',
+    gradient: 'conic-gradient(from 0deg, rgba(59,130,246,0.7) 0%, rgba(59,130,246,0.5) 25%, rgba(59,130,246,0.7) 50%, rgba(59,130,246,0.5) 75%, rgba(59,130,246,0.7) 100%)',
+    animation: 'effectSealRotate', opacity: 0.5, duration: '12s',
   }},
   SealEarth: { icon: '🪨', label: '地封印', cls: 'bg-amber-800/60', overlay: {
-    gradient: 'conic-gradient(from 0deg, transparent 0%, rgba(217,119,6,0.4) 25%, transparent 50%, rgba(217,119,6,0.3) 75%, transparent 100%)',
-    animation: 'effectSealRotate', opacity: 0.35, duration: '12s',
+    gradient: 'conic-gradient(from 0deg, rgba(217,119,6,0.7) 0%, rgba(217,119,6,0.5) 25%, rgba(217,119,6,0.7) 50%, rgba(217,119,6,0.5) 75%, rgba(217,119,6,0.7) 100%)',
+    animation: 'effectSealRotate', opacity: 0.5, duration: '12s',
   }},
   SealWind: { icon: '🌪️', label: '风封印', cls: 'bg-teal-800/60', overlay: {
-    gradient: 'conic-gradient(from 0deg, transparent 0%, rgba(20,184,166,0.4) 25%, transparent 50%, rgba(20,184,166,0.3) 75%, transparent 100%)',
-    animation: 'effectSealRotate', opacity: 0.35, duration: '12s',
+    gradient: 'conic-gradient(from 0deg, rgba(20,184,166,0.7) 0%, rgba(20,184,166,0.5) 25%, rgba(20,184,166,0.7) 50%, rgba(20,184,166,0.5) 75%, rgba(20,184,166,0.7) 100%)',
+    animation: 'effectSealRotate', opacity: 0.5, duration: '12s',
   }},
   SealThunder: { icon: '⚡', label: '雷封印', cls: 'bg-indigo-800/60', overlay: {
-    gradient: 'conic-gradient(from 0deg, transparent 0%, rgba(99,102,241,0.4) 25%, transparent 50%, rgba(99,102,241,0.3) 75%, transparent 100%)',
-    animation: 'effectSealRotate', opacity: 0.35, duration: '12s',
+    gradient: 'conic-gradient(from 0deg, rgba(99,102,241,0.7) 0%, rgba(99,102,241,0.5) 25%, rgba(99,102,241,0.7) 50%, rgba(99,102,241,0.5) 75%, rgba(99,102,241,0.7) 100%)',
+    animation: 'effectSealRotate', opacity: 0.5, duration: '12s',
   }},
   FiveElementsBind: { icon: '⛓️', label: '五系束缚', cls: 'bg-gray-700/80', overlay: {
-    gradient: 'conic-gradient(from 0deg, rgba(107,114,128,0.4) 0%, transparent 20%, rgba(107,114,128,0.3) 40%, transparent 60%, rgba(107,114,128,0.4) 80%, transparent 100%)',
-    animation: 'effectSealRotate', opacity: 0.3, duration: '10s',
+    gradient: 'conic-gradient(from 0deg, rgba(107,114,128,0.7) 0%, rgba(107,114,128,0.5) 25%, rgba(107,114,128,0.7) 50%, rgba(107,114,128,0.5) 75%, rgba(107,114,128,0.7) 100%)',
+    animation: 'effectSealRotate', opacity: 0.45, duration: '10s',
   }},
   RoseCourtyard: { icon: '🌹', label: '血蔷薇庭院', cls: 'bg-rose-900/75' },
   PowerBlessing: { icon: '✨', label: '威力赐福', cls: 'bg-orange-900/75' },
@@ -160,6 +161,24 @@ const activeOverlays = computed(() => {
 const hasStealth = computed(() =>
   props.player.field?.some(fc => fc.mode === 'Effect' && fc.effect === 'Stealth') ?? false
 )
+
+// 需要显示图标的状态效果（排除场地效果和连接效果）
+const ICON_EFFECTS = new Set([
+  'Shield', 'Poison', 'Weak',
+  'SealFire', 'SealWater', 'SealEarth', 'SealWind', 'SealThunder',
+  'FiveElementsBind', 'Stealth',
+  'PowerBlessing', 'SwiftBlessing',
+  'BardEternalMovement'
+])
+
+const statusIconEffects = computed(() => {
+  if (!props.player.field?.length) return []
+  return props.player.field
+    .filter(fc => fc.mode === 'Effect' && fc.effect && ICON_EFFECTS.has(fc.effect))
+    .map(fc => ({
+      effect: fc.effect!,
+    }))
+})
 
 // 当前玩家身上的伤害特效（暴血）
 const myDamageEffects = computed(() =>
@@ -406,8 +425,8 @@ function handleClick(e: MouseEvent) {
         background: overlay.gradient,
         backgroundSize: overlay.backgroundSize || 'auto',
         opacity: overlay.opacity,
-        animationName: overlay.animation,
-        animationDuration: overlay.duration,
+        'animation-name': overlay.animation,
+        'animation-duration': overlay.duration,
       }"
     />
 
@@ -456,14 +475,17 @@ function handleClick(e: MouseEvent) {
         潜行状态无法选中
       </div>
 
-      <div v-if="fieldEffects.length" class="player-overlay-effects">
-        <span
-          v-for="(eff, i) in fieldEffects"
-          :key="i"
-          :title="eff.label"
-          class="text-[10px] px-1 rounded"
-          :class="eff.cls"
-        >{{ eff.icon }}</span>
+      <div v-if="statusIconEffects.length" class="player-overlay-effects">
+        <div
+          v-for="(statusEffect, idx) in statusIconEffects"
+          :key="`status-${statusEffect.effect}-${idx}`"
+          class="effect-icon-item"
+          :title="EFFECT_DISPLAY[statusEffect.effect]?.label || statusEffect.effect"
+        >
+          <StatusEffectIcon
+            :effect="statusEffect.effect"
+          />
+        </div>
       </div>
 
       <div v-if="tokenIndicators.length" class="player-overlay-tokens">
@@ -679,9 +701,16 @@ function handleClick(e: MouseEvent) {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 2px;
-  max-height: 20px;
+  gap: 4px;
+  max-height: 32px;
   overflow: hidden;
+  align-items: center;
+}
+
+.effect-icon-item {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
 }
 
 .player-overlay-tokens {
@@ -880,7 +909,13 @@ function handleClick(e: MouseEvent) {
   }
 
   .player-overlay-effects {
-    max-height: 16px;
+    max-height: 24px;
+    gap: 3px;
+  }
+
+  .effect-icon-item {
+    width: 20px;
+    height: 20px;
   }
 
   .player-overlay-tokens {
