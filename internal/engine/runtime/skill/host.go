@@ -33,4 +33,6 @@ type Host interface {
 	CaptureResponseResumeStateOnConfirm(skillID string, ctx *model.Context) any
 	PrepareConfirmedResponseResume(state any)
 	RestoreConfirmedResponseAfterPop(state any)
+
+	ConsumeSkillEnergyCost(playerID string, gemCost, crystalCost int) bool
 }

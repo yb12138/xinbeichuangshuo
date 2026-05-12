@@ -183,6 +183,17 @@ func (sd *SkillDispatcher) RestoreConfirmedResponseAfterPop(state any) {
 	}
 }
 
+func (sd *SkillDispatcher) ConsumeSkillEnergyCost(playerID string, gemCost, crystalCost int) bool {
+	if sd == nil || sd.engine == nil {
+		return false
+	}
+	p := sd.engine.State.Players[playerID]
+	if p == nil {
+		return false
+	}
+	return consumeSkillEnergyCost(p, gemCost, crystalCost)
+}
+
 // dropQueuedOverflowDiscardForPlayer 清理精灵密仪等确认后残留的爆牌弃牌中断。
 func dropQueuedOverflowDiscardForPlayer(e *GameEngine, playerID string) {
 	if e == nil {

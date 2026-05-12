@@ -140,6 +140,21 @@ func (r *Runtime) ConfirmStartupSkillAction(h Host, playerID, skillID string) (I
 		return InterruptActionResult{}, fmt.Errorf("技能不存在")
 	}
 
+	// 扣减能量费用（宝石/水晶），与主动技 UseSkill 路径对齐。
+	gemCost := skillDef.CostGem
+	crystalCost := skillDef.CostCrystal
+	if gemCost < 0 {
+		gemCost = 0
+	}
+	if crystalCost < 0 {
+		crystalCost = 0
+	}
+	if gemCost > 0 || crystalCost > 0 {
+		if !h.ConsumeSkillEnergyCost(playerID, gemCost, crystalCost) {
+			return InterruptActionResult{}, fmt.Errorf("资源不足: 需要 宝石%d/水晶%d", gemCost, crystalCost)
+		}
+	}
+
 	r.exec.ExecuteSkill(h, *skillDef, ctx)
 	if err := r.runAfterExecute(h, *skillDef, playerID); err != nil {
 		return InterruptActionResult{}, err
