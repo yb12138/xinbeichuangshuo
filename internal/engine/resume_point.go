@@ -128,6 +128,11 @@ func (e *GameEngine) setReturnPoint(raw interface{}) bool {
 	e.State.ReturnTurnStage = stage
 	e.State.ReturnCombatStage = combat
 	e.State.ReturnSubflow = subflow
+	// 规则：当恢复点为 CombatStage/Subflow 时，回合主流程（TurnStage）仍在运行，
+	// 需一并保存，否则 RestoreReturnPoint 会将 TurnStage 设为空，导致 FSM 重置。
+	if stage == "" && e.State.TurnStage != "" {
+		e.State.ReturnTurnStage = e.State.TurnStage
+	}
 	return true
 }
 

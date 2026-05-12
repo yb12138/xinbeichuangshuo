@@ -173,13 +173,10 @@ func (h *MercyHandler) Execute(ctx *model.Context) error {
 	if user == nil || game == nil {
 		return fmt.Errorf("怜悯上下文无效")
 	}
-	if user.Gem < 1 {
-		return fmt.Errorf("宝石不足，无法发动怜悯")
-	}
+	// CostGem 已在 ConfirmStartupSkillAction 由框架统一扣减（见 skill definition CostGem: 1）
 	if player.HasForm(user, model.FormSaintessMercy) {
 		return fmt.Errorf("已处于怜悯状态")
 	}
-	user.Gem -= 1
 	user.Crystal += 1
 	player.SetForm(user, model.FormSaintessMercy)
 	game.Log(fmt.Sprintf("%s 发动 [怜悯]：横置并获得1水晶，手牌上限恒定为7", user.Name))

@@ -121,9 +121,7 @@ func (h *PriestDivineContractHandler) Execute(ctx *model.Context) error {
 	if len(targetIDs) == 0 {
 		return fmt.Errorf("神圣契约需要至少1名其他队友")
 	}
-	if !engineplayer.SpendCrystalLike(ctx, 1) {
-		return fmt.Errorf("神圣契约需要1蓝水晶（红宝石可替代）")
-	}
+	// CostCrystal 已在 ConfirmStartupSkillAction 由框架统一扣减（见 skill definition CostCrystal: 1）
 	waitingPhase := priestDivineContractWaitingPhase(ctx)
 	resumePhase := priestDivineContractResumePhase(ctx)
 	if ctx.Target == nil {

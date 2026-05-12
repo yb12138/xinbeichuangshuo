@@ -120,10 +120,7 @@ func (h *ElfRitualHandler) CanUse(ctx *model.Context) bool {
 
 // Execute implements engineplayer.BaseHandler for ElfRitualHandler.
 func (h *ElfRitualHandler) Execute(ctx *model.Context) error {
-	if ctx.User.Gem <= 0 {
-		return fmt.Errorf("精灵密仪需要至少1个红宝石")
-	}
-	ctx.User.Gem--
+	// CostGem 已在 ConfirmStartupSkillAction 由框架统一扣减（见 skill definition CostGem: 1）
 	player.SetForm(ctx.User, model.FormElfArcherRitual)
 	before := len(ctx.User.Hand)
 	ctx.Game.DrawCardsWithOptions(ctx.User.ID, 3, model.DrawOptions{

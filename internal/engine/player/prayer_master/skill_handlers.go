@@ -41,13 +41,10 @@ func (h *PrayerEnterFormHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil {
 		return fmt.Errorf("上下文无效")
 	}
-	if ctx.User.Gem <= 0 {
-		return fmt.Errorf("祈祷需要至少1个红宝石")
-	}
+	// CostGem 已在 ConfirmStartupSkillAction 由框架统一扣减（见 skill definition CostGem: 1）
 	if engineplayer.HasForm(ctx.User, model.FormPrayerMasterPrayer) {
 		return nil
 	}
-	ctx.User.Gem--
 	engineplayer.SetForm(ctx.User, model.FormPrayerMasterPrayer)
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [祈祷]，进入祈祷形态", ctx.User.Name))
 	return nil

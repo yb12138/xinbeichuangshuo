@@ -76,6 +76,8 @@ func TestElfRitualStoresBlessingsOutsideHand(t *testing.T) {
 	if !handler.CanUse(ctx) {
 		t.Fatalf("elf_ritual should be usable")
 	}
+	// 模拟框架在 ConfirmStartupSkillAction 中扣减宝石（skill definition CostGem: 1）
+	p1.Gem--
 	if err := handler.Execute(ctx); err != nil {
 		t.Fatalf("elf_ritual execute failed: %v", err)
 	}

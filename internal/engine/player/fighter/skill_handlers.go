@@ -228,9 +228,7 @@ func (h *FighterWarGodDriveHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("斗神天驱上下文无效")
 	}
-	if !engineplayer.SpendCrystalLike(ctx, 1) {
-		return fmt.Errorf("斗神天驱需要1点蓝水晶（红宝石可替代）")
-	}
+	// CostCrystal 已在 ConfirmStartupSkillAction 由框架统一扣减（见 skill definition CostCrystal: 1）
 	if len(ctx.User.Hand) > 3 {
 		ctx.Game.PushInterrupt(&model.Interrupt{
 			Type:     model.InterruptChoice,

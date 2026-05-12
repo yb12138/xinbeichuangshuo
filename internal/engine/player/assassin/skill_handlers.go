@@ -167,13 +167,10 @@ func (h *StealthHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("潜行上下文无效")
 	}
-	if ctx.User.Gem < 1 {
-		return fmt.Errorf("宝石不足，无法发动潜行")
-	}
+	// CostGem 已在 ConfirmStartupSkillAction 由框架统一扣减（见 skill definition CostGem: 1）
 	if engineplayer.HasForm(ctx.User, model.FormAssassinStealth) {
 		return fmt.Errorf("已处于潜行状态")
 	}
-	ctx.User.Gem -= 1
 
 	ctx.Game.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
