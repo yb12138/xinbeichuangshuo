@@ -19,6 +19,11 @@ func main() {
 	http.HandleFunc("/api/room/create", s.HandleCreateRoom)
 	http.HandleFunc("/api/room/info", s.HandleRoomInfo)
 
+	// Test API (only accessible when STARCUP_TEST_MODE=1; handler double-checks internally)
+	if os.Getenv("STARCUP_TEST_MODE") == "1" {
+		http.HandleFunc("/api/test/setup-scenario", s.HandleTestSetupScenario)
+	}
+
 	// Serve static files for frontend (if exists)
 	fs := http.FileServer(http.Dir("./web/dist"))
 	http.Handle("/", fs)

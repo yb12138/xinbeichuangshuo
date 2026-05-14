@@ -35,6 +35,7 @@ export default defineConfig({
       env: {
         ...process.env,
         PORT: backendPort,
+        STARCUP_TEST_MODE: '1',
       },
       reuseExistingServer: false,
       timeout: 120_000,

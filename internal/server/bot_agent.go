@@ -47,6 +47,10 @@ func (r *Room) scheduleBotIfNeeded(playerID string, prompt *model.Prompt, expect
 	}
 
 	r.mu.RLock()
+	if r.BotsPaused {
+		r.mu.RUnlock()
+		return
+	}
 	c := r.Clients[playerID]
 	if expectedEpoch == 0 {
 		expectedEpoch = r.botPromptEpoch

@@ -37,6 +37,8 @@ type Room struct {
 	botPromptEpoch uint64
 	// NotifyTimeline 事件序号，需在单房间内严格单调递增。
 	timelineSeq int64
+	// BotsPaused E2E 测试模式：暂停 bot 自动行动
+	BotsPaused bool
 	// actorLoopStarted 标记房间 Run 循环已启动，可用于将 gameplay 输入统一串行化到 inbox。
 	actorLoopStarted actorLoopFlag
 }

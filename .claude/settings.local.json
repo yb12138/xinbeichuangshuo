@@ -114,7 +114,9 @@
       "Bash(npx playwright:*)",
       "Bash(npx tsc:*)",
       "Bash(pkill -f \"vite\")",
-      "Bash(npx vitest:*)"
+      "Bash(npx vitest:*)",
+      "Bash(cat /Users/yb/xinbeichuangshuo/docs/character_skill_ui_config_new.md /Users/yb/xinbeichuangshuo/docs/character_skill_ui_config.md)",
+      "Bash(mv /tmp/merged_skill_config.md /Users/yb/xinbeichuangshuo/docs/character_skill_ui_config.md)"
     ]
   }
 }
