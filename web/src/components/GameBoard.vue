@@ -1106,6 +1106,19 @@ type PromptCardSelectionState = {
 
 const NON_HAND_INDEXED_PROMPT_CHOICE_TYPES = new Set([
   'elf_archer_elemental_shot_pick',
+  'sc_hundred_night_power', // 妖力移除：ID 是 field index 不是手牌 index
+  'mb_magic_pierce_charge',
+  'mb_magic_pierce_hit_bonus',
+  'mb_magic_pierce_hit_charge',
+  'mb_thunder_scatter_base_charge',
+  'mb_thunder_scatter_extra',
+  'mb_thunder_scatter_target',
+  'mb_multi_shot_charge',
+  'mb_multi_shot_target',
+  'mb_charge_draw_x',
+  'mb_charge_place_count',
+  'mb_demon_eye_mode',
+  'mb_demon_eye_target',
 ])
 
 function promptCardSelectionState(idx: number): PromptCardSelectionState {
@@ -1762,7 +1775,7 @@ watch(
 </script>
 
 <template>
-  <div ref="boardRootRef" class="h-full w-full flex flex-col board-shell p-2 sm:p-3 md:p-4 min-h-0 relative">
+  <div ref="boardRootRef" class="h-full w-full flex flex-col board-shell p-2 sm:p-3 md:p-4 min-h-0 relative" data-testid="game-board">
     <div class="board-ambient board-ambient-left" />
     <div class="board-ambient board-ambient-right" />
     <button

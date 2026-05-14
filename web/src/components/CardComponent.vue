@@ -157,6 +157,7 @@ function handleClick() {
   <div
     v-bind="attrs"
     class="game-card card-shell relative overflow-hidden flex-shrink-0"
+    :data-testid="index !== undefined ? `hand-card-${index}` : undefined"
     :class="[
       elementClass,
       small

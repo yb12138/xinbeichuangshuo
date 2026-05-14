@@ -192,6 +192,20 @@ const actionPromptOptionMap = computed(() => {
     }
     return map
 })
+const actionHubPromptNotice = computed(() => {
+    if (!prompt.value || !isPromptForMe.value || !isActionSelectionPrompt.value) return ''
+    const message = String(prompt.value.message || '').trim()
+    if (!message || message === '请选择行动类型') return ''
+    return message
+})
+function extractFullnessAttackHint(message: string): string {
+    return message.match(/【充盈】[^）)]+/)?.[0] || ''
+}
+
+const attackActionPromptNotice = computed(() => {
+    if (interruptStore.actionMode !== 'attack') return ''
+    return extractFullnessAttackHint(actionHubPromptNotice.value)
+})
 
 const specialActionOptions = computed<PromptOption[]>(() => {
     if (snapshotStore.hasPerformedStartup) {
@@ -562,6 +576,9 @@ const SKILL_REQUIRE_MANUAL_TARGET_CONFIRM_IDS = new Set([
     'wind_seal',
     'thunder_seal',
 ])
+const SKILL_SUBMIT_BEFORE_TARGET_IDS = new Set([
+    'mb_thunder_scatter',
+])
 const isManualTargetConfirmSkillFlow = computed(() => {
     const skillId = interruptStore.selectedSkill?.id
     if (!skillId) return false
@@ -773,6 +790,12 @@ function skillDisabledReason(skill: AvailableSkill): string {
 }
 
 function proceedAfterDiscard(skill: AvailableSkill) {
+    // 魔弓【雷光散射】先移除雷系充能，再根据额外移除数决定是否选择目标。
+    if (SKILL_SUBMIT_BEFORE_TARGET_IDS.has(skill.id)) {
+        const selections = interruptStore.skillDiscardIndices.length > 0 ? [...interruptStore.skillDiscardIndices] : undefined
+        actions.submitUseSkill(skill.id, [], selections, { clearSkillMode: true })
+        return
+    }
     // target_type=0 (None): 无需目标，直接发动
     if (skill.target_type === 0) {
         const selections = interruptStore.skillDiscardIndices.length > 0 ? [...interruptStore.skillDiscardIndices] : undefined
@@ -1065,6 +1088,9 @@ function elementName(el: string): string {
             {{ interruptStore.selectedCardForAction === null ? '步骤 1/2' : '步骤 2/2' }} · {{ interruptStore.selectedCardForAction === null ? '选牌' : '选目标' }}
           </span>
                 </div>
+                <div v-if="attackActionPromptNotice" class="action-panel-notice">
+                    {{ attackActionPromptNotice }}
+                </div>
                 <div v-if="interruptStore.selectedCardForAction !== null" class="space-y-2">
                     <div
                         v-if="hasActionTargets"
@@ -1101,7 +1127,7 @@ function elementName(el: string): string {
         </div>
 
         <!-- 技能发动流程：选择技能 -->
-        <div v-else-if="interruptStore.skillMode === 'choosing_skill'" class="space-y-3 skill-select-panel">
+        <div v-else-if="interruptStore.skillMode === 'choosing_skill'" class="space-y-3 skill-select-panel" data-testid="skill-select-panel">
             <div class="text-amber-400 text-sm font-bold">选择要发动的技能</div>
             <div class="flex flex-col gap-2">
                 <button
@@ -1109,6 +1135,7 @@ function elementName(el: string): string {
                     :key="skill.id"
                     class="btn-skill px-4 py-2.5 rounded-lg text-sm text-left w-full"
                     :class="{ 'skill-btn-disabled': !canSelectSkill(skill) }"
+                    :data-testid="`skill-${skill.id}`"
                     :title="canSelectSkill(skill) ? skill.description : skillDisabledReason(skill)"
                     :disabled="!canSelectSkill(skill)"
                     @click="selectSkill(skill)"
@@ -1122,7 +1149,7 @@ function elementName(el: string): string {
                 </button>
             </div>
             <div class="flex gap-3 justify-center mt-2">
-                <button class="action-image-btn w-[72px] sm:w-[88px]" title="取消" @click="interruptStore.clearSkillMode()">
+                <button class="action-image-btn w-[72px] sm:w-[88px]" data-testid="skill-cancel-btn" title="取消" @click="interruptStore.clearSkillMode()">
                     <img v-if="isMainActionImageReady('cancel')" class="action-image-btn-fill" :src="mainActionButtonImage('cancel')" alt="" @error="onMainActionImageError('cancel')" />
                     <span v-else class="action-image-fallback-text">消</span>
                     <span class="action-image-btn-label">取消</span>
@@ -1213,10 +1240,14 @@ function elementName(el: string): string {
 
         <!-- 行动区域 -->
         <div v-else-if="isActionHubContext" class="action-hub-desktop">
+            <div v-if="actionHubPromptNotice" class="action-hub-desktop-notice">
+                {{ actionHubPromptNotice }}
+            </div>
             <div class="action-hub-desktop-main">
                 <button
                     v-if="hasActionPromptOption('attack')"
                     class="action-hub-desktop-btn action-image-btn action-image-btn--attack"
+                    data-testid="action-attack"
                     :title="actionPromptLabel('attack', '攻击')"
                     :aria-label="actionPromptLabel('attack', '攻击')"
                     @click="invokeActionHubOption('attack')"
@@ -1290,6 +1321,7 @@ function elementName(el: string): string {
                     <button
                         v-if="effectiveAvailableSkills.length > 0"
                         class="action-hub-desktop-btn action-image-btn action-image-btn--skill"
+                        data-testid="action-skill"
                         title="发动技能"
                         aria-label="发动技能"
                         @click="invokeActionHubOption('skill')"
@@ -1306,6 +1338,7 @@ function elementName(el: string): string {
                     </button>
                     <button
                         class="action-hub-desktop-btn action-image-btn action-image-btn--pass"
+                        data-testid="action-pass"
                         title="结束回合"
                         aria-label="结束回合"
                         @click="invokeActionHubOption('pass')"
@@ -1602,6 +1635,23 @@ function elementName(el: string): string {
     box-shadow:
         inset 0 1px 0 rgba(242, 250, 255, 0.08),
         0 10px 24px rgba(3, 12, 22, 0.42);
+}
+
+.action-hub-desktop-notice,
+.action-panel-notice {
+    margin-bottom: 7px;
+    border-radius: 8px;
+    border: 1px solid rgba(245, 158, 11, 0.28);
+    background: rgba(120, 53, 15, 0.28);
+    color: #fde68a;
+    font-size: 11px;
+    line-height: 1.35;
+    padding: 5px 8px;
+    text-align: center;
+}
+
+.action-panel-notice {
+    margin-bottom: 0;
 }
 
 .action-hub-desktop-main {

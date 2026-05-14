@@ -257,6 +257,7 @@ function dissolveRoom() {
           <div class="space-y-4">
             <button
               class="w-full py-3 bg-gradient-to-r from-yellow-500 to-orange-500 text-white font-bold rounded-lg hover:from-yellow-400 hover:to-orange-400 transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+              data-testid="create-room-button"
               :disabled="isJoining"
               @click="createRoom"
             >
@@ -309,7 +310,7 @@ function dissolveRoom() {
                 class="room-code-btn"
                 @click="copyRoomCode"
               >
-                <span class="room-code">{{ sessionStore.roomCode }}</span>
+                <span class="room-code" data-testid="room-code">{{ sessionStore.roomCode }}</span>
                 <span class="room-copy-hint">{{ copyFeedback ? '✓ 已复制' : '📋 复制' }}</span>
               </button>
             </div>
@@ -323,6 +324,7 @@ function dissolveRoom() {
               <button
                 v-if="isHost && !sessionStore.gameStarted && roomPlayers.length < 6"
                 class="draft-btn draft-btn-bot"
+                data-testid="add-bot-button"
                 @click="addBot"
               >
                 + 添加机器人
@@ -330,6 +332,7 @@ function dissolveRoom() {
               <button
                 v-if="isHost && allReadyToStart && !sessionStore.gameStarted"
                 class="draft-btn draft-btn-start"
+                data-testid="start-game-button"
                 @click="startGame"
               >
                 手动开始（备用）
@@ -351,6 +354,7 @@ function dissolveRoom() {
                 <button
                   v-if="!sessionStore.gameStarted"
                   class="team-join-btn"
+                  data-testid="join-camp-blue"
                   :disabled="!canJoinCamp('Blue')"
                   @click="selectCamp('Blue')"
                 >
@@ -399,6 +403,7 @@ function dissolveRoom() {
                     <div v-if="player.is_bot && isHost && !sessionStore.gameStarted" class="slot-bot-controls">
                       <select
                         class="bot-role-select"
+                        :data-testid="`bot-role-${player.id}`"
                         :value="player.char_role || ''"
                         @change="selectRoleFor(player.id, ($event.target as HTMLSelectElement).value)"
                       >
@@ -413,7 +418,7 @@ function dissolveRoom() {
                         </option>
                       </select>
                       <div class="bot-camp-row">
-                        <button class="bot-camp-btn" @click="selectCampFor(player.id, 'Red')" :disabled="redCount >= 3">改去红方</button>
+                        <button class="bot-camp-btn" :data-testid="`bot-camp-red-${player.id}`" @click="selectCampFor(player.id, 'Red')" :disabled="redCount >= 3">改去红方</button>
                         <button class="bot-remove-btn" @click="removeBot(player.id)">移除</button>
                       </div>
                     </div>
@@ -433,8 +438,8 @@ function dissolveRoom() {
                     <span>{{ player.name }} ({{ player.id }})</span>
                     <span v-if="player.id === sessionStore.myPlayerId" class="pending-me">你</span>
                     <template v-if="player.is_bot && isHost && !sessionStore.gameStarted">
-                      <button class="pending-btn pending-btn-blue" :disabled="blueCount >= 3" @click="selectCampFor(player.id, 'Blue')">蓝方</button>
-                      <button class="pending-btn pending-btn-red" :disabled="redCount >= 3" @click="selectCampFor(player.id, 'Red')">红方</button>
+                      <button class="pending-btn pending-btn-blue" :data-testid="`bot-camp-blue-${player.id}`" :disabled="blueCount >= 3" @click="selectCampFor(player.id, 'Blue')">蓝方</button>
+                      <button class="pending-btn pending-btn-red" :data-testid="`bot-camp-red-${player.id}`" :disabled="redCount >= 3" @click="selectCampFor(player.id, 'Red')">红方</button>
                     </template>
                   </div>
                 </div>
@@ -450,6 +455,7 @@ function dissolveRoom() {
                     'role-card-taken': roleTakenBy(role.id),
                     'role-card-disabled': !canSelectRole(role.id)
                   }"
+                  :data-testid="`role-card-${role.id}`"
                   @click="pickRole(role.id)"
                 >
                   <img
@@ -483,6 +489,7 @@ function dissolveRoom() {
                 <button
                   v-if="!sessionStore.gameStarted"
                   class="team-join-btn"
+                  data-testid="join-camp-red"
                   :disabled="!canJoinCamp('Red')"
                   @click="selectCamp('Red')"
                 >
@@ -531,6 +538,7 @@ function dissolveRoom() {
                     <div v-if="player.is_bot && isHost && !sessionStore.gameStarted" class="slot-bot-controls">
                       <select
                         class="bot-role-select"
+                        :data-testid="`bot-role-${player.id}`"
                         :value="player.char_role || ''"
                         @change="selectRoleFor(player.id, ($event.target as HTMLSelectElement).value)"
                       >
@@ -545,7 +553,7 @@ function dissolveRoom() {
                         </option>
                       </select>
                       <div class="bot-camp-row">
-                        <button class="bot-camp-btn" @click="selectCampFor(player.id, 'Blue')" :disabled="blueCount >= 3">改去蓝方</button>
+                        <button class="bot-camp-btn" :data-testid="`bot-camp-blue-${player.id}`" @click="selectCampFor(player.id, 'Blue')" :disabled="blueCount >= 3">改去蓝方</button>
                         <button class="bot-remove-btn" @click="removeBot(player.id)">移除</button>
                       </div>
                     </div>

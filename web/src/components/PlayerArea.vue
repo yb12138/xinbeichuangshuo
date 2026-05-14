@@ -231,7 +231,6 @@ const TOKEN_DISPLAY: Record<string, { label: string; cls: string }> = {
   mb_charge_count: { label: '充能', cls: 'bg-indigo-900/70 text-indigo-100 border-indigo-500/40' },
   bd_inspiration: { label: '灵感', cls: 'bg-violet-900/70 text-violet-100 border-violet-500/40' },
   ml_dark_release_next_attack_bonus: { label: '下次主动攻+伤', cls: 'bg-rose-900/70 text-rose-100 border-rose-500/40' },
-  ml_fullness_next_attack_bonus: { label: '充盈下次攻+伤', cls: 'bg-orange-900/70 text-orange-100 border-orange-500/40' },
   ml_dark_release_lock_turn: { label: '本回合锁技能', cls: 'bg-zinc-800/75 text-zinc-100 border-zinc-500/40' },
   hero_anger: { label: '怒气', cls: 'bg-rose-900/70 text-rose-100 border-rose-500/40' },
   hero_wisdom: { label: '知性', cls: 'bg-sky-900/70 text-sky-100 border-sky-500/40' },
@@ -276,6 +275,7 @@ const HIDDEN_TOKEN_KEYS = new Set([
   'ml_stardust_pending',
   'ml_stardust_wait_discard',
   'ml_stardust_morale_before',
+  'ml_fullness_next_attack_bonus',
   'hero_exhaustion_release_pending',
   'hero_roar_active',
   'hero_calm_force_no_counter',
@@ -312,7 +312,6 @@ const tokenIndicators = computed(() => {
 // 派生指示物：后端作为 PlayerView 独立字段发送（不在 tokens map 中）
 const DERIVED_INDICATOR_KEYS: Record<string, { label: string; cls: string }> = {
   ml_dark_release_next_attack_bonus: { label: '下次主动攻+伤', cls: 'bg-rose-900/70 text-rose-100 border-rose-500/40' },
-  ml_fullness_next_attack_bonus: { label: '充盈下次攻+伤', cls: 'bg-orange-900/70 text-orange-100 border-orange-500/40' },
   ml_dark_release_lock_turn: { label: '本回合锁技能', cls: 'bg-zinc-800/75 text-zinc-100 border-zinc-500/40' },
 }
 
@@ -321,7 +320,7 @@ const derivedIndicators = computed(() => {
   if (!player) return []
   const entries: Array<{ key: string; value: number; label: string; cls: string }> = []
   // 使用 keyof 类型安全访问
-  const bonusKeys = ['ml_dark_release_next_attack_bonus', 'ml_fullness_next_attack_bonus', 'ml_dark_release_lock_turn'] as const
+  const bonusKeys = ['ml_dark_release_next_attack_bonus', 'ml_dark_release_lock_turn'] as const
   for (const key of bonusKeys) {
     const cfg = DERIVED_INDICATOR_KEYS[key]
     if (!cfg) continue
@@ -418,6 +417,7 @@ function handleClick(e: MouseEvent) {
       selectable ? 'cursor-pointer hover:scale-[1.03] hover:ring-2 hover:ring-yellow-400 hover:shadow-lg hover:shadow-yellow-500/20' : '',
       selected ? 'player-area--selected' : ''
     ]"
+    :data-testid="`player-area-${player.id}`"
     @click="handleClick"
   >
     <img

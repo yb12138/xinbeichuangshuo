@@ -1,0 +1,662 @@
+// ============================================================
+// Holy Bow Archer (圣弓) Protocol Harness Scenarios
+// ============================================================
+
+import type { Prompt } from '../../src/types/game';
+import type { WsMessage } from '../../src/network/protocol';
+import {
+  card,
+  characterView,
+  playerInfo,
+  playerView,
+  requireActionMessage,
+  syncState,
+  availableSkill,
+  type ProtocolHarnessScenario,
+} from './builders';
+
+// ---- Player IDs ----
+export const HB_PLAYER_ID = 'hb_player';
+export const ALLY_PLAYER_ID = 'ally_1';
+export const ENEMY_PLAYER_ID = 'enemy_1';
+export const ENEMY_2_PLAYER_ID = 'enemy_2';
+
+// ---- Skill IDs ----
+export const HB_SHARD_STORM_SKILL_ID = 'hb_shard_storm';
+export const HB_RADIANT_DESCENT_SKILL_ID = 'hb_radiant_descent';
+export const HB_LIGHT_BURST_SKILL_ID = 'hb_light_burst';
+export const HB_STAR_BULLET_SKILL_ID = 'hb_star_bullet';
+export const HB_RADIANT_CANNON_SKILL_ID = 'hb_radiant_cannon';
+export const HB_AUTO_FILL_SKILL_ID = 'hb_auto_fill';
+
+// ---- Holy Bow character definition ----
+const holyBowCharacter = characterView({
+  id: 'holy_bow',
+  name: '圣弓',
+  title: '光之射手',
+  faction: '星杯',
+  skills: [
+    {
+      id: HB_SHARD_STORM_SKILL_ID,
+      title: '圣屑飓暴',
+      description: '弃2张同系攻击牌发动攻击，未命中时移除治疗令队友弃牌',
+      type: 2,
+      min_targets: 0,
+      max_targets: 0,
+      target_type: 0,
+      cost_gem: 0,
+      cost_crystal: 0,
+      cost_discards: 2,
+    },
+    {
+      id: HB_RADIANT_DESCENT_SKILL_ID,
+      title: '圣煌降临',
+      description: '法术技能，直接发动',
+      type: 2,
+      min_targets: 0,
+      max_targets: 0,
+      target_type: 0,
+      cost_gem: 0,
+      cost_crystal: 0,
+      cost_discards: 0,
+    },
+    {
+      id: HB_LIGHT_BURST_SKILL_ID,
+      title: '圣光爆裂',
+      description: '法术技能，分支选择后结算',
+      type: 2,
+      min_targets: 0,
+      max_targets: 0,
+      target_type: 0,
+      cost_gem: 0,
+      cost_crystal: 0,
+      cost_discards: 0,
+    },
+    {
+      id: HB_STAR_BULLET_SKILL_ID,
+      title: '流星圣弹',
+      description: '响应技能，攻击时发动',
+      type: 0,
+      min_targets: 0,
+      max_targets: 0,
+      target_type: 0,
+      cost_gem: 0,
+      cost_crystal: 0,
+      cost_discards: 0,
+    },
+    {
+      id: HB_RADIANT_CANNON_SKILL_ID,
+      title: '圣煌辉光炮',
+      description: '法术技能，发动后选择士气',
+      type: 2,
+      min_targets: 0,
+      max_targets: 0,
+      target_type: 0,
+      cost_gem: 0,
+      cost_crystal: 0,
+      cost_discards: 0,
+    },
+    {
+      id: HB_AUTO_FILL_SKILL_ID,
+      title: '自动填充',
+      description: '回合结束时，消耗水晶或宝石获得信仰或治疗',
+      type: 0,
+      min_targets: 0,
+      max_targets: 0,
+      target_type: 0,
+      cost_gem: 0,
+      cost_crystal: 0,
+      cost_discards: 0,
+    },
+  ],
+});
+
+const allyCharacter = characterView({
+  id: 'ally_char',
+  name: '圣女',
+  title: '光之守护',
+  faction: '星杯',
+  skills: [],
+});
+
+const enemyCharacter = characterView({
+  id: 'enemy_char',
+  name: '魔神',
+  title: '暗影之王',
+  faction: '异端',
+  skills: [],
+});
+
+// ---- Helper functions ----
+function holyBowHand() {
+  return [
+    card({ id: 'card_1', name: '火焰斩', type: 'Attack', element: 'Fire' }),
+    card({ id: 'card_2', name: '火焰斩', type: 'Attack', element: 'Fire' }),
+    card({ id: 'card_3', name: '水涟斩', type: 'Attack', element: 'Water' }),
+    card({ id: 'card_4', name: '寒冰箭', type: 'Magic', element: 'Water' }),
+    card({ id: 'card_5', name: '圣光', type: 'Magic', element: 'Light' }),
+  ];
+}
+
+function holyBowPlayerView(options: {
+  is_active?: boolean;
+  heal?: number;
+  max_heal?: number;
+  faith?: number;
+  gems?: number;
+  crystals?: number;
+  cannon?: boolean;
+} = {}) {
+  return playerView({
+    id: HB_PLAYER_ID,
+    name: 'E2E Holy Bow',
+    camp: 'Red',
+    role: 'holy_bow',
+    hand: holyBowHand(),
+    hand_count: holyBowHand().length,
+    heal: options.heal ?? 2,
+    max_heal: options.max_heal ?? 4,
+    is_active: options.is_active ?? true,
+    gem: options.gems ?? 0,
+    crystal: options.crystals ?? 0,
+    tokens: {
+      hb_faith: options.faith ?? 0,
+    },
+    exclusive_cards: options.cannon ? [
+      card({ id: 'hb_cannon', name: '圣煌辉光炮', type: 'Magic', element: 'Light' }),
+    ] : [],
+  });
+}
+
+// ============================================================
+// 圣屑飓暴 (hb_shard_storm) - Skill with discard then miss follow-up
+// ============================================================
+
+export function shardStormScenario(): ProtocolHarnessScenario {
+  const characters = [holyBowCharacter, allyCharacter, enemyCharacter];
+
+  const holyBow = holyBowPlayerView({ is_active: true });
+
+  const players = [
+    holyBow,
+    playerView({
+      id: ALLY_PLAYER_ID,
+      name: 'Ally Hero',
+      camp: 'Red',
+      role: 'hero',
+      hand: [card({ id: 'ally_card_1', name: '测试牌' })],
+      hand_count: 1,
+      heal: 2,
+      max_heal: 3,
+      is_active: false,
+    }),
+    playerView({
+      id: ENEMY_PLAYER_ID,
+      name: 'Enemy Bot',
+      camp: 'Blue',
+      role: 'villain',
+      hand: [],
+      hand_count: 3,
+      heal: 1,
+      max_heal: 2,
+      is_active: false,
+    }),
+  ];
+
+  return {
+    roomCode: 'MOCK',
+    myPlayerId: HB_PLAYER_ID,
+    myPlayerName: 'E2E Holy Bow',
+    characters,
+    players: [
+      playerInfo({ id: HB_PLAYER_ID, name: 'E2E Holy Bow', camp: 'Red', char_role: 'holy_bow', is_host: true }),
+      playerInfo({ id: ALLY_PLAYER_ID, name: 'Ally Hero', camp: 'Red', char_role: 'hero' }),
+      playerInfo({ id: ENEMY_PLAYER_ID, name: 'Enemy Bot', camp: 'Blue', char_role: 'villain' }),
+    ],
+    initialState: syncState({
+      turn_player_id: HB_PLAYER_ID,
+      turn_stage: 'ActionExecution',
+      available_skills: [availableSkill({ id: HB_SHARD_STORM_SKILL_ID, title: '圣屑飓暴', cost_discards: 2 })],
+      characters,
+      players,
+    }),
+  };
+}
+
+export function shardStormDiscardPrompt(): WsMessage {
+  return requireActionMessage({
+    type: 'choose_cards',
+    player_id: HB_PLAYER_ID,
+    message: '【圣屑飓暴】请选择2张同系攻击牌弃置：',
+    choice_type: 'hb_shard_storm_discard',
+    skill_id: HB_SHARD_STORM_SKILL_ID,
+    options: [
+      { id: '0', label: '1: 火焰斩 (火 Attack)' },
+      { id: '1', label: '2: 火焰斩 (火 Attack)' },
+    ],
+    min: 2,
+    max: 2,
+  } satisfies Prompt);
+}
+
+export function shardStormMissHealPrompt(): WsMessage {
+  return requireActionMessage({
+    type: 'confirm',
+    player_id: HB_PLAYER_ID,
+    message: '【圣屑飓暴】攻击未命中，请选择移除X点治疗（X≤2）：',
+    choice_type: 'hb_shard_storm_miss_heal',
+    skill_id: HB_SHARD_STORM_SKILL_ID,
+    options: [
+      { id: '0', label: '移除0点治疗' },
+      { id: '1', label: '移除1点治疗' },
+      { id: '2', label: '移除2点治疗' },
+    ],
+    min: 1,
+    max: 1,
+  } satisfies Prompt);
+}
+
+export function shardStormMissTargetPrompt(): WsMessage {
+  return requireActionMessage({
+    type: 'confirm',
+    player_id: HB_PLAYER_ID,
+    message: '【圣屑飓暴】请选择一名队友令其弃牌：',
+    choice_type: 'hb_shard_storm_miss_target',
+    skill_id: HB_SHARD_STORM_SKILL_ID,
+    options: [
+      { id: ALLY_PLAYER_ID, label: '勇者' },
+    ],
+    min: 1,
+    max: 1,
+  } satisfies Prompt);
+}
+
+// ============================================================
+// 圣煌降临 (hb_radiant_descent) - Simple magic skill
+// ============================================================
+
+export function radiantDescentScenario(): ProtocolHarnessScenario {
+  const characters = [holyBowCharacter, allyCharacter, enemyCharacter];
+
+  const holyBow = holyBowPlayerView({ is_active: true });
+
+  const players = [
+    holyBow,
+    playerView({
+      id: ENEMY_PLAYER_ID,
+      name: 'Enemy Bot',
+      camp: 'Blue',
+      role: 'villain',
+      hand: [],
+      hand_count: 3,
+      heal: 1,
+      max_heal: 2,
+      is_active: false,
+    }),
+  ];
+
+  return {
+    roomCode: 'MOCK',
+    myPlayerId: HB_PLAYER_ID,
+    myPlayerName: 'E2E Holy Bow',
+    characters,
+    players: [
+      playerInfo({ id: HB_PLAYER_ID, name: 'E2E Holy Bow', camp: 'Red', char_role: 'holy_bow', is_host: true }),
+      playerInfo({ id: ENEMY_PLAYER_ID, name: 'Enemy Bot', camp: 'Blue', char_role: 'villain' }),
+    ],
+    initialState: syncState({
+      turn_player_id: HB_PLAYER_ID,
+      turn_stage: 'ActionExecution',
+      available_skills: [availableSkill({ id: HB_RADIANT_DESCENT_SKILL_ID, title: '圣煌降临' })],
+      characters,
+      players,
+    }),
+  };
+}
+
+// ============================================================
+// 圣光爆裂 (hb_light_burst) - Branch skill with complex flow
+// ============================================================
+
+export function lightBurstScenario(options: { heal?: number } = {}): ProtocolHarnessScenario {
+  const heal = options.heal ?? 2;
+  const characters = [holyBowCharacter, allyCharacter, enemyCharacter];
+
+  const holyBow = holyBowPlayerView({ heal, is_active: true });
+
+  const players = [
+    holyBow,
+    playerView({
+      id: ALLY_PLAYER_ID,
+      name: 'Ally Hero',
+      camp: 'Red',
+      role: 'hero',
+      hand: [card({ id: 'ally_card_1', name: '测试牌' })],
+      hand_count: 1,
+      heal: 2,
+      max_heal: 3,
+      is_active: false,
+    }),
+    playerView({
+      id: ENEMY_PLAYER_ID,
+      name: 'Enemy Bot',
+      camp: 'Blue',
+      role: 'villain',
+      hand: [],
+      hand_count: 2,
+      heal: 1,
+      max_heal: 2,
+      is_active: false,
+    }),
+    playerView({
+      id: ENEMY_2_PLAYER_ID,
+      name: 'Enemy Bot 2',
+      camp: 'Blue',
+      role: 'villain',
+      hand: [],
+      hand_count: 1,
+      heal: 0,
+      max_heal: 2,
+      is_active: false,
+    }),
+  ];
+
+  return {
+    roomCode: 'MOCK',
+    myPlayerId: HB_PLAYER_ID,
+    myPlayerName: 'E2E Holy Bow',
+    characters,
+    players: [
+      playerInfo({ id: HB_PLAYER_ID, name: 'E2E Holy Bow', camp: 'Red', char_role: 'holy_bow', is_host: true }),
+      playerInfo({ id: ALLY_PLAYER_ID, name: 'Ally Hero', camp: 'Red', char_role: 'hero' }),
+      playerInfo({ id: ENEMY_PLAYER_ID, name: 'Enemy Bot', camp: 'Blue', char_role: 'villain' }),
+      playerInfo({ id: ENEMY_2_PLAYER_ID, name: 'Enemy Bot 2', camp: 'Blue', char_role: 'villain' }),
+    ],
+    initialState: syncState({
+      turn_player_id: HB_PLAYER_ID,
+      turn_stage: 'ActionExecution',
+      available_skills: [availableSkill({ id: HB_LIGHT_BURST_SKILL_ID, title: '圣光爆裂' })],
+      characters,
+      players,
+    }),
+  };
+}
+
+export function lightBurstBranchPrompt(): WsMessage {
+  return requireActionMessage({
+    type: 'confirm',
+    player_id: HB_PLAYER_ID,
+    message: '【圣光爆裂】请选择分支：',
+    choice_type: 'hb_light_burst_branch',
+    skill_id: HB_LIGHT_BURST_SKILL_ID,
+    options: [
+      { id: '0', label: '分支一：摸牌+移除治疗+增信仰，队友+治疗' },
+      { id: '1', label: '分支二：移除X治疗，选择最多X名对手，弃X牌造成伤害' },
+    ],
+    presentation: { kind: 'branch_select', layout: 'overlay' },
+    min: 1,
+    max: 1,
+  } satisfies Prompt);
+}
+
+export function lightBurstBranch1TargetPrompt(): WsMessage {
+  return requireActionMessage({
+    type: 'confirm',
+    player_id: HB_PLAYER_ID,
+    message: '【圣光爆裂】分支一：请选择一名队友令其+1治疗：',
+    choice_type: 'hb_light_burst_branch1_target',
+    skill_id: HB_LIGHT_BURST_SKILL_ID,
+    options: [
+      { id: ALLY_PLAYER_ID, label: '勇者' },
+    ],
+    min: 1,
+    max: 1,
+  } satisfies Prompt);
+}
+
+export function lightBurstBranch2HealPrompt(): WsMessage {
+  return requireActionMessage({
+    type: 'confirm',
+    player_id: HB_PLAYER_ID,
+    message: '【圣光爆裂】分支二：请选择移除X点治疗：',
+    choice_type: 'hb_light_burst_branch2_heal',
+    skill_id: HB_LIGHT_BURST_SKILL_ID,
+    options: [
+      { id: '1', label: '移除1点治疗' },
+      { id: '2', label: '移除2点治疗' },
+    ],
+    min: 1,
+    max: 1,
+  } satisfies Prompt);
+}
+
+export function lightBurstBranch2TargetPrompt(xValue: number): WsMessage {
+  return requireActionMessage({
+    type: 'confirm',
+    player_id: HB_PLAYER_ID,
+    message: `【圣光爆裂】分支二：请选择最多${xValue}名对手（手牌数≤${5 - xValue}）：`,
+    choice_type: 'hb_light_burst_branch2_target',
+    skill_id: HB_LIGHT_BURST_SKILL_ID,
+    options: [
+      { id: ENEMY_PLAYER_ID, label: '恶徒' },
+      { id: ENEMY_2_PLAYER_ID, label: '恶徒2' },
+    ],
+    min: 1,
+    max: xValue,
+  } satisfies Prompt);
+}
+
+export function lightBurstBranch2DiscardPrompt(xValue: number): WsMessage {
+  return requireActionMessage({
+    type: 'choose_cards',
+    player_id: HB_PLAYER_ID,
+    message: `【圣光爆裂】分支二：请弃置${xValue}张牌：`,
+    choice_type: 'hb_light_burst_branch2_discard',
+    skill_id: HB_LIGHT_BURST_SKILL_ID,
+    options: [
+      { id: '0', label: '1: 火焰斩 (火 Attack)' },
+      { id: '1', label: '2: 火焰斩 (火 Attack)' },
+      { id: '2', label: '3: 水涟斩 (水 Attack)' },
+    ],
+    min: xValue,
+    max: xValue,
+  } satisfies Prompt);
+}
+
+// ============================================================
+// 流星圣弹 (hb_star_bullet) - Attack response skill
+// ============================================================
+
+export function starBulletScenario(): ProtocolHarnessScenario {
+  const characters = [holyBowCharacter, allyCharacter, enemyCharacter];
+
+  const holyBow = holyBowPlayerView({ is_active: true });
+
+  const players = [
+    holyBow,
+    playerView({
+      id: ENEMY_PLAYER_ID,
+      name: 'Enemy Bot',
+      camp: 'Blue',
+      role: 'villain',
+      hand: [],
+      hand_count: 3,
+      heal: 1,
+      max_heal: 2,
+      is_active: false,
+    }),
+  ];
+
+  return {
+    roomCode: 'MOCK',
+    myPlayerId: HB_PLAYER_ID,
+    myPlayerName: 'E2E Holy Bow',
+    characters,
+    players: [
+      playerInfo({ id: HB_PLAYER_ID, name: 'E2E Holy Bow', camp: 'Red', char_role: 'holy_bow', is_host: true }),
+      playerInfo({ id: ENEMY_PLAYER_ID, name: 'Enemy Bot', camp: 'Blue', char_role: 'villain' }),
+    ],
+    initialState: syncState({
+      turn_player_id: HB_PLAYER_ID,
+      turn_stage: 'ActionExecution',
+      available_skills: [],
+      characters,
+      players,
+    }),
+  };
+}
+
+export function starBulletConfirmPrompt(): WsMessage {
+  return requireActionMessage({
+    type: 'confirm',
+    player_id: HB_PLAYER_ID,
+    message: '【流星圣弹】攻击时是否发动？',
+    choice_type: 'hb_star_bullet_confirm',
+    skill_id: HB_STAR_BULLET_SKILL_ID,
+    options: [
+      { id: '0', label: '发动' },
+      { id: '1', label: '不发动' },
+    ],
+    min: 1,
+    max: 1,
+  } satisfies Prompt);
+}
+
+// ============================================================
+// 圣煌辉光炮 (hb_radiant_cannon) - Skill with morale choice
+// ============================================================
+
+export function radiantCannonScenario(): ProtocolHarnessScenario {
+  const characters = [holyBowCharacter, allyCharacter, enemyCharacter];
+
+  const holyBow = holyBowPlayerView({ cannon: true, is_active: true });
+
+  const players = [
+    holyBow,
+    playerView({
+      id: ENEMY_PLAYER_ID,
+      name: 'Enemy Bot',
+      camp: 'Blue',
+      role: 'villain',
+      hand: [],
+      hand_count: 3,
+      heal: 1,
+      max_heal: 2,
+      is_active: false,
+    }),
+  ];
+
+  return {
+    roomCode: 'MOCK',
+    myPlayerId: HB_PLAYER_ID,
+    myPlayerName: 'E2E Holy Bow',
+    characters,
+    players: [
+      playerInfo({ id: HB_PLAYER_ID, name: 'E2E Holy Bow', camp: 'Red', char_role: 'holy_bow', is_host: true }),
+      playerInfo({ id: ENEMY_PLAYER_ID, name: 'Enemy Bot', camp: 'Blue', char_role: 'villain' }),
+    ],
+    initialState: syncState({
+      turn_player_id: HB_PLAYER_ID,
+      turn_stage: 'ActionExecution',
+      available_skills: [availableSkill({ id: HB_RADIANT_CANNON_SKILL_ID, title: '圣煌辉光炮' })],
+      characters,
+      players,
+    }),
+  };
+}
+
+export function radiantCannonMoralePrompt(): WsMessage {
+  return requireActionMessage({
+    type: 'confirm',
+    player_id: HB_PLAYER_ID,
+    message: '【圣煌辉光炮】请选择将两方士气调整为：',
+    choice_type: 'hb_radiant_cannon_morale',
+    skill_id: HB_RADIANT_CANNON_SKILL_ID,
+    options: [
+      { id: 'red', label: '红方士气' },
+      { id: 'blue', label: '蓝方士气' },
+    ],
+    presentation: { kind: 'branch_select', layout: 'overlay' },
+    min: 1,
+    max: 1,
+  } satisfies Prompt);
+}
+
+// ============================================================
+// 自动填充 (hb_auto_fill) - End of turn passive with branch choice
+// ============================================================
+
+export function autoFillScenario(options: { gems?: number; crystals?: number } = {}): ProtocolHarnessScenario {
+  const gems = options.gems ?? 1;
+  const crystals = options.crystals ?? 1;
+  const characters = [holyBowCharacter, allyCharacter, enemyCharacter];
+
+  const holyBow = holyBowPlayerView({ gems, crystals, is_active: false });
+
+  const players = [
+    holyBow,
+    playerView({
+      id: ENEMY_PLAYER_ID,
+      name: 'Enemy Bot',
+      camp: 'Blue',
+      role: 'villain',
+      hand: [],
+      hand_count: 3,
+      heal: 1,
+      max_heal: 2,
+      is_active: true,
+    }),
+  ];
+
+  return {
+    roomCode: 'MOCK',
+    myPlayerId: HB_PLAYER_ID,
+    myPlayerName: 'E2E Holy Bow',
+    characters,
+    players: [
+      playerInfo({ id: HB_PLAYER_ID, name: 'E2E Holy Bow', camp: 'Red', char_role: 'holy_bow', is_host: true }),
+      playerInfo({ id: ENEMY_PLAYER_ID, name: 'Enemy Bot', camp: 'Blue', char_role: 'villain' }),
+    ],
+    initialState: syncState({
+      turn_player_id: ENEMY_PLAYER_ID,
+      turn_stage: 'EndPhase',
+      available_skills: [],
+      characters,
+      players,
+    }),
+  };
+}
+
+export function autoFillBranchPrompt(): WsMessage {
+  return requireActionMessage({
+    type: 'confirm',
+    player_id: HB_PLAYER_ID,
+    message: '【自动填充】回合结束，请选择分支：',
+    choice_type: 'hb_auto_fill_branch',
+    skill_id: HB_AUTO_FILL_SKILL_ID,
+    options: [
+      { id: 'crystal', label: '消耗水晶，选择增加信仰或治疗' },
+      { id: 'gem', label: '消耗红宝石获得蓝水晶，选择增加信仰或治疗' },
+    ],
+    presentation: { kind: 'branch_select', layout: 'overlay' },
+    min: 1,
+    max: 1,
+  } satisfies Prompt);
+}
+
+export function autoFillRewardPrompt(): WsMessage {
+  return requireActionMessage({
+    type: 'confirm',
+    player_id: HB_PLAYER_ID,
+    message: '【自动填充】请选择获得：',
+    choice_type: 'hb_auto_fill_reward',
+    skill_id: HB_AUTO_FILL_SKILL_ID,
+    options: [
+      { id: 'faith', label: '+1信仰' },
+      { id: 'heal', label: '+1治疗' },
+    ],
+    presentation: { kind: 'branch_select', layout: 'overlay' },
+    min: 1,
+    max: 1,
+  } satisfies Prompt);
+}

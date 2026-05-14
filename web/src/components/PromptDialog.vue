@@ -247,6 +247,120 @@ function submitRuneReforgeAllocation() {
 
 const NON_HAND_INDEXED_PROMPT_CHOICE_TYPES = new Set<string>([
   'elf_archer_elemental_shot_pick',
+  // Bard choice types that use numeric IDs but are NOT card selections (these are confirm/mode/target prompts)
+  'bd_rousing_confirm',
+  'bd_rousing_mode',
+  'bd_victory_confirm',
+  'bd_victory_mode',
+  'bd_victory_extract_stone',
+  'bd_hope_draw_confirm',
+  'bd_hope_mode',
+  'bd_descent_element',
+  'bd_dissonance_x',
+  'bd_dissonance_mode',
+  'bd_dissonance_discard_proxy', // Proxy card selection: selecting cards for another player
+  // Hero choice types for response skill confirmations
+  'hero_roar_confirm',
+  'hero_roar_draw',
+  'hero_calm_mind_confirm',
+  'hero_forbidden_power_confirm',
+  'hero_taunt_target',
+  'hero_dead_duel_confirm',
+  // Fighter choice types for response skill confirmations and mutual exclusion choices
+  'fighter_charge_attack_confirm',
+  'fighter_burst_crash_confirm',
+  'fighter_attack_skill_choice', // Mutual exclusion: charge attack vs burst crash
+  'fighter_bullet_confirm',
+  'fighter_hundred_dragon_confirm',
+  'fighter_heaven_drive_confirm',
+  'fighter_start_skill_choice', // Mutual exclusion: hundred dragon vs heaven drive
+  // Holy Bow choice types for skill prompts
+  'hb_shard_storm_miss_heal',
+  'hb_shard_storm_miss_target',
+  'hb_light_burst_branch',
+  'hb_light_burst_branch1_target',
+  'hb_light_burst_branch2_heal',
+  'hb_light_burst_branch2_target',
+  'hb_star_bullet_confirm',
+  'hb_radiant_cannon_morale',
+  'hb_auto_fill_branch',
+  'hb_auto_fill_reward',
+  // Beast Soul Warrior choice types for skill prompts
+  'bsw_indomitable_will_confirm',
+  'bsw_warrior_zanshin_confirm',
+  'bsw_one_strike_confirm',
+  'bsw_attack_end_choice', // Mutual exclusion: indomitable will vs warrior zanshin vs one strike
+  'bsw_beast_soul_alert_confirm',
+  'bsw_beast_soul_alert_target',
+  'bsw_beast_return_confirm',
+  'bsw_beast_return_remove',
+  'bsw_reversal_iaijutsu_confirm',
+  'bsw_reversal_iaijutsu_remove',
+  'bsw_reversal_iaijutsu_target',
+  'bsw_iaijutsu_style_confirm',
+  'bsw_iaijutsu_style_choice',
+  // Sword Emperor choice types for skill prompts
+  'se_sword_qi_slash_confirm',
+  'se_sword_qi_slash_remove',
+  'se_sword_qi_slash_target',
+  'se_angel_soul_confirm',
+  'se_demon_soul_confirm',
+  // Moon Goddess choice types for skill prompts
+  'mg_new_moon_shelter_confirm',
+  'mg_medusa_eye_target',
+  'mg_moon_cycle_branch',
+  'mg_moon_cycle_target',
+  'mg_moon_read_confirm',
+  'mg_moon_read_target',
+  'mg_darkmoon_slash_confirm',
+  'mg_darkmoon_slash_x',
+  'mg_pale_moon_confirm',
+  'mg_pale_moon_branch',
+  'mg_pale_moon_x',
+  'mg_pale_moon_target',
+  // NOTE: mg_medusa_eye_dark_moon, mg_medusa_eye_discard, mg_pale_moon_discard
+  // ARE card selections and should NOT be in this set
+  // Blood Priestess choice types for skill prompts
+  'bp_blood_sorrow_branch',
+  'bp_blood_sorrow_target',
+  'bp_backflow_confirm',
+  'bp_blood_wail_confirm',
+  'bp_blood_wail_target',
+  'bp_blood_wail_x',
+  'bp_shared_life_confirm',
+  'bp_shared_life_target',
+  'bp_blood_curse_confirm',
+  'bp_blood_curse_target',
+  // NOTE: bp_backflow_discard, bp_blood_curse_discard ARE card selections
+  // Spirit Caster choice types for skill prompts (matching backend choices.go)
+  'sc_incant_confirm',
+  'sc_incant_confirm_no_hand',
+  'sc_spiritual_collapse_confirm',
+  'sc_talisman_pick',
+  'sc_hundred_night_power', // 妖力移除：ID 是 field index 不是手牌 index
+  'sc_hundred_night_fire_reveal',
+  'sc_hundred_night_exclude_pick',
+  'sc_hundred_night_target',
+  'sc_hundred_night_confirm', // 测试用：百鬼夜行响应技能确认弹框，非手牌选择
+  // NOTE: sc_incant_card, sc_talisman_wind_discard ARE card selections
+  // Magic Bow choice types for charge removal / branch / numeric / target prompts.
+  'mb_magic_pierce_charge',
+  'mb_magic_pierce_hit_bonus',
+  'mb_magic_pierce_hit_charge',
+  'mb_thunder_scatter_base_charge',
+  'mb_thunder_scatter_extra',
+  'mb_thunder_scatter_target',
+  'mb_multi_shot_charge',
+  'mb_multi_shot_target',
+  'mb_charge_draw_x',
+  'mb_charge_place_count',
+  'mb_demon_eye_mode',
+  'mb_demon_eye_target',
+  // NOTE: mb_charge_place_cards, mb_demon_eye_charge_card ARE card selections.
+  // NOTE: bd_hope_transfer_discard, bd_rousing_discard_cards, bd_descent_cards, bd_dissonance_discard_step,
+  // hb_shard_storm_discard, hb_light_burst_branch2_discard, bsw_beast_soul_alert_discard, bsw_iaijutsu_style_discard,
+  // mg_medusa_eye_discard, mg_pale_moon_discard
+  // ARE card selections and should NOT be in this set - they need to be rendered as hand card pickers (with confirm button)
 ])
 
 function toggleExtractOption(index: number) {
@@ -343,6 +457,12 @@ const showConfirmButtonSection = computed(() => {
 
 const isResponseSkillConfirmPrompt = computed(() => {
   if (!prompt.value || prompt.value.type !== 'confirm') return false
+  // If the prompt has a specific choice_type for skill confirmation (not skill selection),
+  // it's not a "response skill confirm" prompt - it's just a yes/no prompt.
+  const choiceType = String(prompt.value.choice_type || '').trim()
+  if (NON_HAND_INDEXED_PROMPT_CHOICE_TYPES.has(choiceType)) return false
+  // If the prompt has a skill_id, it's for a specific skill, not a skill selection.
+  if (prompt.value.skill_id) return false
   const message = String(prompt.value.message || '').trim()
   if (!message) return false
   if (message.includes('响应技能')) return true
@@ -1425,7 +1545,7 @@ watch(autoResolveOptionId, (optionId) => {
 
 <template>
   <Transition name="prompt-inline-pop">
-    <div v-if="hasAnyInlineButton" class="prompt-inline-root">
+    <div v-if="hasAnyInlineButton" class="prompt-inline-root" data-testid="prompt-dialog">
       <div class="prompt-inline-surface">
         <template v-if="isExtractPrompt && prompt?.options?.length">
           <div class="prompt-inline-grid prompt-inline-grid--2">
@@ -1525,6 +1645,7 @@ watch(autoResolveOptionId, (optionId) => {
               </div>
               <button
                 class="prompt-inline-btn"
+                :data-testid="`prompt-option-${option.id}`"
                 :class="[
                   isDockButtonImageStyle(option) ? 'action-image-btn' : '',
                   getDockButtonClass(option.id),
@@ -1570,6 +1691,7 @@ watch(autoResolveOptionId, (optionId) => {
                 class="prompt-inline-btn prompt-inline-btn--success action-image-btn"
                 :class="{ 'prompt-inline-btn--disabled': !!singleActivationCostConfirmOption.disabled }"
                 :disabled="!!singleActivationCostConfirmOption.disabled"
+                data-testid="prompt-confirm-btn"
                 title="确认"
                 aria-label="确认"
                 @click="handleOptionClick(singleActivationCostConfirmOption.id)"
@@ -1585,6 +1707,7 @@ watch(autoResolveOptionId, (optionId) => {
               </button>
               <button
                 class="prompt-inline-btn prompt-inline-btn--cancel action-image-btn"
+                data-testid="prompt-cancel-btn"
                 :title="isDockButtonImageStyle(cancelDockButton) ? cancelDockButton.buttonLabel : undefined"
                 :aria-label="isDockButtonImageStyle(cancelDockButton) ? cancelDockButton.buttonLabel : undefined"
                 @click="handleOptionClick(cancelDockButton.id)"
@@ -1608,6 +1731,7 @@ watch(autoResolveOptionId, (optionId) => {
                 class="prompt-inline-btn prompt-inline-btn--success action-image-btn"
                 :class="{ 'prompt-inline-btn--disabled': !canConfirmPrompt }"
                 :disabled="!canConfirmPrompt"
+                data-testid="prompt-confirm-btn"
                 title="发动"
                 aria-label="发动"
                 @click="confirmPromptAction"
@@ -1623,6 +1747,7 @@ watch(autoResolveOptionId, (optionId) => {
               </button>
               <button
                 class="prompt-inline-btn prompt-inline-btn--cancel action-image-btn"
+                data-testid="prompt-cancel-btn"
                 :title="isDockButtonImageStyle(cancelDockButton) ? cancelDockButton.buttonLabel : undefined"
                 :aria-label="isDockButtonImageStyle(cancelDockButton) ? cancelDockButton.buttonLabel : undefined"
                 @click="handleOptionClick(cancelDockButton.id)"
@@ -1645,6 +1770,7 @@ watch(autoResolveOptionId, (optionId) => {
               class="prompt-inline-btn prompt-inline-btn--success action-image-btn"
               :class="{ 'prompt-inline-btn--disabled': !canConfirmPrompt }"
               :disabled="!canConfirmPrompt"
+              data-testid="prompt-confirm-btn"
               title="发动"
               aria-label="发动"
               @click="confirmPromptAction"
@@ -1733,6 +1859,7 @@ watch(autoResolveOptionId, (optionId) => {
       <div
         v-if="prompt?.type === 'choose_skill' && skillBranchOptions.length > 0"
         class="overlay-panel-root overlay-panel-root--skill"
+        data-testid="skill-branch-overlay"
       >
         <div class="overlay-panel" @click.stop>
           <div class="overlay-panel-header">
@@ -1740,9 +1867,10 @@ watch(autoResolveOptionId, (optionId) => {
           </div>
           <div class="overlay-panel-body">
             <button
-              v-for="entry in skillBranchOptions"
+              v-for="(entry, idx) in skillBranchOptions"
               :key="entry.id"
               class="overlay-panel-item"
+              :data-testid="`branch-option-${idx}`"
               :disabled="entry.disabled"
               @click="handleOptionClick(entry.id)"
             >
@@ -1761,7 +1889,7 @@ watch(autoResolveOptionId, (optionId) => {
 
   <Teleport to="body">
     <Transition name="modal">
-      <div v-if="showDecisionOverlay" class="overlay-panel-root overlay-panel-root--decision">
+      <div v-if="showDecisionOverlay" class="overlay-panel-root overlay-panel-root--decision" data-testid="decision-overlay">
         <div class="overlay-panel" @click.stop>
           <div class="overlay-panel-header overlay-panel-header--decision">
             <h2>{{ decisionOverlayTitle }}</h2>
@@ -1786,6 +1914,7 @@ watch(autoResolveOptionId, (optionId) => {
                 v-for="option in inlinePrimaryButtons"
                 :key="option.id"
                 class="overlay-numeric-tile"
+                :data-testid="`numeric-option-${option.buttonLabel}`"
                 :disabled="!!option.disabled"
                 @click="handleOptionClick(option.id)"
               >
@@ -1801,6 +1930,7 @@ watch(autoResolveOptionId, (optionId) => {
                 :key="option.id"
                 class="overlay-yesno-btn"
                 :class="option.id === '0' || option.id === 'yes' ? 'overlay-yesno-btn--yes' : 'overlay-yesno-btn--no'"
+                :data-testid="`prompt-option-${option.id}`"
                 :disabled="!!inlinePrimaryButtons.find(b => b.id === option.id)?.disabled"
                 @click="handleOptionClick(option.id)"
               >
@@ -1811,9 +1941,10 @@ watch(autoResolveOptionId, (optionId) => {
 
           <div v-else class="overlay-panel-body overlay-panel-body--text">
             <button
-              v-for="option in inlinePrimaryButtons"
+              v-for="(option, idx) in inlinePrimaryButtons"
               :key="option.id"
               class="overlay-panel-item overlay-panel-item--text"
+              :data-testid="`branch-option-${idx}`"
               :disabled="!!option.disabled"
               @click="handleOptionClick(option.id)"
             >
