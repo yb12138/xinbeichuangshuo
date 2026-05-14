@@ -162,7 +162,7 @@ function moonGoddessPlayerView(options: {
 }
 
 // ============================================================
-// 新月庇护 (mg_new_moon_shelter) - Response skill with confirm
+// 新月庇护 (mg_new_moon_shelter) - 后端通过 response_skills 自动触发
 // ============================================================
 
 export function newMoonShelterScenario(): ProtocolHarnessScenario {
@@ -200,28 +200,15 @@ export function newMoonShelterScenario(): ProtocolHarnessScenario {
       available_skills: [],
       characters,
       players,
+      // 后端会设置 response_skills 触发确认弹框
     }),
   };
 }
 
-export function newMoonShelterConfirmPrompt(): WsMessage {
-  return requireActionMessage({
-    type: 'confirm',
-    player_id: MG_PLAYER_ID,
-    message: '【新月庇护】触发条件满足，是否发动？',
-    choice_type: 'mg_new_moon_shelter_confirm',
-    skill_id: MG_NEW_MOON_SHelter_SKILL_ID,
-    options: [
-      { id: '0', label: '发动' },
-      { id: '1', label: '不发动' },
-    ],
-    min: 1,
-    max: 1,
-  } satisfies Prompt);
-}
-
 // ============================================================
-// 美杜莎之眼 (mg_medusa_eye) - Response with dark moon card choice, discard, then target
+// 美杜莎之眼 (mg_medusa_eye) - 后端通过 response_skills 触发
+// 闇月选择使用 choice_type: mg_medusa_darkmoon_pick
+// 弃牌通过 system_discard_cards，目标通过 min_targets 处理
 // ============================================================
 
 export function medusaEyeScenario(options: { dark_moon_cards?: number } = {}): ProtocolHarnessScenario {
@@ -281,43 +268,11 @@ export function medusaEyeDarkMoonPrompt(): WsMessage {
     type: 'choose_card',
     player_id: MG_PLAYER_ID,
     message: '【美杜莎之眼】请选择一张闇月牌（盖牌）：',
-    choice_type: 'mg_medusa_eye_dark_moon',
+    choice_type: 'mg_medusa_darkmoon_pick',
     skill_id: MG_MEDUSA_EYE_SKILL_ID,
     options: [
       { id: '0', label: '1: 暗月法术 (暗 Magic)' },
       { id: '1', label: '2: 火焰斩 (火 Attack)' },
-    ],
-    min: 1,
-    max: 1,
-  } satisfies Prompt);
-}
-
-export function medusaEyeDiscardPrompt(): WsMessage {
-  return requireActionMessage({
-    type: 'choose_cards',
-    player_id: MG_PLAYER_ID,
-    message: '【美杜莎之眼】闇月为法术牌，请弃置1张牌：',
-    choice_type: 'mg_medusa_eye_discard',
-    skill_id: MG_MEDUSA_EYE_SKILL_ID,
-    options: [
-      { id: '0', label: '1: 火焰斩 (火 Attack)' },
-      { id: '1', label: '2: 水涟斩 (水 Attack)' },
-    ],
-    min: 1,
-    max: 1,
-  } satisfies Prompt);
-}
-
-export function medusaEyeTargetPrompt(): WsMessage {
-  return requireActionMessage({
-    type: 'confirm',
-    player_id: MG_PLAYER_ID,
-    message: '【美杜莎之眼】请选择一名对手：',
-    choice_type: 'mg_medusa_eye_target',
-    skill_id: MG_MEDUSA_EYE_SKILL_ID,
-    options: [
-      { id: ENEMY_PLAYER_ID, label: '恶徒' },
-      { id: ENEMY_2_PLAYER_ID, label: '恶徒2' },
     ],
     min: 1,
     max: 1,
@@ -374,7 +329,7 @@ export function moonCycleBranchPrompt(): WsMessage {
     type: 'confirm',
     player_id: MG_PLAYER_ID,
     message: '【月之轮回】回合结束，请选择分支：',
-    choice_type: 'mg_moon_cycle_branch',
+    choice_type: 'mg_moon_cycle_mode',
     skill_id: MG_MOON_CYCLE_SKILL_ID,
     options: [
       { id: 'branch1', label: '分支一：移除1个闇月，目标+1治疗' },
@@ -391,7 +346,7 @@ export function moonCycleTargetPrompt(): WsMessage {
     type: 'confirm',
     player_id: MG_PLAYER_ID,
     message: '【月之轮回】分支一：请选择目标令其+1治疗：',
-    choice_type: 'mg_moon_cycle_target',
+    choice_type: 'mg_moon_cycle_heal_target',
     skill_id: MG_MOON_CYCLE_SKILL_ID,
     options: [
       { id: ENEMY_PLAYER_ID, label: '恶徒' },
@@ -402,7 +357,8 @@ export function moonCycleTargetPrompt(): WsMessage {
 }
 
 // ============================================================
-// 月渎 (mg_moon_read) - Response skill after magic damage draws
+// 月渎 (mg_moon_read) - 后端通过 response_skills 自动触发
+// 目标通过 min_targets 处理
 // ============================================================
 
 export function moonReadScenario(options: { heal?: number } = {}): ProtocolHarnessScenario {
@@ -453,44 +409,13 @@ export function moonReadScenario(options: { heal?: number } = {}): ProtocolHarne
       available_skills: [],
       characters,
       players,
+      // 后端会设置 response_skills 触发确认弹框
     }),
   };
 }
 
-export function moonReadConfirmPrompt(): WsMessage {
-  return requireActionMessage({
-    type: 'confirm',
-    player_id: MG_PLAYER_ID,
-    message: '【月渎】法术伤害后摸牌触发，是否发动？',
-    choice_type: 'mg_moon_read_confirm',
-    skill_id: MG_MOON_READ_SKILL_ID,
-    options: [
-      { id: '0', label: '发动' },
-      { id: '1', label: '不发动' },
-    ],
-    min: 1,
-    max: 1,
-  } satisfies Prompt);
-}
-
-export function moonReadTargetPrompt(): WsMessage {
-  return requireActionMessage({
-    type: 'confirm',
-    player_id: MG_PLAYER_ID,
-    message: '【月渎】请选择一名对手造成1点法术伤害：',
-    choice_type: 'mg_moon_read_target',
-    skill_id: MG_MOON_READ_SKILL_ID,
-    options: [
-      { id: ENEMY_PLAYER_ID, label: '恶徒' },
-      { id: ENEMY_2_PLAYER_ID, label: '恶徒2' },
-    ],
-    min: 1,
-    max: 1,
-  } satisfies Prompt);
-}
-
 // ============================================================
-// 闇月斩 (mg_darkmoon_slash) - Response with confirm and X value choice
+// 闇月斩 (mg_darkmoon_slash) - 后端通过 response_skills 自动触发
 // ============================================================
 
 export function darkmoonSlashScenario(): ProtocolHarnessScenario {
@@ -528,45 +453,16 @@ export function darkmoonSlashScenario(): ProtocolHarnessScenario {
       available_skills: [],
       characters,
       players,
+      // 后端会设置 response_skills 触发确认弹框
     }),
   };
 }
 
-export function darkmoonSlashConfirmPrompt(): WsMessage {
-  return requireActionMessage({
-    type: 'confirm',
-    player_id: MG_PLAYER_ID,
-    message: '【闇月斩】触发条件满足，是否发动？',
-    choice_type: 'mg_darkmoon_slash_confirm',
-    skill_id: MG_DARKMOON_SLASH_SKILL_ID,
-    options: [
-      { id: '0', label: '发动' },
-      { id: '1', label: '不发动' },
-    ],
-    min: 1,
-    max: 1,
-  } satisfies Prompt);
-}
-
-export function darkmoonSlashXPrompt(): WsMessage {
-  return requireActionMessage({
-    type: 'confirm',
-    player_id: MG_PLAYER_ID,
-    message: '【闇月斩】请选择X值（0<X<3）：',
-    choice_type: 'mg_darkmoon_slash_x',
-    skill_id: MG_DARKMOON_SLASH_SKILL_ID,
-    options: [
-      { id: '1', label: 'X=1' },
-      { id: '2', label: 'X=2' },
-    ],
-    presentation: { kind: 'branch_select', layout: 'overlay' },
-    min: 1,
-    max: 1,
-  } satisfies Prompt);
-}
-
 // ============================================================
-// 苍白之月 (mg_pale_moon) - Response with confirm and branch choice
+// 苍白之月 (mg_pale_moon) - 后端通过 response_skills 自动触发
+// 分支选择使用 choice_type: mg_pale_moon_mode
+// X值选择使用 choice_type: mg_pale_moon_x
+// 弃牌通过 system_discard_cards，目标通过 min_targets 处理
 // ============================================================
 
 export function paleMoonScenario(options: { petrify_tokens?: number; new_moon_tokens?: number } = {}): ProtocolHarnessScenario {
@@ -618,24 +514,9 @@ export function paleMoonScenario(options: { petrify_tokens?: number; new_moon_to
       available_skills: [],
       characters,
       players,
+      // 后端会设置 response_skills 触发确认弹框
     }),
   };
-}
-
-export function paleMoonConfirmPrompt(): WsMessage {
-  return requireActionMessage({
-    type: 'confirm',
-    player_id: MG_PLAYER_ID,
-    message: '【苍白之月】触发条件满足，是否发动？',
-    choice_type: 'mg_pale_moon_confirm',
-    skill_id: MG_PALE_MOON_SKILL_ID,
-    options: [
-      { id: '0', label: '发动' },
-      { id: '1', label: '不发动' },
-    ],
-    min: 1,
-    max: 1,
-  } satisfies Prompt);
 }
 
 export function paleMoonBranchPrompt(): WsMessage {
@@ -643,7 +524,7 @@ export function paleMoonBranchPrompt(): WsMessage {
     type: 'confirm',
     player_id: MG_PLAYER_ID,
     message: '【苍白之月】请选择分支：',
-    choice_type: 'mg_pale_moon_branch',
+    choice_type: 'mg_pale_moon_mode',
     skill_id: MG_PALE_MOON_SKILL_ID,
     options: [
       { id: 'branch1', label: '分支一：移除3点石化，下次攻击无法应战，+1攻击行动，额外回合' },
@@ -668,38 +549,6 @@ export function paleMoonXPrompt(xMax: number): WsMessage {
     skill_id: MG_PALE_MOON_SKILL_ID,
     options,
     presentation: { kind: 'branch_select', layout: 'overlay' },
-    min: 1,
-    max: 1,
-  } satisfies Prompt);
-}
-
-export function paleMoonDiscardPrompt(): WsMessage {
-  return requireActionMessage({
-    type: 'choose_cards',
-    player_id: MG_PLAYER_ID,
-    message: '【苍白之月】分支二：请弃置1张牌：',
-    choice_type: 'mg_pale_moon_discard',
-    skill_id: MG_PALE_MOON_SKILL_ID,
-    options: [
-      { id: '0', label: '1: 火焰斩 (火 Attack)' },
-      { id: '1', label: '2: 水涟斩 (水 Attack)' },
-    ],
-    min: 1,
-    max: 1,
-  } satisfies Prompt);
-}
-
-export function paleMoonTargetPrompt(xValue: number): WsMessage {
-  return requireActionMessage({
-    type: 'confirm',
-    player_id: MG_PLAYER_ID,
-    message: `【苍白之月】分支二：请选择目标造成${xValue + 1}点法术伤害：`,
-    choice_type: 'mg_pale_moon_target',
-    skill_id: MG_PALE_MOON_SKILL_ID,
-    options: [
-      { id: ENEMY_PLAYER_ID, label: '恶徒' },
-      { id: ENEMY_2_PLAYER_ID, label: '恶徒2' },
-    ],
     min: 1,
     max: 1,
   } satisfies Prompt);

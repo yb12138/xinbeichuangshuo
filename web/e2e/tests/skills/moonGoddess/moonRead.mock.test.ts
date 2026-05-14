@@ -1,43 +1,21 @@
 import { test, expect } from '../../../fixtures/protocolHarness.fixture';
 import {
-  ENEMY_PLAYER_ID,
-  ENEMY_2_PLAYER_ID,
-  moonReadConfirmPrompt,
   moonReadScenario,
-  moonReadTargetPrompt,
 } from '../../../scenarios/moonGoddess';
 
+// ============================================================
+// 月渎 (mg_moon_read) - 后端通过 response_skills 自动触发
+// 目标通过 min_targets 处理
+// ============================================================
+
 test.describe('moon goddess moon read protocol harness', () => {
-  test('moon read: confirm then target', async ({ page, protocolHarness }) => {
+  test('moon read: triggered via response_skills', async ({ protocolHarness }) => {
     await protocolHarness.bootGame(moonReadScenario({ heal: 2 }));
 
-    // Server pushes confirm prompt after magic damage draws
-    await protocolHarness.pushServerMessage(moonReadConfirmPrompt());
-    await expect(page.getByTestId('decision-overlay')).toBeVisible();
-    await page.getByTestId('prompt-option-0').click();
+    // 后端会设置 response_skills 触发确认弹框
     await protocolHarness.expectSubmitAction({
-      action_type: 'Select',
-      option_indexes: [0],
-    });
-
-    // Target selection (click enemy player card)
-    await protocolHarness.pushServerMessage(moonReadTargetPrompt());
-    await page.getByTestId(`player-area-${ENEMY_PLAYER_ID}`).click();
-    await protocolHarness.expectSubmitAction({
-      action_type: 'Select',
-      option_indexes: [0],
-    });
-  });
-
-  test('moon read: skip confirm', async ({ page, protocolHarness }) => {
-    await protocolHarness.bootGame(moonReadScenario({ heal: 2 }));
-
-    await protocolHarness.pushServerMessage(moonReadConfirmPrompt());
-    await expect(page.getByTestId('decision-overlay')).toBeVisible();
-    await page.getByTestId('prompt-option-1').click();
-    await protocolHarness.expectSubmitAction({
-      action_type: 'Select',
-      option_indexes: [1],
+      action_type: 'UseSkill',
+      skill_id: 'mg_moon_read',
     });
   });
 
@@ -46,24 +24,5 @@ test.describe('moon goddess moon read protocol harness', () => {
 
     // Should not trigger if no heal available
     await expect(page.getByTestId('decision-overlay')).not.toBeVisible();
-  });
-
-  test('moon read: select second enemy as target', async ({ page, protocolHarness }) => {
-    await protocolHarness.bootGame(moonReadScenario({ heal: 2 }));
-
-    await protocolHarness.pushServerMessage(moonReadConfirmPrompt());
-    await page.getByTestId('prompt-option-0').click();
-    await protocolHarness.expectSubmitAction({
-      action_type: 'Select',
-      option_indexes: [0],
-    });
-
-    // Target selection (click enemy 2 player card)
-    await protocolHarness.pushServerMessage(moonReadTargetPrompt());
-    await page.getByTestId(`player-area-${ENEMY_2_PLAYER_ID}`).click();
-    await protocolHarness.expectSubmitAction({
-      action_type: 'Select',
-      option_indexes: [1],
-    });
   });
 });

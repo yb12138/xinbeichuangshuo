@@ -199,7 +199,7 @@ export function bloodSorrowBranchPrompt(): WsMessage {
     type: 'confirm',
     player_id: BP_PLAYER_ID,
     message: '【血之哀伤】启动阶段，请选择：',
-    choice_type: 'bp_blood_sorrow_branch',
+    choice_type: 'bp_blood_sorrow_mode',
     skill_id: BP_BLOOD_SORROW_SKILL_ID,
     options: [
       { id: 'transfer', label: '转移' },
@@ -228,7 +228,8 @@ export function bloodSorrowTargetPrompt(): WsMessage {
 }
 
 // ============================================================
-// 逆流 (bp_backflow) - Magic skill with discard
+// 逆流 (bp_backflow) - 后端通过 available_skills 触发
+// 弃牌通过 cost_discards 自动处理
 // ============================================================
 
 export function backflowScenario(): ProtocolHarnessScenario {
@@ -263,48 +264,17 @@ export function backflowScenario(): ProtocolHarnessScenario {
     initialState: syncState({
       turn_player_id: BP_PLAYER_ID,
       turn_stage: 'ActionExecution',
-      available_skills: [availableSkill({ id: BP_BACKFLOW_SKILL_ID, title: '逆流' })],
+      available_skills: [availableSkill({ id: BP_BACKFLOW_SKILL_ID, title: '逆流', cost_discards: 2 })],
       characters,
       players,
     }),
   };
 }
 
-export function backflowConfirmPrompt(): WsMessage {
-  return requireActionMessage({
-    type: 'confirm',
-    player_id: BP_PLAYER_ID,
-    message: '【逆流】是否发动？',
-    choice_type: 'bp_backflow_confirm',
-    skill_id: BP_BACKFLOW_SKILL_ID,
-    options: [
-      { id: '0', label: '发动' },
-      { id: '1', label: '不发动' },
-    ],
-    min: 1,
-    max: 1,
-  } satisfies Prompt);
-}
-
-export function backflowDiscardPrompt(): WsMessage {
-  return requireActionMessage({
-    type: 'choose_cards',
-    player_id: BP_PLAYER_ID,
-    message: '【逆流】请选择弃置2张牌：',
-    choice_type: 'bp_backflow_discard',
-    skill_id: BP_BACKFLOW_SKILL_ID,
-    options: [
-      { id: '0', label: '1: 火焰斩 (火 Attack)' },
-      { id: '1', label: '2: 水涟斩 (水 Attack)' },
-      { id: '2', label: '3: 风刃 (风 Attack)' },
-    ],
-    min: 2,
-    max: 2,
-  } satisfies Prompt);
-}
-
 // ============================================================
-// 血之悲鸣 (bp_blood_wail) - Unique magic skill with discard unique card, target, X value
+// 血之悲鸣 (bp_blood_wail) - 后端通过 available_skills 触发
+// X值选择使用 choice_type: bp_blood_wail_x
+// 目标通过 min_targets 处理
 // ============================================================
 
 export function bloodWailScenario(): ProtocolHarnessScenario {
@@ -358,53 +328,6 @@ export function bloodWailScenario(): ProtocolHarnessScenario {
   };
 }
 
-export function bloodWailConfirmPrompt(): WsMessage {
-  return requireActionMessage({
-    type: 'confirm',
-    player_id: BP_PLAYER_ID,
-    message: '【血之悲鸣】是否发动？（弃置独有法术牌）',
-    choice_type: 'bp_blood_wail_confirm',
-    skill_id: BP_BLOOD_WAIL_SKILL_ID,
-    options: [
-      { id: '0', label: '发动' },
-      { id: '1', label: '不发动' },
-    ],
-    min: 1,
-    max: 1,
-  } satisfies Prompt);
-}
-
-export function bloodWailUniqueCardPrompt(): WsMessage {
-  return requireActionMessage({
-    type: 'choose_card',
-    player_id: BP_PLAYER_ID,
-    message: '【血之悲鸣】请选择弃置独有法术牌：',
-    choice_type: 'bp_blood_wail_unique_card',
-    skill_id: BP_BLOOD_WAIL_SKILL_ID,
-    options: [
-      { id: '3', label: '4: 血之悲鸣 (暗 Magic)' },
-    ],
-    min: 1,
-    max: 1,
-  } satisfies Prompt);
-}
-
-export function bloodWailTargetPrompt(): WsMessage {
-  return requireActionMessage({
-    type: 'confirm',
-    player_id: BP_PLAYER_ID,
-    message: '【血之悲鸣】请选择目标：',
-    choice_type: 'bp_blood_wail_target',
-    skill_id: BP_BLOOD_WAIL_SKILL_ID,
-    options: [
-      { id: ENEMY_PLAYER_ID, label: '恶徒' },
-      { id: ENEMY_2_PLAYER_ID, label: '恶徒2' },
-    ],
-    min: 1,
-    max: 1,
-  } satisfies Prompt);
-}
-
 export function bloodWailXPrompt(): WsMessage {
   return requireActionMessage({
     type: 'confirm',
@@ -423,7 +346,8 @@ export function bloodWailXPrompt(): WsMessage {
 }
 
 // ============================================================
-// 同生共死 (bp_shared_life) - Magic skill with target selection
+// 同生共死 (bp_shared_life) - 后端通过 available_skills 触发
+// 目标选择使用 choice_type: bp_shared_life_target
 // ============================================================
 
 export function sharedLifeScenario(): ProtocolHarnessScenario {
@@ -477,22 +401,6 @@ export function sharedLifeScenario(): ProtocolHarnessScenario {
   };
 }
 
-export function sharedLifeConfirmPrompt(): WsMessage {
-  return requireActionMessage({
-    type: 'confirm',
-    player_id: BP_PLAYER_ID,
-    message: '【同生共死】是否发动？',
-    choice_type: 'bp_shared_life_confirm',
-    skill_id: BP_SHARED_LIFE_SKILL_ID,
-    options: [
-      { id: '0', label: '发动' },
-      { id: '1', label: '不发动' },
-    ],
-    min: 1,
-    max: 1,
-  } satisfies Prompt);
-}
-
 export function sharedLifeTargetPrompt(): WsMessage {
   return requireActionMessage({
     type: 'confirm',
@@ -510,7 +418,8 @@ export function sharedLifeTargetPrompt(): WsMessage {
 }
 
 // ============================================================
-// 血之诅咒 (bp_blood_curse) - Magic skill with target then discard 3 cards
+// 血之诅咒 (bp_blood_curse) - 后端通过 available_skills 触发
+// 弃牌使用 choice_type: bp_curse_discard
 // ============================================================
 
 export function bloodCurseScenario(): ProtocolHarnessScenario {
@@ -564,44 +473,12 @@ export function bloodCurseScenario(): ProtocolHarnessScenario {
   };
 }
 
-export function bloodCurseConfirmPrompt(): WsMessage {
-  return requireActionMessage({
-    type: 'confirm',
-    player_id: BP_PLAYER_ID,
-    message: '【血之诅咒】是否发动？',
-    choice_type: 'bp_blood_curse_confirm',
-    skill_id: BP_BLOOD_CURSE_SKILL_ID,
-    options: [
-      { id: '0', label: '发动' },
-      { id: '1', label: '不发动' },
-    ],
-    min: 1,
-    max: 1,
-  } satisfies Prompt);
-}
-
-export function bloodCurseTargetPrompt(): WsMessage {
-  return requireActionMessage({
-    type: 'confirm',
-    player_id: BP_PLAYER_ID,
-    message: '【血之诅咒】请选择目标：',
-    choice_type: 'bp_blood_curse_target',
-    skill_id: BP_BLOOD_CURSE_SKILL_ID,
-    options: [
-      { id: ENEMY_PLAYER_ID, label: '恶徒' },
-      { id: ENEMY_2_PLAYER_ID, label: '恶徒2' },
-    ],
-    min: 1,
-    max: 1,
-  } satisfies Prompt);
-}
-
 export function bloodCurseDiscardPrompt(): WsMessage {
   return requireActionMessage({
     type: 'choose_cards',
     player_id: BP_PLAYER_ID,
     message: '【血之诅咒】请选择弃置3张牌：',
-    choice_type: 'bp_blood_curse_discard',
+    choice_type: 'bp_curse_discard',
     skill_id: BP_BLOOD_CURSE_SKILL_ID,
     options: [
       { id: '0', label: '1: 火焰斩 (火 Attack)' },

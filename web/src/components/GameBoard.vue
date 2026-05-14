@@ -1105,9 +1105,77 @@ type PromptCardSelectionState = {
 }
 
 const NON_HAND_INDEXED_PROMPT_CHOICE_TYPES = new Set([
+  // Elf Archer choice types (matching backend elf_archer/choices.go)
   'elf_archer_elemental_shot_pick',
-  'sc_hundred_night_power', // 妖力移除：ID 是 field index 不是手牌 index
-  'mb_magic_pierce_charge',
+  'elf_animal_companion_confirm',
+  'elf_pet_empower_confirm',
+  'elf_elemental_shot_water_target',
+  'elf_elemental_shot_earth_target',
+  'elf_pet_empower_target',
+  'elf_ritual_release_target',
+  // Saintess choice types (matching backend saintess/choices.go)
+  'frost_prayer_target',
+  // Elementalist choice types (matching backend elementalist/choices.go)
+  'elementalist_freeze_damage_target',
+  'elementalist_freeze_heal_target',
+  'elementalist_bonus_card',
+  // Adventurer choice types (matching backend adventurer/choices.go)
+  'adventurer_extract_paradise_check',
+  'adventurer_paradise_pick',
+  'adventurer_fraud_pick',
+  'adventurer_fraud_attack_element',
+  'adventurer_steal_sky_mode',
+  // Valkyrie choice types (matching backend valkyrie/choices.go)
+  'valkyrie_military_glory_mode',
+  'valkyrie_military_glory_x',
+  'valkyrie_military_glory_target',
+  'valkyrie_heroic_discard_card',
+  // Angel choice types (matching backend angel/choices.go)
+  'angel_bond_heal_target',
+  'god_protection_x',
+  // Prayer Master choice types (matching backend prayer_master/choices.go)
+  'prayer_power_blessing_response',
+  'prayer_swift_blessing_response',
+  // Sealer choice types (matching backend sealer/choices.go)
+  'five_elements_bind',
+  // Blood Priestess choice types (matching backend blood_priestess/choices.go)
+  'bp_blood_sorrow_mode',
+  'bp_blood_sorrow_target',
+  'bp_blood_wail_x',
+  'bp_curse_discard',
+  'bp_shared_life_target',
+  // Fighter choice types (matching backend fighter/choices.go)
+  'fighter_psi_bullet_target',
+  'fighter_hundred_dragon_target',
+  // Moon Goddess choice types (matching backend moon_goddess/choices.go)
+  'mg_medusa_darkmoon_pick',
+  'mg_medusa_magic_discard',
+  'mg_moon_cycle_mode',
+  'mg_moon_cycle_heal_target',
+  'mg_blasphemy_target',
+  'mg_darkmoon_slash_x',
+  'mg_pale_moon_mode',
+  'mg_pale_moon_x',
+  'mg_pale_moon_target',
+  'mg_pale_moon_discard',
+  // Holy Bow choice types (matching backend holy_bow/choices.go)
+  'hb_holy_shard_combo',
+  'hb_holy_shard_target',
+  'hb_holy_shard_miss_confirm',
+  'hb_holy_shard_miss_x',
+  'hb_holy_shard_miss_ally_target',
+  'hb_radiant_descent_cost',
+  'hb_light_burst_mode',
+  'hb_light_burst_mode_a_target',
+  'hb_light_burst_mode_b_x',
+  'hb_light_burst_mode_b_targets',
+  'hb_light_burst_mode_b_discard',
+  'hb_meteor_bullet_cost',
+  'hb_meteor_bullet_target',
+  'hb_radiant_cannon_side',
+  'hb_auto_fill_resource',
+  'hb_auto_fill_gain',
+  // Magic Bow choice types
   'mb_magic_pierce_hit_bonus',
   'mb_magic_pierce_hit_charge',
   'mb_thunder_scatter_base_charge',

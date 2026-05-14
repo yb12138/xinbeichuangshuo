@@ -463,7 +463,7 @@ func handleChargeDrawX(rt engineplayer.ChoiceRuntime, ctxData map[string]interfa
 	}
 
 	if xValue > 0 {
-		rt.DrawCards(user.ID, xValue)
+		rt.DrawCardsWithOptions(user.ID, xValue, model.DrawOptions{PreventOverflow: true})
 	}
 
 	room := ChargeCap - ChargeCount(user, "")

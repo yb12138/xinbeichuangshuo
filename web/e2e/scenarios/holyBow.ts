@@ -228,7 +228,7 @@ export function shardStormDiscardPrompt(): WsMessage {
     type: 'choose_cards',
     player_id: HB_PLAYER_ID,
     message: '【圣屑飓暴】请选择2张同系攻击牌弃置：',
-    choice_type: 'hb_shard_storm_discard',
+    choice_type: 'hb_holy_shard_combo',
     skill_id: HB_SHARD_STORM_SKILL_ID,
     options: [
       { id: '0', label: '1: 火焰斩 (火 Attack)' },
@@ -244,7 +244,7 @@ export function shardStormMissHealPrompt(): WsMessage {
     type: 'confirm',
     player_id: HB_PLAYER_ID,
     message: '【圣屑飓暴】攻击未命中，请选择移除X点治疗（X≤2）：',
-    choice_type: 'hb_shard_storm_miss_heal',
+    choice_type: 'hb_holy_shard_miss_x',
     skill_id: HB_SHARD_STORM_SKILL_ID,
     options: [
       { id: '0', label: '移除0点治疗' },
@@ -261,7 +261,7 @@ export function shardStormMissTargetPrompt(): WsMessage {
     type: 'confirm',
     player_id: HB_PLAYER_ID,
     message: '【圣屑飓暴】请选择一名队友令其弃牌：',
-    choice_type: 'hb_shard_storm_miss_target',
+    choice_type: 'hb_holy_shard_miss_ally_target',
     skill_id: HB_SHARD_STORM_SKILL_ID,
     options: [
       { id: ALLY_PLAYER_ID, label: '勇者' },
@@ -387,7 +387,7 @@ export function lightBurstBranchPrompt(): WsMessage {
     type: 'confirm',
     player_id: HB_PLAYER_ID,
     message: '【圣光爆裂】请选择分支：',
-    choice_type: 'hb_light_burst_branch',
+    choice_type: 'hb_light_burst_mode',
     skill_id: HB_LIGHT_BURST_SKILL_ID,
     options: [
       { id: '0', label: '分支一：摸牌+移除治疗+增信仰，队友+治疗' },
@@ -404,7 +404,7 @@ export function lightBurstBranch1TargetPrompt(): WsMessage {
     type: 'confirm',
     player_id: HB_PLAYER_ID,
     message: '【圣光爆裂】分支一：请选择一名队友令其+1治疗：',
-    choice_type: 'hb_light_burst_branch1_target',
+    choice_type: 'hb_light_burst_mode_a_target',
     skill_id: HB_LIGHT_BURST_SKILL_ID,
     options: [
       { id: ALLY_PLAYER_ID, label: '勇者' },
@@ -419,7 +419,7 @@ export function lightBurstBranch2HealPrompt(): WsMessage {
     type: 'confirm',
     player_id: HB_PLAYER_ID,
     message: '【圣光爆裂】分支二：请选择移除X点治疗：',
-    choice_type: 'hb_light_burst_branch2_heal',
+    choice_type: 'hb_light_burst_mode_b_x',
     skill_id: HB_LIGHT_BURST_SKILL_ID,
     options: [
       { id: '1', label: '移除1点治疗' },
@@ -435,7 +435,7 @@ export function lightBurstBranch2TargetPrompt(xValue: number): WsMessage {
     type: 'confirm',
     player_id: HB_PLAYER_ID,
     message: `【圣光爆裂】分支二：请选择最多${xValue}名对手（手牌数≤${5 - xValue}）：`,
-    choice_type: 'hb_light_burst_branch2_target',
+    choice_type: 'hb_light_burst_mode_b_targets',
     skill_id: HB_LIGHT_BURST_SKILL_ID,
     options: [
       { id: ENEMY_PLAYER_ID, label: '恶徒' },
@@ -451,7 +451,7 @@ export function lightBurstBranch2DiscardPrompt(xValue: number): WsMessage {
     type: 'choose_cards',
     player_id: HB_PLAYER_ID,
     message: `【圣光爆裂】分支二：请弃置${xValue}张牌：`,
-    choice_type: 'hb_light_burst_branch2_discard',
+    choice_type: 'hb_light_burst_mode_b_discard',
     skill_id: HB_LIGHT_BURST_SKILL_ID,
     options: [
       { id: '0', label: '1: 火焰斩 (火 Attack)' },
@@ -570,7 +570,7 @@ export function radiantCannonMoralePrompt(): WsMessage {
     type: 'confirm',
     player_id: HB_PLAYER_ID,
     message: '【圣煌辉光炮】请选择将两方士气调整为：',
-    choice_type: 'hb_radiant_cannon_morale',
+    choice_type: 'hb_radiant_cannon_side',
     skill_id: HB_RADIANT_CANNON_SKILL_ID,
     options: [
       { id: 'red', label: '红方士气' },
@@ -632,7 +632,7 @@ export function autoFillBranchPrompt(): WsMessage {
     type: 'confirm',
     player_id: HB_PLAYER_ID,
     message: '【自动填充】回合结束，请选择分支：',
-    choice_type: 'hb_auto_fill_branch',
+    choice_type: 'hb_auto_fill_resource',
     skill_id: HB_AUTO_FILL_SKILL_ID,
     options: [
       { id: 'crystal', label: '消耗水晶，选择增加信仰或治疗' },
@@ -649,7 +649,7 @@ export function autoFillRewardPrompt(): WsMessage {
     type: 'confirm',
     player_id: HB_PLAYER_ID,
     message: '【自动填充】请选择获得：',
-    choice_type: 'hb_auto_fill_reward',
+    choice_type: 'hb_auto_fill_gain',
     skill_id: HB_AUTO_FILL_SKILL_ID,
     options: [
       { id: 'faith', label: '+1信仰' },
