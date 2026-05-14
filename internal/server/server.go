@@ -94,6 +94,12 @@ func (s *Server) HandleCreateRoom(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(`{"room_code":"` + room.Code + `"}`))
 }
 
+// HandleHealth reports that the server process is ready to accept requests.
+func (s *Server) HandleHealth(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(`{"ok":true}`))
+}
+
 // HandleRoomInfo returns room information
 func (s *Server) HandleRoomInfo(w http.ResponseWriter, r *http.Request) {
 	roomCode := r.URL.Query().Get("room")

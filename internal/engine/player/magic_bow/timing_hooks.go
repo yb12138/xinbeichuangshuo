@@ -4,7 +4,6 @@ package magic_bow
 
 import (
 	"fmt"
-	"strings"
 
 	"starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
@@ -40,24 +39,14 @@ func postAttackHitHook(rt player.HookRuntime, ctx player.TimingHookContext) play
 		p.TurnState.SkillFlowState["mb_magic_pierce_pending"] = 0
 		return player.TimingHookResult{}
 	}
-	if _, ok := RemoveChargeByElement(p, model.ElementFire); ok {
-		queue := rt.GetPendingDamageQueue()
-		applied := false
-		for i := range queue {
-			queued := &queue[i]
-			if !strings.EqualFold(string(queued.DamageType), string(model.AttackDamage)) {
-				continue
-			}
-			queued.Damage++
-			applied = true
-			break
-		}
-		rt.SetPendingDamageQueue(queue)
-		rt.Log(fmt.Sprintf("%s 的 [魔贯冲击] 命中追加生效：额外移除1个火系充能，本次攻击伤害+1", p.Name))
-		if !applied {
-			rt.Log("[Warn] 魔弓冲击命中追加未找到对应伤害条目，未能叠加伤害")
-		}
-	}
-	p.TurnState.SkillFlowState["mb_magic_pierce_pending"] = 0
-	return player.TimingHookResult{}
+	rt.PushInterrupt(&model.Interrupt{
+		Type:     model.InterruptChoice,
+		PlayerID: p.ID,
+		Context: map[string]interface{}{
+			"choice_type": "mb_magic_pierce_hit_bonus",
+			"user_id":     p.ID,
+		},
+	})
+	rt.Log(fmt.Sprintf("%s 的 [魔贯冲击] 命中，可额外移除1个火系充能使伤害+1", p.Name))
+	return player.TimingHookResult{Interrupted: true}
 }

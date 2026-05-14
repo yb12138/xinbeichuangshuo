@@ -23,6 +23,16 @@ func NewChoiceHandler() engineplayer.ChoiceHandler {
 
 func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, playerID string, player *model.Player, data map[string]interface{}) *model.Prompt {
 	switch choiceType {
+	case "mb_magic_pierce_charge":
+		return buildChargeRemovalPrompt(playerID, player, model.ElementFire, "【魔贯冲击】请选择移除1个火系充能：")
+	case "mb_magic_pierce_hit_bonus":
+		return buildMagicPierceHitBonusPrompt(playerID)
+	case "mb_magic_pierce_hit_charge":
+		return buildChargeRemovalPrompt(playerID, player, model.ElementFire, "【魔贯冲击】请选择额外移除1个火系充能：")
+	case "mb_thunder_scatter_base_charge":
+		return buildChargeRemovalPrompt(playerID, player, model.ElementThunder, "【雷光散射】请选择移除1个雷系充能：")
+	case "mb_multi_shot_charge":
+		return buildChargeRemovalPrompt(playerID, player, model.ElementWind, "【多重射击】请选择移除1个风系充能：")
 	case "mb_charge_draw_x":
 		return buildChargeDrawXPrompt(playerID, data)
 	case "mb_charge_place_count":
@@ -33,22 +43,77 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		return buildThunderScatterExtraPrompt(playerID, data)
 	case "mb_demon_eye_mode":
 		return &model.Prompt{
-			Type:          model.PromptConfirm,
-			PlayerID:      playerID,
-			Message:       "【魔眼】请选择发动分支：",
-			Options:       []model.PromptOption{{ID: "0", Label: "分支①：令1名角色弃1张牌"}, {ID: "1", Label: "分支②：你摸3张牌"}},
-			Min:           1,
-			Max:           1,
+			Type:         model.PromptConfirm,
+			PlayerID:     playerID,
+			Message:      "【魔眼】请选择发动分支：",
+			Options:      []model.PromptOption{{ID: "0", Label: "分支①：令1名角色弃1张牌"}, {ID: "1", Label: "分支②：你摸3张牌"}},
+			Min:          1,
+			Max:          1,
 			Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 		}
 	case "mb_demon_eye_target":
 		return engineplayer.BuildTargetChoicePrompt(rt, playerID, "【魔眼·分支①】请选择弃1张牌的目标角色：", data, false)
 	case "mb_multi_shot_target":
-		return engineplayer.BuildTargetChoicePrompt(rt, playerID, "【多重射击】请选择暗系追加攻击目标：", data, false)
+		p := engineplayer.BuildTargetChoicePrompt(rt, playerID, "【多重射击】请选择暗系追加攻击目标：", data, false)
+		if p != nil {
+			p.ChoiceType = "mb_multi_shot_target"
+		}
+		return p
 	case "mb_thunder_scatter_target":
-		return engineplayer.BuildTargetChoicePrompt(rt, playerID, fmt.Sprintf("【雷光散射】请选择额外受到%d点法术伤害的目标：", runtimeutil.ToIntContextValue(data["extra_x"])), data, false)
+		p := engineplayer.BuildTargetChoicePrompt(rt, playerID, fmt.Sprintf("【雷光散射】请选择额外受到%d点法术伤害的目标：", runtimeutil.ToIntContextValue(data["extra_x"])), data, false)
+		if p != nil {
+			p.ChoiceType = "mb_thunder_scatter_target"
+		}
+		return p
 	default:
 		return nil
+	}
+}
+
+func buildChargeRemovalPrompt(playerID string, player *model.Player, element model.Element, message string) *model.Prompt {
+	if player == nil {
+		return nil
+	}
+	fieldIndices := magicBowChargeFieldIndices(player, element)
+	options := make([]model.PromptOption, 0, len(fieldIndices))
+	for _, fieldIndex := range fieldIndices {
+		if fieldIndex < 0 || fieldIndex >= len(player.Field) {
+			continue
+		}
+		fc := player.Field[fieldIndex]
+		if fc == nil || fc.Card.ID == "" {
+			continue
+		}
+		eleZh := promptfmt.ElementName(string(fc.Card.Element))
+		if eleZh == "" {
+			eleZh = string(fc.Card.Element)
+		}
+		options = append(options, model.PromptOption{
+			ID:    fmt.Sprintf("%d", fieldIndex),
+			Label: fmt.Sprintf("%s（%s系）", fc.Card.Name, eleZh),
+		})
+	}
+	return &model.Prompt{
+		Type:     model.PromptConfirm,
+		PlayerID: playerID,
+		Message:  message,
+		Options:  options,
+		Min:      1,
+		Max:      1,
+	}
+}
+
+func buildMagicPierceHitBonusPrompt(playerID string) *model.Prompt {
+	return &model.Prompt{
+		Type:     model.PromptConfirm,
+		PlayerID: playerID,
+		Message:  "【魔贯冲击】是否额外移除1个火系充能使伤害+1？",
+		Options: []model.PromptOption{
+			{ID: "0", Label: "是"},
+			{ID: "1", Label: "否"},
+		},
+		Min: 1,
+		Max: 1,
 	}
 }
 
@@ -88,12 +153,13 @@ func buildChargePlaceCountPrompt(playerID string, data map[string]interface{}) *
 		})
 	}
 	return &model.Prompt{
-		Type:     model.PromptConfirm,
-		PlayerID: playerID,
-		Message:  "【充能】请选择要放置为充能的手牌数量：",
-		Options:  options,
-		Min:      1,
-		Max:      1,
+		Type:         model.PromptConfirm,
+		PlayerID:     playerID,
+		Message:      "【充能】请选择要放置为充能的手牌数量：",
+		Options:      options,
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 0},
 	}
 }
 
@@ -157,12 +223,13 @@ func buildThunderScatterExtraPrompt(playerID string, data map[string]interface{}
 		})
 	}
 	return &model.Prompt{
-		Type:     model.PromptConfirm,
-		PlayerID: playerID,
-		Message:  "【雷光散射】请选择额外移除雷系充能数量X：",
-		Options:  options,
-		Min:      1,
-		Max:      1,
+		Type:         model.PromptConfirm,
+		PlayerID:     playerID,
+		Message:      "【雷光散射】请选择额外移除雷系充能数量X：",
+		Options:      options,
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 0},
 	}
 }
 
@@ -174,6 +241,16 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 	choiceType, _ := ctxData["choice_type"].(string)
 
 	switch choiceType {
+	case "mb_magic_pierce_charge":
+		return true, handleMagicPierceCharge(rt, ctxData, selectionIndex)
+	case "mb_magic_pierce_hit_bonus":
+		return true, handleMagicPierceHitBonus(rt, ctxData, selectionIndex)
+	case "mb_magic_pierce_hit_charge":
+		return true, handleMagicPierceHitCharge(rt, ctxData, selectionIndex)
+	case "mb_thunder_scatter_base_charge":
+		return true, handleThunderScatterBaseCharge(rt, ctxData, selectionIndex)
+	case "mb_multi_shot_charge":
+		return true, handleMultiShotCharge(rt, ctxData, selectionIndex)
 	case "mb_charge_draw_x":
 		return true, handleChargeDrawX(rt, ctxData, selectionIndex)
 	case "mb_charge_place_count":
@@ -194,6 +271,180 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 // ---------------------------------------------------------------------------
 // Individual choice-type handlers
 // ---------------------------------------------------------------------------
+
+func removeSelectedMagicBowCharge(user *model.Player, element model.Element, selectionIndex int) (model.Card, error) {
+	fieldIndices := magicBowChargeFieldIndices(user, element)
+	if selectionIndex < 0 || selectionIndex >= len(fieldIndices) {
+		return model.Card{}, fmt.Errorf("无效的充能选项: %d", selectionIndex)
+	}
+	card, ok := removeMagicBowChargeAtFieldIndex(user, fieldIndices[selectionIndex], element)
+	if !ok {
+		return model.Card{}, fmt.Errorf("所选充能不存在或元素不匹配")
+	}
+	return card, nil
+}
+
+func addMagicPierceAttackDamageBonus(rt engineplayer.ChoiceRuntime, userID string) bool {
+	queue := rt.GetPendingDamageQueue()
+	for i := range queue {
+		queued, ok := rt.GetPendingDamageByIndex(i)
+		if !ok || queued == nil {
+			continue
+		}
+		if queued.SourceID != userID || queued.DamageType != model.AttackDamage {
+			continue
+		}
+		queued.Damage++
+		return true
+	}
+	return false
+}
+
+func handleMagicPierceCharge(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
+	rawCtx, _ := ctxData["user_ctx"].(*model.Context)
+	userID, _ := ctxData["user_id"].(string)
+	if userID == "" && rawCtx != nil && rawCtx.User != nil {
+		userID = rawCtx.User.ID
+	}
+	user := rt.GetPlayers()[userID]
+	if user == nil {
+		return fmt.Errorf("玩家不存在")
+	}
+	removed, err := removeSelectedMagicBowCharge(user, model.ElementFire, selectionIndex)
+	if err != nil {
+		return err
+	}
+	if rawCtx == nil || rawCtx.EventCtx == nil || rawCtx.EventCtx.Card == nil {
+		return fmt.Errorf("魔贯冲击上下文无效")
+	}
+	user.TurnState.UsedSkillCounts["mb_magic_pierce_used_turn"]++
+	engineplayer.SetSkillFlowState(user, "mb_magic_pierce_pending", 1)
+	rawCtx.EventCtx.Card.Damage++
+	rt.Log(fmt.Sprintf("%s 发动 [魔贯冲击]：移除火系充能 %s，本次攻击伤害+1", user.Name, removed.Name))
+	rt.PopInterrupt()
+	return nil
+}
+
+func handleMagicPierceHitBonus(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
+	userID, _ := ctxData["user_id"].(string)
+	user := rt.GetPlayers()[userID]
+	if user == nil {
+		return fmt.Errorf("玩家不存在")
+	}
+	switch selectionIndex {
+	case 0:
+		if magicBowChargeCount(user, model.ElementFire) <= 0 {
+			user.TurnState.SkillFlowState["mb_magic_pierce_pending"] = 0
+			rt.PopInterrupt()
+			if rt.GetPendingInterrupt() == nil && len(rt.GetPendingDamageQueue()) > 0 {
+				rt.EnterDamageResolution(nil)
+			}
+			return nil
+		}
+		ctxData["choice_type"] = "mb_magic_pierce_hit_charge"
+		if intr := rt.GetPendingInterrupt(); intr != nil {
+			intr.Context = ctxData
+		}
+		rt.NotifyInterruptPrompt()
+		return nil
+	case 1:
+		user.TurnState.SkillFlowState["mb_magic_pierce_pending"] = 0
+		rt.Log(fmt.Sprintf("%s 放弃 [魔贯冲击] 命中追加充能", user.Name))
+		rt.PopInterrupt()
+		if rt.GetPendingInterrupt() == nil && len(rt.GetPendingDamageQueue()) > 0 {
+			rt.EnterDamageResolution(nil)
+		}
+		return nil
+	default:
+		return fmt.Errorf("无效的魔贯冲击命中追加选项")
+	}
+}
+
+func handleMagicPierceHitCharge(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
+	userID, _ := ctxData["user_id"].(string)
+	user := rt.GetPlayers()[userID]
+	if user == nil {
+		return fmt.Errorf("玩家不存在")
+	}
+	removed, err := removeSelectedMagicBowCharge(user, model.ElementFire, selectionIndex)
+	if err != nil {
+		return err
+	}
+	applied := addMagicPierceAttackDamageBonus(rt, user.ID)
+	rt.Log(fmt.Sprintf("%s 的 [魔贯冲击] 命中追加生效：额外移除火系充能 %s，本次攻击伤害+1", user.Name, removed.Name))
+	if !applied {
+		rt.Log("[Warn] 魔弓冲击命中追加未找到对应伤害条目，未能叠加伤害")
+	}
+	user.TurnState.SkillFlowState["mb_magic_pierce_pending"] = 0
+	rt.PopInterrupt()
+	if rt.GetPendingInterrupt() == nil && len(rt.GetPendingDamageQueue()) > 0 {
+		rt.EnterDamageResolution(nil)
+	}
+	return nil
+}
+
+func handleThunderScatterBaseCharge(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
+	userID, _ := ctxData["user_id"].(string)
+	user := rt.GetPlayers()[userID]
+	if user == nil {
+		return fmt.Errorf("玩家不存在")
+	}
+	removed, err := removeSelectedMagicBowCharge(user, model.ElementThunder, selectionIndex)
+	if err != nil {
+		return err
+	}
+
+	maxExtra := magicBowChargeCount(user, model.ElementThunder)
+	if maxExtra > 0 {
+		ctxData["choice_type"] = "mb_thunder_scatter_extra"
+		ctxData["max_extra"] = maxExtra
+		if intr := rt.GetPendingInterrupt(); intr != nil {
+			intr.Context = ctxData
+		}
+		rt.NotifyInterruptPrompt()
+		rt.Log(fmt.Sprintf("%s 的 [雷光散射]：已移除雷系充能 %s，可额外移除0~%d个雷系充能", user.Name, removed.Name, maxExtra))
+		return nil
+	}
+
+	targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
+	for _, targetID := range targetIDs {
+		rt.AddPendingDamage(model.PendingDamage{
+			SourceID:   user.ID,
+			TargetID:   targetID,
+			Damage:     1,
+			DamageType: model.MagicAttack,
+		})
+	}
+	rt.Log(fmt.Sprintf("%s 的 [雷光散射] 生效：移除雷系充能 %s，对所有对手各造成1点法术伤害", user.Name, removed.Name))
+	rt.PopInterrupt()
+	if rt.GetPendingInterrupt() == nil {
+		rt.ApplyChoiceResumePoint(model.TurnStageExtraAction)
+		if len(rt.GetPendingDamageQueue()) > 0 {
+			rt.EnterDamageResolution(nil)
+		}
+	}
+	return nil
+}
+
+func handleMultiShotCharge(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
+	userID, _ := ctxData["user_id"].(string)
+	user := rt.GetPlayers()[userID]
+	if user == nil {
+		return fmt.Errorf("玩家不存在")
+	}
+	removed, err := removeSelectedMagicBowCharge(user, model.ElementWind, selectionIndex)
+	if err != nil {
+		return err
+	}
+	user.TurnState.UsedSkillCounts["mb_multi_shot_used_turn"]++
+	ctxData["choice_type"] = "mb_multi_shot_target"
+	if intr := rt.GetPendingInterrupt(); intr != nil {
+		intr.Context = ctxData
+	}
+	rt.NotifyInterruptPrompt()
+	rt.Log(fmt.Sprintf("%s 的 [多重射击]：移除风系充能 %s，请选择暗系追加攻击目标", user.Name, removed.Name))
+	return nil
+}
 
 func handleChargeDrawX(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	userID, _ := ctxData["user_id"].(string)
@@ -550,8 +801,8 @@ func handleTargetChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]interf
 
 	case "mb_multi_shot_target":
 		prevOrder := 0
-		if user.TurnState.SkillFlowState != nil {
-			prevOrder = user.TurnState.SkillFlowState["mb_last_attack_target_order"]
+		if user.TurnState.UsedSkillCounts != nil {
+			prevOrder = user.TurnState.UsedSkillCounts["mb_last_attack_target_order"]
 		}
 		if prevOrder > 0 {
 			playerOrder := rt.GetPlayerOrder()
@@ -570,7 +821,6 @@ func handleTargetChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]interf
 			Description: "由多重射击视为的暗系主动攻击（伤害-1）",
 		}
 		rt.EnqueueVirtualAttack(user.ID, target.ID, virtualCard, "mb_multi_shot")
-		RemoveChargeByElement(user, model.ElementWind)
 		rt.Log(fmt.Sprintf("%s 的 [多重射击] 生效：对 %s 发起1次暗系追加攻击（伤害-1）", user.Name, target.Name))
 		rt.PopInterrupt()
 		if rt.GetPendingInterrupt() == nil {
@@ -723,7 +973,6 @@ func demonEyeAfterDiscardData(rt engineplayer.ChoiceRuntime, discardPlayer *mode
 // ---------------------------------------------------------------------------
 // Local helpers
 // ---------------------------------------------------------------------------
-
 
 // getPlayerEnergyCap returns the energy capacity for a player (default 3).
 func getPlayerEnergyCap(player *model.Player) int {

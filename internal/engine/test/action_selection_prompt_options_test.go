@@ -198,6 +198,43 @@ func TestActionSelectionPrompt_ExtraMagicWithSkillOnlyShowsMagic(t *testing.T) {
 	}
 }
 
+func TestActionSelectionPrompt_MagicLancerFullnessBonusInAttackPrompt(t *testing.T) {
+	obs := &actionPromptObserver{}
+	game := engine.NewGameEngine(obs)
+
+	if err := game.AddPlayer("p1", "Lancer", "magic_lancer", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Dummy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.TurnState.CurrentExtraAction = "Attack"
+	p1.Hand = []model.Card{
+		{ID: "atk", Name: "测试攻击", Type: model.CardTypeAttack, Element: model.ElementThunder, Damage: 2},
+	}
+	game.ApplyNextAttackDamageRule(p1.ID, "ml_fullness_next_attack_bonus", "ml_fullness", 2, model.RuleLifeUntilTurnEnd)
+
+	game.Drive()
+
+	if obs.lastPrompt == nil {
+		t.Fatalf("expected action selection prompt, got nil")
+	}
+	options := promptOptionSet(obs.lastPrompt)
+	if !options["attack"] {
+		t.Fatalf("expected attack option for fullness extra attack, got %+v", obs.lastPrompt.Options)
+	}
+	if !strings.Contains(obs.lastPrompt.Message, "【充盈】下一次主动攻击伤害额外+2") {
+		t.Fatalf("expected fullness attack bonus hint in prompt message, got: %s", obs.lastPrompt.Message)
+	}
+}
+
 func TestActionSelection_ExtraActionCannotActSkipsWhenNoLegalAction(t *testing.T) {
 	game, _ := buildActionSelectionEngine(t, "Attack")
 	p1 := game.State.Players["p1"]

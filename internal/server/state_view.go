@@ -104,7 +104,6 @@ func (r *Room) buildStateForPlayer(playerID string) GameStateUpdate {
 		view.BloodSharedLifeActive = countBloodSharedLifeAsSource(state, p.ID)
 		view.BloodSharedLifeBound = countBloodSharedLifeAsHolder(p)
 		view.MagicLancerDarkReleaseBonus = combatPolicyAttackBonusByModifierID(p, "ml_dark_release_next_attack_bonus")
-		view.MagicLancerFullnessBonus = combatPolicyAttackBonusByModifierID(p, "ml_fullness_next_attack_bonus")
 		if hasRuleModifierWithModifierID(p, "ml_dark_release_lock_turn") {
 			view.MagicLancerDarkReleaseLockTurn = 1
 		} else {
@@ -173,23 +172,23 @@ func (r *Room) buildBotStateSnapshot(playerID string) bot.StateSnapshot {
 	players := make(map[string]bot.PlayerSnapshot)
 	for pid, p := range state.Players {
 		snapshot := bot.PlayerSnapshot{
-			ID:               p.ID,
-			Name:             p.Name,
-			Camp:             string(p.Camp),
-			Role:             p.Role,
-			Form:             r.Engine.GetPlayerForm(pid),
-			Orientation:      string(r.Engine.GetPlayerOrientation(pid)),
-			HandCount:        len(p.Hand),
-			MaxHand:          r.previewMaxHand(p),
+			ID:                 p.ID,
+			Name:               p.Name,
+			Camp:               string(p.Camp),
+			Role:               p.Role,
+			Form:               r.Engine.GetPlayerForm(pid),
+			Orientation:        string(r.Engine.GetPlayerOrientation(pid)),
+			HandCount:          len(p.Hand),
+			MaxHand:            r.previewMaxHand(p),
 			ExclusiveCardCount: len(p.ExclusiveCards),
-			Field:            buildMaskedFieldForViewer(p, playerID),
-			Heal:             p.Heal,
-			MaxHeal:          p.MaxHeal,
-			Gem:              p.Gem,
-			Crystal:          p.Crystal,
-			IsActive:         p.IsActive,
-			Buffs:            p.Buffs,
-			Tokens:           map[string]int{},
+			Field:              buildMaskedFieldForViewer(p, playerID),
+			Heal:               p.Heal,
+			MaxHeal:            p.MaxHeal,
+			Gem:                p.Gem,
+			Crystal:            p.Crystal,
+			IsActive:           p.IsActive,
+			Buffs:              p.Buffs,
+			Tokens:             map[string]int{},
 		}
 		for k, v := range p.Tokens {
 			snapshot.Tokens[k] = v

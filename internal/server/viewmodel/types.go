@@ -125,7 +125,6 @@ type PlayerView struct {
 	BloodSharedLifeActive          int `json:"bp_shared_life_active,omitempty"`
 	BloodSharedLifeBound           int `json:"bp_shared_life_bound,omitempty"`
 	MagicLancerDarkReleaseBonus    int `json:"ml_dark_release_next_attack_bonus,omitempty"`
-	MagicLancerFullnessBonus       int `json:"ml_fullness_next_attack_bonus,omitempty"`
 	MagicLancerDarkReleaseLockTurn int `json:"ml_dark_release_lock_turn,omitempty"` // 0/1，与 tokens 分离
 	SwordEmperorSwordSoulCount     int `json:"se_sword_soul_count,omitempty"`
 

@@ -238,6 +238,28 @@ func (e *GameEngine) finalizeActionSelectionPromptState(player *model.Player, st
 	if state.isRestrictedExtraAction && !state.hasRestrictedExtraAction {
 		state.promptMessage = "当前为额外行动阶段，但你没有满足约束的可执行动作。可选择跳过本次额外行动。"
 	}
+	if bonus := magicLancerFullnessAttackPromptBonus(player, state); bonus > 0 {
+		state.promptMessage = fmt.Sprintf("%s（【充盈】下一次主动攻击伤害额外+%d）", state.promptMessage, bonus)
+	}
+}
+
+func magicLancerFullnessAttackPromptBonus(player *model.Player, state *ActionSelectionState) int {
+	if player == nil || state == nil || player.Role != "magic_lancer" {
+		return 0
+	}
+	if !actionSelectionHasOption(state.ValidOptions, "attack") {
+		return 0
+	}
+	return AttackDamageRuleBonusForModifier(player, "ml_fullness_next_attack_bonus")
+}
+
+func actionSelectionHasOption(options []model.PromptOption, optionID string) bool {
+	for _, option := range options {
+		if option.ID == optionID {
+			return true
+		}
+	}
+	return false
 }
 
 func (e *GameEngine) validateActionSelectionPolicies(player *model.Player, act model.PlayerAction) (actionSelectionValidationResult, error) {

@@ -71,16 +71,21 @@ func SkillEntries() []player.SkillEntry {
 // ChoiceRouteSpecs 导出角色 choice 路由声明。
 func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 	return map[string]types.ChoiceRouteSpec{
-		"mb_charge_discard_pick":    types.ChoiceRouteRole("magic_bow"),
-		"mb_charge_draw_x":          types.ChoiceRouteRole("magic_bow"),
-		"mb_charge_place_cards":     types.ChoiceRouteRole("magic_bow"),
-		"mb_charge_place_count":     types.ChoiceRouteRole("magic_bow"),
-		"mb_demon_eye_charge_card":  types.ChoiceRouteRole("magic_bow"),
-		"mb_demon_eye_mode":         types.ChoiceRouteRole("magic_bow"),
-		"mb_demon_eye_pick":         types.ChoiceRouteRole("magic_bow"),
-		"mb_demon_eye_target":       types.ChoiceRouteRole("magic_bow"),
-		"mb_multi_shot_target":      types.ChoiceRouteRole("magic_bow"),
-		"mb_thunder_scatter_extra":  types.ChoiceRouteRole("magic_bow"),
-		"mb_thunder_scatter_target": types.ChoiceRouteRole("magic_bow"),
+		"mb_charge_discard_pick":         types.ChoiceRouteRole("magic_bow"),
+		"mb_charge_draw_x":               types.ChoiceRouteRole("magic_bow"),
+		"mb_charge_place_cards":          types.ChoiceRouteRole("magic_bow"),
+		"mb_charge_place_count":          types.ChoiceRouteRole("magic_bow"),
+		"mb_demon_eye_charge_card":       types.ChoiceRouteRole("magic_bow"),
+		"mb_demon_eye_mode":              types.ChoiceRouteRole("magic_bow"),
+		"mb_demon_eye_pick":              types.ChoiceRouteRole("magic_bow"),
+		"mb_demon_eye_target":            types.ChoiceRouteRole("magic_bow"),
+		"mb_magic_pierce_charge":         types.ChoiceRouteRole("magic_bow"),
+		"mb_magic_pierce_hit_bonus":      types.ChoiceRouteRole("magic_bow"),
+		"mb_magic_pierce_hit_charge":     types.ChoiceRouteRole("magic_bow"),
+		"mb_multi_shot_charge":           types.ChoiceRouteRole("magic_bow"),
+		"mb_multi_shot_target":           types.ChoiceRouteRole("magic_bow"),
+		"mb_thunder_scatter_base_charge": types.ChoiceRouteRole("magic_bow"),
+		"mb_thunder_scatter_extra":       types.ChoiceRouteRole("magic_bow"),
+		"mb_thunder_scatter_target":      types.ChoiceRouteRole("magic_bow"),
 	}
 }

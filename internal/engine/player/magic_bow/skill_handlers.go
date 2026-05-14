@@ -37,8 +37,42 @@ func magicBowChargeCount(user *model.Player, element model.Element) int {
 	return count
 }
 
+func magicBowChargeFieldIndices(user *model.Player, element model.Element) []int {
+	if user == nil {
+		return nil
+	}
+	out := make([]int, 0)
+	for idx, fc := range user.Field {
+		if fc == nil || fc.Mode != model.FieldCover || fc.Effect != model.EffectMagicBowCharge {
+			continue
+		}
+		if element != "" && fc.Card.Element != element {
+			continue
+		}
+		out = append(out, idx)
+	}
+	return out
+}
+
 func syncMagicBowChargeToken(user *model.Player) {
 	// no-op: mb_charge_count 在服务端 buildStateForPlayer 中按场上盖牌派生写入 PlayerView.tokens
+}
+
+func removeMagicBowChargeAtFieldIndex(user *model.Player, fieldIndex int, element model.Element) (model.Card, bool) {
+	if user == nil || fieldIndex < 0 || fieldIndex >= len(user.Field) {
+		return model.Card{}, false
+	}
+	fc := user.Field[fieldIndex]
+	if fc == nil || fc.Mode != model.FieldCover || fc.Effect != model.EffectMagicBowCharge {
+		return model.Card{}, false
+	}
+	if element != "" && fc.Card.Element != element {
+		return model.Card{}, false
+	}
+	card := fc.Card
+	user.RemoveFieldCard(fc)
+	syncMagicBowChargeToken(user)
+	return card, true
 }
 
 func removeMagicBowChargeByElement(user *model.Player, element model.Element) (model.Card, bool) {
@@ -140,13 +174,19 @@ func (h *MagicBowMagicPierceHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil || ctx.EventCtx.Card == nil {
 		return fmt.Errorf("魔贯冲击上下文无效")
 	}
-	if _, ok := removeMagicBowChargeByElement(ctx.User, model.ElementFire); !ok {
+	if magicBowChargeCount(ctx.User, model.ElementFire) <= 0 {
 		return fmt.Errorf("火系充能不足")
 	}
-	ctx.User.TurnState.UsedSkillCounts["mb_magic_pierce_used_turn"]++
-	engineplayer.SetSkillFlowState(ctx.User, "mb_magic_pierce_pending", 1)
-	ctx.EventCtx.Card.Damage++
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [魔贯冲击]：移除1个火系充能，本次攻击伤害+1", ctx.User.Name))
+	ctx.Game.PushInterrupt(&model.Interrupt{
+		Type:     model.InterruptChoice,
+		PlayerID: ctx.User.ID,
+		Context: map[string]interface{}{
+			"choice_type": "mb_magic_pierce_charge",
+			"user_id":     ctx.User.ID,
+			"user_ctx":    ctx,
+		},
+	})
+	ctx.Game.Log(fmt.Sprintf("%s 确认发动 [魔贯冲击]：请选择移除1个火系充能", ctx.User.Name))
 	return nil
 }
 
@@ -167,7 +207,7 @@ func (h *MagicBowThunderScatterHandler) Execute(ctx *model.Context) error {
 	if ctx.User.TurnState.UsedSkillCounts["mb_charge_lock_turn"] > 0 {
 		return fmt.Errorf("本回合已发动[充能]，不能发动雷光散射")
 	}
-	if _, ok := removeMagicBowChargeByElement(ctx.User, model.ElementThunder); !ok {
+	if magicBowChargeCount(ctx.User, model.ElementThunder) <= 0 {
 		return fmt.Errorf("雷系充能不足")
 	}
 	enemyIDs := make([]string, 0)
@@ -188,31 +228,17 @@ func (h *MagicBowThunderScatterHandler) Execute(ctx *model.Context) error {
 		}
 		lockedTargetID = ctx.Target.ID
 	}
-	maxExtra := magicBowChargeCount(ctx.User, model.ElementThunder)
-	if maxExtra <= 0 {
-		for _, enemyID := range enemyIDs {
-			ctx.Game.AddPendingDamage(model.PendingDamage{
-				SourceID:   ctx.User.ID,
-				TargetID:   enemyID,
-				Damage:     1,
-				DamageType: model.MagicAttack,
-			})
-		}
-		ctx.Game.Log(fmt.Sprintf("%s 发动 [雷光散射]：对所有对手各造成1点法术伤害", ctx.User.Name))
-		return nil
-	}
 	ctx.Game.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
 		Context: map[string]interface{}{
-			"choice_type":      "mb_thunder_scatter_extra",
+			"choice_type":      "mb_thunder_scatter_base_charge",
 			"user_id":          ctx.User.ID,
 			"target_ids":       enemyIDs,
-			"max_extra":        maxExtra,
 			"locked_target_id": lockedTargetID,
 		},
 	})
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [雷光散射]：可额外移除0~%d个雷系充能并指定目标", ctx.User.Name, maxExtra))
+	ctx.Game.Log(fmt.Sprintf("%s 发动 [雷光散射]：请选择移除1个雷系充能", ctx.User.Name))
 	return nil
 }
 
@@ -267,21 +293,20 @@ func (h *MagicBowMultiShotHandler) Execute(ctx *model.Context) error {
 		ctx.Game.Log(fmt.Sprintf("%s 发动 [多重射击] 失败：无可攻击目标", ctx.User.Name))
 		return nil
 	}
-	if _, ok := removeMagicBowChargeByElement(ctx.User, model.ElementWind); !ok {
+	if magicBowChargeCount(ctx.User, model.ElementWind) <= 0 {
 		return fmt.Errorf("风系充能不足")
 	}
-	ctx.User.TurnState.UsedSkillCounts["mb_multi_shot_used_turn"]++
 
 	ctx.Game.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
 		Context: map[string]interface{}{
-			"choice_type": "mb_multi_shot_target",
+			"choice_type": "mb_multi_shot_charge",
 			"user_id":     ctx.User.ID,
 			"target_ids":  enemyIDs,
 		},
 	})
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [多重射击]：请选择暗系追加攻击目标", ctx.User.Name))
+	ctx.Game.Log(fmt.Sprintf("%s 确认发动 [多重射击]：请选择移除1个风系充能", ctx.User.Name))
 	return nil
 }
 

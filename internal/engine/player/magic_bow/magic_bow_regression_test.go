@@ -58,6 +58,32 @@ func pendingChoiceTargetIDs(intr *model.Interrupt) []string {
 	return out
 }
 
+func chooseMagicBowChoice(t *testing.T, game *engine.GameEngine, playerID, choiceType string, selections ...int) {
+	t.Helper()
+	testutils.RequireChoicePrompt(t, game, playerID, choiceType)
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   playerID,
+		Type:       model.CmdSelect,
+		Selections: selections,
+	})
+}
+
+func chooseMagicPierceAndFireCharge(t *testing.T, game *engine.GameEngine, playerID string) {
+	t.Helper()
+	testutils.ChooseResponseSkillByID(t, game, playerID, "mb_magic_pierce")
+	chooseMagicBowChoice(t, game, playerID, "mb_magic_pierce_charge", 0)
+}
+
+func pendingAttackDamageTo(game *engine.GameEngine, sourceID, targetID string) int {
+	total := 0
+	for _, pd := range game.State.PendingDamageQueue {
+		if pd.SourceID == sourceID && pd.TargetID == targetID && strings.EqualFold(string(pd.DamageType), string(model.AttackDamage)) {
+			total += pd.Damage
+		}
+	}
+	return total
+}
+
 func TestMagicBowMagicPierce_MissDealsMagicDamageAndLocksMultiShot(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "MagicBow", "magic_bow", model.RedCamp); err != nil {
@@ -92,7 +118,7 @@ func TestMagicBowMagicPierce_MissDealsMagicDamageAndLocksMultiShot(t *testing.T)
 		TargetID:  "p2",
 		CardIndex: 0,
 	})
-	testutils.ChooseResponseSkillByID(t, game, "p1", "mb_magic_pierce")
+	chooseMagicPierceAndFireCharge(t, game, "p1")
 
 	if err := game.HandleCombatResponse(model.PlayerAction{
 		PlayerID:  "p2",
@@ -165,6 +191,7 @@ func TestMagicBowMultiShot_TargetCannotRepeatPrevious(t *testing.T) {
 	if err := h.Execute(ctx); err != nil {
 		t.Fatalf("execute multi-shot failed: %v", err)
 	}
+	chooseMagicBowChoice(t, game, "p1", "mb_multi_shot_charge", 0)
 	testutils.RequireChoicePrompt(t, game, "p1", "mb_multi_shot_target")
 
 	targetIDs := pendingChoiceTargetIDs(game.State.PendingInterrupt)
@@ -394,6 +421,7 @@ func TestMagicBowThunderScatter_ExtraDamageSplit(t *testing.T) {
 	if err := game.UseSkill("p1", "mb_thunder_scatter", nil, nil); err != nil {
 		t.Fatalf("use thunder scatter failed: %v", err)
 	}
+	chooseMagicBowChoice(t, game, "p1", "mb_thunder_scatter_base_charge", 0)
 	testutils.RequireChoicePrompt(t, game, "p1", "mb_thunder_scatter_extra")
 
 	// 选择额外移除2个雷系充能。
@@ -469,7 +497,7 @@ func TestMagicBowMagicPierce_HitBonusCappedAtTwo(t *testing.T) {
 		TargetID:  "p2",
 		CardIndex: 0,
 	})
-	testutils.ChooseResponseSkillByID(t, game, "p1", "mb_magic_pierce")
+	chooseMagicPierceAndFireCharge(t, game, "p1")
 	if err := game.HandleCombatResponse(model.PlayerAction{
 		PlayerID:  "p2",
 		Type:      model.CmdRespond,
@@ -478,9 +506,10 @@ func TestMagicBowMagicPierce_HitBonusCappedAtTwo(t *testing.T) {
 		t.Fatalf("combat take response failed: %v", err)
 	}
 	game.Drive()
-	if game.State.PendingInterrupt != nil {
-		t.Fatalf("expected hit bonus auto-resolve without extra prompt, got %+v", game.State.PendingInterrupt)
-	}
+	testutils.RequireChoicePrompt(t, game, "p1", "mb_magic_pierce_hit_bonus")
+	queuedBeforeBonus := pendingAttackDamageTo(game, "p1", "p2")
+	chooseMagicBowChoice(t, game, "p1", "mb_magic_pierce_hit_bonus", 0)
+	chooseMagicBowChoice(t, game, "p1", "mb_magic_pierce_hit_charge", 0)
 
 	if got := magicbowplayer.ChargeCount(p1, model.ElementFire); got != 1 {
 		t.Fatalf("expected remain 1 fire charge after at-most-once hit bonus, got %d", got)
@@ -488,8 +517,8 @@ func TestMagicBowMagicPierce_HitBonusCappedAtTwo(t *testing.T) {
 	if got := p1.TurnState.SkillFlowState["mb_magic_pierce_pending"]; got != 0 {
 		t.Fatalf("expected mb_magic_pierce_pending cleared, got %d", got)
 	}
-	if got := len(p2.Hand); got != 3 {
-		t.Fatalf("expected hit bonus auto-raise final attack damage to 3 in current combat chain, got hand=%d", got)
+	if got := len(p2.Hand); got != queuedBeforeBonus+1 {
+		t.Fatalf("expected hit bonus to raise final attack damage by 1, before=%d got hand=%d", queuedBeforeBonus, got)
 	}
 }
 
@@ -524,7 +553,7 @@ func TestMagicBowMagicPierce_MissDealsExactlyThreeMagicDamage(t *testing.T) {
 		TargetID:  "p2",
 		CardIndex: 0,
 	})
-	testutils.ChooseResponseSkillByID(t, game, "p1", "mb_magic_pierce")
+	chooseMagicPierceAndFireCharge(t, game, "p1")
 	if err := game.HandleCombatResponse(model.PlayerAction{
 		PlayerID:  "p2",
 		Type:      model.CmdRespond,
@@ -584,6 +613,7 @@ func TestMagicBowThunderScatter_ExtraZeroSkipsTargetChoice(t *testing.T) {
 	if err := game.UseSkill("p1", "mb_thunder_scatter", nil, nil); err != nil {
 		t.Fatalf("use thunder scatter failed: %v", err)
 	}
+	chooseMagicBowChoice(t, game, "p1", "mb_thunder_scatter_base_charge", 0)
 	testutils.RequireChoicePrompt(t, game, "p1", "mb_thunder_scatter_extra")
 	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose extra x=0 failed: %v", err)
@@ -661,7 +691,7 @@ func TestMagicBowCharge_LockTurnDisablesPierceAndScatter(t *testing.T) {
 	}
 }
 
-func TestMagicBowMagicPierce_HitBonusAutoConsumesSecondCharge(t *testing.T) {
+func TestMagicBowMagicPierce_HitBonusDeclineKeepsSecondCharge(t *testing.T) {
 	t.Helper()
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "MagicBow", "magic_bow", model.RedCamp); err != nil {
@@ -696,7 +726,7 @@ func TestMagicBowMagicPierce_HitBonusAutoConsumesSecondCharge(t *testing.T) {
 		TargetID:  "p2",
 		CardIndex: 0,
 	})
-	testutils.ChooseResponseSkillByID(t, game, "p1", "mb_magic_pierce")
+	chooseMagicPierceAndFireCharge(t, game, "p1")
 	if err := game.HandleCombatResponse(model.PlayerAction{
 		PlayerID:  "p2",
 		Type:      model.CmdRespond,
@@ -705,15 +735,15 @@ func TestMagicBowMagicPierce_HitBonusAutoConsumesSecondCharge(t *testing.T) {
 		t.Fatalf("combat take response failed: %v", err)
 	}
 	game.Drive()
-	if game.State.PendingInterrupt != nil {
-		t.Fatalf("expected hit bonus auto-resolve without prompt, got %+v", game.State.PendingInterrupt)
-	}
+	testutils.RequireChoicePrompt(t, game, "p1", "mb_magic_pierce_hit_bonus")
+	queuedBeforeDecline := pendingAttackDamageTo(game, "p1", "p2")
+	chooseMagicBowChoice(t, game, "p1", "mb_magic_pierce_hit_bonus", 1)
 
-	if remainFire := magicbowplayer.ChargeCount(p1, model.ElementFire); remainFire != 0 {
-		t.Fatalf("expected second fire charge auto-consumed on hit bonus, remain=%d", remainFire)
+	if remainFire := magicbowplayer.ChargeCount(p1, model.ElementFire); remainFire != 1 {
+		t.Fatalf("expected second fire charge kept after declining hit bonus, remain=%d", remainFire)
 	}
-	if got := len(game.State.Players["p2"].Hand); got != 3 {
-		t.Fatalf("expected final hit damage 3 after auto bonus in current combat chain, got hand=%d", got)
+	if got := len(game.State.Players["p2"].Hand); got != queuedBeforeDecline {
+		t.Fatalf("expected final hit damage unchanged after decline, before=%d got hand=%d", queuedBeforeDecline, got)
 	}
 }
 
