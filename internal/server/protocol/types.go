@@ -38,25 +38,18 @@ type TargetNode struct {
 	SelectedTokens     []string `json:"selected_tokens,omitempty"`
 }
 
-// ClientActionRequest is the new submit-action protocol payload.
-// Some transitional fields are kept so the current engine can still be adapted
-// from the docs-shaped request without rewriting the whole interrupt system at once.
+// ClientActionRequest is the submit-action protocol payload.
 type ClientActionRequest struct {
-	ActionType        string         `json:"action_type"`
-	UsedCardUUIDs     []string       `json:"used_card_uuids,omitempty"`
-	Targets           []TargetNode   `json:"targets,omitempty"`
-	TargetAllocations map[string]int `json:"target_allocations,omitempty"`
-	SkillID           string         `json:"skill_id,omitempty"`
-	ActionRef         string         `json:"action_ref,omitempty"`
-	StoneRef          string         `json:"stone_ref,omitempty"`
-	ElementRef        string         `json:"element_ref,omitempty"`
-	NamedValues       map[string]int `json:"named_values,omitempty"`
+	ActionType    string       `json:"action_type"`
+	UsedCardUUIDs []string     `json:"used_card_uuids,omitempty"`
+	Targets       []TargetNode `json:"targets,omitempty"`
+	SkillID       string       `json:"skill_id,omitempty"`
 
-	// Transitional adapter fields.
-	OptionIndexes []int    `json:"option_indexes,omitempty"`
-	ResponseMode  string   `json:"response_mode,omitempty"`
-	ExtraArgs     []string `json:"extra_args,omitempty"`
-	TargetRef     string   `json:"target_ref,omitempty"`
+	// OptionIndexes carries prompt option indexes for Select/Confirm actions.
+	// It is distinct from UsedCardUUIDs which carries card selection by UUID.
+	OptionIndexes []int `json:"option_indexes,omitempty"`
+	// ExtraArgs carries additional string arguments (Respond modes, Cheat subcommands).
+	ExtraArgs []string `json:"extra_args,omitempty"`
 }
 
 type RoomActionRequest struct {
@@ -88,13 +81,13 @@ type SyncStatePayload struct {
 }
 
 type RequireActionPayload struct {
-	InterruptType string              `json:"interrupt_type"`
-	TargetUserID  string              `json:"target_user_id"`
-	Timeout       int                 `json:"timeout"`
-	Msg           string              `json:"msg"`
-	ValidActions  []string            `json:"valid_actions,omitempty"`
-	RequireCount  int                 `json:"require_count,omitempty"`
-	PromptType    string              `json:"prompt_type,omitempty"`
+	InterruptType string               `json:"interrupt_type"`
+	TargetUserID  string               `json:"target_user_id"`
+	Timeout       int                  `json:"timeout"`
+	Msg           string               `json:"msg"`
+	ValidActions  []string             `json:"valid_actions,omitempty"`
+	RequireCount  int                  `json:"require_count,omitempty"`
+	PromptType    string               `json:"prompt_type,omitempty"`
 	Prompt        *viewmodel.PromptDTO `json:"prompt,omitempty"`
 }
 

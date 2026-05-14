@@ -156,9 +156,9 @@ export type PresentationKind = 'response' | 'branch_select' | 'numeric' | 'card_
 // PromptPresentation 弹框展示细节（后端显式声明，前端只渲染）
 export interface PromptPresentation {
   kind: PresentationKind
-  layout?: string // “inline”/”overlay”/”grid”/”heal_allocate”
+  layout?: string // "inline"/"overlay"/"grid"/"heal_allocate"
   numeric_base?: number // numeric 类型的数字起始值（0 或 1）
-  cancel_policy?: string // “allow”/”deny”/”implicit”
+  cancel_policy?: string // "allow"/"deny"/"implicit"
 }
 
 // Prompt（请求玩家输入）
@@ -169,7 +169,7 @@ export interface Prompt {
   choice_type?: string
   skill_id?: string
   options: PromptOption[]
-  /** 行动选择时”特殊”按钮对应的子选项（购买/合成/提炼） */
+  /** 行动选择时"特殊"按钮对应的子选项（购买/合成/提炼） */
   special_options?: PromptOption[]
   /** 前端渲染提示：action_hub 表示用底部半球行动面板承载，不弹大面板 */
   ui_mode?: string
@@ -189,7 +189,7 @@ export interface Prompt {
 }
 
 // 玩家操作类型
-export type PlayerActionType = 
+export type PlayerActionType =
   | 'Start' | 'Quit' | 'Pass' | 'Help'
   | 'Attack' | 'Magic' | 'Buy' | 'Synthesize' | 'Extract' | 'Skill'
   | 'Confirm' | 'Cancel' | 'Select' | 'Respond'
@@ -241,36 +241,20 @@ export interface PlayerInfo {
   bot_mode?: string
 }
 
-// 游戏事件
-export interface GameEvent {
-  event_type: 'log' | 'state_update' | 'prompt' | 'waiting' | 'error' | 'game_end' | 'chat' | 'card_revealed' | 'damage_dealt' | 'action_step' | 'combat_cue' | 'draw_cards'
-  message?: string
-  state?: GameStateUpdate
-  prompt?: Prompt
-  player_id?: string
-  player_name?: string
-  /** 明牌展示（出牌/弃牌动画） */
-  cards?: Card[]
-  action_type?: 'attack' | 'magic' | 'discard' | 'defend' | 'counter'
-  /** 是否为暗弃（隐藏牌面） */
-  hidden?: boolean
-  /** 伤害结算（暴血特效） */
-  source_id?: string
-  source_name?: string
-  target_id?: string
-  target_name?: string
-  damage?: number
-  damage_type?: string
-  /** 行动步骤（桌面展示） */
-  line?: string
-  kind?: 'detail' | 'summary'
-  /** 对战提示（战区动画） */
-  attacker_id?: string
-  phase?: 'attack' | 'defend' | 'take' | 'counter' | 'shield'
-  /** 摸牌事件（公共牌堆 -> 玩家区域动画） */
-  draw_count?: number
-  reason?: string
-}
+// 游戏事件（discriminated union）
+export type GameEvent =
+  | { event_type: 'log'; message: string }
+  | { event_type: 'state_update'; state: GameStateUpdate }
+  | { event_type: 'prompt'; prompt: Prompt }
+  | { event_type: 'waiting'; player_id: string }
+  | { event_type: 'error'; message: string }
+  | { event_type: 'game_end'; message: string }
+  | { event_type: 'chat'; player_id: string; player_name: string; message: string }
+  | { event_type: 'card_revealed'; player_id: string; player_name: string; cards: Card[]; action_type: string; hidden: boolean }
+  | { event_type: 'damage_dealt'; source_id: string; source_name: string; target_id: string; target_name: string; damage: number; damage_type: string; message?: string }
+  | { event_type: 'action_step'; line: string; kind: 'detail' | 'summary' }
+  | { event_type: 'combat_cue'; attacker_id: string; target_id: string; phase: string }
+  | { event_type: 'draw_cards'; player_id: string; player_name: string; draw_count: number; reason: string }
 
 // 元素颜色映射
 export const ELEMENT_COLORS: Record<Element, string> = {

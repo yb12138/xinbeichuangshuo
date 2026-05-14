@@ -25,20 +25,12 @@ export function buildClientActionRequest(
   if (targets?.length) {
     request.targets = targets
   }
-  if (action.target_id) {
-    request.target_ref = action.target_id
-  }
 
   if (action.selections?.length) {
     request.option_indexes = action.selections
   }
 
-  if (action.type === 'Respond' && action.extra_args?.length) {
-    request.response_mode = action.extra_args[0]
-    if (action.extra_args.length > 1) {
-      request.extra_args = action.extra_args.slice(1)
-    }
-  } else if (action.extra_args?.length) {
+  if (action.extra_args?.length) {
     request.extra_args = action.extra_args
   }
 

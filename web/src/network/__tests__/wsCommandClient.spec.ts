@@ -116,7 +116,6 @@ describe('createWsCommandClient', () => {
         action_type: 'Magic',
         used_card_uuids: ['magic-1'],
         targets: [{ target_user_id: 'p2' }],
-        target_ref: 'p2',
       },
     })
     expect(sendEnvelope).toHaveBeenNthCalledWith(2, {
@@ -161,7 +160,6 @@ describe('createWsCommandClient', () => {
       Data: {
         action_type: 'Cheat',
         targets: [{ target_user_id: 'discard' }],
-        target_ref: 'discard',
         extra_args: ['p2', '3'],
       },
     })

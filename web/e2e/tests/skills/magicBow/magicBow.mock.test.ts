@@ -55,7 +55,6 @@ test.describe('magic bow protocol harness', () => {
     await page.getByTestId(`player-area-${ENEMY_PLAYER_ID}`).click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Attack',
-      target_ref: ENEMY_PLAYER_ID,
       targets: [{ target_user_id: ENEMY_PLAYER_ID }],
       used_card_uuids: [MB_ATTACK_CARD_ID],
     });

@@ -19,20 +19,17 @@ func countDamageEvents(obs *testutils.CaptureObserver, sourceID, targetID, damag
 		if ev.Type != model.EventDamageDealt {
 			continue
 		}
-		data, ok := ev.Data.(map[string]interface{})
+		payload, ok := ev.Data.(model.DamageDealtPayload)
 		if !ok {
 			continue
 		}
-		src, _ := data["source_id"].(string)
-		dst, _ := data["target_id"].(string)
-		dt, _ := data["damage_type"].(string)
-		if sourceID != "" && src != sourceID {
+		if sourceID != "" && payload.SourceID != sourceID {
 			continue
 		}
-		if targetID != "" && dst != targetID {
+		if targetID != "" && payload.TargetID != targetID {
 			continue
 		}
-		if damageType != "" && !strings.EqualFold(dt, damageType) {
+		if damageType != "" && !strings.EqualFold(payload.DamageType, damageType) {
 			continue
 		}
 		n++

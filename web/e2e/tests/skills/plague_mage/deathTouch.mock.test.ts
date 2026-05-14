@@ -49,7 +49,6 @@ test.describe('plague mage death touch protocol harness', () => {
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       targets: [{ target_user_id: ENEMY_PLAYER_ID }],
-      target_ref: ENEMY_PLAYER_ID,
     });
   });
 

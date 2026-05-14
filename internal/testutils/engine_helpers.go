@@ -129,7 +129,7 @@ func ChoiceIndexForTarget(t *testing.T, ctx map[string]interface{}, targetID str
 
 // FindPublicDiscardReveal searches the observer events in reverse for a
 // public (non-hidden) discard reveal event for the given playerID.
-func FindPublicDiscardReveal(obs *CaptureObserver, playerID string) map[string]interface{} {
+func FindPublicDiscardReveal(obs *CaptureObserver, playerID string) *model.CardRevealedPayload {
 	if obs == nil {
 		return nil
 	}
@@ -138,15 +138,12 @@ func FindPublicDiscardReveal(obs *CaptureObserver, playerID string) map[string]i
 		if event.Type != model.EventCardRevealed {
 			continue
 		}
-		data, ok := event.Data.(map[string]interface{})
+		payload, ok := event.Data.(model.CardRevealedPayload)
 		if !ok {
 			continue
 		}
-		eventPlayerID, _ := data["player_id"].(string)
-		actionType, _ := data["action_type"].(string)
-		hidden, _ := data["hidden"].(bool)
-		if eventPlayerID == playerID && actionType == "discard" && !hidden {
-			return data
+		if payload.PlayerID == playerID && payload.ActionType == "discard" && !payload.Hidden {
+			return &payload
 		}
 	}
 	return nil

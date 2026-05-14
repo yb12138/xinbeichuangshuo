@@ -16,16 +16,9 @@ export interface ClientActionRequest {
   action_type: string
   used_card_uuids?: string[]
   targets?: TargetNode[]
-  target_allocations?: Record<string, number>
   skill_id?: string
-  action_ref?: string
-  stone_ref?: string
-  element_ref?: string
-  named_values?: Record<string, number>
   option_indexes?: number[]
-  response_mode?: string
   extra_args?: string[]
-  target_ref?: string
 }
 
 export interface RoomActionRequest {

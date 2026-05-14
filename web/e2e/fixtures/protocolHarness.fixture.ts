@@ -16,7 +16,7 @@ type ClientMessagePredicate = (message: WsMessage, record: RecordedClientMessage
 
 type SubmitActionExpectation = Partial<Pick<
   ClientActionRequest,
-  'action_type' | 'skill_id' | 'option_indexes' | 'targets' | 'used_card_uuids' | 'target_ref'
+  'action_type' | 'skill_id' | 'option_indexes' | 'targets' | 'used_card_uuids'
 >>;
 
 export interface ProtocolHarness {
@@ -169,8 +169,7 @@ function submitActionMatches(actual: ClientActionRequest, expected: SubmitAction
     valuesMatch(actual.skill_id, expected.skill_id) &&
     valuesMatch(actual.option_indexes, expected.option_indexes) &&
     valuesMatch(actual.targets, expected.targets) &&
-    valuesMatch(actual.used_card_uuids, expected.used_card_uuids) &&
-    valuesMatch(actual.target_ref, expected.target_ref)
+    valuesMatch(actual.used_card_uuids, expected.used_card_uuids)
   );
 }
 

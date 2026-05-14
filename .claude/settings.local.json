@@ -104,7 +104,17 @@
       "Bash(sed -n '59,73p' /Users/yb/xinbeichuangshuo/internal/engine/player/blaze_witch/choices.go)",
       "Bash(claude mcp:*)",
       "Bash(xxd /Users/yb/xinbeichuangshuo/internal/engine/player/sage/choices.go)",
-      "mcp__chrome-devtools__list_pages"
+      "mcp__chrome-devtools__list_pages",
+      "mcp__chrome-devtools__navigate_page",
+      "Bash(open -a \"Google Chrome\" http://localhost:5173)",
+      "Bash(npm test:*)",
+      "Bash(curl -s http://localhost:8080/api/health)",
+      "Bash(awk:*)",
+      "Bash(npm install:*)",
+      "Bash(npx playwright:*)",
+      "Bash(npx tsc:*)",
+      "Bash(pkill -f \"vite\")",
+      "Bash(npx vitest:*)"
     ]
   }
 }

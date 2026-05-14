@@ -31,11 +31,10 @@ describe('actionRequestAdapter', () => {
       action_type: 'Attack',
       used_card_uuids: ['attack-1'],
       targets: [{ target_user_id: 'p2' }],
-      target_ref: 'p2',
     })
   })
 
-  it('splits response actions into response_mode and extra_args', () => {
+  it('passes response extra_args through unchanged', () => {
     const action: PlayerAction = {
       player_id: 'p1',
       type: 'Respond',
@@ -53,9 +52,7 @@ describe('actionRequestAdapter', () => {
       action_type: 'Respond',
       used_card_uuids: ['counter-1'],
       targets: [{ target_user_id: 'p3' }],
-      target_ref: 'p3',
-      response_mode: 'counter',
-      extra_args: ['p3'],
+      extra_args: ['counter', 'p3'],
     })
   })
 

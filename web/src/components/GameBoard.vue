@@ -1119,6 +1119,38 @@ const NON_HAND_INDEXED_PROMPT_CHOICE_TYPES = new Set([
   'mb_charge_place_count',
   'mb_demon_eye_mode',
   'mb_demon_eye_target',
+  // Magic Lancer choice types for numeric / target prompts
+  'ml_black_spear_x',   // 漆黑之枪 X 选择：ID 是 X 值不是手牌 index
+  'ml_stardust_target', // 幻影星尘目标选择：ID 是目标 index 不是手牌 index
+  // Butterfly Dancer choice types for cocoon / mode / target prompts
+  'bt_dance_mode',
+  'bt_cocoon_overflow_discard',
+  'bt_reverse_mode',
+  'bt_reverse_target',
+  'bt_reverse_branch2_cost',
+  'bt_reverse_branch2_pick',
+  'bt_pilgrimage_pick',
+  'bt_poison_pick',
+  'bt_mirror_pair',
+  'bt_wither_confirm',
+  'bt_wither_target',
+  // NOTE: bt_dance_discard IS a card selection and should NOT be in this set
+  // Sage choice types for confirm / element / target / count prompts
+  'sage_magic_rebound_confirm',
+  'sage_magic_rebound_element',
+  'sage_magic_rebound_target',
+  'sage_arcane_target',
+  'sage_holy_target_count',
+  'sage_holy_targets',
+  // NOTE: sage_magic_rebound_cards, sage_arcane_cards, sage_holy_cards
+  // ARE card selections and should NOT be in this set
+  // Blaze Witch choice types for select / target / numeric prompts
+  'bw_witch_wrath_draw',
+  'bw_substitute_doll_target',
+  'bw_mana_inversion_x',
+  'bw_mana_inversion_target',
+  // NOTE: bw_substitute_doll_card, bw_mana_inversion_cards
+  // ARE card selections and should NOT be in this set
 ])
 
 function promptCardSelectionState(idx: number): PromptCardSelectionState {

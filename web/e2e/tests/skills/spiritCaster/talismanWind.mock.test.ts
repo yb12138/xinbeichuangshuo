@@ -34,7 +34,7 @@ test.describe('spirit caster talisman wind protocol harness', () => {
     await page.getByTestId(`player-area-${ENEMY_PLAYER_ID}`).click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      target_ref: ENEMY_PLAYER_ID,
+      targets: [{ target_user_id: ENEMY_PLAYER_ID }],
     });
   });
 
@@ -60,7 +60,7 @@ test.describe('spirit caster talisman wind protocol harness', () => {
     await page.getByTestId(`player-area-${ENEMY_2_PLAYER_ID}`).click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      target_ref: ENEMY_2_PLAYER_ID,
+      targets: [{ target_user_id: ENEMY_2_PLAYER_ID }],
     });
   });
 });

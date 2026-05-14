@@ -44,7 +44,7 @@ describe('extractGameplayEventsFromTimeline', () => {
         target_id: 'p2',
         target_name: 'Bob',
         damage: 2,
-        damage_type: undefined,
+        damage_type: '',
         message: '造成 2 点伤害',
       },
     ])

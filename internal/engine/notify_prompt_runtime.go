@@ -293,12 +293,12 @@ func (e *GameEngine) notifyCards(playerID string, cards []model.Card, actionType
 	if p != nil {
 		playerName = p.Name
 	}
-	e.Notify(model.EventCardRevealed, "", map[string]interface{}{
-		"player_id":   playerID,
-		"player_name": playerName,
-		"cards":       cards,
-		"action_type": string(actionType),
-		"hidden":      hidden,
+	e.Notify(model.EventCardRevealed, "", model.CardRevealedPayload{
+		PlayerID:   playerID,
+		PlayerName: playerName,
+		Cards:      cards,
+		ActionType: string(actionType),
+		Hidden:     hidden,
 	})
 }
 
@@ -317,13 +317,13 @@ func (e *GameEngine) NotifyDamageDealt(sourceID, targetID string, damage int, da
 	if target != nil {
 		targetName = target.Name
 	}
-	e.Notify(model.EventDamageDealt, "", map[string]interface{}{
-		"source_id":   sourceID,
-		"source_name": sourceName,
-		"target_id":   targetID,
-		"target_name": targetName,
-		"damage":      damage,
-		"damage_type": string(damageType),
+	e.Notify(model.EventDamageDealt, "", model.DamageDealtPayload{
+		SourceID:   sourceID,
+		SourceName: sourceName,
+		TargetID:   targetID,
+		TargetName: targetName,
+		Damage:     damage,
+		DamageType: string(damageType),
 	})
 }
 
@@ -335,9 +335,9 @@ func (e *GameEngine) NotifyActionStep(line string) {
 		e.addActionNote(line)
 		return
 	}
-	e.Notify(model.EventActionStep, "", map[string]interface{}{
-		"line": line,
-		"kind": "detail",
+	e.Notify(model.EventActionStep, "", model.ActionStepPayload{
+		Line: line,
+		Kind: "detail",
 	})
 }
 
@@ -345,9 +345,9 @@ func (e *GameEngine) NotifyActionSummary(line string) {
 	if e.observer == nil || line == "" {
 		return
 	}
-	e.Notify(model.EventActionStep, "", map[string]interface{}{
-		"line": line,
-		"kind": "summary",
+	e.Notify(model.EventActionStep, "", model.ActionStepPayload{
+		Line: line,
+		Kind: "summary",
 	})
 }
 
@@ -355,10 +355,10 @@ func (e *GameEngine) NotifyCombatCue(attackerID, targetID, phase string) {
 	if e.observer == nil || attackerID == "" || targetID == "" || phase == "" {
 		return
 	}
-	e.Notify(model.EventCombatCue, "", map[string]interface{}{
-		"attacker_id": attackerID,
-		"target_id":   targetID,
-		"phase":       phase,
+	e.Notify(model.EventCombatCue, "", model.CombatCuePayload{
+		AttackerID: attackerID,
+		TargetID:   targetID,
+		Phase:      phase,
 	})
 }
 
@@ -372,11 +372,11 @@ func (e *GameEngine) NotifyDrawCards(playerID string, count int, reason string) 
 	if p != nil {
 		playerName = p.Name
 	}
-	e.Notify(model.EventDrawCards, "", map[string]interface{}{
-		"player_id":   playerID,
-		"player_name": playerName,
-		"draw_count":  count,
-		"reason":      reason,
+	e.Notify(model.EventDrawCards, "", model.DrawCardsPayload{
+		PlayerID:   playerID,
+		PlayerName: playerName,
+		DrawCount:  count,
+		Reason:     reason,
 	})
 }
 

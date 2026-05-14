@@ -80,9 +80,6 @@ func (r *Room) translateClientAction(playerID string, req ClientActionRequest) (
 	if len(action.TargetIDs) == 1 {
 		action.TargetID = action.TargetIDs[0]
 	}
-	if action.TargetID == "" && req.TargetRef != "" {
-		action.TargetID = req.TargetRef
-	}
 
 	if len(req.OptionIndexes) > 0 {
 		action.Selections = append([]int{}, req.OptionIndexes...)
@@ -107,9 +104,6 @@ func (r *Room) translateClientAction(playerID string, req ClientActionRequest) (
 		}
 	}
 
-	if req.ResponseMode != "" {
-		action.ExtraArgs = append(action.ExtraArgs, req.ResponseMode)
-	}
 	if len(req.ExtraArgs) > 0 {
 		action.ExtraArgs = append(action.ExtraArgs, req.ExtraArgs...)
 	}
