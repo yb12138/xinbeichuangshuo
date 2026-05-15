@@ -475,16 +475,20 @@ func handleChargeDrawX(rt engineplayer.ChoiceRuntime, ctxData map[string]interfa
 		maxPlace = room
 	}
 
-	if maxPlace > 0 {
-		overflow := len(user.Hand) - rt.GetMaxHand(user)
-		if overflow > 0 {
-			rt.ApplyCampMoraleLoss(user.Camp, overflow)
-			rt.Log(fmt.Sprintf("%s 的 [充能] 摸牌后超出手牌上限%d：士气-%d（本次不弃牌）", user.Name, overflow, overflow))
-		}
+	// 检查手牌溢出，无论是否进入盖牌流程
+	overflow := len(user.Hand) - rt.GetMaxHand(user)
+	if overflow > 0 {
+		rt.ApplyCampMoraleLoss(user.Camp, overflow)
+		rt.Log(fmt.Sprintf("%s 的 [充能] 摸牌后超出手牌上限%d：士气-%d（本次不弃牌）", user.Name, overflow, overflow))
 	}
 
 	if maxPlace <= 0 {
-		rt.Log(fmt.Sprintf("%s 的 [充能] 生效：摸%d张，不放置充能", user.Name, xValue))
+		// 充能上限满了或其他原因导致不能盖牌
+		if room <= 0 {
+			rt.Log(fmt.Sprintf("%s 的 [充能] 生效：摸%d张，充能上限已满（%d/%d），不放置充能", user.Name, xValue, ChargeCount(user, ""), ChargeCap))
+		} else {
+			rt.Log(fmt.Sprintf("%s 的 [充能] 生效：摸%d张，不放置充能", user.Name, xValue))
+		}
 		rt.PopInterrupt()
 		if rt.GetPendingInterrupt() == nil {
 			rt.ApplyChoiceResumePoint(model.TurnStageActionStart)

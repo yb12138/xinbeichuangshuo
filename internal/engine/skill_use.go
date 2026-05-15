@@ -113,7 +113,16 @@ func (e *GameEngine) UseSkill(playerID, skillID string, targetIDs []string, disc
 	if err := e.executeSkillFlow(use); err != nil {
 		return err
 	}
-	return e.finishSkillUse(use)
+	if err := e.finishSkillUse(use); err != nil {
+		return err
+	}
+
+	// 如果 Execute() 推入了中断，立即通知前端
+	// 因为 Drive() 在检测到 PendingInterrupt 时会直接返回而不通知
+	if e.State.PendingInterrupt != nil {
+		e.notifyInterruptPrompt()
+	}
+	return nil
 }
 
 func (e *GameEngine) prepareSkillUse(playerID, skillID string, targetIDs []string, discardIndices []int) (*skillUseRequest, error) {

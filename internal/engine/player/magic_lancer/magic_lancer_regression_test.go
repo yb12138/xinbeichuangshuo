@@ -429,3 +429,54 @@ func TestMagicLancerBlackSpear_ConsumesCrystalAndAddsDamage(t *testing.T) {
 		t.Fatalf("expected attack damage increased to 6 (2 + (2+2)), got %d", got)
 	}
 }
+
+func TestMagicLancerFullness_AllyDiscardCountsBonus(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Lancer", "magic_lancer", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Ally", "angel", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p3", "Enemy", "angel", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p3 := game.State.Players["p3"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Hand = []model.Card{
+		magicLancerTestCard("cost", "圣光", model.CardTypeMagic, model.ElementLight, 0),
+	}
+	p2.Hand = []model.Card{magicLancerTestCard("ally", "雷光斩", model.CardTypeAttack, model.ElementThunder, 2)} // 队友有雷系牌
+	p3.Hand = []model.Card{magicLancerTestCard("enemy", "圣光", model.CardTypeMagic, model.ElementLight, 0)}    // 敌方有法术牌
+
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+	if err := game.UseSkill("p1", "ml_fullness", []string{"p2"}, nil); err != nil {
+		t.Fatalf("use ml_fullness failed: %v", err)
+	}
+	// p1 弃置发动费用
+	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
+		t.Fatalf("choose fullness cost card failed: %v", err)
+	}
+
+	// 敌方 p3 必须弃牌，index=0（敌方无"不弃置"选项，options 只有手牌）
+	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p3", Selections: []int{0}}); err != nil {
+		t.Fatalf("enemy discard failed: %v", err)
+	}
+	// 队友 p2 选择弃牌（雷系牌），index=1（index=0是"不弃置"，index=1是第一张手牌）
+	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{1}}); err != nil {
+		t.Fatalf("ally discard failed: %v", err)
+	}
+
+	// 敌方弃法术牌 +1，队友弃雷系牌 +1 = 总共 +2
+	if got := engine.AttackDamageRuleBonusForModifier(p1, "ml_fullness_next_attack_bonus"); got != 2 {
+		t.Fatalf("expected ml_fullness_next_attack_bonus=2 (enemy magic + ally thunder), got %d", got)
+	}
+	if len(p2.Hand) != 0 {
+		t.Fatalf("expected ally hand to be discarded, got %d cards", len(p2.Hand))
+	}
+}

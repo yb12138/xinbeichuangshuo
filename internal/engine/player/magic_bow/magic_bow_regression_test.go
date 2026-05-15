@@ -942,3 +942,118 @@ func TestMagicBowConfig_MetadataAlignsWithDocument(t *testing.T) {
 		t.Fatalf("expected demon eye description to remove old optional mode wording, got %q", demonEye.Description)
 	}
 }
+
+func TestMagicBowCharge_FullCapSkipsPlaceChoice(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "MagicBow", "magic_bow", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Crystal = 1
+	p1.Hand = []model.Card{
+		magicBowTestCard("h1", "火焰斩", model.CardTypeAttack, model.ElementFire),
+		magicBowTestCard("h2", "水涟斩", model.CardTypeAttack, model.ElementWater),
+	}
+	// 已有8个充能，上限满了
+	giveMagicBowCharges(p1, model.ElementFire, model.ElementFire, model.ElementFire, model.ElementFire, model.ElementThunder, model.ElementThunder, model.ElementThunder, model.ElementThunder)
+	game.State.Deck = []model.Card{
+		magicBowTestCard("d1", "补牌1", model.CardTypeAttack, model.ElementFire),
+		magicBowTestCard("d2", "补牌2", model.CardTypeMagic, model.ElementThunder),
+	}
+
+	ctx := game.BuildContext(p1, nil, model.TimingOnTurnStart, &model.EventContext{
+		Type:     model.EventTurnStart,
+		SourceID: "p1",
+	})
+	if err := (&magicbowplayer.MagicBowChargeHandler{}).Execute(ctx); err != nil {
+		t.Fatalf("execute charge failed: %v", err)
+	}
+	// 即使手牌<=4，也应该进入 X 选择
+	testutils.RequireChoicePrompt(t, game, "p1", "mb_charge_draw_x")
+
+	// 选择 X=2，摸2张
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{2}}); err != nil {
+		t.Fatalf("choose charge draw x failed: %v", err)
+	}
+
+	// 充能上限满了，不进入盖牌选择，直接结束
+	if game.State.PendingInterrupt != nil {
+		t.Fatalf("expected no pending interrupt when charge cap is full, got %+v", game.State.PendingInterrupt)
+	}
+	if got := len(p1.Hand); got != 4 {
+		t.Fatalf("expected hand=4 after draw 2, got %d", got)
+	}
+	// 充能数量不变
+	if got := magicbowplayer.ChargeCount(p1, ""); got != 8 {
+		t.Fatalf("expected charge count unchanged at cap, got %d", got)
+	}
+}
+
+// TestMagicBowCharge_StartupSkillGemSubstitution 验证启动技充能时红宝石可替代蓝水晶
+func TestMagicBowCharge_StartupSkillGemSubstitution(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "MagicBow", "magic_bow", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	// 只有红宝石，没有蓝水晶
+	p1.Gem = 1
+	p1.Crystal = 0
+	p1.Hand = []model.Card{
+		magicBowTestCard("h1", "火焰斩", model.CardTypeAttack, model.ElementFire),
+		magicBowTestCard("h2", "水涟斩", model.CardTypeAttack, model.ElementWater),
+		magicBowTestCard("h3", "雷光斩", model.CardTypeAttack, model.ElementThunder),
+		magicBowTestCard("h4", "风神斩", model.CardTypeAttack, model.ElementWind),
+	}
+	game.State.Deck = []model.Card{
+		magicBowTestCard("d1", "补牌1", model.CardTypeAttack, model.ElementFire),
+		magicBowTestCard("d2", "补牌2", model.CardTypeMagic, model.ElementThunder),
+	}
+
+	// 构建启动技上下文（TimingStartup）
+	ctx := game.BuildContext(p1, nil, model.TimingStartup, &model.EventContext{
+		Type:     model.EventTurnStart,
+		SourceID: "p1",
+	})
+
+	// CanUse 应返回 true（启动技由 runtime 检查资源，handler 不重复检查）
+	h := &magicbowplayer.MagicBowChargeHandler{}
+	if !h.CanUse(ctx) {
+		t.Fatal("CanUse should return true for startup skill with gem substitution")
+	}
+
+	// Execute 应成功（启动技的能耗已由 runtime 在调用前扣减，handler 不再扣减）
+	if err := h.Execute(ctx); err != nil {
+		t.Fatalf("execute charge failed with gem substitution: %v", err)
+	}
+
+	// 验证中断被推入（应该收到摸牌选择提示）
+	if game.State.PendingInterrupt == nil {
+		t.Fatal("expected pending interrupt after charge execute")
+	}
+
+	// 验证是摸牌选择中断
+	choiceType := ""
+	if data, ok := game.State.PendingInterrupt.Context.(map[string]interface{}); ok {
+		choiceType = data["choice_type"].(string)
+	}
+	if choiceType != "mb_charge_draw_x" {
+		t.Fatalf("expected choice_type=mb_charge_draw_x, got %s", choiceType)
+	}
+
+	// 验证玩家红宝石已被扣除（由 runtime 执行，这里模拟 runtime 的扣减）
+	// 注意：本测试只验证 handler 的 Execute 不会因"资源不足"报错
+	// 实际扣减由 ConfirmStartupSkill 调用 ConsumeSkillEnergyCost 完成
+}

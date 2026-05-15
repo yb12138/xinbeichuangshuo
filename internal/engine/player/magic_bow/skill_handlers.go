@@ -314,6 +314,13 @@ func (h *MagicBowChargeHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil {
 		return false
 	}
+	// 启动技在 ActionStart 阶段检查可用性时，
+	// runtime 会先检查 skillDef.CostCrystal，确认玩家有足够资源后才会创建中断。
+	// CanUse 不需要重复检查资源（否则会导致红宝石替代水晶的判定与 runtime 不一致）。
+	// 对于响应技等其他时点，依赖 CanPayCrystalLike 检查。
+	if ctx.Timing == model.TimingStartup || ctx.Timing == model.TimingActive {
+		return true
+	}
 	return engineplayer.CanPayCrystalLike(ctx, 1)
 }
 
@@ -321,7 +328,9 @@ func (h *MagicBowChargeHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("充能上下文无效")
 	}
-	if ctx.Timing != model.TimingActive && !engineplayer.SpendCrystalLike(ctx, 1) {
+	// 启动技和行动技的能耗已由 runtime/UseSkill 流程在调用 Execute 前扣减，
+	// 仅响应技等其他时点需要 handler 内自行扣减。
+	if ctx.Timing != model.TimingStartup && ctx.Timing != model.TimingActive && !engineplayer.SpendCrystalLike(ctx, 1) {
 		return fmt.Errorf("充能需要1蓝水晶（红宝石可替代）")
 	}
 	ctx.User.TurnState.UsedSkillCounts["mb_charge_lock_turn"] = 1
