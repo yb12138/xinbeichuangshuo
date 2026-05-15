@@ -11,8 +11,7 @@ import {
   MB_THUNDER_SCATTER_SKILL_ID,
   chargeDiscardPrompt,
   chargeDrawPrompt,
-  chargePlaceCardsPrompt,
-  chargePlaceCountPrompt,
+  chargePlaceCardsMultiSelectPrompt,
   chargeScenario,
   demonEyeChargeCardPrompt,
   demonEyeModePrompt,
@@ -178,7 +177,7 @@ test.describe('magic bow protocol harness', () => {
     });
   });
 
-  test('charge: discard to four -> draw X -> place count -> choose charge cards', async ({ page, protocolHarness }) => {
+  test('charge: discard to four -> draw X -> multi-select charge cards (new simplified flow)', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(chargeScenario());
 
     await activatePanelSkill(page, MB_CHARGE_SKILL_ID);
@@ -202,16 +201,10 @@ test.describe('magic bow protocol harness', () => {
       option_indexes: [3],
     });
 
-    await protocolHarness.pushServerMessage(chargePlaceCountPrompt(3));
-    await expect(page.getByTestId('decision-overlay')).toBeVisible();
-    await page.getByTestId('decision-overlay').getByTestId('numeric-option-2').click();
-    await protocolHarness.expectSubmitAction({
-      action_type: 'Select',
-      option_indexes: [2],
-    });
-
-    await protocolHarness.pushServerMessage(chargePlaceCardsPrompt(2));
-    await selectHandCards(page, [0, 1]);
+    // 新流程：直接进入盖牌多选（跳过数量选择步骤）
+    // 玩家一次性选择 0~maxPlace 张手牌作为充能
+    await protocolHarness.pushServerMessage(chargePlaceCardsMultiSelectPrompt(3));
+    await selectHandCards(page, [0, 1]); // 选择2张作为充能
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0, 1],

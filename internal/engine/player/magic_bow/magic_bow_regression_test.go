@@ -251,20 +251,17 @@ func TestMagicBowCharge_FollowupPlaceCharges(t *testing.T) {
 	}
 	testutils.RequireChoicePrompt(t, game, "p1", "mb_charge_draw_x")
 
+	// 选择 X=2（摸2张）
 	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{2}}); err != nil {
 		t.Fatalf("choose charge draw x failed: %v", err)
 	}
-	testutils.RequireChoicePrompt(t, game, "p1", "mb_charge_place_count")
-
-	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{2}}); err != nil {
-		t.Fatalf("choose charge place count failed: %v", err)
-	}
+	// 新流程：直接进入盖牌多选（跳过数量选择步骤）
 	testutils.RequireChoicePrompt(t, game, "p1", "mb_charge_place_cards")
-	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
-		t.Fatalf("choose first charge card failed: %v", err)
-	}
-	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
-		t.Fatalf("choose second charge card failed: %v", err)
+
+	// 多选：一次性选择2张手牌作为充能
+	// 前端传来的选项索引（0=第一张手牌，1=第二张手牌）
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0, 1}}); err != nil {
+		t.Fatalf("multi-select charge cards failed: %v", err)
 	}
 
 	if got := magicbowplayer.ChargeCount(p1, ""); got != 2 {
@@ -377,21 +374,19 @@ func TestMagicBowCharge_DrawOverflowMoraleLossWithoutDiscard(t *testing.T) {
 	if got := len(p1.Hand); got != 8 {
 		t.Fatalf("expected no discard after overflow draw, hand should stay 8, got %d", got)
 	}
-	if game.State.PendingInterrupt == nil || testutils.ChoiceTypeOfInterrupt(game.State.PendingInterrupt) != "mb_charge_place_count" {
-		t.Fatalf("expected enter place-count choice after draw, got %+v", game.State.PendingInterrupt)
-	}
 	if engine.IsDiscardSelectionInterrupt(game.State.PendingInterrupt) {
 		t.Fatalf("should not open discard interrupt after charge overflow draw")
 	}
 
-	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{4}}); err != nil {
-		t.Fatalf("choose place count=4 failed: %v", err)
+	// 新流程：直接进入盖牌多选（跳过数量选择步骤）
+	// maxPlace=4（X=4，上限8个充能，当前0，room=8）
+	if game.State.PendingInterrupt == nil || testutils.ChoiceTypeOfInterrupt(game.State.PendingInterrupt) != "mb_charge_place_cards" {
+		t.Fatalf("expected enter place-cards multi-select choice after draw, got %+v", game.State.PendingInterrupt)
 	}
-	testutils.RequireChoicePrompt(t, game, "p1", "mb_charge_place_cards")
-	for i := 0; i < 4; i++ {
-		if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
-			t.Fatalf("choose charge place card %d failed: %v", i+1, err)
-		}
+
+	// 多选：一次性选择4张手牌作为充能
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0, 1, 2, 3}}); err != nil {
+		t.Fatalf("multi-select charge cards failed: %v", err)
 	}
 	if got := magicbowplayer.ChargeCount(p1, ""); got != 4 {
 		t.Fatalf("expected 4 charges placed, got %d", got)
@@ -1056,4 +1051,58 @@ func TestMagicBowCharge_StartupSkillGemSubstitution(t *testing.T) {
 	// 验证玩家红宝石已被扣除（由 runtime 执行，这里模拟 runtime 的扣减）
 	// 注意：本测试只验证 handler 的 Execute 不会因"资源不足"报错
 	// 实际扣减由 ConfirmStartupSkill 调用 ConsumeSkillEnergyCost 完成
+}
+
+func TestMagicBowCharge_StartupPromptPaysCrystalCostWithGem(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "MagicBow", "magic_bow", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Gem = 1
+	p1.Crystal = 0
+	p1.Hand = []model.Card{
+		magicBowTestCard("h1", "火焰斩", model.CardTypeAttack, model.ElementFire),
+		magicBowTestCard("h2", "水涟斩", model.CardTypeAttack, model.ElementWater),
+		magicBowTestCard("h3", "雷光斩", model.CardTypeAttack, model.ElementThunder),
+		magicBowTestCard("h4", "风神斩", model.CardTypeAttack, model.ElementWind),
+	}
+	game.State.Deck = []model.Card{
+		magicBowTestCard("d1", "补牌1", model.CardTypeAttack, model.ElementFire),
+		magicBowTestCard("d2", "补牌2", model.CardTypeMagic, model.ElementThunder),
+	}
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionStart
+
+	game.Drive()
+	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptStartupSkill {
+		t.Fatalf("expected startup interrupt, got %+v", game.State.PendingInterrupt)
+	}
+
+	chargeIdx := testutils.StartupSkillIndexByID(t, game, "p1", "mb_charge")
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{chargeIdx},
+	})
+
+	testutils.RequireChoicePrompt(t, game, "p1", "mb_charge_draw_x")
+	if got := p1.Crystal; got != 0 {
+		t.Fatalf("expected no blue crystal after paying charge cost, got %d", got)
+	}
+	if got := p1.Gem; got != 0 {
+		t.Fatalf("expected red gem consumed as crystal substitute, got %d", got)
+	}
+	if got := p1.TurnState.UsedSkillCounts["mb_charge"]; got != 1 {
+		t.Fatalf("expected mb_charge usage recorded once, got %d", got)
+	}
+	if got := p1.TurnState.UsedSkillCounts["mb_charge_lock_turn"]; got != 1 {
+		t.Fatalf("expected mb_charge lock after startup confirm, got %d", got)
+	}
 }

@@ -173,12 +173,11 @@ func buildChargePlaceCardsPrompt(playerID string, player *model.Player, data map
 	}
 	selectedCount := len(engineplayer.ParseIntSliceContextValue(data["selected_indices"]))
 	needCount := runtimeutil.ToIntContextValue(data["need_count"])
+	maxPlace := runtimeutil.ToIntContextValue(data["max_place"])
 	if choiceType == "mb_demon_eye_charge_card" && needCount <= 0 {
 		needCount = 1
 	}
-	if needCount <= 0 {
-		needCount = 1
-	}
+
 	options := make([]model.PromptOption, 0, len(remaining))
 	for _, idx := range remaining {
 		if idx < 0 || idx >= len(player.Hand) {
@@ -189,6 +188,27 @@ func buildChargePlaceCardsPrompt(playerID string, player *model.Player, data map
 			Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(player.Hand[idx])),
 		})
 	}
+
+	// 充能盖牌：允许选择 0~maxPlace 张（needCount=0 表示不强制数量）
+	// 魔眼充能：必须选择 1 张（needCount=1）
+	if choiceType == "mb_charge_place_cards" && needCount == 0 {
+		// 多选模式：Min=0（可不选），Max=maxPlace
+		minPick := 0
+		maxPick := maxPlace
+		if maxPick > len(options) {
+			maxPick = len(options)
+		}
+		return &model.Prompt{
+			Type:     model.PromptChooseCards,
+			PlayerID: playerID,
+			Message:  fmt.Sprintf("【充能】请选择要放置为充能的手牌（最多%d张，可不选）：", maxPick),
+			Options:  options,
+			Min:      minPick,
+			Max:      maxPick,
+		}
+	}
+
+	// 原逻辑：逐张选择（needCount > 0）
 	remainingPick := needCount - selectedCount
 	if remainingPick < 1 {
 		remainingPick = 1
@@ -496,13 +516,18 @@ func handleChargeDrawX(rt engineplayer.ChoiceRuntime, ctxData map[string]interfa
 		return nil
 	}
 
-	ctxData["choice_type"] = "mb_charge_place_count"
+	// 直接进入盖牌选择（跳过数量选择步骤）
+	// Min=0 允许不选，Max=maxPlace 最多可选maxPlace张
+	ctxData["choice_type"] = "mb_charge_place_cards"
 	ctxData["max_place"] = maxPlace
+	ctxData["need_count"] = 0 // 0表示不强制数量，由玩家决定
+	ctxData["selected_indices"] = []int{}
+	ctxData["remaining_indices"] = engineplayer.AllHandIndices(user)
 	if intr := rt.GetPendingInterrupt(); intr != nil {
 		intr.Context = ctxData
 	}
 	rt.NotifyInterruptPrompt()
-	rt.Log(fmt.Sprintf("%s 的 [充能] 生效：摸%d张，可放置最多%d张充能", user.Name, xValue, maxPlace))
+	rt.Log(fmt.Sprintf("%s 的 [充能] 生效：摸%d张，请选择要放置为充能的手牌（最多%d张）", user.Name, xValue, maxPlace))
 	return nil
 }
 
@@ -972,6 +997,83 @@ func demonEyeAfterDiscardData(rt engineplayer.ChoiceRuntime, discardPlayer *mode
 	})
 	rt.Log(fmt.Sprintf("%s 的 [魔眼] 生效：%s 已弃置1张手牌，请选择1张手牌作为充能", user.Name, discardPlayer.Name))
 	return true
+}
+
+// handleChargePlaceCardsMultiSelect 批量多选盖牌（充能技能简化交互）。
+// 玩家一次性选择要盖放的手牌（0~maxPlace张），无需先选择数量再逐张选择。
+func handleChargePlaceCardsMultiSelect(rt engineplayer.ChoiceRuntime, playerID string, selections []int, ctxData map[string]interface{}) (bool, error) {
+	userID, _ := ctxData["user_id"].(string)
+	user := rt.GetPlayers()[userID]
+	if user == nil {
+		return false, fmt.Errorf("玩家不存在")
+	}
+
+	maxPlace := runtimeutil.ToIntContextValue(ctxData["max_place"])
+	if maxPlace <= 0 {
+		maxPlace = len(user.Hand)
+	}
+
+	// 验证选择数量不超过上限
+	if len(selections) > maxPlace {
+		return false, fmt.Errorf("选择数量超过上限: 最多%d张", maxPlace)
+	}
+
+	// 验证所有选择索引有效且不重复
+	validIndices := engineplayer.AllHandIndices(user)
+	seen := make(map[int]bool)
+	cardIndices := make([]int, 0, len(selections))
+	for _, sel := range selections {
+		// sel 是前端传来的选项索引，需要映射到实际手牌索引
+		cardIdx, ok := runtimeutil.ResolveSelectionToCandidate(sel, validIndices)
+		if !ok || cardIdx < 0 || cardIdx >= len(user.Hand) {
+			return false, fmt.Errorf("无效的选项索引: %d", sel)
+		}
+		if seen[cardIdx] {
+			return false, fmt.Errorf("不能重复选择同一张牌")
+		}
+		seen[cardIdx] = true
+		cardIndices = append(cardIndices, cardIdx)
+	}
+
+	// 如果没有选择任何牌，直接结束
+	if len(cardIndices) == 0 {
+		rt.Log(fmt.Sprintf("%s 选择不放置充能", user.Name))
+		rt.PopInterrupt()
+		if rt.GetPendingInterrupt() == nil {
+			rt.ApplyChoiceResumePoint(model.TurnStageActionStart)
+		}
+		return true, nil
+	}
+
+	// 从手牌中移除选中的牌
+	removed, err := engineplayer.RemoveCardsByIndicesFromHand(user, cardIndices)
+	if err != nil {
+		return false, fmt.Errorf("移除手牌失败: %v", err)
+	}
+
+	// 计算实际可以放置的充能数量（考虑上限）
+	room := ChargeCap - ChargeCount(user, "")
+	toPlace := len(removed)
+	if toPlace > room {
+		toPlace = room
+	}
+
+	// 放置充能
+	var toDiscard []model.Card
+	if toPlace < len(removed) {
+		toDiscard = removed[toPlace:]
+	}
+	AddChargeCards(user, removed[:toPlace])
+	if len(toDiscard) > 0 {
+		rt.AppendToDiscard(toDiscard)
+	}
+
+	rt.Log(fmt.Sprintf("%s 的 [充能] 生效：放置%d张充能", user.Name, toPlace))
+	rt.PopInterrupt()
+	if rt.GetPendingInterrupt() == nil {
+		rt.ApplyChoiceResumePoint(model.TurnStageActionStart)
+	}
+	return true, nil
 }
 
 // ---------------------------------------------------------------------------

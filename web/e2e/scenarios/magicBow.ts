@@ -443,6 +443,27 @@ export function chargeDrawPrompt(): WsMessage {
   } satisfies Prompt);
 }
 
+// 新流程：直接进入盖牌多选（跳过数量选择步骤）
+// maxPlace = X值（摸牌数量），玩家可选择 0~maxPlace 张手牌作为充能
+export function chargePlaceCardsMultiSelectPrompt(maxPlace = 4): WsMessage {
+  return requireActionMessage({
+    type: 'choose_cards',
+    player_id: MB_PLAYER_ID,
+    message: `【充能】请选择要放置为充能的手牌（最多${maxPlace}张，可不选）：`,
+    choice_type: 'mb_charge_place_cards',
+    skill_id: MB_CHARGE_SKILL_ID,
+    options: [
+      { id: '0', label: '1: 火焰斩（火系 攻击）' },
+      { id: '1', label: '2: 水涟斩（水系 攻击）' },
+      { id: '2', label: '3: 雷光斩（雷系 攻击）' },
+      { id: '3', label: '4: 风神斩（风系 攻击）' },
+    ],
+    min: 0, // 允许不选
+    max: maxPlace, // 最多可选 maxPlace 张
+  } satisfies Prompt);
+}
+
+// 保留旧函数用于兼容性（已废弃，新流程使用 chargePlaceCardsMultiSelectPrompt）
 export function chargePlaceCountPrompt(maxPlace = 3): WsMessage {
   return requireActionMessage({
     type: 'confirm',

@@ -33,8 +33,14 @@ func RoleEntry() player.RoleEntry {
 // ChoiceSpecs 导出角色 choice 声明。
 func ChoiceSpecs() []player.ChoiceSpec {
 	return []player.ChoiceSpec{
-		{ChoiceType: "mb_charge_place_cards", SequentialRemaining: player.ChoiceRemainingFromSelectionKey("need_count")},
-		{ChoiceType: "mb_demon_eye_charge_card", SequentialRemaining: player.ChoiceRemainingFromSelectionKeyFloor("need_count", 1)},
+		{
+			ChoiceType:        "mb_charge_place_cards",
+			HandleMultiSelect: handleChargePlaceCardsMultiSelect,
+		},
+		{
+			ChoiceType:          "mb_demon_eye_charge_card",
+			SequentialRemaining: player.ChoiceRemainingFromSelectionKeyFloor("need_count", 1),
+		},
 	}
 }
 
