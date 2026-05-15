@@ -1,105 +1,86 @@
 import { test, expect } from '../../../fixtures/protocolHarness.fixture';
 import {
-  ENEMY_PLAYER_ID,
-  reversalIaijutsuConfirmPrompt,
-  reversalIaijutsuRemovePrompt,
+  reversalIaijutsuResponsePrompt,
+  reversalIaijutsuXPrompt,
   reversalIaijutsuScenario,
-  reversalIaijutsuTargetPrompt,
+  reversalIaijutsuTargetDiscardPrompt,
 } from '../../../scenarios/beastSoul';
 
-test.describe('beast soul warrior reversal iaijutsu protocol harness', () => {
-  test('reversal iaijutsu: confirm then remove beast souls then target', async ({ page, protocolHarness }) => {
+test.describe('beast samurai reversal iaijutsu protocol harness', () => {
+  test('reversal iaijutsu: confirm then remove X then target discards X+2 cards', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(reversalIaijutsuScenario({ beast_souls: 3 }));
 
-    // Server pushes confirm prompt as response skill
-    await protocolHarness.pushServerMessage(reversalIaijutsuConfirmPrompt());
-    await expect(page.getByTestId('decision-overlay')).toBeVisible();
-    await page.getByTestId('prompt-option-0').click();
+    // 响应技能 choose_skill 入口
+    await protocolHarness.pushServerMessage(reversalIaijutsuResponsePrompt());
+    await expect(page.getByTestId('skill-branch-overlay')).toBeVisible();
+    await page.getByTestId('skill-branch-overlay').getByTestId('branch-option-0').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
     });
 
-    // Remove X beast souls (choose X=2)
-    await protocolHarness.pushServerMessage(reversalIaijutsuRemovePrompt(3));
-    await page.getByTestId('branch-option-1').click();
-    await protocolHarness.expectSubmitAction({
-      action_type: 'Select',
-      option_indexes: [1],
-    });
-
-    // Target selection (click enemy player card, enemy discards X+2=4 cards)
-    await protocolHarness.pushServerMessage(reversalIaijutsuTargetPrompt(2));
-    await page.getByTestId(`player-area-${ENEMY_PLAYER_ID}`).click();
-    await protocolHarness.expectSubmitAction({
-      action_type: 'Select',
-      option_indexes: [0],
-    });
-  });
-
-  test('reversal iaijutsu: skip confirm', async ({ page, protocolHarness }) => {
-    await protocolHarness.bootGame(reversalIaijutsuScenario({ beast_souls: 3 }));
-
-    await protocolHarness.pushServerMessage(reversalIaijutsuConfirmPrompt());
-    await expect(page.getByTestId('decision-overlay')).toBeVisible();
-    await page.getByTestId('prompt-option-1').click();
-    await protocolHarness.expectSubmitAction({
-      action_type: 'Select',
-      option_indexes: [1],
-    });
-  });
-
-  test('reversal iaijutsu: remove 1 beast soul, target discards 3 cards', async ({ page, protocolHarness }) => {
-    await protocolHarness.bootGame(reversalIaijutsuScenario({ beast_souls: 3 }));
-
-    await protocolHarness.pushServerMessage(reversalIaijutsuConfirmPrompt());
-    await page.getByTestId('prompt-option-0').click();
-    await protocolHarness.expectSubmitAction({
-      action_type: 'Select',
-      option_indexes: [0],
-    });
-
-    // Choose X=1
-    await protocolHarness.pushServerMessage(reversalIaijutsuRemovePrompt(3));
-    await page.getByTestId('branch-option-0').click();
-    await protocolHarness.expectSubmitAction({
-      action_type: 'Select',
-      option_indexes: [0],
-    });
-
-    // Target discards X+2=3 cards
-    await protocolHarness.pushServerMessage(reversalIaijutsuTargetPrompt(1));
-    await page.getByTestId(`player-area-${ENEMY_PLAYER_ID}`).click();
-    await protocolHarness.expectSubmitAction({
-      action_type: 'Select',
-      option_indexes: [0],
-    });
-  });
-
-  test('reversal iaijutsu: remove 3 beast souls, target discards 5 cards', async ({ page, protocolHarness }) => {
-    await protocolHarness.bootGame(reversalIaijutsuScenario({ beast_souls: 3 }));
-
-    await protocolHarness.pushServerMessage(reversalIaijutsuConfirmPrompt());
-    await page.getByTestId('prompt-option-0').click();
-    await protocolHarness.expectSubmitAction({
-      action_type: 'Select',
-      option_indexes: [0],
-    });
-
-    // Choose X=3 (max)
-    await protocolHarness.pushServerMessage(reversalIaijutsuRemovePrompt(3));
-    await page.getByTestId('branch-option-2').click();
+    // 选 X=2（option index = 2）→ 目标将弃置 X+2=4 张
+    await protocolHarness.pushServerMessage(reversalIaijutsuXPrompt(3));
+    await page.getByTestId('prompt-option-2').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [2],
     });
 
-    // Target discards X+2=5 cards
-    await protocolHarness.pushServerMessage(reversalIaijutsuTargetPrompt(3));
-    await page.getByTestId(`player-area-${ENEMY_PLAYER_ID}`).click();
+    // 后端直接以攻击目标为弃牌对象，无需额外目标选择步。
+    // 弃牌 PromptChooseCards 投递给目标玩家（本地玩家不渲染）。
+    await protocolHarness.pushServerMessage(reversalIaijutsuTargetDiscardPrompt(4));
+  });
+
+  test('reversal iaijutsu: skip via response skill prompt', async ({ page, protocolHarness }) => {
+    await protocolHarness.bootGame(reversalIaijutsuScenario({ beast_souls: 3 }));
+
+    await protocolHarness.pushServerMessage(reversalIaijutsuResponsePrompt());
+    await expect(page.getByTestId('skill-branch-overlay')).toBeVisible();
+    await page.getByTestId('skill-branch-overlay').getByTestId('branch-option-1').click();
+    await protocolHarness.expectSubmitAction({
+      action_type: 'Select',
+      option_indexes: [1],
+    });
+  });
+
+  test('reversal iaijutsu: pick X=0 (target discards 2 cards)', async ({ page, protocolHarness }) => {
+    await protocolHarness.bootGame(reversalIaijutsuScenario({ beast_souls: 3 }));
+
+    await protocolHarness.pushServerMessage(reversalIaijutsuResponsePrompt());
+    await page.getByTestId('skill-branch-overlay').getByTestId('branch-option-0').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
     });
+
+    await protocolHarness.pushServerMessage(reversalIaijutsuXPrompt(3));
+    await page.getByTestId('prompt-option-0').click();
+    await protocolHarness.expectSubmitAction({
+      action_type: 'Select',
+      option_indexes: [0],
+    });
+
+    await protocolHarness.pushServerMessage(reversalIaijutsuTargetDiscardPrompt(2));
+  });
+
+  test('reversal iaijutsu: pick X=max (target discards X+2=5 cards)', async ({ page, protocolHarness }) => {
+    await protocolHarness.bootGame(reversalIaijutsuScenario({ beast_souls: 3 }));
+
+    await protocolHarness.pushServerMessage(reversalIaijutsuResponsePrompt());
+    await page.getByTestId('skill-branch-overlay').getByTestId('branch-option-0').click();
+    await protocolHarness.expectSubmitAction({
+      action_type: 'Select',
+      option_indexes: [0],
+    });
+
+    await protocolHarness.pushServerMessage(reversalIaijutsuXPrompt(3));
+    await page.getByTestId('prompt-option-3').click();
+    await protocolHarness.expectSubmitAction({
+      action_type: 'Select',
+      option_indexes: [3],
+    });
+
+    await protocolHarness.pushServerMessage(reversalIaijutsuTargetDiscardPrompt(5));
   });
 });

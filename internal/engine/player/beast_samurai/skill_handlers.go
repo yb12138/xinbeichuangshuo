@@ -145,19 +145,6 @@ func (h *BeastSamuraiBeastSoulAlertHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.EventCtx == nil {
 		return fmt.Errorf("兽魂警戒上下文无效")
 	}
-	actorID := ctx.EventCtx.OperatorID
-	if actorID == "" {
-		return fmt.Errorf("兽魂警戒缺少触发角色")
-	}
-	actor := ctx.Target
-	if actor == nil || actor.ID != actorID {
-		for _, p := range ctx.Game.GetAllPlayers() {
-			if p != nil && p.ID == actorID {
-				actor = p
-				break
-			}
-		}
-	}
 	if engineplayer.GetToken(ctx.User, "bs_beast_soul") <= 0 {
 		return fmt.Errorf("兽魂不足，无法发动兽魂警戒")
 	}
@@ -166,20 +153,26 @@ func (h *BeastSamuraiBeastSoulAlertHandler) Execute(ctx *model.Context) error {
 	ctx.User.Orientation = model.OrientationTapped
 	ctx.User.Form = "beast_samurai_iaijutsu_form"
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [兽魂警戒]：移除1点兽魂（剩余%d），残心+1（当前%d），进入御魂流居合形态", ctx.User.Name, leftSoul, nowZanshin))
-	if actor == nil || len(actor.Hand) == 0 {
+
+	// 玩家选择一名仍有手牌的角色让其弃 1 张牌。若全场都没手牌则直接收束。
+	var targetIDs []string
+	for _, p := range ctx.Game.GetAllPlayers() {
+		if p == nil || len(p.Hand) == 0 {
+			continue
+		}
+		targetIDs = append(targetIDs, p.ID)
+	}
+	if len(targetIDs) == 0 {
 		return nil
 	}
 	ctx.Game.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
-		PlayerID: actor.ID,
+		PlayerID: ctx.User.ID,
 		Context: map[string]interface{}{
-			"choice_type":     "bs_alert_source_discard",
-			"discard_subflow": true,
-			"user_id":         ctx.User.ID,
-			"actor_id":        actor.ID,
-			"discard_count":   1,
-			"prompt":          "【兽魂警戒】请选择并展示弃置1张手牌：",
-			"resume_phase":    beastSamuraiResumePhase(ctx),
+			"choice_type":  "bs_alert_target",
+			"user_id":      ctx.User.ID,
+			"target_ids":   targetIDs,
+			"resume_phase": beastSamuraiResumePhase(ctx),
 		},
 	})
 	return nil

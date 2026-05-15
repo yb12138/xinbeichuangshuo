@@ -19,9 +19,9 @@ func NewChoiceHandler() engineplayer.ChoiceHandler {
 func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, playerID string, _ *model.Player, data map[string]interface{}) *model.Prompt {
 	switch choiceType {
 	case "css_blood_rose_remove_heal_target":
-		return engineplayer.BuildTargetChoicePrompt(rt, playerID, "【血染蔷薇】请选择移除治疗的目标：", data, false)
+		return engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, "【血染蔷薇】请选择移除治疗的目标：", data, false)
 	case "css_blood_rose_gain_heal_target":
-		prompt := engineplayer.BuildTargetChoicePrompt(rt, playerID, "【血染蔷薇】请选择获得治疗的队友：", data, false)
+		prompt := engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, "【血染蔷薇】请选择获得治疗的队友：", data, false)
 		if prompt != nil {
 			prompt.EffectHints = []string{"仅可选择我方角色"}
 			prompt.Presentation = &model.PromptPresentation{Kind: model.PresentationTargetPicker}

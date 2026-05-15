@@ -29,7 +29,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		}
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【剑气斩】请选择X值：", Options: options, Min: 1, Max: 1}
 	case "se_sword_qi_slash_target":
-		return engineplayer.BuildTargetChoicePrompt(rt, playerID, fmt.Sprintf("【剑气斩】请选择承受%d点法术伤害的目标：", runtimeutil.ToIntContextValue(data["x_value"])), data, false)
+		return engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, fmt.Sprintf("【剑气斩】请选择承受%d点法术伤害的目标：", runtimeutil.ToIntContextValue(data["x_value"])), data, false)
 	case "se_sword_rain_target":
 		targetIDs := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
 		options := make([]model.PromptOption, 0, len(targetIDs))

@@ -65,7 +65,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		options := make([]model.PromptOption, 0, len(candidates)+1)
 		// 队友可选"不弃置"，放在第一位，索引=0 表示跳过
 		if allowSkip {
-			options = append(options, model.PromptOption{ID: "-1", Label: "不弃置"})
+			options = append(options, model.PromptOption{ID: "-1", Label: "不弃置", ButtonLabel: "不弃置"})
 		}
 		for _, idx := range candidates {
 			if idx < 0 || idx >= len(target.Hand) {
@@ -80,7 +80,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		return &model.Prompt{Type: model.PromptChooseCards, PlayerID: playerID, Message: msg, Options: options, Min: 1, Max: 1, ChoiceType: "ml_fullness_discard_step"}
 
 	case "ml_stardust_target":
-		return engineplayer.BuildTargetChoicePrompt(rt, playerID, "【幻影星尘】请选择2点法术伤害目标：", data, false)
+		return engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, "【幻影星尘】请选择2点法术伤害目标：", data, false)
 	}
 	return nil
 }

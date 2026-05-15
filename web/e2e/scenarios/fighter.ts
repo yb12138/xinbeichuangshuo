@@ -19,12 +19,12 @@ export const FIGHTER_PLAYER_ID = 'fighter_player';
 export const ALLY_PLAYER_ID = 'ally_1';
 export const ENEMY_PLAYER_ID = 'enemy_1';
 
-// ---- Skill IDs ----
-export const FIGHTER_CHARGE_ATTACK_SKILL_ID = 'fighter_charge_attack';
+// ---- Skill IDs (与 internal/data/characters.go fighter 段一致) ----
+export const FIGHTER_CHARGE_ATTACK_SKILL_ID = 'fighter_charge_strike';
 export const FIGHTER_BURST_CRASH_SKILL_ID = 'fighter_burst_crash';
-export const FIGHTER_BULLET_SKILL_ID = 'fighter_bullet';
+export const FIGHTER_BULLET_SKILL_ID = 'fighter_psi_bullet';
 export const FIGHTER_HUNDRED_DRAGON_SKILL_ID = 'fighter_hundred_dragon';
-export const FIGHTER_HEAVEN_DRIVE_SKILL_ID = 'fighter_heaven_drive';
+export const FIGHTER_HEAVEN_DRIVE_SKILL_ID = 'fighter_war_god_drive';
 
 // ---- Fighter character definition ----
 const fighterCharacter = characterView({
@@ -148,8 +148,33 @@ function fighterPlayerView(options: {
   });
 }
 
+// 格斗家的响应技能 / 启动技能选择统一通过 choose_skill 入口下发
+// （参见 internal/engine/interrupt_prompt_framework.go buildResponseSkillPrompt /
+// buildStartupSkillPrompt）。"发动 / 跳过" 不是独立 confirm，
+// 而是 choose_skill 中的选项。
+function fighterSkillChoicePrompt(
+  skills: { id: string; title: string }[],
+  message: string,
+): WsMessage {
+  const options = skills.map((s) => ({
+    id: s.id,
+    label: s.title,
+    hint: `发动【${s.title}】`,
+  }));
+  options.push({ id: 'skip', label: '跳过', hint: '不发动响应技能' });
+  return requireActionMessage({
+    type: 'choose_skill',
+    player_id: FIGHTER_PLAYER_ID,
+    message,
+    options,
+    presentation: { kind: 'skill_choice', layout: 'overlay' },
+    min: 1,
+    max: 1,
+  } satisfies Prompt);
+}
+
 // ============================================================
-// 蓄力一击 (fighter_charge_attack) - Attack response when qi not maxed
+// 蓄力一击 (fighter_charge_strike) - Attack response when qi not maxed
 // ============================================================
 
 export function chargeAttackScenario(options: { qi?: number } = {}): ProtocolHarnessScenario {
@@ -193,19 +218,10 @@ export function chargeAttackScenario(options: { qi?: number } = {}): ProtocolHar
 }
 
 export function chargeAttackConfirmPrompt(): WsMessage {
-  return requireActionMessage({
-    type: 'confirm',
-    player_id: FIGHTER_PLAYER_ID,
-    message: '【蓄力一击】是否发动？',
-    choice_type: 'fighter_charge_attack_confirm',
-    skill_id: FIGHTER_CHARGE_ATTACK_SKILL_ID,
-    options: [
-      { id: '0', label: '发动' },
-      { id: '1', label: '不发动' },
-    ],
-    min: 1,
-    max: 1,
-  } satisfies Prompt);
+  return fighterSkillChoicePrompt(
+    [{ id: FIGHTER_CHARGE_ATTACK_SKILL_ID, title: '蓄力一击' }],
+    '你触发了响应技能【蓄力一击】，请选择是否发动。',
+  );
 }
 
 // ============================================================
@@ -253,19 +269,10 @@ export function burstCrashScenario(options: { qi?: number } = {}): ProtocolHarne
 }
 
 export function burstCrashConfirmPrompt(): WsMessage {
-  return requireActionMessage({
-    type: 'confirm',
-    player_id: FIGHTER_PLAYER_ID,
-    message: '【气绝崩击】是否发动？消耗1点斗气',
-    choice_type: 'fighter_burst_crash_confirm',
-    skill_id: FIGHTER_BURST_CRASH_SKILL_ID,
-    options: [
-      { id: '0', label: '发动' },
-      { id: '1', label: '不发动' },
-    ],
-    min: 1,
-    max: 1,
-  } satisfies Prompt);
+  return fighterSkillChoicePrompt(
+    [{ id: FIGHTER_BURST_CRASH_SKILL_ID, title: '气绝崩击' }],
+    '你触发了响应技能【气绝崩击】，请选择是否发动。',
+  );
 }
 
 // ============================================================
@@ -313,20 +320,13 @@ export function attackSkillChoiceScenario(options: { qi?: number } = {}): Protoc
 }
 
 export function attackSkillChoicePrompt(): WsMessage {
-  return requireActionMessage({
-    type: 'confirm',
-    player_id: FIGHTER_PLAYER_ID,
-    message: '【格斗家】攻击时可发动的技能（互斥）：',
-    choice_type: 'fighter_attack_skill_choice',
-    options: [
-      { id: FIGHTER_CHARGE_ATTACK_SKILL_ID, label: '发动【蓄力一击】' },
-      { id: FIGHTER_BURST_CRASH_SKILL_ID, label: '发动【气绝崩击】' },
-      { id: 'skip', label: '跳过' },
+  return fighterSkillChoicePrompt(
+    [
+      { id: FIGHTER_CHARGE_ATTACK_SKILL_ID, title: '蓄力一击' },
+      { id: FIGHTER_BURST_CRASH_SKILL_ID, title: '气绝崩击' },
     ],
-    presentation: { kind: 'branch_select', layout: 'overlay' },
-    min: 1,
-    max: 1,
-  } satisfies Prompt);
+    '你触发了 2 个响应技能，请选择 1 个发动，或跳过。',
+  );
 }
 
 // ============================================================
@@ -373,19 +373,10 @@ export function bulletScenario(): ProtocolHarnessScenario {
 }
 
 export function bulletConfirmPrompt(): WsMessage {
-  return requireActionMessage({
-    type: 'confirm',
-    player_id: FIGHTER_PLAYER_ID,
-    message: '【念弹】法术行动后是否发动？',
-    choice_type: 'fighter_bullet_confirm',
-    skill_id: FIGHTER_BULLET_SKILL_ID,
-    options: [
-      { id: '0', label: '发动' },
-      { id: '1', label: '不发动' },
-    ],
-    min: 1,
-    max: 1,
-  } satisfies Prompt);
+  return fighterSkillChoicePrompt(
+    [{ id: FIGHTER_BULLET_SKILL_ID, title: '念弹' }],
+    '你触发了响应技能【念弹】，请选择是否发动。',
+  );
 }
 
 // ============================================================
@@ -432,20 +423,30 @@ export function hundredDragonScenario(options: { qi?: number } = {}): ProtocolHa
   };
 }
 
-export function hundredDragonConfirmPrompt(): WsMessage {
+function fighterStartupSkillPrompt(
+  skills: { id: string; title: string }[],
+): WsMessage {
+  const options = skills.map((s) => ({
+    id: s.id,
+    label: s.title,
+    hint: `发动【${s.title}】`,
+  }));
+  options.push({ id: 'skip', label: '跳过', hint: '本回合不发动启动技能' });
   return requireActionMessage({
-    type: 'confirm',
+    type: 'choose_skill',
     player_id: FIGHTER_PLAYER_ID,
-    message: '【百式幻龙拳】回合开始是否发动？消耗3点斗气',
-    choice_type: 'fighter_hundred_dragon_confirm',
-    skill_id: FIGHTER_HUNDRED_DRAGON_SKILL_ID,
-    options: [
-      { id: '0', label: '发动' },
-      { id: '1', label: '不发动' },
-    ],
+    message: '你可以发动启动技能，请选择 1 个发动，或跳过。',
+    options,
+    presentation: { kind: 'skill_choice', layout: 'overlay' },
     min: 1,
     max: 1,
   } satisfies Prompt);
+}
+
+export function hundredDragonConfirmPrompt(): WsMessage {
+  return fighterStartupSkillPrompt([
+    { id: FIGHTER_HUNDRED_DRAGON_SKILL_ID, title: '百式幻龙拳' },
+  ]);
 }
 
 // ============================================================
@@ -493,19 +494,9 @@ export function heavenDriveScenario(options: { crystals?: number } = {}): Protoc
 }
 
 export function heavenDriveConfirmPrompt(): WsMessage {
-  return requireActionMessage({
-    type: 'confirm',
-    player_id: FIGHTER_PLAYER_ID,
-    message: '【斗神天驱】回合开始是否发动？消耗1个水晶',
-    choice_type: 'fighter_heaven_drive_confirm',
-    skill_id: FIGHTER_HEAVEN_DRIVE_SKILL_ID,
-    options: [
-      { id: '0', label: '发动' },
-      { id: '1', label: '不发动' },
-    ],
-    min: 1,
-    max: 1,
-  } satisfies Prompt);
+  return fighterStartupSkillPrompt([
+    { id: FIGHTER_HEAVEN_DRIVE_SKILL_ID, title: '斗神天驱' },
+  ]);
 }
 
 // ============================================================
@@ -554,18 +545,8 @@ export function startSkillChoiceScenario(options: { qi?: number; crystals?: numb
 }
 
 export function startSkillChoicePrompt(): WsMessage {
-  return requireActionMessage({
-    type: 'confirm',
-    player_id: FIGHTER_PLAYER_ID,
-    message: '【格斗家】回合开始可发动的启动技能（互斥）：',
-    choice_type: 'fighter_start_skill_choice',
-    options: [
-      { id: FIGHTER_HUNDRED_DRAGON_SKILL_ID, label: '发动【百式幻龙拳】' },
-      { id: FIGHTER_HEAVEN_DRIVE_SKILL_ID, label: '发动【斗神天驱】' },
-      { id: 'skip', label: '跳过' },
-    ],
-    presentation: { kind: 'branch_select', layout: 'overlay' },
-    min: 1,
-    max: 1,
-  } satisfies Prompt);
+  return fighterStartupSkillPrompt([
+    { id: FIGHTER_HUNDRED_DRAGON_SKILL_ID, title: '百式幻龙拳' },
+    { id: FIGHTER_HEAVEN_DRIVE_SKILL_ID, title: '斗神天驱' },
+  ]);
 }

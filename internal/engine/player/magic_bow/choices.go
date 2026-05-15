@@ -52,19 +52,11 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 		}
 	case "mb_demon_eye_target":
-		return engineplayer.BuildTargetChoicePrompt(rt, playerID, "【魔眼·分支①】请选择弃1张牌的目标角色：", data, false)
+		return engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, "【魔眼·分支①】请选择弃1张牌的目标角色：", data, false)
 	case "mb_multi_shot_target":
-		p := engineplayer.BuildTargetChoicePrompt(rt, playerID, "【多重射击】请选择暗系追加攻击目标：", data, false)
-		if p != nil {
-			p.ChoiceType = "mb_multi_shot_target"
-		}
-		return p
+		return engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, "【多重射击】请选择暗系追加攻击目标：", data, false)
 	case "mb_thunder_scatter_target":
-		p := engineplayer.BuildTargetChoicePrompt(rt, playerID, fmt.Sprintf("【雷光散射】请选择额外受到%d点法术伤害的目标：", runtimeutil.ToIntContextValue(data["extra_x"])), data, false)
-		if p != nil {
-			p.ChoiceType = "mb_thunder_scatter_target"
-		}
-		return p
+		return engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, fmt.Sprintf("【雷光散射】请选择额外受到%d点法术伤害的目标：", runtimeutil.ToIntContextValue(data["extra_x"])), data, false)
 	default:
 		return nil
 	}

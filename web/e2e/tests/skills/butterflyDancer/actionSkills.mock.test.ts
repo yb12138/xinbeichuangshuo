@@ -2,10 +2,12 @@ import type { Page } from '@playwright/test';
 import { test } from '../../../fixtures/protocolHarness.fixture';
 import {
   BD_CHRYSALIS_SKILL_ID,
+  BD_REVERSE_SKILL_ID,
   ENEMY_PLAYER_ID,
   chrysalisScenario,
   reverseBranch2CostPrompt,
   reverseBranch2PickPrompt,
+  reverseDiscardPrompt,
   reverseModePrompt,
   reverseScenario,
   reverseTargetPrompt,
@@ -26,6 +28,39 @@ async function clickOverlayOption(page: Page, selector: string) {
   }
 }
 
+async function selectHandCards(page: Page, indices: number[]) {
+  for (const index of indices) {
+    const card = page.getByTestId(`hand-card-${index}`);
+    await card.scrollIntoViewIfNeeded();
+    await card.click();
+  }
+  await page.getByTestId('prompt-confirm-btn').click();
+}
+
+/**
+ * 完成倒逆之蝶发动前的「点技能 → 弃 2 张」固定前置链路。
+ * 后端契约：通过统一弃牌费用流程完成 cost_discards=2 后才会推送 bt_reverse_mode。
+ */
+async function activateReverseAndDiscardTwo(
+  page: Page,
+  protocolHarness: any,
+  discardIndices: [number, number] = [0, 1],
+) {
+  await activatePanelSkill(page, BD_REVERSE_SKILL_ID);
+  await protocolHarness.expectSubmitAction({
+    action_type: 'Skill',
+    skill_id: BD_REVERSE_SKILL_ID,
+  });
+
+  // Server pushes system discard prompt for cost_discards=2
+  await protocolHarness.pushServerMessage(reverseDiscardPrompt());
+  await selectHandCards(page, discardIndices);
+  await protocolHarness.expectSubmitAction({
+    action_type: 'Select',
+    option_indexes: discardIndices,
+  });
+}
+
 test.describe('butterfly dancer chrysalis protocol harness', () => {
   test('activate chrysalis skill', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(chrysalisScenario());
@@ -41,6 +76,9 @@ test.describe('butterfly dancer chrysalis protocol harness', () => {
 test.describe('butterfly dancer reverse butterfly protocol harness', () => {
   test('reverse: branch 1 select target', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(reverseScenario());
+
+    // 前置：弃 2 张牌费用（与后端契约一致）
+    await activateReverseAndDiscardTwo(page, protocolHarness);
 
     // Server pushes reverse mode prompt
     await protocolHarness.pushServerMessage(reverseModePrompt(true));
@@ -65,6 +103,8 @@ test.describe('butterfly dancer reverse butterfly protocol harness', () => {
 
   test('reverse: branch 2 remove cocoons', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(reverseScenario({ canBranch2: true }));
+
+    await activateReverseAndDiscardTwo(page, protocolHarness);
 
     // Server pushes reverse mode prompt
     await protocolHarness.pushServerMessage(reverseModePrompt(true));
@@ -105,6 +145,8 @@ test.describe('butterfly dancer reverse butterfly protocol harness', () => {
   test('reverse: branch 2 self-damage cost', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(reverseScenario({ canBranch2: true }));
 
+    await activateReverseAndDiscardTwo(page, protocolHarness);
+
     // Server pushes reverse mode prompt
     await protocolHarness.pushServerMessage(reverseModePrompt(true));
 
@@ -131,6 +173,8 @@ test.describe('butterfly dancer reverse butterfly protocol harness', () => {
 
   test('reverse: branch 1 only (no branch 2 available)', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(reverseScenario({ canBranch2: false }));
+
+    await activateReverseAndDiscardTwo(page, protocolHarness);
 
     // Server pushes reverse mode prompt without branch ②
     await protocolHarness.pushServerMessage(reverseModePrompt(false));

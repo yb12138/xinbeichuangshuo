@@ -304,6 +304,33 @@ export function reverseScenario(options: {
   });
 }
 
+/**
+ * 倒逆之蝶的弃 2 张费用前置弹框。
+ * 后端契约：技能确认后引擎统一通过 InteractionDiscard 流程下发
+ * choice_type: 'system_discard_cards' 的弃牌中断，玩家完成弃 2 张后
+ * 才进入 bt_reverse_mode 分支选择
+ * （见 butterfly_dancer_regression_test.go TestButterflyReverse_UsesUnifiedDiscardCostBeforeBranchChoice）。
+ */
+export function reverseDiscardPrompt(): WsMessage {
+  return requireActionMessage({
+    type: 'choose_cards',
+    player_id: BD_PLAYER_ID,
+    message: '【倒逆之蝶】请选择要弃置的2张手牌：',
+    choice_type: 'system_discard_cards',
+    skill_id: BD_REVERSE_SKILL_ID,
+    options: [
+      { id: '0', label: '1: 火焰斩（火系 攻击）' },
+      { id: '1', label: '2: 雷光斩（雷系 攻击）' },
+      { id: '2', label: '3: 圣光（光系 法术）' },
+      { id: '3', label: '4: 水涟斩（水系 攻击）' },
+      { id: '4', label: '5: 备牌A（地系 攻击）' },
+      { id: '5', label: '6: 备牌B（风系 攻击）' },
+    ],
+    min: 2,
+    max: 2,
+  } satisfies Prompt);
+}
+
 export function reverseModePrompt(canBranch2 = true): WsMessage {
   const options: Array<{ id: string; label: string }> = [
     { id: '0', label: '分支①：对目标造成1点不可治疗抵御的法术伤害' },

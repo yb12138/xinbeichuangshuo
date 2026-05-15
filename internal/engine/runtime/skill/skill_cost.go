@@ -2,24 +2,14 @@
 
 package skill
 
-import "starcup-engine/internal/model"
+import (
+	"starcup-engine/internal/engine/resource"
+	"starcup-engine/internal/model"
+)
 
 // CanPaySkillEnergyCost 规则：
 // 1) 宝石消耗必须由宝石支付（不可用水晶替代）；
 // 2) 水晶消耗可由「剩余宝石」替代。
 func CanPaySkillEnergyCost(p *model.Player, gemCost, crystalCost int) bool {
-	if p == nil {
-		return false
-	}
-	if gemCost < 0 {
-		gemCost = 0
-	}
-	if crystalCost < 0 {
-		crystalCost = 0
-	}
-	if p.Gem < gemCost {
-		return false
-	}
-	remainingGem := p.Gem - gemCost
-	return p.Crystal+remainingGem >= crystalCost
+	return resource.CanPaySkillEnergyCost(p, gemCost, crystalCost)
 }

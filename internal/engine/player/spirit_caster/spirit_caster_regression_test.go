@@ -347,3 +347,107 @@ func TestSpiritCasterConfig_MetadataAlignsWithDocument(t *testing.T) {
 func containsSpiritCasterCapText(desc string) bool {
 	return len(desc) > 0 && (strings.Contains(desc, "上限2") || strings.Contains(desc, "上限 2"))
 }
+
+func TestSpiritCasterThunderCollapse_TwoTargetsBothDamaged(t *testing.T) {
+	// Debugging: checking the heal interrupt flow issue
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "SpiritCaster", "spirit_caster", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "EnemyA", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p3", "EnemyB", "angel", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p3 := game.State.Players["p3"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Crystal = 1 // 有水晶用于灵力崩解
+	p1.Hand = []model.Card{
+		spiritCasterTestCard("t1", "雷符", model.CardTypeMagic, model.ElementThunder), // 发动成本
+	}
+	p2.Heal = 3
+	p3.Heal = 3
+
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	// 发动雷鸣技能，目标 p2 和 p3
+	if err := game.UseSkill("p1", "sc_talisman_thunder", []string{"p2", "p3"}, []int{0}); err != nil {
+		t.Fatalf("use talisman thunder failed: %v", err)
+	}
+
+	game.Drive()
+	// 无手牌，应该直接弹出灵力崩解选择
+	testutils.RequireChoicePrompt(t, game, "p1", "sc_spiritual_collapse_confirm")
+
+	// 选择发动灵力崩解（选项0 = 是）
+	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
+		t.Fatalf("confirm spiritual collapse failed: %v", err)
+	}
+
+	// 伤害队列应该有2个伤害（逆序：p3先，p2后）
+	if len(game.State.PendingDamageQueue) != 2 {
+		t.Fatalf("expected 2 pending damages, got %d", len(game.State.PendingDamageQueue))
+	}
+	t.Logf("Pending damage queue: %+v", game.State.PendingDamageQueue)
+
+	// 结算所有伤害
+	game.Drive()
+	t.Logf("Before first ProcessPendingDamages, queue length: %d", len(game.State.PendingDamageQueue))
+	for i, pd := range game.State.PendingDamageQueue {
+		t.Logf("  Queue[%d]: TargetID=%s, Damage=%d, HealResolved=%v", i, pd.TargetID, pd.Damage, pd.HealResolved)
+	}
+
+	if paused := game.ProcessPendingDamages(); paused {
+		// 检查是什么中断
+		if game.State.PendingInterrupt != nil {
+			t.Logf("First interrupt generated: %+v", game.State.PendingInterrupt)
+			ctxData, ok := game.State.PendingInterrupt.Context.(map[string]interface{})
+			if !ok {
+				t.Fatalf("unexpected interrupt context type")
+			}
+			choiceType, _ := ctxData["choice_type"].(string)
+			if choiceType == "heal" {
+				// 选择不使用治疗（选择0）
+				if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: game.State.PendingInterrupt.PlayerID, Selections: []int{0}}); err != nil {
+					t.Fatalf("handle heal interrupt failed: %v", err)
+				}
+				t.Logf("After first heal choice handled, queue length: %d", len(game.State.PendingDamageQueue))
+				for i, pd := range game.State.PendingDamageQueue {
+					t.Logf("  Queue[%d]: TargetID=%s, Damage=%d, HealResolved=%v", i, pd.TargetID, pd.Damage, pd.HealResolved)
+				}
+				// 继续结算
+				game.Drive()
+				if paused := game.ProcessPendingDamages(); paused {
+					t.Logf("Second interrupt generated: %+v", game.State.PendingInterrupt)
+					t.Fatalf("unexpected second interrupt while resolving damages")
+				}
+			} else {
+				t.Fatalf("unexpected interrupt type: %s", choiceType)
+			}
+		} else {
+			t.Fatalf("paused but no pending interrupt")
+		}
+	}
+
+	t.Logf("After all damages resolved, queue length: %d", len(game.State.PendingDamageQueue))
+
+	// 验证两个目标都受到了伤害（灵力崩解+1，总共2点）
+	if p2.Heal != 1 {
+		t.Fatalf("expected p2 heal=1 (3-2), got %d", p2.Heal)
+	}
+	if p3.Heal != 1 {
+		t.Fatalf("expected p3 heal=1 (3-2), got %d", p3.Heal)
+	}
+	t.Logf("After damage: p2.Heal=%d, p3.Heal=%d", p2.Heal, p3.Heal)
+
+	// 验证水晶被消耗
+	if p1.Crystal != 0 {
+		t.Fatalf("expected crystal consumed, got %d", p1.Crystal)
+	}
+}

@@ -47,13 +47,13 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【宠物强化】是否消耗1蓝水晶，将效果改为任意角色摸1弃1？", Options: []model.PromptOption{{ID: "0", Label: "是"}, {ID: "1", Label: "否"}}, Min: 1, Max: 1}
 
 	case "elf_elemental_shot_water_target":
-		return engineplayer.BuildTargetChoicePrompt(rt, playerID, "【水之矢】请选择+1治疗目标：", data, false)
+		return engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, "【水之矢】请选择+1治疗目标：", data, false)
 	case "elf_elemental_shot_earth_target":
-		return engineplayer.BuildTargetChoicePrompt(rt, playerID, "【地之矢】请选择1点法术伤害目标：", data, false)
+		return engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, "【地之矢】请选择1点法术伤害目标：", data, false)
 	case "elf_pet_empower_target":
-		return engineplayer.BuildTargetChoicePrompt(rt, playerID, "【宠物强化】请选择摸1弃1目标：", data, false)
+		return engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, "【宠物强化】请选择摸1弃1目标：", data, false)
 	case "elf_ritual_release_target":
-		return engineplayer.BuildTargetChoicePrompt(rt, playerID, "【精灵密仪】你已无祝福，转正并请选择1名敌方角色承受2点法术伤害：", data, false)
+		return engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, "【精灵密仪】你已无祝福，转正并请选择1名敌方角色承受2点法术伤害：", data, false)
 	}
 	return nil
 }

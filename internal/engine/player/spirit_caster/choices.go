@@ -36,11 +36,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 	case "sc_hundred_night_exclude_pick":
 		return buildHundredNightExcludePickPrompt(rt, playerID, data)
 	case "sc_hundred_night_target":
-		p := engineplayer.BuildTargetChoicePrompt(rt, playerID, "【百鬼夜行】请选择1点法术伤害目标：", data, false)
-		if p != nil {
-			p.ChoiceType = "sc_hundred_night_target"
-		}
-		return p
+		return engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, "【百鬼夜行】请选择1点法术伤害目标：", data, false)
 	case "sc_spiritual_collapse_confirm":
 		return buildSpiritualCollapseConfirmPrompt(playerID)
 	case "sc_talisman_wind_discard":

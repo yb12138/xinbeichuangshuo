@@ -383,11 +383,7 @@ func TestBardRousingRhapsody_OnAllyTurnStartRunsForbiddenVerse(t *testing.T) {
 
 	game.Drive()
 
-	// 确认弹窗发给永恒乐章持有者（ally/p2），询问是否发动
-	testutils.RequireChoicePrompt(t, game, "p2", "bd_rousing_confirm")
-	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{0}}); err != nil { // 选择"发动"
-		t.Fatalf("choose rousing confirm failed: %v", err)
-	}
+	// 激昂狂想曲已简化为三分支直选（伤害 / 弃牌 / 跳过），不再有独立的 confirm 步骤。
 	testutils.RequireChoicePrompt(t, game, "p2", "bd_rousing_mode")
 	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{0}}); err != nil { // 选伤害分支
 		t.Fatalf("choose rousing mode failed: %v", err)
@@ -655,9 +651,9 @@ func TestBardRousingRhapsody_BleedTickRunsFirst(t *testing.T) {
 
 	game.Drive()
 
-	// Drive 会自动处理：流血伤害先结算 → 然后激昂狂想曲弹出确认询问
-	// 最终状态应为等待永恒乐章持有者（血之巫女）确认
-	testutils.RequireChoicePrompt(t, game, "p2", "bd_rousing_confirm")
+	// Drive 会自动处理：流血伤害先结算 → 然后激昂狂想曲三分支直选弹窗
+	// 最终状态应为等待永恒乐章持有者（血之巫女）选择伤害/弃牌/跳过
+	testutils.RequireChoicePrompt(t, game, "p2", "bd_rousing_mode")
 
 	// 验证日志顺序：流血在前，激昂狂想曲在后
 	var bleedIdx, rousingIdx int = -1, -1

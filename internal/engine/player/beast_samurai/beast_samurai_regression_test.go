@@ -277,6 +277,12 @@ func TestBeastSamurai_BeastSoulAlert_RunsOnOtherPlayerTapped(t *testing.T) {
 	if err := game.ConfirmResponseSkill("p1", "bs_beast_soul_alert"); err != nil {
 		t.Fatalf("confirm beast soul alert failed: %v", err)
 	}
+	// 兽魂警戒：先弹出目标选择，由发动者从所有有手牌的角色中挑 1 名。
+	// 当前仅 p2 有手牌，对应 target_ids 唯一索引 0。
+	testutils.RequireChoicePrompt(t, game, "p1", "bs_alert_target")
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
+		t.Fatalf("select alert target failed: %v", err)
+	}
 	requireBeastSamuraiDiscardInterrupt(t, game, "p2", "bs_alert_source_discard")
 
 	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{0}}); err != nil {

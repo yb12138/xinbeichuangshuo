@@ -59,6 +59,9 @@ func TestMoonGoddessNewMoonShelter_AbsorbsOverflowAndPreventsMoraleLoss(t *testi
 		Selections: []int{4, 5},
 	})
 
+	// 新月庇护改为 ResponseOptional 后，玩家需在 choose_skill 弹框中显式确认发动。
+	testutils.ChooseResponseSkillByID(t, game, "p1", "mg_new_moon_shelter")
+
 	if got := game.State.RedMorale; got != 15 {
 		t.Fatalf("expected red morale unchanged by 新月庇护, got %d", got)
 	}
@@ -112,6 +115,9 @@ func TestMoonGoddessNewMoonShelter_NoSoulDevourGainWhenMoraleLossPrevented(t *te
 			Type:       model.CmdSelect,
 			Selections: []int{4, 5},
 		})
+
+		// 新月庇护改为 ResponseOptional 后，由月之女神（p2）在 choose_skill 弹框中确认发动。
+		testutils.ChooseResponseSkillByID(t, game, "p2", "mg_new_moon_shelter")
 
 		if got := game.State.RedMorale; got != 15 {
 			t.Fatalf("round %d: expected red morale unchanged by 新月庇护, got %d", i, got)

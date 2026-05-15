@@ -1,6 +1,7 @@
 package butterfly_dancer_test
 
 import (
+	"fmt"
 	"starcup-engine/internal/engine"
 	skillrt "starcup-engine/internal/engine/runtime/skill"
 	"starcup-engine/internal/testutils"
@@ -417,5 +418,122 @@ func TestButterflyWither_CanTargetAnyCharacter(t *testing.T) {
 	}
 	if got := p1.TurnState.SkillFlowState["bt_wither_active"]; got != 1 {
 		t.Fatalf("expected wither floor effect active, got %d", got)
+	}
+}
+
+// TestButterflyChrysalis_CocoonOverflowDiscardMulti 覆盖 bt_cocoon_overflow_discard
+// 当 discard_count > 1 时的批量处理路径（multi-select handler）。
+// 修复前：handleCocoonOverflowDiscard 硬编码 discardNeed != 1 报错，多个茧溢出场景运行时崩溃。
+func TestButterflyChrysalis_CocoonOverflowDiscardMulti(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Butterfly", "butterfly_dancer", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Gem = 1
+
+	// 预放 6 个茧；蛹化再放 4 个 → 共 10 个，超出 CocoonCap=8，预期 overflow=2
+	cocoonCards := make([]model.Card, 6)
+	for i := range cocoonCards {
+		cocoonCards[i] = butterflyTestCard(fmt.Sprintf("c%d", i), model.CardTypeAttack, model.ElementFire)
+	}
+	butterflydancer.AddCocoonCards(p1, cocoonCards)
+
+	game.State.Deck = rules.InitDeck()
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID: "p1",
+		Type:     model.CmdSkill,
+		SkillID:  "bt_chrysalis",
+	})
+
+	testutils.RequireChoicePrompt(t, game, "p1", "bt_cocoon_overflow_discard")
+	data, _ := game.State.PendingInterrupt.Context.(map[string]interface{})
+	if dc, _ := data["discard_count"].(int); dc != 2 {
+		t.Fatalf("expected discard_count=2 after chrysalis overflow, got %v", data["discard_count"])
+	}
+	cocoonsBefore := butterflydancer.CocoonCount(p1)
+	if cocoonsBefore != 10 {
+		t.Fatalf("expected 10 cocoons before discard, got %d", cocoonsBefore)
+	}
+
+	// 批量提交两张茧（multi-select 路径）。
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{0, 1},
+	})
+
+	if got := butterflydancer.CocoonCount(p1); got != 8 {
+		t.Fatalf("expected 8 cocoons after multi-discard, got %d", got)
+	}
+	if game.State.PendingInterrupt != nil {
+		t.Fatalf("expected interrupt cleared after multi-discard, got %+v", game.State.PendingInterrupt)
+	}
+}
+
+// TestButterflyChrysalis_CocoonOverflowDiscardSequential 覆盖 bt_cocoon_overflow_discard
+// 单选累积路径：前端逐张提交时也应正确累积并最终结算。
+func TestButterflyChrysalis_CocoonOverflowDiscardSequential(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Butterfly", "butterfly_dancer", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Gem = 1
+
+	cocoonCards := make([]model.Card, 6)
+	for i := range cocoonCards {
+		cocoonCards[i] = butterflyTestCard(fmt.Sprintf("c%d", i), model.CardTypeAttack, model.ElementFire)
+	}
+	butterflydancer.AddCocoonCards(p1, cocoonCards)
+
+	game.State.Deck = rules.InitDeck()
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID: "p1",
+		Type:     model.CmdSkill,
+		SkillID:  "bt_chrysalis",
+	})
+
+	testutils.RequireChoicePrompt(t, game, "p1", "bt_cocoon_overflow_discard")
+
+	// 第一次只选 1 张，期望中断仍在，prompt 再次弹出，茧数尚未减少
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{0},
+	})
+	testutils.RequireChoicePrompt(t, game, "p1", "bt_cocoon_overflow_discard")
+	if got := butterflydancer.CocoonCount(p1); got != 10 {
+		t.Fatalf("expected cocoon count unchanged (10) after first sequential select, got %d", got)
+	}
+
+	// 第二次再选 1 张，期望结算完成
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{0},
+	})
+
+	if got := butterflydancer.CocoonCount(p1); got != 8 {
+		t.Fatalf("expected 8 cocoons after sequential discard, got %d", got)
+	}
+	if game.State.PendingInterrupt != nil {
+		t.Fatalf("expected interrupt cleared after sequential discard, got %+v", game.State.PendingInterrupt)
 	}
 }

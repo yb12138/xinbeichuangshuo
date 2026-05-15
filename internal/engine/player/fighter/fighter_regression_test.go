@@ -9,6 +9,15 @@ import (
 	"starcup-engine/internal/model"
 )
 
+func containsString(arr []string, target string) bool {
+	for _, s := range arr {
+		if s == target {
+			return true
+		}
+	}
+	return false
+}
+
 type actionPromptObserver struct {
 	lastPrompt *model.Prompt
 }
@@ -627,14 +636,11 @@ func TestFighterBurstCrash_NoCounterAndSelfDamage(t *testing.T) {
 
 	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardIndex: 0})
 	testutils.RequireResponseSkillPrompt(t, game, "p1")
-	if got := game.State.PendingInterrupt.SkillIDs; len(got) != 1 || got[0] != "fighter_charge_strike" {
-		t.Fatalf("expected first attack-start prompt only charge strike, got %+v", got)
-	}
-	// 跳过蓄力一击后，应继续弹出气绝崩击确认框。
-	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{1}})
-	testutils.RequireResponseSkillPrompt(t, game, "p1")
-	if got := game.State.PendingInterrupt.SkillIDs; len(got) != 1 || got[0] != "fighter_burst_crash" {
-		t.Fatalf("expected second attack-start prompt only burst crash, got %+v", got)
+	// 蓄力一击与气绝崩击互斥应在同一面板内同时提供（含跳过），由玩家三选一。
+	if got := game.State.PendingInterrupt.SkillIDs; len(got) != 2 ||
+		!containsString(got, "fighter_charge_strike") ||
+		!containsString(got, "fighter_burst_crash") {
+		t.Fatalf("expected attack-start prompt to offer both charge strike and burst crash, got %+v", got)
 	}
 	testutils.ChooseResponseSkillByID(t, game, "p1", "fighter_burst_crash")
 

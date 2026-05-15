@@ -164,13 +164,13 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		}
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【希望赋格曲】请选择弃置1张手牌：", Options: options, Min: 1, Max: 1}
 	case "bd_descent_target":
-		return engineplayer.BuildTargetChoicePrompt(rt, playerID, "【沉沦协奏曲】请选择1点法术伤害目标：", data, false)
+		return engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, "【沉沦协奏曲】请选择1点法术伤害目标：", data, false)
 	case "bd_dissonance_target":
-		return engineplayer.BuildTargetChoicePrompt(rt, playerID, "【不谐和弦】请选择目标角色：", data, false)
+		return engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, "【不谐和弦】请选择目标角色：", data, false)
 	case "bd_hope_place_target":
-		return engineplayer.BuildTargetChoicePrompt(rt, playerID, "【希望赋格曲】请选择放置永恒乐章的目标队友：", data, false)
+		return engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, "【希望赋格曲】请选择放置永恒乐章的目标队友：", data, false)
 	case "bd_hope_transfer_target":
-		return engineplayer.BuildTargetChoicePrompt(rt, playerID, "【希望赋格曲】请选择转移永恒乐章的目标队友：", data, false)
+		return engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, "【希望赋格曲】请选择转移永恒乐章的目标队友：", data, false)
 	default:
 		return nil
 	}

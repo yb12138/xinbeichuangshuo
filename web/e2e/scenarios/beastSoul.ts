@@ -1,5 +1,11 @@
 // ============================================================
-// Beast Soul Warrior (兽灵武士) Protocol Harness Scenarios
+// Beast Samurai (兽灵武士) Protocol Harness Scenarios
+// 与后端 internal/engine/player/beast_samurai/choices.go 对齐：
+// - 响应技能（一击无念 / 兽魂警戒 / 兽返 / 逆反居合斩）走通用 choose_skill 弹框
+// - 启动技能（御魂流居合式）走通用 choose_skill 弹框
+// - X 选择 / 摸弃选择走 bs_* 专属 choice_type（option id 为数字字符串）
+// - 武者残心 (bs_warrior_zanshin) 后端 ResponseSilent，无前端弹框，不在此文件 mock
+// - "不屈意志" 属于剑帝技能，已从兽灵武士 e2e 移除
 // ============================================================
 
 import type { Prompt } from '../../src/types/game';
@@ -17,53 +23,26 @@ import {
 
 // ---- Player IDs ----
 export const BSW_PLAYER_ID = 'bsw_player';
-export const ALLY_PLAYER_ID = 'ally_1';
 export const ENEMY_PLAYER_ID = 'enemy_1';
 
-// ---- Skill IDs ----
-export const BSW_INDOMITABLE_WILL_SKILL_ID = 'bsw_indomitable_will';
-export const BSW_WARRIOR_ZANSHIN_SKILL_ID = 'bsw_warrior_zanshin';
-export const BSW_ONE_STRIKE_SKILL_ID = 'bsw_one_strike_no_thought';
-export const BSW_BEAST_SOUL_ALERT_SKILL_ID = 'bsw_beast_soul_alert';
-export const BSW_BEAST_RETURN_SKILL_ID = 'bsw_beast_return';
-export const BSW_REVERSAL_IAIJUTSU_SKILL_ID = 'bsw_reversal_iaijutsu';
-export const BSW_IAIJUTSU_STYLE_SKILL_ID = 'bsw_iaijutsu_style';
+// ---- Skill IDs (与 internal/data/characters.go beast_samurai 段一致) ----
+export const BSW_ONE_STRIKE_SKILL_ID = 'bs_one_strike_no_thought';
+export const BSW_BEAST_SOUL_ALERT_SKILL_ID = 'bs_beast_soul_alert';
+export const BSW_BEAST_RETURN_SKILL_ID = 'bs_beast_return';
+export const BSW_REVERSAL_IAIJUTSU_SKILL_ID = 'bs_reversal_iaijutsu';
+export const BSW_IAIJUTSU_STYLE_SKILL_ID = 'bs_iaijutsu_style';
 
-// ---- Beast Soul Warrior character definition ----
+// ---- Beast Samurai character definition ----
 const beastSoulCharacter = characterView({
-  id: 'beast_soul_warrior',
+  id: 'beast_samurai',
   name: '兽灵武士',
   title: '野兽之魂',
   faction: '星杯',
   skills: [
     {
-      id: BSW_INDOMITABLE_WILL_SKILL_ID,
-      title: '不屈意志',
-      description: '攻击行动结束时，若有水晶则可发动',
-      type: 0,
-      min_targets: 0,
-      max_targets: 0,
-      target_type: 0,
-      cost_gem: 0,
-      cost_crystal: 0,
-      cost_discards: 0,
-    },
-    {
-      id: BSW_WARRIOR_ZANSHIN_SKILL_ID,
-      title: '武者残心',
-      description: '首次攻击行动结束时触发',
-      type: 0,
-      min_targets: 0,
-      max_targets: 0,
-      target_type: 0,
-      cost_gem: 0,
-      cost_crystal: 0,
-      cost_discards: 0,
-    },
-    {
       id: BSW_ONE_STRIKE_SKILL_ID,
       title: '一击无念',
-      description: '残心≥4时可发动',
+      description: '攻击行动结束时若残心≥4可发动',
       type: 0,
       min_targets: 0,
       max_targets: 0,
@@ -75,7 +54,7 @@ const beastSoulCharacter = characterView({
     {
       id: BSW_BEAST_SOUL_ALERT_SKILL_ID,
       title: '兽魂警戒',
-      description: '触发后确认，选目标，弃牌',
+      description: '响应技能：消耗1兽魂指定 1 名角色弃 1 张牌',
       type: 0,
       min_targets: 0,
       max_targets: 0,
@@ -87,7 +66,7 @@ const beastSoulCharacter = characterView({
     {
       id: BSW_BEAST_RETURN_SKILL_ID,
       title: '兽返',
-      description: '响应技能，确认后移除兽魂',
+      description: '响应技能，选 X 移除兽魂',
       type: 0,
       min_targets: 0,
       max_targets: 0,
@@ -99,7 +78,7 @@ const beastSoulCharacter = characterView({
     {
       id: BSW_REVERSAL_IAIJUTSU_SKILL_ID,
       title: '逆反居合斩',
-      description: '响应技能，确认后移除兽魂，目标弃牌',
+      description: '响应技能，选 X 移除兽魂改写攻击为弃牌效果',
       type: 0,
       min_targets: 0,
       max_targets: 0,
@@ -110,8 +89,8 @@ const beastSoulCharacter = characterView({
     },
     {
       id: BSW_IAIJUTSU_STYLE_SKILL_ID,
-      title: '徙魂流居合式',
-      description: '启动技能，消耗宝石，选择摸牌或弃牌',
+      title: '御魂流居合式',
+      description: '启动技能，消耗宝石，摸 1 或弃 1',
       type: 2,
       min_targets: 0,
       max_targets: 0,
@@ -121,14 +100,6 @@ const beastSoulCharacter = characterView({
       cost_discards: 0,
     },
   ],
-});
-
-const allyCharacter = characterView({
-  id: 'ally_char',
-  name: '圣女',
-  title: '光之守护',
-  faction: '星杯',
-  skills: [],
 });
 
 const enemyCharacter = characterView({
@@ -162,7 +133,7 @@ function beastSoulPlayerView(options: {
     id: BSW_PLAYER_ID,
     name: 'E2E Beast Soul',
     camp: 'Red',
-    role: 'beast_soul_warrior',
+    role: 'beast_samurai',
     hand: beastSoulHand(),
     hand_count: beastSoulHand().length,
     heal: options.heal ?? 2,
@@ -171,139 +142,38 @@ function beastSoulPlayerView(options: {
     gem: options.gems ?? 0,
     crystal: options.crystals ?? 0,
     tokens: {
-      bsw_zanshin: options.zanshin ?? 0,
-      bsw_beast_souls: options.beast_souls ?? 0,
+      bs_zanshin: options.zanshin ?? 0,
+      bs_beast_soul: options.beast_souls ?? 0,
     },
   });
 }
 
-// ============================================================
-// 不屈意志 (bsw_indomitable_will) - Attack action end, requires crystal
-// ============================================================
-
-export function indomitableWillScenario(options: { crystals?: number } = {}): ProtocolHarnessScenario {
-  const crystals = options.crystals ?? 1;
-  const characters = [beastSoulCharacter, allyCharacter, enemyCharacter];
-
-  const beastSoul = beastSoulPlayerView({ crystals, is_active: true });
-
-  const players = [
-    beastSoul,
-    playerView({
-      id: ENEMY_PLAYER_ID,
-      name: 'Enemy Bot',
-      camp: 'Blue',
-      role: 'villain',
-      hand: [],
-      hand_count: 3,
-      heal: 1,
-      max_heal: 2,
-      is_active: false,
-    }),
-  ];
-
-  return {
-    roomCode: 'MOCK',
-    myPlayerId: BSW_PLAYER_ID,
-    myPlayerName: 'E2E Beast Soul',
-    characters,
-    players: [
-      playerInfo({ id: BSW_PLAYER_ID, name: 'E2E Beast Soul', camp: 'Red', char_role: 'beast_soul_warrior', is_host: true }),
-      playerInfo({ id: ENEMY_PLAYER_ID, name: 'Enemy Bot', camp: 'Blue', char_role: 'villain' }),
-    ],
-    initialState: syncState({
-      turn_player_id: BSW_PLAYER_ID,
-      turn_stage: 'ActionExecution',
-      available_skills: [],
-      characters,
-      players,
-    }),
-  };
-}
-
-export function indomitableWillConfirmPrompt(): WsMessage {
+// 后端的响应技能 / 启动技能选择统一通过 choose_skill 入口下发
+// （参见 internal/engine/interrupt_prompt_framework.go buildResponseSkillPrompt /
+// buildStartupSkillPrompt）。"确认/跳过" 不是独立 choice_type，
+// 而是 choose_skill 中的两个选项。
+function beastSoulSkillChoicePrompt(skillId: string, title: string, message: string): WsMessage {
   return requireActionMessage({
-    type: 'confirm',
+    type: 'choose_skill',
     player_id: BSW_PLAYER_ID,
-    message: '【不屈意志】攻击行动结束，是否发动？（消耗1水晶）',
-    choice_type: 'bsw_indomitable_will_confirm',
-    skill_id: BSW_INDOMITABLE_WILL_SKILL_ID,
+    message,
     options: [
-      { id: '0', label: '发动' },
-      { id: '1', label: '不发动' },
+      { id: skillId, label: title, hint: `发动【${title}】` },
+      { id: 'skip', label: '跳过', hint: '不发动响应技能' },
     ],
+    presentation: { kind: 'skill_choice', layout: 'overlay' },
     min: 1,
     max: 1,
   } satisfies Prompt);
 }
 
 // ============================================================
-// 武者残心 (bsw_warrior_zanshin) - First attack action end
-// ============================================================
-
-export function warriorZanshinScenario(options: { zanshin?: number } = {}): ProtocolHarnessScenario {
-  const zanshin = options.zanshin ?? 0;
-  const characters = [beastSoulCharacter, allyCharacter, enemyCharacter];
-
-  const beastSoul = beastSoulPlayerView({ zanshin, is_active: true });
-
-  const players = [
-    beastSoul,
-    playerView({
-      id: ENEMY_PLAYER_ID,
-      name: 'Enemy Bot',
-      camp: 'Blue',
-      role: 'villain',
-      hand: [],
-      hand_count: 3,
-      heal: 1,
-      max_heal: 2,
-      is_active: false,
-    }),
-  ];
-
-  return {
-    roomCode: 'MOCK',
-    myPlayerId: BSW_PLAYER_ID,
-    myPlayerName: 'E2E Beast Soul',
-    characters,
-    players: [
-      playerInfo({ id: BSW_PLAYER_ID, name: 'E2E Beast Soul', camp: 'Red', char_role: 'beast_soul_warrior', is_host: true }),
-      playerInfo({ id: ENEMY_PLAYER_ID, name: 'Enemy Bot', camp: 'Blue', char_role: 'villain' }),
-    ],
-    initialState: syncState({
-      turn_player_id: BSW_PLAYER_ID,
-      turn_stage: 'ActionExecution',
-      available_skills: [],
-      characters,
-      players,
-    }),
-  };
-}
-
-export function warriorZanshinConfirmPrompt(): WsMessage {
-  return requireActionMessage({
-    type: 'confirm',
-    player_id: BSW_PLAYER_ID,
-    message: '【武者残心】首次攻击行动结束，是否发动？',
-    choice_type: 'bsw_warrior_zanshin_confirm',
-    skill_id: BSW_WARRIOR_ZANSHIN_SKILL_ID,
-    options: [
-      { id: '0', label: '发动' },
-      { id: '1', label: '不发动' },
-    ],
-    min: 1,
-    max: 1,
-  } satisfies Prompt);
-}
-
-// ============================================================
-// 一击无念 (bsw_one_strike_no_thought) - Requires 4+ zanshin tokens
+// 一击无念 (bs_one_strike_no_thought) - 残心≥4 时由响应技能链路发动
 // ============================================================
 
 export function oneStrikeScenario(options: { zanshin?: number } = {}): ProtocolHarnessScenario {
   const zanshin = options.zanshin ?? 4;
-  const characters = [beastSoulCharacter, allyCharacter, enemyCharacter];
+  const characters = [beastSoulCharacter, enemyCharacter];
 
   const beastSoul = beastSoulPlayerView({ zanshin, is_active: true });
 
@@ -328,7 +198,7 @@ export function oneStrikeScenario(options: { zanshin?: number } = {}): ProtocolH
     myPlayerName: 'E2E Beast Soul',
     characters,
     players: [
-      playerInfo({ id: BSW_PLAYER_ID, name: 'E2E Beast Soul', camp: 'Red', char_role: 'beast_soul_warrior', is_host: true }),
+      playerInfo({ id: BSW_PLAYER_ID, name: 'E2E Beast Soul', camp: 'Red', char_role: 'beast_samurai', is_host: true }),
       playerInfo({ id: ENEMY_PLAYER_ID, name: 'Enemy Bot', camp: 'Blue', char_role: 'villain' }),
     ],
     initialState: syncState({
@@ -341,92 +211,21 @@ export function oneStrikeScenario(options: { zanshin?: number } = {}): ProtocolH
   };
 }
 
-export function oneStrikeConfirmPrompt(): WsMessage {
-  return requireActionMessage({
-    type: 'confirm',
-    player_id: BSW_PLAYER_ID,
-    message: '【一击无念】残心≥4，是否发动？（清空残心，+1兽魂标记）',
-    choice_type: 'bsw_one_strike_confirm',
-    skill_id: BSW_ONE_STRIKE_SKILL_ID,
-    options: [
-      { id: '0', label: '发动' },
-      { id: '1', label: '不发动' },
-    ],
-    min: 1,
-    max: 1,
-  } satisfies Prompt);
+export function oneStrikeResponsePrompt(): WsMessage {
+  return beastSoulSkillChoicePrompt(
+    BSW_ONE_STRIKE_SKILL_ID,
+    '一击无念',
+    '你触发了响应技能【一击无念】，请选择是否发动。',
+  );
 }
 
 // ============================================================
-// Mutual exclusion scenario - All three skills trigger simultaneously
-// ============================================================
-
-export function mutualExclusionScenario(options: { crystals?: number; zanshin?: number } = {}): ProtocolHarnessScenario {
-  const crystals = options.crystals ?? 1;
-  const zanshin = options.zanshin ?? 4;
-  const characters = [beastSoulCharacter, allyCharacter, enemyCharacter];
-
-  const beastSoul = beastSoulPlayerView({ crystals, zanshin, is_active: true });
-
-  const players = [
-    beastSoul,
-    playerView({
-      id: ENEMY_PLAYER_ID,
-      name: 'Enemy Bot',
-      camp: 'Blue',
-      role: 'villain',
-      hand: [],
-      hand_count: 3,
-      heal: 1,
-      max_heal: 2,
-      is_active: false,
-    }),
-  ];
-
-  return {
-    roomCode: 'MOCK',
-    myPlayerId: BSW_PLAYER_ID,
-    myPlayerName: 'E2E Beast Soul',
-    characters,
-    players: [
-      playerInfo({ id: BSW_PLAYER_ID, name: 'E2E Beast Soul', camp: 'Red', char_role: 'beast_soul_warrior', is_host: true }),
-      playerInfo({ id: ENEMY_PLAYER_ID, name: 'Enemy Bot', camp: 'Blue', char_role: 'villain' }),
-    ],
-    initialState: syncState({
-      turn_player_id: BSW_PLAYER_ID,
-      turn_stage: 'ActionExecution',
-      available_skills: [],
-      characters,
-      players,
-    }),
-  };
-}
-
-export function mutualExclusionPrompt(): WsMessage {
-  return requireActionMessage({
-    type: 'confirm',
-    player_id: BSW_PLAYER_ID,
-    message: '攻击行动结束，多个技能可发动，请选择：',
-    choice_type: 'bsw_attack_end_choice',
-    options: [
-      { id: 'indomitable_will', label: '不屈意志（消耗1水晶）' },
-      { id: 'warrior_zanshin', label: '武者残心' },
-      { id: 'one_strike', label: '一击无念（清空残心）' },
-    ],
-    presentation: { kind: 'branch_select', layout: 'overlay' },
-    cancelable: true,
-    min: 1,
-    max: 1,
-  } satisfies Prompt);
-}
-
-// ============================================================
-// 兽魂警戒 (bsw_beast_soul_alert) - Trigger → confirm → target → discard
+// 兽魂警戒 (bs_beast_soul_alert) - 响应 → 选目标 → 让目标弃 1 张牌
 // ============================================================
 
 export function beastSoulAlertScenario(options: { beast_souls?: number } = {}): ProtocolHarnessScenario {
   const beast_souls = options.beast_souls ?? 2;
-  const characters = [beastSoulCharacter, allyCharacter, enemyCharacter];
+  const characters = [beastSoulCharacter, enemyCharacter];
 
   const beastSoul = beastSoulPlayerView({ beast_souls, is_active: true });
 
@@ -451,7 +250,7 @@ export function beastSoulAlertScenario(options: { beast_souls?: number } = {}): 
     myPlayerName: 'E2E Beast Soul',
     characters,
     players: [
-      playerInfo({ id: BSW_PLAYER_ID, name: 'E2E Beast Soul', camp: 'Red', char_role: 'beast_soul_warrior', is_host: true }),
+      playerInfo({ id: BSW_PLAYER_ID, name: 'E2E Beast Soul', camp: 'Red', char_role: 'beast_samurai', is_host: true }),
       playerInfo({ id: ENEMY_PLAYER_ID, name: 'Enemy Bot', camp: 'Blue', char_role: 'villain' }),
     ],
     initialState: syncState({
@@ -464,31 +263,22 @@ export function beastSoulAlertScenario(options: { beast_souls?: number } = {}): 
   };
 }
 
-export function beastSoulAlertConfirmPrompt(): WsMessage {
-  return requireActionMessage({
-    type: 'confirm',
-    player_id: BSW_PLAYER_ID,
-    message: '【兽魂警戒】触发条件满足，是否发动？',
-    choice_type: 'bsw_beast_soul_alert_confirm',
-    skill_id: BSW_BEAST_SOUL_ALERT_SKILL_ID,
-    options: [
-      { id: '0', label: '发动' },
-      { id: '1', label: '不发动' },
-    ],
-    min: 1,
-    max: 1,
-  } satisfies Prompt);
+export function beastSoulAlertResponsePrompt(): WsMessage {
+  return beastSoulSkillChoicePrompt(
+    BSW_BEAST_SOUL_ALERT_SKILL_ID,
+    '兽魂警戒',
+    '你触发了响应技能【兽魂警戒】，请选择是否发动。',
+  );
 }
 
 export function beastSoulAlertTargetPrompt(): WsMessage {
   return requireActionMessage({
     type: 'confirm',
     player_id: BSW_PLAYER_ID,
-    message: '【兽魂警戒】请选择目标：',
-    choice_type: 'bsw_beast_soul_alert_target',
-    skill_id: BSW_BEAST_SOUL_ALERT_SKILL_ID,
+    message: '【兽魂警戒】请选择 1 名让其弃 1 张牌的角色：',
+    choice_type: 'bs_alert_target',
     options: [
-      { id: ENEMY_PLAYER_ID, label: '恶徒' },
+      { id: '0', label: 'Enemy Bot' },
     ],
     min: 1,
     max: 1,
@@ -498,13 +288,11 @@ export function beastSoulAlertTargetPrompt(): WsMessage {
 export function beastSoulAlertDiscardPrompt(): WsMessage {
   return requireActionMessage({
     type: 'choose_cards',
-    player_id: BSW_PLAYER_ID,
-    message: '【兽魂警戒】请选择弃置1张牌：',
-    choice_type: 'bsw_beast_soul_alert_discard',
-    skill_id: BSW_BEAST_SOUL_ALERT_SKILL_ID,
+    player_id: ENEMY_PLAYER_ID,
+    message: '【兽魂警戒】请选择并展示弃置1张手牌：',
+    choice_type: 'bs_alert_source_discard',
     options: [
-      { id: '0', label: '1: 火焰斩 (火 Attack)' },
-      { id: '1', label: '2: 水涟斩 (水 Attack)' },
+      { id: '0', label: '1: 神秘手牌' },
     ],
     min: 1,
     max: 1,
@@ -512,12 +300,12 @@ export function beastSoulAlertDiscardPrompt(): WsMessage {
 }
 
 // ============================================================
-// 兽返 (bsw_beast_return) - Response → confirm → remove X beast souls
+// 兽返 (bs_beast_return) - 响应 → 选 X 移除兽魂
 // ============================================================
 
 export function beastReturnScenario(options: { beast_souls?: number } = {}): ProtocolHarnessScenario {
   const beast_souls = options.beast_souls ?? 3;
-  const characters = [beastSoulCharacter, allyCharacter, enemyCharacter];
+  const characters = [beastSoulCharacter, enemyCharacter];
 
   const beastSoul = beastSoulPlayerView({ beast_souls, is_active: false });
 
@@ -542,7 +330,7 @@ export function beastReturnScenario(options: { beast_souls?: number } = {}): Pro
     myPlayerName: 'E2E Beast Soul',
     characters,
     players: [
-      playerInfo({ id: BSW_PLAYER_ID, name: 'E2E Beast Soul', camp: 'Red', char_role: 'beast_soul_warrior', is_host: true }),
+      playerInfo({ id: BSW_PLAYER_ID, name: 'E2E Beast Soul', camp: 'Red', char_role: 'beast_samurai', is_host: true }),
       playerInfo({ id: ENEMY_PLAYER_ID, name: 'Enemy Bot', camp: 'Blue', char_role: 'villain' }),
     ],
     initialState: syncState({
@@ -555,47 +343,41 @@ export function beastReturnScenario(options: { beast_souls?: number } = {}): Pro
   };
 }
 
-export function beastReturnConfirmPrompt(): WsMessage {
-  return requireActionMessage({
-    type: 'confirm',
-    player_id: BSW_PLAYER_ID,
-    message: '【兽返】响应时机触发，是否发动？',
-    choice_type: 'bsw_beast_return_confirm',
-    skill_id: BSW_BEAST_RETURN_SKILL_ID,
-    options: [
-      { id: '0', label: '发动' },
-      { id: '1', label: '不发动' },
-    ],
-    min: 1,
-    max: 1,
-  } satisfies Prompt);
+export function beastReturnResponsePrompt(): WsMessage {
+  return beastSoulSkillChoicePrompt(
+    BSW_BEAST_RETURN_SKILL_ID,
+    '兽返',
+    '你触发了响应技能【兽返】，请选择是否发动。',
+  );
 }
 
-export function beastReturnRemovePrompt(xMax: number): WsMessage {
+// 后端 buildBeastReturnXPrompt 选项为 X=0..maxX（含「不移除兽魂」），option id 为字符串数字。
+export function beastReturnXPrompt(xMax: number): WsMessage {
   const options: { id: string; label: string }[] = [];
-  for (let i = 1; i <= xMax; i++) {
-    options.push({ id: `${i}`, label: `移除${i}个兽魂` });
+  for (let i = 0; i <= xMax; i++) {
+    const label = i === 0 ? 'X=0（不移除兽魂）' : `X=${i}`;
+    options.push({ id: `${i}`, label });
   }
   return requireActionMessage({
     type: 'confirm',
     player_id: BSW_PLAYER_ID,
-    message: `【兽返】请选择移除X个兽魂（1≤X≤${xMax}）：`,
-    choice_type: 'bsw_beast_return_remove',
-    skill_id: BSW_BEAST_RETURN_SKILL_ID,
+    message: `【兽返】请选择要移除的兽魂数量（0-${xMax}）：`,
+    choice_type: 'bs_beast_return_x',
     options,
-    presentation: { kind: 'branch_select', layout: 'overlay' },
+    presentation: { kind: 'numeric', numeric_base: 0 },
     min: 1,
     max: 1,
   } satisfies Prompt);
 }
 
 // ============================================================
-// 逆反居合斩 (bsw_reversal_iaijutsu) - Response → confirm → remove X beast souls → target discard
+// 逆反居合斩 (bs_reversal_iaijutsu) - 响应 → 选 X → 攻击目标弃 X+2 张
+// （后端直接以攻击目标为弃牌对象，不需额外目标选择）
 // ============================================================
 
 export function reversalIaijutsuScenario(options: { beast_souls?: number } = {}): ProtocolHarnessScenario {
   const beast_souls = options.beast_souls ?? 3;
-  const characters = [beastSoulCharacter, allyCharacter, enemyCharacter];
+  const characters = [beastSoulCharacter, enemyCharacter];
 
   const beastSoul = beastSoulPlayerView({ beast_souls, is_active: false });
 
@@ -620,7 +402,7 @@ export function reversalIaijutsuScenario(options: { beast_souls?: number } = {})
     myPlayerName: 'E2E Beast Soul',
     characters,
     players: [
-      playerInfo({ id: BSW_PLAYER_ID, name: 'E2E Beast Soul', camp: 'Red', char_role: 'beast_soul_warrior', is_host: true }),
+      playerInfo({ id: BSW_PLAYER_ID, name: 'E2E Beast Soul', camp: 'Red', char_role: 'beast_samurai', is_host: true }),
       playerInfo({ id: ENEMY_PLAYER_ID, name: 'Enemy Bot', camp: 'Blue', char_role: 'villain' }),
     ],
     initialState: syncState({
@@ -633,49 +415,41 @@ export function reversalIaijutsuScenario(options: { beast_souls?: number } = {})
   };
 }
 
-export function reversalIaijutsuConfirmPrompt(): WsMessage {
-  return requireActionMessage({
-    type: 'confirm',
-    player_id: BSW_PLAYER_ID,
-    message: '【逆反居合斩】响应时机触发，是否发动？',
-    choice_type: 'bsw_reversal_iaijutsu_confirm',
-    skill_id: BSW_REVERSAL_IAIJUTSU_SKILL_ID,
-    options: [
-      { id: '0', label: '发动' },
-      { id: '1', label: '不发动' },
-    ],
-    min: 1,
-    max: 1,
-  } satisfies Prompt);
+export function reversalIaijutsuResponsePrompt(): WsMessage {
+  return beastSoulSkillChoicePrompt(
+    BSW_REVERSAL_IAIJUTSU_SKILL_ID,
+    '逆反居合斩',
+    '你触发了响应技能【逆反居合斩】，请选择是否发动。',
+  );
 }
 
-export function reversalIaijutsuRemovePrompt(xMax: number): WsMessage {
+// 后端 buildReversalXPrompt：X=0..maxX，文案标注 "目标将弃置 X+2 张手牌"。
+export function reversalIaijutsuXPrompt(xMax: number): WsMessage {
   const options: { id: string; label: string }[] = [];
-  for (let i = 1; i <= xMax; i++) {
-    options.push({ id: `${i}`, label: `移除${i}个兽魂` });
+  for (let i = 0; i <= xMax; i++) {
+    options.push({ id: `${i}`, label: `X=${i}（目标将弃置${i + 2}张手牌）` });
   }
   return requireActionMessage({
     type: 'confirm',
     player_id: BSW_PLAYER_ID,
-    message: `【逆反居合斩】请选择移除X个兽魂（1≤X≤${xMax}）：`,
-    choice_type: 'bsw_reversal_iaijutsu_remove',
-    skill_id: BSW_REVERSAL_IAIJUTSU_SKILL_ID,
+    message: `【逆反居合斩】请选择要移除的兽魂数量（0-${xMax}）：`,
+    choice_type: 'bs_reversal_x',
     options,
-    presentation: { kind: 'branch_select', layout: 'overlay' },
+    presentation: { kind: 'numeric', numeric_base: 0 },
     min: 1,
     max: 1,
   } satisfies Prompt);
 }
 
-export function reversalIaijutsuTargetPrompt(xValue: number): WsMessage {
+// 攻击目标弃牌：后端 buildDiscardPrompt 走 PromptChooseCards，每次 Max=1 迭代消耗。
+export function reversalIaijutsuTargetDiscardPrompt(discardCount: number): WsMessage {
   return requireActionMessage({
-    type: 'confirm',
-    player_id: BSW_PLAYER_ID,
-    message: `【逆反居合斩】请选择目标令其弃置${xValue + 2}张牌：`,
-    choice_type: 'bsw_reversal_iaijutsu_target',
-    skill_id: BSW_REVERSAL_IAIJUTSU_SKILL_ID,
+    type: 'choose_cards',
+    player_id: ENEMY_PLAYER_ID,
+    message: `【逆反居合斩】请选择弃置${discardCount}张手牌：`,
+    choice_type: 'bs_reversal_target_discard',
     options: [
-      { id: ENEMY_PLAYER_ID, label: '恶徒' },
+      { id: '0', label: '1: 神秘手牌' },
     ],
     min: 1,
     max: 1,
@@ -683,12 +457,12 @@ export function reversalIaijutsuTargetPrompt(xValue: number): WsMessage {
 }
 
 // ============================================================
-// 徙魂流居合式 (bsw_iaijutsu_style) - Start skill with gem cost
+// 御魂流居合式 (bs_iaijutsu_style) - 启动技能：摸 1 / 弃 1
 // ============================================================
 
 export function iaijutsuStyleScenario(options: { gems?: number } = {}): ProtocolHarnessScenario {
   const gems = options.gems ?? 1;
-  const characters = [beastSoulCharacter, allyCharacter, enemyCharacter];
+  const characters = [beastSoulCharacter, enemyCharacter];
 
   const beastSoul = beastSoulPlayerView({ gems, is_active: true });
 
@@ -713,45 +487,37 @@ export function iaijutsuStyleScenario(options: { gems?: number } = {}): Protocol
     myPlayerName: 'E2E Beast Soul',
     characters,
     players: [
-      playerInfo({ id: BSW_PLAYER_ID, name: 'E2E Beast Soul', camp: 'Red', char_role: 'beast_soul_warrior', is_host: true }),
+      playerInfo({ id: BSW_PLAYER_ID, name: 'E2E Beast Soul', camp: 'Red', char_role: 'beast_samurai', is_host: true }),
       playerInfo({ id: ENEMY_PLAYER_ID, name: 'Enemy Bot', camp: 'Blue', char_role: 'villain' }),
     ],
     initialState: syncState({
       turn_player_id: BSW_PLAYER_ID,
       turn_stage: 'ActionExecution',
-      available_skills: [availableSkill({ id: BSW_IAIJUTSU_STYLE_SKILL_ID, title: '徙魂流居合式', cost_gem: 1 })],
+      available_skills: [availableSkill({ id: BSW_IAIJUTSU_STYLE_SKILL_ID, title: '御魂流居合式', cost_gem: 1 })],
       characters,
       players,
     }),
   };
 }
 
-export function iaijutsuStyleConfirmPrompt(): WsMessage {
-  return requireActionMessage({
-    type: 'confirm',
-    player_id: BSW_PLAYER_ID,
-    message: '【徙魂流居合式】是否发动？（消耗1宝石）',
-    choice_type: 'bsw_iaijutsu_style_confirm',
-    skill_id: BSW_IAIJUTSU_STYLE_SKILL_ID,
-    options: [
-      { id: '0', label: '发动' },
-      { id: '1', label: '不发动' },
-    ],
-    min: 1,
-    max: 1,
-  } satisfies Prompt);
+export function iaijutsuStyleStartupPrompt(): WsMessage {
+  return beastSoulSkillChoicePrompt(
+    BSW_IAIJUTSU_STYLE_SKILL_ID,
+    '御魂流居合式',
+    '你可以发动启动技能，请选择 1 个发动，或跳过。',
+  );
 }
 
-export function iaijutsuStyleChoicePrompt(): WsMessage {
+// 后端 buildIaijutsuStyleModePrompt：摸1张/弃1张，option id 为 "0"/"1"。
+export function iaijutsuStyleModePrompt(): WsMessage {
   return requireActionMessage({
     type: 'confirm',
     player_id: BSW_PLAYER_ID,
-    message: '【徙魂流居合式】请选择：',
-    choice_type: 'bsw_iaijutsu_style_choice',
-    skill_id: BSW_IAIJUTSU_STYLE_SKILL_ID,
+    message: '【御魂流居合式】请选择"摸1张牌"或"弃1张牌"：',
+    choice_type: 'bs_iaijutsu_style_mode',
     options: [
-      { id: 'draw', label: '摸2张牌' },
-      { id: 'discard', label: '弃2张牌' },
+      { id: '0', label: '摸1张牌' },
+      { id: '1', label: '弃1张牌' },
     ],
     presentation: { kind: 'branch_select', layout: 'overlay' },
     min: 1,
@@ -759,19 +525,20 @@ export function iaijutsuStyleChoicePrompt(): WsMessage {
   } satisfies Prompt);
 }
 
+// 后端 buildDiscardPrompt（御魂流分支②）：仅弃 1 张牌。
 export function iaijutsuStyleDiscardPrompt(): WsMessage {
   return requireActionMessage({
     type: 'choose_cards',
     player_id: BSW_PLAYER_ID,
-    message: '【徙魂流居合式】请选择弃置2张牌：',
-    choice_type: 'bsw_iaijutsu_style_discard',
-    skill_id: BSW_IAIJUTSU_STYLE_SKILL_ID,
+    message: '【御魂流居合式】请选择弃置1张手牌：',
+    choice_type: 'bs_iaijutsu_style_discard',
     options: [
       { id: '0', label: '1: 火焰斩 (火 Attack)' },
       { id: '1', label: '2: 水涟斩 (水 Attack)' },
       { id: '2', label: '3: 风刃 (风 Attack)' },
+      { id: '3', label: '4: 寒冰箭 (水 Magic)' },
     ],
-    min: 2,
-    max: 2,
+    min: 1,
+    max: 1,
   } satisfies Prompt);
 }

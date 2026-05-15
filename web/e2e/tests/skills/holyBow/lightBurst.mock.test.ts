@@ -68,8 +68,11 @@ test.describe('holy bow light burst protocol harness', () => {
       option_indexes: [0],
     });
 
-    // Target selection (click enemy player card)
-    await protocolHarness.pushServerMessage(lightBurstBranch2TargetPrompt(1));
+    // 后端 hb_light_burst_mode_b_targets 为每次单选 + finish 按钮迭代：
+    // 这里 X=1 → 只允许 1 个目标，无需 finish。
+    await protocolHarness.pushServerMessage(
+      lightBurstBranch2TargetPrompt({ xValue: 1, selectedCount: 0, withFinish: false }),
+    );
     await page.getByTestId(`player-area-${ENEMY_PLAYER_ID}`).click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',

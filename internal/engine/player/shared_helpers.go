@@ -276,7 +276,12 @@ func MustChoiceResumePointFromMap(data map[string]interface{}, key string) inter
 }
 
 // BuildTargetChoicePrompt 构造通用目标选择 Prompt（目标列表由 data["target_ids"] 提供）。
-func BuildTargetChoicePrompt(rt ChoiceRuntime, playerID string, message string, data map[string]interface{}, allowCancel bool) *model.Prompt {
+//
+// choiceType 必须为非空字符串：会写入返回的 Prompt.ChoiceType，前端依赖该字段把
+// 「连续数字 option id」豁免出手牌索引匹配（见 PromptDialog.vue 中
+// NON_HAND_INDEXED_PROMPT_CHOICE_TYPES）。若未设置 choice_type，
+// id 为 "0"/"1" 等的目标选项会被前端误判为手牌索引。
+func BuildTargetChoicePrompt(rt ChoiceRuntime, choiceType, playerID string, message string, data map[string]interface{}, allowCancel bool) *model.Prompt {
 	targetIDs := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
 	options := make([]model.PromptOption, 0, len(targetIDs)+1)
 	for _, targetID := range targetIDs {
@@ -288,11 +293,12 @@ func BuildTargetChoicePrompt(rt ChoiceRuntime, playerID string, message string, 
 		options = append(options, model.PromptOption{ID: "cancel", Label: "取消"})
 	}
 	return &model.Prompt{
-		Type:     model.PromptConfirm,
-		PlayerID: playerID,
-		Message:  message,
-		Options:  options,
-		Min:      1,
-		Max:      1,
+		Type:       model.PromptConfirm,
+		ChoiceType: choiceType,
+		PlayerID:   playerID,
+		Message:    message,
+		Options:    options,
+		Min:        1,
+		Max:        1,
 	}
 }

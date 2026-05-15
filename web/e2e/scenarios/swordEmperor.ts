@@ -183,49 +183,61 @@ export function swordQiSlashScenario(options: { sword_qi?: number; attacker_id?:
   };
 }
 
-export function swordQiSlashConfirmPrompt(): WsMessage {
+// 后端的响应技能统一通过 choose_skill 入口下发（见 interrupt_prompt_framework.go）。
+// "确认/跳过" 不是独立 choice_type，而是 choose_skill 的两个选项。
+function swordEmperorSkillChoicePrompt(skillId: string, title: string, message: string): WsMessage {
   return requireActionMessage({
-    type: 'confirm',
+    type: 'choose_skill',
     player_id: SE_PLAYER_ID,
-    message: '【剑气斩】攻击命中，是否发动？',
-    choice_type: 'se_sword_qi_slash_confirm',
-    skill_id: SE_SWORD_QI_SLASH_SKILL_ID,
+    message,
     options: [
-      { id: '0', label: '发动' },
-      { id: '1', label: '不发动' },
+      { id: skillId, label: title, hint: `发动【${title}】` },
+      { id: 'skip', label: '跳过', hint: '不发动响应技能' },
     ],
+    presentation: { kind: 'skill_choice', layout: 'overlay' },
     min: 1,
     max: 1,
   } satisfies Prompt);
 }
 
-export function swordQiSlashRemovePrompt(xMax: number): WsMessage {
+export function swordQiSlashResponsePrompt(): WsMessage {
+  return swordEmperorSkillChoicePrompt(
+    SE_SWORD_QI_SLASH_SKILL_ID,
+    '剑气斩',
+    '你触发了响应技能【剑气斩】，请选择是否发动。'
+  );
+}
+
+// 后端 buildPrompt("se_sword_qi_slash_x") 下发 PromptConfirm，
+// option id 为 "1"~"xMax"，label 含「移除X点剑气，对另一名角色造成X点法术伤害」。
+export function swordQiSlashXPrompt(xMax: number): WsMessage {
   const options: { id: string; label: string }[] = [];
   for (let i = 1; i <= xMax; i++) {
-    options.push({ id: `${i}`, label: `移除${i}点剑气` });
+    options.push({ id: `${i}`, label: `移除${i}点剑气，对另一名角色造成${i}点法术伤害` });
   }
   return requireActionMessage({
     type: 'confirm',
     player_id: SE_PLAYER_ID,
-    message: `【剑气斩】请选择移除X点剑气（1≤X≤${xMax}）：`,
-    choice_type: 'se_sword_qi_slash_remove',
+    message: '【剑气斩】请选择X值：',
+    choice_type: 'se_sword_qi_slash_x',
     skill_id: SE_SWORD_QI_SLASH_SKILL_ID,
     options,
-    presentation: { kind: 'branch_select', layout: 'overlay' },
     min: 1,
     max: 1,
   } satisfies Prompt);
 }
 
+// 后端通过 shared_helpers.BuildTargetChoicePrompt 下发，
+// option id 是顺序索引字符串 "0","1",...（不是 player_id），label 取 player.Name。
 export function swordQiSlashTargetPrompt(xValue: number): WsMessage {
   return requireActionMessage({
     type: 'confirm',
     player_id: SE_PLAYER_ID,
-    message: `【剑气斩】请选择除攻击目标外的任意一名其他角色（造成${xValue}点法术伤害）：`,
+    message: `【剑气斩】请选择承受${xValue}点法术伤害的目标：`,
     choice_type: 'se_sword_qi_slash_target',
     skill_id: SE_SWORD_QI_SLASH_SKILL_ID,
     options: [
-      { id: ENEMY_2_PLAYER_ID, label: '恶徒2' },
+      { id: '0', label: 'Enemy Bot 2' },
     ],
     min: 1,
     max: 1,
@@ -275,20 +287,12 @@ export function angelSoulScenario(): ProtocolHarnessScenario {
   };
 }
 
-export function angelSoulConfirmPrompt(): WsMessage {
-  return requireActionMessage({
-    type: 'confirm',
-    player_id: SE_PLAYER_ID,
-    message: '【天使之魂】攻击前，是否发动？',
-    choice_type: 'se_angel_soul_confirm',
-    skill_id: SE_ANGEL_SOUL_SKILL_ID,
-    options: [
-      { id: '0', label: '发动' },
-      { id: '1', label: '不发动' },
-    ],
-    min: 1,
-    max: 1,
-  } satisfies Prompt);
+export function angelSoulResponsePrompt(): WsMessage {
+  return swordEmperorSkillChoicePrompt(
+    SE_ANGEL_SOUL_SKILL_ID,
+    '天使之魂',
+    '你触发了响应技能【天使之魂】，请选择是否发动。'
+  );
 }
 
 // ============================================================
@@ -334,18 +338,10 @@ export function demonSoulScenario(): ProtocolHarnessScenario {
   };
 }
 
-export function demonSoulConfirmPrompt(): WsMessage {
-  return requireActionMessage({
-    type: 'confirm',
-    player_id: SE_PLAYER_ID,
-    message: '【恶魔之魂】攻击前，是否发动？',
-    choice_type: 'se_demon_soul_confirm',
-    skill_id: SE_DEMON_SOUL_SKILL_ID,
-    options: [
-      { id: '0', label: '发动' },
-      { id: '1', label: '不发动' },
-    ],
-    min: 1,
-    max: 1,
-  } satisfies Prompt);
+export function demonSoulResponsePrompt(): WsMessage {
+  return swordEmperorSkillChoicePrompt(
+    SE_DEMON_SOUL_SKILL_ID,
+    '恶魔之魂',
+    '你触发了响应技能【恶魔之魂】，请选择是否发动。'
+  );
 }

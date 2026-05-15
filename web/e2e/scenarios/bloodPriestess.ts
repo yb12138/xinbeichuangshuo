@@ -195,16 +195,17 @@ export function bloodSorrowScenario(): ProtocolHarnessScenario {
 }
 
 export function bloodSorrowBranchPrompt(): WsMessage {
+  // 与后端 buildBloodSorrowModePrompt 保持一致：索引 0 = 移除，索引 1 = 转移；
+  // "跳过" 走 overlay 的取消按钮，不作为 prompt option 下发。
   return requireActionMessage({
     type: 'confirm',
     player_id: BP_PLAYER_ID,
-    message: '【血之哀伤】启动阶段，请选择：',
+    message: '【血之哀伤】请选择后续效果（结算时会先对自己造成2点法术伤害）：',
     choice_type: 'bp_blood_sorrow_mode',
     skill_id: BP_BLOOD_SORROW_SKILL_ID,
     options: [
-      { id: 'transfer', label: '转移' },
-      { id: 'remove', label: '移除' },
-      { id: 'skip', label: '跳过' },
+      { id: '0', label: '移除同生共死' },
+      { id: '1', label: '转移同生共死目标' },
     ],
     presentation: { kind: 'branch_select', layout: 'overlay' },
     min: 1,

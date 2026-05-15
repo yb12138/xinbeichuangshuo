@@ -334,45 +334,20 @@ const NON_HAND_INDEXED_PROMPT_CHOICE_TYPES = new Set<string>([
   'hero_forbidden_power_confirm',
   'hero_taunt_target',
   'hero_dead_duel_confirm',
-  // Fighter choice types for response skill confirmations and mutual exclusion choices
-  'fighter_charge_attack_confirm',
-  'fighter_burst_crash_confirm',
-  'fighter_attack_skill_choice', // Mutual exclusion: charge attack vs burst crash
-  'fighter_bullet_confirm',
-  'fighter_hundred_dragon_confirm',
-  'fighter_heaven_drive_confirm',
-  'fighter_start_skill_choice', // Mutual exclusion: hundred dragon vs heaven drive
-  // Holy Bow choice types for skill prompts
-  'hb_shard_storm_miss_heal',
-  'hb_shard_storm_miss_target',
-  'hb_light_burst_branch',
-  'hb_light_burst_branch1_target',
-  'hb_light_burst_branch2_heal',
-  'hb_light_burst_branch2_target',
-  'hb_star_bullet_confirm',
-  'hb_radiant_cannon_morale',
-  'hb_auto_fill_branch',
-  'hb_auto_fill_reward',
-  // Beast Soul Warrior choice types for skill prompts
-  'bsw_indomitable_will_confirm',
-  'bsw_warrior_zanshin_confirm',
-  'bsw_one_strike_confirm',
-  'bsw_attack_end_choice', // Mutual exclusion: indomitable will vs warrior zanshin vs one strike
-  'bsw_beast_soul_alert_confirm',
-  'bsw_beast_soul_alert_target',
-  'bsw_beast_return_confirm',
-  'bsw_beast_return_remove',
-  'bsw_reversal_iaijutsu_confirm',
-  'bsw_reversal_iaijutsu_remove',
-  'bsw_reversal_iaijutsu_target',
-  'bsw_iaijutsu_style_confirm',
-  'bsw_iaijutsu_style_choice',
+  // 注：Fighter 的「响应/启动技能」互斥面板由后端 buildResponseSkillPrompt /
+  // buildStartupSkillPrompt 统一以 PromptChooseSkill 渲染，前端无需在此白名单声明。
+  // Beast Samurai choice types (matching backend beast_samurai/choices.go)
+  'bs_beast_return_x',
+  'bs_reversal_x',
+  'bs_iaijutsu_style_mode',
+  'bs_alert_target',
+  // Soul Sorcerer choice types (matching backend soul_sorcerer/choices.go)
+  'ss_convert_color',
+  'ss_link_target',
+  'ss_link_transfer_x',
   // Sword Emperor choice types for skill prompts
-  'se_sword_qi_slash_confirm',
-  'se_sword_qi_slash_remove',
+  'se_sword_qi_slash_x',
   'se_sword_qi_slash_target',
-  'se_angel_soul_confirm',
-  'se_demon_soul_confirm',
   // Moon Goddess choice types for skill prompts
   'mg_new_moon_shelter_confirm',
   'mg_medusa_eye_target',
@@ -426,7 +401,9 @@ const NON_HAND_INDEXED_PROMPT_CHOICE_TYPES = new Set<string>([
   'mb_demon_eye_target',
   // NOTE: mb_charge_place_cards, mb_demon_eye_charge_card ARE card selections.
   // NOTE: bd_hope_transfer_discard, bd_rousing_discard_cards, bd_descent_cards, bd_dissonance_discard_step,
-  // hb_shard_storm_discard, hb_light_burst_branch2_discard, bsw_beast_soul_alert_discard, bsw_iaijutsu_style_discard,
+  // hb_holy_shard_storm_discard, hb_light_burst_mode_b_discard,
+  // bs_alert_source_discard, bs_beast_return_self_discard, bs_beast_return_source_discard,
+  // bs_iaijutsu_style_discard, bs_reversal_target_discard,
   // mg_medusa_eye_discard, mg_pale_moon_discard
   // ARE card selections and should NOT be in this set - they need to be rendered as hand card pickers (with confirm button)
   // Magic Lancer choice types for numeric / target prompts

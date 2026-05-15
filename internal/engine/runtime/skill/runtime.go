@@ -260,14 +260,10 @@ func (r *Runtime) ConfirmResponseSkillAction(h Host, playerID, skillID string) (
 		return InterruptActionResult{}, fmt.Errorf("该独有技与当前打出的牌不匹配")
 	}
 
-	if player.Gem < skillDef.CostGem {
-		return InterruptActionResult{}, fmt.Errorf("宝石不足 (需要 %d, 拥有 %d)", skillDef.CostGem, player.Gem)
-	}
-	usableCrystal := player.Crystal + (player.Gem - skillDef.CostGem)
-	if usableCrystal < skillDef.CostCrystal {
+	if !CanPaySkillEnergyCost(player, skillDef.CostGem, skillDef.CostCrystal) {
 		return InterruptActionResult{}, fmt.Errorf(
-			"水晶不足 (需要 %d, 可用 %d = 水晶%d + 可替代宝石%d)",
-			skillDef.CostCrystal, usableCrystal, player.Crystal, player.Gem-skillDef.CostGem,
+			"资源不足: 需要 宝石%d/水晶%d，当前 宝石%d/水晶%d（红宝石可替代水晶）",
+			skillDef.CostGem, skillDef.CostCrystal, player.Gem, player.Crystal,
 		)
 	}
 

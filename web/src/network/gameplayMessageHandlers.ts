@@ -1,4 +1,4 @@
-import type { GameEvent } from '../types/game'
+import type { GameEvent, GameStateUpdate } from '../types/game'
 import { extractGameplayEventsFromTimeline } from './gameplayTimeline'
 import type { RequireActionPayload, SyncStatePayload, TimelineNotifyPayload } from './protocol'
 import { buildGameStateUpdateFromSyncState } from './syncState'
@@ -116,7 +116,7 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
     }
   }
 
-  const deriveEndMessageFromState = (state?: GameEvent['state']) => {
+  const deriveEndMessageFromState = (state?: GameStateUpdate) => {
     if (!state) return ''
     if (state.red_cups >= 5) return '红方胜利！星杯达到 5'
     if (state.blue_cups >= 5) return '蓝方胜利！星杯达到 5'
@@ -336,7 +336,15 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
         break
 
       case 'combat_cue':
-        if (event.attacker_id && event.target_id && event.phase) {
+        if (
+          event.attacker_id &&
+          event.target_id &&
+          (event.phase === 'attack' ||
+            event.phase === 'defend' ||
+            event.phase === 'take' ||
+            event.phase === 'counter' ||
+            event.phase === 'shield')
+        ) {
           battleFxStore.addCombatCue(event.attacker_id, event.target_id, event.phase)
         }
         break

@@ -21,11 +21,11 @@ export const ALLY_PLAYER_ID = 'ally_1';
 export const ENEMY_PLAYER_ID = 'enemy_1';
 export const ENEMY_2_PLAYER_ID = 'enemy_2';
 
-// ---- Skill IDs ----
-export const HB_SHARD_STORM_SKILL_ID = 'hb_shard_storm';
+// ---- Skill IDs (与 internal/data/characters.go holy_bow 段一致) ----
+export const HB_SHARD_STORM_SKILL_ID = 'hb_holy_shard_storm';
 export const HB_RADIANT_DESCENT_SKILL_ID = 'hb_radiant_descent';
 export const HB_LIGHT_BURST_SKILL_ID = 'hb_light_burst';
-export const HB_STAR_BULLET_SKILL_ID = 'hb_star_bullet';
+export const HB_STAR_BULLET_SKILL_ID = 'hb_meteor_bullet';
 export const HB_RADIANT_CANNON_SKILL_ID = 'hb_radiant_cannon';
 export const HB_AUTO_FILL_SKILL_ID = 'hb_auto_fill';
 
@@ -223,34 +223,54 @@ export function shardStormScenario(): ProtocolHarnessScenario {
   };
 }
 
+// 后端 buildHolyShardComboPrompt 为单选 confirm，option id 是 "Element:i,j" 组合字符串。
 export function shardStormDiscardPrompt(): WsMessage {
-  return requireActionMessage({
-    type: 'choose_cards',
-    player_id: HB_PLAYER_ID,
-    message: '【圣屑飓暴】请选择2张同系攻击牌弃置：',
-    choice_type: 'hb_holy_shard_combo',
-    skill_id: HB_SHARD_STORM_SKILL_ID,
-    options: [
-      { id: '0', label: '1: 火焰斩 (火 Attack)' },
-      { id: '1', label: '2: 火焰斩 (火 Attack)' },
-    ],
-    min: 2,
-    max: 2,
-  } satisfies Prompt);
-}
-
-export function shardStormMissHealPrompt(): WsMessage {
   return requireActionMessage({
     type: 'confirm',
     player_id: HB_PLAYER_ID,
-    message: '【圣屑飓暴】攻击未命中，请选择移除X点治疗（X≤2）：',
-    choice_type: 'hb_holy_shard_miss_x',
+    message: '【圣屑飓暴】请选择要弃置的2张同系攻击牌：',
+    choice_type: 'hb_holy_shard_combo',
     skill_id: HB_SHARD_STORM_SKILL_ID,
     options: [
-      { id: '0', label: '移除0点治疗' },
-      { id: '1', label: '移除1点治疗' },
-      { id: '2', label: '移除2点治疗' },
+      { id: 'fire:0,1', label: '火系：1:火焰斩 + 2:火焰斩' },
     ],
+    min: 1,
+    max: 1,
+  } satisfies Prompt);
+}
+
+// 后端 buildHolyShardMissConfirmPrompt：未命中后先弹「是否走未命中分支」的 confirm。
+// 选「否」直接结束未命中流程，选「是」才进入 miss_x 选择。
+export function shardStormMissConfirmPrompt(): WsMessage {
+  return requireActionMessage({
+    type: 'confirm',
+    player_id: HB_PLAYER_ID,
+    message: '【圣屑飓暴】未命中：是否移除治疗并令1名队友弃牌？',
+    choice_type: 'hb_holy_shard_miss_confirm',
+    skill_id: HB_SHARD_STORM_SKILL_ID,
+    options: [
+      { id: '0', label: '是' },
+      { id: '1', label: '否' },
+    ],
+    min: 1,
+    max: 1,
+  } satisfies Prompt);
+}
+
+// 后端 buildHolyShardMissXPrompt：X 取值范围为 1..maxX（无 X=0 选项）。
+export function shardStormMissHealPrompt(maxX = 2): WsMessage {
+  const options: { id: string; label: string }[] = [];
+  for (let i = 1; i <= maxX; i++) {
+    options.push({ id: `${i}`, label: `移除${i}点治疗，并令队友弃${i}张牌` });
+  }
+  return requireActionMessage({
+    type: 'confirm',
+    player_id: HB_PLAYER_ID,
+    message: '【圣屑飓暴】请选择移除治疗点数X：',
+    choice_type: 'hb_holy_shard_miss_x',
+    skill_id: HB_SHARD_STORM_SKILL_ID,
+    options,
+    presentation: { kind: 'numeric', numeric_base: 0 },
     min: 1,
     max: 1,
   } satisfies Prompt);
@@ -430,19 +450,33 @@ export function lightBurstBranch2HealPrompt(): WsMessage {
   } satisfies Prompt);
 }
 
-export function lightBurstBranch2TargetPrompt(xValue: number): WsMessage {
+// 后端 buildLightBurstModeBTargetsPrompt 为「每次单选 + finish 按钮」迭代选择：
+// Min=Max=1，玩家可分多次提交，最多 X 名目标。已选目标会从下次 options 移除，
+// 第二次及之后会附加 "finish" 选项让玩家结束选择。
+export function lightBurstBranch2TargetPrompt(args: {
+  xValue: number;
+  selectedCount?: number;
+  withFinish?: boolean;
+} = { xValue: 2 }): WsMessage {
+  const xValue = args.xValue;
+  const selectedCount = args.selectedCount ?? 0;
+  const candidates: { id: string; label: string }[] = [
+    { id: ENEMY_PLAYER_ID, label: '恶徒' },
+    { id: ENEMY_2_PLAYER_ID, label: '恶徒2' },
+  ];
+  const options = candidates.slice(selectedCount);
+  if (args.withFinish ?? selectedCount > 0) {
+    options.push({ id: 'finish', label: '完成目标选择' });
+  }
   return requireActionMessage({
     type: 'confirm',
     player_id: HB_PLAYER_ID,
-    message: `【圣光爆裂】分支二：请选择最多${xValue}名对手（手牌数≤${5 - xValue}）：`,
+    message: `【圣光爆裂】分支②请点击角色立绘选择目标（已选${selectedCount}/最多${xValue}）：`,
     choice_type: 'hb_light_burst_mode_b_targets',
     skill_id: HB_LIGHT_BURST_SKILL_ID,
-    options: [
-      { id: ENEMY_PLAYER_ID, label: '恶徒' },
-      { id: ENEMY_2_PLAYER_ID, label: '恶徒2' },
-    ],
+    options,
     min: 1,
-    max: xValue,
+    max: 1,
   } satisfies Prompt);
 }
 
@@ -506,16 +540,50 @@ export function starBulletScenario(): ProtocolHarnessScenario {
   };
 }
 
-export function starBulletConfirmPrompt(): WsMessage {
+// 后端流星圣弹真实流程：
+// 1) 响应技能 PromptChooseSkill 入口（由通用 buildResponseSkillPrompt 处理，无独立 choice_type）
+// 2) hb_meteor_bullet_cost：选择消耗 1 点治疗或 1 点信仰
+// 3) hb_meteor_bullet_target：选择获得治疗的我方队友
+export function starBulletResponsePrompt(): WsMessage {
+  return requireActionMessage({
+    type: 'choose_skill',
+    player_id: HB_PLAYER_ID,
+    message: '你触发了响应技能【流星圣弹】，请选择是否发动。',
+    options: [
+      { id: HB_STAR_BULLET_SKILL_ID, label: '流星圣弹', hint: '发动【流星圣弹】' },
+      { id: 'skip', label: '跳过', hint: '不发动响应技能' },
+    ],
+    presentation: { kind: 'skill_choice', layout: 'overlay' },
+    min: 1,
+    max: 1,
+  } satisfies Prompt);
+}
+
+export function starBulletCostPrompt(): WsMessage {
   return requireActionMessage({
     type: 'confirm',
     player_id: HB_PLAYER_ID,
-    message: '【流星圣弹】攻击时是否发动？',
-    choice_type: 'hb_star_bullet_confirm',
+    message: '【流星圣弹】请选择要移除的资源：',
+    choice_type: 'hb_meteor_bullet_cost',
     skill_id: HB_STAR_BULLET_SKILL_ID,
     options: [
-      { id: '0', label: '发动' },
-      { id: '1', label: '不发动' },
+      { id: '0', label: '移除1点治疗' },
+      { id: '1', label: '移除1点信仰' },
+    ],
+    min: 1,
+    max: 1,
+  } satisfies Prompt);
+}
+
+export function starBulletTargetPrompt(): WsMessage {
+  return requireActionMessage({
+    type: 'confirm',
+    player_id: HB_PLAYER_ID,
+    message: '【流星圣弹】请选择获得治疗的我方角色：',
+    choice_type: 'hb_meteor_bullet_target',
+    skill_id: HB_STAR_BULLET_SKILL_ID,
+    options: [
+      { id: ALLY_PLAYER_ID, label: '勇者' },
     ],
     min: 1,
     max: 1,

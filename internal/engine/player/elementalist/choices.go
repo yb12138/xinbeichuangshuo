@@ -20,9 +20,9 @@ func NewChoiceHandler() engineplayer.ChoiceHandler {
 func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, playerID string, player *model.Player, data map[string]interface{}) *model.Prompt {
 	switch choiceType {
 	case "elementalist_freeze_damage_target":
-		return engineplayer.BuildTargetChoicePrompt(rt, playerID, "【冰冻】请选择法术伤害目标：", data, false)
+		return engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, "【冰冻】请选择法术伤害目标：", data, false)
 	case "elementalist_freeze_heal_target":
-		prompt := engineplayer.BuildTargetChoicePrompt(rt, playerID, "【冰冻】请选择治疗目标（可选择自己）：", data, false)
+		prompt := engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, "【冰冻】请选择治疗目标（可选择自己）：", data, false)
 		if prompt != nil {
 			prompt.Presentation = &model.PromptPresentation{Kind: model.PresentationTargetPicker}
 		}

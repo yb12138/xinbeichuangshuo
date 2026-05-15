@@ -23,6 +23,7 @@ func RoleEntry() player.RoleEntry {
 			},
 		},
 		Choices:          NewChoiceHandler(),
+		ChoiceSpecs:      ChoiceSpecs(),
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
 		TimingHookSpecs: []player.TimingHookSpec{
@@ -47,6 +48,13 @@ func RoleEntry() player.RoleEntry {
 	}
 }
 
+// ChoiceSpecs 导出角色 choice 声明（含多选处理器）。
+func ChoiceSpecs() []player.ChoiceSpec {
+	return []player.ChoiceSpec{
+		{ChoiceType: "bt_cocoon_overflow_discard", HandleMultiSelect: handleCocoonOverflowDiscardMultiSelect},
+	}
+}
+
 // ApplyDefaults 初始化角色默认属性。
 func ApplyDefaults(p *model.Player) {
 	if p == nil {
@@ -63,7 +71,7 @@ func SkillEntries() []player.SkillEntry {
 	return []player.SkillEntry{
 		{ID: "bt_life_fire", Handler: &ButterflyLifeFireHandler{}},
 		{ID: "bt_dance", Handler: &ButterflyDanceHandler{}},
-		{ID: "bt_poison_pow", Handler: &ButterflyPoisonPowderHandler{}},
+		{ID: "bt_poison_powder", Handler: &ButterflyPoisonPowderHandler{}},
 		{ID: "bt_pilgrimage", Handler: &ButterflyPilgrimageHandler{}},
 		{ID: "bt_mirror", Handler: &ButterflyMirrorHandler{}},
 		{ID: "bt_wither", Handler: &ButterflyWitherHandler{}},

@@ -441,6 +441,31 @@ func handleDanceDiscard(rt engineplayer.ChoiceRuntime, ctxData map[string]interf
 	return nil
 }
 
+// finalizeCocoonOverflowDiscard 收尾：实际移除已选茧并恢复行动阶段。
+func finalizeCocoonOverflowDiscard(rt engineplayer.ChoiceRuntime, user *model.Player, picked []int) {
+	var removed []model.Card
+	for _, idx := range picked {
+		if idx < 0 || idx >= len(user.Field) || user.Field[idx] == nil {
+			continue
+		}
+		fc := user.Field[idx]
+		if fc.Mode != model.FieldCover || fc.Effect != model.EffectButterflyCocoon {
+			continue
+		}
+		removed = append(removed, fc.Card)
+	}
+	RemoveCocoonByFieldIndices(user, picked)
+	if len(removed) > 0 {
+		rt.AppendToDiscard(removed)
+	}
+	rt.Log(fmt.Sprintf("%s 的 [茧上限] 结算：舍弃%d个茧", user.Name, len(picked)))
+	rt.PopInterrupt()
+	if rt.GetPendingInterrupt() == nil {
+		rt.EnterExtraActionStage()
+	}
+}
+
+// handleCocoonOverflowDiscard 单选累积路径：用于前端逐个提交茧索引的兼容场景。
 func handleCocoonOverflowDiscard(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	if selectionIndex < 0 {
 		return fmt.Errorf("请先选择要舍弃的茧后再确认")
@@ -458,28 +483,92 @@ func handleCocoonOverflowDiscard(rt engineplayer.ChoiceRuntime, ctxData map[stri
 	if discardNeed > len(cocoonIndices) {
 		discardNeed = len(cocoonIndices)
 	}
-	if discardNeed != 1 {
-		return fmt.Errorf("需要选择 %d 个茧舍弃", discardNeed)
+	if discardNeed <= 0 {
+		rt.PopInterrupt()
+		if rt.GetPendingInterrupt() == nil {
+			rt.EnterExtraActionStage()
+		}
+		return nil
 	}
-	fieldIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, cocoonIndices)
+
+	picked := append([]int{}, parseIntSlice(ctxData["picked_indices"])...)
+	// 候选列表需排除已选项，保证 selectionIndex 位置语义与 build prompt 一致
+	pickedSet := map[int]bool{}
+	for _, p := range picked {
+		pickedSet[p] = true
+	}
+	remaining := make([]int, 0, len(cocoonIndices))
+	for _, idx := range cocoonIndices {
+		if !pickedSet[idx] {
+			remaining = append(remaining, idx)
+		}
+	}
+
+	fieldIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, remaining)
 	if !ok {
 		return fmt.Errorf("无效的茧索引: %d", selectionIndex)
 	}
-
-	// Remove cocoon at fieldIdx
-	fc, ok := RemoveCocoonByFieldIndex(user, fieldIdx)
-	if !ok {
-		return fmt.Errorf("选择的茧无效")
+	if pickedSet[fieldIdx] {
+		return fmt.Errorf("该茧已被选择")
 	}
-	removed := []model.Card{fc.Card}
-	rt.AppendToDiscard(removed)
+	picked = append(picked, fieldIdx)
 
-	rt.Log(fmt.Sprintf("%s 的 [茧上限] 结算：舍弃1个茧", user.Name))
-	rt.PopInterrupt()
-	if rt.GetPendingInterrupt() == nil {
-		rt.EnterExtraActionStage()
+	if len(picked) < discardNeed {
+		ctxData["picked_indices"] = picked
+		intr := rt.GetPendingInterrupt()
+		if intr != nil {
+			intr.Context = ctxData
+		}
+		rt.NotifyInterruptPrompt()
+		return nil
 	}
+
+	finalizeCocoonOverflowDiscard(rt, user, picked)
 	return nil
+}
+
+// handleCocoonOverflowDiscardMultiSelect 批量路径：前端一次性提交所有茧索引。
+func handleCocoonOverflowDiscardMultiSelect(rt engineplayer.ChoiceRuntime, _ string, selections []int, ctxData map[string]interface{}) (bool, error) {
+	userID, _ := ctxData["user_id"].(string)
+	user := rt.GetPlayers()[userID]
+	if user == nil {
+		return false, fmt.Errorf("玩家不存在")
+	}
+	discardNeed := runtimeutil.ToIntContextValue(ctxData["discard_count"])
+	if discardNeed < 0 {
+		discardNeed = 0
+	}
+	cocoonIndices := CocoonFieldIndices(user)
+	if discardNeed > len(cocoonIndices) {
+		discardNeed = len(cocoonIndices)
+	}
+	if discardNeed <= 0 {
+		rt.PopInterrupt()
+		if rt.GetPendingInterrupt() == nil {
+			rt.EnterExtraActionStage()
+		}
+		return true, nil
+	}
+	if len(selections) != discardNeed {
+		return false, fmt.Errorf("需要选择 %d 个茧舍弃，实际选择了 %d 个", discardNeed, len(selections))
+	}
+
+	picked := make([]int, 0, len(selections))
+	seen := map[int]bool{}
+	for _, sel := range selections {
+		fieldIdx, ok := runtimeutil.ResolveSelectionToCandidate(sel, cocoonIndices)
+		if !ok {
+			return false, fmt.Errorf("无效的茧索引: %d", sel)
+		}
+		if seen[fieldIdx] {
+			return false, fmt.Errorf("该茧已被选择: %d", fieldIdx)
+		}
+		seen[fieldIdx] = true
+		picked = append(picked, fieldIdx)
+	}
+
+	finalizeCocoonOverflowDiscard(rt, user, picked)
+	return true, nil
 }
 
 func handleReverseMode(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {

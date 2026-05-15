@@ -43,7 +43,7 @@ export function isDeclineLabel(label: string): boolean {
   if (!text) return false
   const compact = text.replace(/\s+/g, '')
   const lower = compact.toLowerCase()
-  if (compact.includes('不发动') || compact.includes('无法行动') || compact.includes('不弃牌')) return true
+  if (compact.includes('不发动') || compact.includes('无法行动') || compact.includes('不弃牌') || compact.includes('不弃置')) return true
   if (compact.startsWith('放弃') || compact.startsWith('跳过') || compact.startsWith('拒绝')) return true
   if (compact === '取消' || compact.startsWith('取消并') || compact.startsWith('取消本次') || compact.startsWith('取消行动')) return true
   if (lower === 'cancel' || lower === 'pass' || lower === 'skip' || lower === 'refuse') return true

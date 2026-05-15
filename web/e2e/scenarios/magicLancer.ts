@@ -301,6 +301,66 @@ export function fullnessScenario(): ProtocolHarnessScenario {
   });
 }
 
+export function fullnessAllyDiscardScenario(): ProtocolHarnessScenario {
+  const allyHand = [
+    card({ id: 'ally-card-0', name: '水涟斩', type: 'Attack', element: 'Water' }),
+    card({ id: 'ally-card-1', name: '圣光', type: 'Magic', element: 'Light' }),
+  ];
+  const mlHand = magicLancerHand();
+
+  return {
+    roomCode: 'MOCK',
+    myPlayerId: ALLY_PLAYER_ID,
+    myPlayerName: 'Ally A1',
+    characters: defaultCharacters,
+    players: [
+      playerInfo({ id: ML_PLAYER_ID, name: 'E2E Magic Lancer', camp: 'Red', char_role: 'magic_lancer', is_host: true }),
+      playerInfo({ id: ENEMY_PLAYER_ID, name: 'Enemy E1', camp: 'Blue', char_role: 'enemy_char' }),
+      playerInfo({ id: ALLY_PLAYER_ID, name: 'Ally A1', camp: 'Red', char_role: 'ally_char' }),
+    ],
+    initialState: syncState({
+      turn_player_id: ML_PLAYER_ID,
+      turn_stage: 'ActionExecution',
+      available_skills: [],
+      characters: defaultCharacters,
+      players: [
+        playerView({
+          id: ML_PLAYER_ID,
+          name: 'E2E Magic Lancer',
+          camp: 'Red',
+          role: 'magic_lancer',
+          hand: mlHand,
+          hand_count: mlHand.length,
+          is_active: true,
+        }),
+        playerView({
+          id: ENEMY_PLAYER_ID,
+          name: 'Enemy E1',
+          camp: 'Blue',
+          role: 'enemy_char',
+          hand_count: 1,
+          max_hand: 6,
+          heal: 1,
+          max_heal: 4,
+          is_active: false,
+        }),
+        playerView({
+          id: ALLY_PLAYER_ID,
+          name: 'Ally A1',
+          camp: 'Red',
+          role: 'ally_char',
+          hand: allyHand,
+          hand_count: allyHand.length,
+          max_hand: 6,
+          heal: 0,
+          max_heal: 4,
+          is_active: false,
+        }),
+      ],
+    }),
+  };
+}
+
 export function fullnessCostCardPrompt(): WsMessage {
   return requireActionMessage({
     type: 'confirm',
@@ -311,6 +371,23 @@ export function fullnessCostCardPrompt(): WsMessage {
     options: [
       { id: '2', label: '3: 圣光（光系 法术）' },
       { id: '1', label: '2: 雷光斩（雷系 攻击）' },
+    ],
+    min: 1,
+    max: 1,
+  } satisfies Prompt);
+}
+
+export function fullnessAllyDiscardPrompt(): WsMessage {
+  return requireActionMessage({
+    type: 'choose_cards',
+    player_id: ALLY_PLAYER_ID,
+    message: '【充盈】请选择是否弃置1张手牌：',
+    choice_type: 'ml_fullness_discard_step',
+    skill_id: ML_FULLNESS_SKILL_ID,
+    options: [
+      { id: '-1', label: '不弃置', button_label: '不弃置' },
+      { id: '0', label: '水涟斩（水系 攻击）' },
+      { id: '1', label: '圣光（光系 法术）' },
     ],
     min: 1,
     max: 1,

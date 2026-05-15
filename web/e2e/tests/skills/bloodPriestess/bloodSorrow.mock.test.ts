@@ -8,6 +8,7 @@ import {
 } from '../../../scenarios/bloodPriestess';
 
 test.describe('blood priestess blood sorrow protocol harness', () => {
+  // 后端 buildBloodSorrowModePrompt: option_indexes[0]=移除，[1]=转移
   test('blood sorrow: choose transfer then target', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(bloodSorrowScenario());
 
@@ -19,13 +20,13 @@ test.describe('blood priestess blood sorrow protocol harness', () => {
       skill_id: BP_BLOOD_SORROW_SKILL_ID,
     });
 
-    // Branch selection
+    // Branch selection: 转移 = option_indexes[1]
     await protocolHarness.pushServerMessage(bloodSorrowBranchPrompt());
     await expect(page.getByTestId('decision-overlay')).toBeVisible();
-    await page.getByTestId('branch-option-0').click();
+    await page.getByTestId('branch-option-1').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0],
+      option_indexes: [1],
     });
 
     // Target selection (click enemy player card)
@@ -37,7 +38,9 @@ test.describe('blood priestess blood sorrow protocol harness', () => {
     });
   });
 
-  test('blood sorrow: choose remove then target', async ({ page, protocolHarness }) => {
+  // 产品裁定（C1 选项 1）：「移除」分支由后端直接将同生共死从持有方移除，
+  // 不再下发目标选择 prompt。本用例只验证 branch select 提交移除即流程结束。
+  test('blood sorrow: choose remove (no target prompt)', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(bloodSorrowScenario());
 
     await page.getByTestId('action-skill').click();
@@ -47,20 +50,18 @@ test.describe('blood priestess blood sorrow protocol harness', () => {
       skill_id: BP_BLOOD_SORROW_SKILL_ID,
     });
 
+    // Branch selection: 移除 = option_indexes[0]
     await protocolHarness.pushServerMessage(bloodSorrowBranchPrompt());
     await expect(page.getByTestId('decision-overlay')).toBeVisible();
-    await page.getByTestId('branch-option-1').click();
-    await protocolHarness.expectSubmitAction({
-      action_type: 'Select',
-      option_indexes: [1],
-    });
-
-    await protocolHarness.pushServerMessage(bloodSorrowTargetPrompt());
-    await page.getByTestId(`player-area-${ENEMY_PLAYER_ID}`).click();
+    await page.getByTestId('branch-option-0').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
     });
+
+    // 后端不会再下发任何 target prompt：decision overlay 应在选完移除后关闭，
+    // 不再出现新的 decision overlay。
+    await expect(page.getByTestId('decision-overlay')).not.toBeVisible({ timeout: 3000 });
   });
 
   test('blood sorrow: skip', async ({ page, protocolHarness }) => {

@@ -2531,7 +2531,7 @@ func GetCharacters() []model.Character {
 					Type:        model.SkillTypeResponse,
 					Description: "（我方角色因承受伤害导致爆牌并将士气下降时）转为暗月形态，并将本次爆牌改为你的暗月；本次士气不下降。",
 
-					ResponseType: model.ResponseSilent,
+					ResponseType: model.ResponseOptional,
 					LogicHandler: "mg_new_moon_shelter",
 					TargetType:   model.TargetNone,
 				},

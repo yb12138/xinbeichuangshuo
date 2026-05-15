@@ -4,7 +4,7 @@ import {
 } from '../../../scenarios/moonGoddess';
 
 // ============================================================
-// 月渎 (mg_moon_read) - 后端通过 response_skills 自动触发
+// 月渎 (mg_blasphemy) - 后端通过 response_skills 自动触发
 // 目标通过 min_targets 处理
 // ============================================================
 
@@ -15,7 +15,7 @@ test.describe('moon goddess moon read protocol harness', () => {
     // 后端会设置 response_skills 触发确认弹框
     await protocolHarness.expectSubmitAction({
       action_type: 'UseSkill',
-      skill_id: 'mg_moon_read',
+      skill_id: 'mg_blasphemy',
     });
   });
 

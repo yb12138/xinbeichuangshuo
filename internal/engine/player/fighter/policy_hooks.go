@@ -4,7 +4,6 @@ package fighter
 
 import (
 	engineplayer "starcup-engine/internal/engine/player"
-	"starcup-engine/internal/model"
 )
 
 // beforeActionOptionHook 行动选项策略。
@@ -35,70 +34,6 @@ func beforeActionValidationHook(rt engineplayer.HookRuntime, ctx engineplayer.Ti
 	return engineplayer.TimingHookResult{Handled: true}
 }
 
-// responseSkillNormalizeHook 响应技能规范化策略。
-// 百式幻龙拳形态下，若蓄力打击和爆裂冲击同时可用，仅保留蓄力打击。
-func responseSkillNormalizeHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHookContext) engineplayer.TimingHookResult {
-	skillIDs := ctx.OfferedSkillIDs
-	userCtx := ctx.UserCtx
-
-	if len(skillIDs) <= 1 || userCtx == nil || userCtx.User == nil {
-		return engineplayer.TimingHookResult{SkillIDs: skillIDs}
-	}
-
-	// 条件：必须是攻击宣告阶段、格斗家角色、非反击场景
-	if userCtx.Timing != model.TimingOnAttackDeclared ||
-		!engineplayer.IsCharacter(userCtx.User, "fighter") ||
-		userCtx.EventCtx == nil ||
-		userCtx.EventCtx.AttackInfo == nil ||
-		userCtx.EventCtx.AttackInfo.CounterInitiator != "" {
-		return engineplayer.TimingHookResult{SkillIDs: skillIDs}
-	}
-
-	// 检查是否同时拥有蓄力打击和爆裂冲击
-	hasCharge := false
-	hasBurst := false
-	for _, sid := range skillIDs {
-		if sid == "fighter_charge_strike" {
-			hasCharge = true
-		} else if sid == "fighter_burst_crash" {
-			hasBurst = true
-		}
-	}
-
-	if hasCharge && hasBurst {
-		return engineplayer.TimingHookResult{Handled: true, SkillIDs: []string{"fighter_charge_strike"}}
-	}
-	if hasCharge && hasBurst {
-		return engineplayer.TimingHookResult{Handled: true, SkillIDs: []string{"fighter_charge_strike"}}
-	}
-	return engineplayer.TimingHookResult{SkillIDs: skillIDs}
-}
-
-// responseSkillAdvanceHook 响应技能推进策略。
-// 蓄力一击被跳过时，推进到气绝崩击。
-func responseSkillAdvanceHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHookContext) engineplayer.TimingHookResult {
-	skillIDs := ctx.OfferedSkillIDs
-	userCtx := ctx.UserCtx
-
-	if len(skillIDs) != 1 || skillIDs[0] != "fighter_charge_strike" {
-		return engineplayer.TimingHookResult{}
-	}
-	if userCtx == nil || userCtx.User == nil {
-		return engineplayer.TimingHookResult{}
-	}
-	if userCtx.Timing != model.TimingOnAttackDeclared ||
-		!engineplayer.IsCharacter(userCtx.User, "fighter") ||
-		userCtx.EventCtx == nil ||
-		userCtx.EventCtx.AttackInfo == nil ||
-		userCtx.EventCtx.AttackInfo.CounterInitiator != "" {
-		return engineplayer.TimingHookResult{}
-	}
-	if !rt.IsSkillStillUsable("fighter_burst_crash", userCtx.User, userCtx) {
-		return engineplayer.TimingHookResult{}
-	}
-
-	return engineplayer.TimingHookResult{
-		Handled:  true,
-		SkillIDs: []string{"fighter_burst_crash"},
-	}
-}
+// 注：原 responseSkillNormalizeHook / responseSkillAdvanceHook 把蓄力一击与气绝崩击
+// 拆成两段响应（先弹蓄力 → 跳过 → 再弹气绝），与产品需求「单次面板三选一（蓄力 /
+// 气绝 / 跳过）」不一致。已删除，统一交由 buildResponseSkillPrompt 一次性渲染多技能选择。

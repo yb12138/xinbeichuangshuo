@@ -23,7 +23,7 @@ export const ENEMY_2_PLAYER_ID = 'enemy_2';
 export const MG_NEW_MOON_SHelter_SKILL_ID = 'mg_new_moon_shelter';
 export const MG_MEDUSA_EYE_SKILL_ID = 'mg_medusa_eye';
 export const MG_MOON_CYCLE_SKILL_ID = 'mg_moon_cycle';
-export const MG_MOON_READ_SKILL_ID = 'mg_moon_read';
+export const MG_MOON_READ_SKILL_ID = 'mg_blasphemy';
 export const MG_DARKMOON_SLASH_SKILL_ID = 'mg_darkmoon_slash';
 export const MG_PALE_MOON_SKILL_ID = 'mg_pale_moon';
 
@@ -357,7 +357,7 @@ export function moonCycleTargetPrompt(): WsMessage {
 }
 
 // ============================================================
-// 月渎 (mg_moon_read) - 后端通过 response_skills 自动触发
+// 月渎 (mg_blasphemy) - 后端通过 response_skills 自动触发
 // 目标通过 min_targets 处理
 // ============================================================
 

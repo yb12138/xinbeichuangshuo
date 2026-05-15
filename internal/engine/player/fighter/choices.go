@@ -19,9 +19,9 @@ func NewChoiceHandler() engineplayer.ChoiceHandler {
 func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, playerID string, _ *model.Player, data map[string]interface{}) *model.Prompt {
 	switch choiceType {
 	case "fighter_psi_bullet_target":
-		return engineplayer.BuildTargetChoicePrompt(rt, playerID, "【念弹】请选择1名目标对手：", data, false)
+		return engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, "【念弹】请选择1名目标对手：", data, false)
 	case "fighter_hundred_dragon_target":
-		return engineplayer.BuildTargetChoicePrompt(rt, playerID, "【百式幻龙拳】请选择本行动阶段锁定的目标角色：", data, false)
+		return engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, "【百式幻龙拳】请选择本行动阶段锁定的目标角色：", data, false)
 	default:
 		return nil
 	}

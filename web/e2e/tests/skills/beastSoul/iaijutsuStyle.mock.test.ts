@@ -1,17 +1,16 @@
 import { test, expect } from '../../../fixtures/protocolHarness.fixture';
 import {
   BSW_IAIJUTSU_STYLE_SKILL_ID,
-  iaijutsuStyleConfirmPrompt,
-  iaijutsuStyleChoicePrompt,
+  iaijutsuStyleStartupPrompt,
+  iaijutsuStyleModePrompt,
   iaijutsuStyleDiscardPrompt,
   iaijutsuStyleScenario,
 } from '../../../scenarios/beastSoul';
 
-test.describe('beast soul warrior iaijutsu style protocol harness', () => {
+test.describe('beast samurai iaijutsu style protocol harness', () => {
   test('iaijutsu style: activate then choose draw', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(iaijutsuStyleScenario({ gems: 1 }));
 
-    // Activate skill
     await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${BSW_IAIJUTSU_STYLE_SKILL_ID}`).click();
     await protocolHarness.expectSubmitAction({
@@ -19,17 +18,17 @@ test.describe('beast soul warrior iaijutsu style protocol harness', () => {
       skill_id: BSW_IAIJUTSU_STYLE_SKILL_ID,
     });
 
-    // Confirm skill activation
-    await protocolHarness.pushServerMessage(iaijutsuStyleConfirmPrompt());
-    await expect(page.getByTestId('decision-overlay')).toBeVisible();
-    await page.getByTestId('prompt-option-0').click();
+    // 启动技能 PromptChooseSkill：仅 1 个启动技能时 overlay 仍含「发动 / 跳过」两按钮
+    await protocolHarness.pushServerMessage(iaijutsuStyleStartupPrompt());
+    await expect(page.getByTestId('skill-branch-overlay')).toBeVisible();
+    await page.getByTestId('skill-branch-overlay').getByTestId('branch-option-0').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
     });
 
-    // Choose draw branch
-    await protocolHarness.pushServerMessage(iaijutsuStyleChoicePrompt());
+    // 模式选择：摸 1 张 (option id "0")
+    await protocolHarness.pushServerMessage(iaijutsuStyleModePrompt());
     await page.getByTestId('branch-option-0').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
@@ -37,10 +36,9 @@ test.describe('beast soul warrior iaijutsu style protocol harness', () => {
     });
   });
 
-  test('iaijutsu style: activate then choose discard', async ({ page, protocolHarness }) => {
+  test('iaijutsu style: activate then choose discard (1 card)', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(iaijutsuStyleScenario({ gems: 1 }));
 
-    // Activate skill
     await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${BSW_IAIJUTSU_STYLE_SKILL_ID}`).click();
     await protocolHarness.expectSubmitAction({
@@ -48,37 +46,34 @@ test.describe('beast soul warrior iaijutsu style protocol harness', () => {
       skill_id: BSW_IAIJUTSU_STYLE_SKILL_ID,
     });
 
-    // Confirm skill activation
-    await protocolHarness.pushServerMessage(iaijutsuStyleConfirmPrompt());
-    await page.getByTestId('prompt-option-0').click();
+    await protocolHarness.pushServerMessage(iaijutsuStyleStartupPrompt());
+    await page.getByTestId('skill-branch-overlay').getByTestId('branch-option-0').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
     });
 
-    // Choose discard branch
-    await protocolHarness.pushServerMessage(iaijutsuStyleChoicePrompt());
+    // 模式选择：弃 1 张 (option id "1")
+    await protocolHarness.pushServerMessage(iaijutsuStyleModePrompt());
     await page.getByTestId('branch-option-1').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1],
     });
 
-    // Discard 2 cards
+    // 实际弃 1 张牌（min=max=1，与后端 buildDiscardPrompt 一致）
     await protocolHarness.pushServerMessage(iaijutsuStyleDiscardPrompt());
     await page.getByTestId('hand-card-0').click();
-    await page.getByTestId('hand-card-1').click();
     await page.getByTestId('prompt-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0, 1],
+      option_indexes: [0],
     });
   });
 
-  test('iaijutsu style: skip confirm', async ({ page, protocolHarness }) => {
+  test('iaijutsu style: skip startup prompt', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(iaijutsuStyleScenario({ gems: 1 }));
 
-    // Activate skill
     await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${BSW_IAIJUTSU_STYLE_SKILL_ID}`).click();
     await protocolHarness.expectSubmitAction({
@@ -86,9 +81,8 @@ test.describe('beast soul warrior iaijutsu style protocol harness', () => {
       skill_id: BSW_IAIJUTSU_STYLE_SKILL_ID,
     });
 
-    // Skip skill activation
-    await protocolHarness.pushServerMessage(iaijutsuStyleConfirmPrompt());
-    await page.getByTestId('prompt-option-1').click();
+    await protocolHarness.pushServerMessage(iaijutsuStyleStartupPrompt());
+    await page.getByTestId('skill-branch-overlay').getByTestId('branch-option-1').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1],

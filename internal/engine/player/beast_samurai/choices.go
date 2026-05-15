@@ -30,6 +30,8 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		return buildReversalXPrompt(playerID, data)
 	case "bs_iaijutsu_style_mode":
 		return buildIaijutsuStyleModePrompt(playerID, data)
+	case "bs_alert_target":
+		return engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, "【兽魂警戒】请选择 1 名让其弃 1 张牌的角色：", data, false)
 	case "bs_alert_source_discard",
 		"bs_beast_return_self_discard",
 		"bs_beast_return_source_discard",
@@ -207,6 +209,8 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, playerID string
 		return true, handleReversalX(rt, ctxData, selectionIndex)
 	case "bs_iaijutsu_style_mode":
 		return true, handleIaijutsuStyleMode(rt, ctxData, selectionIndex)
+	case "bs_alert_target":
+		return true, handleAlertTarget(rt, ctxData, selectionIndex)
 	case "bs_alert_source_discard":
 		return true, handleAlertSourceDiscard(rt, ctxData, selectionIndex)
 	case "bs_beast_return_self_discard":
@@ -383,6 +387,39 @@ func handleIaijutsuStyleMode(rt engineplayer.ChoiceRuntime, ctxData map[string]i
 	default:
 		return fmt.Errorf("未知的御魂流居合式模式: %d", mode)
 	}
+}
+
+// handleAlertTarget 兽魂警戒目标选择阶段：根据 target_ids 解析所选角色，
+// 然后推送弃牌中断到该角色（沿用 bs_alert_source_discard 处理 1 张弃牌 +
+// 法术牌则术士+1 兽魂的既有逻辑）。
+func handleAlertTarget(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
+	userID, _ := ctxData["user_id"].(string)
+	user := rt.GetPlayers()[userID]
+	if user == nil {
+		return fmt.Errorf("兽魂警戒目标选择上下文丢失发动者")
+	}
+	targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
+	if selectionIndex < 0 || selectionIndex >= len(targetIDs) {
+		return fmt.Errorf("无效的目标索引: %d", selectionIndex)
+	}
+	actor := rt.GetPlayers()[targetIDs[selectionIndex]]
+	if actor == nil {
+		return fmt.Errorf("目标角色不存在")
+	}
+	resumePoint := resumePointFromCtx(ctxData, model.TurnStageActionExecution)
+	if len(actor.Hand) == 0 {
+		finishResume(rt, resumePoint)
+		return nil
+	}
+	replaceDiscardInterrupt(rt, actor.ID, map[string]interface{}{
+		"choice_type":   "bs_alert_source_discard",
+		"user_id":       user.ID,
+		"actor_id":      actor.ID,
+		"discard_count": 1,
+		"prompt":        "【兽魂警戒】请选择并展示弃置1张手牌：",
+		"resume_phase":  resumePoint,
+	})
+	return nil
 }
 
 func handleAlertSourceDiscard(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {

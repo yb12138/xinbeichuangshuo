@@ -63,11 +63,10 @@ func SkillEntries() []player.SkillEntry {
 func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 	return map[string]types.ChoiceRouteSpec{
 		"bs_alert_source_discard":        types.ChoiceRouteRole("beast_samurai"),
+		"bs_alert_target":                types.ChoiceRouteRole("beast_samurai"),
 		"bs_beast_return_self_discard":   types.ChoiceRouteRole("beast_samurai"),
 		"bs_beast_return_source_discard": types.ChoiceRouteRole("beast_samurai"),
 		"bs_beast_return_x":              types.ChoiceRouteRole("beast_samurai"),
-		"bs_iaijutsu_draw_pick":          types.ChoiceRouteRole("beast_samurai"),
-		"bs_iaijutsu_mode_pick":          types.ChoiceRouteRole("beast_samurai"),
 		"bs_iaijutsu_style_discard":      types.ChoiceRouteRole("beast_samurai"),
 		"bs_iaijutsu_style_mode":         types.ChoiceRouteRole("beast_samurai"),
 		"bs_reversal_target_discard":     types.ChoiceRouteRole("beast_samurai"),

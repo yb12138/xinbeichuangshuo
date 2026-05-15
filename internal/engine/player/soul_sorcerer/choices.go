@@ -337,7 +337,22 @@ func handleSoulRecallPickChoice(rt engineplayer.ChoiceRuntime, selectionIndex in
 	if selectionIndex < 0 {
 		return fmt.Errorf("请从可选法术牌中至少选择1张")
 	}
+	return finalizeSoulRecallPick(rt, ctxData, []int{selectionIndex})
+}
 
+// handleSoulRecallPickMultiSelect 批量路径：前端一次性提交多张法术牌索引。
+func handleSoulRecallPickMultiSelect(rt engineplayer.ChoiceRuntime, _ string, selections []int, ctxData map[string]interface{}) (bool, error) {
+	if len(selections) == 0 {
+		return true, fmt.Errorf("请至少选择1张法术牌")
+	}
+	if err := finalizeSoulRecallPick(rt, ctxData, selections); err != nil {
+		return true, err
+	}
+	return true, nil
+}
+
+// finalizeSoulRecallPick 将给定的选项索引解析为受允许的手牌索引，统一执行弃牌与蓝魂+X 逻辑。
+func finalizeSoulRecallPick(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selections []int) error {
 	userID, _ := ctxData["user_id"].(string)
 	if userID == "" {
 		return fmt.Errorf("玩家ID缺失")
@@ -368,12 +383,19 @@ func handleSoulRecallPickChoice(rt engineplayer.ChoiceRuntime, selectionIndex in
 		return fmt.Errorf("灵魂召还没有可弃置的法术牌")
 	}
 
-	resolvedIdx, ok := runtimeutil.ResolveSelectionToAllowedIndex(selectionIndex, orderedCandidates, allowed)
-	if !ok {
-		return fmt.Errorf("灵魂召还只能选择法术牌")
+	picked := make([]int, 0, len(selections))
+	seen := make(map[int]struct{}, len(selections))
+	for _, sel := range selections {
+		resolvedIdx, ok := runtimeutil.ResolveSelectionToAllowedIndex(sel, orderedCandidates, allowed)
+		if !ok {
+			return fmt.Errorf("灵魂召还只能选择法术牌")
+		}
+		if _, dup := seen[resolvedIdx]; dup {
+			return fmt.Errorf("不能重复选择同一张牌")
+		}
+		seen[resolvedIdx] = struct{}{}
+		picked = append(picked, resolvedIdx)
 	}
-
-	picked := []int{resolvedIdx}
 
 	removed, err := engineplayer.RemoveCardsByIndicesFromHand(user, picked)
 	if err != nil {

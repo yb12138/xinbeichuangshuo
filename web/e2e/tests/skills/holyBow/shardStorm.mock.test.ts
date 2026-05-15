@@ -1,6 +1,7 @@
 import { test } from '../../../fixtures/protocolHarness.fixture';
 import {
   shardStormDiscardPrompt,
+  shardStormMissConfirmPrompt,
   shardStormMissHealPrompt,
   shardStormMissTargetPrompt,
   shardStormScenario,
@@ -8,49 +9,70 @@ import {
 } from '../../../scenarios/holyBow';
 
 test.describe('holy bow shard storm protocol harness', () => {
-  test('discard phase for shard storm', async ({ page, protocolHarness }) => {
+  test('discard phase: pick same-element combo (single confirm)', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(shardStormScenario());
 
-    // Server pushes discard prompt directly (skill validation done by backend)
+    // 后端 hb_holy_shard_combo 为单选 confirm，每个 option 是 "Element:i,j" 组合字符串
     await protocolHarness.pushServerMessage(shardStormDiscardPrompt());
-
-    // Discard 2 same-element attack cards
-    await page.getByTestId('hand-card-0').click();
-    await page.getByTestId('hand-card-1').click();
-    await page.getByTestId('prompt-confirm-btn').click();
+    await page.getByTestId('prompt-option-0').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0, 1],
+      option_indexes: [0],
     });
   });
 
-  test('shard storm miss follow-up: heal removal and ally discard', async ({ page, protocolHarness }) => {
+  test('shard storm miss follow-up: confirm enter miss branch, choose X, then ally', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(shardStormScenario());
 
-    // Discard phase
+    // 1) 弃牌组合阶段
     await protocolHarness.pushServerMessage(shardStormDiscardPrompt());
-    await page.getByTestId('hand-card-0').click();
-    await page.getByTestId('hand-card-1').click();
-    await page.getByTestId('prompt-confirm-btn').click();
+    await page.getByTestId('prompt-option-0').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0, 1],
+      option_indexes: [0],
     });
 
-    // Attack miss: choose heal removal (numeric mode)
-    await protocolHarness.pushServerMessage(shardStormMissHealPrompt());
+    // 2) miss confirm：决定是否进入未命中分支
+    await protocolHarness.pushServerMessage(shardStormMissConfirmPrompt());
+    await page.getByTestId('prompt-option-0').click();
+    await protocolHarness.expectSubmitAction({
+      action_type: 'Select',
+      option_indexes: [0],
+    });
+
+    // 3) miss_x：选 X=1（无 X=0 选项，option_index 0 对应 X=1）
+    await protocolHarness.pushServerMessage(shardStormMissHealPrompt(2));
     await page.getByTestId('numeric-option-1').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [1],
+      option_indexes: [0],
     });
 
-    // Target selection (click ally player card)
+    // 4) ally 选择
     await protocolHarness.pushServerMessage(shardStormMissTargetPrompt());
     await page.getByTestId(`player-area-${ALLY_PLAYER_ID}`).click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
+    });
+  });
+
+  test('shard storm miss: skip miss branch', async ({ page, protocolHarness }) => {
+    await protocolHarness.bootGame(shardStormScenario());
+
+    await protocolHarness.pushServerMessage(shardStormDiscardPrompt());
+    await page.getByTestId('prompt-option-0').click();
+    await protocolHarness.expectSubmitAction({
+      action_type: 'Select',
+      option_indexes: [0],
+    });
+
+    // 选「否」直接结束未命中流程，不会进入 miss_x
+    await protocolHarness.pushServerMessage(shardStormMissConfirmPrompt());
+    await page.getByTestId('prompt-option-1').click();
+    await protocolHarness.expectSubmitAction({
+      action_type: 'Select',
+      option_indexes: [1],
     });
   });
 });
