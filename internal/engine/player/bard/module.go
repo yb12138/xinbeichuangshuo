@@ -79,7 +79,7 @@ func SkillEntries() []player.SkillEntry {
 			Handler: &BardDissonanceChordHandler{},
 			Policy: types.SkillPolicy{
 				TargetRules: types.TargetRuleSet{
-					Count: types.TargetCountRule{Min: 0, Max: 1},
+					Count: types.TargetCountRule{Min: 0, Max: 0, Err: "分步选择"}, // 目标选择由后端 bd_dissonance_target prompt 推送
 				},
 			},
 		},
