@@ -48,6 +48,11 @@ func (e *GameEngine) ProcessPendingDamages() bool {
 		// 1) 攻击命中链 -> 2) 承伤前规则 -> 3) 承伤触发 -> 4) 扣血前规则 -> 5) 扣血 -> 6) 结算后规则。
 		pd := &e.State.PendingDamageQueue[0]
 
+		// 如果有待处理的中断，暂停处理等待中断完成
+		if e.State.PendingInterrupt != nil {
+			return true
+		}
+
 		if e.processPendingAttackHit(pd) {
 			return true
 		}

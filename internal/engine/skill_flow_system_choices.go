@@ -173,11 +173,22 @@ func (e *GameEngine) afterSystemWeakChoice(ctxData map[string]any) {
 }
 
 func (e *GameEngine) handleSystemHealChoice(selectionIndex int, ctxData map[string]interface{}) error {
-	damageIdx := runtimeutil.ToIntContextValue(ctxData["damage_index"])
-	if damageIdx < 0 || damageIdx >= len(e.State.PendingDamageQueue) {
-		return fmt.Errorf("伤害上下文不存在")
+	targetID, _ := ctxData["target_id"].(string)
+	if targetID == "" {
+		return fmt.Errorf("伤害上下文缺少 target_id")
 	}
-	pd := &e.State.PendingDamageQueue[damageIdx]
+
+	var pd *model.PendingDamage
+	for i := range e.State.PendingDamageQueue {
+		if e.State.PendingDamageQueue[i].TargetID == targetID {
+			pd = &e.State.PendingDamageQueue[i]
+			break
+		}
+	}
+	if pd == nil {
+		return fmt.Errorf("伤害上下文不存在 (target_id=%s)", targetID)
+	}
+
 	target := e.State.Players[pd.TargetID]
 	if target == nil {
 		return fmt.Errorf("目标不存在")

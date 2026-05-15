@@ -350,7 +350,8 @@ func containsSpiritCasterCapText(desc string) bool {
 
 func TestSpiritCasterThunderCollapse_TwoTargetsBothDamaged(t *testing.T) {
 	// Debugging: checking the heal interrupt flow issue
-	game := engine.NewGameEngine(testutils.NoopObserver{})
+	obs := &testutils.CaptureObserver{}
+	game := engine.NewGameEngine(obs)
 	if err := game.AddPlayer("p1", "SpiritCaster", "spirit_caster", model.RedCamp); err != nil {
 		t.Fatal(err)
 	}
@@ -413,20 +414,35 @@ func TestSpiritCasterThunderCollapse_TwoTargetsBothDamaged(t *testing.T) {
 			}
 			choiceType, _ := ctxData["choice_type"].(string)
 			if choiceType == "heal" {
-				// 选择不使用治疗（选择0）
-				if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: game.State.PendingInterrupt.PlayerID, Selections: []int{0}}); err != nil {
-					t.Fatalf("handle heal interrupt failed: %v", err)
+				// 选择使用全部治疗抵消伤害（选择2表示使用2点治疗）
+				if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: game.State.PendingInterrupt.PlayerID, Selections: []int{2}}); err != nil {
+					t.Fatalf("handle first heal interrupt failed: %v", err)
 				}
 				t.Logf("After first heal choice handled, queue length: %d", len(game.State.PendingDamageQueue))
 				for i, pd := range game.State.PendingDamageQueue {
 					t.Logf("  Queue[%d]: TargetID=%s, Damage=%d, HealResolved=%v", i, pd.TargetID, pd.Damage, pd.HealResolved)
 				}
+				// 继续结算：Drive 会处理 p3 的伤害，然后为 p2 推入治疗中断
+				game.Drive()
+				// p2 应该有治疗中断
+				if game.State.PendingInterrupt == nil {
+					t.Fatalf("expected heal interrupt for p2 after Drive")
+				}
+				p2Ctx, ok := game.State.PendingInterrupt.Context.(map[string]interface{})
+				if !ok {
+					t.Fatalf("unexpected p2 interrupt context type")
+				}
+				p2ChoiceType, _ := p2Ctx["choice_type"].(string)
+				if p2ChoiceType != "heal" {
+					t.Fatalf("expected heal interrupt for p2, got %s", p2ChoiceType)
+				}
+				// 处理 p2 的治疗选择（使用2点治疗抵消伤害）
+				if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{2}}); err != nil {
+					t.Fatalf("handle second heal interrupt failed: %v", err)
+				}
+				t.Logf("After second heal choice handled, queue length: %d", len(game.State.PendingDamageQueue))
 				// 继续结算
 				game.Drive()
-				if paused := game.ProcessPendingDamages(); paused {
-					t.Logf("Second interrupt generated: %+v", game.State.PendingInterrupt)
-					t.Fatalf("unexpected second interrupt while resolving damages")
-				}
 			} else {
 				t.Fatalf("unexpected interrupt type: %s", choiceType)
 			}

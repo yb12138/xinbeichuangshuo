@@ -224,13 +224,14 @@ func (e *GameEngine) resolvePendingDamageHealChoice(pd *model.PendingDamage) boo
 		}
 		maxHeal = e.applyTimingOnDamageCalculatedHealCapRules(pd, target, maxHeal)
 		if maxHeal > 0 {
+			pd.HealResolved = true // 设置标记防止重复推入中断
 			e.PushInterrupt(&model.Interrupt{
 				Type:     model.InterruptChoice,
 				PlayerID: pd.TargetID,
 				Context: map[string]interface{}{
-					"choice_type":  "heal",
-					"max_heal":     maxHeal,
-					"damage_index": 0,
+					"choice_type": "heal",
+					"max_heal":    maxHeal,
+					"target_id":   pd.TargetID,
 				},
 			})
 			return true
