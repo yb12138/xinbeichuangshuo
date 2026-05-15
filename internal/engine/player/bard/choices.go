@@ -555,11 +555,14 @@ func handleRousingMode(rt engineplayer.ChoiceRuntime, ctxData map[string]interfa
 	}
 	switch selectionIndex {
 	case 0:
+		bardID, _ := ctxData["bard_id"].(string)
 		ctxData["choice_type"] = "bd_rousing_targets"
 		ctxData["selected_target_ids"] = []string{}
 		intr := rt.GetPendingInterrupt()
 		if intr != nil {
 			intr.Context = ctxData
+			// 目标选择由吟游诗人执行（伤害来源是吟游诗人）
+			intr.PlayerID = bardID
 		}
 		rt.NotifyInterruptPrompt()
 		return nil

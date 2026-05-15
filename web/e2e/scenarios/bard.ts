@@ -461,6 +461,67 @@ export function rousingRhapsodyScenario(options: {
   };
 }
 
+// 吟游诗人视角的目标选择场景（用于测试 bd_rousing_targets 流程）
+export function rousingTargetSelectionScenario(): ProtocolHarnessScenario {
+  const characters = [bardCharacter, allyCharacter, enemyCharacter, enemyCharacter];
+
+  const bard = bardPlayerView({ is_active: true });
+
+  // 永恒乐章持有者（队友）
+  const eternalHolder = playerView({
+    id: ALLY_PLAYER_ID,
+    name: 'E2E Ally',
+    camp: 'Red',
+    role: 'hero',
+    hand: allyHand(),
+    hand_count: allyHand().length,
+    heal: 2,
+    max_heal: 3,
+    is_active: false,
+    exclusive_cards: [
+      card({
+        id: 'starter-bard-bd_eternal_movement',
+        name: '永恒乐章',
+        type: 'Magic',
+        element: 'Dark',
+        description: '永恒乐章专属牌',
+      }),
+    ],
+  });
+
+  const enemy = enemyPlayerView();
+  const enemy2 = enemy2PlayerView();
+
+  const players = [bard, eternalHolder, enemy, enemy2];
+  const playerInfos = [
+    bardPlayerInfo({ is_host: true }),
+    playerInfo({
+      id: ALLY_PLAYER_ID,
+      name: 'E2E Ally',
+      camp: 'Red',
+      char_role: 'hero',
+      is_host: false,
+    }),
+    enemyPlayerInfo(),
+    enemy2PlayerInfo(),
+  ];
+
+  return {
+    roomCode: 'MOCK',
+    myPlayerId: BARD_PLAYER_ID,
+    myPlayerName: 'E2E Bard',
+    characters,
+    players: playerInfos,
+    initialState: syncState({
+      turn_player_id: ALLY_PLAYER_ID,
+      turn_stage: 'ActionExecution',
+      available_skills: [],
+      characters,
+      players,
+    }),
+  };
+}
+
 export function rousingModePrompt(): WsMessage {
   return requireActionMessage({
     type: 'confirm',
@@ -488,9 +549,10 @@ export function rousingTargetsPrompt(step: number): WsMessage {
   } else {
     options.push({ id: ENEMY_2_PLAYER_ID, label: '恶徒2' });
   }
+  // 目标选择由吟游诗人执行（伤害来源是吟游诗人）
   return requireActionMessage({
     type: 'confirm',
-    player_id: ALLY_PLAYER_ID,
+    player_id: BARD_PLAYER_ID,
     message: `【激昂狂想曲】请选择第 ${step}/2 名目标：`,
     choice_type: 'bd_rousing_targets',
     skill_id: BD_ROUSING_RHAPSODY_SKILL_ID,

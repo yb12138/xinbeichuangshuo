@@ -384,15 +384,16 @@ func TestBardRousingRhapsody_OnAllyTurnStartRunsForbiddenVerse(t *testing.T) {
 
 	// 激昂狂想曲已简化为三分支直选（伤害 / 弃牌 / 跳过），不再有独立的 confirm 步骤。
 	testutils.RequireChoicePrompt(t, game, "p2", "bd_rousing_mode")
-	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{0}}); err != nil { // 选伤害分支
+	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{0}}); err != nil { // 持有者选伤害分支
 		t.Fatalf("choose rousing mode failed: %v", err)
 	}
-	testutils.RequireChoicePrompt(t, game, "p2", "bd_rousing_targets")
-	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{0}}); err != nil { // 先选 p3
+	// 目标选择由吟游诗人执行（伤害来源是吟游诗人）
+	testutils.RequireChoicePrompt(t, game, "p1", "bd_rousing_targets")
+	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil { // 吟游诗人先选 p3
 		t.Fatalf("choose rousing first target failed: %v", err)
 	}
-	testutils.RequireChoicePrompt(t, game, "p2", "bd_rousing_targets")
-	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{0}}); err != nil { // 再选 p4
+	testutils.RequireChoicePrompt(t, game, "p1", "bd_rousing_targets")
+	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil { // 吟游诗人再选 p4
 		t.Fatalf("choose rousing second target failed: %v", err)
 	}
 
