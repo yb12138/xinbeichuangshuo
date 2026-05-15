@@ -317,7 +317,6 @@ const NON_HAND_INDEXED_PROMPT_CHOICE_TYPES = new Set<string>([
   'hb_auto_fill_resource',
   'hb_auto_fill_gain',
   // Bard choice types that use numeric IDs but are NOT card selections (these are confirm/mode/target prompts)
-  'bd_rousing_confirm',
   'bd_rousing_mode',
   'bd_victory_confirm',
   'bd_victory_mode',

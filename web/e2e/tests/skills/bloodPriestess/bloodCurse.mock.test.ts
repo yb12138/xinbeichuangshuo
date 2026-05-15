@@ -1,43 +1,35 @@
-import { test, expect } from '../../../fixtures/protocolHarness.fixture';
+import { test } from '../../../fixtures/protocolHarness.fixture';
+import type { Page } from '@playwright/test';
 import {
   BP_BLOOD_CURSE_SKILL_ID,
-  ENEMY_PLAYER_ID,
-  bloodCurseConfirmPrompt,
-  bloodCurseDiscardPrompt,
   bloodCurseScenario,
-  bloodCurseTargetPrompt,
+  bloodCurseDiscardPrompt,
 } from '../../../scenarios/bloodPriestess';
 
+async function activateSkill(page: Page, skillId: string) {
+  await page.getByTestId('action-skill').click();
+  await page.getByTestId(`skill-${skillId}`).click();
+}
+
+// ============================================================
+// 血之诅咒 (bp_blood_curse) - 后端通过 available_skills 触发
+// 弃牌使用 choice_type: bp_curse_discard
+// ============================================================
+
 test.describe('blood priestess blood curse protocol harness', () => {
-  test('blood curse: confirm then target then discard 3 cards', async ({ page, protocolHarness }) => {
+  test('blood curse: activate skill', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(bloodCurseScenario());
 
-    // Activate skill
-    await page.getByTestId('action-skill').click();
-    await page.getByTestId(`skill-${BP_BLOOD_CURSE_SKILL_ID}`).click();
+    await activateSkill(page, BP_BLOOD_CURSE_SKILL_ID);
     await protocolHarness.expectSubmitAction({
       action_type: 'Skill',
       skill_id: BP_BLOOD_CURSE_SKILL_ID,
     });
+  });
 
-    // Confirm skill activation
-    await protocolHarness.pushServerMessage(bloodCurseConfirmPrompt());
-    await expect(page.getByTestId('decision-overlay')).toBeVisible();
-    await page.getByTestId('prompt-option-0').click();
-    await protocolHarness.expectSubmitAction({
-      action_type: 'Select',
-      option_indexes: [0],
-    });
+  test('blood curse: discard 3 cards', async ({ page, protocolHarness }) => {
+    await protocolHarness.bootGame(bloodCurseScenario());
 
-    // Target selection (click enemy player card)
-    await protocolHarness.pushServerMessage(bloodCurseTargetPrompt());
-    await page.getByTestId(`player-area-${ENEMY_PLAYER_ID}`).click();
-    await protocolHarness.expectSubmitAction({
-      action_type: 'Select',
-      option_indexes: [0],
-    });
-
-    // Discard 3 cards
     await protocolHarness.pushServerMessage(bloodCurseDiscardPrompt());
     await page.getByTestId('hand-card-0').click();
     await page.getByTestId('hand-card-1').click();
@@ -46,24 +38,6 @@ test.describe('blood priestess blood curse protocol harness', () => {
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0, 1, 2],
-    });
-  });
-
-  test('blood curse: skip confirm', async ({ page, protocolHarness }) => {
-    await protocolHarness.bootGame(bloodCurseScenario());
-
-    await page.getByTestId('action-skill').click();
-    await page.getByTestId(`skill-${BP_BLOOD_CURSE_SKILL_ID}`).click();
-    await protocolHarness.expectSubmitAction({
-      action_type: 'Skill',
-      skill_id: BP_BLOOD_CURSE_SKILL_ID,
-    });
-
-    await protocolHarness.pushServerMessage(bloodCurseConfirmPrompt());
-    await page.getByTestId('prompt-option-1').click();
-    await protocolHarness.expectSubmitAction({
-      action_type: 'Select',
-      option_indexes: [1],
     });
   });
 });

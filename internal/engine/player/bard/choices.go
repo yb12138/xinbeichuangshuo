@@ -85,17 +85,13 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			remainingPick = len(options)
 		}
 		return &model.Prompt{Type: model.PromptChooseCards, PlayerID: playerID, Message: fmt.Sprintf("【不谐和弦】请 %s 选择要弃置的%d张手牌：", actor.Name, remainingPick), Options: options, Min: remainingPick, Max: remainingPick}
-	case "bd_rousing_confirm":
-		return &model.Prompt{
-			Type:     model.PromptConfirm,
-			PlayerID: playerID,
-			Message:  "【激昂狂想曲】是否发动？",
-			Options:  []model.PromptOption{{ID: "0", Label: "发动"}, {ID: "1", Label: "不发动"}},
-			Min:      1,
-			Max:      1,
-		}
 	case "bd_rousing_mode":
-		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【激昂狂想曲】请选择效果：", Options: []model.PromptOption{{ID: "0", Label: "对2名对手各造成1点法术伤害"}, {ID: "1", Label: "弃2张牌"}}, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"}}
+		opts := []model.PromptOption{
+			{ID: "0", Label: "对2名对手各造成1点法术伤害"},
+			{ID: "1", Label: "弃2张牌"},
+			{ID: "2", Label: "跳过"},
+		}
+		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【激昂狂想曲】请选择效果：", Options: opts, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"}}
 	case "bd_rousing_targets":
 		targetIDs := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
 		selectedSet := runtimeutil.IDsToSet(runtimeutil.ParseStringSliceContextValue(data["selected_target_ids"]))
@@ -197,8 +193,6 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		return true, handleDissonanceTarget(rt, ctxData, selectionIndex)
 	case "bd_dissonance_discard_step":
 		return true, handleDissonanceDiscardStep(rt, ctxData, selectionIndex)
-	case "bd_rousing_confirm":
-		return true, handleRousingConfirm(rt, ctxData, selectionIndex)
 	case "bd_rousing_mode":
 		return true, handleRousingMode(rt, ctxData, selectionIndex)
 	case "bd_rousing_targets":
@@ -553,44 +547,6 @@ func handleDissonanceDiscardStep(rt engineplayer.ChoiceRuntime, ctxData map[stri
 
 // ---- 激昂狂想曲 ----
 
-func handleRousingConfirm(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
-	bardID, _ := ctxData["bard_id"].(string)
-	bard := rt.GetPlayers()[bardID]
-	holderID, _ := ctxData["user_id"].(string)
-	holder := rt.GetPlayers()[holderID]
-	if bard == nil || holder == nil {
-		return fmt.Errorf("吟游诗人或持有者不存在")
-	}
-	switch selectionIndex {
-	case 0: // 发动
-		// 推送分支选择中断
-		rt.PopInterrupt()
-		rt.PushInterrupt(&model.Interrupt{
-			Type:     model.InterruptChoice,
-			PlayerID: holderID,
-			Context: map[string]interface{}{
-				"choice_type": "bd_rousing_mode",
-				"user_id":     holderID,
-				"bard_id":     bardID,
-				"target_ids":  runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"]),
-			},
-		})
-		rt.Log(fmt.Sprintf("%s 发动 [激昂狂想曲]，请选择效果", holder.Name))
-		return nil
-	case 1: // 不发动
-		rt.Log(fmt.Sprintf("%s 选择不发动 [激昂狂想曲]", holder.Name))
-		rt.PopInterrupt()
-		if rt.GetPendingInterrupt() == nil {
-			if !rt.RoutePendingDamageWithReturn(model.TurnStageActionStart) {
-				rt.ApplyChoiceResumePoint(model.TurnStageActionStart)
-			}
-		}
-		return nil
-	default:
-		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
-	}
-}
-
 func handleRousingMode(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	holderID, _ := ctxData["user_id"].(string)
 	holder := rt.GetPlayers()[holderID]
@@ -619,6 +575,15 @@ func handleRousingMode(rt engineplayer.ChoiceRuntime, ctxData map[string]interfa
 			intr.Context = ctxData
 		}
 		rt.NotifyInterruptPrompt()
+		return nil
+	case 2: // 跳过
+		rt.Log(fmt.Sprintf("%s 选择跳过 [激昂狂想曲]", holder.Name))
+		rt.PopInterrupt()
+		if rt.GetPendingInterrupt() == nil {
+			if !rt.RoutePendingDamageWithReturn(model.TurnStageActionStart) {
+				rt.ApplyChoiceResumePoint(model.TurnStageActionStart)
+			}
+		}
 		return nil
 	default:
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)

@@ -1,99 +1,41 @@
-import { test, expect } from '../../../fixtures/protocolHarness.fixture';
+import { test } from '../../../fixtures/protocolHarness.fixture';
+import type { Page } from '@playwright/test';
 import {
   BP_BLOOD_WAIL_SKILL_ID,
-  ENEMY_PLAYER_ID,
-  ENEMY_2_PLAYER_ID,
-  bloodWailConfirmPrompt,
   bloodWailScenario,
-  bloodWailTargetPrompt,
   bloodWailXPrompt,
 } from '../../../scenarios/bloodPriestess';
 
+async function activateSkill(page: Page, skillId: string) {
+  await page.getByTestId('action-skill').click();
+  await page.getByTestId(`skill-${skillId}`).click();
+}
+
+// ============================================================
+// 血之悲鸣 (bp_blood_wail) - 后端通过 available_skills 触发
+// X值选择使用 choice_type: bp_blood_wail_x
+// ============================================================
+
 test.describe('blood priestess blood wail protocol harness', () => {
-  test('blood wail: confirm then target then X=1', async ({ page, protocolHarness }) => {
+  test('blood wail: activate skill', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(bloodWailScenario());
 
-    // Activate skill
-    await page.getByTestId('action-skill').click();
-    await page.getByTestId(`skill-${BP_BLOOD_WAIL_SKILL_ID}`).click();
+    await activateSkill(page, BP_BLOOD_WAIL_SKILL_ID);
     await protocolHarness.expectSubmitAction({
       action_type: 'Skill',
       skill_id: BP_BLOOD_WAIL_SKILL_ID,
-    });
-
-    // Confirm skill activation (discard unique card)
-    await protocolHarness.pushServerMessage(bloodWailConfirmPrompt());
-    await expect(page.getByTestId('decision-overlay')).toBeVisible();
-    await page.getByTestId('prompt-option-0').click();
-    await protocolHarness.expectSubmitAction({
-      action_type: 'Select',
-      option_indexes: [0],
-    });
-
-    // Target selection (click enemy player card)
-    await protocolHarness.pushServerMessage(bloodWailTargetPrompt());
-    await page.getByTestId(`player-area-${ENEMY_PLAYER_ID}`).click();
-    await protocolHarness.expectSubmitAction({
-      action_type: 'Select',
-      option_indexes: [0],
-    });
-
-    // X value selection (X<3)
-    await protocolHarness.pushServerMessage(bloodWailXPrompt());
-    await page.getByRole('button', { name: 'X=1' }).click();
-    await protocolHarness.expectSubmitAction({
-      action_type: 'Select',
-      option_indexes: [0],
     });
   });
 
-  test('blood wail: confirm then target then X=2', async ({ page, protocolHarness }) => {
+  test('blood wail: X value selection', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(bloodWailScenario());
 
-    await page.getByTestId('action-skill').click();
-    await page.getByTestId(`skill-${BP_BLOOD_WAIL_SKILL_ID}`).click();
-    await protocolHarness.expectSubmitAction({
-      action_type: 'Skill',
-      skill_id: BP_BLOOD_WAIL_SKILL_ID,
-    });
-
-    await protocolHarness.pushServerMessage(bloodWailConfirmPrompt());
-    await page.getByTestId('prompt-option-0').click();
+    // Backend pushes X value prompt after skill activation
+    await protocolHarness.pushServerMessage(bloodWailXPrompt());
+    await page.getByTestId('branch-option-0').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
-    });
-
-    await protocolHarness.pushServerMessage(bloodWailTargetPrompt());
-    await page.getByTestId(`player-area-${ENEMY_2_PLAYER_ID}`).click();
-    await protocolHarness.expectSubmitAction({
-      action_type: 'Select',
-      option_indexes: [1],
-    });
-
-    await protocolHarness.pushServerMessage(bloodWailXPrompt());
-    await page.getByRole('button', { name: 'X=2' }).click();
-    await protocolHarness.expectSubmitAction({
-      action_type: 'Select',
-      option_indexes: [1],
-    });
-  });
-
-  test('blood wail: skip confirm', async ({ page, protocolHarness }) => {
-    await protocolHarness.bootGame(bloodWailScenario());
-
-    await page.getByTestId('action-skill').click();
-    await page.getByTestId(`skill-${BP_BLOOD_WAIL_SKILL_ID}`).click();
-    await protocolHarness.expectSubmitAction({
-      action_type: 'Skill',
-      skill_id: BP_BLOOD_WAIL_SKILL_ID,
-    });
-
-    await protocolHarness.pushServerMessage(bloodWailConfirmPrompt());
-    await page.getByTestId('prompt-option-1').click();
-    await protocolHarness.expectSubmitAction({
-      action_type: 'Select',
-      option_indexes: [1],
     });
   });
 });

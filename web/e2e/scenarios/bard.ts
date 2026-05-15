@@ -461,22 +461,6 @@ export function rousingRhapsodyScenario(options: {
   };
 }
 
-export function rousingConfirmPrompt(): WsMessage {
-  return requireActionMessage({
-    type: 'confirm',
-    player_id: ALLY_PLAYER_ID,
-    message: '【激昂狂想曲】是否发动？',
-    choice_type: 'bd_rousing_confirm',
-    skill_id: BD_ROUSING_RHAPSODY_SKILL_ID,
-    options: [
-      { id: '0', label: '发动' },
-      { id: '1', label: '不发动' },
-    ],
-    min: 1,
-    max: 1,
-  } satisfies Prompt);
-}
-
 export function rousingModePrompt(): WsMessage {
   return requireActionMessage({
     type: 'confirm',
@@ -487,6 +471,7 @@ export function rousingModePrompt(): WsMessage {
     options: [
       { id: '0', label: '对2名对手各造成1点法术伤害' },
       { id: '1', label: '弃2张牌' },
+      { id: '2', label: '跳过' },
     ],
     presentation: { kind: 'branch_select', layout: 'overlay' },
     min: 1,

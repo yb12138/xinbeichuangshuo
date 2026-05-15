@@ -2,7 +2,6 @@ import { test, expect } from '../../../fixtures/protocolHarness.fixture';
 import {
   ENEMY_PLAYER_ID,
   ENEMY_2_PLAYER_ID,
-  rousingConfirmPrompt,
   rousingDiscardCardsPrompt,
   rousingModePrompt,
   rousingRhapsodyScenario,
@@ -13,17 +12,9 @@ test.describe('bard rousing rhapsody protocol harness', () => {
   test('branch 0: damage 2 enemy targets', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(rousingRhapsodyScenario());
 
-    // Rousing auto-triggers at turn start — server pushes confirm
-    await protocolHarness.pushServerMessage(rousingConfirmPrompt());
-    // Confirm: 发动
-    await page.getByTestId('prompt-option-0').click();
-    await protocolHarness.expectSubmitAction({
-      action_type: 'Select',
-      option_indexes: [0],
-    });
-
-    // Mode: branch 0 = damage 2 enemies
+    // Rousing auto-triggers at turn start — server pushes mode selection (3 branches)
     await protocolHarness.pushServerMessage(rousingModePrompt());
+    // Select branch 0 = damage 2 enemies
     await page.getByTestId('branch-option-0').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
@@ -50,14 +41,6 @@ test.describe('bard rousing rhapsody protocol harness', () => {
   test('branch 1: discard 2 cards', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(rousingRhapsodyScenario());
 
-    // Confirm
-    await protocolHarness.pushServerMessage(rousingConfirmPrompt());
-    await page.getByTestId('prompt-option-0').click();
-    await protocolHarness.expectSubmitAction({
-      action_type: 'Select',
-      option_indexes: [0],
-    });
-
     // Mode: branch 1 = discard 2 cards
     await protocolHarness.pushServerMessage(rousingModePrompt());
     await page.getByTestId('branch-option-1').click();
@@ -77,16 +60,16 @@ test.describe('bard rousing rhapsody protocol harness', () => {
     });
   });
 
-  test('cancel at confirm stage (decline to use)', async ({ page, protocolHarness }) => {
+  test('branch 2: skip (do not activate)', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(rousingRhapsodyScenario());
 
-    await protocolHarness.pushServerMessage(rousingConfirmPrompt());
+    await protocolHarness.pushServerMessage(rousingModePrompt());
     await expect(page.getByTestId('decision-overlay')).toBeVisible();
-    // Select 不发动 (option index 1)
-    await page.getByTestId('prompt-option-1').click();
+    // Select 跳过 (branch index 2)
+    await page.getByTestId('branch-option-2').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [1],
+      option_indexes: [2],
     });
   });
 });
