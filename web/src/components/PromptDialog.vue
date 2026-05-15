@@ -409,8 +409,10 @@ const NON_HAND_INDEXED_PROMPT_CHOICE_TYPES = new Set<string>([
   // Magic Lancer choice types for numeric / target prompts
   'ml_black_spear_x',   // 漆黑之枪 X 选择：ID 是 X 值不是手牌 index
   'ml_stardust_target', // 幻影星尘目标选择：ID 是目标 index 不是手牌 index
-  // NOTE: ml_dark_barrier_cards, ml_fullness_cost_card, ml_fullness_discard_step
-  // ARE card selections and should NOT be in this set
+  // NOTE: ml_dark_barrier_cards, ml_fullness_cost_card ARE card selections and should NOT be in this set
+  // ml_fullness_discard_step: 队友弃牌步骤，options 包含"不弃置"按钮(id="-1")和手牌选项，
+  // 需要加入此集合，确保前端提交 option 索引而非手牌索引（否则选手牌第一张会被当做"不弃置"处理）
+  'ml_fullness_discard_step',
   // Butterfly Dancer choice types for cocoon / mode / target prompts
   'bt_dance_mode',
   'bt_cocoon_overflow_discard',

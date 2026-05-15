@@ -96,18 +96,16 @@ func TestBardDescentConcerto_RunsAndResolves(t *testing.T) {
 	if paused := game.RunTimingOnTurnEndStageHooks(bard, engine.TimingOnTurnEndPreExtra); !paused {
 		t.Fatalf("turn-end descent hook should trigger with 2+ magic damage targets")
 	}
-	testutils.RequireChoicePrompt(t, game, "p1", "bd_descent_element")
-
-	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil { // 选火系
-		t.Fatalf("choose descent element failed: %v", err)
-	}
+	// 新流程：直接推送弃牌选择，无元素选择步骤
 	testutils.RequireChoicePrompt(t, game, "p1", "bd_descent_cards")
 
-	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil { // 第1张火牌
+	// 选择第1张火牌（手牌索引0）
+	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose first discard failed: %v", err)
 	}
 	testutils.RequireChoicePrompt(t, game, "p1", "bd_descent_cards")
-	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil { // 第2张火牌
+	// 选择第2张火牌（剩余候选索引中的第一个）
+	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose second discard failed: %v", err)
 	}
 
@@ -174,7 +172,8 @@ func TestBardDescentConcerto_AllyMagicDamageTriggersAtTurnEnd(t *testing.T) {
 	if paused := game.RunTimingOnTurnEndStageHooks(ally, engine.TimingOnTurnEndPreExtra); !paused {
 		t.Fatalf("turn-end descent hook should trigger from ally magic damage")
 	}
-	testutils.RequireChoicePrompt(t, game, "p1", "bd_descent_element")
+	// 新流程：直接推送弃牌选择，无元素选择步骤
+	testutils.RequireChoicePrompt(t, game, "p1", "bd_descent_cards")
 }
 
 func TestBardDissonanceChord_DrawModeAndReleasePrisoner(t *testing.T) {

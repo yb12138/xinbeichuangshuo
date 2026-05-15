@@ -1,27 +1,20 @@
 import { test } from '../../../fixtures/protocolHarness.fixture';
 import {
   ENEMY_PLAYER_ID,
-  descentCardsPrompt,
+  descentCardsDirectPrompt,
   descentConcertoScenario,
-  descentElementPrompt,
   descentTargetPrompt,
 } from '../../../scenarios/bard';
 
 test.describe('bard descent concerto protocol harness', () => {
-  test('full flow: element → cards → target (magic card triggers damage)', async ({ page, protocolHarness }) => {
+  test('full flow: direct card picker → target (magic card triggers damage)', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(descentConcertoScenario());
 
-    // Descent auto-triggers at turn end — server pushes element prompt
-    await protocolHarness.pushServerMessage(descentElementPrompt());
-    // Select Fire element
-    await page.getByTestId('prompt-option-Fire').click();
-    await protocolHarness.expectSubmitAction({
-      action_type: 'Select',
-      option_indexes: [0],
-    });
+    // Descent auto-triggers at turn end — server now pushes card picker directly
+    // No element selection step anymore
+    await protocolHarness.pushServerMessage(descentCardsDirectPrompt(2, [0, 1, 2, 3]));
 
-    // Select 2 Fire cards
-    await protocolHarness.pushServerMessage(descentCardsPrompt('Fire', 2));
+    // Select 2 Fire cards (indices 0 and 1)
     await page.getByTestId('hand-card-0').click();
     await page.getByTestId('hand-card-1').click();
     await page.getByTestId('prompt-confirm-btn').click();
@@ -36,17 +29,10 @@ test.describe('bard descent concerto protocol harness', () => {
   test('magic card triggers additional target step', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(descentConcertoScenario());
 
-    // Element prompt
-    await protocolHarness.pushServerMessage(descentElementPrompt());
-    // Select Water element (index 1) — both Water cards are Magic type
-    await page.getByTestId('prompt-option-Water').click();
-    await protocolHarness.expectSubmitAction({
-      action_type: 'Select',
-      option_indexes: [1],
-    });
+    // Direct card picker: all candidate indices from elements with >= 2 cards
+    await protocolHarness.pushServerMessage(descentCardsDirectPrompt(2, [0, 1, 2, 3]));
 
     // Card picker: select 2 Water cards (indices 2 and 3 in hand)
-    await protocolHarness.pushServerMessage(descentCardsPrompt('Water', 2));
     await page.getByTestId('hand-card-2').click();
     await page.getByTestId('hand-card-3').click();
     await page.getByTestId('prompt-confirm-btn').click();

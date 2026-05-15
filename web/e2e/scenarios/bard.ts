@@ -687,6 +687,31 @@ export function descentElementPrompt(): WsMessage {
   } satisfies Prompt);
 }
 
+// 新流程：直接推送弃牌选择，无需元素选择步骤
+// candidateIndices 为所有有至少2张牌的元素系的手牌索引
+export function descentCardsDirectPrompt(pickRemaining: number, candidateIndices: number[] = [0, 1, 2, 3]): WsMessage {
+  // Build options from candidate indices (火系索引0-1，水系索引2-3)
+  const hand = bardHand();
+  const options: PromptOption[] = candidateIndices
+    .filter((idx) => idx >= 0 && idx < hand.length)
+    .map((idx) => ({
+      id: String(idx),
+      label: `${idx + 1}: ${hand[idx].name}`,
+    }));
+
+  return requireActionMessage({
+    type: 'choose_cards',
+    player_id: BARD_PLAYER_ID,
+    message: `【沉沦协奏曲】请选择要弃置的${pickRemaining}张同系牌：`,
+    choice_type: 'bd_descent_cards',
+    skill_id: BD_DESCENT_CONCERTO_SKILL_ID,
+    options,
+    min: pickRemaining,
+    max: pickRemaining,
+  } satisfies Prompt);
+}
+
+// 旧流程的保留函数（用于兼容性或回退测试）
 export function descentCardsPrompt(chosenElement: string, pickRemaining: number): WsMessage {
   // Build options filtered by chosen element
   const allCards: { idx: number; name: string; element: string }[] = [];

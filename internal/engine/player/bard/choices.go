@@ -33,8 +33,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		}
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【沉沦协奏曲】请选择要弃置的同系元素：", Options: options, Min: 1, Max: 1}
 	case "bd_descent_cards":
-		chosenEle, _ := data["chosen_element"].(string)
-		chosenEleZh := promptfmt.ElementName(chosenEle)
+		// 直接展示所有同系牌候选，无需前置元素选择步骤
 		remaining := engineplayer.ParseIntSliceContextValue(data["remaining_indices"])
 		selected := len(engineplayer.ParseIntSliceContextValue(data["selected_indices"]))
 		options := make([]model.PromptOption, 0, len(remaining))
@@ -51,7 +50,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		if len(options) > 0 && remainingPick > len(options) {
 			remainingPick = len(options)
 		}
-		return &model.Prompt{Type: model.PromptChooseCards, PlayerID: playerID, Message: fmt.Sprintf("【沉沦协奏曲】请选择要弃置的%d张%s系牌：", remainingPick, chosenEleZh), Options: options, Min: remainingPick, Max: remainingPick}
+		return &model.Prompt{Type: model.PromptChooseCards, PlayerID: playerID, Message: fmt.Sprintf("【沉沦协奏曲】请选择要弃置的%d张同系牌：", remainingPick), Options: options, Min: remainingPick, Max: remainingPick}
 	case "bd_dissonance_x":
 		maxX := runtimeutil.ToIntContextValue(data["max_x"])
 		if maxX < 2 {
@@ -257,15 +256,11 @@ func handleDescentCards(rt engineplayer.ChoiceRuntime, ctxData map[string]interf
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
-	chosenElement, _ := ctxData["chosen_element"].(string)
 	remaining := engineplayer.ParseIntSliceContextValue(ctxData["remaining_indices"])
 	selected := engineplayer.ParseIntSliceContextValue(ctxData["selected_indices"])
 	cardIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, remaining)
 	if !ok || cardIdx < 0 || cardIdx >= len(user.Hand) {
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
-	}
-	if string(user.Hand[cardIdx].Element) != chosenElement {
-		return fmt.Errorf("沉沦协奏曲需弃置同系牌")
 	}
 	selected = append(selected, cardIdx)
 	nextRemaining := make([]int, 0, len(remaining))
@@ -284,6 +279,10 @@ func handleDescentCards(rt engineplayer.ChoiceRuntime, ctxData map[string]interf
 		rt.NotifyInterruptPrompt()
 		return nil
 	}
+	// 验证所选2张牌是否同系
+	if len(selected) >= 2 && user.Hand[selected[0]].Element != user.Hand[selected[1]].Element {
+		return fmt.Errorf("沉沦协奏曲需弃置同系牌")
+	}
 	removed, err := engineplayer.RemoveCardsByIndicesFromHand(user, append([]int{}, selected...))
 	if err != nil {
 		return err
@@ -292,7 +291,8 @@ func handleDescentCards(rt engineplayer.ChoiceRuntime, ctxData map[string]interf
 	rt.AppendToDiscard(removed)
 	user.TurnState.UsedSkillCounts["bd_descent"] = 1
 	now := addBardInspiration(user, 1)
-	rt.Log(fmt.Sprintf("%s 发动 [沉沦协奏曲]：弃2张%s系牌，灵感+1（当前%d）", user.Name, chosenElement, now))
+	chosenEle := string(removed[0].Element)
+	rt.Log(fmt.Sprintf("%s 发动 [沉沦协奏曲]：弃2张%s系牌，灵感+1（当前%d）", user.Name, chosenEle, now))
 
 	hasMagic := false
 	for _, card := range removed {

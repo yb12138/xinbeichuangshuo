@@ -162,6 +162,7 @@ func postDamageResolvedHook(rt engineplayer.HookRuntime, ctx engineplayer.Timing
 
 // turnEndDescentHook 回合结束时检查沉沦协奏曲触发条件。
 // 当全队在本回合对至少2名不同敌方目标造成过法术伤害时触发。
+// 直接推送弃牌选择 prompt，无需元素选择步骤。
 func turnEndDescentHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHookContext) engineplayer.TimingHookResult {
 	bard := findBardPlayer(rt)
 	if bard == nil {
@@ -178,12 +179,24 @@ func turnEndDescentHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHook
 		return engineplayer.TimingHookResult{}
 	}
 
+	// 获取所有有至少2张牌的元素系，合并其手牌索引作为候选
+	elemCounts := getSameElementCounts(bard)
+	candidateIndices := make([]int, 0)
+	for _, ele := range engineplayer.ElementOrderForPrompt() {
+		if elemCounts[ele] >= 2 {
+			indices := engineplayer.GetCardIndicesByElement(bard, ele)
+			candidateIndices = append(candidateIndices, indices...)
+		}
+	}
+
 	rt.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
 		PlayerID: bard.ID,
 		Context: map[string]interface{}{
-			"choice_type": "bd_descent_element",
-			"user_id":     bard.ID,
+			"choice_type":      "bd_descent_cards",
+			"user_id":          bard.ID,
+			"selected_indices": []int{},
+			"remaining_indices": candidateIndices,
 		},
 	})
 	return engineplayer.TimingHookResult{Interrupted: true}
