@@ -310,26 +310,10 @@ const tokenIndicators = computed(() => {
 })
 
 // 派生指示物：后端作为 PlayerView 独立字段发送（不在 tokens map 中）
-const DERIVED_INDICATOR_KEYS: Record<string, { label: string; cls: string }> = {
-  ml_dark_release_next_attack_bonus: { label: '下次主动攻+伤', cls: 'bg-rose-900/70 text-rose-100 border-rose-500/40' },
-  ml_dark_release_lock_turn: { label: '本回合锁技能', cls: 'bg-zinc-800/75 text-zinc-100 border-zinc-500/40' },
-}
-
+// 注意：魔枪幻影形态状态（攻击加成、技能锁定）已移至 ActionPanel 行动区域展示，
+// 因此当前 derived 指示物为空。如需新增非 tokens-map 字段的指示物，在此扩展即可。
 const derivedIndicators = computed(() => {
-  const player = props.player
-  if (!player) return []
-  const entries: Array<{ key: string; value: number; label: string; cls: string }> = []
-  // 使用 keyof 类型安全访问
-  const bonusKeys = ['ml_dark_release_next_attack_bonus', 'ml_dark_release_lock_turn'] as const
-  for (const key of bonusKeys) {
-    const cfg = DERIVED_INDICATOR_KEYS[key]
-    if (!cfg) continue
-    const value = player[key]
-    if (typeof value === 'number' && value > 0) {
-      entries.push({ key, value, label: cfg.label, cls: cfg.cls })
-    }
-  }
-  return entries
+  return []
 })
 
 const allIndicators = computed(() => [...tokenIndicators.value, ...derivedIndicators.value])

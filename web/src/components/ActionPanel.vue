@@ -160,6 +160,33 @@ const isActionHubContext = computed(() =>
     interruptStore.skillMode === 'none'
 )
 
+// 回合内状态展示（仅当前回合玩家且是自己时显示）
+// 包括：魔枪幻影形态的攻击加成、技能锁定等
+const turnStateIndicators = computed(() => {
+    if (!myPlayer.value || !myPlayer.value.is_active) return []
+    const entries: Array<{ key: string; label: string; cls: string }> = []
+
+    // 魔枪幻影形态状态
+    const attackBonus = myPlayer.value.ml_dark_release_next_attack_bonus
+    if (attackBonus && attackBonus > 0) {
+        entries.push({
+            key: 'ml_dark_release_next_attack_bonus',
+            label: `下次主动攻击伤害+${attackBonus}`,
+            cls: 'bg-rose-900/70 text-rose-100 border-rose-500/40'
+        })
+    }
+    const lockTurn = myPlayer.value.ml_dark_release_lock_turn
+    if (lockTurn && lockTurn > 0) {
+        entries.push({
+            key: 'ml_dark_release_lock_turn',
+            label: '本回合技能锁定',
+            cls: 'bg-zinc-800/75 text-zinc-100 border-zinc-500/40'
+        })
+    }
+
+    return entries
+})
+
 const isInlinePromptContext = computed(() =>
     !!prompt.value &&
     isPromptForMe.value &&
@@ -1240,6 +1267,18 @@ function elementName(el: string): string {
 
         <!-- 行动区域 -->
         <div v-else-if="isActionHubContext" class="action-hub-desktop">
+            <!-- 回合内状态提示（在行动按钮上方展示） -->
+            <div v-if="turnStateIndicators.length > 0" class="turn-state-indicators">
+                <span
+                    v-for="indicator in turnStateIndicators"
+                    :key="indicator.key"
+                    class="inline-flex items-center gap-1 px-2 py-1 rounded border text-xs leading-none"
+                    :class="indicator.cls"
+                    :title="indicator.label"
+                >
+                    {{ indicator.label }}
+                </span>
+            </div>
             <div v-if="actionHubPromptNotice" class="action-hub-desktop-notice">
                 {{ actionHubPromptNotice }}
             </div>
@@ -1635,6 +1674,15 @@ function elementName(el: string): string {
     box-shadow:
         inset 0 1px 0 rgba(242, 250, 255, 0.08),
         0 10px 24px rgba(3, 12, 22, 0.42);
+}
+
+.turn-state-indicators {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: center;
+    margin-bottom: 6px;
+    padding: 4px;
 }
 
 .action-hub-desktop-notice,
