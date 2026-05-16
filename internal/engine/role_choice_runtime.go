@@ -521,20 +521,20 @@ func (r roleChoiceRuntime) RecordMagicDamageTarget(sourceID, targetID string) {
 	if r.GameEngine == nil {
 		return
 	}
-	if r.turnMagicDamageTargets == nil {
-		r.turnMagicDamageTargets = map[string]map[string]bool{}
+	if r.GameEngine.turnMagicDamageTargets == nil {
+		r.GameEngine.turnMagicDamageTargets = map[string]map[string]bool{}
 	}
-	if _, ok := r.turnMagicDamageTargets[sourceID]; !ok {
-		r.turnMagicDamageTargets[sourceID] = map[string]bool{}
+	if _, ok := r.GameEngine.turnMagicDamageTargets[sourceID]; !ok {
+		r.GameEngine.turnMagicDamageTargets[sourceID] = map[string]bool{}
 	}
-	r.turnMagicDamageTargets[sourceID][targetID] = true
+	r.GameEngine.turnMagicDamageTargets[sourceID][targetID] = true
 }
 
 func (r roleChoiceRuntime) MagicDamageTargetCount(sourceID string) int {
-	if r.GameEngine == nil || r.turnMagicDamageTargets == nil {
+	if r.GameEngine == nil || r.GameEngine.turnMagicDamageTargets == nil {
 		return 0
 	}
-	return len(r.turnMagicDamageTargets[sourceID])
+	return len(r.GameEngine.turnMagicDamageTargets[sourceID])
 }
 
 // ---- MoraleOps 实现 ----
