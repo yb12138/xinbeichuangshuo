@@ -64,6 +64,9 @@ func (h *FighterChargeStrikeHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("蓄力一击上下文无效")
 	}
+	if engineplayer.HasForm(ctx.User, model.FormFighterHundredDragon) {
+		return fmt.Errorf("百式幻龙拳状态下不能发动蓄力一击")
+	}
 	if engineplayer.GetToken(ctx.User, "fighter_qi") >= fighterQiCap {
 		return fmt.Errorf("斗气已达上限，不能发动蓄力一击")
 	}
@@ -163,8 +166,16 @@ func (h *FighterHundredDragonHandler) Execute(ctx *model.Context) error {
 		return fmt.Errorf("百式幻龙拳没有可锁定的敌方目标")
 	}
 	qi := engineplayer.AddToken(ctx.User, "fighter_qi", -3, fighterQiCap)
+	clearChargeStrikeState(ctx.Game, ctx.User)
 	engineplayer.SetForm(ctx.User, model.FormFighterHundredDragon)
 	engineplayer.SetSkillFlowState(ctx.User, "fighter_hundred_dragon_target_order", 0)
+	ctx.Game.ApplySkillGateRule(
+		ctx.User.ID,
+		hundredDragonDisableChargeModifierID,
+		"fighter_hundred_dragon",
+		[]string{"fighter_charge_strike"},
+		model.RuleLifeUntilTurnEnd,
+	)
 	ctx.Game.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,

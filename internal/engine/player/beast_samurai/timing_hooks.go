@@ -136,7 +136,19 @@ func turnEndHook(rt player.HookRuntime, ctx player.TimingHookContext) player.Tim
 			rt.Log(fmt.Sprintf("%s 的 [御魂流居合形态·兽魂归零退场] 生效：转正并脱离御魂流居合形态", p.Name))
 		}
 	}
-	p.TurnState.UsedSkillCounts["bs_one_strike_armed"] = 0
 	ClearAttackTokens(p)
+	return player.TimingHookResult{}
+}
+
+// turnEndFinalHook 在额外行动耗尽后的回合结束点清理一击无念挂载（避免在 PendingActions 额外攻击发放前清掉 armed）。
+func turnEndFinalHook(rt player.HookRuntime, ctx player.TimingHookContext) player.TimingHookResult {
+	p := rt.GetPlayer(ctx.SourceID)
+	if p == nil {
+		return player.TimingHookResult{}
+	}
+	if p.TurnState.UsedSkillCounts["bs_one_strike_armed"] > 0 {
+		p.TurnState.UsedSkillCounts["bs_one_strike_armed"] = 0
+		rt.Log(fmt.Sprintf("%s 的 [一击无念·挂载过期] 生效：本回合未消耗的下次攻击劫持已移除", p.Name))
+	}
 	return player.TimingHookResult{}
 }

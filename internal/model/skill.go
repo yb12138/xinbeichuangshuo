@@ -328,6 +328,7 @@ type IGameEngine interface {
 	GetPlayerForm(playerID string) string
 	RefreshPlayerDerivedState(playerID string)
 	ApplySkillGateRule(playerID string, modifierID string, sourceSkillID string, skillIDs []string, lifetime RuleModifierLifetimeType)
+	ClearRuleModifiersByModifierID(playerID string, modifierID string)
 	ApplyNextAttackDamageRule(playerID string, modifierID string, sourceSkillID string, bonus int, lifetime RuleModifierLifetimeType)
 	ApplyNextAttackInterceptTagRule(playerID string, modifierID string, sourceSkillID string, tag CombatInterceptTag, lifetime RuleModifierLifetimeType)
 	IsSkillBlocked(playerID string, skillID string) bool

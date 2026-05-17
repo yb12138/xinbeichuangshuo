@@ -339,6 +339,7 @@ func TestFighterHundredDragon_StartupLocksTargetImmediately(t *testing.T) {
 	}
 
 	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
 	p1.Tokens["fighter_qi"] = 3
@@ -364,8 +365,36 @@ func TestFighterHundredDragon_StartupLocksTargetImmediately(t *testing.T) {
 	if got := p1.TurnState.SkillFlowState["fighter_hundred_dragon_target_order"]; got != 2 {
 		t.Fatalf("expected hundred dragon lock target p2(order=2), got %d", got)
 	}
+	if fc := testutils.GetFieldEffectCard(p2, model.EffectFighterHundredDragonLock); fc == nil || fc.SourceID != p1.ID {
+		t.Fatalf("expected hundred dragon lock field effect on p2 from p1, got %+v", fc)
+	}
 	if got := game.State.TurnStage; got != model.TurnStageActionExecution {
 		t.Fatalf("expected action execution window after choosing hundred dragon target, got %s", got)
+	}
+}
+
+func TestFighterHundredDragon_ActiveAttackIgnoresChargeStrikeBonus(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Fighter", "fighter", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "angel", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p1.Form = model.FormFighterHundredDragon
+	p1.TurnState.SkillFlowState["fighter_charge_pending"] = 1
+	game.ApplyNextAttackDamageRule(p1.ID, "fighter_charge_attack_bonus", "fighter_charge_strike", 1, model.RuleLifeThisEffectChain)
+
+	attackCard := fighterTestCard("atk", "雷光斩", model.CardTypeAttack, model.ElementThunder, 2)
+	if got := game.ApplyPassiveAttackEffects(p1, p2, 2, model.Action{
+		SourceID: p1.ID,
+		TargetID: p2.ID,
+		Type:     model.ActionAttack,
+		Card:     &attackCard,
+	}); got != 4 {
+		t.Fatalf("expected hundred dragon attack to ignore charge strike bonus (2+2=4), got %d", got)
 	}
 }
 

@@ -105,6 +105,9 @@ func handleFighterHundredDragonTargetChoice(rt engineplayer.ChoiceRuntime, selec
 	}
 	engineplayer.EnsurePlayerSkillFlowState(user)
 	user.TurnState.SkillFlowState["fighter_hundred_dragon_target_order"] = targetOrder
+	if err := placeHundredDragonLock(rt, user, target); err != nil {
+		return err
+	}
 	rt.Log(fmt.Sprintf("%s 的 [百式幻龙拳] 锁定目标：%s", user.Name, target.Name))
 	rt.PopInterrupt()
 	if rt.GetPendingInterrupt() == nil {

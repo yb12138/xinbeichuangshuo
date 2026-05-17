@@ -226,6 +226,25 @@ func consumeAttackCombatPolicyInterceptTags(player *model.Player, action model.A
 	}
 }
 
+func (e *GameEngine) ClearRuleModifiersByModifierID(playerID string, modifierID string) {
+	if e == nil || e.State == nil || playerID == "" || modifierID == "" {
+		return
+	}
+	player := e.State.Players[playerID]
+	if player == nil || len(player.ActiveRuleModifiers) == 0 {
+		return
+	}
+	for key, modifier := range player.ActiveRuleModifiers {
+		if modifier == nil || modifier.ModifierID != modifierID {
+			continue
+		}
+		delete(player.ActiveRuleModifiers, key)
+	}
+	if len(player.ActiveRuleModifiers) == 0 {
+		player.ActiveRuleModifiers = nil
+	}
+}
+
 func (e *GameEngine) expireRuleModifiersByLifetime(player *model.Player, lifetime model.RuleModifierLifetimeType) {
 	if player == nil || len(player.ActiveRuleModifiers) == 0 {
 		return

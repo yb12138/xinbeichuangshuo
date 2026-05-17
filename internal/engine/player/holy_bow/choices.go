@@ -989,6 +989,9 @@ func handleRadiantCannonSide(rt engineplayer.ChoiceRuntime, selectionIndex int, 
 	if Cannon(user) <= 0 {
 		return fmt.Errorf("圣煌辉光炮指示物不足")
 	}
+	if skillMoraleGap(rt, user) <= 0 {
+		return fmt.Errorf("我方士气未落后敌方，无法发动圣煌辉光炮")
+	}
 	if Faith(user) < requiredFaith {
 		return fmt.Errorf("信仰不足，需要%d点", requiredFaith)
 	}

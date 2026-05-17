@@ -542,6 +542,8 @@ const (
 	EffectBardEternalMovement EffectType = "BardEternalMovement"
 	// 勇者“挑衅”场上效果标识（Mode=Effect）。
 	EffectHeroTaunt EffectType = "HeroTaunt"
+	// 格斗家“百式幻龙拳”锁定目标场上效果标识（Mode=Effect）。
+	EffectFighterHundredDragonLock EffectType = "FighterHundredDragonLock"
 	// 剑帝“剑魂”盖牌效果标识（Mode=Cover）。
 	EffectSwordSoul EffectType = "SwordSoul"
 	// 灵魂术士“灵魂链接”场上效果标识（Mode=Effect）。

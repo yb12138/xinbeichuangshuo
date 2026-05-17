@@ -1947,17 +1947,20 @@ function dissolveRoomByHost() {
 // === 双人关联连线 ===
 const LINK_EFFECT_COLORS: Record<string, string> = {
   SoulLink: 'rgba(139, 92, 246, 0.9)',
+  FighterHundredDragonLock: 'rgba(245, 158, 11, 1)',
   HeroTaunt: 'rgba(220, 38, 38, 1)',
   BloodSharedLife: 'rgba(244, 63, 94, 0.9)',
 }
 
 const LINK_EFFECT_STROKE: Record<string, { opacity: number; strokeWidth: number }> = {
   SoulLink: { opacity: 0.22, strokeWidth: 1.5 },
+  FighterHundredDragonLock: { opacity: 0.62, strokeWidth: 2 },
   HeroTaunt: { opacity: 0.58, strokeWidth: 2 },
   BloodSharedLife: { opacity: 0.22, strokeWidth: 1.5 },
 }
 
 const LINK_EFFECT_INFO: Record<string, { label: string; description: string }> = {
+  FighterHundredDragonLock: { label: '幻龙锁定', description: '百式幻龙拳：本行动阶段只能主动攻击该角色' },
   HeroTaunt: { label: '挑衅', description: '该玩家在下回合必须且只能主动攻击勇者，否则跳过该阶段' },
   SoulLink: { label: '灵魂链接', description: '两名玩家绑定在一起，灵魂术士消耗蓝色灵魂可转移伤害' },
   BloodSharedLife: { label: '同生共死', description: '双方手牌上限保持一致' },

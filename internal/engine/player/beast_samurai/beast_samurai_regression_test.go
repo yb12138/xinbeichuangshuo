@@ -122,6 +122,29 @@ func TestBeastSamurai_WarriorZanshinThenOneStrikeBecomesAvailable(t *testing.T) 
 	}
 }
 
+func TestBeastSamurai_OneStrikeArmedSurvivesTurnEndPreExtra(t *testing.T) {
+	game, p1, _ := newBeastSamuraiTestEngine(t, testutils.NoopObserver{}, "")
+	p1.TurnState.UsedSkillCounts["bs_one_strike_armed"] = 1
+	model.AppendAttackAction(p1, "一击无念")
+
+	if paused := game.RunTimingOnTurnEndStageHooks(p1, engine.TimingOnTurnEndPreExtra); paused {
+		t.Fatalf("unexpected interrupt during pre-extra turn end")
+	}
+	if p1.TurnState.UsedSkillCounts["bs_one_strike_armed"] != 1 {
+		t.Fatalf("one-strike armed should survive pre-extra turn end, got %d", p1.TurnState.UsedSkillCounts["bs_one_strike_armed"])
+	}
+	if len(p1.TurnState.PendingActions) != 1 || p1.TurnState.PendingActions[0].Source != "一击无念" {
+		t.Fatalf("expected pending one-strike attack action, got %+v", p1.TurnState.PendingActions)
+	}
+
+	if paused := game.RunTimingOnTurnEndStageHooks(p1, engine.TimingOnTurnEndFinal); paused {
+		t.Fatalf("unexpected interrupt during final turn end")
+	}
+	if p1.TurnState.UsedSkillCounts["bs_one_strike_armed"] != 0 {
+		t.Fatalf("one-strike armed should expire on final turn end when unused, got %d", p1.TurnState.UsedSkillCounts["bs_one_strike_armed"])
+	}
+}
+
 func TestBeastSamurai_OneStrike_NextAttackIgnoresShieldAndHoly(t *testing.T) {
 	obs := &testutils.CaptureObserver{}
 	game, p1, p2 := newBeastSamuraiTestEngine(t, obs, "angel")

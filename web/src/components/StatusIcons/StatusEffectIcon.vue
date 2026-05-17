@@ -42,6 +42,7 @@ const iconComponent = computed(() => {
     case 'SwiftBlessing':
       return SwiftBlessingIcon
     case 'HeroTaunt':
+    case 'FighterHundredDragonLock':
       return HeroTauntIcon
     case 'SoulLink':
       return SoulLinkIcon

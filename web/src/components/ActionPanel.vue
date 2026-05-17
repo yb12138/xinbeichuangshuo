@@ -731,6 +731,7 @@ function skillTokenDisabledReason(skill: AvailableSkill): string {
         const requiredFaith = 4 + moraleGap
         if (!hasMyForm('holy_bow_holy_glory_form')) return '仅圣煌形态下可发动。'
         if (cannon <= 0) return '圣煌辉光炮指示物不足。'
+        if (moraleGap <= 0) return '我方士气未落后敌方，无法发动。'
         if (faith < requiredFaith) return `信仰不足（需要 ${requiredFaith}，当前 ${faith}）。`
     }
     if (skill.id === 'ms_shadow_meteor' && !hasMyForm('magic_swordsman_shadow_form')) {

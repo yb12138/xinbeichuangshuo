@@ -346,7 +346,11 @@ func (h *HolyBowRadiantCannonHandler) CanUse(ctx *model.Context) bool {
 	if Cannon(ctx.User) <= 0 {
 		return false
 	}
-	requiredFaith := 4 + skillMoraleGap(ctx.Game, ctx.User)
+	moraleGap := skillMoraleGap(ctx.Game, ctx.User)
+	if moraleGap <= 0 {
+		return false
+	}
+	requiredFaith := 4 + moraleGap
 	return Faith(ctx.User) >= requiredFaith
 }
 
@@ -360,7 +364,11 @@ func (h *HolyBowRadiantCannonHandler) Execute(ctx *model.Context) error {
 	if Cannon(ctx.User) <= 0 {
 		return fmt.Errorf("圣煌辉光炮指示物不足")
 	}
-	requiredFaith := 4 + skillMoraleGap(ctx.Game, ctx.User)
+	moraleGap := skillMoraleGap(ctx.Game, ctx.User)
+	if moraleGap <= 0 {
+		return fmt.Errorf("我方士气未落后敌方，无法发动圣煌辉光炮")
+	}
+	requiredFaith := 4 + moraleGap
 	if Faith(ctx.User) < requiredFaith {
 		return fmt.Errorf("信仰不足，需要%d点", requiredFaith)
 	}

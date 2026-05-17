@@ -17,8 +17,8 @@ func damageCalculateHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHoo
 	}
 	delta := 0
 	action := model.Action{Type: ctx.ActionType, Card: ctx.Card}
-	// 蓄力一击：主动攻击 +1
-	if ctx.ActionType == model.ActionAttack && ctx.CounterInitiator == "" && rt.ConsumeAttackDamageRuleBonus(p, "fighter_charge_attack_bonus", action) > 0 {
+	// 蓄力一击：主动攻击 +1（百式幻龙拳形态下不可叠加）
+	if ctx.ActionType == model.ActionAttack && ctx.CounterInitiator == "" && !InHundredDragonForm(p) && rt.ConsumeAttackDamageRuleBonus(p, "fighter_charge_attack_bonus", action) > 0 {
 		delta += 1
 		p.TurnState.SkillFlowState["fighter_charge_pending"] = 0
 		rt.Log(fmt.Sprintf("[Passive] %s 的 [蓄力一击] 生效，本次主动攻击伤害 +1", p.Name))

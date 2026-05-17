@@ -2,6 +2,7 @@ package holy_bow_test
 
 import (
 	"starcup-engine/internal/engine"
+	holybow "starcup-engine/internal/engine/player/holy_bow"
 	"starcup-engine/internal/testutils"
 	"testing"
 
@@ -812,6 +813,40 @@ func TestHolyBow_LightBurst_NoAvailableModeCannotUse(t *testing.T) {
 	}
 }
 
+func TestHolyBow_RadiantCannon_CannotUseWhenMoraleNotBehind(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "HolyBow", "holy_bow", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "angel", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Form = model.FormHolyBowHolyGlory
+	p1.Tokens["hb_cannon"] = 1
+	p1.Tokens["hb_faith"] = 8
+	game.State.RedMorale = 9
+	game.State.BlueMorale = 6
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	ctx := game.BuildContext(p1, game.State.Players["p2"], model.TimingActive, &model.EventContext{
+		Type:     model.EventPhaseEnd,
+		SourceID: p1.ID,
+	})
+	handler := &holybow.HolyBowRadiantCannonHandler{}
+	if handler.CanUse(ctx) {
+		t.Fatal("expected radiant cannon unavailable when morale is not behind enemy")
+	}
+	err := handler.Execute(ctx)
+	if err == nil {
+		t.Fatal("expected radiant cannon execute to fail when morale is not behind enemy")
+	}
+}
+
 func TestHolyBow_RadiantCannon_MoraleAlignBothSides(t *testing.T) {
 	type tc struct {
 		name       string
@@ -820,8 +855,8 @@ func TestHolyBow_RadiantCannon_MoraleAlignBothSides(t *testing.T) {
 		wantBlue   int
 	}
 	cases := []tc{
-		{name: "align_red_to_blue", sideSelect: 0, wantRed: 6, wantBlue: 6},
-		{name: "align_blue_to_red", sideSelect: 1, wantRed: 9, wantBlue: 9},
+		{name: "align_red_to_blue", sideSelect: 0, wantRed: 9, wantBlue: 9},
+		{name: "align_blue_to_red", sideSelect: 1, wantRed: 6, wantBlue: 6},
 	}
 
 	for _, c := range cases {
@@ -844,7 +879,7 @@ func TestHolyBow_RadiantCannon_MoraleAlignBothSides(t *testing.T) {
 			p1.TurnState = model.NewPlayerTurnState()
 			p1.Form = model.FormHolyBowHolyGlory
 			p1.Tokens["hb_cannon"] = 1
-			p1.Tokens["hb_faith"] = 6
+			p1.Tokens["hb_faith"] = 8
 			p1.Hand = []model.Card{
 				holyBowTestCard("c1", "卡1", model.CardTypeAttack, model.ElementFire, 2),
 				holyBowTestCard("c2", "卡2", model.CardTypeAttack, model.ElementWater, 2),
@@ -868,8 +903,8 @@ func TestHolyBow_RadiantCannon_MoraleAlignBothSides(t *testing.T) {
 				holyBowTestCard("d3", "补牌3", model.CardTypeAttack, model.ElementThunder, 2),
 				holyBowTestCard("d4", "补牌4", model.CardTypeAttack, model.ElementWind, 2),
 			}
-			game.State.RedMorale = 9
-			game.State.BlueMorale = 6
+			game.State.RedMorale = 6
+			game.State.BlueMorale = 9
 			game.State.RedCups = 0
 			game.State.BlueCups = 0
 			game.State.CurrentTurn = 0
@@ -890,8 +925,8 @@ func TestHolyBow_RadiantCannon_MoraleAlignBothSides(t *testing.T) {
 			if got := p1.Tokens["hb_cannon"]; got != 0 {
 				t.Fatalf("expected cannon consumed to 0, got %d", got)
 			}
-			if got := p1.Tokens["hb_faith"]; got != 2 {
-				t.Fatalf("expected faith cost 4, got %d", got)
+			if got := p1.Tokens["hb_faith"]; got != 1 {
+				t.Fatalf("expected faith cost 7 (4+3 morale gap), got %d", got)
 			}
 			if got := game.State.RedCups; got != 1 {
 				t.Fatalf("expected red camp cups +1, got %d", got)
