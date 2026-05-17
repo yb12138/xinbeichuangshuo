@@ -87,13 +87,12 @@ func turnStartExhaustionReleaseHook(rt player.HookRuntime, ctx player.TimingHook
 	if p == nil || !rt.IsCharacter(p, "hero") || p.TurnState.HasUsedActionSkill || !InExhaustionForm(p) {
 		return player.TimingHookResult{}
 	}
-	player.EnsurePlayerSkillFlowState(p)
-	if p.TurnState.SkillFlowState["hero_exhaustion_release_pending"] <= 0 {
+	if !hasExhaustionReleasePending(p) {
 		return player.TimingHookResult{}
 	}
 	defer rt.PoseChangeGuard()
 	LeaveExhaustionForm(p)
-	p.TurnState.SkillFlowState["hero_exhaustion_release_pending"] = 0
+	clearExhaustionReleasePending(p)
 	rt.Log(fmt.Sprintf("%s 的 [精疲力竭] 结束：转正，手牌上限恢复，并对自己造成3点法术伤害", p.Name))
 	rt.AddPendingDamage(model.PendingDamage{
 		SourceID:   p.ID,

@@ -14,13 +14,12 @@ func ExhaustionRelease(rt engineplayer.ChoiceRuntime, player *model.Player) bool
 	if player == nil || !engineplayer.IsCharacter(player, "hero") || player.TurnState.HasUsedActionSkill || !InExhaustionForm(player) {
 		return false
 	}
-	engineplayer.EnsurePlayerSkillFlowState(player)
-	if player.TurnState.SkillFlowState["hero_exhaustion_release_pending"] <= 0 {
+	if !hasExhaustionReleasePending(player) {
 		return false
 	}
 	defer rt.PoseChangeGuard()
 	LeaveExhaustionForm(player)
-	player.TurnState.SkillFlowState["hero_exhaustion_release_pending"] = 0
+	clearExhaustionReleasePending(player)
 	rt.Log(fmt.Sprintf("%s 的 [精疲力竭] 结束：转正，手牌上限恢复，并对自己造成3点法术伤害", player.Name))
 	rt.AddPendingDamage(model.PendingDamage{
 		SourceID:   player.ID,

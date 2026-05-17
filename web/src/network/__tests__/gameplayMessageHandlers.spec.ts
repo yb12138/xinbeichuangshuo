@@ -151,6 +151,34 @@ describe('createGameplayMessageHandlers', () => {
     expect(interruptStore.waitingFor).toBe('')
   })
 
+  it('settles skill focus when a prompt arrives instead of keeping the board shifted', () => {
+    const { handlers, battleFxStore, sessionStore } = buildHandlers()
+    sessionStore.setRoomInfo('ROOM1', 'p1', 'Red', 'hero')
+
+    battleFxStore.startSkillInitiatorFocus('p1', 'skill')
+    expect(battleFxStore.initiatorFocus?.playerId).toBe('p1')
+
+    handlers.handleRequireAction({
+      interrupt_type: 'WaitChoice',
+      target_user_id: 'p1',
+      timeout: 0,
+      msg: '请选择目标',
+      prompt: {
+        type: 'confirm',
+        player_id: 'p1',
+        message: '【挑衅】请选择一名目标对手：',
+        choice_type: 'hero_taunt_target',
+        options: [{ id: 'p2', label: '目标' }],
+        min: 1,
+        max: 1,
+      },
+    })
+
+    vi.advanceTimersByTime(1100)
+
+    expect(battleFxStore.initiatorFocus).toBeNull()
+  })
+
   it('replays NotifyTimeline payloads into timeline entries and battle effects', () => {
     const { handlers, timelineStore, battleFxStore } = buildHandlers()
 

@@ -309,7 +309,6 @@ const NON_HAND_INDEXED_PROMPT_CHOICE_TYPES = new Set<string>([
   'hb_light_burst_mode_a_target',
   'hb_light_burst_mode_b_x',
   'hb_light_burst_mode_b_targets',
-  'hb_light_burst_mode_b_discard',
   'hb_meteor_bullet_cost',
   'hb_meteor_bullet_target',
   'hb_radiant_cannon_side',

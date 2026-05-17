@@ -142,7 +142,7 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
     const prompt = payload.prompt
     if (prompt) {
       if (prompt.player_id) {
-        battleFxStore.touchSkillInitiatorFocus(prompt.player_id)
+        battleFxStore.settleSkillInitiatorFocus(prompt.player_id)
       }
       if (payload.target_user_id === sessionStore.myPlayerId) {
         interruptStore.setPrompt(prompt)
@@ -252,7 +252,7 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
         if (event.prompt) {
           interruptStore.setPrompt(event.prompt)
           if (event.prompt.player_id) {
-            battleFxStore.touchSkillInitiatorFocus(event.prompt.player_id)
+            battleFxStore.settleSkillInitiatorFocus(event.prompt.player_id)
           }
           interruptStore.setWaiting('')
         }

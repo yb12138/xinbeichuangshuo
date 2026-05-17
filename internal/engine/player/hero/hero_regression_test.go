@@ -691,6 +691,62 @@ func TestHeroExhaustion_ReleaseWithOverflow_StillStartsTurnNormally(t *testing.T
 	}
 }
 
+func TestHeroExhaustion_ReleaseAfterFullRoundRestoresHandLimit(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Hero", "hero", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "angel", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Form = model.FormHeroExhaustion
+	p1.Tokens["hero_exhaustion_release_pending"] = 1
+	p1.TurnState.SkillFlowState["hero_exhaustion_release_pending"] = 1
+	p1.Hand = nil
+	game.State.Deck = []model.Card{
+		heroTestCard("d1", "精疲摸牌1", model.CardTypeAttack, model.ElementFire, 2),
+		heroTestCard("d2", "精疲摸牌2", model.CardTypeAttack, model.ElementWater, 2),
+		heroTestCard("d3", "精疲摸牌3", model.CardTypeAttack, model.ElementEarth, 2),
+	}
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionStart
+
+	game.NextTurn()
+	game.NextTurn()
+
+	if got := p1.TurnState.SkillFlowState["hero_exhaustion_release_pending"]; got != 0 {
+		t.Fatalf("expected turn flow state reset before release check, got %d", got)
+	}
+	if got := game.GetMaxHand(p1); got != 4 {
+		t.Fatalf("expected exhaustion hand limit still active before turn-start release, got %d", got)
+	}
+
+	game.Drive()
+
+	if got := p1.Form; got != "" {
+		t.Fatalf("expected exhaustion released after full round, got %q", got)
+	}
+	if got := p1.Tokens["hero_exhaustion_release_pending"]; got != 0 {
+		t.Fatalf("expected persistent exhaustion release flag cleared, got %d", got)
+	}
+	if got := p1.TurnState.SkillFlowState["hero_exhaustion_release_pending"]; got != 0 {
+		t.Fatalf("expected turn exhaustion release flag cleared, got %d", got)
+	}
+	if got := game.GetMaxHand(p1); got != 6 {
+		t.Fatalf("expected hand limit restored to 6 after exhaustion release, got %d", got)
+	}
+	if got := len(p1.Hand); got != 3 {
+		t.Fatalf("expected self-damage draw 3 cards after exhaustion release, got %d", got)
+	}
+	if !game.IsActionSelectionWindow() {
+		t.Fatalf("expected action selection after exhaustion release, got %s", game.RuntimeStateLabel())
+	}
+}
+
 func TestHeroExhaustion_ReleaseAfterPoisonBeforeAction(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "Hero", "hero", model.RedCamp); err != nil {

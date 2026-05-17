@@ -135,7 +135,7 @@ func (h *HeroForbiddenPowerHandler) Execute(ctx *model.Context) error {
 
 	// 精疲力竭：强制进入状态并追加1次攻击行动。
 	engineplayer.SetForm(ctx.User, model.FormHeroExhaustion)
-	engineplayer.SetSkillFlowState(ctx.User, "hero_exhaustion_release_pending", 1)
+	markExhaustionReleasePending(ctx.User)
 	model.AppendAttackAction(ctx.User, "精疲力竭")
 
 	if isHit {

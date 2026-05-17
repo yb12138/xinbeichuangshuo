@@ -1297,7 +1297,6 @@ const NON_HAND_INDEXED_PROMPT_CHOICE_TYPES = new Set([
   'hb_light_burst_mode_a_target',
   'hb_light_burst_mode_b_x',
   'hb_light_burst_mode_b_targets',
-  'hb_light_burst_mode_b_discard',
   'hb_meteor_bullet_cost',
   'hb_meteor_bullet_target',
   'hb_radiant_cannon_side',
@@ -1948,8 +1947,14 @@ function dissolveRoomByHost() {
 // === 双人关联连线 ===
 const LINK_EFFECT_COLORS: Record<string, string> = {
   SoulLink: 'rgba(139, 92, 246, 0.9)',
-  HeroTaunt: 'rgba(239, 68, 68, 0.9)',
+  HeroTaunt: 'rgba(220, 38, 38, 1)',
   BloodSharedLife: 'rgba(244, 63, 94, 0.9)',
+}
+
+const LINK_EFFECT_STROKE: Record<string, { opacity: number; strokeWidth: number }> = {
+  SoulLink: { opacity: 0.22, strokeWidth: 1.5 },
+  HeroTaunt: { opacity: 0.58, strokeWidth: 2 },
+  BloodSharedLife: { opacity: 0.22, strokeWidth: 1.5 },
 }
 
 const LINK_EFFECT_INFO: Record<string, { label: string; description: string }> = {
@@ -1962,6 +1967,8 @@ type LinkLine = {
   id: string
   path: string
   color: string
+  strokeOpacity: number
+  strokeWidth: number
   effect: string
   midX: number
   midY: number
@@ -2014,10 +2021,13 @@ function rebuildLinkLines() {
       const y2 = tgtRect.top + tgtRect.height / 2 - rootRect.top
 
       const info = LINK_EFFECT_INFO[fc.effect]
+      const stroke = LINK_EFFECT_STROKE[fc.effect] ?? { opacity: 0.22, strokeWidth: 1.5 }
       lines.push({
         id: pairKey,
         path: buildLinkPath(x1, y1, x2, y2),
         color: LINK_EFFECT_COLORS[fc.effect]!,
+        strokeOpacity: stroke.opacity,
+        strokeWidth: stroke.strokeWidth,
         effect: fc.effect,
         midX: (x1 + x2) / 2,
         midY: (y1 + y2) / 2,
@@ -2461,9 +2471,9 @@ watch(
         :key="link.id"
         :d="link.path"
         :stroke="link.color"
-        stroke-width="1.5"
+        :stroke-width="link.strokeWidth"
         fill="none"
-        opacity="0.18"
+        :opacity="link.strokeOpacity"
         stroke-dasharray="6 4"
         filter="url(#link-glow)"
         class="link-line"
@@ -2829,7 +2839,7 @@ watch(
   z-index: 0;
 }
 
-.board-shell > * {
+.board-shell > *:not(.link-lines-layer):not(.link-icon-anchor):not(.board-ambient):not(.draw-flight-layer):not(.host-dissolve-btn):not(.right-action-dock) {
   position: relative;
   z-index: 2;
 }
@@ -3149,8 +3159,13 @@ watch(
 
 .main-grid {
   display: grid;
+  flex: 1 1 0;
   grid-template-columns: 144px minmax(0, 1fr) 144px;
+  grid-template-rows: minmax(0, 1fr);
   gap: 12px;
+  align-items: stretch;
+  min-height: 0;
+  min-width: 0;
 }
 
 @media (min-width: 1600px) {
@@ -3260,6 +3275,7 @@ watch(
 }
 
 .center-stage {
+  height: 100%;
   min-height: 0;
   min-width: 0;
   position: relative;
@@ -4005,6 +4021,7 @@ watch(
 
   .main-grid {
     grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr) auto;
     gap: 8px;
   }
 
