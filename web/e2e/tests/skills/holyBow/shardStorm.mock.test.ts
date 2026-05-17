@@ -9,15 +9,17 @@ import {
 } from '../../../scenarios/holyBow';
 
 test.describe('holy bow shard storm protocol harness', () => {
-  test('discard phase: pick same-element combo (single confirm)', async ({ page, protocolHarness }) => {
+  test('discard phase: pick same-element attack cards from hand', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(shardStormScenario());
 
-    // 后端 hb_holy_shard_combo 为单选 confirm，每个 option 是 "Element:i,j" 组合字符串
+    // 后端 hb_holy_shard_combo 直接渲染手牌多选，玩家从手牌区点两张同系攻击牌。
     await protocolHarness.pushServerMessage(shardStormDiscardPrompt());
-    await page.getByTestId('prompt-option-0').click();
+    await page.getByTestId('hand-card-0').click();
+    await page.getByTestId('hand-card-1').click();
+    await page.getByTestId('prompt-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0],
+      option_indexes: [0, 1],
     });
   });
 
@@ -26,15 +28,17 @@ test.describe('holy bow shard storm protocol harness', () => {
 
     // 1) 弃牌组合阶段
     await protocolHarness.pushServerMessage(shardStormDiscardPrompt());
-    await page.getByTestId('prompt-option-0').click();
+    await page.getByTestId('hand-card-0').click();
+    await page.getByTestId('hand-card-1').click();
+    await page.getByTestId('prompt-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0],
+      option_indexes: [0, 1],
     });
 
     // 2) miss confirm：决定是否进入未命中分支
     await protocolHarness.pushServerMessage(shardStormMissConfirmPrompt());
-    await page.getByTestId('prompt-option-0').click();
+    await page.getByTestId('numeric-option-0').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -61,15 +65,17 @@ test.describe('holy bow shard storm protocol harness', () => {
     await protocolHarness.bootGame(shardStormScenario());
 
     await protocolHarness.pushServerMessage(shardStormDiscardPrompt());
-    await page.getByTestId('prompt-option-0').click();
+    await page.getByTestId('hand-card-0').click();
+    await page.getByTestId('hand-card-1').click();
+    await page.getByTestId('prompt-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0],
+      option_indexes: [0, 1],
     });
 
     // 选「否」直接结束未命中流程，不会进入 miss_x
     await protocolHarness.pushServerMessage(shardStormMissConfirmPrompt());
-    await page.getByTestId('prompt-option-1').click();
+    await page.getByTestId('numeric-option-1').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1],

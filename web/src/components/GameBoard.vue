@@ -1288,7 +1288,6 @@ const NON_HAND_INDEXED_PROMPT_CHOICE_TYPES = new Set([
   'mg_pale_moon_target',
   'mg_pale_moon_discard',
   // Holy Bow choice types (matching backend holy_bow/choices.go)
-  'hb_holy_shard_combo',
   'hb_holy_shard_target',
   'hb_holy_shard_miss_confirm',
   'hb_holy_shard_miss_x',
@@ -1533,6 +1532,48 @@ function promptCardSelectionState(idx: number): PromptCardSelectionState {
       }
     }
     return { selectable: true, reason: 'prompt_plague_death_touch_element_match' }
+  }
+
+  if (prompt.choice_type === 'hb_holy_shard_combo') {
+    const handOptionSet = promptHandCardIndexSet()
+    if (handOptionSet.size > 0 && !handOptionSet.has(idx)) {
+      return {
+        selectable: false,
+        reason: 'prompt_holy_shard_not_in_candidates',
+        error: '圣屑飓暴需选择可组成同系组合的攻击牌'
+      }
+    }
+    if (card.type !== 'Attack') {
+      return {
+        selectable: false,
+        reason: 'prompt_holy_shard_not_attack',
+        error: '圣屑飓暴只能弃置攻击牌'
+      }
+    }
+    if (selectedCards.value.includes(idx)) {
+      return { selectable: true, reason: 'prompt_holy_shard_keep_selected' }
+    }
+    if (selectedCards.value.length >= 2) {
+      return {
+        selectable: false,
+        reason: 'prompt_holy_shard_max_reached',
+        error: '圣屑飓暴只能选择2张同系攻击牌'
+      }
+    }
+    const selectedShardCards = selectedCards.value
+      .map((i) => myHand.value[i])
+      .filter((c): c is NonNullable<typeof c> => !!c)
+    if (selectedShardCards.length > 0) {
+      const requiredElement = selectedShardCards[0]?.element
+      if (requiredElement && card.element !== requiredElement) {
+        return {
+          selectable: false,
+          reason: 'prompt_holy_shard_element_mismatch',
+          error: '圣屑飓暴需选择2张同系攻击牌'
+        }
+      }
+    }
+    return { selectable: true, reason: 'prompt_holy_shard_same_element_attack' }
   }
 
   // 暗之障壁：单步选择法术牌或雷系牌，级联约束（选了法术牌就只能继续选法术牌）

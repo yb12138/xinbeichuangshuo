@@ -223,19 +223,20 @@ export function shardStormScenario(): ProtocolHarnessScenario {
   };
 }
 
-// 后端 buildHolyShardComboPrompt 为单选 confirm，option id 是 "Element:i,j" 组合字符串。
+// 后端 buildHolyShardComboPrompt 直接渲染手牌多选，option id 是真实手牌索引。
 export function shardStormDiscardPrompt(): WsMessage {
   return requireActionMessage({
-    type: 'confirm',
+    type: 'choose_cards',
     player_id: HB_PLAYER_ID,
     message: '【圣屑飓暴】请选择要弃置的2张同系攻击牌：',
     choice_type: 'hb_holy_shard_combo',
     skill_id: HB_SHARD_STORM_SKILL_ID,
     options: [
-      { id: 'fire:0,1', label: '火系：1:火焰斩 + 2:火焰斩' },
+      { id: '0', label: '1: 火焰斩（火系攻击）' },
+      { id: '1', label: '2: 火焰斩（火系攻击）' },
     ],
-    min: 1,
-    max: 1,
+    min: 2,
+    max: 2,
   } satisfies Prompt);
 }
 

@@ -300,7 +300,6 @@ const NON_HAND_INDEXED_PROMPT_CHOICE_TYPES = new Set<string>([
   'mg_pale_moon_target',
   'mg_pale_moon_discard',
   // Holy Bow choice types (matching backend holy_bow/choices.go)
-  'hb_holy_shard_combo',
   'hb_holy_shard_target',
   'hb_holy_shard_miss_confirm',
   'hb_holy_shard_miss_x',

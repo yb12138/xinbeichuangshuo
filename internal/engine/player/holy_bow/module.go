@@ -31,6 +31,7 @@ func RoleEntry() player.RoleEntry {
 // ChoiceSpecs 导出角色 choice 声明。
 func ChoiceSpecs() []player.ChoiceSpec {
 	return []player.ChoiceSpec{
+		{ChoiceType: "hb_holy_shard_combo", HandleMultiSelect: handleHolyShardComboMultiSelect},
 		{ChoiceType: "hb_light_burst_mode_b_discard", SequentialRemaining: player.ChoiceRemainingFromSelectionKey("x_value")},
 	}
 }

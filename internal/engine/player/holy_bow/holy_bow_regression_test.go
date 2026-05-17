@@ -335,10 +335,13 @@ func TestHolyBow_HolyShardStormMiss_NoBranch(t *testing.T) {
 		SkillID:  "hb_holy_shard_storm",
 	})
 	testutils.RequireChoicePrompt(t, game, "p1", "hb_holy_shard_combo")
+	if prompt := game.GetCurrentPrompt(); prompt == nil || prompt.Type != model.PromptChooseCards {
+		t.Fatalf("expected shard storm discard to use hand-card picker, got %+v", prompt)
+	}
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID:   "p1",
 		Type:       model.CmdSelect,
-		Selections: []int{0},
+		Selections: []int{0, 1},
 	})
 	testutils.RequireChoicePrompt(t, game, "p1", "hb_holy_shard_target")
 	testutils.MustHandleAction(t, game, model.PlayerAction{
@@ -412,7 +415,7 @@ func TestHolyBow_HolyShardStormMiss_NoEligibleAllySkipsPrompt(t *testing.T) {
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID:   "p1",
 		Type:       model.CmdSelect,
-		Selections: []int{0},
+		Selections: []int{0, 1},
 	})
 	testutils.RequireChoicePrompt(t, game, "p1", "hb_holy_shard_target")
 	testutils.MustHandleAction(t, game, model.PlayerAction{
@@ -483,7 +486,7 @@ func TestHolyBow_HolyShardStormMiss_YesBranch(t *testing.T) {
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID:   "p1",
 		Type:       model.CmdSelect,
-		Selections: []int{0},
+		Selections: []int{0, 1},
 	})
 	testutils.RequireChoicePrompt(t, game, "p1", "hb_holy_shard_target")
 	testutils.MustHandleAction(t, game, model.PlayerAction{
@@ -577,7 +580,7 @@ func TestHolyBow_HolyShardStormMiss_XChoicesRequireAllyEnoughCards(t *testing.T)
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID:   "p1",
 		Type:       model.CmdSelect,
-		Selections: []int{0},
+		Selections: []int{0, 1},
 	})
 	testutils.RequireChoicePrompt(t, game, "p1", "hb_holy_shard_target")
 	testutils.MustHandleAction(t, game, model.PlayerAction{

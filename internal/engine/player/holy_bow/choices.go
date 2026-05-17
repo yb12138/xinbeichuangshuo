@@ -108,29 +108,54 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 // BuildPrompt helpers
 // ===========================================================================
 
-func buildHolyShardComboPrompt(playerID string, player *model.Player, data map[string]interface{}) *model.Prompt {
-	combos := runtimeutil.ParseStringSliceContextValue(data["combos"])
-	options := make([]model.PromptOption, 0, len(combos))
-	for _, combo := range combos {
-		parts := strings.Split(combo, ":")
-		if len(parts) != 2 {
-			continue
-		}
-		idxParts := strings.Split(parts[1], ",")
-		if len(idxParts) != 2 {
-			continue
-		}
-		i, err1 := strconv.Atoi(strings.TrimSpace(idxParts[0]))
-		j, err2 := strconv.Atoi(strings.TrimSpace(idxParts[1]))
-		if err1 != nil || err2 != nil || player == nil || i < 0 || j < 0 || i >= len(player.Hand) || j >= len(player.Hand) || i == j {
-			continue
-		}
+func buildHolyShardComboPrompt(playerID string, player *model.Player, _ map[string]interface{}) *model.Prompt {
+	candidates := holyShardCandidateIndices(player)
+	options := make([]model.PromptOption, 0, len(candidates))
+	for _, idx := range candidates {
+		card := player.Hand[idx]
 		options = append(options, model.PromptOption{
-			ID:    combo,
-			Label: fmt.Sprintf("%s系：%d:%s + %d:%s", promptfmt.ElementName(parts[0]), i+1, player.Hand[i].Name, j+1, player.Hand[j].Name),
+			ID:    fmt.Sprintf("%d", idx),
+			Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(card)),
 		})
 	}
-	return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, ChoiceType: "hb_holy_shard_combo", Message: "【圣屑飓暴】请选择要弃置的2张同系攻击牌：", Options: options, Min: 1, Max: 1}
+	return &model.Prompt{Type: model.PromptChooseCards, PlayerID: playerID, ChoiceType: "hb_holy_shard_combo", Message: "【圣屑飓暴】请选择要弃置的2张同系攻击牌：", Options: options, Min: 2, Max: 2}
+}
+
+func holyShardCandidateIndices(player *model.Player) []int {
+	if player == nil {
+		return nil
+	}
+	countByElement := map[model.Element]int{}
+	for _, card := range player.Hand {
+		if card.Type != model.CardTypeAttack || card.Element == "" {
+			continue
+		}
+		countByElement[card.Element]++
+	}
+	candidates := make([]int, 0)
+	for idx, card := range player.Hand {
+		if card.Type == model.CardTypeAttack && card.Element != "" && countByElement[card.Element] >= 2 {
+			candidates = append(candidates, idx)
+		}
+	}
+	return candidates
+}
+
+func holyShardIndexCanPair(player *model.Player, idx int) bool {
+	if player == nil || idx < 0 || idx >= len(player.Hand) {
+		return false
+	}
+	card := player.Hand[idx]
+	if card.Type != model.CardTypeAttack || card.Element == "" {
+		return false
+	}
+	count := 0
+	for _, handCard := range player.Hand {
+		if handCard.Type == model.CardTypeAttack && handCard.Element == card.Element {
+			count++
+		}
+	}
+	return count >= 2
 }
 
 func buildHolyShardTargetPrompt(rt engineplayer.ChoiceRuntime, playerID string, data map[string]interface{}) *model.Prompt {
@@ -390,7 +415,6 @@ func handleHolyShardCombo(rt engineplayer.ChoiceRuntime, selectionIndex int, ctx
 	if len(parts) != 2 {
 		return fmt.Errorf("同系组合格式错误")
 	}
-	element := strings.TrimSpace(parts[0])
 	idxParts := strings.Split(parts[1], ",")
 	if len(idxParts) != 2 {
 		return fmt.Errorf("同系组合索引格式错误")
@@ -405,10 +429,41 @@ func handleHolyShardCombo(rt engineplayer.ChoiceRuntime, selectionIndex int, ctx
 	if c1.Type != model.CardTypeAttack || c2.Type != model.CardTypeAttack || c1.Element != c2.Element {
 		return fmt.Errorf("圣屑飓暴需要弃置2张同系攻击牌")
 	}
-	removed, _ := engineplayer.RemoveCardsByIndicesFromHand(user, []int{i, j})
+	return finishHolyShardComboSelection(rt, user, []int{i, j}, c1.Element, ctxData)
+}
+
+func handleHolyShardComboMultiSelect(rt engineplayer.ChoiceRuntime, _ string, selections []int, ctxData map[string]interface{}) (bool, error) {
+	userID, _ := ctxData["user_id"].(string)
+	user := rt.GetPlayers()[userID]
+	if user == nil {
+		return false, fmt.Errorf("玩家不存在")
+	}
+	if len(selections) != 2 {
+		return false, fmt.Errorf("圣屑飓暴需要选择2张同系攻击牌")
+	}
+	i, j := selections[0], selections[1]
+	if i < 0 || j < 0 || i >= len(user.Hand) || j >= len(user.Hand) || i == j {
+		return false, fmt.Errorf("无效的弃牌索引")
+	}
+	c1 := user.Hand[i]
+	c2 := user.Hand[j]
+	if c1.Type != model.CardTypeAttack || c2.Type != model.CardTypeAttack || c1.Element == "" || c1.Element != c2.Element {
+		return false, fmt.Errorf("圣屑飓暴需要弃置2张同系攻击牌")
+	}
+	if !holyShardIndexCanPair(user, i) || !holyShardIndexCanPair(user, j) {
+		return false, fmt.Errorf("所选手牌不在圣屑飓暴可弃置范围内")
+	}
+	return true, finishHolyShardComboSelection(rt, user, []int{i, j}, c1.Element, ctxData)
+}
+
+func finishHolyShardComboSelection(rt engineplayer.ChoiceRuntime, user *model.Player, indices []int, element model.Element, ctxData map[string]interface{}) error {
+	removed, err := engineplayer.RemoveCardsByIndicesFromHand(user, indices)
+	if err != nil {
+		return err
+	}
 	rt.NotifyCardRevealed(user.ID, removed, "discard")
 	rt.AppendToDiscard(removed)
-	ctxData["selected_element"] = element
+	ctxData["selected_element"] = string(element)
 	ctxData["choice_type"] = "hb_holy_shard_target"
 	if intr := rt.GetPendingInterrupt(); intr != nil {
 		intr.Context = ctxData
@@ -1074,7 +1129,6 @@ func playerOptions(rt engineplayer.ChoiceRuntime, playerIDs []string) []model.Pr
 	return options
 }
 
-
 // newDiscardChoiceInterrupt creates a normalized discard-choice interrupt.
 func newDiscardChoiceInterrupt(playerID string, data map[string]interface{}) *model.Interrupt {
 	if data == nil {
@@ -1109,4 +1163,3 @@ func holyBowShardMissEligibleAllies(rt engineplayer.ChoiceRuntime, user *model.P
 	}
 	return allyIDs
 }
-
