@@ -61,11 +61,30 @@ func countBloodSharedLifeAsHolder(player *model.Player) int {
 	return stateview.CountBloodSharedLifeAsHolder(player)
 }
 
+func currentTurnPlayerID(state *model.GameState) string {
+	if state == nil {
+		return ""
+	}
+	if len(state.PlayerOrder) > 0 && state.CurrentTurn >= 0 && state.CurrentTurn < len(state.PlayerOrder) {
+		return state.PlayerOrder[state.CurrentTurn]
+	}
+	if state.CurrentPlayer != "" {
+		return state.CurrentPlayer
+	}
+	for _, p := range state.Players {
+		if p != nil && p.IsActive {
+			return p.ID
+		}
+	}
+	return ""
+}
+
 func (r *Room) buildStateForPlayer(playerID string) GameStateUpdate {
 	state := r.Engine.State
+	currentPlayerID := currentTurnPlayerID(state)
 	hasPerformedStartup := false
-	if state != nil && len(state.PlayerOrder) > 0 && state.CurrentTurn >= 0 && state.CurrentTurn < len(state.PlayerOrder) {
-		currentPlayer := state.Players[state.PlayerOrder[state.CurrentTurn]]
+	if state != nil && currentPlayerID != "" {
+		currentPlayer := state.Players[currentPlayerID]
 		if currentPlayer != nil {
 			hasPerformedStartup = currentPlayer.TurnState.HasStartupSkillOrSpecialActionsLocked()
 		}
@@ -140,7 +159,7 @@ func (r *Room) buildStateForPlayer(playerID string) GameStateUpdate {
 		TurnStage:           string(state.TurnStage),
 		CombatStage:         string(state.CombatStage),
 		Subflow:             string(state.Subflow),
-		CurrentPlayer:       state.CurrentPlayer,
+		CurrentPlayer:       currentPlayerID,
 		HasPerformedStartup: hasPerformedStartup,
 		Players:             players,
 		RedMorale:           state.RedMorale,
@@ -161,9 +180,10 @@ func (r *Room) buildStateForPlayer(playerID string) GameStateUpdate {
 // buildBotStateSnapshot 构建 bot 决策所需的状态快照（精简版，不依赖 viewmodel）
 func (r *Room) buildBotStateSnapshot(playerID string) bot.StateSnapshot {
 	state := r.Engine.State
+	currentPlayerID := currentTurnPlayerID(state)
 	hasPerformedStartup := false
-	if state != nil && len(state.PlayerOrder) > 0 && state.CurrentTurn >= 0 && state.CurrentTurn < len(state.PlayerOrder) {
-		currentPlayer := state.Players[state.PlayerOrder[state.CurrentTurn]]
+	if state != nil && currentPlayerID != "" {
+		currentPlayer := state.Players[currentPlayerID]
 		if currentPlayer != nil {
 			hasPerformedStartup = currentPlayer.TurnState.HasStartupSkillOrSpecialActionsLocked()
 		}
@@ -205,7 +225,7 @@ func (r *Room) buildBotStateSnapshot(playerID string) bot.StateSnapshot {
 		TurnStage:           string(state.TurnStage),
 		CombatStage:         string(state.CombatStage),
 		Subflow:             string(state.Subflow),
-		CurrentPlayer:       state.CurrentPlayer,
+		CurrentPlayer:       currentPlayerID,
 		HasPerformedStartup: hasPerformedStartup,
 		Players:             players,
 		RedMorale:           state.RedMorale,

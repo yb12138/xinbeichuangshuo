@@ -262,3 +262,24 @@ func TestBuildSyncStatePayload_UsesStructuredFields(t *testing.T) {
 		t.Fatalf("unexpected legacy_state field in payload json: %s", text)
 	}
 }
+
+func TestBuildSyncStatePayload_DerivesTurnPlayerFromCurrentTurn(t *testing.T) {
+	room := NewRoom("SYNC_TURN")
+	room.Engine = engine.NewGameEngine(room)
+	room.Started = true
+
+	if err := room.Engine.AddPlayer("p1", "Alice", "berserker", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := room.Engine.AddPlayer("p2", "Bob", "angel", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	room.Engine.State.CurrentTurn = 1
+	room.Engine.State.CurrentPlayer = "p1" // Stale legacy field; CurrentTurn/PlayerOrder is authoritative.
+
+	payload := room.buildSyncStatePayload("p1")
+	if payload.TurnPlayerID != "p2" {
+		t.Fatalf("expected turn player from CurrentTurn p2, got %q", payload.TurnPlayerID)
+	}
+}
