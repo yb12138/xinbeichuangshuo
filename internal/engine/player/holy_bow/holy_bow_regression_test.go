@@ -138,6 +138,37 @@ func TestHolyBow_HeavenlyBowHolyHitGainFaith(t *testing.T) {
 	}
 }
 
+func TestHolyBow_HeavenlyBowHolyHitDoesNotGrantFaithToOtherAttacker(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Fighter", "fighter", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "HolyBow", "holy_bow", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	fighter := game.State.Players["p1"]
+	holyBow := game.State.Players["p2"]
+	holy := holyBowTestCard("atk1", "圣斩", model.CardTypeAttack, model.ElementLight, 2)
+	holy.Faction = "圣"
+
+	game.HandlePostAttackHitEffects(&model.PendingDamage{
+		SourceID:   fighter.ID,
+		TargetID:   holyBow.ID,
+		Damage:     2,
+		DamageType: model.AttackDamage,
+		IsCounter:  false,
+		Card:       &holy,
+	})
+
+	if got := fighter.Tokens["hb_faith"]; got != 0 {
+		t.Fatalf("expected fighter not to gain hb_faith when attacking holy bow, got %d", got)
+	}
+	if got := holyBow.Tokens["hb_faith"]; got != 0 {
+		t.Fatalf("expected holy bow defender not to gain faith from enemy attack, got %d", got)
+	}
+}
+
 func TestHolyBow_RadiantDescentAndSpecialExitForm(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "HolyBow", "holy_bow", model.RedCamp); err != nil {
