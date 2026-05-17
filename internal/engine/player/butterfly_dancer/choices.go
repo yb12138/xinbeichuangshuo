@@ -97,13 +97,13 @@ func buildDanceModePrompt(playerID string, data map[string]interface{}) *model.P
 		options = append(options, model.PromptOption{ID: "1", Label: "弃1张牌"})
 	}
 	return &model.Prompt{
-		Type:       model.PromptConfirm,
-		PlayerID:   playerID,
-		ChoiceType: "bt_dance_mode",
-		Message:    "【舞动】请选择先执行的动作：",
-		Options:    options,
-		Min:        1,
-		Max:        1,
+		Type:         model.PromptConfirm,
+		PlayerID:     playerID,
+		ChoiceType:   "bt_dance_mode",
+		Message:      "【舞动】请选择先执行的动作：",
+		Options:      options,
+		Min:          1,
+		Max:          1,
 		Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 	}
 }
@@ -168,13 +168,13 @@ func buildReverseModePrompt(playerID string, data map[string]interface{}) *model
 		options = append(options, model.PromptOption{ID: "1", Label: "分支②：移除2个茧或自伤4，然后移除1个蛹"})
 	}
 	return &model.Prompt{
-		Type:       model.PromptConfirm,
-		PlayerID:   playerID,
-		ChoiceType: "bt_reverse_mode",
-		Message:    "【倒逆之蝶】请选择发动分支：",
-		Options:    options,
-		Min:        1,
-		Max:        1,
+		Type:         model.PromptConfirm,
+		PlayerID:     playerID,
+		ChoiceType:   "bt_reverse_mode",
+		Message:      "【倒逆之蝶】请选择发动分支：",
+		Options:      options,
+		Min:          1,
+		Max:          1,
 		Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 	}
 }
@@ -258,9 +258,14 @@ func buildPilgrimageOrPoisonPickPrompt(playerID string, player *model.Player, da
 		if fc.Mode != model.FieldCover || fc.Effect != model.EffectButterflyCocoon {
 			continue
 		}
+		fieldIndex := idx
+		cardLabel := promptfmt.FormatCardInfo(fc.Card)
 		options = append(options, model.PromptOption{
-			ID:    fmt.Sprintf("%d", len(options)),
-			Label: fmt.Sprintf("移除茧[%d]: %s", idx, promptfmt.FormatCardInfo(fc.Card)),
+			ID:          fmt.Sprintf("%d", len(options)),
+			Label:       fmt.Sprintf("移除茧[%d]: %s", idx, cardLabel),
+			ButtonLabel: fmt.Sprintf("移除茧[%d]", idx),
+			Hint:        cardLabel,
+			FieldIndex:  &fieldIndex,
 		})
 	}
 	msg := "【朝圣】是否移除1个茧抵御1点伤害？"
@@ -268,13 +273,14 @@ func buildPilgrimageOrPoisonPickPrompt(playerID string, player *model.Player, da
 		msg = "【毒粉】是否移除1个茧使该次法术伤害+1？"
 	}
 	return &model.Prompt{
-		Type:       model.PromptConfirm,
-		PlayerID:   playerID,
-		ChoiceType: choiceType,
-		Message:    msg,
-		Options:    options,
-		Min:        1,
-		Max:        1,
+		Type:         model.PromptConfirm,
+		PlayerID:     playerID,
+		ChoiceType:   choiceType,
+		Message:      msg,
+		Options:      options,
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 	}
 }
 

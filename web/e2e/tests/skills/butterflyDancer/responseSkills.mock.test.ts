@@ -1,4 +1,4 @@
-import { test } from '../../../fixtures/protocolHarness.fixture';
+import { test, expect } from '../../../fixtures/protocolHarness.fixture';
 import {
   reverseScenario,
   pilgrimagePickPrompt,
@@ -13,14 +13,11 @@ test.describe('butterfly dancer pilgrimage protocol harness', () => {
     // Server pushes pilgrimage pick prompt (triggered by damage before apply hook)
     await protocolHarness.pushServerMessage(pilgrimagePickPrompt());
 
-    // Click "不发动" button (option index 0)
     const overlay = page.getByTestId('decision-overlay');
-    const overlayVisible = await overlay.isVisible({ timeout: 1000 }).catch(() => false);
-    if (overlayVisible) {
-      await overlay.getByTestId('branch-option-0').click();
-    } else {
-      await page.getByTestId('prompt-dialog').getByTestId('branch-option-0').click();
-    }
+    await expect(overlay).toBeVisible();
+    await expect(overlay.getByText('不发动')).toBeVisible();
+    await expect(overlay.getByText('移除茧[0]')).toBeVisible();
+    await overlay.getByTestId('branch-option-0').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -33,11 +30,10 @@ test.describe('butterfly dancer pilgrimage protocol harness', () => {
     // Server pushes pilgrimage pick prompt
     await protocolHarness.pushServerMessage(pilgrimagePickPrompt());
 
-    // Click the cocoon cover card in expansion zone (fieldIndex 0)
-    // Confirm mode: clicking cover card submits optionIndex (1 = cocoon option)
-    const coverCard = page.getByTestId('hand-card-0');
-    await coverCard.scrollIntoViewIfNeeded();
-    await coverCard.click();
+    const overlay = page.getByTestId('decision-overlay');
+    await expect(overlay).toBeVisible();
+    await expect(overlay.getByText('移除茧[0]')).toBeVisible();
+    await overlay.getByTestId('branch-option-1').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1],
@@ -52,14 +48,11 @@ test.describe('butterfly dancer poison protocol harness', () => {
     // Server pushes poison pick prompt (triggered by magic damage)
     await protocolHarness.pushServerMessage(poisonPickPrompt());
 
-    // Click "不发动" button
     const overlay = page.getByTestId('decision-overlay');
-    const overlayVisible = await overlay.isVisible({ timeout: 1000 }).catch(() => false);
-    if (overlayVisible) {
-      await overlay.getByTestId('branch-option-0').click();
-    } else {
-      await page.getByTestId('prompt-dialog').getByTestId('branch-option-0').click();
-    }
+    await expect(overlay).toBeVisible();
+    await expect(overlay.getByText('不发动')).toBeVisible();
+    await expect(overlay.getByText('移除茧[0]')).toBeVisible();
+    await overlay.getByTestId('branch-option-0').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -72,10 +65,10 @@ test.describe('butterfly dancer poison protocol harness', () => {
     // Server pushes poison pick prompt
     await protocolHarness.pushServerMessage(poisonPickPrompt());
 
-    // Click the cocoon cover card (fieldIndex 0 → optionIndex 1)
-    const coverCard = page.getByTestId('hand-card-0');
-    await coverCard.scrollIntoViewIfNeeded();
-    await coverCard.click();
+    const overlay = page.getByTestId('decision-overlay');
+    await expect(overlay).toBeVisible();
+    await expect(overlay.getByText('移除茧[0]')).toBeVisible();
+    await overlay.getByTestId('branch-option-1').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1],

@@ -792,8 +792,17 @@ function parseCocoonFieldIndexFromOptionLabel(label: string): number | null {
   return parsed
 }
 
-function isIndexedCocoonOption(option: { label?: string }): boolean {
-  return parseCocoonFieldIndexFromOptionLabel(String(option.label || '')) !== null
+function parseCocoonFieldIndexFromOption(option: { label?: string; field_index?: number | string | null }): number | null {
+  const rawFieldIndex = option.field_index
+  if (rawFieldIndex !== undefined && rawFieldIndex !== null && rawFieldIndex !== '') {
+    const parsed = Number.parseInt(String(rawFieldIndex), 10)
+    if (Number.isFinite(parsed) && parsed >= 0) return parsed
+  }
+  return parseCocoonFieldIndexFromOptionLabel(String(option.label || ''))
+}
+
+function isIndexedCocoonOption(option: { label?: string; field_index?: number | string | null }): boolean {
+  return parseCocoonFieldIndexFromOption(option) !== null
 }
 
 function isPromptHandCardOption(option: { id: string; label: string }): boolean {
@@ -873,6 +882,7 @@ type RawDockOption = {
   label: string
   button_label?: string
   hint?: string
+  field_index?: number
   disabled?: boolean
 }
 
@@ -1100,9 +1110,14 @@ function normalizeDockOption(option: RawDockOption, useNumeric: boolean, plusOne
   const label = String(option.label || '').trim()
   const lowerID = id.toLowerCase()
   const responseKind = responseOptionKind(option)
-  let buttonLabel = normalizeButtonLabel(String(option.button_label || ''), id, label, responseKind)
+  const explicitButtonLabel = String(option.button_label || '').trim()
+  let buttonLabel = normalizeButtonLabel(explicitButtonLabel, id, label, responseKind)
   let hint = String(option.hint || '').trim()
+  const presentation = prompt.value?.presentation
 
+  if (presentation?.kind === 'branch_select' && !explicitButtonLabel && label) {
+    buttonLabel = label
+  }
   if (!buttonLabel && PROMPT_OPTION_BUTTON_LABELS[lowerID]) {
     buttonLabel = PROMPT_OPTION_BUTTON_LABELS[lowerID]
   }
@@ -1137,7 +1152,6 @@ function normalizeDockOption(option: RawDockOption, useNumeric: boolean, plusOne
     buttonLabel = '确认'
   }
   // 分支选择：按钮直接显示完整文案（如判决天平的两个分支）
-  const presentation = prompt.value?.presentation
   if (!buttonLabel && presentation?.kind === 'branch_select') {
     buttonLabel = label
   }
@@ -1351,15 +1365,17 @@ const inlinePrimaryButtons = computed<DockButtonOption[]>(() => {
     return buildDockButtons(options)
   }
   if (showConfirmButtonSection.value) {
+    const shouldExposeIndexedCocoonOptions = prompt.value?.presentation?.kind === 'branch_select'
     const options = nonPlayerOptions.value
       .filter((option) => option.id !== 'cancel' && option.id !== 'skip')
-      .filter((option) => !isIndexedCocoonOption(option))
+      .filter((option) => shouldExposeIndexedCocoonOptions || !isIndexedCocoonOption(option))
       .map((option) => ({
-      id: option.id,
-      label: option.label,
-      button_label: option.button_label,
-      hint: option.hint,
-      disabled: false
+        id: option.id,
+        label: option.label,
+        button_label: option.button_label,
+        hint: option.hint,
+        field_index: option.field_index,
+        disabled: false
       }))
     return buildDockButtons(options)
   }

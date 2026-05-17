@@ -344,6 +344,15 @@ function parseCocoonFieldIndexFromLabel(label: string): number | null {
   return parsed
 }
 
+function parseCocoonFieldIndexFromOption(option: any): number | null {
+  const rawFieldIndex = option?.field_index
+  if (rawFieldIndex !== undefined && rawFieldIndex !== null && rawFieldIndex !== '') {
+    const parsed = Number.parseInt(String(rawFieldIndex), 10)
+    if (Number.isFinite(parsed) && parsed >= 0) return parsed
+  }
+  return parseCocoonFieldIndexFromLabel(String(option?.label || ''))
+}
+
 const cocoonPromptContext = computed(() => {
   const p = promptGuideContext.value
   if (!p || !Array.isArray(p.options) || p.options.length === 0) {
@@ -360,7 +369,7 @@ const cocoonPromptContext = computed(() => {
   const options: CocoonPromptOption[] = []
   for (let idx = 0; idx < p.options.length; idx++) {
     const option = p.options[idx]
-    const fieldIndex = parseCocoonFieldIndexFromLabel(String(option?.label || ''))
+    const fieldIndex = parseCocoonFieldIndexFromOption(option)
     if (fieldIndex === null) continue
     options.push({
       optionIndex: idx,

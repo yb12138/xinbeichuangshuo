@@ -313,10 +313,10 @@ export function soulConvertColorPrompt(options: {
   const optionsList: { id: string; label: string }[] = [];
 
   if (canY2B) {
-    optionsList.push({ id: '0', label: '黄魂 -> 蓝魂（转换1点）' });
+    optionsList.push({ id: 'yellow_to_blue', label: '黄色灵魂转蓝色灵魂' });
   }
   if (canB2Y) {
-    optionsList.push({ id: '1', label: '蓝魂 -> 黄魂（转换1点）' });
+    optionsList.push({ id: 'blue_to_yellow', label: '蓝色灵魂转黄色灵魂' });
   }
 
   return requireActionMessage({
@@ -328,6 +328,7 @@ export function soulConvertColorPrompt(options: {
     options: optionsList,
     min: 1,
     max: 1,
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
   } satisfies Prompt);
 }
 

@@ -230,6 +230,41 @@ func TestSoulSorcererSoulConvert_OnAttackStartChoice_DoesNotStallInResponsePhase
 	}
 }
 
+func TestSoulSorcererSoulConvert_PromptUsesNamedDirectionOptions(t *testing.T) {
+	game, p1, _ := setupSoulSorcererActionTurn(t)
+	p1.Tokens["ss_blue_soul"] = 1
+	p1.Tokens["ss_yellow_soul"] = 1
+	p1.Hand = []model.Card{
+		soulSorcererTestCard("atk1", "暗袭", model.CardTypeAttack, model.ElementDark),
+	}
+
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID:  "p1",
+		Type:      model.CmdAttack,
+		TargetID:  "p2",
+		CardIndex: 0,
+	})
+	testutils.ChooseResponseSkillByID(t, game, "p1", "ss_soul_convert")
+	testutils.RequireChoicePrompt(t, game, "p1", "ss_convert_color")
+
+	prompt := game.GetCurrentPrompt()
+	if prompt == nil {
+		t.Fatal("expected current prompt")
+	}
+	if prompt.Presentation == nil || prompt.Presentation.Kind != model.PresentationBranchSelect {
+		t.Fatalf("expected branch_select presentation, got %+v", prompt.Presentation)
+	}
+	if len(prompt.Options) != 2 {
+		t.Fatalf("expected 2 convert options, got %+v", prompt.Options)
+	}
+	if prompt.Options[0].ID != "yellow_to_blue" || prompt.Options[0].Label != "黄色灵魂转蓝色灵魂" || prompt.Options[0].ButtonLabel != "黄色灵魂转蓝色灵魂" {
+		t.Fatalf("unexpected first convert option: %+v", prompt.Options[0])
+	}
+	if prompt.Options[1].ID != "blue_to_yellow" || prompt.Options[1].Label != "蓝色灵魂转黄色灵魂" || prompt.Options[1].ButtonLabel != "蓝色灵魂转黄色灵魂" {
+		t.Fatalf("unexpected second convert option: %+v", prompt.Options[1])
+	}
+}
+
 func TestSoulSorcererSoulConvert_ChoiceFallback_NoUserCtxShouldNotStayResponse(t *testing.T) {
 	game, p1, _ := setupSoulSorcererActionTurn(t)
 	p1.Tokens["ss_blue_soul"] = 1

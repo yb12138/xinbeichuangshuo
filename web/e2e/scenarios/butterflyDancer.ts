@@ -12,6 +12,7 @@ import {
   playerView,
   requireActionMessage,
   syncState,
+  syncStateMessage,
   type ProtocolHarnessScenario,
 } from './builders';
 
@@ -410,9 +411,16 @@ export function pilgrimagePickPrompt(): WsMessage {
     choice_type: 'bt_pilgrimage_pick',
     options: [
       { id: '-1', label: '不发动' },
-      { id: '1', label: '移除茧[0]: 茧牌A（火系 攻击）' },
+      {
+        id: '1',
+        label: '移除茧[0]: 茧牌A（火系 攻击）',
+        button_label: '移除茧[0]',
+        hint: '茧牌A（火系 攻击）',
+        field_index: 0,
+      },
     ],
     min: 1, max: 1,
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -424,9 +432,16 @@ export function poisonPickPrompt(): WsMessage {
     choice_type: 'bt_poison_pick',
     options: [
       { id: '-1', label: '不发动' },
-      { id: '1', label: '移除茧[0]: 茧牌A（火系 攻击）' },
+      {
+        id: '1',
+        label: '移除茧[0]: 茧牌A（火系 攻击）',
+        button_label: '移除茧[0]',
+        hint: '茧牌A（火系 攻击）',
+        field_index: 0,
+      },
     ],
     min: 1, max: 1,
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
   } satisfies Prompt);
 }
 

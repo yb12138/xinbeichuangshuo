@@ -25,6 +25,32 @@ func butterflyTestCard(id string, typ model.CardType, ele model.Element) model.C
 	}
 }
 
+func assertButterflyCocoonBranchPrompt(t *testing.T, prompt *model.Prompt, choiceType string) {
+	t.Helper()
+	if prompt == nil {
+		t.Fatal("expected current prompt")
+	}
+	if prompt.ChoiceType != choiceType {
+		t.Fatalf("expected choice_type=%s, got %s", choiceType, prompt.ChoiceType)
+	}
+	if prompt.Presentation == nil || prompt.Presentation.Kind != model.PresentationBranchSelect {
+		t.Fatalf("expected branch_select presentation, got %+v", prompt.Presentation)
+	}
+	if len(prompt.Options) < 2 {
+		t.Fatalf("expected skip and cocoon options, got %+v", prompt.Options)
+	}
+	if prompt.Options[0].Label != "不发动" {
+		t.Fatalf("expected first option to be 不发动, got %+v", prompt.Options[0])
+	}
+	cocoonOption := prompt.Options[1]
+	if cocoonOption.ButtonLabel != "移除茧[0]" {
+		t.Fatalf("expected cocoon button label 移除茧[0], got %+v", cocoonOption)
+	}
+	if cocoonOption.FieldIndex == nil || *cocoonOption.FieldIndex != 0 {
+		t.Fatalf("expected cocoon field_index=0, got %+v", cocoonOption)
+	}
+}
+
 func TestButterflyLifeFire_MaxHandFloor(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "Butterfly", "butterfly_dancer", model.RedCamp); err != nil {
@@ -243,6 +269,7 @@ func TestButterflyPilgrimage_ResistOneDamage(t *testing.T) {
 
 	game.Drive()
 	testutils.RequireChoicePrompt(t, game, "p1", "bt_pilgrimage_pick")
+	assertButterflyCocoonBranchPrompt(t, game.GetCurrentPrompt(), "bt_pilgrimage_pick")
 
 	// 选择移除第一个茧（选项0为不发动，因此这里选1）。
 	testutils.MustHandleAction(t, game, model.PlayerAction{
@@ -272,6 +299,34 @@ func TestButterflyPilgrimage_ResistOneDamage(t *testing.T) {
 	if got := len(game.State.PendingDamageQueue); got != 0 {
 		t.Fatalf("pending damage queue not drained, len=%d", got)
 	}
+}
+
+func TestButterflyPoison_PromptUsesBranchCocoonOptions(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Butterfly", "butterfly_dancer", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	butterflydancer.AddCocoonCards(p1, []model.Card{
+		butterflyTestCard("c1", model.CardTypeAttack, model.ElementWater),
+	})
+
+	game.AddPendingDamage(model.PendingDamage{
+		SourceID:   p2.ID,
+		TargetID:   p2.ID,
+		Damage:     1,
+		DamageType: model.MagicAttack,
+	})
+	game.State.CombatStage = model.CombatStageCalcDamage
+	game.State.ReturnTurnStage = model.TurnStageExtraAction
+
+	game.Drive()
+	testutils.RequireChoicePrompt(t, game, "p1", "bt_poison_pick")
+	assertButterflyCocoonBranchPrompt(t, game.GetCurrentPrompt(), "bt_poison_pick")
 }
 
 func TestButterflyMirror_ReplaceTwoDamageToTwoHits(t *testing.T) {

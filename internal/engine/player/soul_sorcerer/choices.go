@@ -34,19 +34,20 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		for _, mode := range modeOrder {
 			switch mode {
 			case "y2b":
-				options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", len(options)), Label: "黄魂 -> 蓝魂（转换1点）"})
+				options = append(options, model.PromptOption{ID: "yellow_to_blue", Label: "黄色灵魂转蓝色灵魂"})
 			case "b2y":
-				options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", len(options)), Label: "蓝魂 -> 黄魂（转换1点）"})
+				options = append(options, model.PromptOption{ID: "blue_to_yellow", Label: "蓝色灵魂转黄色灵魂"})
 			}
 		}
 		return &model.Prompt{
-			Type:       model.PromptConfirm,
-			PlayerID:   playerID,
-			ChoiceType: choiceType,
-			Message:    "【灵魂转换】请选择转换方向：",
-			Options:    options,
-			Min:        1,
-			Max:        1,
+			Type:         model.PromptConfirm,
+			PlayerID:     playerID,
+			ChoiceType:   choiceType,
+			Message:      "【灵魂转换】请选择转换方向：",
+			Options:      options,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 		}
 	case "ss_link_target":
 		var allyIDs []string
@@ -417,4 +418,3 @@ func finalizeSoulRecallPick(rt engineplayer.ChoiceRuntime, ctxData map[string]in
 	}
 	return nil
 }
-
