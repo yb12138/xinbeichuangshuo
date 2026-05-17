@@ -277,12 +277,7 @@ func TestBeastSamurai_BeastSoulAlert_RunsOnOtherPlayerTapped(t *testing.T) {
 	if err := game.ConfirmResponseSkill("p1", "bs_beast_soul_alert"); err != nil {
 		t.Fatalf("confirm beast soul alert failed: %v", err)
 	}
-	// 兽魂警戒：先弹出目标选择，由发动者从所有有手牌的角色中挑 1 名。
-	// 当前仅 p2 有手牌，对应 target_ids 唯一索引 0。
-	testutils.RequireChoicePrompt(t, game, "p1", "bs_alert_target")
-	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
-		t.Fatalf("select alert target failed: %v", err)
-	}
+	// 兽魂警戒：由触发横置的角色（p2）直接弃牌，兽灵武士不再另选目标。
 	requireBeastSamuraiDiscardInterrupt(t, game, "p2", "bs_alert_source_discard")
 
 	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{0}}); err != nil {
@@ -304,6 +299,35 @@ func TestBeastSamurai_BeastSoulAlert_RunsOnOtherPlayerTapped(t *testing.T) {
 	if reveal := testutils.FindPublicDiscardReveal(obs, "p2"); reveal == nil {
 		t.Fatalf("expected alert source discard to be public reveal")
 	}
+}
+
+func TestBeastSamurai_BeastSoulAlert_DiscardOnlyTappedOperator(t *testing.T) {
+	obs := &testutils.CaptureObserver{}
+	game, p1, p2 := newBeastSamuraiTestEngine(t, obs, "")
+	p1.Tokens["bs_beast_soul"] = 1
+	p1.Hand = []model.Card{
+		{ID: "bs-hand", Name: "兽灵手牌", Type: model.CardTypeAttack, Element: model.ElementFire},
+	}
+	p2.Hand = []model.Card{
+		{ID: "magic-1", Name: "火球", Type: model.CardTypeMagic, Element: model.ElementFire, Faction: "法"},
+	}
+
+	before := game.SnapshotPlayerPoses()
+	p2.Orientation = model.OrientationTapped
+	game.DispatchOrientationChanges(before)
+
+	testutils.RequireResponseSkillPrompt(t, game, "p1")
+	if err := game.ConfirmResponseSkill("p1", "bs_beast_soul_alert"); err != nil {
+		t.Fatalf("confirm beast soul alert failed: %v", err)
+	}
+	if game.State.PendingInterrupt != nil {
+		if ctx, ok := game.State.PendingInterrupt.Context.(map[string]interface{}); ok {
+			if ctx["choice_type"] == "bs_alert_target" {
+				t.Fatalf("expected no beast samurai target pick step, got bs_alert_target")
+			}
+		}
+	}
+	requireBeastSamuraiDiscardInterrupt(t, game, "p2", "bs_alert_source_discard")
 }
 
 func TestBeastSamurai_BeastReturn_XFlowAndMagicDiscardGainSoul(t *testing.T) {

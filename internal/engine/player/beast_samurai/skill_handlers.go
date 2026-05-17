@@ -154,25 +154,32 @@ func (h *BeastSamuraiBeastSoulAlertHandler) Execute(ctx *model.Context) error {
 	ctx.User.Form = "beast_samurai_iaijutsu_form"
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [兽魂警戒]：移除1点兽魂（剩余%d），残心+1（当前%d），进入御魂流居合形态", ctx.User.Name, leftSoul, nowZanshin))
 
-	// 玩家选择一名仍有手牌的角色让其弃 1 张牌。若全场都没手牌则直接收束。
-	var targetIDs []string
-	for _, p := range ctx.Game.GetAllPlayers() {
-		if p == nil || len(p.Hand) == 0 {
-			continue
-		}
-		targetIDs = append(targetIDs, p.ID)
+	// 令触发横置的角色（EventCtx.OperatorID）展示并弃 1 张手牌，不由兽灵武士另选目标。
+	operatorID := ctx.EventCtx.OperatorID
+	if operatorID == "" || operatorID == ctx.User.ID {
+		return nil
 	}
-	if len(targetIDs) == 0 {
+	var operator *model.Player
+	for _, p := range ctx.Game.GetAllPlayers() {
+		if p != nil && p.ID == operatorID {
+			operator = p
+			break
+		}
+	}
+	if operator == nil || len(operator.Hand) == 0 {
 		return nil
 	}
 	ctx.Game.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
-		PlayerID: ctx.User.ID,
+		PlayerID: operatorID,
 		Context: map[string]interface{}{
-			"choice_type":  "bs_alert_target",
-			"user_id":      ctx.User.ID,
-			"target_ids":   targetIDs,
-			"resume_phase": beastSamuraiResumePhase(ctx),
+			"choice_type":     "bs_alert_source_discard",
+			"user_id":         ctx.User.ID,
+			"actor_id":        operatorID,
+			"discard_count":   1,
+			"discard_subflow": true,
+			"prompt":          "【兽魂警戒】请选择并展示弃置1张手牌：",
+			"resume_phase":    beastSamuraiResumePhase(ctx),
 		},
 	})
 	return nil
