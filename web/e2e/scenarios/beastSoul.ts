@@ -300,7 +300,7 @@ export function beastSoulAlertDiscardPrompt(): WsMessage {
 }
 
 // ============================================================
-// 兽返 (bs_beast_return) - 响应 → 选 X 移除兽魂
+// 兽返 (bs_beast_return) - 响应 → 选 X 移除兽魂 → 自己弃 X 张 → 来源弃 1 张
 // ============================================================
 
 export function beastReturnScenario(options: { beast_souls?: number } = {}): ProtocolHarnessScenario {
@@ -365,6 +365,39 @@ export function beastReturnXPrompt(xMax: number): WsMessage {
     choice_type: 'bs_beast_return_x',
     options,
     presentation: { kind: 'numeric', numeric_base: 0 },
+    min: 1,
+    max: 1,
+  } satisfies Prompt);
+}
+
+// 兽返步骤3：自己弃 X 张牌（后端 buildDiscardPrompt）
+export function beastReturnSelfDiscardPrompt(discardCount: number): WsMessage {
+  const hand = beastSoulHand();
+  const options = hand.map((c, i) => ({
+    id: `${i}`,
+    label: `${i + 1}: ${c.name} (${c.element} ${c.type})`,
+  }));
+  return requireActionMessage({
+    type: 'choose_cards',
+    player_id: BSW_PLAYER_ID,
+    message: `【兽返】请选择弃置${discardCount}张手牌：`,
+    choice_type: 'bs_beast_return_self_discard',
+    options,
+    min: discardCount,
+    max: discardCount,
+  } satisfies Prompt);
+}
+
+// 兽返步骤4：伤害来源弃 1 张牌（后端 buildDiscardPrompt）
+export function beastReturnSourceDiscardPrompt(): WsMessage {
+  return requireActionMessage({
+    type: 'choose_cards',
+    player_id: ENEMY_PLAYER_ID,
+    message: '【兽返】请选择弃置1张手牌：',
+    choice_type: 'bs_beast_return_source_discard',
+    options: [
+      { id: '0', label: '1: 神秘手牌' },
+    ],
     min: 1,
     max: 1,
   } satisfies Prompt);

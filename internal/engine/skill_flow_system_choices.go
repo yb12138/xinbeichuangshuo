@@ -178,15 +178,12 @@ func (e *GameEngine) handleSystemHealChoice(selectionIndex int, ctxData map[stri
 		return fmt.Errorf("伤害上下文缺少 target_id")
 	}
 
-	var pd *model.PendingDamage
-	for i := range e.State.PendingDamageQueue {
-		if e.State.PendingDamageQueue[i].TargetID == targetID {
-			pd = &e.State.PendingDamageQueue[i]
-			break
-		}
-	}
-	if pd == nil {
+	if len(e.State.PendingDamageQueue) == 0 {
 		return fmt.Errorf("伤害上下文不存在 (target_id=%s)", targetID)
+	}
+	pd := &e.State.PendingDamageQueue[0]
+	if pd.TargetID != targetID {
+		return fmt.Errorf("伤害上下文目标不匹配 (target_id=%s, queue_target_id=%s)", targetID, pd.TargetID)
 	}
 
 	target := e.State.Players[pd.TargetID]

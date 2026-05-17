@@ -284,9 +284,10 @@ export function earthSpearAfterHitPrompt(maxX: number): WsMessage {
     type: 'confirm',
     player_id: HOLY_LANCER_PLAYER_ID,
     message: '【地枪】命中后，请选择移除X点［治疗］：',
-    choice_type: 'holy_lancer_earth_spear',
+    choice_type: 'holy_lancer_earth_spear_x',
     options,
     min: 1, max: 1,
+    presentation: { kind: 'numeric', numeric_base: 0 },
   } satisfies Prompt);
 }
 

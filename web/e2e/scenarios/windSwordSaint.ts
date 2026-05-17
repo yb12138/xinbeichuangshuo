@@ -170,15 +170,16 @@ export function windFuryScenario(): ProtocolHarnessScenario {
 
 export function windFuryPrompt(): WsMessage {
   return requireActionMessage({
-    type: 'confirm',
+    type: 'choose_skill',
     player_id: WSS_PLAYER_ID,
     message: '【风怒追击］攻击行动结束，是否额外+1风系［攻击行动］？',
-    choice_type: 'wss_wind_fury',
+    choice_type: 'response_skill_choice',
     options: [
-      { id: 'confirm', label: '发动' },
+      { id: 'wind_fury', label: '发动风怒追击' },
       { id: 'skip', label: '跳过' },
     ],
     min: 1, max: 1,
+    presentation: { kind: 'skill_choice', layout: 'overlay' },
   } satisfies Prompt);
 }
 
@@ -199,13 +200,15 @@ export function holySwordThirdAttackPrompt(): WsMessage {
     type: 'confirm',
     player_id: WSS_PLAYER_ID,
     message: '【圣剑】第三次主动攻击，本次攻击强制命中。攻击结束后请选择摸弃牌数量（X<4）：',
-    choice_type: 'wss_holy_sword_x',
+    choice_type: 'holy_sword_draw',
     options: [
+      { id: '0', label: 'X=0（不摸不弃）' },
       { id: '1', label: 'X=1（摸1弃1）' },
       { id: '2', label: 'X=2（摸2弃2）' },
       { id: '3', label: 'X=3（摸3弃3）' },
     ],
     min: 1, max: 1,
+    presentation: { kind: 'numeric', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -242,15 +245,16 @@ export function swordShadowScenario(options: {
 
 export function swordShadowPrompt(): WsMessage {
   return requireActionMessage({
-    type: 'confirm',
+    type: 'choose_skill',
     player_id: WSS_PLAYER_ID,
     message: '【剑影］攻击行动结束，是否消耗1个水晶额外+1［攻击行动］？',
-    choice_type: 'wss_sword_shadow',
+    choice_type: 'response_skill_choice',
     options: [
-      { id: 'confirm', label: '发动' },
+      { id: 'sword_shadow', label: '发动剑影（消耗水晶）' },
       { id: 'skip', label: '跳过' },
     ],
     min: 1, max: 1,
+    presentation: { kind: 'skill_choice', layout: 'overlay' },
   } satisfies Prompt);
 }
 
@@ -269,16 +273,17 @@ export function wssComboScenario(options: {
 
 export function wssComboPrompt(): WsMessage {
   return requireActionMessage({
-    type: 'confirm',
+    type: 'choose_skill',
     player_id: WSS_PLAYER_ID,
     message: '【风怒追击】与【剑影】均可发动，请选择：',
-    choice_type: 'wss_combo',
+    choice_type: 'response_skill_choice',
     options: [
       { id: 'wind_fury', label: '发动风怒追击（风系攻击）' },
       { id: 'sword_shadow', label: '发动剑影（消耗水晶）' },
       { id: 'skip', label: '跳过' },
     ],
     min: 1, max: 1,
+    presentation: { kind: 'skill_choice', layout: 'overlay' },
   } satisfies Prompt);
 }
 

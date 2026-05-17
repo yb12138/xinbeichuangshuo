@@ -271,6 +271,20 @@ export function shadowMeteorTargetPrompt(): WsMessage {
   } satisfies Prompt);
 }
 
+export function shadowMeteorReleaseConfirmPrompt(): WsMessage {
+  return requireActionMessage({
+    type: 'confirm',
+    player_id: MAGIC_SWORDMAN_PLAYER_ID,
+    message: '【暗影流星】是否额外移除我方战绩区2个星石，转正并+1红宝石？',
+    choice_type: 'ms_shadow_meteor_release_confirm',
+    options: [
+      { id: '0', label: '是' },
+      { id: '1', label: '否' },
+    ],
+    min: 1, max: 1,
+  } satisfies Prompt);
+}
+
 // ============================================================
 // Underworld Tremor (黄泉震颤) - 响应技能(大招)
 // ============================================================

@@ -375,8 +375,8 @@ func TestBardRousingRhapsody_OnAllyTurnStartRunsForbiddenVerse(t *testing.T) {
 	// ally 是当前回合玩家（永恒乐章持有者）
 	ally.IsActive = true
 	ally.TurnState = model.NewPlayerTurnState()
-	ally.TurnState.HasProcessedTurnStart = false // 确保 TurnStart hooks 能被触发
-	game.State.CurrentTurn = 1 // p2 是 index 1
+	ally.TurnState.HasProcessedTurnStart = false    // 确保 TurnStart hooks 能被触发
+	game.State.CurrentTurn = 1                      // p2 是 index 1
 	game.State.TurnStage = model.TurnStageTurnStart // 回合开始阶段触发激昂狂想曲
 	game.State.PendingInterrupt = nil
 
@@ -445,19 +445,15 @@ func TestBardVictorySymphony_AtInspirationCapEntersPrisonerAndSelfDamages(t *tes
 	// ally 是当前回合玩家（永恒乐章持有者），回合结束时触发响应询问
 	ally.IsActive = true
 	ally.TurnState = model.NewPlayerTurnState()
-	game.State.CurrentTurn = 1 // p2 是 index 1
+	game.State.CurrentTurn = 1                    // p2 是 index 1
 	game.State.TurnStage = model.TurnStageTurnEnd // 回合结束阶段触发胜利交响诗
 	game.State.PendingInterrupt = nil
 
 	game.Drive()
 
 	testutils.RequireChoicePrompt(t, game, "p2", "bd_victory_confirm")
-	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{0}}); err != nil { // 选择"发动"
-		t.Fatalf("choose victory confirm failed: %v", err)
-	}
-	testutils.RequireChoicePrompt(t, game, "p2", "bd_victory_mode")
 	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{1}}); err != nil { // 分支②
-		t.Fatalf("choose victory mode failed: %v", err)
+		t.Fatalf("choose victory branch failed: %v", err)
 	}
 
 	if got := bard.Form; got != model.FormBardEternalPrisoner {
@@ -509,10 +505,6 @@ func TestBardVictorySymphony_ExtractStoneChoosesGemOrCrystal(t *testing.T) {
 			game.Drive()
 			testutils.RequireChoicePrompt(t, game, "p2", "bd_victory_confirm")
 			if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{0}}); err != nil {
-				t.Fatalf("choose victory confirm failed: %v", err)
-			}
-			testutils.RequireChoicePrompt(t, game, "p2", "bd_victory_mode")
-			if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{0}}); err != nil {
 				t.Fatalf("choose extract mode failed: %v", err)
 			}
 			testutils.RequireChoicePrompt(t, game, "p2", "bd_victory_extract_stone")
@@ -524,6 +516,44 @@ func TestBardVictorySymphony_ExtractStoneChoosesGemOrCrystal(t *testing.T) {
 				t.Fatalf("unexpected energy after extract: gem=%d crystal=%d", bard.Gem, bard.Crystal)
 			}
 		})
+	}
+}
+
+func TestBardVictorySymphony_CancelAtCombinedPromptDeclines(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Bard", "bard", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Ally", "priest", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	bard := game.State.Players["p1"]
+	ally := game.State.Players["p2"]
+	if err := bardpkg.PlaceEternalMovement(engine.NewRoleChoiceRuntime(game), bard, ally); err != nil {
+		t.Fatalf("place eternal movement failed: %v", err)
+	}
+	game.State.RedGems = 2
+	game.State.RedCrystals = 1
+	ally.Heal = 1
+
+	ally.IsActive = true
+	ally.TurnState = model.NewPlayerTurnState()
+	game.State.CurrentTurn = 1
+	game.State.TurnStage = model.TurnStageTurnEnd
+
+	game.Drive()
+	testutils.RequireChoicePrompt(t, game, "p2", "bd_victory_confirm")
+	testutils.MustHandleAction(t, game, model.PlayerAction{Type: model.CmdCancel, PlayerID: "p2"})
+
+	if game.State.RedGems != 2 || game.State.RedCrystals != 1 {
+		t.Fatalf("cancel should not change camp stones, got gems=%d crystals=%d", game.State.RedGems, game.State.RedCrystals)
+	}
+	if ally.Heal != 1 {
+		t.Fatalf("cancel should not heal holder, got heal=%d", ally.Heal)
+	}
+	if got := bard.Tokens["bd_inspiration"]; got != 0 {
+		t.Fatalf("cancel should not trigger forbidden verse, inspiration=%d", got)
 	}
 }
 

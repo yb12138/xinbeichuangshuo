@@ -21,6 +21,7 @@ export const ALLY_PLAYER_ID = 'ally_1';
 
 export const BD_DANCE_SKILL_ID = 'bt_dance';
 export const BD_CHRYSALIS_SKILL_ID = 'bt_chrysalis';
+export const BD_LIFEFIRE_SKILL_ID = 'bt_life_fire';
 export const BD_REVERSE_SKILL_ID = 'bt_reverse_butterfly';
 export const BD_POISON_SKILL_ID = 'bt_poison_powder';
 export const BD_PILGRIMAGE_SKILL_ID = 'bt_pilgrimage';
@@ -498,4 +499,95 @@ export function chrysalisScenario(): ProtocolHarnessScenario {
       bdAvailableSkill({ id: BD_CHRYSALIS_SKILL_ID, title: '蛹化', cost_gem: 1 }),
     ],
   });
+}
+
+/**
+ * 蛹化结算后的状态同步消息。
+ * 后端契约：技能激活后，后端自动执行以下操作：
+ * 1. AddPupa(user, 1) → tokens.bt_pupa = 1
+ * 2. DrawRawCards(4) 并放置为茧 → field 包含4张茧牌
+ * 3. 如果茧未溢出（<=8），无后续交互弹框
+ */
+export function chrysalisResolvedState(options: {
+  pupaCount?: number;
+  cocoonCards?: Array<{ element: Card['element']; name: string; isMagic?: boolean }>;
+  cocoonOverflow?: number;
+} = {}): WsMessage {
+  const pupaCount = options.pupaCount ?? 1;
+  const cocoonCards = options.cocoonCards ?? [
+    { element: 'Fire', name: '茧牌A' },
+    { element: 'Water', name: '茧牌B' },
+    { element: 'Wind', name: '茧牌C' },
+    { element: 'Earth', name: '茧牌D' },
+  ];
+  const cocoonCount = cocoonCards.length;
+
+  const field: FieldCard[] = cocoonCards.map((c, i) => cocoonCover(i, c.element, c.name, c.isMagic));
+
+  const tokens: Record<string, number> = {
+    bt_pupa: pupaCount,
+    bt_cocoon_count: cocoonCount,
+  };
+
+  // 更新后的玩家状态
+  const updatedPlayers = [
+    playerView({
+      id: BD_PLAYER_ID,
+      name: 'E2E Butterfly Dancer',
+      camp: 'Red',
+      role: 'butterfly_dancer',
+      hand: bdHand(),
+      hand_count: bdHand().length,
+      field,
+      gem: 0, // 消耗1宝石
+      crystal: 0,
+      is_active: true,
+      tokens,
+    }),
+    playerView({
+      id: ENEMY_PLAYER_ID,
+      name: 'Enemy E1',
+      camp: 'Blue',
+      role: 'enemy_char',
+      hand: [card({ id: 'en-card-1', name: '测试牌', type: 'Attack', element: 'Fire' })],
+      hand_count: 1, max_hand: 6,
+      heal: 1, max_heal: 4,
+      is_active: false,
+    }),
+    playerView({
+      id: ALLY_PLAYER_ID,
+      name: 'Ally A1',
+      camp: 'Red',
+      role: 'ally_char',
+      hand: [card({ id: 'al-card-1', name: '测试牌', type: 'Attack', element: 'Water' })],
+      hand_count: 1, max_hand: 6,
+      heal: 0, max_heal: 4,
+      is_active: false,
+    }),
+  ];
+
+  return syncStateMessage(syncState({
+    turn_player_id: BD_PLAYER_ID,
+    turn_stage: 'ActionExecution',
+    available_skills: [],
+    characters: defaultCharacters,
+    players: updatedPlayers,
+    deck_count: 138, // 减少4张
+  }));
+}
+
+/**
+ * 蛹化茧溢出时的弃茧弹框。
+ * 后端契约：当茧数量超过上限（8张），推送 bt_cocoon_overflow_discard 弹框。
+ */
+export function chrysalisOverflowDiscardPrompt(overflowCount: number, cocoonLabels: Array<{ id: string; label: string }>): WsMessage {
+  return requireActionMessage({
+    type: 'choose_cards',
+    player_id: BD_PLAYER_ID,
+    message: `【茧上限】请选择要舍弃的${overflowCount}个茧：`,
+    choice_type: 'bt_cocoon_overflow_discard',
+    options: cocoonLabels,
+    min: overflowCount,
+    max: overflowCount,
+  } satisfies Prompt);
 }

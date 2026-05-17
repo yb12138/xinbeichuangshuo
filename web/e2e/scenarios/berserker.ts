@@ -187,20 +187,22 @@ export function tearScenario(options: {
 
 export function tearHitPrompt(): WsMessage {
   return requireActionMessage({
-    type: 'confirm',
+    type: 'choose_skill',
     player_id: BERSERKER_PLAYER_ID,
-    message: '【撕裂】攻击命中，是否消耗1个红宝石使伤害额外+2？',
-    choice_type: 'berserker_tear_hit',
+    message: '你触发了响应技能【撕裂】，请选择是否发动。',
+    choice_type: 'response_skill_choice',
     options: [
-      { id: 'confirm', label: '发动' },
-      { id: 'skip', label: '跳过' },
+      { id: 'berserker_tear', label: '发动撕裂', hint: '消耗1宝石，本次攻击伤害额外+2' },
+      { id: 'skip', label: '跳过', hint: '不发动响应技能' },
     ],
     min: 1, max: 1,
+    presentation: { kind: 'skill_choice', layout: 'overlay' },
   } satisfies Prompt);
 }
 
 // ============================================================
 // Bloody Roar (血腥咆哮) - 独有牌响应
+// 注意：此技能为自动触发，后端不会发送选择弹框
 // ============================================================
 
 export function bloodyRoarScenario(): ProtocolHarnessScenario {
@@ -214,21 +216,11 @@ export function bloodyRoarScenario(): ProtocolHarnessScenario {
   });
 }
 
-export function bloodyRoarTargetHeal2Prompt(): WsMessage {
-  return requireActionMessage({
-    type: 'confirm',
-    player_id: BERSERKER_PLAYER_ID,
-    message: '【血腥咆哮】目标［治疗］为2，本次攻击强制命中。',
-    choice_type: 'berserker_bloody_roar_heal2',
-    options: [
-      { id: 'confirm', label: '确认' },
-    ],
-    min: 1, max: 1,
-  } satisfies Prompt);
-}
+// bloodyRoarTargetHeal2Prompt 已删除 - 此技能自动触发，无弹窗交互
 
 // ============================================================
 // Blood Shadow Blade (血影狂刀) - 独有牌响应
+// 注意：此技能为自动触发，后端不会发送选择弹框
 // ============================================================
 
 export function bloodShadowScenario(options: {
@@ -250,28 +242,4 @@ export function bloodShadowScenario(options: {
   });
 }
 
-export function bloodShadowHand2Prompt(): WsMessage {
-  return requireActionMessage({
-    type: 'confirm',
-    player_id: BERSERKER_PLAYER_ID,
-    message: '【血影狂刀】对手手牌为2，本次攻击伤害额外+2。',
-    choice_type: 'berserker_blood_shadow_hand2',
-    options: [
-      { id: 'confirm', label: '确认' },
-    ],
-    min: 1, max: 1,
-  } satisfies Prompt);
-}
-
-export function bloodShadowHand3Prompt(): WsMessage {
-  return requireActionMessage({
-    type: 'confirm',
-    player_id: BERSERKER_PLAYER_ID,
-    message: '【血影狂刀】对手手牌为3，本次攻击伤害额外+1。',
-    choice_type: 'berserker_blood_shadow_hand3',
-    options: [
-      { id: 'confirm', label: '确认' },
-    ],
-    min: 1, max: 1,
-  } satisfies Prompt);
-}
+// bloodShadowHand2Prompt/bloodShadowHand3Prompt 已删除 - 此技能自动触发，无弹窗交互

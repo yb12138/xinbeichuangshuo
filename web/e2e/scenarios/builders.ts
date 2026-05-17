@@ -82,7 +82,6 @@ export function playerView(overrides: Partial<PlayerView> = {}): PlayerView {
     name: '玩家',
     camp: 'Red',
     role: 'hero',
-    hand_count: hand.length,
     max_hand: 6,
     exclusive_card_count: 0,
     hand,

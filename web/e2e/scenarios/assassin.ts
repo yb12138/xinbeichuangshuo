@@ -200,6 +200,7 @@ export function stealthDrawPrompt(): WsMessage {
       { id: 'skip', label: '不摸牌' },
     ],
     min: 1, max: 1,
+    presentation: { kind: 'branch_select' },
   } satisfies Prompt);
 }
 

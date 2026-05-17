@@ -2,7 +2,7 @@
 // Spirit Caster (灵符师) Protocol Harness Scenarios
 // ============================================================
 
-import type { Prompt } from '../../src/types/game';
+import type { Element, FieldCard, Prompt } from '../../src/types/game';
 import type { WsMessage } from '../../src/network/protocol';
 import {
   card,
@@ -128,6 +128,24 @@ function spiritCasterHand() {
     card({ id: 'card_4', name: '水涟斩', type: 'Attack', element: 'Water' }),
     card({ id: 'card_5', name: '地裂斩', type: 'Attack', element: 'Earth' }),
   ];
+}
+
+function spiritCasterPowerCover(fieldIndex = 0, name = '火焰斩', element: Element = 'Fire'): FieldCard {
+  return {
+    card: card({
+      id: `sc-youli-${fieldIndex}`,
+      name,
+      type: 'Attack',
+      element,
+    }),
+    owner_id: SC_PLAYER_ID,
+    source_id: SC_PLAYER_ID,
+    mode: 'Cover',
+    effect: 'SpiritCasterPower',
+    field_hook: 'Manual',
+    locked: false,
+    duration: 0,
+  };
 }
 
 function spiritCasterPlayerView(options: {
@@ -438,6 +456,7 @@ export function hundredNightScenario(options: {
     is_active: true,
     crystal: options.hasCrystal ? 1 : 0,
   });
+  spiritCaster.field = [spiritCasterPowerCover(0)];
 
   const players = [
     spiritCaster,
@@ -530,12 +549,12 @@ export function hundredNightManaCollapsePrompt(): WsMessage {
   } satisfies Prompt);
 }
 
-// 妖力移除选择
+// 妖力移除选择（盖牌选择 UI，不在弹框中显示按钮）
 export function hundredNightRemoveYouliPrompt(options: {
-  youliCards?: { id: string; name: string; element: string }[];
+  youliCards?: { name: string; element: string }[];
 } = {}): WsMessage {
   const youliCards = options.youliCards ?? [
-    { id: 'youli_1', name: '火焰斩', element: 'Fire' },
+    { name: '火焰斩', element: 'Fire' },
   ];
   return requireActionMessage({
     type: 'confirm',
@@ -544,9 +563,11 @@ export function hundredNightRemoveYouliPrompt(options: {
     choice_type: 'sc_hundred_night_power',
     skill_id: SC_HUNDRED_NIGHT_SKILL_ID,
     options: youliCards.map((c, idx) => ({
-      id: c.id,
-      label: `${idx + 1}: ${c.name} (${c.element} Youli)`,
+      id: `${idx}`,
+      label: `妖力[${idx}] ${c.name}（${c.element}系）`,
+      field_index: idx,
     })),
+    presentation: { kind: 'card_picker', layout: 'field_cover' },
     min: 1,
     max: 1,
   } satisfies Prompt);

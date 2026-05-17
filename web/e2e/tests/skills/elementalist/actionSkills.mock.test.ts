@@ -15,7 +15,8 @@ import {
   thunderStrikeScenario,
   thunderStrikeTargetPrompt,
   freezeScenario,
-  freezeTargetPrompt,
+  freezeDamageTargetPrompt,
+  freezeHealTargetPrompt,
   windBladeScenario,
   meteorScenario,
   fireballScenario,
@@ -96,7 +97,7 @@ test.describe('elementalist thunder strike protocol harness', () => {
 });
 
 test.describe('elementalist freeze protocol harness', () => {
-  test('freeze: activate and select 2 targets', async ({ page, protocolHarness }) => {
+  test('freeze: activate and select damage target', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(freezeScenario());
 
     await activatePanelSkill(page, ELEMENTALIST_FREEZE_ID);
@@ -105,14 +106,35 @@ test.describe('elementalist freeze protocol harness', () => {
       skill_id: ELEMENTALIST_FREEZE_ID,
     });
 
-    await protocolHarness.pushServerMessage(freezeTargetPrompt());
+    await protocolHarness.pushServerMessage(freezeDamageTargetPrompt());
 
-    // Select damage target (enemy) and heal target (ally)
+    // Select damage target (enemy)
     await selectTarget(page, ENEMY_PLAYER_ID);
+    await protocolHarness.expectSubmitAction({
+      action_type: 'Select',
+      option_indexes: [0],
+    });
+  });
+
+  test('freeze: select heal target after damage target', async ({ page, protocolHarness }) => {
+    await protocolHarness.bootGame(freezeScenario());
+
+    await activatePanelSkill(page, ELEMENTALIST_FREEZE_ID);
+
+    // First select damage target
+    await protocolHarness.pushServerMessage(freezeDamageTargetPrompt());
+    await selectTarget(page, ENEMY_PLAYER_ID);
+    await protocolHarness.expectSubmitAction({
+      action_type: 'Select',
+      option_indexes: [0],
+    });
+
+    // Then select heal target (can be self)
+    await protocolHarness.pushServerMessage(freezeHealTargetPrompt());
     await selectTarget(page, ALLY_PLAYER_ID);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0, 1],
+      option_indexes: [2],
     });
   });
 });

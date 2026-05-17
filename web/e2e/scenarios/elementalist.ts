@@ -218,7 +218,8 @@ export function elementIgniteTargetPrompt(): WsMessage {
     type: 'confirm',
     player_id: ELEMENTALIST_PLAYER_ID,
     message: '【元素点燃】请选择一名目标角色，造成2点法术伤害：',
-    choice_type: 'el_element_ignite_target',
+    choice_type: 'elementalist_element_ignite_target',
+    presentation: { kind: 'target_picker' },
     options: [
       { id: ENEMY_PLAYER_ID, label: 'Enemy E1' },
       { id: ALLY_PLAYER_ID, label: 'Ally A1' },
@@ -247,7 +248,8 @@ export function thunderStrikeTargetPrompt(): WsMessage {
     type: 'confirm',
     player_id: ELEMENTALIST_PLAYER_ID,
     message: '【雷击】请选择一名目标角色，造成1点法术伤害：',
-    choice_type: 'el_thunder_strike_target',
+    choice_type: 'elementalist_thunder_strike_target',
+    presentation: { kind: 'target_picker' },
     options: [
       { id: ENEMY_PLAYER_ID, label: 'Enemy E1' },
       { id: ALLY_PLAYER_ID, label: 'Ally A1' },
@@ -285,17 +287,34 @@ export function freezeScenario(): ProtocolHarnessScenario {
   });
 }
 
-export function freezeTargetPrompt(): WsMessage {
+export function freezeDamageTargetPrompt(): WsMessage {
   return requireActionMessage({
     type: 'confirm',
     player_id: ELEMENTALIST_PLAYER_ID,
-    message: '【冰冻】请选择1名伤害目标和1名治疗目标：',
+    message: '【冰冻】请选择造成法术伤害的目标：',
     choice_type: 'elementalist_freeze_damage_target',
+    presentation: { kind: 'target_picker' },
     options: [
-      { id: ENEMY_PLAYER_ID, label: 'Enemy E1（伤害目标）' },
-      { id: ALLY_PLAYER_ID, label: 'Ally A1（治疗目标）' },
+      { id: ENEMY_PLAYER_ID, label: 'Enemy E1' },
+      { id: ALLY_PLAYER_ID, label: 'Ally A1' },
     ],
-    min: 2, max: 2,
+    min: 1, max: 1,
+  } satisfies Prompt);
+}
+
+export function freezeHealTargetPrompt(): WsMessage {
+  return requireActionMessage({
+    type: 'confirm',
+    player_id: ELEMENTALIST_PLAYER_ID,
+    message: '【冰冻】请选择治疗目标（可选择自己）：',
+    choice_type: 'elementalist_freeze_heal_target',
+    presentation: { kind: 'target_picker' },
+    options: [
+      { id: ELEMENTALIST_PLAYER_ID, label: '自己' },
+      { id: ENEMY_PLAYER_ID, label: 'Enemy E1' },
+      { id: ALLY_PLAYER_ID, label: 'Ally A1' },
+    ],
+    min: 1, max: 1,
   } satisfies Prompt);
 }
 
@@ -425,7 +444,8 @@ export function moonlightTargetPrompt(x: number): WsMessage {
     type: 'confirm',
     player_id: ELEMENTALIST_PLAYER_ID,
     message: `【月光】请选择一名目标角色，造成${damage}点法术伤害：`,
-    choice_type: 'el_moonlight_target',
+    choice_type: 'elementalist_moonlight_target',
+    presentation: { kind: 'target_picker' },
     options: [
       { id: ENEMY_PLAYER_ID, label: 'Enemy E1' },
       { id: ALLY_PLAYER_ID, label: 'Ally A1' },

@@ -2,7 +2,7 @@
 // Fighter (格斗家) Protocol Harness Scenarios
 // ============================================================
 
-import type { Prompt } from '../../src/types/game';
+import type { Card, Prompt } from '../../src/types/game';
 import type { WsMessage } from '../../src/network/protocol';
 import {
   card,
@@ -379,6 +379,21 @@ export function bulletConfirmPrompt(): WsMessage {
   );
 }
 
+// 念弹目标选择prompt - 发动确认后后端推送 fighter_psi_bullet_target
+export function bulletTargetPrompt(): WsMessage {
+  return requireActionMessage({
+    type: 'confirm',
+    player_id: FIGHTER_PLAYER_ID,
+    message: '【念弹】请选择1名目标对手：',
+    choice_type: 'fighter_psi_bullet_target',
+    options: [
+      { id: '0', label: 'Enemy Bot' },
+    ],
+    min: 1,
+    max: 1,
+  } satisfies Prompt);
+}
+
 // ============================================================
 // 百式幻龙拳 (fighter_hundred_dragon) - Start skill with 3+ qi
 // ============================================================
@@ -449,6 +464,21 @@ export function hundredDragonConfirmPrompt(): WsMessage {
   ]);
 }
 
+// 百式幻龙拳目标锁定prompt - 发动确认后后端推送 fighter_hundred_dragon_target
+export function hundredDragonTargetPrompt(): WsMessage {
+  return requireActionMessage({
+    type: 'confirm',
+    player_id: FIGHTER_PLAYER_ID,
+    message: '【百式幻龙拳】请选择本行动阶段锁定的目标角色：',
+    choice_type: 'fighter_hundred_dragon_target',
+    options: [
+      { id: '0', label: 'Enemy Bot' },
+    ],
+    min: 1,
+    max: 1,
+  } satisfies Prompt);
+}
+
 // ============================================================
 // 斗神天驱 (fighter_heaven_drive) - Start skill with crystal
 // ============================================================
@@ -497,6 +527,88 @@ export function heavenDriveConfirmPrompt(): WsMessage {
   return fighterStartupSkillPrompt([
     { id: FIGHTER_HEAVEN_DRIVE_SKILL_ID, title: '斗神天驱' },
   ]);
+}
+
+// 斗神天驱弃牌场景 - 手牌>3张需要弃牌至3张
+export function heavenDriveDiscardScenario(options: { crystals?: number; handCount?: number } = {}): ProtocolHarnessScenario {
+  const crystals = options.crystals ?? 1;
+  const handCount = options.handCount ?? 5;
+  const characters = [fighterCharacter, allyCharacter, enemyCharacter];
+
+  // 创建多于3张的手牌
+  const hand: Card[] = [];
+  for (let i = 1; i <= handCount; i++) {
+    hand.push(card({ id: `card_${i}`, name: `手牌${i}`, type: 'Attack', element: 'Fire' }));
+  }
+
+  const fighter = playerView({
+    id: FIGHTER_PLAYER_ID,
+    name: 'E2E Fighter',
+    camp: 'Red',
+    role: 'fighter',
+    hand,
+    hand_count: hand.length,
+    heal: 2,
+    max_heal: 4,
+    is_active: true,
+    gem: 0,
+    crystal: crystals,
+    tokens: {
+      fighter_qi: 1,
+    },
+  });
+
+  const players = [
+    fighter,
+    playerView({
+      id: ENEMY_PLAYER_ID,
+      name: 'Enemy Bot',
+      camp: 'Blue',
+      role: 'villain',
+      hand: [],
+      hand_count: 3,
+      heal: 1,
+      max_heal: 2,
+      is_active: false,
+    }),
+  ];
+
+  return {
+    roomCode: 'MOCK',
+    myPlayerId: FIGHTER_PLAYER_ID,
+    myPlayerName: 'E2E Fighter',
+    characters,
+    players: [
+      playerInfo({ id: FIGHTER_PLAYER_ID, name: 'E2E Fighter', camp: 'Red', char_role: 'fighter', is_host: true }),
+      playerInfo({ id: ENEMY_PLAYER_ID, name: 'Enemy Bot', camp: 'Blue', char_role: 'villain' }),
+    ],
+    initialState: syncState({
+      turn_player_id: FIGHTER_PLAYER_ID,
+      turn_stage: 'StartPhase',
+      available_skills: [],
+      characters,
+      players,
+    }),
+  };
+}
+
+// 斗神天驱弃牌prompt - 手牌>3张时后端推送 system_discard_cards
+export function heavenDriveDiscardPrompt(handCount: number = 5): WsMessage {
+  const options: Array<{ id: string; label: string }> = [];
+  for (let i = 0; i < handCount; i++) {
+    options.push({ id: String(i), label: `${i + 1}: 手牌${i + 1}（火系 攻击）` });
+  }
+  const discardCount = handCount - 3;
+  return requireActionMessage({
+    type: 'choose_cards',
+    player_id: FIGHTER_PLAYER_ID,
+    message: '【斗神天驱】请选择需要弃置的手牌：',
+    choice_type: 'system_discard_cards',
+    skill_id: FIGHTER_HEAVEN_DRIVE_SKILL_ID,
+    options,
+    min: discardCount,
+    max: discardCount,
+  } satisfies Prompt);
 }
 
 // ============================================================

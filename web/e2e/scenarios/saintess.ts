@@ -275,13 +275,14 @@ export function holyHealDistributePrompt(): WsMessage {
     type: 'confirm',
     player_id: SAINTESS_PLAYER_ID,
     message: '【圣疗】请分配3点治疗给1~3名角色（使用分配器）：',
-    choice_type: 'saintess_holy_heal_distribute',
+    choice_type: 'saint_heal_allocate',
     options: [
       { id: '1_player', label: '分配给1名角色（+3）' },
       { id: '2_players', label: '分配给2名角色（各+1/+2）' },
       { id: '3_players', label: '分配给3名角色（各+1）' },
     ],
     min: 1, max: 1,
+    presentation: { kind: 'numeric', numeric_base: 0 },
   } satisfies Prompt);
 }
 

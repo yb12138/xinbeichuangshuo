@@ -187,7 +187,7 @@ export function rageSuppressPrompt(): WsMessage {
     type: 'confirm',
     player_id: HEROIC_SPIRIT_PLAYER_ID,
     message: '【怒火压制】翻转1个战纹，本次攻击强制命中？',
-    choice_type: 'hs_rage_suppress',
+    choice_type: 'hom_rage_suppress',
     options: [
       { id: 'confirm', label: '发动' },
       { id: 'skip', label: '跳过' },
@@ -201,7 +201,7 @@ export function rageSuppressSealSelectPrompt(): WsMessage {
     type: 'confirm',
     player_id: HEROIC_SPIRIT_PLAYER_ID,
     message: '【怒火压制】请选择翻转的战纹：',
-    choice_type: 'hs_rage_suppress_seal',
+    choice_type: 'hom_rage_suppress_seal',
     options: [
       { id: 'seal_1', label: '战纹1' },
       { id: 'seal_2', label: '战纹2' },
@@ -229,7 +229,7 @@ export function sealStrikePrompt(): WsMessage {
     type: 'confirm',
     player_id: HEROIC_SPIRIT_PLAYER_ID,
     message: '【战纹碎击】弃同系牌，翻转1个战纹？（魔纹形态+1伤害）',
-    choice_type: 'hs_seal_strike',
+    choice_type: 'hom_seal_strike',
     options: [
       { id: 'confirm', label: '发动' },
       { id: 'skip', label: '跳过' },
@@ -244,7 +244,7 @@ export function sealStrikeDiscardPrompt(attackElement: string): WsMessage {
     type: 'choose_cards',
     player_id: HEROIC_SPIRIT_PLAYER_ID,
     message: `【战纹碎击】请选择弃1张${elementLabel}牌［展示］：`,
-    choice_type: 'hs_seal_strike_discard',
+    choice_type: 'hom_seal_strike_discard',
     options: attackElement === 'Fire' ? [
       { id: 'hs-fire-attack', label: '火焰斩（火系）' },
       { id: 'hs-fire-magic', label: '火球（火系）' },
@@ -261,7 +261,7 @@ export function sealStrikeSealSelectPrompt(): WsMessage {
     type: 'confirm',
     player_id: HEROIC_SPIRIT_PLAYER_ID,
     message: '【战纹碎击】请选择翻转的战纹：',
-    choice_type: 'hs_seal_strike_seal',
+    choice_type: 'hom_seal_strike_seal',
     options: [
       { id: 'seal_1', label: '战纹1' },
       { id: 'seal_2', label: '战纹2' },
@@ -289,7 +289,7 @@ export function magicFusionPrompt(): WsMessage {
     type: 'confirm',
     player_id: HEROIC_SPIRIT_PLAYER_ID,
     message: '【魔纹融合】弃异系牌，翻转1个战纹？（魔纹形态+1伤害）',
-    choice_type: 'hs_magic_fusion',
+    choice_type: 'hom_magic_fusion',
     options: [
       { id: 'confirm', label: '发动' },
       { id: 'skip', label: '跳过' },
@@ -305,7 +305,7 @@ export function magicFusionDiscardPrompt(attackElement: string): WsMessage {
     type: 'choose_cards',
     player_id: HEROIC_SPIRIT_PLAYER_ID,
     message: `【魔纹融合】请选择弃1张非${excludeElement}牌［展示］：`,
-    choice_type: 'hs_magic_fusion_discard',
+    choice_type: 'hom_magic_fusion_discard',
     options: attackElement === 'Fire' ? [
       { id: 'hs-water-attack', label: '水刃斩（水系）' },
       { id: 'hs-water-magic', label: '冰冻（水系）' },
@@ -324,7 +324,7 @@ export function magicFusionSealSelectPrompt(): WsMessage {
     type: 'confirm',
     player_id: HEROIC_SPIRIT_PLAYER_ID,
     message: '【魔纹融合】请选择翻转的战纹：',
-    choice_type: 'hs_magic_fusion_seal',
+    choice_type: 'hom_magic_fusion_seal',
     options: [
       { id: 'seal_1', label: '战纹1' },
       { id: 'seal_2', label: '战纹2' },
@@ -348,7 +348,7 @@ export function sealSuppressComboPrompt(): WsMessage {
     type: 'confirm',
     player_id: HEROIC_SPIRIT_PLAYER_ID,
     message: '未命中时，请选择发动哪个技能：',
-    choice_type: 'hs_seal_suppress_combo',
+    choice_type: 'hom_seal_suppress_combo',
     options: [
       { id: HEROIC_SPIRIT_RAGE_SUPPRESS_ID, label: '怒火压制（强制命中）' },
       { id: HEROIC_SPIRIT_MAGIC_FUSION_ID, label: '魔纹融合（魔纹形态+1伤害）' },
@@ -377,7 +377,7 @@ export function runeModificationPrompt(): WsMessage {
     type: 'confirm',
     player_id: HEROIC_SPIRIT_PLAYER_ID,
     message: '【符文改造］消耗宝石，横置进入魔纹形态，调整战纹？',
-    choice_type: 'hs_rune_modification',
+    choice_type: 'hom_rune_modification',
     options: [
       { id: 'confirm', label: '发动' },
       { id: 'skip', label: '跳过' },
@@ -391,13 +391,14 @@ export function runeModificationSealAdjustPrompt(): WsMessage {
     type: 'confirm',
     player_id: HEROIC_SPIRIT_PLAYER_ID,
     message: '【符文改造】请调整战纹：',
-    choice_type: 'hs_rune_modification_seal_adjust',
+    choice_type: 'hom_rune_modification_seal_adjust',
     options: [
       { id: 'flip_1', label: '翻转战纹1' },
       { id: 'flip_2', label: '翻转战纹2' },
       { id: 'flip_3', label: '翻转战纹3' },
     ],
     min: 0, max: 3,
+    presentation: { kind: 'numeric', layout: 'rune_allocate', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -416,7 +417,7 @@ export function doubleEchoPrompt(): WsMessage {
     type: 'confirm',
     player_id: HEROIC_SPIRIT_PLAYER_ID,
     message: '【双重回响］消耗水晶，命中后对另一名目标造成同等伤害？',
-    choice_type: 'hs_double_echo',
+    choice_type: 'hom_double_echo',
     options: [
       { id: 'confirm', label: '发动' },
       { id: 'skip', label: '跳过' },
@@ -430,7 +431,7 @@ export function doubleEchoTargetPrompt(): WsMessage {
     type: 'confirm',
     player_id: HEROIC_SPIRIT_PLAYER_ID,
     message: '【双重回响】请选择另一名目标造成同等伤害：',
-    choice_type: 'hs_double_echo_target',
+    choice_type: 'hom_double_echo_target',
     options: [
       { id: ALLY_PLAYER_ID, label: 'Ally A1' },
     ],

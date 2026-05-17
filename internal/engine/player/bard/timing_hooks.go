@@ -74,7 +74,7 @@ func turnStartRousingHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHo
 		return engineplayer.TimingHookResult{}
 	}
 
-	// 向永恒乐章持有者推送确认弹窗（是否发动）
+	// 向永恒乐章持有者推送分支弹窗。
 	rt.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
 		PlayerID: currentPlayer.ID,
@@ -124,7 +124,7 @@ func turnEndVictoryHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHook
 	holder := currentPlayer
 	bardID := bard.ID
 
-	// 向永恒乐章持有者推送确认弹窗（是否发动）
+	// 向永恒乐章持有者推送三选一弹窗：两个效果分支或取消。
 	rt.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
 		PlayerID: currentPlayer.ID,
@@ -134,7 +134,7 @@ func turnEndVictoryHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHook
 			"bard_id":     bardID,
 		},
 	})
-	rt.Log(fmt.Sprintf("%s 持有永恒乐章，回合结束时满足 [胜利交响诗] 的发动条件，询问是否发动", currentPlayer.Name))
+	rt.Log(fmt.Sprintf("%s 持有永恒乐章，回合结束时满足 [胜利交响诗] 的发动条件，等待选择效果或取消", currentPlayer.Name))
 	return engineplayer.TimingHookResult{Interrupted: true}
 }
 
@@ -193,9 +193,9 @@ func turnEndDescentHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHook
 		Type:     model.InterruptChoice,
 		PlayerID: bard.ID,
 		Context: map[string]interface{}{
-			"choice_type":      "bd_descent_cards",
-			"user_id":          bard.ID,
-			"selected_indices": []int{},
+			"choice_type":       "bd_descent_cards",
+			"user_id":           bard.ID,
+			"selected_indices":  []int{},
 			"remaining_indices": candidateIndices,
 		},
 	})

@@ -145,6 +145,7 @@ export interface PromptOption {
   label: string
   button_label?: string
   hint?: string
+  field_index?: number
 }
 
 // Prompt 类型

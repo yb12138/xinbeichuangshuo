@@ -76,6 +76,8 @@ func (h *MagicLancerDarkReleaseHandler) Execute(ctx *model.Context) error {
 	ctx.Game.ApplyNextAttackDamageRule(ctx.User.ID, "ml_dark_release_next_attack_bonus", "ml_dark_release", 1, model.RuleLifeUntilTurnEnd)
 	ctx.Game.ApplySkillGateRule(ctx.User.ID, "ml_dark_release_lock_turn", "ml_dark_release", []string{"ml_fullness", "ml_black_spear"}, model.RuleLifeUntilTurnEnd)
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [暗之解放]，进入幻影形态：手牌上限恒定为5，本回合下一次主动攻击伤害+1，且本回合不能发动充盈/漆黑之枪", ctx.User.Name))
+	// 手牌上限降低后检查是否需要弃牌
+	ctx.Game.CheckHandLimit(ctx.User.ID, true)
 	return nil
 }
 

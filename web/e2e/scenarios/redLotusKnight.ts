@@ -195,7 +195,7 @@ export function scarletCovenantPrompt(): WsMessage {
     type: 'confirm',
     player_id: RED_LOTUS_KNIGHT_PLAYER_ID,
     message: '【腥红圣约】攻击伤害+1，攻击结束后+1治疗？',
-    choice_type: 'rlk_scarlet_covenant',
+    choice_type: 'crk_scarlet_covenant',
     options: [
       { id: 'confirm', label: '发动' },
       { id: 'skip', label: '跳过' },
@@ -226,12 +226,13 @@ export function bloodyPrayerXPrompt(): WsMessage {
     type: 'confirm',
     player_id: RED_LOTUS_KNIGHT_PLAYER_ID,
     message: '【血腥祷言】移除多少治疗放置血印？（X最大为2）',
-    choice_type: 'rlk_bloody_prayer_x',
+    choice_type: 'crk_bloody_prayer_x',
     options: [
       { id: '1', label: '移除1治疗' },
       { id: '2', label: '移除2治疗' },
     ],
     min: 1, max: 1,
+    presentation: { kind: 'numeric', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -240,7 +241,7 @@ export function bloodyPrayerTargetPrompt(): WsMessage {
     type: 'confirm',
     player_id: RED_LOTUS_KNIGHT_PLAYER_ID,
     message: '【血腥祷言】请选择一名对手放置血印：',
-    choice_type: 'rlk_bloody_prayer_target',
+    choice_type: 'crk_bloody_prayer_target',
     options: [
       { id: ENEMY_PLAYER_ID, label: 'Enemy E1' },
     ],
@@ -261,7 +262,7 @@ export function slaughterFeastPrompt(): WsMessage {
     type: 'confirm',
     player_id: RED_LOTUS_KNIGHT_PLAYER_ID,
     message: '【杀戮盛宴】移除目标1血印，对自己造成1点法术伤害，攻击伤害+2？',
-    choice_type: 'rlk_slaughter_feast',
+    choice_type: 'crk_slaughter_feast',
     options: [
       { id: 'confirm', label: '发动' },
       { id: 'skip', label: '跳过' },
@@ -298,7 +299,7 @@ export function modestyBranchPrompt(): WsMessage {
     type: 'confirm',
     player_id: RED_LOTUS_KNIGHT_PLAYER_ID,
     message: '【戒骄戒躁】脱离热血形态，选择：',
-    choice_type: 'rlk_modesty_branch',
+    choice_type: 'crk_modesty_branch',
     options: [
       { id: 'draw', label: '摸2张牌' },
       { id: 'heal', label: '+2治疗' },
@@ -328,7 +329,7 @@ export function scarletCrossDiscardPrompt(): WsMessage {
     type: 'choose_cards',
     player_id: RED_LOTUS_KNIGHT_PLAYER_ID,
     message: '【腥红十字】请选择弃1张法术牌［展示］：',
-    choice_type: 'rlk_scarlet_cross_discard',
+    choice_type: 'crk_scarlet_cross_discard',
     options: [
       { id: 'rlk-magic-1', label: '血术（法术）' },
       { id: 'rlk-magic-2', label: '红莲（法术）' },
@@ -343,7 +344,7 @@ export function scarletCrossTargetPrompt(): WsMessage {
     type: 'confirm',
     player_id: RED_LOTUS_KNIGHT_PLAYER_ID,
     message: '【腥红十字】请选择一名对手（需有血印）造成2点法术伤害：',
-    choice_type: 'rlk_scarlet_cross_target',
+    choice_type: 'crk_scarlet_cross_target',
     options: [
       { id: ENEMY_PLAYER_ID, label: 'Enemy E1' },
     ],

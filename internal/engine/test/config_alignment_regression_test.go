@@ -48,6 +48,46 @@ func TestPendingDamage_PoisonDoesNotConsumeHolyShield(t *testing.T) {
 	}
 }
 
+func TestHealChoiceAppliesOnlyToCurrentPendingDamage(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Source", "angel", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Target", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	target := game.State.Players["p2"]
+	target.Heal = 4
+	game.State.PendingDamageQueue = []model.PendingDamage{
+		{SourceID: "p1", TargetID: "p2", Damage: 2, DamageType: model.MagicAttack, HealResolved: true},
+		{SourceID: "p1", TargetID: "p2", Damage: 2, DamageType: model.MagicAttack},
+	}
+	game.State.CombatStage = model.CombatStageCalcDamage
+	game.PushInterrupt(&model.Interrupt{
+		Type:     model.InterruptChoice,
+		PlayerID: "p2",
+		Context: map[string]interface{}{
+			"choice_type": "heal",
+			"target_id":   "p2",
+			"max_heal":    2,
+		},
+	})
+
+	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{1}}); err != nil {
+		t.Fatalf("heal choice should apply to current pending damage, got err=%v", err)
+	}
+	if got := game.State.PendingDamageQueue[0].Damage; got != 1 {
+		t.Fatalf("expected current damage reduced to 1, got %d", got)
+	}
+	if got := game.State.PendingDamageQueue[1].Damage; got != 2 {
+		t.Fatalf("future damage should remain unchanged, got %d", got)
+	}
+	if got := target.Heal; got != 3 {
+		t.Fatalf("expected target heal reduced once, got %d", got)
+	}
+}
+
 func TestAngelCleanse_CanPickSpecificBasicEffect(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "Angel", "angel", model.RedCamp); err != nil {

@@ -9,6 +9,7 @@ defineOptions({
 const props = defineProps<{
   card: Card
   index?: number
+  testId?: string
   selected?: boolean
   selectable?: boolean
   faceDown?: boolean
@@ -157,7 +158,7 @@ function handleClick() {
   <div
     v-bind="attrs"
     class="game-card card-shell relative overflow-hidden flex-shrink-0"
-    :data-testid="index !== undefined ? `hand-card-${index}` : undefined"
+    :data-testid="testId || (index !== undefined ? `hand-card-${index}` : undefined)"
     :class="[
       elementClass,
       small

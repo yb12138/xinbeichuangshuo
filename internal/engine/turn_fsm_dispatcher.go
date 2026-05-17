@@ -122,6 +122,13 @@ func (e *GameEngine) driveBeforeActionStage(currentPid string, player *model.Pla
 		}
 		return driveContinueLoop
 	}
+	// 角色 TimingBeforeAction hooks（如精疲力竭结束结算）。
+	if e.runTimingOnBeforeActionStageHooks(player, timingOnBeforeActionResolveActionStart) {
+		if e.State.PendingInterrupt != nil {
+			return driveStop
+		}
+		return driveContinueLoop
+	}
 	// 其余 TimingOnBeforeAction 的通用技能/状态仍走 dispatcher 主流程。
 	skillCtx := e.BuildContext(player, nil, model.TimingOnBeforeAction, nil)
 	e.dispatcher.OnTiming(skillCtx.Timing, skillCtx)

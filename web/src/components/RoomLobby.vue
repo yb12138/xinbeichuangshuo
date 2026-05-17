@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useInterruptStore } from '../stores/interrupt.store'
 import { useSessionStore } from '../stores/session.store'
 import { useSnapshotStore } from '../stores/snapshot.store'
 import { useSubmitAction } from '../composables/useSubmitAction'
 import { useWebSocket } from '../composables/useWebSocket'
 import { ROLE_NAME_MAP } from '../constants/roleNameMap'
+import { autoJoinRoomFromUrl } from '../utils/autoJoinRoom'
 import SkillDetailModal from './SkillDetailModal.vue'
 
 const interruptStore = useInterruptStore()
@@ -131,6 +132,24 @@ function joinRoom() {
   errorMsg.value = ''
   ws.connect(roomCodeInput.value.trim().toUpperCase(), playerName.value.trim())
 }
+
+onMounted(() => {
+  if (typeof window === 'undefined') return
+
+  const didAutoJoin = autoJoinRoomFromUrl({
+    search: window.location.search,
+    isInRoom: () => sessionStore.isInRoom,
+    connect: (roomCode, name) => {
+      playerName.value = name
+      roomCodeInput.value = roomCode
+      isJoining.value = true
+      errorMsg.value = ''
+      ws.connect(roomCode, name)
+    },
+  })
+
+  if (!didAutoJoin) return
+})
 
 function getCharacterName(roleId: string) {
   if (!roleId) return '未选择角色'

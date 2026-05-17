@@ -196,21 +196,21 @@ const (
 type PresentationKind string
 
 const (
-	PresentationResponse      PresentationKind = "response"      // 命中/应战/防御（图标按钮）
-	PresentationBranchSelect  PresentationKind = "branch_select" // 分支选择（长文案按钮）
-	PresentationNumeric       PresentationKind = "numeric"       // 数字选择（X值/治疗点数）
-	PresentationCardPicker    PresentationKind = "card_picker"   // 卡牌选择
-	PresentationTargetPicker  PresentationKind = "target_picker" // 目标选择
-	PresentationSkillChoice   PresentationKind = "skill_choice"  // 技能选择
-	PresentationActionHub     PresentationKind = "action_hub"    // 行动枢纽
+	PresentationResponse     PresentationKind = "response"      // 命中/应战/防御（图标按钮）
+	PresentationBranchSelect PresentationKind = "branch_select" // 分支选择（长文案按钮）
+	PresentationNumeric      PresentationKind = "numeric"       // 数字选择（X值/治疗点数）
+	PresentationCardPicker   PresentationKind = "card_picker"   // 卡牌选择
+	PresentationTargetPicker PresentationKind = "target_picker" // 目标选择
+	PresentationSkillChoice  PresentationKind = "skill_choice"  // 技能选择
+	PresentationActionHub    PresentationKind = "action_hub"    // 行动枢纽
 )
 
 // PromptPresentation 定义弹框展示细节（后端显式声明，前端只渲染）
 type PromptPresentation struct {
-	Kind        PresentationKind `json:"kind"`                    // 必填：展示类型
-	Layout      string           `json:"layout,omitempty"`        // 可选："inline"/"overlay"/"grid"/"heal_allocate"
-	NumericBase int              `json:"numeric_base"`            // numeric 类型的数字起始值（0 或 1）
-	CancelPolicy string          `json:"cancel_policy,omitempty"` // 可选："allow"/"deny"/"implicit"
+	Kind         PresentationKind `json:"kind"`                    // 必填：展示类型
+	Layout       string           `json:"layout,omitempty"`        // 可选："inline"/"overlay"/"grid"/"heal_allocate"
+	NumericBase  int              `json:"numeric_base"`            // numeric 类型的数字起始值（0 或 1）
+	CancelPolicy string           `json:"cancel_policy,omitempty"` // 可选："allow"/"deny"/"implicit"
 }
 
 const (
@@ -223,6 +223,7 @@ type PromptOption struct {
 	Label       string `json:"label"`                  // 原始显示标签（兼容老客户端）
 	ButtonLabel string `json:"button_label,omitempty"` // 按钮短文案（如：发动/放弃/取消/1）
 	Hint        string `json:"hint,omitempty"`         // 选项说明（展示在按钮上方）
+	FieldIndex  *int   `json:"field_index,omitempty"`  // 场区索引（场牌/盖牌选择专用）
 }
 
 // Prompt 定义用户交互提示

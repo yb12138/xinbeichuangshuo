@@ -3,11 +3,6 @@ import { test } from '../../../fixtures/protocolHarness.fixture';
 import {
   tearScenario,
   tearHitPrompt,
-  bloodyRoarScenario,
-  bloodyRoarTargetHeal2Prompt,
-  bloodShadowScenario,
-  bloodShadowHand2Prompt,
-  bloodShadowHand3Prompt,
 } from '../../../scenarios/berserker';
 
 async function clickOverlayOption(page: Page, selector: string) {
@@ -49,48 +44,5 @@ test.describe('berserker tear protocol harness', () => {
   });
 });
 
-test.describe('berserker bloody roar protocol harness', () => {
-  test('bloody roar: target heal=2 triggers forced hit', async ({ page, protocolHarness }) => {
-    await protocolHarness.bootGame(bloodyRoarScenario());
-
-    // Server pushes bloody roar prompt when target has 2 heal
-    await protocolHarness.pushServerMessage(bloodyRoarTargetHeal2Prompt());
-
-    // Click confirm
-    await clickOverlayOption(page, 'prompt-option-confirm');
-    await protocolHarness.expectSubmitAction({
-      action_type: 'Select',
-      option_indexes: [0],
-    });
-  });
-});
-
-test.describe('berserker blood shadow blade protocol harness', () => {
-  test('blood shadow: enemy hand=2 triggers +2 damage', async ({ page, protocolHarness }) => {
-    await protocolHarness.bootGame(bloodShadowScenario({ enemyHandCount: 2 }));
-
-    // Server pushes prompt after hit when enemy hand is 2
-    await protocolHarness.pushServerMessage(bloodShadowHand2Prompt());
-
-    // Click confirm
-    await clickOverlayOption(page, 'prompt-option-confirm');
-    await protocolHarness.expectSubmitAction({
-      action_type: 'Select',
-      option_indexes: [0],
-    });
-  });
-
-  test('blood shadow: enemy hand=3 triggers +1 damage', async ({ page, protocolHarness }) => {
-    await protocolHarness.bootGame(bloodShadowScenario({ enemyHandCount: 3 }));
-
-    // Server pushes prompt after hit when enemy hand is 3
-    await protocolHarness.pushServerMessage(bloodShadowHand3Prompt());
-
-    // Click confirm
-    await clickOverlayOption(page, 'prompt-option-confirm');
-    await protocolHarness.expectSubmitAction({
-      action_type: 'Select',
-      option_indexes: [0],
-    });
-  });
-});
+// Note: bloodyRoar and bloodShadow skills are auto-triggered (no popup prompts)
+// The backend automatically executes these skills when conditions are met

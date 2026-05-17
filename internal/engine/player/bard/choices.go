@@ -126,10 +126,15 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		return &model.Prompt{
 			Type:     model.PromptConfirm,
 			PlayerID: playerID,
-			Message:  "【胜利交响诗】是否发动？",
-			Options:  []model.PromptOption{{ID: "0", Label: "发动"}, {ID: "1", Label: "不发动"}},
-			Min:      1,
-			Max:      1,
+			Message:  "【胜利交响诗】请选择效果：",
+			Options: []model.PromptOption{
+				{ID: "0", Label: "将我方战绩区1个星石提炼为你的能量"},
+				{ID: "1", Label: "我方战绩区+1宝石，你+1治疗"},
+				{ID: "2", Label: "取消"},
+			},
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 		}
 	case "bd_victory_mode":
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【胜利交响诗】请选择效果：", Options: []model.PromptOption{{ID: "0", Label: "将我方战绩区1个星石提炼为你的能量"}, {ID: "1", Label: "我方战绩区+1宝石，你+1治疗"}}, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"}}
@@ -217,6 +222,14 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 	default:
 		return false, nil
 	}
+}
+
+func (choiceHandler) HandleCancel(rt engineplayer.ChoiceRuntime, _ string, ctxData map[string]interface{}) (bool, error) {
+	choiceType, _ := ctxData["choice_type"].(string)
+	if choiceType != "bd_victory_confirm" {
+		return false, nil
+	}
+	return true, cancelVictorySymphony(rt, ctxData)
 }
 
 // ---- 沉沦协奏曲 ----
@@ -696,32 +709,29 @@ func handleVictoryConfirm(rt engineplayer.ChoiceRuntime, ctxData map[string]inte
 		return fmt.Errorf("吟游诗人或持有者不存在")
 	}
 	switch selectionIndex {
-	case 0: // 发动
-		// 推送分支选择中断
-		rt.PopInterrupt()
-		rt.PushInterrupt(&model.Interrupt{
-			Type:     model.InterruptChoice,
-			PlayerID: holderID,
-			Context: map[string]interface{}{
-				"choice_type": "bd_victory_mode",
-				"user_id":     holderID,
-				"bard_id":     bardID,
-			},
-		})
-		rt.Log(fmt.Sprintf("%s 发动 [胜利交响诗]，请选择效果", holder.Name))
-		return nil
-	case 1: // 不发动
-		rt.Log(fmt.Sprintf("%s 选择不发动 [胜利交响诗]", holder.Name))
-		rt.PopInterrupt()
-		if rt.GetPendingInterrupt() == nil {
-			rt.RoutePendingDamageOr(model.TurnStageTurnEnd, func() {
-				rt.EnterTurnEndStage()
-			})
-		}
-		return nil
+	case 0, 1: // 选择任一分支即视为发动
+		return handleVictoryMode(rt, ctxData, selectionIndex)
+	case 2: // 不发动
+		return cancelVictorySymphony(rt, ctxData)
 	default:
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
+}
+
+func cancelVictorySymphony(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}) error {
+	holderID, _ := ctxData["user_id"].(string)
+	holder := rt.GetPlayers()[holderID]
+	if holder == nil {
+		return fmt.Errorf("永恒乐章持有者不存在")
+	}
+	rt.Log(fmt.Sprintf("%s 选择不发动 [胜利交响诗]", holder.Name))
+	rt.PopInterrupt()
+	if rt.GetPendingInterrupt() == nil {
+		rt.RoutePendingDamageOr(model.TurnStageTurnEnd, func() {
+			rt.EnterTurnEndStage()
+		})
+	}
+	return nil
 }
 
 func handleVictoryMode(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
@@ -1134,3 +1144,5 @@ func getPlayerEnergyCap(player *model.Player) int {
 	}
 	return 3
 }
+
+var _ engineplayer.CancelChoiceHandler = choiceHandler{}

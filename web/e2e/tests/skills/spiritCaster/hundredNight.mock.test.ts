@@ -13,6 +13,15 @@ import {
   hundredNightAoeExemptTargetPrompt,
 } from '../../../scenarios/spiritCaster';
 
+async function pickFirstYouliCover(page: import('@playwright/test').Page) {
+  await expect(page.getByTestId('decision-overlay')).not.toBeVisible({ timeout: 5000 });
+  const cover = page.getByTestId('cover-card-0');
+  if (!(await cover.isVisible().catch(() => false))) {
+    await page.getByRole('button', { name: /扩展区/ }).click();
+  }
+  await page.getByTestId('cover-card-0').click();
+}
+
 test.describe('spirit caster hundred night protocol harness', () => {
   test('hundred night: confirm -> no crystal -> remove fire youli -> show -> select first exempt', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(hundredNightScenario({ hasCrystal: false }));
@@ -26,10 +35,9 @@ test.describe('spirit caster hundred night protocol harness', () => {
       option_indexes: [0],
     });
 
-    // Remove youli (fire card) - rendered in overlay with branch-option testid
+    // Remove youli (fire card) - select the corresponding cover card in expansion zone
     await protocolHarness.pushServerMessage(hundredNightRemoveYouliPrompt());
-    await expect(page.getByTestId('decision-overlay')).toBeVisible();
-    await page.getByTestId('branch-option-0').click();
+    await pickFirstYouliCover(page);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -65,7 +73,7 @@ test.describe('spirit caster hundred night protocol harness', () => {
     });
 
     await protocolHarness.pushServerMessage(hundredNightRemoveYouliPrompt());
-    await page.getByTestId('branch-option-0').click();
+    await pickFirstYouliCover(page);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -109,7 +117,7 @@ test.describe('spirit caster hundred night protocol harness', () => {
     });
 
     await protocolHarness.pushServerMessage(hundredNightRemoveYouliPrompt());
-    await page.getByTestId('branch-option-0').click();
+    await pickFirstYouliCover(page);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -151,7 +159,7 @@ test.describe('spirit caster hundred night protocol harness', () => {
     });
 
     await protocolHarness.pushServerMessage(hundredNightRemoveYouliPrompt());
-    await page.getByTestId('branch-option-0').click();
+    await pickFirstYouliCover(page);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],

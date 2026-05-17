@@ -29,6 +29,7 @@ type PromptOptionDTO struct {
 	Label       string `json:"label"`
 	ButtonLabel string `json:"button_label,omitempty"`
 	Hint        string `json:"hint,omitempty"`
+	FieldIndex  *int   `json:"field_index,omitempty"`
 }
 
 // ToPromptDTO 将 model.Prompt 转换为 PromptDTO
@@ -59,6 +60,7 @@ func ToPromptDTO(p *model.Prompt) *PromptDTO {
 			Label:       o.Label,
 			ButtonLabel: o.ButtonLabel,
 			Hint:        o.Hint,
+			FieldIndex:  o.FieldIndex,
 		})
 	}
 	// 转换 SpecialOptions
@@ -68,6 +70,7 @@ func ToPromptDTO(p *model.Prompt) *PromptDTO {
 			Label:       o.Label,
 			ButtonLabel: o.ButtonLabel,
 			Hint:        o.Hint,
+			FieldIndex:  o.FieldIndex,
 		})
 	}
 	return dto

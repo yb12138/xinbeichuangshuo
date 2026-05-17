@@ -178,15 +178,16 @@ export function piercingShotScenario(): ProtocolHarnessScenario {
 
 export function piercingShotMissPrompt(): WsMessage {
   return requireActionMessage({
-    type: 'confirm',
+    type: 'choose_skill',
     player_id: ARCHER_PLAYER_ID,
-    message: '【贯穿射击】主动攻击未命中，是否弃1张法术牌对目标造成2点法术伤害？',
-    choice_type: 'archer_piercing_shot_miss',
+    message: '你触发了响应技能【贯穿射击】，请选择是否发动。',
+    choice_type: 'response_skill_choice',
     options: [
-      { id: 'confirm', label: '发动' },
-      { id: 'skip', label: '跳过' },
+      { id: 'piercing_shot', label: '发动贯穿射击', hint: '弃1张法术牌对目标造成2点法术伤害' },
+      { id: 'skip', label: '跳过', hint: '不发动响应技能' },
     ],
     min: 1, max: 1,
+    presentation: { kind: 'skill_choice', layout: 'overlay' },
   } satisfies Prompt);
 }
 
@@ -195,13 +196,14 @@ export function piercingShotDiscardPrompt(): WsMessage {
     type: 'choose_cards',
     player_id: ARCHER_PLAYER_ID,
     message: '【贯穿射击】请选择1张法术牌弃置（展示）：',
-    choice_type: 'archer_piercing_shot_discard',
+    choice_type: 'discard_cards',
     options: [
       { id: '2', label: '3: 雷击（雷系 法术）' },
       { id: '3', label: '4: 火球（火系 法术）' },
       { id: '5', label: '6: 闪光陷阱（光系 法术）' },
     ],
     min: 1, max: 1,
+    presentation: { kind: 'card_picker' },
   } satisfies Prompt);
 }
 
@@ -226,13 +228,14 @@ export function snipeTargetPrompt(): WsMessage {
     type: 'confirm',
     player_id: ARCHER_PLAYER_ID,
     message: '【狙击】请选择一名目标角色，使其手牌补到5张：',
-    choice_type: 'archer_snipe_target',
+    choice_type: 'skill_target_selection',
     options: [
       { id: ENEMY_PLAYER_ID, label: 'Enemy E1（手牌1→5）' },
       { id: ALLY_PLAYER_ID, label: 'Ally A1（手牌1→5）' },
       { id: ARCHER_PLAYER_ID, label: '自己' },
     ],
     min: 1, max: 1,
+    presentation: { kind: 'target_picker' },
   } satisfies Prompt);
 }
 
@@ -252,15 +255,16 @@ export function preciseShotScenario(): ProtocolHarnessScenario {
 
 export function preciseShotConfirmPrompt(): WsMessage {
   return requireActionMessage({
-    type: 'confirm',
+    type: 'choose_skill',
     player_id: ARCHER_PLAYER_ID,
-    message: '【精准射击】本次攻击强制命中，但伤害-1。是否发动？',
-    choice_type: 'archer_precise_shot',
+    message: '你触发了响应技能【精准射击】，请选择是否发动。',
+    choice_type: 'response_skill_choice',
     options: [
-      { id: 'confirm', label: '发动' },
-      { id: 'skip', label: '跳过' },
+      { id: 'precise_shot', label: '发动精准射击', hint: '本次攻击强制命中，但伤害-1' },
+      { id: 'skip', label: '跳过', hint: '不发动响应技能' },
     ],
     min: 1, max: 1,
+    presentation: { kind: 'skill_choice', layout: 'overlay' },
   } satisfies Prompt);
 }
 
@@ -283,11 +287,12 @@ export function flashTrapTargetPrompt(): WsMessage {
     type: 'confirm',
     player_id: ARCHER_PLAYER_ID,
     message: '【闪光陷阱】请选择一名目标角色，对其造成2点法术伤害：',
-    choice_type: 'archer_flash_trap_target',
+    choice_type: 'skill_target_selection',
     options: [
       { id: ENEMY_PLAYER_ID, label: 'Enemy E1' },
       { id: ALLY_PLAYER_ID, label: 'Ally A1' },
     ],
     min: 1, max: 1,
+    presentation: { kind: 'target_picker' },
   } satisfies Prompt);
 }

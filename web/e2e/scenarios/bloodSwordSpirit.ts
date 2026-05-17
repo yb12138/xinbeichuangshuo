@@ -181,7 +181,7 @@ export function redFlashPrompt(): WsMessage {
     type: 'confirm',
     player_id: BLOOD_SWORD_SPIRIT_PLAYER_ID,
     message: '【赤色一闪】对自己造成1点法术伤害，本次攻击伤害+1？（可连续发动）',
-    choice_type: 'bss_red_flash',
+    choice_type: 'css_red_flash',
     options: [
       { id: 'confirm', label: '发动' },
       { id: 'skip', label: '跳过' },
@@ -213,7 +213,7 @@ export function bloodDyeRoseTargetPrompt(): WsMessage {
     type: 'confirm',
     player_id: BLOOD_SWORD_SPIRIT_PLAYER_ID,
     message: '【血染蔷薇】请选择移除治疗的对手和获得治疗的队友：',
-    choice_type: 'bss_blood_dye_rose_target',
+    choice_type: 'css_blood_rose_gain_heal_target',
     options: [
       { id: ENEMY_PLAYER_ID, label: 'Enemy E1（移除治疗）' },
       { id: ALLY_PLAYER_ID, label: 'Ally A1（获得治疗）' },
@@ -239,7 +239,7 @@ export function bloodBarrierPrompt(): WsMessage {
     type: 'confirm',
     player_id: BLOOD_SWORD_SPIRIT_PLAYER_ID,
     message: '【血气屏障】移除1鲜血，令法术伤害-1？',
-    choice_type: 'bss_blood_barrier',
+    choice_type: 'css_blood_barrier',
     options: [
       { id: 'confirm', label: '发动' },
       { id: 'skip', label: '跳过' },
@@ -268,7 +268,7 @@ export function scatteringDanceBranchPrompt(): WsMessage {
     type: 'confirm',
     player_id: BLOOD_SWORD_SPIRIT_PLAYER_ID,
     message: '【散华轮舞】请选择分支：',
-    choice_type: 'bss_scattering_dance_branch',
+    choice_type: 'css_dance_mode',
     options: [
       { id: 'damage', label: '对对手造成2点法术伤害，放置血色庭院' },
       { id: 'heal_transfer', label: '移除自己1治疗给队友，放置血色庭院' },
@@ -282,7 +282,7 @@ export function scatteringDanceDamageTargetPrompt(): WsMessage {
     type: 'confirm',
     player_id: BLOOD_SWORD_SPIRIT_PLAYER_ID,
     message: '【散华轮舞】请选择造成伤害的对手：',
-    choice_type: 'bss_scattering_dance_damage_target',
+    choice_type: 'css_dance_damage_target',
     options: [
       { id: ENEMY_PLAYER_ID, label: 'Enemy E1' },
     ],
@@ -295,7 +295,7 @@ export function scatteringDanceHealTargetPrompt(): WsMessage {
     type: 'confirm',
     player_id: BLOOD_SWORD_SPIRIT_PLAYER_ID,
     message: '【散华轮舞】请选择获得治疗的队友：',
-    choice_type: 'bss_scattering_dance_heal_target',
+    choice_type: 'css_dance_heal_target',
     options: [
       { id: ALLY_PLAYER_ID, label: 'Ally A1' },
     ],

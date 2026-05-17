@@ -1,13 +1,15 @@
 import { test } from '../../../fixtures/protocolHarness.fixture';
 import {
   medusaEyeDarkMoonPrompt,
+  medusaEyeMagicDiscardPrompt,
   medusaEyeScenario,
 } from '../../../scenarios/moonGoddess';
 
 // ============================================================
 // 美杜莎之眼 (mg_medusa_eye) - 后端通过 response_skills 触发
 // 闇月选择使用 choice_type: mg_medusa_darkmoon_pick
-// 弃牌通过 system_discard_cards，目标通过 min_targets 处理
+// 法术闇月弃牌使用 choice_type: mg_medusa_magic_discard
+// 弃牌后造成1点法术伤害
 // ============================================================
 
 test.describe('moon goddess medusa eye protocol harness', () => {
@@ -37,6 +39,30 @@ test.describe('moon goddess medusa eye protocol harness', () => {
       action_type: 'Select',
       option_indexes: [1],
     });
+  });
+
+  test('medusa eye: magic dark moon triggers discard then damage', async ({ page, protocolHarness }) => {
+    await protocolHarness.bootGame(medusaEyeScenario({ dark_moon_cards: 2 }));
+
+    // 1) 选择法术闇月 → 触发弃牌后续
+    await protocolHarness.pushServerMessage(medusaEyeDarkMoonPrompt());
+    await page.getByTestId('hand-card-0').click();
+    await page.getByTestId('prompt-confirm-btn').click();
+    await protocolHarness.expectSubmitAction({
+      action_type: 'Select',
+      option_indexes: [0],
+    });
+
+    // 2) 法术闇月弃牌：mg_medusa_magic_discard
+    await protocolHarness.pushServerMessage(medusaEyeMagicDiscardPrompt());
+    await page.getByTestId('hand-card-0').click();
+    await page.getByTestId('prompt-confirm-btn').click();
+    await protocolHarness.expectSubmitAction({
+      action_type: 'Select',
+      option_indexes: [0],
+    });
+
+    // 3) 弃牌后自动造成1点法术伤害（无额外选择）
   });
 
   test('medusa eye: triggered via response_skills', async ({ protocolHarness }) => {

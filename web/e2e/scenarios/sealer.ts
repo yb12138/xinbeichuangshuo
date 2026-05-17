@@ -255,7 +255,7 @@ export function sealBreakFieldSelectPrompt(): WsMessage {
     type: 'confirm',
     player_id: SEALER_PLAYER_ID,
     message: '【封印破碎】请选择场上一张基础效果牌收入手中：',
-    choice_type: 'sealer_seal_break_field',
+    choice_type: 'basic_effect_pick',
     options: [
       { id: 'enemy_shield', label: '敌方圣盾（Enemy E1）' },
     ],
@@ -308,6 +308,7 @@ export function fiveElementsBindCancelPrompt(x: number): WsMessage {
       { id: 'skip', label: '跳过行动阶段' },
     ],
     min: 1, max: 1,
+    presentation: { kind: 'branch_select', layout: 'overlay' },
   } satisfies Prompt);
 }
 

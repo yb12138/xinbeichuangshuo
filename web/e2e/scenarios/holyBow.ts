@@ -295,10 +295,15 @@ export function shardStormMissTargetPrompt(): WsMessage {
 // 圣煌降临 (hb_radiant_descent) - Simple magic skill
 // ============================================================
 
-export function radiantDescentScenario(): ProtocolHarnessScenario {
+// 支持不同 heal/faith 配置的场景
+export function radiantDescentScenario(options: { heal?: number; faith?: number } = {}): ProtocolHarnessScenario {
+  const heal = options.heal ?? 2;
+  const faith = options.faith ?? 0;
   const characters = [holyBowCharacter, allyCharacter, enemyCharacter];
 
-  const holyBow = holyBowPlayerView({ is_active: true });
+  const holyBow = holyBowPlayerView({ heal, is_active: true });
+  // 修改 tokens 以反映 faith 配置
+  holyBow.tokens = { hb_faith: faith };
 
   const players = [
     holyBow,
@@ -332,6 +337,29 @@ export function radiantDescentScenario(): ProtocolHarnessScenario {
       players,
     }),
   };
+}
+
+// 后端 buildRadiantDescentCostPrompt：根据 cost_modes 动态生成选项
+// choice_type: 'hb_radiant_descent_cost', Message: '【圣煌降临】请选择支付方式：'
+export function radiantDescentCostPrompt(costModes: ('heal' | 'faith')[]): WsMessage {
+  const options: { id: string; label: string }[] = [];
+  for (const mode of costModes) {
+    if (mode === 'heal') {
+      options.push({ id: `${options.length}`, label: '移除2点治疗' });
+    } else if (mode === 'faith') {
+      options.push({ id: `${options.length}`, label: '移除2点信仰' });
+    }
+  }
+  return requireActionMessage({
+    type: 'confirm',
+    player_id: HB_PLAYER_ID,
+    message: '【圣煌降临】请选择支付方式：',
+    choice_type: 'hb_radiant_descent_cost',
+    skill_id: HB_RADIANT_DESCENT_SKILL_ID,
+    options,
+    min: 1,
+    max: 1,
+  } satisfies Prompt);
 }
 
 // ============================================================
@@ -434,17 +462,20 @@ export function lightBurstBranch1TargetPrompt(): WsMessage {
   } satisfies Prompt);
 }
 
-export function lightBurstBranch2HealPrompt(): WsMessage {
+// 后端 buildLightBurstModeBXPrompt 生成的选项格式：X={x}（移除{x}治疗并弃{x}张牌）
+export function lightBurstBranch2HealPrompt(maxX = 2): WsMessage {
+  const options: { id: string; label: string }[] = [];
+  for (let x = 1; x <= maxX; x++) {
+    options.push({ id: `${x}`, label: `X=${x}（移除${x}治疗并弃${x}张牌）` });
+  }
   return requireActionMessage({
     type: 'confirm',
     player_id: HB_PLAYER_ID,
-    message: '【圣光爆裂】分支二：请选择移除X点治疗：',
+    message: '【圣光爆裂】分支②请选择X值：',
     choice_type: 'hb_light_burst_mode_b_x',
     skill_id: HB_LIGHT_BURST_SKILL_ID,
-    options: [
-      { id: '1', label: '移除1点治疗' },
-      { id: '2', label: '移除2点治疗' },
-    ],
+    options,
+    presentation: { kind: 'numeric', numeric_base: 0 },
     min: 1,
     max: 1,
   } satisfies Prompt);
@@ -453,18 +484,23 @@ export function lightBurstBranch2HealPrompt(): WsMessage {
 // 后端 buildLightBurstModeBTargetsPrompt 为「每次单选 + finish 按钮」迭代选择：
 // Min=Max=1，玩家可分多次提交，最多 X 名目标。已选目标会从下次 options 移除，
 // 第二次及之后会附加 "finish" 选项让玩家结束选择。
+// 注意：前端对于有玩家选项和非玩家选项的 confirm prompt，会显示 overlay（只含非玩家选项）阻挡 player-area 点击。
+// 所以第二次选择时，如果需要继续选择玩家目标，应该不包含 finish 选项，让 overlay 不显示。
 export function lightBurstBranch2TargetPrompt(args: {
   xValue: number;
   selectedCount?: number;
   withFinish?: boolean;
+  selectedIds?: string[];
 } = { xValue: 2 }): WsMessage {
   const xValue = args.xValue;
   const selectedCount = args.selectedCount ?? 0;
-  const candidates: { id: string; label: string }[] = [
+  const selectedIds = args.selectedIds ?? [];
+  const allCandidates: { id: string; label: string }[] = [
     { id: ENEMY_PLAYER_ID, label: '恶徒' },
     { id: ENEMY_2_PLAYER_ID, label: '恶徒2' },
   ];
-  const options = candidates.slice(selectedCount);
+  // 过滤掉已选中的目标
+  const options = allCandidates.filter(c => !selectedIds.includes(c.id));
   if (args.withFinish ?? selectedCount > 0) {
     options.push({ id: 'finish', label: '完成目标选择' });
   }

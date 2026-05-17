@@ -413,6 +413,101 @@ const selectedCocoonFieldIndices = ref<number[]>([])
 
 const promptNeedsCocoonGuide = computed(() => cocoonPromptContext.value.active)
 
+type SpiritCasterPowerPromptOption = {
+  optionIndex: number
+  powerIndex: number
+  fieldIndex: number
+}
+
+function numericPromptOptionId(optionId: unknown): number | null {
+  const normalized = String(optionId ?? '').trim()
+  if (!/^\d+$/.test(normalized)) return null
+  const parsed = Number.parseInt(normalized, 10)
+  if (!Number.isFinite(parsed) || parsed < 0) return null
+  return parsed
+}
+
+function parseSpiritCasterPowerIndexFromLabel(label: string): number | null {
+  const matched = String(label || '').match(/妖力\[(\d+)\]/)
+  if (!matched) return null
+  const parsed = Number.parseInt(matched[1] || '', 10)
+  if (!Number.isFinite(parsed) || parsed < 0) return null
+  return parsed
+}
+
+const spiritCasterPowerPromptContext = computed(() => {
+  const p = promptGuideContext.value
+  if (!p || !Array.isArray(p.options) || p.options.length === 0 || p.choice_type !== 'sc_hundred_night_power') {
+    return {
+      active: false,
+      min: 0,
+      max: 0,
+      options: [] as SpiritCasterPowerPromptOption[],
+      fieldToOptionIndex: {} as Record<number, number>
+    }
+  }
+
+  // 获取妖力盖牌列表，按 field 顺序排列
+  const spiritCasterPowerEntries = myCoverCards.value.filter(entry => entry.fieldCard.effect === 'SpiritCasterPower')
+
+  const options: SpiritCasterPowerPromptOption[] = []
+  for (let idx = 0; idx < p.options.length; idx++) {
+    const option = p.options[idx]
+    const fieldIndexFromOption = numericPromptOptionId(option?.field_index)
+    if (fieldIndexFromOption !== null && spiritCasterPowerEntries.some(entry => entry.fieldIndex === fieldIndexFromOption)) {
+      options.push({
+        optionIndex: idx,
+        powerIndex: spiritCasterPowerEntries.findIndex(entry => entry.fieldIndex === fieldIndexFromOption),
+        fieldIndex: fieldIndexFromOption
+      })
+      continue
+    }
+
+    const powerIndex = numericPromptOptionId(option?.id) ?? parseSpiritCasterPowerIndexFromLabel(String(option?.label || ''))
+    if (powerIndex === null) continue
+    // powerIndex 是妖力在 spiritCasterPowerEntries 中的索引
+    if (powerIndex < 0 || powerIndex >= spiritCasterPowerEntries.length) continue
+    const fieldIndex = spiritCasterPowerEntries[powerIndex].fieldIndex
+    options.push({
+      optionIndex: idx,
+      powerIndex,
+      fieldIndex
+    })
+  }
+  if (options.length === 0) {
+    return {
+      active: false,
+      min: 0,
+      max: 0,
+      options: [] as SpiritCasterPowerPromptOption[],
+      fieldToOptionIndex: {} as Record<number, number>
+    }
+  }
+
+  const fieldToOptionIndex: Record<number, number> = {}
+  for (const option of options) {
+    if (fieldToOptionIndex[option.fieldIndex] === undefined) {
+      fieldToOptionIndex[option.fieldIndex] = option.optionIndex
+    }
+  }
+
+  return {
+    active: true,
+    min: Math.max(1, Number.isFinite(p.min) ? p.min : 1),
+    max: Math.max(1, Number.isFinite(p.max) ? p.max : 1),
+    options,
+    fieldToOptionIndex,
+  }
+})
+
+const promptNeedsSpiritCasterPowerGuide = computed(() => spiritCasterPowerPromptContext.value.active)
+
+const spiritCasterPowerGuideText = computed(() => {
+  const ctx = spiritCasterPowerPromptContext.value
+  if (!ctx.active) return ''
+  return '请在扩展区点击对应的妖力完成选择'
+})
+
 const promptNeedsElementalShotGuide = computed(() => {
   const p = promptGuideContext.value
   if (!p || !isPromptForMe.value) return false
@@ -474,6 +569,15 @@ watch(
 )
 
 watch(
+  () => promptNeedsSpiritCasterPowerGuide.value,
+  (active) => {
+    if (active) {
+      showExpansionCards.value = true
+    }
+  }
+)
+
+watch(
   () => currentPrompt.value,
   () => {
     selectedCocoonFieldIndices.value = []
@@ -484,6 +588,7 @@ const promptNeedsCardGuide = computed(() => {
   if (promptNeedsCocoonGuide.value) return false
   if (promptNeedsElementalShotGuide.value) return false
   if (promptNeedsCardSelectionGuide.value) return false
+  if (promptNeedsSpiritCasterPowerGuide.value) return false
   const p = promptGuideContext.value
   if (!p) return false
   if (p.choice_type === 'plague_death_touch_element') return true
@@ -552,6 +657,10 @@ function isCoverSelectable(fieldIndex: number): boolean {
   if (ctx.active) {
     return isCocoonCoverSelectable(fieldIndex)
   }
+  const powerCtx = spiritCasterPowerPromptContext.value
+  if (powerCtx.active) {
+    return powerCtx.options.some((option) => option.fieldIndex === fieldIndex)
+  }
   // 元素射击：祝福盖牌根据 prompt.options 判断可选性
   if (currentPrompt.value?.choice_type === 'elf_archer_elemental_shot_pick') {
     const cover = myCoverCards.value.find((entry) => entry.fieldIndex === fieldIndex)
@@ -573,6 +682,11 @@ function isCoverSelected(fieldIndex: number): boolean {
   const ctx = cocoonPromptContext.value
   if (ctx.active) {
     return isCocoonCoverSelected(fieldIndex)
+  }
+  const powerCtx = spiritCasterPowerPromptContext.value
+  if (powerCtx.active) {
+    // 妖力选择总是单选，没有选中状态（点击直接提交）
+    return false
   }
   // 元素射击：祝福盖牌的选择状态
   if (currentPrompt.value?.choice_type === 'elf_archer_elemental_shot_pick') {
@@ -628,6 +742,21 @@ function onCoverCardClick(fieldIndex: number) {
     }
     selectedCocoonFieldIndices.value.push(fieldIndex)
     selectedCocoonFieldIndices.value.sort((a, b) => a - b)
+    return
+  }
+
+  const powerCtx = spiritCasterPowerPromptContext.value
+  if (powerCtx.active) {
+    if (!powerCtx.options.some((option) => option.fieldIndex === fieldIndex)) {
+      interruptStore.showError('当前步骤不可选择该妖力')
+      return
+    }
+    const optionIndex = powerCtx.fieldToOptionIndex[fieldIndex]
+    if (optionIndex === undefined) {
+      interruptStore.showError('未找到对应妖力选项，请重试')
+      return
+    }
+    actions.submitSelect([optionIndex])
     return
   }
 
@@ -1219,6 +1348,8 @@ const NON_HAND_INDEXED_PROMPT_CHOICE_TYPES = new Set([
   'bw_mana_inversion_target',
   // NOTE: bw_substitute_doll_card, bw_mana_inversion_cards
   // ARE card selections and should NOT be in this set
+  // Spirit Caster cover choices
+  'sc_hundred_night_power',
 ])
 
 function promptCardSelectionState(idx: number): PromptCardSelectionState {
@@ -1228,6 +1359,9 @@ function promptCardSelectionState(idx: number): PromptCardSelectionState {
   }
   if (isActionSelectionPrompt(prompt)) {
     return { selectable: false, reason: 'action_hub_prompt' }
+  }
+  if (prompt.choice_type === 'sc_hundred_night_power') {
+    return { selectable: false, reason: 'prompt_spirit_caster_power_cover_only', error: '请在扩展区选择要移除的妖力' }
   }
 
   const playableItem = myPlayableCards.value.find((item) => item.index === idx)
@@ -2050,6 +2184,9 @@ watch(
                     请点击手牌区或扩展区的法术牌/祝福牌完成元素射击消耗选择。
                   </div>
                 </div>
+                <div v-else-if="promptNeedsSpiritCasterPowerGuide" class="expansion-cocoon-guide">
+                  <div class="expansion-cocoon-guide-text">{{ spiritCasterPowerGuideText }}</div>
+                </div>
                 <div class="expansion-zone-scroll">
                   <div class="expansion-zone-content">
                     <div v-if="myExclusiveCards.length > 0" class="expansion-group">
@@ -2074,6 +2211,7 @@ watch(
                           <CardComponent
                             :card="cover.fieldCard.card"
                             :index="cover.fieldIndex"
+                            :test-id="`cover-card-${cover.fieldIndex}`"
                             medium
                             :selectable="isCoverSelectable(cover.fieldIndex)"
                             :selected="isCoverSelected(cover.fieldIndex)"

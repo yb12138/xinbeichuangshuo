@@ -24,6 +24,7 @@ export const ENEMY_2_PLAYER_ID = 'enemy_2';
 export const SE_SWORD_QI_SLASH_SKILL_ID = 'se_sword_qi_slash';
 export const SE_ANGEL_SOUL_SKILL_ID = 'se_angel_soul';
 export const SE_DEMON_SOUL_SKILL_ID = 'se_demon_soul';
+export const SE_INDOMITABLE_WILL_SKILL_ID = 'se_indomitable_will';
 
 // ---- Sword Emperor character definition ----
 const swordEmperorCharacter = characterView({
@@ -66,6 +67,18 @@ const swordEmperorCharacter = characterView({
       target_type: 0,
       cost_gem: 0,
       cost_crystal: 0,
+      cost_discards: 0,
+    },
+    {
+      id: SE_INDOMITABLE_WILL_SKILL_ID,
+      title: '不屈意志',
+      description: '响应技能，攻击行动结束后发动，消耗1水晶摸1张+剑气+1并追加攻击行动',
+      type: 0,
+      min_targets: 0,
+      max_targets: 0,
+      target_type: 0,
+      cost_gem: 0,
+      cost_crystal: 1,
       cost_discards: 0,
     },
   ],
@@ -343,5 +356,78 @@ export function demonSoulResponsePrompt(): WsMessage {
     SE_DEMON_SOUL_SKILL_ID,
     '恶魔之魂',
     '你触发了响应技能【恶魔之魂】，请选择是否发动。'
+  );
+}
+
+// ============================================================
+// 不屈意志 (se_indomitable_will) - Response skill after attack action end
+// ============================================================
+
+export function indomitableWillScenario(options: {
+  sword_qi?: number;
+  crystal?: number;
+  gem?: number;
+} = {}): ProtocolHarnessScenario {
+  const sword_qi = options.sword_qi ?? 2;
+  const crystal = options.crystal ?? 1;
+  const gem = options.gem ?? 0;
+  const characters = [swordEmperorCharacter, allyCharacter, enemyCharacter, enemy2Character];
+
+  const swordEmperor = swordEmperorPlayerView({ sword_qi, is_active: true });
+  // Set crystal/gem on the player view for cost availability
+  swordEmperor.crystal = crystal;
+  swordEmperor.gem = gem;
+
+  const players = [
+    swordEmperor,
+    playerView({
+      id: ENEMY_PLAYER_ID,
+      name: 'Enemy Bot',
+      camp: 'Blue',
+      role: 'villain',
+      hand: [],
+      hand_count: 3,
+      heal: 1,
+      max_heal: 2,
+      is_active: false,
+    }),
+    playerView({
+      id: ENEMY_2_PLAYER_ID,
+      name: 'Enemy Bot 2',
+      camp: 'Blue',
+      role: 'villain',
+      hand: [],
+      hand_count: 2,
+      heal: 1,
+      max_heal: 2,
+      is_active: false,
+    }),
+  ];
+
+  return {
+    roomCode: 'MOCK',
+    myPlayerId: SE_PLAYER_ID,
+    myPlayerName: 'E2E Sword Emperor',
+    characters,
+    players: [
+      playerInfo({ id: SE_PLAYER_ID, name: 'E2E Sword Emperor', camp: 'Red', char_role: 'sword_emperor', is_host: true }),
+      playerInfo({ id: ENEMY_PLAYER_ID, name: 'Enemy Bot', camp: 'Blue', char_role: 'villain' }),
+      playerInfo({ id: ENEMY_2_PLAYER_ID, name: 'Enemy Bot 2', camp: 'Blue', char_role: 'villain' }),
+    ],
+    initialState: syncState({
+      turn_player_id: SE_PLAYER_ID,
+      turn_stage: 'ActionExecution',
+      available_skills: [],
+      characters,
+      players,
+    }),
+  };
+}
+
+export function indomitableWillResponsePrompt(): WsMessage {
+  return swordEmperorSkillChoicePrompt(
+    SE_INDOMITABLE_WILL_SKILL_ID,
+    '不屈意志',
+    '攻击行动结束，你触发了响应技能【不屈意志】，请选择是否发动。'
   );
 }

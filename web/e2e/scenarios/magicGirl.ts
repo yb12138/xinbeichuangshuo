@@ -197,6 +197,7 @@ export function magicBulletDirectionPrompt(): WsMessage {
       { id: 'reverse', label: '逆向传递' },
     ],
     min: 1, max: 1,
+    presentation: { kind: 'branch_select', layout: 'overlay' },
   } satisfies Prompt);
 }
 

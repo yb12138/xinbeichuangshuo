@@ -649,13 +649,15 @@ export function victoryConfirmPrompt(): WsMessage {
   return requireActionMessage({
     type: 'confirm',
     player_id: ALLY_PLAYER_ID,
-    message: '【胜利交响诗】是否发动？',
+    message: '【胜利交响诗】请选择效果：',
     choice_type: 'bd_victory_confirm',
     skill_id: BD_VICTORY_SYMPHONY_SKILL_ID,
     options: [
-      { id: '0', label: '发动' },
-      { id: '1', label: '不发动' },
+      { id: '0', label: '将我方战绩区1个星石提炼为你的能量' },
+      { id: '1', label: '我方战绩区+1宝石，你+1治疗' },
+      { id: '2', label: '取消' },
     ],
+    presentation: { kind: 'branch_select', layout: 'overlay' },
     min: 1,
     max: 1,
   } satisfies Prompt);

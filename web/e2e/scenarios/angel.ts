@@ -215,6 +215,7 @@ export function angelBlessingBranchPrompt(): WsMessage {
       { id: 'branch2', label: '指定2名角色各给你1张牌' },
     ],
     min: 1, max: 1,
+    presentation: { kind: 'branch_select', layout: 'overlay' },
   } satisfies Prompt);
 }
 
@@ -229,6 +230,7 @@ export function angelBlessingSingleTargetPrompt(): WsMessage {
       { id: ALLY_PLAYER_ID, label: 'Ally A1' },
     ],
     min: 1, max: 1,
+    presentation: { kind: 'target_picker' },
   } satisfies Prompt);
 }
 
@@ -243,6 +245,7 @@ export function angelBlessingDualTargetPrompt(): WsMessage {
       { id: ALLY_PLAYER_ID, label: 'Ally A1' },
     ],
     min: 2, max: 2,
+    presentation: { kind: 'target_picker' },
   } satisfies Prompt);
 }
 
@@ -269,7 +272,7 @@ export function windCleanseFieldSelectPrompt(): WsMessage {
     type: 'confirm',
     player_id: ANGEL_PLAYER_ID,
     message: '【风之洁净】请选择场上1个基础效果移除：',
-    choice_type: 'angel_wind_cleanse_field',
+    choice_type: 'basic_effect_pick',
     options: [
       { id: 'enemy_shield', label: '敌方圣盾（Enemy E1）' },
       { id: 'ally_buff', label: '队友增益（Ally A1）' },
@@ -302,6 +305,7 @@ export function angelSongBeforeTurnPrompt(): WsMessage {
       { id: 'skip', label: '跳过' },
     ],
     min: 1, max: 1,
+    presentation: { kind: 'branch_select' },
   } satisfies Prompt);
 }
 
@@ -310,7 +314,7 @@ export function angelSongFieldSelectPrompt(): WsMessage {
     type: 'confirm',
     player_id: ANGEL_PLAYER_ID,
     message: '【天使之歌】请选择场上1个基础效果移除：',
-    choice_type: 'angel_song_field',
+    choice_type: 'basic_effect_pick',
     options: [
       { id: 'enemy_shield', label: '敌方圣盾' },
       { id: 'ally_buff', label: '队友增益' },
@@ -343,5 +347,6 @@ export function godProtectionPrompt(maxX: number): WsMessage {
     choice_type: 'god_protection_x',
     options,
     min: 1, max: 1,
+    presentation: { kind: 'numeric', numeric_base: 1 },
   } satisfies Prompt);
 }

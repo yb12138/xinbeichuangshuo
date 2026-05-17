@@ -361,6 +361,9 @@ const NON_HAND_INDEXED_PROMPT_CHOICE_TYPES = new Set<string>([
   'mg_pale_moon_branch',
   'mg_pale_moon_x',
   'mg_pale_moon_target',
+  // Magic Lancer choice types (matching backend magic_lancer/choices.go)
+  'ml_fullness_cost_card',
+  'ml_fullness_discard_step',
   // NOTE: mg_medusa_eye_dark_moon, mg_medusa_eye_discard, mg_pale_moon_discard
   // ARE card selections and should NOT be in this set
   // Blood Priestess choice types for skill prompts
@@ -525,6 +528,10 @@ const nonPlayerOptions = computed(() => {
   return options.filter((_, idx) => !playerOptionIndexSet.value.has(idx))
 })
 
+const isSpiritCasterPowerPickPrompt = computed(() =>
+  prompt.value?.choice_type === 'sc_hundred_night_power'
+)
+
 const showConfirmButtonSection = computed(() => {
   return (
     isConfirmType.value &&
@@ -532,7 +539,8 @@ const showConfirmButtonSection = computed(() => {
     prompt.value?.type !== 'choose_cards' &&
     prompt.value?.type !== 'choose_card' &&
     !needsCardSelection.value &&
-    !needsTargetSelection.value
+    !needsTargetSelection.value &&
+    !isSpiritCasterPowerPickPrompt.value
   )
 })
 
@@ -601,6 +609,10 @@ function handleOptionClick(optionId: string) {
   }
   if (optionId === 'confirm') {
     actions.submitConfirm()
+    return
+  }
+  if (String(prompt.value?.choice_type || '').trim() === 'bd_victory_confirm' && optionId === '2') {
+    actions.submitCancel()
     return
   }
   // 魔弹融合等确认选项：yes=0, no=1
@@ -787,6 +799,8 @@ function isIndexedCocoonOption(option: { label?: string }): boolean {
 }
 
 function isPromptHandCardOption(option: { id: string; label: string }): boolean {
+  if (prompt.value?.presentation?.kind === 'numeric') return false
+  if (isSpiritCasterPowerPickPrompt.value) return false
   const choiceType = String(prompt.value?.choice_type || '').trim()
   if (NON_HAND_INDEXED_PROMPT_CHOICE_TYPES.has(choiceType)) return false
   const idx = parsePromptCardIndex(option.id)

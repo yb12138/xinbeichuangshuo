@@ -117,6 +117,42 @@ func TestMagicLancerDarkRelease_HandCapAndAttackBonusAndLock(t *testing.T) {
 	}
 }
 
+func TestMagicLancerDarkRelease_TriggersOverflowDiscardWith6Cards(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Lancer", "magic_lancer", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "angel", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	// 6张手牌，超过幻影形态的上限5张
+	p1.Hand = []model.Card{
+		magicLancerTestCard("h1", "火焰斩", model.CardTypeAttack, model.ElementFire, 2),
+		magicLancerTestCard("h2", "水流斩", model.CardTypeAttack, model.ElementWater, 2),
+		magicLancerTestCard("h3", "风神斩", model.CardTypeAttack, model.ElementWind, 2),
+		magicLancerTestCard("h4", "雷光斩", model.CardTypeAttack, model.ElementThunder, 2),
+		magicLancerTestCard("h5", "地裂斩", model.CardTypeAttack, model.ElementEarth, 2),
+		magicLancerTestCard("h6", "暗灭斩", model.CardTypeAttack, model.ElementDark, 2),
+	}
+
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionStart
+	if err := game.UseSkill("p1", "ml_dark_release", nil, nil); err != nil {
+		t.Fatalf("use ml_dark_release failed: %v", err)
+	}
+
+	if p1.Form != model.FormMagicLancerPhantom {
+		t.Fatalf("expected magic lancer phantom form, got %q", p1.Form)
+	}
+	// 6张手牌 -> 上限5张 -> 需要弃1张牌，应该触发弃牌中断
+	if game.State.PendingInterrupt == nil || !engine.IsDiscardSelectionInterrupt(game.State.PendingInterrupt) {
+		t.Fatalf("expected discard selection interrupt after dark release with 6 cards, got %+v", game.State.PendingInterrupt)
+	}
+}
+
 func TestMagicLancerPhantomStardust_LeaveFormAndPromptTarget(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "Lancer", "magic_lancer", model.RedCamp); err != nil {

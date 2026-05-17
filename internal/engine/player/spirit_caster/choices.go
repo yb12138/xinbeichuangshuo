@@ -135,28 +135,41 @@ func buildHundredNightPowerPrompt(playerID string, player *model.Player) *model.
 		if eleZh == "" {
 			eleZh = string(fc.Card.Element)
 		}
-		options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", i), Label: fmt.Sprintf("%s（%s系）", fc.Card.Name, eleZh)})
+		fieldIndex := -1
+		for idx, fieldCard := range player.Field {
+			if fieldCard == fc {
+				fieldIndex = idx
+				break
+			}
+		}
+		option := model.PromptOption{ID: fmt.Sprintf("%d", i), Label: fmt.Sprintf("妖力[%d] %s（%s系）", i, fc.Card.Name, eleZh)}
+		if fieldIndex >= 0 {
+			option.FieldIndex = &fieldIndex
+		}
+		options = append(options, option)
 	}
 	return &model.Prompt{
-		Type:       model.PromptConfirm,
-		PlayerID:   playerID,
-		ChoiceType: "sc_hundred_night_power",
-		Message:  "【百鬼夜行】请选择要移除的1个妖力：",
-		Options:  options,
-		Min:      1,
-		Max:      1,
+		Type:         model.PromptConfirm,
+		PlayerID:     playerID,
+		ChoiceType:   "sc_hundred_night_power",
+		Message:      "【百鬼夜行】请选择要移除的1个妖力：",
+		Options:      options,
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, Layout: "field_cover"},
 	}
 }
 
 func buildHundredNightFireRevealPrompt(playerID string) *model.Prompt {
 	return &model.Prompt{
-		Type:       model.PromptConfirm,
-		PlayerID:   playerID,
-		Message:    "【百鬼夜行】移除的是火系妖力，是否展示并改为范围伤害？",
-		ChoiceType: "sc_hundred_night_fire_reveal",
-		Options:    []model.PromptOption{{ID: "0", Label: "展示并改为范围伤害"}, {ID: "1", Label: "不展示，改为单体伤害"}},
-		Min:        1,
-		Max:        1,
+		Type:         model.PromptConfirm,
+		PlayerID:     playerID,
+		Message:      "【百鬼夜行】移除的是火系妖力，是否展示并改为范围伤害？",
+		ChoiceType:   "sc_hundred_night_fire_reveal",
+		Options:      []model.PromptOption{{ID: "0", Label: "展示并改为范围伤害"}, {ID: "1", Label: "不展示，改为单体伤害"}},
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 	}
 }
 
@@ -177,9 +190,9 @@ func buildHundredNightExcludePickPrompt(rt engineplayer.ChoiceRuntime, playerID 
 		PlayerID:   playerID,
 		Message:    fmt.Sprintf("【百鬼夜行】请选择第 %d/2 名排除目标：", len(selectedSet)+1),
 		ChoiceType: "sc_hundred_night_exclude_pick",
-		Options:  options,
-		Min:      1,
-		Max:      1,
+		Options:    options,
+		Min:        1,
+		Max:        1,
 	}
 }
 
@@ -210,9 +223,9 @@ func buildTalismanWindDiscardPrompt(rt engineplayer.ChoiceRuntime, playerID stri
 		PlayerID:   playerID,
 		Message:    fmt.Sprintf("【灵符-风行】请 %s 选择1张手牌弃置：", target.Name),
 		ChoiceType: "sc_talisman_wind_discard",
-		Options:  options,
-		Min:      1,
-		Max:      1,
+		Options:    options,
+		Min:        1,
+		Max:        1,
 	}
 }
 
@@ -775,4 +788,3 @@ func resolveHundredNightFireAOE(rt engineplayer.ChoiceRuntime, user *model.Playe
 // ===========================================================================
 // Utility helpers
 // ===========================================================================
-

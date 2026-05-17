@@ -691,6 +691,64 @@ func TestHeroExhaustion_ReleaseWithOverflow_StillStartsTurnNormally(t *testing.T
 	}
 }
 
+func TestHeroExhaustion_ReleaseAfterPoisonBeforeAction(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Hero", "hero", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "angel", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Form = model.FormHeroExhaustion
+	p1.TurnState.SkillFlowState["hero_exhaustion_release_pending"] = 1
+	p1.Hand = []model.Card{
+		heroTestCard("h1", "手牌1", model.CardTypeAttack, model.ElementFire, 2),
+		heroTestCard("h2", "手牌2", model.CardTypeAttack, model.ElementWater, 2),
+		heroTestCard("h3", "手牌3", model.CardTypeAttack, model.ElementEarth, 2),
+	}
+	p1.AddFieldCard(&model.FieldCard{
+		Card:     model.Card{ID: "poison-1", Name: "中毒", Type: model.CardTypeMagic, Element: model.ElementEarth},
+		OwnerID:  p1.ID,
+		SourceID: "p2",
+		Mode:     model.FieldEffect,
+		Effect:   model.EffectPoison,
+		Hook:     model.FieldHookOnBeforeAction,
+	})
+	game.State.Deck = []model.Card{
+		heroTestCard("d1", "毒伤摸牌", model.CardTypeAttack, model.ElementFire, 2),
+		heroTestCard("d2", "精疲摸牌1", model.CardTypeAttack, model.ElementWater, 2),
+		heroTestCard("d3", "精疲摸牌2", model.CardTypeAttack, model.ElementEarth, 2),
+		heroTestCard("d4", "精疲摸牌3", model.CardTypeAttack, model.ElementWind, 2),
+	}
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageBeforeAction
+
+	game.Drive()
+
+	if got := testutils.CountFieldEffect(p1, model.EffectPoison); got != 0 {
+		t.Fatalf("expected poison resolved first and removed, got %d", got)
+	}
+	if got := p1.Form; got != "" {
+		t.Fatalf("expected exhaustion form released after poison, got %q", got)
+	}
+	if got := p1.TurnState.SkillFlowState["hero_exhaustion_release_pending"]; got != 0 {
+		t.Fatalf("expected exhaustion release flag cleared, got %d", got)
+	}
+	if got := len(p1.Hand); got != 7 {
+		t.Fatalf("expected poison draw 1 then exhaustion self-damage draw 3, got hand=%d", got)
+	}
+	if got := game.GetMaxHand(p1); got != 6 {
+		t.Fatalf("expected hand limit restored to 6 after exhaustion release, got %d", got)
+	}
+	if game.State.PendingInterrupt == nil || !engine.IsDiscardSelectionInterrupt(game.State.PendingInterrupt) {
+		t.Fatalf("expected overflow discard after reaching 7 cards, got %+v in %s", game.State.PendingInterrupt, game.RuntimeStateLabel())
+	}
+}
+
 func TestHeroCalmMind_DisablesCounterAndAttackEndGainCrystal(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "Hero", "hero", model.RedCamp); err != nil {

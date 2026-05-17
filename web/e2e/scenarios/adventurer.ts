@@ -165,74 +165,51 @@ export function adventurerScenario(options: {
 
 // ============================================================
 // Fraud (欺诈) - 响应技能
+// Backend flow: sequential card selection with need_count, then element if needed
 // ============================================================
 
 export function fraudScenario(): ProtocolHarnessScenario {
   return adventurerScenario();
 }
 
-export function fraudDiscardCountPrompt(): WsMessage {
+// Initial prompt to select first card (need_count=2)
+export function fraudPickPrompt(remaining: number = 2): WsMessage {
   return requireActionMessage({
-    type: 'confirm',
+    type: 'choose_cards',
     player_id: ADVENTURER_PLAYER_ID,
-    message: '【欺诈】购买时发动，选择弃牌数量：',
+    message: `【欺诈】请选择手牌（还需选择${remaining}张）：`,
     choice_type: 'adventurer_fraud_pick',
+    // Backend uses hand indices as option.id
     options: [
-      { id: '2', label: '弃2张牌，选择系别' },
-      { id: '3', label: '弃3张牌，视为暗系' },
+      { id: '0', label: '1: 冒险斩（光）' },
+      { id: '1', label: '2: 探索斩（光）' },
+      { id: '2', label: '3: 火球（火）' },
+      { id: '3', label: '4: 冰冻（水）' },
+      { id: '4', label: '5: 地刺（地）' },
+      { id: '5', label: '6: 风刃（风）' },
+      { id: '6', label: '7: 雷击（雷）' },
+      { id: '7', label: '8: 暗影（暗）' },
     ],
     min: 1, max: 1,
   } satisfies Prompt);
 }
 
-export function fraudDiscard2Prompt(): WsMessage {
-  return requireActionMessage({
-    type: 'choose_cards',
-    player_id: ADVENTURER_PLAYER_ID,
-    message: '【欺诈】请选择弃2张牌：',
-    choice_type: 'adventurer_fraud_pick',
-    options: [
-      { id: 'adv-attack-1', label: '冒险斩' },
-      { id: 'adv-attack-2', label: '探索斩' },
-      { id: 'adv-magic-1', label: '火球' },
-      { id: 'adv-magic-2', label: '冰冻' },
-    ],
-    min: 2, max: 2,
-  } satisfies Prompt);
-}
-
-export function fraudElementSelectPrompt(): WsMessage {
+// Element selection prompt (backend uses element string as option.id)
+// Backend options: Water, Fire, Earth, Wind, Thunder (no Light/Dark)
+export function fraudElementPrompt(): WsMessage {
   return requireActionMessage({
     type: 'confirm',
     player_id: ADVENTURER_PLAYER_ID,
-    message: '【欺诈】请选择本次购买视为的系别：',
+    message: '【欺诈】请选择攻击系别（不含光/暗）：',
     choice_type: 'adventurer_fraud_attack_element',
     options: [
-      { id: 'Fire', label: '火系' },
-      { id: 'Water', label: '水系' },
-      { id: 'Earth', label: '地系' },
-      { id: 'Wind', label: '风系' },
-      { id: 'Thunder', label: '雷系' },
-      { id: 'Light', label: '光系' },
+      { id: 'Water', label: '水' },
+      { id: 'Fire', label: '火' },
+      { id: 'Earth', label: '地' },
+      { id: 'Wind', label: '风' },
+      { id: 'Thunder', label: '雷' },
     ],
     min: 1, max: 1,
-  } satisfies Prompt);
-}
-
-export function fraudDiscard3Prompt(): WsMessage {
-  return requireActionMessage({
-    type: 'choose_cards',
-    player_id: ADVENTURER_PLAYER_ID,
-    message: '【欺诈】请选择弃3张牌（视为暗系）：',
-    choice_type: 'adventurer_fraud_pick',
-    options: [
-      { id: 'adv-attack-1', label: '冒险斩' },
-      { id: 'adv-attack-2', label: '探索斩' },
-      { id: 'adv-magic-1', label: '火球' },
-      { id: 'adv-magic-2', label: '冰冻' },
-      { id: 'adv-magic-3', label: '地刺' },
-    ],
-    min: 3, max: 3,
   } satisfies Prompt);
 }
 
@@ -248,37 +225,25 @@ export function adventurerParadisePrompt(): WsMessage {
   return requireActionMessage({
     type: 'confirm',
     player_id: ADVENTURER_PLAYER_ID,
-    message: '【冒险者天堂】提炼时发动，将能量转移给队友并移除对手能量？',
+    message: '是否发动[冒险者天堂]，让队友代为提炼？',
     choice_type: 'adventurer_extract_paradise_check',
     options: [
-      { id: 'confirm', label: '发动' },
-      { id: 'skip', label: '跳过' },
+      { id: 'yes', label: '是，发动冒险者天堂' },
+      { id: 'no', label: '否，自行提炼' },
     ],
     min: 1, max: 1,
   } satisfies Prompt);
 }
 
-export function adventurerParadiseTransferTargetPrompt(): WsMessage {
+// Backend uses ally ID as option.id
+export function adventurerParadiseAllyPickPrompt(): WsMessage {
   return requireActionMessage({
     type: 'confirm',
     player_id: ADVENTURER_PLAYER_ID,
-    message: '【冒险者天堂】请选择获得能量的队友：',
+    message: '【冒险者天堂】选择队友代为提炼：',
     choice_type: 'adventurer_paradise_pick',
     options: [
       { id: ALLY_PLAYER_ID, label: 'Ally A1' },
-    ],
-    min: 1, max: 1,
-  } satisfies Prompt);
-}
-
-export function adventurerParadiseRemoveTargetPrompt(): WsMessage {
-  return requireActionMessage({
-    type: 'confirm',
-    player_id: ADVENTURER_PLAYER_ID,
-    message: '【冒险者天堂】请选择移除能量的对手：',
-    choice_type: 'adv_adventurer_paradise_remove_target',
-    options: [
-      { id: ENEMY_PLAYER_ID, label: 'Enemy E1' },
     ],
     min: 1, max: 1,
   } satisfies Prompt);
@@ -303,29 +268,19 @@ export function stealSkyChangeDayBranchPrompt(): WsMessage {
   return requireActionMessage({
     type: 'confirm',
     player_id: ADVENTURER_PLAYER_ID,
-    message: '【偷天换日】请选择分支：',
+    message: '【偷天换日】请选择效果：',
     choice_type: 'adventurer_steal_sky_mode',
     options: [
-      { id: 'energy_transfer', label: '转移对手能量给队友' },
-      { id: 'card_swap', label: '与队友交换手牌' },
+      { id: '0', label: '转移对方战绩区1红宝石到我方' },
+      { id: '1', label: '将我方战绩区全部蓝水晶转换成红宝石' },
     ],
     min: 1, max: 1,
+    presentation: { kind: 'branch_select', layout: 'overlay' },
   } satisfies Prompt);
 }
 
-// 能量转移分支
-export function stealSkyChangeDayEnergySourcePrompt(): WsMessage {
-  return requireActionMessage({
-    type: 'confirm',
-    player_id: ADVENTURER_PLAYER_ID,
-    message: '【偷天换日】请选择移除能量的对手：',
-    choice_type: 'adv_steal_sky_change_day_energy_source',
-    options: [
-      { id: ENEMY_PLAYER_ID, label: 'Enemy E1' },
-    ],
-    min: 1, max: 1,
-  } satisfies Prompt);
-}
+// 能量转移分支（旧版逻辑已废弃，偷天换日现在只有两分支直接执行）
+// 以下 prompts 仅用于向后兼容旧版 E2E 测试，实际后端不会触发
 
 export function stealSkyChangeDayEnergyTargetPrompt(): WsMessage {
   return requireActionMessage({

@@ -9,7 +9,38 @@ import (
 	"starcup-engine/internal/data"
 	spiritcasterplayer "starcup-engine/internal/engine/player/spirit_caster"
 	"starcup-engine/internal/model"
+	"starcup-engine/internal/rules"
 )
+
+func countSpiritCasterDamageEvents(obs *testutils.CaptureObserver, sourceID, targetID string, damage int, damageType model.DamageType) int {
+	if obs == nil {
+		return 0
+	}
+	count := 0
+	for _, ev := range obs.Events {
+		if ev.Type != model.EventDamageDealt {
+			continue
+		}
+		payload, ok := ev.Data.(model.DamageDealtPayload)
+		if !ok {
+			continue
+		}
+		if sourceID != "" && payload.SourceID != sourceID {
+			continue
+		}
+		if targetID != "" && payload.TargetID != targetID {
+			continue
+		}
+		if damage > 0 && payload.Damage != damage {
+			continue
+		}
+		if damageType != "" && !strings.EqualFold(payload.DamageType, string(damageType)) {
+			continue
+		}
+		count++
+	}
+	return count
+}
 
 func spiritCasterTestCard(id, name string, cardType model.CardType, ele model.Element) model.Card {
 	return model.Card{
@@ -192,6 +223,7 @@ func TestSpiritCasterHundredNight_FireRevealAOEWithCollapse(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	game.State.Deck = rules.InitDeck()
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]
 	p1.Crystal = 1
@@ -244,13 +276,101 @@ func TestSpiritCasterHundredNight_FireRevealAOEWithCollapse(t *testing.T) {
 	if len(game.State.PendingDamageQueue) != 2 {
 		t.Fatalf("expected aoe damage to 2 remaining players, got %d", len(game.State.PendingDamageQueue))
 	}
+	seenTargets := map[string]bool{}
 	for _, pd := range game.State.PendingDamageQueue {
 		if pd.TargetID != "p3" && pd.TargetID != "p4" {
 			t.Fatalf("unexpected aoe target: %+v", pd)
 		}
+		if seenTargets[pd.TargetID] {
+			t.Fatalf("aoe should not enqueue duplicate target damage, got %+v", game.State.PendingDamageQueue)
+		}
+		seenTargets[pd.TargetID] = true
 		if pd.Damage != 2 {
 			t.Fatalf("expected damage=2 with collapse bonus, got %+v", pd)
 		}
+	}
+}
+
+func TestSpiritCasterHundredNight_FireRevealAOEWithCollapseResolvesEachTargetOnce(t *testing.T) {
+	obs := &testutils.CaptureObserver{}
+	game := engine.NewGameEngine(obs)
+	if err := game.AddPlayer("p1", "SpiritCaster", "spirit_caster", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "EnemyA", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p3", "EnemyB", "angel", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p4", "EnemyC", "priest", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	game.State.Deck = rules.InitDeck()
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p3 := game.State.Players["p3"]
+	p4 := game.State.Players["p4"]
+	p1.Crystal = 1
+	p3.Heal = 0
+	p4.Heal = 0
+	addSpiritCasterPowerForTest(p1, spiritCasterTestCard("pow_fire", "火妖力", model.CardTypeMagic, model.ElementFire))
+
+	ctx := game.BuildContext(p1, p2, model.TimingOnHitCheck, &model.EventContext{
+		Type:     model.EventAttack,
+		SourceID: "p1",
+		TargetID: "p2",
+		AttackInfo: &model.AttackEventInfo{
+			ActionType: string(model.ActionAttack),
+			IsHit:      true,
+		},
+	})
+	h := &spiritcasterplayer.SpiritCasterHundredNightHandler{}
+	if !h.CanUse(ctx) {
+		t.Fatalf("expected hundred-night available with fire power")
+	}
+	if err := h.Execute(ctx); err != nil {
+		t.Fatalf("execute hundred-night failed: %v", err)
+	}
+	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
+		t.Fatalf("choose power failed: %v", err)
+	}
+	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
+		t.Fatalf("choose fire reveal failed: %v", err)
+	}
+	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
+		t.Fatalf("pick first excluded target failed: %v", err)
+	}
+	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
+		t.Fatalf("pick second excluded target failed: %v", err)
+	}
+	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
+		t.Fatalf("confirm spiritual collapse failed: %v", err)
+	}
+
+	if len(game.State.PendingDamageQueue) != 2 {
+		t.Fatalf("expected two pending AOE damages, got %+v", game.State.PendingDamageQueue)
+	}
+	game.Drive()
+
+	if got := countSpiritCasterDamageEvents(obs, "p1", "p3", 2, model.MagicAttack); got != 1 {
+		t.Fatalf("expected exactly one 2-damage event for p3, got %d", got)
+	}
+	if got := countSpiritCasterDamageEvents(obs, "p1", "p4", 2, model.MagicAttack); got != 1 {
+		t.Fatalf("expected exactly one 2-damage event for p4, got %d", got)
+	}
+	if got := countSpiritCasterDamageEvents(obs, "p1", "p2", 2, model.MagicAttack); got != 0 {
+		t.Fatalf("excluded p2 should not take collapse AOE damage, got %d events", got)
+	}
+	if len(game.State.PendingDamageQueue) != 0 || game.State.PendingInterrupt != nil {
+		t.Fatalf("expected damage queue fully resolved, queue=%d interrupt=%+v", len(game.State.PendingDamageQueue), game.State.PendingInterrupt)
+	}
+	if got := len(p3.Hand); got != 2 {
+		t.Fatalf("expected p3 to draw exactly 2 cards from damage, got %d", got)
+	}
+	if got := len(p4.Hand); got != 2 {
+		t.Fatalf("expected p4 to draw exactly 2 cards from damage, got %d", got)
 	}
 }
 

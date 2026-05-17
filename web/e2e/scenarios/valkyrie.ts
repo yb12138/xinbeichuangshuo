@@ -221,17 +221,37 @@ export function martialGodLightScenario(): ProtocolHarnessScenario {
   });
 }
 
-export function martialGodLightBranchPrompt(): WsMessage {
+export function martialGodLightBranchPrompt(maxX: number): WsMessage {
+  const options = [
+    { id: '0', label: '你+1治疗并脱离英灵形态' },
+  ];
+  if (maxX > 0) {
+    options.push({ id: '1', label: `移除我方战绩区星石（1~${maxX}）并指定角色+X治疗` });
+  }
   return requireActionMessage({
     type: 'confirm',
     player_id: VALKYRIE_PLAYER_ID,
-    message: '【军威神光】回合开始选择：',
+    message: '【军威神光】请选择效果：',
     choice_type: 'valkyrie_military_glory_mode',
-    options: [
-      { id: 'draw', label: '摸2张牌' },
-      { id: 'damage', label: '对对手造成1点法术伤害' },
-    ],
+    options,
     min: 1, max: 1,
+    presentation: { kind: 'branch_select', layout: 'overlay' },
+  } satisfies Prompt);
+}
+
+export function martialGodLightXPrompt(maxX: number): WsMessage {
+  const options: Array<{ id: string; label: string }> = [];
+  for (let x = 1; x <= maxX; x++) {
+    options.push({ id: String(x), label: `X=${x}` });
+  }
+  return requireActionMessage({
+    type: 'confirm',
+    player_id: VALKYRIE_PLAYER_ID,
+    message: '【军威神光】请选择X：',
+    choice_type: 'valkyrie_military_glory_x',
+    options,
+    min: 1, max: 1,
+    presentation: { kind: 'numeric', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -239,10 +259,12 @@ export function martialGodLightTargetPrompt(): WsMessage {
   return requireActionMessage({
     type: 'confirm',
     player_id: VALKYRIE_PLAYER_ID,
-    message: '【军威神光】请选择一名对手造成1点法术伤害：',
+    message: '【军威神光】请选择目标角色：',
     choice_type: 'valkyrie_military_glory_target',
     options: [
+      { id: VALKYRIE_PLAYER_ID, label: 'E2E Valkyrie' },
       { id: ENEMY_PLAYER_ID, label: 'Enemy E1' },
+      { id: ALLY_PLAYER_ID, label: 'Ally A1' },
     ],
     min: 1, max: 1,
   } satisfies Prompt);
@@ -266,12 +288,13 @@ export function heroicSummonDiscardPrompt(): WsMessage {
   return requireActionMessage({
     type: 'choose_cards',
     player_id: VALKYRIE_PLAYER_ID,
-    message: '【英灵召唤】请选择弃1张法术牌［展示］：',
+    message: '【英灵召唤】可额外弃1张法术牌并令当前战斗目标+1治疗（或点击取消放弃本次额外效果）：',
     choice_type: 'valkyrie_heroic_discard_card',
     options: [
-      { id: 'valk-magic-1', label: '圣光（法术）' },
-      { id: 'valk-magic-2', label: '神圣（法术）' },
-      { id: 'valk-water-magic', label: '治愈（法术）' },
+      { id: '2', label: '3: 圣光（法术）' },
+      { id: '3', label: '4: 神圣（法术）' },
+      { id: '4', label: '5: 治愈（法术）' },
+      { id: 'cancel', label: '放弃额外效果' },
     ],
     min: 1, max: 1,
   } satisfies Prompt);
