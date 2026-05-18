@@ -86,6 +86,82 @@ func TestBlazeWitchPainLink_ConsumesCrystalOnceAndQueuesDiscardToThree(t *testin
 	}
 }
 
+func TestBlazeWitchManaInversion_UsesPromptFlow(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Blaze", "blaze_witch", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p2.TurnState = model.NewPlayerTurnState()
+	p1.Crystal = 1
+	p1.Hand = []model.Card{
+		{ID: "m1", Name: "烈焰术", Type: model.CardTypeMagic, Element: model.ElementFire, Faction: "血"},
+		{ID: "m2", Name: "暗影术", Type: model.CardTypeMagic, Element: model.ElementDark, Faction: "血"},
+		{ID: "a1", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Faction: "血", Damage: 2},
+	}
+	p2.Hand = nil
+
+	game.AddPendingDamage(model.PendingDamage{
+		SourceID:   "p2",
+		TargetID:   "p1",
+		Damage:     1,
+		DamageType: model.MagicAttack,
+	})
+	if paused := game.ProcessPendingDamages(); !paused {
+		t.Fatalf("expected mana inversion response prompt")
+	}
+	testutils.RequireResponseSkillPrompt(t, game, "p1")
+	if err := game.ConfirmResponseSkill("p1", "bw_mana_inversion"); err != nil {
+		t.Fatalf("confirm mana inversion failed: %v", err)
+	}
+	ctxData := testutils.RequireChoiceContext(t, game, "p1", "bw_mana_inversion_x")
+	flow := testutils.RequirePromptFlow(t, ctxData, "bw_mana_inversion", "x")
+
+	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
+		t.Fatalf("choose mana inversion x failed: %v", err)
+	}
+	ctxData = testutils.RequireChoiceContext(t, game, "p1", "bw_mana_inversion_cards")
+	flow = testutils.RequirePromptFlow(t, ctxData, "bw_mana_inversion", "cards")
+	if got := flow.Selection("x").Count; got != 2 {
+		t.Fatalf("expected mana inversion flow to accumulate x=2, got %d in %+v", got, flow)
+	}
+
+	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
+		t.Fatalf("choose first mana inversion card failed: %v", err)
+	}
+	ctxData = testutils.RequireChoiceContext(t, game, "p1", "bw_mana_inversion_cards")
+	flow = testutils.RequirePromptFlow(t, ctxData, "bw_mana_inversion", "cards")
+	if got := flow.Selection("cards").OptionIndexes; len(got) != 1 || got[0] != 0 {
+		t.Fatalf("expected mana inversion flow to accumulate first card index 0, got %+v in %+v", got, flow)
+	}
+
+	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
+		t.Fatalf("choose second mana inversion card failed: %v", err)
+	}
+	ctxData = testutils.RequireChoiceContext(t, game, "p1", "bw_mana_inversion_target")
+	flow = testutils.RequirePromptFlow(t, ctxData, "bw_mana_inversion", "target")
+	if got := flow.Selection("cards").OptionIndexes; len(got) != 2 || got[0] != 0 || got[1] != 1 {
+		t.Fatalf("expected mana inversion flow to accumulate magic card indexes [0 1], got %+v in %+v", got, flow)
+	}
+
+	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
+		t.Fatalf("choose mana inversion target failed: %v", err)
+	}
+	if got := len(p1.Hand); got != 1 {
+		t.Fatalf("expected mana inversion to discard 2 magic cards, got hand=%d", got)
+	}
+	if len(game.State.PendingDamageQueue) == 0 {
+		t.Fatalf("expected mana inversion to queue target damage")
+	}
+}
+
 func TestBlazeWitchHeavenfireCleave_AllowsNonFireAttackDiscardInFlameForm(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "Blaze", "blaze_witch", model.RedCamp); err != nil {

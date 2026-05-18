@@ -40,7 +40,7 @@ func RoleEntry() player.RoleEntry {
 // ChoiceSpecs 导出角色 choice 声明。
 func ChoiceSpecs() []player.ChoiceSpec {
 	return []player.ChoiceSpec{
-		{ChoiceType: "bw_mana_inversion_cards", SequentialRemaining: player.ChoiceRemainingFromSelectionKey("x_value")},
+		{ChoiceType: "bw_mana_inversion_cards", SequentialRemaining: player.ChoiceRemainingFromFlowSelectionCount(manaInversionStepX, manaInversionStepCards)},
 	}
 }
 

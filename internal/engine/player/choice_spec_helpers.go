@@ -2,7 +2,10 @@
 
 package player
 
-import "starcup-engine/internal/engine/core/runtimeutil"
+import (
+	"starcup-engine/internal/engine/core/runtimeutil"
+	"starcup-engine/internal/model"
+)
 
 // ChoiceRemainingFromSelectionKey 根据 ctxData 中的数值字段计算剩余数量。
 func ChoiceRemainingFromSelectionKey(key string) ChoiceSequentialRemaining {
@@ -36,6 +39,20 @@ func ChoiceRemainingFromFixedTotal(total int) ChoiceSequentialRemaining {
 func ChoiceRemainingFromNeedAndSelected(needKey, selectedKey string) ChoiceSequentialRemaining {
 	return func(ctxData map[string]interface{}) (int, bool) {
 		return runtimeutil.ToIntContextValue(ctxData[needKey]) - runtimeutil.ToIntContextValue(ctxData[selectedKey]), true
+	}
+}
+
+// ChoiceRemainingFromFlowSelectionCount derives sequential remaining count from
+// PromptFlowState accumulated selections.
+func ChoiceRemainingFromFlowSelectionCount(countStepID, selectedStepID string) ChoiceSequentialRemaining {
+	return func(ctxData map[string]interface{}) (int, bool) {
+		flow := model.PromptFlowFromContext(ctxData)
+		if flow == nil {
+			return 0, false
+		}
+		need := flow.Selection(countStepID).Count
+		selectedCount := len(flow.Selection(selectedStepID).OptionIndexes)
+		return need - selectedCount, true
 	}
 }
 

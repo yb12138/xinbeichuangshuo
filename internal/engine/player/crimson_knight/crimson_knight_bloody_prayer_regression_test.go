@@ -48,22 +48,44 @@ func TestCrimsonKnightBloodyPrayer_CanSplitHealToTwoAllies(t *testing.T) {
 	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptChoice {
 		t.Fatalf("expected choice interrupt after bloody prayer, got %+v", game.State.PendingInterrupt)
 	}
+	ctxData := testutils.RequireChoiceContext(t, game, "p1", "crk_bloody_prayer_x")
+	flow := testutils.RequirePromptFlow(t, ctxData, "crk_bloody_prayer", "x")
 
 	// X = 3
 	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{2}}); err != nil {
 		t.Fatalf("choose x failed: %v", err)
 	}
+	ctxData = testutils.RequireChoiceContext(t, game, "p1", "crk_bloody_prayer_ally_count")
+	flow = testutils.RequirePromptFlow(t, ctxData, "crk_bloody_prayer", "ally_count")
+	if got := flow.Selection("x").Count; got != 3 {
+		t.Fatalf("expected flow to accumulate x=3, got %d in %+v", got, flow)
+	}
 	// 选择 2 名队友
 	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
 		t.Fatalf("choose ally count failed: %v", err)
+	}
+	ctxData = testutils.RequireChoiceContext(t, game, "p1", "crk_bloody_prayer_target")
+	flow = testutils.RequirePromptFlow(t, ctxData, "crk_bloody_prayer", "target")
+	if got := flow.Selection("ally_count").Count; got != 2 {
+		t.Fatalf("expected flow to accumulate ally_count=2, got %d in %+v", got, flow)
 	}
 	// 第一个队友：p2（当前列表第一项）
 	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose first ally failed: %v", err)
 	}
+	ctxData = testutils.RequireChoiceContext(t, game, "p1", "crk_bloody_prayer_target")
+	flow = testutils.RequirePromptFlow(t, ctxData, "crk_bloody_prayer", "target")
+	if got := flow.Selection("target").TargetIDs; len(got) != 1 || got[0] != "p2" {
+		t.Fatalf("expected flow to accumulate first target p2, got %+v in %+v", got, flow)
+	}
 	// 第二个队友：只剩 p3，索引仍为 0
 	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose second ally failed: %v", err)
+	}
+	ctxData = testutils.RequireChoiceContext(t, game, "p1", "crk_bloody_prayer_split")
+	flow = testutils.RequirePromptFlow(t, ctxData, "crk_bloody_prayer", "split")
+	if got := flow.Selection("target").TargetIDs; len(got) != 2 || got[0] != "p2" || got[1] != "p3" {
+		t.Fatalf("expected flow to accumulate split targets [p2 p3], got %+v in %+v", got, flow)
 	}
 	// 分配：p2 +2，p3 +1（X=3 时索引1）
 	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
@@ -125,12 +147,22 @@ func TestCrimsonKnightBloodyPrayer_XOneDirectlyChoosesOtherAlly(t *testing.T) {
 	if err := handler.Execute(ctx); err != nil {
 		t.Fatalf("execute bloody prayer failed: %v", err)
 	}
+	ctxData := testutils.RequireChoiceContext(t, game, "p1", "crk_bloody_prayer_x")
+	testutils.RequirePromptFlow(t, ctxData, "crk_bloody_prayer", "x")
 
 	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose x=1 failed: %v", err)
 	}
 	if got := choiceTypeOfInterrupt(game.State.PendingInterrupt); got != "crk_bloody_prayer_target" {
 		t.Fatalf("expected x=1 to enter direct ally targeting, got %s", got)
+	}
+	ctxData = testutils.RequireChoiceContext(t, game, "p1", "crk_bloody_prayer_target")
+	flow := testutils.RequirePromptFlow(t, ctxData, "crk_bloody_prayer", "target")
+	if got := flow.Selection("x").Count; got != 1 {
+		t.Fatalf("expected flow to accumulate x=1, got %d in %+v", got, flow)
+	}
+	if got := flow.Selection("ally_count").Count; got != 1 {
+		t.Fatalf("expected flow to default ally_count=1, got %d in %+v", got, flow)
 	}
 	prompt := game.GetCurrentPrompt()
 	if prompt == nil {

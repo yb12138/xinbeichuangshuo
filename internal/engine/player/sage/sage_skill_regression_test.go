@@ -69,6 +69,8 @@ func TestSageMagicRebound_SameElementDiscardChain(t *testing.T) {
 	if got := testutils.ChoiceTypeOfInterrupt(g.State.PendingInterrupt); got != "sage_magic_rebound_confirm" {
 		t.Fatalf("expected choice_type sage_magic_rebound_confirm, got %q", got)
 	}
+	ctxData := testutils.RequireChoiceContext(t, g, "p1", "sage_magic_rebound_confirm")
+	flow := testutils.RequirePromptFlow(t, ctxData, "sage_magic_rebound", "confirm")
 
 	if err := g.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("confirm rebound failed: %v", err)
@@ -76,6 +78,11 @@ func TestSageMagicRebound_SameElementDiscardChain(t *testing.T) {
 	// 新流程：确认后直接进入元素选择（不再有X选择）
 	if got := testutils.ChoiceTypeOfInterrupt(g.State.PendingInterrupt); got != "sage_magic_rebound_element" {
 		t.Fatalf("expected choice_type sage_magic_rebound_element, got %q", got)
+	}
+	ctxData = testutils.RequireChoiceContext(t, g, "p1", "sage_magic_rebound_element")
+	flow = testutils.RequirePromptFlow(t, ctxData, "sage_magic_rebound", "element")
+	if got := flow.Selection("confirm").OptionIndexes; len(got) != 1 || got[0] != 0 {
+		t.Fatalf("expected rebound flow to accumulate confirm yes, got %+v in %+v", got, flow)
 	}
 
 	// 仅有火系满足至少2张。
@@ -85,6 +92,11 @@ func TestSageMagicRebound_SameElementDiscardChain(t *testing.T) {
 	if got := testutils.ChoiceTypeOfInterrupt(g.State.PendingInterrupt); got != "sage_magic_rebound_cards" {
 		t.Fatalf("expected choice_type sage_magic_rebound_cards, got %q", got)
 	}
+	ctxData = testutils.RequireChoiceContext(t, g, "p1", "sage_magic_rebound_cards")
+	flow = testutils.RequirePromptFlow(t, ctxData, "sage_magic_rebound", "cards")
+	if got := flow.Selection("element").Element; got != string(model.ElementFire) {
+		t.Fatalf("expected rebound flow to accumulate fire element, got %s in %+v", got, flow)
+	}
 
 	// 多选3张同系牌（火系索引0,1,2）
 	if err := g.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0, 1, 2}}); err != nil {
@@ -93,7 +105,11 @@ func TestSageMagicRebound_SameElementDiscardChain(t *testing.T) {
 	if got := testutils.ChoiceTypeOfInterrupt(g.State.PendingInterrupt); got != "sage_magic_rebound_target" {
 		t.Fatalf("expected choice_type sage_magic_rebound_target, got %q", got)
 	}
-	ctxData, _ := g.State.PendingInterrupt.Context.(map[string]interface{})
+	ctxData = testutils.RequireChoiceContext(t, g, "p1", "sage_magic_rebound_target")
+	flow = testutils.RequirePromptFlow(t, ctxData, "sage_magic_rebound", "target")
+	if got := flow.Selection("cards").Count; got != 3 {
+		t.Fatalf("expected rebound flow to accumulate x=3 cards, got %d in %+v", got, flow)
+	}
 	targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
 	if len(targetIDs) != 2 {
 		t.Fatalf("expected rebound target pool include self (2 players), got %v", targetIDs)
@@ -296,6 +312,8 @@ func TestSageArcaneCodex_TargetPoolIncludesSelfAndSelfDamageStillRunsRebound(t *
 	if got := testutils.ChoiceTypeOfInterrupt(g.State.PendingInterrupt); got != "sage_arcane_cards" {
 		t.Fatalf("expected choice_type sage_arcane_cards, got %q", got)
 	}
+	ctxData := testutils.RequireChoiceContext(t, g, "p1", "sage_arcane_cards")
+	testutils.RequirePromptFlow(t, ctxData, "sage_arcane_codex", "cards")
 
 	// 多选2张异系（水索引2、地索引3）。
 	if err := g.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{2, 3}}); err != nil {
@@ -304,7 +322,11 @@ func TestSageArcaneCodex_TargetPoolIncludesSelfAndSelfDamageStillRunsRebound(t *
 	if got := testutils.ChoiceTypeOfInterrupt(g.State.PendingInterrupt); got != "sage_arcane_target" {
 		t.Fatalf("expected choice_type sage_arcane_target, got %q", got)
 	}
-	ctxData, _ := g.State.PendingInterrupt.Context.(map[string]interface{})
+	ctxData = testutils.RequireChoiceContext(t, g, "p1", "sage_arcane_target")
+	flow := testutils.RequirePromptFlow(t, ctxData, "sage_arcane_codex", "target")
+	if got := flow.Selection("cards").Count; got != 2 {
+		t.Fatalf("expected arcane flow to accumulate x=2 cards, got %d in %+v", got, flow)
+	}
 	targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
 	if len(targetIDs) != 2 {
 		t.Fatalf("expected arcane target pool include self (2 players), got %v", targetIDs)
@@ -380,6 +402,8 @@ func TestSageHolyCodex_MultiSelectCardsAndTargetCountBoundaries(t *testing.T) {
 	if got := testutils.ChoiceTypeOfInterrupt(g.State.PendingInterrupt); got != "sage_holy_cards" {
 		t.Fatalf("expected choice_type sage_holy_cards, got %q", got)
 	}
+	ctxData := testutils.RequireChoiceContext(t, g, "p1", "sage_holy_cards")
+	testutils.RequirePromptFlow(t, ctxData, "sage_holy_codex", "cards")
 
 	// 越界：只选2张牌（少于最小值3）
 	if err := g.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0, 1}}); err == nil || !strings.Contains(err.Error(), "至少需要选择3张") {
@@ -392,6 +416,11 @@ func TestSageHolyCodex_MultiSelectCardsAndTargetCountBoundaries(t *testing.T) {
 	}
 	if got := testutils.ChoiceTypeOfInterrupt(g.State.PendingInterrupt); got != "sage_holy_targets" {
 		t.Fatalf("expected choice_type sage_holy_targets, got %q", got)
+	}
+	ctxData = testutils.RequireChoiceContext(t, g, "p1", "sage_holy_targets")
+	flow := testutils.RequirePromptFlow(t, ctxData, "sage_holy_codex", "targets")
+	if got := flow.Selection("cards").Count; got != 4 {
+		t.Fatalf("expected holy flow to accumulate x=4 cards, got %d in %+v", got, flow)
 	}
 	prompt := g.BuildChoicePrompt()
 	if prompt == nil {

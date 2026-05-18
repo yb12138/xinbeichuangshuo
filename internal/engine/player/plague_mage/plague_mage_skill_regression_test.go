@@ -126,21 +126,18 @@ func TestPlagueDeathTouch_TargetsEnemyOnlyAndSuppressesImmortal(t *testing.T) {
 		TargetID: "p3",
 	})
 	ctx := testutils.RequireChoiceContext(t, game, "p1", "plague_death_touch_element")
-	flow, ok := ctx[model.PromptFlowContextKey].(*model.PromptFlowState)
-	if !ok || flow.FlowID != "plague_death_touch" || flow.StepID != "element" {
-		t.Fatalf("expected death touch flow at element step, got %+v", ctx[model.PromptFlowContextKey])
-	}
+	flow := testutils.RequirePromptFlow(t, ctx, "plague_death_touch", "element")
 	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0}})
 	ctx = testutils.RequireChoiceContext(t, game, "p1", "plague_death_touch_x")
-	flow, ok = ctx[model.PromptFlowContextKey].(*model.PromptFlowState)
-	if !ok || flow.StepID != "x" || flow.Selection("element").Element != string(model.ElementFire) {
+	flow = testutils.RequirePromptFlow(t, ctx, "plague_death_touch", "x")
+	if flow.Selection("element").Element != string(model.ElementFire) {
 		t.Fatalf("expected death touch flow to accumulate element selection, got %+v", flow)
 	}
 	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0}})
 	// After X selection, directly multi-select cards (no Y selection anymore)
 	ctx = testutils.RequireChoiceContext(t, game, "p1", "plague_death_touch_cards")
-	flow, ok = ctx[model.PromptFlowContextKey].(*model.PromptFlowState)
-	if !ok || flow.StepID != "cards" || flow.Selection("x").Count != 2 {
+	flow = testutils.RequirePromptFlow(t, ctx, "plague_death_touch", "cards")
+	if flow.Selection("x").Count != 2 {
 		t.Fatalf("expected death touch flow to accumulate X selection, got %+v", flow)
 	}
 	// Multi-select both fire cards at once

@@ -75,6 +75,30 @@ func SetSkillFlowState(p *model.Player, key string, value int) {
 	p.TurnState.SkillFlowState[key] = value
 }
 
+// NotifyChoiceContext refreshes the pending choice interrupt after its context
+// has been mutated by a choice handler.
+func NotifyChoiceContext(rt ChoiceRuntime, ctxData map[string]interface{}) {
+	if rt == nil {
+		return
+	}
+	if intr := rt.GetPendingInterrupt(); intr != nil {
+		intr.Context = ctxData
+	}
+	rt.NotifyInterruptPrompt()
+}
+
+// AdvancePromptFlowChoice keeps the formal flow step and legacy backend
+// routing choice_type in sync when moving to the next prompt.
+func AdvancePromptFlowChoice(rt ChoiceRuntime, ctxData map[string]interface{}, flow *model.PromptFlowState, stepID, choiceType string) {
+	if flow != nil {
+		flow.Advance(stepID)
+	}
+	if ctxData != nil && choiceType != "" {
+		ctxData["choice_type"] = choiceType
+	}
+	NotifyChoiceContext(rt, ctxData)
+}
+
 // TokenValue 读取并规范化玩家 token 值：
 // 小于 0 归零；cap >= 0 时按上限裁剪；并回写到玩家状态。
 func TokenValue(p *model.Player, key string, cap int) int {

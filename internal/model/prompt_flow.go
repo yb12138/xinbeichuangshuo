@@ -1,5 +1,7 @@
 package model
 
+import "fmt"
+
 const PromptFlowContextKey = "flow"
 
 type PromptFlowSelection struct {
@@ -31,6 +33,17 @@ func PromptFlowFromContext(ctx map[string]interface{}) *PromptFlowState {
 	}
 	flow, _ := ctx[PromptFlowContextKey].(*PromptFlowState)
 	return flow
+}
+
+func RequirePromptFlow(ctx map[string]interface{}, flowID, label string) (*PromptFlowState, error) {
+	flow := PromptFlowFromContext(ctx)
+	if flow == nil || flow.FlowID != flowID {
+		if label == "" {
+			label = "选择流程"
+		}
+		return nil, fmt.Errorf("%s缺少多步流状态", label)
+	}
+	return flow, nil
 }
 
 func SetPromptFlowContext(ctx map[string]interface{}, flow *PromptFlowState) {

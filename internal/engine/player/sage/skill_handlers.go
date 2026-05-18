@@ -63,8 +63,9 @@ func (h *SageArcaneCodexHandler) Execute(ctx *model.Context) error {
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
 		Context: map[string]interface{}{
-			"choice_type": "sage_arcane_cards",
-			"user_id":     ctx.User.ID,
+			"choice_type":              "sage_arcane_cards",
+			"user_id":                  ctx.User.ID,
+			model.PromptFlowContextKey: model.NewPromptFlowState(sageArcaneFlowID, sageArcaneStepCards),
 		},
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [魔道法典]，请选择异系牌", ctx.User.Name))
@@ -88,8 +89,9 @@ func (h *SageHolyCodexHandler) Execute(ctx *model.Context) error {
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
 		Context: map[string]interface{}{
-			"choice_type": "sage_holy_cards",
-			"user_id":     ctx.User.ID,
+			"choice_type":              "sage_holy_cards",
+			"user_id":                  ctx.User.ID,
+			model.PromptFlowContextKey: model.NewPromptFlowState(sageHolyFlowID, sageHolyStepCards),
 		},
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [圣洁法典]，请选择异系牌", ctx.User.Name))

@@ -357,12 +357,8 @@ func TestSwordEmperor_SwordQiSlash_ExcludeOriginalTargetAndDealMagicDamage(t *te
 	})
 
 	testutils.ChooseResponseSkillByID(t, game, "p1", "se_sword_qi_slash")
-	testutils.RequireChoicePrompt(t, game, "p1", "se_sword_qi_slash_x")
-
-	ctxData, ok := game.State.PendingInterrupt.Context.(map[string]interface{})
-	if !ok {
-		t.Fatalf("expected sword qi slash x context")
-	}
+	ctxData := testutils.RequireChoiceContext(t, game, "p1", "se_sword_qi_slash_x")
+	flow := testutils.RequirePromptFlow(t, ctxData, "se_sword_qi_slash", "x")
 	targetIDs, ok := ctxData["target_ids"].([]string)
 	if !ok {
 		t.Fatalf("expected target_ids in sword qi slash context, got %+v", ctxData["target_ids"])
@@ -378,11 +374,10 @@ func TestSwordEmperor_SwordQiSlash_ExcludeOriginalTargetAndDealMagicDamage(t *te
 		Type:       model.CmdSelect,
 		Selections: []int{1}, // 选择第二个选项 => X=2
 	})
-	testutils.RequireChoicePrompt(t, game, "p1", "se_sword_qi_slash_target")
-
-	ctxData, ok = game.State.PendingInterrupt.Context.(map[string]interface{})
-	if !ok {
-		t.Fatalf("expected sword qi slash target context")
+	ctxData = testutils.RequireChoiceContext(t, game, "p1", "se_sword_qi_slash_target")
+	flow = testutils.RequirePromptFlow(t, ctxData, "se_sword_qi_slash", "target")
+	if got := flow.Selection("x").Count; got != 2 {
+		t.Fatalf("expected sword qi slash flow to accumulate x=2, got %d in %+v", got, flow)
 	}
 	targetIDs, ok = ctxData["target_ids"].([]string)
 	if !ok {

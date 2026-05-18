@@ -130,7 +130,7 @@ func (h *PlagueDeathTouchHandler) Execute(ctx *model.Context) error {
 			"elements":                 elements,
 			"max_heal":                 ctx.User.Heal,
 			"element_counts":           counts,
-			model.PromptFlowContextKey: model.NewPromptFlowState("plague_death_touch", "element"),
+			model.PromptFlowContextKey: model.NewPromptFlowState(deathTouchFlowID, deathTouchStepElement),
 		},
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [死亡之触]，等待选择X/Y与目标", ctx.User.Name))

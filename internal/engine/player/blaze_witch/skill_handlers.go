@@ -270,9 +270,10 @@ func (h *BlazeWitchManaInversionHandler) Execute(ctx *model.Context) error {
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
 		Context: map[string]interface{}{
-			"choice_type": "bw_mana_inversion_x",
-			"user_id":     ctx.User.ID,
-			"max_x":       magicCount,
+			"choice_type":              "bw_mana_inversion_x",
+			"user_id":                  ctx.User.ID,
+			"max_x":                    magicCount,
+			model.PromptFlowContextKey: model.NewPromptFlowState(manaInversionFlowID, manaInversionStepX),
 		},
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [魔能反转]，请选择弃牌数量X", ctx.User.Name))

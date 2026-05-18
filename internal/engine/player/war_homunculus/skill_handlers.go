@@ -120,15 +120,14 @@ func (h *HomunculusRuneSmashHandler) Execute(ctx *model.Context) error {
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
 		Context: map[string]interface{}{
-			"choice_type":       "hom_rune_smash_cards",
-			"user_id":           ctx.User.ID,
-			"user_ctx":          ctx,
-			"attack_element":    "", // 不再限制与攻击牌同系
-			"candidate_indices": candidates,
-			"max_y":             maxY,
-			"selected_indices":  []int{},
-			"min_pick":          1,
-			"x_value":           0, // 由玩家选牌数量决定
+			"choice_type":              "hom_rune_smash_cards",
+			"user_id":                  ctx.User.ID,
+			"user_ctx":                 ctx,
+			"attack_element":           "", // 不再限制与攻击牌同系
+			"candidate_indices":        candidates,
+			"max_y":                    maxY,
+			"min_pick":                 1,
+			model.PromptFlowContextKey: model.NewPromptFlowState(runeSmashFlowID, runeChoiceStepCards),
 		},
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [战纹碎击]，请选择要弃置的同系牌（所选牌彼此同系）", ctx.User.Name))
@@ -191,15 +190,14 @@ func (h *HomunculusGlyphFusionHandler) Execute(ctx *model.Context) error {
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
 		Context: map[string]interface{}{
-			"choice_type":       "hom_glyph_fusion_cards",
-			"user_id":           ctx.User.ID,
-			"user_ctx":          ctx,
-			"attack_element":    "", // 不再限制与攻击牌异系
-			"candidate_indices": candidates,
-			"max_y":             maxY,
-			"selected_indices":  []int{},
-			"min_pick":          minPick,
-			"x_value":           0, // 由玩家选牌数量决定
+			"choice_type":              "hom_glyph_fusion_cards",
+			"user_id":                  ctx.User.ID,
+			"user_ctx":                 ctx,
+			"attack_element":           "", // 不再限制与攻击牌异系
+			"candidate_indices":        candidates,
+			"max_y":                    maxY,
+			"min_pick":                 minPick,
+			model.PromptFlowContextKey: model.NewPromptFlowState(glyphFusionFlowID, runeChoiceStepCards),
 		},
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [魔纹融合]，请选择要弃置的异系牌（所选牌彼此异系）", ctx.User.Name))

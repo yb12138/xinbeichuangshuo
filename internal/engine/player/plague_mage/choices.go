@@ -25,14 +25,6 @@ func NewChoiceHandler() engineplayer.ChoiceHandler {
 	return choiceHandler{}
 }
 
-func deathTouchFlow(ctxData map[string]interface{}) (*model.PromptFlowState, error) {
-	flow := model.PromptFlowFromContext(ctxData)
-	if flow == nil || flow.FlowID != deathTouchFlowID {
-		return nil, fmt.Errorf("死亡之触缺少多步流状态")
-	}
-	return flow, nil
-}
-
 func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, playerID string, player *model.Player, data map[string]interface{}) *model.Prompt {
 	switch choiceType {
 	case "plague_death_touch_element":
@@ -74,7 +66,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 0},
 		}
 	case "plague_death_touch_cards":
-		flow, err := deathTouchFlow(data)
+		flow, err := model.RequirePromptFlow(data, deathTouchFlowID, "死亡之触")
 		if err != nil {
 			return nil
 		}
@@ -99,7 +91,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand", CardFilter: "same_element"},
 		}
 	case "plague_death_touch_target":
-		flow, err := deathTouchFlow(data)
+		flow, err := model.RequirePromptFlow(data, deathTouchFlowID, "死亡之触")
 		if err != nil {
 			return nil
 		}
@@ -165,7 +157,7 @@ func handlePlagueDeathTouchElementChoice(rt engineplayer.ChoiceRuntime, ctxData 
 	}
 
 	chosenElement := elements[selectionIndex]
-	flow, err := deathTouchFlow(ctxData)
+	flow, err := model.RequirePromptFlow(ctxData, deathTouchFlowID, "死亡之触")
 	if err != nil {
 		return err
 	}
@@ -173,12 +165,7 @@ func handlePlagueDeathTouchElementChoice(rt engineplayer.ChoiceRuntime, ctxData 
 		OptionIndexes: []int{selectionIndex},
 		Element:       chosenElement,
 	})
-	flow.Advance(deathTouchStepX)
-	ctxData["choice_type"] = "plague_death_touch_x"
-	if intr := rt.GetPendingInterrupt(); intr != nil {
-		intr.Context = ctxData
-	}
-	rt.NotifyInterruptPrompt()
+	engineplayer.AdvancePromptFlowChoice(rt, ctxData, flow, deathTouchStepX, "plague_death_touch_x")
 	return nil
 }
 
@@ -192,7 +179,7 @@ func handlePlagueDeathTouchXChoice(rt engineplayer.ChoiceRuntime, ctxData map[st
 	if maxHeal := runtimeutil.ToIntContextValue(ctxData["max_heal"]); xValue < 2 || xValue > maxHeal {
 		return fmt.Errorf("无效的X值")
 	}
-	flow, err := deathTouchFlow(ctxData)
+	flow, err := model.RequirePromptFlow(ctxData, deathTouchFlowID, "死亡之触")
 	if err != nil {
 		return err
 	}
@@ -200,12 +187,7 @@ func handlePlagueDeathTouchXChoice(rt engineplayer.ChoiceRuntime, ctxData map[st
 		OptionIndexes: []int{selectionIndex},
 		Count:         xValue,
 	})
-	flow.Advance(deathTouchStepCards)
-	ctxData["choice_type"] = "plague_death_touch_cards"
-	if intr := rt.GetPendingInterrupt(); intr != nil {
-		intr.Context = ctxData
-	}
-	rt.NotifyInterruptPrompt()
+	engineplayer.AdvancePromptFlowChoice(rt, ctxData, flow, deathTouchStepCards, "plague_death_touch_cards")
 	return nil
 }
 
@@ -219,7 +201,7 @@ func handleDeathTouchCardsMultiSelect(rt engineplayer.ChoiceRuntime, playerID st
 	if len(selections) < 2 {
 		return false, fmt.Errorf("死亡之触至少需要选择2张同系牌")
 	}
-	flow, err := deathTouchFlow(ctxData)
+	flow, err := model.RequirePromptFlow(ctxData, deathTouchFlowID, "死亡之触")
 	if err != nil {
 		return false, err
 	}
@@ -248,17 +230,12 @@ func handleDeathTouchCardsMultiSelect(rt engineplayer.ChoiceRuntime, playerID st
 	}
 	targetIDs := campEnemyIDs(rt, user)
 	flow.PutSelection(deathTouchStepTarget, model.PromptFlowSelection{TargetIDs: targetIDs})
-	flow.Advance(deathTouchStepTarget)
-	ctxData["choice_type"] = "plague_death_touch_target"
-	if intr := rt.GetPendingInterrupt(); intr != nil {
-		intr.Context = ctxData
-	}
-	rt.NotifyInterruptPrompt()
+	engineplayer.AdvancePromptFlowChoice(rt, ctxData, flow, deathTouchStepTarget, "plague_death_touch_target")
 	return true, nil
 }
 
 func handlePlagueDeathTouchTargetChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
-	flow, err := deathTouchFlow(ctxData)
+	flow, err := model.RequirePromptFlow(ctxData, deathTouchFlowID, "死亡之触")
 	if err != nil {
 		return err
 	}
@@ -284,7 +261,7 @@ func resolvePlagueDeathTouchFinal(rt engineplayer.ChoiceRuntime, ctxData map[str
 		return fmt.Errorf("目标不存在")
 	}
 
-	flow, err := deathTouchFlow(ctxData)
+	flow, err := model.RequirePromptFlow(ctxData, deathTouchFlowID, "死亡之触")
 	if err != nil {
 		return err
 	}

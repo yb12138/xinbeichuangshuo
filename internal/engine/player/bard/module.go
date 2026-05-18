@@ -35,7 +35,7 @@ func RoleEntry() player.RoleEntry {
 // ChoiceSpecs 导出角色 choice 声明。
 func ChoiceSpecs() []player.ChoiceSpec {
 	return []player.ChoiceSpec{
-		{ChoiceType: "bd_descent_cards", SequentialRemaining: player.ChoiceRemainingFromFixedTotal(2)},
+		{ChoiceType: "bd_descent_cards", SequentialRemaining: player.ChoiceRemainingFromFlowSelectionCount(descentStepCards, descentStepCards)},
 		{ChoiceType: "bd_dissonance_discard_step", SequentialRemaining: player.ChoiceRemainingFromNeedAndSelected("need_count", "selected_count")},
 		{ChoiceType: "bd_rousing_discard_cards", SequentialRemaining: player.ChoiceRemainingFromFixedTotal(2)},
 	}
@@ -59,13 +59,13 @@ func StarterCards(p *model.Player) []model.Card {
 	}
 	return []model.Card{
 		{
-			ID:              fmt.Sprintf("starter-%s-bd_eternal_movement", p.ID),
-			Name:            "永恒乐章",
-			Type:            model.CardTypeMagic,
-			Element:         model.ElementDark,
-			Faction:         p.Character.Faction,
-			Description:     "吟游诗人开局自带专属牌",
-			ExclusiveChar1:  p.Character.ID,
+			ID:             fmt.Sprintf("starter-%s-bd_eternal_movement", p.ID),
+			Name:           "永恒乐章",
+			Type:           model.CardTypeMagic,
+			Element:        model.ElementDark,
+			Faction:        p.Character.Faction,
+			Description:    "吟游诗人开局自带专属牌",
+			ExclusiveChar1: p.Character.ID,
 		},
 	}
 }

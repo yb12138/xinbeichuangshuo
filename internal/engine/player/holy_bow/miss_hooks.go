@@ -35,11 +35,12 @@ func attackMissHook(rt player.HookRuntime, ctx player.TimingHookContext) player.
 		Type:     model.InterruptChoice,
 		PlayerID: p.ID,
 		Context: map[string]interface{}{
-			"choice_type": "hb_holy_shard_miss_confirm",
-			"user_id":     p.ID,
-			"target_id":   ctx.TargetID,
-			"max_x":       maxX,
-			"valid_x":     validX,
+			"choice_type":              "hb_holy_shard_miss_confirm",
+			"user_id":                  p.ID,
+			"target_id":                ctx.TargetID,
+			"max_x":                    maxX,
+			"valid_x":                  validX,
+			model.PromptFlowContextKey: model.NewPromptFlowState(holyShardMissFlowID, holyShardMissStepConfirm),
 		},
 	})
 	rt.Log(fmt.Sprintf("%s 的 [圣屑飓暴] 未命中：可移除治疗并令队友弃牌", p.Name))

@@ -12,6 +12,12 @@ import (
 
 type choiceHandler struct{}
 
+const (
+	swordQiSlashFlowID     = "se_sword_qi_slash"
+	swordQiSlashStepX      = "x"
+	swordQiSlashStepTarget = "target"
+)
+
 func NewChoiceHandler() engineplayer.ChoiceHandler {
 	return choiceHandler{}
 }
@@ -29,7 +35,11 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		}
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【剑气斩】请选择X值：", Options: options, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 0}}
 	case "se_sword_qi_slash_target":
-		return engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, fmt.Sprintf("【剑气斩】请选择承受%d点法术伤害的目标：", runtimeutil.ToIntContextValue(data["x_value"])), data, false)
+		flow, err := model.RequirePromptFlow(data, swordQiSlashFlowID, "剑气斩")
+		if err != nil {
+			return nil
+		}
+		return engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, fmt.Sprintf("【剑气斩】请选择承受%d点法术伤害的目标：", flow.Selection(swordQiSlashStepX).Count), data, false)
 	case "se_sword_rain_target":
 		targetIDs := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
 		options := make([]model.PromptOption, 0, len(targetIDs))
@@ -109,13 +119,15 @@ func handleSwordEmperorSwordQiSlashXChoice(rt engineplayer.ChoiceRuntime, select
 		return fmt.Errorf("无效的X值选项: %d", selectionIndex)
 	}
 	xValue := selectionIndex + 1
-	ctxData["x_value"] = xValue
-	ctxData["choice_type"] = "se_sword_qi_slash_target"
-	intr := rt.GetPendingInterrupt()
-	if intr != nil {
-		intr.Context = ctxData
+	flow, err := model.RequirePromptFlow(ctxData, swordQiSlashFlowID, "剑气斩")
+	if err != nil {
+		return err
 	}
-	rt.NotifyInterruptPrompt()
+	flow.PutSelection(swordQiSlashStepX, model.PromptFlowSelection{
+		OptionIndexes: []int{selectionIndex},
+		Count:         xValue,
+	})
+	engineplayer.AdvancePromptFlowChoice(rt, ctxData, flow, swordQiSlashStepTarget, "se_sword_qi_slash_target")
 	return nil
 }
 
@@ -134,7 +146,11 @@ func handleSwordEmperorSwordQiSlashTargetChoice(rt engineplayer.ChoiceRuntime, s
 	if target == nil {
 		return fmt.Errorf("目标不存在")
 	}
-	xValue := runtimeutil.ToIntContextValue(ctxData["x_value"])
+	flow, err := model.RequirePromptFlow(ctxData, swordQiSlashFlowID, "剑气斩")
+	if err != nil {
+		return err
+	}
+	xValue := flow.Selection(swordQiSlashStepX).Count
 	if xValue <= 0 {
 		return fmt.Errorf("剑气斩的X值无效")
 	}
@@ -142,6 +158,10 @@ func handleSwordEmperorSwordQiSlashTargetChoice(rt engineplayer.ChoiceRuntime, s
 	if rawCtx != nil && rawCtx.EventCtx != nil && rawCtx.EventCtx.TargetID == targetID {
 		return fmt.Errorf("剑气斩不能选择当前攻击目标")
 	}
+	flow.PutSelection(swordQiSlashStepTarget, model.PromptFlowSelection{
+		OptionIndexes: []int{selectionIndex},
+		TargetIDs:     []string{targetID},
+	})
 
 	nowQi := addSwordEmperorSwordQi(user, -xValue)
 	rt.AddPendingDamage(model.PendingDamage{SourceID: user.ID, TargetID: targetID, Damage: xValue, DamageType: model.MagicAttack})
@@ -184,11 +204,7 @@ func handleSwordRainTarget(rt engineplayer.ChoiceRuntime, selectionIndex int, ct
 	ctxData["choice_type"] = "se_sword_rain_discard"
 	ctxData["discard_indices"] = discardIndices
 	ctxData["selected_target_id"] = targetID
-	intr := rt.GetPendingInterrupt()
-	if intr != nil {
-		intr.Context = ctxData
-	}
-	rt.NotifyInterruptPrompt()
+	engineplayer.NotifyChoiceContext(rt, ctxData)
 	return nil
 }
 

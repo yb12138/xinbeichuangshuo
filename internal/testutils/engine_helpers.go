@@ -140,6 +140,20 @@ func RequireChoiceContext(t *testing.T, game *engine.GameEngine, playerID, choic
 	return ctx
 }
 
+// RequirePromptFlow asserts that a choice context carries the expected prompt
+// flow state and returns it for selection assertions.
+func RequirePromptFlow(t *testing.T, ctxData map[string]interface{}, flowID, stepID string) *model.PromptFlowState {
+	t.Helper()
+	flow, ok := ctxData[model.PromptFlowContextKey].(*model.PromptFlowState)
+	if !ok || flow == nil {
+		t.Fatalf("expected prompt flow in choice context, got %+v", ctxData[model.PromptFlowContextKey])
+	}
+	if flow.FlowID != flowID || flow.StepID != stepID {
+		t.Fatalf("expected prompt flow %s at %s, got %+v", flowID, stepID, flow)
+	}
+	return flow
+}
+
 // ChoiceIndexForTarget finds the index of targetID in the choice context's target_ids.
 func ChoiceIndexForTarget(t *testing.T, ctx map[string]interface{}, targetID string) int {
 	t.Helper()

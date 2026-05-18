@@ -13,6 +13,22 @@ import (
 
 type choiceHandler struct{}
 
+const (
+	sageMagicReboundFlowID      = "sage_magic_rebound"
+	sageMagicReboundStepConfirm = "confirm"
+	sageMagicReboundStepElement = "element"
+	sageMagicReboundStepCards   = "cards"
+	sageMagicReboundStepTarget  = "target"
+
+	sageArcaneFlowID     = "sage_arcane_codex"
+	sageArcaneStepCards  = "cards"
+	sageArcaneStepTarget = "target"
+
+	sageHolyFlowID     = "sage_holy_codex"
+	sageHolyStepCards  = "cards"
+	sageHolyStepTarget = "targets"
+)
+
 func NewChoiceHandler() engineplayer.ChoiceHandler {
 	return choiceHandler{}
 }
@@ -53,7 +69,11 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		}
 	case "sage_magic_rebound_cards":
 		// 多选提示：显示所选元素的所有牌
-		chosenElement, _ := data["chosen_element"].(string)
+		flow, err := model.RequirePromptFlow(data, sageMagicReboundFlowID, "贤者选择")
+		if err != nil {
+			return nil
+		}
+		chosenElement := flow.Selection(sageMagicReboundStepElement).Element
 		cardIndices := engineplayer.GetCardIndicesByElement(player, model.Element(chosenElement))
 		options := make([]model.PromptOption, 0, len(cardIndices))
 		for _, idx := range cardIndices {
@@ -111,7 +131,11 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand"},
 		}
 	case "sage_holy_target_count":
-		maxCount := runtimeutil.ToIntContextValue(data["max_target_count"])
+		flow, err := model.RequirePromptFlow(data, sageHolyFlowID, "贤者选择")
+		if err != nil {
+			return nil
+		}
+		maxCount := flow.Selection(sageHolyStepCards).Count - 2
 		if maxCount < 1 {
 			maxCount = 1
 		}
@@ -133,10 +157,11 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		}
 	case "sage_holy_targets":
 		allTargetIDs := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
-		maxTargetCount := runtimeutil.ToIntContextValue(data["max_target_count"])
-		if maxTargetCount < 1 {
-			maxTargetCount = runtimeutil.ToIntContextValue(data["target_count"])
+		flow, err := model.RequirePromptFlow(data, sageHolyFlowID, "贤者选择")
+		if err != nil {
+			return nil
 		}
+		maxTargetCount := flow.Selection(sageHolyStepCards).Count - 2
 		if maxTargetCount < 1 {
 			maxTargetCount = 1
 		}
@@ -193,6 +218,11 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
+		flow, err := model.RequirePromptFlow(ctxData, sageMagicReboundFlowID, "贤者选择")
+		if err != nil {
+			return true, err
+		}
+		flow.PutSelection(sageMagicReboundStepConfirm, model.PromptFlowSelection{OptionIndexes: []int{selectionIndex}})
 		if selectionIndex == 1 {
 			rt.PopInterrupt()
 			if rt.GetPendingInterrupt() == nil && len(rt.GetPendingDamageQueue()) > 0 {
@@ -209,11 +239,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 			return true, fmt.Errorf("同系手牌不足2张，无法发动法术反弹")
 		}
 		// 直接进入元素选择，不再选择X
-		ctxData["choice_type"] = "sage_magic_rebound_element"
-		if intr := rt.GetPendingInterrupt(); intr != nil {
-			intr.Context = ctxData
-		}
-		rt.NotifyInterruptPrompt()
+		engineplayer.AdvancePromptFlowChoice(rt, ctxData, flow, sageMagicReboundStepElement, "sage_magic_rebound_element")
 		return true, nil
 
 	case "sage_magic_rebound_element":
@@ -227,27 +253,29 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
 		chosenElement := model.Element(elements[selectionIndex])
-		ctxData["chosen_element"] = string(chosenElement)
-		ctxData["choice_type"] = "sage_magic_rebound_cards"
-		if intr := rt.GetPendingInterrupt(); intr != nil {
-			intr.Context = ctxData
+		flow, err := model.RequirePromptFlow(ctxData, sageMagicReboundFlowID, "贤者选择")
+		if err != nil {
+			return true, err
 		}
-		rt.NotifyInterruptPrompt()
+		flow.PutSelection(sageMagicReboundStepElement, model.PromptFlowSelection{
+			OptionIndexes: []int{selectionIndex},
+			Element:       string(chosenElement),
+		})
+		engineplayer.AdvancePromptFlowChoice(rt, ctxData, flow, sageMagicReboundStepCards, "sage_magic_rebound_cards")
 		return true, nil
 
 	case "sage_holy_target_count":
 		targetCount := selectionIndex + 1
-		maxCount := runtimeutil.ToIntContextValue(ctxData["max_target_count"])
+		flow, err := model.RequirePromptFlow(ctxData, sageHolyFlowID, "贤者选择")
+		if err != nil {
+			return true, err
+		}
+		maxCount := flow.Selection(sageHolyStepCards).Count - 2
 		if targetCount < 1 || targetCount > maxCount {
 			return true, fmt.Errorf("无效的治疗目标数量")
 		}
-		ctxData["target_count"] = targetCount
-		ctxData["max_target_count"] = targetCount
-		ctxData["choice_type"] = "sage_holy_targets"
-		if intr := rt.GetPendingInterrupt(); intr != nil {
-			intr.Context = ctxData
-		}
-		rt.NotifyInterruptPrompt()
+		flow.PutSelection(sageHolyStepTarget, model.PromptFlowSelection{Count: targetCount})
+		engineplayer.AdvancePromptFlowChoice(rt, ctxData, flow, sageHolyStepTarget, "sage_holy_targets")
 		return true, nil
 
 	case "sage_holy_targets":
@@ -263,8 +291,23 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		if selectionIndex < 0 || selectionIndex >= len(targetIDs) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
-		selected := engineplayer.ParseIntSliceContextValue(ctxData["selected_indices"])
-		xValue := runtimeutil.ToIntContextValue(ctxData["x_value"])
+		var flow *model.PromptFlowState
+		var err error
+		var cardsStep string
+		switch choiceType {
+		case "sage_magic_rebound_target":
+			flow, err = model.RequirePromptFlow(ctxData, sageMagicReboundFlowID, "贤者选择")
+			cardsStep = sageMagicReboundStepCards
+		case "sage_arcane_target":
+			flow, err = model.RequirePromptFlow(ctxData, sageArcaneFlowID, "贤者选择")
+			cardsStep = sageArcaneStepCards
+		}
+		if err != nil {
+			return true, err
+		}
+		cardSelection := flow.Selection(cardsStep)
+		selected := append([]int{}, cardSelection.OptionIndexes...)
+		xValue := cardSelection.Count
 		if xValue <= 1 || len(selected) != xValue {
 			return true, fmt.Errorf("弃牌参数无效")
 		}
@@ -279,6 +322,10 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		if target == nil {
 			return true, fmt.Errorf("目标不存在")
 		}
+		flow.PutSelection(flow.StepID, model.PromptFlowSelection{
+			OptionIndexes: []int{selectionIndex},
+			TargetIDs:     []string{targetID},
+		})
 
 		switch choiceType {
 		case "sage_magic_rebound_target":
@@ -360,14 +407,16 @@ func handleArcaneCardsMultiSelect(rt engineplayer.ChoiceRuntime, playerID string
 		}
 		seenElements[card.Element] = true
 	}
-	ctxData["selected_indices"] = selections
-	ctxData["x_value"] = len(selections)
-	ctxData["choice_type"] = "sage_arcane_target"
-	ctxData["target_ids"] = append([]string{}, rt.GetPlayerOrder()...)
-	if intr := rt.GetPendingInterrupt(); intr != nil {
-		intr.Context = ctxData
+	flow, err := model.RequirePromptFlow(ctxData, sageArcaneFlowID, "贤者选择")
+	if err != nil {
+		return false, err
 	}
-	rt.NotifyInterruptPrompt()
+	flow.PutSelection(sageArcaneStepCards, model.PromptFlowSelection{
+		OptionIndexes: append([]int{}, selections...),
+		Count:         len(selections),
+	})
+	ctxData["target_ids"] = append([]string{}, rt.GetPlayerOrder()...)
+	engineplayer.AdvancePromptFlowChoice(rt, ctxData, flow, sageArcaneStepTarget, "sage_arcane_target")
 	return true, nil
 }
 
@@ -381,8 +430,12 @@ func handleReboundCardsMultiSelect(rt engineplayer.ChoiceRuntime, playerID strin
 	if len(selections) < 2 {
 		return false, fmt.Errorf("法术反弹至少需要选择2张同系牌")
 	}
+	flow, err := model.RequirePromptFlow(ctxData, sageMagicReboundFlowID, "贤者选择")
+	if err != nil {
+		return false, err
+	}
 	// 验证所选牌都是同一元素
-	chosenElement, _ := ctxData["chosen_element"].(string)
+	chosenElement := flow.Selection(sageMagicReboundStepElement).Element
 	for _, idx := range selections {
 		if idx < 0 || idx >= len(user.Hand) {
 			return false, fmt.Errorf("无效的选项索引: %d", idx)
@@ -392,14 +445,12 @@ func handleReboundCardsMultiSelect(rt engineplayer.ChoiceRuntime, playerID strin
 			return false, fmt.Errorf("法术反弹需弃置同系牌")
 		}
 	}
-	ctxData["selected_indices"] = selections
-	ctxData["x_value"] = len(selections)
-	ctxData["choice_type"] = "sage_magic_rebound_target"
+	flow.PutSelection(sageMagicReboundStepCards, model.PromptFlowSelection{
+		OptionIndexes: append([]int{}, selections...),
+		Count:         len(selections),
+	})
 	ctxData["target_ids"] = append([]string{}, rt.GetPlayerOrder()...)
-	if intr := rt.GetPendingInterrupt(); intr != nil {
-		intr.Context = ctxData
-	}
-	rt.NotifyInterruptPrompt()
+	engineplayer.AdvancePromptFlowChoice(rt, ctxData, flow, sageMagicReboundStepTarget, "sage_magic_rebound_target")
 	return true, nil
 }
 
@@ -425,19 +476,20 @@ func handleHolyCardsMultiSelect(rt engineplayer.ChoiceRuntime, playerID string, 
 		}
 		seenElements[card.Element] = true
 	}
-	ctxData["selected_indices"] = selections
-	ctxData["x_value"] = len(selections)
+	flow, err := model.RequirePromptFlow(ctxData, sageHolyFlowID, "贤者选择")
+	if err != nil {
+		return false, err
+	}
+	flow.PutSelection(sageHolyStepCards, model.PromptFlowSelection{
+		OptionIndexes: append([]int{}, selections...),
+		Count:         len(selections),
+	})
 	maxTargetCount := len(selections) - 2
 	if maxTargetCount < 1 {
 		return false, fmt.Errorf("圣洁法典治疗目标数量无效")
 	}
-	ctxData["choice_type"] = "sage_holy_targets"
-	ctxData["max_target_count"] = maxTargetCount
 	ctxData["target_ids"] = append([]string{}, rt.GetPlayerOrder()...)
-	if intr := rt.GetPendingInterrupt(); intr != nil {
-		intr.Context = ctxData
-	}
-	rt.NotifyInterruptPrompt()
+	engineplayer.AdvancePromptFlowChoice(rt, ctxData, flow, sageHolyStepTarget, "sage_holy_targets")
 	return true, nil
 }
 
@@ -453,9 +505,14 @@ func resolveHolyCodexTargets(rt engineplayer.ChoiceRuntime, ctxData map[string]i
 		return true, fmt.Errorf("玩家不存在")
 	}
 
-	maxTargetCount := runtimeutil.ToIntContextValue(ctxData["max_target_count"])
-	if maxTargetCount < 1 {
-		maxTargetCount = runtimeutil.ToIntContextValue(ctxData["target_count"])
+	flow, err := model.RequirePromptFlow(ctxData, sageHolyFlowID, "贤者选择")
+	if err != nil {
+		return true, err
+	}
+	cardSelection := flow.Selection(sageHolyStepCards)
+	maxTargetCount := cardSelection.Count - 2
+	if targetSelection := flow.Selection(sageHolyStepTarget); targetSelection.Count > 0 {
+		maxTargetCount = targetSelection.Count
 	}
 	if maxTargetCount < 1 {
 		return true, fmt.Errorf("圣洁法典治疗目标数量无效")
@@ -482,11 +539,16 @@ func resolveHolyCodexTargets(rt engineplayer.ChoiceRuntime, ctxData map[string]i
 		selectedTargets = append(selectedTargets, targetID)
 	}
 
-	selectedCards := engineplayer.ParseIntSliceContextValue(ctxData["selected_indices"])
-	xValue := runtimeutil.ToIntContextValue(ctxData["x_value"])
+	selectedCards := append([]int{}, cardSelection.OptionIndexes...)
+	xValue := cardSelection.Count
 	if xValue <= 2 || len(selectedCards) != xValue {
 		return true, fmt.Errorf("圣洁法典弃牌参数无效")
 	}
+	flow.PutSelection(sageHolyStepTarget, model.PromptFlowSelection{
+		OptionIndexes: append([]int{}, selections...),
+		TargetIDs:     append([]string{}, selectedTargets...),
+		Count:         len(selectedTargets),
+	})
 	removed, err := engineplayer.RemoveCardsByIndicesFromHand(user, append([]int{}, selectedCards...))
 	if err != nil {
 		return true, err

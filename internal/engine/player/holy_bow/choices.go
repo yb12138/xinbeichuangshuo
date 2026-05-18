@@ -15,6 +15,24 @@ import (
 
 type choiceHandler struct{}
 
+const (
+	holyShardFlowID     = "hb_holy_shard_storm"
+	holyShardStepCombo  = "combo"
+	holyShardStepTarget = "target"
+
+	lightBurstFlowID           = "hb_light_burst"
+	lightBurstStepMode         = "mode"
+	lightBurstStepModeATarget  = "mode_a_target"
+	lightBurstStepModeBX       = "mode_b_x"
+	lightBurstStepModeBTarget  = "mode_b_targets"
+	lightBurstStepModeBDiscard = "mode_b_discard"
+
+	holyShardMissFlowID      = "hb_holy_shard_miss"
+	holyShardMissStepConfirm = "confirm"
+	holyShardMissStepX       = "x"
+	holyShardMissStepTarget  = "ally_target"
+)
+
 func NewChoiceHandler() engineplayer.ChoiceHandler {
 	return choiceHandler{}
 }
@@ -197,7 +215,11 @@ func buildHolyShardMissXPrompt(playerID string, player *model.Player, data map[s
 
 func buildHolyShardMissAllyTargetPrompt(rt engineplayer.ChoiceRuntime, playerID string, data map[string]interface{}) *model.Prompt {
 	allyIDs := runtimeutil.ParseStringSliceContextValue(data["ally_ids"])
-	xValue := runtimeutil.ToIntContextValue(data["x_value"])
+	flow, err := model.RequirePromptFlow(data, holyShardMissFlowID, "圣屑飓暴未命中分支")
+	if err != nil {
+		return nil
+	}
+	xValue := flow.Selection(holyShardMissStepX).Count
 	return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, ChoiceType: "hb_holy_shard_miss_ally_target", Message: fmt.Sprintf("【圣屑飓暴】请选择1名队友弃置%d张手牌：", xValue), Options: playerOptions(rt, allyIDs), Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationTargetPicker, TargetFilter: "custom"}}
 }
 
@@ -300,7 +322,12 @@ func buildLightBurstModeBXPrompt(rt engineplayer.ChoiceRuntime, playerID string,
 
 func buildLightBurstModeBTargetsPrompt(rt engineplayer.ChoiceRuntime, playerID string, data map[string]interface{}) *model.Prompt {
 	candidates := runtimeutil.ParseStringSliceContextValue(data["candidate_target_ids"])
-	selectedSet := runtimeutil.IDsToSet(runtimeutil.ParseStringSliceContextValue(data["selected_target_ids"]))
+	flow, err := model.RequirePromptFlow(data, lightBurstFlowID, "圣光爆裂")
+	if err != nil {
+		return nil
+	}
+	selectedIDs := runtimeutil.DedupeIDs(flow.Selection(lightBurstStepModeBTarget).TargetIDs)
+	selectedSet := runtimeutil.IDsToSet(selectedIDs)
 	options := make([]model.PromptOption, 0, len(candidates)+1)
 	for _, targetID := range candidates {
 		if selectedSet[targetID] {
@@ -310,21 +337,25 @@ func buildLightBurstModeBTargetsPrompt(rt engineplayer.ChoiceRuntime, playerID s
 			options = append(options, model.PromptOption{ID: targetID, Label: target.Name})
 		}
 	}
-	xValue := runtimeutil.ToIntContextValue(data["x_value"])
+	xValue := flow.Selection(lightBurstStepModeBX).Count
 	maxTargets := xValue
 	if len(candidates) < maxTargets {
 		maxTargets = len(candidates)
 	}
-	if len(selectedSet) > 0 {
+	if len(selectedIDs) > 0 {
 		options = append(options, model.PromptOption{ID: "finish", Label: "完成目标选择", ButtonLabel: "完成"})
 	}
-	return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, ChoiceType: "hb_light_burst_mode_b_targets", Message: fmt.Sprintf("【圣光爆裂】分支②请点击角色立绘选择目标（已选%d/最多%d）：", len(selectedSet), maxTargets), Options: options, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationTargetPicker, TargetFilter: "custom"}}
+	return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, ChoiceType: "hb_light_burst_mode_b_targets", Message: fmt.Sprintf("【圣光爆裂】分支②请点击角色立绘选择目标（已选%d/最多%d）：", len(selectedIDs), maxTargets), Options: options, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationTargetPicker, TargetFilter: "custom"}}
 }
 
 func buildLightBurstModeBDiscardPrompt(playerID string, player *model.Player, data map[string]interface{}) *model.Prompt {
 	remaining := engineplayer.ParseIntSliceContextValue(data["remaining_indices"])
-	selectedCount := len(engineplayer.ParseIntSliceContextValue(data["selected_indices"]))
-	xValue := runtimeutil.ToIntContextValue(data["x_value"])
+	flow, err := model.RequirePromptFlow(data, lightBurstFlowID, "圣光爆裂")
+	if err != nil {
+		return nil
+	}
+	selectedCount := len(flow.Selection(lightBurstStepModeBDiscard).OptionIndexes)
+	xValue := flow.Selection(lightBurstStepModeBX).Count
 	options := make([]model.PromptOption, 0, len(remaining))
 	for _, idx := range remaining {
 		if player == nil || idx < 0 || idx >= len(player.Hand) {
@@ -459,18 +490,21 @@ func handleHolyShardComboMultiSelect(rt engineplayer.ChoiceRuntime, _ string, se
 }
 
 func finishHolyShardComboSelection(rt engineplayer.ChoiceRuntime, user *model.Player, indices []int, element model.Element, ctxData map[string]interface{}) error {
+	flow, err := model.RequirePromptFlow(ctxData, holyShardFlowID, "圣屑飓暴")
+	if err != nil {
+		return err
+	}
 	removed, err := engineplayer.RemoveCardsByIndicesFromHand(user, indices)
 	if err != nil {
 		return err
 	}
+	flow.PutSelection(holyShardStepCombo, model.PromptFlowSelection{
+		OptionIndexes: append([]int{}, indices...),
+		Element:       string(element),
+	})
 	rt.NotifyCardRevealed(user.ID, removed, "discard")
 	rt.AppendToDiscard(removed)
-	ctxData["selected_element"] = string(element)
-	ctxData["choice_type"] = "hb_holy_shard_target"
-	if intr := rt.GetPendingInterrupt(); intr != nil {
-		intr.Context = ctxData
-	}
-	rt.NotifyInterruptPrompt()
+	engineplayer.AdvancePromptFlowChoice(rt, ctxData, flow, holyShardStepTarget, "hb_holy_shard_target")
 	return nil
 }
 
@@ -492,11 +526,19 @@ func handleHolyShardTarget(rt engineplayer.ChoiceRuntime, selectionIndex int, ct
 	if target.Camp == user.Camp {
 		return fmt.Errorf("圣屑飓暴只能指定敌方目标")
 	}
-	eleStr, _ := ctxData["selected_element"].(string)
+	flow, err := model.RequirePromptFlow(ctxData, holyShardFlowID, "圣屑飓暴")
+	if err != nil {
+		return err
+	}
+	eleStr := flow.Selection(holyShardStepCombo).Element
 	ele := model.Element(eleStr)
 	if ele == "" {
 		return fmt.Errorf("圣屑飓暴攻击元素缺失")
 	}
+	flow.PutSelection(holyShardStepTarget, model.PromptFlowSelection{
+		OptionIndexes: []int{selectionIndex},
+		TargetIDs:     []string{targetID},
+	})
 	virtualCard := model.Card{
 		ID:          fmt.Sprintf("hb_holy_shard_%s_%d", user.ID, len(user.Hand)+1),
 		Name:        "圣屑飓暴",
@@ -520,6 +562,11 @@ func handleHolyShardTarget(rt engineplayer.ChoiceRuntime, selectionIndex int, ct
 }
 
 func handleHolyShardMissConfirm(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
+	flow, err := model.RequirePromptFlow(ctxData, holyShardMissFlowID, "圣屑飓暴未命中分支")
+	if err != nil {
+		return err
+	}
+	flow.PutSelection(holyShardMissStepConfirm, model.PromptFlowSelection{OptionIndexes: []int{selectionIndex}})
 	if selectionIndex == 1 {
 		// Decline: skip the miss branch
 		rt.PopInterrupt()
@@ -542,11 +589,7 @@ func handleHolyShardMissConfirm(rt engineplayer.ChoiceRuntime, selectionIndex in
 		rt.PopInterrupt()
 		return nil
 	}
-	ctxData["choice_type"] = "hb_holy_shard_miss_x"
-	if intr := rt.GetPendingInterrupt(); intr != nil {
-		intr.Context = ctxData
-	}
-	rt.NotifyInterruptPrompt()
+	engineplayer.AdvancePromptFlowChoice(rt, ctxData, flow, holyShardMissStepX, "hb_holy_shard_miss_x")
 	return nil
 }
 
@@ -571,13 +614,16 @@ func handleHolyShardMissX(rt engineplayer.ChoiceRuntime, selectionIndex int, ctx
 	if len(allyIDs) == 0 {
 		return fmt.Errorf("没有可弃置%d张牌的队友", xValue)
 	}
-	ctxData["x_value"] = xValue
-	ctxData["ally_ids"] = allyIDs
-	ctxData["choice_type"] = "hb_holy_shard_miss_ally_target"
-	if intr := rt.GetPendingInterrupt(); intr != nil {
-		intr.Context = ctxData
+	flow, err := model.RequirePromptFlow(ctxData, holyShardMissFlowID, "圣屑飓暴未命中分支")
+	if err != nil {
+		return err
 	}
-	rt.NotifyInterruptPrompt()
+	flow.PutSelection(holyShardMissStepX, model.PromptFlowSelection{
+		OptionIndexes: []int{selectionIndex},
+		Count:         xValue,
+	})
+	ctxData["ally_ids"] = allyIDs
+	engineplayer.AdvancePromptFlowChoice(rt, ctxData, flow, holyShardMissStepTarget, "hb_holy_shard_miss_ally_target")
 	return nil
 }
 
@@ -596,7 +642,11 @@ func handleHolyShardMissAllyTarget(rt engineplayer.ChoiceRuntime, selectionIndex
 	if target == nil {
 		return fmt.Errorf("目标队友不存在")
 	}
-	xValue := runtimeutil.ToIntContextValue(ctxData["x_value"])
+	flow, err := model.RequirePromptFlow(ctxData, holyShardMissFlowID, "圣屑飓暴未命中分支")
+	if err != nil {
+		return err
+	}
+	xValue := flow.Selection(holyShardMissStepX).Count
 	if xValue <= 0 {
 		return fmt.Errorf("无效的X值")
 	}
@@ -606,6 +656,10 @@ func handleHolyShardMissAllyTarget(rt engineplayer.ChoiceRuntime, selectionIndex
 	if len(target.Hand) < xValue {
 		return fmt.Errorf("目标队友手牌不足%d张，无法作为圣屑飓暴的弃牌目标", xValue)
 	}
+	flow.PutSelection(holyShardMissStepTarget, model.PromptFlowSelection{
+		OptionIndexes: []int{selectionIndex},
+		TargetIDs:     []string{targetID},
+	})
 	user.Heal -= xValue
 	discardNeed := xValue
 	rt.Log(fmt.Sprintf("%s 的 [圣屑飓暴] 未命中分支生效：移除%d点治疗，指定 %s 弃置%d张手牌", user.Name, xValue, target.Name, discardNeed))
@@ -692,18 +746,21 @@ func handleLightBurstMode(rt engineplayer.ChoiceRuntime, selectionIndex int, ctx
 	if selectionIndex < 0 || selectionIndex >= len(modeOrder) {
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
+	flow, err := model.RequirePromptFlow(ctxData, lightBurstFlowID, "圣光爆裂")
+	if err != nil {
+		return err
+	}
+	flow.PutSelection(lightBurstStepMode, model.PromptFlowSelection{
+		OptionIndexes: []int{selectionIndex},
+	})
 	switch modeOrder[selectionIndex] {
 	case "a":
-		ctxData["choice_type"] = "hb_light_burst_mode_a_target"
+		engineplayer.AdvancePromptFlowChoice(rt, ctxData, flow, lightBurstStepModeATarget, "hb_light_burst_mode_a_target")
 	case "b":
-		ctxData["choice_type"] = "hb_light_burst_mode_b_x"
+		engineplayer.AdvancePromptFlowChoice(rt, ctxData, flow, lightBurstStepModeBX, "hb_light_burst_mode_b_x")
 	default:
 		return fmt.Errorf("无效的分支")
 	}
-	if intr := rt.GetPendingInterrupt(); intr != nil {
-		intr.Context = ctxData
-	}
-	rt.NotifyInterruptPrompt()
 	return nil
 }
 
@@ -774,20 +831,27 @@ func handleLightBurstModeBX(rt engineplayer.ChoiceRuntime, selectionIndex int, c
 	if len(candidateTargets) == 0 {
 		return fmt.Errorf("没有满足手牌条件的目标")
 	}
-	ctxData["x_value"] = xValue
-	ctxData["candidate_target_ids"] = candidateTargets
-	ctxData["selected_target_ids"] = []string{}
-	ctxData["choice_type"] = "hb_light_burst_mode_b_targets"
-	if intr := rt.GetPendingInterrupt(); intr != nil {
-		intr.Context = ctxData
+	flow, err := model.RequirePromptFlow(ctxData, lightBurstFlowID, "圣光爆裂")
+	if err != nil {
+		return err
 	}
-	rt.NotifyInterruptPrompt()
+	flow.PutSelection(lightBurstStepModeBX, model.PromptFlowSelection{
+		OptionIndexes: []int{selectionIndex},
+		Count:         xValue,
+	})
+	flow.PutSelection(lightBurstStepModeBTarget, model.PromptFlowSelection{})
+	ctxData["candidate_target_ids"] = candidateTargets
+	engineplayer.AdvancePromptFlowChoice(rt, ctxData, flow, lightBurstStepModeBTarget, "hb_light_burst_mode_b_targets")
 	return nil
 }
 
 func handleLightBurstModeBTargets(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
 	candidates := runtimeutil.ParseStringSliceContextValue(ctxData["candidate_target_ids"])
-	xValue := runtimeutil.ToIntContextValue(ctxData["x_value"])
+	flow, err := model.RequirePromptFlow(ctxData, lightBurstFlowID, "圣光爆裂")
+	if err != nil {
+		return err
+	}
+	xValue := flow.Selection(lightBurstStepModeBX).Count
 	if xValue <= 0 {
 		return fmt.Errorf("X值无效")
 	}
@@ -798,7 +862,7 @@ func handleLightBurstModeBTargets(rt engineplayer.ChoiceRuntime, selectionIndex 
 	if maxTargets <= 0 {
 		return fmt.Errorf("没有可选目标")
 	}
-	selected := runtimeutil.ParseStringSliceContextValue(ctxData["selected_target_ids"])
+	selected := runtimeutil.DedupeIDs(flow.Selection(lightBurstStepModeBTarget).TargetIDs)
 	selectedSet := runtimeutil.IDsToSet(selected)
 	remaining := make([]string, 0, len(candidates))
 	for _, targetID := range candidates {
@@ -819,12 +883,9 @@ func handleLightBurstModeBTargets(rt engineplayer.ChoiceRuntime, selectionIndex 
 			return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
 		selected = append(selected, remaining[selectionIndex])
-		ctxData["selected_target_ids"] = selected
+		flow.PutSelection(lightBurstStepModeBTarget, model.PromptFlowSelection{TargetIDs: selected})
 		if len(selected) < maxTargets {
-			if intr := rt.GetPendingInterrupt(); intr != nil {
-				intr.Context = ctxData
-			}
-			rt.NotifyInterruptPrompt()
+			engineplayer.NotifyChoiceContext(rt, ctxData)
 			return nil
 		}
 		proceedDiscard = true
@@ -837,13 +898,9 @@ func handleLightBurstModeBTargets(rt engineplayer.ChoiceRuntime, selectionIndex 
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
-	ctxData["selected_indices"] = []int{}
+	flow.PutSelection(lightBurstStepModeBDiscard, model.PromptFlowSelection{})
 	ctxData["remaining_indices"] = engineplayer.AllHandIndices(user)
-	ctxData["choice_type"] = "hb_light_burst_mode_b_discard"
-	if intr := rt.GetPendingInterrupt(); intr != nil {
-		intr.Context = ctxData
-	}
-	rt.NotifyInterruptPrompt()
+	engineplayer.AdvancePromptFlowChoice(rt, ctxData, flow, lightBurstStepModeBDiscard, "hb_light_burst_mode_b_discard")
 	return nil
 }
 
@@ -853,12 +910,16 @@ func handleLightBurstModeBDiscard(rt engineplayer.ChoiceRuntime, selectionIndex 
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
-	xValue := runtimeutil.ToIntContextValue(ctxData["x_value"])
+	flow, err := model.RequirePromptFlow(ctxData, lightBurstFlowID, "圣光爆裂")
+	if err != nil {
+		return err
+	}
+	xValue := flow.Selection(lightBurstStepModeBX).Count
 	if xValue <= 0 {
 		return fmt.Errorf("X值无效")
 	}
 	remaining := engineplayer.ParseIntSliceContextValue(ctxData["remaining_indices"])
-	selected := engineplayer.ParseIntSliceContextValue(ctxData["selected_indices"])
+	selected := append([]int{}, flow.Selection(lightBurstStepModeBDiscard).OptionIndexes...)
 	cardIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, remaining)
 	if !ok || cardIdx < 0 || cardIdx >= len(user.Hand) {
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
@@ -871,22 +932,20 @@ func handleLightBurstModeBDiscard(rt engineplayer.ChoiceRuntime, selectionIndex 
 		}
 	}
 	if len(selected) < xValue {
-		ctxData["selected_indices"] = selected
+		flow.PutSelection(lightBurstStepModeBDiscard, model.PromptFlowSelection{OptionIndexes: selected})
 		ctxData["remaining_indices"] = nextRemaining
-		if intr := rt.GetPendingInterrupt(); intr != nil {
-			intr.Context = ctxData
-		}
-		rt.NotifyInterruptPrompt()
+		engineplayer.NotifyChoiceContext(rt, ctxData)
 		return nil
 	}
 	if user.Heal < xValue {
 		return fmt.Errorf("治疗不足，无法移除%d点治疗", xValue)
 	}
+	flow.PutSelection(lightBurstStepModeBDiscard, model.PromptFlowSelection{OptionIndexes: selected})
 	removed, _ := engineplayer.RemoveCardsByIndicesFromHand(user, append([]int{}, selected...))
 	rt.NotifyCardRevealed(user.ID, removed, "discard")
 	rt.AppendToDiscard(removed)
 	user.Heal -= xValue
-	targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["selected_target_ids"])
+	targetIDs := runtimeutil.DedupeIDs(flow.Selection(lightBurstStepModeBTarget).TargetIDs)
 	yValue := 0
 	for _, tid := range targetIDs {
 		if t := rt.GetPlayers()[tid]; t != nil && t.Heal > 0 {
@@ -917,10 +976,7 @@ func handleMeteorBulletCost(rt engineplayer.ChoiceRuntime, selectionIndex int, c
 	}
 	ctxData["chosen_cost_mode"] = modes[selectionIndex]
 	ctxData["choice_type"] = "hb_meteor_bullet_target"
-	if intr := rt.GetPendingInterrupt(); intr != nil {
-		intr.Context = ctxData
-	}
-	rt.NotifyInterruptPrompt()
+	engineplayer.NotifyChoiceContext(rt, ctxData)
 	return nil
 }
 
@@ -1078,10 +1134,7 @@ func handleAutoFillResource(rt engineplayer.ChoiceRuntime, selectionIndex int, c
 	}
 	ctxData["branch"] = branch
 	ctxData["choice_type"] = "hb_auto_fill_gain"
-	if intr := rt.GetPendingInterrupt(); intr != nil {
-		intr.Context = ctxData
-	}
-	rt.NotifyInterruptPrompt()
+	engineplayer.NotifyChoiceContext(rt, ctxData)
 	return nil
 }
 

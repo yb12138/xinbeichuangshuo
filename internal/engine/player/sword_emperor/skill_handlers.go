@@ -145,7 +145,6 @@ func swordEmperorSlashTargets(game model.IGameEngine, user *model.Player, exclud
 	return ids
 }
 
-
 func (h *SwordEmperorSwordQiSlashHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.EventCtx == nil {
 		return false
@@ -190,11 +189,12 @@ func (h *SwordEmperorSwordQiSlashHandler) Execute(ctx *model.Context) error {
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
 		Context: map[string]interface{}{
-			"choice_type": "se_sword_qi_slash_x",
-			"user_id":     ctx.User.ID,
-			"max_x":       maxX,
-			"target_ids":  targetIDs,
-			"user_ctx":    ctx,
+			"choice_type":              "se_sword_qi_slash_x",
+			"user_id":                  ctx.User.ID,
+			"max_x":                    maxX,
+			"target_ids":               targetIDs,
+			"user_ctx":                 ctx,
+			model.PromptFlowContextKey: model.NewPromptFlowState(swordQiSlashFlowID, swordQiSlashStepX),
 		},
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [剑气斩]：请选择X值", ctx.User.Name))

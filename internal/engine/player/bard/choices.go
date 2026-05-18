@@ -13,6 +13,13 @@ import (
 
 type choiceHandler struct{}
 
+const (
+	descentFlowID      = "bd_descent"
+	descentStepElement = "element"
+	descentStepCards   = "cards"
+	descentStepTarget  = "target"
+)
+
 func NewChoiceHandler() engineplayer.ChoiceHandler {
 	return choiceHandler{}
 }
@@ -35,7 +42,11 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 	case "bd_descent_cards":
 		// 直接展示所有同系牌候选，无需前置元素选择步骤
 		remaining := engineplayer.ParseIntSliceContextValue(data["remaining_indices"])
-		selected := len(engineplayer.ParseIntSliceContextValue(data["selected_indices"]))
+		flow, err := model.RequirePromptFlow(data, descentFlowID, "沉沦协奏曲")
+		if err != nil {
+			return nil
+		}
+		selected := len(flow.Selection(descentStepCards).OptionIndexes)
 		options := make([]model.PromptOption, 0, len(remaining))
 		for _, idx := range remaining {
 			if idx < 0 || idx >= len(player.Hand) {
@@ -253,15 +264,17 @@ func handleDescentElement(rt engineplayer.ChoiceRuntime, ctxData map[string]inte
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
 	chosen := elems[selectionIndex]
-	ctxData["chosen_element"] = string(chosen)
-	ctxData["selected_indices"] = []int{}
-	ctxData["remaining_indices"] = engineplayer.GetCardIndicesByElement(user, chosen)
-	ctxData["choice_type"] = "bd_descent_cards"
-	intr := rt.GetPendingInterrupt()
-	if intr != nil {
-		intr.Context = ctxData
+	flow, err := model.RequirePromptFlow(ctxData, descentFlowID, "沉沦协奏曲")
+	if err != nil {
+		return err
 	}
-	rt.NotifyInterruptPrompt()
+	flow.PutSelection(descentStepElement, model.PromptFlowSelection{
+		OptionIndexes: []int{selectionIndex},
+		Element:       string(chosen),
+	})
+	flow.PutSelection(descentStepCards, model.PromptFlowSelection{Count: 2})
+	ctxData["remaining_indices"] = engineplayer.GetCardIndicesByElement(user, chosen)
+	engineplayer.AdvancePromptFlowChoice(rt, ctxData, flow, descentStepCards, "bd_descent_cards")
 	return nil
 }
 
@@ -272,7 +285,11 @@ func handleDescentCards(rt engineplayer.ChoiceRuntime, ctxData map[string]interf
 		return fmt.Errorf("玩家不存在")
 	}
 	remaining := engineplayer.ParseIntSliceContextValue(ctxData["remaining_indices"])
-	selected := engineplayer.ParseIntSliceContextValue(ctxData["selected_indices"])
+	flow, err := model.RequirePromptFlow(ctxData, descentFlowID, "沉沦协奏曲")
+	if err != nil {
+		return err
+	}
+	selected := append([]int{}, flow.Selection(descentStepCards).OptionIndexes...)
 	cardIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, remaining)
 	if !ok || cardIdx < 0 || cardIdx >= len(user.Hand) {
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
@@ -285,19 +302,22 @@ func handleDescentCards(rt engineplayer.ChoiceRuntime, ctxData map[string]interf
 		}
 	}
 	if len(selected) < 2 {
-		ctxData["selected_indices"] = selected
+		flow.PutSelection(descentStepCards, model.PromptFlowSelection{
+			OptionIndexes: selected,
+			Count:         2,
+		})
 		ctxData["remaining_indices"] = nextRemaining
-		intr := rt.GetPendingInterrupt()
-		if intr != nil {
-			intr.Context = ctxData
-		}
-		rt.NotifyInterruptPrompt()
+		engineplayer.NotifyChoiceContext(rt, ctxData)
 		return nil
 	}
 	// 验证所选2张牌是否同系
 	if len(selected) >= 2 && user.Hand[selected[0]].Element != user.Hand[selected[1]].Element {
 		return fmt.Errorf("沉沦协奏曲需弃置同系牌")
 	}
+	flow.PutSelection(descentStepCards, model.PromptFlowSelection{
+		OptionIndexes: selected,
+		Count:         2,
+	})
 	removed, err := engineplayer.RemoveCardsByIndicesFromHand(user, append([]int{}, selected...))
 	if err != nil {
 		return err
@@ -317,13 +337,8 @@ func handleDescentCards(rt engineplayer.ChoiceRuntime, ctxData map[string]interf
 		}
 	}
 	if hasMagic {
-		ctxData["choice_type"] = "bd_descent_target"
 		ctxData["target_ids"] = campEnemyIDs(rt, user)
-		intr := rt.GetPendingInterrupt()
-		if intr != nil {
-			intr.Context = ctxData
-		}
-		rt.NotifyInterruptPrompt()
+		engineplayer.AdvancePromptFlowChoice(rt, ctxData, flow, descentStepTarget, "bd_descent_target")
 		return nil
 	}
 	rt.PopInterrupt()
@@ -348,6 +363,14 @@ func handleDescentTarget(rt engineplayer.ChoiceRuntime, ctxData map[string]inter
 	if target == nil {
 		return fmt.Errorf("目标不存在")
 	}
+	flow, err := model.RequirePromptFlow(ctxData, descentFlowID, "沉沦协奏曲")
+	if err != nil {
+		return err
+	}
+	flow.PutSelection(descentStepTarget, model.PromptFlowSelection{
+		OptionIndexes: []int{selectionIndex},
+		TargetIDs:     []string{targetID},
+	})
 	rt.AddPendingDamage(model.PendingDamage{SourceID: user.ID, TargetID: target.ID, Damage: 1, DamageType: model.MagicAttack})
 	rt.Log(fmt.Sprintf("%s 的 [沉沦协奏曲] 追加效果：对 %s 造成1点法术伤害", user.Name, target.Name))
 	rt.PopInterrupt()

@@ -97,19 +97,34 @@ func TestBardDescentConcerto_RunsAndResolves(t *testing.T) {
 		t.Fatalf("turn-end descent hook should trigger with 2+ magic damage targets")
 	}
 	// 新流程：直接推送弃牌选择，无元素选择步骤
-	testutils.RequireChoicePrompt(t, game, "p1", "bd_descent_cards")
+	ctxData := testutils.RequireChoiceContext(t, game, "p1", "bd_descent_cards")
+	flow := testutils.RequirePromptFlow(t, ctxData, "bd_descent", "cards")
+	if _, ok := ctxData["selected_indices"]; ok {
+		t.Fatalf("descent should store selections in prompt flow, got legacy selected_indices in %+v", ctxData)
+	}
+	if got := flow.Selection("cards").Count; got != 2 {
+		t.Fatalf("expected descent flow card count=2, got %d in %+v", got, flow)
+	}
 
 	// 选择第1张火牌（手牌索引0）
 	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose first discard failed: %v", err)
 	}
-	testutils.RequireChoicePrompt(t, game, "p1", "bd_descent_cards")
+	ctxData = testutils.RequireChoiceContext(t, game, "p1", "bd_descent_cards")
+	flow = testutils.RequirePromptFlow(t, ctxData, "bd_descent", "cards")
+	if got := flow.Selection("cards").OptionIndexes; len(got) != 1 || got[0] != 0 {
+		t.Fatalf("expected descent flow to accumulate first card index 0, got %+v in %+v", got, flow)
+	}
 	// 选择第2张火牌（剩余候选索引中的第一个）
 	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose second discard failed: %v", err)
 	}
 
-	testutils.RequireChoicePrompt(t, game, "p1", "bd_descent_target")
+	ctxData = testutils.RequireChoiceContext(t, game, "p1", "bd_descent_target")
+	flow = testutils.RequirePromptFlow(t, ctxData, "bd_descent", "target")
+	if got := flow.Selection("cards").OptionIndexes; len(got) != 2 || got[0] != 0 || got[1] != 1 {
+		t.Fatalf("expected descent flow to accumulate card indexes [0 1], got %+v in %+v", got, flow)
+	}
 	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose descent bonus target failed: %v", err)
 	}

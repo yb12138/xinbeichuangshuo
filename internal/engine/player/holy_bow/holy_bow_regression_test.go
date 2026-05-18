@@ -366,7 +366,8 @@ func TestHolyBow_HolyShardStormMiss_NoBranch(t *testing.T) {
 		Type:     model.CmdSkill,
 		SkillID:  "hb_holy_shard_storm",
 	})
-	testutils.RequireChoicePrompt(t, game, "p1", "hb_holy_shard_combo")
+	ctxData := testutils.RequireChoiceContext(t, game, "p1", "hb_holy_shard_combo")
+	flow := testutils.RequirePromptFlow(t, ctxData, "hb_holy_shard_storm", "combo")
 	if prompt := game.GetCurrentPrompt(); prompt == nil || prompt.Type != model.PromptChooseCards {
 		t.Fatalf("expected shard storm discard to use hand-card picker, got %+v", prompt)
 	}
@@ -375,7 +376,11 @@ func TestHolyBow_HolyShardStormMiss_NoBranch(t *testing.T) {
 		Type:       model.CmdSelect,
 		Selections: []int{0, 1},
 	})
-	testutils.RequireChoicePrompt(t, game, "p1", "hb_holy_shard_target")
+	ctxData = testutils.RequireChoiceContext(t, game, "p1", "hb_holy_shard_target")
+	flow = testutils.RequirePromptFlow(t, ctxData, "hb_holy_shard_storm", "target")
+	if got := flow.Selection("combo").Element; got != string(model.ElementFire) {
+		t.Fatalf("expected shard storm flow to accumulate fire combo element, got %s in %+v", got, flow)
+	}
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID:   "p1",
 		Type:       model.CmdSelect,
@@ -443,13 +448,18 @@ func TestHolyBow_HolyShardStormMiss_NoEligibleAllySkipsPrompt(t *testing.T) {
 		Type:     model.CmdSkill,
 		SkillID:  "hb_holy_shard_storm",
 	})
-	testutils.RequireChoicePrompt(t, game, "p1", "hb_holy_shard_combo")
+	ctxData := testutils.RequireChoiceContext(t, game, "p1", "hb_holy_shard_combo")
+	testutils.RequirePromptFlow(t, ctxData, "hb_holy_shard_storm", "combo")
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID:   "p1",
 		Type:       model.CmdSelect,
 		Selections: []int{0, 1},
 	})
-	testutils.RequireChoicePrompt(t, game, "p1", "hb_holy_shard_target")
+	ctxData = testutils.RequireChoiceContext(t, game, "p1", "hb_holy_shard_target")
+	flow := testutils.RequirePromptFlow(t, ctxData, "hb_holy_shard_storm", "target")
+	if got := flow.Selection("combo").Element; got != string(model.ElementFire) {
+		t.Fatalf("expected shard storm flow to accumulate fire combo element, got %s in %+v", got, flow)
+	}
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID:   "p1",
 		Type:       model.CmdSelect,
@@ -533,19 +543,28 @@ func TestHolyBow_HolyShardStormMiss_YesBranch(t *testing.T) {
 		ExtraArgs: []string{"defend"},
 	})
 
-	testutils.RequireChoicePrompt(t, game, "p1", "hb_holy_shard_miss_confirm")
+	ctxData := testutils.RequireChoiceContext(t, game, "p1", "hb_holy_shard_miss_confirm")
+	flow := testutils.RequirePromptFlow(t, ctxData, "hb_holy_shard_miss", "confirm")
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID:   "p1",
 		Type:       model.CmdSelect,
 		Selections: []int{0}, // 是
 	})
-	testutils.RequireChoicePrompt(t, game, "p1", "hb_holy_shard_miss_x")
+	ctxData = testutils.RequireChoiceContext(t, game, "p1", "hb_holy_shard_miss_x")
+	flow = testutils.RequirePromptFlow(t, ctxData, "hb_holy_shard_miss", "x")
+	if got := flow.Selection("confirm").OptionIndexes; len(got) != 1 || got[0] != 0 {
+		t.Fatalf("expected shard miss flow to accumulate confirm yes, got %+v in %+v", got, flow)
+	}
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID:   "p1",
 		Type:       model.CmdSelect,
 		Selections: []int{1}, // X=2（上限边界）
 	})
-	testutils.RequireChoicePrompt(t, game, "p1", "hb_holy_shard_miss_ally_target")
+	ctxData = testutils.RequireChoiceContext(t, game, "p1", "hb_holy_shard_miss_ally_target")
+	flow = testutils.RequirePromptFlow(t, ctxData, "hb_holy_shard_miss", "ally_target")
+	if got := flow.Selection("x").Count; got != 2 {
+		t.Fatalf("expected shard miss flow to accumulate x=2, got %d in %+v", got, flow)
+	}
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID:   "p1",
 		Type:       model.CmdSelect,
@@ -627,13 +646,18 @@ func TestHolyBow_HolyShardStormMiss_XChoicesRequireAllyEnoughCards(t *testing.T)
 		ExtraArgs: []string{"defend"},
 	})
 
-	testutils.RequireChoicePrompt(t, game, "p1", "hb_holy_shard_miss_confirm")
+	ctxData := testutils.RequireChoiceContext(t, game, "p1", "hb_holy_shard_miss_confirm")
+	testutils.RequirePromptFlow(t, ctxData, "hb_holy_shard_miss", "confirm")
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID:   "p1",
 		Type:       model.CmdSelect,
 		Selections: []int{0},
 	})
-	testutils.RequireChoicePrompt(t, game, "p1", "hb_holy_shard_miss_x")
+	ctxData = testutils.RequireChoiceContext(t, game, "p1", "hb_holy_shard_miss_x")
+	flow := testutils.RequirePromptFlow(t, ctxData, "hb_holy_shard_miss", "x")
+	if got := flow.Selection("confirm").OptionIndexes; len(got) != 1 || got[0] != 0 {
+		t.Fatalf("expected shard miss flow to accumulate confirm yes, got %+v in %+v", got, flow)
+	}
 
 	prompt := game.GetCurrentPrompt()
 	if prompt == nil {
@@ -690,37 +714,58 @@ func TestHolyBow_LightBurstModeB_XYBoundaries(t *testing.T) {
 		Type:     model.CmdSkill,
 		SkillID:  "hb_light_burst",
 	})
-	testutils.RequireChoicePrompt(t, game, "p1", "hb_light_burst_mode")
+	ctxData := testutils.RequireChoiceContext(t, game, "p1", "hb_light_burst_mode")
+	flow := testutils.RequirePromptFlow(t, ctxData, "hb_light_burst", "mode")
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID:   "p1",
 		Type:       model.CmdSelect,
 		Selections: []int{0}, // 分支②（当前唯一可选分支）
 	})
-	testutils.RequireChoicePrompt(t, game, "p1", "hb_light_burst_mode_b_x")
+	ctxData = testutils.RequireChoiceContext(t, game, "p1", "hb_light_burst_mode_b_x")
+	flow = testutils.RequirePromptFlow(t, ctxData, "hb_light_burst", "mode_b_x")
+	if got := len(flow.Selection("mode").OptionIndexes); got != 1 {
+		t.Fatalf("expected light burst flow to accumulate selected mode, got %+v", flow)
+	}
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID:   "p1",
 		Type:       model.CmdSelect,
 		Selections: []int{1}, // X=2（最大）
 	})
-	testutils.RequireChoicePrompt(t, game, "p1", "hb_light_burst_mode_b_targets")
+	ctxData = testutils.RequireChoiceContext(t, game, "p1", "hb_light_burst_mode_b_targets")
+	flow = testutils.RequirePromptFlow(t, ctxData, "hb_light_burst", "mode_b_targets")
+	if got := flow.Selection("mode_b_x").Count; got != 2 {
+		t.Fatalf("expected light burst flow to accumulate x=2, got %d in %+v", got, flow)
+	}
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID:   "p1",
 		Type:       model.CmdSelect,
 		Selections: []int{0}, // 先选第1名目标
 	})
-	testutils.RequireChoicePrompt(t, game, "p1", "hb_light_burst_mode_b_targets")
+	ctxData = testutils.RequireChoiceContext(t, game, "p1", "hb_light_burst_mode_b_targets")
+	flow = testutils.RequirePromptFlow(t, ctxData, "hb_light_burst", "mode_b_targets")
+	if got := flow.Selection("mode_b_targets").TargetIDs; len(got) != 1 || got[0] != "p2" {
+		t.Fatalf("expected light burst flow to accumulate target p2, got %+v in %+v", got, flow)
+	}
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID:   "p1",
 		Type:       model.CmdSelect,
 		Selections: []int{1}, // 点击“完成目标选择”（至多X名）
 	})
-	testutils.RequireChoicePrompt(t, game, "p1", "hb_light_burst_mode_b_discard")
+	ctxData = testutils.RequireChoiceContext(t, game, "p1", "hb_light_burst_mode_b_discard")
+	flow = testutils.RequirePromptFlow(t, ctxData, "hb_light_burst", "mode_b_discard")
+	if got := flow.Selection("mode_b_targets").TargetIDs; len(got) != 1 || got[0] != "p2" {
+		t.Fatalf("expected light burst flow to keep target p2 for discard step, got %+v in %+v", got, flow)
+	}
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID:   "p1",
 		Type:       model.CmdSelect,
 		Selections: []int{0},
 	})
-	testutils.RequireChoicePrompt(t, game, "p1", "hb_light_burst_mode_b_discard")
+	ctxData = testutils.RequireChoiceContext(t, game, "p1", "hb_light_burst_mode_b_discard")
+	flow = testutils.RequirePromptFlow(t, ctxData, "hb_light_burst", "mode_b_discard")
+	if got := flow.Selection("mode_b_discard").OptionIndexes; len(got) != 1 || got[0] != 0 {
+		t.Fatalf("expected light burst flow to accumulate first discard card index 0, got %+v in %+v", got, flow)
+	}
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID:   "p1",
 		Type:       model.CmdSelect,

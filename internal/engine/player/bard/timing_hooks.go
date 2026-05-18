@@ -189,14 +189,17 @@ func turnEndDescentHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHook
 		}
 	}
 
+	flow := model.NewPromptFlowState(descentFlowID, descentStepCards)
+	flow.PutSelection(descentStepCards, model.PromptFlowSelection{Count: 2})
+
 	rt.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
 		PlayerID: bard.ID,
 		Context: map[string]interface{}{
-			"choice_type":       "bd_descent_cards",
-			"user_id":           bard.ID,
-			"selected_indices":  []int{},
-			"remaining_indices": candidateIndices,
+			"choice_type":              "bd_descent_cards",
+			"user_id":                  bard.ID,
+			"remaining_indices":        candidateIndices,
+			model.PromptFlowContextKey: flow,
 		},
 	})
 	return engineplayer.TimingHookResult{Interrupted: true}

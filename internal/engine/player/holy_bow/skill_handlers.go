@@ -173,10 +173,11 @@ func (h *HolyBowShardStormHandler) Execute(ctx *model.Context) error {
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
 		Context: map[string]interface{}{
-			"choice_type": "hb_holy_shard_combo",
-			"user_id":     ctx.User.ID,
-			"combos":      combos,
-			"target_ids":  enemyIDs,
+			"choice_type":              "hb_holy_shard_combo",
+			"user_id":                  ctx.User.ID,
+			"combos":                   combos,
+			"target_ids":               enemyIDs,
+			model.PromptFlowContextKey: model.NewPromptFlowState(holyShardFlowID, holyShardStepCombo),
 		},
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [圣屑飓暴]：请选择弃置的同系攻击牌组合", ctx.User.Name))
@@ -266,11 +267,12 @@ func (h *HolyBowLightBurstHandler) Execute(ctx *model.Context) error {
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
 		Context: map[string]interface{}{
-			"choice_type": "hb_light_burst_mode",
-			"user_id":     ctx.User.ID,
-			"ally_ids":    allyIDs,
-			"enemy_ids":   enemyIDs,
-			"max_x":       maxX,
+			"choice_type":              "hb_light_burst_mode",
+			"user_id":                  ctx.User.ID,
+			"ally_ids":                 allyIDs,
+			"enemy_ids":                enemyIDs,
+			"max_x":                    maxX,
+			model.PromptFlowContextKey: model.NewPromptFlowState(lightBurstFlowID, lightBurstStepMode),
 		},
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [圣光爆裂]：请选择发动分支", ctx.User.Name))

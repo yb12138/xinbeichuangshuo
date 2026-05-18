@@ -13,6 +13,14 @@ import (
 
 type choiceHandler struct{}
 
+const (
+	runeSmashFlowID     = "hom_rune_smash"
+	glyphFusionFlowID   = "hom_glyph_fusion"
+	runeChoiceStepX     = "x"
+	runeChoiceStepCards = "cards"
+	runeChoiceStepY     = "y"
+)
+
 func NewChoiceHandler() engineplayer.ChoiceHandler {
 	return choiceHandler{}
 }
@@ -84,7 +92,11 @@ func buildRuneCardsPrompt(playerID string, player *model.Player, data map[string
 	if len(remaining) == 0 {
 		remaining = candidates
 	}
-	xValue := runtimeutil.ToIntContextValue(data["x_value"])
+	flow, err := model.RequirePromptFlow(data, runeChoiceFlowID(glyph), runeChoiceLabel(glyph))
+	if err != nil {
+		return nil
+	}
+	xValue := flow.Selection(runeChoiceStepX).Count
 	minPick := runtimeutil.ToIntContextValue(data["min_pick"])
 	if minPick < 1 {
 		if glyph {
@@ -93,7 +105,7 @@ func buildRuneCardsPrompt(playerID string, player *model.Player, data map[string
 			minPick = 1 // 战纹碎击至少1张
 		}
 	}
-	selectedCount := len(engineplayer.ParseIntSliceContextValue(data["selected_indices"]))
+	selectedCount := len(flow.Selection(runeChoiceStepCards).OptionIndexes)
 	options := make([]model.PromptOption, 0, len(remaining))
 	for _, idx := range remaining {
 		if player == nil || idx < 0 || idx >= len(player.Hand) {
@@ -244,11 +256,17 @@ func handleRuneX(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, 
 		return fmt.Errorf("可选牌数量不足")
 	}
 
-	ctxData["choice_type"] = nextChoice
-	ctxData["x_value"] = xValue
-	ctxData["selected_indices"] = []int{}
+	flow, err := model.RequirePromptFlow(ctxData, runeChoiceFlowID(glyph), runeChoiceLabel(glyph))
+	if err != nil {
+		return err
+	}
+	flow.PutSelection(runeChoiceStepX, model.PromptFlowSelection{
+		OptionIndexes: []int{selectionIndex},
+		Count:         xValue,
+	})
+	flow.PutSelection(runeChoiceStepCards, model.PromptFlowSelection{Count: xValue})
 	ctxData["remaining_indices"] = append([]int{}, candidates...)
-	updateRuneChoiceContext(rt, ctxData)
+	engineplayer.AdvancePromptFlowChoice(rt, ctxData, flow, runeChoiceStepCards, nextChoice)
 	return nil
 }
 
@@ -260,8 +278,12 @@ func handleRuneCards(rt engineplayer.ChoiceRuntime, ctxData map[string]interface
 	}
 
 	remaining := engineplayer.ParseIntSliceContextValue(ctxData["remaining_indices"])
-	selected := engineplayer.ParseIntSliceContextValue(ctxData["selected_indices"])
-	xValue := runtimeutil.ToIntContextValue(ctxData["x_value"])
+	flow, err := model.RequirePromptFlow(ctxData, runeChoiceFlowID(glyph), runeChoiceLabel(glyph))
+	if err != nil {
+		return err
+	}
+	selected := append([]int{}, flow.Selection(runeChoiceStepCards).OptionIndexes...)
+	xValue := flow.Selection(runeChoiceStepX).Count
 	cardIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, remaining)
 	if !ok {
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
@@ -295,49 +317,53 @@ func handleRuneCards(rt engineplayer.ChoiceRuntime, ctxData map[string]interface
 		}
 		// 选择了足够数量的牌，进入 Y 选择或结算
 		if len(nextSelected) >= minPick {
-			ctxData["selected_indices"] = nextSelected
-			ctxData["x_value"] = len(nextSelected)
+			flow.PutSelection(runeChoiceStepCards, model.PromptFlowSelection{
+				OptionIndexes: nextSelected,
+				Count:         len(nextSelected),
+			})
 			maxY := runtimeutil.ToIntContextValue(ctxData["max_y"])
 			if maxY > 0 {
+				nextStep := "hom_rune_smash_y"
 				if glyph {
-					ctxData["choice_type"] = "hom_glyph_fusion_y"
-				} else {
-					ctxData["choice_type"] = "hom_rune_smash_y"
+					nextStep = "hom_glyph_fusion_y"
 				}
-				updateRuneChoiceContext(rt, ctxData)
+				engineplayer.AdvancePromptFlowChoice(rt, ctxData, flow, runeChoiceStepY, nextStep)
 				return nil
 			}
-			ctxData["y_value"] = 0
 			return resolveRuneChoice(rt, ctxData, glyph)
 		}
 		// 还需要继续选牌
-		ctxData["selected_indices"] = nextSelected
+		flow.PutSelection(runeChoiceStepCards, model.PromptFlowSelection{OptionIndexes: nextSelected})
 		ctxData["remaining_indices"] = nextRemaining
-		updateRuneChoiceContext(rt, ctxData)
+		engineplayer.NotifyChoiceContext(rt, ctxData)
 		return nil
 	}
 
 	// 旧流程：逐张选牌直到达到 xValue
 	if len(nextSelected) < xValue {
-		ctxData["selected_indices"] = nextSelected
+		flow.PutSelection(runeChoiceStepCards, model.PromptFlowSelection{
+			OptionIndexes: nextSelected,
+			Count:         xValue,
+		})
 		ctxData["remaining_indices"] = nextRemaining
-		updateRuneChoiceContext(rt, ctxData)
+		engineplayer.NotifyChoiceContext(rt, ctxData)
 		return nil
 	}
 
-	ctxData["selected_indices"] = nextSelected
+	flow.PutSelection(runeChoiceStepCards, model.PromptFlowSelection{
+		OptionIndexes: nextSelected,
+		Count:         xValue,
+	})
 	maxY := runtimeutil.ToIntContextValue(ctxData["max_y"])
 	if maxY > 0 {
+		nextStep := "hom_rune_smash_y"
 		if glyph {
-			ctxData["choice_type"] = "hom_glyph_fusion_y"
-		} else {
-			ctxData["choice_type"] = "hom_rune_smash_y"
+			nextStep = "hom_glyph_fusion_y"
 		}
-		updateRuneChoiceContext(rt, ctxData)
+		engineplayer.AdvancePromptFlowChoice(rt, ctxData, flow, runeChoiceStepY, nextStep)
 		return nil
 	}
 
-	ctxData["y_value"] = 0
 	return resolveRuneChoice(rt, ctxData, glyph)
 }
 
@@ -374,20 +400,24 @@ func handleRuneCardsMultiSelect(glyph bool) func(rt engineplayer.ChoiceRuntime, 
 			return false, err
 		}
 
-		ctxData["selected_indices"] = selections
-		ctxData["x_value"] = len(selections)
+		flow, err := model.RequirePromptFlow(ctxData, runeChoiceFlowID(glyph), runeChoiceLabel(glyph))
+		if err != nil {
+			return false, err
+		}
+		flow.PutSelection(runeChoiceStepCards, model.PromptFlowSelection{
+			OptionIndexes: append([]int{}, selections...),
+			Count:         len(selections),
+		})
 		maxY := runtimeutil.ToIntContextValue(ctxData["max_y"])
 		if maxY > 0 {
+			nextStep := "hom_rune_smash_y"
 			if glyph {
-				ctxData["choice_type"] = "hom_glyph_fusion_y"
-			} else {
-				ctxData["choice_type"] = "hom_rune_smash_y"
+				nextStep = "hom_glyph_fusion_y"
 			}
-			updateRuneChoiceContext(rt, ctxData)
+			engineplayer.AdvancePromptFlowChoice(rt, ctxData, flow, runeChoiceStepY, nextStep)
 			return true, nil // 消费当前选择步骤，继续弹出 Y 选择
 		}
 
-		ctxData["y_value"] = 0
 		return true, resolveRuneChoice(rt, ctxData, glyph)
 	}
 }
@@ -439,7 +469,14 @@ func handleRuneY(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, 
 	if yValue < 0 || yValue > maxY {
 		return fmt.Errorf("无效的Y值")
 	}
-	ctxData["y_value"] = yValue
+	flow, err := model.RequirePromptFlow(ctxData, runeChoiceFlowID(glyph), runeChoiceLabel(glyph))
+	if err != nil {
+		return err
+	}
+	flow.PutSelection(runeChoiceStepY, model.PromptFlowSelection{
+		OptionIndexes: []int{selectionIndex},
+		Count:         yValue,
+	})
 	return resolveRuneChoice(rt, ctxData, glyph)
 }
 
@@ -491,12 +528,17 @@ func resolveRuneChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]interfa
 	if rawCtx == nil || rawCtx.EventCtx == nil {
 		return fmt.Errorf("英灵人形技能上下文丢失")
 	}
-	xVal := runtimeutil.ToIntContextValue(ctxData["x_value"])
-	yVal := runtimeutil.ToIntContextValue(ctxData["y_value"])
+	flow, err := model.RequirePromptFlow(ctxData, runeChoiceFlowID(glyph), runeChoiceLabel(glyph))
+	if err != nil {
+		return err
+	}
+	cardSelection := flow.Selection(runeChoiceStepCards)
+	xVal := cardSelection.Count
+	yVal := flow.Selection(runeChoiceStepY).Count
 	if xVal <= 0 || yVal < 0 {
 		return fmt.Errorf("X/Y 参数无效")
 	}
-	selected := runtimeutil.ParseChoiceIntSlice(ctxData["selected_indices"])
+	selected := append([]int{}, cardSelection.OptionIndexes...)
 	if len(selected) != xVal {
 		return fmt.Errorf("弃牌数量与X不一致")
 	}
@@ -573,18 +615,23 @@ func resolveRuneChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]interfa
 // Interrupt context helpers
 // ---------------------------------------------------------------------------
 
-// updateRuneChoiceContext replaces the current pending interrupt context and
-// re-notifies the prompt.
-func updateRuneChoiceContext(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}) {
-	if intr := rt.GetPendingInterrupt(); intr != nil {
-		intr.Context = ctxData
-	}
-	rt.NotifyInterruptPrompt()
-}
-
 // ---------------------------------------------------------------------------
 // Rune validation & mutation helpers
 // ---------------------------------------------------------------------------
+
+func runeChoiceFlowID(glyph bool) string {
+	if glyph {
+		return glyphFusionFlowID
+	}
+	return runeSmashFlowID
+}
+
+func runeChoiceLabel(glyph bool) string {
+	if glyph {
+		return "魔纹融合"
+	}
+	return "战纹碎击"
+}
 
 // validateRuneCardSelection checks that the selected hand indices satisfy the
 // element-matching rules for 战纹碎击 (selected cards must be same element with each other)

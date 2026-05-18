@@ -329,6 +329,13 @@ func TestHomGlyphFusion_MaxXUsesDistinctElements(t *testing.T) {
 	if choiceType, _ := data["choice_type"].(string); choiceType != "hom_glyph_fusion_cards" {
 		t.Fatalf("expected choice_type=hom_glyph_fusion_cards, got %s", choiceType)
 	}
+	testutils.RequirePromptFlow(t, data, "hom_glyph_fusion", "cards")
+	if _, ok := data["selected_indices"]; ok {
+		t.Fatalf("glyph fusion should store selections in prompt flow, got legacy selected_indices in %+v", data)
+	}
+	if _, ok := data["x_value"]; ok {
+		t.Fatalf("glyph fusion should derive X from prompt flow, got legacy x_value in %+v", data)
+	}
 	// 验证 min_pick 为 2
 	if minPick, _ := data["min_pick"].(int); minPick != 2 {
 		t.Fatalf("expected min_pick=2, got %v", data["min_pick"])
@@ -863,10 +870,20 @@ func TestHomRuneSmash_BurstAddsAttackAndMagicDamage(t *testing.T) {
 	if g.State.PendingInterrupt == nil || choiceTypeOfInterrupt(g.State.PendingInterrupt) != "hom_rune_smash_cards" {
 		t.Fatalf("expected hom_rune_smash_cards choice for direct card selection, got %+v", g.State.PendingInterrupt)
 	}
+	data, _ := g.State.PendingInterrupt.Context.(map[string]interface{})
+	testutils.RequirePromptFlow(t, data, "hom_rune_smash", "cards")
+	if _, ok := data["selected_indices"]; ok {
+		t.Fatalf("rune smash should store selections in prompt flow, got legacy selected_indices in %+v", data)
+	}
 
 	// 直接多选两张同系牌（索引0和1），不再需要先选择X
 	if err := g.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0, 1}}); err != nil {
 		t.Fatalf("choose rune smash cards failed: %v", err)
+	}
+	data, _ = g.State.PendingInterrupt.Context.(map[string]interface{})
+	flow := testutils.RequirePromptFlow(t, data, "hom_rune_smash", "y")
+	if got := flow.Selection("cards").OptionIndexes; len(got) != 2 || got[0] != 0 || got[1] != 1 {
+		t.Fatalf("expected rune smash flow to accumulate card indexes [0 1], got %+v in %+v", got, flow)
 	}
 	// Y=1：额外翻转1战纹并造成1点法伤
 	if err := g.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
