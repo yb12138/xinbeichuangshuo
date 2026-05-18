@@ -57,10 +57,10 @@ func TestMagicBullet_ChainAndDamage(t *testing.T) {
 	// 为了通过 CmdMagic 的校验，我们指定 P2。
 
 	err := game.HandleAction(model.PlayerAction{
-		Type:      model.CmdMagic,
-		PlayerID:  "p1",
-		TargetID:  "p2",
-		CardIndex: 0, // P1's Magic Bullet
+		Type:     model.CmdMagic,
+		PlayerID: "p1",
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0), // P1's Magic Bullet
 	})
 	if err != nil {
 		t.Fatalf("P1 使用魔弹失败: %v", err)
@@ -92,7 +92,7 @@ func TestMagicBullet_ChainAndDamage(t *testing.T) {
 		Type:      model.CmdRespond,
 		PlayerID:  "p4",
 		ExtraArgs: []string{"counter"},
-		CardIndex: 0,
+		CardID:    testutils.PlayableCardID(t, game, "p4", 0),
 	})
 	if err != nil {
 		t.Fatalf("P4 传递魔弹失败: %v", err)
@@ -183,10 +183,10 @@ func TestMagicBullet_Defend(t *testing.T) {
 
 	t.Logf("Step 1: P1 对 P2 使用魔弹")
 	game.HandleAction(model.PlayerAction{
-		Type:      model.CmdMagic,
-		PlayerID:  "p1",
-		TargetID:  "p2",
-		CardIndex: 0,
+		Type:     model.CmdMagic,
+		PlayerID: "p1",
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	})
 
 	t.Logf("Step 2: P2 使用圣光抵挡")
@@ -203,7 +203,7 @@ func TestMagicBullet_Defend(t *testing.T) {
 		Type:      model.CmdRespond,
 		PlayerID:  "p2",
 		ExtraArgs: []string{"defend"},
-		CardIndex: cardIdx,
+		CardID:    testutils.PlayableCardID(t, game, "p2", cardIdx),
 	})
 	if err != nil {
 		t.Fatalf("P2 抵挡失败: %v", err)
@@ -251,10 +251,10 @@ func TestMagicBullet_CounterEndsWhenRoundCovered(t *testing.T) {
 	p1.TurnState = model.NewPlayerTurnState()
 
 	if err := game.HandleAction(model.PlayerAction{
-		Type:      model.CmdMagic,
-		PlayerID:  "p1",
-		TargetID:  "p2",
-		CardIndex: 0,
+		Type:     model.CmdMagic,
+		PlayerID: "p1",
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	}); err != nil {
 		t.Fatalf("p1 magic bullet failed: %v", err)
 	}
@@ -267,7 +267,7 @@ func TestMagicBullet_CounterEndsWhenRoundCovered(t *testing.T) {
 		Type:      model.CmdRespond,
 		PlayerID:  "p2",
 		ExtraArgs: []string{"counter"},
-		CardIndex: 0,
+		CardID:    testutils.PlayableCardID(t, game, "p2", 0),
 	}); err != nil {
 		t.Fatalf("p2 counter failed: %v", err)
 	}

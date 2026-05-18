@@ -377,7 +377,14 @@ func runAutoGameWithScenarioSeedTag(
 
 		if game.State.PendingInterrupt != nil {
 			if err := resolveInterrupt(game); err != nil {
-				return nil, fmt.Errorf("step %d interrupt=%s failed: %w", step, game.State.PendingInterrupt.Type, err)
+				return nil, fmt.Errorf(
+					"step %d interrupt=%s choice=%s prompt=%s failed: %w",
+					step,
+					game.State.PendingInterrupt.Type,
+					interruptChoiceType(game.State.PendingInterrupt),
+					describePromptOptions(game.GetCurrentPrompt()),
+					err,
+				)
 			}
 			continue
 		}
@@ -2067,10 +2074,10 @@ func tryAttackActions(game *engine.GameEngine, pid string, enemies []string, att
 		}
 		for _, targetID := range targetOrder {
 			err := game.HandleAction(model.PlayerAction{
-				PlayerID:  pid,
-				Type:      model.CmdAttack,
-				TargetID:  targetID,
-				CardIndex: idx,
+				PlayerID: pid,
+				Type:     model.CmdAttack,
+				TargetID: targetID,
+				CardID:   handCardIDAt(player, idx),
 			})
 			if err == nil {
 				return nil
@@ -2172,10 +2179,10 @@ func tryMagicActions(game *engine.GameEngine, pid string, enemies []string, magi
 	for _, idx := range magicIdx {
 		for _, targetID := range targetOrder {
 			err := game.HandleAction(model.PlayerAction{
-				PlayerID:  pid,
-				Type:      model.CmdMagic,
-				TargetID:  targetID,
-				CardIndex: idx,
+				PlayerID: pid,
+				Type:     model.CmdMagic,
+				TargetID: targetID,
+				CardID:   handCardIDAt(game.State.Players[pid], idx),
 			})
 			if err == nil {
 				return nil
@@ -2443,6 +2450,9 @@ func pickCardSelections(prompt *model.Prompt) ([]int, error) {
 		if err != nil {
 			continue
 		}
+		if idx < 0 {
+			continue
+		}
 		selections = append(selections, idx)
 		if len(selections) == need {
 			return selections, nil
@@ -2703,7 +2713,12 @@ func chooseChoiceInterruptSelections(game *engine.GameEngine, intr *model.Interr
 	case "adventurer_steal_sky_extra_action":
 		// 冒险家定向回归优先攻击链路，制造响应窗口。
 		return []int{0}, nil
+	case "onmyoji_yinyang_card", "onmyoji_binding_card":
+		return []int{0}, nil
 	default:
+		if prompt.Type == model.PromptChooseCards {
+			return pickCardSelections(prompt)
+		}
 		return []int{0}, nil
 	}
 }
@@ -2786,6 +2801,17 @@ func findPromptOptionIndex(prompt *model.Prompt, keyword string) int {
 		}
 	}
 	return -1
+}
+
+func describePromptOptions(prompt *model.Prompt) string {
+	if prompt == nil {
+		return "<nil>"
+	}
+	parts := make([]string, 0, len(prompt.Options))
+	for _, opt := range prompt.Options {
+		parts = append(parts, fmt.Sprintf("%s/%s", opt.ID, opt.Label))
+	}
+	return fmt.Sprintf("type=%s min=%d max=%d options=[%s]", prompt.Type, prompt.Min, prompt.Max, strings.Join(parts, "; "))
 }
 
 func interruptChoiceType(intr *model.Interrupt) string {
@@ -2962,7 +2988,7 @@ func resolveCombatAsTake(game *engine.GameEngine) error {
 				if err := game.HandleAction(model.PlayerAction{
 					PlayerID:  top.TargetID,
 					Type:      model.CmdRespond,
-					CardIndex: idx,
+					CardID:    handCardIDAt(defender, idx),
 					ExtraArgs: []string{"defend"},
 				}); err == nil {
 					return true
@@ -2988,7 +3014,7 @@ func resolveCombatAsTake(game *engine.GameEngine) error {
 					if err := game.HandleAction(model.PlayerAction{
 						PlayerID:  top.TargetID,
 						Type:      model.CmdRespond,
-						CardIndex: idx,
+						CardID:    handCardIDAt(defender, idx),
 						TargetID:  targetID,
 						ExtraArgs: []string{"counter"},
 					}); err == nil {
@@ -3092,6 +3118,13 @@ func findCounterCardIndex(player *model.Player, attackElement model.Element) (in
 	return -1, false
 }
 
+func handCardIDAt(player *model.Player, idx int) string {
+	if player == nil || idx < 0 || idx >= len(player.Hand) {
+		return ""
+	}
+	return player.Hand[idx].ID
+}
+
 func chooseCounterTargetID(targetIDs []string) string {
 	if len(targetIDs) == 0 {
 		return ""
@@ -3176,20 +3209,29 @@ func normalizeQueuedActionForBeforeAction(game *engine.GameEngine) {
 		return
 	}
 
-	if qa.CardIndex >= 0 && qa.CardIndex < len(source.Hand) {
-		curr := source.Hand[qa.CardIndex]
-		if qa.Card == nil || curr.ID == qa.Card.ID {
-			cardCopy := curr
-			qa.Card = &cardCopy
-			return
+	if qa.CardID != "" {
+		for _, curr := range source.Hand {
+			if curr.ID != qa.CardID {
+				continue
+			}
+			if qa.Card == nil || curr.ID == qa.Card.ID {
+				cardCopy := curr
+				qa.Card = &cardCopy
+				return
+			}
+			break
 		}
 	}
 
 	if idx, ok := findFallbackCardIndex(source, qa); ok {
-		qa.CardIndex = idx
-		cardCopy := source.Hand[idx]
-		qa.Card = &cardCopy
-		return
+		curr := source.Hand[idx]
+		cardID := curr.ID
+		qa.CardID = cardID
+		if qa.Card == nil || qa.Card.ID == cardID {
+			cardCopy := curr
+			qa.Card = &cardCopy
+			return
+		}
 	}
 
 	dropQueuedAction(game)
@@ -3359,7 +3401,7 @@ func gameplaySnapshot(game *engine.GameEngine) string {
 		b.WriteString(":")
 		b.WriteString(qa.TargetID)
 		b.WriteString(":")
-		b.WriteString(strconv.Itoa(qa.CardIndex))
+		b.WriteString(qa.CardID)
 		b.WriteString(":")
 		b.WriteString(string(qa.Type))
 	}

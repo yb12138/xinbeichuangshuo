@@ -278,6 +278,9 @@ func handleRuneCards(rt engineplayer.ChoiceRuntime, ctxData map[string]interface
 	}
 
 	remaining := engineplayer.ParseIntSliceContextValue(ctxData["remaining_indices"])
+	if len(remaining) == 0 {
+		remaining = engineplayer.ParseIntSliceContextValue(ctxData["candidate_indices"])
+	}
 	flow, err := model.RequirePromptFlow(ctxData, runeChoiceFlowID(glyph), runeChoiceLabel(glyph))
 	if err != nil {
 		return err

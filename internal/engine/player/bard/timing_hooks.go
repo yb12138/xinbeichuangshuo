@@ -79,10 +79,11 @@ func turnStartRousingHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHo
 		Type:     model.InterruptChoice,
 		PlayerID: currentPlayer.ID,
 		Context: map[string]interface{}{
-			"choice_type": "bd_rousing_mode",
-			"user_id":     holder.ID,
-			"bard_id":     bardID,
-			"target_ids":  targetIDs,
+			"choice_type":              "bd_rousing_mode",
+			"user_id":                  holder.ID,
+			"bard_id":                  bardID,
+			"target_ids":               targetIDs,
+			model.PromptFlowContextKey: model.NewPromptFlowState(rousingFlowID, rousingStepMode),
 		},
 	})
 	rt.Log(fmt.Sprintf("%s 持有永恒乐章，回合开始时满足 [激昂狂想曲] 的发动条件", currentPlayer.Name))

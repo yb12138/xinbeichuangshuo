@@ -18,6 +18,17 @@ const (
 	descentStepElement = "element"
 	descentStepCards   = "cards"
 	descentStepTarget  = "target"
+
+	dissonanceFlowID      = "bd_dissonance"
+	dissonanceStepX       = "x"
+	dissonanceStepMode    = "mode"
+	dissonanceStepTarget  = "target"
+	dissonanceStepDiscard = "discard"
+
+	rousingFlowID      = "bd_rousing"
+	rousingStepMode    = "mode"
+	rousingStepTargets = "targets"
+	rousingStepDiscard = "discard"
 )
 
 func NewChoiceHandler() engineplayer.ChoiceHandler {
@@ -74,7 +85,11 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		}
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【不谐和弦】请选择X值：", Options: options, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 0}}
 	case "bd_dissonance_mode":
-		xValue := runtimeutil.ToIntContextValue(data["x_value"])
+		flow, err := model.RequirePromptFlow(data, dissonanceFlowID, "不谐和弦")
+		if err != nil {
+			return nil
+		}
+		xValue := flow.Selection(dissonanceStepX).Count
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: fmt.Sprintf("【不谐和弦】请选择分支（X=%d）：", xValue), Options: []model.PromptOption{{ID: "0", Label: fmt.Sprintf("你与目标各摸%d张牌", xValue-1)}, {ID: "1", Label: fmt.Sprintf("你与目标各弃%d张牌", xValue-1)}}, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"}}
 	case "bd_dissonance_discard_step":
 		currentActorID, _ := data["current_actor_id"].(string)
@@ -82,8 +97,13 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		if actor == nil {
 			return nil
 		}
-		need := runtimeutil.ToIntContextValue(data["need_count"])
-		selected := runtimeutil.ToIntContextValue(data["selected_count"])
+		flow, err := model.RequirePromptFlow(data, dissonanceFlowID, "不谐和弦")
+		if err != nil {
+			return nil
+		}
+		discardSelection := flow.Selection(dissonanceStepDiscard)
+		need := discardSelection.Count
+		selected := len(discardSelection.OptionIndexes)
 		options := make([]model.PromptOption, 0, len(actor.Hand))
 		for idx, c := range actor.Hand {
 			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", idx), Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(c)), CardID: c.ID})
@@ -105,7 +125,12 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【激昂狂想曲】请选择效果：", Options: opts, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"}}
 	case "bd_rousing_targets":
 		targetIDs := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
-		selectedSet := runtimeutil.IDsToSet(runtimeutil.ParseStringSliceContextValue(data["selected_target_ids"]))
+		flow, err := model.RequirePromptFlow(data, rousingFlowID, "激昂狂想曲")
+		if err != nil {
+			return nil
+		}
+		selectedIDs := runtimeutil.DedupeIDs(flow.Selection(rousingStepTargets).TargetIDs)
+		selectedSet := runtimeutil.IDsToSet(selectedIDs)
 		options := make([]model.PromptOption, 0, len(targetIDs))
 		for _, targetID := range targetIDs {
 			if selectedSet[targetID] {
@@ -115,9 +140,13 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 				options = append(options, model.PromptOption{ID: targetID, Label: target.Name})
 			}
 		}
-		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: fmt.Sprintf("【激昂狂想曲】请选择第 %d/2 名目标：", len(selectedSet)+1), Options: options, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationTargetPicker, TargetFilter: "custom"}}
+		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: fmt.Sprintf("【激昂狂想曲】请选择第 %d/2 名目标：", len(selectedIDs)+1), Options: options, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationTargetPicker, TargetFilter: "custom"}}
 	case "bd_rousing_discard_cards":
-		selected := len(engineplayer.ParseIntSliceContextValue(data["selected_indices"]))
+		flow, err := model.RequirePromptFlow(data, rousingFlowID, "激昂狂想曲")
+		if err != nil {
+			return nil
+		}
+		selected := len(flow.Selection(rousingStepDiscard).OptionIndexes)
 		remaining := engineplayer.ParseIntSliceContextValue(data["remaining_indices"])
 		options := make([]model.PromptOption, 0, len(remaining))
 		for _, idx := range remaining {
@@ -396,18 +425,20 @@ func handleDissonanceX(rt engineplayer.ChoiceRuntime, ctxData map[string]interfa
 	if bardInspiration(user) < xValue {
 		return fmt.Errorf("灵感不足")
 	}
+	flow, err := model.RequirePromptFlow(ctxData, dissonanceFlowID, "不谐和弦")
+	if err != nil {
+		return err
+	}
+	flow.PutSelection(dissonanceStepX, model.PromptFlowSelection{
+		OptionIndexes: []int{selectionIndex},
+		Count:         xValue,
+	})
 	addBardInspiration(user, -xValue)
 	if InEternalPrisonerForm(user) {
 		LeaveEternalPrisonerForm(user)
 		rt.Log(fmt.Sprintf("%s 发动 [不谐和弦]：脱离永恒囚徒形态", user.Name))
 	}
-	ctxData["x_value"] = xValue
-	ctxData["choice_type"] = "bd_dissonance_mode"
-	intr := rt.GetPendingInterrupt()
-	if intr != nil {
-		intr.Context = ctxData
-	}
-	rt.NotifyInterruptPrompt()
+	engineplayer.AdvancePromptFlowChoice(rt, ctxData, flow, dissonanceStepMode, "bd_dissonance_mode")
 	return nil
 }
 
@@ -420,14 +451,16 @@ func handleDissonanceMode(rt engineplayer.ChoiceRuntime, ctxData map[string]inte
 	if selectionIndex != 0 && selectionIndex != 1 {
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
-	ctxData["mode"] = selectionIndex
-	ctxData["choice_type"] = "bd_dissonance_target"
-	ctxData["target_ids"] = append([]string{}, rt.GetPlayerOrder()...)
-	intr := rt.GetPendingInterrupt()
-	if intr != nil {
-		intr.Context = ctxData
+	flow, err := model.RequirePromptFlow(ctxData, dissonanceFlowID, "不谐和弦")
+	if err != nil {
+		return err
 	}
-	rt.NotifyInterruptPrompt()
+	flow.PutSelection(dissonanceStepMode, model.PromptFlowSelection{
+		OptionIndexes: []int{selectionIndex},
+		Count:         selectionIndex,
+	})
+	ctxData["target_ids"] = append([]string{}, rt.GetPlayerOrder()...)
+	engineplayer.AdvancePromptFlowChoice(rt, ctxData, flow, dissonanceStepTarget, "bd_dissonance_target")
 	return nil
 }
 
@@ -446,12 +479,20 @@ func handleDissonanceTarget(rt engineplayer.ChoiceRuntime, ctxData map[string]in
 	if target == nil {
 		return fmt.Errorf("目标不存在")
 	}
-	xValue := runtimeutil.ToIntContextValue(ctxData["x_value"])
-	mode := runtimeutil.ToIntContextValue(ctxData["mode"])
+	flow, err := model.RequirePromptFlow(ctxData, dissonanceFlowID, "不谐和弦")
+	if err != nil {
+		return err
+	}
+	xValue := flow.Selection(dissonanceStepX).Count
+	mode := flow.Selection(dissonanceStepMode).Count
 	n := xValue - 1
 	if n < 0 {
 		n = 0
 	}
+	flow.PutSelection(dissonanceStepTarget, model.PromptFlowSelection{
+		OptionIndexes: []int{selectionIndex},
+		TargetIDs:     []string{targetID},
+	})
 	if mode == 0 {
 		if n > 0 {
 			rt.DrawCards(user.ID, n)
@@ -485,19 +526,12 @@ func handleDissonanceTarget(rt engineplayer.ChoiceRuntime, ctxData map[string]in
 		return nil
 	}
 	currentActor := rt.GetPlayers()[actors[startCursor]]
-	ctxData["choice_type"] = "bd_dissonance_discard_step"
 	ctxData["actor_ids"] = actors
 	ctxData["cursor"] = startCursor
 	ctxData["current_actor_id"] = currentActor.ID
-	ctxData["need_count"] = n
-	ctxData["selected_count"] = 0
-	ctxData["selected_indices"] = []int{}
+	flow.PutSelection(dissonanceStepDiscard, model.PromptFlowSelection{Count: n})
 	ctxData["remaining_indices"] = engineplayer.AllHandIndices(currentActor)
-	intr := rt.GetPendingInterrupt()
-	if intr != nil {
-		intr.Context = ctxData
-	}
-	rt.NotifyInterruptPrompt()
+	engineplayer.AdvancePromptFlowChoice(rt, ctxData, flow, dissonanceStepDiscard, "bd_dissonance_discard_step")
 	return nil
 }
 
@@ -520,31 +554,32 @@ func handleDissonanceDiscardStep(rt engineplayer.ChoiceRuntime, ctxData map[stri
 	if actor == nil {
 		return fmt.Errorf("弃牌角色不存在")
 	}
-	needCount := runtimeutil.ToIntContextValue(ctxData["need_count"])
-	selectedCount := runtimeutil.ToIntContextValue(ctxData["selected_count"])
+	flow, err := model.RequirePromptFlow(ctxData, dissonanceFlowID, "不谐和弦")
+	if err != nil {
+		return err
+	}
+	discardSelection := flow.Selection(dissonanceStepDiscard)
+	needCount := discardSelection.Count
 	remaining := engineplayer.ParseIntSliceContextValue(ctxData["remaining_indices"])
-	selected := engineplayer.ParseIntSliceContextValue(ctxData["selected_indices"])
+	selected := append([]int{}, discardSelection.OptionIndexes...)
 	cardIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, remaining)
 	if !ok || cardIdx < 0 || cardIdx >= len(actor.Hand) {
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
 	selected = append(selected, cardIdx)
-	selectedCount++
 	nextRemaining := make([]int, 0, len(remaining))
 	for _, idx := range remaining {
 		if idx != cardIdx {
 			nextRemaining = append(nextRemaining, idx)
 		}
 	}
-	if selectedCount < needCount && len(nextRemaining) > 0 {
-		ctxData["selected_count"] = selectedCount
-		ctxData["selected_indices"] = selected
+	if len(selected) < needCount && len(nextRemaining) > 0 {
+		flow.PutSelection(dissonanceStepDiscard, model.PromptFlowSelection{
+			OptionIndexes: selected,
+			Count:         needCount,
+		})
 		ctxData["remaining_indices"] = nextRemaining
-		intr := rt.GetPendingInterrupt()
-		if intr != nil {
-			intr.Context = ctxData
-		}
-		rt.NotifyInterruptPrompt()
+		engineplayer.NotifyChoiceContext(rt, ctxData)
 		return nil
 	}
 	removed, err := engineplayer.RemoveCardsByIndicesFromHand(actor, append([]int{}, selected...))
@@ -564,14 +599,9 @@ func handleDissonanceDiscardStep(rt engineplayer.ChoiceRuntime, ctxData map[stri
 		}
 		ctxData["cursor"] = nextCursor
 		ctxData["current_actor_id"] = nextActor.ID
-		ctxData["selected_count"] = 0
-		ctxData["selected_indices"] = []int{}
+		flow.PutSelection(dissonanceStepDiscard, model.PromptFlowSelection{Count: needCount})
 		ctxData["remaining_indices"] = engineplayer.AllHandIndices(nextActor)
-		intr := rt.GetPendingInterrupt()
-		if intr != nil {
-			intr.Context = ctxData
-		}
-		rt.NotifyInterruptPrompt()
+		engineplayer.NotifyChoiceContext(rt, ctxData)
 		return nil
 	}
 	rt.PopInterrupt()
@@ -594,8 +624,17 @@ func handleRousingMode(rt engineplayer.ChoiceRuntime, ctxData map[string]interfa
 	switch selectionIndex {
 	case 0:
 		bardID, _ := ctxData["bard_id"].(string)
+		flow, err := model.RequirePromptFlow(ctxData, rousingFlowID, "激昂狂想曲")
+		if err != nil {
+			return err
+		}
+		flow.PutSelection(rousingStepMode, model.PromptFlowSelection{
+			OptionIndexes: []int{selectionIndex},
+			Count:         selectionIndex,
+		})
+		flow.PutSelection(rousingStepTargets, model.PromptFlowSelection{Count: 2})
+		flow.Advance(rousingStepTargets)
 		ctxData["choice_type"] = "bd_rousing_targets"
-		ctxData["selected_target_ids"] = []string{}
 		intr := rt.GetPendingInterrupt()
 		if intr != nil {
 			intr.Context = ctxData
@@ -608,16 +647,26 @@ func handleRousingMode(rt engineplayer.ChoiceRuntime, ctxData map[string]interfa
 		if len(holder.Hand) < 2 {
 			return fmt.Errorf("手牌不足2张，无法执行弃2张牌分支")
 		}
-		ctxData["choice_type"] = "bd_rousing_discard_cards"
-		ctxData["selected_indices"] = []int{}
-		ctxData["remaining_indices"] = engineplayer.AllHandIndices(holder)
-		intr := rt.GetPendingInterrupt()
-		if intr != nil {
-			intr.Context = ctxData
+		flow, err := model.RequirePromptFlow(ctxData, rousingFlowID, "激昂狂想曲")
+		if err != nil {
+			return err
 		}
-		rt.NotifyInterruptPrompt()
+		flow.PutSelection(rousingStepMode, model.PromptFlowSelection{
+			OptionIndexes: []int{selectionIndex},
+			Count:         selectionIndex,
+		})
+		flow.PutSelection(rousingStepDiscard, model.PromptFlowSelection{Count: 2})
+		ctxData["remaining_indices"] = engineplayer.AllHandIndices(holder)
+		engineplayer.AdvancePromptFlowChoice(rt, ctxData, flow, rousingStepDiscard, "bd_rousing_discard_cards")
 		return nil
 	case 2: // 跳过
+		flow, err := model.RequirePromptFlow(ctxData, rousingFlowID, "激昂狂想曲")
+		if err == nil {
+			flow.PutSelection(rousingStepMode, model.PromptFlowSelection{
+				OptionIndexes: []int{selectionIndex},
+				Count:         selectionIndex,
+			})
+		}
 		rt.Log(fmt.Sprintf("%s 选择跳过 [激昂狂想曲]", holder.Name))
 		rt.PopInterrupt()
 		if rt.GetPendingInterrupt() == nil {
@@ -640,7 +689,11 @@ func handleRousingTargets(rt engineplayer.ChoiceRuntime, ctxData map[string]inte
 		return fmt.Errorf("吟游诗人或持有者不存在")
 	}
 	targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
-	selected := runtimeutil.DedupeIDs(runtimeutil.ParseStringSliceContextValue(ctxData["selected_target_ids"]))
+	flow, err := model.RequirePromptFlow(ctxData, rousingFlowID, "激昂狂想曲")
+	if err != nil {
+		return err
+	}
+	selected := runtimeutil.DedupeIDs(flow.Selection(rousingStepTargets).TargetIDs)
 	selectedSet := runtimeutil.IDsToSet(selected)
 	remaining := make([]string, 0, len(targetIDs))
 	for _, targetID := range targetIDs {
@@ -653,14 +706,18 @@ func handleRousingTargets(rt engineplayer.ChoiceRuntime, ctxData map[string]inte
 	}
 	selected = append(selected, remaining[selectionIndex])
 	if len(selected) < 2 {
-		ctxData["selected_target_ids"] = selected
-		intr := rt.GetPendingInterrupt()
-		if intr != nil {
-			intr.Context = ctxData
-		}
-		rt.NotifyInterruptPrompt()
+		flow.PutSelection(rousingStepTargets, model.PromptFlowSelection{
+			TargetIDs: selected,
+			Count:     2,
+		})
+		engineplayer.NotifyChoiceContext(rt, ctxData)
 		return nil
 	}
+	flow.PutSelection(rousingStepTargets, model.PromptFlowSelection{
+		OptionIndexes: []int{selectionIndex},
+		TargetIDs:     selected,
+		Count:         2,
+	})
 	for _, targetID := range selected {
 		rt.AddPendingDamage(model.PendingDamage{SourceID: bard.ID, TargetID: targetID, Damage: 1, DamageType: model.MagicAttack})
 	}
@@ -684,7 +741,12 @@ func handleRousingDiscardCards(rt engineplayer.ChoiceRuntime, ctxData map[string
 		return fmt.Errorf("吟游诗人或持有者不存在")
 	}
 	remaining := engineplayer.ParseIntSliceContextValue(ctxData["remaining_indices"])
-	selected := engineplayer.ParseIntSliceContextValue(ctxData["selected_indices"])
+	flow, err := model.RequirePromptFlow(ctxData, rousingFlowID, "激昂狂想曲")
+	if err != nil {
+		return err
+	}
+	discardSelection := flow.Selection(rousingStepDiscard)
+	selected := append([]int{}, discardSelection.OptionIndexes...)
 	cardIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, remaining)
 	if !ok || cardIdx < 0 || cardIdx >= len(holder.Hand) {
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
@@ -697,15 +759,18 @@ func handleRousingDiscardCards(rt engineplayer.ChoiceRuntime, ctxData map[string
 		}
 	}
 	if len(selected) < 2 {
-		ctxData["selected_indices"] = selected
+		flow.PutSelection(rousingStepDiscard, model.PromptFlowSelection{
+			OptionIndexes: selected,
+			Count:         2,
+		})
 		ctxData["remaining_indices"] = nextRemaining
-		intr := rt.GetPendingInterrupt()
-		if intr != nil {
-			intr.Context = ctxData
-		}
-		rt.NotifyInterruptPrompt()
+		engineplayer.NotifyChoiceContext(rt, ctxData)
 		return nil
 	}
+	flow.PutSelection(rousingStepDiscard, model.PromptFlowSelection{
+		OptionIndexes: selected,
+		Count:         2,
+	})
 	removed, err := engineplayer.RemoveCardsByIndicesFromHand(holder, append([]int{}, selected...))
 	if err != nil {
 		return err

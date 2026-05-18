@@ -52,7 +52,7 @@ func TestSaintess_Skills(t *testing.T) {
 
 		// 假设它是给 Card Target 加血。
 		action := model.PlayerAction{
-			PlayerID: "p1", Type: model.CmdMagic, TargetID: "p2", CardIndex: 0,
+			PlayerID: "p1", Type: model.CmdMagic, TargetID: "p2", CardID: testutils.PlayableCardID(t, game, "p1", 0),
 		}
 		game.HandleAction(action)
 

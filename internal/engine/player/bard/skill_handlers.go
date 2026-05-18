@@ -81,9 +81,10 @@ func (h *BardDissonanceChordHandler) Execute(ctx *model.Context) error {
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
 		Context: map[string]interface{}{
-			"choice_type": "bd_dissonance_x",
-			"user_id":     ctx.User.ID,
-			"max_x":       inspiration,
+			"choice_type":              "bd_dissonance_x",
+			"user_id":                  ctx.User.ID,
+			"max_x":                    inspiration,
+			model.PromptFlowContextKey: model.NewPromptFlowState(dissonanceFlowID, dissonanceStepX),
 		},
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [不谐和弦]，请选择X值（2~%d）", ctx.User.Name, inspiration))
@@ -124,10 +125,11 @@ func (h *BardRousingRhapsodyHandler) Execute(ctx *model.Context) error {
 		Type:     model.InterruptChoice,
 		PlayerID: holder.ID,
 		Context: map[string]interface{}{
-			"choice_type": "bd_rousing_mode",
-			"user_id":     holder.ID,
-			"bard_id":     bardID,
-			"target_ids":  bardEnemyIDs(ctx.Game, holder),
+			"choice_type":              "bd_rousing_mode",
+			"user_id":                  holder.ID,
+			"bard_id":                  bardID,
+			"target_ids":               bardEnemyIDs(ctx.Game, holder),
+			model.PromptFlowContextKey: model.NewPromptFlowState(rousingFlowID, rousingStepMode),
 		},
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [激昂狂想曲]，请选择效果", holder.Name))

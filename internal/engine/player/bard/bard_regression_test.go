@@ -222,7 +222,8 @@ func TestBardDissonanceChord_DrawModeAndReleasePrisoner(t *testing.T) {
 	if err := game.UseSkill("p1", "bd_dissonance_chord", nil, nil); err != nil {
 		t.Fatalf("use dissonance failed: %v", err)
 	}
-	testutils.RequireChoicePrompt(t, game, "p1", "bd_dissonance_x")
+	ctxData := testutils.RequireChoiceContext(t, game, "p1", "bd_dissonance_x")
+	testutils.RequirePromptFlow(t, ctxData, "bd_dissonance", "x")
 	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil { // X=2
 		t.Fatalf("choose X failed: %v", err)
 	}
@@ -233,11 +234,22 @@ func TestBardDissonanceChord_DrawModeAndReleasePrisoner(t *testing.T) {
 		t.Fatalf("expected prisoner form released, got %q", got)
 	}
 
-	testutils.RequireChoicePrompt(t, game, "p1", "bd_dissonance_mode")
+	ctxData = testutils.RequireChoiceContext(t, game, "p1", "bd_dissonance_mode")
+	flow := testutils.RequirePromptFlow(t, ctxData, "bd_dissonance", "mode")
+	if _, ok := ctxData["x_value"]; ok {
+		t.Fatalf("dissonance should store X in prompt flow, got legacy x_value in %+v", ctxData)
+	}
+	if got := flow.Selection("x").Count; got != 2 {
+		t.Fatalf("expected dissonance flow X=2, got %d in %+v", got, flow)
+	}
 	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil { // 摸牌分支
 		t.Fatalf("choose mode failed: %v", err)
 	}
-	testutils.RequireChoicePrompt(t, game, "p1", "bd_dissonance_target")
+	ctxData = testutils.RequireChoiceContext(t, game, "p1", "bd_dissonance_target")
+	flow = testutils.RequirePromptFlow(t, ctxData, "bd_dissonance", "target")
+	if got := flow.Selection("mode").Count; got != 0 {
+		t.Fatalf("expected dissonance flow mode=0, got %d in %+v", got, flow)
+	}
 	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil { // 目标选 p2
 		t.Fatalf("choose target failed: %v", err)
 	}
@@ -398,16 +410,28 @@ func TestBardRousingRhapsody_OnAllyTurnStartRunsForbiddenVerse(t *testing.T) {
 	game.Drive()
 
 	// 激昂狂想曲已简化为三分支直选（伤害 / 弃牌 / 跳过），不再有独立的 confirm 步骤。
-	testutils.RequireChoicePrompt(t, game, "p2", "bd_rousing_mode")
+	ctxData := testutils.RequireChoiceContext(t, game, "p2", "bd_rousing_mode")
+	testutils.RequirePromptFlow(t, ctxData, "bd_rousing", "mode")
 	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{0}}); err != nil { // 持有者选伤害分支
 		t.Fatalf("choose rousing mode failed: %v", err)
 	}
 	// 目标选择由吟游诗人执行（伤害来源是吟游诗人）
-	testutils.RequireChoicePrompt(t, game, "p1", "bd_rousing_targets")
+	ctxData = testutils.RequireChoiceContext(t, game, "p1", "bd_rousing_targets")
+	flow := testutils.RequirePromptFlow(t, ctxData, "bd_rousing", "targets")
+	if _, ok := ctxData["selected_target_ids"]; ok {
+		t.Fatalf("rousing should store targets in prompt flow, got legacy selected_target_ids in %+v", ctxData)
+	}
+	if got := flow.Selection("mode").Count; got != 0 {
+		t.Fatalf("expected rousing flow mode=0, got %d in %+v", got, flow)
+	}
 	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil { // 吟游诗人先选 p3
 		t.Fatalf("choose rousing first target failed: %v", err)
 	}
-	testutils.RequireChoicePrompt(t, game, "p1", "bd_rousing_targets")
+	ctxData = testutils.RequireChoiceContext(t, game, "p1", "bd_rousing_targets")
+	flow = testutils.RequirePromptFlow(t, ctxData, "bd_rousing", "targets")
+	if got := flow.Selection("targets").TargetIDs; len(got) != 1 {
+		t.Fatalf("expected rousing flow to accumulate one target, got %+v in %+v", got, flow)
+	}
 	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil { // 吟游诗人再选 p4
 		t.Fatalf("choose rousing second target failed: %v", err)
 	}

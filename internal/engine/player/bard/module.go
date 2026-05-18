@@ -36,8 +36,8 @@ func RoleEntry() player.RoleEntry {
 func ChoiceSpecs() []player.ChoiceSpec {
 	return []player.ChoiceSpec{
 		{ChoiceType: "bd_descent_cards", SequentialRemaining: player.ChoiceRemainingFromFlowSelectionCount(descentStepCards, descentStepCards)},
-		{ChoiceType: "bd_dissonance_discard_step", SequentialRemaining: player.ChoiceRemainingFromNeedAndSelected("need_count", "selected_count")},
-		{ChoiceType: "bd_rousing_discard_cards", SequentialRemaining: player.ChoiceRemainingFromFixedTotal(2)},
+		{ChoiceType: "bd_dissonance_discard_step", SequentialRemaining: player.ChoiceRemainingFromFlowSelectionCount(dissonanceStepDiscard, dissonanceStepDiscard)},
+		{ChoiceType: "bd_rousing_discard_cards", SequentialRemaining: player.ChoiceRemainingFromFlowSelectionCount(rousingStepDiscard, rousingStepDiscard)},
 	}
 }
 

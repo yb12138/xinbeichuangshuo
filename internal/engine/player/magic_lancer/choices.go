@@ -162,25 +162,23 @@ func handleDarkBarrierCardsMultiSelect(rt engineplayer.ChoiceRuntime, playerID s
 		return false, fmt.Errorf("暗之障壁至少需要选择1张牌")
 	}
 
-	// 验证：所选牌必须全为法术牌或全为雷系牌（不能混选）
-	var hasMagic, hasThunder bool
+	// 验证：所选牌必须可整体视为“全法术牌”或“全雷系牌”。
+	allMagic := true
+	allThunder := true
 	for _, idx := range selections {
 		if idx < 0 || idx >= len(user.Hand) {
 			return false, fmt.Errorf("无效的选项索引: %d", idx)
 		}
 		card := user.Hand[idx]
-		if card.Type == model.CardTypeMagic {
-			hasMagic = true
+		if card.Type != model.CardTypeMagic {
+			allMagic = false
 		}
-		if card.Element == model.ElementThunder {
-			hasThunder = true
+		if card.Element != model.ElementThunder {
+			allThunder = false
 		}
 	}
-	if hasMagic && hasThunder {
+	if !allMagic && !allThunder {
 		return false, fmt.Errorf("暗之障壁需选择相同类型的牌（全法术牌或全雷系牌）")
-	}
-	if !hasMagic && !hasThunder {
-		return false, fmt.Errorf("暗之障壁需选择法术牌或雷系牌")
 	}
 
 	xValue := len(selections)
@@ -192,7 +190,7 @@ func handleDarkBarrierCardsMultiSelect(rt engineplayer.ChoiceRuntime, playerID s
 	rt.AppendToDiscard(removed)
 
 	modeLabel := "法术"
-	if hasThunder && !hasMagic {
+	if allThunder && !allMagic {
 		modeLabel = "雷系"
 	}
 	rt.Log(fmt.Sprintf("%s 的 [暗之障壁] 生效：弃置%d张%s牌", user.Name, xValue, modeLabel))

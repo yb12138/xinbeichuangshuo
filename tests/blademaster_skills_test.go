@@ -40,7 +40,7 @@ func TestBladeMaster_Skills(t *testing.T) {
 
 		// 发起第 3 次攻击
 		action := model.PlayerAction{
-			PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardIndex: 0,
+			PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardID: testutils.PlayableCardID(t, game, "p1", 0),
 		}
 
 		// 应该触发 Holy Sword
@@ -84,7 +84,7 @@ func TestBladeMaster_Skills(t *testing.T) {
 		}
 
 		// 攻击 -> P2 Take -> PhaseEnd -> Sword Shadow Interrupt
-		action := model.PlayerAction{PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardIndex: 0}
+		action := model.PlayerAction{PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardID: testutils.PlayableCardID(t, game, "p1", 0)}
 		game.HandleAction(action)
 		game.HandleAction(model.PlayerAction{PlayerID: "p2", Type: model.CmdRespond, ExtraArgs: []string{"take"}})
 		game.Drive()
@@ -137,7 +137,7 @@ func TestBladeMaster_Skills(t *testing.T) {
 		initialHandP2 := len(p2.Hand)
 
 		// P1 攻击
-		action := model.PlayerAction{PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardIndex: 0}
+		action := model.PlayerAction{PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardID: testutils.PlayableCardID(t, game, "p1", 0)}
 		game.HandleAction(action)
 
 		// P2 Take（圣盾本应抵挡，但列风技会在当前攻击上下文里标记 IgnoreShield）

@@ -38,10 +38,10 @@ func TestBladeMaster_WindFury_ExtraAttack(t *testing.T) {
 	t.Logf("\n👉 [Step 1] P1 发起第一次攻击")
 	// =============================================================
 	actionAtk1 := model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	}
 
 	if err := game.HandleAction(actionAtk1); err != nil {
@@ -100,10 +100,10 @@ func TestBladeMaster_WindFury_ExtraAttack(t *testing.T) {
 	// =============================================================
 	// 此时手牌 Index 变为 0
 	actionAtk2 := model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	}
 
 	if err := game.HandleAction(actionAtk2); err != nil {
@@ -120,8 +120,8 @@ func TestSealer_FiveSeals(t *testing.T) {
 		name           string           // 测试用例名称
 		sealSkillID    string           // 封印师发动的技能ID
 		sealEffectType model.EffectType // 期望场上生成的Effect类型
-		attackCard    model.Card       // 目标玩家使用的卡牌
-		expectSealProc  bool             // 是否应该触发封印
+		attackCard     model.Card       // 目标玩家使用的卡牌
+		expectSealProc bool             // 是否应该触发封印
 	}
 
 	// 构造五种属性的测试数据
@@ -130,43 +130,43 @@ func TestSealer_FiveSeals(t *testing.T) {
 			name:           "水之封印-触发",
 			sealSkillID:    "water_seal",
 			sealEffectType: model.EffectSealWater,
-			attackCard:    model.Card{ID: "c_water", Name: "水涟斩", Type: model.CardTypeAttack, Element: model.ElementWater, Damage: 2},
-			expectSealProc:  true,
+			attackCard:     model.Card{ID: "c_water", Name: "水涟斩", Type: model.CardTypeAttack, Element: model.ElementWater, Damage: 2},
+			expectSealProc: true,
 		},
 		{
 			name:           "火之封印-触发",
 			sealSkillID:    "fire_seal",
 			sealEffectType: model.EffectSealFire,
-			attackCard:    model.Card{ID: "c_fire", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2},
-			expectSealProc:  true,
+			attackCard:     model.Card{ID: "c_fire", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2},
+			expectSealProc: true,
 		},
 		{
 			name:           "地之封印-触发",
 			sealSkillID:    "earth_seal",
 			sealEffectType: model.EffectSealEarth,
-			attackCard:    model.Card{ID: "c_earth", Name: "地裂斩", Type: model.CardTypeAttack, Element: model.ElementEarth, Damage: 2},
-			expectSealProc:  true,
+			attackCard:     model.Card{ID: "c_earth", Name: "地裂斩", Type: model.CardTypeAttack, Element: model.ElementEarth, Damage: 2},
+			expectSealProc: true,
 		},
 		{
 			name:           "风之封印-触发",
 			sealSkillID:    "wind_seal",
 			sealEffectType: model.EffectSealWind,
-			attackCard:    model.Card{ID: "c_wind", Name: "风神斩", Type: model.CardTypeAttack, Element: model.ElementWind, Damage: 2},
-			expectSealProc:  true,
+			attackCard:     model.Card{ID: "c_wind", Name: "风神斩", Type: model.CardTypeAttack, Element: model.ElementWind, Damage: 2},
+			expectSealProc: true,
 		},
 		{
 			name:           "雷之封印-触发",
 			sealSkillID:    "thunder_seal",
 			sealEffectType: model.EffectSealThunder,
-			attackCard:    model.Card{ID: "c_thunder", Name: "雷光斩", Type: model.CardTypeAttack, Element: model.ElementThunder, Damage: 2},
-			expectSealProc:  true,
+			attackCard:     model.Card{ID: "c_thunder", Name: "雷光斩", Type: model.CardTypeAttack, Element: model.ElementThunder, Damage: 2},
+			expectSealProc: true,
 		},
 		{
 			name:           "水之封印-不触发(属性不匹配)",
 			sealSkillID:    "water_seal",
 			sealEffectType: model.EffectSealWater,
-			attackCard:    model.Card{ID: "c_fire_mismatch", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2}, // 用火系牌
-			expectSealProc:  false,
+			attackCard:     model.Card{ID: "c_fire_mismatch", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2}, // 用火系牌
+			expectSealProc: false,
 		},
 	}
 
@@ -328,10 +328,10 @@ func TestSealer_FiveSeals(t *testing.T) {
 
 			// P2 发起攻击 (这将触发 TimingOnCardUsed)
 			actionAtk := model.PlayerAction{
-				PlayerID:  "p2",
-				Type:      model.CmdAttack,
-				TargetID:  "p1",
-				CardIndex: 0,
+				PlayerID: "p2",
+				Type:     model.CmdAttack,
+				TargetID: "p1",
+				CardID:   testutils.PlayableCardID(t, game, "p2", 0),
 			}
 
 			// 记录 P2 当前手牌数 (为了验证是否摸了3张牌)

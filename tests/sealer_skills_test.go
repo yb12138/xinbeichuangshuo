@@ -35,7 +35,7 @@ func TestSealer_Skills(t *testing.T) {
 
 		// P1 使用法术 -> P2
 		action := model.PlayerAction{
-			PlayerID: "p1", Type: model.CmdMagic, TargetID: "p2", CardIndex: 0,
+			PlayerID: "p1", Type: model.CmdMagic, TargetID: "p2", CardID: testutils.PlayableCardID(t, game, "p1", 0),
 		}
 
 		// 此时应触发 Magic Surge 响应
