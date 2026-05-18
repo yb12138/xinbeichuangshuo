@@ -383,6 +383,6 @@ export function holyTargetsStepPrompt(
     choice_type: 'sage_holy_targets',
     options,
     presentation: { kind: 'target_picker' },
-    min: 1, max: 1,
+    min: 1, max: totalCount,
   } satisfies Prompt);
 }
