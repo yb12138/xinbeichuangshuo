@@ -21,6 +21,7 @@ func RoleEntry() player.RoleEntry {
 		ChoiceRouteSpecs:    ChoiceRouteSpecs(),
 		AfterMoraleLossHook: ApplySoulDevour,
 		TimingHookSpecs: []player.TimingHookSpec{
+			{Timing: player.TimingOnAttackDeclaredInterrupt, Priority: 200, Hook: soulConvertInterruptHook},
 			{Timing: player.TimingOnDamageBeforeTaken, Priority: 100, Hook: damageBeforeTakenHook, RoleFilter: &player.HookRoleNone},
 		},
 	}

@@ -268,9 +268,21 @@ func buildPilgrimageOrPoisonPickPrompt(playerID string, player *model.Player, da
 			FieldIndex:  &fieldIndex,
 		})
 	}
+	sourceName, _ := data["source_name"].(string)
+	targetName, _ := data["target_name"].(string)
+	damageAmount := runtimeutil.ToIntContextValue(data["damage_amount"])
 	msg := "【朝圣】是否移除1个茧抵御1点伤害？"
 	if choiceType == "bt_poison_pick" {
-		msg = "【毒粉】是否移除1个茧使该次法术伤害+1？"
+		if sourceName != "" && damageAmount > 0 {
+			msg = fmt.Sprintf("【毒粉】%s 对 %s 造成 %d 点法术伤害，是否移除1个茧使该次法术伤害+1？", sourceName, targetName, damageAmount)
+		} else {
+			msg = "【毒粉】是否移除1个茧使该次法术伤害+1？"
+		}
+	} else {
+		// 朝圣
+		if sourceName != "" && damageAmount > 0 {
+			msg = fmt.Sprintf("【朝圣】%s 对 %s 造成 %d 点伤害，是否移除1个茧抵御1点伤害？", sourceName, targetName, damageAmount)
+		}
 	}
 	return &model.Prompt{
 		Type:         model.PromptConfirm,
@@ -293,11 +305,18 @@ func buildMirrorPairPrompt(playerID string, data map[string]interface{}) *model.
 			Label: fmt.Sprintf("移除并展示：%s", label),
 		})
 	}
+	sourceName, _ := data["source_name"].(string)
+	targetName, _ := data["target_name"].(string)
+	damageAmount := runtimeutil.ToIntContextValue(data["damage_amount"])
+	message := "【镜花水月】是否发动并改写该次2点法术伤害？"
+	if sourceName != "" && damageAmount > 0 {
+		message = fmt.Sprintf("【镜花水月】%s 对 %s 造成 %d 点法术伤害，是否移除2张同系茧改写该次伤害？", sourceName, targetName, damageAmount)
+	}
 	return &model.Prompt{
 		Type:       model.PromptConfirm,
 		PlayerID:   playerID,
 		ChoiceType: "bt_mirror_pair",
-		Message:    "【镜花水月】是否发动并改写该次2点法术伤害？",
+		Message:    message,
 		Options:    options,
 		Min:        1,
 		Max:        1,

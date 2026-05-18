@@ -93,6 +93,25 @@ function buildState(overrides: Partial<GameStateUpdate> = {}): GameStateUpdate {
   }
 }
 
+function medusaDarkMoonPickPrompt(): Prompt {
+  return {
+    type: 'confirm',
+    player_id: 'p2',
+    choice_type: 'mg_medusa_darkmoon_pick',
+    message: '【美杜莎之眼】请选择要展示并移除的同系闇月：',
+    options: [
+      { id: '0', label: '移除闇月[暗月法术/Magic/Dark]', field_index: 0 },
+      { id: '1', label: '移除闇月[火焰斩/Attack/Fire]', field_index: 1 },
+    ],
+    min: 1,
+    max: 1,
+    presentation: {
+      kind: 'card_picker',
+      layout: 'field_cover',
+    },
+  }
+}
+
 function moonCycleBranchPrompt(): Prompt {
   return {
     type: 'confirm',
@@ -217,6 +236,24 @@ describe('PromptDialog', () => {
     expect(screen.getByText('跳过此回合')).toBeInTheDocument()
     expect(screen.queryByText(/^1$/)).not.toBeInTheDocument()
     expect(screen.queryByText(/^2$/)).not.toBeInTheDocument()
+  })
+
+  it('does not render medusa dark moon pick as decision overlay', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    useSessionStore().setRoomInfo('ROOM1', 'p2', 'Blue', 'moon_goddess')
+    useSnapshotStore().updateGameState(buildState())
+    useInterruptStore().setPrompt(medusaDarkMoonPickPrompt())
+
+    render(PromptDialog, {
+      global: {
+        plugins: [pinia],
+      },
+    })
+
+    expect(screen.queryByTestId('decision-overlay')).not.toBeInTheDocument()
+    expect(screen.queryByText('移除闇月[暗月法术/Magic/Dark]')).not.toBeInTheDocument()
   })
 
   it('renders moon cycle branch prompt with decline and both branches', async () => {

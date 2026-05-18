@@ -108,6 +108,18 @@ func MaybeDamageResponses(rt engineplayer.ChoiceRuntime, pd *model.PendingDamage
 	if pd == nil || pd.Damage <= 0 {
 		return false
 	}
+
+	// 预取来源/目标名称，供 prompt message 使用
+	sourceName := ""
+	if src := rt.GetPlayers()[pd.SourceID]; src != nil {
+		sourceName = src.Name
+	}
+	targetName := ""
+	if tgt := rt.GetPlayers()[pd.TargetID]; tgt != nil {
+		targetName = tgt.Name
+	}
+	damageAmount := pd.Damage
+
 	if !pd.HasCheck(model.PendingDamageCheckBeforeApplyDefend) {
 		pd.SetCheck(model.PendingDamageCheckBeforeApplyDefend, true)
 		target := rt.GetPlayers()[pd.TargetID]
@@ -118,11 +130,14 @@ func MaybeDamageResponses(rt engineplayer.ChoiceRuntime, pd *model.PendingDamage
 					Type:     model.InterruptChoice,
 					PlayerID: target.ID,
 					Context: map[string]interface{}{
-						"choice_type":    "bt_pilgrimage_pick",
-						"user_id":        target.ID,
-						"source_id":      pd.SourceID,
-						"target_id":      pd.TargetID,
-						"damage_index":   0,
+						"choice_type":   "bt_pilgrimage_pick",
+						"user_id":       target.ID,
+						"source_id":     pd.SourceID,
+						"source_name":   sourceName,
+						"target_id":     pd.TargetID,
+						"target_name":   targetName,
+						"damage_index":  0,
+						"damage_amount": damageAmount,
 						"cocoon_indices": indices,
 					},
 				})
@@ -156,8 +171,11 @@ func MaybeDamageResponses(rt engineplayer.ChoiceRuntime, pd *model.PendingDamage
 					"choice_type":    "bt_poison_pick",
 					"user_id":        user.ID,
 					"source_id":      pd.SourceID,
+					"source_name":    sourceName,
 					"target_id":      pd.TargetID,
+					"target_name":    targetName,
 					"damage_index":   0,
+					"damage_amount":  damageAmount,
 					"cocoon_indices": indices,
 				},
 			})
@@ -181,13 +199,16 @@ func MaybeDamageResponses(rt engineplayer.ChoiceRuntime, pd *model.PendingDamage
 				Type:     model.InterruptChoice,
 				PlayerID: user.ID,
 				Context: map[string]interface{}{
-					"choice_type":  "bt_mirror_pair",
-					"user_id":      user.ID,
-					"source_id":    pd.SourceID,
-					"target_id":    pd.TargetID,
-					"damage_index": 0,
-					"pair_defs":    defs,
-					"pair_labels":  labels,
+					"choice_type":   "bt_mirror_pair",
+					"user_id":       user.ID,
+					"source_id":     pd.SourceID,
+					"source_name":   sourceName,
+					"target_id":     pd.TargetID,
+					"target_name":   targetName,
+					"damage_index":  0,
+					"damage_amount": damageAmount,
+					"pair_defs":     defs,
+					"pair_labels":   labels,
 				},
 			})
 			rt.Log(fmt.Sprintf("%s 的 [镜花水月] 可触发：是否移除2张同系茧改写本次伤害来源", user.Name))

@@ -39,6 +39,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 				options = append(options, model.PromptOption{ID: "blue_to_yellow", Label: "蓝色灵魂转黄色灵魂"})
 			}
 		}
+		options = append(options, model.PromptOption{ID: "cancel", Label: "取消"})
 		return &model.Prompt{
 			Type:         model.PromptConfirm,
 			PlayerID:     playerID,
@@ -80,6 +81,16 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		if maxX < 0 {
 			maxX = 0
 		}
+		originalDamage := runtimeutil.ToIntContextValue(data["original_damage"])
+		targetName, _ := data["target_name"].(string)
+		if targetName == "" {
+			targetName = "队友"
+		}
+		counterpartName, _ := data["counterpart_name"].(string)
+		if counterpartName == "" {
+			counterpartName = "另一方"
+		}
+		message := fmt.Sprintf("【灵魂链接】%s 受到 %d 点伤害，请选择转移给 %s 的点数X：", targetName, originalDamage, counterpartName)
 		xOptions := make([]model.PromptOption, 0, maxX+1)
 		for x := 0; x <= maxX; x++ {
 			label := fmt.Sprintf("移除%d点蓝魂并转移%d点伤害", x, x)
@@ -92,7 +103,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			Type:         model.PromptConfirm,
 			PlayerID:     playerID,
 			ChoiceType:   choiceType,
-			Message:      "【灵魂链接】请选择要转移的伤害点数X：",
+			Message:      message,
 			Options:      xOptions,
 			Min:          1,
 			Max:          1,
@@ -174,6 +185,23 @@ func handleSoulConvertColorChoice(rt engineplayer.ChoiceRuntime, selectionIndex 
 	}
 
 	modeOrder := runtimeutil.ParseStringSliceContextValue(ctxData["mode_order"])
+
+	// 取消：selectionIndex == len(modeOrder)，即最后一个选项
+	if selectionIndex == len(modeOrder) {
+		rt.Log(fmt.Sprintf("%s 取消 [灵魂转换]", user.Name))
+		rt.PopInterrupt()
+		if rt.GetPendingInterrupt() == nil {
+			rt.RoutePendingDamageOr(model.TurnStageExtraAction, func() {
+				if len(rt.GetActionQueue()) > 0 {
+					rt.EnterActionExecutionStage()
+				} else {
+					rt.EnterExtraActionStage()
+				}
+			})
+		}
+		return nil
+	}
+
 	if selectionIndex < 0 || selectionIndex >= len(modeOrder) {
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}

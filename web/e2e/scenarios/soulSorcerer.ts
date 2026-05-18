@@ -318,6 +318,7 @@ export function soulConvertColorPrompt(options: {
   if (canB2Y) {
     optionsList.push({ id: 'blue_to_yellow', label: '蓝色灵魂转黄色灵魂' });
   }
+  optionsList.push({ id: 'cancel', label: '取消' });
 
   return requireActionMessage({
     type: 'confirm',

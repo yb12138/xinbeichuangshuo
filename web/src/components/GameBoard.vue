@@ -371,6 +371,7 @@ const cocoonPromptContext = computed(() => {
   let mode: CocoonPromptMode = 'none'
   if (p.type === 'confirm') mode = 'confirm'
   if (p.type === 'choose_card' || p.type === 'choose_cards') mode = 'cards'
+  if (p.presentation?.kind === 'card_picker') mode = 'confirm'
   if (mode === 'none') {
     return {
       active: false,
@@ -514,7 +515,11 @@ const promptNeedsCardSelectionGuide = computed(() => {
 
 const cocoonGuideText = computed(() => {
   const ctx = cocoonPromptContext.value
+  const p = promptGuideContext.value
   if (!ctx.active) return ''
+  if (p?.choice_type === 'mg_medusa_darkmoon_pick') {
+    return '请在扩展区点击要展示并移除的同系闇月'
+  }
   if (ctx.mode === 'confirm') {
     return '请在扩展区点击对应的茧完成选择'
   }
@@ -704,7 +709,12 @@ function onCoverCardClick(fieldIndex: number) {
   const ctx = cocoonPromptContext.value
   if (ctx.active) {
     if (!isCocoonCoverSelectable(fieldIndex)) {
-      interruptStore.showError('当前步骤不可选择该茧')
+      const choiceType = String(currentPrompt.value?.choice_type || '').trim()
+      if (choiceType === 'mg_medusa_darkmoon_pick') {
+        interruptStore.showError('当前步骤不可选择该闇月')
+      } else {
+        interruptStore.showError('当前步骤不可选择该茧')
+      }
       return
     }
 

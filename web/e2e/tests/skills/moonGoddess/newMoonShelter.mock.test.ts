@@ -1,5 +1,6 @@
-import { test } from '../../../fixtures/protocolHarness.fixture';
+import { test, expect } from '../../../fixtures/protocolHarness.fixture';
 import {
+  newMoonShelterResponsePrompt,
   newMoonShelterScenario,
   newMoonShelterTransformScenario,
 } from '../../../scenarios/moonGoddess';
@@ -10,27 +11,27 @@ import {
 // ============================================================
 
 test.describe('moon goddess new moon shelter protocol harness', () => {
-  test('new moon shelter: triggered via response_skills', async ({ protocolHarness }) => {
+  test('new moon shelter: triggered via response_skills', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(newMoonShelterScenario());
 
-    // 后端会设置 response_skills 触发确认弹框
-    // 用户点击发动按钮
+    await protocolHarness.pushServerMessage(newMoonShelterResponsePrompt());
+    await expect(page.getByTestId('skill-branch-overlay')).toBeVisible();
+    await page.getByTestId('skill-branch-overlay').getByTestId('branch-option-0').click();
     await protocolHarness.expectSubmitAction({
-      action_type: 'UseSkill',
-      skill_id: 'mg_new_moon_shelter',
+      action_type: 'Select',
+      option_indexes: [0],
     });
   });
 
-  test('new moon shelter: transform overflow cards to dark moon form', async ({ protocolHarness }) => {
+  test('new moon shelter: transform overflow cards to dark moon form', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(newMoonShelterTransformScenario({ discarded_cards: 2 }));
 
-    // 爆牌转化时，新月庇护会自动吸收爆牌为暗月并进入暗月形态
-    // 后端设置 from_damage_draw=true, discarded_cards 有牌
-    // Execute: Enter dark moon form + add cards as field cards with EffectMoonDarkMoon
-    // DamageVal is set to 0 (no morale loss)
+    await protocolHarness.pushServerMessage(newMoonShelterResponsePrompt());
+    await expect(page.getByTestId('skill-branch-overlay')).toBeVisible();
+    await page.getByTestId('skill-branch-overlay').getByTestId('branch-option-0').click();
     await protocolHarness.expectSubmitAction({
-      action_type: 'UseSkill',
-      skill_id: 'mg_new_moon_shelter',
+      action_type: 'Select',
+      option_indexes: [0],
     });
   });
 });

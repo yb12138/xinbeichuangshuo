@@ -3,8 +3,10 @@
 // ============================================================
 
 import type { Prompt } from '../../src/types/game';
+import type { AvailableSkill, FieldCard } from '../../src/types/game';
 import type { WsMessage } from '../../src/network/protocol';
 import {
+  availableSkill,
   card,
   characterView,
   playerInfo,
@@ -135,6 +137,36 @@ function moonGoddessHand() {
   ];
 }
 
+function moonDarkMoonCover(fieldIndex: number, name: string, type: 'Attack' | 'Magic', element: FieldCard['card']['element']): FieldCard {
+  return {
+    card: card({
+      id: `mg-dark-moon-${fieldIndex}`,
+      name,
+      type,
+      element,
+    }),
+    owner_id: MG_PLAYER_ID,
+    source_id: MG_PLAYER_ID,
+    mode: 'Cover',
+    effect: 'MoonDarkMoon',
+    field_hook: 'Manual',
+    locked: false,
+    duration: 0,
+  };
+}
+
+function moonDarkMoonCovers(count: number): FieldCard[] {
+  const fixtures = [
+    { name: '暗月法术', type: 'Magic' as const, element: 'Dark' as const },
+    { name: '火焰斩', type: 'Attack' as const, element: 'Fire' as const },
+    { name: '水涟斩', type: 'Attack' as const, element: 'Water' as const },
+    { name: '风刃', type: 'Attack' as const, element: 'Wind' as const },
+  ];
+  return fixtures.slice(0, count).map((item, index) => (
+    moonDarkMoonCover(index, item.name, item.type, item.element)
+  ));
+}
+
 function moonGoddessPlayerView(options: {
   is_active?: boolean;
   heal?: number;
@@ -143,6 +175,7 @@ function moonGoddessPlayerView(options: {
   new_moon_tokens?: number;
   petrify_tokens?: number;
 } = {}) {
+  const darkMoonCards = options.dark_moon_cards ?? 0;
   return playerView({
     id: MG_PLAYER_ID,
     name: 'E2E Moon Goddess',
@@ -153,8 +186,9 @@ function moonGoddessPlayerView(options: {
     heal: options.heal ?? 2,
     max_heal: options.max_heal ?? 4,
     is_active: options.is_active ?? true,
+    field: moonDarkMoonCovers(darkMoonCards),
     tokens: {
-      mg_dark_moon: options.dark_moon_cards ?? 0,
+      mg_dark_moon: darkMoonCards,
       mg_new_moon: options.new_moon_tokens ?? 0,
       mg_petrify: options.petrify_tokens ?? 0,
     },
@@ -204,6 +238,25 @@ export function newMoonShelterScenario(): ProtocolHarnessScenario {
       // 后端会设置 response_skills 触发确认弹框
     }),
   };
+}
+
+export function newMoonShelterResponsePrompt(): WsMessage {
+  return requireActionMessage({
+    type: 'choose_skill',
+    player_id: MG_PLAYER_ID,
+    message: '你触发了响应技能【新月庇护】，请选择是否发动。',
+    options: [
+      {
+        id: MG_NEW_MOON_SHelter_SKILL_ID,
+        label: '新月庇护',
+        hint: '将本次爆牌改为暗月并防止士气下降',
+      },
+      { id: 'skip', label: '跳过', hint: '不发动响应技能' },
+    ],
+    presentation: { kind: 'skill_choice', layout: 'overlay' },
+    min: 1,
+    max: 1,
+  } satisfies Prompt);
 }
 
 // 爆牌转化场景：from_damage_draw=true，discarded_cards有牌
@@ -310,15 +363,16 @@ export function medusaEyeScenario(options: { dark_moon_cards?: number } = {}): P
 
 export function medusaEyeDarkMoonPrompt(): WsMessage {
   return requireActionMessage({
-    type: 'choose_card',
+    type: 'confirm',
     player_id: MG_PLAYER_ID,
-    message: '【美杜莎之眼】请选择一张闇月牌（盖牌）：',
+    message: '【美杜莎之眼】请选择要展示并移除的同系闇月：',
     choice_type: 'mg_medusa_darkmoon_pick',
     skill_id: MG_MEDUSA_EYE_SKILL_ID,
     options: [
-      { id: '0', label: '1: 暗月法术 (暗 Magic)' },
-      { id: '1', label: '2: 火焰斩 (火 Attack)' },
+      { id: '0', label: '移除闇月[暗月法术/Magic/Dark]', field_index: 0 },
+      { id: '1', label: '移除闇月[火焰斩/Attack/Fire]', field_index: 1 },
     ],
+    presentation: { kind: 'card_picker', layout: 'field_cover' },
     min: 1,
     max: 1,
   } satisfies Prompt);
@@ -597,7 +651,11 @@ export function darkmoonSlashXPrompt(maxX: number): WsMessage {
 // 弃牌通过 system_discard_cards，目标通过 min_targets 处理
 // ============================================================
 
-export function paleMoonScenario(options: { petrify_tokens?: number; new_moon_tokens?: number } = {}): ProtocolHarnessScenario {
+export function paleMoonScenario(options: {
+  petrify_tokens?: number;
+  new_moon_tokens?: number;
+  availableSkills?: AvailableSkill[];
+} = {}): ProtocolHarnessScenario {
   const petrify_tokens = options.petrify_tokens ?? 3;
   const new_moon_tokens = options.new_moon_tokens ?? 2;
   const characters = [moonGoddessCharacter, enemyCharacter, enemy2Character];
@@ -643,12 +701,20 @@ export function paleMoonScenario(options: { petrify_tokens?: number; new_moon_to
     initialState: syncState({
       turn_player_id: MG_PLAYER_ID,
       turn_stage: 'ActionExecution',
-      available_skills: [],
+      available_skills: options.availableSkills ?? [],
       characters,
       players,
       // 后端会设置 response_skills 触发确认弹框
     }),
   };
+}
+
+export function paleMoonAvailableSkill(): AvailableSkill {
+  return availableSkill({
+    id: MG_PALE_MOON_SKILL_ID,
+    title: '苍白之月',
+    cost_gem: 1,
+  });
 }
 
 export function paleMoonBranchPrompt(): WsMessage {

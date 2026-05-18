@@ -207,9 +207,9 @@ func TestSoulSorcererSoulConvert_OnAttackStartChoice_DoesNotStallInResponsePhase
 		CardIndex: 0,
 	})
 
-	testutils.RequireResponseSkillPrompt(t, game, "p1")
-	testutils.ChooseResponseSkillByID(t, game, "p1", "ss_soul_convert")
+	// 新流程：攻击宣言时 TimingOnAttackDeclaredInterrupt 钩子直接推送三选一中断
 	testutils.RequireChoicePrompt(t, game, "p1", "ss_convert_color")
+	// 选择第一个方向（b2y: 蓝魂转黄魂）
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID:   "p1",
 		Type:       model.CmdSelect,
@@ -244,7 +244,7 @@ func TestSoulSorcererSoulConvert_PromptUsesNamedDirectionOptions(t *testing.T) {
 		TargetID:  "p2",
 		CardIndex: 0,
 	})
-	testutils.ChooseResponseSkillByID(t, game, "p1", "ss_soul_convert")
+	// 新流程：攻击宣言时直接推送三选一中断
 	testutils.RequireChoicePrompt(t, game, "p1", "ss_convert_color")
 
 	prompt := game.GetCurrentPrompt()
@@ -254,14 +254,17 @@ func TestSoulSorcererSoulConvert_PromptUsesNamedDirectionOptions(t *testing.T) {
 	if prompt.Presentation == nil || prompt.Presentation.Kind != model.PresentationBranchSelect {
 		t.Fatalf("expected branch_select presentation, got %+v", prompt.Presentation)
 	}
-	if len(prompt.Options) != 2 {
-		t.Fatalf("expected 2 convert options, got %+v", prompt.Options)
+	if len(prompt.Options) != 3 {
+		t.Fatalf("expected 3 options (2 convert + cancel), got %+v", prompt.Options)
 	}
 	if prompt.Options[0].ID != "yellow_to_blue" || prompt.Options[0].Label != "黄色灵魂转蓝色灵魂" || prompt.Options[0].ButtonLabel != "黄色灵魂转蓝色灵魂" {
 		t.Fatalf("unexpected first convert option: %+v", prompt.Options[0])
 	}
 	if prompt.Options[1].ID != "blue_to_yellow" || prompt.Options[1].Label != "蓝色灵魂转黄色灵魂" || prompt.Options[1].ButtonLabel != "蓝色灵魂转黄色灵魂" {
 		t.Fatalf("unexpected second convert option: %+v", prompt.Options[1])
+	}
+	if prompt.Options[2].ID != "cancel" || prompt.Options[2].Label != "取消" {
+		t.Fatalf("unexpected cancel option: %+v", prompt.Options[2])
 	}
 }
 

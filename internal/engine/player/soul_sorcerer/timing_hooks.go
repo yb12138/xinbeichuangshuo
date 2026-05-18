@@ -9,6 +9,48 @@ import (
 	"starcup-engine/internal/model"
 )
 
+// soulConvertInterruptHook 灵魂转换：攻击宣言时直接推送三选一中断（黄转蓝/蓝转黄/取消），
+// 替代原来两步流程（确认发动 → 选方向）。
+func soulConvertInterruptHook(rt player.HookRuntime, ctx player.TimingHookContext) player.TimingHookResult {
+	attacker := ctx.Attacker
+	userCtx := ctx.UserCtx
+	if attacker == nil || userCtx == nil {
+		return player.TimingHookResult{}
+	}
+	if !rt.IsCharacter(attacker, "soul_sorcerer") {
+		return player.TimingHookResult{}
+	}
+	if userCtx.EventCtx != nil && userCtx.EventCtx.AttackInfo != nil && userCtx.EventCtx.AttackInfo.CounterInitiator != "" {
+		return player.TimingHookResult{}
+	}
+	y := rt.GetToken(attacker, "ss_yellow_soul")
+	b := rt.GetToken(attacker, "ss_blue_soul")
+	canY2B := y > 0 && b < soulSorcererBlueCap
+	canB2Y := b > 0 && y < soulSorcererYellowCap
+	if !canY2B && !canB2Y {
+		return player.TimingHookResult{}
+	}
+	modeOrder := make([]string, 0, 2)
+	if canY2B {
+		modeOrder = append(modeOrder, "y2b")
+	}
+	if canB2Y {
+		modeOrder = append(modeOrder, "b2y")
+	}
+	rt.PushInterrupt(&model.Interrupt{
+		Type:     model.InterruptChoice,
+		PlayerID: attacker.ID,
+		Context: map[string]interface{}{
+			"choice_type": "ss_convert_color",
+			"user_id":     attacker.ID,
+			"mode_order":  modeOrder,
+			"user_ctx":    userCtx,
+		},
+	})
+	rt.Log(fmt.Sprintf("%s 可发动 [灵魂转换]：请选择转换方向或取消", attacker.Name))
+	return player.TimingHookResult{Interrupted: true}
+}
+
 // damageBeforeTakenHook 灵魂链接转伤：在承伤触发前检查是否可转移伤害。
 func damageBeforeTakenHook(rt player.HookRuntime, ctx player.TimingHookContext) player.TimingHookResult {
 	pd := ctx.PendingDamage
@@ -68,14 +110,16 @@ func damageBeforeTakenHook(rt player.HookRuntime, ctx player.TimingHookContext) 
 		Type:     model.InterruptChoice,
 		PlayerID: sorcerer.ID,
 		Context: map[string]interface{}{
-			"choice_type":     "ss_link_transfer_x",
-			"sorcerer_id":     sorcerer.ID,
-			"damage_index":    0,
-			"source_id":       pd.SourceID,
-			"target_id":       pd.TargetID,
-			"counterpart_id":  counterpart.ID,
-			"max_x":           maxX,
-			"original_damage": pd.Damage,
+			"choice_type":       "ss_link_transfer_x",
+			"sorcerer_id":       sorcerer.ID,
+			"damage_index":      0,
+			"source_id":         pd.SourceID,
+			"target_id":         pd.TargetID,
+			"target_name":       target.Name,
+			"counterpart_id":    counterpart.ID,
+			"counterpart_name":  counterpart.Name,
+			"max_x":             maxX,
+			"original_damage":   pd.Damage,
 		},
 	})
 	rt.Log(fmt.Sprintf("%s 的 [灵魂链接] 可触发：是否移除蓝色灵魂转移伤害（最多%d）", sorcerer.Name, maxX))

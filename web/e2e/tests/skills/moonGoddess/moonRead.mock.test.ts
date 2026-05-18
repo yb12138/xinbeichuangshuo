@@ -10,13 +10,15 @@ import {
 // ============================================================
 
 test.describe('moon goddess moon read protocol harness', () => {
-  test('moon read: triggered via response_skills', async ({ protocolHarness }) => {
+  test('moon read: triggered via target choice prompt', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(moonReadScenario({ heal: 2 }));
 
-    // 后端会设置 response_skills 触发确认弹框
+    await protocolHarness.pushServerMessage(moonReadTargetPrompt());
+    await expect(page.getByTestId('decision-overlay')).toBeVisible();
+    await page.getByTestId('decision-overlay').getByTestId('branch-option-1').click();
     await protocolHarness.expectSubmitAction({
-      action_type: 'UseSkill',
-      skill_id: 'mg_blasphemy',
+      action_type: 'Select',
+      option_indexes: [1],
     });
   });
 
@@ -27,7 +29,7 @@ test.describe('moon goddess moon read protocol harness', () => {
     await protocolHarness.pushServerMessage(moonReadTargetPrompt());
     await expect(page.getByTestId('decision-overlay')).toBeVisible();
     // 选择第一个敌方目标（index 1，index 0是跳过）
-    await page.getByTestId('prompt-option-1').click();
+    await page.getByTestId('decision-overlay').getByTestId('branch-option-1').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1],
@@ -40,7 +42,7 @@ test.describe('moon goddess moon read protocol harness', () => {
     await protocolHarness.pushServerMessage(moonReadTargetPrompt());
     await expect(page.getByTestId('decision-overlay')).toBeVisible();
     // 选择跳过（index 0）
-    await page.getByTestId('prompt-option-0').click();
+    await page.getByTestId('decision-overlay').getByTestId('branch-option-0').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],

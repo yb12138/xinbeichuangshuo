@@ -269,9 +269,11 @@ const BRANCH_PROMPT_CHOICE_TYPES = new Set<string>([
   'mg_moon_cycle_branch',
 ])
 
-const COCOON_FIELD_SELECTION_PROMPT_CHOICE_TYPES = new Set<string>([
+const FIELD_COVER_SELECTION_PROMPT_CHOICE_TYPES = new Set<string>([
   'bt_pilgrimage_pick',
   'bt_poison_pick',
+  'mg_medusa_darkmoon_pick',
+  'sc_hundred_night_power',
 ])
 
 const NON_HAND_INDEXED_PROMPT_CHOICE_TYPES = new Set<string>([
@@ -1154,9 +1156,14 @@ function isSystemBranchPromptChoice(): boolean {
   return isBranchPromptChoice()
 }
 
-function isCocoonFieldSelectionPrompt(): boolean {
+function isFieldCoverSelectionPrompt(): boolean {
   const choiceType = String(prompt.value?.choice_type || '').trim()
-  return COCOON_FIELD_SELECTION_PROMPT_CHOICE_TYPES.has(choiceType)
+  if (FIELD_COVER_SELECTION_PROMPT_CHOICE_TYPES.has(choiceType)) return true
+  return prompt.value?.presentation?.kind === 'card_picker'
+}
+
+function isCocoonFieldSelectionPrompt(): boolean {
+  return isFieldCoverSelectionPrompt()
 }
 
 function overlayDecisionOptionTitle(option: DockButtonOption): string {

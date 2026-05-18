@@ -31,14 +31,16 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			}
 		}
 		var options []model.PromptOption
-		for _, idx := range indices {
+		for optionIdx, idx := range indices {
 			if player == nil || idx < 0 || idx >= len(player.Field) || player.Field[idx] == nil {
 				continue
 			}
 			fc := player.Field[idx]
+			fieldIndex := idx
 			options = append(options, model.PromptOption{
-				ID:    fmt.Sprintf("%d", idx),
-				Label: fmt.Sprintf("移除闇月[%s/%s/%s]", fc.Card.Name, fc.Card.Type, fc.Card.Element),
+				ID:         fmt.Sprintf("%d", optionIdx),
+				Label:      fmt.Sprintf("移除闇月[%s/%s/%s]", fc.Card.Name, fc.Card.Type, fc.Card.Element),
+				FieldIndex: &fieldIndex,
 			})
 		}
 		return &model.Prompt{
@@ -49,6 +51,10 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			Options:    options,
 			Min:        1,
 			Max:        1,
+			Presentation: &model.PromptPresentation{
+				Kind:   model.PresentationCardPicker,
+				Layout: "field_cover",
+			},
 		}
 
 	case "mg_medusa_magic_discard":

@@ -122,49 +122,12 @@ func (h *SoulSorcererSoulRecallHandler) Execute(ctx *model.Context) error {
 }
 
 func (h *SoulSorcererSoulConvertHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
-		return false
-	}
-	if ctx.Timing != model.TimingOnAttackDeclared {
-		return false
-	}
-	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
-		return false
-	}
-	y := soulYellow(ctx.User)
-	b := soulBlue(ctx.User)
-	canY2B := y > 0 && b < soulSorcererBlueCap
-	canB2Y := b > 0 && y < soulSorcererYellowCap
-	return canY2B || canB2Y
+	// 灵魂转换已迁移至 TimingOnAttackDeclaredInterrupt 时序钩子直接推送选择中断，
+	// 不再走响应技能确认流程，此 handler 仅保留注册占位。
+	return false
 }
 
 func (h *SoulSorcererSoulConvertHandler) Execute(ctx *model.Context) error {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil {
-		return fmt.Errorf("灵魂转换上下文无效")
-	}
-	y := soulYellow(ctx.User)
-	b := soulBlue(ctx.User)
-	modeOrder := make([]string, 0, 2)
-	if y > 0 && b < soulSorcererBlueCap {
-		modeOrder = append(modeOrder, "y2b")
-	}
-	if b > 0 && y < soulSorcererYellowCap {
-		modeOrder = append(modeOrder, "b2y")
-	}
-	if len(modeOrder) == 0 {
-		return fmt.Errorf("当前无可执行的灵魂转换")
-	}
-	ctx.Game.PushInterrupt(&model.Interrupt{
-		Type:     model.InterruptChoice,
-		PlayerID: ctx.User.ID,
-		Context: map[string]interface{}{
-			"choice_type": "ss_convert_color",
-			"user_id":     ctx.User.ID,
-			"mode_order":  modeOrder,
-			"user_ctx":    ctx,
-		},
-	})
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [灵魂转换]：请选择转换方向", ctx.User.Name))
 	return nil
 }
 
