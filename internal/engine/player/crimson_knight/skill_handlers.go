@@ -82,10 +82,11 @@ func (h *CrimsonKnightBloodyPrayerHandler) Execute(ctx *model.Context) error {
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
 		Context: map[string]interface{}{
-			"choice_type": "crk_bloody_prayer_x",
-			"user_id":     ctx.User.ID,
-			"max_x":       ctx.User.Heal,
-			"ally_ids":    allyIDs,
+			"choice_type":              "crk_bloody_prayer_x",
+			"user_id":                  ctx.User.ID,
+			"max_x":                    ctx.User.Heal,
+			"ally_ids":                 allyIDs,
+			model.PromptFlowContextKey: model.NewPromptFlowState("crk_bloody_prayer", "x"),
 		},
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [血腥祷言]，请选择X与治疗队友", ctx.User.Name))
