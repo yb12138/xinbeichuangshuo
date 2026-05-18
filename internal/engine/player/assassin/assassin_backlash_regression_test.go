@@ -19,7 +19,8 @@ func countDamageEvents(obs *testutils.CaptureObserver, sourceID, targetID, damag
 		if ev.Type != model.EventDamageDealt {
 			continue
 		}
-		payload, ok := ev.Data.(model.DamageDealtPayload)
+		payload := ev.DamageDealt
+		ok := payload != nil
 		if !ok {
 			continue
 		}
@@ -103,10 +104,10 @@ func TestAssassinBacklash_RunsOnAttackDamage(t *testing.T) {
 	}
 
 	if err := game.HandleAction(model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	}); err != nil {
 		t.Fatalf("attack failed: %v", err)
 	}

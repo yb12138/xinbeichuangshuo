@@ -300,21 +300,21 @@ func resolveMagicMissileDefend(rt player.ChoiceRuntime, p *model.Player, chain *
 }
 
 func playableCardForAction(rt player.ChoiceRuntime, p *model.Player, act model.PlayerAction) (model.Card, bool) {
-	if act.CardID != "" {
-		return rt.GetPlayableCardByCardID(p, act.CardID)
+	if act.CardID == "" {
+		return model.Card{}, false
 	}
-	return rt.GetPlayableCardByIndex(p, act.CardIndex)
+	return rt.GetPlayableCardByCardID(p, act.CardID)
 }
 
 func consumePlayableCardForAction(rt player.ChoiceRuntime, p *model.Player, act model.PlayerAction) (model.Card, error) {
-	if act.CardID != "" {
-		card, ok := rt.ConsumePlayableCardByCardID(p.ID, act.CardID)
-		if !ok {
-			return model.Card{}, fmt.Errorf("无效的卡牌ID")
-		}
-		return card, nil
+	if act.CardID == "" {
+		return model.Card{}, fmt.Errorf("无效的卡牌ID")
 	}
-	return rt.ConsumePlayableCardByIndex(p, act.CardIndex)
+	card, ok := rt.ConsumePlayableCardByCardID(p.ID, act.CardID)
+	if !ok {
+		return model.Card{}, fmt.Errorf("无效的卡牌ID")
+	}
+	return card, nil
 }
 
 func passMagicMissileToNext(rt player.ChoiceRuntime, p *model.Player, chain *model.MagicBulletChain) error {

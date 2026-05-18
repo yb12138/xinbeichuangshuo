@@ -96,10 +96,10 @@ func TestCrimsonFlash_CombatFlow_DealsExactlyTwoAndKeepsTurnProgressing(t *testi
 	}
 
 	if err := g.HandleAction(model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, g, "p1", 0),
 	}); err != nil {
 		t.Fatalf("attack failed: %v", err)
 	}

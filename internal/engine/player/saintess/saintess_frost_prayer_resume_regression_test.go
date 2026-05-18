@@ -39,16 +39,16 @@ func TestSaintessFrostPrayer_DefendChoiceDoesNotReopenActionSelection(t *testing
 	}
 
 	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	})
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID:  "p2",
 		Type:      model.CmdRespond,
 		ExtraArgs: []string{"defend"},
-		CardIndex: 0,
+		CardID:    testutils.PlayableCardID(t, game, "p2", 0),
 	})
 
 	ctx := testutils.RequireChoiceContext(t, game, "p2", "frost_prayer_target")
@@ -63,10 +63,10 @@ func TestSaintessFrostPrayer_DefendChoiceDoesNotReopenActionSelection(t *testing
 		t.Fatalf("expected attacker to keep one unplayed card after first action, got %d", len(p1.Hand))
 	}
 	if err := game.HandleAction(model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	}); err == nil {
 		t.Fatalf("expected second immediate attack to be rejected after frost-prayer resume, but got nil")
 	}

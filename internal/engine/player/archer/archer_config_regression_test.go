@@ -42,12 +42,12 @@ func TestArcher_PiercingShotDiscard_IsPublicReveal(t *testing.T) {
 	}
 
 	if err := game.HandleAction(model.PlayerAction{
-		PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardIndex: 0,
+		PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardID: testutils.PlayableCardID(t, game, "p1", 0),
 	}); err != nil {
 		t.Fatalf("archer attack failed: %v", err)
 	}
 	if err := game.HandleAction(model.PlayerAction{
-		PlayerID: "p2", Type: model.CmdRespond, ExtraArgs: []string{"counter"}, CardIndex: 0, TargetID: "p3",
+		PlayerID: "p2", Type: model.CmdRespond, ExtraArgs: []string{"counter"}, CardID: testutils.PlayableCardID(t, game, "p2", 0), TargetID: "p3",
 	}); err != nil {
 		t.Fatalf("counter response failed: %v", err)
 	}
@@ -100,7 +100,7 @@ func TestArcher_PiercingShot_NotPromptedOnHit(t *testing.T) {
 	}
 
 	if err := game.HandleAction(model.PlayerAction{
-		PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardIndex: 0,
+		PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardID: testutils.PlayableCardID(t, game, "p1", 0),
 	}); err != nil {
 		t.Fatalf("archer attack failed: %v", err)
 	}
@@ -161,7 +161,7 @@ func TestArcher_PiercingShot_PromptedWhenMissByShieldBlock(t *testing.T) {
 	}
 
 	if err := game.HandleAction(model.PlayerAction{
-		PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardIndex: 0,
+		PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardID: testutils.PlayableCardID(t, game, "p1", 0),
 	}); err != nil {
 		t.Fatalf("archer attack failed: %v", err)
 	}
@@ -210,19 +210,19 @@ func TestArcher_LightningArrow_DisablesCounterButAllowsDefend(t *testing.T) {
 	}
 
 	if err := game.HandleAction(model.PlayerAction{
-		PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardIndex: 0,
+		PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardID: testutils.PlayableCardID(t, game, "p1", 0),
 	}); err != nil {
 		t.Fatalf("lightning arrow attack failed: %v", err)
 	}
 
 	if err := game.HandleAction(model.PlayerAction{
-		PlayerID: "p2", Type: model.CmdRespond, ExtraArgs: []string{"counter"}, CardIndex: 1, TargetID: "p3",
+		PlayerID: "p2", Type: model.CmdRespond, ExtraArgs: []string{"counter"}, CardID: testutils.PlayableCardID(t, game, "p2", 1), TargetID: "p3",
 	}); err == nil {
 		t.Fatalf("expected lightning arrow to forbid counter response")
 	}
 
 	if err := game.HandleAction(model.PlayerAction{
-		PlayerID: "p2", Type: model.CmdRespond, ExtraArgs: []string{"defend"}, CardIndex: 0,
+		PlayerID: "p2", Type: model.CmdRespond, ExtraArgs: []string{"defend"}, CardID: testutils.PlayableCardID(t, game, "p2", 0),
 	}); err != nil {
 		t.Fatalf("expected lightning arrow attack to still allow defend: %v", err)
 	}
@@ -266,7 +266,7 @@ func TestArcher_PreciseShot_OptionalResponseConfirm(t *testing.T) {
 	}}
 
 	if err := game.HandleAction(model.PlayerAction{
-		PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardIndex: 0,
+		PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardID: testutils.PlayableCardID(t, game, "p1", 0),
 	}); err != nil {
 		t.Fatalf("precise shot attack failed: %v", err)
 	}
@@ -329,7 +329,7 @@ func TestArcher_PreciseShot_OptionalResponseSkip(t *testing.T) {
 	}
 
 	if err := game.HandleAction(model.PlayerAction{
-		PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardIndex: 0,
+		PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardID: testutils.PlayableCardID(t, game, "p1", 0),
 	}); err != nil {
 		t.Fatalf("precise shot attack failed: %v", err)
 	}
@@ -393,7 +393,7 @@ func TestArcher_PreciseShot_ForceHitSkipsShield(t *testing.T) {
 	redGemsBefore := game.State.RedGems
 
 	if err := game.HandleAction(model.PlayerAction{
-		PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardIndex: 0,
+		PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardID: testutils.PlayableCardID(t, game, "p1", 0),
 	}); err != nil {
 		t.Fatalf("precise shot attack failed: %v", err)
 	}

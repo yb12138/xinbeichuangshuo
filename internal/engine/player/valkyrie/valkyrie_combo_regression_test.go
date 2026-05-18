@@ -56,15 +56,15 @@ func TestValkyrie_ComboChain_FullFlow(t *testing.T) {
 	}
 
 	// 3) 攻击命中后应询问英灵召唤
-	attackIdx := testutils.FirstAttackCardIndex(p1)
-	if attackIdx < 0 {
+	attackCardID := testutils.FirstAttackCardID(p1)
+	if attackCardID == "" {
 		t.Fatalf("no attack card found for first attack")
 	}
 	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: attackIdx,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   attackCardID,
 	})
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID:  "p2",
@@ -121,10 +121,10 @@ func TestValkyrie_HeroicSummon_CancelDoesNotRepromptSameHit(t *testing.T) {
 
 	// 攻击命中后进入英灵召唤响应询问
 	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	})
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID:  "p2",

@@ -227,10 +227,10 @@ func TestPreciseShot_NotActivatedByNonOwnerCharacter(t *testing.T) {
 	}
 
 	testutils.MustHandleAction(t, g, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, g, "p1", 0),
 	})
 
 	if got := len(g.State.CombatStack); got != 1 {
@@ -277,10 +277,10 @@ func TestPreciseShot_ModifyDamage_ReducesOwnerAttack(t *testing.T) {
 	}
 
 	testutils.MustHandleAction(t, g, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, g, "p1", 0),
 	})
 
 	// 精准射击为可选响应，确认发动后强制命中且伤害-1

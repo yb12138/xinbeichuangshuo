@@ -46,8 +46,7 @@ export function useBattleInteractionState() {
     const fieldBlessings = (myPlayer.value?.field || [])
       .filter((fieldCard) => fieldCard?.mode === 'Cover' && fieldCard.effect === ELF_BLESSING_EFFECT && !!fieldCard.card)
       .map((fieldCard) => fieldCard.card)
-    if (fieldBlessings.length > 0) return fieldBlessings
-    return myPlayer.value?.blessings || []
+    return fieldBlessings
   })
   const myExclusiveCards = computed(() => myPlayer.value?.exclusive_cards || [])
   const myPlayableCards = computed(() => {

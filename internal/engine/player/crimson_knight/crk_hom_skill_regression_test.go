@@ -181,10 +181,10 @@ func TestCrimsonKnightHotForm_DamageOverflowNoMoraleLoss(t *testing.T) {
 	blueMoraleBefore := g.State.BlueMorale
 
 	testutils.MustHandleAction(t, g, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, g, "p1", 0),
 	})
 	testutils.MustHandleAction(t, g, model.PlayerAction{
 		PlayerID:  "p2",
@@ -923,7 +923,7 @@ func TestHomRuneSmash_ResponseSkillOnAttackHit(t *testing.T) {
 	})
 
 	g.Dispatcher().OnTiming(ctx.Timing, ctx)
-	
+
 	// 检查是否有响应技能中断
 	if g.State.PendingInterrupt == nil {
 		t.Fatalf("expected response skill interrupt on attack hit, got nil")
@@ -1018,10 +1018,10 @@ func TestHomRuneSmash_FullAttackFlow(t *testing.T) {
 
 	// 发起攻击
 	testutils.MustHandleAction(t, g, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, g, "p1", 0),
 	})
 
 	// Drive 进入战斗响应阶段

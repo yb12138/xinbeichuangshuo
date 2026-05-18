@@ -201,10 +201,10 @@ func TestSoulSorcererSoulConvert_OnAttackStartChoice_DoesNotStallInResponsePhase
 	}
 
 	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	})
 
 	// 新流程：攻击宣言时 TimingOnAttackDeclaredInterrupt 钩子直接推送三选一中断
@@ -239,10 +239,10 @@ func TestSoulSorcererSoulConvert_PromptUsesNamedDirectionOptions(t *testing.T) {
 	}
 
 	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	})
 	// 新流程：攻击宣言时直接推送三选一中断
 	testutils.RequireChoicePrompt(t, game, "p1", "ss_convert_color")

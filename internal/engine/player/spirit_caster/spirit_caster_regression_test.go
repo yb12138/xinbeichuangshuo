@@ -21,7 +21,8 @@ func countSpiritCasterDamageEvents(obs *testutils.CaptureObserver, sourceID, tar
 		if ev.Type != model.EventDamageDealt {
 			continue
 		}
-		payload, ok := ev.Data.(model.DamageDealtPayload)
+		payload := ev.DamageDealt
+		ok := payload != nil
 		if !ok {
 			continue
 		}

@@ -44,7 +44,6 @@ function buildPlayer(overrides: Partial<PlayerView> = {}): PlayerView {
     max_hand: 6,
     exclusive_card_count: 0,
     hand: [],
-    blessings: [],
     exclusive_cards: [],
     field: [],
     heal: 0,

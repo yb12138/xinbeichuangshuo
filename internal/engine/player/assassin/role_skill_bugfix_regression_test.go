@@ -86,10 +86,10 @@ func TestBloodRoar_ForcedHitIgnoresShield(t *testing.T) {
 	}
 
 	if err := game.HandleAction(model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	}); err != nil {
 		t.Fatalf("attack failed: %v", err)
 	}

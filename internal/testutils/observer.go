@@ -23,7 +23,7 @@ func (o *TestObserver) OnGameEvent(event model.GameEvent) {
 		o.T.Logf("  📄 %s", event.Message)
 	case model.EventAskInput:
 		// 到了需要玩家操作的时候
-		if prompt, ok := event.Data.(*model.Prompt); ok {
+		if prompt := event.Prompt; prompt != nil {
 			o.T.Logf("  ❓ [请求输入] 玩家: %s, 内容: %s", prompt.PlayerID, prompt.Message)
 			for _, opt := range prompt.Options {
 				o.T.Logf("      选项 [%s]: %s", opt.ID, opt.Label)

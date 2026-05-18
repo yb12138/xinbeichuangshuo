@@ -53,16 +53,16 @@ func TestCounterHit_CrimsonBloodThornsAlsoRunsOnCounterHit(t *testing.T) {
 	}
 
 	testutils.MustHandleAction(t, g, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, g, "p1", 0),
 	})
 	testutils.MustHandleAction(t, g, model.PlayerAction{
 		PlayerID:  "p2",
 		Type:      model.CmdRespond,
 		ExtraArgs: []string{"counter"},
-		CardIndex: 0,
+		CardID:    testutils.PlayableCardID(t, g, "p2", 0),
 		TargetID:  "p3",
 	})
 	testutils.MustHandleAction(t, g, model.PlayerAction{
@@ -113,23 +113,23 @@ func TestCounterMiss_DoesNotDispatchActiveOnlyOnAttackMissSkills(t *testing.T) {
 	}
 
 	testutils.MustHandleAction(t, g, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, g, "p1", 0),
 	})
 	testutils.MustHandleAction(t, g, model.PlayerAction{
 		PlayerID:  "p2",
 		Type:      model.CmdRespond,
 		ExtraArgs: []string{"counter"},
-		CardIndex: 0,
+		CardID:    testutils.PlayableCardID(t, g, "p2", 0),
 		TargetID:  "p3",
 	})
 	testutils.MustHandleAction(t, g, model.PlayerAction{
 		PlayerID:  "p3",
 		Type:      model.CmdRespond,
 		ExtraArgs: []string{"defend"},
-		CardIndex: 0,
+		CardID:    testutils.PlayableCardID(t, g, "p3", 0),
 	})
 
 	if g.State.PendingInterrupt != nil &&
@@ -175,16 +175,16 @@ func TestCounterHit_PhaseEndSkillsNotActivatedForCounterAction(t *testing.T) {
 	}
 
 	testutils.MustHandleAction(t, g, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, g, "p1", 0),
 	})
 	testutils.MustHandleAction(t, g, model.PlayerAction{
 		PlayerID:  "p2",
 		Type:      model.CmdRespond,
 		ExtraArgs: []string{"counter"},
-		CardIndex: 0,
+		CardID:    testutils.PlayableCardID(t, g, "p2", 0),
 		TargetID:  "p3",
 	})
 	testutils.MustHandleAction(t, g, model.PlayerAction{

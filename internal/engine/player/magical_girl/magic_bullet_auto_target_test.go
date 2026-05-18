@@ -2,6 +2,7 @@ package magical_girl_test
 
 import (
 	"starcup-engine/internal/engine"
+	"starcup-engine/internal/testutils"
 	"testing"
 
 	"starcup-engine/internal/model"
@@ -45,9 +46,9 @@ func TestMagicBullet_AllowsMagicWithoutExplicitTarget(t *testing.T) {
 	}
 
 	err := game.HandleAction(model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdMagic,
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdMagic,
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	})
 	if err != nil {
 		t.Fatalf("magic bullet without target should succeed, got: %v", err)
@@ -73,9 +74,9 @@ func TestMagicWithoutTarget_StillRequiresTargetForNonMagicBullet(t *testing.T) {
 	}
 
 	err := game.HandleAction(model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdMagic,
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdMagic,
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	})
 	if err == nil {
 		t.Fatalf("non-magic-bullet without target should fail")

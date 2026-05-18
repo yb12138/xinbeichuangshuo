@@ -241,6 +241,7 @@ type PromptOption struct {
 	Hint        string `json:"hint,omitempty"`         // 选项说明（展示在按钮上方）
 	CardID      string `json:"card_id,omitempty"`      // 关联实体卡 UUID（卡牌选择专用）
 	FieldIndex  *int   `json:"field_index,omitempty"`  // 场区索引（场牌/盖牌选择专用）
+	Element     string `json:"element,omitempty"`      // 结构化元素值（元素选择专用）
 }
 
 // Prompt 定义用户交互提示

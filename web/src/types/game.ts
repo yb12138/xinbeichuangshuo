@@ -35,12 +35,7 @@ export type PromptOption = GeneratedPromptOptionDTO
 export type RoomEvent = GeneratedRoomEvent
 export type WSMessage = GeneratedWSMessage
 
-// PlayerView is server-generated plus the legacy client-side blessing mirror used
-// by older local tests and by the UI as a fallback when blessing covers are not
-// reconstructed from field cards yet.
-export type PlayerView = GeneratedPlayerView & {
-  blessings?: Card[]
-}
+export type PlayerView = GeneratedPlayerView
 
 // The frontend snapshot keeps players keyed by id after normalizing SyncState.
 export type GameStateUpdate = Omit<GeneratedGameStateUpdate, 'players'> & {

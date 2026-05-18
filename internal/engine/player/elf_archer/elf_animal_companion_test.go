@@ -39,10 +39,10 @@ func TestElfAnimalCompanion_DrawOneDiscardOne(t *testing.T) {
 
 	// 发起攻击
 	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	})
 
 	// Drive 进入战斗响应阶段

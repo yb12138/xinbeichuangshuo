@@ -35,10 +35,10 @@ func TestValkyrie_HeroicSummon_ExtraDiscardHealsCurrentCombatTarget(t *testing.T
 	}
 
 	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	})
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID:  "p2",
@@ -84,10 +84,10 @@ func TestValkyrie_HeroicSummon_ExtraDiscardCanCancel(t *testing.T) {
 	}
 
 	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	})
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID:  "p2",
@@ -147,16 +147,16 @@ func TestValkyrie_HeroicSummon_DoesNotEnterSpiritOnCounterHit(t *testing.T) {
 	}
 
 	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	})
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID:  "p2",
 		Type:      model.CmdRespond,
 		ExtraArgs: []string{"counter"},
-		CardIndex: 0,
+		CardID:    testutils.PlayableCardID(t, game, "p2", 0),
 		TargetID:  "p3",
 	})
 	testutils.MustHandleAction(t, game, model.PlayerAction{
@@ -245,10 +245,10 @@ func TestValkyrie_PeaceWalker_ReleasesSpiritOnActiveAttack(t *testing.T) {
 	}
 
 	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	})
 
 	if playerpkg.HasForm(p1, model.FormValkyrieHeroic) {

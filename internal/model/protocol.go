@@ -69,7 +69,6 @@ type PlayerAction struct {
 
 	CardID     string   `json:"card_id,omitempty"`
 	CardIDs    []string `json:"card_ids,omitempty"`
-	CardIndex  int      `json:"card_index,omitempty"`
 	SkillID    string   `json:"skill_id,omitempty"`
 	Selections []int    `json:"selections,omitempty"`
 	ExtraArgs  []string `json:"extra_args,omitempty"`
@@ -97,7 +96,13 @@ const (
 type GameEvent struct {
 	Type    GameEventType `json:"type"`
 	Message string        `json:"message"` // 用于 Log/Error
-	Data    interface{}   `json:"data"`    // 负载 (如 Prompt 结构体)
+
+	Prompt       *Prompt              `json:"prompt,omitempty"`
+	CardRevealed *CardRevealedPayload `json:"card_revealed,omitempty"`
+	DamageDealt  *DamageDealtPayload  `json:"damage_dealt,omitempty"`
+	ActionStep   *ActionStepPayload   `json:"action_step,omitempty"`
+	CombatCue    *CombatCuePayload    `json:"combat_cue,omitempty"`
+	DrawCards    *DrawCardsPayload    `json:"draw_cards,omitempty"`
 }
 
 // GameObserver 观察者接口

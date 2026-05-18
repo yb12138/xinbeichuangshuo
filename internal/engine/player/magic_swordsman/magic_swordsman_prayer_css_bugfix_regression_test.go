@@ -2,6 +2,7 @@ package magic_swordsman_test
 
 import (
 	"starcup-engine/internal/engine"
+	"starcup-engine/internal/testutils"
 	"strings"
 	"testing"
 
@@ -60,10 +61,10 @@ func TestMagicSwordsmanYellowSpring_NoCounterKeepsOriginalElementAndConsumesGem(
 	g.State.TurnStage = model.TurnStageActionExecution
 
 	if err := g.HandleAction(model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		CardIndex: 0,
-		TargetID:  "p2",
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		CardID:   testutils.PlayableCardID(t, g, "p1", 0),
+		TargetID: "p2",
 	}); err != nil {
 		t.Fatalf("attack failed: %v", err)
 	}
@@ -98,7 +99,7 @@ func TestMagicSwordsmanYellowSpring_NoCounterKeepsOriginalElementAndConsumesGem(
 	err := g.HandleAction(model.PlayerAction{
 		PlayerID:  "p2",
 		Type:      model.CmdRespond,
-		CardIndex: 0,
+		CardID:    testutils.PlayableCardID(t, g, "p2", 0),
 		TargetID:  "p3",
 		ExtraArgs: []string{"counter"},
 	})
@@ -293,10 +294,10 @@ func TestPrayerSwiftBlessing_AttackFollowupSurvivesPhaseEndResponseInterrupt(t *
 	p1.Hand = []model.Card{{ID: "atk1", Name: "火斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 1}}
 
 	if err := g.HandleAction(model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, g, "p1", 0),
 	}); err != nil {
 		t.Fatalf("attack failed: %v", err)
 	}

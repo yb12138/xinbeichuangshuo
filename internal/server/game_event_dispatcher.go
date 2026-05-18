@@ -3,6 +3,7 @@ package server
 import (
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/server/prompting"
+	"starcup-engine/internal/server/timeline"
 )
 
 type scheduledBotPrompt struct {
@@ -46,9 +47,7 @@ func (r *Room) dispatchGameEvent(event model.GameEvent) scheduledBotPrompt {
 }
 
 func (r *Room) handleLogGameEvent(event model.GameEvent) {
-	r.broadcastTimeline("log", map[string]interface{}{
-		"message": event.Message,
-	}, event.Message)
+	r.broadcastTimeline(timeline.Payload{Type: "log", Message: event.Message})
 }
 
 func (r *Room) handleStateUpdateGameEvent() {
@@ -60,7 +59,7 @@ func (r *Room) handleStateUpdateGameEvent() {
 }
 
 func (r *Room) handleAskInputGameEvent(event model.GameEvent) scheduledBotPrompt {
-	prompt := promptFromGameEventData(event.Data)
+	prompt := event.Prompt
 	if prompt == nil {
 		return scheduledBotPrompt{}
 	}
@@ -99,109 +98,87 @@ func (r *Room) handleAskInputGameEvent(event model.GameEvent) scheduledBotPrompt
 		}
 	}
 
-	r.broadcastTimeline("prompt", map[string]interface{}{
-		"player_id": prompt.PlayerID,
-		"message":   prompt.Message,
-	}, prompt.Message)
+	r.broadcastTimeline(timeline.Payload{Type: "prompt", PlayerID: prompt.PlayerID, Message: prompt.Message})
 
 	return scheduledBot
 }
 
 func (r *Room) handleErrorGameEvent(event model.GameEvent) {
-	r.broadcastTimeline("error", map[string]interface{}{
-		"message": event.Message,
-	}, event.Message)
+	r.broadcastTimeline(timeline.Payload{Type: "error", Message: event.Message})
 }
 
 func (r *Room) handleGameEndGameEvent(event model.GameEvent) {
-	r.broadcastTimeline("game_end", map[string]interface{}{
-		"message": event.Message,
-	}, event.Message)
+	r.broadcastTimeline(timeline.Payload{Type: "game_end", Message: event.Message})
 }
 
 func (r *Room) handleCardRevealedGameEvent(event model.GameEvent) {
-	payload, ok := event.Data.(model.CardRevealedPayload)
-	if !ok {
+	payload := event.CardRevealed
+	if payload == nil {
 		return
 	}
-	data := map[string]interface{}{
-		"player_id":   payload.PlayerID,
-		"player_name": payload.PlayerName,
-		"cards":       payload.Cards,
-		"action_type": payload.ActionType,
-		"hidden":      payload.Hidden,
-	}
-	r.botIntel.ObserveReveal(data)
-	r.broadcastTimeline("card_revealed", data, "")
+	r.botIntel.ObserveCardRevealed(*payload)
+	r.broadcastTimeline(timeline.Payload{
+		Type:       "card_revealed",
+		PlayerID:   payload.PlayerID,
+		PlayerName: payload.PlayerName,
+		Cards:      payload.Cards,
+		ActionType: payload.ActionType,
+		Hidden:     payload.Hidden,
+	})
 }
 
 func (r *Room) handleDamageDealtGameEvent(event model.GameEvent) {
-	payload, ok := event.Data.(model.DamageDealtPayload)
-	if !ok {
+	payload := event.DamageDealt
+	if payload == nil {
 		return
 	}
-	data := map[string]interface{}{
-		"source_id":   payload.SourceID,
-		"source_name": payload.SourceName,
-		"target_id":   payload.TargetID,
-		"target_name": payload.TargetName,
-		"damage":      payload.Damage,
-		"damage_type": payload.DamageType,
-	}
-	r.broadcastTimeline("damage_dealt", data, "")
+	r.broadcastTimeline(timeline.Payload{
+		Type:       "damage_dealt",
+		SourceID:   payload.SourceID,
+		SourceName: payload.SourceName,
+		TargetID:   payload.TargetID,
+		TargetName: payload.TargetName,
+		Damage:     payload.Damage,
+		DamageType: payload.DamageType,
+	})
 }
 
 func (r *Room) handleActionStepGameEvent(event model.GameEvent) {
-	payload, ok := event.Data.(model.ActionStepPayload)
-	if !ok {
+	payload := event.ActionStep
+	if payload == nil {
 		return
 	}
-	data := map[string]interface{}{
-		"line": payload.Line,
-		"kind": payload.Kind,
-	}
-	r.broadcastTimeline("action_step", data, payload.Line)
+	r.broadcastTimeline(timeline.Payload{Type: "action_step", Message: payload.Line, Kind: payload.Kind})
 }
 
 func (r *Room) handleCombatCueGameEvent(event model.GameEvent) {
-	payload, ok := event.Data.(model.CombatCuePayload)
-	if !ok {
+	payload := event.CombatCue
+	if payload == nil {
 		return
 	}
-	data := map[string]interface{}{
-		"attacker_id": payload.AttackerID,
-		"target_id":   payload.TargetID,
-		"phase":       payload.Phase,
-	}
-	r.broadcastTimeline("combat_cue", data, "")
+	r.broadcastTimeline(timeline.Payload{
+		Type:       "combat_cue",
+		AttackerID: payload.AttackerID,
+		TargetID:   payload.TargetID,
+		Phase:      payload.Phase,
+	})
 }
 
 func (r *Room) handleDrawCardsGameEvent(event model.GameEvent) {
-	payload, ok := event.Data.(model.DrawCardsPayload)
-	if !ok {
+	payload := event.DrawCards
+	if payload == nil {
 		return
 	}
-	data := map[string]interface{}{
-		"player_id":   payload.PlayerID,
-		"player_name": payload.PlayerName,
-		"draw_count":  payload.DrawCount,
-		"reason":      payload.Reason,
-	}
-	r.broadcastTimeline("draw_cards", data, payload.Reason)
+	r.broadcastTimeline(timeline.Payload{
+		Type:       "draw_cards",
+		Message:    payload.Reason,
+		PlayerID:   payload.PlayerID,
+		PlayerName: payload.PlayerName,
+		DrawCount:  payload.DrawCount,
+		Reason:     payload.Reason,
+	})
 }
 
-func (r *Room) broadcastTimeline(eventType string, data map[string]interface{}, message string) {
-	r.broadcastHumans(CmdNotifyTimeline, r.buildTimelineNotify(eventType, data, message))
-}
-
-func promptFromGameEventData(data interface{}) *model.Prompt {
-	switch prompt := data.(type) {
-	case *model.Prompt:
-		return prompt
-	case model.Prompt:
-		cp := prompt
-		return &cp
-	default:
-		return nil
-	}
+func (r *Room) broadcastTimeline(payload timeline.Payload) {
+	r.broadcastHumans(CmdNotifyTimeline, r.buildTimelineNotify(payload))
 }

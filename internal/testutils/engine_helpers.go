@@ -75,6 +75,41 @@ func MustHandleAction(t *testing.T, game *engine.GameEngine, act model.PlayerAct
 	}
 }
 
+// PlayableCardID returns the UUID for the current playable-card slot used by
+// legacy index-based tests. It covers hand cards plus role-provided playable
+// cover cards that already participate in action selection.
+func PlayableCardID(t *testing.T, game *engine.GameEngine, playerID string, index int) string {
+	t.Helper()
+	if game == nil || game.State == nil {
+		t.Fatalf("missing game state while resolving playable card index %d for %s", index, playerID)
+	}
+	player := game.State.Players[playerID]
+	if player == nil {
+		t.Fatalf("player %s not found while resolving playable card index %d", playerID, index)
+	}
+	if index < 0 {
+		t.Fatalf("invalid playable card index %d for %s", index, playerID)
+	}
+	if index < len(player.Hand) {
+		return player.Hand[index].ID
+	}
+	offset := index - len(player.Hand)
+	for _, fc := range player.Field {
+		if fc == nil || fc.Mode != model.FieldCover {
+			continue
+		}
+		if fc.Effect != model.EffectElfBlessing {
+			continue
+		}
+		if offset == 0 {
+			return fc.Card.ID
+		}
+		offset--
+	}
+	t.Fatalf("playable card index %d out of range for %s", index, playerID)
+	return ""
+}
+
 // StartupSkillIndexByID returns the index of skillID in the pending startup
 // interrupt's skill list.
 func StartupSkillIndexByID(t *testing.T, game *engine.GameEngine, playerID, skillID string) int {
@@ -138,25 +173,26 @@ func FindPublicDiscardReveal(obs *CaptureObserver, playerID string) *model.CardR
 		if event.Type != model.EventCardRevealed {
 			continue
 		}
-		payload, ok := event.Data.(model.CardRevealedPayload)
-		if !ok {
+		payload := event.CardRevealed
+		if payload == nil {
 			continue
 		}
 		if payload.PlayerID == playerID && payload.ActionType == "discard" && !payload.Hidden {
-			return &payload
+			cp := *payload
+			return &cp
 		}
 	}
 	return nil
 }
 
-// FirstAttackCardIndex returns the index of the first attack card in the player's hand, or -1.
-func FirstAttackCardIndex(p *model.Player) int {
-	for i, c := range p.Hand {
+// FirstAttackCardID returns the UUID of the first attack card in the player's hand.
+func FirstAttackCardID(p *model.Player) string {
+	for _, c := range p.Hand {
 		if c.Type == model.CardTypeAttack {
-			return i
+			return c.ID
 		}
 	}
-	return -1
+	return ""
 }
 
 // InterruptHasSkillID reports whether the interrupt contains the given skill ID.

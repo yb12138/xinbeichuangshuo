@@ -189,7 +189,7 @@ func TestMoonGoddessNewMoonShelter_PromptsAfterBloodPriestessDamageOverflow(t *t
 		if event.Type != model.EventAskInput {
 			continue
 		}
-		prompt, _ := event.Data.(*model.Prompt)
+		prompt := event.Prompt
 		if prompt != nil &&
 			prompt.PlayerID == "p1" &&
 			prompt.Type == model.PromptChooseSkill &&

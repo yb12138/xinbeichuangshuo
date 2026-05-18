@@ -211,6 +211,9 @@ func TestArbiterForcedDoomsday_HappensAfterStartupAndTargetsEnemiesOnly(t *testi
 	p1.Tokens = map[string]int{
 		"judgment": 4,
 	}
+	p1.Hand = []model.Card{
+		{ID: "arbiter-invalid-attack", Name: "测试攻击", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 1},
+	}
 
 	game.Drive()
 	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptStartupSkill {
@@ -238,7 +241,7 @@ func TestArbiterForcedDoomsday_HappensAfterStartupAndTargetsEnemiesOnly(t *testi
 		t.Fatalf("expected only magic option for forced doomsday, got %+v", state.ValidOptions)
 	}
 
-	err := game.HandleAction(model.PlayerAction{PlayerID: "p1", Type: model.CmdAttack, TargetID: "p3", CardIndex: 0})
+	err := game.HandleAction(model.PlayerAction{PlayerID: "p1", Type: model.CmdAttack, TargetID: "p3", CardID: "arbiter-invalid-attack"})
 	if err == nil {
 		t.Fatalf("expected non-doomsday action to be rejected while forced")
 	}

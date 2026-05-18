@@ -1,5 +1,7 @@
 package model
 
+import "fmt"
+
 // CardRevealedPayload is the Data payload for EventCardRevealed events.
 type CardRevealedPayload struct {
 	PlayerID   string `json:"player_id"`
@@ -38,4 +40,59 @@ type DrawCardsPayload struct {
 	PlayerName string `json:"player_name"`
 	DrawCount  int    `json:"draw_count"`
 	Reason     string `json:"reason"`
+}
+
+// Validate checks that the typed payload attached to the event matches its type.
+func (e GameEvent) Validate() error {
+	switch e.Type {
+	case EventAskInput:
+		if e.Prompt == nil {
+			return fmt.Errorf("game event %s requires prompt payload", e.Type)
+		}
+		if e.CardRevealed != nil || e.DamageDealt != nil || e.ActionStep != nil || e.CombatCue != nil || e.DrawCards != nil {
+			return fmt.Errorf("game event %s cannot carry other typed payloads", e.Type)
+		}
+	case EventCardRevealed:
+		if e.CardRevealed == nil {
+			return fmt.Errorf("game event %s requires card_revealed payload", e.Type)
+		}
+		if e.Prompt != nil || e.DamageDealt != nil || e.ActionStep != nil || e.CombatCue != nil || e.DrawCards != nil {
+			return fmt.Errorf("game event %s cannot carry other typed payloads", e.Type)
+		}
+	case EventDamageDealt:
+		if e.DamageDealt == nil {
+			return fmt.Errorf("game event %s requires damage_dealt payload", e.Type)
+		}
+		if e.Prompt != nil || e.CardRevealed != nil || e.ActionStep != nil || e.CombatCue != nil || e.DrawCards != nil {
+			return fmt.Errorf("game event %s cannot carry other typed payloads", e.Type)
+		}
+	case EventActionStep:
+		if e.ActionStep == nil {
+			return fmt.Errorf("game event %s requires action_step payload", e.Type)
+		}
+		if e.Prompt != nil || e.CardRevealed != nil || e.DamageDealt != nil || e.CombatCue != nil || e.DrawCards != nil {
+			return fmt.Errorf("game event %s cannot carry other typed payloads", e.Type)
+		}
+	case EventCombatCue:
+		if e.CombatCue == nil {
+			return fmt.Errorf("game event %s requires combat_cue payload", e.Type)
+		}
+		if e.Prompt != nil || e.CardRevealed != nil || e.DamageDealt != nil || e.ActionStep != nil || e.DrawCards != nil {
+			return fmt.Errorf("game event %s cannot carry other typed payloads", e.Type)
+		}
+	case EventDrawCards:
+		if e.DrawCards == nil {
+			return fmt.Errorf("game event %s requires draw_cards payload", e.Type)
+		}
+		if e.Prompt != nil || e.CardRevealed != nil || e.DamageDealt != nil || e.ActionStep != nil || e.CombatCue != nil {
+			return fmt.Errorf("game event %s cannot carry other typed payloads", e.Type)
+		}
+	case EventLog, EventStateUpdate, EventError, EventGameEnd:
+		if e.Prompt != nil || e.CardRevealed != nil || e.DamageDealt != nil || e.ActionStep != nil || e.CombatCue != nil || e.DrawCards != nil {
+			return fmt.Errorf("game event %s cannot carry typed payloads", e.Type)
+		}
+	default:
+		return fmt.Errorf("unknown game event type %s", e.Type)
+	}
+	return nil
 }

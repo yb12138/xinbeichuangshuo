@@ -17,7 +17,7 @@ func (o *promptCaptureObserver) OnGameEvent(event model.GameEvent) {
 	if event.Type != model.EventAskInput {
 		return
 	}
-	if p, ok := event.Data.(*model.Prompt); ok && p != nil {
+	if p := event.Prompt; p != nil {
 		cp := *p
 		cp.Options = append([]model.PromptOption(nil), p.Options...)
 		o.lastPrompt = &cp

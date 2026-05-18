@@ -285,7 +285,7 @@ func TestMagicLancerDarkBind_BlocksMagicUseAndDefend(t *testing.T) {
 	err := game.HandleCombatResponse(model.PlayerAction{
 		PlayerID:  "p1",
 		Type:      model.CmdRespond,
-		CardIndex: 0,
+		CardID:    testutils.PlayableCardID(t, game, "p1", 0),
 		ExtraArgs: []string{"defend"},
 	})
 	if err == nil || !strings.Contains(err.Error(), "黑暗束缚") {

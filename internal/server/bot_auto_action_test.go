@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"starcup-engine/internal/model"
+	"starcup-engine/internal/testutils"
 )
 
 func TestBotAutoRespondsInCombat(t *testing.T) {
@@ -72,10 +73,10 @@ func TestBotAutoRespondsInCombat(t *testing.T) {
 	room.engineMu.Unlock()
 
 	if err := room.submitAction(model.PlayerAction{
-		PlayerID:  human.PlayerID,
-		Type:      model.CmdAttack,
-		TargetID:  bot.PlayerID,
-		CardIndex: 0,
+		PlayerID: human.PlayerID,
+		Type:     model.CmdAttack,
+		TargetID: bot.PlayerID,
+		CardID:   testutils.PlayableCardID(t, room.Engine, human.PlayerID, 0),
 	}); err != nil {
 		t.Fatalf("human attack failed: %v", err)
 	}

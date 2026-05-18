@@ -2,6 +2,7 @@ package elf_archer_test
 
 import (
 	"starcup-engine/internal/engine"
+	"starcup-engine/internal/testutils"
 	"testing"
 
 	elfarcher "starcup-engine/internal/engine/player/elf_archer"
@@ -109,10 +110,10 @@ func TestElfBlessingCanBePlayedAsMagic(t *testing.T) {
 	})
 
 	if err := game.HandleAction(model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdMagic,
-		TargetID:  "p1",
-		CardIndex: 0, // 手牌为空时，索引0指向第一张祝福
+		PlayerID: "p1",
+		Type:     model.CmdMagic,
+		TargetID: "p1",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0), // 手牌为空时，索引0指向第一张祝福
 	}); err != nil {
 		t.Fatalf("magic with blessing should succeed: %v", err)
 	}
@@ -139,10 +140,10 @@ func TestElfBlessingCanBePlayedAsAttack(t *testing.T) {
 	})
 
 	if err := game.HandleAction(model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0, // 手牌为空时，索引0指向第一张祝福
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0), // 手牌为空时，索引0指向第一张祝福
 	}); err != nil {
 		t.Fatalf("attack with blessing should enqueue action: %v", err)
 	}

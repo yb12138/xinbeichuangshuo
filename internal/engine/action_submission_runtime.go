@@ -134,13 +134,9 @@ func (e *GameEngine) HandleActionSelectionSpecialOrSkill(act model.PlayerAction,
 }
 
 func (e *GameEngine) HandleActionSelectionAttackOrMagic(act model.PlayerAction, currentPid string, player *model.Player, validationResult actionSelectionValidationResult) error {
-	card, cardIndex, ok := e.cardForPlayerAction(player, act)
+	card, _, ok := e.cardForPlayerAction(player, act)
 	if !ok {
 		return fmt.Errorf("无效的卡牌ID")
-	}
-	act.CardIndex = cardIndex
-	if act.CardID == "" {
-		act.CardID = card.ID
 	}
 
 	if act.Type == model.CmdAttack && card.Type != model.CardTypeAttack {
@@ -319,19 +315,15 @@ func (e *GameEngine) validateExtraActionConstraint(p *model.Player, act model.Pl
 }
 
 func (e *GameEngine) cardForPlayerAction(p *model.Player, act model.PlayerAction) (model.Card, int, bool) {
-	if act.CardID != "" {
-		idx := e.findPlayableCardIndexByID(p, act.CardID)
-		if idx < 0 {
-			return model.Card{}, -1, false
-		}
-		card, _, _, ok := e.getPlayableCardByIndex(p, idx)
-		return card, idx, ok
-	}
-	if act.CardIndex < 0 {
+	if act.CardID == "" {
 		return model.Card{}, -1, false
 	}
-	card, _, _, ok := e.getPlayableCardByIndex(p, act.CardIndex)
-	return card, act.CardIndex, ok
+	idx := e.findPlayableCardIndexByID(p, act.CardID)
+	if idx < 0 {
+		return model.Card{}, -1, false
+	}
+	card, _, _, ok := e.getPlayableCardByIndex(p, idx)
+	return card, idx, ok
 }
 
 // checkExtraActionCards 检查玩家是否有符合额外行动约束的牌

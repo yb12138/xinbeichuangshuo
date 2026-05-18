@@ -108,10 +108,10 @@ func TestHolyLancerEarthSpear_MaxXUsesCurrentHealValue(t *testing.T) {
 	}
 
 	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	})
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID:  "p2",
@@ -198,10 +198,10 @@ func TestHolyLancerEarthSpear_SelectXResumesAttackFlow(t *testing.T) {
 	}
 
 	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	})
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID:  "p2",

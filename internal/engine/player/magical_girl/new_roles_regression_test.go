@@ -5,6 +5,7 @@ import (
 	playerpkg "starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/rules"
+	"starcup-engine/internal/testutils"
 	"testing"
 )
 
@@ -16,7 +17,7 @@ func (o *promptCaptureObserver) OnGameEvent(event model.GameEvent) {
 	if event.Type != model.EventAskInput {
 		return
 	}
-	if p, ok := event.Data.(*model.Prompt); ok {
+	if p := event.Prompt; p != nil {
 		o.lastPrompt = p
 	}
 }
@@ -191,10 +192,10 @@ func TestMagicSwordsmanShadowGather_PersistsThisTurnAndReleasesNextTurn(t *testi
 	g.State.TurnStage = model.TurnStageActionExecution
 
 	if err := g.HandleAction(model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, g, "p1", 0),
 	}); err != nil {
 		t.Fatalf("attack failed: %v", err)
 	}

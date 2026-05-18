@@ -21,10 +21,10 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 	switch choiceType {
 	case "bw_witch_wrath_draw":
 		return &model.Prompt{
-			Type:         model.PromptConfirm,
-			PlayerID:     playerID,
-			Message:      "【魔女之怒】请选择摸牌数量：",
-			ChoiceType:   choiceType,
+			Type:       model.PromptConfirm,
+			PlayerID:   playerID,
+			Message:    "【魔女之怒】请选择摸牌数量：",
+			ChoiceType: choiceType,
 			Options: []model.PromptOption{
 				{ID: "0", Label: "摸0张"},
 				{ID: "1", Label: "摸1张"},
@@ -178,7 +178,7 @@ func handleBlazeWitchSubstituteCardChoice(rt engineplayer.ChoiceRuntime, playerI
 	if user.Hand[cardIdx].Type != model.CardTypeMagic {
 		return fmt.Errorf("替身玩偶需弃置法术牌")
 	}
-	ctxData["selected_card_index"] = cardIdx
+	ctxData["selected_card_id"] = user.Hand[cardIdx].ID
 	ctxData["choice_type"] = "bw_substitute_doll_target"
 	ctxData["target_ids"] = runtimeutil.ParseStringSliceContextValue(ctxData["ally_ids"])
 	intr := rt.GetPendingInterrupt()
@@ -294,9 +294,16 @@ func handleBlazeWitchTargetChoice(rt engineplayer.ChoiceRuntime, playerID string
 	choiceType, _ := ctxData["choice_type"].(string)
 	switch choiceType {
 	case "bw_substitute_doll_target":
-		cardIdx := runtimeutil.ToIntContextValue(ctxData["selected_card_index"])
+		cardID, _ := ctxData["selected_card_id"].(string)
+		cardIdx := -1
+		for i, card := range user.Hand {
+			if card.ID == cardID {
+				cardIdx = i
+				break
+			}
+		}
 		if cardIdx < 0 || cardIdx >= len(user.Hand) {
-			return fmt.Errorf("无效的弃牌索引")
+			return fmt.Errorf("无效的弃牌ID")
 		}
 		if user.Hand[cardIdx].Type != model.CardTypeMagic {
 			return fmt.Errorf("替身玩偶需弃置法术牌")

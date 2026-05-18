@@ -18,7 +18,8 @@ func countAskPromptsForPlayer(obs *testutils.CaptureObserver, playerID string) i
 		if event.Type != model.EventAskInput {
 			continue
 		}
-		prompt, ok := event.Data.(*model.Prompt)
+		prompt := event.Prompt
+		ok := prompt != nil
 		if !ok || prompt == nil || prompt.PlayerID != playerID {
 			continue
 		}
@@ -36,7 +37,8 @@ func latestAskPromptForPlayer(obs *testutils.CaptureObserver, playerID string) *
 		if event.Type != model.EventAskInput {
 			continue
 		}
-		prompt, ok := event.Data.(*model.Prompt)
+		prompt := event.Prompt
+		ok := prompt != nil
 		if !ok || prompt == nil || prompt.PlayerID != playerID {
 			continue
 		}

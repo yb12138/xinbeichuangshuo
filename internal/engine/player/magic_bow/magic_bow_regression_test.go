@@ -113,17 +113,17 @@ func TestMagicBowMagicPierce_MissDealsMagicDamageAndLocksMultiShot(t *testing.T)
 	game.State.TurnStage = model.TurnStageActionExecution
 
 	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	})
 	chooseMagicPierceAndFireCharge(t, game, "p1")
 
 	if err := game.HandleCombatResponse(model.PlayerAction{
 		PlayerID:  "p2",
 		Type:      model.CmdRespond,
-		CardIndex: 0,
+		CardID:    testutils.PlayableCardID(t, game, "p2", 0),
 		ExtraArgs: []string{"defend"},
 	}); err != nil {
 		t.Fatalf("combat defend response failed: %v", err)
@@ -487,10 +487,10 @@ func TestMagicBowMagicPierce_HitBonusCappedAtTwo(t *testing.T) {
 	game.State.TurnStage = model.TurnStageActionExecution
 
 	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	})
 	chooseMagicPierceAndFireCharge(t, game, "p1")
 	if err := game.HandleCombatResponse(model.PlayerAction{
@@ -543,16 +543,16 @@ func TestMagicBowMagicPierce_MissDealsExactlyThreeMagicDamage(t *testing.T) {
 	game.State.TurnStage = model.TurnStageActionExecution
 
 	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	})
 	chooseMagicPierceAndFireCharge(t, game, "p1")
 	if err := game.HandleCombatResponse(model.PlayerAction{
 		PlayerID:  "p2",
 		Type:      model.CmdRespond,
-		CardIndex: 0,
+		CardID:    testutils.PlayableCardID(t, game, "p2", 0),
 		ExtraArgs: []string{"defend"},
 	}); err != nil {
 		t.Fatalf("combat defend response failed: %v", err)
@@ -716,10 +716,10 @@ func TestMagicBowMagicPierce_HitBonusDeclineKeepsSecondCharge(t *testing.T) {
 	game.State.TurnStage = model.TurnStageActionExecution
 
 	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	})
 	chooseMagicPierceAndFireCharge(t, game, "p1")
 	if err := game.HandleCombatResponse(model.PlayerAction{

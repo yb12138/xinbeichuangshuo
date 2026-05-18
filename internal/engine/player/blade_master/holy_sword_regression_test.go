@@ -45,7 +45,7 @@ func TestBladeMaster_HolySword_ThirdAttackForceHitIgnoresShield(t *testing.T) {
 	// 前两次攻击正常命中，堆到第3次攻击条件。
 	for i := 0; i < 2; i++ {
 		if err := game.HandleAction(model.PlayerAction{
-			PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardIndex: 0,
+			PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardID: testutils.PlayableCardID(t, game, "p1", 0),
 		}); err != nil {
 			t.Fatalf("attack #%d failed: %v", i+1, err)
 		}
@@ -68,7 +68,7 @@ func TestBladeMaster_HolySword_ThirdAttackForceHitIgnoresShield(t *testing.T) {
 	redGemsBeforeThird := game.State.RedGems
 
 	if err := game.HandleAction(model.PlayerAction{
-		PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardIndex: 0,
+		PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardID: testutils.PlayableCardID(t, game, "p1", 0),
 	}); err != nil {
 		t.Fatalf("third attack failed: %v", err)
 	}
@@ -125,7 +125,7 @@ func TestBladeMaster_HolySword_FullFlow_X0ResumesExtraAction(t *testing.T) {
 	// 前两次攻击正常进行
 	for i := 0; i < 2; i++ {
 		if err := game.HandleAction(model.PlayerAction{
-			PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardIndex: 0,
+			PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardID: testutils.PlayableCardID(t, game, "p1", 0),
 		}); err != nil {
 			t.Fatalf("attack #%d failed: %v", i+1, err)
 		}
@@ -138,7 +138,7 @@ func TestBladeMaster_HolySword_FullFlow_X0ResumesExtraAction(t *testing.T) {
 
 	// 第3次攻击：正常应战并承受伤害（圣剑强制命中）
 	if err := game.HandleAction(model.PlayerAction{
-		PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardIndex: 0,
+		PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardID: testutils.PlayableCardID(t, game, "p1", 0),
 	}); err != nil {
 		t.Fatalf("third attack failed: %v", err)
 	}
@@ -208,7 +208,7 @@ func TestBladeMaster_HolySword_FullFlow_DiscardResumesExtraAction(t *testing.T) 
 	// 前两次攻击正常进行
 	for i := 0; i < 2; i++ {
 		if err := game.HandleAction(model.PlayerAction{
-			PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardIndex: 0,
+			PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardID: testutils.PlayableCardID(t, game, "p1", 0),
 		}); err != nil {
 			t.Fatalf("attack #%d failed: %v", i+1, err)
 		}
@@ -223,7 +223,7 @@ func TestBladeMaster_HolySword_FullFlow_DiscardResumesExtraAction(t *testing.T) 
 
 	// 第3次攻击
 	if err := game.HandleAction(model.PlayerAction{
-		PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardIndex: 0,
+		PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardID: testutils.PlayableCardID(t, game, "p1", 0),
 	}); err != nil {
 		t.Fatalf("third attack failed: %v", err)
 	}

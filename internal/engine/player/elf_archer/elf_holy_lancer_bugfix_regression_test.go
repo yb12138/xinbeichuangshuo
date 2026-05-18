@@ -28,7 +28,8 @@ func findLatestCombatPromptForPlayer(obs *testutils.CaptureObserver, playerID st
 		if event.Type != model.EventAskInput {
 			continue
 		}
-		prompt, ok := event.Data.(*model.Prompt)
+		prompt := event.Prompt
+		ok := prompt != nil
 		if !ok || prompt == nil || prompt.PlayerID != playerID {
 			continue
 		}
@@ -85,10 +86,10 @@ func TestElfElementalShotThunder_DisablesCounterResponse(t *testing.T) {
 	}
 
 	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	})
 
 	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptResponseSkill {
@@ -164,10 +165,10 @@ func TestElfPetEmpower_OverflowConsumesDiscardOnlyOnce(t *testing.T) {
 	}
 
 	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	})
 
 	testutils.MustHandleAction(t, game, model.PlayerAction{
@@ -230,10 +231,10 @@ func TestHolyLancer_EarthSpearAndHolyStrikeMutualExclusion(t *testing.T) {
 	}
 
 	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	})
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID:  "p2",
@@ -292,10 +293,10 @@ func TestHolyLancer_SkySpearDisablesCounterResponse(t *testing.T) {
 	}
 
 	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	})
 	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptResponseSkill {
 		t.Fatalf("expected attack-start response-skill interrupt, got %+v", game.State.PendingInterrupt)

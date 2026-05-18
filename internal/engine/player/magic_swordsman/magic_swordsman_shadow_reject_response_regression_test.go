@@ -36,15 +36,15 @@ func TestMagicSwordsmanShadowReject_AllowHolyLightDefendOutsideOwnTurn(t *testin
 	g.State.TurnStage = model.TurnStageActionExecution
 
 	testutils.MustHandleAction(t, g, model.PlayerAction{
-		PlayerID:  "p2",
-		Type:      model.CmdAttack,
-		TargetID:  "p1",
-		CardIndex: 0,
+		PlayerID: "p2",
+		Type:     model.CmdAttack,
+		TargetID: "p1",
+		CardID:   testutils.PlayableCardID(t, g, "p2", 0),
 	})
 	testutils.MustHandleAction(t, g, model.PlayerAction{
 		PlayerID:  "p1",
 		Type:      model.CmdRespond,
-		CardIndex: 0,
+		CardID:    testutils.PlayableCardID(t, g, "p1", 0),
 		ExtraArgs: []string{"defend"},
 	})
 
@@ -80,9 +80,9 @@ func TestMagicSwordsmanShadowReject_AllowMagicBulletCounterOutsideOwnTurn(t *tes
 
 	// 发起魔弹（无需手动选择目标，按顺序自动寻找对手）。
 	testutils.MustHandleAction(t, g, model.PlayerAction{
-		PlayerID:  "p2",
-		Type:      model.CmdMagic,
-		CardIndex: 0,
+		PlayerID: "p2",
+		Type:     model.CmdMagic,
+		CardID:   testutils.PlayableCardID(t, g, "p2", 0),
 	})
 	if g.State.PendingInterrupt == nil || g.State.PendingInterrupt.Type != model.InterruptMagicMissile {
 		t.Fatalf("expected magic missile interrupt, got %+v", g.State.PendingInterrupt)
@@ -92,7 +92,7 @@ func TestMagicSwordsmanShadowReject_AllowMagicBulletCounterOutsideOwnTurn(t *tes
 	testutils.MustHandleAction(t, g, model.PlayerAction{
 		PlayerID:  "p1",
 		Type:      model.CmdRespond,
-		CardIndex: 0,
+		CardID:    testutils.PlayableCardID(t, g, "p1", 0),
 		ExtraArgs: []string{"counter"},
 	})
 

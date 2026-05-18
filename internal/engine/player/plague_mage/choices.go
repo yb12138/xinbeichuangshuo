@@ -13,8 +13,24 @@ import (
 
 type choiceHandler struct{}
 
+const (
+	deathTouchFlowID      = "plague_death_touch"
+	deathTouchStepElement = "element"
+	deathTouchStepX       = "x"
+	deathTouchStepCards   = "cards"
+	deathTouchStepTarget  = "target"
+)
+
 func NewChoiceHandler() engineplayer.ChoiceHandler {
 	return choiceHandler{}
+}
+
+func deathTouchFlow(ctxData map[string]interface{}) (*model.PromptFlowState, error) {
+	flow := model.PromptFlowFromContext(ctxData)
+	if flow == nil || flow.FlowID != deathTouchFlowID {
+		return nil, fmt.Errorf("死亡之触缺少多步流状态")
+	}
+	return flow, nil
 }
 
 func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, playerID string, player *model.Player, data map[string]interface{}) *model.Prompt {
@@ -24,8 +40,9 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		options := make([]model.PromptOption, 0, len(elements))
 		for i, ele := range elements {
 			options = append(options, model.PromptOption{
-				ID:    fmt.Sprintf("%d", i),
-				Label: fmt.Sprintf("%s系", promptfmt.ElementName(ele)),
+				ID:      fmt.Sprintf("%d", i),
+				Label:   fmt.Sprintf("%s系", promptfmt.ElementName(ele)),
+				Element: ele,
 			})
 		}
 		return &model.Prompt{
@@ -57,7 +74,11 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 0},
 		}
 	case "plague_death_touch_cards":
-		chosenElement, _ := data["chosen_element"].(string)
+		flow, err := deathTouchFlow(data)
+		if err != nil {
+			return nil
+		}
+		chosenElement := flow.Selection(deathTouchStepElement).Element
 		cardIndices := engineplayer.GetCardIndicesByElement(player, model.Element(chosenElement))
 		options := make([]model.PromptOption, 0, len(cardIndices))
 		for _, idx := range cardIndices {
@@ -78,7 +99,11 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand", CardFilter: "same_element"},
 		}
 	case "plague_death_touch_target":
-		targetIDs := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
+		flow, err := deathTouchFlow(data)
+		if err != nil {
+			return nil
+		}
+		targetIDs := flow.Selection(deathTouchStepTarget).TargetIDs
 		options := make([]model.PromptOption, 0, len(targetIDs))
 		for i, targetID := range targetIDs {
 			if target := rt.GetPlayers()[targetID]; target != nil {
@@ -140,7 +165,15 @@ func handlePlagueDeathTouchElementChoice(rt engineplayer.ChoiceRuntime, ctxData 
 	}
 
 	chosenElement := elements[selectionIndex]
-	ctxData["chosen_element"] = chosenElement
+	flow, err := deathTouchFlow(ctxData)
+	if err != nil {
+		return err
+	}
+	flow.PutSelection(deathTouchStepElement, model.PromptFlowSelection{
+		OptionIndexes: []int{selectionIndex},
+		Element:       chosenElement,
+	})
+	flow.Advance(deathTouchStepX)
 	ctxData["choice_type"] = "plague_death_touch_x"
 	if intr := rt.GetPendingInterrupt(); intr != nil {
 		intr.Context = ctxData
@@ -159,7 +192,15 @@ func handlePlagueDeathTouchXChoice(rt engineplayer.ChoiceRuntime, ctxData map[st
 	if maxHeal := runtimeutil.ToIntContextValue(ctxData["max_heal"]); xValue < 2 || xValue > maxHeal {
 		return fmt.Errorf("无效的X值")
 	}
-	ctxData["x_value"] = xValue
+	flow, err := deathTouchFlow(ctxData)
+	if err != nil {
+		return err
+	}
+	flow.PutSelection(deathTouchStepX, model.PromptFlowSelection{
+		OptionIndexes: []int{selectionIndex},
+		Count:         xValue,
+	})
+	flow.Advance(deathTouchStepCards)
 	ctxData["choice_type"] = "plague_death_touch_cards"
 	if intr := rt.GetPendingInterrupt(); intr != nil {
 		intr.Context = ctxData
@@ -178,7 +219,11 @@ func handleDeathTouchCardsMultiSelect(rt engineplayer.ChoiceRuntime, playerID st
 	if len(selections) < 2 {
 		return false, fmt.Errorf("死亡之触至少需要选择2张同系牌")
 	}
-	chosenElement, _ := ctxData["chosen_element"].(string)
+	flow, err := deathTouchFlow(ctxData)
+	if err != nil {
+		return false, err
+	}
+	chosenElement := flow.Selection(deathTouchStepElement).Element
 	for _, idx := range selections {
 		if idx < 0 || idx >= len(user.Hand) {
 			return false, fmt.Errorf("无效的选项索引: %d", idx)
@@ -188,14 +233,23 @@ func handleDeathTouchCardsMultiSelect(rt engineplayer.ChoiceRuntime, playerID st
 			return false, fmt.Errorf("死亡之触需弃置同系牌")
 		}
 	}
-	ctxData["selected_indices"] = selections
-	ctxData["y_value"] = len(selections)
+	cardIDs := make([]string, 0, len(selections))
+	for _, idx := range selections {
+		cardIDs = append(cardIDs, user.Hand[idx].ID)
+	}
+	flow.PutSelection(deathTouchStepCards, model.PromptFlowSelection{
+		OptionIndexes: append([]int{}, selections...),
+		CardIDs:       cardIDs,
+		Count:         len(selections),
+	})
 	if targetID, _ := ctxData["target_id"].(string); targetID != "" {
 		err := resolvePlagueDeathTouchFinal(rt, ctxData, targetID)
 		return err == nil, err
 	}
+	targetIDs := campEnemyIDs(rt, user)
+	flow.PutSelection(deathTouchStepTarget, model.PromptFlowSelection{TargetIDs: targetIDs})
+	flow.Advance(deathTouchStepTarget)
 	ctxData["choice_type"] = "plague_death_touch_target"
-	ctxData["target_ids"] = campEnemyIDs(rt, user)
 	if intr := rt.GetPendingInterrupt(); intr != nil {
 		intr.Context = ctxData
 	}
@@ -204,11 +258,20 @@ func handleDeathTouchCardsMultiSelect(rt engineplayer.ChoiceRuntime, playerID st
 }
 
 func handlePlagueDeathTouchTargetChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
-	targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
+	flow, err := deathTouchFlow(ctxData)
+	if err != nil {
+		return err
+	}
+	targetIDs := flow.Selection(deathTouchStepTarget).TargetIDs
 	if selectionIndex < 0 || selectionIndex >= len(targetIDs) {
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
-	return resolvePlagueDeathTouchFinal(rt, ctxData, targetIDs[selectionIndex])
+	targetID := targetIDs[selectionIndex]
+	flow.PutSelection(deathTouchStepTarget, model.PromptFlowSelection{
+		OptionIndexes: []int{selectionIndex},
+		TargetIDs:     []string{targetID},
+	})
+	return resolvePlagueDeathTouchFinal(rt, ctxData, targetID)
 }
 
 func resolvePlagueDeathTouchFinal(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, targetID string) error {
@@ -221,9 +284,13 @@ func resolvePlagueDeathTouchFinal(rt engineplayer.ChoiceRuntime, ctxData map[str
 		return fmt.Errorf("目标不存在")
 	}
 
-	selected := append([]int{}, runtimeutil.ParseChoiceIntSlice(ctxData["selected_indices"])...)
-	xValue := runtimeutil.ToIntContextValue(ctxData["x_value"])
-	yValue := runtimeutil.ToIntContextValue(ctxData["y_value"])
+	flow, err := deathTouchFlow(ctxData)
+	if err != nil {
+		return err
+	}
+	selected := append([]int{}, flow.Selection(deathTouchStepCards).OptionIndexes...)
+	xValue := flow.Selection(deathTouchStepX).Count
+	yValue := flow.Selection(deathTouchStepCards).Count
 
 	removed, err := engineplayer.RemoveCardsByIndicesFromHand(user, selected)
 	if err != nil {

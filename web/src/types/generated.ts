@@ -173,6 +173,7 @@ export interface PromptOptionDTO {
   hint?: string
   card_id?: string
   field_index?: number
+  element?: string
 }
 
 export interface ProtocolErrorPayload {

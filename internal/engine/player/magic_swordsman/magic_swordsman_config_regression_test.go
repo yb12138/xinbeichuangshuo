@@ -86,7 +86,7 @@ func TestMagicSwordsmanShadowGather_ReleasesBeforeNextActionSelectionPrompt(t *t
 		if event.Type != model.EventAskInput {
 			continue
 		}
-		if prompt, ok := event.Data.(*model.Prompt); ok && prompt != nil {
+		if prompt := event.Prompt; prompt != nil {
 			lastPrompt = prompt
 		}
 	}

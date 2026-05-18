@@ -108,7 +108,6 @@ export function elfArcherScenario(options: {
   gem?: number;
   turnStage?: string;
   buffs?: { id: string; name: string; duration: number; value: number; source_id: string }[];
-  blessings?: Card[]; // 精灵密仪盖放的祝福储备
 } = {}): ProtocolHarnessScenario {
   const hand = options.hand ?? elfArcherHand();
   const players = [
@@ -123,7 +122,6 @@ export function elfArcherScenario(options: {
       gem: options.gem ?? 0,
       is_active: true,
       buffs: options.buffs ?? [],
-      blessings: options.blessings ?? [], // 祝福储备区（盖放）
     }),
     playerView({
       id: ENEMY_PLAYER_ID,
@@ -244,10 +242,6 @@ export function elfRitualWithBlessingScenario(): ProtocolHarnessScenario {
   return elfArcherScenario({
     gem: 1,
     turnStage: 'TurnEnd',
-    // 祝福储备区已有盖放的祝福牌（回合结束时消耗）
-    blessings: [
-      card({ id: 'elf-blessing-reserve-1', name: '祝福储备', type: 'Magic', element: 'Light' }),
-    ],
     // 后端会设置 response_skills 触发回合结束选择
   });
 }

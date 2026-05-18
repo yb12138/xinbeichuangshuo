@@ -88,10 +88,10 @@ func TestHeroRoar_HitDamagePlusTwoAndCleared(t *testing.T) {
 	game.Drive()
 
 	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	})
 	testutils.ChooseResponseSkillByID(t, game, "p1", "hero_roar")
 	testutils.RequireChoicePrompt(t, game, "p1", "hero_roar_draw")
@@ -144,10 +144,10 @@ func TestHeroRoar_MissAddsWisdom(t *testing.T) {
 	game.Drive()
 
 	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	})
 	testutils.ChooseResponseSkillByID(t, game, "p1", "hero_roar")
 	testutils.RequireChoicePrompt(t, game, "p1", "hero_roar_draw")
@@ -159,7 +159,7 @@ func TestHeroRoar_MissAddsWisdom(t *testing.T) {
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID:  "p2",
 		Type:      model.CmdRespond,
-		CardIndex: 0,
+		CardID:    testutils.PlayableCardID(t, game, "p2", 0),
 		ExtraArgs: []string{"defend"},
 	})
 
@@ -204,10 +204,10 @@ func TestHeroForbiddenPower_HitBranch(t *testing.T) {
 	game.Drive()
 
 	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	})
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID:  "p2",
@@ -256,15 +256,15 @@ func TestHeroForbiddenPower_MissBranchWaterToWisdom(t *testing.T) {
 	game.State.TurnStage = model.TurnStageActionExecution
 
 	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	})
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID:  "p2",
 		Type:      model.CmdRespond,
-		CardIndex: 0,
+		CardID:    testutils.PlayableCardID(t, game, "p2", 0),
 		ExtraArgs: []string{"defend"},
 	})
 	testutils.ChooseResponseSkillByID(t, game, "p1", "hero_forbidden_power")
@@ -309,16 +309,16 @@ func TestHeroForbiddenPower_UserScenario_Miss_WaterAttackAndMagicToWisdom(t *tes
 	game.State.TurnStage = model.TurnStageActionExecution
 
 	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	})
 	// 用圣光防御，制造“未命中”分支
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID:  "p2",
 		Type:      model.CmdRespond,
-		CardIndex: 0,
+		CardID:    testutils.PlayableCardID(t, game, "p2", 0),
 		ExtraArgs: []string{"defend"},
 	})
 	testutils.ChooseResponseSkillByID(t, game, "p1", "hero_forbidden_power")
@@ -371,10 +371,10 @@ func TestHeroForbiddenPower_UserScenario_Hit_FireCardsBonusAndSelfDamage(t *test
 	game.State.TurnStage = model.TurnStageActionExecution
 
 	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	})
 	// 攻击前会先进入勇者响应技能（如怒吼）窗口；本用例聚焦禁断之力命中分支，这里显式跳过前置响应。
 	testutils.RequireResponseSkillPrompt(t, game, "p1")
@@ -441,10 +441,10 @@ func TestHeroRoar_AfterHitStillPromptsForbiddenPower(t *testing.T) {
 	game.State.TurnStage = model.TurnStageActionExecution
 
 	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	})
 
 	testutils.ChooseResponseSkillByID(t, game, "p1", "hero_roar")
@@ -490,10 +490,10 @@ func TestHeroRoar_AfterMissStillPromptsForbiddenPower(t *testing.T) {
 	game.State.TurnStage = model.TurnStageActionExecution
 
 	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	})
 
 	testutils.ChooseResponseSkillByID(t, game, "p1", "hero_roar")
@@ -507,7 +507,7 @@ func TestHeroRoar_AfterMissStillPromptsForbiddenPower(t *testing.T) {
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID:  "p2",
 		Type:      model.CmdRespond,
-		CardIndex: 0,
+		CardID:    testutils.PlayableCardID(t, game, "p2", 0),
 		ExtraArgs: []string{"defend"},
 	})
 
@@ -546,10 +546,10 @@ func TestHeroRoar_DrawOneWithOverflow_StillContinuesAttackAndPromptsForbiddenPow
 	game.State.TurnStage = model.TurnStageActionExecution
 
 	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	})
 	testutils.ChooseResponseSkillByID(t, game, "p1", "hero_roar")
 	testutils.RequireChoicePrompt(t, game, "p1", "hero_roar_draw")
@@ -628,15 +628,15 @@ func TestHeroExhaustion_ReleaseAtActionStartAndSelfDamage_StillCanAct(t *testing
 		t.Fatalf("expected return to action selection after release settlement, got %s", game.RuntimeStateLabel())
 	}
 
-	attackIdx := testutils.FirstAttackCardIndex(p1)
-	if attackIdx < 0 {
+	attackCardID := testutils.FirstAttackCardID(p1)
+	if attackCardID == "" {
 		t.Fatalf("expected an attack card available after release settlement")
 	}
 	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: attackIdx,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   attackCardID,
 	})
 }
 
@@ -830,10 +830,10 @@ func TestHeroCalmMind_DisablesCounterAndAttackEndGainCrystal(t *testing.T) {
 	game.State.TurnStage = model.TurnStageActionExecution
 
 	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	})
 	testutils.ChooseResponseSkillByID(t, game, "p1", "hero_calm_mind")
 
@@ -901,10 +901,10 @@ func TestHeroTaunt_NonAttackActionIsRejectedUntilSkipOrValidAttack(t *testing.T)
 
 	beforeHand := len(p2.Hand)
 	err := game.HandleAction(model.PlayerAction{
-		PlayerID:  "p2",
-		Type:      model.CmdMagic,
-		TargetID:  "p1",
-		CardIndex: 0,
+		PlayerID: "p2",
+		Type:     model.CmdMagic,
+		TargetID: "p1",
+		CardID:   testutils.PlayableCardID(t, game, "p2", 0),
 	})
 	if err == nil {
 		t.Fatalf("expected taunted player non-attack action to be rejected")
@@ -960,10 +960,10 @@ func TestHeroTaunt_InvalidAttackDeclarationKeepsEffectUntilValidAttack(t *testin
 
 	game.Drive()
 	err := game.HandleAction(model.PlayerAction{
-		PlayerID:  "p2",
-		Type:      model.CmdAttack,
-		TargetID:  "p1",
-		CardIndex: 0,
+		PlayerID: "p2",
+		Type:     model.CmdAttack,
+		TargetID: "p1",
+		CardID:   testutils.PlayableCardID(t, game, "p2", 0),
 	})
 	if err == nil {
 		t.Fatalf("expected invalid attack card type to return error")
@@ -976,10 +976,10 @@ func TestHeroTaunt_InvalidAttackDeclarationKeepsEffectUntilValidAttack(t *testin
 	}
 
 	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:  "p2",
-		Type:      model.CmdAttack,
-		TargetID:  "p1",
-		CardIndex: 1,
+		PlayerID: "p2",
+		Type:     model.CmdAttack,
+		TargetID: "p1",
+		CardID:   testutils.PlayableCardID(t, game, "p2", 1),
 	})
 	if testutils.GetFieldEffectCard(p2, model.EffectHeroTaunt) != nil {
 		t.Fatalf("expected taunt effect removed after valid attack declaration")

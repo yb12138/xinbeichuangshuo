@@ -64,7 +64,8 @@ func findBeastSamuraiCombatPromptForPlayer(obs *testutils.CaptureObserver, playe
 		if event.Type != model.EventAskInput {
 			continue
 		}
-		prompt, ok := event.Data.(*model.Prompt)
+		prompt := event.Prompt
+		ok := prompt != nil
 		if !ok || prompt == nil || prompt.PlayerID != playerID {
 			continue
 		}
@@ -208,7 +209,7 @@ func TestBeastSamurai_OneStrike_NextAttackIgnoresShieldAndHoly(t *testing.T) {
 		PlayerID:  p2.ID,
 		Type:      model.CmdRespond,
 		ExtraArgs: []string{"defend"},
-		CardIndex: 0,
+		CardID:    testutils.PlayableCardID(t, game, p2.ID, 0),
 	}); err == nil {
 		t.Fatalf("expected holy defend to be rejected under one-strike attack")
 	}

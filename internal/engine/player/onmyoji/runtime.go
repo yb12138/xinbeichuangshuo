@@ -122,7 +122,6 @@ func CollectCounterOptions(p *model.Player, incoming *model.Card) []map[string]i
 		}
 		options = append(options, map[string]interface{}{
 			"card_id":     c.ID,
-			"card_index":  i,
 			"use_faction": useFaction,
 			"label":       label,
 		})

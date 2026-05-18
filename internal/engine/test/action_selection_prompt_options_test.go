@@ -19,7 +19,8 @@ func (o *actionPromptObserver) OnGameEvent(event model.GameEvent) {
 	if event.Type != model.EventAskInput {
 		return
 	}
-	prompt, ok := event.Data.(*model.Prompt)
+	prompt := event.Prompt
+	ok := prompt != nil
 	if !ok || prompt == nil {
 		return
 	}

@@ -41,7 +41,7 @@ func TestBladeMaster_SwordShadow_ReAskOnEachAttackEnd(t *testing.T) {
 
 	// 第一次攻击
 	if err := game.HandleAction(model.PlayerAction{
-		PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardIndex: 0,
+		PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardID: testutils.PlayableCardID(t, game, "p1", 0),
 	}); err != nil {
 		t.Fatalf("first attack failed: %v", err)
 	}
@@ -68,7 +68,7 @@ func TestBladeMaster_SwordShadow_ReAskOnEachAttackEnd(t *testing.T) {
 
 	// 第二次攻击
 	if err := game.HandleAction(model.PlayerAction{
-		PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardIndex: 0,
+		PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardID: testutils.PlayableCardID(t, game, "p1", 0),
 	}); err != nil {
 		t.Fatalf("second attack failed: %v", err)
 	}
@@ -116,7 +116,7 @@ func TestBladeMaster_WindFury_ReAskOnEachAttackEnd(t *testing.T) {
 	model.AppendAttackAction(p1, "test-token")
 
 	if err := game.HandleAction(model.PlayerAction{
-		PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardIndex: 0,
+		PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardID: testutils.PlayableCardID(t, game, "p1", 0),
 	}); err != nil {
 		t.Fatalf("first attack failed: %v", err)
 	}
@@ -140,7 +140,7 @@ func TestBladeMaster_WindFury_ReAskOnEachAttackEnd(t *testing.T) {
 	game.Drive()
 
 	if err := game.HandleAction(model.PlayerAction{
-		PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardIndex: 0,
+		PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardID: testutils.PlayableCardID(t, game, "p1", 0),
 	}); err != nil {
 		t.Fatalf("second attack failed: %v", err)
 	}
@@ -183,7 +183,7 @@ func TestBladeMaster_WindFury_DoesNotTriggerWithoutRemainingWindAttack(t *testin
 	}
 
 	if err := game.HandleAction(model.PlayerAction{
-		PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardIndex: 0,
+		PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardID: testutils.PlayableCardID(t, game, "p1", 0),
 	}); err != nil {
 		t.Fatalf("wind attack failed: %v", err)
 	}
@@ -251,7 +251,7 @@ func TestBladeMaster_GaleSkillExtraAction_PreservedWhenWindFuryCanceled(t *testi
 	}
 
 	if err := game.HandleAction(model.PlayerAction{
-		PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardIndex: 0,
+		PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardID: testutils.PlayableCardID(t, game, "p1", 0),
 	}); err != nil {
 		t.Fatalf("gale attack failed: %v", err)
 	}
@@ -346,7 +346,7 @@ func TestBladeMaster_GaleSkillExtraAction_PreservedWhenWindFuryCanceled_AfterShi
 	}
 
 	if err := game.HandleAction(model.PlayerAction{
-		PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardIndex: 0,
+		PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardID: testutils.PlayableCardID(t, game, "p1", 0),
 	}); err != nil {
 		t.Fatalf("gale attack failed: %v", err)
 	}
@@ -594,10 +594,10 @@ func TestBladeMaster_ResponseChain_SwordShadowThenWindFury_Integration(t *testin
 	}
 
 	if err := game.HandleAction(model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	}); err != nil {
 		t.Fatalf("attack failed: %v", err)
 	}
@@ -734,19 +734,19 @@ func TestBladeMaster_GaleSlash_DisablesCounterButAllowsDefend(t *testing.T) {
 	}}
 
 	if err := game.HandleAction(model.PlayerAction{
-		PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardIndex: 0,
+		PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardID: testutils.PlayableCardID(t, game, "p1", 0),
 	}); err != nil {
 		t.Fatalf("gale slash attack failed: %v", err)
 	}
 
 	if err := game.HandleAction(model.PlayerAction{
-		PlayerID: "p2", Type: model.CmdRespond, ExtraArgs: []string{"counter"}, CardIndex: 1, TargetID: "p3",
+		PlayerID: "p2", Type: model.CmdRespond, ExtraArgs: []string{"counter"}, CardID: testutils.PlayableCardID(t, game, "p2", 1), TargetID: "p3",
 	}); err == nil {
 		t.Fatalf("expected gale slash to forbid counter response")
 	}
 
 	if err := game.HandleAction(model.PlayerAction{
-		PlayerID: "p2", Type: model.CmdRespond, ExtraArgs: []string{"defend"}, CardIndex: 0,
+		PlayerID: "p2", Type: model.CmdRespond, ExtraArgs: []string{"defend"}, CardID: testutils.PlayableCardID(t, game, "p2", 0),
 	}); err != nil {
 		t.Fatalf("expected gale slash to still allow defend: %v", err)
 	}

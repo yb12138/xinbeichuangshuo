@@ -46,10 +46,10 @@ func TestBerserkerAttackSealer_TakeDamageResolves(t *testing.T) {
 	game.State.TurnStage = model.TurnStageActionExecution
 
 	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	})
 
 	testutils.MustHandleAction(t, game, model.PlayerAction{

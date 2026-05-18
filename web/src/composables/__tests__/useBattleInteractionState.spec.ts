@@ -28,7 +28,6 @@ function buildPlayer(overrides: Partial<PlayerView> = {}): PlayerView {
     max_hand: 6,
     exclusive_card_count: 0,
     hand: [],
-    blessings: [],
     exclusive_cards: [],
     field: [],
     heal: 0,
@@ -207,7 +206,7 @@ describe('useBattleInteractionState skill target candidates', () => {
     expect(interaction.targetablePlayersForSkill.value.map((p) => p.id)).toEqual(['p1', 'p2', 'p3'])
   })
 
-  it('builds playable blessing cards from field covers when blessings mirror is empty', () => {
+  it('builds playable blessing cards from field covers', () => {
     const sessionStore = useSessionStore()
     const snapshotStore = useSnapshotStore()
     sessionStore.setRoomInfo('ROOM', 'p1', 'Red', 'elf_archer')
@@ -218,7 +217,6 @@ describe('useBattleInteractionState skill target candidates', () => {
           id: 'p1',
           role: 'elf_archer',
           hand: [buildCard({ id: 'hand-attack-1', type: 'Attack', element: 'Fire' })],
-          blessings: [],
           field: [
             buildCoverFieldCard({
               card: buildCard({ id: 'bless-attack-1', type: 'Attack', element: 'Wind' }),

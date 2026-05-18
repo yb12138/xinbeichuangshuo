@@ -24,7 +24,7 @@ func (r *Room) nextTimelineEventMeta() (int64, string, int, string, string, stri
 	return eventID, fmt.Sprintf("chain_%d", eventID), turnID, turnStage, combatStage, subflow
 }
 
-func (r *Room) buildTimelineNotify(eventType string, data map[string]interface{}, message string) TimelineNotifyPayload {
+func (r *Room) buildTimelineNotify(payload timeline.Payload) TimelineNotifyPayload {
 	eventID, chainID, turnID, turnStage, combatStage, subflow := r.nextTimelineEventMeta()
 	event := timeline.BuildEvent(timeline.EventMeta{
 		EventID:     eventID,
@@ -33,7 +33,7 @@ func (r *Room) buildTimelineNotify(eventType string, data map[string]interface{}
 		CombatStage: combatStage,
 		Subflow:     subflow,
 		ChainID:     chainID,
-	}, eventType, data, message)
+	}, payload)
 
 	return TimelineNotifyPayload{
 		RoomID:   r.Code,

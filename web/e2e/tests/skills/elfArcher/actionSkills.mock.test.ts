@@ -31,7 +31,6 @@ test.describe('elf archer elf ritual protocol harness', () => {
   });
 
   test('elf ritual: turn end heal ally', async ({ protocolHarness }) => {
-    // 使用已有祝福储备的场景（祝福在 blessings 区域，不是手牌）
     await protocolHarness.bootGame(elfRitualWithBlessingScenario());
 
     // 回合结束触发通过 response_skills 处理

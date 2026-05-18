@@ -124,13 +124,13 @@ func (h *PlagueDeathTouchHandler) Execute(ctx *model.Context) error {
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
 		Context: map[string]interface{}{
-			"choice_type":      "plague_death_touch_element",
-			"user_id":          ctx.User.ID,
-			"target_id":        ctx.Target.ID,
-			"elements":         elements,
-			"max_heal":         ctx.User.Heal,
-			"element_counts":   counts,
-			"selected_indices": []int{},
+			"choice_type":              "plague_death_touch_element",
+			"user_id":                  ctx.User.ID,
+			"target_id":                ctx.Target.ID,
+			"elements":                 elements,
+			"max_heal":                 ctx.User.Heal,
+			"element_counts":           counts,
+			model.PromptFlowContextKey: model.NewPromptFlowState("plague_death_touch", "element"),
 		},
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [死亡之触]，等待选择X/Y与目标", ctx.User.Name))

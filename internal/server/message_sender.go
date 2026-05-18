@@ -5,6 +5,7 @@ import (
 
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/server/prompting"
+	"starcup-engine/internal/server/timeline"
 )
 
 func (r *Room) sendToClient(client *Client, cmd string, data interface{}) {
@@ -18,11 +19,11 @@ func (r *Room) sendRoomEventToClient(client *Client, event RoomEvent) {
 	r.sendToClient(client, CmdRoomEvent, event)
 }
 
-func (r *Room) sendNotifyTimelineToClient(client *Client, eventType string, data map[string]interface{}, message string) {
+func (r *Room) sendNotifyTimelineToClient(client *Client, payload timeline.Payload) {
 	if client == nil {
 		return
 	}
-	r.sendToClient(client, CmdNotifyTimeline, r.buildTimelineNotify(eventType, data, message))
+	r.sendToClient(client, CmdNotifyTimeline, r.buildTimelineNotify(payload))
 }
 
 func (r *Room) sendSyncStateToClient(client *Client) {

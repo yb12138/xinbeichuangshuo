@@ -40,10 +40,10 @@ func TestAssassinWaterShadowSkip_ResumesPendingDamageResolution(t *testing.T) {
 	}
 
 	if err := game.HandleAction(model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	}); err != nil {
 		t.Fatalf("attack failed: %v", err)
 	}
@@ -123,7 +123,7 @@ func TestAssassinWaterShadowConfirm_PreservesRemainingDamageDraw(t *testing.T) {
 	initialHand := len(p2.Hand)
 
 	if err := game.HandleAction(model.PlayerAction{
-		PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardIndex: 0,
+		PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardID: testutils.PlayableCardID(t, game, "p1", 0),
 	}); err != nil {
 		t.Fatalf("attack failed: %v", err)
 	}

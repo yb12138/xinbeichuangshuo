@@ -87,15 +87,15 @@ func TestSwordEmperor_MissAddsSwordSoulAndSwordQi(t *testing.T) {
 	}
 
 	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	})
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID:  "p2",
 		Type:      model.CmdRespond,
-		CardIndex: 0,
+		CardID:    testutils.PlayableCardID(t, game, "p2", 0),
 		ExtraArgs: []string{"defend"},
 	})
 
@@ -167,16 +167,16 @@ func TestSwordEmperor_AngelSoul_MissDisablesGuardAndAddsMorale(t *testing.T) {
 	}
 
 	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	})
 	testutils.ChooseResponseSkillByID(t, game, "p1", "se_angel_soul")
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID:  "p2",
 		Type:      model.CmdRespond,
-		CardIndex: 0,
+		CardID:    testutils.PlayableCardID(t, game, "p2", 0),
 		ExtraArgs: []string{"defend"},
 	})
 
@@ -218,10 +218,10 @@ func TestSwordEmperor_AngelSoul_HitHealsTwo(t *testing.T) {
 	}
 
 	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	})
 	testutils.ChooseResponseSkillByID(t, game, "p1", "se_angel_soul")
 	testutils.MustHandleAction(t, game, model.PlayerAction{
@@ -262,10 +262,10 @@ func TestSwordEmperor_DemonSoul_HitAddsDamage(t *testing.T) {
 	}
 
 	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	})
 	testutils.ChooseResponseSkillByID(t, game, "p1", "se_demon_soul")
 	testutils.MustHandleAction(t, game, model.PlayerAction{
@@ -300,16 +300,16 @@ func TestSwordEmperor_DemonSoul_MissAddsTwoSwordQi(t *testing.T) {
 	}
 
 	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	})
 	testutils.ChooseResponseSkillByID(t, game, "p1", "se_demon_soul")
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID:  "p2",
 		Type:      model.CmdRespond,
-		CardIndex: 0,
+		CardID:    testutils.PlayableCardID(t, game, "p2", 0),
 		ExtraArgs: []string{"defend"},
 	})
 
@@ -345,10 +345,10 @@ func TestSwordEmperor_SwordQiSlash_ExcludeOriginalTargetAndDealMagicDamage(t *te
 	}
 
 	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	})
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID:  "p2",

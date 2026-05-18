@@ -38,10 +38,10 @@ func TestCombatDefend_CannotPlayShieldFromHand(t *testing.T) {
 	}
 
 	if err := game.HandleAction(model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	}); err != nil {
 		t.Fatalf("attack failed: %v", err)
 	}
@@ -50,7 +50,7 @@ func TestCombatDefend_CannotPlayShieldFromHand(t *testing.T) {
 		PlayerID:  "p2",
 		Type:      model.CmdRespond,
 		ExtraArgs: []string{"defend"},
-		CardIndex: 0,
+		CardID:    testutils.PlayableCardID(t, game, "p2", 0),
 	})
 	if err == nil {
 		t.Fatalf("expected defend with shield in hand to fail")
@@ -91,10 +91,10 @@ func TestCombatDefend_HolyLightStillValid(t *testing.T) {
 	}
 
 	if err := game.HandleAction(model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	}); err != nil {
 		t.Fatalf("attack failed: %v", err)
 	}
@@ -103,7 +103,7 @@ func TestCombatDefend_HolyLightStillValid(t *testing.T) {
 		PlayerID:  "p2",
 		Type:      model.CmdRespond,
 		ExtraArgs: []string{"defend"},
-		CardIndex: 0,
+		CardID:    testutils.PlayableCardID(t, game, "p2", 0),
 	}); err != nil {
 		t.Fatalf("defend with holy light should succeed: %v", err)
 	}
@@ -144,10 +144,10 @@ func TestMagicBulletDefend_CannotPlayShieldFromHand(t *testing.T) {
 	}
 
 	if err := game.HandleAction(model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdMagic,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdMagic,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	}); err != nil {
 		t.Fatalf("magic bullet failed: %v", err)
 	}
@@ -156,7 +156,7 @@ func TestMagicBulletDefend_CannotPlayShieldFromHand(t *testing.T) {
 		PlayerID:  "p2",
 		Type:      model.CmdRespond,
 		ExtraArgs: []string{"defend"},
-		CardIndex: 0,
+		CardID:    testutils.PlayableCardID(t, game, "p2", 0),
 	})
 	if err == nil {
 		t.Fatalf("expected defend with shield in hand to fail for magic bullet")
@@ -200,10 +200,10 @@ func TestMagicBulletDefend_RequiresExplicitHolyLightIndex(t *testing.T) {
 	}
 
 	if err := game.HandleAction(model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdMagic,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdMagic,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	}); err != nil {
 		t.Fatalf("magic bullet failed: %v", err)
 	}
@@ -212,7 +212,7 @@ func TestMagicBulletDefend_RequiresExplicitHolyLightIndex(t *testing.T) {
 		PlayerID:  "p2",
 		Type:      model.CmdRespond,
 		ExtraArgs: []string{"defend"},
-		CardIndex: -1,
+		CardID:    "__invalid_card_id__",
 	})
 	if err == nil {
 		t.Fatalf("expected defend with invalid index to fail")
@@ -270,10 +270,10 @@ func TestMagicBullet_FieldShieldAutoBlocks(t *testing.T) {
 	}
 
 	if err := game.HandleAction(model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdMagic,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdMagic,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	}); err != nil {
 		t.Fatalf("magic bullet failed: %v", err)
 	}
@@ -352,10 +352,10 @@ func TestMagicBullet_FieldShieldCanStillDefendWithHolyLight(t *testing.T) {
 	}
 
 	if err := game.HandleAction(model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdMagic,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdMagic,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	}); err != nil {
 		t.Fatalf("magic bullet failed: %v", err)
 	}
@@ -364,7 +364,7 @@ func TestMagicBullet_FieldShieldCanStillDefendWithHolyLight(t *testing.T) {
 		PlayerID:  "p2",
 		Type:      model.CmdRespond,
 		ExtraArgs: []string{"defend"},
-		CardIndex: 0,
+		CardID:    testutils.PlayableCardID(t, game, "p2", 0),
 	}); err != nil {
 		t.Fatalf("defend with holy light should succeed: %v", err)
 	}
@@ -435,10 +435,10 @@ func TestMagicBullet_PassToShieldedNextTargetNeedsPromptFirst(t *testing.T) {
 
 	// p1 发起魔弹，目标是 p2
 	if err := game.HandleAction(model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdMagic,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdMagic,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	}); err != nil {
 		t.Fatalf("magic bullet failed: %v", err)
 	}
@@ -451,7 +451,7 @@ func TestMagicBullet_PassToShieldedNextTargetNeedsPromptFirst(t *testing.T) {
 		PlayerID:  "p2",
 		Type:      model.CmdRespond,
 		ExtraArgs: []string{"counter"},
-		CardIndex: 0,
+		CardID:    testutils.PlayableCardID(t, game, "p2", 0),
 	}); err != nil {
 		t.Fatalf("counter response failed: %v", err)
 	}
@@ -526,10 +526,10 @@ func TestCombatShield_WaitsForPlayerChoice(t *testing.T) {
 	}
 
 	if err := game.HandleAction(model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	}); err != nil {
 		t.Fatalf("attack failed: %v", err)
 	}
@@ -587,10 +587,10 @@ func TestCombatShield_ConsumeOnTake(t *testing.T) {
 	}
 
 	if err := game.HandleAction(model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	}); err != nil {
 		t.Fatalf("attack failed: %v", err)
 	}
@@ -663,10 +663,10 @@ func TestCombatShield_CounterChoiceKeepsShield(t *testing.T) {
 	}
 
 	if err := game.HandleAction(model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	}); err != nil {
 		t.Fatalf("attack failed: %v", err)
 	}
@@ -675,7 +675,7 @@ func TestCombatShield_CounterChoiceKeepsShield(t *testing.T) {
 		PlayerID:  "p2",
 		Type:      model.CmdRespond,
 		ExtraArgs: []string{"counter"},
-		CardIndex: 0,
+		CardID:    testutils.PlayableCardID(t, game, "p2", 0),
 		TargetID:  "p3",
 	}); err != nil {
 		t.Fatalf("counter response failed: %v", err)

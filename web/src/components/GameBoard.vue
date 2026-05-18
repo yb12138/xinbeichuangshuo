@@ -1164,30 +1164,12 @@ function onTargetClick(playerId: string) {
   }
 }
 
-function normalizePromptElementToken(raw: string): string {
-  const text = String(raw || '').trim().toLowerCase()
-  if (!text) return ''
-  if (text.includes('water') || text.includes('水')) return 'Water'
-  if (text.includes('fire') || text.includes('火')) return 'Fire'
-  if (text.includes('earth') || text.includes('地')) return 'Earth'
-  if (text.includes('wind') || text.includes('风')) return 'Wind'
-  if (text.includes('thunder') || text.includes('雷')) return 'Thunder'
-  if (text.includes('light') || text.includes('光')) return 'Light'
-  if (text.includes('dark') || text.includes('暗')) return 'Dark'
-  return ''
-}
-
 function plagueDeathTouchPromptElementSet(prompt: Prompt | null): Set<string> {
   const set = new Set<string>()
   if (!prompt || prompt.presentation?.card_filter !== 'plague_death_touch_element') return set
   for (const option of prompt.options || []) {
-    const resolved = normalizePromptElementToken(`${option.label || ''} ${option.button_label || ''}`)
-    if (resolved) {
-      set.add(resolved)
-      continue
-    }
-    const fallback = normalizePromptElementToken(option.id || '')
-    if (fallback) set.add(fallback)
+    const element = String(option.element || '').trim()
+    if (element) set.add(element)
   }
   return set
 }
@@ -1507,8 +1489,10 @@ function promptCardSelectionState(idx: number): PromptCardSelectionState {
   if (prompt.presentation?.card_filter === 'option_limited') {
     const validIndices = new Set(
       (prompt.options || []).map((o: any) => {
-        const idx = parseInt(String(o?.id || ''), 10)
-        return Number.isFinite(idx) && idx >= 0 ? idx : null
+        const cardID = String(o?.card_id || '').trim()
+        if (!cardID) return null
+        const idx = myHand.value.findIndex(card => String(card.id || '').trim() === cardID)
+        return idx >= 0 ? idx : null
       }).filter((i): i is number => i !== null)
     )
     if (validIndices.size > 0 && !validIndices.has(idx)) {

@@ -8,6 +8,7 @@ import (
 	"starcup-engine/internal/engine"
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/server/prompting"
+	"starcup-engine/internal/server/timeline"
 )
 
 func TestTranslateClientAction_AttackUsesCardIDAndTargets(t *testing.T) {
@@ -128,18 +129,20 @@ func TestBuildTimelineNotify_DamageEvent(t *testing.T) {
 	room.Engine.State.CombatStage = model.CombatStageApply
 	room.Engine.State.CombatStack = []model.CombatRequest{{AttackerID: "p1", TargetID: "p2"}}
 
-	payload := room.buildTimelineNotify("damage_dealt", map[string]interface{}{
-		"source_id":   "p1",
-		"source_name": "Alice",
-		"target_id":   "p2",
-		"target_name": "Bob",
-		"damage":      3,
-		"damage_type": "Attack",
-		"action_type": "attack",
-		"cards": []model.Card{
+	payload := room.buildTimelineNotify(timeline.Payload{
+		Type:       "damage_dealt",
+		SourceID:   "p1",
+		SourceName: "Alice",
+		TargetID:   "p2",
+		TargetName: "Bob",
+		Damage:     3,
+		DamageType: "Attack",
+		ActionType: "attack",
+		Cards: []model.Card{
 			{ID: "card-001", Name: "烈焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 3},
 		},
-	}, "造成3点伤害")
+		Message: "造成3点伤害",
+	})
 
 	if payload.RoomID != "TIMELINE" {
 		t.Fatalf("expected room id TIMELINE, got %q", payload.RoomID)

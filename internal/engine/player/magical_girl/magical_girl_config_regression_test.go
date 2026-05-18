@@ -100,10 +100,10 @@ func TestMagicalGirl_MagicBulletFusion_DirectEarthMagicResolvesAsOriginalSpell(t
 	}
 
 	if err := game.HandleAction(model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdMagic,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdMagic,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	}); err != nil {
 		t.Fatalf("cast earth magic failed: %v", err)
 	}
@@ -164,7 +164,7 @@ func TestMagicalGirl_MagicBulletFusionChain_ResponseSkillPassesAlongDirection(t 
 		{ID: "fire-attack", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire},
 	}
 
-	if err := game.HandleAction(model.PlayerAction{PlayerID: "p1", Type: model.CmdMagic, CardIndex: 0}); err != nil {
+	if err := game.HandleAction(model.PlayerAction{PlayerID: "p1", Type: model.CmdMagic, CardID: testutils.PlayableCardID(t, game, "p1", 0)}); err != nil {
 		t.Fatalf("cast magic bullet failed: %v", err)
 	}
 	assertResponseSkillInterrupt(t, game, "p2", "magic_bullet_fusion_chain")
@@ -216,7 +216,7 @@ func TestMagicalGirl_MagicBulletFusionChain_SkipRestoresNormalMissilePrompt(t *t
 	p1.Hand = []model.Card{{ID: "mb", Name: "魔弹", Type: model.CardTypeMagic, Element: model.ElementWater, Damage: 2}}
 	p2.Hand = []model.Card{{ID: "earth", Name: "地裂斩", Type: model.CardTypeAttack, Element: model.ElementEarth}}
 
-	if err := game.HandleAction(model.PlayerAction{PlayerID: "p1", Type: model.CmdMagic, CardIndex: 0}); err != nil {
+	if err := game.HandleAction(model.PlayerAction{PlayerID: "p1", Type: model.CmdMagic, CardID: testutils.PlayableCardID(t, game, "p1", 0)}); err != nil {
 		t.Fatalf("cast magic bullet failed: %v", err)
 	}
 	assertResponseSkillInterrupt(t, game, "p2", "magic_bullet_fusion_chain")
@@ -244,20 +244,20 @@ func TestMagicalGirl_MagicBulletFusionChain_HiddenAfterParticipated(t *testing.T
 	}
 	p3.Hand = []model.Card{{ID: "mb-p3", Name: "魔弹", Type: model.CardTypeMagic, Element: model.ElementWater, Damage: 2}}
 
-	if err := game.HandleAction(model.PlayerAction{PlayerID: "p1", Type: model.CmdMagic, CardIndex: 0}); err != nil {
+	if err := game.HandleAction(model.PlayerAction{PlayerID: "p1", Type: model.CmdMagic, CardID: testutils.PlayableCardID(t, game, "p1", 0)}); err != nil {
 		t.Fatalf("cast magic bullet failed: %v", err)
 	}
 	assertResponseSkillInterrupt(t, game, "p2", "magic_bullet_fusion_chain")
 	if err := game.HandleAction(model.PlayerAction{PlayerID: "p2", Type: model.CmdCancel}); err != nil {
 		t.Fatalf("skip fusion chain response skill failed: %v", err)
 	}
-	if err := game.HandleAction(model.PlayerAction{PlayerID: "p2", Type: model.CmdRespond, ExtraArgs: []string{"counter"}, CardIndex: 1}); err != nil {
+	if err := game.HandleAction(model.PlayerAction{PlayerID: "p2", Type: model.CmdRespond, ExtraArgs: []string{"counter"}, CardID: testutils.PlayableCardID(t, game, "p2", 1)}); err != nil {
 		t.Fatalf("p2 counter magic bullet failed: %v", err)
 	}
 	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptMagicMissile || game.State.PendingInterrupt.PlayerID != "p3" {
 		t.Fatalf("expected missile to pass to p3, got %+v", game.State.PendingInterrupt)
 	}
-	if err := game.HandleAction(model.PlayerAction{PlayerID: "p3", Type: model.CmdRespond, ExtraArgs: []string{"counter"}, CardIndex: 0}); err != nil {
+	if err := game.HandleAction(model.PlayerAction{PlayerID: "p3", Type: model.CmdRespond, ExtraArgs: []string{"counter"}, CardID: testutils.PlayableCardID(t, game, "p3", 0)}); err != nil {
 		t.Fatalf("p3 counter magic bullet failed: %v", err)
 	}
 	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptMagicMissile {
@@ -275,7 +275,7 @@ func TestMagicalGirl_MagicBulletFusionChain_NonMagicalGirlDoesNotOfferSkill(t *t
 	p1.Hand = []model.Card{{ID: "mb", Name: "魔弹", Type: model.CardTypeMagic, Element: model.ElementWater, Damage: 2}}
 	p2.Hand = []model.Card{{ID: "earth", Name: "地裂斩", Type: model.CardTypeAttack, Element: model.ElementEarth}}
 
-	if err := game.HandleAction(model.PlayerAction{PlayerID: "p1", Type: model.CmdMagic, CardIndex: 0}); err != nil {
+	if err := game.HandleAction(model.PlayerAction{PlayerID: "p1", Type: model.CmdMagic, CardID: testutils.PlayableCardID(t, game, "p1", 0)}); err != nil {
 		t.Fatalf("cast magic bullet failed: %v", err)
 	}
 	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptMagicMissile {

@@ -271,7 +271,7 @@ func TestBlazeWitchFlameForm_AttackUsesPreparedTransformedCard(t *testing.T) {
 	game.State.CurrentTurn = 0
 	game.State.TurnStage = model.TurnStageActionExecution
 
-	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardIndex: 0})
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardID: testutils.PlayableCardID(t, game, "p1", 0)})
 
 	if got := testutils.CountFieldEffect(p1, model.EffectSealFire); got != 0 {
 		t.Fatalf("expected transformed fire attack to consume fire seal, got %d", got)

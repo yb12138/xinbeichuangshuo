@@ -43,7 +43,7 @@ func TestDebugHolySwordInterruptFiring(t *testing.T) {
 	// First 2 attacks
 	for i := 0; i < 2; i++ {
 		if err := game.HandleAction(model.PlayerAction{
-			PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardIndex: 0,
+			PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardID: testutils.PlayableCardID(t, game, "p1", 0),
 		}); err != nil {
 			t.Fatalf("attack #%d failed: %v", i+1, err)
 		}
@@ -58,7 +58,7 @@ func TestDebugHolySwordInterruptFiring(t *testing.T) {
 
 	// 3rd attack
 	if err := game.HandleAction(model.PlayerAction{
-		PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardIndex: 0,
+		PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardID: testutils.PlayableCardID(t, game, "p1", 0),
 	}); err != nil {
 		t.Fatalf("third attack failed: %v", err)
 	}

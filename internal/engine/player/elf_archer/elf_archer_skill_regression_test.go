@@ -49,10 +49,10 @@ func TestElfElementalShotPick_CancelSupported(t *testing.T) {
 	}
 
 	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	})
 	testutils.ChooseResponseSkillByID(t, game, "p1", "elf_elemental_shot")
 	testutils.RequireChoicePrompt(t, game, "p1", "elf_archer_elemental_shot_pick")
@@ -105,10 +105,10 @@ func TestElfElementalShotWind_GrantsExtraAttackOnlyAfterActionEnd(t *testing.T) 
 	}
 
 	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	})
 	activateElfElementalShotByPickingCard(t, game, "p1")
 
@@ -123,7 +123,7 @@ func TestElfElementalShotWind_GrantsExtraAttackOnlyAfterActionEnd(t *testing.T) 
 		PlayerID:  "p2",
 		Type:      model.CmdRespond,
 		ExtraArgs: []string{"defend"},
-		CardIndex: 0,
+		CardID:    testutils.PlayableCardID(t, game, "p2", 0),
 	})
 
 	game.Drive()
@@ -167,10 +167,10 @@ func TestElfElementalShotWater_AutoResolvesOnCurrentTarget(t *testing.T) {
 	}
 
 	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	})
 	activateElfElementalShotByPickingCard(t, game, "p1")
 
@@ -216,10 +216,10 @@ func TestElfElementalShotPickAllowsBlessingMagic(t *testing.T) {
 	})
 
 	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	})
 	testutils.ChooseResponseSkillByID(t, game, "p1", "elf_elemental_shot")
 	testutils.RequireChoicePrompt(t, game, "p1", "elf_archer_elemental_shot_pick")
@@ -231,8 +231,8 @@ func TestElfElementalShotPickAllowsBlessingMagic(t *testing.T) {
 		t.Fatalf("expected direct elemental shot pick prompt, got %q", got)
 	}
 	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdSelect,
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
 		Selections: []int{0},
 	})
 

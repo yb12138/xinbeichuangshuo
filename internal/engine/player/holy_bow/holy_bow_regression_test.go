@@ -384,7 +384,7 @@ func TestHolyBow_HolyShardStormMiss_NoBranch(t *testing.T) {
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID:  "p2",
 		Type:      model.CmdRespond,
-		CardIndex: 0,
+		CardID:    testutils.PlayableCardID(t, game, "p2", 0),
 		ExtraArgs: []string{"defend"},
 	})
 
@@ -458,7 +458,7 @@ func TestHolyBow_HolyShardStormMiss_NoEligibleAllySkipsPrompt(t *testing.T) {
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID:  "p2",
 		Type:      model.CmdRespond,
-		CardIndex: 0,
+		CardID:    testutils.PlayableCardID(t, game, "p2", 0),
 		ExtraArgs: []string{"defend"},
 	})
 
@@ -529,7 +529,7 @@ func TestHolyBow_HolyShardStormMiss_YesBranch(t *testing.T) {
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID:  "p2",
 		Type:      model.CmdRespond,
-		CardIndex: 0,
+		CardID:    testutils.PlayableCardID(t, game, "p2", 0),
 		ExtraArgs: []string{"defend"},
 	})
 
@@ -623,7 +623,7 @@ func TestHolyBow_HolyShardStormMiss_XChoicesRequireAllyEnoughCards(t *testing.T)
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID:  "p2",
 		Type:      model.CmdRespond,
-		CardIndex: 0,
+		CardID:    testutils.PlayableCardID(t, game, "p2", 0),
 		ExtraArgs: []string{"defend"},
 	})
 

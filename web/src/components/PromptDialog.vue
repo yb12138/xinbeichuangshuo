@@ -46,13 +46,13 @@ const isVisible = computed(() =>
 )
 
 const selectedExtractIndices = ref<number[]>([])
-const selectedInlineCardOptionIndices = ref<number[]>([])
+const selectedInlineCardIDs = ref<string[]>([])
 const autoResolvedPromptKey = ref('')
 
 watch(() => prompt.value, () => {
   interruptStore.setPromptCounterTarget('')
   selectedExtractIndices.value = []
-  selectedInlineCardOptionIndices.value = []
+  selectedInlineCardIDs.value = []
   if (!prompt.value) {
     autoResolvedPromptKey.value = ''
   }
@@ -544,7 +544,7 @@ const canConfirmPrompt = computed(() => {
   }
   if (prompt.value.type === 'choose_card' || prompt.value.type === 'choose_cards') {
     const cCount = isNonHandChooseCardsMultiMode.value
-      ? selectedInlineCardOptionIndices.value.length
+      ? selectedInlineCardIDs.value.length
       : interruptStore.selectedCards.length
     return cCount >= prompt.value.min && cCount <= prompt.value.max
   }
@@ -589,27 +589,22 @@ function confirmPromptAction() {
     return
   }
 
-  const indices = isNonHandChooseCardsMultiMode.value
-    ? selectedInlineCardOptionIndices.value
-    : interruptStore.selectedCards
+  if (isNonHandChooseCardsMultiMode.value) {
+    if (selectedInlineCardIDs.value.length > 0) {
+      actions.submitSelectCardIDs(selectedInlineCardIDs.value)
+    }
+    return
+  }
+
+  const indices = interruptStore.selectedCards
   if (indices.length > 0) {
-    if (!isNonHandChooseCardsMultiMode.value) {
-      const cardIDs = selectedPromptHandCardIDs(indices)
-      if (cardIDs.length === indices.length) {
-        actions.submitSelectCardIDs(cardIDs)
-        return
-      }
+    const cardIDs = selectedPromptHandCardIDs(indices)
+    if (cardIDs.length === indices.length) {
+      actions.submitSelectCardIDs(cardIDs)
+      return
     }
     actions.submitSelect(indices)
   }
-}
-
-function parsePromptCardIndex(optionId: string): number | null {
-  const normalized = String(optionId || '').trim()
-  if (!/^-?\d+$/.test(normalized)) return null
-  const parsed = Number.parseInt(normalized, 10)
-  if (!Number.isFinite(parsed)) return null
-  return parsed
 }
 
 function parseCocoonFieldIndexFromOptionLabel(label: string): number | null {
@@ -708,36 +703,38 @@ const isNonHandChooseCardsMultiMode = computed(() => {
   if (promptCardOptionIndexSet.value.size > 0) return false
   if (!prompt.value.options?.length) return false
   if ((prompt.value.max ?? 1) <= 1) return false
-  return prompt.value.options.every((option) => parsePromptCardIndex(option.id) !== null)
+  return prompt.value.options.every((option) => !!optionCardID(option))
 })
 
 function isNonHandChooseCardOption(optionId: string): boolean {
   if (!isNonHandChooseCardsMultiMode.value || !prompt.value?.options?.length) return false
-  const idx = parsePromptCardIndex(optionId)
-  if (idx === null) return false
-  return prompt.value.options.some((option) => option.id === optionId)
+  return prompt.value.options.some((option) => option.id === optionId && !!optionCardID(option))
+}
+
+function inlineCardIDForOption(optionId: string): string {
+  if (!prompt.value?.options?.length) return ''
+  const option = prompt.value.options.find((candidate) => candidate.id === optionId)
+  return option ? optionCardID(option) : ''
 }
 
 function toggleInlineCardOption(optionId: string) {
   if (!isNonHandChooseCardOption(optionId)) return
-  const idx = parsePromptCardIndex(optionId)
-  if (idx === null) return
-  const pos = selectedInlineCardOptionIndices.value.indexOf(idx)
+  const cardID = inlineCardIDForOption(optionId)
+  if (!cardID) return
+  const pos = selectedInlineCardIDs.value.indexOf(cardID)
   if (pos >= 0) {
-    selectedInlineCardOptionIndices.value.splice(pos, 1)
+    selectedInlineCardIDs.value.splice(pos, 1)
     return
   }
   const max = prompt.value?.max ?? 1
-  if (selectedInlineCardOptionIndices.value.length >= max) return
-  selectedInlineCardOptionIndices.value.push(idx)
-  selectedInlineCardOptionIndices.value.sort((a, b) => a - b)
+  if (selectedInlineCardIDs.value.length >= max) return
+  selectedInlineCardIDs.value.push(cardID)
 }
 
 function isInlineCardOptionSelected(optionId: string): boolean {
   if (!isNonHandChooseCardOption(optionId)) return false
-  const idx = parsePromptCardIndex(optionId)
-  if (idx === null) return false
-  return selectedInlineCardOptionIndices.value.includes(idx)
+  const cardID = inlineCardIDForOption(optionId)
+  return !!cardID && selectedInlineCardIDs.value.includes(cardID)
 }
 
 type RawDockOption = {

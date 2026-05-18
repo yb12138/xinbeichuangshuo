@@ -320,10 +320,10 @@ func TestAngelBond_AfterShieldDoesNotReopenActionSelection(t *testing.T) {
 	}
 
 	if err := game.HandleAction(model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdMagic,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdMagic,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	}); err != nil {
 		t.Fatalf("cast shield should succeed, got err=%v", err)
 	}
@@ -348,10 +348,10 @@ func TestAngelBond_AfterShieldDoesNotReopenActionSelection(t *testing.T) {
 	}
 
 	if err := game.HandleAction(model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdMagic,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdMagic,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	}); err == nil {
 		t.Fatalf("expected p1 cannot cast another magic immediately after shield+bond resolution")
 	}

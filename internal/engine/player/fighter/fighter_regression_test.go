@@ -26,7 +26,8 @@ func (o *actionPromptObserver) OnGameEvent(event model.GameEvent) {
 	if event.Type != model.EventAskInput {
 		return
 	}
-	prompt, ok := event.Data.(*model.Prompt)
+	prompt := event.Prompt
+	ok := prompt != nil
 	if !ok || prompt == nil {
 		return
 	}
@@ -107,7 +108,7 @@ func TestFighterChargeStrike_HitDamageBonus(t *testing.T) {
 	game.State.CurrentTurn = 0
 	game.State.TurnStage = model.TurnStageActionExecution
 
-	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardIndex: 0})
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardID: testutils.PlayableCardID(t, game, "p1", 0)})
 	testutils.ChooseResponseSkillByID(t, game, "p1", "fighter_charge_strike")
 	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p2", Type: model.CmdRespond, ExtraArgs: []string{"take"}})
 
@@ -148,9 +149,9 @@ func TestFighterChargeStrike_MissSelfDamageByQi(t *testing.T) {
 	game.State.CurrentTurn = 0
 	game.State.TurnStage = model.TurnStageActionExecution
 
-	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardIndex: 0})
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardID: testutils.PlayableCardID(t, game, "p1", 0)})
 	testutils.ChooseResponseSkillByID(t, game, "p1", "fighter_charge_strike")
-	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p2", Type: model.CmdRespond, CardIndex: 0, ExtraArgs: []string{"defend"}})
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p2", Type: model.CmdRespond, CardID: testutils.PlayableCardID(t, game, "p2", 0), ExtraArgs: []string{"defend"}})
 
 	if got := len(p1.Hand); got != 1 {
 		t.Fatalf("expected fighter self-damage draw 1 card after miss, got hand=%d", got)
@@ -253,10 +254,10 @@ func TestFighterChargeStrike_GrantsQiImmediatelyBeforeCombatResult(t *testing.T)
 	game.State.TurnStage = model.TurnStageActionExecution
 
 	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	})
 
 	testutils.ChooseResponseSkillByID(t, game, "p1", "fighter_charge_strike")
@@ -276,7 +277,7 @@ func TestFighterChargeStrike_GrantsQiImmediatelyBeforeCombatResult(t *testing.T)
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID:  "p2",
 		Type:      model.CmdRespond,
-		CardIndex: 0,
+		CardID:    testutils.PlayableCardID(t, game, "p2", 0),
 		ExtraArgs: []string{"defend"},
 	})
 
@@ -310,7 +311,7 @@ func TestFighterPsiBullet_TargetChoiceAndSelfDamage(t *testing.T) {
 	game.State.CurrentTurn = 0
 	game.State.TurnStage = model.TurnStageActionExecution
 
-	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdMagic, TargetID: "p1", CardIndex: 0})
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdMagic, TargetID: "p1", CardID: testutils.PlayableCardID(t, game, "p1", 0)})
 	testutils.ChooseResponseSkillByID(t, game, "p1", "fighter_psi_bullet")
 	testutils.RequireChoicePrompt(t, game, "p1", "fighter_psi_bullet_target")
 	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0}})
@@ -441,7 +442,7 @@ func TestFighterHundredDragon_BonusesAndTargetLockReleaseStillContinuesAttack(t 
 	game.State.CurrentTurn = 0
 	game.State.TurnStage = model.TurnStageActionExecution
 
-	err := game.HandleAction(model.PlayerAction{PlayerID: "p1", Type: model.CmdAttack, TargetID: "p3", CardIndex: 0})
+	err := game.HandleAction(model.PlayerAction{PlayerID: "p1", Type: model.CmdAttack, TargetID: "p3", CardID: testutils.PlayableCardID(t, game, "p1", 0)})
 	if err != nil {
 		t.Fatalf("expected attack continue after releasing hundred dragon, got %v", err)
 	}
@@ -507,10 +508,10 @@ func TestFighterHundredDragon_MagicAttemptCancelsFormAndAction(t *testing.T) {
 	game.State.TurnStage = model.TurnStageActionExecution
 
 	err := game.HandleAction(model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdMagic,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdMagic,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	})
 	if err == nil || !strings.Contains(err.Error(), "不能执行法术行动") {
 		t.Fatalf("expected hundred dragon magic attempt be canceled, got %v", err)
@@ -663,7 +664,7 @@ func TestFighterBurstCrash_NoCounterAndSelfDamage(t *testing.T) {
 	game.State.CurrentTurn = 0
 	game.State.TurnStage = model.TurnStageActionExecution
 
-	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardIndex: 0})
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardID: testutils.PlayableCardID(t, game, "p1", 0)})
 	testutils.RequireResponseSkillPrompt(t, game, "p1")
 	// 蓄力一击与气绝崩击互斥应在同一面板内同时提供（含跳过），由玩家三选一。
 	if got := game.State.PendingInterrupt.SkillIDs; len(got) != 2 ||
@@ -681,7 +682,7 @@ func TestFighterBurstCrash_NoCounterAndSelfDamage(t *testing.T) {
 		t.Fatalf("expected burst crash to force no-counter")
 	}
 
-	err := game.HandleAction(model.PlayerAction{PlayerID: "p2", Type: model.CmdRespond, CardIndex: 0, TargetID: "p3", ExtraArgs: []string{"counter"}})
+	err := game.HandleAction(model.PlayerAction{PlayerID: "p2", Type: model.CmdRespond, CardID: testutils.PlayableCardID(t, game, "p2", 0), TargetID: "p3", ExtraArgs: []string{"counter"}})
 	if err == nil || !strings.Contains(err.Error(), "无法被应战") {
 		t.Fatalf("expected counter blocked by burst crash, got %v", err)
 	}

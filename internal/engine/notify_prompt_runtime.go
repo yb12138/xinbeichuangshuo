@@ -210,21 +210,65 @@ func (e *GameEngine) decoratePromptForClient(prompt *model.Prompt) *model.Prompt
 }
 
 func (e *GameEngine) Notify(eventType model.GameEventType, msg string, data interface{}) {
-	if eventType == model.EventAskInput {
+	event := model.GameEvent{
+		Type:    eventType,
+		Message: msg,
+	}
+	switch eventType {
+	case model.EventAskInput:
 		switch p := data.(type) {
 		case *model.Prompt:
-			data = e.decoratePromptForClient(p)
+			event.Prompt = e.decoratePromptForClient(p)
 		case model.Prompt:
 			cp := p
-			data = e.decoratePromptForClient(&cp)
+			event.Prompt = e.decoratePromptForClient(&cp)
+		}
+	case model.EventCardRevealed:
+		switch payload := data.(type) {
+		case model.CardRevealedPayload:
+			cp := payload
+			event.CardRevealed = &cp
+		case *model.CardRevealedPayload:
+			event.CardRevealed = payload
+		}
+	case model.EventDamageDealt:
+		switch payload := data.(type) {
+		case model.DamageDealtPayload:
+			cp := payload
+			event.DamageDealt = &cp
+		case *model.DamageDealtPayload:
+			event.DamageDealt = payload
+		}
+	case model.EventActionStep:
+		switch payload := data.(type) {
+		case model.ActionStepPayload:
+			cp := payload
+			event.ActionStep = &cp
+		case *model.ActionStepPayload:
+			event.ActionStep = payload
+		}
+	case model.EventCombatCue:
+		switch payload := data.(type) {
+		case model.CombatCuePayload:
+			cp := payload
+			event.CombatCue = &cp
+		case *model.CombatCuePayload:
+			event.CombatCue = payload
+		}
+	case model.EventDrawCards:
+		switch payload := data.(type) {
+		case model.DrawCardsPayload:
+			cp := payload
+			event.DrawCards = &cp
+		case *model.DrawCardsPayload:
+			event.DrawCards = payload
 		}
 	}
+	if err := event.Validate(); err != nil {
+		panic(err)
+	}
 	if e.observer != nil {
-		e.observer.OnGameEvent(model.GameEvent{
-			Type:    eventType,
-			Message: msg,
-			Data:    data,
-		})
+		e.observer.OnGameEvent(event)
 	}
 }
 

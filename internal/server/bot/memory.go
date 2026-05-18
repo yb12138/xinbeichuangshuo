@@ -36,26 +36,22 @@ func (m *Memory) ensurePlayer(playerID string) *PlayerRevealStats {
 	return ps
 }
 
-func (m *Memory) ObserveReveal(data map[string]interface{}) {
+func (m *Memory) ObserveCardRevealed(payload model.CardRevealedPayload) {
 	if m == nil {
 		return
 	}
-	hidden, _ := data["hidden"].(bool)
-	if hidden {
+	if payload.Hidden {
 		// 保持“人类可见信息”原则：暗弃不纳入推断。
 		return
 	}
-	playerID, _ := data["player_id"].(string)
-	if playerID == "" {
+	if payload.PlayerID == "" {
 		return
 	}
-	actionType, _ := data["action_type"].(string)
-	cards := extractCardsFromEvent(data["cards"])
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	ps := m.ensurePlayer(playerID)
-	for _, c := range cards {
+	ps := m.ensurePlayer(payload.PlayerID)
+	for _, c := range payload.Cards {
 		if c.Type == model.CardTypeAttack {
 			ps.AttackShown++
 		}
@@ -66,8 +62,8 @@ func (m *Memory) ObserveReveal(data map[string]interface{}) {
 			ps.ElementSeen[c.Element]++
 		}
 	}
-	if actionType == "defend" {
-		ps.DefendShown += len(cards)
+	if payload.ActionType == "defend" {
+		ps.DefendShown += len(payload.Cards)
 	}
 }
 
@@ -100,51 +96,4 @@ func (m *Memory) AttackBias(playerID string) float64 {
 	}
 	attackRatio := float64(ps.AttackShown) / float64(total)
 	return clamp((attackRatio-0.5)*0.2, -0.1, 0.1)
-}
-
-func extractCardsFromEvent(raw interface{}) []model.Card {
-	switch cards := raw.(type) {
-	case []model.Card:
-		return cards
-	case []interface{}:
-		out := make([]model.Card, 0, len(cards))
-		for _, item := range cards {
-			m, ok := item.(map[string]interface{})
-			if !ok {
-				continue
-			}
-			out = append(out, model.Card{
-				ID:      toString(m["id"]),
-				Name:    toString(m["name"]),
-				Type:    model.CardType(toString(m["type"])),
-				Element: model.Element(toString(m["element"])),
-				Damage:  toInt(m["damage"]),
-			})
-		}
-		return out
-	default:
-		return nil
-	}
-}
-
-func toString(v interface{}) string {
-	if s, ok := v.(string); ok {
-		return s
-	}
-	return ""
-}
-
-func toInt(v interface{}) int {
-	switch t := v.(type) {
-	case int:
-		return t
-	case int64:
-		return int(t)
-	case float64:
-		return int(t)
-	case float32:
-		return int(t)
-	default:
-		return 0
-	}
 }

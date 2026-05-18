@@ -30,6 +30,7 @@ type PromptOptionDTO struct {
 	Hint        string `json:"hint,omitempty"`
 	CardID      string `json:"card_id,omitempty"`
 	FieldIndex  *int   `json:"field_index,omitempty"`
+	Element     string `json:"element,omitempty"`
 }
 
 // ToPromptDTO 将 model.Prompt 转换为 PromptDTO
@@ -63,6 +64,7 @@ func ToPromptDTO(p *model.Prompt) *PromptDTO {
 			Hint:        o.Hint,
 			CardID:      o.CardID,
 			FieldIndex:  o.FieldIndex,
+			Element:     o.Element,
 		})
 	}
 	// 转换 SpecialOptions
@@ -75,6 +77,7 @@ func ToPromptDTO(p *model.Prompt) *PromptDTO {
 			Hint:        o.Hint,
 			CardID:      o.CardID,
 			FieldIndex:  o.FieldIndex,
+			Element:     o.Element,
 		})
 	}
 	return dto
