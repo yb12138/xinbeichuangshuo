@@ -86,25 +86,27 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 
 func buildIncantConfirmPrompt(playerID string) *model.Prompt {
 	return &model.Prompt{
-		Type:       model.PromptConfirm,
-		PlayerID:   playerID,
-		Message:    "【念咒】是否将1张手牌面朝下放置为妖力？",
-		ChoiceType: "sc_incant_confirm",
-		Options:    []model.PromptOption{{ID: "0", Label: "是"}, {ID: "1", Label: "否"}},
-		Min:        1,
-		Max:        1,
+		Type:         model.PromptConfirm,
+		PlayerID:     playerID,
+		Message:      "【念咒】是否将1张手牌面朝下放置为妖力？",
+		ChoiceType:   "sc_incant_confirm",
+		Options:      []model.PromptOption{{ID: "0", Label: "是"}, {ID: "1", Label: "否"}},
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 	}
 }
 
 func buildIncantConfirmNoHandPrompt(playerID string) *model.Prompt {
 	return &model.Prompt{
-		Type:       model.PromptConfirm,
-		PlayerID:   playerID,
-		Message:    "【念咒】无手牌可放置为妖力，是否跳过？",
-		ChoiceType: "sc_incant_confirm_no_hand",
-		Options:    []model.PromptOption{{ID: "0", Label: "跳过念咒"}, {ID: "1", Label: "取消"}},
-		Min:        1,
-		Max:        1,
+		Type:         model.PromptConfirm,
+		PlayerID:     playerID,
+		Message:      "【念咒】无手牌可放置为妖力，是否跳过？",
+		ChoiceType:   "sc_incant_confirm_no_hand",
+		Options:      []model.PromptOption{{ID: "0", Label: "跳过念咒"}, {ID: "1", Label: "取消"}},
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 	}
 }
 
@@ -114,13 +116,14 @@ func buildIncantCardPrompt(playerID string, player *model.Player) *model.Prompt 
 		options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", idx), Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(c))})
 	}
 	return &model.Prompt{
-		Type:       model.PromptConfirm,
-		PlayerID:   playerID,
-		Message:    "【念咒】请选择要作为妖力盖放的手牌：",
-		ChoiceType: "sc_incant_card",
-		Options:    options,
-		Min:        1,
-		Max:        1,
+		Type:         model.PromptConfirm,
+		PlayerID:     playerID,
+		Message:      "【念咒】请选择要作为妖力盖放的手牌：",
+		ChoiceType:   "sc_incant_card",
+		Options:      options,
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand"},
 	}
 }
 
@@ -186,25 +189,27 @@ func buildHundredNightExcludePickPrompt(rt engineplayer.ChoiceRuntime, playerID 
 		}
 	}
 	return &model.Prompt{
-		Type:       model.PromptConfirm,
-		PlayerID:   playerID,
-		Message:    fmt.Sprintf("【百鬼夜行】请选择第 %d/2 名排除目标：", len(selectedSet)+1),
-		ChoiceType: "sc_hundred_night_exclude_pick",
-		Options:    options,
-		Min:        1,
-		Max:        1,
+		Type:         model.PromptConfirm,
+		PlayerID:     playerID,
+		Message:      fmt.Sprintf("【百鬼夜行】请选择第 %d/2 名排除目标：", len(selectedSet)+1),
+		ChoiceType:   "sc_hundred_night_exclude_pick",
+		Options:      options,
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationTargetPicker, TargetFilter: "custom"},
 	}
 }
 
 func buildSpiritualCollapseConfirmPrompt(playerID string) *model.Prompt {
 	return &model.Prompt{
-		Type:       model.PromptConfirm,
-		PlayerID:   playerID,
-		Message:    "【灵力崩解】是否消耗1点水晶（红宝石可替代），使本次每段伤害额外+1？",
-		ChoiceType: "sc_spiritual_collapse_confirm",
-		Options:    []model.PromptOption{{ID: "0", Label: "是"}, {ID: "1", Label: "否"}},
-		Min:        1,
-		Max:        1,
+		Type:         model.PromptConfirm,
+		PlayerID:     playerID,
+		Message:      "【灵力崩解】是否消耗1点水晶（红宝石可替代），使本次每段伤害额外+1？",
+		ChoiceType:   "sc_spiritual_collapse_confirm",
+		Options:      []model.PromptOption{{ID: "0", Label: "是"}, {ID: "1", Label: "否"}},
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 	}
 }
 
@@ -219,13 +224,14 @@ func buildTalismanWindDiscardPrompt(rt engineplayer.ChoiceRuntime, playerID stri
 		options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", idx), Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(c))})
 	}
 	return &model.Prompt{
-		Type:       model.PromptConfirm,
-		PlayerID:   playerID,
-		Message:    fmt.Sprintf("【灵符-风行】请 %s 选择1张手牌弃置：", target.Name),
-		ChoiceType: "sc_talisman_wind_discard",
-		Options:    options,
-		Min:        1,
-		Max:        1,
+		Type:         model.PromptConfirm,
+		PlayerID:     playerID,
+		Message:      fmt.Sprintf("【灵符-风行】请 %s 选择1张手牌弃置：", target.Name),
+		ChoiceType:   "sc_talisman_wind_discard",
+		Options:      options,
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "proxy"},
 	}
 }
 
@@ -234,13 +240,14 @@ func buildTalismanPickPrompt(playerID string, player *model.Player) *model.Promp
 	options = append(options, model.PromptOption{ID: "0", Label: "灵符-雷鸣"})
 	options = append(options, model.PromptOption{ID: "1", Label: "灵符-风行"})
 	return &model.Prompt{
-		Type:       model.PromptConfirm,
-		PlayerID:   playerID,
-		Message:    "【灵符】请选择要发动的灵符类型：",
-		ChoiceType: "sc_talisman_pick",
-		Options:    options,
-		Min:        1,
-		Max:        1,
+		Type:         model.PromptConfirm,
+		PlayerID:     playerID,
+		Message:      "【灵符】请选择要发动的灵符类型：",
+		ChoiceType:   "sc_talisman_pick",
+		Options:      options,
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 	}
 }
 

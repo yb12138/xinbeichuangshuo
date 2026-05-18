@@ -19,23 +19,25 @@ func (choiceHandler) BuildPrompt(_ engineplayer.ChoiceRuntime, choiceType, playe
 	switch choiceType {
 	case "prayer_power_blessing_response":
 		return &model.Prompt{
-			Type:       model.PromptConfirm,
-			PlayerID:   playerID,
-			ChoiceType: choiceType,
-			Message:    "【威力赐福】是否移除该赐福，使本次攻击伤害+2？",
-			Options:    []model.PromptOption{{ID: "0", Label: "是"}, {ID: "1", Label: "否"}},
-			Min:        1,
-			Max:        1,
+			Type:         model.PromptConfirm,
+			PlayerID:     playerID,
+			ChoiceType:   choiceType,
+			Message:      "【威力赐福】是否移除该赐福，使本次攻击伤害+2？",
+			Options:      []model.PromptOption{{ID: "0", Label: "是"}, {ID: "1", Label: "否"}},
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 		}
 	case "prayer_swift_blessing_response":
 		return &model.Prompt{
-			Type:       model.PromptConfirm,
-			PlayerID:   playerID,
-			ChoiceType: choiceType,
-			Message:    "【迅捷赐福】是否移除该赐福，获得额外1次攻击行动？",
-			Options:    []model.PromptOption{{ID: "0", Label: "是"}, {ID: "1", Label: "否"}},
-			Min:        1,
-			Max:        1,
+			Type:         model.PromptConfirm,
+			PlayerID:     playerID,
+			ChoiceType:   choiceType,
+			Message:      "【迅捷赐福】是否移除该赐福，获得额外1次攻击行动？",
+			Options:      []model.PromptOption{{ID: "0", Label: "是"}, {ID: "1", Label: "否"}},
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 		}
 	}
 	return nil

@@ -29,12 +29,13 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			msg = fmt.Sprintf("【天使羁绊】%s触发，请选择1名角色获得+1治疗", buffName)
 		}
 		return &model.Prompt{
-			Type:     "choose_target",
-			PlayerID: playerID,
-			Message:  msg,
-			Options:  options,
-			Min:      1,
-			Max:      1,
+			Type:         "choose_target",
+			PlayerID:     playerID,
+			Message:      msg,
+			Options:      options,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationTargetPicker, TargetFilter: "custom"},
 		}
 	case "god_protection_x":
 		maxX := runtimeutil.ToIntContextValue(data["max_x"])

@@ -27,7 +27,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		for xValue := 1; xValue <= maxX; xValue++ {
 			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", xValue), Label: fmt.Sprintf("移除%d点剑气，对另一名角色造成%d点法术伤害", xValue, xValue)})
 		}
-		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【剑气斩】请选择X值：", Options: options, Min: 1, Max: 1}
+		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【剑气斩】请选择X值：", Options: options, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 0}}
 	case "se_sword_qi_slash_target":
 		return engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, fmt.Sprintf("【剑气斩】请选择承受%d点法术伤害的目标：", runtimeutil.ToIntContextValue(data["x_value"])), data, false)
 	case "se_sword_rain_target":
@@ -42,12 +42,13 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			}
 		}
 		return &model.Prompt{
-			Type:     model.PromptConfirm,
-			PlayerID: playerID,
-			Message:  "【剑雨】请选择攻击目标：",
-			Options:  options,
-			Min:      1,
-			Max:      1,
+			Type:         model.PromptConfirm,
+			PlayerID:     playerID,
+			Message:      "【剑雨】请选择攻击目标：",
+			Options:      options,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationTargetPicker, TargetFilter: "custom"},
 		}
 	case "se_sword_rain_discard":
 		if player == nil {
@@ -65,12 +66,13 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			})
 		}
 		return &model.Prompt{
-			Type:     model.PromptChooseCards,
-			PlayerID: playerID,
-			Message:  "【剑雨】请选择要弃置的手牌：",
-			Options:  options,
-			Min:      1,
-			Max:      1,
+			Type:         model.PromptChooseCards,
+			PlayerID:     playerID,
+			Message:      "【剑雨】请选择要弃置的手牌：",
+			Options:      options,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand"},
 		}
 	default:
 		return nil
@@ -232,4 +234,3 @@ func performSwordRainAttack(rt engineplayer.ChoiceRuntime, user *model.Player, t
 	})
 	rt.Log(fmt.Sprintf("%s 发动 [剑雨]：对 %s 造成%d点攻击伤害", user.Name, target.Name, damage))
 }
-

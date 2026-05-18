@@ -1,27 +1,11 @@
 export type ResponseOptionKind = 'take' | 'counter' | 'defend' | null
 export type PromptImageButtonKind = 'take' | 'counter' | 'defend' | 'cancel' | 'confirm' | 'card' | 'action'
 
-export const PROMPT_OPTION_BUTTON_LABELS: Record<string, string> = {
-  confirm: '发动',
-  yes: '发动',
-  no: '取消',
-  cancel: '取消',
-  skip: '取消',
-  take: '命中',
-  counter: '应战',
-  defend: '防御',
-  normal: '顺时针',
-  reverse: '逆时针',
-  refuse: '不弃牌',
-  cannot_act: '取消',
-  pass: '取消',
-}
-
 export const PLAIN_NO_HINT_BUTTONS = new Set(['发动', '确认', '确定', '是', '取消', '不弃牌', '应战', '防御', '命中', '顺序', '反向'])
 
 export function responseOptionKind(option: { id?: string; label?: string; button_label?: string }): ResponseOptionKind {
   const id = String(option.id || '').trim().toLowerCase()
-  // 魔弹掌控方向选择不是战斗应答（take/defend/counter），避免被“传递”关键词误判为应战。
+  // 魔弹掌控方向选择不是战斗应答（take/defend/counter），避免被"传递"关键词误判为应战。
   if (id === 'normal' || id === 'reverse') return null
   const label = String(option.label || '').trim()
   const buttonLabel = String(option.button_label || '').trim()
@@ -102,36 +86,4 @@ export function promptImageButtonKindByOption(option: { id?: string; label?: str
   if (id === 'skip' || id === 'cancel' || id === 'no' || id === 'pass' || id === 'cannot_act') return 'cancel'
   if (buttonLabel === '取消' || isDeclineLabel(buttonLabel) || isDeclineLabel(label)) return 'cancel'
   return 'action'
-}
-
-export function normalizeButtonLabel(
-  rawLabel: string,
-  optionId: string,
-  optionLabel: string,
-  responseKind: ResponseOptionKind,
-): string {
-  const text = String(rawLabel || '').trim()
-  const lowerId = String(optionId || '').trim().toLowerCase()
-  if (responseKind === 'take' || lowerId === 'take' || lowerId === 'take_damage' || text.includes('承受') || text.includes('命中')) {
-    return '命中'
-  }
-  if (responseKind === 'counter' || lowerId === 'counter' || text.includes('应战')) {
-    return '应战'
-  }
-  if (responseKind === 'defend' || lowerId === 'defend' || text.includes('防御')) {
-    return '防御'
-  }
-  if (
-    lowerId === 'cancel' ||
-    lowerId === 'skip' ||
-    lowerId === 'refuse' ||
-    lowerId === 'no' ||
-    lowerId === 'pass' ||
-    lowerId === 'cannot_act' ||
-    isDeclineLabel(text) ||
-    isDeclineLabel(optionLabel)
-  ) {
-    return '取消'
-  }
-  return text
 }

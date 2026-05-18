@@ -9,9 +9,7 @@ import {
   isActivationCostText,
   isCardSelectionLikeText,
   isDeclineLabel,
-  normalizeButtonLabel,
   PLAIN_NO_HINT_BUTTONS,
-  PROMPT_OPTION_BUTTON_LABELS,
   promptImageButtonKindByOption,
   responseOptionKind,
   type PromptImageButtonKind,
@@ -129,10 +127,12 @@ const isElfElementalShotPickPrompt = computed(() =>
 const needsCardSelection = computed(() => {
   if (!prompt.value) return false
   if (isSystemBranchPromptChoice()) return false
-  if (isElfElementalShotPickPrompt.value) return true
-  if (isPlagueDeathTouchElementPrompt.value) return true
-  if (promptHasHandCardOptions.value) return true
+  const p = prompt.value.presentation
+  // card_picker prompts require card selection
+  if (p?.kind === 'card_picker') return true
+  // Legacy: choose_card / choose_cards type prompts
   if (prompt.value.type === 'choose_card' || prompt.value.type === 'choose_cards') return true
+  if (promptHasHandCardOptions.value) return true
   if (hasCounterOrDefend.value) return true
   return false
 })
@@ -142,13 +142,10 @@ const needsTargetSelection = computed(() => {
   return prompt.value.type === 'choose_target' || prompt.value.presentation?.kind === 'target_picker'
 })
 
-const PROMPT_REQUIRE_MANUAL_TARGET_CONFIRM_CHOICE_TYPES = new Set([
-  'sage_holy_targets',
-])
-
 const promptRequiresManualTargetConfirm = computed(() => {
   if (!prompt.value || prompt.value.presentation?.kind !== 'target_picker') return false
-  return PROMPT_REQUIRE_MANUAL_TARGET_CONFIRM_CHOICE_TYPES.has(String(prompt.value.choice_type || '').trim())
+  // Multi-target pickers require a manual confirm step
+  return !!prompt.value.presentation?.multi_target
 })
 
 const needsCounterTargetSelection = computed(() => {
@@ -255,237 +252,13 @@ function submitRuneReforgeAllocation() {
   actions.submitSelect([...runeReforgeAllocations.value])
 }
 
-const SYSTEM_BRANCH_PROMPT_CHOICE_TYPES = new Set<string>([
-  'weak',
-  'buy_resource',
-  'basic_effect_pick',
-  'mg_moon_cycle_mode',
-])
 
-const BRANCH_PROMPT_CHOICE_TYPES = new Set<string>([
-  ...SYSTEM_BRANCH_PROMPT_CHOICE_TYPES,
-  'mg_pale_moon_mode',
-  'bd_hope_mode',
-  'bd_victory_mode',
-  'bd_dissonance_mode',
-  'hb_light_burst_mode',
-  'mb_demon_eye_mode',
-  'bt_reverse_mode',
-  'bt_dance_mode',
-  'valkyrie_military_glory_mode',
-  'adventurer_steal_sky_mode',
-  'bp_blood_sorrow_mode',
-  'mg_moon_cycle_branch',
-])
 
-const FIELD_COVER_SELECTION_PROMPT_CHOICE_TYPES = new Set<string>([
-  'bt_pilgrimage_pick',
-  'bt_poison_pick',
-  'mg_medusa_darkmoon_pick',
-  'sc_hundred_night_power',
-])
 
-const NON_HAND_INDEXED_PROMPT_CHOICE_TYPES = new Set<string>([
-  // System choice types (option id 0/1/2 are branch indices, not hand indices)
-  ...SYSTEM_BRANCH_PROMPT_CHOICE_TYPES,
-  // Elf Archer choice types (matching backend elf_archer/choices.go)
-  'elf_archer_elemental_shot_pick',
-  'elf_animal_companion_confirm',
-  'elf_pet_empower_confirm',
-  'elf_elemental_shot_water_target',
-  'elf_elemental_shot_earth_target',
-  'elf_pet_empower_target',
-  'elf_ritual_release_target',
-  // Saintess choice types (matching backend saintess/choices.go)
-  'frost_prayer_target',
-  // Elementalist choice types (matching backend elementalist/choices.go)
-  'elementalist_freeze_damage_target',
-  'elementalist_freeze_heal_target',
-  'elementalist_bonus_card',
-  // Adventurer choice types (matching backend adventurer/choices.go)
-  'adventurer_extract_paradise_check',
-  'adventurer_paradise_pick',
-  'adventurer_fraud_pick',
-  'adventurer_fraud_attack_element',
-  'adventurer_steal_sky_mode',
-  // Valkyrie choice types (matching backend valkyrie/choices.go)
-  'valkyrie_military_glory_mode',
-  'valkyrie_military_glory_x',
-  'valkyrie_military_glory_target',
-  'valkyrie_heroic_discard_card',
-  // Angel choice types (matching backend angel/choices.go)
-  'angel_bond_heal_target',
-  'god_protection_x',
-  // Prayer Master choice types (matching backend prayer_master/choices.go)
-  'prayer_power_blessing_response',
-  'prayer_swift_blessing_response',
-  // Sealer choice types (matching backend sealer/choices.go)
-  'five_elements_bind',
-  // Blood Priestess choice types (matching backend blood_priestess/choices.go)
-  'bp_blood_sorrow_mode',
-  'bp_blood_sorrow_target',
-  'bp_blood_wail_x',
-  'bp_shared_life_target',
-  // NOTE: bp_curse_discard IS a card selection and should NOT be in this set
-  // Fighter choice types (matching backend fighter/choices.go)
-  'fighter_psi_bullet_target',
-  'fighter_hundred_dragon_target',
-  // Moon Goddess choice types (matching backend moon_goddess/choices.go)
-  'mg_medusa_darkmoon_pick',
-  'mg_medusa_magic_discard',
-  'mg_moon_cycle_mode',
-  'mg_moon_cycle_heal_target',
-  'mg_blasphemy_target',
-  'mg_darkmoon_slash_x',
-  'mg_pale_moon_mode',
-  'mg_pale_moon_x',
-  'mg_pale_moon_target',
-  'mg_pale_moon_discard',
-  // Holy Bow choice types (matching backend holy_bow/choices.go)
-  'hb_holy_shard_target',
-  'hb_holy_shard_miss_confirm',
-  'hb_holy_shard_miss_x',
-  'hb_holy_shard_miss_ally_target',
-  'hb_radiant_descent_cost',
-  'hb_light_burst_mode',
-  'hb_light_burst_mode_a_target',
-  'hb_light_burst_mode_b_x',
-  'hb_light_burst_mode_b_targets',
-  'hb_meteor_bullet_cost',
-  'hb_meteor_bullet_target',
-  'hb_radiant_cannon_side',
-  'hb_auto_fill_resource',
-  'hb_auto_fill_gain',
-  // Bard choice types that use numeric IDs but are NOT card selections (these are confirm/mode/target prompts)
-  'bd_rousing_mode',
-  'bd_victory_confirm',
-  'bd_victory_mode',
-  'bd_victory_extract_stone',
-  'bd_hope_draw_confirm',
-  'bd_hope_mode',
-  'bd_descent_element',
-  'bd_dissonance_x',
-  'bd_dissonance_mode',
-  'bd_dissonance_discard_proxy', // Proxy card selection: selecting cards for another player
-  // Hero choice types for response skill confirmations
-  'hero_roar_confirm',
-  'hero_roar_draw',
-  'hero_calm_mind_confirm',
-  'hero_forbidden_power_confirm',
-  'hero_taunt_target',
-  'hero_dead_duel_confirm',
-  // 注：Fighter 的「响应/启动技能」互斥面板由后端 buildResponseSkillPrompt /
-  // buildStartupSkillPrompt 统一以 PromptChooseSkill 渲染，前端无需在此白名单声明。
-  // Beast Samurai choice types (matching backend beast_samurai/choices.go)
-  'bs_beast_return_x',
-  'bs_reversal_x',
-  'bs_iaijutsu_style_mode',
-  'bs_alert_target',
-  // Soul Sorcerer choice types (matching backend soul_sorcerer/choices.go)
-  'ss_convert_color',
-  'ss_link_target',
-  'ss_link_transfer_x',
-  // Sword Emperor choice types for skill prompts
-  'se_sword_qi_slash_x',
-  'se_sword_qi_slash_target',
-  // Moon Goddess choice types for skill prompts
-  'mg_new_moon_shelter_confirm',
-  'mg_medusa_eye_target',
-  'mg_moon_cycle_branch',
-  'mg_moon_cycle_target',
-  'mg_moon_read_confirm',
-  'mg_moon_read_target',
-  'mg_darkmoon_slash_confirm',
-  'mg_darkmoon_slash_x',
-  'mg_pale_moon_confirm',
-  'mg_pale_moon_branch',
-  'mg_pale_moon_x',
-  'mg_pale_moon_target',
-  // Magic Lancer choice types (matching backend magic_lancer/choices.go)
-  'ml_fullness_cost_card',
-  'ml_fullness_discard_step',
-  // NOTE: mg_medusa_eye_dark_moon, mg_medusa_eye_discard, mg_pale_moon_discard
-  // ARE card selections and should NOT be in this set
-  // Blood Priestess choice types for skill prompts
-  'bp_blood_sorrow_branch',
-  'bp_blood_sorrow_target',
-  'bp_backflow_confirm',
-  'bp_blood_wail_confirm',
-  'bp_blood_wail_target',
-  'bp_blood_wail_x',
-  'bp_shared_life_confirm',
-  'bp_shared_life_target',
-  'bp_blood_curse_confirm',
-  'bp_blood_curse_target',
-  // NOTE: bp_backflow_discard, bp_curse_discard ARE card selections
-  // Spirit Caster choice types for skill prompts (matching backend choices.go)
-  'sc_incant_confirm',
-  'sc_incant_confirm_no_hand',
-  'sc_spiritual_collapse_confirm',
-  'sc_talisman_pick',
-  'sc_hundred_night_power', // 妖力移除：ID 是 field index 不是手牌 index
-  'sc_hundred_night_fire_reveal',
-  'sc_hundred_night_exclude_pick',
-  'sc_hundred_night_target',
-  'sc_hundred_night_confirm', // 测试用：百鬼夜行响应技能确认弹框，非手牌选择
-  // NOTE: sc_incant_card, sc_talisman_wind_discard ARE card selections
-  // Magic Bow choice types for charge removal / branch / numeric / target prompts.
-  'mb_magic_pierce_charge',
-  'mb_magic_pierce_hit_bonus',
-  'mb_magic_pierce_hit_charge',
-  'mb_thunder_scatter_base_charge',
-  'mb_thunder_scatter_extra',
-  'mb_thunder_scatter_target',
-  'mb_multi_shot_charge',
-  'mb_multi_shot_target',
-  'mb_charge_draw_x',
-  'mb_charge_place_count',
-  'mb_demon_eye_mode',
-  'mb_demon_eye_target',
-  // NOTE: mb_charge_place_cards, mb_demon_eye_charge_card ARE card selections.
-  // NOTE: bd_hope_transfer_discard, bd_rousing_discard_cards, bd_descent_cards, bd_dissonance_discard_step,
-  // hb_holy_shard_storm_discard, hb_light_burst_mode_b_discard,
-  // bs_alert_source_discard, bs_beast_return_self_discard, bs_beast_return_source_discard,
-  // bs_iaijutsu_style_discard, bs_reversal_target_discard,
-  // mg_medusa_eye_discard, mg_pale_moon_discard
-  // ARE card selections and should NOT be in this set - they need to be rendered as hand card pickers (with confirm button)
-  // Magic Lancer choice types for numeric / target prompts
-  'ml_black_spear_x',   // 漆黑之枪 X 选择：ID 是 X 值不是手牌 index
-  'ml_stardust_target', // 幻影星尘目标选择：ID 是目标 index 不是手牌 index
-  // NOTE: ml_dark_barrier_cards, ml_fullness_cost_card ARE card selections and should NOT be in this set
-  // ml_fullness_discard_step: 队友弃牌步骤，options 包含"不弃置"按钮(id="-1")和手牌选项，
-  // 需要加入此集合，确保前端提交 option 索引而非手牌索引（否则选手牌第一张会被当做"不弃置"处理）
-  'ml_fullness_discard_step',
-  // Butterfly Dancer choice types for cocoon / mode / target prompts
-  'bt_dance_mode',
-  'bt_cocoon_overflow_discard',
-  'bt_reverse_mode',
-  'bt_reverse_target',
-  'bt_reverse_branch2_cost',
-  'bt_reverse_branch2_pick',
-  'bt_pilgrimage_pick',
-  'bt_poison_pick',
-  'bt_mirror_pair',
-  'bt_wither_confirm',
-  'bt_wither_target',
-  // NOTE: bt_dance_discard IS a card selection and should NOT be in this set
-  // Sage choice types for confirm / element / target / count prompts
-  'sage_magic_rebound_confirm',
-  'sage_magic_rebound_element',
-  'sage_magic_rebound_target',
-  'sage_arcane_target',
-  'sage_holy_target_count',
-  'sage_holy_targets',
-  // NOTE: sage_magic_rebound_cards, sage_arcane_cards, sage_holy_cards
-  // ARE card selections and should NOT be in this set
-  // Blaze Witch choice types for select / target / numeric prompts
-  'bw_witch_wrath_draw',
-  'bw_substitute_doll_target',
-  'bw_mana_inversion_x',
-  'bw_mana_inversion_target',
-  // NOTE: bw_substitute_doll_card, bw_mana_inversion_cards
-  // ARE card selections and should NOT be in this set
-])
+
+
+
+
 
 function toggleExtractOption(index: number) {
   const idx = selectedExtractIndices.value.indexOf(index)
@@ -583,9 +356,10 @@ const nonPlayerOptions = computed(() => {
   return options.filter((_, idx) => !playerOptionIndexSet.value.has(idx))
 })
 
-const isSpiritCasterPowerPickPrompt = computed(() =>
-  prompt.value?.choice_type === 'sc_hundred_night_power'
-)
+const isSpiritCasterPowerPickPrompt = computed(() => {
+  const p = prompt.value?.presentation
+  return p?.kind === 'card_picker' && p?.card_source === 'field' && prompt.value?.choice_type === 'sc_hundred_night_power'
+})
 
 const showConfirmButtonSection = computed(() => {
   return (
@@ -601,10 +375,9 @@ const showConfirmButtonSection = computed(() => {
 
 const isResponseSkillConfirmPrompt = computed(() => {
   if (!prompt.value || prompt.value.type !== 'confirm') return false
-  // If the prompt has a specific choice_type for skill confirmation (not skill selection),
-  // it's not a "response skill confirm" prompt - it's just a yes/no prompt.
-  const choiceType = String(prompt.value.choice_type || '').trim()
-  if (NON_HAND_INDEXED_PROMPT_CHOICE_TYPES.has(choiceType)) return false
+  // Branch select / numeric / target_picker / card_picker prompts are not skill confirm prompts
+  const p = prompt.value.presentation
+  if (p?.kind === 'branch_select' || p?.kind === 'numeric' || p?.kind === 'target_picker' || p?.kind === 'card_picker' || p?.kind === 'skill_choice') return false
   // If the prompt has a skill_id, it's for a specific skill, not a skill selection.
   if (prompt.value.skill_id) return false
   const message = String(prompt.value.message || '').trim()
@@ -881,16 +654,24 @@ function isIndexedCocoonOption(option: { label?: string; field_index?: number | 
 }
 
 function isPromptHandCardOption(option: { id: string; label: string }): boolean {
-  if (prompt.value?.presentation?.kind === 'numeric') return false
-  if (isSpiritCasterPowerPickPrompt.value) return false
-  const choiceType = String(prompt.value?.choice_type || '').trim()
-  if (NON_HAND_INDEXED_PROMPT_CHOICE_TYPES.has(choiceType)) return false
+  const p = prompt.value?.presentation
+  if (!p) return false
+  if (p.kind === 'numeric') return false
+  if (p.kind === 'target_picker') return false
+  if (p.kind === 'branch_select') return false
+  if (p.kind === 'skill_choice') return false
+  // card_picker with card_source=field or proxy: not hand cards
+  if (p.kind === 'card_picker' && p.card_source !== 'hand') return false
+  // card_picker with card_source=hand: these are hand cards
+  if (p.kind === 'card_picker' && p.card_source === 'hand') {
+    const idx = parsePromptCardIndex(option.id)
+    return idx !== null && idx >= 0 && idx < myHand.value.length
+  }
+  // For other prompt types (e.g. response), check if option ID matches a hand index
   const idx = parsePromptCardIndex(option.id)
   if (idx === null || idx < 0 || idx >= myHand.value.length) return false
-  // 严格匹配：label 包含索引前缀且与 id 一致
   const labelIndex = parseHandIndexFromOptionLabel(option.label)
   if (labelIndex !== null) return labelIndex === idx
-  // 放宽匹配：id 是有效手牌索引，label 不包含索引但也不包含非手牌标记（如"茧"）
   if (isIndexedCocoonOption(option)) return false
   return true
 }
@@ -1030,56 +811,12 @@ function parseNonNegativeOptionId(optionId: string): number | null {
 }
 
 function shouldUseNumericButtonMode(options: RawDockOption[]): { useNumeric: boolean; plusOne: boolean } {
-  if (!prompt.value || options.length < 2) return { useNumeric: false, plusOne: false }
-  if (prompt.value.type === 'choose_card' || prompt.value.type === 'choose_cards') return { useNumeric: false, plusOne: false }
-
-  // 优先读取 Presentation（后端显式声明）
-  const presentation = prompt.value.presentation
-  if (presentation?.kind === 'numeric') {
-    const plusOne = presentation.numeric_base !== 0
+  const p = prompt.value?.presentation
+  if (p?.kind === 'numeric') {
+    const plusOne = p.numeric_base !== 0
     return { useNumeric: true, plusOne }
   }
-  // 分支选择、卡牌选择、目标选择等非数字类型，明确不使用数字模式
-  if (presentation?.kind === 'branch_select' ||
-      presentation?.kind === 'card_picker' ||
-      presentation?.kind === 'target_picker' ||
-      presentation?.kind === 'skill_choice') {
-    return { useNumeric: false, plusOne: false }
-  }
-
-  // Fallback：旧逻辑兼容无 Presentation 的 prompt
-  const numericIds: number[] = []
-  for (const option of options) {
-    const n = parseNonNegativeOptionId(option.id)
-    if (n !== null) numericIds.push(n)
-  }
-  if (numericIds.length < 2) return { useNumeric: false, plusOne: false }
-
-  // 仅当选项是真正的数值选择时才用数字模式：
-  // 1. X值选择：消息或 label 包含 X
-  // 2. 治疗选择：消息包含"治疗/抵消"或 label 包含数量语义
-  // 其他所有场景（分支选择、模式选择、确认等）一律文本模式
-  const message = String(prompt.value.message || '')
-  const hasXHint = /[xXＸ]/.test(message)
-  let labelHasX = false
-  for (const option of options) {
-    const label = String(option.label || '').trim()
-    if (/[xXＸ]\s*=/.test(label) || /[xXＸ]值/.test(label) || /[xXＸ]/.test(label)) labelHasX = true
-  }
-  const isHealChoice = message.includes('治疗') || message.includes('抵消')
-  const labelHasHeal = options.some((option) => {
-    const label = String(option.label || '').trim()
-    return /使用\s*\d+\s*点/.test(label) || label.includes('治疗') || label.includes('抵消')
-  })
-
-  if (!hasXHint && !labelHasX && !isHealChoice && !labelHasHeal) {
-    return { useNumeric: false, plusOne: false }
-  }
-
-  // 治疗选择：ID 就是实际值，不应 +1
-  if (isHealChoice || labelHasHeal) return { useNumeric: true, plusOne: false }
-  const minNumeric = Math.min(...numericIds)
-  return { useNumeric: true, plusOne: minNumeric === 0 }
+  return { useNumeric: false, plusOne: false }
 }
 
 function promptImageButtonAsset(kind: PromptImageButtonKind): string {
@@ -1181,16 +918,7 @@ function skillButtonFallbackText(option: SkillPromptButton): string {
 }
 
 function isBranchPromptChoice(): boolean {
-  const choiceType = String(prompt.value?.choice_type || '').trim()
-  if (BRANCH_PROMPT_CHOICE_TYPES.has(choiceType)) return true
-  if (prompt.value?.presentation?.kind === 'branch_select') return true
-  const message = String(prompt.value?.message || '').trim()
-  return (
-    message.includes('虚弱状态') ||
-    message.includes('选择添加宝石或水晶') ||
-    message.includes('月之轮回') ||
-    message.includes('请选择发动分支')
-  )
+  return prompt.value?.presentation?.kind === 'branch_select'
 }
 
 function isSystemBranchPromptChoice(): boolean {
@@ -1198,9 +926,8 @@ function isSystemBranchPromptChoice(): boolean {
 }
 
 function isFieldCoverSelectionPrompt(): boolean {
-  const choiceType = String(prompt.value?.choice_type || '').trim()
-  if (FIELD_COVER_SELECTION_PROMPT_CHOICE_TYPES.has(choiceType)) return true
-  return prompt.value?.presentation?.kind === 'card_picker'
+  const p = prompt.value?.presentation
+  return p?.kind === 'card_picker' && p?.card_source === 'field'
 }
 
 function isCocoonFieldSelectionPrompt(): boolean {
@@ -1223,46 +950,38 @@ function normalizeDockOption(option: RawDockOption, useNumeric: boolean, plusOne
   const lowerID = id.toLowerCase()
   const responseKind = responseOptionKind(option)
   const explicitButtonLabel = String(option.button_label || '').trim()
-  let buttonLabel = normalizeButtonLabel(explicitButtonLabel, id, label, responseKind)
+  let buttonLabel = explicitButtonLabel
   let hint = String(option.hint || '').trim()
   const presentation = prompt.value?.presentation
 
-  if (isSystemBranchPromptChoice() && label) {
-    const branchLabel = explicitButtonLabel || label
-    return {
-      id,
-      label,
-      buttonLabel: branchLabel,
-      hint: hint || (label !== branchLabel ? label : ''),
-      disabled: option.disabled,
-      numeric: false,
-    }
-  }
-
-  if (presentation?.kind === 'branch_select' && !explicitButtonLabel && label) {
+  // Branch select: button shows the full branch text
+  if (presentation?.kind === 'branch_select' && !buttonLabel && label) {
     buttonLabel = label
   }
-  if (!buttonLabel && PROMPT_OPTION_BUTTON_LABELS[lowerID]) {
-    buttonLabel = PROMPT_OPTION_BUTTON_LABELS[lowerID]
-  }
+  // Skill selection prompt
   if (!buttonLabel && prompt.value?.type === 'choose_skill') {
     buttonLabel = '发动'
   }
+  // "Skip/None" option
   if (!buttonLabel && lowerID === '-1') {
     buttonLabel = label.includes('完成') || label.includes('结束') ? '完成' : '取消'
   }
+  // Numeric mode
   if (!buttonLabel && useNumeric) {
     const n = parseNonNegativeOptionId(id)
     if (n !== null) {
       buttonLabel = String(plusOne ? n + 1 : n)
     }
   }
+  // Card selection
   if (!buttonLabel && isCardSelectionLikeText(label)) {
     buttonLabel = '打出卡牌'
   }
+  // Decline option
   if (!buttonLabel && isDeclineLabel(label)) {
     buttonLabel = '取消'
   }
+  // Response actions
   if (!buttonLabel && responseKind === 'take') {
     buttonLabel = '命中'
   }
@@ -1272,13 +991,11 @@ function normalizeDockOption(option: RawDockOption, useNumeric: boolean, plusOne
   if (!buttonLabel && responseKind === 'counter') {
     buttonLabel = '应战'
   }
+  // Activation cost confirm
   if (!buttonLabel && (isActivationCostText(hint) || isActivationCostText(label) || isActivationCostText(String(prompt.value?.message || '')))) {
     buttonLabel = '确认'
   }
-  // 分支选择：按钮直接显示完整文案（如判决天平的两个分支）
-  if (!buttonLabel && presentation?.kind === 'branch_select') {
-    buttonLabel = label
-  }
+  // Final fallback
   if (!buttonLabel) {
     if (prompt.value?.type === 'confirm') {
       buttonLabel = '确认'
@@ -1490,7 +1207,7 @@ const inlinePrimaryButtons = computed<DockButtonOption[]>(() => {
   }
   if (showConfirmButtonSection.value) {
     const shouldExposeIndexedCocoonOptions =
-      isSystemBranchPromptChoice() || prompt.value?.presentation?.kind === 'branch_select'
+      isSystemBranchPromptChoice()
     const shouldHideIndexedCocoonOptions = isCocoonFieldSelectionPrompt()
     const optionSource = shouldExposeIndexedCocoonOptions
       ? (prompt.value?.options || [])

@@ -98,7 +98,9 @@ func buildParadiseAllyPickPrompt(rt engineplayer.ChoiceRuntime, playerID string,
 			opts = append(opts, engineplayer.Option(allyID, ally.Name))
 		}
 	}
-	return engineplayer.NewPrompt(playerID, "【冒险者天堂】选择队友代为提炼：").Options(opts...).Build()
+	p := engineplayer.NewPrompt(playerID, "【冒险者天堂】选择队友代为提炼：").Options(opts...).Build()
+	p.Presentation = &model.PromptPresentation{Kind: model.PresentationTargetPicker, TargetFilter: "custom"}
+	return p
 }
 
 func handleParadiseAllyPick(rt engineplayer.ChoiceRuntime, playerID string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
@@ -122,12 +124,14 @@ func handleParadiseAllyPick(rt engineplayer.ChoiceRuntime, playerID string, sele
 // ---------------------------------------------------------------------------
 
 func buildExtractParadiseCheckPrompt(_ engineplayer.ChoiceRuntime, playerID string, _ *model.Player, _ map[string]interface{}) *model.Prompt {
-	return engineplayer.NewPrompt(playerID, "是否发动[冒险者天堂]，让队友代为提炼？").
+	p := engineplayer.NewPrompt(playerID, "是否发动[冒险者天堂]，让队友代为提炼？").
 		Options(
 			engineplayer.Option("yes", "是，发动冒险者天堂"),
 			engineplayer.Option("no", "否，自行提炼"),
 		).
 		Build()
+	p.Presentation = &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"}
+	return p
 }
 
 func handleExtractParadiseCheck(rt engineplayer.ChoiceRuntime, playerID string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
@@ -215,8 +219,10 @@ func buildFraudPickPrompt(_ engineplayer.ChoiceRuntime, playerID string, player 
 			opts = append(opts, engineplayer.Option(strconv.Itoa(idx), promptfmt.FormatCardInfo(player.Hand[idx])))
 		}
 	}
-	return engineplayer.NewPrompt(playerID, fmt.Sprintf("【欺诈】请选择手牌（还需选择%d张同系牌）：", remaining)).
+	p := engineplayer.NewPrompt(playerID, fmt.Sprintf("【欺诈】请选择手牌（还需选择%d张同系牌）：", remaining)).
 		Options(opts...).Build()
+	p.Presentation = &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand"}
+	return p
 }
 
 func handleFraudPick(rt engineplayer.ChoiceRuntime, playerID string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
@@ -296,7 +302,7 @@ func handleFraudPick(rt engineplayer.ChoiceRuntime, playerID string, selectionIn
 }
 
 func buildFraudElementPrompt(_ engineplayer.ChoiceRuntime, playerID string, _ *model.Player, _ map[string]interface{}) *model.Prompt {
-	return engineplayer.NewPrompt(playerID, "【欺诈】请选择攻击系别（不含光/暗）：").
+	p := engineplayer.NewPrompt(playerID, "【欺诈】请选择攻击系别（不含光/暗）：").
 		Options(
 			engineplayer.Option(string(model.ElementWater), "水"),
 			engineplayer.Option(string(model.ElementFire), "火"),
@@ -305,6 +311,8 @@ func buildFraudElementPrompt(_ engineplayer.ChoiceRuntime, playerID string, _ *m
 			engineplayer.Option(string(model.ElementThunder), "雷"),
 		).
 		Build()
+	p.Presentation = &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"}
+	return p
 }
 
 func handleFraudElement(rt engineplayer.ChoiceRuntime, playerID string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {

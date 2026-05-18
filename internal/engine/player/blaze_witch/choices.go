@@ -21,17 +21,18 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 	switch choiceType {
 	case "bw_witch_wrath_draw":
 		return &model.Prompt{
-			Type:       model.PromptConfirm,
-			PlayerID:   playerID,
-			Message:    "【魔女之怒】请选择摸牌数量：",
-			ChoiceType: choiceType,
+			Type:         model.PromptConfirm,
+			PlayerID:     playerID,
+			Message:      "【魔女之怒】请选择摸牌数量：",
+			ChoiceType:   choiceType,
 			Options: []model.PromptOption{
 				{ID: "0", Label: "摸0张"},
 				{ID: "1", Label: "摸1张"},
 				{ID: "2", Label: "摸2张"},
 			},
-			Min: 1,
-			Max: 1,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 0},
 		}
 	case "bw_substitute_doll_card":
 		magicIndices := runtimeutil.ParseChoiceIntSlice(data["magic_indices"])
@@ -46,12 +47,13 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			})
 		}
 		return &model.Prompt{
-			Type:     model.PromptConfirm,
-			PlayerID: playerID,
-			Message:  "【替身玩偶】请选择弃置1张法术牌：",
-			Options:  options,
-			Min:      1,
-			Max:      1,
+			Type:         model.PromptConfirm,
+			PlayerID:     playerID,
+			Message:      "【替身玩偶】请选择弃置1张法术牌：",
+			Options:      options,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand"},
 		}
 	case "bw_mana_inversion_x":
 		maxX := runtimeutil.ToIntContextValue(data["max_x"])
@@ -93,30 +95,33 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			remainingPick = len(options)
 		}
 		return &model.Prompt{
-			Type:     model.PromptChooseCards,
-			PlayerID: playerID,
-			Message:  fmt.Sprintf("【魔能反转】请选择要弃置的%d张法术牌：", remainingPick),
-			Options:  options,
-			Min:      remainingPick,
-			Max:      remainingPick,
+			Type:         model.PromptChooseCards,
+			PlayerID:     playerID,
+			Message:      fmt.Sprintf("【魔能反转】请选择要弃置的%d张法术牌：", remainingPick),
+			Options:      options,
+			Min:          remainingPick,
+			Max:          remainingPick,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand"},
 		}
 	case "bw_substitute_doll_target":
 		return &model.Prompt{
-			Type:     model.PromptConfirm,
-			PlayerID: playerID,
-			Message:  "【替身玩偶】请选择摸1张牌的队友：",
-			Options:  buildPromptOptionsForPlayerIDs(rt.GetPlayers(), runtimeutil.ParseStringSliceContextValue(data["target_ids"])),
-			Min:      1,
-			Max:      1,
+			Type:         model.PromptConfirm,
+			PlayerID:     playerID,
+			Message:      "【替身玩偶】请选择摸1张牌的队友：",
+			Options:      buildPromptOptionsForPlayerIDs(rt.GetPlayers(), runtimeutil.ParseStringSliceContextValue(data["target_ids"])),
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationTargetPicker, TargetFilter: "custom"},
 		}
 	case "bw_mana_inversion_target":
 		return &model.Prompt{
-			Type:     model.PromptConfirm,
-			PlayerID: playerID,
-			Message:  "【魔能反转】请选择法术伤害目标：",
-			Options:  buildPromptOptionsForPlayerIDs(rt.GetPlayers(), runtimeutil.ParseStringSliceContextValue(data["target_ids"])),
-			Min:      1,
-			Max:      1,
+			Type:         model.PromptConfirm,
+			PlayerID:     playerID,
+			Message:      "【魔能反转】请选择法术伤害目标：",
+			Options:      buildPromptOptionsForPlayerIDs(rt.GetPlayers(), runtimeutil.ParseStringSliceContextValue(data["target_ids"])),
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationTargetPicker, TargetFilter: "custom"},
 		}
 	default:
 		return nil

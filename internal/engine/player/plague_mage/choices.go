@@ -29,12 +29,13 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			})
 		}
 		return &model.Prompt{
-			Type:     model.PromptConfirm,
-			PlayerID: playerID,
-			Message:  "【死亡之触】请选择弃置同系牌的元素：",
-			Options:  options,
-			Min:      1,
-			Max:      1,
+			Type:         model.PromptConfirm,
+			PlayerID:     playerID,
+			Message:      "【死亡之触】请选择弃置同系牌的元素：",
+			Options:      options,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 		}
 	case "plague_death_touch_x":
 		maxHeal := runtimeutil.ToIntContextValue(data["max_heal"])
@@ -65,12 +66,13 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			})
 		}
 		return &model.Prompt{
-			Type:     model.PromptChooseCards,
-			PlayerID: playerID,
-			Message:  "【死亡之触】请选择同系牌（选几张Y即为几）：",
-			Options:  options,
-			Min:      2,
-			Max:      len(cardIndices),
+			Type:         model.PromptChooseCards,
+			PlayerID:     playerID,
+			Message:      "【死亡之触】请选择同系牌（选几张Y即为几）：",
+			Options:      options,
+			Min:          2,
+			Max:          len(cardIndices),
+			Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand"},
 		}
 	case "plague_death_touch_target":
 		targetIDs := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
@@ -84,12 +86,13 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			}
 		}
 		return &model.Prompt{
-			Type:     model.PromptConfirm,
-			PlayerID: playerID,
-			Message:  "【死亡之触】请选择1名敌方角色承受法术伤害：",
-			Options:  options,
-			Min:      1,
-			Max:      1,
+			Type:         model.PromptConfirm,
+			PlayerID:     playerID,
+			Message:      "【死亡之触】请选择1名敌方角色承受法术伤害：",
+			Options:      options,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationTargetPicker, TargetFilter: "custom"},
 		}
 	default:
 		return nil

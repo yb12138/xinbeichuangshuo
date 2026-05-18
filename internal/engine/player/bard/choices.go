@@ -31,7 +31,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		for _, ele := range elems {
 			options = append(options, model.PromptOption{ID: string(ele), Label: fmt.Sprintf("%s系", promptfmt.ElementName(string(ele)))})
 		}
-		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【沉沦协奏曲】请选择要弃置的同系元素：", Options: options, Min: 1, Max: 1}
+		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【沉沦协奏曲】请选择要弃置的同系元素：", Options: options, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"}}
 	case "bd_descent_cards":
 		// 直接展示所有同系牌候选，无需前置元素选择步骤
 		remaining := engineplayer.ParseIntSliceContextValue(data["remaining_indices"])
@@ -50,7 +50,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		if len(options) > 0 && remainingPick > len(options) {
 			remainingPick = len(options)
 		}
-		return &model.Prompt{Type: model.PromptChooseCards, PlayerID: playerID, Message: fmt.Sprintf("【沉沦协奏曲】请选择要弃置的%d张同系牌：", remainingPick), Options: options, Min: remainingPick, Max: remainingPick}
+		return &model.Prompt{Type: model.PromptChooseCards, PlayerID: playerID, Message: fmt.Sprintf("【沉沦协奏曲】请选择要弃置的%d张同系牌：", remainingPick), Options: options, Min: remainingPick, Max: remainingPick, Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand"}}
 	case "bd_dissonance_x":
 		maxX := runtimeutil.ToIntContextValue(data["max_x"])
 		if maxX < 2 {
@@ -60,7 +60,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		for x := 2; x <= maxX; x++ {
 			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", x), Label: fmt.Sprintf("X=%d", x)})
 		}
-		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【不谐和弦】请选择X值：", Options: options, Min: 1, Max: 1}
+		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【不谐和弦】请选择X值：", Options: options, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 0}}
 	case "bd_dissonance_mode":
 		xValue := runtimeutil.ToIntContextValue(data["x_value"])
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: fmt.Sprintf("【不谐和弦】请选择分支（X=%d）：", xValue), Options: []model.PromptOption{{ID: "0", Label: fmt.Sprintf("你与目标各摸%d张牌", xValue-1)}, {ID: "1", Label: fmt.Sprintf("你与目标各弃%d张牌", xValue-1)}}, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"}}
@@ -83,7 +83,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		if len(options) > 0 && remainingPick > len(options) {
 			remainingPick = len(options)
 		}
-		return &model.Prompt{Type: model.PromptChooseCards, PlayerID: playerID, Message: fmt.Sprintf("【不谐和弦】请 %s 选择要弃置的%d张手牌：", actor.Name, remainingPick), Options: options, Min: remainingPick, Max: remainingPick}
+		return &model.Prompt{Type: model.PromptChooseCards, PlayerID: playerID, Message: fmt.Sprintf("【不谐和弦】请 %s 选择要弃置的%d张手牌：", actor.Name, remainingPick), Options: options, Min: remainingPick, Max: remainingPick, Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand"}}
 	case "bd_rousing_mode":
 		opts := []model.PromptOption{
 			{ID: "0", Label: "对2名对手各造成1点法术伤害"},
@@ -103,7 +103,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 				options = append(options, model.PromptOption{ID: targetID, Label: target.Name})
 			}
 		}
-		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: fmt.Sprintf("【激昂狂想曲】请选择第 %d/2 名目标：", len(selectedSet)+1), Options: options, Min: 1, Max: 1}
+		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: fmt.Sprintf("【激昂狂想曲】请选择第 %d/2 名目标：", len(selectedSet)+1), Options: options, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationTargetPicker, TargetFilter: "custom"}}
 	case "bd_rousing_discard_cards":
 		selected := len(engineplayer.ParseIntSliceContextValue(data["selected_indices"]))
 		remaining := engineplayer.ParseIntSliceContextValue(data["remaining_indices"])
@@ -121,7 +121,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		if len(options) > 0 && remainingPick > len(options) {
 			remainingPick = len(options)
 		}
-		return &model.Prompt{Type: model.PromptChooseCards, PlayerID: playerID, Message: fmt.Sprintf("【激昂狂想曲】请选择要弃置的%d张手牌：", remainingPick), Options: options, Min: remainingPick, Max: remainingPick}
+		return &model.Prompt{Type: model.PromptChooseCards, PlayerID: playerID, Message: fmt.Sprintf("【激昂狂想曲】请选择要弃置的%d张手牌：", remainingPick), Options: options, Min: remainingPick, Max: remainingPick, Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand"}}
 	case "bd_victory_confirm":
 		return &model.Prompt{
 			Type:     model.PromptConfirm,
@@ -149,9 +149,9 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 				options = append(options, model.PromptOption{ID: "1", Label: "提炼1个水晶"})
 			}
 		}
-		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【胜利交响诗】请选择要提炼的星石：", Options: options, Min: 1, Max: 1}
+		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【胜利交响诗】请选择要提炼的星石：", Options: options, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"}}
 	case "bd_hope_draw_confirm":
-		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【希望赋格曲】是否先摸1张牌？", Options: []model.PromptOption{{ID: "0", Label: "是"}, {ID: "1", Label: "否"}}, Min: 1, Max: 1}
+		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【希望赋格曲】是否先摸1张牌？", Options: []model.PromptOption{{ID: "0", Label: "是"}, {ID: "1", Label: "否"}}, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"}}
 	case "bd_hope_mode":
 		opts := []model.PromptOption{{ID: "0", Label: "将永恒乐章放置于目标队友面前"}}
 		if EternalHolderID(rt, player) != "" {
@@ -166,7 +166,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		for idx, c := range player.Hand {
 			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", idx), Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(c))})
 		}
-		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【希望赋格曲】请选择弃置1张手牌：", Options: options, Min: 1, Max: 1}
+		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【希望赋格曲】请选择弃置1张手牌：", Options: options, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand"}}
 	case "bd_descent_target":
 		return engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, "【沉沦协奏曲】请选择1点法术伤害目标：", data, false)
 	case "bd_dissonance_target":

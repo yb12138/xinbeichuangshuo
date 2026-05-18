@@ -208,9 +208,25 @@ const (
 // PromptPresentation 定义弹框展示细节（后端显式声明，前端只渲染）
 type PromptPresentation struct {
 	Kind         PresentationKind `json:"kind"`                    // 必填：展示类型
-	Layout       string           `json:"layout,omitempty"`        // 可选："inline"/"overlay"/"grid"/"heal_allocate"
+	Layout       string           `json:"layout,omitempty"`        // 可选："inline"/"overlay"/"grid"
 	NumericBase  int              `json:"numeric_base"`            // numeric 类型的数字起始值（0 或 1）
 	CancelPolicy string           `json:"cancel_policy,omitempty"` // 可选："allow"/"deny"/"implicit"
+
+	// 目标选择约束（kind=target_picker 时使用）
+	TargetFilter string `json:"target_filter,omitempty"` // all/enemies/allies/allies_exclude_self/any_exclude_self/custom
+	MultiTarget  bool   `json:"multi_target,omitempty"`  // true=批量多选目标
+
+	// 卡牌选择语义（kind=card_picker 时使用）
+	CardSource string `json:"card_source,omitempty"` // hand/field/proxy
+	CardFilter string `json:"card_filter,omitempty"` // same_element/diff_element/magic_only/attack_only/element:{ele}
+
+	// 确认+选择组合（kind=branch_select 时使用）
+	HasDecline   bool `json:"has_decline,omitempty"`   // true=选项中包含"不发动/取消"
+	DeclineIndex int  `json:"decline_index,omitempty"` // 取消选项的索引位置（默认0）
+
+	// 多步流追踪
+	StepIndex  int `json:"step_index,omitempty"`  // 当前步骤（从1开始）
+	TotalSteps int `json:"total_steps,omitempty"` // 总步骤数（0=单步）
 }
 
 const (

@@ -42,7 +42,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 				options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", idx), Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(card))})
 			}
 		}
-		return &model.Prompt{Type: model.PromptChooseCards, PlayerID: playerID, Message: "【暗之障壁】请选择要弃置的牌（法术牌或雷系牌）：", Options: options, Min: 1, Max: len(options), ChoiceType: "ml_dark_barrier_cards"}
+		return &model.Prompt{Type: model.PromptChooseCards, PlayerID: playerID, Message: "【暗之障壁】请选择要弃置的牌（法术牌或雷系牌）：", Options: options, Min: 1, Max: len(options), ChoiceType: "ml_dark_barrier_cards", Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand"}}
 
 	case "ml_fullness_cost_card":
 		options := make([]model.PromptOption, 0, len(player.Hand))
@@ -52,7 +52,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			}
 			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", idx), Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(card))})
 		}
-		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【充盈】请选择要弃置的1张法术牌或雷系牌：", Options: options, Min: 1, Max: 1}
+		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【充盈】请选择要弃置的1张法术牌或雷系牌：", Options: options, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand"}}
 
 	case "ml_fullness_discard_step":
 		currentID, _ := data["current_player_id"].(string)
@@ -77,7 +77,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		if allowSkip {
 			msg = "【充盈】请选择是否弃置1张手牌："
 		}
-		return &model.Prompt{Type: model.PromptChooseCards, PlayerID: playerID, Message: msg, Options: options, Min: 1, Max: 1, ChoiceType: "ml_fullness_discard_step"}
+		return &model.Prompt{Type: model.PromptChooseCards, PlayerID: playerID, Message: msg, Options: options, Min: 1, Max: 1, ChoiceType: "ml_fullness_discard_step", Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand"}}
 
 	case "ml_stardust_target":
 		return engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, "【幻影星尘】请选择2点法术伤害目标：", data, false)

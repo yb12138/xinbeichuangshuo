@@ -300,5 +300,9 @@ func BuildTargetChoicePrompt(rt ChoiceRuntime, choiceType, playerID string, mess
 		Options:    options,
 		Min:        1,
 		Max:        1,
+		Presentation: &model.PromptPresentation{
+			Kind:         model.PresentationTargetPicker,
+			TargetFilter: "custom",
+		},
 	}
 }

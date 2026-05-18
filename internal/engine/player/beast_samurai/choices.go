@@ -186,13 +186,14 @@ func buildDiscardPrompt(rt engineplayer.ChoiceRuntime, playerID string, player *
 	}
 
 	return &model.Prompt{
-		Type:       model.PromptChooseCards,
-		PlayerID:   playerID,
-		ChoiceType: promptChoiceType,
-		Message:    message,
-		Options:    options,
-		Min:        min,
-		Max:        max,
+		Type:         model.PromptChooseCards,
+		PlayerID:     playerID,
+		ChoiceType:   promptChoiceType,
+		Message:      message,
+		Options:      options,
+		Min:          min,
+		Max:          max,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand"},
 	}
 }
 

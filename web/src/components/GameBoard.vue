@@ -1237,8 +1237,10 @@ function plagueDeathTouchPromptElementSet(prompt: Prompt | null): Set<string> {
 
 function promptHandCardIndexSet(): Set<number> {
   const set = new Set<number>()
-  const choiceType = String(currentPrompt.value?.choice_type || '').trim()
-  if (NON_HAND_INDEXED_PROMPT_CHOICE_TYPES.has(choiceType)) return set
+  const p = currentPrompt.value?.presentation
+  if (!p) return set
+  // Only card_picker with card_source=hand contains hand card indices
+  if (p.kind !== 'card_picker' || p.card_source !== 'hand') return set
   const options = currentPrompt.value?.options || []
   for (const option of options) {
     const idx = parsePromptCardIndex(option.id)
@@ -1275,126 +1277,7 @@ type PromptCardSelectionState = {
   error?: string
 }
 
-const NON_HAND_INDEXED_PROMPT_CHOICE_TYPES = new Set([
-  // System choice types (option id 0/1/2 are branch indices, not hand indices)
-  'weak',
-  'buy_resource',
-  'basic_effect_pick',
-  // Elf Archer choice types (matching backend elf_archer/choices.go)
-  'elf_archer_elemental_shot_pick',
-  'elf_animal_companion_confirm',
-  'elf_pet_empower_confirm',
-  'elf_elemental_shot_water_target',
-  'elf_elemental_shot_earth_target',
-  'elf_pet_empower_target',
-  'elf_ritual_release_target',
-  // Saintess choice types (matching backend saintess/choices.go)
-  'frost_prayer_target',
-  // Elementalist choice types (matching backend elementalist/choices.go)
-  'elementalist_freeze_damage_target',
-  'elementalist_freeze_heal_target',
-  'elementalist_bonus_card',
-  // Adventurer choice types (matching backend adventurer/choices.go)
-  'adventurer_extract_paradise_check',
-  'adventurer_paradise_pick',
-  'adventurer_fraud_pick',
-  'adventurer_fraud_attack_element',
-  'adventurer_steal_sky_mode',
-  // Valkyrie choice types (matching backend valkyrie/choices.go)
-  'valkyrie_military_glory_mode',
-  'valkyrie_military_glory_x',
-  'valkyrie_military_glory_target',
-  'valkyrie_heroic_discard_card',
-  // Angel choice types (matching backend angel/choices.go)
-  'angel_bond_heal_target',
-  'god_protection_x',
-  // Prayer Master choice types (matching backend prayer_master/choices.go)
-  'prayer_power_blessing_response',
-  'prayer_swift_blessing_response',
-  // Sealer choice types (matching backend sealer/choices.go)
-  'five_elements_bind',
-  // Blood Priestess choice types (matching backend blood_priestess/choices.go)
-  'bp_blood_sorrow_mode',
-  'bp_blood_sorrow_target',
-  'bp_blood_wail_x',
-  'bp_shared_life_target',
-  // NOTE: bp_curse_discard IS a card selection and should NOT be in this set
-  // Fighter choice types (matching backend fighter/choices.go)
-  'fighter_psi_bullet_target',
-  'fighter_hundred_dragon_target',
-  // Moon Goddess choice types (matching backend moon_goddess/choices.go)
-  'mg_medusa_darkmoon_pick',
-  'mg_medusa_magic_discard',
-  'mg_moon_cycle_mode',
-  'mg_moon_cycle_heal_target',
-  'mg_blasphemy_target',
-  'mg_darkmoon_slash_x',
-  'mg_pale_moon_mode',
-  'mg_pale_moon_x',
-  'mg_pale_moon_target',
-  'mg_pale_moon_discard',
-  // Holy Bow choice types (matching backend holy_bow/choices.go)
-  'hb_holy_shard_target',
-  'hb_holy_shard_miss_confirm',
-  'hb_holy_shard_miss_x',
-  'hb_holy_shard_miss_ally_target',
-  'hb_radiant_descent_cost',
-  'hb_light_burst_mode',
-  'hb_light_burst_mode_a_target',
-  'hb_light_burst_mode_b_x',
-  'hb_light_burst_mode_b_targets',
-  'hb_meteor_bullet_cost',
-  'hb_meteor_bullet_target',
-  'hb_radiant_cannon_side',
-  'hb_auto_fill_resource',
-  'hb_auto_fill_gain',
-  // Magic Bow choice types
-  'mb_magic_pierce_hit_bonus',
-  'mb_magic_pierce_hit_charge',
-  'mb_thunder_scatter_base_charge',
-  'mb_thunder_scatter_extra',
-  'mb_thunder_scatter_target',
-  'mb_multi_shot_charge',
-  'mb_multi_shot_target',
-  'mb_charge_draw_x',
-  'mb_charge_place_count',
-  'mb_demon_eye_mode',
-  'mb_demon_eye_target',
-  // Magic Lancer choice types for numeric / target prompts
-  'ml_black_spear_x',   // 漆黑之枪 X 选择：ID 是 X 值不是手牌 index
-  'ml_stardust_target', // 幻影星尘目标选择：ID 是目标 index 不是手牌 index
-  // Butterfly Dancer choice types for cocoon / mode / target prompts
-  'bt_dance_mode',
-  'bt_cocoon_overflow_discard',
-  'bt_reverse_mode',
-  'bt_reverse_target',
-  'bt_reverse_branch2_cost',
-  'bt_reverse_branch2_pick',
-  'bt_pilgrimage_pick',
-  'bt_poison_pick',
-  'bt_mirror_pair',
-  'bt_wither_confirm',
-  'bt_wither_target',
-  // NOTE: bt_dance_discard IS a card selection and should NOT be in this set
-  // Sage choice types for confirm / element / target / count prompts
-  'sage_magic_rebound_confirm',
-  'sage_magic_rebound_element',
-  'sage_magic_rebound_target',
-  'sage_arcane_target',
-  'sage_holy_target_count',
-  'sage_holy_targets',
-  // NOTE: sage_magic_rebound_cards, sage_arcane_cards, sage_holy_cards
-  // ARE card selections and should NOT be in this set
-  // Blaze Witch choice types for select / target / numeric prompts
-  'bw_witch_wrath_draw',
-  'bw_substitute_doll_target',
-  'bw_mana_inversion_x',
-  'bw_mana_inversion_target',
-  // NOTE: bw_substitute_doll_card, bw_mana_inversion_cards
-  // ARE card selections and should NOT be in this set
-  // Spirit Caster cover choices
-  'sc_hundred_night_power',
-])
+
 
 function promptCardSelectionState(idx: number): PromptCardSelectionState {
   const prompt = currentPrompt.value

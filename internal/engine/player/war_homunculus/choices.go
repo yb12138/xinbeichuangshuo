@@ -120,7 +120,7 @@ func buildRuneCardsPrompt(playerID string, player *model.Player, data map[string
 	if glyph {
 		message = fmt.Sprintf("【魔纹融合】请选择要弃置的异系牌（所选牌彼此异系，至少%d张）：", minPick)
 	}
-	return &model.Prompt{Type: model.PromptChooseCards, PlayerID: playerID, Message: message, Options: options, Min: remainingPick, Max: maxPick}
+	return &model.Prompt{Type: model.PromptChooseCards, PlayerID: playerID, Message: message, Options: options, Min: remainingPick, Max: maxPick, Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand"}}
 }
 
 func buildRuneYPrompt(playerID string, data map[string]interface{}, glyph bool) *model.Prompt {
@@ -672,4 +672,3 @@ func filterRuneRemainingCandidates(user *model.Player, remaining []int, picked i
 // ---------------------------------------------------------------------------
 // Context value helpers
 // ---------------------------------------------------------------------------
-

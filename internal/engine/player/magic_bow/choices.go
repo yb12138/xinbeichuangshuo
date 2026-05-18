@@ -99,15 +99,16 @@ func buildChargeRemovalPrompt(playerID string, player *model.Player, element mod
 
 func buildMagicPierceHitBonusPrompt(playerID string) *model.Prompt {
 	return &model.Prompt{
-		Type:     model.PromptConfirm,
-		PlayerID: playerID,
-		Message:  "【魔贯冲击】是否额外移除1个火系充能使伤害+1？",
+		Type:         model.PromptConfirm,
+		PlayerID:     playerID,
+		Message:      "【魔贯冲击】是否额外移除1个火系充能使伤害+1？",
 		Options: []model.PromptOption{
 			{ID: "0", Label: "是"},
 			{ID: "1", Label: "否"},
 		},
-		Min: 1,
-		Max: 1,
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 	}
 }
 
@@ -193,12 +194,13 @@ func buildChargePlaceCardsPrompt(playerID string, player *model.Player, data map
 			maxPick = len(options)
 		}
 		return &model.Prompt{
-			Type:     model.PromptChooseCards,
-			PlayerID: playerID,
-			Message:  fmt.Sprintf("【充能】请选择要放置为充能的手牌（最多%d张，可不选）：", maxPick),
-			Options:  options,
-			Min:      minPick,
-			Max:      maxPick,
+			Type:         model.PromptChooseCards,
+			PlayerID:     playerID,
+			Message:      fmt.Sprintf("【充能】请选择要放置为充能的手牌（最多%d张，可不选）：", maxPick),
+			Options:      options,
+			Min:          minPick,
+			Max:          maxPick,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand"},
 		}
 	}
 
@@ -215,12 +217,13 @@ func buildChargePlaceCardsPrompt(playerID string, player *model.Player, data map
 		message = "【魔眼】请选择1张手牌作为充能："
 	}
 	return &model.Prompt{
-		Type:     model.PromptChooseCards,
-		PlayerID: playerID,
-		Message:  message,
-		Options:  options,
-		Min:      remainingPick,
-		Max:      remainingPick,
+		Type:         model.PromptChooseCards,
+		PlayerID:     playerID,
+		Message:      message,
+		Options:      options,
+		Min:          remainingPick,
+		Max:          remainingPick,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand"},
 	}
 }
 

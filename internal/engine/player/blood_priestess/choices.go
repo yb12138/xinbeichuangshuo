@@ -46,13 +46,14 @@ func buildSharedLifeTargetPrompt(rt engineplayer.ChoiceRuntime, playerID string,
 		}
 	}
 	return &model.Prompt{
-		Type:       model.PromptConfirm,
-		PlayerID:   playerID,
-		ChoiceType: "bp_shared_life_target",
-		Message:    "【同生共死】请选择放置目标：",
-		Options:    options,
-		Min:        1,
-		Max:        1,
+		Type:         model.PromptConfirm,
+		PlayerID:     playerID,
+		ChoiceType:   "bp_shared_life_target",
+		Message:      "【同生共死】请选择放置目标：",
+		Options:      options,
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationTargetPicker, TargetFilter: "custom"},
 	}
 }
 
@@ -81,13 +82,14 @@ func buildBloodSorrowTargetPrompt(rt engineplayer.ChoiceRuntime, playerID string
 		}
 	}
 	return &model.Prompt{
-		Type:       model.PromptConfirm,
-		PlayerID:   playerID,
-		ChoiceType: "bp_blood_sorrow_target",
-		Message:    "【血之哀伤】请选择新的同生共死目标：",
-		Options:    options,
-		Min:        1,
-		Max:        1,
+		Type:         model.PromptConfirm,
+		PlayerID:     playerID,
+		ChoiceType:   "bp_blood_sorrow_target",
+		Message:      "【血之哀伤】请选择新的同生共死目标：",
+		Options:      options,
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationTargetPicker, TargetFilter: "custom"},
 	}
 }
 
@@ -124,13 +126,14 @@ func buildCurseDiscardPrompt(playerID string, player *model.Player, data map[str
 		})
 	}
 	return &model.Prompt{
-		Type:       model.PromptChooseCards,
-		PlayerID:   playerID,
-		ChoiceType: "bp_curse_discard",
-		Message:    fmt.Sprintf("【血之诅咒】请弃置%d张手牌：", discardCount),
-		Options:    options,
-		Min:        discardCount,
-		Max:        discardCount,
+		Type:         model.PromptChooseCards,
+		PlayerID:     playerID,
+		ChoiceType:   "bp_curse_discard",
+		Message:      fmt.Sprintf("【血之诅咒】请弃置%d张手牌：", discardCount),
+		Options:      options,
+		Min:          discardCount,
+		Max:          discardCount,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand"},
 	}
 }
 

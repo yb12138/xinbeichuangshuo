@@ -66,13 +66,14 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			})
 		}
 		return &model.Prompt{
-			Type:       model.PromptChooseCards,
-			PlayerID:   playerID,
-			ChoiceType: choiceType,
-			Message:    "【美杜莎之眼】因移除了法术闇月，请弃1张手牌：",
-			Options:    options,
-			Min:        1,
-			Max:        1,
+			Type:         model.PromptChooseCards,
+			PlayerID:     playerID,
+			ChoiceType:   choiceType,
+			Message:      "【美杜莎之眼】因移除了法术闇月，请弃1张手牌：",
+			Options:      options,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand"},
 		}
 
 	case "mg_moon_cycle_mode":
@@ -160,13 +161,14 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			}
 		}
 		return &model.Prompt{
-			Type:       model.PromptConfirm,
-			PlayerID:   playerID,
-			ChoiceType: choiceType,
-			Message:    "【月渎】请选择是否对当前受伤目标追加1点法术伤害：",
-			Options:    options,
-			Min:        1,
-			Max:        1,
+			Type:         model.PromptConfirm,
+			PlayerID:     playerID,
+			ChoiceType:   choiceType,
+			Message:      "【月渎】请选择是否对当前受伤目标追加1点法术伤害：",
+			Options:      options,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay", HasDecline: true},
 		}
 
 	case "mg_darkmoon_slash_x":
@@ -264,13 +266,14 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			}
 		}
 		return &model.Prompt{
-			Type:       model.PromptConfirm,
-			PlayerID:   playerID,
-			ChoiceType: choiceType,
-			Message:    "【苍白之月】分支②请选择目标对手：",
-			Options:    options,
-			Min:        1,
-			Max:        1,
+			Type:         model.PromptConfirm,
+			PlayerID:     playerID,
+			ChoiceType:   choiceType,
+			Message:      "【苍白之月】分支②请选择目标对手：",
+			Options:      options,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationTargetPicker, TargetFilter: "custom"},
 		}
 
 	case "mg_pale_moon_discard":
@@ -282,13 +285,14 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			})
 		}
 		return &model.Prompt{
-			Type:       model.PromptChooseCards,
-			PlayerID:   playerID,
-			ChoiceType: choiceType,
-			Message:    "【苍白之月】分支②请弃1张牌：",
-			Options:    options,
-			Min:        1,
-			Max:        1,
+			Type:         model.PromptChooseCards,
+			PlayerID:     playerID,
+			ChoiceType:   choiceType,
+			Message:      "【苍白之月】分支②请弃1张牌：",
+			Options:      options,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand"},
 		}
 	}
 

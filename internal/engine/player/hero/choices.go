@@ -19,16 +19,17 @@ func (choiceHandler) BuildPrompt(_ engineplayer.ChoiceRuntime, choiceType, playe
 	switch choiceType {
 	case "hero_roar_draw":
 		return &model.Prompt{
-			Type:       model.PromptConfirm,
-			PlayerID:   playerID,
-			Message:    "【怒吼】请选择摸牌数量：",
-			ChoiceType: choiceType,
+			Type:         model.PromptConfirm,
+			PlayerID:     playerID,
+			Message:      "【怒吼】请选择摸牌数量：",
+			ChoiceType:   choiceType,
 			Options: []model.PromptOption{
 				{ID: "0", Label: "摸0张"},
 				{ID: "1", Label: "摸1张"},
 			},
-			Min: 1,
-			Max: 1,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 0},
 		}
 	default:
 		return nil

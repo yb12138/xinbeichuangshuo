@@ -28,8 +28,9 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 				{ID: "0", Label: "是"},
 				{ID: "1", Label: "否"},
 			},
-			Min: 1,
-			Max: 1,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 		}
 	case "sage_magic_rebound_element":
 		// 元素列表：只要有至少2张同系牌即可
@@ -42,12 +43,13 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			})
 		}
 		return &model.Prompt{
-			Type:     model.PromptConfirm,
-			PlayerID: playerID,
-			Message:  "【法术反弹】请选择弃置同系牌的元素：",
-			Options:  options,
-			Min:      1,
-			Max:      1,
+			Type:         model.PromptConfirm,
+			PlayerID:     playerID,
+			Message:      "【法术反弹】请选择弃置同系牌的元素：",
+			Options:      options,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 		}
 	case "sage_magic_rebound_cards":
 		// 多选提示：显示所选元素的所有牌
@@ -61,12 +63,13 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			})
 		}
 		return &model.Prompt{
-			Type:     model.PromptChooseCards,
-			PlayerID: playerID,
-			Message:  "【法术反弹】请选择同系牌（选几张X即为几）：",
-			Options:  options,
-			Min:      2,
-			Max:      len(cardIndices),
+			Type:         model.PromptChooseCards,
+			PlayerID:     playerID,
+			Message:      "【法术反弹】请选择同系牌（选几张X即为几）：",
+			Options:      options,
+			Min:          2,
+			Max:          len(cardIndices),
+			Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand"},
 		}
 	case "sage_holy_cards":
 		// 多选提示：显示所有手牌
@@ -78,12 +81,13 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			})
 		}
 		return &model.Prompt{
-			Type:     model.PromptChooseCards,
-			PlayerID: playerID,
-			Message:  "【圣洁法典】请选择异系牌（选几张X即为几）：",
-			Options:  options,
-			Min:      3,
-			Max:      len(player.Hand),
+			Type:         model.PromptChooseCards,
+			PlayerID:     playerID,
+			Message:      "【圣洁法典】请选择异系牌（选几张X即为几）：",
+			Options:      options,
+			Min:          3,
+			Max:          len(player.Hand),
+			Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand"},
 		}
 	case "sage_arcane_cards":
 		options := make([]model.PromptOption, 0, len(player.Hand))
@@ -94,12 +98,13 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			})
 		}
 		return &model.Prompt{
-			Type:     model.PromptChooseCards,
-			PlayerID: playerID,
-			Message:  "【魔道法典】请选择异系牌（选几张X即为几）：",
-			Options:  options,
-			Min:      2,
-			Max:      len(player.Hand),
+			Type:         model.PromptChooseCards,
+			PlayerID:     playerID,
+			Message:      "【魔道法典】请选择异系牌（选几张X即为几）：",
+			Options:      options,
+			Min:          2,
+			Max:          len(player.Hand),
+			Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand"},
 		}
 	case "sage_holy_target_count":
 		maxCount := runtimeutil.ToIntContextValue(data["max_target_count"])
@@ -114,12 +119,13 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			})
 		}
 		return &model.Prompt{
-			Type:     model.PromptConfirm,
-			PlayerID: playerID,
-			Message:  "【圣洁法典】请选择要获得治疗的角色数量：",
-			Options:  options,
-			Min:      1,
-			Max:      1,
+			Type:         model.PromptConfirm,
+			PlayerID:     playerID,
+			Message:      "【圣洁法典】请选择要获得治疗的角色数量：",
+			Options:      options,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 0},
 		}
 	case "sage_holy_targets":
 		allTargetIDs := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
@@ -160,12 +166,13 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			msg = "【魔道法典】请选择目标角色："
 		}
 		return &model.Prompt{
-			Type:     model.PromptConfirm,
-			PlayerID: playerID,
-			Message:  msg,
-			Options:  options,
-			Min:      1,
-			Max:      1,
+			Type:         model.PromptConfirm,
+			PlayerID:     playerID,
+			Message:      msg,
+			Options:      options,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationTargetPicker, TargetFilter: "custom"},
 		}
 	}
 

@@ -160,6 +160,14 @@ export interface PromptPresentation {
   layout?: string // "inline"/"overlay"/"grid"/"heal_allocate"
   numeric_base?: number // numeric 类型的数字起始值（0 或 1）
   cancel_policy?: string // "allow"/"deny"/"implicit"
+  target_filter?: 'all' | 'enemies' | 'allies' | 'allies_exclude_self' | 'any_exclude_self' | 'custom'
+  multi_target?: boolean // true=批量多选目标，false=单选
+  card_source?: 'hand' | 'field' | 'proxy' // card_picker 的牌来源
+  card_filter?: string // "same_element"/"diff_element"/"magic_only"/"attack_only"/"element:{ele}"
+  has_decline?: boolean // true=选项中含"不发动/取消"，前端可特殊渲染
+  decline_index?: number // 取消选项的索引位置（默认0）
+  step_index?: number // 当前步骤（从1开始）
+  total_steps?: number // 总步骤数（0=单步）
 }
 
 // Prompt（请求玩家输入）

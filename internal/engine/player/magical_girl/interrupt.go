@@ -51,9 +51,10 @@ func buildMagicMissilePrompt(rt player.ChoiceRuntime) *model.Prompt {
 			{ID: "counter", Label: "打出【魔弹】传递"},
 			{ID: "defend", Label: "使用【圣光】抵挡"},
 		},
-		EffectHints: effectHints,
-		Min:         1,
-		Max:         1,
+		EffectHints:  effectHints,
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 	}
 }
 
@@ -94,22 +95,24 @@ func buildMagicBlastPrompt(rt player.ChoiceRuntime) *model.Prompt {
 
 	if stage == magicBlastStageCasterForcedDiscard {
 		return &model.Prompt{
-			Type:     model.PromptChooseCards,
-			PlayerID: playerID,
-			Message:  "【魔爆冲击】请选择弃1张牌：",
-			Options:  magicBlastCasterForcedDiscardOptions(p),
-			Min:      1,
-			Max:      1,
+			Type:         model.PromptChooseCards,
+			PlayerID:     playerID,
+			Message:      "【魔爆冲击】请选择弃1张牌：",
+			Options:      magicBlastCasterForcedDiscardOptions(p),
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand"},
 		}
 	}
 
 	return &model.Prompt{
-		Type:     model.PromptChooseCards,
-		PlayerID: playerID,
-		Message:  "【魔爆冲击】请选择弃一张法术牌，否则受到2点伤害：",
-		Options:  magicBlastTargetDiscardOptions(p),
-		Min:      1,
-		Max:      1,
+		Type:         model.PromptChooseCards,
+		PlayerID:     playerID,
+		Message:      "【魔爆冲击】请选择弃一张法术牌，否则受到2点伤害：",
+		Options:      magicBlastTargetDiscardOptions(p),
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand"},
 	}
 }
 

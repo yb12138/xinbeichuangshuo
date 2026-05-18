@@ -118,7 +118,7 @@ func buildHolyShardComboPrompt(playerID string, player *model.Player, _ map[stri
 			Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(card)),
 		})
 	}
-	return &model.Prompt{Type: model.PromptChooseCards, PlayerID: playerID, ChoiceType: "hb_holy_shard_combo", Message: "【圣屑飓暴】请选择要弃置的2张同系攻击牌：", Options: options, Min: 2, Max: 2}
+	return &model.Prompt{Type: model.PromptChooseCards, PlayerID: playerID, ChoiceType: "hb_holy_shard_combo", Message: "【圣屑飓暴】请选择要弃置的2张同系攻击牌：", Options: options, Min: 2, Max: 2, Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand"}}
 }
 
 func holyShardCandidateIndices(player *model.Player) []int {
@@ -160,11 +160,11 @@ func holyShardIndexCanPair(player *model.Player, idx int) bool {
 
 func buildHolyShardTargetPrompt(rt engineplayer.ChoiceRuntime, playerID string, data map[string]interface{}) *model.Prompt {
 	targetIDs := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
-	return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, ChoiceType: "hb_holy_shard_target", Message: "【圣屑飓暴】请选择主动攻击目标：", Options: playerOptions(rt, targetIDs), Min: 1, Max: 1}
+	return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, ChoiceType: "hb_holy_shard_target", Message: "【圣屑飓暴】请选择主动攻击目标：", Options: playerOptions(rt, targetIDs), Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationTargetPicker, TargetFilter: "custom"}}
 }
 
 func buildHolyShardMissConfirmPrompt(playerID string) *model.Prompt {
-	return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, ChoiceType: "hb_holy_shard_miss_confirm", Message: "【圣屑飓暴】未命中：是否移除治疗并令1名队友弃牌？", Options: []model.PromptOption{{ID: "0", Label: "是"}, {ID: "1", Label: "否"}}, Min: 1, Max: 1}
+	return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, ChoiceType: "hb_holy_shard_miss_confirm", Message: "【圣屑飓暴】未命中：是否移除治疗并令1名队友弃牌？", Options: []model.PromptOption{{ID: "0", Label: "是"}, {ID: "1", Label: "否"}}, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"}}
 }
 
 func buildHolyShardMissXPrompt(playerID string, player *model.Player, data map[string]interface{}) *model.Prompt {
@@ -197,7 +197,7 @@ func buildHolyShardMissXPrompt(playerID string, player *model.Player, data map[s
 func buildHolyShardMissAllyTargetPrompt(rt engineplayer.ChoiceRuntime, playerID string, data map[string]interface{}) *model.Prompt {
 	allyIDs := runtimeutil.ParseStringSliceContextValue(data["ally_ids"])
 	xValue := runtimeutil.ToIntContextValue(data["x_value"])
-	return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, ChoiceType: "hb_holy_shard_miss_ally_target", Message: fmt.Sprintf("【圣屑飓暴】请选择1名队友弃置%d张手牌：", xValue), Options: playerOptions(rt, allyIDs), Min: 1, Max: 1}
+	return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, ChoiceType: "hb_holy_shard_miss_ally_target", Message: fmt.Sprintf("【圣屑飓暴】请选择1名队友弃置%d张手牌：", xValue), Options: playerOptions(rt, allyIDs), Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationTargetPicker, TargetFilter: "custom"}}
 }
 
 func buildRadiantDescentCostPrompt(playerID string, data map[string]interface{}) *model.Prompt {
@@ -211,7 +211,7 @@ func buildRadiantDescentCostPrompt(playerID string, data map[string]interface{})
 			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", len(options)), Label: "移除2点信仰"})
 		}
 	}
-	return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, ChoiceType: "hb_radiant_descent_cost", Message: "【圣煌降临】请选择支付方式：", Options: options, Min: 1, Max: 1}
+	return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, ChoiceType: "hb_radiant_descent_cost", Message: "【圣煌降临】请选择支付方式：", Options: options, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"}}
 }
 
 func buildLightBurstModePrompt(rt engineplayer.ChoiceRuntime, playerID string, player *model.Player, data map[string]interface{}) *model.Prompt {
@@ -263,7 +263,7 @@ func buildAllyTargetPrompt(rt engineplayer.ChoiceRuntime, playerID string, data 
 	} else if choiceType == "hb_meteor_bullet_target" {
 		msg = "【流星圣弹】请选择获得治疗的我方角色："
 	}
-	return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, ChoiceType: choiceType, Message: msg, Options: playerOptions(rt, allyIDs), Min: 1, Max: 1}
+	return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, ChoiceType: choiceType, Message: msg, Options: playerOptions(rt, allyIDs), Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationTargetPicker, TargetFilter: "custom"}}
 }
 
 func buildLightBurstModeBXPrompt(rt engineplayer.ChoiceRuntime, playerID string, player *model.Player, data map[string]interface{}) *model.Prompt {
@@ -317,7 +317,7 @@ func buildLightBurstModeBTargetsPrompt(rt engineplayer.ChoiceRuntime, playerID s
 	if len(selectedSet) > 0 {
 		options = append(options, model.PromptOption{ID: "finish", Label: "完成目标选择", ButtonLabel: "完成"})
 	}
-	return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, ChoiceType: "hb_light_burst_mode_b_targets", Message: fmt.Sprintf("【圣光爆裂】分支②请点击角色立绘选择目标（已选%d/最多%d）：", len(selectedSet), maxTargets), Options: options, Min: 1, Max: 1}
+	return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, ChoiceType: "hb_light_burst_mode_b_targets", Message: fmt.Sprintf("【圣光爆裂】分支②请点击角色立绘选择目标（已选%d/最多%d）：", len(selectedSet), maxTargets), Options: options, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationTargetPicker, TargetFilter: "custom"}}
 }
 
 func buildLightBurstModeBDiscardPrompt(playerID string, player *model.Player, data map[string]interface{}) *model.Prompt {
@@ -338,7 +338,7 @@ func buildLightBurstModeBDiscardPrompt(playerID string, player *model.Player, da
 	if len(options) > 0 && remainingPick > len(options) {
 		remainingPick = len(options)
 	}
-	return &model.Prompt{Type: model.PromptChooseCards, PlayerID: playerID, ChoiceType: "hb_light_burst_mode_b_discard", Message: fmt.Sprintf("【圣光爆裂】分支②请选择要弃置的%d张手牌：", remainingPick), Options: options, Min: remainingPick, Max: remainingPick}
+	return &model.Prompt{Type: model.PromptChooseCards, PlayerID: playerID, ChoiceType: "hb_light_burst_mode_b_discard", Message: fmt.Sprintf("【圣光爆裂】分支②请选择要弃置的%d张手牌：", remainingPick), Options: options, Min: remainingPick, Max: remainingPick, Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand"}}
 }
 
 func buildMeteorBulletCostPrompt(playerID string, data map[string]interface{}) *model.Prompt {
@@ -352,12 +352,12 @@ func buildMeteorBulletCostPrompt(playerID string, data map[string]interface{}) *
 			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", len(options)), Label: "移除1点信仰"})
 		}
 	}
-	return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, ChoiceType: "hb_meteor_bullet_cost", Message: "【流星圣弹】请选择要移除的资源：", Options: options, Min: 1, Max: 1}
+	return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, ChoiceType: "hb_meteor_bullet_cost", Message: "【流星圣弹】请选择要移除的资源：", Options: options, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"}}
 }
 
 func buildRadiantCannonSidePrompt(playerID string, data map[string]interface{}) *model.Prompt {
 	requiredFaith := runtimeutil.ToIntContextValue(data["required_faith"])
-	return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, ChoiceType: "hb_radiant_cannon_side", Message: fmt.Sprintf("【圣煌辉光炮】将消耗1辉光炮与%d点信仰。请选择士气对齐方向：", requiredFaith), Options: []model.PromptOption{{ID: "0", Label: "将红方士气调整为蓝方士气"}, {ID: "1", Label: "将蓝方士气调整为红方士气"}}, Min: 1, Max: 1}
+	return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, ChoiceType: "hb_radiant_cannon_side", Message: fmt.Sprintf("【圣煌辉光炮】将消耗1辉光炮与%d点信仰。请选择士气对齐方向：", requiredFaith), Options: []model.PromptOption{{ID: "0", Label: "将红方士气调整为蓝方士气"}, {ID: "1", Label: "将蓝方士气调整为红方士气"}}, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"}}
 }
 
 func buildAutoFillResourcePrompt(playerID string, data map[string]interface{}) *model.Prompt {

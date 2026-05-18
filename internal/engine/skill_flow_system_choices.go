@@ -44,8 +44,9 @@ func (e *GameEngine) buildSystemChoicePrompt(choiceType, playerID string, player
 				{ID: "0", Label: "添加宝石"},
 				{ID: "1", Label: "添加水晶"},
 			},
-			Min: 1,
-			Max: 1,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 		}
 
 	case "heal":
@@ -95,12 +96,13 @@ func (e *GameEngine) buildSystemChoicePrompt(choiceType, playerID string, player
 		}
 		message := fmt.Sprintf("战绩区可提炼的星石（共 %d 个）：请选择 %d-%d 个提炼到能量区：", len(options), minSel, maxSel)
 		return &model.Prompt{
-			Type:     model.PromptChooseExtract,
-			PlayerID: playerID,
-			Message:  message,
-			Options:  options,
-			Min:      minSel,
-			Max:      maxSel,
+			Type:         model.PromptChooseExtract,
+			PlayerID:     playerID,
+			Message:      message,
+			Options:      options,
+			Min:          minSel,
+			Max:          maxSel,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "field"},
 		}
 	}
 

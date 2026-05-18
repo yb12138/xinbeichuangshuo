@@ -19,10 +19,10 @@ func elementNameForPrompt(raw string) string {
 var promptButtonLabelByID = map[string]string{
 	"confirm":    "发动",
 	"yes":        "发动",
-	"no":         "放弃",
+	"no":         "取消",
 	"cancel":     "取消",
-	"skip":       "放弃",
-	"take":       "承受",
+	"skip":       "取消",
+	"take":       "命中",
 	"counter":    "应战",
 	"defend":     "防御",
 	"normal":     "顺序",
@@ -33,8 +33,8 @@ var promptButtonLabelByID = map[string]string{
 	"buy":        "购买",
 	"synthesize": "合成",
 	"extract":    "提炼",
-	"cannot_act": "放弃",
-	"pass":       "放弃",
+	"cannot_act": "取消",
+	"pass":       "取消",
 }
 
 func parsePromptNonNegativeInt(raw string) (int, bool) {
@@ -164,7 +164,7 @@ func normalizePromptOptionForClient(option model.PromptOption, prompt *model.Pro
 	}
 
 	isCombatResponseOption := optionID == "take" || optionID == "defend" || optionID == "counter" ||
-		button == "承受" || button == "防御" || button == "应战"
+		button == "命中" || button == "防御" || button == "应战"
 	if isCombatResponseOption {
 		hint = ""
 	}

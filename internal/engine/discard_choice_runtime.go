@@ -168,13 +168,14 @@ func (e *GameEngine) buildDiscardChoicePromptFromData(playerID string, data map[
 	}
 
 	return &model.Prompt{
-		Type:       model.PromptChooseCards,
-		PlayerID:   playerID,
-		ChoiceType: promptChoiceType,
-		Message:    message,
-		SkillID:    skillID,
-		Options:    options,
-		Min:        min,
-		Max:        max,
+		Type:         model.PromptChooseCards,
+		PlayerID:     playerID,
+		ChoiceType:   promptChoiceType,
+		Message:      message,
+		SkillID:      skillID,
+		Options:      options,
+		Min:          min,
+		Max:          max,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand"},
 	}
 }
