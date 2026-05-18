@@ -565,9 +565,10 @@ export function hundredNightRemoveYouliPrompt(options: {
     options: youliCards.map((c, idx) => ({
       id: `${idx}`,
       label: `妖力[${idx}] ${c.name}（${c.element}系）`,
+      button_label: `移除妖力[${idx}]`,
       field_index: idx,
     })),
-    presentation: { kind: 'card_picker', layout: 'field_cover' },
+    presentation: { kind: 'card_picker', layout: 'field_cover', card_source: 'field', card_filter: 'effect:SpiritCasterPower' },
     min: 1,
     max: 1,
   } satisfies Prompt);

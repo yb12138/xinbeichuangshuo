@@ -114,19 +114,8 @@ type PlayerView struct {
 	Crystal            int                `json:"crystal"` // 个人能量：水晶
 	IsActive           bool               `json:"is_active"`
 	Buffs              []model.Buff       `json:"buffs"`
-	Tokens             map[string]int     `json:"tokens,omitempty"` // 纯指示物；不含 *_count / 派生镜像（见下方顶层字段）
-
-	// 派生计数（JSON 可与历史 key 同名，但不放在 tokens map 内）
-	ElfBlessingCount               int `json:"elf_blessing_count,omitempty"`
-	MagicBowChargeCount            int `json:"mb_charge_count,omitempty"`
-	SpiritCasterPowerCount         int `json:"sc_power_count,omitempty"`
-	MoonDarkMoonCount              int `json:"mg_dark_moon_count,omitempty"`
-	ButterflyCocoonCount           int `json:"bt_cocoon_count,omitempty"`
-	BloodSharedLifeActive          int `json:"bp_shared_life_active,omitempty"`
-	BloodSharedLifeBound           int `json:"bp_shared_life_bound,omitempty"`
-	MagicLancerDarkReleaseBonus    int `json:"ml_dark_release_next_attack_bonus,omitempty"`
-	MagicLancerDarkReleaseLockTurn int `json:"ml_dark_release_lock_turn,omitempty"` // 0/1，与 tokens 分离
-	SwordEmperorSwordSoulCount     int `json:"se_sword_soul_count,omitempty"`
+	Tokens             map[string]int     `json:"tokens,omitempty"`     // 纯游戏状态指示物；不含 Field / RuleModifier / TurnState 派生镜像
+	Indicators         map[string]int     `json:"indicators,omitempty"` // Field / RuleModifier / TurnState 派生展示状态
 
 	// 额外行动约束（仅自身可见）
 	CurrentExtraAction  string   `json:"current_extra_action,omitempty"`

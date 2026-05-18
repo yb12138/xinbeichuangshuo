@@ -1,9 +1,9 @@
-import type { PlayerAction } from '../types/game'
+import type { Card, PlayerAction } from '../types/game'
 import { useBattleFxStore } from '../stores/battlefx.store'
 import { useBattleReviewStore } from '../stores/battleReview.store'
 import { useInterruptStore } from '../stores/interrupt.store'
 import { useSessionStore } from '../stores/session.store'
-import { buildClientActionRequest, type PlayableCardEntry } from './actionRequestAdapter'
+import { buildClientActionRequest } from './actionRequestAdapter'
 import type { ClientActionRequest, RoomActionRequest, WsMessage } from './protocol'
 
 export interface WsCommandClientDeps {
@@ -11,7 +11,7 @@ export interface WsCommandClientDeps {
   sessionStore: ReturnType<typeof useSessionStore>
   battleFxStore: ReturnType<typeof useBattleFxStore>
   battleReviewStore: ReturnType<typeof useBattleReviewStore>
-  getPlayableCards: () => PlayableCardEntry[]
+  getPlayableCards: () => Array<{ card: Card; index: number }>
   isTransportOpen: () => boolean
   sendEnvelope: (msg: WsMessage) => void
   safeStringify: (data: unknown) => string
@@ -35,7 +35,7 @@ export function createWsCommandClient(deps: WsCommandClientDeps) {
       return
     }
 
-    const payload = buildClientActionRequest(action, getPlayableCards())
+    const payload = buildClientActionRequest(action)
     const msg: WsMessage<ClientActionRequest> = {
       Cmd: 'SubmitAction',
       Data: payload,
@@ -85,21 +85,29 @@ export function createWsCommandClient(deps: WsCommandClientDeps) {
     sendEnvelope(msg)
   }
 
+  function cardIDAtIndex(cardIndex: number): string | undefined {
+    if (cardIndex < 0) return undefined
+    return getPlayableCards()[cardIndex]?.card?.id
+  }
+
   function attack(targetId: string, cardIndex: number) {
-    sendAction({
+    const action: PlayerAction = {
       player_id: sessionStore.myPlayerId,
       type: 'Attack',
       target_id: targetId,
-      card_index: cardIndex,
-    })
+    }
+    const cardID = cardIDAtIndex(cardIndex)
+    if (cardID) action.card_id = cardID
+    sendAction(action)
   }
 
   function magic(targetId: string | undefined, cardIndex: number) {
     const action: PlayerAction = {
       player_id: sessionStore.myPlayerId,
       type: 'Magic',
-      card_index: cardIndex,
     }
+    const cardID = cardIDAtIndex(cardIndex)
+    if (cardID) action.card_id = cardID
     if (targetId) action.target_id = targetId
     sendAction(action)
   }
@@ -150,7 +158,7 @@ export function createWsCommandClient(deps: WsCommandClientDeps) {
       type: 'Respond',
       extra_args: [action],
     }
-    if (cardIndex !== undefined) payload.card_index = cardIndex
+    if (cardIndex !== undefined) payload.card_id = cardIDAtIndex(cardIndex)
     if (targetId) payload.target_id = targetId
     sendAction(payload)
   }

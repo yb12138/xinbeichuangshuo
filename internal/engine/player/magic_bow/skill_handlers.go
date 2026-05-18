@@ -55,7 +55,7 @@ func magicBowChargeFieldIndices(user *model.Player, element model.Element) []int
 }
 
 func syncMagicBowChargeToken(user *model.Player) {
-	// no-op: mb_charge_count 在服务端 buildStateForPlayer 中按场上盖牌派生写入 PlayerView.tokens
+	// no-op: mb_charge_count 在服务端 buildStateForPlayer 中按场上盖牌派生写入 PlayerView.indicators
 }
 
 func removeMagicBowChargeAtFieldIndex(user *model.Player, fieldIndex int, element model.Element) (model.Card, bool) {
@@ -130,7 +130,6 @@ func magicBowAllHandIndices(user *model.Player) []int {
 	}
 	return out
 }
-
 
 // --- 魔弓 ---
 

@@ -118,7 +118,7 @@ func buildHolyShardComboPrompt(playerID string, player *model.Player, _ map[stri
 			Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(card)),
 		})
 	}
-	return &model.Prompt{Type: model.PromptChooseCards, PlayerID: playerID, ChoiceType: "hb_holy_shard_combo", Message: "【圣屑飓暴】请选择要弃置的2张同系攻击牌：", Options: options, Min: 2, Max: 2, Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand"}}
+	return &model.Prompt{Type: model.PromptChooseCards, PlayerID: playerID, ChoiceType: "hb_holy_shard_combo", Message: "【圣屑飓暴】请选择要弃置的2张同系攻击牌：", Options: options, Min: 2, Max: 2, Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand", CardFilter: "same_element_attack_pair"}}
 }
 
 func holyShardCandidateIndices(player *model.Player) []int {
@@ -329,7 +329,8 @@ func buildLightBurstModeBDiscardPrompt(playerID string, player *model.Player, da
 		if player == nil || idx < 0 || idx >= len(player.Hand) {
 			continue
 		}
-		options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", idx), Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(player.Hand[idx]))})
+		card := player.Hand[idx]
+		options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", idx), Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(card)), CardID: card.ID})
 	}
 	remainingPick := xValue - selectedCount
 	if remainingPick < 1 {

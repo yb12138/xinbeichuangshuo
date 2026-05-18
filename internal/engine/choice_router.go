@@ -4,6 +4,7 @@ package engine
 
 import (
 	"fmt"
+	"strconv"
 
 	runtimeutil "starcup-engine/internal/engine/core/runtimeutil"
 	choicert "starcup-engine/internal/engine/runtime/choice"
@@ -69,6 +70,12 @@ func (e *GameEngine) handleInterruptChoiceAction(act model.PlayerAction) (intr.A
 		}
 		// 当 Selections 为空但 TargetID 非空时，从 target_ids 列表解析索引
 		selections := act.Selections
+		if len(selections) == 0 && len(act.CardIDs) > 0 {
+			selections, err = e.choiceSelectionsFromCardIDs(act.CardIDs)
+			if err != nil {
+				return intr.ActionResult{}, err
+			}
+		}
 		if len(selections) == 0 && act.TargetID != "" {
 			ids := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
 			for i, id := range ids {
@@ -103,4 +110,34 @@ func (e *GameEngine) handleInterruptChoiceAction(act model.PlayerAction) (intr.A
 			}
 		},
 	}, nil
+}
+
+func (e *GameEngine) choiceSelectionsFromCardIDs(cardIDs []string) ([]int, error) {
+	if len(cardIDs) == 0 {
+		return nil, nil
+	}
+	prompt := e.BuildChoicePrompt()
+	if prompt == nil {
+		return nil, fmt.Errorf("当前选择缺少可解析的卡牌选项")
+	}
+	selections := make([]int, 0, len(cardIDs))
+	for _, cardID := range cardIDs {
+		matched := false
+		for optionIndex, option := range prompt.Options {
+			if option.CardID != cardID {
+				continue
+			}
+			selection, err := strconv.Atoi(option.ID)
+			if err != nil {
+				selection = optionIndex
+			}
+			selections = append(selections, selection)
+			matched = true
+			break
+		}
+		if !matched {
+			return nil, fmt.Errorf("卡牌 %q 不在当前可选列表中", cardID)
+		}
+	}
+	return selections, nil
 }

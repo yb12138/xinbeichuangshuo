@@ -330,7 +330,7 @@ func (r roleChoiceRuntime) EnqueueVirtualAttack(sourceID, targetID string, card 
 		Type:            model.ActionAttack,
 		Element:         card.Element,
 		Card:            &card,
-		CardIndex:       -1,
+		CardID:          card.ID,
 		SourceSkill:     sourceSkill,
 		UsesVirtualCard: true,
 	})
@@ -445,6 +445,11 @@ func (r roleChoiceRuntime) SetMagicBulletChain(chain *model.MagicBulletChain) {
 
 func (r roleChoiceRuntime) GetPlayableCardByIndex(player *model.Player, idx int) (model.Card, bool) {
 	card, _, _, ok := r.GameEngine.getPlayableCardByIndex(player, idx)
+	return card, ok
+}
+
+func (r roleChoiceRuntime) GetPlayableCardByCardID(player *model.Player, cardID string) (model.Card, bool) {
+	card, _, _, ok := r.GameEngine.getPlayableCardByID(player, cardID)
 	return card, ok
 }
 

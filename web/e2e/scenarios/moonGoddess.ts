@@ -369,10 +369,10 @@ export function medusaEyeDarkMoonPrompt(): WsMessage {
     choice_type: 'mg_medusa_darkmoon_pick',
     skill_id: MG_MEDUSA_EYE_SKILL_ID,
     options: [
-      { id: '0', label: '移除闇月[暗月法术/Magic/Dark]', field_index: 0 },
-      { id: '1', label: '移除闇月[火焰斩/Attack/Fire]', field_index: 1 },
+      { id: '0', label: '移除闇月[暗月法术/Magic/Dark]', button_label: '移除闇月[0]', field_index: 0 },
+      { id: '1', label: '移除闇月[火焰斩/Attack/Fire]', button_label: '移除闇月[1]', field_index: 1 },
     ],
-    presentation: { kind: 'card_picker', layout: 'field_cover' },
+    presentation: { kind: 'card_picker', layout: 'field_cover', card_source: 'field', card_filter: 'effect:MoonDarkMoon' },
     min: 1,
     max: 1,
   } satisfies Prompt);
@@ -458,9 +458,8 @@ export function moonCycleBranchPrompt(options: { branch1?: boolean; branch2?: bo
     message: '【月之轮回】请选择发动分支：',
     choice_type: 'mg_moon_cycle_mode',
     skill_id: MG_MOON_CYCLE_SKILL_ID,
-    cancelable: true,
     options: promptOptions,
-    presentation: { kind: 'branch_select', layout: 'overlay', cancel_policy: 'allow' },
+    presentation: { kind: 'branch_select', layout: 'overlay', cancel_policy: 'decline', has_decline: true, decline_index: 0 },
     min: 1,
     max: 1,
   } satisfies Prompt);

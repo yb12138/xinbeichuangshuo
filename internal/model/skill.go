@@ -210,7 +210,7 @@ type PromptPresentation struct {
 	Kind         PresentationKind `json:"kind"`                    // 必填：展示类型
 	Layout       string           `json:"layout,omitempty"`        // 可选："inline"/"overlay"/"grid"
 	NumericBase  int              `json:"numeric_base"`            // numeric 类型的数字起始值（0 或 1）
-	CancelPolicy string           `json:"cancel_policy,omitempty"` // 可选："allow"/"deny"/"implicit"
+	CancelPolicy string           `json:"cancel_policy,omitempty"` // 可选："deny"/"abort"/"decline"/"back"
 
 	// 目标选择约束（kind=target_picker 时使用）
 	TargetFilter string `json:"target_filter,omitempty"` // all/enemies/allies/allies_exclude_self/any_exclude_self/custom
@@ -239,6 +239,7 @@ type PromptOption struct {
 	Label       string `json:"label"`                  // 原始显示标签（兼容老客户端）
 	ButtonLabel string `json:"button_label,omitempty"` // 按钮短文案（如：发动/放弃/取消/1）
 	Hint        string `json:"hint,omitempty"`         // 选项说明（展示在按钮上方）
+	CardID      string `json:"card_id,omitempty"`      // 关联实体卡 UUID（卡牌选择专用）
 	FieldIndex  *int   `json:"field_index,omitempty"`  // 场区索引（场牌/盖牌选择专用）
 }
 

@@ -55,7 +55,7 @@ test.describe('magic bow protocol harness', () => {
     await protocolHarness.expectSubmitAction({
       action_type: 'Attack',
       targets: [{ target_user_id: ENEMY_PLAYER_ID }],
-      used_card_uuids: [MB_ATTACK_CARD_ID],
+      card_id: MB_ATTACK_CARD_ID,
     });
 
     await protocolHarness.pushServerMessage(magicPierceResponsePrompt());

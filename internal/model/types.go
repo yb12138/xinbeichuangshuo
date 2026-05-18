@@ -113,7 +113,7 @@ type QueuedAction struct {
 	Type                        ActionType    `json:"type"`                           // Attack 或 Magic
 	Element                     Element       `json:"element"`                        // 可选：元素限制（如疾风技要求风系）
 	Card                        *Card         `json:"card"`                           // 可选：预定义的卡牌（如果已选择）
-	CardIndex                   int           `json:"card_index"`                     // 卡牌在手牌中的索引
+	CardID                      string        `json:"card_id,omitempty"`              // 所选实体卡 UUID
 	SourceSkill                 string        `json:"source_skill"`                   // 来源技能ID（如疾风技、烈风技）
 	UsesVirtualCard             bool          `json:"uses_virtual_card,omitempty"`    // 是否为非手牌实体驱动的虚拟牌行动
 	HasDispatchedCardUsed       bool          `json:"has_dispatched_card_used"`       // 是否已触发卡牌使用事件

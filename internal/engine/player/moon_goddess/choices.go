@@ -52,8 +52,10 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			Min:        1,
 			Max:        1,
 			Presentation: &model.PromptPresentation{
-				Kind:   model.PresentationCardPicker,
-				Layout: "field_cover",
+				Kind:       model.PresentationCardPicker,
+				Layout:     "field_cover",
+				CardSource: "field",
+				CardFilter: "effect:MoonDarkMoon",
 			},
 		}
 
@@ -108,7 +110,9 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			Presentation: &model.PromptPresentation{
 				Kind:         model.PresentationBranchSelect,
 				Layout:       "overlay",
-				CancelPolicy: "allow",
+				CancelPolicy: "decline",
+				HasDecline:   true,
+				DeclineIndex: 0,
 			},
 		}
 

@@ -239,6 +239,43 @@ func (e *GameEngine) consumePlayableCardByIndex(p *model.Player, index int) (mod
 	return card, nil
 }
 
+func (e *GameEngine) getPlayableCardByID(p *model.Player, cardID string) (card model.Card, fromCover bool, coverEffect model.EffectType, ok bool) {
+	idx := e.findPlayableCardIndexByID(p, cardID)
+	if idx < 0 {
+		return model.Card{}, false, "", false
+	}
+	return e.getPlayableCardByIndex(p, idx)
+}
+
+func (e *GameEngine) consumePlayableCardByID(p *model.Player, cardID string) (model.Card, error) {
+	idx := e.findPlayableCardIndexByID(p, cardID)
+	if idx < 0 {
+		return model.Card{}, fmt.Errorf("未找到卡牌: %s", cardID)
+	}
+	return e.consumePlayableCardByIndex(p, idx)
+}
+
+func (e *GameEngine) consumeQueuedActionCard(p *model.Player, qa *model.QueuedAction) (model.Card, error) {
+	cardID := queuedActionCardID(qa)
+	if cardID == "" {
+		return model.Card{}, fmt.Errorf("队列行动缺少卡牌ID")
+	}
+	return e.consumePlayableCardByID(p, cardID)
+}
+
+func queuedActionCardID(qa *model.QueuedAction) string {
+	if qa == nil {
+		return ""
+	}
+	if qa.CardID != "" {
+		return qa.CardID
+	}
+	if qa.Card != nil {
+		return qa.Card.ID
+	}
+	return ""
+}
+
 func (e *GameEngine) findPlayableCardIndexByID(p *model.Player, cardID string) int {
 	if p == nil || cardID == "" {
 		return -1
@@ -275,4 +312,3 @@ func (e *GameEngine) canUseHealToResist(target *model.Player, sourceID string, d
 	_ = allowCrimsonFaithHeal
 	return true
 }
-

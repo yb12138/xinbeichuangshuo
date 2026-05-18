@@ -35,7 +35,8 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			Options:      options,
 			Min:          1,
 			Max:          1,
-			Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
+			Cancelable:   true,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, Layout: "inline", CardSource: "hand", CardFilter: "plague_death_touch_element", CancelPolicy: "abort"},
 		}
 	case "plague_death_touch_x":
 		maxHeal := runtimeutil.ToIntContextValue(data["max_heal"])
@@ -60,9 +61,11 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		cardIndices := engineplayer.GetCardIndicesByElement(player, model.Element(chosenElement))
 		options := make([]model.PromptOption, 0, len(cardIndices))
 		for _, idx := range cardIndices {
+			card := player.Hand[idx]
 			options = append(options, model.PromptOption{
-				ID:    fmt.Sprintf("%d", idx),
-				Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(player.Hand[idx])),
+				ID:     fmt.Sprintf("%d", idx),
+				Label:  fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(card)),
+				CardID: card.ID,
 			})
 		}
 		return &model.Prompt{
@@ -72,7 +75,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			Options:      options,
 			Min:          2,
 			Max:          len(cardIndices),
-			Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand"},
+			Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand", CardFilter: "same_element"},
 		}
 	case "plague_death_touch_target":
 		targetIDs := runtimeutil.ParseStringSliceContextValue(data["target_ids"])

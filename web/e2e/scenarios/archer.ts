@@ -198,12 +198,12 @@ export function piercingShotDiscardPrompt(): WsMessage {
     message: '【贯穿射击】请选择1张法术牌弃置（展示）：',
     choice_type: 'discard_cards',
     options: [
-      { id: '2', label: '3: 雷击（雷系 法术）' },
-      { id: '3', label: '4: 火球（火系 法术）' },
-      { id: '5', label: '6: 闪光陷阱（光系 法术）' },
+      { id: '2', label: '3: 雷击（雷系 法术）', button_label: '选择' },
+      { id: '3', label: '4: 火球（火系 法术）', button_label: '选择' },
+      { id: '5', label: '6: 闪光陷阱（光系 法术）', button_label: '选择' },
     ],
     min: 1, max: 1,
-    presentation: { kind: 'card_picker' },
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'magic_only' },
   } satisfies Prompt);
 }
 

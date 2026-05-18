@@ -162,8 +162,9 @@ func (e *GameEngine) buildDiscardChoicePromptFromData(playerID string, data map[
 			continue
 		}
 		options = append(options, model.PromptOption{
-			ID:    strconv.Itoa(i),
-			Label: fmt.Sprintf("%d: %s", i+1, formatCardInfo(card)),
+			ID:     strconv.Itoa(i),
+			Label:  fmt.Sprintf("%d: %s", i+1, formatCardInfo(card)),
+			CardID: card.ID,
 		})
 	}
 

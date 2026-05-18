@@ -88,7 +88,7 @@ test.describe('butterfly dancer chrysalis protocol harness', () => {
     // 后端契约：茧数量 <= 8 时无溢出处理弹框，流程结束
     // 注：状态更新验证需要在真实 E2E 环境中通过 UI 检查：
     //   - 状态面板应显示 tokens.bt_pupa = 1（蛹数量）
-    //   - 状态面板应显示 tokens.bt_cocoon_count = 4（茧数量）
+    //   - 状态面板应显示 indicators.bt_cocoon_count = 4（茧数量）
     //   - expansion zone 应显示4张茧牌（field 中 ButterflyCocoon 盖牌）
     //   - 宝石消耗后 gem 应为 0
     // 当前 mock 测试主要验证协议流程，UI 状态渲染由前端组件测试覆盖

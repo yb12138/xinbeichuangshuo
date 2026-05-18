@@ -97,17 +97,19 @@ function medusaDarkMoonPickPrompt(): Prompt {
   return {
     type: 'confirm',
     player_id: 'p2',
-    choice_type: 'mg_medusa_darkmoon_pick',
     message: '【美杜莎之眼】请选择要展示并移除的同系闇月：',
     options: [
-      { id: '0', label: '移除闇月[暗月法术/Magic/Dark]', field_index: 0 },
-      { id: '1', label: '移除闇月[火焰斩/Attack/Fire]', field_index: 1 },
+      { id: '0', label: '移除闇月[暗月法术/Magic/Dark]', button_label: '移除闇月[0]', field_index: 0 },
+      { id: '1', label: '移除闇月[火焰斩/Attack/Fire]', button_label: '移除闇月[1]', field_index: 1 },
     ],
     min: 1,
     max: 1,
     presentation: {
       kind: 'card_picker',
       layout: 'field_cover',
+      numeric_base: 0,
+      card_source: 'field',
+      card_filter: 'effect:MoonDarkMoon',
     },
   }
 }
@@ -118,17 +120,20 @@ function moonCycleBranchPrompt(): Prompt {
     player_id: 'p2',
     choice_type: 'mg_moon_cycle_mode',
     message: '【月之轮回】请选择发动分支：',
-    cancelable: true,
     options: [
-      { id: 'decline', label: '不发动' },
-      { id: 'branch1', label: '分支①：移除1个闇月，令目标角色+1治疗' },
-      { id: 'branch2', label: '分支②：移除1点治疗，你+1新月' },
+      { id: 'decline', label: '不发动', button_label: '不发动' },
+      { id: 'branch1', label: '分支①：移除1个闇月，令目标角色+1治疗', button_label: '分支①：移除1个闇月，令目标角色+1治疗' },
+      { id: 'branch2', label: '分支②：移除1点治疗，你+1新月', button_label: '分支②：移除1点治疗，你+1新月' },
     ],
     min: 1,
     max: 1,
     presentation: {
       kind: 'branch_select',
       layout: 'overlay',
+      numeric_base: 0,
+      cancel_policy: 'decline',
+      has_decline: true,
+      decline_index: 0,
     },
   }
 }
@@ -140,14 +145,15 @@ function weakPrompt(): Prompt {
     choice_type: 'weak',
     message: '【虚弱状态】测试玩家1，你需要做出选择：',
     options: [
-      { id: 'draw_continue', label: '摸3张牌继续执行后续行动' },
-      { id: 'skip_turn', label: '跳过此回合' },
+      { id: 'draw_continue', label: '摸3张牌继续执行后续行动', button_label: '摸3张牌继续执行后续行动' },
+      { id: 'skip_turn', label: '跳过此回合', button_label: '跳过此回合' },
     ],
     min: 1,
     max: 1,
     presentation: {
       kind: 'branch_select',
       layout: 'overlay',
+      numeric_base: 0,
     },
   }
 }
@@ -159,12 +165,13 @@ function moonCycleTargetPrompt(): Prompt {
     choice_type: 'mg_moon_cycle_heal_target',
     message: '【月之轮回】请选择获得1点治疗的角色：',
     options: [
-      { id: 'p3', label: '目标玩家' },
+      { id: 'p3', label: '目标玩家', button_label: '目标玩家' },
     ],
     min: 1,
     max: 1,
     presentation: {
       kind: 'target_picker',
+      numeric_base: 0,
     },
   }
 }
@@ -176,9 +183,9 @@ function healPrompt(): Prompt {
     choice_type: 'heal',
     message: 'P2 受到伤害，可选择使用治疗抵消：',
     options: [
-      { id: '0', label: '不使用治疗' },
-      { id: '1', label: '使用 1 点治疗' },
-      { id: '2', label: '使用 2 点治疗' },
+      { id: '0', label: '不使用治疗', button_label: '0' },
+      { id: '1', label: '使用 1 点治疗', button_label: '1' },
+      { id: '2', label: '使用 2 点治疗', button_label: '2' },
     ],
     min: 1,
     max: 1,
@@ -194,7 +201,7 @@ describe('PromptDialog', () => {
     submitSelectMock.mockReset()
   })
 
-  it('shows full weakness labels when only message hints weakness branch choice', async () => {
+  it('shows full weakness labels from presentation', async () => {
     const pinia = createPinia()
     setActivePinia(pinia)
 
@@ -219,11 +226,16 @@ describe('PromptDialog', () => {
       player_id: 'p2',
       message: '【虚弱状态】测试玩家1，你需要做出选择：',
       options: [
-        { id: '0', label: '摸3张牌继续执行后续行动' },
-        { id: '1', label: '跳过此回合' },
+        { id: '0', label: '摸3张牌继续执行后续行动', button_label: '摸3张牌继续执行后续行动' },
+        { id: '1', label: '跳过此回合', button_label: '跳过此回合' },
       ],
       min: 1,
       max: 1,
+      presentation: {
+        kind: 'branch_select',
+        layout: 'overlay',
+        numeric_base: 0,
+      },
     })
 
     render(PromptDialog, {
@@ -334,27 +346,6 @@ describe('PromptDialog', () => {
     expect(screen.getByText('【月之轮回】请选择获得1点治疗的角色：')).toBeInTheDocument()
     expect(screen.queryByTestId('decision-overlay')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '目标玩家' })).not.toBeInTheDocument()
-  })
-
-  it('renders weakness choice without presentation as full branch labels', async () => {
-    const pinia = createPinia()
-    setActivePinia(pinia)
-
-    useSessionStore().setRoomInfo('ROOM1', 'p2', 'Blue', 'fighter')
-    useSnapshotStore().updateGameState(buildState())
-    const { presentation: _presentation, ...legacyWeak } = weakPrompt()
-    useInterruptStore().setPrompt(legacyWeak)
-
-    render(PromptDialog, {
-      global: {
-        plugins: [pinia],
-      },
-    })
-
-    expect(screen.getByText('摸3张牌继续执行后续行动')).toBeInTheDocument()
-    expect(screen.getByText('跳过此回合')).toBeInTheDocument()
-    expect(screen.queryByText('取消')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('numeric-option-2')).not.toBeInTheDocument()
   })
 
   it('renders weakness choice as a decision overlay instead of a hand-card picker', async () => {

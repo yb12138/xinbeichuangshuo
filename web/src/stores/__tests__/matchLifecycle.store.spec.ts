@@ -126,9 +126,13 @@ describe('useMatchLifecycleStore', () => {
       type: 'confirm',
       player_id: 'p1',
       message: '请选择',
-      options: [{ id: 'ok', label: '确定' }],
+      options: [{ id: 'ok', label: '确定', button_label: '确定' }],
       min: 1,
       max: 1,
+      presentation: {
+        kind: 'branch_select',
+        numeric_base: 0,
+      },
     }
     interruptStore.setPrompt(prompt)
     battleFxStore.startSkillInitiatorFocus('p1', 'skill')

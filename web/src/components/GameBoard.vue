@@ -131,18 +131,10 @@ function playableIndexForBlessingCover(fieldIndex: number): number | null {
   const blessingPlayableCards = myPlayableCards.value.filter((item) => item.source === 'blessing')
   if (blessingPlayableCards.length <= 0) return null
 
-  // 优先按卡牌 ID 精确匹配
   const coverCardID = String(cover.fieldCard.card?.id || '').trim()
-  if (coverCardID) {
-    const playable = blessingPlayableCards.find((item) => String(item.card?.id || '').trim() === coverCardID)
-    if (playable) return playable.index
-  }
-
-  // 回退到顺序匹配
-  const blessingCoverEntries = myCoverCards.value.filter((entry) => entry.fieldCard.effect === ELF_BLESSING_EFFECT)
-  const blessingOrdinal = blessingCoverEntries.findIndex((entry) => entry.fieldIndex === fieldIndex)
-  if (blessingOrdinal < 0 || blessingOrdinal >= blessingPlayableCards.length) return null
-  return blessingPlayableCards[blessingOrdinal]?.index ?? null
+  if (!coverCardID) return null
+  const playable = blessingPlayableCards.find((item) => String(item.card?.id || '').trim() === coverCardID)
+  return playable?.index ?? null
 }
 
 const orderedPlayerIds = computed(() => {
@@ -236,10 +228,6 @@ const SKILL_REQUIRE_MANUAL_TARGET_CONFIRM_IDS = new Set([
   'earth_seal',
   'wind_seal',
   'thunder_seal',
-])
-
-const PROMPT_REQUIRE_MANUAL_TARGET_CONFIRM_CHOICE_TYPES = new Set([
-  'sage_holy_targets',
 ])
 
 function moraleDeltaLabel(delta: number): string {
@@ -432,7 +420,7 @@ function parseSpiritCasterPowerIndexFromLabel(label: string): number | null {
 
 const spiritCasterPowerPromptContext = computed(() => {
   const p = promptGuideContext.value
-  if (!p || !Array.isArray(p.options) || p.options.length === 0 || p.choice_type !== 'sc_hundred_night_power') {
+  if (!p || !Array.isArray(p.options) || p.options.length === 0 || p.presentation?.card_source !== 'field') {
     return {
       active: false,
       min: 0,
@@ -508,20 +496,20 @@ const spiritCasterPowerGuideText = computed(() => {
 const promptNeedsElementalShotGuide = computed(() => {
   const p = promptGuideContext.value
   if (!p || !isPromptForMe.value) return false
-  return p.choice_type === 'elf_archer_elemental_shot_pick'
+  return p.presentation?.card_filter === 'magic_or_elf_blessing'
 })
 
 const promptNeedsCardSelectionGuide = computed(() => {
   const p = promptGuideContext.value
   if (!p || !isPromptForMe.value) return false
-  return p.choice_type === 'elf_archer_elemental_shot_pick'
+  return p.presentation?.card_filter === 'magic_or_elf_blessing'
 })
 
 const cocoonGuideText = computed(() => {
   const ctx = cocoonPromptContext.value
   const p = promptGuideContext.value
   if (!ctx.active) return ''
-  if (p?.choice_type === 'mg_medusa_darkmoon_pick') {
+  if (p?.presentation?.card_filter === 'effect:MoonDarkMoon') {
     return '请在扩展区点击要展示并移除的同系闇月'
   }
   if (ctx.mode === 'confirm') {
@@ -592,8 +580,8 @@ const promptNeedsCardGuide = computed(() => {
   if (promptNeedsSpiritCasterPowerGuide.value) return false
   const p = promptGuideContext.value
   if (!p) return false
-  if (p.choice_type === 'plague_death_touch_element') return true
-  if (p.choice_type === 'ml_fullness_discard_step') return true
+  if (p.presentation?.card_filter === 'magic_or_elf_blessing') return true
+  if (p.presentation?.card_source === 'proxy') return true
   if (promptHandCardIndexSet().size > 0) return true
   if (p.type === 'choose_card' || p.type === 'choose_cards') return true
   const optionIds = new Set((p.options || []).map((option: any) => String(option?.id || '')))
@@ -663,15 +651,13 @@ function isCoverSelectable(fieldIndex: number): boolean {
     return powerCtx.options.some((option) => option.fieldIndex === fieldIndex)
   }
   // 元素射击：祝福盖牌根据 prompt.options 判断可选性
-  if (currentPrompt.value?.choice_type === 'elf_archer_elemental_shot_pick') {
+  if (currentPrompt.value?.presentation?.card_filter === 'magic_or_elf_blessing') {
     const cover = myCoverCards.value.find((entry) => entry.fieldIndex === fieldIndex)
     if (cover && cover.fieldCard.effect === ELF_BLESSING_EFFECT) {
-      const blessingCovers = myCoverCards.value.filter(e => e.fieldCard.effect === ELF_BLESSING_EFFECT)
-      const blessingOrdinal = blessingCovers.findIndex(e => e.fieldIndex === fieldIndex)
-      if (blessingOrdinal < 0) return false
-      const playableIdx = myHand.value.length + blessingOrdinal
-      const validIds = new Set((currentPrompt.value?.options || []).map((o: any) => String(o?.id || '')))
-      return validIds.has(String(playableIdx))
+      const coverCardID = String(cover.fieldCard.card?.id || '').trim()
+      if (!coverCardID) return false
+      const validCardIDs = new Set((currentPrompt.value?.options || []).map((o: any) => String(o?.card_id || '').trim()).filter(Boolean))
+      return validCardIDs.has(coverCardID)
     }
   }
   const playableIndex = playableIndexForBlessingCover(fieldIndex)
@@ -690,13 +676,11 @@ function isCoverSelected(fieldIndex: number): boolean {
     return false
   }
   // 元素射击：祝福盖牌的选择状态
-  if (currentPrompt.value?.choice_type === 'elf_archer_elemental_shot_pick') {
+  if (currentPrompt.value?.presentation?.card_filter === 'magic_or_elf_blessing') {
     const cover = myCoverCards.value.find((entry) => entry.fieldIndex === fieldIndex)
     if (cover && cover.fieldCard.effect === ELF_BLESSING_EFFECT) {
-      const blessingCovers = myCoverCards.value.filter(e => e.fieldCard.effect === ELF_BLESSING_EFFECT)
-      const blessingOrdinal = blessingCovers.findIndex(e => e.fieldIndex === fieldIndex)
-      if (blessingOrdinal < 0) return false
-      const playableIdx = myHand.value.length + blessingOrdinal
+      const playableIdx = playableIndexForBlessingCover(fieldIndex)
+      if (playableIdx === null) return false
       return selectedCards.value.includes(playableIdx) ||
         selectedCardForAction.value === playableIdx ||
         skillDiscardIndices.value.includes(playableIdx)
@@ -713,8 +697,8 @@ function onCoverCardClick(fieldIndex: number) {
   const ctx = cocoonPromptContext.value
   if (ctx.active) {
     if (!isCocoonCoverSelectable(fieldIndex)) {
-      const choiceType = String(currentPrompt.value?.choice_type || '').trim()
-      if (choiceType === 'mg_medusa_darkmoon_pick') {
+      const isFieldPicker = currentPrompt.value?.presentation?.card_source === 'field'
+      if (isFieldPicker) {
         interruptStore.showError('当前步骤不可选择该闇月')
       } else {
         interruptStore.showError('当前步骤不可选择该茧')
@@ -767,16 +751,14 @@ function onCoverCardClick(fieldIndex: number) {
   }
 
   // 元素射击：祝福盖牌直接计算可操作索引
-  if (currentPrompt.value?.choice_type === 'elf_archer_elemental_shot_pick') {
+  if (currentPrompt.value?.presentation?.card_filter === 'magic_or_elf_blessing') {
     const cover = myCoverCards.value.find((entry) => entry.fieldIndex === fieldIndex)
     if (cover && cover.fieldCard.effect === ELF_BLESSING_EFFECT) {
-      const blessingCovers = myCoverCards.value.filter(e => e.fieldCard.effect === ELF_BLESSING_EFFECT)
-      const blessingOrdinal = blessingCovers.findIndex(e => e.fieldIndex === fieldIndex)
-      if (blessingOrdinal < 0) {
+      const playableIdx = playableIndexForBlessingCover(fieldIndex)
+      if (playableIdx === null) {
         interruptStore.showError('当前步骤不可选择该盖牌')
         return
       }
-      const playableIdx = myHand.value.length + blessingOrdinal
       onCardClick(playableIdx)
       return
     }
@@ -900,7 +882,7 @@ function promptOptionIndexForPlayer(playerId: string, debugTrace: boolean = fals
 
 function promptRequiresManualTargetConfirm(prompt: Prompt | null): boolean {
   if (!prompt || prompt.presentation?.kind !== 'target_picker') return false
-  return PROMPT_REQUIRE_MANUAL_TARGET_CONFIRM_CHOICE_TYPES.has(String(prompt.choice_type || '').trim())
+  return !!prompt.presentation?.multi_target
 }
 
 function togglePromptTargetSelection(playerId: string) {
@@ -1182,31 +1164,6 @@ function onTargetClick(playerId: string) {
   }
 }
 
-function parsePromptCardIndex(optionId: string): number | null {
-  const normalized = String(optionId || '').trim()
-  if (!/^-?\d+$/.test(normalized)) return null
-  const parsed = Number.parseInt(normalized, 10)
-  if (!Number.isFinite(parsed)) return null
-  return parsed
-}
-
-function parseHandIndexFromPromptLabel(label: string): number | null {
-  const text = String(label || '').trim()
-  let displayIndex: number | null = null
-  const prefixed = text.match(/^(\d+)\s*[:：]/)
-  if (prefixed) {
-    displayIndex = Number.parseInt(prefixed[1] || '', 10)
-  } else {
-    const nth = text.match(/第\s*(\d+)\s*张\s*[:：]/)
-    if (nth) {
-      displayIndex = Number.parseInt(nth[1] || '', 10)
-    }
-  }
-  if (displayIndex === null) return null
-  if (!Number.isFinite(displayIndex) || displayIndex <= 0) return null
-  return displayIndex - 1
-}
-
 function normalizePromptElementToken(raw: string): string {
   const text = String(raw || '').trim().toLowerCase()
   if (!text) return ''
@@ -1222,7 +1179,7 @@ function normalizePromptElementToken(raw: string): string {
 
 function plagueDeathTouchPromptElementSet(prompt: Prompt | null): Set<string> {
   const set = new Set<string>()
-  if (!prompt || prompt.choice_type !== 'plague_death_touch_element') return set
+  if (!prompt || prompt.presentation?.card_filter !== 'plague_death_touch_element') return set
   for (const option of prompt.options || []) {
     const resolved = normalizePromptElementToken(`${option.label || ''} ${option.button_label || ''}`)
     if (resolved) {
@@ -1239,14 +1196,13 @@ function promptHandCardIndexSet(): Set<number> {
   const set = new Set<number>()
   const p = currentPrompt.value?.presentation
   if (!p) return set
-  // Only card_picker with card_source=hand contains hand card indices
   if (p.kind !== 'card_picker' || p.card_source !== 'hand') return set
   const options = currentPrompt.value?.options || []
   for (const option of options) {
-    const idx = parsePromptCardIndex(option.id)
-    if (idx === null || idx < 0 || idx >= myHand.value.length) continue
-    const labelIdx = parseHandIndexFromPromptLabel(option.label)
-    if (labelIdx === idx) set.add(idx)
+    const optionCardID = String(option.card_id || '').trim()
+    if (!optionCardID) continue
+    const handIndex = myHand.value.findIndex(card => String(card.id || '').trim() === optionCardID)
+    if (handIndex >= 0) set.add(handIndex)
   }
   return set
 }
@@ -1287,17 +1243,21 @@ function promptCardSelectionState(idx: number): PromptCardSelectionState {
   if (isActionSelectionPrompt(prompt)) {
     return { selectable: false, reason: 'action_hub_prompt' }
   }
-  if (prompt.choice_type === 'sc_hundred_night_power') {
-    return { selectable: false, reason: 'prompt_spirit_caster_power_cover_only', error: '请在扩展区选择要移除的妖力' }
+  if (prompt.presentation?.card_source === 'field') {
+    const fieldPickHint = prompt.presentation?.card_filter === 'effect:SpiritCasterPower'
+      ? '请在扩展区选择要移除的妖力'
+      : '请在扩展区选择对应盖牌'
+    return { selectable: false, reason: 'prompt_field_cover_only', error: fieldPickHint }
   }
 
   const playableItem = myPlayableCards.value.find((item) => item.index === idx)
   const playableCard = playableItem?.card
 
   // 对于元素射击，根据 prompt.options 判断可选性（后端已排除攻击牌）
-  if (prompt.choice_type === 'elf_archer_elemental_shot_pick') {
-    const validIds = new Set((prompt.options || []).map((o: any) => String(o?.id || '')))
-    if (!validIds.has(String(idx))) {
+  if (prompt.presentation?.card_filter === 'magic_or_elf_blessing') {
+    const cardID = String(playableCard?.id || '').trim()
+    const validCardIDs = new Set((prompt.options || []).map((o: any) => String(o?.card_id || '').trim()).filter(Boolean))
+    if (!cardID || !validCardIDs.has(cardID)) {
       return { selectable: false, reason: 'prompt_elf_elemental_shot_pick_not_in_options' }
     }
     return { selectable: true, reason: 'prompt_elf_elemental_shot_pick_valid' }
@@ -1395,7 +1355,7 @@ function promptCardSelectionState(idx: number): PromptCardSelectionState {
     }
   }
 
-  if (prompt.choice_type === 'adventurer_fraud_pick') {
+  if (prompt.presentation?.card_filter === 'same_element_combo') {
     const handOptionSet = promptHandCardIndexSet()
     if (handOptionSet.size > 0 && !handOptionSet.has(idx)) {
       return {
@@ -1430,7 +1390,7 @@ function promptCardSelectionState(idx: number): PromptCardSelectionState {
     return { selectable: true, reason: 'prompt_fraud_pick_same_element' }
   }
 
-  if (prompt.choice_type === 'plague_death_touch_element') {
+  if (prompt.presentation?.card_filter === 'plague_death_touch_element') {
     const allowedElements = plagueDeathTouchPromptElementSet(prompt)
     if (allowedElements.size === 0) {
       return {
@@ -1462,7 +1422,7 @@ function promptCardSelectionState(idx: number): PromptCardSelectionState {
     return { selectable: true, reason: 'prompt_plague_death_touch_element_match' }
   }
 
-  if (prompt.choice_type === 'hb_holy_shard_combo') {
+  if (prompt.presentation?.card_filter === 'same_element_attack_pair') {
     const handOptionSet = promptHandCardIndexSet()
     if (handOptionSet.size > 0 && !handOptionSet.has(idx)) {
       return {
@@ -1505,7 +1465,7 @@ function promptCardSelectionState(idx: number): PromptCardSelectionState {
   }
 
   // 暗之障壁：单步选择法术牌或雷系牌，级联约束（选了法术牌就只能继续选法术牌）
-  if (prompt.choice_type === 'ml_dark_barrier_cards') {
+  if (prompt.presentation?.card_filter === 'magic_or_thunder_chain') {
     const isMagic = card.type === 'Magic'
     const isThunder = card.element === 'Thunder'
     if (!isMagic && !isThunder) {
@@ -1544,7 +1504,7 @@ function promptCardSelectionState(idx: number): PromptCardSelectionState {
   }
 
   // 充盈弃牌步骤：从手牌区选择弃牌
-  if (prompt.choice_type === 'ml_fullness_discard_step') {
+  if (prompt.presentation?.card_filter === 'option_limited') {
     const validIndices = new Set(
       (prompt.options || []).map((o: any) => {
         const idx = parseInt(String(o?.id || ''), 10)

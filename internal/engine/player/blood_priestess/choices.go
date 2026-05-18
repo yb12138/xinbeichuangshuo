@@ -95,10 +95,10 @@ func buildBloodSorrowTargetPrompt(rt engineplayer.ChoiceRuntime, playerID string
 
 func buildBloodWailXPrompt(playerID string) *model.Prompt {
 	return &model.Prompt{
-		Type:         model.PromptConfirm,
-		PlayerID:     playerID,
-		ChoiceType:   "bp_blood_wail_x",
-		Message:      "【血之悲鸣】请选择X值：",
+		Type:       model.PromptConfirm,
+		PlayerID:   playerID,
+		ChoiceType: "bp_blood_wail_x",
+		Message:    "【血之悲鸣】请选择X值：",
 		Options: []model.PromptOption{
 			{ID: "0", Label: "X=0（伤害=1）"},
 			{ID: "1", Label: "X=1（伤害=2）"},
@@ -121,8 +121,9 @@ func buildCurseDiscardPrompt(playerID string, player *model.Player, data map[str
 	options := make([]model.PromptOption, 0, len(player.Hand))
 	for idx, card := range player.Hand {
 		options = append(options, model.PromptOption{
-			ID:    fmt.Sprintf("%d", idx),
-			Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(card)),
+			ID:     fmt.Sprintf("%d", idx),
+			Label:  fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(card)),
+			CardID: card.ID,
 		})
 	}
 	return &model.Prompt{

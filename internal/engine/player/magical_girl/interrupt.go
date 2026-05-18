@@ -66,9 +66,9 @@ func buildMagicBulletDirectionPrompt(rt player.ChoiceRuntime) *model.Prompt {
 	playerID := interrupt.PlayerID
 
 	return &model.Prompt{
-		Type:         model.PromptConfirm,
-		PlayerID:     playerID,
-		Message:      "【魔弹掌控】选择魔弹传递方向：",
+		Type:     model.PromptConfirm,
+		PlayerID: playerID,
+		Message:  "【魔弹掌控】选择魔弹传递方向：",
 		Options: []model.PromptOption{
 			{ID: "normal", Label: "默认方向 (右手边，前一位对手)"},
 			{ID: "reverse", Label: "逆向传递 (左手边，后一位对手)"},
@@ -241,9 +241,9 @@ func resolveMagicMissileTake(rt player.ChoiceRuntime, p *model.Player, chain *mo
 }
 
 func resolveMagicMissileCounter(rt player.ChoiceRuntime, p *model.Player, chain *model.MagicBulletChain, act model.PlayerAction) error {
-	card, cardOK := rt.GetPlayableCardByIndex(p, act.CardIndex)
+	card, cardOK := playableCardForAction(rt, p, act)
 	if !cardOK {
-		return fmt.Errorf("无效的卡牌索引")
+		return fmt.Errorf("无效的卡牌ID")
 	}
 	if err := rt.DispatchHitCheckMagicMissileCounter(p, chain, &card); err != nil {
 		return err
@@ -263,7 +263,7 @@ func resolveMagicMissileCounter(rt player.ChoiceRuntime, p *model.Player, chain 
 		return fmt.Errorf("你在本轮传递中已参与过，无法再次传递")
 	}
 
-	consumed, err := rt.ConsumePlayableCardByIndex(p, act.CardIndex)
+	consumed, err := consumePlayableCardForAction(rt, p, act)
 	if err != nil {
 		return err
 	}
@@ -277,9 +277,9 @@ func resolveMagicMissileDefend(rt player.ChoiceRuntime, p *model.Player, chain *
 	if err := rt.DispatchHitCheckMagicMissileDefend(p, chain); err != nil {
 		return err
 	}
-	card, cardOK := rt.GetPlayableCardByIndex(p, act.CardIndex)
+	card, cardOK := playableCardForAction(rt, p, act)
 	if !cardOK {
-		return fmt.Errorf("无效的卡牌索引")
+		return fmt.Errorf("无效的卡牌ID")
 	}
 	if card.Name == "圣盾" {
 		return fmt.Errorf("【圣盾】不能在防御时打出，请提前放置到场上触发")
@@ -288,7 +288,7 @@ func resolveMagicMissileDefend(rt player.ChoiceRuntime, p *model.Player, chain *
 		return fmt.Errorf("必须使用【圣光】抵挡")
 	}
 	rt.Log(fmt.Sprintf("[Magic] %s 使用【圣光】，抵挡了魔弹", p.Name))
-	consumed, err := rt.ConsumePlayableCardByIndex(p, act.CardIndex)
+	consumed, err := consumePlayableCardForAction(rt, p, act)
 	if err != nil {
 		return err
 	}
@@ -297,6 +297,24 @@ func resolveMagicMissileDefend(rt player.ChoiceRuntime, p *model.Player, chain *
 	rt.SetMagicBulletChain(nil)
 	rt.PopInterrupt()
 	return nil
+}
+
+func playableCardForAction(rt player.ChoiceRuntime, p *model.Player, act model.PlayerAction) (model.Card, bool) {
+	if act.CardID != "" {
+		return rt.GetPlayableCardByCardID(p, act.CardID)
+	}
+	return rt.GetPlayableCardByIndex(p, act.CardIndex)
+}
+
+func consumePlayableCardForAction(rt player.ChoiceRuntime, p *model.Player, act model.PlayerAction) (model.Card, error) {
+	if act.CardID != "" {
+		card, ok := rt.ConsumePlayableCardByCardID(p.ID, act.CardID)
+		if !ok {
+			return model.Card{}, fmt.Errorf("无效的卡牌ID")
+		}
+		return card, nil
+	}
+	return rt.ConsumePlayableCardByIndex(p, act.CardIndex)
 }
 
 func passMagicMissileToNext(rt player.ChoiceRuntime, p *model.Player, chain *model.MagicBulletChain) error {

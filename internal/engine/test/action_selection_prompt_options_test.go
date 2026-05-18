@@ -275,6 +275,89 @@ func TestActionSelection_ExtraActionCannotActRejectedWhenLegalActionExists(t *te
 	}
 }
 
+func TestActionQueueConsumesSelectedAttackByCardIDAfterHandReorder(t *testing.T) {
+	game, _ := buildActionSelectionEngine(t, "")
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p1.Hand = []model.Card{
+		{ID: "atk-old-index", Name: "旧下标攻击", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 1},
+		{ID: "atk-selected", Name: "选中攻击", Type: model.CardTypeAttack, Element: model.ElementWater, Damage: 2},
+	}
+
+	err := game.HandleActionSelection(model.PlayerAction{
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   "atk-selected",
+	})
+	if err != nil {
+		t.Fatalf("attack selection failed: %v", err)
+	}
+	if len(game.State.ActionQueue) != 1 {
+		t.Fatalf("expected one queued action, got %d", len(game.State.ActionQueue))
+	}
+	if got := game.State.ActionQueue[0].CardID; got != "atk-selected" {
+		t.Fatalf("expected queued card id atk-selected, got %q", got)
+	}
+
+	p1.Hand[0], p1.Hand[1] = p1.Hand[1], p1.Hand[0]
+	game.Drive()
+
+	if len(p1.Hand) != 1 || p1.Hand[0].ID != "atk-old-index" {
+		t.Fatalf("expected only old-index card to remain in hand, got %+v", p1.Hand)
+	}
+	if len(game.State.DiscardPile) == 0 || game.State.DiscardPile[len(game.State.DiscardPile)-1].ID != "atk-selected" {
+		t.Fatalf("expected selected card in discard pile, got %+v", game.State.DiscardPile)
+	}
+	if len(game.State.CombatStack) != 1 || game.State.CombatStack[0].TargetID != p2.ID {
+		t.Fatalf("expected combat against p2 after selected card resolves, got %+v", game.State.CombatStack)
+	}
+}
+
+func TestInterruptChoiceSelectResolvesCardIDsFromPromptOptions(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Tester", "blade_master", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Dummy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := game.State.Players["p1"]
+	p1.Hand = []model.Card{
+		{ID: "card-a", Name: "A", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 1},
+		{ID: "card-b", Name: "B", Type: model.CardTypeMagic, Element: model.ElementWater, Damage: 1},
+		{ID: "card-c", Name: "C", Type: model.CardTypeAttack, Element: model.ElementThunder, Damage: 1},
+	}
+	game.State.PendingInterrupt = &model.Interrupt{
+		Type:     model.InterruptChoice,
+		PlayerID: "p1",
+		Context: map[string]interface{}{
+			"choice_type":    "system_discard_cards",
+			"discard_count":  2,
+			"no_morale_loss": true,
+		},
+	}
+
+	if err := game.HandleAction(model.PlayerAction{
+		PlayerID: "p1",
+		Type:     model.CmdSelect,
+		CardIDs:  []string{"card-c", "card-a"},
+	}); err != nil {
+		t.Fatalf("card id select failed: %v", err)
+	}
+	if len(p1.Hand) != 1 || p1.Hand[0].ID != "card-b" {
+		t.Fatalf("expected only card-b to remain in hand, got %+v", p1.Hand)
+	}
+	discarded := map[string]bool{}
+	for _, card := range game.State.DiscardPile {
+		discarded[card.ID] = true
+	}
+	if !discarded["card-a"] || !discarded["card-c"] || discarded["card-b"] {
+		t.Fatalf("expected card-a and card-c in discard pile only, got %+v", game.State.DiscardPile)
+	}
+}
+
 func TestActionSelection_ExtraMagicAllowsSkill(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "Elem", "elementalist", model.RedCamp); err != nil {

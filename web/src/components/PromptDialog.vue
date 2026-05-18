@@ -6,16 +6,12 @@ import { useSnapshotStore } from '../stores/snapshot.store'
 import { useSubmitAction } from '../composables/useSubmitAction'
 import { ROLE_NAME_MAP } from '../constants/roleNameMap'
 import {
-  isActivationCostText,
-  isCardSelectionLikeText,
-  isDeclineLabel,
-  PLAIN_NO_HINT_BUTTONS,
   promptImageButtonKindByOption,
   responseOptionKind,
   type PromptImageButtonKind,
   type ResponseOptionKind,
 } from '../constants/promptButtonRules'
-import type { PlayerView } from '../types/game'
+import type { PlayerView, PromptOption } from '../types/game'
 
 const interruptStore = useInterruptStore()
 const sessionStore = useSessionStore()
@@ -117,11 +113,11 @@ const isMagicMissilePrompt = computed(() => {
 })
 
 const isPlagueDeathTouchElementPrompt = computed(() =>
-  prompt.value?.choice_type === 'plague_death_touch_element'
+  prompt.value?.presentation?.kind === 'card_picker' && prompt.value?.presentation?.card_filter === 'plague_death_touch_element'
 )
 
 const isElfElementalShotPickPrompt = computed(() =>
-  prompt.value?.choice_type === 'elf_archer_elemental_shot_pick'
+  prompt.value?.presentation?.kind === 'card_picker' && prompt.value?.presentation?.card_filter === 'magic_or_elf_blessing'
 )
 
 const needsCardSelection = computed(() => {
@@ -162,12 +158,12 @@ const isConfirmType = computed(() => {
 const isExtractPrompt = computed(() => prompt.value?.type === 'choose_extract')
 
 // 圣疗 3 点治疗分配：每个目标独立 0..3 数字选择，要求总和=3。
-const isSaintHealAllocatePrompt = computed(() => prompt.value?.choice_type === 'saint_heal_allocate')
+const isSaintHealAllocatePrompt = computed(() => prompt.value?.presentation?.layout === 'heal_allocate')
 const saintHealAllocations = ref<number[]>([])
 const SAINT_HEAL_TOTAL = 3
 
 // 符文改造分配：战纹/魔纹 0..3 数字选择，要求总和=3。
-const isRuneReforgeAllocatePrompt = computed(() => prompt.value?.choice_type === 'hom_rune_reforge_allocate')
+const isRuneReforgeAllocatePrompt = computed(() => prompt.value?.presentation?.layout === 'rune_allocate')
 const runeReforgeAllocations = ref<number[]>([])
 const RUNE_REFORGE_TOTAL = 3
 
@@ -326,7 +322,7 @@ const playerOptionEntries = computed(() => {
       if (!player) return null
       return { index, option, player }
     })
-    .filter((entry): entry is { index: number; option: { id: string; label: string }; player: PlayerView } => entry != null)
+    .filter((entry): entry is { index: number; option: PromptOption; player: PlayerView } => entry != null)
 })
 
 const playerOptionIndexSet = computed(() => {
@@ -358,7 +354,7 @@ const nonPlayerOptions = computed(() => {
 
 const isSpiritCasterPowerPickPrompt = computed(() => {
   const p = prompt.value?.presentation
-  return p?.kind === 'card_picker' && p?.card_source === 'field' && prompt.value?.choice_type === 'sc_hundred_night_power'
+  return p?.kind === 'card_picker' && p?.card_source === 'field'
 })
 
 const showConfirmButtonSection = computed(() => {
@@ -388,20 +384,13 @@ const isResponseSkillConfirmPrompt = computed(() => {
 })
 
 function isPromptActivationCostCancelable(p: NonNullable<typeof prompt.value>): boolean {
-  const choiceType = String(p.choice_type || '').trim()
-  // 发动前置消耗：允许玩家取消并回到原流程。
-  if (choiceType === 'plague_death_touch_element' || choiceType === 'plague_death_touch_cards') return true
-  return false
+  const cancelPolicy = p.presentation?.cancel_policy
+  return cancelPolicy === 'abort' || cancelPolicy === 'decline' || cancelPolicy === 'back'
 }
 
 const canCancelPrompt = computed(() => {
   if (!prompt.value) return false
-  if (isPromptActivationCostCancelable(prompt.value)) return true
-  if (prompt.value.type === 'choose_skill' || isResponseSkillConfirmPrompt.value) return true
-  if (prompt.value.cancelable) return true
-  return (prompt.value.options ?? []).some((option: { id: string }) =>
-    option.id === 'skip' || option.id === 'cancel' || option.id === 'refuse'
-  )
+  return isPromptActivationCostCancelable(prompt.value)
 })
 
 function handleOptionClick(optionId: string) {
@@ -439,7 +428,8 @@ function handleOptionClick(optionId: string) {
     actions.submitConfirm()
     return
   }
-  if (String(prompt.value?.choice_type || '').trim() === 'bd_victory_confirm' && optionId === '2') {
+  const optionIndex = prompt.value?.options?.findIndex((o: { id: string }) => o.id === optionId) ?? -1
+  if (prompt.value?.presentation?.has_decline && optionIndex === (prompt.value.presentation.decline_index ?? 0)) {
     actions.submitCancel()
     return
   }
@@ -603,6 +593,13 @@ function confirmPromptAction() {
     ? selectedInlineCardOptionIndices.value
     : interruptStore.selectedCards
   if (indices.length > 0) {
+    if (!isNonHandChooseCardsMultiMode.value) {
+      const cardIDs = selectedPromptHandCardIDs(indices)
+      if (cardIDs.length === indices.length) {
+        actions.submitSelectCardIDs(cardIDs)
+        return
+      }
+    }
     actions.submitSelect(indices)
   }
 }
@@ -613,23 +610,6 @@ function parsePromptCardIndex(optionId: string): number | null {
   const parsed = Number.parseInt(normalized, 10)
   if (!Number.isFinite(parsed)) return null
   return parsed
-}
-
-function parseHandIndexFromOptionLabel(label: string): number | null {
-  const text = String(label || '').trim()
-  let displayIndex: number | null = null
-  const prefixed = text.match(/^(\d+)\s*[:：]/)
-  if (prefixed) {
-    displayIndex = Number.parseInt(prefixed[1] || '', 10)
-  } else {
-    const nth = text.match(/第\s*(\d+)\s*张\s*[:：]/)
-    if (nth) {
-      displayIndex = Number.parseInt(nth[1] || '', 10)
-    }
-  }
-  if (displayIndex === null) return null
-  if (!Number.isFinite(displayIndex) || displayIndex <= 0) return null
-  return displayIndex - 1
 }
 
 function parseCocoonFieldIndexFromOptionLabel(label: string): number | null {
@@ -653,7 +633,41 @@ function isIndexedCocoonOption(option: { label?: string; field_index?: number | 
   return parseCocoonFieldIndexFromOption(option) !== null
 }
 
-function isPromptHandCardOption(option: { id: string; label: string }): boolean {
+function optionCardID(option: { card_id?: string | null }): string {
+  return String(option.card_id || '').trim()
+}
+
+function handIndexForPromptOption(option: { card_id?: string | null }): number | null {
+  const cardID = optionCardID(option)
+  if (!cardID) return null
+  const idx = myHand.value.findIndex(card => String(card.id || '').trim() === cardID)
+  return idx >= 0 ? idx : null
+}
+
+function promptOptionForHandIndex(handIndex: number): PromptOption | null {
+  if (!prompt.value?.options?.length) return null
+  const handCardID = String(myHand.value[handIndex]?.id || '').trim()
+  if (!handCardID) return null
+  for (const option of prompt.value.options) {
+    const cardID = optionCardID(option)
+    if (cardID && cardID === handCardID) return option
+  }
+  return null
+}
+
+function selectedPromptHandCardIDs(indices: number[]): string[] {
+  if (!prompt.value || prompt.value.presentation?.kind !== 'card_picker' || prompt.value.presentation?.card_source !== 'hand') return []
+  const ids: string[] = []
+  for (const idx of indices) {
+    const option = promptOptionForHandIndex(idx)
+    const cardID = option ? optionCardID(option) : ''
+    if (!cardID) return []
+    ids.push(cardID)
+  }
+  return ids
+}
+
+function isPromptHandCardOption(option: { id: string; label: string; card_id?: string | null }): boolean {
   const p = prompt.value?.presentation
   if (!p) return false
   if (p.kind === 'numeric') return false
@@ -664,16 +678,9 @@ function isPromptHandCardOption(option: { id: string; label: string }): boolean 
   if (p.kind === 'card_picker' && p.card_source !== 'hand') return false
   // card_picker with card_source=hand: these are hand cards
   if (p.kind === 'card_picker' && p.card_source === 'hand') {
-    const idx = parsePromptCardIndex(option.id)
-    return idx !== null && idx >= 0 && idx < myHand.value.length
+    return handIndexForPromptOption(option) !== null
   }
-  // For other prompt types (e.g. response), check if option ID matches a hand index
-  const idx = parsePromptCardIndex(option.id)
-  if (idx === null || idx < 0 || idx >= myHand.value.length) return false
-  const labelIndex = parseHandIndexFromOptionLabel(option.label)
-  if (labelIndex !== null) return labelIndex === idx
-  if (isIndexedCocoonOption(option)) return false
-  return true
+  return false
 }
 
 const promptCardOptionIndexSet = computed(() => {
@@ -681,7 +688,7 @@ const promptCardOptionIndexSet = computed(() => {
   if (!prompt.value?.options?.length) return set
   for (const option of prompt.value.options) {
     if (!isPromptHandCardOption(option)) continue
-    const idx = parsePromptCardIndex(option.id)
+    const idx = handIndexForPromptOption(option)
     if (idx !== null) set.add(idx)
   }
   return set
@@ -801,23 +808,6 @@ const promptImageButtonFailed = ref<Record<PromptImageButtonKind, boolean>>({
   card: false,
   action: false,
 })
-
-function parseNonNegativeOptionId(optionId: string): number | null {
-  const normalized = String(optionId || '').trim()
-  if (!/^\d+$/.test(normalized)) return null
-  const value = Number.parseInt(normalized, 10)
-  if (!Number.isFinite(value) || value < 0) return null
-  return value
-}
-
-function shouldUseNumericButtonMode(options: RawDockOption[]): { useNumeric: boolean; plusOne: boolean } {
-  const p = prompt.value?.presentation
-  if (p?.kind === 'numeric') {
-    const plusOne = p.numeric_base !== 0
-    return { useNumeric: true, plusOne }
-  }
-  return { useNumeric: false, plusOne: false }
-}
 
 function promptImageButtonAsset(kind: PromptImageButtonKind): string {
   const candidates = PROMPT_IMAGE_BUTTON_CANDIDATES[kind]
@@ -944,74 +934,19 @@ function overlayDecisionOptionTitle(option: DockButtonOption): string {
   return buttonLabel
 }
 
-function normalizeDockOption(option: RawDockOption, useNumeric: boolean, plusOne: boolean): DockButtonOption {
+function normalizeDockOption(option: RawDockOption): DockButtonOption {
   const id = String(option.id || '').trim()
   const label = String(option.label || '').trim()
-  const lowerID = id.toLowerCase()
-  const responseKind = responseOptionKind(option)
   const explicitButtonLabel = String(option.button_label || '').trim()
-  let buttonLabel = explicitButtonLabel
+  const buttonLabel = explicitButtonLabel || label || id
   let hint = String(option.hint || '').trim()
-  const presentation = prompt.value?.presentation
-
-  // Branch select: button shows the full branch text
-  if (presentation?.kind === 'branch_select' && !buttonLabel && label) {
-    buttonLabel = label
-  }
-  // Skill selection prompt
-  if (!buttonLabel && prompt.value?.type === 'choose_skill') {
-    buttonLabel = '发动'
-  }
-  // "Skip/None" option
-  if (!buttonLabel && lowerID === '-1') {
-    buttonLabel = label.includes('完成') || label.includes('结束') ? '完成' : '取消'
-  }
-  // Numeric mode
-  if (!buttonLabel && useNumeric) {
-    const n = parseNonNegativeOptionId(id)
-    if (n !== null) {
-      buttonLabel = String(plusOne ? n + 1 : n)
-    }
-  }
-  // Card selection
-  if (!buttonLabel && isCardSelectionLikeText(label)) {
-    buttonLabel = '打出卡牌'
-  }
-  // Decline option
-  if (!buttonLabel && isDeclineLabel(label)) {
-    buttonLabel = '取消'
-  }
-  // Response actions
-  if (!buttonLabel && responseKind === 'take') {
-    buttonLabel = '命中'
-  }
-  if (!buttonLabel && responseKind === 'defend') {
-    buttonLabel = '防御'
-  }
-  if (!buttonLabel && responseKind === 'counter') {
-    buttonLabel = '应战'
-  }
-  // Activation cost confirm
-  if (!buttonLabel && (isActivationCostText(hint) || isActivationCostText(label) || isActivationCostText(String(prompt.value?.message || '')))) {
-    buttonLabel = '确认'
-  }
-  // Final fallback
-  if (!buttonLabel) {
-    if (prompt.value?.type === 'confirm') {
-      buttonLabel = '确认'
-    } else {
-      buttonLabel = label && label.length <= 6 ? label : '执行'
-    }
-  }
 
   if (responseOptionKind({ id, label, button_label: buttonLabel }) !== null) {
     hint = ''
   }
 
   if (!hint && label && label !== buttonLabel) {
-    if (!(PLAIN_NO_HINT_BUTTONS.has(buttonLabel) && (label === buttonLabel || isDeclineLabel(label)))) {
-      hint = label
-    }
+    hint = label
   }
 
   return {
@@ -1026,8 +961,7 @@ function normalizeDockOption(option: RawDockOption, useNumeric: boolean, plusOne
 
 function buildDockButtons(options: RawDockOption[]): DockButtonOption[] {
   if (options.length === 0) return []
-  const mode = shouldUseNumericButtonMode(options)
-  return options.map((option) => normalizeDockOption(option, mode.useNumeric, mode.plusOne))
+  return options.map((option) => normalizeDockOption(option))
 }
 
 const fraudElementCardMetaById: Record<string, Omit<FraudElementCardOption, 'id' | 'title'>> = {
@@ -1051,7 +985,7 @@ function fraudAttackCardName(optionId: string, fallback: string): string {
 }
 
 const isFraudElementCardPickerPrompt = computed(() =>
-  prompt.value?.choice_type === 'adventurer_fraud_attack_element' && (prompt.value?.options?.length ?? 0) > 0
+  prompt.value?.presentation?.kind === 'branch_select' && prompt.value?.presentation?.layout === 'fraud_attack_element'
 )
 
 const fraudElementCardOptions = computed<FraudElementCardOption[]>(() => {
@@ -1123,9 +1057,9 @@ const promptNeedsCardConfirm = computed(() =>
 const cardConfirmHintText = computed(() => {
   if (isElfElementalShotPickPrompt.value) return '请从手牌区或扩展区选择法术牌/祝福牌并点击发动'
   if (isPlagueDeathTouchElementPrompt.value) return '请选择同系手牌并点击确认'
-  if (prompt.value?.choice_type === 'plague_death_touch_cards') return '请选择要弃置的同系手牌并点击确认'
+  if (prompt.value?.presentation?.card_filter === 'same_element_combo') return '请选择2~3张同系牌，3张将自动转为暗灭攻击'
+  if (prompt.value?.presentation?.card_filter === 'same_element') return '请选择要弃置的同系手牌并点击确认'
   if (promptNeedsInlineCardOptionConfirm.value) return '完成选择后点击发动'
-  if (prompt.value?.choice_type === 'adventurer_fraud_pick') return '请选择2~3张同系牌，3张将自动转为暗灭攻击'
   return '完成选牌后点击发动'
 })
 
@@ -1163,12 +1097,7 @@ const singleActivationCostConfirmOption = computed<DockButtonOption | null>(() =
   const option = inlinePrimaryButtons.value[0]
   if (!option || option.numeric || option.disabled) return null
   if (responseOptionKind({ id: option.id, label: option.label, button_label: option.buttonLabel }) !== null) return null
-  const message = String(prompt.value.message || '').trim()
-  const optionHint = String(option.hint || '').trim()
-  const optionLabel = String(option.label || '').trim()
-  if (!isActivationCostText(optionHint) && !isActivationCostText(optionLabel) && !isActivationCostText(message)) {
-    return null
-  }
+  if (prompt.value.presentation?.layout !== 'activation_cost') return null
   return option
 })
 
@@ -1212,8 +1141,10 @@ const inlinePrimaryButtons = computed<DockButtonOption[]>(() => {
     const optionSource = shouldExposeIndexedCocoonOptions
       ? (prompt.value?.options || [])
       : nonPlayerOptions.value
+    const declineIndex = prompt.value?.presentation?.has_decline ? (prompt.value.presentation.decline_index ?? 0) : -1
     const options = optionSource
-      .filter((option) => {
+      .filter((option, index) => {
+        if (declineIndex >= 0 && index === declineIndex) return false
         if (shouldExposeIndexedCocoonOptions && (option.id === 'decline' || option.id === '-1')) return true
         return option.id !== 'cancel' && option.id !== 'skip'
       })
@@ -1453,12 +1384,12 @@ const hasAnyInlineButton = computed(() => {
 
 const cancelDockButton = computed<DockButtonOption>(() => {
   const promptOptions = prompt.value?.options ?? []
-  const refuseOption = promptOptions.find((option) => option.id === 'refuse')
-  const cancelOption = promptOptions.find((option) => option.id === 'cancel')
-  const skipOption = promptOptions.find((option) => option.id === 'skip')
-  const option = refuseOption ?? cancelOption ?? skipOption ?? {
+  const declineIndex = prompt.value?.presentation?.has_decline ? (prompt.value.presentation.decline_index ?? 0) : -1
+  const declineOption = declineIndex >= 0 ? promptOptions[declineIndex] : undefined
+  const option = declineOption ?? {
     id: 'cancel',
-    label: canCancelPrompt.value ? '取消' : ''
+    label: canCancelPrompt.value ? '取消' : '',
+    button_label: canCancelPrompt.value ? '取消' : ''
   }
   return normalizeDockOption(
     {
@@ -1466,9 +1397,7 @@ const cancelDockButton = computed<DockButtonOption>(() => {
       label: option.label,
       button_label: option.button_label,
       hint: option.hint
-    },
-    false,
-    false
+    }
   )
 })
 

@@ -9,8 +9,21 @@ import (
 	"starcup-engine/internal/model"
 )
 
-// PerformMagic 发动法术。
+// PerformMagic 发动法术。测试辅助可继续传 index；生产路径使用 PerformMagicByID。
 func (e *GameEngine) PerformMagic(sourceID, targetID string, cardIdx int) error {
+	player := e.State.Players[sourceID]
+	if player == nil {
+		return errors.New("玩家不存在")
+	}
+	card, _, _, ok := e.getPlayableCardByIndex(player, cardIdx)
+	if !ok {
+		return errors.New("无效的手牌索引")
+	}
+	return e.PerformMagicByID(sourceID, targetID, card.ID)
+}
+
+// PerformMagicByID 发动法术。
+func (e *GameEngine) PerformMagicByID(sourceID, targetID, cardID string) error {
 	// 1. 验证阶段
 	if e.State.Subflow != model.SubflowNone ||
 		e.State.CombatStage != model.CombatStageNone ||
@@ -31,9 +44,9 @@ func (e *GameEngine) PerformMagic(sourceID, targetID string, cardIdx int) error 
 	}
 
 	// 2. 验证卡牌
-	card, _, _, ok := e.getPlayableCardByIndex(player, cardIdx)
+	card, _, _, ok := e.getPlayableCardByID(player, cardID)
 	if !ok {
-		return errors.New("无效的手牌索引")
+		return errors.New("无效的卡牌ID")
 	}
 	if card.Type != model.CardTypeMagic {
 		return errors.New("只能使用法术牌")
@@ -71,7 +84,7 @@ func (e *GameEngine) PerformMagic(sourceID, targetID string, cardIdx int) error 
 	e.NotifyCardRevealed(sourceID, []model.Card{card}, "magic")
 
 	// 3. 从可打出牌区移除卡牌 (注意：暂时不进弃牌堆，看是否放置到场上)
-	if _, err := e.consumePlayableCardByIndex(player, cardIdx); err != nil {
+	if _, err := e.consumePlayableCardByID(player, cardID); err != nil {
 		return err
 	}
 

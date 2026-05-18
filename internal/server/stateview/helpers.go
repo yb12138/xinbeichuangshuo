@@ -105,6 +105,20 @@ func CountElfBlessings(p *model.Player) int {
 	return count
 }
 
+func CountSwordEmperorSwordSouls(p *model.Player) int {
+	if p == nil {
+		return 0
+	}
+	count := 0
+	for _, fc := range p.Field {
+		if fc == nil || fc.Mode != model.FieldCover || fc.Effect != model.EffectSwordSoul {
+			continue
+		}
+		count++
+	}
+	return count
+}
+
 func CountBloodSharedLifeAsSource(state *model.GameState, sourceID string) int {
 	if state == nil || sourceID == "" {
 		return 0
@@ -151,7 +165,7 @@ func BuildMaskedFieldForViewer(owner *model.Player, viewerID string) []*model.Fi
 		}
 		clone := *fc
 		if owner.ID != viewerID && clone.Mode == model.FieldCover &&
-			(clone.Effect == model.EffectMagicBowCharge || clone.Effect == model.EffectSpiritCasterPower || clone.Effect == model.EffectMoonDarkMoon || clone.Effect == model.EffectButterflyCocoon || clone.Effect == model.EffectElfBlessing) {
+			(clone.Effect == model.EffectMagicBowCharge || clone.Effect == model.EffectSpiritCasterPower || clone.Effect == model.EffectMoonDarkMoon || clone.Effect == model.EffectButterflyCocoon || clone.Effect == model.EffectElfBlessing || clone.Effect == model.EffectSwordSoul) {
 			maskedName := "盖牌"
 			if clone.Effect == model.EffectMagicBowCharge {
 				maskedName = "充能"
@@ -163,6 +177,8 @@ func BuildMaskedFieldForViewer(owner *model.Player, viewerID string) []*model.Fi
 				maskedName = "茧"
 			} else if clone.Effect == model.EffectElfBlessing {
 				maskedName = "祝福"
+			} else if clone.Effect == model.EffectSwordSoul {
+				maskedName = "剑魂"
 			}
 			clone.Card = model.Card{
 				ID:          clone.Card.ID,

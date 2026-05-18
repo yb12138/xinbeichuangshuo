@@ -10,7 +10,7 @@ import (
 	"starcup-engine/internal/server/prompting"
 )
 
-func TestTranslateClientAction_AttackUsesUUIDAndTargets(t *testing.T) {
+func TestTranslateClientAction_AttackUsesCardIDAndTargets(t *testing.T) {
 	room := NewRoom("PROTO")
 	room.Engine = engine.NewGameEngine(room)
 
@@ -26,8 +26,8 @@ func TestTranslateClientAction_AttackUsesUUIDAndTargets(t *testing.T) {
 	}
 
 	req := ClientActionRequest{
-		ActionType:    string(model.CmdAttack),
-		UsedCardUUIDs: []string{"card-001"},
+		ActionType: string(model.CmdAttack),
+		CardID:     "card-001",
 		Targets: []TargetNode{
 			{TargetUserID: "p2"},
 		},
@@ -40,14 +40,45 @@ func TestTranslateClientAction_AttackUsesUUIDAndTargets(t *testing.T) {
 	if got.Type != model.CmdAttack {
 		t.Fatalf("expected action type %s, got %s", model.CmdAttack, got.Type)
 	}
-	if got.CardIndex != 0 {
-		t.Fatalf("expected card index 0, got %d", got.CardIndex)
+	if got.CardID != "card-001" {
+		t.Fatalf("expected card id card-001, got %q", got.CardID)
 	}
 	if got.TargetID != "p2" {
 		t.Fatalf("expected target p2, got %q", got.TargetID)
 	}
 	if len(got.TargetIDs) != 1 || got.TargetIDs[0] != "p2" {
 		t.Fatalf("expected target IDs [p2], got %+v", got.TargetIDs)
+	}
+}
+
+func TestTranslateClientAction_SelectCardIDsStayAsCardIDs(t *testing.T) {
+	room := NewRoom("PROTO_SELECT")
+	room.Engine = engine.NewGameEngine(room)
+
+	if err := room.Engine.AddPlayer("p1", "Alice", "sage", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	room.Engine.State.Players["p1"].Hand = []model.Card{
+		{ID: "card-a", Name: "A", Type: model.CardTypeAttack, Element: model.ElementFire},
+		{ID: "card-b", Name: "B", Type: model.CardTypeMagic, Element: model.ElementWater},
+		{ID: "card-c", Name: "C", Type: model.CardTypeAttack, Element: model.ElementWind},
+	}
+
+	got, err := room.translateClientAction("p1", ClientActionRequest{
+		ActionType: string(model.CmdSelect),
+		CardIDs:    []string{"card-c", "card-a"},
+	})
+	if err != nil {
+		t.Fatalf("translateClientAction error: %v", err)
+	}
+	if got.CardID != "card-c" {
+		t.Fatalf("expected first card id card-c, got %q", got.CardID)
+	}
+	if len(got.CardIDs) != 2 || got.CardIDs[0] != "card-c" || got.CardIDs[1] != "card-a" {
+		t.Fatalf("expected card ids preserved, got %+v", got.CardIDs)
+	}
+	if len(got.Selections) != 0 {
+		t.Fatalf("expected protocol adapter not to translate card ids to selections, got %+v", got.Selections)
 	}
 }
 

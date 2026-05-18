@@ -150,10 +150,10 @@ func pickBestAttack(playerID string, state StateSnapshot, me PlayerSnapshot, att
 			if score > bestScore {
 				bestScore = score
 				best = model.PlayerAction{
-					PlayerID:  playerID,
-					Type:      model.CmdAttack,
-					TargetID:  targetID,
-					CardIndex: cardIdx,
+					PlayerID: playerID,
+					Type:     model.CmdAttack,
+					TargetID: targetID,
+					CardID:   card.ID,
 				}
 			}
 		}
@@ -188,10 +188,10 @@ func pickBestMagic(playerID string, state StateSnapshot, me PlayerSnapshot, magi
 			if score > bestScore {
 				bestScore = score
 				best = model.PlayerAction{
-					PlayerID:  playerID,
-					Type:      model.CmdMagic,
-					TargetID:  targetID,
-					CardIndex: cardIdx,
+					PlayerID: playerID,
+					Type:     model.CmdMagic,
+					TargetID: targetID,
+					CardID:   card.ID,
 				}
 			}
 		}
@@ -236,7 +236,7 @@ func decideCombatResponse(playerID string, state StateSnapshot, prompt *model.Pr
 			return model.PlayerAction{
 				PlayerID:  playerID,
 				Type:      model.CmdRespond,
-				CardIndex: idx,
+				CardID:    playable[idx].ID,
 				ExtraArgs: []string{"defend"},
 			}, true
 		}
@@ -254,7 +254,7 @@ func decideCombatResponse(playerID string, state StateSnapshot, prompt *model.Pr
 			action := model.PlayerAction{
 				PlayerID:  playerID,
 				Type:      model.CmdRespond,
-				CardIndex: idx,
+				CardID:    playable[idx].ID,
 				ExtraArgs: []string{"counter"},
 			}
 			if targetID != "" {
@@ -840,11 +840,11 @@ func BuildFallbackAction(playerID string, prompt *model.Prompt, state StateSnaps
 	}
 	me, hasMe := state.Players[playerID]
 	if hasMe {
-		for idx, card := range botPlayableCards(me) {
+		for _, card := range botPlayableCards(me) {
 			if card.Type == model.CardTypeAttack {
 				target := pickFirstEnemy(state, playerID)
 				if target != "" {
-					return model.PlayerAction{PlayerID: playerID, Type: model.CmdAttack, CardIndex: idx, TargetID: target}, true
+					return model.PlayerAction{PlayerID: playerID, Type: model.CmdAttack, CardID: card.ID, TargetID: target}, true
 				}
 			}
 		}

@@ -167,7 +167,8 @@ const turnStateIndicators = computed(() => {
     const entries: Array<{ key: string; label: string; cls: string }> = []
 
     // 魔枪幻影形态状态
-    const attackBonus = myPlayer.value.ml_dark_release_next_attack_bonus
+    const indicators = myPlayer.value.indicators ?? {}
+    const attackBonus = indicators.ml_dark_release_next_attack_bonus
     if (attackBonus && attackBonus > 0) {
         entries.push({
             key: 'ml_dark_release_next_attack_bonus',
@@ -175,7 +176,7 @@ const turnStateIndicators = computed(() => {
             cls: 'bg-rose-900/70 text-rose-100 border-rose-500/40'
         })
     }
-    const lockTurn = myPlayer.value.ml_dark_release_lock_turn
+    const lockTurn = indicators.ml_dark_release_lock_turn
     if (lockTurn && lockTurn > 0) {
         entries.push({
             key: 'ml_dark_release_lock_turn',
@@ -241,15 +242,12 @@ const specialActionOptions = computed<PromptOption[]>(() => {
     if (isActionSelectionPrompt.value) {
         const fromSpecial = prompt.value?.special_options ?? []
         if (fromSpecial.length > 0) return fromSpecial
-        // 兼容旧后端：若仍直接下发 buy/synthesize/extract，则前端照样合并展示
-        return (prompt.value?.options ?? []).filter((opt) =>
-            opt.id === 'buy' || opt.id === 'synthesize' || opt.id === 'extract'
-        )
+        return []
     }
     return [
-        { id: 'buy', label: '购买' },
-        { id: 'synthesize', label: '合成' },
-        { id: 'extract', label: '提炼' },
+        { id: 'buy', label: '购买', button_label: '购买' },
+        { id: 'synthesize', label: '合成', button_label: '合成' },
+        { id: 'extract', label: '提炼', button_label: '提炼' },
     ]
 })
 

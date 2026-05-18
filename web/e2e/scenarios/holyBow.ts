@@ -232,9 +232,10 @@ export function shardStormDiscardPrompt(): WsMessage {
     choice_type: 'hb_holy_shard_combo',
     skill_id: HB_SHARD_STORM_SKILL_ID,
     options: [
-      { id: '0', label: '1: 火焰斩（火系攻击）' },
-      { id: '1', label: '2: 火焰斩（火系攻击）' },
+      { id: '0', label: '1: 火焰斩（火系攻击）', button_label: '选择' },
+      { id: '1', label: '2: 火焰斩（火系攻击）', button_label: '选择' },
     ],
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'same_element_attack_pair' },
     min: 2,
     max: 2,
   } satisfies Prompt);

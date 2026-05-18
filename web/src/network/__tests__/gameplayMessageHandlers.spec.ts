@@ -65,6 +65,10 @@ describe('createGameplayMessageHandlers', () => {
       options: [],
       min: 1,
       max: 1,
+      presentation: {
+        kind: 'branch_select',
+        numeric_base: 0,
+      },
     })
 
     const payload: SyncStatePayload = {
@@ -92,7 +96,6 @@ describe('createGameplayMessageHandlers', () => {
           max_hand: 6,
           exclusive_card_count: 0,
           hand: [],
-          blessings: [],
           exclusive_cards: [],
           field: [],
           heal: 1,
@@ -123,9 +126,13 @@ describe('createGameplayMessageHandlers', () => {
       type: 'confirm',
       player_id: 'p2',
       message: '请选择',
-      options: [{ id: 'confirm', label: '确认' }],
+      options: [{ id: 'confirm', label: '确认', button_label: '确认' }],
       min: 1,
       max: 1,
+      presentation: {
+        kind: 'branch_select',
+        numeric_base: 0,
+      },
     }
 
     const waitingPayload: RequireActionPayload = {
@@ -168,9 +175,13 @@ describe('createGameplayMessageHandlers', () => {
         player_id: 'p1',
         message: '【挑衅】请选择一名目标对手：',
         choice_type: 'hero_taunt_target',
-        options: [{ id: 'p2', label: '目标' }],
+        options: [{ id: 'p2', label: '目标', button_label: '目标' }],
         min: 1,
         max: 1,
+        presentation: {
+          kind: 'target_picker',
+          numeric_base: 0,
+        },
       },
     })
 

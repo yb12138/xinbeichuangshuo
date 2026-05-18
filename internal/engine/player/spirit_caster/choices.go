@@ -113,7 +113,7 @@ func buildIncantConfirmNoHandPrompt(playerID string) *model.Prompt {
 func buildIncantCardPrompt(playerID string, player *model.Player) *model.Prompt {
 	options := make([]model.PromptOption, 0, len(player.Hand))
 	for idx, c := range player.Hand {
-		options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", idx), Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(c))})
+		options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", idx), Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(c)), CardID: c.ID})
 	}
 	return &model.Prompt{
 		Type:         model.PromptConfirm,
@@ -159,7 +159,7 @@ func buildHundredNightPowerPrompt(playerID string, player *model.Player) *model.
 		Options:      options,
 		Min:          1,
 		Max:          1,
-		Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, Layout: "field_cover"},
+		Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, Layout: "field_cover", CardSource: "field", CardFilter: "effect:SpiritCasterPower"},
 	}
 }
 

@@ -95,6 +95,7 @@ export function playerView(overrides: Partial<PlayerView> = {}): PlayerView {
     crystal: 0,
     is_active: false,
     tokens: {},
+    indicators: {},
     ...overrides,
     hand_count: overrides.hand_count ?? hand.length,
   };

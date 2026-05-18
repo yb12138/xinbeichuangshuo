@@ -267,7 +267,7 @@ func TestMagicBowCharge_FollowupPlaceCharges(t *testing.T) {
 	if got := magicbowplayer.ChargeCount(p1, ""); got != 2 {
 		t.Fatalf("expected 2 charges placed, got %d", got)
 	}
-	// mb_charge_count 由服务端 buildStateForPlayer 写入 PlayerView.tokens，引擎内不再同步到 Player.Tokens
+	// mb_charge_count 由服务端 buildStateForPlayer 写入 PlayerView.indicators，引擎内不再同步到 Player.Tokens
 	if got := len(p1.Hand); got != 4 {
 		t.Fatalf("expected hand size back to 4 after draw2/place2, got %d", got)
 	}

@@ -25,7 +25,7 @@ func butterflyTestCard(id string, typ model.CardType, ele model.Element) model.C
 	}
 }
 
-func assertButterflyCocoonBranchPrompt(t *testing.T, prompt *model.Prompt, choiceType string) {
+func assertButterflyCocoonFieldPickerPrompt(t *testing.T, prompt *model.Prompt, choiceType string) {
 	t.Helper()
 	if prompt == nil {
 		t.Fatal("expected current prompt")
@@ -33,8 +33,12 @@ func assertButterflyCocoonBranchPrompt(t *testing.T, prompt *model.Prompt, choic
 	if prompt.ChoiceType != choiceType {
 		t.Fatalf("expected choice_type=%s, got %s", choiceType, prompt.ChoiceType)
 	}
-	if prompt.Presentation == nil || prompt.Presentation.Kind != model.PresentationBranchSelect {
-		t.Fatalf("expected branch_select presentation, got %+v", prompt.Presentation)
+	if prompt.Presentation == nil ||
+		prompt.Presentation.Kind != model.PresentationCardPicker ||
+		prompt.Presentation.Layout != "field_cover" ||
+		prompt.Presentation.CardSource != "field" ||
+		prompt.Presentation.CancelPolicy != "decline" {
+		t.Fatalf("expected field card_picker presentation, got %+v", prompt.Presentation)
 	}
 	if len(prompt.Options) < 2 {
 		t.Fatalf("expected skip and cocoon options, got %+v", prompt.Options)
@@ -269,7 +273,7 @@ func TestButterflyPilgrimage_ResistOneDamage(t *testing.T) {
 
 	game.Drive()
 	testutils.RequireChoicePrompt(t, game, "p1", "bt_pilgrimage_pick")
-	assertButterflyCocoonBranchPrompt(t, game.GetCurrentPrompt(), "bt_pilgrimage_pick")
+	assertButterflyCocoonFieldPickerPrompt(t, game.GetCurrentPrompt(), "bt_pilgrimage_pick")
 
 	// 选择移除第一个茧（选项0为不发动，因此这里选1）。
 	testutils.MustHandleAction(t, game, model.PlayerAction{
@@ -326,7 +330,7 @@ func TestButterflyPoison_PromptUsesBranchCocoonOptions(t *testing.T) {
 
 	game.Drive()
 	testutils.RequireChoicePrompt(t, game, "p1", "bt_poison_pick")
-	assertButterflyCocoonBranchPrompt(t, game.GetCurrentPrompt(), "bt_poison_pick")
+	assertButterflyCocoonFieldPickerPrompt(t, game.GetCurrentPrompt(), "bt_poison_pick")
 }
 
 func TestButterflyMirror_ReplaceTwoDamageToTwoHits(t *testing.T) {

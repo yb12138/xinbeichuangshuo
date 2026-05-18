@@ -1,14 +1,8 @@
-import type { Card, PlayerAction } from '../types/game'
+import type { PlayerAction } from '../types/game'
 import type { ClientActionRequest } from './protocol'
 
-export interface PlayableCardEntry {
-  card: Card
-  index: number
-}
-
 export function buildClientActionRequest(
-  action: PlayerAction,
-  playableCards: PlayableCardEntry[]
+  action: PlayerAction
 ): ClientActionRequest {
   const request: ClientActionRequest = {
     action_type: action.type,
@@ -16,9 +10,12 @@ export function buildClientActionRequest(
 
   if (action.skill_id) request.skill_id = action.skill_id
 
-  const usedCardUUID = cardUUIDByActionIndex(action.card_index, playableCards)
-  if (usedCardUUID) {
-    request.used_card_uuids = [usedCardUUID]
+  if (action.card_id) {
+    request.card_id = action.card_id
+  }
+
+  if (action.card_ids?.length) {
+    request.card_ids = [...action.card_ids]
   }
 
   const targets = buildActionTargets(action)
@@ -35,12 +32,6 @@ export function buildClientActionRequest(
   }
 
   return request
-}
-
-export function cardUUIDByActionIndex(cardIndex: number | undefined, playableCards: PlayableCardEntry[]): string | undefined {
-  if (cardIndex === undefined || cardIndex === null || cardIndex < 0) return undefined
-  const entry = playableCards[cardIndex]
-  return entry?.card?.id
 }
 
 export function buildActionTargets(action: PlayerAction) {

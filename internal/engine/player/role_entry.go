@@ -140,6 +140,7 @@ type PoseOps interface {
 type MagicBulletOps interface {
 	SetMagicBulletChain(chain *model.MagicBulletChain)
 	GetPlayableCardByIndex(player *model.Player, idx int) (model.Card, bool)
+	GetPlayableCardByCardID(player *model.Player, cardID string) (model.Card, bool)
 	ConsumePlayableCardByIndex(player *model.Player, idx int) (model.Card, error)
 	PerformMagic(playerID, targetID string, cardIdx int) error
 	ExecuteMagicBullet(player *model.Player, reverse, isFusion bool, fusionCard *model.Card) error

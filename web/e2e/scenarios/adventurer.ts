@@ -181,15 +181,16 @@ export function fraudPickPrompt(remaining: number = 2): WsMessage {
     choice_type: 'adventurer_fraud_pick',
     // Backend uses hand indices as option.id
     options: [
-      { id: '0', label: '1: 冒险斩（光）' },
-      { id: '1', label: '2: 探索斩（光）' },
-      { id: '2', label: '3: 火球（火）' },
-      { id: '3', label: '4: 冰冻（水）' },
-      { id: '4', label: '5: 地刺（地）' },
-      { id: '5', label: '6: 风刃（风）' },
-      { id: '6', label: '7: 雷击（雷）' },
-      { id: '7', label: '8: 暗影（暗）' },
+      { id: '0', label: '1: 冒险斩（光）', button_label: '选择' },
+      { id: '1', label: '2: 探索斩（光）', button_label: '选择' },
+      { id: '2', label: '3: 火球（火）', button_label: '选择' },
+      { id: '3', label: '4: 冰冻（水）', button_label: '选择' },
+      { id: '4', label: '5: 地刺（地）', button_label: '选择' },
+      { id: '5', label: '6: 风刃（风）', button_label: '选择' },
+      { id: '6', label: '7: 雷击（雷）', button_label: '选择' },
+      { id: '7', label: '8: 暗影（暗）', button_label: '选择' },
     ],
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'same_element_combo' },
     min: 1, max: 1,
   } satisfies Prompt);
 }
@@ -203,12 +204,13 @@ export function fraudElementPrompt(): WsMessage {
     message: '【欺诈】请选择攻击系别（不含光/暗）：',
     choice_type: 'adventurer_fraud_attack_element',
     options: [
-      { id: 'Water', label: '水' },
-      { id: 'Fire', label: '火' },
-      { id: 'Earth', label: '地' },
-      { id: 'Wind', label: '风' },
-      { id: 'Thunder', label: '雷' },
+      { id: 'Water', label: '水', button_label: '水' },
+      { id: 'Fire', label: '火', button_label: '火' },
+      { id: 'Earth', label: '地', button_label: '地' },
+      { id: 'Wind', label: '风', button_label: '风' },
+      { id: 'Thunder', label: '雷', button_label: '雷' },
     ],
+    presentation: { kind: 'branch_select', layout: 'fraud_attack_element' },
     min: 1, max: 1,
   } satisfies Prompt);
 }

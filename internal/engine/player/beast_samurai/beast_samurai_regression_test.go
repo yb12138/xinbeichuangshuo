@@ -172,11 +172,11 @@ func TestBeastSamurai_OneStrike_NextAttackIgnoresShieldAndHoly(t *testing.T) {
 	game.State.TurnStage = model.TurnStageActionExecution
 	game.State.ActionQueue = []model.QueuedAction{
 		{
-			SourceID:  p1.ID,
-			TargetID:  p2.ID,
-			Type:      model.ActionAttack,
-			Card:      &attackCard,
-			CardIndex: 0,
+			SourceID: p1.ID,
+			TargetID: p2.ID,
+			Type:     model.ActionAttack,
+			Card:     &attackCard,
+			CardID:   attackCard.ID,
 		},
 	}
 
@@ -233,11 +233,11 @@ func TestBeastSamurai_OneStrike_JiFactionForceHit(t *testing.T) {
 	game.State.TurnStage = model.TurnStageActionExecution
 	game.State.ActionQueue = []model.QueuedAction{
 		{
-			SourceID:  p1.ID,
-			TargetID:  p2.ID,
-			Type:      model.ActionAttack,
-			Card:      &attackCard,
-			CardIndex: 0,
+			SourceID: p1.ID,
+			TargetID: p2.ID,
+			Type:     model.ActionAttack,
+			Card:     &attackCard,
+			CardID:   attackCard.ID,
 		},
 	}
 

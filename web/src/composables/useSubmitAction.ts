@@ -60,6 +60,14 @@ export function useSubmitAction() {
     ws.select(selections)
   }
 
+  function submitSelectCardIDs(cardIds: string[]) {
+    submitAction({
+      player_id: myPlayerID(),
+      type: 'Select',
+      card_ids: cardIds,
+    })
+  }
+
   function submitPromptTarget(playerId: string) {
     submitAction({
       player_id: myPlayerID(),
@@ -163,6 +171,7 @@ export function useSubmitAction() {
     submitConfirm,
     submitCancel,
     submitSelect,
+    submitSelectCardIDs,
     submitPromptTarget,
     submitRespondTake,
     submitRespondCounter,

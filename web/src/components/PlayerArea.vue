@@ -250,6 +250,7 @@ const TOKEN_DISPLAY: Record<string, { label: string; cls: string }> = {
   mg_next_attack_no_counter: { label: '下次攻不可应战', cls: 'bg-rose-900/70 text-rose-100 border-rose-500/40' },
   bp_shared_life_active: { label: '同生共死在场', cls: 'bg-rose-900/70 text-rose-100 border-rose-500/40' },
   bp_shared_life_bound: { label: '同生共死绑定', cls: 'bg-rose-950/75 text-rose-100 border-rose-400/50' },
+  se_sword_soul_count: { label: '剑魂', cls: 'bg-slate-900/75 text-slate-100 border-slate-500/40' },
   bt_pupa: { label: '蛹', cls: 'bg-amber-900/70 text-amber-100 border-amber-500/40' },
   bt_cocoon_count: { label: '茧', cls: 'bg-indigo-900/70 text-indigo-100 border-indigo-500/40' },
   bt_wither_active: { label: '凋零生效', cls: 'bg-red-900/70 text-red-100 border-red-500/40' },
@@ -298,7 +299,11 @@ const HIDDEN_TOKEN_KEYS = new Set([
 ])
 
 const tokenIndicators = computed(() => {
-  const entries = Object.entries(props.player.tokens ?? {})
+  const indicatorSource = {
+    ...(props.player.tokens ?? {}),
+    ...(props.player.indicators ?? {}),
+  }
+  const entries = Object.entries(indicatorSource)
     .filter(([key, value]) => !HIDDEN_TOKEN_KEYS.has(key) && !FORM_TOKEN_KEYS.has(key) && typeof value === 'number' && value > 0)
     .filter(([key, value]) => !(key === 'css_blood_cap' && value <= 3))
     .map(([key, value]) => {
@@ -313,14 +318,7 @@ const tokenIndicators = computed(() => {
   return entries
 })
 
-// 派生指示物：后端作为 PlayerView 独立字段发送（不在 tokens map 中）
-// 注意：魔枪幻影形态状态（攻击加成、技能锁定）已移至 ActionPanel 行动区域展示，
-// 因此当前 derived 指示物为空。如需新增非 tokens-map 字段的指示物，在此扩展即可。
-const derivedIndicators = computed(() => {
-  return []
-})
-
-const allIndicators = computed(() => [...tokenIndicators.value, ...derivedIndicators.value])
+const allIndicators = computed(() => tokenIndicators.value)
 
 const formIndicator = computed(() => {
   const form = props.player.form

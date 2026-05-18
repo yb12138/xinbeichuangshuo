@@ -299,7 +299,8 @@ export function reverseScenario(options: {
       { el: 'Water', name: '茧牌B' },
     ]),
     crystal: options.crystal ?? 1,
-    tokens: options.canBranch2 ? { bt_pupa: 1, bt_cocoon_count: 2 } : { bt_cocoon_count: 2 },
+    tokens: options.canBranch2 ? { bt_pupa: 1 } : {},
+    indicators: { bt_cocoon_count: 2 },
     availableSkills: [
       bdAvailableSkill({ id: BD_REVERSE_SKILL_ID, title: '倒逆之蝶', cost_crystal: 1, cost_discards: 2 }),
     ],
@@ -541,6 +542,8 @@ export function chrysalisResolvedState(options: {
 
   const tokens: Record<string, number> = {
     bt_pupa: pupaCount,
+  };
+  const indicators: Record<string, number> = {
     bt_cocoon_count: cocoonCount,
   };
 
@@ -558,6 +561,7 @@ export function chrysalisResolvedState(options: {
       crystal: 0,
       is_active: true,
       tokens,
+      indicators,
     }),
     playerView({
       id: ENEMY_PLAYER_ID,

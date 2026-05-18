@@ -114,7 +114,7 @@ describe('createWsCommandClient', () => {
       Cmd: 'SubmitAction',
       Data: {
         action_type: 'Magic',
-        used_card_uuids: ['magic-1'],
+        card_id: 'magic-1',
         targets: [{ target_user_id: 'p2' }],
       },
     })

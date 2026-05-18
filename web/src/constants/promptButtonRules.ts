@@ -5,14 +5,9 @@ export const PLAIN_NO_HINT_BUTTONS = new Set(['发动', '确认', '确定', '是
 
 export function responseOptionKind(option: { id?: string; label?: string; button_label?: string }): ResponseOptionKind {
   const id = String(option.id || '').trim().toLowerCase()
-  // 魔弹掌控方向选择不是战斗应答（take/defend/counter），避免被"传递"关键词误判为应战。
-  if (id === 'normal' || id === 'reverse') return null
-  const label = String(option.label || '').trim()
-  const buttonLabel = String(option.button_label || '').trim()
-  const text = `${label} ${buttonLabel}`.toLowerCase()
-  if (id === 'take' || id === 'take_damage' || text.includes('承受') || text.includes('命中')) return 'take'
-  if (id === 'defend' || text.includes('防御')) return 'defend'
-  if (id === 'counter' || text.includes('应战')) return 'counter'
+  if (id === 'take' || id === 'take_damage') return 'take'
+  if (id === 'defend') return 'defend'
+  if (id === 'counter') return 'counter'
   return null
 }
 
@@ -58,32 +53,12 @@ export function promptImageButtonKindByOption(option: { id?: string; label?: str
   const id = String(option.id || '').trim().toLowerCase()
   const label = String(option.label || '').trim()
   const buttonLabel = String(option.buttonLabel || '').trim()
-  const hint = String(option.hint || '').trim()
-  const combinedText = `${label} ${buttonLabel}`
-  const hasExplicitResponseText =
-    combinedText.includes('命中') ||
-    combinedText.includes('承受') ||
-    combinedText.includes('防御') ||
-    combinedText.includes('应战') ||
-    combinedText.includes('传递')
-  if (isCardSelectionLikeText(label) || isCardSelectionLikeText(buttonLabel)) {
-    return 'card'
-  }
-  if ((isConfirmLikeLabel(buttonLabel) || isConfirmLikeLabel(label)) && !hasExplicitResponseText) {
-    return 'confirm'
-  }
   const responseKind = responseOptionKind({ id, label, button_label: buttonLabel })
   if (responseKind) return responseKind
-  if (
-    (isActivationCostText(hint) || isActivationCostText(label) || isActivationCostText(buttonLabel)) &&
-    !isDeclineLabel(hint) &&
-    !isDeclineLabel(label) &&
-    !isDeclineLabel(buttonLabel)
-  ) {
-    return 'confirm'
-  }
+  if (buttonLabel === '打出卡牌' || buttonLabel === '选择卡牌') return 'card'
+  if (buttonLabel === '发动' || buttonLabel === '确认' || buttonLabel === '确定' || buttonLabel === '是') return 'confirm'
   if (id === 'confirm' || id === 'yes') return 'confirm'
   if (id === 'skip' || id === 'cancel' || id === 'no' || id === 'pass' || id === 'cannot_act') return 'cancel'
-  if (buttonLabel === '取消' || isDeclineLabel(buttonLabel) || isDeclineLabel(label)) return 'cancel'
+  if (buttonLabel === '取消' || buttonLabel === '跳过' || buttonLabel === '不发动') return 'cancel'
   return 'action'
 }

@@ -158,6 +158,12 @@ func buildCocoonOverflowDiscardPrompt(playerID string, player *model.Player, dat
 		Options:    options,
 		Min:        discardCount,
 		Max:        discardCount,
+		Presentation: &model.PromptPresentation{
+			Kind:       model.PresentationCardPicker,
+			Layout:     "field_cover",
+			CardSource: "field",
+			CardFilter: "effect:ButterflyCocoon",
+		},
 	}
 }
 
@@ -244,6 +250,12 @@ func buildReverseBranch2PickPrompt(playerID string, player *model.Player) *model
 		Options:    options,
 		Min:        pickCount,
 		Max:        pickCount,
+		Presentation: &model.PromptPresentation{
+			Kind:       model.PresentationCardPicker,
+			Layout:     "field_cover",
+			CardSource: "field",
+			CardFilter: "effect:ButterflyCocoon",
+		},
 	}
 }
 
@@ -292,7 +304,7 @@ func buildPilgrimageOrPoisonPickPrompt(playerID string, player *model.Player, da
 		Options:      options,
 		Min:          1,
 		Max:          1,
-		Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
+		Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, Layout: "field_cover", CardSource: "field", CardFilter: "effect:ButterflyCocoon", CancelPolicy: "decline", HasDecline: true, DeclineIndex: 0},
 	}
 }
 

@@ -67,6 +67,8 @@ type PlayerAction struct {
 	// 【新增】多目标支持
 	TargetIDs []string `json:"target_ids,omitempty"`
 
+	CardID     string   `json:"card_id,omitempty"`
+	CardIDs    []string `json:"card_ids,omitempty"`
 	CardIndex  int      `json:"card_index,omitempty"`
 	SkillID    string   `json:"skill_id,omitempty"`
 	Selections []int    `json:"selections,omitempty"`

@@ -40,13 +40,14 @@ type TargetNode struct {
 
 // ClientActionRequest is the submit-action protocol payload.
 type ClientActionRequest struct {
-	ActionType    string       `json:"action_type"`
-	UsedCardUUIDs []string     `json:"used_card_uuids,omitempty"`
-	Targets       []TargetNode `json:"targets,omitempty"`
-	SkillID       string       `json:"skill_id,omitempty"`
+	ActionType string       `json:"action_type"`
+	CardID     string       `json:"card_id,omitempty"`
+	CardIDs    []string     `json:"card_ids,omitempty"`
+	Targets    []TargetNode `json:"targets,omitempty"`
+	SkillID    string       `json:"skill_id,omitempty"`
 
 	// OptionIndexes carries prompt option indexes for Select/Confirm actions.
-	// It is distinct from UsedCardUUIDs which carries card selection by UUID.
+	// It is distinct from CardID/CardIDs which carry card selection by UUID.
 	OptionIndexes []int `json:"option_indexes,omitempty"`
 	// ExtraArgs carries additional string arguments (Respond modes, Cheat subcommands).
 	ExtraArgs []string `json:"extra_args,omitempty"`

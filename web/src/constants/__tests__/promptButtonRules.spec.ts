@@ -23,8 +23,7 @@ describe('promptButtonRules', () => {
   it('maps common prompt buttons to stable image kinds', () => {
     expect(promptImageButtonKindByOption({ id: 'take', label: '承受伤害' })).toBe('take')
     expect(promptImageButtonKindByOption({ id: 'cancel', label: '取消' })).toBe('cancel')
-    expect(promptImageButtonKindByOption({ id: '0', label: '0: 火球术' })).toBe('card')
+    expect(promptImageButtonKindByOption({ id: '0', label: '0: 火球术', buttonLabel: '选择卡牌' })).toBe('card')
     expect(promptImageButtonKindByOption({ id: 'confirm', label: '确认发动' })).toBe('confirm')
   })
 })
-

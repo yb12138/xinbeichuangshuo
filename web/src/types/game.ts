@@ -1,203 +1,60 @@
-// 元素类型
-export type Element = 'Water' | 'Fire' | 'Earth' | 'Wind' | 'Thunder' | 'Light' | 'Dark'
+import type {
+  AvailableSkill as GeneratedAvailableSkill,
+  Buff as GeneratedBuff,
+  Camp as GeneratedCamp,
+  Card as GeneratedCard,
+  CardType as GeneratedCardType,
+  CharacterView as GeneratedCharacterView,
+  Element as GeneratedElement,
+  FieldCard as GeneratedFieldCard,
+  GameStateUpdate as GeneratedGameStateUpdate,
+  PlayerInfo as GeneratedPlayerInfo,
+  PlayerView as GeneratedPlayerView,
+  PresentationKind as GeneratedPresentationKind,
+  PromptDTO as GeneratedPromptDTO,
+  PromptOptionDTO as GeneratedPromptOptionDTO,
+  PromptPresentation as GeneratedPromptPresentation,
+  RoomEvent as GeneratedRoomEvent,
+  SkillView as GeneratedSkillView,
+  WSMessage as GeneratedWSMessage,
+} from './generated'
 
-// 卡牌类型
-export type CardType = 'Attack' | 'Magic'
+export type Element = GeneratedElement
+export type CardType = GeneratedCardType
+export type Camp = GeneratedCamp
+export type Card = GeneratedCard
+export type AvailableSkill = GeneratedAvailableSkill
+export type Buff = GeneratedBuff
+export type FieldCard = GeneratedFieldCard
+export type SkillView = GeneratedSkillView
+export type CharacterView = GeneratedCharacterView
+export type PlayerInfo = GeneratedPlayerInfo
+export type PresentationKind = GeneratedPresentationKind
+export type PromptPresentation = GeneratedPromptPresentation
+export type PromptOption = GeneratedPromptOptionDTO
+export type RoomEvent = GeneratedRoomEvent
+export type WSMessage = GeneratedWSMessage
 
-// 阵营
-export type Camp = 'Red' | 'Blue'
-
-// 卡牌
-export interface Card {
-  id: string
-  name: string
-  type: CardType
-  element: Element
-  faction?: string
-  damage: number
-  description: string
-  /** 独有技相关：角色/技能名，卡牌上可展示 */
-  exclusive_char1?: string
-  exclusive_char2?: string
-  exclusive_skill1?: string
-  exclusive_skill2?: string
+// PlayerView is server-generated plus the legacy client-side blessing mirror used
+// by older local tests and by the UI as a fallback when blessing covers are not
+// reconstructed from field cards yet.
+export type PlayerView = GeneratedPlayerView & {
+  blessings?: Card[]
 }
 
-// 当前可发动的主动技能（与后端 AvailableSkill 一致）
-export interface AvailableSkill {
-  id: string
-  title: string
-  description: string
-  min_targets: number
-  max_targets: number
-  target_type: number  // 0=None, 1=Self, 2=Enemy, 3=Ally, 4=AllySelf, 5=Any, 6=Specific
-  cost_gem: number
-  cost_crystal: number
-  cost_discards: number
-  discard_type?: CardType
-  discard_element?: string  // 弃牌元素要求（如 "Water"）
-  require_exclusive?: boolean  // 是否必须使用独有牌（卡牌下标了技能名）
-  place_card?: boolean
-  place_effect?: string
-}
-
-// Buff/状态效果
-export interface Buff {
-  id: string
-  name: string
-  duration: number
-  value: number
-  source_id: string
-}
-
-// 场上卡牌
-export interface FieldCard {
-  card: Card
-  owner_id: string
-  source_id: string
-  mode: 'Effect' | 'Cover'
-  effect: string
-  field_hook: string
-  locked: boolean
-  duration: number
-}
-
-// 玩家视图（前端接收的数据格式）
-export interface PlayerView {
-  id: string
-  name: string
-  camp: string
-  role: string
-  orientation?: string
-  form?: string
-  hand_count: number
-  max_hand: number
-  exclusive_card_count: number
-  hand?: Card[]  // 只有自己能看到
-  blessings?: Card[] // 只有自己能看到（精灵射手祝福区）
-  exclusive_cards?: Card[] // 只有自己能看到（专属技能卡区）
-  field: FieldCard[]
-  heal: number
-  max_heal: number
-  gem: number     // 个人能量：宝石
-  crystal: number // 个人能量：水晶
-  is_active: boolean
-  buffs: Buff[]
-  tokens?: Record<string, number> // 指示物，不含角色形态
-  // 派生计数字段（后端已发送，不在 tokens map 中）
-  ml_dark_release_next_attack_bonus?: number
-  ml_dark_release_lock_turn?: number
-  current_extra_action?: string    // 额外行动约束类型（仅自身）
-  current_extra_element?: string[] // 额外行动元素约束（仅自身）
-}
-
-// 技能摘要（后端 CharacterView.Skills）
-export interface SkillView {
-  id: string
-  title: string
-  description: string
-  type?: number      // 0=Passive, 1=Startup, 2=Action, 3=Response
-  min_targets?: number
-  max_targets?: number
-  target_type?: number
-  cost_gem?: number
-  cost_crystal?: number
-  cost_discards?: number
-  discard_type?: CardType
-  discard_element?: string
-  require_exclusive?: boolean  // 是否必须使用独有牌
-}
-
-// 角色摘要（后端 CharacterView，与 data.GetCharacters 一致）
-export interface CharacterView {
-  id: string
-  name: string
-  title: string
-  faction: string
-  skills: SkillView[]
-}
-
-// 游戏状态更新
-export interface GameStateUpdate {
-  turn_stage?: string
-  combat_stage?: string
-  subflow?: string
-  current_player: string
-  has_performed_startup?: boolean
+// The frontend snapshot keeps players keyed by id after normalizing SyncState.
+export type GameStateUpdate = Omit<GeneratedGameStateUpdate, 'players'> & {
   players: Record<string, PlayerView>
-  red_morale: number
-  blue_morale: number
-  red_cups: number
-  blue_cups: number
-  red_gems: number
-  blue_gems: number
-  red_crystals: number
-  blue_crystals: number
-  deck_count: number
-  discard_count?: number
-  available_skills: AvailableSkill[]
-  characters?: CharacterView[]
 }
 
-// Prompt 选项
-export interface PromptOption {
-  id: string
-  label: string
-  button_label?: string
-  hint?: string
-  field_index?: number
-}
-
-// Prompt 类型
 export type PromptType = 'choose_card' | 'choose_cards' | 'choose_target' | 'choose_skill' | 'confirm' | 'choose_extract'
 
-// PresentationKind 弹框展示类型（用于前端渲染决策）
-export type PresentationKind = 'response' | 'branch_select' | 'numeric' | 'card_picker' | 'target_picker' | 'skill_choice' | 'action_hub'
-
-// PromptPresentation 弹框展示细节（后端显式声明，前端只渲染）
-export interface PromptPresentation {
-  kind: PresentationKind
-  layout?: string // "inline"/"overlay"/"grid"/"heal_allocate"
-  numeric_base?: number // numeric 类型的数字起始值（0 或 1）
-  cancel_policy?: string // "allow"/"deny"/"implicit"
-  target_filter?: 'all' | 'enemies' | 'allies' | 'allies_exclude_self' | 'any_exclude_self' | 'custom'
-  multi_target?: boolean // true=批量多选目标，false=单选
-  card_source?: 'hand' | 'field' | 'proxy' // card_picker 的牌来源
-  card_filter?: string // "same_element"/"diff_element"/"magic_only"/"attack_only"/"element:{ele}"
-  has_decline?: boolean // true=选项中含"不发动/取消"，前端可特殊渲染
-  decline_index?: number // 取消选项的索引位置（默认0）
-  step_index?: number // 当前步骤（从1开始）
-  total_steps?: number // 总步骤数（0=单步）
-}
-
-// Prompt（请求玩家输入）
-export interface Prompt {
+export type Prompt = Omit<GeneratedPromptDTO, 'type' | 'options' | 'special_options'> & {
   type: PromptType
-  player_id: string
-  message: string
-  choice_type?: string
-  skill_id?: string
   options: PromptOption[]
-  /** 行动选择时"特殊"按钮对应的子选项（购买/合成/提炼） */
   special_options?: PromptOption[]
-  /** 前端渲染提示：action_hub 表示用底部半球行动面板承载，不弹大面板 */
-  ui_mode?: string
-  /** 展示协议：后端显式声明展示类型，前端按此渲染（不再猜测） */
-  presentation?: PromptPresentation
-  effect_hints?: string[]
-  /** 可取消标记：后端显式声明此 prompt 允许取消/跳过，前端据此显示取消按钮 */
-  cancelable?: boolean
-  min: number
-  max: number
-  /** 应战专用：发起攻击方ID */
-  attacker_id?: string
-  /** 应战专用：可选反弹目标（攻击方的队友，不含攻击者本人） */
-  counter_target_ids?: string[]
-  /** 应战专用：攻击牌元素（应战须同系或暗灭）Earth/Water/Fire/Wind/Thunder/Dark */
-  attack_element?: string
 }
 
-// 玩家操作类型
 export type PlayerActionType =
   | 'Start' | 'Quit' | 'Pass' | 'Help'
   | 'Attack' | 'Magic' | 'Buy' | 'Synthesize' | 'Extract' | 'Skill'
@@ -205,52 +62,19 @@ export type PlayerActionType =
   | 'CannotAct'
   | 'Cheat'
 
-// 玩家操作
+// Frontend-private intent model. The wire shape is generated as ClientActionRequest.
 export interface PlayerAction {
   player_id: string
   type: PlayerActionType
   target_id?: string
   target_ids?: string[]
-  card_index?: number
+  card_id?: string
+  card_ids?: string[]
   skill_id?: string
-  selections?: number[]  // 选牌/弃牌索引，技能发动时用
+  selections?: number[]
   extra_args?: string[]
 }
 
-// WebSocket 消息
-export interface WSMessage {
-  type: 'action' | 'event' | 'room' | 'chat'
-  payload: unknown
-}
-
-// 房间事件
-export interface RoomEvent {
-  action: 'joined' | 'left' | 'started' | 'player_list' | 'assigned' | 'error' | 'dissolved'
-  room_code: string
-  player_id?: string
-  player_name?: string
-  players?: PlayerInfo[]
-  characters?: CharacterView[]
-  message?: string
-  camp?: string
-  char_role?: string
-  reconnect_token?: string
-}
-
-// 玩家信息（房间内）
-export interface PlayerInfo {
-  id: string
-  name: string
-  camp: string
-  char_role: string
-  ready: boolean
-  is_online?: boolean
-  is_bot?: boolean
-  is_host?: boolean
-  bot_mode?: string
-}
-
-// 游戏事件（discriminated union）
 export type GameEvent =
   | { event_type: 'log'; message: string }
   | { event_type: 'state_update'; state: GameStateUpdate }
@@ -265,7 +89,6 @@ export type GameEvent =
   | { event_type: 'combat_cue'; attacker_id: string; target_id: string; phase: string }
   | { event_type: 'draw_cards'; player_id: string; player_name: string; draw_count: number; reason: string }
 
-// 元素颜色映射
 export const ELEMENT_COLORS: Record<Element, string> = {
   Water: 'element-water',
   Fire: 'element-fire',
@@ -273,10 +96,9 @@ export const ELEMENT_COLORS: Record<Element, string> = {
   Wind: 'element-wind',
   Thunder: 'element-thunder',
   Light: 'element-light',
-  Dark: 'element-dark'
+  Dark: 'element-dark',
 }
 
-// 元素中文名
 export const ELEMENT_NAMES: Record<Element, string> = {
   Water: '水',
   Fire: '火',
@@ -284,5 +106,5 @@ export const ELEMENT_NAMES: Record<Element, string> = {
   Wind: '风',
   Thunder: '雷',
   Light: '光',
-  Dark: '暗'
+  Dark: '暗',
 }

@@ -221,7 +221,7 @@ func buildFraudPickPrompt(_ engineplayer.ChoiceRuntime, playerID string, player 
 	}
 	p := engineplayer.NewPrompt(playerID, fmt.Sprintf("【欺诈】请选择手牌（还需选择%d张同系牌）：", remaining)).
 		Options(opts...).Build()
-	p.Presentation = &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand"}
+	p.Presentation = &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand", CardFilter: "same_element_combo"}
 	return p
 }
 
@@ -311,7 +311,7 @@ func buildFraudElementPrompt(_ engineplayer.ChoiceRuntime, playerID string, _ *m
 			engineplayer.Option(string(model.ElementThunder), "雷"),
 		).
 		Build()
-	p.Presentation = &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"}
+	p.Presentation = &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "fraud_attack_element"}
 	return p
 }
 
@@ -395,4 +395,3 @@ func removeInt(slice []int, val int) []int {
 	}
 	return out
 }
-

@@ -5,7 +5,13 @@ PROFILE ?= smoke
 RUN ?=
 AGENT ?= codex
 
-.PHONY: refactor-spec refactor-new refactor-validate refactor-prompt agent-run refactor-auto harness report
+.PHONY: generate-types check-generated-types refactor-spec refactor-new refactor-validate refactor-prompt agent-run refactor-auto harness report
+
+generate-types:
+	@go run ./scripts/generate_types.go
+
+check-generated-types: generate-types
+	@git diff --exit-code -- web/src/types/generated.ts
 
 refactor-spec:
 	@if [ -z "$(SPEC)" ]; then echo "Usage: make refactor-spec SPEC=<spec-name>"; exit 1; fi

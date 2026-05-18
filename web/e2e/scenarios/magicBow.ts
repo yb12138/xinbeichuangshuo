@@ -172,7 +172,7 @@ export function magicBowScenario(options: {
       crystal: options.crystal ?? 0,
       gem: options.gem ?? 0,
       is_active: true,
-      tokens: { mb_charge_count: field.length },
+      indicators: { mb_charge_count: field.length },
     }),
     playerView({
       id: ENEMY_PLAYER_ID,
@@ -251,11 +251,11 @@ export function magicPierceChargePrompt(): WsMessage {
     choice_type: 'mb_magic_pierce_charge',
     skill_id: MB_MAGIC_PIERCE_SKILL_ID,
     options: [
-      { id: '0', label: '火焰充能', field_index: 0 },
+      { id: '0', label: '火焰充能', button_label: '移除充能', field_index: 0 },
     ],
     min: 1,
     max: 1,
-    presentation: { kind: 'card_picker', layout: 'inline' },
+    presentation: { kind: 'card_picker', layout: 'field_cover', card_source: 'field', card_filter: 'effect:MagicBowCharge' },
   } satisfies Prompt);
 }
 
@@ -283,11 +283,11 @@ export function magicPierceHitChargePrompt(): WsMessage {
     choice_type: 'mb_magic_pierce_hit_charge',
     skill_id: MB_MAGIC_PIERCE_SKILL_ID,
     options: [
-      { id: '1', label: '备用火焰充能', field_index: 1 },
+      { id: '1', label: '备用火焰充能', button_label: '移除充能', field_index: 1 },
     ],
     min: 1,
     max: 1,
-    presentation: { kind: 'card_picker', layout: 'inline' },
+    presentation: { kind: 'card_picker', layout: 'field_cover', card_source: 'field', card_filter: 'effect:MagicBowCharge' },
   } satisfies Prompt);
 }
 
@@ -318,13 +318,13 @@ export function thunderScatterBaseChargePrompt(): WsMessage {
     choice_type: 'mb_thunder_scatter_base_charge',
     skill_id: MB_THUNDER_SCATTER_SKILL_ID,
     options: [
-      { id: '0', label: '雷光充能A', field_index: 0 },
-      { id: '1', label: '雷光充能B', field_index: 1 },
-      { id: '2', label: '雷光充能C', field_index: 2 },
+      { id: '0', label: '雷光充能A', button_label: '移除充能', field_index: 0 },
+      { id: '1', label: '雷光充能B', button_label: '移除充能', field_index: 1 },
+      { id: '2', label: '雷光充能C', button_label: '移除充能', field_index: 2 },
     ],
     min: 1,
     max: 1,
-    presentation: { kind: 'card_picker', layout: 'inline' },
+    presentation: { kind: 'card_picker', layout: 'field_cover', card_source: 'field', card_filter: 'effect:MagicBowCharge' },
   } satisfies Prompt);
 }
 
@@ -377,11 +377,11 @@ export function multiShotChargePrompt(): WsMessage {
     choice_type: 'mb_multi_shot_charge',
     skill_id: MB_MULTI_SHOT_SKILL_ID,
     options: [
-      { id: '2', label: '风神充能', field_index: 2 },
+      { id: '2', label: '风神充能', button_label: '移除充能', field_index: 2 },
     ],
     min: 1,
     max: 1,
-    presentation: { kind: 'card_picker', layout: 'inline' },
+    presentation: { kind: 'card_picker', layout: 'field_cover', card_source: 'field', card_filter: 'effect:MagicBowCharge' },
   } satisfies Prompt);
 }
 

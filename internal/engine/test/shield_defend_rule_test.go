@@ -217,8 +217,8 @@ func TestMagicBulletDefend_RequiresExplicitHolyLightIndex(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected defend with invalid index to fail")
 	}
-	if !strings.Contains(err.Error(), "无效的卡牌索引") {
-		t.Fatalf("expected invalid index error, got: %v", err)
+	if !strings.Contains(err.Error(), "无效的卡牌ID") {
+		t.Fatalf("expected invalid card id error, got: %v", err)
 	}
 	if len(p2.Hand) != 1 {
 		t.Fatalf("holy light should not be consumed on invalid defend, hand=%d", len(p2.Hand))

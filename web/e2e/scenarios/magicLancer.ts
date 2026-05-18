@@ -280,6 +280,7 @@ export function darkBarrierCardsPrompt(options?: {
     choice_type: 'ml_dark_barrier_cards',
     skill_id: '',
     options: opts,
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'magic_or_thunder_chain' },
     min: 1,
     max: opts.length,
   } satisfies Prompt);
@@ -386,9 +387,10 @@ export function fullnessAllyDiscardPrompt(): WsMessage {
     skill_id: ML_FULLNESS_SKILL_ID,
     options: [
       { id: '-1', label: '不弃置', button_label: '不弃置' },
-      { id: '0', label: '水涟斩（水系 攻击）' },
-      { id: '1', label: '圣光（光系 法术）' },
+      { id: '0', label: '水涟斩（水系 攻击）', button_label: '选择' },
+      { id: '1', label: '圣光（光系 法术）', button_label: '选择' },
     ],
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'option_limited', has_decline: true, decline_index: 0, cancel_policy: 'decline' },
     min: 1,
     max: 1,
   } satisfies Prompt);
@@ -404,7 +406,7 @@ export function blackSpearScenario(options: {
   return magicLancerScenario({
     crystal: options.crystal ?? 2,
     form: ['magic_lance_phantom_form'],
-    tokens: { ml_dark_release_next_attack_bonus: 1 },
+    indicators: { ml_dark_release_next_attack_bonus: 1 },
   });
 }
 

@@ -57,9 +57,11 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		cardIndices := engineplayer.GetCardIndicesByElement(player, model.Element(chosenElement))
 		options := make([]model.PromptOption, 0, len(cardIndices))
 		for _, idx := range cardIndices {
+			card := player.Hand[idx]
 			options = append(options, model.PromptOption{
-				ID:    fmt.Sprintf("%d", idx),
-				Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(player.Hand[idx])),
+				ID:     fmt.Sprintf("%d", idx),
+				Label:  fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(card)),
+				CardID: card.ID,
 			})
 		}
 		return &model.Prompt{
@@ -69,15 +71,16 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			Options:      options,
 			Min:          2,
 			Max:          len(cardIndices),
-			Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand"},
+			Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand", CardFilter: "same_element"},
 		}
 	case "sage_holy_cards":
 		// 多选提示：显示所有手牌
 		options := make([]model.PromptOption, 0, len(player.Hand))
 		for idx, card := range player.Hand {
 			options = append(options, model.PromptOption{
-				ID:    fmt.Sprintf("%d", idx),
-				Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(card)),
+				ID:     fmt.Sprintf("%d", idx),
+				Label:  fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(card)),
+				CardID: card.ID,
 			})
 		}
 		return &model.Prompt{
@@ -87,14 +90,15 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			Options:      options,
 			Min:          3,
 			Max:          len(player.Hand),
-			Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand"},
+			Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand", CardFilter: "distinct_elements"},
 		}
 	case "sage_arcane_cards":
 		options := make([]model.PromptOption, 0, len(player.Hand))
 		for idx, card := range player.Hand {
 			options = append(options, model.PromptOption{
-				ID:    fmt.Sprintf("%d", idx),
-				Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(card)),
+				ID:     fmt.Sprintf("%d", idx),
+				Label:  fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(card)),
+				CardID: card.ID,
 			})
 		}
 		return &model.Prompt{
@@ -149,7 +153,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			Options:      options,
 			Min:          1,
 			Max:          maxTargetCount,
-			Presentation: &model.PromptPresentation{Kind: model.PresentationTargetPicker},
+			Presentation: &model.PromptPresentation{Kind: model.PresentationTargetPicker, TargetFilter: "custom", MultiTarget: true},
 		}
 	case "sage_magic_rebound_target", "sage_arcane_target":
 		targetIDs := runtimeutil.ParseStringSliceContextValue(data["target_ids"])

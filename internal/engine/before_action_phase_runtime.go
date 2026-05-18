@@ -159,8 +159,8 @@ func (e *GameEngine) driveBeforeActionAttack(currentPid string, player *model.Pl
 
 	card := *head.Card
 	if !head.UsesVirtualCard {
-		if _, err := e.consumePlayableCardByIndex(player, head.CardIndex); err != nil {
-			e.Log("[Warn] PhaseBeforeAction: 卡牌索引失效，丢弃该行动")
+		if _, err := e.consumeQueuedActionCard(player, head); err != nil {
+			e.Log("[Warn] PhaseBeforeAction: 卡牌ID失效，丢弃该行动")
 			e.enterExtraActionStage()
 			return driveContinueLoop
 		}
@@ -196,7 +196,8 @@ func (e *GameEngine) driveBeforeActionMagic(currentPid string, player *model.Pla
 		player.TurnState.LastActionCard = nil
 	}
 
-	if err := e.PerformMagic(currentPid, targetID, head.CardIndex); err != nil {
+	cardID := queuedActionCardID(head)
+	if err := e.PerformMagicByID(currentPid, targetID, cardID); err != nil {
 		e.Log(fmt.Sprintf("[Error] 法术执行失败: %v", err))
 	}
 	if e.State.PendingInterrupt != nil {
