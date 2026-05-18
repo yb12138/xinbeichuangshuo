@@ -165,11 +165,14 @@ func TestWeaknessPrompt_OrderMatchesConfig(t *testing.T) {
 	if len(prompt.Options) != 2 {
 		t.Fatalf("expected 2 weakness options, got %d", len(prompt.Options))
 	}
-	if !strings.Contains(prompt.Options[0].Label, "跳过行动阶段") {
-		t.Fatalf("expected option 0 to be skip action phase, got %q", prompt.Options[0].Label)
+	if !strings.Contains(prompt.Options[0].Label, "摸3张牌") {
+		t.Fatalf("expected option 0 to be draw three cards, got %q", prompt.Options[0].Label)
 	}
-	if !strings.Contains(prompt.Options[1].Label, "摸3张牌") {
-		t.Fatalf("expected option 1 to be draw three cards, got %q", prompt.Options[1].Label)
+	if !strings.Contains(prompt.Options[1].Label, "跳过此回合") {
+		t.Fatalf("expected option 1 to be skip turn, got %q", prompt.Options[1].Label)
+	}
+	if prompt.Presentation == nil || prompt.Presentation.Kind != model.PresentationBranchSelect {
+		t.Fatalf("expected weakness prompt to use branch_select presentation, got %+v", prompt.Presentation)
 	}
 }
 
@@ -202,11 +205,29 @@ func TestWeaknessChoiceMappingMatchesConfig(t *testing.T) {
 		return game
 	}
 
-	t.Run("skip_action_phase", func(t *testing.T) {
+	t.Run("draw_three_then_continue", func(t *testing.T) {
 		game := newWeakGame()
 		p1 := game.State.Players["p1"]
 
 		if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
+			t.Fatalf("draw weakness choice failed: %v", err)
+		}
+		if got := testutils.CountFieldEffect(p1, model.EffectWeak); got != 0 {
+			t.Fatalf("weakness should be removed after draw choice, got %d", got)
+		}
+		if len(p1.Hand) != 3 {
+			t.Fatalf("draw choice should add 3 cards, hand=%d", len(p1.Hand))
+		}
+		if game.State.TurnStage != model.TurnStageActionExecution {
+			t.Fatalf("draw choice should land on action execution after Drive, got turn stage %s", game.State.TurnStage)
+		}
+	})
+
+	t.Run("skip_turn", func(t *testing.T) {
+		game := newWeakGame()
+		p1 := game.State.Players["p1"]
+
+		if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
 			t.Fatalf("skip weakness choice failed: %v", err)
 		}
 		if got := testutils.CountFieldEffect(p1, model.EffectWeak); got != 0 {
@@ -218,24 +239,6 @@ func TestWeaknessChoiceMappingMatchesConfig(t *testing.T) {
 		}
 		if len(p1.Hand) != 0 {
 			t.Fatalf("skip choice should not draw cards, hand=%d", len(p1.Hand))
-		}
-	})
-
-	t.Run("draw_three_then_continue", func(t *testing.T) {
-		game := newWeakGame()
-		p1 := game.State.Players["p1"]
-
-		if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
-			t.Fatalf("draw weakness choice failed: %v", err)
-		}
-		if got := testutils.CountFieldEffect(p1, model.EffectWeak); got != 0 {
-			t.Fatalf("weakness should be removed after draw choice, got %d", got)
-		}
-		if len(p1.Hand) != 3 {
-			t.Fatalf("draw choice should add 3 cards, hand=%d", len(p1.Hand))
-		}
-		if game.State.TurnStage != model.TurnStageActionExecution {
-			t.Fatalf("draw choice should land on action execution after Drive, got turn stage %s", game.State.TurnStage)
 		}
 	})
 }

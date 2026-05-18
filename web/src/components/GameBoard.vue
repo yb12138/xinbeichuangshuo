@@ -48,7 +48,6 @@ const {
 const { drawBursts, initiatorFocus } = storeToRefs(battleFxStore)
 const { roomPlayers, myPlayerId, myCamp } = storeToRefs(sessionStore)
 const {
-  currentPlayer,
   players,
   redMorale,
   blueMorale,
@@ -179,15 +178,8 @@ const orderedOtherPlayers = computed(() =>
     .filter((p): p is PlayerView => !!p)
 )
 
-const currentTurnCamp = computed(() => {
-  const current = currentPlayer.value ? players.value[currentPlayer.value] : undefined
-  if (current?.camp === 'Red' || current?.camp === 'Blue') return current.camp
-  if (myCamp.value === 'Red' || myCamp.value === 'Blue') return myCamp.value
-  return 'Red'
-})
-
-const leftCamp = computed(() => (currentTurnCamp.value === 'Red' ? 'Blue' : 'Red'))
-const rightCamp = computed(() => currentTurnCamp.value)
+const leftRailPlayers = computed(() => orderedOtherPlayers.value.slice(0, 3))
+const rightRailPlayers = computed(() => orderedOtherPlayers.value.slice(3, 5))
 const isHostInRoom = computed(() =>
   roomPlayers.value.some(p => p.id === myPlayerId.value && p.is_host)
 )
@@ -195,17 +187,6 @@ const offlinePlayers = computed(() =>
   roomPlayers.value.filter(p => !p.is_bot && p.is_online === false)
 )
 const canHostTakeover = computed(() => isHostInRoom.value && offlinePlayers.value.length > 0)
-
-const leftRailPlayers = computed(() =>
-  orderedOtherPlayers.value
-    .filter((p) => p.camp === leftCamp.value)
-    .slice(0, 3)
-)
-const rightRailPlayers = computed(() =>
-  orderedOtherPlayers.value
-    .filter((p) => p.camp === rightCamp.value)
-    .slice(0, 2)
-)
 
 type PlayerAnchorSlot = 'left' | 'right' | 'bottom'
 
@@ -476,7 +457,9 @@ const spiritCasterPowerPromptContext = computed(() => {
     if (powerIndex === null) continue
     // powerIndex 是妖力在 spiritCasterPowerEntries 中的索引
     if (powerIndex < 0 || powerIndex >= spiritCasterPowerEntries.length) continue
-    const fieldIndex = spiritCasterPowerEntries[powerIndex].fieldIndex
+    const powerEntry = spiritCasterPowerEntries[powerIndex]
+    if (!powerEntry) continue
+    const fieldIndex = powerEntry.fieldIndex
     options.push({
       optionIndex: idx,
       powerIndex,
@@ -1243,6 +1226,10 @@ type PromptCardSelectionState = {
 }
 
 const NON_HAND_INDEXED_PROMPT_CHOICE_TYPES = new Set([
+  // System choice types (option id 0/1/2 are branch indices, not hand indices)
+  'weak',
+  'buy_resource',
+  'basic_effect_pick',
   // Elf Archer choice types (matching backend elf_archer/choices.go)
   'elf_archer_elemental_shot_pick',
   'elf_animal_companion_confirm',
@@ -1280,8 +1267,8 @@ const NON_HAND_INDEXED_PROMPT_CHOICE_TYPES = new Set([
   'bp_blood_sorrow_mode',
   'bp_blood_sorrow_target',
   'bp_blood_wail_x',
-  'bp_curse_discard',
   'bp_shared_life_target',
+  // NOTE: bp_curse_discard IS a card selection and should NOT be in this set
   // Fighter choice types (matching backend fighter/choices.go)
   'fighter_psi_bullet_target',
   'fighter_hundred_dragon_target',

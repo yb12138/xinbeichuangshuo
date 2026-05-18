@@ -128,6 +128,7 @@ const isElfElementalShotPickPrompt = computed(() =>
 
 const needsCardSelection = computed(() => {
   if (!prompt.value) return false
+  if (isSystemBranchPromptChoice()) return false
   if (isElfElementalShotPickPrompt.value) return true
   if (isPlagueDeathTouchElementPrompt.value) return true
   if (promptHasHandCardOptions.value) return true
@@ -138,7 +139,7 @@ const needsCardSelection = computed(() => {
 
 const needsTargetSelection = computed(() => {
   if (!prompt.value) return false
-  return prompt.value.type === 'choose_target'
+  return prompt.value.type === 'choose_target' || prompt.value.presentation?.kind === 'target_picker'
 })
 
 const needsCounterTargetSelection = computed(() => {
@@ -245,7 +246,37 @@ function submitRuneReforgeAllocation() {
   actions.submitSelect([...runeReforgeAllocations.value])
 }
 
+const SYSTEM_BRANCH_PROMPT_CHOICE_TYPES = new Set<string>([
+  'weak',
+  'buy_resource',
+  'basic_effect_pick',
+  'mg_moon_cycle_mode',
+])
+
+const BRANCH_PROMPT_CHOICE_TYPES = new Set<string>([
+  ...SYSTEM_BRANCH_PROMPT_CHOICE_TYPES,
+  'mg_pale_moon_mode',
+  'bd_hope_mode',
+  'bd_victory_mode',
+  'bd_dissonance_mode',
+  'hb_light_burst_mode',
+  'mb_demon_eye_mode',
+  'bt_reverse_mode',
+  'bt_dance_mode',
+  'valkyrie_military_glory_mode',
+  'adventurer_steal_sky_mode',
+  'bp_blood_sorrow_mode',
+  'mg_moon_cycle_branch',
+])
+
+const COCOON_FIELD_SELECTION_PROMPT_CHOICE_TYPES = new Set<string>([
+  'bt_pilgrimage_pick',
+  'bt_poison_pick',
+])
+
 const NON_HAND_INDEXED_PROMPT_CHOICE_TYPES = new Set<string>([
+  // System choice types (option id 0/1/2 are branch indices, not hand indices)
+  ...SYSTEM_BRANCH_PROMPT_CHOICE_TYPES,
   // Elf Archer choice types (matching backend elf_archer/choices.go)
   'elf_archer_elemental_shot_pick',
   'elf_animal_companion_confirm',
@@ -283,8 +314,8 @@ const NON_HAND_INDEXED_PROMPT_CHOICE_TYPES = new Set<string>([
   'bp_blood_sorrow_mode',
   'bp_blood_sorrow_target',
   'bp_blood_wail_x',
-  'bp_curse_discard',
   'bp_shared_life_target',
+  // NOTE: bp_curse_discard IS a card selection and should NOT be in this set
   // Fighter choice types (matching backend fighter/choices.go)
   'fighter_psi_bullet_target',
   'fighter_hundred_dragon_target',
@@ -375,7 +406,7 @@ const NON_HAND_INDEXED_PROMPT_CHOICE_TYPES = new Set<string>([
   'bp_shared_life_target',
   'bp_blood_curse_confirm',
   'bp_blood_curse_target',
-  // NOTE: bp_backflow_discard, bp_blood_curse_discard ARE card selections
+  // NOTE: bp_backflow_discard, bp_curse_discard ARE card selections
   // Spirit Caster choice types for skill prompts (matching backend choices.go)
   'sc_incant_confirm',
   'sc_incant_confirm_no_hand',
@@ -467,6 +498,7 @@ function confirmExtractSelection() {
 }
 
 function resolveOptionPlayerId(option: { id: string; label: string }): string | null {
+  if (isBranchPromptChoice()) return null
   if (playerViews.value[option.id]) return option.id
   const label = String(option.label || '')
   if (!label) return null
@@ -1105,6 +1137,38 @@ function skillButtonFallbackText(option: SkillPromptButton): string {
   return option.cancel ? '消' : '确'
 }
 
+function isBranchPromptChoice(): boolean {
+  const choiceType = String(prompt.value?.choice_type || '').trim()
+  if (BRANCH_PROMPT_CHOICE_TYPES.has(choiceType)) return true
+  if (prompt.value?.presentation?.kind === 'branch_select') return true
+  const message = String(prompt.value?.message || '').trim()
+  return (
+    message.includes('虚弱状态') ||
+    message.includes('选择添加宝石或水晶') ||
+    message.includes('月之轮回') ||
+    message.includes('请选择发动分支')
+  )
+}
+
+function isSystemBranchPromptChoice(): boolean {
+  return isBranchPromptChoice()
+}
+
+function isCocoonFieldSelectionPrompt(): boolean {
+  const choiceType = String(prompt.value?.choice_type || '').trim()
+  return COCOON_FIELD_SELECTION_PROMPT_CHOICE_TYPES.has(choiceType)
+}
+
+function overlayDecisionOptionTitle(option: DockButtonOption): string {
+  const label = String(option.label || '').trim()
+  const buttonLabel = String(option.buttonLabel || '').trim()
+  if (!label) return buttonLabel
+  if (!buttonLabel || buttonLabel === label) return label
+  // 分支选项 id 常为 0/1/2，buttonLabel 可能被落成 1/2/3，标题应展示完整说明。
+  if (/^\d+$/.test(buttonLabel)) return label
+  return buttonLabel
+}
+
 function normalizeDockOption(option: RawDockOption, useNumeric: boolean, plusOne: boolean): DockButtonOption {
   const id = String(option.id || '').trim()
   const label = String(option.label || '').trim()
@@ -1114,6 +1178,18 @@ function normalizeDockOption(option: RawDockOption, useNumeric: boolean, plusOne
   let buttonLabel = normalizeButtonLabel(explicitButtonLabel, id, label, responseKind)
   let hint = String(option.hint || '').trim()
   const presentation = prompt.value?.presentation
+
+  if (isSystemBranchPromptChoice() && label) {
+    const branchLabel = explicitButtonLabel || label
+    return {
+      id,
+      label,
+      buttonLabel: branchLabel,
+      hint: hint || (label !== branchLabel ? label : ''),
+      disabled: option.disabled,
+      numeric: false,
+    }
+  }
 
   if (presentation?.kind === 'branch_select' && !explicitButtonLabel && label) {
     buttonLabel = label
@@ -1365,9 +1441,18 @@ const inlinePrimaryButtons = computed<DockButtonOption[]>(() => {
     return buildDockButtons(options)
   }
   if (showConfirmButtonSection.value) {
-    const shouldExposeIndexedCocoonOptions = prompt.value?.presentation?.kind === 'branch_select'
-    const options = nonPlayerOptions.value
-      .filter((option) => option.id !== 'cancel' && option.id !== 'skip')
+    const shouldExposeIndexedCocoonOptions =
+      isSystemBranchPromptChoice() || prompt.value?.presentation?.kind === 'branch_select'
+    const shouldHideIndexedCocoonOptions = isCocoonFieldSelectionPrompt()
+    const optionSource = shouldExposeIndexedCocoonOptions
+      ? (prompt.value?.options || [])
+      : nonPlayerOptions.value
+    const options = optionSource
+      .filter((option) => {
+        if (shouldExposeIndexedCocoonOptions && (option.id === 'decline' || option.id === '-1')) return true
+        return option.id !== 'cancel' && option.id !== 'skip'
+      })
+      .filter((option) => !shouldHideIndexedCocoonOptions || !isIndexedCocoonOption(option))
       .filter((option) => shouldExposeIndexedCocoonOptions || !isIndexedCocoonOption(option))
       .map((option) => ({
         id: option.id,
@@ -1546,6 +1631,7 @@ const showDecisionOverlay = computed(() => {
   if (!isVisible.value || !prompt.value) return false
   // 专属 UI 模式排除
   if (prompt.value.ui_mode === 'action_hub') return false
+  if (isCocoonFieldSelectionPrompt()) return false      // → 扩展区点击茧，弹框只保留内联取消
   if (isSkillChoicePrompt.value) return false        // → skill-branch-overlay
   if (isFraudElementCardPickerPrompt.value) return false  // → 欺诈选牌弹窗
   if (isExtractPrompt.value) return false              // → 提取选择网格
@@ -1573,6 +1659,7 @@ const isYesNoDecision = computed(() => {
 
 const decisionOverlayMode = computed<'numeric' | 'text' | 'activation-cost' | 'yes-no'>(() => {
   if (singleActivationCostConfirmOption.value) return 'activation-cost'
+  if (isSystemBranchPromptChoice()) return 'text'
   if (inlinePrimaryButtons.value.some(opt => opt.numeric)) return 'numeric'
   if (isYesNoDecision.value) return 'yes-no'
   return 'text'
@@ -2057,8 +2144,11 @@ watch(autoResolveOptionId, (optionId) => {
               :disabled="!!option.disabled"
               @click="handleOptionClick(option.id)"
             >
-              <div class="overlay-panel-item-title">{{ option.buttonLabel }}</div>
-              <div v-if="option.hint" class="overlay-panel-item-desc">{{ option.hint }}</div>
+              <div class="overlay-panel-item-title">{{ overlayDecisionOptionTitle(option) }}</div>
+              <div
+                v-if="option.hint && option.hint !== overlayDecisionOptionTitle(option)"
+                class="overlay-panel-item-desc"
+              >{{ option.hint }}</div>
             </button>
           </div>
 

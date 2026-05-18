@@ -5,6 +5,7 @@ import (
 	"starcup-engine/internal/testutils"
 	"testing"
 
+	"starcup-engine/internal/data"
 	moonplayer "starcup-engine/internal/engine/player/moon_goddess"
 	"starcup-engine/internal/model"
 )
@@ -18,6 +19,57 @@ func moonTestCard(id, name string, cardType model.CardType, ele model.Element) m
 		Faction:     "圣",
 		Damage:      2,
 		Description: name,
+	}
+}
+
+func TestMoonGoddessConfig_SkillIDsAndLogicHandlersMatchModule(t *testing.T) {
+	var moonCharacter *model.Character
+	for _, character := range data.GetCharacters() {
+		if character.ID == "moon_goddess" {
+			c := character
+			moonCharacter = &c
+			break
+		}
+	}
+	if moonCharacter == nil {
+		t.Fatalf("moon_goddess character config not found")
+	}
+
+	moduleSkills := make(map[string]bool)
+	for _, entry := range moonplayer.SkillEntries() {
+		if entry.ID == "" {
+			t.Fatalf("moon goddess module contains empty skill id")
+		}
+		if entry.Handler == nil {
+			t.Fatalf("moon goddess module skill %q has nil handler", entry.ID)
+		}
+		if moduleSkills[entry.ID] {
+			t.Fatalf("moon goddess module registers duplicate skill %q", entry.ID)
+		}
+		moduleSkills[entry.ID] = true
+	}
+
+	dataSkills := make(map[string]bool)
+	for _, skill := range moonCharacter.Skills {
+		dataSkills[skill.ID] = true
+		if !moduleSkills[skill.ID] {
+			t.Fatalf("moon goddess skill %q is in character data but not registered in module", skill.ID)
+		}
+		if skill.LogicHandler == "" {
+			t.Fatalf("moon goddess skill %q has empty LogicHandler", skill.ID)
+		}
+		if skill.LogicHandler != skill.ID {
+			t.Fatalf("moon goddess skill %q uses LogicHandler %q; this role expects exact ID/handler parity", skill.ID, skill.LogicHandler)
+		}
+		if !moduleSkills[skill.LogicHandler] {
+			t.Fatalf("moon goddess LogicHandler %q for skill %q is not registered in module", skill.LogicHandler, skill.ID)
+		}
+	}
+
+	for skillID := range moduleSkills {
+		if !dataSkills[skillID] {
+			t.Fatalf("moon goddess module registers skill %q but character data does not define it", skillID)
+		}
 	}
 }
 
@@ -76,6 +128,136 @@ func TestMoonGoddessNewMoonShelter_AbsorbsOverflowAndPreventsMoraleLoss(t *testi
 	}
 }
 
+func TestMoonGoddessNewMoonShelter_PromptsAfterBloodPriestessDamageOverflow(t *testing.T) {
+	obs := &testutils.CaptureObserver{}
+	game := engine.NewGameEngine(obs)
+	if err := game.AddPlayer("p1", "Moon", "moon_goddess", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Blood", "blood_priestess", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p3", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	moon := game.State.Players["p1"]
+	blood := game.State.Players["p2"]
+	blood.MaxHand = 6
+	blood.Hand = []model.Card{
+		moonTestCard("b1", "牌1", model.CardTypeAttack, model.ElementFire),
+		moonTestCard("b2", "牌2", model.CardTypeAttack, model.ElementWater),
+		moonTestCard("b3", "牌3", model.CardTypeAttack, model.ElementWind),
+		moonTestCard("b4", "牌4", model.CardTypeAttack, model.ElementThunder),
+		moonTestCard("b5", "牌5", model.CardTypeMagic, model.ElementDark),
+		moonTestCard("b6", "牌6", model.CardTypeMagic, model.ElementLight),
+	}
+	game.State.Deck = []model.Card{
+		moonTestCard("drawn", "伤害摸牌", model.CardTypeAttack, model.ElementEarth),
+	}
+
+	game.AddPendingDamage(model.PendingDamage{
+		SourceID:   "p3",
+		TargetID:   "p2",
+		Damage:     1,
+		DamageType: model.AttackDamage,
+	})
+	if paused := game.ProcessPendingDamages(); !paused {
+		t.Fatalf("expected damage flow to pause for overflow discard")
+	}
+	if game.State.PendingInterrupt == nil || !engine.IsDiscardSelectionInterrupt(game.State.PendingInterrupt) {
+		t.Fatalf("expected discard interrupt from damage overflow, got %+v", game.State.PendingInterrupt)
+	}
+
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p2",
+		Type:       model.CmdSelect,
+		Selections: []int{6},
+	})
+
+	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptResponseSkill {
+		t.Fatalf("expected new moon shelter response after blood priestess damage overflow, got %+v", game.State.PendingInterrupt)
+	}
+	if game.State.PendingInterrupt.PlayerID != "p1" {
+		t.Fatalf("expected moon goddess response prompt, got player %s", game.State.PendingInterrupt.PlayerID)
+	}
+	if len(game.State.PendingInterrupt.SkillIDs) != 1 || game.State.PendingInterrupt.SkillIDs[0] != "mg_new_moon_shelter" {
+		t.Fatalf("expected only new moon shelter response, got %+v", game.State.PendingInterrupt.SkillIDs)
+	}
+	foundPrompt := false
+	for _, event := range obs.Events {
+		if event.Type != model.EventAskInput {
+			continue
+		}
+		prompt, _ := event.Data.(*model.Prompt)
+		if prompt != nil &&
+			prompt.PlayerID == "p1" &&
+			prompt.Type == model.PromptChooseSkill &&
+			len(prompt.Options) > 0 &&
+			prompt.Options[0].ID == "mg_new_moon_shelter" {
+			foundPrompt = true
+			break
+		}
+	}
+	if !foundPrompt {
+		t.Fatalf("expected observer to emit new moon shelter choose_skill prompt")
+	}
+
+	testutils.ChooseResponseSkillByID(t, game, "p1", "mg_new_moon_shelter")
+
+	if got := game.State.RedMorale; got != 15 {
+		t.Fatalf("expected red morale unchanged by 新月庇护, got %d", got)
+	}
+	if got := moon.Form; got != model.FormMoonGoddessDarkMoon {
+		t.Fatalf("expected moon enter dark form, got %q", got)
+	}
+	if got := moonplayer.DarkMoonCount(moon); got != 1 {
+		t.Fatalf("expected 1 dark moon absorbed, got %d", got)
+	}
+	if intr := game.State.PendingInterrupt; intr != nil && intr.Type == model.InterruptChoice {
+		if data, ok := intr.Context.(map[string]interface{}); ok && data["choice_type"] == "mg_moon_cycle_mode" {
+			testutils.MustHandleAction(t, game, model.PlayerAction{
+				PlayerID:   "p1",
+				Type:       model.CmdSelect,
+				Selections: []int{0},
+			})
+		}
+	}
+
+	game.State.Deck = []model.Card{
+		moonTestCard("drawn-2", "第二次伤害摸牌", model.CardTypeAttack, model.ElementFire),
+	}
+	game.AddPendingDamage(model.PendingDamage{
+		SourceID:   "p3",
+		TargetID:   "p2",
+		Damage:     1,
+		DamageType: model.AttackDamage,
+	})
+	if paused := game.ProcessPendingDamages(); !paused {
+		t.Fatalf("expected second damage flow to pause for overflow discard")
+	}
+	if game.State.PendingInterrupt == nil || !engine.IsDiscardSelectionInterrupt(game.State.PendingInterrupt) {
+		t.Fatalf("expected second discard interrupt from damage overflow, got %+v", game.State.PendingInterrupt)
+	}
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p2",
+		Type:       model.CmdSelect,
+		Selections: []int{6},
+	})
+	if game.State.PendingInterrupt != nil && game.State.PendingInterrupt.Type == model.InterruptResponseSkill {
+		t.Fatalf("expected no new moon shelter response while moon goddess is in dark form, got %+v", game.State.PendingInterrupt)
+	}
+	if got := game.State.RedMorale; got != 14 {
+		t.Fatalf("expected second damage overflow to reduce red morale while in dark form, got %d", got)
+	}
+	if got := moon.Form; got != model.FormMoonGoddessDarkMoon {
+		t.Fatalf("expected moon stay in dark form after second overflow, got %q", got)
+	}
+	if got := moonplayer.DarkMoonCount(moon); got != 1 {
+		t.Fatalf("expected dark moon count unchanged after skipped shelter, got %d", got)
+	}
+}
+
 func TestMoonGoddessNewMoonShelter_NoSoulDevourGainWhenMoraleLossPrevented(t *testing.T) {
 	// 重复多次覆盖 map 迭代随机性，确保“暗月抵消士气后，灵魂术士不加黄魂”稳定成立。
 	for i := 0; i < 24; i++ {
@@ -131,6 +313,43 @@ func TestMoonGoddessNewMoonShelter_NoSoulDevourGainWhenMoraleLossPrevented(t *te
 	}
 }
 
+func TestMoonGoddessMoonCycle_DeclineSkipsSkill(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Moon", "moon_goddess", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	moon := game.State.Players["p1"]
+	moon.IsActive = true
+	moon.TurnState = model.NewPlayerTurnState()
+	moon.Heal = 2
+	moonplayer.AddDarkMoonCards(moon, []model.Card{
+		moonTestCard("dm1", "暗月1", model.CardTypeAttack, model.ElementFire),
+	})
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageTurnEnd
+
+	if !moonplayer.MaybeMoonCycleAtTurnEnd(engine.NewRoleChoiceRuntime(game), moon) {
+		t.Fatalf("expected moon cycle interrupt")
+	}
+	testutils.RequireChoicePrompt(t, game, "p1", "mg_moon_cycle_mode")
+	prompt := game.GetCurrentPrompt()
+	if prompt == nil || len(prompt.Options) == 0 || prompt.Options[0].Label != "不发动" {
+		t.Fatalf("expected decline option first, got %+v", prompt.Options)
+	}
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
+		t.Fatalf("decline moon cycle failed: %v", err)
+	}
+	if game.State.PendingInterrupt != nil {
+		t.Fatalf("expected no pending interrupt after decline, got %+v", game.State.PendingInterrupt)
+	}
+	if got := moonplayer.DarkMoonCount(moon); got != 1 {
+		t.Fatalf("decline should not remove dark moon, got %d", got)
+	}
+	if got := moon.Heal; got != 2 {
+		t.Fatalf("decline should not consume heal, got %d", got)
+	}
+}
+
 func TestMoonGoddessMoonCycle_Branch1AppliesCurseAndHeal(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "Moon", "moon_goddess", model.RedCamp); err != nil {
@@ -159,10 +378,13 @@ func TestMoonGoddessMoonCycle_Branch1AppliesCurseAndHeal(t *testing.T) {
 		t.Fatalf("expected moon cycle interrupt")
 	}
 	testutils.RequireChoicePrompt(t, game, "p1", "mg_moon_cycle_mode")
-	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
 		t.Fatalf("choose moon cycle mode failed: %v", err)
 	}
 	testutils.RequireChoicePrompt(t, game, "p1", "mg_moon_cycle_heal_target")
+	if prompt := game.GetCurrentPrompt(); prompt == nil || prompt.Presentation == nil || prompt.Presentation.Kind != model.PresentationTargetPicker {
+		t.Fatalf("expected moon cycle heal target to use target_picker presentation, got %+v", prompt)
+	}
 	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
 		t.Fatalf("choose moon cycle heal target failed: %v", err)
 	}
@@ -208,7 +430,7 @@ func TestMoonGoddessMoonCycle_OnlyOncePerTurn(t *testing.T) {
 	}
 	testutils.RequireChoicePrompt(t, game, "p1", "mg_moon_cycle_mode")
 	// 分支①
-	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
 		t.Fatalf("choose moon cycle mode branch1 failed: %v", err)
 	}
 	testutils.RequireChoicePrompt(t, game, "p1", "mg_moon_cycle_heal_target")
@@ -257,7 +479,7 @@ func TestMoonGoddessMoonCycle_Branch1NoRepromptBranch2InDriveFlow(t *testing.T) 
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID:   "p1",
 		Type:       model.CmdSelect,
-		Selections: []int{0},
+		Selections: []int{1},
 	})
 	testutils.RequireChoicePrompt(t, game, "p1", "mg_moon_cycle_heal_target")
 
@@ -313,7 +535,7 @@ func TestMoonGoddessMoonCycle_TurnStateLatchPreventsRepromptWhenTokenResets(t *t
 		t.Fatalf("expected moon cycle first dispatch")
 	}
 	testutils.RequireChoicePrompt(t, game, "p1", "mg_moon_cycle_mode")
-	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
 		t.Fatalf("choose moon cycle mode branch1 failed: %v", err)
 	}
 	testutils.RequireChoicePrompt(t, game, "p1", "mg_moon_cycle_heal_target")
@@ -394,6 +616,47 @@ func TestMoonGoddessDarkMoonSlash_AddsDamageAndConsumesDarkMoon(t *testing.T) {
 	}
 	if got := moon.Crystal; got != 0 {
 		t.Fatalf("expected consume 1 crystal, got %d", got)
+	}
+}
+
+func TestMoonGoddessDarkMoonSlash_PromptsOnActiveAttackHit(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Moon", "moon_goddess", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	moon := game.State.Players["p1"]
+	enemy := game.State.Players["p2"]
+	moon.IsActive = true
+	moon.TurnState = model.NewPlayerTurnState()
+	moon.Crystal = 1
+	moon.Form = model.FormMoonGoddessDarkMoon
+	moonplayer.AddDarkMoonCards(moon, []model.Card{
+		moonTestCard("dm1", "暗月1", model.CardTypeAttack, model.ElementFire),
+		moonTestCard("dm2", "暗月2", model.CardTypeMagic, model.ElementWater),
+		moonTestCard("dm3", "暗月3", model.CardTypeAttack, model.ElementWind),
+		moonTestCard("dm4", "暗月4", model.CardTypeMagic, model.ElementLight),
+	})
+	attackCard := moonTestCard("atk", "主动攻击", model.CardTypeAttack, model.ElementFire)
+	game.State.PendingDamageQueue = []model.PendingDamage{
+		{
+			SourceID:   moon.ID,
+			TargetID:   enemy.ID,
+			Damage:     2,
+			DamageType: model.AttackDamage,
+			Card:       &attackCard,
+		},
+	}
+
+	if paused := game.ProcessPendingDamages(); !paused {
+		t.Fatalf("expected attack hit to pause for dark moon slash response")
+	}
+	testutils.RequireResponseSkillPrompt(t, game, "p1")
+	if got := game.State.PendingInterrupt.SkillIDs; len(got) != 1 || got[0] != "mg_darkmoon_slash" {
+		t.Fatalf("expected dark moon slash response, got %+v", got)
 	}
 }
 

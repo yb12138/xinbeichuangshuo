@@ -1,22 +1,24 @@
 import { test, expect } from '../../../fixtures/protocolHarness.fixture';
 import {
   darkmoonSlashScenario,
+  darkmoonSlashResponsePrompt,
   darkmoonSlashXPrompt,
 } from '../../../scenarios/moonGoddess';
 
 // ============================================================
-// 闇月斩 (mg_darkmoon_slash) - 后端通过 response_skills 自动触发
+// 闇月斩 (mg_darkmoon_slash) - 后端通过 choose_skill 响应窗口触发
 // X值选择使用 choice_type: mg_darkmoon_slash_x
 // ============================================================
 
 test.describe('moon goddess darkmoon slash protocol harness', () => {
-  test('darkmoon slash: triggered via response_skills', async ({ protocolHarness }) => {
+  test('darkmoon slash: triggered via response_skills', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(darkmoonSlashScenario({ dark_moon_cards: 2 }));
 
-    // 后端会设置 response_skills 触发确认弹框
+    await protocolHarness.pushServerMessage(darkmoonSlashResponsePrompt());
+    await page.getByTestId('skill-branch-overlay').getByTestId('branch-option-0').click();
     await protocolHarness.expectSubmitAction({
-      action_type: 'UseSkill',
-      skill_id: 'mg_darkmoon_slash',
+      action_type: 'Select',
+      option_indexes: [0],
     });
   });
 
@@ -27,7 +29,7 @@ test.describe('moon goddess darkmoon slash protocol harness', () => {
     await protocolHarness.pushServerMessage(darkmoonSlashXPrompt(2));
     await expect(page.getByTestId('decision-overlay')).toBeVisible();
     // 选择 X=1（第一项，index 0）
-    await page.getByTestId('prompt-option-0').click();
+    await page.getByTestId('decision-overlay').getByTestId('numeric-option-1').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -40,7 +42,7 @@ test.describe('moon goddess darkmoon slash protocol harness', () => {
     await protocolHarness.pushServerMessage(darkmoonSlashXPrompt(2));
     await expect(page.getByTestId('decision-overlay')).toBeVisible();
     // 选择 X=2（第二项，index 1）
-    await page.getByTestId('prompt-option-1').click();
+    await page.getByTestId('decision-overlay').getByTestId('numeric-option-2').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1],

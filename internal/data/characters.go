@@ -2565,7 +2565,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "mg_dark_moon_slash", Timings: []model.FlowTiming{model.TimingOnHitCheck}, Title: "闇月斩",
+					ID: "mg_darkmoon_slash", Timings: []model.FlowTiming{model.TimingOnHitCheck}, Title: "闇月斩",
 					Type:        model.SkillTypeResponse,
 					Tags:        []model.SkillTag{model.TagCrystal, model.TagUltimate},
 					CostCrystal: 1,
@@ -2573,7 +2573,7 @@ func GetCharacters() []model.Character {
 
 					RequiredRole: model.RoleAttacker,
 					ResponseType: model.ResponseOptional,
-					LogicHandler: "mg_dark_moon_slash",
+					LogicHandler: "mg_darkmoon_slash",
 					TargetType:   model.TargetNone,
 				},
 				{

@@ -13,10 +13,10 @@ test.describe('moon goddess moon cycle protocol harness', () => {
     // Server pushes branch prompt at turn end
     await protocolHarness.pushServerMessage(moonCycleBranchPrompt());
     await expect(page.getByTestId('decision-overlay')).toBeVisible();
-    await page.getByTestId('branch-option-0').click();
+    await page.getByTestId('branch-option-1').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0],
+      option_indexes: [1],
     });
 
     // Target selection (click enemy player card)
@@ -32,7 +32,7 @@ test.describe('moon goddess moon cycle protocol harness', () => {
     await protocolHarness.bootGame(moonCycleScenario({ dark_moon_cards: 0, heal: 2 }));
 
     // Server pushes branch prompt at turn end
-    await protocolHarness.pushServerMessage(moonCycleBranchPrompt());
+    await protocolHarness.pushServerMessage(moonCycleBranchPrompt({ branch1: false }));
     await expect(page.getByTestId('decision-overlay')).toBeVisible();
     await page.getByTestId('branch-option-1').click();
     await protocolHarness.expectSubmitAction({
@@ -43,11 +43,23 @@ test.describe('moon goddess moon cycle protocol harness', () => {
     // Branch 2 has no further frontend interaction
   });
 
+  test('moon cycle: decline branch selection', async ({ page, protocolHarness }) => {
+    await protocolHarness.bootGame(moonCycleScenario({ dark_moon_cards: 1, heal: 2 }));
+
+    await protocolHarness.pushServerMessage(moonCycleBranchPrompt());
+    await expect(page.getByTestId('decision-overlay')).toBeVisible();
+    await expect(page.getByText('不发动')).toBeVisible();
+    await page.getByText('不发动').click();
+    await protocolHarness.expectSubmitAction({
+      action_type: 'Select',
+      option_indexes: [0],
+    });
+  });
+
   test('moon cycle: branch 1 unavailable when no dark moon', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(moonCycleScenario({ dark_moon_cards: 0, heal: 2 }));
 
-    // Server pushes branch prompt, but branch 1 should be disabled
-    await protocolHarness.pushServerMessage(moonCycleBranchPrompt());
+    await protocolHarness.pushServerMessage(moonCycleBranchPrompt({ branch1: false }));
     await expect(page.getByTestId('decision-overlay')).toBeVisible();
     // Branch 2 is the only available option
     await page.getByTestId('branch-option-1').click();

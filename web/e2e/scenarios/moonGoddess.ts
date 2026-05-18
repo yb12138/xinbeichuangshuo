@@ -388,18 +388,25 @@ export function moonCycleScenario(options: { dark_moon_cards?: number; heal?: nu
   };
 }
 
-export function moonCycleBranchPrompt(): WsMessage {
+export function moonCycleBranchPrompt(options: { branch1?: boolean; branch2?: boolean } = {}): WsMessage {
+  const branch1 = options.branch1 ?? true
+  const branch2 = options.branch2 ?? true
+  const promptOptions: Prompt['options'] = [{ id: 'decline', label: '不发动' }]
+  if (branch1) {
+    promptOptions.push({ id: 'branch1', label: '分支①：移除1个闇月，令目标角色+1治疗' })
+  }
+  if (branch2) {
+    promptOptions.push({ id: 'branch2', label: '分支②：移除1点治疗，你+1新月' })
+  }
   return requireActionMessage({
     type: 'confirm',
     player_id: MG_PLAYER_ID,
-    message: '【月之轮回】回合结束，请选择分支：',
+    message: '【月之轮回】请选择发动分支：',
     choice_type: 'mg_moon_cycle_mode',
     skill_id: MG_MOON_CYCLE_SKILL_ID,
-    options: [
-      { id: 'branch1', label: '分支一：移除1个闇月，目标+1治疗' },
-      { id: 'branch2', label: '分支二：移除1个治疗，+1新月' },
-    ],
-    presentation: { kind: 'branch_select', layout: 'overlay' },
+    cancelable: true,
+    options: promptOptions,
+    presentation: { kind: 'branch_select', layout: 'overlay', cancel_policy: 'allow' },
     min: 1,
     max: 1,
   } satisfies Prompt);
@@ -415,6 +422,7 @@ export function moonCycleTargetPrompt(): WsMessage {
     options: [
       { id: ENEMY_PLAYER_ID, label: '恶徒' },
     ],
+    presentation: { kind: 'target_picker' },
     min: 1,
     max: 1,
   } satisfies Prompt);
@@ -545,6 +553,25 @@ export function darkmoonSlashScenario(options: {
 }
 
 // 闇月斩X值选择：mg_darkmoon_slash_x
+export function darkmoonSlashResponsePrompt(): WsMessage {
+  return requireActionMessage({
+    type: 'choose_skill',
+    player_id: MG_PLAYER_ID,
+    message: '你触发了响应技能【闇月斩】，请选择是否发动。',
+    options: [
+      {
+        id: MG_DARKMOON_SLASH_SKILL_ID,
+        label: '闇月斩',
+        hint: '消耗1点蓝水晶（红宝石可替代），移除X个闇月使本次攻击伤害+X',
+      },
+      { id: 'skip', label: '跳过', hint: '不发动响应技能' },
+    ],
+    presentation: { kind: 'skill_choice', layout: 'overlay' },
+    min: 1,
+    max: 1,
+  } satisfies Prompt);
+}
+
 export function darkmoonSlashXPrompt(maxX: number): WsMessage {
   const options: { id: string; label: string }[] = [];
   for (let x = 1; x <= maxX; x++) {

@@ -24,11 +24,15 @@ func (e *GameEngine) buildSystemChoicePrompt(choiceType, playerID string, player
 			PlayerID: playerID,
 			Message:  fmt.Sprintf("【虚弱状态】%s，你需要做出选择：", playerName),
 			Options: []model.PromptOption{
-				{ID: "0", Label: "跳过行动阶段 (移除虚弱)"},
-				{ID: "1", Label: "摸3张牌后继续行动阶段"},
+				{ID: "draw_continue", Label: "摸3张牌继续执行后续行动"},
+				{ID: "skip_turn", Label: "跳过此回合"},
 			},
 			Min: 1,
 			Max: 1,
+			Presentation: &model.PromptPresentation{
+				Kind:   model.PresentationBranchSelect,
+				Layout: "overlay",
+			},
 		}
 
 	case "buy_resource":
@@ -114,11 +118,6 @@ func (e *GameEngine) handleSystemWeakChoice(playerID string, selectionIndex int,
 
 	switch selectionIndex {
 	case 0:
-		e.Log(fmt.Sprintf("[Weak] %s 选择跳过行动阶段", player.Name))
-		player.TurnState.ActionPhaseSkippedThisTurn = true
-		ctxData["weak_next_stage"] = "turn_end"
-		return nil
-	case 1:
 		e.Log(fmt.Sprintf("[Weak] %s 选择摸3张牌后继续行动阶段", player.Name))
 		cards, newDeck, newDiscard := rules.DrawCards(e.State.Deck, e.State.DiscardPile, 3)
 		e.State.Deck = newDeck
@@ -131,6 +130,11 @@ func (e *GameEngine) handleSystemWeakChoice(playerID string, selectionIndex int,
 		e.CheckHandLimitCtx(player, checkCtx)
 
 		ctxData["weak_next_stage"] = "action_start"
+		return nil
+	case 1:
+		e.Log(fmt.Sprintf("[Weak] %s 选择跳过此回合", player.Name))
+		player.TurnState.ActionPhaseSkippedThisTurn = true
+		ctxData["weak_next_stage"] = "turn_end"
 		return nil
 	default:
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)

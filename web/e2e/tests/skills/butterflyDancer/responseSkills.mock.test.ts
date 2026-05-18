@@ -13,11 +13,11 @@ test.describe('butterfly dancer pilgrimage protocol harness', () => {
     // Server pushes pilgrimage pick prompt (triggered by damage before apply hook)
     await protocolHarness.pushServerMessage(pilgrimagePickPrompt());
 
-    const overlay = page.getByTestId('decision-overlay');
-    await expect(overlay).toBeVisible();
-    await expect(overlay.getByText('不发动')).toBeVisible();
-    await expect(overlay.getByText('移除茧[0]')).toBeVisible();
-    await overlay.getByTestId('branch-option-0').click();
+    await expect(page.getByTestId('decision-overlay')).not.toBeVisible();
+    await expect(page.getByRole('button', { name: '不发动' })).toBeVisible();
+    await expect(page.getByText('请在扩展区点击对应的茧完成选择')).toBeVisible();
+    await expect(page.getByText('移除茧[0]')).not.toBeVisible();
+    await page.getByRole('button', { name: '不发动' }).click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -30,10 +30,10 @@ test.describe('butterfly dancer pilgrimage protocol harness', () => {
     // Server pushes pilgrimage pick prompt
     await protocolHarness.pushServerMessage(pilgrimagePickPrompt());
 
-    const overlay = page.getByTestId('decision-overlay');
-    await expect(overlay).toBeVisible();
-    await expect(overlay.getByText('移除茧[0]')).toBeVisible();
-    await overlay.getByTestId('branch-option-1').click();
+    await expect(page.getByTestId('decision-overlay')).not.toBeVisible();
+    await expect(page.getByText('请在扩展区点击对应的茧完成选择')).toBeVisible();
+    await expect(page.getByText('移除茧[0]')).not.toBeVisible();
+    await page.getByTestId('cover-card-0').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1],
@@ -48,11 +48,11 @@ test.describe('butterfly dancer poison protocol harness', () => {
     // Server pushes poison pick prompt (triggered by magic damage)
     await protocolHarness.pushServerMessage(poisonPickPrompt());
 
-    const overlay = page.getByTestId('decision-overlay');
-    await expect(overlay).toBeVisible();
-    await expect(overlay.getByText('不发动')).toBeVisible();
-    await expect(overlay.getByText('移除茧[0]')).toBeVisible();
-    await overlay.getByTestId('branch-option-0').click();
+    await expect(page.getByTestId('decision-overlay')).not.toBeVisible();
+    await expect(page.getByRole('button', { name: '不发动' })).toBeVisible();
+    await expect(page.getByText('请在扩展区点击对应的茧完成选择')).toBeVisible();
+    await expect(page.getByText('移除茧[0]')).not.toBeVisible();
+    await page.getByRole('button', { name: '不发动' }).click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -65,10 +65,10 @@ test.describe('butterfly dancer poison protocol harness', () => {
     // Server pushes poison pick prompt
     await protocolHarness.pushServerMessage(poisonPickPrompt());
 
-    const overlay = page.getByTestId('decision-overlay');
-    await expect(overlay).toBeVisible();
-    await expect(overlay.getByText('移除茧[0]')).toBeVisible();
-    await overlay.getByTestId('branch-option-1').click();
+    await expect(page.getByTestId('decision-overlay')).not.toBeVisible();
+    await expect(page.getByText('请在扩展区点击对应的茧完成选择')).toBeVisible();
+    await expect(page.getByText('移除茧[0]')).not.toBeVisible();
+    await page.getByTestId('cover-card-0').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1],

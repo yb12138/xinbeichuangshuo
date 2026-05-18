@@ -63,6 +63,9 @@ func (h *MoonGoddessNewMoonShelterHandler) CanUse(ctx *model.Context) bool {
 	if ctx.Timing != model.TimingBeforeMoraleLoss {
 		return false
 	}
+	if engineplayer.EffectiveForm(ctx.User) != "" {
+		return false
+	}
 	if *ctx.EventCtx.DamageVal <= 0 {
 		return false
 	}

@@ -80,13 +80,13 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 				}
 			}
 		}
-		var options []model.PromptOption
+		options := []model.PromptOption{{ID: "decline", Label: "不发动"}}
 		for _, mode := range modes {
 			switch mode {
 			case "branch1":
-				options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", len(options)), Label: "分支①：移除1个闇月，令目标角色+1治疗"})
+				options = append(options, model.PromptOption{ID: "branch1", Label: "分支①：移除1个闇月，令目标角色+1治疗"})
 			case "branch2":
-				options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", len(options)), Label: "分支②：移除1点治疗，你+1新月"})
+				options = append(options, model.PromptOption{ID: "branch2", Label: "分支②：移除1点治疗，你+1新月"})
 			}
 		}
 		return &model.Prompt{
@@ -97,7 +97,12 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			Options:    options,
 			Min:        1,
 			Max:        1,
-			Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
+			Cancelable: true,
+			Presentation: &model.PromptPresentation{
+				Kind:         model.PresentationBranchSelect,
+				Layout:       "overlay",
+				CancelPolicy: "allow",
+			},
 		}
 
 	case "mg_moon_cycle_heal_target":
@@ -118,13 +123,14 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			}
 		}
 		return &model.Prompt{
-			Type:       model.PromptConfirm,
-			PlayerID:   playerID,
-			ChoiceType: choiceType,
-			Message:    "【月之轮回】请选择获得1点治疗的角色：",
-			Options:    options,
-			Min:        1,
-			Max:        1,
+			Type:         model.PromptConfirm,
+			PlayerID:     playerID,
+			ChoiceType:   choiceType,
+			Message:      "【月之轮回】请选择获得1点治疗的角色：",
+			Options:      options,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationTargetPicker},
 		}
 
 	case "mg_blasphemy_target":
@@ -201,13 +207,13 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			}
 		}
 		return &model.Prompt{
-			Type:       model.PromptConfirm,
-			PlayerID:   playerID,
-			ChoiceType: choiceType,
-			Message:    "【苍白之月】请选择分支：",
-			Options:    options,
-			Min:        1,
-			Max:        1,
+			Type:         model.PromptConfirm,
+			PlayerID:     playerID,
+			ChoiceType:   choiceType,
+			Message:      "【苍白之月】请选择分支：",
+			Options:      options,
+			Min:          1,
+			Max:          1,
 			Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 		}
 
@@ -281,6 +287,30 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 	}
 
 	return nil
+}
+
+func (choiceHandler) HandleCancel(rt engineplayer.ChoiceRuntime, _ string, ctxData map[string]interface{}) (bool, error) {
+	choiceType, _ := ctxData["choice_type"].(string)
+	if choiceType != "mg_moon_cycle_mode" {
+		return false, nil
+	}
+	userID, _ := ctxData["user_id"].(string)
+	user := rt.GetPlayers()[userID]
+	if user == nil {
+		return false, fmt.Errorf("玩家不存在")
+	}
+	return finishMoonCycleDecline(rt, user), nil
+}
+
+func finishMoonCycleDecline(rt engineplayer.ChoiceRuntime, user *model.Player) bool {
+	if user != nil {
+		rt.Log(fmt.Sprintf("%s 选择不发动 [月之轮回]", user.Name))
+	}
+	rt.PopInterrupt()
+	if rt.GetPendingInterrupt() == nil {
+		rt.EnterTurnEndStage()
+	}
+	return true
 }
 
 func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
@@ -360,6 +390,9 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		if user == nil {
 			return true, fmt.Errorf("玩家不存在")
 		}
+		if selectionIndex == 0 {
+			return finishMoonCycleDecline(rt, user), nil
+		}
 		var modes []string
 		if arr, ok := ctxData["modes"].([]string); ok {
 			modes = append(modes, arr...)
@@ -370,10 +403,11 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 				}
 			}
 		}
-		if selectionIndex < 0 || selectionIndex >= len(modes) {
+		modeIdx := selectionIndex - 1
+		if modeIdx < 0 || modeIdx >= len(modes) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
-		mode := modes[selectionIndex]
+		mode := modes[modeIdx]
 		switch mode {
 		case "branch1":
 			if moonGoddessDarkMoonCount(user) <= 0 {
@@ -841,6 +875,8 @@ func moonGoddessFindPendingAttackDamage(rt engineplayer.ChoiceRuntime, _ *model.
 	}
 	return nil
 }
+
+var _ engineplayer.CancelChoiceHandler = choiceHandler{}
 
 func moonGoddessEnemyIDs(rt engineplayer.ChoiceRuntime, user *model.Player) []string {
 	if user == nil {
