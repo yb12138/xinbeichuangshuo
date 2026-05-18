@@ -226,7 +226,7 @@ export function magicReboundConfirmPrompt(): WsMessage {
       { id: '0', label: '是' },
       { id: '1', label: '否' },
     ],
-    min: 1, max: totalCount,
+    min: 1, max: 1,
   } satisfies Prompt);
 }
 
