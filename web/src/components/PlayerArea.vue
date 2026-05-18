@@ -53,6 +53,10 @@ function onCharImageError() {
 }
 
 function openSkillModal(event?: MouseEvent) {
+  if (props.selectable) {
+    emit('select', props.player.id)
+    return
+  }
   if (!props.player.role) return
   if (skillModalCharacterId.value === props.player.role) {
     uiStore.openSkillModal(null)

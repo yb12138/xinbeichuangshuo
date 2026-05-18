@@ -245,16 +245,17 @@ export function magicPierceResponsePrompt(): WsMessage {
 
 export function magicPierceChargePrompt(): WsMessage {
   return requireActionMessage({
-    type: 'confirm',
+    type: 'choose_cards',
     player_id: MB_PLAYER_ID,
     message: '【魔贯冲击】请选择移除1个火系充能：',
     choice_type: 'mb_magic_pierce_charge',
     skill_id: MB_MAGIC_PIERCE_SKILL_ID,
     options: [
-      { id: '0', label: '火焰充能（火系）' },
+      { id: '0', label: '火焰充能', field_index: 0 },
     ],
     min: 1,
     max: 1,
+    presentation: { kind: 'card_picker', layout: 'inline' },
   } satisfies Prompt);
 }
 
@@ -276,16 +277,17 @@ export function magicPierceHitBonusPrompt(): WsMessage {
 
 export function magicPierceHitChargePrompt(): WsMessage {
   return requireActionMessage({
-    type: 'confirm',
+    type: 'choose_cards',
     player_id: MB_PLAYER_ID,
     message: '【魔贯冲击】请选择额外移除1个火系充能：',
     choice_type: 'mb_magic_pierce_hit_charge',
     skill_id: MB_MAGIC_PIERCE_SKILL_ID,
     options: [
-      { id: '1', label: '备用火焰充能（火系）' },
+      { id: '1', label: '备用火焰充能', field_index: 1 },
     ],
     min: 1,
     max: 1,
+    presentation: { kind: 'card_picker', layout: 'inline' },
   } satisfies Prompt);
 }
 
@@ -310,18 +312,19 @@ export function thunderScatterScenario(): ProtocolHarnessScenario {
 
 export function thunderScatterBaseChargePrompt(): WsMessage {
   return requireActionMessage({
-    type: 'confirm',
+    type: 'choose_cards',
     player_id: MB_PLAYER_ID,
     message: '【雷光散射】请选择移除1个雷系充能：',
     choice_type: 'mb_thunder_scatter_base_charge',
     skill_id: MB_THUNDER_SCATTER_SKILL_ID,
     options: [
-      { id: '0', label: '雷光充能A（雷系）' },
-      { id: '1', label: '雷光充能B（雷系）' },
-      { id: '2', label: '雷光充能C（雷系）' },
+      { id: '0', label: '雷光充能A', field_index: 0 },
+      { id: '1', label: '雷光充能B', field_index: 1 },
+      { id: '2', label: '雷光充能C', field_index: 2 },
     ],
     min: 1,
     max: 1,
+    presentation: { kind: 'card_picker', layout: 'inline' },
   } satisfies Prompt);
 }
 
@@ -368,16 +371,17 @@ export function multiShotResponsePrompt(): WsMessage {
 
 export function multiShotChargePrompt(): WsMessage {
   return requireActionMessage({
-    type: 'confirm',
+    type: 'choose_cards',
     player_id: MB_PLAYER_ID,
     message: '【多重射击】请选择移除1个风系充能：',
     choice_type: 'mb_multi_shot_charge',
     skill_id: MB_MULTI_SHOT_SKILL_ID,
     options: [
-      { id: '2', label: '风神充能（风系）' },
+      { id: '2', label: '风神充能', field_index: 2 },
     ],
     min: 1,
     max: 1,
+    presentation: { kind: 'card_picker', layout: 'inline' },
   } satisfies Prompt);
 }
 

@@ -31,6 +31,7 @@ func ChoiceSpecs() []player.ChoiceSpec {
 		{ChoiceType: "sage_magic_rebound_cards", HandleMultiSelect: handleReboundCardsMultiSelect},
 		{ChoiceType: "sage_arcane_cards", HandleMultiSelect: handleArcaneCardsMultiSelect},
 		{ChoiceType: "sage_holy_cards", HandleMultiSelect: handleHolyCardsMultiSelect},
+		{ChoiceType: "sage_holy_targets", HandleMultiSelect: handleHolyTargetsMultiSelect},
 	}
 }
 

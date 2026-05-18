@@ -123,24 +123,27 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		}
 	case "sage_holy_targets":
 		allTargetIDs := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
-		selectedSet := runtimeutil.IDsToSet(runtimeutil.ParseStringSliceContextValue(data["selected_target_ids"]))
-		targetCount := runtimeutil.ToIntContextValue(data["target_count"])
+		maxTargetCount := runtimeutil.ToIntContextValue(data["max_target_count"])
+		if maxTargetCount < 1 {
+			maxTargetCount = runtimeutil.ToIntContextValue(data["target_count"])
+		}
+		if maxTargetCount < 1 {
+			maxTargetCount = 1
+		}
 		options := make([]model.PromptOption, 0, len(allTargetIDs))
 		for _, targetID := range allTargetIDs {
-			if selectedSet[targetID] {
-				continue
-			}
 			if target := rt.GetPlayers()[targetID]; target != nil {
-				options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", len(options)), Label: target.Name})
+				options = append(options, model.PromptOption{ID: targetID, Label: target.Name})
 			}
 		}
 		return &model.Prompt{
-			Type:     model.PromptConfirm,
-			PlayerID: playerID,
-			Message:  fmt.Sprintf("【圣洁法典】请选择第 %d/%d 名治疗目标：", len(selectedSet)+1, targetCount),
-			Options:  options,
-			Min:      1,
-			Max:      1,
+			Type:         model.PromptConfirm,
+			PlayerID:     playerID,
+			Message:      fmt.Sprintf("【圣洁法典】请选择治疗目标（1-%d名）：", maxTargetCount),
+			Options:      options,
+			Min:          1,
+			Max:          maxTargetCount,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationTargetPicker},
 		}
 	case "sage_magic_rebound_target", "sage_arcane_target":
 		targetIDs := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
@@ -228,7 +231,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 			return true, fmt.Errorf("无效的治疗目标数量")
 		}
 		ctxData["target_count"] = targetCount
-		ctxData["selected_target_ids"] = []string{}
+		ctxData["max_target_count"] = targetCount
 		ctxData["choice_type"] = "sage_holy_targets"
 		if intr := rt.GetPendingInterrupt(); intr != nil {
 			intr.Context = ctxData
@@ -237,68 +240,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		return true, nil
 
 	case "sage_holy_targets":
-		userID, _ := ctxData["user_id"].(string)
-		user := rt.GetPlayers()[userID]
-		if user == nil {
-			return true, fmt.Errorf("玩家不存在")
-		}
-		targetCount := runtimeutil.ToIntContextValue(ctxData["target_count"])
-		if targetCount <= 0 {
-			return true, fmt.Errorf("治疗目标数量无效")
-		}
-		allTargetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
-		selected := runtimeutil.ParseStringSliceContextValue(ctxData["selected_target_ids"])
-		selectedSet := runtimeutil.IDsToSet(selected)
-		remaining := make([]string, 0, len(allTargetIDs))
-		for _, targetID := range allTargetIDs {
-			if !selectedSet[targetID] {
-				remaining = append(remaining, targetID)
-			}
-		}
-		if selectionIndex < 0 || selectionIndex >= len(remaining) {
-			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
-		}
-		selected = append(selected, remaining[selectionIndex])
-		ctxData["selected_target_ids"] = selected
-		if len(selected) < targetCount {
-			if intr := rt.GetPendingInterrupt(); intr != nil {
-				intr.Context = ctxData
-			}
-			rt.NotifyInterruptPrompt()
-			return true, nil
-		}
-
-		selectedCards := engineplayer.ParseIntSliceContextValue(ctxData["selected_indices"])
-		xValue := runtimeutil.ToIntContextValue(ctxData["x_value"])
-		if xValue <= 2 || len(selectedCards) != xValue {
-			return true, fmt.Errorf("圣洁法典弃牌参数无效")
-		}
-		removed, err := engineplayer.RemoveCardsByIndicesFromHand(user, append([]int{}, selectedCards...))
-		if err != nil {
-			return true, err
-		}
-		rt.NotifyCardRevealed(user.ID, removed, "discard")
-		rt.AppendToDiscard(removed)
-		for _, targetID := range selected {
-			rt.Heal(targetID, 2)
-		}
-		damage := xValue - 1
-		if damage > 0 {
-			rt.AddPendingDamage(model.PendingDamage{
-				SourceID:   user.ID,
-				TargetID:   user.ID,
-				Damage:     damage,
-				DamageType: model.MagicAttack,
-			})
-		}
-		rt.Log(fmt.Sprintf("%s 发动 [圣洁法典]：为%d名角色各+2治疗，并对自己造成%d点法术伤害", user.Name, len(selected), damage))
-		rt.PopInterrupt()
-		if rt.GetPendingInterrupt() == nil {
-			if !rt.RoutePendingDamageWithReturn(model.TurnStageExtraAction) {
-				rt.EnterExtraActionStage()
-			}
-		}
-		return true, nil
+		return resolveHolyCodexTargets(rt, ctxData, []int{selectionIndex})
 
 	case "sage_magic_rebound_target", "sage_arcane_target":
 		userID, _ := ctxData["user_id"].(string)
@@ -478,13 +420,87 @@ func handleHolyCardsMultiSelect(rt engineplayer.ChoiceRuntime, playerID string, 
 	if maxTargetCount < 1 {
 		return false, fmt.Errorf("圣洁法典治疗目标数量无效")
 	}
-	ctxData["choice_type"] = "sage_holy_target_count"
+	ctxData["choice_type"] = "sage_holy_targets"
 	ctxData["max_target_count"] = maxTargetCount
 	ctxData["target_ids"] = append([]string{}, rt.GetPlayerOrder()...)
 	if intr := rt.GetPendingInterrupt(); intr != nil {
 		intr.Context = ctxData
 	}
 	rt.NotifyInterruptPrompt()
+	return true, nil
+}
+
+// handleHolyTargetsMultiSelect 处理圣洁法典的多目标治疗选择。
+func handleHolyTargetsMultiSelect(rt engineplayer.ChoiceRuntime, _ string, selections []int, ctxData map[string]interface{}) (bool, error) {
+	return resolveHolyCodexTargets(rt, ctxData, selections)
+}
+
+func resolveHolyCodexTargets(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selections []int) (bool, error) {
+	userID, _ := ctxData["user_id"].(string)
+	user := rt.GetPlayers()[userID]
+	if user == nil {
+		return true, fmt.Errorf("玩家不存在")
+	}
+
+	maxTargetCount := runtimeutil.ToIntContextValue(ctxData["max_target_count"])
+	if maxTargetCount < 1 {
+		maxTargetCount = runtimeutil.ToIntContextValue(ctxData["target_count"])
+	}
+	if maxTargetCount < 1 {
+		return true, fmt.Errorf("圣洁法典治疗目标数量无效")
+	}
+	if len(selections) < 1 || len(selections) > maxTargetCount {
+		return true, fmt.Errorf("圣洁法典治疗目标数量需为1-%d名", maxTargetCount)
+	}
+
+	allTargetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
+	selectedTargets := make([]string, 0, len(selections))
+	seenTargets := map[string]bool{}
+	for _, selectionIndex := range selections {
+		if selectionIndex < 0 || selectionIndex >= len(allTargetIDs) {
+			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
+		}
+		targetID := allTargetIDs[selectionIndex]
+		if seenTargets[targetID] {
+			return true, fmt.Errorf("圣洁法典治疗目标不能重复")
+		}
+		if rt.GetPlayers()[targetID] == nil {
+			return true, fmt.Errorf("目标不存在")
+		}
+		seenTargets[targetID] = true
+		selectedTargets = append(selectedTargets, targetID)
+	}
+
+	selectedCards := engineplayer.ParseIntSliceContextValue(ctxData["selected_indices"])
+	xValue := runtimeutil.ToIntContextValue(ctxData["x_value"])
+	if xValue <= 2 || len(selectedCards) != xValue {
+		return true, fmt.Errorf("圣洁法典弃牌参数无效")
+	}
+	removed, err := engineplayer.RemoveCardsByIndicesFromHand(user, append([]int{}, selectedCards...))
+	if err != nil {
+		return true, err
+	}
+	rt.NotifyCardRevealed(user.ID, removed, "discard")
+	rt.AppendToDiscard(removed)
+	for _, targetID := range selectedTargets {
+		rt.Heal(targetID, 2)
+	}
+	damage := xValue - 1
+	if damage > 0 {
+		rt.AddPendingDamage(model.PendingDamage{
+			SourceID:   user.ID,
+			TargetID:   user.ID,
+			Damage:     damage,
+			DamageType: model.MagicAttack,
+		})
+	}
+	rt.Log(fmt.Sprintf("%s 发动 [圣洁法典]：为%d名角色各+2治疗，并对自己造成%d点法术伤害", user.Name, len(selectedTargets), damage))
+	rt.PopInterrupt()
+	if rt.GetPendingInterrupt() == nil {
+		if !rt.RoutePendingDamageWithReturn(model.TurnStageExtraAction) {
+			rt.EnterExtraActionStage()
+		}
+	}
 	return true, nil
 }
 

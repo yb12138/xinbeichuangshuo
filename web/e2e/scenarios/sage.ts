@@ -18,6 +18,11 @@ import {
 export const SAGE_PLAYER_ID = 'sage_player';
 export const ENEMY_PLAYER_ID = 'enemy_1';
 export const ALLY_PLAYER_ID = 'ally_1';
+const HOLY_TARGET_ID_BY_NAME: Record<string, string> = {
+  'E2E Sage': SAGE_PLAYER_ID,
+  'Enemy E1': ENEMY_PLAYER_ID,
+  'Ally A1': ALLY_PLAYER_ID,
+};
 
 export const SAGE_WISDOM_CODEX_ID = 'sage_wisdom_codex';
 export const SAGE_MAGIC_REBOUND_ID = 'sage_magic_rebound';
@@ -195,7 +200,7 @@ export function wisdomCodexDiscardPrompt(): WsMessage {
       { id: '4', label: '5: 风刃（风系 法术）' },
       { id: '5', label: '6: 圣光（光系 法术）' },
     ],
-    min: 1, max: 1,
+    min: 1, max: totalCount,
   } satisfies Prompt);
 }
 
@@ -363,20 +368,21 @@ export function holyTargetCountPrompt(maxTargets = 2): WsMessage {
 }
 
 export function holyTargetsStepPrompt(
-  step: number,
+  _step: number,
   totalCount: number,
   remainingNames: string[],
 ): WsMessage {
   const options = remainingNames.map((name, idx) => ({
-    id: String(idx),
+    id: HOLY_TARGET_ID_BY_NAME[name] ?? String(idx),
     label: name,
   }));
   return requireActionMessage({
     type: 'confirm',
     player_id: SAGE_PLAYER_ID,
-    message: `【圣洁法典】请选择第 ${step}/${totalCount} 名治疗目标：`,
+    message: `【圣洁法典】请选择治疗目标（1-${totalCount}名）：`,
     choice_type: 'sage_holy_targets',
     options,
+    presentation: { kind: 'target_picker' },
     min: 1, max: 1,
   } satisfies Prompt);
 }

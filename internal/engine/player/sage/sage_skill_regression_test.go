@@ -390,43 +390,38 @@ func TestSageHolyCodex_MultiSelectCardsAndTargetCountBoundaries(t *testing.T) {
 	if err := g.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0, 1, 2, 3}}); err != nil {
 		t.Fatalf("choose holy cards (multi-select 4) failed: %v", err)
 	}
-	if got := testutils.ChoiceTypeOfInterrupt(g.State.PendingInterrupt); got != "sage_holy_target_count" {
-		t.Fatalf("expected choice_type sage_holy_target_count, got %q", got)
-	}
-	prompt := g.BuildChoicePrompt()
-	if prompt == nil {
-		t.Fatalf("expected holy target count prompt")
-	}
-	// X=4时，最多治疗目标 = X-2 = 2
-	if len(prompt.Options) != 2 {
-		t.Fatalf("expected holy target count options only for 1..2 targets, got %d", len(prompt.Options))
-	}
-	if strings.Contains(prompt.Options[0].Label, "不选择角色") {
-		t.Fatalf("expected holy target count prompt to disallow zero targets, got %+v", prompt.Options)
-	}
-
-	// 越界：X=4 时最多只能选2名角色治疗，索引2代表3名目标，应报错。
-	if err := g.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{2}}); err == nil || !strings.Contains(err.Error(), "无效的治疗目标数量") {
-		t.Fatalf("expected invalid target count boundary error, got %v", err)
-	}
-	if got := testutils.ChoiceTypeOfInterrupt(g.State.PendingInterrupt); got != "sage_holy_target_count" {
-		t.Fatalf("expected still stay at sage_holy_target_count after invalid input, got %q", got)
-	}
-
-	// 选择边界上限：2名角色（索引1）。
-	if err := g.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
-		t.Fatalf("choose holy target count failed: %v", err)
-	}
 	if got := testutils.ChoiceTypeOfInterrupt(g.State.PendingInterrupt); got != "sage_holy_targets" {
 		t.Fatalf("expected choice_type sage_holy_targets, got %q", got)
 	}
-
-	// 依次选择 p1 与 p2 为治疗目标（每次选当前候选第一项）。
-	if err := g.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
-		t.Fatalf("choose holy target#1 failed: %v", err)
+	prompt := g.BuildChoicePrompt()
+	if prompt == nil {
+		t.Fatalf("expected holy targets prompt")
 	}
-	if err := g.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
-		t.Fatalf("choose holy target#2 failed: %v", err)
+	if prompt.Presentation == nil || prompt.Presentation.Kind != model.PresentationTargetPicker {
+		t.Fatalf("expected holy targets prompt to use target_picker presentation, got %+v", prompt.Presentation)
+	}
+	// X=4时，最多治疗目标 = X-2 = 2；前端应在同一个目标选择阶段内点选最多2名角色后确认。
+	if prompt.Min != 1 || prompt.Max != 2 {
+		t.Fatalf("expected holy target picker min=1 max=2, got min=%d max=%d", prompt.Min, prompt.Max)
+	}
+	if len(prompt.Options) != 4 {
+		t.Fatalf("expected all players as holy target options, got %d", len(prompt.Options))
+	}
+	if prompt.Options[0].ID != "p1" || prompt.Options[1].ID != "p2" {
+		t.Fatalf("expected holy target option IDs to be player IDs, got %+v", prompt.Options[:2])
+	}
+
+	// 越界：X=4 时最多只能选2名角色治疗，一次提交3名目标应报错。
+	if err := g.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0, 1, 2}}); err == nil || !strings.Contains(err.Error(), "治疗目标数量需为1-2名") {
+		t.Fatalf("expected invalid target count boundary error, got %v", err)
+	}
+	if got := testutils.ChoiceTypeOfInterrupt(g.State.PendingInterrupt); got != "sage_holy_targets" {
+		t.Fatalf("expected still stay at sage_holy_targets after invalid input, got %q", got)
+	}
+
+	// 一次性确认2名治疗目标。
+	if err := g.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0, 1}}); err != nil {
+		t.Fatalf("choose holy targets failed: %v", err)
 	}
 
 	if got := p1.Heal; got != 2 {

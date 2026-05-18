@@ -67,8 +67,7 @@ test.describe('magic bow protocol harness', () => {
     });
 
     await protocolHarness.pushServerMessage(magicPierceChargePrompt());
-    await expect(page.getByTestId('decision-overlay')).toBeVisible();
-    await page.getByTestId('decision-overlay').getByTestId('branch-option-0').click();
+    await page.getByTestId('cover-card-0').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -83,8 +82,7 @@ test.describe('magic bow protocol harness', () => {
     });
 
     await protocolHarness.pushServerMessage(magicPierceHitChargePrompt());
-    await expect(page.getByTestId('decision-overlay')).toBeVisible();
-    await page.getByTestId('decision-overlay').getByTestId('branch-option-0').click();
+    await page.getByTestId('cover-card-1').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -113,8 +111,7 @@ test.describe('magic bow protocol harness', () => {
     });
 
     await protocolHarness.pushServerMessage(thunderScatterBaseChargePrompt());
-    await expect(page.getByTestId('decision-overlay')).toBeVisible();
-    await page.getByTestId('decision-overlay').getByTestId('branch-option-0').click();
+    await page.getByTestId('cover-card-0').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -161,8 +158,7 @@ test.describe('magic bow protocol harness', () => {
     });
 
     await protocolHarness.pushServerMessage(multiShotChargePrompt());
-    await expect(page.getByTestId('decision-overlay')).toBeVisible();
-    await page.getByTestId('decision-overlay').getByTestId('branch-option-0').click();
+    await page.getByTestId('cover-card-2').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],

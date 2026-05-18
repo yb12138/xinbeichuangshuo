@@ -76,22 +76,24 @@ func buildChargeRemovalPrompt(playerID string, player *model.Player, element mod
 		if fc == nil || fc.Card.ID == "" {
 			continue
 		}
-		eleZh := promptfmt.ElementName(string(fc.Card.Element))
-		if eleZh == "" {
-			eleZh = string(fc.Card.Element)
-		}
+		fi := fieldIndex
 		options = append(options, model.PromptOption{
-			ID:    fmt.Sprintf("%d", fieldIndex),
-			Label: fmt.Sprintf("%s（%s系）", fc.Card.Name, eleZh),
+			ID:         fmt.Sprintf("%d", fieldIndex),
+			Label:      fc.Card.Name,
+			FieldIndex: &fi,
 		})
 	}
 	return &model.Prompt{
-		Type:     model.PromptConfirm,
+		Type:     model.PromptChooseCards,
 		PlayerID: playerID,
 		Message:  message,
 		Options:  options,
 		Min:      1,
 		Max:      1,
+		Presentation: &model.PromptPresentation{
+			Kind:   model.PresentationCardPicker,
+			Layout: "inline",
+		},
 	}
 }
 

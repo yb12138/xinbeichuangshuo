@@ -238,6 +238,10 @@ const SKILL_REQUIRE_MANUAL_TARGET_CONFIRM_IDS = new Set([
   'thunder_seal',
 ])
 
+const PROMPT_REQUIRE_MANUAL_TARGET_CONFIRM_CHOICE_TYPES = new Set([
+  'sage_holy_targets',
+])
+
 function moraleDeltaLabel(delta: number): string {
   return delta > 0 ? `+${delta}` : `${delta}`
 }
@@ -894,6 +898,27 @@ function promptOptionIndexForPlayer(playerId: string, debugTrace: boolean = fals
   return matchedIdx
 }
 
+function promptRequiresManualTargetConfirm(prompt: Prompt | null): boolean {
+  if (!prompt || prompt.presentation?.kind !== 'target_picker') return false
+  return PROMPT_REQUIRE_MANUAL_TARGET_CONFIRM_CHOICE_TYPES.has(String(prompt.choice_type || '').trim())
+}
+
+function togglePromptTargetSelection(playerId: string) {
+  const prompt = currentPrompt.value
+  if (!prompt) return
+  const selected = selectedTargets.value
+  if (selected.includes(playerId)) {
+    interruptStore.setSelectedTargets(selected.filter(id => id !== playerId))
+    return
+  }
+  const max = Math.max(1, prompt.max || 1)
+  if (selected.length >= max) {
+    interruptStore.showError(`最多选择${max}名目标`)
+    return
+  }
+  interruptStore.setSelectedTargets([...selected, playerId])
+}
+
 type PlayerSelectState = {
   selectable: boolean
   reason: string
@@ -963,6 +988,7 @@ function isPromptCounterTargetSelectable(playerId: string): boolean {
 function isPlayerSelected(playerId: string): boolean {
   if (skillMode.value === 'choosing_target' && skillTargetIds.value.includes(playerId)) return true
   if (currentPrompt.value?.type === 'choose_target' && selectedTargets.value.includes(playerId)) return true
+  if (promptRequiresManualTargetConfirm(currentPrompt.value) && selectedTargets.value.includes(playerId)) return true
   if (promptCounterTarget.value === playerId && isPromptCounterTargetSelectable(playerId)) return true
   return false
 }
@@ -992,6 +1018,20 @@ function onTargetClick(playerId: string) {
   if (prompt && isPromptForMe.value && !promptIsActionHub) {
     if (prompt.type === 'choose_skill') {
       logTargetDebug('prompt_choose_skill_ignore_target_click', { playerId })
+      return
+    }
+    if (promptRequiresManualTargetConfirm(prompt)) {
+      const promptIdx = promptOptionIndexForPlayer(playerId, true)
+      if (promptIdx >= 0) {
+        togglePromptTargetSelection(playerId)
+        logTargetDebug('prompt_target_picker_toggled', {
+          playerId,
+          optionIdx: promptIdx,
+          selectedTargets: [...selectedTargets.value]
+        })
+      } else {
+        logTargetDebug('prompt_target_picker_reject_click', { playerId })
+      }
       return
     }
     if (prompt.type === 'choose_target') {

@@ -142,6 +142,15 @@ const needsTargetSelection = computed(() => {
   return prompt.value.type === 'choose_target' || prompt.value.presentation?.kind === 'target_picker'
 })
 
+const PROMPT_REQUIRE_MANUAL_TARGET_CONFIRM_CHOICE_TYPES = new Set([
+  'sage_holy_targets',
+])
+
+const promptRequiresManualTargetConfirm = computed(() => {
+  if (!prompt.value || prompt.value.presentation?.kind !== 'target_picker') return false
+  return PROMPT_REQUIRE_MANUAL_TARGET_CONFIRM_CHOICE_TYPES.has(String(prompt.value.choice_type || '').trim())
+})
+
 const needsCounterTargetSelection = computed(() => {
   if (!prompt.value) return false
   const ids = prompt.value.counter_target_ids
@@ -555,6 +564,20 @@ const playerOptionIndexSet = computed(() => {
   return set
 })
 
+const selectedPromptTargetOptionIndexes = computed(() => {
+  const indexByPlayerId = new Map<string, number>()
+  for (const entry of playerOptionEntries.value) {
+    indexByPlayerId.set(entry.player.id, entry.index)
+  }
+  const indexes: number[] = []
+  for (const targetId of interruptStore.selectedTargets) {
+    const index = indexByPlayerId.get(targetId)
+    if (index === undefined) return []
+    indexes.push(index)
+  }
+  return indexes
+})
+
 const nonPlayerOptions = computed(() => {
   const options = prompt.value?.options ?? []
   return options.filter((_, idx) => !playerOptionIndexSet.value.has(idx))
@@ -740,6 +763,14 @@ const canConfirmPrompt = computed(() => {
   if (isPlagueDeathTouchElementPrompt.value) {
     return resolvePlagueDeathTouchElementOptionIndex() !== null
   }
+  if (promptRequiresManualTargetConfirm.value) {
+    const tCount = interruptStore.selectedTargets.length
+    return (
+      tCount >= prompt.value.min &&
+      tCount <= prompt.value.max &&
+      selectedPromptTargetOptionIndexes.value.length === tCount
+    )
+  }
   if (promptHasHandCardOptions.value) {
     const cCount = interruptStore.selectedCards.length
     return cCount >= prompt.value.min && cCount <= prompt.value.max
@@ -767,6 +798,16 @@ function confirmPromptAction() {
       return
     }
     actions.submitSelect([optionIndex])
+    return
+  }
+
+  if (promptRequiresManualTargetConfirm.value) {
+    const targetOptionIndexes = selectedPromptTargetOptionIndexes.value
+    if (targetOptionIndexes.length !== interruptStore.selectedTargets.length) {
+      showPromptError('请选择有效的治疗目标')
+      return
+    }
+    actions.submitSelect(targetOptionIndexes)
     return
   }
 
@@ -1823,6 +1864,25 @@ watch(autoResolveOptionId, (optionId) => {
 
           <div v-else-if="showTargetSelectionHintRow" class="prompt-inline-entry">
             <div class="prompt-inline-hint">{{ targetSelectionPromptMessage }}</div>
+            <button
+              v-if="promptRequiresManualTargetConfirm"
+              class="prompt-inline-btn prompt-inline-btn--success action-image-btn"
+              :class="{ 'prompt-inline-btn--disabled': !canConfirmPrompt }"
+              :disabled="!canConfirmPrompt"
+              data-testid="prompt-confirm-btn"
+              title="确认"
+              aria-label="确认"
+              @click="confirmPromptAction"
+            >
+              <img
+                v-if="isPromptConfirmImageReady()"
+                class="action-image-btn-fill"
+                :src="promptConfirmImageSrc()"
+                alt=""
+                @error="onPromptConfirmImageError"
+              />
+              <span v-else class="action-image-fallback-text">确</span>
+            </button>
           </div>
 
           <div v-else-if="inlinePrimaryButtons.length > 0 && !singleActivationCostConfirmOption && !showDecisionOverlay && prompt?.ui_mode !== 'action_hub'">

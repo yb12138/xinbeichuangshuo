@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test';
 import { test } from '../../../fixtures/protocolHarness.fixture';
 import {
+  ALLY_PLAYER_ID,
   ENEMY_PLAYER_ID,
   SAGE_ARCANE_CODEX_ID,
   SAGE_HOLY_CODEX_ID,
@@ -10,7 +11,6 @@ import {
   arcaneTargetPrompt,
   holyCardsPrompt,
   holyCodexScenario,
-  holyTargetCountPrompt,
   holyTargetsStepPrompt,
 } from '../../../scenarios/sage';
 
@@ -26,16 +26,6 @@ async function selectHandCards(page: Page, indices: number[]) {
     await card.click();
   }
   await page.getByTestId('prompt-confirm-btn').click();
-}
-
-async function clickOverlayOption(page: Page, selector: string) {
-  const overlay = page.getByTestId('decision-overlay');
-  const overlayVisible = await overlay.isVisible({ timeout: 1000 }).catch(() => false);
-  if (overlayVisible) {
-    await overlay.getByTestId(selector).click();
-  } else {
-    await page.getByTestId('prompt-dialog').getByTestId(selector).click();
-  }
 }
 
 test.describe('sage arcane codex protocol harness', () => {
@@ -105,7 +95,7 @@ test.describe('sage holy codex protocol harness', () => {
     });
   });
 
-  test('holy codex: full flow (cards → target count → sequential targets)', async ({ page, protocolHarness }) => {
+  test('holy codex: full flow (cards → manual target picker confirm)', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(holyCodexScenario());
 
     // Step 1: select 3 different-element cards
@@ -116,23 +106,12 @@ test.describe('sage holy codex protocol harness', () => {
       option_indexes: [0, 1, 2],
     });
 
-    // Step 2: select target count (X-2=1, so max 1 target)
-    // Actually with 3 cards selected, maxTargetCount = 3-2 = 1, only 1 option
-    await protocolHarness.pushServerMessage(holyTargetCountPrompt(1));
-
-    // Only one option: "选择1名角色" (branch-option-0)
-    await clickOverlayOption(page, 'branch-option-0');
-    await protocolHarness.expectSubmitAction({
-      action_type: 'Select',
-      option_indexes: [0],
-    });
-
-    // Step 3: select first (and only) target
+    // Step 2: select first (and only) target on the board, then confirm in the dock.
     await protocolHarness.pushServerMessage(
       holyTargetsStepPrompt(1, 1, ['Enemy E1', 'Ally A1', 'E2E Sage']),
     );
-    // Select enemy (branch-option-0)
-    await clickOverlayOption(page, 'branch-option-0');
+    await page.getByTestId(`player-area-${ENEMY_PLAYER_ID}`).click();
+    await page.getByTestId('prompt-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -150,36 +129,16 @@ test.describe('sage holy codex protocol harness', () => {
       option_indexes: [0, 1, 2, 3],
     });
 
-    // Step 2: select target count = 2 (max 2 options: "选择1名角色", "选择2名角色")
-    await protocolHarness.pushServerMessage(holyTargetCountPrompt(2));
-
-    // Select "选择2名角色" (branch-option-1)
-    await clickOverlayOption(page, 'branch-option-1');
-    await protocolHarness.expectSubmitAction({
-      action_type: 'Select',
-      option_indexes: [1],
-    });
-
-    // Step 3: select first target (3 remaining options)
+    // Step 2: select two targets on the board, then confirm once in the dock.
     await protocolHarness.pushServerMessage(
       holyTargetsStepPrompt(1, 2, ['Enemy E1', 'Ally A1', 'E2E Sage']),
     );
-    // Select Ally (branch-option-1)
-    await clickOverlayOption(page, 'branch-option-1');
+    await page.getByTestId(`player-area-${ALLY_PLAYER_ID}`).click();
+    await page.getByTestId(`player-area-${SAGE_PLAYER_ID}`).click();
+    await page.getByTestId('prompt-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [1],
-    });
-
-    // Step 4: select second target (2 remaining)
-    await protocolHarness.pushServerMessage(
-      holyTargetsStepPrompt(2, 2, ['Enemy E1', 'E2E Sage']),
-    );
-    // Select self (E2E Sage) (branch-option-1)
-    await clickOverlayOption(page, 'branch-option-1');
-    await protocolHarness.expectSubmitAction({
-      action_type: 'Select',
-      option_indexes: [1],
+      option_indexes: [1, 2],
     });
   });
 });
