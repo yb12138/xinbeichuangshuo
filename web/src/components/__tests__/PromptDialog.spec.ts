@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
+import { nextTick } from 'vue'
 import PromptDialog from '../PromptDialog.vue'
 import { useInterruptStore } from '../../stores/interrupt.store'
 import { useSessionStore } from '../../stores/session.store'
@@ -13,6 +14,7 @@ const submitCancelMock = vi.fn()
 const submitRespondTakeMock = vi.fn()
 const submitRespondCounterMock = vi.fn()
 const submitRespondDefendMock = vi.fn()
+const submitSelectCardIDsMock = vi.fn()
 
 vi.mock('../../composables/useSubmitAction', () => ({
   useSubmitAction: () => ({
@@ -22,6 +24,7 @@ vi.mock('../../composables/useSubmitAction', () => ({
     submitRespondTake: submitRespondTakeMock,
     submitRespondCounter: submitRespondCounterMock,
     submitRespondDefend: submitRespondDefendMock,
+    submitSelectCardIDs: submitSelectCardIDsMock,
     submitAction: vi.fn(),
   }),
 }))
@@ -319,6 +322,48 @@ function responsePrompt(): Prompt {
   }
 }
 
+function handCardPickerPrompt(overrides: Partial<Prompt> = {}): Prompt {
+  return {
+    type: 'confirm',
+    player_id: 'p2',
+    message: '请选择要发动的手牌',
+    options: [
+      { id: 'pick-h0', label: '选择火焰斩', button_label: '选择火焰斩', card_id: 'h0' },
+      { id: 'pick-h1', label: '选择水涟斩', button_label: '选择水涟斩', card_id: 'h1' },
+    ],
+    min: 1,
+    max: 1,
+    presentation: {
+      kind: 'card_picker',
+      card_source: 'hand',
+      numeric_base: 0,
+    },
+    ...overrides,
+  }
+}
+
+function handCardPickerWithDeclinePrompt(): Prompt {
+  return {
+    type: 'confirm',
+    player_id: 'p2',
+    message: '请选择是否发动该卡牌效果',
+    options: [
+      { id: 'decline', label: '取消', button_label: '取消' },
+      { id: 'pick-h0', label: '选择火焰斩', button_label: '选择火焰斩', card_id: 'h0' },
+    ],
+    min: 0,
+    max: 1,
+    presentation: {
+      kind: 'card_picker',
+      card_source: 'hand',
+      numeric_base: 0,
+      cancel_policy: 'decline',
+      has_decline: true,
+      decline_index: 0,
+    },
+  }
+}
+
 function extractPrompt(): Prompt {
   return {
     type: 'confirm',
@@ -383,6 +428,7 @@ describe('PromptDialog', () => {
     submitRespondTakeMock.mockReset()
     submitRespondCounterMock.mockReset()
     submitRespondDefendMock.mockReset()
+    submitSelectCardIDsMock.mockReset()
   })
 
   it('shows full weakness labels from presentation', async () => {
@@ -727,6 +773,62 @@ describe('PromptDialog', () => {
 
     expect(submitRespondTakeMock).toHaveBeenCalledOnce()
     expect(submitSelectMock).not.toHaveBeenCalled()
+  })
+
+  it('renders card picker confirm-only via card picker renderer and keeps confirm disabled/enabled behavior', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    useSessionStore().setRoomInfo('ROOM1', 'p2', 'Blue', 'fighter')
+    useSnapshotStore().updateGameState(buildState())
+    const interruptStore = useInterruptStore()
+    interruptStore.setPrompt(handCardPickerPrompt())
+
+    render(PromptDialog, {
+      global: {
+        plugins: [pinia],
+      },
+    })
+
+    expect(screen.getByTestId('card-picker-prompt')).toBeInTheDocument()
+    expect(screen.queryByTestId('prompt-cancel-btn')).not.toBeInTheDocument()
+
+    const confirmBtn = screen.getByTestId('prompt-confirm-btn')
+    expect(confirmBtn).toBeDisabled()
+    await userEvent.click(confirmBtn)
+    expect(submitSelectCardIDsMock).not.toHaveBeenCalled()
+
+    interruptStore.setSelectedHandIndexes([0])
+    await nextTick()
+
+    expect(screen.getByTestId('prompt-confirm-btn')).not.toBeDisabled()
+    await userEvent.click(screen.getByTestId('prompt-confirm-btn'))
+    expect(submitSelectCardIDsMock).toHaveBeenCalledWith(['h0'])
+  })
+
+  it('renders card picker decline row via renderer and keeps cancel/confirm submission behavior', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    useSessionStore().setRoomInfo('ROOM1', 'p2', 'Blue', 'fighter')
+    useSnapshotStore().updateGameState(buildState())
+    useInterruptStore().setPrompt(handCardPickerWithDeclinePrompt())
+
+    render(PromptDialog, {
+      global: {
+        plugins: [pinia],
+      },
+    })
+
+    expect(screen.getByTestId('card-picker-prompt')).toBeInTheDocument()
+    expect(screen.getByTestId('prompt-cancel-btn')).toBeInTheDocument()
+    expect(screen.getByText('请选择是否发动该卡牌效果')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByTestId('prompt-cancel-btn'))
+    expect(submitCancelMock).toHaveBeenCalledOnce()
+
+    await userEvent.click(screen.getByTestId('prompt-confirm-btn'))
+    expect(submitSelectCardIDsMock).toHaveBeenCalledWith([])
   })
 
   it('renders extract prompt through extract renderer and confirms selected option indexes', async () => {

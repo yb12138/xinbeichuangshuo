@@ -490,6 +490,68 @@ cd web && npm test -- --run DirectionPromptRenderer PromptDialog
 cd web && npm run build
 ```
 
+### 3.9 第九刀：`CardPickerPromptRenderer`
+
+优先级：P1
+
+状态：已完成。`PromptDialog` 中卡牌选择的提示、确认按钮和可选取消按钮已迁出到受控 renderer；真实手牌/扩展区选牌状态、可提交判断和 `card_id/card_ids` 出站协议仍保留在容器侧。
+
+已新增文件：
+
+- `web/src/components/prompt/renderers/CardPickerPromptRenderer.vue`
+- `web/src/components/prompt/renderers/__tests__/CardPickerPromptRenderer.spec.ts`
+
+合并场景：
+
+- 普通 `card_picker` 需要手动确认的提示行。
+- `card_picker` 携带 `cancel_policy` 时的确认 + 取消按钮行。
+- 非手牌多卡选择完成后的确认入口。
+
+renderer 约束：
+
+- 只接收 `visible`、提示文案、确认按钮图片状态、取消按钮图片状态和 `canConfirm`。
+- 只 emit `confirm()`、`cancel()`、`confirmImageError()`、`cancelImageError()`。
+- 不读取 store。
+- 不调用 `useSubmitAction()`。
+- 不接收完整 `Prompt`。
+- 不维护 selected hand / field / proxy card state。
+- 不拼接 `card_id`、`card_ids` 或 `option_indexes` 协议。
+
+仍由 `PromptDialog` 保留：
+
+- `promptNeedsHandCardConfirm`
+- `promptNeedsInlineCardOptionConfirm`
+- `promptNeedsCardConfirm`
+- `cardConfirmHintText` / `cardConfirmPromptMessage`
+- `showCardConfirmCancelRow`
+- `canConfirmPrompt`
+- `confirmPromptAction`
+- `selectedPromptHandCardIDs`
+- `selectedInlineCardIDs`
+- `actions.submitSelectCardIDs(...)`
+- `cancelDockButton` 与 `handleOptionClick(cancelDockButton.id)`
+
+已完成改动：
+
+- 修改 `web/src/components/PromptDialog.vue`，用 `CardPickerPromptRenderer` 替换原来的两段 card picker confirm DOM。
+- 新增 `cardPickerPromptMessage`，保持原有文案语义：带取消行时用 prompt message，否则用确认 hint。
+- 保留确认按钮 `data-testid="prompt-confirm-btn"` 与取消按钮 `data-testid="prompt-cancel-btn"`。
+- 新增 renderer 根节点 `data-testid="card-picker-prompt"`。
+- 图片加载失败仍回到 `PromptDialog` 的统一 fallback 路径。
+
+已覆盖测试：
+
+- renderer 单测覆盖提示文案、confirm enabled/disabled、cancel 显隐和 emit、图片错误、fallback 文本、隐藏态。
+- `PromptDialog.spec.ts` 覆盖 hand card picker 通过 renderer 渲染，选择手牌后仍提交 `submitSelectCardIDs(['h0'])`。
+- `PromptDialog.spec.ts` 覆盖带 `cancel_policy=decline` 的 card picker 点击取消仍 `submitCancel()`，`min=0` 确认仍提交空 `card_ids`。
+- 已运行：
+
+```bash
+cd web && npm test -- --run CardPickerPromptRenderer PromptDialog
+cd web && npm test
+cd web && npm run build
+```
+
 ## Phase 4：后端 Prompt Flow Runtime
 
 目标：把多步技能从手写 `ctxData["choice_type"]` 推进，迁移到统一 `PromptFlowRuntime`。

@@ -49,7 +49,7 @@
 - [ ] 新建 prompt renderer registry，根据 `presentation.kind` 和必要的 `layout` 选择 renderer。
 - [x] 将分支选择拆为 `BranchPromptRenderer`。
 - [x] 将数字选择拆为 `NumericPromptRenderer`。
-- [ ] 将卡牌选择拆为 `CardPickerPromptRenderer`。
+- [x] 将卡牌选择拆为 `CardPickerPromptRenderer`。
 - [ ] 将目标选择拆为 `TargetPickerPromptRenderer`。
 - [x] 将响应类 prompt 拆为 `ResponsePromptRenderer`。
 - [x] 将治疗、符文等分配类 prompt 拆为 `AllocationPromptRenderer`。
@@ -112,3 +112,4 @@
 - 2026-05-20：Phase 3 第六刀完成，`extract` 布局的提取选项 UI shell（两列按钮 + 确认按钮）已迁到 `ExtractPromptRenderer`；`selectedExtractIndices`、`toggleExtractOption`、`confirmExtractSelection` 与 `submitSelect(indexes)` 协议仍保留在 `PromptDialog` 容器侧。
 - 2026-05-20：Phase 3 第七刀完成，`skill_choice` 的单技能确认按钮与多技能选择 overlay 已迁到 `SkillChoicePromptRenderer`；技能名解析、`cancel_policy` 判断、图片 fallback 状态和 option index 提交仍保留在 `PromptDialog` 容器侧。当时 `抽取、选择方向、特殊技能选择` 这项仍等待选择方向 renderer 完成后再勾选。
 - 2026-05-20：Phase 3 第八刀完成，魔弹掌控 `normal/reverse`、圣煌辉光炮士气对齐、灵魂转换等明确方向类 prompt 已迁到 `DirectionPromptRenderer`；方向 prompt 退出通用 decision overlay 和内联按钮渲染，提交仍由 `PromptDialog.handleOptionClick` 保持原 option index 协议。至此 `抽取、选择方向、特殊技能选择` 已全部完成。
+- 2026-05-20：Phase 3 第九刀完成，`card_picker` 的提示、确认按钮和可选取消按钮已迁到 `CardPickerPromptRenderer`；真实选牌状态、`canConfirmPrompt`、`confirmPromptAction` 和 `card_id/card_ids` 提交仍保留在 `PromptDialog` / `GameBoard` 容器侧。完整卡牌区交互状态归拢仍属于后续 InteractionController 工作。

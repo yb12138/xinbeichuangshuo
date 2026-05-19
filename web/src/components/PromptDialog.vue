@@ -9,6 +9,7 @@ import {
   type PromptImageButtonKind,
 } from '../constants/promptButtonRules'
 import AllocationOverlayRenderer from './prompt/renderers/AllocationOverlayRenderer.vue'
+import CardPickerPromptRenderer from './prompt/renderers/CardPickerPromptRenderer.vue'
 import DecisionOverlayRenderer from './prompt/renderers/DecisionOverlayRenderer.vue'
 import DirectionPromptRenderer from './prompt/renderers/DirectionPromptRenderer.vue'
 import ExtractPromptRenderer from './prompt/renderers/ExtractPromptRenderer.vue'
@@ -1127,6 +1128,10 @@ const showCardConfirmCancelRow = computed(() =>
   promptNeedsCardConfirm.value && canCancelPrompt.value && !isSkillChoicePrompt.value
 )
 
+const cardPickerPromptMessage = computed(() =>
+  showCardConfirmCancelRow.value ? cardConfirmPromptMessage.value : cardConfirmHintText.value
+)
+
 const targetSelectionPromptMessage = computed(() => {
   if (!prompt.value) return ''
   const message = String(prompt.value.message || '').trim()
@@ -1727,67 +1732,25 @@ watch(autoResolveOptionId, (optionId) => {
             </div>
           </div>
 
-          <div v-else-if="showCardConfirmCancelRow" class="prompt-inline-entry">
-            <div class="prompt-inline-hint">{{ cardConfirmPromptMessage }}</div>
-            <div class="prompt-inline-actions-row">
-              <button
-                class="prompt-inline-btn prompt-inline-btn--success action-image-btn"
-                :class="{ 'prompt-inline-btn--disabled': !canConfirmPrompt }"
-                :disabled="!canConfirmPrompt"
-                data-testid="prompt-confirm-btn"
-                title="发动"
-                aria-label="发动"
-                @click="confirmPromptAction"
-              >
-                <img
-                  v-if="isPromptConfirmImageReady()"
-                  class="action-image-btn-fill"
-                  :src="promptConfirmImageSrc()"
-                  alt=""
-                  @error="onPromptConfirmImageError"
-                />
-                <span v-else class="action-image-fallback-text">确</span>
-              </button>
-              <button
-                class="prompt-inline-btn prompt-inline-btn--cancel action-image-btn"
-                data-testid="prompt-cancel-btn"
-                :title="isDockButtonImageStyle(cancelDockButton) ? cancelDockButton.buttonLabel : undefined"
-                :aria-label="isDockButtonImageStyle(cancelDockButton) ? cancelDockButton.buttonLabel : undefined"
-                @click="handleOptionClick(cancelDockButton.id)"
-              >
-                <img
-                  v-if="isDockButtonImageReady(cancelDockButton)"
-                  class="action-image-btn-fill"
-                  :src="dockButtonImageSrc(cancelDockButton)"
-                  alt=""
-                  @error="onDockButtonImageError(cancelDockButton)"
-                />
-                <span v-else class="action-image-fallback-text">{{ dockButtonFallbackText(cancelDockButton) }}</span>
-              </button>
-            </div>
-          </div>
-
-          <div v-else-if="promptNeedsCardConfirm" class="prompt-inline-entry">
-            <div class="prompt-inline-hint">{{ cardConfirmHintText }}</div>
-            <button
-              class="prompt-inline-btn prompt-inline-btn--success action-image-btn"
-              :class="{ 'prompt-inline-btn--disabled': !canConfirmPrompt }"
-              :disabled="!canConfirmPrompt"
-              data-testid="prompt-confirm-btn"
-              title="发动"
-              aria-label="发动"
-              @click="confirmPromptAction"
-            >
-              <img
-                v-if="isPromptConfirmImageReady()"
-                class="action-image-btn-fill"
-                :src="promptConfirmImageSrc()"
-                alt=""
-                @error="onPromptConfirmImageError"
-              />
-              <span v-else class="action-image-fallback-text">确</span>
-            </button>
-          </div>
+          <CardPickerPromptRenderer
+            v-else-if="promptNeedsCardConfirm"
+            :visible="promptNeedsCardConfirm"
+            :message="cardPickerPromptMessage"
+            :can-confirm="canConfirmPrompt"
+            :show-cancel="showCardConfirmCancelRow"
+            :confirm-image-src="promptConfirmImageSrc()"
+            :confirm-image-ready="isPromptConfirmImageReady()"
+            confirm-fallback-text="确"
+            :cancel-image-src="dockButtonImageSrc(cancelDockButton)"
+            :cancel-image-ready="isDockButtonImageReady(cancelDockButton)"
+            :cancel-fallback-text="dockButtonFallbackText(cancelDockButton)"
+            :cancel-title="isDockButtonImageStyle(cancelDockButton) ? cancelDockButton.buttonLabel : undefined"
+            :cancel-aria-label="isDockButtonImageStyle(cancelDockButton) ? cancelDockButton.buttonLabel : undefined"
+            @confirm="confirmPromptAction"
+            @cancel="handleOptionClick(cancelDockButton.id)"
+            @confirm-image-error="onPromptConfirmImageError"
+            @cancel-image-error="onDockButtonImageError(cancelDockButton)"
+          />
         </template>
 
         <div
