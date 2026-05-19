@@ -240,19 +240,41 @@ func (e *GameEngine) consumePlayableCardByIndex(p *model.Player, index int) (mod
 }
 
 func (e *GameEngine) getPlayableCardByID(p *model.Player, cardID string) (card model.Card, fromCover bool, coverEffect model.EffectType, ok bool) {
-	idx := e.findPlayableCardIndexByID(p, cardID)
-	if idx < 0 {
+	if p == nil || cardID == "" {
 		return model.Card{}, false, "", false
 	}
-	return e.getPlayableCardByIndex(p, idx)
+	for _, card := range p.Hand {
+		if card.ID == cardID {
+			return card, false, "", true
+		}
+	}
+	for _, effect := range e.collectPlayableCoverEffects() {
+		for _, fc := range engineplayer.CoverCardsByEffect(p, effect) {
+			if fc != nil && fc.Card.ID == cardID {
+				return fc.Card, true, effect, true
+			}
+		}
+	}
+	return model.Card{}, false, "", false
 }
 
 func (e *GameEngine) consumePlayableCardByID(p *model.Player, cardID string) (model.Card, error) {
-	idx := e.findPlayableCardIndexByID(p, cardID)
-	if idx < 0 {
+	card, fromCover, coverEffect, ok := e.getPlayableCardByID(p, cardID)
+	if !ok {
 		return model.Card{}, fmt.Errorf("未找到卡牌: %s", cardID)
 	}
-	return e.consumePlayableCardByIndex(p, idx)
+	if fromCover {
+		engineplayer.RemoveCoverCardByEffectAndID(p, coverEffect, card.ID)
+		return card, nil
+	}
+	for i, handCard := range p.Hand {
+		if handCard.ID != cardID {
+			continue
+		}
+		p.Hand = append(p.Hand[:i], p.Hand[i+1:]...)
+		return handCard, nil
+	}
+	return model.Card{}, fmt.Errorf("未找到卡牌: %s", cardID)
 }
 
 func (e *GameEngine) consumeQueuedActionCard(p *model.Player, qa *model.QueuedAction) (model.Card, error) {

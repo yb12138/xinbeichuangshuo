@@ -309,12 +309,11 @@ func (r roleChoiceRuntime) ConsumePlayableCardByCardID(playerID, cardID string) 
 	if player == nil {
 		return model.Card{}, false
 	}
-	cardIdx := r.GameEngine.findPlayableCardIndexByID(player, cardID)
-	card, _, _, ok := r.GameEngine.getPlayableCardByIndex(player, cardIdx)
+	card, _, _, ok := r.GameEngine.getPlayableCardByID(player, cardID)
 	if !ok {
 		return model.Card{}, false
 	}
-	if _, err := r.GameEngine.consumePlayableCardByIndex(player, cardIdx); err != nil {
+	if _, err := r.GameEngine.consumePlayableCardByID(player, cardID); err != nil {
 		return model.Card{}, false
 	}
 	return card, true

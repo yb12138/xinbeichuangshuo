@@ -134,7 +134,7 @@ func (e *GameEngine) HandleActionSelectionSpecialOrSkill(act model.PlayerAction,
 }
 
 func (e *GameEngine) HandleActionSelectionAttackOrMagic(act model.PlayerAction, currentPid string, player *model.Player, validationResult actionSelectionValidationResult) error {
-	card, _, ok := e.cardForPlayerAction(player, act)
+	card, ok := e.cardForPlayerAction(player, act)
 	if !ok {
 		return fmt.Errorf("无效的卡牌ID")
 	}
@@ -283,7 +283,7 @@ func (e *GameEngine) validateExtraActionConstraint(p *model.Player, act model.Pl
 	}
 
 	if len(p.TurnState.CurrentExtraElement) > 0 && (act.Type == model.CmdAttack || act.Type == model.CmdMagic) {
-		if card, _, ok := e.cardForPlayerAction(p, act); ok {
+		if card, ok := e.cardForPlayerAction(p, act); ok {
 			if act.Type == model.CmdAttack {
 				card = e.transformAttackCard(p, card)
 			}
@@ -314,16 +314,12 @@ func (e *GameEngine) validateExtraActionConstraint(p *model.Player, act model.Pl
 	return nil
 }
 
-func (e *GameEngine) cardForPlayerAction(p *model.Player, act model.PlayerAction) (model.Card, int, bool) {
+func (e *GameEngine) cardForPlayerAction(p *model.Player, act model.PlayerAction) (model.Card, bool) {
 	if act.CardID == "" {
-		return model.Card{}, -1, false
+		return model.Card{}, false
 	}
-	idx := e.findPlayableCardIndexByID(p, act.CardID)
-	if idx < 0 {
-		return model.Card{}, -1, false
-	}
-	card, _, _, ok := e.getPlayableCardByIndex(p, idx)
-	return card, idx, ok
+	card, _, _, ok := e.getPlayableCardByID(p, act.CardID)
+	return card, ok
 }
 
 // checkExtraActionCards 检查玩家是否有符合额外行动约束的牌
@@ -404,17 +400,15 @@ func (e *GameEngine) repairQueuedActionCard(player *model.Player, qa *model.Queu
 		if cardID == "" {
 			cardID = qa.Card.ID
 		}
-		if idx := e.findPlayableCardIndexByID(player, cardID); idx >= 0 {
-			if card, _, _, ok := e.getPlayableCardByIndex(player, idx); ok && card.Type == requiredType {
-				if requiredType == model.CardTypeAttack {
-					card = e.transformAttackCard(player, card)
-				}
-				qa.CardID = card.ID
-				qa.Element = card.Element
-				cardCopy := card
-				qa.Card = &cardCopy
-				return true
+		if card, _, _, ok := e.getPlayableCardByID(player, cardID); ok && card.Type == requiredType {
+			if requiredType == model.CardTypeAttack {
+				card = e.transformAttackCard(player, card)
 			}
+			qa.CardID = card.ID
+			qa.Element = card.Element
+			cardCopy := card
+			qa.Card = &cardCopy
+			return true
 		}
 		// 规则约束：队列中的行动卡必须与玩家最初选择的实体卡一致，不允许同类自动替代。
 		return false

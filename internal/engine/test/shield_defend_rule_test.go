@@ -116,6 +116,61 @@ func TestCombatDefend_HolyLightStillValid(t *testing.T) {
 	}
 }
 
+func TestCombatDefend_ConsumesSelectedHolyLightByCardIDAfterHandReorder(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Attacker", "berserker", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Defender", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	game.State.Deck = rules.InitDeck()
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p2.TurnState = model.NewPlayerTurnState()
+
+	p1.Hand = []model.Card{
+		{ID: "atk1", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 1},
+	}
+	p2.Hand = []model.Card{
+		{ID: "holy-old-index", Name: "旧下标法术", Type: model.CardTypeMagic, Element: model.ElementWater},
+		{ID: "holy-selected", Name: "圣光", Type: model.CardTypeMagic, Element: model.ElementLight},
+	}
+
+	if err := game.HandleAction(model.PlayerAction{
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   "atk1",
+	}); err != nil {
+		t.Fatalf("attack failed: %v", err)
+	}
+
+	p2.Hand[0], p2.Hand[1] = p2.Hand[1], p2.Hand[0]
+
+	if err := game.HandleAction(model.PlayerAction{
+		PlayerID:  "p2",
+		Type:      model.CmdRespond,
+		ExtraArgs: []string{"defend"},
+		CardID:    "holy-selected",
+	}); err != nil {
+		t.Fatalf("defend with selected holy light should succeed after reorder: %v", err)
+	}
+
+	if len(p2.Hand) != 1 || p2.Hand[0].ID != "holy-old-index" {
+		t.Fatalf("expected only old-index card to remain after defend, got %+v", p2.Hand)
+	}
+	if len(game.State.DiscardPile) == 0 || game.State.DiscardPile[len(game.State.DiscardPile)-1].ID != "holy-selected" {
+		t.Fatalf("expected selected holy light in discard pile, got %+v", game.State.DiscardPile)
+	}
+}
+
 // 回归：魔弹响应防御时，手牌【圣盾】不能打出，必须使用【圣光】。
 func TestMagicBulletDefend_CannotPlayShieldFromHand(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
@@ -686,5 +741,67 @@ func TestCombatShield_CounterChoiceKeepsShield(t *testing.T) {
 	}
 	if len(game.State.CombatStack) == 0 {
 		t.Fatalf("counter should create follow-up combat request")
+	}
+}
+
+func TestCombatCounter_ConsumesSelectedCardByCardIDAfterHandReorder(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Attacker", "berserker", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Defender", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p3", "AttackerMate", "berserker", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	game.State.Deck = rules.InitDeck()
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p2.TurnState = model.NewPlayerTurnState()
+
+	p1.Hand = []model.Card{
+		{ID: "atk1", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2},
+	}
+	p2.Hand = []model.Card{
+		{ID: "counter-old-index", Name: "旧下标攻击", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2},
+		{ID: "counter-selected", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2},
+	}
+
+	if err := game.HandleAction(model.PlayerAction{
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   "atk1",
+	}); err != nil {
+		t.Fatalf("attack failed: %v", err)
+	}
+
+	p2.Hand[0], p2.Hand[1] = p2.Hand[1], p2.Hand[0]
+
+	if err := game.HandleAction(model.PlayerAction{
+		PlayerID:  "p2",
+		Type:      model.CmdRespond,
+		ExtraArgs: []string{"counter"},
+		CardID:    "counter-selected",
+		TargetID:  "p3",
+	}); err != nil {
+		t.Fatalf("counter response failed after reorder: %v", err)
+	}
+
+	if len(p2.Hand) != 1 || p2.Hand[0].ID != "counter-old-index" {
+		t.Fatalf("expected only old-index counter card to remain, got %+v", p2.Hand)
+	}
+	if len(game.State.DiscardPile) == 0 || game.State.DiscardPile[len(game.State.DiscardPile)-1].ID != "counter-selected" {
+		t.Fatalf("expected selected counter card in discard pile, got %+v", game.State.DiscardPile)
+	}
+	if len(game.State.CombatStack) == 0 || game.State.CombatStack[len(game.State.CombatStack)-1].TargetID != "p3" {
+		t.Fatalf("expected follow-up counter combat targeting p3, got %+v", game.State.CombatStack)
 	}
 }

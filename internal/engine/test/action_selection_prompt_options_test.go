@@ -315,6 +315,41 @@ func TestActionQueueConsumesSelectedAttackByCardIDAfterHandReorder(t *testing.T)
 	}
 }
 
+func TestActionQueueConsumesSelectedMagicByCardIDAfterHandReorder(t *testing.T) {
+	game, _ := buildActionSelectionEngine(t, "")
+	p1 := game.State.Players["p1"]
+	p1.Hand = []model.Card{
+		{ID: "magic-old-index", Name: "旧下标法术", Type: model.CardTypeMagic, Element: model.ElementFire, Damage: 1},
+		{ID: "magic-selected", Name: "选中法术", Type: model.CardTypeMagic, Element: model.ElementWater, Damage: 2},
+	}
+
+	err := game.HandleActionSelection(model.PlayerAction{
+		PlayerID: "p1",
+		Type:     model.CmdMagic,
+		TargetID: "p2",
+		CardID:   "magic-selected",
+	})
+	if err != nil {
+		t.Fatalf("magic selection failed: %v", err)
+	}
+	if len(game.State.ActionQueue) != 1 {
+		t.Fatalf("expected one queued action, got %d", len(game.State.ActionQueue))
+	}
+	if got := game.State.ActionQueue[0].CardID; got != "magic-selected" {
+		t.Fatalf("expected queued card id magic-selected, got %q", got)
+	}
+
+	p1.Hand[0], p1.Hand[1] = p1.Hand[1], p1.Hand[0]
+	game.Drive()
+
+	if len(p1.Hand) != 1 || p1.Hand[0].ID != "magic-old-index" {
+		t.Fatalf("expected only old-index magic card to remain in hand, got %+v", p1.Hand)
+	}
+	if len(game.State.DiscardPile) == 0 || game.State.DiscardPile[len(game.State.DiscardPile)-1].ID != "magic-selected" {
+		t.Fatalf("expected selected magic card in discard pile, got %+v", game.State.DiscardPile)
+	}
+}
+
 func TestInterruptChoiceSelectResolvesCardIDsFromPromptOptions(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "Tester", "blade_master", model.RedCamp); err != nil {

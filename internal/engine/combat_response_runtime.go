@@ -283,7 +283,7 @@ func (e *GameEngine) handleCombatDefendResponse(act model.PlayerAction, player *
 	if res := e.applyTimingOnHitCheckCombatDefendValidation(player, &combatReq); res != nil {
 		return res
 	}
-	card, cardIndex, ok := e.cardForPlayerAction(player, act)
+	card, ok := e.cardForPlayerAction(player, act)
 	if !ok {
 		return errors.New("无效的卡牌ID")
 	}
@@ -300,7 +300,7 @@ func (e *GameEngine) handleCombatDefendResponse(act model.PlayerAction, player *
 	e.dispatchCardTiming(player, model.TimingOnCardPlayedOrRevealed, "", card)
 	e.NotifyCardRevealed(act.PlayerID, []model.Card{card}, "defend")
 	e.NotifyCombatCue(combatReq.AttackerID, combatReq.TargetID, "defend")
-	if _, err := e.consumePlayableCardByIndex(player, cardIndex); err != nil {
+	if _, err := e.consumePlayableCardByID(player, act.CardID); err != nil {
 		return err
 	}
 	e.State.DiscardPile = append(e.State.DiscardPile, card)
@@ -346,7 +346,7 @@ func (e *GameEngine) handleCombatCounterResponse(act model.PlayerAction, player 
 		return errors.New("此攻击无法被应战")
 	}
 
-	card, cardIndex, ok := e.cardForPlayerAction(player, act)
+	card, ok := e.cardForPlayerAction(player, act)
 	if !ok {
 		return errors.New("无效的卡牌ID")
 	}
@@ -399,7 +399,7 @@ func (e *GameEngine) handleCombatCounterResponse(act model.PlayerAction, player 
 	e.dispatchCardTiming(player, model.TimingOnCardPlayedOrRevealed, "", card)
 	e.NotifyCardRevealed(act.PlayerID, []model.Card{card}, "counter")
 	e.NotifyCombatCue(combatReq.AttackerID, combatReq.TargetID, "counter")
-	if _, err := e.consumePlayableCardByIndex(player, cardIndex); err != nil {
+	if _, err := e.consumePlayableCardByID(player, act.CardID); err != nil {
 		return err
 	}
 	e.State.DiscardPile = append(e.State.DiscardPile, card)
