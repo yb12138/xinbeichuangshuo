@@ -385,6 +385,111 @@ renderer 约束：
 cd web && npm test -- --run ExtractPromptRenderer PromptDialog
 ```
 
+### 3.7 第七刀：`SkillChoicePromptRenderer`
+
+优先级：P1
+
+状态：已完成。`PromptDialog` 中技能选择展示已迁出到受控 renderer；单技能“是否发动”内联按钮、多技能选择 overlay 均由同一 renderer 承载，技能名解析、取消策略、图片 fallback 状态和最终提交仍由 `PromptDialog` 保留。
+
+已新增文件：
+
+- `web/src/components/prompt/renderers/SkillChoicePromptRenderer.vue`
+- `web/src/components/prompt/renderers/__tests__/SkillChoicePromptRenderer.spec.ts`
+
+合并场景：
+
+- `presentation.kind === 'skill_choice'` 的单技能确认按钮。
+- `presentation.kind === 'skill_choice'` 且存在多个技能选项时的多技能 overlay。
+
+renderer 约束：
+
+- 只接收由容器预处理好的技能按钮 view model 和分支 option view model。
+- 只 emit `select(optionId)` 与 `imageError(optionId)`。
+- 不读取 store。
+- 不调用 `useSubmitAction()`。
+- 不接收完整 `Prompt`。
+- 不决定 option index，也不决定 `skip/cancel` 是否允许。
+
+仍由 `PromptDialog` 保留：
+
+- `isSkillChoicePrompt`
+- `parseSkillTitle` / `skillTitleMap` / `resolveSkillTitleById`
+- `skillPromptEntries` / `skillPromptTitle` / `skillPromptButtons`
+- `isMultiSkillNameChoiceMode` / `skillBranchOptions`
+- `handleOptionClick` 中 `skill_choice` 的 option index 提交与取消策略判断
+- prompt image button fallback 状态统一管理
+
+已完成改动：
+
+- 修改 `web/src/components/PromptDialog.vue`，用 `SkillChoicePromptRenderer` 替换原本的技能内联 DOM 和多技能 overlay DOM。
+- 保留内联按钮 `data-testid="prompt-option-${option.id}"`。
+- 保留多技能 overlay 根节点 `skill-branch-overlay`、内部 `decision-overlay`、分支 `branch-option-${idx}`、跳过按钮 `prompt-option-skip` 测试锚点。
+- 图片加载失败仍回到 `PromptDialog` 的统一 fallback 路径。
+- 移除 `PromptDialog.vue` 中已迁出的 `prompt-skill-*` scoped 样式。
+
+已覆盖测试：
+
+- renderer 单测覆盖内联标题/按钮、disabled、图片错误、fallback 文本、overlay 分支、description/cost、skip、隐藏态。
+- `PromptDialog.spec.ts` 覆盖单技能确认仍提交 `submitSelect([0])`，多技能第二项仍提交 `submitSelect([1])`，`skip` 仍按 `cancel_policy=decline` 走取消提交。
+- 已运行：
+
+```bash
+cd web && npm test -- --run SkillChoicePromptRenderer PromptDialog
+```
+
+### 3.8 第八刀：`DirectionPromptRenderer`
+
+优先级：P1
+
+状态：已完成。明确的“选择方向”类 prompt 已从通用 decision overlay 中拆出，改由受控 renderer 展示；方向 prompt 的识别、option view model 构造和最终提交仍由 `PromptDialog` 容器负责。
+
+已新增文件：
+
+- `web/src/components/prompt/renderers/DirectionPromptRenderer.vue`
+- `web/src/components/prompt/renderers/__tests__/DirectionPromptRenderer.spec.ts`
+
+合并场景：
+
+- 魔弹掌控方向选择：选项包含稳定 id `normal` / `reverse`。
+- 圣煌辉光炮士气对齐方向：`choice_type === 'hb_radiant_cannon_side'`。
+- 灵魂转换方向：`choice_type === 'ss_convert_color'`。
+
+renderer 约束：
+
+- 只接收 `visible`、`title` 和由容器预处理好的方向 option view model。
+- 只 emit `select(optionId)`。
+- 不读取 store。
+- 不调用 `useSubmitAction()`。
+- 不接收完整 `Prompt`。
+- 不决定 option index，也不决定 `cancel` 是否是分支选择还是取消语义。
+
+仍由 `PromptDialog` 保留：
+
+- `isDirectionPrompt`
+- `directionPromptOptions`
+- `handleOptionClick` 中 `normal/reverse` 的稳定 index 映射。
+- `branch_select` 的 option index 提交逻辑。
+- `skip/cancel` 与 `cancel_policy` 的统一处理。
+
+已完成改动：
+
+- 修改 `web/src/components/PromptDialog.vue`，让方向 prompt 退出 `showDecisionOverlay` 和 `hasAnyInlineButton`，避免通用 overlay 或内联按钮重复渲染。
+- 在 `PromptDialog` 根层挂载 `DirectionPromptRenderer`。
+- 保留 `direction-prompt`、`decision-overlay`、`direction-option-${option.id}` 与 `prompt-option-${option.id}` 测试锚点。
+- renderer 自带 scoped 样式，避免依赖 `PromptDialog` 的 scoped overlay 样式。
+
+已覆盖测试：
+
+- renderer 单测覆盖标题、选项、说明、点击 emit、disabled、隐藏态。
+- `PromptDialog.spec.ts` 覆盖魔弹掌控点击 `reverse` 仍提交 `submitSelect([1])`。
+- `PromptDialog.spec.ts` 覆盖圣煌辉光炮方向第二项仍提交 `submitSelect([1])`。
+- 已运行：
+
+```bash
+cd web && npm test -- --run DirectionPromptRenderer PromptDialog
+cd web && npm run build
+```
+
 ## Phase 4：后端 Prompt Flow Runtime
 
 目标：把多步技能从手写 `ctxData["choice_type"]` 推进，迁移到统一 `PromptFlowRuntime`。
@@ -519,8 +624,8 @@ cd web && npm run build
 
 最推荐下一步：
 
-1. Godel 输出下一刀 `CardPickerRenderer` 或“选择方向 / 特殊技能选择” renderer 的最终验收边界。
-2. Noether 实现单一 renderer 小刀拆分，避免同时拆多个交互路径。
+1. 本地分析下一刀 `CardPickerRenderer` 或 renderer registry 壳层的最终验收边界。
+2. Noether 实现单一小刀拆分，避免同时拆多个交互路径。
 3. 主线程运行前端相关测试和 build。
 4. 更新 `specs/refactor/frontend-backend-interaction-followup-plan-2026-05-19.md` 的 Phase 3 进度。
 

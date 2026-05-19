@@ -53,7 +53,7 @@
 - [ ] 将目标选择拆为 `TargetPickerPromptRenderer`。
 - [x] 将响应类 prompt 拆为 `ResponsePromptRenderer`。
 - [x] 将治疗、符文等分配类 prompt 拆为 `AllocationPromptRenderer`。
-- [ ] 将抽取、选择方向、特殊技能选择拆为独立 renderer。（`extract` 已完成；选择方向、特殊技能选择待拆）
+- [x] 将抽取、选择方向、特殊技能选择拆为独立 renderer。
 - [ ] `PromptDialog` 只保留容器职责：标题、关闭、提交入口、renderer 挂载。
 - [ ] 每个 renderer 只处理自己的选择状态和展示逻辑。
 - [ ] 单测从“一个 PromptDialog 大测”改成按 renderer 覆盖。
@@ -110,3 +110,5 @@
 - 2026-05-20：Phase 3 第四刀完成，`PromptDialog` 中目标选择提示行与多目标确认按钮已迁到 `TargetPickerPromptRenderer`；真实目标点击、`target_id` 解析和提交仍保留在 `GameBoard` / `PromptDialog` 容器侧。完整 `TargetPickerRenderer` 仍需等 InteractionController 或 GameBoard 目标区拆分后再勾选。
 - 2026-05-20：Phase 3 第五刀完成，响应类 prompt 的 `take` / `defend` / `counter` 内联按钮展示已迁到 `ResponsePromptRenderer`；应战/防御选牌校验、反弹目标校验和 `submitRespond*` 提交仍保留在 `PromptDialog`。
 - 2026-05-20：Phase 3 第六刀完成，`extract` 布局的提取选项 UI shell（两列按钮 + 确认按钮）已迁到 `ExtractPromptRenderer`；`selectedExtractIndices`、`toggleExtractOption`、`confirmExtractSelection` 与 `submitSelect(indexes)` 协议仍保留在 `PromptDialog` 容器侧。
+- 2026-05-20：Phase 3 第七刀完成，`skill_choice` 的单技能确认按钮与多技能选择 overlay 已迁到 `SkillChoicePromptRenderer`；技能名解析、`cancel_policy` 判断、图片 fallback 状态和 option index 提交仍保留在 `PromptDialog` 容器侧。当时 `抽取、选择方向、特殊技能选择` 这项仍等待选择方向 renderer 完成后再勾选。
+- 2026-05-20：Phase 3 第八刀完成，魔弹掌控 `normal/reverse`、圣煌辉光炮士气对齐、灵魂转换等明确方向类 prompt 已迁到 `DirectionPromptRenderer`；方向 prompt 退出通用 decision overlay 和内联按钮渲染，提交仍由 `PromptDialog.handleOptionClick` 保持原 option index 协议。至此 `抽取、选择方向、特殊技能选择` 已全部完成。

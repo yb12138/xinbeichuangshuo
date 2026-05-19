@@ -10,9 +10,11 @@ import {
 } from '../constants/promptButtonRules'
 import AllocationOverlayRenderer from './prompt/renderers/AllocationOverlayRenderer.vue'
 import DecisionOverlayRenderer from './prompt/renderers/DecisionOverlayRenderer.vue'
+import DirectionPromptRenderer from './prompt/renderers/DirectionPromptRenderer.vue'
 import ExtractPromptRenderer from './prompt/renderers/ExtractPromptRenderer.vue'
 import FraudElementRenderer from './prompt/renderers/FraudElementRenderer.vue'
 import ResponsePromptRenderer from './prompt/renderers/ResponsePromptRenderer.vue'
+import SkillChoicePromptRenderer from './prompt/renderers/SkillChoicePromptRenderer.vue'
 import TargetPickerPromptRenderer from './prompt/renderers/TargetPickerPromptRenderer.vue'
 import type { PlayerView, PromptOption } from '../types/game'
 
@@ -768,6 +770,16 @@ type SkillPromptButton = {
   cancel: boolean
 }
 
+type SkillChoiceRendererButton = {
+  id: string
+  label: string
+  disabled: boolean
+  cancel: boolean
+  imageSrc: string
+  imageReady: boolean
+  fallbackText: string
+}
+
 type FraudElementCardOption = {
   id: string
   title: string
@@ -989,6 +1001,45 @@ function fraudAttackCardName(optionId: string, fallback: string): string {
 const isFraudElementCardPickerPrompt = computed(() =>
   prompt.value?.presentation?.kind === 'branch_select' && prompt.value?.presentation?.layout === 'fraud_attack_element'
 )
+
+const isDirectionPrompt = computed(() => {
+  const p = prompt.value
+  if (!p || !p.options?.length) return false
+  const choiceType = String(p.choice_type || '').trim()
+  if (choiceType === 'mg_magic_bullet_direction' || choiceType === 'hb_radiant_cannon_side' || choiceType === 'ss_convert_color') return true
+  if (choiceType) return false
+  if (p.presentation?.kind !== 'branch_select') return false
+  const optionIds = new Set(p.options.map((option) => String(option.id || '').trim().toLowerCase()))
+  return optionIds.has('normal') && optionIds.has('reverse')
+})
+
+type DirectionPromptOption = {
+  id: string
+  label: string
+  hint?: string
+  description?: string
+  disabled?: boolean
+  tone?: string
+  icon?: string
+}
+
+const directionPromptOptions = computed<DirectionPromptOption[]>(() => {
+  if (!isDirectionPrompt.value || !prompt.value?.options?.length) return []
+  return prompt.value.options.map((option, index) => {
+    const label = String(option.button_label || option.label || '').trim()
+    const hint = String(option.hint || '').trim()
+    const disabled = !!(option as { disabled?: boolean }).disabled
+    return {
+      id: option.id,
+      label: label || `选项 ${index + 1}`,
+      hint: hint || undefined,
+      description: hint || undefined,
+      disabled,
+      tone: option.id === 'reverse' ? 'prompt-direction--reverse' : 'prompt-direction--normal',
+      icon: option.id === 'reverse' ? 'arrow-left' : 'arrow-right',
+    }
+  })
+})
 
 const fraudElementCardOptions = computed<FraudElementCardOption[]>(() => {
   if (!isFraudElementCardPickerPrompt.value || !prompt.value?.options?.length) return []
@@ -1265,6 +1316,18 @@ const skillPromptButtons = computed<SkillPromptButton[]>(() => {
   return buttons
 })
 
+const skillChoiceRendererButtons = computed<SkillChoiceRendererButton[]>(() =>
+  skillPromptButtons.value.map((button) => ({
+    id: button.id,
+    label: button.label,
+    disabled: button.disabled,
+    cancel: button.cancel,
+    imageSrc: skillButtonImageSrc(button),
+    imageReady: isSkillButtonImageReady(button),
+    fallbackText: skillButtonFallbackText(button),
+  }))
+)
+
 const isMultiSkillNameChoiceMode = computed(() =>
   prompt.value?.presentation?.kind === 'skill_choice' &&
   skillBranchOptions.value.length > 0 &&
@@ -1296,6 +1359,12 @@ const skillBranchOptions = computed<SkillBranchOption[]>(() => {
       }
     })
 })
+
+function onSkillChoiceRendererImageError(optionId: string) {
+  const targetButton = skillPromptButtons.value.find((button) => button.id === optionId)
+  if (!targetButton) return
+  onSkillButtonImageError(targetButton)
+}
 
 const inlinePrimaryGridClass = computed(() => {
   const count = inlinePrimaryButtons.value.length
@@ -1345,6 +1414,7 @@ const showDecisionOverlay = computed(() => {
   // 注意：已删除旧的 return false 逻辑，让 是/否 弹框也进入 overlay
   // 符合通用弹窗条件
   if (singleActivationCostConfirmOption.value) return true
+  if (isDirectionPrompt.value) return false
   if (inlinePrimaryButtons.value.length > 0 && showConfirmButtonSection.value) return true
   return false
 })
@@ -1398,6 +1468,7 @@ const hasAnyInlineButton = computed(() => {
   if (!isVisible.value) return false
   if (prompt.value?.presentation?.kind === 'action_hub') return false
   if (isFraudElementCardPickerPrompt.value) return false
+  if (isDirectionPrompt.value) return false
   if (prompt.value?.presentation?.kind === 'skill_choice' && isMultiSkillNameChoiceMode.value) return false
   if (showDecisionOverlay.value) return false
   if (isExtractPrompt.value && !!prompt.value?.options?.length) return true
@@ -1521,43 +1592,16 @@ watch(autoResolveOptionId, (optionId) => {
         </template>
 
         <template v-else>
-          <div v-if="isSkillChoicePrompt && skillPromptButtons.length > 0 && !isMultiSkillNameChoiceMode" class="prompt-skill-list">
-            <div class="prompt-skill-row">
-              <div class="prompt-skill-text" :title="skillPromptTitle">{{ skillPromptTitle }}</div>
-              <div class="prompt-skill-actions">
-                <button
-                  v-for="option in skillPromptButtons"
-                  :key="option.id"
-                  class="prompt-inline-btn prompt-skill-action"
-                  :class="[
-                    isMultiSkillNameChoiceMode ? 'prompt-inline-btn--normal prompt-skill-action--plain' : '',
-                    !isMultiSkillNameChoiceMode ? 'action-image-btn' : '',
-                    !isMultiSkillNameChoiceMode ? (option.cancel ? 'prompt-inline-btn--cancel' : 'prompt-inline-btn--success') : '',
-                    option.disabled ? 'prompt-inline-btn--disabled' : ''
-                  ]"
-                  :disabled="option.disabled"
-                  :data-testid="`prompt-option-${option.id}`"
-                  :title="!isMultiSkillNameChoiceMode ? option.label : undefined"
-                  :aria-label="!isMultiSkillNameChoiceMode ? option.label : undefined"
-                  @click="handleOptionClick(option.id)"
-                >
-                  <template v-if="!isMultiSkillNameChoiceMode">
-                    <img
-                      v-if="isSkillButtonImageReady(option)"
-                      class="action-image-btn-fill"
-                      :src="skillButtonImageSrc(option)"
-                      alt=""
-                      @error="onSkillButtonImageError(option)"
-                    />
-                    <span v-else class="action-image-fallback-text">{{ skillButtonFallbackText(option) }}</span>
-                  </template>
-                  <template v-else>
-                    {{ option.label }}
-                  </template>
-                </button>
-              </div>
-            </div>
-          </div>
+          <SkillChoicePromptRenderer
+            v-if="isSkillChoicePrompt && skillPromptButtons.length > 0 && !isMultiSkillNameChoiceMode"
+            :inline-visible="true"
+            :overlay-visible="false"
+            :title="skillPromptTitle"
+            :buttons="skillChoiceRendererButtons"
+            :branches="[]"
+            @select="handleOptionClick"
+            @image-error="onSkillChoiceRendererImageError"
+          />
 
           <TargetPickerPromptRenderer
             v-else-if="showTargetSelectionHintRow"
@@ -1777,6 +1821,13 @@ watch(autoResolveOptionId, (optionId) => {
     </div>
   </Transition>
 
+  <DirectionPromptRenderer
+    :visible="isVisible && isDirectionPrompt && directionPromptOptions.length > 0"
+    :title="prompt?.message || '请选择方向'"
+    :options="directionPromptOptions"
+    @select="handleOptionClick"
+  />
+
   <FraudElementRenderer
     :visible="isFraudElementCardPickerPrompt && fraudElementCardOptions.length > 0"
     :title="prompt?.message || '请选择本次攻击系别'"
@@ -1784,38 +1835,15 @@ watch(autoResolveOptionId, (optionId) => {
     @select="handleOptionClick"
   />
 
-  <Teleport to="body">
-    <Transition name="modal">
-      <div
-        v-if="isMultiSkillNameChoiceMode && skillBranchOptions.length > 0"
-        class="overlay-panel-root overlay-panel-root--skill"
-        data-testid="skill-branch-overlay"
-      >
-        <div class="overlay-panel" data-testid="decision-overlay" @click.stop>
-          <div class="overlay-panel-header">
-            <h2>{{ skillPromptTitle }}</h2>
-          </div>
-          <div class="overlay-panel-body">
-            <button
-              v-for="(entry, idx) in skillBranchOptions"
-              :key="entry.id"
-              class="overlay-panel-item"
-              :data-testid="`branch-option-${idx}`"
-              :disabled="entry.disabled"
-              @click="handleOptionClick(entry.id)"
-            >
-              <div class="overlay-panel-item-title" :data-testid="`prompt-option-${entry.id}`">{{ entry.title }}</div>
-              <div v-if="entry.description" class="overlay-panel-item-desc">{{ entry.description }}</div>
-              <div v-if="entry.cost" class="overlay-panel-item-cost">{{ entry.cost }}</div>
-            </button>
-          </div>
-          <div class="overlay-panel-footer">
-            <button class="overlay-panel-cancel" data-testid="prompt-option-skip" @click="handleOptionClick('skip')">跳过</button>
-          </div>
-        </div>
-      </div>
-    </Transition>
-  </Teleport>
+  <SkillChoicePromptRenderer
+    :inline-visible="false"
+    :overlay-visible="isMultiSkillNameChoiceMode && skillBranchOptions.length > 0"
+    :title="skillPromptTitle"
+    :buttons="[]"
+    :branches="skillBranchOptions"
+    @select="handleOptionClick"
+    @image-error="onSkillChoiceRendererImageError"
+  />
 
   <DecisionOverlayRenderer
     :visible="showDecisionOverlay"
@@ -1886,58 +1914,6 @@ watch(autoResolveOptionId, (optionId) => {
   display: grid;
   gap: 8px;
 }
-
-.prompt-skill-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 2px;
-}
-
-.prompt-skill-row {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 8px;
-  padding: 2px;
-}
-
-.prompt-skill-row + .prompt-skill-row {
-  border-top: 1px dashed rgba(138, 171, 192, 0.28);
-  padding-top: 9px;
-}
-
-.prompt-skill-actions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  align-items: center;
-}
-
-.prompt-skill-text {
-  font-size: 13px;
-  line-height: 1.3;
-  color: rgba(221, 237, 248, 0.94);
-  letter-spacing: 0.01em;
-  text-align: center;
-  white-space: normal;
-  word-break: break-word;
-}
-
-.prompt-skill-action {
-  justify-self: center;
-}
-
-.prompt-skill-action--plain {
-  justify-self: stretch;
-  width: 100%;
-  min-height: 42px;
-}
-
-.prompt-skill-action:hover:not(:disabled) {
-  filter: brightness(1.08);
-}
-
 
 .prompt-inline-entry {
   display: flex;
@@ -2263,10 +2239,6 @@ watch(autoResolveOptionId, (optionId) => {
     font-size: 11px;
   }
 
-  .prompt-skill-text {
-    font-size: 12px;
-  }
-
 }
 
 @media (max-width: 560px) {
@@ -2280,16 +2252,6 @@ watch(autoResolveOptionId, (optionId) => {
   .prompt-inline-grid--3,
   .prompt-inline-grid--4 {
     grid-template-columns: 1fr;
-  }
-
-  .prompt-skill-row {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 6px;
-  }
-
-  .prompt-skill-text {
-    text-align: center;
   }
 
   .prompt-inline-btn.action-image-btn {

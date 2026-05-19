@@ -9,6 +9,7 @@ import { useSnapshotStore } from '../../stores/snapshot.store'
 import type { Card, GameStateUpdate, PlayerView, Prompt } from '../../types/game'
 
 const submitSelectMock = vi.fn()
+const submitCancelMock = vi.fn()
 const submitRespondTakeMock = vi.fn()
 const submitRespondCounterMock = vi.fn()
 const submitRespondDefendMock = vi.fn()
@@ -16,7 +17,7 @@ const submitRespondDefendMock = vi.fn()
 vi.mock('../../composables/useSubmitAction', () => ({
   useSubmitAction: () => ({
     submitSelect: submitSelectMock,
-    submitCancel: vi.fn(),
+    submitCancel: submitCancelMock,
     submitConfirm: vi.fn(),
     submitRespondTake: submitRespondTakeMock,
     submitRespondCounter: submitRespondCounterMock,
@@ -149,6 +150,45 @@ function weakPrompt(): Prompt {
     options: [
       { id: 'draw_continue', label: '摸3张牌继续执行后续行动', button_label: '摸3张牌继续执行后续行动' },
       { id: 'skip_turn', label: '跳过此回合', button_label: '跳过此回合' },
+    ],
+    min: 1,
+    max: 1,
+    presentation: {
+      kind: 'branch_select',
+      layout: 'overlay',
+      numeric_base: 0,
+    },
+  }
+}
+
+function magicBulletDirectionPrompt(): Prompt {
+  return {
+    type: 'confirm',
+    player_id: 'p2',
+    message: '【魔弹掌控】请选择方向：',
+    options: [
+      { id: 'normal', label: '正向', button_label: '正向' },
+      { id: 'reverse', label: '逆向', button_label: '逆向' },
+    ],
+    min: 1,
+    max: 1,
+    presentation: {
+      kind: 'branch_select',
+      layout: 'overlay',
+      numeric_base: 0,
+    },
+  }
+}
+
+function radiantCannonDirectionPrompt(): Prompt {
+  return {
+    type: 'confirm',
+    player_id: 'p2',
+    choice_type: 'hb_radiant_cannon_side',
+    message: '【圣煌辉光炮】请选择士气对齐方向：',
+    options: [
+      { id: 'red', label: '红方士气', button_label: '红方', hint: '对齐到红方' },
+      { id: 'blue', label: '蓝方士气', button_label: '蓝方', hint: '对齐到蓝方' },
     ],
     min: 1,
     max: 1,
@@ -299,9 +339,47 @@ function extractPrompt(): Prompt {
   }
 }
 
+function singleSkillChoicePrompt(): Prompt {
+  return {
+    type: 'choose_skill',
+    player_id: 'p2',
+    message: '请选择是否发动技能',
+    options: [
+      { id: 'fire_blast', label: '炎爆术', button_label: '发动' },
+    ],
+    min: 1,
+    max: 1,
+    presentation: {
+      kind: 'skill_choice',
+      numeric_base: 0,
+    },
+  }
+}
+
+function multiSkillChoicePrompt(): Prompt {
+  return {
+    type: 'choose_skill',
+    player_id: 'p2',
+    message: '请选择要发动的技能',
+    options: [
+      { id: 'skill_a', label: '烈焰突刺[消耗1]', button_label: '发动', hint: '造成2点火焰伤害' },
+      { id: 'skill_b', label: '冰封结界[消耗2]', button_label: '发动', hint: '获得1层护盾' },
+      { id: 'skill_c', label: '雷鸣冲击[消耗3]', button_label: '发动', hint: '随机打击2次' },
+    ],
+    min: 1,
+    max: 1,
+    presentation: {
+      kind: 'skill_choice',
+      numeric_base: 0,
+      cancel_policy: 'decline',
+    },
+  }
+}
+
 describe('PromptDialog', () => {
   beforeEach(() => {
     submitSelectMock.mockReset()
+    submitCancelMock.mockReset()
     submitRespondTakeMock.mockReset()
     submitRespondCounterMock.mockReset()
     submitRespondDefendMock.mockReset()
@@ -478,6 +556,52 @@ describe('PromptDialog', () => {
     expect(submitSelectMock).toHaveBeenCalledWith([0])
   })
 
+  it('renders magic bullet direction through the direction renderer and submits reverse as option index 1', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    useSessionStore().setRoomInfo('ROOM1', 'p2', 'Blue', 'fighter')
+    useSnapshotStore().updateGameState(buildState())
+    useInterruptStore().setPrompt(magicBulletDirectionPrompt())
+
+    render(PromptDialog, {
+      global: {
+        plugins: [pinia],
+      },
+    })
+
+    expect(screen.getByTestId('direction-prompt')).toBeInTheDocument()
+    expect(screen.queryByTestId('prompt-dialog')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('branch-option-0')).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByTestId('direction-option-reverse'))
+
+    expect(submitSelectMock).toHaveBeenCalledWith([1])
+  })
+
+  it('renders radiant cannon direction through the direction renderer and submits the second option index', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    useSessionStore().setRoomInfo('ROOM1', 'p2', 'Blue', 'fighter')
+    useSnapshotStore().updateGameState(buildState())
+    useInterruptStore().setPrompt(radiantCannonDirectionPrompt())
+
+    render(PromptDialog, {
+      global: {
+        plugins: [pinia],
+      },
+    })
+
+    expect(screen.getByTestId('direction-prompt')).toBeInTheDocument()
+    expect(screen.queryByTestId('prompt-dialog')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('branch-option-0')).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByTestId('direction-option-blue'))
+
+    expect(submitSelectMock).toHaveBeenCalledWith([1])
+  })
+
   it('renders heal mitigation as a numeric decision instead of a hand-card picker', async () => {
     const pinia = createPinia()
     setActivePinia(pinia)
@@ -629,5 +753,55 @@ describe('PromptDialog', () => {
     await userEvent.click(screen.getByTestId('prompt-confirm-btn'))
 
     expect(submitSelectMock).toHaveBeenCalledWith([0, 1])
+  })
+
+  it('keeps single skill choice confirm behavior and submits the selected index', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    useSessionStore().setRoomInfo('ROOM1', 'p2', 'Blue', 'fighter')
+    useSnapshotStore().updateGameState(buildState())
+    useInterruptStore().setPrompt(singleSkillChoicePrompt())
+
+    render(PromptDialog, {
+      global: {
+        plugins: [pinia],
+      },
+    })
+
+    expect(screen.getByTestId('prompt-option-fire_blast')).toBeInTheDocument()
+    expect(screen.queryByTestId('skill-branch-overlay')).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByTestId('prompt-option-fire_blast'))
+
+    expect(submitSelectMock).toHaveBeenCalledWith([0])
+  })
+
+  it('renders multi skill choice overlay and keeps select/skip submission behavior', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    useSessionStore().setRoomInfo('ROOM1', 'p2', 'Blue', 'fighter')
+    useSnapshotStore().updateGameState(buildState())
+    useInterruptStore().setPrompt(multiSkillChoicePrompt())
+
+    render(PromptDialog, {
+      global: {
+        plugins: [pinia],
+      },
+    })
+
+    expect(screen.getByTestId('skill-branch-overlay')).toBeInTheDocument()
+    expect(screen.getByTestId('decision-overlay')).toBeInTheDocument()
+    expect(screen.getByTestId('branch-option-1')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByTestId('branch-option-1'))
+    expect(submitSelectMock).toHaveBeenCalledWith([1])
+
+    submitSelectMock.mockReset()
+
+    await userEvent.click(screen.getByTestId('prompt-option-skip'))
+    expect(submitCancelMock).toHaveBeenCalledOnce()
+    expect(submitSelectMock).not.toHaveBeenCalled()
   })
 })
