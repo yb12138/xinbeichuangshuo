@@ -10,7 +10,7 @@ import {
 
 // ============================================================
 // 月渎 (mg_blasphemy) - 后端通过 response_skills 自动触发
-// 确认：skill_choice (1 skill + skip) → prompt-dialog inline buttons
+// 确认：skill_choice (1 skill + skip) → skill-branch-overlay
 // 目标选择：target_picker (player-area clicks)
 // ============================================================
 
@@ -18,9 +18,8 @@ test.describe('moon goddess moon read protocol harness', () => {
   test('moon read: confirm then select enemy target', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(moonReadScenario({ heal: 2 }));
 
-    // Confirm skill activation via skill_choice (1 skill + skip → inline buttons in prompt-dialog)
     await protocolHarness.pushServerMessage(moonReadConfirmPrompt());
-    await expect(page.getByTestId('prompt-dialog')).toBeVisible();
+    await expect(page.getByTestId('skill-branch-overlay')).toBeVisible();
     await page.getByTestId(`prompt-option-${MG_MOON_READ_SKILL_ID}`).click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
@@ -58,8 +57,7 @@ test.describe('moon goddess moon read protocol harness', () => {
     await protocolHarness.bootGame(moonReadScenario({ heal: 2 }));
 
     await protocolHarness.pushServerMessage(moonReadConfirmPrompt());
-    await expect(page.getByTestId('prompt-dialog')).toBeVisible();
-    // Click skip (skill_choice with 1 skill + skip → prompt-option-skip)
+    await expect(page.getByTestId('skill-branch-overlay')).toBeVisible();
     await page.getByTestId('prompt-option-skip').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
@@ -71,6 +69,6 @@ test.describe('moon goddess moon read protocol harness', () => {
     await protocolHarness.bootGame(moonReadScenario({ heal: 0 }));
 
     // Should not trigger if no heal available
-    await expect(page.getByTestId('prompt-dialog')).not.toBeVisible();
+    await expect(page.getByTestId('skill-branch-overlay')).not.toBeVisible();
   });
 });

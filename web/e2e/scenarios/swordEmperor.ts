@@ -241,8 +241,7 @@ export function swordQiSlashXPrompt(xMax: number): WsMessage {
   } satisfies Prompt);
 }
 
-// 后端通过 shared_helpers.BuildTargetChoicePrompt 下发，
-// option id 是顺序索引字符串 "0","1",...（不是 player_id），label 取 player.Name。
+// 目标选择 prompt 使用目标玩家 ID 作为 option id；option_indexes 仍提交选项位置。
 export function swordQiSlashTargetPrompt(xValue: number): WsMessage {
   return requireActionMessage({
     type: 'confirm',
@@ -252,7 +251,7 @@ export function swordQiSlashTargetPrompt(xValue: number): WsMessage {
     skill_id: SE_SWORD_QI_SLASH_SKILL_ID,
     presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
     options: [
-      { id: '0', label: 'Enemy Bot 2', button_label: '选择' },
+      { id: ENEMY_2_PLAYER_ID, label: 'Enemy Bot 2', button_label: '选择' },
     ],
     min: 1,
     max: 1,

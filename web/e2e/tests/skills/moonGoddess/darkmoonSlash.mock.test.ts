@@ -8,7 +8,7 @@ import {
 
 // ============================================================
 // 闇月斩 (mg_darkmoon_slash) - 后端通过 choose_skill 响应窗口触发
-// skill_choice with 1 skill + skip → inline buttons in prompt-dialog
+// skill_choice with 1 skill + skip → skill-branch-overlay
 // X值选择使用 choice_type: mg_darkmoon_slash_x (numeric)
 // ============================================================
 
@@ -16,9 +16,8 @@ test.describe('moon goddess darkmoon slash protocol harness', () => {
   test('darkmoon slash: triggered via response_skills', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(darkmoonSlashScenario({ dark_moon_cards: 2 }));
 
-    // skill_choice with 1 skill + skip → prompt-dialog inline buttons (NOT skill-branch-overlay)
     await protocolHarness.pushServerMessage(darkmoonSlashResponsePrompt());
-    await expect(page.getByTestId('prompt-dialog')).toBeVisible();
+    await expect(page.getByTestId('skill-branch-overlay')).toBeVisible();
     await page.getByTestId(`prompt-option-${MG_DARKMOON_SLASH_SKILL_ID}`).click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
