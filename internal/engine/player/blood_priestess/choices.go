@@ -48,7 +48,7 @@ func buildSharedLifeTargetPrompt(rt engineplayer.ChoiceRuntime, playerID string,
 	options := make([]model.PromptOption, 0, len(targetIDs))
 	for _, tid := range targetIDs {
 		if p := rt.GetPlayers()[tid]; p != nil {
-			options = append(options, model.PromptOption{ID: tid, Label: p.Name})
+			options = append(options, model.PromptOption{ID: tid, Label: p.Name, TargetID: tid})
 		}
 	}
 	return &model.Prompt{
@@ -84,7 +84,7 @@ func buildBloodSorrowTargetPrompt(rt engineplayer.ChoiceRuntime, playerID string
 	options := make([]model.PromptOption, 0, len(targetIDs))
 	for _, tid := range targetIDs {
 		if p := rt.GetPlayers()[tid]; p != nil {
-			options = append(options, model.PromptOption{ID: tid, Label: p.Name})
+			options = append(options, model.PromptOption{ID: tid, Label: p.Name, TargetID: tid})
 		}
 	}
 	return &model.Prompt{

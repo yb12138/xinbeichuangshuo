@@ -287,14 +287,14 @@ func (h *AngelCleanseHandler) Execute(ctx *model.Context) error {
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
 		Context: map[string]interface{}{
-			"choice_type":  "basic_effect_pick",
-			"user_id":      ctx.User.ID,
-			"skill_name":   "风之洁净",
-			"operation":    "remove",
-			"cancelable":   true,
-			"resume_phase": model.TurnStageActionExecution,
-			"prompt":       "【风之洁净】请选择要移除的基础效果：",
-			"options":      encodeBasicEffectOptions(options),
+			"choice_type":   "basic_effect_pick",
+			"user_id":       ctx.User.ID,
+			"skill_name":    "风之洁净",
+			"operation":     "remove",
+			"cancel_policy": "decline",
+			"resume_phase":  model.TurnStageActionExecution,
+			"prompt":        "【风之洁净】请选择要移除的基础效果：",
+			"options":       encodeBasicEffectOptions(options),
 		},
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [风之洁净]，请选择要移除的基础效果", ctx.User.Name))

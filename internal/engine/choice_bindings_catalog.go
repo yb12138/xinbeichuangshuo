@@ -56,8 +56,8 @@ func systemChoiceCancel(typ string) func(*GameEngine, string, map[string]any) (b
 		}
 	case "basic_effect_pick":
 		return func(ge *GameEngine, pid string, ctx map[string]any) (bool, error) {
-			cancelable, _ := ctx["cancelable"].(bool)
-			if !cancelable {
+			prompt := buildBasicEffectChoicePrompt(pid, choiceCtxAsInterfaceMap(ctx))
+			if prompt == nil || prompt.Presentation == nil || prompt.Presentation.CancelPolicy == "" || prompt.Presentation.CancelPolicy == "deny" {
 				return false, fmt.Errorf("当前选择不可取消")
 			}
 			skillName, _ := ctx["skill_name"].(string)

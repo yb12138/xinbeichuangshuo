@@ -334,7 +334,7 @@ func buildLightBurstModeBTargetsPrompt(rt engineplayer.ChoiceRuntime, playerID s
 			continue
 		}
 		if target := rt.GetPlayers()[targetID]; target != nil {
-			options = append(options, model.PromptOption{ID: targetID, Label: target.Name})
+			options = append(options, model.PromptOption{ID: targetID, Label: target.Name, TargetID: targetID})
 		}
 	}
 	xValue := flow.Selection(lightBurstStepModeBX).Count
@@ -1181,7 +1181,7 @@ func playerOptions(rt engineplayer.ChoiceRuntime, playerIDs []string) []model.Pr
 	options := make([]model.PromptOption, 0, len(playerIDs))
 	for _, pid := range playerIDs {
 		if p := rt.GetPlayers()[pid]; p != nil {
-			options = append(options, model.PromptOption{ID: pid, Label: p.Name})
+			options = append(options, model.PromptOption{ID: pid, Label: p.Name, TargetID: pid})
 		}
 	}
 	return options

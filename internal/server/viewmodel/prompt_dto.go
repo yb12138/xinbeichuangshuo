@@ -29,6 +29,7 @@ type PromptOptionDTO struct {
 	ButtonLabel string `json:"button_label"`
 	Hint        string `json:"hint,omitempty"`
 	CardID      string `json:"card_id,omitempty"`
+	TargetID    string `json:"target_id,omitempty"`
 	FieldIndex  *int   `json:"field_index,omitempty"`
 	Element     string `json:"element,omitempty"`
 }
@@ -63,6 +64,7 @@ func ToPromptDTO(p *model.Prompt) *PromptDTO {
 			ButtonLabel: promptOptionButtonLabel(p, presentation, o, optionIndex),
 			Hint:        o.Hint,
 			CardID:      o.CardID,
+			TargetID:    o.TargetID,
 			FieldIndex:  o.FieldIndex,
 			Element:     o.Element,
 		})
@@ -76,6 +78,7 @@ func ToPromptDTO(p *model.Prompt) *PromptDTO {
 			ButtonLabel: promptOptionButtonLabel(p, presentation, o, optionIndex),
 			Hint:        o.Hint,
 			CardID:      o.CardID,
+			TargetID:    o.TargetID,
 			FieldIndex:  o.FieldIndex,
 			Element:     o.Element,
 		})

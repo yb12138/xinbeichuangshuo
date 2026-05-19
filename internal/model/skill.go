@@ -241,6 +241,7 @@ type PromptOption struct {
 	ButtonLabel string `json:"button_label,omitempty"` // 按钮短文案（如：发动/放弃/取消/1）
 	Hint        string `json:"hint,omitempty"`         // 选项说明（展示在按钮上方）
 	CardID      string `json:"card_id,omitempty"`      // 关联实体卡 UUID（卡牌选择专用）
+	TargetID    string `json:"target_id,omitempty"`    // 关联目标玩家/实体 ID（目标选择专用）
 	FieldIndex  *int   `json:"field_index,omitempty"`  // 场区索引（场牌/盖牌选择专用）
 	Element     string `json:"element,omitempty"`      // 结构化元素值（元素选择专用）
 }
@@ -262,9 +263,6 @@ type Prompt struct {
 	Presentation *PromptPresentation `json:"presentation,omitempty"`
 	// 额外效果提示（用于前端在响应弹窗中解释"为何可/不可应战、命中后附加效果"等）
 	EffectHints []string `json:"effect_hints,omitempty"`
-
-	// 可取消标记：前端据此决定是否显示取消/跳过按钮，无需依赖 phantom option。
-	Cancelable bool `json:"cancelable,omitempty"`
 
 	// 选择约束 (CLI只展示，不理解语义)
 	Min int `json:"min"` // 最少选择数

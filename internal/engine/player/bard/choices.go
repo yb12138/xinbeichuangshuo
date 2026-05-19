@@ -137,7 +137,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 				continue
 			}
 			if target := rt.GetPlayers()[targetID]; target != nil {
-				options = append(options, model.PromptOption{ID: targetID, Label: target.Name})
+				options = append(options, model.PromptOption{ID: targetID, Label: target.Name, TargetID: targetID})
 			}
 		}
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: fmt.Sprintf("【激昂狂想曲】请选择第 %d/2 名目标：", len(selectedIDs)+1), Options: options, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationTargetPicker, TargetFilter: "custom"}}

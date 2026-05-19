@@ -152,7 +152,7 @@ func buildDualEchoTargetPrompt(rt engineplayer.ChoiceRuntime, playerID string, d
 	options := make([]model.PromptOption, 0, len(targetIDs)+1)
 	for _, targetID := range targetIDs {
 		if target := rt.GetPlayers()[targetID]; target != nil {
-			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", len(options)), Label: target.Name})
+			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", len(options)), Label: target.Name, TargetID: targetID})
 		}
 	}
 	options = append(options, model.PromptOption{ID: "cancel", Label: "取消"})

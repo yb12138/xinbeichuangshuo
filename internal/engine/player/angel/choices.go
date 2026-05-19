@@ -144,9 +144,10 @@ func buildPromptOptionsForPlayerIDs(players map[string]*model.Player, ids []stri
 				label = fmt.Sprintf("%s（%s）", p.Name, p.Character.Name)
 			}
 			options = append(options, model.PromptOption{
-				ID:    id,
-				Label: label,
-				Hint:  fmt.Sprintf("当前治疗：%d/%d", p.Heal, p.MaxHeal),
+				ID:       id,
+				Label:    label,
+				TargetID: id,
+				Hint:     fmt.Sprintf("当前治疗：%d/%d", p.Heal, p.MaxHeal),
 			})
 		}
 	}

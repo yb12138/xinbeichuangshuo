@@ -185,7 +185,7 @@ func buildHundredNightExcludePickPrompt(rt engineplayer.ChoiceRuntime, playerID 
 			continue
 		}
 		if target := rt.GetPlayers()[targetID]; target != nil {
-			options = append(options, model.PromptOption{ID: targetID, Label: target.Name})
+			options = append(options, model.PromptOption{ID: targetID, Label: target.Name, TargetID: targetID})
 		}
 	}
 	return &model.Prompt{

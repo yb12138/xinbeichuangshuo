@@ -106,7 +106,6 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			Options:    options,
 			Min:        1,
 			Max:        1,
-			Cancelable: true,
 			Presentation: &model.PromptPresentation{
 				Kind:         model.PresentationBranchSelect,
 				Layout:       "overlay",
@@ -130,7 +129,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		var options []model.PromptOption
 		for _, tid := range targetIDs {
 			if p := rt.GetPlayers()[tid]; p != nil {
-				options = append(options, model.PromptOption{ID: tid, Label: p.Name})
+				options = append(options, model.PromptOption{ID: tid, Label: p.Name, TargetID: tid})
 			}
 		}
 		return &model.Prompt{
@@ -141,7 +140,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			Options:      options,
 			Min:          1,
 			Max:          1,
-			Presentation: &model.PromptPresentation{Kind: model.PresentationTargetPicker},
+			Presentation: &model.PromptPresentation{Kind: model.PresentationTargetPicker, TargetFilter: "custom"},
 		}
 
 	case "mg_blasphemy_target":
@@ -266,7 +265,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		var options []model.PromptOption
 		for _, tid := range targetIDs {
 			if p := rt.GetPlayers()[tid]; p != nil {
-				options = append(options, model.PromptOption{ID: tid, Label: p.Name})
+				options = append(options, model.PromptOption{ID: tid, Label: p.Name, TargetID: tid})
 			}
 		}
 		return &model.Prompt{

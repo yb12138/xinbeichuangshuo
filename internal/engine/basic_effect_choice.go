@@ -88,7 +88,7 @@ func buildBasicEffectChoicePrompt(playerID string, data map[string]interface{}) 
 			Label: option.Label,
 		})
 	}
-	cancelable, _ := data["cancelable"].(bool)
+	cancelPolicy, _ := data["cancel_policy"].(string)
 	return &model.Prompt{
 		Type:         model.PromptConfirm,
 		PlayerID:     playerID,
@@ -96,8 +96,7 @@ func buildBasicEffectChoicePrompt(playerID string, data map[string]interface{}) 
 		Options:      promptOptions,
 		Min:          1,
 		Max:          1,
-		Cancelable:   cancelable,
-		Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
+		Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay", CancelPolicy: cancelPolicy},
 	}
 }
 

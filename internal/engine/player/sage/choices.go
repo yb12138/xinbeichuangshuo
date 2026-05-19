@@ -168,7 +168,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		options := make([]model.PromptOption, 0, len(allTargetIDs))
 		for _, targetID := range allTargetIDs {
 			if target := rt.GetPlayers()[targetID]; target != nil {
-				options = append(options, model.PromptOption{ID: targetID, Label: target.Name})
+				options = append(options, model.PromptOption{ID: targetID, Label: target.Name, TargetID: targetID})
 			}
 		}
 		return &model.Prompt{
@@ -185,7 +185,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		options := make([]model.PromptOption, 0, len(targetIDs))
 		for _, targetID := range targetIDs {
 			if target := rt.GetPlayers()[targetID]; target != nil {
-				options = append(options, model.PromptOption{ID: targetID, Label: target.Name})
+				options = append(options, model.PromptOption{ID: targetID, Label: target.Name, TargetID: targetID})
 			}
 		}
 		msg := "请选择目标角色："

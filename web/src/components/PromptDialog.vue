@@ -4,11 +4,16 @@ import { useInterruptStore } from '../stores/interrupt.store'
 import { useSessionStore } from '../stores/session.store'
 import { useSnapshotStore } from '../stores/snapshot.store'
 import { useSubmitAction } from '../composables/useSubmitAction'
-import { ROLE_NAME_MAP } from '../constants/roleNameMap'
 import {
   promptImageButtonKindByOption,
   type PromptImageButtonKind,
 } from '../constants/promptButtonRules'
+import AllocationOverlayRenderer from './prompt/renderers/AllocationOverlayRenderer.vue'
+import DecisionOverlayRenderer from './prompt/renderers/DecisionOverlayRenderer.vue'
+import ExtractPromptRenderer from './prompt/renderers/ExtractPromptRenderer.vue'
+import FraudElementRenderer from './prompt/renderers/FraudElementRenderer.vue'
+import ResponsePromptRenderer from './prompt/renderers/ResponsePromptRenderer.vue'
+import TargetPickerPromptRenderer from './prompt/renderers/TargetPickerPromptRenderer.vue'
 import type { PlayerView, PromptOption } from '../types/game'
 
 const interruptStore = useInterruptStore()
@@ -20,11 +25,6 @@ const prompt = computed(() => interruptStore.currentPrompt)
 const myPlayerId = computed(() => sessionStore.myPlayerId)
 const playerViews = computed(() => snapshotStore.players)
 const myHand = computed(() => playerViews.value[myPlayerId.value]?.hand || [])
-
-function getRoleDisplayName(roleId?: string): string {
-  if (!roleId) return '未知角色'
-  return snapshotStore.characters[roleId]?.name || ROLE_NAME_MAP[roleId] || '未知角色'
-}
 
 function showPromptError(message: string) {
   interruptStore.showError(message)
@@ -168,7 +168,7 @@ const isConfirmType = computed(() => {
 
 const isExtractPrompt = computed(() => prompt.value?.presentation?.layout === 'extract')
 
-// 圣疗 3 点治疗分配：每个目标独立 0..3 数字选择，要求总和=3。
+// 圣疗 3 点治疗分配：每个目标独立 0..3 数字选择，当前前端允许总和不超过 3。
 const isSaintHealAllocatePrompt = computed(() => prompt.value?.presentation?.layout === 'heal_allocate')
 const saintHealAllocations = ref<number[]>([])
 const SAINT_HEAL_TOTAL = 3
@@ -288,37 +288,10 @@ function confirmExtractSelection() {
   actions.submitSelect(sel)
 }
 
-function resolveOptionPlayerId(option: { id: string; label: string }): string | null {
-  if (isBranchPromptChoice()) return null
-  if (playerViews.value[option.id]) return option.id
-  const label = String(option.label || '')
-  if (!label) return null
-  const lowLabel = label.toLowerCase()
-
-  const markersFor = (playerId: string): string[] => {
-    const p = playerViews.value[playerId]
-    if (!p) return []
-    const markers = new Set<string>()
-    if (p.id) markers.add(p.id)
-    if (p.name) markers.add(p.name)
-    if (p.role) {
-      markers.add(p.role)
-      const roleName = getRoleDisplayName(p.role)
-      if (roleName && roleName !== '未知角色') markers.add(roleName)
-    }
-    return [...markers]
-  }
-
-  const matched = Object.values(playerViews.value).filter((p) => {
-    const markers = markersFor(p.id)
-    return markers.some((marker) => {
-      const token = marker.trim().toLowerCase()
-      return !!token && lowLabel.includes(token)
-    })
-  })
-
-  if (matched.length !== 1) return null
-  return matched[0]?.id || null
+function resolveOptionPlayerId(option: { target_id?: string | null }): string | null {
+  const targetId = String(option.target_id || '').trim()
+  if (!targetId) return null
+  return playerViews.value[targetId] ? targetId : null
 }
 
 const playerOptionEntries = computed(() => {
@@ -382,14 +355,14 @@ const isResponseSkillConfirmPrompt = computed(() => {
   return prompt.value?.presentation?.kind === 'skill_choice'
 })
 
-function isPromptActivationCostCancelable(p: NonNullable<typeof prompt.value>): boolean {
+function isPromptCancellationAllowedByPolicy(p: NonNullable<typeof prompt.value>): boolean {
   const cancelPolicy = p.presentation?.cancel_policy
   return cancelPolicy === 'abort' || cancelPolicy === 'decline' || cancelPolicy === 'back'
 }
 
 const canCancelPrompt = computed(() => {
   if (!prompt.value) return false
-  return isPromptActivationCostCancelable(prompt.value)
+  return isPromptCancellationAllowedByPolicy(prompt.value)
 })
 
 function handleOptionClick(optionId: string) {
@@ -802,6 +775,17 @@ type FraudElementCardOption = {
   tone: string
 }
 
+type ResponsePromptOption = {
+  id: string
+  buttonLabel: string
+  disabled: boolean
+  kind: Exclude<ResponseActionKind, null>
+  imageSrc: string
+  imageReady: boolean
+  fallbackText: string
+  enlarged: boolean
+}
+
 const PROMPT_IMAGE_BUTTON_CANDIDATES: Record<PromptImageButtonKind, string[]> = {
   take: ['/assets/ui/prompt_btn_take.png'],
   counter: ['/assets/ui/prompt_btn_counter.png'],
@@ -950,16 +934,6 @@ function isFieldCoverSelectionPrompt(): boolean {
 
 function isCocoonFieldSelectionPrompt(): boolean {
   return isFieldCoverSelectionPrompt()
-}
-
-function overlayDecisionOptionTitle(option: DockButtonOption): string {
-  const label = String(option.label || '').trim()
-  const buttonLabel = String(option.buttonLabel || '').trim()
-  if (!label) return buttonLabel
-  if (!buttonLabel || buttonLabel === label) return label
-  // 分支选项 id 常为 0/1/2，buttonLabel 可能被落成 1/2/3，标题应展示完整说明。
-  if (/^\d+$/.test(buttonLabel)) return label
-  return buttonLabel
 }
 
 function normalizeDockOption(option: RawDockOption): DockButtonOption {
@@ -1401,6 +1375,25 @@ const decisionOverlayTitle = computed(() => {
   return inlinePrimaryPromptMessage.value || '请选择'
 })
 
+const decisionOverlayOptions = computed(() => {
+  if (decisionOverlayMode.value === 'yes-no') {
+    return (prompt.value?.options || []).map((option) => ({
+      id: option.id,
+      label: option.label,
+      buttonLabel: option.button_label,
+      hint: option.hint,
+      disabled: !!inlinePrimaryButtons.value.find((btn) => btn.id === option.id)?.disabled,
+    }))
+  }
+  return inlinePrimaryButtons.value.map((option) => ({
+    id: option.id,
+    label: option.label,
+    buttonLabel: option.buttonLabel,
+    hint: option.hint,
+    disabled: !!option.disabled,
+  }))
+})
+
 const hasAnyInlineButton = computed(() => {
   if (!isVisible.value) return false
   if (prompt.value?.presentation?.kind === 'action_hub') return false
@@ -1459,6 +1452,45 @@ function shouldEnlargeResponseActionButton(option: DockButtonOption): boolean {
   return kind === 'take' || kind === 'defend'
 }
 
+const responsePromptOptions = computed<ResponsePromptOption[]>(() => {
+  if (!hasCounterOrDefend.value) return []
+  return inlinePrimaryButtons.value
+    .map((option) => {
+      const kind = promptOptionResponseKind({ id: option.id })
+      if (!kind) return null
+      return {
+        id: option.id,
+        buttonLabel: option.buttonLabel,
+        disabled: !!option.disabled,
+        kind,
+        imageSrc: dockButtonImageSrc(option),
+        imageReady: isDockButtonImageReady(option),
+        fallbackText: dockButtonFallbackText(option),
+        enlarged: shouldEnlargeResponseActionButton(option),
+      }
+    })
+    .filter((option): option is ResponsePromptOption => option !== null)
+})
+
+function onResponsePromptImageError(optionId: string) {
+  const option = inlinePrimaryButtons.value.find((candidate) => candidate.id === optionId)
+  if (!option) return
+  onDockButtonImageError(option)
+}
+
+type ExtractPromptOption = {
+  id: string
+  label: string
+}
+
+const extractPromptOptions = computed<ExtractPromptOption[]>(() => {
+  if (!isExtractPrompt.value || !prompt.value?.options?.length) return []
+  return prompt.value.options.map((option) => ({
+    id: option.id,
+    label: option.label,
+  }))
+})
+
 watch(autoResolveOptionId, (optionId) => {
   if (!optionId || !prompt.value) return
   const key = buildPromptAutoResolveKey(prompt.value)
@@ -1473,36 +1505,19 @@ watch(autoResolveOptionId, (optionId) => {
     <div v-if="hasAnyInlineButton" class="prompt-inline-root" data-testid="prompt-dialog">
       <div class="prompt-inline-surface">
         <template v-if="isExtractPrompt && prompt?.options?.length">
-          <div class="prompt-inline-grid prompt-inline-grid--2">
-            <button
-              v-for="(option, idx) in prompt.options"
-              :key="option.id"
-              class="prompt-inline-btn prompt-inline-btn--extract"
-              :class="{ 'prompt-inline-btn--selected': selectedExtractIndices.includes(idx) }"
-              @click="toggleExtractOption(idx)"
-            >
-              {{ option.label === '红宝石' ? '♦ 红宝石' : '🔷 蓝水晶' }}
-            </button>
-          </div>
-          <div class="flex justify-center mt-2">
-            <button
-              class="prompt-inline-btn prompt-inline-btn--success action-image-btn"
-              :class="{ 'prompt-inline-btn--disabled': selectedExtractIndices.length < (prompt?.min ?? 1) || selectedExtractIndices.length > (prompt?.max ?? 2) }"
-              :disabled="selectedExtractIndices.length < (prompt?.min ?? 1) || selectedExtractIndices.length > (prompt?.max ?? 2)"
-              @click="confirmExtractSelection"
-              :title="`确认提炼（${selectedExtractIndices.length}/${prompt?.max ?? 2}）`"
-              :aria-label="`确认提炼（${selectedExtractIndices.length}/${prompt?.max ?? 2}）`"
-            >
-              <img
-                v-if="isPromptConfirmImageReady()"
-                class="action-image-btn-fill"
-                :src="promptConfirmImageSrc()"
-                alt=""
-                @error="onPromptConfirmImageError"
-              />
-              <span v-else class="action-image-fallback-text">确</span>
-            </button>
-          </div>
+          <ExtractPromptRenderer
+            :visible="isExtractPrompt && extractPromptOptions.length > 0"
+            :options="extractPromptOptions"
+            :selected-indexes="selectedExtractIndices"
+            :min="prompt?.min ?? 1"
+            :max="prompt?.max ?? 2"
+            :confirm-image-src="promptConfirmImageSrc()"
+            :confirm-image-ready="isPromptConfirmImageReady()"
+            confirm-fallback-text="确"
+            @toggle="toggleExtractOption"
+            @confirm="confirmExtractSelection"
+            @confirm-image-error="onPromptConfirmImageError"
+          />
         </template>
 
         <template v-else>
@@ -1544,28 +1559,27 @@ watch(autoResolveOptionId, (optionId) => {
             </div>
           </div>
 
-          <div v-else-if="showTargetSelectionHintRow" class="prompt-inline-entry">
-            <div class="prompt-inline-hint">{{ targetSelectionPromptMessage }}</div>
-            <button
-              v-if="promptRequiresManualTargetConfirm"
-              class="prompt-inline-btn prompt-inline-btn--success action-image-btn"
-              :class="{ 'prompt-inline-btn--disabled': !canConfirmPrompt }"
-              :disabled="!canConfirmPrompt"
-              data-testid="prompt-confirm-btn"
-              title="确认"
-              aria-label="确认"
-              @click="confirmPromptAction"
-            >
-              <img
-                v-if="isPromptConfirmImageReady()"
-                class="action-image-btn-fill"
-                :src="promptConfirmImageSrc()"
-                alt=""
-                @error="onPromptConfirmImageError"
-              />
-              <span v-else class="action-image-fallback-text">确</span>
-            </button>
-          </div>
+          <TargetPickerPromptRenderer
+            v-else-if="showTargetSelectionHintRow"
+            :visible="showTargetSelectionHintRow"
+            :message="targetSelectionPromptMessage"
+            :show-confirm="promptRequiresManualTargetConfirm"
+            :can-confirm="canConfirmPrompt"
+            :confirm-image-src="promptConfirmImageSrc()"
+            :confirm-image-ready="isPromptConfirmImageReady()"
+            confirm-fallback-text="确"
+            @confirm="confirmPromptAction"
+            @confirm-image-error="onPromptConfirmImageError"
+          />
+
+          <ResponsePromptRenderer
+            v-else-if="hasCounterOrDefend && responsePromptOptions.length > 0 && !singleActivationCostConfirmOption && !showDecisionOverlay && prompt?.presentation?.kind !== 'action_hub'"
+            :visible="hasCounterOrDefend"
+            :hint="responseAttackElementHintText"
+            :options="responsePromptOptions"
+            @select="handleOptionClick"
+            @image-error="onResponsePromptImageError"
+          />
 
           <div v-else-if="inlinePrimaryButtons.length > 0 && !singleActivationCostConfirmOption && !showDecisionOverlay && prompt?.presentation?.kind !== 'action_hub'">
             <div v-if="inlinePrimaryPromptMessage" class="prompt-inline-hint">
@@ -1763,43 +1777,12 @@ watch(autoResolveOptionId, (optionId) => {
     </div>
   </Transition>
 
-  <Teleport to="body">
-    <Transition name="prompt-fraud-side-pop">
-      <div
-        v-if="isFraudElementCardPickerPrompt && fraudElementCardOptions.length > 0"
-        class="prompt-fraud-global-layer"
-        data-testid="decision-overlay"
-      >
-        <div class="prompt-fraud-global-panel">
-          <div class="prompt-fraud-dialog prompt-fraud-dialog--global">
-            <div class="prompt-fraud-title">{{ prompt?.message || '请选择本次攻击系别' }}</div>
-            <div class="prompt-fraud-grid">
-              <button
-                v-for="option in fraudElementCardOptions"
-                :key="option.id"
-                class="prompt-fraud-card"
-                :class="option.tone"
-                :title="option.title"
-                :aria-label="option.title"
-                :data-testid="`prompt-option-${option.id}`"
-                @click="handleOptionClick(option.id)"
-              >
-                <span class="prompt-fraud-card-title-banner">
-                  <span class="prompt-fraud-card-title">{{ option.title }}</span>
-                </span>
-                <span class="prompt-fraud-card-medal">
-                  <span>{{ option.glyph }}</span>
-                </span>
-                <span class="prompt-fraud-card-art">
-                  <span class="prompt-fraud-card-glyph">{{ option.glyph }}</span>
-                </span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </Transition>
-  </Teleport>
+  <FraudElementRenderer
+    :visible="isFraudElementCardPickerPrompt && fraudElementCardOptions.length > 0"
+    :title="prompt?.message || '请选择本次攻击系别'"
+    :options="fraudElementCardOptions"
+    @select="handleOptionClick"
+  />
 
   <Teleport to="body">
     <Transition name="modal">
@@ -1834,170 +1817,46 @@ watch(autoResolveOptionId, (optionId) => {
     </Transition>
   </Teleport>
 
-  <Teleport to="body">
-    <Transition name="modal">
-      <div v-if="showDecisionOverlay" class="overlay-panel-root overlay-panel-root--decision" data-testid="decision-overlay">
-        <div class="overlay-panel" @click.stop>
-          <div class="overlay-panel-header overlay-panel-header--decision">
-            <h2>{{ decisionOverlayTitle }}</h2>
-          </div>
+  <DecisionOverlayRenderer
+    :visible="showDecisionOverlay"
+    :title="decisionOverlayTitle"
+    :mode="decisionOverlayMode"
+    :options="decisionOverlayOptions"
+    :activation-hint="singleActivationCostConfirmHintText"
+    :activation-option-id="singleActivationCostConfirmOption?.id || ''"
+    :activation-disabled="!!singleActivationCostConfirmOption?.disabled"
+    :can-cancel="canCancelPrompt"
+    :cancel-label="cancelDockButton.buttonLabel || '取消'"
+    :cancel-option-id="cancelDockButton.id"
+    @select="handleOptionClick"
+    @cancel="handleOptionClick"
+  />
 
-          <div v-if="decisionOverlayMode === 'activation-cost'" class="overlay-panel-body overlay-panel-body--cost">
-            <div class="overlay-cost-card">
-              <span class="overlay-cost-text">{{ singleActivationCostConfirmHintText }}</span>
-            </div>
-            <button
-              class="overlay-confirm-btn"
-              :disabled="!!singleActivationCostConfirmOption?.disabled"
-              @click="handleOptionClick(singleActivationCostConfirmOption!.id)"
-            >
-              确认发动
-            </button>
-          </div>
+  <AllocationOverlayRenderer
+    :visible="isVisible && isSaintHealAllocatePrompt"
+    :title="prompt?.message || '请分配治疗'"
+    :rows="prompt?.options || []"
+    :values="saintHealAllocations"
+    :remaining="saintHealRemaining"
+    :total="SAINT_HEAL_TOTAL"
+    :can-submit="canSubmitSaintHeal"
+    submit-label="确认分配"
+    @change="setSaintHealAllocation"
+    @submit="submitSaintHealAllocation"
+  />
 
-          <div v-else-if="decisionOverlayMode === 'numeric'" class="overlay-panel-body overlay-panel-body--numeric">
-            <div class="overlay-numeric-grid">
-              <button
-                v-for="option in inlinePrimaryButtons"
-                :key="option.id"
-                class="overlay-numeric-tile"
-                :data-testid="`numeric-option-${option.buttonLabel}`"
-                :disabled="!!option.disabled"
-                @click="handleOptionClick(option.id)"
-              >
-                <span class="overlay-numeric-value">{{ option.buttonLabel }}</span>
-              </button>
-            </div>
-          </div>
-
-          <div v-else-if="decisionOverlayMode === 'yes-no'" class="overlay-panel-body overlay-panel-body--yesno">
-            <div class="overlay-yesno-row">
-              <button
-                v-for="option in prompt?.options || []"
-                :key="option.id"
-                class="overlay-yesno-btn"
-                :class="option.id === '0' || option.id === 'yes' ? 'overlay-yesno-btn--yes' : 'overlay-yesno-btn--no'"
-                :data-testid="`prompt-option-${option.id}`"
-                :disabled="!!inlinePrimaryButtons.find(b => b.id === option.id)?.disabled"
-                @click="handleOptionClick(option.id)"
-              >
-                {{ String(option.label || '').trim() }}
-              </button>
-            </div>
-          </div>
-
-          <div v-else class="overlay-panel-body overlay-panel-body--text">
-            <button
-              v-for="(option, idx) in inlinePrimaryButtons"
-              :key="option.id"
-              class="overlay-panel-item overlay-panel-item--text"
-              :data-testid="`branch-option-${idx}`"
-              :disabled="!!option.disabled"
-              @click="handleOptionClick(option.id)"
-            >
-              <div class="overlay-panel-item-title" :data-testid="`prompt-option-${option.id}`">{{ overlayDecisionOptionTitle(option) }}</div>
-              <div
-                v-if="option.hint && option.hint !== overlayDecisionOptionTitle(option)"
-                class="overlay-panel-item-desc"
-              >{{ option.hint }}</div>
-            </button>
-          </div>
-
-          <div v-if="canCancelPrompt && decisionOverlayMode !== 'yes-no'" class="overlay-panel-footer">
-            <button class="overlay-panel-cancel" data-testid="prompt-cancel-btn" @click="handleOptionClick(cancelDockButton.id)">
-              {{ cancelDockButton.buttonLabel || '取消' }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </Transition>
-  </Teleport>
-
-  <Teleport to="body">
-    <Transition name="modal">
-      <div v-if="isVisible && isSaintHealAllocatePrompt" class="overlay-panel-root overlay-panel-root--decision">
-        <div class="overlay-panel" @click.stop>
-          <div class="overlay-panel-header overlay-panel-header--decision">
-            <h2>{{ prompt?.message || '请分配治疗' }}</h2>
-          </div>
-          <div class="overlay-panel-body overlay-saint-heal">
-            <div class="overlay-saint-heal-summary">
-              剩余可分配：{{ saintHealRemaining }} / {{ SAINT_HEAL_TOTAL }}
-            </div>
-            <div
-              v-for="(option, index) in prompt?.options || []"
-              :key="option.id"
-              class="overlay-saint-heal-row"
-            >
-              <div class="overlay-saint-heal-row-label">{{ option.label }}</div>
-              <div class="overlay-saint-heal-row-grid">
-                <button
-                  v-for="n in [0, 1, 2, 3]"
-                  :key="n"
-                  class="overlay-numeric-tile overlay-saint-heal-tile"
-                  :class="{ 'overlay-saint-heal-tile--active': (saintHealAllocations[index] || 0) === n }"
-                  :disabled="n > (saintHealAllocations[index] || 0) + saintHealRemaining"
-                  @click="setSaintHealAllocation(index, n)"
-                >
-                  <span class="overlay-numeric-value">{{ n }}</span>
-                </button>
-              </div>
-            </div>
-            <button
-              class="overlay-confirm-btn"
-              :disabled="!canSubmitSaintHeal"
-              @click="submitSaintHealAllocation"
-            >
-              确认分配
-            </button>
-          </div>
-        </div>
-      </div>
-    </Transition>
-  </Teleport>
-
-  <Teleport to="body">
-    <Transition name="modal">
-      <div v-if="isVisible && isRuneReforgeAllocatePrompt" class="overlay-panel-root overlay-panel-root--decision">
-        <div class="overlay-panel" @click.stop>
-          <div class="overlay-panel-header overlay-panel-header--decision">
-            <h2>{{ prompt?.message || '请分配战纹/魔纹' }}</h2>
-          </div>
-          <div class="overlay-panel-body overlay-saint-heal">
-            <div class="overlay-saint-heal-summary">
-              剩余可分配：{{ runeReforgeRemaining }} / {{ RUNE_REFORGE_TOTAL }}
-            </div>
-            <div
-              v-for="(option, index) in prompt?.options || []"
-              :key="option.id"
-              class="overlay-saint-heal-row"
-            >
-              <div class="overlay-saint-heal-row-label">{{ option.label }}</div>
-              <div class="overlay-saint-heal-row-grid">
-                <button
-                  v-for="n in [0, 1, 2, 3]"
-                  :key="n"
-                  class="overlay-numeric-tile overlay-saint-heal-tile"
-                  :class="{ 'overlay-saint-heal-tile--active': (runeReforgeAllocations[index] || 0) === n }"
-                  :disabled="n > (runeReforgeAllocations[index] || 0) + runeReforgeRemaining"
-                  @click="setRuneReforgeAllocation(index, n)"
-                >
-                  <span class="overlay-numeric-value">{{ n }}</span>
-                </button>
-              </div>
-            </div>
-            <button
-              class="overlay-confirm-btn"
-              :disabled="!canSubmitRuneReforge"
-              @click="submitRuneReforgeAllocation"
-            >
-              确认分配
-            </button>
-          </div>
-        </div>
-      </div>
-    </Transition>
-  </Teleport>
+  <AllocationOverlayRenderer
+    :visible="isVisible && isRuneReforgeAllocatePrompt"
+    :title="prompt?.message || '请分配战纹/魔纹'"
+    :rows="prompt?.options || []"
+    :values="runeReforgeAllocations"
+    :remaining="runeReforgeRemaining"
+    :total="RUNE_REFORGE_TOTAL"
+    :can-submit="canSubmitRuneReforge"
+    submit-label="确认分配"
+    @change="setRuneReforgeAllocation"
+    @submit="submitRuneReforgeAllocation"
+  />
 </template>
 
 <style scoped>
@@ -2079,262 +1938,6 @@ watch(autoResolveOptionId, (optionId) => {
   filter: brightness(1.08);
 }
 
-.prompt-fraud-global-layer {
-  position: fixed;
-  inset: 0;
-  z-index: 60;
-  pointer-events: auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(7, 14, 24, 0.38);
-  backdrop-filter: blur(7px) saturate(0.98);
-  -webkit-backdrop-filter: blur(7px) saturate(0.98);
-  padding:
-    max(16px, calc(var(--safe-top, 0px) + 8px))
-    max(16px, calc(var(--safe-right, 0px) + 8px))
-    max(16px, calc(var(--safe-bottom, 0px) + 8px))
-    max(16px, calc(var(--safe-left, 0px) + 8px));
-}
-
-.prompt-fraud-global-panel {
-  pointer-events: auto;
-  width: min(860px, calc(100vw - 40px));
-  max-height: calc(100vh - 40px);
-  overflow: auto;
-  border-radius: 14px;
-  border: 1px solid rgba(146, 183, 207, 0.42);
-  background:
-    linear-gradient(180deg, rgba(9, 20, 34, 0.96), rgba(6, 14, 24, 0.97));
-  box-shadow:
-    0 18px 34px rgba(2, 8, 18, 0.52),
-    inset 0 1px 0 rgba(236, 246, 254, 0.12);
-  padding: 10px;
-}
-
-.prompt-fraud-dialog {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 4px 2px 2px;
-}
-
-.prompt-fraud-dialog--global {
-  padding: 4px;
-}
-
-.prompt-fraud-title {
-  font-size: 13px;
-  line-height: 1.4;
-  color: rgba(225, 238, 249, 0.96);
-  text-align: center;
-  letter-spacing: 0.01em;
-}
-
-.prompt-fraud-grid {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.prompt-fraud-card {
-  --fraud-edge-color: rgba(185, 152, 102, 0.78);
-  --fraud-edge-glow: rgba(232, 191, 121, 0.38);
-  --fraud-base-top: #2f2520;
-  --fraud-base-bottom: #17120f;
-  --fraud-ribbon-start: #8c5a2f;
-  --fraud-ribbon-end: #60401f;
-  --fraud-medal-bg: radial-gradient(circle at 32% 28%, #f1d79b, #c6924f 58%, #784d1d);
-  --fraud-medal-fg: #fff7ea;
-  --fraud-art-top: rgba(214, 174, 116, 0.3);
-  --fraud-art-bottom: rgba(71, 45, 24, 0.82);
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  justify-content: flex-start;
-  position: relative;
-  min-height: 136px;
-  border-radius: 10px;
-  border: 2px solid var(--fraud-edge-color);
-  background: linear-gradient(180deg, var(--fraud-base-top), var(--fraud-base-bottom));
-  color: rgba(245, 250, 255, 0.97);
-  box-shadow:
-    0 8px 16px rgba(0, 0, 0, 0.55),
-    0 0 12px var(--fraud-edge-glow),
-    inset 0 0 0 1px rgba(255, 244, 214, 0.24),
-    inset 0 0 10px rgba(255, 255, 255, 0.08);
-  transition: transform 0.16s ease, filter 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
-  overflow: hidden;
-  text-align: center;
-}
-
-.prompt-fraud-card:hover:not(:disabled) {
-  transform: translateY(-2px);
-  border-color: rgba(255, 228, 170, 0.96);
-  box-shadow:
-    0 12px 22px rgba(0, 0, 0, 0.62),
-    0 0 16px rgba(255, 214, 138, 0.44),
-    inset 0 0 0 1px rgba(255, 247, 229, 0.38);
-}
-
-.prompt-fraud-card-title-banner {
-  position: absolute;
-  top: 6px;
-  left: 16px;
-  right: 16px;
-  height: 20px;
-  border-radius: 4px;
-  border: 1px solid rgba(202, 184, 148, 0.88);
-  background: linear-gradient(180deg, rgba(251, 249, 243, 0.96), rgba(222, 214, 197, 0.94));
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 4;
-}
-
-.prompt-fraud-card-title {
-  color: rgba(46, 34, 22, 0.94);
-  font-size: 11px;
-  font-weight: 820;
-  letter-spacing: 0.04em;
-  line-height: 1;
-}
-
-.prompt-fraud-card-medal {
-  position: absolute;
-  top: 2px;
-  left: 3px;
-  width: 28px;
-  height: 28px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.7);
-  background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.95), rgba(201, 191, 176, 0.8) 42%, rgba(61, 53, 47, 0.88));
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 8;
-  box-shadow:
-    0 2px 6px rgba(0, 0, 0, 0.55),
-    0 0 8px rgba(255, 244, 189, 0.44);
-}
-
-.prompt-fraud-card-medal > span {
-  width: 72%;
-  height: 72%;
-  border-radius: 999px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--fraud-medal-bg);
-  color: var(--fraud-medal-fg);
-  font-size: 13px;
-  font-weight: 900;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
-}
-
-.prompt-fraud-card-art {
-  margin: 30px 7px 8px;
-  height: 88px;
-  border-radius: 4px;
-  border: 1px solid rgba(175, 161, 132, 0.8);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background:
-    radial-gradient(100% 120% at 50% 0%, var(--fraud-art-top), transparent 56%),
-    linear-gradient(180deg, rgba(255, 250, 235, 0.12), var(--fraud-art-bottom));
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 236, 196, 0.3),
-    inset 0 0 16px rgba(0, 0, 0, 0.38);
-}
-
-.prompt-fraud-card-glyph {
-  font-size: 38px;
-  font-weight: 900;
-  line-height: 1;
-  color: rgba(247, 253, 255, 0.96);
-  text-shadow:
-    0 0 10px rgba(255, 255, 255, 0.24),
-    0 2px 5px rgba(0, 0, 0, 0.6);
-}
-
-.prompt-fraud-card--water {
-  --fraud-edge-color: rgba(102, 152, 196, 0.78);
-  --fraud-edge-glow: rgba(124, 196, 255, 0.38);
-  --fraud-base-top: #1a2a3e;
-  --fraud-base-bottom: #0f1826;
-  --fraud-ribbon-start: #25689f;
-  --fraud-ribbon-end: #1b446c;
-  --fraud-medal-bg: radial-gradient(circle at 32% 28%, #ccf3ff, #4ea1d6 58%, #195580);
-  --fraud-medal-fg: #effbff;
-  --fraud-art-top: rgba(138, 206, 255, 0.4);
-  --fraud-art-bottom: rgba(18, 48, 78, 0.84);
-}
-
-.prompt-fraud-card--fire {
-  --fraud-edge-color: rgba(205, 123, 82, 0.78);
-  --fraud-edge-glow: rgba(255, 140, 98, 0.4);
-  --fraud-base-top: #3c1f18;
-  --fraud-base-bottom: #1c120f;
-  --fraud-ribbon-start: #c6352f;
-  --fraud-ribbon-end: #8e1b17;
-  --fraud-medal-bg: radial-gradient(circle at 32% 28%, #ffca7f, #f36d33 58%, #9b2e1a);
-  --fraud-medal-fg: #fff8eb;
-  --fraud-art-top: rgba(255, 176, 126, 0.42);
-  --fraud-art-bottom: rgba(88, 30, 20, 0.84);
-}
-
-.prompt-fraud-card--earth {
-  --fraud-edge-color: rgba(174, 138, 93, 0.8);
-  --fraud-edge-glow: rgba(225, 186, 113, 0.34);
-  --fraud-base-top: #32261a;
-  --fraud-base-bottom: #1a1410;
-  --fraud-ribbon-start: #8a5d2f;
-  --fraud-ribbon-end: #60401f;
-  --fraud-medal-bg: radial-gradient(circle at 32% 28%, #f1d79b, #c6924f 58%, #784d1d);
-  --fraud-medal-fg: #fff6e4;
-  --fraud-art-top: rgba(236, 199, 128, 0.36);
-  --fraud-art-bottom: rgba(85, 57, 22, 0.84);
-}
-
-.prompt-fraud-card--wind {
-  --fraud-edge-color: rgba(96, 169, 145, 0.78);
-  --fraud-edge-glow: rgba(116, 223, 181, 0.34);
-  --fraud-base-top: #183329;
-  --fraud-base-bottom: #101f1b;
-  --fraud-ribbon-start: #237258;
-  --fraud-ribbon-end: #194e3d;
-  --fraud-medal-bg: radial-gradient(circle at 32% 28%, #c8f9e6, #55b68d 58%, #216f54);
-  --fraud-medal-fg: #edfff6;
-  --fraud-art-top: rgba(145, 241, 205, 0.36);
-  --fraud-art-bottom: rgba(25, 73, 56, 0.84);
-}
-
-.prompt-fraud-card--thunder {
-  --fraud-edge-color: rgba(140, 124, 200, 0.8);
-  --fraud-edge-glow: rgba(183, 148, 255, 0.36);
-  --fraud-base-top: #24213d;
-  --fraud-base-bottom: #171427;
-  --fraud-ribbon-start: #5f4a99;
-  --fraud-ribbon-end: #40306f;
-  --fraud-medal-bg: radial-gradient(circle at 32% 28%, #efe2ff, #9c79dc 58%, #4e3385);
-  --fraud-medal-fg: #faf3ff;
-  --fraud-art-top: rgba(208, 180, 255, 0.38);
-  --fraud-art-bottom: rgba(54, 36, 89, 0.84);
-}
-
-.prompt-fraud-card--generic {
-  --fraud-edge-color: rgba(170, 190, 216, 0.56);
-  --fraud-edge-glow: rgba(166, 193, 227, 0.34);
-  --fraud-base-top: #223044;
-  --fraud-base-bottom: #121c29;
-  --fraud-ribbon-start: #44648a;
-  --fraud-ribbon-end: #2d4159;
-  --fraud-medal-bg: radial-gradient(circle at 32% 28%, #dfe9f7, #8ba5cc 58%, #4d6283);
-  --fraud-medal-fg: #f2f7ff;
-  --fraud-art-top: rgba(170, 200, 235, 0.34);
-  --fraud-art-bottom: rgba(35, 51, 72, 0.84);
-}
 
 .prompt-inline-entry {
   display: flex;
@@ -2583,11 +2186,6 @@ watch(autoResolveOptionId, (optionId) => {
   background-image: url('/assets/ui/action_cancel_btn.png');
 }
 
-.prompt-inline-btn--extract {
-  border-color: rgba(183, 154, 105, 0.56);
-  background: linear-gradient(180deg, rgba(91, 69, 38, 0.9), rgba(68, 50, 28, 0.92));
-}
-
 .prompt-inline-btn--selected {
   box-shadow:
     0 0 0 2px rgba(241, 211, 150, 0.74),
@@ -2610,17 +2208,6 @@ watch(autoResolveOptionId, (optionId) => {
 .prompt-inline-pop-leave-to {
   opacity: 0;
   transform: translateY(10px) scale(0.98);
-}
-
-.prompt-fraud-side-pop-enter-active,
-.prompt-fraud-side-pop-leave-active {
-  transition: opacity 0.2s ease, transform 0.2s ease;
-}
-
-.prompt-fraud-side-pop-enter-from,
-.prompt-fraud-side-pop-leave-to {
-  opacity: 0;
-  transform: translateX(18px) scale(0.98);
 }
 
 @media (max-width: 900px) {
@@ -2680,18 +2267,6 @@ watch(autoResolveOptionId, (optionId) => {
     font-size: 12px;
   }
 
-  .prompt-fraud-global-panel {
-    width: min(760px, calc(100vw - 28px));
-    max-height: calc(100vh - 28px);
-  }
-
-  .prompt-fraud-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .prompt-fraud-card {
-    min-height: 126px;
-  }
 }
 
 @media (max-width: 560px) {
@@ -2717,22 +2292,6 @@ watch(autoResolveOptionId, (optionId) => {
     text-align: center;
   }
 
-  .prompt-fraud-global-layer {
-    justify-content: center;
-    align-items: center;
-    padding:
-      max(10px, calc(var(--safe-top, 0px) + 4px))
-      max(8px, calc(var(--safe-right, 0px) + 4px))
-      max(10px, calc(var(--safe-bottom, 0px) + 4px))
-      max(8px, calc(var(--safe-left, 0px) + 4px));
-  }
-
-  .prompt-fraud-global-panel {
-    width: min(100%, 620px);
-    border-radius: 12px;
-    padding: 8px;
-  }
-
   .prompt-inline-btn.action-image-btn {
     width: 72px;
     height: 72px;
@@ -2747,17 +2306,6 @@ watch(autoResolveOptionId, (optionId) => {
     max-width: 84px;
   }
 
-  .prompt-fraud-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .prompt-fraud-card {
-    min-height: 120px;
-  }
-
-  .prompt-fraud-card-glyph {
-    font-size: 32px;
-  }
 }
 
 /* ── Overlay Panel (shared: skill-branch & decision) ── */
@@ -3091,43 +2639,6 @@ watch(autoResolveOptionId, (optionId) => {
   cursor: not-allowed;
 }
 
-.overlay-saint-heal {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  padding: 18px 24px 20px;
-}
-.overlay-saint-heal-summary {
-  text-align: center;
-  font-size: 0.9rem;
-  color: rgba(255, 217, 138, 0.92);
-}
-.overlay-saint-heal-row {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 10px 12px;
-  border-radius: 10px;
-  background: rgba(10, 22, 38, 0.55);
-  border: 1px solid rgba(118, 153, 173, 0.22);
-}
-.overlay-saint-heal-row-label {
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: #ffd98a;
-}
-.overlay-saint-heal-row-grid {
-  display: flex;
-  gap: 8px;
-}
-.overlay-saint-heal-tile {
-  flex: 1;
-}
-.overlay-saint-heal-tile--active {
-  border-color: rgba(255, 210, 120, 0.85);
-  background: linear-gradient(180deg, rgba(140, 100, 35, 0.7), rgba(90, 65, 20, 0.85));
-  color: #ffe9b8;
-}
 </style>
 
 <style>

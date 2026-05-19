@@ -103,8 +103,9 @@ func buildPromptOptionsForPlayerIDs(players map[string]*model.Player, targetIDs 
 			label = p.ID
 		}
 		options = append(options, model.PromptOption{
-			ID:    p.ID,
-			Label: label,
+			ID:       p.ID,
+			Label:    label,
+			TargetID: p.ID,
 		})
 	}
 	return options

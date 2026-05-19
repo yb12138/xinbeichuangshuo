@@ -310,7 +310,7 @@ func BuildTargetChoicePrompt(rt ChoiceRuntime, choiceType, playerID string, mess
 	options := make([]model.PromptOption, 0, len(targetIDs)+1)
 	for _, targetID := range targetIDs {
 		if target := rt.GetPlayers()[targetID]; target != nil {
-			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", len(options)), Label: target.Name})
+			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", len(options)), Label: target.Name, TargetID: targetID})
 		}
 	}
 	if allowCancel {

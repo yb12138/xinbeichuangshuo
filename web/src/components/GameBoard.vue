@@ -37,7 +37,6 @@ const {
   targetablePlayers,
   targetablePlayersForSkill,
   canTargetOpponent,
-  getRoleDisplayName,
   cardMatchesExclusive,
 } = useBattleInteractionState()
 
@@ -798,6 +797,7 @@ function confirmCocoonSelection() {
 const promptNeedsTargetGuide = computed(() => {
   const p = promptGuideContext.value
   if (!p) return false
+  if (p.presentation?.kind === 'target_picker') return true
   if (p.type === 'choose_target') return true
   if ((p.counter_target_ids?.length ?? 0) > 0) return true
   return Object.keys(players.value).some((playerId) => promptOptionIndexForPlayer(playerId) >= 0)
@@ -813,31 +813,6 @@ const targetGuideHintText = computed(() => {
   return '点击角色选择目标'
 })
 
-function playerPromptMarkers(playerId: string): string[] {
-  const p = players.value[playerId]
-  if (!p) return []
-  const markers = new Set<string>()
-  if (p.id) markers.add(p.id)
-  if (p.name) markers.add(p.name)
-  if (p.role) {
-    markers.add(p.role)
-    const roleName = getRoleDisplayName(p.role)
-    if (roleName && roleName !== '未知角色') {
-      markers.add(roleName)
-    }
-  }
-  return [...markers]
-}
-
-function labelMatchesMarkers(label: string, markers: string[]): boolean {
-  if (!label || markers.length === 0) return false
-  const low = label.toLowerCase()
-  return markers.some((marker) => {
-    const token = marker.trim().toLowerCase()
-    return !!token && low.includes(token)
-  })
-}
-
 function promptOptionIndexForPlayer(playerId: string, debugTrace: boolean = false): number {
   const p = currentPrompt.value
   if (!p || !isPromptForMe.value || !Array.isArray(p.options)) {
@@ -846,47 +821,17 @@ function promptOptionIndexForPlayer(playerId: string, debugTrace: boolean = fals
     }
     return -1
   }
-  const directIdx = p.options.findIndex((o: any) => o?.id === playerId)
+  const directIdx = p.options.findIndex((o: any) => String(o?.target_id || '').trim() === playerId)
   if (directIdx >= 0) {
     if (debugTrace) {
-      logTargetDebug('prompt_option_resolve_by_id', { playerId, optionIdx: directIdx })
+      logTargetDebug('prompt_option_resolve_by_target_id', { playerId, optionIdx: directIdx })
     }
     return directIdx
   }
-
-  const markers = playerPromptMarkers(playerId)
-  if (markers.length === 0) {
-    if (debugTrace) {
-      logTargetDebug('prompt_option_resolve_no_player_markers', { playerId })
-    }
-    return -1
-  }
-
-  const allMarkerMap = Object.fromEntries(
-    Object.keys(players.value).map((id) => [id, playerPromptMarkers(id)])
-  ) as Record<string, string[]>
-
-  let matchedIdx = -1
-  for (let i = 0; i < p.options.length; i++) {
-    const option = p.options[i] as any
-    const label = String(option?.label || '')
-    if (!labelMatchesMarkers(label, markers)) continue
-    const hitOtherMarker = Object.entries(allMarkerMap).some(([otherId, otherMarkers]) =>
-      otherId !== playerId && labelMatchesMarkers(label, otherMarkers)
-    )
-    if (hitOtherMarker) continue
-    if (matchedIdx !== -1) {
-      if (debugTrace) {
-        logTargetDebug('prompt_option_resolve_ambiguous', { playerId, prevIdx: matchedIdx, nextIdx: i })
-      }
-      return -1
-    }
-    matchedIdx = i
-  }
   if (debugTrace) {
-    logTargetDebug('prompt_option_resolve_by_label', { playerId, optionIdx: matchedIdx })
+    logTargetDebug('prompt_option_resolve_missing_target_id', { playerId })
   }
-  return matchedIdx
+  return -1
 }
 
 function promptRequiresManualTargetConfirm(prompt: Prompt | null): boolean {

@@ -111,3 +111,25 @@ func TestToPromptDTOPreservesCardIDOnCardOptions(t *testing.T) {
 		t.Fatalf("expected card_id to be preserved, got %q", got)
 	}
 }
+
+func TestToPromptDTOPreservesTargetIDOnTargetOptions(t *testing.T) {
+	prompt := &model.Prompt{
+		Type:     model.PromptConfirm,
+		PlayerID: "p1",
+		Message:  "请选择目标",
+		Options: []model.PromptOption{
+			{ID: "0", Label: "任意展示文案", TargetID: "p3"},
+		},
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationTargetPicker, TargetFilter: "custom"},
+	}
+
+	dto := ToPromptDTO(prompt)
+	if dto.Presentation == nil || dto.Presentation.Kind != model.PresentationTargetPicker || dto.Presentation.TargetFilter != "custom" {
+		t.Fatalf("expected custom target_picker presentation, got %+v", dto.Presentation)
+	}
+	if got := dto.Options[0].TargetID; got != "p3" {
+		t.Fatalf("expected target_id to be preserved, got %q", got)
+	}
+}

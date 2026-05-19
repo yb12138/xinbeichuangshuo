@@ -209,7 +209,7 @@ func buildReverseTargetPrompt(rt engineplayer.ChoiceRuntime, playerID string, da
 	var options []model.PromptOption
 	for _, tid := range targetIDs {
 		if p := rt.GetPlayers()[tid]; p != nil {
-			options = append(options, model.PromptOption{ID: tid, Label: p.Name})
+			options = append(options, model.PromptOption{ID: tid, Label: p.Name, TargetID: tid})
 		}
 	}
 	return &model.Prompt{
@@ -383,7 +383,7 @@ func buildWitherTargetPrompt(rt engineplayer.ChoiceRuntime, playerID string, dat
 	var options []model.PromptOption
 	for _, tid := range targetIDs {
 		if p := rt.GetPlayers()[tid]; p != nil {
-			options = append(options, model.PromptOption{ID: tid, Label: p.Name})
+			options = append(options, model.PromptOption{ID: tid, Label: p.Name, TargetID: tid})
 		}
 	}
 	return &model.Prompt{

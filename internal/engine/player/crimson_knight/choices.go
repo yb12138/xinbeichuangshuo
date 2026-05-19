@@ -69,7 +69,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 				continue
 			}
 			if target := rt.GetPlayers()[allyID]; target != nil {
-				options = append(options, model.PromptOption{ID: allyID, Label: target.Name})
+				options = append(options, model.PromptOption{ID: allyID, Label: target.Name, TargetID: allyID})
 			}
 		}
 		pickIndex := len(selectedIDs) + 1

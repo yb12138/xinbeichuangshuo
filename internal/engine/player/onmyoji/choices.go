@@ -39,13 +39,13 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			})
 		}
 		return &model.Prompt{
-			Type:          model.PromptConfirm,
-			PlayerID:      playerID,
-			Message:       fmt.Sprintf("【生命结界】当前鬼火=%d，请选择发动分支：", ghostFire),
-			Options:       options,
-			Min:           1,
-			Max:           1,
-			Presentation:  &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
+			Type:         model.PromptConfirm,
+			PlayerID:     playerID,
+			Message:      fmt.Sprintf("【生命结界】当前鬼火=%d，请选择发动分支：", ghostFire),
+			Options:      options,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 		}
 
 	case "onmyoji_life_barrier_release_combo":
@@ -541,8 +541,9 @@ func buildPromptOptionsForPlayerIDs(rt engineplayer.ChoiceRuntime, targetIDs []s
 	for _, targetID := range targetIDs {
 		if player := rt.GetPlayers()[targetID]; player != nil {
 			options = append(options, model.PromptOption{
-				ID:    targetID,
-				Label: player.Name,
+				ID:       targetID,
+				Label:    player.Name,
+				TargetID: targetID,
 			})
 		}
 	}

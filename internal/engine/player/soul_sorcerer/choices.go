@@ -64,7 +64,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		var options []model.PromptOption
 		for _, aid := range allyIDs {
 			if p := rt.GetPlayers()[aid]; p != nil {
-				options = append(options, model.PromptOption{ID: aid, Label: p.Name})
+				options = append(options, model.PromptOption{ID: aid, Label: p.Name, TargetID: aid})
 			}
 		}
 		return &model.Prompt{

@@ -173,6 +173,7 @@ export interface PromptOptionDTO {
   button_label: string
   hint?: string
   card_id?: string
+  target_id?: string
   field_index?: number
   element?: string
 }

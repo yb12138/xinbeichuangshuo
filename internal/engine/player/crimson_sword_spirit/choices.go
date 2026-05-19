@@ -24,7 +24,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		prompt := engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, "【血染蔷薇】请选择获得治疗的队友：", data, false)
 		if prompt != nil {
 			prompt.EffectHints = []string{"仅可选择我方角色"}
-			prompt.Presentation = &model.PromptPresentation{Kind: model.PresentationTargetPicker}
+			prompt.Presentation = &model.PromptPresentation{Kind: model.PresentationTargetPicker, TargetFilter: "custom"}
 		}
 		return prompt
 	case "css_dance_mode":

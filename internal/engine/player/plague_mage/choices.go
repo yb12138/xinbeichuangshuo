@@ -44,7 +44,6 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			Options:      options,
 			Min:          1,
 			Max:          1,
-			Cancelable:   true,
 			Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, Layout: "inline", CardSource: "hand", CardFilter: "plague_death_touch_element", CancelPolicy: "abort"},
 		}
 	case "plague_death_touch_x":

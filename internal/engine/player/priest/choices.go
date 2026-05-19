@@ -23,7 +23,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		options := make([]model.PromptOption, 0, len(allyIDs))
 		for _, allyID := range allyIDs {
 			if target := rt.GetPlayers()[allyID]; target != nil {
-				options = append(options, model.PromptOption{ID: allyID, Label: target.Name})
+				options = append(options, model.PromptOption{ID: allyID, Label: target.Name, TargetID: allyID})
 			}
 		}
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【神圣契约】请选择1名队友：", Options: options, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationTargetPicker, TargetFilter: "custom"}}
@@ -243,5 +243,3 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 
 	return false, nil
 }
-
-
