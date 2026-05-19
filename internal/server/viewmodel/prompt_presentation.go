@@ -1,6 +1,7 @@
 package viewmodel
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -11,120 +12,36 @@ func presentationForPrompt(p *model.Prompt) *model.PromptPresentation {
 	if p == nil {
 		return nil
 	}
-	presentation := model.PromptPresentation{}
-	if p.Presentation != nil {
-		presentation = *p.Presentation
+	if p.Presentation == nil {
+		panic(fmt.Sprintf("prompt %q for player %q is missing presentation", p.ChoiceType, p.PlayerID))
 	}
+	presentation := *p.Presentation
 	if presentation.Kind == "" {
-		presentation.Kind = inferPresentationKind(p)
-	}
-	if presentation.Layout == "" {
-		presentation.Layout = inferPresentationLayout(p, presentation.Kind)
+		panic(fmt.Sprintf("prompt %q for player %q has empty presentation.kind", p.ChoiceType, p.PlayerID))
 	}
 	if presentation.Kind == model.PresentationCardPicker && presentation.CardSource == "" {
-		presentation.CardSource = inferCardSource(p)
+		panic(fmt.Sprintf("card_picker prompt %q for player %q is missing presentation.card_source", p.ChoiceType, p.PlayerID))
 	}
 	if presentation.Kind == model.PresentationTargetPicker && presentation.TargetFilter == "" {
-		presentation.TargetFilter = "custom"
+		panic(fmt.Sprintf("target_picker prompt %q for player %q is missing presentation.target_filter", p.ChoiceType, p.PlayerID))
 	}
-	if presentation.CancelPolicy == "" {
-		presentation.CancelPolicy = inferCancelPolicy(p)
-	}
-	if declineIndex := promptDeclineIndex(p); declineIndex >= 0 {
-		presentation.HasDecline = true
-		presentation.DeclineIndex = declineIndex
+	if presentation.CancelPolicy != "" && presentation.CancelLabel == "" {
+		presentation.CancelLabel = cancelLabelForPolicy(presentation.CancelPolicy)
 	}
 	return &presentation
 }
 
-func inferPresentationKind(p *model.Prompt) model.PresentationKind {
-	if p.UIMode == model.PromptUIModeActionHub {
-		return model.PresentationActionHub
-	}
-	switch p.Type {
-	case model.PromptChooseSkill:
-		return model.PresentationSkillChoice
-	case model.PromptChooseExtract:
-		return model.PresentationBranchSelect
-	case model.PromptChooseCards:
-		return model.PresentationCardPicker
-	case model.PromptConfirm:
-		if promptHasResponseOptions(p) {
-			return model.PresentationResponse
-		}
-		return model.PresentationBranchSelect
-	default:
-		return model.PresentationBranchSelect
-	}
-}
-
-func inferPresentationLayout(p *model.Prompt, kind model.PresentationKind) string {
-	switch kind {
-	case model.PresentationResponse:
-		return "inline"
-	case model.PresentationSkillChoice, model.PresentationBranchSelect, model.PresentationNumeric:
-		return "overlay"
-	case model.PresentationCardPicker:
-		if inferCardSource(p) == "field" {
-			return "field_cover"
-		}
-		return "inline"
+func cancelLabelForPolicy(policy string) string {
+	switch policy {
+	case "back":
+		return "返回"
+	case "decline":
+		return "不发动"
+	case "abort":
+		return "取消"
 	default:
 		return ""
 	}
-}
-
-func inferCardSource(p *model.Prompt) string {
-	for _, option := range p.Options {
-		if option.FieldIndex != nil {
-			return "field"
-		}
-	}
-	return "hand"
-}
-
-func inferCancelPolicy(p *model.Prompt) string {
-	if p == nil {
-		return "deny"
-	}
-	if promptDeclineIndex(p) >= 0 {
-		return "decline"
-	}
-	if p.Cancelable {
-		return "abort"
-	}
-	return "deny"
-}
-
-func promptHasResponseOptions(p *model.Prompt) bool {
-	if p == nil {
-		return false
-	}
-	for _, option := range p.Options {
-		switch strings.ToLower(strings.TrimSpace(option.ID)) {
-		case "take", "take_damage", "defend", "counter":
-			return true
-		}
-	}
-	return false
-}
-
-func promptDeclineIndex(p *model.Prompt) int {
-	if p == nil {
-		return -1
-	}
-	for index, option := range p.Options {
-		switch strings.ToLower(strings.TrimSpace(option.ID)) {
-		case "-1", "skip", "cancel", "refuse", "decline", "pass", "cannot_act":
-			return index
-		}
-	}
-	if p.Presentation != nil && p.Presentation.HasDecline {
-		if p.Presentation.DeclineIndex >= 0 && p.Presentation.DeclineIndex < len(p.Options) {
-			return p.Presentation.DeclineIndex
-		}
-	}
-	return -1
 }
 
 func promptOptionButtonLabel(p *model.Prompt, presentation *model.PromptPresentation, option model.PromptOption, optionIndex int) string {
@@ -139,19 +56,15 @@ func promptOptionButtonLabel(p *model.Prompt, presentation *model.PromptPresenta
 		return "防御"
 	case "counter":
 		return "应战"
-	case "skip":
-		return "跳过"
-	case "cancel", "refuse", "decline", "pass":
-		return "取消"
 	case "cannot_act":
 		return "无法行动"
-	case "-1":
-		if presentation != nil && presentation.CancelPolicy == "decline" {
-			return "不发动"
-		}
-		return "取消"
 	}
 	if presentation != nil {
+		if presentation.HasDecline && optionIndex == presentation.DeclineIndex {
+			if label := strings.TrimSpace(presentation.CancelLabel); label != "" {
+				return label
+			}
+		}
 		switch presentation.Kind {
 		case model.PresentationNumeric:
 			if n, ok := parseNonNegativePromptOptionID(option.ID); ok {
@@ -161,25 +74,16 @@ func promptOptionButtonLabel(p *model.Prompt, presentation *model.PromptPresenta
 				return strconv.Itoa(n + presentation.NumericBase)
 			}
 		case model.PresentationSkillChoice:
-			return "发动"
-		case model.PresentationBranchSelect:
-			if presentation.HasDecline && optionIndex == presentation.DeclineIndex {
-				if presentation.CancelPolicy == "decline" {
-					return "不发动"
-				}
-				return "取消"
-			}
-			if label := strings.TrimSpace(option.Label); label != "" {
-				return label
-			}
-		case model.PresentationCardPicker:
-			if presentation.CardSource == "field" {
-				if label := strings.TrimSpace(option.Label); label != "" {
+			if id == "skip" || id == "cancel" || id == "decline" || id == "pass" || id == "-1" {
+				if label := strings.TrimSpace(presentation.CancelLabel); label != "" {
 					return label
 				}
+			}
+			return "发动"
+		case model.PresentationCardPicker:
+			if presentation.CardSource == "hand" || presentation.CardSource == "proxy" {
 				return "选择"
 			}
-			return "选择"
 		}
 	}
 	if label := strings.TrimSpace(option.Label); label != "" {

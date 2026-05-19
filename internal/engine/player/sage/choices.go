@@ -539,9 +539,9 @@ func resolveHolyCodexTargets(rt engineplayer.ChoiceRuntime, ctxData map[string]i
 		selectedTargets = append(selectedTargets, targetID)
 	}
 
-	selectedCards := append([]int{}, cardSelection.OptionIndexes...)
+	selectedOptionIndexes := append([]int{}, cardSelection.OptionIndexes...)
 	xValue := cardSelection.Count
-	if xValue <= 2 || len(selectedCards) != xValue {
+	if xValue <= 2 || len(selectedOptionIndexes) != xValue {
 		return true, fmt.Errorf("圣洁法典弃牌参数无效")
 	}
 	flow.PutSelection(sageHolyStepTarget, model.PromptFlowSelection{
@@ -549,7 +549,7 @@ func resolveHolyCodexTargets(rt engineplayer.ChoiceRuntime, ctxData map[string]i
 		TargetIDs:     append([]string{}, selectedTargets...),
 		Count:         len(selectedTargets),
 	})
-	removed, err := engineplayer.RemoveCardsByIndicesFromHand(user, append([]int{}, selectedCards...))
+	removed, err := engineplayer.RemoveCardsByIndicesFromHand(user, append([]int{}, selectedOptionIndexes...))
 	if err != nil {
 		return true, err
 	}
@@ -579,7 +579,7 @@ func resolveHolyCodexTargets(rt engineplayer.ChoiceRuntime, ctxData map[string]i
 
 // Helper functions for sage
 
-func buildElementCardIndexMap(player *model.Player) map[model.Element][]int {
+func buildElementCardPositionMap(player *model.Player) map[model.Element][]int {
 	if player == nil {
 		return nil
 	}
@@ -596,7 +596,7 @@ func availableElementsByMinCount(player *model.Player, minCount int) []string {
 	if minCount <= 0 {
 		minCount = 1
 	}
-	elemMap := buildElementCardIndexMap(player)
+	elemMap := buildElementCardPositionMap(player)
 	var out []string
 	for _, ele := range engineplayer.ElementOrderForPrompt() {
 		if len(elemMap[ele]) >= minCount {

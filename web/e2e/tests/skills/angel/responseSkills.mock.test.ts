@@ -65,7 +65,7 @@ test.describe('angel god protection protocol harness', () => {
     await protocolHarness.pushServerMessage(godProtectionPrompt(3));
 
     // Select X=2
-    await clickOverlayOption(page, 'branch-option-2');
+    await page.getByTestId('decision-overlay').getByTestId('numeric-option-2').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1], // X=2 is second option (X=1 is first)
@@ -78,7 +78,7 @@ test.describe('angel god protection protocol harness', () => {
     await protocolHarness.pushServerMessage(godProtectionPrompt(3));
 
     // Select X=1
-    await clickOverlayOption(page, 'branch-option-1');
+    await page.getByTestId('decision-overlay').getByTestId('numeric-option-1').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -91,7 +91,7 @@ test.describe('angel god protection protocol harness', () => {
     await protocolHarness.pushServerMessage(godProtectionPrompt(5));
 
     // Select X=5 (max)
-    await clickOverlayOption(page, 'branch-option-5');
+    await page.getByTestId('decision-overlay').getByTestId('numeric-option-5').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [4],

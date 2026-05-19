@@ -158,8 +158,8 @@ function beastSoulSkillChoicePrompt(skillId: string, title: string, message: str
     player_id: BSW_PLAYER_ID,
     message,
     options: [
-      { id: skillId, label: title, hint: `发动【${title}】` },
-      { id: 'skip', label: '跳过', hint: '不发动响应技能' },
+      { id: skillId, label: title, button_label: title, hint: `发动【${title}】` },
+      { id: 'skip', label: '跳过', button_label: '跳过', hint: '不发动响应技能' },
     ],
     presentation: { kind: 'skill_choice', layout: 'overlay' },
     min: 1,
@@ -278,10 +278,11 @@ export function beastSoulAlertTargetPrompt(): WsMessage {
     message: '【兽魂警戒】请选择 1 名让其弃 1 张牌的角色：',
     choice_type: 'bs_alert_target',
     options: [
-      { id: '0', label: 'Enemy Bot' },
+      { id: ENEMY_PLAYER_ID, label: 'Enemy Bot', button_label: '选择' },
     ],
     min: 1,
     max: 1,
+    presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -292,10 +293,11 @@ export function beastSoulAlertDiscardPrompt(): WsMessage {
     message: '【兽魂警戒】请选择并展示弃置1张手牌：',
     choice_type: 'bs_alert_source_discard',
     options: [
-      { id: '0', label: '1: 神秘手牌' },
+      { id: '0', label: '1: 神秘手牌', button_label: '选择', card_id: 'enemy-hidden-card-1' },
     ],
     min: 1,
     max: 1,
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'option_limited' },
   } satisfies Prompt);
 }
 
@@ -353,10 +355,10 @@ export function beastReturnResponsePrompt(): WsMessage {
 
 // 后端 buildBeastReturnXPrompt 选项为 X=0..maxX（含「不移除兽魂」），option id 为字符串数字。
 export function beastReturnXPrompt(xMax: number): WsMessage {
-  const options: { id: string; label: string }[] = [];
+  const options: { id: string; label: string; button_label: string }[] = [];
   for (let i = 0; i <= xMax; i++) {
     const label = i === 0 ? 'X=0（不移除兽魂）' : `X=${i}`;
-    options.push({ id: `${i}`, label });
+    options.push({ id: `${i}`, label, button_label: String(i) });
   }
   return requireActionMessage({
     type: 'confirm',
@@ -376,6 +378,8 @@ export function beastReturnSelfDiscardPrompt(discardCount: number): WsMessage {
   const options = hand.map((c, i) => ({
     id: `${i}`,
     label: `${i + 1}: ${c.name} (${c.element} ${c.type})`,
+    button_label: '选择',
+    card_id: c.id,
   }));
   return requireActionMessage({
     type: 'choose_cards',
@@ -385,6 +389,7 @@ export function beastReturnSelfDiscardPrompt(discardCount: number): WsMessage {
     options,
     min: discardCount,
     max: discardCount,
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'option_limited' },
   } satisfies Prompt);
 }
 
@@ -396,10 +401,11 @@ export function beastReturnSourceDiscardPrompt(): WsMessage {
     message: '【兽返】请选择弃置1张手牌：',
     choice_type: 'bs_beast_return_source_discard',
     options: [
-      { id: '0', label: '1: 神秘手牌' },
+      { id: '0', label: '1: 神秘手牌', button_label: '选择', card_id: 'enemy-hidden-card-1' },
     ],
     min: 1,
     max: 1,
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'option_limited' },
   } satisfies Prompt);
 }
 
@@ -458,9 +464,9 @@ export function reversalIaijutsuResponsePrompt(): WsMessage {
 
 // 后端 buildReversalXPrompt：X=0..maxX，文案标注 "目标将弃置 X+2 张手牌"。
 export function reversalIaijutsuXPrompt(xMax: number): WsMessage {
-  const options: { id: string; label: string }[] = [];
+  const options: { id: string; label: string; button_label: string }[] = [];
   for (let i = 0; i <= xMax; i++) {
-    options.push({ id: `${i}`, label: `X=${i}（目标将弃置${i + 2}张手牌）` });
+    options.push({ id: `${i}`, label: `X=${i}（目标将弃置${i + 2}张手牌）`, button_label: String(i) });
   }
   return requireActionMessage({
     type: 'confirm',
@@ -482,10 +488,11 @@ export function reversalIaijutsuTargetDiscardPrompt(discardCount: number): WsMes
     message: `【逆反居合斩】请选择弃置${discardCount}张手牌：`,
     choice_type: 'bs_reversal_target_discard',
     options: [
-      { id: '0', label: '1: 神秘手牌' },
+      { id: '0', label: '1: 神秘手牌', button_label: '选择', card_id: 'enemy-hidden-card-1' },
     ],
     min: 1,
     max: 1,
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'option_limited' },
   } satisfies Prompt);
 }
 
@@ -549,10 +556,10 @@ export function iaijutsuStyleModePrompt(): WsMessage {
     message: '【御魂流居合式】请选择"摸1张牌"或"弃1张牌"：',
     choice_type: 'bs_iaijutsu_style_mode',
     options: [
-      { id: '0', label: '摸1张牌' },
-      { id: '1', label: '弃1张牌' },
+      { id: '0', label: '摸1张牌', button_label: '摸牌' },
+      { id: '1', label: '弃1张牌', button_label: '弃牌' },
     ],
-    presentation: { kind: 'branch_select', layout: 'overlay' },
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
     min: 1,
     max: 1,
   } satisfies Prompt);
@@ -566,12 +573,13 @@ export function iaijutsuStyleDiscardPrompt(): WsMessage {
     message: '【御魂流居合式】请选择弃置1张手牌：',
     choice_type: 'bs_iaijutsu_style_discard',
     options: [
-      { id: '0', label: '1: 火焰斩 (火 Attack)' },
-      { id: '1', label: '2: 水涟斩 (水 Attack)' },
-      { id: '2', label: '3: 风刃 (风 Attack)' },
-      { id: '3', label: '4: 寒冰箭 (水 Magic)' },
+      { id: '0', label: '1: 火焰斩 (火 Attack)', button_label: '选择', card_id: 'card_1' },
+      { id: '1', label: '2: 水涟斩 (水 Attack)', button_label: '选择', card_id: 'card_2' },
+      { id: '2', label: '3: 风刃 (风 Attack)', button_label: '选择', card_id: 'card_3' },
+      { id: '3', label: '4: 寒冰箭 (水 Magic)', button_label: '选择', card_id: 'card_4' },
     ],
     min: 1,
     max: 1,
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'option_limited' },
   } satisfies Prompt);
 }

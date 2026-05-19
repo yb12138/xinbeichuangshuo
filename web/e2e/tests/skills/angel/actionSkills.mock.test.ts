@@ -84,6 +84,7 @@ test.describe('angel blessing protocol harness', () => {
     // Select both targets (order matters)
     await selectTarget(page, 'enemy_1');
     await selectTarget(page, 'ally_1');
+    await page.getByTestId('prompt-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0, 1],

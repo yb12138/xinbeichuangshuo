@@ -23,7 +23,7 @@ test.describe('berserker tear protocol harness', () => {
     await protocolHarness.pushServerMessage(tearHitPrompt());
 
     // Click confirm button
-    await clickOverlayOption(page, 'prompt-option-confirm');
+    await clickOverlayOption(page, 'prompt-option-berserker_tear');
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0], // confirm is first option

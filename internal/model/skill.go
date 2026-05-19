@@ -211,6 +211,7 @@ type PromptPresentation struct {
 	Layout       string           `json:"layout,omitempty"`        // 可选："inline"/"overlay"/"grid"
 	NumericBase  int              `json:"numeric_base"`            // numeric 类型的数字起始值（0 或 1）
 	CancelPolicy string           `json:"cancel_policy,omitempty"` // 可选："deny"/"abort"/"decline"/"back"
+	CancelLabel  string           `json:"cancel_label,omitempty"`  // 取消按钮短文案（如：取消/返回/不发动）
 
 	// 目标选择约束（kind=target_picker 时使用）
 	TargetFilter string `json:"target_filter,omitempty"` // all/enemies/allies/allies_exclude_self/any_exclude_self/custom

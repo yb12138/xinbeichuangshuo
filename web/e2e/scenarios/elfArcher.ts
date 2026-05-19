@@ -97,6 +97,21 @@ function elfArcherAvailableSkill(skill: Partial<AvailableSkill> & { id: string; 
   });
 }
 
+function elfArcherResponseSkillChoicePrompt(skillId: string, title: string, message: string): WsMessage {
+  return requireActionMessage({
+    type: 'choose_skill',
+    player_id: ELF_ARCHER_PLAYER_ID,
+    message,
+    options: [
+      { id: skillId, label: title, button_label: title, hint: `发动【${title}】` },
+      { id: 'skip', label: '跳过', button_label: '跳过', hint: '不发动响应技能' },
+    ],
+    presentation: { kind: 'skill_choice', layout: 'overlay' },
+    min: 1,
+    max: 1,
+  } satisfies Prompt);
+}
+
 // ---------------------------------------------------------------------------
 // Scenario Factory
 // ---------------------------------------------------------------------------
@@ -178,21 +193,31 @@ export function elementalShotScenario(): ProtocolHarnessScenario {
 }
 
 export function elementalShotDiscardPrompt(): WsMessage {
+  const hand = elfArcherHand();
   return requireActionMessage({
     type: 'choose_cards',
     player_id: ELF_ARCHER_PLAYER_ID,
     message: '【元素射击】请选择弃1张法术牌或祝福：',
     choice_type: 'elf_archer_elemental_shot_pick',
     options: [
-      { id: 'elf-fire-magic', label: '火球（火系，+1伤害）' },
-      { id: 'elf-water-magic', label: '冰冻（水系，命中后弃牌）' },
-      { id: 'elf-earth-magic', label: '地刺（地系，无法应战）' },
-      { id: 'elf-wind-magic', label: '风刃（风系，无距离限制）' },
-      { id: 'elf-thunder-magic', label: '雷击（雷系，强制命中）' },
-      { id: 'elf-blessing-1', label: '祝福' },
+      { id: '0', label: '火球（火系，+1伤害）', button_label: '选择', card_id: hand[2].id },
+      { id: '1', label: '冰冻（水系，命中后弃牌）', button_label: '选择', card_id: hand[3].id },
+      { id: '2', label: '地刺（地系，无法应战）', button_label: '选择', card_id: hand[4].id },
+      { id: '3', label: '风刃（风系，无距离限制）', button_label: '选择', card_id: hand[5].id },
+      { id: '4', label: '雷击（雷系，强制命中）', button_label: '选择', card_id: hand[6].id },
+      { id: '5', label: '祝福', button_label: '选择', card_id: hand[7].id },
     ],
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'magic_or_elf_blessing', cancel_policy: 'abort' },
     min: 1, max: 1,
   } satisfies Prompt);
+}
+
+export function elementalShotSkillChoicePrompt(): WsMessage {
+  return elfArcherResponseSkillChoicePrompt(
+    ELF_ARCHER_ELEMENTAL_SHOT_ID,
+    '元素射击',
+    '你触发了响应技能【元素射击】，请选择是否发动。',
+  );
 }
 
 // ============================================================
@@ -214,9 +239,10 @@ export function animalCompanionPrompt(): WsMessage {
     message: '【动物伙伴】受到伤害后，摸1张牌弃1张牌？',
     choice_type: 'elf_animal_companion_confirm',
     options: [
-      { id: 'confirm', label: '发动' },
-      { id: 'skip', label: '跳过' },
+      { id: '0', label: '发动', button_label: '发动' },
+      { id: '1', label: '跳过', button_label: '跳过' },
     ],
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
     min: 1, max: 1,
   } satisfies Prompt);
 }
@@ -246,6 +272,21 @@ export function elfRitualWithBlessingScenario(): ProtocolHarnessScenario {
   });
 }
 
+export function elfRitualReleaseTargetPrompt(): WsMessage {
+  return requireActionMessage({
+    type: 'confirm',
+    player_id: ELF_ARCHER_PLAYER_ID,
+    message: '【精灵密仪】你已无祝福，转正并请选择1名敌方角色承受2点法术伤害：',
+    choice_type: 'elf_ritual_release_target',
+    options: [
+      { id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
+    ],
+    presentation: { kind: 'target_picker', target_filter: 'enemies', numeric_base: 0 },
+    min: 1,
+    max: 1,
+  } satisfies Prompt);
+}
+
 // ============================================================
 // Pet Enhance (宠物强化) - 响应技能(大招)
 // 后端通过 response_skills 自动触发
@@ -266,10 +307,19 @@ export function petEnhanceBranchPrompt(): WsMessage {
     message: '【宠物强化】选择升级效果：',
     choice_type: 'elf_pet_empower_confirm',
     options: [
-      { id: 'draw_plus', label: '摸牌数+1' },
-      { id: 'discard_minus', label: '弃牌数-1' },
-      { id: 'target_discard', label: '目标弃牌' },
+      { id: 'draw_plus', label: '摸牌数+1', button_label: '摸牌+1' },
+      { id: 'discard_minus', label: '弃牌数-1', button_label: '弃牌-1' },
+      { id: 'target_discard', label: '目标弃牌', button_label: '目标弃牌' },
     ],
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
     min: 1, max: 1,
   } satisfies Prompt);
+}
+
+export function petEnhanceSkillChoicePrompt(): WsMessage {
+  return elfArcherResponseSkillChoicePrompt(
+    ELF_ARCHER_PET_ENHANCE_ID,
+    '宠物强化',
+    '你触发了响应技能【宠物强化】，请选择是否发动。',
+  );
 }

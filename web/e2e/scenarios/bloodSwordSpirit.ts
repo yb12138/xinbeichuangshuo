@@ -183,10 +183,11 @@ export function redFlashPrompt(): WsMessage {
     message: '【赤色一闪】对自己造成1点法术伤害，本次攻击伤害+1？（可连续发动）',
     choice_type: 'css_red_flash',
     options: [
-      { id: 'confirm', label: '发动' },
-      { id: 'skip', label: '跳过' },
+      { id: 'confirm', label: '发动', button_label: '发动' },
+      { id: 'skip', label: '跳过', button_label: '跳过' },
     ],
     min: 1, max: 1,
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -215,10 +216,11 @@ export function bloodDyeRoseTargetPrompt(): WsMessage {
     message: '【血染蔷薇】请选择移除治疗的对手和获得治疗的队友：',
     choice_type: 'css_blood_rose_gain_heal_target',
     options: [
-      { id: ENEMY_PLAYER_ID, label: 'Enemy E1（移除治疗）' },
-      { id: ALLY_PLAYER_ID, label: 'Ally A1（获得治疗）' },
+      { id: ENEMY_PLAYER_ID, label: 'Enemy E1（移除治疗）', button_label: '选择' },
+      { id: ALLY_PLAYER_ID, label: 'Ally A1（获得治疗）', button_label: '选择' },
     ],
     min: 2, max: 2,
+    presentation: { kind: 'target_picker', target_filter: 'custom', multi_target: true, numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -241,10 +243,11 @@ export function bloodBarrierPrompt(): WsMessage {
     message: '【血气屏障】移除1鲜血，令法术伤害-1？',
     choice_type: 'css_blood_barrier',
     options: [
-      { id: 'confirm', label: '发动' },
-      { id: 'skip', label: '跳过' },
+      { id: 'confirm', label: '发动', button_label: '发动' },
+      { id: 'skip', label: '跳过', button_label: '跳过' },
     ],
     min: 1, max: 1,
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -270,10 +273,11 @@ export function scatteringDanceBranchPrompt(): WsMessage {
     message: '【散华轮舞】请选择分支：',
     choice_type: 'css_dance_mode',
     options: [
-      { id: 'damage', label: '对对手造成2点法术伤害，放置血色庭院' },
-      { id: 'heal_transfer', label: '移除自己1治疗给队友，放置血色庭院' },
+      { id: 'damage', label: '对对手造成2点法术伤害，放置血色庭院', button_label: '伤害' },
+      { id: 'heal_transfer', label: '移除自己1治疗给队友，放置血色庭院', button_label: '转移' },
     ],
     min: 1, max: 1,
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -284,9 +288,10 @@ export function scatteringDanceDamageTargetPrompt(): WsMessage {
     message: '【散华轮舞】请选择造成伤害的对手：',
     choice_type: 'css_dance_damage_target',
     options: [
-      { id: ENEMY_PLAYER_ID, label: 'Enemy E1' },
+      { id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
     ],
     min: 1, max: 1,
+    presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -297,8 +302,9 @@ export function scatteringDanceHealTargetPrompt(): WsMessage {
     message: '【散华轮舞】请选择获得治疗的队友：',
     choice_type: 'css_dance_heal_target',
     options: [
-      { id: ALLY_PLAYER_ID, label: 'Ally A1' },
+      { id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
     ],
     min: 1, max: 1,
+    presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
   } satisfies Prompt);
 }

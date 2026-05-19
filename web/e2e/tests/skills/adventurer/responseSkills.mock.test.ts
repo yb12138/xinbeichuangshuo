@@ -47,7 +47,7 @@ test.describe('adventurer fraud protocol harness', () => {
     await clickHandCard(page, 0);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0],
+      card_ids: ['adv-attack-1'],
     });
 
     // Push next prompt: need 1 more card
@@ -58,7 +58,7 @@ test.describe('adventurer fraud protocol harness', () => {
     // Backend detects same element → done, no element prompt
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0, 1],
+      card_ids: ['adv-attack-2'],
     });
   });
 
@@ -72,7 +72,7 @@ test.describe('adventurer fraud protocol harness', () => {
     await clickHandCard(page, 0);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0],
+      card_ids: ['adv-attack-1'],
     });
 
     // Push next prompt
@@ -82,7 +82,7 @@ test.describe('adventurer fraud protocol harness', () => {
     await clickHandCard(page, 2);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0, 2],
+      card_ids: ['adv-magic-1'],
     });
 
     // Backend pushes element prompt for different element cards

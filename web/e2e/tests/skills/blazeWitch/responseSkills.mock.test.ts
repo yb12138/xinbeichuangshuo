@@ -28,17 +28,11 @@ test.describe('blaze witch substitute doll protocol harness', () => {
     // Step 1: push magic card selection prompt (confirm type, magic hand indices)
     await protocolHarness.pushServerMessage(substituteDollCardPrompt());
 
-    // Click the first magic card option (火球, id='2', option index 0)
-    const overlay = page.getByTestId('decision-overlay');
-    const overlayVisible = await overlay.isVisible({ timeout: 1000 }).catch(() => false);
-    if (overlayVisible) {
-      await overlay.getByTestId('branch-option-0').click();
-    } else {
-      await page.getByTestId('prompt-dialog').getByTestId('branch-option-0').click();
-    }
+    // Click the first magic card (火球)
+    await page.getByTestId('hand-card-2').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0],
+      card_ids: ['bw-fire-magic1'],
     });
 
     // Step 2: push ally target prompt
@@ -57,17 +51,11 @@ test.describe('blaze witch substitute doll protocol harness', () => {
 
     await protocolHarness.pushServerMessage(substituteDollCardPrompt());
 
-    // Click the third magic card option (雷击, id='4', option index 2)
-    const overlay = page.getByTestId('decision-overlay');
-    const overlayVisible = await overlay.isVisible({ timeout: 1000 }).catch(() => false);
-    if (overlayVisible) {
-      await overlay.getByTestId('branch-option-2').click();
-    } else {
-      await page.getByTestId('prompt-dialog').getByTestId('branch-option-2').click();
-    }
+    // Click the third magic card option (雷击)
+    await page.getByTestId('hand-card-4').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [2],
+      card_ids: ['bw-thunder-magic'],
     });
   });
 });
@@ -93,7 +81,7 @@ test.describe('blaze witch mana inversion protocol harness', () => {
     await selectHandCards(page, [2, 3]);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [2, 3],
+      card_ids: ['bw-fire-magic1', 'bw-fire-magic2'],
     });
 
     // Step 3: push target prompt
@@ -123,7 +111,7 @@ test.describe('blaze witch mana inversion protocol harness', () => {
     await selectHandCards(page, [2, 3, 4]);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [2, 3, 4],
+      card_ids: ['bw-fire-magic1', 'bw-fire-magic2', 'bw-thunder-magic'],
     });
   });
 });

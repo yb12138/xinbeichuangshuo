@@ -122,13 +122,6 @@ const isIdleMainTurnPanel = computed(() =>
     interruptStore.skillMode === 'none'
 )
 
-function isActionSelectionPromptMessage(message: string): boolean {
-    const normalized = String(message || '').trim()
-    // 仅识别主流程“请选择行动类型”提示；
-    // 避免把【圣疗】“请选择额外行动类型”误判为行动枢纽。
-    return normalized.includes('请选择行动类型')
-}
-
 type ActionHubOptionId = 'attack' | 'magic' | 'special' | 'cannot_act'
 
 function normalizeActionHubOptionId(option: PromptOption): ActionHubOptionId | null {
@@ -136,21 +129,13 @@ function normalizeActionHubOptionId(option: PromptOption): ActionHubOptionId | n
     if (id === 'attack' || id === 'magic' || id === 'special' || id === 'cannot_act') {
         return id
     }
-    const label = (option.label || '').trim()
-    if (!label) return null
-    if (label.includes('攻击行动') || label.includes('攻击')) return 'attack'
-    if (label.includes('法术行动') || label.includes('法术')) return 'magic'
-    if (label.includes('跳过额外行动') || label.includes('无法行动')) return 'cannot_act'
-    if (label.includes('特殊')) return 'special'
     return null
 }
 
 const isActionSelectionPrompt = computed(() => {
     const p = prompt.value
     if (!p || !isPromptForMe.value) return false
-    if (p.ui_mode === 'action_hub') return true
-    if (p.type !== 'confirm') return false
-    if (!isActionSelectionPromptMessage(p.message || '')) return false
+    if (p.presentation?.kind !== 'action_hub') return false
     return (p.options || []).some((opt) => normalizeActionHubOptionId(opt) !== null)
 })
 
@@ -223,7 +208,7 @@ const actionPromptOptionMap = computed(() => {
 const actionHubPromptNotice = computed(() => {
     if (!prompt.value || !isPromptForMe.value || !isActionSelectionPrompt.value) return ''
     const message = String(prompt.value.message || '').trim()
-    if (!message || message === '请选择行动类型') return ''
+    if (!message) return ''
     return message
 })
 function extractFullnessAttackHint(message: string): string {
@@ -254,14 +239,15 @@ const specialActionOptions = computed<PromptOption[]>(() => {
 const hasHubSpecialActions = computed(() => specialActionOptions.value.length > 0)
 const showSpecialHubEntry = computed(() => isActionHubContext.value)
 const isStartupSpecialLocked = computed(() => snapshotStore.hasPerformedStartup)
-const isExtraActionPrompt = computed(() => {
-    const message = prompt.value?.message ?? ''
-    return message.includes('额外攻击行动') || message.includes('额外法术行动') || message.includes('额外行动阶段')
-})
+const isExtraActionPrompt = computed(() =>
+    isActionSelectionPrompt.value &&
+    !actionPromptOptionIdSet.value.has('special') &&
+    actionPromptOptionIdSet.value.has('cannot_act') &&
+    (actionPromptOptionIdSet.value.has('attack') || actionPromptOptionIdSet.value.has('magic')) &&
+    (prompt.value?.special_options ?? []).length === 0
+)
 const cannotActButtonLabel = computed(() =>
-    isExtraActionPrompt.value
-        ? actionPromptLabel('cannot_act', '跳过额外行动')
-        : actionPromptLabel('cannot_act', '无法行动')
+    actionPromptLabel('cannot_act', isExtraActionPrompt.value ? '跳过额外行动' : '无法行动')
 )
 const teamStoneCount = computed(() =>
     sessionStore.myCamp === 'Red'
@@ -498,8 +484,8 @@ watch(debugExclusiveRoleId, () => {
     }
 })
 
-function isMagicMissilePromptMessage(): boolean {
-    return (prompt.value?.message ?? '').includes('魔弹')
+function isMagicMissileResponsePrompt(): boolean {
+    return prompt.value?.presentation?.kind === 'response'
 }
 
 function handlePromptOption(optionId: string) {
@@ -531,7 +517,7 @@ function handlePromptOption(optionId: string) {
     } else if (optionId === 'take') {
         actions.submitRespondTake()
     } else if (optionId === 'counter') {
-        if (!actions.submitRespondCounter(isMagicMissilePromptMessage())) return
+        if (!actions.submitRespondCounter(isMagicMissileResponsePrompt())) return
     } else if (optionId === 'defend') {
         if (!actions.submitRespondDefend()) return
     } else if (optionId === 'yes' || optionId === 'no') {
@@ -540,7 +526,7 @@ function handlePromptOption(optionId: string) {
     } else if (optionId === 'normal' || optionId === 'reverse') {
         // 魔弹掌控方向选择：normal=0, reverse=1
         actions.submitSelect([optionId === 'normal' ? 0 : 1])
-    } else if (prompt.value.type === 'choose_skill') {
+    } else if (prompt.value.presentation?.kind === 'skill_choice') {
         const idx = prompt.value.options.findIndex((o: { id: string }) => o.id === optionId)
         if (idx >= 0) {
             actions.submitSelect([idx])
@@ -566,7 +552,7 @@ function handlePromptOption(optionId: string) {
 
 function backFromMagicCard() {
     interruptStore.setMagicSubChoice('none')
-    interruptStore.setSelectedCardForAction(null)
+    interruptStore.setSelectedHandIndexForAction(null)
 }
 
 const attackTargetCandidates = computed(() => {
@@ -616,6 +602,12 @@ function selectSkill(skill: AvailableSkill) {
         return
     }
     interruptStore.setSelectedSkill(skill)
+    // Server-published skills are protocol intents: submit the skill id and let
+    // backend prompts drive any costs, targets, or multi-step selections.
+    if (isServerPublishedAvailableSkill(skill)) {
+        actions.submitUseSkill(skill.id, [], undefined, { clearSkillMode: true })
+        return
+    }
     // 如果技能需要弃牌，先进入弃牌选择模式
     if (skill.cost_discards > 0) {
         const required = requiredDiscardCount(skill)
@@ -818,19 +810,19 @@ function skillDisabledReason(skill: AvailableSkill): string {
 function proceedAfterDiscard(skill: AvailableSkill) {
     // 魔弓【雷光散射】先移除雷系充能，再根据额外移除数决定是否选择目标。
     if (SKILL_SUBMIT_BEFORE_TARGET_IDS.has(skill.id)) {
-        const selections = interruptStore.skillDiscardIndices.length > 0 ? [...interruptStore.skillDiscardIndices] : undefined
+        const selections = interruptStore.skillDiscardHandIndexes.length > 0 ? [...interruptStore.skillDiscardHandIndexes] : undefined
         actions.submitUseSkill(skill.id, [], selections, { clearSkillMode: true })
         return
     }
     // target_type=0 (None): 无需目标，直接发动
     if (skill.target_type === 0) {
-        const selections = interruptStore.skillDiscardIndices.length > 0 ? [...interruptStore.skillDiscardIndices] : undefined
+        const selections = interruptStore.skillDiscardHandIndexes.length > 0 ? [...interruptStore.skillDiscardHandIndexes] : undefined
         actions.submitUseSkill(skill.id, [], selections, { clearSkillMode: true })
         return
     }
     // target_type=1 (Self): 自动选中自己并发动
     if (skill.target_type === 1) {
-        const selections = interruptStore.skillDiscardIndices.length > 0 ? [...interruptStore.skillDiscardIndices] : undefined
+        const selections = interruptStore.skillDiscardHandIndexes.length > 0 ? [...interruptStore.skillDiscardHandIndexes] : undefined
         actions.submitUseSkill(skill.id, [sessionStore.myPlayerId], selections, { clearSkillMode: true })
         return
     }
@@ -850,12 +842,12 @@ function confirmSkill() {
         }
         return
     }
-    const selections = interruptStore.skillDiscardIndices.length > 0 ? [...interruptStore.skillDiscardIndices] : undefined
+    const selections = interruptStore.skillDiscardHandIndexes.length > 0 ? [...interruptStore.skillDiscardHandIndexes] : undefined
     actions.submitUseSkill(skill.id, [...interruptStore.skillTargetIds], selections, { clearSkillMode: true })
 }
 
 watch(
-    () => [interruptStore.skillMode, interruptStore.selectedSkill?.id, interruptStore.skillDiscardIndices.length] as const,
+    () => [interruptStore.skillMode, interruptStore.selectedSkill?.id, interruptStore.skillDiscardHandIndexes.length] as const,
     ([mode, _skillId, selectedCount]) => {
         if (mode !== 'choosing_discard') return
         const skill = interruptStore.selectedSkill
@@ -1111,13 +1103,13 @@ function elementName(el: string): string {
             {{ interruptStore.actionMode === 'attack' ? '⚔️ 攻击模式' : '✨ 法术模式' }}
           </span>
                     <span class="step-indicator">
-            {{ interruptStore.selectedCardForAction === null ? '步骤 1/2' : '步骤 2/2' }} · {{ interruptStore.selectedCardForAction === null ? '选牌' : '选目标' }}
+            {{ interruptStore.selectedHandIndexForAction === null ? '步骤 1/2' : '步骤 2/2' }} · {{ interruptStore.selectedHandIndexForAction === null ? '选牌' : '选目标' }}
           </span>
                 </div>
                 <div v-if="attackActionPromptNotice" class="action-panel-notice">
                     {{ attackActionPromptNotice }}
                 </div>
-                <div v-if="interruptStore.selectedCardForAction !== null" class="space-y-2">
+                <div v-if="interruptStore.selectedHandIndexForAction !== null" class="space-y-2">
                     <div
                         v-if="hasActionTargets"
                         class="text-xs text-gray-400"
@@ -1188,12 +1180,12 @@ function elementName(el: string): string {
             <div class="flex items-center justify-between">
                 <span class="text-amber-400 text-sm font-bold">{{ interruptStore.selectedSkill.title }}</span>
                 <span class="step-indicator">
-          {{ interruptStore.skillDiscardIndices.length }}/{{ requiredDiscardCount(interruptStore.selectedSkill) }}
+          {{ interruptStore.skillDiscardHandIndexes.length }}/{{ requiredDiscardCount(interruptStore.selectedSkill) }}
         </span>
             </div>
             <div class="text-xs text-gray-400">
                 {{ skillDiscardGuideText(interruptStore.selectedSkill) }}
-                <span class="text-amber-300">（已选 {{ interruptStore.skillDiscardIndices.length }}/{{ requiredDiscardCount(interruptStore.selectedSkill) }}）</span>
+                <span class="text-amber-300">（已选 {{ interruptStore.skillDiscardHandIndexes.length }}/{{ requiredDiscardCount(interruptStore.selectedSkill) }}）</span>
             </div>
             <div class="text-[11px] text-gray-500">请在下方手牌区点击选择，选满后自动进入下一步</div>
             <div class="flex gap-3 justify-center">

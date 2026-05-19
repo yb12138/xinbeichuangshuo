@@ -4,10 +4,11 @@ import {
 } from '../promptButtonRules'
 
 describe('promptButtonRules', () => {
-  it('maps backend button labels to stable image kinds', () => {
-    expect(promptImageButtonKindByOption({ buttonLabel: '承受伤害' })).toBe('action')
-    expect(promptImageButtonKindByOption({ buttonLabel: '取消' })).toBe('cancel')
-    expect(promptImageButtonKindByOption({ buttonLabel: '选择卡牌' })).toBe('card')
-    expect(promptImageButtonKindByOption({ buttonLabel: '确认' })).toBe('confirm')
+  it('maps structured prompt semantics to stable image kinds', () => {
+    expect(promptImageButtonKindByOption({ id: 'take', presentationKind: 'response' })).toBe('take')
+    expect(promptImageButtonKindByOption({ id: 'counter', presentationKind: 'response' })).toBe('counter')
+    expect(promptImageButtonKindByOption({ id: '0', presentationKind: 'card_picker' })).toBe('card')
+    expect(promptImageButtonKindByOption({ id: '1', presentationKind: 'numeric' })).toBe('confirm')
+    expect(promptImageButtonKindByOption({ id: 'decline', cancelPolicy: 'decline' })).toBe('cancel')
   })
 })

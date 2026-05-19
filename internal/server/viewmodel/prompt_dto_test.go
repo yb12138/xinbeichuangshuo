@@ -7,7 +7,7 @@ import (
 	"starcup-engine/internal/model"
 )
 
-func TestToPromptDTOAlwaysCarriesPresentationAndButtonLabels(t *testing.T) {
+func TestToPromptDTORequiresExplicitPresentationAndCarriesButtonLabels(t *testing.T) {
 	prompt := &model.Prompt{
 		Type:     model.PromptConfirm,
 		PlayerID: "p1",
@@ -18,6 +18,14 @@ func TestToPromptDTOAlwaysCarriesPresentationAndButtonLabels(t *testing.T) {
 		},
 		Min: 1,
 		Max: 1,
+		Presentation: &model.PromptPresentation{
+			Kind:         model.PresentationBranchSelect,
+			Layout:       "overlay",
+			CancelPolicy: "decline",
+			CancelLabel:  "不发动",
+			HasDecline:   true,
+			DeclineIndex: 1,
+		},
 	}
 
 	dto := ToPromptDTO(prompt)
@@ -50,7 +58,7 @@ func TestToPromptDTOAlwaysCarriesPresentationAndButtonLabels(t *testing.T) {
 	}
 }
 
-func TestToPromptDTOInfersCardPickerFieldPresentation(t *testing.T) {
+func TestToPromptDTORequiresCardPickerFieldPresentation(t *testing.T) {
 	fieldIndex := 2
 	prompt := &model.Prompt{
 		Type:     model.PromptChooseCards,
@@ -59,8 +67,9 @@ func TestToPromptDTOInfersCardPickerFieldPresentation(t *testing.T) {
 		Options: []model.PromptOption{
 			{ID: "0", Label: "移除茧[2]", FieldIndex: &fieldIndex},
 		},
-		Min: 1,
-		Max: 1,
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, Layout: "field_cover", CardSource: "field"},
 	}
 
 	dto := ToPromptDTO(prompt)
@@ -73,6 +82,15 @@ func TestToPromptDTOInfersCardPickerFieldPresentation(t *testing.T) {
 	if got := dto.Options[0].ButtonLabel; got != "移除茧[2]" {
 		t.Fatalf("expected field option button label, got %q", got)
 	}
+}
+
+func TestToPromptDTOPanicsWhenPresentationMissing(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Fatal("expected missing presentation to panic")
+		}
+	}()
+	ToPromptDTO(&model.Prompt{Type: model.PromptConfirm, PlayerID: "p1"})
 }
 
 func TestToPromptDTOPreservesCardIDOnCardOptions(t *testing.T) {

@@ -181,14 +181,14 @@ export function fraudPickPrompt(remaining: number = 2): WsMessage {
     choice_type: 'adventurer_fraud_pick',
     // Backend uses hand indices as option.id
     options: [
-      { id: '0', label: '1: 冒险斩（光）', button_label: '选择' },
-      { id: '1', label: '2: 探索斩（光）', button_label: '选择' },
-      { id: '2', label: '3: 火球（火）', button_label: '选择' },
-      { id: '3', label: '4: 冰冻（水）', button_label: '选择' },
-      { id: '4', label: '5: 地刺（地）', button_label: '选择' },
-      { id: '5', label: '6: 风刃（风）', button_label: '选择' },
-      { id: '6', label: '7: 雷击（雷）', button_label: '选择' },
-      { id: '7', label: '8: 暗影（暗）', button_label: '选择' },
+      { id: '0', label: '1: 冒险斩（光）', button_label: '选择', card_id: 'adv-attack-1' },
+      { id: '1', label: '2: 探索斩（光）', button_label: '选择', card_id: 'adv-attack-2' },
+      { id: '2', label: '3: 火球（火）', button_label: '选择', card_id: 'adv-magic-1' },
+      { id: '3', label: '4: 冰冻（水）', button_label: '选择', card_id: 'adv-magic-2' },
+      { id: '4', label: '5: 地刺（地）', button_label: '选择', card_id: 'adv-magic-3' },
+      { id: '5', label: '6: 风刃（风）', button_label: '选择', card_id: 'adv-magic-4' },
+      { id: '6', label: '7: 雷击（雷）', button_label: '选择', card_id: 'adv-magic-5' },
+      { id: '7', label: '8: 暗影（暗）', button_label: '选择', card_id: 'adv-dark-magic' },
     ],
     presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'same_element_combo' },
     min: 1, max: 1,
@@ -230,10 +230,11 @@ export function adventurerParadisePrompt(): WsMessage {
     message: '是否发动[冒险者天堂]，让队友代为提炼？',
     choice_type: 'adventurer_extract_paradise_check',
     options: [
-      { id: 'yes', label: '是，发动冒险者天堂' },
-      { id: 'no', label: '否，自行提炼' },
+      { id: 'yes', label: '是，发动冒险者天堂', button_label: '是' },
+      { id: 'no', label: '否，自行提炼', button_label: '否' },
     ],
     min: 1, max: 1,
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -245,9 +246,10 @@ export function adventurerParadiseAllyPickPrompt(): WsMessage {
     message: '【冒险者天堂】选择队友代为提炼：',
     choice_type: 'adventurer_paradise_pick',
     options: [
-      { id: ALLY_PLAYER_ID, label: 'Ally A1' },
+      { id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
     ],
     min: 1, max: 1,
+    presentation: { kind: 'target_picker', target_filter: 'allies_exclude_self', numeric_base: 0 },
   } satisfies Prompt);
 }
 

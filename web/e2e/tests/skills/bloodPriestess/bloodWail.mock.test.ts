@@ -32,7 +32,7 @@ test.describe('blood priestess blood wail protocol harness', () => {
 
     // Backend pushes X value prompt after skill activation
     await protocolHarness.pushServerMessage(bloodWailXPrompt());
-    await page.getByTestId('branch-option-0').click();
+    await page.getByTestId('numeric-option-1').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],

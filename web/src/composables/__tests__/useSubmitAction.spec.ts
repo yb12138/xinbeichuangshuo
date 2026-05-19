@@ -142,12 +142,12 @@ describe('useSubmitAction', () => {
     const actions = useSubmitAction()
 
     interruptStore.setActionMode('attack')
-    interruptStore.setSelectedCardForAction(99)
+    interruptStore.setSelectedHandIndexForAction(99)
 
     const ok = actions.submitSelectedBoardTarget('p2')
 
     expect(ok).toBe(false)
-    expect(interruptStore.selectedCardForAction).toBeNull()
+    expect(interruptStore.selectedHandIndexForAction).toBeNull()
     expect(interruptStore.errorMessage).toBe('所选卡牌已变化，请重新选择')
     expect(wsMock.attack).not.toHaveBeenCalled()
   })
@@ -157,7 +157,7 @@ describe('useSubmitAction', () => {
     const actions = useSubmitAction()
 
     interruptStore.setActionMode('attack')
-    interruptStore.setSelectedCardForAction(0)
+    interruptStore.setSelectedHandIndexForAction(0)
 
     const ok = actions.submitSelectedBoardTarget('p2')
 

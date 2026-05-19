@@ -162,14 +162,14 @@ starcup-engine/
     *   摸牌伤害，爆牌检查(checkHandLimit)
     *   治疗抵消，士气扣减(15→0失败)
     *   被动技能触发，场上牌效果处理
-*   **任务 3.4** ✅: CLI战斗指令：`atk <target> <card_idx>`, `take/defend/counter`
+*   **任务 3.4** ✅: CLI战斗指令：`atk <target> <hand_no>`, `take/defend/counter`（输入手牌序号，内部提交 `card_id`）
 
 ### Phase 4: 法术与状态系统 ✅
 *   **任务 4.1** ✅: 完整法术牌系统：
     *   **魔弹系列**：即时伤害，属性伤害加成
     *   **中毒/虚弱**：状态挂载，持续伤害/减益
     *   **圣盾/圣光**：防御逻辑，抵消物理/法术伤害
-*   **任务 4.2** ✅: 法术指令：`magic <target> <card_idx>`
+*   **任务 4.2** ✅: 法术指令：`magic <target> <hand_no>`（输入手牌序号，内部提交 `card_id`）
 
 ### Phase 5: 技能系统 (最大难点) ✅
 *   **任务 5.1** ✅: 技能架构设计：
@@ -244,8 +244,8 @@ cheat <pid> <gems> <crystals>  # 作弊：给指定玩家添加资源
 
 #### **行动类命令 (仅当前回合玩家可用)**
 ```bash
-atk <target> <card_idx>   # 攻击: atk p2 0 (用第1张牌攻击p2)
-magic <target> <card_idx> # 法术: magic p3 1 (对p3使用第2张法术牌)
+atk <target> <hand_no>    # 攻击: atk p2 1 (选择第1张手牌，内部提交 card_id)
+magic <target> <hand_no>  # 法术: magic p3 2 (选择第2张手牌，内部提交 card_id)
 skill <skill_id> [target] # 技能: skill angel_blessing p2
 buy                       # 购买 (1水晶 → 1宝石)
 syb                       # 合成星杯 (2宝石 → 1星杯)
@@ -256,8 +256,8 @@ pass                      # 结束回合
 #### **响应类命令 (仅在响应阶段可用)**
 ```bash
 take                      # 承受伤害 (摸牌结算)
-defend [card_idx]        # 防御 (自动使用圣盾/圣光，或指定圣光牌)
-counter <target> <card_idx>  # 应战: counter p4 2 (用第3张牌反击p4)
+defend [hand_no]          # 防御 (自动使用圣盾/圣光，或指定圣光牌，内部提交 card_id)
+counter <target> <hand_no> # 应战: counter p4 3 (选择第3张手牌反击p4，内部提交 card_id)
 ```
 
 #### **中断处理命令 (系统提示时使用)**
@@ -448,5 +448,4 @@ go run cmd/cli/main.go
 - **新技能**: 在`internal/data/characters.go`添加配置，在`handlers_impl.go`实现逻辑
 - **新卡牌**: 在`internal/rules/deck.go`的`addExclusiveCards`中添加
 - **新命令**: 在`cmd/cli/main.go`添加命令处理逻辑
-
 

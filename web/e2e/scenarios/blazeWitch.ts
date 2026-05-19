@@ -250,14 +250,15 @@ export function painLinkDiscardPrompt(): WsMessage {
     message: '【痛苦链接】请弃牌至3张手牌：',
     choice_type: 'system_discard_cards',
     options: [
-      { id: '0', label: '1: 火焰斩A（火系 攻击）' },
-      { id: '1', label: '2: 火焰斩B（火系 攻击）' },
-      { id: '2', label: '3: 火球（火系 法术）' },
-      { id: '3', label: '4: 烈焰风暴（火系 法术）' },
-      { id: '4', label: '5: 雷击（雷系 法术）' },
-      { id: '5', label: '6: 圣光（光系 法术）' },
+      { id: '0', label: '1: 火焰斩A（火系 攻击）', button_label: '选择', card_id: 'bw-fire-atk1' },
+      { id: '1', label: '2: 火焰斩B（火系 攻击）', button_label: '选择', card_id: 'bw-fire-atk2' },
+      { id: '2', label: '3: 火球（火系 法术）', button_label: '选择', card_id: 'bw-fire-magic1' },
+      { id: '3', label: '4: 烈焰风暴（火系 法术）', button_label: '选择', card_id: 'bw-fire-magic2' },
+      { id: '4', label: '5: 雷击（雷系 法术）', button_label: '选择', card_id: 'bw-thunder-magic' },
+      { id: '5', label: '6: 圣光（光系 法术）', button_label: '选择', card_id: 'bw-light-magic' },
     ],
     min: 3, max: 3,
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'option_limited' },
   } satisfies Prompt);
 }
 
@@ -280,11 +281,12 @@ export function witchWrathDrawPrompt(): WsMessage {
     message: '【魔女之怒】请选择摸牌数量：',
     choice_type: 'bw_witch_wrath_draw',
     options: [
-      { id: '0', label: '摸0张' },
-      { id: '1', label: '摸1张' },
-      { id: '2', label: '摸2张' },
+      { id: '0', label: '摸0张', button_label: '摸0张' },
+      { id: '1', label: '摸1张', button_label: '摸1张' },
+      { id: '2', label: '摸2张', button_label: '摸2张' },
     ],
     min: 1, max: 1,
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -303,12 +305,13 @@ export function substituteDollCardPrompt(): WsMessage {
     message: '【替身玩偶】请选择弃置1张法术牌：',
     choice_type: 'bw_substitute_doll_card',
     options: [
-      { id: '2', label: '3: 火球（火系 法术）' },
-      { id: '3', label: '4: 烈焰风暴（火系 法术）' },
-      { id: '4', label: '5: 雷击（雷系 法术）' },
-      { id: '5', label: '6: 圣光（光系 法术）' },
+      { id: '2', label: '3: 火球（火系 法术）', button_label: '选择', card_id: 'bw-fire-magic1' },
+      { id: '3', label: '4: 烈焰风暴（火系 法术）', button_label: '选择', card_id: 'bw-fire-magic2' },
+      { id: '4', label: '5: 雷击（雷系 法术）', button_label: '选择', card_id: 'bw-thunder-magic' },
+      { id: '5', label: '6: 圣光（光系 法术）', button_label: '选择', card_id: 'bw-light-magic' },
     ],
     min: 1, max: 1,
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'magic_only' },
   } satisfies Prompt);
 }
 
@@ -319,9 +322,10 @@ export function substituteDollTargetPrompt(): WsMessage {
     message: '【替身玩偶】请选择摸1张牌的队友：',
     choice_type: 'bw_substitute_doll_target',
     options: [
-      { id: ALLY_PLAYER_ID, label: 'Ally A1' },
+      { id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
     ],
     min: 1, max: 1,
+    presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -334,9 +338,9 @@ export function manaInversionScenario(): ProtocolHarnessScenario {
 }
 
 export function manaInversionXPrompt(maxX = 4): WsMessage {
-  const options: Array<{ id: string; label: string }> = [];
+  const options: Array<{ id: string; label: string; button_label: string }> = [];
   for (let x = 2; x <= maxX; x++) {
-    options.push({ id: String(x), label: `X=${x}（弃${x}张法术牌，造成${x - 1}点法术伤害）` });
+    options.push({ id: String(x), label: `X=${x}（弃${x}张法术牌，造成${x - 1}点法术伤害）`, button_label: String(x) });
   }
   return requireActionMessage({
     type: 'confirm',
@@ -356,12 +360,13 @@ export function manaInversionCardsPrompt(xValue = 2): WsMessage {
     message: `【魔能反转】请选择要弃置的${xValue}张法术牌：`,
     choice_type: 'bw_mana_inversion_cards',
     options: [
-      { id: '2', label: '3: 火球（火系 法术）' },
-      { id: '3', label: '4: 烈焰风暴（火系 法术）' },
-      { id: '4', label: '5: 雷击（雷系 法术）' },
-      { id: '5', label: '6: 圣光（光系 法术）' },
+      { id: '2', label: '3: 火球（火系 法术）', button_label: '选择', card_id: 'bw-fire-magic1' },
+      { id: '3', label: '4: 烈焰风暴（火系 法术）', button_label: '选择', card_id: 'bw-fire-magic2' },
+      { id: '4', label: '5: 雷击（雷系 法术）', button_label: '选择', card_id: 'bw-thunder-magic' },
+      { id: '5', label: '6: 圣光（光系 法术）', button_label: '选择', card_id: 'bw-light-magic' },
     ],
     min: xValue, max: xValue,
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'magic_only' },
   } satisfies Prompt);
 }
 
@@ -372,8 +377,9 @@ export function manaInversionTargetPrompt(): WsMessage {
     message: '【魔能反转】请选择法术伤害目标：',
     choice_type: 'bw_mana_inversion_target',
     options: [
-      { id: ENEMY_PLAYER_ID, label: 'Enemy E1' },
+      { id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
     ],
     min: 1, max: 1,
+    presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
   } satisfies Prompt);
 }

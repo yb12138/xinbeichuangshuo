@@ -27,7 +27,7 @@ test.describe('beast samurai one strike (attack action end)', () => {
 
     await protocolHarness.pushServerMessage(oneStrikeResponsePrompt());
     await expect(page.getByTestId('skill-branch-overlay')).toBeVisible();
-    await page.getByTestId('skill-branch-overlay').getByTestId('branch-option-1').click();
+    await page.getByTestId('skill-branch-overlay').getByTestId('prompt-option-skip').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1],

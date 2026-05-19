@@ -84,10 +84,9 @@ test.describe('bard hope fugue protocol harness', () => {
     // discard card
     await protocolHarness.pushServerMessage(hopeTransferDiscardPrompt());
     await page.getByTestId('hand-card-0').click();
-    await page.getByTestId('prompt-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0],
+      card_ids: ['fire-atk-1'],
     });
   });
 
@@ -128,10 +127,9 @@ test.describe('bard hope fugue protocol harness', () => {
     // discard card
     await protocolHarness.pushServerMessage(hopeTransferDiscardPrompt());
     await page.getByTestId('hand-card-1').click();
-    await page.getByTestId('prompt-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [1],
+      card_ids: ['fire-atk-2'],
     });
   });
 

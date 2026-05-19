@@ -21,7 +21,7 @@ test.describe('beast samurai reversal iaijutsu protocol harness', () => {
 
     // 选 X=2（option index = 2）→ 目标将弃置 X+2=4 张
     await protocolHarness.pushServerMessage(reversalIaijutsuXPrompt(3));
-    await page.getByTestId('prompt-option-2').click();
+    await page.getByTestId('numeric-option-2').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [2],
@@ -37,7 +37,7 @@ test.describe('beast samurai reversal iaijutsu protocol harness', () => {
 
     await protocolHarness.pushServerMessage(reversalIaijutsuResponsePrompt());
     await expect(page.getByTestId('skill-branch-overlay')).toBeVisible();
-    await page.getByTestId('skill-branch-overlay').getByTestId('branch-option-1').click();
+    await page.getByTestId('skill-branch-overlay').getByTestId('prompt-option-skip').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1],
@@ -55,7 +55,7 @@ test.describe('beast samurai reversal iaijutsu protocol harness', () => {
     });
 
     await protocolHarness.pushServerMessage(reversalIaijutsuXPrompt(3));
-    await page.getByTestId('prompt-option-0').click();
+    await page.getByTestId('numeric-option-0').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -75,7 +75,7 @@ test.describe('beast samurai reversal iaijutsu protocol harness', () => {
     });
 
     await protocolHarness.pushServerMessage(reversalIaijutsuXPrompt(3));
-    await page.getByTestId('prompt-option-3').click();
+    await page.getByTestId('numeric-option-3').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [3],

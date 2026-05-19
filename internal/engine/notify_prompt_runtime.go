@@ -35,61 +35,7 @@ func (e *GameEngine) decoratePromptForClient(prompt *model.Prompt) *model.Prompt
 	return &cp
 }
 
-func (e *GameEngine) Notify(eventType model.GameEventType, msg string, data interface{}) {
-	event := model.GameEvent{
-		Type:    eventType,
-		Message: msg,
-	}
-	switch eventType {
-	case model.EventAskInput:
-		switch p := data.(type) {
-		case *model.Prompt:
-			event.Prompt = e.decoratePromptForClient(p)
-		case model.Prompt:
-			cp := p
-			event.Prompt = e.decoratePromptForClient(&cp)
-		}
-	case model.EventCardRevealed:
-		switch payload := data.(type) {
-		case model.CardRevealedPayload:
-			cp := payload
-			event.CardRevealed = &cp
-		case *model.CardRevealedPayload:
-			event.CardRevealed = payload
-		}
-	case model.EventDamageDealt:
-		switch payload := data.(type) {
-		case model.DamageDealtPayload:
-			cp := payload
-			event.DamageDealt = &cp
-		case *model.DamageDealtPayload:
-			event.DamageDealt = payload
-		}
-	case model.EventActionStep:
-		switch payload := data.(type) {
-		case model.ActionStepPayload:
-			cp := payload
-			event.ActionStep = &cp
-		case *model.ActionStepPayload:
-			event.ActionStep = payload
-		}
-	case model.EventCombatCue:
-		switch payload := data.(type) {
-		case model.CombatCuePayload:
-			cp := payload
-			event.CombatCue = &cp
-		case *model.CombatCuePayload:
-			event.CombatCue = payload
-		}
-	case model.EventDrawCards:
-		switch payload := data.(type) {
-		case model.DrawCardsPayload:
-			cp := payload
-			event.DrawCards = &cp
-		case *model.DrawCardsPayload:
-			event.DrawCards = payload
-		}
-	}
+func (e *GameEngine) emitGameEvent(event model.GameEvent) {
 	if err := event.Validate(); err != nil {
 		panic(err)
 	}
@@ -99,7 +45,18 @@ func (e *GameEngine) Notify(eventType model.GameEventType, msg string, data inte
 }
 
 func (e *GameEngine) Log(msg string) {
-	e.Notify(model.EventLog, msg, nil)
+	e.emitGameEvent(model.GameEvent{Type: model.EventLog, Message: msg})
+}
+
+func (e *GameEngine) NotifyPrompt(prompt *model.Prompt) {
+	e.emitGameEvent(model.GameEvent{
+		Type:   model.EventAskInput,
+		Prompt: e.decoratePromptForClient(prompt),
+	})
+}
+
+func (e *GameEngine) NotifyGameEnd(msg string) {
+	e.emitGameEvent(model.GameEvent{Type: model.EventGameEnd, Message: msg})
 }
 
 func (e *GameEngine) NotifyCardRevealed(playerID string, cards []model.Card, actionType model.DamageType) {
@@ -163,12 +120,15 @@ func (e *GameEngine) notifyCards(playerID string, cards []model.Card, actionType
 	if p != nil {
 		playerName = p.Name
 	}
-	e.Notify(model.EventCardRevealed, "", model.CardRevealedPayload{
-		PlayerID:   playerID,
-		PlayerName: playerName,
-		Cards:      cards,
-		ActionType: string(actionType),
-		Hidden:     hidden,
+	e.emitGameEvent(model.GameEvent{
+		Type: model.EventCardRevealed,
+		CardRevealed: &model.CardRevealedPayload{
+			PlayerID:   playerID,
+			PlayerName: playerName,
+			Cards:      cards,
+			ActionType: string(actionType),
+			Hidden:     hidden,
+		},
 	})
 }
 
@@ -187,13 +147,16 @@ func (e *GameEngine) NotifyDamageDealt(sourceID, targetID string, damage int, da
 	if target != nil {
 		targetName = target.Name
 	}
-	e.Notify(model.EventDamageDealt, "", model.DamageDealtPayload{
-		SourceID:   sourceID,
-		SourceName: sourceName,
-		TargetID:   targetID,
-		TargetName: targetName,
-		Damage:     damage,
-		DamageType: string(damageType),
+	e.emitGameEvent(model.GameEvent{
+		Type: model.EventDamageDealt,
+		DamageDealt: &model.DamageDealtPayload{
+			SourceID:   sourceID,
+			SourceName: sourceName,
+			TargetID:   targetID,
+			TargetName: targetName,
+			Damage:     damage,
+			DamageType: string(damageType),
+		},
 	})
 }
 
@@ -205,9 +168,9 @@ func (e *GameEngine) NotifyActionStep(line string) {
 		e.addActionNote(line)
 		return
 	}
-	e.Notify(model.EventActionStep, "", model.ActionStepPayload{
-		Line: line,
-		Kind: "detail",
+	e.emitGameEvent(model.GameEvent{
+		Type:       model.EventActionStep,
+		ActionStep: &model.ActionStepPayload{Line: line, Kind: "detail"},
 	})
 }
 
@@ -215,9 +178,9 @@ func (e *GameEngine) NotifyActionSummary(line string) {
 	if e.observer == nil || line == "" {
 		return
 	}
-	e.Notify(model.EventActionStep, "", model.ActionStepPayload{
-		Line: line,
-		Kind: "summary",
+	e.emitGameEvent(model.GameEvent{
+		Type:       model.EventActionStep,
+		ActionStep: &model.ActionStepPayload{Line: line, Kind: "summary"},
 	})
 }
 
@@ -225,10 +188,13 @@ func (e *GameEngine) NotifyCombatCue(attackerID, targetID, phase string) {
 	if e.observer == nil || attackerID == "" || targetID == "" || phase == "" {
 		return
 	}
-	e.Notify(model.EventCombatCue, "", model.CombatCuePayload{
-		AttackerID: attackerID,
-		TargetID:   targetID,
-		Phase:      phase,
+	e.emitGameEvent(model.GameEvent{
+		Type: model.EventCombatCue,
+		CombatCue: &model.CombatCuePayload{
+			AttackerID: attackerID,
+			TargetID:   targetID,
+			Phase:      phase,
+		},
 	})
 }
 
@@ -242,11 +208,14 @@ func (e *GameEngine) NotifyDrawCards(playerID string, count int, reason string) 
 	if p != nil {
 		playerName = p.Name
 	}
-	e.Notify(model.EventDrawCards, "", model.DrawCardsPayload{
-		PlayerID:   playerID,
-		PlayerName: playerName,
-		DrawCount:  count,
-		Reason:     reason,
+	e.emitGameEvent(model.GameEvent{
+		Type: model.EventDrawCards,
+		DrawCards: &model.DrawCardsPayload{
+			PlayerID:   playerID,
+			PlayerName: playerName,
+			DrawCount:  count,
+			Reason:     reason,
+		},
 	})
 }
 
@@ -262,7 +231,7 @@ func (e *GameEngine) notifyInterruptPrompt() {
 	}
 	prompt := e.BuildPendingInterruptPrompt()
 	if prompt != nil {
-		e.Notify(model.EventAskInput, "", prompt)
+		e.NotifyPrompt(prompt)
 	} else if e.shouldAutoSkipDiscardDownTo() {
 		e.autoSkipPendingDiscardDownTo()
 	}

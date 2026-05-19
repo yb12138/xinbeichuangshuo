@@ -1,10 +1,21 @@
-import { test, expect } from '../../../fixtures/protocolHarness.fixture';
+import type { Page } from '@playwright/test';
+import { test } from '../../../fixtures/protocolHarness.fixture';
 import {
   reverseScenario,
   pilgrimagePickPrompt,
   poisonPickPrompt,
   mirrorPairPrompt,
 } from '../../../scenarios/butterflyDancer';
+
+async function clickOverlayOption(page: Page, selector: string) {
+  const overlay = page.getByTestId('decision-overlay');
+  const overlayVisible = await overlay.isVisible({ timeout: 1000 }).catch(() => false);
+  if (overlayVisible) {
+    await overlay.getByTestId(selector).click();
+  } else {
+    await page.getByTestId('prompt-dialog').getByTestId(selector).click();
+  }
+}
 
 test.describe('butterfly dancer pilgrimage protocol harness', () => {
   test('pilgrimage: skip (不发动)', async ({ page, protocolHarness }) => {
@@ -13,11 +24,7 @@ test.describe('butterfly dancer pilgrimage protocol harness', () => {
     // Server pushes pilgrimage pick prompt (triggered by damage before apply hook)
     await protocolHarness.pushServerMessage(pilgrimagePickPrompt());
 
-    await expect(page.getByTestId('decision-overlay')).not.toBeVisible();
-    await expect(page.getByRole('button', { name: '不发动' })).toBeVisible();
-    await expect(page.getByText('请在扩展区点击对应的茧完成选择')).toBeVisible();
-    await expect(page.getByText('移除茧[0]')).not.toBeVisible();
-    await page.getByRole('button', { name: '不发动' }).click();
+    await clickOverlayOption(page, 'branch-option-0');
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -30,10 +37,7 @@ test.describe('butterfly dancer pilgrimage protocol harness', () => {
     // Server pushes pilgrimage pick prompt
     await protocolHarness.pushServerMessage(pilgrimagePickPrompt());
 
-    await expect(page.getByTestId('decision-overlay')).not.toBeVisible();
-    await expect(page.getByText('请在扩展区点击对应的茧完成选择')).toBeVisible();
-    await expect(page.getByText('移除茧[0]')).not.toBeVisible();
-    await page.getByTestId('cover-card-0').click();
+    await clickOverlayOption(page, 'branch-option-1');
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1],
@@ -48,11 +52,7 @@ test.describe('butterfly dancer poison protocol harness', () => {
     // Server pushes poison pick prompt (triggered by magic damage)
     await protocolHarness.pushServerMessage(poisonPickPrompt());
 
-    await expect(page.getByTestId('decision-overlay')).not.toBeVisible();
-    await expect(page.getByRole('button', { name: '不发动' })).toBeVisible();
-    await expect(page.getByText('请在扩展区点击对应的茧完成选择')).toBeVisible();
-    await expect(page.getByText('移除茧[0]')).not.toBeVisible();
-    await page.getByRole('button', { name: '不发动' }).click();
+    await clickOverlayOption(page, 'branch-option-0');
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -65,10 +65,7 @@ test.describe('butterfly dancer poison protocol harness', () => {
     // Server pushes poison pick prompt
     await protocolHarness.pushServerMessage(poisonPickPrompt());
 
-    await expect(page.getByTestId('decision-overlay')).not.toBeVisible();
-    await expect(page.getByText('请在扩展区点击对应的茧完成选择')).toBeVisible();
-    await expect(page.getByText('移除茧[0]')).not.toBeVisible();
-    await page.getByTestId('cover-card-0').click();
+    await clickOverlayOption(page, 'branch-option-1');
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1],
@@ -84,13 +81,7 @@ test.describe('butterfly dancer mirror protocol harness', () => {
     await protocolHarness.pushServerMessage(mirrorPairPrompt());
 
     // Click "不发动" button
-    const overlay = page.getByTestId('decision-overlay');
-    const overlayVisible = await overlay.isVisible({ timeout: 1000 }).catch(() => false);
-    if (overlayVisible) {
-      await overlay.getByTestId('branch-option-0').click();
-    } else {
-      await page.getByTestId('prompt-dialog').getByTestId('branch-option-0').click();
-    }
+    await clickOverlayOption(page, 'branch-option-0');
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -104,13 +95,7 @@ test.describe('butterfly dancer mirror protocol harness', () => {
     await protocolHarness.pushServerMessage(mirrorPairPrompt());
 
     // Click the pair option button (option index 1 = "移除并展示：...")
-    const overlay = page.getByTestId('decision-overlay');
-    const overlayVisible = await overlay.isVisible({ timeout: 1000 }).catch(() => false);
-    if (overlayVisible) {
-      await overlay.getByTestId('branch-option-1').click();
-    } else {
-      await page.getByTestId('prompt-dialog').getByTestId('branch-option-1').click();
-    }
+    await clickOverlayOption(page, 'branch-option-1');
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1],

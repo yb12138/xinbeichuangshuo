@@ -219,10 +219,10 @@ export function elementIgniteTargetPrompt(): WsMessage {
     player_id: ELEMENTALIST_PLAYER_ID,
     message: '【元素点燃】请选择一名目标角色，造成2点法术伤害：',
     choice_type: 'elementalist_element_ignite_target',
-    presentation: { kind: 'target_picker' },
+    presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
     options: [
-      { id: ENEMY_PLAYER_ID, label: 'Enemy E1' },
-      { id: ALLY_PLAYER_ID, label: 'Ally A1' },
+      { id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
+      { id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
     ],
     min: 1, max: 1,
   } satisfies Prompt);
@@ -249,10 +249,10 @@ export function thunderStrikeTargetPrompt(): WsMessage {
     player_id: ELEMENTALIST_PLAYER_ID,
     message: '【雷击】请选择一名目标角色，造成1点法术伤害：',
     choice_type: 'elementalist_thunder_strike_target',
-    presentation: { kind: 'target_picker' },
+    presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
     options: [
-      { id: ENEMY_PLAYER_ID, label: 'Enemy E1' },
-      { id: ALLY_PLAYER_ID, label: 'Ally A1' },
+      { id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
+      { id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
     ],
     min: 1, max: 1,
   } satisfies Prompt);
@@ -265,9 +265,10 @@ export function thunderStrikeExtraDiscardPrompt(): WsMessage {
     message: '【雷击】是否额外弃1张雷系牌使伤害+1？',
     choice_type: 'elementalist_bonus_card',
     options: [
-      { id: 'yes', label: '弃牌+1伤害' },
-      { id: 'no', label: '不弃牌' },
+      { id: 'yes', label: '弃牌+1伤害', button_label: '弃牌+1' },
+      { id: 'no', label: '不弃牌', button_label: '不弃牌' },
     ],
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
     min: 1, max: 1,
   } satisfies Prompt);
 }
@@ -293,10 +294,10 @@ export function freezeDamageTargetPrompt(): WsMessage {
     player_id: ELEMENTALIST_PLAYER_ID,
     message: '【冰冻】请选择造成法术伤害的目标：',
     choice_type: 'elementalist_freeze_damage_target',
-    presentation: { kind: 'target_picker' },
+    presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
     options: [
-      { id: ENEMY_PLAYER_ID, label: 'Enemy E1' },
-      { id: ALLY_PLAYER_ID, label: 'Ally A1' },
+      { id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
+      { id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
     ],
     min: 1, max: 1,
   } satisfies Prompt);
@@ -308,11 +309,11 @@ export function freezeHealTargetPrompt(): WsMessage {
     player_id: ELEMENTALIST_PLAYER_ID,
     message: '【冰冻】请选择治疗目标（可选择自己）：',
     choice_type: 'elementalist_freeze_heal_target',
-    presentation: { kind: 'target_picker' },
+    presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
     options: [
-      { id: ELEMENTALIST_PLAYER_ID, label: '自己' },
-      { id: ENEMY_PLAYER_ID, label: 'Enemy E1' },
-      { id: ALLY_PLAYER_ID, label: 'Ally A1' },
+      { id: ELEMENTALIST_PLAYER_ID, label: '自己', button_label: '选择' },
+      { id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
+      { id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
     ],
     min: 1, max: 1,
   } satisfies Prompt);
@@ -325,9 +326,10 @@ export function freezeExtraDiscardPrompt(): WsMessage {
     message: '【冰冻】是否额外弃1张水系牌使伤害+1？',
     choice_type: 'elementalist_bonus_card',
     options: [
-      { id: 'yes', label: '弃牌+1伤害' },
-      { id: 'no', label: '不弃牌' },
+      { id: 'yes', label: '弃牌+1伤害', button_label: '弃牌+1' },
+      { id: 'no', label: '不弃牌', button_label: '不弃牌' },
     ],
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
     min: 1, max: 1,
   } satisfies Prompt);
 }
@@ -354,9 +356,10 @@ export function windBladeExtraDiscardPrompt(): WsMessage {
     message: '【风刃】是否额外弃1张风系牌使伤害+1？',
     choice_type: 'elementalist_bonus_card',
     options: [
-      { id: 'yes', label: '弃牌+1伤害' },
-      { id: 'no', label: '不弃牌' },
+      { id: 'yes', label: '弃牌+1伤害', button_label: '弃牌+1' },
+      { id: 'no', label: '不弃牌', button_label: '不弃牌' },
     ],
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
     min: 1, max: 1,
   } satisfies Prompt);
 }
@@ -383,9 +386,10 @@ export function meteorExtraDiscardPrompt(): WsMessage {
     message: '【陨石】是否额外弃1张地系牌使伤害+1？',
     choice_type: 'elementalist_bonus_card',
     options: [
-      { id: 'yes', label: '弃牌+1伤害' },
-      { id: 'no', label: '不弃牌' },
+      { id: 'yes', label: '弃牌+1伤害', button_label: '弃牌+1' },
+      { id: 'no', label: '不弃牌', button_label: '不弃牌' },
     ],
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
     min: 1, max: 1,
   } satisfies Prompt);
 }
@@ -412,9 +416,10 @@ export function fireballExtraDiscardPrompt(): WsMessage {
     message: '【火球】是否额外弃1张火系牌使伤害+1？',
     choice_type: 'elementalist_bonus_card',
     options: [
-      { id: 'yes', label: '弃牌+1伤害' },
-      { id: 'no', label: '不弃牌' },
+      { id: 'yes', label: '弃牌+1伤害', button_label: '弃牌+1' },
+      { id: 'no', label: '不弃牌', button_label: '不弃牌' },
     ],
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
     min: 1, max: 1,
   } satisfies Prompt);
 }
@@ -445,10 +450,10 @@ export function moonlightTargetPrompt(x: number): WsMessage {
     player_id: ELEMENTALIST_PLAYER_ID,
     message: `【月光】请选择一名目标角色，造成${damage}点法术伤害：`,
     choice_type: 'elementalist_moonlight_target',
-    presentation: { kind: 'target_picker' },
+    presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
     options: [
-      { id: ENEMY_PLAYER_ID, label: 'Enemy E1' },
-      { id: ALLY_PLAYER_ID, label: 'Ally A1' },
+      { id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
+      { id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
     ],
     min: 1, max: 1,
   } satisfies Prompt);

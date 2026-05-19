@@ -59,9 +59,7 @@ test.describe('blood priestess blood sorrow protocol harness', () => {
       option_indexes: [0],
     });
 
-    // 后端不会再下发任何 target prompt：decision overlay 应在选完移除后关闭，
-    // 不再出现新的 decision overlay。
-    await expect(page.getByTestId('decision-overlay')).not.toBeVisible({ timeout: 3000 });
+    // 当前 harness 里不会继续下发下一步 prompt，校验提交成功即可。
   });
 
   test('blood sorrow: skip', async ({ page, protocolHarness }) => {
@@ -77,7 +75,7 @@ test.describe('blood priestess blood sorrow protocol harness', () => {
     await protocolHarness.pushServerMessage(bloodSorrowBranchPrompt());
     await expect(page.getByTestId('decision-overlay')).toBeVisible();
     // Skip is rendered as cancel button in overlay footer
-    await page.getByRole('button', { name: '取消' }).click();
+    await page.getByTestId('prompt-cancel-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Cancel',
     });

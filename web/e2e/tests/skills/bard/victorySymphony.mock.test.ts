@@ -62,8 +62,8 @@ test.describe('bard victory symphony protocol harness', () => {
 
     await protocolHarness.pushServerMessage(victoryConfirmPrompt());
     await expect(page.getByTestId('decision-overlay')).toBeVisible();
-    // 取消（option index 2）= 不发动
-    await page.getByTestId('branch-option-2').click();
+    // cancel_policy=decline maps the cancel control to Cancel.
+    await page.getByTestId('prompt-cancel-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Cancel',
     });

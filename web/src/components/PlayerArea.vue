@@ -14,7 +14,7 @@ const battleReviewStore = useBattleReviewStore()
 const interruptStore = useInterruptStore()
 const uiStore = useUiStore()
 const { damageEffects } = storeToRefs(battleFxStore)
-const { currentPrompt, actionMode, selectedCardForAction, skillMode } = storeToRefs(interruptStore)
+const { currentPrompt, actionMode, selectedHandIndexForAction, skillMode } = storeToRefs(interruptStore)
 const { skillModalCharacterId } = storeToRefs(uiStore)
 const { getCharacter, getRoleDisplayName, isPromptForMe } = useBattleInteractionState()
 
@@ -342,7 +342,7 @@ const showStealthBlockedHint = computed(() => {
   if (props.selectable) return false
   if (!props.isOpponent) return false
   if (actionMode.value !== 'attack') return false
-  if (selectedCardForAction.value === null) return false
+  if (selectedHandIndexForAction.value === null) return false
   return !!props.player.field?.some((fc) => fc.mode === 'Effect' && fc.effect === 'Stealth')
 })
 
@@ -363,7 +363,7 @@ function logTargetDebug(stage: string, payload?: Record<string, unknown>) {
     reason: props.debugTargetReason || '',
     actionMode: actionMode.value,
     skillMode: skillMode.value,
-    promptType: currentPrompt.value?.type || '',
+    promptPresentationKind: currentPrompt.value?.presentation?.kind || '',
     isPromptForMe: isPromptForMe.value,
     ...payload
   }

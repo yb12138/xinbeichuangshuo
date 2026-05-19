@@ -29,7 +29,7 @@ test.describe('beast samurai iaijutsu style protocol harness', () => {
 
     // 模式选择：摸 1 张 (option id "0")
     await protocolHarness.pushServerMessage(iaijutsuStyleModePrompt());
-    await page.getByTestId('branch-option-0').click();
+    await page.getByRole('button', { name: /摸牌/ }).click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -55,7 +55,7 @@ test.describe('beast samurai iaijutsu style protocol harness', () => {
 
     // 模式选择：弃 1 张 (option id "1")
     await protocolHarness.pushServerMessage(iaijutsuStyleModePrompt());
-    await page.getByTestId('branch-option-1').click();
+    await page.getByRole('button', { name: /弃牌/ }).click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1],
@@ -64,10 +64,9 @@ test.describe('beast samurai iaijutsu style protocol harness', () => {
     // 实际弃 1 张牌（min=max=1，与后端 buildDiscardPrompt 一致）
     await protocolHarness.pushServerMessage(iaijutsuStyleDiscardPrompt());
     await page.getByTestId('hand-card-0').click();
-    await page.getByTestId('prompt-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0],
+      card_ids: ['card_1'],
     });
   });
 
@@ -82,7 +81,7 @@ test.describe('beast samurai iaijutsu style protocol harness', () => {
     });
 
     await protocolHarness.pushServerMessage(iaijutsuStyleStartupPrompt());
-    await page.getByTestId('skill-branch-overlay').getByTestId('branch-option-1').click();
+    await page.getByTestId('skill-branch-overlay').getByTestId('prompt-option-skip').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1],

@@ -62,15 +62,15 @@ go run cmd/cli/main.go
 *   `skills`: 显示当前玩家可用的主动技能。
 
 **行动 (仅当前回合玩家)**
-*   `atk <target> <card_index>`: 发起攻击 (e.g., `atk p2 1` 使用第1张牌攻击 p2)。
-*   `magic <target> <card_index>`: 使用法术 (e.g., `magic p2 2`).
+*   `atk <target> <hand_no>`: 发起攻击 (e.g., `atk p2 1` 选择第1张手牌；CLI 会转换为 `card_id` 发送给引擎)。
+*   `magic <target> <hand_no>`: 使用法术 (e.g., `magic p2 2`；CLI 会转换为 `card_id`).
 *   `buy`: 购买行动 (摸3牌，阵营资源池+1宝+1水)。
 *   `syb`: 合成行动 (摸3牌，阵营资源池-3星石，+1星杯)。
 *   `pass`: 结束回合。
 
 **响应/交互**
 *   `take`: 承受伤害。
-*   `counter <card_index>`: 应战（需同系攻击牌）。
+*   `counter <hand_no>`: 应战（需同系攻击牌；CLI 会转换为 `card_id`）。
 *   `confirm`: 确认操作（如确认技能发动）。
 *   `skip`: 跳过/取消操作。
 *   `choose <idx...>`: 选择/弃牌 (e.g., `choose 1 2` 选择第1和第2张牌)。

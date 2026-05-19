@@ -226,7 +226,7 @@ func parseInput(line string, game *engine.GameEngine, cli *CLI) (model.PlayerAct
 	case "atk": // atk <target> <idx>
 		action.Type = model.CmdAttack
 		if len(parts) < 3 {
-			return action, fmt.Errorf("用法: atk <target_id> <card_index>")
+			return action, fmt.Errorf("用法: atk <target_id> <hand_no>")
 		}
 		action.TargetID = parts[1]
 		idx, err := strconv.Atoi(parts[2])
@@ -245,7 +245,7 @@ func parseInput(line string, game *engine.GameEngine, cli *CLI) (model.PlayerAct
 	case "defend":
 		action.Type = model.CmdRespond
 		action.ExtraArgs = []string{"defend"}
-		// defend <card_idx> (可选)
+		// defend <hand_no> (可选)
 		if len(parts) > 1 {
 			idx, err := strconv.Atoi(parts[1])
 			if err == nil {
@@ -258,10 +258,10 @@ func parseInput(line string, game *engine.GameEngine, cli *CLI) (model.PlayerAct
 	case "counter":
 		action.Type = model.CmdRespond
 		action.ExtraArgs = []string{"counter"}
-		// counter <target> <card_idx> (应战攻击)
-		// counter <card_idx> (魔弹传递)
+		// counter <target> <hand_no> (应战攻击)
+		// counter <hand_no> (魔弹传递)
 		if len(parts) == 2 {
-			// counter <card_idx>
+			// counter <hand_no>
 			idx, err := strconv.Atoi(parts[1])
 			if err != nil {
 				return action, fmt.Errorf("卡牌索引必须是数字")
@@ -271,7 +271,7 @@ func parseInput(line string, game *engine.GameEngine, cli *CLI) (model.PlayerAct
 			}
 			action.TargetID = "" // 让后端逻辑决定是否需要 TargetID
 		} else if len(parts) >= 3 {
-			// counter <target> <card_idx>
+			// counter <target> <hand_no>
 			action.TargetID = parts[1]
 			idx, err := strconv.Atoi(parts[2])
 			if err != nil {
@@ -281,7 +281,7 @@ func parseInput(line string, game *engine.GameEngine, cli *CLI) (model.PlayerAct
 				return action, err
 			}
 		} else {
-			return action, fmt.Errorf("用法: counter [target_id] <card_index>")
+			return action, fmt.Errorf("用法: counter [target_id] <hand_no>")
 		}
 
 	case "cheat": // cheat <player_id> <card_name> [count]
@@ -295,7 +295,7 @@ func parseInput(line string, game *engine.GameEngine, cli *CLI) (model.PlayerAct
 	case "magic": // magic <target> <idx>
 		action.Type = model.CmdMagic
 		if len(parts) < 3 {
-			return action, fmt.Errorf("用法: magic <target_id> <card_index>")
+			return action, fmt.Errorf("用法: magic <target_id> <hand_no>")
 		}
 		action.TargetID = parts[1]
 		idx, err := strconv.Atoi(parts[2])

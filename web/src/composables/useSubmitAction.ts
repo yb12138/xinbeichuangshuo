@@ -86,11 +86,11 @@ export function useSubmitAction() {
   }
 
   function submitRespondCounter(isMagicMissilePrompt = false) {
-    if (interruptStore.selectedCards.length === 0) {
+    if (interruptStore.selectedHandIndexes.length === 0) {
       interruptStore.showError(isMagicMissilePrompt ? '请先选择一张【魔弹】再传递' : '请先选择一张应战牌')
       return false
     }
-    const cardID = selectedCardIDByPlayableIndex(interruptStore.selectedCards[0])
+    const cardID = selectedCardIDByPlayableIndex(interruptStore.selectedHandIndexes[0])
     if (!cardID) {
       interruptStore.showError('所选卡牌已变化，请重新选择')
       return false
@@ -100,11 +100,11 @@ export function useSubmitAction() {
   }
 
   function submitRespondDefend() {
-    if (interruptStore.selectedCards.length === 0) {
+    if (interruptStore.selectedHandIndexes.length === 0) {
       interruptStore.showError('请先选择一张【圣光】进行防御（圣盾需提前放置）')
       return false
     }
-    const cardID = selectedCardIDByPlayableIndex(interruptStore.selectedCards[0])
+    const cardID = selectedCardIDByPlayableIndex(interruptStore.selectedHandIndexes[0])
     if (!cardID) {
       interruptStore.showError('所选卡牌已变化，请重新选择')
       return false
@@ -134,21 +134,21 @@ export function useSubmitAction() {
       return false
     }
 
-    const cardIdx = interruptStore.selectedCardForAction
+    const cardIdx = interruptStore.selectedHandIndexForAction
     if (cardIdx === null) {
       return false
     }
 
     const selectedItem = myPlayableCards.value.find(item => item.index === cardIdx)
     if (!selectedItem) {
-      interruptStore.setSelectedCardForAction(null)
+      interruptStore.setSelectedHandIndexForAction(null)
       interruptStore.showError('所选卡牌已变化，请重新选择')
       return false
     }
 
     if (interruptStore.actionMode === 'attack') {
       if (selectedItem.card.type !== 'Attack') {
-        interruptStore.setSelectedCardForAction(null)
+        interruptStore.setSelectedHandIndexForAction(null)
         interruptStore.showError('所选卡牌不是攻击牌，请重新选择')
         return false
       }
@@ -158,7 +158,7 @@ export function useSubmitAction() {
 
     if (interruptStore.actionMode === 'magic') {
       if (selectedItem.card.type !== 'Magic') {
-        interruptStore.setSelectedCardForAction(null)
+        interruptStore.setSelectedHandIndexForAction(null)
         interruptStore.showError('所选卡牌不是法术牌，请重新选择')
         return false
       }

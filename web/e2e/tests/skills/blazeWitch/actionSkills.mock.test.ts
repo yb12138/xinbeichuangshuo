@@ -71,7 +71,7 @@ test.describe('blaze witch pain link protocol harness', () => {
     await selectHandCards(page, [0, 1, 2]);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0, 1, 2],
+      card_ids: ['bw-fire-atk1', 'bw-fire-atk2', 'bw-fire-magic1'],
     });
   });
 });

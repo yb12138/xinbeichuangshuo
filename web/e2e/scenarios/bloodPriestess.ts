@@ -204,10 +204,10 @@ export function bloodSorrowBranchPrompt(): WsMessage {
     choice_type: 'bp_blood_sorrow_mode',
     skill_id: BP_BLOOD_SORROW_SKILL_ID,
     options: [
-      { id: '0', label: '移除同生共死' },
-      { id: '1', label: '转移同生共死目标' },
+      { id: '0', label: '移除同生共死', button_label: '移除' },
+      { id: '1', label: '转移同生共死目标', button_label: '转移' },
     ],
-    presentation: { kind: 'branch_select', layout: 'overlay' },
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0, cancel_policy: 'decline', cancel_label: '取消' },
     min: 1,
     max: 1,
   } satisfies Prompt);
@@ -221,10 +221,11 @@ export function bloodSorrowTargetPrompt(): WsMessage {
     choice_type: 'bp_blood_sorrow_target',
     skill_id: BP_BLOOD_SORROW_SKILL_ID,
     options: [
-      { id: ENEMY_PLAYER_ID, label: '恶徒' },
+      { id: ENEMY_PLAYER_ID, label: '恶徒', button_label: '选择' },
     ],
     min: 1,
     max: 1,
+    presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -337,10 +338,10 @@ export function bloodWailXPrompt(): WsMessage {
     choice_type: 'bp_blood_wail_x',
     skill_id: BP_BLOOD_WAIL_SKILL_ID,
     options: [
-      { id: '1', label: 'X=1' },
-      { id: '2', label: 'X=2' },
+      { id: '1', label: 'X=1', button_label: '1' },
+      { id: '2', label: 'X=2', button_label: '2' },
     ],
-    presentation: { kind: 'branch_select', layout: 'overlay' },
+    presentation: { kind: 'numeric', numeric_base: 0 },
     min: 1,
     max: 1,
   } satisfies Prompt);
@@ -410,11 +411,12 @@ export function sharedLifeTargetPrompt(): WsMessage {
     choice_type: 'bp_shared_life_target',
     skill_id: BP_SHARED_LIFE_SKILL_ID,
     options: [
-      { id: ENEMY_PLAYER_ID, label: '恶徒' },
-      { id: ENEMY_2_PLAYER_ID, label: '恶徒2' },
+      { id: ENEMY_PLAYER_ID, label: '恶徒', button_label: '选择' },
+      { id: ENEMY_2_PLAYER_ID, label: '恶徒2', button_label: '选择' },
     ],
     min: 1,
     max: 1,
+    presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -482,13 +484,14 @@ export function bloodCurseDiscardPrompt(): WsMessage {
     choice_type: 'bp_curse_discard',
     skill_id: BP_BLOOD_CURSE_SKILL_ID,
     options: [
-      { id: '0', label: '1: 火焰斩 (火 Attack)' },
-      { id: '1', label: '2: 水涟斩 (水 Attack)' },
-      { id: '2', label: '3: 风刃 (风 Attack)' },
-      { id: '3', label: '4: 血之悲鸣 (暗 Magic)' },
-      { id: '4', label: '5: 暗月法术 (暗 Magic)' },
+      { id: '0', label: '1: 火焰斩 (火 Attack)', button_label: '选择', card_id: 'card_1' },
+      { id: '1', label: '2: 水涟斩 (水 Attack)', button_label: '选择', card_id: 'card_2' },
+      { id: '2', label: '3: 风刃 (风 Attack)', button_label: '选择', card_id: 'card_3' },
+      { id: '3', label: '4: 血之悲鸣 (暗 Magic)', button_label: '选择', card_id: 'card_4' },
+      { id: '4', label: '5: 暗月法术 (暗 Magic)', button_label: '选择', card_id: 'card_5' },
     ],
     min: 3,
     max: 3,
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'option_limited' },
   } satisfies Prompt);
 }

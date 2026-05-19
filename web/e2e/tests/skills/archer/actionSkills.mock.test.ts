@@ -78,7 +78,7 @@ test.describe('archer flash trap protocol harness', () => {
     await protocolHarness.pushServerMessage(flashTrapTargetPrompt());
 
     // Select enemy target
-    await clickOverlayOption(page, 'prompt-option-enemy_1');
+    await selectTarget(page, 'enemy_1');
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -91,7 +91,7 @@ test.describe('archer flash trap protocol harness', () => {
     await protocolHarness.pushServerMessage(flashTrapTargetPrompt());
 
     // Select ally target
-    await clickOverlayOption(page, 'prompt-option-ally_1');
+    await selectTarget(page, 'ally_1');
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1],

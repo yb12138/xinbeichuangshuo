@@ -41,10 +41,10 @@ test.describe('fighter attack skill choice protocol harness', () => {
 
     await protocolHarness.pushServerMessage(attackSkillChoicePrompt());
     await expect(page.getByTestId('skill-branch-overlay')).toBeVisible();
-    // skip 是 choose_skill 列表中的最后一个选项（index = 2）。
+    // skill_choice 的跳过按钮使用固定 skip id。
     await page
       .getByTestId('skill-branch-overlay')
-      .getByTestId('branch-option-2')
+      .getByTestId('prompt-option-skip')
       .click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',

@@ -43,7 +43,7 @@ test.describe('bard rousing rhapsody protocol harness - holder perspective', () 
     await page.getByTestId('prompt-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0, 1],
+      card_ids: ['ally-card-1', 'ally-card-2'],
     });
   });
 

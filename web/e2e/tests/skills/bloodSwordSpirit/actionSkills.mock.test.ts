@@ -54,6 +54,7 @@ test.describe('blood sword spirit blood dye rose protocol harness', () => {
     // Select enemy (remove heal) and ally (gain heal)
     await selectTarget(page, ENEMY_PLAYER_ID);
     await selectTarget(page, ALLY_PLAYER_ID);
+    await page.getByTestId('prompt-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0, 1],

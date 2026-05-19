@@ -85,10 +85,9 @@ test.describe('bard dissonance chord protocol harness', () => {
     // Discard step: bard discards 1 card (X=2, n=X-1=1)
     await protocolHarness.pushServerMessage(dissonanceDiscardStepPrompt(BARD_PLAYER_ID, 'E2E Bard', 1));
     await page.getByTestId('hand-card-0').click();
-    await page.getByTestId('prompt-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0],
+      card_ids: ['fire-atk-1'],
     });
 
     // Discard step: enemy discards 1 card (simulated - click inline button since enemy is bot)

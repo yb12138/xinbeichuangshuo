@@ -31,7 +31,7 @@ test.describe('elementalist thunder strike extra discard protocol harness', () =
     await protocolHarness.pushServerMessage(thunderStrikeExtraDiscardPrompt());
 
     // Click yes to discard thunder card
-    await clickOverlayOption(page, 'prompt-option-yes');
+    await clickOverlayOption(page, 'branch-option-0');
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -44,7 +44,7 @@ test.describe('elementalist thunder strike extra discard protocol harness', () =
     await protocolHarness.pushServerMessage(thunderStrikeExtraDiscardPrompt());
 
     // Click no to skip
-    await clickOverlayOption(page, 'prompt-option-no');
+    await clickOverlayOption(page, 'branch-option-1');
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1],
@@ -58,7 +58,7 @@ test.describe('elementalist freeze extra discard protocol harness', () => {
 
     await protocolHarness.pushServerMessage(freezeExtraDiscardPrompt());
 
-    await clickOverlayOption(page, 'prompt-option-yes');
+    await clickOverlayOption(page, 'branch-option-0');
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -70,7 +70,7 @@ test.describe('elementalist freeze extra discard protocol harness', () => {
 
     await protocolHarness.pushServerMessage(freezeExtraDiscardPrompt());
 
-    await clickOverlayOption(page, 'prompt-option-no');
+    await clickOverlayOption(page, 'branch-option-1');
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1],
@@ -84,7 +84,7 @@ test.describe('elementalist wind blade extra discard protocol harness', () => {
 
     await protocolHarness.pushServerMessage(windBladeExtraDiscardPrompt());
 
-    await clickOverlayOption(page, 'prompt-option-yes');
+    await clickOverlayOption(page, 'branch-option-0');
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -96,7 +96,7 @@ test.describe('elementalist wind blade extra discard protocol harness', () => {
 
     await protocolHarness.pushServerMessage(windBladeExtraDiscardPrompt());
 
-    await clickOverlayOption(page, 'prompt-option-no');
+    await clickOverlayOption(page, 'branch-option-1');
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1],
@@ -110,7 +110,7 @@ test.describe('elementalist meteor extra discard protocol harness', () => {
 
     await protocolHarness.pushServerMessage(meteorExtraDiscardPrompt());
 
-    await clickOverlayOption(page, 'prompt-option-yes');
+    await clickOverlayOption(page, 'branch-option-0');
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -122,7 +122,7 @@ test.describe('elementalist meteor extra discard protocol harness', () => {
 
     await protocolHarness.pushServerMessage(meteorExtraDiscardPrompt());
 
-    await clickOverlayOption(page, 'prompt-option-no');
+    await clickOverlayOption(page, 'branch-option-1');
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1],
@@ -136,7 +136,7 @@ test.describe('elementalist fireball extra discard protocol harness', () => {
 
     await protocolHarness.pushServerMessage(fireballExtraDiscardPrompt());
 
-    await clickOverlayOption(page, 'prompt-option-yes');
+    await clickOverlayOption(page, 'branch-option-0');
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -148,7 +148,7 @@ test.describe('elementalist fireball extra discard protocol harness', () => {
 
     await protocolHarness.pushServerMessage(fireballExtraDiscardPrompt());
 
-    await clickOverlayOption(page, 'prompt-option-no');
+    await clickOverlayOption(page, 'branch-option-1');
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1],

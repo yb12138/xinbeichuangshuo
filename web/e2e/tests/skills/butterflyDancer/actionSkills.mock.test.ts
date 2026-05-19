@@ -48,6 +48,14 @@ async function activateReverseAndDiscardTwo(
   protocolHarness: any,
   discardIndices: [number, number] = [0, 1],
 ) {
+  const reverseDiscardCardIDs = [
+    'bd-atk-fire',
+    'bd-atk-thunder',
+    'bd-magic-light',
+    'bd-atk-water',
+    'bd-extra-1',
+    'bd-extra-2',
+  ];
   await activatePanelSkill(page, BD_REVERSE_SKILL_ID);
   await protocolHarness.expectSubmitAction({
     action_type: 'Skill',
@@ -59,7 +67,7 @@ async function activateReverseAndDiscardTwo(
   await selectHandCards(page, discardIndices);
   await protocolHarness.expectSubmitAction({
     action_type: 'Select',
-    option_indexes: discardIndices,
+    card_ids: discardIndices.map((idx) => reverseDiscardCardIDs[idx]),
   });
 }
 
@@ -109,6 +117,9 @@ test.describe('butterfly dancer chrysalis protocol harness', () => {
       skill_id: BD_CHRYSALIS_SKILL_ID,
     });
 
+    // Simulate resolved state first so expansion zone has cocoon covers.
+    await protocolHarness.pushServerMessage(chrysalisResolvedState());
+
     // 模拟茧溢出场景（假设已有5张茧，再加4张，溢出1张）
     // 前端契约：接收溢出弹框，展示茧选项供玩家选择舍弃
     const overflowPrompt = chrysalisOverflowDiscardPrompt(1, [
@@ -120,10 +131,10 @@ test.describe('butterfly dancer chrysalis protocol harness', () => {
     // 选择一张茧舍弃
     // 前端契约：点击茧牌（在 expansion zone 的盖牌区域），触发 Select action
     // 注：茧牌在 expansion zone 中使用 CardComponent 渲染，点击触发 onCoverCardClick
-    await page.getByTestId('hand-card-0').click();
+    await page.getByTestId('cover-card-0').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0],
+      card_ids: ['bd-cocoon-0'],
     });
   });
 });
@@ -209,15 +220,15 @@ test.describe('butterfly dancer reverse butterfly protocol harness', () => {
     await protocolHarness.pushServerMessage(reverseBranch2PickPrompt());
 
     // Click two cocoon cover cards to select them, then confirm
-    await page.getByTestId('hand-card-0').scrollIntoViewIfNeeded();
-    await page.getByTestId('hand-card-0').click();
-    await page.getByTestId('hand-card-1').scrollIntoViewIfNeeded();
-    await page.getByTestId('hand-card-1').click();
+    await page.getByTestId('cover-card-0').scrollIntoViewIfNeeded();
+    await page.getByTestId('cover-card-0').click();
+    await page.getByTestId('cover-card-1').scrollIntoViewIfNeeded();
+    await page.getByTestId('cover-card-1').click();
     // Click "确认选择" button in expansion zone
     await page.locator('.expansion-cocoon-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0, 1],
+      card_ids: ['bd-cocoon-0', 'bd-cocoon-1'],
     });
   });
 

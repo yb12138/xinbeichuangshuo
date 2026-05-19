@@ -54,7 +54,7 @@ func buildMagicMissilePrompt(rt player.ChoiceRuntime) *model.Prompt {
 		EffectHints:  effectHints,
 		Min:          1,
 		Max:          1,
-		Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
+		Presentation: &model.PromptPresentation{Kind: model.PresentationResponse, Layout: "magic_missile"},
 	}
 }
 

@@ -3,10 +3,12 @@ import { test } from '../../../fixtures/protocolHarness.fixture';
 import {
   elementalShotScenario,
   elementalShotDiscardPrompt,
+  elementalShotSkillChoicePrompt,
   animalCompanionScenario,
   animalCompanionPrompt,
   petEnhanceScenario,
   petEnhanceBranchPrompt,
+  petEnhanceSkillChoicePrompt,
 } from '../../../scenarios/elfArcher';
 
 async function clickOverlayOption(page: Page, selector: string) {
@@ -32,10 +34,10 @@ test.describe('elf archer elemental shot protocol harness', () => {
     await protocolHarness.pushServerMessage(elementalShotDiscardPrompt());
 
     // Select fire magic for +1 damage
-    await clickOverlayOption(page, 'prompt-option-elf-fire-magic');
+    await page.getByTestId('hand-card-2').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0],
+      card_ids: ['elf-fire-magic'],
     });
   });
 
@@ -45,21 +47,21 @@ test.describe('elf archer elemental shot protocol harness', () => {
     await protocolHarness.pushServerMessage(elementalShotDiscardPrompt());
 
     // Select thunder magic for forced hit
-    await clickOverlayOption(page, 'prompt-option-elf-thunder-magic');
+    await page.getByTestId('hand-card-6').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [4],
+      card_ids: ['elf-thunder-magic'],
     });
   });
 
-  test('elemental shot: triggered via response_skills', async ({ protocolHarness }) => {
+  test('elemental shot: triggered via response_skills', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(elementalShotScenario());
 
-    // 检查 response_skills 触发的弹框显示
-    // 用户点击发动按钮后，前端弹出弃牌选择
+    await protocolHarness.pushServerMessage(elementalShotSkillChoicePrompt());
+    await page.getByTestId('skill-branch-overlay').getByTestId('branch-option-0').click();
     await protocolHarness.expectSubmitAction({
-      action_type: 'UseSkill',
-      skill_id: 'elf_archer_elemental_shot',
+      action_type: 'Select',
+      option_indexes: [0],
     });
   });
 });
@@ -77,7 +79,7 @@ test.describe('elf archer animal companion protocol harness', () => {
     await protocolHarness.pushServerMessage(animalCompanionPrompt());
 
     // Click confirm button
-    await clickOverlayOption(page, 'prompt-option-confirm');
+    await clickOverlayOption(page, 'branch-option-0');
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -90,7 +92,7 @@ test.describe('elf archer animal companion protocol harness', () => {
     await protocolHarness.pushServerMessage(animalCompanionPrompt());
 
     // Click skip button
-    await clickOverlayOption(page, 'prompt-option-skip');
+    await clickOverlayOption(page, 'branch-option-1');
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1],
@@ -111,7 +113,7 @@ test.describe('elf archer pet enhance protocol harness', () => {
     await protocolHarness.pushServerMessage(petEnhanceBranchPrompt());
 
     // Select draw +1 option
-    await clickOverlayOption(page, 'prompt-option-draw_plus');
+    await clickOverlayOption(page, 'branch-option-0');
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -124,7 +126,7 @@ test.describe('elf archer pet enhance protocol harness', () => {
     await protocolHarness.pushServerMessage(petEnhanceBranchPrompt());
 
     // Select discard -1 option
-    await clickOverlayOption(page, 'prompt-option-discard_minus');
+    await clickOverlayOption(page, 'branch-option-1');
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1],
@@ -137,7 +139,7 @@ test.describe('elf archer pet enhance protocol harness', () => {
     await protocolHarness.pushServerMessage(petEnhanceBranchPrompt());
 
     // Select target discard option
-    await clickOverlayOption(page, 'prompt-option-target_discard');
+    await clickOverlayOption(page, 'branch-option-2');
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [2],
@@ -146,13 +148,14 @@ test.describe('elf archer pet enhance protocol harness', () => {
     // 目标选择通过 min_targets 处理，后端不发送单独的 prompt
   });
 
-  test('pet enhance: triggered via response_skills', async ({ protocolHarness }) => {
+  test('pet enhance: triggered via response_skills', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(petEnhanceScenario());
 
-    // 检查 response_skills 触发的弹框显示
+    await protocolHarness.pushServerMessage(petEnhanceSkillChoicePrompt());
+    await page.getByTestId('skill-branch-overlay').getByTestId('branch-option-0').click();
     await protocolHarness.expectSubmitAction({
-      action_type: 'UseSkill',
-      skill_id: 'elf_archer_pet_enhance',
+      action_type: 'Select',
+      option_indexes: [0],
     });
   });
 });

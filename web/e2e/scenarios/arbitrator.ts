@@ -202,10 +202,11 @@ export function ritualInterruptPrompt(): WsMessage {
     message: '【仪式中断】是否脱离［审判形态］，我方战绩区+1宝石？',
     choice_type: 'arbiter_ritual_interrupt',
     options: [
-      { id: 'confirm', label: '发动' },
-      { id: 'skip', label: '跳过' },
+      { id: 'confirm', label: '发动', button_label: '发动' },
+      { id: 'skip', label: '跳过', button_label: '跳过' },
     ],
     min: 1, max: 1,
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -236,11 +237,12 @@ export function doomJudgmentTargetPrompt(): WsMessage {
     message: '【末日审判】请选择一名目标角色，移除所有［审判］造成等量法术伤害：',
     choice_type: 'arbiter_doom_judgment_target',
     options: [
-      { id: ENEMY_PLAYER_ID, label: 'Enemy E1' },
-      { id: ALLY_PLAYER_ID, label: 'Ally A1' },
-      { id: ARBITRATOR_PLAYER_ID, label: '自己' },
+      { id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
+      { id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
+      { id: ARBITRATOR_PLAYER_ID, label: '自己', button_label: '选择' },
     ],
     min: 1, max: 1,
+    presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -251,10 +253,11 @@ export function doomJudgmentForcePrompt(): WsMessage {
     message: '【末日审判］［审判］已达上限，必须发动该技能。请选择目标：',
     choice_type: 'arbiter_doom_judgment_force',
     options: [
-      { id: ENEMY_PLAYER_ID, label: 'Enemy E1' },
-      { id: ALLY_PLAYER_ID, label: 'Ally A1' },
+      { id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
+      { id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
     ],
     min: 1, max: 1,
+    presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -283,10 +286,11 @@ export function arbitrationRitualPrompt(): WsMessage {
     message: '【仲裁仪式】是否消耗1个红宝石发动，［横置］转为［审判形态］？',
     choice_type: 'arbiter_arbitration_ritual',
     options: [
-      { id: 'confirm', label: '发动' },
-      { id: 'skip', label: '跳过' },
+      { id: 'confirm', label: '发动', button_label: '发动' },
+      { id: 'skip', label: '跳过', button_label: '跳过' },
     ],
     min: 1, max: 1,
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -313,10 +317,10 @@ export function judgmentBalanceBranchPrompt(): WsMessage {
     message: '【判决天平】请选择一项发动：',
     choice_type: 'arbiter_balance_mode',
     options: [
-      { id: 'discard_all', label: '弃掉所有手牌' },
-      { id: 'fill_hand', label: '补牌到上限，战绩区+1宝石' },
+      { id: 'discard_all', label: '弃掉所有手牌', button_label: '弃掉所有手牌' },
+      { id: 'fill_hand', label: '补牌到上限，战绩区+1宝石', button_label: '补牌到上限' },
     ],
     min: 1, max: 1,
-    presentation: { kind: 'branch_select', layout: 'overlay' },
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
   } satisfies Prompt);
 }

@@ -20,7 +20,7 @@ test.describe('bard descent concerto protocol harness', () => {
     await page.getByTestId('prompt-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0, 1],
+      card_ids: ['fire-atk-1', 'fire-atk-2'],
     });
 
     // No target prompt follows because Fire cards are Attack type (not Magic)
@@ -38,7 +38,7 @@ test.describe('bard descent concerto protocol harness', () => {
     await page.getByTestId('prompt-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [2, 3],
+      card_ids: ['water-mgc-1', 'water-mgc-2'],
     });
 
     // Target: magic card triggers 1 magic damage to enemy (click on enemy player card)

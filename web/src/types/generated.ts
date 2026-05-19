@@ -45,6 +45,7 @@ export interface PromptPresentation {
   layout?: string
   numeric_base: number
   cancel_policy?: CancelPolicy
+  cancel_label?: string
   target_filter?: 'all' | 'enemies' | 'allies' | 'allies_exclude_self' | 'any_exclude_self' | 'custom'
   multi_target?: boolean
   card_source?: 'hand' | 'field' | 'proxy'

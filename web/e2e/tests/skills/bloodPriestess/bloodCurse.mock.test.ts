@@ -37,7 +37,7 @@ test.describe('blood priestess blood curse protocol harness', () => {
     await page.getByTestId('prompt-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0, 1, 2],
+      card_ids: ['card_1', 'card_2', 'card_3'],
     });
   });
 });

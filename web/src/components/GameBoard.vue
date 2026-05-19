@@ -62,18 +62,18 @@ const {
 } = storeToRefs(snapshotStore)
 const {
   currentPrompt,
-  selectedCards,
+  selectedHandIndexes,
   selectedTargets,
   promptCounterTarget,
   errorMessage,
   skillEffectToast,
   actionMode,
   magicSubChoice,
-  selectedCardForAction,
+  selectedHandIndexForAction,
   skillMode,
   selectedSkill,
   skillTargetIds,
-  skillDiscardIndices,
+  skillDiscardHandIndexes,
 } = storeToRefs(interruptStore)
 const {
   skillModalCharacterId,
@@ -256,10 +256,10 @@ function logTargetDebug(stage: string, payload?: Record<string, unknown>) {
     me: myPlayerId.value,
     isMyTurn: isMyTurn.value,
     isPromptForMe: isPromptForMe.value,
-    promptType: currentPrompt.value?.type || '',
+    promptPresentationKind: currentPrompt.value?.presentation?.kind || '',
     actionMode: actionMode.value,
     skillMode: skillMode.value,
-    selectedCardForAction: selectedCardForAction.value ?? -1,
+    selectedHandIndexForAction: selectedHandIndexForAction.value ?? -1,
     selectedTargets: [...selectedTargets.value],
     skillTargets: [...skillTargetIds.value],
     promptCounterTarget: promptCounterTarget.value,
@@ -276,23 +276,12 @@ function normalizeActionHubOptionId(option: { id?: string; label?: string }): Ac
   if (id === 'attack' || id === 'magic' || id === 'special' || id === 'cannot_act') {
     return id
   }
-  const label = String(option?.label || '').trim()
-  if (!label) return null
-  if (label.includes('攻击行动') || label.includes('攻击')) return 'attack'
-  if (label.includes('法术行动') || label.includes('法术')) return 'magic'
-  if (label.includes('跳过额外行动') || label.includes('无法行动')) return 'cannot_act'
-  if (label.includes('特殊')) return 'special'
   return null
 }
 
 function isActionSelectionPrompt(prompt: Prompt | null): boolean {
   if (!prompt) return false
-  if (prompt.ui_mode === 'action_hub') return true
-  if (prompt.type !== 'confirm') return false
-  const normalizedMessage = String(prompt.message || '').trim()
-  // 仅识别主流程“请选择行动类型”提示；
-  // 避免把【圣疗】“请选择额外行动类型”误判成行动枢纽。
-  if (!normalizedMessage.includes('请选择行动类型')) return false
+  if (prompt.presentation?.kind !== 'action_hub') return false
   return (prompt.options || []).some((option: any) => normalizeActionHubOptionId(option) !== null)
 }
 
@@ -363,7 +352,9 @@ const cocoonPromptContext = computed(() => {
   let mode: CocoonPromptMode = 'none'
   if (p.type === 'confirm') mode = 'confirm'
   if (p.type === 'choose_card' || p.type === 'choose_cards') mode = 'cards'
-  if (p.presentation?.kind === 'card_picker') mode = 'confirm'
+  if (p.presentation?.kind === 'card_picker') {
+    mode = (Number.isFinite(p.max) ? p.max : 1) > 1 ? 'cards' : 'confirm'
+  }
   if (mode === 'none') {
     return {
       active: false,
@@ -582,22 +573,15 @@ const promptNeedsCardGuide = computed(() => {
   if (!p) return false
   if (p.presentation?.card_filter === 'magic_or_elf_blessing') return true
   if (p.presentation?.card_source === 'proxy') return true
-  if (promptHandCardIndexSet().size > 0) return true
-  if (p.type === 'choose_card' || p.type === 'choose_cards') return true
+  if (promptHandOptionUIIndexSet().size > 0) return true
+  if (p.presentation?.kind === 'card_picker') return true
   const optionIds = new Set((p.options || []).map((option: any) => String(option?.id || '')))
   return optionIds.has('counter') || optionIds.has('defend')
 })
 
 function isOverflowDiscardPrompt(prompt: Prompt | null): boolean {
   if (!prompt) return false
-  if (prompt.type !== 'choose_card' && prompt.type !== 'choose_cards') return false
-  const message = String(prompt.message || '')
-  if (!message) return false
-
-  if (message.includes('手牌上限溢出')) return true
-  if (message.includes('爆牌')) return true
-  if (message.includes('手牌上限') && (message.includes('弃置') || message.includes('弃牌'))) return true
-  return false
+  return prompt.presentation?.kind === 'card_picker' && prompt.presentation?.card_filter === 'overflow_discard'
 }
 
 function parseOverflowDiscardCount(prompt: Prompt | null): number | null {
@@ -605,12 +589,7 @@ function parseOverflowDiscardCount(prompt: Prompt | null): number | null {
   if (Number.isFinite(prompt.min) && Number.isFinite(prompt.max) && prompt.min > 0 && prompt.min === prompt.max) {
     return prompt.min
   }
-  const message = String(prompt.message || '')
-  const matched = message.match(/弃[置牌]\s*(\d+)\s*张/)
-  if (!matched) return null
-  const count = Number.parseInt(matched[1] || '', 10)
-  if (!Number.isFinite(count) || count <= 0) return null
-  return count
+  return null
 }
 
 const promptNeedsOverflowDiscardGuide = computed(() => {
@@ -681,20 +660,24 @@ function isCoverSelected(fieldIndex: number): boolean {
     if (cover && cover.fieldCard.effect === ELF_BLESSING_EFFECT) {
       const playableIdx = playableIndexForBlessingCover(fieldIndex)
       if (playableIdx === null) return false
-      return selectedCards.value.includes(playableIdx) ||
-        selectedCardForAction.value === playableIdx ||
-        skillDiscardIndices.value.includes(playableIdx)
+      return selectedHandIndexes.value.includes(playableIdx) ||
+        selectedHandIndexForAction.value === playableIdx ||
+        skillDiscardHandIndexes.value.includes(playableIdx)
     }
   }
   const playableIndex = playableIndexForBlessingCover(fieldIndex)
   if (playableIndex === null) return false
-  return selectedCards.value.includes(playableIndex) ||
-    selectedCardForAction.value === playableIndex ||
-    skillDiscardIndices.value.includes(playableIndex)
+  return selectedHandIndexes.value.includes(playableIndex) ||
+    selectedHandIndexForAction.value === playableIndex ||
+    skillDiscardHandIndexes.value.includes(playableIndex)
 }
 
 function onCoverCardClick(fieldIndex: number) {
   const ctx = cocoonPromptContext.value
+  const prompt = currentPrompt.value
+  const isFieldCardPicker =
+    prompt?.presentation?.kind === 'card_picker' &&
+    prompt?.presentation?.card_source === 'field'
   if (ctx.active) {
     if (!isCocoonCoverSelectable(fieldIndex)) {
       const isFieldPicker = currentPrompt.value?.presentation?.card_source === 'field'
@@ -710,6 +693,15 @@ function onCoverCardClick(fieldIndex: number) {
       const optionIndex = ctx.fieldToOptionIndex[fieldIndex]
       if (optionIndex === undefined) {
         interruptStore.showError('未找到对应茧选项，请重试')
+        return
+      }
+      if (isFieldCardPicker) {
+        const cardID = String(prompt?.options?.[optionIndex]?.card_id || '').trim()
+        if (!cardID) {
+          interruptStore.showError('当前盖牌选择缺少 card_id，请刷新后重试')
+          return
+        }
+        actions.submitSelectCardIDs([cardID])
         return
       }
       actions.submitSelect([optionIndex])
@@ -781,6 +773,23 @@ function confirmCocoonSelection() {
   if (!ctx.active || ctx.mode !== 'cards') return
   if (!canConfirmCocoonSelection.value) {
     interruptStore.showError(`请选择 ${ctx.min}-${ctx.max} 个茧`)
+    return
+  }
+  const prompt = currentPrompt.value
+  const isFieldCardPicker =
+    prompt?.presentation?.kind === 'card_picker' &&
+    prompt?.presentation?.card_source === 'field'
+  if (isFieldCardPicker) {
+    const selectedCardIDs = selectedCocoonFieldIndices.value.map((fieldIndex) => {
+      const optionIndex = ctx.fieldToOptionIndex[fieldIndex]
+      if (optionIndex === undefined) return ''
+      return String(prompt?.options?.[optionIndex]?.card_id || '').trim()
+    }).filter(Boolean)
+    if (selectedCardIDs.length !== selectedCocoonFieldIndices.value.length) {
+      interruptStore.showError('当前盖牌选择缺少 card_id，请刷新后重试')
+      return
+    }
+    actions.submitSelectCardIDs(selectedCardIDs)
     return
   }
   actions.submitSelect([...selectedCocoonFieldIndices.value])
@@ -916,13 +925,13 @@ function playerSelectState(playerId: string): PlayerSelectState {
   }
 
   if (prompt && isPromptForMe.value && !promptIsActionHub) {
-    if (prompt.type === 'choose_skill') {
-      return { selectable: false, reason: 'prompt_choose_skill_requires_button' }
+    if (prompt.presentation?.kind === 'skill_choice') {
+      return { selectable: false, reason: 'prompt_skill_choice_requires_button' }
     }
     const idx = promptOptionIndexForPlayer(playerId)
-    if (prompt.type === 'choose_target') {
-      if (idx >= 0) return { selectable: true, reason: `prompt_choose_target_option_${idx}` }
-      return { selectable: false, reason: 'prompt_choose_target_no_option_match' }
+    if (prompt.presentation?.kind === 'target_picker') {
+      if (idx >= 0) return { selectable: true, reason: `prompt_target_picker_option_${idx}` }
+      return { selectable: false, reason: 'prompt_target_picker_no_option_match' }
     }
     if (idx >= 0) return { selectable: true, reason: `prompt_confirm_option_${idx}` }
     if (isPromptCounterTargetSelectable(playerId)) {
@@ -943,7 +952,7 @@ function playerSelectState(playerId: string): PlayerSelectState {
   }
   if (
     actionMode.value === 'magic' &&
-    selectedCardForAction.value !== null &&
+    selectedHandIndexForAction.value !== null &&
     targetablePlayers.value.some((t) => t.id === playerId)
   ) {
     return { selectable: true, reason: 'magic_mode_targetable' }
@@ -953,7 +962,7 @@ function playerSelectState(playerId: string): PlayerSelectState {
     return { selectable: false, reason: 'skill_mode_target_not_in_targetablePlayersForSkill' }
   }
   if (actionMode.value !== 'none') {
-    if (selectedCardForAction.value === null) return { selectable: false, reason: 'action_mode_no_card_selected' }
+    if (selectedHandIndexForAction.value === null) return { selectable: false, reason: 'action_mode_no_card_selected' }
     if (!canTargetOpponent.value) return { selectable: false, reason: 'action_mode_canTargetOpponent_false' }
     return { selectable: false, reason: 'action_mode_target_not_in_targetablePlayers' }
   }
@@ -969,7 +978,7 @@ function isPromptCounterTargetSelectable(playerId: string): boolean {
 
 function isPlayerSelected(playerId: string): boolean {
   if (skillMode.value === 'choosing_target' && skillTargetIds.value.includes(playerId)) return true
-  if (currentPrompt.value?.type === 'choose_target' && selectedTargets.value.includes(playerId)) return true
+  if (currentPrompt.value?.presentation?.kind === 'target_picker' && selectedTargets.value.includes(playerId)) return true
   if (promptRequiresManualTargetConfirm(currentPrompt.value) && selectedTargets.value.includes(playerId)) return true
   if (promptCounterTarget.value === playerId && isPromptCounterTargetSelectable(playerId)) return true
   return false
@@ -998,8 +1007,8 @@ function onTargetClick(playerId: string) {
   })
   
   if (prompt && isPromptForMe.value && !promptIsActionHub) {
-    if (prompt.type === 'choose_skill') {
-      logTargetDebug('prompt_choose_skill_ignore_target_click', { playerId })
+    if (prompt.presentation?.kind === 'skill_choice') {
+      logTargetDebug('prompt_skill_choice_ignore_target_click', { playerId })
       return
     }
     if (promptRequiresManualTargetConfirm(prompt)) {
@@ -1016,13 +1025,13 @@ function onTargetClick(playerId: string) {
       }
       return
     }
-    if (prompt.type === 'choose_target') {
+    if (prompt.presentation?.kind === 'target_picker') {
       const promptIdx = promptOptionIndexForPlayer(playerId, true)
       if (promptIdx >= 0) {
-        logTargetDebug('prompt_choose_target_send_action', { playerId, optionIdx: promptIdx })
-        actions.submitPromptTarget(playerId)
+        logTargetDebug('prompt_target_picker_send_select', { playerId, optionIdx: promptIdx })
+        actions.submitSelect([promptIdx])
       } else {
-        logTargetDebug('prompt_choose_target_reject_click', { playerId })
+        logTargetDebug('prompt_target_picker_reject_click', { playerId })
       }
       return
     }
@@ -1045,7 +1054,7 @@ function onTargetClick(playerId: string) {
     logTargetDebug('action_hub_prompt_bypassed_for_target_click', {
       playerId,
       actionMode: actionMode.value,
-      selectedCardForAction: selectedCardForAction.value ?? -1
+      selectedHandIndexForAction: selectedHandIndexForAction.value ?? -1
     })
   }
 
@@ -1078,7 +1087,7 @@ function onTargetClick(playerId: string) {
           maxTargets,
           skillTargets: currentTargets,
         })
-        const selections = skillDiscardIndices.value.length > 0 ? [...skillDiscardIndices.value] : undefined
+        const selections = skillDiscardHandIndexes.value.length > 0 ? [...skillDiscardHandIndexes.value] : undefined
         actions.submitUseSkill(skill.id, currentTargets, selections, { clearSkillMode: true })
         return
       }
@@ -1116,7 +1125,7 @@ function onTargetClick(playerId: string) {
         minTargets,
         maxTargets,
       })
-      const selections = skillDiscardIndices.value.length > 0 ? [...skillDiscardIndices.value] : undefined
+      const selections = skillDiscardHandIndexes.value.length > 0 ? [...skillDiscardHandIndexes.value] : undefined
       actions.submitUseSkill(skill.id, nextTargets, selections, { clearSkillMode: true })
     }
     return
@@ -1126,21 +1135,21 @@ function onTargetClick(playerId: string) {
     logTargetDebug('action_target_blocked_canTargetOpponent_false', { playerId })
     return
   }
-  const cardIdx = selectedCardForAction.value
+  const cardIdx = selectedHandIndexForAction.value
   if (cardIdx === null) {
     logTargetDebug('action_target_blocked_no_card_selected', { playerId })
     return
   }
   const selectedItem = myPlayableCards.value.find(item => item.index === cardIdx)
   if (!selectedItem) {
-    interruptStore.setSelectedCardForAction(null)
+    interruptStore.setSelectedHandIndexForAction(null)
     interruptStore.showError('所选卡牌已变化，请重新选择')
     logTargetDebug('action_target_blocked_card_not_found', { playerId, cardIdx })
     return
   }
   if (actionMode.value === 'attack') {
     if (selectedItem.card.type !== 'Attack') {
-      interruptStore.setSelectedCardForAction(null)
+      interruptStore.setSelectedHandIndexForAction(null)
       interruptStore.showError('所选卡牌不是攻击牌，请重新选择')
       logTargetDebug('action_target_blocked_card_not_attack', { playerId, cardIdx, cardType: selectedItem.card.type })
       return
@@ -1149,7 +1158,7 @@ function onTargetClick(playerId: string) {
     actions.submitAttack(playerId, selectedItem.card.id)
   } else if (actionMode.value === 'magic') {
     if (selectedItem.card.type !== 'Magic') {
-      interruptStore.setSelectedCardForAction(null)
+      interruptStore.setSelectedHandIndexForAction(null)
       interruptStore.showError('所选卡牌不是法术牌，请重新选择')
       logTargetDebug('action_target_blocked_card_not_magic', { playerId, cardIdx, cardType: selectedItem.card.type })
       return
@@ -1174,7 +1183,9 @@ function plagueDeathTouchPromptElementSet(prompt: Prompt | null): Set<string> {
   return set
 }
 
-function promptHandCardIndexSet(): Set<number> {
+// UI-only helper: maps prompt option card UUIDs back to current hand/blessing
+// display indexes for highlighting. Submission still uses card_id/card_ids.
+function promptHandOptionUIIndexSet(): Set<number> {
   const set = new Set<number>()
   const p = currentPrompt.value?.presentation
   if (!p) return set
@@ -1253,7 +1264,7 @@ function promptCardSelectionState(idx: number): PromptCardSelectionState {
   const optionIds = new Set(options.map((option: any) => String(option?.id || '')))
   const hasCounter = optionIds.has('counter')
   const hasDefend = optionIds.has('defend')
-  const isMagicMissilePrompt = String(prompt.message || '').includes('魔弹')
+  const isMagicMissilePrompt = prompt.presentation?.kind === 'response' && prompt.presentation?.layout === 'magic_missile'
   const allowShadowMagicCounter = canUseShadowRejectMagicResponse()
 
   if (hasCounter || hasDefend) {
@@ -1306,7 +1317,7 @@ function promptCardSelectionState(idx: number): PromptCardSelectionState {
   }
 
   if (isWaterShadowPromptForSelection(prompt)) {
-    const selectedPromptCards = selectedCards.value
+    const selectedPromptCards = selectedHandIndexes.value
       .map((i) => myHand.value[i])
       .filter((c): c is NonNullable<typeof c> => !!c)
     const waterCount = selectedPromptCards.filter((c) => c.element === 'Water').length
@@ -1316,7 +1327,7 @@ function promptCardSelectionState(idx: number): PromptCardSelectionState {
       return { selectable: true, reason: 'prompt_water_shadow_water' }
     }
     if (stealthed && card.type === 'Magic') {
-      if (selectedCards.value.includes(idx)) {
+      if (selectedHandIndexes.value.includes(idx)) {
         return { selectable: true, reason: 'prompt_water_shadow_keep_selected_magic' }
       }
       if (magicCount >= 1) {
@@ -1338,7 +1349,7 @@ function promptCardSelectionState(idx: number): PromptCardSelectionState {
   }
 
   if (prompt.presentation?.card_filter === 'same_element_combo') {
-    const handOptionSet = promptHandCardIndexSet()
+    const handOptionSet = promptHandOptionUIIndexSet()
     if (handOptionSet.size > 0 && !handOptionSet.has(idx)) {
       return {
         selectable: false,
@@ -1346,10 +1357,10 @@ function promptCardSelectionState(idx: number): PromptCardSelectionState {
         error: '当前步骤只能选择可用于欺诈的同系手牌'
       }
     }
-    if (selectedCards.value.includes(idx)) {
+    if (selectedHandIndexes.value.includes(idx)) {
       return { selectable: true, reason: 'prompt_fraud_pick_keep_selected' }
     }
-    const selectedFraudCards = selectedCards.value
+    const selectedFraudCards = selectedHandIndexes.value
       .map((i) => myHand.value[i])
       .filter((c): c is NonNullable<typeof c> => !!c)
     if (selectedFraudCards.length >= 3) {
@@ -1388,7 +1399,7 @@ function promptCardSelectionState(idx: number): PromptCardSelectionState {
         error: '死亡之触需选择提示系别对应的手牌'
       }
     }
-    const selectedPromptCards = selectedCards.value
+    const selectedPromptCards = selectedHandIndexes.value
       .map((i) => myHand.value[i])
       .filter((c): c is NonNullable<typeof c> => !!c)
     if (selectedPromptCards.length > 0) {
@@ -1405,7 +1416,7 @@ function promptCardSelectionState(idx: number): PromptCardSelectionState {
   }
 
   if (prompt.presentation?.card_filter === 'same_element_attack_pair') {
-    const handOptionSet = promptHandCardIndexSet()
+    const handOptionSet = promptHandOptionUIIndexSet()
     if (handOptionSet.size > 0 && !handOptionSet.has(idx)) {
       return {
         selectable: false,
@@ -1420,17 +1431,17 @@ function promptCardSelectionState(idx: number): PromptCardSelectionState {
         error: '圣屑飓暴只能弃置攻击牌'
       }
     }
-    if (selectedCards.value.includes(idx)) {
+    if (selectedHandIndexes.value.includes(idx)) {
       return { selectable: true, reason: 'prompt_holy_shard_keep_selected' }
     }
-    if (selectedCards.value.length >= 2) {
+    if (selectedHandIndexes.value.length >= 2) {
       return {
         selectable: false,
         reason: 'prompt_holy_shard_max_reached',
         error: '圣屑飓暴只能选择2张同系攻击牌'
       }
     }
-    const selectedShardCards = selectedCards.value
+    const selectedShardCards = selectedHandIndexes.value
       .map((i) => myHand.value[i])
       .filter((c): c is NonNullable<typeof c> => !!c)
     if (selectedShardCards.length > 0) {
@@ -1457,10 +1468,10 @@ function promptCardSelectionState(idx: number): PromptCardSelectionState {
         error: '暗之障壁需选择法术牌或雷系牌'
       }
     }
-    if (selectedCards.value.includes(idx)) {
+    if (selectedHandIndexes.value.includes(idx)) {
       return { selectable: true, reason: 'prompt_dark_barrier_keep_selected' }
     }
-    const selectedTypes = selectedCards.value.map(i => {
+    const selectedTypes = selectedHandIndexes.value.map(i => {
       const c = myHand.value[i]
       return { isMagic: c?.type === 'Magic', isThunder: c?.element === 'Thunder' }
     })
@@ -1505,7 +1516,7 @@ function promptCardSelectionState(idx: number): PromptCardSelectionState {
     return { selectable: true, reason: 'prompt_fullness_discard_valid' }
   }
 
-  const handOptionSet = promptHandCardIndexSet()
+  const handOptionSet = promptHandOptionUIIndexSet()
   if (handOptionSet.size > 0) {
     if (handOptionSet.has(idx)) {
       return { selectable: true, reason: 'prompt_hand_option_match' }
@@ -1517,8 +1528,8 @@ function promptCardSelectionState(idx: number): PromptCardSelectionState {
     }
   }
 
-  if (prompt.type === 'choose_card' || prompt.type === 'choose_cards') {
-    return { selectable: false, reason: 'prompt_choose_cards_no_hand_option' }
+  if (prompt.presentation?.kind === 'card_picker') {
+    return { selectable: false, reason: 'prompt_card_picker_missing_card_id_option' }
   }
 
   return { selectable: false, reason: 'prompt_not_card_selection' }
@@ -1569,7 +1580,7 @@ function cardPassesSkillDiscardRules(idx: number): PromptCardSelectionState {
         error: '式神降临需要弃置有命格的手牌',
       }
     }
-    const selected = skillDiscardIndices.value
+    const selected = skillDiscardHandIndexes.value
       .map((i) => myHand.value[i])
       .filter((c): c is NonNullable<typeof c> => !!c)
     if (selected.length > 0) {
@@ -1589,8 +1600,8 @@ function cardPassesSkillDiscardRules(idx: number): PromptCardSelectionState {
 function isCardSelectableForSkillDiscard(idx: number): boolean {
   if (idx < 0 || idx >= myHand.value.length) return false
   if (!selectedSkill.value) return false
-  if (skillDiscardIndices.value.includes(idx)) return true
-  if (skillDiscardIndices.value.length >= selectedSkill.value.cost_discards) return false
+  if (skillDiscardHandIndexes.value.includes(idx)) return true
+  if (skillDiscardHandIndexes.value.length >= selectedSkill.value.cost_discards) return false
   return cardPassesSkillDiscardRules(idx).selectable
 }
 
@@ -1615,7 +1626,7 @@ function isCardSelectableForAction(idx: number): boolean {
 }
 
 function togglePromptSelectedCard(idx: number) {
-  const nextSelected = [...selectedCards.value]
+  const nextSelected = [...selectedHandIndexes.value]
   const existingIndex = nextSelected.indexOf(idx)
   if (existingIndex >= 0) {
     nextSelected.splice(existingIndex, 1)
@@ -1624,7 +1635,16 @@ function togglePromptSelectedCard(idx: number) {
   } else {
     nextSelected.push(idx)
   }
-  interruptStore.setSelectedCards(nextSelected)
+  interruptStore.setSelectedHandIndexes(nextSelected)
+}
+
+function selectedPromptCardIDForHandIndex(idx: number): string {
+  const prompt = currentPrompt.value
+  if (!prompt || prompt.presentation?.kind !== 'card_picker' || prompt.presentation?.card_source !== 'hand') return ''
+  const handCardID = String(myHand.value[idx]?.id || '').trim()
+  if (!handCardID) return ''
+  const option = (prompt.options || []).find((candidate: any) => String(candidate?.card_id || '').trim() === handCardID)
+  return String(option?.card_id || '').trim()
 }
 
 function onCardClick(idx: number) {
@@ -1649,25 +1669,25 @@ function onCardClick(idx: number) {
       actions.submitMagic(undefined, card.id)
       return
     }
-    interruptStore.setSelectedCardForAction(selectedCardForAction.value === idx ? null : idx)
+    interruptStore.setSelectedHandIndexForAction(selectedHandIndexForAction.value === idx ? null : idx)
     return
   }
   // 技能弃牌模式：检查元素要求后切换选中
   if (skillMode.value === 'choosing_discard' && selectedSkill.value) {
     const skill = selectedSkill.value
     const state = cardPassesSkillDiscardRules(idx)
-    if (!state.selectable && !skillDiscardIndices.value.includes(idx)) {
+    if (!state.selectable && !skillDiscardHandIndexes.value.includes(idx)) {
       if (state.error) {
         interruptStore.showError(state.error)
       }
       return
     }
     // 检查是否已选满
-    if (!skillDiscardIndices.value.includes(idx) && skillDiscardIndices.value.length >= skill.cost_discards) {
+    if (!skillDiscardHandIndexes.value.includes(idx) && skillDiscardHandIndexes.value.length >= skill.cost_discards) {
       interruptStore.showError(`最多选择 ${skill.cost_discards} 张牌`)
       return
     }
-    interruptStore.toggleSkillDiscard(idx)
+    interruptStore.toggleSkillDiscardHandIndex(idx)
     return
   }
   if (isPromptForMe.value) {
@@ -1685,13 +1705,28 @@ function onCardClick(idx: number) {
     togglePromptSelectedCard(idx)
     logTargetDebug('prompt_card_toggled', {
       cardIdx: idx,
-      selectedCards: [...selectedCards.value],
+      selectedHandIndexes: [...selectedHandIndexes.value],
       reason: state.reason
     })
+    const prompt = currentPrompt.value
+    const p = prompt?.presentation
+    const canSubmitSingleCardPicker =
+      p?.kind === 'card_picker' &&
+      p.card_source === 'hand' &&
+      (prompt?.max ?? 1) <= 1 &&
+      p.card_filter !== 'plague_death_touch_element'
+    if (canSubmitSingleCardPicker) {
+      const cardID = selectedPromptCardIDForHandIndex(idx)
+      if (!cardID) {
+        interruptStore.showError('当前卡牌选择缺少 card_id，请刷新后重试')
+        return
+      }
+      actions.submitSelectCardIDs([cardID])
+    }
     return
   }
   if (isMyTurn.value) {
-    interruptStore.setSelectedCardForAction(selectedCardForAction.value === idx ? null : idx)
+    interruptStore.setSelectedHandIndexForAction(selectedHandIndexForAction.value === idx ? null : idx)
   }
 }
 
@@ -2179,7 +2214,7 @@ watch(
                     :index="entry.index"
                     medium
                     :selectable="isCardSelectableForAction(entry.index)"
-                    :selected="selectedCards.includes(entry.index) || selectedCardForAction === entry.index || skillDiscardIndices.includes(entry.index)"
+                    :selected="selectedHandIndexes.includes(entry.index) || selectedHandIndexForAction === entry.index || skillDiscardHandIndexes.includes(entry.index)"
                     @click="onCardClick(entry.index)"
                   />
                 </div>

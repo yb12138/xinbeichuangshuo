@@ -315,22 +315,23 @@ export function hopeDrawConfirmPrompt(): WsMessage {
     choice_type: 'bd_hope_draw_confirm',
     skill_id: BD_HOPE_FUGUE_SKILL_ID,
     options: [
-      { id: '0', label: '是' },
-      { id: '1', label: '否' },
+      { id: '0', label: '是', button_label: '是' },
+      { id: '1', label: '否', button_label: '否' },
     ],
     min: 1,
     max: 1,
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
   } satisfies Prompt);
 }
 
 export function hopeModePrompt(hasEternalHolder: boolean): WsMessage {
   const opts: PromptOption[] = [
-    { id: '0', label: '将永恒乐章放置于目标队友面前' },
+    { id: '0', label: '将永恒乐章放置于目标队友面前', button_label: '放置' },
   ];
   if (hasEternalHolder) {
     opts.push(
-      { id: '1', label: '转移永恒乐章，弃1张牌并+1治疗' },
-      { id: '2', label: '转移永恒乐章，弃1张牌并+1灵感' },
+      { id: '1', label: '转移永恒乐章，弃1张牌并+1治疗', button_label: '+治疗' },
+      { id: '2', label: '转移永恒乐章，弃1张牌并+1灵感', button_label: '+灵感' },
     );
   }
   return requireActionMessage({
@@ -340,7 +341,7 @@ export function hopeModePrompt(hasEternalHolder: boolean): WsMessage {
     choice_type: 'bd_hope_mode',
     skill_id: BD_HOPE_FUGUE_SKILL_ID,
     options: opts,
-    presentation: { kind: 'branch_select', layout: 'overlay' },
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
     min: 1,
     max: 1,
   } satisfies Prompt);
@@ -354,10 +355,11 @@ export function hopePlaceTargetPrompt(): WsMessage {
     choice_type: 'bd_hope_place_target',
     skill_id: BD_HOPE_FUGUE_SKILL_ID,
     options: [
-      { id: ALLY_PLAYER_ID, label: '勇者' },
+      { id: ALLY_PLAYER_ID, label: '勇者', button_label: '选择' },
     ],
     min: 1,
     max: 1,
+    presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -369,10 +371,11 @@ export function hopeTransferTargetPrompt(): WsMessage {
     choice_type: 'bd_hope_transfer_target',
     skill_id: BD_HOPE_FUGUE_SKILL_ID,
     options: [
-      { id: ALLY_PLAYER_ID, label: '勇者' },
+      { id: ALLY_PLAYER_ID, label: '勇者', button_label: '选择' },
     ],
     min: 1,
     max: 1,
+    presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -384,14 +387,15 @@ export function hopeTransferDiscardPrompt(): WsMessage {
     choice_type: 'bd_hope_transfer_discard',
     skill_id: BD_HOPE_FUGUE_SKILL_ID,
     options: [
-      { id: '0', label: '1: 火焰斩 (火 Attack)' },
-      { id: '1', label: '2: 火焰斩 (火 Attack)' },
-      { id: '2', label: '3: 水涟斩 (水 Magic)' },
-      { id: '3', label: '4: 寒冰箭 (水 Magic)' },
-      { id: '4', label: '5: 圣光 (光 Magic)' },
+      { id: '0', label: '1: 火焰斩 (火 Attack)', button_label: '选择', card_id: 'fire-atk-1' },
+      { id: '1', label: '2: 火焰斩 (火 Attack)', button_label: '选择', card_id: 'fire-atk-2' },
+      { id: '2', label: '3: 水涟斩 (水 Magic)', button_label: '选择', card_id: 'water-mgc-1' },
+      { id: '3', label: '4: 寒冰箭 (水 Magic)', button_label: '选择', card_id: 'water-mgc-2' },
+      { id: '4', label: '5: 圣光 (光 Magic)', button_label: '选择', card_id: 'light-mgc-1' },
     ],
     min: 1,
     max: 1,
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'same_element' },
   } satisfies Prompt);
 }
 
@@ -530,11 +534,11 @@ export function rousingModePrompt(): WsMessage {
     choice_type: 'bd_rousing_mode',
     skill_id: BD_ROUSING_RHAPSODY_SKILL_ID,
     options: [
-      { id: '0', label: '对2名对手各造成1点法术伤害' },
-      { id: '1', label: '弃2张牌' },
-      { id: '2', label: '跳过' },
+      { id: '0', label: '对2名对手各造成1点法术伤害', button_label: '伤害' },
+      { id: '1', label: '弃2张牌', button_label: '弃牌' },
+      { id: '2', label: '跳过', button_label: '跳过' },
     ],
-    presentation: { kind: 'branch_select', layout: 'overlay' },
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
     min: 1,
     max: 1,
   } satisfies Prompt);
@@ -544,10 +548,10 @@ export function rousingTargetsPrompt(step: number): WsMessage {
   const options: PromptOption[] = [];
   // Step 1: show all enemies; Step 2: show remaining
   if (step === 1) {
-    options.push({ id: ENEMY_PLAYER_ID, label: '恶徒' });
-    options.push({ id: ENEMY_2_PLAYER_ID, label: '恶徒2' });
+    options.push({ id: ENEMY_PLAYER_ID, label: '恶徒', button_label: '选择' });
+    options.push({ id: ENEMY_2_PLAYER_ID, label: '恶徒2', button_label: '选择' });
   } else {
-    options.push({ id: ENEMY_2_PLAYER_ID, label: '恶徒2' });
+    options.push({ id: ENEMY_2_PLAYER_ID, label: '恶徒2', button_label: '选择' });
   }
   // 目标选择由吟游诗人执行（伤害来源是吟游诗人）
   return requireActionMessage({
@@ -559,6 +563,7 @@ export function rousingTargetsPrompt(step: number): WsMessage {
     options,
     min: 1,
     max: 1,
+    presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -570,11 +575,12 @@ export function rousingDiscardCardsPrompt(pickRemaining: number): WsMessage {
     choice_type: 'bd_rousing_discard_cards',
     skill_id: BD_ROUSING_RHAPSODY_SKILL_ID,
     options: [
-      { id: '0', label: '1: 测试牌 (火 Attack)' },
-      { id: '1', label: '2: 测试牌 (水 Attack)' },
+      { id: '0', label: '1: 测试牌 (火 Attack)', button_label: '选择', card_id: 'ally-card-1' },
+      { id: '1', label: '2: 测试牌 (水 Attack)', button_label: '选择', card_id: 'ally-card-2' },
     ],
     min: pickRemaining,
     max: pickRemaining,
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'option_limited' },
   } satisfies Prompt);
 }
 
@@ -653,11 +659,11 @@ export function victoryConfirmPrompt(): WsMessage {
     choice_type: 'bd_victory_confirm',
     skill_id: BD_VICTORY_SYMPHONY_SKILL_ID,
     options: [
-      { id: '0', label: '将我方战绩区1个星石提炼为你的能量' },
-      { id: '1', label: '我方战绩区+1宝石，你+1治疗' },
-      { id: '2', label: '取消' },
+      { id: '0', label: '将我方战绩区1个星石提炼为你的能量', button_label: '提炼' },
+      { id: '1', label: '我方战绩区+1宝石，你+1治疗', button_label: '+宝石' },
+      { id: '2', label: '取消', button_label: '取消' },
     ],
-    presentation: { kind: 'branch_select', layout: 'overlay' },
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0, cancel_policy: 'decline', has_decline: true, decline_index: 2 },
     min: 1,
     max: 1,
   } satisfies Prompt);
@@ -671,10 +677,10 @@ export function victoryModePrompt(): WsMessage {
     choice_type: 'bd_victory_mode',
     skill_id: BD_VICTORY_SYMPHONY_SKILL_ID,
     options: [
-      { id: '0', label: '将我方战绩区1个星石提炼为你的能量' },
-      { id: '1', label: '我方战绩区+1宝石，你+1治疗' },
+      { id: '0', label: '将我方战绩区1个星石提炼为你的能量', button_label: '提炼' },
+      { id: '1', label: '我方战绩区+1宝石，你+1治疗', button_label: '+宝石' },
     ],
-    presentation: { kind: 'branch_select', layout: 'overlay' },
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
     min: 1,
     max: 1,
   } satisfies Prompt);
@@ -688,11 +694,12 @@ export function victoryExtractStonePrompt(): WsMessage {
     choice_type: 'bd_victory_extract_stone',
     skill_id: BD_VICTORY_SYMPHONY_SKILL_ID,
     options: [
-      { id: '0', label: '提炼1个宝石' },
-      { id: '1', label: '提炼1个水晶' },
+      { id: '0', label: '提炼1个宝石', button_label: '宝石' },
+      { id: '1', label: '提炼1个水晶', button_label: '水晶' },
     ],
     min: 1,
     max: 1,
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -743,11 +750,12 @@ export function descentElementPrompt(): WsMessage {
     choice_type: 'bd_descent_element',
     skill_id: BD_DESCENT_CONCERTO_SKILL_ID,
     options: [
-      { id: 'Fire', label: '火系' },
-      { id: 'Water', label: '水系' },
+      { id: 'Fire', label: '火系', button_label: '火系' },
+      { id: 'Water', label: '水系', button_label: '水系' },
     ],
     min: 1,
     max: 1,
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -761,6 +769,8 @@ export function descentCardsDirectPrompt(pickRemaining: number, candidateIndices
     .map((idx) => ({
       id: String(idx),
       label: `${idx + 1}: ${hand[idx].name}`,
+      button_label: '选择',
+      card_id: hand[idx].id,
     }));
 
   return requireActionMessage({
@@ -772,6 +782,7 @@ export function descentCardsDirectPrompt(pickRemaining: number, candidateIndices
     options,
     min: pickRemaining,
     max: pickRemaining,
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'same_element' },
   } satisfies Prompt);
 }
 
@@ -788,6 +799,8 @@ export function descentCardsPrompt(chosenElement: string, pickRemaining: number)
   const options: PromptOption[] = allCards.map((c) => ({
     id: String(c.idx),
     label: `${c.idx + 1}: ${c.name}`,
+    button_label: '选择',
+    card_id: hand[c.idx].id,
   }));
 
   return requireActionMessage({
@@ -799,6 +812,7 @@ export function descentCardsPrompt(chosenElement: string, pickRemaining: number)
     options,
     min: pickRemaining,
     max: pickRemaining,
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'same_element' },
   } satisfies Prompt);
 }
 
@@ -810,10 +824,11 @@ export function descentTargetPrompt(): WsMessage {
     choice_type: 'bd_descent_target',
     skill_id: BD_DESCENT_CONCERTO_SKILL_ID,
     options: [
-      { id: ENEMY_PLAYER_ID, label: '恶徒' },
+      { id: ENEMY_PLAYER_ID, label: '恶徒', button_label: '选择' },
     ],
     min: 1,
     max: 1,
+    presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -870,7 +885,7 @@ function dissonanceChordSkill(): AvailableSkill {
 export function dissonanceXPrompt(maxX: number): WsMessage {
   const options: PromptOption[] = [];
   for (let x = 2; x <= maxX; x++) {
-    options.push({ id: String(x), label: `X=${x}` });
+    options.push({ id: String(x), label: `X=${x}`, button_label: String(x) });
   }
   return requireActionMessage({
     type: 'confirm',
@@ -881,6 +896,7 @@ export function dissonanceXPrompt(maxX: number): WsMessage {
     options,
     min: 1,
     max: 1,
+    presentation: { kind: 'numeric', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -892,10 +908,10 @@ export function dissonanceModePrompt(xValue: number): WsMessage {
     choice_type: 'bd_dissonance_mode',
     skill_id: BD_DISSONANCE_CHORD_SKILL_ID,
     options: [
-      { id: '0', label: `你与目标各摸${xValue - 1}张牌` },
-      { id: '1', label: `你与目标各弃${xValue - 1}张牌` },
+      { id: '0', label: `你与目标各摸${xValue - 1}张牌`, button_label: '摸牌' },
+      { id: '1', label: `你与目标各弃${xValue - 1}张牌`, button_label: '弃牌' },
     ],
-    presentation: { kind: 'branch_select', layout: 'overlay' },
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
     min: 1,
     max: 1,
   } satisfies Prompt);
@@ -909,12 +925,13 @@ export function dissonanceTargetPrompt(): WsMessage {
     choice_type: 'bd_dissonance_target',
     skill_id: BD_DISSONANCE_CHORD_SKILL_ID,
     options: [
-      { id: BARD_PLAYER_ID, label: '吟游诗人' },   // self
-      { id: ALLY_PLAYER_ID, label: '勇者' },   // ally
-      { id: ENEMY_PLAYER_ID, label: '恶徒' },   // enemy
+      { id: BARD_PLAYER_ID, label: '吟游诗人', button_label: '选择' },   // self
+      { id: ALLY_PLAYER_ID, label: '勇者', button_label: '选择' },   // ally
+      { id: ENEMY_PLAYER_ID, label: '恶徒', button_label: '选择' },   // enemy
     ],
     min: 1,
     max: 1,
+    presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -937,17 +954,20 @@ export function dissonanceDiscardStepPrompt(
     skill_id: BD_DISSONANCE_CHORD_SKILL_ID,
     options: actorId === BARD_PLAYER_ID
       ? [
-          { id: '0', label: '1: 火焰斩 (火 Attack)' },
-          { id: '1', label: '2: 火焰斩 (火 Attack)' },
-          { id: '2', label: '3: 水涟斩 (水 Magic)' },
-          { id: '3', label: '4: 寒冰箭 (水 Magic)' },
-          { id: '4', label: '5: 圣光 (光 Magic)' },
+          { id: '0', label: '1: 火焰斩 (火 Attack)', button_label: '选择', card_id: 'fire-atk-1' },
+          { id: '1', label: '2: 火焰斩 (火 Attack)', button_label: '选择', card_id: 'fire-atk-2' },
+          { id: '2', label: '3: 水涟斩 (水 Magic)', button_label: '选择', card_id: 'water-mgc-1' },
+          { id: '3', label: '4: 寒冰箭 (水 Magic)', button_label: '选择', card_id: 'water-mgc-2' },
+          { id: '4', label: '5: 圣光 (光 Magic)', button_label: '选择', card_id: 'light-mgc-1' },
         ]
       : [
-          { id: '0', label: '1: 测试牌 (地 Attack)' },
+          { id: '0', label: '1: 测试牌 (地 Attack)', button_label: '选择' },
         ],
     min: needCount,
     max: needCount,
+    presentation: actorId === BARD_PLAYER_ID
+      ? { kind: 'card_picker', card_source: 'hand', card_filter: 'option_limited' }
+      : { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
   } satisfies Prompt);
 }
 

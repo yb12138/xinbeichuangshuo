@@ -21,7 +21,7 @@ test.describe('beast samurai beast return protocol harness', () => {
 
     // 后端 X 范围为 0..3（含「X=0 不移除兽魂」），option_indexes 与 id 对齐
     await protocolHarness.pushServerMessage(beastReturnXPrompt(3));
-    await page.getByTestId('prompt-option-2').click();
+    await page.getByTestId('numeric-option-2').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [2],
@@ -33,7 +33,7 @@ test.describe('beast samurai beast return protocol harness', () => {
 
     await protocolHarness.pushServerMessage(beastReturnResponsePrompt());
     await expect(page.getByTestId('skill-branch-overlay')).toBeVisible();
-    await page.getByTestId('skill-branch-overlay').getByTestId('branch-option-1').click();
+    await page.getByTestId('skill-branch-overlay').getByTestId('prompt-option-skip').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1],
@@ -51,7 +51,7 @@ test.describe('beast samurai beast return protocol harness', () => {
     });
 
     await protocolHarness.pushServerMessage(beastReturnXPrompt(3));
-    await page.getByTestId('prompt-option-0').click();
+    await page.getByTestId('numeric-option-0').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -69,7 +69,7 @@ test.describe('beast samurai beast return protocol harness', () => {
     });
 
     await protocolHarness.pushServerMessage(beastReturnXPrompt(3));
-    await page.getByTestId('prompt-option-3').click();
+    await page.getByTestId('numeric-option-3').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [3],
@@ -95,7 +95,7 @@ test.describe('beast samurai beast return protocol harness', () => {
 
     // Step 2: 选择 X=2（移除2点兽魂，需弃2张牌）
     await protocolHarness.pushServerMessage(beastReturnXPrompt(3));
-    await page.getByTestId('prompt-option-2').click();
+    await page.getByTestId('numeric-option-2').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [2],
@@ -111,7 +111,7 @@ test.describe('beast samurai beast return protocol harness', () => {
     await page.getByTestId('prompt-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0, 1],
+      card_ids: ['card_1', 'card_2'],
     });
 
     // Step 4: 伤害来源弃1张牌 (bs_beast_return_source_discard)
@@ -133,7 +133,7 @@ test.describe('beast samurai beast return protocol harness', () => {
 
     // Step 2: 选择 X=1（移除1点兽魂，需弃1张牌）
     await protocolHarness.pushServerMessage(beastReturnXPrompt(2));
-    await page.getByTestId('prompt-option-1').click();
+    await page.getByTestId('numeric-option-1').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1],
@@ -143,10 +143,9 @@ test.describe('beast samurai beast return protocol harness', () => {
     // 选牌类提示统一在手牌区完成，点击手牌卡片完成选择
     await protocolHarness.pushServerMessage(beastReturnSelfDiscardPrompt(1));
     await page.getByTestId('hand-card-0').click();
-    await page.getByTestId('prompt-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0],
+      card_ids: ['card_1'],
     });
 
     // Step 4: 伤害来源弃1张牌 (bs_beast_return_source_discard)
@@ -169,7 +168,7 @@ test.describe('beast samurai beast return protocol harness', () => {
     // Step 2: 选择 X=0（不移除兽魂，无需弃牌）
     // 后端逻辑：X=0 时 selfDiscardCount=0，跳过 self discard，直接检查 source discard
     await protocolHarness.pushServerMessage(beastReturnXPrompt(3));
-    await page.getByTestId('prompt-option-0').click();
+    await page.getByTestId('numeric-option-0').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -195,7 +194,7 @@ test.describe('beast samurai beast return protocol harness', () => {
 
     // Step 2: 选择 X=3
     await protocolHarness.pushServerMessage(beastReturnXPrompt(4));
-    await page.getByTestId('prompt-option-3').click();
+    await page.getByTestId('numeric-option-3').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [3],
@@ -211,7 +210,7 @@ test.describe('beast samurai beast return protocol harness', () => {
     await page.getByTestId('prompt-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0, 1, 2],
+      card_ids: ['card_1', 'card_2', 'card_3'],
     });
 
     // Step 4: 伤害来源弃1张牌

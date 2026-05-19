@@ -177,8 +177,9 @@ func (e *GameEngine) buildGiveCardsPrompt() *model.Prompt {
 	var options []model.PromptOption
 	for i, card := range player.Hand {
 		options = append(options, model.PromptOption{
-			ID:    strconv.Itoa(i),
-			Label: fmt.Sprintf("%d: %s", i+1, formatCardInfo(card)),
+			ID:     strconv.Itoa(i),
+			Label:  fmt.Sprintf("%d: %s", i+1, formatCardInfo(card)),
+			CardID: card.ID,
 		})
 	}
 
@@ -189,5 +190,9 @@ func (e *GameEngine) buildGiveCardsPrompt() *model.Prompt {
 		Options:  options,
 		Min:      giveCount,
 		Max:      giveCount,
+		Presentation: &model.PromptPresentation{
+			Kind:       model.PresentationCardPicker,
+			CardSource: "hand",
+		},
 	}
 }

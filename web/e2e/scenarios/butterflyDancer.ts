@@ -156,6 +156,7 @@ export function butterflyDancerScenario(options: {
   gem?: number;
   turnStage?: string;
   tokens?: Record<string, number>;
+  indicators?: Record<string, number>;
 } = {}): ProtocolHarnessScenario {
   const hand = options.hand ?? bdHand();
   const players = [
@@ -171,6 +172,7 @@ export function butterflyDancerScenario(options: {
       gem: options.gem ?? 0,
       is_active: true,
       tokens: options.tokens ?? {},
+      indicators: options.indicators ?? {},
     }),
     playerView({
       id: ENEMY_PLAYER_ID,
@@ -231,11 +233,11 @@ export function danceScenario(options: {
 }
 
 export function danceModePrompt(canDiscard = true): WsMessage {
-  const options: Array<{ id: string; label: string }> = [
-    { id: '0', label: '摸1张牌' },
+  const options: Array<{ id: string; label: string; button_label: string }> = [
+    { id: '0', label: '摸1张牌', button_label: '摸牌' },
   ];
   if (canDiscard) {
-    options.push({ id: '1', label: '弃1张牌' });
+    options.push({ id: '1', label: '弃1张牌', button_label: '弃牌' });
   }
   return requireActionMessage({
     type: 'confirm',
@@ -250,6 +252,7 @@ export function danceModePrompt(canDiscard = true): WsMessage {
 }
 
 export function danceDiscardPrompt(): WsMessage {
+  const hand = bdHand();
   return requireActionMessage({
     type: 'choose_cards',
     player_id: BD_PLAYER_ID,
@@ -257,11 +260,12 @@ export function danceDiscardPrompt(): WsMessage {
     choice_type: 'bt_dance_discard',
     skill_id: BD_DANCE_SKILL_ID,
     options: [
-      { id: '0', label: '1: 火焰斩（火系 攻击）' },
-      { id: '1', label: '2: 雷光斩（雷系 攻击）' },
-      { id: '2', label: '3: 圣光（光系 法术）' },
-      { id: '3', label: '4: 水涟斩（水系 攻击）' },
+      { id: '0', label: '1: 火焰斩（火系 攻击）', button_label: '选择', card_id: hand[0].id },
+      { id: '1', label: '2: 雷光斩（雷系 攻击）', button_label: '选择', card_id: hand[1].id },
+      { id: '2', label: '3: 圣光（光系 法术）', button_label: '选择', card_id: hand[2].id },
+      { id: '3', label: '4: 水涟斩（水系 攻击）', button_label: '选择', card_id: hand[3].id },
     ],
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'option_limited' },
     min: 1, max: 1,
   } satisfies Prompt);
 }
@@ -273,8 +277,9 @@ export function cocoonOverflowDiscardPrompt(discardCount = 1): WsMessage {
     message: `【茧上限】请选择要舍弃的${discardCount}个茧：`,
     choice_type: 'bt_cocoon_overflow_discard',
     options: [
-      { id: '0', label: '茧[0]: 茧牌A（火系 攻击）' },
+      { id: '0', label: '茧[0]: 茧牌A（火系 攻击）', button_label: '选择', card_id: 'bd-cocoon-0', field_index: 0 },
     ],
+    presentation: { kind: 'card_picker', card_source: 'field', card_filter: 'overflow_discard' },
     min: discardCount, max: discardCount,
   } satisfies Prompt);
 }
@@ -315,6 +320,11 @@ export function reverseScenario(options: {
  * （见 butterfly_dancer_regression_test.go TestButterflyReverse_UsesUnifiedDiscardCostBeforeBranchChoice）。
  */
 export function reverseDiscardPrompt(): WsMessage {
+  const hand = [
+    ...bdHand(),
+    card({ id: 'bd-extra-1', name: '备牌A', type: 'Attack', element: 'Earth' }),
+    card({ id: 'bd-extra-2', name: '备牌B', type: 'Attack', element: 'Wind' }),
+  ];
   return requireActionMessage({
     type: 'choose_cards',
     player_id: BD_PLAYER_ID,
@@ -322,24 +332,25 @@ export function reverseDiscardPrompt(): WsMessage {
     choice_type: 'system_discard_cards',
     skill_id: BD_REVERSE_SKILL_ID,
     options: [
-      { id: '0', label: '1: 火焰斩（火系 攻击）' },
-      { id: '1', label: '2: 雷光斩（雷系 攻击）' },
-      { id: '2', label: '3: 圣光（光系 法术）' },
-      { id: '3', label: '4: 水涟斩（水系 攻击）' },
-      { id: '4', label: '5: 备牌A（地系 攻击）' },
-      { id: '5', label: '6: 备牌B（风系 攻击）' },
+      { id: '0', label: '1: 火焰斩（火系 攻击）', button_label: '选择', card_id: hand[0].id },
+      { id: '1', label: '2: 雷光斩（雷系 攻击）', button_label: '选择', card_id: hand[1].id },
+      { id: '2', label: '3: 圣光（光系 法术）', button_label: '选择', card_id: hand[2].id },
+      { id: '3', label: '4: 水涟斩（水系 攻击）', button_label: '选择', card_id: hand[3].id },
+      { id: '4', label: '5: 备牌A（地系 攻击）', button_label: '选择', card_id: hand[4].id },
+      { id: '5', label: '6: 备牌B（风系 攻击）', button_label: '选择', card_id: hand[5].id },
     ],
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'option_limited' },
     min: 2,
     max: 2,
   } satisfies Prompt);
 }
 
 export function reverseModePrompt(canBranch2 = true): WsMessage {
-  const options: Array<{ id: string; label: string }> = [
-    { id: '0', label: '分支①：对目标造成1点不可治疗抵御的法术伤害' },
+  const options: Array<{ id: string; label: string; button_label: string }> = [
+    { id: '0', label: '分支①：对目标造成1点不可治疗抵御的法术伤害', button_label: '分支①' },
   ];
   if (canBranch2) {
-    options.push({ id: '1', label: '分支②：移除2个茧或自伤4，然后移除1个蛹' });
+    options.push({ id: '1', label: '分支②：移除2个茧或自伤4，然后移除1个蛹', button_label: '分支②' });
   }
   return requireActionMessage({
     type: 'confirm',
@@ -361,19 +372,20 @@ export function reverseTargetPrompt(): WsMessage {
     choice_type: 'bt_reverse_target',
     skill_id: BD_REVERSE_SKILL_ID,
     options: [
-      { id: ENEMY_PLAYER_ID, label: 'Enemy E1' },
-      { id: ALLY_PLAYER_ID, label: 'Ally A1' },
+      { id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
+      { id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
     ],
+    presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
     min: 1, max: 1,
   } satisfies Prompt);
 }
 
 export function reverseBranch2CostPrompt(canRemoveCocoon = true): WsMessage {
-  const options: Array<{ id: string; label: string }> = [];
+  const options: Array<{ id: string; label: string; button_label: string }> = [];
   if (canRemoveCocoon) {
-    options.push({ id: '0', label: '移除2个茧' });
+    options.push({ id: '0', label: '移除2个茧', button_label: '移除茧' });
   }
-  options.push({ id: '1', label: '对自己造成4点法术伤害' });
+  options.push({ id: '1', label: '对自己造成4点法术伤害', button_label: '自伤4' });
   return requireActionMessage({
     type: 'confirm',
     player_id: BD_PLAYER_ID,
@@ -381,6 +393,7 @@ export function reverseBranch2CostPrompt(canRemoveCocoon = true): WsMessage {
     choice_type: 'bt_reverse_branch2_cost',
     skill_id: BD_REVERSE_SKILL_ID,
     options,
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
     min: 1, max: 1,
   } satisfies Prompt);
 }
@@ -393,9 +406,10 @@ export function reverseBranch2PickPrompt(): WsMessage {
     choice_type: 'bt_reverse_branch2_pick',
     skill_id: BD_REVERSE_SKILL_ID,
     options: [
-      { id: '0', label: '茧[0]: 茧牌A（火系 攻击）' },
-      { id: '1', label: '茧[1]: 茧牌B（水系 魔术）' },
+      { id: '0', label: '茧[0]: 茧牌A（火系 攻击）', button_label: '选择', card_id: 'bd-cocoon-0', field_index: 0 },
+      { id: '1', label: '茧[1]: 茧牌B（水系 魔术）', button_label: '选择', card_id: 'bd-cocoon-1', field_index: 1 },
     ],
+    presentation: { kind: 'card_picker', card_source: 'field', card_filter: 'option_limited' },
     min: 2, max: 2,
   } satisfies Prompt);
 }
@@ -411,7 +425,7 @@ export function pilgrimagePickPrompt(): WsMessage {
     message: '【朝圣】是否移除1个茧抵御1点伤害？',
     choice_type: 'bt_pilgrimage_pick',
     options: [
-      { id: '-1', label: '不发动' },
+      { id: '-1', label: '不发动', button_label: '不发动' },
       {
         id: '1',
         label: '移除茧[0]: 茧牌A（火系 攻击）',
@@ -432,7 +446,7 @@ export function poisonPickPrompt(): WsMessage {
     message: '【毒粉】是否移除1个茧使该次法术伤害+1？',
     choice_type: 'bt_poison_pick',
     options: [
-      { id: '-1', label: '不发动' },
+      { id: '-1', label: '不发动', button_label: '不发动' },
       {
         id: '1',
         label: '移除茧[0]: 茧牌A（火系 攻击）',
@@ -457,9 +471,10 @@ export function mirrorPairPrompt(): WsMessage {
     message: '【镜花水月】是否发动并改写该次2点法术伤害？',
     choice_type: 'bt_mirror_pair',
     options: [
-      { id: '-1', label: '不发动' },
-      { id: '1', label: '移除并展示：火系茧：茧牌A（火系 攻击） + 茧牌B（火系 攻击）' },
+      { id: '-1', label: '不发动', button_label: '不发动' },
+      { id: '1', label: '移除并展示：火系茧：茧牌A（火系 攻击） + 茧牌B（火系 攻击）', button_label: '移除并展示' },
     ],
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
     min: 1, max: 1,
   } satisfies Prompt);
 }
@@ -483,9 +498,10 @@ export function witherConfirmPrompt(): WsMessage {
     message: '【凋零】可发动：是否对目标造成1点法术伤害并对自己造成2点法术伤害？',
     choice_type: 'bt_wither_confirm',
     options: [
-      { id: '0', label: '发动凋零' },
-      { id: '1', label: '不发动' },
+      { id: '0', label: '发动凋零', button_label: '发动' },
+      { id: '1', label: '不发动', button_label: '不发动' },
     ],
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
     min: 1, max: 1,
   } satisfies Prompt);
 }
@@ -497,9 +513,10 @@ export function witherTargetPrompt(): WsMessage {
     message: '【凋零】请选择1名目标角色：',
     choice_type: 'bt_wither_target',
     options: [
-      { id: ENEMY_PLAYER_ID, label: 'Enemy E1' },
-      { id: ALLY_PLAYER_ID, label: 'Ally A1' },
+      { id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
+      { id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
     ],
+    presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
     min: 1, max: 1,
   } satisfies Prompt);
 }
@@ -600,12 +617,24 @@ export function chrysalisResolvedState(options: {
  * 后端契约：当茧数量超过上限（8张），推送 bt_cocoon_overflow_discard 弹框。
  */
 export function chrysalisOverflowDiscardPrompt(overflowCount: number, cocoonLabels: Array<{ id: string; label: string }>): WsMessage {
+  const options = cocoonLabels.map((cocoon, idx) => {
+    const numericId = Number.parseInt(String(cocoon.id), 10);
+    const fieldIndex = Number.isFinite(numericId) ? numericId : idx;
+    return {
+      id: cocoon.id,
+      label: cocoon.label,
+      button_label: '选择',
+      field_index: fieldIndex,
+      card_id: `bd-cocoon-${fieldIndex}`,
+    };
+  });
   return requireActionMessage({
     type: 'choose_cards',
     player_id: BD_PLAYER_ID,
     message: `【茧上限】请选择要舍弃的${overflowCount}个茧：`,
     choice_type: 'bt_cocoon_overflow_discard',
-    options: cocoonLabels,
+    options,
+    presentation: { kind: 'card_picker', card_source: 'field', card_filter: 'overflow_discard' },
     min: overflowCount,
     max: overflowCount,
   } satisfies Prompt);

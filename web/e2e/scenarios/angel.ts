@@ -211,11 +211,11 @@ export function angelBlessingBranchPrompt(): WsMessage {
     message: '【天使祝福】请选择分支：',
     choice_type: 'angel_blessing_branch',
     options: [
-      { id: 'branch1', label: '指定1名玩家给你2张牌' },
-      { id: 'branch2', label: '指定2名角色各给你1张牌' },
+      { id: 'branch1', label: '指定1名玩家给你2张牌', button_label: '指定1名玩家给你2张牌' },
+      { id: 'branch2', label: '指定2名角色各给你1张牌', button_label: '指定2名角色各给你1张牌' },
     ],
     min: 1, max: 1,
-    presentation: { kind: 'branch_select', layout: 'overlay' },
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -226,11 +226,11 @@ export function angelBlessingSingleTargetPrompt(): WsMessage {
     message: '【天使祝福】请选择1名目标玩家：',
     choice_type: 'angel_blessing_single_target',
     options: [
-      { id: ENEMY_PLAYER_ID, label: 'Enemy E1' },
-      { id: ALLY_PLAYER_ID, label: 'Ally A1' },
+      { id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
+      { id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
     ],
     min: 1, max: 1,
-    presentation: { kind: 'target_picker' },
+    presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -241,11 +241,11 @@ export function angelBlessingDualTargetPrompt(): WsMessage {
     message: '【天使祝福】请选择2名目标角色：',
     choice_type: 'angel_blessing_dual_target',
     options: [
-      { id: ENEMY_PLAYER_ID, label: 'Enemy E1' },
-      { id: ALLY_PLAYER_ID, label: 'Ally A1' },
+      { id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
+      { id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
     ],
     min: 2, max: 2,
-    presentation: { kind: 'target_picker' },
+    presentation: { kind: 'target_picker', target_filter: 'custom', multi_target: true, numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -274,10 +274,11 @@ export function windCleanseFieldSelectPrompt(): WsMessage {
     message: '【风之洁净】请选择场上1个基础效果移除：',
     choice_type: 'basic_effect_pick',
     options: [
-      { id: 'enemy_shield', label: '敌方圣盾（Enemy E1）' },
-      { id: 'ally_buff', label: '队友增益（Ally A1）' },
+      { id: 'enemy_shield', label: '敌方圣盾（Enemy E1）', button_label: '敌方圣盾' },
+      { id: 'ally_buff', label: '队友增益（Ally A1）', button_label: '队友增益' },
     ],
     min: 1, max: 1,
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -301,11 +302,11 @@ export function angelSongBeforeTurnPrompt(): WsMessage {
     message: '【天使之歌】回合开始前，是否消耗1个水晶移除场上1个基础效果？',
     choice_type: 'angel_song_confirm',
     options: [
-      { id: 'confirm', label: '发动' },
-      { id: 'skip', label: '跳过' },
+      { id: 'confirm', label: '发动', button_label: '发动' },
+      { id: 'skip', label: '跳过', button_label: '跳过' },
     ],
     min: 1, max: 1,
-    presentation: { kind: 'branch_select' },
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -316,10 +317,11 @@ export function angelSongFieldSelectPrompt(): WsMessage {
     message: '【天使之歌】请选择场上1个基础效果移除：',
     choice_type: 'basic_effect_pick',
     options: [
-      { id: 'enemy_shield', label: '敌方圣盾' },
-      { id: 'ally_buff', label: '队友增益' },
+      { id: 'enemy_shield', label: '敌方圣盾', button_label: '敌方圣盾' },
+      { id: 'ally_buff', label: '队友增益', button_label: '队友增益' },
     ],
     min: 1, max: 1,
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -336,9 +338,9 @@ export function godProtectionScenario(options: {
 }
 
 export function godProtectionPrompt(maxX: number): WsMessage {
-  const options: Array<{ id: string; label: string }> = [];
+  const options: Array<{ id: string; label: string; button_label: string }> = [];
   for (let x = 1; x <= maxX; x++) {
-    options.push({ id: String(x), label: `消耗${x}水晶抵御${x}点士气下降` });
+    options.push({ id: String(x - 1), label: `消耗${x}水晶抵御${x}点士气下降`, button_label: String(x) });
   }
   return requireActionMessage({
     type: 'confirm',

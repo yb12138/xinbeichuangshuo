@@ -14,7 +14,7 @@ export function buildClientActionRequest(
     request.card_id = action.card_id
   }
 
-  if (action.card_ids?.length) {
+  if (action.card_ids !== undefined) {
     request.card_ids = [...action.card_ids]
   }
 

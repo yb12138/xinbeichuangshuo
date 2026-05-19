@@ -35,7 +35,7 @@ test.describe('archer piercing shot protocol harness', () => {
     await protocolHarness.pushServerMessage(piercingShotMissPrompt());
 
     // Click confirm button
-    await clickOverlayOption(page, 'prompt-option-confirm');
+    await clickOverlayOption(page, 'prompt-option-piercing_shot');
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -48,7 +48,7 @@ test.describe('archer piercing shot protocol harness', () => {
     await selectHandCards(page, [2]);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0],
+      card_ids: ['archer-thunder-magic'],
     });
   });
 
@@ -74,7 +74,7 @@ test.describe('archer precise shot protocol harness', () => {
     await protocolHarness.pushServerMessage(preciseShotConfirmPrompt());
 
     // Click confirm button
-    await clickOverlayOption(page, 'prompt-option-confirm');
+    await clickOverlayOption(page, 'prompt-option-precise_shot');
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],

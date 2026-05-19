@@ -2970,7 +2970,7 @@ func resolveCombatAsTake(game *engine.GameEngine) error {
 
 	if shouldPreferMissResponse(game, attacker, defender) {
 		tryDefend := func() bool {
-			if idx, ok := findDefendCardIndex(defender); ok {
+			if idx, ok := findDefendCardPosition(defender); ok {
 				if err := game.HandleAction(model.PlayerAction{
 					PlayerID:  top.TargetID,
 					Type:      model.CmdRespond,
@@ -2994,7 +2994,7 @@ func resolveCombatAsTake(game *engine.GameEngine) error {
 			if len(counterTargets) == 0 {
 				counterTargets = collectCounterTargetIDs(game, top.AttackerID)
 			}
-			if idx, ok := findCounterCardIndex(defender, attackElement); ok {
+			if idx, ok := findCounterCardPosition(defender, attackElement); ok {
 				targetID := chooseCounterTargetID(counterTargets)
 				if targetID != "" {
 					if err := game.HandleAction(model.PlayerAction{
@@ -3074,7 +3074,7 @@ func shouldPreferCounterForCrystal(game *engine.GameEngine, attacker *model.Play
 	return false
 }
 
-func findDefendCardIndex(player *model.Player) (int, bool) {
+func findDefendCardPosition(player *model.Player) (int, bool) {
 	if player == nil {
 		return -1, false
 	}
@@ -3086,7 +3086,7 @@ func findDefendCardIndex(player *model.Player) (int, bool) {
 	return -1, false
 }
 
-func findCounterCardIndex(player *model.Player, attackElement model.Element) (int, bool) {
+func findCounterCardPosition(player *model.Player, attackElement model.Element) (int, bool) {
 	if player == nil {
 		return -1, false
 	}
@@ -3209,7 +3209,7 @@ func normalizeQueuedActionForBeforeAction(game *engine.GameEngine) {
 		}
 	}
 
-	if idx, ok := findFallbackCardIndex(source, qa); ok {
+	if idx, ok := findFallbackCardPosition(source, qa); ok {
 		curr := source.Hand[idx]
 		cardID := curr.ID
 		qa.CardID = cardID
@@ -3223,7 +3223,7 @@ func normalizeQueuedActionForBeforeAction(game *engine.GameEngine) {
 	dropQueuedAction(game)
 }
 
-func findFallbackCardIndex(player *model.Player, qa *model.QueuedAction) (int, bool) {
+func findFallbackCardPosition(player *model.Player, qa *model.QueuedAction) (int, bool) {
 	needType := requiredCardTypeForAction(qa.Type)
 	if needType == "" {
 		return -1, false

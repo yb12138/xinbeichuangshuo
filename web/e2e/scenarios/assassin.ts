@@ -182,10 +182,11 @@ export function stealthConfirmPrompt(): WsMessage {
     message: '【潜行】是否消耗1个红宝石发动该技能？',
     choice_type: 'assassin_stealth_confirm',
     options: [
-      { id: 'confirm', label: '发动' },
-      { id: 'skip', label: '跳过' },
+      { id: 'confirm', label: '发动', button_label: '发动' },
+      { id: 'skip', label: '跳过', button_label: '跳过' },
     ],
     min: 1, max: 1,
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -196,11 +197,11 @@ export function stealthDrawPrompt(): WsMessage {
     message: '【潜行】发动成功，是否摸1张牌？',
     choice_type: 'assassin_stealth_draw',
     options: [
-      { id: 'draw', label: '摸1张牌' },
-      { id: 'skip', label: '不摸牌' },
+      { id: 'draw', label: '摸1张牌', button_label: '摸牌' },
+      { id: 'skip', label: '不摸牌', button_label: '不摸' },
     ],
     min: 1, max: 1,
-    presentation: { kind: 'branch_select' },
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -224,11 +225,12 @@ export function waterShadowBeforeDrawPrompt(): WsMessage {
     message: '【水影】摸牌前，请选择弃置X张水系牌（展示）：',
     choice_type: 'assassin_water_shadow_discard',
     options: [
-      { id: '0', label: '1: 水刃（水系 攻击）' },
-      { id: '1', label: '2: 寒冰斩（水系 攻击）' },
-      { id: '2', label: '3: 冰冻（水系 法术）' },
+      { id: '0', label: '1: 水刃（水系 攻击）', button_label: '选择', card_id: 'assassin-water-atk1' },
+      { id: '1', label: '2: 寒冰斩（水系 攻击）', button_label: '选择', card_id: 'assassin-water-atk2' },
+      { id: '2', label: '3: 冰冻（水系 法术）', button_label: '选择', card_id: 'assassin-water-magic' },
     ],
     min: 0, max: 3,
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'water_only' },
   } satisfies Prompt);
 }
 
@@ -239,10 +241,11 @@ export function waterShadowStealthExtraPrompt(): WsMessage {
     message: '【水影】你处于［潜行］效果下，是否额外弃1张法术牌？',
     choice_type: 'assassin_water_shadow_extra',
     options: [
-      { id: 'yes', label: '弃1张法术牌' },
-      { id: 'no', label: '不弃牌' },
+      { id: 'yes', label: '弃1张法术牌', button_label: '弃牌' },
+      { id: 'no', label: '不弃牌', button_label: '不弃' },
     ],
     min: 1, max: 1,
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -253,10 +256,11 @@ export function waterShadowExtraCardPrompt(): WsMessage {
     message: '【水影】请选择1张法术牌弃置（展示）：',
     choice_type: 'assassin_water_shadow_extra_card',
     options: [
-      { id: '2', label: '3: 冰冻（水系 法术）' },
-      { id: '3', label: '4: 火球（火系 法术）' },
-      { id: '4', label: '5: 雷击（雷系 法术）' },
+      { id: '2', label: '3: 冰冻（水系 法术）', button_label: '选择', card_id: 'assassin-water-magic' },
+      { id: '3', label: '4: 火球（火系 法术）', button_label: '选择', card_id: 'assassin-fire-magic' },
+      { id: '4', label: '5: 雷击（雷系 法术）', button_label: '选择', card_id: 'assassin-thunder-magic' },
     ],
     min: 1, max: 1,
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'magic_only' },
   } satisfies Prompt);
 }

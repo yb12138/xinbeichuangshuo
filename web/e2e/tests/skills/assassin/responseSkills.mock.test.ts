@@ -29,6 +29,12 @@ async function selectHandCards(page: Page, indices: number[]) {
   await page.getByTestId('prompt-confirm-btn').click();
 }
 
+async function clickHandCard(page: Page, index: number) {
+  const card = page.getByTestId(`hand-card-${index}`);
+  await card.scrollIntoViewIfNeeded();
+  await card.click();
+}
+
 test.describe('assassin stealth protocol harness', () => {
   test('stealth: confirm with gem', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(stealthScenario({ gem: 1 }));
@@ -83,6 +89,10 @@ test.describe('assassin stealth protocol harness', () => {
     // First confirm stealth
     await protocolHarness.pushServerMessage(stealthConfirmPrompt());
     await clickOverlayOption(page, 'prompt-option-confirm');
+    await protocolHarness.expectSubmitAction({
+      action_type: 'Select',
+      option_indexes: [0],
+    });
 
     // Then choose not to draw
     await protocolHarness.pushServerMessage(stealthDrawPrompt());
@@ -105,7 +115,7 @@ test.describe('assassin water shadow protocol harness', () => {
     await selectHandCards(page, [0, 1]);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0, 1],
+      card_ids: ['assassin-water-atk1', 'assassin-water-atk2'],
     });
   });
 
@@ -118,7 +128,7 @@ test.describe('assassin water shadow protocol harness', () => {
     await page.getByTestId('prompt-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [],
+      card_ids: [],
     });
   });
 
@@ -128,6 +138,10 @@ test.describe('assassin water shadow protocol harness', () => {
     // First push water shadow prompt
     await protocolHarness.pushServerMessage(waterShadowBeforeDrawPrompt());
     await selectHandCards(page, [0]);
+    await protocolHarness.expectSubmitAction({
+      action_type: 'Select',
+      card_ids: ['assassin-water-atk1'],
+    });
 
     // Then push extra magic card prompt (in stealth)
     await protocolHarness.pushServerMessage(waterShadowStealthExtraPrompt());
@@ -141,10 +155,10 @@ test.describe('assassin water shadow protocol harness', () => {
 
     // Then select magic card
     await protocolHarness.pushServerMessage(waterShadowExtraCardPrompt());
-    await selectHandCards(page, [2]); // ice magic
+    await clickHandCard(page, 2); // ice magic
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0],
+      card_ids: ['assassin-water-magic'],
     });
   });
 
@@ -153,6 +167,10 @@ test.describe('assassin water shadow protocol harness', () => {
 
     await protocolHarness.pushServerMessage(waterShadowBeforeDrawPrompt());
     await selectHandCards(page, [0]);
+    await protocolHarness.expectSubmitAction({
+      action_type: 'Select',
+      card_ids: ['assassin-water-atk1'],
+    });
 
     // Push extra magic card prompt
     await protocolHarness.pushServerMessage(waterShadowStealthExtraPrompt());

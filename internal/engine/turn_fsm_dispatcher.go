@@ -220,7 +220,7 @@ func (e *GameEngine) driveActionStartStage(currentPid string, player *model.Play
 		if e.State.PendingInterrupt.Type == model.InterruptStartupSkill {
 			// Startup 中断由 dispatcher 直接写入 PendingInterrupt，这里补发提示。
 			prompt := e.buildStartupSkillPrompt()
-			e.Notify(model.EventAskInput, "请选择是否发动启动技能", prompt)
+			e.NotifyPrompt(prompt)
 		}
 		return driveStop
 	}
@@ -265,7 +265,7 @@ func (e *GameEngine) driveActionSelectionPhase(currentPid string, player *model.
 		UIMode:         model.PromptUIModeActionHub,
 		Presentation:   &model.PromptPresentation{Kind: model.PresentationActionHub},
 	}
-	e.Notify(model.EventAskInput, "请选择行动类型", prompt)
+	e.NotifyPrompt(prompt)
 	return driveStop
 }
 
@@ -332,9 +332,10 @@ func (e *GameEngine) driveCombatInteractionPhase(currentPid string, player *mode
 			target.Name,
 			attackerRole,
 			combatReq.Card.Name),
-		Options: options,
+		Options:      options,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationResponse, Layout: "inline"},
 	}
-	e.Notify(model.EventAskInput, "请选择响应方式", prompt)
+	e.NotifyPrompt(prompt)
 	return driveStop
 }
 

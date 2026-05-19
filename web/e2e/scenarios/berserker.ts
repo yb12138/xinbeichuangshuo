@@ -192,8 +192,8 @@ export function tearHitPrompt(): WsMessage {
     message: '你触发了响应技能【撕裂】，请选择是否发动。',
     choice_type: 'response_skill_choice',
     options: [
-      { id: 'berserker_tear', label: '发动撕裂', hint: '消耗1宝石，本次攻击伤害额外+2' },
-      { id: 'skip', label: '跳过', hint: '不发动响应技能' },
+      { id: 'berserker_tear', label: '发动撕裂', button_label: '发动', hint: '消耗1宝石，本次攻击伤害额外+2' },
+      { id: 'skip', label: '跳过', button_label: '跳过', hint: '不发动响应技能' },
     ],
     min: 1, max: 1,
     presentation: { kind: 'skill_choice', layout: 'overlay' },

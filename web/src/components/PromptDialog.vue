@@ -33,10 +33,7 @@ function showPromptError(message: string) {
 // 行动选择（攻击/法术/购买/提取/合成）不在这里显示，由 ActionPanel 承载
 const isActionSelectionPrompt = computed(() => {
   if (!prompt.value) return false
-  if (prompt.value.ui_mode === 'action_hub') return true
-  if (!prompt.value.message) return false
-  // 仅识别主流程“请选择行动类型”，避免把“请选择额外行动类型”误判并隐藏内联提示。
-  return String(prompt.value.message).includes('请选择行动类型')
+  return prompt.value.presentation?.kind === 'action_hub'
 })
 
 const isVisible = computed(() =>
@@ -123,8 +120,8 @@ const isDarkAttackResponsePrompt = computed(() => {
 })
 
 const isMagicMissilePrompt = computed(() => {
-  const msg = prompt.value?.message ?? ''
-  return msg.includes('魔弹')
+  const p = prompt.value?.presentation
+  return p?.kind === 'response' && p?.layout === 'magic_missile'
 })
 
 const isPlagueDeathTouchElementPrompt = computed(() =>
@@ -141,8 +138,6 @@ const needsCardSelection = computed(() => {
   const p = prompt.value.presentation
   // card_picker prompts require card selection
   if (p?.kind === 'card_picker') return true
-  // Legacy: choose_card / choose_cards type prompts
-  if (prompt.value.type === 'choose_card' || prompt.value.type === 'choose_cards') return true
   if (promptHasHandCardOptions.value) return true
   if (hasCounterOrDefend.value) return true
   return false
@@ -150,7 +145,7 @@ const needsCardSelection = computed(() => {
 
 const needsTargetSelection = computed(() => {
   if (!prompt.value) return false
-  return prompt.value.type === 'choose_target' || prompt.value.presentation?.kind === 'target_picker'
+  return prompt.value.presentation?.kind === 'target_picker'
 })
 
 const promptRequiresManualTargetConfirm = computed(() => {
@@ -167,10 +162,11 @@ const needsCounterTargetSelection = computed(() => {
 
 const isConfirmType = computed(() => {
   if (!prompt.value) return false
-  return prompt.value.type === 'confirm' || (prompt.value.options.length > 0 && prompt.value.type !== 'choose_extract')
+  const kind = prompt.value.presentation?.kind
+  return !!kind && kind !== 'card_picker' && kind !== 'target_picker' && kind !== 'action_hub'
 })
 
-const isExtractPrompt = computed(() => prompt.value?.type === 'choose_extract')
+const isExtractPrompt = computed(() => prompt.value?.presentation?.layout === 'extract')
 
 // 圣疗 3 点治疗分配：每个目标独立 0..3 数字选择，要求总和=3。
 const isSaintHealAllocatePrompt = computed(() => prompt.value?.presentation?.layout === 'heal_allocate')
@@ -328,7 +324,7 @@ function resolveOptionPlayerId(option: { id: string; label: string }): string | 
 const playerOptionEntries = computed(() => {
   if (!prompt.value?.options?.length) return []
   // choose_skill 类型的选项是技能，不是玩家目标
-  if (prompt.value.type === 'choose_skill') return []
+  if (prompt.value.presentation?.kind === 'skill_choice') return []
   return prompt.value.options
     .map((option, index) => {
       const playerId = resolveOptionPlayerId(option)
@@ -376,8 +372,6 @@ const showConfirmButtonSection = computed(() => {
   return (
     isConfirmType.value &&
     !!prompt.value?.options?.length &&
-    prompt.value?.type !== 'choose_cards' &&
-    prompt.value?.type !== 'choose_card' &&
     !needsCardSelection.value &&
     !needsTargetSelection.value &&
     !isSpiritCasterPowerPickPrompt.value
@@ -385,17 +379,7 @@ const showConfirmButtonSection = computed(() => {
 })
 
 const isResponseSkillConfirmPrompt = computed(() => {
-  if (!prompt.value || prompt.value.type !== 'confirm') return false
-  // Branch select / numeric / target_picker / card_picker prompts are not skill confirm prompts
-  const p = prompt.value.presentation
-  if (p?.kind === 'branch_select' || p?.kind === 'numeric' || p?.kind === 'target_picker' || p?.kind === 'card_picker' || p?.kind === 'skill_choice') return false
-  // If the prompt has a skill_id, it's for a specific skill, not a skill selection.
-  if (prompt.value.skill_id) return false
-  const message = String(prompt.value.message || '').trim()
-  if (!message) return false
-  if (message.includes('响应技能')) return true
-  if (message.includes('是否发动')) return true
-  return /是否发动【.+】/.test(message) || /【.+】是否发动/.test(message)
+  return prompt.value?.presentation?.kind === 'skill_choice'
 })
 
 function isPromptActivationCostCancelable(p: NonNullable<typeof prompt.value>): boolean {
@@ -413,7 +397,7 @@ function handleOptionClick(optionId: string) {
     showPromptError('此攻击无法应战')
     return
   }
-  if (prompt.value?.type === 'choose_skill') {
+  if (prompt.value?.presentation?.kind === 'skill_choice') {
     const idx = prompt.value.options.findIndex((o: { id: string }) => o.id === optionId)
     if (idx >= 0) {
       actions.submitSelect([idx])
@@ -425,6 +409,26 @@ function handleOptionClick(optionId: string) {
       actions.submitCancel()
     }
     return
+  }
+  const structuredOptionKind = prompt.value?.presentation?.kind
+  if (structuredOptionKind === 'branch_select' || structuredOptionKind === 'numeric') {
+    const optionIndex = prompt.value?.options?.findIndex((o: { id: string }) => o.id === optionId) ?? -1
+    if (optionIndex >= 0) {
+      if (prompt.value?.presentation?.has_decline && optionIndex === (prompt.value.presentation.decline_index ?? 0)) {
+        actions.submitCancel()
+        return
+      }
+      actions.submitSelect([optionIndex])
+      return
+    }
+    if (optionId === 'skip' || optionId === 'cancel') {
+      if (!canCancelPrompt.value) {
+        showPromptError('当前步骤不可取消，请先完成本次操作')
+        return
+      }
+      actions.submitCancel()
+      return
+    }
   }
   if (optionId === 'skip' || optionId === 'cancel') {
     if (!canCancelPrompt.value) {
@@ -464,7 +468,7 @@ function handleOptionClick(optionId: string) {
     return
   }
   if (responseKind === 'counter') {
-    if (interruptStore.selectedCards.length === 0) {
+    if (interruptStore.selectedHandIndexes.length === 0) {
       showPromptError(isMagicMissilePrompt.value ? '请先选择一张【魔弹】进行传递' : '请先选择一张攻击牌进行应战')
       return
     }
@@ -476,7 +480,7 @@ function handleOptionClick(optionId: string) {
     return
   }
   if (responseKind === 'defend') {
-    if (interruptStore.selectedCards.length === 0) {
+    if (interruptStore.selectedHandIndexes.length === 0) {
       showPromptError('请先选择一张【圣光】进行防御（圣盾需提前放置）')
       return
     }
@@ -521,8 +525,8 @@ function normalizeElementToken(raw: string): string {
 
 function resolvePlagueDeathTouchElementOptionIndex(): number | null {
   if (!isPlagueDeathTouchElementPrompt.value || !prompt.value) return null
-  if (interruptStore.selectedCards.length <= 0) return null
-  const selectedIndex = interruptStore.selectedCards[0]
+  if (interruptStore.selectedHandIndexes.length <= 0) return null
+  const selectedIndex = interruptStore.selectedHandIndexes[0]
   if (selectedIndex == null || selectedIndex < 0 || selectedIndex >= myHand.value.length) return null
   const selectedCard = myHand.value[selectedIndex]
   if (!selectedCard?.element) return null
@@ -551,17 +555,17 @@ const canConfirmPrompt = computed(() => {
     )
   }
   if (promptHasHandCardOptions.value) {
-    const cCount = interruptStore.selectedCards.length
+    const cCount = interruptStore.selectedHandIndexes.length
     return cCount >= prompt.value.min && cCount <= prompt.value.max
   }
-  if (prompt.value.type === 'choose_target') {
+  if (prompt.value.presentation?.kind === 'target_picker') {
     const tCount = interruptStore.selectedTargets.length
     return tCount >= prompt.value.min && tCount <= prompt.value.max
   }
-  if (prompt.value.type === 'choose_card' || prompt.value.type === 'choose_cards') {
+  if (prompt.value.presentation?.kind === 'card_picker') {
     const cCount = isNonHandChooseCardsMultiMode.value
       ? selectedInlineCardIDs.value.length
-      : interruptStore.selectedCards.length
+      : interruptStore.selectedHandIndexes.length
     return cCount >= prompt.value.min && cCount <= prompt.value.max
   }
   return true
@@ -590,7 +594,7 @@ function confirmPromptAction() {
     return
   }
 
-  if (prompt.value?.type === 'choose_target' && interruptStore.selectedTargets.length > 0) {
+  if (prompt.value?.presentation?.kind === 'target_picker' && interruptStore.selectedTargets.length > 0) {
     if (interruptStore.selectedTargets.length === 1) {
       const targetId = interruptStore.selectedTargets[0]
       if (!targetId) return
@@ -606,20 +610,24 @@ function confirmPromptAction() {
   }
 
   if (isNonHandChooseCardsMultiMode.value) {
-    if (selectedInlineCardIDs.value.length > 0) {
+    if (selectedInlineCardIDs.value.length > 0 || prompt.value.min === 0) {
       actions.submitSelectCardIDs(selectedInlineCardIDs.value)
     }
     return
   }
 
-  const indices = interruptStore.selectedCards
+  const indices = interruptStore.selectedHandIndexes
+  if (prompt.value?.presentation?.kind === 'card_picker' && indices.length === 0 && prompt.value.min === 0) {
+    actions.submitSelectCardIDs([])
+    return
+  }
   if (indices.length > 0) {
     const cardIDs = selectedPromptHandCardIDs(indices)
     if (cardIDs.length === indices.length) {
       actions.submitSelectCardIDs(cardIDs)
       return
     }
-    actions.submitSelect(indices)
+    showPromptError('当前卡牌选择缺少 card_id，请刷新后重试')
   }
 }
 
@@ -714,7 +722,7 @@ const hasIndexedCocoonOptions = computed(() => {
 
 const isNonHandChooseCardsMultiMode = computed(() => {
   if (!prompt.value) return false
-  if (prompt.value.type !== 'choose_cards') return false
+  if (prompt.value.presentation?.kind !== 'card_picker') return false
   if (hasCounterOrDefend.value) return false
   if (promptCardOptionIndexSet.value.size > 0) return false
   if (!prompt.value.options?.length) return false
@@ -760,6 +768,7 @@ type RawDockOption = {
   hint?: string
   field_index?: number
   disabled?: boolean
+  optionIndex?: number
 }
 
 type DockButtonOption = {
@@ -769,6 +778,7 @@ type DockButtonOption = {
   hint: string
   disabled?: boolean
   numeric: boolean
+  optionIndex?: number
 }
 
 type SkillPromptEntry = {
@@ -857,7 +867,15 @@ function dockButtonImageKind(option: DockButtonOption): PromptImageButtonKind | 
   if (option.numeric) return null
   const responseKind = promptOptionResponseKind({ id: option.id })
   if (responseKind) return responseKind
-  return promptImageButtonKindByOption({ buttonLabel: option.buttonLabel })
+  const presentation = prompt.value?.presentation
+  return promptImageButtonKindByOption({
+    id: option.id,
+    presentationKind: presentation?.kind,
+    cancelPolicy: presentation?.cancel_policy,
+    hasDecline: presentation?.has_decline,
+    declineIndex: presentation?.decline_index,
+    optionIndex: option.optionIndex,
+  })
 }
 
 function isDockButtonImageStyle(option: DockButtonOption): boolean {
@@ -965,6 +983,7 @@ function normalizeDockOption(option: RawDockOption): DockButtonOption {
     hint,
     disabled: option.disabled,
     numeric: /^\d+$/.test(buttonLabel),
+    optionIndex: option.optionIndex,
   }
 }
 
@@ -1038,10 +1057,11 @@ const cardFooterOptions = computed<RawDockOption[]>(() => {
         label: option.label,
         button_label: option.button_label,
         hint: option.hint,
+        optionIndex: prompt.value?.options.indexOf(option),
         disabled: false
       }))
   }
-  if (prompt.value.type !== 'choose_card' && prompt.value.type !== 'choose_cards') return []
+  if (prompt.value.presentation?.kind !== 'card_picker') return []
   // 选牌类提示统一在手牌区完成，行动区不再展示“选哪张牌”的按钮。
   return []
 })
@@ -1131,14 +1151,14 @@ const inlinePrimaryButtons = computed<DockButtonOption[]>(() => {
   if (isRuneReforgeAllocatePrompt.value) return []
   if (needsCardSelection.value) return buildDockButtons(cardFooterOptions.value)
   // 响应技能选择（choose_skill）：直接从 prompt.options 构建按钮
-  if (prompt.value?.type === 'choose_skill') {
+  if (prompt.value?.presentation?.kind === 'skill_choice') {
     const options = (prompt.value.options || [])
-      .filter((option) => option.id !== 'skip' && option.id !== 'cancel')
       .map((option) => ({
         id: option.id,
         label: option.label,
         button_label: option.button_label,
         hint: option.hint,
+        optionIndex: prompt.value?.options.indexOf(option),
         disabled: false
       }))
     return buildDockButtons(options)
@@ -1155,6 +1175,7 @@ const inlinePrimaryButtons = computed<DockButtonOption[]>(() => {
       .filter((option, index) => {
         if (declineIndex >= 0 && index === declineIndex) return false
         if (shouldExposeIndexedCocoonOptions && (option.id === 'decline' || option.id === '-1')) return true
+        if (prompt.value?.presentation?.kind === 'branch_select' || prompt.value?.presentation?.kind === 'numeric') return true
         return option.id !== 'cancel' && option.id !== 'skip'
       })
       .filter((option) => !shouldHideIndexedCocoonOptions || !isIndexedCocoonOption(option))
@@ -1165,6 +1186,7 @@ const inlinePrimaryButtons = computed<DockButtonOption[]>(() => {
         button_label: option.button_label,
         hint: option.hint,
         field_index: option.field_index,
+        optionIndex: prompt.value?.options.indexOf(option),
         disabled: false
       }))
     return buildDockButtons(options)
@@ -1174,7 +1196,7 @@ const inlinePrimaryButtons = computed<DockButtonOption[]>(() => {
 
 const isSkillChoicePrompt = computed(() => {
   if (!prompt.value) return false
-  return prompt.value.type === 'choose_skill' || isResponseSkillConfirmPrompt.value
+  return prompt.value.presentation?.kind === 'skill_choice' || isResponseSkillConfirmPrompt.value
 })
 
 function parseSkillTitle(option: DockButtonOption, index: number): string {
@@ -1243,7 +1265,7 @@ const skillPromptButtons = computed<SkillPromptButton[]>(() => {
   const skillCount = skillPromptEntries.value.length
   const buttons: SkillPromptButton[] = skillPromptEntries.value.map((entry, index) => {
     let label = entry.buttonLabel
-    if (prompt.value?.type === 'choose_skill' && skillCount > 1) {
+    if (prompt.value?.presentation?.kind === 'skill_choice' && skillCount > 1) {
       const option = inlinePrimaryButtons.value[index]
       label = option ? parseSkillTitle(option, index) : `技能 ${index + 1}`
     } else if (skillCount > 1 && (label === '发动' || label === '确认')) {
@@ -1270,7 +1292,7 @@ const skillPromptButtons = computed<SkillPromptButton[]>(() => {
 })
 
 const isMultiSkillNameChoiceMode = computed(() =>
-  prompt.value?.type === 'choose_skill' && skillPromptEntries.value.length > 1
+  prompt.value?.presentation?.kind === 'skill_choice' && skillPromptEntries.value.length > 1
 )
 
 interface SkillBranchOption {
@@ -1282,7 +1304,7 @@ interface SkillBranchOption {
 }
 
 const skillBranchOptions = computed<SkillBranchOption[]>(() => {
-  if (prompt.value?.type !== 'choose_skill') return []
+  if (prompt.value?.presentation?.kind !== 'skill_choice') return []
   return inlinePrimaryButtons.value
     .filter((opt) => opt.id !== 'skip' && opt.id !== 'cancel')
     .map((option, index) => {
@@ -1335,7 +1357,7 @@ const autoResolveOptionId = computed(() => {
 const showDecisionOverlay = computed(() => {
   if (!isVisible.value || !prompt.value) return false
   // 专属 UI 模式排除
-  if (prompt.value.ui_mode === 'action_hub') return false
+  if (prompt.value.presentation?.kind === 'action_hub') return false
   if (isCocoonFieldSelectionPrompt()) return false      // → 扩展区点击茧，弹框只保留内联取消
   if (isSkillChoicePrompt.value) return false        // → skill-branch-overlay
   if (isFraudElementCardPickerPrompt.value) return false  // → 欺诈选牌弹窗
@@ -1379,9 +1401,9 @@ const decisionOverlayTitle = computed(() => {
 
 const hasAnyInlineButton = computed(() => {
   if (!isVisible.value) return false
-  if (prompt.value?.ui_mode === 'action_hub') return false
+  if (prompt.value?.presentation?.kind === 'action_hub') return false
   if (isFraudElementCardPickerPrompt.value) return false
-  if (prompt.value?.type === 'choose_skill') return false
+  if (prompt.value?.presentation?.kind === 'skill_choice' && isMultiSkillNameChoiceMode.value) return false
   if (showDecisionOverlay.value) return false
   if (isExtractPrompt.value && !!prompt.value?.options?.length) return true
   if (showTargetSelectionHintRow.value) return true
@@ -1395,17 +1417,19 @@ const cancelDockButton = computed<DockButtonOption>(() => {
   const promptOptions = prompt.value?.options ?? []
   const declineIndex = prompt.value?.presentation?.has_decline ? (prompt.value.presentation.decline_index ?? 0) : -1
   const declineOption = declineIndex >= 0 ? promptOptions[declineIndex] : undefined
+  const cancelLabel = prompt.value?.presentation?.cancel_label || ''
   const option = declineOption ?? {
     id: 'cancel',
-    label: canCancelPrompt.value ? '取消' : '',
-    button_label: canCancelPrompt.value ? '取消' : ''
+    label: canCancelPrompt.value ? cancelLabel : '',
+    button_label: canCancelPrompt.value ? cancelLabel : ''
   }
   return normalizeDockOption(
     {
       id: option.id,
       label: option.label,
       button_label: option.button_label,
-      hint: option.hint
+      hint: option.hint,
+      optionIndex: declineOption ? declineIndex : undefined,
     }
   )
 })
@@ -1480,7 +1504,7 @@ watch(autoResolveOptionId, (optionId) => {
         </template>
 
         <template v-else>
-          <div v-if="isSkillChoicePrompt && skillPromptButtons.length > 0 && prompt?.type !== 'choose_skill'" class="prompt-skill-list">
+          <div v-if="isSkillChoicePrompt && skillPromptButtons.length > 0 && !isMultiSkillNameChoiceMode" class="prompt-skill-list">
             <div class="prompt-skill-row">
               <div class="prompt-skill-text" :title="skillPromptTitle">{{ skillPromptTitle }}</div>
               <div class="prompt-skill-actions">
@@ -1495,6 +1519,7 @@ watch(autoResolveOptionId, (optionId) => {
                     option.disabled ? 'prompt-inline-btn--disabled' : ''
                   ]"
                   :disabled="option.disabled"
+                  :data-testid="`prompt-option-${option.id}`"
                   :title="!isMultiSkillNameChoiceMode ? option.label : undefined"
                   :aria-label="!isMultiSkillNameChoiceMode ? option.label : undefined"
                   @click="handleOptionClick(option.id)"
@@ -1540,7 +1565,7 @@ watch(autoResolveOptionId, (optionId) => {
             </button>
           </div>
 
-          <div v-else-if="inlinePrimaryButtons.length > 0 && !singleActivationCostConfirmOption && !showDecisionOverlay && prompt?.ui_mode !== 'action_hub'">
+          <div v-else-if="inlinePrimaryButtons.length > 0 && !singleActivationCostConfirmOption && !showDecisionOverlay && prompt?.presentation?.kind !== 'action_hub'">
             <div v-if="inlinePrimaryPromptMessage" class="prompt-inline-hint">
               {{ inlinePrimaryPromptMessage }}
             </div>
@@ -1741,6 +1766,7 @@ watch(autoResolveOptionId, (optionId) => {
       <div
         v-if="isFraudElementCardPickerPrompt && fraudElementCardOptions.length > 0"
         class="prompt-fraud-global-layer"
+        data-testid="decision-overlay"
       >
         <div class="prompt-fraud-global-panel">
           <div class="prompt-fraud-dialog prompt-fraud-dialog--global">
@@ -1753,6 +1779,7 @@ watch(autoResolveOptionId, (optionId) => {
                 :class="option.tone"
                 :title="option.title"
                 :aria-label="option.title"
+                :data-testid="`prompt-option-${option.id}`"
                 @click="handleOptionClick(option.id)"
               >
                 <span class="prompt-fraud-card-title-banner">
@@ -1775,11 +1802,11 @@ watch(autoResolveOptionId, (optionId) => {
   <Teleport to="body">
     <Transition name="modal">
       <div
-        v-if="prompt?.type === 'choose_skill' && skillBranchOptions.length > 0"
+        v-if="isMultiSkillNameChoiceMode && skillBranchOptions.length > 0"
         class="overlay-panel-root overlay-panel-root--skill"
         data-testid="skill-branch-overlay"
       >
-        <div class="overlay-panel" @click.stop>
+        <div class="overlay-panel" data-testid="decision-overlay" @click.stop>
           <div class="overlay-panel-header">
             <h2>{{ skillPromptTitle }}</h2>
           </div>
@@ -1792,13 +1819,13 @@ watch(autoResolveOptionId, (optionId) => {
               :disabled="entry.disabled"
               @click="handleOptionClick(entry.id)"
             >
-              <div class="overlay-panel-item-title">{{ entry.title }}</div>
+              <div class="overlay-panel-item-title" :data-testid="`prompt-option-${entry.id}`">{{ entry.title }}</div>
               <div v-if="entry.description" class="overlay-panel-item-desc">{{ entry.description }}</div>
               <div v-if="entry.cost" class="overlay-panel-item-cost">{{ entry.cost }}</div>
             </button>
           </div>
           <div class="overlay-panel-footer">
-            <button class="overlay-panel-cancel" @click="handleOptionClick('skip')">跳过</button>
+            <button class="overlay-panel-cancel" data-testid="prompt-option-skip" @click="handleOptionClick('skip')">跳过</button>
           </div>
         </div>
       </div>
@@ -1866,7 +1893,7 @@ watch(autoResolveOptionId, (optionId) => {
               :disabled="!!option.disabled"
               @click="handleOptionClick(option.id)"
             >
-              <div class="overlay-panel-item-title">{{ overlayDecisionOptionTitle(option) }}</div>
+              <div class="overlay-panel-item-title" :data-testid="`prompt-option-${option.id}`">{{ overlayDecisionOptionTitle(option) }}</div>
               <div
                 v-if="option.hint && option.hint !== overlayDecisionOptionTitle(option)"
                 class="overlay-panel-item-desc"
@@ -1875,7 +1902,7 @@ watch(autoResolveOptionId, (optionId) => {
           </div>
 
           <div v-if="canCancelPrompt && decisionOverlayMode !== 'yes-no'" class="overlay-panel-footer">
-            <button class="overlay-panel-cancel" @click="handleOptionClick(cancelDockButton.id)">
+            <button class="overlay-panel-cancel" data-testid="prompt-cancel-btn" @click="handleOptionClick(cancelDockButton.id)">
               {{ cancelDockButton.buttonLabel || '取消' }}
             </button>
           </div>

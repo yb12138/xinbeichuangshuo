@@ -3,6 +3,7 @@ import { test } from '../../../fixtures/protocolHarness.fixture';
 import {
   BD_DANCE_SKILL_ID,
   cocoonOverflowDiscardPrompt,
+  chrysalisResolvedState,
   danceDiscardPrompt,
   danceModePrompt,
   danceScenario,
@@ -83,25 +84,27 @@ test.describe('butterfly dancer dance protocol harness', () => {
     await selectHandCards(page, [0]);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0],
+      card_ids: ['bd-atk-fire'],
     });
   });
 
   test('dance: cocoon overflow discard (single cocoon)', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(danceScenario());
 
+    // Ensure expansion zone has cocoon covers before overflow prompt arrives.
+    await protocolHarness.pushServerMessage(chrysalisResolvedState());
+
     // Push cocoon overflow discard prompt (choose_cards with cocoon labels)
     // max=1 means clicking cover card immediately submits
     await protocolHarness.pushServerMessage(cocoonOverflowDiscardPrompt(1));
 
     // Click the first cocoon cover card in expansion zone
-    // For choose_cards mode with max <= 1, clicking cover card submits fieldIndex
-    const coverCard = page.getByTestId('hand-card-0');
+    const coverCard = page.getByTestId('cover-card-0');
     await coverCard.scrollIntoViewIfNeeded();
     await coverCard.click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0],
+      card_ids: ['bd-cocoon-0'],
     });
   });
 });

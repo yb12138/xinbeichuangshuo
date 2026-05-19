@@ -102,7 +102,7 @@ func (e *GameEngine) buildSystemChoicePrompt(choiceType, playerID string, player
 			Options:      options,
 			Min:          minSel,
 			Max:          maxSel,
-			Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "field"},
+			Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, Layout: "extract", CardSource: "field"},
 		}
 	}
 

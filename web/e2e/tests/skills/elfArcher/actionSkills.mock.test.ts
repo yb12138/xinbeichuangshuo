@@ -2,8 +2,9 @@ import type { Page } from '@playwright/test';
 import { test } from '../../../fixtures/protocolHarness.fixture';
 import {
   ELF_ARCHER_ELF_RITUAL_ID,
-  ALLY_PLAYER_ID,
+  ENEMY_PLAYER_ID,
   elfRitualScenario,
+  elfRitualReleaseTargetPrompt,
   elfRitualWithBlessingScenario,
 } from '../../../scenarios/elfArcher';
 
@@ -30,15 +31,15 @@ test.describe('elf archer elf ritual protocol harness', () => {
     // 祝福选择通过 min_targets 处理，后端不发送单独的 prompt
   });
 
-  test('elf ritual: turn end heal ally', async ({ protocolHarness }) => {
+  test('elf ritual: turn end release hits enemy', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(elfRitualWithBlessingScenario());
 
-    // 回合结束触发通过 response_skills 处理
-    // 目标选择通过 min_targets 处理
+    // 回合结束触发释放目标选择
+    await protocolHarness.pushServerMessage(elfRitualReleaseTargetPrompt());
+    await page.getByTestId(`player-area-${ENEMY_PLAYER_ID}`).click();
     await protocolHarness.expectSubmitAction({
-      action_type: 'UseSkill',
-      skill_id: ELF_ARCHER_ELF_RITUAL_ID,
-      targets: [{ target_user_id: ALLY_PLAYER_ID }],
+      action_type: 'Select',
+      option_indexes: [0],
     });
   });
 });

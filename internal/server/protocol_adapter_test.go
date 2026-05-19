@@ -210,13 +210,13 @@ func TestBuildRequireActionPayload_UsesStructuredPromptField(t *testing.T) {
 		SpecialOptions: []model.PromptOption{
 			{ID: "cancel", Label: "取消", ButtonLabel: "取消"},
 		},
-		UIMode:           model.PromptUIModeActionHub,
 		EffectHints:      []string{"命中后附加 1 点伤害"},
 		Min:              1,
 		Max:              1,
 		AttackerID:       "p2",
 		CounterTargetIDs: []string{"p3"},
 		AttackElement:    string(model.ElementFire),
+		Presentation:     &model.PromptPresentation{Kind: model.PresentationResponse, Layout: "inline"},
 	}
 
 	payload := prompting.BuildRequireActionPayload(prompt)

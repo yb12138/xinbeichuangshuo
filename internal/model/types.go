@@ -99,7 +99,6 @@ type Action struct {
 	SourceID  string     `json:"source_id"`
 	TargetID  string     `json:"target_id"`
 	Card      *Card      `json:"card"` // 使用的卡牌
-	CardIdx   int        `json:"card_idx"`
 	ExtraArgs []string   `json:"extra_args"`
 
 	CounterInitiator string `json:"counter_initiator,omitempty"` // 原始应战发起者

@@ -35,7 +35,7 @@ export function useBattleInteractionState() {
   const {
     currentPrompt,
     actionMode,
-    selectedCardForAction,
+    selectedHandIndexForAction,
     selectedSkill,
     skillTargetIds,
   } = storeToRefs(interruptStore)
@@ -133,8 +133,8 @@ export function useBattleInteractionState() {
   }
 
   const selectedActionCard = computed(() => {
-    if (selectedCardForAction.value === null) return null
-    return myPlayableCards.value.find((item) => item.index === selectedCardForAction.value)?.card || null
+    if (selectedHandIndexForAction.value === null) return null
+    return myPlayableCards.value.find((item) => item.index === selectedHandIndexForAction.value)?.card || null
   })
 
   const selectedActionIsMagicBullet = computed(() =>
@@ -144,8 +144,8 @@ export function useBattleInteractionState() {
   )
 
   function selectedMagicBasicEffect(): string {
-    if (actionMode.value !== 'magic' || selectedCardForAction.value === null) return ''
-    const item = myPlayableCards.value.find((it) => it.index === selectedCardForAction.value)
+    if (actionMode.value !== 'magic' || selectedHandIndexForAction.value === null) return ''
+    const item = myPlayableCards.value.find((it) => it.index === selectedHandIndexForAction.value)
     if (!item || item.card.type !== 'Magic') return ''
     return BASIC_EFFECT_BY_MAGIC_CARD_NAME[item.card.name] || ''
   }
@@ -219,7 +219,7 @@ export function useBattleInteractionState() {
 
   const canTargetOpponent = computed(() =>
     actionMode.value !== 'none' &&
-    selectedCardForAction.value !== null &&
+    selectedHandIndexForAction.value !== null &&
     !(actionMode.value === 'magic' && selectedActionIsMagicBullet.value)
   )
 
