@@ -1,5 +1,6 @@
 import { test, expect } from '../../../fixtures/protocolHarness.fixture';
 import {
+  MG_NEW_MOON_SHelter_SKILL_ID,
   newMoonShelterResponsePrompt,
   newMoonShelterScenario,
   newMoonShelterTransformScenario,
@@ -7,7 +8,7 @@ import {
 
 // ============================================================
 // 新月庇护 (mg_new_moon_shelter) - 后端通过 response_skills 自动触发
-// 爆牌转化流程：from_damage_draw=true时进入暗月形态，吸收爆牌为暗月
+// skill_choice with 1 skill + skip → inline buttons in prompt-dialog
 // ============================================================
 
 test.describe('moon goddess new moon shelter protocol harness', () => {
@@ -15,8 +16,9 @@ test.describe('moon goddess new moon shelter protocol harness', () => {
     await protocolHarness.bootGame(newMoonShelterScenario());
 
     await protocolHarness.pushServerMessage(newMoonShelterResponsePrompt());
-    await expect(page.getByTestId('skill-branch-overlay')).toBeVisible();
-    await page.getByTestId('skill-branch-overlay').getByTestId('branch-option-0').click();
+    // skill_choice with 1 skill + skip → prompt-dialog inline buttons (NOT skill-branch-overlay)
+    await expect(page.getByTestId('prompt-dialog')).toBeVisible();
+    await page.getByTestId(`prompt-option-${MG_NEW_MOON_SHelter_SKILL_ID}`).click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -27,8 +29,8 @@ test.describe('moon goddess new moon shelter protocol harness', () => {
     await protocolHarness.bootGame(newMoonShelterTransformScenario({ discarded_cards: 2 }));
 
     await protocolHarness.pushServerMessage(newMoonShelterResponsePrompt());
-    await expect(page.getByTestId('skill-branch-overlay')).toBeVisible();
-    await page.getByTestId('skill-branch-overlay').getByTestId('branch-option-0').click();
+    await expect(page.getByTestId('prompt-dialog')).toBeVisible();
+    await page.getByTestId(`prompt-option-${MG_NEW_MOON_SHelter_SKILL_ID}`).click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],

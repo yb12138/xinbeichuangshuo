@@ -70,12 +70,12 @@ test.describe('magic bow protocol harness', () => {
     await page.getByTestId('cover-card-0').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0],
+      card_ids: ['mb-charge-0'],
     });
 
     await protocolHarness.pushServerMessage(magicPierceHitBonusPrompt());
     await expect(page.getByTestId('decision-overlay')).toBeVisible();
-    await page.getByTestId('decision-overlay').getByTestId('prompt-option-0').click();
+    await page.getByTestId('decision-overlay').getByTestId('branch-option-0').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -85,7 +85,7 @@ test.describe('magic bow protocol harness', () => {
     await page.getByTestId('cover-card-1').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0],
+      card_ids: ['mb-charge-1'],
     });
   });
 
@@ -94,7 +94,7 @@ test.describe('magic bow protocol harness', () => {
 
     await protocolHarness.pushServerMessage(magicPierceHitBonusPrompt());
     await expect(page.getByTestId('decision-overlay')).toBeVisible();
-    await page.getByTestId('decision-overlay').getByTestId('prompt-option-1').click();
+    await page.getByTestId('decision-overlay').getByTestId('branch-option-1').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1],
@@ -114,7 +114,7 @@ test.describe('magic bow protocol harness', () => {
     await page.getByTestId('cover-card-0').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0],
+      card_ids: ['mb-charge-0'],
     });
 
     await protocolHarness.pushServerMessage(thunderScatterExtraPrompt(2));
@@ -161,7 +161,7 @@ test.describe('magic bow protocol harness', () => {
     await page.getByTestId('cover-card-2').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0],
+      card_ids: ['mb-charge-2'],
     });
 
     await protocolHarness.pushServerMessage(multiShotTargetPrompt());
@@ -186,7 +186,7 @@ test.describe('magic bow protocol harness', () => {
     await selectHandCards(page, [4, 5]);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [4, 5],
+      card_ids: ['mb-hand-light', 'mb-hand-dark'],
     });
 
     await protocolHarness.pushServerMessage(chargeDrawPrompt());
@@ -203,7 +203,7 @@ test.describe('magic bow protocol harness', () => {
     await selectHandCards(page, [0, 1]); // 选择2张作为充能
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0, 1],
+      card_ids: ['mb-atk-fire', 'mb-hand-water'],
     });
   });
 
@@ -236,7 +236,7 @@ test.describe('magic bow protocol harness', () => {
     await selectHandCards(page, [0]);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0],
+      card_ids: ['mb-atk-fire'],
     });
   });
 
@@ -255,7 +255,7 @@ test.describe('magic bow protocol harness', () => {
     await selectHandCards(page, [0]);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0],
+      card_ids: ['mb-atk-fire'],
     });
   });
 });

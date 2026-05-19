@@ -202,7 +202,7 @@ export function soulRecallScenario(options: { with_magic?: boolean } = {}): Prot
   const characters = [soulSorcererCharacter, allyCharacter, enemyCharacter];
   const withMagic = options.with_magic ?? true;
 
-  const ss = ssPlayerView({ with_magic, is_active: true });
+  const ss = ssPlayerView({ with_magic: withMagic, is_active: true });
 
   const players = [
     ss,
@@ -246,11 +246,12 @@ export function soulRecallPickPrompt(): WsMessage {
     choice_type: 'ss_recall_pick',
     skill_id: SS_SOUL_RECALL_SKILL_ID,
     options: [
-      { id: '3', label: '4: 寒冰箭 (法术·水)' },
-      { id: '4', label: '5: 圣光 (法术·光)' },
+      { id: 'card_4', label: '4: 寒冰箭 (法术·水)', button_label: '选择', card_id: 'card_4' },
+      { id: 'card_5', label: '5: 圣光 (法术·光)', button_label: '选择', card_id: 'card_5' },
     ],
     min: 1,
     max: 2,
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'option_limited', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -310,15 +311,15 @@ export function soulConvertColorPrompt(options: {
 } = {}): WsMessage {
   const canY2B = options.can_y2b ?? true;
   const canB2Y = options.can_b2y ?? true;
-  const optionsList: { id: string; label: string }[] = [];
+  const optionsList: { id: string; label: string; button_label: string }[] = [];
 
   if (canY2B) {
-    optionsList.push({ id: 'yellow_to_blue', label: '黄色灵魂转蓝色灵魂' });
+    optionsList.push({ id: 'yellow_to_blue', label: '黄色灵魂转蓝色灵魂', button_label: '黄转蓝' });
   }
   if (canB2Y) {
-    optionsList.push({ id: 'blue_to_yellow', label: '蓝色灵魂转黄色灵魂' });
+    optionsList.push({ id: 'blue_to_yellow', label: '蓝色灵魂转黄色灵魂', button_label: '蓝转黄' });
   }
-  optionsList.push({ id: 'cancel', label: '取消' });
+  optionsList.push({ id: 'cancel', label: '取消', button_label: '取消' });
 
   return requireActionMessage({
     type: 'confirm',
@@ -382,14 +383,15 @@ export function soulMirrorScenario(options: { yellow_soul?: number } = {}): Prot
 
 export function soulMirrorTargetPrompt(): WsMessage {
   return requireActionMessage({
-    type: 'confirm',
+    type: 'choose_target',
     player_id: SS_PLAYER_ID,
     message: '【灵魂镜像】请选择目标角色：',
     choice_type: 'skill_target',
     skill_id: SS_SOUL_MIRROR_SKILL_ID,
+    presentation: { kind: 'target_picker', target_filter: 'all', numeric_base: 0 },
     options: [
-      { id: SS_PLAYER_ID, label: '灵魂术士' },
-      { id: ALLY_PLAYER_ID, label: '圣女' },
+      { id: SS_PLAYER_ID, label: '灵魂术士', button_label: '选择' },
+      { id: ALLY_PLAYER_ID, label: '圣女', button_label: '选择' },
     ],
     min: 1,
     max: 1,
@@ -446,14 +448,15 @@ export function soulBlastScenario(options: { yellow_soul?: number } = {}): Proto
 
 export function soulBlastTargetPrompt(): WsMessage {
   return requireActionMessage({
-    type: 'confirm',
+    type: 'choose_target',
     player_id: SS_PLAYER_ID,
     message: '【灵魂震爆】请选择目标角色：',
     choice_type: 'skill_target',
     skill_id: SS_SOUL_BLAST_SKILL_ID,
+    presentation: { kind: 'target_picker', target_filter: 'all', numeric_base: 0 },
     options: [
-      { id: SS_PLAYER_ID, label: '灵魂术士' },
-      { id: ENEMY_PLAYER_ID, label: '魔神' },
+      { id: SS_PLAYER_ID, label: '灵魂术士', button_label: '选择' },
+      { id: ENEMY_PLAYER_ID, label: '魔神', button_label: '选择' },
     ],
     min: 1,
     max: 1,
@@ -511,14 +514,15 @@ export function soulGrantScenario(options: { blue_soul?: number } = {}): Protoco
 
 export function soulGrantTargetPrompt(): WsMessage {
   return requireActionMessage({
-    type: 'confirm',
+    type: 'choose_target',
     player_id: SS_PLAYER_ID,
     message: '【灵魂赐予】请选择目标角色：',
     choice_type: 'skill_target',
     skill_id: SS_SOUL_GRANT_SKILL_ID,
+    presentation: { kind: 'target_picker', target_filter: 'all', numeric_base: 0 },
     options: [
-      { id: SS_PLAYER_ID, label: '灵魂术士' },
-      { id: ALLY_PLAYER_ID, label: '圣女' },
+      { id: SS_PLAYER_ID, label: '灵魂术士', button_label: '选择' },
+      { id: ALLY_PLAYER_ID, label: '圣女', button_label: '选择' },
     ],
     min: 1,
     max: 1,
@@ -590,14 +594,15 @@ export function soulLinkScenario(options: {
 
 export function soulLinkTargetPrompt(): WsMessage {
   return requireActionMessage({
-    type: 'confirm',
+    type: 'choose_target',
     player_id: SS_PLAYER_ID,
     message: '【灵魂链接】请选择要放置灵魂链接的队友：',
     choice_type: 'ss_link_target',
     skill_id: SS_SOUL_LINK_SKILL_ID,
+    presentation: { kind: 'target_picker', target_filter: 'allies', numeric_base: 0 },
     options: [
-      { id: ALLY_PLAYER_ID, label: 'Ally Bot 1' },
-      { id: ALLY_2_PLAYER_ID, label: 'Ally Bot 2' },
+      { id: ALLY_PLAYER_ID, label: 'Ally Bot 1', button_label: '选择' },
+      { id: ALLY_2_PLAYER_ID, label: 'Ally Bot 2', button_label: '选择' },
     ],
     min: 1,
     max: 1,
@@ -647,9 +652,10 @@ export function soulAmpConfirmPrompt(): WsMessage {
     choice_type: 'ss_soul_amp_confirm',
     skill_id: SS_SOUL_AMP_SKILL_ID,
     options: [
-      { id: '0', label: '发动' },
-      { id: '1', label: '不发动' },
+      { id: '0', label: '发动', button_label: '发动' },
+      { id: '1', label: '不发动', button_label: '不发动' },
     ],
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
     min: 1,
     max: 1,
   } satisfies Prompt);

@@ -2,7 +2,6 @@ import type { Page } from '@playwright/test';
 import { test } from '../../../fixtures/protocolHarness.fixture';
 import {
   HEROIC_SPIRIT_RUNE_MODIFICATION_ID,
-  ENEMY_PLAYER_ID,
   ALLY_PLAYER_ID,
   runeModificationScenario,
   runeModificationSealAdjustPrompt,
@@ -43,26 +42,25 @@ test.describe('heroic spirit rune modification protocol harness', () => {
     await protocolHarness.pushServerMessage(runeModificationSealAdjustPrompt());
 
     // Adjust seals (flip one seal)
-    await clickOverlayOption(page, 'prompt-option-flip_1');
+    await clickOverlayOption(page, 'branch-option-0');
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
     });
   });
 
-  test('rune modification: flip multiple seals', async ({ page, protocolHarness }) => {
+  test('rune modification: choose another seal', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(runeModificationScenario());
 
     await activatePanelSkill(page, HEROIC_SPIRIT_RUNE_MODIFICATION_ID);
 
     await protocolHarness.pushServerMessage(runeModificationSealAdjustPrompt());
 
-    // Flip multiple seals
-    await clickOverlayOption(page, 'prompt-option-flip_1');
-    await clickOverlayOption(page, 'prompt-option-flip_2');
+    // Choose the second seal option
+    await clickOverlayOption(page, 'branch-option-1');
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0, 1],
+      option_indexes: [1],
     });
   });
 });

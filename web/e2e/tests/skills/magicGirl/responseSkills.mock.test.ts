@@ -1,22 +1,19 @@
 import type { Page } from '@playwright/test';
-import { test } from '../../../fixtures/protocolHarness.fixture';
+import { test, expect } from '../../../fixtures/protocolHarness.fixture';
 import {
   magicBulletControlScenario,
   magicBulletDirectionPrompt,
   magicBulletFusionScenario,
+  magicExplosionEnemyDiscardScenario,
+  magicExplosionEnemy2DiscardScenario,
   magicExplosionEnemyDiscardPrompt,
-  ENEMY_PLAYER_ID,
-  ENEMY2_PLAYER_ID,
+  magicExplosionEnemy2DiscardPrompt,
 } from '../../../scenarios/magicGirl';
 
-async function clickOverlayOption(page: Page, selector: string) {
-  const overlay = page.getByTestId('decision-overlay');
-  const overlayVisible = await overlay.isVisible({ timeout: 1000 }).catch(() => false);
-  if (overlayVisible) {
-    await overlay.getByTestId(selector).click();
-  } else {
-    await page.getByTestId('prompt-dialog').getByTestId(selector).click();
-  }
+async function selectHandCard(page: Page, index: number) {
+  const card = page.getByTestId(`hand-card-${index}`);
+  await card.scrollIntoViewIfNeeded();
+  await card.click();
 }
 
 test.describe('magic girl magic bullet control protocol harness', () => {
@@ -26,8 +23,9 @@ test.describe('magic girl magic bullet control protocol harness', () => {
     // Server pushes direction choice after using magic bullet
     await protocolHarness.pushServerMessage(magicBulletDirectionPrompt());
 
-    // Click forward option
-    await clickOverlayOption(page, 'prompt-option-forward');
+    // Click forward option on the decision overlay
+    await expect(page.getByTestId('decision-overlay')).toBeVisible();
+    await page.getByTestId('decision-overlay').getByTestId('prompt-option-forward').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -39,8 +37,9 @@ test.describe('magic girl magic bullet control protocol harness', () => {
 
     await protocolHarness.pushServerMessage(magicBulletDirectionPrompt());
 
-    // Click reverse option
-    await clickOverlayOption(page, 'prompt-option-reverse');
+    // Click reverse option on the decision overlay
+    await expect(page.getByTestId('decision-overlay')).toBeVisible();
+    await page.getByTestId('decision-overlay').getByTestId('prompt-option-reverse').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1],
@@ -57,30 +56,34 @@ test.describe('magic girl magic bullet fusion protocol harness', () => {
 });
 
 test.describe('magic girl magic explosion enemy discard protocol harness', () => {
-  test('magic explosion: enemy discards magic card', async ({ protocolHarness }) => {
-    await protocolHarness.bootGame(magicBulletControlScenario());
+  test('magic explosion: enemy discards magic card', async ({ page, protocolHarness }) => {
+    // Boot game from enemy perspective so enemy sees their own prompt
+    await protocolHarness.bootGame(magicExplosionEnemyDiscardScenario());
 
-    // Server pushes discard prompt to enemy
-    await protocolHarness.pushServerMessage(magicExplosionEnemyDiscardPrompt(ENEMY_PLAYER_ID));
+    // Server pushes discard prompt to enemy (who is now "me")
+    await protocolHarness.pushServerMessage(magicExplosionEnemyDiscardPrompt());
 
-    // Enemy selects card to discard
-    await clickOverlayOption(page, 'prompt-option-0');
+    // Enemy selects their hand card to discard
+    await selectHandCard(page, 0);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0],
+      card_ids: ['en-card-1'],
     });
   });
 
-  test('magic explosion: enemy refuses to discard', async ({ protocolHarness }) => {
-    await protocolHarness.bootGame(magicBulletControlScenario());
+  test('magic explosion: enemy refuses to discard', async ({ page, protocolHarness }) => {
+    // Boot game from enemy E2 perspective
+    await protocolHarness.bootGame(magicExplosionEnemy2DiscardScenario());
 
-    await protocolHarness.pushServerMessage(magicExplosionEnemyDiscardPrompt(ENEMY2_PLAYER_ID));
+    // Server pushes discard prompt to enemy E2 (who is now "me")
+    await protocolHarness.pushServerMessage(magicExplosionEnemy2DiscardPrompt());
 
     // Enemy skips discard (takes damage instead)
-    // min=0 allows skipping
+    // card_picker with min=0 allows empty selection via confirm
+    await page.getByTestId('prompt-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [],
+      card_ids: [],
     });
   });
 });

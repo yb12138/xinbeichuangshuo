@@ -35,6 +35,7 @@ const berserkerCharacter = characterView({
       description: '你发动的所有攻击伤害额外+1。（攻击命中时②，若你的手牌>3）本次攻击伤害额外+1。',
       type: 0, // 被动
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: BERSERKER_TEAR_ID,
@@ -42,6 +43,7 @@ const berserkerCharacter = characterView({
       description: '［宝石］攻击命中后发动②，本次攻击伤害额外+2。',
       type: 3, // 响应(大招)
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: BERSERKER_BLOODY_ROAR_ID,
@@ -49,6 +51,7 @@ const berserkerCharacter = characterView({
       description: '作为主动攻击打出时发动，若攻击的目标拥有的［治疗］为2，则本次攻击强制命中。',
       type: 3, // 响应(独有)
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: BERSERKER_BLOOD_SHADOW_ID,
@@ -56,6 +59,7 @@ const berserkerCharacter = characterView({
       description: '作为主动攻击打出时发动●若命中后②对手的手牌为2，本次攻击伤害额外+2。●若命中后②对手的手牌为3，本次攻击伤害额外+1。',
       type: 3, // 响应(独有)
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
   ],
 });
@@ -196,7 +200,7 @@ export function tearHitPrompt(): WsMessage {
       { id: 'skip', label: '跳过', button_label: '跳过', hint: '不发动响应技能' },
     ],
     min: 1, max: 1,
-    presentation: { kind: 'skill_choice', layout: 'overlay' },
+    presentation: { kind: 'skill_choice', layout: 'overlay', numeric_base: 0 },
   } satisfies Prompt);
 }
 

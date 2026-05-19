@@ -1,80 +1,80 @@
-import type { Page } from '@playwright/test';
-import { test } from '../../../fixtures/protocolHarness.fixture';
+import { test, expect } from '../../../fixtures/protocolHarness.fixture';
 import {
-  MAGIC_SWORDMAN_SHADOW_GATHER_ID,
-  MAGIC_SWORDMAN_SHADOW_METEOR_ID,
-  ENEMY_PLAYER_ID,
-  shadowGatherScenario,
-  shadowMeteorScenario,
-  shadowMeteorDiscardPrompt,
-  shadowMeteorTargetPrompt,
+  asuraComboScenario,
+  asuraComboPrompt,
+  asuraComboDiscardPrompt,
+  underworldTremorScenario,
+  underworldTremorPrompt,
 } from '../../../scenarios/magicSwordman';
 
-async function activatePanelSkill(page: Page, skillId: string) {
-  await page.getByTestId('action-skill').click();
-  await page.getByTestId(`skill-${skillId}`).click();
-}
+test.describe('magic swordman asura combo protocol harness', () => {
+  test('asura combo: confirm after damage >=2', async ({ page, protocolHarness }) => {
+    await protocolHarness.bootGame(asuraComboScenario());
 
-async function clickOverlayOption(page: Page, selector: string) {
-  const overlay = page.getByTestId('decision-overlay');
-  const overlayVisible = await overlay.isVisible({ timeout: 1000 }).catch(() => false);
-  if (overlayVisible) {
-    await overlay.getByTestId(selector).click();
-  } else {
-    await page.getByTestId('prompt-dialog').getByTestId(selector).click();
-  }
-}
+    // Server pushes asura combo prompt after attack ends
+    await protocolHarness.pushServerMessage(asuraComboPrompt());
 
-async function selectTarget(page: Page, targetId: string) {
-  await page.getByTestId(`player-area-${targetId}`).click();
-}
-
-test.describe('magic swordman shadow gather protocol harness', () => {
-  test('shadow gather: activate skill', async ({ page, protocolHarness }) => {
-    await protocolHarness.bootGame(shadowGatherScenario());
-
-    await activatePanelSkill(page, MAGIC_SWORDMAN_SHADOW_GATHER_ID);
+    // Click confirm button (branch_select: branch-option-0)
+    await expect(page.getByTestId('decision-overlay')).toBeVisible();
+    await page.getByTestId('decision-overlay').getByTestId('branch-option-0').click();
     await protocolHarness.expectSubmitAction({
-      action_type: 'Skill',
-      skill_id: MAGIC_SWORDMAN_SHADOW_GATHER_ID,
+      action_type: 'Select',
+      option_indexes: [0],
+    });
+
+    // Server pushes discard selection
+    await protocolHarness.pushServerMessage(asuraComboDiscardPrompt());
+
+    // Select fire card from hand (card_picker: hand-card-0 auto-submits for min=1,max=1)
+    await page.getByTestId('hand-card-0').click();
+    await protocolHarness.expectSubmitAction({
+      action_type: 'Select',
+      card_ids: ['ms-fire-attack-1'],
+    });
+  });
+
+  test('asura combo: skip', async ({ page, protocolHarness }) => {
+    await protocolHarness.bootGame(asuraComboScenario());
+
+    await protocolHarness.pushServerMessage(asuraComboPrompt());
+
+    // Click skip button (branch_select: branch-option-1)
+    await expect(page.getByTestId('decision-overlay')).toBeVisible();
+    await page.getByTestId('decision-overlay').getByTestId('branch-option-1').click();
+    await protocolHarness.expectSubmitAction({
+      action_type: 'Select',
+      option_indexes: [1],
     });
   });
 });
 
-test.describe('magic swordman shadow meteor protocol harness', () => {
-  test('shadow meteor: activate in shadow form', async ({ page, protocolHarness }) => {
-    await protocolHarness.bootGame(shadowMeteorScenario());
+test.describe('magic swordman underworld tremor protocol harness', () => {
+  test('underworld tremor: confirm with gem', async ({ page, protocolHarness }) => {
+    await protocolHarness.bootGame(underworldTremorScenario());
 
-    await activatePanelSkill(page, MAGIC_SWORDMAN_SHADOW_METEOR_ID);
+    // Server pushes underworld tremor prompt before attack
+    await protocolHarness.pushServerMessage(underworldTremorPrompt());
+
+    // Click confirm button (branch_select: branch-option-0)
+    await expect(page.getByTestId('decision-overlay')).toBeVisible();
+    await page.getByTestId('decision-overlay').getByTestId('branch-option-0').click();
     await protocolHarness.expectSubmitAction({
-      action_type: 'Skill',
-      skill_id: MAGIC_SWORDMAN_SHADOW_METEOR_ID,
+      action_type: 'Select',
+      option_indexes: [0],
     });
   });
 
-  test('shadow meteor: discard and select target', async ({ page, protocolHarness }) => {
-    await protocolHarness.bootGame(shadowMeteorScenario());
+  test('underworld tremor: skip', async ({ page, protocolHarness }) => {
+    await protocolHarness.bootGame(underworldTremorScenario());
 
-    await activatePanelSkill(page, MAGIC_SWORDMAN_SHADOW_METEOR_ID);
+    await protocolHarness.pushServerMessage(underworldTremorPrompt());
 
-    // Server pushes discard selection
-    await protocolHarness.pushServerMessage(shadowMeteorDiscardPrompt());
-
-    // Select magic card to discard
-    await clickOverlayOption(page, 'prompt-option-ms-fire-magic');
+    // Click skip button (branch_select: branch-option-1)
+    await expect(page.getByTestId('decision-overlay')).toBeVisible();
+    await page.getByTestId('decision-overlay').getByTestId('branch-option-1').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0],
-    });
-
-    // Server pushes target selection
-    await protocolHarness.pushServerMessage(shadowMeteorTargetPrompt());
-
-    // Select enemy target
-    await selectTarget(page, ENEMY_PLAYER_ID);
-    await protocolHarness.expectSubmitAction({
-      action_type: 'Select',
-      option_indexes: [0],
+      option_indexes: [1],
     });
   });
 });

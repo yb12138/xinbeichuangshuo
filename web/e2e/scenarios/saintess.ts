@@ -36,6 +36,7 @@ const saintessCharacter = characterView({
       description: '（每当你使用水系牌或圣光时发动）目标角色+1［治疗］。',
       type: 0, // 被动
       min_targets: 1, max_targets: 1, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: SAINTESS_HEALING_LIGHT_ID,
@@ -43,6 +44,7 @@ const saintessCharacter = characterView({
       description: '指定最多3名角色各+1［治疗］。',
       type: 2, // 法术(独有)
       min_targets: 1, max_targets: 3, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: SAINTESS_HEAL_SKILL_ID,
@@ -50,6 +52,7 @@ const saintessCharacter = characterView({
       description: '目标角色+2［治疗］。',
       type: 2, // 法术(独有)
       min_targets: 1, max_targets: 1, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: SAINTESS_HOLY_HEAL_ID,
@@ -57,6 +60,7 @@ const saintessCharacter = characterView({
       description: '［回合限定］［水晶］任意分配3点［治疗］给1~3名角色，额外+1［攻击行动］或［法术行动］。',
       type: 2, // 法术(大招)
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: SAINTESS_MERCY_ID,
@@ -64,6 +68,7 @@ const saintessCharacter = characterView({
       description: '［持续］［宝石］［横置］，你的手牌上限恒定为7［恒定］，你+1［水晶］。',
       type: 1, // 启动(大招)
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
   ],
 });
@@ -182,14 +187,15 @@ export function frostPrayerScenario(): ProtocolHarnessScenario {
 
 export function frostPrayerTargetPrompt(): WsMessage {
   return requireActionMessage({
-    type: 'confirm',
+    type: 'choose_target',
     player_id: SAINTESS_PLAYER_ID,
     message: '【冰霜祷言】使用水系牌或圣光，请选择一名目标角色+1［治疗］：',
     choice_type: 'frost_prayer_target',
+    presentation: { kind: 'target_picker', target_filter: 'all', numeric_base: 0 },
     options: [
-      { id: SAINTESS_PLAYER_ID, label: '自己' },
-      { id: ENEMY_PLAYER_ID, label: 'Enemy E1' },
-      { id: ALLY_PLAYER_ID, label: 'Ally A1' },
+      { id: SAINTESS_PLAYER_ID, label: '自己', button_label: '选择' },
+      { id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
+      { id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
     ],
     min: 1, max: 1,
   } satisfies Prompt);
@@ -212,14 +218,15 @@ export function healingLightScenario(): ProtocolHarnessScenario {
 
 export function healingLightMultiTargetPrompt(): WsMessage {
   return requireActionMessage({
-    type: 'confirm',
+    type: 'choose_target',
     player_id: SAINTESS_PLAYER_ID,
     message: '【治愈之光】请选择1~3名目标角色，各+1［治疗］：',
     choice_type: 'saintess_healing_light_targets',
+    presentation: { kind: 'target_picker', target_filter: 'all', multi_target: true, numeric_base: 0 },
     options: [
-      { id: SAINTESS_PLAYER_ID, label: '自己' },
-      { id: ENEMY_PLAYER_ID, label: 'Enemy E1' },
-      { id: ALLY_PLAYER_ID, label: 'Ally A1' },
+      { id: SAINTESS_PLAYER_ID, label: '自己', button_label: '选择' },
+      { id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
+      { id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
     ],
     min: 1, max: 3,
   } satisfies Prompt);
@@ -242,14 +249,15 @@ export function healSkillScenario(): ProtocolHarnessScenario {
 
 export function healSkillTargetPrompt(): WsMessage {
   return requireActionMessage({
-    type: 'confirm',
+    type: 'choose_target',
     player_id: SAINTESS_PLAYER_ID,
     message: '【治疗术】请选择一名目标角色+2［治疗］：',
     choice_type: 'saintess_heal_skill_target',
+    presentation: { kind: 'target_picker', target_filter: 'all', numeric_base: 0 },
     options: [
-      { id: SAINTESS_PLAYER_ID, label: '自己' },
-      { id: ENEMY_PLAYER_ID, label: 'Enemy E1' },
-      { id: ALLY_PLAYER_ID, label: 'Ally A1' },
+      { id: SAINTESS_PLAYER_ID, label: '自己', button_label: '选择' },
+      { id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
+      { id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
     ],
     min: 1, max: 1,
   } satisfies Prompt);
@@ -277,9 +285,9 @@ export function holyHealDistributePrompt(): WsMessage {
     message: '【圣疗】请分配3点治疗给1~3名角色（使用分配器）：',
     choice_type: 'saint_heal_allocate',
     options: [
-      { id: '1_player', label: '分配给1名角色（+3）' },
-      { id: '2_players', label: '分配给2名角色（各+1/+2）' },
-      { id: '3_players', label: '分配给3名角色（各+1）' },
+      { id: '1_player', label: '分配给1名角色（+3）', button_label: '1名角色' },
+      { id: '2_players', label: '分配给2名角色（各+1/+2）', button_label: '2名角色' },
+      { id: '3_players', label: '分配给3名角色（各+1）', button_label: '3名角色' },
     ],
     min: 1, max: 1,
     presentation: { kind: 'numeric', numeric_base: 0 },
@@ -293,9 +301,10 @@ export function holyHealBranchPrompt(): WsMessage {
     message: '【圣疗】请选择额外获得的行动：',
     choice_type: 'saintess_holy_heal_branch',
     options: [
-      { id: 'attack', label: '额外+1［攻击行动］' },
-      { id: 'magic', label: '额外+1［法术行动］' },
+      { id: '0', label: '额外+1［攻击行动］', button_label: '攻击行动' },
+      { id: '1', label: '额外+1［法术行动］', button_label: '法术行动' },
     ],
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
     min: 1, max: 1,
   } satisfies Prompt);
 }
@@ -323,9 +332,10 @@ export function mercyPrompt(): WsMessage {
     message: '【怜悯】是否消耗1个红宝石发动？手牌上限恒定为7，+1水晶。',
     choice_type: 'saintess_mercy',
     options: [
-      { id: 'confirm', label: '发动' },
-      { id: 'skip', label: '跳过' },
+      { id: '0', label: '发动', button_label: '发动' },
+      { id: '1', label: '跳过', button_label: '跳过' },
     ],
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
     min: 1, max: 1,
   } satisfies Prompt);
 }

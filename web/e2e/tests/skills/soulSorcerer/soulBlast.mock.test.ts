@@ -19,10 +19,9 @@ test.describe('soulSorcerer soulBlast protocol harness', () => {
       skill_id: SS_SOUL_BLAST_SKILL_ID,
     });
 
-    // Target selection prompt
+    // Target selection (target_picker - click enemy player area, auto-submit)
     await protocolHarness.pushServerMessage(soulBlastTargetPrompt());
-    await expect(page.getByTestId('decision-overlay')).toBeVisible();
-    // Click on enemy player card
+    await expect(page.getByTestId('decision-overlay')).not.toBeVisible({ timeout: 5000 });
     await page.getByTestId(`player-area-${ENEMY_PLAYER_ID}`).click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
@@ -41,7 +40,7 @@ test.describe('soulSorcerer soulBlast protocol harness', () => {
     });
 
     await protocolHarness.pushServerMessage(soulBlastTargetPrompt());
-    // Click on self player card
+    // Click self player area
     await page.getByTestId(`player-area-${SS_PLAYER_ID}`).click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',

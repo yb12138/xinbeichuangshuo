@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { test } from '../../../fixtures/protocolHarness.fixture';
+import { test, expect } from '../../../fixtures/protocolHarness.fixture';
 import {
   ENEMY_PLAYER_ID,
   magicReboundCardsPrompt,
@@ -20,28 +20,18 @@ async function selectHandCards(page: Page, indices: number[]) {
   await page.getByTestId('prompt-confirm-btn').click();
 }
 
-async function clickOverlayOption(page: Page, selector: string) {
-  const overlay = page.getByTestId('decision-overlay');
-  const overlayVisible = await overlay.isVisible({ timeout: 1000 }).catch(() => false);
-  if (overlayVisible) {
-    await overlay.getByTestId(selector).click();
-  } else {
-    await page.getByTestId('prompt-dialog').getByTestId(selector).click();
-  }
-}
-
 test.describe('sage wisdom codex protocol harness', () => {
   test('wisdom codex: discard 1 card after magic damage > 3', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(sageScenario());
 
-    // Server pushes system discard prompt (triggered by wisdom codex after magic damage > 3)
+    // Server pushes system discard prompt (card_picker from hand)
     await protocolHarness.pushServerMessage(wisdomCodexDiscardPrompt());
 
     // Select first hand card to discard
     await selectHandCards(page, [0]);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0],
+      card_ids: ['sg-fire-atk'],
     });
   });
 
@@ -54,7 +44,7 @@ test.describe('sage wisdom codex protocol harness', () => {
     await selectHandCards(page, [2]);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [2],
+      card_ids: ['sg-thunder-atk'],
     });
   });
 });
@@ -63,11 +53,12 @@ test.describe('sage magic rebound protocol harness', () => {
   test('magic rebound: skip (否)', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(magicReboundScenario());
 
-    // Server pushes magic rebound confirm prompt (triggered by magic damage == 1)
+    // Server pushes magic rebound confirm prompt (branch_select overlay)
     await protocolHarness.pushServerMessage(magicReboundConfirmPrompt());
 
-    // Click "否" (yes-no mode uses prompt-option-{id})
-    await clickOverlayOption(page, 'prompt-option-1');
+    // Click "否" (branch-option-1)
+    await expect(page.getByTestId('decision-overlay')).toBeVisible();
+    await page.getByTestId('decision-overlay').getByTestId('branch-option-1').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1],
@@ -77,32 +68,35 @@ test.describe('sage magic rebound protocol harness', () => {
   test('magic rebound: full flow (confirm → element → cards → target)', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(magicReboundScenario());
 
-    // Step 1: confirm activation
+    // Step 1: confirm activation (branch_select overlay)
     await protocolHarness.pushServerMessage(magicReboundConfirmPrompt());
-    await clickOverlayOption(page, 'prompt-option-0');
+    await expect(page.getByTestId('decision-overlay')).toBeVisible();
+    await page.getByTestId('decision-overlay').getByTestId('branch-option-0').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
     });
 
-    // Step 2: select element (火系)
+    // Step 2: select element (branch_select overlay)
     await protocolHarness.pushServerMessage(magicReboundElementPrompt(2));
-    await clickOverlayOption(page, 'prompt-option-0');
+    await expect(page.getByTestId('decision-overlay')).toBeVisible();
+    await page.getByTestId('decision-overlay').getByTestId('branch-option-0').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
     });
 
-    // Step 3: select same-element cards (choose 2 fire cards)
+    // Step 3: select same-element cards (card_picker from hand)
     await protocolHarness.pushServerMessage(magicReboundCardsPrompt());
     await selectHandCards(page, [0, 1]);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0, 1],
+      card_ids: ['sg-fire-atk1', 'sg-fire-atk2'],
     });
 
-    // Step 4: select target (enemy)
+    // Step 4: select target (target_picker - click enemy player area)
     await protocolHarness.pushServerMessage(magicReboundTargetPrompt());
+    await expect(page.getByTestId('decision-overlay')).not.toBeVisible({ timeout: 5000 });
     await page.getByTestId(`player-area-${ENEMY_PLAYER_ID}`).click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
@@ -113,22 +107,22 @@ test.describe('sage magic rebound protocol harness', () => {
   test('magic rebound: select max fire cards', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(magicReboundScenario());
 
-    // Confirm
+    // Confirm (branch_select)
     await protocolHarness.pushServerMessage(magicReboundConfirmPrompt());
-    await clickOverlayOption(page, 'prompt-option-0');
+    await page.getByTestId('decision-overlay').getByTestId('branch-option-0').click();
     await protocolHarness.expectSubmitAction({ action_type: 'Select', option_indexes: [0] });
 
-    // Element
+    // Element (branch_select)
     await protocolHarness.pushServerMessage(magicReboundElementPrompt(2));
-    await clickOverlayOption(page, 'prompt-option-0');
+    await page.getByTestId('decision-overlay').getByTestId('branch-option-0').click();
     await protocolHarness.expectSubmitAction({ action_type: 'Select', option_indexes: [0] });
 
-    // Select all 3 fire cards
+    // Select all 3 fire cards (card_picker from hand)
     await protocolHarness.pushServerMessage(magicReboundCardsPrompt());
     await selectHandCards(page, [0, 1, 2]);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0, 1, 2],
+      card_ids: ['sg-fire-atk1', 'sg-fire-atk2', 'sg-fire-magic'],
     });
   });
 });

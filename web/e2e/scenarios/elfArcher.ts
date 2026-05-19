@@ -36,6 +36,7 @@ const elfArcherCharacter = characterView({
       description: '（攻击行动开始前发动）弃1张法术牌或［祝福］，根据牌的系别执行：火系+1伤害；水系命中后目标弃牌；地系无法应战；风系目标无距离限制；雷系强制命中。',
       type: 3, // 响应
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: ELF_ARCHER_ANIMAL_COMPANION_ID,
@@ -43,6 +44,7 @@ const elfArcherCharacter = characterView({
       description: '（受到伤害后发动）摸1张牌，弃1张牌。',
       type: 3, // 响应
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: ELF_ARCHER_ELF_RITUAL_ID,
@@ -50,6 +52,7 @@ const elfArcherCharacter = characterView({
       description: '［宝石］横置，将手中的［祝福］牌盖放于自己面前作为祝福储备。回合结束时，你可以消耗1［祝福］来令一名队友+1［治疗］。',
       type: 1, // 启动(大招)
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: ELF_ARCHER_PET_ENHANCE_ID,
@@ -57,6 +60,7 @@ const elfArcherCharacter = characterView({
       description: '［水晶］升级动物伙伴的效果：摸牌数+1，或弃牌数-1，或目标弃牌。',
       type: 3, // 响应(大招)
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
   ],
 });
@@ -106,7 +110,7 @@ function elfArcherResponseSkillChoicePrompt(skillId: string, title: string, mess
       { id: skillId, label: title, button_label: title, hint: `发动【${title}】` },
       { id: 'skip', label: '跳过', button_label: '跳过', hint: '不发动响应技能' },
     ],
-    presentation: { kind: 'skill_choice', layout: 'overlay' },
+    presentation: { kind: 'skill_choice', layout: 'overlay', numeric_base: 0 },
     min: 1,
     max: 1,
   } satisfies Prompt);
@@ -207,7 +211,7 @@ export function elementalShotDiscardPrompt(): WsMessage {
       { id: '4', label: '雷击（雷系，强制命中）', button_label: '选择', card_id: hand[6].id },
       { id: '5', label: '祝福', button_label: '选择', card_id: hand[7].id },
     ],
-    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'magic_or_elf_blessing', cancel_policy: 'abort' },
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'magic_or_elf_blessing', cancel_policy: 'abort', numeric_base: 0 },
     min: 1, max: 1,
   } satisfies Prompt);
 }

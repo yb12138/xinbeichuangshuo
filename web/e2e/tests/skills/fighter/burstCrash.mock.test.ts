@@ -27,7 +27,7 @@ test.describe('fighter burst crash protocol harness', () => {
     await expect(page.getByTestId('skill-branch-overlay')).toBeVisible();
     await page
       .getByTestId('skill-branch-overlay')
-      .getByTestId('branch-option-1')
+      .getByTestId('prompt-option-skip')
       .click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',

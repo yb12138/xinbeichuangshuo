@@ -22,9 +22,9 @@ test.describe('sword emperor sword qi slash protocol harness', () => {
       option_indexes: [0],
     });
 
-    // 2) 选择 X 值（X=2 → option_indexes[1]，因为 X 从 1 开始）
+    // 2) 选择 X 值（X=2 → numeric-option-2，id "2" 对应 option_indexes[1]）
     await protocolHarness.pushServerMessage(swordQiSlashXPrompt(3));
-    await page.getByTestId('prompt-option-1').click();
+    await page.getByTestId('decision-overlay').getByTestId('numeric-option-2').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1],
@@ -45,7 +45,7 @@ test.describe('sword emperor sword qi slash protocol harness', () => {
     await protocolHarness.pushServerMessage(swordQiSlashResponsePrompt());
     await expect(page.getByTestId('skill-branch-overlay')).toBeVisible();
     // "跳过" 是 choose_skill 的第二个选项 → option_indexes[1]
-    await page.getByTestId('skill-branch-overlay').getByTestId('branch-option-1').click();
+    await page.getByTestId('prompt-option-skip').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1],
@@ -62,9 +62,9 @@ test.describe('sword emperor sword qi slash protocol harness', () => {
       option_indexes: [0],
     });
 
-    // X=1 → option_indexes[0]
+    // X=1 → numeric-option-1，id "1" 对应 option_indexes[0]
     await protocolHarness.pushServerMessage(swordQiSlashXPrompt(3));
-    await page.getByTestId('prompt-option-0').click();
+    await page.getByTestId('decision-overlay').getByTestId('numeric-option-1').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -88,9 +88,9 @@ test.describe('sword emperor sword qi slash protocol harness', () => {
       option_indexes: [0],
     });
 
-    // X=3 → option_indexes[2]
+    // X=3 → numeric-option-3，id "3" 对应 option_indexes[2]
     await protocolHarness.pushServerMessage(swordQiSlashXPrompt(3));
-    await page.getByTestId('prompt-option-2').click();
+    await page.getByTestId('decision-overlay').getByTestId('numeric-option-3').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [2],

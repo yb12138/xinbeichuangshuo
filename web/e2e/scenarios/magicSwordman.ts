@@ -36,6 +36,7 @@ const magicSwordmanCharacter = characterView({
       description: '（攻击结束时发动）若你本次攻击伤害≥2，你可以弃1张火系牌［展示］，进行一次火系攻击。',
       type: 3, // 响应
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: MAGIC_SWORDMAN_SHADOW_GATHER_ID,
@@ -43,6 +44,7 @@ const magicSwordmanCharacter = characterView({
       description: '对自己造成1点法术伤害③，横置，获得暗影形态。',
       type: 1, // 启动
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: MAGIC_SWORDMAN_SHADOW_METEOR_ID,
@@ -50,6 +52,7 @@ const magicSwordmanCharacter = characterView({
       description: '（暗影形态中）弃1张法术牌［展示］，对一名对手造成2点法术伤害③，脱离暗影形态。',
       type: 2, // 法术
       min_targets: 1, max_targets: 1, target_type: 2,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: MAGIC_SWORDMAN_UNDERWORLD_TREMOR_ID,
@@ -57,6 +60,7 @@ const magicSwordmanCharacter = characterView({
       description: '［宝石］本次攻击无法应战。若命中，你对目标造成1点法术伤害③，并从其手中抽取一张牌加入自己手牌。',
       type: 3, // 响应(大招)
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
   ],
 });
@@ -177,9 +181,10 @@ export function asuraComboPrompt(): WsMessage {
     message: '【修罗连斩】攻击伤害≥2，弃1张火系牌进行火系攻击？',
     choice_type: 'ms_asura_combo',
     options: [
-      { id: 'confirm', label: '发动' },
-      { id: 'skip', label: '跳过' },
+      { id: 'confirm', label: '发动', button_label: '发动' },
+      { id: 'skip', label: '跳过', button_label: '跳过' },
     ],
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
     min: 1, max: 1,
   } satisfies Prompt);
 }
@@ -191,10 +196,11 @@ export function asuraComboDiscardPrompt(): WsMessage {
     message: '【修罗连斩】请选择弃1张火系牌［展示］：',
     choice_type: 'ms_asura_combo_discard',
     options: [
-      { id: 'ms-fire-attack-1', label: '火焰斩（火系）' },
-      { id: 'ms-fire-attack-2', label: '炎刃（火系）' },
-      { id: 'ms-fire-magic', label: '火球（火系）' },
+      { id: 'ms-fire-attack-1', label: '火焰斩（火系）', button_label: '选择', card_id: 'ms-fire-attack-1' },
+      { id: 'ms-fire-attack-2', label: '炎刃（火系）', button_label: '选择', card_id: 'ms-fire-attack-2' },
+      { id: 'ms-fire-magic', label: '火球（火系）', button_label: '选择', card_id: 'ms-fire-magic' },
     ],
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'element:Fire', numeric_base: 0 },
     min: 1, max: 1,
   } satisfies Prompt);
 }
@@ -220,9 +226,10 @@ export function shadowGatherPrompt(): WsMessage {
     message: '【暗影凝聚】对自己造成1点法术伤害，横置进入暗影形态？',
     choice_type: 'ms_shadow_gather',
     options: [
-      { id: 'confirm', label: '发动' },
-      { id: 'skip', label: '跳过' },
+      { id: 'confirm', label: '发动', button_label: '发动' },
+      { id: 'skip', label: '跳过', button_label: '跳过' },
     ],
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
     min: 1, max: 1,
   } satisfies Prompt);
 }
@@ -250,10 +257,11 @@ export function shadowMeteorDiscardPrompt(): WsMessage {
     message: '【暗影流星】请选择弃1张法术牌［展示］：',
     choice_type: 'ms_shadow_meteor_discard',
     options: [
-      { id: 'ms-fire-magic', label: '火球（法术）' },
-      { id: 'ms-water-magic', label: '冰冻（法术）' },
-      { id: 'ms-dark-magic', label: '暗影（法术）' },
+      { id: 'ms-fire-magic', label: '火球（法术）', button_label: '选择', card_id: 'ms-fire-magic' },
+      { id: 'ms-water-magic', label: '冰冻（法术）', button_label: '选择', card_id: 'ms-water-magic' },
+      { id: 'ms-dark-magic', label: '暗影（法术）', button_label: '选择', card_id: 'ms-dark-magic' },
     ],
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'type:Magic', numeric_base: 0 },
     min: 1, max: 1,
   } satisfies Prompt);
 }
@@ -264,8 +272,9 @@ export function shadowMeteorTargetPrompt(): WsMessage {
     player_id: MAGIC_SWORDMAN_PLAYER_ID,
     message: '【暗影流星】请选择一名对手造成2点法术伤害：',
     choice_type: 'ms_shadow_meteor_target',
+    presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
     options: [
-      { id: ENEMY_PLAYER_ID, label: 'Enemy E1' },
+      { id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
     ],
     min: 1, max: 1,
   } satisfies Prompt);
@@ -278,9 +287,10 @@ export function shadowMeteorReleaseConfirmPrompt(): WsMessage {
     message: '【暗影流星】是否额外移除我方战绩区2个星石，转正并+1红宝石？',
     choice_type: 'ms_shadow_meteor_release_confirm',
     options: [
-      { id: '0', label: '是' },
-      { id: '1', label: '否' },
+      { id: '0', label: '是', button_label: '是' },
+      { id: '1', label: '否', button_label: '否' },
     ],
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
     min: 1, max: 1,
   } satisfies Prompt);
 }
@@ -302,9 +312,10 @@ export function underworldTremorPrompt(): WsMessage {
     message: '【黄泉震颤］消耗宝石，本次攻击无法应战，命中后+1法术伤害并抽牌？',
     choice_type: 'ms_underworld_tremor',
     options: [
-      { id: 'confirm', label: '发动' },
-      { id: 'skip', label: '跳过' },
+      { id: 'confirm', label: '发动', button_label: '发动' },
+      { id: 'skip', label: '跳过', button_label: '跳过' },
     ],
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
     min: 1, max: 1,
   } satisfies Prompt);
 }

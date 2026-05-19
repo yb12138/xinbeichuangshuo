@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { test } from '../../../fixtures/protocolHarness.fixture';
+import { test, expect } from '../../../fixtures/protocolHarness.fixture';
 import {
   PRAYER_GLORY_BELIEF_ID,
   PRAYER_DARK_CURSE_ID,
@@ -26,20 +26,6 @@ async function activatePanelSkill(page: Page, skillId: string) {
   await page.getByTestId(`skill-${skillId}`).click();
 }
 
-async function clickOverlayOption(page: Page, selector: string) {
-  const overlay = page.getByTestId('decision-overlay');
-  const overlayVisible = await overlay.isVisible({ timeout: 1000 }).catch(() => false);
-  if (overlayVisible) {
-    await overlay.getByTestId(selector).click();
-  } else {
-    await page.getByTestId('prompt-dialog').getByTestId(selector).click();
-  }
-}
-
-async function selectTarget(page: Page, targetId: string) {
-  await page.getByTestId(`player-area-${targetId}`).click();
-}
-
 test.describe('prayer glory belief protocol harness', () => {
   test('glory belief: activate in prayer form', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(gloryBeliefScenario());
@@ -56,21 +42,22 @@ test.describe('prayer glory belief protocol harness', () => {
 
     await activatePanelSkill(page, PRAYER_GLORY_BELIEF_ID);
 
-    // Server pushes discard selection
+    // Server pushes discard selection (card_picker from hand)
     await protocolHarness.pushServerMessage(gloryBeliefDiscardPrompt());
 
-    // Select magic card to discard
-    await clickOverlayOption(page, 'prompt-option-prayer-magic-1');
+    // Select magic card to discard (hand-card-0 = prayer-magic-1)
+    await page.getByTestId('hand-card-0').click();
+    await page.getByTestId('prompt-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0],
+      card_ids: ['prayer-magic-1'],
     });
 
-    // Server pushes target selection
+    // Server pushes target selection (target_picker)
     await protocolHarness.pushServerMessage(gloryBeliefTargetPrompt());
 
-    // Select ally target
-    await selectTarget(page, ALLY_PLAYER_ID);
+    // Click ally player area (auto-submits for single target)
+    await page.getByTestId(`player-area-${ALLY_PLAYER_ID}`).click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -94,21 +81,22 @@ test.describe('prayer dark curse protocol harness', () => {
 
     await activatePanelSkill(page, PRAYER_DARK_CURSE_ID);
 
-    // Server pushes discard selection
+    // Server pushes discard selection (card_picker from hand)
     await protocolHarness.pushServerMessage(darkCurseDiscardPrompt());
 
-    // Select card to discard
-    await clickOverlayOption(page, 'prompt-option-prayer-magic-1');
+    // Select card to discard (hand-card-0 = prayer-magic-1)
+    await page.getByTestId('hand-card-0').click();
+    await page.getByTestId('prompt-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0],
+      card_ids: ['prayer-magic-1'],
     });
 
-    // Server pushes target selection
+    // Server pushes target selection (target_picker)
     await protocolHarness.pushServerMessage(darkCurseTargetPrompt());
 
-    // Select enemy target
-    await selectTarget(page, ENEMY_PLAYER_ID);
+    // Click enemy player area (auto-submits for single target)
+    await page.getByTestId(`player-area-${ENEMY_PLAYER_ID}`).click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -126,11 +114,11 @@ test.describe('prayer power blessing protocol harness', () => {
       skill_id: PRAYER_POWER_BLESSING_ID,
     });
 
-    // Server pushes target selection
+    // Server pushes target selection (target_picker)
     await protocolHarness.pushServerMessage(powerBlessingTargetPrompt());
 
-    // Select ally target
-    await selectTarget(page, ALLY_PLAYER_ID);
+    // Click ally player area (auto-submits for single target)
+    await page.getByTestId(`player-area-${ALLY_PLAYER_ID}`).click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -148,11 +136,11 @@ test.describe('prayer swift blessing protocol harness', () => {
       skill_id: PRAYER_SWIFT_BLESSING_ID,
     });
 
-    // Server pushes target selection
+    // Server pushes target selection (target_picker)
     await protocolHarness.pushServerMessage(swiftBlessingTargetPrompt());
 
-    // Select ally target
-    await selectTarget(page, ALLY_PLAYER_ID);
+    // Click ally player area (auto-submits for single target)
+    await page.getByTestId(`player-area-${ALLY_PLAYER_ID}`).click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],

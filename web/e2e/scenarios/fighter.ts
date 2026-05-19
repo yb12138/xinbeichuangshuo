@@ -159,15 +159,16 @@ function fighterSkillChoicePrompt(
   const options = skills.map((s) => ({
     id: s.id,
     label: s.title,
+    button_label: '发动',
     hint: `发动【${s.title}】`,
   }));
-  options.push({ id: 'skip', label: '跳过', hint: '不发动响应技能' });
+  options.push({ id: 'skip', label: '跳过', button_label: '跳过', hint: '不发动响应技能' });
   return requireActionMessage({
     type: 'choose_skill',
     player_id: FIGHTER_PLAYER_ID,
     message,
     options,
-    presentation: { kind: 'skill_choice', layout: 'overlay' },
+    presentation: { kind: 'skill_choice', layout: 'overlay', numeric_base: 0 },
     min: 1,
     max: 1,
   } satisfies Prompt);
@@ -386,8 +387,9 @@ export function bulletTargetPrompt(): WsMessage {
     player_id: FIGHTER_PLAYER_ID,
     message: '【念弹】请选择1名目标对手：',
     choice_type: 'fighter_psi_bullet_target',
+    presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
     options: [
-      { id: '0', label: 'Enemy Bot' },
+      { id: ENEMY_PLAYER_ID, label: 'Enemy Bot', button_label: '选择' },
     ],
     min: 1,
     max: 1,
@@ -444,15 +446,16 @@ function fighterStartupSkillPrompt(
   const options = skills.map((s) => ({
     id: s.id,
     label: s.title,
+    button_label: '发动',
     hint: `发动【${s.title}】`,
   }));
-  options.push({ id: 'skip', label: '跳过', hint: '本回合不发动启动技能' });
+  options.push({ id: 'skip', label: '跳过', button_label: '跳过', hint: '本回合不发动启动技能' });
   return requireActionMessage({
     type: 'choose_skill',
     player_id: FIGHTER_PLAYER_ID,
     message: '你可以发动启动技能，请选择 1 个发动，或跳过。',
     options,
-    presentation: { kind: 'skill_choice', layout: 'overlay' },
+    presentation: { kind: 'skill_choice', layout: 'overlay', numeric_base: 0 },
     min: 1,
     max: 1,
   } satisfies Prompt);
@@ -471,8 +474,9 @@ export function hundredDragonTargetPrompt(): WsMessage {
     player_id: FIGHTER_PLAYER_ID,
     message: '【百式幻龙拳】请选择本行动阶段锁定的目标角色：',
     choice_type: 'fighter_hundred_dragon_target',
+    presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
     options: [
-      { id: '0', label: 'Enemy Bot' },
+      { id: ENEMY_PLAYER_ID, label: 'Enemy Bot', button_label: '选择' },
     ],
     min: 1,
     max: 1,
@@ -594,9 +598,15 @@ export function heavenDriveDiscardScenario(options: { crystals?: number; handCou
 
 // 斗神天驱弃牌prompt - 手牌>3张时后端推送 system_discard_cards
 export function heavenDriveDiscardPrompt(handCount: number = 5): WsMessage {
-  const options: Array<{ id: string; label: string }> = [];
+  const options: Array<{ id: string; label: string; button_label: string; card_id: string }> = [];
   for (let i = 0; i < handCount; i++) {
-    options.push({ id: String(i), label: `${i + 1}: 手牌${i + 1}（火系 攻击）` });
+    const cardID = `card_${i + 1}`;
+    options.push({
+      id: cardID,
+      label: `${i + 1}: 手牌${i + 1}（火系 攻击）`,
+      button_label: '选择',
+      card_id: cardID,
+    });
   }
   const discardCount = handCount - 3;
   return requireActionMessage({
@@ -608,6 +618,7 @@ export function heavenDriveDiscardPrompt(handCount: number = 5): WsMessage {
     options,
     min: discardCount,
     max: discardCount,
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'overflow_discard', numeric_base: 0 },
   } satisfies Prompt);
 }
 

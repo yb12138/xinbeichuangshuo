@@ -25,8 +25,8 @@ test.describe('sword emperor indomitable will protocol harness', () => {
 
     await protocolHarness.pushServerMessage(indomitableWillResponsePrompt());
     await expect(page.getByTestId('skill-branch-overlay')).toBeVisible();
-    // "跳过" 是 choose_skill 的第二个选项 → option_indexes[1]
-    await page.getByTestId('skill-branch-overlay').getByTestId('branch-option-1').click();
+    // "跳过" is choose_skill skip → prompt-option-skip
+    await page.getByTestId('skill-branch-overlay').getByTestId('prompt-option-skip').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1],

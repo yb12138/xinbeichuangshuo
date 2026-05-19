@@ -20,10 +20,9 @@ test.describe('soulSorcerer soulLink protocol harness', () => {
       skill_id: SS_SOUL_LINK_SKILL_ID,
     });
 
-    // Target selection prompt
+    // Target selection (target_picker - click ally player area, auto-submit)
     await protocolHarness.pushServerMessage(soulLinkTargetPrompt());
-    await expect(page.getByTestId('decision-overlay')).toBeVisible();
-    // Click on first ally
+    await expect(page.getByTestId('decision-overlay')).not.toBeVisible({ timeout: 5000 });
     await page.getByTestId(`player-area-${ALLY_PLAYER_ID}`).click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
@@ -42,7 +41,7 @@ test.describe('soulSorcerer soulLink protocol harness', () => {
     });
 
     await protocolHarness.pushServerMessage(soulLinkTargetPrompt());
-    // Click on second ally
+    // Click second ally
     await page.getByTestId(`player-area-${ALLY_2_PLAYER_ID}`).click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',

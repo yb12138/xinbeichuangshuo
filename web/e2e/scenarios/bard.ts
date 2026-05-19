@@ -303,6 +303,8 @@ function hopeFugueSkill(): AvailableSkill {
     min_targets: 0,
     max_targets: 0,
     target_type: 0,
+    cost_gem: 0,
+    cost_crystal: 0,
     cost_discards: 0,
   });
 }
@@ -395,7 +397,7 @@ export function hopeTransferDiscardPrompt(): WsMessage {
     ],
     min: 1,
     max: 1,
-    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'same_element' },
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'same_element', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -580,7 +582,7 @@ export function rousingDiscardCardsPrompt(pickRemaining: number): WsMessage {
     ],
     min: pickRemaining,
     max: pickRemaining,
-    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'option_limited' },
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'option_limited', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -782,7 +784,7 @@ export function descentCardsDirectPrompt(pickRemaining: number, candidateIndices
     options,
     min: pickRemaining,
     max: pickRemaining,
-    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'same_element' },
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'same_element', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -812,7 +814,7 @@ export function descentCardsPrompt(chosenElement: string, pickRemaining: number)
     options,
     min: pickRemaining,
     max: pickRemaining,
-    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'same_element' },
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'same_element', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -878,6 +880,8 @@ function dissonanceChordSkill(): AvailableSkill {
     min_targets: 0,
     max_targets: 1,
     target_type: 0,
+    cost_gem: 0,
+    cost_crystal: 0,
     cost_discards: 0,
   });
 }
@@ -966,7 +970,7 @@ export function dissonanceDiscardStepPrompt(
     min: needCount,
     max: needCount,
     presentation: actorId === BARD_PLAYER_ID
-      ? { kind: 'card_picker', card_source: 'hand', card_filter: 'option_limited' }
+      ? { kind: 'card_picker', card_source: 'hand', card_filter: 'option_limited', numeric_base: 0 }
       : { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
   } satisfies Prompt);
 }

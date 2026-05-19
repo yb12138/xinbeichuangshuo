@@ -1,5 +1,6 @@
 import { test, expect } from '../../../fixtures/protocolHarness.fixture';
 import {
+  ENEMY_PLAYER_ID,
   hundredDragonConfirmPrompt,
   hundredDragonScenario,
   hundredDragonTargetPrompt,
@@ -41,7 +42,7 @@ test.describe('fighter hundred dragon protocol harness', () => {
     await protocolHarness.pushServerMessage(hundredDragonConfirmPrompt());
     await page
       .getByTestId('skill-branch-overlay')
-      .getByTestId('branch-option-1')
+      .getByTestId('prompt-option-skip')
       .click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
@@ -68,8 +69,8 @@ test.describe('fighter hundred dragon protocol harness', () => {
     // 2. 后端推送目标锁定prompt (fighter_hundred_dragon_target)
     await protocolHarness.pushServerMessage(hundredDragonTargetPrompt());
 
-    // 3. 选择锁定目标（confirm类型prompt使用prompt-option按钮）
-    await page.getByTestId('prompt-option-0').click();
+    // 3. 选择锁定目标（target_picker 通过玩家区域选择）
+    await page.getByTestId(`player-area-${ENEMY_PLAYER_ID}`).click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -95,7 +96,7 @@ test.describe('fighter hundred dragon protocol harness', () => {
     await protocolHarness.pushServerMessage(hundredDragonTargetPrompt());
 
     // 3. 选择锁定目标（进入形态后锁定状态）
-    await page.getByTestId('prompt-option-0').click();
+    await page.getByTestId(`player-area-${ENEMY_PLAYER_ID}`).click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],

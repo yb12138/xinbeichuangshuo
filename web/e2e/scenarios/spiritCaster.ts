@@ -235,9 +235,10 @@ export function manaCollapseConfirmPrompt(): WsMessage {
     choice_type: 'sc_spiritual_collapse_confirm',
     skill_id: SC_TALISMAN_THUNDER_SKILL_ID,
     options: [
-      { id: '0', label: '是' },
-      { id: '1', label: '否' },
+      { id: '0', label: '是', button_label: '是' },
+      { id: '1', label: '否', button_label: '否' },
     ],
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
     min: 1,
     max: 1,
   } satisfies Prompt);
@@ -246,14 +247,15 @@ export function manaCollapseConfirmPrompt(): WsMessage {
 // 雷系牌弃置选择
 export function talismanThunderDiscardPrompt(): WsMessage {
   return requireActionMessage({
-    type: 'choose_card',
+    type: 'choose_cards',
     player_id: SC_PLAYER_ID,
     message: '请选择1张雷系牌弃置（并展示）：',
     choice_type: 'sc_talisman_thunder_discard',
     skill_id: SC_TALISMAN_THUNDER_SKILL_ID,
     options: [
-      { id: '0', label: '1: 雷光斩 (雷 Attack)' },
+      { id: 'card_1', label: '1: 雷光斩 (雷 Attack)', button_label: '选择', card_id: 'card_1' },
     ],
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'element:Thunder', numeric_base: 0 },
     min: 1,
     max: 1,
   } satisfies Prompt);
@@ -262,14 +264,15 @@ export function talismanThunderDiscardPrompt(): WsMessage {
 // 目标选择（2名角色）
 export function talismanThunderTargetPrompt(): WsMessage {
   return requireActionMessage({
-    type: 'choose_target',
+    type: 'confirm',
     player_id: SC_PLAYER_ID,
     message: '请选择2名角色作为目标：',
     choice_type: 'sc_talisman_thunder_target',
     skill_id: SC_TALISMAN_THUNDER_SKILL_ID,
+    presentation: { kind: 'target_picker', target_filter: 'custom', multi_target: true, numeric_base: 0 },
     options: [
-      { id: ENEMY_PLAYER_ID, label: 'Enemy E1' },
-      { id: ENEMY_2_PLAYER_ID, label: 'Enemy E2' },
+      { id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
+      { id: ENEMY_2_PLAYER_ID, label: 'Enemy E2', button_label: '选择' },
     ],
     min: 2,
     max: 2,
@@ -334,14 +337,15 @@ export function talismanWindScenario(): ProtocolHarnessScenario {
 // 风系牌弃置选择
 export function talismanWindDiscardPrompt(): WsMessage {
   return requireActionMessage({
-    type: 'choose_card',
+    type: 'choose_cards',
     player_id: SC_PLAYER_ID,
     message: '请选择1张风系牌弃置（并展示）：',
     choice_type: 'sc_talisman_wind_discard',
     skill_id: SC_TALISMAN_WIND_SKILL_ID,
     options: [
-      { id: '1', label: '2: 风神斩 (风 Attack)' },
+      { id: 'card_2', label: '2: 风神斩 (风 Attack)', button_label: '选择', card_id: 'card_2' },
     ],
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'element:Wind', numeric_base: 0 },
     min: 1,
     max: 1,
   } satisfies Prompt);
@@ -350,14 +354,15 @@ export function talismanWindDiscardPrompt(): WsMessage {
 // 目标选择（2名角色）
 export function talismanWindTargetPrompt(): WsMessage {
   return requireActionMessage({
-    type: 'choose_target',
+    type: 'confirm',
     player_id: SC_PLAYER_ID,
     message: '请指定2名角色：',
     choice_type: 'sc_talisman_wind_target',
     skill_id: SC_TALISMAN_WIND_SKILL_ID,
+    presentation: { kind: 'target_picker', target_filter: 'custom', multi_target: true, numeric_base: 0 },
     options: [
-      { id: ENEMY_PLAYER_ID, label: 'Enemy E1' },
-      { id: ENEMY_2_PLAYER_ID, label: 'Enemy E2' },
+      { id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
+      { id: ENEMY_2_PLAYER_ID, label: 'Enemy E2', button_label: '选择' },
     ],
     min: 2,
     max: 2,
@@ -415,9 +420,10 @@ export function incantationConfirmPrompt(): WsMessage {
     choice_type: 'sc_incant_confirm',
     skill_id: SC_INCANTATION_SKILL_ID,
     options: [
-      { id: '0', label: '是' },
-      { id: '1', label: '否' },
+      { id: '0', label: '是', button_label: '是' },
+      { id: '1', label: '否', button_label: '否' },
     ],
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
     min: 1,
     max: 1,
   } satisfies Prompt);
@@ -426,18 +432,19 @@ export function incantationConfirmPrompt(): WsMessage {
 // 妖力盖牌选择（选择1张牌盖伏）- matches backend sc_incant_card
 export function incantationCoverPrompt(): WsMessage {
   return requireActionMessage({
-    type: 'confirm',
+    type: 'choose_cards',
     player_id: SC_PLAYER_ID,
     message: '【念咒】请选择要作为妖力盖放的手牌：',
     choice_type: 'sc_incant_card',
     skill_id: SC_INCANTATION_SKILL_ID,
     options: [
-      { id: '0', label: '1: 雷光斩 (雷 Attack)' },
-      { id: '1', label: '2: 风神斩 (风 Attack)' },
-      { id: '2', label: '3: 火焰斩 (火 Attack)' },
-      { id: '3', label: '4: 水涟斩 (水 Attack)' },
-      { id: '4', label: '5: 地裂斩 (地 Attack)' },
+      { id: 'card_1', label: '1: 雷光斩 (雷 Attack)', button_label: '选择', card_id: 'card_1' },
+      { id: 'card_2', label: '2: 风神斩 (风 Attack)', button_label: '选择', card_id: 'card_2' },
+      { id: 'card_3', label: '3: 火焰斩 (火 Attack)', button_label: '选择', card_id: 'card_3' },
+      { id: 'card_4', label: '4: 水涟斩 (水 Attack)', button_label: '选择', card_id: 'card_4' },
+      { id: 'card_5', label: '5: 地裂斩 (地 Attack)', button_label: '选择', card_id: 'card_5' },
     ],
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'option_limited', numeric_base: 0 },
     min: 1,
     max: 1,
   } satisfies Prompt);
@@ -524,9 +531,10 @@ export function hundredNightConfirmPrompt(): WsMessage {
     choice_type: 'sc_hundred_night_confirm',
     skill_id: SC_HUNDRED_NIGHT_SKILL_ID,
     options: [
-      { id: '0', label: '是' },
-      { id: '1', label: '否' },
+      { id: '0', label: '是', button_label: '是' },
+      { id: '1', label: '否', button_label: '否' },
     ],
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
     min: 1,
     max: 1,
   } satisfies Prompt);
@@ -541,9 +549,10 @@ export function hundredNightManaCollapsePrompt(): WsMessage {
     choice_type: 'sc_spiritual_collapse_confirm',
     skill_id: SC_HUNDRED_NIGHT_SKILL_ID,
     options: [
-      { id: '0', label: '是' },
-      { id: '1', label: '否' },
+      { id: '0', label: '是', button_label: '是' },
+      { id: '1', label: '否', button_label: '否' },
     ],
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
     min: 1,
     max: 1,
   } satisfies Prompt);
@@ -567,8 +576,9 @@ export function hundredNightRemoveYouliPrompt(options: {
       label: `妖力[${idx}] ${c.name}（${c.element}系）`,
       button_label: `移除妖力[${idx}]`,
       field_index: idx,
+      card_id: `sc-youli-${idx}`,
     })),
-    presentation: { kind: 'card_picker', layout: 'field_cover', card_source: 'field', card_filter: 'effect:SpiritCasterPower' },
+    presentation: { kind: 'card_picker', layout: 'field_cover', card_source: 'field', card_filter: 'effect:SpiritCasterPower', numeric_base: 0 },
     min: 1,
     max: 1,
   } satisfies Prompt);
@@ -583,10 +593,10 @@ export function hundredNightFireBranchPrompt(): WsMessage {
     choice_type: 'sc_hundred_night_fire_reveal',
     skill_id: SC_HUNDRED_NIGHT_SKILL_ID,
     options: [
-      { id: '0', label: '展示并改为范围伤害' },
-      { id: '1', label: '不展示，改为单体伤害' },
+      { id: '0', label: '展示并改为范围伤害', button_label: '范围伤害' },
+      { id: '1', label: '不展示，改为单体伤害', button_label: '单体伤害' },
     ],
-    presentation: { kind: 'branch_select', layout: 'overlay' },
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
     min: 1,
     max: 1,
   } satisfies Prompt);
@@ -600,17 +610,19 @@ export function hundredNightSingleTargetPrompt(): WsMessage {
     message: '【百鬼夜行】请选择1点法术伤害目标：',
     choice_type: 'sc_hundred_night_target',
     skill_id: SC_HUNDRED_NIGHT_SKILL_ID,
+    presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
     options: [
-      { id: '0', label: 'Enemy E1' },
-      { id: '1', label: 'Enemy E2' },
-      { id: '2', label: 'Enemy E3' },
+      { id: SC_PLAYER_ID, label: 'E2E Spirit Caster', button_label: '选择' },
+      { id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
+      { id: ENEMY_2_PLAYER_ID, label: 'Enemy E2', button_label: '选择' },
+      { id: ENEMY_3_PLAYER_ID, label: 'Enemy E3', button_label: '选择' },
     ],
     min: 1,
     max: 1,
   } satisfies Prompt);
 }
 
-// 群体豁免目标选择（火系展示）- option IDs are sequential indices matching backend BuildTargetChoicePrompt
+// 群体豁免目标选择（火系展示）- option IDs are player IDs matching backend BuildTargetChoicePrompt
 export function hundredNightAoeExemptTargetPrompt(): WsMessage {
   return requireActionMessage({
     type: 'confirm',
@@ -618,11 +630,12 @@ export function hundredNightAoeExemptTargetPrompt(): WsMessage {
     message: '【百鬼夜行】请选择第 1/2 名排除目标：',
     choice_type: 'sc_hundred_night_exclude_pick',
     skill_id: SC_HUNDRED_NIGHT_SKILL_ID,
+    presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
     options: [
-      { id: '0', label: 'E2E Spirit Caster' },
-      { id: '1', label: 'Enemy E1' },
-      { id: '2', label: 'Enemy E2' },
-      { id: '3', label: 'Enemy E3' },
+      { id: SC_PLAYER_ID, label: 'E2E Spirit Caster', button_label: '选择' },
+      { id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
+      { id: ENEMY_2_PLAYER_ID, label: 'Enemy E2', button_label: '选择' },
+      { id: ENEMY_3_PLAYER_ID, label: 'Enemy E3', button_label: '选择' },
     ],
     min: 1,
     max: 1,

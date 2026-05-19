@@ -38,6 +38,7 @@ const prayerCharacter = characterView({
       description: '（祈祷形态中）弃1张法术牌［展示］，令一名队友+2［治疗］。',
       type: 2, // 法术
       min_targets: 1, max_targets: 1, target_type: 1,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: PRAYER_DARK_CURSE_ID,
@@ -45,6 +46,7 @@ const prayerCharacter = characterView({
       description: '（祈祷形态中）你弃1张牌，对一名对手造成1点法术伤害③，该对手也弃1张牌。',
       type: 2, // 法术
       min_targets: 1, max_targets: 1, target_type: 2,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: PRAYER_POWER_BLESSING_ID,
@@ -52,6 +54,7 @@ const prayerCharacter = characterView({
       description: '（将威力赐福放置于一名队友面前）该队友下次命中时，可以对目标造成1点法术伤害③。',
       type: 2, // 独有法术
       min_targets: 1, max_targets: 1, target_type: 1,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: PRAYER_SWIFT_BLESSING_ID,
@@ -59,6 +62,7 @@ const prayerCharacter = characterView({
       description: '（将迅捷赐福放置于一名队友面前）该队友下次行动结束时，可以摸1张牌。',
       type: 2, // 独有法术
       min_targets: 1, max_targets: 1, target_type: 1,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: PRAYER_PRAY_ID,
@@ -66,6 +70,7 @@ const prayerCharacter = characterView({
       description: '［宝石］横置，进入祈祷形态。',
       type: 1, // 启动(大招)
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: PRAYER_MANA_TIDE_ID,
@@ -73,6 +78,7 @@ const prayerCharacter = characterView({
       description: '［水晶］（法术行动结束时发动）进行一次法术行动。',
       type: 3, // 响应(大招)
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
   ],
 });
@@ -202,22 +208,24 @@ export function gloryBeliefDiscardPrompt(): WsMessage {
     message: '【光辉信仰】请选择弃1张法术牌［展示］：',
     choice_type: 'prayer_glory_belief_discard',
     options: [
-      { id: 'prayer-magic-1', label: '圣光（法术）' },
-      { id: 'prayer-magic-2', label: '治愈（法术）' },
-      { id: 'prayer-magic-3', label: '祝福（法术）' },
+      { id: 'prayer-magic-1', label: '圣光（法术）', button_label: '选择', card_id: 'prayer-magic-1' },
+      { id: 'prayer-magic-2', label: '治愈（法术）', button_label: '选择', card_id: 'prayer-magic-2' },
+      { id: 'prayer-magic-3', label: '祝福（法术）', button_label: '选择', card_id: 'prayer-magic-3' },
     ],
     min: 1, max: 1,
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'option_limited', numeric_base: 0 },
   } satisfies Prompt);
 }
 
 export function gloryBeliefTargetPrompt(): WsMessage {
   return requireActionMessage({
-    type: 'confirm',
+    type: 'choose_target',
     player_id: PRAYER_PLAYER_ID,
     message: '【光辉信仰】请选择一名队友+2治疗：',
     choice_type: 'prayer_glory_belief_target',
+    presentation: { kind: 'target_picker', target_filter: 'allies', numeric_base: 0 },
     options: [
-      { id: ALLY_PLAYER_ID, label: 'Ally A1' },
+      { id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
     ],
     min: 1, max: 1,
   } satisfies Prompt);
@@ -246,22 +254,24 @@ export function darkCurseDiscardPrompt(): WsMessage {
     message: '【黑暗诅咒】请选择弃1张牌：',
     choice_type: 'prayer_dark_curse_discard',
     options: [
-      { id: 'prayer-magic-1', label: '圣光' },
-      { id: 'prayer-magic-2', label: '治愈' },
-      { id: 'prayer-attack-1', label: '光刃' },
+      { id: 'prayer-magic-1', label: '圣光', button_label: '选择', card_id: 'prayer-magic-1' },
+      { id: 'prayer-magic-2', label: '治愈', button_label: '选择', card_id: 'prayer-magic-2' },
+      { id: 'prayer-attack-1', label: '光刃', button_label: '选择', card_id: 'prayer-attack-1' },
     ],
     min: 1, max: 1,
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'option_limited', numeric_base: 0 },
   } satisfies Prompt);
 }
 
 export function darkCurseTargetPrompt(): WsMessage {
   return requireActionMessage({
-    type: 'confirm',
+    type: 'choose_target',
     player_id: PRAYER_PLAYER_ID,
     message: '【黑暗诅咒】请选择一名对手造成1点法术伤害：',
     choice_type: 'prayer_dark_curse_target',
+    presentation: { kind: 'target_picker', target_filter: 'enemies', numeric_base: 0 },
     options: [
-      { id: ENEMY_PLAYER_ID, label: 'Enemy E1' },
+      { id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
     ],
     min: 1, max: 1,
   } satisfies Prompt);
@@ -284,18 +294,82 @@ export function powerBlessingScenario(): ProtocolHarnessScenario {
 
 export function powerBlessingTargetPrompt(): WsMessage {
   return requireActionMessage({
-    type: 'confirm',
+    type: 'choose_target',
     player_id: PRAYER_PLAYER_ID,
     message: '【威力赐福】请选择一名队友放置赐福：',
     choice_type: 'prayer_power_blessing_target',
+    presentation: { kind: 'target_picker', target_filter: 'allies', numeric_base: 0 },
     options: [
-      { id: ALLY_PLAYER_ID, label: 'Ally A1' },
+      { id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
     ],
     min: 1, max: 1,
   } satisfies Prompt);
 }
 
 // 威力赐福触发：队友命中后额外伤害确认
+// 威力赐福触发场景：从队友视角
+export function powerBlessingTriggerScenario(): ProtocolHarnessScenario {
+  const hand = prayerHand();
+  const characters = defaultCharacters;
+  const players = [
+    playerView({
+      id: PRAYER_PLAYER_ID,
+      name: 'E2E Prayer',
+      camp: 'Red',
+      role: 'prayer',
+      hand,
+      hand_count: hand.length,
+      crystal: 0,
+      gem: 0,
+      is_active: false,
+    }),
+    playerView({
+      id: ENEMY_PLAYER_ID,
+      name: 'Enemy E1',
+      camp: 'Blue',
+      role: 'enemy_char',
+      hand: [card({ id: 'en-card-1', name: '测试牌', type: 'Attack', element: 'Fire' })],
+      hand_count: 1, max_hand: 6,
+      heal: 0, max_heal: 4,
+      is_active: false,
+    }),
+    playerView({
+      id: ALLY_PLAYER_ID,
+      name: 'Ally A1',
+      camp: 'Red',
+      role: 'ally_char',
+      hand: [card({ id: 'al-card-1', name: '测试牌', type: 'Attack', element: 'Water' })],
+      hand_count: 1, max_hand: 6,
+      heal: 0, max_heal: 4,
+      is_active: true,
+    }),
+  ];
+
+  return {
+    roomCode: 'MOCK',
+    myPlayerId: ALLY_PLAYER_ID,
+    myPlayerName: 'Ally A1',
+    characters,
+    players: [
+      playerInfo({ id: PRAYER_PLAYER_ID, name: 'E2E Prayer', camp: 'Red', char_role: 'prayer', is_host: true }),
+      playerInfo({ id: ENEMY_PLAYER_ID, name: 'Enemy E1', camp: 'Blue', char_role: 'enemy_char' }),
+      playerInfo({ id: ALLY_PLAYER_ID, name: 'Ally A1', camp: 'Red', char_role: 'ally_char' }),
+    ],
+    initialState: syncState({
+      turn_player_id: ALLY_PLAYER_ID,
+      turn_stage: 'ActionExecution',
+      available_skills: [],
+      characters,
+      players,
+    }),
+  };
+}
+
+// 迅捷赐福触发场景：从队友视角（同上）
+export function swiftBlessingTriggerScenario(): ProtocolHarnessScenario {
+  return powerBlessingTriggerScenario();
+}
+
 export function powerBlessingTriggerPrompt(): WsMessage {
   return requireActionMessage({
     type: 'confirm',
@@ -303,9 +377,10 @@ export function powerBlessingTriggerPrompt(): WsMessage {
     message: '【威力赐福】命中触发：对目标造成1点法术伤害？',
     choice_type: 'prayer_power_blessing_response',
     options: [
-      { id: 'confirm', label: '发动' },
-      { id: 'skip', label: '跳过' },
+      { id: '0', label: '发动', button_label: '发动' },
+      { id: '1', label: '跳过', button_label: '跳过' },
     ],
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
     min: 1, max: 1,
   } satisfies Prompt);
 }
@@ -327,12 +402,13 @@ export function swiftBlessingScenario(): ProtocolHarnessScenario {
 
 export function swiftBlessingTargetPrompt(): WsMessage {
   return requireActionMessage({
-    type: 'confirm',
+    type: 'choose_target',
     player_id: PRAYER_PLAYER_ID,
     message: '【迅捷赐福】请选择一名队友放置赐福：',
     choice_type: 'prayer_swift_blessing_target',
+    presentation: { kind: 'target_picker', target_filter: 'allies', numeric_base: 0 },
     options: [
-      { id: ALLY_PLAYER_ID, label: 'Ally A1' },
+      { id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
     ],
     min: 1, max: 1,
   } satisfies Prompt);
@@ -346,9 +422,10 @@ export function swiftBlessingTriggerPrompt(): WsMessage {
     message: '【迅捷赐福】行动结束触发：摸1张牌？',
     choice_type: 'prayer_swift_blessing_response',
     options: [
-      { id: 'confirm', label: '摸牌' },
-      { id: 'skip', label: '跳过' },
+      { id: '0', label: '摸牌', button_label: '摸牌' },
+      { id: '1', label: '跳过', button_label: '跳过' },
     ],
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
     min: 1, max: 1,
   } satisfies Prompt);
 }
@@ -375,9 +452,10 @@ export function prayPrompt(): WsMessage {
     message: '【祈祷］消耗宝石，横置进入祈祷形态？',
     choice_type: 'prayer_pray',
     options: [
-      { id: 'confirm', label: '发动' },
-      { id: 'skip', label: '跳过' },
+      { id: '0', label: '发动', button_label: '发动' },
+      { id: '1', label: '跳过', button_label: '跳过' },
     ],
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
     min: 1, max: 1,
   } satisfies Prompt);
 }
@@ -399,9 +477,10 @@ export function manaTidePrompt(): WsMessage {
     message: '【法力潮汐］消耗水晶，法术行动结束后再进行一次法术行动？',
     choice_type: 'prayer_mana_tide',
     options: [
-      { id: 'confirm', label: '发动' },
-      { id: 'skip', label: '跳过' },
+      { id: '0', label: '发动', button_label: '发动' },
+      { id: '1', label: '跳过', button_label: '跳过' },
     ],
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
     min: 1, max: 1,
   } satisfies Prompt);
 }

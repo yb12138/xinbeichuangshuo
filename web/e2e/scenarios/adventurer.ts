@@ -35,6 +35,7 @@ const adventurerCharacter = characterView({
       description: '（购买时发动）弃2张牌，选择一个系别，本次购买视为该系别；或弃3张牌，本次购买视为暗系。',
       type: 3, // 响应
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: 'adventurer_underground_rule',
@@ -42,6 +43,7 @@ const adventurerCharacter = characterView({
       description: '购买时，你可以支付额外费用。',
       type: 3, // 被动
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: ADVENTURER_ADVENTURER_PARADISE_ID,
@@ -49,6 +51,7 @@ const adventurerCharacter = characterView({
       description: '（提炼时发动）将提炼的能量转移给一名队友，并移除对手的1［能量］。',
       type: 3, // 响应
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: ADVENTURER_STEAL_SKY_CHANGE_DAY_ID,
@@ -56,6 +59,7 @@ const adventurerCharacter = characterView({
       description: '［水晶］选择：Ⅰ、将一名对手的1［能量］转移给一名队友；Ⅱ、将一名队友的手牌与你的一张手牌交换。',
       type: 2, // 法术(大招)
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
   ],
 });
@@ -190,7 +194,7 @@ export function fraudPickPrompt(remaining: number = 2): WsMessage {
       { id: '6', label: '7: 雷击（雷）', button_label: '选择', card_id: 'adv-magic-5' },
       { id: '7', label: '8: 暗影（暗）', button_label: '选择', card_id: 'adv-dark-magic' },
     ],
-    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'same_element_combo' },
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'same_element_combo', numeric_base: 0 },
     min: 1, max: 1,
   } satisfies Prompt);
 }
@@ -210,7 +214,7 @@ export function fraudElementPrompt(): WsMessage {
       { id: 'Wind', label: '风', button_label: '风' },
       { id: 'Thunder', label: '雷', button_label: '雷' },
     ],
-    presentation: { kind: 'branch_select', layout: 'fraud_attack_element' },
+    presentation: { kind: 'branch_select', layout: 'fraud_attack_element', numeric_base: 0 },
     min: 1, max: 1,
   } satisfies Prompt);
 }
@@ -275,11 +279,11 @@ export function stealSkyChangeDayBranchPrompt(): WsMessage {
     message: '【偷天换日】请选择效果：',
     choice_type: 'adventurer_steal_sky_mode',
     options: [
-      { id: '0', label: '转移对方战绩区1红宝石到我方' },
-      { id: '1', label: '将我方战绩区全部蓝水晶转换成红宝石' },
+      { id: '0', label: '转移对方战绩区1红宝石到我方', button_label: '转移宝石' },
+      { id: '1', label: '将我方战绩区全部蓝水晶转换成红宝石', button_label: '水晶转宝石' },
     ],
     min: 1, max: 1,
-    presentation: { kind: 'branch_select', layout: 'overlay' },
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -293,9 +297,10 @@ export function stealSkyChangeDayEnergyTargetPrompt(): WsMessage {
     message: '【偷天换日】请选择获得能量的队友：',
     choice_type: 'adv_steal_sky_change_day_energy_target',
     options: [
-      { id: ALLY_PLAYER_ID, label: 'Ally A1' },
+      { id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
     ],
     min: 1, max: 1,
+    presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -307,9 +312,10 @@ export function stealSkyChangeDayCardSwapTargetPrompt(): WsMessage {
     message: '【偷天换日】请选择交换手牌的队友：',
     choice_type: 'adv_steal_sky_change_day_card_swap_target',
     options: [
-      { id: ALLY_PLAYER_ID, label: 'Ally A1' },
+      { id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
     ],
     min: 1, max: 1,
+    presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -320,10 +326,11 @@ export function stealSkyChangeDayMyCardPrompt(): WsMessage {
     message: '【偷天换日】请选择你要给出的手牌：',
     choice_type: 'adv_steal_sky_change_day_my_card',
     options: [
-      { id: 'adv-attack-1', label: '冒险斩' },
-      { id: 'adv-attack-2', label: '探索斩' },
-      { id: 'adv-magic-1', label: '火球' },
+      { id: 'adv-attack-1', label: '冒险斩', button_label: '选择' },
+      { id: 'adv-attack-2', label: '探索斩', button_label: '选择' },
+      { id: 'adv-magic-1', label: '火球', button_label: '选择' },
     ],
     min: 1, max: 1,
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'option_limited', numeric_base: 0 },
   } satisfies Prompt);
 }

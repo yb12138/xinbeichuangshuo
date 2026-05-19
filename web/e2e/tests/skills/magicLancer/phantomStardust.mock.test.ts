@@ -28,7 +28,7 @@ test.describe('magic lancer phantom stardust protocol harness', () => {
 
     // Step 2: server returns stardust target prompt (after self-damage resolves, morale didn't drop)
     await protocolHarness.pushServerMessage(stardustTargetPrompt());
-    // Target prompt is rendered as player area click, not overlay
+    // Target prompt is rendered as player area click (target_picker mode)
     await expect(page.getByTestId('decision-overlay')).not.toBeVisible({ timeout: 3000 }).catch(() => {});
     await page.getByTestId(`player-area-${ENEMY_PLAYER_ID}`).click();
     await protocolHarness.expectSubmitAction({

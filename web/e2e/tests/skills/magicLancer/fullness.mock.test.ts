@@ -32,20 +32,20 @@ test.describe('magic lancer fullness protocol harness', () => {
     await page.getByTestId('prompt-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [2],
+      card_ids: ['ml-magic-light'],
     });
   });
 
-  test('ally discard step shows skip option and submits option indexes', async ({ page, protocolHarness }) => {
+  test('ally discard step shows skip option and submits decline', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(fullnessAllyDiscardScenario());
 
     await protocolHarness.pushServerMessage(fullnessAllyDiscardPrompt());
 
+    // Click decline (cancel button for has_decline prompt)
     await page.getByTestId('prompt-cancel-btn').scrollIntoViewIfNeeded();
     await page.getByTestId('prompt-cancel-btn').click();
     await protocolHarness.expectSubmitAction({
-      action_type: 'Select',
-      option_indexes: [0],
+      action_type: 'Cancel',
     });
 
     await protocolHarness.pushServerMessage(fullnessAllyDiscardPrompt());
@@ -54,7 +54,7 @@ test.describe('magic lancer fullness protocol harness', () => {
     await page.getByTestId('prompt-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [1],
+      card_ids: ['ally-card-0'],
     });
   });
 });

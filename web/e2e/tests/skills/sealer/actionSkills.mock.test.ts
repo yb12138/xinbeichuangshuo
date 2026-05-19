@@ -1,5 +1,4 @@
-import type { Page } from '@playwright/test';
-import { test } from '../../../fixtures/protocolHarness.fixture';
+import { test, expect } from '../../../fixtures/protocolHarness.fixture';
 import {
   SEALER_SEAL_BREAK_ID,
   SEALER_FIVE_ELEMENTS_BIND_ID,
@@ -16,12 +15,12 @@ import {
   fireSealTargetPrompt,
 } from '../../../scenarios/sealer';
 
-async function activatePanelSkill(page: Page, skillId: string) {
+async function activatePanelSkill(page: import('@playwright/test').Page, skillId: string) {
   await page.getByTestId('action-skill').click();
   await page.getByTestId(`skill-${skillId}`).click();
 }
 
-async function selectTarget(page: Page, targetId: string) {
+async function selectTarget(page: import('@playwright/test').Page, targetId: string) {
   await page.getByTestId(`player-area-${targetId}`).click();
 }
 
@@ -44,8 +43,9 @@ test.describe('sealer seal break protocol harness', () => {
     // Server pushes field effect selection
     await protocolHarness.pushServerMessage(sealBreakFieldSelectPrompt());
 
-    // Select enemy's shield
-    await clickOverlayOption(page, 'prompt-option-enemy_shield');
+    // Select enemy's shield (branch_select: branch-option-0)
+    await expect(page.getByTestId('decision-overlay')).toBeVisible();
+    await page.getByTestId('decision-overlay').getByTestId('branch-option-0').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -66,7 +66,8 @@ test.describe('sealer five elements bind protocol harness', () => {
     // Server pushes target selection
     await protocolHarness.pushServerMessage(fiveElementsBindTargetPrompt());
 
-    // Select enemy target
+    // Select enemy target (target_picker: click player area)
+    await expect(page.getByTestId('decision-overlay')).not.toBeVisible({ timeout: 5000 });
     await selectTarget(page, ENEMY_PLAYER_ID);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',

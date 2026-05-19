@@ -42,7 +42,7 @@ test.describe('fighter start skill choice protocol harness', () => {
     await expect(page.getByTestId('skill-branch-overlay')).toBeVisible();
     await page
       .getByTestId('skill-branch-overlay')
-      .getByTestId('branch-option-2')
+      .getByTestId('prompt-option-skip')
       .click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',

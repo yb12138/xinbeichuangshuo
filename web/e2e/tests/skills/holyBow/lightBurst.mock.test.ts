@@ -85,7 +85,7 @@ test.describe('holy bow light burst protocol harness', () => {
     await page.getByTestId('prompt-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0],
+      card_ids: ['card_1'],
     });
   });
 
@@ -117,28 +117,16 @@ test.describe('holy bow light burst protocol harness', () => {
       option_indexes: [1],
     });
 
-    // 第一次目标选择（已选0/最多2，无finish按钮，overlay不显示）
+    // 多目标选择：一次 target_picker 内选择两个目标后确认
     await protocolHarness.pushServerMessage(
-      lightBurstBranch2TargetPrompt({ xValue: 2, selectedCount: 0, withFinish: false, selectedIds: [] }),
+      lightBurstBranch2TargetPrompt({ xValue: 2 }),
     );
-    // 选择第一个敌人（通过点击 player-area）
     await page.getByTestId(`player-area-${ENEMY_PLAYER_ID}`).click();
-    await protocolHarness.expectSubmitAction({
-      action_type: 'Select',
-      option_indexes: [0],
-    });
-
-    // 第二次目标选择（已选1/最多2）
-    // 注意：由于前端设计，如果同时有玩家选项和finish选项，overlay会显示并阻挡player-area点击
-    // 所以这里不传finish选项，让overlay不显示，允许player-area点击
-    await protocolHarness.pushServerMessage(
-      lightBurstBranch2TargetPrompt({ xValue: 2, selectedCount: 1, withFinish: false, selectedIds: [ENEMY_PLAYER_ID] }),
-    );
-    // 选择第二个敌人
     await page.getByTestId(`player-area-${ENEMY_2_PLAYER_ID}`).click();
+    await page.getByTestId('prompt-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0],
+      option_indexes: [0, 1],
     });
 
     // Discard 2 cards
@@ -148,7 +136,7 @@ test.describe('holy bow light burst protocol harness', () => {
     await page.getByTestId('prompt-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0, 1],
+      card_ids: ['card_1', 'card_2'],
     });
   });
 
@@ -180,24 +168,12 @@ test.describe('holy bow light burst protocol harness', () => {
       option_indexes: [1],
     });
 
-    // 第一次目标选择（已选0/最多2，无finish按钮）
+    // 选择 1 个目标后点击确认完成
     await protocolHarness.pushServerMessage(
-      lightBurstBranch2TargetPrompt({ xValue: 2, selectedCount: 0, withFinish: false, selectedIds: [] }),
+      lightBurstBranch2TargetPrompt({ xValue: 2 }),
     );
-    // 选择第一个敌人
     await page.getByTestId(`player-area-${ENEMY_PLAYER_ID}`).click();
-    await protocolHarness.expectSubmitAction({
-      action_type: 'Select',
-      option_indexes: [0],
-    });
-
-    // 第二次目标选择（已选1/最多2，有finish按钮）
-    // 注意：由于只传finish选项（无玩家选项），overlay会显示finish按钮
-    await protocolHarness.pushServerMessage(
-      lightBurstBranch2TargetPrompt({ xValue: 2, selectedCount: 1, withFinish: true, selectedIds: [ENEMY_PLAYER_ID, ENEMY_2_PLAYER_ID] }),
-    );
-    // 点击"完成目标选择"按钮（branch-option-0）
-    await page.getByTestId('branch-option-0').click();
+    await page.getByTestId('prompt-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -210,7 +186,7 @@ test.describe('holy bow light burst protocol harness', () => {
     await page.getByTestId('prompt-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0, 1],
+      card_ids: ['card_1', 'card_2'],
     });
   });
 });

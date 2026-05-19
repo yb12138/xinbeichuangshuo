@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { test } from '../../../fixtures/protocolHarness.fixture';
+import { test, expect } from '../../../fixtures/protocolHarness.fixture';
 import {
   SAINTESS_PLAYER_ID,
   ENEMY_PLAYER_ID,
@@ -10,20 +10,6 @@ import {
   mercyPrompt,
 } from '../../../scenarios/saintess';
 
-async function clickOverlayOption(page: Page, selector: string) {
-  const overlay = page.getByTestId('decision-overlay');
-  const overlayVisible = await overlay.isVisible({ timeout: 1000 }).catch(() => false);
-  if (overlayVisible) {
-    await overlay.getByTestId(selector).click();
-  } else {
-    await page.getByTestId('prompt-dialog').getByTestId(selector).click();
-  }
-}
-
-async function selectTarget(page: Page, targetId: string) {
-  await page.getByTestId(`player-area-${targetId}`).click();
-}
-
 test.describe('saintess frost prayer protocol harness', () => {
   test('frost prayer: select target after water/light card', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(frostPrayerScenario());
@@ -31,8 +17,8 @@ test.describe('saintess frost prayer protocol harness', () => {
     // Server pushes frost prayer prompt after using water/light card
     await protocolHarness.pushServerMessage(frostPrayerTargetPrompt());
 
-    // Select ally target
-    await selectTarget(page, ALLY_PLAYER_ID);
+    // Target_picker: click ally player area (auto-submits for single target)
+    await page.getByTestId(`player-area-${ALLY_PLAYER_ID}`).click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [2],
@@ -44,8 +30,8 @@ test.describe('saintess frost prayer protocol harness', () => {
 
     await protocolHarness.pushServerMessage(frostPrayerTargetPrompt());
 
-    // Select self
-    await selectTarget(page, SAINTESS_PLAYER_ID);
+    // Click self player area
+    await page.getByTestId(`player-area-${SAINTESS_PLAYER_ID}`).click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -57,8 +43,8 @@ test.describe('saintess frost prayer protocol harness', () => {
 
     await protocolHarness.pushServerMessage(frostPrayerTargetPrompt());
 
-    // Select enemy
-    await selectTarget(page, ENEMY_PLAYER_ID);
+    // Click enemy player area
+    await page.getByTestId(`player-area-${ENEMY_PLAYER_ID}`).click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1],
@@ -73,8 +59,9 @@ test.describe('saintess mercy protocol harness', () => {
     // Server pushes mercy prompt at startup phase
     await protocolHarness.pushServerMessage(mercyPrompt());
 
-    // Click confirm button
-    await clickOverlayOption(page, 'prompt-option-confirm');
+    // branch_select overlay - confirm (branch-option-0)
+    await expect(page.getByTestId('decision-overlay')).toBeVisible();
+    await page.getByTestId('decision-overlay').getByTestId('branch-option-0').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -86,8 +73,9 @@ test.describe('saintess mercy protocol harness', () => {
 
     await protocolHarness.pushServerMessage(mercyPrompt());
 
-    // Click skip button
-    await clickOverlayOption(page, 'prompt-option-skip');
+    // branch_select overlay - skip (branch-option-1)
+    await expect(page.getByTestId('decision-overlay')).toBeVisible();
+    await page.getByTestId('decision-overlay').getByTestId('branch-option-1').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1],

@@ -6,11 +6,20 @@ import {
   incantationCoverPrompt,
 } from '../../../scenarios/spiritCaster';
 
+async function selectHandCards(page: import('@playwright/test').Page, indices: number[]) {
+  for (const index of indices) {
+    const card = page.getByTestId(`hand-card-${index}`);
+    await card.scrollIntoViewIfNeeded();
+    await card.click();
+  }
+  await page.getByTestId('prompt-confirm-btn').click();
+}
+
 test.describe('spirit caster incantation protocol harness', () => {
   test('incantation: confirm and cover a card as youli', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(incantationScenario());
 
-    // Incantation response prompt appears after talisman skill
+    // Incantation response prompt (branch_select overlay)
     await protocolHarness.pushServerMessage(incantationConfirmPrompt());
     await expect(page.getByTestId('decision-overlay')).toBeVisible();
     await page.getByTestId('prompt-option-0').click();
@@ -19,13 +28,12 @@ test.describe('spirit caster incantation protocol harness', () => {
       option_indexes: [0],
     });
 
-    // Cover card as youli
+    // Cover card as youli (card_picker from hand)
     await protocolHarness.pushServerMessage(incantationCoverPrompt());
-    await page.getByTestId('hand-card-0').click();
-    await page.getByTestId('prompt-confirm-btn').click();
+    await selectHandCards(page, [0]);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0],
+      card_ids: ['card_1'],
     });
   });
 
@@ -40,11 +48,10 @@ test.describe('spirit caster incantation protocol harness', () => {
     });
 
     await protocolHarness.pushServerMessage(incantationCoverPrompt());
-    await page.getByTestId('hand-card-2').click();
-    await page.getByTestId('prompt-confirm-btn').click();
+    await selectHandCards(page, [2]);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [2],
+      card_ids: ['card_3'],
     });
   });
 

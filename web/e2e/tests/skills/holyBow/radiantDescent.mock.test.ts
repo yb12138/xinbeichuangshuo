@@ -70,8 +70,8 @@ test.describe('holy bow radiant descent protocol harness', () => {
     await protocolHarness.pushServerMessage(radiantDescentCostPrompt(['heal', 'faith']));
     await expect(page.getByTestId('decision-overlay')).toBeVisible();
 
-    // 有两个选项，用户选择"移除2点信仰"（numeric-option-1）
-    await page.getByTestId('numeric-option-1').click();
+    // 有两个选项，用户选择"移除2点信仰"
+    await page.getByTestId('branch-option-1').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1],

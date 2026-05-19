@@ -37,6 +37,7 @@ const valkyrieCharacter = characterView({
       description: '（行动结束时发动）移除自己2点［治疗］，额外进行一次攻击行动。',
       type: 3, // 响应
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: VALKYRIE_ORDER_MARK_ID,
@@ -44,6 +45,7 @@ const valkyrieCharacter = characterView({
       description: '作为攻击行动时，你可以额外摸1张牌。若如此做，该次攻击的伤害-1，且本次攻击行动结束时你+1［治疗］。',
       type: 2, // 法术
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: VALKYRIE_PEACE_WALKER_ID,
@@ -51,6 +53,7 @@ const valkyrieCharacter = characterView({
       description: '（英灵形态中）回合开始时，你可以对自己造成1点法术伤害③，令一名队友获得1［治疗］。',
       type: 3, // 响应（被动形态）
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: VALKYRIE_MARTIAL_GOD_LIGHT_ID,
@@ -58,6 +61,7 @@ const valkyrieCharacter = characterView({
       description: '（回合开始时发动）你选择：Ⅰ、摸2张牌；Ⅱ、对一名对手造成1点法术伤害③。',
       type: 3, // 响应
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: VALKYRIE_HEROIC_SUMMON_ID,
@@ -65,6 +69,7 @@ const valkyrieCharacter = characterView({
       description: '（命中后发动）［水晶］弃1张法术牌［展示］，对一名对手造成2点法术伤害③，并给自己或一名队友+1［治疗］。',
       type: 3, // 响应(大招)
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
   ],
 });
@@ -178,7 +183,7 @@ export function valkyrieScenario(options: {
 
 // ============================================================
 // Holy Pursuit (神圣追击) - 响应技能
-// 后端通过 response_skills 自动触发，无需 choice_type
+// 后端通过 RequireAction + skill_choice prompt 触发
 // ============================================================
 
 export function holyPursuitScenario(options: {
@@ -186,8 +191,22 @@ export function holyPursuitScenario(options: {
 } = {}): ProtocolHarnessScenario {
   return valkyrieScenario({
     heal: options.heal ?? 2,
-    // 后端会设置 response_skills 触发确认弹框
   });
+}
+
+export function holyPursuitPrompt(): WsMessage {
+  return requireActionMessage({
+    type: 'choose_skill',
+    player_id: VALKYRIE_PLAYER_ID,
+    message: '【神圣追击】行动结束时发动，是否移除2点治疗额外进行一次攻击行动？',
+    choice_type: 'response_skill_choice',
+    options: [
+      { id: VALKYRIE_HOLY_PURSUIT_ID, label: '发动神圣追击', button_label: '发动' },
+      { id: 'skip', label: '跳过', button_label: '跳过' },
+    ],
+    min: 1, max: 1,
+    presentation: { kind: 'skill_choice', layout: 'overlay', numeric_base: 0 },
+  } satisfies Prompt);
 }
 
 // ============================================================
@@ -195,20 +214,41 @@ export function holyPursuitScenario(options: {
 // ============================================================
 
 export function orderMarkScenario(): ProtocolHarnessScenario {
-  return valkyrieScenario();
+  return valkyrieScenario({
+    availableSkills: [
+      valkyrieAvailableSkill({
+        id: VALKYRIE_ORDER_MARK_ID,
+        title: '秩序之印',
+      }),
+    ],
+  });
 }
 
 // ============================================================
 // Peace Walker (和平行者) - 响应技能(被动形态)
-// 后端通过 response_skills 自动触发，目标通过 min_targets 处理
+// 后端通过 RequireAction + skill_choice prompt 触发
 // ============================================================
 
 export function peaceWalkerScenario(): ProtocolHarnessScenario {
   return valkyrieScenario({
     buffs: [{ id: 'heroic_form', name: '英灵形态', duration: 0, value: 0, source_id: VALKYRIE_HEROIC_SUMMON_ID }],
     turnStage: 'TurnStart',
-    // 后端会设置 response_skills + min_targets 触发确认和目标选择
   });
+}
+
+export function peaceWalkerPrompt(): WsMessage {
+  return requireActionMessage({
+    type: 'choose_skill',
+    player_id: VALKYRIE_PLAYER_ID,
+    message: '【和平行者】回合开始时，是否对自己造成1点法术伤害，令一名队友获得1治疗？',
+    choice_type: 'response_skill_choice',
+    options: [
+      { id: VALKYRIE_PEACE_WALKER_ID, label: '发动和平行者', button_label: '发动' },
+      { id: 'skip', label: '跳过', button_label: '跳过' },
+    ],
+    min: 1, max: 1,
+    presentation: { kind: 'skill_choice', layout: 'overlay', numeric_base: 0 },
+  } satisfies Prompt);
 }
 
 // ============================================================
@@ -223,10 +263,10 @@ export function martialGodLightScenario(): ProtocolHarnessScenario {
 
 export function martialGodLightBranchPrompt(maxX: number): WsMessage {
   const options = [
-    { id: '0', label: '你+1治疗并脱离英灵形态' },
+    { id: '0', label: '你+1治疗并脱离英灵形态', button_label: '脱离+治疗' },
   ];
   if (maxX > 0) {
-    options.push({ id: '1', label: `移除我方战绩区星石（1~${maxX}）并指定角色+X治疗` });
+    options.push({ id: '1', label: `移除我方战绩区星石（1~${maxX}）并指定角色+X治疗`, button_label: '星石+治疗' });
   }
   return requireActionMessage({
     type: 'confirm',
@@ -235,14 +275,14 @@ export function martialGodLightBranchPrompt(maxX: number): WsMessage {
     choice_type: 'valkyrie_military_glory_mode',
     options,
     min: 1, max: 1,
-    presentation: { kind: 'branch_select', layout: 'overlay' },
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
   } satisfies Prompt);
 }
 
 export function martialGodLightXPrompt(maxX: number): WsMessage {
-  const options: Array<{ id: string; label: string }> = [];
+  const options: Array<{ id: string; label: string; button_label: string }> = [];
   for (let x = 1; x <= maxX; x++) {
-    options.push({ id: String(x), label: `X=${x}` });
+    options.push({ id: String(x), label: `X=${x}`, button_label: String(x) });
   }
   return requireActionMessage({
     type: 'confirm',
@@ -261,10 +301,11 @@ export function martialGodLightTargetPrompt(): WsMessage {
     player_id: VALKYRIE_PLAYER_ID,
     message: '【军威神光】请选择目标角色：',
     choice_type: 'valkyrie_military_glory_target',
+    presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
     options: [
-      { id: VALKYRIE_PLAYER_ID, label: 'E2E Valkyrie' },
-      { id: ENEMY_PLAYER_ID, label: 'Enemy E1' },
-      { id: ALLY_PLAYER_ID, label: 'Ally A1' },
+      { id: VALKYRIE_PLAYER_ID, label: 'E2E Valkyrie', button_label: '选择' },
+      { id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
+      { id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
     ],
     min: 1, max: 1,
   } satisfies Prompt);
@@ -272,7 +313,7 @@ export function martialGodLightTargetPrompt(): WsMessage {
 
 // ============================================================
 // Heroic Summon (英灵召唤) - 响应技能(大招)
-// 后端通过 response_skills 自动触发，目标通过 min_targets 处理
+// 后端通过 RequireAction + skill_choice prompt 触发
 // 弃牌通过后端 choice_type: valkyrie_heroic_discard_card
 // ============================================================
 
@@ -280,8 +321,22 @@ export function heroicSummonScenario(): ProtocolHarnessScenario {
   return valkyrieScenario({
     crystal: 1,
     heal: 0,
-    // 后端会设置 response_skills 触发确认弹框
   });
+}
+
+export function heroicSummonSkillPrompt(): WsMessage {
+  return requireActionMessage({
+    type: 'choose_skill',
+    player_id: VALKYRIE_PLAYER_ID,
+    message: '【英灵召唤】命中后发动，是否弃1张法术牌对一名对手造成2点法术伤害？',
+    choice_type: 'response_skill_choice',
+    options: [
+      { id: VALKYRIE_HEROIC_SUMMON_ID, label: '发动英灵召唤', button_label: '发动' },
+      { id: 'skip', label: '跳过', button_label: '跳过' },
+    ],
+    min: 1, max: 1,
+    presentation: { kind: 'skill_choice', layout: 'overlay', numeric_base: 0 },
+  } satisfies Prompt);
 }
 
 export function heroicSummonDiscardPrompt(): WsMessage {
@@ -291,11 +346,11 @@ export function heroicSummonDiscardPrompt(): WsMessage {
     message: '【英灵召唤】可额外弃1张法术牌并令当前战斗目标+1治疗（或点击取消放弃本次额外效果）：',
     choice_type: 'valkyrie_heroic_discard_card',
     options: [
-      { id: '2', label: '3: 圣光（法术）' },
-      { id: '3', label: '4: 神圣（法术）' },
-      { id: '4', label: '5: 治愈（法术）' },
-      { id: 'cancel', label: '放弃额外效果' },
+      { id: '2', label: '3: 圣光（法术）', button_label: '选择', card_id: 'valk-magic-1' },
+      { id: '3', label: '4: 神圣（法术）', button_label: '选择', card_id: 'valk-magic-2' },
+      { id: '4', label: '5: 治愈（法术）', button_label: '选择', card_id: 'valk-water-magic' },
     ],
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'type:Magic', has_decline: true, numeric_base: 0 },
     min: 1, max: 1,
   } satisfies Prompt);
 }

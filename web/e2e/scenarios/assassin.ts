@@ -34,6 +34,7 @@ const assassinCharacter = characterView({
       description: '（承受攻击伤害时发动⑥）攻击你的对手摸1张牌［强制］。',
       type: 0, // 被动
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: ASSASSIN_WATER_SHADOW_ID,
@@ -41,6 +42,7 @@ const assassinCharacter = characterView({
       description: '（除［特殊行动］外，当你摸牌前发动）弃X张水系牌（展示）；（若你处于［潜行］效果下）你可额外弃1张法术牌（展示）。',
       type: 3, // 响应
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: ASSASSIN_STEALTH_ID,
@@ -48,6 +50,7 @@ const assassinCharacter = characterView({
       description: '［宝石］你可选择摸1张牌，［横置］持续到你的下个行动阶段开始，你的手牌上限-1；你不能成为主动攻击的目标；你的主动攻击对方无法应战且伤害额外+X，X为你剩余的能量数。潜行的效果结束时角色［转正］。',
       type: 1, // 启动(大招)
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
   ],
 });
@@ -230,7 +233,7 @@ export function waterShadowBeforeDrawPrompt(): WsMessage {
       { id: '2', label: '3: 冰冻（水系 法术）', button_label: '选择', card_id: 'assassin-water-magic' },
     ],
     min: 0, max: 3,
-    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'water_only' },
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'water_only', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -261,6 +264,6 @@ export function waterShadowExtraCardPrompt(): WsMessage {
       { id: '4', label: '5: 雷击（雷系 法术）', button_label: '选择', card_id: 'assassin-thunder-magic' },
     ],
     min: 1, max: 1,
-    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'magic_only' },
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'magic_only', numeric_base: 0 },
   } satisfies Prompt);
 }

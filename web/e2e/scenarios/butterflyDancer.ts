@@ -41,6 +41,7 @@ const butterflyDancerCharacter = characterView({
       description: '选择：摸1张牌（强制）或弃1张牌（强制）；然后将牌库顶1张牌面朝下放置为茧。',
       type: 2,
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: BD_CHRYSALIS_SKILL_ID,
@@ -48,7 +49,7 @@ const butterflyDancerCharacter = characterView({
       description: '你+1蛹，并将牌库顶4张牌面朝下放置为茧。',
       type: 2,
       min_targets: 0, max_targets: 0, target_type: 0,
-      cost_gem: 1,
+      cost_gem: 1, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: BD_REVERSE_SKILL_ID,
@@ -56,8 +57,7 @@ const butterflyDancerCharacter = characterView({
       description: '弃2张牌，选择分支①或分支②。',
       type: 2,
       min_targets: 0, max_targets: 0, target_type: 0,
-      cost_crystal: 1,
-      cost_discards: 2,
+      cost_gem: 0, cost_crystal: 1, cost_discards: 2,
     },
     {
       id: BD_POISON_SKILL_ID,
@@ -65,6 +65,7 @@ const butterflyDancerCharacter = characterView({
       description: '每当有角色产生1点实际法术伤害时，可移除1个茧，使该次伤害额外+1。',
       type: 3,
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: BD_PILGRIMAGE_SKILL_ID,
@@ -72,6 +73,7 @@ const butterflyDancerCharacter = characterView({
       description: '每当你承受伤害时，可移除1个茧，抵御1点该来源伤害。',
       type: 3,
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: BD_MIRROR_SKILL_ID,
@@ -79,6 +81,7 @@ const butterflyDancerCharacter = characterView({
       description: '每当有角色产生2点实际法术伤害时，可移除2张同系茧并展示：抵御该次伤害。',
       type: 3,
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: BD_WITHER_SKILL_ID,
@@ -86,6 +89,7 @@ const butterflyDancerCharacter = characterView({
       description: '你每次移除茧时，若该茧为法术牌，可展示并发动：对目标造成1点法术伤害。',
       type: 3,
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
   ],
 });
@@ -246,7 +250,7 @@ export function danceModePrompt(canDiscard = true): WsMessage {
     choice_type: 'bt_dance_mode',
     skill_id: BD_DANCE_SKILL_ID,
     options,
-    presentation: { kind: 'branch_select', layout: 'overlay' },
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
     min: 1, max: 1,
   } satisfies Prompt);
 }
@@ -265,7 +269,7 @@ export function danceDiscardPrompt(): WsMessage {
       { id: '2', label: '3: 圣光（光系 法术）', button_label: '选择', card_id: hand[2].id },
       { id: '3', label: '4: 水涟斩（水系 攻击）', button_label: '选择', card_id: hand[3].id },
     ],
-    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'option_limited' },
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'option_limited', numeric_base: 0 },
     min: 1, max: 1,
   } satisfies Prompt);
 }
@@ -279,7 +283,7 @@ export function cocoonOverflowDiscardPrompt(discardCount = 1): WsMessage {
     options: [
       { id: '0', label: '茧[0]: 茧牌A（火系 攻击）', button_label: '选择', card_id: 'bd-cocoon-0', field_index: 0 },
     ],
-    presentation: { kind: 'card_picker', card_source: 'field', card_filter: 'overflow_discard' },
+    presentation: { kind: 'card_picker', card_source: 'field', card_filter: 'overflow_discard', numeric_base: 0 },
     min: discardCount, max: discardCount,
   } satisfies Prompt);
 }
@@ -339,7 +343,7 @@ export function reverseDiscardPrompt(): WsMessage {
       { id: '4', label: '5: 备牌A（地系 攻击）', button_label: '选择', card_id: hand[4].id },
       { id: '5', label: '6: 备牌B（风系 攻击）', button_label: '选择', card_id: hand[5].id },
     ],
-    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'option_limited' },
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'option_limited', numeric_base: 0 },
     min: 2,
     max: 2,
   } satisfies Prompt);
@@ -359,7 +363,7 @@ export function reverseModePrompt(canBranch2 = true): WsMessage {
     choice_type: 'bt_reverse_mode',
     skill_id: BD_REVERSE_SKILL_ID,
     options,
-    presentation: { kind: 'branch_select', layout: 'overlay' },
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
     min: 1, max: 1,
   } satisfies Prompt);
 }
@@ -409,7 +413,7 @@ export function reverseBranch2PickPrompt(): WsMessage {
       { id: '0', label: '茧[0]: 茧牌A（火系 攻击）', button_label: '选择', card_id: 'bd-cocoon-0', field_index: 0 },
       { id: '1', label: '茧[1]: 茧牌B（水系 魔术）', button_label: '选择', card_id: 'bd-cocoon-1', field_index: 1 },
     ],
-    presentation: { kind: 'card_picker', card_source: 'field', card_filter: 'option_limited' },
+    presentation: { kind: 'card_picker', card_source: 'field', card_filter: 'option_limited', numeric_base: 0 },
     min: 2, max: 2,
   } satisfies Prompt);
 }
@@ -634,7 +638,7 @@ export function chrysalisOverflowDiscardPrompt(overflowCount: number, cocoonLabe
     message: `【茧上限】请选择要舍弃的${overflowCount}个茧：`,
     choice_type: 'bt_cocoon_overflow_discard',
     options,
-    presentation: { kind: 'card_picker', card_source: 'field', card_filter: 'overflow_discard' },
+    presentation: { kind: 'card_picker', card_source: 'field', card_filter: 'overflow_discard', numeric_base: 0 },
     min: overflowCount,
     max: overflowCount,
   } satisfies Prompt);

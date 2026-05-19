@@ -203,9 +203,10 @@ export function roarConfirmPrompt(): WsMessage {
     choice_type: 'hero_roar_confirm',
     skill_id: HERO_ROAR_SKILL_ID,
     options: [
-      { id: '0', label: '发动' },
-      { id: '1', label: '不发动' },
+      { id: '0', label: '发动', button_label: '发动' },
+      { id: '1', label: '不发动', button_label: '不发动' },
     ],
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
     min: 1,
     max: 1,
   } satisfies Prompt);
@@ -219,9 +220,10 @@ export function roarDrawPrompt(): WsMessage {
     choice_type: 'hero_roar_draw',
     skill_id: HERO_ROAR_SKILL_ID,
     options: [
-      { id: '0', label: '摸1张牌' },
-      { id: '1', label: '不摸牌' },
+      { id: '0', label: '摸1张牌', button_label: '摸1张牌' },
+      { id: '1', label: '不摸牌', button_label: '不摸牌' },
     ],
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
     min: 1,
     max: 1,
   } satisfies Prompt);
@@ -279,9 +281,10 @@ export function calmMindConfirmPrompt(): WsMessage {
     choice_type: 'hero_calm_mind_confirm',
     skill_id: HERO_CALM_MIND_SKILL_ID,
     options: [
-      { id: '0', label: '发动' },
-      { id: '1', label: '不发动' },
+      { id: '0', label: '发动', button_label: '发动' },
+      { id: '1', label: '不发动', button_label: '不发动' },
     ],
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
     min: 1,
     max: 1,
   } satisfies Prompt);
@@ -339,9 +342,10 @@ export function forbiddenPowerConfirmPrompt(): WsMessage {
     choice_type: 'hero_forbidden_power_confirm',
     skill_id: HERO_FORBIDDEN_POWER_SKILL_ID,
     options: [
-      { id: '0', label: '发动' },
-      { id: '1', label: '不发动' },
+      { id: '0', label: '发动', button_label: '发动' },
+      { id: '1', label: '不发动', button_label: '不发动' },
     ],
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
     min: 1,
     max: 1,
   } satisfies Prompt);
@@ -410,9 +414,10 @@ export function tauntTargetPrompt(): WsMessage {
     message: '【挑衅】请选择一名目标对手：',
     choice_type: 'hero_taunt_target',
     skill_id: HERO_TAUNT_SKILL_ID,
+    presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
     options: [
-      { id: ENEMY_PLAYER_ID, label: '恶徒' },
-      { id: ENEMY_2_PLAYER_ID, label: '恶徒2' },
+      { id: ENEMY_PLAYER_ID, label: '恶徒', button_label: '选择' },
+      { id: ENEMY_2_PLAYER_ID, label: '恶徒2', button_label: '选择' },
     ],
     min: 1,
     max: 1,
@@ -471,9 +476,10 @@ export function deadDuelConfirmPrompt(): WsMessage {
     choice_type: 'hero_dead_duel_confirm',
     skill_id: HERO_DEAD_DUEL_SKILL_ID,
     options: [
-      { id: '0', label: '发动' },
-      { id: '1', label: '不发动' },
+      { id: '0', label: '发动', button_label: '发动' },
+      { id: '1', label: '不发动', button_label: '不发动' },
     ],
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
     min: 1,
     max: 1,
   } satisfies Prompt);

@@ -16,13 +16,12 @@ test.describe('moon goddess medusa eye protocol harness', () => {
     await protocolHarness.bootGame(medusaEyeScenario({ dark_moon_cards: 2 }));
 
     await protocolHarness.pushServerMessage(medusaEyeDarkMoonPrompt());
-    await expect(page.getByText('请在扩展区点击要展示并移除的同系闇月')).toBeVisible();
     await expect(page.getByTestId('decision-overlay')).not.toBeVisible();
 
     await page.getByTestId('cover-card-0').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0],
+      card_ids: ['mg-dark-moon-0'],
     });
   });
 
@@ -30,12 +29,12 @@ test.describe('moon goddess medusa eye protocol harness', () => {
     await protocolHarness.bootGame(medusaEyeScenario({ dark_moon_cards: 2 }));
 
     await protocolHarness.pushServerMessage(medusaEyeDarkMoonPrompt());
-    await expect(page.getByText('请在扩展区点击要展示并移除的同系闇月')).toBeVisible();
+    await expect(page.getByTestId('decision-overlay')).not.toBeVisible();
 
     await page.getByTestId('cover-card-1').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [1],
+      card_ids: ['mg-dark-moon-1'],
     });
   });
 
@@ -43,10 +42,11 @@ test.describe('moon goddess medusa eye protocol harness', () => {
     await protocolHarness.bootGame(medusaEyeScenario({ dark_moon_cards: 2 }));
 
     await protocolHarness.pushServerMessage(medusaEyeDarkMoonPrompt());
+    await expect(page.getByTestId('decision-overlay')).not.toBeVisible();
     await page.getByTestId('cover-card-0').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0],
+      card_ids: ['mg-dark-moon-0'],
     });
 
     await protocolHarness.pushServerMessage(medusaEyeMagicDiscardPrompt());
@@ -54,7 +54,7 @@ test.describe('moon goddess medusa eye protocol harness', () => {
     await page.getByTestId('prompt-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0],
+      card_ids: ['card_1'],
     });
   });
 
@@ -66,7 +66,7 @@ test.describe('moon goddess medusa eye protocol harness', () => {
     await page.getByTestId('cover-card-0').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0],
+      card_ids: ['mg-dark-moon-0'],
     });
   });
 });

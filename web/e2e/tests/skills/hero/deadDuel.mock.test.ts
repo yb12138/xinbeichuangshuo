@@ -12,7 +12,7 @@ test.describe('hero dead duel protocol harness', () => {
     await protocolHarness.pushServerMessage(deadDuelConfirmPrompt());
     await expect(page.getByTestId('decision-overlay')).toBeVisible();
     // Click "发动"
-    await page.getByTestId('prompt-option-0').click();
+    await page.getByTestId('branch-option-0').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -23,7 +23,7 @@ test.describe('hero dead duel protocol harness', () => {
     await protocolHarness.bootGame(deadDuelScenario({ gems: 2 }));
 
     await protocolHarness.pushServerMessage(deadDuelConfirmPrompt());
-    await page.getByTestId('prompt-option-1').click();
+    await page.getByTestId('branch-option-1').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1],

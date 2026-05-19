@@ -36,6 +36,7 @@ const arbitratorCharacter = characterView({
       description: '游戏初始时，你+2［水晶］。',
       type: 0, // 被动
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: ARBITRATOR_RITUAL_INTERRUPT_ID,
@@ -43,6 +44,7 @@ const arbitratorCharacter = characterView({
       description: '（仅［审判形态］下发动）［转正］脱离［审判形态］，我方［战绩区］+1［宝石］。',
       type: 1, // 启动
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: ARBITRATOR_DOOM_JUDGMENT_ID,
@@ -50,6 +52,7 @@ const arbitratorCharacter = characterView({
       description: '（移除所有［审判］）对目标角色造成等量的法术伤害③；在你的行动阶段开始时，若［审判］已达到上限，该行动阶段你必须发动［末日审判］。',
       type: 2, // 法术
       min_targets: 1, max_targets: 1, target_type: 3,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: 'arbitrator_wave',
@@ -57,6 +60,7 @@ const arbitratorCharacter = characterView({
       description: '（你每次承受伤害⑥）你+1［审判］。',
       type: 0, // 被动
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: ARBITRATOR_ARBITRATION_RITUAL_ID,
@@ -64,6 +68,7 @@ const arbitratorCharacter = characterView({
       description: '［持续］［宝石］［横置］转为［审判形态］，你的手牌上限恒定为5；每次在你的回合开始时，你+1［审判］。',
       type: 1, // 启动(大招)
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: ARBITRATOR_JUDGMENT_BALANCE_ID,
@@ -71,6 +76,7 @@ const arbitratorCharacter = characterView({
       description: '［水晶］你+1［审判］，再选择以下一项发动：●弃掉你的所有手牌。●将你的手牌补到上限［强制］，我方战绩区+1［宝石］。',
       type: 2, // 法术(大招)
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
   ],
 });

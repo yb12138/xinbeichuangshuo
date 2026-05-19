@@ -14,11 +14,11 @@ test.describe('magic lancer black spear protocol harness', () => {
     // Verify numeric overlay is visible
     await expect(page.getByTestId('decision-overlay')).toBeVisible();
 
-    // Select X=2 from the numeric overlay
+    // Select X=2 from the numeric overlay (second option, array index 1)
     await page.getByTestId('decision-overlay').getByTestId('numeric-option-2').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [2],
+      option_indexes: [1],
     });
   });
 
@@ -31,7 +31,7 @@ test.describe('magic lancer black spear protocol harness', () => {
     await page.getByTestId('decision-overlay').getByTestId('numeric-option-1').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [1],
+      option_indexes: [0],
     });
   });
 });

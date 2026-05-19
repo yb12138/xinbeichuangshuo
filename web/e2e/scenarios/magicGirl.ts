@@ -35,30 +35,33 @@ const magicGirlCharacter = characterView({
       id: MAGIC_GIRL_MAGIC_BULLET_CONTROL_ID,
       title: '魔弹掌控',
       description: '你主动使用魔弹时可以选择逆向传递。',
-      type: 3, // 响应
+      type: 3,
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: MAGIC_GIRL_MAGIC_BULLET_FUSION_ID,
       title: '魔弹融合',
       description: '你的地系或火系牌可以当魔弹使用。',
-      type: 3, // 响应
+      type: 3,
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: MAGIC_GIRL_MAGIC_EXPLOSION_ID,
       title: '魔爆冲击',
       description: '（弃1张法术牌［展示］）我方战绩区+1颗［宝石］。2名目标对手各弃1张法术牌［展示］，每有人不如此做，你对他造成2点法术伤害③，你弃1张牌。',
-      type: 2, // 法术
+      type: 2,
       min_targets: 2, max_targets: 2, target_type: 2,
-      cost_discards: 1, discard_type: 'Magic',
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: MAGIC_GIRL_DESTRUCTION_STORM_ID,
       title: '毁灭风暴',
       description: '［宝石］对任2名目标对手各造成2点法术伤害③。',
-      type: 2, // 法术(大招)
+      type: 2,
       min_targets: 2, max_targets: 2, target_type: 2,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
   ],
 });
@@ -193,11 +196,11 @@ export function magicBulletDirectionPrompt(): WsMessage {
     message: '【魔弹掌控】请选择魔弹传递方向：',
     choice_type: 'mg_magic_bullet_direction',
     options: [
-      { id: 'forward', label: '正向传递' },
-      { id: 'reverse', label: '逆向传递' },
+      { id: 'forward', label: '正向传递', button_label: '正向传递' },
+      { id: 'reverse', label: '逆向传递', button_label: '逆向传递' },
     ],
     min: 1, max: 1,
-    presentation: { kind: 'branch_select', layout: 'overlay' },
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -234,29 +237,184 @@ export function magicExplosionScenario(): ProtocolHarnessScenario {
 
 export function magicExplosionTargetPrompt(): WsMessage {
   return requireActionMessage({
-    type: 'confirm',
+    type: 'choose_target',
     player_id: MAGIC_GIRL_PLAYER_ID,
     message: '【魔爆冲击】请选择2名目标对手：',
     choice_type: 'mg_magic_explosion_target',
     options: [
-      { id: ENEMY_PLAYER_ID, label: 'Enemy E1' },
-      { id: ENEMY2_PLAYER_ID, label: 'Enemy E2' },
+      { id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
+      { id: ENEMY2_PLAYER_ID, label: 'Enemy E2', button_label: '选择' },
     ],
     min: 2, max: 2,
+    presentation: { kind: 'target_picker', target_filter: 'enemies', multi_target: true, numeric_base: 0 },
   } satisfies Prompt);
 }
 
-// 对手视角：弃牌选择
-export function magicExplosionEnemyDiscardPrompt(playerId: string): WsMessage {
+// ============================================================
+// Magic Explosion — Enemy discard (对手弃牌视角)
+// ============================================================
+
+// Enemy perspective scenario: the enemy player is "me"
+export function magicExplosionEnemyDiscardScenario(): ProtocolHarnessScenario {
+  const mgHand = magicGirlHand();
+  const enemyHand = [card({ id: 'en-card-1', name: '测试牌', type: 'Magic', element: 'Fire' })];
+  const enemy2Hand = [card({ id: 'en2-card-1', name: '测试牌', type: 'Magic', element: 'Thunder' })];
+  const allyHand = [card({ id: 'al-card-1', name: '测试牌', type: 'Attack', element: 'Water' })];
+
+  return {
+    roomCode: 'MOCK',
+    myPlayerId: ENEMY_PLAYER_ID,
+    myPlayerName: 'Enemy E1',
+    characters: defaultCharacters,
+    players: [
+      playerInfo({ id: MAGIC_GIRL_PLAYER_ID, name: 'E2E MagicGirl', camp: 'Red', char_role: 'magic_girl', is_host: true }),
+      playerInfo({ id: ENEMY_PLAYER_ID, name: 'Enemy E1', camp: 'Blue', char_role: 'enemy_char' }),
+      playerInfo({ id: ENEMY2_PLAYER_ID, name: 'Enemy E2', camp: 'Blue', char_role: 'enemy_char2' }),
+      playerInfo({ id: ALLY_PLAYER_ID, name: 'Ally A1', camp: 'Red', char_role: 'ally_char' }),
+    ],
+    initialState: syncState({
+      turn_player_id: MAGIC_GIRL_PLAYER_ID,
+      turn_stage: 'ActionExecution',
+      available_skills: [],
+      characters: defaultCharacters,
+      players: [
+        playerView({
+          id: MAGIC_GIRL_PLAYER_ID,
+          name: 'E2E MagicGirl',
+          camp: 'Red',
+          role: 'magic_girl',
+          hand: mgHand,
+          hand_count: mgHand.length,
+          is_active: true,
+        }),
+        playerView({
+          id: ENEMY_PLAYER_ID,
+          name: 'Enemy E1',
+          camp: 'Blue',
+          role: 'enemy_char',
+          hand: enemyHand,
+          hand_count: 1, max_hand: 6,
+          heal: 0, max_heal: 4,
+          is_active: false,
+        }),
+        playerView({
+          id: ENEMY2_PLAYER_ID,
+          name: 'Enemy E2',
+          camp: 'Blue',
+          role: 'enemy_char2',
+          hand: enemy2Hand,
+          hand_count: 1, max_hand: 6,
+          heal: 0, max_heal: 4,
+          is_active: false,
+        }),
+        playerView({
+          id: ALLY_PLAYER_ID,
+          name: 'Ally A1',
+          camp: 'Red',
+          role: 'ally_char',
+          hand: allyHand,
+          hand_count: 1, max_hand: 6,
+          heal: 0, max_heal: 4,
+          is_active: false,
+        }),
+      ],
+    }),
+  };
+}
+
+// Enemy E2 perspective scenario
+export function magicExplosionEnemy2DiscardScenario(): ProtocolHarnessScenario {
+  const mgHand = magicGirlHand();
+  const enemyHand = [card({ id: 'en-card-1', name: '测试牌', type: 'Magic', element: 'Fire' })];
+  const enemy2Hand = [card({ id: 'en2-card-1', name: '测试牌', type: 'Magic', element: 'Thunder' })];
+  const allyHand = [card({ id: 'al-card-1', name: '测试牌', type: 'Attack', element: 'Water' })];
+
+  return {
+    roomCode: 'MOCK',
+    myPlayerId: ENEMY2_PLAYER_ID,
+    myPlayerName: 'Enemy E2',
+    characters: defaultCharacters,
+    players: [
+      playerInfo({ id: MAGIC_GIRL_PLAYER_ID, name: 'E2E MagicGirl', camp: 'Red', char_role: 'magic_girl', is_host: true }),
+      playerInfo({ id: ENEMY_PLAYER_ID, name: 'Enemy E1', camp: 'Blue', char_role: 'enemy_char' }),
+      playerInfo({ id: ENEMY2_PLAYER_ID, name: 'Enemy E2', camp: 'Blue', char_role: 'enemy_char2' }),
+      playerInfo({ id: ALLY_PLAYER_ID, name: 'Ally A1', camp: 'Red', char_role: 'ally_char' }),
+    ],
+    initialState: syncState({
+      turn_player_id: MAGIC_GIRL_PLAYER_ID,
+      turn_stage: 'ActionExecution',
+      available_skills: [],
+      characters: defaultCharacters,
+      players: [
+        playerView({
+          id: MAGIC_GIRL_PLAYER_ID,
+          name: 'E2E MagicGirl',
+          camp: 'Red',
+          role: 'magic_girl',
+          hand: mgHand,
+          hand_count: mgHand.length,
+          is_active: true,
+        }),
+        playerView({
+          id: ENEMY_PLAYER_ID,
+          name: 'Enemy E1',
+          camp: 'Blue',
+          role: 'enemy_char',
+          hand: enemyHand,
+          hand_count: 1, max_hand: 6,
+          heal: 0, max_heal: 4,
+          is_active: false,
+        }),
+        playerView({
+          id: ENEMY2_PLAYER_ID,
+          name: 'Enemy E2',
+          camp: 'Blue',
+          role: 'enemy_char2',
+          hand: enemy2Hand,
+          hand_count: 1, max_hand: 6,
+          heal: 0, max_heal: 4,
+          is_active: false,
+        }),
+        playerView({
+          id: ALLY_PLAYER_ID,
+          name: 'Ally A1',
+          camp: 'Red',
+          role: 'ally_char',
+          hand: allyHand,
+          hand_count: 1, max_hand: 6,
+          heal: 0, max_heal: 4,
+          is_active: false,
+        }),
+      ],
+    }),
+  };
+}
+
+export function magicExplosionEnemyDiscardPrompt(): WsMessage {
   return requireActionMessage({
     type: 'choose_cards',
-    player_id: playerId,
+    player_id: ENEMY_PLAYER_ID,
     message: '【魔爆冲击】请弃1张法术牌［展示］，否则受到2点法术伤害：',
     choice_type: 'mg_magic_explosion_enemy_discard',
     options: [
-      { id: '0', label: '测试牌（法术）' },
+      { id: 'en-card-1', label: '测试牌（法术）', button_label: '弃置', card_id: 'en-card-1' },
     ],
     min: 0, max: 1,
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'magic', has_decline: true, decline_index: 0, cancel_policy: 'decline', numeric_base: 0 },
+  } satisfies Prompt);
+}
+
+export function magicExplosionEnemy2DiscardPrompt(): WsMessage {
+  return requireActionMessage({
+    type: 'choose_cards',
+    player_id: ENEMY2_PLAYER_ID,
+    message: '【魔爆冲击】请弃1张法术牌［展示］，否则受到2点法术伤害：',
+    choice_type: 'mg_magic_explosion_enemy2_discard',
+    options: [
+      { id: 'en2-card-1', label: '测试牌（法术）', button_label: '弃置', card_id: 'en2-card-1' },
+    ],
+    min: 0, max: 1,
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'magic', has_decline: true, decline_index: 0, cancel_policy: 'decline', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -278,14 +436,15 @@ export function destructionStormScenario(): ProtocolHarnessScenario {
 
 export function destructionStormTargetPrompt(): WsMessage {
   return requireActionMessage({
-    type: 'confirm',
+    type: 'choose_target',
     player_id: MAGIC_GIRL_PLAYER_ID,
     message: '【毁灭风暴】请选择2名目标对手，各造成2点法术伤害：',
     choice_type: 'mg_destruction_storm_target',
     options: [
-      { id: ENEMY_PLAYER_ID, label: 'Enemy E1' },
-      { id: ENEMY2_PLAYER_ID, label: 'Enemy E2' },
+      { id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
+      { id: ENEMY2_PLAYER_ID, label: 'Enemy E2', button_label: '选择' },
     ],
     min: 2, max: 2,
+    presentation: { kind: 'target_picker', target_filter: 'enemies', multi_target: true, numeric_base: 0 },
   } satisfies Prompt);
 }

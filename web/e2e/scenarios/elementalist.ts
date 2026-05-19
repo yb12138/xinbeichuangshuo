@@ -39,6 +39,7 @@ const elementalistCharacter = characterView({
       description: '（对目标角色造成法术伤害时发动③）你+1［元素］。',
       type: 3, // 响应
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: ELEMENTALIST_ELEMENT_IGNITE_ID,
@@ -46,6 +47,7 @@ const elementalistCharacter = characterView({
       description: '（移除3点［元素］）对目标角色造成2点法术伤害③，额外+1［法术行动］；不能和［元素吸收］同时发动。',
       type: 2, // 法术
       min_targets: 1, max_targets: 1, target_type: 3,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: ELEMENTALIST_THUNDER_STRIKE_ID,
@@ -53,6 +55,7 @@ const elementalistCharacter = characterView({
       description: '对目标角色造成1点法术伤害③，我方战绩区+1宝石，（若你额外弃1张雷系牌［展示］）本次法术伤害额外+1。',
       type: 2, // 法术(独有)
       min_targets: 1, max_targets: 1, target_type: 3,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: ELEMENTALIST_FREEZE_ID,
@@ -60,6 +63,7 @@ const elementalistCharacter = characterView({
       description: '对目标角色造成1点法术伤害③，并指定1名角色+1［治疗］，（若你额外弃1张水系牌［展示］）本次法术伤害额外+1。',
       type: 2, // 法术(独有)
       min_targets: 2, max_targets: 2, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: ELEMENTALIST_WIND_BLADE_ID,
@@ -67,6 +71,7 @@ const elementalistCharacter = characterView({
       description: '对目标角色造成1点法术伤害③，额外+1［攻击行动］，（若你额外弃1张风系牌［展示］）本次法术伤害额外+1。',
       type: 2, // 法术(独有)
       min_targets: 1, max_targets: 1, target_type: 3,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: ELEMENTALIST_METEOR_ID,
@@ -74,6 +79,7 @@ const elementalistCharacter = characterView({
       description: '对目标角色造成1点法术伤害③，额外+1［法术行动］，（若你额外弃1张地系牌［展示］）本次法术伤害额外+1。',
       type: 2, // 法术(独有)
       min_targets: 1, max_targets: 1, target_type: 3,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: ELEMENTALIST_FIREBALL_ID,
@@ -81,6 +87,7 @@ const elementalistCharacter = characterView({
       description: '对目标角色造成2点法术伤害③，（若你额外弃1张火系牌［展示］）本次法术伤害额外+1。',
       type: 2, // 法术(独有)
       min_targets: 1, max_targets: 1, target_type: 3,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: ELEMENTALIST_MOONLIGHT_ID,
@@ -88,6 +95,7 @@ const elementalistCharacter = characterView({
       description: '［宝石］对目标角色造成（X+1）点法术伤害③，X为你剩余的能量数。',
       type: 2, // 法术(大招)
       min_targets: 1, max_targets: 1, target_type: 3,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
   ],
 });

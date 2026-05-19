@@ -610,7 +610,7 @@ function confirmPromptAction() {
   }
 
   if (isNonHandChooseCardsMultiMode.value) {
-    if (selectedInlineCardIDs.value.length > 0 || prompt.value.min === 0) {
+    if (selectedInlineCardIDs.value.length > 0 || prompt.value?.min === 0) {
       actions.submitSelectCardIDs(selectedInlineCardIDs.value)
     }
     return
@@ -1292,7 +1292,9 @@ const skillPromptButtons = computed<SkillPromptButton[]>(() => {
 })
 
 const isMultiSkillNameChoiceMode = computed(() =>
-  prompt.value?.presentation?.kind === 'skill_choice' && skillPromptEntries.value.length > 1
+  prompt.value?.presentation?.kind === 'skill_choice' &&
+  skillBranchOptions.value.length > 0 &&
+  skillPromptButtons.value.length > 1
 )
 
 interface SkillBranchOption {

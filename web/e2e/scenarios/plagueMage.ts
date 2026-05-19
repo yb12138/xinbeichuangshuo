@@ -153,11 +153,11 @@ export function deathTouchElementPrompt(): WsMessage {
     choice_type: 'plague_death_touch_element',
     skill_id: PLAGUE_DEATH_TOUCH_SKILL_ID,
     options: [
-      { id: 'Fire', label: '火 Fire', button_label: '火' },
-      { id: 'Water', label: '水 Water', button_label: '水' },
-      { id: 'Thunder', label: '雷 Thunder', button_label: '雷' },
+      { id: 'Fire', label: '火 Fire', button_label: '火', element: 'Fire' },
+      { id: 'Water', label: '水 Water', button_label: '水', element: 'Water' },
+      { id: 'Thunder', label: '雷 Thunder', button_label: '雷', element: 'Thunder' },
     ],
-    presentation: { kind: 'card_picker', layout: 'inline', card_source: 'hand', card_filter: 'plague_death_touch_element', cancel_policy: 'abort' },
+    presentation: { kind: 'card_picker', layout: 'inline', card_source: 'hand', card_filter: 'plague_death_touch_element', cancel_policy: 'abort', numeric_base: 0 },
     min: 1,
     max: 1,
   } satisfies Prompt);
@@ -189,10 +189,10 @@ export function deathTouchCardsPrompt(): WsMessage {
     choice_type: 'plague_death_touch_cards',
     skill_id: PLAGUE_DEATH_TOUCH_SKILL_ID,
     options: [
-      { id: '0', label: '1: 火焰斩', button_label: '选择' },
-      { id: '1', label: '2: 火焰斩', button_label: '选择' },
+      { id: '0', label: '1: 火焰斩', button_label: '选择', card_id: 'fire-attack-1' },
+      { id: '1', label: '2: 火焰斩', button_label: '选择', card_id: 'fire-attack-2' },
     ],
-    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'same_element', cancel_policy: 'abort' },
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'same_element', cancel_policy: 'abort', numeric_base: 0 },
     min: 2,
     max: 2,
   } satisfies Prompt);
@@ -206,9 +206,9 @@ export function deathTouchTargetPrompt(): WsMessage {
     choice_type: 'plague_death_touch_target',
     skill_id: PLAGUE_DEATH_TOUCH_SKILL_ID,
     options: [
-      { id: ENEMY_PLAYER_ID, label: 'Enemy Bot hero' },
+      { id: ENEMY_PLAYER_ID, label: 'Enemy Bot hero', button_label: '选择' },
     ],
-    presentation: { kind: 'target_picker' },
+    presentation: { kind: 'target_picker', numeric_base: 0 },
     min: 1,
     max: 1,
   } satisfies Prompt);

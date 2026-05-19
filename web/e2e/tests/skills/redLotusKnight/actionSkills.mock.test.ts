@@ -1,5 +1,4 @@
-import type { Page } from '@playwright/test';
-import { test } from '../../../fixtures/protocolHarness.fixture';
+import { test, expect } from '../../../fixtures/protocolHarness.fixture';
 import {
   RED_LOTUS_KNIGHT_BLOODY_PRAYER_ID,
   RED_LOTUS_KNIGHT_SCARLET_CROSS_ID,
@@ -12,22 +11,12 @@ import {
   scarletCrossTargetPrompt,
 } from '../../../scenarios/redLotusKnight';
 
-async function activatePanelSkill(page: Page, skillId: string) {
+async function activatePanelSkill(page: import('@playwright/test').Page, skillId: string) {
   await page.getByTestId('action-skill').click();
   await page.getByTestId(`skill-${skillId}`).click();
 }
 
-async function clickOverlayOption(page: Page, selector: string) {
-  const overlay = page.getByTestId('decision-overlay');
-  const overlayVisible = await overlay.isVisible({ timeout: 1000 }).catch(() => false);
-  if (overlayVisible) {
-    await overlay.getByTestId(selector).click();
-  } else {
-    await page.getByTestId('prompt-dialog').getByTestId(selector).click();
-  }
-}
-
-async function selectTarget(page: Page, targetId: string) {
+async function selectTarget(page: import('@playwright/test').Page, targetId: string) {
   await page.getByTestId(`player-area-${targetId}`).click();
 }
 
@@ -50,8 +39,9 @@ test.describe('red lotus knight bloody prayer protocol harness', () => {
     // Server pushes X selection
     await protocolHarness.pushServerMessage(bloodyPrayerXPrompt());
 
-    // Select X=1
-    await clickOverlayOption(page, 'prompt-option-1');
+    // Select X=1 (numeric: numeric-option-1)
+    await expect(page.getByTestId('decision-overlay')).toBeVisible();
+    await page.getByTestId('decision-overlay').getByTestId('numeric-option-1').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -60,7 +50,8 @@ test.describe('red lotus knight bloody prayer protocol harness', () => {
     // Server pushes target selection
     await protocolHarness.pushServerMessage(bloodyPrayerTargetPrompt());
 
-    // Select enemy target
+    // Select enemy target (target_picker: click player area)
+    await expect(page.getByTestId('decision-overlay')).not.toBeVisible({ timeout: 5000 });
     await selectTarget(page, ENEMY_PLAYER_ID);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
@@ -76,8 +67,9 @@ test.describe('red lotus knight bloody prayer protocol harness', () => {
     // Server pushes X selection
     await protocolHarness.pushServerMessage(bloodyPrayerXPrompt());
 
-    // Select X=2
-    await clickOverlayOption(page, 'prompt-option-2');
+    // Select X=2 (numeric: numeric-option-2)
+    await expect(page.getByTestId('decision-overlay')).toBeVisible();
+    await page.getByTestId('decision-overlay').getByTestId('numeric-option-2').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1],
@@ -86,7 +78,8 @@ test.describe('red lotus knight bloody prayer protocol harness', () => {
     // Server pushes target selection
     await protocolHarness.pushServerMessage(bloodyPrayerTargetPrompt());
 
-    // Select enemy target
+    // Select enemy target (target_picker: click player area)
+    await expect(page.getByTestId('decision-overlay')).not.toBeVisible({ timeout: 5000 });
     await selectTarget(page, ENEMY_PLAYER_ID);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
@@ -114,17 +107,18 @@ test.describe('red lotus knight scarlet cross protocol harness', () => {
     // Server pushes discard selection
     await protocolHarness.pushServerMessage(scarletCrossDiscardPrompt());
 
-    // Select magic card to discard
-    await clickOverlayOption(page, 'prompt-option-rlk-magic-1');
+    // Select magic card from hand (card_picker: hand-card-2 auto-submits for min=1,max=1)
+    await page.getByTestId('hand-card-2').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0],
+      card_ids: ['rlk-magic-1'],
     });
 
     // Server pushes target selection
     await protocolHarness.pushServerMessage(scarletCrossTargetPrompt());
 
-    // Select enemy target (must have blood mark)
+    // Select enemy target (target_picker: click player area)
+    await expect(page.getByTestId('decision-overlay')).not.toBeVisible({ timeout: 5000 });
     await selectTarget(page, ENEMY_PLAYER_ID);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',

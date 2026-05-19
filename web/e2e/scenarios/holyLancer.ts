@@ -37,6 +37,7 @@ const holyLancerCharacter = characterView({
       description: '（我方［星杯区］的［星杯］数不小于对方时）你的［治疗］上限+1。',
       type: 0, // 被动
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: HOLY_LANCER_GLORY_ID,
@@ -44,7 +45,7 @@ const holyLancerCharacter = characterView({
       description: '（弃1张水系牌［展示］）所有人各+1［治疗］，额外+1［攻击行动］。',
       type: 2, // 法术
       min_targets: 0, max_targets: 0, target_type: 0,
-      cost_discards: 1, discard_element: 'Water',
+      cost_gem: 0, cost_crystal: 0, cost_discards: 1, discard_element: 'Water',
     },
     {
       id: HOLY_LANCER_PUNISHMENT_ID,
@@ -52,7 +53,7 @@ const holyLancerCharacter = characterView({
       description: '（弃1张法术牌［展示］）将其他角色的1点［治疗］转移给你，额外+1［攻击行动］。',
       type: 2, // 法术
       min_targets: 1, max_targets: 1, target_type: 3,
-      cost_discards: 1, discard_type: 'Magic',
+      cost_gem: 0, cost_crystal: 0, cost_discards: 1,
     },
     {
       id: 'holy_lancer_holy_strike',
@@ -60,6 +61,7 @@ const holyLancerCharacter = characterView({
       description: '（攻击命中后发动②）你+1［治疗］。',
       type: 3, // 响应
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: HOLY_LANCER_SKY_SPEAR_ID,
@@ -67,6 +69,7 @@ const holyLancerCharacter = characterView({
       description: '（主动攻击前发动①）移除你的2点［治疗］，本次攻击对手无法应战；不能和［圣击］同时发动。',
       type: 3, // 响应
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: HOLY_LANCER_EARTH_SPEAR_ID,
@@ -74,6 +77,7 @@ const holyLancerCharacter = characterView({
       description: '（主动攻击命中后发动②）移除你的X点［治疗］，本次攻击伤害额外+X，X最高为4；不能和［圣击］同时发动。',
       type: 3, // 响应
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: HOLY_LANCER_HOLY_LIGHT_HEAL_ID,
@@ -81,6 +85,7 @@ const holyLancerCharacter = characterView({
       description: '［宝石］无视你的［治疗］上限为你+2［治疗］，但你的［治疗］数最高为5，额外+1［攻击行动］；本回合你不能再发动［天枪］。',
       type: 2, // 法术(大招)
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
   ],
 });
@@ -226,9 +231,10 @@ export function punishmentTargetPrompt(): WsMessage {
     message: '【惩戒】请选择一名目标角色，将其1点治疗转移给你：',
     choice_type: 'holy_lancer_punishment_target',
     options: [
-      { id: ENEMY_PLAYER_ID, label: 'Enemy E1' },
+      { id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
     ],
     min: 1, max: 1,
+    presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -250,9 +256,10 @@ export function skySpearBeforeAttackPrompt(): WsMessage {
     player_id: HOLY_LANCER_PLAYER_ID,
     message: '【天枪】是否移除2点［治疗］，使本次攻击对手无法应战？',
     choice_type: 'holy_lancer_sky_spear',
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
     options: [
-      { id: 'confirm', label: '发动' },
-      { id: 'skip', label: '跳过' },
+      { id: 'confirm', label: '发动', button_label: '发动' },
+      { id: 'skip', label: '跳过', button_label: '跳过' },
     ],
     min: 1, max: 1,
   } satisfies Prompt);
@@ -271,13 +278,13 @@ export function earthSpearScenario(options: {
 }
 
 export function earthSpearAfterHitPrompt(maxX: number): WsMessage {
-  const options: Array<{ id: string; label: string }> = [];
+  const options: Array<{ id: string; label: string; button_label: string }> = [];
   // X can be 0 to min(heal, 4)
   for (let x = 0; x <= Math.min(maxX, 4); x++) {
     if (x === 0) {
-      options.push({ id: '0', label: '不发动' });
+      options.push({ id: '0', label: '不发动', button_label: '不发动' });
     } else {
-      options.push({ id: String(x), label: `移除${x}点治疗，伤害+${x}` });
+      options.push({ id: String(x), label: `移除${x}点治疗，伤害+${x}`, button_label: String(x) });
     }
   }
   return requireActionMessage({

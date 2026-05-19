@@ -36,6 +36,7 @@ const archerCharacter = characterView({
       description: '（主动攻击未命中时发动②，弃1张法术牌［展示］）对你所攻击的目标造成2点法术伤害③。',
       type: 3, // 响应
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: 'archer_lightning_arrow',
@@ -43,6 +44,7 @@ const archerCharacter = characterView({
       description: '你的雷系攻击对手无法应战。',
       type: 0, // 被动
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: ARCHER_SNipe_ID,
@@ -50,6 +52,7 @@ const archerCharacter = characterView({
       description: '［水晶］目标角色手牌补到5张［强制］，额外+1［攻击行动］。',
       type: 2, // 法术(大招)
       min_targets: 1, max_targets: 1, target_type: 3,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: ARCHER_PRECISE_SHOT_ID,
@@ -57,6 +60,7 @@ const archerCharacter = characterView({
       description: '此攻击强制命中，但本次攻击伤害-1。',
       type: 3, // 响应(独有)
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: ARCHER_FLASH_TRAP_ID,
@@ -64,6 +68,7 @@ const archerCharacter = characterView({
       description: '对目标角色造成2点法术伤害③。',
       type: 2, // 法术(独有)
       min_targets: 1, max_targets: 1, target_type: 3,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
   ],
 });
@@ -187,7 +192,7 @@ export function piercingShotMissPrompt(): WsMessage {
       { id: 'skip', label: '跳过', button_label: '跳过', hint: '不发动响应技能' },
     ],
     min: 1, max: 1,
-    presentation: { kind: 'skill_choice', layout: 'overlay' },
+    presentation: { kind: 'skill_choice', layout: 'overlay', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -203,7 +208,7 @@ export function piercingShotDiscardPrompt(): WsMessage {
       { id: '5', label: '6: 闪光陷阱（光系 法术）', button_label: '选择', card_id: ARCHER_FLASH_TRAP_ID },
     ],
     min: 1, max: 1,
-    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'magic_only' },
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'magic_only', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -264,7 +269,7 @@ export function preciseShotConfirmPrompt(): WsMessage {
       { id: 'skip', label: '跳过', button_label: '跳过', hint: '不发动响应技能' },
     ],
     min: 1, max: 1,
-    presentation: { kind: 'skill_choice', layout: 'overlay' },
+    presentation: { kind: 'skill_choice', layout: 'overlay', numeric_base: 0 },
   } satisfies Prompt);
 }
 

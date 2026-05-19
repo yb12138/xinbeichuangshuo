@@ -18,11 +18,11 @@ test.describe('soulSorcerer soulAmp protocol harness', () => {
       skill_id: SS_SOUL_AMP_SKILL_ID,
     });
 
-    // Server pushes confirm prompt
+    // Server pushes confirm prompt (branch_select overlay)
     await protocolHarness.pushServerMessage(soulAmpConfirmPrompt());
     await expect(page.getByTestId('decision-overlay')).toBeVisible();
-    // Click "发动"
-    await page.getByTestId('prompt-option-0').click();
+    // Click "发动" (branch-option-0)
+    await page.getByTestId('decision-overlay').getByTestId('branch-option-0').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -40,7 +40,8 @@ test.describe('soulSorcerer soulAmp protocol harness', () => {
     });
 
     await protocolHarness.pushServerMessage(soulAmpConfirmPrompt());
-    await page.getByTestId('prompt-option-0').click();
+    await expect(page.getByTestId('decision-overlay')).toBeVisible();
+    await page.getByTestId('decision-overlay').getByTestId('branch-option-0').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -58,8 +59,8 @@ test.describe('soulSorcerer soulAmp protocol harness', () => {
     });
 
     await protocolHarness.pushServerMessage(soulAmpConfirmPrompt());
-    // Click "不发动"
-    await page.getByTestId('prompt-option-1').click();
+    // Click "不发动" (branch-option-1)
+    await page.getByTestId('decision-overlay').getByTestId('branch-option-1').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1],

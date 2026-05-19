@@ -232,10 +232,10 @@ export function shardStormDiscardPrompt(): WsMessage {
     choice_type: 'hb_holy_shard_combo',
     skill_id: HB_SHARD_STORM_SKILL_ID,
     options: [
-      { id: '0', label: '1: 火焰斩（火系攻击）', button_label: '选择' },
-      { id: '1', label: '2: 火焰斩（火系攻击）', button_label: '选择' },
+      { id: 'card_1', label: '1: 火焰斩（火系攻击）', button_label: '选择', card_id: 'card_1' },
+      { id: 'card_2', label: '2: 火焰斩（火系攻击）', button_label: '选择', card_id: 'card_2' },
     ],
-    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'same_element_attack_pair' },
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'same_element_attack_pair', numeric_base: 0 },
     min: 2,
     max: 2,
   } satisfies Prompt);
@@ -250,9 +250,10 @@ export function shardStormMissConfirmPrompt(): WsMessage {
     message: '【圣屑飓暴】未命中：是否移除治疗并令1名队友弃牌？',
     choice_type: 'hb_holy_shard_miss_confirm',
     skill_id: HB_SHARD_STORM_SKILL_ID,
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
     options: [
-      { id: '0', label: '是' },
-      { id: '1', label: '否' },
+      { id: '0', label: '是', button_label: '是' },
+      { id: '1', label: '否', button_label: '否' },
     ],
     min: 1,
     max: 1,
@@ -261,9 +262,9 @@ export function shardStormMissConfirmPrompt(): WsMessage {
 
 // 后端 buildHolyShardMissXPrompt：X 取值范围为 1..maxX（无 X=0 选项）。
 export function shardStormMissHealPrompt(maxX = 2): WsMessage {
-  const options: { id: string; label: string }[] = [];
+  const options: { id: string; label: string; button_label: string }[] = [];
   for (let i = 1; i <= maxX; i++) {
-    options.push({ id: `${i}`, label: `移除${i}点治疗，并令队友弃${i}张牌` });
+    options.push({ id: `${i}`, label: `移除${i}点治疗，并令队友弃${i}张牌`, button_label: `${i}` });
   }
   return requireActionMessage({
     type: 'confirm',
@@ -285,8 +286,9 @@ export function shardStormMissTargetPrompt(): WsMessage {
     message: '【圣屑飓暴】请选择一名队友令其弃牌：',
     choice_type: 'hb_holy_shard_miss_ally_target',
     skill_id: HB_SHARD_STORM_SKILL_ID,
+    presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
     options: [
-      { id: ALLY_PLAYER_ID, label: '勇者' },
+      { id: ALLY_PLAYER_ID, label: '勇者', button_label: '选择' },
     ],
     min: 1,
     max: 1,
@@ -344,12 +346,12 @@ export function radiantDescentScenario(options: { heal?: number; faith?: number 
 // 后端 buildRadiantDescentCostPrompt：根据 cost_modes 动态生成选项
 // choice_type: 'hb_radiant_descent_cost', Message: '【圣煌降临】请选择支付方式：'
 export function radiantDescentCostPrompt(costModes: ('heal' | 'faith')[]): WsMessage {
-  const options: { id: string; label: string }[] = [];
+  const options: { id: string; label: string; button_label: string }[] = [];
   for (const mode of costModes) {
     if (mode === 'heal') {
-      options.push({ id: `${options.length}`, label: '移除2点治疗' });
+      options.push({ id: `${options.length}`, label: '移除2点治疗', button_label: '移除治疗' });
     } else if (mode === 'faith') {
-      options.push({ id: `${options.length}`, label: '移除2点信仰' });
+      options.push({ id: `${options.length}`, label: '移除2点信仰', button_label: '移除信仰' });
     }
   }
   return requireActionMessage({
@@ -359,6 +361,7 @@ export function radiantDescentCostPrompt(costModes: ('heal' | 'faith')[]): WsMes
     choice_type: 'hb_radiant_descent_cost',
     skill_id: HB_RADIANT_DESCENT_SKILL_ID,
     options,
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
     min: 1,
     max: 1,
   } satisfies Prompt);
@@ -440,10 +443,10 @@ export function lightBurstBranchPrompt(): WsMessage {
     choice_type: 'hb_light_burst_mode',
     skill_id: HB_LIGHT_BURST_SKILL_ID,
     options: [
-      { id: '0', label: '分支一：摸牌+移除治疗+增信仰，队友+治疗' },
-      { id: '1', label: '分支二：移除X治疗，选择最多X名对手，弃X牌造成伤害' },
+      { id: '0', label: '分支一：摸牌+移除治疗+增信仰，队友+治疗', button_label: '分支一' },
+      { id: '1', label: '分支二：移除X治疗，选择最多X名对手，弃X牌造成伤害', button_label: '分支二' },
     ],
-    presentation: { kind: 'branch_select', layout: 'overlay' },
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
     min: 1,
     max: 1,
   } satisfies Prompt);
@@ -456,8 +459,9 @@ export function lightBurstBranch1TargetPrompt(): WsMessage {
     message: '【圣光爆裂】分支一：请选择一名队友令其+1治疗：',
     choice_type: 'hb_light_burst_mode_a_target',
     skill_id: HB_LIGHT_BURST_SKILL_ID,
+    presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
     options: [
-      { id: ALLY_PLAYER_ID, label: '勇者' },
+      { id: ALLY_PLAYER_ID, label: '勇者', button_label: '选择' },
     ],
     min: 1,
     max: 1,
@@ -466,9 +470,9 @@ export function lightBurstBranch1TargetPrompt(): WsMessage {
 
 // 后端 buildLightBurstModeBXPrompt 生成的选项格式：X={x}（移除{x}治疗并弃{x}张牌）
 export function lightBurstBranch2HealPrompt(maxX = 2): WsMessage {
-  const options: { id: string; label: string }[] = [];
+  const options: { id: string; label: string; button_label: string }[] = [];
   for (let x = 1; x <= maxX; x++) {
-    options.push({ id: `${x}`, label: `X=${x}（移除${x}治疗并弃${x}张牌）` });
+    options.push({ id: `${x}`, label: `X=${x}（移除${x}治疗并弃${x}张牌）`, button_label: `${x}` });
   }
   return requireActionMessage({
     type: 'confirm',
@@ -496,25 +500,20 @@ export function lightBurstBranch2TargetPrompt(args: {
 } = { xValue: 2 }): WsMessage {
   const xValue = args.xValue;
   const selectedCount = args.selectedCount ?? 0;
-  const selectedIds = args.selectedIds ?? [];
-  const allCandidates: { id: string; label: string }[] = [
-    { id: ENEMY_PLAYER_ID, label: '恶徒' },
-    { id: ENEMY_2_PLAYER_ID, label: '恶徒2' },
+  const options: { id: string; label: string; button_label: string }[] = [
+    { id: ENEMY_PLAYER_ID, label: '恶徒', button_label: '选择' },
+    { id: ENEMY_2_PLAYER_ID, label: '恶徒2', button_label: '选择' },
   ];
-  // 过滤掉已选中的目标
-  const options = allCandidates.filter(c => !selectedIds.includes(c.id));
-  if (args.withFinish ?? selectedCount > 0) {
-    options.push({ id: 'finish', label: '完成目标选择' });
-  }
   return requireActionMessage({
     type: 'confirm',
     player_id: HB_PLAYER_ID,
-    message: `【圣光爆裂】分支②请点击角色立绘选择目标（已选${selectedCount}/最多${xValue}）：`,
+    message: `【圣光爆裂】分支②请点击角色立绘选择目标（最多${xValue}名，当前已选${selectedCount}名）：`,
     choice_type: 'hb_light_burst_mode_b_targets',
     skill_id: HB_LIGHT_BURST_SKILL_ID,
     options,
+    presentation: { kind: 'target_picker', target_filter: 'custom', multi_target: xValue > 1, numeric_base: 0 },
     min: 1,
-    max: 1,
+    max: xValue,
   } satisfies Prompt);
 }
 
@@ -526,10 +525,11 @@ export function lightBurstBranch2DiscardPrompt(xValue: number): WsMessage {
     choice_type: 'hb_light_burst_mode_b_discard',
     skill_id: HB_LIGHT_BURST_SKILL_ID,
     options: [
-      { id: '0', label: '1: 火焰斩 (火 Attack)' },
-      { id: '1', label: '2: 火焰斩 (火 Attack)' },
-      { id: '2', label: '3: 水涟斩 (水 Attack)' },
+      { id: 'card_1', label: '1: 火焰斩 (火 Attack)', button_label: '选择', card_id: 'card_1' },
+      { id: 'card_2', label: '2: 火焰斩 (火 Attack)', button_label: '选择', card_id: 'card_2' },
+      { id: 'card_3', label: '3: 水涟斩 (水 Attack)', button_label: '选择', card_id: 'card_3' },
     ],
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'option_limited', numeric_base: 0 },
     min: xValue,
     max: xValue,
   } satisfies Prompt);
@@ -546,6 +546,17 @@ export function starBulletScenario(): ProtocolHarnessScenario {
 
   const players = [
     holyBow,
+    playerView({
+      id: ALLY_PLAYER_ID,
+      name: 'Ally Hero',
+      camp: 'Red',
+      role: 'hero',
+      hand: [card({ id: 'ally_card_1', name: '测试牌' })],
+      hand_count: 1,
+      heal: 2,
+      max_heal: 3,
+      is_active: false,
+    }),
     playerView({
       id: ENEMY_PLAYER_ID,
       name: 'Enemy Bot',
@@ -566,6 +577,7 @@ export function starBulletScenario(): ProtocolHarnessScenario {
     characters,
     players: [
       playerInfo({ id: HB_PLAYER_ID, name: 'E2E Holy Bow', camp: 'Red', char_role: 'holy_bow', is_host: true }),
+      playerInfo({ id: ALLY_PLAYER_ID, name: 'Ally Hero', camp: 'Red', char_role: 'hero' }),
       playerInfo({ id: ENEMY_PLAYER_ID, name: 'Enemy Bot', camp: 'Blue', char_role: 'villain' }),
     ],
     initialState: syncState({
@@ -588,10 +600,10 @@ export function starBulletResponsePrompt(): WsMessage {
     player_id: HB_PLAYER_ID,
     message: '你触发了响应技能【流星圣弹】，请选择是否发动。',
     options: [
-      { id: HB_STAR_BULLET_SKILL_ID, label: '流星圣弹', hint: '发动【流星圣弹】' },
-      { id: 'skip', label: '跳过', hint: '不发动响应技能' },
+      { id: HB_STAR_BULLET_SKILL_ID, label: '流星圣弹', button_label: '发动', hint: '发动【流星圣弹】' },
+      { id: 'skip', label: '跳过', button_label: '跳过', hint: '不发动响应技能' },
     ],
-    presentation: { kind: 'skill_choice', layout: 'overlay' },
+    presentation: { kind: 'skill_choice', layout: 'overlay', numeric_base: 0 },
     min: 1,
     max: 1,
   } satisfies Prompt);
@@ -604,9 +616,10 @@ export function starBulletCostPrompt(): WsMessage {
     message: '【流星圣弹】请选择要移除的资源：',
     choice_type: 'hb_meteor_bullet_cost',
     skill_id: HB_STAR_BULLET_SKILL_ID,
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
     options: [
-      { id: '0', label: '移除1点治疗' },
-      { id: '1', label: '移除1点信仰' },
+      { id: '0', label: '移除1点治疗', button_label: '移除治疗' },
+      { id: '1', label: '移除1点信仰', button_label: '移除信仰' },
     ],
     min: 1,
     max: 1,
@@ -620,8 +633,9 @@ export function starBulletTargetPrompt(): WsMessage {
     message: '【流星圣弹】请选择获得治疗的我方角色：',
     choice_type: 'hb_meteor_bullet_target',
     skill_id: HB_STAR_BULLET_SKILL_ID,
+    presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
     options: [
-      { id: ALLY_PLAYER_ID, label: '勇者' },
+      { id: ALLY_PLAYER_ID, label: '勇者', button_label: '选择' },
     ],
     min: 1,
     max: 1,
@@ -679,10 +693,10 @@ export function radiantCannonMoralePrompt(): WsMessage {
     choice_type: 'hb_radiant_cannon_side',
     skill_id: HB_RADIANT_CANNON_SKILL_ID,
     options: [
-      { id: 'red', label: '红方士气' },
-      { id: 'blue', label: '蓝方士气' },
+      { id: 'red', label: '红方士气', button_label: '红方' },
+      { id: 'blue', label: '蓝方士气', button_label: '蓝方' },
     ],
-    presentation: { kind: 'branch_select', layout: 'overlay' },
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
     min: 1,
     max: 1,
   } satisfies Prompt);
@@ -741,10 +755,10 @@ export function autoFillBranchPrompt(): WsMessage {
     choice_type: 'hb_auto_fill_resource',
     skill_id: HB_AUTO_FILL_SKILL_ID,
     options: [
-      { id: 'crystal', label: '消耗水晶，选择增加信仰或治疗' },
-      { id: 'gem', label: '消耗红宝石获得蓝水晶，选择增加信仰或治疗' },
+      { id: 'crystal', label: '消耗水晶，选择增加信仰或治疗', button_label: '消耗水晶' },
+      { id: 'gem', label: '消耗红宝石获得蓝水晶，选择增加信仰或治疗', button_label: '消耗宝石' },
     ],
-    presentation: { kind: 'branch_select', layout: 'overlay' },
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
     min: 1,
     max: 1,
   } satisfies Prompt);
@@ -758,10 +772,10 @@ export function autoFillRewardPrompt(): WsMessage {
     choice_type: 'hb_auto_fill_gain',
     skill_id: HB_AUTO_FILL_SKILL_ID,
     options: [
-      { id: 'faith', label: '+1信仰' },
-      { id: 'heal', label: '+1治疗' },
+      { id: 'faith', label: '+1信仰', button_label: '+信仰' },
+      { id: 'heal', label: '+1治疗', button_label: '+治疗' },
     ],
-    presentation: { kind: 'branch_select', layout: 'overlay' },
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
     min: 1,
     max: 1,
   } satisfies Prompt);

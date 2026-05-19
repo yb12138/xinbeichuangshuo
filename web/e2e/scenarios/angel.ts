@@ -37,6 +37,7 @@ const angelCharacter = characterView({
       description: '（每当你移除一个基础效果或是使用［圣盾］时）目标角色+1［治疗］。',
       type: 0, // 被动
       min_targets: 1, max_targets: 1, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: ANGEL_BLESSING_ID,
@@ -44,7 +45,7 @@ const angelCharacter = characterView({
       description: '（弃1张水系牌［展示］）指定目标玩家给你2张牌或指定2名角色各给你1张牌。',
       type: 2, // 法术
       min_targets: 0, max_targets: 0, target_type: 0,
-      cost_discards: 1, discard_element: 'Water',
+      cost_gem: 0, cost_crystal: 0, cost_discards: 1, discard_element: 'Water',
     },
     {
       id: ANGEL_WIND_CLEANSE_ID,
@@ -52,7 +53,7 @@ const angelCharacter = characterView({
       description: '（弃1张风系牌［展示］）移除场上任意1个基础效果。',
       type: 2, // 法术
       min_targets: 0, max_targets: 0, target_type: 0,
-      cost_discards: 1, discard_element: 'Wind',
+      cost_gem: 0, cost_crystal: 0, cost_discards: 1, discard_element: 'Wind',
     },
     {
       id: ANGEL_SONG_ID,
@@ -60,6 +61,7 @@ const angelCharacter = characterView({
       description: '［回合限定］［水晶］（在你的回合开始前发动）移除场上任意1个基础效果。',
       type: 3, // 响应(大招)
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: ANGEL_PROTECTION_ID,
@@ -67,6 +69,7 @@ const angelCharacter = characterView({
       description: 'X个［水晶］为我方抵御X点因法术伤害而造成的士气下降。',
       type: 3, // 响应(大招)
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
   ],
 });

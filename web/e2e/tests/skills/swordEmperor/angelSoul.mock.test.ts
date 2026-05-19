@@ -24,7 +24,7 @@ test.describe('sword emperor angel soul protocol harness', () => {
 
     await protocolHarness.pushServerMessage(angelSoulResponsePrompt());
     await expect(page.getByTestId('skill-branch-overlay')).toBeVisible();
-    await page.getByTestId('skill-branch-overlay').getByTestId('branch-option-1').click();
+    await page.getByTestId('prompt-option-skip').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1],

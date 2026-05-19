@@ -12,7 +12,7 @@ test.describe('hero forbidden power protocol harness', () => {
     await protocolHarness.pushServerMessage(forbiddenPowerConfirmPrompt());
     await expect(page.getByTestId('decision-overlay')).toBeVisible();
     // Click "发动"
-    await page.getByTestId('prompt-option-0').click();
+    await page.getByTestId('branch-option-0').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -24,7 +24,7 @@ test.describe('hero forbidden power protocol harness', () => {
     await protocolHarness.bootGame(forbiddenPowerScenario({ crystals: 2 }));
 
     await protocolHarness.pushServerMessage(forbiddenPowerConfirmPrompt());
-    await page.getByTestId('prompt-option-0').click();
+    await page.getByTestId('branch-option-0').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -35,7 +35,7 @@ test.describe('hero forbidden power protocol harness', () => {
     await protocolHarness.bootGame(forbiddenPowerScenario({ crystals: 1 }));
 
     await protocolHarness.pushServerMessage(forbiddenPowerConfirmPrompt());
-    await page.getByTestId('prompt-option-1').click();
+    await page.getByTestId('branch-option-1').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1],

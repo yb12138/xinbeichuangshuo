@@ -249,11 +249,12 @@ export function newMoonShelterResponsePrompt(): WsMessage {
       {
         id: MG_NEW_MOON_SHelter_SKILL_ID,
         label: '新月庇护',
+        button_label: '发动',
         hint: '将本次爆牌改为暗月并防止士气下降',
       },
-      { id: 'skip', label: '跳过', hint: '不发动响应技能' },
+      { id: 'skip', label: '跳过', button_label: '跳过', hint: '不发动响应技能' },
     ],
-    presentation: { kind: 'skill_choice', layout: 'overlay' },
+    presentation: { kind: 'skill_choice', layout: 'overlay', numeric_base: 0 },
     min: 1,
     max: 1,
   } satisfies Prompt);
@@ -369,10 +370,10 @@ export function medusaEyeDarkMoonPrompt(): WsMessage {
     choice_type: 'mg_medusa_darkmoon_pick',
     skill_id: MG_MEDUSA_EYE_SKILL_ID,
     options: [
-      { id: '0', label: '移除闇月[暗月法术/Magic/Dark]', button_label: '移除闇月[0]', field_index: 0 },
-      { id: '1', label: '移除闇月[火焰斩/Attack/Fire]', button_label: '移除闇月[1]', field_index: 1 },
+      { id: '0', label: '移除闇月[暗月法术/Magic/Dark]', button_label: '移除闇月[0]', field_index: 0, card_id: 'mg-dark-moon-0' },
+      { id: '1', label: '移除闇月[火焰斩/Attack/Fire]', button_label: '移除闇月[1]', field_index: 1, card_id: 'mg-dark-moon-1' },
     ],
-    presentation: { kind: 'card_picker', layout: 'field_cover', card_source: 'field', card_filter: 'effect:MoonDarkMoon' },
+    presentation: { kind: 'card_picker', layout: 'field_cover', card_source: 'field', card_filter: 'effect:MoonDarkMoon', numeric_base: 0 },
     min: 1,
     max: 1,
   } satisfies Prompt);
@@ -387,11 +388,12 @@ export function medusaEyeMagicDiscardPrompt(): WsMessage {
     choice_type: 'mg_medusa_magic_discard',
     skill_id: MG_MEDUSA_EYE_SKILL_ID,
     options: [
-      { id: '0', label: '1: 火焰斩 (火 Attack)' },
-      { id: '1', label: '2: 水涟斩 (水 Attack)' },
-      { id: '2', label: '3: 暗月法术 (暗 Magic)' },
-      { id: '3', label: '4: 圣光 (光 Magic)' },
+      { id: 'card_1', label: '1: 火焰斩 (火 Attack)', button_label: '选择', card_id: 'card_1' },
+      { id: 'card_2', label: '2: 水涟斩 (水 Attack)', button_label: '选择', card_id: 'card_2' },
+      { id: 'card_3', label: '3: 暗月法术 (暗 Magic)', button_label: '选择', card_id: 'card_3' },
+      { id: 'card_4', label: '4: 圣光 (光 Magic)', button_label: '选择', card_id: 'card_4' },
     ],
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'option_limited', numeric_base: 0 },
     min: 1,
     max: 1,
   } satisfies Prompt);
@@ -445,12 +447,12 @@ export function moonCycleScenario(options: { dark_moon_cards?: number; heal?: nu
 export function moonCycleBranchPrompt(options: { branch1?: boolean; branch2?: boolean } = {}): WsMessage {
   const branch1 = options.branch1 ?? true
   const branch2 = options.branch2 ?? true
-  const promptOptions: Prompt['options'] = [{ id: 'decline', label: '不发动' }]
+  const promptOptions: Prompt['options'] = [{ id: 'decline', label: '不发动', button_label: '不发动' }]
   if (branch1) {
-    promptOptions.push({ id: 'branch1', label: '分支①：移除1个闇月，令目标角色+1治疗' })
+    promptOptions.push({ id: 'branch1', label: '分支①：移除1个闇月，令目标角色+1治疗', button_label: '分支①' })
   }
   if (branch2) {
-    promptOptions.push({ id: 'branch2', label: '分支②：移除1点治疗，你+1新月' })
+    promptOptions.push({ id: 'branch2', label: '分支②：移除1点治疗，你+1新月', button_label: '分支②' })
   }
   return requireActionMessage({
     type: 'confirm',
@@ -459,7 +461,7 @@ export function moonCycleBranchPrompt(options: { branch1?: boolean; branch2?: bo
     choice_type: 'mg_moon_cycle_mode',
     skill_id: MG_MOON_CYCLE_SKILL_ID,
     options: promptOptions,
-    presentation: { kind: 'branch_select', layout: 'overlay', cancel_policy: 'decline', has_decline: true, decline_index: 0 },
+    presentation: { kind: 'branch_select', layout: 'overlay', cancel_policy: 'decline', has_decline: true, decline_index: 0, numeric_base: 0 },
     min: 1,
     max: 1,
   } satisfies Prompt);
@@ -473,9 +475,9 @@ export function moonCycleTargetPrompt(): WsMessage {
     choice_type: 'mg_moon_cycle_heal_target',
     skill_id: MG_MOON_CYCLE_SKILL_ID,
     options: [
-      { id: ENEMY_PLAYER_ID, label: '恶徒' },
+      { id: ENEMY_PLAYER_ID, label: '恶徒', button_label: '选择' },
     ],
-    presentation: { kind: 'target_picker' },
+    presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
     min: 1,
     max: 1,
   } satisfies Prompt);
@@ -539,18 +541,39 @@ export function moonReadScenario(options: { heal?: number } = {}): ProtocolHarne
   };
 }
 
+// 月渎确认：是否发动
+export function moonReadConfirmPrompt(): WsMessage {
+  return requireActionMessage({
+    type: 'choose_skill',
+    player_id: MG_PLAYER_ID,
+    message: '你触发了响应技能【月渎】，请选择是否发动。',
+    options: [
+      {
+        id: MG_MOON_READ_SKILL_ID,
+        label: '月渎',
+        button_label: '发动',
+        hint: '对受伤目标追加1点法术伤害',
+      },
+      { id: 'skip', label: '跳过', button_label: '跳过', hint: '不发动响应技能' },
+    ],
+    presentation: { kind: 'skill_choice', layout: 'overlay', numeric_base: 0 },
+    min: 1,
+    max: 1,
+  } satisfies Prompt);
+}
+
 // 月渎目标选择：mg_blasphemy_target
 export function moonReadTargetPrompt(): WsMessage {
   return requireActionMessage({
     type: 'confirm',
     player_id: MG_PLAYER_ID,
-    message: '【月渎】请选择是否对当前受伤目标追加1点法术伤害：',
+    message: '【月渎】请选择目标追加1点法术伤害：',
     choice_type: 'mg_blasphemy_target',
     skill_id: MG_MOON_READ_SKILL_ID,
+    presentation: { kind: 'target_picker', target_filter: 'enemies', numeric_base: 0 },
     options: [
-      { id: '0', label: '跳过月渎' },
-      { id: '1', label: '对 Enemy Bot 造成1点法术伤害' },
-      { id: '2', label: '对 Enemy Bot 2 造成1点法术伤害' },
+      { id: ENEMY_PLAYER_ID, label: 'Enemy Bot', button_label: '选择' },
+      { id: ENEMY_2_PLAYER_ID, label: 'Enemy Bot 2', button_label: '选择' },
     ],
     min: 1,
     max: 1,
@@ -615,20 +638,21 @@ export function darkmoonSlashResponsePrompt(): WsMessage {
       {
         id: MG_DARKMOON_SLASH_SKILL_ID,
         label: '闇月斩',
+        button_label: '发动',
         hint: '消耗1点蓝水晶（红宝石可替代），移除X个闇月使本次攻击伤害+X',
       },
-      { id: 'skip', label: '跳过', hint: '不发动响应技能' },
+      { id: 'skip', label: '跳过', button_label: '跳过', hint: '不发动响应技能' },
     ],
-    presentation: { kind: 'skill_choice', layout: 'overlay' },
+    presentation: { kind: 'skill_choice', layout: 'overlay', numeric_base: 0 },
     min: 1,
     max: 1,
   } satisfies Prompt);
 }
 
 export function darkmoonSlashXPrompt(maxX: number): WsMessage {
-  const options: { id: string; label: string }[] = [];
+  const options: { id: string; label: string; button_label: string }[] = [];
   for (let x = 1; x <= maxX; x++) {
-    options.push({ id: `${x}`, label: `移除${x}个闇月，本次攻击伤害额外+${x}` });
+    options.push({ id: `${x}`, label: `移除${x}个闇月，本次攻击伤害额外+${x}`, button_label: `${x}` });
   }
   return requireActionMessage({
     type: 'confirm',
@@ -724,19 +748,19 @@ export function paleMoonBranchPrompt(): WsMessage {
     choice_type: 'mg_pale_moon_mode',
     skill_id: MG_PALE_MOON_SKILL_ID,
     options: [
-      { id: '0', label: '分支①：移除3石化，强化下次主动攻击并获得额外回合' },
-      { id: '1', label: '分支②：移除X新月，弃1张牌并造成(X+1)法术伤害' },
+      { id: '0', label: '分支①：移除3石化，强化下次主动攻击并获得额外回合', button_label: '分支①' },
+      { id: '1', label: '分支②：移除X新月，弃1张牌并造成(X+1)法术伤害', button_label: '分支②' },
     ],
-    presentation: { kind: 'branch_select', layout: 'overlay' },
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
     min: 1,
     max: 1,
   } satisfies Prompt);
 }
 
 export function paleMoonXPrompt(xMax: number): WsMessage {
-  const options: { id: string; label: string }[] = [];
+  const options: { id: string; label: string; button_label: string }[] = [];
   for (let i = 1; i <= xMax; i++) {
-    options.push({ id: `${i}`, label: `X=${i}（目标法术伤害=${i + 1}）` });
+    options.push({ id: `${i}`, label: `X=${i}（目标法术伤害=${i + 1}）`, button_label: `${i}` });
   }
   return requireActionMessage({
     type: 'confirm',
@@ -759,9 +783,10 @@ export function paleMoonTargetPrompt(): WsMessage {
     message: '【苍白之月】分支②请选择目标对手：',
     choice_type: 'mg_pale_moon_target',
     skill_id: MG_PALE_MOON_SKILL_ID,
+    presentation: { kind: 'target_picker', target_filter: 'enemies', numeric_base: 0 },
     options: [
-      { id: ENEMY_PLAYER_ID, label: 'Enemy Bot' },
-      { id: ENEMY_2_PLAYER_ID, label: 'Enemy Bot 2' },
+      { id: ENEMY_PLAYER_ID, label: 'Enemy Bot', button_label: '选择' },
+      { id: ENEMY_2_PLAYER_ID, label: 'Enemy Bot 2', button_label: '选择' },
     ],
     min: 1,
     max: 1,
@@ -777,12 +802,13 @@ export function paleMoonDiscardPrompt(): WsMessage {
     choice_type: 'mg_pale_moon_discard',
     skill_id: MG_PALE_MOON_SKILL_ID,
     options: [
-      { id: '0', label: '1: 火焰斩 (火 Attack)' },
-      { id: '1', label: '2: 水涟斩 (水 Attack)' },
-      { id: '2', label: '3: 暗月法术 (暗 Magic)' },
-      { id: '3', label: '4: 圣光 (光 Magic)' },
+      { id: '0', label: '1: 火焰斩 (火 Attack)', button_label: '选择', card_id: 'card_1' },
+      { id: '1', label: '2: 水涟斩 (水 Attack)', button_label: '选择', card_id: 'card_2' },
+      { id: '2', label: '3: 暗月法术 (暗 Magic)', button_label: '选择', card_id: 'card_3' },
+      { id: '3', label: '4: 圣光 (光 Magic)', button_label: '选择', card_id: 'card_4' },
     ],
     min: 1,
     max: 1,
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'option_limited', numeric_base: 0 },
   } satisfies Prompt);
 }

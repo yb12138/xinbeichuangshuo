@@ -19,7 +19,7 @@ test.describe('holy bow shard storm protocol harness', () => {
     await page.getByTestId('prompt-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0, 1],
+      card_ids: ['card_1', 'card_2'],
     });
   });
 
@@ -33,12 +33,12 @@ test.describe('holy bow shard storm protocol harness', () => {
     await page.getByTestId('prompt-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0, 1],
+      card_ids: ['card_1', 'card_2'],
     });
 
     // 2) miss confirm：决定是否进入未命中分支
     await protocolHarness.pushServerMessage(shardStormMissConfirmPrompt());
-    await page.getByTestId('numeric-option-0').click();
+    await page.getByTestId('branch-option-0').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -70,12 +70,12 @@ test.describe('holy bow shard storm protocol harness', () => {
     await page.getByTestId('prompt-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0, 1],
+      card_ids: ['card_1', 'card_2'],
     });
 
     // 选「否」直接结束未命中流程，不会进入 miss_x
     await protocolHarness.pushServerMessage(shardStormMissConfirmPrompt());
-    await page.getByTestId('numeric-option-1').click();
+    await page.getByTestId('branch-option-1').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1],

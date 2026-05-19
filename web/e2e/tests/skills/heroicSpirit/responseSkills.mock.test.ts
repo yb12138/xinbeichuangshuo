@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { test } from '../../../fixtures/protocolHarness.fixture';
+import { expect, test } from '../../../fixtures/protocolHarness.fixture';
 import {
   HEROIC_SPIRIT_RAGE_SUPPRESS_ID,
   HEROIC_SPIRIT_SEAL_STRIKE_ID,
@@ -32,6 +32,20 @@ async function clickOverlayOption(page: Page, selector: string) {
   }
 }
 
+async function clickSkillChoiceOption(page: Page, index: number) {
+  await page
+    .getByTestId('skill-branch-overlay')
+    .getByTestId(`branch-option-${index}`)
+    .click();
+}
+
+async function clickSkillChoiceSkip(page: Page) {
+  await page
+    .getByTestId('skill-branch-overlay')
+    .getByTestId('prompt-option-skip')
+    .click();
+}
+
 test.describe('heroic spirit rage suppress protocol harness', () => {
   test('rage suppress: confirm forced hit on miss', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(rageSuppressScenario());
@@ -39,8 +53,8 @@ test.describe('heroic spirit rage suppress protocol harness', () => {
     // Server pushes rage suppress prompt on miss
     await protocolHarness.pushServerMessage(rageSuppressPrompt());
 
-    // Click confirm button
-    await clickOverlayOption(page, 'prompt-option-confirm');
+    // Click activate option
+    await clickSkillChoiceOption(page, 0);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -50,7 +64,9 @@ test.describe('heroic spirit rage suppress protocol harness', () => {
     await protocolHarness.pushServerMessage(rageSuppressSealSelectPrompt());
 
     // Select seal to flip
-    await clickOverlayOption(page, 'prompt-option-seal_1');
+    const decisionRoot = page.locator('.overlay-panel-root--decision');
+    await expect(decisionRoot).toBeVisible();
+    await decisionRoot.getByTestId('branch-option-0').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -63,7 +79,7 @@ test.describe('heroic spirit rage suppress protocol harness', () => {
     await protocolHarness.pushServerMessage(rageSuppressPrompt());
 
     // Click skip button
-    await clickOverlayOption(page, 'prompt-option-skip');
+    await clickSkillChoiceSkip(page);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1],
@@ -78,8 +94,8 @@ test.describe('heroic spirit seal strike protocol harness', () => {
     // Server pushes seal strike prompt on hit
     await protocolHarness.pushServerMessage(sealStrikePrompt());
 
-    // Click confirm button
-    await clickOverlayOption(page, 'prompt-option-confirm');
+    // Click activate option
+    await clickSkillChoiceOption(page, 0);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -89,17 +105,18 @@ test.describe('heroic spirit seal strike protocol harness', () => {
     await protocolHarness.pushServerMessage(sealStrikeDiscardPrompt('Fire'));
 
     // Select fire card to discard
-    await clickOverlayOption(page, 'prompt-option-hs-fire-attack');
+    await page.getByTestId('hand-card-0').click();
+    await page.getByTestId('prompt-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0],
+      card_ids: ['hs-fire-attack'],
     });
 
     // Server pushes seal selection
     await protocolHarness.pushServerMessage(sealStrikeSealSelectPrompt());
 
     // Select seal to flip
-    await clickOverlayOption(page, 'prompt-option-seal_1');
+    await clickOverlayOption(page, 'branch-option-0');
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -112,7 +129,7 @@ test.describe('heroic spirit seal strike protocol harness', () => {
     await protocolHarness.pushServerMessage(sealStrikePrompt());
 
     // Click skip button
-    await clickOverlayOption(page, 'prompt-option-skip');
+    await clickSkillChoiceSkip(page);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1],
@@ -127,8 +144,8 @@ test.describe('heroic spirit magic fusion protocol harness', () => {
     // Server pushes magic fusion prompt on miss
     await protocolHarness.pushServerMessage(magicFusionPrompt());
 
-    // Click confirm button
-    await clickOverlayOption(page, 'prompt-option-confirm');
+    // Click activate option
+    await clickSkillChoiceOption(page, 0);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -138,17 +155,18 @@ test.describe('heroic spirit magic fusion protocol harness', () => {
     await protocolHarness.pushServerMessage(magicFusionDiscardPrompt('Fire'));
 
     // Select non-fire card to discard
-    await clickOverlayOption(page, 'prompt-option-hs-water-attack');
+    await page.getByTestId('hand-card-2').click();
+    await page.getByTestId('prompt-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0],
+      card_ids: ['hs-water-attack'],
     });
 
     // Server pushes seal selection
     await protocolHarness.pushServerMessage(magicFusionSealSelectPrompt());
 
     // Select seal to flip
-    await clickOverlayOption(page, 'prompt-option-seal_1');
+    await clickOverlayOption(page, 'branch-option-0');
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -161,7 +179,7 @@ test.describe('heroic spirit magic fusion protocol harness', () => {
     await protocolHarness.pushServerMessage(magicFusionPrompt());
 
     // Click skip button
-    await clickOverlayOption(page, 'prompt-option-skip');
+    await clickSkillChoiceSkip(page);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1],
@@ -177,7 +195,7 @@ test.describe('heroic spirit seal suppress combo protocol harness', () => {
     await protocolHarness.pushServerMessage(sealSuppressComboPrompt());
 
     // Select rage suppress for forced hit
-    await clickOverlayOption(page, 'prompt-option-heroic_spirit_rage_suppress');
+    await clickSkillChoiceOption(page, 0);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -190,7 +208,7 @@ test.describe('heroic spirit seal suppress combo protocol harness', () => {
     await protocolHarness.pushServerMessage(sealSuppressComboPrompt());
 
     // Select magic fusion for magic seal form bonus
-    await clickOverlayOption(page, 'prompt-option-heroic_spirit_magic_fusion');
+    await clickSkillChoiceOption(page, 1);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1],
@@ -205,8 +223,8 @@ test.describe('heroic spirit double echo protocol harness', () => {
     // Server pushes double echo prompt after hit
     await protocolHarness.pushServerMessage(doubleEchoPrompt());
 
-    // Click confirm button
-    await clickOverlayOption(page, 'prompt-option-confirm');
+    // Click activate option
+    await clickSkillChoiceOption(page, 0);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -219,7 +237,7 @@ test.describe('heroic spirit double echo protocol harness', () => {
     await protocolHarness.pushServerMessage(doubleEchoPrompt());
 
     // Click skip button
-    await clickOverlayOption(page, 'prompt-option-skip');
+    await clickSkillChoiceSkip(page);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1],

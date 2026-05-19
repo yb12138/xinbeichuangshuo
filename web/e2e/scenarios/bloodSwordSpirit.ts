@@ -36,6 +36,7 @@ const bloodSwordSpiritCharacter = characterView({
       description: '（攻击前发动）若你有［鲜血］，你可以对自己造成1点法术伤害③，本次攻击伤害+1，可连续发动。',
       type: 3, // 响应
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: BLOOD_SWORD_SPIRIT_BLOOD_DYE_ROSE_ID,
@@ -43,6 +44,7 @@ const bloodSwordSpiritCharacter = characterView({
       description: '（［鲜血］≥3时发动）指定一名对手移除其所有［治疗］，并令一名队友获得等量的［治疗］。',
       type: 2, // 法术
       min_targets: 2, max_targets: 2, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: BLOOD_SWORD_SPIRIT_BLOOD_BARRIER_ID,
@@ -50,6 +52,7 @@ const bloodSwordSpiritCharacter = characterView({
       description: '（受到法术伤害时发动）若你有［鲜血］，移除1［鲜血］，令该次伤害-1。',
       type: 3, // 响应
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: BLOOD_SWORD_SPIRIT_SCATTERING_DANCE_ID,
@@ -57,6 +60,7 @@ const bloodSwordSpiritCharacter = characterView({
       description: '选择：Ⅰ、对一名对手造成2点法术伤害③，在其面前放置一个［血色庭院］；Ⅱ、移除自己1［治疗］，令一名队友+1［治疗］，在其面前放置一个［血色庭院］。',
       type: 1, // 启动
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
   ],
 });

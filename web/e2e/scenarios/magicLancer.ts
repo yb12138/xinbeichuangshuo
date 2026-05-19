@@ -44,6 +44,7 @@ const magicLancerCharacter = characterView({
       min_targets: 0,
       max_targets: 0,
       target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: ML_PHANTOM_STARDUST_SKILL_ID,
@@ -53,6 +54,7 @@ const magicLancerCharacter = characterView({
       min_targets: 1,
       max_targets: 1,
       target_type: 2,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: ML_DARK_BARRIER_SKILL_ID,
@@ -62,6 +64,7 @@ const magicLancerCharacter = characterView({
       min_targets: 0,
       max_targets: 0,
       target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: ML_FULLNESS_SKILL_ID,
@@ -71,6 +74,7 @@ const magicLancerCharacter = characterView({
       min_targets: 0,
       max_targets: 0,
       target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: ML_BLACK_SPEAR_SKILL_ID,
@@ -80,7 +84,7 @@ const magicLancerCharacter = characterView({
       min_targets: 0,
       max_targets: 0,
       target_type: 0,
-      cost_crystal: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
   ],
 });
@@ -240,8 +244,9 @@ export function stardustTargetPrompt(): WsMessage {
     message: '【幻影星尘】请选择2点法术伤害目标：',
     choice_type: 'ml_stardust_target',
     skill_id: ML_PHANTOM_STARDUST_SKILL_ID,
+    presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
     options: [
-      { id: '0', label: 'Enemy E1' },
+      { id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
     ],
     min: 1,
     max: 1,
@@ -266,12 +271,12 @@ export function darkBarrierScenario(options: {
 }
 
 export function darkBarrierCardsPrompt(options?: {
-  cardOptions?: Array<{ id: string; label: string }>;
+  cardOptions?: Array<{ id: string; label: string; button_label: string; card_id: string }>;
 }): WsMessage {
   const opts = options?.cardOptions ?? [
-    { id: '0', label: '1: 圣光（光系 法术）' },
-    { id: '1', label: '2: 魔弹（暗灭 法术）' },
-    { id: '2', label: '3: 雷光斩（雷系 攻击）' },
+    { id: 'ml-magic-1', label: '1: 圣光（光系 法术）', button_label: '选择', card_id: 'ml-magic-1' },
+    { id: 'ml-magic-2', label: '2: 魔弹（暗灭 法术）', button_label: '选择', card_id: 'ml-magic-2' },
+    { id: 'ml-thunder-1', label: '3: 雷光斩（雷系 攻击）', button_label: '选择', card_id: 'ml-thunder-1' },
   ];
   return requireActionMessage({
     type: 'choose_cards',
@@ -280,7 +285,7 @@ export function darkBarrierCardsPrompt(options?: {
     choice_type: 'ml_dark_barrier_cards',
     skill_id: '',
     options: opts,
-    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'magic_or_thunder_chain' },
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'magic_or_thunder_chain', numeric_base: 0 },
     min: 1,
     max: opts.length,
   } satisfies Prompt);
@@ -364,15 +369,16 @@ export function fullnessAllyDiscardScenario(): ProtocolHarnessScenario {
 
 export function fullnessCostCardPrompt(): WsMessage {
   return requireActionMessage({
-    type: 'confirm',
+    type: 'choose_cards',
     player_id: ML_PLAYER_ID,
     message: '【充盈】请选择要弃置的1张法术牌或雷系牌：',
     choice_type: 'ml_fullness_cost_card',
     skill_id: ML_FULLNESS_SKILL_ID,
     options: [
-      { id: '2', label: '3: 圣光（光系 法术）' },
-      { id: '1', label: '2: 雷光斩（雷系 攻击）' },
+      { id: ML_MAGIC_CARD_ID, label: '3: 圣光（光系 法术）', button_label: '选择', card_id: ML_MAGIC_CARD_ID },
+      { id: ML_THUNDER_CARD_ID, label: '2: 雷光斩（雷系 攻击）', button_label: '选择', card_id: ML_THUNDER_CARD_ID },
     ],
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'magic_or_thunder', numeric_base: 0 },
     min: 1,
     max: 1,
   } satisfies Prompt);
@@ -387,10 +393,10 @@ export function fullnessAllyDiscardPrompt(): WsMessage {
     skill_id: ML_FULLNESS_SKILL_ID,
     options: [
       { id: '-1', label: '不弃置', button_label: '不弃置' },
-      { id: '0', label: '水涟斩（水系 攻击）', button_label: '选择' },
-      { id: '1', label: '圣光（光系 法术）', button_label: '选择' },
+      { id: 'ally-card-0', label: '水涟斩（水系 攻击）', button_label: '选择', card_id: 'ally-card-0' },
+      { id: 'ally-card-1', label: '圣光（光系 法术）', button_label: '选择', card_id: 'ally-card-1' },
     ],
-    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'option_limited', has_decline: true, decline_index: 0, cancel_policy: 'decline' },
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'option_limited', has_decline: true, decline_index: 0, cancel_policy: 'decline', numeric_base: 0 },
     min: 1,
     max: 1,
   } satisfies Prompt);
@@ -411,11 +417,12 @@ export function blackSpearScenario(options: {
 }
 
 export function blackSpearXPrompt(maxX = 2): WsMessage {
-  const opts: Array<{ id: string; label: string }> = [];
+  const opts: Array<{ id: string; label: string; button_label: string }> = [];
   for (let x = 1; x <= maxX; x++) {
     opts.push({
       id: String(x),
       label: `X=${x}（消耗${x}蓝水晶，伤害额外+${x + 2}）`,
+      button_label: String(x),
     });
   }
   return requireActionMessage({

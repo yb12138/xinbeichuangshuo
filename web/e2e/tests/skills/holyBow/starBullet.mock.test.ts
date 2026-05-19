@@ -26,7 +26,7 @@ test.describe('holy bow meteor bullet (流星圣弹) protocol harness', () => {
 
     // 2) hb_meteor_bullet_cost：选择移除 1 治疗
     await protocolHarness.pushServerMessage(starBulletCostPrompt());
-    await page.getByTestId('prompt-option-0').click();
+    await page.locator('.overlay-panel-root--decision').getByTestId('branch-option-0').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -48,7 +48,7 @@ test.describe('holy bow meteor bullet (流星圣弹) protocol harness', () => {
     await expect(page.getByTestId('skill-branch-overlay')).toBeVisible();
     await page
       .getByTestId('skill-branch-overlay')
-      .getByTestId('branch-option-1')
+      .getByTestId('prompt-option-skip')
       .click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',

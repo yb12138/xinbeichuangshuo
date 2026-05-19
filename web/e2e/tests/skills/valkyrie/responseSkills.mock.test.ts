@@ -1,64 +1,85 @@
-import type { Page } from '@playwright/test';
-import { test } from '../../../fixtures/protocolHarness.fixture';
+import { test, expect } from '../../../fixtures/protocolHarness.fixture';
 import {
   ENEMY_PLAYER_ID,
   ALLY_PLAYER_ID,
   holyPursuitScenario,
+  holyPursuitPrompt,
   peaceWalkerScenario,
+  peaceWalkerPrompt,
   martialGodLightScenario,
   martialGodLightBranchPrompt,
   martialGodLightTargetPrompt,
   heroicSummonScenario,
+  heroicSummonSkillPrompt,
   heroicSummonDiscardPrompt,
 } from '../../../scenarios/valkyrie';
 
-async function clickOverlayOption(page: Page, selector: string) {
-  const overlay = page.getByTestId('decision-overlay');
-  const overlayVisible = await overlay.isVisible({ timeout: 1000 }).catch(() => false);
-  if (overlayVisible) {
-    await overlay.getByTestId(selector).click();
-  } else {
-    await page.getByTestId('prompt-dialog').getByTestId(selector).click();
-  }
-}
-
-async function selectTarget(page: Page, targetId: string) {
+async function selectTarget(page: import('@playwright/test').Page, targetId: string) {
   await page.getByTestId(`player-area-${targetId}`).click();
 }
 
 // ============================================================
-// Holy Pursuit (神圣追击) - 后端通过 response_skills 自动触发
+// Holy Pursuit (神圣追击) - 后端通过 RequireAction + skill_choice 触发
 // ============================================================
 
 test.describe('valkyrie holy pursuit protocol harness', () => {
-  test('holy pursuit: triggered via response_skills', async ({ protocolHarness }) => {
-    // 场景中后端会设置 response_skills，前端自动弹出确认弹框
+  test('holy pursuit: confirm skill', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(holyPursuitScenario());
 
-    // 检查 response_skills 触发的弹框显示
-    // 用户点击发动按钮
-    // 前端发送 UseSkill action
+    // Server pushes skill_choice prompt
+    await protocolHarness.pushServerMessage(holyPursuitPrompt());
+
+    // Click confirm (skill_choice with 1 skill: prompt-option-{skillId})
+    await page.getByTestId('prompt-option-valkyrie_holy_pursuit').click();
     await protocolHarness.expectSubmitAction({
-      action_type: 'UseSkill',
-      skill_id: 'valkyrie_holy_pursuit',
+      action_type: 'Select',
+      option_indexes: [0],
+    });
+  });
+
+  test('holy pursuit: skip skill', async ({ page, protocolHarness }) => {
+    await protocolHarness.bootGame(holyPursuitScenario());
+
+    await protocolHarness.pushServerMessage(holyPursuitPrompt());
+
+    // Click skip (skill_choice: prompt-option-skip)
+    await page.getByTestId('prompt-option-skip').click();
+    await protocolHarness.expectSubmitAction({
+      action_type: 'Select',
+      option_indexes: [1],
     });
   });
 });
 
 // ============================================================
-// Peace Walker (和平行者) - 后端通过 response_skills + targets 触发
+// Peace Walker (和平行者) - 后端通过 RequireAction + skill_choice 触发
 // ============================================================
 
 test.describe('valkyrie peace walker protocol harness', () => {
-  test('peace walker: triggered via response_skills with target', async ({ protocolHarness }) => {
+  test('peace walker: confirm skill', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(peaceWalkerScenario());
 
-    // 检查 response_skills 触发的弹框显示
-    // 用户点击发动按钮后，前端弹出目标选择器（min_targets=1）
+    // Server pushes skill_choice prompt
+    await protocolHarness.pushServerMessage(peaceWalkerPrompt());
+
+    // Click confirm (skill_choice with 1 skill: prompt-option-{skillId})
+    await page.getByTestId('prompt-option-valkyrie_peace_walker').click();
     await protocolHarness.expectSubmitAction({
-      action_type: 'UseSkill',
-      skill_id: 'valkyrie_peace_walker',
-      targets: [{ target_user_id: ALLY_PLAYER_ID }],
+      action_type: 'Select',
+      option_indexes: [0],
+    });
+  });
+
+  test('peace walker: skip skill', async ({ page, protocolHarness }) => {
+    await protocolHarness.bootGame(peaceWalkerScenario());
+
+    await protocolHarness.pushServerMessage(peaceWalkerPrompt());
+
+    // Click skip (skill_choice: prompt-option-skip)
+    await page.getByTestId('prompt-option-skip').click();
+    await protocolHarness.expectSubmitAction({
+      action_type: 'Select',
+      option_indexes: [1],
     });
   });
 });
@@ -71,11 +92,12 @@ test.describe('valkyrie martial god light protocol harness', () => {
   test('martial god light: select draw 2 cards', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(martialGodLightScenario());
 
-    // Server pushes martial god light branch prompt at turn start
-    await protocolHarness.pushServerMessage(martialGodLightBranchPrompt());
+    // Server pushes martial god light branch prompt at turn start (with maxX=2)
+    await protocolHarness.pushServerMessage(martialGodLightBranchPrompt(2));
 
-    // Select draw option
-    await clickOverlayOption(page, 'prompt-option-draw');
+    // Select draw option (branch_select: branch-option-0)
+    await expect(page.getByTestId('decision-overlay')).toBeVisible();
+    await page.getByTestId('decision-overlay').getByTestId('branch-option-0').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -85,10 +107,12 @@ test.describe('valkyrie martial god light protocol harness', () => {
   test('martial god light: select damage to enemy', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(martialGodLightScenario());
 
-    await protocolHarness.pushServerMessage(martialGodLightBranchPrompt());
+    // Server pushes martial god light branch prompt at turn start (with maxX=2)
+    await protocolHarness.pushServerMessage(martialGodLightBranchPrompt(2));
 
-    // Select damage option
-    await clickOverlayOption(page, 'prompt-option-damage');
+    // Select damage option (branch_select: branch-option-1)
+    await expect(page.getByTestId('decision-overlay')).toBeVisible();
+    await page.getByTestId('decision-overlay').getByTestId('branch-option-1').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1],
@@ -97,43 +121,60 @@ test.describe('valkyrie martial god light protocol harness', () => {
     // Server pushes target selection
     await protocolHarness.pushServerMessage(martialGodLightTargetPrompt());
 
-    // Select enemy target
+    // Select enemy target (target_picker: click player area)
+    await expect(page.getByTestId('decision-overlay')).not.toBeVisible({ timeout: 5000 });
     await selectTarget(page, ENEMY_PLAYER_ID);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0],
+      option_indexes: [1],
     });
   });
 });
 
 // ============================================================
-// Heroic Summon (英灵召唤) - 后端通过 response_skills 触发
+// Heroic Summon (英灵召唤) - 后端通过 RequireAction + skill_choice 触发
 // 弃牌使用 choice_type: valkyrie_heroic_discard_card
 // ============================================================
 
 test.describe('valkyrie heroic summon protocol harness', () => {
+  test('heroic summon: confirm skill', async ({ page, protocolHarness }) => {
+    await protocolHarness.bootGame(heroicSummonScenario());
+
+    // Server pushes skill_choice prompt
+    await protocolHarness.pushServerMessage(heroicSummonSkillPrompt());
+
+    // Click confirm (skill_choice with 1 skill: prompt-option-{skillId})
+    await page.getByTestId('prompt-option-valkyrie_heroic_summon').click();
+    await protocolHarness.expectSubmitAction({
+      action_type: 'Select',
+      option_indexes: [0],
+    });
+  });
+
+  test('heroic summon: skip skill', async ({ page, protocolHarness }) => {
+    await protocolHarness.bootGame(heroicSummonScenario());
+
+    await protocolHarness.pushServerMessage(heroicSummonSkillPrompt());
+
+    // Click skip (skill_choice: prompt-option-skip)
+    await page.getByTestId('prompt-option-skip').click();
+    await protocolHarness.expectSubmitAction({
+      action_type: 'Select',
+      option_indexes: [1],
+    });
+  });
+
   test('heroic summon: discard card prompt', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(heroicSummonScenario());
 
     // 弃牌阶段使用后端定义的 choice_type
     await protocolHarness.pushServerMessage(heroicSummonDiscardPrompt());
 
-    // Select magic card to discard
-    await clickOverlayOption(page, 'prompt-option-valk-magic-1');
+    // Select magic card from hand (card_picker: hand-card-2 auto-submits for min=1,max=1)
+    await page.getByTestId('hand-card-2').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0],
-    });
-  });
-
-  test('heroic summon: triggered via response_skills', async ({ protocolHarness }) => {
-    await protocolHarness.bootGame(heroicSummonScenario());
-
-    // 检查 response_skills 触发的弹框显示
-    // 用户点击发动按钮后，前端通过 targets 参数处理目标选择
-    await protocolHarness.expectSubmitAction({
-      action_type: 'UseSkill',
-      skill_id: 'valkyrie_heroic_summon',
+      card_ids: ['valk-magic-1'],
     });
   });
 });

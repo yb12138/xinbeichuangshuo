@@ -161,7 +161,7 @@ function beastSoulSkillChoicePrompt(skillId: string, title: string, message: str
       { id: skillId, label: title, button_label: title, hint: `发动【${title}】` },
       { id: 'skip', label: '跳过', button_label: '跳过', hint: '不发动响应技能' },
     ],
-    presentation: { kind: 'skill_choice', layout: 'overlay' },
+    presentation: { kind: 'skill_choice', layout: 'overlay', numeric_base: 0 },
     min: 1,
     max: 1,
   } satisfies Prompt);
@@ -297,7 +297,7 @@ export function beastSoulAlertDiscardPrompt(): WsMessage {
     ],
     min: 1,
     max: 1,
-    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'option_limited' },
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'option_limited', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -389,7 +389,7 @@ export function beastReturnSelfDiscardPrompt(discardCount: number): WsMessage {
     options,
     min: discardCount,
     max: discardCount,
-    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'option_limited' },
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'option_limited', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -405,7 +405,7 @@ export function beastReturnSourceDiscardPrompt(): WsMessage {
     ],
     min: 1,
     max: 1,
-    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'option_limited' },
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'option_limited', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -492,7 +492,7 @@ export function reversalIaijutsuTargetDiscardPrompt(discardCount: number): WsMes
     ],
     min: 1,
     max: 1,
-    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'option_limited' },
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'option_limited', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -580,6 +580,6 @@ export function iaijutsuStyleDiscardPrompt(): WsMessage {
     ],
     min: 1,
     max: 1,
-    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'option_limited' },
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'option_limited', numeric_base: 0 },
   } satisfies Prompt);
 }

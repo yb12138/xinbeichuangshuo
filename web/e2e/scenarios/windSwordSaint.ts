@@ -37,6 +37,7 @@ const windSwordSaintCharacter = characterView({
       description: '［回合限定］（［攻击行动］结束时发动）额外+1风系［攻击行动］。',
       type: 3, // 响应
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: WSS_HOLY_SWORD_ID,
@@ -44,6 +45,7 @@ const windSwordSaintCharacter = characterView({
       description: '若你的主动攻击为你本次行动阶段的第三次［攻击行动］，则此攻击强制命中。本次［攻击行动］结束后，你摸X张牌，弃X张牌（X<4）。',
       type: 0, // 被动
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: WSS_SWORD_SHADOW_ID,
@@ -51,6 +53,7 @@ const windSwordSaintCharacter = characterView({
       description: '［回合限定］［水晶］（［攻击行动］结束时发动）额外+1［攻击行动］。',
       type: 3, // 响应(大招)
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
   ],
 });
@@ -175,11 +178,11 @@ export function windFuryPrompt(): WsMessage {
     message: '【风怒追击］攻击行动结束，是否额外+1风系［攻击行动］？',
     choice_type: 'response_skill_choice',
     options: [
-      { id: 'wind_fury', label: '发动风怒追击' },
-      { id: 'skip', label: '跳过' },
+      { id: 'wind_fury', label: '发动风怒追击', button_label: '发动' },
+      { id: 'skip', label: '跳过', button_label: '跳过' },
     ],
     min: 1, max: 1,
-    presentation: { kind: 'skill_choice', layout: 'overlay' },
+    presentation: { kind: 'skill_choice', layout: 'overlay', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -202,10 +205,10 @@ export function holySwordThirdAttackPrompt(): WsMessage {
     message: '【圣剑】第三次主动攻击，本次攻击强制命中。攻击结束后请选择摸弃牌数量（X<4）：',
     choice_type: 'holy_sword_draw',
     options: [
-      { id: '0', label: 'X=0（不摸不弃）' },
-      { id: '1', label: 'X=1（摸1弃1）' },
-      { id: '2', label: 'X=2（摸2弃2）' },
-      { id: '3', label: 'X=3（摸3弃3）' },
+      { id: '0', label: 'X=0（不摸不弃）', button_label: '0' },
+      { id: '1', label: 'X=1（摸1弃1）', button_label: '1' },
+      { id: '2', label: 'X=2（摸2弃2）', button_label: '2' },
+      { id: '3', label: 'X=3（摸3弃3）', button_label: '3' },
     ],
     min: 1, max: 1,
     presentation: { kind: 'numeric', numeric_base: 0 },
@@ -219,13 +222,14 @@ export function holySwordDiscardPrompt(x: number): WsMessage {
     message: `【圣剑】请弃置${x}张牌：`,
     choice_type: 'wss_holy_sword_discard',
     options: [
-      { id: '0', label: '1: 风刃（风系 攻击）' },
-      { id: '1', label: '2: 疾风斩（风系 攻击）' },
-      { id: '2', label: '3: 风暴斩（风系 攻击）' },
-      { id: '3', label: '4: 疾风技（风系 攻击）' },
-      { id: '4', label: '5: 列风技（风系 攻击）' },
-      { id: '5', label: '6: 火焰斩（火系 攻击）' },
+      { id: '0', label: '1: 风刃（风系 攻击）', button_label: '选择', card_id: 'wss-wind-atk1' },
+      { id: '1', label: '2: 疾风斩（风系 攻击）', button_label: '选择', card_id: 'wss-wind-atk2' },
+      { id: '2', label: '3: 风暴斩（风系 攻击）', button_label: '选择', card_id: 'wss-wind-atk3' },
+      { id: '3', label: '4: 疾风技（风系 攻击）', button_label: '选择', card_id: WSS_GALE_SKILL_ID },
+      { id: '4', label: '5: 列风技（风系 攻击）', button_label: '选择', card_id: WSS_WIND_BLADE_ID },
+      { id: '5', label: '6: 火焰斩（火系 攻击）', button_label: '选择', card_id: 'wss-fire-atk' },
     ],
+    presentation: { kind: 'card_picker', card_source: 'hand', numeric_base: 0 },
     min: x, max: x,
   } satisfies Prompt);
 }
@@ -250,11 +254,11 @@ export function swordShadowPrompt(): WsMessage {
     message: '【剑影］攻击行动结束，是否消耗1个水晶额外+1［攻击行动］？',
     choice_type: 'response_skill_choice',
     options: [
-      { id: 'sword_shadow', label: '发动剑影（消耗水晶）' },
-      { id: 'skip', label: '跳过' },
+      { id: 'sword_shadow', label: '发动剑影（消耗水晶）', button_label: '发动' },
+      { id: 'skip', label: '跳过', button_label: '跳过' },
     ],
     min: 1, max: 1,
-    presentation: { kind: 'skill_choice', layout: 'overlay' },
+    presentation: { kind: 'skill_choice', layout: 'overlay', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -278,12 +282,12 @@ export function wssComboPrompt(): WsMessage {
     message: '【风怒追击】与【剑影】均可发动，请选择：',
     choice_type: 'response_skill_choice',
     options: [
-      { id: 'wind_fury', label: '发动风怒追击（风系攻击）' },
-      { id: 'sword_shadow', label: '发动剑影（消耗水晶）' },
-      { id: 'skip', label: '跳过' },
+      { id: 'wind_fury', label: '发动风怒追击（风系攻击）', button_label: '发动' },
+      { id: 'sword_shadow', label: '发动剑影（消耗水晶）', button_label: '发动' },
+      { id: 'skip', label: '跳过', button_label: '跳过' },
     ],
     min: 1, max: 1,
-    presentation: { kind: 'skill_choice', layout: 'overlay' },
+    presentation: { kind: 'skill_choice', layout: 'overlay', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -322,8 +326,9 @@ export function windBladeShieldPrompt(): WsMessage {
     message: '【列风技】目标拥有圣盾，本次攻击无视圣盾且对手无法应战。',
     choice_type: 'wss_wind_blade_shield',
     options: [
-      { id: 'confirm', label: '确认' },
+      { id: 'confirm', label: '确认', button_label: '确认' },
     ],
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
     min: 1, max: 1,
   } satisfies Prompt);
 }

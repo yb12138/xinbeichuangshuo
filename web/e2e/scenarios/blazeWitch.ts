@@ -38,6 +38,7 @@ const blazeWitchCharacter = characterView({
       description: '［重生］上限4；当你因承受法术伤害导致士气下降时，你+1［重生］。',
       type: 0,
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: BW_BLAZING_CODEX_ID,
@@ -45,7 +46,7 @@ const blazeWitchCharacter = characterView({
       description: '弃1张火系牌［展示］，对目标角色和自己各造成2点法术伤害（目标先结算）。',
       type: 2,
       min_targets: 1, max_targets: 1, target_type: 3,
-      cost_discards: 1, discard_element: 'Fire',
+      cost_gem: 0, cost_crystal: 0, cost_discards: 1, discard_element: 'Fire',
     },
     {
       id: BW_HEAVENFIRE_CLEAVE_ID,
@@ -53,7 +54,7 @@ const blazeWitchCharacter = characterView({
       description: '弃2张火系牌并移除1点［重生］（烈焰形态下免移除），对目标角色和自己各造成3点法术伤害。',
       type: 2,
       min_targets: 1, max_targets: 1, target_type: 3,
-      cost_discards: 2, discard_element: 'Fire',
+      cost_gem: 0, cost_crystal: 0, cost_discards: 2, discard_element: 'Fire',
     },
     {
       id: BW_WITCH_WRATH_ID,
@@ -61,6 +62,7 @@ const blazeWitchCharacter = characterView({
       description: '手牌<4时可发动：［横置］进入烈焰形态并选择摸0~2张牌。',
       type: 1,
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: BW_SUBSTITUTE_DOLL_ID,
@@ -68,6 +70,7 @@ const blazeWitchCharacter = characterView({
       description: '任何人对你造成攻击伤害时可响应：弃1张法术牌［展示］，令1名队友摸1张牌。',
       type: 3,
       min_targets: 1, max_targets: 1, target_type: 1,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: BW_PAIN_LINK_ID,
@@ -75,7 +78,7 @@ const blazeWitchCharacter = characterView({
       description: '［水晶］对目标对手和自己各造成1点法术伤害，然后你弃到3张手牌。',
       type: 2,
       min_targets: 1, max_targets: 1, target_type: 2,
-      cost_crystal: 1,
+      cost_gem: 0, cost_crystal: 1, cost_discards: 0,
     },
     {
       id: BW_MANA_INVERSION_ID,
@@ -83,7 +86,7 @@ const blazeWitchCharacter = characterView({
       description: '［水晶］任何人对你造成法术伤害时可响应：弃X张法术牌［展示］（X>1），对目标对手造成(X-1)点法术伤害。',
       type: 3,
       min_targets: 1, max_targets: 1, target_type: 2,
-      cost_crystal: 1,
+      cost_gem: 0, cost_crystal: 1, cost_discards: 0,
     },
   ],
 });
@@ -258,7 +261,7 @@ export function painLinkDiscardPrompt(): WsMessage {
       { id: '5', label: '6: 圣光（光系 法术）', button_label: '选择', card_id: 'bw-light-magic' },
     ],
     min: 3, max: 3,
-    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'option_limited' },
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'option_limited', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -311,7 +314,7 @@ export function substituteDollCardPrompt(): WsMessage {
       { id: '5', label: '6: 圣光（光系 法术）', button_label: '选择', card_id: 'bw-light-magic' },
     ],
     min: 1, max: 1,
-    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'magic_only' },
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'magic_only', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -366,7 +369,7 @@ export function manaInversionCardsPrompt(xValue = 2): WsMessage {
       { id: '5', label: '6: 圣光（光系 法术）', button_label: '选择', card_id: 'bw-light-magic' },
     ],
     min: xValue, max: xValue,
-    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'magic_only' },
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'magic_only', numeric_base: 0 },
   } satisfies Prompt);
 }
 

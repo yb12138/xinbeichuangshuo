@@ -18,14 +18,14 @@ test.describe('soulSorcerer soulRecall protocol harness', () => {
       skill_id: SS_SOUL_RECALL_SKILL_ID,
     });
 
-    // Server pushes magic card selection prompt
+    // Server pushes magic card selection prompt (card_picker from hand)
     await protocolHarness.pushServerMessage(soulRecallPickPrompt());
-    await expect(page.getByTestId('decision-overlay')).toBeVisible();
-    // Select first magic card
-    await page.getByTestId('card-slot-3').click();
+    // Select first magic card (hand index 3 = card_4)
+    await page.getByTestId('hand-card-3').click();
+    await page.getByTestId('prompt-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [3],
+      card_ids: ['card_4'],
     });
   });
 
@@ -41,11 +41,12 @@ test.describe('soulSorcerer soulRecall protocol harness', () => {
 
     await protocolHarness.pushServerMessage(soulRecallPickPrompt());
     // Select both magic cards (multi-select)
-    await page.getByTestId('card-slot-3').click();
-    await page.getByTestId('card-slot-4').click();
+    await page.getByTestId('hand-card-3').click();
+    await page.getByTestId('hand-card-4').click();
+    await page.getByTestId('prompt-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [3, 4],
+      card_ids: ['card_4', 'card_5'],
     });
   });
 

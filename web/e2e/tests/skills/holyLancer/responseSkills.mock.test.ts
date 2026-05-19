@@ -1,21 +1,11 @@
 import type { Page } from '@playwright/test';
-import { test } from '../../../fixtures/protocolHarness.fixture';
+import { test, expect } from '../../../fixtures/protocolHarness.fixture';
 import {
   skySpearScenario,
   skySpearBeforeAttackPrompt,
   earthSpearScenario,
   earthSpearAfterHitPrompt,
 } from '../../../scenarios/holyLancer';
-
-async function clickOverlayOption(page: Page, selector: string) {
-  const overlay = page.getByTestId('decision-overlay');
-  const overlayVisible = await overlay.isVisible({ timeout: 1000 }).catch(() => false);
-  if (overlayVisible) {
-    await overlay.getByTestId(selector).click();
-  } else {
-    await page.getByTestId('prompt-dialog').getByTestId(selector).click();
-  }
-}
 
 test.describe('holy lancer sky spear protocol harness', () => {
   test('sky spear: confirm before attack', async ({ page, protocolHarness }) => {
@@ -24,8 +14,9 @@ test.describe('holy lancer sky spear protocol harness', () => {
     // Server pushes sky spear prompt before attack
     await protocolHarness.pushServerMessage(skySpearBeforeAttackPrompt());
 
-    // Click confirm button
-    await clickOverlayOption(page, 'prompt-option-confirm');
+    // Click confirm button (branch_select: prompt-option-confirm)
+    await expect(page.getByTestId('decision-overlay')).toBeVisible();
+    await page.getByTestId('prompt-option-confirm').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -37,8 +28,9 @@ test.describe('holy lancer sky spear protocol harness', () => {
 
     await protocolHarness.pushServerMessage(skySpearBeforeAttackPrompt());
 
-    // Click skip button
-    await clickOverlayOption(page, 'prompt-option-skip');
+    // Click skip button (branch_select: prompt-option-skip)
+    await expect(page.getByTestId('decision-overlay')).toBeVisible();
+    await page.getByTestId('prompt-option-skip').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1],
@@ -61,11 +53,12 @@ test.describe('holy lancer earth spear protocol harness', () => {
     // Server pushes earth spear prompt after hit (max X = 4)
     await protocolHarness.pushServerMessage(earthSpearAfterHitPrompt(4));
 
-    // Select X=2 (option index depends on options array)
-    await clickOverlayOption(page, 'branch-option-2');
+    // Select X=2 (numeric: numeric-option-2)
+    await expect(page.getByTestId('decision-overlay')).toBeVisible();
+    await page.getByTestId('numeric-option-2').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [2], // X=2 option
+      option_indexes: [2],
     });
   });
 
@@ -74,8 +67,9 @@ test.describe('holy lancer earth spear protocol harness', () => {
 
     await protocolHarness.pushServerMessage(earthSpearAfterHitPrompt(4));
 
-    // Select X=0 (first option, skip)
-    await clickOverlayOption(page, 'branch-option-0');
+    // Select X=0 (numeric: numeric-option with Chinese button_label '不发动')
+    await expect(page.getByTestId('decision-overlay')).toBeVisible();
+    await page.getByTestId('numeric-option-不发动').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -87,8 +81,9 @@ test.describe('holy lancer earth spear protocol harness', () => {
 
     await protocolHarness.pushServerMessage(earthSpearAfterHitPrompt(5));
 
-    // Select X=4 (last valid option, capped at 4)
-    await clickOverlayOption(page, 'branch-option-4');
+    // Select X=4 (numeric: numeric-option-4)
+    await expect(page.getByTestId('decision-overlay')).toBeVisible();
+    await page.getByTestId('numeric-option-4').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [4],

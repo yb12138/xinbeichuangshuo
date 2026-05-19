@@ -41,6 +41,7 @@ const magicBowCharacter = characterView({
       min_targets: 0,
       max_targets: 0,
       target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: MB_THUNDER_SCATTER_SKILL_ID,
@@ -50,6 +51,7 @@ const magicBowCharacter = characterView({
       min_targets: 0,
       max_targets: 1,
       target_type: 2,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: MB_MULTI_SHOT_SKILL_ID,
@@ -59,6 +61,7 @@ const magicBowCharacter = characterView({
       min_targets: 0,
       max_targets: 0,
       target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: MB_CHARGE_SKILL_ID,
@@ -68,7 +71,7 @@ const magicBowCharacter = characterView({
       min_targets: 0,
       max_targets: 0,
       target_type: 0,
-      cost_crystal: 1,
+      cost_gem: 0, cost_crystal: 1, cost_discards: 0,
     },
     {
       id: MB_DEMON_EYE_SKILL_ID,
@@ -78,7 +81,7 @@ const magicBowCharacter = characterView({
       min_targets: 0,
       max_targets: 0,
       target_type: 0,
-      cost_gem: 1,
+      cost_gem: 1, cost_crystal: 0, cost_discards: 0,
     },
   ],
 });
@@ -226,10 +229,10 @@ function skillChoicePrompt(skillId: string, title: string, message: string): WsM
     player_id: MB_PLAYER_ID,
     message,
     options: [
-      { id: skillId, label: title, hint: `发动【${title}】` },
-      { id: 'skip', label: '跳过', hint: '不发动响应技能' },
+      { id: skillId, label: title, button_label: '发动', hint: `发动【${title}】` },
+      { id: 'skip', label: '跳过', button_label: '跳过', hint: '不发动响应技能' },
     ],
-    presentation: { kind: 'skill_choice', layout: 'overlay' },
+    presentation: { kind: 'skill_choice', layout: 'overlay', numeric_base: 0 },
     min: 1,
     max: 1,
   } satisfies Prompt);
@@ -251,11 +254,11 @@ export function magicPierceChargePrompt(): WsMessage {
     choice_type: 'mb_magic_pierce_charge',
     skill_id: MB_MAGIC_PIERCE_SKILL_ID,
     options: [
-      { id: '0', label: '火焰充能', button_label: '移除充能', field_index: 0 },
+      { id: '0', label: '火焰充能', button_label: '移除充能', field_index: 0, card_id: 'mb-charge-0' },
     ],
     min: 1,
     max: 1,
-    presentation: { kind: 'card_picker', layout: 'field_cover', card_source: 'field', card_filter: 'effect:MagicBowCharge' },
+    presentation: { kind: 'card_picker', layout: 'field_cover', card_source: 'field', card_filter: 'effect:MagicBowCharge', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -266,9 +269,10 @@ export function magicPierceHitBonusPrompt(): WsMessage {
     message: '【魔贯冲击】是否额外移除1个火系充能使伤害+1？',
     choice_type: 'mb_magic_pierce_hit_bonus',
     skill_id: MB_MAGIC_PIERCE_SKILL_ID,
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
     options: [
-      { id: '0', label: '是' },
-      { id: '1', label: '否' },
+      { id: '0', label: '是', button_label: '是' },
+      { id: '1', label: '否', button_label: '否' },
     ],
     min: 1,
     max: 1,
@@ -283,11 +287,11 @@ export function magicPierceHitChargePrompt(): WsMessage {
     choice_type: 'mb_magic_pierce_hit_charge',
     skill_id: MB_MAGIC_PIERCE_SKILL_ID,
     options: [
-      { id: '1', label: '备用火焰充能', button_label: '移除充能', field_index: 1 },
+      { id: '1', label: '备用火焰充能', button_label: '移除充能', field_index: 1, card_id: 'mb-charge-1' },
     ],
     min: 1,
     max: 1,
-    presentation: { kind: 'card_picker', layout: 'field_cover', card_source: 'field', card_filter: 'effect:MagicBowCharge' },
+    presentation: { kind: 'card_picker', layout: 'field_cover', card_source: 'field', card_filter: 'effect:MagicBowCharge', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -318,13 +322,13 @@ export function thunderScatterBaseChargePrompt(): WsMessage {
     choice_type: 'mb_thunder_scatter_base_charge',
     skill_id: MB_THUNDER_SCATTER_SKILL_ID,
     options: [
-      { id: '0', label: '雷光充能A', button_label: '移除充能', field_index: 0 },
-      { id: '1', label: '雷光充能B', button_label: '移除充能', field_index: 1 },
-      { id: '2', label: '雷光充能C', button_label: '移除充能', field_index: 2 },
+      { id: '0', label: '雷光充能A', button_label: '移除充能', field_index: 0, card_id: 'mb-charge-0' },
+      { id: '1', label: '雷光充能B', button_label: '移除充能', field_index: 1, card_id: 'mb-charge-1' },
+      { id: '2', label: '雷光充能C', button_label: '移除充能', field_index: 2, card_id: 'mb-charge-2' },
     ],
     min: 1,
     max: 1,
-    presentation: { kind: 'card_picker', layout: 'field_cover', card_source: 'field', card_filter: 'effect:MagicBowCharge' },
+    presentation: { kind: 'card_picker', layout: 'field_cover', card_source: 'field', card_filter: 'effect:MagicBowCharge', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -338,6 +342,7 @@ export function thunderScatterExtraPrompt(maxExtra = 2): WsMessage {
     options: Array.from({ length: maxExtra + 1 }, (_, x) => ({
       id: String(x),
       label: `额外移除${x}个雷系充能`,
+      button_label: String(x),
     })),
     presentation: { kind: 'numeric', numeric_base: 0 },
     min: 1,
@@ -352,9 +357,10 @@ export function thunderScatterTargetPrompt(extraX = 2): WsMessage {
     message: `【雷光散射】请选择额外受到${extraX}点法术伤害的目标：`,
     choice_type: 'mb_thunder_scatter_target',
     skill_id: MB_THUNDER_SCATTER_SKILL_ID,
+    presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
     options: [
-      { id: '0', label: 'Enemy E1' },
-      { id: '1', label: 'Enemy E2' },
+      { id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
+      { id: ENEMY_2_PLAYER_ID, label: 'Enemy E2', button_label: '选择' },
     ],
     min: 1,
     max: 1,
@@ -377,11 +383,11 @@ export function multiShotChargePrompt(): WsMessage {
     choice_type: 'mb_multi_shot_charge',
     skill_id: MB_MULTI_SHOT_SKILL_ID,
     options: [
-      { id: '2', label: '风神充能', button_label: '移除充能', field_index: 2 },
+      { id: '2', label: '风神充能', button_label: '移除充能', field_index: 2, card_id: 'mb-charge-2' },
     ],
     min: 1,
     max: 1,
-    presentation: { kind: 'card_picker', layout: 'field_cover', card_source: 'field', card_filter: 'effect:MagicBowCharge' },
+    presentation: { kind: 'card_picker', layout: 'field_cover', card_source: 'field', card_filter: 'effect:MagicBowCharge', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -392,8 +398,9 @@ export function multiShotTargetPrompt(): WsMessage {
     message: '【多重射击】请选择暗系追加攻击目标：',
     choice_type: 'mb_multi_shot_target',
     skill_id: MB_MULTI_SHOT_SKILL_ID,
+    presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
     options: [
-      { id: '0', label: 'Enemy E2' },
+      { id: ENEMY_2_PLAYER_ID, label: 'Enemy E2', button_label: '选择' },
     ],
     min: 1,
     max: 1,
@@ -422,9 +429,10 @@ export function chargeDiscardPrompt(): WsMessage {
     message: '【充能】请先弃置手牌至4张：',
     choice_type: 'system_discard_cards',
     options: [
-      { id: '4', label: '5: 圣光（光系 法术）' },
-      { id: '5', label: '6: 魔弹（暗灭 法术）' },
+      { id: 'mb-hand-light', label: '5: 圣光（光系 法术）', button_label: '选择', card_id: 'mb-hand-light' },
+      { id: 'mb-hand-dark', label: '6: 魔弹（暗灭 法术）', button_label: '选择', card_id: 'mb-hand-dark' },
     ],
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'overflow_discard', numeric_base: 0 },
     min: 2,
     max: 2,
   } satisfies Prompt);
@@ -440,6 +448,7 @@ export function chargeDrawPrompt(): WsMessage {
     options: Array.from({ length: 5 }, (_, x) => ({
       id: String(x),
       label: `X=${x}（摸${x}张）`,
+      button_label: String(x),
     })),
     presentation: { kind: 'numeric', numeric_base: 0 },
     min: 1,
@@ -457,11 +466,12 @@ export function chargePlaceCardsMultiSelectPrompt(maxPlace = 4): WsMessage {
     choice_type: 'mb_charge_place_cards',
     skill_id: MB_CHARGE_SKILL_ID,
     options: [
-      { id: '0', label: '1: 火焰斩（火系 攻击）' },
-      { id: '1', label: '2: 水涟斩（水系 攻击）' },
-      { id: '2', label: '3: 雷光斩（雷系 攻击）' },
-      { id: '3', label: '4: 风神斩（风系 攻击）' },
+      { id: 'mb-atk-fire', label: '1: 火焰斩（火系 攻击）', button_label: '选择', card_id: 'mb-atk-fire' },
+      { id: 'mb-hand-water', label: '2: 水涟斩（水系 攻击）', button_label: '选择', card_id: 'mb-hand-water' },
+      { id: 'mb-hand-thunder', label: '3: 雷光斩（雷系 攻击）', button_label: '选择', card_id: 'mb-hand-thunder' },
+      { id: 'mb-hand-wind', label: '4: 风神斩（风系 攻击）', button_label: '选择', card_id: 'mb-hand-wind' },
     ],
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'option_limited', numeric_base: 0 },
     min: 0, // 允许不选
     max: maxPlace, // 最多可选 maxPlace 张
   } satisfies Prompt);
@@ -478,6 +488,7 @@ export function chargePlaceCountPrompt(maxPlace = 3): WsMessage {
     options: Array.from({ length: maxPlace + 1 }, (_, count) => ({
       id: String(count),
       label: `放置${count}张充能`,
+      button_label: String(count),
     })),
     presentation: { kind: 'numeric', numeric_base: 0 },
     min: 1,
@@ -493,9 +504,10 @@ export function chargePlaceCardsPrompt(count = 2): WsMessage {
     choice_type: 'mb_charge_place_cards',
     skill_id: MB_CHARGE_SKILL_ID,
     options: [
-      { id: '0', label: '1: 火焰斩（火系 攻击）' },
-      { id: '1', label: '2: 水涟斩（水系 攻击）' },
+      { id: '0', label: '1: 火焰斩（火系 攻击）', button_label: '选择' },
+      { id: '1', label: '2: 水涟斩（水系 攻击）', button_label: '选择' },
     ],
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'option_limited', numeric_base: 0 },
     min: count,
     max: count,
   } satisfies Prompt);
@@ -523,10 +535,10 @@ export function demonEyeModePrompt(): WsMessage {
     choice_type: 'mb_demon_eye_mode',
     skill_id: MB_DEMON_EYE_SKILL_ID,
     options: [
-      { id: '0', label: '分支①：令1名角色弃1张牌' },
-      { id: '1', label: '分支②：你摸3张牌' },
+      { id: '0', label: '分支①：令1名角色弃1张牌', button_label: '分支①' },
+      { id: '1', label: '分支②：你摸3张牌', button_label: '分支②' },
     ],
-    presentation: { kind: 'branch_select', layout: 'overlay' },
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
     min: 1,
     max: 1,
   } satisfies Prompt);
@@ -539,10 +551,11 @@ export function demonEyeTargetPrompt(): WsMessage {
     message: '【魔眼·分支①】请选择弃1张牌的目标角色：',
     choice_type: 'mb_demon_eye_target',
     skill_id: MB_DEMON_EYE_SKILL_ID,
+    presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
     options: [
-      { id: '0', label: 'E2E Magic Bow' },
-      { id: '1', label: 'Enemy E1' },
-      { id: '2', label: 'Enemy E2' },
+      { id: MB_PLAYER_ID, label: 'E2E Magic Bow', button_label: '选择' },
+      { id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
+      { id: ENEMY_2_PLAYER_ID, label: 'Enemy E2', button_label: '选择' },
     ],
     min: 1,
     max: 1,
@@ -557,9 +570,10 @@ export function demonEyeChargeCardPrompt(): WsMessage {
     choice_type: 'mb_demon_eye_charge_card',
     skill_id: MB_DEMON_EYE_SKILL_ID,
     options: [
-      { id: '0', label: '1: 火焰斩（火系 攻击）' },
-      { id: '1', label: '2: 水涟斩（水系 攻击）' },
+      { id: 'mb-atk-fire', label: '1: 火焰斩（火系 攻击）', button_label: '选择', card_id: 'mb-atk-fire' },
+      { id: 'mb-hand-water', label: '2: 水涟斩（水系 攻击）', button_label: '选择', card_id: 'mb-hand-water' },
     ],
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'option_limited', numeric_base: 0 },
     min: 1,
     max: 1,
   } satisfies Prompt);

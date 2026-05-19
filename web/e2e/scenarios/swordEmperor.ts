@@ -204,10 +204,10 @@ function swordEmperorSkillChoicePrompt(skillId: string, title: string, message: 
     player_id: SE_PLAYER_ID,
     message,
     options: [
-      { id: skillId, label: title, hint: `发动【${title}】` },
-      { id: 'skip', label: '跳过', hint: '不发动响应技能' },
+      { id: skillId, label: title, hint: `发动【${title}】`, button_label: '发动' },
+      { id: 'skip', label: '跳过', hint: '不发动响应技能', button_label: '跳过' },
     ],
-    presentation: { kind: 'skill_choice', layout: 'overlay' },
+    presentation: { kind: 'skill_choice', layout: 'overlay', numeric_base: 0 },
     min: 1,
     max: 1,
   } satisfies Prompt);
@@ -224,9 +224,9 @@ export function swordQiSlashResponsePrompt(): WsMessage {
 // 后端 buildPrompt("se_sword_qi_slash_x") 下发 PromptConfirm，
 // option id 为 "1"~"xMax"，label 含「移除X点剑气，对另一名角色造成X点法术伤害」。
 export function swordQiSlashXPrompt(xMax: number): WsMessage {
-  const options: { id: string; label: string }[] = [];
+  const options: { id: string; label: string; button_label: string }[] = [];
   for (let i = 1; i <= xMax; i++) {
-    options.push({ id: `${i}`, label: `移除${i}点剑气，对另一名角色造成${i}点法术伤害` });
+    options.push({ id: `${i}`, label: `移除${i}点剑气，对另一名角色造成${i}点法术伤害`, button_label: String(i) });
   }
   return requireActionMessage({
     type: 'confirm',
@@ -235,6 +235,7 @@ export function swordQiSlashXPrompt(xMax: number): WsMessage {
     choice_type: 'se_sword_qi_slash_x',
     skill_id: SE_SWORD_QI_SLASH_SKILL_ID,
     options,
+    presentation: { kind: 'numeric', numeric_base: 1 },
     min: 1,
     max: 1,
   } satisfies Prompt);
@@ -249,8 +250,9 @@ export function swordQiSlashTargetPrompt(xValue: number): WsMessage {
     message: `【剑气斩】请选择承受${xValue}点法术伤害的目标：`,
     choice_type: 'se_sword_qi_slash_target',
     skill_id: SE_SWORD_QI_SLASH_SKILL_ID,
+    presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
     options: [
-      { id: '0', label: 'Enemy Bot 2' },
+      { id: '0', label: 'Enemy Bot 2', button_label: '选择' },
     ],
     min: 1,
     max: 1,

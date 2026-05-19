@@ -40,6 +40,7 @@ const sealerCharacter = characterView({
       description: '（［法术行动］结束时发动）额外+1［攻击行动］。',
       type: 3, // 响应
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: SEALER_SEAL_BREAK_ID,
@@ -47,6 +48,7 @@ const sealerCharacter = characterView({
       description: '［水晶］将场上任意一张基础效果牌收入自己手中。',
       type: 2, // 法术(大招)
       min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: SEALER_FIVE_ELEMENTS_BIND_ID,
@@ -54,6 +56,7 @@ const sealerCharacter = characterView({
       description: '［水晶］将五系束缚放置于目标对手面前，该对手跳过其下个行动阶段。在其下个行动阶段开始前他可以选择摸（2+X）张牌来取消五系束缚的效果。X为场上封印的数量，X最高为2。',
       type: 2, // 法术(独有)
       min_targets: 1, max_targets: 1, target_type: 2,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: SEALER_WATER_SEAL_ID,
@@ -61,6 +64,7 @@ const sealerCharacter = characterView({
       description: '（将水之封印放置于目标对手面前）该对手获得（直到他从手中打出或展示出水系牌时强制触发）对他造成3点法术伤害③，触发后移除此牌。',
       type: 2, // 法术(独有)
       min_targets: 1, max_targets: 1, target_type: 2,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: SEALER_FIRE_SEAL_ID,
@@ -68,6 +72,7 @@ const sealerCharacter = characterView({
       description: '（将火之封印放置于目标对手面前）该对手获得（直到他从手中打出或展示出火系牌时强制触发）对他造成3点法术伤害③，触发后移除此牌。',
       type: 2, // 法术(独有)
       min_targets: 1, max_targets: 1, target_type: 2,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: SEALER_EARTH_SEAL_ID,
@@ -75,6 +80,7 @@ const sealerCharacter = characterView({
       description: '（将地之封印放置于目标对手面前）该对手获得（直到他从手中打出或展示出地系牌时强制触发）对他造成3点法术伤害③，触发后移除此牌。',
       type: 2, // 法术(独有)
       min_targets: 1, max_targets: 1, target_type: 2,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: SEALER_WIND_SEAL_ID,
@@ -82,6 +88,7 @@ const sealerCharacter = characterView({
       description: '（将风之封印放置于目标对手面前）该对手获得（直到他从手中打出或展示出风系牌时强制触发）对他造成3点法术伤害③，触发后移除此牌。',
       type: 2, // 法术(独有)
       min_targets: 1, max_targets: 1, target_type: 2,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
     {
       id: SEALER_THUNDER_SEAL_ID,
@@ -89,6 +96,7 @@ const sealerCharacter = characterView({
       description: '（将雷之封印放置于目标对手面前）该对手获得（直到他从手中打出或展示出雷系牌时强制触发）对他造成3点法术伤害③，触发后移除此牌。',
       type: 2, // 法术(独有)
       min_targets: 1, max_targets: 1, target_type: 2,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
   ],
 });
@@ -214,6 +222,72 @@ export function sealerScenario(options: {
 }
 
 // ============================================================
+// Enemy perspective scenarios (for prompts targeting enemy)
+// ============================================================
+
+export function enemyPerspectiveScenario(): ProtocolHarnessScenario {
+  const hand = sealerHand();
+  const enemyHand = [card({ id: 'en-card-1', name: '测试牌', type: 'Attack', element: 'Fire' })];
+  const allyHand = [card({ id: 'al-card-1', name: '测试牌', type: 'Attack', element: 'Water' })];
+  const players = [
+    playerView({
+      id: SEALER_PLAYER_ID,
+      name: 'E2E Sealer',
+      camp: 'Red',
+      role: 'sealer',
+      hand,
+      hand_count: hand.length,
+      crystal: 0,
+      gem: 0,
+      is_active: true,
+      field: [],
+    }),
+    playerView({
+      id: ENEMY_PLAYER_ID,
+      name: 'Enemy E1',
+      camp: 'Blue',
+      role: 'enemy_char',
+      hand: enemyHand,
+      hand_count: 1, max_hand: 6,
+      heal: 0, max_heal: 4,
+      is_active: false,
+      field: [
+        createFieldEffect('enemy_shield', '敌方圣盾', ENEMY_PLAYER_ID),
+      ],
+    }),
+    playerView({
+      id: ALLY_PLAYER_ID,
+      name: 'Ally A1',
+      camp: 'Red',
+      role: 'ally_char',
+      hand: allyHand,
+      hand_count: 1, max_hand: 6,
+      heal: 0, max_heal: 4,
+      is_active: false,
+    }),
+  ];
+
+  return {
+    roomCode: 'MOCK',
+    myPlayerId: ENEMY_PLAYER_ID,
+    myPlayerName: 'Enemy E1',
+    characters: defaultCharacters,
+    players: [
+      playerInfo({ id: SEALER_PLAYER_ID, name: 'E2E Sealer', camp: 'Red', char_role: 'sealer', is_host: true }),
+      playerInfo({ id: ENEMY_PLAYER_ID, name: 'Enemy E1', camp: 'Blue', char_role: 'enemy_char' }),
+      playerInfo({ id: ALLY_PLAYER_ID, name: 'Ally A1', camp: 'Red', char_role: 'ally_char' }),
+    ],
+    initialState: syncState({
+      turn_player_id: SEALER_PLAYER_ID,
+      turn_stage: 'ActionExecution',
+      available_skills: [],
+      characters: defaultCharacters,
+      players,
+    }),
+  };
+}
+
+// ============================================================
 // Magic Surge (法术激荡) - 响应技能
 // ============================================================
 
@@ -228,9 +302,10 @@ export function magicSurgePrompt(): WsMessage {
     message: '【法术激荡］法术行动结束，是否额外+1［攻击行动］？',
     choice_type: 'sealer_magic_surge',
     options: [
-      { id: 'confirm', label: '发动' },
-      { id: 'skip', label: '跳过' },
+      { id: '0', label: '发动', button_label: '发动' },
+      { id: '1', label: '跳过', button_label: '跳过' },
     ],
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
     min: 1, max: 1,
   } satisfies Prompt);
 }
@@ -257,8 +332,9 @@ export function sealBreakFieldSelectPrompt(): WsMessage {
     message: '【封印破碎】请选择场上一张基础效果牌收入手中：',
     choice_type: 'basic_effect_pick',
     options: [
-      { id: 'enemy_shield', label: '敌方圣盾（Enemy E1）' },
+      { id: '0', label: '敌方圣盾（Enemy E1）', button_label: '选择' },
     ],
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
     min: 1, max: 1,
   } satisfies Prompt);
 }
@@ -288,8 +364,9 @@ export function fiveElementsBindTargetPrompt(): WsMessage {
     player_id: SEALER_PLAYER_ID,
     message: '【五系束缚】请选择一名目标对手：',
     choice_type: 'five_elements_bind',
+    presentation: { kind: 'target_picker', target_filter: 'enemies', numeric_base: 0 },
     options: [
-      { id: ENEMY_PLAYER_ID, label: 'Enemy E1' },
+      { id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
     ],
     min: 1, max: 1,
   } satisfies Prompt);
@@ -304,11 +381,11 @@ export function fiveElementsBindCancelPrompt(x: number): WsMessage {
     message: `【五系束缚】下个行动阶段前，是否摸${drawCount}张牌取消束缚？`,
     choice_type: 'five_elements_bind',
     options: [
-      { id: 'draw', label: `摸${drawCount}张牌取消` },
-      { id: 'skip', label: '跳过行动阶段' },
+      { id: '0', label: `摸${drawCount}张牌取消`, button_label: `摸${drawCount}张` },
+      { id: '1', label: '跳过行动阶段', button_label: '跳过' },
     ],
     min: 1, max: 1,
-    presentation: { kind: 'branch_select', layout: 'overlay' },
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
   } satisfies Prompt);
 }
 
@@ -345,8 +422,9 @@ export function elementalSealTargetPrompt(sealId: string): WsMessage {
     player_id: SEALER_PLAYER_ID,
     message: `【${sealName}】请选择一名目标对手放置封印：`,
     choice_type: 'sealer_elemental_seal_target',
+    presentation: { kind: 'target_picker', target_filter: 'enemies', numeric_base: 0 },
     options: [
-      { id: ENEMY_PLAYER_ID, label: 'Enemy E1' },
+      { id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
     ],
     min: 1, max: 1,
   } satisfies Prompt);
@@ -361,8 +439,9 @@ export function sealTriggerPrompt(sealId: string): WsMessage {
     message: `【${sealName}】触发：受到3点法术伤害③`,
     choice_type: 'sealer_seal_trigger',
     options: [
-      { id: 'confirm', label: '确认' },
+      { id: '0', label: '确认', button_label: '确认' },
     ],
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
     min: 1, max: 1,
   } satisfies Prompt);
 }

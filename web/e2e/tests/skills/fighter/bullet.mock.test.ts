@@ -2,6 +2,7 @@ import { test, expect } from '../../../fixtures/protocolHarness.fixture';
 import {
   bulletConfirmPrompt,
   bulletScenario,
+  ENEMY_PLAYER_ID,
   bulletTargetPrompt,
 } from '../../../scenarios/fighter';
 
@@ -28,7 +29,7 @@ test.describe('fighter bullet protocol harness', () => {
     await expect(page.getByTestId('skill-branch-overlay')).toBeVisible();
     await page
       .getByTestId('skill-branch-overlay')
-      .getByTestId('branch-option-1')
+      .getByTestId('prompt-option-skip')
       .click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
@@ -55,8 +56,8 @@ test.describe('fighter bullet protocol harness', () => {
     // 2. 后端推送目标选择prompt (fighter_psi_bullet_target)
     await protocolHarness.pushServerMessage(bulletTargetPrompt());
 
-    // 3. 选择敌方目标（confirm类型prompt使用prompt-option按钮）
-    await page.getByTestId('prompt-option-0').click();
+    // 3. 选择敌方目标（target_picker 通过玩家区域选择）
+    await page.getByTestId(`player-area-${ENEMY_PLAYER_ID}`).click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -82,7 +83,7 @@ test.describe('fighter bullet protocol harness', () => {
     await protocolHarness.pushServerMessage(bulletTargetPrompt());
 
     // 3. 选择目标（假设目标治疗为0时会触发自伤）
-    await page.getByTestId('prompt-option-0').click();
+    await page.getByTestId(`player-area-${ENEMY_PLAYER_ID}`).click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],

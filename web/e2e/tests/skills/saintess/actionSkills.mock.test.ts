@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { test } from '../../../fixtures/protocolHarness.fixture';
+import { test, expect } from '../../../fixtures/protocolHarness.fixture';
 import {
   SAINTESS_HEALING_LIGHT_ID,
   SAINTESS_HEAL_SKILL_ID,
@@ -17,20 +17,6 @@ async function activatePanelSkill(page: Page, skillId: string) {
   await page.getByTestId(`skill-${skillId}`).click();
 }
 
-async function clickOverlayOption(page: Page, selector: string) {
-  const overlay = page.getByTestId('decision-overlay');
-  const overlayVisible = await overlay.isVisible({ timeout: 1000 }).catch(() => false);
-  if (overlayVisible) {
-    await overlay.getByTestId(selector).click();
-  } else {
-    await page.getByTestId('prompt-dialog').getByTestId(selector).click();
-  }
-}
-
-async function selectTarget(page: Page, targetId: string) {
-  await page.getByTestId(`player-area-${targetId}`).click();
-}
-
 test.describe('saintess healing light protocol harness', () => {
   test('healing light: activate skill', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(healingLightScenario());
@@ -42,19 +28,20 @@ test.describe('saintess healing light protocol harness', () => {
     });
   });
 
-  test('healing light: select single target', async ({ page, protocolHarness }) => {
+  test('healing light: select single target (multi_target with 1)', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(healingLightScenario());
 
     await activatePanelSkill(page, SAINTESS_HEALING_LIGHT_ID);
 
-    // Server pushes multi target selection
+    // Server pushes multi target selection (multi_target=true)
     await protocolHarness.pushServerMessage(healingLightMultiTargetPrompt());
 
-    // Select single target
-    await selectTarget(page, 'ally_1');
+    // Click ally player area to toggle selection, then confirm
+    await page.getByTestId('player-area-ally_1').click();
+    await page.getByTestId('prompt-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [2], // ally is third option
+      option_indexes: [2],
     });
   });
 
@@ -65,9 +52,10 @@ test.describe('saintess healing light protocol harness', () => {
 
     await protocolHarness.pushServerMessage(healingLightMultiTargetPrompt());
 
-    // Select 2 targets
-    await selectTarget(page, 'saintess_player');
-    await selectTarget(page, 'ally_1');
+    // Click 2 player areas to toggle, then confirm
+    await page.getByTestId('player-area-saintess_player').click();
+    await page.getByTestId('player-area-ally_1').click();
+    await page.getByTestId('prompt-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0, 2],
@@ -81,10 +69,11 @@ test.describe('saintess healing light protocol harness', () => {
 
     await protocolHarness.pushServerMessage(healingLightMultiTargetPrompt());
 
-    // Select all 3 targets
-    await selectTarget(page, 'saintess_player');
-    await selectTarget(page, 'enemy_1');
-    await selectTarget(page, 'ally_1');
+    // Click all 3 player areas, then confirm
+    await page.getByTestId('player-area-saintess_player').click();
+    await page.getByTestId('player-area-enemy_1').click();
+    await page.getByTestId('player-area-ally_1').click();
+    await page.getByTestId('prompt-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0, 1, 2],
@@ -102,11 +91,11 @@ test.describe('saintess heal skill protocol harness', () => {
       skill_id: SAINTESS_HEAL_SKILL_ID,
     });
 
-    // Server pushes target selection
+    // Server pushes target selection (target_picker, single target - click player area)
     await protocolHarness.pushServerMessage(healSkillTargetPrompt());
 
-    // Select ally target
-    await selectTarget(page, 'ally_1');
+    // Click ally player area (auto-submits for single target)
+    await page.getByTestId('player-area-ally_1').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [2],
@@ -125,31 +114,33 @@ test.describe('saintess holy heal protocol harness', () => {
     });
   });
 
-  test('holy heal: select branch after distribute', async ({ page, protocolHarness }) => {
+  test('holy heal: select branch after distribute - attack action', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(holyHealScenario());
 
     await activatePanelSkill(page, SAINTESS_HOLY_HEAL_ID);
 
-    // Server pushes branch selection after distribution
+    // Server pushes branch selection (branch_select overlay)
     await protocolHarness.pushServerMessage(holyHealBranchPrompt());
 
-    // Select attack action
-    await clickOverlayOption(page, 'prompt-option-attack');
+    // Select attack action (branch-option-0)
+    await expect(page.getByTestId('decision-overlay')).toBeVisible();
+    await page.getByTestId('decision-overlay').getByTestId('branch-option-0').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
     });
   });
 
-  test('holy heal: select magic action', async ({ page, protocolHarness }) => {
+  test('holy heal: select branch - magic action', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(holyHealScenario());
 
     await activatePanelSkill(page, SAINTESS_HOLY_HEAL_ID);
 
     await protocolHarness.pushServerMessage(holyHealBranchPrompt());
 
-    // Select magic action
-    await clickOverlayOption(page, 'prompt-option-magic');
+    // Select magic action (branch-option-1)
+    await expect(page.getByTestId('decision-overlay')).toBeVisible();
+    await page.getByTestId('decision-overlay').getByTestId('branch-option-1').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1],

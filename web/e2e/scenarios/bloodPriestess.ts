@@ -492,6 +492,6 @@ export function bloodCurseDiscardPrompt(): WsMessage {
     ],
     min: 3,
     max: 3,
-    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'option_limited' },
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'option_limited', numeric_base: 0 },
   } satisfies Prompt);
 }

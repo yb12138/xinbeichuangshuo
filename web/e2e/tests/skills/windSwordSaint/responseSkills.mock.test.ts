@@ -1,5 +1,4 @@
-import type { Page } from '@playwright/test';
-import { test } from '../../../fixtures/protocolHarness.fixture';
+import { test, expect } from '../../../fixtures/protocolHarness.fixture';
 import {
   windFuryScenario,
   windFuryPrompt,
@@ -9,16 +8,6 @@ import {
   wssComboPrompt,
 } from '../../../scenarios/windSwordSaint';
 
-async function clickOverlayOption(page: Page, selector: string) {
-  const overlay = page.getByTestId('decision-overlay');
-  const overlayVisible = await overlay.isVisible({ timeout: 1000 }).catch(() => false);
-  if (overlayVisible) {
-    await overlay.getByTestId(selector).click();
-  } else {
-    await page.getByTestId('prompt-dialog').getByTestId(selector).click();
-  }
-}
-
 test.describe('wind sword saint wind fury protocol harness', () => {
   test('wind fury: confirm after attack action', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(windFuryScenario());
@@ -26,8 +15,8 @@ test.describe('wind sword saint wind fury protocol harness', () => {
     // Server pushes wind fury prompt after attack action ends
     await protocolHarness.pushServerMessage(windFuryPrompt());
 
-    // Click confirm button
-    await clickOverlayOption(page, 'prompt-option-confirm');
+    // Click confirm (skill_choice with 1 skill: prompt-option-{skillId})
+    await page.getByTestId('prompt-option-wind_fury').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -39,8 +28,8 @@ test.describe('wind sword saint wind fury protocol harness', () => {
 
     await protocolHarness.pushServerMessage(windFuryPrompt());
 
-    // Click skip button
-    await clickOverlayOption(page, 'prompt-option-skip');
+    // Click skip (skill_choice: prompt-option-skip)
+    await page.getByTestId('prompt-option-skip').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1],
@@ -55,8 +44,8 @@ test.describe('wind sword saint sword shadow protocol harness', () => {
     // Server pushes sword shadow prompt after attack action ends
     await protocolHarness.pushServerMessage(swordShadowPrompt());
 
-    // Click confirm button
-    await clickOverlayOption(page, 'prompt-option-confirm');
+    // Click confirm (skill_choice with 1 skill: prompt-option-{skillId})
+    await page.getByTestId('prompt-option-sword_shadow').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -68,8 +57,8 @@ test.describe('wind sword saint sword shadow protocol harness', () => {
 
     await protocolHarness.pushServerMessage(swordShadowPrompt());
 
-    // Click skip button
-    await clickOverlayOption(page, 'prompt-option-skip');
+    // Click skip (skill_choice: prompt-option-skip)
+    await page.getByTestId('prompt-option-skip').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1],
@@ -84,8 +73,9 @@ test.describe('wind sword saint combo protocol harness', () => {
     // Server pushes combo prompt when both skills available
     await protocolHarness.pushServerMessage(wssComboPrompt());
 
-    // Select wind fury
-    await clickOverlayOption(page, 'prompt-option-wind_fury');
+    // Select wind fury (skill_choice with 2+ skills: skill-branch-overlay + branch-option-0)
+    await expect(page.getByTestId('skill-branch-overlay')).toBeVisible();
+    await page.getByTestId('skill-branch-overlay').getByTestId('branch-option-0').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -97,8 +87,9 @@ test.describe('wind sword saint combo protocol harness', () => {
 
     await protocolHarness.pushServerMessage(wssComboPrompt());
 
-    // Select sword shadow
-    await clickOverlayOption(page, 'prompt-option-sword_shadow');
+    // Select sword shadow (skill_choice with 2+ skills: skill-branch-overlay + branch-option-1)
+    await expect(page.getByTestId('skill-branch-overlay')).toBeVisible();
+    await page.getByTestId('skill-branch-overlay').getByTestId('branch-option-1').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1],
@@ -110,8 +101,9 @@ test.describe('wind sword saint combo protocol harness', () => {
 
     await protocolHarness.pushServerMessage(wssComboPrompt());
 
-    // Select skip
-    await clickOverlayOption(page, 'prompt-option-skip');
+    // Select skip (skill_choice: prompt-option-skip inside skill-branch-overlay)
+    await expect(page.getByTestId('skill-branch-overlay')).toBeVisible();
+    await page.getByTestId('skill-branch-overlay').getByTestId('prompt-option-skip').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [2],

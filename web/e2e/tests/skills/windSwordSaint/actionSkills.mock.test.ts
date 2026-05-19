@@ -1,5 +1,4 @@
-import type { Page } from '@playwright/test';
-import { test } from '../../../fixtures/protocolHarness.fixture';
+import { test, expect } from '../../../fixtures/protocolHarness.fixture';
 import {
   holySwordScenario,
   holySwordThirdAttackPrompt,
@@ -9,17 +8,7 @@ import {
   windBladeShieldPrompt,
 } from '../../../scenarios/windSwordSaint';
 
-async function clickOverlayOption(page: Page, selector: string) {
-  const overlay = page.getByTestId('decision-overlay');
-  const overlayVisible = await overlay.isVisible({ timeout: 1000 }).catch(() => false);
-  if (overlayVisible) {
-    await overlay.getByTestId(selector).click();
-  } else {
-    await page.getByTestId('prompt-dialog').getByTestId(selector).click();
-  }
-}
-
-async function selectHandCards(page: Page, indices: number[]) {
+async function selectHandCards(page: import('@playwright/test').Page, indices: number[]) {
   for (const index of indices) {
     const card = page.getByTestId(`hand-card-${index}`);
     await card.scrollIntoViewIfNeeded();
@@ -35,21 +24,22 @@ test.describe('wind sword saint holy sword protocol harness', () => {
     // Server pushes holy sword prompt after third attack
     await protocolHarness.pushServerMessage(holySwordThirdAttackPrompt());
 
-    // Select X=2 (摸2弃2)
-    await clickOverlayOption(page, 'prompt-option-2');
+    // Select X=2 (numeric: numeric-option-2 inside decision-overlay)
+    await expect(page.getByTestId('decision-overlay')).toBeVisible();
+    await page.getByTestId('decision-overlay').getByTestId('numeric-option-2').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [1], // X=2 is second option
+      option_indexes: [2],
     });
 
     // Server pushes discard prompt
     await protocolHarness.pushServerMessage(holySwordDiscardPrompt(2));
 
-    // Select 2 cards to discard
+    // Select 2 cards to discard (card_picker: hand cards + confirm)
     await selectHandCards(page, [0, 1]);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0, 1],
+      card_ids: ['wss-wind-atk1', 'wss-wind-atk2'],
     });
   });
 
@@ -58,11 +48,12 @@ test.describe('wind sword saint holy sword protocol harness', () => {
 
     await protocolHarness.pushServerMessage(holySwordThirdAttackPrompt());
 
-    // Select X=1
-    await clickOverlayOption(page, 'prompt-option-1');
+    // Select X=1 (numeric: numeric-option-1 inside decision-overlay)
+    await expect(page.getByTestId('decision-overlay')).toBeVisible();
+    await page.getByTestId('decision-overlay').getByTestId('numeric-option-1').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0],
+      option_indexes: [1],
     });
 
     await protocolHarness.pushServerMessage(holySwordDiscardPrompt(1));
@@ -70,7 +61,7 @@ test.describe('wind sword saint holy sword protocol harness', () => {
     await selectHandCards(page, [0]);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0],
+      card_ids: ['wss-wind-atk1'],
     });
   });
 
@@ -79,11 +70,12 @@ test.describe('wind sword saint holy sword protocol harness', () => {
 
     await protocolHarness.pushServerMessage(holySwordThirdAttackPrompt());
 
-    // Select X=3
-    await clickOverlayOption(page, 'prompt-option-3');
+    // Select X=3 (numeric: numeric-option-3 inside decision-overlay)
+    await expect(page.getByTestId('decision-overlay')).toBeVisible();
+    await page.getByTestId('decision-overlay').getByTestId('numeric-option-3').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [2],
+      option_indexes: [3],
     });
 
     await protocolHarness.pushServerMessage(holySwordDiscardPrompt(3));
@@ -91,7 +83,7 @@ test.describe('wind sword saint holy sword protocol harness', () => {
     await selectHandCards(page, [0, 1, 2]);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0, 1, 2],
+      card_ids: ['wss-wind-atk1', 'wss-wind-atk2', 'wss-wind-atk3'],
     });
   });
 });
@@ -100,7 +92,7 @@ test.describe('wind sword saint gale skill protocol harness', () => {
   test('gale skill: auto triggers extra attack action', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(galeSkillScenario());
 
-    // Just verify scenario loads - 狾风技 is auto trigger
+    // Just verify scenario loads - 疾风技 is auto trigger
     await page.getByTestId('game-board').waitFor({ state: 'visible' });
   });
 });
@@ -112,8 +104,9 @@ test.describe('wind sword saint wind blade protocol harness', () => {
     // Server pushes wind blade prompt when target has shield
     await protocolHarness.pushServerMessage(windBladeShieldPrompt());
 
-    // Click confirm
-    await clickOverlayOption(page, 'prompt-option-confirm');
+    // Click confirm (branch_select: branch-option-0 inside decision-overlay)
+    await expect(page.getByTestId('decision-overlay')).toBeVisible();
+    await page.getByTestId('decision-overlay').getByTestId('branch-option-0').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],

@@ -52,7 +52,7 @@ test.describe('fighter heaven drive protocol harness', () => {
     await protocolHarness.pushServerMessage(heavenDriveConfirmPrompt());
     await page
       .getByTestId('skill-branch-overlay')
-      .getByTestId('branch-option-1')
+      .getByTestId('prompt-option-skip')
       .click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
@@ -83,7 +83,7 @@ test.describe('fighter heaven drive protocol harness', () => {
     await selectHandCards(page, [3, 4]);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [3, 4],
+      card_ids: ['card_4', 'card_5'],
     });
   });
 
@@ -109,7 +109,7 @@ test.describe('fighter heaven drive protocol harness', () => {
     await selectHandCards(page, [3, 4, 5]);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [3, 4, 5],
+      card_ids: ['card_4', 'card_5', 'card_6'],
     });
   });
 });

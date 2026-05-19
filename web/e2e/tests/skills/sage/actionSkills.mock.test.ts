@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { test } from '../../../fixtures/protocolHarness.fixture';
+import { test, expect } from '../../../fixtures/protocolHarness.fixture';
 import {
   ALLY_PLAYER_ID,
   ENEMY_PLAYER_ID,
@@ -42,20 +42,20 @@ test.describe('sage arcane codex protocol harness', () => {
   test('arcane codex: select cards then target enemy', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(arcaneCodexScenario());
 
-    // Server pushes arcane cards prompt (after skill activation and gem consumption)
+    // Server pushes arcane cards prompt (card_picker from hand)
     await protocolHarness.pushServerMessage(arcaneCardsPrompt());
 
     // Select 2 different-element cards (indices 0=Fire, 1=Water)
     await selectHandCards(page, [0, 1]);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0, 1],
+      card_ids: ['sg-fire-atk', 'sg-water-magic'],
     });
 
-    // Server pushes target prompt
+    // Server pushes target prompt (target_picker)
     await protocolHarness.pushServerMessage(arcaneTargetPrompt());
 
-    // Click enemy player area
+    // Click enemy player area (auto-submits for single target)
     await page.getByTestId(`player-area-${ENEMY_PLAYER_ID}`).click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
@@ -71,10 +71,10 @@ test.describe('sage arcane codex protocol harness', () => {
     await selectHandCards(page, [2, 3]);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [2, 3],
+      card_ids: ['sg-thunder-atk', 'sg-earth-magic'],
     });
 
-    // Target self
+    // Target self (target_picker: click player area)
     await protocolHarness.pushServerMessage(arcaneTargetPrompt());
     await page.getByTestId(`player-area-${SAGE_PLAYER_ID}`).click();
     await protocolHarness.expectSubmitAction({
@@ -98,18 +98,19 @@ test.describe('sage holy codex protocol harness', () => {
   test('holy codex: full flow (cards → manual target picker confirm)', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(holyCodexScenario());
 
-    // Step 1: select 3 different-element cards
+    // Step 1: select 3 different-element cards (card_picker from hand)
     await protocolHarness.pushServerMessage(holyCardsPrompt());
     await selectHandCards(page, [0, 1, 2]);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0, 1, 2],
+      card_ids: ['sg-fire-atk', 'sg-water-magic', 'sg-thunder-atk'],
     });
 
-    // Step 2: select first (and only) target on the board, then confirm in the dock.
+    // Step 2: select target on the board with multi_target picker, then confirm.
     await protocolHarness.pushServerMessage(
       holyTargetsStepPrompt(1, 1, ['Enemy E1', 'Ally A1', 'E2E Sage']),
     );
+    await expect(page.getByTestId('decision-overlay')).not.toBeVisible({ timeout: 5000 });
     await page.getByTestId(`player-area-${ENEMY_PLAYER_ID}`).click();
     await page.getByTestId('prompt-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
@@ -121,15 +122,15 @@ test.describe('sage holy codex protocol harness', () => {
   test('holy codex: select 4 cards, 2 targets', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(holyCodexScenario());
 
-    // Step 1: select 4 different-element cards (X=4, maxTargets = 4-2 = 2)
+    // Step 1: select 4 different-element cards (card_picker from hand)
     await protocolHarness.pushServerMessage(holyCardsPrompt());
     await selectHandCards(page, [0, 1, 2, 3]);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0, 1, 2, 3],
+      card_ids: ['sg-fire-atk', 'sg-water-magic', 'sg-thunder-atk', 'sg-earth-magic'],
     });
 
-    // Step 2: select two targets on the board, then confirm once in the dock.
+    // Step 2: select two targets on the board (multi_target picker), then confirm once.
     await protocolHarness.pushServerMessage(
       holyTargetsStepPrompt(1, 2, ['Enemy E1', 'Ally A1', 'E2E Sage']),
     );
