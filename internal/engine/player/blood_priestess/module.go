@@ -35,7 +35,10 @@ func RoleEntry() player.RoleEntry {
 // ChoiceSpecs 导出角色 choice 声明。
 func ChoiceSpecs() []player.ChoiceSpec {
 	return []player.ChoiceSpec{
-		{ChoiceType: "bp_curse_discard", SequentialRemaining: player.ChoiceRemainingFromSelectionKey("discard_count")},
+		{
+			ChoiceType:          "bp_curse_discard",
+			SequentialRemaining: player.ChoiceRemainingFromFlowSelectionCount(bloodCurseDiscardNeedStep, bloodCurseDiscardCardsStep),
+		},
 	}
 }
 

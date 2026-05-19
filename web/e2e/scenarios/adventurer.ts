@@ -165,14 +165,14 @@ export function adventurerScenario(options: {
 
 // ============================================================
 // Fraud (欺诈) - 响应技能
-// Backend flow: sequential card selection with need_count, then element if needed
+// Backend flow: sequential card selection with PromptFlowState, then element if needed
 // ============================================================
 
 export function fraudScenario(): ProtocolHarnessScenario {
   return adventurerScenario();
 }
 
-// Initial prompt to select first card (need_count=2)
+// Initial prompt to select first card (flow need=2)
 export function fraudPickPrompt(remaining: number = 2): WsMessage {
   return requireActionMessage({
     type: 'choose_cards',

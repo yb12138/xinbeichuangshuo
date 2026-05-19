@@ -522,6 +522,17 @@ func TestBeastSamurai_ReversalIaijutsu_ReplacesDamageWithDiscard(t *testing.T) {
 		t.Fatalf("choose reversal X=1 failed: %v", err)
 	}
 	requireBeastSamuraiDiscardInterrupt(t, game, "p2", "bs_reversal_target_discard")
+	ctxData := testutils.RequireChoiceContext(t, game, "p2", "bs_reversal_target_discard")
+	flow := testutils.RequirePromptFlow(t, ctxData, "bs_reversal_discard", "actual")
+	if got := flow.Selection("need").Count; got != 3 {
+		t.Fatalf("expected reversal discard need=3 in prompt flow, got %d", got)
+	}
+	if _, ok := ctxData["need_count"]; ok {
+		t.Fatalf("reversal discard should store need in prompt flow, got legacy need_count in %+v", ctxData)
+	}
+	if _, ok := ctxData["actual_discarded"]; ok {
+		t.Fatalf("reversal discard should store actual count in prompt flow, got legacy actual_discarded in %+v", ctxData)
+	}
 
 	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{0}}); err != nil {
 		t.Fatalf("confirm reversal discard (1st) failed: %v", err)

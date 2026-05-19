@@ -14,6 +14,12 @@ import (
 
 type choiceHandler struct{}
 
+const (
+	bloodCurseDiscardFlowID    = "bp_blood_curse_discard"
+	bloodCurseDiscardNeedStep  = "need"
+	bloodCurseDiscardCardsStep = "cards"
+)
+
 func NewChoiceHandler() engineplayer.ChoiceHandler {
 	return choiceHandler{}
 }
@@ -111,7 +117,11 @@ func buildBloodWailXPrompt(playerID string) *model.Prompt {
 }
 
 func buildCurseDiscardPrompt(playerID string, player *model.Player, data map[string]interface{}) *model.Prompt {
-	discardCount := runtimeutil.ToIntContextValue(data["discard_count"])
+	flow, err := model.RequirePromptFlow(data, bloodCurseDiscardFlowID, "血之诅咒弃牌")
+	if err != nil {
+		return nil
+	}
+	discardCount := flow.Selection(bloodCurseDiscardNeedStep).Count
 	if discardCount < 0 {
 		discardCount = 0
 	}
@@ -136,6 +146,13 @@ func buildCurseDiscardPrompt(playerID string, player *model.Player, data map[str
 		Max:          discardCount,
 		Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand"},
 	}
+}
+
+func initBloodCurseDiscardFlow(discardNeed int) *model.PromptFlowState {
+	flow := model.NewPromptFlowState(bloodCurseDiscardFlowID, bloodCurseDiscardCardsStep)
+	flow.PutSelection(bloodCurseDiscardNeedStep, model.PromptFlowSelection{Count: discardNeed})
+	flow.PutSelection(bloodCurseDiscardCardsStep, model.PromptFlowSelection{})
+	return flow
 }
 
 // --------------- HandleChoice ---------------
@@ -366,6 +383,13 @@ func handleCurseDiscardChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]
 	}
 
 	discardNeed := runtimeutil.ToIntContextValue(ctxData["discard_count"])
+	flow, err := model.RequirePromptFlow(ctxData, bloodCurseDiscardFlowID, "血之诅咒弃牌")
+	if err != nil {
+		return err
+	}
+	if flowNeed := flow.Selection(bloodCurseDiscardNeedStep).Count; flowNeed > 0 {
+		discardNeed = flowNeed
+	}
 	if discardNeed < 0 {
 		discardNeed = 0
 	}
@@ -392,13 +416,14 @@ func handleCurseDiscardChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]
 		if selectionIndex < 0 || selectionIndex >= len(user.Hand) {
 			return fmt.Errorf("无效的弃牌索引: %d", selectionIndex)
 		}
-		// Accumulate this selection index
-		selectedIndices := runtimeutil.ParseChoiceIntSlice(ctxData["selected_indices"])
+		selectedIndices := append([]int{}, flow.Selection(bloodCurseDiscardCardsStep).OptionIndexes...)
+		for _, idx := range selectedIndices {
+			if idx == selectionIndex {
+				return fmt.Errorf("不能重复选择同一张牌")
+			}
+		}
 		selectedIndices = append(selectedIndices, selectionIndex)
-		ctxData["selected_indices"] = selectedIndices
-
-		// DEBUG: trace each iteration
-		rt.Log(fmt.Sprintf("DEBUG batch flow: iteration with selectionIndex=%d, sequentialRemaining=%d, accumulated selectedIndices=%v", selectionIndex, sequentialRemaining, selectedIndices))
+		flow.PutSelection(bloodCurseDiscardCardsStep, model.PromptFlowSelection{OptionIndexes: selectedIndices})
 
 		// Only remove cards when this is the last iteration
 		if sequentialRemaining == 0 {
@@ -441,6 +466,8 @@ func handleCurseDiscardChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]
 	if discardNeed > 0 {
 		// 还有牌需要弃置，更新上下文重新触发
 		ctxData["discard_count"] = discardNeed
+		flow.PutSelection(bloodCurseDiscardNeedStep, model.PromptFlowSelection{Count: discardNeed})
+		flow.PutSelection(bloodCurseDiscardCardsStep, model.PromptFlowSelection{})
 		rt.PushInterrupt(&model.Interrupt{
 			Type:     model.InterruptChoice,
 			PlayerID: user.ID,

@@ -2,45 +2,7 @@
 
 package player
 
-import (
-	"starcup-engine/internal/engine/core/runtimeutil"
-	"starcup-engine/internal/model"
-)
-
-// ChoiceRemainingFromSelectionKey 根据 ctxData 中的数值字段计算剩余数量。
-func ChoiceRemainingFromSelectionKey(key string) ChoiceSequentialRemaining {
-	return func(ctxData map[string]interface{}) (int, bool) {
-		selectedCount := len(runtimeutil.ParseChoiceIntSlice(ctxData["selected_indices"]))
-		return runtimeutil.ToIntContextValue(ctxData[key]) - selectedCount, true
-	}
-}
-
-// ChoiceRemainingFromSelectionKeyFloor 根据 ctxData 中的数值字段计算剩余数量，并给需求数量设置下限。
-func ChoiceRemainingFromSelectionKeyFloor(key string, floor int) ChoiceSequentialRemaining {
-	return func(ctxData map[string]interface{}) (int, bool) {
-		need := runtimeutil.ToIntContextValue(ctxData[key])
-		if need < floor {
-			need = floor
-		}
-		selectedCount := len(runtimeutil.ParseChoiceIntSlice(ctxData["selected_indices"]))
-		return need - selectedCount, true
-	}
-}
-
-// ChoiceRemainingFromFixedTotal 根据固定总数计算剩余数量。
-func ChoiceRemainingFromFixedTotal(total int) ChoiceSequentialRemaining {
-	return func(ctxData map[string]interface{}) (int, bool) {
-		selectedCount := len(runtimeutil.ParseChoiceIntSlice(ctxData["selected_indices"]))
-		return total - selectedCount, true
-	}
-}
-
-// ChoiceRemainingFromNeedAndSelected 根据 need/selected 字段计算剩余数量。
-func ChoiceRemainingFromNeedAndSelected(needKey, selectedKey string) ChoiceSequentialRemaining {
-	return func(ctxData map[string]interface{}) (int, bool) {
-		return runtimeutil.ToIntContextValue(ctxData[needKey]) - runtimeutil.ToIntContextValue(ctxData[selectedKey]), true
-	}
-}
+import "starcup-engine/internal/model"
 
 // ChoiceRemainingFromFlowSelectionCount derives sequential remaining count from
 // PromptFlowState accumulated selections.
@@ -56,10 +18,15 @@ func ChoiceRemainingFromFlowSelectionCount(countStepID, selectedStepID string) C
 	}
 }
 
-// ChoiceRemainingFromFlexibleRange 表示一次提交允许在 min/max 范围内弹性结束。
-func ChoiceRemainingFromFlexibleRange(minCount, maxCount int) ChoiceSequentialRemaining {
+// ChoiceRemainingFromFlowFlexibleRange 表示一次提交允许在 min/max 范围内弹性结束，
+// 已选数量从 PromptFlowState 读取。
+func ChoiceRemainingFromFlowFlexibleRange(selectedStepID string, minCount, maxCount int) ChoiceSequentialRemaining {
 	return func(ctxData map[string]interface{}) (int, bool) {
-		selectedCount := len(runtimeutil.ParseChoiceIntSlice(ctxData["selected_indices"]))
+		flow := model.PromptFlowFromContext(ctxData)
+		if flow == nil {
+			return 0, false
+		}
+		selectedCount := len(flow.Selection(selectedStepID).OptionIndexes)
 		switch {
 		case selectedCount == 0:
 			return 0, true

@@ -31,7 +31,7 @@ async function selectTarget(page: Page, targetId: string) {
 
 test.describe('adventurer fraud protocol harness', () => {
   // Backend flow: sequential card selection, then element if needed
-  // 1. Push fraudPickPrompt(need_count=2)
+  // 1. Push fraudPickPrompt(flow need=2)
   // 2. Select card 0 (light element) → expect option_indexes: [0]
   // 3. Push fraudPickPrompt(remaining=1) again
   // 4. Select card 1 (light element, same element) → expect option_indexes: [0, 1]

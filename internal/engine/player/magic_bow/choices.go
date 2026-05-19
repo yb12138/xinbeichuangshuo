@@ -13,6 +13,15 @@ import (
 
 type choiceHandler struct{}
 
+const (
+	magicBowChargePlaceFlowID   = "mb_charge_place"
+	magicBowChargeNeedStep      = "need"
+	magicBowChargeCardsStep     = "cards"
+	magicBowDemonEyeFlowID      = "mb_demon_eye_charge"
+	magicBowDemonEyeCardsStep   = "cards"
+	magicBowSequentialFlowLabel = "魔弓选择"
+)
+
 func NewChoiceHandler() engineplayer.ChoiceHandler {
 	return choiceHandler{}
 }
@@ -99,9 +108,9 @@ func buildChargeRemovalPrompt(playerID string, player *model.Player, element mod
 
 func buildMagicPierceHitBonusPrompt(playerID string) *model.Prompt {
 	return &model.Prompt{
-		Type:         model.PromptConfirm,
-		PlayerID:     playerID,
-		Message:      "【魔贯冲击】是否额外移除1个火系充能使伤害+1？",
+		Type:     model.PromptConfirm,
+		PlayerID: playerID,
+		Message:  "【魔贯冲击】是否额外移除1个火系充能使伤害+1？",
 		Options: []model.PromptOption{
 			{ID: "0", Label: "是"},
 			{ID: "1", Label: "否"},
@@ -163,16 +172,9 @@ func buildChargePlaceCardsPrompt(playerID string, player *model.Player, data map
 		return nil
 	}
 	remaining := engineplayer.ParseIntSliceContextValue(data["remaining_indices"])
-	if len(remaining) == 0 && choiceType == "mb_demon_eye_charge_card" {
+	if len(remaining) == 0 {
 		remaining = engineplayer.AllHandIndices(player)
 	}
-	selectedCount := len(engineplayer.ParseIntSliceContextValue(data["selected_indices"]))
-	needCount := runtimeutil.ToIntContextValue(data["need_count"])
-	maxPlace := runtimeutil.ToIntContextValue(data["max_place"])
-	if choiceType == "mb_demon_eye_charge_card" && needCount <= 0 {
-		needCount = 1
-	}
-
 	options := make([]model.PromptOption, 0, len(remaining))
 	for _, idx := range remaining {
 		if idx < 0 || idx >= len(player.Hand) {
@@ -184,47 +186,102 @@ func buildChargePlaceCardsPrompt(playerID string, player *model.Player, data map
 		})
 	}
 
-	// 充能盖牌：允许选择 0~maxPlace 张（needCount=0 表示不强制数量）
-	// 魔眼充能：必须选择 1 张（needCount=1）
-	if choiceType == "mb_charge_place_cards" && needCount == 0 {
-		// 多选模式：Min=0（可不选），Max=maxPlace
-		minPick := 0
-		maxPick := maxPlace
-		if maxPick > len(options) {
-			maxPick = len(options)
-		}
-		return &model.Prompt{
-			Type:         model.PromptChooseCards,
-			PlayerID:     playerID,
-			Message:      fmt.Sprintf("【充能】请选择要放置为充能的手牌（最多%d张，可不选）：", maxPick),
-			Options:      options,
-			Min:          minPick,
-			Max:          maxPick,
-			Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand"},
-		}
+	maxPlace := runtimeutil.ToIntContextValue(data["max_place"])
+	if maxPlace < 0 {
+		maxPlace = 0
+	}
+	if maxPlace > len(options) {
+		maxPlace = len(options)
 	}
 
-	// 原逻辑：逐张选择（needCount > 0）
-	remainingPick := needCount - selectedCount
-	if remainingPick < 1 {
-		remainingPick = 1
+	switch choiceType {
+	case "mb_demon_eye_charge_card":
+		flow, err := model.RequirePromptFlow(data, magicBowDemonEyeFlowID, magicBowSequentialFlowLabel)
+		if err != nil {
+			return nil
+		}
+		needCount := flow.Selection(magicBowChargeNeedStep).Count
+		if needCount <= 0 {
+			needCount = 1
+		}
+		selectedCount := len(flow.Selection(magicBowChargeCardsStep).OptionIndexes)
+		remainingPick := needCount - selectedCount
+		if remainingPick < 1 {
+			remainingPick = 1
+		}
+		if remainingPick > len(options) {
+			remainingPick = len(options)
+		}
+		if remainingPick < 1 {
+			remainingPick = 1
+		}
+		return &model.Prompt{
+			Type:     model.PromptChooseCards,
+			PlayerID: playerID,
+			Message:  "【魔眼】请选择1张手牌作为充能：",
+			Options:  options,
+			Min:      remainingPick,
+			Max:      remainingPick,
+			Presentation: &model.PromptPresentation{
+				Kind:       model.PresentationCardPicker,
+				CardSource: "hand",
+			},
+		}
+	case "mb_charge_place_cards":
+		if flow := model.PromptFlowFromContext(data); flow != nil && flow.FlowID == magicBowChargePlaceFlowID {
+			needCount := flow.Selection(magicBowChargeNeedStep).Count
+			selectedCount := len(flow.Selection(magicBowChargeCardsStep).OptionIndexes)
+			if needCount > 0 {
+				remainingPick := needCount - selectedCount
+				if remainingPick < 1 {
+					remainingPick = 1
+				}
+				if remainingPick > len(options) {
+					remainingPick = len(options)
+				}
+				return &model.Prompt{
+					Type:     model.PromptChooseCards,
+					PlayerID: playerID,
+					Message:  fmt.Sprintf("【充能】请选择%d张作为充能的手牌：", remainingPick),
+					Options:  options,
+					Min:      remainingPick,
+					Max:      remainingPick,
+					Presentation: &model.PromptPresentation{
+						Kind:       model.PresentationCardPicker,
+						CardSource: "hand",
+					},
+				}
+			}
+		}
+		return &model.Prompt{
+			Type:     model.PromptChooseCards,
+			PlayerID: playerID,
+			Message:  fmt.Sprintf("【充能】请选择要放置为充能的手牌（最多%d张，可不选）：", maxPlace),
+			Options:  options,
+			Min:      0,
+			Max:      maxPlace,
+			Presentation: &model.PromptPresentation{
+				Kind:       model.PresentationCardPicker,
+				CardSource: "hand",
+			},
+		}
+	default:
+		return nil
 	}
-	if len(options) > 0 && remainingPick > len(options) {
-		remainingPick = len(options)
-	}
-	message := fmt.Sprintf("【充能】请选择%d张作为充能的手牌：", remainingPick)
-	if choiceType == "mb_demon_eye_charge_card" {
-		message = "【魔眼】请选择1张手牌作为充能："
-	}
-	return &model.Prompt{
-		Type:         model.PromptChooseCards,
-		PlayerID:     playerID,
-		Message:      message,
-		Options:      options,
-		Min:          remainingPick,
-		Max:          remainingPick,
-		Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand"},
-	}
+}
+
+func initMagicBowChargePlaceFlow(needCount int) *model.PromptFlowState {
+	flow := model.NewPromptFlowState(magicBowChargePlaceFlowID, magicBowChargeCardsStep)
+	flow.PutSelection(magicBowChargeNeedStep, model.PromptFlowSelection{Count: needCount})
+	flow.PutSelection(magicBowChargeCardsStep, model.PromptFlowSelection{})
+	return flow
+}
+
+func initMagicBowDemonEyeChargeFlow() *model.PromptFlowState {
+	flow := model.NewPromptFlowState(magicBowDemonEyeFlowID, magicBowChargeCardsStep)
+	flow.PutSelection(magicBowChargeNeedStep, model.PromptFlowSelection{Count: 1})
+	flow.PutSelection(magicBowChargeCardsStep, model.PromptFlowSelection{})
+	return flow
 }
 
 func buildThunderScatterExtraPrompt(playerID string, data map[string]interface{}) *model.Prompt {
@@ -517,8 +574,7 @@ func handleChargeDrawX(rt engineplayer.ChoiceRuntime, ctxData map[string]interfa
 	// Min=0 允许不选，Max=maxPlace 最多可选maxPlace张
 	ctxData["choice_type"] = "mb_charge_place_cards"
 	ctxData["max_place"] = maxPlace
-	ctxData["need_count"] = 0 // 0表示不强制数量，由玩家决定
-	ctxData["selected_indices"] = []int{}
+	model.SetPromptFlowContext(ctxData, initMagicBowChargePlaceFlow(0))
 	ctxData["remaining_indices"] = engineplayer.AllHandIndices(user)
 	if intr := rt.GetPendingInterrupt(); intr != nil {
 		intr.Context = ctxData
@@ -553,8 +609,7 @@ func handleChargePlaceCount(rt engineplayer.ChoiceRuntime, ctxData map[string]in
 	}
 
 	ctxData["choice_type"] = "mb_charge_place_cards"
-	ctxData["need_count"] = needCount
-	ctxData["selected_indices"] = []int{}
+	model.SetPromptFlowContext(ctxData, initMagicBowChargePlaceFlow(needCount))
 	ctxData["remaining_indices"] = engineplayer.AllHandIndices(user)
 	if intr := rt.GetPendingInterrupt(); intr != nil {
 		intr.Context = ctxData
@@ -564,84 +619,8 @@ func handleChargePlaceCount(rt engineplayer.ChoiceRuntime, ctxData map[string]in
 }
 
 func handleChargePlaceCards(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
-	choiceType, _ := ctxData["choice_type"].(string)
-	userID, _ := ctxData["user_id"].(string)
-	user := rt.GetPlayers()[userID]
-	if user == nil {
-		return fmt.Errorf("玩家不存在")
-	}
-
-	remaining := engineplayer.ParseIntSliceContextValue(ctxData["remaining_indices"])
-	if len(remaining) == 0 {
-		remaining = engineplayer.AllHandIndices(user)
-	}
-	selected := engineplayer.ParseIntSliceContextValue(ctxData["selected_indices"])
-	needCount := runtimeutil.ToIntContextValue(ctxData["need_count"])
-	if choiceType == "mb_demon_eye_charge_card" && needCount <= 0 {
-		needCount = 1
-	}
-	if needCount <= 0 {
-		needCount = 1
-	}
-
-	cardIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, remaining)
-	if !ok || cardIdx < 0 || cardIdx >= len(user.Hand) {
-		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
-	}
-
-	selected = append(selected, cardIdx)
-	nextRemaining := make([]int, 0, len(remaining))
-	for _, idx := range remaining {
-		if idx != cardIdx {
-			nextRemaining = append(nextRemaining, idx)
-		}
-	}
-
-	if len(selected) < needCount {
-		ctxData["selected_indices"] = selected
-		ctxData["remaining_indices"] = nextRemaining
-		if intr := rt.GetPendingInterrupt(); intr != nil {
-			intr.Context = ctxData
-		}
-		rt.NotifyInterruptPrompt()
-		return nil
-	}
-
-	removed, _ := engineplayer.RemoveCardsByIndicesFromHand(user, append([]int{}, selected...))
-
-	// Calculate how many can actually be placed (cap = ChargeCap).
-	room := ChargeCap - ChargeCount(user, "")
-	toPlace := len(removed)
-	if toPlace > room {
-		toPlace = room
-	}
-	var toDiscard []model.Card
-	if toPlace < len(removed) {
-		toDiscard = removed[toPlace:]
-	}
-	AddChargeCards(user, removed[:toPlace])
-	if len(toDiscard) > 0 {
-		rt.AppendToDiscard(toDiscard)
-	}
-
-	if choiceType == "mb_demon_eye_charge_card" {
-		maxEnergy := getPlayerEnergyCap(user)
-		if user.Gem+user.Crystal < maxEnergy {
-			user.Crystal++
-			if user.Gem+user.Crystal > maxEnergy {
-				user.Crystal -= user.Gem + user.Crystal - maxEnergy
-			}
-		}
-		rt.Log(fmt.Sprintf("%s 的 [魔眼] 生效：放置1张充能并获得1点蓝水晶", user.Name))
-	} else {
-		rt.Log(fmt.Sprintf("%s 的 [充能] 生效：放置%d张充能", user.Name, toPlace))
-	}
-
-	rt.PopInterrupt()
-	if rt.GetPendingInterrupt() == nil {
-		rt.ApplyChoiceResumePoint(model.TurnStageActionStart)
-	}
-	return nil
+	_, err := handleMagicBowChargeSelection(rt, ctxData, []int{selectionIndex}, true)
+	return err
 }
 
 func handleThunderScatterExtra(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
@@ -772,8 +751,7 @@ func handleDemonEyeMode(rt engineplayer.ChoiceRuntime, ctxData map[string]interf
 		}
 		// Push charge card selection
 		ctxData["choice_type"] = "mb_demon_eye_charge_card"
-		ctxData["need_count"] = 1
-		ctxData["selected_indices"] = []int{}
+		model.SetPromptFlowContext(ctxData, initMagicBowDemonEyeChargeFlow())
 		ctxData["remaining_indices"] = engineplayer.AllHandIndices(user)
 		if intr := rt.GetPendingInterrupt(); intr != nil {
 			intr.Context = ctxData
@@ -881,8 +859,7 @@ func handleTargetChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]interf
 		// Target has no cards: user draws 3 and places 1 as charge
 		rt.DrawCards(user.ID, 3)
 		ctxData["choice_type"] = "mb_demon_eye_charge_card"
-		ctxData["need_count"] = 1
-		ctxData["selected_indices"] = []int{}
+		model.SetPromptFlowContext(ctxData, initMagicBowDemonEyeChargeFlow())
 		ctxData["remaining_indices"] = engineplayer.AllHandIndices(user)
 		rt.PushInterrupt(&model.Interrupt{
 			Type:     model.InterruptChoice,
@@ -987,8 +964,6 @@ func demonEyeAfterDiscardData(rt engineplayer.ChoiceRuntime, discardPlayer *mode
 		Context: map[string]interface{}{
 			"choice_type":       "mb_demon_eye_charge_card",
 			"user_id":           demonEyeUserID,
-			"need_count":        1,
-			"selected_indices":  []int{},
 			"remaining_indices": engineplayer.AllHandIndices(user),
 		},
 	})
@@ -999,6 +974,11 @@ func demonEyeAfterDiscardData(rt engineplayer.ChoiceRuntime, discardPlayer *mode
 // handleChargePlaceCardsMultiSelect 批量多选盖牌（充能技能简化交互）。
 // 玩家一次性选择要盖放的手牌（0~maxPlace张），无需先选择数量再逐张选择。
 func handleChargePlaceCardsMultiSelect(rt engineplayer.ChoiceRuntime, playerID string, selections []int, ctxData map[string]interface{}) (bool, error) {
+	return handleMagicBowChargeSelection(rt, ctxData, selections, false)
+}
+
+func handleMagicBowChargeSelection(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selections []int, allowPartial bool) (bool, error) {
+	choiceType, _ := ctxData["choice_type"].(string)
 	userID, _ := ctxData["user_id"].(string)
 	user := rt.GetPlayers()[userID]
 	if user == nil {
@@ -1006,34 +986,89 @@ func handleChargePlaceCardsMultiSelect(rt engineplayer.ChoiceRuntime, playerID s
 	}
 
 	maxPlace := runtimeutil.ToIntContextValue(ctxData["max_place"])
-	if maxPlace <= 0 {
-		maxPlace = len(user.Hand)
+	if maxPlace < 0 {
+		maxPlace = 0
 	}
 
-	// 验证选择数量不超过上限
-	if len(selections) > maxPlace {
+	remaining := engineplayer.ParseIntSliceContextValue(ctxData["remaining_indices"])
+	if len(remaining) == 0 {
+		remaining = engineplayer.AllHandIndices(user)
+	}
+
+	flow := model.PromptFlowFromContext(ctxData)
+	needCount := 0
+	if flow != nil {
+		switch flow.FlowID {
+		case magicBowChargePlaceFlowID, magicBowDemonEyeFlowID:
+			needCount = flow.Selection(magicBowChargeNeedStep).Count
+		}
+	}
+	if choiceType == "mb_demon_eye_charge_card" && needCount <= 0 {
+		needCount = 1
+	}
+
+	selected := make([]int, 0, len(selections))
+	if flow != nil && needCount > 0 {
+		selected = append(selected, flow.Selection(magicBowChargeCardsStep).OptionIndexes...)
+	}
+
+	resolveSelection := func(sel int) (int, error) {
+		cardIdx, ok := runtimeutil.ResolveSelectionToCandidate(sel, remaining)
+		if !ok || cardIdx < 0 || cardIdx >= len(user.Hand) {
+			return 0, fmt.Errorf("无效的选项索引: %d", sel)
+		}
+		return cardIdx, nil
+	}
+
+	for _, sel := range selections {
+		cardIdx, err := resolveSelection(sel)
+		if err != nil {
+			return false, err
+		}
+		for _, existing := range selected {
+			if existing == cardIdx {
+				return false, fmt.Errorf("不能重复选择同一张牌")
+			}
+		}
+		selected = append(selected, cardIdx)
+		nextRemaining := make([]int, 0, len(remaining))
+		for _, idx := range remaining {
+			if idx != cardIdx {
+				nextRemaining = append(nextRemaining, idx)
+			}
+		}
+		remaining = nextRemaining
+	}
+
+	if maxPlace > 0 && len(selected) > maxPlace {
 		return false, fmt.Errorf("选择数量超过上限: 最多%d张", maxPlace)
 	}
 
-	// 验证所有选择索引有效且不重复
-	validIndices := engineplayer.AllHandIndices(user)
-	seen := make(map[int]bool)
-	cardIndices := make([]int, 0, len(selections))
-	for _, sel := range selections {
-		// sel 是前端传来的选项索引，需要映射到实际手牌索引
-		cardIdx, ok := runtimeutil.ResolveSelectionToCandidate(sel, validIndices)
-		if !ok || cardIdx < 0 || cardIdx >= len(user.Hand) {
-			return false, fmt.Errorf("无效的选项索引: %d", sel)
+	if needCount > 0 {
+		if len(selected) > needCount {
+			return false, fmt.Errorf("选择数量超过上限: 需要%d张", needCount)
 		}
-		if seen[cardIdx] {
-			return false, fmt.Errorf("不能重复选择同一张牌")
+		if len(selected) < needCount {
+			if !allowPartial {
+				return false, fmt.Errorf("需要选择%d张牌", needCount)
+			}
+			if flow == nil {
+				return false, fmt.Errorf("缺少多步流状态")
+			}
+			flow.PutSelection(magicBowChargeCardsStep, model.PromptFlowSelection{
+				OptionIndexes: append([]int{}, selected...),
+				Count:         needCount,
+			})
+			ctxData["remaining_indices"] = remaining
+			if intr := rt.GetPendingInterrupt(); intr != nil {
+				intr.Context = ctxData
+			}
+			rt.NotifyInterruptPrompt()
+			return true, nil
 		}
-		seen[cardIdx] = true
-		cardIndices = append(cardIndices, cardIdx)
 	}
 
-	// 如果没有选择任何牌，直接结束
-	if len(cardIndices) == 0 {
+	if len(selected) == 0 {
 		rt.Log(fmt.Sprintf("%s 选择不放置充能", user.Name))
 		rt.PopInterrupt()
 		if rt.GetPendingInterrupt() == nil {
@@ -1042,20 +1077,16 @@ func handleChargePlaceCardsMultiSelect(rt engineplayer.ChoiceRuntime, playerID s
 		return true, nil
 	}
 
-	// 从手牌中移除选中的牌
-	removed, err := engineplayer.RemoveCardsByIndicesFromHand(user, cardIndices)
+	removed, err := engineplayer.RemoveCardsByIndicesFromHand(user, append([]int{}, selected...))
 	if err != nil {
 		return false, fmt.Errorf("移除手牌失败: %v", err)
 	}
 
-	// 计算实际可以放置的充能数量（考虑上限）
 	room := ChargeCap - ChargeCount(user, "")
 	toPlace := len(removed)
 	if toPlace > room {
 		toPlace = room
 	}
-
-	// 放置充能
 	var toDiscard []model.Card
 	if toPlace < len(removed) {
 		toDiscard = removed[toPlace:]
@@ -1065,7 +1096,19 @@ func handleChargePlaceCardsMultiSelect(rt engineplayer.ChoiceRuntime, playerID s
 		rt.AppendToDiscard(toDiscard)
 	}
 
-	rt.Log(fmt.Sprintf("%s 的 [充能] 生效：放置%d张充能", user.Name, toPlace))
+	if choiceType == "mb_demon_eye_charge_card" {
+		maxEnergy := getPlayerEnergyCap(user)
+		if user.Gem+user.Crystal < maxEnergy {
+			user.Crystal++
+			if user.Gem+user.Crystal > maxEnergy {
+				user.Crystal -= user.Gem + user.Crystal - maxEnergy
+			}
+		}
+		rt.Log(fmt.Sprintf("%s 的 [魔眼] 生效：放置1张充能并获得1点蓝水晶", user.Name))
+	} else {
+		rt.Log(fmt.Sprintf("%s 的 [充能] 生效：放置%d张充能", user.Name, toPlace))
+	}
+
 	rt.PopInterrupt()
 	if rt.GetPendingInterrupt() == nil {
 		rt.ApplyChoiceResumePoint(model.TurnStageActionStart)

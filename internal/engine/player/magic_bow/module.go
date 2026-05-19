@@ -39,7 +39,7 @@ func ChoiceSpecs() []player.ChoiceSpec {
 		},
 		{
 			ChoiceType:          "mb_demon_eye_charge_card",
-			SequentialRemaining: player.ChoiceRemainingFromSelectionKeyFloor("need_count", 1),
+			SequentialRemaining: player.ChoiceRemainingFromFlowSelectionCount("need", "cards"),
 		},
 	}
 }

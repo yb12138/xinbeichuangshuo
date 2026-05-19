@@ -12,6 +12,11 @@ import (
 	"starcup-engine/internal/model"
 )
 
+const (
+	adventurerFraudFlowID    = "adventurer_fraud"
+	adventurerFraudCardsStep = "cards"
+)
+
 // ChoiceSpecs 声明式选择流程条目。
 func ChoiceSpecs() []engineplayer.ChoiceSpec {
 	return []engineplayer.ChoiceSpec{
@@ -21,7 +26,7 @@ func ChoiceSpecs() []engineplayer.ChoiceSpec {
 			ChoiceType:          "adventurer_fraud_pick",
 			BuildPrompt:         buildFraudPickPrompt,
 			HandleChoice:        handleFraudPick,
-			SequentialRemaining: engineplayer.ChoiceRemainingFromFlexibleRange(2, 3),
+			SequentialRemaining: engineplayer.ChoiceRemainingFromFlowFlexibleRange(adventurerFraudCardsStep, 2, 3),
 		},
 		{ChoiceType: "adventurer_fraud_attack_element", BuildPrompt: buildFraudElementPrompt, HandleChoice: handleFraudElement},
 		{ChoiceType: "adventurer_steal_sky_mode", BuildPrompt: buildStealSkyModePrompt, HandleChoice: handleStealSkyMode},
@@ -200,18 +205,18 @@ func buildFraudPickPrompt(_ engineplayer.ChoiceRuntime, playerID string, player 
 	if player == nil {
 		return nil
 	}
+	flow, err := model.RequirePromptFlow(data, adventurerFraudFlowID, "欺诈")
+	if err != nil {
+		return nil
+	}
 	remainingIndices := runtimeutil.ParseChoiceIntSlice(data["remaining_indices"])
 	if len(remainingIndices) == 0 {
 		remainingIndices = engineplayer.AllHandIndices(player)
 	}
-	selectedIndices := runtimeutil.ParseChoiceIntSlice(data["selected_indices"])
-	needCount := runtimeutil.ToIntContextValue(data["need_count"])
-	if needCount <= 0 {
-		needCount = 2
-	}
-	remaining := needCount - len(selectedIndices)
+	selectedIndices := flow.Selection(adventurerFraudCardsStep).OptionIndexes
+	remaining := 2 - len(selectedIndices)
 	if remaining <= 0 {
-		return nil
+		remaining = 1
 	}
 	opts := make([]engineplayer.PromptOptionSpec, 0, len(remainingIndices))
 	for _, idx := range remainingIndices {
@@ -230,7 +235,11 @@ func handleFraudPick(rt engineplayer.ChoiceRuntime, playerID string, selectionIn
 	if user == nil {
 		return true, fmt.Errorf("玩家不存在")
 	}
-	selectedIndices := runtimeutil.ParseChoiceIntSlice(ctxData["selected_indices"])
+	flow, err := model.RequirePromptFlow(ctxData, adventurerFraudFlowID, "欺诈")
+	if err != nil {
+		return true, err
+	}
+	selectedIndices := append([]int{}, flow.Selection(adventurerFraudCardsStep).OptionIndexes...)
 	remainingIndices := runtimeutil.ParseChoiceIntSlice(ctxData["remaining_indices"])
 	if len(remainingIndices) == 0 {
 		remainingIndices = engineplayer.AllHandIndices(user)
@@ -248,16 +257,11 @@ func handleFraudPick(rt engineplayer.ChoiceRuntime, playerID string, selectionIn
 
 	selectedIndices = append(selectedIndices, cardIdx)
 	remainingIndices = removeInt(remainingIndices, cardIdx)
-	ctxData["selected_indices"] = selectedIndices
+	flow.PutSelection(adventurerFraudCardsStep, model.PromptFlowSelection{OptionIndexes: append([]int{}, selectedIndices...)})
 	ctxData["remaining_indices"] = remainingIndices
 
-	needCount := runtimeutil.ToIntContextValue(ctxData["need_count"])
-	if needCount <= 0 {
-		needCount = 2
-	}
-
 	// 还没选够，继续选
-	if len(selectedIndices) < needCount {
+	if len(selectedIndices) < 2 {
 		if intr := rt.GetPendingInterrupt(); intr != nil {
 			intr.Context = ctxData
 		}
@@ -285,6 +289,8 @@ func handleFraudPick(rt engineplayer.ChoiceRuntime, playerID string, selectionIn
 	}
 	if commonElement == "" {
 		// 2张不同系，重新选
+		flow.PutSelection(adventurerFraudCardsStep, model.PromptFlowSelection{})
+		ctxData["remaining_indices"] = engineplayer.AllHandIndices(user)
 		if intr := rt.GetPendingInterrupt(); intr != nil {
 			intr.Context = ctxData
 		}
@@ -324,7 +330,11 @@ func handleFraudElement(rt engineplayer.ChoiceRuntime, playerID string, selectio
 	if user == nil {
 		return true, fmt.Errorf("玩家不存在")
 	}
-	selectedIndices := runtimeutil.ParseChoiceIntSlice(ctxData["selected_indices"])
+	flow, err := model.RequirePromptFlow(ctxData, adventurerFraudFlowID, "欺诈")
+	if err != nil {
+		return true, err
+	}
+	selectedIndices := flow.Selection(adventurerFraudCardsStep).OptionIndexes
 	return resolveFraudAttack(rt, user, selectedIndices, ctxData, elements[selectionIndex])
 }
 

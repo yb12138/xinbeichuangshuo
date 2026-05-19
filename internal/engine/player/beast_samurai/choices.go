@@ -14,6 +14,12 @@ import (
 
 type choiceHandler struct{}
 
+const (
+	beastReversalDiscardFlowID     = "bs_reversal_discard"
+	beastReversalDiscardNeedStep   = "need"
+	beastReversalDiscardActualStep = "actual"
+)
+
 func NewChoiceHandler() engineplayer.ChoiceHandler {
 	return choiceHandler{}
 }
@@ -107,13 +113,13 @@ func buildIaijutsuStyleModePrompt(playerID string, data map[string]interface{}) 
 		return nil
 	}
 	return &model.Prompt{
-		Type:       model.PromptConfirm,
-		PlayerID:   playerID,
-		ChoiceType: "bs_iaijutsu_style_mode",
-		Message:    `【御魂流居合式】请选择"摸1张牌"或"弃1张牌"：`,
-		Options:    options,
-		Min:        1,
-		Max:        1,
+		Type:         model.PromptConfirm,
+		PlayerID:     playerID,
+		ChoiceType:   "bs_iaijutsu_style_mode",
+		Message:      `【御魂流居合式】请选择"摸1张牌"或"弃1张牌"：`,
+		Options:      options,
+		Min:          1,
+		Max:          1,
 		Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 	}
 }
@@ -320,17 +326,18 @@ func handleReversalX(rt engineplayer.ChoiceRuntime, ctxData map[string]interface
 		discardCount = len(target.Hand)
 	}
 	if discardCount > 0 {
-		replaceDiscardInterrupt(rt, target.ID, map[string]interface{}{
+		discardCtx := map[string]interface{}{
 			"choice_type":   "bs_reversal_target_discard",
 			"user_id":       user.ID,
 			"target_id":     target.ID,
 			"x_value":       x,
-			"need_count":    need,
 			"discard_count": discardCount,
 			"prompt":        fmt.Sprintf("【逆反居合斩】请选择弃置%d张手牌：", discardCount),
 			"resume_phase":  resumePoint,
 			"user_ctx":      ctxData["user_ctx"],
-		})
+		}
+		model.SetPromptFlowContext(discardCtx, initBeastReversalDiscardFlow(need))
+		replaceDiscardInterrupt(rt, target.ID, discardCtx)
 		return nil
 	}
 	finishReversal(rt, ctxData, target, need, 0, resumePoint)
@@ -521,7 +528,11 @@ func handleReversalTargetDiscard(rt engineplayer.ChoiceRuntime, ctxData map[stri
 		return fmt.Errorf("逆反居合斩目标不存在")
 	}
 
-	need := runtimeutil.ToIntContextValue(ctxData["need_count"])
+	flow, err := model.RequirePromptFlow(ctxData, beastReversalDiscardFlowID, "逆反居合斩弃牌")
+	if err != nil {
+		return err
+	}
+	need := flow.Selection(beastReversalDiscardNeedStep).Count
 	removed, _ := engineplayer.RemoveCardsByIndicesFromHand(target, []int{selectionIndex})
 	if len(removed) > 0 {
 		rt.NotifyCardRevealed(target.ID, removed, "discard")
@@ -529,8 +540,8 @@ func handleReversalTargetDiscard(rt engineplayer.ChoiceRuntime, ctxData map[stri
 	}
 
 	// Accumulate actually discarded count.
-	actualSoFar := runtimeutil.ToIntContextValue(ctxData["actual_discarded"]) + len(removed)
-	ctxData["actual_discarded"] = actualSoFar
+	actualSoFar := flow.Selection(beastReversalDiscardActualStep).Count + len(removed)
+	flow.PutSelection(beastReversalDiscardActualStep, model.PromptFlowSelection{Count: actualSoFar})
 
 	remainingNeeded := need - actualSoFar
 	if remainingNeeded > 0 && len(target.Hand) > 0 {
@@ -547,6 +558,13 @@ func handleReversalTargetDiscard(rt engineplayer.ChoiceRuntime, ctxData map[stri
 
 	finishReversal(rt, ctxData, target, need, actualSoFar, resumePointFromCtx(ctxData, model.CombatStageCalcDamage))
 	return nil
+}
+
+func initBeastReversalDiscardFlow(need int) *model.PromptFlowState {
+	flow := model.NewPromptFlowState(beastReversalDiscardFlowID, beastReversalDiscardActualStep)
+	flow.PutSelection(beastReversalDiscardNeedStep, model.PromptFlowSelection{Count: need})
+	flow.PutSelection(beastReversalDiscardActualStep, model.PromptFlowSelection{})
+	return flow
 }
 
 // ---------------------------------------------------------------------------

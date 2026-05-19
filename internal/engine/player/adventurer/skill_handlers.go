@@ -4,10 +4,10 @@ package adventurer
 
 import (
 	"fmt"
+
 	engineplayer "starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
 )
-
 
 // --- 冒险家技能处理器 ---
 
@@ -51,21 +51,29 @@ func (h *AdventurerFraudHandler) Execute(ctx *model.Context) error {
 	ctx.Game.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
-		Context: map[string]interface{}{
-			"choice_type": "adventurer_fraud_pick",
-			"user_id":     ctx.User.ID,
-			"user_ctx":    ctx,
-			"fraud_target_id": func() string {
-				if ctx.Target != nil {
-					return ctx.Target.ID
-				}
-				return ""
-			}(),
-			"fraud_from_skill": true,
-		},
+		Context:  fraudChoiceContext(ctx),
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [欺诈]，请先选择同系手牌", ctx.User.Name))
 	return nil
+}
+
+func fraudChoiceContext(ctx *model.Context) map[string]interface{} {
+	data := map[string]interface{}{
+		"choice_type": "adventurer_fraud_pick",
+		"user_id":     ctx.User.ID,
+		"user_ctx":    ctx,
+		"fraud_target_id": func() string {
+			if ctx.Target != nil {
+				return ctx.Target.ID
+			}
+			return ""
+		}(),
+		"fraud_from_skill": true,
+	}
+	flow := model.NewPromptFlowState(adventurerFraudFlowID, adventurerFraudCardsStep)
+	flow.PutSelection(adventurerFraudCardsStep, model.PromptFlowSelection{})
+	model.SetPromptFlowContext(data, flow)
+	return data
 }
 
 type AdventurerLuckyFortuneHandler struct{ engineplayer.BaseHandler }

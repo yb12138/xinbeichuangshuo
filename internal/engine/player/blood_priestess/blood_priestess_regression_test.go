@@ -561,7 +561,11 @@ func TestBloodPriestessBloodCurse_DiscardPromptAndConfirm(t *testing.T) {
 		TargetIDs: []string{"p2"},
 	})
 
-	testutils.RequireChoicePrompt(t, game, "p1", "bp_curse_discard")
+	ctxData := testutils.RequireChoiceContext(t, game, "p1", "bp_curse_discard")
+	testutils.RequirePromptFlow(t, ctxData, "bp_blood_curse_discard", "cards")
+	if _, ok := ctxData["selected_indices"]; ok {
+		t.Fatalf("blood curse discard should store selections in prompt flow, got legacy selected_indices in %+v", ctxData)
+	}
 	prompt := game.GetCurrentPrompt()
 	if prompt == nil {
 		t.Fatalf("expected blood curse discard prompt")
@@ -628,7 +632,11 @@ func TestBloodPriestessBloodCurse_DiscardAllWhenHandInsufficient(t *testing.T) {
 		TargetIDs: []string{"p2"},
 	})
 
-	testutils.RequireChoicePrompt(t, game, "p1", "bp_curse_discard")
+	ctxData := testutils.RequireChoiceContext(t, game, "p1", "bp_curse_discard")
+	testutils.RequirePromptFlow(t, ctxData, "bp_blood_curse_discard", "cards")
+	if _, ok := ctxData["selected_indices"]; ok {
+		t.Fatalf("blood curse discard should store selections in prompt flow, got legacy selected_indices in %+v", ctxData)
+	}
 	prompt := game.GetCurrentPrompt()
 	if prompt == nil {
 		t.Fatalf("expected blood curse discard prompt when hand<3")

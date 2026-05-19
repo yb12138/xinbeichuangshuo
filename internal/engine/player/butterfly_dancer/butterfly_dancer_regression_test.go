@@ -248,6 +248,91 @@ func TestButterflyReverse_UsesUnifiedDiscardCostBeforeBranchChoice(t *testing.T)
 	}
 }
 
+func TestButterflyReverse_Branch2CocoonPicksUsePromptFlow(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Butterfly", "butterfly_dancer", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Crystal = 1
+	p1.Tokens["bt_pupa"] = 1
+	p1.Hand = []model.Card{
+		butterflyTestCard("h1", model.CardTypeAttack, model.ElementFire),
+		butterflyTestCard("h2", model.CardTypeMagic, model.ElementWater),
+	}
+	butterflydancer.AddCocoonCards(p1, []model.Card{
+		butterflyTestCard("c1", model.CardTypeAttack, model.ElementFire),
+		butterflyTestCard("c2", model.CardTypeAttack, model.ElementWater),
+		butterflyTestCard("c3", model.CardTypeAttack, model.ElementWind),
+	})
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID: "p1",
+		Type:     model.CmdSkill,
+		SkillID:  "bt_reverse_butterfly",
+	})
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{0, 1},
+	})
+	testutils.RequireChoicePrompt(t, game, "p1", "bt_reverse_mode")
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{1},
+	})
+	testutils.RequireChoicePrompt(t, game, "p1", "bt_reverse_branch2_cost")
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{0},
+	})
+	testutils.RequireChoicePrompt(t, game, "p1", "bt_reverse_branch2_pick")
+	data, _ := game.State.PendingInterrupt.Context.(map[string]interface{})
+	flow := testutils.RequirePromptFlow(t, data, "bt_reverse_branch2", "cards")
+	if got := flow.Selection("need").Count; got != 2 {
+		t.Fatalf("expected reverse branch2 flow need=2, got %d", got)
+	}
+	if _, ok := data["picked_indices"]; ok {
+		t.Fatalf("reverse branch2 should store picks in prompt flow, got legacy picked_indices in %+v", data)
+	}
+	if _, ok := data["selected_indices"]; ok {
+		t.Fatalf("reverse branch2 should not carry legacy selected_indices, got %+v", data)
+	}
+
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{0},
+	})
+	testutils.RequireChoicePrompt(t, game, "p1", "bt_reverse_branch2_pick")
+	data, _ = game.State.PendingInterrupt.Context.(map[string]interface{})
+	flow = testutils.RequirePromptFlow(t, data, "bt_reverse_branch2", "cards")
+	if got := flow.Selection("cards").OptionIndexes; len(got) != 1 || got[0] != 0 {
+		t.Fatalf("expected first reverse branch2 cocoon pick in flow, got %+v", got)
+	}
+
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{0},
+	})
+	if got := butterflydancer.CocoonCount(p1); got != 1 {
+		t.Fatalf("expected 1 cocoon after branch2 removes two, got %d", got)
+	}
+	if got := p1.Tokens["bt_pupa"]; got != 0 {
+		t.Fatalf("expected branch2 to remove one pupa, got %d", got)
+	}
+}
+
 func TestButterflyPilgrimage_ResistOneDamage(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "Butterfly", "butterfly_dancer", model.RedCamp); err != nil {
@@ -481,7 +566,7 @@ func TestButterflyWither_CanTargetAnyCharacter(t *testing.T) {
 }
 
 // TestButterflyChrysalis_CocoonOverflowDiscardMulti 覆盖 bt_cocoon_overflow_discard
-// 当 discard_count > 1 时的批量处理路径（multi-select handler）。
+// 当需要弃置多个茧时的批量处理路径（multi-select handler）。
 // 修复前：handleCocoonOverflowDiscard 硬编码 discardNeed != 1 报错，多个茧溢出场景运行时崩溃。
 func TestButterflyChrysalis_CocoonOverflowDiscardMulti(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
@@ -515,8 +600,15 @@ func TestButterflyChrysalis_CocoonOverflowDiscardMulti(t *testing.T) {
 
 	testutils.RequireChoicePrompt(t, game, "p1", "bt_cocoon_overflow_discard")
 	data, _ := game.State.PendingInterrupt.Context.(map[string]interface{})
-	if dc, _ := data["discard_count"].(int); dc != 2 {
-		t.Fatalf("expected discard_count=2 after chrysalis overflow, got %v", data["discard_count"])
+	flow := testutils.RequirePromptFlow(t, data, "bt_cocoon_overflow", "cards")
+	if dc := flow.Selection("need").Count; dc != 2 {
+		t.Fatalf("expected flow need=2 after chrysalis overflow, got %v", dc)
+	}
+	if _, ok := data["picked_indices"]; ok {
+		t.Fatalf("cocoon overflow should store picks in prompt flow, got legacy picked_indices in %+v", data)
+	}
+	if _, ok := data["discard_count"]; ok {
+		t.Fatalf("cocoon overflow should store need in prompt flow, got legacy discard_count in %+v", data)
 	}
 	cocoonsBefore := butterflydancer.CocoonCount(p1)
 	if cocoonsBefore != 10 {
@@ -578,6 +670,14 @@ func TestButterflyChrysalis_CocoonOverflowDiscardSequential(t *testing.T) {
 		Selections: []int{0},
 	})
 	testutils.RequireChoicePrompt(t, game, "p1", "bt_cocoon_overflow_discard")
+	data, _ := game.State.PendingInterrupt.Context.(map[string]interface{})
+	flow := testutils.RequirePromptFlow(t, data, "bt_cocoon_overflow", "cards")
+	if got := flow.Selection("cards").OptionIndexes; len(got) != 1 || got[0] != 0 {
+		t.Fatalf("expected first sequential cocoon pick in flow, got %+v", got)
+	}
+	if _, ok := data["picked_indices"]; ok {
+		t.Fatalf("cocoon overflow should store picks in prompt flow, got legacy picked_indices in %+v", data)
+	}
 	if got := butterflydancer.CocoonCount(p1); got != 10 {
 		t.Fatalf("expected cocoon count unchanged (10) after first sequential select, got %d", got)
 	}

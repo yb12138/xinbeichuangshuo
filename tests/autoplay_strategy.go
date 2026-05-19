@@ -2645,21 +2645,7 @@ func chooseChoiceInterruptSelections(game *engine.GameEngine, intr *model.Interr
 		}
 		return []int{0}, nil
 	case "ss_recall_pick":
-		// 灵魂召还：至少先选1张法术牌，再结束选择。
-		// Prompt 第0项是“完成选择并结算”，其余才是可选牌。
-		selectedCount := 0
-		if intr != nil {
-			if data, ok := intr.Context.(map[string]interface{}); ok {
-				if arr, ok := data["selected_indices"].([]int); ok {
-					selectedCount = len(arr)
-				} else if arr, ok := data["selected_indices"].([]interface{}); ok {
-					selectedCount = len(arr)
-				}
-			}
-		}
-		if selectedCount == 0 && len(prompt.Options) > 1 {
-			return []int{1}, nil
-		}
+		// 灵魂召还：当前 prompt 只包含可弃置法术牌，选择第一张即可结算。
 		return []int{0}, nil
 	case "buy_resource":
 		if scenarioTargetsSkill("圣疗") && player != nil {

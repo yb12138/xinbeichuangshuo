@@ -63,11 +63,22 @@ func TestAdventurerFraud_PickTwoThenChooseAttackElement(t *testing.T) {
 		SkillID:   "adventurer_fraud",
 		TargetIDs: []string{"p2"},
 	})
-	requireChoiceType(t, game, "p1", "adventurer_fraud_pick")
+	ctxData := requireChoiceType(t, game, "p1", "adventurer_fraud_pick")
+	testutils.RequirePromptFlow(t, ctxData, "adventurer_fraud", "cards")
+	if _, ok := ctxData["selected_indices"]; ok {
+		t.Fatalf("fraud should store selections in prompt flow, got legacy selected_indices in %+v", ctxData)
+	}
+	if _, ok := ctxData["need_count"]; ok {
+		t.Fatalf("fraud should not use legacy need_count, got %+v", ctxData)
+	}
 
 	// 先在手牌区选择2张同系牌（火）
 	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0, 1}})
-	requireChoiceType(t, game, "p1", "adventurer_fraud_attack_element")
+	ctxData = requireChoiceType(t, game, "p1", "adventurer_fraud_attack_element")
+	flow := testutils.RequirePromptFlow(t, ctxData, "adventurer_fraud", "cards")
+	if got := flow.Selection("cards").OptionIndexes; len(got) != 2 || got[0] != 0 || got[1] != 1 {
+		t.Fatalf("expected fraud selected cards in prompt flow, got %+v", got)
+	}
 
 	prompt := game.BuildPendingInterruptPrompt()
 	if prompt == nil {
@@ -149,7 +160,11 @@ func TestAdventurerFraud_PickThreeAutoConvertsToDark(t *testing.T) {
 		SkillID:   "adventurer_fraud",
 		TargetIDs: []string{"p2"},
 	})
-	requireChoiceType(t, game, "p1", "adventurer_fraud_pick")
+	ctxData := requireChoiceType(t, game, "p1", "adventurer_fraud_pick")
+	testutils.RequirePromptFlow(t, ctxData, "adventurer_fraud", "cards")
+	if _, ok := ctxData["selected_indices"]; ok {
+		t.Fatalf("fraud should store selections in prompt flow, got legacy selected_indices in %+v", ctxData)
+	}
 
 	// 直接选择3张同系牌，应自动转暗灭攻击，不再弹攻击系别选择框。
 	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0, 1, 2}})

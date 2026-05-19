@@ -15,6 +15,16 @@ import (
 
 type choiceHandler struct{}
 
+const (
+	butterflyCocoonOverflowFlowID    = "bt_cocoon_overflow"
+	butterflyCocoonOverflowNeedStep  = "need"
+	butterflyCocoonOverflowCardsStep = "cards"
+
+	butterflyReverseBranch2FlowID    = "bt_reverse_branch2"
+	butterflyReverseBranch2NeedStep  = "need"
+	butterflyReverseBranch2CardsStep = "cards"
+)
+
 func NewChoiceHandler() engineplayer.ChoiceHandler {
 	return choiceHandler{}
 }
@@ -38,7 +48,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 	case "bt_reverse_branch2_cost":
 		return buildReverseBranch2CostPrompt(playerID, data)
 	case "bt_reverse_branch2_pick":
-		return buildReverseBranch2PickPrompt(playerID, player)
+		return buildReverseBranch2PickPrompt(playerID, player, data)
 	case "bt_pilgrimage_pick", "bt_poison_pick":
 		return buildPilgrimageOrPoisonPickPrompt(playerID, player, data, choiceType)
 	case "bt_mirror_pair":
@@ -128,7 +138,7 @@ func buildDanceDiscardPrompt(playerID string, player *model.Player) *model.Promp
 }
 
 func buildCocoonOverflowDiscardPrompt(playerID string, player *model.Player, data map[string]interface{}) *model.Prompt {
-	discardCount := runtimeutil.ToIntContextValue(data["discard_count"])
+	discardCount := promptFlowNeedCount(data, butterflyCocoonOverflowFlowID, butterflyCocoonOverflowNeedStep)
 	if discardCount < 0 {
 		discardCount = 0
 	}
@@ -136,8 +146,17 @@ func buildCocoonOverflowDiscardPrompt(playerID string, player *model.Player, dat
 	if discardCount > len(cocoonIndices) {
 		discardCount = len(cocoonIndices)
 	}
+	picked := promptFlowPickedIndices(data, butterflyCocoonOverflowFlowID, butterflyCocoonOverflowCardsStep)
+	pickedSet := intSet(picked)
+	remainingNeed := discardCount - len(picked)
+	if remainingNeed < 0 {
+		remainingNeed = 0
+	}
 	var options []model.PromptOption
 	for _, idx := range cocoonIndices {
+		if pickedSet[idx] {
+			continue
+		}
 		if idx < 0 || idx >= len(player.Field) || player.Field[idx] == nil {
 			continue
 		}
@@ -154,10 +173,10 @@ func buildCocoonOverflowDiscardPrompt(playerID string, player *model.Player, dat
 		Type:       model.PromptChooseCards,
 		PlayerID:   playerID,
 		ChoiceType: "bt_cocoon_overflow_discard",
-		Message:    fmt.Sprintf("【茧上限】请选择要舍弃的%d个茧：", discardCount),
+		Message:    fmt.Sprintf("【茧上限】请选择要舍弃的%d个茧：", remainingNeed),
 		Options:    options,
-		Min:        discardCount,
-		Max:        discardCount,
+		Min:        remainingNeed,
+		Max:        remainingNeed,
 		Presentation: &model.PromptPresentation{
 			Kind:       model.PresentationCardPicker,
 			Layout:     "field_cover",
@@ -222,14 +241,23 @@ func buildReverseBranch2CostPrompt(playerID string, data map[string]interface{})
 	}
 }
 
-func buildReverseBranch2PickPrompt(playerID string, player *model.Player) *model.Prompt {
+func buildReverseBranch2PickPrompt(playerID string, player *model.Player, data map[string]interface{}) *model.Prompt {
 	cocoonIndices := CocoonFieldIndices(player)
-	pickCount := 2
+	pickCount := promptFlowNeedCount(data, butterflyReverseBranch2FlowID, butterflyReverseBranch2NeedStep)
 	if pickCount > len(cocoonIndices) {
 		pickCount = len(cocoonIndices)
 	}
+	picked := promptFlowPickedIndices(data, butterflyReverseBranch2FlowID, butterflyReverseBranch2CardsStep)
+	pickedSet := intSet(picked)
+	remainingNeed := pickCount - len(picked)
+	if remainingNeed < 0 {
+		remainingNeed = 0
+	}
 	var options []model.PromptOption
 	for _, idx := range cocoonIndices {
+		if pickedSet[idx] {
+			continue
+		}
 		if idx < 0 || idx >= len(player.Field) || player.Field[idx] == nil {
 			continue
 		}
@@ -246,10 +274,10 @@ func buildReverseBranch2PickPrompt(playerID string, player *model.Player) *model
 		Type:       model.PromptChooseCards,
 		PlayerID:   playerID,
 		ChoiceType: "bt_reverse_branch2_pick",
-		Message:    fmt.Sprintf("【倒逆之蝶】分支②请选择要移除的%d个茧：", pickCount),
+		Message:    fmt.Sprintf("【倒逆之蝶】分支②请选择要移除的%d个茧：", remainingNeed),
 		Options:    options,
-		Min:        pickCount,
-		Max:        pickCount,
+		Min:        remainingNeed,
+		Max:        remainingNeed,
 		Presentation: &model.PromptPresentation{
 			Kind:       model.PresentationCardPicker,
 			Layout:     "field_cover",
@@ -420,11 +448,7 @@ func handleDanceMode(rt engineplayer.ChoiceRuntime, ctxData map[string]interface
 		rt.PushInterrupt(&model.Interrupt{
 			Type:     model.InterruptChoice,
 			PlayerID: user.ID,
-			Context: map[string]interface{}{
-				"choice_type":   "bt_cocoon_overflow_discard",
-				"user_id":       user.ID,
-				"discard_count": overflow,
-			},
+			Context:  butterflyCocoonOverflowContext(user.ID, overflow),
 		})
 	}
 	rt.PopInterrupt()
@@ -464,11 +488,7 @@ func handleDanceDiscard(rt engineplayer.ChoiceRuntime, ctxData map[string]interf
 		rt.PushInterrupt(&model.Interrupt{
 			Type:     model.InterruptChoice,
 			PlayerID: user.ID,
-			Context: map[string]interface{}{
-				"choice_type":   "bt_cocoon_overflow_discard",
-				"user_id":       user.ID,
-				"discard_count": overflow,
-			},
+			Context:  butterflyCocoonOverflowContext(user.ID, overflow),
 		})
 	}
 	rt.PopInterrupt()
@@ -502,7 +522,54 @@ func finalizeCocoonOverflowDiscard(rt engineplayer.ChoiceRuntime, user *model.Pl
 	}
 }
 
-// handleCocoonOverflowDiscard 单选累积路径：用于前端逐个提交茧索引的兼容场景。
+func butterflyCocoonOverflowContext(userID string, discardNeed int) map[string]interface{} {
+	ctxData := map[string]interface{}{
+		"choice_type": "bt_cocoon_overflow_discard",
+		"user_id":     userID,
+	}
+	model.SetPromptFlowContext(ctxData, initButterflyCocoonOverflowFlow(discardNeed))
+	return ctxData
+}
+
+func initButterflyCocoonOverflowFlow(discardNeed int) *model.PromptFlowState {
+	flow := model.NewPromptFlowState(butterflyCocoonOverflowFlowID, butterflyCocoonOverflowCardsStep)
+	flow.PutSelection(butterflyCocoonOverflowNeedStep, model.PromptFlowSelection{Count: discardNeed})
+	flow.PutSelection(butterflyCocoonOverflowCardsStep, model.PromptFlowSelection{})
+	return flow
+}
+
+func initButterflyReverseBranch2Flow(pickNeed int) *model.PromptFlowState {
+	flow := model.NewPromptFlowState(butterflyReverseBranch2FlowID, butterflyReverseBranch2CardsStep)
+	flow.PutSelection(butterflyReverseBranch2NeedStep, model.PromptFlowSelection{Count: pickNeed})
+	flow.PutSelection(butterflyReverseBranch2CardsStep, model.PromptFlowSelection{})
+	return flow
+}
+
+func promptFlowNeedCount(data map[string]interface{}, flowID, needStep string) int {
+	flow := model.PromptFlowFromContext(data)
+	if flow == nil || flow.FlowID != flowID {
+		return 0
+	}
+	return flow.Selection(needStep).Count
+}
+
+func promptFlowPickedIndices(data map[string]interface{}, flowID, cardsStep string) []int {
+	flow := model.PromptFlowFromContext(data)
+	if flow == nil || flow.FlowID != flowID {
+		return nil
+	}
+	return append([]int{}, flow.Selection(cardsStep).OptionIndexes...)
+}
+
+func intSet(values []int) map[int]bool {
+	set := make(map[int]bool, len(values))
+	for _, v := range values {
+		set[v] = true
+	}
+	return set
+}
+
+// handleCocoonOverflowDiscard 单选累积路径：用于前端逐个提交茧索引。
 func handleCocoonOverflowDiscard(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	if selectionIndex < 0 {
 		return fmt.Errorf("请先选择要舍弃的茧后再确认")
@@ -512,7 +579,11 @@ func handleCocoonOverflowDiscard(rt engineplayer.ChoiceRuntime, ctxData map[stri
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
-	discardNeed := runtimeutil.ToIntContextValue(ctxData["discard_count"])
+	flow, err := model.RequirePromptFlow(ctxData, butterflyCocoonOverflowFlowID, "茧上限弃置")
+	if err != nil {
+		return err
+	}
+	discardNeed := flow.Selection(butterflyCocoonOverflowNeedStep).Count
 	if discardNeed < 0 {
 		discardNeed = 0
 	}
@@ -528,7 +599,7 @@ func handleCocoonOverflowDiscard(rt engineplayer.ChoiceRuntime, ctxData map[stri
 		return nil
 	}
 
-	picked := append([]int{}, parseIntSlice(ctxData["picked_indices"])...)
+	picked := append([]int{}, flow.Selection(butterflyCocoonOverflowCardsStep).OptionIndexes...)
 	// 候选列表需排除已选项，保证 selectionIndex 位置语义与 build prompt 一致
 	pickedSet := map[int]bool{}
 	for _, p := range picked {
@@ -549,9 +620,9 @@ func handleCocoonOverflowDiscard(rt engineplayer.ChoiceRuntime, ctxData map[stri
 		return fmt.Errorf("该茧已被选择")
 	}
 	picked = append(picked, fieldIdx)
+	flow.PutSelection(butterflyCocoonOverflowCardsStep, model.PromptFlowSelection{OptionIndexes: append([]int{}, picked...)})
 
 	if len(picked) < discardNeed {
-		ctxData["picked_indices"] = picked
 		intr := rt.GetPendingInterrupt()
 		if intr != nil {
 			intr.Context = ctxData
@@ -571,7 +642,11 @@ func handleCocoonOverflowDiscardMultiSelect(rt engineplayer.ChoiceRuntime, _ str
 	if user == nil {
 		return false, fmt.Errorf("玩家不存在")
 	}
-	discardNeed := runtimeutil.ToIntContextValue(ctxData["discard_count"])
+	flow, err := model.RequirePromptFlow(ctxData, butterflyCocoonOverflowFlowID, "茧上限弃置")
+	if err != nil {
+		return false, err
+	}
+	discardNeed := flow.Selection(butterflyCocoonOverflowNeedStep).Count
 	if discardNeed < 0 {
 		discardNeed = 0
 	}
@@ -603,6 +678,7 @@ func handleCocoonOverflowDiscardMultiSelect(rt engineplayer.ChoiceRuntime, _ str
 		seen[fieldIdx] = true
 		picked = append(picked, fieldIdx)
 	}
+	flow.PutSelection(butterflyCocoonOverflowCardsStep, model.PromptFlowSelection{OptionIndexes: append([]int{}, picked...)})
 
 	finalizeCocoonOverflowDiscard(rt, user, picked)
 	return true, nil
@@ -692,8 +768,7 @@ func handleReverseBranch2Cost(rt engineplayer.ChoiceRuntime, ctxData map[string]
 	}
 	if modes[selectionIndex] == "remove_cocoon" {
 		ctxData["choice_type"] = "bt_reverse_branch2_pick"
-		delete(ctxData, "remaining_indices")
-		delete(ctxData, "selected_indices")
+		model.SetPromptFlowContext(ctxData, initButterflyReverseBranch2Flow(2))
 		intr := rt.GetPendingInterrupt()
 		if intr != nil {
 			intr.Context = ctxData
@@ -728,21 +803,32 @@ func handleReverseBranch2Pick(rt engineplayer.ChoiceRuntime, ctxData map[string]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
-	const pickNeed = 2
 	cocoonIndices := CocoonFieldIndices(user)
 
-	fieldIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, cocoonIndices)
+	flow, err := model.RequirePromptFlow(ctxData, butterflyReverseBranch2FlowID, "倒逆之蝶分支②")
+	if err != nil {
+		return err
+	}
+	pickNeed := flow.Selection(butterflyReverseBranch2NeedStep).Count
+	picked := append([]int{}, flow.Selection(butterflyReverseBranch2CardsStep).OptionIndexes...)
+	pickedSet := intSet(picked)
+	remaining := make([]int, 0, len(cocoonIndices))
+	for _, idx := range cocoonIndices {
+		if !pickedSet[idx] {
+			remaining = append(remaining, idx)
+		}
+	}
+	fieldIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, remaining)
 	if !ok {
 		return fmt.Errorf("无效的茧索引: %d", selectionIndex)
 	}
-
-	// Collect picked indices from context
-	picked := append([]int{}, parseIntSlice(ctxData["picked_indices"])...)
+	if pickedSet[fieldIdx] {
+		return fmt.Errorf("该茧已被选择")
+	}
 	picked = append(picked, fieldIdx)
+	flow.PutSelection(butterflyReverseBranch2CardsStep, model.PromptFlowSelection{OptionIndexes: append([]int{}, picked...)})
 
 	if len(picked) < pickNeed {
-		// Need more picks - update context and re-prompt
-		ctxData["picked_indices"] = picked
 		intr := rt.GetPendingInterrupt()
 		if intr != nil {
 			intr.Context = ctxData

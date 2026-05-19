@@ -73,11 +73,7 @@ func ResolveChrysalis(rt butterflyRuntime, userID string) error {
 		rt.PushInterrupt(&model.Interrupt{
 			Type:     model.InterruptChoice,
 			PlayerID: user.ID,
-			Context: map[string]interface{}{
-				"choice_type":   "bt_cocoon_overflow_discard",
-				"user_id":       user.ID,
-				"discard_count": overflow,
-			},
+			Context:  butterflyCocoonOverflowContext(user.ID, overflow),
 		})
 	}
 	return nil
@@ -130,14 +126,14 @@ func MaybeDamageResponses(rt engineplayer.ChoiceRuntime, pd *model.PendingDamage
 					Type:     model.InterruptChoice,
 					PlayerID: target.ID,
 					Context: map[string]interface{}{
-						"choice_type":   "bt_pilgrimage_pick",
-						"user_id":       target.ID,
-						"source_id":     pd.SourceID,
-						"source_name":   sourceName,
-						"target_id":     pd.TargetID,
-						"target_name":   targetName,
-						"damage_index":  0,
-						"damage_amount": damageAmount,
+						"choice_type":    "bt_pilgrimage_pick",
+						"user_id":        target.ID,
+						"source_id":      pd.SourceID,
+						"source_name":    sourceName,
+						"target_id":      pd.TargetID,
+						"target_name":    targetName,
+						"damage_index":   0,
+						"damage_amount":  damageAmount,
 						"cocoon_indices": indices,
 					},
 				})
