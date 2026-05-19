@@ -6,7 +6,6 @@ import { useUiStore } from '../stores/ui.store'
 import { useBattleFxStore } from '../stores/battlefx.store'
 import { useBattleReviewStore } from '../stores/battleReview.store'
 import { useMatchLifecycleStore } from '../stores/matchLifecycle.store'
-import { useBattleInteractionState } from './useBattleInteractionState'
 import { createWsConnectionClient } from '../network/wsConnectionClient'
 import { createGameplayMessageHandlers } from '../network/gameplayMessageHandlers'
 import { createRoomMessageHandlers } from '../network/roomMessageHandlers'
@@ -45,7 +44,6 @@ export function useWebSocket() {
   const battleFxStore = useBattleFxStore()
   const battleReviewStore = useBattleReviewStore()
   const matchLifecycleStore = useMatchLifecycleStore()
-  const { myPlayableCards } = useBattleInteractionState()
   let routeMessage = (_msg: WsMessage) => {}
   const gameplayHandlers = createGameplayMessageHandlers({
     interruptStore,
@@ -101,7 +99,6 @@ export function useWebSocket() {
     sessionStore,
     battleFxStore,
     battleReviewStore,
-    getPlayableCards: () => myPlayableCards.value,
     isTransportOpen: connectionClient.isTransportOpen,
     sendEnvelope: connectionClient.sendEnvelope,
     safeStringify,

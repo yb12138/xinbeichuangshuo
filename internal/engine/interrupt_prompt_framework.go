@@ -25,9 +25,9 @@ func (e *GameEngine) buildStandardResponsePrompt() *model.Prompt {
 		PlayerID: targetID,
 		Message:  fmt.Sprintf("你成为了 %s 的目标，请做出响应 (take/counter/defend)", lastAction.Type),
 		Options: []model.PromptOption{
-			{ID: "take", Label: "承受 (take) - 结算伤害/效果"},
-			{ID: "counter", Label: "应战 (counter <idx>) - 尝试反击"},
-			{ID: "defend", Label: "防御 (defend) - 使用圣光（圣盾需提前放置）"},
+			{ID: "take", Label: "承受 (take) - 结算伤害/效果", ButtonLabel: "命中"},
+			{ID: "counter", Label: "应战 (counter card_id) - 尝试反击", ButtonLabel: "应战"},
+			{ID: "defend", Label: "防御 (defend) - 使用圣光（圣盾需提前放置）", ButtonLabel: "防御"},
 		},
 		Presentation: &model.PromptPresentation{
 			Kind:   model.PresentationResponse,

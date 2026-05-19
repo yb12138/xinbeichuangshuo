@@ -4,7 +4,6 @@ package engine
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 
 	"starcup-engine/internal/engine/core/runtimeutil"
@@ -16,189 +15,16 @@ func elementNameForPrompt(raw string) string {
 	return promptfmt.ElementName(raw)
 }
 
-var promptButtonLabelByID = map[string]string{
-	"confirm":    "发动",
-	"yes":        "发动",
-	"no":         "取消",
-	"cancel":     "取消",
-	"skip":       "取消",
-	"take":       "命中",
-	"counter":    "应战",
-	"defend":     "防御",
-	"normal":     "顺序",
-	"reverse":    "反向",
-	"attack":     "攻击",
-	"magic":      "法术",
-	"special":    "特殊",
-	"buy":        "购买",
-	"synthesize": "合成",
-	"extract":    "提炼",
-	"cannot_act": "取消",
-	"pass":       "取消",
-}
-
-func parsePromptNonNegativeInt(raw string) (int, bool) {
-	val, err := strconv.Atoi(strings.TrimSpace(raw))
-	if err != nil || val < 0 {
-		return 0, false
-	}
-	return val, true
-}
-
-func isPromptDeclineLabel(label string) bool {
-	trimmed := strings.TrimSpace(label)
-	if trimmed == "" {
-		return false
-	}
-	return strings.Contains(trimmed, "不发动") ||
-		strings.Contains(trimmed, "放弃") ||
-		strings.Contains(trimmed, "跳过") ||
-		strings.Contains(trimmed, "无法行动") ||
-		strings.Contains(trimmed, "拒绝")
-}
-
-func shouldUseNumericPromptButtons(prompt *model.Prompt, options []model.PromptOption) (bool, bool) {
-	if prompt == nil || len(options) < 2 {
-		return false, false
-	}
-	if prompt.Type == model.PromptChooseCards {
-		return false, false
-	}
-
-	// 优先读取 Presentation（后端显式声明）
-	if prompt.Presentation != nil {
-		switch prompt.Presentation.Kind {
-		case model.PresentationNumeric:
-			plusOne := prompt.Presentation.NumericBase != 0
-			return true, plusOne
-		case model.PresentationBranchSelect,
-			model.PresentationCardPicker,
-			model.PresentationTargetPicker,
-			model.PresentationSkillChoice,
-			model.PresentationActionHub,
-			model.PresentationResponse:
-			return false, false
-		}
-	}
-
-	// Fallback：旧逻辑兼容无 Presentation 的 prompt
-	numericIDs := make([]int, 0, len(options))
-	hasLongLabel := false
-	hasXHint := strings.ContainsAny(strings.ToLower(prompt.Message), "xｘ")
-	isHealChoice := strings.Contains(prompt.Message, "治疗") || strings.Contains(prompt.Message, "抵消")
-	labelHasHeal := false
-	for _, option := range options {
-		if n, ok := parsePromptNonNegativeInt(option.ID); ok {
-			numericIDs = append(numericIDs, n)
-		}
-		label := strings.TrimSpace(option.Label)
-		if len([]rune(label)) >= 8 || strings.Contains(label, "分支") {
-			hasLongLabel = true
-		}
-		lowLabel := strings.ToLower(label)
-		if strings.Contains(lowLabel, "x=") || strings.Contains(label, "X=") || strings.Contains(lowLabel, "x值") || strings.ContainsAny(lowLabel, "xｘ") {
-			hasXHint = true
-		}
-		if strings.Contains(label, "治疗") || strings.Contains(label, "抵消") {
-			labelHasHeal = true
-		}
-	}
-	if len(numericIDs) < 2 || (!hasLongLabel && !hasXHint) {
-		return false, false
-	}
-	// 治疗选择：选项 ID 即治疗点数（从 0 开始），按钮文本应直接显示该值，不能 +1。
-	if isHealChoice || labelHasHeal {
-		return true, false
-	}
-	minID := numericIDs[0]
-	for _, id := range numericIDs[1:] {
-		if id < minID {
-			minID = id
-		}
-	}
-	return true, minID == 0
-}
-
-func normalizePromptOptionForClient(option model.PromptOption, prompt *model.Prompt, useNumeric bool, plusOne bool) model.PromptOption {
-	label := strings.TrimSpace(option.Label)
-	button := strings.TrimSpace(option.ButtonLabel)
-	hint := strings.TrimSpace(option.Hint)
-	optionID := strings.ToLower(strings.TrimSpace(option.ID))
-
-	if button == "" {
-		if mapped, ok := promptButtonLabelByID[optionID]; ok {
-			button = mapped
-		}
-	}
-	if button == "" && prompt != nil && prompt.Type == model.PromptChooseSkill {
-		button = "发动"
-	}
-	if button == "" && optionID == "-1" {
-		if strings.Contains(label, "完成") || strings.Contains(label, "结束") {
-			button = "完成"
-		} else {
-			button = "放弃"
-		}
-	}
-	if button == "" && useNumeric {
-		if n, ok := parsePromptNonNegativeInt(option.ID); ok {
-			if plusOne {
-				button = strconv.Itoa(n + 1)
-			} else {
-				button = strconv.Itoa(n)
-			}
-		}
-	}
-	if button == "" && isPromptDeclineLabel(label) {
-		button = "放弃"
-	}
-	if button == "" && prompt != nil && prompt.Presentation != nil && prompt.Presentation.Kind == model.PresentationBranchSelect {
-		button = label
-	}
-	if button == "" {
-		if label != "" && len([]rune(label)) <= 6 {
-			button = label
-		} else {
-			button = "执行"
-		}
-	}
-
-	isCombatResponseOption := optionID == "take" || optionID == "defend" || optionID == "counter" ||
-		button == "命中" || button == "防御" || button == "应战"
-	if isCombatResponseOption {
-		hint = ""
-	}
-
-	if hint == "" && !isCombatResponseOption && label != "" && label != button {
-		if !(button == "取消" && (label == "取消" || label == "取消/跳过")) &&
-			!(button == "放弃" && isPromptDeclineLabel(label)) {
-			hint = label
-		}
-	}
-
-	option.ButtonLabel = button
-	option.Hint = hint
-	return option
-}
-
 func (e *GameEngine) decoratePromptForClient(prompt *model.Prompt) *model.Prompt {
 	if prompt == nil {
 		return nil
 	}
 	cp := *prompt
 	if prompt.Options != nil {
-		useNumeric, plusOne := shouldUseNumericPromptButtons(prompt, prompt.Options)
-		cp.Options = make([]model.PromptOption, 0, len(prompt.Options))
-		for _, option := range prompt.Options {
-			cp.Options = append(cp.Options, normalizePromptOptionForClient(option, prompt, useNumeric, plusOne))
-		}
+		cp.Options = append([]model.PromptOption{}, prompt.Options...)
 	}
 	if prompt.SpecialOptions != nil {
-		useNumeric, plusOne := shouldUseNumericPromptButtons(prompt, prompt.SpecialOptions)
-		cp.SpecialOptions = make([]model.PromptOption, 0, len(prompt.SpecialOptions))
-		for _, option := range prompt.SpecialOptions {
-			cp.SpecialOptions = append(cp.SpecialOptions, normalizePromptOptionForClient(option, prompt, useNumeric, plusOne))
-		}
+		cp.SpecialOptions = append([]model.PromptOption{}, prompt.SpecialOptions...)
 	}
 	if prompt.CounterTargetIDs != nil {
 		cp.CounterTargetIDs = append([]string{}, prompt.CounterTargetIDs...)

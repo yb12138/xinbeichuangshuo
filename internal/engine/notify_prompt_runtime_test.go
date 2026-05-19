@@ -6,7 +6,7 @@ import (
 	"starcup-engine/internal/model"
 )
 
-func TestDecoratePromptForClient_BranchSelectUsesFullLabels(t *testing.T) {
+func TestDecoratePromptForClient_ClonesPromptWithoutGeneratingLabels(t *testing.T) {
 	game := NewGameEngine(nil)
 	prompt := &model.Prompt{
 		Type:     model.PromptConfirm,
@@ -29,11 +29,15 @@ func TestDecoratePromptForClient_BranchSelectUsesFullLabels(t *testing.T) {
 		t.Fatalf("expected 2 options, got %+v", got.Options)
 	}
 	for i, option := range got.Options {
-		if option.ButtonLabel != option.Label {
-			t.Fatalf("option %d should use full branch label as button label, got button=%q label=%q", i, option.ButtonLabel, option.Label)
+		if option.ButtonLabel != "" {
+			t.Fatalf("option %d should not synthesize button label in engine prompt decorator, got %q", i, option.ButtonLabel)
 		}
 		if option.Hint != "" {
-			t.Fatalf("option %d should not duplicate branch label into hint, got %q", i, option.Hint)
+			t.Fatalf("option %d should not synthesize hint in engine prompt decorator, got %q", i, option.Hint)
 		}
+	}
+	got.Options[0].Label = "mutated"
+	if prompt.Options[0].Label == "mutated" {
+		t.Fatal("decoratePromptForClient should clone option slices")
 	}
 }

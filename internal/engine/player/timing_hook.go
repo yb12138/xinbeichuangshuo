@@ -239,7 +239,6 @@ type HookRuntime interface {
 
 	// 新增 - 卡牌操作
 	GetCardByIndex(player *model.Player, idx int) (model.Card, bool)
-	ConsumeCardByIndex(player *model.Player, idx int) (model.Card, error)
 	AddToDiscardPile(cards ...model.Card)
 	TakeDiscardPileCardByID(cardID string) (model.Card, bool)
 

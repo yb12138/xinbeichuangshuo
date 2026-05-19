@@ -5,24 +5,10 @@ import { useBattleFxStore } from '../../stores/battlefx.store'
 import { useBattleReviewStore } from '../../stores/battleReview.store'
 import { useInterruptStore } from '../../stores/interrupt.store'
 import { useSessionStore } from '../../stores/session.store'
-import type { Card } from '../../types/game'
 import type { WsMessage } from '../protocol'
-
-function buildCard(overrides: Partial<Card> = {}): Card {
-  return {
-    id: 'card-1',
-    name: '烈焰斩',
-    type: 'Attack',
-    element: 'Fire',
-    damage: 2,
-    description: 'test',
-    ...overrides,
-  }
-}
 
 function buildClient(options?: {
   connected?: boolean
-  playableCards?: Card[]
 }) {
   const interruptStore = useInterruptStore()
   const sessionStore = useSessionStore()
@@ -30,8 +16,6 @@ function buildClient(options?: {
   const battleReviewStore = useBattleReviewStore()
   const sendEnvelope = vi.fn<(msg: WsMessage) => void>()
   let connected = options?.connected ?? true
-  const playableCards = options?.playableCards ?? []
-
   sessionStore.setRoomInfo('ROOM1', 'p1', 'Red', 'hero')
 
   const client = createWsCommandClient({
@@ -39,7 +23,6 @@ function buildClient(options?: {
     sessionStore,
     battleFxStore,
     battleReviewStore,
-    getPlayableCards: () => playableCards.map((card, index) => ({ card, index })),
     isTransportOpen: () => connected,
     sendEnvelope,
     safeStringify: (data) => JSON.stringify(data),
@@ -98,14 +81,10 @@ describe('createWsCommandClient', () => {
   })
 
   it('sends submit envelopes and starts focus for magic and skill actions', () => {
-    const { client, battleFxStore, sendEnvelope } = buildClient({
-      playableCards: [
-        buildCard({ id: 'magic-1', type: 'Magic', element: 'Dark', name: '魔弹' }),
-      ],
-    })
+    const { client, battleFxStore, sendEnvelope } = buildClient()
     const focusSpy = vi.spyOn(battleFxStore, 'startSkillInitiatorFocus')
 
-    client.magic('p2', 0)
+    client.magic('p2', 'magic-1')
     client.useSkill('skill-1', ['p2', 'p3'], [1])
 
     expect(focusSpy).toHaveBeenNthCalledWith(1, 'p1', 'magic')

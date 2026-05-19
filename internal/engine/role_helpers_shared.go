@@ -226,19 +226,6 @@ func (e *GameEngine) getPlayableCardByIndex(p *model.Player, index int) (card mo
 	return model.Card{}, false, "", false
 }
 
-func (e *GameEngine) consumePlayableCardByIndex(p *model.Player, index int) (model.Card, error) {
-	card, fromCover, coverEffect, ok := e.getPlayableCardByIndex(p, index)
-	if !ok {
-		return model.Card{}, fmt.Errorf("无效的卡牌索引")
-	}
-	if fromCover {
-		engineplayer.RemoveCoverCardByEffectAndID(p, coverEffect, card.ID)
-		return card, nil
-	}
-	p.Hand = append(p.Hand[:index], p.Hand[index+1:]...)
-	return card, nil
-}
-
 func (e *GameEngine) getPlayableCardByID(p *model.Player, cardID string) (card model.Card, fromCover bool, coverEffect model.EffectType, ok bool) {
 	if p == nil || cardID == "" {
 		return model.Card{}, false, "", false
@@ -296,28 +283,6 @@ func queuedActionCardID(qa *model.QueuedAction) string {
 		return qa.Card.ID
 	}
 	return ""
-}
-
-func (e *GameEngine) findPlayableCardIndexByID(p *model.Player, cardID string) int {
-	if p == nil || cardID == "" {
-		return -1
-	}
-	for i, c := range p.Hand {
-		if c.ID == cardID {
-			return i
-		}
-	}
-	offset := len(p.Hand)
-	for _, effect := range e.collectPlayableCoverEffects() {
-		covers := engineplayer.CoverCardsByEffect(p, effect)
-		for i, fc := range covers {
-			if fc.Card.ID == cardID {
-				return offset + i
-			}
-		}
-		offset += len(covers)
-	}
-	return -1
 }
 
 // ---- 其他共享辅助 ----

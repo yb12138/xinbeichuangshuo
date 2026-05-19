@@ -120,9 +120,13 @@ func handleElfElementalShotPick(rt engineplayer.ChoiceRuntime, selectionIndex in
 			return fmt.Errorf("手牌区只能选择法术牌发动元素射击")
 		}
 	}
-	card, err := rt.ConsumePlayableCardByIndex(user, cardIdx)
-	if err != nil {
-		return err
+	selectedCard, ok := rt.GetPlayableCardByIndex(user, cardIdx)
+	if !ok || selectedCard.ID == "" {
+		return fmt.Errorf("无效的卡牌选项: %d", selectionIndex)
+	}
+	card, ok := rt.ConsumePlayableCardByCardID(userID, selectedCard.ID)
+	if !ok {
+		return fmt.Errorf("未找到卡牌: %s", selectedCard.ID)
 	}
 	rt.NotifyCardRevealed(userID, []model.Card{card}, "discard")
 	rt.AppendToDiscard([]model.Card{card})

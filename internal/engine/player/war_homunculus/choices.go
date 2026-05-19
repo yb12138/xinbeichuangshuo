@@ -51,8 +51,7 @@ func buildRuneReforgeDistributionPrompt(playerID string, data map[string]interfa
 	if total <= 0 {
 		total = 3
 	}
-	// 使用类似圣疗的两行数字分配面板
-	// 前端检测 choice_type="hom_rune_reforge_allocate" 后渲染战纹/魔纹两行数字选择器
+	// 使用 presentation.layout="rune_allocate" 渲染战纹/魔纹两行数字选择器。
 	return &model.Prompt{
 		Type:       model.PromptConfirm,
 		ChoiceType: "hom_rune_reforge_allocate",

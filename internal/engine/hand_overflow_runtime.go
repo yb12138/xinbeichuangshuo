@@ -94,13 +94,13 @@ func (e *GameEngine) handOverflowSelectableIndices(player *model.Player) []int {
 	if current.SourceID != player.ID || current.UsesVirtualCard {
 		return indices
 	}
-	lockedIdx := e.findPlayableCardIndexByID(player, queuedActionCardID(&current))
-	if lockedIdx < 0 || lockedIdx >= len(player.Hand) {
+	lockedCardID := queuedActionCardID(&current)
+	if lockedCardID == "" {
 		return indices
 	}
 	filtered := make([]int, 0, len(indices))
 	for _, idx := range indices {
-		if idx == lockedIdx {
+		if idx >= 0 && idx < len(player.Hand) && player.Hand[idx].ID == lockedCardID {
 			continue
 		}
 		filtered = append(filtered, idx)

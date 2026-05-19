@@ -1146,7 +1146,7 @@ function onTargetClick(playerId: string) {
       return
     }
     logTargetDebug('action_attack_send', { playerId, cardIdx, cardName: selectedItem.card.name })
-    actions.submitAttack(playerId, cardIdx)
+    actions.submitAttack(playerId, selectedItem.card.id)
   } else if (actionMode.value === 'magic') {
     if (selectedItem.card.type !== 'Magic') {
       interruptStore.setSelectedCardForAction(null)
@@ -1156,10 +1156,10 @@ function onTargetClick(playerId: string) {
     }
     if (isMagicBulletCard(cardIdx)) {
       logTargetDebug('action_magic_missile_send', { playerId, cardIdx, cardName: selectedItem.card.name })
-      actions.submitMagic(undefined, cardIdx)
+      actions.submitMagic(undefined, selectedItem.card.id)
     } else {
       logTargetDebug('action_magic_send', { playerId, cardIdx, cardName: selectedItem.card.name })
-      actions.submitMagic(playerId, cardIdx)
+      actions.submitMagic(playerId, selectedItem.card.id)
     }
   }
 }
@@ -1644,9 +1644,9 @@ function onCardClick(idx: number) {
       interruptStore.showError('当前为额外攻击行动，只能使用对应系别的攻击牌')
       return
     }
-    if (actionMode.value === 'magic' && isMagicBulletCard(idx)) {
+    if (actionMode.value === 'magic' && card && isMagicBulletCard(idx)) {
       // 魔弹按固定传递顺序自动结算，不需要手动点目标。
-      actions.submitMagic(undefined, idx)
+      actions.submitMagic(undefined, card.id)
       return
     }
     interruptStore.setSelectedCardForAction(selectedCardForAction.value === idx ? null : idx)

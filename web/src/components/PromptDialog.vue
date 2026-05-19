@@ -7,9 +7,7 @@ import { useSubmitAction } from '../composables/useSubmitAction'
 import { ROLE_NAME_MAP } from '../constants/roleNameMap'
 import {
   promptImageButtonKindByOption,
-  responseOptionKind,
   type PromptImageButtonKind,
-  type ResponseOptionKind,
 } from '../constants/promptButtonRules'
 import type { PlayerView, PromptOption } from '../types/game'
 
@@ -60,12 +58,12 @@ watch(() => prompt.value, () => {
 
 const hasCounterOption = computed(() => {
   if (!prompt.value?.options?.length) return false
-  return prompt.value.options.some((o: { id: string; label: string; button_label?: string }) => responseOptionKind(o) === 'counter')
+  return prompt.value.options.some((option) => promptOptionResponseKind(option) === 'counter')
 })
 
 const hasDefendOption = computed(() => {
   if (!prompt.value?.options?.length) return false
-  return prompt.value.options.some((o: { id: string; label: string; button_label?: string }) => responseOptionKind(o) === 'defend')
+  return prompt.value.options.some((option) => promptOptionResponseKind(option) === 'defend')
 })
 
 const hasCounterOrDefend = computed(() => {
@@ -78,6 +76,23 @@ const responsePromptUnrespondable = computed(() => {
   const effectHints = Array.isArray(prompt.value.effect_hints) ? prompt.value.effect_hints : []
   return effectHints.some((hint) => String(hint || '').includes('无法应战'))
 })
+
+type ResponseActionKind = 'take' | 'counter' | 'defend' | null
+
+const isResponsePrompt = computed(() => prompt.value?.presentation?.kind === 'response')
+
+function responseOptionKindByID(optionId: string): ResponseActionKind {
+  const id = String(optionId || '').trim().toLowerCase()
+  if (id === 'take' || id === 'take_damage') return 'take'
+  if (id === 'counter') return 'counter'
+  if (id === 'defend') return 'defend'
+  return null
+}
+
+function promptOptionResponseKind(option: { id?: string }): ResponseActionKind {
+  if (!isResponsePrompt.value) return null
+  return responseOptionKindByID(option.id || '')
+}
 
 function promptAttackElementName(raw: string): string {
   const lower = String(raw || '').trim().toLowerCase()
@@ -443,11 +458,12 @@ function handleOptionClick(optionId: string) {
     actions.submitSelect([optionId === 'normal' ? 0 : 1])
     return
   }
-  if (optionId === 'take') {
+  const responseKind = promptOptionResponseKind({ id: optionId })
+  if (responseKind === 'take') {
     actions.submitRespondTake()
     return
   }
-  if (optionId === 'counter') {
+  if (responseKind === 'counter') {
     if (interruptStore.selectedCards.length === 0) {
       showPromptError(isMagicMissilePrompt.value ? '请先选择一张【魔弹】进行传递' : '请先选择一张攻击牌进行应战')
       return
@@ -459,7 +475,7 @@ function handleOptionClick(optionId: string) {
     if (!actions.submitRespondCounter(isMagicMissilePrompt.value)) return
     return
   }
-  if (optionId === 'defend') {
+  if (responseKind === 'defend') {
     if (interruptStore.selectedCards.length === 0) {
       showPromptError('请先选择一张【圣光】进行防御（圣盾需提前放置）')
       return
@@ -740,7 +756,7 @@ function isInlineCardOptionSelected(optionId: string): boolean {
 type RawDockOption = {
   id: string
   label: string
-  button_label?: string
+  button_label: string
   hint?: string
   field_index?: number
   disabled?: boolean
@@ -839,12 +855,9 @@ function promptImageButtonFallbackText(kind: PromptImageButtonKind | null, butto
 
 function dockButtonImageKind(option: DockButtonOption): PromptImageButtonKind | null {
   if (option.numeric) return null
-  return promptImageButtonKindByOption({
-    id: option.id,
-    label: option.label,
-    buttonLabel: option.buttonLabel,
-    hint: option.hint
-  })
+  const responseKind = promptOptionResponseKind({ id: option.id })
+  if (responseKind) return responseKind
+  return promptImageButtonKindByOption({ buttonLabel: option.buttonLabel })
 }
 
 function isDockButtonImageStyle(option: DockButtonOption): boolean {
@@ -934,11 +947,10 @@ function overlayDecisionOptionTitle(option: DockButtonOption): string {
 function normalizeDockOption(option: RawDockOption): DockButtonOption {
   const id = String(option.id || '').trim()
   const label = String(option.label || '').trim()
-  const explicitButtonLabel = String(option.button_label || '').trim()
-  const buttonLabel = explicitButtonLabel || label || id
+  const buttonLabel = String(option.button_label || '').trim()
   let hint = String(option.hint || '').trim()
 
-  if (responseOptionKind({ id, label, button_label: buttonLabel }) !== null) {
+  if (promptOptionResponseKind({ id }) !== null) {
     hint = ''
   }
 
@@ -1005,20 +1017,20 @@ const fraudElementCardOptions = computed<FraudElementCardOption[]>(() => {
 const cardFooterOptions = computed<RawDockOption[]>(() => {
   if (!prompt.value?.options || !needsCardSelection.value) return []
   if (hasCounterOrDefend.value) {
-    const responseOrder: Record<Exclude<ResponseOptionKind, null>, number> = {
+    const responseOrder: Record<Exclude<ResponseActionKind, null>, number> = {
       take: 0,
       defend: 1,
       counter: 2,
     }
-    const responseRank = (kind: ResponseOptionKind): number => {
+    const responseRank = (kind: ResponseActionKind): number => {
       if (!kind) return 99
       return responseOrder[kind]
     }
     return prompt.value.options
-      .filter((option: { id: string; label: string; button_label?: string }) => responseOptionKind(option) !== null)
+      .filter((option) => promptOptionResponseKind(option) !== null)
       .sort((a, b) => {
-        const rankA = responseRank(responseOptionKind(a))
-        const rankB = responseRank(responseOptionKind(b))
+        const rankA = responseRank(promptOptionResponseKind(a))
+        const rankB = responseRank(promptOptionResponseKind(b))
         return rankA - rankB
       })
       .map((option) => ({
@@ -1093,7 +1105,7 @@ const singleActivationCostConfirmOption = computed<DockButtonOption | null>(() =
   if (inlinePrimaryButtons.value.length !== 1) return null
   const option = inlinePrimaryButtons.value[0]
   if (!option || option.numeric || option.disabled) return null
-  if (responseOptionKind({ id: option.id, label: option.label, button_label: option.buttonLabel }) !== null) return null
+  if (promptOptionResponseKind({ id: option.id }) !== null) return null
   if (prompt.value.presentation?.layout !== 'activation_cost') return null
   return option
 })
@@ -1213,7 +1225,7 @@ const skillPromptEntries = computed<SkillPromptEntry[]>(() => {
     return {
       id: option.id,
       promptText: `是否发动【${title}】`,
-      buttonLabel: option.buttonLabel || '发动',
+      buttonLabel: option.buttonLabel,
       disabled: !!option.disabled
     }
   })
@@ -1230,7 +1242,7 @@ const skillPromptButtons = computed<SkillPromptButton[]>(() => {
   if (!isSkillChoicePrompt.value || skillPromptEntries.value.length === 0) return []
   const skillCount = skillPromptEntries.value.length
   const buttons: SkillPromptButton[] = skillPromptEntries.value.map((entry, index) => {
-    let label = entry.buttonLabel || '发动'
+    let label = entry.buttonLabel
     if (prompt.value?.type === 'choose_skill' && skillCount > 1) {
       const option = inlinePrimaryButtons.value[index]
       label = option ? parseSkillTitle(option, index) : `技能 ${index + 1}`
@@ -1400,7 +1412,7 @@ const cancelDockButton = computed<DockButtonOption>(() => {
 
 function getDockButtonClass(optionId: string): string {
   const lowerOptionId = String(optionId || '').trim().toLowerCase()
-  const kind = responseOptionKind({ id: lowerOptionId })
+  const kind = promptOptionResponseKind({ id: lowerOptionId })
   if (kind === 'take') return 'prompt-inline-btn--take'
   if (kind === 'counter') return 'prompt-inline-btn--counter'
   if (kind === 'defend') return 'prompt-inline-btn--defend'
@@ -1412,12 +1424,12 @@ function getDockButtonClass(optionId: string): string {
 }
 
 function shouldHideOptionHint(option: DockButtonOption): boolean {
-  return responseOptionKind({ id: option.id, label: option.label, button_label: option.buttonLabel }) !== null
+  return promptOptionResponseKind({ id: option.id }) !== null
 }
 
 function shouldEnlargeResponseActionButton(option: DockButtonOption): boolean {
   if (!isDarkAttackResponsePrompt.value) return false
-  const kind = responseOptionKind({ id: option.id, label: option.label, button_label: option.buttonLabel })
+  const kind = promptOptionResponseKind({ id: option.id })
   return kind === 'take' || kind === 'defend'
 }
 

@@ -13,8 +13,8 @@ const (
 	CmdHelp  PlayerActionType = "Help"
 
 	// 战斗/经济指令
-	CmdAttack     PlayerActionType = "Attack"     // atk <target> <idx>
-	CmdMagic      PlayerActionType = "Magic"      // magic <target> <idx>
+	CmdAttack     PlayerActionType = "Attack"     // atk <target> <card_id>
+	CmdMagic      PlayerActionType = "Magic"      // magic <target> <card_id>
 	CmdBuy        PlayerActionType = "Buy"        // buy
 	CmdSynthesize PlayerActionType = "Synthesize" // syb
 	CmdExtract    PlayerActionType = "Extract"    // ext

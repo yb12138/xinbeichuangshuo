@@ -34,12 +34,12 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		for _, mode := range modeOrder {
 			switch mode {
 			case "y2b":
-				options = append(options, model.PromptOption{ID: "yellow_to_blue", Label: "黄色灵魂转蓝色灵魂"})
+				options = append(options, model.PromptOption{ID: "yellow_to_blue", Label: "黄色灵魂转蓝色灵魂", ButtonLabel: "黄色灵魂转蓝色灵魂"})
 			case "b2y":
-				options = append(options, model.PromptOption{ID: "blue_to_yellow", Label: "蓝色灵魂转黄色灵魂"})
+				options = append(options, model.PromptOption{ID: "blue_to_yellow", Label: "蓝色灵魂转黄色灵魂", ButtonLabel: "蓝色灵魂转黄色灵魂"})
 			}
 		}
-		options = append(options, model.PromptOption{ID: "cancel", Label: "取消"})
+		options = append(options, model.PromptOption{ID: "cancel", Label: "取消", ButtonLabel: "取消"})
 		return &model.Prompt{
 			Type:         model.PromptConfirm,
 			PlayerID:     playerID,

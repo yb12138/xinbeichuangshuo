@@ -364,10 +364,6 @@ func (r hookRuntime) GetCardByIndex(player *model.Player, idx int) (model.Card, 
 	return player.Hand[idx], true
 }
 
-func (r hookRuntime) ConsumeCardByIndex(player *model.Player, idx int) (model.Card, error) {
-	return r.GameEngine.consumePlayableCardByIndex(player, idx)
-}
-
 func (r hookRuntime) AddToDiscardPile(cards ...model.Card) {
 	if r.GameEngine == nil || r.GameEngine.State == nil {
 		return

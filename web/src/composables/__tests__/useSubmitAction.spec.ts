@@ -162,6 +162,6 @@ describe('useSubmitAction', () => {
     const ok = actions.submitSelectedBoardTarget('p2')
 
     expect(ok).toBe(true)
-    expect(wsMock.attack).toHaveBeenCalledWith('p2', 0)
+    expect(wsMock.attack).toHaveBeenCalledWith('p2', 'attack-1')
   })
 })
