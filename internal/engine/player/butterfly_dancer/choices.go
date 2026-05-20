@@ -143,6 +143,10 @@ func buildDanceDiscardPrompt(playerID string, player *model.Player) *model.Promp
 		Options:    options,
 		Min:        1,
 		Max:        1,
+		Presentation: &model.PromptPresentation{
+			Kind:       model.PresentationCardPicker,
+			CardSource: "hand",
+		},
 	}
 }
 
@@ -229,6 +233,10 @@ func buildReverseTargetPrompt(rt engineplayer.ChoiceRuntime, playerID string, da
 		Options:    options,
 		Min:        1,
 		Max:        1,
+		Presentation: &model.PromptPresentation{
+			Kind:         model.PresentationTargetPicker,
+			TargetFilter: "custom",
+		},
 	}
 }
 
@@ -247,6 +255,10 @@ func buildReverseBranch2CostPrompt(playerID string, data map[string]interface{})
 		Options:    options,
 		Min:        1,
 		Max:        1,
+		Presentation: &model.PromptPresentation{
+			Kind:   model.PresentationBranchSelect,
+			Layout: "overlay",
+		},
 	}
 }
 
@@ -369,6 +381,13 @@ func buildMirrorPairPrompt(playerID string, data map[string]interface{}) *model.
 		Options:    options,
 		Min:        1,
 		Max:        1,
+		Presentation: &model.PromptPresentation{
+			Kind:         model.PresentationBranchSelect,
+			Layout:       "overlay",
+			CancelPolicy: "decline",
+			HasDecline:   true,
+			DeclineIndex: 0,
+		},
 	}
 }
 
@@ -384,6 +403,10 @@ func buildWitherConfirmPrompt(playerID string) *model.Prompt {
 		},
 		Min: 1,
 		Max: 1,
+		Presentation: &model.PromptPresentation{
+			Kind:   model.PresentationBranchSelect,
+			Layout: "overlay",
+		},
 	}
 }
 
@@ -403,6 +426,10 @@ func buildWitherTargetPrompt(rt engineplayer.ChoiceRuntime, playerID string, dat
 		Options:    options,
 		Min:        1,
 		Max:        1,
+		Presentation: &model.PromptPresentation{
+			Kind:         model.PresentationTargetPicker,
+			TargetFilter: "custom",
+		},
 	}
 }
 

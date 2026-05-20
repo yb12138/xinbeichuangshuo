@@ -182,6 +182,10 @@ func buildSaintHealPrompt(rt player.ChoiceRuntime) *model.Prompt {
 		},
 		Min: 1,
 		Max: 1,
+		Presentation: &model.PromptPresentation{
+			Kind:   model.PresentationBranchSelect,
+			Layout: "overlay",
+		},
 	}
 }
 

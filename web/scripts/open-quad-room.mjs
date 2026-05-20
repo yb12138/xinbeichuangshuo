@@ -3,7 +3,16 @@ import { spawn } from 'node:child_process'
 
 const DEFAULT_BACKEND = 'http://127.0.0.1:8080'
 const DEFAULT_FRONTEND = 'http://127.0.0.1:5173'
-const DEFAULT_NAMES = ['测试玩家1', '测试玩家2', '测试玩家3', '测试玩家4']
+/** 与房间 3v3 人数一致：6 个浏览器页面对应 6 名玩家 */
+const PLAYER_COUNT = 6
+const DEFAULT_NAMES = [
+  '测试玩家1',
+  '测试玩家2',
+  '测试玩家3',
+  '测试玩家4',
+  '测试玩家5',
+  '测试玩家6',
+]
 
 function parseArgs(argv) {
   const options = {
@@ -46,7 +55,7 @@ function parseArgs(argv) {
     ...options,
     backend: trimTrailingSlash(options.backend),
     frontend: trimTrailingSlash(options.frontend),
-    names: ensureFourNames(options.names),
+    names: ensurePlayerNames(options.names),
   }
 }
 
@@ -57,9 +66,9 @@ function splitNames(value) {
     .filter(Boolean)
 }
 
-function ensureFourNames(names) {
-  const result = names.slice(0, 4)
-  for (let i = result.length; i < 4; i += 1) {
+function ensurePlayerNames(names) {
+  const result = names.slice(0, PLAYER_COUNT)
+  for (let i = result.length; i < PLAYER_COUNT; i += 1) {
     result.push(DEFAULT_NAMES[i])
   }
   return result
@@ -70,16 +79,16 @@ function trimTrailingSlash(value) {
 }
 
 function printHelp() {
-  console.log(`一键创建四页面测试房间
+  console.log(`一键创建房间并打开 ${PLAYER_COUNT} 个测试页面（对应 ${PLAYER_COUNT} 名玩家）
 
 Usage:
   npm run dev:quad
-  npm run dev:quad -- --frontend http://127.0.0.1:5173 --backend http://127.0.0.1:8080 --names A,B,C,D
+  npm run dev:quad -- --frontend http://127.0.0.1:5173 --backend http://127.0.0.1:8080 --names A,B,C,D,E,F
 
 Options:
   --backend <url>   后端地址，默认 ${DEFAULT_BACKEND}
   --frontend <url>  前端地址，默认 ${DEFAULT_FRONTEND}
-  --names <list>    逗号分隔的 4 个玩家名
+  --names <list>    逗号分隔的 ${PLAYER_COUNT} 个玩家名（不足则补默认名）
   --no-open         只打印 URL，不打开浏览器
 `)
 }
@@ -161,14 +170,14 @@ async function main() {
   const urls = buildPlayerUrls(options.frontend, roomCode, options.names)
 
   console.log(`房间码: ${roomCode}`)
-  console.log('四个测试页面:')
+  console.log(`${PLAYER_COUNT} 个测试页面:`)
   urls.forEach((url, index) => {
     console.log(`${index + 1}. ${options.names[index]} -> ${url}`)
   })
 
   if (options.openPages) {
     openUrls(urls)
-    console.log('已请求浏览器打开 4 个页面。')
+    console.log(`已请求浏览器打开 ${PLAYER_COUNT} 个页面。`)
   }
 }
 

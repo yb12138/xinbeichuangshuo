@@ -68,13 +68,14 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			}
 		}
 		return &model.Prompt{
-			Type:       model.PromptConfirm,
-			PlayerID:   playerID,
-			ChoiceType: choiceType,
-			Message:    "【灵魂链接】请选择要放置灵魂链接的队友：",
-			Options:    options,
-			Min:        1,
-			Max:        1,
+			Type:         model.PromptConfirm,
+			PlayerID:     playerID,
+			ChoiceType:   choiceType,
+			Message:      "【灵魂链接】请选择要放置灵魂链接的队友：",
+			Options:      options,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationTargetPicker, TargetFilter: "custom"},
 		}
 	case "ss_link_transfer_x":
 		maxX := runtimeutil.ToIntContextValue(data["max_x"])
@@ -149,13 +150,14 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			maxSelect = 1
 		}
 		return &model.Prompt{
-			Type:       model.PromptChooseCards,
-			PlayerID:   playerID,
-			ChoiceType: choiceType,
-			Message:    "【灵魂召还】请选择要弃置的法术牌（至少1张）：",
-			Options:    options,
-			Min:        1,
-			Max:        maxSelect,
+			Type:         model.PromptChooseCards,
+			PlayerID:     playerID,
+			ChoiceType:   choiceType,
+			Message:      "【灵魂召还】请选择要弃置的法术牌（至少1张）：",
+			Options:      options,
+			Min:          1,
+			Max:          maxSelect,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand", CardFilter: "magic_only"},
 		}
 	}
 	return nil

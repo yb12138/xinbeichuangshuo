@@ -171,6 +171,12 @@ func TestSoulSorcererSoulRecall_MultiSelectSubmit(t *testing.T) {
 	if prompt == nil || prompt.Type != model.PromptChooseCards {
 		t.Fatalf("expected choose_cards prompt for soul recall, got %+v", prompt)
 	}
+	if prompt.Presentation == nil ||
+		prompt.Presentation.Kind != model.PresentationCardPicker ||
+		prompt.Presentation.CardSource != "hand" ||
+		prompt.Presentation.CardFilter != "magic_only" {
+		t.Fatalf("expected soul recall prompt to use hand magic card_picker presentation, got %+v", prompt.Presentation)
+	}
 
 	// 直接多选提交（此处只选1张法术牌）。
 	if err := game.HandleAction(model.PlayerAction{
@@ -529,6 +535,13 @@ func TestSoulSorcererSoulLink_TransferDamageBeforeResolve(t *testing.T) {
 		t.Fatalf("use ss_soul_link failed: %v", err)
 	}
 	testutils.RequireChoicePrompt(t, game, "p1", "ss_link_target")
+	prompt := game.GetCurrentPrompt()
+	if prompt == nil ||
+		prompt.Presentation == nil ||
+		prompt.Presentation.Kind != model.PresentationTargetPicker ||
+		prompt.Presentation.TargetFilter != "custom" {
+		t.Fatalf("expected soul link target prompt to use custom target_picker presentation, got %+v", prompt)
+	}
 	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose soul link target failed: %v", err)
 	}

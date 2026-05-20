@@ -52,11 +52,12 @@ type PromptBuilder struct {
 func NewPrompt(playerID string, message string) *PromptBuilder {
 	return &PromptBuilder{
 		p: &model.Prompt{
-			Type:     model.PromptConfirm,
-			PlayerID: playerID,
-			Message:  message,
-			Min:      1,
-			Max:      1,
+			Type:         model.PromptConfirm,
+			PlayerID:     playerID,
+			Message:      message,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 		},
 	}
 }
