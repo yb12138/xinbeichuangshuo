@@ -1309,14 +1309,12 @@ const skillBranchOptions = computed<SkillBranchOption[]>(() => {
     .map((option, index) => {
       const rawLabel = String(option.label || '').trim()
       const isCancelLike = option.id === 'skip' || option.id === 'cancel'
-      const title = isCancelLike
-        ? String(option.buttonLabel || option.label || '跳过').trim()
-        : parseSkillTitle(option, index)
+      const title = isCancelLike ? '' : parseSkillTitle(option, index)
       const costMatch = rawLabel.match(/\[[^\]]+\]/)
       return {
         id: option.id,
         title,
-        description: option.hint || undefined,
+        description: option.hint || (isCancelLike ? String(option.label || option.buttonLabel || '跳过').trim() : undefined),
         cost: costMatch ? costMatch[0] : undefined,
         disabled: !!option.disabled,
       }

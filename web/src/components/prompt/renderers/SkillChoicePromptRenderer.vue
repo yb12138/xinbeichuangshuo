@@ -87,8 +87,16 @@ function hasSkipBranch(branches: SkillBranchOption[]): boolean {
               :disabled="entry.disabled"
               @click="emit('select', entry.id)"
             >
-              <div class="overlay-panel-item-title" :data-testid="`prompt-option-${entry.id}`">{{ entry.title }}</div>
-              <div v-if="entry.description" class="overlay-panel-item-desc">{{ entry.description }}</div>
+              <div
+                v-if="entry.title"
+                class="overlay-panel-item-title"
+                :data-testid="`prompt-option-${entry.id}`"
+              >{{ entry.title }}</div>
+              <div
+                v-if="entry.description"
+                class="overlay-panel-item-desc"
+                :data-testid="!entry.title ? `prompt-option-${entry.id}` : undefined"
+              >{{ entry.description }}</div>
               <div v-if="entry.cost" class="overlay-panel-item-cost">{{ entry.cost }}</div>
             </button>
           </div>
