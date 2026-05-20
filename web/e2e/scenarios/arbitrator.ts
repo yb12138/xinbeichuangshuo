@@ -243,9 +243,9 @@ export function doomJudgmentTargetPrompt(): WsMessage {
     message: '【末日审判】请选择一名目标角色，移除所有［审判］造成等量法术伤害：',
     choice_type: 'arbiter_doom_judgment_target',
     options: [
-      { id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
-      { id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
-      { id: ARBITRATOR_PLAYER_ID, label: '自己', button_label: '选择' },
+      { id: ENEMY_PLAYER_ID, target_id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
+      { id: ALLY_PLAYER_ID, target_id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
+      { id: ARBITRATOR_PLAYER_ID, target_id: ARBITRATOR_PLAYER_ID, label: '自己', button_label: '选择' },
     ],
     min: 1, max: 1,
     presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
@@ -259,8 +259,8 @@ export function doomJudgmentForcePrompt(): WsMessage {
     message: '【末日审判］［审判］已达上限，必须发动该技能。请选择目标：',
     choice_type: 'arbiter_doom_judgment_force',
     options: [
-      { id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
-      { id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
+      { id: ENEMY_PLAYER_ID, target_id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
+      { id: ALLY_PLAYER_ID, target_id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
     ],
     min: 1, max: 1,
     presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },

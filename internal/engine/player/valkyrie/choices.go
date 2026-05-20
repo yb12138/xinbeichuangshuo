@@ -66,18 +66,20 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		for _, targetID := range targetIDs {
 			if target := rt.GetPlayers()[targetID]; target != nil {
 				options = append(options, model.PromptOption{
-					ID:    targetID,
-					Label: target.Name,
+					ID:       targetID,
+					Label:    target.Name,
+					TargetID: targetID,
 				})
 			}
 		}
 		return &model.Prompt{
-			Type:     model.PromptConfirm,
-			PlayerID: playerID,
-			Message:  "【军威神光】请选择目标角色：",
-			Options:  options,
-			Min:      1,
-			Max:      1,
+			Type:         model.PromptConfirm,
+			PlayerID:     playerID,
+			Message:      "【军威神光】请选择目标角色：",
+			Options:      options,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationTargetPicker, TargetFilter: "custom"},
 		}
 
 	case "valkyrie_heroic_discard_card":

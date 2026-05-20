@@ -475,7 +475,7 @@ export function moonCycleTargetPrompt(): WsMessage {
     choice_type: 'mg_moon_cycle_heal_target',
     skill_id: MG_MOON_CYCLE_SKILL_ID,
     options: [
-      { id: ENEMY_PLAYER_ID, label: '恶徒', button_label: '选择' },
+      { id: ENEMY_PLAYER_ID, target_id: ENEMY_PLAYER_ID, label: '恶徒', button_label: '选择' },
     ],
     presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
     min: 1,
@@ -572,8 +572,8 @@ export function moonReadTargetPrompt(): WsMessage {
     skill_id: MG_MOON_READ_SKILL_ID,
     presentation: { kind: 'target_picker', target_filter: 'enemies', numeric_base: 0 },
     options: [
-      { id: ENEMY_PLAYER_ID, label: 'Enemy Bot', button_label: '选择' },
-      { id: ENEMY_2_PLAYER_ID, label: 'Enemy Bot 2', button_label: '选择' },
+      { id: ENEMY_PLAYER_ID, target_id: ENEMY_PLAYER_ID, label: 'Enemy Bot', button_label: '选择' },
+      { id: ENEMY_2_PLAYER_ID, target_id: ENEMY_2_PLAYER_ID, label: 'Enemy Bot 2', button_label: '选择' },
     ],
     min: 1,
     max: 1,
@@ -785,8 +785,8 @@ export function paleMoonTargetPrompt(): WsMessage {
     skill_id: MG_PALE_MOON_SKILL_ID,
     presentation: { kind: 'target_picker', target_filter: 'enemies', numeric_base: 0 },
     options: [
-      { id: ENEMY_PLAYER_ID, label: 'Enemy Bot', button_label: '选择' },
-      { id: ENEMY_2_PLAYER_ID, label: 'Enemy Bot 2', button_label: '选择' },
+      { id: ENEMY_PLAYER_ID, target_id: ENEMY_PLAYER_ID, label: 'Enemy Bot', button_label: '选择' },
+      { id: ENEMY_2_PLAYER_ID, target_id: ENEMY_2_PLAYER_ID, label: 'Enemy Bot 2', button_label: '选择' },
     ],
     min: 1,
     max: 1,

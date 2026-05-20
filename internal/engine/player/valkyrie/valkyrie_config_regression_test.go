@@ -200,6 +200,15 @@ func TestValkyrie_MilitaryGlory_BranchTwoDoesNotExitSpirit(t *testing.T) {
 	testutils.RequireChoicePrompt(t, game, "p1", "valkyrie_military_glory_x")
 	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{1}})
 	testutils.RequireChoicePrompt(t, game, "p1", "valkyrie_military_glory_target")
+	prompt := game.GetCurrentPrompt()
+	if prompt == nil || prompt.Presentation == nil || prompt.Presentation.Kind != model.PresentationTargetPicker {
+		t.Fatalf("expected military glory target prompt to use target_picker presentation, got %+v", prompt)
+	}
+	for _, option := range prompt.Options {
+		if option.TargetID == "" {
+			t.Fatalf("expected military glory target option %q to carry target_id, got %+v", option.ID, prompt.Options)
+		}
+	}
 
 	targetSelection := -1
 	ctxData, _ := game.State.PendingInterrupt.Context.(map[string]interface{})

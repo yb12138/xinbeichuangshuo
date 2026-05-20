@@ -57,5 +57,7 @@ func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 		"se_soul_pick":             types.ChoiceRouteRole("sword_emperor"),
 		"se_sword_qi_slash_target": types.ChoiceRouteRole("sword_emperor"),
 		"se_sword_qi_slash_x":      types.ChoiceRouteRole("sword_emperor"),
+		"se_sword_rain_discard":    types.ChoiceRouteRole("sword_emperor"),
+		"se_sword_rain_target":     types.ChoiceRouteRole("sword_emperor"),
 	}
 }

@@ -112,8 +112,9 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		for i, targetID := range targetIDs {
 			if target := rt.GetPlayers()[targetID]; target != nil {
 				options = append(options, model.PromptOption{
-					ID:    fmt.Sprintf("%d", i),
-					Label: target.Name,
+					ID:       fmt.Sprintf("%d", i),
+					Label:    target.Name,
+					TargetID: targetID,
 				})
 			}
 		}

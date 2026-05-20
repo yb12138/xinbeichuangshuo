@@ -60,8 +60,9 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		for _, targetID := range targetIDs {
 			if target := rt.GetPlayers()[targetID]; target != nil {
 				options = append(options, model.PromptOption{
-					ID:    targetID,
-					Label: target.Name,
+					ID:       targetID,
+					Label:    target.Name,
+					TargetID: targetID,
 				})
 			}
 		}

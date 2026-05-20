@@ -546,8 +546,14 @@ func TestHomDualEcho_WhenDamagingEnemyInTwoPlayerGameCanTargetSelf(t *testing.T)
 	if prompt == nil {
 		t.Fatalf("expected dual echo target prompt")
 	}
+	if prompt.Presentation == nil || prompt.Presentation.Kind != model.PresentationTargetPicker {
+		t.Fatalf("expected dual echo target prompt to use target_picker presentation, got %+v", prompt)
+	}
 	if len(prompt.Options) < 1 || prompt.Options[0].Label != p1.Name {
 		t.Fatalf("expected self to be the valid alternate target in two-player game, got %+v", prompt.Options)
+	}
+	if prompt.Options[0].TargetID != "p1" {
+		t.Fatalf("expected dual echo target option to carry target_id p1, got %+v", prompt.Options)
 	}
 }
 

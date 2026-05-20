@@ -303,9 +303,9 @@ export function martialGodLightTargetPrompt(): WsMessage {
     choice_type: 'valkyrie_military_glory_target',
     presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
     options: [
-      { id: VALKYRIE_PLAYER_ID, label: 'E2E Valkyrie', button_label: '选择' },
-      { id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
-      { id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
+      { id: VALKYRIE_PLAYER_ID, target_id: VALKYRIE_PLAYER_ID, label: 'E2E Valkyrie', button_label: '选择' },
+      { id: ENEMY_PLAYER_ID, target_id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
+      { id: ALLY_PLAYER_ID, target_id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
     ],
     min: 1, max: 1,
   } satisfies Prompt);

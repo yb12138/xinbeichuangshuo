@@ -171,12 +171,13 @@ func buildDualEchoTargetPrompt(rt engineplayer.ChoiceRuntime, playerID string, d
 	options = append(options, model.PromptOption{ID: "cancel", Label: "取消"})
 	damage := runtimeutil.ToIntContextValue(data["damage"])
 	return &model.Prompt{
-		Type:     model.PromptConfirm,
-		PlayerID: playerID,
-		Message:  fmt.Sprintf("【双重回响】请选择额外造成%d点法术伤害的目标：", damage),
-		Options:  options,
-		Min:      1,
-		Max:      1,
+		Type:         model.PromptConfirm,
+		PlayerID:     playerID,
+		Message:      fmt.Sprintf("【双重回响】请选择额外造成%d点法术伤害的目标：", damage),
+		Options:      options,
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationTargetPicker, TargetFilter: "custom"},
 	}
 }
 

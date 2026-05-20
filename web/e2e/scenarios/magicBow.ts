@@ -359,8 +359,8 @@ export function thunderScatterTargetPrompt(extraX = 2): WsMessage {
     skill_id: MB_THUNDER_SCATTER_SKILL_ID,
     presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
     options: [
-      { id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
-      { id: ENEMY_2_PLAYER_ID, label: 'Enemy E2', button_label: '选择' },
+      { id: ENEMY_PLAYER_ID, target_id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
+      { id: ENEMY_2_PLAYER_ID, target_id: ENEMY_2_PLAYER_ID, label: 'Enemy E2', button_label: '选择' },
     ],
     min: 1,
     max: 1,
@@ -400,7 +400,7 @@ export function multiShotTargetPrompt(): WsMessage {
     skill_id: MB_MULTI_SHOT_SKILL_ID,
     presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
     options: [
-      { id: ENEMY_2_PLAYER_ID, label: 'Enemy E2', button_label: '选择' },
+      { id: ENEMY_2_PLAYER_ID, target_id: ENEMY_2_PLAYER_ID, label: 'Enemy E2', button_label: '选择' },
     ],
     min: 1,
     max: 1,
@@ -553,9 +553,9 @@ export function demonEyeTargetPrompt(): WsMessage {
     skill_id: MB_DEMON_EYE_SKILL_ID,
     presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
     options: [
-      { id: MB_PLAYER_ID, label: 'E2E Magic Bow', button_label: '选择' },
-      { id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
-      { id: ENEMY_2_PLAYER_ID, label: 'Enemy E2', button_label: '选择' },
+      { id: MB_PLAYER_ID, target_id: MB_PLAYER_ID, label: 'E2E Magic Bow', button_label: '选择' },
+      { id: ENEMY_PLAYER_ID, target_id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
+      { id: ENEMY_2_PLAYER_ID, target_id: ENEMY_2_PLAYER_ID, label: 'Enemy E2', button_label: '选择' },
     ],
     min: 1,
     max: 1,

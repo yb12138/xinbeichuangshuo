@@ -376,8 +376,8 @@ export function reverseTargetPrompt(): WsMessage {
     choice_type: 'bt_reverse_target',
     skill_id: BD_REVERSE_SKILL_ID,
     options: [
-      { id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
-      { id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
+      { id: ENEMY_PLAYER_ID, target_id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
+      { id: ALLY_PLAYER_ID, target_id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
     ],
     presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
     min: 1, max: 1,
@@ -517,8 +517,8 @@ export function witherTargetPrompt(): WsMessage {
     message: '【凋零】请选择1名目标角色：',
     choice_type: 'bt_wither_target',
     options: [
-      { id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
-      { id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
+      { id: ENEMY_PLAYER_ID, target_id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
+      { id: ALLY_PLAYER_ID, target_id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
     ],
     presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
     min: 1, max: 1,

@@ -389,7 +389,7 @@ export function bulletTargetPrompt(): WsMessage {
     choice_type: 'fighter_psi_bullet_target',
     presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
     options: [
-      { id: ENEMY_PLAYER_ID, label: 'Enemy Bot', button_label: '选择' },
+      { id: ENEMY_PLAYER_ID, target_id: ENEMY_PLAYER_ID, label: 'Enemy Bot', button_label: '选择' },
     ],
     min: 1,
     max: 1,
@@ -476,7 +476,7 @@ export function hundredDragonTargetPrompt(): WsMessage {
     choice_type: 'fighter_hundred_dragon_target',
     presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
     options: [
-      { id: ENEMY_PLAYER_ID, label: 'Enemy Bot', button_label: '选择' },
+      { id: ENEMY_PLAYER_ID, target_id: ENEMY_PLAYER_ID, label: 'Enemy Bot', button_label: '选择' },
     ],
     min: 1,
     max: 1,

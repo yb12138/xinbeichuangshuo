@@ -242,8 +242,8 @@ export function magicExplosionTargetPrompt(): WsMessage {
     message: '【魔爆冲击】请选择2名目标对手：',
     choice_type: 'mg_magic_explosion_target',
     options: [
-      { id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
-      { id: ENEMY2_PLAYER_ID, label: 'Enemy E2', button_label: '选择' },
+      { id: ENEMY_PLAYER_ID, target_id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
+      { id: ENEMY2_PLAYER_ID, target_id: ENEMY2_PLAYER_ID, label: 'Enemy E2', button_label: '选择' },
     ],
     min: 2, max: 2,
     presentation: { kind: 'target_picker', target_filter: 'enemies', multi_target: true, numeric_base: 0 },
@@ -441,8 +441,8 @@ export function destructionStormTargetPrompt(): WsMessage {
     message: '【毁灭风暴】请选择2名目标对手，各造成2点法术伤害：',
     choice_type: 'mg_destruction_storm_target',
     options: [
-      { id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
-      { id: ENEMY2_PLAYER_ID, label: 'Enemy E2', button_label: '选择' },
+      { id: ENEMY_PLAYER_ID, target_id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
+      { id: ENEMY2_PLAYER_ID, target_id: ENEMY2_PLAYER_ID, label: 'Enemy E2', button_label: '选择' },
     ],
     min: 2, max: 2,
     presentation: { kind: 'target_picker', target_filter: 'enemies', multi_target: true, numeric_base: 0 },

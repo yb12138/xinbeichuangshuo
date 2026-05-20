@@ -1,6 +1,11 @@
 package viewmodel
 
-import "starcup-engine/internal/model"
+import (
+	"fmt"
+	"strings"
+
+	"starcup-engine/internal/model"
+)
 
 // PromptDTO 前端 Prompt 数据传输对象（wire DTO）
 // 与 model.Prompt 解耦，仅保留前端渲染需要的字段
@@ -40,6 +45,7 @@ func ToPromptDTO(p *model.Prompt) *PromptDTO {
 		return nil
 	}
 	presentation := presentationForPrompt(p)
+	validateTargetPickerOptions(p, presentation)
 	dto := &PromptDTO{
 		Type:             string(p.Type),
 		PlayerID:         p.PlayerID,
@@ -84,4 +90,33 @@ func ToPromptDTO(p *model.Prompt) *PromptDTO {
 		})
 	}
 	return dto
+}
+
+func validateTargetPickerOptions(p *model.Prompt, presentation *model.PromptPresentation) {
+	if p == nil || presentation == nil || presentation.Kind != model.PresentationTargetPicker {
+		return
+	}
+	validateTargetPickerOptionList(p, p.Options, "options")
+	validateTargetPickerOptionList(p, p.SpecialOptions, "special_options")
+}
+
+func validateTargetPickerOptionList(p *model.Prompt, options []model.PromptOption, fieldName string) {
+	for i, o := range options {
+		if strings.TrimSpace(o.TargetID) != "" {
+			continue
+		}
+		if isTargetPickerControlOption(o.ID) {
+			continue
+		}
+		panic(fmt.Sprintf("target_picker prompt %q for player %q %s[%d] (%q) is missing target_id", p.ChoiceType, p.PlayerID, fieldName, i, o.ID))
+	}
+}
+
+func isTargetPickerControlOption(id string) bool {
+	switch strings.ToLower(strings.TrimSpace(id)) {
+	case "-1", "cancel", "decline", "refuse", "skip", "pass", "back", "done", "finish":
+		return true
+	default:
+		return false
+	}
 }

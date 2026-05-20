@@ -246,7 +246,7 @@ export function stardustTargetPrompt(): WsMessage {
     skill_id: ML_PHANTOM_STARDUST_SKILL_ID,
     presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
     options: [
-      { id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
+      { id: ENEMY_PLAYER_ID, target_id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
     ],
     min: 1,
     max: 1,

@@ -235,9 +235,9 @@ export function snipeTargetPrompt(): WsMessage {
     message: '【狙击】请选择一名目标角色，使其手牌补到5张：',
     choice_type: 'skill_target_selection',
     options: [
-      { id: ENEMY_PLAYER_ID, label: 'Enemy E1（手牌1→5）', button_label: '选择' },
-      { id: ALLY_PLAYER_ID, label: 'Ally A1（手牌1→5）', button_label: '选择' },
-      { id: ARCHER_PLAYER_ID, label: '自己', button_label: '选择' },
+      { id: ENEMY_PLAYER_ID, target_id: ENEMY_PLAYER_ID, label: 'Enemy E1（手牌1→5）', button_label: '选择' },
+      { id: ALLY_PLAYER_ID, target_id: ALLY_PLAYER_ID, label: 'Ally A1（手牌1→5）', button_label: '选择' },
+      { id: ARCHER_PLAYER_ID, target_id: ARCHER_PLAYER_ID, label: '自己', button_label: '选择' },
     ],
     min: 1, max: 1,
     presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
@@ -294,8 +294,8 @@ export function flashTrapTargetPrompt(): WsMessage {
     message: '【闪光陷阱】请选择一名目标角色，对其造成2点法术伤害：',
     choice_type: 'skill_target_selection',
     options: [
-      { id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
-      { id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
+      { id: ENEMY_PLAYER_ID, target_id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
+      { id: ALLY_PLAYER_ID, target_id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
     ],
     min: 1, max: 1,
     presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },

@@ -220,8 +220,8 @@ export function bloodDyeRoseTargetPrompt(): WsMessage {
     message: '【血染蔷薇】请选择移除治疗的对手和获得治疗的队友：',
     choice_type: 'css_blood_rose_gain_heal_target',
     options: [
-      { id: ENEMY_PLAYER_ID, label: 'Enemy E1（移除治疗）', button_label: '选择' },
-      { id: ALLY_PLAYER_ID, label: 'Ally A1（获得治疗）', button_label: '选择' },
+      { id: ENEMY_PLAYER_ID, target_id: ENEMY_PLAYER_ID, label: 'Enemy E1（移除治疗）', button_label: '选择' },
+      { id: ALLY_PLAYER_ID, target_id: ALLY_PLAYER_ID, label: 'Ally A1（获得治疗）', button_label: '选择' },
     ],
     min: 2, max: 2,
     presentation: { kind: 'target_picker', target_filter: 'custom', multi_target: true, numeric_base: 0 },
@@ -292,7 +292,7 @@ export function scatteringDanceDamageTargetPrompt(): WsMessage {
     message: '【散华轮舞】请选择造成伤害的对手：',
     choice_type: 'css_dance_damage_target',
     options: [
-      { id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
+      { id: ENEMY_PLAYER_ID, target_id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
     ],
     min: 1, max: 1,
     presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
@@ -306,7 +306,7 @@ export function scatteringDanceHealTargetPrompt(): WsMessage {
     message: '【散华轮舞】请选择获得治疗的队友：',
     choice_type: 'css_dance_heal_target',
     options: [
-      { id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
+      { id: ALLY_PLAYER_ID, target_id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
     ],
     min: 1, max: 1,
     presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },

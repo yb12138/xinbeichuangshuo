@@ -278,7 +278,7 @@ export function beastSoulAlertTargetPrompt(): WsMessage {
     message: '【兽魂警戒】请选择 1 名让其弃 1 张牌的角色：',
     choice_type: 'bs_alert_target',
     options: [
-      { id: ENEMY_PLAYER_ID, label: 'Enemy Bot', button_label: '选择' },
+      { id: ENEMY_PLAYER_ID, target_id: ENEMY_PLAYER_ID, label: 'Enemy Bot', button_label: '选择' },
     ],
     min: 1,
     max: 1,

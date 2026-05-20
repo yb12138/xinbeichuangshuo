@@ -159,20 +159,9 @@ export function requireActionMessage(
   prompt: Prompt,
   overrides: Partial<RequireActionPayload> = {}
 ): WsMessage<RequireActionPayload> {
-  const normalizedPrompt: Prompt = (() => {
-    if (prompt.presentation?.kind !== 'target_picker' || !Array.isArray(prompt.options)) return prompt
-    return {
-      ...prompt,
-      options: prompt.options.map((option) => ({
-        ...option,
-        target_id: option.target_id ?? option.id,
-      })),
-    }
-  })()
-
   return {
     Cmd: 'RequireAction',
-    Data: requireActionPayload(normalizedPrompt, overrides),
+    Data: requireActionPayload(prompt, overrides),
   };
 }
 

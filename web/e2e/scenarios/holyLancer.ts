@@ -231,7 +231,7 @@ export function punishmentTargetPrompt(): WsMessage {
     message: '【惩戒】请选择一名目标角色，将其1点治疗转移给你：',
     choice_type: 'holy_lancer_punishment_target',
     options: [
-      { id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
+      { id: ENEMY_PLAYER_ID, target_id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
     ],
     min: 1, max: 1,
     presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },

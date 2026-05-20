@@ -155,6 +155,13 @@ func TestAdventurerExtractFullEnergy_AutoParadiseAllyExtract(t *testing.T) {
 	// 提炼 → 自身能量满，override hook 自动跳转到队友选择
 	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdExtract})
 	testutils.RequireChoicePrompt(t, game, "p1", "adventurer_paradise_pick")
+	prompt := game.GetCurrentPrompt()
+	if prompt == nil || prompt.Presentation == nil || prompt.Presentation.Kind != model.PresentationTargetPicker {
+		t.Fatalf("expected paradise ally prompt to use target_picker presentation, got %+v", prompt)
+	}
+	if len(prompt.Options) != 1 || prompt.Options[0].TargetID != "p2" {
+		t.Fatalf("expected paradise ally option to carry target_id p2, got %+v", prompt.Options)
+	}
 
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID:   "p1",

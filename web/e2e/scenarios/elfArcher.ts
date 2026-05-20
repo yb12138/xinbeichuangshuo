@@ -283,7 +283,7 @@ export function elfRitualReleaseTargetPrompt(): WsMessage {
     message: '【精灵密仪】你已无祝福，转正并请选择1名敌方角色承受2点法术伤害：',
     choice_type: 'elf_ritual_release_target',
     options: [
-      { id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
+      { id: ENEMY_PLAYER_ID, target_id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
     ],
     presentation: { kind: 'target_picker', target_filter: 'enemies', numeric_base: 0 },
     min: 1,

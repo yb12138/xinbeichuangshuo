@@ -366,7 +366,7 @@ export function fiveElementsBindTargetPrompt(): WsMessage {
     choice_type: 'five_elements_bind',
     presentation: { kind: 'target_picker', target_filter: 'enemies', numeric_base: 0 },
     options: [
-      { id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
+      { id: ENEMY_PLAYER_ID, target_id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
     ],
     min: 1, max: 1,
   } satisfies Prompt);
@@ -424,7 +424,7 @@ export function elementalSealTargetPrompt(sealId: string): WsMessage {
     choice_type: 'sealer_elemental_seal_target',
     presentation: { kind: 'target_picker', target_filter: 'enemies', numeric_base: 0 },
     options: [
-      { id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
+      { id: ENEMY_PLAYER_ID, target_id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
     ],
     min: 1, max: 1,
   } satisfies Prompt);

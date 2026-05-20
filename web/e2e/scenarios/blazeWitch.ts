@@ -325,7 +325,7 @@ export function substituteDollTargetPrompt(): WsMessage {
     message: '【替身玩偶】请选择摸1张牌的队友：',
     choice_type: 'bw_substitute_doll_target',
     options: [
-      { id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
+      { id: ALLY_PLAYER_ID, target_id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
     ],
     min: 1, max: 1,
     presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
@@ -380,7 +380,7 @@ export function manaInversionTargetPrompt(): WsMessage {
     message: '【魔能反转】请选择法术伤害目标：',
     choice_type: 'bw_mana_inversion_target',
     options: [
-      { id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
+      { id: ENEMY_PLAYER_ID, target_id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
     ],
     min: 1, max: 1,
     presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },

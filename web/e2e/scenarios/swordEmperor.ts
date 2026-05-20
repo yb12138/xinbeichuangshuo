@@ -251,7 +251,7 @@ export function swordQiSlashTargetPrompt(xValue: number): WsMessage {
     skill_id: SE_SWORD_QI_SLASH_SKILL_ID,
     presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
     options: [
-      { id: ENEMY_2_PLAYER_ID, label: 'Enemy Bot 2', button_label: '选择' },
+      { id: ENEMY_2_PLAYER_ID, target_id: ENEMY_2_PLAYER_ID, label: 'Enemy Bot 2', button_label: '选择' },
     ],
     min: 1,
     max: 1,

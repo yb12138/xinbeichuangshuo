@@ -357,7 +357,7 @@ export function hopePlaceTargetPrompt(): WsMessage {
     choice_type: 'bd_hope_place_target',
     skill_id: BD_HOPE_FUGUE_SKILL_ID,
     options: [
-      { id: ALLY_PLAYER_ID, label: '勇者', button_label: '选择' },
+      { id: ALLY_PLAYER_ID, target_id: ALLY_PLAYER_ID, label: '勇者', button_label: '选择' },
     ],
     min: 1,
     max: 1,
@@ -373,7 +373,7 @@ export function hopeTransferTargetPrompt(): WsMessage {
     choice_type: 'bd_hope_transfer_target',
     skill_id: BD_HOPE_FUGUE_SKILL_ID,
     options: [
-      { id: ALLY_PLAYER_ID, label: '勇者', button_label: '选择' },
+      { id: ALLY_PLAYER_ID, target_id: ALLY_PLAYER_ID, label: '勇者', button_label: '选择' },
     ],
     min: 1,
     max: 1,
@@ -550,10 +550,10 @@ export function rousingTargetsPrompt(step: number): WsMessage {
   const options: PromptOption[] = [];
   // Step 1: show all enemies; Step 2: show remaining
   if (step === 1) {
-    options.push({ id: ENEMY_PLAYER_ID, label: '恶徒', button_label: '选择' });
-    options.push({ id: ENEMY_2_PLAYER_ID, label: '恶徒2', button_label: '选择' });
+    options.push({ id: ENEMY_PLAYER_ID, target_id: ENEMY_PLAYER_ID, label: '恶徒', button_label: '选择' });
+    options.push({ id: ENEMY_2_PLAYER_ID, target_id: ENEMY_2_PLAYER_ID, label: '恶徒2', button_label: '选择' });
   } else {
-    options.push({ id: ENEMY_2_PLAYER_ID, label: '恶徒2', button_label: '选择' });
+    options.push({ id: ENEMY_2_PLAYER_ID, target_id: ENEMY_2_PLAYER_ID, label: '恶徒2', button_label: '选择' });
   }
   // 目标选择由吟游诗人执行（伤害来源是吟游诗人）
   return requireActionMessage({
@@ -826,7 +826,7 @@ export function descentTargetPrompt(): WsMessage {
     choice_type: 'bd_descent_target',
     skill_id: BD_DESCENT_CONCERTO_SKILL_ID,
     options: [
-      { id: ENEMY_PLAYER_ID, label: '恶徒', button_label: '选择' },
+      { id: ENEMY_PLAYER_ID, target_id: ENEMY_PLAYER_ID, label: '恶徒', button_label: '选择' },
     ],
     min: 1,
     max: 1,
@@ -929,9 +929,9 @@ export function dissonanceTargetPrompt(): WsMessage {
     choice_type: 'bd_dissonance_target',
     skill_id: BD_DISSONANCE_CHORD_SKILL_ID,
     options: [
-      { id: BARD_PLAYER_ID, label: '吟游诗人', button_label: '选择' },   // self
-      { id: ALLY_PLAYER_ID, label: '勇者', button_label: '选择' },   // ally
-      { id: ENEMY_PLAYER_ID, label: '恶徒', button_label: '选择' },   // enemy
+      { id: BARD_PLAYER_ID, target_id: BARD_PLAYER_ID, label: '吟游诗人', button_label: '选择' },   // self
+      { id: ALLY_PLAYER_ID, target_id: ALLY_PLAYER_ID, label: '勇者', button_label: '选择' },   // ally
+      { id: ENEMY_PLAYER_ID, target_id: ENEMY_PLAYER_ID, label: '恶徒', button_label: '选择' },   // enemy
     ],
     min: 1,
     max: 1,

@@ -250,7 +250,7 @@ export function adventurerParadiseAllyPickPrompt(): WsMessage {
     message: '【冒险者天堂】选择队友代为提炼：',
     choice_type: 'adventurer_paradise_pick',
     options: [
-      { id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
+      { id: ALLY_PLAYER_ID, target_id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
     ],
     min: 1, max: 1,
     presentation: { kind: 'target_picker', target_filter: 'allies_exclude_self', numeric_base: 0 },
@@ -295,7 +295,7 @@ export function stealSkyChangeDayEnergyTargetPrompt(): WsMessage {
     message: '【偷天换日】请选择获得能量的队友：',
     choice_type: 'adv_steal_sky_change_day_energy_target',
     options: [
-      { id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
+      { id: ALLY_PLAYER_ID, target_id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
     ],
     min: 1, max: 1,
     presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
@@ -310,7 +310,7 @@ export function stealSkyChangeDayCardSwapTargetPrompt(): WsMessage {
     message: '【偷天换日】请选择交换手牌的队友：',
     choice_type: 'adv_steal_sky_change_day_card_swap_target',
     options: [
-      { id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
+      { id: ALLY_PLAYER_ID, target_id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
     ],
     min: 1, max: 1,
     presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },

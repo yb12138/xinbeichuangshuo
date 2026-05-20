@@ -225,7 +225,7 @@ export function gloryBeliefTargetPrompt(): WsMessage {
     choice_type: 'prayer_glory_belief_target',
     presentation: { kind: 'target_picker', target_filter: 'allies', numeric_base: 0 },
     options: [
-      { id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
+      { id: ALLY_PLAYER_ID, target_id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
     ],
     min: 1, max: 1,
   } satisfies Prompt);
@@ -271,7 +271,7 @@ export function darkCurseTargetPrompt(): WsMessage {
     choice_type: 'prayer_dark_curse_target',
     presentation: { kind: 'target_picker', target_filter: 'enemies', numeric_base: 0 },
     options: [
-      { id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
+      { id: ENEMY_PLAYER_ID, target_id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
     ],
     min: 1, max: 1,
   } satisfies Prompt);
@@ -300,7 +300,7 @@ export function powerBlessingTargetPrompt(): WsMessage {
     choice_type: 'prayer_power_blessing_target',
     presentation: { kind: 'target_picker', target_filter: 'allies', numeric_base: 0 },
     options: [
-      { id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
+      { id: ALLY_PLAYER_ID, target_id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
     ],
     min: 1, max: 1,
   } satisfies Prompt);
@@ -408,7 +408,7 @@ export function swiftBlessingTargetPrompt(): WsMessage {
     choice_type: 'prayer_swift_blessing_target',
     presentation: { kind: 'target_picker', target_filter: 'allies', numeric_base: 0 },
     options: [
-      { id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
+      { id: ALLY_PLAYER_ID, target_id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
     ],
     min: 1, max: 1,
   } satisfies Prompt);

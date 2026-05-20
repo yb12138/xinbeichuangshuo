@@ -193,9 +193,9 @@ export function frostPrayerTargetPrompt(): WsMessage {
     choice_type: 'frost_prayer_target',
     presentation: { kind: 'target_picker', target_filter: 'all', numeric_base: 0 },
     options: [
-      { id: SAINTESS_PLAYER_ID, label: '自己', button_label: '选择' },
-      { id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
-      { id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
+      { id: SAINTESS_PLAYER_ID, target_id: SAINTESS_PLAYER_ID, label: '自己', button_label: '选择' },
+      { id: ENEMY_PLAYER_ID, target_id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
+      { id: ALLY_PLAYER_ID, target_id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
     ],
     min: 1, max: 1,
   } satisfies Prompt);
@@ -224,9 +224,9 @@ export function healingLightMultiTargetPrompt(): WsMessage {
     choice_type: 'saintess_healing_light_targets',
     presentation: { kind: 'target_picker', target_filter: 'all', multi_target: true, numeric_base: 0 },
     options: [
-      { id: SAINTESS_PLAYER_ID, label: '自己', button_label: '选择' },
-      { id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
-      { id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
+      { id: SAINTESS_PLAYER_ID, target_id: SAINTESS_PLAYER_ID, label: '自己', button_label: '选择' },
+      { id: ENEMY_PLAYER_ID, target_id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
+      { id: ALLY_PLAYER_ID, target_id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
     ],
     min: 1, max: 3,
   } satisfies Prompt);
@@ -255,9 +255,9 @@ export function healSkillTargetPrompt(): WsMessage {
     choice_type: 'saintess_heal_skill_target',
     presentation: { kind: 'target_picker', target_filter: 'all', numeric_base: 0 },
     options: [
-      { id: SAINTESS_PLAYER_ID, label: '自己', button_label: '选择' },
-      { id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
-      { id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
+      { id: SAINTESS_PLAYER_ID, target_id: SAINTESS_PLAYER_ID, label: '自己', button_label: '选择' },
+      { id: ENEMY_PLAYER_ID, target_id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
+      { id: ALLY_PLAYER_ID, target_id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
     ],
     min: 1, max: 1,
   } satisfies Prompt);

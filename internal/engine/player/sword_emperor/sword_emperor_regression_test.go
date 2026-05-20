@@ -374,6 +374,15 @@ func TestSwordEmperor_SwordQiSlash_ExcludeOriginalTargetAndDealMagicDamage(t *te
 		Type:       model.CmdSelect,
 		Selections: []int{1}, // 选择第二个选项 => X=2
 	})
+	prompt := game.GetCurrentPrompt()
+	if prompt == nil || prompt.Presentation == nil || prompt.Presentation.Kind != model.PresentationTargetPicker {
+		t.Fatalf("expected sword qi slash target prompt to use target_picker presentation, got %+v", prompt)
+	}
+	for _, option := range prompt.Options {
+		if option.TargetID == "" {
+			t.Fatalf("expected sword qi slash target option %q to carry target_id, got %+v", option.ID, prompt.Options)
+		}
+	}
 	ctxData = testutils.RequireChoiceContext(t, game, "p1", "se_sword_qi_slash_target")
 	flow = testutils.RequirePromptFlow(t, ctxData, "se_sword_qi_slash", "target")
 	if got := flow.Selection("x").Count; got != 2 {
@@ -408,6 +417,34 @@ func TestSwordEmperor_SwordQiSlash_ExcludeOriginalTargetAndDealMagicDamage(t *te
 	}
 	if got := len(game.State.Players["p3"].Hand); got != 2 {
 		t.Fatalf("expected extra target take 2 magic damage, got %d", got)
+	}
+}
+
+func TestSwordEmperor_SwordRainTargetPromptCarriesTargetIDs(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "SwordEmperor", "sword_emperor", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "angel", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	game.PushInterrupt(&model.Interrupt{
+		Type:     model.InterruptChoice,
+		PlayerID: "p1",
+		Context: map[string]interface{}{
+			"choice_type": "se_sword_rain_target",
+			"user_id":     "p1",
+			"target_ids":  []string{"p2"},
+		},
+	})
+
+	prompt := game.GetCurrentPrompt()
+	if prompt == nil || prompt.Presentation == nil || prompt.Presentation.Kind != model.PresentationTargetPicker {
+		t.Fatalf("expected sword rain target prompt to use target_picker presentation, got %+v", prompt)
+	}
+	if len(prompt.Options) != 1 || prompt.Options[0].TargetID != "p2" {
+		t.Fatalf("expected sword rain target option to carry target_id p2, got %+v", prompt.Options)
 	}
 }
 

@@ -390,8 +390,8 @@ export function soulMirrorTargetPrompt(): WsMessage {
     skill_id: SS_SOUL_MIRROR_SKILL_ID,
     presentation: { kind: 'target_picker', target_filter: 'all', numeric_base: 0 },
     options: [
-      { id: SS_PLAYER_ID, label: '灵魂术士', button_label: '选择' },
-      { id: ALLY_PLAYER_ID, label: '圣女', button_label: '选择' },
+      { id: SS_PLAYER_ID, target_id: SS_PLAYER_ID, label: '灵魂术士', button_label: '选择' },
+      { id: ALLY_PLAYER_ID, target_id: ALLY_PLAYER_ID, label: '圣女', button_label: '选择' },
     ],
     min: 1,
     max: 1,
@@ -455,8 +455,8 @@ export function soulBlastTargetPrompt(): WsMessage {
     skill_id: SS_SOUL_BLAST_SKILL_ID,
     presentation: { kind: 'target_picker', target_filter: 'all', numeric_base: 0 },
     options: [
-      { id: SS_PLAYER_ID, label: '灵魂术士', button_label: '选择' },
-      { id: ENEMY_PLAYER_ID, label: '魔神', button_label: '选择' },
+      { id: SS_PLAYER_ID, target_id: SS_PLAYER_ID, label: '灵魂术士', button_label: '选择' },
+      { id: ENEMY_PLAYER_ID, target_id: ENEMY_PLAYER_ID, label: '魔神', button_label: '选择' },
     ],
     min: 1,
     max: 1,
@@ -521,8 +521,8 @@ export function soulGrantTargetPrompt(): WsMessage {
     skill_id: SS_SOUL_GRANT_SKILL_ID,
     presentation: { kind: 'target_picker', target_filter: 'all', numeric_base: 0 },
     options: [
-      { id: SS_PLAYER_ID, label: '灵魂术士', button_label: '选择' },
-      { id: ALLY_PLAYER_ID, label: '圣女', button_label: '选择' },
+      { id: SS_PLAYER_ID, target_id: SS_PLAYER_ID, label: '灵魂术士', button_label: '选择' },
+      { id: ALLY_PLAYER_ID, target_id: ALLY_PLAYER_ID, label: '圣女', button_label: '选择' },
     ],
     min: 1,
     max: 1,
@@ -601,8 +601,8 @@ export function soulLinkTargetPrompt(): WsMessage {
     skill_id: SS_SOUL_LINK_SKILL_ID,
     presentation: { kind: 'target_picker', target_filter: 'allies', numeric_base: 0 },
     options: [
-      { id: ALLY_PLAYER_ID, label: 'Ally Bot 1', button_label: '选择' },
-      { id: ALLY_2_PLAYER_ID, label: 'Ally Bot 2', button_label: '选择' },
+      { id: ALLY_PLAYER_ID, target_id: ALLY_PLAYER_ID, label: 'Ally Bot 1', button_label: '选择' },
+      { id: ALLY_2_PLAYER_ID, target_id: ALLY_2_PLAYER_ID, label: 'Ally Bot 2', button_label: '选择' },
     ],
     min: 1,
     max: 1,

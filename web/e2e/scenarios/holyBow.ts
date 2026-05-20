@@ -2,7 +2,7 @@
 // Holy Bow Archer (圣弓) Protocol Harness Scenarios
 // ============================================================
 
-import type { Prompt } from '../../src/types/game';
+import type { Prompt, PromptOption } from '../../src/types/game';
 import type { WsMessage } from '../../src/network/protocol';
 import {
   card,
@@ -288,7 +288,7 @@ export function shardStormMissTargetPrompt(): WsMessage {
     skill_id: HB_SHARD_STORM_SKILL_ID,
     presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
     options: [
-      { id: ALLY_PLAYER_ID, label: '勇者', button_label: '选择' },
+      { id: ALLY_PLAYER_ID, target_id: ALLY_PLAYER_ID, label: '勇者', button_label: '选择' },
     ],
     min: 1,
     max: 1,
@@ -461,7 +461,7 @@ export function lightBurstBranch1TargetPrompt(): WsMessage {
     skill_id: HB_LIGHT_BURST_SKILL_ID,
     presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
     options: [
-      { id: ALLY_PLAYER_ID, label: '勇者', button_label: '选择' },
+      { id: ALLY_PLAYER_ID, target_id: ALLY_PLAYER_ID, label: '勇者', button_label: '选择' },
     ],
     min: 1,
     max: 1,
@@ -500,9 +500,9 @@ export function lightBurstBranch2TargetPrompt(args: {
 } = { xValue: 2 }): WsMessage {
   const xValue = args.xValue;
   const selectedCount = args.selectedCount ?? 0;
-  const options: { id: string; label: string; button_label: string }[] = [
-    { id: ENEMY_PLAYER_ID, label: '恶徒', button_label: '选择' },
-    { id: ENEMY_2_PLAYER_ID, label: '恶徒2', button_label: '选择' },
+  const options: PromptOption[] = [
+    { id: ENEMY_PLAYER_ID, target_id: ENEMY_PLAYER_ID, label: '恶徒', button_label: '选择' },
+    { id: ENEMY_2_PLAYER_ID, target_id: ENEMY_2_PLAYER_ID, label: '恶徒2', button_label: '选择' },
   ];
   return requireActionMessage({
     type: 'confirm',
@@ -635,7 +635,7 @@ export function starBulletTargetPrompt(): WsMessage {
     skill_id: HB_STAR_BULLET_SKILL_ID,
     presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
     options: [
-      { id: ALLY_PLAYER_ID, label: '勇者', button_label: '选择' },
+      { id: ALLY_PLAYER_ID, target_id: ALLY_PLAYER_ID, label: '勇者', button_label: '选择' },
     ],
     min: 1,
     max: 1,

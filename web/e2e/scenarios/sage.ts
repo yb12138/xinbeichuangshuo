@@ -275,8 +275,8 @@ export function magicReboundTargetPrompt(): WsMessage {
     choice_type: 'sage_magic_rebound_target',
     presentation: { kind: 'target_picker', target_filter: 'all', numeric_base: 0 },
     options: [
-      { id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
-      { id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
+      { id: ENEMY_PLAYER_ID, target_id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
+      { id: ALLY_PLAYER_ID, target_id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
     ],
     min: 1, max: 1,
   } satisfies Prompt);
@@ -322,9 +322,9 @@ export function arcaneTargetPrompt(): WsMessage {
     choice_type: 'sage_arcane_target',
     presentation: { kind: 'target_picker', target_filter: 'all', numeric_base: 0 },
     options: [
-      { id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
-      { id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
-      { id: SAGE_PLAYER_ID, label: 'E2E Sage', button_label: '选择' },
+      { id: ENEMY_PLAYER_ID, target_id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
+      { id: ALLY_PLAYER_ID, target_id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
+      { id: SAGE_PLAYER_ID, target_id: SAGE_PLAYER_ID, label: 'E2E Sage', button_label: '选择' },
     ],
     min: 1, max: 1,
   } satisfies Prompt);
@@ -383,11 +383,18 @@ export function holyTargetsStepPrompt(
   totalCount: number,
   remainingNames: string[],
 ): WsMessage {
-  const options = remainingNames.map((name, idx) => ({
-    id: HOLY_TARGET_ID_BY_NAME[name] ?? String(idx),
-    label: name,
-    button_label: '选择',
-  }));
+  const options = remainingNames.map((name) => {
+    const targetId = HOLY_TARGET_ID_BY_NAME[name];
+    if (!targetId) {
+      throw new Error(`Unknown holy target name: ${name}`);
+    }
+    return {
+      id: targetId,
+      target_id: targetId,
+      label: name,
+      button_label: '选择',
+    };
+  });
   return requireActionMessage({
     type: 'choose_target',
     player_id: SAGE_PLAYER_ID,

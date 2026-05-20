@@ -221,7 +221,7 @@ export function bloodSorrowTargetPrompt(): WsMessage {
     choice_type: 'bp_blood_sorrow_target',
     skill_id: BP_BLOOD_SORROW_SKILL_ID,
     options: [
-      { id: ENEMY_PLAYER_ID, label: '恶徒', button_label: '选择' },
+      { id: ENEMY_PLAYER_ID, target_id: ENEMY_PLAYER_ID, label: '恶徒', button_label: '选择' },
     ],
     min: 1,
     max: 1,
@@ -411,8 +411,8 @@ export function sharedLifeTargetPrompt(): WsMessage {
     choice_type: 'bp_shared_life_target',
     skill_id: BP_SHARED_LIFE_SKILL_ID,
     options: [
-      { id: ENEMY_PLAYER_ID, label: '恶徒', button_label: '选择' },
-      { id: ENEMY_2_PLAYER_ID, label: '恶徒2', button_label: '选择' },
+      { id: ENEMY_PLAYER_ID, target_id: ENEMY_PLAYER_ID, label: '恶徒', button_label: '选择' },
+      { id: ENEMY_2_PLAYER_ID, target_id: ENEMY_2_PLAYER_ID, label: '恶徒2', button_label: '选择' },
     ],
     min: 1,
     max: 1,

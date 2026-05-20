@@ -102,16 +102,22 @@ func buildParadiseAllyPickPrompt(rt engineplayer.ChoiceRuntime, playerID string,
 	if len(allyIDs) == 0 {
 		return nil
 	}
-	opts := make([]engineplayer.PromptOptionSpec, 0, len(allyIDs))
+	options := make([]model.PromptOption, 0, len(allyIDs))
 	for _, allyID := range allyIDs {
 		ally := rt.GetPlayers()[allyID]
 		if ally != nil {
-			opts = append(opts, engineplayer.Option(allyID, ally.Name))
+			options = append(options, model.PromptOption{ID: allyID, Label: ally.Name, TargetID: allyID})
 		}
 	}
-	p := engineplayer.NewPrompt(playerID, "【冒险者天堂】选择队友代为提炼：").Options(opts...).Build()
-	p.Presentation = &model.PromptPresentation{Kind: model.PresentationTargetPicker, TargetFilter: "custom"}
-	return p
+	return &model.Prompt{
+		Type:         model.PromptConfirm,
+		PlayerID:     playerID,
+		Message:      "【冒险者天堂】选择队友代为提炼：",
+		Options:      options,
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationTargetPicker, TargetFilter: "custom"},
+	}
 }
 
 func handleParadiseAllyPick(rt engineplayer.ChoiceRuntime, playerID string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {

@@ -159,6 +159,36 @@ func TestPlagueDeathTouch_TargetsEnemyOnlyAndSuppressesImmortal(t *testing.T) {
 	}
 }
 
+func TestPlagueDeathTouchTargetPromptCarriesTargetIDs(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Plague", "plague_mage", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	flow := model.NewPromptFlowState("plague_death_touch", "target")
+	flow.PutSelection("target", model.PromptFlowSelection{TargetIDs: []string{"p2"}})
+	game.PushInterrupt(&model.Interrupt{
+		Type:     model.InterruptChoice,
+		PlayerID: "p1",
+		Context: map[string]interface{}{
+			"choice_type":              "plague_death_touch_target",
+			"user_id":                  "p1",
+			model.PromptFlowContextKey: flow,
+		},
+	})
+
+	prompt := game.GetCurrentPrompt()
+	if prompt == nil || prompt.Presentation == nil || prompt.Presentation.Kind != model.PresentationTargetPicker {
+		t.Fatalf("expected death touch target prompt to use target_picker presentation, got %+v", prompt)
+	}
+	if len(prompt.Options) != 1 || prompt.Options[0].TargetID != "p2" {
+		t.Fatalf("expected death touch target option to carry target_id p2, got %+v", prompt.Options)
+	}
+}
+
 func TestPlagueDeathTouch_CancelChoiceRestoresActionWindow(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "Plague", "plague_mage", model.RedCamp); err != nil {

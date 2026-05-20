@@ -133,3 +133,48 @@ func TestToPromptDTOPreservesTargetIDOnTargetOptions(t *testing.T) {
 		t.Fatalf("expected target_id to be preserved, got %q", got)
 	}
 }
+
+func TestToPromptDTOPanicsWhenTargetPickerOptionMissingTargetID(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Fatal("expected target_picker option without target_id to panic")
+		}
+	}()
+
+	ToPromptDTO(&model.Prompt{
+		Type:       model.PromptConfirm,
+		PlayerID:   "p1",
+		Message:    "请选择目标",
+		ChoiceType: "broken_target_prompt",
+		Options: []model.PromptOption{
+			{ID: "0", Label: "目标"},
+		},
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationTargetPicker, TargetFilter: "custom"},
+	})
+}
+
+func TestToPromptDTOAllowsTargetPickerControlOptionWithoutTargetID(t *testing.T) {
+	prompt := &model.Prompt{
+		Type:       model.PromptConfirm,
+		PlayerID:   "p1",
+		Message:    "请选择目标",
+		ChoiceType: "finishable_target_prompt",
+		Options: []model.PromptOption{
+			{ID: "0", Label: "目标", TargetID: "p2"},
+			{ID: "finish", Label: "完成目标选择", ButtonLabel: "完成"},
+		},
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationTargetPicker, TargetFilter: "custom"},
+	}
+
+	dto := ToPromptDTO(prompt)
+	if len(dto.Options) != 2 {
+		t.Fatalf("expected 2 options, got %+v", dto.Options)
+	}
+	if got := dto.Options[1].ID; got != "finish" {
+		t.Fatalf("expected finish control option to be preserved, got %+v", dto.Options[1])
+	}
+}
