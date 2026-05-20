@@ -12,7 +12,8 @@ test.describe('soulSorcerer soulBlast protocol harness', () => {
     await protocolHarness.bootGame(soulBlastScenario({ yellow_soul: 3 }));
 
     // Click skill button
-    await page.getByTestId('action-skill').click();
+  await page.getByTestId('action-magic').click();
+  await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${SS_SOUL_BLAST_SKILL_ID}`).click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Skill',
@@ -31,8 +32,8 @@ test.describe('soulSorcerer soulBlast protocol harness', () => {
 
   test('activate soulBlast and target self', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(soulBlastScenario({ yellow_soul: 4 }));
-
-    await page.getByTestId('action-skill').click();
+  await page.getByTestId('action-magic').click();
+  await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${SS_SOUL_BLAST_SKILL_ID}`).click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Skill',
@@ -58,8 +59,8 @@ test.describe('soulSorcerer soulBlast protocol harness', () => {
   test('soulBlast with extra damage condition', async ({ page, protocolHarness }) => {
     // When target has hand < 3 and max_hand > 5, damage +2
     await protocolHarness.bootGame(soulBlastScenario({ yellow_soul: 3 }));
-
-    await page.getByTestId('action-skill').click();
+  await page.getByTestId('action-magic').click();
+  await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${SS_SOUL_BLAST_SKILL_ID}`).click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Skill',

@@ -7,7 +7,7 @@ import GameBoard from '../GameBoard.vue'
 import { useInterruptStore } from '../../stores/interrupt.store'
 import { useSessionStore } from '../../stores/session.store'
 import { useSnapshotStore } from '../../stores/snapshot.store'
-import type { GameStateUpdate, PlayerInfo, PlayerView, Prompt } from '../../types/game'
+import type { Card, GameStateUpdate, PlayerInfo, PlayerView, Prompt } from '../../types/game'
 
 const submitSelectMock = vi.fn()
 
@@ -81,6 +81,18 @@ function buildPlayerInfo(player: PlayerView): PlayerInfo {
   }
 }
 
+function buildCard(overrides: Partial<Card> = {}): Card {
+  return {
+    id: 'card-1',
+    name: '火焰斩',
+    type: 'Attack',
+    element: 'Fire',
+    damage: 2,
+    description: 'test',
+    ...overrides,
+  }
+}
+
 function buildState(players: Record<string, PlayerView>): GameStateUpdate {
   return {
     turn_stage: 'ActionExecution',
@@ -116,6 +128,26 @@ function targetPickerPrompt(): Prompt {
     presentation: {
       kind: 'target_picker',
       target_filter: 'custom',
+      numeric_base: 0,
+    },
+  }
+}
+
+function actionHubPrompt(): Prompt {
+  return {
+    type: 'confirm',
+    player_id: 'p1',
+    choice_type: 'action_hub',
+    message: '请选择行动',
+    options: [
+      { id: 'attack', label: '攻击', button_label: '攻击' },
+      { id: 'magic', label: '法术', button_label: '法术' },
+      { id: 'cannot_act', label: '无法行动', button_label: '无法行动' },
+    ],
+    min: 1,
+    max: 1,
+    presentation: {
+      kind: 'action_hub',
       numeric_base: 0,
     },
   }
@@ -160,5 +192,71 @@ describe('GameBoard target picker', () => {
     await userEvent.click(screen.getByTestId('player-area-p3'))
 
     expect(submitSelectMock).toHaveBeenCalledWith([1])
+  })
+
+  it('keeps enemy players selectable after choosing an attack card from the action hub', () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const me = buildPlayer({
+      id: 'p1',
+      name: '攻击者',
+      camp: 'Red',
+      role: 'fighter',
+      hand: [{
+        id: 'atk-1',
+        name: '火焰斩',
+        type: 'Attack',
+        element: 'Fire',
+        damage: 2,
+        description: 'test',
+      }],
+      hand_count: 1,
+    })
+    const target = buildPlayer({ id: 'p2', name: '可攻击目标', camp: 'Blue', role: 'fighter' })
+    const stealthed = buildPlayer({
+      id: 'p3',
+      name: '潜行目标',
+      camp: 'Blue',
+      role: 'fighter',
+      field: [{
+        card: buildCard({ id: 'stealth-effect' }),
+        mode: 'Effect',
+        effect: 'Stealth',
+        source_id: 'p3',
+        owner_id: 'p3',
+        field_hook: 'Manual',
+        locked: false,
+        duration: 0,
+      }],
+    })
+    const players = { p1: me, p2: target, p3: stealthed }
+
+    useSessionStore().setRoomInfo('ROOM1', 'p1', 'Red', 'fighter')
+    useSessionStore().updateRoomPlayers(Object.values(players).map(buildPlayerInfo), 'p1')
+    useSnapshotStore().updateGameState(buildState(players))
+    const interruptStore = useInterruptStore()
+    interruptStore.setPrompt(actionHubPrompt())
+    interruptStore.setActionMode('attack')
+    interruptStore.setSelectedHandIndexForAction(0)
+
+    render(GameBoard, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          PlayerArea: PlayerAreaStub,
+          ActionPanel: true,
+          BattleZone: true,
+          CardComponent: true,
+          SkillDetailModal: true,
+          VfxLayer: true,
+          ActionTimeline: true,
+          StatusEffectIcon: true,
+        },
+      },
+    })
+
+    expect(screen.getByTestId('player-area-p2')).not.toBeDisabled()
+    expect(screen.getByTestId('player-area-p3')).toBeDisabled()
   })
 })

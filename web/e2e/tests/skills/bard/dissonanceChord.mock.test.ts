@@ -15,7 +15,8 @@ test.describe('bard dissonance chord protocol harness', () => {
     await protocolHarness.bootGame(dissonanceChordScenario());
 
     // Activate skill
-    await page.getByTestId('action-skill').click();
+  await page.getByTestId('action-magic').click();
+  await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${BD_DISSONANCE_CHORD_SKILL_ID}`).click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Skill',
@@ -50,8 +51,8 @@ test.describe('bard dissonance chord protocol harness', () => {
 
   test('branch 1: both discard cards (sequential per actor)', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(dissonanceChordScenario());
-
-    await page.getByTestId('action-skill').click();
+  await page.getByTestId('action-magic').click();
+  await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${BD_DISSONANCE_CHORD_SKILL_ID}`).click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Skill',

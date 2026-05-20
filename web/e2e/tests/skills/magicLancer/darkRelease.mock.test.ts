@@ -6,6 +6,7 @@ import {
 } from '../../../scenarios/magicLancer';
 
 async function activatePanelSkill(page: Page, skillId: string) {
+  await page.getByTestId('action-magic').click();
   await page.getByTestId('action-skill').click();
   await page.getByTestId(`skill-${skillId}`).click();
 }

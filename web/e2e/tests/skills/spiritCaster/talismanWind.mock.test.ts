@@ -22,7 +22,8 @@ test.describe('spirit caster talisman wind protocol harness', () => {
     await protocolHarness.bootGame(talismanWindScenario());
 
     // Activate skill
-    await page.getByTestId('action-skill').click();
+  await page.getByTestId('action-magic').click();
+  await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${SC_TALISMAN_WIND_SKILL_ID}`).click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Skill',
@@ -51,8 +52,8 @@ test.describe('spirit caster talisman wind protocol harness', () => {
 
   test('talisman wind: discard wind card -> select 2 targets (reverse order)', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(talismanWindScenario());
-
-    await page.getByTestId('action-skill').click();
+  await page.getByTestId('action-magic').click();
+  await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${SC_TALISMAN_WIND_SKILL_ID}`).click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Skill',

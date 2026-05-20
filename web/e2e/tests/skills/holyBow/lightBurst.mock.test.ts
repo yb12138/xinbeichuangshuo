@@ -17,7 +17,8 @@ test.describe('holy bow light burst protocol harness', () => {
     await protocolHarness.bootGame(lightBurstScenario({ heal: 2 }));
 
     // Activate skill
-    await page.getByTestId('action-skill').click();
+  await page.getByTestId('action-magic').click();
+  await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${HB_LIGHT_BURST_SKILL_ID}`).click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Skill',
@@ -46,7 +47,8 @@ test.describe('holy bow light burst protocol harness', () => {
     await protocolHarness.bootGame(lightBurstScenario({ heal: 2 }));
 
     // Activate skill
-    await page.getByTestId('action-skill').click();
+  await page.getByTestId('action-magic').click();
+  await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${HB_LIGHT_BURST_SKILL_ID}`).click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Skill',
@@ -94,7 +96,8 @@ test.describe('holy bow light burst protocol harness', () => {
     await protocolHarness.bootGame(lightBurstScenario({ heal: 3 }));
 
     // Activate skill
-    await page.getByTestId('action-skill').click();
+  await page.getByTestId('action-magic').click();
+  await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${HB_LIGHT_BURST_SKILL_ID}`).click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Skill',
@@ -145,7 +148,8 @@ test.describe('holy bow light burst protocol harness', () => {
     await protocolHarness.bootGame(lightBurstScenario({ heal: 3 }));
 
     // Activate skill
-    await page.getByTestId('action-skill').click();
+  await page.getByTestId('action-magic').click();
+  await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${HB_LIGHT_BURST_SKILL_ID}`).click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Skill',

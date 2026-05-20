@@ -34,7 +34,8 @@ test.describe('hero taunt protocol harness', () => {
     await expectBoardAnchored(page);
 
     // Click skill button
-    await page.getByTestId('action-skill').click();
+  await page.getByTestId('action-magic').click();
+  await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${HERO_TAUNT_SKILL_ID}`).click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Skill',
@@ -53,8 +54,8 @@ test.describe('hero taunt protocol harness', () => {
 
   test('activate taunt and select second enemy', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(tauntScenario({ anger: 2 }));
-
-    await page.getByTestId('action-skill').click();
+  await page.getByTestId('action-magic').click();
+  await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${HERO_TAUNT_SKILL_ID}`).click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Skill',

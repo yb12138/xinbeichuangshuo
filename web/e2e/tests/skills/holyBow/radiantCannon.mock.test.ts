@@ -10,7 +10,8 @@ test.describe('holy bow radiant cannon protocol harness', () => {
     await protocolHarness.bootGame(radiantCannonScenario());
 
     // Activate skill
-    await page.getByTestId('action-skill').click();
+  await page.getByTestId('action-magic').click();
+  await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${HB_RADIANT_CANNON_SKILL_ID}`).click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Skill',
@@ -32,7 +33,8 @@ test.describe('holy bow radiant cannon protocol harness', () => {
     await protocolHarness.bootGame(radiantCannonScenario());
 
     // Activate skill
-    await page.getByTestId('action-skill').click();
+  await page.getByTestId('action-magic').click();
+  await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${HB_RADIANT_CANNON_SKILL_ID}`).click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Skill',

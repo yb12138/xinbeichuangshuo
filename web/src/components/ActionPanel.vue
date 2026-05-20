@@ -1089,6 +1089,7 @@ function elementName(el: string): string {
                     <button
                         v-if="effectiveAvailableSkills.length > 0"
                         class="action-image-btn w-[72px] sm:w-[88px]"
+                        data-testid="action-skill"
                         title="发动技能"
                         @click="interruptStore.setSkillMode('choosing_skill'); interruptStore.clearActionMode()"
                     >
@@ -1302,6 +1303,7 @@ function elementName(el: string): string {
                 <button
                     v-if="hasActionPromptOption('magic')"
                     class="action-hub-desktop-btn action-image-btn action-image-btn--magic"
+                    data-testid="action-magic"
                     :title="actionPromptLabel('magic', '法术')"
                     :aria-label="actionPromptLabel('magic', '法术')"
                     @click="invokeActionHubOption('magic')"
@@ -1337,24 +1339,6 @@ function elementName(el: string): string {
                 </button>
                 <template v-if="isActionSelectionPrompt">
                     <button
-                        v-if="effectiveAvailableSkills.length > 0"
-                        class="action-hub-desktop-btn action-image-btn action-image-btn--skill"
-                        data-testid="action-skill"
-                        title="发动技能"
-                        aria-label="发动技能"
-                        @click="openSkillAction()"
-                    >
-                        <img
-                            v-if="isMainActionImageReady('skill')"
-                            class="action-image-btn-fill"
-                            :src="mainActionButtonImage('skill')"
-                            alt=""
-                            @error="onMainActionImageError('skill')"
-                        />
-                        <span v-else class="action-image-fallback-text">技</span>
-                        <span class="action-image-btn-label">发动技能</span>
-                    </button>
-                    <button
                         v-if="hasActionPromptOption('cannot_act')"
                         class="action-hub-desktop-btn action-image-btn action-image-btn--cannot-act"
                         :title="isExtraActionPrompt ? '跳过' : cannotActButtonLabel"
@@ -1373,24 +1357,6 @@ function elementName(el: string): string {
                     </button>
                 </template>
                 <template v-else>
-                    <button
-                        v-if="effectiveAvailableSkills.length > 0"
-                        class="action-hub-desktop-btn action-image-btn action-image-btn--skill"
-                        data-testid="action-skill"
-                        title="发动技能"
-                        aria-label="发动技能"
-                        @click="invokeActionHubOption('skill')"
-                    >
-                        <img
-                            v-if="isMainActionImageReady('skill')"
-                            class="action-image-btn-fill"
-                            :src="mainActionButtonImage('skill')"
-                            alt=""
-                            @error="onMainActionImageError('skill')"
-                        />
-                        <span v-else class="action-image-fallback-text">技</span>
-                        <span class="action-image-btn-label">发动技能</span>
-                    </button>
                     <button
                         class="action-hub-desktop-btn action-image-btn action-image-btn--pass"
                         data-testid="action-pass"

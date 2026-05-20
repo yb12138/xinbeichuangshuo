@@ -15,7 +15,8 @@ test.describe('bard hope fugue protocol harness', () => {
     await protocolHarness.bootGame(hopeFugueScenario());
 
     // Activate skill
-    await page.getByTestId('action-skill').click();
+  await page.getByTestId('action-magic').click();
+  await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${BD_HOPE_FUGUE_SKILL_ID}`).click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Skill',
@@ -49,8 +50,8 @@ test.describe('bard hope fugue protocol harness', () => {
 
   test('transfer eternal movement with heal (branch 1)', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(hopeFugueScenario({ hasEternalHolder: true }));
-
-    await page.getByTestId('action-skill').click();
+  await page.getByTestId('action-magic').click();
+  await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${BD_HOPE_FUGUE_SKILL_ID}`).click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Skill',
@@ -92,8 +93,8 @@ test.describe('bard hope fugue protocol harness', () => {
 
   test('transfer eternal movement with inspiration (branch 2)', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(hopeFugueScenario({ hasEternalHolder: true }));
-
-    await page.getByTestId('action-skill').click();
+  await page.getByTestId('action-magic').click();
+  await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${BD_HOPE_FUGUE_SKILL_ID}`).click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Skill',
@@ -135,8 +136,8 @@ test.describe('bard hope fugue protocol harness', () => {
 
   test('cancel at draw confirm stage', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(hopeFugueScenario());
-
-    await page.getByTestId('action-skill').click();
+  await page.getByTestId('action-magic').click();
+  await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${BD_HOPE_FUGUE_SKILL_ID}`).click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Skill',

@@ -17,6 +17,7 @@ export class ActionHelper {
    * Open the skill selection panel.
    */
   async openSkillPanel(): Promise<void> {
+    await this.page.click('[data-testid="action-magic"]');
     await this.page.click('[data-testid="action-skill"]');
     await this.page.waitForSelector('[data-testid="skill-select-panel"]');
   }

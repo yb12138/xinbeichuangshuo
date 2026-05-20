@@ -797,6 +797,16 @@ function confirmCocoonSelection() {
 }
 
 const promptNeedsTargetGuide = computed(() => {
+  if (actionMode.value === 'attack' && selectedHandIndexForAction.value !== null) {
+    return targetablePlayers.value.length > 0
+  }
+  if (
+    actionMode.value === 'magic' &&
+    magicSubChoice.value === 'card' &&
+    selectedHandIndexForAction.value !== null
+  ) {
+    return targetablePlayers.value.length > 0
+  }
   const p = promptGuideContext.value
   if (!p) return false
   if (p.presentation?.kind === 'target_picker') return true
@@ -806,6 +816,16 @@ const promptNeedsTargetGuide = computed(() => {
 })
 
 const targetGuideHintText = computed(() => {
+  if (actionMode.value === 'attack' && selectedHandIndexForAction.value !== null) {
+    return '请选择可攻击的敌方目标'
+  }
+  if (
+    actionMode.value === 'magic' &&
+    magicSubChoice.value === 'card' &&
+    selectedHandIndexForAction.value !== null
+  ) {
+    return '请选择法术目标'
+  }
   const p = promptGuideContext.value
   if (!p) return '点击角色选择目标'
   const message = String(p.message || '').trim()
@@ -887,11 +907,21 @@ function playerSelectState(playerId: string): PlayerSelectState {
     return { selectable: false, reason: 'prompt_confirm_no_option_match' }
   }
 
-  if (prompt && isPromptForMe.value && promptIsActionHub && actionMode.value === 'none' && skillMode.value === 'none') {
+  if (
+    prompt &&
+    isPromptForMe.value &&
+    promptIsActionHub &&
+    actionMode.value === 'none' &&
+    skillMode.value === 'none'
+  ) {
     return { selectable: false, reason: 'action_hub_waiting_for_mode_choice' }
   }
 
-  if (canTargetOpponent.value && targetablePlayers.value.some((t) => t.id === playerId)) {
+  if (
+    actionMode.value === 'attack' &&
+    selectedHandIndexForAction.value !== null &&
+    targetablePlayers.value.some((t) => t.id === playerId)
+  ) {
     return { selectable: true, reason: 'action_mode_targetable' }
   }
   if (skillMode.value === 'choosing_target' && targetablePlayersForSkill.value.some((t) => t.id === playerId)) {

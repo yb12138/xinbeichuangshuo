@@ -11,7 +11,8 @@ test.describe('soulSorcerer soulAmp protocol harness', () => {
     await protocolHarness.bootGame(soulAmpScenario({ gems: 1 }));
 
     // Click skill button (startup skill)
-    await page.getByTestId('action-skill').click();
+  await page.getByTestId('action-magic').click();
+  await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${SS_SOUL_AMP_SKILL_ID}`).click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Skill',
@@ -31,8 +32,8 @@ test.describe('soulSorcerer soulAmp protocol harness', () => {
 
   test('activate soulAmp with multiple gems', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(soulAmpScenario({ gems: 2 }));
-
-    await page.getByTestId('action-skill').click();
+  await page.getByTestId('action-magic').click();
+  await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${SS_SOUL_AMP_SKILL_ID}`).click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Skill',
@@ -50,8 +51,8 @@ test.describe('soulSorcerer soulAmp protocol harness', () => {
 
   test('decline soulAmp activation', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(soulAmpScenario({ gems: 1 }));
-
-    await page.getByTestId('action-skill').click();
+  await page.getByTestId('action-magic').click();
+  await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${SS_SOUL_AMP_SKILL_ID}`).click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Skill',
