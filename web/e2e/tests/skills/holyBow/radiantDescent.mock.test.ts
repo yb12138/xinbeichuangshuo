@@ -10,7 +10,8 @@ test.describe('holy bow radiant descent protocol harness', () => {
   test('scenario A: heal>=2, faith<2 - only heal option available', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(radiantDescentScenario({ heal: 2, faith: 1 }));
 
-    // Activate skill directly
+
+    await page.getByTestId('action-hub-trigger').click();
   await page.getByTestId('action-magic').click();
   await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${HB_RADIANT_DESCENT_SKILL_ID}`).click();
@@ -35,7 +36,8 @@ test.describe('holy bow radiant descent protocol harness', () => {
   test('scenario B: faith>=2, heal<2 - only faith option available', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(radiantDescentScenario({ heal: 1, faith: 2 }));
 
-    // Activate skill directly
+
+    await page.getByTestId('action-hub-trigger').click();
   await page.getByTestId('action-magic').click();
   await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${HB_RADIANT_DESCENT_SKILL_ID}`).click();
@@ -60,7 +62,8 @@ test.describe('holy bow radiant descent protocol harness', () => {
   test('scenario C: heal>=2 and faith>=2 - both options available, user selects', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(radiantDescentScenario({ heal: 2, faith: 2 }));
 
-    // Activate skill directly
+
+    await page.getByTestId('action-hub-trigger').click();
   await page.getByTestId('action-magic').click();
   await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${HB_RADIANT_DESCENT_SKILL_ID}`).click();

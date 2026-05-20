@@ -10,7 +10,8 @@ test.describe('soulSorcerer soulRecall protocol harness', () => {
   test('activate soulRecall and discard magic card', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(soulRecallScenario({ with_magic: true }));
 
-    // Click skill button
+
+    await page.getByTestId('action-hub-trigger').click();
   await page.getByTestId('action-magic').click();
   await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${SS_SOUL_RECALL_SKILL_ID}`).click();
@@ -32,6 +33,7 @@ test.describe('soulSorcerer soulRecall protocol harness', () => {
 
   test('activate soulRecall and discard multiple magic cards', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(soulRecallScenario({ with_magic: true }));
+    await page.getByTestId('action-hub-trigger').click();
   await page.getByTestId('action-magic').click();
   await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${SS_SOUL_RECALL_SKILL_ID}`).click();

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useInterruptStore } from '../stores/interrupt.store'
 import { useSessionStore } from '../stores/session.store'
 import { useSnapshotStore } from '../stores/snapshot.store'
@@ -117,6 +117,8 @@ const waitingName = computed(() => {
     return snapshotStore.players[interruptStore.waitingFor]?.name || interruptStore.waitingFor
 })
 const specialActionModalVisible = ref(false)
+const actionHubMenuOpen = ref(false)
+const actionHubRootRef = ref<HTMLElement | null>(null)
 const isIdleMainTurnPanel = computed(() =>
     isMyTurn.value &&
     !prompt.value &&
@@ -187,6 +189,7 @@ const actionPanelRootClass = computed(() => ({
     'action-panel-root--hub': isActionHubContext.value,
     'action-panel-root--panel': !isActionHubContext.value,
     'action-panel-root--prompt-inline': isInlinePromptContext.value,
+    'action-panel-root--expanded': !isActionHubContext.value,
 }))
 
 const actionPromptOptions = computed(() => isActionSelectionPrompt.value ? (prompt.value?.options ?? []) : [])
@@ -239,7 +242,11 @@ const specialActionOptions = computed<PromptOption[]>(() => {
 })
 
 const hasHubSpecialActions = computed(() => specialActionOptions.value.length > 0)
-const showSpecialHubEntry = computed(() => isActionHubContext.value)
+const showSpecialHubEntry = computed(() => {
+    if (!isActionHubContext.value) return false
+    if (!isActionSelectionPrompt.value) return true
+    return hasActionPromptOption('special') || hasHubSpecialActions.value
+})
 const isStartupSpecialLocked = computed(() => snapshotStore.hasPerformedStartup)
 const isExtraActionPrompt = computed(() =>
     isActionSelectionPrompt.value &&
@@ -383,7 +390,34 @@ function resolveSpecialActionDisabledReason(optionId: SpecialActionId): string {
     return '当前条件不足，无法执行该行动。'
 }
 
+function closeActionHubMenu() {
+    actionHubMenuOpen.value = false
+}
+
+function toggleActionHubMenu() {
+    if (!isActionHubContext.value) {
+        actionHubMenuOpen.value = false
+        return
+    }
+    actionHubMenuOpen.value = !actionHubMenuOpen.value
+}
+
+function handleActionHubDocumentPointerDown(event: PointerEvent) {
+    if (!actionHubMenuOpen.value) return
+    const root = actionHubRootRef.value
+    const target = event.target
+    if (root && target instanceof Node && root.contains(target)) return
+    closeActionHubMenu()
+}
+
+function handleActionHubDocumentKeydown(event: KeyboardEvent) {
+    if (!actionHubMenuOpen.value) return
+    if (event.key !== 'Escape') return
+    closeActionHubMenu()
+}
+
 function invokeActionHubOption(optionId: string) {
+    closeActionHubMenu()
     specialActionModalVisible.value = false
     if (isActionSelectionPrompt.value) {
         handlePromptOption(actionPromptRawOptionId(optionId))
@@ -424,6 +458,7 @@ function openSpecialActionModal() {
         interruptStore.showError('你本回合已执行启动技能，不能执行特殊行动')
         return
     }
+    closeActionHubMenu()
     specialActionModalVisible.value = true
 }
 
@@ -476,7 +511,43 @@ function openPassAction() {
 watch(isActionHubContext, (isOpen) => {
     if (!isOpen) {
         specialActionModalVisible.value = false
+        closeActionHubMenu()
     }
+})
+
+watch(
+    () => [
+        prompt.value?.choice_type || '',
+        prompt.value?.player_id || '',
+        interruptStore.actionMode,
+        interruptStore.skillMode,
+        interruptStore.magicSubChoice,
+    ] as const,
+    () => {
+        closeActionHubMenu()
+    }
+)
+
+watch(actionHubMenuOpen, (isOpen) => {
+    if (typeof document === 'undefined') return
+    if (isOpen) {
+        document.body.classList.add('action-hub-menu-open')
+    } else {
+        document.body.classList.remove('action-hub-menu-open')
+    }
+})
+
+onMounted(() => {
+    if (typeof document === 'undefined') return
+    document.addEventListener('pointerdown', handleActionHubDocumentPointerDown)
+    document.addEventListener('keydown', handleActionHubDocumentKeydown)
+})
+
+onBeforeUnmount(() => {
+    if (typeof document === 'undefined') return
+    document.removeEventListener('pointerdown', handleActionHubDocumentPointerDown)
+    document.removeEventListener('keydown', handleActionHubDocumentKeydown)
+    document.body.classList.remove('action-hub-menu-open')
 })
 
 watch(debugExclusiveRoleId, () => {
@@ -937,6 +1008,21 @@ function applyDebugSet() {
     debugStatus.value = `已设置 ${debugTargetName(pid)} 的 ${debugSetField.value}=${Math.floor(value)}`
 }
 
+/** 调试：按当前快照为房间内每名玩家宝石 +3（相对增量） */
+function applyDebugAddGemsEveryone() {
+    const players = debugTargetPlayers.value
+    if (players.length === 0) {
+        interruptStore.showError('房间中暂无角色')
+        return
+    }
+    const delta = 3
+    for (const p of players) {
+        const cur = Math.floor(Number(p.gem) || 0)
+        actions.cheatSet(p.id, 'gem', cur + delta)
+    }
+    debugStatus.value = `已为 ${players.length} 名角色各增加 ${delta} 宝石`
+}
+
 function applyDebugToken() {
     const pid = ensureDebugTargetPlayerId()
     if (!pid) return
@@ -1265,7 +1351,7 @@ function elementName(el: string): string {
         </div>
 
         <!-- 行动区域 -->
-        <div v-else-if="isActionHubContext" class="action-hub-desktop">
+        <div v-else-if="isActionHubContext" ref="actionHubRootRef" class="action-hub-collapsed">
             <!-- 回合内状态提示（在行动按钮上方展示） -->
             <div v-if="turnStateIndicators.length > 0" class="turn-state-indicators">
                 <span
@@ -1281,108 +1367,128 @@ function elementName(el: string): string {
             <div v-if="actionHubPromptNotice" class="action-hub-desktop-notice">
                 {{ actionHubPromptNotice }}
             </div>
-            <div class="action-hub-desktop-main">
-                <button
-                    v-if="hasActionPromptOption('attack')"
-                    class="action-hub-desktop-btn action-image-btn action-image-btn--attack"
-                    data-testid="action-attack"
-                    :title="actionPromptLabel('attack', '攻击')"
-                    :aria-label="actionPromptLabel('attack', '攻击')"
-                    @click="invokeActionHubOption('attack')"
-                >
-                    <img
-                        v-if="isMainActionImageReady('attack')"
-                        class="action-image-btn-fill"
-                        :src="mainActionButtonImage('attack')"
-                        alt=""
-                        @error="onMainActionImageError('attack')"
-                    />
-                    <span v-else class="action-image-fallback-text">攻</span>
-                    <span class="action-image-btn-label">{{ actionPromptLabel('attack', '攻击') }}</span>
-                </button>
-                <button
-                    v-if="hasActionPromptOption('magic')"
-                    class="action-hub-desktop-btn action-image-btn action-image-btn--magic"
-                    data-testid="action-magic"
-                    :title="actionPromptLabel('magic', '法术')"
-                    :aria-label="actionPromptLabel('magic', '法术')"
-                    @click="invokeActionHubOption('magic')"
-                >
-                    <img
-                        v-if="isMainActionImageReady('magic')"
-                        class="action-image-btn-fill"
-                        :src="mainActionButtonImage('magic')"
-                        alt=""
-                        @error="onMainActionImageError('magic')"
-                    />
-                    <span v-else class="action-image-fallback-text">术</span>
-                    <span class="action-image-btn-label">{{ actionPromptLabel('magic', '法术') }}</span>
-                </button>
-                <button
-                    v-if="showSpecialHubEntry"
-                    class="action-hub-desktop-btn action-image-btn action-image-btn--special"
-                    :class="{ 'action-image-btn--muted': !hasHubSpecialActions || isStartupSpecialLocked }"
-                    :title="isStartupSpecialLocked ? '本回合已执行启动技能，特殊行动已禁用' : actionPromptLabel('special', '特殊')"
-                    :aria-label="actionPromptLabel('special', '特殊')"
-                    :disabled="!hasHubSpecialActions || isStartupSpecialLocked"
-                    @click="openSpecialActionModal"
-                >
-                    <img
-                        v-if="isMainActionImageReady('special')"
-                        class="action-image-btn-fill"
-                        :src="mainActionButtonImage('special')"
-                        alt=""
-                        @error="onMainActionImageError('special')"
-                    />
-                    <span v-else class="action-image-fallback-text">特</span>
-                    <span class="action-image-btn-label">{{ actionPromptLabel('special', '特殊') }}</span>
-                </button>
-                <template v-if="isActionSelectionPrompt">
-                    <button
-                        v-if="hasActionPromptOption('cannot_act')"
-                        class="action-hub-desktop-btn action-image-btn action-image-btn--cannot-act"
-                        :title="isExtraActionPrompt ? '跳过' : cannotActButtonLabel"
-                        :aria-label="isExtraActionPrompt ? '跳过' : cannotActButtonLabel"
-                        @click="invokeActionHubOption('cannot_act')"
-                    >
-                        <img
-                            v-if="isMainActionImageReady('cannot_act')"
-                            class="action-image-btn-fill"
-                            :src="mainActionButtonImage('cannot_act')"
-                            alt=""
-                            @error="onMainActionImageError('cannot_act')"
-                        />
-                        <span v-else class="action-image-fallback-text">{{ isExtraActionPrompt ? '跳过' : '无法' }}</span>
-                        <span class="action-image-btn-label">{{ isExtraActionPrompt ? '跳过' : cannotActButtonLabel }}</span>
-                    </button>
-                </template>
-                <template v-else>
-                    <button
-                        class="action-hub-desktop-btn action-image-btn action-image-btn--pass"
-                        data-testid="action-pass"
-                        title="结束回合"
-                        aria-label="结束回合"
-                        @click="invokeActionHubOption('pass')"
-                    >
-                        <img
-                            v-if="isMainActionImageReady('pass')"
-                            class="action-image-btn-fill"
-                            :src="mainActionButtonImage('pass')"
-                            alt=""
-                            @error="onMainActionImageError('pass')"
-                        />
-                        <span v-else class="action-image-fallback-text">过</span>
-                        <span class="action-image-btn-label">结束回合</span>
-                    </button>
-                </template>
-            </div>
-
-            <div
-                v-if="isActionSelectionPrompt && !hasActionPromptOption('attack') && !hasActionPromptOption('magic') && !hasHubSpecialActions"
-                class="action-hub-desktop-empty"
+            <button
+                type="button"
+                class="action-hub-main-trigger"
+                data-testid="action-hub-trigger"
+                aria-label="行动"
+                :aria-expanded="actionHubMenuOpen"
+                @click="toggleActionHubMenu"
             >
-                当前无可执行行动，请等待下一步结算
-            </div>
+                <span class="action-hub-main-trigger-mark">令</span>
+                <span class="action-hub-main-trigger-text">行动</span>
+            </button>
+            <Transition name="action-hub-menu">
+                <div
+                    v-if="actionHubMenuOpen"
+                    class="action-hub-popover"
+                    data-testid="action-hub-menu"
+                >
+                    <div class="action-hub-desktop-main">
+                        <button
+                            v-if="hasActionPromptOption('attack')"
+                            class="action-hub-desktop-btn action-image-btn action-image-btn--attack"
+                            data-testid="action-attack"
+                            :title="actionPromptLabel('attack', '攻击')"
+                            :aria-label="actionPromptLabel('attack', '攻击')"
+                            @click="invokeActionHubOption('attack')"
+                        >
+                            <img
+                                v-if="isMainActionImageReady('attack')"
+                                class="action-image-btn-fill"
+                                :src="mainActionButtonImage('attack')"
+                                alt=""
+                                @error="onMainActionImageError('attack')"
+                            />
+                            <span v-else class="action-image-fallback-text">攻</span>
+                            <span class="action-image-btn-label">{{ actionPromptLabel('attack', '攻击') }}</span>
+                        </button>
+                        <button
+                            v-if="hasActionPromptOption('magic')"
+                            class="action-hub-desktop-btn action-image-btn action-image-btn--magic"
+                            data-testid="action-magic"
+                            :title="actionPromptLabel('magic', '法术')"
+                            :aria-label="actionPromptLabel('magic', '法术')"
+                            @click="invokeActionHubOption('magic')"
+                        >
+                            <img
+                                v-if="isMainActionImageReady('magic')"
+                                class="action-image-btn-fill"
+                                :src="mainActionButtonImage('magic')"
+                                alt=""
+                                @error="onMainActionImageError('magic')"
+                            />
+                            <span v-else class="action-image-fallback-text">术</span>
+                            <span class="action-image-btn-label">{{ actionPromptLabel('magic', '法术') }}</span>
+                        </button>
+                        <button
+                            v-if="showSpecialHubEntry"
+                            class="action-hub-desktop-btn action-image-btn action-image-btn--special"
+                            :class="{ 'action-image-btn--muted': !hasHubSpecialActions || isStartupSpecialLocked }"
+                            :title="isStartupSpecialLocked ? '本回合已执行启动技能，特殊行动已禁用' : actionPromptLabel('special', '特殊')"
+                            :aria-label="actionPromptLabel('special', '特殊')"
+                            :disabled="!hasHubSpecialActions || isStartupSpecialLocked"
+                            @click="openSpecialActionModal"
+                        >
+                            <img
+                                v-if="isMainActionImageReady('special')"
+                                class="action-image-btn-fill"
+                                :src="mainActionButtonImage('special')"
+                                alt=""
+                                @error="onMainActionImageError('special')"
+                            />
+                            <span v-else class="action-image-fallback-text">特</span>
+                            <span class="action-image-btn-label">{{ actionPromptLabel('special', '特殊') }}</span>
+                        </button>
+                        <template v-if="isActionSelectionPrompt">
+                            <button
+                            v-if="hasActionPromptOption('cannot_act')"
+                            class="action-hub-desktop-btn action-image-btn action-image-btn--cannot-act"
+                            data-testid="action-cannot-act"
+                            :title="isExtraActionPrompt ? '跳过' : cannotActButtonLabel"
+                            :aria-label="isExtraActionPrompt ? '跳过' : cannotActButtonLabel"
+                            @click="invokeActionHubOption('cannot_act')"
+                            >
+                                <img
+                                    v-if="isMainActionImageReady('cannot_act')"
+                                    class="action-image-btn-fill"
+                                    :src="mainActionButtonImage('cannot_act')"
+                                    alt=""
+                                    @error="onMainActionImageError('cannot_act')"
+                                />
+                                <span v-else class="action-image-fallback-text">{{ isExtraActionPrompt ? '跳过' : '无法' }}</span>
+                                <span class="action-image-btn-label">{{ isExtraActionPrompt ? '跳过' : cannotActButtonLabel }}</span>
+                            </button>
+                        </template>
+                        <template v-else>
+                            <button
+                                class="action-hub-desktop-btn action-image-btn action-image-btn--pass"
+                                data-testid="action-pass"
+                                title="结束回合"
+                                aria-label="结束回合"
+                                @click="invokeActionHubOption('pass')"
+                            >
+                                <img
+                                    v-if="isMainActionImageReady('pass')"
+                                    class="action-image-btn-fill"
+                                    :src="mainActionButtonImage('pass')"
+                                    alt=""
+                                    @error="onMainActionImageError('pass')"
+                                />
+                                <span v-else class="action-image-fallback-text">过</span>
+                                <span class="action-image-btn-label">结束回合</span>
+                            </button>
+                        </template>
+                    </div>
+
+                    <div
+                        v-if="isActionSelectionPrompt && !hasActionPromptOption('attack') && !hasActionPromptOption('magic') && !hasHubSpecialActions && !hasActionPromptOption('cannot_act')"
+                        class="action-hub-desktop-empty"
+                    >
+                        当前无可执行行动，请等待下一步结算
+                    </div>
+                </div>
+            </Transition>
         </div>
 
         <!-- 非我的回合 -->
@@ -1490,6 +1596,14 @@ function elementName(el: string): string {
                                 </select>
                                 <input v-model="debugSetValue" type="number" class="debug-input" />
                                 <button class="debug-mini-btn" type="button" @click="applyDebugSet">设置</button>
+                                <button
+                                    class="debug-mini-btn"
+                                    type="button"
+                                    title="按当前人数，每人宝石在现有基础上 +3"
+                                    @click="applyDebugAddGemsEveryone"
+                                >
+                                    全员+3♦
+                                </button>
                             </div>
                             <div class="debug-manual-row">
                                 <input v-model="debugTokenKey" class="debug-input" placeholder="指示物 key" />
@@ -1642,6 +1756,151 @@ function elementName(el: string): string {
     opacity: 0.45;
     filter: grayscale(0.25);
     cursor: not-allowed;
+}
+
+.action-hub-collapsed {
+    position: relative;
+    width: 100%;
+    min-height: 72px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: flex-end;
+    gap: 6px;
+    overflow: visible;
+}
+
+.action-hub-main-trigger {
+    position: relative;
+    width: 96px;
+    height: 72px;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    border-radius: 12px;
+    border: 1px solid rgba(219, 186, 125, 0.72);
+    background:
+        linear-gradient(180deg, rgba(35, 64, 89, 0.98), rgba(12, 29, 47, 0.98)),
+        url('/assets/ui/panel-ornament.svg') center/cover no-repeat;
+    color: #ffe7b9;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 246, 223, 0.18),
+        inset 0 -10px 18px rgba(2, 8, 18, 0.18),
+        0 10px 24px rgba(2, 10, 20, 0.38);
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
+    transition:
+        transform 0.16s ease,
+        border-color 0.16s ease,
+        filter 0.16s ease,
+        box-shadow 0.16s ease;
+}
+
+.action-hub-main-trigger:hover,
+.action-hub-main-trigger[aria-expanded='true'] {
+    transform: translateY(-1px);
+    filter: brightness(1.05);
+    border-color: rgba(255, 222, 162, 0.95);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 246, 223, 0.25),
+        inset 0 -10px 18px rgba(2, 8, 18, 0.14),
+        0 13px 28px rgba(2, 10, 20, 0.46),
+        0 0 0 1px rgba(244, 207, 140, 0.12);
+}
+
+.action-hub-main-trigger:active {
+    transform: translateY(1px);
+    filter: brightness(0.96);
+}
+
+.action-hub-main-trigger:focus-visible {
+    outline: none;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 246, 223, 0.25),
+        0 0 0 2px rgba(96, 165, 250, 0.42),
+        0 13px 28px rgba(2, 10, 20, 0.46);
+}
+
+.action-hub-main-trigger-mark {
+    width: 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 230, 181, 0.46);
+    background: rgba(6, 17, 29, 0.45);
+    color: #fff2cf;
+    font-size: 13px;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.action-hub-main-trigger-text {
+    font-size: 14px;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: 0;
+}
+
+.action-hub-popover {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 10px);
+    z-index: 1300;
+    width: max-content;
+    max-width: min(360px, calc(100vw - 24px));
+    padding: 8px;
+    border-radius: 14px;
+    border: 1px solid rgba(164, 196, 216, 0.46);
+    background:
+        linear-gradient(180deg, rgba(13, 31, 50, 0.98), rgba(7, 18, 31, 0.98)),
+        url('/assets/ui/panel-ornament.svg') center/cover no-repeat;
+    box-shadow:
+        inset 0 1px 0 rgba(242, 250, 255, 0.08),
+        0 16px 34px rgba(2, 8, 18, 0.55);
+    transform-origin: right bottom;
+}
+
+.action-hub-popover::after {
+    content: '';
+    position: absolute;
+    right: 32px;
+    bottom: -6px;
+    width: 12px;
+    height: 12px;
+    border-right: 1px solid rgba(164, 196, 216, 0.38);
+    border-bottom: 1px solid rgba(164, 196, 216, 0.38);
+    background: rgba(7, 18, 31, 0.98);
+    transform: rotate(45deg);
+}
+
+.action-hub-popover .action-hub-desktop-main {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 7px;
+    max-width: 336px;
+}
+
+.action-hub-popover .action-hub-desktop-btn.action-image-btn {
+    width: 72px;
+    height: 72px;
+    flex: 0 0 72px;
+}
+
+.action-hub-menu-enter-active,
+.action-hub-menu-leave-active {
+    transition:
+        opacity 0.14s ease,
+        transform 0.14s ease;
+}
+
+.action-hub-menu-enter-from,
+.action-hub-menu-leave-to {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
 }
 
 .action-hub-desktop {
@@ -2342,6 +2601,28 @@ function elementName(el: string): string {
         font-size: 11px;
         min-height: 29px;
         padding: 0.32rem 0.45rem !important;
+    }
+
+    .action-hub-main-trigger {
+        width: 84px;
+        height: 64px;
+    }
+
+    .action-hub-popover {
+        max-width: min(292px, calc(100vw - 16px));
+        padding: 7px;
+    }
+
+    .action-hub-popover .action-hub-desktop-main {
+        max-width: 276px;
+        gap: 6px;
+    }
+
+    .action-hub-popover .action-hub-desktop-btn.action-image-btn {
+        width: 64px;
+        height: 64px;
+        flex-basis: 64px;
+        padding: 0 !important;
     }
 
     .action-hub-desktop-btn--cannot-act {

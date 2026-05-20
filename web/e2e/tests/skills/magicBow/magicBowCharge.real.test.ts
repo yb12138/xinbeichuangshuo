@@ -26,6 +26,7 @@ test('magic bow charge: hand <= 4 should show draw X prompt', async ({ page }) =
   await expect(page.getByTestId('game-board')).toBeVisible({ timeout: 15_000 })
 
   // Activate 充能 skill (startup skill, should be in skill menu)
+    await page.getByTestId('action-hub-trigger').click()
   await page.getByTestId('action-magic').click()
   await page.getByTestId('action-skill').click()
   await page.getByTestId(`skill-${MB_CHARGE_SKILL_ID}`).click()

@@ -12,7 +12,8 @@ test.describe('blood priestess blood sorrow protocol harness', () => {
   test('blood sorrow: choose transfer then target', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(bloodSorrowScenario());
 
-    // Activate skill
+
+    await page.getByTestId('action-hub-trigger').click();
   await page.getByTestId('action-magic').click();
   await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${BP_BLOOD_SORROW_SKILL_ID}`).click();
@@ -43,6 +44,7 @@ test.describe('blood priestess blood sorrow protocol harness', () => {
   // 不再下发目标选择 prompt。本用例只验证 branch select 提交移除即流程结束。
   test('blood sorrow: choose remove (no target prompt)', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(bloodSorrowScenario());
+    await page.getByTestId('action-hub-trigger').click();
   await page.getByTestId('action-magic').click();
   await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${BP_BLOOD_SORROW_SKILL_ID}`).click();
@@ -65,6 +67,7 @@ test.describe('blood priestess blood sorrow protocol harness', () => {
 
   test('blood sorrow: skip', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(bloodSorrowScenario());
+    await page.getByTestId('action-hub-trigger').click();
   await page.getByTestId('action-magic').click();
   await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${BP_BLOOD_SORROW_SKILL_ID}`).click();

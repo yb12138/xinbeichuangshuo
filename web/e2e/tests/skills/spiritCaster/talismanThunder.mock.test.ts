@@ -22,7 +22,8 @@ test.describe('spirit caster talisman thunder protocol harness', () => {
   test('talisman thunder: with crystal -> mana collapse yes -> discard thunder -> select 2 targets', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(talismanThunderScenario({ hasCrystal: true }));
 
-    // Activate skill
+
+    await page.getByTestId('action-hub-trigger').click();
   await page.getByTestId('action-magic').click();
   await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${SC_TALISMAN_THUNDER_SKILL_ID}`).click();
@@ -62,6 +63,7 @@ test.describe('spirit caster talisman thunder protocol harness', () => {
 
   test('talisman thunder: with crystal -> mana collapse no -> discard thunder -> select 2 targets', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(talismanThunderScenario({ hasCrystal: true }));
+    await page.getByTestId('action-hub-trigger').click();
   await page.getByTestId('action-magic').click();
   await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${SC_TALISMAN_THUNDER_SKILL_ID}`).click();
@@ -97,6 +99,7 @@ test.describe('spirit caster talisman thunder protocol harness', () => {
 
   test('talisman thunder: no crystal -> discard thunder -> select 2 targets', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(talismanThunderScenario({ hasCrystal: false }));
+    await page.getByTestId('action-hub-trigger').click();
   await page.getByTestId('action-magic').click();
   await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${SC_TALISMAN_THUNDER_SKILL_ID}`).click();

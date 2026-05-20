@@ -10,10 +10,12 @@ import { useSnapshotStore } from '../../stores/snapshot.store'
 import type { Card, GameStateUpdate, PlayerInfo, PlayerView, Prompt } from '../../types/game'
 
 const submitSelectMock = vi.fn()
+const submitSelectCardIDsMock = vi.fn()
 
 vi.mock('../../composables/useSubmitAction', () => ({
   useSubmitAction: () => ({
     submitSelect: submitSelectMock,
+    submitSelectCardIDs: submitSelectCardIDsMock,
     submitCancel: vi.fn(),
     submitConfirm: vi.fn(),
     submitRespondTake: vi.fn(),
@@ -153,10 +155,30 @@ function actionHubPrompt(): Prompt {
   }
 }
 
+function handCardPickerPrompt(): Prompt {
+  return {
+    type: 'choose_cards',
+    player_id: 'p1',
+    choice_type: 'test_discard_card',
+    message: '请选择弃置1张手牌',
+    options: [
+      { id: '0', label: '1: 火焰斩', button_label: '选择', card_id: 'card-1' },
+    ],
+    min: 1,
+    max: 1,
+    presentation: {
+      kind: 'card_picker',
+      card_source: 'hand',
+      numeric_base: 0,
+    },
+  }
+}
+
 describe('GameBoard target picker', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     submitSelectMock.mockReset()
+    submitSelectCardIDsMock.mockReset()
   })
 
   it('selects target picker options by target_id instead of player names or labels', async () => {
@@ -258,5 +280,89 @@ describe('GameBoard target picker', () => {
 
     expect(screen.getByTestId('player-area-p2')).not.toBeDisabled()
     expect(screen.getByTestId('player-area-p3')).toBeDisabled()
+  })
+
+  it('selects a single hand card picker card without auto-submitting', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const me = buildPlayer({
+      id: 'p1',
+      name: '弃牌者',
+      camp: 'Red',
+      role: 'fighter',
+      hand: [buildCard({ id: 'card-1', name: '火焰斩' })],
+      hand_count: 1,
+    })
+    const players = { p1: me }
+
+    useSessionStore().setRoomInfo('ROOM1', 'p1', 'Red', 'fighter')
+    useSessionStore().updateRoomPlayers(Object.values(players).map(buildPlayerInfo), 'p1')
+    useSnapshotStore().updateGameState(buildState(players))
+    const interruptStore = useInterruptStore()
+    interruptStore.setPrompt(handCardPickerPrompt())
+
+    render(GameBoard, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          PlayerArea: PlayerAreaStub,
+          ActionPanel: true,
+          BattleZone: true,
+          SkillDetailModal: true,
+          VfxLayer: true,
+          ActionTimeline: true,
+          StatusEffectIcon: true,
+        },
+      },
+    })
+
+    await userEvent.click(screen.getByTestId('hand-card-0'))
+
+    expect(interruptStore.selectedHandIndexes).toEqual([0])
+    expect(submitSelectCardIDsMock).not.toHaveBeenCalled()
+    expect(submitSelectMock).not.toHaveBeenCalled()
+  })
+
+  it('renders the current player in the same 3+3 side layout as other players', () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const roster = Array.from({ length: 6 }, (_, index) => {
+      const n = index + 1
+      return buildPlayer({
+        id: `p${n}`,
+        name: `玩家${n}`,
+        camp: n <= 3 ? 'Red' : 'Blue',
+        role: 'fighter',
+        heal: n,
+        max_heal: 5,
+      })
+    })
+    const players = Object.fromEntries(roster.map((player) => [player.id, player]))
+
+    useSessionStore().setRoomInfo('ROOM1', 'p1', 'Red', 'fighter')
+    useSessionStore().updateRoomPlayers(roster.map(buildPlayerInfo), 'p1')
+    useSnapshotStore().updateGameState(buildState(players))
+
+    render(GameBoard, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          PlayerArea: PlayerAreaStub,
+          ActionPanel: true,
+          BattleZone: true,
+          CardComponent: true,
+          SkillDetailModal: true,
+          VfxLayer: true,
+          ActionTimeline: true,
+          StatusEffectIcon: true,
+        },
+      },
+    })
+
+    expect(screen.getAllByTestId(/^player-area-p/)).toHaveLength(6)
+    expect(screen.getByTestId('player-area-p1')).toBeInTheDocument()
+    expect(screen.getByText('治疗 1/5')).toBeInTheDocument()
   })
 })

@@ -9,7 +9,8 @@ export class ActionHelper {
   /**
    * Click a main action button from the action hub.
    */
-  async clickAction(action: 'skill' | 'pass'): Promise<void> {
+  async clickAction(action: 'magic' | 'attack' | 'pass'): Promise<void> {
+    await this.page.click('[data-testid="action-hub-trigger"]');
     await this.page.click(`[data-testid="action-${action}"]`);
   }
 
@@ -17,7 +18,7 @@ export class ActionHelper {
    * Open the skill selection panel.
    */
   async openSkillPanel(): Promise<void> {
-    await this.page.click('[data-testid="action-magic"]');
+    await this.clickAction('magic');
     await this.page.click('[data-testid="action-skill"]');
     await this.page.waitForSelector('[data-testid="skill-select-panel"]');
   }
@@ -48,7 +49,7 @@ export class ActionHelper {
    * End current turn (pass action).
    */
   async endTurn(): Promise<void> {
-    await this.page.click('[data-testid="action-pass"]');
+    await this.clickAction('pass');
   }
 
   /**

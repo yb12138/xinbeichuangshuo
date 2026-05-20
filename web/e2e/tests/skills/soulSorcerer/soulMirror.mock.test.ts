@@ -11,7 +11,8 @@ test.describe('soulSorcerer soulMirror protocol harness', () => {
   test('activate soulMirror and target ally', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(soulMirrorScenario({ yellow_soul: 2 }));
 
-    // Click skill button
+
+    await page.getByTestId('action-hub-trigger').click();
   await page.getByTestId('action-magic').click();
   await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${SS_SOUL_MIRROR_SKILL_ID}`).click();
@@ -32,6 +33,7 @@ test.describe('soulSorcerer soulMirror protocol harness', () => {
 
   test('activate soulMirror and target self', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(soulMirrorScenario({ yellow_soul: 3 }));
+    await page.getByTestId('action-hub-trigger').click();
   await page.getByTestId('action-magic').click();
   await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${SS_SOUL_MIRROR_SKILL_ID}`).click();

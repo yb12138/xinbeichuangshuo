@@ -164,15 +164,14 @@ const turnOrderMap = computed(() => {
   return map
 })
 
-const orderedOtherPlayers = computed(() =>
+const orderedBoardPlayers = computed(() =>
   orderedPlayerIds.value
-    .filter((id) => id !== myPlayerId.value)
     .map((id) => players.value[id])
     .filter((p): p is PlayerView => !!p)
 )
 
-const leftRailPlayers = computed(() => orderedOtherPlayers.value.slice(0, 3))
-const rightRailPlayers = computed(() => orderedOtherPlayers.value.slice(3, 5))
+const leftRailPlayers = computed(() => orderedBoardPlayers.value.slice(0, 3))
+const rightRailPlayers = computed(() => orderedBoardPlayers.value.slice(3, 6))
 const isHostInRoom = computed(() =>
   roomPlayers.value.some(p => p.id === myPlayerId.value && p.is_host)
 )
@@ -181,7 +180,7 @@ const offlinePlayers = computed(() =>
 )
 const canHostTakeover = computed(() => isHostInRoom.value && offlinePlayers.value.length > 0)
 
-type PlayerAnchorSlot = 'left' | 'right' | 'bottom'
+type PlayerAnchorSlot = 'left' | 'right'
 
 function playerAnchorClasses(playerId: string, slot: PlayerAnchorSlot) {
   const focus = initiatorFocus.value
@@ -193,6 +192,59 @@ function playerAnchorClasses(playerId: string, slot: PlayerAnchorSlot) {
     [`player-anchor-wrap--focus-mode-${focus?.mode || 'attack'}`]: active
   }
 }
+
+const PLAYER_STATUS_EFFECT_LABEL: Record<string, string> = {
+  Shield: '圣盾',
+  Poison: '中毒',
+  Weak: '虚弱',
+  SealFire: '火封印',
+  SealWater: '水封印',
+  SealEarth: '地封印',
+  SealWind: '风封印',
+  SealThunder: '雷封印',
+  FiveElementsBind: '五系束缚',
+  Stealth: '潜行',
+  PowerBlessing: '威力赐福',
+  SwiftBlessing: '迅捷赐福',
+  BardEternalMovement: '永恒乐章',
+  RoseCourtyard: '血蔷薇庭院',
+  HeroTaunt: '挑衅',
+  SoulLink: '灵魂链接',
+  BloodSharedLife: '同生共死',
+}
+
+const myStatusMaxHand = computed(() => {
+  const maxHand = myAreaPlayer.value?.max_hand
+  return typeof maxHand === 'number' && maxHand >= 0 ? maxHand : 0
+})
+
+const myFieldStatusItems = computed(() => {
+  const field = myAreaPlayer.value?.field || []
+  return field
+    .filter((fc) => fc.mode === 'Effect' && fc.effect)
+    .map((fc, idx) => ({
+      key: `${fc.effect}-${idx}`,
+      effect: fc.effect,
+      label: PLAYER_STATUS_EFFECT_LABEL[fc.effect] || fc.effect,
+    }))
+})
+
+const isIdleActionHubContext = computed(() =>
+  isMyTurn.value &&
+  !currentPrompt.value &&
+  actionMode.value === 'none' &&
+  skillMode.value === 'none'
+)
+
+const isPromptActionHubContext = computed(() =>
+  !!currentPrompt.value &&
+  isPromptForMe.value &&
+  isActionSelectionPrompt(currentPrompt.value) &&
+  actionMode.value === 'none' &&
+  skillMode.value === 'none'
+)
+
+const isActionDockCompact = computed(() => isIdleActionHubContext.value || isPromptActionHubContext.value)
 
 // 行动选择 prompt 不触发 blur（已在 ActionPanel 内联展示）
 const gameEndTitle = computed(() => {
@@ -1615,15 +1667,6 @@ function togglePromptSelectedCard(idx: number) {
   interruptStore.setSelectedHandIndexes(nextSelected)
 }
 
-function selectedPromptCardIDForHandIndex(idx: number): string {
-  const prompt = currentPrompt.value
-  if (!prompt || prompt.presentation?.kind !== 'card_picker' || prompt.presentation?.card_source !== 'hand') return ''
-  const handCardID = String(myHand.value[idx]?.id || '').trim()
-  if (!handCardID) return ''
-  const option = (prompt.options || []).find((candidate: any) => String(candidate?.card_id || '').trim() === handCardID)
-  return String(option?.card_id || '').trim()
-}
-
 function onCardClick(idx: number) {
   if (isGameEnded.value) return
   // 优先级：actionMode > skillMode(弃牌) > prompt 选牌 > 默认
@@ -1685,21 +1728,6 @@ function onCardClick(idx: number) {
       selectedHandIndexes: [...selectedHandIndexes.value],
       reason: state.reason
     })
-    const prompt = currentPrompt.value
-    const p = prompt?.presentation
-    const canSubmitSingleCardPicker =
-      p?.kind === 'card_picker' &&
-      p.card_source === 'hand' &&
-      (prompt?.max ?? 1) <= 1 &&
-      p.card_filter !== 'plague_death_touch_element'
-    if (canSubmitSingleCardPicker) {
-      const cardID = selectedPromptCardIDForHandIndex(idx)
-      if (!cardID) {
-        interruptStore.showError('当前卡牌选择缺少 card_id，请刷新后重试')
-        return
-      }
-      interaction.submitSelectedCardIDs([cardID])
-    }
     return
   }
   if (isMyTurn.value) {
@@ -2057,27 +2085,10 @@ watch(
         </div>
 
         <div class="bottom-hud flex-shrink-0 min-h-0 mt-2">
-          <div class="bottom-hud-main">
-            <div
-              class="bottom-slot-me player-anchor-wrap"
-              :class="[
-                playerAnchorClasses(myPlayerId, 'bottom'),
-                { 'target-guide-pulse': promptNeedsTargetGuide && isPlayerSelectable(myPlayerId) }
-              ]"
-              :data-player-anchor="myPlayerId"
-            >
-        <PlayerArea
-                v-if="myAreaPlayer"
-                :player="myAreaPlayer"
-                is-me
-                :selectable="isPlayerSelectable(myAreaPlayer.id)"
-                :debugTargetReason="playerSelectReason(myAreaPlayer.id)"
-                :selected="isPlayerSelected(myAreaPlayer.id)"
-                :turnOrder="turnOrderFor(myAreaPlayer.id)"
-          compact
-          @select="onTargetClick"
-        />
-      </div>
+          <div
+            class="bottom-hud-main"
+            :class="{ 'bottom-hud-main--compact-action': isActionDockCompact }"
+          >
             <div
               class="hand-rail bottom-slot-hand rounded-lg sm:rounded-xl p-2 sm:p-2 min-h-0"
               :class="{
@@ -2085,6 +2096,32 @@ watch(
                 'hand-rail--overflow-discard': promptNeedsOverflowDiscardGuide
               }"
             >
+              <div v-if="myAreaPlayer" class="my-status-strip">
+                <div class="my-status-primary">
+                  <span class="my-status-name">{{ myAreaPlayer.name }}</span>
+                  <span class="my-status-chip my-status-chip--heal">治疗 {{ myAreaPlayer.heal }}/{{ myAreaPlayer.max_heal }}</span>
+                  <span class="my-status-chip">手牌上限 {{ myStatusMaxHand }}</span>
+                  <span v-if="myAreaPlayer.gem" class="my-status-chip my-status-chip--gem">宝石 {{ myAreaPlayer.gem }}</span>
+                  <span v-if="myAreaPlayer.crystal" class="my-status-chip my-status-chip--crystal">水晶 {{ myAreaPlayer.crystal }}</span>
+                </div>
+                <div class="my-status-secondary">
+                  <span
+                    v-for="field in myFieldStatusItems"
+                    :key="`field-${field.key}`"
+                    class="my-status-pill my-status-pill--field"
+                    :title="field.label"
+                  >
+                    <StatusEffectIcon :effect="field.effect" />
+                    {{ field.label }}
+                  </span>
+                  <span
+                    v-if="myFieldStatusItems.length === 0"
+                    class="my-status-empty"
+                  >
+                    无场上状态
+                  </span>
+                </div>
+              </div>
               <div class="exclusive-toggle-row mb-2">
                 <button
                   type="button"
@@ -2194,10 +2231,19 @@ watch(
                     :selected="selectedHandIndexes.includes(entry.index) || selectedHandIndexForAction === entry.index || skillDiscardHandIndexes.includes(entry.index)"
                     @click="onCardClick(entry.index)"
                   />
-                </div>
+              </div>
           <div v-if="myHand.length === 0" class="text-gray-500 py-4 text-sm">没有手牌</div>
         </div>
       </div>
+            <div
+              class="right-action-dock"
+              :class="{
+                'right-action-dock--active': isMyTurn,
+                'right-action-dock--compact': isActionDockCompact
+              }"
+            >
+              <ActionPanel />
+            </div>
       </div>
         </div>
       </section>
@@ -2237,10 +2283,6 @@ watch(
       >
         <div class="draw-flight-card-face" />
       </div>
-    </div>
-
-    <div class="right-action-dock" :class="{ 'right-action-dock--active': isMyTurn }">
-      <ActionPanel />
     </div>
 
     <!-- Toast 通知（参考 noname） -->
@@ -3048,7 +3090,7 @@ watch(
 .main-grid {
   display: grid;
   flex: 1 1 0;
-  grid-template-columns: 144px minmax(0, 1fr) 144px;
+  grid-template-columns: 156px minmax(0, 1fr) 156px;
   grid-template-rows: minmax(0, 1fr);
   gap: 12px;
   align-items: stretch;
@@ -3058,13 +3100,14 @@ watch(
 
 @media (min-width: 1600px) {
   .main-grid {
-    grid-template-columns: 168px minmax(0, 1fr) 168px;
+    grid-template-columns: 180px minmax(0, 1fr) 180px;
     gap: 16px;
   }
 
   .bottom-hud {
-    --me-slot-width: 158px;
-    --hand-max-width: 920px;
+    --hand-max-width: 940px;
+    --action-dock-width: 320px;
+    --action-dock-compact-width: 112px;
   }
 }
 
@@ -3074,13 +3117,14 @@ watch(
   }
 
   .main-grid {
-    grid-template-columns: 196px minmax(0, 1fr) 196px;
+    grid-template-columns: 204px minmax(0, 1fr) 204px;
     gap: 18px;
   }
 
   .bottom-hud {
-    --me-slot-width: 186px;
-    --hand-max-width: 1020px;
+    --hand-max-width: 1040px;
+    --action-dock-width: 340px;
+    --action-dock-compact-width: 112px;
   }
 
   .hand-rail {
@@ -3320,6 +3364,98 @@ watch(
     0 10px 28px rgba(1, 8, 16, 0.48),
     0 0 0 1px rgba(216, 139, 103, 0.32);
   animation: overflowDiscardPulse 1.45s ease-in-out infinite;
+}
+
+.my-status-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+  padding: 7px 9px;
+  border-radius: 10px;
+  border: 1px solid rgba(132, 172, 207, 0.28);
+  background: linear-gradient(180deg, rgba(18, 36, 54, 0.72), rgba(10, 23, 37, 0.82));
+  box-shadow:
+    inset 0 1px 0 rgba(236, 247, 255, 0.08),
+    0 6px 14px rgba(2, 8, 16, 0.22);
+}
+
+.my-status-primary,
+.my-status-secondary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.my-status-name {
+  max-width: 112px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #f8dfad;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.my-status-chip,
+.my-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 20px;
+  border-radius: 999px;
+  border: 1px solid rgba(142, 178, 205, 0.34);
+  background: rgba(5, 14, 25, 0.54);
+  color: rgba(219, 235, 248, 0.95);
+  font-size: 11px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.my-status-chip {
+  padding: 4px 8px;
+  font-weight: 700;
+}
+
+.my-status-chip--heal {
+  color: #ffd0d7;
+  border-color: rgba(221, 118, 138, 0.38);
+}
+
+.my-status-chip--gem {
+  color: #f8b8ae;
+  border-color: rgba(220, 106, 92, 0.38);
+}
+
+.my-status-chip--crystal {
+  color: #b7ddf4;
+  border-color: rgba(106, 172, 211, 0.4);
+}
+
+.my-status-pill {
+  padding: 3px 7px;
+  font-weight: 600;
+}
+
+.my-status-pill--field {
+  color: #f8e5b8;
+  background: rgba(46, 35, 16, 0.58);
+  border-color: rgba(220, 179, 104, 0.38);
+}
+
+.my-status-pill--field :deep(.status-effect-icon) {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.my-status-empty {
+  color: rgba(164, 190, 208, 0.78);
+  font-size: 11px;
+  line-height: 1;
 }
 
 .prompt-card-guide-chip {
@@ -3615,56 +3751,47 @@ watch(
   padding-top: 4px;
   display: flex;
   flex-direction: column;
-  align-items: stretch;
+  align-items: flex-start;
   width: 100%;
   gap: 8px;
   position: relative;
   z-index: 2;
-  --me-slot-width: 142px;
-  --hand-max-width: 840px;
-  --hud-main-gap: 8px;
+  --hand-max-width: 820px;
+  --action-dock-width: 300px;
+  --action-dock-compact-width: 108px;
+  --hud-main-gap: 10px;
 }
 
 .bottom-hud-main {
-  width: min(100%, calc(var(--me-slot-width) + var(--hand-max-width) + var(--hud-main-gap)));
+  width: min(100%, calc(var(--hand-max-width) + var(--action-dock-width) + var(--hud-main-gap)));
   min-width: 0;
   display: grid;
-  grid-template-columns: var(--me-slot-width) minmax(0, 1fr);
+  grid-template-columns: minmax(0, var(--hand-max-width)) var(--action-dock-width);
   align-items: end;
   column-gap: var(--hud-main-gap);
   margin: 0;
 }
 
-.bottom-slot-me {
-  flex-shrink: 0;
-}
-
-.bottom-slot-me {
-  width: var(--me-slot-width);
-  justify-self: start;
-}
-
-.bottom-slot-me :deep(.player-area) {
-  width: 100%;
-  min-width: 100% !important;
-  max-width: 100% !important;
+.bottom-hud-main--compact-action {
+  grid-template-columns: minmax(0, var(--hand-max-width)) var(--action-dock-compact-width);
+  width: min(100%, calc(var(--hand-max-width) + var(--action-dock-compact-width) + var(--hud-main-gap)));
 }
 
 .bottom-slot-hand {
   width: 100%;
-  max-width: min(100%, var(--hand-max-width));
+  max-width: var(--hand-max-width);
   min-width: 0;
   justify-self: stretch;
 }
 
 .right-action-dock {
-  position: absolute;
-  right: max(10px, var(--safe-right));
-  bottom: calc(12px + var(--safe-bottom));
-  width: clamp(250px, 18vw, 320px);
+  position: static;
+  width: 100%;
   z-index: 24;
   pointer-events: auto;
   transition: filter 0.22s ease, transform 0.22s ease;
+  align-self: end;
+  justify-self: stretch;
 }
 
 .right-action-dock--active {
@@ -3672,31 +3799,33 @@ watch(
   transform: translateY(-2px);
 }
 
+.right-action-dock--compact {
+  min-width: var(--action-dock-compact-width);
+}
+
 @media (max-width: 1200px) {
-  .right-action-dock {
-    width: clamp(198px, 19vw, 248px);
+  .bottom-hud {
+    --hand-max-width: 700px;
+    --action-dock-width: 248px;
+    --action-dock-compact-width: 104px;
   }
 }
 
 @media (max-width: 900px) {
   .right-action-dock {
-    position: fixed;
-    right: max(8px, var(--safe-right));
-    bottom: calc(10px + var(--safe-bottom));
-    width: min(198px, 46vw);
     z-index: 36;
   }
 }
 
 @media (max-width: 640px) {
-  .right-action-dock {
-    width: min(176px, 48vw);
+  .bottom-hud {
+    --action-dock-width: min(176px, 48vw);
+    --action-dock-compact-width: 92px;
   }
 }
 
 @media (min-width: 640px) {
   .bottom-hud {
-    --me-slot-width: 142px;
     --hand-max-width: 860px;
   }
 }
@@ -3713,12 +3842,9 @@ watch(
   }
 
   .bottom-hud {
-    --me-slot-width: 162px;
     --hand-max-width: 760px;
-  }
-
-  .right-action-dock {
-    width: clamp(270px, 20vw, 330px);
+    --action-dock-width: 320px;
+    --action-dock-compact-width: 108px;
   }
 }
 
@@ -3732,8 +3858,9 @@ watch(
   }
 
   .bottom-hud {
-    --me-slot-width: 132px;
     --hand-max-width: 700px;
+    --action-dock-width: 238px;
+    --action-dock-compact-width: 104px;
   }
 
   .hand-rail {
@@ -3849,8 +3976,9 @@ watch(
   }
 
   .bottom-hud {
-    --me-slot-width: 124px;
     --hand-max-width: 100%;
+    --action-dock-width: 230px;
+    --action-dock-compact-width: 96px;
     --hud-main-gap: 6px;
   }
 
@@ -3885,7 +4013,8 @@ watch(
   }
 
   .bottom-hud {
-    --me-slot-width: 108px;
+    --action-dock-width: 208px;
+    --action-dock-compact-width: 92px;
   }
 }
 
@@ -3966,17 +4095,18 @@ watch(
   .bottom-hud {
     width: 100%;
     gap: 6px;
-    --me-slot-width: 128px;
     --hand-max-width: 100%;
+    --action-dock-width: min(198px, 42vw);
+    --action-dock-compact-width: 92px;
     --hud-main-gap: 6px;
   }
 
   .bottom-hud-main {
-    grid-template-columns: var(--me-slot-width) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) var(--action-dock-width);
   }
 
-  .bottom-slot-me {
-    width: var(--me-slot-width);
+  .bottom-hud-main--compact-action {
+    grid-template-columns: minmax(0, 1fr) var(--action-dock-compact-width);
   }
 
   .hand-rail {

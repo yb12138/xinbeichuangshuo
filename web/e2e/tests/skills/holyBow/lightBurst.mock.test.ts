@@ -16,7 +16,8 @@ test.describe('holy bow light burst protocol harness', () => {
   test('branch 1: draw + heal removal + faith, ally gains heal', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(lightBurstScenario({ heal: 2 }));
 
-    // Activate skill
+
+    await page.getByTestId('action-hub-trigger').click();
   await page.getByTestId('action-magic').click();
   await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${HB_LIGHT_BURST_SKILL_ID}`).click();
@@ -46,7 +47,8 @@ test.describe('holy bow light burst protocol harness', () => {
   test('branch 2: X=1 single target selection (no finish button needed)', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(lightBurstScenario({ heal: 2 }));
 
-    // Activate skill
+
+    await page.getByTestId('action-hub-trigger').click();
   await page.getByTestId('action-magic').click();
   await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${HB_LIGHT_BURST_SKILL_ID}`).click();
@@ -95,7 +97,8 @@ test.describe('holy bow light burst protocol harness', () => {
   test('branch 2: X=2 multi-target iteration', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(lightBurstScenario({ heal: 3 }));
 
-    // Activate skill
+
+    await page.getByTestId('action-hub-trigger').click();
   await page.getByTestId('action-magic').click();
   await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${HB_LIGHT_BURST_SKILL_ID}`).click();
@@ -147,7 +150,8 @@ test.describe('holy bow light burst protocol harness', () => {
   test('branch 2: X=2 select 1 target then click finish button', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(lightBurstScenario({ heal: 3 }));
 
-    // Activate skill
+
+    await page.getByTestId('action-hub-trigger').click();
   await page.getByTestId('action-magic').click();
   await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${HB_LIGHT_BURST_SKILL_ID}`).click();

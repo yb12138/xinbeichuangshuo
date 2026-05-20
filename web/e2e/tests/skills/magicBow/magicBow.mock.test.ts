@@ -41,6 +41,7 @@ async function selectHandCards(page: Page, indices: number[]) {
 }
 
 async function activatePanelSkill(page: Page, skillId: string) {
+  await page.getByTestId('action-hub-trigger').click();
   await page.getByTestId('action-magic').click();
   await page.getByTestId('action-skill').click();
   await page.getByTestId(`skill-${skillId}`).click();
@@ -49,9 +50,9 @@ async function activatePanelSkill(page: Page, skillId: string) {
 test.describe('magic bow protocol harness', () => {
   test('magic pierce: attack -> response confirm -> remove fire charge -> accept hit bonus -> remove fire charge', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(magicBowScenario());
-
-    await page.getByTestId('action-attack').click();
-    await page.getByTestId('hand-card-0').click();
+    await page.getByTestId('action-hub-trigger').click();
+  await page.getByTestId('action-attack').click();
+await page.getByTestId('hand-card-0').click();
     await page.getByTestId(`player-area-${ENEMY_PLAYER_ID}`).click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Attack',

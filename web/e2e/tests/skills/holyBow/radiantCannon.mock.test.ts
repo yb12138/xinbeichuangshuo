@@ -9,7 +9,8 @@ test.describe('holy bow radiant cannon protocol harness', () => {
   test('activate radiant cannon and choose red morale', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(radiantCannonScenario());
 
-    // Activate skill
+
+    await page.getByTestId('action-hub-trigger').click();
   await page.getByTestId('action-magic').click();
   await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${HB_RADIANT_CANNON_SKILL_ID}`).click();
@@ -32,7 +33,8 @@ test.describe('holy bow radiant cannon protocol harness', () => {
   test('activate radiant cannon and choose blue morale', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(radiantCannonScenario());
 
-    // Activate skill
+
+    await page.getByTestId('action-hub-trigger').click();
   await page.getByTestId('action-magic').click();
   await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${HB_RADIANT_CANNON_SKILL_ID}`).click();
