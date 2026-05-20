@@ -355,20 +355,19 @@ export function beastReturnResponsePrompt(): WsMessage {
   );
 }
 
-// 后端 buildBeastReturnXPrompt 选项为 X=0..maxX（含「不移除兽魂」），option id 为字符串数字。
+// 后端 buildBeastReturnXPrompt 选项为 X=1..maxX，option id 为字符串数字。
 export function beastReturnXPrompt(xMax: number): WsMessage {
   const options: { id: string; label: string; button_label: string }[] = [];
-  for (let i = 0; i <= xMax; i++) {
-    const label = i === 0 ? 'X=0（不移除兽魂）' : `X=${i}`;
-    options.push({ id: `${i}`, label, button_label: String(i) });
+  for (let i = 1; i <= xMax; i++) {
+    options.push({ id: `${i}`, label: `X=${i}`, button_label: String(i) });
   }
   return requireActionMessage({
     type: 'confirm',
     player_id: BSW_PLAYER_ID,
-    message: `【兽返】请选择要移除的兽魂数量（0-${xMax}）：`,
+    message: `【兽返】请选择要移除的兽魂数量（1-${xMax}）：`,
     choice_type: 'bs_beast_return_x',
     options,
-    presentation: { kind: 'numeric', numeric_base: 0 },
+    presentation: { kind: 'numeric', numeric_base: 1 },
     min: 1,
     max: 1,
   } satisfies Prompt);
@@ -466,36 +465,40 @@ export function reversalIaijutsuResponsePrompt(): WsMessage {
   );
 }
 
-// 后端 buildReversalXPrompt：X=1..maxX，文案标注 "目标将弃置 X+2 张手牌"。
+// 后端 buildReversalXPrompt：X=0..maxX，文案标注 "目标将弃置 X+2 张手牌"。
 export function reversalIaijutsuXPrompt(xMax: number): WsMessage {
   const options: { id: string; label: string; button_label: string }[] = [];
-  for (let i = 1; i <= xMax; i++) {
+  for (let i = 0; i <= xMax; i++) {
     options.push({ id: `${i}`, label: `X=${i}（目标将弃置${i + 2}张手牌）`, button_label: String(i) });
   }
   return requireActionMessage({
     type: 'confirm',
     player_id: BSW_PLAYER_ID,
-    message: `【逆反居合斩】请选择要移除的兽魂数量（1-${xMax}）：`,
+    message: `【逆反居合斩】请选择要移除的兽魂数量（0-${xMax}）：`,
     choice_type: 'bs_reversal_x',
     options,
-    presentation: { kind: 'numeric', numeric_base: 1 },
+    presentation: { kind: 'numeric', numeric_base: 0 },
     min: 1,
     max: 1,
   } satisfies Prompt);
 }
 
-// 攻击目标弃牌：后端 buildDiscardPrompt 走 PromptChooseCards，每次 Max=1 迭代消耗。
+// 攻击目标弃牌：后端 buildDiscardPrompt 走 PromptChooseCards，一次提交本轮可弃数量。
 export function reversalIaijutsuTargetDiscardPrompt(discardCount: number): WsMessage {
+  const options = Array.from({ length: discardCount }, (_, i) => ({
+    id: `${i}`,
+    label: `${i + 1}: 神秘手牌`,
+    button_label: '选择',
+    card_id: `enemy-hidden-card-${i + 1}`,
+  }));
   return requireActionMessage({
     type: 'choose_cards',
     player_id: ENEMY_PLAYER_ID,
     message: `【逆反居合斩】请选择弃置${discardCount}张手牌：`,
     choice_type: 'bs_reversal_target_discard',
-    options: [
-      { id: '0', label: '1: 神秘手牌', button_label: '选择', card_id: 'enemy-hidden-card-1' },
-    ],
-    min: 1,
-    max: 1,
+    options,
+    min: discardCount,
+    max: discardCount,
     interaction: handCardIDInteraction,
     presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'option_limited', numeric_base: 0 },
   } satisfies Prompt);

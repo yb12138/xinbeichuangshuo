@@ -19,12 +19,12 @@ test.describe('beast samurai reversal iaijutsu protocol harness', () => {
       option_indexes: [0],
     });
 
-    // 选 X=2（显示值为 2，option index = 1）→ 目标将弃置 X+2=4 张
+    // 选 X=2（显示值为 2，option index = 2）→ 目标将弃置 X+2=4 张
     await protocolHarness.pushServerMessage(reversalIaijutsuXPrompt(3));
     await page.getByTestId('numeric-option-2').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [1],
+      option_indexes: [2],
     });
 
     // 后端直接以攻击目标为弃牌对象，无需额外目标选择步。
@@ -58,10 +58,30 @@ test.describe('beast samurai reversal iaijutsu protocol harness', () => {
     await page.getByTestId('numeric-option-1').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [0],
+      option_indexes: [1],
     });
 
     await protocolHarness.pushServerMessage(reversalIaijutsuTargetDiscardPrompt(3));
+  });
+
+  test('reversal iaijutsu: pick X=0 with no beast soul (target discards 2 cards)', async ({ page, protocolHarness }) => {
+    await protocolHarness.bootGame(reversalIaijutsuScenario({ beast_souls: 0 }));
+
+    await protocolHarness.pushServerMessage(reversalIaijutsuResponsePrompt());
+    await page.getByTestId('skill-branch-overlay').getByTestId('branch-option-0').click();
+    await protocolHarness.expectSubmitAction({
+      action_type: 'Select',
+      option_indexes: [0],
+    });
+
+    await protocolHarness.pushServerMessage(reversalIaijutsuXPrompt(0));
+    await page.getByTestId('numeric-option-0').click();
+    await protocolHarness.expectSubmitAction({
+      action_type: 'Select',
+      option_indexes: [0],
+    });
+
+    await protocolHarness.pushServerMessage(reversalIaijutsuTargetDiscardPrompt(2));
   });
 
   test('reversal iaijutsu: pick X=max (target discards X+2=5 cards)', async ({ page, protocolHarness }) => {
@@ -78,7 +98,7 @@ test.describe('beast samurai reversal iaijutsu protocol harness', () => {
     await page.getByTestId('numeric-option-3').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [2],
+      option_indexes: [3],
     });
 
     await protocolHarness.pushServerMessage(reversalIaijutsuTargetDiscardPrompt(5));

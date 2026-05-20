@@ -66,7 +66,7 @@ export const useBattleFxStore = defineStore('battlefx', () => {
   const sessionStore = useSessionStore()
   const snapshotStore = useSnapshotStore()
   const uiStore = useUiStore()
-  const { myPlayerId, myCamp } = storeToRefs(sessionStore)
+  const { roomPlayers, myPlayerId, myCamp } = storeToRefs(sessionStore)
   const { players } = storeToRefs(snapshotStore)
   const { cinematicMode } = storeToRefs(uiStore)
 
@@ -92,12 +92,17 @@ export const useBattleFxStore = defineStore('battlefx', () => {
   let damageEffectsId = 0
 
   function resolveInitiatorFocusSide(playerId: string): InitiatorFocusSide {
+    const rosterIndex = roomPlayers.value.findIndex((player) => player.id === playerId)
+    if (rosterIndex >= 0) {
+      return rosterIndex < 3 ? 'left' : 'right'
+    }
+
     const actorCamp = players.value[playerId]?.camp
     if ((myCamp.value === 'Red' || myCamp.value === 'Blue') && (actorCamp === 'Red' || actorCamp === 'Blue')) {
-      return actorCamp === myCamp.value ? 'right' : 'left'
+      return actorCamp === myCamp.value ? 'left' : 'right'
     }
-    if (playerId === myPlayerId.value) return 'right'
-    return 'left'
+    if (playerId === myPlayerId.value) return 'left'
+    return 'right'
   }
 
   function cancelInitiatorFocusIdleTimer() {

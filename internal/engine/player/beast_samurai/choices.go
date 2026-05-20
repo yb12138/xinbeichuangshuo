@@ -55,33 +55,35 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 
 func buildBeastReturnXPrompt(playerID string, data map[string]interface{}) *model.Prompt {
 	maxX := runtimeutil.ToIntContextValue(data["max_x"])
-	options := make([]model.PromptOption, 0, maxX+1)
-	for x := 0; x <= maxX; x++ {
-		label := fmt.Sprintf("X=%d", x)
-		if x == 0 {
-			label = "X=0（不移除兽魂）"
-		}
+	if maxX < 1 {
+		return nil
+	}
+	options := make([]model.PromptOption, 0, maxX)
+	for x := 1; x <= maxX; x++ {
 		options = append(options, model.PromptOption{
 			ID:    fmt.Sprintf("%d", x),
-			Label: label,
+			Label: fmt.Sprintf("X=%d", x),
 		})
 	}
 	return &model.Prompt{
 		Type:         model.PromptConfirm,
 		PlayerID:     playerID,
 		ChoiceType:   "bs_beast_return_x",
-		Message:      fmt.Sprintf("【兽返】请选择要移除的兽魂数量（0-%d）：", maxX),
+		Message:      fmt.Sprintf("【兽返】请选择要移除的兽魂数量（1-%d）：", maxX),
 		Options:      options,
 		Min:          1,
 		Max:          1,
-		Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 0},
+		Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 1},
 	}
 }
 
 func buildReversalXPrompt(playerID string, data map[string]interface{}) *model.Prompt {
 	maxX := runtimeutil.ToIntContextValue(data["max_x"])
-	options := make([]model.PromptOption, 0, maxX)
-	for x := 1; x <= maxX; x++ {
+	if maxX < 0 {
+		maxX = 0
+	}
+	options := make([]model.PromptOption, 0, maxX+1)
+	for x := 0; x <= maxX; x++ {
 		options = append(options, model.PromptOption{
 			ID:    fmt.Sprintf("%d", x),
 			Label: fmt.Sprintf("X=%d（目标将弃置%d张手牌）", x, x+2),
@@ -91,11 +93,11 @@ func buildReversalXPrompt(playerID string, data map[string]interface{}) *model.P
 		Type:         model.PromptConfirm,
 		PlayerID:     playerID,
 		ChoiceType:   "bs_reversal_x",
-		Message:      fmt.Sprintf("【逆反居合斩】请选择要移除的兽魂数量（1-%d）：", maxX),
+		Message:      fmt.Sprintf("【逆反居合斩】请选择要移除的兽魂数量（0-%d）：", maxX),
 		Options:      options,
 		Min:          1,
 		Max:          1,
-		Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 1},
+		Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 0},
 	}
 }
 
@@ -257,11 +259,11 @@ func handleBeastReturnX(rt engineplayer.ChoiceRuntime, ctxData map[string]interf
 	if current := BeastSoul(user); maxX > current {
 		maxX = current
 	}
-	if selectionIndex < 0 || selectionIndex > maxX {
+	x := selectionIndex + 1
+	if x < 1 || x > maxX {
 		return fmt.Errorf("无效的X值: %d", selectionIndex)
 	}
 
-	x := selectionIndex
 	consumed := consumeBeastSoul(user, x)
 	resumePoint := resumePointFromCtx(ctxData, model.CombatStageCalcDamage)
 	rt.Log(fmt.Sprintf("%s 的 [兽返] 结算：移除%d点兽魂，残心同步+%d", user.Name, consumed, consumed))
@@ -310,8 +312,8 @@ func handleReversalX(rt engineplayer.ChoiceRuntime, ctxData map[string]interface
 	if current := BeastSoul(user); maxX > current {
 		maxX = current
 	}
-	x := selectionIndex + 1
-	if x < 1 || x > maxX {
+	x := selectionIndex
+	if x < 0 || x > maxX {
 		return fmt.Errorf("无效的X值: %d", selectionIndex)
 	}
 

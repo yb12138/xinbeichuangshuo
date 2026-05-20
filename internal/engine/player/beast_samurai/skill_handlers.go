@@ -204,7 +204,7 @@ func (h *BeastSamuraiBeastReturnHandler) CanUse(ctx *model.Context) bool {
 	if ctx.Target == nil || ctx.Target.ID == ctx.User.ID {
 		return false
 	}
-	return true
+	return engineplayer.GetToken(ctx.User, "bs_beast_soul") > 0
 }
 
 func (h *BeastSamuraiBeastReturnHandler) Execute(ctx *model.Context) error {
@@ -212,6 +212,9 @@ func (h *BeastSamuraiBeastReturnHandler) Execute(ctx *model.Context) error {
 		return fmt.Errorf("兽返上下文无效")
 	}
 	maxX := engineplayer.GetToken(ctx.User, "bs_beast_soul")
+	if maxX <= 0 {
+		return fmt.Errorf("兽返需要至少1点兽魂")
+	}
 	ctx.Game.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
@@ -223,7 +226,7 @@ func (h *BeastSamuraiBeastReturnHandler) Execute(ctx *model.Context) error {
 			"resume_phase": beastSamuraiResumePhase(ctx),
 		},
 	})
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [兽返]：请选择X（0~%d）", ctx.User.Name, maxX))
+	ctx.Game.Log(fmt.Sprintf("%s 发动 [兽返]：请选择X（1~%d）", ctx.User.Name, maxX))
 	return nil
 }
 
@@ -265,9 +268,6 @@ func (h *BeastSamuraiReversalIaijutsuSlashHandler) CanUse(ctx *model.Context) bo
 	if ctx.User.Form != "beast_samurai_iaijutsu_form" {
 		return false
 	}
-	if engineplayer.GetToken(ctx.User, "bs_beast_soul") <= 0 {
-		return false
-	}
 	target := ctx.Target
 	if target == nil {
 		return false
@@ -292,7 +292,7 @@ func (h *BeastSamuraiReversalIaijutsuSlashHandler) Execute(ctx *model.Context) e
 			"resume_phase": beastSamuraiResumePhase(ctx),
 		},
 	})
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [逆反居合斩]：请选择X（1~%d）", ctx.User.Name, maxX))
+	ctx.Game.Log(fmt.Sprintf("%s 发动 [逆反居合斩]：请选择X（0~%d）", ctx.User.Name, maxX))
 	return nil
 }
 

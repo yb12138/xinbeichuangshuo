@@ -19,12 +19,12 @@ test.describe('beast samurai beast return protocol harness', () => {
       option_indexes: [0],
     });
 
-    // 后端 X 范围为 0..3（含「X=0 不移除兽魂」），option_indexes 与 id 对齐
+    // 后端 X 范围为 1..3；numeric_base=1，所以 X=2 对应 option index=1。
     await protocolHarness.pushServerMessage(beastReturnXPrompt(3));
     await page.getByTestId('numeric-option-2').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [2],
+      option_indexes: [1],
     });
   });
 
@@ -37,24 +37,6 @@ test.describe('beast samurai beast return protocol harness', () => {
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1],
-    });
-  });
-
-  test('beast return: pick X=0 (不移除兽魂)', async ({ page, protocolHarness }) => {
-    await protocolHarness.bootGame(beastReturnScenario({ beast_souls: 3 }));
-
-    await protocolHarness.pushServerMessage(beastReturnResponsePrompt());
-    await page.getByTestId('skill-branch-overlay').getByTestId('branch-option-0').click();
-    await protocolHarness.expectSubmitAction({
-      action_type: 'Select',
-      option_indexes: [0],
-    });
-
-    await protocolHarness.pushServerMessage(beastReturnXPrompt(3));
-    await page.getByTestId('numeric-option-0').click();
-    await protocolHarness.expectSubmitAction({
-      action_type: 'Select',
-      option_indexes: [0],
     });
   });
 
@@ -72,7 +54,7 @@ test.describe('beast samurai beast return protocol harness', () => {
     await page.getByTestId('numeric-option-3').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [3],
+      option_indexes: [2],
     });
   });
 
@@ -98,7 +80,7 @@ test.describe('beast samurai beast return protocol harness', () => {
     await page.getByTestId('numeric-option-2').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [2],
+      option_indexes: [1],
     });
 
     // Step 3: 自己弃 X=2 张牌 (bs_beast_return_self_discard)
@@ -136,7 +118,7 @@ test.describe('beast samurai beast return protocol harness', () => {
     await page.getByTestId('numeric-option-1').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [1],
+      option_indexes: [0],
     });
 
     // Step 3: 自己弃 X=1 张牌 (bs_beast_return_self_discard)
@@ -150,33 +132,6 @@ test.describe('beast samurai beast return protocol harness', () => {
     });
 
     // Step 4: 伤害来源弃1张牌 (bs_beast_return_source_discard)
-    // 弃牌 PromptChooseCards 投递给目标玩家（enemy，本地玩家不渲染）
-    await protocolHarness.pushServerMessage(beastReturnSourceDiscardPrompt());
-  });
-
-  test('beast return: full flow with X=0 - no self discard, source discard 1 card', async ({ page, protocolHarness }) => {
-    await protocolHarness.bootGame(beastReturnScenario({ beast_souls: 3 }));
-
-    // Step 1: 响应技能确认弹框 - 选择发动兽返
-    await protocolHarness.pushServerMessage(beastReturnResponsePrompt());
-    await expect(page.getByTestId('skill-branch-overlay')).toBeVisible();
-    await page.getByTestId('skill-branch-overlay').getByTestId('branch-option-0').click();
-    await protocolHarness.expectSubmitAction({
-      action_type: 'Select',
-      option_indexes: [0],
-    });
-
-    // Step 2: 选择 X=0（不移除兽魂，无需弃牌）
-    // 后端逻辑：X=0 时 selfDiscardCount=0，跳过 self discard，直接检查 source discard
-    await protocolHarness.pushServerMessage(beastReturnXPrompt(3));
-    await page.getByTestId('numeric-option-0').click();
-    await protocolHarness.expectSubmitAction({
-      action_type: 'Select',
-      option_indexes: [0],
-    });
-
-    // X=0 时自己不需要弃牌，但伤害来源仍需弃1张牌
-    // Step 3: 伤害来源弃1张牌 (bs_beast_return_source_discard)
     // 弃牌 PromptChooseCards 投递给目标玩家（enemy，本地玩家不渲染）
     await protocolHarness.pushServerMessage(beastReturnSourceDiscardPrompt());
   });
@@ -198,7 +153,7 @@ test.describe('beast samurai beast return protocol harness', () => {
     await page.getByTestId('numeric-option-3').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [3],
+      option_indexes: [2],
     });
 
     // Step 3: 自己弃 X=3 张牌（玩家有4张手牌）
