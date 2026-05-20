@@ -1179,15 +1179,8 @@ const isSkillChoicePrompt = computed(() => {
 })
 
 function parseSkillTitle(option: DockButtonOption, index: number): string {
-  const rawLabel = String(option.label || '').trim()
+  const rawLabel = String(option.label || option.buttonLabel || '').trim()
   let title = rawLabel || `技能 ${index + 1}`
-
-  // 兼容旧服务端：若 label 仍为”标题：说明”，前端兜底只截标题。
-  const separatorIndex = rawLabel.indexOf('：')
-  if (separatorIndex > 0) {
-    const parsedTitle = rawLabel.slice(0, separatorIndex).trim()
-    if (parsedTitle) title = parsedTitle
-  }
 
   // 去掉前缀序号与尾部消耗标记，按钮中尽量只保留技能名。
   title = title.replace(/^\d+\s*[.)、]\s*/, '').trim()

@@ -153,13 +153,8 @@ test.describe('butterfly dancer chrysalis protocol harness', () => {
  * - /internal/engine/player/butterfly_dancer/module.go (bt_life_fire skill ID)
  */
 test.describe('butterfly dancer life fire protocol harness (pending backend implementation)', () => {
-  test.skip('life fire: activate and verify max hand floor update', async ({ page, protocolHarness }) => {
-    // 待后端实现 ButterflyLifeFireHandler.Execute 后补充
-    // 预期流程：
-    // 1. 激活生命之火技能
-    // 2. 验证 SubmitAction { action_type: 'Skill', skill_id: 'bt_life_fire' }
-    // 3. 后端推送 sync_state，包含 max_hand 更新
-    // 4. 验证前端状态面板显示新的手牌上限
+  test('life fire: activate and verify max hand floor update', async () => {
+    test.fixme(true, 'ButterflyLifeFireHandler currently has CanUse=false and Execute=nil; enable once the backend exposes an activatable life fire flow.');
   });
 });
 

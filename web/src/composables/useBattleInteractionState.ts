@@ -225,13 +225,13 @@ export function useBattleInteractionState() {
 
   const effectiveAvailableSkills = computed((): AvailableSkill[] => {
     // 行动阶段且轮到自己时，主动技可用性以后端 available_skills 为准（包含空列表）。
-    // 避免前端 fallback 重新”猜”规则导致与后端可用态漂移。
+    // 避免前端按角色目录重新推断规则导致与后端可用态漂移。
     // 【关键修复】当后端明确下发 available_skills（即使为空列表）时，
-    // 不再触发 fallback，防止 “所有技能被锁定” 场景误显示技能。
+    // 不再使用目录推导结果，防止 “所有技能被锁定” 场景误显示技能。
     if (isMyTurn.value && turnStage.value === 'ActionExecution') {
       return availableSkills.value
     }
-    // 【关键】仅在非行动执行阶段，且后端从未下发 available_skills 时才使用 fallback。
+    // 【关键】仅在非行动执行阶段，且后端从未下发 available_skills 时才使用目录技能摘要。
     // 通过检查 snapshotStore 的 availableSkills 是否被显式设置来判断。
     // 如果 turnStage 是 ActionExecution 但 availableSkills 为空，说明后端已下发空列表（技能全被锁定）。
     if (turnStage.value === 'ActionExecution') {
@@ -244,7 +244,7 @@ export function useBattleInteractionState() {
     const roleId = myCharRole.value || char.id
     const roleName = char.name
     const actionSkills = char.skills.filter((skill: { type?: number }) => (skill.type ?? 2) === 2)
-    return actionSkills
+    const catalogAvailableSkills = actionSkills
       .filter((skill: SkillView) => {
         if (!skill.require_exclusive) return true
         return myHand.value.some((card) => cardMatchesExclusive(card, roleId, skill.title, roleName)) ||
@@ -268,6 +268,7 @@ export function useBattleInteractionState() {
           require_exclusive: skill.require_exclusive,
         }
       })
+    return catalogAvailableSkills
   })
 
   const canConfirmSkill = computed(() => {

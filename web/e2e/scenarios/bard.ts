@@ -788,7 +788,7 @@ export function descentCardsDirectPrompt(pickRemaining: number, candidateIndices
   } satisfies Prompt);
 }
 
-// 旧流程的保留函数（用于兼容性或回退测试）
+// Element-filtered card prompt fixture for targeted protocol-shape coverage.
 export function descentCardsPrompt(chosenElement: string, pickRemaining: number): WsMessage {
   // Build options filtered by chosen element
   const allCards: { idx: number; name: string; element: string }[] = [];

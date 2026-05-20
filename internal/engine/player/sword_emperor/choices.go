@@ -141,7 +141,7 @@ func handleSwordEmperorSwordQiSlashXChoice(rt engineplayer.ChoiceRuntime, select
 		OptionIndexes: []int{selectionIndex},
 		Count:         xValue,
 	})
-	return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, swordQiSlashFlowRuntime, flow, swordQiSlashStepTarget, "se_sword_qi_slash_target")
+	return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, swordQiSlashFlowRuntime, flow, swordQiSlashStepTarget)
 }
 
 func handleSwordEmperorSwordQiSlashTargetChoice(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {

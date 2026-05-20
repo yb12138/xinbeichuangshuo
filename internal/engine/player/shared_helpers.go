@@ -87,18 +87,21 @@ func NotifyChoiceContext(rt ChoiceRuntime, ctxData map[string]interface{}) {
 	rt.NotifyInterruptPrompt()
 }
 
-// AdvancePromptFlowRuntimeChoice is the explicit runtime-backed variant used by
-// new multi-step prompts. It keeps the formal flow state and legacy choice_type
-// routing synchronized while validating the target step against the flow spec.
-func AdvancePromptFlowRuntimeChoice(rt ChoiceRuntime, ctxData map[string]interface{}, flowRT *model.PromptFlowRuntime, flow *model.PromptFlowState, stepID, choiceType string) error {
+// AdvancePromptFlowRuntimeChoice moves a prompt flow to another declared step
+// and synchronizes the internal choice route key from that step's spec.
+func AdvancePromptFlowRuntimeChoice(rt ChoiceRuntime, ctxData map[string]interface{}, flowRT *model.PromptFlowRuntime, flow *model.PromptFlowState, stepID string) error {
 	if flowRT == nil {
 		return fmt.Errorf("prompt flow runtime is nil")
 	}
 	if err := flowRT.MoveTo(flow, stepID); err != nil {
 		return err
 	}
-	if ctxData != nil && choiceType != "" {
-		ctxData["choice_type"] = choiceType
+	step, ok := flowRT.Step(stepID)
+	if !ok || step.ChoiceType == "" {
+		return fmt.Errorf("prompt flow %q missing choice route for step %q", flowRT.FlowID, stepID)
+	}
+	if ctxData != nil {
+		ctxData["choice_type"] = step.ChoiceType
 	}
 	NotifyChoiceContext(rt, ctxData)
 	return nil

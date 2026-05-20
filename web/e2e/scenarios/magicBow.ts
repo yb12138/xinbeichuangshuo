@@ -477,7 +477,7 @@ export function chargePlaceCardsMultiSelectPrompt(maxPlace = 4): WsMessage {
   } satisfies Prompt);
 }
 
-// 保留旧函数用于兼容性（已废弃，新流程使用 chargePlaceCardsMultiSelectPrompt）
+// Count prompt fixture kept for targeted protocol-shape coverage; the main flow uses chargePlaceCardsMultiSelectPrompt.
 export function chargePlaceCountPrompt(maxPlace = 3): WsMessage {
   return requireActionMessage({
     type: 'confirm',

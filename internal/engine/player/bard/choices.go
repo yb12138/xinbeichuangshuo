@@ -322,7 +322,7 @@ func handleDescentElement(rt engineplayer.ChoiceRuntime, ctxData map[string]inte
 	})
 	flow.PutSelection(descentStepCards, model.PromptFlowSelection{Count: 2})
 	ctxData["remaining_indices"] = engineplayer.GetCardIndicesByElement(user, chosen)
-	return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, descentFlowRuntime, flow, descentStepCards, "bd_descent_cards")
+	return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, descentFlowRuntime, flow, descentStepCards)
 }
 
 func handleDescentCards(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
@@ -385,7 +385,7 @@ func handleDescentCards(rt engineplayer.ChoiceRuntime, ctxData map[string]interf
 	}
 	if hasMagic {
 		ctxData["target_ids"] = campEnemyIDs(rt, user)
-		return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, descentFlowRuntime, flow, descentStepTarget, "bd_descent_target")
+		return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, descentFlowRuntime, flow, descentStepTarget)
 	}
 	rt.PopInterrupt()
 	if rt.GetPendingInterrupt() == nil && len(rt.GetPendingDamageQueue()) > 0 {
@@ -455,7 +455,7 @@ func handleDissonanceX(rt engineplayer.ChoiceRuntime, ctxData map[string]interfa
 		LeaveEternalPrisonerForm(user)
 		rt.Log(fmt.Sprintf("%s 发动 [不谐和弦]：脱离永恒囚徒形态", user.Name))
 	}
-	return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, dissonanceFlowRuntime, flow, dissonanceStepMode, "bd_dissonance_mode")
+	return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, dissonanceFlowRuntime, flow, dissonanceStepMode)
 }
 
 func handleDissonanceMode(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
@@ -476,7 +476,7 @@ func handleDissonanceMode(rt engineplayer.ChoiceRuntime, ctxData map[string]inte
 		Count:         selectionIndex,
 	})
 	ctxData["target_ids"] = append([]string{}, rt.GetPlayerOrder()...)
-	return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, dissonanceFlowRuntime, flow, dissonanceStepTarget, "bd_dissonance_target")
+	return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, dissonanceFlowRuntime, flow, dissonanceStepTarget)
 }
 
 func handleDissonanceTarget(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
@@ -546,7 +546,7 @@ func handleDissonanceTarget(rt engineplayer.ChoiceRuntime, ctxData map[string]in
 	ctxData["current_actor_id"] = currentActor.ID
 	flow.PutSelection(dissonanceStepDiscard, model.PromptFlowSelection{Count: n})
 	ctxData["remaining_indices"] = engineplayer.AllHandIndices(currentActor)
-	return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, dissonanceFlowRuntime, flow, dissonanceStepDiscard, "bd_dissonance_discard_step")
+	return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, dissonanceFlowRuntime, flow, dissonanceStepDiscard)
 }
 
 func handleDissonanceDiscardStep(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
@@ -673,7 +673,7 @@ func handleRousingMode(rt engineplayer.ChoiceRuntime, ctxData map[string]interfa
 		})
 		flow.PutSelection(rousingStepDiscard, model.PromptFlowSelection{Count: 2})
 		ctxData["remaining_indices"] = engineplayer.AllHandIndices(holder)
-		return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, rousingFlowRuntime, flow, rousingStepDiscard, "bd_rousing_discard_cards")
+		return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, rousingFlowRuntime, flow, rousingStepDiscard)
 	case 2: // 跳过
 		flow, err := model.RequirePromptFlow(ctxData, rousingFlowID, "激昂狂想曲")
 		if err == nil {

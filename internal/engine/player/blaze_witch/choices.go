@@ -213,7 +213,7 @@ func handleBlazeWitchSubstituteCardChoice(rt engineplayer.ChoiceRuntime, playerI
 		CardIDs:       []string{user.Hand[cardIdx].ID},
 	})
 	ctxData["target_ids"] = runtimeutil.ParseStringSliceContextValue(ctxData["ally_ids"])
-	return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, substituteDollFlowRuntime, flow, substituteDollStepTarget, "bw_substitute_doll_target")
+	return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, substituteDollFlowRuntime, flow, substituteDollStepTarget)
 }
 
 func handleBlazeWitchManaInversionXChoice(rt engineplayer.ChoiceRuntime, playerID string, selectionIndex int, ctxData map[string]interface{}) error {
@@ -245,7 +245,7 @@ func handleBlazeWitchManaInversionXChoice(rt engineplayer.ChoiceRuntime, playerI
 	})
 	flow.PutSelection(manaInversionStepCards, model.PromptFlowSelection{})
 	ctxData["remaining_indices"] = magicIndices
-	return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, manaInversionFlowRuntime, flow, manaInversionStepCards, "bw_mana_inversion_cards")
+	return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, manaInversionFlowRuntime, flow, manaInversionStepCards)
 }
 
 func handleBlazeWitchManaInversionCardsChoice(rt engineplayer.ChoiceRuntime, playerID string, selectionIndex int, ctxData map[string]interface{}) error {
@@ -298,7 +298,7 @@ func handleBlazeWitchManaInversionCardsChoice(rt engineplayer.ChoiceRuntime, pla
 		Count:         len(selected),
 	})
 	ctxData["target_ids"] = enemyIDs
-	return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, manaInversionFlowRuntime, flow, manaInversionStepTarget, "bw_mana_inversion_target")
+	return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, manaInversionFlowRuntime, flow, manaInversionStepTarget)
 }
 
 func handleBlazeWitchTargetChoice(rt engineplayer.ChoiceRuntime, playerID string, selectionIndex int, ctxData map[string]interface{}) error {

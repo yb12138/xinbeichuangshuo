@@ -421,6 +421,25 @@ function multiSkillChoicePrompt(): Prompt {
   }
 }
 
+function colonLabelSkillChoicePrompt(): Prompt {
+  return {
+    type: 'choose_skill',
+    player_id: 'p2',
+    message: '请选择要发动的技能',
+    options: [
+      { id: 'skill_a', label: '烈焰突刺：造成2点火焰伤害', button_label: '发动' },
+      { id: 'skill_b', label: '冰封结界', button_label: '发动' },
+    ],
+    min: 1,
+    max: 1,
+    presentation: {
+      kind: 'skill_choice',
+      numeric_base: 0,
+      cancel_policy: 'decline',
+    },
+  }
+}
+
 describe('PromptDialog', () => {
   beforeEach(() => {
     submitSelectMock.mockReset()
@@ -905,5 +924,23 @@ describe('PromptDialog', () => {
     await userEvent.click(screen.getByTestId('prompt-option-skip'))
     expect(submitCancelMock).toHaveBeenCalledOnce()
     expect(submitSelectMock).not.toHaveBeenCalled()
+  })
+
+  it('does not parse colon labels as old service skill title shorthand', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    useSessionStore().setRoomInfo('ROOM1', 'p2', 'Blue', 'fighter')
+    useSnapshotStore().updateGameState(buildState())
+    useInterruptStore().setPrompt(colonLabelSkillChoicePrompt())
+
+    render(PromptDialog, {
+      global: {
+        plugins: [pinia],
+      },
+    })
+
+    expect(screen.getAllByText('烈焰突刺：造成2点火焰伤害').length).toBeGreaterThan(0)
+    expect(screen.queryByText(/^烈焰突刺$/)).not.toBeInTheDocument()
   })
 })

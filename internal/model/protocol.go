@@ -62,7 +62,7 @@ type PlayerAction struct {
 	PlayerID string           `json:"player_id"`
 	Type     PlayerActionType `json:"type"`
 
-	TargetID string `json:"target_id,omitempty"` // 单目标 (向后兼容)
+	TargetID string `json:"target_id,omitempty"` // single-target shorthand
 
 	// 【新增】多目标支持
 	TargetIDs []string `json:"target_ids,omitempty"`

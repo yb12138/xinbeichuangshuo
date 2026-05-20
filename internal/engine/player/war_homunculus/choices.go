@@ -249,10 +249,8 @@ func handleRuneReforgeDistribution(rt engineplayer.ChoiceRuntime, ctxData map[st
 func handleRuneX(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int, glyph bool) error {
 	maxX := runtimeutil.ToIntContextValue(ctxData["max_x"])
 	minX := 1
-	nextChoice := "hom_rune_smash_cards"
 	if glyph {
 		minX = 2
-		nextChoice = "hom_glyph_fusion_cards"
 	}
 
 	xValue := selectionIndex
@@ -278,7 +276,7 @@ func handleRuneX(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, 
 	})
 	flow.PutSelection(runeChoiceStepCards, model.PromptFlowSelection{Count: xValue})
 	ctxData["remaining_indices"] = append([]int{}, candidates...)
-	return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, runeChoiceFlowRuntime(glyph), flow, runeChoiceStepCards, nextChoice)
+	return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, runeChoiceFlowRuntime(glyph), flow, runeChoiceStepCards)
 }
 
 func handleRuneCards(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int, glyph bool) error {
@@ -337,11 +335,7 @@ func handleRuneCards(rt engineplayer.ChoiceRuntime, ctxData map[string]interface
 			})
 			maxY := runtimeutil.ToIntContextValue(ctxData["max_y"])
 			if maxY > 0 {
-				nextStep := "hom_rune_smash_y"
-				if glyph {
-					nextStep = "hom_glyph_fusion_y"
-				}
-				return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, runeChoiceFlowRuntime(glyph), flow, runeChoiceStepY, nextStep)
+				return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, runeChoiceFlowRuntime(glyph), flow, runeChoiceStepY)
 			}
 			return resolveRuneChoice(rt, ctxData, glyph)
 		}
@@ -352,7 +346,7 @@ func handleRuneCards(rt engineplayer.ChoiceRuntime, ctxData map[string]interface
 		return nil
 	}
 
-	// 旧流程：逐张选牌直到达到 xValue
+	// 逐张选牌模式：继续收集直到达到 xValue。
 	if len(nextSelected) < xValue {
 		flow.PutSelection(runeChoiceStepCards, model.PromptFlowSelection{
 			OptionIndexes: nextSelected,
@@ -369,11 +363,7 @@ func handleRuneCards(rt engineplayer.ChoiceRuntime, ctxData map[string]interface
 	})
 	maxY := runtimeutil.ToIntContextValue(ctxData["max_y"])
 	if maxY > 0 {
-		nextStep := "hom_rune_smash_y"
-		if glyph {
-			nextStep = "hom_glyph_fusion_y"
-		}
-		return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, runeChoiceFlowRuntime(glyph), flow, runeChoiceStepY, nextStep)
+		return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, runeChoiceFlowRuntime(glyph), flow, runeChoiceStepY)
 	}
 
 	return resolveRuneChoice(rt, ctxData, glyph)
@@ -422,11 +412,7 @@ func handleRuneCardsMultiSelect(glyph bool) func(rt engineplayer.ChoiceRuntime, 
 		})
 		maxY := runtimeutil.ToIntContextValue(ctxData["max_y"])
 		if maxY > 0 {
-			nextStep := "hom_rune_smash_y"
-			if glyph {
-				nextStep = "hom_glyph_fusion_y"
-			}
-			if err := engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, runeChoiceFlowRuntime(glyph), flow, runeChoiceStepY, nextStep); err != nil {
+			if err := engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, runeChoiceFlowRuntime(glyph), flow, runeChoiceStepY); err != nil {
 				return false, err
 			}
 			return true, nil // 消费当前选择步骤，继续弹出 Y 选择

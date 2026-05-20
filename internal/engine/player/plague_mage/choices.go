@@ -177,7 +177,7 @@ func handlePlagueDeathTouchElementChoice(rt engineplayer.ChoiceRuntime, ctxData 
 		OptionIndexes: []int{selectionIndex},
 		Element:       chosenElement,
 	})
-	if err := engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, deathTouchFlowRuntime, flow, deathTouchStepX, "plague_death_touch_x"); err != nil {
+	if err := engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, deathTouchFlowRuntime, flow, deathTouchStepX); err != nil {
 		return err
 	}
 	return nil
@@ -201,7 +201,7 @@ func handlePlagueDeathTouchXChoice(rt engineplayer.ChoiceRuntime, ctxData map[st
 		OptionIndexes: []int{selectionIndex},
 		Count:         xValue,
 	})
-	if err := engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, deathTouchFlowRuntime, flow, deathTouchStepCards, "plague_death_touch_cards"); err != nil {
+	if err := engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, deathTouchFlowRuntime, flow, deathTouchStepCards); err != nil {
 		return err
 	}
 	return nil
@@ -246,7 +246,7 @@ func handleDeathTouchCardsMultiSelect(rt engineplayer.ChoiceRuntime, playerID st
 	}
 	targetIDs := campEnemyIDs(rt, user)
 	flow.PutSelection(deathTouchStepTarget, model.PromptFlowSelection{TargetIDs: targetIDs})
-	return true, engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, deathTouchFlowRuntime, flow, deathTouchStepTarget, "plague_death_touch_target")
+	return true, engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, deathTouchFlowRuntime, flow, deathTouchStepTarget)
 }
 
 func handlePlagueDeathTouchTargetChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {

@@ -47,18 +47,24 @@ test.describe('magic lancer dark barrier protocol harness', () => {
     });
   });
 
-  test.skip('select all valid cards', async ({ page, protocolHarness }) => {
+  test('prevents mixing magic and thunder cards in one dark barrier discard', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(darkBarrierScenario());
 
     await protocolHarness.pushServerMessage(darkBarrierCardsPrompt());
 
     await expect(page.getByTestId('prompt-dialog')).toBeVisible();
 
-    // Select all valid cards (all magic OR all thunder; cascade constraint says magic first)
-    await selectHandCards(page, [0, 1, 2]);
+    // Dark Barrier allows either all magic cards or all thunder cards. After picking
+    // magic cards, the thunder card must remain unavailable for this submission.
+    await page.getByTestId('hand-card-0').click();
+    await page.getByTestId('hand-card-1').click();
+    await expect(page.getByTestId('hand-card-2')).not.toHaveClass(/selectable/);
+    await page.getByTestId('hand-card-2').click();
+    await expect(page.getByTestId('hand-card-2')).not.toHaveClass(/selected/);
+    await page.getByTestId('prompt-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      card_ids: ['ml-magic-1', 'ml-magic-2', 'ml-thunder-1'],
+      card_ids: ['ml-magic-1', 'ml-magic-2'],
     });
   });
 });

@@ -287,9 +287,7 @@ export function stealSkyChangeDayBranchPrompt(): WsMessage {
   } satisfies Prompt);
 }
 
-// 能量转移分支（旧版逻辑已废弃，偷天换日现在只有两分支直接执行）
-// 以下 prompts 仅用于向后兼容旧版 E2E 测试，实际后端不会触发
-
+// Scenario builders for removed exploratory branches; retained only for explicit fixture coverage.
 export function stealSkyChangeDayEnergyTargetPrompt(): WsMessage {
   return requireActionMessage({
     type: 'confirm',

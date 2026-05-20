@@ -59,7 +59,7 @@ export class PromptHelper {
   }
 
   /**
-   * Input a number value (legacy - for numeric input fields).
+   * Input a number value for prompt variants that still expose a text field.
    */
   async inputNumber(value: number): Promise<void> {
     // Try numeric button first

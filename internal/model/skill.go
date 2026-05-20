@@ -237,7 +237,7 @@ const (
 // PromptOption 定义可选项
 type PromptOption struct {
 	ID          string `json:"id"`                     // 选项ID (card index / skill id)
-	Label       string `json:"label"`                  // 原始显示标签（兼容老客户端）
+	Label       string `json:"label"`                  // display label
 	ButtonLabel string `json:"button_label,omitempty"` // 按钮短文案（如：发动/放弃/取消/1）
 	Hint        string `json:"hint,omitempty"`         // 选项说明（展示在按钮上方）
 	CardID      string `json:"card_id,omitempty"`      // 关联实体卡 UUID（卡牌选择专用）
@@ -409,7 +409,7 @@ type Context struct {
 	// 触发上下文（可选，用于复杂事件）
 	EventCtx *EventContext
 
-	// 命令行参数（向后兼容）
+	// 命令行/调试参数
 	Args []string
 
 	// 技能私有输入（UI / AI 注入）
