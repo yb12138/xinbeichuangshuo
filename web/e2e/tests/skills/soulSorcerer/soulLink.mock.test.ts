@@ -13,7 +13,6 @@ test.describe('soulSorcerer soulLink protocol harness', () => {
     await protocolHarness.bootGame(soulLinkScenario({ blue_soul: 1, yellow_soul: 1 }));
 
     // Click skill button (startup skill)
-    await page.getByTestId('action-hub-trigger').click();
   await page.getByTestId('action-magic').click();
   await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${SS_SOUL_LINK_SKILL_ID}`).click();
@@ -34,7 +33,6 @@ test.describe('soulSorcerer soulLink protocol harness', () => {
 
   test('activate soulLink and select second ally', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(soulLinkScenario({ blue_soul: 2, yellow_soul: 2 }));
-    await page.getByTestId('action-hub-trigger').click();
   await page.getByTestId('action-magic').click();
   await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${SS_SOUL_LINK_SKILL_ID}`).click();

@@ -126,7 +126,7 @@ func MaybeDamageResponses(rt engineplayer.ChoiceRuntime, pd *model.PendingDamage
 					Type:     model.InterruptChoice,
 					PlayerID: target.ID,
 					Context: map[string]interface{}{
-						"choice_type":    "bt_pilgrimage_pick",
+						"choice_type":    "bt_pilgrimage_confirm",
 						"user_id":        target.ID,
 						"source_id":      pd.SourceID,
 						"source_name":    sourceName,

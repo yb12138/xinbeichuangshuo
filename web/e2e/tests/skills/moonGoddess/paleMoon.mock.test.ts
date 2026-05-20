@@ -121,7 +121,6 @@ test.describe('moon goddess pale moon protocol harness', () => {
     }));
 
 
-    await page.getByTestId('action-hub-trigger').click();
   await page.getByTestId('action-magic').click();
   await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${MG_PALE_MOON_SKILL_ID}`).click();

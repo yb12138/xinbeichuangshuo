@@ -12,7 +12,6 @@ test.describe('soulSorcerer soulGrant protocol harness', () => {
     await protocolHarness.bootGame(soulGrantScenario({ blue_soul: 3 }));
 
 
-    await page.getByTestId('action-hub-trigger').click();
   await page.getByTestId('action-magic').click();
   await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${SS_SOUL_GRANT_SKILL_ID}`).click();
@@ -33,7 +32,6 @@ test.describe('soulSorcerer soulGrant protocol harness', () => {
 
   test('activate soulGrant and target self', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(soulGrantScenario({ blue_soul: 4 }));
-    await page.getByTestId('action-hub-trigger').click();
   await page.getByTestId('action-magic').click();
   await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${SS_SOUL_GRANT_SKILL_ID}`).click();

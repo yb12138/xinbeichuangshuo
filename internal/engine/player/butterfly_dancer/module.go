@@ -88,6 +88,7 @@ func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 		"bt_dance_discard":           types.ChoiceRouteRole("butterfly_dancer"),
 		"bt_dance_mode":              types.ChoiceRouteRole("butterfly_dancer"),
 		"bt_mirror_pair":             types.ChoiceRouteRole("butterfly_dancer"),
+		"bt_pilgrimage_confirm":      types.ChoiceRouteRole("butterfly_dancer"),
 		"bt_pilgrimage_pick":         types.ChoiceRouteRole("butterfly_dancer"),
 		"bt_poison_pick":             types.ChoiceRouteRole("butterfly_dancer"),
 		"bt_reverse_branch1_pick":    types.ChoiceRouteRole("butterfly_dancer"),

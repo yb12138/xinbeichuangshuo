@@ -10,7 +10,6 @@ export class ActionHelper {
    * Click a main action button from the action hub.
    */
   async clickAction(action: 'magic' | 'attack' | 'pass'): Promise<void> {
-    await this.page.click('[data-testid="action-hub-trigger"]');
     await this.page.click(`[data-testid="action-${action}"]`);
   }
 

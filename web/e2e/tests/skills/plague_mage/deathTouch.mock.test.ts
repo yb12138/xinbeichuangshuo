@@ -21,7 +21,6 @@ async function selectHandCards(page: import('@playwright/test').Page, indices: n
 test.describe('plague mage death touch protocol harness', () => {
   test('runs the full Death Touch prompt flow through the real UI and action adapter', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(plagueMageDeathTouchScenario());
-    await page.getByTestId('action-hub-trigger').click();
   await page.getByTestId('action-magic').click();
   await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${PLAGUE_DEATH_TOUCH_SKILL_ID}`).click();
@@ -71,7 +70,6 @@ test.describe('plague mage death touch protocol harness', () => {
 
   test('cancels the activation-cost prompt and keeps the UI responsive', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(plagueMageDeathTouchScenario());
-    await page.getByTestId('action-hub-trigger').click();
   await page.getByTestId('action-magic').click();
   await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${PLAGUE_DEATH_TOUCH_SKILL_ID}`).click();

@@ -58,6 +58,8 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		return buildReverseBranch2CostPrompt(playerID, data)
 	case "bt_reverse_branch2_pick":
 		return buildReverseBranch2PickPrompt(playerID, player, data)
+	case "bt_pilgrimage_confirm":
+		return buildPilgrimageConfirmPrompt(playerID, data)
 	case "bt_pilgrimage_pick", "bt_poison_pick":
 		return buildPilgrimageOrPoisonPickPrompt(playerID, player, data, choiceType)
 	case "bt_mirror_pair":
@@ -92,6 +94,8 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		return true, handleReverseBranch2Cost(rt, ctxData, selectionIndex)
 	case "bt_reverse_branch2_pick":
 		return true, handleReverseBranch2Pick(rt, ctxData, selectionIndex)
+	case "bt_pilgrimage_confirm":
+		return true, handlePilgrimageConfirm(rt, ctxData, selectionIndex)
 	case "bt_pilgrimage_pick", "bt_poison_pick":
 		return true, handlePilgrimageOrPoisonPick(rt, ctxData, selectionIndex)
 	case "bt_mirror_pair":
@@ -355,6 +359,35 @@ func buildPilgrimageOrPoisonPickPrompt(playerID string, player *model.Player, da
 		Min:          1,
 		Max:          1,
 		Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, Layout: "field_cover", CardSource: "field", CardFilter: "effect:ButterflyCocoon", CancelPolicy: "decline", HasDecline: true, DeclineIndex: 0},
+	}
+}
+
+func buildPilgrimageConfirmPrompt(playerID string, data map[string]interface{}) *model.Prompt {
+	sourceName, _ := data["source_name"].(string)
+	targetName, _ := data["target_name"].(string)
+	damageAmount := runtimeutil.ToIntContextValue(data["damage_amount"])
+	message := "【朝圣】是否发动，移除1个茧抵御1点伤害？"
+	if sourceName != "" && damageAmount > 0 {
+		message = fmt.Sprintf("【朝圣】%s 对 %s 造成 %d 点伤害，是否发动并移除1个茧抵御1点伤害？", sourceName, targetName, damageAmount)
+	}
+	return &model.Prompt{
+		Type:       model.PromptConfirm,
+		PlayerID:   playerID,
+		ChoiceType: "bt_pilgrimage_confirm",
+		Message:    message,
+		Options: []model.PromptOption{
+			{ID: "0", Label: "发动朝圣", ButtonLabel: "发动"},
+			{ID: "1", Label: "不发动", ButtonLabel: "不发动"},
+		},
+		Min: 1,
+		Max: 1,
+		Presentation: &model.PromptPresentation{
+			Kind:         model.PresentationBranchSelect,
+			Layout:       "overlay",
+			CancelPolicy: "decline",
+			HasDecline:   true,
+			DeclineIndex: 1,
+		},
 	}
 }
 
@@ -913,13 +946,7 @@ func handlePilgrimageOrPoisonPick(rt engineplayer.ChoiceRuntime, ctxData map[str
 
 	// selectionIndex == -1 or 0 means "skip"
 	if selectionIndex == -1 || selectionIndex == 0 {
-		rt.PopInterrupt()
-		if rt.GetPendingInterrupt() == nil {
-			if !rt.RoutePendingDamageOr(nil, nil) {
-				rt.EnterExtraActionStage()
-			}
-		}
-		return nil
+		return declinePilgrimageOrPoison(rt)
 	}
 
 	pickIdx := -1
@@ -963,6 +990,31 @@ func handlePilgrimageOrPoisonPick(rt engineplayer.ChoiceRuntime, ctxData map[str
 	rt.PopInterrupt()
 	if rt.GetPendingInterrupt() == nil {
 		rt.EnterDamageResolution(nil)
+	}
+	return nil
+}
+
+func handlePilgrimageConfirm(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
+	if selectionIndex == -1 || selectionIndex == 1 {
+		return declinePilgrimageOrPoison(rt)
+	}
+	if selectionIndex != 0 {
+		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
+	}
+	ctxData["choice_type"] = "bt_pilgrimage_pick"
+	if intr := rt.GetPendingInterrupt(); intr != nil {
+		intr.Context = ctxData
+	}
+	rt.NotifyInterruptPrompt()
+	return nil
+}
+
+func declinePilgrimageOrPoison(rt engineplayer.ChoiceRuntime) error {
+	rt.PopInterrupt()
+	if rt.GetPendingInterrupt() == nil {
+		if !rt.RoutePendingDamageOr(nil, nil) {
+			rt.EnterExtraActionStage()
+		}
 	}
 	return nil
 }

@@ -49,7 +49,12 @@ func newDiscardChoiceInterrupt(playerID string, data map[string]interface{}) *mo
 }
 
 func IsDiscardChoiceType(choiceType string) bool {
-	return choiceType == choiceTypeSystemDiscardCards
+	switch choiceType {
+	case choiceTypeSystemDiscardCards, "bp_curse_discard":
+		return true
+	default:
+		return false
+	}
 }
 
 // isDiscardSubflow checks whether the interrupt context represents a discard

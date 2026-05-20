@@ -143,9 +143,10 @@ func handleBloodPriestessAfterDamage(rt engineplayer.ChoiceRuntime, cont model.F
 			PlayerID: user.ID,
 			Context: func() map[string]any {
 				data := map[string]any{
-					"choice_type":   "bp_curse_discard",
-					"user_id":       user.ID,
-					"discard_count": discardNeed,
+					"choice_type":     "bp_curse_discard",
+					"discard_subflow": true,
+					"user_id":         user.ID,
+					"discard_count":   discardNeed,
 				}
 				model.SetPromptFlowContext(data, initBloodCurseDiscardFlow(discardNeed))
 				return data

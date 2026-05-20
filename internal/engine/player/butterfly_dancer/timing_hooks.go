@@ -42,7 +42,7 @@ func damageBeforeApplyHook(rt player.HookRuntime, ctx player.TimingHookContext) 
 					Type:     model.InterruptChoice,
 					PlayerID: target.ID,
 					Context: map[string]interface{}{
-						"choice_type":    "bt_pilgrimage_pick",
+						"choice_type":    "bt_pilgrimage_confirm",
 						"user_id":        target.ID,
 						"source_id":      pd.SourceID,
 						"target_id":      pd.TargetID,

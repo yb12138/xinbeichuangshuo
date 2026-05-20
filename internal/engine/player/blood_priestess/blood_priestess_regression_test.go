@@ -562,6 +562,12 @@ func TestBloodPriestessBloodCurse_DiscardPromptAndConfirm(t *testing.T) {
 	})
 
 	ctxData := testutils.RequireChoiceContext(t, game, "p1", "bp_curse_discard")
+	if game.State.Subflow != model.SubflowDiscardSelection {
+		t.Fatalf("expected blood curse delayed discard to enter discard subflow, got %s", game.State.Subflow)
+	}
+	if !engine.IsDiscardSelectionInterrupt(game.State.PendingInterrupt) {
+		t.Fatalf("expected blood curse delayed discard interrupt to be recognized as discard selection")
+	}
 	testutils.RequirePromptFlow(t, ctxData, "bp_blood_curse_discard", "cards")
 	if _, ok := ctxData["selected_indices"]; ok {
 		t.Fatalf("blood curse discard should store selections in prompt flow, got legacy selected_indices in %+v", ctxData)
@@ -633,6 +639,12 @@ func TestBloodPriestessBloodCurse_DiscardAllWhenHandInsufficient(t *testing.T) {
 	})
 
 	ctxData := testutils.RequireChoiceContext(t, game, "p1", "bp_curse_discard")
+	if game.State.Subflow != model.SubflowDiscardSelection {
+		t.Fatalf("expected blood curse delayed discard-all to enter discard subflow, got %s", game.State.Subflow)
+	}
+	if !engine.IsDiscardSelectionInterrupt(game.State.PendingInterrupt) {
+		t.Fatalf("expected blood curse delayed discard-all interrupt to be recognized as discard selection")
+	}
 	testutils.RequirePromptFlow(t, ctxData, "bp_blood_curse_discard", "cards")
 	if _, ok := ctxData["selected_indices"]; ok {
 		t.Fatalf("blood curse discard should store selections in prompt flow, got legacy selected_indices in %+v", ctxData)

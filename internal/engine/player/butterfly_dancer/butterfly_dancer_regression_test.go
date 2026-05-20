@@ -412,10 +412,24 @@ func TestButterflyPilgrimage_ResistOneDamage(t *testing.T) {
 	game.State.ReturnTurnStage = model.TurnStageExtraAction
 
 	game.Drive()
+	testutils.RequireChoicePrompt(t, game, "p1", "bt_pilgrimage_confirm")
+	prompt := game.GetCurrentPrompt()
+	if prompt == nil || prompt.Presentation == nil || prompt.Presentation.Kind != model.PresentationBranchSelect {
+		t.Fatalf("expected pilgrimage confirmation overlay prompt, got %+v", prompt)
+	}
+	if len(prompt.Options) != 2 || prompt.Options[0].Label != "发动朝圣" || prompt.Options[1].Label != "不发动" {
+		t.Fatalf("expected pilgrimage confirm/decline options, got %+v", prompt.Options)
+	}
+
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{0},
+	})
 	testutils.RequireChoicePrompt(t, game, "p1", "bt_pilgrimage_pick")
 	assertButterflyCocoonFieldPickerPrompt(t, game.GetCurrentPrompt(), "bt_pilgrimage_pick")
 
-	// 选择移除第一个茧（选项0为不发动，因此这里选1）。
+	// 确认发动后，选择移除第一个茧（选项0为不发动，因此这里选1）。
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID:   "p1",
 		Type:       model.CmdSelect,

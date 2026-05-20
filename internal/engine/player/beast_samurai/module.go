@@ -14,6 +14,7 @@ func RoleEntry() player.RoleEntry {
 		ID:               "beast_samurai",
 		Defaults:         ApplyDefaults,
 		Choices:          NewChoiceHandler(),
+		ChoiceSpecs:      ChoiceSpecs(),
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
 		TimingHookSpecs: []player.TimingHookSpec{
@@ -27,6 +28,13 @@ func RoleEntry() player.RoleEntry {
 			{Timing: player.TimingOnTurnEndFinal, Priority: 100, Hook: turnEndFinalHook},
 			{Timing: player.TimingOnResponseSkillAug, Priority: 100, Hook: responseSkillAugmentHook},
 		},
+	}
+}
+
+// ChoiceSpecs 导出角色 choice 声明（含多选弃牌处理器）。
+func ChoiceSpecs() []player.ChoiceSpec {
+	return []player.ChoiceSpec{
+		{ChoiceType: "bs_reversal_target_discard", HandleMultiSelect: handleReversalTargetDiscardMultiSelect},
 	}
 }
 

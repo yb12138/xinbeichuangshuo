@@ -218,6 +218,12 @@ const myStatusMaxHand = computed(() => {
   return typeof maxHand === 'number' && maxHand >= 0 ? maxHand : 0
 })
 
+const myStatusRoleName = computed(() => {
+  const roleId = String(myAreaPlayer.value?.role || sessionStore.myCharRole || '').trim()
+  if (!roleId) return ''
+  return characters.value[roleId]?.name || roleId
+})
+
 const myFieldStatusItems = computed(() => {
   const field = myAreaPlayer.value?.field || []
   return field
@@ -228,23 +234,6 @@ const myFieldStatusItems = computed(() => {
       label: PLAYER_STATUS_EFFECT_LABEL[fc.effect] || fc.effect,
     }))
 })
-
-const isIdleActionHubContext = computed(() =>
-  isMyTurn.value &&
-  !currentPrompt.value &&
-  actionMode.value === 'none' &&
-  skillMode.value === 'none'
-)
-
-const isPromptActionHubContext = computed(() =>
-  !!currentPrompt.value &&
-  isPromptForMe.value &&
-  isActionSelectionPrompt(currentPrompt.value) &&
-  actionMode.value === 'none' &&
-  skillMode.value === 'none'
-)
-
-const isActionDockCompact = computed(() => isIdleActionHubContext.value || isPromptActionHubContext.value)
 
 // 行动选择 prompt 不触发 blur（已在 ActionPanel 内联展示）
 const gameEndTitle = computed(() => {
@@ -2085,10 +2074,7 @@ watch(
         </div>
 
         <div class="bottom-hud flex-shrink-0 min-h-0 mt-2">
-          <div
-            class="bottom-hud-main"
-            :class="{ 'bottom-hud-main--compact-action': isActionDockCompact }"
-          >
+          <div class="bottom-hud-main">
             <div
               class="hand-rail bottom-slot-hand rounded-lg sm:rounded-xl p-2 sm:p-2 min-h-0"
               :class="{
@@ -2098,7 +2084,7 @@ watch(
             >
               <div v-if="myAreaPlayer" class="my-status-strip">
                 <div class="my-status-primary">
-                  <span class="my-status-name">{{ myAreaPlayer.name }}</span>
+                  <span class="my-status-name">{{ myStatusRoleName }}</span>
                   <span class="my-status-chip my-status-chip--heal">治疗 {{ myAreaPlayer.heal }}/{{ myAreaPlayer.max_heal }}</span>
                   <span class="my-status-chip">手牌上限 {{ myStatusMaxHand }}</span>
                   <span v-if="myAreaPlayer.gem" class="my-status-chip my-status-chip--gem">宝石 {{ myAreaPlayer.gem }}</span>
@@ -2238,8 +2224,7 @@ watch(
             <div
               class="right-action-dock"
               :class="{
-                'right-action-dock--active': isMyTurn,
-                'right-action-dock--compact': isActionDockCompact
+                'right-action-dock--active': isMyTurn
               }"
             >
               <ActionPanel />
@@ -3107,7 +3092,6 @@ watch(
   .bottom-hud {
     --hand-max-width: 940px;
     --action-dock-width: 320px;
-    --action-dock-compact-width: 112px;
   }
 }
 
@@ -3124,7 +3108,6 @@ watch(
   .bottom-hud {
     --hand-max-width: 1040px;
     --action-dock-width: 340px;
-    --action-dock-compact-width: 112px;
   }
 
   .hand-rail {
@@ -3758,7 +3741,6 @@ watch(
   z-index: 2;
   --hand-max-width: 820px;
   --action-dock-width: 300px;
-  --action-dock-compact-width: 108px;
   --hud-main-gap: 10px;
 }
 
@@ -3770,11 +3752,6 @@ watch(
   align-items: end;
   column-gap: var(--hud-main-gap);
   margin: 0;
-}
-
-.bottom-hud-main--compact-action {
-  grid-template-columns: minmax(0, var(--hand-max-width)) var(--action-dock-compact-width);
-  width: min(100%, calc(var(--hand-max-width) + var(--action-dock-compact-width) + var(--hud-main-gap)));
 }
 
 .bottom-slot-hand {
@@ -3799,15 +3776,10 @@ watch(
   transform: translateY(-2px);
 }
 
-.right-action-dock--compact {
-  min-width: var(--action-dock-compact-width);
-}
-
 @media (max-width: 1200px) {
   .bottom-hud {
     --hand-max-width: 700px;
     --action-dock-width: 248px;
-    --action-dock-compact-width: 104px;
   }
 }
 
@@ -3820,7 +3792,6 @@ watch(
 @media (max-width: 640px) {
   .bottom-hud {
     --action-dock-width: min(176px, 48vw);
-    --action-dock-compact-width: 92px;
   }
 }
 
@@ -3844,7 +3815,6 @@ watch(
   .bottom-hud {
     --hand-max-width: 760px;
     --action-dock-width: 320px;
-    --action-dock-compact-width: 108px;
   }
 }
 
@@ -3860,7 +3830,6 @@ watch(
   .bottom-hud {
     --hand-max-width: 700px;
     --action-dock-width: 238px;
-    --action-dock-compact-width: 104px;
   }
 
   .hand-rail {
@@ -3978,7 +3947,6 @@ watch(
   .bottom-hud {
     --hand-max-width: 100%;
     --action-dock-width: 230px;
-    --action-dock-compact-width: 96px;
     --hud-main-gap: 6px;
   }
 
@@ -4014,7 +3982,6 @@ watch(
 
   .bottom-hud {
     --action-dock-width: 208px;
-    --action-dock-compact-width: 92px;
   }
 }
 
@@ -4097,16 +4064,11 @@ watch(
     gap: 6px;
     --hand-max-width: 100%;
     --action-dock-width: min(198px, 42vw);
-    --action-dock-compact-width: 92px;
     --hud-main-gap: 6px;
   }
 
   .bottom-hud-main {
     grid-template-columns: minmax(0, 1fr) var(--action-dock-width);
-  }
-
-  .bottom-hud-main--compact-action {
-    grid-template-columns: minmax(0, 1fr) var(--action-dock-compact-width);
   }
 
   .hand-rail {

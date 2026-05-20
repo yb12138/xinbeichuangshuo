@@ -7,7 +7,7 @@ import GameBoard from '../GameBoard.vue'
 import { useInterruptStore } from '../../stores/interrupt.store'
 import { useSessionStore } from '../../stores/session.store'
 import { useSnapshotStore } from '../../stores/snapshot.store'
-import type { Card, GameStateUpdate, PlayerInfo, PlayerView, Prompt } from '../../types/game'
+import type { Card, CharacterView, GameStateUpdate, PlayerInfo, PlayerView, Prompt } from '../../types/game'
 
 const submitSelectMock = vi.fn()
 const submitSelectCardIDsMock = vi.fn()
@@ -95,7 +95,10 @@ function buildCard(overrides: Partial<Card> = {}): Card {
   }
 }
 
-function buildState(players: Record<string, PlayerView>): GameStateUpdate {
+function buildState(
+  players: Record<string, PlayerView>,
+  overrides: Partial<GameStateUpdate> = {},
+): GameStateUpdate {
   return {
     turn_stage: 'ActionExecution',
     current_player: 'p1',
@@ -112,6 +115,18 @@ function buildState(players: Record<string, PlayerView>): GameStateUpdate {
     deck_count: 30,
     discard_count: 0,
     available_skills: [],
+    ...overrides,
+  }
+}
+
+function buildCharacter(overrides: Partial<CharacterView> = {}): CharacterView {
+  return {
+    id: 'fighter',
+    name: '战士',
+    title: '',
+    faction: '',
+    skills: [],
+    ...overrides,
   }
 }
 
@@ -343,7 +358,9 @@ describe('GameBoard target picker', () => {
 
     useSessionStore().setRoomInfo('ROOM1', 'p1', 'Red', 'fighter')
     useSessionStore().updateRoomPlayers(roster.map(buildPlayerInfo), 'p1')
-    useSnapshotStore().updateGameState(buildState(players))
+    useSnapshotStore().updateGameState(buildState(players, {
+      characters: [buildCharacter({ id: 'fighter', name: '剑斗士' })],
+    }))
 
     render(GameBoard, {
       global: {
@@ -364,5 +381,6 @@ describe('GameBoard target picker', () => {
     expect(screen.getAllByTestId(/^player-area-p/)).toHaveLength(6)
     expect(screen.getByTestId('player-area-p1')).toBeInTheDocument()
     expect(screen.getByText('治疗 1/5')).toBeInTheDocument()
+    expect(document.querySelector('.my-status-name')).toHaveTextContent('剑斗士')
   })
 })

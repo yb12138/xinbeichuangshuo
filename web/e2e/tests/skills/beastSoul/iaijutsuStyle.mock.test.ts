@@ -10,7 +10,6 @@ import {
 test.describe('beast samurai iaijutsu style protocol harness', () => {
   test('iaijutsu style: activate then choose draw', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(iaijutsuStyleScenario({ gems: 1 }));
-    await page.getByTestId('action-hub-trigger').click();
   await page.getByTestId('action-magic').click();
   await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${BSW_IAIJUTSU_STYLE_SKILL_ID}`).click();
@@ -39,7 +38,6 @@ test.describe('beast samurai iaijutsu style protocol harness', () => {
 
   test('iaijutsu style: activate then choose discard (1 card)', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(iaijutsuStyleScenario({ gems: 1 }));
-    await page.getByTestId('action-hub-trigger').click();
   await page.getByTestId('action-magic').click();
   await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${BSW_IAIJUTSU_STYLE_SKILL_ID}`).click();
@@ -74,7 +72,6 @@ test.describe('beast samurai iaijutsu style protocol harness', () => {
 
   test('iaijutsu style: skip startup prompt', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(iaijutsuStyleScenario({ gems: 1 }));
-    await page.getByTestId('action-hub-trigger').click();
   await page.getByTestId('action-magic').click();
   await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${BSW_IAIJUTSU_STYLE_SKILL_ID}`).click();

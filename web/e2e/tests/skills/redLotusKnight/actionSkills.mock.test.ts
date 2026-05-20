@@ -12,7 +12,6 @@ import {
 } from '../../../scenarios/redLotusKnight';
 
 async function activatePanelSkill(page: import('@playwright/test').Page, skillId: string) {
-  await page.getByTestId('action-hub-trigger').click();
   await page.getByTestId('action-magic').click();
   await page.getByTestId('action-skill').click();
   await page.getByTestId(`skill-${skillId}`).click();

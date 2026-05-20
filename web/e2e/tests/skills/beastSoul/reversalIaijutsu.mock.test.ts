@@ -44,7 +44,7 @@ test.describe('beast samurai reversal iaijutsu protocol harness', () => {
     });
   });
 
-  test('reversal iaijutsu: pick X=0 (target discards 2 cards)', async ({ page, protocolHarness }) => {
+  test('reversal iaijutsu: pick X=1 (target discards 3 cards)', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(reversalIaijutsuScenario({ beast_souls: 3 }));
 
     await protocolHarness.pushServerMessage(reversalIaijutsuResponsePrompt());
@@ -55,13 +55,13 @@ test.describe('beast samurai reversal iaijutsu protocol harness', () => {
     });
 
     await protocolHarness.pushServerMessage(reversalIaijutsuXPrompt(3));
-    await page.getByTestId('numeric-option-0').click();
+    await page.getByTestId('numeric-option-1').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
     });
 
-    await protocolHarness.pushServerMessage(reversalIaijutsuTargetDiscardPrompt(2));
+    await protocolHarness.pushServerMessage(reversalIaijutsuTargetDiscardPrompt(3));
   });
 
   test('reversal iaijutsu: pick X=max (target discards X+2=5 cards)', async ({ page, protocolHarness }) => {

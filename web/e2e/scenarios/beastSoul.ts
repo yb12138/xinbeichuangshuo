@@ -462,19 +462,19 @@ export function reversalIaijutsuResponsePrompt(): WsMessage {
   );
 }
 
-// 后端 buildReversalXPrompt：X=0..maxX，文案标注 "目标将弃置 X+2 张手牌"。
+// 后端 buildReversalXPrompt：X=1..maxX，文案标注 "目标将弃置 X+2 张手牌"。
 export function reversalIaijutsuXPrompt(xMax: number): WsMessage {
   const options: { id: string; label: string; button_label: string }[] = [];
-  for (let i = 0; i <= xMax; i++) {
+  for (let i = 1; i <= xMax; i++) {
     options.push({ id: `${i}`, label: `X=${i}（目标将弃置${i + 2}张手牌）`, button_label: String(i) });
   }
   return requireActionMessage({
     type: 'confirm',
     player_id: BSW_PLAYER_ID,
-    message: `【逆反居合斩】请选择要移除的兽魂数量（0-${xMax}）：`,
+    message: `【逆反居合斩】请选择要移除的兽魂数量（1-${xMax}）：`,
     choice_type: 'bs_reversal_x',
     options,
-    presentation: { kind: 'numeric', numeric_base: 0 },
+    presentation: { kind: 'numeric', numeric_base: 1 },
     min: 1,
     max: 1,
   } satisfies Prompt);

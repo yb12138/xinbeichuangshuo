@@ -3,6 +3,7 @@ package beast_samurai_test
 import (
 	"starcup-engine/internal/engine"
 	"starcup-engine/internal/testutils"
+	"strings"
 	"testing"
 
 	skills "starcup-engine/internal/engine/skill"
@@ -518,7 +519,7 @@ func TestBeastSamurai_ReversalIaijutsu_ReplacesDamageWithDiscard(t *testing.T) {
 	}
 	testutils.RequireChoicePrompt(t, game, "p1", "bs_reversal_x")
 
-	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose reversal X=1 failed: %v", err)
 	}
 	requireBeastSamuraiDiscardInterrupt(t, game, "p2", "bs_reversal_target_discard")
@@ -534,11 +535,8 @@ func TestBeastSamurai_ReversalIaijutsu_ReplacesDamageWithDiscard(t *testing.T) {
 		t.Fatalf("reversal discard should store actual count in prompt flow, got legacy actual_discarded in %+v", ctxData)
 	}
 
-	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{0}}); err != nil {
-		t.Fatalf("confirm reversal discard (1st) failed: %v", err)
-	}
-	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{0}}); err != nil {
-		t.Fatalf("confirm reversal discard (2nd) failed: %v", err)
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{0, 1}}); err != nil {
+		t.Fatalf("confirm reversal discard failed: %v", err)
 	}
 	if paused := game.ProcessPendingDamages(); paused {
 		t.Fatalf("expected zero-damage attack to finish after reversal discard")
@@ -555,6 +553,86 @@ func TestBeastSamurai_ReversalIaijutsu_ReplacesDamageWithDiscard(t *testing.T) {
 	}
 	if len(game.State.PendingDamageQueue) != 0 {
 		t.Fatalf("expected pending damage queue cleared, got %d", len(game.State.PendingDamageQueue))
+	}
+}
+
+func TestBeastSamurai_ReversalIaijutsu_MultiSelectShortHandTriggersMoraleLoss(t *testing.T) {
+	game, p1, p2 := newBeastSamuraiTestEngine(t, testutils.NoopObserver{}, "")
+	p1.Orientation = model.OrientationTapped
+	p1.Form = "beast_samurai_iaijutsu_form"
+	p1.Tokens["bs_beast_soul"] = 1
+	p2.Hand = []model.Card{
+		{ID: "target-1", Name: "目标牌1", Type: model.CardTypeAttack, Element: model.ElementFire},
+		{ID: "target-2", Name: "目标牌2", Type: model.CardTypeMagic, Element: model.ElementWater},
+	}
+
+	attackCard := model.Card{
+		ID:      "reversal-hit-short-hand",
+		Name:    "居合斩",
+		Type:    model.CardTypeAttack,
+		Element: model.ElementFire,
+		Faction: "技",
+		Damage:  2,
+	}
+	game.State.CombatStage = model.CombatStageCalcDamage
+	game.State.PendingDamageQueue = []model.PendingDamage{
+		{
+			SourceID:   p1.ID,
+			TargetID:   p2.ID,
+			Damage:     2,
+			DamageType: model.AttackDamage,
+			Card:       &attackCard,
+		},
+	}
+
+	if !game.ProcessPendingDamages() {
+		t.Fatalf("expected reversal prompt on attack hit")
+	}
+	testutils.RequireResponseSkillPrompt(t, game, "p1")
+	if err := game.ConfirmResponseSkill("p1", "bs_reversal_iaijutsu"); err != nil {
+		t.Fatalf("confirm reversal failed: %v", err)
+	}
+	testutils.RequireChoicePrompt(t, game, "p1", "bs_reversal_x")
+	xPrompt := game.BuildChoicePrompt()
+	if xPrompt == nil {
+		t.Fatalf("expected reversal X prompt")
+	}
+	if strings.Contains(xPrompt.Message, "（0-") {
+		t.Fatalf("reversal X prompt should not allow 0, got %q", xPrompt.Message)
+	}
+	if len(xPrompt.Options) != 1 || xPrompt.Options[0].ID != "1" || strings.Contains(xPrompt.Options[0].Label, "X=0") {
+		t.Fatalf("expected reversal X prompt to start at 1, got %+v", xPrompt.Options)
+	}
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
+		t.Fatalf("choose reversal X=1 failed: %v", err)
+	}
+
+	requireBeastSamuraiDiscardInterrupt(t, game, "p2", "bs_reversal_target_discard")
+	prompt := game.BuildChoicePrompt()
+	if prompt == nil {
+		t.Fatalf("expected reversal discard prompt")
+	}
+	if prompt.Min != 2 || prompt.Max != 2 {
+		t.Fatalf("expected prompt to require the two available cards, got min=%d max=%d", prompt.Min, prompt.Max)
+	}
+	if !strings.Contains(prompt.Message, "要求弃置3张手牌") || !strings.Contains(prompt.Message, "只能弃置2张") || !strings.Contains(prompt.Message, "士气-1") {
+		t.Fatalf("expected short-hand morale-loss hint, got %q", prompt.Message)
+	}
+
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{0, 1}}); err != nil {
+		t.Fatalf("confirm reversal discard with two cards failed: %v", err)
+	}
+	if paused := game.ProcessPendingDamages(); paused {
+		t.Fatalf("expected zero-damage attack to finish after reversal discard")
+	}
+	if got := game.State.BlueMorale; got != 14 {
+		t.Fatalf("expected blue morale reduced to 14 because target only discarded 2/3, got %d", got)
+	}
+	if len(p2.Hand) != 0 {
+		t.Fatalf("expected target hand emptied by reversal, got %d", len(p2.Hand))
+	}
+	if game.State.PendingInterrupt != nil {
+		t.Fatalf("expected no pending interrupt after multi-select discard, got %+v", game.State.PendingInterrupt)
 	}
 }
 

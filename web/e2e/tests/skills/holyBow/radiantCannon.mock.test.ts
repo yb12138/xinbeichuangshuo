@@ -10,7 +10,6 @@ test.describe('holy bow radiant cannon protocol harness', () => {
     await protocolHarness.bootGame(radiantCannonScenario());
 
 
-    await page.getByTestId('action-hub-trigger').click();
   await page.getByTestId('action-magic').click();
   await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${HB_RADIANT_CANNON_SKILL_ID}`).click();
@@ -34,7 +33,6 @@ test.describe('holy bow radiant cannon protocol harness', () => {
     await protocolHarness.bootGame(radiantCannonScenario());
 
 
-    await page.getByTestId('action-hub-trigger').click();
   await page.getByTestId('action-magic').click();
   await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${HB_RADIANT_CANNON_SKILL_ID}`).click();

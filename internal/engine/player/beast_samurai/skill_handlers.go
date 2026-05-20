@@ -259,6 +259,9 @@ func (h *BeastSamuraiReversalIaijutsuSlashHandler) CanUse(ctx *model.Context) bo
 	if ctx.User.Form != "beast_samurai_iaijutsu_form" {
 		return false
 	}
+	if engineplayer.GetToken(ctx.User, "bs_beast_soul") <= 0 {
+		return false
+	}
 	target := ctx.Target
 	if target == nil {
 		return false
@@ -283,7 +286,7 @@ func (h *BeastSamuraiReversalIaijutsuSlashHandler) Execute(ctx *model.Context) e
 			"resume_phase": beastSamuraiResumePhase(ctx),
 		},
 	})
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [逆反居合斩]：请选择X（0~%d）", ctx.User.Name, maxX))
+	ctx.Game.Log(fmt.Sprintf("%s 发动 [逆反居合斩]：请选择X（1~%d）", ctx.User.Name, maxX))
 	return nil
 }
 

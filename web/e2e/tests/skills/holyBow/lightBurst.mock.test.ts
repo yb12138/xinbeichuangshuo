@@ -17,7 +17,6 @@ test.describe('holy bow light burst protocol harness', () => {
     await protocolHarness.bootGame(lightBurstScenario({ heal: 2 }));
 
 
-    await page.getByTestId('action-hub-trigger').click();
   await page.getByTestId('action-magic').click();
   await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${HB_LIGHT_BURST_SKILL_ID}`).click();
@@ -48,7 +47,6 @@ test.describe('holy bow light burst protocol harness', () => {
     await protocolHarness.bootGame(lightBurstScenario({ heal: 2 }));
 
 
-    await page.getByTestId('action-hub-trigger').click();
   await page.getByTestId('action-magic').click();
   await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${HB_LIGHT_BURST_SKILL_ID}`).click();
@@ -98,7 +96,6 @@ test.describe('holy bow light burst protocol harness', () => {
     await protocolHarness.bootGame(lightBurstScenario({ heal: 3 }));
 
 
-    await page.getByTestId('action-hub-trigger').click();
   await page.getByTestId('action-magic').click();
   await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${HB_LIGHT_BURST_SKILL_ID}`).click();
@@ -151,7 +148,6 @@ test.describe('holy bow light burst protocol harness', () => {
     await protocolHarness.bootGame(lightBurstScenario({ heal: 3 }));
 
 
-    await page.getByTestId('action-hub-trigger').click();
   await page.getByTestId('action-magic').click();
   await page.getByTestId('action-skill').click();
     await page.getByTestId(`skill-${HB_LIGHT_BURST_SKILL_ID}`).click();
