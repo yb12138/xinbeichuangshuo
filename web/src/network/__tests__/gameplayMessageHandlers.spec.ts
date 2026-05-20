@@ -12,6 +12,28 @@ import { useUiStore } from '../../stores/ui.store'
 import type { Prompt } from '../../types/game'
 import type { RequireActionPayload, SyncStatePayload, TimelineNotifyPayload } from '../protocol'
 
+function buildSyncPlayer(id: string, camp: 'Red' | 'Blue') {
+  return {
+    id,
+    name: id === 'p1' ? 'Alice' : `Player${id.slice(1)}`,
+    camp,
+    role: 'hero',
+    hand_count: 0,
+    max_hand: 6,
+    exclusive_card_count: 0,
+    hand: [],
+    exclusive_cards: [],
+    field: [],
+    heal: 0,
+    max_heal: 5,
+    gem: 0,
+    crystal: 0,
+    is_active: false,
+    buffs: [],
+    tokens: {},
+  }
+}
+
 function buildHandlers() {
   const interruptStore = useInterruptStore()
   const sessionStore = useSessionStore()
@@ -116,6 +138,47 @@ describe('createGameplayMessageHandlers', () => {
     expect(snapshotStore.players.p1?.name).toBe('Alice')
     expect(snapshotStore.redGems).toBe(2)
     expect(interruptStore.currentPrompt).toBeNull()
+  })
+
+  it('pops the current turn player when action stage begins', () => {
+    const { handlers, battleFxStore, sessionStore } = buildHandlers()
+    sessionStore.setRoomInfo('ROOM1', 'p1', 'Red', 'hero')
+    sessionStore.updateRoomPlayers([
+      { id: 'p1', name: 'Alice', camp: 'Red', char_role: 'hero', ready: true, is_online: true },
+      { id: 'p2', name: 'Bob', camp: 'Red', char_role: 'hero', ready: true, is_online: true },
+      { id: 'p3', name: 'Cara', camp: 'Blue', char_role: 'hero', ready: true, is_online: true },
+      { id: 'p4', name: 'Dora', camp: 'Blue', char_role: 'hero', ready: true, is_online: true },
+      { id: 'p5', name: 'Evan', camp: 'Blue', char_role: 'hero', ready: true, is_online: true },
+      { id: 'p6', name: 'Faye', camp: 'Red', char_role: 'hero', ready: true, is_online: true },
+    ], 'p1')
+
+    handlers.handleSyncState({
+      room_state: 'Playing',
+      turn_stage: 'ActionExecution',
+      turn_player_id: 'p4',
+      has_performed_startup: true,
+      morale_red: 15,
+      morale_blue: 15,
+      cups_red: 0,
+      cups_blue: 0,
+      stones_red: [0, 0],
+      stones_blue: [0, 0],
+      deck_count: 30,
+      discard_count: 0,
+      available_skills: [],
+      characters: [],
+      players: [
+        buildSyncPlayer('p1', 'Red'),
+        buildSyncPlayer('p2', 'Red'),
+        buildSyncPlayer('p3', 'Blue'),
+        buildSyncPlayer('p4', 'Blue'),
+        buildSyncPlayer('p5', 'Blue'),
+        buildSyncPlayer('p6', 'Red'),
+      ],
+    })
+
+    expect(battleFxStore.initiatorFocus?.playerId).toBe('p4')
+    expect(battleFxStore.initiatorFocus?.side).toBe('right')
   })
 
   it('routes RequireAction into prompt or waiting state based on target player', () => {

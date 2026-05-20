@@ -17,6 +17,7 @@ test.describe('moon goddess medusa eye protocol harness', () => {
     await protocolHarness.bootGame(medusaEyeScenario({ dark_moon_cards: 2 }));
 
     await protocolHarness.pushServerMessage(medusaEyeResponsePrompt());
+    await expect(page.getByTestId('skill-branch-overlay')).toBeVisible();
     await page.getByTestId('prompt-option-mg_medusa_eye').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',

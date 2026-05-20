@@ -18,14 +18,14 @@ func (e *GameEngine) maybeRequestSkillDiscardSelection(use *skillUseRequest) (bo
 		return false, fmt.Errorf("手牌不足：发动 [%s] 需要弃置 %d 张牌", use.skillDef.Title, use.requiredDiscards)
 	}
 
-	e.State.PendingInterrupt = newDiscardChoiceInterrupt(use.player.ID, map[string]interface{}{
+	intr := newDiscardChoiceInterrupt(use.player.ID, map[string]interface{}{
 		"discard_count": use.requiredDiscards,
 		"skill_id":      use.skillID,
 		"target_ids":    use.targetIDs,
 		"resume_phase":  e.CurrentChoiceResumePoint(),
 	})
-	e.State.PendingInterrupt.SkillIDs = []string{use.skillID}
-	e.syncGamePhaseWithInterrupt(e.State.PendingInterrupt)
+	intr.SkillIDs = []string{use.skillID}
+	e.PushInterrupt(intr)
 	e.Log(fmt.Sprintf("%s 请选择用于发动 [%s] 的卡牌", use.player.Name, use.skillDef.Title))
 	return true, nil
 }

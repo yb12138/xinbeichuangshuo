@@ -228,6 +228,9 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
           }
           const nextCurrent = event.state.current_player
           if (nextCurrent && nextCurrent !== prevCurrent) {
+            if (event.state.turn_stage === 'ActionExecution') {
+              battleFxStore.startSkillInitiatorFocus(nextCurrent, 'skill')
+            }
             if (prevCurrent) {
               const prevName = playerNameById(prevCurrent)
               battleReviewStore.addBattleFeed({

@@ -394,6 +394,51 @@ func TestInterruptChoiceSelectResolvesCardIDsFromPromptOptions(t *testing.T) {
 	}
 }
 
+func TestActionSkillDiscardSelectionPublishesCardPickerPrompt(t *testing.T) {
+	obs := &actionPromptObserver{}
+	game := engine.NewGameEngine(obs)
+	if err := game.AddPlayer("p1", "Sealer", "sealer", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Dummy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Hand = []model.Card{
+		{ID: "earth-card", Name: "地裂斩", Type: model.CardTypeAttack, Element: model.ElementEarth, Damage: 2},
+	}
+
+	if err := game.HandleAction(model.PlayerAction{
+		PlayerID:  "p1",
+		Type:      model.CmdSkill,
+		SkillID:   "earth_seal",
+		TargetIDs: []string{"p2"},
+	}); err != nil {
+		t.Fatalf("earth seal should enter discard selection: %v", err)
+	}
+
+	if game.State.PendingInterrupt == nil || !engine.IsDiscardSelectionInterrupt(game.State.PendingInterrupt) {
+		t.Fatalf("expected discard selection interrupt, got %+v", game.State.PendingInterrupt)
+	}
+	if obs.lastPrompt == nil {
+		t.Fatalf("expected discard card picker prompt to be published")
+	}
+	if obs.lastPrompt.PlayerID != "p1" || obs.lastPrompt.SkillID != "earth_seal" {
+		t.Fatalf("unexpected prompt owner/skill: %+v", obs.lastPrompt)
+	}
+	if obs.lastPrompt.Presentation == nil || obs.lastPrompt.Presentation.Kind != model.PresentationCardPicker {
+		t.Fatalf("expected card picker presentation, got %+v", obs.lastPrompt.Presentation)
+	}
+	if obs.lastPrompt.ChoiceType != "system_discard_cards" {
+		t.Fatalf("expected system_discard_cards choice type, got %q", obs.lastPrompt.ChoiceType)
+	}
+}
+
 func TestActionSelection_ExtraMagicAllowsSkill(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "Elem", "elementalist", model.RedCamp); err != nil {
