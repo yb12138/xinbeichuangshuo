@@ -15,15 +15,24 @@ func ensureTokens(p *model.Player) {
 }
 
 func hasElementDarkMoon(user *model.Player, ele model.Element) bool {
+	return len(medusaSelectableDarkMoonIndices(user, ele)) > 0
+}
+
+func medusaSelectableDarkMoonIndices(user *model.Player, ele model.Element) []int {
 	if user == nil || ele == "" {
-		return false
+		return nil
 	}
-	for _, fc := range DarkMoonCovers(user) {
-		if fc.Card.Element == ele {
-			return true
+	var selectable []int
+	for i, fc := range user.Field {
+		if fc == nil || fc.Mode != model.FieldCover || fc.Effect != model.EffectMoonDarkMoon {
+			continue
 		}
+		if fc.Card.Element != ele {
+			continue
+		}
+		selectable = append(selectable, i)
 	}
-	return false
+	return selectable
 }
 
 func applyDarkMoonCurse(rt engineplayer.ChoiceRuntime, p *model.Player, removed int) {
@@ -159,36 +168,52 @@ func MaybeMedusa(rt engineplayer.ChoiceRuntime, attacker, target *model.Player, 
 		if !hasElementDarkMoon(p, attackCard.Element) {
 			continue
 		}
-		var selectable []int
-		for i, fc := range p.Field {
-			if fc == nil || fc.Mode != model.FieldCover || fc.Effect != model.EffectMoonDarkMoon {
-				continue
-			}
-			if fc.Card.Element != attackCard.Element {
-				continue
-			}
-			selectable = append(selectable, i)
-		}
+		selectable := medusaSelectableDarkMoonIndices(p, attackCard.Element)
 		if len(selectable) == 0 {
 			continue
 		}
 		rt.PushInterrupt(&model.Interrupt{
-			Type:     model.InterruptChoice,
+			Type:     model.InterruptResponseSkill,
 			PlayerID: p.ID,
-			Context: map[string]interface{}{
-				"choice_type":      "mg_medusa_darkmoon_pick",
-				"user_id":          p.ID,
-				"attacker_id":      attacker.ID,
-				"attack_element":   string(attackCard.Element),
-				"darkmoon_indices": selectable,
-				"user_ctx":         userCtx,
-				"source_skill":     sourceSkill,
-			},
+			SkillIDs: []string{"mg_medusa_eye"},
+			Context:  medusaResponseContext(p, attacker, target, sourceSkill, attackCard, userCtx),
 		})
-		rt.Log(fmt.Sprintf("%s 的 [美杜莎之眼] 可触发：请选择要展示并移除的%s系暗月", p.Name, attackCard.Element))
+		rt.Log(fmt.Sprintf("%s 有 1 个响应技能可以发动", p.Name))
 		return true
 	}
 	return false
+}
+
+func medusaResponseContext(user, attacker, target *model.Player, sourceSkill string, attackCard *model.Card, userCtx *model.Context) *model.Context {
+	if userCtx == nil || user == nil || attackCard == nil {
+		return userCtx
+	}
+	ctx := *userCtx
+	ctx.User = user
+	selections := make(map[string]any, len(ctx.Selections)+1)
+	for key, value := range ctx.Selections {
+		selections[key] = value
+	}
+	ctx.Selections = selections
+	ctx.Selections["source_skill"] = sourceSkill
+	if attacker != nil {
+		ctx.Target = attacker
+		ctx.Targets = []*model.Player{attacker}
+	}
+	if ctx.EventCtx != nil {
+		eventCtx := *ctx.EventCtx
+		eventCtx.SourceID = ""
+		if attacker != nil {
+			eventCtx.SourceID = attacker.ID
+		}
+		eventCtx.TargetID = ""
+		if target != nil {
+			eventCtx.TargetID = target.ID
+		}
+		eventCtx.Card = attackCard
+		ctx.EventCtx = &eventCtx
+	}
+	return &ctx
 }
 
 // MaybeMoonCycleAtTurnEnd checks and queues the Moon cycle (月之轮回) interrupt.

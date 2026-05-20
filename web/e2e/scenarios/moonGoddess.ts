@@ -379,6 +379,26 @@ export function medusaEyeDarkMoonPrompt(): WsMessage {
   } satisfies Prompt);
 }
 
+export function medusaEyeResponsePrompt(): WsMessage {
+  return requireActionMessage({
+    type: 'choose_skill',
+    player_id: MG_PLAYER_ID,
+    message: '你触发了响应技能【美杜莎之眼】，请选择是否发动。',
+    options: [
+      {
+        id: MG_MEDUSA_EYE_SKILL_ID,
+        label: '美杜莎之眼',
+        button_label: '发动',
+        hint: '移除同系闇月并获得治疗、石化',
+      },
+      { id: 'skip', label: '跳过', button_label: '跳过', hint: '不发动响应技能' },
+    ],
+    presentation: { kind: 'skill_choice', layout: 'overlay', numeric_base: 0 },
+    min: 1,
+    max: 1,
+  } satisfies Prompt);
+}
+
 // 法术闇月弃牌后续：mg_medusa_magic_discard
 export function medusaEyeMagicDiscardPrompt(): WsMessage {
   return requireActionMessage({

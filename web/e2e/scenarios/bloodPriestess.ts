@@ -480,7 +480,7 @@ export function bloodCurseDiscardPrompt(): WsMessage {
   return requireActionMessage({
     type: 'choose_cards',
     player_id: BP_PLAYER_ID,
-    message: '【血之诅咒】请选择弃置3张牌：',
+    message: '发动血之诅咒，弃3张牌',
     choice_type: 'bp_curse_discard',
     skill_id: BP_BLOOD_CURSE_SKILL_ID,
     options: [

@@ -6,6 +6,7 @@ export const useInterruptStore = defineStore('interrupt', () => {
   const currentPrompt = ref<Prompt | null>(null)
   const waitingFor = ref('')
   const selectedHandIndexes = ref<number[]>([])
+  const selectedFieldOptionIndexes = ref<number[]>([])
   const selectedTargets = ref<string[]>([])
   const promptCounterTarget = ref('')
   const errorMessage = ref('')
@@ -34,6 +35,7 @@ export const useInterruptStore = defineStore('interrupt', () => {
 
   function clearSelections() {
     selectedHandIndexes.value = []
+    selectedFieldOptionIndexes.value = []
     selectedTargets.value = []
     promptCounterTarget.value = ''
   }
@@ -134,6 +136,10 @@ export const useInterruptStore = defineStore('interrupt', () => {
     selectedHandIndexes.value = [...cards]
   }
 
+  function setSelectedFieldOptionIndexes(options: number[]) {
+    selectedFieldOptionIndexes.value = [...options]
+  }
+
   function setSelectedTargets(targets: string[]) {
     selectedTargets.value = [...targets]
   }
@@ -197,6 +203,7 @@ export const useInterruptStore = defineStore('interrupt', () => {
     currentPrompt,
     waitingFor,
     selectedHandIndexes,
+    selectedFieldOptionIndexes,
     selectedTargets,
     promptCounterTarget,
     errorMessage,
@@ -225,6 +232,7 @@ export const useInterruptStore = defineStore('interrupt', () => {
     setWaiting,
     setPromptCounterTarget,
     setSelectedHandIndexes,
+    setSelectedFieldOptionIndexes,
     setSelectedTargets,
     syncAfterStateUpdate,
     setError,

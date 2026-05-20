@@ -705,6 +705,8 @@ func TestMoonGoddessMedusa_ExcludesConvertedAttacks(t *testing.T) {
 	if !moonplayer.MaybeMedusa(engine.NewRoleChoiceRuntime(game), enemy, ally, "", &attackCard, attackStartCtx) {
 		t.Fatalf("normal attack should dispatch medusa when matching dark moon exists")
 	}
+	testutils.RequireResponseSkillPrompt(t, game, "p1")
+	testutils.ChooseResponseSkillByID(t, game, "p1", "mg_medusa_eye")
 	testutils.RequireChoicePrompt(t, game, "p1", "mg_medusa_darkmoon_pick")
 }
 
@@ -765,6 +767,8 @@ func TestMoonGoddessMedusa_OnlyAtAttackStart(t *testing.T) {
 	if !moonplayer.MaybeMedusa(engine.NewRoleChoiceRuntime(game), enemy, ally, "", &attackCard, attackStartCtx) {
 		t.Fatalf("medusa should dispatch at attack start with matching dark moon")
 	}
+	testutils.RequireResponseSkillPrompt(t, game, "p1")
+	testutils.ChooseResponseSkillByID(t, game, "p1", "mg_medusa_eye")
 	testutils.RequireChoicePrompt(t, game, "p1", "mg_medusa_darkmoon_pick")
 }
 
@@ -806,6 +810,8 @@ func TestMoonGoddessMedusa_MagicDarkMoonExtraDamageTargetsAttackerOnly(t *testin
 	if !moonplayer.MaybeMedusa(engine.NewRoleChoiceRuntime(game), attacker, ally, "", &attackCard, attackStartCtx) {
 		t.Fatalf("expected medusa dispatch")
 	}
+	testutils.RequireResponseSkillPrompt(t, game, "p1")
+	testutils.ChooseResponseSkillByID(t, game, "p1", "mg_medusa_eye")
 	testutils.RequireChoicePrompt(t, game, "p1", "mg_medusa_darkmoon_pick")
 	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose medusa dark moon failed: %v", err)

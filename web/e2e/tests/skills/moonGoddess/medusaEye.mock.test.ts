@@ -1,6 +1,7 @@
 import { test, expect } from '../../../fixtures/protocolHarness.fixture';
 import {
   medusaEyeDarkMoonPrompt,
+  medusaEyeResponsePrompt,
   medusaEyeMagicDiscardPrompt,
   medusaEyeScenario,
 } from '../../../scenarios/moonGoddess';
@@ -12,6 +13,17 @@ import {
 // ============================================================
 
 test.describe('moon goddess medusa eye protocol harness', () => {
+  test('medusa eye: asks before opening dark moon picker', async ({ page, protocolHarness }) => {
+    await protocolHarness.bootGame(medusaEyeScenario({ dark_moon_cards: 2 }));
+
+    await protocolHarness.pushServerMessage(medusaEyeResponsePrompt());
+    await page.getByTestId('prompt-option-mg_medusa_eye').click();
+    await protocolHarness.expectSubmitAction({
+      action_type: 'Select',
+      option_indexes: [0],
+    });
+  });
+
   test('medusa eye: dark moon card selection via cover picker', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(medusaEyeScenario({ dark_moon_cards: 2 }));
 
@@ -19,9 +31,11 @@ test.describe('moon goddess medusa eye protocol harness', () => {
     await expect(page.getByTestId('decision-overlay')).not.toBeVisible();
 
     await page.getByTestId('cover-card-0').click();
+    await expect(page.getByTestId('prompt-confirm-btn')).toBeVisible();
+    await page.getByTestId('prompt-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      card_ids: ['mg-dark-moon-0'],
+      option_indexes: [0],
     });
   });
 
@@ -32,9 +46,10 @@ test.describe('moon goddess medusa eye protocol harness', () => {
     await expect(page.getByTestId('decision-overlay')).not.toBeVisible();
 
     await page.getByTestId('cover-card-1').click();
+    await page.getByTestId('prompt-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      card_ids: ['mg-dark-moon-1'],
+      option_indexes: [1],
     });
   });
 
@@ -44,9 +59,10 @@ test.describe('moon goddess medusa eye protocol harness', () => {
     await protocolHarness.pushServerMessage(medusaEyeDarkMoonPrompt());
     await expect(page.getByTestId('decision-overlay')).not.toBeVisible();
     await page.getByTestId('cover-card-0').click();
+    await page.getByTestId('prompt-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      card_ids: ['mg-dark-moon-0'],
+      option_indexes: [0],
     });
 
     await protocolHarness.pushServerMessage(medusaEyeMagicDiscardPrompt());
@@ -64,9 +80,10 @@ test.describe('moon goddess medusa eye protocol harness', () => {
     await protocolHarness.pushServerMessage(medusaEyeDarkMoonPrompt());
     await expect(page.getByTestId('decision-overlay')).not.toBeVisible();
     await page.getByTestId('cover-card-0').click();
+    await page.getByTestId('prompt-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      card_ids: ['mg-dark-moon-0'],
+      option_indexes: [0],
     });
   });
 });

@@ -120,9 +120,56 @@ func (h *MoonGoddessDarkMoonCurseHandler) CanUse(ctx *model.Context) bool { retu
 
 func (h *MoonGoddessDarkMoonCurseHandler) Execute(ctx *model.Context) error { return nil }
 
-func (h *MoonGoddessMedusaEyeHandler) CanUse(ctx *model.Context) bool { return false }
+func (h *MoonGoddessMedusaEyeHandler) CanUse(ctx *model.Context) bool {
+	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil || ctx.EventCtx.Card == nil {
+		return false
+	}
+	if !ctx.AttackDeclaredPhase() {
+		return false
+	}
+	attackerID := ctx.EventCtx.SourceID
+	if attackerID == "" && ctx.Target != nil {
+		attackerID = ctx.Target.ID
+	}
+	if attackerID == "" || attackerID == ctx.User.ID {
+		return false
+	}
+	attacker := ctx.Game.GetPlayers()[attackerID]
+	if attacker != nil && attacker.Camp == ctx.User.Camp {
+		return false
+	}
+	return len(medusaSelectableDarkMoonIndices(ctx.User, ctx.EventCtx.Card.Element)) > 0
+}
 
-func (h *MoonGoddessMedusaEyeHandler) Execute(ctx *model.Context) error { return nil }
+func (h *MoonGoddessMedusaEyeHandler) Execute(ctx *model.Context) error {
+	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.EventCtx == nil || ctx.EventCtx.Card == nil {
+		return fmt.Errorf("美杜莎之眼上下文无效")
+	}
+	attackCard := ctx.EventCtx.Card
+	selectable := medusaSelectableDarkMoonIndices(ctx.User, attackCard.Element)
+	if len(selectable) == 0 {
+		return fmt.Errorf("没有同系闇月可用于美杜莎之眼")
+	}
+	attackerID := ctx.EventCtx.SourceID
+	if attackerID == "" && ctx.Target != nil {
+		attackerID = ctx.Target.ID
+	}
+	ctx.Game.PushInterrupt(&model.Interrupt{
+		Type:     model.InterruptChoice,
+		PlayerID: ctx.User.ID,
+		Context: map[string]interface{}{
+			"choice_type":      "mg_medusa_darkmoon_pick",
+			"user_id":          ctx.User.ID,
+			"attacker_id":      attackerID,
+			"attack_element":   string(attackCard.Element),
+			"darkmoon_indices": selectable,
+			"user_ctx":         ctx,
+			"source_skill":     ctx.Selections["source_skill"],
+		},
+	})
+	ctx.Game.Log(fmt.Sprintf("%s 发动 [美杜莎之眼]：请选择要展示并移除的%s系闇月", ctx.User.Name, attackCard.Element))
+	return nil
+}
 
 func (h *MoonGoddessMoonCycleHandler) CanUse(ctx *model.Context) bool { return false }
 

@@ -466,6 +466,8 @@ const canConfirmPrompt = computed(() => {
   if (prompt.value.presentation?.kind === 'card_picker') {
     const cCount = isNonHandChooseCardsMultiMode.value
       ? selectedInlineCardIDs.value.length
+      : isFieldCoverSelectionPrompt()
+        ? interruptStore.selectedFieldOptionIndexes.length
       : interruptStore.selectedHandIndexes.length
     return cCount >= prompt.value.min && cCount <= prompt.value.max
   }
@@ -474,6 +476,14 @@ const canConfirmPrompt = computed(() => {
 
 function confirmPromptAction() {
   if (!canConfirmPrompt.value) return
+
+  if (isFieldCoverSelectionPrompt()) {
+    const indexes = interruptStore.selectedFieldOptionIndexes
+    if (indexes.length > 0) {
+      submitOptionIndexes(indexes)
+    }
+    return
+  }
 
   if (isPlagueDeathTouchElementPrompt.value) {
     const optionIndex = resolvePlagueDeathTouchElementOptionIndex()
@@ -1015,6 +1025,7 @@ const cardFooterOptions = computed<RawDockOption[]>(() => {
 
 const promptNeedsHandCardConfirm = computed(() => {
   if (!prompt.value || !needsCardSelection.value || hasCounterOrDefend.value) return false
+  if (isFieldCoverSelectionPrompt()) return true
   if (isElfElementalShotPickPrompt.value) return true
   if (isPlagueDeathTouchElementPrompt.value) return true
   if (isNonHandChooseCardsMultiMode.value) return false
@@ -1291,11 +1302,16 @@ interface SkillBranchOption {
 
 const skillBranchOptions = computed<SkillBranchOption[]>(() => {
   if (prompt.value?.presentation?.kind !== 'skill_choice') return []
+  const actionableOptions = inlinePrimaryButtons.value.filter((opt) => opt.id !== 'skip' && opt.id !== 'cancel')
+  const includeCancelLikeOption = actionableOptions.length === 1
   return inlinePrimaryButtons.value
-    .filter((opt) => opt.id !== 'skip' && opt.id !== 'cancel')
+    .filter((opt) => includeCancelLikeOption || (opt.id !== 'skip' && opt.id !== 'cancel'))
     .map((option, index) => {
       const rawLabel = String(option.label || '').trim()
-      const title = parseSkillTitle(option, index)
+      const isCancelLike = option.id === 'skip' || option.id === 'cancel'
+      const title = isCancelLike
+        ? String(option.buttonLabel || option.label || '跳过').trim()
+        : parseSkillTitle(option, index)
       const costMatch = rawLabel.match(/\[[^\]]+\]/)
       return {
         id: option.id,

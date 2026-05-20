@@ -29,6 +29,10 @@ const emit = defineEmits<{
   select: [optionId: string]
   imageError: [optionId: string]
 }>()
+
+function hasSkipBranch(branches: SkillBranchOption[]): boolean {
+  return branches.some((entry) => entry.id === 'skip' || entry.id === 'cancel')
+}
 </script>
 
 <template>
@@ -88,7 +92,7 @@ const emit = defineEmits<{
               <div v-if="entry.cost" class="overlay-panel-item-cost">{{ entry.cost }}</div>
             </button>
           </div>
-          <div class="overlay-panel-footer">
+          <div v-if="!hasSkipBranch(branches)" class="overlay-panel-footer">
             <button class="overlay-panel-cancel" data-testid="prompt-option-skip" @click="emit('select', 'skip')">
               跳过
             </button>

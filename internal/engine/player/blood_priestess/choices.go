@@ -144,7 +144,7 @@ func buildCurseDiscardPrompt(playerID string, player *model.Player, data map[str
 		Type:         model.PromptChooseCards,
 		PlayerID:     playerID,
 		ChoiceType:   "bp_curse_discard",
-		Message:      fmt.Sprintf("【血之诅咒】请弃置%d张手牌：", discardCount),
+		Message:      fmt.Sprintf("发动血之诅咒，弃%d张牌", discardCount),
 		Options:      options,
 		Min:          discardCount,
 		Max:          discardCount,

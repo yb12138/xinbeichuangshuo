@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { test } from '../../../fixtures/protocolHarness.fixture';
+import { test, expect } from '../../../fixtures/protocolHarness.fixture';
 import {
   BD_CHRYSALIS_SKILL_ID,
   BD_REVERSE_SKILL_ID,
@@ -133,9 +133,11 @@ test.describe('butterfly dancer chrysalis protocol harness', () => {
     // 前端契约：点击茧牌（在 expansion zone 的盖牌区域），触发 Select action
     // 注：茧牌在 expansion zone 中使用 CardComponent 渲染，点击触发 onCoverCardClick
     await page.getByTestId('cover-card-0').click();
+    await expect(page.getByTestId('hand-card-0')).not.toHaveClass(/selected/);
+    await page.getByTestId('prompt-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      card_ids: ['bd-cocoon-0'],
+      option_indexes: [0],
     });
   });
 });
@@ -224,7 +226,7 @@ test.describe('butterfly dancer reverse butterfly protocol harness', () => {
     await page.locator('.expansion-cocoon-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      card_ids: ['bd-cocoon-0', 'bd-cocoon-1'],
+      option_indexes: [0, 1],
     });
   });
 

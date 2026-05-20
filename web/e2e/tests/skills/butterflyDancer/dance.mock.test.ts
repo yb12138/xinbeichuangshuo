@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { test } from '../../../fixtures/protocolHarness.fixture';
+import { test, expect } from '../../../fixtures/protocolHarness.fixture';
 import {
   BD_DANCE_SKILL_ID,
   cocoonOverflowDiscardPrompt,
@@ -96,16 +96,17 @@ test.describe('butterfly dancer dance protocol harness', () => {
     await protocolHarness.pushServerMessage(chrysalisResolvedState());
 
     // Push cocoon overflow discard prompt (choose_cards with cocoon labels)
-    // max=1 means clicking cover card immediately submits
     await protocolHarness.pushServerMessage(cocoonOverflowDiscardPrompt(1));
 
     // Click the first cocoon cover card in expansion zone
     const coverCard = page.getByTestId('cover-card-0');
     await coverCard.scrollIntoViewIfNeeded();
     await coverCard.click();
+    await expect(page.getByTestId('hand-card-0')).not.toHaveClass(/selected/);
+    await page.getByTestId('prompt-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      card_ids: ['bd-cocoon-0'],
+      option_indexes: [0],
     });
   });
 });

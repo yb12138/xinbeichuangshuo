@@ -738,12 +738,8 @@ function onCoverCardClick(fieldIndex: number) {
         return
       }
       if (isFieldCardPicker) {
-        const cardID = String(prompt?.options?.[optionIndex]?.card_id || '').trim()
-        if (!cardID) {
-          interruptStore.showError('当前盖牌选择缺少 card_id，请刷新后重试')
-          return
-        }
-        interaction.submitSelectedCardIDs([cardID])
+        selectedCocoonFieldIndices.value = [fieldIndex]
+        interruptStore.setSelectedFieldOptionIndexes([optionIndex])
         return
       }
       interaction.submitOptionIndex(optionIndex)
@@ -822,16 +818,12 @@ function confirmCocoonSelection() {
     prompt?.presentation?.kind === 'card_picker' &&
     prompt?.presentation?.card_source === 'field'
   if (isFieldCardPicker) {
-    const selectedCardIDs = selectedCocoonFieldIndices.value.map((fieldIndex) => {
-      const optionIndex = ctx.fieldToOptionIndex[fieldIndex]
-      if (optionIndex === undefined) return ''
-      return String(prompt?.options?.[optionIndex]?.card_id || '').trim()
-    }).filter(Boolean)
-    if (selectedCardIDs.length !== selectedCocoonFieldIndices.value.length) {
-      interruptStore.showError('当前盖牌选择缺少 card_id，请刷新后重试')
+    const selectedOptionIndexes = selectedCocoonFieldIndices.value.map((fieldIndex) => ctx.fieldToOptionIndex[fieldIndex])
+    if (selectedOptionIndexes.some((optionIndex) => optionIndex === undefined)) {
+      interruptStore.showError('未找到对应盖牌选项，请重试')
       return
     }
-    interaction.submitSelectedCardIDs(selectedCardIDs)
+    interaction.submitOptionIndexes(selectedOptionIndexes as number[])
     return
   }
   interaction.submitOptionIndexes([...selectedCocoonFieldIndices.value])
