@@ -131,8 +131,9 @@ func buildDanceDiscardPrompt(playerID string, player *model.Player) *model.Promp
 	var options []model.PromptOption
 	for idx, c := range player.Hand {
 		options = append(options, model.PromptOption{
-			ID:    fmt.Sprintf("%d", idx),
-			Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(c)),
+			ID:     fmt.Sprintf("%d", idx),
+			Label:  fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(c)),
+			CardID: c.ID,
 		})
 	}
 	return &model.Prompt{

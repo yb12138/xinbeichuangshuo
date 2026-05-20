@@ -118,6 +118,61 @@ func TestButterflyDance_DrawAndGainCocoon(t *testing.T) {
 	}
 }
 
+func TestButterflyDance_DiscardPromptOptionsCarryCardID(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Butterfly", "butterfly_dancer", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Hand = []model.Card{
+		butterflyTestCard("h1", model.CardTypeAttack, model.ElementFire),
+		butterflyTestCard("h2", model.CardTypeMagic, model.ElementWater),
+	}
+	game.State.Deck = rules.InitDeck()
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID: "p1",
+		Type:     model.CmdSkill,
+		SkillID:  "bt_dance",
+	})
+	testutils.RequireChoicePrompt(t, game, "p1", "bt_dance_mode")
+
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{1},
+	})
+	testutils.RequireChoicePrompt(t, game, "p1", "bt_dance_discard")
+	prompt := game.GetCurrentPrompt()
+	if prompt.Presentation == nil ||
+		prompt.Presentation.Kind != model.PresentationCardPicker ||
+		prompt.Presentation.CardSource != "hand" {
+		t.Fatalf("expected dance discard to use hand card_picker presentation, got %+v", prompt.Presentation)
+	}
+	if len(prompt.Options) != 2 {
+		t.Fatalf("expected 2 discard card options, got %+v", prompt.Options)
+	}
+	if prompt.Options[0].CardID != "h1" || prompt.Options[1].CardID != "h2" {
+		t.Fatalf("expected discard options to carry hand card ids, got %+v", prompt.Options)
+	}
+
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID: "p1",
+		Type:     model.CmdSelect,
+		CardIDs:  []string{"h2"},
+	})
+	if len(game.State.DiscardPile) == 0 || game.State.DiscardPile[0].ID != "h2" {
+		t.Fatalf("expected card_id submission to discard h2, got discard=%+v", game.State.DiscardPile)
+	}
+}
+
 func TestButterflyChrysalis_RunsOverflowDiscardWhenPupaLowersHandLimit(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "Butterfly", "butterfly_dancer", model.RedCamp); err != nil {

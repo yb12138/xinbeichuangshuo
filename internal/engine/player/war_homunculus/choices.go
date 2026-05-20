@@ -124,8 +124,9 @@ func buildRuneCardsPrompt(playerID string, player *model.Player, data map[string
 			continue
 		}
 		options = append(options, model.PromptOption{
-			ID:    fmt.Sprintf("%d", idx),
-			Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(player.Hand[idx])),
+			ID:     fmt.Sprintf("%d", idx),
+			Label:  fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(player.Hand[idx])),
+			CardID: player.Hand[idx].ID,
 		})
 	}
 	// 计算还需要选择多少张牌

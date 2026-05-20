@@ -109,8 +109,9 @@ func buildChargeRemovalPrompt(playerID string, player *model.Player, element mod
 		Min:      1,
 		Max:      1,
 		Presentation: &model.PromptPresentation{
-			Kind:   model.PresentationCardPicker,
-			Layout: "inline",
+			Kind:       model.PresentationCardPicker,
+			Layout:     "inline",
+			CardSource: "field",
 		},
 	}
 }
@@ -190,8 +191,9 @@ func buildChargePlaceCardsPrompt(playerID string, player *model.Player, data map
 			continue
 		}
 		options = append(options, model.PromptOption{
-			ID:    fmt.Sprintf("%d", idx),
-			Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(player.Hand[idx])),
+			ID:     fmt.Sprintf("%d", idx),
+			Label:  fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(player.Hand[idx])),
+			CardID: player.Hand[idx].ID,
 		})
 	}
 

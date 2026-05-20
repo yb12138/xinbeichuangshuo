@@ -64,8 +64,9 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 				continue
 			}
 			options = append(options, model.PromptOption{
-				ID:    fmt.Sprintf("%d", idx),
-				Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(player.Hand[idx])),
+				ID:     fmt.Sprintf("%d", idx),
+				Label:  fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(player.Hand[idx])),
+				CardID: player.Hand[idx].ID,
 			})
 		}
 		return &model.Prompt{
@@ -109,8 +110,9 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 				continue
 			}
 			options = append(options, model.PromptOption{
-				ID:    fmt.Sprintf("%d", idx),
-				Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(player.Hand[idx])),
+				ID:     fmt.Sprintf("%d", idx),
+				Label:  fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(player.Hand[idx])),
+				CardID: player.Hand[idx].ID,
 			})
 		}
 		remainingPick := targetCount - selectedCount

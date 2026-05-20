@@ -66,7 +66,7 @@ func NewPrompt(playerID string, message string) *PromptBuilder {
 func (b *PromptBuilder) Options(opts ...PromptOptionSpec) *PromptBuilder {
 	options := make([]model.PromptOption, len(opts))
 	for i, opt := range opts {
-		options[i] = model.PromptOption{ID: opt.ID, Label: opt.Label}
+		options[i] = model.PromptOption{ID: opt.ID, Label: opt.Label, CardID: opt.CardID}
 	}
 	b.p.Options = options
 	return b
@@ -89,13 +89,19 @@ func (b *PromptBuilder) Build() *model.Prompt {
 
 // PromptOptionSpec 选项规格。
 type PromptOptionSpec struct {
-	ID    string
-	Label string
+	ID     string
+	Label  string
+	CardID string
 }
 
 // Option 创建选项规格。
 func Option(id, label string) PromptOptionSpec {
 	return PromptOptionSpec{ID: id, Label: label}
+}
+
+// CardOption 创建关联手牌/卡牌 UUID 的选项规格。
+func CardOption(id, label, cardID string) PromptOptionSpec {
+	return PromptOptionSpec{ID: id, Label: label, CardID: cardID}
 }
 
 // intToString 快速整数转字符串（用于选项 ID）。

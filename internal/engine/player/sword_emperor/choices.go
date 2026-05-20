@@ -86,8 +86,9 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 				continue
 			}
 			options = append(options, model.PromptOption{
-				ID:    fmt.Sprintf("%d", idx),
-				Label: fmt.Sprintf("%d: %s", idx+1, player.Hand[idx].Name),
+				ID:     fmt.Sprintf("%d", idx),
+				Label:  fmt.Sprintf("%d: %s", idx+1, player.Hand[idx].Name),
+				CardID: player.Hand[idx].ID,
 			})
 		}
 		return &model.Prompt{

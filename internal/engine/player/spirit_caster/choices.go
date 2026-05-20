@@ -221,7 +221,7 @@ func buildTalismanWindDiscardPrompt(rt engineplayer.ChoiceRuntime, playerID stri
 	}
 	options := make([]model.PromptOption, 0, len(target.Hand))
 	for idx, c := range target.Hand {
-		options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", idx), Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(c))})
+		options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", idx), Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(c)), CardID: c.ID})
 	}
 	return &model.Prompt{
 		Type:         model.PromptConfirm,

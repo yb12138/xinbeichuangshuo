@@ -43,8 +43,9 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 				continue
 			}
 			options = append(options, model.PromptOption{
-				ID:    fmt.Sprintf("%d", idx),
-				Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(player.Hand[idx])),
+				ID:     fmt.Sprintf("%d", idx),
+				Label:  fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(player.Hand[idx])),
+				CardID: player.Hand[idx].ID,
 			})
 		}
 		options = append(options, model.PromptOption{ID: "cancel", Label: "放弃额外效果"})

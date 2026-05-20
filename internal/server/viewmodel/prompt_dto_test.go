@@ -112,6 +112,48 @@ func TestToPromptDTOPreservesCardIDOnCardOptions(t *testing.T) {
 	}
 }
 
+func TestToPromptDTOPanicsWhenHandCardPickerOptionMissingCardID(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Fatal("expected missing card_id to panic")
+		}
+	}()
+	ToPromptDTO(&model.Prompt{
+		Type:     model.PromptChooseCards,
+		PlayerID: "p1",
+		Message:  "请选择手牌",
+		Options: []model.PromptOption{
+			{ID: "0", Label: "1: 测试牌"},
+		},
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand"},
+	})
+}
+
+func TestToPromptDTOAllowsCardPickerControlOptionWithoutCardID(t *testing.T) {
+	prompt := &model.Prompt{
+		Type:     model.PromptChooseCards,
+		PlayerID: "p1",
+		Message:  "请选择或取消",
+		Options: []model.PromptOption{
+			{ID: "-1", Label: "不弃置"},
+			{ID: "0", Label: "1: 测试牌", CardID: "card-001"},
+		},
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand", HasDecline: true},
+	}
+
+	dto := ToPromptDTO(prompt)
+	if got := dto.Options[0].CardID; got != "" {
+		t.Fatalf("expected control option card_id to stay empty, got %q", got)
+	}
+	if got := dto.Options[1].CardID; got != "card-001" {
+		t.Fatalf("expected card option card_id to be preserved, got %q", got)
+	}
+}
+
 func TestToPromptDTOPreservesTargetIDOnTargetOptions(t *testing.T) {
 	prompt := &model.Prompt{
 		Type:     model.PromptConfirm,

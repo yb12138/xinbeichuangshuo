@@ -46,6 +46,7 @@ func ToPromptDTO(p *model.Prompt) *PromptDTO {
 	}
 	presentation := presentationForPrompt(p)
 	validateTargetPickerOptions(p, presentation)
+	validateCardPickerOptions(p, presentation)
 	dto := &PromptDTO{
 		Type:             string(p.Type),
 		PlayerID:         p.PlayerID,
@@ -90,6 +91,41 @@ func ToPromptDTO(p *model.Prompt) *PromptDTO {
 		})
 	}
 	return dto
+}
+
+func validateCardPickerOptions(p *model.Prompt, presentation *model.PromptPresentation) {
+	if p == nil || presentation == nil || presentation.Kind != model.PresentationCardPicker {
+		return
+	}
+	if presentation.CardSource != "hand" && presentation.CardSource != "proxy" {
+		return
+	}
+	validateCardPickerOptionList(p, p.Options, "options")
+	validateCardPickerOptionList(p, p.SpecialOptions, "special_options")
+}
+
+func validateCardPickerOptionList(p *model.Prompt, options []model.PromptOption, fieldName string) {
+	for i, o := range options {
+		if strings.TrimSpace(o.CardID) != "" {
+			continue
+		}
+		if isCardPickerControlOption(o) {
+			continue
+		}
+		panic(fmt.Sprintf("card_picker prompt %q for player %q has %s[%d] without card_id", p.ChoiceType, p.PlayerID, fieldName, i))
+	}
+}
+
+func isCardPickerControlOption(o model.PromptOption) bool {
+	id := strings.ToLower(strings.TrimSpace(o.ID))
+	switch id {
+	case "", "-1", "cancel", "skip", "decline", "pass", "refuse", "no", "none":
+		return true
+	}
+	if strings.TrimSpace(o.Element) != "" {
+		return true
+	}
+	return false
 }
 
 func validateTargetPickerOptions(p *model.Prompt, presentation *model.PromptPresentation) {

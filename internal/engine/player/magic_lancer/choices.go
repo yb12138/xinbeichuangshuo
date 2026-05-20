@@ -71,7 +71,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			if idx < 0 || idx >= len(target.Hand) {
 				continue
 			}
-			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", idx), Label: promptfmt.FormatCardInfo(target.Hand[idx])})
+			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", idx), Label: promptfmt.FormatCardInfo(target.Hand[idx]), CardID: target.Hand[idx].ID})
 		}
 		msg := "【充盈】请选择弃置1张手牌："
 		if allowSkip {

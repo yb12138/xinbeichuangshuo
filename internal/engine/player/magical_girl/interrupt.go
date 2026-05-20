@@ -130,8 +130,9 @@ func magicBlastCasterForcedDiscardOptions(p *model.Player) []model.PromptOption 
 	options := make([]model.PromptOption, 0, len(p.Hand))
 	for i, card := range p.Hand {
 		options = append(options, model.PromptOption{
-			ID:    strconv.Itoa(i),
-			Label: fmt.Sprintf("%d: %s", i+1, promptfmt.FormatCardInfo(card)),
+			ID:     strconv.Itoa(i),
+			Label:  fmt.Sprintf("%d: %s", i+1, promptfmt.FormatCardInfo(card)),
+			CardID: card.ID,
 		})
 	}
 	return options
@@ -144,8 +145,9 @@ func magicBlastTargetDiscardOptions(p *model.Player) []model.PromptOption {
 			continue
 		}
 		options = append(options, model.PromptOption{
-			ID:    strconv.Itoa(i),
-			Label: fmt.Sprintf("%d: %s", i+1, promptfmt.FormatCardInfo(card)),
+			ID:     strconv.Itoa(i),
+			Label:  fmt.Sprintf("%d: %s", i+1, promptfmt.FormatCardInfo(card)),
+			CardID: card.ID,
 		})
 	}
 	options = append(options, model.PromptOption{

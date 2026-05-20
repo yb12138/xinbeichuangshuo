@@ -233,7 +233,7 @@ func buildFraudPickPrompt(_ engineplayer.ChoiceRuntime, playerID string, player 
 	opts := make([]engineplayer.PromptOptionSpec, 0, len(remainingIndices))
 	for _, idx := range remainingIndices {
 		if idx >= 0 && idx < len(player.Hand) {
-			opts = append(opts, engineplayer.Option(strconv.Itoa(idx), promptfmt.FormatCardInfo(player.Hand[idx])))
+			opts = append(opts, engineplayer.CardOption(strconv.Itoa(idx), promptfmt.FormatCardInfo(player.Hand[idx]), player.Hand[idx].ID))
 		}
 	}
 	p := engineplayer.NewPrompt(playerID, fmt.Sprintf("【欺诈】请选择手牌（还需选择%d张同系牌）：", remaining)).
