@@ -138,6 +138,9 @@ func (h *BeastSamuraiBeastSoulAlertHandler) CanUse(ctx *model.Context) bool {
 	if ctx.EventCtx.NewOrientation != model.OrientationTapped {
 		return false
 	}
+	if InIaijutsuForm(ctx.User) {
+		return false
+	}
 	return engineplayer.GetToken(ctx.User, "bs_beast_soul") >= 1
 }
 
@@ -147,6 +150,9 @@ func (h *BeastSamuraiBeastSoulAlertHandler) Execute(ctx *model.Context) error {
 	}
 	if engineplayer.GetToken(ctx.User, "bs_beast_soul") <= 0 {
 		return fmt.Errorf("兽魂不足，无法发动兽魂警戒")
+	}
+	if InIaijutsuForm(ctx.User) {
+		return fmt.Errorf("已处于御魂流居合形态，无法发动兽魂警戒")
 	}
 	leftSoul := engineplayer.AddToken(ctx.User, "bs_beast_soul", -1, beastSamuraiBeastSoulCap)
 	nowZanshin := engineplayer.AddToken(ctx.User, "bs_zanshin", 1, beastSamuraiZanshinCap)

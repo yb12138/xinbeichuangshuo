@@ -258,6 +258,97 @@ func TestMoonGoddessNewMoonShelter_PromptsAfterBloodPriestessDamageOverflow(t *t
 	}
 }
 
+func TestMoonGoddessNewMoonShelter_NestedBeastSoulAlertRunsDeferredResume(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Moon", "moon_goddess", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Beast", "beast_samurai", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p3", "Victim", "berserker", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p4", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	moon := game.State.Players["p1"]
+	beast := game.State.Players["p2"]
+	victim := game.State.Players["p3"]
+	moon.Hand = []model.Card{
+		moonTestCard("moon-magic", "月术", model.CardTypeMagic, model.ElementDark),
+	}
+	beast.Tokens["bs_beast_soul"] = 1
+	victim.MaxHand = 5
+	victim.Hand = []model.Card{
+		moonTestCard("h1", "牌1", model.CardTypeAttack, model.ElementFire),
+		moonTestCard("h2", "牌2", model.CardTypeAttack, model.ElementWater),
+		moonTestCard("h3", "牌3", model.CardTypeAttack, model.ElementWind),
+		moonTestCard("h4", "牌4", model.CardTypeAttack, model.ElementThunder),
+		moonTestCard("m1", "法术", model.CardTypeMagic, model.ElementDark),
+	}
+	game.State.Deck = []model.Card{
+		moonTestCard("drawn", "伤害摸牌", model.CardTypeAttack, model.ElementEarth),
+	}
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	game.AddPendingDamage(model.PendingDamage{
+		SourceID:   "p4",
+		TargetID:   "p3",
+		Damage:     1,
+		DamageType: model.AttackDamage,
+	})
+	if paused := game.ProcessPendingDamages(); !paused {
+		t.Fatalf("expected damage flow to pause for overflow discard")
+	}
+	testutils.MustHandleAction(t, game, model.PlayerAction{Type: model.CmdSelect, PlayerID: "p3", Selections: []int{5}})
+
+	testutils.ChooseResponseSkillByID(t, game, "p1", "mg_new_moon_shelter")
+	testutils.RequireResponseSkillPrompt(t, game, "p2")
+	testutils.ChooseResponseSkillByID(t, game, "p2", "bs_beast_soul_alert")
+	requireMoonDiscardPrompt(t, game, "p1", "bs_alert_source_discard")
+
+	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
+		t.Fatalf("resolve beast soul alert discard failed: %v", err)
+	}
+
+	if game.State.Subflow == model.SubflowResponse && game.State.PendingInterrupt == nil {
+		t.Fatalf("flow should not stay in empty response after nested beast soul alert")
+	}
+	if game.State.TurnStage == "" {
+		t.Fatalf("turn stage should remain concrete after nested response recovery")
+	}
+	if got := game.State.RedMorale; got != 15 {
+		t.Fatalf("expected red morale unchanged by deferred 新月庇护 resume, got %d", got)
+	}
+	if got := moonplayer.DarkMoonCount(moon); got != 1 {
+		t.Fatalf("expected moon to absorb overflow card after deferred resume, got %d", got)
+	}
+	if got := moon.Form; got != model.FormMoonGoddessDarkMoon {
+		t.Fatalf("expected moon enter dark form, got %q", got)
+	}
+}
+
+func requireMoonDiscardPrompt(t *testing.T, game *engine.GameEngine, playerID, choiceType string) {
+	t.Helper()
+	if game.State.PendingInterrupt == nil || !engine.IsDiscardSelectionInterrupt(game.State.PendingInterrupt) {
+		t.Fatalf("expected pending discard interrupt, got %+v", game.State.PendingInterrupt)
+	}
+	if game.State.PendingInterrupt.PlayerID != playerID {
+		t.Fatalf("expected discard interrupt for %s, got %s", playerID, game.State.PendingInterrupt.PlayerID)
+	}
+	data, ok := game.State.PendingInterrupt.Context.(map[string]interface{})
+	if !ok {
+		t.Fatalf("discard context type mismatch")
+	}
+	got, _ := data["choice_type"].(string)
+	if got != choiceType {
+		t.Fatalf("expected choice_type=%s, got %s", choiceType, got)
+	}
+}
+
 func TestMoonGoddessNewMoonShelter_NoSoulDevourGainWhenMoraleLossPrevented(t *testing.T) {
 	// 重复多次覆盖 map 迭代随机性，确保“暗月抵消士气后，灵魂术士不加黄魂”稳定成立。
 	for i := 0; i < 24; i++ {

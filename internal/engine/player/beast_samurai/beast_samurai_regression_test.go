@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	beast_samurai "starcup-engine/internal/engine/player/beast_samurai"
 	skills "starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/rules"
@@ -323,6 +324,80 @@ func TestBeastSamurai_BeastSoulAlert_RunsOnOtherPlayerTapped(t *testing.T) {
 	}
 	if reveal := testutils.FindPublicDiscardReveal(obs, "p2"); reveal == nil {
 		t.Fatalf("expected alert source discard to be public reveal")
+	}
+}
+
+func TestBeastSamurai_BeastSoulAlert_RequiresBeastSoul(t *testing.T) {
+	game, p1, p2 := newBeastSamuraiTestEngine(t, testutils.NoopObserver{}, "")
+	p1.Tokens["bs_beast_soul"] = 0
+	p2.Hand = []model.Card{
+		{ID: "magic-1", Name: "火球", Type: model.CardTypeMagic, Element: model.ElementFire, Faction: "法"},
+	}
+
+	before := game.SnapshotPlayerPoses()
+	p2.Orientation = model.OrientationTapped
+	game.DispatchOrientationChanges(before)
+
+	if intr := game.State.PendingInterrupt; intr != nil && intr.Type == model.InterruptResponseSkill {
+		for _, skillID := range intr.SkillIDs {
+			if skillID == "bs_beast_soul_alert" {
+				t.Fatalf("expected beast soul alert not to be offered with 0 beast soul, got %+v", intr.SkillIDs)
+			}
+		}
+	}
+
+	ctx := game.BuildContext(p1, p2, model.TimingOnOrientationChanged, &model.EventContext{
+		Type:            model.EventNone,
+		SourceID:        p2.ID,
+		TargetID:        p2.ID,
+		OperatorID:      p2.ID,
+		PrevOrientation: model.OrientationNormal,
+		NewOrientation:  model.OrientationTapped,
+	})
+	handler := &beast_samurai.BeastSamuraiBeastSoulAlertHandler{}
+	if handler.CanUse(ctx) {
+		t.Fatalf("expected beast soul alert CanUse=false with 0 beast soul")
+	}
+	if err := handler.Execute(ctx); err == nil || !strings.Contains(err.Error(), "兽魂不足") {
+		t.Fatalf("expected beast soul alert Execute to reject 0 beast soul, got %v", err)
+	}
+}
+
+func TestBeastSamurai_BeastSoulAlert_RequiresNormalForm(t *testing.T) {
+	game, p1, p2 := newBeastSamuraiTestEngine(t, testutils.NoopObserver{}, "")
+	p1.Tokens["bs_beast_soul"] = 1
+	p1.Orientation = model.OrientationTapped
+	p1.Form = model.FormBeastSamuraiIaijutsu
+	p2.Hand = []model.Card{
+		{ID: "magic-1", Name: "火球", Type: model.CardTypeMagic, Element: model.ElementFire, Faction: "法"},
+	}
+
+	before := game.SnapshotPlayerPoses()
+	p2.Orientation = model.OrientationTapped
+	game.DispatchOrientationChanges(before)
+
+	if intr := game.State.PendingInterrupt; intr != nil && intr.Type == model.InterruptResponseSkill {
+		for _, skillID := range intr.SkillIDs {
+			if skillID == "bs_beast_soul_alert" {
+				t.Fatalf("expected beast soul alert not to be offered while already in iaijutsu form, got %+v", intr.SkillIDs)
+			}
+		}
+	}
+
+	ctx := game.BuildContext(p1, p2, model.TimingOnOrientationChanged, &model.EventContext{
+		Type:            model.EventNone,
+		SourceID:        p2.ID,
+		TargetID:        p2.ID,
+		OperatorID:      p2.ID,
+		PrevOrientation: model.OrientationNormal,
+		NewOrientation:  model.OrientationTapped,
+	})
+	handler := &beast_samurai.BeastSamuraiBeastSoulAlertHandler{}
+	if handler.CanUse(ctx) {
+		t.Fatalf("expected beast soul alert CanUse=false while already in iaijutsu form")
+	}
+	if err := handler.Execute(ctx); err == nil || !strings.Contains(err.Error(), "已处于御魂流居合形态") {
+		t.Fatalf("expected beast soul alert Execute to reject iaijutsu form, got %v", err)
 	}
 }
 

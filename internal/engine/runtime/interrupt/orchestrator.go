@@ -10,9 +10,10 @@ import (
 
 // Orchestrator 绑定宿主与规则表。
 type Orchestrator struct {
-	engine      EngineInterface
-	actionRules *ActionRules
-	promptRules *PromptRules
+	engine           EngineInterface
+	actionRules      *ActionRules
+	promptRules      *PromptRules
+	deferredAfterPop []func(EngineInterface)
 }
 
 // NewOrchestrator 创建编排器。
@@ -56,10 +57,10 @@ func (o *Orchestrator) DispatchAction(act model.PlayerAction) error {
 		return err
 	}
 	if result.Consumed && before != nil && st.PendingInterrupt == before {
-		o.PopInterrupt()
-		if result.AfterPop != nil && st.PendingInterrupt == nil {
-			result.AfterPop(o.engine)
+		if result.AfterPop != nil {
+			o.deferredAfterPop = append(o.deferredAfterPop, result.AfterPop)
 		}
+		o.PopInterrupt()
 	}
 	return nil
 }
@@ -150,4 +151,19 @@ func (o *Orchestrator) PopInterrupt() {
 		o.engine.Log("[System] 所有中断处理完毕，恢复主流程")
 	}
 	o.engine.ReconcileSubflowAfterInterruptPop(popped)
+	o.drainDeferredAfterPop()
+}
+
+func (o *Orchestrator) drainDeferredAfterPop() {
+	if o == nil || o.engine == nil {
+		return
+	}
+	st := o.engine.GetState()
+	for st != nil && st.PendingInterrupt == nil && len(o.deferredAfterPop) > 0 {
+		after := o.deferredAfterPop[0]
+		o.deferredAfterPop = o.deferredAfterPop[1:]
+		if after != nil {
+			after(o.engine)
+		}
+	}
 }

@@ -604,6 +604,9 @@ func initBeastReversalDiscardFlow(need int) *model.PromptFlowState {
 func resumePointFromCtx(ctxData map[string]interface{}, fallback interface{}) interface{} {
 	if raw, ok := ctxData["resume_phase"]; ok {
 		if _, valid := choiceResumePointValue(raw); valid {
+			if subflow, ok := raw.(model.Subflow); ok && subflow == model.SubflowResponse {
+				return fallback
+			}
 			return raw
 		}
 	}
