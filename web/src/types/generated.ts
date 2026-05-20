@@ -203,12 +203,20 @@ export interface PromptDTO {
   special_options?: PromptOptionDTO[]
   ui_mode?: string
   presentation: PromptPresentation
+  interaction?: PromptInteractionDTO
   effect_hints?: string[]
   min: number
   max: number
   attacker_id?: string
   counter_target_ids?: string[]
   attack_element?: string
+}
+
+export interface PromptInteractionDTO {
+  selection_source: string
+  selection_value: string
+  confirm_mode: string
+  submit_action: string
 }
 
 export interface PromptOptionDTO {

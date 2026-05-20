@@ -2,6 +2,7 @@ import type { Page } from '@playwright/test';
 import { test } from '../../../fixtures/protocolHarness.fixture';
 import {
   reverseScenario,
+  pilgrimageConfirmPrompt,
   pilgrimagePickPrompt,
   poisonPickPrompt,
   mirrorPairPrompt,
@@ -18,6 +19,17 @@ async function clickOverlayOption(page: Page, selector: string) {
 }
 
 test.describe('butterfly dancer pilgrimage protocol harness', () => {
+  test('pilgrimage: decline confirm prompt via cancel control', async ({ page, protocolHarness }) => {
+    await protocolHarness.bootGame(reverseScenario());
+
+    await protocolHarness.pushServerMessage(pilgrimageConfirmPrompt());
+
+    await page.getByTestId('decision-overlay').getByTestId('prompt-cancel-btn').click();
+    await protocolHarness.expectSubmitAction({
+      action_type: 'Cancel',
+    });
+  });
+
   test('pilgrimage: skip (不发动)', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(reverseScenario());
 

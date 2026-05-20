@@ -47,6 +47,7 @@ var includeTypes = map[string]bool{
 	"PlayerInfo":            true,
 	"PlayerView":            true,
 	"PromptDTO":             true,
+	"PromptInteractionDTO":  true,
 	"PromptOptionDTO":       true,
 	"ProtocolErrorPayload":  true,
 	"RequireActionPayload":  true,

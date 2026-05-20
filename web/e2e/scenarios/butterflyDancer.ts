@@ -10,6 +10,7 @@ import {
   characterView,
   playerInfo,
   playerView,
+  fieldOptionIndexInteraction,
   requireActionMessage,
   syncState,
   syncStateMessage,
@@ -284,6 +285,7 @@ export function cocoonOverflowDiscardPrompt(discardCount = 1): WsMessage {
       { id: '0', label: '茧[0]: 茧牌A（火系 攻击）', button_label: '选择', card_id: 'bd-cocoon-0', field_index: 0 },
     ],
     presentation: { kind: 'card_picker', card_source: 'field', card_filter: 'overflow_discard', numeric_base: 0 },
+    interaction: fieldOptionIndexInteraction,
     min: discardCount, max: discardCount,
   } satisfies Prompt);
 }
@@ -414,6 +416,7 @@ export function reverseBranch2PickPrompt(): WsMessage {
       { id: '1', label: '茧[1]: 茧牌B（水系 魔术）', button_label: '选择', card_id: 'bd-cocoon-1', field_index: 1 },
     ],
     presentation: { kind: 'card_picker', card_source: 'field', card_filter: 'option_limited', numeric_base: 0 },
+    interaction: fieldOptionIndexInteraction,
     min: 2, max: 2,
   } satisfies Prompt);
 }
@@ -421,6 +424,28 @@ export function reverseBranch2PickPrompt(): WsMessage {
 // ============================================================
 // Pilgrimage / Poison (朝圣/毒粉) cocoon pick prompts
 // ============================================================
+
+export function pilgrimageConfirmPrompt(): WsMessage {
+  return requireActionMessage({
+    type: 'confirm',
+    player_id: BD_PLAYER_ID,
+    message: '【朝圣】是否发动，移除1个茧抵御1点伤害？',
+    choice_type: 'bt_pilgrimage_confirm',
+    options: [
+      { id: '0', label: '发动朝圣', button_label: '发动' },
+      { id: '1', label: '不发动', button_label: '不发动' },
+    ],
+    min: 1, max: 1,
+    presentation: {
+      kind: 'branch_select',
+      layout: 'overlay',
+      cancel_policy: 'decline',
+      has_decline: true,
+      decline_index: 1,
+      numeric_base: 0,
+    },
+  } satisfies Prompt);
+}
 
 export function pilgrimagePickPrompt(): WsMessage {
   return requireActionMessage({
@@ -639,6 +664,7 @@ export function chrysalisOverflowDiscardPrompt(overflowCount: number, cocoonLabe
     choice_type: 'bt_cocoon_overflow_discard',
     options,
     presentation: { kind: 'card_picker', card_source: 'field', card_filter: 'overflow_discard', numeric_base: 0 },
+    interaction: fieldOptionIndexInteraction,
     min: overflowCount,
     max: overflowCount,
   } satisfies Prompt);

@@ -19,12 +19,22 @@ type PromptDTO struct {
 	SpecialOptions   []PromptOptionDTO         `json:"special_options,omitempty"`
 	UIMode           string                    `json:"ui_mode,omitempty"`
 	Presentation     *model.PromptPresentation `json:"presentation"`
+	Interaction      *PromptInteractionDTO     `json:"interaction,omitempty"`
 	EffectHints      []string                  `json:"effect_hints,omitempty"`
 	Min              int                       `json:"min"`
 	Max              int                       `json:"max"`
 	AttackerID       string                    `json:"attacker_id,omitempty"`
 	CounterTargetIDs []string                  `json:"counter_target_ids,omitempty"`
 	AttackElement    string                    `json:"attack_element,omitempty"`
+}
+
+// PromptInteractionDTO 明确声明 Prompt 的前端交互与提交契约。
+// 前端应优先使用此字段决定选择状态和 SubmitAction 形态，避免从展示类型猜测。
+type PromptInteractionDTO struct {
+	SelectionSource string `json:"selection_source"` // option/hand/field/target/none
+	SelectionValue  string `json:"selection_value"`  // option_index/card_id/confirm/none
+	ConfirmMode     string `json:"confirm_mode"`     // immediate/manual
+	SubmitAction    string `json:"submit_action"`    // select/cancel/confirm/respond
 }
 
 // PromptOptionDTO 选项 DTO
@@ -55,6 +65,7 @@ func ToPromptDTO(p *model.Prompt) *PromptDTO {
 		SkillID:          p.SkillID,
 		UIMode:           p.UIMode,
 		Presentation:     presentation,
+		Interaction:      interactionForPrompt(p, presentation),
 		EffectHints:      p.EffectHints,
 		Min:              p.Min,
 		Max:              p.Max,

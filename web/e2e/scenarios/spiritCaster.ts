@@ -9,6 +9,7 @@ import {
   characterView,
   playerInfo,
   playerView,
+  fieldOptionIndexInteraction,
   requireActionMessage,
   syncState,
   availableSkill,
@@ -579,6 +580,7 @@ export function hundredNightRemoveYouliPrompt(options: {
       card_id: `sc-youli-${idx}`,
     })),
     presentation: { kind: 'card_picker', layout: 'field_cover', card_source: 'field', card_filter: 'effect:SpiritCasterPower', numeric_base: 0 },
+    interaction: fieldOptionIndexInteraction,
     min: 1,
     max: 1,
   } satisfies Prompt);

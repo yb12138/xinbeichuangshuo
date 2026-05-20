@@ -44,6 +44,7 @@ func TestToPromptDTORequiresExplicitPresentationAndCarriesButtonLabels(t *testin
 	if got := dto.Options[1].ButtonLabel; got != "不发动" {
 		t.Fatalf("expected decline button label from backend, got %q", got)
 	}
+	assertPromptInteraction(t, dto.Interaction, "option", "option_index", "immediate", "select")
 
 	raw, err := json.Marshal(dto)
 	if err != nil {
@@ -82,6 +83,7 @@ func TestToPromptDTORequiresCardPickerFieldPresentation(t *testing.T) {
 	if got := dto.Options[0].ButtonLabel; got != "移除茧[2]" {
 		t.Fatalf("expected field option button label, got %q", got)
 	}
+	assertPromptInteraction(t, dto.Interaction, "field", "option_index", "manual", "select")
 }
 
 func TestToPromptDTOPanicsWhenPresentationMissing(t *testing.T) {
@@ -110,6 +112,7 @@ func TestToPromptDTOPreservesCardIDOnCardOptions(t *testing.T) {
 	if got := dto.Options[0].CardID; got != "card-001" {
 		t.Fatalf("expected card_id to be preserved, got %q", got)
 	}
+	assertPromptInteraction(t, dto.Interaction, "hand", "card_id", "manual", "select")
 }
 
 func TestToPromptDTOPanicsWhenHandCardPickerOptionMissingCardID(t *testing.T) {
@@ -173,6 +176,35 @@ func TestToPromptDTOPreservesTargetIDOnTargetOptions(t *testing.T) {
 	}
 	if got := dto.Options[0].TargetID; got != "p3" {
 		t.Fatalf("expected target_id to be preserved, got %q", got)
+	}
+	assertPromptInteraction(t, dto.Interaction, "target", "option_index", "immediate", "select")
+}
+
+func TestToPromptDTOInteractionForMultiTargetPickerIsManual(t *testing.T) {
+	prompt := &model.Prompt{
+		Type:     model.PromptConfirm,
+		PlayerID: "p1",
+		Message:  "请选择2名目标",
+		Options: []model.PromptOption{
+			{ID: "0", Label: "目标A", TargetID: "p2"},
+			{ID: "1", Label: "目标B", TargetID: "p3"},
+		},
+		Min:          2,
+		Max:          2,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationTargetPicker, TargetFilter: "custom", MultiTarget: true},
+	}
+
+	dto := ToPromptDTO(prompt)
+	assertPromptInteraction(t, dto.Interaction, "target", "option_index", "manual", "select")
+}
+
+func assertPromptInteraction(t *testing.T, got *PromptInteractionDTO, source, value, confirmMode, submitAction string) {
+	t.Helper()
+	if got == nil {
+		t.Fatal("expected prompt interaction")
+	}
+	if got.SelectionSource != source || got.SelectionValue != value || got.ConfirmMode != confirmMode || got.SubmitAction != submitAction {
+		t.Fatalf("unexpected prompt interaction: got %+v, want source=%q value=%q confirm=%q submit=%q", got, source, value, confirmMode, submitAction)
 	}
 }
 

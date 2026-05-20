@@ -21,6 +21,7 @@ async function pickFirstYouliCover(page: import('@playwright/test').Page) {
     await page.getByRole('button', { name: /扩展区/ }).click();
   }
   await page.getByTestId('cover-card-0').click();
+  await page.getByTestId('prompt-confirm-btn').click();
 }
 
 test.describe('spirit caster hundred night protocol harness', () => {
@@ -36,12 +37,12 @@ test.describe('spirit caster hundred night protocol harness', () => {
       option_indexes: [0],
     });
 
-    // Remove youli (fire card) - field card_picker, auto-submit with card_ids
+    // Remove youli (fire card) - field card_picker submits option index after confirm
     await protocolHarness.pushServerMessage(hundredNightRemoveYouliPrompt());
     await pickFirstYouliCover(page);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      card_ids: ['sc-youli-0'],
+      option_indexes: [0],
     });
 
     // Fire branch: show for AOE (branch_select overlay)
@@ -76,7 +77,7 @@ test.describe('spirit caster hundred night protocol harness', () => {
     await pickFirstYouliCover(page);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      card_ids: ['sc-youli-0'],
+      option_indexes: [0],
     });
 
     // Fire branch: hide for single target (branch_select overlay)
@@ -119,7 +120,7 @@ test.describe('spirit caster hundred night protocol harness', () => {
     await pickFirstYouliCover(page);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      card_ids: ['sc-youli-0'],
+      option_indexes: [0],
     });
 
     // Fire branch: show for AOE (branch_select overlay)
@@ -161,7 +162,7 @@ test.describe('spirit caster hundred night protocol harness', () => {
     await pickFirstYouliCover(page);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      card_ids: ['sc-youli-0'],
+      option_indexes: [0],
     });
 
     await protocolHarness.pushServerMessage(hundredNightFireBranchPrompt());

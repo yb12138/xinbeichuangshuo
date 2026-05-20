@@ -13,6 +13,7 @@ import type {
   PlayerView as GeneratedPlayerView,
   PresentationKind as GeneratedPresentationKind,
   PromptDTO as GeneratedPromptDTO,
+  PromptInteractionDTO as GeneratedPromptInteractionDTO,
   PromptOptionDTO as GeneratedPromptOptionDTO,
   PromptPresentation as GeneratedPromptPresentation,
   RoomEvent as GeneratedRoomEvent,
@@ -32,6 +33,7 @@ export type CharacterView = GeneratedCharacterView
 export type PlayerInfo = GeneratedPlayerInfo
 export type PresentationKind = GeneratedPresentationKind
 export type PromptPresentation = GeneratedPromptPresentation
+export type PromptInteraction = GeneratedPromptInteractionDTO
 export type PromptOption = GeneratedPromptOptionDTO
 export type RoomEvent = GeneratedRoomEvent
 export type WSMessage = GeneratedWSMessage

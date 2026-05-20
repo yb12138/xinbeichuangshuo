@@ -31,6 +31,59 @@ func presentationForPrompt(p *model.Prompt) *model.PromptPresentation {
 	return &presentation
 }
 
+func interactionForPrompt(p *model.Prompt, presentation *model.PromptPresentation) *PromptInteractionDTO {
+	if p == nil || presentation == nil {
+		return nil
+	}
+	confirmMode := "immediate"
+	if p.Max > 1 || presentation.Kind == model.PresentationTargetPicker && presentation.MultiTarget {
+		confirmMode = "manual"
+	}
+	selectionSource := "option"
+	selectionValue := "option_index"
+	submitAction := "select"
+
+	switch presentation.Kind {
+	case model.PresentationCardPicker:
+		switch presentation.CardSource {
+		case "hand", "proxy":
+			selectionSource = "hand"
+			selectionValue = "card_id"
+			confirmMode = "manual"
+		case "field":
+			selectionSource = "field"
+			selectionValue = "option_index"
+			confirmMode = "manual"
+		default:
+			selectionSource = "option"
+			selectionValue = "option_index"
+		}
+	case model.PresentationTargetPicker:
+		selectionSource = "target"
+		selectionValue = "option_index"
+		confirmMode = "immediate"
+		if presentation.MultiTarget || p.Max > 1 {
+			confirmMode = "manual"
+		}
+	case model.PresentationActionHub:
+		selectionSource = "none"
+		selectionValue = "none"
+		submitAction = "select"
+	case model.PresentationSkillChoice, model.PresentationBranchSelect, model.PresentationNumeric:
+		selectionSource = "option"
+		selectionValue = "option_index"
+	case "":
+		return nil
+	}
+
+	return &PromptInteractionDTO{
+		SelectionSource: selectionSource,
+		SelectionValue:  selectionValue,
+		ConfirmMode:     confirmMode,
+		SubmitAction:    submitAction,
+	}
+}
+
 func cancelLabelForPolicy(policy string) string {
 	switch policy {
 	case "back":

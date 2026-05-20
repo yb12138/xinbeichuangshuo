@@ -68,9 +68,10 @@ test.describe('magic bow protocol harness', () => {
 
     await protocolHarness.pushServerMessage(magicPierceChargePrompt());
     await page.getByTestId('cover-card-0').click();
+    await page.getByTestId('prompt-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      card_ids: ['mb-charge-0'],
+      option_indexes: [0],
     });
 
     await protocolHarness.pushServerMessage(magicPierceHitBonusPrompt());
@@ -83,9 +84,10 @@ test.describe('magic bow protocol harness', () => {
 
     await protocolHarness.pushServerMessage(magicPierceHitChargePrompt());
     await page.getByTestId('cover-card-1').click();
+    await page.getByTestId('prompt-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      card_ids: ['mb-charge-1'],
+      option_indexes: [0],
     });
   });
 
@@ -112,9 +114,10 @@ test.describe('magic bow protocol harness', () => {
 
     await protocolHarness.pushServerMessage(thunderScatterBaseChargePrompt());
     await page.getByTestId('cover-card-0').click();
+    await page.getByTestId('prompt-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      card_ids: ['mb-charge-0'],
+      option_indexes: [0],
     });
 
     await protocolHarness.pushServerMessage(thunderScatterExtraPrompt(2));
@@ -159,9 +162,10 @@ test.describe('magic bow protocol harness', () => {
 
     await protocolHarness.pushServerMessage(multiShotChargePrompt());
     await page.getByTestId('cover-card-2').click();
+    await page.getByTestId('prompt-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      card_ids: ['mb-charge-2'],
+      option_indexes: [0],
     });
 
     await protocolHarness.pushServerMessage(multiShotTargetPrompt());

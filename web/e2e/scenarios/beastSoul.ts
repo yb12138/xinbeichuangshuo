@@ -15,6 +15,7 @@ import {
   characterView,
   playerInfo,
   playerView,
+  handCardIDInteraction,
   requireActionMessage,
   syncState,
   availableSkill,
@@ -297,6 +298,7 @@ export function beastSoulAlertDiscardPrompt(): WsMessage {
     ],
     min: 1,
     max: 1,
+    interaction: handCardIDInteraction,
     presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'option_limited', numeric_base: 0 },
   } satisfies Prompt);
 }
@@ -389,6 +391,7 @@ export function beastReturnSelfDiscardPrompt(discardCount: number): WsMessage {
     options,
     min: discardCount,
     max: discardCount,
+    interaction: handCardIDInteraction,
     presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'option_limited', numeric_base: 0 },
   } satisfies Prompt);
 }
@@ -405,6 +408,7 @@ export function beastReturnSourceDiscardPrompt(): WsMessage {
     ],
     min: 1,
     max: 1,
+    interaction: handCardIDInteraction,
     presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'option_limited', numeric_base: 0 },
   } satisfies Prompt);
 }
@@ -492,6 +496,7 @@ export function reversalIaijutsuTargetDiscardPrompt(discardCount: number): WsMes
     ],
     min: 1,
     max: 1,
+    interaction: handCardIDInteraction,
     presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'option_limited', numeric_base: 0 },
   } satisfies Prompt);
 }
@@ -580,6 +585,7 @@ export function iaijutsuStyleDiscardPrompt(): WsMessage {
     ],
     min: 1,
     max: 1,
+    interaction: handCardIDInteraction,
     presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'option_limited', numeric_base: 0 },
   } satisfies Prompt);
 }

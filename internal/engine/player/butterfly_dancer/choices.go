@@ -109,6 +109,18 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 	}
 }
 
+func (choiceHandler) HandleCancel(rt engineplayer.ChoiceRuntime, _ string, ctxData map[string]interface{}) (bool, error) {
+	choiceType, _ := ctxData["choice_type"].(string)
+	switch choiceType {
+	case "bt_pilgrimage_confirm", "bt_pilgrimage_pick", "bt_poison_pick", "bt_mirror_pair":
+		return true, declinePilgrimageOrPoison(rt)
+	default:
+		return false, nil
+	}
+}
+
+var _ engineplayer.CancelChoiceHandler = choiceHandler{}
+
 // ===========================================================================
 // BuildPrompt helpers
 // ===========================================================================

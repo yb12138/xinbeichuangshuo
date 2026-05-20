@@ -23,6 +23,34 @@ export interface ProtocolHarnessScenario {
   initialState: SyncStatePayload;
 }
 
+export const handCardIDInteraction = {
+  selection_source: 'hand',
+  selection_value: 'card_id',
+  confirm_mode: 'manual',
+  submit_action: 'select',
+} as const;
+
+export const fieldOptionIndexInteraction = {
+  selection_source: 'field',
+  selection_value: 'option_index',
+  confirm_mode: 'manual',
+  submit_action: 'select',
+} as const;
+
+export const singleTargetOptionIndexInteraction = {
+  selection_source: 'target',
+  selection_value: 'option_index',
+  confirm_mode: 'immediate',
+  submit_action: 'select',
+} as const;
+
+export const multiTargetOptionIndexInteraction = {
+  selection_source: 'target',
+  selection_value: 'option_index',
+  confirm_mode: 'manual',
+  submit_action: 'select',
+} as const;
+
 export function card(overrides: Partial<Card> = {}): Card {
   return {
     id: 'card-1',

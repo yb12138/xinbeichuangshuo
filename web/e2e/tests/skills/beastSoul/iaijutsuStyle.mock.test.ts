@@ -64,6 +64,7 @@ test.describe('beast samurai iaijutsu style protocol harness', () => {
     // 实际弃 1 张牌（min=max=1，与后端 buildDiscardPrompt 一致）
     await protocolHarness.pushServerMessage(iaijutsuStyleDiscardPrompt());
     await page.getByTestId('hand-card-0').click();
+    await page.getByTestId('prompt-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       card_ids: ['card_1'],

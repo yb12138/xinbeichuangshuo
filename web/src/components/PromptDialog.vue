@@ -143,6 +143,57 @@ const isElfElementalShotPickPrompt = computed(() =>
   prompt.value?.presentation?.kind === 'card_picker' && prompt.value?.presentation?.card_filter === 'magic_or_elf_blessing'
 )
 
+const promptInteraction = computed(() => prompt.value?.interaction ?? null)
+
+function promptSelectedCountForContract(): number {
+  const contract = promptInteraction.value
+  if (!contract || contract.submit_action !== 'select') return 0
+  if (contract.selection_source === 'field' && contract.selection_value === 'option_index') {
+    return interruptStore.selectedFieldOptionIndexes.length
+  }
+  if (contract.selection_source === 'hand' && contract.selection_value === 'card_id') {
+    return isNonHandChooseCardsMultiMode.value
+      ? selectedInlineCardIDs.value.length
+      : interruptStore.selectedHandIndexes.length
+  }
+  if (contract.selection_source === 'target') {
+    return interruptStore.selectedTargets.length
+  }
+  return 0
+}
+
+function canConfirmManualSelectContract(): boolean | null {
+  const contract = promptInteraction.value
+  if (!prompt.value || !contract || contract.submit_action !== 'select' || contract.confirm_mode !== 'manual') return null
+  if (contract.selection_source === 'field' && contract.selection_value === 'option_index') {
+    const cCount = promptSelectedCountForContract()
+    return cCount >= prompt.value.min && cCount <= prompt.value.max
+  }
+  if (contract.selection_source === 'hand' && contract.selection_value === 'card_id') {
+    if (isPlagueDeathTouchElementPrompt.value) {
+      return resolvePlagueDeathTouchElementOptionIndex() !== null
+    }
+    const cCount = promptSelectedCountForContract()
+    return cCount >= prompt.value.min && cCount <= prompt.value.max
+  }
+  if (contract.selection_source === 'target') {
+    const tCount = promptSelectedCountForContract()
+    if (contract.selection_value === 'option_index') {
+      return (
+        tCount >= prompt.value.min &&
+        tCount <= prompt.value.max &&
+        selectedPromptTargetOptionIndexes.value.length === tCount
+      )
+    }
+    return tCount >= prompt.value.min && tCount <= prompt.value.max
+  }
+  if (contract.selection_source === 'option' && contract.selection_value === 'option_index') {
+    const cCount = selectedExtractIndices.value.length
+    return cCount >= prompt.value.min && cCount <= prompt.value.max
+  }
+  return null
+}
+
 const needsCardSelection = computed(() => {
   if (!prompt.value) return false
   if (isSystemBranchPromptChoice()) return false
@@ -444,6 +495,8 @@ function resolvePlagueDeathTouchElementOptionIndex(): number | null {
 
 const canConfirmPrompt = computed(() => {
   if (!prompt.value) return false
+  const contractResult = canConfirmManualSelectContract()
+  if (contractResult !== null) return contractResult
   if (isPlagueDeathTouchElementPrompt.value) {
     return resolvePlagueDeathTouchElementOptionIndex() !== null
   }
@@ -476,6 +529,52 @@ const canConfirmPrompt = computed(() => {
 
 function confirmPromptAction() {
   if (!canConfirmPrompt.value) return
+  const interactionContract = promptInteraction.value
+
+  if (interactionContract?.submit_action === 'select' && interactionContract.confirm_mode === 'manual') {
+    if (interactionContract.selection_source === 'field' && interactionContract.selection_value === 'option_index') {
+      const indexes = interruptStore.selectedFieldOptionIndexes
+      if (indexes.length > 0) {
+        submitOptionIndexes(indexes)
+      }
+      return
+    }
+    if (interactionContract.selection_source === 'hand' && interactionContract.selection_value === 'card_id') {
+      if (isPlagueDeathTouchElementPrompt.value) {
+        const optionIndex = resolvePlagueDeathTouchElementOptionIndex()
+        if (optionIndex === null) {
+          showPromptError('请先在手牌区选择可用于死亡之触的同系牌')
+          return
+        }
+        submitOptionIndex(optionIndex)
+        return
+      }
+      if (isNonHandChooseCardsMultiMode.value) {
+        submitSelectedCardIDs(selectedInlineCardIDs.value)
+        return
+      }
+      const cardIDs = selectedPromptHandCardIDs(interruptStore.selectedHandIndexes)
+      if (cardIDs.length === interruptStore.selectedHandIndexes.length) {
+        submitSelectedCardIDs(cardIDs)
+        return
+      }
+      showPromptError('当前卡牌选择缺少 card_id，请刷新后重试')
+      return
+    }
+    if (interactionContract.selection_source === 'target') {
+      if (interactionContract.selection_value === 'option_index') {
+        const targetOptionIndexes = selectedPromptTargetOptionIndexes.value
+        if (targetOptionIndexes.length !== interruptStore.selectedTargets.length) {
+          showPromptError('请选择有效目标')
+          return
+        }
+        submitOptionIndexes(targetOptionIndexes)
+        return
+      }
+      submitTargetSelection()
+      return
+    }
+  }
 
   if (isFieldCoverSelectionPrompt()) {
     const indexes = interruptStore.selectedFieldOptionIndexes
@@ -1072,6 +1171,7 @@ const useInlineSurface = computed(() => promptRendererUsesInlineSurface(promptRe
 const cardConfirmHintText = computed(() => {
   if (isElfElementalShotPickPrompt.value) return '请从手牌区或扩展区选择法术牌/祝福牌并点击发动'
   if (isPlagueDeathTouchElementPrompt.value) return '请选择同系手牌并点击确认'
+  if (isFieldCoverSelectionPrompt()) return '请选择扩展区盖牌并点击确认'
   if (prompt.value?.presentation?.card_filter === 'same_element_combo') return '请选择2~3张同系牌，3张将自动转为暗灭攻击'
   if (prompt.value?.presentation?.card_filter === 'same_element') return '请选择要弃置的同系手牌并点击确认'
   if (promptNeedsInlineCardOptionConfirm.value) return '完成选择后点击发动'

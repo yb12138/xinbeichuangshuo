@@ -64,6 +64,7 @@ const {
 const {
   currentPrompt,
   selectedHandIndexes,
+  selectedFieldOptionIndexes,
   selectedTargets,
   promptCounterTarget,
   errorMessage,
@@ -523,7 +524,7 @@ const promptNeedsSpiritCasterPowerGuide = computed(() => spiritCasterPowerPrompt
 const spiritCasterPowerGuideText = computed(() => {
   const ctx = spiritCasterPowerPromptContext.value
   if (!ctx.active) return ''
-  return '请在扩展区点击对应的妖力完成选择'
+  return '请在扩展区点击对应妖力，完成后点击确认'
 })
 
 const promptNeedsElementalShotGuide = computed(() => {
@@ -544,6 +545,9 @@ const cocoonGuideText = computed(() => {
   if (!ctx.active) return ''
   if (p?.presentation?.card_filter === 'effect:MoonDarkMoon') {
     return '请在扩展区点击要展示并移除的同系闇月'
+  }
+  if (p?.presentation?.kind === 'card_picker' && p.presentation?.card_source === 'field') {
+    return '请在扩展区点击对应盖牌，完成后点击确认'
   }
   if (ctx.mode === 'confirm') {
     return '请在扩展区点击对应的茧完成选择'
@@ -693,8 +697,8 @@ function isCoverSelected(fieldIndex: number): boolean {
   }
   const powerCtx = spiritCasterPowerPromptContext.value
   if (powerCtx.active) {
-    // 妖力选择总是单选，没有选中状态（点击直接提交）
-    return false
+    const optionIndex = powerCtx.fieldToOptionIndex[fieldIndex]
+    return optionIndex !== undefined && selectedFieldOptionIndexes.value.includes(optionIndex)
   }
   // 元素射击：祝福盖牌的选择状态
   if (currentPrompt.value?.presentation?.card_filter === 'magic_or_elf_blessing') {
@@ -754,6 +758,10 @@ function onCoverCardClick(fieldIndex: number) {
     const pos = selectedCocoonFieldIndices.value.indexOf(fieldIndex)
     if (pos >= 0) {
       selectedCocoonFieldIndices.value.splice(pos, 1)
+      const selectedOptionIndexes = selectedCocoonFieldIndices.value
+        .map((idx) => ctx.fieldToOptionIndex[idx])
+        .filter((idx): idx is number => idx !== undefined)
+      interruptStore.setSelectedFieldOptionIndexes(selectedOptionIndexes)
       return
     }
     if (selectedCocoonFieldIndices.value.length >= ctx.max) {
@@ -762,6 +770,12 @@ function onCoverCardClick(fieldIndex: number) {
     }
     selectedCocoonFieldIndices.value.push(fieldIndex)
     selectedCocoonFieldIndices.value.sort((a, b) => a - b)
+    {
+      const selectedOptionIndexes = selectedCocoonFieldIndices.value
+        .map((idx) => ctx.fieldToOptionIndex[idx])
+        .filter((idx): idx is number => idx !== undefined)
+      interruptStore.setSelectedFieldOptionIndexes(selectedOptionIndexes)
+    }
     return
   }
 
@@ -776,7 +790,7 @@ function onCoverCardClick(fieldIndex: number) {
       interruptStore.showError('未找到对应妖力选项，请重试')
       return
     }
-    interaction.submitOptionIndex(optionIndex)
+    interruptStore.setSelectedFieldOptionIndexes([optionIndex])
     return
   }
 
@@ -808,7 +822,7 @@ function onCoverCardClick(fieldIndex: number) {
 
 function confirmCocoonSelection() {
   const ctx = cocoonPromptContext.value
-  if (!ctx.active || ctx.mode !== 'cards') return
+  if (!ctx.active) return
   if (!canConfirmCocoonSelection.value) {
     interruptStore.showError(`请选择 ${ctx.min}-${ctx.max} 个茧`)
     return
@@ -2124,7 +2138,7 @@ watch(
                 <div v-if="promptNeedsCocoonGuide" class="expansion-cocoon-guide">
                   <div class="expansion-cocoon-guide-text">{{ cocoonGuideText }}</div>
                   <button
-                    v-if="cocoonPromptContext.mode === 'cards' && cocoonPromptContext.max > 1"
+                    v-if="cocoonPromptContext.mode === 'cards'"
                     class="expansion-cocoon-confirm-btn"
                     :class="{ 'expansion-cocoon-confirm-btn--disabled': !canConfirmCocoonSelection }"
                     :disabled="!canConfirmCocoonSelection"

@@ -11,6 +11,7 @@ import {
   characterView,
   playerInfo,
   playerView,
+  fieldOptionIndexInteraction,
   requireActionMessage,
   syncState,
   type ProtocolHarnessScenario,
@@ -374,6 +375,7 @@ export function medusaEyeDarkMoonPrompt(): WsMessage {
       { id: '1', label: '移除闇月[火焰斩/Attack/Fire]', button_label: '移除闇月[1]', field_index: 1, card_id: 'mg-dark-moon-1' },
     ],
     presentation: { kind: 'card_picker', layout: 'field_cover', card_source: 'field', card_filter: 'effect:MoonDarkMoon', numeric_base: 0 },
+    interaction: fieldOptionIndexInteraction,
     min: 1,
     max: 1,
   } satisfies Prompt);

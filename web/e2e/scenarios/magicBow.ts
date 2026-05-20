@@ -10,6 +10,7 @@ import {
   characterView,
   playerInfo,
   playerView,
+  fieldOptionIndexInteraction,
   requireActionMessage,
   syncState,
   type ProtocolHarnessScenario,
@@ -258,6 +259,7 @@ export function magicPierceChargePrompt(): WsMessage {
     ],
     min: 1,
     max: 1,
+    interaction: fieldOptionIndexInteraction,
     presentation: { kind: 'card_picker', layout: 'field_cover', card_source: 'field', card_filter: 'effect:MagicBowCharge', numeric_base: 0 },
   } satisfies Prompt);
 }
@@ -291,6 +293,7 @@ export function magicPierceHitChargePrompt(): WsMessage {
     ],
     min: 1,
     max: 1,
+    interaction: fieldOptionIndexInteraction,
     presentation: { kind: 'card_picker', layout: 'field_cover', card_source: 'field', card_filter: 'effect:MagicBowCharge', numeric_base: 0 },
   } satisfies Prompt);
 }
@@ -328,6 +331,7 @@ export function thunderScatterBaseChargePrompt(): WsMessage {
     ],
     min: 1,
     max: 1,
+    interaction: fieldOptionIndexInteraction,
     presentation: { kind: 'card_picker', layout: 'field_cover', card_source: 'field', card_filter: 'effect:MagicBowCharge', numeric_base: 0 },
   } satisfies Prompt);
 }
@@ -387,6 +391,7 @@ export function multiShotChargePrompt(): WsMessage {
     ],
     min: 1,
     max: 1,
+    interaction: fieldOptionIndexInteraction,
     presentation: { kind: 'card_picker', layout: 'field_cover', card_source: 'field', card_filter: 'effect:MagicBowCharge', numeric_base: 0 },
   } satisfies Prompt);
 }

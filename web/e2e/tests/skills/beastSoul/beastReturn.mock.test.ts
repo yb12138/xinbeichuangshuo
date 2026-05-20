@@ -143,6 +143,7 @@ test.describe('beast samurai beast return protocol harness', () => {
     // 选牌类提示统一在手牌区完成，点击手牌卡片完成选择
     await protocolHarness.pushServerMessage(beastReturnSelfDiscardPrompt(1));
     await page.getByTestId('hand-card-0').click();
+    await page.getByTestId('prompt-confirm-btn').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       card_ids: ['card_1'],
