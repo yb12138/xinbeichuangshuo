@@ -3,7 +3,7 @@ import { useBattleReviewStore } from '../stores/battleReview.store'
 import { useInterruptStore } from '../stores/interrupt.store'
 import { useMatchLifecycleStore } from '../stores/matchLifecycle.store'
 import { useSessionStore } from '../stores/session.store'
-import type { WsMessage } from './protocol'
+import { normalizeWsMessage, type RoutedWsMessage, type WsOutboundMessage } from './protocol'
 import { buildWsConnectUrl, type ReconnectInfo } from './wsReconnect'
 
 const reconnectAttempts = ref(0)
@@ -21,7 +21,7 @@ export interface WsConnectionClientDeps {
   loadReconnectInfo?: (roomCode: string, playerName: string) => ReconnectInfo | null
   createSocket?: (url: string) => WebSocket
   safeStringify: (data: unknown) => string
-  onMessage: (msg: WsMessage) => void
+  onMessage: (msg: RoutedWsMessage) => void
 }
 
 function clearReconnectTimer() {
@@ -109,11 +109,18 @@ export function createWsConnectionClient(deps: WsConnectionClientDeps) {
     ws.onmessage = (event) => {
       try {
         battleReviewStore.addLog(`[WS][RX] raw: ${String(event.data)}`)
-        const msg: WsMessage = JSON.parse(String(event.data))
+        const msg = normalizeWsMessage(JSON.parse(String(event.data)))
+        if (!msg) {
+          interruptStore.showError('服务器消息格式错误')
+          battleReviewStore.addLog('[WS][RX] invalid envelope')
+          return
+        }
         battleReviewStore.addLog(`[WS][RX] ${msg.Cmd}: ${safeStringify(msg.Data)}`)
         onMessage(msg)
       } catch (error) {
         console.error('Failed to parse message:', error)
+        interruptStore.showError('服务器消息解析失败')
+        battleReviewStore.addLog('[WS][RX] parse error')
       }
     }
 
@@ -157,7 +164,7 @@ export function createWsConnectionClient(deps: WsConnectionClientDeps) {
     return !!ws && ws.readyState === WebSocket.OPEN
   }
 
-  function sendEnvelope(msg: WsMessage) {
+  function sendEnvelope(msg: WsOutboundMessage) {
     ws?.send(JSON.stringify(msg))
   }
 

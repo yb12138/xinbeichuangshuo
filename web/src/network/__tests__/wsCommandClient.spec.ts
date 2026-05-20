@@ -5,7 +5,7 @@ import { useBattleFxStore } from '../../stores/battlefx.store'
 import { useBattleReviewStore } from '../../stores/battleReview.store'
 import { useInterruptStore } from '../../stores/interrupt.store'
 import { useSessionStore } from '../../stores/session.store'
-import type { WsMessage } from '../protocol'
+import type { WsOutboundMessage } from '../protocol'
 
 function buildClient(options?: {
   connected?: boolean
@@ -14,7 +14,7 @@ function buildClient(options?: {
   const sessionStore = useSessionStore()
   const battleFxStore = useBattleFxStore()
   const battleReviewStore = useBattleReviewStore()
-  const sendEnvelope = vi.fn<(msg: WsMessage) => void>()
+  const sendEnvelope = vi.fn<(msg: WsOutboundMessage) => void>()
   let connected = options?.connected ?? true
   sessionStore.setRoomInfo('ROOM1', 'p1', 'Red', 'hero')
 
@@ -56,7 +56,7 @@ describe('createWsCommandClient', () => {
     expect(sendEnvelope).not.toHaveBeenCalled()
 
     interruptStore.clearError()
-    client.sendRoomAction('start_game')
+    client.startRoom()
     expect(interruptStore.errorMessage).toBe('未连接到服务器')
     expect(sendEnvelope).not.toHaveBeenCalled()
   })
@@ -108,24 +108,67 @@ describe('createWsCommandClient', () => {
     })
   })
 
-  it('wraps lobby commands into RoomAction envelopes', () => {
+  it('wraps lobby intents into RoomAction envelopes', () => {
     const { client, battleReviewStore, sendEnvelope } = buildClient()
 
-    client.sendRoomAction('select_character', {
-      camp: 'Red',
-      char_role: 'mage',
-    })
+    client.changeCamp('Red')
+    client.changeRole('mage', 'bot-1')
+    client.addBot('机器人1')
+    client.removeBot('bot-1')
+    client.takeoverPlayer('p2')
+    client.startRoom()
+    client.dissolveRoom()
 
-    expect(sendEnvelope).toHaveBeenCalledWith({
+    expect(sendEnvelope).toHaveBeenNthCalledWith(1, {
       Cmd: 'RoomAction',
       Data: {
-        action: 'select_character',
+        action: 'change_camp',
         camp: 'Red',
+      },
+    })
+    expect(sendEnvelope).toHaveBeenNthCalledWith(2, {
+      Cmd: 'RoomAction',
+      Data: {
+        action: 'change_role',
+        target_id: 'bot-1',
         char_role: 'mage',
       },
     })
+    expect(sendEnvelope).toHaveBeenNthCalledWith(3, {
+      Cmd: 'RoomAction',
+      Data: {
+        action: 'add_bot',
+        bot_name: '机器人1',
+      },
+    })
+    expect(sendEnvelope).toHaveBeenNthCalledWith(4, {
+      Cmd: 'RoomAction',
+      Data: {
+        action: 'remove_bot',
+        target_id: 'bot-1',
+      },
+    })
+    expect(sendEnvelope).toHaveBeenNthCalledWith(5, {
+      Cmd: 'RoomAction',
+      Data: {
+        action: 'takeover_player',
+        target_id: 'p2',
+      },
+    })
+    expect(sendEnvelope).toHaveBeenNthCalledWith(6, {
+      Cmd: 'RoomAction',
+      Data: {
+        action: 'start',
+      },
+    })
+    expect(sendEnvelope).toHaveBeenNthCalledWith(7, {
+      Cmd: 'RoomAction',
+      Data: {
+        action: 'dissolve_room',
+      },
+    })
     expect(battleReviewStore.logs[battleReviewStore.logs.length - 1]).toBe(
-      '[WS][TX] RoomAction: {"action":"select_character","camp":"Red","char_role":"mage"}'
+      '[WS][TX] RoomAction: {"action":"dissolve_room"}'
     )
   })
 

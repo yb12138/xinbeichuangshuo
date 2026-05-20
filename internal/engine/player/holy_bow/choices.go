@@ -33,6 +33,25 @@ const (
 	holyShardMissStepTarget  = "ally_target"
 )
 
+var (
+	holyShardFlowRuntime = model.MustNewPromptFlowRuntime(holyShardFlowID, []model.PromptFlowStepSpec{
+		{ID: holyShardStepCombo, ChoiceType: "hb_holy_shard_combo", CancelPolicy: model.CancelPolicyAbort},
+		{ID: holyShardStepTarget, ChoiceType: "hb_holy_shard_target", CancelPolicy: model.CancelPolicyAbort},
+	})
+	holyShardMissFlowRuntime = model.MustNewPromptFlowRuntime(holyShardMissFlowID, []model.PromptFlowStepSpec{
+		{ID: holyShardMissStepConfirm, ChoiceType: "hb_holy_shard_miss_confirm", CancelPolicy: model.CancelPolicyDecline},
+		{ID: holyShardMissStepX, ChoiceType: "hb_holy_shard_miss_x", CancelPolicy: model.CancelPolicyBack},
+		{ID: holyShardMissStepTarget, ChoiceType: "hb_holy_shard_miss_ally_target", CancelPolicy: model.CancelPolicyAbort},
+	})
+	lightBurstFlowRuntime = model.MustNewPromptFlowRuntime(lightBurstFlowID, []model.PromptFlowStepSpec{
+		{ID: lightBurstStepMode, ChoiceType: "hb_light_burst_mode", CancelPolicy: model.CancelPolicyAbort},
+		{ID: lightBurstStepModeATarget, ChoiceType: "hb_light_burst_mode_a_target", CancelPolicy: model.CancelPolicyAbort},
+		{ID: lightBurstStepModeBX, ChoiceType: "hb_light_burst_mode_b_x", CancelPolicy: model.CancelPolicyBack},
+		{ID: lightBurstStepModeBTarget, ChoiceType: "hb_light_burst_mode_b_targets", CancelPolicy: model.CancelPolicyBack},
+		{ID: lightBurstStepModeBDiscard, ChoiceType: "hb_light_burst_mode_b_discard", CancelPolicy: model.CancelPolicyAbort},
+	})
+)
+
 func NewChoiceHandler() engineplayer.ChoiceHandler {
 	return choiceHandler{}
 }
@@ -504,8 +523,7 @@ func finishHolyShardComboSelection(rt engineplayer.ChoiceRuntime, user *model.Pl
 	})
 	rt.NotifyCardRevealed(user.ID, removed, "discard")
 	rt.AppendToDiscard(removed)
-	engineplayer.AdvancePromptFlowChoice(rt, ctxData, flow, holyShardStepTarget, "hb_holy_shard_target")
-	return nil
+	return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, holyShardFlowRuntime, flow, holyShardStepTarget, "hb_holy_shard_target")
 }
 
 func handleHolyShardTarget(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
@@ -589,8 +607,7 @@ func handleHolyShardMissConfirm(rt engineplayer.ChoiceRuntime, selectionIndex in
 		rt.PopInterrupt()
 		return nil
 	}
-	engineplayer.AdvancePromptFlowChoice(rt, ctxData, flow, holyShardMissStepX, "hb_holy_shard_miss_x")
-	return nil
+	return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, holyShardMissFlowRuntime, flow, holyShardMissStepX, "hb_holy_shard_miss_x")
 }
 
 func handleHolyShardMissX(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
@@ -623,8 +640,7 @@ func handleHolyShardMissX(rt engineplayer.ChoiceRuntime, selectionIndex int, ctx
 		Count:         xValue,
 	})
 	ctxData["ally_ids"] = allyIDs
-	engineplayer.AdvancePromptFlowChoice(rt, ctxData, flow, holyShardMissStepTarget, "hb_holy_shard_miss_ally_target")
-	return nil
+	return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, holyShardMissFlowRuntime, flow, holyShardMissStepTarget, "hb_holy_shard_miss_ally_target")
 }
 
 func handleHolyShardMissAllyTarget(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
@@ -755,13 +771,12 @@ func handleLightBurstMode(rt engineplayer.ChoiceRuntime, selectionIndex int, ctx
 	})
 	switch modeOrder[selectionIndex] {
 	case "a":
-		engineplayer.AdvancePromptFlowChoice(rt, ctxData, flow, lightBurstStepModeATarget, "hb_light_burst_mode_a_target")
+		return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, lightBurstFlowRuntime, flow, lightBurstStepModeATarget, "hb_light_burst_mode_a_target")
 	case "b":
-		engineplayer.AdvancePromptFlowChoice(rt, ctxData, flow, lightBurstStepModeBX, "hb_light_burst_mode_b_x")
+		return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, lightBurstFlowRuntime, flow, lightBurstStepModeBX, "hb_light_burst_mode_b_x")
 	default:
 		return fmt.Errorf("无效的分支")
 	}
-	return nil
 }
 
 func handleLightBurstModeATarget(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
@@ -841,8 +856,7 @@ func handleLightBurstModeBX(rt engineplayer.ChoiceRuntime, selectionIndex int, c
 	})
 	flow.PutSelection(lightBurstStepModeBTarget, model.PromptFlowSelection{})
 	ctxData["candidate_target_ids"] = candidateTargets
-	engineplayer.AdvancePromptFlowChoice(rt, ctxData, flow, lightBurstStepModeBTarget, "hb_light_burst_mode_b_targets")
-	return nil
+	return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, lightBurstFlowRuntime, flow, lightBurstStepModeBTarget, "hb_light_burst_mode_b_targets")
 }
 
 func handleLightBurstModeBTargets(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
@@ -900,8 +914,7 @@ func handleLightBurstModeBTargets(rt engineplayer.ChoiceRuntime, selectionIndex 
 	}
 	flow.PutSelection(lightBurstStepModeBDiscard, model.PromptFlowSelection{})
 	ctxData["remaining_indices"] = engineplayer.AllHandIndices(user)
-	engineplayer.AdvancePromptFlowChoice(rt, ctxData, flow, lightBurstStepModeBDiscard, "hb_light_burst_mode_b_discard")
-	return nil
+	return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, lightBurstFlowRuntime, flow, lightBurstStepModeBDiscard, "hb_light_burst_mode_b_discard")
 }
 
 func handleLightBurstModeBDiscard(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {

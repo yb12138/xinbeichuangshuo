@@ -20,6 +20,10 @@ const (
 	beastReversalDiscardActualStep = "actual"
 )
 
+var beastReversalDiscardFlowRuntime = model.MustNewPromptFlowRuntime(beastReversalDiscardFlowID, []model.PromptFlowStepSpec{
+	{ID: beastReversalDiscardActualStep, ChoiceType: "bs_reversal_target_discard", CancelPolicy: model.CancelPolicyAbort},
+})
+
 func NewChoiceHandler() engineplayer.ChoiceHandler {
 	return choiceHandler{}
 }
@@ -561,7 +565,7 @@ func handleReversalTargetDiscard(rt engineplayer.ChoiceRuntime, ctxData map[stri
 }
 
 func initBeastReversalDiscardFlow(need int) *model.PromptFlowState {
-	flow := model.NewPromptFlowState(beastReversalDiscardFlowID, beastReversalDiscardActualStep)
+	flow := beastReversalDiscardFlowRuntime.MustBeginAt(beastReversalDiscardActualStep)
 	flow.PutSelection(beastReversalDiscardNeedStep, model.PromptFlowSelection{Count: need})
 	flow.PutSelection(beastReversalDiscardActualStep, model.PromptFlowSelection{})
 	return flow

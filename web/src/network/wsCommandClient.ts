@@ -4,7 +4,7 @@ import { useBattleReviewStore } from '../stores/battleReview.store'
 import { useInterruptStore } from '../stores/interrupt.store'
 import { useSessionStore } from '../stores/session.store'
 import { buildClientActionRequest } from './actionRequestAdapter'
-import type { ClientActionRequest, RoomActionRequest, WsMessage } from './protocol'
+import type { RoomActionRequest, RoomActionType, WsOutboundMessage } from './protocol'
 
 export interface WsCommandClientDeps {
   interruptStore: ReturnType<typeof useInterruptStore>
@@ -12,7 +12,7 @@ export interface WsCommandClientDeps {
   battleFxStore: ReturnType<typeof useBattleFxStore>
   battleReviewStore: ReturnType<typeof useBattleReviewStore>
   isTransportOpen: () => boolean
-  sendEnvelope: (msg: WsMessage) => void
+  sendEnvelope: (msg: WsOutboundMessage) => void
   safeStringify: (data: unknown) => string
 }
 
@@ -34,7 +34,7 @@ export function createWsCommandClient(deps: WsCommandClientDeps) {
     }
 
     const payload = buildClientActionRequest(action)
-    const msg: WsMessage<ClientActionRequest> = {
+    const msg: WsOutboundMessage = {
       Cmd: 'SubmitAction',
       Data: payload,
     }
@@ -50,17 +50,13 @@ export function createWsCommandClient(deps: WsCommandClientDeps) {
     sendEnvelope(msg)
   }
 
-  function sendRoomAction(action: string, data?: Record<string, unknown>) {
+  function sendRoomEnvelope(payload: RoomActionRequest) {
     if (!isTransportOpen()) {
       interruptStore.showError('未连接到服务器')
       return
     }
 
-    const payload: RoomActionRequest = {
-      action,
-      ...(data || {}),
-    }
-    const msg: WsMessage<RoomActionRequest> = {
+    const msg: WsOutboundMessage = {
       Cmd: 'RoomAction',
       Data: payload,
     }
@@ -69,12 +65,47 @@ export function createWsCommandClient(deps: WsCommandClientDeps) {
     sendEnvelope(msg)
   }
 
+  function sendRoomAction(action: RoomActionType, data?: Omit<RoomActionRequest, 'action'>) {
+    sendRoomEnvelope({
+      action,
+      ...(data || {}),
+    })
+  }
+
+  function changeCamp(camp: string, targetId?: string) {
+    sendRoomAction('change_camp', { camp, ...(targetId ? { target_id: targetId } : {}) })
+  }
+
+  function changeRole(charRole: string, targetId?: string) {
+    sendRoomAction('change_role', { char_role: charRole, ...(targetId ? { target_id: targetId } : {}) })
+  }
+
+  function addBot(botName?: string) {
+    sendRoomAction('add_bot', botName ? { bot_name: botName } : undefined)
+  }
+
+  function removeBot(targetId: string) {
+    sendRoomAction('remove_bot', { target_id: targetId })
+  }
+
+  function takeoverPlayer(targetId: string) {
+    sendRoomAction('takeover_player', { target_id: targetId })
+  }
+
+  function startRoom() {
+    sendRoomAction('start')
+  }
+
+  function dissolveRoom() {
+    sendRoomAction('dissolve_room')
+  }
+
   function sendChat(message: string) {
     if (!isTransportOpen()) {
       return
     }
 
-    const msg: WsMessage<Record<string, string>> = {
+    const msg: WsOutboundMessage = {
       Cmd: 'ChatMessage',
       Data: { message },
     }
@@ -261,7 +292,13 @@ export function createWsCommandClient(deps: WsCommandClientDeps) {
 
   return {
     sendAction,
-    sendRoomAction,
+    changeCamp,
+    changeRole,
+    addBot,
+    removeBot,
+    takeoverPlayer,
+    startRoom,
+    dissolveRoom,
     sendChat,
     attack,
     magic,

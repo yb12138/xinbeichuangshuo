@@ -40,7 +40,7 @@ func attackMissHook(rt player.HookRuntime, ctx player.TimingHookContext) player.
 			"target_id":                ctx.TargetID,
 			"max_x":                    maxX,
 			"valid_x":                  validX,
-			model.PromptFlowContextKey: model.NewPromptFlowState(holyShardMissFlowID, holyShardMissStepConfirm),
+			model.PromptFlowContextKey: holyShardMissFlowRuntime.Begin(),
 		},
 	})
 	rt.Log(fmt.Sprintf("%s 的 [圣屑飓暴] 未命中：可移除治疗并令队友弃牌", p.Name))

@@ -86,7 +86,7 @@ func (h *CrimsonKnightBloodyPrayerHandler) Execute(ctx *model.Context) error {
 			"user_id":                  ctx.User.ID,
 			"max_x":                    ctx.User.Heal,
 			"ally_ids":                 allyIDs,
-			model.PromptFlowContextKey: model.NewPromptFlowState(bloodyPrayerFlowID, bloodyPrayerStepX),
+			model.PromptFlowContextKey: bloodyPrayerFlowRuntime.Begin(),
 		},
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [血腥祷言]，请选择X与治疗队友", ctx.User.Name))

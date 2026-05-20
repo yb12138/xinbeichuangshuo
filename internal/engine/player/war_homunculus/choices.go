@@ -21,6 +21,19 @@ const (
 	runeChoiceStepY     = "y"
 )
 
+var (
+	runeSmashFlowRuntime = model.MustNewPromptFlowRuntime(runeSmashFlowID, []model.PromptFlowStepSpec{
+		{ID: runeChoiceStepX, ChoiceType: "hom_rune_smash_x", CancelPolicy: model.CancelPolicyAbort},
+		{ID: runeChoiceStepCards, ChoiceType: "hom_rune_smash_cards", CancelPolicy: model.CancelPolicyBack},
+		{ID: runeChoiceStepY, ChoiceType: "hom_rune_smash_y", CancelPolicy: model.CancelPolicyBack},
+	})
+	glyphFusionFlowRuntime = model.MustNewPromptFlowRuntime(glyphFusionFlowID, []model.PromptFlowStepSpec{
+		{ID: runeChoiceStepX, ChoiceType: "hom_glyph_fusion_x", CancelPolicy: model.CancelPolicyAbort},
+		{ID: runeChoiceStepCards, ChoiceType: "hom_glyph_fusion_cards", CancelPolicy: model.CancelPolicyBack},
+		{ID: runeChoiceStepY, ChoiceType: "hom_glyph_fusion_y", CancelPolicy: model.CancelPolicyBack},
+	})
+)
+
 func NewChoiceHandler() engineplayer.ChoiceHandler {
 	return choiceHandler{}
 }
@@ -265,8 +278,7 @@ func handleRuneX(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, 
 	})
 	flow.PutSelection(runeChoiceStepCards, model.PromptFlowSelection{Count: xValue})
 	ctxData["remaining_indices"] = append([]int{}, candidates...)
-	engineplayer.AdvancePromptFlowChoice(rt, ctxData, flow, runeChoiceStepCards, nextChoice)
-	return nil
+	return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, runeChoiceFlowRuntime(glyph), flow, runeChoiceStepCards, nextChoice)
 }
 
 func handleRuneCards(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int, glyph bool) error {
@@ -329,8 +341,7 @@ func handleRuneCards(rt engineplayer.ChoiceRuntime, ctxData map[string]interface
 				if glyph {
 					nextStep = "hom_glyph_fusion_y"
 				}
-				engineplayer.AdvancePromptFlowChoice(rt, ctxData, flow, runeChoiceStepY, nextStep)
-				return nil
+				return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, runeChoiceFlowRuntime(glyph), flow, runeChoiceStepY, nextStep)
 			}
 			return resolveRuneChoice(rt, ctxData, glyph)
 		}
@@ -362,8 +373,7 @@ func handleRuneCards(rt engineplayer.ChoiceRuntime, ctxData map[string]interface
 		if glyph {
 			nextStep = "hom_glyph_fusion_y"
 		}
-		engineplayer.AdvancePromptFlowChoice(rt, ctxData, flow, runeChoiceStepY, nextStep)
-		return nil
+		return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, runeChoiceFlowRuntime(glyph), flow, runeChoiceStepY, nextStep)
 	}
 
 	return resolveRuneChoice(rt, ctxData, glyph)
@@ -416,7 +426,9 @@ func handleRuneCardsMultiSelect(glyph bool) func(rt engineplayer.ChoiceRuntime, 
 			if glyph {
 				nextStep = "hom_glyph_fusion_y"
 			}
-			engineplayer.AdvancePromptFlowChoice(rt, ctxData, flow, runeChoiceStepY, nextStep)
+			if err := engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, runeChoiceFlowRuntime(glyph), flow, runeChoiceStepY, nextStep); err != nil {
+				return false, err
+			}
 			return true, nil // 消费当前选择步骤，继续弹出 Y 选择
 		}
 
@@ -633,6 +645,13 @@ func runeChoiceLabel(glyph bool) string {
 		return "魔纹融合"
 	}
 	return "战纹碎击"
+}
+
+func runeChoiceFlowRuntime(glyph bool) *model.PromptFlowRuntime {
+	if glyph {
+		return glyphFusionFlowRuntime
+	}
+	return runeSmashFlowRuntime
 }
 
 // validateRuneCardSelection checks that the selected hand indices satisfy the

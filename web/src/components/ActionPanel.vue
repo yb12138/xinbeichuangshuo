@@ -5,6 +5,7 @@ import { useSessionStore } from '../stores/session.store'
 import { useSnapshotStore } from '../stores/snapshot.store'
 import { useBattleInteractionState } from '../composables/useBattleInteractionState'
 import { useSubmitAction } from '../composables/useSubmitAction'
+import { useInteractionController } from '../composables/useInteractionController'
 import {
     skillCanUseDiscardCard,
     skillCostTextOverride,
@@ -18,6 +19,7 @@ const interruptStore = useInterruptStore()
 const sessionStore = useSessionStore()
 const snapshotStore = useSnapshotStore()
 const actions = useSubmitAction()
+const interaction = useInteractionController()
 const {
     myPlayer,
     myHand,
@@ -510,40 +512,36 @@ function handlePromptOption(optionId: string) {
     } else if (optionId === 'cannot_act') {
         actions.submitCannotAct()
     } else if (optionId === 'skip' || optionId === 'cancel') {
-        actions.submitCancel()
+        interaction.cancelPrompt()
         return
     } else if (optionId === 'confirm') {
-        actions.submitConfirm()
+        interaction.submitConfirm()
     } else if (optionId === 'take') {
-        actions.submitRespondTake()
+        interaction.submitRespondTake()
     } else if (optionId === 'counter') {
-        if (!actions.submitRespondCounter(isMagicMissileResponsePrompt())) return
+        if (!interaction.submitRespondCounter(isMagicMissileResponsePrompt())) return
     } else if (optionId === 'defend') {
-        if (!actions.submitRespondDefend()) return
+        if (!interaction.submitRespondDefend()) return
     } else if (optionId === 'yes' || optionId === 'no') {
         // 魔弹融合等确认选项：yes=0, no=1
-        actions.submitSelect([optionId === 'yes' ? 0 : 1])
+        interaction.submitOptionIndex(optionId === 'yes' ? 0 : 1)
     } else if (optionId === 'normal' || optionId === 'reverse') {
         // 魔弹掌控方向选择：normal=0, reverse=1
-        actions.submitSelect([optionId === 'normal' ? 0 : 1])
+        interaction.submitOptionIndex(optionId === 'normal' ? 0 : 1)
     } else if (prompt.value.presentation?.kind === 'skill_choice') {
         const idx = prompt.value.options.findIndex((o: { id: string }) => o.id === optionId)
         if (idx >= 0) {
-            actions.submitSelect([idx])
+            interaction.submitOptionIndex(idx)
         } else {
-            actions.submitCancel()
+            interaction.cancelPrompt()
             return
         }
     } else {
         const index = parseInt(optionId)
         if (!isNaN(index)) {
-            actions.submitSelect([index])
+            interaction.submitOptionIndex(index)
         } else {
-            actions.submitAction({
-                player_id: sessionStore.myPlayerId,
-                type: 'Select',
-                skill_id: optionId
-            })
+            interruptStore.showError('当前选项缺少可提交的 option index，请刷新后重试')
         }
     }
     // 不在此处清除 prompt：等待后端 state_update（成功）或新 prompt 到达后再清除
@@ -603,9 +601,18 @@ function selectSkill(skill: AvailableSkill) {
     }
     interruptStore.setSelectedSkill(skill)
     // Server-published skills are protocol intents: submit the skill id and let
-    // backend prompts drive any costs, targets, or multi-step selections.
+    // backend prompts drive costs and multi-step selections. Targeted skills
+    // still need a frontend target intent before the wire submit.
     if (isServerPublishedAvailableSkill(skill)) {
-        actions.submitUseSkill(skill.id, [], undefined, { clearSkillMode: true })
+        if (skill.target_type === 0 || !isActionSelectionPrompt.value) {
+            actions.submitUseSkill(skill.id, [], undefined, { clearSkillMode: true })
+            return
+        }
+        if (skill.target_type === 1) {
+            actions.submitUseSkill(skill.id, [sessionStore.myPlayerId], undefined, { clearSkillMode: true })
+            return
+        }
+        interruptStore.setSkillMode('choosing_target')
         return
     }
     // 如果技能需要弃牌，先进入弃牌选择模式
@@ -1329,6 +1336,24 @@ function elementName(el: string): string {
                     <span class="action-image-btn-label">{{ actionPromptLabel('special', '特殊') }}</span>
                 </button>
                 <template v-if="isActionSelectionPrompt">
+                    <button
+                        v-if="effectiveAvailableSkills.length > 0"
+                        class="action-hub-desktop-btn action-image-btn action-image-btn--skill"
+                        data-testid="action-skill"
+                        title="发动技能"
+                        aria-label="发动技能"
+                        @click="openSkillAction()"
+                    >
+                        <img
+                            v-if="isMainActionImageReady('skill')"
+                            class="action-image-btn-fill"
+                            :src="mainActionButtonImage('skill')"
+                            alt=""
+                            @error="onMainActionImageError('skill')"
+                        />
+                        <span v-else class="action-image-fallback-text">技</span>
+                        <span class="action-image-btn-label">发动技能</span>
+                    </button>
                     <button
                         v-if="hasActionPromptOption('cannot_act')"
                         class="action-hub-desktop-btn action-image-btn action-image-btn--cannot-act"

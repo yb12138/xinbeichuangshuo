@@ -16,7 +16,21 @@ const (
 	swordQiSlashFlowID     = "se_sword_qi_slash"
 	swordQiSlashStepX      = "x"
 	swordQiSlashStepTarget = "target"
+
+	swordRainFlowID      = "se_sword_rain"
+	swordRainStepTarget  = "target"
+	swordRainStepDiscard = "discard"
 )
+
+var swordQiSlashFlowRuntime = model.MustNewPromptFlowRuntime(swordQiSlashFlowID, []model.PromptFlowStepSpec{
+	{ID: swordQiSlashStepX, ChoiceType: "se_sword_qi_slash_x", CancelPolicy: model.CancelPolicyBack},
+	{ID: swordQiSlashStepTarget, ChoiceType: "se_sword_qi_slash_target", CancelPolicy: model.CancelPolicyAbort},
+})
+
+var swordRainFlowRuntime = model.MustNewPromptFlowRuntime(swordRainFlowID, []model.PromptFlowStepSpec{
+	{ID: swordRainStepTarget, ChoiceType: "se_sword_rain_target", CancelPolicy: model.CancelPolicyAbort},
+	{ID: swordRainStepDiscard, ChoiceType: "se_sword_rain_discard", CancelPolicy: model.CancelPolicyBack},
+})
 
 func NewChoiceHandler() engineplayer.ChoiceHandler {
 	return choiceHandler{}
@@ -127,8 +141,7 @@ func handleSwordEmperorSwordQiSlashXChoice(rt engineplayer.ChoiceRuntime, select
 		OptionIndexes: []int{selectionIndex},
 		Count:         xValue,
 	})
-	engineplayer.AdvancePromptFlowChoice(rt, ctxData, flow, swordQiSlashStepTarget, "se_sword_qi_slash_target")
-	return nil
+	return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, swordQiSlashFlowRuntime, flow, swordQiSlashStepTarget, "se_sword_qi_slash_target")
 }
 
 func handleSwordEmperorSwordQiSlashTargetChoice(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
@@ -201,9 +214,20 @@ func handleSwordRainTarget(rt engineplayer.ChoiceRuntime, selectionIndex int, ct
 		return nil
 	}
 
-	ctxData["choice_type"] = "se_sword_rain_discard"
+	flow := model.PromptFlowFromContext(ctxData)
+	if flow == nil || flow.FlowID != swordRainFlowID {
+		flow = swordRainFlowRuntime.MustBeginAt(swordRainStepTarget)
+		model.SetPromptFlowContext(ctxData, flow)
+	}
+	flow.PutSelection(swordRainStepTarget, model.PromptFlowSelection{
+		OptionIndexes: []int{selectionIndex},
+		TargetIDs:     []string{targetID},
+	})
+	if err := swordRainFlowRuntime.MoveTo(flow, swordRainStepDiscard); err != nil {
+		return err
+	}
 	ctxData["discard_indices"] = discardIndices
-	ctxData["selected_target_id"] = targetID
+	ctxData["choice_type"] = "se_sword_rain_discard"
 	engineplayer.NotifyChoiceContext(rt, ctxData)
 	return nil
 }
@@ -226,7 +250,15 @@ func handleSwordRainDiscard(rt engineplayer.ChoiceRuntime, selectionIndex int, c
 	rt.AppendToDiscard([]model.Card{card})
 	rt.Log(fmt.Sprintf("%s 发动 [剑雨]：弃置了1张手牌", user.Name))
 
-	targetID, _ := ctxData["selected_target_id"].(string)
+	flow, err := model.RequirePromptFlow(ctxData, swordRainFlowID, "剑雨")
+	if err != nil {
+		return err
+	}
+	targetIDs := flow.Selection(swordRainStepTarget).TargetIDs
+	if len(targetIDs) != 1 || targetIDs[0] == "" {
+		return fmt.Errorf("剑雨缺少选定目标")
+	}
+	targetID := targetIDs[0]
 	target := rt.GetPlayers()[targetID]
 	if target == nil {
 		return fmt.Errorf("目标不存在")

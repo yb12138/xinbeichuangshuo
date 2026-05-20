@@ -70,7 +70,7 @@ func fraudChoiceContext(ctx *model.Context) map[string]interface{} {
 		}(),
 		"fraud_from_skill": true,
 	}
-	flow := model.NewPromptFlowState(adventurerFraudFlowID, adventurerFraudCardsStep)
+	flow := adventurerFraudFlowRuntime.MustBeginAt(adventurerFraudCardsStep)
 	flow.PutSelection(adventurerFraudCardsStep, model.PromptFlowSelection{})
 	model.SetPromptFlowContext(data, flow)
 	return data

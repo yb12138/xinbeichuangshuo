@@ -5,7 +5,7 @@ import { useBattleReviewStore } from '../../stores/battleReview.store'
 import { useInterruptStore } from '../../stores/interrupt.store'
 import { useMatchLifecycleStore } from '../../stores/matchLifecycle.store'
 import { useSessionStore } from '../../stores/session.store'
-import type { WsMessage } from '../protocol'
+import type { RoutedWsMessage } from '../protocol'
 
 class FakeSocket {
   url: string
@@ -34,7 +34,7 @@ class FakeSocket {
     this.onopen?.call(this as unknown as WebSocket, new Event('open'))
   }
 
-  receive(message: WsMessage) {
+  receive(message: unknown) {
     this.onmessage?.call(
       this as unknown as WebSocket,
       new MessageEvent('message', { data: JSON.stringify(message) }),
@@ -60,7 +60,7 @@ function buildClient(options?: {
   const sessionStore = useSessionStore()
   const battleReviewStore = useBattleReviewStore()
   const matchLifecycleStore = useMatchLifecycleStore()
-  const handledMessages: WsMessage[] = []
+  const handledMessages: RoutedWsMessage[] = []
   const sockets: FakeSocket[] = []
   const createSocket = vi.fn((url: string) => {
     const socket = new FakeSocket(url)
@@ -136,6 +136,7 @@ describe('createWsConnectionClient', () => {
     sockets[0]?.open()
     client.sendEnvelope({ Cmd: 'ChatMessage', Data: { message: 'hello' } })
     sockets[0]?.receive({ Cmd: 'NotifyTimeline', Data: { room_id: 'ROOM1' } })
+    sockets[0]?.receive({ Data: { room_id: 'ROOM1' } })
     sockets[0]?.fail()
 
     expect(sockets[0]?.sent).toEqual([
@@ -145,6 +146,7 @@ describe('createWsConnectionClient', () => {
       { Cmd: 'NotifyTimeline', Data: { room_id: 'ROOM1' } },
     ])
     expect(interruptStore.errorMessage).toBe('连接错误')
+    expect(battleReviewStore.logs).toContain('[WS][RX] invalid envelope')
     expect(battleReviewStore.logs).toContain('[WS] 连接错误')
   })
 

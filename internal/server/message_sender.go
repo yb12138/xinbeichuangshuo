@@ -8,7 +8,7 @@ import (
 	"starcup-engine/internal/server/timeline"
 )
 
-func (r *Room) sendToClient(client *Client, cmd string, data interface{}) {
+func (r *Room) sendToClient(client *Client, cmd WSCommand, data interface{}) {
 	if client == nil || client.IsBot || client.Disconnected {
 		return
 	}
@@ -40,7 +40,7 @@ func (r *Room) sendRequireActionToClient(client *Client, prompt *model.Prompt) {
 	r.sendToClient(client, CmdRequireAction, prompting.BuildRequireActionPayload(prompt))
 }
 
-func (r *Room) broadcastHumans(cmd string, data interface{}) {
+func (r *Room) broadcastHumans(cmd WSCommand, data interface{}) {
 	msg := newWSMessage(cmd, data)
 	raw, _ := json.Marshal(msg)
 	for _, c := range r.Clients {

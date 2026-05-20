@@ -87,16 +87,21 @@ func NotifyChoiceContext(rt ChoiceRuntime, ctxData map[string]interface{}) {
 	rt.NotifyInterruptPrompt()
 }
 
-// AdvancePromptFlowChoice keeps the formal flow step and legacy backend
-// routing choice_type in sync when moving to the next prompt.
-func AdvancePromptFlowChoice(rt ChoiceRuntime, ctxData map[string]interface{}, flow *model.PromptFlowState, stepID, choiceType string) {
-	if flow != nil {
-		flow.Advance(stepID)
+// AdvancePromptFlowRuntimeChoice is the explicit runtime-backed variant used by
+// new multi-step prompts. It keeps the formal flow state and legacy choice_type
+// routing synchronized while validating the target step against the flow spec.
+func AdvancePromptFlowRuntimeChoice(rt ChoiceRuntime, ctxData map[string]interface{}, flowRT *model.PromptFlowRuntime, flow *model.PromptFlowState, stepID, choiceType string) error {
+	if flowRT == nil {
+		return fmt.Errorf("prompt flow runtime is nil")
+	}
+	if err := flowRT.MoveTo(flow, stepID); err != nil {
+		return err
 	}
 	if ctxData != nil && choiceType != "" {
 		ctxData["choice_type"] = choiceType
 	}
 	NotifyChoiceContext(rt, ctxData)
+	return nil
 }
 
 // TokenValue 读取并规范化玩家 token 值：

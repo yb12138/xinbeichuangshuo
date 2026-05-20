@@ -25,6 +25,15 @@ const (
 	butterflyReverseBranch2CardsStep = "cards"
 )
 
+var (
+	butterflyCocoonOverflowFlowRuntime = model.MustNewPromptFlowRuntime(butterflyCocoonOverflowFlowID, []model.PromptFlowStepSpec{
+		{ID: butterflyCocoonOverflowCardsStep, ChoiceType: "bt_cocoon_overflow_discard", CancelPolicy: model.CancelPolicyAbort},
+	})
+	butterflyReverseBranch2FlowRuntime = model.MustNewPromptFlowRuntime(butterflyReverseBranch2FlowID, []model.PromptFlowStepSpec{
+		{ID: butterflyReverseBranch2CardsStep, ChoiceType: "bt_reverse_branch2_pick", CancelPolicy: model.CancelPolicyAbort},
+	})
+)
+
 func NewChoiceHandler() engineplayer.ChoiceHandler {
 	return choiceHandler{}
 }
@@ -532,14 +541,14 @@ func butterflyCocoonOverflowContext(userID string, discardNeed int) map[string]i
 }
 
 func initButterflyCocoonOverflowFlow(discardNeed int) *model.PromptFlowState {
-	flow := model.NewPromptFlowState(butterflyCocoonOverflowFlowID, butterflyCocoonOverflowCardsStep)
+	flow := butterflyCocoonOverflowFlowRuntime.MustBeginAt(butterflyCocoonOverflowCardsStep)
 	flow.PutSelection(butterflyCocoonOverflowNeedStep, model.PromptFlowSelection{Count: discardNeed})
 	flow.PutSelection(butterflyCocoonOverflowCardsStep, model.PromptFlowSelection{})
 	return flow
 }
 
 func initButterflyReverseBranch2Flow(pickNeed int) *model.PromptFlowState {
-	flow := model.NewPromptFlowState(butterflyReverseBranch2FlowID, butterflyReverseBranch2CardsStep)
+	flow := butterflyReverseBranch2FlowRuntime.MustBeginAt(butterflyReverseBranch2CardsStep)
 	flow.PutSelection(butterflyReverseBranch2NeedStep, model.PromptFlowSelection{Count: pickNeed})
 	flow.PutSelection(butterflyReverseBranch2CardsStep, model.PromptFlowSelection{})
 	return flow

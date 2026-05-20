@@ -76,7 +76,11 @@ func registerRoleChoiceSpec(reg *choicert.SpecRegistry, roleID string, spec engi
 			if ge == nil {
 				return false, fmt.Errorf("choice: engine bridge unavailable")
 			}
-			return ge.handleRoleChoiceCancel(roleID, playerID, choiceCtxAsInterfaceMap(ctxData))
+			handled, err := ge.handleRoleChoiceCancel(roleID, playerID, choiceCtxAsInterfaceMap(ctxData))
+			if err != nil || handled {
+				return handled, err
+			}
+			return ge.cancelPromptFlowChoice(playerID, ctxData)
 		},
 		SequentialRemaining: func(ctxData map[string]any) (int, bool) {
 			if spec.SequentialRemaining == nil {

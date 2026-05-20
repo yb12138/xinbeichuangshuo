@@ -13,9 +13,15 @@ import (
 )
 
 const (
-	adventurerFraudFlowID    = "adventurer_fraud"
-	adventurerFraudCardsStep = "cards"
+	adventurerFraudFlowID      = "adventurer_fraud"
+	adventurerFraudCardsStep   = "cards"
+	adventurerFraudElementStep = "element"
 )
+
+var adventurerFraudFlowRuntime = model.MustNewPromptFlowRuntime(adventurerFraudFlowID, []model.PromptFlowStepSpec{
+	{ID: adventurerFraudCardsStep, ChoiceType: "adventurer_fraud_pick", CancelPolicy: model.CancelPolicyAbort},
+	{ID: adventurerFraudElementStep, ChoiceType: "adventurer_fraud_attack_element", CancelPolicy: model.CancelPolicyBack},
+})
 
 // ChoiceSpecs 声明式选择流程条目。
 func ChoiceSpecs() []engineplayer.ChoiceSpec {
@@ -298,12 +304,12 @@ func handleFraudPick(rt engineplayer.ChoiceRuntime, playerID string, selectionIn
 		return true, nil
 	}
 	// 2张同系 → 进入五系选择
-	ctxData["choice_type"] = "adventurer_fraud_attack_element"
-	ctxData["selected_element"] = string(commonElement)
-	if intr := rt.GetPendingInterrupt(); intr != nil {
-		intr.Context = ctxData
+	flow.PutSelection(adventurerFraudElementStep, model.PromptFlowSelection{Element: string(commonElement)})
+	if err := adventurerFraudFlowRuntime.MoveTo(flow, adventurerFraudElementStep); err != nil {
+		return true, err
 	}
-	rt.NotifyInterruptPrompt()
+	ctxData["choice_type"] = "adventurer_fraud_attack_element"
+	engineplayer.NotifyChoiceContext(rt, ctxData)
 	return true, nil
 }
 
@@ -335,6 +341,10 @@ func handleFraudElement(rt engineplayer.ChoiceRuntime, playerID string, selectio
 		return true, err
 	}
 	selectedIndices := flow.Selection(adventurerFraudCardsStep).OptionIndexes
+	flow.PutSelection(adventurerFraudElementStep, model.PromptFlowSelection{
+		OptionIndexes: []int{selectionIndex},
+		Element:       string(elements[selectionIndex]),
+	})
 	return resolveFraudAttack(rt, user, selectedIndices, ctxData, elements[selectionIndex])
 }
 

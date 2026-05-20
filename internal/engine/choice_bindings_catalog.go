@@ -117,7 +117,11 @@ func catalogChoiceBinding(typ string) catalogSpecPlan {
 				return ge.handleRoleChoiceInput(roleID, playerID, idx, choiceCtxAsInterfaceMap(ctx))
 			},
 			cancel: func(ge *GameEngine, playerID string, ctx map[string]any) (bool, error) {
-				return ge.handleRoleChoiceCancel(roleID, playerID, choiceCtxAsInterfaceMap(ctx))
+				handled, err := ge.handleRoleChoiceCancel(roleID, playerID, choiceCtxAsInterfaceMap(ctx))
+				if err != nil || handled {
+					return handled, err
+				}
+				return ge.cancelPromptFlowChoice(playerID, ctx)
 			},
 		}
 	default:

@@ -29,7 +29,7 @@ func BuildRequireActionPayload(prompt *model.Prompt) protocol.RequireActionPaylo
 		TargetUserID:  prompt.PlayerID,
 		Timeout:       0,
 		Msg:           prompt.Message,
-		ValidActions:  []string{protocol.CmdSubmitAction},
+		ValidActions:  []protocol.WSCommand{protocol.CmdSubmitAction},
 		RequireCount:  prompt.Max,
 		PromptType:    string(prompt.Type),
 		Prompt:        viewmodel.ToPromptDTO(prompt),

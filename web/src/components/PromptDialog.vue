@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useInterruptStore } from '../stores/interrupt.store'
-import { useSessionStore } from '../stores/session.store'
+import { useInteractionController } from '../composables/useInteractionController'
 import { useSnapshotStore } from '../stores/snapshot.store'
-import { useSubmitAction } from '../composables/useSubmitAction'
 import {
   promptImageButtonKindByOption,
   type PromptImageButtonKind,
@@ -17,21 +16,35 @@ import FraudElementRenderer from './prompt/renderers/FraudElementRenderer.vue'
 import ResponsePromptRenderer from './prompt/renderers/ResponsePromptRenderer.vue'
 import SkillChoicePromptRenderer from './prompt/renderers/SkillChoicePromptRenderer.vue'
 import TargetPickerPromptRenderer from './prompt/renderers/TargetPickerPromptRenderer.vue'
-import type { PlayerView, PromptOption } from '../types/game'
+import { promptRendererUsesInlineSurface, selectPromptRenderer } from './prompt/rendererRegistry'
+import type { PromptOption } from '../types/game'
 
 const interruptStore = useInterruptStore()
-const sessionStore = useSessionStore()
 const snapshotStore = useSnapshotStore()
-const actions = useSubmitAction()
+const interaction = useInteractionController()
 
-const prompt = computed(() => interruptStore.currentPrompt)
-const myPlayerId = computed(() => sessionStore.myPlayerId)
-const playerViews = computed(() => snapshotStore.players)
+const {
+  prompt,
+  myPlayerId,
+  playerViews,
+  selectedExtractIndices,
+  selectedInlineCardIDs,
+  playerOptionEntries,
+  selectedPromptTargetOptionIndexes,
+  nonPlayerOptions,
+  canCancelPrompt,
+  showPromptError,
+  cancelPrompt,
+  submitConfirm,
+  submitOptionIndex,
+  submitOptionIndexes,
+  submitTargetSelection,
+  submitSelectedCardIDs,
+  submitRespondTake,
+  submitRespondCounter,
+  submitRespondDefend,
+} = interaction
 const myHand = computed(() => playerViews.value[myPlayerId.value]?.hand || [])
-
-function showPromptError(message: string) {
-  interruptStore.showError(message)
-}
 
 // 行动选择（攻击/法术/购买/提取/合成）不在这里显示，由 ActionPanel 承载
 const isActionSelectionPrompt = computed(() => {
@@ -43,14 +56,9 @@ const isVisible = computed(() =>
   prompt.value !== null && prompt.value.player_id === myPlayerId.value && !isActionSelectionPrompt.value
 )
 
-const selectedExtractIndices = ref<number[]>([])
-const selectedInlineCardIDs = ref<string[]>([])
 const autoResolvedPromptKey = ref('')
 
 watch(() => prompt.value, () => {
-  interruptStore.setPromptCounterTarget('')
-  selectedExtractIndices.value = []
-  selectedInlineCardIDs.value = []
   if (!prompt.value) {
     autoResolvedPromptKey.value = ''
   }
@@ -160,7 +168,7 @@ const promptRequiresManualTargetConfirm = computed(() => {
 const needsCounterTargetSelection = computed(() => {
   if (!prompt.value) return false
   const ids = prompt.value.counter_target_ids
-  return hasCounterOrDefend.value && ids && ids.length > 0
+  return hasCounterOrDefend.value && !!ids && ids.length > 0
 })
 
 const isConfirmType = computed(() => {
@@ -251,7 +259,7 @@ function submitSaintHealAllocation() {
     showPromptError(`治疗分配无效（总和不能超过 ${SAINT_HEAL_TOTAL}）`)
     return
   }
-  actions.submitSelect([...saintHealAllocations.value])
+  submitOptionIndexes([...saintHealAllocations.value])
 }
 
 function submitRuneReforgeAllocation() {
@@ -259,7 +267,7 @@ function submitRuneReforgeAllocation() {
     showPromptError(`分配无效（战纹+魔纹之和必须等于 ${RUNE_REFORGE_TOTAL}）`)
     return
   }
-  actions.submitSelect([...runeReforgeAllocations.value])
+  submitOptionIndexes([...runeReforgeAllocations.value])
 }
 
 
@@ -271,16 +279,7 @@ function submitRuneReforgeAllocation() {
 
 
 function toggleExtractOption(index: number) {
-  const idx = selectedExtractIndices.value.indexOf(index)
-  if (idx >= 0) {
-    selectedExtractIndices.value.splice(idx, 1)
-  } else {
-    const max = prompt.value?.max ?? 2
-    if (selectedExtractIndices.value.length < max) {
-      selectedExtractIndices.value.push(index)
-      selectedExtractIndices.value.sort((a, b) => a - b)
-    }
-  }
+  interaction.toggleExtractOption(index, prompt.value?.max ?? 2)
 }
 
 function confirmExtractSelection() {
@@ -288,56 +287,8 @@ function confirmExtractSelection() {
   const max = prompt.value?.max ?? 2
   const sel = selectedExtractIndices.value
   if (sel.length < min || sel.length > max) return
-  actions.submitSelect(sel)
+  interaction.submitOptionIndexes(sel)
 }
-
-function resolveOptionPlayerId(option: { target_id?: string | null }): string | null {
-  const targetId = String(option.target_id || '').trim()
-  if (!targetId) return null
-  return playerViews.value[targetId] ? targetId : null
-}
-
-const playerOptionEntries = computed(() => {
-  if (!prompt.value?.options?.length) return []
-  // choose_skill 类型的选项是技能，不是玩家目标
-  if (prompt.value.presentation?.kind === 'skill_choice') return []
-  return prompt.value.options
-    .map((option, index) => {
-      const playerId = resolveOptionPlayerId(option)
-      if (!playerId) return null
-      const player = playerViews.value[playerId]
-      if (!player) return null
-      return { index, option, player }
-    })
-    .filter((entry): entry is { index: number; option: PromptOption; player: PlayerView } => entry != null)
-})
-
-const playerOptionIndexSet = computed(() => {
-  const set = new Set<number>()
-  for (const entry of playerOptionEntries.value) {
-    set.add(entry.index)
-  }
-  return set
-})
-
-const selectedPromptTargetOptionIndexes = computed(() => {
-  const indexByPlayerId = new Map<string, number>()
-  for (const entry of playerOptionEntries.value) {
-    indexByPlayerId.set(entry.player.id, entry.index)
-  }
-  const indexes: number[] = []
-  for (const targetId of interruptStore.selectedTargets) {
-    const index = indexByPlayerId.get(targetId)
-    if (index === undefined) return []
-    indexes.push(index)
-  }
-  return indexes
-})
-
-const nonPlayerOptions = computed(() => {
-  const options = prompt.value?.options ?? []
-  return options.filter((_, idx) => !playerOptionIndexSet.value.has(idx))
-})
 
 const isSpiritCasterPowerPickPrompt = computed(() => {
   const p = prompt.value?.presentation
@@ -358,16 +309,6 @@ const isResponseSkillConfirmPrompt = computed(() => {
   return prompt.value?.presentation?.kind === 'skill_choice'
 })
 
-function isPromptCancellationAllowedByPolicy(p: NonNullable<typeof prompt.value>): boolean {
-  const cancelPolicy = p.presentation?.cancel_policy
-  return cancelPolicy === 'abort' || cancelPolicy === 'decline' || cancelPolicy === 'back'
-}
-
-const canCancelPrompt = computed(() => {
-  if (!prompt.value) return false
-  return isPromptCancellationAllowedByPolicy(prompt.value)
-})
-
 function handleOptionClick(optionId: string) {
   if (optionId === 'counter_disabled') {
     showPromptError('此攻击无法应战')
@@ -376,13 +317,9 @@ function handleOptionClick(optionId: string) {
   if (prompt.value?.presentation?.kind === 'skill_choice') {
     const idx = prompt.value.options.findIndex((o: { id: string }) => o.id === optionId)
     if (idx >= 0) {
-      actions.submitSelect([idx])
+      submitOptionIndex(idx)
     } else {
-      if (!canCancelPrompt.value) {
-        showPromptError('当前步骤不可取消，请先完成本次操作')
-        return
-      }
-      actions.submitCancel()
+      cancelPrompt()
     }
     return
   }
@@ -391,56 +328,48 @@ function handleOptionClick(optionId: string) {
     const optionIndex = prompt.value?.options?.findIndex((o: { id: string }) => o.id === optionId) ?? -1
     if (optionIndex >= 0) {
       if (prompt.value?.presentation?.has_decline && optionIndex === (prompt.value.presentation.decline_index ?? 0)) {
-        actions.submitCancel()
+        cancelPrompt()
         return
       }
-      actions.submitSelect([optionIndex])
+      submitOptionIndex(optionIndex)
       return
     }
     if (optionId === 'skip' || optionId === 'cancel') {
-      if (!canCancelPrompt.value) {
-        showPromptError('当前步骤不可取消，请先完成本次操作')
-        return
-      }
-      actions.submitCancel()
+      cancelPrompt()
       return
     }
   }
   if (optionId === 'skip' || optionId === 'cancel') {
-    if (!canCancelPrompt.value) {
-      showPromptError('当前步骤不可取消，请先完成本次操作')
-      return
-    }
-    actions.submitCancel()
+    cancelPrompt()
     return
   }
   if (optionId === 'refuse') {
     // 魔爆冲击“不弃牌”是规则内显式选项，直接走 Cancel 语义。
-    actions.submitCancel()
+    cancelPrompt()
     return
   }
   if (optionId === 'confirm') {
-    actions.submitConfirm()
+    submitConfirm()
     return
   }
   const optionIndex = prompt.value?.options?.findIndex((o: { id: string }) => o.id === optionId) ?? -1
   if (prompt.value?.presentation?.has_decline && optionIndex === (prompt.value.presentation.decline_index ?? 0)) {
-    actions.submitCancel()
+    cancelPrompt()
     return
   }
   // 魔弹融合等确认选项：yes=0, no=1
   if (optionId === 'yes' || optionId === 'no') {
-    actions.submitSelect([optionId === 'yes' ? 0 : 1])
+    submitOptionIndex(optionId === 'yes' ? 0 : 1)
     return
   }
   // 魔弹掌控方向选择：normal=0, reverse=1
   if (optionId === 'normal' || optionId === 'reverse') {
-    actions.submitSelect([optionId === 'normal' ? 0 : 1])
+    submitOptionIndex(optionId === 'normal' ? 0 : 1)
     return
   }
   const responseKind = promptOptionResponseKind({ id: optionId })
   if (responseKind === 'take') {
-    actions.submitRespondTake()
+    submitRespondTake()
     return
   }
   if (responseKind === 'counter') {
@@ -452,7 +381,7 @@ function handleOptionClick(optionId: string) {
       showPromptError('请先选择反弹目标（攻击方的队友）')
       return
     }
-    if (!actions.submitRespondCounter(isMagicMissilePrompt.value)) return
+    if (!submitRespondCounter(isMagicMissilePrompt.value)) return
     return
   }
   if (responseKind === 'defend') {
@@ -460,7 +389,7 @@ function handleOptionClick(optionId: string) {
       showPromptError('请先选择一张【圣光】进行防御（圣盾需提前放置）')
       return
     }
-    if (!actions.submitRespondDefend()) return
+    if (!submitRespondDefend()) return
     return
   }
   if (isNonHandChooseCardsMultiMode.value && isNonHandChooseCardOption(optionId)) {
@@ -470,17 +399,13 @@ function handleOptionClick(optionId: string) {
   {
     const optionIndex = prompt.value?.options?.findIndex((o: { id: string }) => o.id === optionId) ?? -1
     if (optionIndex >= 0) {
-      actions.submitSelect([optionIndex])
+      submitOptionIndex(optionIndex)
     } else {
       const index = parseInt(optionId, 10)
       if (!Number.isNaN(index)) {
-        actions.submitSelect([index])
+        submitOptionIndex(index)
       } else {
-        actions.submitAction({
-          player_id: myPlayerId.value,
-          type: 'Select',
-          skill_id: optionId
-        })
+        showPromptError('当前选项缺少可提交的 option index，请刷新后重试')
       }
     }
   }
@@ -556,7 +481,7 @@ function confirmPromptAction() {
       showPromptError('请先在手牌区选择可用于死亡之触的同系牌')
       return
     }
-    actions.submitSelect([optionIndex])
+    submitOptionIndex(optionIndex)
     return
   }
 
@@ -566,7 +491,7 @@ function confirmPromptAction() {
       showPromptError('请选择有效的治疗目标')
       return
     }
-    actions.submitSelect(targetOptionIndexes)
+    submitOptionIndexes(targetOptionIndexes)
     return
   }
 
@@ -574,33 +499,29 @@ function confirmPromptAction() {
     if (interruptStore.selectedTargets.length === 1) {
       const targetId = interruptStore.selectedTargets[0]
       if (!targetId) return
-      actions.submitPromptTarget(targetId)
+      submitTargetSelection()
     } else {
-      actions.submitAction({
-        player_id: myPlayerId.value,
-        type: 'Select',
-        target_ids: interruptStore.selectedTargets
-      })
+      submitTargetSelection()
     }
     return
   }
 
   if (isNonHandChooseCardsMultiMode.value) {
     if (selectedInlineCardIDs.value.length > 0 || prompt.value?.min === 0) {
-      actions.submitSelectCardIDs(selectedInlineCardIDs.value)
+      submitSelectedCardIDs(selectedInlineCardIDs.value)
     }
     return
   }
 
   const indices = interruptStore.selectedHandIndexes
   if (prompt.value?.presentation?.kind === 'card_picker' && indices.length === 0 && prompt.value.min === 0) {
-    actions.submitSelectCardIDs([])
+    submitSelectedCardIDs([])
     return
   }
   if (indices.length > 0) {
     const cardIDs = selectedPromptHandCardIDs(indices)
     if (cardIDs.length === indices.length) {
-      actions.submitSelectCardIDs(cardIDs)
+      submitSelectedCardIDs(cardIDs)
       return
     }
     showPromptError('当前卡牌选择缺少 card_id，请刷新后重试')
@@ -1027,7 +948,7 @@ type DirectionPromptOption = {
 const directionPromptOptions = computed<DirectionPromptOption[]>(() => {
   if (!isDirectionPrompt.value || !prompt.value?.options?.length) return []
   return prompt.value.options.map((option, index) => {
-    const label = String(option.button_label || option.label || '').trim()
+    const label = String(option.label || option.button_label || '').trim()
     const hint = String(option.hint || '').trim()
     const disabled = !!(option as { disabled?: boolean }).disabled
     return {
@@ -1109,6 +1030,34 @@ const promptNeedsCardConfirm = computed(() =>
   promptNeedsHandCardConfirm.value || promptNeedsInlineCardOptionConfirm.value
 )
 
+const promptRendererKey = computed(() =>
+  selectPromptRenderer({
+    visible: isVisible.value,
+    isActionHub: isActionSelectionPrompt.value,
+    isExtractPrompt: isExtractPrompt.value,
+    extractOptionCount: extractPromptOptions.value.length,
+    isSkillChoicePrompt: isSkillChoicePrompt.value,
+    isMultiSkillNameChoiceMode: isMultiSkillNameChoiceMode.value,
+    skillPromptButtonCount: skillPromptButtons.value.length,
+    skillBranchCount: skillBranchOptions.value.length,
+    showTargetSelectionHintRow: showTargetSelectionHintRow.value,
+    hasCounterOrDefend: hasCounterOrDefend.value,
+    responseOptionCount: responsePromptOptions.value.length,
+    inlinePrimaryButtonCount: inlinePrimaryButtons.value.length,
+    promptNeedsCardConfirm: promptNeedsCardConfirm.value,
+    canCancelPrompt: canCancelPrompt.value,
+    showDecisionOverlay: showDecisionOverlay.value,
+    isDirectionPrompt: isDirectionPrompt.value,
+    directionOptionCount: directionPromptOptions.value.length,
+    isFraudElementCardPickerPrompt: isFraudElementCardPickerPrompt.value,
+    fraudElementOptionCount: fraudElementCardOptions.value.length,
+    isSaintHealAllocatePrompt: isSaintHealAllocatePrompt.value,
+    isRuneReforgeAllocatePrompt: isRuneReforgeAllocatePrompt.value,
+  })
+)
+
+const useInlineSurface = computed(() => promptRendererUsesInlineSurface(promptRendererKey.value))
+
 const cardConfirmHintText = computed(() => {
   if (isElfElementalShotPickPrompt.value) return '请从手牌区或扩展区选择法术牌/祝福牌并点击发动'
   if (isPlagueDeathTouchElementPrompt.value) return '请选择同系手牌并点击确认'
@@ -1145,7 +1094,7 @@ const showTargetSelectionHintRow = computed(() =>
   !isSkillChoicePrompt.value &&
   !promptNeedsCardConfirm.value &&
   inlinePrimaryButtons.value.length === 0 &&
-  (needsTargetSelection.value || needsCounterTargetSelection.value)
+  (!!needsTargetSelection.value || !!needsCounterTargetSelection.value)
 )
 
 const singleActivationCostConfirmOption = computed<DockButtonOption | null>(() => {
@@ -1469,20 +1418,7 @@ const decisionOverlayOptions = computed(() => {
   }))
 })
 
-const hasAnyInlineButton = computed(() => {
-  if (!isVisible.value) return false
-  if (prompt.value?.presentation?.kind === 'action_hub') return false
-  if (isFraudElementCardPickerPrompt.value) return false
-  if (isDirectionPrompt.value) return false
-  if (prompt.value?.presentation?.kind === 'skill_choice' && isMultiSkillNameChoiceMode.value) return false
-  if (showDecisionOverlay.value) return false
-  if (isExtractPrompt.value && !!prompt.value?.options?.length) return true
-  if (showTargetSelectionHintRow.value) return true
-  if (inlinePrimaryButtons.value.length > 0) return true
-  if (promptNeedsCardConfirm.value) return true
-  if (canCancelPrompt.value) return true
-  return false
-})
+const hasAnyInlineButton = computed(() => useInlineSurface.value)
 
 const cancelDockButton = computed<DockButtonOption>(() => {
   const promptOptions = prompt.value?.options ?? []
@@ -1609,7 +1545,7 @@ watch(autoResolveOptionId, (optionId) => {
           />
 
           <TargetPickerPromptRenderer
-            v-else-if="showTargetSelectionHintRow"
+            v-else-if="promptRendererKey === 'target_picker'"
             :visible="showTargetSelectionHintRow"
             :message="targetSelectionPromptMessage"
             :show-confirm="promptRequiresManualTargetConfirm"
@@ -1622,7 +1558,7 @@ watch(autoResolveOptionId, (optionId) => {
           />
 
           <ResponsePromptRenderer
-            v-else-if="hasCounterOrDefend && responsePromptOptions.length > 0 && !singleActivationCostConfirmOption && !showDecisionOverlay && prompt?.presentation?.kind !== 'action_hub'"
+            v-else-if="promptRendererKey === 'response'"
             :visible="hasCounterOrDefend"
             :hint="responseAttackElementHintText"
             :options="responsePromptOptions"
@@ -1630,7 +1566,7 @@ watch(autoResolveOptionId, (optionId) => {
             @image-error="onResponsePromptImageError"
           />
 
-          <div v-else-if="inlinePrimaryButtons.length > 0 && !singleActivationCostConfirmOption && !showDecisionOverlay && prompt?.presentation?.kind !== 'action_hub'">
+          <div v-else-if="promptRendererKey === 'inline_buttons'">
             <div v-if="inlinePrimaryPromptMessage" class="prompt-inline-hint">
               {{ inlinePrimaryPromptMessage }}
             </div>
@@ -1733,7 +1669,7 @@ watch(autoResolveOptionId, (optionId) => {
           </div>
 
           <CardPickerPromptRenderer
-            v-else-if="promptNeedsCardConfirm"
+            v-else-if="promptRendererKey === 'card_picker'"
             :visible="promptNeedsCardConfirm"
             :message="cardPickerPromptMessage"
             :can-confirm="canConfirmPrompt"

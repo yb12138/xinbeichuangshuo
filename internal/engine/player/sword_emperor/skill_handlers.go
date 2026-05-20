@@ -194,7 +194,7 @@ func (h *SwordEmperorSwordQiSlashHandler) Execute(ctx *model.Context) error {
 			"max_x":                    maxX,
 			"target_ids":               targetIDs,
 			"user_ctx":                 ctx,
-			model.PromptFlowContextKey: model.NewPromptFlowState(swordQiSlashFlowID, swordQiSlashStepX),
+			model.PromptFlowContextKey: swordQiSlashFlowRuntime.Begin(),
 		},
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [剑气斩]：请选择X值", ctx.User.Name))

@@ -11,7 +11,7 @@ import { createGameplayMessageHandlers } from '../network/gameplayMessageHandler
 import { createRoomMessageHandlers } from '../network/roomMessageHandlers'
 import { createWsCommandClient } from '../network/wsCommandClient'
 import { routeWsMessage } from '../network/messageRouter'
-import type { WsMessage } from '../network/protocol'
+import type { ProtocolErrorPayload, RoutedWsMessage } from '../network/protocol'
 import { loadReconnectInfo, saveReconnectInfo } from '../network/wsReconnect'
 
 // 改造成一个函数，动态获取当前访问的 IP 和端口
@@ -44,7 +44,7 @@ export function useWebSocket() {
   const battleFxStore = useBattleFxStore()
   const battleReviewStore = useBattleReviewStore()
   const matchLifecycleStore = useMatchLifecycleStore()
-  let routeMessage = (_msg: WsMessage) => {}
+  let routeMessage = (_msg: RoutedWsMessage) => {}
   const gameplayHandlers = createGameplayMessageHandlers({
     interruptStore,
     sessionStore,
@@ -83,14 +83,22 @@ export function useWebSocket() {
       saveReconnectInfo(window.localStorage, roomCode, sessionStore.myName, playerId, token)
     },
   })
-  routeMessage = (msg: WsMessage) => {
+  function handleProtocolError(payload: ProtocolErrorPayload) {
+    const message = payload.message || '服务器协议错误'
+    interruptStore.showError(message)
+    battleReviewStore.addLog(`[WS][ProtocolError] ${payload.code || 'unknown'}: ${message}`)
+  }
+
+  routeMessage = (msg: RoutedWsMessage) => {
     routeWsMessage(msg, {
       onRoomEvent: roomHandlers.handleRoomEvent,
       onSyncState: gameplayHandlers.handleSyncState,
       onRequireAction: gameplayHandlers.handleRequireAction,
       onNotifyTimeline: gameplayHandlers.handleNotifyTimeline,
+      onProtocolError: handleProtocolError,
       onUnknown: (cmd, payload) => {
         console.log('Unknown message cmd:', cmd, payload)
+        battleReviewStore.addLog(`[WS][RX] Unknown ${cmd}: ${safeStringify(payload)}`)
       }
     })
   }

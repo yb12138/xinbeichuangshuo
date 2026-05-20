@@ -175,8 +175,14 @@ export function useSubmitAction() {
 
   return {
     disconnect: ws.disconnect,
-    sendRoomAction: ws.sendRoomAction,
     sendChat: ws.sendChat,
+    changeCamp: ws.changeCamp,
+    changeRole: ws.changeRole,
+    addBot: ws.addBot,
+    removeBot: ws.removeBot,
+    takeoverPlayer: ws.takeoverPlayer,
+    startRoom: ws.startRoom,
+    dissolveRoom: ws.dissolveRoom,
     submitAction,
     submitCannotAct,
     submitSynthesize,

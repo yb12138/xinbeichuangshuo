@@ -38,12 +38,15 @@ const emit = defineEmits<{
               :key="option.id"
               class="overlay-panel-item overlay-panel-item--text"
               :class="[option.tone || '', option.icon ? 'overlay-panel-item--icon' : '']"
-              :data-testid="`direction-option-${option.id}`"
+              :data-testid="`branch-option-${idx}`"
               :disabled="!!option.disabled"
               @click="emit('select', option.id)"
             >
-              <div class="overlay-panel-item-title" :data-testid="`prompt-option-${option.id}`">
-                {{ option.label }}
+              <div
+                class="overlay-panel-item-title"
+                :data-testid="`prompt-option-${option.id}`"
+              >
+                <span :data-testid="`direction-option-${option.id}`">{{ option.label }}</span>
               </div>
               <div
                 v-if="option.hint || option.description"

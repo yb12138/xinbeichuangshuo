@@ -181,6 +181,11 @@ func (h *BlazeWitchSubstituteDollHandler) Execute(ctx *model.Context) error {
 			"user_id":       ctx.User.ID,
 			"magic_indices": magicIndices,
 			"ally_ids":      allyIDs,
+			model.PromptFlowContextKey: func() *model.PromptFlowState {
+				flow := substituteDollFlowRuntime.Begin()
+				flow.PutSelection(substituteDollStepCard, model.PromptFlowSelection{})
+				return flow
+			}(),
 		},
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [替身玩偶]，请选择要弃置的法术牌", ctx.User.Name))
@@ -273,7 +278,7 @@ func (h *BlazeWitchManaInversionHandler) Execute(ctx *model.Context) error {
 			"choice_type":              "bw_mana_inversion_x",
 			"user_id":                  ctx.User.ID,
 			"max_x":                    magicCount,
-			model.PromptFlowContextKey: model.NewPromptFlowState(manaInversionFlowID, manaInversionStepX),
+			model.PromptFlowContextKey: manaInversionFlowRuntime.Begin(),
 		},
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [魔能反转]，请选择弃牌数量X", ctx.User.Name))

@@ -29,6 +29,23 @@ const (
 	sageHolyStepTarget = "targets"
 )
 
+var (
+	sageMagicReboundFlowRuntime = model.MustNewPromptFlowRuntime(sageMagicReboundFlowID, []model.PromptFlowStepSpec{
+		{ID: sageMagicReboundStepConfirm, ChoiceType: "sage_magic_rebound_confirm", CancelPolicy: model.CancelPolicyDecline},
+		{ID: sageMagicReboundStepElement, ChoiceType: "sage_magic_rebound_element", CancelPolicy: model.CancelPolicyBack},
+		{ID: sageMagicReboundStepCards, ChoiceType: "sage_magic_rebound_cards", CancelPolicy: model.CancelPolicyBack},
+		{ID: sageMagicReboundStepTarget, ChoiceType: "sage_magic_rebound_target", CancelPolicy: model.CancelPolicyAbort},
+	})
+	sageArcaneFlowRuntime = model.MustNewPromptFlowRuntime(sageArcaneFlowID, []model.PromptFlowStepSpec{
+		{ID: sageArcaneStepCards, ChoiceType: "sage_arcane_cards", CancelPolicy: model.CancelPolicyBack},
+		{ID: sageArcaneStepTarget, ChoiceType: "sage_arcane_target", CancelPolicy: model.CancelPolicyAbort},
+	})
+	sageHolyFlowRuntime = model.MustNewPromptFlowRuntime(sageHolyFlowID, []model.PromptFlowStepSpec{
+		{ID: sageHolyStepCards, ChoiceType: "sage_holy_cards", CancelPolicy: model.CancelPolicyBack},
+		{ID: sageHolyStepTarget, ChoiceType: "sage_holy_targets", CancelPolicy: model.CancelPolicyAbort},
+	})
+)
+
 func NewChoiceHandler() engineplayer.ChoiceHandler {
 	return choiceHandler{}
 }
@@ -239,8 +256,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 			return true, fmt.Errorf("同系手牌不足2张，无法发动法术反弹")
 		}
 		// 直接进入元素选择，不再选择X
-		engineplayer.AdvancePromptFlowChoice(rt, ctxData, flow, sageMagicReboundStepElement, "sage_magic_rebound_element")
-		return true, nil
+		return true, engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, sageMagicReboundFlowRuntime, flow, sageMagicReboundStepElement, "sage_magic_rebound_element")
 
 	case "sage_magic_rebound_element":
 		userID, _ := ctxData["user_id"].(string)
@@ -261,8 +277,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 			OptionIndexes: []int{selectionIndex},
 			Element:       string(chosenElement),
 		})
-		engineplayer.AdvancePromptFlowChoice(rt, ctxData, flow, sageMagicReboundStepCards, "sage_magic_rebound_cards")
-		return true, nil
+		return true, engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, sageMagicReboundFlowRuntime, flow, sageMagicReboundStepCards, "sage_magic_rebound_cards")
 
 	case "sage_holy_target_count":
 		targetCount := selectionIndex + 1
@@ -275,8 +290,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 			return true, fmt.Errorf("无效的治疗目标数量")
 		}
 		flow.PutSelection(sageHolyStepTarget, model.PromptFlowSelection{Count: targetCount})
-		engineplayer.AdvancePromptFlowChoice(rt, ctxData, flow, sageHolyStepTarget, "sage_holy_targets")
-		return true, nil
+		return true, engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, sageHolyFlowRuntime, flow, sageHolyStepTarget, "sage_holy_targets")
 
 	case "sage_holy_targets":
 		return resolveHolyCodexTargets(rt, ctxData, []int{selectionIndex})
@@ -416,8 +430,7 @@ func handleArcaneCardsMultiSelect(rt engineplayer.ChoiceRuntime, playerID string
 		Count:         len(selections),
 	})
 	ctxData["target_ids"] = append([]string{}, rt.GetPlayerOrder()...)
-	engineplayer.AdvancePromptFlowChoice(rt, ctxData, flow, sageArcaneStepTarget, "sage_arcane_target")
-	return true, nil
+	return true, engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, sageArcaneFlowRuntime, flow, sageArcaneStepTarget, "sage_arcane_target")
 }
 
 // handleReboundCardsMultiSelect 处理法术反弹同系牌多选。
@@ -450,8 +463,7 @@ func handleReboundCardsMultiSelect(rt engineplayer.ChoiceRuntime, playerID strin
 		Count:         len(selections),
 	})
 	ctxData["target_ids"] = append([]string{}, rt.GetPlayerOrder()...)
-	engineplayer.AdvancePromptFlowChoice(rt, ctxData, flow, sageMagicReboundStepTarget, "sage_magic_rebound_target")
-	return true, nil
+	return true, engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, sageMagicReboundFlowRuntime, flow, sageMagicReboundStepTarget, "sage_magic_rebound_target")
 }
 
 // handleHolyCardsMultiSelect 处理圣洁法典异系牌多选。
@@ -489,8 +501,7 @@ func handleHolyCardsMultiSelect(rt engineplayer.ChoiceRuntime, playerID string, 
 		return false, fmt.Errorf("圣洁法典治疗目标数量无效")
 	}
 	ctxData["target_ids"] = append([]string{}, rt.GetPlayerOrder()...)
-	engineplayer.AdvancePromptFlowChoice(rt, ctxData, flow, sageHolyStepTarget, "sage_holy_targets")
-	return true, nil
+	return true, engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, sageHolyFlowRuntime, flow, sageHolyStepTarget, "sage_holy_targets")
 }
 
 // handleHolyTargetsMultiSelect 处理圣洁法典的多目标治疗选择。

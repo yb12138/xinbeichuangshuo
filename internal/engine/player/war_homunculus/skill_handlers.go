@@ -127,7 +127,7 @@ func (h *HomunculusRuneSmashHandler) Execute(ctx *model.Context) error {
 			"candidate_indices":        candidates,
 			"max_y":                    maxY,
 			"min_pick":                 1,
-			model.PromptFlowContextKey: model.NewPromptFlowState(runeSmashFlowID, runeChoiceStepCards),
+			model.PromptFlowContextKey: runeSmashFlowRuntime.MustBeginAt(runeChoiceStepCards),
 		},
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [战纹碎击]，请选择要弃置的同系牌（所选牌彼此同系）", ctx.User.Name))
@@ -197,7 +197,7 @@ func (h *HomunculusGlyphFusionHandler) Execute(ctx *model.Context) error {
 			"candidate_indices":        candidates,
 			"max_y":                    maxY,
 			"min_pick":                 minPick,
-			model.PromptFlowContextKey: model.NewPromptFlowState(glyphFusionFlowID, runeChoiceStepCards),
+			model.PromptFlowContextKey: glyphFusionFlowRuntime.MustBeginAt(runeChoiceStepCards),
 		},
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [魔纹融合]，请选择要弃置的异系牌（所选牌彼此异系）", ctx.User.Name))

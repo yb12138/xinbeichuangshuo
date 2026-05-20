@@ -60,7 +60,7 @@ func postDamageResolvedHook(rt player.HookRuntime, ctx player.TimingHookContext)
 				Context: map[string]interface{}{
 					"choice_type":              "sage_magic_rebound_confirm",
 					"user_id":                  target.ID,
-					model.PromptFlowContextKey: model.NewPromptFlowState(sageMagicReboundFlowID, sageMagicReboundStepConfirm),
+					model.PromptFlowContextKey: sageMagicReboundFlowRuntime.Begin(),
 				},
 			})
 			rt.Log(fmt.Sprintf("%s 的 [法术反弹] 可触发：承受1点法术伤害，最大同系手牌=%d", target.Name, sameCount))

@@ -35,7 +35,7 @@ func newProtocolInputError(code, message string, context map[string]interface{})
 	}
 }
 
-func (r *Room) sendProtocolErrorToClient(client *Client, code, message, cmd string, context map[string]interface{}) {
+func (r *Room) sendProtocolErrorToClient(client *Client, code, message string, cmd WSCommand, context map[string]interface{}) {
 	payload := ProtocolErrorPayload{
 		Code:    code,
 		Message: message,
@@ -48,7 +48,7 @@ func (r *Room) sendProtocolErrorToClient(client *Client, code, message, cmd stri
 // HandleMessage processes incoming WebSocket messages.
 func (r *Room) HandleMessage(client *Client, msg *WSMessage) {
 	if msg == nil {
-		r.sendProtocolErrorToClient(client, protocolErrorCodeInvalidJSON, "消息体为空", "", nil)
+		r.sendProtocolErrorToClient(client, protocolErrorCodeInvalidJSON, "消息体为空", WSCommand(""), nil)
 		return
 	}
 	switch msg.Cmd {

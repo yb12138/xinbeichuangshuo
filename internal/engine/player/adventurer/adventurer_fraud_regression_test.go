@@ -75,9 +75,12 @@ func TestAdventurerFraud_PickTwoThenChooseAttackElement(t *testing.T) {
 	// 先在手牌区选择2张同系牌（火）
 	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0, 1}})
 	ctxData = requireChoiceType(t, game, "p1", "adventurer_fraud_attack_element")
-	flow := testutils.RequirePromptFlow(t, ctxData, "adventurer_fraud", "cards")
+	flow := testutils.RequirePromptFlow(t, ctxData, "adventurer_fraud", "element")
 	if got := flow.Selection("cards").OptionIndexes; len(got) != 2 || got[0] != 0 || got[1] != 1 {
 		t.Fatalf("expected fraud selected cards in prompt flow, got %+v", got)
+	}
+	if got := flow.Selection("element").Element; got != string(model.ElementFire) {
+		t.Fatalf("expected common element stored in prompt flow, got %q", got)
 	}
 
 	prompt := game.BuildPendingInterruptPrompt()

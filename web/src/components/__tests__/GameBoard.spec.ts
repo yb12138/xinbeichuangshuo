@@ -22,6 +22,8 @@ vi.mock('../../composables/useSubmitAction', () => ({
     submitAction: vi.fn(),
     submitUseSkill: vi.fn(),
     submitSelectedBoardTarget: vi.fn(),
+    takeoverPlayer: vi.fn(),
+    dissolveRoom: vi.fn(),
   }),
 }))
 

@@ -22,6 +22,15 @@ const (
 	magicBowSequentialFlowLabel = "魔弓选择"
 )
 
+var (
+	magicBowChargePlaceFlowRuntime = model.MustNewPromptFlowRuntime(magicBowChargePlaceFlowID, []model.PromptFlowStepSpec{
+		{ID: magicBowChargeCardsStep, ChoiceType: "mb_charge_place_cards", CancelPolicy: model.CancelPolicyAbort},
+	})
+	magicBowDemonEyeFlowRuntime = model.MustNewPromptFlowRuntime(magicBowDemonEyeFlowID, []model.PromptFlowStepSpec{
+		{ID: magicBowDemonEyeCardsStep, ChoiceType: "mb_demon_eye_charge_card", CancelPolicy: model.CancelPolicyAbort},
+	})
+)
+
 func NewChoiceHandler() engineplayer.ChoiceHandler {
 	return choiceHandler{}
 }
@@ -271,14 +280,14 @@ func buildChargePlaceCardsPrompt(playerID string, player *model.Player, data map
 }
 
 func initMagicBowChargePlaceFlow(needCount int) *model.PromptFlowState {
-	flow := model.NewPromptFlowState(magicBowChargePlaceFlowID, magicBowChargeCardsStep)
+	flow := magicBowChargePlaceFlowRuntime.MustBeginAt(magicBowChargeCardsStep)
 	flow.PutSelection(magicBowChargeNeedStep, model.PromptFlowSelection{Count: needCount})
 	flow.PutSelection(magicBowChargeCardsStep, model.PromptFlowSelection{})
 	return flow
 }
 
 func initMagicBowDemonEyeChargeFlow() *model.PromptFlowState {
-	flow := model.NewPromptFlowState(magicBowDemonEyeFlowID, magicBowChargeCardsStep)
+	flow := magicBowDemonEyeFlowRuntime.MustBeginAt(magicBowChargeCardsStep)
 	flow.PutSelection(magicBowChargeNeedStep, model.PromptFlowSelection{Count: 1})
 	flow.PutSelection(magicBowChargeCardsStep, model.PromptFlowSelection{})
 	return flow

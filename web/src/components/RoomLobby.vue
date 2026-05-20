@@ -202,21 +202,21 @@ function closeSkillModal() {
 }
 
 function selectCamp(camp: string) {
-  actions.sendRoomAction('change_camp', { camp })
+  actions.changeCamp(camp)
 }
 
 function selectRole(role: string) {
   if (!role) return
-  actions.sendRoomAction('change_role', { char_role: role })
+  actions.changeRole(role)
 }
 
 function selectCampFor(playerId: string, camp: string) {
-  actions.sendRoomAction('change_camp', { target_id: playerId, camp })
+  actions.changeCamp(camp, playerId)
 }
 
 function selectRoleFor(playerId: string, role: string) {
   if (!role) return
-  actions.sendRoomAction('change_role', { target_id: playerId, char_role: role })
+  actions.changeRole(role, playerId)
 }
 
 function pickRole(roleId: string) {
@@ -231,22 +231,22 @@ function canJoinCamp(camp: 'Red' | 'Blue') {
 }
 
 function addBot() {
-  actions.sendRoomAction('add_bot', { bot_name: `机器人${botCount.value + 1}` })
+  actions.addBot(`机器人${botCount.value + 1}`)
 }
 
 function removeBot(playerId: string) {
-  actions.sendRoomAction('remove_bot', { target_id: playerId })
+  actions.removeBot(playerId)
 }
 
 function startGame() {
-  actions.sendRoomAction('start')
+  actions.startRoom()
 }
 
 function dissolveRoom() {
   if (!isHost.value) return
   const confirmed = window.confirm('确认解散房间吗？所有玩家将被退出到大厅。')
   if (!confirmed) return
-  actions.sendRoomAction('dissolve_room')
+  actions.dissolveRoom()
 }
 </script>
 

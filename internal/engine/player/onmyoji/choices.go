@@ -24,6 +24,19 @@ type onmyojiCardOption struct {
 	Label      string
 }
 
+const (
+	onmyojiCounterFlowID          = "onmyoji_counter"
+	onmyojiCounterStepCard        = "card"
+	onmyojiCounterStepTarget      = "target"
+	onmyojiCounterUseFactionFlag  = "1"
+	onmyojiCounterSkipFactionFlag = "0"
+)
+
+var onmyojiCounterFlowRuntime = model.MustNewPromptFlowRuntime(onmyojiCounterFlowID, []model.PromptFlowStepSpec{
+	{ID: onmyojiCounterStepCard, ChoiceType: "onmyoji_counter_card", CancelPolicy: model.CancelPolicyAbort},
+	{ID: onmyojiCounterStepTarget, ChoiceType: "onmyoji_counter_target", CancelPolicy: model.CancelPolicyBack},
+})
+
 func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, playerID string, player *model.Player, data map[string]interface{}) *model.Prompt {
 	switch choiceType {
 	case "onmyoji_life_barrier_mode":
@@ -383,7 +396,15 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		if selectionIndex < 0 || selectionIndex >= len(cardOptions) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
-		ctxData["selected_card_id"] = cardOptions[selectionIndex].CardID
+		flow := onmyojiCounterFlowRuntime.MustBeginAt(onmyojiCounterStepCard)
+		flow.PutSelection(onmyojiCounterStepCard, model.PromptFlowSelection{
+			OptionIndexes: []int{selectionIndex},
+			CardIDs:       []string{cardOptions[selectionIndex].CardID},
+		})
+		model.SetPromptFlowContext(ctxData, flow)
+		if err := onmyojiCounterFlowRuntime.MoveTo(flow, onmyojiCounterStepTarget); err != nil {
+			return true, err
+		}
 		ctxData["choice_type"] = "onmyoji_yinyang_counter_target"
 		if intr := rt.GetPendingInterrupt(); intr != nil {
 			intr.Context = ctxData
@@ -398,7 +419,15 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		}
 		counterTargetID := counterTargetIDs[selectionIndex]
 		actorID, _ := ctxData["actor_id"].(string)
-		selectedCardID, _ := ctxData["selected_card_id"].(string)
+		flow, err := model.RequirePromptFlow(ctxData, onmyojiCounterFlowID, "阴阳转换")
+		if err != nil {
+			return true, err
+		}
+		cardIDs := flow.Selection(onmyojiCounterStepCard).CardIDs
+		if len(cardIDs) != 1 || cardIDs[0] == "" {
+			return true, fmt.Errorf("阴阳转换缺少选定卡牌")
+		}
+		selectedCardID := cardIDs[0]
 		actor := rt.GetPlayers()[actorID]
 		if actor == nil {
 			return true, fmt.Errorf("阴阳师不存在")
@@ -436,8 +465,20 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		if selectionIndex < 0 || selectionIndex >= len(cardOptions) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
-		ctxData["selected_card_id"] = cardOptions[selectionIndex].CardID
-		ctxData["selected_use_faction"] = cardOptions[selectionIndex].UseFaction
+		useFactionFlag := onmyojiCounterSkipFactionFlag
+		if cardOptions[selectionIndex].UseFaction {
+			useFactionFlag = onmyojiCounterUseFactionFlag
+		}
+		flow := onmyojiCounterFlowRuntime.MustBeginAt(onmyojiCounterStepCard)
+		flow.PutSelection(onmyojiCounterStepCard, model.PromptFlowSelection{
+			OptionIndexes: []int{selectionIndex},
+			CardIDs:       []string{cardOptions[selectionIndex].CardID},
+			Element:       useFactionFlag,
+		})
+		model.SetPromptFlowContext(ctxData, flow)
+		if err := onmyojiCounterFlowRuntime.MoveTo(flow, onmyojiCounterStepTarget); err != nil {
+			return true, err
+		}
 		ctxData["choice_type"] = "onmyoji_binding_counter_target"
 		if intr := rt.GetPendingInterrupt(); intr != nil {
 			intr.Context = ctxData
@@ -452,8 +493,16 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		}
 		counterTargetID := counterTargetIDs[selectionIndex]
 		actorID, _ := ctxData["actor_id"].(string)
-		selectedCardID, _ := ctxData["selected_card_id"].(string)
-		selectedUseFaction, _ := ctxData["selected_use_faction"].(bool)
+		flow, err := model.RequirePromptFlow(ctxData, onmyojiCounterFlowID, "式神咒束")
+		if err != nil {
+			return true, err
+		}
+		selection := flow.Selection(onmyojiCounterStepCard)
+		if len(selection.CardIDs) != 1 || selection.CardIDs[0] == "" {
+			return true, fmt.Errorf("式神咒束缺少选定卡牌")
+		}
+		selectedCardID := selection.CardIDs[0]
+		selectedUseFaction := selection.Element == onmyojiCounterUseFactionFlag
 		actor := rt.GetPlayers()[actorID]
 		if actor == nil {
 			return true, fmt.Errorf("阴阳师不存在")

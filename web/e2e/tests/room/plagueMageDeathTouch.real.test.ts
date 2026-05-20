@@ -25,6 +25,7 @@ test('plague mage death touch: full skill flow against real engine', async ({ pa
   // Activate skill selection.
   await page.getByTestId('action-skill').click()
   await page.getByTestId(`skill-${PLAGUE_DEATH_TOUCH_SKILL_ID}`).click()
+  await page.locator(`[data-player-anchor="${scenario.bot_player_ids[0]}"]`).click()
 
   // Element selection prompt: pick the first fire card.
   await expect(page.getByTestId('prompt-dialog')).toBeVisible({ timeout: 5_000 })

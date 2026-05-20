@@ -83,7 +83,7 @@ func turnStartRousingHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHo
 			"user_id":                  holder.ID,
 			"bard_id":                  bardID,
 			"target_ids":               targetIDs,
-			model.PromptFlowContextKey: model.NewPromptFlowState(rousingFlowID, rousingStepMode),
+			model.PromptFlowContextKey: rousingFlowRuntime.Begin(),
 		},
 	})
 	rt.Log(fmt.Sprintf("%s 持有永恒乐章，回合开始时满足 [激昂狂想曲] 的发动条件", currentPlayer.Name))
@@ -190,7 +190,7 @@ func turnEndDescentHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHook
 		}
 	}
 
-	flow := model.NewPromptFlowState(descentFlowID, descentStepCards)
+	flow := descentFlowRuntime.MustBeginAt(descentStepCards)
 	flow.PutSelection(descentStepCards, model.PromptFlowSelection{Count: 2})
 
 	rt.PushInterrupt(&model.Interrupt{

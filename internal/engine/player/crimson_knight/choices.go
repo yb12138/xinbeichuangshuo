@@ -21,6 +21,13 @@ const (
 	bloodyPrayerStepSplit  = "split"
 )
 
+var bloodyPrayerFlowRuntime = model.MustNewPromptFlowRuntime(bloodyPrayerFlowID, []model.PromptFlowStepSpec{
+	{ID: bloodyPrayerStepX, ChoiceType: "crk_bloody_prayer_x", CancelPolicy: model.CancelPolicyAbort},
+	{ID: bloodyPrayerStepCount, ChoiceType: "crk_bloody_prayer_ally_count", CancelPolicy: model.CancelPolicyBack},
+	{ID: bloodyPrayerStepTarget, ChoiceType: "crk_bloody_prayer_target", CancelPolicy: model.CancelPolicyBack},
+	{ID: bloodyPrayerStepSplit, ChoiceType: "crk_bloody_prayer_split", CancelPolicy: model.CancelPolicyAbort},
+})
+
 func NewChoiceHandler() engineplayer.ChoiceHandler {
 	return choiceHandler{}
 }
@@ -143,12 +150,11 @@ func handleCrimsonKnightBloodyPrayerX(rt engineplayer.ChoiceRuntime, selectionIn
 		return fmt.Errorf("没有可分配治疗的队友")
 	}
 	if len(allyIDs) >= 2 && xValue >= 2 {
-		engineplayer.AdvancePromptFlowChoice(rt, ctxData, flow, bloodyPrayerStepCount, "crk_bloody_prayer_ally_count")
+		return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, bloodyPrayerFlowRuntime, flow, bloodyPrayerStepCount, "crk_bloody_prayer_ally_count")
 	} else {
 		flow.PutSelection(bloodyPrayerStepCount, model.PromptFlowSelection{Count: 1})
-		engineplayer.AdvancePromptFlowChoice(rt, ctxData, flow, bloodyPrayerStepTarget, "crk_bloody_prayer_target")
+		return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, bloodyPrayerFlowRuntime, flow, bloodyPrayerStepTarget, "crk_bloody_prayer_target")
 	}
-	return nil
 }
 
 func handleCrimsonKnightBloodyPrayerAllyCount(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
@@ -171,8 +177,7 @@ func handleCrimsonKnightBloodyPrayerAllyCount(rt engineplayer.ChoiceRuntime, sel
 		Count:         allyCount,
 	})
 	flow.PutSelection(bloodyPrayerStepTarget, model.PromptFlowSelection{})
-	engineplayer.AdvancePromptFlowChoice(rt, ctxData, flow, bloodyPrayerStepTarget, "crk_bloody_prayer_target")
-	return nil
+	return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, bloodyPrayerFlowRuntime, flow, bloodyPrayerStepTarget, "crk_bloody_prayer_target")
 }
 
 func handleCrimsonKnightBloodyPrayerTarget(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
@@ -223,8 +228,7 @@ func handleCrimsonKnightBloodyPrayerTarget(rt engineplayer.ChoiceRuntime, select
 		if xValue < 2 {
 			return fmt.Errorf("X不足以分配给2名队友")
 		}
-		engineplayer.AdvancePromptFlowChoice(rt, ctxData, flow, bloodyPrayerStepSplit, "crk_bloody_prayer_split")
-		return nil
+		return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, bloodyPrayerFlowRuntime, flow, bloodyPrayerStepSplit, "crk_bloody_prayer_split")
 	}
 
 	rt.PopInterrupt()

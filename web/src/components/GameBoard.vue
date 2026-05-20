@@ -18,6 +18,7 @@ import ActionTimeline from './ActionTimeline.vue'
 import StatusEffectIcon from './StatusIcons/StatusEffectIcon.vue'
 import { useSubmitAction } from '../composables/useSubmitAction'
 import { useBattleInteractionState } from '../composables/useBattleInteractionState'
+import { useInteractionController } from '../composables/useInteractionController'
 
 const battleFxStore = useBattleFxStore()
 const battleReviewStore = useBattleReviewStore()
@@ -26,6 +27,7 @@ const snapshotStore = useSnapshotStore()
 const interruptStore = useInterruptStore()
 const uiStore = useUiStore()
 const actions = useSubmitAction()
+const interaction = useInteractionController()
 const {
   myPlayer: myAreaPlayer,
   myHand,
@@ -700,15 +702,15 @@ function onCoverCardClick(fieldIndex: number) {
           interruptStore.showError('当前盖牌选择缺少 card_id，请刷新后重试')
           return
         }
-        actions.submitSelectCardIDs([cardID])
+        interaction.submitSelectedCardIDs([cardID])
         return
       }
-      actions.submitSelect([optionIndex])
+      interaction.submitOptionIndex(optionIndex)
       return
     }
 
     if (ctx.max <= 1) {
-      actions.submitSelect([fieldIndex])
+      interaction.submitOptionIndex(fieldIndex)
       return
     }
 
@@ -737,7 +739,7 @@ function onCoverCardClick(fieldIndex: number) {
       interruptStore.showError('未找到对应妖力选项，请重试')
       return
     }
-    actions.submitSelect([optionIndex])
+    interaction.submitOptionIndex(optionIndex)
     return
   }
 
@@ -788,10 +790,10 @@ function confirmCocoonSelection() {
       interruptStore.showError('当前盖牌选择缺少 card_id，请刷新后重试')
       return
     }
-    actions.submitSelectCardIDs(selectedCardIDs)
+    interaction.submitSelectedCardIDs(selectedCardIDs)
     return
   }
-  actions.submitSelect([...selectedCocoonFieldIndices.value])
+  interaction.submitOptionIndexes([...selectedCocoonFieldIndices.value])
 }
 
 const promptNeedsTargetGuide = computed(() => {
@@ -974,7 +976,7 @@ function onTargetClick(playerId: string) {
       const promptIdx = promptOptionIndexForPlayer(playerId, true)
       if (promptIdx >= 0) {
         logTargetDebug('prompt_target_picker_send_select', { playerId, optionIdx: promptIdx })
-        actions.submitSelect([promptIdx])
+        interaction.submitOptionIndex(promptIdx)
       } else {
         logTargetDebug('prompt_target_picker_reject_click', { playerId })
       }
@@ -983,7 +985,7 @@ function onTargetClick(playerId: string) {
     const optionIdx = promptOptionIndexForPlayer(playerId, true)
     if (optionIdx >= 0) {
       logTargetDebug('prompt_option_send_select', { playerId, optionIdx })
-      actions.submitSelect([optionIdx])
+      interaction.submitOptionIndex(optionIdx)
       return
     }
     if (isPromptCounterTargetSelectable(playerId)) {
@@ -1666,7 +1668,7 @@ function onCardClick(idx: number) {
         interruptStore.showError('当前卡牌选择缺少 card_id，请刷新后重试')
         return
       }
-      actions.submitSelectCardIDs([cardID])
+      interaction.submitSelectedCardIDs([cardID])
     }
     return
   }
@@ -1787,14 +1789,14 @@ function leaveToLobby() {
 
 function takeoverOfflinePlayer(playerId: string) {
   if (!playerId) return
-  actions.sendRoomAction('takeover_player', { target_id: playerId })
+  actions.takeoverPlayer(playerId)
 }
 
 function dissolveRoomByHost() {
   if (!isHostInRoom.value) return
   const confirmed = window.confirm('确认解散房间吗？所有玩家将被退出到大厅。')
   if (!confirmed) return
-  actions.sendRoomAction('dissolve_room')
+  actions.dissolveRoom()
 }
 
 // === 双人关联连线 ===

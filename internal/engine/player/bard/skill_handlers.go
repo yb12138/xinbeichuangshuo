@@ -84,7 +84,7 @@ func (h *BardDissonanceChordHandler) Execute(ctx *model.Context) error {
 			"choice_type":              "bd_dissonance_x",
 			"user_id":                  ctx.User.ID,
 			"max_x":                    inspiration,
-			model.PromptFlowContextKey: model.NewPromptFlowState(dissonanceFlowID, dissonanceStepX),
+			model.PromptFlowContextKey: dissonanceFlowRuntime.Begin(),
 		},
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [不谐和弦]，请选择X值（2~%d）", ctx.User.Name, inspiration))
@@ -129,7 +129,7 @@ func (h *BardRousingRhapsodyHandler) Execute(ctx *model.Context) error {
 			"user_id":                  holder.ID,
 			"bard_id":                  bardID,
 			"target_ids":               bardEnemyIDs(ctx.Game, holder),
-			model.PromptFlowContextKey: model.NewPromptFlowState(rousingFlowID, rousingStepMode),
+			model.PromptFlowContextKey: rousingFlowRuntime.Begin(),
 		},
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [激昂狂想曲]，请选择效果", holder.Name))

@@ -5,7 +5,12 @@ import RoomLobby from '../RoomLobby.vue'
 
 const mocks = vi.hoisted(() => ({
   connect: vi.fn(),
-  sendRoomAction: vi.fn(),
+  changeCamp: vi.fn(),
+  changeRole: vi.fn(),
+  addBot: vi.fn(),
+  removeBot: vi.fn(),
+  startRoom: vi.fn(),
+  dissolveRoom: vi.fn(),
 }))
 
 vi.mock('../../composables/useWebSocket', () => ({
@@ -16,15 +21,21 @@ vi.mock('../../composables/useWebSocket', () => ({
 
 vi.mock('../../composables/useSubmitAction', () => ({
   useSubmitAction: () => ({
-    sendRoomAction: mocks.sendRoomAction,
+    changeCamp: mocks.changeCamp,
+    changeRole: mocks.changeRole,
+    addBot: mocks.addBot,
+    removeBot: mocks.removeBot,
+    startRoom: mocks.startRoom,
+    dissolveRoom: mocks.dissolveRoom,
   }),
 }))
 
 describe('RoomLobby URL auto join', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
-    mocks.connect.mockReset()
-    mocks.sendRoomAction.mockReset()
+    for (const mock of Object.values(mocks)) {
+      mock.mockReset()
+    }
     window.history.pushState({}, '', '/')
   })
 

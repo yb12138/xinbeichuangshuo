@@ -18,7 +18,22 @@ const (
 	manaInversionStepX      = "x"
 	manaInversionStepCards  = "cards"
 	manaInversionStepTarget = "target"
+
+	substituteDollFlowID     = "bw_substitute_doll"
+	substituteDollStepCard   = "card"
+	substituteDollStepTarget = "target"
 )
+
+var manaInversionFlowRuntime = model.MustNewPromptFlowRuntime(manaInversionFlowID, []model.PromptFlowStepSpec{
+	{ID: manaInversionStepX, ChoiceType: "bw_mana_inversion_x", CancelPolicy: model.CancelPolicyBack},
+	{ID: manaInversionStepCards, ChoiceType: "bw_mana_inversion_cards", CancelPolicy: model.CancelPolicyBack},
+	{ID: manaInversionStepTarget, ChoiceType: "bw_mana_inversion_target", CancelPolicy: model.CancelPolicyAbort},
+})
+
+var substituteDollFlowRuntime = model.MustNewPromptFlowRuntime(substituteDollFlowID, []model.PromptFlowStepSpec{
+	{ID: substituteDollStepCard, ChoiceType: "bw_substitute_doll_card", CancelPolicy: model.CancelPolicyAbort},
+	{ID: substituteDollStepTarget, ChoiceType: "bw_substitute_doll_target", CancelPolicy: model.CancelPolicyBack},
+})
 
 func NewChoiceHandler() engineplayer.ChoiceHandler {
 	return choiceHandler{}
@@ -189,11 +204,16 @@ func handleBlazeWitchSubstituteCardChoice(rt engineplayer.ChoiceRuntime, playerI
 	if user.Hand[cardIdx].Type != model.CardTypeMagic {
 		return fmt.Errorf("替身玩偶需弃置法术牌")
 	}
-	ctxData["selected_card_id"] = user.Hand[cardIdx].ID
-	ctxData["choice_type"] = "bw_substitute_doll_target"
+	flow, err := model.RequirePromptFlow(ctxData, substituteDollFlowID, "替身玩偶")
+	if err != nil {
+		return err
+	}
+	flow.PutSelection(substituteDollStepCard, model.PromptFlowSelection{
+		OptionIndexes: []int{selectionIndex},
+		CardIDs:       []string{user.Hand[cardIdx].ID},
+	})
 	ctxData["target_ids"] = runtimeutil.ParseStringSliceContextValue(ctxData["ally_ids"])
-	engineplayer.NotifyChoiceContext(rt, ctxData)
-	return nil
+	return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, substituteDollFlowRuntime, flow, substituteDollStepTarget, "bw_substitute_doll_target")
 }
 
 func handleBlazeWitchManaInversionXChoice(rt engineplayer.ChoiceRuntime, playerID string, selectionIndex int, ctxData map[string]interface{}) error {
@@ -225,8 +245,7 @@ func handleBlazeWitchManaInversionXChoice(rt engineplayer.ChoiceRuntime, playerI
 	})
 	flow.PutSelection(manaInversionStepCards, model.PromptFlowSelection{})
 	ctxData["remaining_indices"] = magicIndices
-	engineplayer.AdvancePromptFlowChoice(rt, ctxData, flow, manaInversionStepCards, "bw_mana_inversion_cards")
-	return nil
+	return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, manaInversionFlowRuntime, flow, manaInversionStepCards, "bw_mana_inversion_cards")
 }
 
 func handleBlazeWitchManaInversionCardsChoice(rt engineplayer.ChoiceRuntime, playerID string, selectionIndex int, ctxData map[string]interface{}) error {
@@ -279,8 +298,7 @@ func handleBlazeWitchManaInversionCardsChoice(rt engineplayer.ChoiceRuntime, pla
 		Count:         len(selected),
 	})
 	ctxData["target_ids"] = enemyIDs
-	engineplayer.AdvancePromptFlowChoice(rt, ctxData, flow, manaInversionStepTarget, "bw_mana_inversion_target")
-	return nil
+	return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, manaInversionFlowRuntime, flow, manaInversionStepTarget, "bw_mana_inversion_target")
 }
 
 func handleBlazeWitchTargetChoice(rt engineplayer.ChoiceRuntime, playerID string, selectionIndex int, ctxData map[string]interface{}) error {
@@ -301,7 +319,15 @@ func handleBlazeWitchTargetChoice(rt engineplayer.ChoiceRuntime, playerID string
 	choiceType, _ := ctxData["choice_type"].(string)
 	switch choiceType {
 	case "bw_substitute_doll_target":
-		cardID, _ := ctxData["selected_card_id"].(string)
+		flow, err := model.RequirePromptFlow(ctxData, substituteDollFlowID, "替身玩偶")
+		if err != nil {
+			return err
+		}
+		cardIDs := flow.Selection(substituteDollStepCard).CardIDs
+		if len(cardIDs) != 1 || cardIDs[0] == "" {
+			return fmt.Errorf("替身玩偶缺少选定卡牌")
+		}
+		cardID := cardIDs[0]
 		cardIdx := -1
 		for i, card := range user.Hand {
 			if card.ID == cardID {

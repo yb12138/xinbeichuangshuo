@@ -119,7 +119,10 @@ func (e *Engine) HandleCancelResult(playerID string, ctxData map[string]any) (Ha
 		return HandleResult{}, fmt.Errorf("choice: context missing choice_type for cancel")
 	}
 	spec := e.reg.Get(choiceType)
-	if spec == nil || spec.OnCancel == nil {
+	if spec == nil {
+		return HandleResult{}, fmt.Errorf("choice: unregistered choice_type %q", choiceType)
+	}
+	if spec.OnCancel == nil {
 		return HandleResult{}, fmt.Errorf("choice: unregistered or no OnCancel for %q", choiceType)
 	}
 	handled, err := spec.OnCancel(e.host, playerID, ctxData)

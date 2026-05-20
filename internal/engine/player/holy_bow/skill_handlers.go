@@ -177,7 +177,7 @@ func (h *HolyBowShardStormHandler) Execute(ctx *model.Context) error {
 			"user_id":                  ctx.User.ID,
 			"combos":                   combos,
 			"target_ids":               enemyIDs,
-			model.PromptFlowContextKey: model.NewPromptFlowState(holyShardFlowID, holyShardStepCombo),
+			model.PromptFlowContextKey: holyShardFlowRuntime.Begin(),
 		},
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [圣屑飓暴]：请选择弃置的同系攻击牌组合", ctx.User.Name))
@@ -272,7 +272,7 @@ func (h *HolyBowLightBurstHandler) Execute(ctx *model.Context) error {
 			"ally_ids":                 allyIDs,
 			"enemy_ids":                enemyIDs,
 			"max_x":                    maxX,
-			model.PromptFlowContextKey: model.NewPromptFlowState(lightBurstFlowID, lightBurstStepMode),
+			model.PromptFlowContextKey: lightBurstFlowRuntime.Begin(),
 		},
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [圣光爆裂]：请选择发动分支", ctx.User.Name))

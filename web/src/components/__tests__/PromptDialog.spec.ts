@@ -618,7 +618,7 @@ describe('PromptDialog', () => {
 
     expect(screen.getByTestId('direction-prompt')).toBeInTheDocument()
     expect(screen.queryByTestId('prompt-dialog')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('branch-option-0')).not.toBeInTheDocument()
+    expect(screen.getByTestId('branch-option-0')).toBeInTheDocument()
 
     await userEvent.click(screen.getByTestId('direction-option-reverse'))
 
@@ -641,7 +641,7 @@ describe('PromptDialog', () => {
 
     expect(screen.getByTestId('direction-prompt')).toBeInTheDocument()
     expect(screen.queryByTestId('prompt-dialog')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('branch-option-0')).not.toBeInTheDocument()
+    expect(screen.getByTestId('branch-option-0')).toBeInTheDocument()
 
     await userEvent.click(screen.getByTestId('direction-option-blue'))
 

@@ -7,6 +7,7 @@ import type {
   CharacterView as GeneratedCharacterView,
   Element as GeneratedElement,
   FieldCard as GeneratedFieldCard,
+  GameplayEvent as GeneratedGameplayEvent,
   GameStateUpdate as GeneratedGameStateUpdate,
   PlayerInfo as GeneratedPlayerInfo,
   PlayerView as GeneratedPlayerView,
@@ -71,18 +72,10 @@ export interface PlayerAction {
 }
 
 export type GameEvent =
-  | { event_type: 'log'; message: string }
+  | Exclude<GeneratedGameplayEvent, { event_type: 'state_update' | 'prompt' }>
   | { event_type: 'state_update'; state: GameStateUpdate }
   | { event_type: 'prompt'; prompt: Prompt }
   | { event_type: 'waiting'; player_id: string }
-  | { event_type: 'error'; message: string }
-  | { event_type: 'game_end'; message: string }
-  | { event_type: 'chat'; player_id: string; player_name: string; message: string }
-  | { event_type: 'card_revealed'; player_id: string; player_name: string; cards: Card[]; action_type: string; hidden: boolean }
-  | { event_type: 'damage_dealt'; source_id: string; source_name: string; target_id: string; target_name: string; damage: number; damage_type: string; message?: string }
-  | { event_type: 'action_step'; line: string; kind: 'detail' | 'summary' }
-  | { event_type: 'combat_cue'; attacker_id: string; target_id: string; phase: string }
-  | { event_type: 'draw_cards'; player_id: string; player_name: string; draw_count: number; reason: string }
 
 export const ELEMENT_COLORS: Record<Element, string> = {
   Water: 'element-water',

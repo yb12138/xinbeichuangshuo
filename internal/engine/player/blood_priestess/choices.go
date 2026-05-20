@@ -20,6 +20,10 @@ const (
 	bloodCurseDiscardCardsStep = "cards"
 )
 
+var bloodCurseDiscardFlowRuntime = model.MustNewPromptFlowRuntime(bloodCurseDiscardFlowID, []model.PromptFlowStepSpec{
+	{ID: bloodCurseDiscardCardsStep, ChoiceType: "bp_curse_discard", CancelPolicy: model.CancelPolicyAbort},
+})
+
 func NewChoiceHandler() engineplayer.ChoiceHandler {
 	return choiceHandler{}
 }
@@ -149,7 +153,7 @@ func buildCurseDiscardPrompt(playerID string, player *model.Player, data map[str
 }
 
 func initBloodCurseDiscardFlow(discardNeed int) *model.PromptFlowState {
-	flow := model.NewPromptFlowState(bloodCurseDiscardFlowID, bloodCurseDiscardCardsStep)
+	flow := bloodCurseDiscardFlowRuntime.MustBeginAt(bloodCurseDiscardCardsStep)
 	flow.PutSelection(bloodCurseDiscardNeedStep, model.PromptFlowSelection{Count: discardNeed})
 	flow.PutSelection(bloodCurseDiscardCardsStep, model.PromptFlowSelection{})
 	return flow

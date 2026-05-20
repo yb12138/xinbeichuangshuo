@@ -27,7 +27,7 @@ func TestTranslateClientAction_AttackUsesCardIDAndTargets(t *testing.T) {
 	}
 
 	req := ClientActionRequest{
-		ActionType: string(model.CmdAttack),
+		ActionType: model.CmdAttack,
 		CardID:     "card-001",
 		Targets: []TargetNode{
 			{TargetUserID: "p2"},
@@ -66,7 +66,7 @@ func TestTranslateClientAction_SelectCardIDsStayAsCardIDs(t *testing.T) {
 	}
 
 	got, err := room.translateClientAction("p1", ClientActionRequest{
-		ActionType: string(model.CmdSelect),
+		ActionType: model.CmdSelect,
 		CardIDs:    []string{"card-c", "card-a"},
 	})
 	if err != nil {
@@ -92,7 +92,7 @@ func TestHandleAction_NotStartedUsesNotifyTimelineEnvelope(t *testing.T) {
 		Name:     "Alice",
 	}
 
-	room.handleAction(client, mustMarshal(ClientActionRequest{ActionType: string(model.CmdPass)}))
+	room.handleAction(client, mustMarshal(ClientActionRequest{ActionType: model.CmdPass}))
 
 	raw := <-client.Send
 	var msg WSMessage

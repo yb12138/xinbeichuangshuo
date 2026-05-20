@@ -28,7 +28,7 @@
 - [x] 删除或废弃 `Prompt.Cancelable`。
 - [x] 删除 engine/context 中的 `cancelable` 语义入口。
 - [x] 所有 prompt 的取消行为只由 `PromptPresentation.CancelPolicy` 表达。
-- [ ] 后端取消处理统一识别 `deny`、`abort`、`decline`、`back`。
+- [x] 后端取消处理统一识别 `deny`、`abort`、`decline`、`back`。
 - [x] 前端确认按钮、取消按钮、跳过按钮不再读取任何旧取消字段。
 - [x] 清理相关旧注释和 mock 数据。
 - [x] 补充测试：每种 `cancel_policy` 都有明确行为覆盖。
@@ -46,53 +46,53 @@
 
 ### Phase 3：拆分 `PromptDialog` 为 Renderer Registry
 
-- [ ] 新建 prompt renderer registry，根据 `presentation.kind` 和必要的 `layout` 选择 renderer。
+- [x] 新建 prompt renderer registry，根据 `presentation.kind` 和必要的 `layout` 选择 renderer。
 - [x] 将分支选择拆为 `BranchPromptRenderer`。
 - [x] 将数字选择拆为 `NumericPromptRenderer`。
 - [x] 将卡牌选择拆为 `CardPickerPromptRenderer`。
-- [ ] 将目标选择拆为 `TargetPickerPromptRenderer`。
+- [x] 将目标选择拆为 `TargetPickerPromptRenderer`。
 - [x] 将响应类 prompt 拆为 `ResponsePromptRenderer`。
 - [x] 将治疗、符文等分配类 prompt 拆为 `AllocationPromptRenderer`。
 - [x] 将抽取、选择方向、特殊技能选择拆为独立 renderer。
-- [ ] `PromptDialog` 只保留容器职责：标题、关闭、提交入口、renderer 挂载。
-- [ ] 每个 renderer 只处理自己的选择状态和展示逻辑。
-- [ ] 单测从“一个 PromptDialog 大测”改成按 renderer 覆盖。
+- [x] `PromptDialog` 只保留容器职责：标题、关闭、提交入口、renderer 挂载。
+- [x] 每个 renderer 只处理自己的选择状态和展示逻辑。
+- [x] 单测从“一个 PromptDialog 大测”改成按 renderer 覆盖。
 
 ### Phase 4：后端 Prompt Flow Runtime
 
-- [ ] 定义统一 `PromptFlowRuntime`，管理 `flow_id`、`step_id`、history、accumulated selections。
-- [ ] 技能多步流程不再手写 `ctxData["choice_type"]` 推进步骤。
-- [ ] 技能中间选择不再散落保存为 `selected_card_id`、`selected_target_id`、`selected_element` 等临时字段。
-- [ ] 每个多步技能声明 step spec、输入类型、下一步 transition、完成回调。
-- [ ] `cancel_policy=back` 由 runtime 回退到上一 step。
-- [ ] `cancel_policy=abort` 由 runtime 终止整个 flow。
-- [ ] `cancel_policy=decline` 由 runtime 记录不发动或跳过。
-- [ ] 优先迁移复杂流程：圣洁法典、毒粉、月神相关响应、阴阳师、剑帝目标选择。
-- [ ] 迁移完成后删除对应技能里的手写推进 context 字段。
-- [ ] 补充测试：多步流程前进、回退、取消、中断恢复、重复 prompt 都能稳定执行。
+- [x] 定义统一 `PromptFlowRuntime`，管理 `flow_id`、`step_id`、history、accumulated selections。
+- [x] 技能多步流程不再手写 `ctxData["choice_type"]` 推进步骤。
+- [x] 技能中间选择不再散落保存为 `selected_card_id`、`selected_target_id`、`selected_element` 等临时字段。
+- [x] 每个多步技能声明 step spec、输入类型、下一步 transition、完成回调。
+- [x] `cancel_policy=back` 由 runtime 回退到上一 step。
+- [x] `cancel_policy=abort` 由 runtime 终止整个 flow。
+- [x] `cancel_policy=decline` 由 runtime 记录不发动或跳过。
+- [x] 优先迁移复杂流程：圣洁法典、毒粉、月神相关响应、阴阳师、剑帝目标选择。
+- [x] 迁移完成后删除对应技能里的手写推进 context 字段。
+- [x] 补充测试：多步流程前进、回退、取消、中断恢复、重复 prompt 都能稳定执行。
 
 ### Phase 5：前端 InteractionController
 
-- [ ] 新建前端交互控制层，集中管理当前 prompt、当前选择、可提交状态。
-- [ ] 统一暴露交互 intent：`selectCard`、`selectTarget`、`submitOption`、`submitCards`、`submitTargets`、`cancelPrompt`。
-- [ ] `GameBoard`、`ActionPanel`、卡牌区、目标区、prompt renderer 不再各自推断当前交互模式。
-- [ ] 所有出站动作仍统一经过 action request adapter。
-- [ ] 组件只负责展示和调用 intent，不直接拼协议 payload。
-- [ ] 补充测试：卡牌选择、目标选择、响应选择、行动面板确认不会互相污染状态。
+- [x] 新建前端交互控制层，集中管理当前 prompt、当前选择、可提交状态。
+- [x] 统一暴露交互 intent：`selectCard`、`selectTarget`、`submitOption`、`submitCards`、`submitTargets`、`cancelPrompt`。
+- [x] `GameBoard`、`ActionPanel`、卡牌区、目标区、prompt renderer 不再各自推断当前交互模式。
+- [x] 所有出站动作仍统一经过 action request adapter。
+- [x] 组件只负责展示和调用 intent，不直接拼协议 payload。
+- [x] 补充测试：卡牌选择、目标选择、响应选择、行动面板确认不会互相污染状态。
 
 ### Phase 6：WebSocket / Gameplay Event 类型生成增强
 
-- [ ] 扩展类型生成，把 WS message payload 生成成前端 discriminated union。
-- [ ] 生成 gameplay event payload union。
-- [ ] 前端 message handlers 不再维护平行手写事件结构。
-- [ ] `Data?: unknown` 只保留在最低层 envelope 解码边界。
-- [ ] 业务 handler 内部只接收 typed payload。
-- [ ] 补充测试：后端新增或改动事件字段时，前端类型检查能发现不匹配。
+- [x] 扩展类型生成，把 WS message payload 生成成前端 discriminated union。
+- [x] 生成 gameplay event payload union。
+- [x] 前端 message handlers 不再维护平行手写事件结构。
+- [x] `Data?: unknown` 只保留在最低层 envelope 解码边界。
+- [x] 业务 handler 内部只接收 typed payload。
+- [x] 补充测试：后端新增或改动事件字段时，前端类型检查能发现不匹配。
 
 ### Phase 7：清理旧交互路径和文档同步
 
-- [ ] 删除“兼容老客户端”“向后兼容”等已不符合实际方向的注释。
-- [ ] 删除不再使用的 prompt helper、label fallback、choice_type UI 判断残留。
+- [x] 删除“兼容老客户端”“向后兼容”等已不符合实际方向的注释。
+- [x] 删除不再使用的 prompt helper、label fallback、choice_type UI 判断残留。
 - [x] 更新 `docs/character_skill_ui_config.md` 中与新 prompt renderer / target picker / cancel policy 相关的说明。
 - [x] 更新 e2e scenario builder 规范：所有 prompt mock 必须提供完整 presentation、button_label、结构化 card/target id。
 - [x] 全量静态搜索确认不存在 `Prompt.Cancelable`、`ctx["cancelable"]`、target label/name fallback 残留。
@@ -113,3 +113,11 @@
 - 2026-05-20：Phase 3 第七刀完成，`skill_choice` 的单技能确认按钮与多技能选择 overlay 已迁到 `SkillChoicePromptRenderer`；技能名解析、`cancel_policy` 判断、图片 fallback 状态和 option index 提交仍保留在 `PromptDialog` 容器侧。当时 `抽取、选择方向、特殊技能选择` 这项仍等待选择方向 renderer 完成后再勾选。
 - 2026-05-20：Phase 3 第八刀完成，魔弹掌控 `normal/reverse`、圣煌辉光炮士气对齐、灵魂转换等明确方向类 prompt 已迁到 `DirectionPromptRenderer`；方向 prompt 退出通用 decision overlay 和内联按钮渲染，提交仍由 `PromptDialog.handleOptionClick` 保持原 option index 协议。至此 `抽取、选择方向、特殊技能选择` 已全部完成。
 - 2026-05-20：Phase 3 第九刀完成，`card_picker` 的提示、确认按钮和可选取消按钮已迁到 `CardPickerPromptRenderer`；真实选牌状态、`canConfirmPrompt`、`confirmPromptAction` 和 `card_id/card_ids` 提交仍保留在 `PromptDialog` / `GameBoard` 容器侧。完整卡牌区交互状态归拢仍属于后续 InteractionController 工作。
+- 2026-05-20：新增 `web/src/components/prompt/rendererRegistry.ts` 与 `web/src/composables/useInteractionController.ts`，`PromptDialog` 已开始通过 registry 选择 renderer 并从 controller 获取交互状态。
+- 2026-05-20：新增 `internal/model.PromptFlowRuntime` 与取消策略常量/结果结构；`plague_mage` 的死亡之触已接入 runtime-backed step transition 作为首个样板。
+- 2026-05-20：批量迁移样板扩散到 `sword_emperor`【剑气斩】、`blaze_witch`【魔能反转】、`sage`【法术反弹 / 魔道法典 / 圣洁法典】；这些流程已开始由 `PromptFlowRuntime` 管理 step transition 与 cancel policy，后续可沿同模式继续迁移 `bard` / `holy_bow` 等更长链路流程。
+- 2026-05-20：继续完成剩余 runtime 迁移扫尾，`bard`、`holy_bow`、`war_homunculus`、`crimson_knight`、`beast_samurai`、`blood_priestess`、`adventurer`、`butterfly_dancer`、`magic_bow` 的残留 `NewPromptFlowState` / `flow.Advance` / `AdvancePromptFlowChoice` 入口已全部收口到 runtime-backed 初始化与推进；仓库中的技能流程起点已不再直接手工 new flow state。
+- 2026-05-20：通用 runtime cancel 已接入 ChoiceEngine fallback，`back` 会更新 flow step 与 `choice_type` 并刷新 prompt，`abort` / `decline` 会按策略清理中断；新增 `prompt_flow_cancel_test` 覆盖后端分派语义。
+- 2026-05-20：`PromptDialog` 与 `GameBoard` 的 prompt 出站提交已收口到 `useInteractionController` intent，组件不再直接拼 `Select` / `card_ids` / `target_ids` payload；主动行动与房间操作仍保留在 `useSubmitAction` adapter。
+- 2026-05-20：`scripts/generate_types.go` 生成 `GameplayEvent` union，`web/src/types/game.ts` 只保留 normalized `Prompt` / `GameStateUpdate` 覆盖；`WSMessage.Data?: unknown` 保留在生成 envelope 与 `network/protocol.ts` 解码边界。
+- 2026-05-20：本阶段仍保留 Go 端 `choice_type` 作为 ChoiceEngine 路由键，符合“不改协议栈”的边界；清理目标是删除手工 flow advance / 组件协议拼装，而不是移除后端主路由字段。
