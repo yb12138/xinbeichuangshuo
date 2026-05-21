@@ -39,9 +39,10 @@ func attackStateResetHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHo
 	return engineplayer.TimingHookResult{}
 }
 
-// damageAfterTakenHook 剑帝命中后置：承伤触发后、治疗抵伤前执行命中分支。
+// angelSoulHitHook 剑帝·天使之魂命中结算。
+// 挂在承伤触发后的攻击命中链中，避免命中后响应中断导致该自动分支被跳过。
 // 使用 AttackPostHitEffectsDone 标记确保同一次伤害只处理一次。
-func damageAfterTakenHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHookContext) engineplayer.TimingHookResult {
+func angelSoulHitHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHookContext) engineplayer.TimingHookResult {
 	pd := ctx.PendingDamage
 	if pd == nil || pd.AttackPostHitEffectsDone || pd.HasCheck(model.PendingDamageCheckAttackMissResolved) || !strings.EqualFold(string(pd.DamageType), string(model.AttackDamage)) {
 		return engineplayer.TimingHookResult{}

@@ -425,8 +425,6 @@ var debugCheatSimulateMissOnHitCheck = map[string]bool{
 	"hom_glyph_fusion":    true,
 	"se_sword_soul_guard": true,
 	"se_feint":            true,
-	"se_angel_soul_miss":  true,
-	"se_demon_soul_miss":  true,
 }
 
 func debugCheatEventTypeForTiming(t model.FlowTiming) model.EventType {

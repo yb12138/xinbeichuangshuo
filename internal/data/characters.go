@@ -2263,33 +2263,6 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "se_angel_soul_hit", Timings: []model.FlowTiming{model.TimingOnHitCheck}, Title: "天使之魂·命中结算",
-					Type:        model.SkillTypePassive,
-					Description: "若本次攻击由天使之魂挂载且命中，则你+2治疗。",
-
-					ResponseType: model.ResponseSilent,
-					LogicHandler: "se_angel_soul_hit",
-					TargetType:   model.TargetNone,
-				},
-				{
-					ID: "se_angel_soul_miss", Timings: []model.FlowTiming{model.TimingOnHitCheck}, Title: "天使之魂·未命中结算",
-					Type:        model.SkillTypePassive,
-					Description: "若本次攻击由天使之魂挂载且未命中，则我方士气+1。",
-
-					ResponseType: model.ResponseSilent,
-					LogicHandler: "se_angel_soul_miss",
-					TargetType:   model.TargetNone,
-				},
-				{
-					ID: "se_demon_soul_miss", Timings: []model.FlowTiming{model.TimingOnHitCheck}, Title: "恶魔之魂·未命中结算",
-					Type:        model.SkillTypePassive,
-					Description: "若本次攻击由恶魔之魂挂载且未命中，则你+2剑气。",
-
-					ResponseType: model.ResponseSilent,
-					LogicHandler: "se_demon_soul_miss",
-					TargetType:   model.TargetNone,
-				},
-				{
 					ID: "se_indomitable_will", Timings: []model.FlowTiming{model.TimingOnActionEnd}, Title: "不屈意志",
 					Type:        model.SkillTypeResponse,
 					Tags:        []model.SkillTag{model.TagCrystal, model.TagUltimate},

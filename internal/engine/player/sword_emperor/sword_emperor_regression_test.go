@@ -1,7 +1,9 @@
 package sword_emperor_test
 
 import (
+	"starcup-engine/internal/data"
 	"starcup-engine/internal/engine"
+	skillregistry "starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/testutils"
 	"testing"
 
@@ -66,6 +68,42 @@ func TestSwordEmperor_InitTokens(t *testing.T) {
 	}
 	if got := p1.TurnState.UsedSkillCounts["se_guard_disabled_current_attack"]; got != 0 {
 		t.Fatalf("expected guard disable token cleared, got %d", got)
+	}
+}
+
+func TestSwordEmperor_SoulSettlementBranchesAreTimingHooksNotRegisteredSkills(t *testing.T) {
+	settlementIDs := map[string]bool{
+		"se_angel_soul_hit":  true,
+		"se_angel_soul_miss": true,
+		"se_demon_soul_miss": true,
+	}
+
+	for _, entry := range swordemperor.SkillEntries() {
+		if settlementIDs[entry.ID] {
+			t.Fatalf("settlement branch %q should be a timing hook, not a registered skill", entry.ID)
+		}
+	}
+	for id := range settlementIDs {
+		if handler := skillregistry.GetHandler(id); handler != nil {
+			t.Fatalf("settlement branch %q should not have a registered skill handler", id)
+		}
+	}
+
+	var swordEmperor *model.Character
+	for _, character := range data.GetCharacters() {
+		if character.ID == "sword_emperor" {
+			c := character
+			swordEmperor = &c
+			break
+		}
+	}
+	if swordEmperor == nil {
+		t.Fatal("sword_emperor character config not found")
+	}
+	for _, skill := range swordEmperor.Skills {
+		if settlementIDs[skill.ID] {
+			t.Fatalf("settlement branch %q should not be declared as a character skill", skill.ID)
+		}
 	}
 }
 

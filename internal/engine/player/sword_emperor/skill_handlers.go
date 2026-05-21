@@ -20,12 +20,6 @@ type SwordEmperorAngelSoulHandler struct{ engineplayer.BaseHandler }
 
 type SwordEmperorDemonSoulHandler struct{ engineplayer.BaseHandler }
 
-type SwordEmperorAngelSoulHitHandler struct{ engineplayer.BaseHandler }
-
-type SwordEmperorAngelSoulMissHandler struct{ engineplayer.BaseHandler }
-
-type SwordEmperorDemonSoulMissHandler struct{ engineplayer.BaseHandler }
-
 type SwordEmperorIndomitableWillHandler struct{ engineplayer.BaseHandler }
 
 func (h *SwordEmperorSwordSoulGuardHandler) CanUse(ctx *model.Context) bool { return false }
@@ -35,18 +29,6 @@ func (h *SwordEmperorSwordSoulGuardHandler) Execute(ctx *model.Context) error { 
 func (h *SwordEmperorFeintHandler) CanUse(ctx *model.Context) bool { return false }
 
 func (h *SwordEmperorFeintHandler) Execute(ctx *model.Context) error { return nil }
-
-func (h *SwordEmperorAngelSoulHitHandler) CanUse(ctx *model.Context) bool { return false }
-
-func (h *SwordEmperorAngelSoulHitHandler) Execute(ctx *model.Context) error { return nil }
-
-func (h *SwordEmperorAngelSoulMissHandler) CanUse(ctx *model.Context) bool { return false }
-
-func (h *SwordEmperorAngelSoulMissHandler) Execute(ctx *model.Context) error { return nil }
-
-func (h *SwordEmperorDemonSoulMissHandler) CanUse(ctx *model.Context) bool { return false }
-
-func (h *SwordEmperorDemonSoulMissHandler) Execute(ctx *model.Context) error { return nil }
 
 func swordEmperorEnergy(user *model.Player) int {
 	if user == nil {
