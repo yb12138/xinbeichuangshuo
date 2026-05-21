@@ -40,7 +40,7 @@ var (
 	})
 	holyShardMissFlowRuntime = model.MustNewPromptFlowRuntime(holyShardMissFlowID, []model.PromptFlowStepSpec{
 		{ID: holyShardMissStepConfirm, ChoiceType: "hb_holy_shard_miss_confirm", CancelPolicy: model.CancelPolicyDecline},
-		{ID: holyShardMissStepX, ChoiceType: "hb_holy_shard_miss_x", CancelPolicy: model.CancelPolicyBack},
+		{ID: holyShardMissStepX, ChoiceType: "hb_holy_shard_miss_x", CancelPolicy: model.CancelPolicyDecline},
 		{ID: holyShardMissStepTarget, ChoiceType: "hb_holy_shard_miss_ally_target", CancelPolicy: model.CancelPolicyAbort},
 	})
 	lightBurstFlowRuntime = model.MustNewPromptFlowRuntime(lightBurstFlowID, []model.PromptFlowStepSpec{
@@ -141,6 +141,18 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 	}
 }
 
+func (choiceHandler) HandleCancel(rt engineplayer.ChoiceRuntime, _ string, ctxData map[string]interface{}) (bool, error) {
+	choiceType, _ := ctxData["choice_type"].(string)
+	switch choiceType {
+	case "hb_holy_shard_miss_x":
+		return true, declineHolyShardMissBranch(rt)
+	default:
+		return false, nil
+	}
+}
+
+var _ engineplayer.CancelChoiceHandler = choiceHandler{}
+
 // ===========================================================================
 // BuildPrompt helpers
 // ===========================================================================
@@ -228,7 +240,7 @@ func buildHolyShardMissXPrompt(playerID string, player *model.Player, data map[s
 		Options:      options,
 		Min:          1,
 		Max:          1,
-		Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 0},
+		Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 0, CancelPolicy: model.CancelPolicyDecline, CancelLabel: "取消"},
 	}
 }
 
@@ -586,18 +598,7 @@ func handleHolyShardMissConfirm(rt engineplayer.ChoiceRuntime, selectionIndex in
 	}
 	flow.PutSelection(holyShardMissStepConfirm, model.PromptFlowSelection{OptionIndexes: []int{selectionIndex}})
 	if selectionIndex == 1 {
-		// Decline: skip the miss branch
-		rt.PopInterrupt()
-		if rt.GetPendingInterrupt() == nil {
-			if len(rt.GetPendingDamageQueue()) > 0 {
-				rt.EnterDamageResolution(nil)
-			} else if len(rt.GetActionQueue()) > 0 {
-				rt.EnterActionExecutionStage()
-			} else {
-				rt.EnterExtraActionStage()
-			}
-		}
-		return nil
+		return declineHolyShardMissBranch(rt)
 	}
 	if selectionIndex != 0 {
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
@@ -608,6 +609,20 @@ func handleHolyShardMissConfirm(rt engineplayer.ChoiceRuntime, selectionIndex in
 		return nil
 	}
 	return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, holyShardMissFlowRuntime, flow, holyShardMissStepX)
+}
+
+func declineHolyShardMissBranch(rt engineplayer.ChoiceRuntime) error {
+	rt.PopInterrupt()
+	if rt.GetPendingInterrupt() == nil {
+		if len(rt.GetPendingDamageQueue()) > 0 {
+			rt.EnterDamageResolution(nil)
+		} else if len(rt.GetActionQueue()) > 0 {
+			rt.EnterActionExecutionStage()
+		} else {
+			rt.EnterExtraActionStage()
+		}
+	}
+	return nil
 }
 
 func handleHolyShardMissX(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {

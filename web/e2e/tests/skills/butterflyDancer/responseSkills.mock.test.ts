@@ -19,7 +19,7 @@ async function clickOverlayOption(page: Page, selector: string) {
 }
 
 test.describe('butterfly dancer pilgrimage protocol harness', () => {
-  test('pilgrimage: decline confirm prompt via cancel control', async ({ page, protocolHarness }) => {
+  test('pilgrimage: decline confirm prompt via branch option', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(reverseScenario());
 
     await protocolHarness.pushServerMessage(pilgrimageConfirmPrompt());
@@ -27,13 +27,14 @@ test.describe('butterfly dancer pilgrimage protocol harness', () => {
     const overlay = page.getByTestId('decision-overlay');
     await expect(overlay).toBeVisible();
     await expect(overlay.getByTestId('prompt-option-0')).toHaveText('发动');
-    await expect(overlay.getByTestId('prompt-option-1')).toHaveCount(0);
-    await expect(overlay.getByTestId('prompt-cancel-btn')).toHaveText('取消');
+    await expect(overlay.getByTestId('prompt-option-1')).toHaveText('取消');
+    await expect(overlay.getByTestId('prompt-cancel-btn')).toHaveCount(0);
     await expect(overlay.getByText('不发动')).toHaveCount(0);
 
-    await page.getByTestId('decision-overlay').getByTestId('prompt-cancel-btn').click();
+    await page.getByTestId('decision-overlay').getByTestId('branch-option-1').click();
     await protocolHarness.expectSubmitAction({
-      action_type: 'Cancel',
+      action_type: 'Select',
+      option_indexes: [1],
     });
   });
 

@@ -241,8 +241,7 @@ export function shardStormDiscardPrompt(): WsMessage {
   } satisfies Prompt);
 }
 
-// 后端 buildHolyShardMissConfirmPrompt：未命中后先弹「是否走未命中分支」的 confirm。
-// 选「否」直接结束未命中流程，选「是」才进入 miss_x 选择。
+// 旧协议保留：新流程未命中后直接进入 miss_x 选择。
 export function shardStormMissConfirmPrompt(): WsMessage {
   return requireActionMessage({
     type: 'confirm',
@@ -260,7 +259,7 @@ export function shardStormMissConfirmPrompt(): WsMessage {
   } satisfies Prompt);
 }
 
-// 后端 buildHolyShardMissXPrompt：X 取值范围为 1..maxX（无 X=0 选项）。
+// 后端 buildHolyShardMissXPrompt：X 取值范围为 1..maxX（无 X=0 选项），取消表示不发动。
 export function shardStormMissHealPrompt(maxX = 2): WsMessage {
   const options: { id: string; label: string; button_label: string }[] = [];
   for (let i = 1; i <= maxX; i++) {
@@ -273,7 +272,7 @@ export function shardStormMissHealPrompt(maxX = 2): WsMessage {
     choice_type: 'hb_holy_shard_miss_x',
     skill_id: HB_SHARD_STORM_SKILL_ID,
     options,
-    presentation: { kind: 'numeric', numeric_base: 0 },
+    presentation: { kind: 'numeric', numeric_base: 0, cancel_policy: 'decline', cancel_label: '取消' },
     min: 1,
     max: 1,
   } satisfies Prompt);

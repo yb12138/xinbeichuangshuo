@@ -393,11 +393,10 @@ func TestHolyBow_HolyShardStormMiss_NoBranch(t *testing.T) {
 		ExtraArgs: []string{"defend"},
 	})
 
-	testutils.RequireChoicePrompt(t, game, "p1", "hb_holy_shard_miss_confirm")
+	testutils.RequireChoicePrompt(t, game, "p1", "hb_holy_shard_miss_x")
 	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:   "p1",
-		Type:       model.CmdSelect,
-		Selections: []int{1}, // 否
+		PlayerID: "p1",
+		Type:     model.CmdCancel,
 	})
 
 	if got := p1.Heal; got != 3 {
@@ -543,18 +542,8 @@ func TestHolyBow_HolyShardStormMiss_YesBranch(t *testing.T) {
 		ExtraArgs: []string{"defend"},
 	})
 
-	ctxData := testutils.RequireChoiceContext(t, game, "p1", "hb_holy_shard_miss_confirm")
-	flow := testutils.RequirePromptFlow(t, ctxData, "hb_holy_shard_miss", "confirm")
-	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:   "p1",
-		Type:       model.CmdSelect,
-		Selections: []int{0}, // 是
-	})
-	ctxData = testutils.RequireChoiceContext(t, game, "p1", "hb_holy_shard_miss_x")
-	flow = testutils.RequirePromptFlow(t, ctxData, "hb_holy_shard_miss", "x")
-	if got := flow.Selection("confirm").OptionIndexes; len(got) != 1 || got[0] != 0 {
-		t.Fatalf("expected shard miss flow to accumulate confirm yes, got %+v in %+v", got, flow)
-	}
+	ctxData := testutils.RequireChoiceContext(t, game, "p1", "hb_holy_shard_miss_x")
+	flow := testutils.RequirePromptFlow(t, ctxData, "hb_holy_shard_miss", "x")
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID:   "p1",
 		Type:       model.CmdSelect,
@@ -646,18 +635,8 @@ func TestHolyBow_HolyShardStormMiss_XChoicesRequireAllyEnoughCards(t *testing.T)
 		ExtraArgs: []string{"defend"},
 	})
 
-	ctxData := testutils.RequireChoiceContext(t, game, "p1", "hb_holy_shard_miss_confirm")
-	testutils.RequirePromptFlow(t, ctxData, "hb_holy_shard_miss", "confirm")
-	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:   "p1",
-		Type:       model.CmdSelect,
-		Selections: []int{0},
-	})
-	ctxData = testutils.RequireChoiceContext(t, game, "p1", "hb_holy_shard_miss_x")
-	flow := testutils.RequirePromptFlow(t, ctxData, "hb_holy_shard_miss", "x")
-	if got := flow.Selection("confirm").OptionIndexes; len(got) != 1 || got[0] != 0 {
-		t.Fatalf("expected shard miss flow to accumulate confirm yes, got %+v in %+v", got, flow)
-	}
+	ctxData := testutils.RequireChoiceContext(t, game, "p1", "hb_holy_shard_miss_x")
+	testutils.RequirePromptFlow(t, ctxData, "hb_holy_shard_miss", "x")
 
 	prompt := game.GetCurrentPrompt()
 	if prompt == nil {

@@ -14,8 +14,8 @@ export function promptImageButtonKindByOption(option: {
     if (id === 'counter') return 'counter'
     if (id === 'defend') return 'defend'
   }
-  if (option.hasDecline && option.optionIndex === option.declineIndex) return 'cancel'
-  if (option.cancelPolicy && option.cancelPolicy !== 'deny' && (id === 'cancel' || id === 'skip' || id === 'decline' || id === 'pass' || id === '-1')) return 'cancel'
+  if (option.presentationKind !== 'branch_select' && option.hasDecline && option.optionIndex === option.declineIndex) return 'cancel'
+  if (option.presentationKind !== 'branch_select' && option.cancelPolicy && option.cancelPolicy !== 'deny' && (id === 'cancel' || id === 'skip' || id === 'decline' || id === 'pass' || id === '-1')) return 'cancel'
   if (option.presentationKind === 'card_picker') return 'card'
   if (option.presentationKind === 'numeric') return 'confirm'
   if (id === 'confirm' || id === 'yes') return 'confirm'

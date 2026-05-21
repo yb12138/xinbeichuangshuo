@@ -10,5 +10,6 @@ describe('promptButtonRules', () => {
     expect(promptImageButtonKindByOption({ id: '0', presentationKind: 'card_picker' })).toBe('card')
     expect(promptImageButtonKindByOption({ id: '1', presentationKind: 'numeric' })).toBe('confirm')
     expect(promptImageButtonKindByOption({ id: 'decline', cancelPolicy: 'decline' })).toBe('cancel')
+    expect(promptImageButtonKindByOption({ id: 'decline', presentationKind: 'branch_select', cancelPolicy: 'decline' })).toBe('action')
   })
 })

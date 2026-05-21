@@ -469,13 +469,14 @@ export function moonCycleScenario(options: { dark_moon_cards?: number; heal?: nu
 export function moonCycleBranchPrompt(options: { branch1?: boolean; branch2?: boolean } = {}): WsMessage {
   const branch1 = options.branch1 ?? true
   const branch2 = options.branch2 ?? true
-  const promptOptions: Prompt['options'] = [{ id: 'decline', label: '不发动', button_label: '不发动' }]
+  const promptOptions: Prompt['options'] = []
   if (branch1) {
     promptOptions.push({ id: 'branch1', label: '分支①：移除1个闇月，令目标角色+1治疗', button_label: '分支①' })
   }
   if (branch2) {
     promptOptions.push({ id: 'branch2', label: '分支②：移除1点治疗，你+1新月', button_label: '分支②' })
   }
+  promptOptions.push({ id: 'decline', label: '不发动', button_label: '不发动' })
   return requireActionMessage({
     type: 'confirm',
     player_id: MG_PLAYER_ID,
@@ -483,7 +484,7 @@ export function moonCycleBranchPrompt(options: { branch1?: boolean; branch2?: bo
     choice_type: 'mg_moon_cycle_mode',
     skill_id: MG_MOON_CYCLE_SKILL_ID,
     options: promptOptions,
-    presentation: { kind: 'branch_select', layout: 'overlay', cancel_policy: 'decline', has_decline: true, decline_index: 0, numeric_base: 0 },
+    presentation: { kind: 'branch_select', layout: 'overlay', cancel_policy: 'decline', has_decline: true, decline_index: promptOptions.length - 1, numeric_base: 0 },
     min: 1,
     max: 1,
   } satisfies Prompt);
@@ -589,13 +590,14 @@ export function moonReadTargetPrompt(): WsMessage {
   return requireActionMessage({
     type: 'confirm',
     player_id: MG_PLAYER_ID,
-    message: '【月渎】请选择目标追加1点法术伤害：',
+    message: '【月渎】请选择目标或不发动：',
     choice_type: 'mg_blasphemy_target',
     skill_id: MG_MOON_READ_SKILL_ID,
-    presentation: { kind: 'target_picker', target_filter: 'enemies', numeric_base: 0 },
+    presentation: { kind: 'branch_select', layout: 'overlay', has_decline: true, decline_index: 2, numeric_base: 0 },
     options: [
-      { id: ENEMY_PLAYER_ID, target_id: ENEMY_PLAYER_ID, label: 'Enemy Bot', button_label: '选择' },
-      { id: ENEMY_2_PLAYER_ID, target_id: ENEMY_2_PLAYER_ID, label: 'Enemy Bot 2', button_label: '选择' },
+      { id: '0', label: '对 Enemy Bot 造成1点法术伤害', button_label: 'Enemy Bot' },
+      { id: '1', label: '对 Enemy Bot 2 造成1点法术伤害', button_label: 'Enemy Bot 2' },
+      { id: '2', label: '不发动', button_label: '不发动' },
     ],
     min: 1,
     max: 1,

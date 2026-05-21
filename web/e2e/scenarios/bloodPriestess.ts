@@ -196,7 +196,6 @@ export function bloodSorrowScenario(): ProtocolHarnessScenario {
 
 export function bloodSorrowBranchPrompt(): WsMessage {
   // 与后端 buildBloodSorrowModePrompt 保持一致：索引 0 = 移除，索引 1 = 转移；
-  // "跳过" 走 overlay 的取消按钮，不作为 prompt option 下发。
   return requireActionMessage({
     type: 'confirm',
     player_id: BP_PLAYER_ID,
@@ -207,7 +206,7 @@ export function bloodSorrowBranchPrompt(): WsMessage {
       { id: '0', label: '移除同生共死', button_label: '移除' },
       { id: '1', label: '转移同生共死目标', button_label: '转移' },
     ],
-    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0, cancel_policy: 'decline', cancel_label: '取消' },
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
     min: 1,
     max: 1,
   } satisfies Prompt);

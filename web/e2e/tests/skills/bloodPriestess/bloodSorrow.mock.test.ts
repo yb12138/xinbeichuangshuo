@@ -75,10 +75,11 @@ test.describe('blood priestess blood sorrow protocol harness', () => {
 
     await protocolHarness.pushServerMessage(bloodSorrowBranchPrompt());
     await expect(page.getByTestId('decision-overlay')).toBeVisible();
-    // Skip is rendered as cancel button in overlay footer
-    await page.getByTestId('prompt-cancel-btn').click();
+    await expect(page.getByTestId('prompt-cancel-btn')).toHaveCount(0);
+    await page.getByTestId('branch-option-0').click();
     await protocolHarness.expectSubmitAction({
-      action_type: 'Cancel',
+      action_type: 'Select',
+      option_indexes: [0],
     });
   });
 });

@@ -557,9 +557,15 @@ describe('PromptDialog', () => {
     })
 
     expect(screen.getByTestId('decision-overlay')).toBeInTheDocument()
+    expect(screen.getByTestId('prompt-option-decline')).toBeInTheDocument()
+    expect(screen.queryByTestId('prompt-cancel-btn')).not.toBeInTheDocument()
     expect(screen.getByText('不发动')).toBeInTheDocument()
     expect(screen.getByText('分支①：移除1个闇月，令目标角色+1治疗')).toBeInTheDocument()
     expect(screen.getByText('分支②：移除1点治疗，你+1新月')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByTestId('prompt-option-decline'))
+    expect(submitSelectMock).toHaveBeenCalledWith([0])
+    expect(submitCancelMock).not.toHaveBeenCalled()
   })
 
   it('renders moon cycle healing target as a target-selection hint instead of option buttons', async () => {

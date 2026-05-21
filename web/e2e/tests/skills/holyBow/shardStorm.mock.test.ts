@@ -1,7 +1,6 @@
 import { test } from '../../../fixtures/protocolHarness.fixture';
 import {
   shardStormDiscardPrompt,
-  shardStormMissConfirmPrompt,
   shardStormMissHealPrompt,
   shardStormMissTargetPrompt,
   shardStormScenario,
@@ -23,7 +22,7 @@ test.describe('holy bow shard storm protocol harness', () => {
     });
   });
 
-  test('shard storm miss follow-up: confirm enter miss branch, choose X, then ally', async ({ page, protocolHarness }) => {
+  test('shard storm miss follow-up: choose X, then ally', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(shardStormScenario());
 
     // 1) 弃牌组合阶段
@@ -36,15 +35,7 @@ test.describe('holy bow shard storm protocol harness', () => {
       card_ids: ['card_1', 'card_2'],
     });
 
-    // 2) miss confirm：决定是否进入未命中分支
-    await protocolHarness.pushServerMessage(shardStormMissConfirmPrompt());
-    await page.getByTestId('branch-option-0').click();
-    await protocolHarness.expectSubmitAction({
-      action_type: 'Select',
-      option_indexes: [0],
-    });
-
-    // 3) miss_x：选 X=1（无 X=0 选项，option_index 0 对应 X=1）
+    // 2) miss_x：选 X=1（无 X=0 选项，option_index 0 对应 X=1）
     await protocolHarness.pushServerMessage(shardStormMissHealPrompt(2));
     await page.getByTestId('numeric-option-1').click();
     await protocolHarness.expectSubmitAction({
@@ -52,7 +43,7 @@ test.describe('holy bow shard storm protocol harness', () => {
       option_indexes: [0],
     });
 
-    // 4) ally 选择
+    // 3) ally 选择
     await protocolHarness.pushServerMessage(shardStormMissTargetPrompt());
     await page.getByTestId(`player-area-${ALLY_PLAYER_ID}`).click();
     await protocolHarness.expectSubmitAction({
@@ -73,12 +64,10 @@ test.describe('holy bow shard storm protocol harness', () => {
       card_ids: ['card_1', 'card_2'],
     });
 
-    // 选「否」直接结束未命中流程，不会进入 miss_x
-    await protocolHarness.pushServerMessage(shardStormMissConfirmPrompt());
-    await page.getByTestId('branch-option-1').click();
+    await protocolHarness.pushServerMessage(shardStormMissHealPrompt(2));
+    await page.getByTestId('prompt-cancel-btn').click();
     await protocolHarness.expectSubmitAction({
-      action_type: 'Select',
-      option_indexes: [1],
+      action_type: 'Cancel',
     });
   });
 });

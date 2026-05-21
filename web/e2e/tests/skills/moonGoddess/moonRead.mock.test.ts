@@ -11,7 +11,7 @@ import {
 // ============================================================
 // 月渎 (mg_blasphemy) - 后端通过 response_skills 自动触发
 // 确认：skill_choice (1 skill + skip) → skill-branch-overlay
-// 目标选择：target_picker (player-area clicks)
+// 目标选择：branch_select，目标分支在前，不发动在最后
 // ============================================================
 
 test.describe('moon goddess moon read protocol harness', () => {
@@ -26,9 +26,9 @@ test.describe('moon goddess moon read protocol harness', () => {
       option_indexes: [0],
     });
 
-    // Target selection via target_picker (click enemy player area)
+    // Target selection via branch_select
     await protocolHarness.pushServerMessage(moonReadTargetPrompt());
-    await page.getByTestId(`player-area-${ENEMY_PLAYER_ID}`).click();
+    await page.locator('.overlay-panel-root--decision').getByTestId('branch-option-0').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [0],
@@ -46,7 +46,7 @@ test.describe('moon goddess moon read protocol harness', () => {
     });
 
     await protocolHarness.pushServerMessage(moonReadTargetPrompt());
-    await page.getByTestId(`player-area-${ENEMY_2_PLAYER_ID}`).click();
+    await page.locator('.overlay-panel-root--decision').getByTestId('branch-option-1').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1],

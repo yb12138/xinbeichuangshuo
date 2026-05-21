@@ -108,11 +108,8 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			Min:        1,
 			Max:        1,
 			Presentation: &model.PromptPresentation{
-				Kind:         model.PresentationBranchSelect,
-				Layout:       "overlay",
-				CancelPolicy: "decline",
-				HasDecline:   true,
-				DeclineIndex: 0,
+				Kind:   model.PresentationBranchSelect,
+				Layout: "overlay",
 			},
 		}
 
@@ -155,7 +152,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 				}
 			}
 		}
-		options := []model.PromptOption{{ID: "0", Label: "跳过月渎"}}
+		options := make([]model.PromptOption, 0, len(targetIDs)+1)
 		for _, tid := range targetIDs {
 			if p := rt.GetPlayers()[tid]; p != nil {
 				options = append(options, model.PromptOption{
@@ -164,15 +161,16 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 				})
 			}
 		}
+		options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", len(options)), Label: "不发动", ButtonLabel: "不发动"})
 		return &model.Prompt{
 			Type:         model.PromptConfirm,
 			PlayerID:     playerID,
 			ChoiceType:   choiceType,
-			Message:      "【月渎】请选择是否对当前受伤目标追加1点法术伤害：",
+			Message:      "【月渎】请选择目标或不发动：",
 			Options:      options,
 			Min:          1,
 			Max:          1,
-			Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay", HasDecline: true},
+			Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay", HasDecline: true, DeclineIndex: len(options) - 1},
 		}
 
 	case "mg_darkmoon_slash_x":
@@ -502,7 +500,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 				}
 			}
 		}
-		if selectionIndex == 0 {
+		if selectionIndex == len(targetIDs) {
 			if user.TurnState.SkillFlowState == nil {
 				user.TurnState.SkillFlowState = map[string]int{}
 			}
@@ -514,11 +512,10 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 			}
 			return true, nil
 		}
-		choice := selectionIndex - 1
-		if choice < 0 || choice >= len(targetIDs) {
+		if selectionIndex < 0 || selectionIndex >= len(targetIDs) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
-		target := rt.GetPlayers()[targetIDs[choice]]
+		target := rt.GetPlayers()[targetIDs[selectionIndex]]
 		if target == nil {
 			return true, fmt.Errorf("目标角色不存在")
 		}

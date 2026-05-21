@@ -13,12 +13,10 @@ test.describe('moon goddess moon cycle protocol harness', () => {
     // Server pushes branch prompt at turn end (branch_select overlay with has_decline)
     await protocolHarness.pushServerMessage(moonCycleBranchPrompt());
     await expect(page.getByTestId('decision-overlay')).toBeVisible();
-    // decline option (index 0) is filtered into cancel dock button;
-    // branch1 is the first displayed inline button, prompt-option-branch1
     await page.getByTestId('prompt-option-branch1').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [1],
+      option_indexes: [0],
     });
 
     // Target selection (target_picker single target: click player-area, auto-submits via submitSelect)
@@ -37,11 +35,10 @@ test.describe('moon goddess moon cycle protocol harness', () => {
     // Server pushes branch prompt at turn end
     await protocolHarness.pushServerMessage(moonCycleBranchPrompt({ branch1: false }));
     await expect(page.getByTestId('decision-overlay')).toBeVisible();
-    // decline filtered into cancel dock; branch2 is the only displayed inline button
     await page.getByTestId('prompt-option-branch2').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [1],
+      option_indexes: [0],
     });
 
     // Branch 2 has no further frontend interaction
@@ -52,10 +49,11 @@ test.describe('moon goddess moon cycle protocol harness', () => {
 
     await protocolHarness.pushServerMessage(moonCycleBranchPrompt());
     await expect(page.getByTestId('decision-overlay')).toBeVisible();
-    // decline is shown as cancel dock button (prompt-cancel-btn), sends Cancel action
-    await page.getByTestId('prompt-cancel-btn').click();
+    await expect(page.getByTestId('prompt-cancel-btn')).toHaveCount(0);
+    await page.getByTestId('prompt-option-decline').click();
     await protocolHarness.expectSubmitAction({
-      action_type: 'Cancel',
+      action_type: 'Select',
+      option_indexes: [2],
     });
   });
 
@@ -64,11 +62,10 @@ test.describe('moon goddess moon cycle protocol harness', () => {
 
     await protocolHarness.pushServerMessage(moonCycleBranchPrompt({ branch1: false }));
     await expect(page.getByTestId('decision-overlay')).toBeVisible();
-    // decline filtered into cancel dock; branch2 is the only displayed inline button
     await page.getByTestId('prompt-option-branch2').click();
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      option_indexes: [1],
+      option_indexes: [0],
     });
   });
 });

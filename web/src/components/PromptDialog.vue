@@ -378,7 +378,7 @@ function handleOptionClick(optionId: string) {
   if (structuredOptionKind === 'branch_select' || structuredOptionKind === 'numeric') {
     const optionIndex = prompt.value?.options?.findIndex((o: { id: string }) => o.id === optionId) ?? -1
     if (optionIndex >= 0) {
-      if (prompt.value?.presentation?.has_decline && optionIndex === (prompt.value.presentation.decline_index ?? 0)) {
+      if (structuredOptionKind !== 'branch_select' && prompt.value?.presentation?.has_decline && optionIndex === (prompt.value.presentation.decline_index ?? 0)) {
         cancelPrompt()
         return
       }
@@ -404,7 +404,7 @@ function handleOptionClick(optionId: string) {
     return
   }
   const optionIndex = prompt.value?.options?.findIndex((o: { id: string }) => o.id === optionId) ?? -1
-  if (prompt.value?.presentation?.has_decline && optionIndex === (prompt.value.presentation.decline_index ?? 0)) {
+  if (prompt.value?.presentation?.kind !== 'branch_select' && prompt.value?.presentation?.has_decline && optionIndex === (prompt.value.presentation.decline_index ?? 0)) {
     cancelPrompt()
     return
   }
@@ -1260,7 +1260,10 @@ const inlinePrimaryButtons = computed<DockButtonOption[]>(() => {
     const optionSource = shouldExposeIndexedCocoonOptions
       ? (prompt.value?.options || [])
       : nonPlayerOptions.value
-    const declineIndex = prompt.value?.presentation?.has_decline ? (prompt.value.presentation.decline_index ?? 0) : -1
+    const shouldFilterDeclineOption =
+      prompt.value?.presentation?.kind !== 'branch_select' &&
+      prompt.value?.presentation?.has_decline
+    const declineIndex = shouldFilterDeclineOption ? (prompt.value?.presentation?.decline_index ?? 0) : -1
     const options = optionSource
       .filter((option, index) => {
         if (declineIndex >= 0 && index === declineIndex) return false
@@ -1498,6 +1501,10 @@ const decisionOverlayMode = computed<'numeric' | 'text' | 'activation-cost' | 'y
   if (isYesNoDecision.value) return 'yes-no'
   return 'text'
 })
+
+const decisionOverlayCanCancel = computed(() =>
+  canCancelPrompt.value && prompt.value?.presentation?.kind !== 'branch_select'
+)
 
 const decisionOverlayTitle = computed(() => {
   if (singleActivationCostConfirmOption.value) {
@@ -1859,7 +1866,7 @@ watch(autoResolveOptionId, (optionId) => {
     :activation-hint="singleActivationCostConfirmHintText"
     :activation-option-id="singleActivationCostConfirmOption?.id || ''"
     :activation-disabled="!!singleActivationCostConfirmOption?.disabled"
-    :can-cancel="canCancelPrompt"
+    :can-cancel="decisionOverlayCanCancel"
     :cancel-label="cancelDockButton.buttonLabel || '取消'"
     :cancel-option-id="cancelDockButton.id"
     @select="handleOptionClick"

@@ -427,6 +427,9 @@ func TestMoonGoddessMoonCycle_DeclineSkipsSkill(t *testing.T) {
 	if prompt == nil || len(prompt.Options) == 0 || prompt.Options[0].Label != "不发动" {
 		t.Fatalf("expected decline option first, got %+v", prompt.Options)
 	}
+	if prompt.Presentation == nil || prompt.Presentation.CancelPolicy != "" || prompt.Presentation.HasDecline {
+		t.Fatalf("expected decline to render as a normal branch option, got %+v", prompt.Presentation)
+	}
 	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("decline moon cycle failed: %v", err)
 	}
@@ -952,8 +955,8 @@ func TestMoonGoddessBlasphemy_OncePerTurnAndResetNextTurn(t *testing.T) {
 		t.Fatalf("expected first blasphemy queue success")
 	}
 	testutils.RequireChoicePrompt(t, game, "p1", "mg_blasphemy_target")
-	// 选第1个目标（index=0 为“跳过”）。
-	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
+	// 选第1个目标（最后一项为“不发动”）。
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("resolve blasphemy target failed: %v", err)
 	}
 	if got := moon.TurnState.UsedSkillCounts["mg_blasphemy"]; got != 1 {
@@ -1009,9 +1012,9 @@ func TestMoonGoddessBlasphemy_TargetLockedToDamagedEnemyAndSelfTurn(t *testing.T
 		t.Fatalf("expected blasphemy prompt, got %+v", prompt)
 	}
 	if got := len(prompt.Options); got != 2 {
-		t.Fatalf("expected skip + only current damaged enemy, got %d options", got)
+		t.Fatalf("expected only current damaged enemy + decline, got %d options", got)
 	}
-	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
+	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("resolve blasphemy target failed: %v", err)
 	}
 	if len(game.State.PendingDamageQueue) != 1 {
