@@ -395,14 +395,14 @@ func TestSoulSorcererSoulMirror_UsesDynamicMaxHand(t *testing.T) {
 func TestSoulSorcererSoulBlast_ConditionalBonusDamage(t *testing.T) {
 	game, p1, p2 := setupSoulSorcererActionTurn(t)
 	p1.Tokens["ss_yellow_soul"] = 3
-	p1.ExclusiveCards = append(p1.ExclusiveCards, soulSorcererExclusiveCard(p1.Character.ID, "灵魂震爆"))
+	p1.Hand = []model.Card{soulSorcererExclusiveCard(p1.Character.ID, "灵魂震爆")}
 	p2.MaxHand = 6
 	p2.Hand = []model.Card{
 		soulSorcererTestCard("t1", "少牌1", model.CardTypeAttack, model.ElementFire),
 		soulSorcererTestCard("t2", "少牌2", model.CardTypeAttack, model.ElementWater),
 	}
 
-	if err := game.UseSkill("p1", "ss_soul_blast", []string{"p2"}, nil); err != nil {
+	if err := game.UseSkill("p1", "ss_soul_blast", []string{"p2"}, []int{0}); err != nil {
 		t.Fatalf("use ss_soul_blast failed: %v", err)
 	}
 	if got := p1.Tokens["ss_yellow_soul"]; got != 0 {
@@ -414,6 +414,12 @@ func TestSoulSorcererSoulBlast_ConditionalBonusDamage(t *testing.T) {
 	pd := game.State.PendingDamageQueue[0]
 	if pd.TargetID != "p2" || pd.DamageType != "magic" || pd.Damage != 5 {
 		t.Fatalf("unexpected soul blast pending damage: %+v", pd)
+	}
+	if len(p1.Hand) != 0 {
+		t.Fatalf("expected soul blast exclusive card to be consumed from hand, got %+v", p1.Hand)
+	}
+	if len(game.State.DiscardPile) == 0 || game.State.DiscardPile[len(game.State.DiscardPile)-1].Name != "灵魂震爆" {
+		t.Fatalf("expected soul blast exclusive card to enter discard pile, got %+v", game.State.DiscardPile)
 	}
 }
 
@@ -431,7 +437,7 @@ func TestSoulSorcererSoulBlast_NoBonusWhenDynamicMaxHandIsNotGreaterThanFive(t *
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
 	p1.Tokens["ss_yellow_soul"] = 3
-	p1.ExclusiveCards = append(p1.ExclusiveCards, soulSorcererExclusiveCard(p1.Character.ID, "灵魂震爆"))
+	p1.Hand = []model.Card{soulSorcererExclusiveCard(p1.Character.ID, "灵魂震爆")}
 	// 勇者精疲力竭时动态手牌上限应为4，不满足“上限>5”的加伤条件。
 	p2.Form = model.FormHeroExhaustion
 	p2.Hand = []model.Card{
@@ -444,7 +450,7 @@ func TestSoulSorcererSoulBlast_NoBonusWhenDynamicMaxHandIsNotGreaterThanFive(t *
 	if got := game.GetMaxHand(p2); got != 4 {
 		t.Fatalf("expected exhausted hero dynamic max hand=4, got %d", got)
 	}
-	if err := game.UseSkill("p1", "ss_soul_blast", []string{"p2"}, nil); err != nil {
+	if err := game.UseSkill("p1", "ss_soul_blast", []string{"p2"}, []int{0}); err != nil {
 		t.Fatalf("use ss_soul_blast failed: %v", err)
 	}
 	if len(game.State.PendingDamageQueue) == 0 {
@@ -456,14 +462,55 @@ func TestSoulSorcererSoulBlast_NoBonusWhenDynamicMaxHandIsNotGreaterThanFive(t *
 	}
 }
 
+func TestSoulSorcererSoulBlast_RequestsExclusiveDiscardBeforeDamage(t *testing.T) {
+	game, p1, p2 := setupSoulSorcererActionTurn(t)
+	p1.Tokens["ss_yellow_soul"] = 3
+	p1.Hand = []model.Card{soulSorcererExclusiveCard(p1.Character.ID, "灵魂震爆")}
+	p2.Hand = []model.Card{
+		soulSorcererTestCard("t1", "少牌1", model.CardTypeAttack, model.ElementFire),
+		soulSorcererTestCard("t2", "少牌2", model.CardTypeAttack, model.ElementWater),
+	}
+
+	if err := game.UseSkill("p1", "ss_soul_blast", []string{"p2"}, nil); err != nil {
+		t.Fatalf("use ss_soul_blast failed: %v", err)
+	}
+	testutils.RequireChoicePrompt(t, game, "p1", "system_discard_cards")
+	ctx := testutils.RequireChoiceContext(t, game, "p1", "system_discard_cards")
+	if got := ctx["discard_count"]; got != 1 {
+		t.Fatalf("expected discard_count=1, got %+v", got)
+	}
+	if got, ok := ctx["skill_id"].(string); !ok || got != "ss_soul_blast" {
+		t.Fatalf("expected skill_id ss_soul_blast, got %+v", ctx["skill_id"])
+	}
+	if ids, ok := ctx["target_ids"].([]string); !ok || len(ids) != 1 || ids[0] != "p2" {
+		t.Fatalf("expected target_ids=[p2], got %+v", ctx["target_ids"])
+	}
+	if got := p1.Tokens["ss_yellow_soul"]; got != 3 {
+		t.Fatalf("expected yellow soul unchanged before discard confirm, got %d", got)
+	}
+	if len(game.State.PendingDamageQueue) != 0 {
+		t.Fatalf("expected no pending damage before discard confirm, got %+v", game.State.PendingDamageQueue)
+	}
+
+	if err := game.ConfirmDiscard("p1", []int{0}); err != nil {
+		t.Fatalf("confirm soul blast discard failed: %v", err)
+	}
+	if got := p1.Tokens["ss_yellow_soul"]; got != 0 {
+		t.Fatalf("expected yellow soul spent after confirm, got %d", got)
+	}
+	if len(game.State.PendingDamageQueue) == 0 {
+		t.Fatalf("expected pending damage after discard confirm")
+	}
+}
+
 func TestSoulSorcererSoulGrant_RespectsEnergyCap(t *testing.T) {
 	game, p1, p2 := setupSoulSorcererActionTurn(t)
 	p1.Tokens["ss_blue_soul"] = 3
-	p1.ExclusiveCards = append(p1.ExclusiveCards, soulSorcererExclusiveCard(p1.Character.ID, "灵魂赐予"))
+	p1.Hand = []model.Card{soulSorcererExclusiveCard(p1.Character.ID, "灵魂赐予")}
 	p2.Gem = 2
 	p2.Crystal = 0
 
-	if err := game.UseSkill("p1", "ss_soul_grant", []string{"p2"}, nil); err != nil {
+	if err := game.UseSkill("p1", "ss_soul_grant", []string{"p2"}, []int{0}); err != nil {
 		t.Fatalf("use ss_soul_grant failed: %v", err)
 	}
 
@@ -472,6 +519,9 @@ func TestSoulSorcererSoulGrant_RespectsEnergyCap(t *testing.T) {
 	}
 	if got := p2.Gem + p2.Crystal; got != 3 {
 		t.Fatalf("target energy should cap at 3, got %d", got)
+	}
+	if len(p1.Hand) != 0 {
+		t.Fatalf("expected soul grant exclusive card to be consumed from hand, got %+v", p1.Hand)
 	}
 }
 

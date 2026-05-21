@@ -432,14 +432,15 @@ export function pilgrimageConfirmPrompt(): WsMessage {
     message: '【朝圣】是否发动，移除1个茧抵御1点伤害？',
     choice_type: 'bt_pilgrimage_confirm',
     options: [
-      { id: '0', label: '发动朝圣', button_label: '发动' },
-      { id: '1', label: '不发动', button_label: '不发动' },
+      { id: '0', label: '发动', button_label: '发动' },
+      { id: '1', label: '取消', button_label: '取消' },
     ],
     min: 1, max: 1,
     presentation: {
       kind: 'branch_select',
       layout: 'overlay',
       cancel_policy: 'decline',
+      cancel_label: '取消',
       has_decline: true,
       decline_index: 1,
       numeric_base: 0,

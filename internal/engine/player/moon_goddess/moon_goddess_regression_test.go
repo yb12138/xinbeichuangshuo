@@ -864,7 +864,8 @@ func TestMoonGoddessMedusa_OnlyAtAttackStart(t *testing.T) {
 }
 
 func TestMoonGoddessMedusa_MagicDarkMoonExtraDamageTargetsAttackerOnly(t *testing.T) {
-	game := engine.NewGameEngine(testutils.NoopObserver{})
+	obs := &testutils.CaptureObserver{}
+	game := engine.NewGameEngine(obs)
 	if err := game.AddPlayer("p1", "Moon", "moon_goddess", model.RedCamp); err != nil {
 		t.Fatal(err)
 	}
@@ -914,6 +915,12 @@ func TestMoonGoddessMedusa_MagicDarkMoonExtraDamageTargetsAttackerOnly(t *testin
 
 	if game.State.PendingInterrupt != nil {
 		t.Fatalf("expected no extra target prompt after medusa discard, got %+v", game.State.PendingInterrupt)
+	}
+	if got := game.State.RedMorale; got != 14 {
+		t.Fatalf("expected dark moon curse to reduce red morale by 1, got %d", got)
+	}
+	if got := obs.CountLogContains("[暗月诅咒]"); got != 1 {
+		t.Fatalf("expected one dark moon curse log after medusa removal, got %d", got)
 	}
 	if len(game.State.PendingDamageQueue) != 1 {
 		t.Fatalf("expected one pending damage from medusa extra effect, got %d", len(game.State.PendingDamageQueue))
@@ -1219,7 +1226,8 @@ func TestMoonGoddessDarkMoonSlash_XBoundaries_CurseAndDamage(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			game := engine.NewGameEngine(testutils.NoopObserver{})
+			obs := &testutils.CaptureObserver{}
+			game := engine.NewGameEngine(obs)
 			if err := game.AddPlayer("p1", "Moon", "moon_goddess", model.RedCamp); err != nil {
 				t.Fatal(err)
 			}
@@ -1281,6 +1289,12 @@ func TestMoonGoddessDarkMoonSlash_XBoundaries_CurseAndDamage(t *testing.T) {
 			}
 			if got := game.State.RedMorale; got != tc.wantRedMorale {
 				t.Fatalf("expected red morale=%d, got %d", tc.wantRedMorale, got)
+			}
+			if got := obs.CountLogContains("[暗月诅咒]"); got != 1 {
+				t.Fatalf("expected one dark moon curse log, got %d", got)
+			}
+			if tc.wantDarkMoonCount == 0 && moon.Form != "" {
+				t.Fatalf("expected leave dark form immediately when all dark moons are removed, got %q", moon.Form)
 			}
 			if got := moonplayer.DarkMoonCount(moon); got != tc.wantDarkMoonCount {
 				t.Fatalf("expected dark moon count=%d, got %d", tc.wantDarkMoonCount, got)

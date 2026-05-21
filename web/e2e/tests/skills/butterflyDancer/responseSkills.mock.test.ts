@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { test } from '../../../fixtures/protocolHarness.fixture';
+import { test, expect } from '../../../fixtures/protocolHarness.fixture';
 import {
   reverseScenario,
   pilgrimageConfirmPrompt,
@@ -23,6 +23,13 @@ test.describe('butterfly dancer pilgrimage protocol harness', () => {
     await protocolHarness.bootGame(reverseScenario());
 
     await protocolHarness.pushServerMessage(pilgrimageConfirmPrompt());
+
+    const overlay = page.getByTestId('decision-overlay');
+    await expect(overlay).toBeVisible();
+    await expect(overlay.getByTestId('prompt-option-0')).toHaveText('发动');
+    await expect(overlay.getByTestId('prompt-option-1')).toHaveCount(0);
+    await expect(overlay.getByTestId('prompt-cancel-btn')).toHaveText('取消');
+    await expect(overlay.getByText('不发动')).toHaveCount(0);
 
     await page.getByTestId('decision-overlay').getByTestId('prompt-cancel-btn').click();
     await protocolHarness.expectSubmitAction({

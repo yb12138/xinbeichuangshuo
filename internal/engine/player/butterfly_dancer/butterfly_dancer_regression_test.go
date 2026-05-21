@@ -388,6 +388,68 @@ func TestButterflyReverse_Branch2CocoonPicksUsePromptFlow(t *testing.T) {
 	}
 }
 
+func TestButterflyReverse_Branch2MagicCocoonQueuesWither(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Butterfly", "butterfly_dancer", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Crystal = 1
+	p1.Tokens["bt_pupa"] = 1
+	p1.Hand = []model.Card{
+		butterflyTestCard("h1", model.CardTypeAttack, model.ElementFire),
+		butterflyTestCard("h2", model.CardTypeMagic, model.ElementWater),
+	}
+	butterflydancer.AddCocoonCards(p1, []model.Card{
+		butterflyTestCard("c1", model.CardTypeMagic, model.ElementFire),
+		butterflyTestCard("c2", model.CardTypeAttack, model.ElementWater),
+	})
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID: "p1",
+		Type:     model.CmdSkill,
+		SkillID:  "bt_reverse_butterfly",
+	})
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{0, 1},
+	})
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{1},
+	})
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{0},
+	})
+	testutils.RequireChoicePrompt(t, game, "p1", "bt_reverse_branch2_pick")
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{0},
+	})
+	testutils.RequireChoicePrompt(t, game, "p1", "bt_reverse_branch2_pick")
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{1},
+	})
+	testutils.RequireChoicePrompt(t, game, "p1", "bt_wither_confirm")
+	if got := p1.TurnState.SkillFlowState["bt_wither_pending"]; got != 1 {
+		t.Fatalf("expected one pending wither trigger for removed magic cocoon, got %d", got)
+	}
+}
+
 func TestButterflyPilgrimage_ResistOneDamage(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "Butterfly", "butterfly_dancer", model.RedCamp); err != nil {
@@ -412,13 +474,22 @@ func TestButterflyPilgrimage_ResistOneDamage(t *testing.T) {
 	game.State.ReturnTurnStage = model.TurnStageExtraAction
 
 	game.Drive()
+	testutils.RequireChoicePrompt(t, game, "p1", "bt_poison_pick")
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{0},
+	})
 	testutils.RequireChoicePrompt(t, game, "p1", "bt_pilgrimage_confirm")
 	prompt := game.GetCurrentPrompt()
 	if prompt == nil || prompt.Presentation == nil || prompt.Presentation.Kind != model.PresentationBranchSelect {
 		t.Fatalf("expected pilgrimage confirmation overlay prompt, got %+v", prompt)
 	}
-	if len(prompt.Options) != 2 || prompt.Options[0].Label != "发动朝圣" || prompt.Options[1].Label != "不发动" {
-		t.Fatalf("expected pilgrimage confirm/decline options, got %+v", prompt.Options)
+	if len(prompt.Options) != 2 || prompt.Options[0].Label != "发动" || prompt.Options[0].ButtonLabel != "发动" || prompt.Options[1].Label != "取消" || prompt.Options[1].ButtonLabel != "取消" {
+		t.Fatalf("expected pilgrimage confirm/cancel options, got %+v", prompt.Options)
+	}
+	if prompt.Presentation.CancelLabel != "取消" || !prompt.Presentation.HasDecline || prompt.Presentation.DeclineIndex != 1 {
+		t.Fatalf("expected pilgrimage decline presentation to render as cancel, got %+v", prompt.Presentation)
 	}
 
 	testutils.MustHandleAction(t, game, model.PlayerAction{
@@ -456,6 +527,180 @@ func TestButterflyPilgrimage_ResistOneDamage(t *testing.T) {
 	}
 	if got := len(game.State.PendingDamageQueue); got != 0 {
 		t.Fatalf("pending damage queue not drained, len=%d", got)
+	}
+}
+
+func TestButterflyPilgrimage_DoesNotEnablePoisonAfterReducingTwoDamage(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Butterfly", "butterfly_dancer", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	game.State.Deck = rules.InitDeck()
+	butterflydancer.AddCocoonCards(p1, []model.Card{
+		butterflyTestCard("c1", model.CardTypeAttack, model.ElementFire),
+		butterflyTestCard("c2", model.CardTypeAttack, model.ElementFire),
+		butterflyTestCard("c3", model.CardTypeAttack, model.ElementWater),
+	})
+
+	game.AddPendingDamage(model.PendingDamage{
+		SourceID:   p2.ID,
+		TargetID:   p1.ID,
+		Damage:     2,
+		DamageType: model.MagicAttack,
+	})
+	game.State.CombatStage = model.CombatStageCalcDamage
+	game.State.ReturnTurnStage = model.TurnStageExtraAction
+
+	game.Drive()
+	testutils.RequireChoicePrompt(t, game, "p1", "bt_mirror_pair")
+
+	// ⑤ 2点实际法术伤害窗口：先不发动镜花水月。
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{0},
+	})
+	testutils.RequireChoicePrompt(t, game, "p1", "bt_pilgrimage_confirm")
+
+	// ⑥ 承受伤害窗口：发动朝圣。
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{0},
+	})
+	testutils.RequireChoicePrompt(t, game, "p1", "bt_pilgrimage_pick")
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{1},
+	})
+
+	if game.State.PendingInterrupt != nil {
+		t.Fatalf("expected no poison prompt after pilgrimage reduced 2 damage to 1, got %+v", game.State.PendingInterrupt)
+	}
+	if len(game.State.PendingDamageQueue) != 0 {
+		t.Fatalf("expected pending damage queue drained, got %+v", game.State.PendingDamageQueue)
+	}
+	if got := len(p1.Hand); got != 1 {
+		t.Fatalf("expected butterfly to draw exactly 1 from reduced damage, got hand=%d", got)
+	}
+	if got := butterflydancer.CocoonCount(p1); got != 2 {
+		t.Fatalf("expected only pilgrimage cocoon consumed, got remaining=%d", got)
+	}
+}
+
+func TestButterflyPoison_AllowsMirrorBeforePilgrimage(t *testing.T) {
+	obs := &testutils.CaptureObserver{}
+	game := engine.NewGameEngine(obs)
+	if err := game.AddPlayer("p1", "Butterfly", "butterfly_dancer", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Source", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p3", "Target", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p3 := game.State.Players["p3"]
+	butterflydancer.AddCocoonCards(p1, []model.Card{
+		butterflyTestCard("c1", model.CardTypeAttack, model.ElementFire),
+		butterflyTestCard("c2", model.CardTypeAttack, model.ElementFire),
+		butterflyTestCard("c3", model.CardTypeAttack, model.ElementWater),
+	})
+
+	game.AddPendingDamage(model.PendingDamage{
+		SourceID:   p2.ID,
+		TargetID:   p3.ID,
+		Damage:     1,
+		DamageType: model.MagicAttack,
+	})
+	game.State.CombatStage = model.CombatStageCalcDamage
+	game.State.ReturnTurnStage = model.TurnStageExtraAction
+
+	game.Drive()
+	testutils.RequireChoicePrompt(t, game, "p1", "bt_poison_pick")
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{3},
+	})
+	testutils.RequireChoicePrompt(t, game, "p1", "bt_mirror_pair")
+	if pd := game.State.PendingDamageQueue[0]; pd.Damage != 2 || !pd.HealResolved {
+		t.Fatalf("expected poison to make damage 2 after heal window, got %+v", pd)
+	}
+}
+
+func TestButterflyPoison_HappensAfterHealWindow(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Butterfly", "butterfly_dancer", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Target", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p2.Heal = 2
+	game.State.Deck = rules.InitDeck()
+	butterflydancer.AddCocoonCards(p1, []model.Card{
+		butterflyTestCard("c1", model.CardTypeAttack, model.ElementWater),
+		butterflyTestCard("c2", model.CardTypeAttack, model.ElementFire),
+		butterflyTestCard("c3", model.CardTypeAttack, model.ElementFire),
+	})
+
+	game.AddPendingDamage(model.PendingDamage{
+		SourceID:   p1.ID,
+		TargetID:   p2.ID,
+		Damage:     1,
+		DamageType: model.MagicAttack,
+	})
+	game.State.CombatStage = model.CombatStageCalcDamage
+	game.State.ReturnTurnStage = model.TurnStageExtraAction
+
+	game.Drive()
+	testutils.RequireChoicePrompt(t, game, "p2", "heal")
+	prompt := game.GetCurrentPrompt()
+	if len(prompt.Options) != 2 || prompt.Options[1].Label != "使用 1 点治疗" {
+		t.Fatalf("expected stage ④ heal prompt before poison, got %+v", prompt.Options)
+	}
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p2",
+		Type:       model.CmdSelect,
+		Selections: []int{0},
+	})
+	testutils.RequireChoicePrompt(t, game, "p1", "bt_poison_pick")
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{1},
+	})
+	testutils.RequireChoicePrompt(t, game, "p1", "bt_mirror_pair")
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{0},
+	})
+	for i := 0; i < 12 && (len(game.State.PendingDamageQueue) > 0 || game.State.PendingInterrupt != nil || game.State.CombatStage != model.CombatStageNone); i++ {
+		if game.State.PendingInterrupt != nil {
+			t.Fatalf("expected no second heal prompt after poison, got %+v", game.State.PendingInterrupt)
+		}
+		game.Drive()
+	}
+	if game.State.PendingInterrupt != nil {
+		t.Fatalf("expected no second heal prompt after poison, got %+v", game.State.PendingInterrupt)
+	}
+	if got := p2.Heal; got != 2 {
+		t.Fatalf("expected heal unchanged after declining stage ④ heal, got %d", got)
+	}
+	if got := len(p2.Hand); got != 2 {
+		t.Fatalf("expected poison-modified 2 damage to resolve without another heal window, got hand=%d", got)
 	}
 }
 
@@ -545,11 +790,11 @@ func TestButterflyMirror_ReplaceTwoDamageToTwoHits(t *testing.T) {
 	if got := len(game.State.PendingDamageQueue); got != 0 {
 		t.Fatalf("pending damage queue not drained, len=%d", got)
 	}
-	if got := len(p2.Hand); got != 2 {
-		t.Fatalf("expected damage source draw 2 cards from two 1-damage hits, got hand=%d", got)
+	if got := len(p2.Hand); got != 0 {
+		t.Fatalf("expected original source take no replacement damage, got hand=%d", got)
 	}
-	if got := len(p3.Hand); got != 0 {
-		t.Fatalf("expected original target take no replacement damage, got hand=%d", got)
+	if got := len(p3.Hand); got != 2 {
+		t.Fatalf("expected original target draw 2 cards from two 1-damage hits, got hand=%d", got)
 	}
 }
 

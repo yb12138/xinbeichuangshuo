@@ -65,9 +65,21 @@ func (e *GameEngine) applyTimingOnDamageTakenAfterTakenRules(pd *model.PendingDa
 	return result.Interrupted
 }
 
-// applyTimingOnDamageAppliedBeforeApplyRules 在真正扣血前处理应用前规则。
-func (e *GameEngine) applyTimingOnDamageAppliedBeforeApplyRules(pd *model.PendingDamage) bool {
-	result := e.dispatchRoleTimingHook(engineplayer.TimingOnDamageBeforeApply, engineplayer.TimingHookContext{
+// applyTimingOnDamageAppliedRules 在⑤实际产生伤害时处理扣除治疗后的响应。
+func (e *GameEngine) applyTimingOnDamageAppliedRules(pd *model.PendingDamage) bool {
+	result := e.dispatchRoleTimingHook(engineplayer.TimingOnDamageApplied, engineplayer.TimingHookContext{
+		SourceID:      pd.SourceID,
+		TargetID:      pd.TargetID,
+		PendingDamage: pd,
+		DamageType:    pd.DamageType,
+		Damage:        pd.Damage,
+	})
+	return result.Interrupted
+}
+
+// applyTimingOnDamageTakenRules 在⑥实际承受伤害、准备摸牌前处理响应。
+func (e *GameEngine) applyTimingOnDamageTakenRules(pd *model.PendingDamage) bool {
+	result := e.dispatchRoleTimingHook(engineplayer.TimingOnDamageTaken, engineplayer.TimingHookContext{
 		SourceID:      pd.SourceID,
 		TargetID:      pd.TargetID,
 		PendingDamage: pd,

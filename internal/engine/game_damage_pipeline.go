@@ -98,7 +98,10 @@ func (e *GameEngine) processPendingDamageBeforeApply(pd *model.PendingDamage) bo
 	if e.resolvePendingDamageHealChoice(pd) {
 		return true
 	}
-	if e.applyTimingOnDamageAppliedBeforeApplyRules(pd) {
+	if e.applyTimingOnDamageAppliedRules(pd) {
+		return true
+	}
+	if e.applyTimingOnDamageTakenRules(pd) {
 		return true
 	}
 	return false

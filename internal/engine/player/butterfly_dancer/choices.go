@@ -388,8 +388,8 @@ func buildPilgrimageConfirmPrompt(playerID string, data map[string]interface{}) 
 		ChoiceType: "bt_pilgrimage_confirm",
 		Message:    message,
 		Options: []model.PromptOption{
-			{ID: "0", Label: "发动朝圣", ButtonLabel: "发动"},
-			{ID: "1", Label: "不发动", ButtonLabel: "不发动"},
+			{ID: "0", Label: "发动", ButtonLabel: "发动"},
+			{ID: "1", Label: "取消", ButtonLabel: "取消"},
 		},
 		Min: 1,
 		Max: 1,
@@ -397,6 +397,7 @@ func buildPilgrimageConfirmPrompt(playerID string, data map[string]interface{}) 
 			Kind:         model.PresentationBranchSelect,
 			Layout:       "overlay",
 			CancelPolicy: "decline",
+			CancelLabel:  "取消",
 			HasDecline:   true,
 			DeclineIndex: 1,
 		},
@@ -919,14 +920,18 @@ func handleReverseBranch2Pick(rt engineplayer.ChoiceRuntime, ctxData map[string]
 		return nil
 	}
 
-	// Have enough picks - resolve
-	RemoveCocoonByFieldIndices(user, picked)
-	// Collect removed cards for notification
 	var removed []model.Card
 	for _, idx := range picked {
-		// Cards were already removed by RemoveCocoonByFieldIndices, we log the effect
-		_ = idx
+		if idx < 0 || idx >= len(user.Field) || user.Field[idx] == nil {
+			continue
+		}
+		fc := user.Field[idx]
+		if fc.Mode != model.FieldCover || fc.Effect != model.EffectButterflyCocoon {
+			continue
+		}
+		removed = append(removed, fc.Card)
 	}
+	RemoveCocoonByFieldIndices(user, picked)
 	rt.NotifyCardRevealed(user.ID, removed, model.DamageType("discard"))
 	rt.AppendToDiscard(removed)
 
@@ -1001,6 +1006,14 @@ func handlePilgrimageOrPoisonPick(rt engineplayer.ChoiceRuntime, ctxData map[str
 
 	rt.PopInterrupt()
 	if rt.GetPendingInterrupt() == nil {
+		if choiceType == "bt_poison_pick" && pd.Damage == 2 {
+			sourceName, _ := ctxData["source_name"].(string)
+			targetName, _ := ctxData["target_name"].(string)
+			if queueButterflyMirrorResponse(rt, pd, sourceName, targetName) {
+				return nil
+			}
+			markButterflyMagicResponseWindowClosed(pd)
+		}
 		rt.EnterDamageResolution(nil)
 	}
 	return nil
@@ -1098,18 +1111,18 @@ func handleMirrorPair(rt engineplayer.ChoiceRuntime, ctxData map[string]interfac
 	if !ok {
 		return fmt.Errorf("伤害上下文不存在")
 	}
-	originSourceID := pd.SourceID
+	originTargetID := pd.TargetID
 	pd.Damage = 0
 
 	rt.AddPendingDamage(model.PendingDamage{
 		SourceID:   user.ID,
-		TargetID:   originSourceID,
+		TargetID:   originTargetID,
 		Damage:     1,
 		DamageType: model.MagicAttack,
 	})
 	rt.AddPendingDamage(model.PendingDamage{
 		SourceID:   user.ID,
-		TargetID:   originSourceID,
+		TargetID:   originTargetID,
 		Damage:     1,
 		DamageType: model.MagicAttack,
 	})
@@ -1120,7 +1133,7 @@ func handleMirrorPair(rt engineplayer.ChoiceRuntime, ctxData map[string]interfac
 		}
 	}
 
-	if target := rt.GetPlayers()[originSourceID]; target != nil {
+	if target := rt.GetPlayers()[originTargetID]; target != nil {
 		rt.Log(fmt.Sprintf("%s 发动 [镜花水月]：抵御原伤害，并改为对 %s 造成2次1点法术伤害", user.Name, target.Name))
 	}
 

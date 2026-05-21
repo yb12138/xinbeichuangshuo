@@ -180,10 +180,16 @@ func BuildMaskedFieldForViewer(owner *model.Player, viewerID string) []*model.Fi
 			} else if clone.Effect == model.EffectSwordSoul {
 				maskedName = "剑魂"
 			}
+			maskedID := clone.Card.ID
+			maskedType := clone.Card.Type
+			if clone.Effect == model.EffectButterflyCocoon {
+				maskedID = ""
+				maskedType = ""
+			}
 			clone.Card = model.Card{
-				ID:          clone.Card.ID,
+				ID:          maskedID,
 				Name:        maskedName,
-				Type:        clone.Card.Type,
+				Type:        maskedType,
 				Description: "盖牌（内容对他人不可见）",
 			}
 		}

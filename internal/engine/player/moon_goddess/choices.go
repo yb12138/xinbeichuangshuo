@@ -351,7 +351,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
 		fieldIdx := indices[selectionIndex]
-		card, ok := removeMoonGoddessDarkMoonByFieldIndex(user, fieldIdx)
+		card, ok := RemoveDarkMoonByFieldIndex(rt, user, fieldIdx)
 		if !ok {
 			return true, fmt.Errorf("请选择可用的闇月")
 		}
@@ -477,10 +477,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		if target == nil {
 			return true, fmt.Errorf("目标角色不存在")
 		}
-		removed := removeMoonGoddessDarkMoonAny(user, 1)
-		if removed > 0 {
-			rt.ApplyCampMoraleLoss(user.Camp, removed)
-		}
+		RemoveDarkMoonAny(rt, user, 1)
 		rt.Heal(target.ID, 1)
 		rt.Log(fmt.Sprintf("%s 发动 [月之轮回] 分支①：移除1闇月并令 %s +1治疗", user.Name, target.Name))
 		rt.PopInterrupt()
@@ -572,10 +569,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		if pd == nil {
 			return true, fmt.Errorf("未找到对应的攻击伤害结算")
 		}
-		removed := removeMoonGoddessDarkMoonAny(user, x)
-		if removed > 0 {
-			rt.ApplyCampMoraleLoss(user.Camp, removed)
-		}
+		RemoveDarkMoonAny(rt, user, x)
 		pd.Damage += x
 		rt.Log(fmt.Sprintf("%s 的 [闇月斩] 生效：移除%d个闇月，本次攻击伤害额外+%d", user.Name, x, x))
 		rt.PopInterrupt()
@@ -809,36 +803,6 @@ func moonGoddessDarkMoonCount(player *model.Player) int {
 
 func leaveMoonGoddessDarkMoonForm(player *model.Player) bool {
 	return engineplayer.ClearForm(player, model.FormMoonGoddessDarkMoon)
-}
-
-func removeMoonGoddessDarkMoonByFieldIndex(player *model.Player, idx int) (model.Card, bool) {
-	if player == nil || idx < 0 || idx >= len(player.Field) {
-		return model.Card{}, false
-	}
-	fc := player.Field[idx]
-	if fc == nil || fc.Mode != model.FieldCover || fc.Effect != model.EffectMoonDarkMoon {
-		return model.Card{}, false
-	}
-	card := fc.Card
-	player.RemoveFieldCard(fc)
-	moonGoddessDarkMoonCount(player)
-	return card, true
-}
-
-func removeMoonGoddessDarkMoonAny(player *model.Player, count int) int {
-	if player == nil || count <= 0 {
-		return 0
-	}
-	removed := 0
-	for i := len(player.Field) - 1; i >= 0 && removed < count; i-- {
-		fc := player.Field[i]
-		if fc != nil && fc.Mode == model.FieldCover && fc.Effect == model.EffectMoonDarkMoon {
-			player.RemoveFieldCard(fc)
-			removed++
-		}
-	}
-	moonGoddessDarkMoonCount(player)
-	return removed
 }
 
 func queueMoonGoddessMedusaMagicDamage(rt engineplayer.ChoiceRuntime, user *model.Player, attackerID string) {

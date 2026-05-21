@@ -39,7 +39,6 @@ func applyDarkMoonCurse(rt engineplayer.ChoiceRuntime, p *model.Player, removed 
 	if p == nil || removed <= 0 {
 		return
 	}
-	defer rt.PoseChangeGuard()
 	actual := rt.ApplyCampMoraleLoss(p.Camp, removed)
 	rt.Log(fmt.Sprintf("%s 的 [暗月诅咒] 触发：移除%d个暗月，我方士气-%d", p.Name, removed, actual))
 	rt.CheckGameEnd()
@@ -54,8 +53,11 @@ func RemoveDarkMoonByFieldIndex(rt engineplayer.ChoiceRuntime, p *model.Player, 
 	if fc == nil || fc.Mode != model.FieldCover || fc.Effect != model.EffectMoonDarkMoon {
 		return model.Card{}, false
 	}
+	guard := rt.PoseChangeGuard()
+	defer guard()
 	card := fc.Card
 	p.RemoveFieldCard(fc)
+	DarkMoonCount(p)
 	applyDarkMoonCurse(rt, p, 1)
 	return card, true
 }
@@ -65,6 +67,8 @@ func RemoveDarkMoonAny(rt engineplayer.ChoiceRuntime, p *model.Player, n int) []
 	if p == nil || n <= 0 {
 		return nil
 	}
+	guard := rt.PoseChangeGuard()
+	defer guard()
 	var removed []model.Card
 	for _, fc := range append([]*model.FieldCard{}, p.Field...) {
 		if len(removed) >= n {
@@ -77,6 +81,7 @@ func RemoveDarkMoonAny(rt engineplayer.ChoiceRuntime, p *model.Player, n int) []
 		p.RemoveFieldCard(fc)
 	}
 	if len(removed) > 0 {
+		DarkMoonCount(p)
 		applyDarkMoonCurse(rt, p, len(removed))
 	}
 	return removed

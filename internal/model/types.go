@@ -260,6 +260,8 @@ const (
 	PendingDamageCheckFromSoulLink           PendingDamageCheckKey = "from_soul_link"
 	PendingDamageCheckBeforeApplyDefend      PendingDamageCheckKey = "before_apply_defend_checked"
 	PendingDamageCheckBeforeApplyResponse    PendingDamageCheckKey = "before_apply_response_checked"
+	PendingDamageCheckBeforeApplyPoison      PendingDamageCheckKey = "before_apply_poison_checked"
+	PendingDamageCheckBeforeApplyMirror      PendingDamageCheckKey = "before_apply_mirror_checked"
 )
 
 func (pd *PendingDamage) HasCheck(key PendingDamageCheckKey) bool {

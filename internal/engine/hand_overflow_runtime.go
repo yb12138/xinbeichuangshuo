@@ -35,7 +35,6 @@ func (e *GameEngine) CheckHandLimitCtx(player *model.Player, ctx *model.Context)
 	over := len(player.Hand) - e.GetMaxHand(player)
 	if over > 0 {
 		e.pushHandOverflowDiscardInterrupt(player, over, overflowCtx)
-		e.EnterDiscardSelection()
 		e.Log(fmt.Sprintf("[System] %s 手牌超出上限 %d 张！需要选择 %d 张牌丢弃", player.Name, len(player.Hand), over))
 		return
 	}

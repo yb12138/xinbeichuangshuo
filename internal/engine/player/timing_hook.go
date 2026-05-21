@@ -47,10 +47,11 @@ const (
 
 	// 新增 - 伤害阶段
 	TimingOnDamageCalculate   TimingPoint = "on_damage_calculate"    // 伤害计算（被动增伤）
-	TimingOnDamageBeforeTaken TimingPoint = "on_damage_before_taken" // 承伤触发前（灵魂链接等）
-	TimingOnDamageAfterTaken  TimingPoint = "on_damage_after_taken"  // 承伤触发后（剑帝命中后置）
-	TimingOnDamageBeforeApply TimingPoint = "on_damage_before_apply" // 伤害应用前（蝶舞者等）
-	TimingOnDamageAfterApply  TimingPoint = "on_damage_after_apply"  // 伤害应用后（封印师等）
+	TimingOnDamageBeforeTaken TimingPoint = "on_damage_before_taken" // 承伤触发前（灵魂链接等内部子阶段）
+	TimingOnDamageAfterTaken  TimingPoint = "on_damage_after_taken"  // 承伤触发后（剑帝命中后置内部子阶段）
+	TimingOnDamageApplied     TimingPoint = "on_damage_applied"      // ⑤ 实际产生伤害时（扣除治疗后，未摸牌前）
+	TimingOnDamageTaken       TimingPoint = "on_damage_taken"        // ⑥ 实际承受伤害，准备摸牌前
+	TimingOnDamageAfterApply  TimingPoint = "on_damage_after_apply"  // 伤害应用后（封印师等内部子阶段）
 	TimingOnHealResist        TimingPoint = "on_heal_resist"         // 治愈抵抗规则
 	TimingOnHealCapCalculate  TimingPoint = "on_heal_cap_calculate"  // 治疗抵伤额度计算（牧师上限）
 

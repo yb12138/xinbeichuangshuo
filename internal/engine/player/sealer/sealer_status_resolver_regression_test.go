@@ -117,6 +117,67 @@ func TestFiveElementsBind_DrawCancelRemovesStatusAndResumesStartup(t *testing.T)
 	}
 }
 
+func TestFiveElementsBind_DrawCancelOverflowQueuesDiscardWithoutMismatchLog(t *testing.T) {
+	obs := &testutils.CaptureObserver{}
+	game := engine.NewGameEngine(obs)
+	if err := game.AddPlayer("p1", "Sealer", "sealer", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p2.Hand = []model.Card{
+		{ID: "h1", Name: "手牌1", Type: model.CardTypeAttack, Element: model.ElementFire},
+		{ID: "h2", Name: "手牌2", Type: model.CardTypeAttack, Element: model.ElementWater},
+		{ID: "h3", Name: "手牌3", Type: model.CardTypeAttack, Element: model.ElementWind},
+		{ID: "h4", Name: "手牌4", Type: model.CardTypeAttack, Element: model.ElementEarth},
+		{ID: "h5", Name: "手牌5", Type: model.CardTypeAttack, Element: model.ElementThunder},
+	}
+	p2.AddFieldCard(&model.FieldCard{
+		Card:     model.Card{ID: "bind", Name: "五系束缚", Type: model.CardTypeMagic, Element: model.ElementLight},
+		OwnerID:  p2.ID,
+		SourceID: p1.ID,
+		Mode:     model.FieldEffect,
+		Effect:   model.EffectFiveElementsBind,
+		Hook:     model.FieldHookOnBeforeAction,
+	})
+	p1.AddFieldCard(&model.FieldCard{
+		Card:     model.Card{ID: "seal-fire", Name: "火之封印", Type: model.CardTypeMagic, Element: model.ElementFire},
+		OwnerID:  p1.ID,
+		SourceID: p1.ID,
+		Mode:     model.FieldEffect,
+		Effect:   model.EffectSealFire,
+		Hook:     model.FieldHookOnCardPlayedOrRevealed,
+	})
+
+	game.State.Deck = rules.InitDeck()
+	game.State.CurrentTurn = 1
+	game.State.TurnStage = model.TurnStageBeforeAction
+	game.Drive()
+	testutils.RequireChoicePrompt(t, game, "p2", "five_elements_bind")
+
+	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{0}}); err != nil {
+		t.Fatalf("resolve five elements bind draw cancel failed: %v", err)
+	}
+
+	if obs.CountLogContains("EnterDiscardSelection: 缺少与弃牌子流程匹配的 PendingInterrupt") != 0 {
+		t.Fatalf("unexpected discard subflow mismatch log while overflow discard was queued")
+	}
+	if game.State.PendingInterrupt == nil || !engine.IsDiscardSelectionInterrupt(game.State.PendingInterrupt) {
+		t.Fatalf("expected queued overflow discard interrupt to become pending, got %+v", game.State.PendingInterrupt)
+	}
+	if game.State.Subflow != model.SubflowDiscardSelection {
+		t.Fatalf("expected discard subflow after queued overflow interrupt activates, got %s", game.State.Subflow)
+	}
+	ctxData, _ := game.State.PendingInterrupt.Context.(map[string]interface{})
+	if got := ctxData["discard_count"]; got != 2 {
+		t.Fatalf("expected overflow discard_count=2, got %v", got)
+	}
+}
+
 func TestElementalSeal_RevealedDiscardRunsButHiddenDiscardDoesNot(t *testing.T) {
 	newGame := func() *engine.GameEngine {
 		game := engine.NewGameEngine(testutils.NoopObserver{})
