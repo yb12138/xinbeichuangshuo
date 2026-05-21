@@ -27,6 +27,11 @@ const props = defineProps<{
   debugTargetReason?: string
   compact?: boolean
   turnOrder?: number
+  soulLinkBindingText?: string
+  soulLinkBindingTitle?: string
+  bloodSharedLifeText?: string
+  bloodSharedLifeTitle?: string
+  bloodSharedLifeRole?: 'source' | 'bound'
 }>()
 
 const emit = defineEmits<{
@@ -158,13 +163,13 @@ const hasStealth = computed(() =>
   props.player.field?.some(fc => fc.mode === 'Effect' && fc.effect === 'Stealth') ?? false
 )
 
-// 需要显示图标的状态效果（排除场地效果和连接效果）
+// 需要显示图标的状态效果（排除场地效果）
 const ICON_EFFECTS = new Set([
   'Shield', 'Poison', 'Weak',
   'SealFire', 'SealWater', 'SealEarth', 'SealWind', 'SealThunder',
   'FiveElementsBind', 'Stealth',
   'PowerBlessing', 'SwiftBlessing',
-  'BardEternalMovement'
+  'BardEternalMovement',
 ])
 
 const statusIconEffects = computed(() => {
@@ -173,7 +178,51 @@ const statusIconEffects = computed(() => {
     .filter(fc => fc.mode === 'Effect' && fc.effect && ICON_EFFECTS.has(fc.effect))
     .map(fc => ({
       effect: fc.effect!,
+      title: EFFECT_DISPLAY[fc.effect]?.label || fc.effect,
     }))
+})
+
+const portraitBadges = computed(() => {
+  const badges: Array<{
+    key: string
+    text: string
+    title: string
+    cls: string
+    icon?: string
+  }> = []
+
+  if (typeof props.turnOrder === 'number') {
+    badges.push({
+      key: 'turn-order',
+      text: `#${props.turnOrder}`,
+      title: `行动顺序 #${props.turnOrder}`,
+      cls: 'player-portrait-badge--turn-order',
+    })
+  }
+
+  if (props.soulLinkBindingText) {
+    badges.push({
+      key: 'soul-link',
+      text: props.soulLinkBindingText,
+      title: props.soulLinkBindingTitle || props.soulLinkBindingText,
+      cls: 'player-portrait-badge--soul-link',
+    })
+  }
+
+  if (props.bloodSharedLifeText) {
+    badges.push({
+      key: 'blood-shared-life',
+      text: props.bloodSharedLifeText,
+      title: props.bloodSharedLifeTitle || props.bloodSharedLifeText,
+      cls: [
+        'player-portrait-badge--blood-shared-life',
+        props.bloodSharedLifeRole ? `player-portrait-badge--blood-shared-life-${props.bloodSharedLifeRole}` : '',
+      ].filter(Boolean).join(' '),
+      icon: 'BloodSharedLife',
+    })
+  }
+
+  return badges
 })
 
 // 当前玩家身上的伤害特效（暴血）
@@ -250,6 +299,7 @@ const TOKEN_DISPLAY: Record<string, { label: string; cls: string }> = {
   mg_next_attack_no_counter: { label: '下次攻不可应战', cls: 'bg-rose-900/70 text-rose-100 border-rose-500/40' },
   bp_shared_life_active: { label: '同生共死在场', cls: 'bg-rose-900/70 text-rose-100 border-rose-500/40' },
   bp_shared_life_bound: { label: '同生共死绑定', cls: 'bg-rose-950/75 text-rose-100 border-rose-400/50' },
+  se_sword_qi: { label: '剑气', cls: 'bg-sky-900/70 text-sky-100 border-sky-500/40' },
   se_sword_soul_count: { label: '剑魂', cls: 'bg-slate-900/75 text-slate-100 border-slate-500/40' },
   bt_pupa: { label: '蛹', cls: 'bg-amber-900/70 text-amber-100 border-amber-500/40' },
   bt_cocoon_count: { label: '茧', cls: 'bg-indigo-900/70 text-indigo-100 border-indigo-500/40' },
@@ -281,6 +331,8 @@ const HIDDEN_TOKEN_KEYS = new Set([
   'ml_stardust_wait_discard',
   'ml_stardust_morale_before',
   'ml_fullness_next_attack_bonus',
+  'bp_shared_life_active',
+  'bp_shared_life_bound',
   'hero_exhaustion_release_pending',
   'hero_roar_active',
   'hero_calm_force_no_counter',
@@ -434,8 +486,17 @@ function handleClick(e: MouseEvent) {
       }"
     />
 
-    <div v-if="typeof turnOrder === 'number'" class="turn-order-badge" :title="`行动顺序 #${turnOrder}`">
-      #{{ turnOrder }}
+    <div v-if="portraitBadges.length" class="player-portrait-badges">
+      <div
+        v-for="badge in portraitBadges"
+        :key="badge.key"
+        class="player-portrait-badge"
+        :class="badge.cls"
+        :title="badge.title"
+      >
+        <StatusEffectIcon v-if="badge.icon" :effect="badge.icon" class="player-portrait-badge-icon" />
+        <span class="player-portrait-badge-text">{{ badge.text }}</span>
+      </div>
     </div>
 
     <div v-if="formIndicator" class="form-badge" :class="formIndicator.cls" :title="formIndicator.label">
@@ -484,7 +545,7 @@ function handleClick(e: MouseEvent) {
           v-for="(statusEffect, idx) in statusIconEffects"
           :key="`status-${statusEffect.effect}-${idx}`"
           class="effect-icon-item"
-          :title="EFFECT_DISPLAY[statusEffect.effect]?.label || statusEffect.effect"
+          :title="statusEffect.title"
         >
           <StatusEffectIcon
             :effect="statusEffect.effect"
@@ -588,23 +649,81 @@ function handleClick(e: MouseEvent) {
   z-index: 1;
 }
 
-.turn-order-badge {
+.player-portrait-badges {
   position: absolute;
   top: 6px;
   left: 6px;
   z-index: 5;
+  max-width: calc(100% - 58px);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  pointer-events: auto;
+}
+
+.player-portrait-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 18px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid rgba(167, 139, 250, 0.62);
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1.25;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.72);
+  box-shadow: 0 3px 8px rgba(19, 12, 43, 0.34);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.player-portrait-badge-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.player-portrait-badge-icon {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+}
+
+.player-portrait-badge--turn-order {
   min-width: 24px;
-  height: 18px;
-  border-radius: 999px;
-  border: 1px solid rgba(235, 203, 144, 0.76);
+  justify-content: center;
+  border-color: rgba(235, 203, 144, 0.76);
   background: linear-gradient(180deg, rgba(110, 78, 35, 0.92), rgba(71, 49, 21, 0.92));
   color: #ffe8be;
-  font-size: 10px;
-  font-weight: 800;
-  line-height: 16px;
-  text-align: center;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.62);
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.34);
+}
+
+.player-portrait-badge--soul-link {
+  border-color: rgba(167, 139, 250, 0.62);
+  background: rgba(35, 28, 64, 0.88);
+  color: #ddd6fe;
+}
+
+.player-portrait-badge--blood-shared-life {
+  border-color: rgba(251, 113, 133, 0.75);
+  background: rgba(83, 20, 33, 0.88);
+  color: #ffe4e6;
+}
+
+.player-portrait-badge--blood-shared-life-source {
+  box-shadow:
+    0 0 0 1px rgba(251, 113, 133, 0.2),
+    0 3px 8px rgba(19, 12, 43, 0.34),
+    0 0 12px rgba(244, 63, 94, 0.22);
+}
+
+.player-portrait-badge--blood-shared-life-bound {
+  border-style: dashed;
+  box-shadow:
+    0 0 0 1px rgba(251, 113, 133, 0.12),
+    0 3px 8px rgba(19, 12, 43, 0.34);
 }
 
 .form-badge {
@@ -869,11 +988,6 @@ function handleClick(e: MouseEvent) {
     min-height: 56%;
   }
 
-  .turn-order-badge {
-    top: 5px;
-    left: 5px;
-  }
-
   .player-overlay-role {
     font-size: 10px;
   }
@@ -922,6 +1036,23 @@ function handleClick(e: MouseEvent) {
     height: 20px;
   }
 
+  .player-portrait-badges {
+    top: 5px;
+    left: 5px;
+    max-width: calc(100% - 50px);
+  }
+
+  .player-portrait-badge {
+    font-size: 8px;
+    min-height: 16px;
+    padding: 1px 5px;
+  }
+
+  .player-portrait-badge-icon {
+    width: 10px;
+    height: 10px;
+  }
+
   .player-overlay-tokens {
     max-height: 26px;
   }
@@ -941,12 +1072,6 @@ function handleClick(e: MouseEvent) {
     padding: 1px 3px;
   }
 
-  .turn-order-badge {
-    min-width: 22px;
-    height: 16px;
-    font-size: 9px;
-    line-height: 14px;
-  }
 }
 
 /* 状态效果叠加层 */

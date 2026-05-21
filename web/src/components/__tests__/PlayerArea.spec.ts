@@ -33,6 +33,21 @@ describe('PlayerArea indicators', () => {
     setActivePinia(createPinia())
   })
 
+  it('renders sword emperor sword qi with Chinese label', () => {
+    render(PlayerArea, {
+      props: {
+        player: buildPlayer({
+          tokens: { se_sword_qi: 2 },
+        }),
+      },
+      global: { plugins: [createPinia()] },
+    })
+
+    expect(screen.getByText('剑气')).toBeTruthy()
+    expect(screen.getByTitle('剑气: 2')).toBeTruthy()
+    expect(screen.queryByText('se_sword_qi')).toBeNull()
+  })
+
   it('renders tokens together with derived indicators', () => {
     render(PlayerArea, {
       props: {
@@ -61,5 +76,31 @@ describe('PlayerArea indicators', () => {
 
     expect(screen.getByTitle('充能: 1')).toBeTruthy()
     expect(screen.queryByTitle('充能: 99')).toBeNull()
+  })
+
+  it('renders shared life as a portrait badge instead of a token chip', () => {
+    render(PlayerArea, {
+      props: {
+        player: buildPlayer({
+          tokens: {
+            bp_shared_life_active: 1,
+            bp_shared_life_bound: 1,
+          },
+          indicators: {
+            bp_shared_life_active: 1,
+            bp_shared_life_bound: 1,
+          },
+        }),
+        turnOrder: 3,
+        bloodSharedLifeText: '同生共死',
+        bloodSharedLifeTitle: '同生共死：血之巫女 与 圣女 的手牌上限保持联动',
+        bloodSharedLifeRole: 'source',
+      },
+      global: { plugins: [createPinia()] },
+    })
+
+    expect(screen.getByText('同生共死')).toBeTruthy()
+    expect(screen.queryByTitle('同生共死在场: 1')).toBeNull()
+    expect(screen.queryByTitle('同生共死绑定: 1')).toBeNull()
   })
 })

@@ -383,4 +383,5 @@ describe('GameBoard target picker', () => {
     expect(screen.getByText('治疗 1/5')).toBeInTheDocument()
     expect(document.querySelector('.my-status-name')).toHaveTextContent('剑斗士')
   })
+
 })

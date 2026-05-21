@@ -2368,44 +2368,6 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "bs_iaijutsu_turn_end_drain", Timings: []model.FlowTiming{model.TimingOnActionEnd}, Title: "御魂流居合形态·回合结束扣魂",
-					Type:        model.SkillTypePassive,
-					Description: "处于御魂流居合形态时，你的回合结束前-1兽魂，并同步+1残心。",
-
-					ResponseType: model.ResponseSilent,
-					LogicHandler: "bs_iaijutsu_turn_end_drain",
-					TargetType:   model.TargetNone,
-				},
-				{
-					ID: "bs_iaijutsu_exit_on_deal_damage", Timings: []model.FlowTiming{model.TimingOnDamageTaken}, Title: "御魂流居合形态·造成伤害退场",
-					Type:        model.SkillTypePassive,
-					Description: "处于御魂流居合形态时，只要你造成过伤害，立即转正并脱离该形态。",
-
-					RequiredRole: model.RoleAttacker,
-					ResponseType: model.ResponseSilent,
-					LogicHandler: "bs_iaijutsu_exit_on_deal_damage",
-					TargetType:   model.TargetNone,
-				},
-				{
-					ID: "bs_iaijutsu_exit_on_zero", Timings: []model.FlowTiming{model.TimingOnActionEnd}, Title: "御魂流居合形态·兽魂归零退场",
-					Type:        model.SkillTypePassive,
-					Description: "你的回合结束时，若仍处于御魂流居合形态且兽魂为0，则转正并脱离该形态。",
-
-					ResponseType: model.ResponseSilent,
-					LogicHandler: "bs_iaijutsu_exit_on_zero",
-					TargetType:   model.TargetNone,
-				},
-				{
-					ID: "bs_iaijutsu_tapped_target_boost", Timings: []model.FlowTiming{model.TimingOnDamageCalculated}, Title: "御魂流居合形态·横置目标增伤",
-					Type:        model.SkillTypePassive,
-					Description: "处于御魂流居合形态时，你对横置目标角色的主动攻击伤害+1。",
-
-					RequiredRole: model.RoleAttacker,
-					ResponseType: model.ResponseSilent,
-					LogicHandler: "bs_iaijutsu_tapped_target_boost",
-					TargetType:   model.TargetNone,
-				},
-				{
 					ID: "bs_reversal_iaijutsu", Timings: []model.FlowTiming{model.TimingOnHitCheck}, Title: "逆反居合斩",
 					Type:        model.SkillTypeResponse,
 					Description: "仅御魂流居合形态下，主动攻击命中手牌<4的对手时可发动：移除X点兽魂，本次攻击改为目标弃置(X+2)张手牌；若实际弃牌数小于X+2，则对方士气-1。",

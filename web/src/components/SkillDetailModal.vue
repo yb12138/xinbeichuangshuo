@@ -139,12 +139,16 @@ const panelStyle = computed(() => {
               :key="skill.id"
               class="skill-item rounded-xl p-4"
             >
-              <div class="flex items-center gap-2 mb-2">
+              <div class="flex flex-wrap items-center gap-2 mb-2">
                 <span class="font-semibold text-amber-400 text-base">{{ skill.title }}</span>
                 <span
                   class="inline-block px-1.5 py-0.5 rounded text-[11px] font-medium leading-tight"
                   :class="skillTypeClass(skill.type)"
                 >{{ skillTypeLabel(skill.type) }}</span>
+                <span
+                  v-if="skill.require_exclusive"
+                  class="inline-block px-1.5 py-0.5 rounded text-[11px] font-medium leading-tight bg-rose-700/50 text-rose-200"
+                >独有</span>
               </div>
               <div class="text-gray-300 text-sm leading-relaxed whitespace-pre-wrap break-words">
                 {{ skill.description }}

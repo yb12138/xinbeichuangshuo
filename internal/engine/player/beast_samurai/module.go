@@ -59,10 +59,6 @@ func SkillEntries() []player.SkillEntry {
 		{ID: "bs_beast_soul_will", Handler: &BeastSamuraiBeastSoulWillHandler{}},
 		{ID: "bs_beast_soul_alert", Handler: &BeastSamuraiBeastSoulAlertHandler{}},
 		{ID: "bs_beast_return", Handler: &BeastSamuraiBeastReturnHandler{}},
-		{ID: "bs_iaijutsu_turn_end_drain", Handler: &BeastSamuraiIaijutsuTurnEndDrainHandler{}},
-		{ID: "bs_iaijutsu_exit_on_deal_damage", Handler: &BeastSamuraiIaijutsuExitOnDealDamageHandler{}},
-		{ID: "bs_iaijutsu_exit_on_zero", Handler: &BeastSamuraiIaijutsuExitOnZeroHandler{}},
-		{ID: "bs_iaijutsu_tapped_target_boost", Handler: &BeastSamuraiIaijutsuTappedBoostHandler{}},
 		{ID: "bs_reversal_iaijutsu", Handler: &BeastSamuraiReversalIaijutsuSlashHandler{}},
 		{ID: "bs_iaijutsu_style", Handler: &BeastSamuraiIaijutsuStyleHandler{}},
 	}

@@ -25,14 +25,6 @@ type BeastSamuraiBeastSoulAlertHandler struct{ engineplayer.BaseHandler }
 
 type BeastSamuraiBeastReturnHandler struct{ engineplayer.BaseHandler }
 
-type BeastSamuraiIaijutsuTurnEndDrainHandler struct{ engineplayer.BaseHandler }
-
-type BeastSamuraiIaijutsuExitOnDealDamageHandler struct{ engineplayer.BaseHandler }
-
-type BeastSamuraiIaijutsuExitOnZeroHandler struct{ engineplayer.BaseHandler }
-
-type BeastSamuraiIaijutsuTappedBoostHandler struct{ engineplayer.BaseHandler }
-
 type BeastSamuraiReversalIaijutsuSlashHandler struct{ engineplayer.BaseHandler }
 
 type BeastSamuraiIaijutsuStyleHandler struct{ engineplayer.BaseHandler }
@@ -229,22 +221,6 @@ func (h *BeastSamuraiBeastReturnHandler) Execute(ctx *model.Context) error {
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [兽返]：请选择X（1~%d）", ctx.User.Name, maxX))
 	return nil
 }
-
-func (h *BeastSamuraiIaijutsuTurnEndDrainHandler) CanUse(ctx *model.Context) bool { return false }
-
-func (h *BeastSamuraiIaijutsuTurnEndDrainHandler) Execute(ctx *model.Context) error { return nil }
-
-func (h *BeastSamuraiIaijutsuExitOnDealDamageHandler) CanUse(ctx *model.Context) bool { return false }
-
-func (h *BeastSamuraiIaijutsuExitOnDealDamageHandler) Execute(ctx *model.Context) error { return nil }
-
-func (h *BeastSamuraiIaijutsuExitOnZeroHandler) CanUse(ctx *model.Context) bool { return false }
-
-func (h *BeastSamuraiIaijutsuExitOnZeroHandler) Execute(ctx *model.Context) error { return nil }
-
-func (h *BeastSamuraiIaijutsuTappedBoostHandler) CanUse(ctx *model.Context) bool { return false }
-
-func (h *BeastSamuraiIaijutsuTappedBoostHandler) Execute(ctx *model.Context) error { return nil }
 
 func (h *BeastSamuraiReversalIaijutsuSlashHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.EventCtx == nil {

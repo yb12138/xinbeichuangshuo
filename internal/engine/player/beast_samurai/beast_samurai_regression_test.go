@@ -599,6 +599,40 @@ func TestBeastSamurai_IaijutsuTurnEndDrainAndZeroExit(t *testing.T) {
 	}
 }
 
+func TestBeastSamurai_IaijutsuTappedTargetBoostAppliesToActiveAndCounter(t *testing.T) {
+	game, p1, p2 := newBeastSamuraiTestEngine(t, testutils.NoopObserver{}, "")
+	p1.Form = model.FormBeastSamuraiIaijutsu
+	p2.Orientation = model.OrientationTapped
+	card := model.Card{
+		ID:      "iaijutsu-attack",
+		Name:    "居合斩",
+		Type:    model.CardTypeAttack,
+		Element: model.ElementFire,
+		Damage:  2,
+	}
+
+	activeDamage := game.ApplyAttackDamageModifiers(p1, p2, 2, model.Action{
+		SourceID: p1.ID,
+		TargetID: p2.ID,
+		Type:     model.ActionAttack,
+		Card:     &card,
+	})
+	if activeDamage != 3 {
+		t.Fatalf("expected tapped target boost on active attack, got %d", activeDamage)
+	}
+
+	counterDamage := game.ApplyAttackDamageModifiers(p1, p2, 2, model.Action{
+		SourceID:         p1.ID,
+		TargetID:         p2.ID,
+		Type:             model.ActionAttack,
+		Card:             &card,
+		CounterInitiator: p1.ID,
+	})
+	if counterDamage != 3 {
+		t.Fatalf("expected tapped target boost on counter attack, got %d", counterDamage)
+	}
+}
+
 func TestBeastSamurai_ReversalIaijutsu_ReplacesDamageWithDiscard(t *testing.T) {
 	game, p1, p2 := newBeastSamuraiTestEngine(t, testutils.NoopObserver{}, "")
 	p1.Orientation = model.OrientationTapped

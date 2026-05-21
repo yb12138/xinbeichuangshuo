@@ -10,13 +10,13 @@ import (
 	"starcup-engine/internal/model"
 )
 
-// damageCalculateHook 兽灵武士·御魂流居合形态被动增伤：横置目标主动攻击伤害 +1。
+// damageCalculateHook 兽灵武士·御魂流居合形态被动增伤：攻击横置目标伤害 +1。
 func damageCalculateHook(rt player.HookRuntime, ctx player.TimingHookContext) player.TimingHookResult {
 	p := rt.GetPlayer(ctx.SourceID)
 	if p == nil || !rt.IsCharacter(p, "beast_samurai") {
 		return player.TimingHookResult{}
 	}
-	if ctx.ActionType != model.ActionAttack || ctx.CounterInitiator != "" {
+	if ctx.ActionType != model.ActionAttack {
 		return player.TimingHookResult{}
 	}
 	if !InIaijutsuForm(p) {
@@ -29,7 +29,7 @@ func damageCalculateHook(rt player.HookRuntime, ctx player.TimingHookContext) pl
 	if rt.GetPlayerOrientation(target) != model.OrientationTapped {
 		return player.TimingHookResult{}
 	}
-	rt.Log(fmt.Sprintf("[Passive] %s 的 [御魂流居合形态·横置目标增伤] 生效，本次主动攻击伤害 +1", p.Name))
+	rt.Log(fmt.Sprintf("[Passive] %s 的 [御魂流居合形态·横置目标增伤] 生效，本次攻击伤害 +1", p.Name))
 	return player.TimingHookResult{DamageDelta: 1}
 }
 

@@ -375,4 +375,3 @@ export type GameplayEvent =
   | ({ event_type: 'action_step'; line: ActionStepPayload['line']; kind: ActionStepPayload['kind'] })
   | ({ event_type: 'combat_cue'; attacker_id: CombatCuePayload['attacker_id']; target_id: CombatCuePayload['target_id']; phase: CombatCuePayload['phase'] })
   | ({ event_type: 'draw_cards'; player_id: DrawCardsPayload['player_id']; player_name: DrawCardsPayload['player_name']; draw_count: DrawCardsPayload['draw_count']; reason: DrawCardsPayload['reason'] })
-

@@ -181,6 +181,161 @@ const offlinePlayers = computed(() =>
 )
 const canHostTakeover = computed(() => isHostInRoom.value && offlinePlayers.value.length > 0)
 
+type SoulLinkBindingDisplay = {
+  text: string
+  title: string
+}
+
+const soulLinkBindingDisplayByPlayer = computed(() => {
+  const allPlayers = players.value ?? {}
+  const bindings: Record<string, SoulLinkBindingDisplay> = {}
+  const seen = new Set<string>()
+
+  for (const player of Object.values(allPlayers) as PlayerView[]) {
+    if (!player.field?.length) continue
+    for (const fc of player.field) {
+      if (fc.mode !== 'Effect' || fc.effect !== 'SoulLink') continue
+
+      const sourceId = fc.source_id
+      const ownerId = player.id
+      if (!sourceId || !ownerId || sourceId === ownerId) continue
+
+      const pairKey = [sourceId, ownerId].sort().join('|')
+      if (seen.has(pairKey)) continue
+      seen.add(pairKey)
+
+      const sourceName = allPlayers[sourceId]?.name || sourceId
+      const targetName = allPlayers[ownerId]?.name || ownerId
+      const title = `灵魂链接：${sourceName} ↔ ${targetName}`
+      bindings[sourceId] = {
+        text: `灵链 ${compactSoulLinkTargetLabel(targetName)}`,
+        title,
+      }
+      bindings[ownerId] = {
+        text: `灵链 ${compactSoulLinkTargetLabel(sourceName)}`,
+        title,
+      }
+    }
+  }
+
+  return bindings
+})
+
+function compactSoulLinkTargetLabel(name: string): string {
+  const trimmed = String(name || '').trim()
+  if (!trimmed) return '未知目标'
+  return trimmed.length > 8 ? `${trimmed.slice(0, 8)}…` : trimmed
+}
+
+// === 双人关联连线（保留灵魂链接/挑衅/幻龙锁定，仅移除同生共死的链路动画）===
+const LINK_EFFECT_COLORS: Record<string, string> = {
+  FighterHundredDragonLock: 'rgba(245, 158, 11, 1)',
+  HeroTaunt: 'rgba(220, 38, 38, 1)',
+}
+
+const LINK_EFFECT_STROKE: Record<string, { opacity: number; strokeWidth: number }> = {
+  FighterHundredDragonLock: { opacity: 0.62, strokeWidth: 2 },
+  HeroTaunt: { opacity: 0.58, strokeWidth: 2 },
+}
+
+const LINK_EFFECT_INFO: Record<string, { label: string; description: string }> = {
+  FighterHundredDragonLock: { label: '幻龙锁定', description: '百式幻龙拳：本行动阶段只能主动攻击该角色' },
+  HeroTaunt: { label: '挑衅', description: '该玩家在下回合必须且只能主动攻击勇者，否则跳过该阶段' },
+}
+
+type LinkLine = {
+  id: string
+  path: string
+  color: string
+  strokeOpacity: number
+  strokeWidth: number
+  effect: string
+  midX: number
+  midY: number
+  label: string
+  description: string
+}
+
+const linkLines = ref<LinkLine[]>([])
+
+function buildLinkPath(x1: number, y1: number, x2: number, y2: number): string {
+  const mx = (x1 + x2) / 2
+  const my = (y1 + y2) / 2
+  const dist = Math.hypot(x2 - x1, y2 - y1)
+  const offset = Math.min(dist * 0.3, 60)
+  return `M ${x1} ${y1} Q ${mx} ${my - offset} ${x2} ${y2}`
+}
+
+function rebuildLinkLines() {
+  const root = boardRootRef.value
+  if (!root) { linkLines.value = []; return }
+
+  const allPlayers = players.value
+  if (!allPlayers) { linkLines.value = []; return }
+
+  const rootRect = root.getBoundingClientRect()
+  const seen = new Set<string>()
+  const lines: LinkLine[] = []
+
+  for (const player of Object.values(allPlayers) as PlayerView[]) {
+    if (!player.field?.length) continue
+    for (const fc of player.field) {
+      if (fc.mode !== 'Effect' || !LINK_EFFECT_COLORS[fc.effect]) continue
+      const sourceId = fc.source_id
+      const ownerId = player.id
+      if (!sourceId || sourceId === ownerId) continue
+
+      const pairKey = [sourceId, ownerId].sort().join('|') + '|' + fc.effect
+      if (seen.has(pairKey)) continue
+      seen.add(pairKey)
+
+      const srcEl = root.querySelector<HTMLElement>(`[data-player-anchor="${sourceId}"]`)
+      const tgtEl = root.querySelector<HTMLElement>(`[data-player-anchor="${ownerId}"]`)
+      if (!srcEl || !tgtEl) continue
+
+      const srcRect = srcEl.getBoundingClientRect()
+      const tgtRect = tgtEl.getBoundingClientRect()
+      const x1 = srcRect.left + srcRect.width / 2 - rootRect.left
+      const y1 = srcRect.top + srcRect.height / 2 - rootRect.top
+      const x2 = tgtRect.left + tgtRect.width / 2 - rootRect.left
+      const y2 = tgtRect.top + tgtRect.height / 2 - rootRect.top
+
+      const info = LINK_EFFECT_INFO[fc.effect]
+      const stroke = LINK_EFFECT_STROKE[fc.effect] ?? { opacity: 0.22, strokeWidth: 1.5 }
+      lines.push({
+        id: pairKey,
+        path: buildLinkPath(x1, y1, x2, y2),
+        color: LINK_EFFECT_COLORS[fc.effect]!,
+        strokeOpacity: stroke.opacity,
+        strokeWidth: stroke.strokeWidth,
+        effect: fc.effect,
+        midX: (x1 + x2) / 2,
+        midY: (y1 + y2) / 2,
+        label: info?.label ?? fc.effect,
+        description: info?.description ?? '',
+      })
+    }
+  }
+
+  linkLines.value = lines
+}
+
+function refreshLinkLinesSoon() {
+  nextTick(() => rebuildLinkLines())
+}
+
+watch(
+  () => {
+    const allPlayers = players.value
+    if (!allPlayers) return ''
+    return Object.values(allPlayers)
+      .map((p: PlayerView) => (p.field || []).filter(fc => fc.mode === 'Effect' && LINK_EFFECT_COLORS[fc.effect]).map(fc => `${p.id}:${fc.effect}:${fc.source_id}`).join(','))
+      .join('|')
+  },
+  () => refreshLinkLinesSoon(),
+  { immediate: true }
+)
+
 type PlayerAnchorSlot = 'left' | 'right'
 
 function playerAnchorClasses(playerId: string, slot: PlayerAnchorSlot) {
@@ -1734,6 +1889,14 @@ function turnOrderFor(playerId: string): number | undefined {
   return turnOrderMap.value[playerId]
 }
 
+function soulLinkBindingTextFor(playerId: string): string | undefined {
+  return soulLinkBindingDisplayByPlayer.value?.[playerId]?.text
+}
+
+function soulLinkBindingTitleFor(playerId: string): string | undefined {
+  return soulLinkBindingDisplayByPlayer.value?.[playerId]?.title
+}
+
 type DrawFlightVisual = {
   id: string
   startX: number
@@ -1852,122 +2015,45 @@ function dissolveRoomByHost() {
   actions.dissolveRoom()
 }
 
-// === 双人关联连线 ===
-const LINK_EFFECT_COLORS: Record<string, string> = {
-  SoulLink: 'rgba(139, 92, 246, 0.9)',
-  FighterHundredDragonLock: 'rgba(245, 158, 11, 1)',
-  HeroTaunt: 'rgba(220, 38, 38, 1)',
-  BloodSharedLife: 'rgba(244, 63, 94, 0.9)',
-}
-
-const LINK_EFFECT_STROKE: Record<string, { opacity: number; strokeWidth: number }> = {
-  SoulLink: { opacity: 0.22, strokeWidth: 1.5 },
-  FighterHundredDragonLock: { opacity: 0.62, strokeWidth: 2 },
-  HeroTaunt: { opacity: 0.58, strokeWidth: 2 },
-  BloodSharedLife: { opacity: 0.22, strokeWidth: 1.5 },
-}
-
-const LINK_EFFECT_INFO: Record<string, { label: string; description: string }> = {
-  FighterHundredDragonLock: { label: '幻龙锁定', description: '百式幻龙拳：本行动阶段只能主动攻击该角色' },
-  HeroTaunt: { label: '挑衅', description: '该玩家在下回合必须且只能主动攻击勇者，否则跳过该阶段' },
-  SoulLink: { label: '灵魂链接', description: '两名玩家绑定在一起，灵魂术士消耗蓝色灵魂可转移伤害' },
-  BloodSharedLife: { label: '同生共死', description: '双方手牌上限保持一致' },
-}
-
-type LinkLine = {
-  id: string
-  path: string
-  color: string
-  strokeOpacity: number
-  strokeWidth: number
-  effect: string
-  midX: number
-  midY: number
-  label: string
-  description: string
-}
-
-const linkLines = ref<LinkLine[]>([])
-
-function buildLinkPath(x1: number, y1: number, x2: number, y2: number): string {
-  const mx = (x1 + x2) / 2
-  const my = (y1 + y2) / 2
-  const dist = Math.hypot(x2 - x1, y2 - y1)
-  const offset = Math.min(dist * 0.3, 60)
-  return `M ${x1} ${y1} Q ${mx} ${my - offset} ${x2} ${y2}`
-}
-
-function rebuildLinkLines() {
-  const root = boardRootRef.value
-  if (!root) { linkLines.value = []; return }
-
-  const allPlayers = players.value
-  if (!allPlayers) { linkLines.value = []; return }
-
-  const rootRect = root.getBoundingClientRect()
+const bloodSharedLifeByPlayer = computed(() => {
+  const result: Record<string, { text: string; title: string; role: 'source' | 'bound' }> = {}
   const seen = new Set<string>()
-  const lines: LinkLine[] = []
 
-  for (const player of Object.values(allPlayers) as PlayerView[]) {
+  for (const player of Object.values(players.value ?? {}) as PlayerView[]) {
     if (!player.field?.length) continue
     for (const fc of player.field) {
-      if (fc.mode !== 'Effect' || !LINK_EFFECT_COLORS[fc.effect]) continue
+      if (fc.mode !== 'Effect' || fc.effect !== 'BloodSharedLife') continue
       const sourceId = fc.source_id
       const ownerId = player.id
-      if (!sourceId || sourceId === ownerId) continue
+      if (!sourceId || !ownerId) continue
 
-      const pairKey = [sourceId, ownerId].sort().join('|') + '|' + fc.effect
+      const pairKey = [sourceId, ownerId].sort().join('|')
       if (seen.has(pairKey)) continue
       seen.add(pairKey)
 
-      const srcEl = root.querySelector<HTMLElement>(`[data-player-anchor="${sourceId}"]`)
-      const tgtEl = root.querySelector<HTMLElement>(`[data-player-anchor="${ownerId}"]`)
-      if (!srcEl || !tgtEl) continue
+      const sourceName = players.value[sourceId]?.name || sourceId
+      const ownerName = players.value[ownerId]?.name || ownerId
+      const title = sourceId === ownerId
+        ? `同生共死：${sourceName}`
+        : `同生共死：${sourceName} 与 ${ownerName} 的手牌上限保持联动`
 
-      const srcRect = srcEl.getBoundingClientRect()
-      const tgtRect = tgtEl.getBoundingClientRect()
-      const x1 = srcRect.left + srcRect.width / 2 - rootRect.left
-      const y1 = srcRect.top + srcRect.height / 2 - rootRect.top
-      const x2 = tgtRect.left + tgtRect.width / 2 - rootRect.left
-      const y2 = tgtRect.top + tgtRect.height / 2 - rootRect.top
-
-      const info = LINK_EFFECT_INFO[fc.effect]
-      const stroke = LINK_EFFECT_STROKE[fc.effect] ?? { opacity: 0.22, strokeWidth: 1.5 }
-      lines.push({
-        id: pairKey,
-        path: buildLinkPath(x1, y1, x2, y2),
-        color: LINK_EFFECT_COLORS[fc.effect]!,
-        strokeOpacity: stroke.opacity,
-        strokeWidth: stroke.strokeWidth,
-        effect: fc.effect,
-        midX: (x1 + x2) / 2,
-        midY: (y1 + y2) / 2,
-        label: info?.label ?? fc.effect,
-        description: info?.description ?? '',
-      })
+      result[sourceId] = {
+        text: '同生共死',
+        title,
+        role: 'source',
+      }
+      if (ownerId !== sourceId) {
+        result[ownerId] = {
+          text: '同生共死',
+          title,
+          role: 'bound',
+        }
+      }
     }
   }
 
-  linkLines.value = lines
-}
-
-function refreshLinkLinesSoon() {
-  nextTick(() => rebuildLinkLines())
-}
-
-watch(
-  () => {
-    const allPlayers = players.value
-    if (!allPlayers) return ''
-    return Object.values(allPlayers)
-      .map((p: PlayerView) => (p.field || []).filter(fc => fc.mode === 'Effect' && LINK_EFFECT_COLORS[fc.effect]).map(fc => `${p.id}:${fc.effect}:${fc.source_id}`).join(','))
-      .join('|')
-  },
-  () => refreshLinkLinesSoon(),
-  { immediate: true }
-)
-
-// 窗口 resize 时也更新连线坐标（已集成到 handleResize）
+  return result
+})
 </script>
 
 <template>
@@ -2061,8 +2147,13 @@ watch(
             :isOpponent="p.camp !== myCamp"
             :selectable="isPlayerSelectable(p.id)"
             :debugTargetReason="playerSelectReason(p.id)"
-            :selected="isPlayerSelected(p.id)"
-            :turnOrder="turnOrderFor(p.id)"
+          :selected="isPlayerSelected(p.id)"
+          :turnOrder="turnOrderFor(p.id)"
+          :soulLinkBindingText="soulLinkBindingTextFor(p.id)"
+          :soulLinkBindingTitle="soulLinkBindingTitleFor(p.id)"
+          :bloodSharedLifeText="bloodSharedLifeByPlayer[p.id]?.text"
+          :bloodSharedLifeTitle="bloodSharedLifeByPlayer[p.id]?.title"
+          :bloodSharedLifeRole="bloodSharedLifeByPlayer[p.id]?.role"
           compact
           @select="onTargetClick"
         />
@@ -2258,6 +2349,11 @@ watch(
             :debugTargetReason="playerSelectReason(p.id)"
             :selected="isPlayerSelected(p.id)"
             :turnOrder="turnOrderFor(p.id)"
+            :soulLinkBindingText="soulLinkBindingTextFor(p.id)"
+            :soulLinkBindingTitle="soulLinkBindingTitleFor(p.id)"
+            :bloodSharedLifeText="bloodSharedLifeByPlayer[p.id]?.text"
+            :bloodSharedLifeTitle="bloodSharedLifeByPlayer[p.id]?.title"
+            :bloodSharedLifeRole="bloodSharedLifeByPlayer[p.id]?.role"
             compact
             @select="onTargetClick"
           />
@@ -2412,12 +2508,21 @@ watch(
       <StatusEffectIcon :effect="link.effect" />
       <span class="link-icon-label">{{ link.label }}</span>
     </div>
-
     <VfxLayer />
   </div>
 </template>
 
 <style scoped>
+.game-end-enter-active,
+.game-end-leave-active {
+  transition: opacity 0.24s ease;
+}
+
+.game-end-enter-from,
+.game-end-leave-to {
+  opacity: 0;
+}
+
 .link-lines-layer {
   position: absolute;
   inset: 0;
@@ -2427,6 +2532,7 @@ watch(
   pointer-events: none;
   overflow: visible;
 }
+
 .link-line {
   transition: opacity 0.3s ease;
 }
@@ -2472,16 +2578,6 @@ watch(
   border: 1px solid rgba(255, 255, 255, 0.2);
   white-space: nowrap;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
-}
-
-.game-end-enter-active,
-.game-end-leave-active {
-  transition: opacity 0.24s ease;
-}
-
-.game-end-enter-from,
-.game-end-leave-to {
-  opacity: 0;
 }
 
 .game-end-overlay {

@@ -9,7 +9,6 @@ import StealthIcon from './StealthIcon.vue'
 import PowerBlessingIcon from './PowerBlessingIcon.vue'
 import SwiftBlessingIcon from './SwiftBlessingIcon.vue'
 import HeroTauntIcon from './HeroTauntIcon.vue'
-import SoulLinkIcon from './SoulLinkIcon.vue'
 import BloodSharedLifeIcon from './BloodSharedLifeIcon.vue'
 import RoseCourtyardIcon from './RoseCourtyardIcon.vue'
 import BardEternalMovementIcon from './BardEternalMovementIcon.vue'
@@ -44,8 +43,6 @@ const iconComponent = computed(() => {
     case 'HeroTaunt':
     case 'FighterHundredDragonLock':
       return HeroTauntIcon
-    case 'SoulLink':
-      return SoulLinkIcon
     case 'BloodSharedLife':
       return BloodSharedLifeIcon
     case 'RoseCourtyard':
