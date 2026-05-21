@@ -129,6 +129,7 @@ func (h *BardRousingRhapsodyHandler) Execute(ctx *model.Context) error {
 			"user_id":                  holder.ID,
 			"bard_id":                  bardID,
 			"target_ids":               bardEnemyIDs(ctx.Game, holder),
+			"response_resume_phase":    ctx.Selections["current_resume_point"],
 			model.PromptFlowContextKey: rousingFlowRuntime.Begin(),
 		},
 	})
@@ -165,9 +166,10 @@ func (h *BardVictorySymphonyHandler) Execute(ctx *model.Context) error {
 		Type:     model.InterruptChoice,
 		PlayerID: holder.ID,
 		Context: map[string]interface{}{
-			"choice_type": "bd_victory_mode",
-			"user_id":     holder.ID,
-			"bard_id":     bardID,
+			"choice_type":           "bd_victory_mode",
+			"user_id":               holder.ID,
+			"bard_id":               bardID,
+			"response_resume_phase": ctx.Selections["current_resume_point"],
 		},
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [胜利交响诗]，请选择效果", ctx.User.Name))
