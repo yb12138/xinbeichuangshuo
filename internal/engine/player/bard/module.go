@@ -105,8 +105,8 @@ func SkillEntries() []player.SkillEntry {
 // ChoiceRouteSpecs 导出角色 choice 路由声明。
 func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 	return map[string]types.ChoiceRouteSpec{
+		"bd_descent_confirm":         types.ChoiceRouteRole("bard"),
 		"bd_descent_cards":           types.ChoiceRouteRole("bard"),
-		"bd_descent_element":         types.ChoiceRouteRole("bard"),
 		"bd_descent_target":          types.ChoiceRouteRole("bard"),
 		"bd_dissonance_discard_step": types.ChoiceRouteRole("bard"),
 		"bd_dissonance_mode":         types.ChoiceRouteRole("bard"),

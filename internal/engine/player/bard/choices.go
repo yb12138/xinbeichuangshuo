@@ -15,7 +15,7 @@ type choiceHandler struct{}
 
 const (
 	descentFlowID      = "bd_descent"
-	descentStepElement = "element"
+	descentStepConfirm = "confirm"
 	descentStepCards   = "cards"
 	descentStepTarget  = "target"
 
@@ -33,7 +33,7 @@ const (
 
 var (
 	descentFlowRuntime = model.MustNewPromptFlowRuntime(descentFlowID, []model.PromptFlowStepSpec{
-		{ID: descentStepElement, ChoiceType: "bd_descent_element", CancelPolicy: model.CancelPolicyAbort},
+		{ID: descentStepConfirm, ChoiceType: "bd_descent_confirm", CancelPolicy: model.CancelPolicyAbort},
 		{ID: descentStepCards, ChoiceType: "bd_descent_cards", CancelPolicy: model.CancelPolicyBack},
 		{ID: descentStepTarget, ChoiceType: "bd_descent_target", CancelPolicy: model.CancelPolicyAbort},
 	})
@@ -56,21 +56,10 @@ func NewChoiceHandler() engineplayer.ChoiceHandler {
 
 func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, playerID string, player *model.Player, data map[string]interface{}) *model.Prompt {
 	switch choiceType {
-	case "bd_descent_element":
-		elemCounts := getSameElementCounts(player)
-		elems := make([]model.Element, 0)
-		for _, ele := range engineplayer.ElementOrderForPrompt() {
-			if elemCounts[ele] >= 2 {
-				elems = append(elems, ele)
-			}
-		}
-		options := make([]model.PromptOption, 0, len(elems))
-		for _, ele := range elems {
-			options = append(options, model.PromptOption{ID: string(ele), Label: fmt.Sprintf("%s系", promptfmt.ElementName(string(ele)))})
-		}
-		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【沉沦协奏曲】请选择要弃置的同系元素：", Options: options, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"}}
+	case "bd_descent_confirm":
+		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, ChoiceType: "bd_descent_confirm", Message: "【沉沦协奏曲】是否发动该技能？", Options: []model.PromptOption{{ID: "0", Label: "是"}, {ID: "1", Label: "否"}}, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"}}
 	case "bd_descent_cards":
-		// 直接展示所有同系牌候选，无需前置元素选择步骤
+		// 直接展示所有同系牌候选，无需重复确认步骤
 		remaining := engineplayer.ParseIntSliceContextValue(data["remaining_indices"])
 		flow, err := model.RequirePromptFlow(data, descentFlowID, "沉沦协奏曲")
 		if err != nil {
@@ -92,7 +81,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		if len(options) > 0 && remainingPick > len(options) {
 			remainingPick = len(options)
 		}
-		return &model.Prompt{Type: model.PromptChooseCards, PlayerID: playerID, Message: fmt.Sprintf("【沉沦协奏曲】请选择要弃置的%d张同系牌：", remainingPick), Options: options, Min: remainingPick, Max: remainingPick, Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand"}}
+		return &model.Prompt{Type: model.PromptChooseCards, PlayerID: playerID, ChoiceType: "bd_descent_cards", Message: fmt.Sprintf("【沉沦协奏曲】请选择要弃置的%d张同系牌：", remainingPick), Options: options, Min: remainingPick, Max: remainingPick, Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand"}}
 	case "bd_dissonance_x":
 		maxX := runtimeutil.ToIntContextValue(data["max_x"])
 		if maxX < 2 {
@@ -244,8 +233,8 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
 	choiceType, _ := ctxData["choice_type"].(string)
 	switch choiceType {
-	case "bd_descent_element":
-		return true, handleDescentElement(rt, ctxData, selectionIndex)
+	case "bd_descent_confirm":
+		return true, handleDescentConfirm(rt, ctxData, selectionIndex)
 	case "bd_descent_cards":
 		return true, handleDescentCards(rt, ctxData, selectionIndex)
 	case "bd_descent_target":
@@ -295,33 +284,56 @@ func (choiceHandler) HandleCancel(rt engineplayer.ChoiceRuntime, _ string, ctxDa
 
 // ---- 沉沦协奏曲 ----
 
-func handleDescentElement(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
+func descentCandidateIndices(user *model.Player) []int {
+	if user == nil {
+		return nil
+	}
+	elemCounts := getSameElementCounts(user)
+	candidateIndices := make([]int, 0)
+	for _, ele := range engineplayer.ElementOrderForPrompt() {
+		if elemCounts[ele] < 2 {
+			continue
+		}
+		candidateIndices = append(candidateIndices, engineplayer.GetCardIndicesByElement(user, ele)...)
+	}
+	return candidateIndices
+}
+
+func handleDescentConfirm(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	userID, _ := ctxData["user_id"].(string)
 	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
-	elemCounts := getSameElementCounts(user)
-	elems := make([]model.Element, 0)
-	for _, ele := range engineplayer.ElementOrderForPrompt() {
-		if elemCounts[ele] >= 2 {
-			elems = append(elems, ele)
-		}
-	}
-	if selectionIndex < 0 || selectionIndex >= len(elems) {
+	if selectionIndex < 0 || selectionIndex > 1 {
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
-	chosen := elems[selectionIndex]
 	flow, err := model.RequirePromptFlow(ctxData, descentFlowID, "沉沦协奏曲")
 	if err != nil {
 		return err
 	}
-	flow.PutSelection(descentStepElement, model.PromptFlowSelection{
+	flow.PutSelection(descentStepConfirm, model.PromptFlowSelection{
 		OptionIndexes: []int{selectionIndex},
-		Element:       string(chosen),
 	})
+	if selectionIndex == 1 {
+		rt.Log(fmt.Sprintf("%s 选择不发动 [沉沦协奏曲]", user.Name))
+		rt.PopInterrupt()
+		if rt.GetPendingInterrupt() == nil && len(rt.GetPendingDamageQueue()) > 0 {
+			rt.EnterDamageResolution(nil)
+		}
+		return nil
+	}
+
+	remaining := engineplayer.ParseIntSliceContextValue(ctxData["remaining_indices"])
+	if len(remaining) == 0 {
+		remaining = descentCandidateIndices(user)
+		ctxData["remaining_indices"] = remaining
+	}
+	if len(remaining) == 0 {
+		return fmt.Errorf("沉沦协奏曲没有可弃置的同系牌")
+	}
+
 	flow.PutSelection(descentStepCards, model.PromptFlowSelection{Count: 2})
-	ctxData["remaining_indices"] = engineplayer.GetCardIndicesByElement(user, chosen)
 	return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, descentFlowRuntime, flow, descentStepCards)
 }
 

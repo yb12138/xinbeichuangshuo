@@ -1922,12 +1922,13 @@ func GetCharacters() []model.Character {
 				{
 					ID: "bd_descent_concerto", Timings: []model.FlowTiming{model.TimingActive}, Title: "沉沦协奏曲",
 					Type:         model.SkillTypeResponse,
-					Tags:         []model.SkillTag{model.TagTurnLimit},
-					Description:  "［回合限定］仅普通形态：本回合你对至少2名不同对手造成法术伤害并结算完后，强制弃2张同系牌并公开展示；你+1灵感。若弃牌中含法术牌，则再对1名目标对手造成1点法术伤害。",
+					Tags:         []model.SkillTag{model.TagTurnLimit, model.TagOptional},
+					Description:  "［回合限定］仅普通形态：本回合你对至少2名不同对手造成法术伤害并结算完后，可选择发动；若发动，则弃2张同系牌并公开展示，你+1灵感。若弃牌中含法术牌，则再对1名目标对手造成1点法术伤害。",
 					LogicHandler: "bd_descent_concerto",
 					TargetType:   model.TargetEnemy,
 					MinTargets:   1,
 					MaxTargets:   1,
+					ResponseType: model.ResponseOptional,
 				},
 				{
 					ID: "bd_dissonance_chord", Timings: []model.FlowTiming{model.TimingActive}, Title: "不谐和弦",

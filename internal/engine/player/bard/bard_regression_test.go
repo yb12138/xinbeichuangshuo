@@ -92,11 +92,16 @@ func TestBardDescentConcerto_RunsAndResolves(t *testing.T) {
 		t.Fatalf("second magic damage should only track, not trigger")
 	}
 
-	// 回合结束时触发沉沦协奏曲
+	// 回合结束时触发沉沦协奏曲的确认弹窗
 	if paused := game.RunTimingOnTurnEndStageHooks(bard, engine.TimingOnTurnEndPreExtra); !paused {
 		t.Fatalf("turn-end descent hook should trigger with 2+ magic damage targets")
 	}
-	// 新流程：直接推送弃牌选择，无元素选择步骤
+	testutils.RequireChoicePrompt(t, game, "p1", "bd_descent_confirm")
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
+		t.Fatalf("choose descent confirm failed: %v", err)
+	}
+
+	// 新流程：确认发动后直接推送弃牌选择
 	ctxData := testutils.RequireChoiceContext(t, game, "p1", "bd_descent_cards")
 	flow := testutils.RequirePromptFlow(t, ctxData, "bd_descent", "cards")
 	if _, ok := ctxData["selected_indices"]; ok {
@@ -147,6 +152,57 @@ func TestBardDescentConcerto_RunsAndResolves(t *testing.T) {
 	}
 }
 
+func TestBardDescentConcerto_DeclineAtConfirmDoesNotConsumeSkill(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Bard", "bard", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Ally", "priest", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p3", "EnemyA", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p4", "EnemyB", "angel", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	bard := game.State.Players["p1"]
+	bard.IsActive = true
+	bard.TurnState = model.NewPlayerTurnState()
+	bard.Hand = []model.Card{
+		bardTestCard("f_magic", "火法术", model.CardTypeMagic, model.ElementFire),
+		bardTestCard("f_attack", "火攻击", model.CardTypeAttack, model.ElementFire),
+		bardTestCard("w_attack", "水攻击", model.CardTypeAttack, model.ElementWater),
+	}
+
+	if paused := game.HandlePostDamageResolved(&model.PendingDamage{
+		SourceID: "p1", TargetID: "p3", Damage: 1, DamageType: model.MagicAttack,
+	}); paused {
+		t.Fatalf("first magic damage should only track, not trigger")
+	}
+	if paused := game.HandlePostDamageResolved(&model.PendingDamage{
+		SourceID: "p1", TargetID: "p4", Damage: 1, DamageType: model.MagicAttack,
+	}); paused {
+		t.Fatalf("second magic damage should only track, not trigger")
+	}
+
+	if paused := game.RunTimingOnTurnEndStageHooks(bard, engine.TimingOnTurnEndPreExtra); !paused {
+		t.Fatalf("turn-end descent hook should trigger with 2+ magic damage targets")
+	}
+	testutils.RequireChoicePrompt(t, game, "p1", "bd_descent_confirm")
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
+		t.Fatalf("decline descent confirm failed: %v", err)
+	}
+
+	if game.State.PendingInterrupt != nil {
+		t.Fatalf("expected no pending interrupt after declining descent, got %+v", game.State.PendingInterrupt)
+	}
+	if got := bard.TurnState.UsedSkillCounts["bd_descent"]; got != 0 {
+		t.Fatalf("expected descent not to consume usage on decline, got %d", got)
+	}
+}
+
 func TestBardDescentConcerto_AllyMagicDamageTriggersAtTurnEnd(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "Bard", "bard", model.RedCamp); err != nil {
@@ -183,12 +239,11 @@ func TestBardDescentConcerto_AllyMagicDamageTriggersAtTurnEnd(t *testing.T) {
 		t.Fatalf("ally magic damage should only track, not trigger immediately")
 	}
 
-	// 回合结束时队友伤害已记录到诗人名下，触发沉沦协奏曲
+	// 回合结束时队友伤害已记录到诗人名下，触发沉沦协奏曲确认框
 	if paused := game.RunTimingOnTurnEndStageHooks(ally, engine.TimingOnTurnEndPreExtra); !paused {
 		t.Fatalf("turn-end descent hook should trigger from ally magic damage")
 	}
-	// 新流程：直接推送弃牌选择，无元素选择步骤
-	testutils.RequireChoicePrompt(t, game, "p1", "bd_descent_cards")
+	testutils.RequireChoicePrompt(t, game, "p1", "bd_descent_confirm")
 }
 
 func TestBardDissonanceChord_DrawModeAndReleasePrisoner(t *testing.T) {
@@ -634,6 +689,9 @@ func TestBardConfig_MetadataAlignsWithDocument(t *testing.T) {
 	}
 	if descent.TargetType != model.TargetEnemy || descent.MinTargets != 1 || descent.MaxTargets != 1 {
 		t.Fatalf("expected descent target metadata enemy(1), got type=%v min=%d max=%d", descent.TargetType, descent.MinTargets, descent.MaxTargets)
+	}
+	if descent.ResponseType != model.ResponseOptional {
+		t.Fatalf("expected descent to be optional response, got %v", descent.ResponseType)
 	}
 	if dissonance.TargetType != model.TargetAny || dissonance.MinTargets != 1 || dissonance.MaxTargets != 1 {
 		t.Fatalf("expected dissonance target metadata any(1), got type=%v min=%d max=%d", dissonance.TargetType, dissonance.MinTargets, dissonance.MaxTargets)

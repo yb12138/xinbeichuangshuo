@@ -70,7 +70,7 @@ const bardCharacter = characterView({
     {
       id: BD_DESCENT_CONCERTO_SKILL_ID,
       title: '沉沦协奏曲',
-      description: '弃2张同系牌+1灵感，若含魔法牌追加1点法术伤害',
+      description: '可选择发动：弃2张同系牌+1灵感，若含魔法牌追加1点法术伤害',
       type: 2,
       min_targets: 0,
       max_targets: 0,
@@ -744,16 +744,16 @@ export function descentConcertoScenario(): ProtocolHarnessScenario {
   };
 }
 
-export function descentElementPrompt(): WsMessage {
+export function descentConfirmPrompt(): WsMessage {
   return requireActionMessage({
     type: 'confirm',
     player_id: BARD_PLAYER_ID,
-    message: '【沉沦协奏曲】请选择要弃置的同系元素：',
-    choice_type: 'bd_descent_element',
+    message: '【沉沦协奏曲】是否发动该技能？',
+    choice_type: 'bd_descent_confirm',
     skill_id: BD_DESCENT_CONCERTO_SKILL_ID,
     options: [
-      { id: 'Fire', label: '火系', button_label: '火系' },
-      { id: 'Water', label: '水系', button_label: '水系' },
+      { id: '0', label: '是', button_label: '是' },
+      { id: '1', label: '否', button_label: '否' },
     ],
     min: 1,
     max: 1,
@@ -761,10 +761,11 @@ export function descentElementPrompt(): WsMessage {
   } satisfies Prompt);
 }
 
-// 新流程：直接推送弃牌选择，无需元素选择步骤
+export const descentElementPrompt = descentConfirmPrompt;
+
+// 新流程：确认发动后直接推送弃牌选择
 // candidateIndices 为所有有至少2张牌的元素系的手牌索引
 export function descentCardsDirectPrompt(pickRemaining: number, candidateIndices: number[] = [0, 1, 2, 3]): WsMessage {
-  // Build options from candidate indices (火系索引0-1，水系索引2-3)
   const hand = bardHand();
   const options: PromptOption[] = candidateIndices
     .filter((idx) => idx >= 0 && idx < hand.length)

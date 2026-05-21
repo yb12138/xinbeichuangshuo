@@ -163,7 +163,7 @@ func postDamageResolvedHook(rt engineplayer.HookRuntime, ctx engineplayer.Timing
 
 // turnEndDescentHook 回合结束时检查沉沦协奏曲触发条件。
 // 当全队在本回合对至少2名不同敌方目标造成过法术伤害时触发。
-// 直接推送弃牌选择 prompt，无需元素选择步骤。
+// 先弹出是否发动的确认框，再进入弃牌选择步骤。
 func turnEndDescentHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHookContext) engineplayer.TimingHookResult {
 	bard := findBardPlayer(rt)
 	if bard == nil {
@@ -173,6 +173,9 @@ func turnEndDescentHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHook
 	if rt.MagicDamageTargetCount(bard.ID) < 2 {
 		return engineplayer.TimingHookResult{}
 	}
+	if bard.TurnState.UsedSkillCounts["bd_descent_prompted"] > 0 {
+		return engineplayer.TimingHookResult{}
+	}
 	if InEternalPrisonerForm(bard) || bard.TurnState.UsedSkillCounts["bd_descent"] > 0 {
 		return engineplayer.TimingHookResult{}
 	}
@@ -180,28 +183,24 @@ func turnEndDescentHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHook
 		return engineplayer.TimingHookResult{}
 	}
 
-	// 获取所有有至少2张牌的元素系，合并其手牌索引作为候选
-	elemCounts := getSameElementCounts(bard)
-	candidateIndices := make([]int, 0)
-	for _, ele := range engineplayer.ElementOrderForPrompt() {
-		if elemCounts[ele] >= 2 {
-			indices := engineplayer.GetCardIndicesByElement(bard, ele)
-			candidateIndices = append(candidateIndices, indices...)
-		}
+	candidateIndices := descentCandidateIndices(bard)
+	if len(candidateIndices) == 0 {
+		return engineplayer.TimingHookResult{}
 	}
+	bard.TurnState.UsedSkillCounts["bd_descent_prompted"] = 1
 
-	flow := descentFlowRuntime.MustBeginAt(descentStepCards)
-	flow.PutSelection(descentStepCards, model.PromptFlowSelection{Count: 2})
+	flow := descentFlowRuntime.MustBeginAt(descentStepConfirm)
 
 	rt.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
 		PlayerID: bard.ID,
 		Context: map[string]interface{}{
-			"choice_type":              "bd_descent_cards",
+			"choice_type":              "bd_descent_confirm",
 			"user_id":                  bard.ID,
 			"remaining_indices":        candidateIndices,
 			model.PromptFlowContextKey: flow,
 		},
 	})
+	rt.Log(fmt.Sprintf("%s 的 [沉沦协奏曲] 满足发动条件，等待确认是否发动", bard.Name))
 	return engineplayer.TimingHookResult{Interrupted: true}
 }
