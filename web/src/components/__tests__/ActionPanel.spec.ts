@@ -1,17 +1,22 @@
 import { render, screen } from '@testing-library/vue'
+import userEvent from '@testing-library/user-event'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import ActionPanel from '../ActionPanel.vue'
 import { useInterruptStore } from '../../stores/interrupt.store'
 import { useSessionStore } from '../../stores/session.store'
 import { useSnapshotStore } from '../../stores/snapshot.store'
-import type { CharacterView, GameStateUpdate, PlayerView } from '../../types/game'
+import type { AvailableSkill, CharacterView, GameStateUpdate, PlayerView } from '../../types/game'
+
+const mocks = vi.hoisted(() => ({
+  submitUseSkill: vi.fn(),
+}))
 
 vi.mock('../../composables/useSubmitAction', () => ({
   useSubmitAction: () => ({
     submitAttack: vi.fn(),
     submitMagic: vi.fn(),
-    submitUseSkill: vi.fn(),
+    submitUseSkill: mocks.submitUseSkill,
     submitPass: vi.fn(),
     submitCannotAct: vi.fn(),
     submitBuy: vi.fn(),
@@ -105,6 +110,7 @@ function buildState(overrides: Partial<GameStateUpdate> = {}): GameStateUpdate {
 describe('ActionPanel skill availability', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
+    mocks.submitUseSkill.mockReset()
   })
 
   it('disables shared life when its exclusive card is already away from the player', () => {
@@ -127,5 +133,62 @@ describe('ActionPanel skill availability', () => {
     const sharedLifeButton = screen.getByTestId('skill-bp_shared_life')
     expect(sharedLifeButton).toBeDisabled()
     expect(sharedLifeButton).toHaveTextContent('缺少可用于发动的「同生共死」专属/独有牌')
+  })
+
+  it('submits server-published targeted skills before backend prompt-driven target selection', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const arcaneCodexSkill: AvailableSkill = {
+      id: 'sage_arcane_codex',
+      title: '魔道法典',
+      description: '［宝石］弃X张异系牌（X>1），对目标角色与自己各造成(X-1)点法术伤害。',
+      min_targets: 1,
+      max_targets: 1,
+      target_type: 5,
+      cost_gem: 1,
+      cost_crystal: 0,
+      cost_discards: 0,
+    }
+    const sageCharacter = buildCharacter({
+      id: 'sage',
+      name: '贤者',
+      skills: [
+        {
+          ...arcaneCodexSkill,
+          type: 2,
+        },
+      ],
+    })
+
+    useSessionStore().setRoomInfo('ROOM', 'p1', 'Red', 'sage')
+    useSnapshotStore().updateGameState(buildState({
+      players: {
+        p1: buildPlayer({ id: 'p1', role: 'sage', gem: 1 }),
+        p2: buildPlayer({ id: 'p2', name: '目标', camp: 'Blue', role: 'enemy', is_active: false }),
+      },
+      available_skills: [arcaneCodexSkill],
+      characters: [sageCharacter],
+    }))
+    useInterruptStore().setSkillMode('choosing_skill')
+
+    render(ActionPanel, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          PromptDialog: true,
+        },
+      },
+    })
+
+    await userEvent.click(screen.getByTestId('skill-sage_arcane_codex'))
+
+    expect(mocks.submitUseSkill).toHaveBeenCalledWith(
+      'sage_arcane_codex',
+      [],
+      undefined,
+      { clearSkillMode: true },
+    )
+    expect(useInterruptStore().skillMode).not.toBe('choosing_target')
   })
 })

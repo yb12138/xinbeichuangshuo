@@ -55,7 +55,8 @@ func registerRoleChoiceSpec(reg *choicert.SpecRegistry, roleID string, spec engi
 		}
 	}
 	reg.Register(&choicert.ChoiceSpec{
-		Type: spec.ChoiceType,
+		Type:      spec.ChoiceType,
+		PhaseSync: string(spec.PhaseSync),
 		BuildPrompt: func(h choicert.Host, choiceType, playerID string, player *model.Player, data map[string]any) *model.Prompt {
 			ge := engFromHost(h)
 			if ge == nil {
@@ -198,10 +199,16 @@ func (e *GameEngine) bootstrapRoleChoiceSpecs(reg *choicert.SpecRegistry) {
 				roleID = entry.ID
 			}
 			if spec, ok := entry.ChoiceSpecFor(choiceType); ok {
+				if spec.PhaseSync == "" && route.PhaseSync != "" {
+					spec.PhaseSync = engineplayer.InterruptPhaseSync(route.PhaseSync)
+				}
 				registerRoleChoiceSpec(reg, roleID, spec)
 				continue
 			}
-			registerRoleChoiceSpec(reg, roleID, engineplayer.ChoiceSpec{ChoiceType: choiceType})
+			registerRoleChoiceSpec(reg, roleID, engineplayer.ChoiceSpec{
+				ChoiceType: choiceType,
+				PhaseSync:  engineplayer.InterruptPhaseSync(route.PhaseSync),
+			})
 		}
 	}
 }

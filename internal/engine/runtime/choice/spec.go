@@ -17,6 +17,7 @@ type ChoiceSpec struct {
 	AutoConsume         bool
 	ConsumesInterrupt   func(ctxData map[string]any) bool
 	SequentialRemaining func(ctxData map[string]any) (int, bool)
+	PhaseSync           string
 
 	BuildPrompt func(h Host, choiceType, playerID string, player *model.Player, data map[string]any) *model.Prompt
 

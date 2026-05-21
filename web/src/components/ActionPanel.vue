@@ -613,18 +613,9 @@ function selectSkill(skill: AvailableSkill) {
     }
     interruptStore.setSelectedSkill(skill)
     // Server-published skills are protocol intents: submit the skill id and let
-    // backend prompts drive costs and multi-step selections. Targeted skills
-    // still need a frontend target intent before the wire submit.
+    // backend prompts drive costs, discards, branches, and target selection.
     if (isServerPublishedAvailableSkill(skill)) {
-        if (skill.target_type === 0 || !isActionSelectionPrompt.value) {
-            actions.submitUseSkill(skill.id, [], undefined, { clearSkillMode: true })
-            return
-        }
-        if (skill.target_type === 1) {
-            actions.submitUseSkill(skill.id, [sessionStore.myPlayerId], undefined, { clearSkillMode: true })
-            return
-        }
-        interruptStore.setSkillMode('choosing_target')
+        actions.submitUseSkill(skill.id, [], undefined, { clearSkillMode: true })
         return
     }
     // 如果技能需要弃牌，先进入弃牌选择模式

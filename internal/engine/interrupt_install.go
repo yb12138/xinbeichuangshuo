@@ -119,15 +119,15 @@ func (e *GameEngine) syncGamePhaseWithInterrupt(interrupt *model.Interrupt) {
 	case model.InterruptChoice:
 		if IsDiscardSelectionInterrupt(interrupt) {
 			e.EnterDiscardSelection()
-		} else if shouldPreserveChoicePhase(interrupt) {
-			if len(e.State.PendingDamageQueue) > 0 && !e.isDamageResolutionActive() {
-				e.enterDamageResolution(nil)
-			}
 		} else {
-			e.clearSubflow()
-			e.clearCombatStage()
-			if e.State.TurnStage == "" {
-				e.setTurnStage(model.TurnStageActionExecution)
+			if phaseSync, ok := e.choiceInterruptPhaseSync(interrupt); ok {
+				e.applyInterruptPhaseSync(phaseSync)
+			} else {
+				e.clearSubflow()
+				e.clearCombatStage()
+				if e.State.TurnStage == "" {
+					e.setTurnStage(model.TurnStageActionExecution)
+				}
 			}
 		}
 	case model.InterruptGiveCards:
@@ -137,20 +137,31 @@ func (e *GameEngine) syncGamePhaseWithInterrupt(interrupt *model.Interrupt) {
 	}
 }
 
-func shouldPreserveChoicePhase(intr *model.Interrupt) bool {
-	if intr == nil || intr.Type != model.InterruptChoice {
-		return false
+func (e *GameEngine) choiceInterruptPhaseSync(interrupt *model.Interrupt) (engineplayer.InterruptPhaseSync, bool) {
+	if e == nil || e.choiceEngine == nil || interrupt == nil || interrupt.Type != model.InterruptChoice {
+		return "", false
 	}
-	data, ok := intr.Context.(map[string]interface{})
+	data, ok := interrupt.Context.(map[string]interface{})
 	if !ok || data == nil {
-		return false
+		return "", false
 	}
 	choiceType, _ := data["choice_type"].(string)
-	switch choiceType {
-	case "hom_dual_echo_target":
-		return true
+	if choiceType == "" {
+		return "", false
+	}
+	spec := e.choiceEngine.Registry().Get(choiceType)
+	if spec == nil || spec.PhaseSync == "" {
+		return "", false
+	}
+	switch engineplayer.InterruptPhaseSync(spec.PhaseSync) {
+	case engineplayer.InterruptPhaseSyncResponseWindow,
+		engineplayer.InterruptPhaseSyncActionExecution,
+		engineplayer.InterruptPhaseSyncDamageResolution,
+		engineplayer.InterruptPhaseSyncCombatDraw,
+		engineplayer.InterruptPhaseSyncCombatHeal:
+		return engineplayer.InterruptPhaseSync(spec.PhaseSync), true
 	default:
-		return false
+		return "", false
 	}
 }
 
@@ -173,6 +184,11 @@ func (e *GameEngine) applyInterruptPhaseSync(sync engineplayer.InterruptPhaseSyn
 		e.clearSubflow()
 		e.clearCombatStage()
 		e.setTurnStage(model.TurnStageActionExecution)
+	case engineplayer.InterruptPhaseSyncDamageResolution:
+		e.clearSubflow()
+		if len(e.State.PendingDamageQueue) > 0 && !e.isDamageResolutionActive() {
+			e.enterDamageResolution(nil)
+		}
 	case engineplayer.InterruptPhaseSyncCombatDraw:
 		e.clearSubflow()
 		e.setCombatStage(model.CombatStageDraw)

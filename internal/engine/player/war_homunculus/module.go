@@ -92,7 +92,7 @@ func SkillEntries() []player.SkillEntry {
 // ChoiceRouteSpecs 导出角色 choice 路由声明。
 func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 	return map[string]types.ChoiceRouteSpec{
-		"hom_dual_echo_target":          types.ChoiceRouteRole("war_homunculus"),
+		"hom_dual_echo_target":          types.ChoiceRouteRoleWithPhaseSync("war_homunculus", string(player.InterruptPhaseSyncDamageResolution)),
 		"hom_glyph_fusion_cards":        types.ChoiceRouteRole("war_homunculus"),
 		"hom_glyph_fusion_pick":         types.ChoiceRouteRole("war_homunculus"),
 		"hom_glyph_fusion_x":            types.ChoiceRouteRole("war_homunculus"),

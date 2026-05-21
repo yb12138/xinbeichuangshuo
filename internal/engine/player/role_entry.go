@@ -185,11 +185,12 @@ type CombatPolicyContext struct {
 type InterruptPhaseSync string
 
 const (
-	InterruptPhaseSyncNone            InterruptPhaseSync = ""
-	InterruptPhaseSyncResponseWindow  InterruptPhaseSync = "response_window"
-	InterruptPhaseSyncActionExecution InterruptPhaseSync = "action_execution"
-	InterruptPhaseSyncCombatDraw      InterruptPhaseSync = "combat_draw"
-	InterruptPhaseSyncCombatHeal      InterruptPhaseSync = "combat_heal"
+	InterruptPhaseSyncNone             InterruptPhaseSync = ""
+	InterruptPhaseSyncResponseWindow   InterruptPhaseSync = "response_window"
+	InterruptPhaseSyncActionExecution  InterruptPhaseSync = "action_execution"
+	InterruptPhaseSyncDamageResolution InterruptPhaseSync = "damage_resolution"
+	InterruptPhaseSyncCombatDraw       InterruptPhaseSync = "combat_draw"
+	InterruptPhaseSyncCombatHeal       InterruptPhaseSync = "combat_heal"
 )
 
 type InterruptSpec struct {
@@ -214,6 +215,7 @@ type ChoiceSequentialRemaining func(ctxData map[string]interface{}) (int, bool)
 
 type ChoiceSpec struct {
 	ChoiceType          string
+	PhaseSync           InterruptPhaseSync
 	BuildPrompt         func(rt ChoiceRuntime, playerID string, player *model.Player, data map[string]interface{}) *model.Prompt
 	HandleChoice        func(rt ChoiceRuntime, playerID string, selectionIndex int, data map[string]interface{}) (bool, error)
 	HandleMultiSelect   func(rt ChoiceRuntime, playerID string, selections []int, data map[string]interface{}) (bool, error)
