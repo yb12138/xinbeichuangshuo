@@ -516,3 +516,130 @@ func TestMagicLancerFullness_AllyDiscardCountsBonus(t *testing.T) {
 		t.Fatalf("expected ally hand to be discarded, got %d cards", len(p2.Hand))
 	}
 }
+
+func TestMagicLancerFullness_AllyCanCancelAndFirstCardSelectsDiscard(t *testing.T) {
+	t.Run("skip exposes cancel metadata and keeps hand intact", func(t *testing.T) {
+		game := engine.NewGameEngine(testutils.NoopObserver{})
+		if err := game.AddPlayer("p1", "Lancer", "magic_lancer", model.RedCamp); err != nil {
+			t.Fatal(err)
+		}
+		if err := game.AddPlayer("p2", "Ally", "angel", model.RedCamp); err != nil {
+			t.Fatal(err)
+		}
+		if err := game.AddPlayer("p3", "Enemy", "angel", model.BlueCamp); err != nil {
+			t.Fatal(err)
+		}
+
+		p1 := game.State.Players["p1"]
+		p2 := game.State.Players["p2"]
+		p3 := game.State.Players["p3"]
+		p1.IsActive = true
+		p1.TurnState = model.NewPlayerTurnState()
+		p1.Hand = []model.Card{
+			magicLancerTestCard("cost", "圣光", model.CardTypeMagic, model.ElementLight, 0),
+		}
+		p2.Hand = []model.Card{
+			magicLancerTestCard("ally-0", "雷击", model.CardTypeAttack, model.ElementThunder, 2),
+			magicLancerTestCard("ally-1", "圣光", model.CardTypeMagic, model.ElementLight, 0),
+		}
+		p3.Hand = []model.Card{
+			magicLancerTestCard("enemy-0", "雷斩", model.CardTypeAttack, model.ElementThunder, 2),
+		}
+
+		game.State.CurrentTurn = 0
+		game.State.TurnStage = model.TurnStageActionExecution
+		if err := game.UseSkill("p1", "ml_fullness", []string{"p2"}, nil); err != nil {
+			t.Fatalf("use ml_fullness failed: %v", err)
+		}
+		if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
+			t.Fatalf("choose fullness cost card failed: %v", err)
+		}
+		if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p3", Selections: []int{0}}); err != nil {
+			t.Fatalf("enemy discard failed: %v", err)
+		}
+
+		prompt := game.BuildChoicePrompt()
+		if prompt == nil || prompt.Presentation == nil {
+			t.Fatal("expected ally prompt with presentation")
+		}
+		if prompt.Presentation.CancelPolicy != "decline" || !prompt.Presentation.HasDecline || prompt.Presentation.DeclineIndex != 0 {
+			t.Fatalf("expected decline cancel metadata, got %+v", prompt.Presentation)
+		}
+		if len(prompt.Options) < 2 {
+			t.Fatalf("expected skip plus card options, got %+v", prompt.Options)
+		}
+		if prompt.Options[0].ID != "-1" {
+			t.Fatalf("expected first option to be skip, got %+v", prompt.Options[0])
+		}
+		if prompt.Options[1].ID != "1" || prompt.Options[1].CardID != p2.Hand[0].ID {
+			t.Fatalf("expected first card option to be index 1 and first hand card, got %+v", prompt.Options[1])
+		}
+
+		if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdCancel, PlayerID: "p2"}); err != nil {
+			t.Fatalf("ally skip via cancel failed: %v", err)
+		}
+		if game.State.PendingInterrupt != nil {
+			t.Fatalf("expected prompt to finish after skip, got %+v", game.State.PendingInterrupt)
+		}
+		if len(p2.Hand) != 2 {
+			t.Fatalf("expected ally hand to remain untouched on skip, got %d cards", len(p2.Hand))
+		}
+		if got := engine.AttackDamageRuleBonusForModifier(p1, "ml_fullness_next_attack_bonus"); got != 1 {
+			t.Fatalf("expected only enemy discard bonus from skip flow, got %d", got)
+		}
+	})
+
+	t.Run("first card is discarded by card id", func(t *testing.T) {
+		game := engine.NewGameEngine(testutils.NoopObserver{})
+		if err := game.AddPlayer("p1", "Lancer", "magic_lancer", model.RedCamp); err != nil {
+			t.Fatal(err)
+		}
+		if err := game.AddPlayer("p2", "Ally", "angel", model.RedCamp); err != nil {
+			t.Fatal(err)
+		}
+		if err := game.AddPlayer("p3", "Enemy", "angel", model.BlueCamp); err != nil {
+			t.Fatal(err)
+		}
+
+		p1 := game.State.Players["p1"]
+		p2 := game.State.Players["p2"]
+		p3 := game.State.Players["p3"]
+		p1.IsActive = true
+		p1.TurnState = model.NewPlayerTurnState()
+		p1.Hand = []model.Card{
+			magicLancerTestCard("cost", "圣光", model.CardTypeMagic, model.ElementLight, 0),
+		}
+		p2.Hand = []model.Card{
+			magicLancerTestCard("ally-0", "雷击", model.CardTypeAttack, model.ElementThunder, 2),
+			magicLancerTestCard("ally-1", "圣光", model.CardTypeMagic, model.ElementLight, 0),
+		}
+		p3.Hand = []model.Card{
+			magicLancerTestCard("enemy-0", "雷斩", model.CardTypeAttack, model.ElementThunder, 2),
+		}
+
+		game.State.CurrentTurn = 0
+		game.State.TurnStage = model.TurnStageActionExecution
+		if err := game.UseSkill("p1", "ml_fullness", []string{"p2"}, nil); err != nil {
+			t.Fatalf("use ml_fullness failed: %v", err)
+		}
+		if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
+			t.Fatalf("choose fullness cost card failed: %v", err)
+		}
+		if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p3", Selections: []int{0}}); err != nil {
+			t.Fatalf("enemy discard failed: %v", err)
+		}
+
+		if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", CardIDs: []string{"ally-0"}}); err != nil {
+			t.Fatalf("ally discard by card id failed: %v", err)
+		}
+		if len(p2.Hand) != 1 {
+			t.Fatalf("expected ally to discard the first card, got %d cards", len(p2.Hand))
+		}
+		if p2.Hand[0].ID != "ally-1" {
+			t.Fatalf("expected only second card to remain, got %+v", p2.Hand)
+		}
+		if got := engine.AttackDamageRuleBonusForModifier(p1, "ml_fullness_next_attack_bonus"); got != 2 {
+			t.Fatalf("expected enemy discard plus first ally discard to grant 2 bonus, got %d", got)
+		}
+	})
+}

@@ -50,7 +50,8 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			if card.Type != model.CardTypeMagic && card.Element != model.ElementThunder {
 				continue
 			}
-			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", idx), Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(card)), CardID: card.ID})
+			optionID := fmt.Sprintf("%d", len(options))
+			options = append(options, model.PromptOption{ID: optionID, Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(card)), CardID: card.ID})
 		}
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【充盈】请选择要弃置的1张法术牌或雷系牌：", Options: options, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand", CardFilter: "magic_or_thunder"}}
 
@@ -71,13 +72,21 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			if idx < 0 || idx >= len(target.Hand) {
 				continue
 			}
-			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", idx), Label: promptfmt.FormatCardInfo(target.Hand[idx]), CardID: target.Hand[idx].ID})
+			optionID := fmt.Sprintf("%d", len(options))
+			options = append(options, model.PromptOption{ID: optionID, Label: promptfmt.FormatCardInfo(target.Hand[idx]), CardID: target.Hand[idx].ID})
 		}
 		msg := "【充盈】请选择弃置1张手牌："
 		if allowSkip {
 			msg = "【充盈】请选择是否弃置1张手牌："
 		}
-		return &model.Prompt{Type: model.PromptChooseCards, PlayerID: playerID, Message: msg, Options: options, Min: 1, Max: 1, ChoiceType: "ml_fullness_discard_step", Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand", CardFilter: "option_limited"}}
+		presentation := &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand", CardFilter: "option_limited"}
+		if allowSkip {
+			presentation.CancelPolicy = "decline"
+			presentation.CancelLabel = "不弃置"
+			presentation.HasDecline = true
+			presentation.DeclineIndex = 0
+		}
+		return &model.Prompt{Type: model.PromptChooseCards, PlayerID: playerID, Message: msg, Options: options, Min: 1, Max: 1, ChoiceType: "ml_fullness_discard_step", Presentation: presentation}
 
 	case "ml_stardust_target":
 		return engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, "【幻影星尘】请选择2点法术伤害目标：", data, false)
@@ -105,6 +114,18 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 	default:
 		return false, nil
 	}
+}
+
+func (choiceHandler) HandleCancel(rt engineplayer.ChoiceRuntime, playerID string, ctxData map[string]interface{}) (bool, error) {
+	choiceType, _ := ctxData["choice_type"].(string)
+	if choiceType != "ml_fullness_discard_step" {
+		return false, nil
+	}
+	allowSkip, _ := ctxData["allow_skip"].(bool)
+	if !allowSkip {
+		return false, fmt.Errorf("当前选择不可取消")
+	}
+	return true, handleMagicLancerFullnessDiscardStepChoice(rt, 0, ctxData)
 }
 
 func handleMagicLancerBlackSpearXChoice(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {

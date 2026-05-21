@@ -68,6 +68,22 @@ func addSpiritCasterPowerForTest(p *model.Player, card model.Card) {
 	spiritcasterplayer.SyncPowerToken(p)
 }
 
+func TestSpiritCasterPowerCountIsNotStoredAsToken(t *testing.T) {
+	player := &model.Player{
+		ID:     "p1",
+		Tokens: map[string]int{"sc_power_count": 99},
+	}
+
+	spiritcasterplayer.AddPowerCard(player, spiritCasterTestCard("pow", "妖力", model.CardTypeMagic, model.ElementFire))
+
+	if _, ok := player.Tokens["sc_power_count"]; ok {
+		t.Fatalf("expected sc_power_count to be removed from tokens, got %+v", player.Tokens)
+	}
+	if got := spiritcasterplayer.PowerCount(player, ""); got != 1 {
+		t.Fatalf("expected power count to be derived from field cards, got %d", got)
+	}
+}
+
 func TestSpiritCasterTalismanThunder_SealThenIncantThenDamage(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "SpiritCaster", "spirit_caster", model.RedCamp); err != nil {

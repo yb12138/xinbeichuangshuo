@@ -67,6 +67,20 @@ describe('PlayerArea indicators', () => {
     expect(screen.queryByText('本回合锁技能')).toBeNull()
   })
 
+  it('keeps spirit caster power count out of the token chip row', () => {
+    render(PlayerArea, {
+      props: {
+        player: buildPlayer({
+          indicators: { sc_power_count: 2 },
+        }),
+      },
+      global: { plugins: [createPinia()] },
+    })
+
+    expect(screen.queryByText('sc_power_count')).toBeNull()
+    expect(screen.queryByTitle('sc_power_count: 2')).toBeNull()
+  })
+
   it('lets indicators override stale legacy token values', () => {
     render(PlayerArea, {
       props: {

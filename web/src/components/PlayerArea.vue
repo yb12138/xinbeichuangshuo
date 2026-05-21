@@ -343,6 +343,8 @@ const HIDDEN_TOKEN_KEYS = new Set([
   'hb_special_used_turn',
   'hb_auto_fill_done_turn',
   'hb_shard_miss_pending',
+  // 灵符师妖力是盖牌数量派生展示，不作为头像 token chip 展示
+  'sc_power_count',
   // 魔枪的回合态展示放在行动面板，不在头像 token 区重复显示
   'ml_dark_release_next_attack_bonus',
   'ml_dark_release_lock_turn',
