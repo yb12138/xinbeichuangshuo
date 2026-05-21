@@ -831,6 +831,34 @@ describe('PromptDialog', () => {
     expect(submitSelectCardIDsMock).toHaveBeenCalledWith(['h0'])
   })
 
+  it('submits proxy card picker selections by matching card_id to hand cards', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    useSessionStore().setRoomInfo('ROOM1', 'p2', 'Blue', 'magic_lancer')
+    useSnapshotStore().updateGameState(buildState())
+    const interruptStore = useInterruptStore()
+    interruptStore.setPrompt(handCardPickerPrompt({
+      presentation: {
+        kind: 'card_picker',
+        card_source: 'proxy',
+        numeric_base: 0,
+      },
+    }))
+
+    render(PromptDialog, {
+      global: {
+        plugins: [pinia],
+      },
+    })
+
+    interruptStore.setSelectedHandIndexes([1])
+    await nextTick()
+
+    await userEvent.click(screen.getByTestId('prompt-confirm-btn'))
+    expect(submitSelectCardIDsMock).toHaveBeenCalledWith(['h1'])
+  })
+
   it('renders card picker decline row via renderer and keeps cancel/confirm submission behavior', async () => {
     const pinia = createPinia()
     setActivePinia(pinia)

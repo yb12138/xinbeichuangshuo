@@ -1368,7 +1368,7 @@ function promptHandOptionUIIndexSet(): Set<number> {
   const set = new Set<number>()
   const p = currentPrompt.value?.presentation
   if (!p) return set
-  if (p.kind !== 'card_picker' || p.card_source !== 'hand') return set
+  if (p.kind !== 'card_picker' || (p.card_source !== 'hand' && p.card_source !== 'proxy')) return set
   const options = currentPrompt.value?.options || []
   for (const option of options) {
     const optionCardID = String(option.card_id || '').trim()

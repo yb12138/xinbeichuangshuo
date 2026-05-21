@@ -170,7 +170,7 @@ function actionHubPrompt(): Prompt {
   }
 }
 
-function handCardPickerPrompt(): Prompt {
+function handCardPickerPrompt(cardSource: 'hand' | 'proxy' = 'hand'): Prompt {
   return {
     type: 'choose_cards',
     player_id: 'p1',
@@ -183,7 +183,7 @@ function handCardPickerPrompt(): Prompt {
     max: 1,
     presentation: {
       kind: 'card_picker',
-      card_source: 'hand',
+      card_source: cardSource,
       numeric_base: 0,
     },
   }
@@ -316,6 +316,48 @@ describe('GameBoard target picker', () => {
     useSnapshotStore().updateGameState(buildState(players))
     const interruptStore = useInterruptStore()
     interruptStore.setPrompt(handCardPickerPrompt())
+
+    render(GameBoard, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          PlayerArea: PlayerAreaStub,
+          ActionPanel: true,
+          BattleZone: true,
+          SkillDetailModal: true,
+          VfxLayer: true,
+          ActionTimeline: true,
+          StatusEffectIcon: true,
+        },
+      },
+    })
+
+    await userEvent.click(screen.getByTestId('hand-card-0'))
+
+    expect(interruptStore.selectedHandIndexes).toEqual([0])
+    expect(submitSelectCardIDsMock).not.toHaveBeenCalled()
+    expect(submitSelectMock).not.toHaveBeenCalled()
+  })
+
+  it('allows proxy card picker cards that map to my hand', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const me = buildPlayer({
+      id: 'p1',
+      name: '弃牌者',
+      camp: 'Red',
+      role: 'magic_lancer',
+      hand: [buildCard({ id: 'card-1', name: '幻影星尘' })],
+      hand_count: 1,
+    })
+    const players = { p1: me }
+
+    useSessionStore().setRoomInfo('ROOM1', 'p1', 'Red', 'magic_lancer')
+    useSessionStore().updateRoomPlayers(Object.values(players).map(buildPlayerInfo), 'p1')
+    useSnapshotStore().updateGameState(buildState(players))
+    const interruptStore = useInterruptStore()
+    interruptStore.setPrompt(handCardPickerPrompt('proxy'))
 
     render(GameBoard, {
       global: {

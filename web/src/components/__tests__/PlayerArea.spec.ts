@@ -48,19 +48,23 @@ describe('PlayerArea indicators', () => {
     expect(screen.queryByText('se_sword_qi')).toBeNull()
   })
 
-  it('renders tokens together with derived indicators', () => {
+  it('keeps magic lancer turn-state indicators out of the token chip row', () => {
     render(PlayerArea, {
       props: {
         player: buildPlayer({
           tokens: { hero_anger: 2 },
-          indicators: { ml_dark_release_next_attack_bonus: 1 },
+          indicators: {
+            ml_dark_release_next_attack_bonus: 1,
+            ml_dark_release_lock_turn: 1,
+          },
         }),
       },
       global: { plugins: [createPinia()] },
     })
 
     expect(screen.getByText('怒气')).toBeTruthy()
-    expect(screen.getByText('下次主动攻+伤')).toBeTruthy()
+    expect(screen.queryByText('下次主动攻+伤')).toBeNull()
+    expect(screen.queryByText('本回合锁技能')).toBeNull()
   })
 
   it('lets indicators override stale legacy token values', () => {

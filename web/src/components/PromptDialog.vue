@@ -681,7 +681,9 @@ function promptOptionForHandIndex(handIndex: number): PromptOption | null {
 }
 
 function selectedPromptHandCardIDs(indices: number[]): string[] {
-  if (!prompt.value || prompt.value.presentation?.kind !== 'card_picker' || prompt.value.presentation?.card_source !== 'hand') return []
+  if (!prompt.value || prompt.value.presentation?.kind !== 'card_picker') return []
+  const cardSource = prompt.value.presentation?.card_source
+  if (cardSource !== 'hand' && cardSource !== 'proxy') return []
   const ids: string[] = []
   for (const idx of indices) {
     const option = promptOptionForHandIndex(idx)
@@ -699,12 +701,11 @@ function isPromptHandCardOption(option: { id: string; label: string; card_id?: s
   if (p.kind === 'target_picker') return false
   if (p.kind === 'branch_select') return false
   if (p.kind === 'skill_choice') return false
-  // card_picker with card_source=field or proxy: not hand cards
-  if (p.kind === 'card_picker' && p.card_source !== 'hand') return false
-  // card_picker with card_source=hand: these are hand cards
-  if (p.kind === 'card_picker' && p.card_source === 'hand') {
+  // card_picker with card_source=hand/proxy: selectable cards are matched by card_id in my hand.
+  if (p.kind === 'card_picker' && (p.card_source === 'hand' || p.card_source === 'proxy')) {
     return handIndexForPromptOption(option) !== null
   }
+  if (p.kind === 'card_picker') return false
   return false
 }
 
