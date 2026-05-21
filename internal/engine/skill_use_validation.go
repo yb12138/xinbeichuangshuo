@@ -19,10 +19,12 @@ func (e *GameEngine) maybeRequestSkillDiscardSelection(use *skillUseRequest) (bo
 	}
 
 	intr := newDiscardChoiceInterrupt(use.player.ID, map[string]interface{}{
-		"discard_count": use.requiredDiscards,
-		"skill_id":      use.skillID,
-		"target_ids":    use.targetIDs,
-		"resume_phase":  e.CurrentChoiceResumePoint(),
+		"discard_count":   use.requiredDiscards,
+		"discard_type":    use.skillDef.DiscardType,
+		"discard_element": use.skillDef.DiscardElement,
+		"skill_id":        use.skillID,
+		"target_ids":      use.targetIDs,
+		"resume_phase":    e.CurrentChoiceResumePoint(),
 	})
 	intr.SkillIDs = []string{use.skillID}
 	e.PushInterrupt(intr)

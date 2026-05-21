@@ -19,7 +19,7 @@ describe('skillDisplayRules', () => {
 
   it('keeps skill-specific button copy stable for special cases', () => {
     expect(skillCostTextOverride('priest_water_power')).toBe('弃1水牌+交1手牌(若有)')
+    expect(skillCostTextOverride('ss_soul_recall')).toBe('弃法术牌')
     expect(skillDiscardGuideText('priest_water_power')).toContain('第一张需水系')
   })
 })
-

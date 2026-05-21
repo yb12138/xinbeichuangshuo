@@ -23,7 +23,8 @@ const SKILL_DISABLED_REASONS: Record<string, string> = {
 }
 
 const SKILL_COST_TEXT_OVERRIDES: Record<string, string> = {
-  priest_water_power: '弃1水牌+交1手牌(若有)',
+    priest_water_power: '弃1水牌+交1手牌(若有)',
+    ss_soul_recall: '弃法术牌',
 }
 
 export function skillDiscardGuideText(skillId: SkillId): string {

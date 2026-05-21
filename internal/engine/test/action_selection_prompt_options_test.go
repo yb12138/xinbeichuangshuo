@@ -439,6 +439,82 @@ func TestActionSkillDiscardSelectionPublishesCardPickerPrompt(t *testing.T) {
 	}
 }
 
+func TestActionSkillDiscardSelectionRejectsInvalidCardWithoutConsumingInterrupt(t *testing.T) {
+	obs := &actionPromptObserver{}
+	game := engine.NewGameEngine(obs)
+	if err := game.AddPlayer("p1", "Spirit", "spirit_caster", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Dummy1", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p3", "Dummy2", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Hand = []model.Card{
+		{ID: "poison", Name: "中毒", Type: model.CardTypeMagic, Element: model.ElementEarth},
+		{ID: "thunder", Name: "雷击", Type: model.CardTypeAttack, Element: model.ElementThunder, Damage: 1},
+	}
+
+	if err := game.HandleAction(model.PlayerAction{
+		PlayerID:  "p1",
+		Type:      model.CmdSkill,
+		SkillID:   "sc_talisman_thunder",
+		TargetIDs: []string{"p2", "p3"},
+	}); err != nil {
+		t.Fatalf("talisman thunder should enter discard selection: %v", err)
+	}
+	if game.State.PendingInterrupt == nil || !engine.IsDiscardSelectionInterrupt(game.State.PendingInterrupt) {
+		t.Fatalf("expected discard selection interrupt, got %+v", game.State.PendingInterrupt)
+	}
+	if obs.lastPrompt == nil {
+		t.Fatalf("expected discard card picker prompt")
+	}
+	options := promptOptionSet(obs.lastPrompt)
+	if options["0"] || !options["1"] {
+		t.Fatalf("expected prompt to expose only thunder card option, got %+v", obs.lastPrompt.Options)
+	}
+
+	err := game.HandleAction(model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{0},
+	})
+	if err == nil || !strings.Contains(err.Error(), "不符合元素要求") {
+		t.Fatalf("expected invalid discard element error, got %v", err)
+	}
+	if game.State.PendingInterrupt == nil || !engine.IsDiscardSelectionInterrupt(game.State.PendingInterrupt) {
+		t.Fatalf("invalid discard should keep discard interrupt pending, got %+v", game.State.PendingInterrupt)
+	}
+	if len(p1.Hand) != 2 {
+		t.Fatalf("invalid discard should not consume hand cards, got %+v", p1.Hand)
+	}
+
+	if err := game.HandleAction(model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{1},
+	}); err != nil {
+		t.Fatalf("valid thunder discard should resume skill: %v", err)
+	}
+	if len(p1.Hand) != 1 || p1.Hand[0].ID != "poison" {
+		t.Fatalf("expected thunder card consumed and poison retained, got %+v", p1.Hand)
+	}
+	if game.State.PendingInterrupt == nil {
+		t.Fatalf("expected talisman follow-up prompt after valid discard")
+	}
+	ctx, _ := game.State.PendingInterrupt.Context.(map[string]interface{})
+	if got, _ := ctx["choice_type"].(string); got != "sc_incant_confirm" {
+		t.Fatalf("expected incantation follow-up prompt, got %+v", game.State.PendingInterrupt)
+	}
+}
+
 func TestActionSelection_ExtraMagicAllowsSkill(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "Elem", "elementalist", model.RedCamp); err != nil {

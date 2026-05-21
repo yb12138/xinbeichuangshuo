@@ -2409,7 +2409,6 @@ func GetCharacters() []model.Character {
 				{
 					ID: "ss_soul_recall", Timings: []model.FlowTiming{model.TimingActive}, Title: "灵魂召还",
 					Type:         model.SkillTypeAction,
-					CostDiscards: 1,
 					DiscardType:  model.CardTypeMagic,
 					Description:  "弃X张法术牌［展示］，你+X点［蓝色灵魂］（上限6）。",
 					LogicHandler: "ss_soul_recall",

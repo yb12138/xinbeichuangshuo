@@ -65,6 +65,14 @@ func (e *GameEngine) handleSkillDiscardResume(playerID, skillID string, indices 
 	targetIDs := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
 	resumePoint := data["resume_phase"]
 
+	use, err := e.prepareSkillUse(playerID, skillID, targetIDs, indices)
+	if err != nil {
+		return err
+	}
+	if err := e.validateSkillDiscardSelection(use); err != nil {
+		return err
+	}
+
 	e.PopInterrupt()
 	if e.State.PendingInterrupt != nil {
 		return fmt.Errorf("当前仍有其他待处理的中断")
