@@ -227,19 +227,16 @@ function compactSoulLinkTargetLabel(name: string): string {
   return trimmed.length > 8 ? `${trimmed.slice(0, 8)}…` : trimmed
 }
 
-// === 双人关联连线（保留灵魂链接/挑衅/幻龙锁定，仅移除同生共死的链路动画）===
+// === 双人关联连线（保留挑衅等需要可视化连线的关系效果）===
 const LINK_EFFECT_COLORS: Record<string, string> = {
-  FighterHundredDragonLock: 'rgba(245, 158, 11, 1)',
   HeroTaunt: 'rgba(220, 38, 38, 1)',
 }
 
 const LINK_EFFECT_STROKE: Record<string, { opacity: number; strokeWidth: number }> = {
-  FighterHundredDragonLock: { opacity: 0.62, strokeWidth: 2 },
   HeroTaunt: { opacity: 0.58, strokeWidth: 2 },
 }
 
 const LINK_EFFECT_INFO: Record<string, { label: string; description: string }> = {
-  FighterHundredDragonLock: { label: '幻龙锁定', description: '百式幻龙拳：本行动阶段只能主动攻击该角色' },
   HeroTaunt: { label: '挑衅', description: '该玩家在下回合必须且只能主动攻击勇者，否则跳过该阶段' },
 }
 
@@ -369,6 +366,10 @@ const PLAYER_STATUS_EFFECT_LABEL: Record<string, string> = {
   BloodSharedLife: '同生共死',
 }
 
+const HIDDEN_MY_FIELD_EFFECTS = new Set<string>([
+  'FighterHundredDragonLock',
+])
+
 const myStatusMaxHand = computed(() => {
   const maxHand = myAreaPlayer.value?.max_hand
   return typeof maxHand === 'number' && maxHand >= 0 ? maxHand : 0
@@ -383,7 +384,7 @@ const myStatusRoleName = computed(() => {
 const myFieldStatusItems = computed(() => {
   const field = myAreaPlayer.value?.field || []
   return field
-    .filter((fc) => fc.mode === 'Effect' && fc.effect)
+    .filter((fc) => fc.mode === 'Effect' && fc.effect && !HIDDEN_MY_FIELD_EFFECTS.has(fc.effect))
     .map((fc, idx) => ({
       key: `${fc.effect}-${idx}`,
       effect: fc.effect,
@@ -2054,6 +2055,46 @@ const bloodSharedLifeByPlayer = computed(() => {
 
   return result
 })
+
+const fighterHundredDragonByPlayer = computed(() => {
+  const result: Record<string, { text: string; title: string; role: 'source' | 'bound' }> = {}
+  const seen = new Set<string>()
+
+  for (const player of Object.values(players.value ?? {}) as PlayerView[]) {
+    if (!player.field?.length) continue
+    for (const fc of player.field) {
+      if (fc.mode !== 'Effect' || fc.effect !== 'FighterHundredDragonLock') continue
+      const sourceId = fc.source_id
+      const ownerId = player.id
+      if (!sourceId || !ownerId) continue
+
+      const pairKey = [sourceId, ownerId].sort().join('|')
+      if (seen.has(pairKey)) continue
+      seen.add(pairKey)
+
+      const sourceName = players.value[sourceId]?.name || sourceId
+      const ownerName = players.value[ownerId]?.name || ownerId
+      const title = sourceId === ownerId
+        ? `百式幻龙拳：${sourceName} 的本行动阶段锁定目标`
+        : `百式幻龙拳：${sourceName} 锁定 ${ownerName}，本行动阶段只能主动攻击该角色`
+
+      result[sourceId] = {
+        text: '幻龙锁定',
+        title,
+        role: 'source',
+      }
+      if (ownerId !== sourceId) {
+        result[ownerId] = {
+          text: '幻龙锁定',
+          title,
+          role: 'bound',
+        }
+      }
+    }
+  }
+
+  return result
+})
 </script>
 
 <template>
@@ -2151,6 +2192,9 @@ const bloodSharedLifeByPlayer = computed(() => {
           :turnOrder="turnOrderFor(p.id)"
           :soulLinkBindingText="soulLinkBindingTextFor(p.id)"
           :soulLinkBindingTitle="soulLinkBindingTitleFor(p.id)"
+          :fighterHundredDragonText="fighterHundredDragonByPlayer[p.id]?.text"
+          :fighterHundredDragonTitle="fighterHundredDragonByPlayer[p.id]?.title"
+          :fighterHundredDragonRole="fighterHundredDragonByPlayer[p.id]?.role"
           :bloodSharedLifeText="bloodSharedLifeByPlayer[p.id]?.text"
           :bloodSharedLifeTitle="bloodSharedLifeByPlayer[p.id]?.title"
           :bloodSharedLifeRole="bloodSharedLifeByPlayer[p.id]?.role"
@@ -2351,6 +2395,9 @@ const bloodSharedLifeByPlayer = computed(() => {
             :turnOrder="turnOrderFor(p.id)"
             :soulLinkBindingText="soulLinkBindingTextFor(p.id)"
             :soulLinkBindingTitle="soulLinkBindingTitleFor(p.id)"
+            :fighterHundredDragonText="fighterHundredDragonByPlayer[p.id]?.text"
+            :fighterHundredDragonTitle="fighterHundredDragonByPlayer[p.id]?.title"
+            :fighterHundredDragonRole="fighterHundredDragonByPlayer[p.id]?.role"
             :bloodSharedLifeText="bloodSharedLifeByPlayer[p.id]?.text"
             :bloodSharedLifeTitle="bloodSharedLifeByPlayer[p.id]?.title"
             :bloodSharedLifeRole="bloodSharedLifeByPlayer[p.id]?.role"
@@ -2497,17 +2544,6 @@ const bloodSharedLifeByPlayer = computed(() => {
       />
     </svg>
 
-    <!-- 连线中点图标 -->
-    <div
-      v-for="link in linkLines"
-      :key="'icon-' + link.id"
-      class="link-icon-anchor"
-      :style="{ left: link.midX + 'px', top: link.midY + 'px' }"
-      :title="`${link.label}: ${link.description}`"
-    >
-      <StatusEffectIcon :effect="link.effect" />
-      <span class="link-icon-label">{{ link.label }}</span>
-    </div>
     <VfxLayer />
   </div>
 </template>
@@ -2538,48 +2574,6 @@ const bloodSharedLifeByPlayer = computed(() => {
 }
 
 /* 连线中点图标 */
-.link-icon-anchor {
-  position: absolute;
-  z-index: 51;
-  transform: translate(-50%, -50%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  pointer-events: auto;
-  cursor: help;
-}
-
-.link-icon-anchor > :deep(.status-effect-icon) {
-  width: 40px;
-  height: 40px;
-  background: rgba(0, 0, 0, 0.85);
-  border-radius: 10px;
-  padding: 5px;
-  backdrop-filter: blur(6px);
-  border: 2px solid rgba(255, 255, 255, 0.25);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
-  transition: all 0.2s ease;
-}
-
-.link-icon-anchor:hover > :deep(.status-effect-icon) {
-  transform: scale(1.1);
-  border-color: rgba(255, 255, 255, 0.5);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.7);
-}
-
-.link-icon-label {
-  font-size: 10px;
-  font-weight: bold;
-  color: #fff;
-  background: rgba(0, 0, 0, 0.85);
-  padding: 1px 6px;
-  border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  white-space: nowrap;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
-}
-
 .game-end-overlay {
   position: absolute;
   inset: 0;
@@ -2856,7 +2850,7 @@ const bloodSharedLifeByPlayer = computed(() => {
   z-index: 0;
 }
 
-.board-shell > *:not(.link-lines-layer):not(.link-icon-anchor):not(.board-ambient):not(.draw-flight-layer):not(.host-dissolve-btn):not(.right-action-dock) {
+.board-shell > *:not(.link-lines-layer):not(.board-ambient):not(.draw-flight-layer):not(.host-dissolve-btn):not(.right-action-dock) {
   position: relative;
   z-index: 2;
 }

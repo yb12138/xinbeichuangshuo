@@ -265,22 +265,29 @@ func (h *BlazeWitchManaInversionHandler) Execute(ctx *model.Context) error {
 		return fmt.Errorf("魔能反转需要1蓝水晶（红宝石可替代）")
 	}
 	engineplayer.SetSkillFlowState(ctx.User, "bw_mana_inversion_lock", 1)
-	magicCount := 0
-	for _, c := range ctx.User.Hand {
-		if c.Type == model.CardTypeMagic {
-			magicCount++
-		}
-	}
 	ctx.Game.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
 		Context: map[string]interface{}{
-			"choice_type":              "bw_mana_inversion_x",
+			"choice_type":              "bw_mana_inversion_cards",
 			"user_id":                  ctx.User.ID,
-			"max_x":                    magicCount,
+			"remaining_indices":        magicIndicesForManaInversion(ctx.User),
 			model.PromptFlowContextKey: manaInversionFlowRuntime.Begin(),
 		},
 	})
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [魔能反转]，请选择弃牌数量X", ctx.User.Name))
+	ctx.Game.Log(fmt.Sprintf("%s 发动 [魔能反转]，请选择要弃置的法术牌", ctx.User.Name))
 	return nil
+}
+
+func magicIndicesForManaInversion(user *model.Player) []int {
+	if user == nil {
+		return nil
+	}
+	indices := make([]int, 0, len(user.Hand))
+	for i, c := range user.Hand {
+		if c.Type == model.CardTypeMagic {
+			indices = append(indices, i)
+		}
+	}
+	return indices
 }

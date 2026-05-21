@@ -34,17 +34,28 @@ const PlayerAreaStub = defineComponent({
   props: {
     player: { type: Object, required: true },
     selectable: { type: Boolean, default: false },
+    fighterHundredDragonText: { type: String, default: '' },
+    fighterHundredDragonTitle: { type: String, default: '' },
   },
   emits: ['select'],
   template: `
-    <button
-      type="button"
-      :data-testid="'player-area-' + player.id"
-      :disabled="!selectable"
-      @click="$emit('select', player.id)"
-    >
-      {{ player.name }}
-    </button>
+    <div>
+      <button
+        type="button"
+        :data-testid="'player-area-' + player.id"
+        :disabled="!selectable"
+        @click="$emit('select', player.id)"
+      >
+        {{ player.name }}
+      </button>
+      <span
+        v-if="fighterHundredDragonText"
+        :data-testid="'fighter-lock-' + player.id"
+        :title="fighterHundredDragonTitle"
+      >
+        {{ fighterHundredDragonText }}
+      </span>
+    </div>
   `,
 })
 
@@ -424,6 +435,54 @@ describe('GameBoard target picker', () => {
     expect(screen.getByTestId('player-area-p1')).toBeInTheDocument()
     expect(screen.getByText('治疗 1/5')).toBeInTheDocument()
     expect(document.querySelector('.my-status-name')).toHaveTextContent('剑斗士')
+  })
+
+  it('passes hundred dragon lock badges to source and target players without rendering a link line', () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const me = buildPlayer({ id: 'p1', name: '格斗家', camp: 'Red', role: 'fighter' })
+    const target = buildPlayer({
+      id: 'p2',
+      name: '圣女',
+      camp: 'Blue',
+      role: 'saintess',
+      field: [{
+        card: buildCard({ id: 'hundred-dragon-lock' }),
+        mode: 'Effect',
+        effect: 'FighterHundredDragonLock',
+        source_id: 'p1',
+        owner_id: 'p2',
+        field_hook: 'Manual',
+        locked: false,
+        duration: 0,
+      }],
+    })
+    const players = { p1: me, p2: target }
+
+    useSessionStore().setRoomInfo('ROOM1', 'p1', 'Red', 'fighter')
+    useSessionStore().updateRoomPlayers(Object.values(players).map(buildPlayerInfo), 'p1')
+    useSnapshotStore().updateGameState(buildState(players))
+
+    render(GameBoard, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          PlayerArea: PlayerAreaStub,
+          ActionPanel: true,
+          BattleZone: true,
+          CardComponent: true,
+          SkillDetailModal: true,
+          VfxLayer: true,
+          ActionTimeline: true,
+          StatusEffectIcon: true,
+        },
+      },
+    })
+
+    expect(screen.getByTestId('fighter-lock-p1')).toHaveTextContent('幻龙锁定')
+    expect(screen.getByTestId('fighter-lock-p2')).toHaveTextContent('幻龙锁定')
+    expect(document.querySelector('.link-lines-layer')).toBeNull()
   })
 
 })

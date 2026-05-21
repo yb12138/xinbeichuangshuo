@@ -340,27 +340,11 @@ export function manaInversionScenario(): ProtocolHarnessScenario {
   return blazeWitchScenario();
 }
 
-export function manaInversionXPrompt(maxX = 4): WsMessage {
-  const options: Array<{ id: string; label: string; button_label: string }> = [];
-  for (let x = 2; x <= maxX; x++) {
-    options.push({ id: String(x), label: `X=${x}（弃${x}张法术牌，造成${x - 1}点法术伤害）`, button_label: String(x) });
-  }
-  return requireActionMessage({
-    type: 'confirm',
-    player_id: BW_PLAYER_ID,
-    message: '【魔能反转】请选择X值：',
-    choice_type: 'bw_mana_inversion_x',
-    options,
-    min: 1, max: 1,
-    presentation: { kind: 'numeric', numeric_base: 0 },
-  } satisfies Prompt);
-}
-
-export function manaInversionCardsPrompt(xValue = 2): WsMessage {
+export function manaInversionCardsPrompt(): WsMessage {
   return requireActionMessage({
     type: 'choose_cards',
     player_id: BW_PLAYER_ID,
-    message: `【魔能反转】请选择要弃置的${xValue}张法术牌：`,
+    message: '【魔能反转】请选择要弃置的法术牌（X=选择数量，至少2张）：',
     choice_type: 'bw_mana_inversion_cards',
     options: [
       { id: '2', label: '3: 火球（火系 法术）', button_label: '选择', card_id: 'bw-fire-magic1' },
@@ -368,7 +352,7 @@ export function manaInversionCardsPrompt(xValue = 2): WsMessage {
       { id: '4', label: '5: 雷击（雷系 法术）', button_label: '选择', card_id: 'bw-thunder-magic' },
       { id: '5', label: '6: 圣光（光系 法术）', button_label: '选择', card_id: 'bw-light-magic' },
     ],
-    min: xValue, max: xValue,
+    min: 2, max: 4,
     presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'magic_only', numeric_base: 0 },
   } satisfies Prompt);
 }

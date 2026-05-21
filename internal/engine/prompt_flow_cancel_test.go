@@ -10,23 +10,23 @@ import (
 
 func TestPromptFlowCancelBackUsesRuntimeStepSpec(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
-	if err := game.AddPlayer("p1", "Blaze", "blaze_witch", model.RedCamp); err != nil {
+	if err := game.AddPlayer("p1", "Sword", "sword_emperor", model.RedCamp); err != nil {
 		t.Fatal(err)
 	}
 
 	p1 := game.State.Players["p1"]
-	flow := model.NewPromptFlowState("bw_mana_inversion", "cards")
+	flow := model.NewPromptFlowState("se_sword_qi_slash", "target")
 	flow.History = []string{"x"}
 	flow.StepSpecs = map[string]model.PromptFlowStepSpec{
-		"x":     {ID: "x", ChoiceType: "bw_mana_inversion_x", CancelPolicy: model.CancelPolicyBack},
-		"cards": {ID: "cards", ChoiceType: "bw_mana_inversion_cards", CancelPolicy: model.CancelPolicyBack},
+		"x":      {ID: "x", ChoiceType: "se_sword_qi_slash_x", CancelPolicy: model.CancelPolicyBack},
+		"target": {ID: "target", ChoiceType: "se_sword_qi_slash_target", CancelPolicy: model.CancelPolicyBack},
 	}
 	game.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
 		PlayerID: "p1",
 		Context: map[string]interface{}{
-			"choice_type":              "bw_mana_inversion_cards",
-			"max_x":                    2,
+			"choice_type":              "se_sword_qi_slash_target",
+			"max_x":                    1,
 			model.PromptFlowContextKey: flow,
 		},
 	})
@@ -36,8 +36,8 @@ func TestPromptFlowCancelBackUsesRuntimeStepSpec(t *testing.T) {
 		Type:     model.CmdCancel,
 	})
 
-	ctxData := testutils.RequireChoiceContext(t, game, "p1", "bw_mana_inversion_x")
-	gotFlow := testutils.RequirePromptFlow(t, ctxData, "bw_mana_inversion", "x")
+	ctxData := testutils.RequireChoiceContext(t, game, "p1", "se_sword_qi_slash_x")
+	gotFlow := testutils.RequirePromptFlow(t, ctxData, "se_sword_qi_slash", "x")
 	if len(gotFlow.History) != 0 {
 		t.Fatalf("back should pop flow history, got %+v", gotFlow.History)
 	}

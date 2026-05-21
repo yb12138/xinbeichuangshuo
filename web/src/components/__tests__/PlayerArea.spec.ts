@@ -121,4 +121,20 @@ describe('PlayerArea indicators', () => {
     expect(screen.queryByTitle('同生共死在场: 1')).toBeNull()
     expect(screen.queryByTitle('同生共死绑定: 1')).toBeNull()
   })
+
+  it('renders hundred dragon lock as a portrait badge instead of a link marker', () => {
+    render(PlayerArea, {
+      props: {
+        player: buildPlayer(),
+        turnOrder: 2,
+        fighterHundredDragonText: '幻龙锁定',
+        fighterHundredDragonTitle: '百式幻龙拳：格斗家 锁定 圣女，本行动阶段只能主动攻击该角色',
+        fighterHundredDragonRole: 'bound',
+      },
+      global: { plugins: [createPinia()] },
+    })
+
+    expect(screen.getByText('幻龙锁定')).toBeTruthy()
+    expect(screen.getByTitle('百式幻龙拳：格斗家 锁定 圣女，本行动阶段只能主动攻击该角色')).toBeTruthy()
+  })
 })

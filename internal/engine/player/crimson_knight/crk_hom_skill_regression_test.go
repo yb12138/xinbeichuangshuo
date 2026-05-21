@@ -506,6 +506,54 @@ func TestHomDualEcho_TargetChoiceCanCancel(t *testing.T) {
 	}
 }
 
+func TestHomDualEcho_TargetChoicePreservesDamageResolutionStage(t *testing.T) {
+	g := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := g.AddPlayer("p1", "Hom", "war_homunculus", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := g.State.Players["p1"]
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Crystal = 1
+	g.State.TurnStage = model.TurnStageActionExecution
+	g.State.CombatStage = model.CombatStageCalcDamage
+	g.State.PendingDamageQueue = []model.PendingDamage{{
+		SourceID:   p1.ID,
+		TargetID:   p1.ID,
+		Damage:     2,
+		DamageType: model.MagicDamage,
+	}}
+
+	h := skills.GetHandler("hom_dual_echo")
+	if h == nil {
+		t.Fatalf("hom_dual_echo handler not found")
+	}
+
+	damageVal := 2
+	ctx := g.BuildContext(p1, p1, model.TimingOnDamageTaken, &model.EventContext{
+		Type:      model.EventDamage,
+		SourceID:  p1.ID,
+		TargetID:  p1.ID,
+		DamageVal: &damageVal,
+	})
+	if !h.CanUse(ctx) {
+		t.Fatalf("expected dual echo can use")
+	}
+	if err := h.Execute(ctx); err != nil {
+		t.Fatalf("execute dual echo failed: %v", err)
+	}
+
+	if g.State.PendingInterrupt == nil || choiceTypeOfInterrupt(g.State.PendingInterrupt) != "hom_dual_echo_target" {
+		t.Fatalf("expected hom_dual_echo_target interrupt, got %+v", g.State.PendingInterrupt)
+	}
+	if got := g.State.CombatStage; got != model.CombatStageCalcDamage {
+		t.Fatalf("dual echo target choice should preserve damage resolution stage, got %s", got)
+	}
+}
+
 func TestHomDualEcho_WhenDamagingEnemyInTwoPlayerGameCanTargetSelf(t *testing.T) {
 	g := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := g.AddPlayer("p1", "Hom", "war_homunculus", model.RedCamp); err != nil {

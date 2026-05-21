@@ -29,6 +29,9 @@ const props = defineProps<{
   turnOrder?: number
   soulLinkBindingText?: string
   soulLinkBindingTitle?: string
+  fighterHundredDragonText?: string
+  fighterHundredDragonTitle?: string
+  fighterHundredDragonRole?: 'source' | 'bound'
   bloodSharedLifeText?: string
   bloodSharedLifeTitle?: string
   bloodSharedLifeRole?: 'source' | 'bound'
@@ -206,6 +209,18 @@ const portraitBadges = computed(() => {
       text: props.soulLinkBindingText,
       title: props.soulLinkBindingTitle || props.soulLinkBindingText,
       cls: 'player-portrait-badge--soul-link',
+    })
+  }
+
+  if (props.fighterHundredDragonText) {
+    badges.push({
+      key: 'fighter-hundred-dragon',
+      text: props.fighterHundredDragonText,
+      title: props.fighterHundredDragonTitle || props.fighterHundredDragonText,
+      cls: [
+        'player-portrait-badge--fighter-hundred-dragon',
+        props.fighterHundredDragonRole ? `player-portrait-badge--fighter-hundred-dragon-${props.fighterHundredDragonRole}` : '',
+      ].filter(Boolean).join(' '),
     })
   }
 
@@ -709,6 +724,26 @@ function handleClick(e: MouseEvent) {
   border-color: rgba(167, 139, 250, 0.62);
   background: rgba(35, 28, 64, 0.88);
   color: #ddd6fe;
+}
+
+.player-portrait-badge--fighter-hundred-dragon {
+  border-color: rgba(251, 146, 60, 0.78);
+  background: rgba(72, 28, 10, 0.9);
+  color: #ffedd5;
+}
+
+.player-portrait-badge--fighter-hundred-dragon-source {
+  box-shadow:
+    0 0 0 1px rgba(251, 146, 60, 0.2),
+    0 3px 8px rgba(19, 12, 43, 0.34),
+    0 0 12px rgba(249, 115, 22, 0.2);
+}
+
+.player-portrait-badge--fighter-hundred-dragon-bound {
+  border-style: dashed;
+  box-shadow:
+    0 0 0 1px rgba(251, 146, 60, 0.12),
+    0 3px 8px rgba(19, 12, 43, 0.34);
 }
 
 .player-portrait-badge--blood-shared-life {

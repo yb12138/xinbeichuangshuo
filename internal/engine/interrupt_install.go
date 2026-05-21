@@ -119,6 +119,10 @@ func (e *GameEngine) syncGamePhaseWithInterrupt(interrupt *model.Interrupt) {
 	case model.InterruptChoice:
 		if IsDiscardSelectionInterrupt(interrupt) {
 			e.EnterDiscardSelection()
+		} else if shouldPreserveChoicePhase(interrupt) {
+			if len(e.State.PendingDamageQueue) > 0 && !e.isDamageResolutionActive() {
+				e.enterDamageResolution(nil)
+			}
 		} else {
 			e.clearSubflow()
 			e.clearCombatStage()
@@ -130,6 +134,23 @@ func (e *GameEngine) syncGamePhaseWithInterrupt(interrupt *model.Interrupt) {
 		e.EnterDiscardSelection()
 	default:
 		e.syncRoleInterruptPhase(interrupt.Type)
+	}
+}
+
+func shouldPreserveChoicePhase(intr *model.Interrupt) bool {
+	if intr == nil || intr.Type != model.InterruptChoice {
+		return false
+	}
+	data, ok := intr.Context.(map[string]interface{})
+	if !ok || data == nil {
+		return false
+	}
+	choiceType, _ := data["choice_type"].(string)
+	switch choiceType {
+	case "hom_dual_echo_target":
+		return true
+	default:
+		return false
 	}
 }
 

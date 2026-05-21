@@ -6,7 +6,6 @@ import {
   manaInversionCardsPrompt,
   manaInversionScenario,
   manaInversionTargetPrompt,
-  manaInversionXPrompt,
   substituteDollCardPrompt,
   substituteDollScenario,
   substituteDollTargetPrompt,
@@ -29,7 +28,7 @@ test.describe('blaze witch substitute doll protocol harness', () => {
     await protocolHarness.pushServerMessage(substituteDollCardPrompt());
 
     // Click the first magic card (火球)
-    await page.getByTestId('hand-card-2').click();
+    await selectHandCards(page, [2]);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       card_ids: ['bw-fire-magic1'],
@@ -52,7 +51,7 @@ test.describe('blaze witch substitute doll protocol harness', () => {
     await protocolHarness.pushServerMessage(substituteDollCardPrompt());
 
     // Click the third magic card option (雷击)
-    await page.getByTestId('hand-card-4').click();
+    await selectHandCards(page, [4]);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       card_ids: ['bw-thunder-magic'],
@@ -61,21 +60,11 @@ test.describe('blaze witch substitute doll protocol harness', () => {
 });
 
 test.describe('blaze witch mana inversion protocol harness', () => {
-  test('mana inversion: select X=2 then pick cards then target', async ({ page, protocolHarness }) => {
+  test('mana inversion: pick 2 magic cards as X then target', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(manaInversionScenario());
 
-    // Step 1: push X selection (numeric overlay)
-    await protocolHarness.pushServerMessage(manaInversionXPrompt(4));
-
-    // Select X=2 from numeric overlay
-    await page.getByTestId('decision-overlay').getByTestId('numeric-option-2').click();
-    await protocolHarness.expectSubmitAction({
-      action_type: 'Select',
-      option_indexes: [0],
-    });
-
-    // Step 2: push card selection (choose_cards, 2 magic cards)
-    await protocolHarness.pushServerMessage(manaInversionCardsPrompt(2));
+    // Step 1: push card selection (choose_cards, X is selected card count)
+    await protocolHarness.pushServerMessage(manaInversionCardsPrompt());
 
     // Select 2 magic cards
     await selectHandCards(page, [2, 3]);
@@ -84,7 +73,7 @@ test.describe('blaze witch mana inversion protocol harness', () => {
       card_ids: ['bw-fire-magic1', 'bw-fire-magic2'],
     });
 
-    // Step 3: push target prompt
+    // Step 2: push target prompt
     await protocolHarness.pushServerMessage(manaInversionTargetPrompt());
 
     // Click enemy player area
@@ -95,19 +84,11 @@ test.describe('blaze witch mana inversion protocol harness', () => {
     });
   });
 
-  test('mana inversion: select X=3 with different cards', async ({ page, protocolHarness }) => {
+  test('mana inversion: pick 3 magic cards as X', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(manaInversionScenario());
 
-    // Select X=3
-    await protocolHarness.pushServerMessage(manaInversionXPrompt(4));
-    await page.getByTestId('decision-overlay').getByTestId('numeric-option-3').click();
-    await protocolHarness.expectSubmitAction({
-      action_type: 'Select',
-      option_indexes: [1],
-    });
-
     // Select 3 magic cards
-    await protocolHarness.pushServerMessage(manaInversionCardsPrompt(3));
+    await protocolHarness.pushServerMessage(manaInversionCardsPrompt());
     await selectHandCards(page, [2, 3, 4]);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',

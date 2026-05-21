@@ -121,34 +121,30 @@ func TestBlazeWitchManaInversion_UsesPromptFlow(t *testing.T) {
 	if err := game.ConfirmResponseSkill("p1", "bw_mana_inversion"); err != nil {
 		t.Fatalf("confirm mana inversion failed: %v", err)
 	}
-	ctxData := testutils.RequireChoiceContext(t, game, "p1", "bw_mana_inversion_x")
-	flow := testutils.RequirePromptFlow(t, ctxData, "bw_mana_inversion", "x")
+	ctxData := testutils.RequireChoiceContext(t, game, "p1", "bw_mana_inversion_cards")
+	testutils.RequirePromptFlow(t, ctxData, "bw_mana_inversion", "cards")
 
-	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
-		t.Fatalf("choose mana inversion x failed: %v", err)
+	prompt := game.BuildChoicePrompt()
+	if prompt == nil {
+		t.Fatalf("expected mana inversion card prompt")
 	}
-	ctxData = testutils.RequireChoiceContext(t, game, "p1", "bw_mana_inversion_cards")
-	flow = testutils.RequirePromptFlow(t, ctxData, "bw_mana_inversion", "cards")
-	if got := flow.Selection("x").Count; got != 2 {
-		t.Fatalf("expected mana inversion flow to accumulate x=2, got %d in %+v", got, flow)
+	if prompt.Message == "【魔能反转】请选择X值：" {
+		t.Fatalf("mana inversion should not ask for numeric X before discarding cards")
 	}
-
-	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
-		t.Fatalf("choose first mana inversion card failed: %v", err)
-	}
-	ctxData = testutils.RequireChoiceContext(t, game, "p1", "bw_mana_inversion_cards")
-	flow = testutils.RequirePromptFlow(t, ctxData, "bw_mana_inversion", "cards")
-	if got := flow.Selection("cards").OptionIndexes; len(got) != 1 || got[0] != 0 {
-		t.Fatalf("expected mana inversion flow to accumulate first card index 0, got %+v in %+v", got, flow)
+	if prompt.Min != 2 || prompt.Max != 2 {
+		t.Fatalf("expected card picker min/max 2, got min=%d max=%d", prompt.Min, prompt.Max)
 	}
 
-	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
-		t.Fatalf("choose second mana inversion card failed: %v", err)
+	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0, 1}}); err != nil {
+		t.Fatalf("choose mana inversion cards failed: %v", err)
 	}
 	ctxData = testutils.RequireChoiceContext(t, game, "p1", "bw_mana_inversion_target")
-	flow = testutils.RequirePromptFlow(t, ctxData, "bw_mana_inversion", "target")
+	flow := testutils.RequirePromptFlow(t, ctxData, "bw_mana_inversion", "target")
 	if got := flow.Selection("cards").OptionIndexes; len(got) != 2 || got[0] != 0 || got[1] != 1 {
 		t.Fatalf("expected mana inversion flow to accumulate magic card indexes [0 1], got %+v in %+v", got, flow)
+	}
+	if got := flow.Selection("cards").Count; got != 2 {
+		t.Fatalf("expected mana inversion X to equal selected card count 2, got %d", got)
 	}
 
 	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
