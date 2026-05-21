@@ -2331,15 +2331,6 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "bs_one_strike_intercept", Timings: []model.FlowTiming{model.TimingOnAttackDeclared}, Title: "一击无念·下次攻击劫持",
-					Type:        model.SkillTypePassive,
-					Description: "当一击无念已挂载时，你的下一次主动攻击无视圣盾且无法用圣光抵挡；若攻击牌为技命格，则强制命中。",
-
-					ResponseType: model.ResponseSilent,
-					LogicHandler: "bs_one_strike_intercept",
-					TargetType:   model.TargetNone,
-				},
-				{
 					ID: "bs_beast_soul_will", Timings: []model.FlowTiming{model.TimingOnHitCheck}, Title: "兽魂意念",
 					Type:        model.SkillTypePassive,
 					Description: "每移除1点兽魂，你+1残心；仅普通形态下，主动攻击命中时你+1兽魂。",

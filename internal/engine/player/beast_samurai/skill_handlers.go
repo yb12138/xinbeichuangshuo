@@ -17,8 +17,6 @@ type BeastSamuraiWarriorZanshinHandler struct{ engineplayer.BaseHandler }
 
 type BeastSamuraiOneStrikeNoThoughtHandler struct{ engineplayer.BaseHandler }
 
-type BeastSamuraiOneStrikeInterceptHandler struct{ engineplayer.BaseHandler }
-
 type BeastSamuraiBeastSoulWillHandler struct{ engineplayer.BaseHandler }
 
 type BeastSamuraiBeastSoulAlertHandler struct{ engineplayer.BaseHandler }
@@ -108,10 +106,6 @@ func (h *BeastSamuraiOneStrikeNoThoughtHandler) Execute(ctx *model.Context) erro
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [一击无念]：移除4点残心（剩余%d），额外获得1次攻击行动并挂载下次攻击劫持", ctx.User.Name, left))
 	return nil
 }
-
-func (h *BeastSamuraiOneStrikeInterceptHandler) CanUse(ctx *model.Context) bool { return false }
-
-func (h *BeastSamuraiOneStrikeInterceptHandler) Execute(ctx *model.Context) error { return nil }
 
 func (h *BeastSamuraiBeastSoulWillHandler) CanUse(ctx *model.Context) bool { return false }
 

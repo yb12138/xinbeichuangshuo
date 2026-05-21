@@ -55,7 +55,6 @@ func SkillEntries() []player.SkillEntry {
 	return []player.SkillEntry{
 		{ID: "bs_warrior_zanshin", Handler: &BeastSamuraiWarriorZanshinHandler{}},
 		{ID: "bs_one_strike_no_thought", Handler: &BeastSamuraiOneStrikeNoThoughtHandler{}},
-		{ID: "bs_one_strike_intercept", Handler: &BeastSamuraiOneStrikeInterceptHandler{}},
 		{ID: "bs_beast_soul_will", Handler: &BeastSamuraiBeastSoulWillHandler{}},
 		{ID: "bs_beast_soul_alert", Handler: &BeastSamuraiBeastSoulAlertHandler{}},
 		{ID: "bs_beast_return", Handler: &BeastSamuraiBeastReturnHandler{}},
