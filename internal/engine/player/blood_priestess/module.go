@@ -73,7 +73,13 @@ func SkillEntries() []player.SkillEntry {
 		{ID: "bp_bleeding", Handler: &BleedingHandler{}},
 		{ID: "bp_backflow", Handler: &BackflowHandler{}},
 		{ID: "bp_blood_wail", Handler: &BloodWailHandler{}},
-		{ID: "bp_shared_life", Handler: &SharedLifeHandler{}},
+		{
+			ID:      "bp_shared_life",
+			Handler: &SharedLifeHandler{},
+			Policy: types.SkillPolicy{
+				ManualExclusiveCard: true,
+			},
+		},
 		{ID: "bp_blood_curse", Handler: &BloodCurseHandler{}},
 	}
 }

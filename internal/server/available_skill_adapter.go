@@ -63,6 +63,18 @@ func (r *Room) buildAvailableActionSkills(playerID string) []AvailableSkill {
 				continue
 			}
 		}
+		if sd.ID == "ss_soul_recall" {
+			hasMagic := false
+			for _, c := range p.Hand {
+				if c.Type == model.CardTypeMagic {
+					hasMagic = true
+					break
+				}
+			}
+			if !hasMagic {
+				continue
+			}
+		}
 		if sd.ID == "mb_thunder_scatter" {
 			if p.TurnState.UsedSkillCounts["mb_charge_lock_turn"] > 0 {
 				continue

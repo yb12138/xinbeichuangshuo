@@ -598,6 +598,14 @@ const isManualTargetConfirmSkillFlow = computed(() => {
     return SKILL_REQUIRE_MANUAL_TARGET_CONFIRM_IDS.has(skillId)
 })
 
+function hasMatchingExclusiveCard(skill: AvailableSkill): boolean {
+    if (!skill?.require_exclusive) return true
+    const roleId = resolveMyRoleIdForExclusive()
+    if (!roleId) return false
+    return myHand.value.some(card => cardMatchesExclusive(card, roleId, skill.title)) ||
+        (myPlayer.value?.exclusive_cards || []).some(card => cardMatchesExclusive(card, roleId, skill.title))
+}
+
 function selectSkill(skill: AvailableSkill) {
     if (!canSelectSkill(skill)) {
         interruptStore.showError(skillDisabledReason(skill))
@@ -766,6 +774,7 @@ function canSelectSkill(skill: AvailableSkill): boolean {
     // 服务端已下发 available_skills 时，以后端可用态为准，避免前端本地预检与后端规则漂移导致误置灰。
     if (isServerPublishedAvailableSkill(skill)) return true
     if (!canPaySkillEnergy(skill)) return false
+    if (skill.require_exclusive && !hasMatchingExclusiveCard(skill)) return false
     const tokenReason = skillTokenDisabledReason(skill)
     if (tokenReason) return false
     if (skill.id === 'prayer_radiant_faith' || skill.id === 'prayer_dark_curse') {
@@ -810,6 +819,9 @@ function skillDisabledReason(skill: AvailableSkill): string {
     }
     if (skill.id === 'angel_cleanse') {
         return '手牌中没有风系牌，无法发动【风之洁净】。'
+    }
+    if (skill.require_exclusive && !hasMatchingExclusiveCard(skill)) {
+        return `缺少可用于发动的「${skill.title}」专属/独有牌。`
     }
     if (skill.cost_discards > 0) {
         const required = requiredDiscardCount(skill)

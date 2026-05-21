@@ -2447,6 +2447,8 @@ func GetCharacters() []model.Character {
 				{
 					ID: "ss_soul_recall", Timings: []model.FlowTiming{model.TimingActive}, Title: "灵魂召还",
 					Type:         model.SkillTypeAction,
+					CostDiscards: 1,
+					DiscardType:  model.CardTypeMagic,
 					Description:  "弃X张法术牌［展示］，你+X点［蓝色灵魂］（上限6）。",
 					LogicHandler: "ss_soul_recall",
 					TargetType:   model.TargetNone,
@@ -2635,11 +2637,12 @@ func GetCharacters() []model.Character {
 				},
 				{
 					ID: "bp_shared_life", Timings: []model.FlowTiming{model.TimingActive}, Title: "同生共死",
-					Type:         model.SkillTypeAction,
-					Tags:         []model.SkillTag{model.TagExclusive},
-					Description:  "你摸2张牌（强制），将【同生共死】放置于目标角色面前：普通形态下你和其手牌上限各-2；流血形态下你和其手牌上限各+1。",
-					LogicHandler: "bp_shared_life",
-					TargetType:   model.TargetNone,
+					Type:             model.SkillTypeAction,
+					Tags:             []model.SkillTag{model.TagExclusive},
+					RequireExclusive: true,
+					Description:      "你摸2张牌（强制），将【同生共死】放置于目标角色面前：普通形态下你和其手牌上限各-2；流血形态下你和其手牌上限各+1。",
+					LogicHandler:     "bp_shared_life",
+					TargetType:       model.TargetNone,
 				},
 				{
 					ID: "bp_blood_curse", Timings: []model.FlowTiming{model.TimingActive}, Title: "血之诅咒",

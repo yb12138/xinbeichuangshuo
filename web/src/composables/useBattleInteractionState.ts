@@ -223,33 +223,12 @@ export function useBattleInteractionState() {
     !(actionMode.value === 'magic' && selectedActionIsMagicBullet.value)
   )
 
-  const effectiveAvailableSkills = computed((): AvailableSkill[] => {
-    // 行动阶段且轮到自己时，主动技可用性以后端 available_skills 为准（包含空列表）。
-    // 避免前端按角色目录重新推断规则导致与后端可用态漂移。
-    // 【关键修复】当后端明确下发 available_skills（即使为空列表）时，
-    // 不再使用目录推导结果，防止 “所有技能被锁定” 场景误显示技能。
-    if (isMyTurn.value && turnStage.value === 'ActionExecution') {
-      return availableSkills.value
-    }
-    // 【关键】仅在非行动执行阶段，且后端从未下发 available_skills 时才使用目录技能摘要。
-    // 通过检查 snapshotStore 的 availableSkills 是否被显式设置来判断。
-    // 如果 turnStage 是 ActionExecution 但 availableSkills 为空，说明后端已下发空列表（技能全被锁定）。
-    if (turnStage.value === 'ActionExecution') {
-      return availableSkills.value
-    }
-    if (availableSkills.value.length > 0) return availableSkills.value
+  function catalogActionSkills(): AvailableSkill[] {
     const roleLookup = myCharRole.value || myPlayer.value?.role || ''
     const char = getCharacter(roleLookup)
     if (!char?.skills?.length) return []
-    const roleId = myCharRole.value || char.id
-    const roleName = char.name
     const actionSkills = char.skills.filter((skill: { type?: number }) => (skill.type ?? 2) === 2)
     const catalogAvailableSkills = actionSkills
-      .filter((skill: SkillView) => {
-        if (!skill.require_exclusive) return true
-        return myHand.value.some((card) => cardMatchesExclusive(card, roleId, skill.title, roleName)) ||
-          myExclusiveCards.value.some((card) => cardMatchesExclusive(card, roleId, skill.title, roleName))
-      })
       .map((skill: SkillView) => {
         const targetType = skill.target_type ?? 0
         const minTargets = skill.min_targets ?? 0
@@ -269,6 +248,25 @@ export function useBattleInteractionState() {
         }
       })
     return catalogAvailableSkills
+  }
+
+  const effectiveAvailableSkills = computed((): AvailableSkill[] => {
+    if (isMyTurn.value && turnStage.value === 'ActionExecution') {
+      const serverSkillByID = new Map(availableSkills.value.map(skill => [skill.id, skill]))
+      const merged = catalogActionSkills().map(skill => serverSkillByID.get(skill.id) || skill)
+      const seen = new Set(merged.map(skill => skill.id))
+      for (const skill of availableSkills.value) {
+        if (!seen.has(skill.id)) {
+          merged.push(skill)
+        }
+      }
+      return merged
+    }
+    if (turnStage.value === 'ActionExecution') {
+      return availableSkills.value
+    }
+    if (availableSkills.value.length > 0) return availableSkills.value
+    return catalogActionSkills()
   })
 
   const canConfirmSkill = computed(() => {

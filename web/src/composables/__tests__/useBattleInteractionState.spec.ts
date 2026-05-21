@@ -145,7 +145,7 @@ describe('useBattleInteractionState available skill source of truth', () => {
     expect(interaction.effectiveAvailableSkills.value.map((s) => s.id)).toEqual(['fire_seal'])
   })
 
-  it('does not fall back to static character skills when backend available_skills is empty in own ActionExecution turn', () => {
+  it('still shows catalog action skills when backend available_skills is empty in own ActionExecution turn', () => {
     const sessionStore = useSessionStore()
     const snapshotStore = useSnapshotStore()
     sessionStore.setRoomInfo('ROOM', 'p1', 'Red', 'sealer')
@@ -167,7 +167,7 @@ describe('useBattleInteractionState available skill source of truth', () => {
     }))
 
     const interaction = useBattleInteractionState()
-    expect(interaction.effectiveAvailableSkills.value).toEqual([])
+    expect(interaction.effectiveAvailableSkills.value.map((s) => s.id)).toEqual(['fire_seal'])
   })
 })
 

@@ -2,6 +2,7 @@ package beast_samurai_test
 
 import (
 	"starcup-engine/internal/engine"
+	"starcup-engine/internal/server/viewmodel"
 	"starcup-engine/internal/testutils"
 	"strings"
 	"testing"
@@ -465,6 +466,10 @@ func TestBeastSamurai_BeastReturn_XFlowAndMagicDiscardGainSoul(t *testing.T) {
 	}
 	if len(xPrompt.Options) != 1 || xPrompt.Options[0].ID != "1" || strings.Contains(xPrompt.Options[0].Label, "X=0") {
 		t.Fatalf("expected beast return X prompt to start at 1, got %+v", xPrompt.Options)
+	}
+	xPromptDTO := viewmodel.ToPromptDTO(xPrompt)
+	if len(xPromptDTO.Options) != 1 || xPromptDTO.Options[0].ButtonLabel != "1" {
+		t.Fatalf("expected beast return X button to show 1, got %+v", xPromptDTO.Options)
 	}
 
 	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
