@@ -148,7 +148,7 @@ func (r *Runtime) runOnTiming(h Host, timing model.FlowTiming, ctx *model.Contex
 		}
 	}
 
-	if timing == model.TimingBeforeMoraleLoss {
+	if timing == model.TimingBeforeMoraleLoss || timing == model.TimingOnDamageTaken {
 		for _, item := range r.collectTargetsWithSkillsByPriority(h, targetsToCheck, timing, ctx) {
 			r.trig.ProcessSkillBatch(h, item.skills, item.ctx)
 		}

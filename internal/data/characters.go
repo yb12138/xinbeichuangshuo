@@ -1434,6 +1434,7 @@ func GetCharacters() []model.Character {
 					Type:        model.SkillTypeResponse,
 					Tags:        []model.SkillTag{model.TagTurnLimit, model.TagCrystal, model.TagUltimate, model.TagOptional},
 					CostCrystal: 1,
+					Priority:    200,
 					Description: "回合限定：对目标角色造成攻击或法术伤害时可消耗1蓝水晶，对另一名角色造成等量（最多3）法术伤害；该伤害不会造成士气下降。",
 
 					ResponseType: model.ResponseOptional,
@@ -1634,6 +1635,7 @@ func GetCharacters() []model.Character {
 					Type:         model.SkillTypeResponse,
 					CostDiscards: 1,
 					DiscardType:  model.CardTypeMagic,
+					Priority:     100,
 					Description:  "任何人对你造成攻击伤害时可响应：弃1张法术牌［展示］，令1名队友摸1张牌。",
 
 					RequiredRole: model.RoleDefender,
@@ -1659,6 +1661,7 @@ func GetCharacters() []model.Character {
 					Type:        model.SkillTypeResponse,
 					Tags:        []model.SkillTag{model.TagCrystal, model.TagUltimate},
 					CostCrystal: 1,
+					Priority:    100,
 					Description: "［水晶］任何人对你造成法术伤害时可响应：弃X张法术牌［展示］（X>1），对目标对手造成(X-1)点法术伤害。",
 
 					RequiredRole: model.RoleDefender,
