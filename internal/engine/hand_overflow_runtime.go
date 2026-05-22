@@ -34,6 +34,17 @@ func (e *GameEngine) CheckHandLimitCtx(player *model.Player, ctx *model.Context)
 	overflowCtx := e.buildHandOverflowContext(ctx)
 	over := len(player.Hand) - e.GetMaxHand(player)
 	if over > 0 {
+		e.dispatchSettlementRulebookTiming(model.TimingSettleHandLimit, player, player, &model.EventContext{
+			Type:     model.EventAfterDraw,
+			SourceID: player.ID,
+			TargetID: player.ID,
+			ActionType: func() model.ActionType {
+				if ctx == nil || ctx.EventCtx == nil {
+					return ""
+				}
+				return ctx.EventCtx.ActionType
+			}(),
+		})
 		e.pushHandOverflowDiscardInterrupt(player, over, overflowCtx)
 		e.Log(fmt.Sprintf("[System] %s 手牌超出上限 %d 张！需要选择 %d 张牌丢弃", player.Name, len(player.Hand), over))
 		return

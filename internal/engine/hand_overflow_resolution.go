@@ -41,6 +41,11 @@ func (e *GameEngine) resolveDiscardSelection(playerID string, indices []int, dat
 		return fmt.Errorf("玩家不存在")
 	}
 
+	e.dispatchSettlementRulebookTiming(model.TimingSettleDiscard, player, player, &model.EventContext{
+		Type:     model.EventCardUsed,
+		SourceID: player.ID,
+		TargetID: player.ID,
+	})
 	discardedCards, err := e.PerformDiscardFromHand(player, indices)
 	if err != nil {
 		return err
@@ -57,6 +62,10 @@ func (e *GameEngine) resolveDiscardSelection(playerID string, indices []int, dat
 		// 角色后续可能已插入新的中断；若无中断，继续恢复流程。
 	}
 
+	e.dispatchSettlementRulebookTiming(model.TimingGameEndCheck, player, nil, &model.EventContext{
+		Type:     model.EventPhaseEnd,
+		SourceID: player.ID,
+	})
 	e.checkGameEnd()
 	return nil
 }
@@ -148,6 +157,7 @@ func (e *GameEngine) resolveDiscardSelectionMoraleLoss(player *model.Player, dis
 	}
 
 	lossCtx := e.buildDiscardMoraleLossContext(victim, player, discardedCards, moraleLoss, isMagic, fromDamageDraw, stayInTurn, isDamageResolution, data)
+	e.dispatchSettlementRulebookTiming(model.TimingMoraleLossCheck, victim, nil, lossCtx.EventCtx)
 	e.dispatcher.OnTiming(lossCtx.Timing, lossCtx)
 	if e.hasQueuedMoraleLossResponse() {
 		lossCtx.Selections["morale_loss_pending"] = true

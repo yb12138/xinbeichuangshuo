@@ -206,6 +206,13 @@ func (e *GameEngine) handleSystemHealChoice(selectionIndex int, ctxData map[stri
 	if healToUse > pd.Damage {
 		healToUse = pd.Damage
 	}
+	e.dispatchSettlementRulebookTiming(model.TimingHealUse, target, e.State.Players[pd.SourceID], &model.EventContext{
+		Type:      model.EventHeal,
+		SourceID:  pd.SourceID,
+		TargetID:  pd.TargetID,
+		DamageVal: &healToUse,
+		Card:      pd.Card,
+	})
 	if healToUse > 0 {
 		target.Heal -= healToUse
 		pd.Damage -= healToUse

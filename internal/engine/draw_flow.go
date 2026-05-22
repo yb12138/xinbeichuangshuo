@@ -176,6 +176,7 @@ func (e *GameEngine) executeResolvedDraw(ctx *model.Context, drawCount int, reas
 		ctx.EventCtx.Type = model.EventAfterDraw
 		ctx.EventCtx.DrawCount = &actualDrawCount
 	}
+	e.dispatchSettlementRulebookTiming(model.TimingSettleDraw, target, target, ctx.EventCtx)
 	e.dispatcher.OnTiming(ctx.Timing, ctx)
 
 	e.CheckHandLimitCtx(target, ctx)

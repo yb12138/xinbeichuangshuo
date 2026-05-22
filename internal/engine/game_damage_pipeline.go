@@ -13,6 +13,7 @@ func (e *GameEngine) AddPendingDamage(pd model.PendingDamage) {
 	e.State.PendingDamageQueue = append(e.State.PendingDamageQueue, pd)
 	e.Log(fmt.Sprintf("[System] 延迟伤害已添加: Source: %s, Target: %s, Damage: %d, Type: %s",
 		pd.SourceID, pd.TargetID, pd.Damage, pd.DamageType))
+	e.dispatchDamageRulebookTiming(model.TimingDamageSourceDeal, &pd)
 
 	if !e.isDamageResolutionActive() {
 		if e.State.ReturnTurnStage == "" && e.State.ReturnCombatStage == model.CombatStageNone && e.State.ReturnSubflow == model.SubflowNone {
@@ -29,6 +30,7 @@ func (e *GameEngine) AddPendingDamageFront(pd model.PendingDamage) {
 	e.State.PendingDamageQueue = append([]model.PendingDamage{pd}, e.State.PendingDamageQueue...)
 	e.Log(fmt.Sprintf("[System] 延迟伤害已前插: Source: %s, Target: %s, Damage: %d, Type: %s",
 		pd.SourceID, pd.TargetID, pd.Damage, pd.DamageType))
+	e.dispatchDamageRulebookTiming(model.TimingDamageSourceDeal, &pd)
 
 	if !e.isDamageResolutionActive() {
 		if e.State.ReturnTurnStage == "" && e.State.ReturnCombatStage == model.CombatStageNone && e.State.ReturnSubflow == model.SubflowNone {
@@ -86,6 +88,9 @@ func (e *GameEngine) removePendingDamageIfAttackMissed(pd *model.PendingDamage) 
 
 func (e *GameEngine) processPendingDamageBeforeApply(pd *model.PendingDamage) bool {
 	// 承伤前统一阶段：角色规则通过 hooks 注入，主流程不写角色特判。
+	if e.dispatchDamageRulebookTimingOnce(model.TimingDamageTargetBefore, pd, pendingDamageCheckTimingDamageTargetBefore) {
+		return true
+	}
 	if e.applyTimingOnDamageCalculatedBeforeTakenRules(pd) {
 		return true
 	}
@@ -95,7 +100,13 @@ func (e *GameEngine) processPendingDamageBeforeApply(pd *model.PendingDamage) bo
 	if e.applyTimingOnDamageTakenAfterTakenRules(pd) {
 		return true
 	}
+	if e.dispatchDamageRulebookTimingOnce(model.TimingHealBefore, pd, pendingDamageCheckTimingHealBefore) {
+		return true
+	}
 	if e.resolvePendingDamageHealChoice(pd) {
+		return true
+	}
+	if e.dispatchDamageRulebookTimingOnce(model.TimingDamageApplied, pd, pendingDamageCheckTimingDamageApplied) {
 		return true
 	}
 	if e.applyTimingOnDamageAppliedRules(pd) {
@@ -128,5 +139,6 @@ func (e *GameEngine) applyAndPopPendingDamage(pd *model.PendingDamage) model.Pen
 
 	resolved := *pd
 	e.State.PendingDamageQueue = e.State.PendingDamageQueue[1:]
+	e.dispatchDamageRulebookTiming(model.TimingDamageResolved, &resolved)
 	return resolved
 }

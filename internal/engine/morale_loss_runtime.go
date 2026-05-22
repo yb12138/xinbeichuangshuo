@@ -30,6 +30,12 @@ func (e *GameEngine) ApplyMoraleLossAfterTimingWindow(victim *model.Player, mora
 	}
 
 	finalLoss = e.ApplyCampMoraleLoss(victim.Camp, finalLoss)
+	e.dispatchSettlementRulebookTiming(model.TimingMoraleLossApplied, victim, nil, &model.EventContext{
+		Type:      model.EventDamage,
+		SourceID:  moraleLossSourceID(lossCtx),
+		TargetID:  victim.ID,
+		DamageVal: &finalLoss,
+	})
 	for _, entry := range roleRegistry.Entries() {
 		if entry.AfterMoraleLossHook != nil {
 			entry.AfterMoraleLossHook(e, victim, finalLoss, fromDamageDraw)

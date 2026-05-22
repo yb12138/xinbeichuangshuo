@@ -210,6 +210,9 @@ func (e *GameEngine) dispatchPendingDamageTaken(pd *model.PendingDamage) bool {
 	damageCtx.Selections["damage_type"] = pd.DamageType
 	pd.DamageTakenFlowDispatched = true
 
+	if e.dispatchDamageRulebookTiming(model.TimingDamageTaken, pd) {
+		return true
+	}
 	e.dispatcher.OnTiming(damageCtx.Timing, damageCtx)
 	return e.State.PendingInterrupt != nil
 }
@@ -225,6 +228,13 @@ func (e *GameEngine) resolvePendingDamageHealChoice(pd *model.PendingDamage) boo
 		if pd.Damage < maxHeal {
 			maxHeal = pd.Damage
 		}
+		e.dispatchSettlementRulebookTiming(model.TimingHealCap, target, e.State.Players[pd.SourceID], &model.EventContext{
+			Type:      model.EventHeal,
+			SourceID:  pd.SourceID,
+			TargetID:  pd.TargetID,
+			DamageVal: &maxHeal,
+			Card:      pd.Card,
+		})
 		maxHeal = e.applyTimingOnDamageCalculatedHealCapRules(pd, target, maxHeal)
 		if maxHeal > 0 {
 			pd.HealResolved = true // 设置标记防止重复推入中断
