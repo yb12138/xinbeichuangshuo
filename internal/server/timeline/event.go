@@ -68,7 +68,7 @@ func BuildEvent(meta EventMeta, payload Payload) protocol.TimelineEvent {
 	if actorName := firstNonEmptyString(payload.PlayerName, payload.SourceName); actorName != "" {
 		event.ActorName = actorName
 	}
-	if target := firstNonEmptyString(payload.TargetID, payload.PlayerID); target != "" && target != event.ActorUserID {
+	if target := firstNonEmptyString(payload.TargetID, payload.PlayerID); target != "" && (payload.Type == "damage_dealt" || target != event.ActorUserID) {
 		event.TargetUserIDs = []string{target}
 	}
 	if payload.TargetName != "" {

@@ -194,6 +194,59 @@ func TestBlazeWitchHeavenfireCleave_AllowsNonFireAttackDiscardInFlameForm(t *tes
 	}
 }
 
+func TestBlazeWitchBlazingCodex_CostThenTargetPrompt(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Blaze", "blaze_witch", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Hand = []model.Card{
+		{ID: "f1", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Faction: "血", Damage: 2},
+	}
+
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	if err := game.UseSkill("p1", "bw_blazing_codex", nil, nil); err != nil {
+		t.Fatalf("request blazing codex discard prompt failed: %v", err)
+	}
+	testutils.RequireChoicePrompt(t, game, "p1", "system_discard_cards")
+
+	if err := game.ConfirmDiscard("p1", []int{0}); err != nil {
+		t.Fatalf("confirm blazing codex fire discard failed: %v", err)
+	}
+	ctxData := testutils.RequireChoiceContext(t, game, "p1", "bw_blazing_codex_target")
+	targetIDs, _ := ctxData["target_ids"].([]string)
+	if len(targetIDs) != 1 || targetIDs[0] != "p2" {
+		t.Fatalf("expected target prompt for p2, got %+v", ctxData["target_ids"])
+	}
+	if game.State.Subflow != model.SubflowNone {
+		t.Fatalf("expected discard subflow restored before target prompt, got %s", game.State.Subflow)
+	}
+
+	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
+		t.Fatalf("choose blazing codex target failed: %v", err)
+	}
+	if got := len(p1.Hand); got != 0 {
+		t.Fatalf("expected blazing codex to discard the selected fire card, got hand=%d", got)
+	}
+	if got := len(game.State.DiscardPile); got != 1 || game.State.DiscardPile[0].ID != "f1" {
+		t.Fatalf("expected selected fire card in discard pile, got %+v", game.State.DiscardPile)
+	}
+	if got := len(game.State.PendingDamageQueue); got != 2 {
+		t.Fatalf("expected target and self pending damage, got %d", got)
+	}
+	if game.State.PendingDamageQueue[0].TargetID != "p2" || game.State.PendingDamageQueue[1].TargetID != "p1" {
+		t.Fatalf("expected damage order target then self, got %+v", game.State.PendingDamageQueue)
+	}
+}
+
 func TestBlazeWitchRebirthClock_IncreasesOnMagicMoraleLossWithCap(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "Blaze", "blaze_witch", model.RedCamp); err != nil {

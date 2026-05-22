@@ -381,7 +381,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 				})
 			}
 			if targetID == user.ID {
-				rt.Log(fmt.Sprintf("%s 发动 [魔道法典]：弃%d张异系牌，对自己造成%d点法术伤害（目标为自己，两次各1点）", user.Name, xValue, damage))
+				rt.Log(fmt.Sprintf("%s 发动 [魔道法典]：弃%d张异系牌，目标为自己，连续对自己造成两次%d点法术伤害（合计%d点）", user.Name, xValue, damage, damage*2))
 			} else {
 				rt.Log(fmt.Sprintf("%s 发动 [魔道法典]：弃%d张异系牌，对 %s 与自己各造成%d点法术伤害", user.Name, xValue, target.Name, damage))
 			}

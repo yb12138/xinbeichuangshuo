@@ -93,6 +93,7 @@ func SkillEntries() []player.SkillEntry {
 // ChoiceRouteSpecs 导出角色 choice 路由声明。
 func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 	return map[string]types.ChoiceRouteSpec{
+		"bw_blazing_codex_target":   types.ChoiceRouteRole("blaze_witch"),
 		"bw_mana_inversion_cards":   types.ChoiceRouteRole("blaze_witch"),
 		"bw_mana_inversion_target":  types.ChoiceRouteRole("blaze_witch"),
 		"bw_pain_link_pick":         types.ChoiceRouteRole("blaze_witch"),

@@ -363,7 +363,7 @@ func (r roleChoiceRuntime) DrawCardsDirect(playerID string, amount int, reason s
 	r.State.Deck = newDeck
 	r.State.DiscardPile = newDiscard
 	p.Hand = append(p.Hand, cards...)
-	r.NotifyDrawCards(playerID, amount, reason)
+	r.NotifyDrawCards(playerID, len(cards), reason)
 }
 
 func (r roleChoiceRuntime) DrawRawCards(amount int) ([]model.Card, bool) {

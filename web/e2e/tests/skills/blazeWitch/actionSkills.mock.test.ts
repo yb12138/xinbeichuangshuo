@@ -4,7 +4,10 @@ import {
   BW_BLAZING_CODEX_ID,
   BW_HEAVENFIRE_CLEAVE_ID,
   BW_PAIN_LINK_ID,
+  ENEMY_PLAYER_ID,
+  blazingCodexDiscardPrompt,
   blazingCodexScenario,
+  blazingCodexTargetPrompt,
   heavenfireCleaveScenario,
   painLinkDiscardPrompt,
   painLinkScenario,
@@ -35,6 +38,30 @@ test.describe('blaze witch blazing codex protocol harness', () => {
     await protocolHarness.expectSubmitAction({
       action_type: 'Skill',
       skill_id: BW_BLAZING_CODEX_ID,
+    });
+  });
+
+  test('blazing codex: discard fire card before selecting target', async ({ page, protocolHarness }) => {
+    await protocolHarness.bootGame(blazingCodexScenario());
+
+    await activatePanelSkill(page, BW_BLAZING_CODEX_ID);
+    await protocolHarness.expectSubmitAction({
+      action_type: 'Skill',
+      skill_id: BW_BLAZING_CODEX_ID,
+    });
+
+    await protocolHarness.pushServerMessage(blazingCodexDiscardPrompt());
+    await selectHandCards(page, [0]);
+    await protocolHarness.expectSubmitAction({
+      action_type: 'Select',
+      card_ids: ['bw-fire-atk1'],
+    });
+
+    await protocolHarness.pushServerMessage(blazingCodexTargetPrompt());
+    await page.getByTestId(`player-area-${ENEMY_PLAYER_ID}`).click();
+    await protocolHarness.expectSubmitAction({
+      action_type: 'Select',
+      option_indexes: [0],
     });
   });
 });

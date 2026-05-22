@@ -196,6 +196,35 @@ func TestBuildTimelineNotify_DamageEvent(t *testing.T) {
 	}
 }
 
+func TestBuildTimelineNotify_SelfDamageKeepsTarget(t *testing.T) {
+	room := NewRoom("TIMELINE_SELF_DAMAGE")
+	room.Engine = engine.NewGameEngine(room)
+
+	payload := room.buildTimelineNotify(timeline.Payload{
+		Type:       "damage_dealt",
+		SourceID:   "p1",
+		SourceName: "Alice",
+		TargetID:   "p1",
+		TargetName: "Alice",
+		Damage:     3,
+		DamageType: "magic",
+	})
+
+	if len(payload.Events) != 1 {
+		t.Fatalf("expected 1 timeline event, got %d", len(payload.Events))
+	}
+	event := payload.Events[0]
+	if event.ActorUserID != "p1" {
+		t.Fatalf("expected actor p1, got %+v", event)
+	}
+	if len(event.TargetUserIDs) != 1 || event.TargetUserIDs[0] != "p1" {
+		t.Fatalf("expected self-damage target p1 to be preserved, got %+v", event)
+	}
+	if len(event.Deltas) != 1 || event.Deltas[0].TargetUserID != "p1" || event.Deltas[0].Value != 3 {
+		t.Fatalf("expected self-damage delta on p1, got %+v", event.Deltas)
+	}
+}
+
 func TestBuildRequireActionPayload_UsesStructuredPromptField(t *testing.T) {
 	prompt := &model.Prompt{
 		Type:       model.PromptConfirm,

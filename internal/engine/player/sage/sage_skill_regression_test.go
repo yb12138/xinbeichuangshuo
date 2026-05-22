@@ -471,6 +471,182 @@ func TestSageHolyCodex_MultiSelectCardsAndTargetCountBoundaries(t *testing.T) {
 	}
 }
 
+func TestSageArcaneCodexSelfTargetQueuesTwoSelfDamages(t *testing.T) {
+	g := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := g.AddPlayer("p1", "Sage", "sage", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	p1 := g.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Gem = 1
+	p1.Hand = []model.Card{
+		sageTestCard("h1", "火焰斩", model.CardTypeAttack, model.ElementFire),
+		sageTestCard("h2", "水涟斩", model.CardTypeAttack, model.ElementWater),
+		sageTestCard("h3", "风神斩", model.CardTypeAttack, model.ElementWind),
+		sageTestCard("h4", "雷光斩", model.CardTypeAttack, model.ElementThunder),
+	}
+	g.State.CurrentTurn = 0
+	g.State.TurnStage = model.TurnStageActionExecution
+
+	if err := g.UseSkill("p1", "sage_arcane_codex", nil, nil); err != nil {
+		t.Fatalf("use arcane codex failed: %v", err)
+	}
+	if err := g.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0, 1, 2, 3}}); err != nil {
+		t.Fatalf("choose arcane cards failed: %v", err)
+	}
+	ctxData := testutils.RequireChoiceContext(t, g, "p1", "sage_arcane_target")
+	targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
+	selfSelection := -1
+	for idx, targetID := range targetIDs {
+		if targetID == "p1" {
+			selfSelection = idx
+			break
+		}
+	}
+	if selfSelection < 0 {
+		t.Fatalf("expected target pool to include self, got %v", targetIDs)
+	}
+	if err := g.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{selfSelection}}); err != nil {
+		t.Fatalf("choose self target failed: %v", err)
+	}
+
+	if got := len(g.State.PendingDamageQueue); got < 2 {
+		t.Fatalf("expected two pending self damages, got %d", got)
+	}
+	for i := 0; i < 2; i++ {
+		pd := g.State.PendingDamageQueue[i]
+		if pd.SourceID != "p1" || pd.TargetID != "p1" || pd.Damage != 3 || !strings.EqualFold(string(pd.DamageType), string(model.MagicAttack)) {
+			t.Fatalf("unexpected self damage %d: %+v", i, pd)
+		}
+	}
+}
+
+func TestSageArcaneCodexSelfTargetDrawsBothDamageInstances(t *testing.T) {
+	g := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := g.AddPlayer("p1", "Sage", "sage", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	p1 := g.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Gem = 1
+	p1.Hand = []model.Card{
+		sageTestCard("h1", "火焰斩", model.CardTypeAttack, model.ElementFire),
+		sageTestCard("h2", "水涟斩", model.CardTypeAttack, model.ElementWater),
+		sageTestCard("h3", "风神斩", model.CardTypeAttack, model.ElementWind),
+		sageTestCard("h4", "雷光斩", model.CardTypeAttack, model.ElementThunder),
+	}
+	g.State.Deck = []model.Card{
+		sageTestCard("d1", "伤害摸牌1", model.CardTypeAttack, model.ElementFire),
+		sageTestCard("d2", "伤害摸牌2", model.CardTypeAttack, model.ElementWater),
+		sageTestCard("d3", "伤害摸牌3", model.CardTypeAttack, model.ElementWind),
+		sageTestCard("d4", "伤害摸牌4", model.CardTypeAttack, model.ElementEarth),
+		sageTestCard("d5", "伤害摸牌5", model.CardTypeAttack, model.ElementThunder),
+		sageTestCard("d6", "伤害摸牌6", model.CardTypeAttack, model.ElementLight),
+	}
+	g.State.CurrentTurn = 0
+	g.State.TurnStage = model.TurnStageActionExecution
+
+	if err := g.UseSkill("p1", "sage_arcane_codex", nil, nil); err != nil {
+		t.Fatalf("use arcane codex failed: %v", err)
+	}
+	if err := g.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0, 1, 2, 3}}); err != nil {
+		t.Fatalf("choose arcane cards failed: %v", err)
+	}
+	ctxData := testutils.RequireChoiceContext(t, g, "p1", "sage_arcane_target")
+	targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
+	selfSelection := -1
+	for idx, targetID := range targetIDs {
+		if targetID == "p1" {
+			selfSelection = idx
+			break
+		}
+	}
+	if selfSelection < 0 {
+		t.Fatalf("expected target pool to include self, got %v", targetIDs)
+	}
+	if err := g.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{selfSelection}}); err != nil {
+		t.Fatalf("choose self target failed: %v", err)
+	}
+
+	for len(g.State.PendingDamageQueue) > 0 && g.State.PendingInterrupt == nil {
+		g.ProcessPendingDamages()
+	}
+	if got := len(p1.Hand); got != 6 {
+		t.Fatalf("expected two 3-damage self hits to draw 6 cards, got hand=%d cards=%+v", got, p1.Hand)
+	}
+}
+
+func TestSageArcaneCodexSelfTargetReportsActualDrawWhenStockRunsOut(t *testing.T) {
+	obs := &testutils.CaptureObserver{}
+	g := engine.NewGameEngine(obs)
+	if err := g.AddPlayer("p1", "Sage", "sage", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	p1 := g.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Gem = 1
+	p1.Hand = []model.Card{
+		sageTestCard("h1", "火焰斩", model.CardTypeAttack, model.ElementFire),
+		sageTestCard("h2", "水涟斩", model.CardTypeAttack, model.ElementWater),
+		sageTestCard("h3", "风神斩", model.CardTypeAttack, model.ElementWind),
+		sageTestCard("h4", "雷光斩", model.CardTypeAttack, model.ElementThunder),
+	}
+	g.State.Deck = nil
+	g.State.DiscardPile = nil
+	g.State.CurrentTurn = 0
+	g.State.TurnStage = model.TurnStageActionExecution
+
+	if err := g.UseSkill("p1", "sage_arcane_codex", nil, nil); err != nil {
+		t.Fatalf("use arcane codex failed: %v", err)
+	}
+	if err := g.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0, 1, 2, 3}}); err != nil {
+		t.Fatalf("choose arcane cards failed: %v", err)
+	}
+	ctxData := testutils.RequireChoiceContext(t, g, "p1", "sage_arcane_target")
+	targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
+	selfSelection := -1
+	for idx, targetID := range targetIDs {
+		if targetID == "p1" {
+			selfSelection = idx
+			break
+		}
+	}
+	if selfSelection < 0 {
+		t.Fatalf("expected target pool to include self, got %v", targetIDs)
+	}
+	if err := g.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{selfSelection}}); err != nil {
+		t.Fatalf("choose self target failed: %v", err)
+	}
+
+	for len(g.State.PendingDamageQueue) > 0 && g.State.PendingInterrupt == nil {
+		g.ProcessPendingDamages()
+	}
+	if got := len(p1.Hand); got != 4 {
+		t.Fatalf("expected only discarded cards to be redrawn when stock is empty, got hand=%d", got)
+	}
+	draws := make([]int, 0, 2)
+	for _, ev := range obs.Events {
+		if ev.Type == model.EventDrawCards && ev.DrawCards != nil && ev.DrawCards.Reason == "damage_draw" {
+			draws = append(draws, ev.DrawCards.DrawCount)
+		}
+	}
+	if len(draws) != 2 || draws[0] != 3 || draws[1] != 1 {
+		t.Fatalf("expected actual damage draw events [3 1], got %v", draws)
+	}
+}
+
 func TestSageExtract_CanReachFourthEnergyAndStopsAtCap(t *testing.T) {
 	g := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := g.AddPlayer("p1", "Sage", "sage", model.RedCamp); err != nil {

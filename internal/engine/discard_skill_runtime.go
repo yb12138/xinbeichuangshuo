@@ -72,6 +72,9 @@ func (e *GameEngine) handleSkillDiscardResume(playerID, skillID string, indices 
 	if err := e.validateSkillDiscardSelection(use); err != nil {
 		return err
 	}
+	if skillID == "bw_blazing_codex" && len(targetIDs) == 0 {
+		return e.queueBlazingCodexTargetChoice(playerID, indices, resumePoint)
+	}
 
 	e.PopInterrupt()
 	if e.State.PendingInterrupt != nil {
@@ -80,6 +83,44 @@ func (e *GameEngine) handleSkillDiscardResume(playerID, skillID string, indices 
 	// 规则：为发动技能而产生的弃牌中断，处理完必须回到技能声明的恢复点后再继续施放技能。
 	e.applyChoiceResumePoint(mustChoiceResumePoint(resumePoint, "resume_phase"))
 	return e.UseSkill(playerID, skillID, targetIDs, indices)
+}
+
+func (e *GameEngine) queueBlazingCodexTargetChoice(playerID string, discardIndices []int, resumePoint interface{}) error {
+	targetIDs := make([]string, 0, len(e.State.PlayerOrder))
+	for _, targetID := range e.State.PlayerOrder {
+		if targetID == playerID {
+			continue
+		}
+		if e.State.Players[targetID] == nil {
+			continue
+		}
+		targetIDs = append(targetIDs, targetID)
+	}
+	if len(targetIDs) == 0 {
+		return fmt.Errorf("苍炎法典需要且仅能指定1名其他角色")
+	}
+
+	e.PopInterrupt()
+	if e.State.PendingInterrupt != nil {
+		return fmt.Errorf("当前仍有其他待处理的中断")
+	}
+	e.applyChoiceResumePoint(mustChoiceResumePoint(resumePoint, "resume_phase"))
+	e.PushInterrupt(&model.Interrupt{
+		Type:     model.InterruptChoice,
+		PlayerID: playerID,
+		SkillIDs: []string{"bw_blazing_codex"},
+		Context: map[string]interface{}{
+			"choice_type":     "bw_blazing_codex_target",
+			"skill_id":        "bw_blazing_codex",
+			"discard_indices": append([]int{}, discardIndices...),
+			"target_ids":      targetIDs,
+			"resume_phase":    resumePoint,
+		},
+	})
+	if user := e.State.Players[playerID]; user != nil {
+		e.Log(fmt.Sprintf("%s 请选择 [苍炎法典] 的目标", user.Name))
+	}
+	return nil
 }
 
 func (e *GameEngine) handleContextSkillDiscardSelection(skillID string, indices []int, data map[string]interface{}) error {

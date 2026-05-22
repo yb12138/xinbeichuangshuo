@@ -165,18 +165,23 @@ func (e *GameEngine) restorePhaseAfterInterruptedDraw(ctx *model.Context) bool {
 func (e *GameEngine) executeResolvedDraw(ctx *model.Context, drawCount int, reason string) {
 	target := ctx.User
 	cards, newDeck, newDiscard := rules.DrawCards(e.State.Deck, e.State.DiscardPile, drawCount)
+	actualDrawCount := len(cards)
 	e.State.Deck = newDeck
 	e.State.DiscardPile = newDiscard
 	target.Hand = append(target.Hand, cards...)
-	e.NotifyDrawCards(target.ID, drawCount, reason)
+	e.NotifyDrawCards(target.ID, actualDrawCount, reason)
 
 	ctx.Timing = model.TimingOnCardDrawn
 	if ctx.EventCtx != nil {
 		ctx.EventCtx.Type = model.EventAfterDraw
-		ctx.EventCtx.DrawCount = &drawCount
+		ctx.EventCtx.DrawCount = &actualDrawCount
 	}
 	e.dispatcher.OnTiming(ctx.Timing, ctx)
 
 	e.CheckHandLimitCtx(target, ctx)
-	e.Log(fmt.Sprintf("%s 摸了 %d 张牌", target.Name, drawCount))
+	if actualDrawCount < drawCount {
+		e.Log(fmt.Sprintf("%s 牌库与弃牌堆不足，原计划摸%d张，实际摸了%d张牌", target.Name, drawCount, actualDrawCount))
+		return
+	}
+	e.Log(fmt.Sprintf("%s 摸了 %d 张牌", target.Name, actualDrawCount))
 }

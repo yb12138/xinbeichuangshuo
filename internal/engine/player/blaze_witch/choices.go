@@ -129,6 +129,8 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			Max:          1,
 			Presentation: &model.PromptPresentation{Kind: model.PresentationTargetPicker, TargetFilter: "custom"},
 		}
+	case "bw_blazing_codex_target":
+		return engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, "【苍炎法典】请选择法术伤害目标：", data, false)
 	default:
 		return nil
 	}
@@ -143,7 +145,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, playerID string
 		return true, handleBlazeWitchSubstituteCardChoice(rt, playerID, selectionIndex, ctxData)
 	case "bw_mana_inversion_cards":
 		return handleBlazeWitchManaInversionCardsMultiSelect(rt, playerID, []int{selectionIndex}, ctxData)
-	case "bw_substitute_doll_target", "bw_mana_inversion_target":
+	case "bw_blazing_codex_target", "bw_substitute_doll_target", "bw_mana_inversion_target":
 		return true, handleBlazeWitchTargetChoice(rt, playerID, selectionIndex, ctxData)
 	default:
 		return false, nil
@@ -264,6 +266,23 @@ func handleBlazeWitchTargetChoice(rt engineplayer.ChoiceRuntime, playerID string
 
 	choiceType, _ := ctxData["choice_type"].(string)
 	switch choiceType {
+	case "bw_blazing_codex_target":
+		discardIndices := runtimeutil.ParseChoiceIntSlice(ctxData["discard_indices"])
+		if len(discardIndices) != 1 {
+			return fmt.Errorf("苍炎法典缺少弃牌参数")
+		}
+		rt.PopInterrupt()
+		if rt.GetPendingInterrupt() != nil {
+			return fmt.Errorf("当前仍有其他待处理的中断")
+		}
+		rt.ApplyChoiceResumePoint(ctxData["resume_phase"])
+		skillRuntime, ok := rt.(interface {
+			UseSkill(playerID, skillID string, targetIDs []string, discardIndices []int) error
+		})
+		if !ok {
+			return fmt.Errorf("技能运行时不支持发动苍炎法典")
+		}
+		return skillRuntime.UseSkill(playerID, "bw_blazing_codex", []string{targetID}, discardIndices)
 	case "bw_substitute_doll_target":
 		flow, err := model.RequirePromptFlow(ctxData, substituteDollFlowID, "替身玩偶")
 		if err != nil {

@@ -210,6 +210,38 @@ export function blazingCodexScenario(): ProtocolHarnessScenario {
   });
 }
 
+export function blazingCodexDiscardPrompt(): WsMessage {
+  return requireActionMessage({
+    type: 'choose_cards',
+    player_id: BW_PLAYER_ID,
+    message: 'E2E Blaze Witch 请选择用于发动 [苍炎法典] 的卡牌',
+    choice_type: 'system_discard_cards',
+    options: [
+      { id: '0', label: '1: 火焰斩A（火系 攻击）', button_label: '选择', card_id: 'bw-fire-atk1' },
+      { id: '1', label: '2: 火焰斩B（火系 攻击）', button_label: '选择', card_id: 'bw-fire-atk2' },
+      { id: '2', label: '3: 火球（火系 法术）', button_label: '选择', card_id: 'bw-fire-magic1' },
+      { id: '3', label: '4: 烈焰风暴（火系 法术）', button_label: '选择', card_id: 'bw-fire-magic2' },
+    ],
+    min: 1, max: 1,
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'option_limited', numeric_base: 0 },
+  } satisfies Prompt);
+}
+
+export function blazingCodexTargetPrompt(): WsMessage {
+  return requireActionMessage({
+    type: 'confirm',
+    player_id: BW_PLAYER_ID,
+    message: '【苍炎法典】请选择法术伤害目标：',
+    choice_type: 'bw_blazing_codex_target',
+    options: [
+      { id: '0', target_id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
+      { id: '1', target_id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
+    ],
+    min: 1, max: 1,
+    presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
+  } satisfies Prompt);
+}
+
 // ============================================================
 // Heavenfire Cleave (天火断空) scenario
 // ============================================================
