@@ -126,8 +126,8 @@ func (e *GameEngine) BuildActionSelectionOptions(currentPID string, player *mode
 }
 
 func (e *GameEngine) applyActionSelectionPolicies(player *model.Player, state *ActionSelectionState) {
-	e.applyTimingBeforeActionExecuteOptionPolicies(player, state)
-	e.applyTimingBeforeActionExecuteValidationPolicies(player, state)
+	e.applyTimingActionStartExecuteOptionPolicies(player, state)
+	e.applyTimingActionStartExecuteValidationPolicies(player, state)
 }
 
 func (e *GameEngine) appendBaseActionSelectionOptions(player *model.Player, state *ActionSelectionState) {

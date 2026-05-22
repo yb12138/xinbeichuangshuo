@@ -62,7 +62,7 @@ func (e *Eligibility) CollectCandidates(
 			continue
 		}
 
-		// 可选响应技能在 TimingOnActionEnd 时延迟 CanUse 检查（让静默技能先执行更新状态）
+		// 可选响应技能在 TimingActionEnd 时延迟 CanUse 检查（让静默技能先执行更新状态）
 		if sk.ResponseType == model.ResponseOptional && timing == model.TimingActionEnd {
 			// 只检查基本条件，不调用 handler.CanUse
 			if !CanPaySkillEnergyCost(player, sk.CostGem, sk.CostCrystal) {

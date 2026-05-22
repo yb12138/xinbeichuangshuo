@@ -131,7 +131,7 @@ func TestBeastSamurai_OneStrikeArmedSurvivesTurnEndPreExtra(t *testing.T) {
 	p1.TurnState.UsedSkillCounts["bs_one_strike_armed"] = 1
 	model.AppendAttackAction(p1, "一击无念")
 
-	if paused := game.RunTimingOnTurnEndStageHooks(p1, engine.TimingOnTurnEndPreExtra); paused {
+	if paused := game.RunTurnEndTimingStageHooks(p1, engine.TimingTurnEndPreExtra); paused {
 		t.Fatalf("unexpected interrupt during pre-extra turn end")
 	}
 	if p1.TurnState.UsedSkillCounts["bs_one_strike_armed"] != 1 {
@@ -141,7 +141,7 @@ func TestBeastSamurai_OneStrikeArmedSurvivesTurnEndPreExtra(t *testing.T) {
 		t.Fatalf("expected pending one-strike attack action, got %+v", p1.TurnState.PendingActions)
 	}
 
-	if paused := game.RunTimingOnTurnEndStageHooks(p1, engine.TimingOnTurnEndFinal); paused {
+	if paused := game.RunTurnEndTimingStageHooks(p1, engine.TimingTurnEndFinal); paused {
 		t.Fatalf("unexpected interrupt during final turn end")
 	}
 	if p1.TurnState.UsedSkillCounts["bs_one_strike_armed"] != 0 {

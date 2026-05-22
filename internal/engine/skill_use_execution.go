@@ -144,7 +144,7 @@ func (e *GameEngine) finishSkillUse(use *skillUseRequest) error {
 	if use.skillDef.PlaceCard && use.skillDef.PlaceMode == model.FieldEffect && len(use.actualTargets) > 0 {
 		e.emitBuffAddedDispatch(use.player.ID, use.actualTargets[0].ID, use.skillDef.PlaceEffect)
 	}
-	e.runTimingOnActionEndSkillPost(use)
+	e.runTimingActionEndSkillPost(use)
 	e.recordSkillUsage(use.player.ID, use.skillDef.Title, use.skillDef.Type)
 	e.Log(fmt.Sprintf("[Skill] %s 使用了技能: %s (%s)", use.player.Name, use.skillDef.Title, use.skillDef.Description))
 

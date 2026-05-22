@@ -11,7 +11,7 @@ import (
 )
 
 func (e *GameEngine) executeSpecialActionWithRuntime(player *model.Player, actionType model.ActionType) error {
-	handled, err := e.applyTimingBeforeActionExecuteSpecialActionOverride(player, actionType)
+	handled, err := e.applyTimingActionStartExecuteSpecialActionOverride(player, actionType)
 	if err != nil {
 		return err
 	}
@@ -237,11 +237,11 @@ func (e *GameEngine) StartExtractForPlayer(playerID string) error {
 }
 
 func (e *GameEngine) runPostSpecialActionRuntime(player *model.Player, actionType model.ActionType) {
-	e.runTimingOnActionEndSpecialActionPost(player, actionType)
+	e.runTimingActionEndSpecialActionPost(player, actionType)
 }
 
-// applyTimingBeforeActionExecuteSpecialActionOverride 在执行特殊行动前应用覆盖策略。
-func (e *GameEngine) applyTimingBeforeActionExecuteSpecialActionOverride(player *model.Player, actionType model.ActionType) (bool, error) {
+// applyTimingActionStartExecuteSpecialActionOverride 在执行特殊行动前应用覆盖策略。
+func (e *GameEngine) applyTimingActionStartExecuteSpecialActionOverride(player *model.Player, actionType model.ActionType) (bool, error) {
 	ctx := playerpkg.TimingHookContext{
 		Player:     player,
 		ActionType: actionType,
@@ -253,8 +253,8 @@ func (e *GameEngine) applyTimingBeforeActionExecuteSpecialActionOverride(player 
 	return result.Handled, nil
 }
 
-// runTimingOnActionEndSpecialActionPost 在特殊行动完成后执行后置规则。
-func (e *GameEngine) runTimingOnActionEndSpecialActionPost(player *model.Player, actionType model.ActionType) {
+// runTimingActionEndSpecialActionPost 在特殊行动完成后执行后置规则。
+func (e *GameEngine) runTimingActionEndSpecialActionPost(player *model.Player, actionType model.ActionType) {
 	ctx := playerpkg.TimingHookContext{
 		Player:     player,
 		ActionType: actionType,

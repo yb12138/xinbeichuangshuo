@@ -93,7 +93,7 @@ func TestBardDescentConcerto_RunsAndResolves(t *testing.T) {
 	}
 
 	// 回合结束时触发沉沦协奏曲的确认弹窗
-	if paused := game.RunTimingOnTurnEndStageHooks(bard, engine.TimingOnTurnEndPreExtra); !paused {
+	if paused := game.RunTurnEndTimingStageHooks(bard, engine.TimingTurnEndPreExtra); !paused {
 		t.Fatalf("turn-end descent hook should trigger with 2+ magic damage targets")
 	}
 	testutils.RequireChoicePrompt(t, game, "p1", "bd_descent_confirm")
@@ -187,7 +187,7 @@ func TestBardDescentConcerto_DeclineAtConfirmDoesNotConsumeSkill(t *testing.T) {
 		t.Fatalf("second magic damage should only track, not trigger")
 	}
 
-	if paused := game.RunTimingOnTurnEndStageHooks(bard, engine.TimingOnTurnEndPreExtra); !paused {
+	if paused := game.RunTurnEndTimingStageHooks(bard, engine.TimingTurnEndPreExtra); !paused {
 		t.Fatalf("turn-end descent hook should trigger with 2+ magic damage targets")
 	}
 	testutils.RequireChoicePrompt(t, game, "p1", "bd_descent_confirm")
@@ -240,7 +240,7 @@ func TestBardDescentConcerto_AllyMagicDamageTriggersAtTurnEnd(t *testing.T) {
 	}
 
 	// 回合结束时队友伤害已记录到诗人名下，触发沉沦协奏曲确认框
-	if paused := game.RunTimingOnTurnEndStageHooks(ally, engine.TimingOnTurnEndPreExtra); !paused {
+	if paused := game.RunTurnEndTimingStageHooks(ally, engine.TimingTurnEndPreExtra); !paused {
 		t.Fatalf("turn-end descent hook should trigger from ally magic damage")
 	}
 	testutils.RequireChoicePrompt(t, game, "p1", "bd_descent_confirm")

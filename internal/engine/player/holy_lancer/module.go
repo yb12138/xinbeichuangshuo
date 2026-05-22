@@ -19,7 +19,7 @@ func RoleEntry() player.RoleEntry {
 		TimingHookSpecs: []player.TimingHookSpec{
 			{Timing: player.TimingAttackStateReset, Priority: 100, Hook: attackStateResetHook},
 			{Timing: player.TimingAttackNoResponse, Priority: 200, Hook: attackGatingHook},
-			{Timing: player.TimingOnTurnEndFinal, Priority: 900, Hook: turnEndHook},
+			{Timing: player.TimingTurnEndFinal, Priority: 900, Hook: turnEndHook},
 			{Timing: player.TimingOnResponseSkillSkip, Priority: 100, Hook: responseSkillSkipHook},
 			{Timing: player.TimingOnPlayerSetup, Priority: 100, Hook: playerSetupHook},
 			{Timing: player.TimingOnCampCupChanged, Priority: 100, Hook: campCupChangedHook},

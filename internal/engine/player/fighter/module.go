@@ -25,9 +25,9 @@ func RoleEntry() player.RoleEntry {
 			{Timing: player.TimingAttackStateReset, Priority: 100, Hook: attackStateResetHook},
 			{Timing: player.TimingAttackNoResponse, Priority: 200, Hook: attackGatingHook},
 			{Timing: player.TimingAttackMiss, Priority: 200, Hook: attackMissHook},
-			{Timing: player.TimingOnTurnEnd, Priority: 200, Hook: turnEndHook},
-			{Timing: player.TimingBeforeActionOption, Priority: 300, Hook: beforeActionOptionHook},
-			{Timing: player.TimingBeforeActionValidation, Priority: 300, Hook: beforeActionValidationHook},
+			{Timing: player.TimingTurnEndPreExtra, Priority: 200, Hook: turnEndHook},
+			{Timing: player.TimingActionStartOption, Priority: 300, Hook: beforeActionOptionHook},
+			{Timing: player.TimingActionStartValidation, Priority: 300, Hook: beforeActionValidationHook},
 		},
 		BlocksActionType: func(p *model.Player, at model.ActionType) bool {
 			return at == model.ActionMagic && BlocksMagicCasting(p)

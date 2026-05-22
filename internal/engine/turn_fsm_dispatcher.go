@@ -99,7 +99,7 @@ func (e *GameEngine) driveTurnBeforeStartStage(player *model.Player) driveOutcom
 		return driveUnhandled
 	}
 
-	if e.runTimingOnTurnStartBeforeStartHooks(player) {
+	if e.runTimingTurnStartBeforeStartHooks(player) {
 		if e.State.PendingInterrupt != nil {
 			return driveStop
 		}
@@ -122,7 +122,7 @@ func (e *GameEngine) driveBeforeActionStage(currentPid string, player *model.Pla
 		}
 		return driveContinueLoop
 	}
-	// 角色 TimingBeforeAction hooks（如精疲力竭结束结算）。
+	// 角色 TimingActionStart hooks（如精疲力竭结束结算）。
 	if e.runTimingOnBeforeActionStageHooks(player, timingOnBeforeActionResolveActionStart) {
 		if e.State.PendingInterrupt != nil {
 			return driveStop
@@ -183,7 +183,7 @@ func (e *GameEngine) driveTurnStartStage(currentPid string, player *model.Player
 		return driveContinueLoop
 	}
 
-	if e.runTimingOnTurnStartHooks(player) {
+	if e.runTimingTurnStartHooks(player) {
 		if e.State.PendingInterrupt != nil {
 			return driveStop
 		}
@@ -560,7 +560,7 @@ func (e *GameEngine) driveTurnEndStage(currentPid string, player *model.Player) 
 	e.Log(fmt.Sprintf("[Debug] TurnEnd 阶段: player=%s pending_action_tokens=%d", currentPid, pendingTokenCount))
 
 	// 9. 回合结束阶段
-	if e.runTimingOnTurnEndPreExtraHooks(player) {
+	if e.runTimingTurnEndPreExtraHooks(player) {
 		return driveStop
 	}
 	// 检查是否有待执行的行动令牌 (处理额外行动)
@@ -587,7 +587,7 @@ func (e *GameEngine) driveTurnEndStage(currentPid string, player *model.Player) 
 		return driveContinueLoop
 	}
 
-	if e.runTimingOnTurnEndFinalHooks(player) {
+	if e.runTimingTurnEndFinalHooks(player) {
 		return driveStop
 	}
 

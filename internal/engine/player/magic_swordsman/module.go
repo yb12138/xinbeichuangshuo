@@ -21,7 +21,7 @@ func RoleEntry() player.RoleEntry {
 			{Timing: player.TimingAttackStateReset, Priority: 100, Hook: attackStateResetHook},
 			{Timing: player.TimingAttackNoResponse, Priority: 200, Hook: attackGatingHook},
 			{Timing: player.TimingPostAttackHit, Priority: 500, Hook: postAttackHitHook},
-			{Timing: player.TimingBeforeAction, Priority: 100, Hook: beforeActionShadowReleaseHook},
+			{Timing: player.TimingActionStart, Priority: 100, Hook: beforeActionShadowReleaseHook},
 			{Timing: player.TimingOnCombatInteraction, Priority: 400, Hook: darkElementResponseHook},
 			{Timing: player.TimingOnCombatCounterCard, Priority: 100, Hook: shadowRejectMagicBulletHook},
 			{Timing: player.TimingAfterCannotAct, Priority: 100, Hook: cannotActRedrawHook},

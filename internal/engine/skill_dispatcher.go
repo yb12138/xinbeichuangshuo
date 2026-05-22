@@ -164,7 +164,7 @@ func resolveSkillUsePolicy(skillID string) SkillPolicy {
 
 // ---------- 技能后置钩子 ----------
 
-func (e *GameEngine) runTimingOnActionEndSkillPost(use *skillUseRequest) {
+func (e *GameEngine) runTimingActionEndSkillPost(use *skillUseRequest) {
 	if e == nil || use == nil || use.player == nil {
 		return
 	}

@@ -10,7 +10,7 @@ import (
 )
 
 // MaybeHolySwordDrawInterrupt 检查圣剑第3次攻击结束后的摸牌弃牌中断。
-// 作为 TimingOnActionEnd 的 TimingHookSpec 使用。
+// 作为 TimingActionEnd 的 TimingHookSpec 使用。
 func MaybeHolySwordDrawInterrupt(rt engineplayer.HookRuntime, ctx engineplayer.TimingHookContext) engineplayer.TimingHookResult {
 	p := rt.GetPlayer(ctx.SourceID)
 	if p == nil {

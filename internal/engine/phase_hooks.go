@@ -21,19 +21,19 @@ const (
 	timingOnTurnStartMain timingOnTurnStartStage = iota
 )
 
-type TimingOnTurnEndStage int
+type TurnEndTimingStage int
 
 const (
-	TimingOnTurnEndPreExtra TimingOnTurnEndStage = iota
-	TimingOnTurnEndFinal
+	TimingTurnEndPreExtra TurnEndTimingStage = iota
+	TimingTurnEndFinal
 )
 
-// runTimingOnTurnStartStageHooks 统一处理回合开始时（TimingTurnStart）阶段规则。
-func (e *GameEngine) runTimingOnTurnStartStageHooks(player *model.Player, stage timingOnTurnStartStage) bool {
+// runTimingTurnStartStageHooks 统一处理回合开始时（TimingTurnStart）阶段规则。
+func (e *GameEngine) runTimingTurnStartStageHooks(player *model.Player, stage timingOnTurnStartStage) bool {
 	switch stage {
 	case timingOnTurnStartMain:
 		if player != nil {
-			result := e.dispatchAllRoleTimingHooks(engineplayer.TimingOnTurnStart, engineplayer.TimingHookContext{
+			result := e.dispatchAllRoleTimingHooks(engineplayer.TimingTurnStart, engineplayer.TimingHookContext{
 				SourceID:     player.ID,
 				TurnPlayerID: player.ID,
 			})
@@ -43,17 +43,17 @@ func (e *GameEngine) runTimingOnTurnStartStageHooks(player *model.Player, stage 
 		}
 		return false
 	default:
-		panic("unregistered TimingOnTurnStart stage")
+		panic("unregistered TimingTurnStart stage")
 	}
 }
 
-// RunTimingOnTurnEndStageHooks 统一处理回合结束时（TimingTurnEnd）的运行时子阶段规则。
-func (e *GameEngine) RunTimingOnTurnEndStageHooks(player *model.Player, stage TimingOnTurnEndStage) bool {
+// RunTurnEndTimingStageHooks 统一处理回合结束时（TimingTurnEnd）的运行时子阶段规则。
+func (e *GameEngine) RunTurnEndTimingStageHooks(player *model.Player, stage TurnEndTimingStage) bool {
 	switch stage {
-	case TimingOnTurnEndPreExtra:
+	case TimingTurnEndPreExtra:
 		// TimingHookSpec dispatch for turn end (pre-extra)
 		if player != nil {
-			result := e.dispatchAllRoleTimingHooks(engineplayer.TimingOnTurnEnd, engineplayer.TimingHookContext{
+			result := e.dispatchAllRoleTimingHooks(engineplayer.TimingTurnEndPreExtra, engineplayer.TimingHookContext{
 				SourceID:     player.ID,
 				TurnPlayerID: player.ID,
 			})
@@ -62,10 +62,10 @@ func (e *GameEngine) RunTimingOnTurnEndStageHooks(player *model.Player, stage Ti
 			}
 		}
 		return false
-	case TimingOnTurnEndFinal:
+	case TimingTurnEndFinal:
 		// TimingHookSpec dispatch for turn end final
 		if player != nil {
-			result := e.dispatchAllRoleTimingHooks(engineplayer.TimingOnTurnEndFinal, engineplayer.TimingHookContext{
+			result := e.dispatchAllRoleTimingHooks(engineplayer.TimingTurnEndFinal, engineplayer.TimingHookContext{
 				SourceID:     player.ID,
 				TurnPlayerID: player.ID,
 			})
@@ -75,15 +75,15 @@ func (e *GameEngine) RunTimingOnTurnEndStageHooks(player *model.Player, stage Ti
 		}
 		return false
 	default:
-		panic("unregistered TimingOnTurnEnd stage")
+		panic("unregistered TimingTurnEndPreExtra stage")
 	}
 }
 
-// runTimingOnTurnStartBeforeStartHooks 回合开始前（TimingTurnBeforeStart）固定结算点。
-func (e *GameEngine) runTimingOnTurnStartBeforeStartHooks(player *model.Player) bool {
+// runTimingTurnStartBeforeStartHooks 回合开始前（TimingTurnBeforeStart）固定结算点。
+func (e *GameEngine) runTimingTurnStartBeforeStartHooks(player *model.Player) bool {
 	// 回合开始前已迁移到 TimingHookSpec。
 	if player != nil {
-		result := e.dispatchRoleTimingHook(engineplayer.TimingOnTurnBeforeStart, engineplayer.TimingHookContext{
+		result := e.dispatchRoleTimingHook(engineplayer.TimingTurnBeforeStart, engineplayer.TimingHookContext{
 			TargetID:     player.ID,
 			TurnPlayerID: player.ID,
 		})
@@ -92,16 +92,16 @@ func (e *GameEngine) runTimingOnTurnStartBeforeStartHooks(player *model.Player) 
 	return false
 }
 
-// runTimingOnTurnStartHooks 回合开始时（TimingTurnStart）固定结算点。
-func (e *GameEngine) runTimingOnTurnStartHooks(player *model.Player) bool {
-	return e.runTimingOnTurnStartStageHooks(player, timingOnTurnStartMain)
+// runTimingTurnStartHooks 回合开始时（TimingTurnStart）固定结算点。
+func (e *GameEngine) runTimingTurnStartHooks(player *model.Player) bool {
+	return e.runTimingTurnStartStageHooks(player, timingOnTurnStartMain)
 }
 
-// runTimingBeforeActionExecuteHooks 行动阶段开始时（TimingActionStart）固定结算点。
-func (e *GameEngine) runTimingBeforeActionExecuteHooks(player *model.Player) bool {
+// runTimingActionStartExecuteHooks 行动阶段开始时（TimingActionStart）固定结算点。
+func (e *GameEngine) runTimingActionStartExecuteHooks(player *model.Player) bool {
 	// TimingHookSpec dispatch for action start
 	if player != nil {
-		result := e.dispatchAllRoleTimingHooks(engineplayer.TimingBeforeAction, engineplayer.TimingHookContext{
+		result := e.dispatchAllRoleTimingHooks(engineplayer.TimingActionStart, engineplayer.TimingHookContext{
 			SourceID:     player.ID,
 			TurnPlayerID: player.ID,
 		})
@@ -112,14 +112,14 @@ func (e *GameEngine) runTimingBeforeActionExecuteHooks(player *model.Player) boo
 	return false
 }
 
-// runTimingOnTurnEndPreExtraHooks 回合结束时前置结算（额外行动判定前）。
-func (e *GameEngine) runTimingOnTurnEndPreExtraHooks(player *model.Player) bool {
-	return e.RunTimingOnTurnEndStageHooks(player, TimingOnTurnEndPreExtra)
+// runTimingTurnEndPreExtraHooks 回合结束时前置结算（额外行动判定前）。
+func (e *GameEngine) runTimingTurnEndPreExtraHooks(player *model.Player) bool {
+	return e.RunTurnEndTimingStageHooks(player, TimingTurnEndPreExtra)
 }
 
-// runTimingOnTurnEndFinalHooks 回合结束时最终结算点。
-func (e *GameEngine) runTimingOnTurnEndFinalHooks(player *model.Player) bool {
-	return e.RunTimingOnTurnEndStageHooks(player, TimingOnTurnEndFinal)
+// runTimingTurnEndFinalHooks 回合结束时最终结算点。
+func (e *GameEngine) runTimingTurnEndFinalHooks(player *model.Player) bool {
+	return e.RunTurnEndTimingStageHooks(player, TimingTurnEndFinal)
 }
 
 // blaze_witch/assassin hooks 已迁移到 TimingHookSpec

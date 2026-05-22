@@ -22,7 +22,7 @@ func (e *GameEngine) runTimingOnBeforeActionStageHooks(player *model.Player, sta
 	case timingOnBeforeActionResolveField:
 		return e.RunTimingOnBeforeActionHooks(player)
 	case timingOnBeforeActionResolveActionStart:
-		return e.runTimingBeforeActionExecuteHooks(player)
+		return e.runTimingActionStartExecuteHooks(player)
 	default:
 		panic(fmt.Sprintf("unregistered TimingOnBeforeAction stage: %d", stage))
 	}
@@ -38,18 +38,18 @@ func (e *GameEngine) RunTimingOnBeforeActionHooks(player *model.Player) bool {
 	return false
 }
 
-// applyTimingBeforeActionExecuteOptionPolicies 在行动阶段中生成选项前应用规则约束。
-func (e *GameEngine) applyTimingBeforeActionExecuteOptionPolicies(player *model.Player, state *ActionSelectionState) {
+// applyTimingActionStartExecuteOptionPolicies 在行动阶段中生成选项前应用规则约束。
+func (e *GameEngine) applyTimingActionStartExecuteOptionPolicies(player *model.Player, state *ActionSelectionState) {
 	ctx := engineplayer.TimingHookContext{
 		Player:         player,
 		ChoiceRuntime:  NewRoleChoiceRuntime(e),
 		OptionModifier: actionSelectionModifierAdapter{state: state},
 	}
-	e.dispatchAllRoleTimingHooks(engineplayer.TimingBeforeActionOption, ctx)
+	e.dispatchAllRoleTimingHooks(engineplayer.TimingActionStartOption, ctx)
 }
 
-// applyTimingBeforeActionExecuteValidationPolicies 在行动阶段中输入校验前应用规则约束。
-func (e *GameEngine) applyTimingBeforeActionExecuteValidationPolicies(player *model.Player, state *ActionSelectionState) {
+// applyTimingActionStartExecuteValidationPolicies 在行动阶段中输入校验前应用规则约束。
+func (e *GameEngine) applyTimingActionStartExecuteValidationPolicies(player *model.Player, state *ActionSelectionState) {
 	ctx := engineplayer.TimingHookContext{
 		Player:         player,
 		ChoiceRuntime:  NewRoleChoiceRuntime(e),
@@ -60,7 +60,7 @@ func (e *GameEngine) applyTimingBeforeActionExecuteValidationPolicies(player *mo
 			engine:                         e,
 		},
 	}
-	e.dispatchAllRoleTimingHooks(engineplayer.TimingBeforeActionValidation, ctx)
+	e.dispatchAllRoleTimingHooks(engineplayer.TimingActionStartValidation, ctx)
 }
 
 // RunAttackResponseCombatInteractionPolicies 在战斗交互阶段执行命中判定策略链。

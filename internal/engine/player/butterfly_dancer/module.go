@@ -27,7 +27,7 @@ func RoleEntry() player.RoleEntry {
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
 		TimingHookSpecs: []player.TimingHookSpec{
-			{Timing: player.TimingOnTurnBeforeStart, Priority: 100, Hook: witherExpiryHook},
+			{Timing: player.TimingTurnBeforeStart, Priority: 100, Hook: witherExpiryHook},
 			{Timing: player.TimingDamageApplied, Priority: 100, Hook: damageResponseHook, RoleFilter: &player.HookRoleNone},
 			{Timing: player.TimingDamageTaken, Priority: 100, Hook: pilgrimageBeforeApplyHook, RoleFilter: &player.HookRoleNone},
 		},

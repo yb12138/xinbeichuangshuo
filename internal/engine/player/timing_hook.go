@@ -15,13 +15,13 @@ const (
 	TimingPostDamageResolved TimingPoint = model.TimingDamageResolved
 
 	// 回合时间轴。
-	TimingOnTurnBeforeStart TimingPoint = model.TimingTurnBeforeStart // 回合开始前（效果过期等）
-	TimingOnTurnStart       TimingPoint = model.TimingTurnStart       // 回合开始（形态检查、状态清理）
+	TimingTurnBeforeStart TimingPoint = model.TimingTurnBeforeStart // 回合开始前（效果过期等）
+	TimingTurnStart       TimingPoint = model.TimingTurnStart       // 回合开始（形态检查、状态清理）
 	// 回合结束当前有 pre-extra/final 两个运行时子阶段，暂不合并到 TimingTurnEnd，避免触发次数变化。
-	TimingOnTurnEnd      TimingPoint = "on_turn_end"       // 回合结束前置（形态释放，额外行动前）
-	TimingOnTurnEndFinal TimingPoint = "on_turn_end_final" // 回合结束最终（额外行动耗尽后）
-	TimingBeforeAction   TimingPoint = model.TimingActionStart
-	TimingOnActionEnd    TimingPoint = model.TimingActionEnd // 行动结束（非 post_action_end，用于技能后）
+	TimingTurnEndPreExtra TimingPoint = "on_turn_end"       // 回合结束前置（形态释放，额外行动前）
+	TimingTurnEndFinal    TimingPoint = "on_turn_end_final" // 回合结束最终（额外行动耗尽后）
+	TimingActionStart     TimingPoint = model.TimingActionStart
+	TimingActionEnd       TimingPoint = model.TimingActionEnd // 行动结束（非 post_action_end，用于技能后）
 
 	// 新增 - 攻击阶段
 	TimingAttackDeclare        TimingPoint = model.TimingAttackDeclare         // 攻击宣告时
@@ -94,8 +94,8 @@ const (
 	TimingOnMoraleLossApplied TimingPoint = model.TimingMoraleLossApplied // 士气损失应用后（伤害驱动的角色效果）
 
 	// 新增 - 行动选择策略（原 PolicySpec）
-	TimingBeforeActionOption      TimingPoint = "before_action_option"       // 行动选项策略
-	TimingBeforeActionValidation  TimingPoint = "before_action_validation"   // 行动验证策略
+	TimingActionStartOption       TimingPoint = "before_action_option"       // 行动选项策略
+	TimingActionStartValidation   TimingPoint = "before_action_validation"   // 行动验证策略
 	TimingAttackDeclareInterrupt  TimingPoint = TimingAttackDeclareRuntime   // 攻击宣言中断
 	TimingOnCombatCounterCard     TimingPoint = "on_combat_counter_card"     // 反击卡牌策略
 	TimingAfterCannotAct          TimingPoint = "on_after_cannot_act"        // 无法行动后续

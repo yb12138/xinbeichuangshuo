@@ -32,7 +32,7 @@ func (e *GameEngine) NextTurn() {
 	e.expireRuleModifiersByLifetime(player, model.RuleLifeUntilTurnEnd)
 
 	// 触发回合结束 TimingHookSpec（角色可在此设置额外回合）
-	e.dispatchAllRoleTimingHooks(engineplayer.TimingOnTurnEndFinal, engineplayer.TimingHookContext{
+	e.dispatchAllRoleTimingHooks(engineplayer.TimingTurnEndFinal, engineplayer.TimingHookContext{
 		SourceID: player.ID,
 	})
 

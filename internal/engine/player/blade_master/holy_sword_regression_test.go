@@ -87,7 +87,7 @@ func TestBladeMaster_HolySword_ThirdAttackForceHitIgnoresShield(t *testing.T) {
 	}
 }
 
-// 回归：风之剑圣第3次攻击结束后，通过 TimingOnActionEnd hook 自动触发圣剑摸X弃X。
+// 回归：风之剑圣第3次攻击结束后，通过 TimingActionEnd hook 自动触发圣剑摸X弃X。
 // X=0 时不摸不弃，直接进入额外行动阶段。
 func TestBladeMaster_HolySword_FullFlow_X0ResumesExtraAction(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
