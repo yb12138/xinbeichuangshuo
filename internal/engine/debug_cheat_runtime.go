@@ -851,8 +851,13 @@ func (e *GameEngine) HandleCheatSkill(act model.PlayerAction) error {
 	}
 	e.Log(fmt.Sprintf("[Cheat] 强制切换回合到 %s", player.Name))
 
-	e.State.PendingInterrupt = nil
-	e.State.InterruptQueue = nil
+	e.State.SetPendingInterrupt(nil)
+	if len(e.State.InterruptQueue) > 0 {
+		e.State.InterruptQueue = nil
+		e.State.TouchInterruptRevision()
+	} else {
+		e.State.InterruptQueue = nil
+	}
 	e.State.ActionQueue = []model.QueuedAction{}
 	e.State.ActionStack = []model.Action{}
 	e.State.CombatStack = []model.CombatRequest{}

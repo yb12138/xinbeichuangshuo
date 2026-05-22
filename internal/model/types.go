@@ -191,8 +191,9 @@ type GameState struct {
 	PendingOptionalSkills []PendingSkill `json:"pending_optional_skills"` // 等待确认的可选技能
 
 	// Interrupt system - unified blocking game states
-	PendingInterrupt *Interrupt   `json:"pending_interrupt,omitempty"` // Current interrupt (nil if no interrupt)
-	InterruptQueue   []*Interrupt `json:"interrupt_queue,omitempty"`   // Wait list for interrupts
+	PendingInterrupt  *Interrupt   `json:"pending_interrupt,omitempty"` // Current interrupt (nil if no interrupt)
+	InterruptQueue    []*Interrupt `json:"interrupt_queue,omitempty"`   // Wait list for interrupts
+	InterruptRevision uint64       `json:"-"`                           // Internal version for interrupt writes.
 
 	// 11步回合结构新增字段
 	ActionQueue []QueuedAction  `json:"action_queue,omitempty"` // 额外行动队列
@@ -213,6 +214,35 @@ type GameState struct {
 
 	// 回合控制
 	NextTurnPlayerOverride string `json:"next_turn_player_override,omitempty"` // 下回合玩家覆盖（用于额外回合等）
+}
+
+// TouchInterruptRevision records an internal interrupt-state write.
+func (s *GameState) TouchInterruptRevision() {
+	if s == nil {
+		return
+	}
+	s.InterruptRevision++
+}
+
+// SetPendingInterrupt updates the current interrupt and bumps the internal revision.
+func (s *GameState) SetPendingInterrupt(intr *Interrupt) {
+	if s == nil {
+		return
+	}
+	if s.PendingInterrupt == intr {
+		return
+	}
+	s.PendingInterrupt = intr
+	s.TouchInterruptRevision()
+}
+
+// EnqueueInterrupt appends an interrupt to the wait queue and bumps the internal revision.
+func (s *GameState) EnqueueInterrupt(intr *Interrupt) {
+	if s == nil || intr == nil {
+		return
+	}
+	s.InterruptQueue = append(s.InterruptQueue, intr)
+	s.TouchInterruptRevision()
 }
 
 // DamageType 定义伤害/行动类型枚举文本。

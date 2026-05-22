@@ -91,7 +91,7 @@ func (o *Orchestrator) PushInterrupt(interrupt *model.Interrupt) {
 		return
 	}
 	if st.PendingInterrupt == nil {
-		st.PendingInterrupt = interrupt
+		st.SetPendingInterrupt(interrupt)
 		o.engine.ApplyInterruptPhase(interrupt)
 		choiceType := ""
 		if data, ok := interrupt.Context.(map[string]interface{}); ok {
@@ -107,7 +107,7 @@ func (o *Orchestrator) PushInterrupt(interrupt *model.Interrupt) {
 		o.engine.NotifyInterruptPrompt()
 		return
 	}
-	st.InterruptQueue = append(st.InterruptQueue, interrupt)
+	st.EnqueueInterrupt(interrupt)
 	o.engine.Log(fmt.Sprintf("新中断入队等待: %s (Player: %s)", interrupt.Type, interrupt.PlayerID))
 }
 
@@ -126,7 +126,10 @@ func (o *Orchestrator) RemoveQueuedInterruptByPredicate(predicate func(*model.In
 			filtered = append(filtered, intr)
 		}
 	}
-	st.InterruptQueue = filtered
+	if len(filtered) != len(st.InterruptQueue) {
+		st.InterruptQueue = filtered
+		st.TouchInterruptRevision()
+	}
 }
 
 // PopInterrupt 弹出当前中断；若队列非空则激活下一个并同步阶段。
@@ -139,11 +142,12 @@ func (o *Orchestrator) PopInterrupt() {
 		return
 	}
 	popped := st.PendingInterrupt
-	st.PendingInterrupt = nil
+	st.SetPendingInterrupt(nil)
 	if len(st.InterruptQueue) > 0 {
 		nextInterrupt := st.InterruptQueue[0]
 		st.InterruptQueue = st.InterruptQueue[1:]
-		st.PendingInterrupt = nextInterrupt
+		st.TouchInterruptRevision()
+		st.SetPendingInterrupt(nextInterrupt)
 		o.engine.Log(fmt.Sprintf("[System] 队列弹出中断: %s", nextInterrupt.Type))
 		o.engine.ApplyInterruptPhase(nextInterrupt)
 		o.engine.NotifyInterruptPrompt()

@@ -134,7 +134,7 @@ func (sd *SkillDispatcher) SetPendingInterrupt(intr *model.Interrupt) {
 	if sd == nil || sd.engine == nil {
 		return
 	}
-	sd.engine.State.PendingInterrupt = intr
+	sd.engine.State.SetPendingInterrupt(intr)
 }
 
 func (sd *SkillDispatcher) PendingInterrupt() *model.Interrupt {

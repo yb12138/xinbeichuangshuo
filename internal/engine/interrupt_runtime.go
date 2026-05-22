@@ -83,7 +83,7 @@ func (e *GameEngine) skipResponseActionResult() (intr.ActionResult, error) {
 	before := e.State.PendingInterrupt
 	if missileInterrupt, ok := magicMissileInterruptFromResponse(before); ok {
 		return intr.ActionResult{Consumed: true, AfterPop: func(intr.EngineInterface) {
-			e.State.PendingInterrupt = missileInterrupt
+			e.State.SetPendingInterrupt(missileInterrupt)
 			e.syncGamePhaseWithInterrupt(missileInterrupt)
 			e.NotifyInterruptPrompt()
 		}}, nil

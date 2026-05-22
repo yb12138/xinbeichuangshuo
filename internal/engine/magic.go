@@ -378,7 +378,7 @@ func (e *GameEngine) resumeMagicMissileAfterResponseSkill(ctx *model.Context, mi
 		"damage":    chain.CurrentDamage,
 		"source_id": ctx.User.ID,
 	}
-	e.State.PendingInterrupt = missileInterrupt
+	e.State.SetPendingInterrupt(missileInterrupt)
 	e.syncGamePhaseWithInterrupt(missileInterrupt)
 	e.offerMagicMissileResponseSkills()
 	if e.State.PendingInterrupt == missileInterrupt {

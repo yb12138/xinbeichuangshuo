@@ -43,32 +43,31 @@ func (e *GameEngine) dispatchDamageRulebookTiming(timing model.Timing, pd *model
 		DamageVal: &pd.Damage,
 		Card:      pd.Card,
 	}
-	ctx := e.BuildContext(user, ctxTarget, timing, eventCtx)
-	ctx.Flags["IsMagicDamage"] = pd.DamageType != model.AttackDamage
-	ctx.Selections["rulebook_timing"] = timing
-	ctx.Selections["legacy_timing"] = model.LegacyTimingName(timing)
-	ctx.Selections["settlement_timeline"] = true
-	ctx.Selections["damage_type"] = pd.DamageType
-
-	pendingBefore := e.State.PendingInterrupt
-	queueLenBefore := len(e.State.InterruptQueue)
-	e.dispatcher.OnTiming(timing, ctx)
-	return e.State.PendingInterrupt != nil &&
-		(e.State.PendingInterrupt != pendingBefore || len(e.State.InterruptQueue) != queueLenBefore)
+	result := e.dispatchRuleTiming(ruleTimingDispatchInput{
+		Timing:   timing,
+		User:     user,
+		Target:   ctxTarget,
+		EventCtx: eventCtx,
+		Markers: map[string]any{
+			"settlement_timeline": true,
+			"damage_type":         pd.DamageType,
+		},
+		Flags: map[string]bool{
+			"IsMagicDamage": pd.DamageType != model.AttackDamage,
+		},
+	})
+	return result.Interrupted
 }
 
 func (e *GameEngine) dispatchSettlementRulebookTiming(timing model.Timing, user, target *model.Player, eventCtx *model.EventContext) bool {
-	if e == nil || e.State == nil || user == nil || e.dispatcher == nil {
-		return false
-	}
-	ctx := e.BuildContext(user, target, timing, eventCtx)
-	ctx.Selections["rulebook_timing"] = timing
-	ctx.Selections["legacy_timing"] = model.LegacyTimingName(timing)
-	ctx.Selections["settlement_timeline"] = true
-
-	pendingBefore := e.State.PendingInterrupt
-	queueLenBefore := len(e.State.InterruptQueue)
-	e.dispatcher.OnTiming(timing, ctx)
-	return e.State.PendingInterrupt != nil &&
-		(e.State.PendingInterrupt != pendingBefore || len(e.State.InterruptQueue) != queueLenBefore)
+	result := e.dispatchRuleTiming(ruleTimingDispatchInput{
+		Timing:   timing,
+		User:     user,
+		Target:   target,
+		EventCtx: eventCtx,
+		Markers: map[string]any{
+			"settlement_timeline": true,
+		},
+	})
+	return result.Interrupted
 }

@@ -12,18 +12,27 @@ func attackKindFromCounter(isCounter bool) model.AttackKind {
 }
 
 func (e *GameEngine) dispatchAttackRulebookTiming(timing model.Timing, attacker, target *model.Player, card *model.Card, attackInfo *model.AttackEventInfo, kind model.AttackKind) bool {
-	if e == nil || e.State == nil || attacker == nil || e.dispatcher == nil {
+	ctx := e.buildAttackRulebookContext(timing, attacker, target, card, attackInfo, kind)
+	if ctx == nil {
 		return false
 	}
-	pendingBefore := e.State.PendingInterrupt
-	queueLenBefore := len(e.State.InterruptQueue)
-	ctx := e.buildAttackRulebookContext(timing, attacker, target, card, attackInfo, kind)
-	e.dispatcher.OnTiming(timing, ctx)
-	return e.State.PendingInterrupt != nil &&
-		(e.State.PendingInterrupt != pendingBefore || len(e.State.InterruptQueue) != queueLenBefore)
+	result := e.dispatchRuleTiming(ruleTimingDispatchInput{
+		Timing:   timing,
+		User:     ctx.User,
+		Target:   ctx.Target,
+		EventCtx: ctx.EventCtx,
+		Markers: map[string]any{
+			"attack_timeline": true,
+			"attack_kind":     kind,
+		},
+	})
+	return result.Interrupted
 }
 
 func (e *GameEngine) buildAttackRulebookContext(timing model.Timing, attacker, target *model.Player, card *model.Card, attackInfo *model.AttackEventInfo, kind model.AttackKind) *model.Context {
+	if e == nil || e.State == nil || attacker == nil {
+		return nil
+	}
 	targetID := ""
 	if target != nil {
 		targetID = target.ID
@@ -47,10 +56,6 @@ func (e *GameEngine) buildAttackRulebookContext(timing model.Timing, attacker, t
 		ActionType: model.ActionAttack,
 		AttackInfo: attackInfo,
 	})
-	ctx.Selections["rulebook_timing"] = timing
-	ctx.Selections["legacy_timing"] = model.LegacyTimingName(timing)
-	ctx.Selections["attack_timeline"] = true
-	ctx.Selections["attack_kind"] = kind
 	return ctx
 }
 
