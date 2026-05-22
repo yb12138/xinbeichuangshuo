@@ -200,6 +200,27 @@ function handCardPickerPrompt(cardSource: 'hand' | 'proxy' = 'hand'): Prompt {
   }
 }
 
+function discardGuidePrompt(discardReason?: string): Prompt {
+  return {
+    type: 'choose_cards',
+    player_id: 'p1',
+    choice_type: 'system_discard_cards',
+    message: '请选择弃牌',
+    options: [
+      { id: '0', label: '1: 火焰斩', button_label: '选择', card_id: 'card-1' },
+    ],
+    min: 1,
+    max: 1,
+    presentation: {
+      kind: 'card_picker',
+      card_source: 'hand',
+      card_filter: 'overflow_discard',
+      discard_reason: discardReason,
+      numeric_base: 0,
+    },
+  }
+}
+
 describe('GameBoard target picker', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -390,6 +411,111 @@ describe('GameBoard target picker', () => {
     expect(interruptStore.selectedHandIndexes).toEqual([0])
     expect(submitSelectCardIDsMock).not.toHaveBeenCalled()
     expect(submitSelectMock).not.toHaveBeenCalled()
+  })
+
+  it('shows overflow discard guide for hand limit discard prompts', () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const me = buildPlayer({
+      id: 'p1',
+      hand: [buildCard({ id: 'card-1' })],
+      hand_count: 1,
+    })
+    const players = { p1: me }
+
+    useSessionStore().setRoomInfo('ROOM1', 'p1', 'Red', 'fighter')
+    useSessionStore().updateRoomPlayers(Object.values(players).map(buildPlayerInfo), 'p1')
+    useSnapshotStore().updateGameState(buildState(players))
+    useInterruptStore().setPrompt(discardGuidePrompt('hand_overflow'))
+
+    render(GameBoard, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          PlayerArea: PlayerAreaStub,
+          ActionPanel: true,
+          BattleZone: true,
+          CardComponent: true,
+          SkillDetailModal: true,
+          VfxLayer: true,
+          ActionTimeline: true,
+          StatusEffectIcon: true,
+        },
+      },
+    })
+
+    expect(screen.getByText('爆牌弃牌阶段')).toBeInTheDocument()
+  })
+
+  it('does not show overflow discard guide for semantic skill discard prompts', () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const me = buildPlayer({
+      id: 'p1',
+      hand: [buildCard({ id: 'card-1' })],
+      hand_count: 1,
+    })
+    const players = { p1: me }
+
+    useSessionStore().setRoomInfo('ROOM1', 'p1', 'Red', 'fighter')
+    useSessionStore().updateRoomPlayers(Object.values(players).map(buildPlayerInfo), 'p1')
+    useSnapshotStore().updateGameState(buildState(players))
+    useInterruptStore().setPrompt(discardGuidePrompt('skill_effect'))
+
+    render(GameBoard, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          PlayerArea: PlayerAreaStub,
+          ActionPanel: true,
+          BattleZone: true,
+          CardComponent: true,
+          SkillDetailModal: true,
+          VfxLayer: true,
+          ActionTimeline: true,
+          StatusEffectIcon: true,
+        },
+      },
+    })
+
+    expect(screen.queryByText('爆牌弃牌阶段')).not.toBeInTheDocument()
+  })
+
+  it('keeps overflow discard guide fallback for older prompt payloads', () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const me = buildPlayer({
+      id: 'p1',
+      hand: [buildCard({ id: 'card-1' })],
+      hand_count: 1,
+    })
+    const players = { p1: me }
+
+    useSessionStore().setRoomInfo('ROOM1', 'p1', 'Red', 'fighter')
+    useSessionStore().updateRoomPlayers(Object.values(players).map(buildPlayerInfo), 'p1')
+    useSnapshotStore().updateGameState(buildState(players))
+    useInterruptStore().setPrompt(discardGuidePrompt())
+
+    render(GameBoard, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          PlayerArea: PlayerAreaStub,
+          ActionPanel: true,
+          BattleZone: true,
+          CardComponent: true,
+          SkillDetailModal: true,
+          VfxLayer: true,
+          ActionTimeline: true,
+          StatusEffectIcon: true,
+        },
+      },
+    })
+
+    expect(screen.getByText('爆牌弃牌阶段')).toBeInTheDocument()
   })
 
   it('renders the current player in the same 3+3 side layout as other players', () => {

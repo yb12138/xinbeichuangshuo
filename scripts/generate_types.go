@@ -141,7 +141,7 @@ func main() {
 	out.WriteString("export interface FieldCard {\n")
 	out.WriteString("  card: Card\n  owner_id: string\n  source_id: string\n  mode: 'Effect' | 'Cover'\n  effect: string\n  field_hook: string\n  locked: boolean\n  duration: number\n}\n\n")
 	out.WriteString("export interface PromptPresentation {\n")
-	out.WriteString("  kind: PresentationKind\n  layout?: string\n  numeric_base: number\n  cancel_policy?: CancelPolicy\n  cancel_label?: string\n  target_filter?: 'all' | 'enemies' | 'allies' | 'allies_exclude_self' | 'any_exclude_self' | 'custom'\n  multi_target?: boolean\n  card_source?: 'hand' | 'field' | 'proxy'\n  card_filter?: string\n  has_decline?: boolean\n  decline_index?: number\n  step_index?: number\n  total_steps?: number\n}\n\n")
+	out.WriteString("  kind: PresentationKind\n  layout?: string\n  numeric_base: number\n  cancel_policy?: CancelPolicy\n  cancel_label?: string\n  target_filter?: 'all' | 'enemies' | 'allies' | 'allies_exclude_self' | 'any_exclude_self' | 'custom'\n  multi_target?: boolean\n  card_source?: 'hand' | 'field' | 'proxy'\n  card_filter?: string\n  discard_reason?: string\n  has_decline?: boolean\n  decline_index?: number\n  step_index?: number\n  total_steps?: number\n}\n\n")
 
 	names := make([]string, 0, len(includeTypes))
 	for name := range includeTypes {
@@ -154,7 +154,8 @@ func main() {
 	emitGameplayEventUnion(&out)
 
 	target := filepath.Join(root, "web/src/types/generated.ts")
-	if err := os.WriteFile(target, out.Bytes(), 0644); err != nil {
+	generated := append(bytes.TrimRight(out.Bytes(), "\n"), '\n')
+	if err := os.WriteFile(target, generated, 0644); err != nil {
 		fatal(err)
 	}
 }

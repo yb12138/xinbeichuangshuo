@@ -434,6 +434,12 @@ func TestActionSkillDiscardSelectionPublishesCardPickerPrompt(t *testing.T) {
 	if obs.lastPrompt.Presentation == nil || obs.lastPrompt.Presentation.Kind != model.PresentationCardPicker {
 		t.Fatalf("expected card picker presentation, got %+v", obs.lastPrompt.Presentation)
 	}
+	if obs.lastPrompt.Presentation.CardFilter != "discard" {
+		t.Fatalf("expected skill cost discard filter, got %+v", obs.lastPrompt.Presentation)
+	}
+	if obs.lastPrompt.Presentation.DiscardReason != "skill_cost" {
+		t.Fatalf("expected skill_cost discard reason, got %+v", obs.lastPrompt.Presentation)
+	}
 	if obs.lastPrompt.ChoiceType != "system_discard_cards" {
 		t.Fatalf("expected system_discard_cards choice type, got %q", obs.lastPrompt.ChoiceType)
 	}

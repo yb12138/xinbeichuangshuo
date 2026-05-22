@@ -87,7 +87,7 @@ func TestOnmyojiYinYangShift_InShikigamiForm(t *testing.T) {
 		{ID: "atk1", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Faction: "咏", Damage: 2},
 	}
 	p2.Hand = []model.Card{
-		{ID: "atk2", Name: "水涟斩", Type: model.CardTypeAttack, Element: model.ElementWater, Faction: "咏", Damage: 2},
+		{ID: "55", Name: "水涟斩", Type: model.CardTypeAttack, Element: model.ElementWater, Faction: "咏", Damage: 2},
 	}
 
 	if err := game.HandleAction(model.PlayerAction{
@@ -108,7 +108,14 @@ func TestOnmyojiYinYangShift_InShikigamiForm(t *testing.T) {
 	if got := choiceTypeOf(game.State.PendingInterrupt); got != "onmyoji_yinyang_card" {
 		t.Fatalf("expected onmyoji_yinyang_card prompt, got %s", got)
 	}
-	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{0}}); err != nil {
+	prompt := game.BuildChoicePrompt()
+	if prompt == nil || len(prompt.Options) != 1 {
+		t.Fatalf("expected one yinyang card option, got %+v", prompt)
+	}
+	if prompt.Options[0].ID != "0" || prompt.Options[0].CardID != "55" {
+		t.Fatalf("expected option index id with numeric card_id preserved, got %+v", prompt.Options[0])
+	}
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", CardIDs: []string{"55"}}); err != nil {
 		t.Fatalf("choose yinyang card failed: %v", err)
 	}
 	if got := choiceTypeOf(game.State.PendingInterrupt); got != "onmyoji_yinyang_counter_target" {

@@ -437,7 +437,7 @@ export function chargeDiscardPrompt(): WsMessage {
       { id: 'mb-hand-light', label: '5: 圣光（光系 法术）', button_label: '选择', card_id: 'mb-hand-light' },
       { id: 'mb-hand-dark', label: '6: 魔弹（暗灭 法术）', button_label: '选择', card_id: 'mb-hand-dark' },
     ],
-    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'overflow_discard', numeric_base: 0 },
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'discard', discard_reason: 'skill_effect', numeric_base: 0 },
     min: 2,
     max: 2,
   } satisfies Prompt);

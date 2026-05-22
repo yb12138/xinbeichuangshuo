@@ -78,6 +78,7 @@ func (e *GameEngine) buildHandOverflowContext(ctx *model.Context) handOverflowCo
 func (e *GameEngine) pushHandOverflowDiscardInterrupt(player *model.Player, discardCount int, overflowCtx handOverflowContext) {
 	e.PushInterrupt(newDiscardChoiceInterrupt(player.ID, map[string]interface{}{
 		"discard_count":              discardCount,
+		"discard_reason":             discardReasonHandOverflow,
 		"is_magic":                   overflowCtx.isMagic,
 		"from_damage_draw":           overflowCtx.fromDamageDraw,
 		"no_morale_loss":             overflowCtx.noMoraleLoss,

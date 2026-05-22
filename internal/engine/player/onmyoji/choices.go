@@ -121,8 +121,8 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 	case "onmyoji_yinyang_card":
 		rawOptions := parseOnmyojiCardOptions(data["card_options"])
 		options := make([]model.PromptOption, 0, len(rawOptions))
-		for _, option := range rawOptions {
-			options = append(options, model.PromptOption{ID: option.CardID, Label: option.Label, CardID: option.CardID})
+		for idx, option := range rawOptions {
+			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", idx), Label: option.Label, CardID: option.CardID})
 		}
 		if len(options) == 0 {
 			return nil
@@ -169,8 +169,8 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 	case "onmyoji_binding_card":
 		rawOptions := parseOnmyojiCardOptions(data["card_options"])
 		options := make([]model.PromptOption, 0, len(rawOptions))
-		for _, option := range rawOptions {
-			options = append(options, model.PromptOption{ID: option.CardID, Label: option.Label, CardID: option.CardID})
+		for idx, option := range rawOptions {
+			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", idx), Label: option.Label, CardID: option.CardID})
 		}
 		if len(options) == 0 {
 			return nil

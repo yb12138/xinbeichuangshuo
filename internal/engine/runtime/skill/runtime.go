@@ -276,6 +276,7 @@ func (r *Runtime) ConfirmResponseSkillAction(h Host, playerID, skillID string) (
 			Context: map[string]interface{}{
 				"choice_type":      "system_discard_cards",
 				"discard_subflow":  true,
+				"discard_reason":   "skill_cost",
 				"skill_id":         skillID,
 				"user_ctx":         ctx,
 				"min":              skillDef.InteractionConfig.MinSelect,

@@ -59,6 +59,7 @@ export interface PromptPresentation {
   multi_target?: boolean
   card_source?: 'hand' | 'field' | 'proxy'
   card_filter?: string
+  discard_reason?: string
   has_decline?: boolean
   decline_index?: number
   step_index?: number

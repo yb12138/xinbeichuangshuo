@@ -783,7 +783,10 @@ const promptNeedsCardGuide = computed(() => {
 
 function isOverflowDiscardPrompt(prompt: Prompt | null): boolean {
   if (!prompt) return false
-  return prompt.presentation?.kind === 'card_picker' && prompt.presentation?.card_filter === 'overflow_discard'
+  if (prompt.presentation?.kind !== 'card_picker') return false
+  const discardReason = String(prompt.presentation?.discard_reason || '').trim()
+  if (discardReason) return discardReason === 'hand_overflow'
+  return prompt.presentation?.card_filter === 'overflow_discard'
 }
 
 function parseOverflowDiscardCount(prompt: Prompt | null): number | null {

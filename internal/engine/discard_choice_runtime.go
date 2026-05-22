@@ -14,6 +14,13 @@ import (
 
 const choiceTypeSystemDiscardCards = "system_discard_cards"
 
+const (
+	discardReasonHandOverflow  = "hand_overflow"
+	discardReasonSkillCost     = "skill_cost"
+	discardReasonSkillEffect   = "skill_effect"
+	discardReasonForcedDiscard = "forced_discard"
+)
+
 // resolveDiscardCount 统一计算弃牌数量：优先取 discard_count，其次从 discard_down_to 推算。
 func resolveDiscardCount(data map[string]interface{}, player *model.Player) int {
 	if count := runtimeutil.ToIntContextValue(data["discard_count"]); count > 0 {
@@ -37,7 +44,23 @@ func normalizeDiscardChoiceContext(data map[string]interface{}) map[string]inter
 		data["choice_type"] = choiceTypeSystemDiscardCards
 	}
 	data["discard_subflow"] = true
+	if reason, _ := data["discard_reason"].(string); strings.TrimSpace(reason) == "" {
+		data["discard_reason"] = discardReasonFromContext(data)
+	}
 	return data
+}
+
+func discardReasonFromContext(data map[string]interface{}) string {
+	if data == nil {
+		return discardReasonForcedDiscard
+	}
+	if reason, _ := data["discard_reason"].(string); strings.TrimSpace(reason) != "" {
+		return strings.TrimSpace(reason)
+	}
+	if skillID, _ := data["skill_id"].(string); strings.TrimSpace(skillID) != "" {
+		return discardReasonSkillEffect
+	}
+	return discardReasonForcedDiscard
 }
 
 func newDiscardChoiceInterrupt(playerID string, data map[string]interface{}) *model.Interrupt {
@@ -107,6 +130,7 @@ func (e *GameEngine) buildDiscardChoicePromptFromData(playerID string, data map[
 	var message string
 	var min, max int
 	cardFilter := "discard"
+	discardReason := discardReasonFromContext(data)
 
 	if count := resolveDiscardCount(data, player); count > 0 {
 		min = count
@@ -114,9 +138,15 @@ func (e *GameEngine) buildDiscardChoicePromptFromData(playerID string, data map[
 		downTo := runtimeutil.ToIntContextValue(data["discard_down_to"])
 		if downTo > 0 {
 			message = fmt.Sprintf("请弃置 %d 张牌（弃至%d张）：", count, downTo)
-			cardFilter = "overflow_discard"
 		} else {
-			message = fmt.Sprintf("手牌上限溢出！请弃置 %d 张牌：", count)
+			message = fmt.Sprintf("请选择弃置 %d 张牌：", count)
+		}
+		if discardReason == discardReasonHandOverflow {
+			if downTo > 0 {
+				message = fmt.Sprintf("请弃置 %d 张牌（弃至%d张）：", count, downTo)
+			} else {
+				message = fmt.Sprintf("手牌上限溢出！请弃置 %d 张牌：", count)
+			}
 			cardFilter = "overflow_discard"
 		}
 		if customMsg, ok := data["prompt"].(string); ok && customMsg != "" {
@@ -177,14 +207,19 @@ func (e *GameEngine) buildDiscardChoicePromptFromData(playerID string, data map[
 	}
 
 	return &model.Prompt{
-		Type:         model.PromptChooseCards,
-		PlayerID:     playerID,
-		ChoiceType:   promptChoiceType,
-		Message:      message,
-		SkillID:      skillID,
-		Options:      options,
-		Min:          min,
-		Max:          max,
-		Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand", CardFilter: cardFilter},
+		Type:       model.PromptChooseCards,
+		PlayerID:   playerID,
+		ChoiceType: promptChoiceType,
+		Message:    message,
+		SkillID:    skillID,
+		Options:    options,
+		Min:        min,
+		Max:        max,
+		Presentation: &model.PromptPresentation{
+			Kind:          model.PresentationCardPicker,
+			CardSource:    "hand",
+			CardFilter:    cardFilter,
+			DiscardReason: discardReason,
+		},
 	}
 }

@@ -618,7 +618,7 @@ export function heavenDriveDiscardPrompt(handCount: number = 5): WsMessage {
     options,
     min: discardCount,
     max: discardCount,
-    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'overflow_discard', numeric_base: 0 },
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'discard', discard_reason: 'skill_effect', numeric_base: 0 },
   } satisfies Prompt);
 }
 

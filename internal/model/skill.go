@@ -225,8 +225,9 @@ type PromptPresentation struct {
 	MultiTarget  bool   `json:"multi_target,omitempty"`  // true=批量多选目标
 
 	// 卡牌选择语义（kind=card_picker 时使用）
-	CardSource string `json:"card_source,omitempty"` // hand/field/proxy
-	CardFilter string `json:"card_filter,omitempty"` // same_element/diff_element/magic_only/attack_only/element:{ele}
+	CardSource    string `json:"card_source,omitempty"`    // hand/field/proxy
+	CardFilter    string `json:"card_filter,omitempty"`    // same_element/diff_element/magic_only/attack_only/element:{ele}
+	DiscardReason string `json:"discard_reason,omitempty"` // hand_overflow/skill_cost/skill_effect/forced_discard
 
 	// 确认+选择组合（kind=branch_select 时使用）
 	HasDecline   bool `json:"has_decline,omitempty"`   // true=选项中包含"不发动/取消"
