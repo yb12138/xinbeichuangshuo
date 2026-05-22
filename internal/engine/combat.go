@@ -59,8 +59,15 @@ func (e *GameEngine) ApplyAttackDamageModifiers(attacker, target *model.Player, 
 				CounterInitiator: action.CounterInitiator,
 			},
 		}
-		modifyCtx := e.BuildContext(attacker, target, model.TimingOnDamageCalculated, modifyDamageCtx)
-		e.dispatcher.OnTiming(modifyCtx.Timing, modifyCtx)
+		e.dispatchRuleTiming(ruleTimingDispatchInput{
+			Timing:   model.TimingDamageSourceDeal,
+			User:     attacker,
+			Target:   target,
+			EventCtx: modifyDamageCtx,
+			Markers: map[string]any{
+				"damage_timeline": true,
+			},
+		})
 	}
 	return e.ApplyPassiveAttackEffects(attacker, target, damage, action)
 }

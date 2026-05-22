@@ -69,7 +69,7 @@ func TestMagicLancerDarkRelease_HandCapAndAttackBonusAndLock(t *testing.T) {
 		t.Fatal("ml_black_spear handler not found")
 	}
 	p2.Hand = []model.Card{magicLancerTestCard("h1", "火焰斩", model.CardTypeAttack, model.ElementFire, 2)}
-	hitCtx := game.BuildContext(p1, p2, model.TimingOnHitCheck, &model.EventContext{
+	hitCtx := game.BuildContext(p1, p2, model.TimingAttackHit, &model.EventContext{
 		Type:     model.EventAttack,
 		SourceID: p1.ID,
 		TargetID: p2.ID,
@@ -425,7 +425,7 @@ func TestMagicLancerBlackSpear_ConsumesCrystalAndAddsDamage(t *testing.T) {
 	if handler == nil {
 		t.Fatal("ml_black_spear handler not found")
 	}
-	ctx := game.BuildContext(p1, p2, model.TimingOnHitCheck, &model.EventContext{
+	ctx := game.BuildContext(p1, p2, model.TimingAttackHit, &model.EventContext{
 		Type:     model.EventAttack,
 		SourceID: p1.ID,
 		TargetID: p2.ID,

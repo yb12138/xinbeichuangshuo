@@ -12,9 +12,6 @@ func RoleEntry() player.RoleEntry {
 		ID:      "berserker",
 		Choices: NewChoiceHandler(),
 		Skills:  SkillEntries(),
-		TimingHookSpecs: []player.TimingHookSpec{
-			{Timing: player.TimingOnHitCheck, Priority: 100, Hook: hitCheckHook},
-		},
 	}
 }
 

@@ -303,7 +303,7 @@ func TestHomGlyphFusion_MaxXUsesDistinctElements(t *testing.T) {
 		t.Fatalf("hom_glyph_fusion handler not found")
 	}
 	damageVal := 2
-	ctx := g.BuildContext(p1, g.State.Players["p2"], model.TimingOnHitCheck, &model.EventContext{
+	ctx := g.BuildContext(p1, g.State.Players["p2"], model.TimingAttackMiss, &model.EventContext{
 		Type:      model.EventAttack,
 		SourceID:  p1.ID,
 		TargetID:  "p2",
@@ -372,7 +372,7 @@ func TestHomGlyphFusion_CanTriggerWithSameElementAsAttack(t *testing.T) {
 		t.Fatalf("hom_glyph_fusion handler not found")
 	}
 	damageVal := 2
-	ctx := g.BuildContext(p1, g.State.Players["p2"], model.TimingOnHitCheck, &model.EventContext{
+	ctx := g.BuildContext(p1, g.State.Players["p2"], model.TimingAttackMiss, &model.EventContext{
 		Type:      model.EventAttack,
 		SourceID:  p1.ID,
 		TargetID:  "p2",
@@ -414,7 +414,7 @@ func TestHomAttackMissResponseGroup_ChooseOneOnly(t *testing.T) {
 		{ID: "g1", Name: "风神斩", Type: model.CardTypeAttack, Element: model.ElementWind, Damage: 2},
 	}
 
-	ctx := g.BuildContext(p1, p2, model.TimingOnHitCheck, &model.EventContext{
+	ctx := g.BuildContext(p1, p2, model.TimingAttackMiss, &model.EventContext{
 		Type:     model.EventAttack,
 		SourceID: p1.ID,
 		TargetID: p2.ID,
@@ -904,7 +904,7 @@ func TestHomRuneSmash_BurstAddsAttackAndMagicDamage(t *testing.T) {
 	if h == nil {
 		t.Fatalf("hom_rune_smash handler not found")
 	}
-	ctx := g.BuildContext(p1, p2, model.TimingOnHitCheck, &model.EventContext{
+	ctx := g.BuildContext(p1, p2, model.TimingAttackHit, &model.EventContext{
 		Type:      model.EventAttack,
 		SourceID:  p1.ID,
 		TargetID:  p2.ID,
@@ -986,7 +986,7 @@ func TestHomRuneSmash_ResponseSkillOnAttackHit(t *testing.T) {
 		{ID: "f1", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2},
 	}
 
-	ctx := g.BuildContext(p1, p2, model.TimingOnHitCheck, &model.EventContext{
+	ctx := g.BuildContext(p1, p2, model.TimingAttackHit, &model.EventContext{
 		Type:     model.EventAttack,
 		SourceID: p1.ID,
 		TargetID: p2.ID,
@@ -1039,7 +1039,7 @@ func TestHomRuneSmash_CanTriggerWithDifferentElementFromAttack(t *testing.T) {
 		{ID: "w1", Name: "水涟斩", Type: model.CardTypeAttack, Element: model.ElementWater, Damage: 2},
 	}
 
-	ctx := g.BuildContext(p1, p2, model.TimingOnHitCheck, &model.EventContext{
+	ctx := g.BuildContext(p1, p2, model.TimingAttackHit, &model.EventContext{
 		Type:     model.EventAttack,
 		SourceID: p1.ID,
 		TargetID: p2.ID,

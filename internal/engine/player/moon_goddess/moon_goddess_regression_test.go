@@ -677,7 +677,7 @@ func TestMoonGoddessDarkMoonSlash_AddsDamageAndConsumesDarkMoon(t *testing.T) {
 		},
 	}
 
-	ctx := game.BuildContext(moon, enemy, model.TimingOnHitCheck, &model.EventContext{
+	ctx := game.BuildContext(moon, enemy, model.TimingAttackHit, &model.EventContext{
 		Type:     model.EventAttack,
 		SourceID: moon.ID,
 		TargetID: enemy.ID,
@@ -832,7 +832,7 @@ func TestMoonGoddessMedusa_OnlyAtAttackStart(t *testing.T) {
 		t.Fatalf("expected no interrupt without attack-start context")
 	}
 
-	nonStartCtx := game.BuildContext(enemy, ally, model.TimingOnHitCheck, &model.EventContext{
+	nonStartCtx := game.BuildContext(enemy, ally, model.TimingAttackHit, &model.EventContext{
 		Type:     model.EventAttack,
 		SourceID: enemy.ID,
 		TargetID: ally.ID,
@@ -1257,7 +1257,7 @@ func TestMoonGoddessDarkMoonSlash_XBoundaries_CurseAndDamage(t *testing.T) {
 				},
 			}
 
-			ctx := game.BuildContext(moon, enemy, model.TimingOnHitCheck, &model.EventContext{
+			ctx := game.BuildContext(moon, enemy, model.TimingAttackHit, &model.EventContext{
 				Type:     model.EventAttack,
 				SourceID: moon.ID,
 				TargetID: enemy.ID,

@@ -246,7 +246,7 @@ func TestSpiritCasterHundredNight_FireRevealAOEWithCollapse(t *testing.T) {
 	p1.Crystal = 1
 	addSpiritCasterPowerForTest(p1, spiritCasterTestCard("pow_fire", "火妖力", model.CardTypeMagic, model.ElementFire))
 
-	ctx := game.BuildContext(p1, p2, model.TimingOnHitCheck, &model.EventContext{
+	ctx := game.BuildContext(p1, p2, model.TimingAttackHit, &model.EventContext{
 		Type:     model.EventAttack,
 		SourceID: "p1",
 		TargetID: "p2",
@@ -334,7 +334,7 @@ func TestSpiritCasterHundredNight_FireRevealAOEWithCollapseResolvesEachTargetOnc
 	p4.Heal = 0
 	addSpiritCasterPowerForTest(p1, spiritCasterTestCard("pow_fire", "火妖力", model.CardTypeMagic, model.ElementFire))
 
-	ctx := game.BuildContext(p1, p2, model.TimingOnHitCheck, &model.EventContext{
+	ctx := game.BuildContext(p1, p2, model.TimingAttackHit, &model.EventContext{
 		Type:     model.EventAttack,
 		SourceID: "p1",
 		TargetID: "p2",
@@ -407,7 +407,7 @@ func TestSpiritCasterHundredNight_NonFireSingleTarget(t *testing.T) {
 	p2 := game.State.Players["p2"]
 	addSpiritCasterPowerForTest(p1, spiritCasterTestCard("pow_w", "水妖力", model.CardTypeMagic, model.ElementWater))
 
-	ctx := game.BuildContext(p1, p2, model.TimingOnHitCheck, &model.EventContext{
+	ctx := game.BuildContext(p1, p2, model.TimingAttackHit, &model.EventContext{
 		Type:     model.EventAttack,
 		SourceID: "p1",
 		TargetID: "p2",

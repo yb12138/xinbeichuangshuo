@@ -73,7 +73,7 @@ func (h *HeroForbiddenPowerHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if !ctx.AttackResponsePhase() {
+	if !ctx.AttackHitPhase() && !ctx.AttackMissPhase() {
 		return false
 	}
 	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {

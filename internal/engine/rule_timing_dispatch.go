@@ -18,6 +18,7 @@ type ruleTimingDispatchResult struct {
 	PendingChanged  bool
 	Interrupted     bool
 	QueuedInterrupt bool
+	Context         *model.Context
 }
 
 func (e *GameEngine) dispatchRuleTiming(input ruleTimingDispatchInput) ruleTimingDispatchResult {
@@ -32,7 +33,6 @@ func (e *GameEngine) dispatchRuleTiming(input ruleTimingDispatchInput) ruleTimin
 	queueLenBefore := len(e.State.InterruptQueue)
 	ctx := e.BuildContext(input.User, input.Target, input.Timing, input.EventCtx)
 	ctx.Selections["rulebook_timing"] = input.Timing
-	ctx.Selections["legacy_timing"] = model.LegacyTimingName(input.Timing)
 	for key, value := range input.Markers {
 		ctx.Selections[key] = value
 	}
@@ -47,5 +47,6 @@ func (e *GameEngine) dispatchRuleTiming(input ruleTimingDispatchInput) ruleTimin
 		PendingChanged:  pendingChanged,
 		Interrupted:     pendingChanged && e.State.PendingInterrupt != nil,
 		QueuedInterrupt: pendingChanged && len(e.State.InterruptQueue) > queueLenBefore,
+		Context:         ctx,
 	}
 }

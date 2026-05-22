@@ -94,7 +94,7 @@ func GetCharacters() []model.Character {
 			MaxHand: 6,
 			Skills: []model.SkillDefinition{
 				{
-					ID: "berserker_frenzy", Timings: []model.FlowTiming{model.TimingOnDamageCalculated, model.TimingOnHitCheck}, Title: "狂化",
+					ID: "berserker_frenzy", Timings: []model.FlowTiming{model.TimingDamageSourceDeal, model.TimingAttackHit}, Title: "狂化",
 					Type:        model.SkillTypePassive,
 					Tags:        []model.SkillTag{},
 					Description: "你发动的所有攻击伤害额外+1。（攻击命中时②，若你的手牌>3）本次攻击伤害额外+1。",
@@ -104,7 +104,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "berserker_tear", Timings: []model.FlowTiming{model.TimingOnHitCheck}, Title: "撕裂",
+					ID: "berserker_tear", Timings: []model.FlowTiming{model.TimingAttackHit}, Title: "撕裂",
 					Type:        model.SkillTypeResponse,
 					Tags:        []model.SkillTag{model.TagGem, model.TagUltimate, model.TagOptional},
 					Description: "［宝石］攻击命中后发动②，本次攻击伤害额外+2。",
@@ -127,7 +127,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "blood_blade", Timings: []model.FlowTiming{model.TimingOnHitCheck}, Title: "血影狂刀",
+					ID: "blood_blade", Timings: []model.FlowTiming{model.TimingAttackHit}, Title: "血影狂刀",
 					Type:        model.SkillTypeResponse,
 					Tags:        []model.SkillTag{model.TagUnique},
 					Description: "作为主动攻击打出时发动●若命中后②对手的手牌为2，本次攻击伤害额外+2。●若命中后②对手的手牌为3，本次攻击伤害额外+1。",
@@ -352,7 +352,7 @@ func GetCharacters() []model.Character {
 			MaxHand: 6,
 			Skills: []model.SkillDefinition{
 				{
-					ID: "piercing_shot", Timings: []model.FlowTiming{model.TimingOnHitCheck}, Title: "贯穿射击",
+					ID: "piercing_shot", Timings: []model.FlowTiming{model.TimingAttackMiss}, Title: "贯穿射击",
 					Type:           model.SkillTypeResponse,
 					Description:    "（主动攻击未命中时发动②，弃1张法术牌［展示］）对你所攻击的目标造成2点法术伤害③。",
 					CostDiscards:   1,
@@ -640,7 +640,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "valkyrie_heroic_summon", Timings: []model.FlowTiming{model.TimingOnHitCheck}, Title: "英灵召唤",
+					ID: "valkyrie_heroic_summon", Timings: []model.FlowTiming{model.TimingAttackHit}, Title: "英灵召唤",
 					Type:        model.SkillTypeResponse,
 					Tags:        []model.SkillTag{model.TagCrystal, model.TagUltimate},
 					Description: "［水晶］（攻击命中时发动②）本次攻击伤害额外+1，（若你额外弃1张法术牌［展示］）目标角色+1［治疗］。",
@@ -908,7 +908,7 @@ func GetCharacters() []model.Character {
 					MaxTargets:   1,
 				},
 				{
-					ID: "holy_lancer_holy_strike", Timings: []model.FlowTiming{model.TimingOnHitCheck}, Title: "圣击",
+					ID: "holy_lancer_holy_strike", Timings: []model.FlowTiming{model.TimingAttackHit}, Title: "圣击",
 					Type:        model.SkillTypeResponse,
 					Description: "攻击命中后，若本次未发动天枪/地枪，则+1治疗。",
 
@@ -928,7 +928,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "holy_lancer_earth_spear", Timings: []model.FlowTiming{model.TimingOnHitCheck}, Title: "地枪",
+					ID: "holy_lancer_earth_spear", Timings: []model.FlowTiming{model.TimingAttackHit}, Title: "地枪",
 					Type:        model.SkillTypeResponse,
 					Description: "（主动攻击命中后发动②）移除你的X点［治疗］，本次攻击伤害额外+X，X最高为4；不能和［圣击］同时发动。",
 
@@ -1327,7 +1327,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "crk_killing_feast", Timings: []model.FlowTiming{model.TimingOnHitCheck}, Title: "杀戮盛宴",
+					ID: "crk_killing_feast", Timings: []model.FlowTiming{model.TimingAttackHit}, Title: "杀戮盛宴",
 					Type:        model.SkillTypeResponse,
 					Tags:        []model.SkillTag{model.TagOptional},
 					Description: "主动攻击命中且有血印时可响应：移除1血印并对自己造成4法术伤害，本次攻击伤害+2。",
@@ -1386,7 +1386,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "hom_rage_suppress", Timings: []model.FlowTiming{model.TimingOnHitCheck}, Title: "怒火压制",
+					ID: "hom_rage_suppress", Timings: []model.FlowTiming{model.TimingAttackMiss}, Title: "怒火压制",
 					Type:        model.SkillTypeResponse,
 					Tags:        []model.SkillTag{model.TagOptional},
 					Description: "主动攻击未命中时可响应：翻转1战纹为魔纹。",
@@ -1397,7 +1397,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "hom_rune_smash", Timings: []model.FlowTiming{model.TimingOnHitCheck}, Title: "战纹碎击",
+					ID: "hom_rune_smash", Timings: []model.FlowTiming{model.TimingAttackHit}, Title: "战纹碎击",
 					Type:        model.SkillTypeResponse,
 					Tags:        []model.SkillTag{model.TagOptional},
 					Description: "主动攻击命中时可响应：翻转1战纹为魔纹，弃X张同系牌，本次攻击伤害额外+(X-1)；若处于蓄势迸发形态，可额外翻转Y个战纹，本次额外法术伤害+Y。",
@@ -1408,7 +1408,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "hom_glyph_fusion", Timings: []model.FlowTiming{model.TimingOnHitCheck}, Title: "魔纹融合",
+					ID: "hom_glyph_fusion", Timings: []model.FlowTiming{model.TimingAttackMiss}, Title: "魔纹融合",
 					Type:        model.SkillTypeResponse,
 					Tags:        []model.SkillTag{model.TagOptional},
 					Description: "主动攻击未命中时可响应：翻转1魔纹为战纹，弃X张异系牌（X>1），对本次攻击目标造成(X-1)点法术伤害；若处于蓄势迸发形态，可额外翻转Y个魔纹，本次法术伤害额外+Y。",
@@ -1531,7 +1531,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "onmyoji_yinyang_shift", Timings: []model.FlowTiming{model.TimingOnAttackDeclared}, Title: "阴阳转换",
+					ID: "onmyoji_yinyang_shift", Timings: []model.FlowTiming{model.TimingAttackPlayCard, model.TimingAttackModifyCard}, Title: "阴阳转换",
 					Type:        model.SkillTypeResponse,
 					Description: "你应战时可展示1张与来袭攻击同命格的攻击牌，视为你应战此次攻击并将其系别转为该牌系别；你+1［鬼火］。若处于式神形态则转正脱离，本次攻击伤害=X（X为你的鬼火数）。",
 
@@ -1540,7 +1540,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "onmyoji_shikigami_shift", Timings: []model.FlowTiming{model.TimingOnAttackDeclared}, Title: "式神转换",
+					ID: "onmyoji_shikigami_shift", Timings: []model.FlowTiming{model.TimingAttackPlayCard, model.TimingAttackModifyCard}, Title: "式神转换",
 					Type:        model.SkillTypeResponse,
 					Description: "当阴阳转换生效时自动触发：你强制摸1张牌，然后+1［鬼火］。",
 
@@ -1560,7 +1560,7 @@ func GetCharacters() []model.Character {
 					MaxTargets:   1,
 				},
 				{
-					ID: "onmyoji_binding", Timings: []model.FlowTiming{model.TimingOnAttackDeclared}, Title: "式神咒束",
+					ID: "onmyoji_binding", Timings: []model.FlowTiming{model.TimingAttackResponse}, Title: "式神咒束",
 					Type:        model.SkillTypeResponse,
 					Description: "（目标队友受到主动攻击时①，若此攻击可应战且你处于［式神形态］，打出1张合理的应战攻击牌［展示］，移除我方［战绩区］1［宝石］1［水晶］）将本次攻击目标变更为你，且视为你使用此牌执行应战攻击。",
 
@@ -1840,7 +1840,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "ml_black_spear", Timings: []model.FlowTiming{model.TimingOnHitCheck}, Title: "漆黑之枪",
+					ID: "ml_black_spear", Timings: []model.FlowTiming{model.TimingAttackHit}, Title: "漆黑之枪",
 					Type:        model.SkillTypeResponse,
 					Tags:        []model.SkillTag{model.TagCrystal, model.TagUltimate},
 					Description: "X［水晶］（仅幻影形态下，主动攻击手牌为1或2的对手并命中后）本次攻击伤害额外+（X+2）。",
@@ -1891,7 +1891,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "sc_hundred_night", Timings: []model.FlowTiming{model.TimingOnHitCheck}, Title: "百鬼夜行",
+					ID: "sc_hundred_night", Timings: []model.FlowTiming{model.TimingAttackHit}, Title: "百鬼夜行",
 					Type:        model.SkillTypeResponse,
 					Description: "主动攻击命中后可发动：移除1个妖力。默认对1名角色造成1点法术伤害；若移除的是火系妖力，可展示并改为指定2名角色，对其余所有角色各造成1点法术伤害。",
 
@@ -2007,7 +2007,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "hero_forbidden_power", Timings: []model.FlowTiming{model.TimingOnHitCheck}, Title: "禁断之力",
+					ID: "hero_forbidden_power", Timings: []model.FlowTiming{model.TimingAttackHit, model.TimingAttackMiss}, Title: "禁断之力",
 					Type:        model.SkillTypeResponse,
 					Tags:        []model.SkillTag{model.TagCrystal, model.TagUltimate},
 					CostCrystal: 1,
@@ -2216,7 +2216,7 @@ func GetCharacters() []model.Character {
 			MaxHand: 6,
 			Skills: []model.SkillDefinition{
 				{
-					ID: "se_sword_soul_guard", Timings: []model.FlowTiming{model.TimingOnHitCheck}, Title: "剑魂守护",
+					ID: "se_sword_soul_guard", Timings: []model.FlowTiming{model.TimingAttackMiss}, Title: "剑魂守护",
 					Type:        model.SkillTypePassive,
 					Description: "主动攻击未命中时：若剑魂未达上限，则将本次打出的攻击牌作为剑魂置于角色旁；当前能量为单数时剑魂视为天使之魂，双数时视为恶魔之魂，无能量时不属于任何一种。",
 
@@ -2225,7 +2225,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "se_feint", Timings: []model.FlowTiming{model.TimingOnHitCheck}, Title: "佯攻",
+					ID: "se_feint", Timings: []model.FlowTiming{model.TimingAttackMiss}, Title: "佯攻",
 					Type:        model.SkillTypePassive,
 					Description: "主动攻击未命中时，你+1剑气。",
 
@@ -2234,7 +2234,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "se_sword_qi_slash", Timings: []model.FlowTiming{model.TimingOnHitCheck}, Title: "剑气斩",
+					ID: "se_sword_qi_slash", Timings: []model.FlowTiming{model.TimingAttackHit}, Title: "剑气斩",
 					Type:        model.SkillTypeResponse,
 					Description: "主动攻击命中后可发动：移除X点剑气（X最高为3），对除当前攻击目标外的任意1名角色造成X点法术伤害。",
 
@@ -2336,7 +2336,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "bs_reversal_iaijutsu", Timings: []model.FlowTiming{model.TimingOnHitCheck}, Title: "逆反居合斩",
+					ID: "bs_reversal_iaijutsu", Timings: []model.FlowTiming{model.TimingAttackHit}, Title: "逆反居合斩",
 					Type:        model.SkillTypeResponse,
 					Description: "仅御魂流居合形态下，主动攻击命中手牌<4的对手时可发动：移除X点兽魂，本次攻击改为目标弃置(X+2)张手牌；若实际弃牌数小于X+2，则对方士气-1。",
 
@@ -2498,7 +2498,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "mg_darkmoon_slash", Timings: []model.FlowTiming{model.TimingOnHitCheck}, Title: "闇月斩",
+					ID: "mg_darkmoon_slash", Timings: []model.FlowTiming{model.TimingAttackHit}, Title: "闇月斩",
 					Type:        model.SkillTypeResponse,
 					Tags:        []model.SkillTag{model.TagCrystal, model.TagUltimate},
 					CostCrystal: 1,

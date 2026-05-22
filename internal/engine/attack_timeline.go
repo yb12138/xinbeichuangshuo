@@ -12,21 +12,59 @@ func attackKindFromCounter(isCounter bool) model.AttackKind {
 }
 
 func (e *GameEngine) dispatchAttackRulebookTiming(timing model.Timing, attacker, target *model.Player, card *model.Card, attackInfo *model.AttackEventInfo, kind model.AttackKind) bool {
+	return e.dispatchAttackRulebookTimingWithMarkers(timing, attacker, target, card, attackInfo, kind, nil).Interrupted
+}
+
+func (e *GameEngine) dispatchAttackRulebookTimingWithMarkers(timing model.Timing, attacker, target *model.Player, card *model.Card, attackInfo *model.AttackEventInfo, kind model.AttackKind, markers map[string]any) ruleTimingDispatchResult {
 	ctx := e.buildAttackRulebookContext(timing, attacker, target, card, attackInfo, kind)
 	if ctx == nil {
-		return false
+		return ruleTimingDispatchResult{}
+	}
+	return e.dispatchAttackRulebookEventTimingWithMarkers(timing, ctx.User, ctx.Target, ctx.EventCtx, kind, markers)
+}
+
+func (e *GameEngine) dispatchAttackRulebookEventTimingWithMarkers(timing model.Timing, attacker, target *model.Player, eventCtx *model.EventContext, kind model.AttackKind, markers map[string]any) ruleTimingDispatchResult {
+	if e == nil || e.State == nil || attacker == nil || eventCtx == nil {
+		return ruleTimingDispatchResult{}
+	}
+	if eventCtx.Type == model.EventNone {
+		eventCtx.Type = model.EventAttack
+	}
+	if eventCtx.SourceID == "" {
+		eventCtx.SourceID = attacker.ID
+	}
+	if target != nil && eventCtx.TargetID == "" {
+		eventCtx.TargetID = target.ID
+	}
+	if eventCtx.ActionType == "" {
+		eventCtx.ActionType = model.ActionAttack
+	}
+	if eventCtx.AttackInfo == nil {
+		eventCtx.AttackInfo = &model.AttackEventInfo{
+			ActionType:       string(model.ActionAttack),
+			CanBeResponded:   true,
+			CounterInitiator: "",
+			InterceptTags:    map[model.CombatInterceptTag]bool{},
+		}
+		if kind == model.AttackKindCounter {
+			eventCtx.AttackInfo.CounterInitiator = attacker.ID
+		}
+	}
+	allMarkers := map[string]any{
+		"attack_timeline": true,
+		"attack_kind":     kind,
+	}
+	for key, value := range markers {
+		allMarkers[key] = value
 	}
 	result := e.dispatchRuleTiming(ruleTimingDispatchInput{
 		Timing:   timing,
-		User:     ctx.User,
-		Target:   ctx.Target,
-		EventCtx: ctx.EventCtx,
-		Markers: map[string]any{
-			"attack_timeline": true,
-			"attack_kind":     kind,
-		},
+		User:     attacker,
+		Target:   target,
+		EventCtx: eventCtx,
+		Markers:  allMarkers,
 	})
-	return result.Interrupted
+	return result
 }
 
 func (e *GameEngine) buildAttackRulebookContext(timing model.Timing, attacker, target *model.Player, card *model.Card, attackInfo *model.AttackEventInfo, kind model.AttackKind) *model.Context {

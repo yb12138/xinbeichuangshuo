@@ -23,7 +23,7 @@ func TestBerserkerTear_CanTimingOnCounterAttackHit(t *testing.T) {
 	p1.Gem = 1
 
 	damage := 2
-	hitCtx := game.BuildContext(p1, p2, model.TimingOnHitCheck, &model.EventContext{
+	hitCtx := game.BuildContext(p1, p2, model.TimingAttackHit, &model.EventContext{
 		Type:      model.EventAttack,
 		SourceID:  p1.ID,
 		TargetID:  p2.ID,
@@ -80,7 +80,7 @@ func TestBloodBlade_RunsOnHitCheckForActiveUniqueAttack(t *testing.T) {
 	}
 
 	damage := 2
-	hitCtx := game.BuildContext(p1, p2, model.TimingOnHitCheck, &model.EventContext{
+	hitCtx := game.BuildContext(p1, p2, model.TimingAttackHit, &model.EventContext{
 		Type:      model.EventAttack,
 		SourceID:  p1.ID,
 		TargetID:  p2.ID,

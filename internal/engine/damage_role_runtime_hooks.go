@@ -14,16 +14,7 @@ import (
 
 // applyAttackHitPendingDamageRules 在命中判定时处理攻击伤害命中规则。
 func (e *GameEngine) applyAttackHitPendingDamageRules(pd *model.PendingDamage, attacker *model.Player, victim *model.Player) {
-	result := e.dispatchRoleTimingHook(engineplayer.TimingOnHitCheck, engineplayer.TimingHookContext{
-		SourceID:      pd.SourceID,
-		TargetID:      pd.TargetID,
-		IsCounter:     pd.IsCounter,
-		PendingDamage: pd,
-	})
-	// 如果有 Interrupted 或 Blocked，则后续逻辑已由角色包处理
-	if result.Interrupted || result.Blocked {
-		return
-	}
+	// 命中技能现在由 TimingAttackHit 规则轴统一分发；保留 lifecycle 入口便于后续挂 runtime-only hook。
 }
 
 // ---------- 承伤/转伤钩子 ----------

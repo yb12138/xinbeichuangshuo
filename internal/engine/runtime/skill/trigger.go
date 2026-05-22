@@ -87,6 +87,7 @@ func (t *Trigger) ProcessSkillBatch(h Host, skillBatch []model.SkillDefinition, 
 	if len(optionalSkillIDs) > 0 && ctx != nil && ctx.User != nil {
 		h.PublishResponseInterrupt(ctx.User, optionalSkillIDs, sharedCtx)
 		h.Log(fmt.Sprintf("%s 有 %d 个响应技能可以发动", ctx.User.Name, len(optionalSkillIDs)))
+		return
 	}
 }
 
