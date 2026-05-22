@@ -116,7 +116,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "blood_roar", Timings: []model.FlowTiming{model.TimingOnAttackDeclared}, Title: "血腥咆哮",
+					ID: "blood_roar", Timings: []model.FlowTiming{model.TimingAttackDeclare}, Title: "血腥咆哮",
 					Type:        model.SkillTypeResponse,
 					Tags:        []model.SkillTag{model.TagUnique},
 					Description: "作为主动攻击打出时发动，若攻击的目标拥有的［治疗］为2，则本次攻击强制命中。",
@@ -297,7 +297,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "holy_sword", Timings: []model.FlowTiming{model.TimingOnAttackDeclared}, Title: "圣剑",
+					ID: "holy_sword", Timings: []model.FlowTiming{model.TimingAttackDeclare}, Title: "圣剑",
 					Type:        model.SkillTypePassive,
 					Tags:        []model.SkillTag{},
 					Description: "若你的主动攻击为你本次行动阶段的第三次［攻击行动］，则此攻击强制命中。本次［攻击行动］结束后，你摸X张牌，弃X张牌（X<4）。",
@@ -319,7 +319,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "gale_skill", Timings: []model.FlowTiming{model.TimingOnAttackDeclared}, Title: "疾风技",
+					ID: "gale_skill", Timings: []model.FlowTiming{model.TimingAttackDeclare}, Title: "疾风技",
 					Type:        model.SkillTypeResponse,
 					Tags:        []model.SkillTag{model.TagUnique},
 					Description: "（作为主动攻击打出时发动）额外+1［攻击行动］。",
@@ -330,7 +330,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "gale_slash", Timings: []model.FlowTiming{model.TimingOnAttackDeclared}, Title: "列风技",
+					ID: "gale_slash", Timings: []model.FlowTiming{model.TimingAttackDeclare}, Title: "列风技",
 					Type:        model.SkillTypeResponse,
 					Tags:        []model.SkillTag{model.TagUnique},
 					Description: "（攻击目标拥有圣盾时发动）无视对手圣盾的效果，且此攻击对手无法应战。",
@@ -371,7 +371,7 @@ func GetCharacters() []model.Character {
 					},
 				},
 				{
-					ID: "lightning_arrow", Timings: []model.FlowTiming{model.TimingOnAttackDeclared}, Title: "闪电箭",
+					ID: "lightning_arrow", Timings: []model.FlowTiming{model.TimingAttackDeclare}, Title: "闪电箭",
 					Type:        model.SkillTypePassive,
 					Tags:        []model.SkillTag{},
 					Description: "你的雷系攻击对手无法应战。",
@@ -391,7 +391,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetAny,
 				},
 				{
-					ID: "precise_shot", Timings: []model.FlowTiming{model.TimingOnAttackDeclared}, Title: "精准射击",
+					ID: "precise_shot", Timings: []model.FlowTiming{model.TimingAttackDeclare}, Title: "精准射击",
 					Type:        model.SkillTypeResponse,
 					Tags:        []model.SkillTag{model.TagUnique},
 					Description: "此攻击强制命中，但本次攻击伤害-1。",
@@ -555,7 +555,7 @@ func GetCharacters() []model.Character {
 					CostDiscards: 1,
 				},
 				{
-					ID: "magic_bullet_fusion_chain", Timings: []model.FlowTiming{model.TimingOnHitCheck}, Title: "魔弹融合",
+					ID: "magic_bullet_fusion_chain", Timings: []model.FlowTiming{model.TimingMagicMissileResponseSkill}, Title: "魔弹融合",
 					Type:            model.SkillTypeResponse,
 					Tags:            []model.SkillTag{},
 					Description:     "当你成为魔弹目标时，可以打出1张地系或火系牌视为魔弹继续传递。",
@@ -621,7 +621,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "valkyrie_peace_walker", Timings: []model.FlowTiming{model.TimingOnAttackDeclared}, Title: "和平行者",
+					ID: "valkyrie_peace_walker", Timings: []model.FlowTiming{model.TimingAttackDeclare}, Title: "和平行者",
 					Type:        model.SkillTypePassive,
 					Description: "你的回合内发动英灵召唤后进入英灵形态；当你执行主动攻击行动时，转正并脱离英灵形态。",
 
@@ -838,7 +838,7 @@ func GetCharacters() []model.Character {
 					MaxTargets:   1,
 				},
 				{
-					ID: "adventurer_lucky_fortune", Timings: []model.FlowTiming{model.TimingOnAttackDeclared}, Title: "强运",
+					ID: "adventurer_lucky_fortune", Timings: []model.FlowTiming{model.TimingAttackDeclare}, Title: "强运",
 					Type:         model.SkillTypePassive,
 					Description:  "发动欺诈后，+1蓝水晶。",
 					LogicHandler: "adventurer_lucky_fortune",
@@ -918,7 +918,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "holy_lancer_sky_spear", Timings: []model.FlowTiming{model.TimingOnAttackDeclared}, Title: "天枪",
+					ID: "holy_lancer_sky_spear", Timings: []model.FlowTiming{model.TimingAttackDeclare}, Title: "天枪",
 					Type:        model.SkillTypeResponse,
 					Description: "主动攻击前，若治疗≥2且本回合未发动圣光祈愈，可移除2治疗使本次攻击不可应战。",
 
@@ -958,7 +958,7 @@ func GetCharacters() []model.Character {
 			MaxHand: 6,
 			Skills: []model.SkillDefinition{
 				{
-					ID: "elf_elemental_shot", Timings: []model.FlowTiming{model.TimingOnAttackDeclared}, Title: "元素射击",
+					ID: "elf_elemental_shot", Timings: []model.FlowTiming{model.TimingAttackDeclare}, Title: "元素射击",
 					Type:        model.SkillTypeResponse,
 					Tags:        []model.SkillTag{model.TagTurnLimit, model.TagOptional},
 					Description: "[回合限定]（主动攻击时①，若攻击牌非暗系，弃1张法术牌[展示]或移除1个[祝福]）根据攻击牌系别附加以下[元素箭]效果：\n[火之矢]：本次攻击伤害额外+1。\n[水之矢]：（主动攻击命中时②）目标角色+1[治疗]。\n[风之矢]：（[攻击行动]结束后）+1[攻击行动]。\n[雷之矢]：本次攻击无法应战。\n[地之矢]：（主动攻击命中时②）对目标角色造成1点法术伤害③。",
@@ -1117,7 +1117,7 @@ func GetCharacters() []model.Character {
 					MaxTargets:   1,
 				},
 				{
-					ID: "ms_yellow_spring", Timings: []model.FlowTiming{model.TimingOnAttackDeclared}, Title: "黄泉震颤",
+					ID: "ms_yellow_spring", Timings: []model.FlowTiming{model.TimingAttackDeclare}, Title: "黄泉震颤",
 					Type:        model.SkillTypeResponse,
 					Tags:        []model.SkillTag{model.TagTurnLimit, model.TagGem, model.TagUltimate, model.TagOptional},
 					Description: "每回合一次：主动攻击前消耗1红宝石，本次攻击不可应战；命中后手牌补至上限并弃2。",
@@ -1140,7 +1140,7 @@ func GetCharacters() []model.Character {
 			MaxHand: 6,
 			Skills: []model.SkillDefinition{
 				{
-					ID: "css_blood_thorns", Timings: []model.FlowTiming{model.TimingOnHitCheck}, Title: "血色荆棘",
+					ID: "css_blood_thorns", Timings: []model.FlowTiming{model.TimingAttackHit}, Title: "血色荆棘",
 					Type:        model.SkillTypePassive,
 					Description: "攻击命中时自动+1鲜血（上限3）。",
 
@@ -1219,7 +1219,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "prayer_rune_gain", Timings: []model.FlowTiming{model.TimingOnAttackDeclared}, Title: "祈祷·攻击增符",
+					ID: "prayer_rune_gain", Timings: []model.FlowTiming{model.TimingAttackDeclare}, Title: "祈祷·攻击增符",
 					Type:        model.SkillTypePassive,
 					Description: "祈祷形态下，每次主动攻击时+2祈祷符文（上限3）。",
 
@@ -1300,7 +1300,7 @@ func GetCharacters() []model.Character {
 			MaxHand: 6,
 			Skills: []model.SkillDefinition{
 				{
-					ID: "crk_crimson_pact", Timings: []model.FlowTiming{model.TimingOnAttackDeclared}, Title: "腥红圣约",
+					ID: "crk_crimson_pact", Timings: []model.FlowTiming{model.TimingAttackDeclare}, Title: "腥红圣约",
 					Type:        model.SkillTypeResponse,
 					Tags:        []model.SkillTag{model.TagTurnLimit, model.TagOptional},
 					Description: "回合限定：主动攻击时可响应，+1治疗。",
@@ -1732,7 +1732,7 @@ func GetCharacters() []model.Character {
 			MaxHand: 6,
 			Skills: []model.SkillDefinition{
 				{
-					ID: "mb_magic_pierce", Timings: []model.FlowTiming{model.TimingOnAttackDeclared}, Title: "魔贯冲击",
+					ID: "mb_magic_pierce", Timings: []model.FlowTiming{model.TimingAttackDeclare}, Title: "魔贯冲击",
 					Type:        model.SkillTypeResponse,
 					Description: "主动攻击前可发动：移除1个火系充能，本次攻击伤害+1；若命中可再移除1个火系充能使伤害再+1；若未命中则对目标造成3点法术伤害。本回合与多重射击互斥。",
 
@@ -1997,7 +1997,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "hero_roar", Timings: []model.FlowTiming{model.TimingOnAttackDeclared}, Title: "怒吼",
+					ID: "hero_roar", Timings: []model.FlowTiming{model.TimingAttackDeclare}, Title: "怒吼",
 					Type:        model.SkillTypeResponse,
 					Description: "主动攻击前可发动：移除1点［怒气］，你摸0~1张牌，本次攻击伤害额外+2；若未命中，你+1［知性］。",
 
@@ -2026,7 +2026,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "hero_calm_mind", Timings: []model.FlowTiming{model.TimingOnAttackDeclared}, Title: "明镜止水",
+					ID: "hero_calm_mind", Timings: []model.FlowTiming{model.TimingAttackDeclare}, Title: "明镜止水",
 					Type:        model.SkillTypeResponse,
 					Description: "主动攻击前可发动：移除4点［知性］，本次攻击对手无法应战；本次攻击结束时你+1［水晶］。",
 
@@ -2084,7 +2084,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "fighter_charge_strike", Timings: []model.FlowTiming{model.TimingOnAttackDeclared}, Title: "蓄力一击",
+					ID: "fighter_charge_strike", Timings: []model.FlowTiming{model.TimingAttackDeclare}, Title: "蓄力一击",
 					Type:        model.SkillTypeResponse,
 					Description: "主动攻击前可发动（斗气未满）：+1斗气，本次攻击伤害额外+1；若未命中，对自己造成X点法术伤害（X为当前斗气）。",
 
@@ -2117,7 +2117,7 @@ func GetCharacters() []model.Character {
 					MaxTargets:   1,
 				},
 				{
-					ID: "fighter_burst_crash", Timings: []model.FlowTiming{model.TimingOnAttackDeclared}, Title: "气绝崩击",
+					ID: "fighter_burst_crash", Timings: []model.FlowTiming{model.TimingAttackDeclare}, Title: "气绝崩击",
 					Type:        model.SkillTypeResponse,
 					Description: "主动攻击前可发动：移除1斗气，本次攻击无法应战；然后对自己造成X点法术伤害（X为当前斗气）。不能与蓄力一击同时发动。",
 
@@ -2177,7 +2177,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "hb_meteor_bullet", Timings: []model.FlowTiming{model.TimingOnAttackDeclared}, Title: "流星圣弹",
+					ID: "hb_meteor_bullet", Timings: []model.FlowTiming{model.TimingAttackDeclare}, Title: "流星圣弹",
 					Type:        model.SkillTypeResponse,
 					Description: "仅圣煌形态下，主动攻击前可发动：移除1点治疗或1点信仰，令1名我方角色+1治疗。",
 
@@ -2246,7 +2246,7 @@ func GetCharacters() []model.Character {
 					MaxTargets:   1,
 				},
 				{
-					ID: "se_angel_soul", Timings: []model.FlowTiming{model.TimingOnAttackDeclared}, Title: "天使之魂",
+					ID: "se_angel_soul", Timings: []model.FlowTiming{model.TimingAttackDeclare}, Title: "天使之魂",
 					Type:        model.SkillTypeResponse,
 					Description: "主动攻击前可发动：当前能量为单数且至少有1张剑魂时，移除1张天使之魂；本次攻击若命中则你+2治疗，若未命中则我方士气+1；不能与剑魂守护同时发动。",
 
@@ -2256,7 +2256,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "se_demon_soul", Timings: []model.FlowTiming{model.TimingOnAttackDeclared}, Title: "恶魔之魂",
+					ID: "se_demon_soul", Timings: []model.FlowTiming{model.TimingAttackDeclare}, Title: "恶魔之魂",
 					Type:        model.SkillTypeResponse,
 					Description: "主动攻击前可发动：当前能量为双数且至少有1张剑魂时，移除1张恶魔之魂；本次攻击伤害额外+1，若未命中则你+2剑气；不能与剑魂守护同时发动。",
 
@@ -2307,7 +2307,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "bs_beast_soul_will", Timings: []model.FlowTiming{model.TimingOnHitCheck}, Title: "兽魂意念",
+					ID: "bs_beast_soul_will", Timings: []model.FlowTiming{model.TimingAttackHit}, Title: "兽魂意念",
 					Type:        model.SkillTypePassive,
 					Description: "每移除1点兽魂，你+1残心；仅普通形态下，主动攻击命中时你+1兽魂。",
 
@@ -2383,7 +2383,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "ss_soul_convert", Timings: []model.FlowTiming{model.TimingOnAttackDeclared}, Title: "灵魂转换",
+					ID: "ss_soul_convert", Timings: []model.FlowTiming{model.TimingAttackDeclare}, Title: "灵魂转换",
 					Type:        model.SkillTypeResponse,
 					Description: "（你每发动1次主动攻击①）可转换1点你拥有的［灵魂］颜色。",
 
@@ -2476,7 +2476,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "mg_medusa_eye", Timings: []model.FlowTiming{model.TimingOnAttackDeclared}, Title: "美杜莎之眼",
+					ID: "mg_medusa_eye", Timings: []model.FlowTiming{model.TimingAttackDeclare}, Title: "美杜莎之眼",
 					Type:         model.SkillTypeResponse,
 					Description:  "目标对手攻击时，可移除1个同系闇月：你+1治疗、+1石化；若移除的是法术牌，再弃1张牌并对该目标对手造成1点法术伤害。",
 					LogicHandler: "mg_medusa_eye",
