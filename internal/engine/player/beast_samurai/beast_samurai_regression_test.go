@@ -443,7 +443,7 @@ func TestBeastSamurai_BeastReturn_XFlowAndMagicDiscardGainSoul(t *testing.T) {
 
 	damage := 2
 	game.State.CombatStage = model.CombatStageCalcDamage
-	ctx := game.BuildContext(p1, p2, model.TimingOnDamageTaken, &model.EventContext{
+	ctx := game.BuildContext(p1, p2, model.TimingDamageTaken, &model.EventContext{
 		Type:      model.EventDamage,
 		SourceID:  p2.ID,
 		TargetID:  p1.ID,
@@ -503,7 +503,7 @@ func TestBeastSamurai_BeastReturn_RequiresBeastSoul(t *testing.T) {
 
 	damage := 2
 	game.State.CombatStage = model.CombatStageCalcDamage
-	ctx := game.BuildContext(p1, p2, model.TimingOnDamageTaken, &model.EventContext{
+	ctx := game.BuildContext(p1, p2, model.TimingDamageTaken, &model.EventContext{
 		Type:      model.EventDamage,
 		SourceID:  p2.ID,
 		TargetID:  p1.ID,

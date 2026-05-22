@@ -17,7 +17,7 @@ func RoleEntry() player.RoleEntry {
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
 		CannotActChecker: CannotActCheckerFn,
 		TimingHookSpecs: []player.TimingHookSpec{
-			{Timing: player.TimingOnDamageCalculate, Priority: 200, Hook: damageCalculateHook},
+			{Timing: player.TimingDamageSourceDeal, Priority: 200, Hook: damageCalculateHook},
 			{Timing: player.TimingOnAttackStateReset, Priority: 100, Hook: attackStateResetHook},
 			{Timing: player.TimingOnAttackGating, Priority: 200, Hook: attackGatingHook},
 			{Timing: player.TimingPostAttackHit, Priority: 500, Hook: postAttackHitHook},

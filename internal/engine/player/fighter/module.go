@@ -20,7 +20,7 @@ func RoleEntry() player.RoleEntry {
 			model.FlowContinuationAfterDiscard: handleFighterAfterDiscard,
 		},
 		TimingHookSpecs: []player.TimingHookSpec{
-			{Timing: player.TimingOnDamageCalculate, Priority: 400, Hook: damageCalculateHook},
+			{Timing: player.TimingDamageSourceDeal, Priority: 400, Hook: damageCalculateHook},
 			{Timing: player.TimingOnAttackDeclared, Priority: 200, Hook: pendingDamageInitHook},
 			{Timing: player.TimingOnAttackStateReset, Priority: 100, Hook: attackStateResetHook},
 			{Timing: player.TimingOnAttackGating, Priority: 200, Hook: attackGatingHook},

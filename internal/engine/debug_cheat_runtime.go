@@ -418,8 +418,8 @@ func (e *GameEngine) debugPrepareSkillCards(player *model.Player, skill model.Sk
 	return nil
 }
 
-// 若干技能仅区分「命中检定窗口内的未命中分支」；数据上均为 TimingOnHitCheck，调试上下文按技能 ID 区分是否模拟未命中。
-var debugCheatSimulateMissOnHitCheck = map[string]bool{
+// 若干历史技能仅区分攻击结果分支；调试上下文按技能 ID 保留未命中模拟语义。
+var debugCheatSimulateAttackMiss = map[string]bool{
 	"piercing_shot":       true,
 	"hom_rage_suppress":   true,
 	"hom_glyph_fusion":    true,
@@ -429,9 +429,19 @@ var debugCheatSimulateMissOnHitCheck = map[string]bool{
 
 func debugCheatEventTypeForTiming(t model.FlowTiming) model.EventType {
 	switch t {
-	case model.TimingOnAttackDeclared, model.TimingOnHitCheck, model.TimingOnDamageCalculated:
+	case model.TimingAttackDeclare,
+		model.TimingAttackSelectTarget,
+		model.TimingAttackPlayCard,
+		model.TimingAttackModifyCard,
+		model.TimingAttackCommitted,
+		model.TimingAttackForceHitCheck,
+		model.TimingAttackNoResponseCheck,
+		model.TimingAttackResponse,
+		model.TimingAttackHit,
+		model.TimingAttackMiss,
+		model.TimingDamageSourceDeal:
 		return model.EventAttack
-	case model.TimingOnDamageTaken:
+	case model.TimingDamageTaken:
 		return model.EventDamage
 	case model.TimingOnCardPlayedOrRevealed:
 		return model.EventCardUsed
@@ -497,7 +507,15 @@ func (e *GameEngine) debugBuildContext(user *model.Player, skill model.SkillDefi
 
 	damageVal := 1
 	drawCount := 1
-	eventType := debugCheatEventTypeForTiming(skill.PrimaryTimingOrLegacy())
+	timing := model.NormalizeTiming(skill.PrimaryTimingOrLegacy())
+	if timing == model.TimingAttackResponse {
+		if debugCheatSimulateAttackMiss[skill.ID] {
+			timing = model.TimingAttackMiss
+		} else {
+			timing = model.TimingAttackHit
+		}
+	}
+	eventType := debugCheatEventTypeForTiming(timing)
 
 	attackInfo := &model.AttackEventInfo{
 		IsHit:          true,
@@ -506,10 +524,10 @@ func (e *GameEngine) debugBuildContext(user *model.Player, skill model.SkillDefi
 		CanBeResponded: true,
 		ActionType:     string(actionType),
 	}
-	// 命中检定窗口内「仅未命中」类技能无法仅靠 Timing 与「仅命中」区分，按技能 ID 保留调试语义。
-	if skill.PrimaryTimingOrLegacy() == model.TimingOnAttackDeclared {
+	// 攻击结果类技能按 rulebook timing 明确区分命中/未命中。
+	if timing == model.TimingAttackDeclare {
 		attackInfo.IsHit = false
-	} else if skill.PrimaryTimingOrLegacy() == model.TimingOnHitCheck && debugCheatSimulateMissOnHitCheck[skill.ID] {
+	} else if timing == model.TimingAttackMiss {
 		attackInfo.IsHit = false
 	}
 
@@ -517,7 +535,7 @@ func (e *GameEngine) debugBuildContext(user *model.Player, skill model.SkillDefi
 		Game:   e,
 		User:   user,
 		Target: target,
-		Timing: skill.PrimaryTimingOrLegacy(),
+		Timing: timing,
 		EventCtx: &model.EventContext{
 			Type:       eventType,
 			SourceID:   attacker.ID,

@@ -21,7 +21,7 @@ func (e *GameEngine) applyAttackHitPendingDamageRules(pd *model.PendingDamage, a
 
 // applyDamageTargetBeforeRules 在承伤触发前处理伤害计算阶段规则。
 func (e *GameEngine) applyDamageTargetBeforeRules(pd *model.PendingDamage) bool {
-	result := e.dispatchRoleTimingHook(engineplayer.TimingOnDamageBeforeTaken, engineplayer.TimingHookContext{
+	result := e.dispatchRoleTimingHook(engineplayer.TimingDamageTargetBefore, engineplayer.TimingHookContext{
 		SourceID:      pd.SourceID,
 		TargetID:      pd.TargetID,
 		PendingDamage: pd,
@@ -31,11 +31,11 @@ func (e *GameEngine) applyDamageTargetBeforeRules(pd *model.PendingDamage) bool 
 	if result.Interrupted {
 		return true
 	}
-	// 治疗抵抗门禁：触发 TimingOnHealResist hooks
+	// 治疗抵抗门禁：触发 TimingHealBefore hooks
 	if pd != nil && !pd.IgnoreHeal {
 		target := e.State.Players[pd.TargetID]
 		if target != nil {
-			e.dispatchAllRoleTimingHooks(engineplayer.TimingOnHealResist, engineplayer.TimingHookContext{
+			e.dispatchAllRoleTimingHooks(engineplayer.TimingHealBefore, engineplayer.TimingHookContext{
 				TargetID:      target.ID,
 				PendingDamage: pd,
 			})
@@ -44,9 +44,9 @@ func (e *GameEngine) applyDamageTargetBeforeRules(pd *model.PendingDamage) bool 
 	return false
 }
 
-// applyTimingOnDamageTakenAfterTakenRules 在承伤触发后处理后续规则。
-func (e *GameEngine) applyTimingOnDamageTakenAfterTakenRules(pd *model.PendingDamage) bool {
-	result := e.dispatchRoleTimingHook(engineplayer.TimingOnDamageAfterTaken, engineplayer.TimingHookContext{
+// applyDamageAfterTakenRules 在承伤触发后处理后续规则。
+func (e *GameEngine) applyDamageAfterTakenRules(pd *model.PendingDamage) bool {
+	result := e.dispatchRoleTimingHook(engineplayer.TimingDamageAfterTaken, engineplayer.TimingHookContext{
 		SourceID:      pd.SourceID,
 		TargetID:      pd.TargetID,
 		PendingDamage: pd,
@@ -56,9 +56,9 @@ func (e *GameEngine) applyTimingOnDamageTakenAfterTakenRules(pd *model.PendingDa
 	return result.Interrupted
 }
 
-// applyTimingOnDamageAppliedRules 在⑤实际产生伤害时处理扣除治疗后的响应。
-func (e *GameEngine) applyTimingOnDamageAppliedRules(pd *model.PendingDamage) bool {
-	result := e.dispatchRoleTimingHook(engineplayer.TimingOnDamageApplied, engineplayer.TimingHookContext{
+// applyDamageAppliedRules 在⑤实际产生伤害时处理扣除治疗后的响应。
+func (e *GameEngine) applyDamageAppliedRules(pd *model.PendingDamage) bool {
+	result := e.dispatchRoleTimingHook(engineplayer.TimingDamageApplied, engineplayer.TimingHookContext{
 		SourceID:      pd.SourceID,
 		TargetID:      pd.TargetID,
 		PendingDamage: pd,
@@ -68,9 +68,9 @@ func (e *GameEngine) applyTimingOnDamageAppliedRules(pd *model.PendingDamage) bo
 	return result.Interrupted
 }
 
-// applyTimingOnDamageTakenRules 在⑥实际承受伤害、准备摸牌前处理响应。
-func (e *GameEngine) applyTimingOnDamageTakenRules(pd *model.PendingDamage) bool {
-	result := e.dispatchRoleTimingHook(engineplayer.TimingOnDamageTaken, engineplayer.TimingHookContext{
+// applyDamageTakenRules 在⑥实际承受伤害、准备摸牌前处理响应。
+func (e *GameEngine) applyDamageTakenRules(pd *model.PendingDamage) bool {
+	result := e.dispatchRoleTimingHook(engineplayer.TimingDamageTaken, engineplayer.TimingHookContext{
 		SourceID:      pd.SourceID,
 		TargetID:      pd.TargetID,
 		PendingDamage: pd,
@@ -82,7 +82,7 @@ func (e *GameEngine) applyTimingOnDamageTakenRules(pd *model.PendingDamage) bool
 
 // applyHealCapRules 在治疗抵伤额度计算时应用上限规则。
 func (e *GameEngine) applyHealCapRules(pd *model.PendingDamage, target *model.Player, maxHeal int) int {
-	result := e.dispatchAllRoleTimingHooks(engineplayer.TimingOnHealCapCalculate, engineplayer.TimingHookContext{
+	result := e.dispatchAllRoleTimingHooks(engineplayer.TimingHealCap, engineplayer.TimingHookContext{
 		TargetID:      target.ID,
 		PendingDamage: pd,
 		HealCap:       maxHeal,
@@ -94,8 +94,8 @@ func (e *GameEngine) applyHealCapRules(pd *model.PendingDamage, target *model.Pl
 	return limited
 }
 
-// applyTimingOnDamageTakenAfterApplyRules 在伤害应用后执行后置清理。
-func (e *GameEngine) applyTimingOnDamageTakenAfterApplyRules(pd *model.PendingDamage, target *model.Player) {
+// applyDamageAfterApplyRules 在伤害应用后执行后置清理。
+func (e *GameEngine) applyDamageAfterApplyRules(pd *model.PendingDamage, target *model.Player) {
 	// 封印师五系封印清理（系统级，不迁移到角色包）
 	if pd != nil && target != nil && model.IsElementalSealEffect(pd.EffectTypeToRemove) {
 		if e.RemoveFieldCard(target.ID, pd.EffectTypeToRemove) {
@@ -103,7 +103,7 @@ func (e *GameEngine) applyTimingOnDamageTakenAfterApplyRules(pd *model.PendingDa
 		}
 	}
 	if pd != nil && target != nil {
-		e.dispatchAllRoleTimingHooks(engineplayer.TimingOnDamageAfterApply, engineplayer.TimingHookContext{
+		e.dispatchAllRoleTimingHooks(engineplayer.TimingDamageAfterApply, engineplayer.TimingHookContext{
 			SourceID:      pd.SourceID,
 			TargetID:      target.ID,
 			PendingDamage: pd,
@@ -111,7 +111,7 @@ func (e *GameEngine) applyTimingOnDamageTakenAfterApplyRules(pd *model.PendingDa
 	}
 }
 
-// applyTimingOnDamageTakenAfterResolvedRules 在整次伤害出队后处理结算后规则。
-func (e *GameEngine) applyTimingOnDamageTakenAfterResolvedRules(pd *model.PendingDamage) bool {
+// applyDamageResolvedRules 在整次伤害出队后处理结算后规则。
+func (e *GameEngine) applyDamageResolvedRules(pd *model.PendingDamage) bool {
 	return e.HandlePostDamageResolved(pd)
 }

@@ -28,7 +28,7 @@ func (e *GameEngine) prependPendingDamages(pds []model.PendingDamage) {
 // syncPendingDamageRuntimeFromContext 将响应/被动技能在当前伤害上下文里写入的运行时元数据，
 // 回填到正在处理的 PendingDamage 头结点，确保中断恢复后状态仍然存在。
 func (e *GameEngine) syncPendingDamageRuntimeFromContext(ctx *model.Context) {
-	if e == nil || ctx == nil || ctx.Timing != model.TimingOnDamageTaken || len(e.State.PendingDamageQueue) == 0 {
+	if e == nil || ctx == nil || !ctx.DamageTakenPhase() || len(e.State.PendingDamageQueue) == 0 {
 		return
 	}
 
@@ -187,29 +187,9 @@ func (e *GameEngine) dispatchPendingDamageTaken(pd *model.PendingDamage) bool {
 		return false
 	}
 
-	damageEventCtx := &model.EventContext{
-		Type:      model.EventDamage,
-		SourceID:  pd.SourceID,
-		TargetID:  pd.TargetID,
-		DamageVal: &pd.Damage,
-		Card:      pd.Card,
-	}
-	damageCtx := e.BuildContext(e.State.Players[pd.TargetID], e.State.Players[pd.SourceID], model.TimingOnDamageTaken, damageEventCtx)
-	damageCtx.Flags["IsMagicDamage"] = !strings.EqualFold(string(pd.DamageType), string(model.AttackDamage))
-	damageCtx.Flags["holy_shield_eligible"] = strings.EqualFold(string(pd.DamageType), string(model.AttackDamage)) ||
-		(pd.Card != nil && strings.TrimSpace(pd.Card.Name) == "魔弹")
-	damageCtx.Flags["ignore_shield"] = pd.IgnoreShield || pd.HasInterceptTag(model.CombatInterceptIgnoreHolyShield)
-	if damageCtx.Selections == nil {
-		damageCtx.Selections = map[string]any{}
-	}
-	damageCtx.Selections["damage_type"] = pd.DamageType
 	pd.DamageTakenFlowDispatched = true
 
-	if e.dispatchDamageRulebookTiming(model.TimingDamageTaken, pd) {
-		return true
-	}
-	e.dispatcher.OnTiming(damageCtx.Timing, damageCtx)
-	return e.State.PendingInterrupt != nil
+	return e.dispatchDamageRulebookTiming(model.TimingDamageTaken, pd)
 }
 
 func (e *GameEngine) resolvePendingDamageHealChoice(pd *model.PendingDamage) bool {

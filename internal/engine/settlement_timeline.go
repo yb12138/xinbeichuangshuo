@@ -54,6 +54,7 @@ func (e *GameEngine) dispatchDamageRulebookTiming(timing model.Timing, pd *model
 		},
 		Flags: map[string]bool{
 			"IsMagicDamage": pd.DamageType != model.AttackDamage,
+			"ignore_shield": pd.IgnoreShield || pd.HasInterceptTag(model.CombatInterceptIgnoreHolyShield),
 		},
 	})
 	return result.Interrupted

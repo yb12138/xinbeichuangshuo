@@ -66,7 +66,7 @@ func (e *GameEngine) ProcessPendingDamages() bool {
 		}
 
 		resolved := e.applyAndPopPendingDamage(pd)
-		if e.applyTimingOnDamageTakenAfterResolvedRules(&resolved) {
+		if e.applyDamageResolvedRules(&resolved) {
 			return true
 		}
 		// 结算后若产生新中断（如爆牌/后续技能选择），暂停 Drive。
@@ -97,7 +97,7 @@ func (e *GameEngine) processPendingDamageBeforeApply(pd *model.PendingDamage) bo
 	if e.dispatchPendingDamageTaken(pd) {
 		return true
 	}
-	if e.applyTimingOnDamageTakenAfterTakenRules(pd) {
+	if e.applyDamageAfterTakenRules(pd) {
 		return true
 	}
 	if e.dispatchDamageRulebookTimingOnce(model.TimingHealBefore, pd, pendingDamageCheckTimingHealBefore) {
@@ -109,10 +109,10 @@ func (e *GameEngine) processPendingDamageBeforeApply(pd *model.PendingDamage) bo
 	if e.dispatchDamageRulebookTimingOnce(model.TimingDamageApplied, pd, pendingDamageCheckTimingDamageApplied) {
 		return true
 	}
-	if e.applyTimingOnDamageAppliedRules(pd) {
+	if e.applyDamageAppliedRules(pd) {
 		return true
 	}
-	if e.applyTimingOnDamageTakenRules(pd) {
+	if e.applyDamageTakenRules(pd) {
 		return true
 	}
 	return false
@@ -134,7 +134,7 @@ func (e *GameEngine) applyAndPopPendingDamage(pd *model.PendingDamage) model.Pen
 		// 扣血/摸牌等基础结算
 		e.applyDamageWithOptions(target, pd.Damage, pd.DamageType, pd.CapDrawToHandLimit, pd.SourceID, pd.SourceSkillID, pd.OverflowMoraleLossFixed)
 		// 扣血后角色/状态清理由 hooks 注入。
-		e.applyTimingOnDamageTakenAfterApplyRules(pd, target)
+		e.applyDamageAfterApplyRules(pd, target)
 	}
 
 	resolved := *pd

@@ -48,14 +48,31 @@ const (
 	TimingOnMagicMissileResponseSkillAug TimingPoint = "on_magic_missile_response_skill_aug" // 魔弹响应技能增强
 
 	// 新增 - 伤害阶段
-	TimingOnDamageCalculate   TimingPoint = model.TimingDamageSourceDeal   // 伤害计算（被动增伤）
-	TimingOnDamageBeforeTaken TimingPoint = model.TimingDamageTargetBefore // 承伤触发前（灵魂链接等内部子阶段）
-	TimingOnDamageAfterTaken  TimingPoint = "on_damage_after_taken"        // 承伤触发后（剑帝命中后置内部子阶段）
-	TimingOnDamageApplied     TimingPoint = model.TimingDamageApplied      // ⑤ 实际产生伤害时（扣除治疗后，未摸牌前）
-	TimingOnDamageTaken       TimingPoint = model.TimingDamageTaken        // ⑥ 实际承受伤害，准备摸牌前
-	TimingOnDamageAfterApply  TimingPoint = "on_damage_after_apply"        // 伤害应用后（封印师等内部子阶段，暂不同于整次伤害 resolved）
-	TimingOnHealResist        TimingPoint = model.TimingHealBefore         // 治愈抵抗规则
-	TimingOnHealCapCalculate  TimingPoint = model.TimingHealCap            // 治疗抵伤额度计算（牧师上限）
+	TimingDamageSourceDeal   TimingPoint = model.TimingDamageSourceDeal   // 伤害来源造成伤害
+	TimingDamageTargetBefore TimingPoint = model.TimingDamageTargetBefore // 承伤触发前（灵魂链接等内部子阶段）
+	TimingDamageAfterTaken   TimingPoint = "on_damage_after_taken"        // 承伤触发后（剑帝命中后置内部子阶段）
+	TimingDamageApplied      TimingPoint = model.TimingDamageApplied      // ⑤ 实际产生伤害时（扣除治疗后，未摸牌前）
+	TimingDamageTaken        TimingPoint = model.TimingDamageTaken        // ⑥ 实际承受伤害，准备摸牌前
+	TimingDamageAfterApply   TimingPoint = "on_damage_after_apply"        // 伤害应用后（封印师等内部子阶段，暂不同于整次伤害 resolved）
+	TimingHealBefore         TimingPoint = model.TimingHealBefore         // 治愈抵抗规则
+	TimingHealCap            TimingPoint = model.TimingHealCap            // 治疗抵伤额度计算（牧师上限）
+
+	// Deprecated: use TimingDamageSourceDeal.
+	TimingOnDamageCalculate TimingPoint = TimingDamageSourceDeal
+	// Deprecated: use TimingDamageTargetBefore.
+	TimingOnDamageBeforeTaken TimingPoint = TimingDamageTargetBefore
+	// Deprecated: use TimingDamageAfterTaken.
+	TimingOnDamageAfterTaken TimingPoint = TimingDamageAfterTaken
+	// Deprecated: use TimingDamageApplied.
+	TimingOnDamageApplied TimingPoint = TimingDamageApplied
+	// Deprecated: use TimingDamageTaken.
+	TimingOnDamageTaken TimingPoint = TimingDamageTaken
+	// Deprecated: use TimingDamageAfterApply.
+	TimingOnDamageAfterApply TimingPoint = TimingDamageAfterApply
+	// Deprecated: use TimingHealBefore.
+	TimingOnHealResist TimingPoint = TimingHealBefore
+	// Deprecated: use TimingHealCap.
+	TimingOnHealCapCalculate TimingPoint = TimingHealCap
 
 	// 新增 - 特殊阶段
 	TimingOnGameStart      TimingPoint = "on_game_start"       // 游戏开始

@@ -24,7 +24,7 @@ func QueueAnimalResponse(rt engineplayer.ChoiceRuntime, source, target *model.Pl
 	}
 
 	damageVal := pd.Damage
-	ctx := rt.BuildContext(source, target, model.TimingOnDamageTaken, &model.EventContext{
+	ctx := rt.BuildContext(source, target, model.TimingDamageTaken, &model.EventContext{
 		Type:      model.EventDamage,
 		SourceID:  pd.SourceID,
 		TargetID:  pd.TargetID,

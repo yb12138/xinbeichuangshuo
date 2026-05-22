@@ -47,34 +47,7 @@ func TestLegacyTimingUsageStaysQuarantined(t *testing.T) {
 		"internal/engine/player/soul_sorcerer/module.go":                true,
 		"internal/engine/player/soul_sorcerer/skill_handlers.go":        true,
 	}
-	allowedCharacterLegacyTimingSkills := map[string][]string{
-		// needs_manual_review: damage-taken dispatch/resume still expects the legacy damage-taken timing.
-		"backlash": {"TimingOnDamageTaken"},
-		// needs_manual_review: damage-taken dispatch/resume still expects the legacy damage-taken timing.
-		"elementalist_absorb": {"TimingOnDamageTaken"},
-		// needs_manual_review: damage-taken dispatch/resume still expects the legacy damage-taken timing.
-		"arbiter_judgment_tide": {"TimingOnDamageTaken"},
-		// needs_manual_review: post-damage helper flows currently construct legacy damage-taken contexts.
-		"elf_animal_companion": {"TimingOnDamageTaken"},
-		// needs_manual_review: paired with animal companion in legacy post-damage helper flows.
-		"elf_pet_empower": {"TimingOnDamageTaken"},
-		// needs_manual_review: damage-taken dispatch/resume still expects the legacy damage-taken timing.
-		"css_blood_barrier": {"TimingOnDamageTaken"},
-		// needs_manual_review: damage priority/resume chain still expects the legacy damage-taken timing.
-		"hom_dual_echo": {"TimingOnDamageTaken"},
-		// needs_manual_review: damage-taken dispatch/resume still expects the legacy damage-taken timing.
-		"bw_substitute_doll": {"TimingOnDamageTaken"},
-		// needs_manual_review: damage-taken dispatch/resume still expects the legacy damage-taken timing.
-		"bw_mana_inversion": {"TimingOnDamageTaken"},
-		// needs_manual_review: damage-taken dispatch/resume still expects the legacy damage-taken timing.
-		"ml_dark_barrier": {"TimingOnDamageTaken"},
-		// needs_manual_review: damage-taken dispatch/resume still expects the legacy damage-taken timing.
-		"hero_dead_duel": {"TimingOnDamageTaken"},
-		// needs_manual_review: damage-taken dispatch/resume still expects the legacy damage-taken timing.
-		"fighter_psi_field": {"TimingOnDamageTaken"},
-		// needs_manual_review: damage-taken dispatch/resume still expects the legacy damage-taken timing.
-		"bs_beast_return": {"TimingOnDamageTaken"},
-	}
+	allowedCharacterLegacyTimingSkills := map[string][]string{}
 
 	repoRoot := testRepoRoot(t)
 	var violations []string

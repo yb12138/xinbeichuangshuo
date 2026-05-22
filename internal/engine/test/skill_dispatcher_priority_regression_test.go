@@ -95,7 +95,7 @@ func TestDamageTaken_UsesSkillPriorityOrderingAcrossAttackerAndDefender(t *testi
 	}
 
 	damage := 3
-	damageCtx := game.BuildContext(blaze, hom, model.TimingOnDamageTaken, &model.EventContext{
+	damageCtx := game.BuildContext(blaze, hom, model.TimingDamageTaken, &model.EventContext{
 		Type:      model.EventDamage,
 		SourceID:  hom.ID,
 		TargetID:  blaze.ID,

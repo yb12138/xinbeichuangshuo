@@ -19,7 +19,7 @@ func RoleEntry() player.RoleEntry {
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
 		TimingHookSpecs: []player.TimingHookSpec{
 			{Timing: player.TimingOnTurnStart, Priority: 100, Hook: turnStartResetHook},
-			{Timing: player.TimingOnDamageCalculate, Priority: 700, Hook: damageCalculateHook},
+			{Timing: player.TimingDamageSourceDeal, Priority: 700, Hook: damageCalculateHook},
 			{Timing: player.TimingPostAttackHit, Priority: 100, Hook: postAttackHitHook},
 			{Timing: player.TimingOnTurnEndFinal, Priority: 800, Hook: turnEndAutoFillHook},
 			{Timing: player.TimingOnAttackMiss, Priority: 400, Hook: attackMissHook},

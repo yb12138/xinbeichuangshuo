@@ -13,7 +13,7 @@ func RoleEntry() player.RoleEntry {
 		Choices: NewChoiceHandler(),
 		Skills:  SkillEntries(),
 		TimingHookSpecs: []player.TimingHookSpec{
-			{Timing: player.TimingOnDamageCalculate, Priority: 350, Hook: damageCalculateHook},
+			{Timing: player.TimingDamageSourceDeal, Priority: 350, Hook: damageCalculateHook},
 		},
 	}
 }

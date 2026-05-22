@@ -126,7 +126,7 @@ func TestCrimsonBloodBarrier_AutoDamagesSourceWithoutPrompt(t *testing.T) {
 		t.Fatalf("css_blood_barrier handler not found")
 	}
 	damage := 2
-	ctx := g.BuildContext(p1, p1, model.TimingOnDamageTaken, &model.EventContext{
+	ctx := g.BuildContext(p1, p1, model.TimingDamageTaken, &model.EventContext{
 		Type:      model.EventDamage,
 		SourceID:  "p2",
 		TargetID:  "p1",
@@ -175,7 +175,7 @@ func TestCrimsonBloodBarrier_DoesNotRetargetOtherEnemy(t *testing.T) {
 		t.Fatalf("css_blood_barrier handler not found")
 	}
 	damage := 2
-	ctx := g.BuildContext(p1, p1, model.TimingOnDamageTaken, &model.EventContext{
+	ctx := g.BuildContext(p1, p1, model.TimingDamageTaken, &model.EventContext{
 		Type:      model.EventDamage,
 		SourceID:  "p2",
 		TargetID:  "p1",

@@ -464,7 +464,7 @@ func TestHomDualEcho_TargetChoiceCanCancel(t *testing.T) {
 	}
 
 	damageVal := 2
-	ctx := g.BuildContext(p1, p1, model.TimingOnDamageTaken, &model.EventContext{
+	ctx := g.BuildContext(p1, p1, model.TimingDamageTaken, &model.EventContext{
 		Type:      model.EventDamage,
 		SourceID:  p1.ID,
 		TargetID:  p1.ID,
@@ -533,7 +533,7 @@ func TestHomDualEcho_TargetChoicePreservesDamageResolutionStage(t *testing.T) {
 	}
 
 	damageVal := 2
-	ctx := g.BuildContext(p1, p1, model.TimingOnDamageTaken, &model.EventContext{
+	ctx := g.BuildContext(p1, p1, model.TimingDamageTaken, &model.EventContext{
 		Type:      model.EventDamage,
 		SourceID:  p1.ID,
 		TargetID:  p1.ID,
@@ -575,7 +575,7 @@ func TestHomDualEcho_WhenDamagingEnemyInTwoPlayerGameCanTargetSelf(t *testing.T)
 	}
 
 	damageVal := 2
-	ctx := g.BuildContext(p1, p2, model.TimingOnDamageTaken, &model.EventContext{
+	ctx := g.BuildContext(p1, p2, model.TimingDamageTaken, &model.EventContext{
 		Type:      model.EventDamage,
 		SourceID:  p1.ID,
 		TargetID:  p2.ID,
@@ -623,7 +623,7 @@ func TestHomDualEcho_TargetConfirmConsumesCostAndQueuesDamage(t *testing.T) {
 		t.Fatalf("hom_dual_echo handler not found")
 	}
 	damageVal := 2
-	ctx := g.BuildContext(p1, p1, model.TimingOnDamageTaken, &model.EventContext{
+	ctx := g.BuildContext(p1, p1, model.TimingDamageTaken, &model.EventContext{
 		Type:      model.EventDamage,
 		SourceID:  p1.ID,
 		TargetID:  p1.ID,
@@ -682,7 +682,7 @@ func TestHomDualEcho_NoMoraleDamageStillOverflowsAndDoesNotDropMorale(t *testing
 		t.Fatalf("hom_dual_echo handler not found")
 	}
 	damageVal := 2
-	ctx := g.BuildContext(p1, p1, model.TimingOnDamageTaken, &model.EventContext{
+	ctx := g.BuildContext(p1, p1, model.TimingDamageTaken, &model.EventContext{
 		Type:      model.EventDamage,
 		SourceID:  p1.ID,
 		TargetID:  p1.ID,

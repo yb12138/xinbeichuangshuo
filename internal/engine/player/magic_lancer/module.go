@@ -32,7 +32,7 @@ func RoleEntry() player.RoleEntry {
 			model.FlowContinuationAfterDiscard: handleMagicLancerAfterDiscard,
 		},
 		TimingHookSpecs: []player.TimingHookSpec{
-			{Timing: player.TimingOnDamageCalculate, Priority: 300, Hook: damageCalculateHook},
+			{Timing: player.TimingDamageSourceDeal, Priority: 300, Hook: damageCalculateHook},
 			{Timing: player.TimingPostDamageResolved, Priority: 300, Hook: postDamageResolvedHook},
 			{Timing: player.TimingOnDefendValidation, Priority: 100, Hook: defendValidationHook},
 			{Timing: player.TimingOnMagicMissileDefend, Priority: 100, Hook: magicMissileDefendHook},

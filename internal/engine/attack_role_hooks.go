@@ -100,7 +100,7 @@ func (e *GameEngine) applyDamageSourceDealAttackModifiers(attacker *model.Player
 		if target != nil {
 			targetID = target.ID
 		}
-		result := e.dispatchAllRoleTimingHooks(engineplayer.TimingOnDamageCalculate, engineplayer.TimingHookContext{
+		result := e.dispatchAllRoleTimingHooks(engineplayer.TimingDamageSourceDeal, engineplayer.TimingHookContext{
 			SourceID:         attacker.ID,
 			TargetID:         targetID,
 			ActionType:       action.Type,

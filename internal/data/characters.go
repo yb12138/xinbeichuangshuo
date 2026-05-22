@@ -424,7 +424,7 @@ func GetCharacters() []model.Character {
 			MaxHand: 6,
 			Skills: []model.SkillDefinition{
 				{
-					ID: "backlash", Timings: []model.FlowTiming{model.TimingOnDamageTaken}, Title: "反噬",
+					ID: "backlash", Timings: []model.FlowTiming{model.TimingDamageTaken}, Title: "反噬",
 					Type:        model.SkillTypePassive,
 					Tags:        []model.SkillTag{},
 					Description: "（承受攻击伤害时发动⑥）攻击你的对手摸1张牌［强制］。",
@@ -662,7 +662,7 @@ func GetCharacters() []model.Character {
 			MaxHand: 6,
 			Skills: []model.SkillDefinition{
 				{
-					ID: "elementalist_absorb", Timings: []model.FlowTiming{model.TimingOnDamageTaken}, Title: "元素吸收",
+					ID: "elementalist_absorb", Timings: []model.FlowTiming{model.TimingDamageTaken}, Title: "元素吸收",
 					Type:        model.SkillTypeResponse,
 					Description: "你造成法术伤害后，元素+1（上限3）。元素点燃造成的伤害不触发。",
 
@@ -771,7 +771,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "arbiter_judgment_tide", Timings: []model.FlowTiming{model.TimingOnDamageTaken}, Title: "审判浪潮",
+					ID: "arbiter_judgment_tide", Timings: []model.FlowTiming{model.TimingDamageTaken}, Title: "审判浪潮",
 					Type:        model.SkillTypePassive,
 					Description: "每次承受伤害时，审判+1（上限4）。",
 
@@ -970,7 +970,7 @@ func GetCharacters() []model.Character {
 					InteractionType: model.InteractionNone,
 				},
 				{
-					ID: "elf_animal_companion", Timings: []model.FlowTiming{model.TimingOnDamageTaken}, Title: "动物伙伴",
+					ID: "elf_animal_companion", Timings: []model.FlowTiming{model.TimingDamageTaken}, Title: "动物伙伴",
 					Type:        model.SkillTypeResponse,
 					Tags:        []model.SkillTag{model.TagOptional},
 					Description: "你的回合内，当目标角色承受你造成的主动攻击伤害后，可摸1弃1。",
@@ -992,7 +992,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "elf_pet_empower", Timings: []model.FlowTiming{model.TimingOnDamageTaken}, Title: "宠物强化",
+					ID: "elf_pet_empower", Timings: []model.FlowTiming{model.TimingDamageTaken}, Title: "宠物强化",
 					Type:        model.SkillTypeResponse,
 					Tags:        []model.SkillTag{model.TagOptional, model.TagCrystal, model.TagUltimate},
 					Description: "触发动物伙伴时可消耗1蓝水晶，将效果改为受伤目标摸1弃1。",
@@ -1169,7 +1169,7 @@ func GetCharacters() []model.Character {
 					MaxTargets:   2,
 				},
 				{
-					ID: "css_blood_barrier", Timings: []model.FlowTiming{model.TimingOnDamageTaken}, Title: "血气屏障",
+					ID: "css_blood_barrier", Timings: []model.FlowTiming{model.TimingDamageTaken}, Title: "血气屏障",
 					Type:        model.SkillTypeResponse,
 					Tags:        []model.SkillTag{model.TagOptional},
 					Description: "受到其他角色造成的法术伤害时可移除1鲜血，使本次伤害-1，并对伤害来源造成1点法术伤害。",
@@ -1430,7 +1430,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "hom_dual_echo", Timings: []model.FlowTiming{model.TimingOnDamageTaken}, Title: "双重回响",
+					ID: "hom_dual_echo", Timings: []model.FlowTiming{model.TimingDamageTaken}, Title: "双重回响",
 					Type:        model.SkillTypeResponse,
 					Tags:        []model.SkillTag{model.TagTurnLimit, model.TagCrystal, model.TagUltimate, model.TagOptional},
 					CostCrystal: 1,
@@ -1631,7 +1631,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "bw_substitute_doll", Timings: []model.FlowTiming{model.TimingOnDamageTaken}, Title: "替身玩偶",
+					ID: "bw_substitute_doll", Timings: []model.FlowTiming{model.TimingDamageTaken}, Title: "替身玩偶",
 					Type:         model.SkillTypeResponse,
 					CostDiscards: 1,
 					DiscardType:  model.CardTypeMagic,
@@ -1657,7 +1657,7 @@ func GetCharacters() []model.Character {
 					MaxTargets:   1,
 				},
 				{
-					ID: "bw_mana_inversion", Timings: []model.FlowTiming{model.TimingOnDamageTaken}, Title: "魔能反转",
+					ID: "bw_mana_inversion", Timings: []model.FlowTiming{model.TimingDamageTaken}, Title: "魔能反转",
 					Type:        model.SkillTypeResponse,
 					Tags:        []model.SkillTag{model.TagCrystal, model.TagUltimate},
 					CostCrystal: 1,
@@ -1823,7 +1823,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "ml_dark_barrier", Timings: []model.FlowTiming{model.TimingOnDamageTaken}, Title: "暗之障壁",
+					ID: "ml_dark_barrier", Timings: []model.FlowTiming{model.TimingDamageTaken}, Title: "暗之障壁",
 					Type:        model.SkillTypeResponse,
 					Description: "任何人对你造成伤害时可发动：弃X张法术牌或X张雷系牌（同次发动不可混弃）。",
 
@@ -2051,7 +2051,7 @@ func GetCharacters() []model.Character {
 					MaxTargets:       1,
 				},
 				{
-					ID: "hero_dead_duel", Timings: []model.FlowTiming{model.TimingOnDamageTaken}, Title: "死斗",
+					ID: "hero_dead_duel", Timings: []model.FlowTiming{model.TimingDamageTaken}, Title: "死斗",
 					Type:        model.SkillTypeResponse,
 					Tags:        []model.SkillTag{model.TagGem, model.TagUltimate},
 					CostGem:     1,
@@ -2074,7 +2074,7 @@ func GetCharacters() []model.Character {
 			MaxHand: 6,
 			Skills: []model.SkillDefinition{
 				{
-					ID: "fighter_psi_field", Timings: []model.FlowTiming{model.TimingOnDamageTaken}, Title: "念气力场",
+					ID: "fighter_psi_field", Timings: []model.FlowTiming{model.TimingDamageTaken}, Title: "念气力场",
 					Type:        model.SkillTypePassive,
 					Description: "所有对你造成的伤害每次最高为4点。",
 
@@ -2326,7 +2326,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "bs_beast_return", Timings: []model.FlowTiming{model.TimingOnDamageTaken}, Title: "兽返",
+					ID: "bs_beast_return", Timings: []model.FlowTiming{model.TimingDamageTaken}, Title: "兽返",
 					Type:        model.SkillTypeResponse,
 					Description: "当其他角色对你造成法术伤害时可发动：移除X点兽魂，你弃X张牌，他弃1张牌；若其弃的是法术牌，则你+1兽魂。",
 
