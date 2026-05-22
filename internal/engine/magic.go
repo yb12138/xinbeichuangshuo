@@ -75,6 +75,16 @@ func (e *GameEngine) PerformMagicByID(sourceID, targetID, cardID string) error {
 		return errors.New("该法术需要指定目标")
 	}
 
+	if e.dispatchMagicRulebookTiming(model.TimingMagicDeclare, player, target, &card) {
+		return nil
+	}
+	if e.dispatchMagicRulebookTiming(model.TimingMagicSelectTarget, player, target, &card) {
+		return nil
+	}
+	if e.dispatchMagicRulebookTiming(model.TimingMagicValidate, player, target, &card) {
+		return nil
+	}
+
 	if target != nil {
 		e.Log(fmt.Sprintf("[Magic] %s 对 %s 使用了 %s", player.Name, target.Name, card.Name))
 	} else {
@@ -89,6 +99,10 @@ func (e *GameEngine) PerformMagicByID(sourceID, targetID, cardID string) error {
 	}
 
 	// 4. 处理效果
+	if e.dispatchMagicRulebookTiming(model.TimingMagicResolve, player, target, &card) {
+		return nil
+	}
+
 	placedOnField := false // 标记卡牌是否留在了场上
 
 	switch card.Name {
