@@ -56,7 +56,7 @@ func TestMagicLancerDarkRelease_HandCapAndAttackBonusAndLock(t *testing.T) {
 	if fullnessHandler == nil {
 		t.Fatal("ml_fullness handler not found")
 	}
-	ctx := game.BuildContext(p1, nil, model.TimingActive, nil)
+	ctx := game.BuildContext(p1, nil, model.TimingActionDuring, nil)
 	if fullnessHandler.CanUse(ctx) {
 		t.Fatal("ml_fullness should be locked in the same turn after dark release")
 	}

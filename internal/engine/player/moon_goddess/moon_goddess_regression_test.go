@@ -97,7 +97,7 @@ func TestMoonGoddessNewMoonShelter_AbsorbsOverflowAndPreventsMoraleLoss(t *testi
 		moonTestCard("a6", "牌6", model.CardTypeMagic, model.ElementLight),
 	}
 
-	damageOverflowCtx := game.BuildContext(ally, nil, model.TimingActive, nil)
+	damageOverflowCtx := game.BuildContext(ally, nil, model.TimingActionDuring, nil)
 	damageOverflowCtx.Flags["FromDamageDraw"] = true
 	damageOverflowCtx.Flags["IsMagicDamage"] = false
 	game.CheckHandLimitCtx(ally, damageOverflowCtx)
@@ -375,7 +375,7 @@ func TestMoonGoddessNewMoonShelter_NoSoulDevourGainWhenMoraleLossPrevented(t *te
 			moonTestCard("s6", "牌6", model.CardTypeMagic, model.ElementLight),
 		}
 
-		damageOverflowCtx := game.BuildContext(soul, nil, model.TimingActive, nil)
+		damageOverflowCtx := game.BuildContext(soul, nil, model.TimingActionDuring, nil)
 		damageOverflowCtx.Flags["FromDamageDraw"] = true
 		damageOverflowCtx.Flags["IsMagicDamage"] = false
 		game.CheckHandLimitCtx(soul, damageOverflowCtx)
@@ -1175,7 +1175,7 @@ func TestMoonGoddessNewMoonShelter_NotDispatchWhenActualMoraleWillNotDrop(t *tes
 		moonTestCard("h6", "牌6", model.CardTypeMagic, model.ElementLight),
 	}
 
-	damageOverflowCtx := game.BuildContext(ally, nil, model.TimingActive, nil)
+	damageOverflowCtx := game.BuildContext(ally, nil, model.TimingActionDuring, nil)
 	damageOverflowCtx.Flags["FromDamageDraw"] = true
 	damageOverflowCtx.Flags["IsMagicDamage"] = false
 	game.CheckHandLimitCtx(ally, damageOverflowCtx)

@@ -221,7 +221,7 @@ func TestBloodPriestessBleeding_EnterOnMoraleLossAndReleaseOnActionEndLowHand(t 
 		bloodPriestessTestCard("a7", model.ElementLight),
 		bloodPriestessTestCard("a8", model.ElementFire),
 	}
-	damageOverflowCtx := game.BuildContext(p1, nil, model.TimingActive, nil)
+	damageOverflowCtx := game.BuildContext(p1, nil, model.TimingActionDuring, nil)
 	damageOverflowCtx.Flags["FromDamageDraw"] = true
 	game.CheckHandLimitCtx(p1, damageOverflowCtx)
 	if game.State.PendingInterrupt == nil || !engine.IsDiscardSelectionInterrupt(game.State.PendingInterrupt) {

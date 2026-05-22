@@ -109,7 +109,7 @@ func (e *GameEngine) CheckHandLimit(playerID string, stayInTurn bool) {
 	if player == nil {
 		return
 	}
-	ctx := e.BuildContext(player, nil, model.TimingActive, nil)
+	ctx := e.BuildContext(player, nil, model.TimingActionDuring, nil)
 	if stayInTurn {
 		ctx.Flags["StayInTurn"] = true
 	}

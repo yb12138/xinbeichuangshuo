@@ -139,7 +139,7 @@ func (s SkillDefinition) PrimaryTimingOrLegacy() FlowTiming {
 	if len(s.Timings) > 0 {
 		return s.Timings[0]
 	}
-	return TimingActive
+	return TimingActionDuring
 }
 
 // 3. 增强：事件上下文 (支持数据修改)

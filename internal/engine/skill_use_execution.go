@@ -120,7 +120,7 @@ func (e *GameEngine) executeSkillFlow(use *skillUseRequest) error {
 		return fmt.Errorf("skill handler not found for %s", use.skillID)
 	}
 
-	ctx := e.BuildContext(use.player, use.target, model.TimingActive, nil)
+	ctx := e.BuildContext(use.player, use.target, model.TimingActionDuring, nil)
 	ctx.Targets = use.actualTargets
 	if ctx.Selections == nil {
 		ctx.Selections = map[string]interface{}{}

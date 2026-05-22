@@ -7,7 +7,6 @@ func TestTimingDescriptorOfCoversCurrentFlowTimings(t *testing.T) {
 		TimingUnknown,
 		TimingOnGameStart,
 		TimingOnCampChanged,
-		TimingActive,
 		TimingOnSkillExecuted,
 		TimingOnMagicDeclared,
 		TimingOnDamageApplied,

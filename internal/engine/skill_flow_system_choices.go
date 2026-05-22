@@ -127,7 +127,7 @@ func (e *GameEngine) handleSystemWeakChoice(playerID string, selectionIndex int,
 		player.Hand = append(player.Hand, cards...)
 		e.NotifyDrawCards(player.ID, 3, "weak_choice")
 
-		checkCtx := e.BuildContext(player, nil, model.TimingActive, nil)
+		checkCtx := e.BuildContext(player, nil, model.TimingActionDuring, nil)
 		checkCtx.Flags["StayInTurn"] = true
 		e.CheckHandLimitCtx(player, checkCtx)
 

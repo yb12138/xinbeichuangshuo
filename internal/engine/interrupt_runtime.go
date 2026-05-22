@@ -263,7 +263,7 @@ func (e *GameEngine) resolveGiveCardsInterrupt(giverID, receiverID string, indic
 
 	receiver.Hand = append(receiver.Hand, givenCards...)
 	e.Log(fmt.Sprintf("[Skill] %s 将 %d 张牌交给了 %s", giver.Name, len(givenCards), receiver.Name))
-	overflowCtx := e.BuildContext(receiver, nil, model.TimingActive, nil)
+	overflowCtx := e.BuildContext(receiver, nil, model.TimingActionDuring, nil)
 	if runtimeutil.ToBoolContextValue(data["stay_in_turn"]) {
 		overflowCtx.Flags["StayInTurn"] = true
 	}

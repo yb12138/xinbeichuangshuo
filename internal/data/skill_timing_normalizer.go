@@ -7,7 +7,7 @@ func normalizeSkillTimings(characters []model.Character) []model.Character {
 		for si := range characters[ci].Skills {
 			skill := &characters[ci].Skills[si]
 			if len(skill.Timings) == 0 {
-				skill.Timings = []model.FlowTiming{model.TimingActive}
+				skill.Timings = []model.FlowTiming{model.TimingActionDuring}
 			}
 		}
 	}

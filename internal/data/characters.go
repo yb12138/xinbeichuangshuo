@@ -24,7 +24,7 @@ func GetCharacters() []model.Character {
 					ResponseType: model.ResponseSilent, // 自动触发
 				},
 				{
-					ID: "angel_blessing", Timings: []model.FlowTiming{model.TimingActive}, Title: "天使祝福",
+					ID: "angel_blessing", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "天使祝福",
 					Type:           model.SkillTypeAction,
 					Tags:           []model.SkillTag{},
 					Description:    "（弃1张水系牌［展示］）指定目标玩家给你2张牌或指定2名角色各给你1张牌。",
@@ -35,7 +35,7 @@ func GetCharacters() []model.Character {
 					MaxTargets:     2,
 				},
 				{
-					ID: "angel_cleanse", Timings: []model.FlowTiming{model.TimingActive}, Title: "风之洁净",
+					ID: "angel_cleanse", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "风之洁净",
 					Type:           model.SkillTypeAction,
 					Tags:           []model.SkillTag{},
 					Description:    "（弃1张风系牌［展示］）移除场上任意1个基础效果。",
@@ -69,7 +69,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "angel_wall", Timings: []model.FlowTiming{model.TimingActive}, Title: "天使之墙",
+					ID: "angel_wall", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "天使之墙",
 					Type:             model.SkillTypeAction,
 					Tags:             []model.SkillTag{model.TagUnique},
 					Description:      "此牌可以当作［圣盾］使用。",
@@ -159,7 +159,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "seal_break", Timings: []model.FlowTiming{model.TimingActive}, Title: "封印破碎",
+					ID: "seal_break", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "封印破碎",
 					Type:         model.SkillTypeAction,
 					Tags:         []model.SkillTag{model.TagCrystal, model.TagUltimate},
 					Description:  "［水晶］将场上任意一张基础效果牌收入自己手中。",
@@ -168,7 +168,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetAny, // 选Buff
 				},
 				{
-					ID: "five_elements_bind", Timings: []model.FlowTiming{model.TimingActive}, Title: "五系束缚",
+					ID: "five_elements_bind", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "五系束缚",
 					Type:             model.SkillTypeAction,
 					Tags:             []model.SkillTag{model.TagCrystal},
 					Description:      "［水晶］使用开局自带的五系束缚专属技能卡，将其放置于目标对手面前，该对手跳过其下个行动阶段。在其下个行动阶段开始前他可以选择摸（2+X）张牌来取消五系束缚的效果。X为场上封印的数量，X最高为2。不论效果是否发动，触发后移除此牌。",
@@ -185,7 +185,7 @@ func GetCharacters() []model.Character {
 					MaxTargets:       1,
 				},
 				{
-					ID: "water_seal", Timings: []model.FlowTiming{model.TimingActive}, Title: "水之封印",
+					ID: "water_seal", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "水之封印",
 					Type:             model.SkillTypeAction,
 					Tags:             []model.SkillTag{model.TagUnique},
 					Description:      "（将水之封印放置于目标对手面前）该对手获得（直到他从手中打出或展示出水系牌时强制触发）对他造成3点法术伤害③，触发后移除此牌。",
@@ -203,7 +203,7 @@ func GetCharacters() []model.Character {
 					MaxTargets:       1,
 				},
 				{
-					ID: "fire_seal", Timings: []model.FlowTiming{model.TimingActive}, Title: "火之封印",
+					ID: "fire_seal", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "火之封印",
 					Type:             model.SkillTypeAction,
 					Tags:             []model.SkillTag{model.TagUnique},
 					Description:      "（将火之封印放置于目标对手面前）该对手获得（直到他从手中打出或展示出火系牌时强制触发）对他造成3点法术伤害③，触发后移除此牌。",
@@ -221,7 +221,7 @@ func GetCharacters() []model.Character {
 					MaxTargets:       1,
 				},
 				{
-					ID: "earth_seal", Timings: []model.FlowTiming{model.TimingActive}, Title: "地之封印",
+					ID: "earth_seal", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "地之封印",
 					Type:             model.SkillTypeAction,
 					Tags:             []model.SkillTag{model.TagUnique},
 					Description:      "（将地之封印放置于目标对手面前）该对手获得（直到他从手中打出或展示出地系牌时强制触发）对他造成3点法术伤害③，触发后移除此牌。",
@@ -239,7 +239,7 @@ func GetCharacters() []model.Character {
 					MaxTargets:       1,
 				},
 				{
-					ID: "wind_seal", Timings: []model.FlowTiming{model.TimingActive}, Title: "风之封印",
+					ID: "wind_seal", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "风之封印",
 					Type:             model.SkillTypeAction,
 					Tags:             []model.SkillTag{model.TagUnique},
 					Description:      "（将风之封印放置于目标对手面前）该对手获得（直到他从手中打出或展示出风系牌时强制触发）对他造成3点法术伤害③，触发后移除此牌。",
@@ -257,7 +257,7 @@ func GetCharacters() []model.Character {
 					MaxTargets:       1,
 				},
 				{
-					ID: "thunder_seal", Timings: []model.FlowTiming{model.TimingActive}, Title: "雷之封印",
+					ID: "thunder_seal", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "雷之封印",
 					Type:             model.SkillTypeAction,
 					Tags:             []model.SkillTag{model.TagUnique},
 					Description:      "（将雷之封印放置于目标对手面前）该对手获得（直到他从手中打出或展示出雷系牌时强制触发）对他造成3点法术伤害③，触发后移除此牌。",
@@ -382,7 +382,7 @@ func GetCharacters() []model.Character {
 					ResponseType: model.ResponseSilent, // 自动触发
 				},
 				{
-					ID: "snipe", Timings: []model.FlowTiming{model.TimingActive}, Title: "狙击",
+					ID: "snipe", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "狙击",
 					Type:         model.SkillTypeAction,
 					Tags:         []model.SkillTag{model.TagCrystal, model.TagUltimate},
 					Description:  "［水晶］目标角色手牌补到5张［强制］，额外+1［攻击行动］。",
@@ -403,7 +403,7 @@ func GetCharacters() []model.Character {
 					TargetType:       model.TargetNone,
 				},
 				{
-					ID: "flash_trap", Timings: []model.FlowTiming{model.TimingActive}, Title: "闪光陷阱",
+					ID: "flash_trap", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "闪光陷阱",
 					Type:             model.SkillTypeAction,
 					Tags:             []model.SkillTag{model.TagUnique},
 					Description:      "对目标角色造成2点法术伤害③。",
@@ -484,7 +484,7 @@ func GetCharacters() []model.Character {
 					ResponseType: model.ResponseSilent, // 自动触发
 				},
 				{
-					ID: "healing_light", Timings: []model.FlowTiming{model.TimingActive}, Title: "治愈之光",
+					ID: "healing_light", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "治愈之光",
 					Type:             model.SkillTypeAction,
 					Tags:             []model.SkillTag{model.TagUnique},
 					Description:      "指定最多3名角色各+1［治疗］。",
@@ -495,7 +495,7 @@ func GetCharacters() []model.Character {
 					MaxTargets:       3,
 				},
 				{
-					ID: "heal", Timings: []model.FlowTiming{model.TimingActive}, Title: "治疗术",
+					ID: "heal", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "治疗术",
 					Type:             model.SkillTypeAction,
 					Tags:             []model.SkillTag{model.TagUnique},
 					Description:      "目标角色+2［治疗］。",
@@ -505,7 +505,7 @@ func GetCharacters() []model.Character {
 					TargetType:       model.TargetAny,
 				},
 				{
-					ID: "saint_heal", Timings: []model.FlowTiming{model.TimingActive}, Title: "圣疗",
+					ID: "saint_heal", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "圣疗",
 					Type:         model.SkillTypeAction,
 					Tags:         []model.SkillTag{model.TagTurnLimit, model.TagCrystal, model.TagUltimate},
 					Description:  "［回合限定］［水晶］任意分配3点［治疗］给1~3名角色，额外+1［攻击行动］或［法术行动］。",
@@ -536,7 +536,7 @@ func GetCharacters() []model.Character {
 			MaxHand: 6,
 			Skills: []model.SkillDefinition{
 				{
-					ID: "magic_bullet_control", Timings: []model.FlowTiming{model.TimingActive}, Title: "魔弹掌控",
+					ID: "magic_bullet_control", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "魔弹掌控",
 					Type:        model.SkillTypeResponse,
 					Tags:        []model.SkillTag{},
 					Description: "你主动使用魔弹时可以选择逆向传递。",
@@ -546,7 +546,7 @@ func GetCharacters() []model.Character {
 					ResponseType: model.ResponseOptional,
 				},
 				{
-					ID: "magic_bullet_fusion", Timings: []model.FlowTiming{model.TimingActive}, Title: "魔弹融合",
+					ID: "magic_bullet_fusion", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "魔弹融合",
 					Type:         model.SkillTypeAction,
 					Tags:         []model.SkillTag{},
 					Description:  "你的地系或火系牌可以当魔弹使用。",
@@ -570,7 +570,7 @@ func GetCharacters() []model.Character {
 					},
 				},
 				{
-					ID: "magic_blast", Timings: []model.FlowTiming{model.TimingActive}, Title: "魔爆冲击",
+					ID: "magic_blast", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "魔爆冲击",
 					Type:         model.SkillTypeAction,
 					Tags:         []model.SkillTag{},
 					Description:  "（弃1张法术牌［展示］）我方战绩区+1颗［宝石］；选择2名目标对手各弃1张法术牌［展示］，每有人不如此做，你对他造成2点法术伤害，然后你弃1张牌。",
@@ -582,7 +582,7 @@ func GetCharacters() []model.Character {
 					MaxTargets:   2,
 				},
 				{
-					ID: "destruction_storm", Timings: []model.FlowTiming{model.TimingActive}, Title: "毁灭风暴",
+					ID: "destruction_storm", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "毁灭风暴",
 					Type:         model.SkillTypeAction,
 					Tags:         []model.SkillTag{model.TagGem, model.TagUltimate},
 					Description:  "［宝石］对任2名目标对手各造成2点法术伤害③。",
@@ -614,7 +614,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "valkyrie_order_seal", Timings: []model.FlowTiming{model.TimingActive}, Title: "秩序之印",
+					ID: "valkyrie_order_seal", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "秩序之印",
 					Type:         model.SkillTypeAction,
 					Description:  "摸2张牌，然后自身+1治疗和+1蓝水晶。",
 					LogicHandler: "valkyrie_order_seal",
@@ -672,7 +672,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "elementalist_ignite", Timings: []model.FlowTiming{model.TimingActive}, Title: "元素点燃",
+					ID: "elementalist_ignite", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "元素点燃",
 					Type:         model.SkillTypeAction,
 					Description:  "移除3点元素，对目标敌方角色造成2点法术伤害，并额外+1法术行动。",
 					LogicHandler: "elementalist_ignite",
@@ -681,7 +681,7 @@ func GetCharacters() []model.Character {
 					MaxTargets:   1,
 				},
 				{
-					ID: "elementalist_thunder_strike", Timings: []model.FlowTiming{model.TimingActive}, Title: "雷击",
+					ID: "elementalist_thunder_strike", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "雷击",
 					Type:             model.SkillTypeAction,
 					Tags:             []model.SkillTag{model.TagUnique},
 					Description:      "独有技法术：对目标敌方角色造成1点法术伤害；可额外弃1张雷系牌使伤害+1；阵营+1宝石。",
@@ -693,7 +693,7 @@ func GetCharacters() []model.Character {
 					MaxTargets:       1,
 				},
 				{
-					ID: "elementalist_freeze", Timings: []model.FlowTiming{model.TimingActive}, Title: "冰冻",
+					ID: "elementalist_freeze", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "冰冻",
 					Type:             model.SkillTypeAction,
 					Tags:             []model.SkillTag{model.TagUnique},
 					Description:      "独有技法术：选择1名角色受1点法术伤害，再选择1名角色+1治疗；可额外弃1张水系牌使伤害+1。",
@@ -705,7 +705,7 @@ func GetCharacters() []model.Character {
 					MaxTargets:       2,
 				},
 				{
-					ID: "elementalist_wind_blade", Timings: []model.FlowTiming{model.TimingActive}, Title: "风刃",
+					ID: "elementalist_wind_blade", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "风刃",
 					Type:             model.SkillTypeAction,
 					Tags:             []model.SkillTag{model.TagUnique},
 					Description:      "独有技法术：对目标敌方角色造成1点法术伤害，额外+1攻击行动；可额外弃1张风系牌使伤害+1。",
@@ -717,7 +717,7 @@ func GetCharacters() []model.Character {
 					MaxTargets:       1,
 				},
 				{
-					ID: "elementalist_meteor", Timings: []model.FlowTiming{model.TimingActive}, Title: "陨石",
+					ID: "elementalist_meteor", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "陨石",
 					Type:             model.SkillTypeAction,
 					Tags:             []model.SkillTag{model.TagUnique},
 					Description:      "独有技法术：对目标敌方角色造成1点法术伤害，额外+1法术行动；可额外弃1张地系牌使伤害+1。",
@@ -729,7 +729,7 @@ func GetCharacters() []model.Character {
 					MaxTargets:       1,
 				},
 				{
-					ID: "elementalist_fireball", Timings: []model.FlowTiming{model.TimingActive}, Title: "火球",
+					ID: "elementalist_fireball", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "火球",
 					Type:             model.SkillTypeAction,
 					Tags:             []model.SkillTag{model.TagUnique},
 					Description:      "独有技法术：对目标敌方角色造成2点法术伤害；可额外弃1张火系牌使伤害+1。",
@@ -741,7 +741,7 @@ func GetCharacters() []model.Character {
 					MaxTargets:       1,
 				},
 				{
-					ID: "elementalist_moonlight", Timings: []model.FlowTiming{model.TimingActive}, Title: "月光",
+					ID: "elementalist_moonlight", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "月光",
 					Type:         model.SkillTypeAction,
 					Tags:         []model.SkillTag{model.TagGem, model.TagUltimate},
 					Description:  "［宝石］对目标敌方角色造成（X+1）点法术伤害，X为发动后剩余能量数。",
@@ -763,7 +763,7 @@ func GetCharacters() []model.Character {
 			MaxHand: 6,
 			Skills: []model.SkillDefinition{
 				{
-					ID: "arbiter_law", Timings: []model.FlowTiming{model.TimingActive}, Title: "仲裁法则",
+					ID: "arbiter_law", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "仲裁法则",
 					Type:         model.SkillTypePassive,
 					Description:  "游戏开始时获得2个蓝水晶。",
 					ResponseType: model.ResponseSilent,
@@ -800,7 +800,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "arbiter_doomsday", Timings: []model.FlowTiming{model.TimingActive}, Title: "末日审判",
+					ID: "arbiter_doomsday", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "末日审判",
 					Type:         model.SkillTypeAction,
 					Description:  "移除当前所有审判点数，对1名敌方角色造成等量法术伤害；若行动阶段开始时审判已达上限，则该阶段必须发动此技能。",
 					LogicHandler: "arbiter_doomsday",
@@ -809,7 +809,7 @@ func GetCharacters() []model.Character {
 					MaxTargets:   1,
 				},
 				{
-					ID: "arbiter_balance", Timings: []model.FlowTiming{model.TimingActive}, Title: "判决天平",
+					ID: "arbiter_balance", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "判决天平",
 					Type:         model.SkillTypeAction,
 					Tags:         []model.SkillTag{model.TagCrystal, model.TagUltimate},
 					Description:  "［水晶］你+1［审判］，再选择以下一项发动：●弃掉你的所有手牌。●将你的手牌补到上限［强制］，我方战绩区+1［宝石］。",
@@ -829,7 +829,7 @@ func GetCharacters() []model.Character {
 			MaxHand: 6,
 			Skills: []model.SkillDefinition{
 				{
-					ID: "adventurer_fraud", Timings: []model.FlowTiming{model.TimingActive}, Title: "欺诈",
+					ID: "adventurer_fraud", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "欺诈",
 					Type:         model.SkillTypeAction,
 					Description:  "主动技能：选择1名敌方角色，弃同系牌将本次视为一次主动攻击（弃2张同系可选五系攻击〔不含暗灭〕；弃3张同系视为暗灭）。",
 					LogicHandler: "adventurer_fraud",
@@ -845,14 +845,14 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "adventurer_underground_law", Timings: []model.FlowTiming{model.TimingActive}, Title: "地下法则",
+					ID: "adventurer_underground_law", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "地下法则",
 					Type:         model.SkillTypePassive,
 					Description:  "你执行购买时，改为我方战绩区+2宝石。",
 					LogicHandler: "adventurer_underground_law",
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "adventurer_paradise", Timings: []model.FlowTiming{model.TimingActive}, Title: "冒险者天堂",
+					ID: "adventurer_paradise", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "冒险者天堂",
 					Type:         model.SkillTypeResponse,
 					Description:  "你执行提炼时，可将本次提炼出的［宝石］和［水晶］全部交给1名队友（不能拆分），然后移除你的1［能量］。",
 					ResponseType: model.ResponseOptional,
@@ -860,7 +860,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "adventurer_steal_sky", Timings: []model.FlowTiming{model.TimingActive}, Title: "偷天换日",
+					ID: "adventurer_steal_sky", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "偷天换日",
 					Type:         model.SkillTypeAction,
 					Tags:         []model.SkillTag{model.TagTurnLimit, model.TagCrystal, model.TagUltimate},
 					Description:  "［回合限定］［水晶］二选一：转移对方战绩区1个［宝石］到我方；或将我方战绩区所有［水晶］转为［宝石］。随后额外+1［攻击行动］或［法术行动］。",
@@ -880,7 +880,7 @@ func GetCharacters() []model.Character {
 			MaxHand: 6,
 			Skills: []model.SkillDefinition{
 				{
-					ID: "holy_lancer_revelation", Timings: []model.FlowTiming{model.TimingActive}, Title: "神圣启示",
+					ID: "holy_lancer_revelation", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "神圣启示",
 					Type:         model.SkillTypePassive,
 					Description:  "当我方星杯数不小于对方时，治疗上限+1。",
 					ResponseType: model.ResponseSilent,
@@ -888,7 +888,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "holy_lancer_radiance", Timings: []model.FlowTiming{model.TimingActive}, Title: "辉耀",
+					ID: "holy_lancer_radiance", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "辉耀",
 					Type:           model.SkillTypeAction,
 					Description:    "弃1张水系牌，全场各+1治疗，同时额外+1攻击行动。",
 					CostDiscards:   1,
@@ -897,7 +897,7 @@ func GetCharacters() []model.Character {
 					TargetType:     model.TargetNone,
 				},
 				{
-					ID: "holy_lancer_punishment", Timings: []model.FlowTiming{model.TimingActive}, Title: "惩戒",
+					ID: "holy_lancer_punishment", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "惩戒",
 					Type:         model.SkillTypeAction,
 					Description:  "弃1张法术牌，将任意其他角色1点治疗转移给你，并额外+1攻击行动。",
 					CostDiscards: 1,
@@ -938,7 +938,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "holy_lancer_prayer", Timings: []model.FlowTiming{model.TimingActive}, Title: "圣光祈愈",
+					ID: "holy_lancer_prayer", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "圣光祈愈",
 					Type:         model.SkillTypeAction,
 					Tags:         []model.SkillTag{model.TagGem, model.TagUltimate},
 					Description:  "［宝石］无视治疗上限为你+2治疗，但治疗数最高为5；额外+1攻击行动；本回合你不能再发动天枪。",
@@ -1026,14 +1026,14 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "plague_blasphemy", Timings: []model.FlowTiming{model.TimingActive}, Title: "圣渎",
+					ID: "plague_blasphemy", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "圣渎",
 					Type:         model.SkillTypePassive,
 					Description:  "你的治疗不能抵挡攻击伤害，但可抵挡法术伤害；治疗上限初始+3。",
 					LogicHandler: "plague_blasphemy",
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "plague_outbreak", Timings: []model.FlowTiming{model.TimingActive}, Title: "瘟疫",
+					ID: "plague_outbreak", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "瘟疫",
 					Type:           model.SkillTypeAction,
 					Description:    "弃1张地系牌，对除自己外所有角色各造成1点法术伤害（逆序结算）；若因此造成士气下降，则回合结束时你+1治疗。",
 					CostDiscards:   1,
@@ -1042,7 +1042,7 @@ func GetCharacters() []model.Character {
 					TargetType:     model.TargetNone,
 				},
 				{
-					ID: "plague_death_touch", Timings: []model.FlowTiming{model.TimingActive}, Title: "死亡之触",
+					ID: "plague_death_touch", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "死亡之触",
 					Type:         model.SkillTypeAction,
 					Description:  "选择X点治疗与Y张同系牌（X,Y均≥2）并弃置，指定目标造成(X+Y-3)点法术伤害；本次不触发不朽。",
 					LogicHandler: "plague_death_touch",
@@ -1051,7 +1051,7 @@ func GetCharacters() []model.Character {
 					MaxTargets:   1,
 				},
 				{
-					ID: "plague_toxic_nova", Timings: []model.FlowTiming{model.TimingActive}, Title: "剧毒新星",
+					ID: "plague_toxic_nova", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "剧毒新星",
 					Type:         model.SkillTypeAction,
 					Tags:         []model.SkillTag{model.TagGem, model.TagUltimate},
 					Description:  "消耗1红宝石，对除自己外所有角色造成2点法术伤害（逆序结算），自身+1治疗。",
@@ -1092,21 +1092,21 @@ func GetCharacters() []model.Character {
 					MaxTargets:   1,
 				},
 				{
-					ID: "ms_shadow_power", Timings: []model.FlowTiming{model.TimingActive}, Title: "暗影之力",
+					ID: "ms_shadow_power", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "暗影之力",
 					Type:         model.SkillTypePassive,
 					Description:  "暗影形态下，你发起的所有攻击伤害额外+1。",
 					LogicHandler: "ms_shadow_power",
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "ms_shadow_reject", Timings: []model.FlowTiming{model.TimingActive}, Title: "暗影抗拒",
+					ID: "ms_shadow_reject", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "暗影抗拒",
 					Type:         model.SkillTypePassive,
 					Description:  "行动阶段不能使用法术牌；非自己行动阶段可使用魔弹/圣光响应。",
 					LogicHandler: "ms_shadow_reject",
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "ms_shadow_meteor", Timings: []model.FlowTiming{model.TimingActive}, Title: "暗影流星",
+					ID: "ms_shadow_meteor", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "暗影流星",
 					Type:         model.SkillTypeAction,
 					Description:  "暗影形态下弃2张法术牌，对1名敌方角色造成2点法术伤害；可额外移除我方战绩区2星石转正并+1红宝石。",
 					CostDiscards: 2,
@@ -1160,7 +1160,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "css_blood_rose", Timings: []model.FlowTiming{model.TimingActive}, Title: "血染蔷薇",
+					ID: "css_blood_rose", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "血染蔷薇",
 					Type:         model.SkillTypeAction,
 					Description:  "移除2点［鲜血］发动，移除目标角色2点［治疗］，将我方阵营的1［水晶］翻面为1［宝石］，再选择任意1名队友+1［治疗］。（若［血蔷薇庭院］在场）额外对所有角色各造成1点法术伤害③。",
 					LogicHandler: "css_blood_rose",
@@ -1180,7 +1180,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "css_rose_courtyard", Timings: []model.FlowTiming{model.TimingActive}, Title: "血蔷薇庭院",
+					ID: "css_rose_courtyard", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "血蔷薇庭院",
 					Type:         model.SkillTypePassive,
 					Description:  "专属卡在场时，所有人的治疗均不能用于抵挡伤害；你的回合结束时移回手牌区。",
 					LogicHandler: "css_rose_courtyard",
@@ -1229,7 +1229,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "prayer_radiant_faith", Timings: []model.FlowTiming{model.TimingActive}, Title: "光辉信仰",
+					ID: "prayer_radiant_faith", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "光辉信仰",
 					Type:         model.SkillTypeAction,
 					CostDiscards: 2,
 					Description:  "祈祷形态下可发动：移除1祈祷符文，弃2张牌，我方战绩区+1宝石（若未满），并使1名队友+1治疗。",
@@ -1239,7 +1239,7 @@ func GetCharacters() []model.Character {
 					MaxTargets:   1,
 				},
 				{
-					ID: "prayer_dark_curse", Timings: []model.FlowTiming{model.TimingActive}, Title: "黑暗诅咒",
+					ID: "prayer_dark_curse", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "黑暗诅咒",
 					Type:         model.SkillTypeAction,
 					Description:  "祈祷形态下可发动：移除1祈祷符文，对任意1名角色造成2点法术伤害，再对自己造成2点法术伤害。",
 					LogicHandler: "prayer_dark_curse",
@@ -1248,7 +1248,7 @@ func GetCharacters() []model.Character {
 					MaxTargets:   1,
 				},
 				{
-					ID: "prayer_power_blessing", Timings: []model.FlowTiming{model.TimingActive}, Title: "威力赐福",
+					ID: "prayer_power_blessing", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "威力赐福",
 					Type:             model.SkillTypeAction,
 					Tags:             []model.SkillTag{model.TagUnique},
 					Description:      "将独有牌当法术牌打出并放置于1名队友面前；该队友攻击命中后可移除此牌，本次伤害+2。",
@@ -1263,7 +1263,7 @@ func GetCharacters() []model.Character {
 					MaxTargets:       1,
 				},
 				{
-					ID: "prayer_swift_blessing", Timings: []model.FlowTiming{model.TimingActive}, Title: "迅捷赐福",
+					ID: "prayer_swift_blessing", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "迅捷赐福",
 					Type:             model.SkillTypeAction,
 					Tags:             []model.SkillTag{model.TagUnique},
 					Description:      "将独有牌当法术牌打出并放置于1名队友面前；该队友攻击/法术行动结束后可移除此牌，额外+1攻击行动。",
@@ -1311,7 +1311,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "crk_crimson_faith", Timings: []model.FlowTiming{model.TimingActive}, Title: "腥红信仰",
+					ID: "crk_crimson_faith", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "腥红信仰",
 					Type:         model.SkillTypePassive,
 					Description:  "你的治疗只能抵御自己对自己造成的伤害；治疗上限初始+2。",
 					LogicHandler: "crk_crimson_faith",
@@ -1338,7 +1338,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "crk_hot_blood", Timings: []model.FlowTiming{model.TimingActive}, Title: "热血沸腾",
+					ID: "crk_hot_blood", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "热血沸腾",
 					Type:         model.SkillTypePassive,
 					Description:  "因伤害导致我方士气下降时进入热血沸腾形态；该形态下伤害导致的士气下降被免疫。回合结束时脱离并+2治疗。",
 					LogicHandler: "crk_hot_blood",
@@ -1355,7 +1355,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "crk_crimson_cross", Timings: []model.FlowTiming{model.TimingActive}, Title: "腥红十字",
+					ID: "crk_crimson_cross", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "腥红十字",
 					Type:         model.SkillTypeAction,
 					Tags:         []model.SkillTag{model.TagCrystal, model.TagUltimate},
 					CostCrystal:  1,
@@ -1379,7 +1379,7 @@ func GetCharacters() []model.Character {
 			MaxHand: 6,
 			Skills: []model.SkillDefinition{
 				{
-					ID: "hom_battle_pattern", Timings: []model.FlowTiming{model.TimingActive}, Title: "战纹掌控",
+					ID: "hom_battle_pattern", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "战纹掌控",
 					Type:         model.SkillTypePassive,
 					Description:  "开局获得3战纹（当前实现为战纹/魔纹指示物）。",
 					LogicHandler: "hom_battle_pattern",
@@ -1464,7 +1464,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "priest_divine_bless", Timings: []model.FlowTiming{model.TimingActive}, Title: "神圣祈福",
+					ID: "priest_divine_bless", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "神圣祈福",
 					Type:         model.SkillTypeAction,
 					CostDiscards: 2,
 					DiscardType:  model.CardTypeMagic,
@@ -1473,7 +1473,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "priest_water_power", Timings: []model.FlowTiming{model.TimingActive}, Title: "水之神力",
+					ID: "priest_water_power", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "水之神力",
 					Type:         model.SkillTypeAction,
 					CostDiscards: 2,
 					Description:  "弃1张水系牌，并将另一张手牌交给1名队友；你与该队友各+1治疗。",
@@ -1483,7 +1483,7 @@ func GetCharacters() []model.Character {
 					MaxTargets:   1,
 				},
 				{
-					ID: "priest_guardian", Timings: []model.FlowTiming{model.TimingActive}, Title: "圣使守护",
+					ID: "priest_guardian", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "圣使守护",
 					Type:         model.SkillTypePassive,
 					Description:  "治疗上限+4；每次抵御伤害时最多使用1点治疗。",
 					LogicHandler: "priest_guardian",
@@ -1502,7 +1502,7 @@ func GetCharacters() []model.Character {
 					MaxTargets:   1,
 				},
 				{
-					ID: "priest_divine_domain", Timings: []model.FlowTiming{model.TimingActive}, Title: "神圣领域",
+					ID: "priest_divine_domain", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "神圣领域",
 					Type:         model.SkillTypeAction,
 					Tags:         []model.SkillTag{model.TagCrystal, model.TagUltimate},
 					CostCrystal:  1,
@@ -1523,7 +1523,7 @@ func GetCharacters() []model.Character {
 			MaxHand: 6,
 			Skills: []model.SkillDefinition{
 				{
-					ID: "onmyoji_shikigami_descend", Timings: []model.FlowTiming{model.TimingActive}, Title: "式神降临",
+					ID: "onmyoji_shikigami_descend", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "式神降临",
 					Type:         model.SkillTypeAction,
 					CostDiscards: 2,
 					Description:  "［持续］（弃2张命格相同的手牌［展示］）［横置］转为［式神形态］，你+1［鬼火］，额外+1［攻击行动］。",
@@ -1569,7 +1569,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "onmyoji_life_barrier", Timings: []model.FlowTiming{model.TimingActive}, Title: "生命结界",
+					ID: "onmyoji_life_barrier", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "生命结界",
 					Type:         model.SkillTypeAction,
 					Tags:         []model.SkillTag{model.TagUltimate, model.TagCrystal},
 					CostCrystal:  1,
@@ -1600,7 +1600,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "bw_blazing_codex", Timings: []model.FlowTiming{model.TimingActive}, Title: "苍炎法典",
+					ID: "bw_blazing_codex", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "苍炎法典",
 					Type:           model.SkillTypeAction,
 					CostDiscards:   1,
 					DiscardElement: model.ElementFire,
@@ -1611,7 +1611,7 @@ func GetCharacters() []model.Character {
 					MaxTargets:     1,
 				},
 				{
-					ID: "bw_heavenfire_cleave", Timings: []model.FlowTiming{model.TimingActive}, Title: "天火断空",
+					ID: "bw_heavenfire_cleave", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "天火断空",
 					Type:           model.SkillTypeAction,
 					CostDiscards:   2,
 					DiscardElement: model.ElementFire,
@@ -1646,7 +1646,7 @@ func GetCharacters() []model.Character {
 					MaxTargets:   1,
 				},
 				{
-					ID: "bw_pain_link", Timings: []model.FlowTiming{model.TimingActive}, Title: "痛苦链接",
+					ID: "bw_pain_link", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "痛苦链接",
 					Type:         model.SkillTypeAction,
 					Tags:         []model.SkillTag{model.TagCrystal, model.TagUltimate},
 					CostCrystal:  1,
@@ -1683,14 +1683,14 @@ func GetCharacters() []model.Character {
 			MaxHand: 6,
 			Skills: []model.SkillDefinition{
 				{
-					ID: "sage_wisdom_codex", Timings: []model.FlowTiming{model.TimingActive}, Title: "智慧法典",
+					ID: "sage_wisdom_codex", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "智慧法典",
 					Type:         model.SkillTypePassive,
 					Description:  "你的能量上限+1；你每次承受法术伤害时，若该伤害>3：你+2红宝石并弃1张牌。",
 					LogicHandler: "sage_wisdom_codex",
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "sage_magic_rebound", Timings: []model.FlowTiming{model.TimingActive}, Title: "法术反弹",
+					ID: "sage_magic_rebound", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "法术反弹",
 					Type:         model.SkillTypeResponse,
 					Description:  "你每次承受法术伤害时，若该伤害仅为1点：可弃X张同系牌（X>1），对目标角色造成(X-1)点法术伤害，并对自己造成X点法术伤害。",
 					LogicHandler: "sage_magic_rebound",
@@ -1699,7 +1699,7 @@ func GetCharacters() []model.Character {
 					MaxTargets:   1,
 				},
 				{
-					ID: "sage_arcane_codex", Timings: []model.FlowTiming{model.TimingActive}, Title: "魔道法典",
+					ID: "sage_arcane_codex", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "魔道法典",
 					Type:         model.SkillTypeAction,
 					Tags:         []model.SkillTag{model.TagGem, model.TagUltimate},
 					CostGem:      1,
@@ -1710,7 +1710,7 @@ func GetCharacters() []model.Character {
 					MaxTargets:   1,
 				},
 				{
-					ID: "sage_holy_codex", Timings: []model.FlowTiming{model.TimingActive}, Title: "圣洁法典",
+					ID: "sage_holy_codex", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "圣洁法典",
 					Type:         model.SkillTypeAction,
 					Tags:         []model.SkillTag{model.TagGem, model.TagUltimate},
 					CostGem:      1,
@@ -1742,7 +1742,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "mb_thunder_scatter", Timings: []model.FlowTiming{model.TimingActive}, Title: "雷光散射",
+					ID: "mb_thunder_scatter", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "雷光散射",
 					Type:         model.SkillTypeAction,
 					Description:  "移除1个雷系充能：对所有对手各造成1点法术伤害；可额外移除X个雷系充能并指定1名对手，本次对其伤害额外+X。",
 					LogicHandler: "mb_thunder_scatter",
@@ -1816,7 +1816,7 @@ func GetCharacters() []model.Character {
 					MaxTargets:   1,
 				},
 				{
-					ID: "ml_dark_bind", Timings: []model.FlowTiming{model.TimingActive}, Title: "黑暗束缚",
+					ID: "ml_dark_bind", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "黑暗束缚",
 					Type:         model.SkillTypePassive,
 					Description:  "你始终不能使用法术牌。",
 					LogicHandler: "ml_dark_bind",
@@ -1833,7 +1833,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "ml_fullness", Timings: []model.FlowTiming{model.TimingActive}, Title: "充盈",
+					ID: "ml_fullness", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "充盈",
 					Type:         model.SkillTypeAction,
 					Description:  "弃1张法术牌或雷系牌：全体角色按逆时针各弃1张牌（我方可选择不弃）；除你外每有1名角色以此法弃置法术牌或雷系牌，你本回合下次主动攻击伤害+1；额外+1次攻击行动。",
 					LogicHandler: "ml_fullness",
@@ -1862,7 +1862,7 @@ func GetCharacters() []model.Character {
 			MaxHand: 6,
 			Skills: []model.SkillDefinition{
 				{
-					ID: "sc_talisman_thunder", Timings: []model.FlowTiming{model.TimingActive}, Title: "灵符-雷鸣",
+					ID: "sc_talisman_thunder", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "灵符-雷鸣",
 					Type:           model.SkillTypeAction,
 					CostDiscards:   1,
 					DiscardElement: model.ElementThunder,
@@ -1873,7 +1873,7 @@ func GetCharacters() []model.Character {
 					MaxTargets:     2,
 				},
 				{
-					ID: "sc_talisman_wind", Timings: []model.FlowTiming{model.TimingActive}, Title: "灵符-风行",
+					ID: "sc_talisman_wind", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "灵符-风行",
 					Type:           model.SkillTypeAction,
 					CostDiscards:   1,
 					DiscardElement: model.ElementWind,
@@ -1884,7 +1884,7 @@ func GetCharacters() []model.Character {
 					MaxTargets:     2,
 				},
 				{
-					ID: "sc_incantation", Timings: []model.FlowTiming{model.TimingActive}, Title: "念咒",
+					ID: "sc_incantation", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "念咒",
 					Type:         model.SkillTypeResponse,
 					Description:  "你每次发动灵符时，可将1张手牌面朝下放置在角色旁，作为［妖力］。",
 					LogicHandler: "sc_incantation",
@@ -1903,7 +1903,7 @@ func GetCharacters() []model.Character {
 					MaxTargets:   2,
 				},
 				{
-					ID: "sc_spiritual_collapse", Timings: []model.FlowTiming{model.TimingActive}, Title: "灵力崩解",
+					ID: "sc_spiritual_collapse", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "灵力崩解",
 					Type:         model.SkillTypeResponse,
 					Tags:         []model.SkillTag{model.TagCrystal, model.TagUltimate},
 					CostCrystal:  1,
@@ -1923,7 +1923,7 @@ func GetCharacters() []model.Character {
 			MaxHand: 6,
 			Skills: []model.SkillDefinition{
 				{
-					ID: "bd_descent_concerto", Timings: []model.FlowTiming{model.TimingActive}, Title: "沉沦协奏曲",
+					ID: "bd_descent_concerto", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "沉沦协奏曲",
 					Type:         model.SkillTypeResponse,
 					Tags:         []model.SkillTag{model.TagTurnLimit, model.TagOptional},
 					Description:  "［回合限定］仅普通形态：本回合你对至少2名不同对手造成法术伤害并结算完后，可选择发动；若发动，则弃2张同系牌并公开展示，你+1灵感。若弃牌中含法术牌，则再对1名目标对手造成1点法术伤害。",
@@ -1934,7 +1934,7 @@ func GetCharacters() []model.Character {
 					ResponseType: model.ResponseOptional,
 				},
 				{
-					ID: "bd_dissonance_chord", Timings: []model.FlowTiming{model.TimingActive}, Title: "不谐和弦",
+					ID: "bd_dissonance_chord", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "不谐和弦",
 					Type:         model.SkillTypeAction,
 					Description:  "移除X点灵感（X>1）；若处于永恒囚徒形态则转正脱离。然后选择一项：你与目标角色各摸(X-1)张牌；或你与目标角色各弃(X-1)张牌。",
 					LogicHandler: "bd_dissonance_chord",
@@ -1943,14 +1943,14 @@ func GetCharacters() []model.Character {
 					MaxTargets:   1,
 				},
 				{
-					ID: "bd_forbidden_verse", Timings: []model.FlowTiming{model.TimingActive}, Title: "禁忌诗篇",
+					ID: "bd_forbidden_verse", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "禁忌诗篇",
 					Type:         model.SkillTypePassive,
 					Description:  "激昂狂想曲或胜利交响诗结算后：若灵感未满则你+1灵感并移除永恒乐章；若灵感已满则对自己造成3点法术伤害，且普通形态下转为永恒囚徒形态。",
 					LogicHandler: "bd_forbidden_verse",
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "bd_rousing_rhapsody", Timings: []model.FlowTiming{model.TimingActive}, Title: "激昂狂想曲",
+					ID: "bd_rousing_rhapsody", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "激昂狂想曲",
 					Type:         model.SkillTypeResponse,
 					Description:  "回合开始时，若我方存在永恒乐章：选择一项——吟游诗人对2名目标对手各造成1点法术伤害；或你弃2张牌。",
 					LogicHandler: "bd_rousing_rhapsody",
@@ -1959,7 +1959,7 @@ func GetCharacters() []model.Character {
 					MaxTargets:   2,
 				},
 				{
-					ID: "bd_victory_symphony", Timings: []model.FlowTiming{model.TimingActive}, Title: "胜利交响诗",
+					ID: "bd_victory_symphony", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "胜利交响诗",
 					Type:         model.SkillTypeResponse,
 					Description:  "回合结束时，若我方存在永恒乐章：选择一项——将我方战绩区1个指定星石提炼为你的能量；或我方战绩区+1宝石且你+1治疗。",
 					LogicHandler: "bd_victory_symphony",
@@ -1990,7 +1990,7 @@ func GetCharacters() []model.Character {
 			MaxHand: 6,
 			Skills: []model.SkillDefinition{
 				{
-					ID: "hero_heart", Timings: []model.FlowTiming{model.TimingActive}, Title: "勇者之心",
+					ID: "hero_heart", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "勇者之心",
 					Type:         model.SkillTypePassive,
 					Description:  "游戏初始时，你+2［水晶］。",
 					LogicHandler: "hero_heart",
@@ -2019,7 +2019,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "hero_exhaustion", Timings: []model.FlowTiming{model.TimingActive}, Title: "精疲力竭",
+					ID: "hero_exhaustion", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "精疲力竭",
 					Type:         model.SkillTypePassive,
 					Description:  "发动禁断之力后强制触发：［横置］额外+1攻击行动；持续到你的下个行动阶段开始，手牌上限恒定为4。效果结束时转正并对自己造成3点法术伤害。",
 					LogicHandler: "hero_exhaustion",
@@ -2036,7 +2036,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "hero_taunt", Timings: []model.FlowTiming{model.TimingActive}, Title: "挑衅",
+					ID: "hero_taunt", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "挑衅",
 					Type:             model.SkillTypeAction,
 					Tags:             []model.SkillTag{model.TagUnique},
 					Description:      "移除1点［怒气］：将【挑衅】放置于目标对手面前，你+1［知性］；该对手在其下个行动阶段必须且只能主动攻击你，否则跳过该行动阶段。触发后移除此牌。",
@@ -2149,28 +2149,28 @@ func GetCharacters() []model.Character {
 			MaxHand: 6,
 			Skills: []model.SkillDefinition{
 				{
-					ID: "hb_heavenly_bow", Timings: []model.FlowTiming{model.TimingActive}, Title: "天之弓",
+					ID: "hb_heavenly_bow", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "天之弓",
 					Type:         model.SkillTypePassive,
 					Description:  "初始+1圣煌辉光炮、+2水晶、治疗上限+1；主动攻击若非圣命格伤害-1；主动攻击命中且为圣命格时+1信仰。",
 					LogicHandler: "hb_heavenly_bow",
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "hb_holy_shard_storm", Timings: []model.FlowTiming{model.TimingActive}, Title: "圣屑飓暴",
+					ID: "hb_holy_shard_storm", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "圣屑飓暴",
 					Type:         model.SkillTypeAction,
 					Description:  "弃2张同系攻击牌并展示，视为1次圣命格同系主动攻击；若未命中，可移除最多2点治疗，并令1名队友弃置等量手牌。",
 					LogicHandler: "hb_holy_shard_storm",
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "hb_radiant_descent", Timings: []model.FlowTiming{model.TimingActive}, Title: "圣煌降临",
+					ID: "hb_radiant_descent", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "圣煌降临",
 					Type:         model.SkillTypeAction,
 					Description:  "移除2点治疗或2点信仰，进入持续的圣煌形态，并额外+1法术行动；圣煌形态下执行特殊行动会退场并+1治疗。",
 					LogicHandler: "hb_radiant_descent",
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "hb_light_burst", Timings: []model.FlowTiming{model.TimingActive}, Title: "圣光爆裂",
+					ID: "hb_light_burst", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "圣光爆裂",
 					Type:         model.SkillTypeAction,
 					Description:  "仅圣煌形态可发动：①摸1，移除1治疗，+1信仰，1名其他我方角色+1治疗；②移除X治疗并弃X牌，至多选择X名手牌数不大于你手牌数-X的对手，各受(Y+2)点攻击伤害。",
 					LogicHandler: "hb_light_burst",
@@ -2189,14 +2189,14 @@ func GetCharacters() []model.Character {
 					MaxTargets:   1,
 				},
 				{
-					ID: "hb_radiant_cannon", Timings: []model.FlowTiming{model.TimingActive}, Title: "圣煌辉光炮",
+					ID: "hb_radiant_cannon", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "圣煌辉光炮",
 					Type:         model.SkillTypeAction,
 					Description:  "仅圣煌形态可发动：移除1圣煌辉光炮与(4+士气落后值)信仰，所有角色手牌调整为4，我方星杯+1，然后选择将一方士气调整为与另一方相同。",
 					LogicHandler: "hb_radiant_cannon",
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "hb_auto_fill", Timings: []model.FlowTiming{model.TimingActive}, Title: "自动填充",
+					ID: "hb_auto_fill", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "自动填充",
 					Type:         model.SkillTypeResponse,
 					Tags:         []model.SkillTag{model.TagUltimate},
 					Description:  "回合结束时，若你未执行特殊行动：可选择①消耗1水晶，+1信仰或+1治疗；②消耗1宝石，+1水晶并+2信仰或+2治疗。",
@@ -2346,7 +2346,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "bs_iaijutsu_style", Timings: []model.FlowTiming{model.TimingActive}, Title: "御魂流居合式",
+					ID: "bs_iaijutsu_style", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "御魂流居合式",
 					Type:         model.SkillTypeStartup,
 					Tags:         []model.SkillTag{model.TagGem, model.TagUltimate},
 					CostGem:      1,
@@ -2375,7 +2375,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "ss_soul_recall", Timings: []model.FlowTiming{model.TimingActive}, Title: "灵魂召还",
+					ID: "ss_soul_recall", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "灵魂召还",
 					Type:         model.SkillTypeAction,
 					DiscardType:  model.CardTypeMagic,
 					Description:  "弃X张法术牌［展示］，你+X点［蓝色灵魂］（上限6）。",
@@ -2393,7 +2393,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "ss_soul_mirror", Timings: []model.FlowTiming{model.TimingActive}, Title: "灵魂镜像",
+					ID: "ss_soul_mirror", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "灵魂镜像",
 					Type:         model.SkillTypeAction,
 					CostDiscards: 2,
 					Description:  "（移除2点［黄色灵魂］）你弃2张牌，目标角色摸2张牌［强制］，但最多补到其手牌上限。",
@@ -2403,7 +2403,7 @@ func GetCharacters() []model.Character {
 					MaxTargets:   1,
 				},
 				{
-					ID: "ss_soul_blast", Timings: []model.FlowTiming{model.TimingActive}, Title: "灵魂震爆",
+					ID: "ss_soul_blast", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "灵魂震爆",
 					Type:             model.SkillTypeAction,
 					Tags:             []model.SkillTag{model.TagUnique},
 					CostDiscards:     1,
@@ -2415,7 +2415,7 @@ func GetCharacters() []model.Character {
 					MaxTargets:       1,
 				},
 				{
-					ID: "ss_soul_grant", Timings: []model.FlowTiming{model.TimingActive}, Title: "灵魂赐予",
+					ID: "ss_soul_grant", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "灵魂赐予",
 					Type:             model.SkillTypeAction,
 					Tags:             []model.SkillTag{model.TagUnique},
 					CostDiscards:     1,
@@ -2469,7 +2469,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "mg_dark_moon_curse", Timings: []model.FlowTiming{model.TimingActive}, Title: "闇月诅咒",
+					ID: "mg_dark_moon_curse", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "闇月诅咒",
 					Type:         model.SkillTypePassive,
 					Description:  "你每次移除1个闇月，我方士气-1；当闇月数为0时，脱离闇月形态。",
 					LogicHandler: "mg_dark_moon_curse",
@@ -2483,14 +2483,14 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "mg_moon_cycle", Timings: []model.FlowTiming{model.TimingActive}, Title: "月之轮回",
+					ID: "mg_moon_cycle", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "月之轮回",
 					Type:         model.SkillTypeResponse,
 					Description:  "你的回合结束时，选择其一：①移除1闇月，令目标角色+1治疗；②移除1治疗，你+1新月。",
 					LogicHandler: "mg_moon_cycle",
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "mg_blasphemy", Timings: []model.FlowTiming{model.TimingActive}, Title: "月渎",
+					ID: "mg_blasphemy", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "月渎",
 					Type:         model.SkillTypeResponse,
 					Tags:         []model.SkillTag{model.TagTurnLimit},
 					Description:  "［回合限定］目标对手承受你造成的法术伤害后，可移除1治疗，对该目标对手造成1点法术伤害。",
@@ -2510,7 +2510,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "mg_pale_moon", Timings: []model.FlowTiming{model.TimingActive}, Title: "苍白之月",
+					ID: "mg_pale_moon", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "苍白之月",
 					Type:         model.SkillTypeAction,
 					Tags:         []model.SkillTag{model.TagGem, model.TagUltimate},
 					CostGem:      1,
@@ -2539,14 +2539,14 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "bp_bleeding", Timings: []model.FlowTiming{model.TimingActive}, Title: "流血",
+					ID: "bp_bleeding", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "流血",
 					Type:         model.SkillTypePassive,
 					Description:  "普通形态下因承伤导致我方士气下降时，强制进入流血形态并+1治疗；流血形态下回合开始对自己造成1点法术伤害；当手牌<3时强制脱离流血形态。",
 					LogicHandler: "bp_bleeding",
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "bp_backflow", Timings: []model.FlowTiming{model.TimingActive}, Title: "逆流",
+					ID: "bp_backflow", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "逆流",
 					Type:         model.SkillTypeAction,
 					CostDiscards: 2,
 					Description:  "仅流血形态下可发动：你弃2张牌，你+1治疗。",
@@ -2554,7 +2554,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "bp_blood_wail", Timings: []model.FlowTiming{model.TimingActive}, Title: "血之悲鸣",
+					ID: "bp_blood_wail", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "血之悲鸣",
 					Type:             model.SkillTypeAction,
 					Tags:             []model.SkillTag{model.TagUnique},
 					RequireExclusive: true,
@@ -2565,7 +2565,7 @@ func GetCharacters() []model.Character {
 					MaxTargets:       1,
 				},
 				{
-					ID: "bp_shared_life", Timings: []model.FlowTiming{model.TimingActive}, Title: "同生共死",
+					ID: "bp_shared_life", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "同生共死",
 					Type:             model.SkillTypeAction,
 					Tags:             []model.SkillTag{model.TagExclusive},
 					RequireExclusive: true,
@@ -2574,7 +2574,7 @@ func GetCharacters() []model.Character {
 					TargetType:       model.TargetNone,
 				},
 				{
-					ID: "bp_blood_curse", Timings: []model.FlowTiming{model.TimingActive}, Title: "血之诅咒",
+					ID: "bp_blood_curse", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "血之诅咒",
 					Type:         model.SkillTypeAction,
 					Tags:         []model.SkillTag{model.TagGem, model.TagUltimate},
 					CostGem:      1,
@@ -2596,49 +2596,49 @@ func GetCharacters() []model.Character {
 			MaxHand: 6,
 			Skills: []model.SkillDefinition{
 				{
-					ID: "bt_life_fire", Timings: []model.FlowTiming{model.TimingActive}, Title: "生命之火",
+					ID: "bt_life_fire", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "生命之火",
 					Type:         model.SkillTypePassive,
 					Description:  "你的手牌上限-X（X为蛹数量），但最低为3。",
 					LogicHandler: "bt_life_fire",
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "bt_dance", Timings: []model.FlowTiming{model.TimingActive}, Title: "舞动",
+					ID: "bt_dance", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "舞动",
 					Type:         model.SkillTypeAction,
 					Description:  "选择：摸1张牌（强制）或弃1张牌（强制）；然后将牌库顶1张牌面朝下放置为茧。",
 					LogicHandler: "bt_dance",
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "bt_poison_powder", Timings: []model.FlowTiming{model.TimingActive}, Title: "毒粉",
+					ID: "bt_poison_powder", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "毒粉",
 					Type:         model.SkillTypeResponse,
 					Description:  "每当有角色产生1点实际法术伤害时，可移除1个茧，使该次伤害额外+1。",
 					LogicHandler: "bt_poison_powder",
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "bt_pilgrimage", Timings: []model.FlowTiming{model.TimingActive}, Title: "朝圣",
+					ID: "bt_pilgrimage", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "朝圣",
 					Type:         model.SkillTypeResponse,
 					Description:  "每当你承受伤害时，可移除1个茧，抵御1点该来源伤害（每次伤害最多发动1次）。",
 					LogicHandler: "bt_pilgrimage",
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "bt_mirror", Timings: []model.FlowTiming{model.TimingActive}, Title: "镜花水月",
+					ID: "bt_mirror", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "镜花水月",
 					Type:         model.SkillTypeResponse,
 					Description:  "每当有角色产生2点实际法术伤害时，可移除2张同系茧并展示：抵御该次伤害，改为你对伤害来源造成2次1点法术伤害。",
 					LogicHandler: "bt_mirror",
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "bt_wither", Timings: []model.FlowTiming{model.TimingActive}, Title: "凋零",
+					ID: "bt_wither", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "凋零",
 					Type:         model.SkillTypeResponse,
 					Description:  "你每次移除茧时，若该茧为法术牌，可展示并发动：对目标造成1点法术伤害，再对自己造成2点法术伤害；直到你下回合开始前，对方士气最低为1。",
 					LogicHandler: "bt_wither",
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "bt_chrysalis", Timings: []model.FlowTiming{model.TimingActive}, Title: "蛹化",
+					ID: "bt_chrysalis", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "蛹化",
 					Type:         model.SkillTypeAction,
 					Tags:         []model.SkillTag{model.TagGem, model.TagUltimate},
 					CostGem:      1,
@@ -2647,7 +2647,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "bt_reverse_butterfly", Timings: []model.FlowTiming{model.TimingActive}, Title: "倒逆之蝶",
+					ID: "bt_reverse_butterfly", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "倒逆之蝶",
 					Type:         model.SkillTypeAction,
 					Tags:         []model.SkillTag{model.TagCrystal, model.TagUltimate},
 					CostCrystal:  1,

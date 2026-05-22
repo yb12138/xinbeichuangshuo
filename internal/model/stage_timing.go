@@ -46,8 +46,6 @@ const (
 	TimingOnGameStart FlowTiming = "TimingOnGameStart"
 	// Deprecated: lifecycle timing; keep runtime-only compatibility.
 	TimingOnCampChanged FlowTiming = "TimingOnCampChanged"
-	// Deprecated: use TimingActionDuring for rulebook timeline work.
-	TimingActive FlowTiming = "TimingActive"
 	// Deprecated: lifecycle timing; keep compatibility until skill-post hooks are fully migrated.
 	TimingOnSkillExecuted FlowTiming = "TimingOnSkillExecuted"
 	// Deprecated: use TimingMagicDeclare, TimingMagicSelectTarget, TimingMagicValidate, TimingMagicResolve, or TimingMagicHealOverflow.

@@ -200,7 +200,7 @@ func (r *Room) canUseActionSkillNow(user *model.Player, sd model.SkillDefinition
 	}
 	// PlaceCard 主动技里有一类“放置现在、触发在未来”的场牌（如五系封印）。
 	// 这些 handler 的 CanUse 语义是“未来触发时机是否成立”，不适合作为“当前可施放性”过滤，
-	// 否则会被 TimingActive 探测误判为 false，导致前端按钮错误置灰。
+	// 否则会被 TimingActionDuring 探测误判为 false，导致前端按钮错误置灰。
 	if sd.Type == model.SkillTypeAction &&
 		sd.PlaceCard &&
 		sd.PlaceMode == model.FieldEffect &&
@@ -220,7 +220,7 @@ func (r *Room) canUseActionSkillNow(user *model.Player, sd model.SkillDefinition
 		Game:   r.Engine,
 		User:   user,
 		Target: probeTarget,
-		Timing: model.TimingActive,
+		Timing: model.TimingActionDuring,
 		EventCtx: &model.EventContext{
 			Type:     model.EventNone,
 			SourceID: user.ID,

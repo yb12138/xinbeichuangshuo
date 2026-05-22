@@ -6,7 +6,7 @@ import (
 )
 
 func responseContext(rt engineplayer.ChoiceRuntime, user *model.Player, stage string, resumePoint interface{}) *model.Context {
-	ctx := rt.BuildContext(user, nil, model.TimingActive, &model.EventContext{
+	ctx := rt.BuildContext(user, nil, model.TimingActionDuring, &model.EventContext{
 		Type:     model.EventNone,
 		SourceID: user.ID,
 	})

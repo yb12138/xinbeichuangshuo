@@ -79,7 +79,7 @@ func ApplyFactionCounterBonuses(rt engineplayer.ChoiceRuntime, actor *model.Play
 
 // triggerShikigamiShift 通过正式技能 handler 触发式神转换。
 func triggerShikigamiShift(rt engineplayer.ChoiceRuntime, actor *model.Player) {
-	ctx := rt.BuildContext(actor, nil, model.TimingActive, nil)
+	ctx := rt.BuildContext(actor, nil, model.TimingActionDuring, nil)
 	ctx.Flags["yinyang_counter_active"] = true
 	handler := &OnmyojiShikigamiShiftHandler{}
 	if handler.CanUse(ctx) {

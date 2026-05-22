@@ -180,7 +180,7 @@ func TestCrimsonKnightCrimsonCross_SelfDamageResolvesBeforeTargetDamage(t *testi
 	if h == nil {
 		t.Fatalf("crk_crimson_cross handler not found")
 	}
-	ctx := game.BuildContext(p1, p2, model.TimingActive, nil)
+	ctx := game.BuildContext(p1, p2, model.TimingActionDuring, nil)
 	if !h.CanUse(ctx) {
 		t.Fatalf("expected crimson cross can use with blood mark and 2 magic cards")
 	}

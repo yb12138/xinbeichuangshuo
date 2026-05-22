@@ -857,7 +857,7 @@ func TestHolyBow_RadiantCannon_CannotUseWhenMoraleNotBehind(t *testing.T) {
 	game.State.CurrentTurn = 0
 	game.State.TurnStage = model.TurnStageActionExecution
 
-	ctx := game.BuildContext(p1, game.State.Players["p2"], model.TimingActive, &model.EventContext{
+	ctx := game.BuildContext(p1, game.State.Players["p2"], model.TimingActionDuring, &model.EventContext{
 		Type:     model.EventPhaseEnd,
 		SourceID: p1.ID,
 	})

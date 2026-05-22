@@ -156,7 +156,7 @@ func (h *SealBreakHandler) Execute(ctx *model.Context) error {
 type FiveElementsBindHandler struct{ engineplayer.BaseHandler }
 
 func (h *FiveElementsBindHandler) CanUse(ctx *model.Context) bool {
-	return ctx != nil && ctx.Timing == model.TimingActive && ctx.User != nil && ctx.Target != nil
+	return ctx != nil && ctx.Timing == model.TimingActionDuring && ctx.User != nil && ctx.Target != nil
 }
 
 func (h *FiveElementsBindHandler) Execute(ctx *model.Context) error {
@@ -201,7 +201,7 @@ func (s *SealLogic) CanUse(ctx *model.Context) bool {
 }
 
 func (s *SealLogic) Execute(ctx *model.Context) error {
-	if ctx != nil && ctx.Timing == model.TimingActive {
+	if ctx != nil && ctx.Timing == model.TimingActionDuring {
 		return nil
 	}
 	return executeFieldStatus(ctx, s.EffectType)

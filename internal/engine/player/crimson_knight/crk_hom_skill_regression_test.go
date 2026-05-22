@@ -853,7 +853,7 @@ func TestCrimsonKnightBloodyPrayerXPrompt_NoZeroOption(t *testing.T) {
 	if h == nil {
 		t.Fatalf("crk_bloody_prayer handler not found")
 	}
-	ctx := g.BuildContext(p1, nil, model.TimingActive, nil)
+	ctx := g.BuildContext(p1, nil, model.TimingActionDuring, nil)
 	if !h.CanUse(ctx) {
 		t.Fatalf("expected bloody prayer can use with heal>0 and ally exists")
 	}
