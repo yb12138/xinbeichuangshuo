@@ -28,6 +28,11 @@ const (
 	TimingMagicResolve      Timing = "magic.resolve"
 	TimingMagicHealOverflow Timing = "magic.heal_overflow"
 
+	TimingMagicMissileResponse      Timing = "magic.missile.response"
+	TimingMagicMissileDefend        Timing = "magic.missile.defend"
+	TimingMagicMissileCounter       Timing = "magic.missile.counter"
+	TimingMagicMissileResponseSkill Timing = "magic.missile.response_skill"
+
 	TimingDamageSourceDeal   Timing = "damage.source_deal"
 	TimingDamageTargetBefore Timing = "damage.target_before"
 	TimingHealBefore         Timing = "heal.before"
@@ -79,6 +84,12 @@ func NormalizeTiming(t Timing) Timing {
 		return TimingMagicDeclare
 	case TimingOnHealOverflow:
 		return TimingMagicHealOverflow
+	case Timing("on_magic_missile_defend"):
+		return TimingMagicMissileDefend
+	case Timing("on_magic_missile_counter"):
+		return TimingMagicMissileCounter
+	case Timing("on_magic_missile_response_skill_aug"):
+		return TimingMagicMissileResponseSkill
 	case TimingOnDamageCalculated, Timing("on_damage_calculate"):
 		return TimingDamageSourceDeal
 	case Timing("on_damage_before_taken"):
@@ -128,6 +139,12 @@ func LegacyTimingName(t Timing) Timing {
 		return TimingOnHitCheck
 	case TimingMagicDeclare, TimingMagicSelectTarget, TimingMagicValidate, TimingMagicResolve, TimingMagicHealOverflow:
 		return TimingOnMagicDeclared
+	case TimingMagicMissileDefend:
+		return Timing("on_magic_missile_defend")
+	case TimingMagicMissileCounter:
+		return Timing("on_magic_missile_counter")
+	case TimingMagicMissileResponseSkill:
+		return Timing("on_magic_missile_response_skill_aug")
 	case TimingDamageSourceDeal:
 		return TimingOnDamageCalculated
 	case TimingDamageApplied:

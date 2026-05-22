@@ -21,6 +21,10 @@ func TestContextTimingHelpersPreferRulebookTimings(t *testing.T) {
 		{name: "attack miss", ctx: &Context{Timing: TimingAttackMiss}, want: (*Context).AttackMissPhase},
 		{name: "magic declare", ctx: &Context{Timing: TimingMagicDeclare}, want: (*Context).MagicDeclarePhase},
 		{name: "magic resolve", ctx: &Context{Timing: TimingMagicResolve}, want: (*Context).MagicResolvePhase},
+		{name: "magic missile response", ctx: &Context{Timing: TimingMagicMissileResponse}, want: (*Context).MagicMissileResponsePhase},
+		{name: "magic missile defend", ctx: &Context{Timing: TimingMagicMissileDefend}, want: (*Context).MagicMissileDefendPhase},
+		{name: "magic missile counter", ctx: &Context{Timing: TimingMagicMissileCounter}, want: (*Context).MagicMissileCounterPhase},
+		{name: "magic missile response skill", ctx: &Context{Timing: TimingMagicMissileResponseSkill}, want: (*Context).MagicMissileResponseSkillPhase},
 		{name: "damage source deal", ctx: &Context{Timing: TimingDamageSourceDeal}, want: (*Context).DamageSourceDealPhase},
 		{name: "damage target before", ctx: &Context{Timing: TimingDamageTargetBefore}, want: (*Context).DamageTargetBeforePhase},
 		{name: "damage applied", ctx: &Context{Timing: TimingDamageApplied}, want: (*Context).DamageAppliedPhase},
@@ -66,6 +70,9 @@ func TestContextTimingHelpersKeepLegacyPhaseFallbacks(t *testing.T) {
 		{name: "attack miss role hook", ctx: &Context{Timing: Timing("on_attack_miss")}, want: (*Context).AttackMissPhase},
 		{name: "magic declare constant", ctx: &Context{Timing: TimingOnMagicDeclared}, want: (*Context).MagicDeclarePhase},
 		{name: "magic resolve closest legacy", ctx: &Context{Timing: TimingOnMagicDeclared}, want: (*Context).MagicResolvePhase},
+		{name: "magic missile defend role hook", ctx: &Context{Timing: Timing("on_magic_missile_defend")}, want: (*Context).MagicMissileDefendPhase},
+		{name: "magic missile counter role hook", ctx: &Context{Timing: Timing("on_magic_missile_counter")}, want: (*Context).MagicMissileCounterPhase},
+		{name: "magic missile response skill role hook", ctx: &Context{Timing: Timing("on_magic_missile_response_skill_aug")}, want: (*Context).MagicMissileResponseSkillPhase},
 		{name: "damage source deal constant", ctx: &Context{Timing: TimingOnDamageCalculated}, want: (*Context).DamageSourceDealPhase},
 		{name: "damage source deal role string", ctx: &Context{Timing: Timing("on_damage_calculate")}, want: (*Context).DamageSourceDealPhase},
 		{name: "damage target before role string", ctx: &Context{Timing: Timing("on_damage_before_taken")}, want: (*Context).DamageTargetBeforePhase},
@@ -117,6 +124,9 @@ func TestContextTimingHelpersKeepLegacyFallbacks(t *testing.T) {
 	if !(&Context{Timing: TimingStartup}).TurnStartOrStartupWindow() {
 		t.Fatalf("legacy startup context should remain compatible")
 	}
+	if (&Context{Timing: TimingOnHitCheck}).MagicMissileResponseSkillPhase() {
+		t.Fatalf("attack hit-check context should not match magic missile response skill phase")
+	}
 }
 
 func TestContextTimingHelpersHandleNilContext(t *testing.T) {
@@ -138,6 +148,10 @@ func TestContextTimingHelpersHandleNilContext(t *testing.T) {
 		{name: "attack miss", call: ctx.AttackMissPhase},
 		{name: "magic declare", call: ctx.MagicDeclarePhase},
 		{name: "magic resolve", call: ctx.MagicResolvePhase},
+		{name: "magic missile response", call: ctx.MagicMissileResponsePhase},
+		{name: "magic missile defend", call: ctx.MagicMissileDefendPhase},
+		{name: "magic missile counter", call: ctx.MagicMissileCounterPhase},
+		{name: "magic missile response skill", call: ctx.MagicMissileResponseSkillPhase},
 		{name: "damage source deal", call: ctx.DamageSourceDealPhase},
 		{name: "damage target before", call: ctx.DamageTargetBeforePhase},
 		{name: "damage applied", call: ctx.DamageAppliedPhase},

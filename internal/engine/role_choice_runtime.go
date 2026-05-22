@@ -491,14 +491,14 @@ func (r roleChoiceRuntime) DispatchHitCheckMagicMissileCounter(player *model.Pla
 	if r.GameEngine == nil {
 		return nil
 	}
-	return r.GameEngine.applyTimingOnHitCheckMagicMissileCounterValidation(player, chain, *card)
+	return r.GameEngine.applyTimingMagicMissileCounterValidation(player, chain, *card)
 }
 
 func (r roleChoiceRuntime) DispatchHitCheckMagicMissileDefend(player *model.Player, chain *model.MagicBulletChain) error {
 	if r.GameEngine == nil {
 		return nil
 	}
-	return r.GameEngine.applyTimingOnHitCheckMagicMissileDefendValidation(player, chain)
+	return r.GameEngine.applyTimingMagicMissileDefendValidation(player, chain)
 }
 
 // ---- SkillOps 实现 ----

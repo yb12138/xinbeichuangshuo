@@ -135,21 +135,23 @@ func (e *GameEngine) applyTimingOnHitCheckCombatCounterResolvePolicy(player *mod
 	e.dispatchAllRoleTimingHooks(engineplayer.TimingOnCounterResolve, ctx)
 }
 
-// applyTimingOnHitCheckMagicMissileDefendValidation 在魔弹防御判定时执行校验策略。
-func (e *GameEngine) applyTimingOnHitCheckMagicMissileDefendValidation(player *model.Player, chain *model.MagicBulletChain) error {
+// applyTimingMagicMissileDefendValidation 在魔弹防御判定时执行校验策略。
+func (e *GameEngine) applyTimingMagicMissileDefendValidation(player *model.Player, chain *model.MagicBulletChain) error {
 	result := e.dispatchRoleTimingHook(engineplayer.TimingOnMagicMissileDefend, engineplayer.TimingHookContext{
 		Player:           player,
 		MagicBulletChain: chain,
+		UserCtx:          e.buildMagicMissileTimingContext(player, chain, model.TimingMagicMissileDefend),
 	})
 	return result.ValidationError
 }
 
-// applyTimingOnHitCheckMagicMissileCounterValidation 在魔弹传递判定时执行校验策略。
-func (e *GameEngine) applyTimingOnHitCheckMagicMissileCounterValidation(player *model.Player, chain *model.MagicBulletChain, card model.Card) error {
+// applyTimingMagicMissileCounterValidation 在魔弹传递判定时执行校验策略。
+func (e *GameEngine) applyTimingMagicMissileCounterValidation(player *model.Player, chain *model.MagicBulletChain, card model.Card) error {
 	result := e.dispatchRoleTimingHook(engineplayer.TimingOnMagicMissileCounter, engineplayer.TimingHookContext{
 		Player:           player,
 		MagicBulletChain: chain,
 		Card:             &card,
+		UserCtx:          e.buildMagicMissileTimingContext(player, chain, model.TimingMagicMissileCounter),
 	})
 	return result.ValidationError
 }
@@ -163,12 +165,24 @@ func (e *GameEngine) applyTimingOnMagicMissileResponseSkillAugment(skillIDs []st
 		OfferedSkillIDs:  skillIDs,
 		Player:           player,
 		MagicBulletChain: chain,
+		UserCtx:          e.buildMagicMissileTimingContext(player, chain, model.TimingMagicMissileResponseSkill),
 	}
 	result := e.dispatchAllRoleTimingHooks(engineplayer.TimingOnMagicMissileResponseSkillAug, timingCtx)
 	if len(result.SkillIDs) > 0 {
 		return result.SkillIDs
 	}
 	return skillIDs
+}
+
+func (e *GameEngine) buildMagicMissileTimingContext(player *model.Player, chain *model.MagicBulletChain, timing model.Timing) *model.Context {
+	if e == nil || e.State == nil || player == nil || chain == nil {
+		return nil
+	}
+	return e.BuildContext(player, player, timing, &model.EventContext{
+		Type:     model.EventMagic,
+		SourceID: chain.SourcePlayerID,
+		TargetID: chain.TargetID,
+	})
 }
 
 // applyTimingOnHitCheckResponseSkillAugment 在响应技能列表构建时追加技能。

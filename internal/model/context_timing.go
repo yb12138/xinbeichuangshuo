@@ -136,6 +136,26 @@ func (ctx *Context) MagicResolvePhase() bool {
 	return ctx.timingPhase(TimingMagicResolve, TimingOnMagicDeclared)
 }
 
+// MagicMissileResponsePhase 表示魔弹基础响应窗口。
+func (ctx *Context) MagicMissileResponsePhase() bool {
+	return ctx.timingPhase(TimingMagicMissileResponse)
+}
+
+// MagicMissileDefendPhase 表示魔弹防御判定窗口。
+func (ctx *Context) MagicMissileDefendPhase() bool {
+	return ctx.timingPhase(TimingMagicMissileDefend, Timing("on_magic_missile_defend"))
+}
+
+// MagicMissileCounterPhase 表示魔弹传递/反击判定窗口。
+func (ctx *Context) MagicMissileCounterPhase() bool {
+	return ctx.timingPhase(TimingMagicMissileCounter, Timing("on_magic_missile_counter"))
+}
+
+// MagicMissileResponseSkillPhase 表示魔弹响应技能窗口。
+func (ctx *Context) MagicMissileResponseSkillPhase() bool {
+	return ctx.timingPhase(TimingMagicMissileResponseSkill, Timing("on_magic_missile_response_skill_aug"))
+}
+
 // DamageSourceDealPhase 表示伤害来源造成伤害窗口。
 func (ctx *Context) DamageSourceDealPhase() bool {
 	return ctx.timingPhase(TimingDamageSourceDeal, TimingOnDamageCalculated, Timing("on_damage_calculate"))

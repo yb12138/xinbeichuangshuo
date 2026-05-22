@@ -107,6 +107,7 @@ func TestTimingRegistryCategoriesCurrentTimelines(t *testing.T) {
 		TimingOnTurnStart:           TimingCategoryTurn,
 		TimingOnAttackDeclared:      TimingCategoryAttack,
 		TimingOnMagicDeclared:       TimingCategoryMagic,
+		TimingMagicMissileResponse:  TimingCategoryMagic,
 		TimingOnDamageTaken:         TimingCategoryDamage,
 		TimingBeforeMoraleLoss:      TimingCategorySettle,
 		Timing("on_player_added"):   TimingCategorySystem,
@@ -145,6 +146,10 @@ func TestTimingDescriptorOfCoversRulebookTimings(t *testing.T) {
 		TimingMagicValidate,
 		TimingMagicResolve,
 		TimingMagicHealOverflow,
+		TimingMagicMissileResponse,
+		TimingMagicMissileDefend,
+		TimingMagicMissileCounter,
+		TimingMagicMissileResponseSkill,
 		TimingDamageSourceDeal,
 		TimingDamageTargetBefore,
 		TimingHealBefore,
@@ -166,22 +171,25 @@ func TestTimingDescriptorOfCoversRulebookTimings(t *testing.T) {
 
 func TestNormalizeTimingMapsLegacyTimingsToRulebookTimings(t *testing.T) {
 	tests := map[Timing]Timing{
-		TimingOnTurnStart:                  TimingTurnStart,
-		Timing("on_turn_before_start"):     TimingTurnBeforeStart,
-		TimingStartup:                      TimingActionStart,
-		TimingOnAttackDeclared:             TimingAttackDeclare,
-		Timing("on_attack_target_ctx"):     TimingAttackSelectTarget,
-		Timing("on_attack_card_transform"): TimingAttackModifyCard,
-		TimingOnHitCheck:                   TimingAttackResponse,
-		Timing("post_attack_hit"):          TimingAttackHit,
-		Timing("on_attack_miss"):           TimingAttackMiss,
-		TimingOnMagicDeclared:              TimingMagicDeclare,
-		TimingOnDamageCalculated:           TimingDamageSourceDeal,
-		Timing("on_damage_before_taken"):   TimingDamageTargetBefore,
-		Timing("on_heal_cap_calculate"):    TimingHealCap,
-		TimingOnDamageTaken:                TimingDamageTaken,
-		TimingBeforeMoraleLoss:             TimingMoraleLossCheck,
-		Timing("on_morale_loss_applied"):   TimingMoraleLossApplied,
+		TimingOnTurnStart:                             TimingTurnStart,
+		Timing("on_turn_before_start"):                TimingTurnBeforeStart,
+		TimingStartup:                                 TimingActionStart,
+		TimingOnAttackDeclared:                        TimingAttackDeclare,
+		Timing("on_attack_target_ctx"):                TimingAttackSelectTarget,
+		Timing("on_attack_card_transform"):            TimingAttackModifyCard,
+		TimingOnHitCheck:                              TimingAttackResponse,
+		Timing("post_attack_hit"):                     TimingAttackHit,
+		Timing("on_attack_miss"):                      TimingAttackMiss,
+		TimingOnMagicDeclared:                         TimingMagicDeclare,
+		Timing("on_magic_missile_defend"):             TimingMagicMissileDefend,
+		Timing("on_magic_missile_counter"):            TimingMagicMissileCounter,
+		Timing("on_magic_missile_response_skill_aug"): TimingMagicMissileResponseSkill,
+		TimingOnDamageCalculated:                      TimingDamageSourceDeal,
+		Timing("on_damage_before_taken"):              TimingDamageTargetBefore,
+		Timing("on_heal_cap_calculate"):               TimingHealCap,
+		TimingOnDamageTaken:                           TimingDamageTaken,
+		TimingBeforeMoraleLoss:                        TimingMoraleLossCheck,
+		Timing("on_morale_loss_applied"):              TimingMoraleLossApplied,
 	}
 	for legacy, want := range tests {
 		if got := NormalizeTiming(legacy); got != want {
@@ -202,6 +210,19 @@ func TestLegacyTimingNameMapsSplitAttackTimings(t *testing.T) {
 		TimingAttackResponse:        TimingOnHitCheck,
 		TimingAttackHit:             TimingOnHitCheck,
 		TimingAttackMiss:            TimingOnHitCheck,
+	}
+	for timing, want := range tests {
+		if got := LegacyTimingName(timing); got != want {
+			t.Fatalf("LegacyTimingName(%q) = %q, want %q", timing, got, want)
+		}
+	}
+}
+
+func TestLegacyTimingNameMapsSplitMagicMissileTimings(t *testing.T) {
+	tests := map[Timing]Timing{
+		TimingMagicMissileDefend:        Timing("on_magic_missile_defend"),
+		TimingMagicMissileCounter:       Timing("on_magic_missile_counter"),
+		TimingMagicMissileResponseSkill: Timing("on_magic_missile_response_skill_aug"),
 	}
 	for timing, want := range tests {
 		if got := LegacyTimingName(timing); got != want {

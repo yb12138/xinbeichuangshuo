@@ -321,11 +321,7 @@ func (e *GameEngine) offerMagicMissileResponseSkills() {
 	}
 
 	missileInterrupt := cloneInterrupt(e.State.PendingInterrupt)
-	ctx := e.BuildContext(player, player, model.TimingOnHitCheck, &model.EventContext{
-		Type:     model.EventMagic,
-		SourceID: chain.SourcePlayerID,
-		TargetID: chain.TargetID,
-	})
+	ctx := e.buildMagicMissileTimingContext(player, chain, model.TimingMagicMissileResponseSkill)
 	ctx.Selections["magic_missile_interrupt"] = missileInterrupt
 	ctx.Selections["magic_missile_response"] = true
 	ctx.Selections["magic_missile_chain"] = chain

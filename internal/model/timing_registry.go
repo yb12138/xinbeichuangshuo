@@ -80,6 +80,11 @@ var timingDescriptors = map[Timing]TimingDescriptor{
 	TimingMagicResolve:      timingDescriptor(TimingMagicResolve, TimingCategoryMagic, "Magic resolve", true, true, false),
 	TimingMagicHealOverflow: timingDescriptor(TimingMagicHealOverflow, TimingCategoryMagic, "Magic heal overflow", true, true, false, TimingOnHealOverflow),
 
+	TimingMagicMissileResponse:      timingDescriptor(TimingMagicMissileResponse, TimingCategoryMagic, "Magic missile response", true, true, false),
+	TimingMagicMissileDefend:        timingDescriptor(TimingMagicMissileDefend, TimingCategoryMagic, "Magic missile defend", true, true, false, Timing("on_magic_missile_defend")),
+	TimingMagicMissileCounter:       timingDescriptor(TimingMagicMissileCounter, TimingCategoryMagic, "Magic missile counter", true, true, false, Timing("on_magic_missile_counter")),
+	TimingMagicMissileResponseSkill: timingDescriptor(TimingMagicMissileResponseSkill, TimingCategoryMagic, "Magic missile response skill", true, true, false, Timing("on_magic_missile_response_skill_aug")),
+
 	TimingDamageSourceDeal:   timingDescriptor(TimingDamageSourceDeal, TimingCategoryDamage, "Damage source deal", true, true, false, TimingOnDamageCalculated, Timing("on_damage_calculate")),
 	TimingDamageTargetBefore: timingDescriptor(TimingDamageTargetBefore, TimingCategoryDamage, "Damage target before", true, true, false, Timing("on_damage_before_taken")),
 	TimingHealBefore:         timingDescriptor(TimingHealBefore, TimingCategoryDamage, "Heal before", true, true, false, Timing("on_heal_resist")),
@@ -127,10 +132,10 @@ var timingDescriptors = map[Timing]TimingDescriptor{
 	Timing("on_counter_card_policy"):    roleTimingDescriptor("on_counter_card_policy", TimingCategoryAttack, "Counter card policy"),
 	Timing("on_counter_element_check"):  roleTimingDescriptor("on_counter_element_check", TimingCategoryAttack, "Counter element check"),
 	Timing("on_counter_resolve"):        roleTimingDescriptor("on_counter_resolve", TimingCategoryAttack, "Counter resolve"),
-	Timing("on_magic_missile_defend"):   roleTimingDescriptor("on_magic_missile_defend", TimingCategoryMagic, "Magic missile defend"),
-	Timing("on_magic_missile_counter"):  roleTimingDescriptor("on_magic_missile_counter", TimingCategoryMagic, "Magic missile counter"),
+	Timing("on_magic_missile_defend"):   roleTimingDescriptor("on_magic_missile_defend", TimingCategoryMagic, "Magic missile defend", TimingMagicMissileDefend),
+	Timing("on_magic_missile_counter"):  roleTimingDescriptor("on_magic_missile_counter", TimingCategoryMagic, "Magic missile counter", TimingMagicMissileCounter),
 	Timing("on_magic_missile_response_skill_aug"): roleTimingDescriptor(
-		"on_magic_missile_response_skill_aug", TimingCategoryMagic, "Magic missile response skill augment",
+		"on_magic_missile_response_skill_aug", TimingCategoryMagic, "Magic missile response skill augment", TimingMagicMissileResponseSkill,
 	),
 
 	Timing("on_damage_calculate"):    roleTimingDescriptor("on_damage_calculate", TimingCategoryDamage, "Damage calculate", TimingOnDamageCalculated),
