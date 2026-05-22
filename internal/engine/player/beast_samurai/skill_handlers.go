@@ -115,7 +115,7 @@ func (h *BeastSamuraiBeastSoulAlertHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Timing != model.TimingOnOrientationChanged {
+	if ctx.Timing != model.TimingOrientationChanged {
 		return false
 	}
 	if ctx.EventCtx.OperatorID == "" || ctx.EventCtx.OperatorID == ctx.User.ID {

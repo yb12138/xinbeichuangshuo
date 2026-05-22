@@ -112,12 +112,12 @@ func (ctx *Context) ResumeAttackMissPhase() bool {
 
 // MagicDeclarePhase 表示主动法术宣告窗口。
 func (ctx *Context) MagicDeclarePhase() bool {
-	return ctx.timingPhase(TimingMagicDeclare, TimingOnMagicDeclared)
+	return ctx.timingPhase(TimingMagicDeclare)
 }
 
 // MagicResolvePhase 表示主动法术进入效果结算。
 func (ctx *Context) MagicResolvePhase() bool {
-	return ctx.timingPhase(TimingMagicResolve, TimingOnMagicDeclared)
+	return ctx.timingPhase(TimingMagicResolve)
 }
 
 // MagicMissileResponsePhase 表示魔弹基础响应窗口。
@@ -152,7 +152,7 @@ func (ctx *Context) DamageTargetBeforePhase() bool {
 
 // DamageAppliedPhase 表示伤害已应用窗口。
 func (ctx *Context) DamageAppliedPhase() bool {
-	return ctx.timingPhase(TimingDamageApplied, TimingOnDamageApplied, Timing("on_damage_applied"))
+	return ctx.timingPhase(TimingDamageApplied, Timing("on_damage_applied"))
 }
 
 // DamageTakenPhase 表示伤害目标已承伤窗口。

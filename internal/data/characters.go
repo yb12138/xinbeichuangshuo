@@ -14,7 +14,7 @@ func GetCharacters() []model.Character {
 			MaxHand: 6,
 			Skills: []model.SkillDefinition{
 				{
-					ID: "angel_bond", Timings: []model.FlowTiming{model.TimingOnFieldMarkChanged}, Title: "天使羁绊",
+					ID: "angel_bond", Timings: []model.FlowTiming{model.TimingFieldMarkChanged}, Title: "天使羁绊",
 					Type:        model.SkillTypePassive,
 					Description: "（每当你移除一个基础效果或是使用［圣盾］时）目标角色+1［治疗］。",
 					// TimingOnFieldMarkChanged：移除/新增场标（含圣盾放置）均落在同一窗口。
@@ -2317,7 +2317,7 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "bs_beast_soul_alert", Timings: []model.FlowTiming{model.TimingOnOrientationChanged}, Title: "兽魂警戒",
+					ID: "bs_beast_soul_alert", Timings: []model.FlowTiming{model.TimingOrientationChanged}, Title: "兽魂警戒",
 					Type:        model.SkillTypeResponse,
 					Description: "其他角色横置效果结算完成后可发动：移除1点兽魂并进入御魂流居合形态，令该角色展示并弃置1张牌；若其弃的是法术牌，则你+1兽魂。",
 

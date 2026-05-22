@@ -150,7 +150,7 @@ func (h *AngelBondHandler) CanUse(ctx *model.Context) bool {
 	if ctx.EventCtx == nil || ctx.User == nil {
 		return false
 	}
-	if ctx.Timing == model.TimingOnFieldMarkChanged {
+	if ctx.Timing == model.TimingFieldMarkChanged {
 		if ctx.EventCtx.SourceID != ctx.User.ID {
 			return false
 		}

@@ -347,7 +347,7 @@ func TestBeastSamurai_BeastSoulAlert_RequiresBeastSoul(t *testing.T) {
 		}
 	}
 
-	ctx := game.BuildContext(p1, p2, model.TimingOnOrientationChanged, &model.EventContext{
+	ctx := game.BuildContext(p1, p2, model.TimingOrientationChanged, &model.EventContext{
 		Type:            model.EventNone,
 		SourceID:        p2.ID,
 		TargetID:        p2.ID,
@@ -385,7 +385,7 @@ func TestBeastSamurai_BeastSoulAlert_RequiresNormalForm(t *testing.T) {
 		}
 	}
 
-	ctx := game.BuildContext(p1, p2, model.TimingOnOrientationChanged, &model.EventContext{
+	ctx := game.BuildContext(p1, p2, model.TimingOrientationChanged, &model.EventContext{
 		Type:            model.EventNone,
 		SourceID:        p2.ID,
 		TargetID:        p2.ID,

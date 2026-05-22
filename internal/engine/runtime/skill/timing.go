@@ -62,7 +62,7 @@ func targetsForTiming(h timingStateHost, timing model.FlowTiming, ctx *model.Con
 	case model.TimingTurnStart, model.TimingActionStart:
 		return currentPlayerTarget(h)
 
-	case model.TimingOnFieldMarkChanged:
+	case model.TimingFieldMarkChanged:
 		if ctx.User != nil {
 			targetsToCheck = append(targetsToCheck, checkTarget{Player: ctx.User, Role: model.RoleAny})
 		}
@@ -73,7 +73,7 @@ func targetsForTiming(h timingStateHost, timing model.FlowTiming, ctx *model.Con
 		}
 		return targetsToCheck
 
-	case model.TimingOnOrientationChanged:
+	case model.TimingOrientationChanged:
 		return allPlayersInSeatOrder(h)
 	}
 

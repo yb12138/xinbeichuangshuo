@@ -161,7 +161,7 @@ func (e *GameEngine) DispatchOrientationChanges(before map[string]poseSnapshot) 
 			PrevForm:        prev.Form,
 			NewForm:         current.Form,
 		}
-		ctx := e.BuildContext(p, p, model.TimingOnOrientationChanged, eventCtx)
+		ctx := e.BuildContext(p, p, model.TimingOrientationChanged, eventCtx)
 		e.dispatcher.OnTiming(ctx.Timing, ctx)
 	}
 }

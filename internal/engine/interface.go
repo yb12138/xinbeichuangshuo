@@ -270,7 +270,7 @@ func (e *GameEngine) emitBuffRemovedDispatch(sourceID, targetID string, effect m
 		TargetID: targetID, // 哪个目标身上的基础效果被移除
 		BuffID:   string(effect),
 	}
-	ctx := e.BuildContext(target, nil, model.TimingOnFieldMarkChanged, eventCtx)
+	ctx := e.BuildContext(target, nil, model.TimingFieldMarkChanged, eventCtx)
 	e.dispatcher.OnTiming(ctx.Timing, ctx)
 }
 
@@ -285,7 +285,7 @@ func (e *GameEngine) emitBuffAddedDispatch(sourceID, targetID string, effect mod
 		TargetID: targetID,
 		BuffID:   string(effect),
 	}
-	ctx := e.BuildContext(target, nil, model.TimingOnFieldMarkChanged, eventCtx)
+	ctx := e.BuildContext(target, nil, model.TimingFieldMarkChanged, eventCtx)
 	e.dispatcher.OnTiming(ctx.Timing, ctx)
 }
 

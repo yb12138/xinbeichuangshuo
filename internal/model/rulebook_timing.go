@@ -1,15 +1,17 @@
 package model
 
 const (
-	TimingGameInitial     Timing = "game.initial"
-	TimingTurnBeforeStart Timing = "turn.before_start"
-	TimingTurnStart       Timing = "turn.start"
-	TimingActionBefore    Timing = "turn.action_before"
-	TimingActionStart     Timing = "turn.action_start"
-	TimingActionDuring    Timing = "turn.action_during"
-	TimingActionEnd       Timing = "turn.action_end"
-	TimingActionPost      Timing = "turn.action_post"
-	TimingTurnEnd         Timing = "turn.end"
+	TimingGameInitial        Timing = "game.initial"
+	TimingFieldMarkChanged   Timing = "system.field_mark_changed"
+	TimingOrientationChanged Timing = "system.orientation_changed"
+	TimingTurnBeforeStart    Timing = "turn.before_start"
+	TimingTurnStart          Timing = "turn.start"
+	TimingActionBefore       Timing = "turn.action_before"
+	TimingActionStart        Timing = "turn.action_start"
+	TimingActionDuring       Timing = "turn.action_during"
+	TimingActionEnd          Timing = "turn.action_end"
+	TimingActionPost         Timing = "turn.action_post"
+	TimingTurnEnd            Timing = "turn.end"
 
 	TimingAttackDeclare         Timing = "attack.declare"
 	TimingAttackSelectTarget    Timing = "attack.select_target"

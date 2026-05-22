@@ -25,27 +25,19 @@ type TimingDescriptor struct {
 
 var timingDescriptors = map[Timing]TimingDescriptor{
 	// Skill flow timings.
-	TimingUnknown:              timingDescriptor(TimingUnknown, TimingCategorySystem, "Unknown timing", false, false, true),
-	TimingOnGameStart:          timingDescriptor(TimingOnGameStart, TimingCategorySystem, "Game start", true, false, false, Timing("on_game_start")),
-	TimingOnCampChanged:        timingDescriptor(TimingOnCampChanged, TimingCategorySystem, "Camp changed", true, false, false, Timing("on_camp_changed")),
-	TimingOnSkillExecuted:      timingDescriptor(TimingOnSkillExecuted, TimingCategoryTurn, "Skill executed", true, false, false, Timing("on_skill_post")),
-	TimingOnMagicDeclared:      timingDescriptor(TimingOnMagicDeclared, TimingCategoryMagic, "Magic declared", true, false, false),
-	TimingOnDamageApplied:      timingDescriptor(TimingOnDamageApplied, TimingCategoryDamage, "Damage applied", true, false, false, Timing("on_damage_applied")),
-	TimingOnHealOverflow:       timingDescriptor(TimingOnHealOverflow, TimingCategoryMagic, "Heal overflow", true, false, false),
-	TimingOnFieldMarkChanged:   timingDescriptor(TimingOnFieldMarkChanged, TimingCategorySystem, "Field mark changed", true, false, false),
-	TimingOnOrientationChanged: timingDescriptor(TimingOnOrientationChanged, TimingCategorySystem, "Orientation changed", true, false, false),
-	TimingOnTurnEnd:            timingDescriptor(TimingOnTurnEnd, TimingCategoryTurn, "Turn end", true, false, false, Timing("on_turn_end"), Timing("on_turn_end_final")),
-
+	TimingUnknown: timingDescriptor(TimingUnknown, TimingCategorySystem, "Unknown timing", false, false, true),
 	// Rulebook timings.
-	TimingGameInitial:     timingDescriptor(TimingGameInitial, TimingCategorySystem, "Game initial", true, true, false, TimingOnGameStart, Timing("on_game_start")),
-	TimingTurnBeforeStart: timingDescriptor(TimingTurnBeforeStart, TimingCategoryTurn, "Turn before start", true, true, false, Timing("on_turn_before_start")),
-	TimingTurnStart:       timingDescriptor(TimingTurnStart, TimingCategoryTurn, "Turn start", true, true, false, Timing("on_turn_start")),
-	TimingActionBefore:    timingDescriptor(TimingActionBefore, TimingCategoryTurn, "Action before", true, true, false, Timing("before_action")),
-	TimingActionStart:     timingDescriptor(TimingActionStart, TimingCategoryTurn, "Action start", true, true, false),
-	TimingActionDuring:    timingDescriptor(TimingActionDuring, TimingCategoryTurn, "Action during", true, true, false),
-	TimingActionEnd:       timingDescriptor(TimingActionEnd, TimingCategoryTurn, "Action end", true, true, false, Timing("on_action_end")),
-	TimingActionPost:      timingDescriptor(TimingActionPost, TimingCategoryTurn, "Action post", true, true, false, Timing("post_action_end")),
-	TimingTurnEnd:         timingDescriptor(TimingTurnEnd, TimingCategoryTurn, "Turn end", true, true, false, TimingOnTurnEnd, Timing("on_turn_end"), Timing("on_turn_end_final")),
+	TimingGameInitial:        timingDescriptor(TimingGameInitial, TimingCategorySystem, "Game initial", true, true, false, Timing("on_game_start")),
+	TimingFieldMarkChanged:   timingDescriptor(TimingFieldMarkChanged, TimingCategorySystem, "Field mark changed", true, true, false),
+	TimingOrientationChanged: timingDescriptor(TimingOrientationChanged, TimingCategorySystem, "Orientation changed", true, true, false),
+	TimingTurnBeforeStart:    timingDescriptor(TimingTurnBeforeStart, TimingCategoryTurn, "Turn before start", true, true, false, Timing("on_turn_before_start")),
+	TimingTurnStart:          timingDescriptor(TimingTurnStart, TimingCategoryTurn, "Turn start", true, true, false, Timing("on_turn_start")),
+	TimingActionBefore:       timingDescriptor(TimingActionBefore, TimingCategoryTurn, "Action before", true, true, false, Timing("before_action")),
+	TimingActionStart:        timingDescriptor(TimingActionStart, TimingCategoryTurn, "Action start", true, true, false),
+	TimingActionDuring:       timingDescriptor(TimingActionDuring, TimingCategoryTurn, "Action during", true, true, false),
+	TimingActionEnd:          timingDescriptor(TimingActionEnd, TimingCategoryTurn, "Action end", true, true, false, Timing("on_action_end")),
+	TimingActionPost:         timingDescriptor(TimingActionPost, TimingCategoryTurn, "Action post", true, true, false, Timing("post_action_end")),
+	TimingTurnEnd:            timingDescriptor(TimingTurnEnd, TimingCategoryTurn, "Turn end", true, true, false, Timing("on_turn_end"), Timing("on_turn_end_final")),
 
 	TimingAttackDeclare:         timingDescriptor(TimingAttackDeclare, TimingCategoryAttack, "Attack declare", true, true, false),
 	TimingAttackSelectTarget:    timingDescriptor(TimingAttackSelectTarget, TimingCategoryAttack, "Attack select target", true, true, false, Timing("on_attack_target_ctx")),
@@ -58,11 +50,11 @@ var timingDescriptors = map[Timing]TimingDescriptor{
 	TimingAttackHit:             timingDescriptor(TimingAttackHit, TimingCategoryAttack, "Attack hit", true, true, false, Timing("post_attack_hit")),
 	TimingAttackMiss:            timingDescriptor(TimingAttackMiss, TimingCategoryAttack, "Attack miss", true, true, false, Timing("on_attack_miss")),
 
-	TimingMagicDeclare:      timingDescriptor(TimingMagicDeclare, TimingCategoryMagic, "Magic declare", true, true, false, TimingOnMagicDeclared),
+	TimingMagicDeclare:      timingDescriptor(TimingMagicDeclare, TimingCategoryMagic, "Magic declare", true, true, false),
 	TimingMagicSelectTarget: timingDescriptor(TimingMagicSelectTarget, TimingCategoryMagic, "Magic select target", true, true, false),
 	TimingMagicValidate:     timingDescriptor(TimingMagicValidate, TimingCategoryMagic, "Magic validate", true, true, false),
 	TimingMagicResolve:      timingDescriptor(TimingMagicResolve, TimingCategoryMagic, "Magic resolve", true, true, false),
-	TimingMagicHealOverflow: timingDescriptor(TimingMagicHealOverflow, TimingCategoryMagic, "Magic heal overflow", true, true, false, TimingOnHealOverflow),
+	TimingMagicHealOverflow: timingDescriptor(TimingMagicHealOverflow, TimingCategoryMagic, "Magic heal overflow", true, true, false),
 
 	TimingMagicMissileResponse:      timingDescriptor(TimingMagicMissileResponse, TimingCategoryMagic, "Magic missile response", true, true, false),
 	TimingMagicMissileDefend:        timingDescriptor(TimingMagicMissileDefend, TimingCategoryMagic, "Magic missile defend", true, true, false, Timing("on_magic_missile_defend")),
@@ -74,7 +66,7 @@ var timingDescriptors = map[Timing]TimingDescriptor{
 	TimingHealBefore:         timingDescriptor(TimingHealBefore, TimingCategoryDamage, "Heal before", true, true, false, Timing("on_heal_resist")),
 	TimingHealUse:            timingDescriptor(TimingHealUse, TimingCategoryDamage, "Heal use", true, true, false),
 	TimingHealCap:            timingDescriptor(TimingHealCap, TimingCategoryDamage, "Heal cap", true, true, false, Timing("on_heal_cap_calculate")),
-	TimingDamageApplied:      timingDescriptor(TimingDamageApplied, TimingCategoryDamage, "Damage applied", true, true, false, TimingOnDamageApplied, Timing("on_damage_applied")),
+	TimingDamageApplied:      timingDescriptor(TimingDamageApplied, TimingCategoryDamage, "Damage applied", true, true, false, Timing("on_damage_applied")),
 	TimingDamageTaken:        timingDescriptor(TimingDamageTaken, TimingCategoryDamage, "Damage taken", true, true, false),
 	TimingSettleDraw:         timingDescriptor(TimingSettleDraw, TimingCategorySettle, "Settle draw", true, true, false),
 	TimingSettleDiscard:      timingDescriptor(TimingSettleDiscard, TimingCategorySettle, "Settle discard", true, true, false),
@@ -93,8 +85,8 @@ var timingDescriptors = map[Timing]TimingDescriptor{
 
 	Timing("on_turn_before_start"): roleTimingDescriptor("on_turn_before_start", TimingCategoryTurn, "Turn before start", TimingTurnBeforeStart),
 	Timing("on_turn_start"):        roleTimingDescriptor("on_turn_start", TimingCategoryTurn, "Turn start", TimingTurnStart),
-	Timing("on_turn_end"):          roleTimingDescriptor("on_turn_end", TimingCategoryTurn, "Turn end pre extra", TimingOnTurnEnd),
-	Timing("on_turn_end_final"):    roleTimingDescriptor("on_turn_end_final", TimingCategoryTurn, "Turn end final", TimingOnTurnEnd),
+	Timing("on_turn_end"):          roleTimingDescriptor("on_turn_end", TimingCategoryTurn, "Turn end pre extra", TimingTurnEnd),
+	Timing("on_turn_end_final"):    roleTimingDescriptor("on_turn_end_final", TimingCategoryTurn, "Turn end final", TimingTurnEnd),
 	Timing("before_action"):        roleTimingDescriptor("before_action", TimingCategoryTurn, "Before action", TimingActionStart),
 	Timing("on_action_end"):        roleTimingDescriptor("on_action_end", TimingCategoryTurn, "Action end role hook", TimingActionEnd),
 
@@ -123,14 +115,14 @@ var timingDescriptors = map[Timing]TimingDescriptor{
 
 	Timing("on_damage_before_taken"): roleTimingDescriptor("on_damage_before_taken", TimingCategoryDamage, "Damage before taken"),
 	Timing("on_damage_after_taken"):  roleTimingDescriptor("on_damage_after_taken", TimingCategoryDamage, "Damage after taken"),
-	Timing("on_damage_applied"):      roleTimingDescriptor("on_damage_applied", TimingCategoryDamage, "Damage applied", TimingOnDamageApplied),
+	Timing("on_damage_applied"):      roleTimingDescriptor("on_damage_applied", TimingCategoryDamage, "Damage applied", TimingDamageApplied),
 	Timing("on_damage_after_apply"):  roleTimingDescriptor("on_damage_after_apply", TimingCategoryDamage, "Damage after apply"),
 	Timing("on_heal_resist"):         roleTimingDescriptor("on_heal_resist", TimingCategoryDamage, "Heal resist"),
 	Timing("on_heal_cap_calculate"):  roleTimingDescriptor("on_heal_cap_calculate", TimingCategoryDamage, "Heal cap calculate"),
 
-	Timing("on_game_start"):       roleTimingDescriptor("on_game_start", TimingCategorySystem, "Game start", TimingOnGameStart),
+	Timing("on_game_start"):       roleTimingDescriptor("on_game_start", TimingCategorySystem, "Game start", TimingGameInitial),
 	Timing("on_player_added"):     roleTimingDescriptor("on_player_added", TimingCategorySystem, "Player added"),
-	Timing("on_camp_changed"):     roleTimingDescriptor("on_camp_changed", TimingCategorySystem, "Camp changed", TimingOnCampChanged),
+	Timing("on_camp_changed"):     roleTimingDescriptor("on_camp_changed", TimingCategorySystem, "Camp changed"),
 	Timing("on_player_setup"):     roleTimingDescriptor("on_player_setup", TimingCategorySystem, "Player setup"),
 	Timing("on_camp_cup_changed"): roleTimingDescriptor("on_camp_cup_changed", TimingCategorySystem, "Camp cup changed"),
 
@@ -143,7 +135,7 @@ var timingDescriptors = map[Timing]TimingDescriptor{
 	Timing("on_after_cannot_act"):          roleTimingDescriptor("on_after_cannot_act", TimingCategoryTurn, "After cannot act"),
 	Timing("on_special_action_override"):   roleTimingDescriptor("on_special_action_override", TimingCategoryTurn, "Special action override"),
 	Timing("on_special_action_post"):       roleTimingDescriptor("on_special_action_post", TimingCategoryTurn, "Special action post"),
-	Timing("on_skill_post"):                roleTimingDescriptor("on_skill_post", TimingCategoryTurn, "Skill post", TimingOnSkillExecuted),
+	Timing("on_skill_post"):                roleTimingDescriptor("on_skill_post", TimingCategoryTurn, "Skill post"),
 	Timing("on_attack_card_transform"):     roleTimingDescriptor("on_attack_card_transform", TimingCategoryAttack, "Attack card transform", Timing("on_attack_card_hook")),
 }
 

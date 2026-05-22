@@ -42,22 +42,4 @@ type FlowTiming = Timing
 
 const (
 	TimingUnknown FlowTiming = ""
-	// Deprecated: use TimingGameInitial.
-	TimingOnGameStart FlowTiming = "TimingOnGameStart"
-	// Deprecated: lifecycle timing; keep runtime-only compatibility.
-	TimingOnCampChanged FlowTiming = "TimingOnCampChanged"
-	// Deprecated: lifecycle timing; keep compatibility until skill-post hooks are fully migrated.
-	TimingOnSkillExecuted FlowTiming = "TimingOnSkillExecuted"
-	// Deprecated: use TimingMagicDeclare, TimingMagicSelectTarget, TimingMagicValidate, TimingMagicResolve, or TimingMagicHealOverflow.
-	TimingOnMagicDeclared FlowTiming = "TimingOnMagicDeclared"
-	// Deprecated: use TimingDamageApplied.
-	TimingOnDamageApplied FlowTiming = "TimingOnDamageApplied"
-	// Deprecated: use TimingMagicHealOverflow or TimingHealCap according to context.
-	TimingOnHealOverflow FlowTiming = "TimingOnHealOverflow"
-	// Deprecated: lifecycle timing; keep compatibility until field mark hooks are split.
-	TimingOnFieldMarkChanged FlowTiming = "TimingOnFieldMarkChanged"
-	// Deprecated: lifecycle timing; keep compatibility until orientation hooks are split.
-	TimingOnOrientationChanged FlowTiming = "TimingOnOrientationChanged"
-	// Deprecated: use TimingTurnEnd.
-	TimingOnTurnEnd FlowTiming = "TimingOnTurnEnd"
 )

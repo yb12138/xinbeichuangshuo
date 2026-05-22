@@ -5,16 +5,7 @@ import "testing"
 func TestTimingDescriptorOfCoversCurrentFlowTimings(t *testing.T) {
 	timings := []Timing{
 		TimingUnknown,
-		TimingOnGameStart,
-		TimingOnCampChanged,
-		TimingOnSkillExecuted,
-		TimingOnMagicDeclared,
-		TimingOnDamageApplied,
 		TimingMoraleLossCheck,
-		TimingOnHealOverflow,
-		TimingOnFieldMarkChanged,
-		TimingOnOrientationChanged,
-		TimingOnTurnEnd,
 	}
 
 	assertTimingDescriptors(t, timings)
@@ -88,7 +79,7 @@ func TestTimingRegistryCategoriesCurrentTimelines(t *testing.T) {
 	tests := map[Timing]TimingCategory{
 		TimingTurnStart:             TimingCategoryTurn,
 		TimingAttackDeclare:         TimingCategoryAttack,
-		TimingOnMagicDeclared:       TimingCategoryMagic,
+		TimingMagicDeclare:          TimingCategoryMagic,
 		TimingMagicMissileResponse:  TimingCategoryMagic,
 		TimingDamageTaken:           TimingCategoryDamage,
 		TimingMoraleLossCheck:       TimingCategorySettle,
@@ -105,6 +96,8 @@ func TestTimingRegistryCategoriesCurrentTimelines(t *testing.T) {
 func TestTimingDescriptorOfCoversRulebookTimings(t *testing.T) {
 	timings := []Timing{
 		TimingGameInitial,
+		TimingFieldMarkChanged,
+		TimingOrientationChanged,
 		TimingTurnBeforeStart,
 		TimingTurnStart,
 		TimingActionBefore,
