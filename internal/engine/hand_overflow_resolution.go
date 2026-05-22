@@ -157,8 +157,13 @@ func (e *GameEngine) resolveDiscardSelectionMoraleLoss(player *model.Player, dis
 	}
 
 	lossCtx := e.buildDiscardMoraleLossContext(victim, player, discardedCards, moraleLoss, isMagic, fromDamageDraw, stayInTurn, isDamageResolution, data)
-	e.dispatchSettlementRulebookTiming(model.TimingMoraleLossCheck, victim, nil, lossCtx.EventCtx)
-	e.dispatcher.OnTiming(lossCtx.Timing, lossCtx)
+	e.dispatchRuleTiming(ruleTimingDispatchInput{
+		Timing:  model.TimingMoraleLossCheck,
+		Context: lossCtx,
+		Markers: map[string]any{
+			"settlement_timeline": true,
+		},
+	})
 	if e.hasQueuedMoraleLossResponse() {
 		lossCtx.Selections["morale_loss_pending"] = true
 		lossCtx.Selections["morale_loss_value"] = moraleLoss
@@ -177,7 +182,7 @@ func (e *GameEngine) buildDiscardMoraleLossContext(victim *model.Player, player 
 		Type:      model.EventDamage,
 		DamageVal: &moraleLoss,
 	}
-	lossCtx := e.BuildContext(victim, nil, model.TimingBeforeMoraleLoss, lossEventCtx)
+	lossCtx := e.BuildContext(victim, nil, model.TimingMoraleLossCheck, lossEventCtx)
 	lossCtx.Flags["IsMagicDamage"] = isMagic
 	if lossCtx.Selections == nil {
 		lossCtx.Selections = map[string]any{}

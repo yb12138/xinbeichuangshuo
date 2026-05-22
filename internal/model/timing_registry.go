@@ -37,7 +37,6 @@ var timingDescriptors = map[Timing]TimingDescriptor{
 	TimingOnSkillExecuted:        timingDescriptor(TimingOnSkillExecuted, TimingCategoryTurn, "Skill executed", true, false, false, Timing("on_skill_post")),
 	TimingOnMagicDeclared:        timingDescriptor(TimingOnMagicDeclared, TimingCategoryMagic, "Magic declared", true, false, false),
 	TimingOnDamageApplied:        timingDescriptor(TimingOnDamageApplied, TimingCategoryDamage, "Damage applied", true, false, false, Timing("on_damage_applied")),
-	TimingBeforeMoraleLoss:       timingDescriptor(TimingBeforeMoraleLoss, TimingCategorySettle, "Before morale loss", true, false, false, Timing("on_morale_loss_applied")),
 	TimingBeforeCardDrawn:        timingDescriptor(TimingBeforeCardDrawn, TimingCategorySettle, "Before card drawn", true, false, false),
 	TimingOnCardDrawn:            timingDescriptor(TimingOnCardDrawn, TimingCategorySettle, "Card drawn", true, false, false),
 	TimingOnCardDiscarded:        timingDescriptor(TimingOnCardDiscarded, TimingCategorySettle, "Card discarded", true, false, false),
@@ -90,7 +89,7 @@ var timingDescriptors = map[Timing]TimingDescriptor{
 	TimingSettleDraw:         timingDescriptor(TimingSettleDraw, TimingCategorySettle, "Settle draw", true, true, false, TimingBeforeCardDrawn, TimingOnCardDrawn),
 	TimingSettleDiscard:      timingDescriptor(TimingSettleDiscard, TimingCategorySettle, "Settle discard", true, true, false, TimingOnCardDiscarded, TimingOnCardPlayedOrRevealed),
 	TimingSettleHandLimit:    timingDescriptor(TimingSettleHandLimit, TimingCategorySettle, "Settle hand limit", true, true, false),
-	TimingMoraleLossCheck:    timingDescriptor(TimingMoraleLossCheck, TimingCategorySettle, "Morale loss check", true, true, false, TimingBeforeMoraleLoss),
+	TimingMoraleLossCheck:    timingDescriptor(TimingMoraleLossCheck, TimingCategorySettle, "Morale loss check", true, true, false),
 	TimingMoraleLossApplied:  timingDescriptor(TimingMoraleLossApplied, TimingCategorySettle, "Morale loss applied", true, true, false, Timing("on_morale_loss_applied")),
 	TimingGameEndCheck:       timingDescriptor(TimingGameEndCheck, TimingCategorySettle, "Game end check", true, true, false),
 	TimingDamageResolved:     timingDescriptor(TimingDamageResolved, TimingCategoryDamage, "Damage resolved", true, true, false, Timing("post_damage_resolved"), Timing("on_damage_after_apply")),
@@ -144,7 +143,7 @@ var timingDescriptors = map[Timing]TimingDescriptor{
 	Timing("on_player_setup"):     roleTimingDescriptor("on_player_setup", TimingCategorySystem, "Player setup"),
 	Timing("on_camp_cup_changed"): roleTimingDescriptor("on_camp_cup_changed", TimingCategorySystem, "Camp cup changed"),
 
-	Timing("on_morale_loss_applied"): roleTimingDescriptor("on_morale_loss_applied", TimingCategorySettle, "Morale loss applied", TimingBeforeMoraleLoss),
+	Timing("on_morale_loss_applied"): roleTimingDescriptor("on_morale_loss_applied", TimingCategorySettle, "Morale loss applied", TimingMoraleLossApplied),
 
 	Timing("before_action_option"):         roleTimingDescriptor("before_action_option", TimingCategoryTurn, "Before action option"),
 	Timing("before_action_validation"):     roleTimingDescriptor("before_action_validation", TimingCategoryTurn, "Before action validation"),

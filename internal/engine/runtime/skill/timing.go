@@ -119,7 +119,7 @@ func targetsForTiming(h timingStateHost, timing model.FlowTiming, ctx *model.Con
 			})
 		}
 
-	case model.TimingMoraleLossCheck, model.TimingBeforeMoraleLoss:
+	case model.TimingMoraleLossCheck:
 		if ctx.User != nil {
 			for _, p := range campPlayersInSeatOrder(h, ctx.User.Camp) {
 				targetsToCheck = append(targetsToCheck, checkTarget{
@@ -211,7 +211,7 @@ func campPlayersInSeatOrder(h timingStateHost, camp model.Camp) []*model.Player 
 }
 
 func timingPriorityOrdered(timing model.FlowTiming) bool {
-	return timing == model.TimingMoraleLossCheck || timing == model.TimingBeforeMoraleLoss || timing == model.TimingDamageTaken
+	return timing == model.TimingMoraleLossCheck || timing == model.TimingDamageTaken
 }
 
 func (r *Runtime) collectTargetsWithSkillsByPriority(h Host, targets []checkTarget, timing model.FlowTiming, ctx *model.Context) []targetSkillsBatch {

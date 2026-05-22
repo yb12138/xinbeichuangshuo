@@ -9,6 +9,7 @@ type ruleTimingDispatchInput struct {
 	User     *model.Player
 	Target   *model.Player
 	EventCtx *model.EventContext
+	Context  *model.Context
 	Markers  map[string]any
 	Flags    map[string]bool
 }
@@ -22,7 +23,7 @@ type ruleTimingDispatchResult struct {
 }
 
 func (e *GameEngine) dispatchRuleTiming(input ruleTimingDispatchInput) ruleTimingDispatchResult {
-	if e == nil || e.State == nil || e.dispatcher == nil || input.User == nil {
+	if e == nil || e.State == nil || e.dispatcher == nil {
 		return ruleTimingDispatchResult{}
 	}
 	if _, ok := model.TimingDescriptorOf(input.Timing); !ok {
@@ -31,7 +32,33 @@ func (e *GameEngine) dispatchRuleTiming(input ruleTimingDispatchInput) ruleTimin
 
 	revisionBefore := e.State.InterruptRevision
 	queueLenBefore := len(e.State.InterruptQueue)
-	ctx := e.BuildContext(input.User, input.Target, input.Timing, input.EventCtx)
+	ctx := input.Context
+	if ctx == nil {
+		if input.User == nil {
+			return ruleTimingDispatchResult{}
+		}
+		ctx = e.BuildContext(input.User, input.Target, input.Timing, input.EventCtx)
+	} else {
+		ctx.Timing = input.Timing
+		if input.User != nil {
+			ctx.User = input.User
+		}
+		if input.Target != nil {
+			ctx.Target = input.Target
+		}
+		if input.EventCtx != nil {
+			ctx.EventCtx = input.EventCtx
+		}
+	}
+	if ctx.User == nil {
+		return ruleTimingDispatchResult{}
+	}
+	if ctx.Selections == nil {
+		ctx.Selections = map[string]any{}
+	}
+	if ctx.Flags == nil {
+		ctx.Flags = map[string]bool{}
+	}
 	ctx.Selections["rulebook_timing"] = input.Timing
 	for key, value := range input.Markers {
 		ctx.Selections[key] = value

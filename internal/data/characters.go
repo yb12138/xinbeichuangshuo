@@ -57,7 +57,7 @@ func GetCharacters() []model.Character {
 					ResponseType: model.ResponseOptional,
 				},
 				{
-					ID: "god_protection", Timings: []model.FlowTiming{model.TimingBeforeMoraleLoss}, Title: "神之庇护",
+					ID: "god_protection", Timings: []model.FlowTiming{model.TimingMoraleLossCheck}, Title: "神之庇护",
 					Type:        model.SkillTypeResponse,
 					Tags:        []model.SkillTag{model.TagCrystal, model.TagUltimate},
 					Description: "X个［水晶］为我方抵御X点因法术伤害而造成的士气下降。",
@@ -1591,7 +1591,7 @@ func GetCharacters() []model.Character {
 			MaxHand: 6,
 			Skills: []model.SkillDefinition{
 				{
-					ID: "bw_rebirth_clock", Timings: []model.FlowTiming{model.TimingBeforeMoraleLoss}, Title: "永生银时计",
+					ID: "bw_rebirth_clock", Timings: []model.FlowTiming{model.TimingMoraleLossCheck}, Title: "永生银时计",
 					Type:        model.SkillTypePassive,
 					Description: "［重生］上限4；当你因承受法术伤害导致士气下降时，你+1［重生］。",
 
@@ -2366,7 +2366,7 @@ func GetCharacters() []model.Character {
 			MaxHand: 6,
 			Skills: []model.SkillDefinition{
 				{
-					ID: "ss_soul_devour", Timings: []model.FlowTiming{model.TimingBeforeMoraleLoss}, Title: "灵魂吞噬",
+					ID: "ss_soul_devour", Timings: []model.FlowTiming{model.TimingMoraleLossCheck}, Title: "灵魂吞噬",
 					Type:        model.SkillTypePassive,
 					Description: "（我方角色因承受伤害导致士气每下降1点）你+1［黄色灵魂］（上限6）。",
 
@@ -2460,7 +2460,7 @@ func GetCharacters() []model.Character {
 			MaxHand: 6,
 			Skills: []model.SkillDefinition{
 				{
-					ID: "mg_new_moon_shelter", Timings: []model.FlowTiming{model.TimingBeforeMoraleLoss}, Title: "新月庇护",
+					ID: "mg_new_moon_shelter", Timings: []model.FlowTiming{model.TimingMoraleLossCheck}, Title: "新月庇护",
 					Type:        model.SkillTypeResponse,
 					Description: "（我方角色因承受伤害导致爆牌并将士气下降时）转为暗月形态，并将本次爆牌改为你的暗月；本次士气不下降。",
 

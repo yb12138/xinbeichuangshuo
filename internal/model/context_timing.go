@@ -179,7 +179,7 @@ func (ctx *Context) ResumeBeforeMoraleLossPhase() bool {
 	if ctx == nil {
 		return false
 	}
-	return ctx.Timing == TimingMoraleLossCheck || ctx.Timing == TimingBeforeMoraleLoss
+	return ctx.Timing == TimingMoraleLossCheck
 }
 
 // ResumeActionEndPhase 行动结束（阶段结束）响应恢复上下文。

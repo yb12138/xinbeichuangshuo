@@ -64,8 +64,6 @@ const (
 	TimingOnMagicDeclared FlowTiming = "TimingOnMagicDeclared"
 	// Deprecated: use TimingDamageApplied.
 	TimingOnDamageApplied FlowTiming = "TimingOnDamageApplied"
-	// Deprecated: use TimingMoraleLossCheck.
-	TimingBeforeMoraleLoss FlowTiming = "TimingBeforeMoraleLoss"
 	// Deprecated: use TimingSettleDraw.
 	TimingBeforeCardDrawn FlowTiming = "TimingBeforeCardDrawn"
 	// Deprecated: use TimingSettleDraw.

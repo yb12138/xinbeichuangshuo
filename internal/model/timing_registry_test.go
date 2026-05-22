@@ -16,7 +16,7 @@ func TestTimingDescriptorOfCoversCurrentFlowTimings(t *testing.T) {
 		TimingOnSkillExecuted,
 		TimingOnMagicDeclared,
 		TimingOnDamageApplied,
-		TimingBeforeMoraleLoss,
+		TimingMoraleLossCheck,
 		TimingBeforeCardDrawn,
 		TimingOnCardDrawn,
 		TimingOnCardDiscarded,
@@ -101,7 +101,7 @@ func TestTimingRegistryCategoriesCurrentTimelines(t *testing.T) {
 		TimingOnMagicDeclared:       TimingCategoryMagic,
 		TimingMagicMissileResponse:  TimingCategoryMagic,
 		TimingDamageTaken:           TimingCategoryDamage,
-		TimingBeforeMoraleLoss:      TimingCategorySettle,
+		TimingMoraleLossCheck:       TimingCategorySettle,
 		Timing("on_player_added"):   TimingCategorySystem,
 		Timing("on_counter_policy"): TimingCategoryAttack,
 	}

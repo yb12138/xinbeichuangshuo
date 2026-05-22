@@ -97,7 +97,7 @@ func TestSoulSorcererSoulDevour_OnlyRunsOnDamageOverflowMoraleLoss(t *testing.T)
 	soul := game.State.Players["p1"]
 	ally := game.State.Players["p2"]
 	loss := 2
-	lossCtx := game.BuildContext(ally, nil, model.TimingBeforeMoraleLoss, &model.EventContext{
+	lossCtx := game.BuildContext(ally, nil, model.TimingMoraleLossCheck, &model.EventContext{
 		Type:      model.EventDamage,
 		DamageVal: &loss,
 	})
@@ -133,7 +133,7 @@ func TestSoulSorcererSoulDevour_UsesFinalAppliedMoraleLoss(t *testing.T) {
 	soul := game.State.Players["p1"]
 	ally := game.State.Players["p2"]
 	loss := 3
-	lossCtx := game.BuildContext(ally, nil, model.TimingBeforeMoraleLoss, &model.EventContext{
+	lossCtx := game.BuildContext(ally, nil, model.TimingMoraleLossCheck, &model.EventContext{
 		Type:      model.EventDamage,
 		DamageVal: &loss,
 	})

@@ -46,7 +46,7 @@ func TestBeforeMoraleLoss_UsesSkillPriorityOrdering(t *testing.T) {
 	}
 
 	loss := 2
-	lossCtx := game.BuildContext(angelA, game.State.Players["p3"], model.TimingBeforeMoraleLoss, &model.EventContext{
+	lossCtx := game.BuildContext(angelA, game.State.Players["p3"], model.TimingMoraleLossCheck, &model.EventContext{
 		Type:      model.EventDamage,
 		SourceID:  "p3",
 		TargetID:  "p1",

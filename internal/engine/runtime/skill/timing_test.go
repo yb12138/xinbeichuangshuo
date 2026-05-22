@@ -55,7 +55,7 @@ func TestTargetsForTimingUsesSeatOrderForMoraleCamp(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("morale targets = %v, want %v", got, want)
 	}
-	if !timingPriorityOrdered(model.TimingMoraleLossCheck) || !timingPriorityOrdered(model.TimingBeforeMoraleLoss) {
+	if !timingPriorityOrdered(model.TimingMoraleLossCheck) {
 		t.Fatalf("morale timing should be priority ordered")
 	}
 }

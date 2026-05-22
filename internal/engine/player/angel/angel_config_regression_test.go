@@ -111,7 +111,7 @@ func TestGodProtection_PromptsForXAndPartiallyMitigatesMoraleLoss(t *testing.T) 
 	p1.Crystal = 3
 
 	moraleLoss := 3
-	lossCtx := game.BuildContext(p1, nil, model.TimingBeforeMoraleLoss, &model.EventContext{
+	lossCtx := game.BuildContext(p1, nil, model.TimingMoraleLossCheck, &model.EventContext{
 		Type:      model.EventDamage,
 		DamageVal: &moraleLoss,
 	})
@@ -194,7 +194,7 @@ func TestGodProtection_TriggersWithGemFallbackWhenCrystalInsufficient(t *testing
 	p1.Gem = 2
 
 	moraleLoss := 2
-	lossCtx := game.BuildContext(p1, nil, model.TimingBeforeMoraleLoss, &model.EventContext{
+	lossCtx := game.BuildContext(p1, nil, model.TimingMoraleLossCheck, &model.EventContext{
 		Type:      model.EventDamage,
 		DamageVal: &moraleLoss,
 	})
@@ -268,7 +268,7 @@ func TestGodProtection_DoesNotTriggerOnNonMagicMoraleLoss(t *testing.T) {
 	p1.Gem = 2
 
 	moraleLoss := 2
-	lossCtx := game.BuildContext(p1, nil, model.TimingBeforeMoraleLoss, &model.EventContext{
+	lossCtx := game.BuildContext(p1, nil, model.TimingMoraleLossCheck, &model.EventContext{
 		Type:      model.EventDamage,
 		DamageVal: &moraleLoss,
 	})

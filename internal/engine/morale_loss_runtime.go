@@ -9,7 +9,7 @@ import (
 	"starcup-engine/internal/model"
 )
 
-// ApplyMoraleLossAfterTimingWindow 在 TimingBeforeMoraleLoss 窗口处理完毕后应用士气损失与联动效果。
+// ApplyMoraleLossAfterTimingWindow 在 TimingMoraleLossCheck 窗口处理完毕后应用士气损失与联动效果。
 func (e *GameEngine) ApplyMoraleLossAfterTimingWindow(victim *model.Player, moraleLoss int, isMagic bool, fromDamageDraw bool, overflowMoraleLossFixed int, discardedCards []model.Card, lossCtx *model.Context) int {
 	if victim == nil {
 		if len(discardedCards) > 0 {

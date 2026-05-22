@@ -31,9 +31,9 @@ func TestGodProtectionMitigatesMoraleLossFromMagicDamage(t *testing.T) {
 
 	loss := 3
 	ctx := &model.Context{
-		Game:    game,
-		User:    victim,
-		Timing:  model.TimingBeforeMoraleLoss,
+		Game:   game,
+		User:   victim,
+		Timing: model.TimingMoraleLossCheck,
 		EventCtx: &model.EventContext{
 			Type:      model.EventDamage,
 			DamageVal: &loss,
