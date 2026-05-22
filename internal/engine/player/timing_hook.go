@@ -11,8 +11,8 @@ type TimingPoint = model.Timing
 const (
 	// 已有 - 行动后/攻击后/伤害后
 	TimingPostActionEnd      TimingPoint = model.TimingActionPost
-	TimingPostAttackHit      TimingPoint = "post_attack_hit"
-	TimingPostDamageResolved TimingPoint = "post_damage_resolved"
+	TimingPostAttackHit      TimingPoint = model.TimingAttackHit
+	TimingPostDamageResolved TimingPoint = model.TimingDamageResolved
 
 	// 回合时间轴。
 	TimingOnTurnBeforeStart TimingPoint = model.TimingTurnBeforeStart // 回合开始前（效果过期等）
@@ -24,12 +24,12 @@ const (
 	TimingOnActionEnd    TimingPoint = model.TimingActionEnd // 行动结束（非 post_action_end，用于技能后）
 
 	// 新增 - 攻击阶段
-	TimingOnAttackDeclared   TimingPoint = "on_attack_declared"    // 攻击宣告时
-	TimingOnAttackGating     TimingPoint = "on_attack_gating"      // 攻击门控检查
-	TimingOnAttackCardHook   TimingPoint = "on_attack_card_hook"   // 攻击卡牌变换
-	TimingOnAttackStateReset TimingPoint = "on_attack_state_reset" // 攻击状态重置
-	TimingOnAttackTargetCtx  TimingPoint = "on_attack_target_ctx"  // 目标上下文记录
-	TimingOnAttackMiss       TimingPoint = "on_attack_miss"        // 攻击未命中后
+	TimingOnAttackDeclared   TimingPoint = model.TimingAttackDeclare         // 攻击宣告时
+	TimingOnAttackGating     TimingPoint = model.TimingAttackNoResponseCheck // 攻击门控检查
+	TimingOnAttackCardHook   TimingPoint = model.TimingAttackModifyCard      // 攻击卡牌变换
+	TimingOnAttackStateReset TimingPoint = "on_attack_state_reset"           // 攻击状态重置
+	TimingOnAttackTargetCtx  TimingPoint = model.TimingAttackSelectTarget
+	TimingOnAttackMiss       TimingPoint = model.TimingAttackMiss // 攻击未命中后
 
 	// 新增 - 命中判定阶段
 	TimingOnHitCheck                     TimingPoint = "on_hit_check"                        // 命中判定
@@ -48,14 +48,14 @@ const (
 	TimingOnMagicMissileResponseSkillAug TimingPoint = "on_magic_missile_response_skill_aug" // 魔弹响应技能增强
 
 	// 新增 - 伤害阶段
-	TimingOnDamageCalculate   TimingPoint = "on_damage_calculate"    // 伤害计算（被动增伤）
-	TimingOnDamageBeforeTaken TimingPoint = "on_damage_before_taken" // 承伤触发前（灵魂链接等内部子阶段）
-	TimingOnDamageAfterTaken  TimingPoint = "on_damage_after_taken"  // 承伤触发后（剑帝命中后置内部子阶段）
-	TimingOnDamageApplied     TimingPoint = "on_damage_applied"      // ⑤ 实际产生伤害时（扣除治疗后，未摸牌前）
-	TimingOnDamageTaken       TimingPoint = "on_damage_taken"        // ⑥ 实际承受伤害，准备摸牌前
-	TimingOnDamageAfterApply  TimingPoint = "on_damage_after_apply"  // 伤害应用后（封印师等内部子阶段）
-	TimingOnHealResist        TimingPoint = "on_heal_resist"         // 治愈抵抗规则
-	TimingOnHealCapCalculate  TimingPoint = "on_heal_cap_calculate"  // 治疗抵伤额度计算（牧师上限）
+	TimingOnDamageCalculate   TimingPoint = model.TimingDamageSourceDeal   // 伤害计算（被动增伤）
+	TimingOnDamageBeforeTaken TimingPoint = model.TimingDamageTargetBefore // 承伤触发前（灵魂链接等内部子阶段）
+	TimingOnDamageAfterTaken  TimingPoint = "on_damage_after_taken"        // 承伤触发后（剑帝命中后置内部子阶段）
+	TimingOnDamageApplied     TimingPoint = model.TimingDamageApplied      // ⑤ 实际产生伤害时（扣除治疗后，未摸牌前）
+	TimingOnDamageTaken       TimingPoint = model.TimingDamageTaken        // ⑥ 实际承受伤害，准备摸牌前
+	TimingOnDamageAfterApply  TimingPoint = "on_damage_after_apply"        // 伤害应用后（封印师等内部子阶段，暂不同于整次伤害 resolved）
+	TimingOnHealResist        TimingPoint = model.TimingHealBefore         // 治愈抵抗规则
+	TimingOnHealCapCalculate  TimingPoint = model.TimingHealCap            // 治疗抵伤额度计算（牧师上限）
 
 	// 新增 - 特殊阶段
 	TimingOnGameStart      TimingPoint = "on_game_start"       // 游戏开始
@@ -65,7 +65,7 @@ const (
 	TimingOnCampCupChanged TimingPoint = "on_camp_cup_changed" // 阵营杯子变化（派生状态同步）
 
 	// 新增 - 士气损失阶段
-	TimingOnMoraleLossApplied TimingPoint = "on_morale_loss_applied" // 士气损失应用后（伤害驱动的角色效果）
+	TimingOnMoraleLossApplied TimingPoint = model.TimingMoraleLossApplied // 士气损失应用后（伤害驱动的角色效果）
 
 	// 新增 - 行动选择策略（原 PolicySpec）
 	TimingBeforeActionOption        TimingPoint = "before_action_option"         // 行动选项策略
@@ -76,7 +76,7 @@ const (
 	TimingOnSpecialActionOverride   TimingPoint = "on_special_action_override"   // 特殊行动覆盖
 	TimingOnSpecialActionPost       TimingPoint = "on_special_action_post"       // 特殊行动后置
 	TimingOnSkillPost               TimingPoint = "on_skill_post"                // 技能后置钩子
-	TimingOnAttackCardTransform     TimingPoint = "on_attack_card_transform"     // 攻击牌变换
+	TimingOnAttackCardTransform     TimingPoint = model.TimingAttackModifyCard   // 攻击牌变换
 )
 
 // TimingHookSpec 角色贡献到全局 timing hook 链的条目。
