@@ -5,7 +5,8 @@ package player
 import "starcup-engine/internal/model"
 
 // TimingPoint 标识 Hook 触发时机。
-type TimingPoint string
+// 保留为别名，实际 canonical 类型在 model.Timing。
+type TimingPoint = model.Timing
 
 const (
 	// 已有 - 行动后/攻击后/伤害后

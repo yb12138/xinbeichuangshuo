@@ -33,7 +33,12 @@ const (
 	SubflowDiscardSelection Subflow = "DiscardSelection"
 )
 
-type FlowTiming string
+// Timing is the canonical rule timing identifier used by both skill dispatch
+// and role timing hooks.
+type Timing string
+
+// FlowTiming is kept as a compatibility alias for existing skill flow code.
+type FlowTiming = Timing
 
 const (
 	TimingUnknown                FlowTiming = ""
@@ -62,4 +67,3 @@ const (
 	TimingOnOrientationChanged   FlowTiming = "TimingOnOrientationChanged"
 	TimingOnTurnEnd              FlowTiming = "TimingOnTurnEnd"
 )
-
