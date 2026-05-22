@@ -16,7 +16,7 @@ const (
 	timingOnBeforeActionResolveActionStart
 )
 
-// runTimingOnBeforeActionStageHooks 统一处理 TimingOnBeforeAction 阶段规则。
+// runTimingOnBeforeActionStageHooks 统一处理行动阶段开始前/开始时规则。
 func (e *GameEngine) runTimingOnBeforeActionStageHooks(player *model.Player, stage timingOnBeforeActionStage) bool {
 	switch stage {
 	case timingOnBeforeActionResolveField:
@@ -28,7 +28,7 @@ func (e *GameEngine) runTimingOnBeforeActionStageHooks(player *model.Player, sta
 	}
 }
 
-// RunTimingOnBeforeActionHooks 在回合 before-action 固定阶段按顺序处理场上效果。
+// RunTimingOnBeforeActionHooks 在行动阶段开始前固定阶段按顺序处理场上效果。
 func (e *GameEngine) RunTimingOnBeforeActionHooks(player *model.Player) bool {
 	for _, hook := range e.beforeActionFieldHooks {
 		if hook(e, player) {
@@ -38,7 +38,7 @@ func (e *GameEngine) RunTimingOnBeforeActionHooks(player *model.Player) bool {
 	return false
 }
 
-// applyTimingBeforeActionExecuteOptionPolicies 在行动入口生成选项前应用规则约束。
+// applyTimingBeforeActionExecuteOptionPolicies 在行动阶段中生成选项前应用规则约束。
 func (e *GameEngine) applyTimingBeforeActionExecuteOptionPolicies(player *model.Player, state *ActionSelectionState) {
 	ctx := engineplayer.TimingHookContext{
 		Player:         player,
@@ -48,7 +48,7 @@ func (e *GameEngine) applyTimingBeforeActionExecuteOptionPolicies(player *model.
 	e.dispatchAllRoleTimingHooks(engineplayer.TimingBeforeActionOption, ctx)
 }
 
-// applyTimingBeforeActionExecuteValidationPolicies 在行动输入校验前应用规则约束。
+// applyTimingBeforeActionExecuteValidationPolicies 在行动阶段中输入校验前应用规则约束。
 func (e *GameEngine) applyTimingBeforeActionExecuteValidationPolicies(player *model.Player, state *ActionSelectionState) {
 	ctx := engineplayer.TimingHookContext{
 		Player:         player,

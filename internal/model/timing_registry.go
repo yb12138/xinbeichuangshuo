@@ -97,16 +97,16 @@ var timingDescriptors = map[Timing]TimingDescriptor{
 
 	// Role hook timings. These string identifiers currently live in
 	// internal/engine/player and are mirrored here to keep model independent.
-	Timing("post_action_end"):      roleTimingDescriptor("post_action_end", TimingCategoryTurn, "Post action end"),
+	Timing("post_action_end"):      roleTimingDescriptor("post_action_end", TimingCategoryTurn, "Post action end", TimingActionPost),
 	Timing("post_attack_hit"):      roleTimingDescriptor("post_attack_hit", TimingCategoryAttack, "Post attack hit"),
 	Timing("post_damage_resolved"): roleTimingDescriptor("post_damage_resolved", TimingCategoryDamage, "Post damage resolved"),
 
-	Timing("on_turn_before_start"): roleTimingDescriptor("on_turn_before_start", TimingCategoryTurn, "Turn before start"),
-	Timing("on_turn_start"):        roleTimingDescriptor("on_turn_start", TimingCategoryTurn, "Turn start", TimingOnTurnStart),
+	Timing("on_turn_before_start"): roleTimingDescriptor("on_turn_before_start", TimingCategoryTurn, "Turn before start", TimingTurnBeforeStart),
+	Timing("on_turn_start"):        roleTimingDescriptor("on_turn_start", TimingCategoryTurn, "Turn start", TimingOnTurnStart, TimingTurnStart),
 	Timing("on_turn_end"):          roleTimingDescriptor("on_turn_end", TimingCategoryTurn, "Turn end pre extra", TimingOnTurnEnd),
 	Timing("on_turn_end_final"):    roleTimingDescriptor("on_turn_end_final", TimingCategoryTurn, "Turn end final", TimingOnTurnEnd),
-	Timing("before_action"):        roleTimingDescriptor("before_action", TimingCategoryTurn, "Before action", TimingOnBeforeAction),
-	Timing("on_action_end"):        roleTimingDescriptor("on_action_end", TimingCategoryTurn, "Action end role hook", TimingOnActionEnd),
+	Timing("before_action"):        roleTimingDescriptor("before_action", TimingCategoryTurn, "Before action", TimingOnBeforeAction, TimingActionStart),
+	Timing("on_action_end"):        roleTimingDescriptor("on_action_end", TimingCategoryTurn, "Action end role hook", TimingOnActionEnd, TimingActionEnd),
 
 	Timing("on_attack_declared"):    roleTimingDescriptor("on_attack_declared", TimingCategoryAttack, "Attack declared", TimingOnAttackDeclared),
 	Timing("on_attack_gating"):      roleTimingDescriptor("on_attack_gating", TimingCategoryAttack, "Attack gating"),

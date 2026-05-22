@@ -10,17 +10,18 @@ type TimingPoint = model.Timing
 
 const (
 	// 已有 - 行动后/攻击后/伤害后
-	TimingPostActionEnd      TimingPoint = "post_action_end"
+	TimingPostActionEnd      TimingPoint = model.TimingActionPost
 	TimingPostAttackHit      TimingPoint = "post_attack_hit"
 	TimingPostDamageResolved TimingPoint = "post_damage_resolved"
 
-	// 新增 - 回合阶段
-	TimingOnTurnBeforeStart TimingPoint = "on_turn_before_start" // 回合开始前（效果过期等）
-	TimingOnTurnStart       TimingPoint = "on_turn_start"        // 回合开始（形态检查、状态清理）
-	TimingOnTurnEnd         TimingPoint = "on_turn_end"          // 回合结束前置（形态释放，额外行动前）
-	TimingOnTurnEndFinal    TimingPoint = "on_turn_end_final"    // 回合结束最终（额外行动耗尽后）
-	TimingBeforeAction      TimingPoint = "before_action"        // 行动前（场上效果检查）
-	TimingOnActionEnd       TimingPoint = "on_action_end"        // 行动结束（非 post_action_end，用于技能后）
+	// 回合时间轴。
+	TimingOnTurnBeforeStart TimingPoint = model.TimingTurnBeforeStart // 回合开始前（效果过期等）
+	TimingOnTurnStart       TimingPoint = model.TimingTurnStart       // 回合开始（形态检查、状态清理）
+	// 回合结束当前有 pre-extra/final 两个运行时子阶段，暂不合并到 TimingTurnEnd，避免触发次数变化。
+	TimingOnTurnEnd      TimingPoint = "on_turn_end"       // 回合结束前置（形态释放，额外行动前）
+	TimingOnTurnEndFinal TimingPoint = "on_turn_end_final" // 回合结束最终（额外行动耗尽后）
+	TimingBeforeAction   TimingPoint = model.TimingActionStart
+	TimingOnActionEnd    TimingPoint = model.TimingActionEnd // 行动结束（非 post_action_end，用于技能后）
 
 	// 新增 - 攻击阶段
 	TimingOnAttackDeclared   TimingPoint = "on_attack_declared"    // 攻击宣告时

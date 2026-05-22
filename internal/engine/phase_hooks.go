@@ -28,7 +28,7 @@ const (
 	TimingOnTurnEndFinal
 )
 
-// runTimingOnTurnStartStageHooks 统一处理 TimingOnTurnStart 阶段规则。
+// runTimingOnTurnStartStageHooks 统一处理回合开始时（TimingTurnStart）阶段规则。
 func (e *GameEngine) runTimingOnTurnStartStageHooks(player *model.Player, stage timingOnTurnStartStage) bool {
 	switch stage {
 	case timingOnTurnStartMain:
@@ -47,7 +47,7 @@ func (e *GameEngine) runTimingOnTurnStartStageHooks(player *model.Player, stage 
 	}
 }
 
-// RunTimingOnTurnEndStageHooks 统一处理 TimingOnTurnEnd 阶段规则。
+// RunTimingOnTurnEndStageHooks 统一处理回合结束时（TimingTurnEnd）的运行时子阶段规则。
 func (e *GameEngine) RunTimingOnTurnEndStageHooks(player *model.Player, stage TimingOnTurnEndStage) bool {
 	switch stage {
 	case TimingOnTurnEndPreExtra:
@@ -79,9 +79,9 @@ func (e *GameEngine) RunTimingOnTurnEndStageHooks(player *model.Player, stage Ti
 	}
 }
 
-// runTimingOnTurnStartBeforeStartHooks 回合开始前（TurnBeforeStart）固定结算点。
+// runTimingOnTurnStartBeforeStartHooks 回合开始前（TimingTurnBeforeStart）固定结算点。
 func (e *GameEngine) runTimingOnTurnStartBeforeStartHooks(player *model.Player) bool {
-	// TimingOnTurnBeforeStart 已迁移到 TimingHookSpec。
+	// 回合开始前已迁移到 TimingHookSpec。
 	if player != nil {
 		result := e.dispatchRoleTimingHook(engineplayer.TimingOnTurnBeforeStart, engineplayer.TimingHookContext{
 			TargetID:     player.ID,
@@ -92,14 +92,14 @@ func (e *GameEngine) runTimingOnTurnStartBeforeStartHooks(player *model.Player) 
 	return false
 }
 
-// runTimingOnTurnStartHooks 回合开始（TurnStart）固定结算点。
+// runTimingOnTurnStartHooks 回合开始时（TimingTurnStart）固定结算点。
 func (e *GameEngine) runTimingOnTurnStartHooks(player *model.Player) bool {
 	return e.runTimingOnTurnStartStageHooks(player, timingOnTurnStartMain)
 }
 
-// runTimingBeforeActionExecuteHooks 行动开始（ActionStart）固定结算点。
+// runTimingBeforeActionExecuteHooks 行动阶段开始时（TimingActionStart）固定结算点。
 func (e *GameEngine) runTimingBeforeActionExecuteHooks(player *model.Player) bool {
-	// TimingHookSpec dispatch for before action
+	// TimingHookSpec dispatch for action start
 	if player != nil {
 		result := e.dispatchAllRoleTimingHooks(engineplayer.TimingBeforeAction, engineplayer.TimingHookContext{
 			SourceID:     player.ID,
@@ -112,12 +112,12 @@ func (e *GameEngine) runTimingBeforeActionExecuteHooks(player *model.Player) boo
 	return false
 }
 
-// runTimingOnTurnEndPreExtraHooks 回合结束前置结算（额外行动判定前）。
+// runTimingOnTurnEndPreExtraHooks 回合结束时前置结算（额外行动判定前）。
 func (e *GameEngine) runTimingOnTurnEndPreExtraHooks(player *model.Player) bool {
 	return e.RunTimingOnTurnEndStageHooks(player, TimingOnTurnEndPreExtra)
 }
 
-// runTimingOnTurnEndFinalHooks 回合结束最终结算点。
+// runTimingOnTurnEndFinalHooks 回合结束时最终结算点。
 func (e *GameEngine) runTimingOnTurnEndFinalHooks(player *model.Player) bool {
 	return e.RunTimingOnTurnEndStageHooks(player, TimingOnTurnEndFinal)
 }
