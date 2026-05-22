@@ -263,7 +263,7 @@ func canResolveElementalSealStatus(ctx *model.Context, fc *model.FieldCard) bool
 		return false
 	}
 	// Only trigger on "play card" or "reveal card"
-	if ctx.Timing != model.TimingOnCardPlayedOrRevealed {
+	if ctx.Timing != model.TimingCardPlayedRevealed {
 		return false
 	}
 	if ctx.EventCtx == nil || ctx.EventCtx.Card == nil {
@@ -289,7 +289,7 @@ func executeElementalSealStatus(ctx *model.Context, fc *model.FieldCard) error {
 		sourceID = ctx.User.ID
 	}
 	actionWord := "打出"
-	if ctx.Timing == model.TimingOnCardPlayedOrRevealed {
+	if ctx.Timing == model.TimingCardPlayedRevealed {
 		actionWord = "展示"
 	}
 	ctx.Game.Log(fmt.Sprintf(

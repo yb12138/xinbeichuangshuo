@@ -435,7 +435,7 @@ func GetCharacters() []model.Character {
 					ResponseType: model.ResponseSilent, // 自动触发
 				},
 				{
-					ID: "water_shadow", Timings: []model.FlowTiming{model.TimingBeforeCardDrawn}, Title: "水影",
+					ID: "water_shadow", Timings: []model.FlowTiming{model.TimingSettleDraw}, Title: "水影",
 					Type:        model.SkillTypeResponse,
 					Tags:        []model.SkillTag{},
 					Description: "摸牌前可弃X张水系牌；潜行状态下可额外弃1张法术牌。",
@@ -473,7 +473,7 @@ func GetCharacters() []model.Character {
 			MaxHand: 6,
 			Skills: []model.SkillDefinition{
 				{
-					ID: "frost_prayer", Timings: []model.FlowTiming{model.TimingOnCardPlayedOrRevealed}, Title: "冰霜祷言",
+					ID: "frost_prayer", Timings: []model.FlowTiming{model.TimingCardPlayedRevealed}, Title: "冰霜祷言",
 					Type:        model.SkillTypePassive,
 					Tags:        []model.SkillTag{},
 					Description: "（每当你打出或展示水系牌或圣光时发动）目标角色+1［治疗］。",

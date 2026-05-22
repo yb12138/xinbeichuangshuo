@@ -113,7 +113,7 @@ func (e *GameEngine) notifyCards(playerID string, cards []model.Card, actionType
 	p := e.State.Players[playerID]
 	if actionType == "discard" && !hidden && !e.suppressSealOnDiscard && p != nil {
 		for i := range cards {
-			e.dispatchCardTiming(p, model.TimingOnCardPlayedOrRevealed, "", cards[i])
+			e.dispatchCardTiming(p, model.TimingCardPlayedRevealed, "", cards[i])
 		}
 	}
 	playerName := playerID

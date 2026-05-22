@@ -20,7 +20,7 @@ func (h *FrostPrayerHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil {
 		return false
 	}
-	if ctx.Timing != model.TimingOnCardPlayedOrRevealed {
+	if ctx.Timing != model.TimingCardPlayedRevealed {
 		return false
 	}
 	if ctx.EventCtx == nil || ctx.EventCtx.Card == nil {

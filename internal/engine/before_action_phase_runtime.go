@@ -73,7 +73,7 @@ func (e *GameEngine) beforeActionRunCardUsedIfNeeded(player *model.Player, curre
 		SourceID: currentPid,
 		TargetID: targetID,
 	}
-	skillCtx := e.BuildContext(player, nil, model.TimingOnCardPlayedOrRevealed, cardCtx)
+	skillCtx := e.BuildContext(player, nil, model.TimingCardPlayedRevealed, cardCtx)
 	e.dispatcher.OnTiming(skillCtx.Timing, skillCtx)
 	head.HasDispatchedCardUsed = true
 	if e.State.PendingInterrupt != nil {

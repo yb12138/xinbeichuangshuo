@@ -443,12 +443,10 @@ func debugCheatEventTypeForTiming(t model.FlowTiming) model.EventType {
 		return model.EventAttack
 	case model.TimingDamageTaken:
 		return model.EventDamage
-	case model.TimingOnCardPlayedOrRevealed:
+	case model.TimingCardPlayedRevealed:
 		return model.EventCardUsed
-	case model.TimingBeforeCardDrawn:
+	case model.TimingSettleDraw:
 		return model.EventBeforeDraw
-	case model.TimingOnCardDrawn:
-		return model.EventAfterDraw
 	case model.TimingTurnStart, model.TimingActionStart:
 		return model.EventTurnStart
 	case model.TimingActionEnd:
@@ -480,7 +478,7 @@ func (e *GameEngine) debugBuildContext(user *model.Player, skill model.SkillDefi
 	if skill.DiscardElement != "" {
 		element = skill.DiscardElement
 	}
-	if skill.HasTiming(model.TimingOnCardPlayedOrRevealed) {
+	if skill.HasTiming(model.TimingCardPlayedRevealed) {
 		actionType = model.ActionMagic
 		cardType = model.CardTypeMagic
 		if skill.DiscardElement == "" {

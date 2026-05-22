@@ -42,6 +42,7 @@ const (
 	TimingDamageTaken        Timing = "damage.taken"
 	TimingSettleDraw         Timing = "settle.draw"
 	TimingSettleDiscard      Timing = "settle.discard"
+	TimingCardPlayedRevealed Timing = "settle.card_played_revealed"
 	TimingSettleHandLimit    Timing = "settle.hand_limit_check"
 	TimingMoraleLossCheck    Timing = "settle.morale_loss_check"
 	TimingMoraleLossApplied  Timing = "settle.morale_loss_applied"

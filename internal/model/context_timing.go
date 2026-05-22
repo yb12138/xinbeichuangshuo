@@ -67,12 +67,10 @@ func (ctx *Context) BeforeDrawPhase() bool {
 	if ctx == nil {
 		return false
 	}
-	switch ctx.Timing {
-	case TimingBeforeCardDrawn, TimingSettleDraw:
-		return true
-	default:
+	if ctx.Timing != TimingSettleDraw {
 		return false
 	}
+	return ctx.EventCtx != nil && ctx.EventCtx.Type == EventBeforeDraw
 }
 
 // AfterDrawPhase 表示“摸牌后”窗口。
@@ -80,12 +78,10 @@ func (ctx *Context) AfterDrawPhase() bool {
 	if ctx == nil {
 		return false
 	}
-	switch ctx.Timing {
-	case TimingOnCardDrawn, TimingSettleDraw:
-		return true
-	default:
+	if ctx.Timing != TimingSettleDraw {
 		return false
 	}
+	return ctx.EventCtx != nil && ctx.EventCtx.Type == EventAfterDraw
 }
 
 // AttackHitPhase 响应恢复：攻击命中分支。

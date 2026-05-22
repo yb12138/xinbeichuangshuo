@@ -52,14 +52,6 @@ const (
 	TimingOnMagicDeclared FlowTiming = "TimingOnMagicDeclared"
 	// Deprecated: use TimingDamageApplied.
 	TimingOnDamageApplied FlowTiming = "TimingOnDamageApplied"
-	// Deprecated: use TimingSettleDraw.
-	TimingBeforeCardDrawn FlowTiming = "TimingBeforeCardDrawn"
-	// Deprecated: use TimingSettleDraw.
-	TimingOnCardDrawn FlowTiming = "TimingOnCardDrawn"
-	// Deprecated: use TimingSettleDiscard.
-	TimingOnCardDiscarded FlowTiming = "TimingOnCardDiscarded"
-	// Deprecated: use TimingSettleDiscard for settlement, or keep this legacy card-use timing until card play phases are fully split.
-	TimingOnCardPlayedOrRevealed FlowTiming = "TimingOnCardPlayedOrRevealed"
 	// Deprecated: use TimingMagicHealOverflow or TimingHealCap according to context.
 	TimingOnHealOverflow FlowTiming = "TimingOnHealOverflow"
 	// Deprecated: lifecycle timing; keep compatibility until field mark hooks are split.

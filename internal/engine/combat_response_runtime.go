@@ -342,7 +342,7 @@ func (e *GameEngine) handleCombatDefendResponse(act model.PlayerAction, player *
 		return errors.New("防御只能使用【圣光】；【圣盾】需提前放置到场上")
 	}
 
-	e.dispatchCardTiming(player, model.TimingOnCardPlayedOrRevealed, "", card)
+	e.dispatchCardTiming(player, model.TimingCardPlayedRevealed, "", card)
 	e.NotifyCardRevealed(act.PlayerID, []model.Card{card}, "defend")
 	e.NotifyCombatCue(combatReq.AttackerID, combatReq.TargetID, "defend")
 	if _, err := e.consumePlayableCardByID(player, act.CardID); err != nil {
@@ -464,7 +464,7 @@ func (e *GameEngine) handleCombatCounterResponse(act model.PlayerAction, player 
 		return nil
 	}
 
-	e.dispatchCardTiming(player, model.TimingOnCardPlayedOrRevealed, "", card)
+	e.dispatchCardTiming(player, model.TimingCardPlayedRevealed, "", card)
 	e.NotifyCardRevealed(act.PlayerID, []model.Card{card}, "counter")
 	e.NotifyCombatCue(combatReq.AttackerID, combatReq.TargetID, "counter")
 	if _, err := e.consumePlayableCardByID(player, act.CardID); err != nil {
