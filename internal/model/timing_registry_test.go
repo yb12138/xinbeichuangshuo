@@ -119,6 +119,97 @@ func TestTimingRegistryCategoriesCurrentTimelines(t *testing.T) {
 	}
 }
 
+func TestTimingDescriptorOfCoversRulebookTimings(t *testing.T) {
+	timings := []Timing{
+		TimingGameInitial,
+		TimingTurnBeforeStart,
+		TimingTurnStart,
+		TimingActionBefore,
+		TimingActionStart,
+		TimingActionDuring,
+		TimingActionEnd,
+		TimingActionPost,
+		TimingTurnEnd,
+		TimingAttackDeclare,
+		TimingAttackSelectTarget,
+		TimingAttackPlayCard,
+		TimingAttackModifyCard,
+		TimingAttackCommitted,
+		TimingAttackForceHitCheck,
+		TimingAttackNoResponseCheck,
+		TimingAttackResponse,
+		TimingAttackHit,
+		TimingAttackMiss,
+		TimingMagicDeclare,
+		TimingMagicSelectTarget,
+		TimingMagicValidate,
+		TimingMagicResolve,
+		TimingMagicHealOverflow,
+		TimingDamageSourceDeal,
+		TimingDamageTargetBefore,
+		TimingHealBefore,
+		TimingHealUse,
+		TimingHealCap,
+		TimingDamageApplied,
+		TimingDamageTaken,
+		TimingSettleDraw,
+		TimingSettleDiscard,
+		TimingSettleHandLimit,
+		TimingMoraleLossCheck,
+		TimingMoraleLossApplied,
+		TimingGameEndCheck,
+		TimingDamageResolved,
+	}
+
+	assertTimingDescriptors(t, timings)
+}
+
+func TestNormalizeTimingMapsLegacyTimingsToRulebookTimings(t *testing.T) {
+	tests := map[Timing]Timing{
+		TimingOnTurnStart:                  TimingTurnStart,
+		Timing("on_turn_before_start"):     TimingTurnBeforeStart,
+		TimingStartup:                      TimingActionStart,
+		TimingOnAttackDeclared:             TimingAttackDeclare,
+		Timing("on_attack_target_ctx"):     TimingAttackSelectTarget,
+		Timing("on_attack_card_transform"): TimingAttackModifyCard,
+		TimingOnHitCheck:                   TimingAttackResponse,
+		Timing("post_attack_hit"):          TimingAttackHit,
+		Timing("on_attack_miss"):           TimingAttackMiss,
+		TimingOnMagicDeclared:              TimingMagicDeclare,
+		TimingOnDamageCalculated:           TimingDamageSourceDeal,
+		Timing("on_damage_before_taken"):   TimingDamageTargetBefore,
+		Timing("on_heal_cap_calculate"):    TimingHealCap,
+		TimingOnDamageTaken:                TimingDamageTaken,
+		TimingBeforeMoraleLoss:             TimingMoraleLossCheck,
+		Timing("on_morale_loss_applied"):   TimingMoraleLossApplied,
+	}
+	for legacy, want := range tests {
+		if got := NormalizeTiming(legacy); got != want {
+			t.Fatalf("NormalizeTiming(%q) = %q, want %q", legacy, got, want)
+		}
+	}
+}
+
+func TestLegacyTimingNameMapsSplitAttackTimings(t *testing.T) {
+	tests := map[Timing]Timing{
+		TimingAttackDeclare:         TimingOnAttackDeclared,
+		TimingAttackSelectTarget:    TimingOnAttackDeclared,
+		TimingAttackPlayCard:        TimingOnAttackDeclared,
+		TimingAttackModifyCard:      TimingOnAttackDeclared,
+		TimingAttackCommitted:       TimingOnAttackDeclared,
+		TimingAttackForceHitCheck:   TimingOnHitCheck,
+		TimingAttackNoResponseCheck: TimingOnHitCheck,
+		TimingAttackResponse:        TimingOnHitCheck,
+		TimingAttackHit:             TimingOnHitCheck,
+		TimingAttackMiss:            TimingOnHitCheck,
+	}
+	for timing, want := range tests {
+		if got := LegacyTimingName(timing); got != want {
+			t.Fatalf("LegacyTimingName(%q) = %q, want %q", timing, got, want)
+		}
+	}
+}
+
 func assertTimingDescriptors(t *testing.T, timings []Timing) {
 	t.Helper()
 	for _, timing := range timings {
