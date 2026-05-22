@@ -1017,7 +1017,7 @@ func TestMagicBowCharge_StartupSkillGemSubstitution(t *testing.T) {
 		magicBowTestCard("d2", "补牌2", model.CardTypeMagic, model.ElementThunder),
 	}
 
-	// 构建启动技上下文（TimingStartup）
+	// 构建启动技上下文（TimingActionStart）
 	ctx := game.BuildContext(p1, nil, model.TimingActionStart, &model.EventContext{
 		Type:     model.EventTurnStart,
 		SourceID: "p1",
