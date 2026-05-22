@@ -107,7 +107,7 @@ func TestBeforeActionHooks_PoisonEntersDamageResolutionBeforeWeakness(t *testing
 		Hook:     model.FieldHookOnBeforeAction,
 	})
 
-	if interrupted := game.RunTimingOnBeforeActionHooks(p1); !interrupted {
+	if interrupted := game.RunActionBeforeTimingHooks(p1); !interrupted {
 		t.Fatal("expected beforeAction hooks to stop on poison damage resolution")
 	}
 	if game.State.CombatStage != model.CombatStageCalcDamage {
@@ -136,7 +136,7 @@ func TestBeforeActionHooks_PoisonEntersDamageResolutionBeforeWeakness(t *testing
 	if !game.RestoreReturnPoint() {
 		t.Fatal("expected to restore before-action return point after poison resolution")
 	}
-	if interrupted := game.RunTimingOnBeforeActionHooks(p1); !interrupted {
+	if interrupted := game.RunActionBeforeTimingHooks(p1); !interrupted {
 		t.Fatal("expected weakness hook to stop with choice interrupt")
 	}
 	if got := choiceTypeOfInterrupt(game.State.PendingInterrupt); got != "weak" {

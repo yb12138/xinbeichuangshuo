@@ -1,4 +1,4 @@
-// gameflow: 攻击未命中后的后续（通过 TimingOnAttackMiss 分发到各角色 TimingHookSpec）。
+// gameflow: 攻击未命中后的后续（通过 TimingAttackMiss 分发到各角色 TimingHookSpec）。
 
 package engine
 

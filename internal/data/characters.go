@@ -17,7 +17,7 @@ func GetCharacters() []model.Character {
 					ID: "angel_bond", Timings: []model.FlowTiming{model.TimingFieldMarkChanged}, Title: "天使羁绊",
 					Type:        model.SkillTypePassive,
 					Description: "（每当你移除一个基础效果或是使用［圣盾］时）目标角色+1［治疗］。",
-					// TimingOnFieldMarkChanged：移除/新增场标（含圣盾放置）均落在同一窗口。
+					// TimingFieldMarkChanged：移除/新增场标（含圣盾放置）均落在同一窗口。
 					LogicHandler: "angel_bond",
 					// 这是一个被动技能，TargetType 为 None，具体 Target 由运行时 Context 决定
 					TargetType:   model.TargetNone,

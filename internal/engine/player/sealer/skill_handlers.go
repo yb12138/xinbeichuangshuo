@@ -179,7 +179,7 @@ func (h *FiveElementsBindHandler) Execute(ctx *model.Context) error {
 //
 // Phase 2: Trigger Seal (handled by SkillDispatcher)
 //   - Target player plays/reveals matching element card
-//   - Trigger TimingOnCardPlayedOrRevealed
+//   - Trigger TimingCardPlayedRevealed
 //   - collectSkillsForTiming iterates Field, finds matching seal
 //   - SealLogic.CanUse -> canResolveElementalSealStatus
 //
@@ -256,7 +256,7 @@ func resolveFieldStatusSpec(ctx *model.Context, effect model.EffectType) (*field
 
 // canResolveElementalSealStatus checks if five elements seal can trigger
 // Trigger conditions:
-//  1. Timing is TimingOnCardPlayedOrRevealed (play or reveal card)
+//  1. Timing is TimingCardPlayedRevealed (play or reveal card)
 //  2. The element of the played/revealed card matches the bound element of the seal
 func canResolveElementalSealStatus(ctx *model.Context, fc *model.FieldCard) bool {
 	if ctx == nil || ctx.User == nil || fc == nil {

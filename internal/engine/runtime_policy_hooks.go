@@ -9,27 +9,27 @@ import (
 	"starcup-engine/internal/model"
 )
 
-type timingOnBeforeActionStage int
+type actionBoundaryTimingStage int
 
 const (
-	timingOnBeforeActionResolveField timingOnBeforeActionStage = iota
-	timingOnBeforeActionResolveActionStart
+	actionBoundaryResolveField actionBoundaryTimingStage = iota
+	actionBoundaryResolveActionStart
 )
 
-// runTimingOnBeforeActionStageHooks 统一处理行动阶段开始前/开始时规则。
-func (e *GameEngine) runTimingOnBeforeActionStageHooks(player *model.Player, stage timingOnBeforeActionStage) bool {
+// runActionBoundaryTimingStageHooks 统一处理行动阶段开始前/开始时规则。
+func (e *GameEngine) runActionBoundaryTimingStageHooks(player *model.Player, stage actionBoundaryTimingStage) bool {
 	switch stage {
-	case timingOnBeforeActionResolveField:
-		return e.RunTimingOnBeforeActionHooks(player)
-	case timingOnBeforeActionResolveActionStart:
+	case actionBoundaryResolveField:
+		return e.RunActionBeforeTimingHooks(player)
+	case actionBoundaryResolveActionStart:
 		return e.runTimingActionStartExecuteHooks(player)
 	default:
-		panic(fmt.Sprintf("unregistered TimingOnBeforeAction stage: %d", stage))
+		panic(fmt.Sprintf("unregistered TimingActionBefore stage: %d", stage))
 	}
 }
 
-// RunTimingOnBeforeActionHooks 在行动阶段开始前固定阶段按顺序处理场上效果。
-func (e *GameEngine) RunTimingOnBeforeActionHooks(player *model.Player) bool {
+// RunActionBeforeTimingHooks 在行动阶段开始前固定阶段按顺序处理场上效果。
+func (e *GameEngine) RunActionBeforeTimingHooks(player *model.Player) bool {
 	for _, hook := range e.beforeActionFieldHooks {
 		if hook(e, player) {
 			return true

@@ -93,7 +93,7 @@ func (e *GameEngine) skipResponseActionResult() (intr.ActionResult, error) {
 	}
 	state := e.captureResponseResumeStateFromInterrupt(responseCompletionSkip, "", before)
 	return intr.ActionResult{Consumed: true, AfterPop: func(intr.EngineInterface) {
-		e.runTimingOnResponseSkipEffects(&state)
+		e.runResponseSkillSkipEffects(&state)
 		e.restoreSkippedResponseAfterPop(state)
 	}}, nil
 }
@@ -283,7 +283,7 @@ func (e *GameEngine) SkipResponse() error {
 	}
 	state := e.captureResponseResumeStateFromInterrupt(responseCompletionSkip, "", e.State.PendingInterrupt)
 	e.PopInterrupt()
-	e.runTimingOnResponseSkipEffects(&state)
+	e.runResponseSkillSkipEffects(&state)
 	e.restoreSkippedResponseAfterPop(state)
 	return nil
 }

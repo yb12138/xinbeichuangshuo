@@ -116,20 +116,20 @@ func (e *GameEngine) driveBeforeActionStage(currentPid string, player *model.Pla
 	}
 
 	// 回合开始前先按固定顺序结算基础效果 hook（如中毒、五系束缚、虚弱）。
-	if e.runTimingOnBeforeActionStageHooks(player, timingOnBeforeActionResolveField) {
+	if e.runActionBoundaryTimingStageHooks(player, actionBoundaryResolveField) {
 		if e.State.PendingInterrupt != nil {
 			return driveStop
 		}
 		return driveContinueLoop
 	}
 	// 角色 TimingActionStart hooks（如精疲力竭结束结算）。
-	if e.runTimingOnBeforeActionStageHooks(player, timingOnBeforeActionResolveActionStart) {
+	if e.runActionBoundaryTimingStageHooks(player, actionBoundaryResolveActionStart) {
 		if e.State.PendingInterrupt != nil {
 			return driveStop
 		}
 		return driveContinueLoop
 	}
-	// 其余 TimingOnBeforeAction 的通用技能/状态仍走 dispatcher 主流程。
+	// 其余 TimingActionBefore 的通用技能/状态仍走 dispatcher 主流程。
 	skillCtx := e.BuildContext(player, nil, model.TimingActionBefore, nil)
 	e.dispatcher.OnTiming(skillCtx.Timing, skillCtx)
 	if e.State.PendingInterrupt != nil {
@@ -205,7 +205,7 @@ func (e *GameEngine) driveActionStartStage(currentPid string, player *model.Play
 		return driveUnhandled
 	}
 
-	if e.runTimingOnBeforeActionStageHooks(player, timingOnBeforeActionResolveActionStart) {
+	if e.runActionBoundaryTimingStageHooks(player, actionBoundaryResolveActionStart) {
 		if e.State.PendingInterrupt != nil {
 			return driveStop
 		}

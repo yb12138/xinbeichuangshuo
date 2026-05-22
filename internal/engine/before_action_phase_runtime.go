@@ -54,7 +54,7 @@ func (e *GameEngine) beforeActionRecoverAfterDroppedHead() driveOutcome {
 	return driveContinueLoop
 }
 
-// beforeActionRunCardUsedIfNeeded 触发技能与状态上的「打出/展示卡牌」时点（TimingOnCardPlayedOrRevealed），例如五系封印等会在此后插入延迟伤害并优先结算。
+// beforeActionRunCardUsedIfNeeded 触发技能与状态上的「打出/展示卡牌」时点（TimingCardPlayedRevealed），例如五系封印等会在此后插入延迟伤害并优先结算。
 // virtualSkipCardDispatch：技能视为的攻击（欺诈、多重射击等）不从手牌打出实体攻击牌，规则上不走「使用那张手牌」的触发链，只记标记以免重复。
 func (e *GameEngine) beforeActionRunCardUsedIfNeeded(player *model.Player, currentPid, targetID string, head *model.QueuedAction, cardForEvent *model.Card, virtualSkipCardDispatch bool) (immediate driveOutcome, stop bool) {
 	if head.HasDispatchedCardUsed {
@@ -105,7 +105,7 @@ func (e *GameEngine) driveBeforeActionAttack(currentPid string, player *model.Pl
 	var cardForUsed *model.Card
 	if !head.UsesVirtualCard {
 		c := *head.Card
-		// 先变换卡牌（如烈焰魔女火焰形态），再触发 TimingOnCardPlayedOrRevealed
+		// 先变换卡牌（如烈焰魔女火焰形态），再触发 TimingCardPlayedRevealed
 		c = e.transformAttackCard(player, c)
 		cardForUsed = &c
 	}
