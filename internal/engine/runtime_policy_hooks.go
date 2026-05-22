@@ -65,7 +65,7 @@ func (e *GameEngine) applyTimingActionStartExecuteValidationPolicies(player *mod
 
 // RunAttackResponseCombatInteractionPolicies 在战斗交互阶段执行命中判定策略链。
 func (e *GameEngine) RunAttackResponseCombatInteractionPolicies(req *model.CombatRequest) bool {
-	result := e.dispatchRoleTimingHook(engineplayer.TimingOnCombatInteraction, engineplayer.TimingHookContext{
+	result := e.dispatchRoleTimingHook(engineplayer.TimingCombatInteraction, engineplayer.TimingHookContext{
 		CombatRequest: req,
 	})
 	return result.Interrupted
@@ -85,7 +85,7 @@ func (e *GameEngine) runAttackDeclareInterruptPolicies(attacker *model.Player, t
 
 // applyAttackResponseDefendValidation 在防御判定时执行校验策略。
 func (e *GameEngine) applyAttackResponseDefendValidation(player *model.Player, req *model.CombatRequest) error {
-	result := e.dispatchRoleTimingHook(engineplayer.TimingOnDefendValidation, engineplayer.TimingHookContext{
+	result := e.dispatchRoleTimingHook(engineplayer.TimingDefendValidation, engineplayer.TimingHookContext{
 		Player:        player,
 		CombatRequest: req,
 	})
@@ -99,7 +99,7 @@ func (e *GameEngine) applyAttackResponseCounterCardPolicy(player *model.Player, 
 		CombatRequest: req,
 		CounterCard:   &card,
 	}
-	result := e.dispatchRoleTimingHook(engineplayer.TimingOnCombatCounterCard, ctx)
+	result := e.dispatchRoleTimingHook(engineplayer.TimingCombatCounterCard, ctx)
 	if result.ValidationError != nil {
 		return false, model.Card{}, result.ValidationError
 	}
@@ -113,7 +113,7 @@ func (e *GameEngine) applyAttackResponseCounterElementPolicy(player *model.Playe
 		CombatRequest: req,
 		CounterCard:   &counterCard,
 	}
-	result := e.dispatchRoleTimingHook(engineplayer.TimingOnCounterElementCheck, ctx)
+	result := e.dispatchRoleTimingHook(engineplayer.TimingCounterElementCheck, ctx)
 	return result.Handled, result.UseFaction
 }
 
@@ -125,12 +125,12 @@ func (e *GameEngine) applyAttackResponseCounterResolvePolicy(player *model.Playe
 		CounterCardPtr: counterCard,
 		UseFaction:     useFaction,
 	}
-	e.dispatchAllRoleTimingHooks(engineplayer.TimingOnCounterResolve, ctx)
+	e.dispatchAllRoleTimingHooks(engineplayer.TimingCounterResolve, ctx)
 }
 
 // applyTimingMagicMissileDefendValidation 在魔弹防御判定时执行校验策略。
 func (e *GameEngine) applyTimingMagicMissileDefendValidation(player *model.Player, chain *model.MagicBulletChain) error {
-	result := e.dispatchRoleTimingHook(engineplayer.TimingOnMagicMissileDefend, engineplayer.TimingHookContext{
+	result := e.dispatchRoleTimingHook(engineplayer.TimingMagicMissileDefend, engineplayer.TimingHookContext{
 		Player:           player,
 		MagicBulletChain: chain,
 		UserCtx:          e.buildMagicMissileTimingContext(player, chain, model.TimingMagicMissileDefend),
@@ -140,7 +140,7 @@ func (e *GameEngine) applyTimingMagicMissileDefendValidation(player *model.Playe
 
 // applyTimingMagicMissileCounterValidation 在魔弹传递判定时执行校验策略。
 func (e *GameEngine) applyTimingMagicMissileCounterValidation(player *model.Player, chain *model.MagicBulletChain, card model.Card) error {
-	result := e.dispatchRoleTimingHook(engineplayer.TimingOnMagicMissileCounter, engineplayer.TimingHookContext{
+	result := e.dispatchRoleTimingHook(engineplayer.TimingMagicMissileCounter, engineplayer.TimingHookContext{
 		Player:           player,
 		MagicBulletChain: chain,
 		Card:             &card,
@@ -149,8 +149,8 @@ func (e *GameEngine) applyTimingMagicMissileCounterValidation(player *model.Play
 	return result.ValidationError
 }
 
-// applyTimingOnMagicMissileResponseSkillAugment 在魔弹响应窗口构建前追加可用响应技能。
-func (e *GameEngine) applyTimingOnMagicMissileResponseSkillAugment(skillIDs []string, player *model.Player, chain *model.MagicBulletChain) []string {
+// applyTimingMagicMissileResponseSkillAugment 在魔弹响应窗口构建前追加可用响应技能。
+func (e *GameEngine) applyTimingMagicMissileResponseSkillAugment(skillIDs []string, player *model.Player, chain *model.MagicBulletChain) []string {
 	if e == nil || player == nil || chain == nil {
 		return skillIDs
 	}
@@ -160,7 +160,7 @@ func (e *GameEngine) applyTimingOnMagicMissileResponseSkillAugment(skillIDs []st
 		MagicBulletChain: chain,
 		UserCtx:          e.buildMagicMissileTimingContext(player, chain, model.TimingMagicMissileResponseSkill),
 	}
-	result := e.dispatchAllRoleTimingHooks(engineplayer.TimingOnMagicMissileResponseSkillAug, timingCtx)
+	result := e.dispatchAllRoleTimingHooks(engineplayer.TimingMagicMissileResponseSkillAug, timingCtx)
 	if len(result.SkillIDs) > 0 {
 		return result.SkillIDs
 	}
@@ -187,7 +187,7 @@ func (sd *SkillDispatcher) applyAttackResponseSkillAugment(skillIDs []string, ct
 		OfferedSkillIDs: skillIDs,
 		UserCtx:         ctx,
 	}
-	result := sd.engine.dispatchAllRoleTimingHooks(engineplayer.TimingOnResponseSkillAug, timingCtx)
+	result := sd.engine.dispatchAllRoleTimingHooks(engineplayer.TimingResponseSkillAug, timingCtx)
 	if len(result.SkillIDs) > 0 {
 		return result.SkillIDs
 	}
@@ -203,7 +203,7 @@ func (sd *SkillDispatcher) applyAttackResponseSkillNormalize(skillIDs []string, 
 		OfferedSkillIDs: skillIDs,
 		UserCtx:         ctx,
 	}
-	result := sd.engine.dispatchAllRoleTimingHooks(engineplayer.TimingOnResponseSkillNormalize, timingCtx)
+	result := sd.engine.dispatchAllRoleTimingHooks(engineplayer.TimingResponseSkillNormalize, timingCtx)
 	if len(result.SkillIDs) > 0 {
 		return result.SkillIDs
 	}

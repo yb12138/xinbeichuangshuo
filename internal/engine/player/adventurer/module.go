@@ -19,8 +19,8 @@ func RoleEntry() player.RoleEntry {
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
 		TimingHookSpecs: []player.TimingHookSpec{
-			{Timing: player.TimingOnSpecialActionOverride, Priority: 100, Hook: undergroundLawOverrideHook},
-			{Timing: player.TimingOnSpecialActionOverride, Priority: 200, Hook: extractOverrideHook},
+			{Timing: player.TimingSpecialActionOverride, Priority: 100, Hook: undergroundLawOverrideHook},
+			{Timing: player.TimingSpecialActionOverride, Priority: 200, Hook: extractOverrideHook},
 		},
 		SpecialActionHook: player.SpecialActionHookSpec{
 			BuyRewardOverride: func(p *model.Player, campStones int, maxStones int) player.BuyRewardResult {

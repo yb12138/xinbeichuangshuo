@@ -32,31 +32,20 @@ const (
 	TimingAttackMiss           TimingPoint = model.TimingAttackMiss // 攻击未命中后
 	TimingAttackDeclareRuntime TimingPoint = "on_attack_declared_interrupt"
 
-	// Deprecated: use TimingAttackNoResponse.
-	TimingOnAttackGating TimingPoint = TimingAttackNoResponse
-	// Deprecated: use TimingAttackModifyCard.
-	TimingOnAttackCardHook TimingPoint = TimingAttackModifyCard
-	// Deprecated: use TimingAttackStateReset.
-	TimingOnAttackStateReset TimingPoint = TimingAttackStateReset
-	// Deprecated: use TimingAttackSelectTarget.
-	TimingOnAttackTargetCtx TimingPoint = TimingAttackSelectTarget
-	// Deprecated: use TimingAttackMiss.
-	TimingOnAttackMiss TimingPoint = TimingAttackMiss
-
 	// 新增 - 命中判定阶段
-	TimingOnCounterPolicy                TimingPoint = "on_counter_policy"                   // 反击策略
-	TimingOnDefendValidation             TimingPoint = "on_defend_validation"                // 防御验证
-	TimingOnResponseSkillAug             TimingPoint = "on_response_skill_aug"               // 响应技能增强
-	TimingOnResponseSkillNormalize       TimingPoint = "on_response_skill_normalize"         // 响应技能规范化
-	TimingOnResponseSkillAdvance         TimingPoint = "on_response_skill_advance"           // 响应技能推进（格斗家蓄力→气绝）
-	TimingOnResponseSkillSkip            TimingPoint = "on_response_skill_skip"              // 响应技能跳过后（圣枪圣击）
-	TimingOnCombatInteraction            TimingPoint = "on_combat_interaction"               // 战斗交互（阴阳师绑定等）
-	TimingOnCounterCardPolicy            TimingPoint = "on_counter_card_policy"              // 反击卡牌策略
-	TimingOnCounterElementCheck          TimingPoint = "on_counter_element_check"            // 反击元素检查
-	TimingOnCounterResolve               TimingPoint = "on_counter_resolve"                  // 反击结算
-	TimingOnMagicMissileDefend           TimingPoint = "on_magic_missile_defend"             // 魔弹链防御验证
-	TimingOnMagicMissileCounter          TimingPoint = "on_magic_missile_counter"            // 魔弹链反击验证
-	TimingOnMagicMissileResponseSkillAug TimingPoint = "on_magic_missile_response_skill_aug" // 魔弹响应技能增强
+	TimingCounterPolicy                TimingPoint = "on_counter_policy"                   // 反击策略
+	TimingDefendValidation             TimingPoint = "on_defend_validation"                // 防御验证
+	TimingResponseSkillAug             TimingPoint = "on_response_skill_aug"               // 响应技能增强
+	TimingResponseSkillNormalize       TimingPoint = "on_response_skill_normalize"         // 响应技能规范化
+	TimingResponseSkillAdvance         TimingPoint = "on_response_skill_advance"           // 响应技能推进（格斗家蓄力→气绝）
+	TimingResponseSkillSkip            TimingPoint = "on_response_skill_skip"              // 响应技能跳过后（圣枪圣击）
+	TimingCombatInteraction            TimingPoint = "on_combat_interaction"               // 战斗交互（阴阳师绑定等）
+	TimingCounterCardPolicy            TimingPoint = "on_counter_card_policy"              // 反击卡牌策略
+	TimingCounterElementCheck          TimingPoint = "on_counter_element_check"            // 反击元素检查
+	TimingCounterResolve               TimingPoint = "on_counter_resolve"                  // 反击结算
+	TimingMagicMissileDefend           TimingPoint = "on_magic_missile_defend"             // 魔弹链防御验证
+	TimingMagicMissileCounter          TimingPoint = "on_magic_missile_counter"            // 魔弹链反击验证
+	TimingMagicMissileResponseSkillAug TimingPoint = "on_magic_missile_response_skill_aug" // 魔弹响应技能增强
 
 	// 新增 - 伤害阶段
 	TimingDamageSourceDeal   TimingPoint = model.TimingDamageSourceDeal   // 伤害来源造成伤害
@@ -68,42 +57,25 @@ const (
 	TimingHealBefore         TimingPoint = model.TimingHealBefore         // 治愈抵抗规则
 	TimingHealCap            TimingPoint = model.TimingHealCap            // 治疗抵伤额度计算（牧师上限）
 
-	// Deprecated: use TimingDamageSourceDeal.
-	TimingOnDamageCalculate TimingPoint = TimingDamageSourceDeal
-	// Deprecated: use TimingDamageTargetBefore.
-	TimingOnDamageBeforeTaken TimingPoint = TimingDamageTargetBefore
-	// Deprecated: use TimingDamageAfterTaken.
-	TimingOnDamageAfterTaken TimingPoint = TimingDamageAfterTaken
-	// Deprecated: use TimingDamageApplied.
-	TimingOnDamageApplied TimingPoint = TimingDamageApplied
-	// Deprecated: use TimingDamageAfterApply.
-	TimingOnDamageAfterApply TimingPoint = TimingDamageAfterApply
-	// Deprecated: use TimingHealBefore.
-	TimingOnHealResist TimingPoint = TimingHealBefore
-	// Deprecated: use TimingHealCap.
-	TimingOnHealCapCalculate TimingPoint = TimingHealCap
-
 	// 新增 - 特殊阶段
-	TimingOnGameStart      TimingPoint = "on_game_start"       // 游戏开始
-	TimingOnPlayerAdded    TimingPoint = "on_player_added"     // 玩家加入
-	TimingOnCampChanged    TimingPoint = "on_camp_changed"     // 阵营变化
-	TimingOnPlayerSetup    TimingPoint = "on_player_setup"     // 玩家设置（加入后初始化派生状态）
-	TimingOnCampCupChanged TimingPoint = "on_camp_cup_changed" // 阵营杯子变化（派生状态同步）
+	TimingGameStart      TimingPoint = "on_game_start"       // 游戏开始
+	TimingPlayerAdded    TimingPoint = "on_player_added"     // 玩家加入
+	TimingCampChanged    TimingPoint = "on_camp_changed"     // 阵营变化
+	TimingPlayerSetup    TimingPoint = "on_player_setup"     // 玩家设置（加入后初始化派生状态）
+	TimingCampCupChanged TimingPoint = "on_camp_cup_changed" // 阵营杯子变化（派生状态同步）
 
 	// 新增 - 士气损失阶段
-	TimingOnMoraleLossApplied TimingPoint = model.TimingMoraleLossApplied // 士气损失应用后（伤害驱动的角色效果）
+	TimingMoraleLossApplied TimingPoint = model.TimingMoraleLossApplied // 士气损失应用后（伤害驱动的角色效果）
 
 	// 新增 - 行动选择策略（原 PolicySpec）
-	TimingActionStartOption       TimingPoint = "before_action_option"       // 行动选项策略
-	TimingActionStartValidation   TimingPoint = "before_action_validation"   // 行动验证策略
-	TimingAttackDeclareInterrupt  TimingPoint = TimingAttackDeclareRuntime   // 攻击宣言中断
-	TimingOnCombatCounterCard     TimingPoint = "on_combat_counter_card"     // 反击卡牌策略
-	TimingAfterCannotAct          TimingPoint = "on_after_cannot_act"        // 无法行动后续
-	TimingOnSpecialActionOverride TimingPoint = "on_special_action_override" // 特殊行动覆盖
-	TimingOnSpecialActionPost     TimingPoint = "on_special_action_post"     // 特殊行动后置
-	TimingOnSkillPost             TimingPoint = "on_skill_post"              // 技能后置钩子
-	TimingOnAttackCardTransform   TimingPoint = model.TimingAttackModifyCard // 攻击牌变换
-
+	TimingActionStartOption      TimingPoint = "before_action_option"       // 行动选项策略
+	TimingActionStartValidation  TimingPoint = "before_action_validation"   // 行动验证策略
+	TimingAttackDeclareInterrupt TimingPoint = TimingAttackDeclareRuntime   // 攻击宣言中断
+	TimingCombatCounterCard      TimingPoint = "on_combat_counter_card"     // 反击卡牌策略
+	TimingAfterCannotAct         TimingPoint = "on_after_cannot_act"        // 无法行动后续
+	TimingSpecialActionOverride  TimingPoint = "on_special_action_override" // 特殊行动覆盖
+	TimingSpecialActionPost      TimingPoint = "on_special_action_post"     // 特殊行动后置
+	TimingSkillPost              TimingPoint = "on_skill_post"              // 技能后置钩子
 )
 
 // TimingHookSpec 角色贡献到全局 timing hook 链的条目。

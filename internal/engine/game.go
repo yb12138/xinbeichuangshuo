@@ -31,7 +31,7 @@ type GameEngine struct {
 	// Turn 主流程阶段：动态装配阶段钩子与中断策略。
 	beforeActionFieldHooks []turnTimingHook
 
-	// TimingOnGameStart：入场初始化 / 开局发牌后。
+	// TimingGameStart：入场初始化 / 开局发牌后。
 	gameStartAddPlayerHooks   []gameStartPlayerHook
 	gameStartInitialDealHooks []gameStartPlayerHook
 	// turnMagicDamageTargets 本回合「施法者 → 曾对其造成法术伤害的敌方」；用于吟游诗人【沉沦协奏曲】等统计。

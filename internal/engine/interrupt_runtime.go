@@ -332,7 +332,7 @@ func (e *GameEngine) maybeAdvanceResponseSkillSelection() bool {
 	}
 
 	// 角色响应技能推进（如格斗家蓄力→气绝）
-	advanceResult := e.dispatchRoleTimingHook(playerpkg.TimingOnResponseSkillAdvance, playerpkg.TimingHookContext{
+	advanceResult := e.dispatchRoleTimingHook(playerpkg.TimingResponseSkillAdvance, playerpkg.TimingHookContext{
 		Player:          player,
 		OfferedSkillIDs: intr.SkillIDs,
 		UserCtx:         ctx,

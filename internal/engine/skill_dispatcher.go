@@ -172,5 +172,5 @@ func (e *GameEngine) runTimingActionEndSkillPost(use *skillUseRequest) {
 		Player:  use.player,
 		SkillID: use.skillID,
 	}
-	e.dispatchAllRoleTimingHooks(playerpkg.TimingOnSkillPost, ctx)
+	e.dispatchAllRoleTimingHooks(playerpkg.TimingSkillPost, ctx)
 }

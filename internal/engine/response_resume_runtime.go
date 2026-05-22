@@ -149,7 +149,7 @@ func (e *GameEngine) runTimingOnResponseSkipEffects(state *responseResumeState) 
 	if state == nil {
 		return
 	}
-	e.dispatchRoleTimingHook(engineplayer.TimingOnResponseSkillSkip, engineplayer.TimingHookContext{
+	e.dispatchRoleTimingHook(engineplayer.TimingResponseSkillSkip, engineplayer.TimingHookContext{
 		TargetID:       state.playerID,
 		OfferedSkillID: state.skillID,
 		OfferedSkills:  state.offeredSkills,

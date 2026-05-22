@@ -21,9 +21,9 @@ func RoleEntry() player.RoleEntry {
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
 		TimingHookSpecs: []player.TimingHookSpec{
 			{Timing: player.TimingTurnEndPreExtra, Priority: 100, Hook: turnEndDarkRitualHook},
-			{Timing: player.TimingOnCombatInteraction, Priority: 100, Hook: combatInteractionTimingHook},
-			{Timing: player.TimingOnCounterElementCheck, Priority: 100, Hook: factionElementHook},
-			{Timing: player.TimingOnCounterResolve, Priority: 100, Hook: factionResolveHook},
+			{Timing: player.TimingCombatInteraction, Priority: 100, Hook: combatInteractionTimingHook},
+			{Timing: player.TimingCounterElementCheck, Priority: 100, Hook: factionElementHook},
+			{Timing: player.TimingCounterResolve, Priority: 100, Hook: factionResolveHook},
 		},
 		SkillUsabilityCheckers: map[string]player.SkillUsabilityChecker{
 			"onmyoji_shikigami_descend": CheckShikigamiDescendUsability,

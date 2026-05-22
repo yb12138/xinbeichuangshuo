@@ -22,8 +22,8 @@ func RoleEntry() player.RoleEntry {
 			{Timing: player.TimingAttackNoResponse, Priority: 200, Hook: attackGatingHook},
 			{Timing: player.TimingPostAttackHit, Priority: 500, Hook: postAttackHitHook},
 			{Timing: player.TimingActionStart, Priority: 100, Hook: beforeActionShadowReleaseHook},
-			{Timing: player.TimingOnCombatInteraction, Priority: 400, Hook: darkElementResponseHook},
-			{Timing: player.TimingOnCombatCounterCard, Priority: 100, Hook: shadowRejectMagicBulletHook},
+			{Timing: player.TimingCombatInteraction, Priority: 400, Hook: darkElementResponseHook},
+			{Timing: player.TimingCombatCounterCard, Priority: 100, Hook: shadowRejectMagicBulletHook},
 			{Timing: player.TimingAfterCannotAct, Priority: 100, Hook: cannotActRedrawHook},
 		},
 		SkillUsabilityCheckers: map[string]player.SkillUsabilityChecker{

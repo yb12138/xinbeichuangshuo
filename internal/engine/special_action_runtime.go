@@ -246,7 +246,7 @@ func (e *GameEngine) applyTimingActionStartExecuteSpecialActionOverride(player *
 		Player:     player,
 		ActionType: actionType,
 	}
-	result := e.dispatchRoleTimingHook(playerpkg.TimingOnSpecialActionOverride, ctx)
+	result := e.dispatchRoleTimingHook(playerpkg.TimingSpecialActionOverride, ctx)
 	if result.ValidationError != nil {
 		return false, result.ValidationError
 	}
@@ -259,5 +259,5 @@ func (e *GameEngine) runTimingActionEndSpecialActionPost(player *model.Player, a
 		Player:     player,
 		ActionType: actionType,
 	}
-	e.dispatchAllRoleTimingHooks(playerpkg.TimingOnSpecialActionPost, ctx)
+	e.dispatchAllRoleTimingHooks(playerpkg.TimingSpecialActionPost, ctx)
 }

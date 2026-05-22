@@ -315,7 +315,7 @@ func (e *GameEngine) offerMagicMissileResponseSkills() {
 	if player == nil {
 		return
 	}
-	skillIDs := e.applyTimingOnMagicMissileResponseSkillAugment(nil, player, chain)
+	skillIDs := e.applyTimingMagicMissileResponseSkillAugment(nil, player, chain)
 	if len(skillIDs) == 0 {
 		return
 	}

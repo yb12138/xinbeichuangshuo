@@ -41,7 +41,7 @@ func (e *GameEngine) ApplyMoraleLossAfterTimingWindow(victim *model.Player, mora
 			entry.AfterMoraleLossHook(e, victim, finalLoss, fromDamageDraw)
 		}
 	}
-	e.dispatchRoleTimingHook(engineplayer.TimingOnMoraleLossApplied, engineplayer.TimingHookContext{
+	e.dispatchRoleTimingHook(engineplayer.TimingMoraleLossApplied, engineplayer.TimingHookContext{
 		TargetID:       victim.ID,
 		IsMagicDamage:  isMagic,
 		FromDamageDraw: fromDamageDraw,

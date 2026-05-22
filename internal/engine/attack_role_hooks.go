@@ -83,7 +83,7 @@ func (e *GameEngine) applyAttackModifyCardTransforms(player *model.Player, card 
 		Player:      player,
 		CounterCard: &card,
 	}
-	result := e.dispatchRoleTimingHook(engineplayer.TimingOnAttackCardTransform, ctx)
+	result := e.dispatchRoleTimingHook(engineplayer.TimingAttackModifyCard, ctx)
 	if result.Handled && result.Card.Name != "" {
 		return result.Card
 	}

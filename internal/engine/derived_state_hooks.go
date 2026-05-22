@@ -14,19 +14,19 @@ const (
 	timingOnCampChangedCampCup
 )
 
-// runTimingOnCampChangedHooks 统一处理 TimingOnCampChanged 阶段规则。
-func (e *GameEngine) runTimingOnCampChangedHooks(player *model.Player, _ model.Camp, stage timingOnCampChangedStage) {
+// runTimingCampChangedHooks 统一处理 TimingCampChanged 阶段规则。
+func (e *GameEngine) runTimingCampChangedHooks(player *model.Player, _ model.Camp, stage timingOnCampChangedStage) {
 	switch stage {
 	case timingOnCampChangedPlayerSetup:
 		if player != nil {
-			e.dispatchRoleTimingHook(engineplayer.TimingOnPlayerSetup, engineplayer.TimingHookContext{
+			e.dispatchRoleTimingHook(engineplayer.TimingPlayerSetup, engineplayer.TimingHookContext{
 				TargetID: player.ID,
 			})
 		}
 	case timingOnCampChangedCampCup:
-		e.dispatchAllRoleTimingHooks(engineplayer.TimingOnCampCupChanged, engineplayer.TimingHookContext{})
+		e.dispatchAllRoleTimingHooks(engineplayer.TimingCampCupChanged, engineplayer.TimingHookContext{})
 	default:
-		panic("unregistered TimingOnCampChanged stage")
+		panic("unregistered TimingCampChanged stage")
 	}
 }
 
@@ -36,7 +36,7 @@ func (e *GameEngine) refreshPlayerDerivedState(player *model.Player) {
 
 // refreshTimingDerivedStateOnPlayerSetup 在玩家初始化/刷新时同步派生状态。
 func (e *GameEngine) refreshTimingDerivedStateOnPlayerSetup(player *model.Player) {
-	e.runTimingOnCampChangedHooks(player, "", timingOnCampChangedPlayerSetup)
+	e.runTimingCampChangedHooks(player, "", timingOnCampChangedPlayerSetup)
 }
 
 func (e *GameEngine) RefreshAllPlayerDerivedStates() {
@@ -65,7 +65,7 @@ func (e *GameEngine) RefreshAllPlayerDerivedStates() {
 
 // refreshTimingDerivedStateOnCampCupChanged 在星杯变化时同步相关派生状态。
 func (e *GameEngine) refreshTimingDerivedStateOnCampCupChanged(changedCamp model.Camp) {
-	e.runTimingOnCampChangedHooks(nil, changedCamp, timingOnCampChangedCampCup)
+	e.runTimingCampChangedHooks(nil, changedCamp, timingOnCampChangedCampCup)
 }
 
 func (e *GameEngine) AddCampCup(camp model.Camp) bool {

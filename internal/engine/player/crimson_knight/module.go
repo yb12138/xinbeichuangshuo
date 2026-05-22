@@ -19,7 +19,7 @@ func RoleEntry() player.RoleEntry {
 		TimingHookSpecs: []player.TimingHookSpec{
 			{Timing: player.TimingHealBefore, Priority: 200, Hook: healResistHook},
 			{Timing: player.TimingTurnEndPreExtra, Priority: 600, Hook: turnEndHook},
-			{Timing: player.TimingOnMoraleLossApplied, Priority: 100, Hook: moraleLossHook},
+			{Timing: player.TimingMoraleLossApplied, Priority: 100, Hook: moraleLossHook},
 		},
 		MoraleLossModifier: func(engine player.MoraleLossModifierEngine, camp model.Camp, current int, proposedLoss int, extra player.MoraleLossModifierExtra) int {
 			if extra.Victim != nil && (extra.FromDamageDraw || extra.IsDamageResolution) {

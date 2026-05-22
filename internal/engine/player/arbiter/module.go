@@ -22,7 +22,7 @@ func RoleEntry() player.RoleEntry {
 			{Timing: player.TimingTurnStart, Priority: 300, Hook: turnStartForcedDoomsdayHook},
 			{Timing: player.TimingActionStartOption, Priority: 100, Hook: beforeActionOptionHook, RoleFilter: &player.HookRoleNone},
 			{Timing: player.TimingActionStartValidation, Priority: 100, Hook: beforeActionValidationHook, RoleFilter: &player.HookRoleNone},
-			{Timing: player.TimingOnSkillPost, Priority: 100, Hook: skillPostCleanupHook, RoleFilter: &player.HookRoleNone},
+			{Timing: player.TimingSkillPost, Priority: 100, Hook: skillPostCleanupHook, RoleFilter: &player.HookRoleNone},
 		},
 	}
 }

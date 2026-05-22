@@ -19,7 +19,7 @@ func RoleEntry() player.RoleEntry {
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
 		TimingHookSpecs: []player.TimingHookSpec{
 			{Timing: player.TimingHealBefore, Priority: 300, Hook: healResistHook},
-			{Timing: player.TimingOnMoraleLossApplied, Priority: 100, Hook: moraleLossAppliedHook},
+			{Timing: player.TimingMoraleLossApplied, Priority: 100, Hook: moraleLossAppliedHook},
 			{Timing: player.TimingTurnEndPreExtra, Priority: 400, Hook: turnEndHook},
 		},
 	}

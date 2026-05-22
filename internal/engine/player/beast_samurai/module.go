@@ -26,7 +26,7 @@ func RoleEntry() player.RoleEntry {
 			{Timing: player.TimingPostDamageResolved, Priority: 100, Hook: postDamageResolvedHook},
 			{Timing: player.TimingTurnEndPreExtra, Priority: 100, Hook: turnEndHook},
 			{Timing: player.TimingTurnEndFinal, Priority: 100, Hook: turnEndFinalHook},
-			{Timing: player.TimingOnResponseSkillAug, Priority: 100, Hook: responseSkillAugmentHook},
+			{Timing: player.TimingResponseSkillAug, Priority: 100, Hook: responseSkillAugmentHook},
 		},
 	}
 }
