@@ -2,25 +2,64 @@ package model
 
 // Context 上 Timing-first 的语义查询。
 
-// AttackDeclaredPhase 主动攻击宣告/攻击开始窗口。
-func (ctx *Context) AttackDeclaredPhase() bool {
+func (ctx *Context) timingPhase(rulebook Timing, legacy ...Timing) bool {
 	if ctx == nil {
 		return false
 	}
-	switch ctx.Timing {
-	case TimingAttackDeclare, TimingOnAttackDeclared:
+	if ctx.Timing == rulebook {
 		return true
-	default:
-		return false
 	}
+	for _, t := range legacy {
+		if ctx.Timing == t {
+			return true
+		}
+	}
+	return false
+}
+
+// AttackDeclarePhase 主动攻击宣告/攻击开始窗口。
+func (ctx *Context) AttackDeclarePhase() bool {
+	return ctx.timingPhase(TimingAttackDeclare, TimingOnAttackDeclared, Timing("on_attack_declared"))
+}
+
+// AttackDeclaredPhase 主动攻击宣告/攻击开始窗口。
+func (ctx *Context) AttackDeclaredPhase() bool {
+	return ctx.AttackDeclarePhase()
+}
+
+// AttackSelectTargetPhase 表示主动攻击选择目标窗口。
+func (ctx *Context) AttackSelectTargetPhase() bool {
+	return ctx.timingPhase(TimingAttackSelectTarget, Timing("on_attack_target_ctx"), TimingOnAttackDeclared)
+}
+
+// AttackPlayCardPhase 表示主动攻击出牌窗口。
+func (ctx *Context) AttackPlayCardPhase() bool {
+	return ctx.timingPhase(TimingAttackPlayCard, TimingOnAttackDeclared, Timing("on_attack_declared"))
+}
+
+// AttackModifyCardPhase 表示主动攻击牌面修正窗口。
+func (ctx *Context) AttackModifyCardPhase() bool {
+	return ctx.timingPhase(TimingAttackModifyCard, Timing("on_attack_card_hook"), Timing("on_attack_card_transform"), TimingOnAttackDeclared)
 }
 
 // AttackCommittedPhase 表示一次主动/应战攻击已经完成阶段①提交。
 func (ctx *Context) AttackCommittedPhase() bool {
-	if ctx == nil {
-		return false
-	}
-	return ctx.Timing == TimingAttackCommitted
+	return ctx.timingPhase(TimingAttackCommitted, TimingOnAttackDeclared, Timing("on_attack_declared"))
+}
+
+// AttackForceHitCheckPhase 表示强制命中检查窗口。
+func (ctx *Context) AttackForceHitCheckPhase() bool {
+	return ctx.timingPhase(TimingAttackForceHitCheck, TimingOnHitCheck, Timing("on_hit_check"))
+}
+
+// AttackNoResponseCheckPhase 表示不可响应/免响应检查窗口。
+func (ctx *Context) AttackNoResponseCheckPhase() bool {
+	return ctx.timingPhase(TimingAttackNoResponseCheck, Timing("on_attack_gating"), TimingOnHitCheck, Timing("on_hit_check"))
+}
+
+// AttackResponsePhase 表示攻击响应窗口。
+func (ctx *Context) AttackResponsePhase() bool {
+	return ctx.timingPhase(TimingAttackResponse, TimingOnHitCheck, Timing("on_hit_check"))
 }
 
 // BeforeDrawPhase 表示“摸牌前”窗口。
@@ -54,10 +93,13 @@ func (ctx *Context) AttackHitPhase() bool {
 	if ctx == nil {
 		return false
 	}
-	if ctx.Timing == TimingAttackHit {
+	if ctx.timingPhase(TimingAttackHit, Timing("post_attack_hit")) {
 		return true
 	}
-	return ctx.Timing == TimingOnHitCheck && ctx.EventCtx != nil && ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.IsHit
+	return (ctx.Timing == TimingOnHitCheck || ctx.Timing == Timing("on_hit_check")) &&
+		ctx.EventCtx != nil &&
+		ctx.EventCtx.AttackInfo != nil &&
+		ctx.EventCtx.AttackInfo.IsHit
 }
 
 // ResumeAttackHitPhase 响应恢复：攻击命中分支。
@@ -70,10 +112,13 @@ func (ctx *Context) AttackMissPhase() bool {
 	if ctx == nil {
 		return false
 	}
-	if ctx.Timing == TimingAttackMiss {
+	if ctx.timingPhase(TimingAttackMiss, Timing("on_attack_miss")) {
 		return true
 	}
-	return ctx.Timing == TimingOnHitCheck && ctx.EventCtx != nil && ctx.EventCtx.AttackInfo != nil && !ctx.EventCtx.AttackInfo.IsHit
+	return (ctx.Timing == TimingOnHitCheck || ctx.Timing == Timing("on_hit_check")) &&
+		ctx.EventCtx != nil &&
+		ctx.EventCtx.AttackInfo != nil &&
+		!ctx.EventCtx.AttackInfo.IsHit
 }
 
 // ResumeAttackMissPhase 响应恢复：攻击未命中分支。
@@ -81,20 +126,44 @@ func (ctx *Context) ResumeAttackMissPhase() bool {
 	return ctx.AttackMissPhase()
 }
 
+// MagicDeclarePhase 表示主动法术宣告窗口。
+func (ctx *Context) MagicDeclarePhase() bool {
+	return ctx.timingPhase(TimingMagicDeclare, TimingOnMagicDeclared)
+}
+
 // MagicResolvePhase 表示主动法术进入效果结算。
 func (ctx *Context) MagicResolvePhase() bool {
-	if ctx == nil {
-		return false
-	}
-	return ctx.Timing == TimingMagicResolve
+	return ctx.timingPhase(TimingMagicResolve, TimingOnMagicDeclared)
+}
+
+// DamageSourceDealPhase 表示伤害来源造成伤害窗口。
+func (ctx *Context) DamageSourceDealPhase() bool {
+	return ctx.timingPhase(TimingDamageSourceDeal, TimingOnDamageCalculated, Timing("on_damage_calculate"))
+}
+
+// DamageTargetBeforePhase 表示伤害目标承伤前窗口。
+func (ctx *Context) DamageTargetBeforePhase() bool {
+	return ctx.timingPhase(TimingDamageTargetBefore, Timing("on_damage_before_taken"))
+}
+
+// DamageAppliedPhase 表示伤害已应用窗口。
+func (ctx *Context) DamageAppliedPhase() bool {
+	return ctx.timingPhase(TimingDamageApplied, TimingOnDamageApplied, Timing("on_damage_applied"))
+}
+
+// DamageTakenPhase 表示伤害目标已承伤窗口。
+func (ctx *Context) DamageTakenPhase() bool {
+	return ctx.timingPhase(TimingDamageTaken, TimingOnDamageTaken, Timing("on_damage_taken"))
+}
+
+// DamageResolvedPhase 表示伤害流程完成窗口。
+func (ctx *Context) DamageResolvedPhase() bool {
+	return ctx.timingPhase(TimingDamageResolved, Timing("post_damage_resolved"), Timing("on_damage_after_apply"))
 }
 
 // ResumeDamageTakenPhase 承伤响应恢复上下文。
 func (ctx *Context) ResumeDamageTakenPhase() bool {
-	if ctx == nil {
-		return false
-	}
-	return ctx.Timing == TimingDamageTaken || ctx.Timing == TimingOnDamageTaken
+	return ctx.DamageTakenPhase()
 }
 
 // ResumeBeforeMoraleLossPhase 士气下降前响应恢复上下文。
