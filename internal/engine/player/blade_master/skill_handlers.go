@@ -54,7 +54,7 @@ func (h *WindFuryHandler) Execute(ctx *model.Context) error {
 type HolySwordHandler struct{ BaseHandler }
 
 func (h *HolySwordHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.Timing != model.TimingOnAttackDeclared || ctx.EventCtx == nil || ctx.EventCtx.AttackInfo == nil {
+	if ctx == nil || ctx.User == nil || !ctx.AttackDeclarePhase() || ctx.EventCtx == nil || ctx.EventCtx.AttackInfo == nil {
 		return false
 	}
 	if ctx.EventCtx.AttackInfo.ActionType != string(model.ActionAttack) || ctx.EventCtx.AttackInfo.CounterInitiator != "" {
@@ -116,7 +116,7 @@ func (h *GaleSkillHandler) Execute(ctx *model.Context) error {
 type GaleSlashHandler struct{ BaseHandler }
 
 func (h *GaleSlashHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.Timing != model.TimingOnAttackDeclared || ctx.Target == nil || ctx.EventCtx == nil || ctx.EventCtx.AttackInfo == nil {
+	if ctx == nil || !ctx.AttackDeclarePhase() || ctx.Target == nil || ctx.EventCtx == nil || ctx.EventCtx.AttackInfo == nil {
 		return false
 	}
 	if ctx.EventCtx.AttackInfo.ActionType != string(model.ActionAttack) || ctx.EventCtx.AttackInfo.CounterInitiator != "" {

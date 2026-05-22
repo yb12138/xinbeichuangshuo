@@ -17,11 +17,11 @@ type BaseHandler = engineplayer.BaseHandler
 type CrimsonBloodThornsHandler struct{ BaseHandler }
 
 func (h *CrimsonBloodThornsHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.Timing != model.TimingOnHitCheck || ctx.EventCtx == nil || ctx.EventCtx.AttackInfo == nil {
+	if ctx == nil || !ctx.AttackHitPhase() || ctx.EventCtx == nil || ctx.EventCtx.AttackInfo == nil {
 		return false
 	}
 	info := ctx.EventCtx.AttackInfo
-	return info.ActionType == string(model.ActionAttack) && info.IsHit
+	return info.ActionType == string(model.ActionAttack)
 }
 
 func (h *CrimsonBloodThornsHandler) Execute(ctx *model.Context) error {
@@ -94,7 +94,7 @@ func (h *CrimsonBloodRoseHandler) Execute(ctx *model.Context) error {
 type CrimsonBloodBarrierHandler struct{ BaseHandler }
 
 func (h *CrimsonBloodBarrierHandler) CanUse(ctx *model.Context) bool {
-	if ctx.Timing != model.TimingOnDamageTaken || ctx.EventCtx == nil {
+	if !ctx.DamageTakenPhase() || ctx.EventCtx == nil {
 		return false
 	}
 	if !ctx.Flags["IsMagicDamage"] {

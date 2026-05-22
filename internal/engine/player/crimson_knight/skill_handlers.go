@@ -30,7 +30,7 @@ func (h *CrimsonKnightCrimsonPactHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Timing != model.TimingOnAttackDeclared {
+	if !ctx.AttackDeclarePhase() {
 		return false
 	}
 	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
@@ -97,16 +97,13 @@ func (h *CrimsonKnightKillingFeastHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Timing != model.TimingOnHitCheck {
+	if !ctx.AttackHitPhase() {
 		return false
 	}
 	if ctx.EventCtx.AttackInfo == nil {
 		return false
 	}
 	if ctx.EventCtx.AttackInfo.ActionType != string(model.ActionAttack) {
-		return false
-	}
-	if !ctx.EventCtx.AttackInfo.IsHit {
 		return false
 	}
 	if ctx.EventCtx.AttackInfo.CounterInitiator != "" {

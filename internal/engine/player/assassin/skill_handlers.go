@@ -17,7 +17,7 @@ type BaseHandler = engineplayer.BaseHandler
 type BacklashHandler struct{ BaseHandler }
 
 func (h *BacklashHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.Timing != model.TimingOnDamageTaken || ctx.EventCtx == nil {
+	if ctx == nil || !ctx.DamageTakenPhase() || ctx.EventCtx == nil {
 		return false
 	}
 	if ctx.EventCtx.DamageVal == nil || *ctx.EventCtx.DamageVal <= 0 {

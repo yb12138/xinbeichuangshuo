@@ -57,7 +57,7 @@ func (h *PrayerRuneGainHandler) CanUse(ctx *model.Context) bool {
 	if !engineplayer.HasForm(ctx.User, model.FormPrayerMasterPrayer) {
 		return false
 	}
-	if ctx.Timing != model.TimingOnAttackDeclared {
+	if !ctx.AttackDeclarePhase() {
 		return false
 	}
 	// 仅主动攻击

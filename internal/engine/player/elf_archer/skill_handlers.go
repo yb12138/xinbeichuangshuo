@@ -25,7 +25,7 @@ type ElfPetEmpowerHandler struct{ engineplayer.BaseHandler }
 
 // CanUse implements engineplayer.BaseHandler for ElfElementalShotHandler.
 func (h *ElfElementalShotHandler) CanUse(ctx *model.Context) bool {
-	if ctx.Timing != model.TimingOnAttackDeclared || ctx.EventCtx == nil || ctx.EventCtx.Card == nil {
+	if !ctx.AttackDeclarePhase() || ctx.EventCtx == nil || ctx.EventCtx.Card == nil {
 		return false
 	}
 	if ctx.EventCtx.Card.Element == model.ElementDark {
@@ -93,7 +93,7 @@ func (h *ElfAnimalCompanionHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.Target == nil || ctx.EventCtx == nil || ctx.EventCtx.DamageVal == nil {
 		return false
 	}
-	if ctx.Timing != model.TimingOnDamageTaken || *ctx.EventCtx.DamageVal <= 0 {
+	if !ctx.DamageTakenPhase() || *ctx.EventCtx.DamageVal <= 0 {
 		return false
 	}
 	if ctx.EventCtx.SourceID != ctx.User.ID || ctx.EventCtx.TargetID == "" || ctx.EventCtx.TargetID == ctx.User.ID {
@@ -146,7 +146,7 @@ func (h *ElfPetEmpowerHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.Target == nil || ctx.EventCtx == nil || ctx.EventCtx.DamageVal == nil {
 		return false
 	}
-	if ctx.Timing != model.TimingOnDamageTaken || *ctx.EventCtx.DamageVal <= 0 {
+	if !ctx.DamageTakenPhase() || *ctx.EventCtx.DamageVal <= 0 {
 		return false
 	}
 	if ctx.EventCtx.SourceID != ctx.User.ID || ctx.EventCtx.TargetID != ctx.Target.ID {

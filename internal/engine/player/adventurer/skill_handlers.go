@@ -79,7 +79,7 @@ func fraudChoiceContext(ctx *model.Context) map[string]interface{} {
 type AdventurerLuckyFortuneHandler struct{ engineplayer.BaseHandler }
 
 func (h *AdventurerLuckyFortuneHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.Timing != model.TimingOnAttackDeclared {
+	if ctx == nil || ctx.User == nil || !ctx.AttackDeclarePhase() {
 		return false
 	}
 	if ctx.EventCtx == nil || ctx.EventCtx.Card == nil {

@@ -27,7 +27,7 @@ func (h *FighterPsiFieldHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.EventCtx == nil || ctx.EventCtx.DamageVal == nil {
 		return false
 	}
-	return ctx.Timing == model.TimingOnDamageTaken && *ctx.EventCtx.DamageVal > 4
+	return ctx.DamageTakenPhase() && *ctx.EventCtx.DamageVal > 4
 }
 
 func (h *FighterPsiFieldHandler) Execute(ctx *model.Context) error {
@@ -45,7 +45,7 @@ func (h *FighterChargeStrikeHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Timing != model.TimingOnAttackDeclared {
+	if !ctx.AttackDeclarePhase() {
 		return false
 	}
 	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
@@ -194,7 +194,7 @@ func (h *FighterBurstCrashHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Timing != model.TimingOnAttackDeclared {
+	if !ctx.AttackDeclarePhase() {
 		return false
 	}
 	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {

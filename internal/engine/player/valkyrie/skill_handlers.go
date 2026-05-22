@@ -99,11 +99,11 @@ func (h *ValkyrieHeroicSummonHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.EventCtx == nil || ctx.EventCtx.AttackInfo == nil {
 		return false
 	}
-	if ctx.Timing != model.TimingOnHitCheck {
+	if !ctx.AttackHitPhase() {
 		return false
 	}
 	info := ctx.EventCtx.AttackInfo
-	if info.ActionType != string(model.ActionAttack) || !info.IsHit {
+	if info.ActionType != string(model.ActionAttack) {
 		return false
 	}
 	return engineplayer.CanPayCrystalLike(ctx, 1)

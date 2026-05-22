@@ -147,7 +147,7 @@ func (h *MagicBowMagicPierceHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.Target == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Timing != model.TimingOnAttackDeclared {
+	if !ctx.AttackDeclarePhase() {
 		return false
 	}
 	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {

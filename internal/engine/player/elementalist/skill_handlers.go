@@ -57,7 +57,7 @@ func matchingElementCardIndices(p *model.Player, element model.Element) []int {
 type ElementalistAbsorbHandler struct{}
 
 func (h *ElementalistAbsorbHandler) CanUse(ctx *model.Context) bool {
-	if ctx.Timing != model.TimingOnDamageTaken || ctx.EventCtx == nil {
+	if !ctx.DamageTakenPhase() || ctx.EventCtx == nil {
 		return false
 	}
 	if !ctx.Flags["IsMagicDamage"] {

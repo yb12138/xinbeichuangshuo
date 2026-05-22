@@ -37,7 +37,7 @@ func (h *HeroRoarHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Timing != model.TimingOnAttackDeclared {
+	if !ctx.AttackDeclarePhase() {
 		return false
 	}
 	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
@@ -73,7 +73,7 @@ func (h *HeroForbiddenPowerHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Timing != model.TimingOnHitCheck {
+	if !ctx.AttackResponsePhase() {
 		return false
 	}
 	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
@@ -152,7 +152,7 @@ func (h *HeroCalmMindHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Timing != model.TimingOnAttackDeclared {
+	if !ctx.AttackDeclarePhase() {
 		return false
 	}
 	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
@@ -209,7 +209,7 @@ func (h *HeroDeadDuelHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Timing != model.TimingOnDamageTaken {
+	if !ctx.DamageTakenPhase() {
 		return false
 	}
 	if ctx.EventCtx.DamageVal == nil || *ctx.EventCtx.DamageVal <= 0 {

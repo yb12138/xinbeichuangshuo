@@ -104,7 +104,7 @@ func (h *MagicSwordsmanShadowMeteorHandler) Execute(ctx *model.Context) error {
 }
 
 func (h *MagicSwordsmanYellowSpringHandler) CanUse(ctx *model.Context) bool {
-	if ctx.Timing != model.TimingOnAttackDeclared || ctx.EventCtx == nil || ctx.EventCtx.AttackInfo == nil {
+	if !ctx.AttackDeclarePhase() || ctx.EventCtx == nil || ctx.EventCtx.AttackInfo == nil {
 		return false
 	}
 	if ctx.EventCtx.AttackInfo.CounterInitiator != "" {

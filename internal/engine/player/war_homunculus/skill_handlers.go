@@ -39,16 +39,13 @@ func (h *HomunculusRageSuppressHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Timing != model.TimingOnHitCheck {
+	if !ctx.AttackMissPhase() {
 		return false
 	}
 	if ctx.EventCtx.AttackInfo == nil {
 		return false
 	}
 	if ctx.EventCtx.AttackInfo.ActionType != string(model.ActionAttack) {
-		return false
-	}
-	if ctx.EventCtx.AttackInfo.IsHit {
 		return false
 	}
 	if ctx.EventCtx.AttackInfo.CounterInitiator != "" {
@@ -71,16 +68,13 @@ func (h *HomunculusRuneSmashHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Timing != model.TimingOnHitCheck {
+	if !ctx.AttackHitPhase() {
 		return false
 	}
 	if ctx.EventCtx.AttackInfo == nil {
 		return false
 	}
 	if ctx.EventCtx.AttackInfo.ActionType != string(model.ActionAttack) {
-		return false
-	}
-	if !ctx.EventCtx.AttackInfo.IsHit {
 		return false
 	}
 	if ctx.EventCtx.AttackInfo.CounterInitiator != "" {
@@ -138,16 +132,13 @@ func (h *HomunculusGlyphFusionHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Timing != model.TimingOnHitCheck {
+	if !ctx.AttackMissPhase() {
 		return false
 	}
 	if ctx.EventCtx.AttackInfo == nil {
 		return false
 	}
 	if ctx.EventCtx.AttackInfo.ActionType != string(model.ActionAttack) {
-		return false
-	}
-	if ctx.EventCtx.AttackInfo.IsHit {
 		return false
 	}
 	if ctx.EventCtx.AttackInfo.CounterInitiator != "" {
@@ -242,7 +233,7 @@ func (h *HomunculusDualEchoHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Timing != model.TimingOnDamageTaken {
+	if !ctx.DamageTakenPhase() {
 		return false
 	}
 	if ctx.EventCtx.SourceID != ctx.User.ID {

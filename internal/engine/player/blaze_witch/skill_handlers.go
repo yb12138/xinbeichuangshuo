@@ -123,7 +123,7 @@ func (h *BlazeWitchSubstituteDollHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Timing != model.TimingOnDamageTaken {
+	if !ctx.DamageTakenPhase() {
 		return false
 	}
 	if engineplayer.GetSkillFlowState(ctx.User, "bw_substitute_lock") > 0 {
@@ -225,7 +225,7 @@ func (h *BlazeWitchManaInversionHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Timing != model.TimingOnDamageTaken {
+	if !ctx.DamageTakenPhase() {
 		return false
 	}
 	if engineplayer.GetSkillFlowState(ctx.User, "bw_mana_inversion_lock") > 0 {

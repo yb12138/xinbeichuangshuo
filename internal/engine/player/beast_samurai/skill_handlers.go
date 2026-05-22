@@ -181,7 +181,7 @@ func (h *BeastSamuraiBeastReturnHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Timing != model.TimingOnDamageTaken {
+	if !ctx.DamageTakenPhase() {
 		return false
 	}
 	if !ctx.Flags["IsMagicDamage"] {
@@ -220,16 +220,13 @@ func (h *BeastSamuraiReversalIaijutsuSlashHandler) CanUse(ctx *model.Context) bo
 	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Timing != model.TimingOnHitCheck {
+	if !ctx.AttackHitPhase() {
 		return false
 	}
 	if ctx.EventCtx.AttackInfo == nil {
 		return false
 	}
 	if ctx.EventCtx.AttackInfo.ActionType != string(model.ActionAttack) {
-		return false
-	}
-	if !ctx.EventCtx.AttackInfo.IsHit {
 		return false
 	}
 	if ctx.EventCtx.AttackInfo.CounterInitiator != "" {

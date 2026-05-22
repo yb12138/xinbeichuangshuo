@@ -131,16 +131,13 @@ func (h *SwordEmperorSwordQiSlashHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Timing != model.TimingOnHitCheck {
+	if !ctx.AttackHitPhase() {
 		return false
 	}
 	if ctx.EventCtx.AttackInfo == nil {
 		return false
 	}
 	if ctx.EventCtx.AttackInfo.ActionType != string(model.ActionAttack) {
-		return false
-	}
-	if !ctx.EventCtx.AttackInfo.IsHit {
 		return false
 	}
 	if ctx.EventCtx.AttackInfo.CounterInitiator != "" {
@@ -187,7 +184,7 @@ func (h *SwordEmperorAngelSoulHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Timing != model.TimingOnAttackDeclared {
+	if !ctx.AttackDeclarePhase() {
 		return false
 	}
 	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
@@ -217,7 +214,7 @@ func (h *SwordEmperorDemonSoulHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Timing != model.TimingOnAttackDeclared {
+	if !ctx.AttackDeclarePhase() {
 		return false
 	}
 	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {

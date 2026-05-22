@@ -94,7 +94,7 @@ func encodeBasicEffectOptions(options []basicEffectOption) []map[string]interfac
 type HolyShieldHandler struct{}
 
 func (h *HolyShieldHandler) CanUse(ctx *model.Context) bool {
-	if ctx.Timing != model.TimingOnDamageTaken {
+	if !ctx.DamageTakenPhase() {
 		return false
 	}
 	if ctx.EventCtx == nil || ctx.EventCtx.DamageVal == nil || *ctx.EventCtx.DamageVal <= 0 {
