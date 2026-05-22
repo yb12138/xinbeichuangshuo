@@ -33,17 +33,6 @@ func TestTargetsForTimingUsesRulebookAttackRoles(t *testing.T) {
 	}
 }
 
-func TestTargetsForTimingKeepsLegacyAttackRoles(t *testing.T) {
-	host, attacker, defender := newTimingTestHost()
-	ctx := &model.Context{User: attacker, Target: defender}
-
-	got := targetIDs(targetsForTiming(host, model.TimingOnHitCheck, ctx))
-	want := []string{"p1:Attacker", "p2:Defender"}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("legacy hit-check targets = %v, want %v", got, want)
-	}
-}
-
 func TestTargetsForTimingUsesRulebookDamageTakenRoles(t *testing.T) {
 	host, source, target := newTimingTestHost()
 	ctx := &model.Context{User: target, Target: source}

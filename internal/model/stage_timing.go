@@ -60,18 +60,10 @@ const (
 	TimingOnActionEnd FlowTiming = "TimingOnActionEnd"
 	// Deprecated: lifecycle timing; keep compatibility until skill-post hooks are fully migrated.
 	TimingOnSkillExecuted FlowTiming = "TimingOnSkillExecuted"
-	// Deprecated: use TimingAttackDeclare, TimingAttackSelectTarget, TimingAttackPlayCard, TimingAttackModifyCard, or TimingAttackCommitted.
-	TimingOnAttackDeclared FlowTiming = "TimingOnAttackDeclared"
 	// Deprecated: use TimingMagicDeclare, TimingMagicSelectTarget, TimingMagicValidate, TimingMagicResolve, or TimingMagicHealOverflow.
 	TimingOnMagicDeclared FlowTiming = "TimingOnMagicDeclared"
-	// Deprecated: use TimingAttackForceHitCheck, TimingAttackNoResponseCheck, TimingAttackResponse, TimingAttackHit, or TimingAttackMiss.
-	TimingOnHitCheck FlowTiming = "TimingOnHitCheck"
-	// Deprecated: use TimingDamageSourceDeal.
-	TimingOnDamageCalculated FlowTiming = "TimingOnDamageCalculated"
 	// Deprecated: use TimingDamageApplied.
 	TimingOnDamageApplied FlowTiming = "TimingOnDamageApplied"
-	// Deprecated: use TimingDamageTaken.
-	TimingOnDamageTaken FlowTiming = "TimingOnDamageTaken"
 	// Deprecated: use TimingMoraleLossCheck.
 	TimingBeforeMoraleLoss FlowTiming = "TimingBeforeMoraleLoss"
 	// Deprecated: use TimingSettleDraw.

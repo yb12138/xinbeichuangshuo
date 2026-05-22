@@ -32,8 +32,6 @@ const (
 	TimingAttackMiss           TimingPoint = model.TimingAttackMiss // 攻击未命中后
 	TimingAttackDeclareRuntime TimingPoint = "on_attack_declared_interrupt"
 
-	// Deprecated: use TimingAttackDeclare.
-	TimingOnAttackDeclared TimingPoint = TimingAttackDeclare
 	// Deprecated: use TimingAttackNoResponse.
 	TimingOnAttackGating TimingPoint = TimingAttackNoResponse
 	// Deprecated: use TimingAttackModifyCard.
@@ -46,7 +44,6 @@ const (
 	TimingOnAttackMiss TimingPoint = TimingAttackMiss
 
 	// 新增 - 命中判定阶段
-	TimingOnHitCheck                     TimingPoint = "on_hit_check"                        // 命中判定
 	TimingOnCounterPolicy                TimingPoint = "on_counter_policy"                   // 反击策略
 	TimingOnDefendValidation             TimingPoint = "on_defend_validation"                // 防御验证
 	TimingOnResponseSkillAug             TimingPoint = "on_response_skill_aug"               // 响应技能增强
@@ -79,8 +76,6 @@ const (
 	TimingOnDamageAfterTaken TimingPoint = TimingDamageAfterTaken
 	// Deprecated: use TimingDamageApplied.
 	TimingOnDamageApplied TimingPoint = TimingDamageApplied
-	// Deprecated: use TimingDamageTaken.
-	TimingOnDamageTaken TimingPoint = TimingDamageTaken
 	// Deprecated: use TimingDamageAfterApply.
 	TimingOnDamageAfterApply TimingPoint = TimingDamageAfterApply
 	// Deprecated: use TimingHealBefore.
@@ -109,8 +104,6 @@ const (
 	TimingOnSkillPost             TimingPoint = "on_skill_post"              // 技能后置钩子
 	TimingOnAttackCardTransform   TimingPoint = model.TimingAttackModifyCard // 攻击牌变换
 
-	// Deprecated: use TimingAttackDeclareInterrupt.
-	TimingOnAttackDeclaredInterrupt TimingPoint = TimingAttackDeclareInterrupt
 )
 
 // TimingHookSpec 角色贡献到全局 timing hook 链的条目。

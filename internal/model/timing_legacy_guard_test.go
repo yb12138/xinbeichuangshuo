@@ -1,4 +1,4 @@
-package model
+package model_test
 
 import (
 	"os"
@@ -9,19 +9,12 @@ import (
 	"testing"
 )
 
-func TestLegacyTimingUsageStaysQuarantined(t *testing.T) {
+func TestRemovedCoarseTimingNamesStayDeleted(t *testing.T) {
 	legacyTokens := []string{
-		"TimingOnAttackDeclared",
-		"TimingOnHitCheck",
-		"TimingOnDamageCalculated",
-		"TimingOnDamageTaken",
-	}
-	allowedFiles := map[string]bool{
-		"internal/model/context_timing.go":      true,
-		"internal/model/rulebook_timing.go":     true,
-		"internal/model/stage_timing.go":        true,
-		"internal/model/timing_registry.go":     true,
-		"internal/engine/player/timing_hook.go": true,
+		"Timing" + "OnAttackDeclared",
+		"Timing" + "OnHitCheck",
+		"Timing" + "OnDamageCalculated",
+		"Timing" + "OnDamageTaken",
 	}
 	allowedCharacterLegacyTimingSkills := map[string][]string{}
 
@@ -58,9 +51,7 @@ func TestLegacyTimingUsageStaysQuarantined(t *testing.T) {
 			violations = append(violations, legacyCharacterTimingViolations(text, legacyTokens, allowedCharacterLegacyTimingSkills)...)
 			return nil
 		}
-		if !allowedFiles[rel] {
-			violations = append(violations, rel)
-		}
+		violations = append(violations, rel)
 		return nil
 	})
 	if err != nil {

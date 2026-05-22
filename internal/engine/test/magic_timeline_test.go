@@ -137,7 +137,7 @@ func TestMagicActionDoesNotEnterAttackHitCheckTimeline(t *testing.T) {
 		Type:         model.SkillTypePassive,
 		ResponseType: model.ResponseSilent,
 		LogicHandler: testMagicHitCheckRecorderID,
-		Timings:      []model.FlowTiming{model.TimingOnHitCheck},
+		Timings:      []model.FlowTiming{model.TimingAttackHit},
 	})
 	p1.Hand = []model.Card{
 		{ID: "weak-1", Name: "虚弱", Type: model.CardTypeMagic, Element: model.ElementWater},

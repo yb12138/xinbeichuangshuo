@@ -507,7 +507,7 @@ func (e *GameEngine) debugBuildContext(user *model.Player, skill model.SkillDefi
 
 	damageVal := 1
 	drawCount := 1
-	timing := model.NormalizeTiming(skill.PrimaryTimingOrLegacy())
+	timing := skill.PrimaryTimingOrLegacy()
 	if timing == model.TimingAttackResponse {
 		if debugCheatSimulateAttackMiss[skill.ID] {
 			timing = model.TimingAttackMiss

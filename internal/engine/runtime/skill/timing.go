@@ -58,7 +58,6 @@ func targetsForTiming(h timingStateHost, timing model.FlowTiming, ctx *model.Con
 		return nil
 	}
 	var targetsToCheck []checkTarget
-	canonical := model.NormalizeTiming(timing)
 	switch timing {
 	case model.TimingOnTurnStart, model.TimingStartup:
 		return currentPlayerTarget(h)
@@ -78,7 +77,7 @@ func targetsForTiming(h timingStateHost, timing model.FlowTiming, ctx *model.Con
 		return allPlayersInSeatOrder(h)
 	}
 
-	switch canonical {
+	switch timing {
 	case model.TimingTurnStart, model.TimingActionStart:
 		return currentPlayerTarget(h)
 
@@ -120,7 +119,7 @@ func targetsForTiming(h timingStateHost, timing model.FlowTiming, ctx *model.Con
 			})
 		}
 
-	case model.TimingMoraleLossCheck:
+	case model.TimingMoraleLossCheck, model.TimingBeforeMoraleLoss:
 		if ctx.User != nil {
 			for _, p := range campPlayersInSeatOrder(h, ctx.User.Camp) {
 				targetsToCheck = append(targetsToCheck, checkTarget{
@@ -212,8 +211,7 @@ func campPlayersInSeatOrder(h timingStateHost, camp model.Camp) []*model.Player 
 }
 
 func timingPriorityOrdered(timing model.FlowTiming) bool {
-	canonical := model.NormalizeTiming(timing)
-	return canonical == model.TimingMoraleLossCheck || canonical == model.TimingDamageTaken
+	return timing == model.TimingMoraleLossCheck || timing == model.TimingBeforeMoraleLoss || timing == model.TimingDamageTaken
 }
 
 func (r *Runtime) collectTargetsWithSkillsByPriority(h Host, targets []checkTarget, timing model.FlowTiming, ctx *model.Context) []targetSkillsBatch {

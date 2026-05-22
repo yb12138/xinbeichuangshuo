@@ -21,7 +21,6 @@ type TimingDescriptor struct {
 	SkillVisible    bool
 	RoleHookVisible bool
 	RuntimeOnly     bool
-	Legacy          []Timing
 }
 
 var timingDescriptors = map[Timing]TimingDescriptor{
@@ -36,12 +35,8 @@ var timingDescriptors = map[Timing]TimingDescriptor{
 	TimingBeforeActionExecute:    timingDescriptor(TimingBeforeActionExecute, TimingCategoryTurn, "Before action execute", true, false, false),
 	TimingOnActionEnd:            timingDescriptor(TimingOnActionEnd, TimingCategoryTurn, "Action end", true, false, false, Timing("on_action_end"), Timing("post_action_end")),
 	TimingOnSkillExecuted:        timingDescriptor(TimingOnSkillExecuted, TimingCategoryTurn, "Skill executed", true, false, false, Timing("on_skill_post")),
-	TimingOnAttackDeclared:       timingDescriptor(TimingOnAttackDeclared, TimingCategoryAttack, "Attack declared", true, false, false, Timing("on_attack_declared")),
 	TimingOnMagicDeclared:        timingDescriptor(TimingOnMagicDeclared, TimingCategoryMagic, "Magic declared", true, false, false),
-	TimingOnHitCheck:             timingDescriptor(TimingOnHitCheck, TimingCategoryAttack, "Attack hit check", true, false, false, Timing("on_hit_check")),
-	TimingOnDamageCalculated:     timingDescriptor(TimingOnDamageCalculated, TimingCategoryDamage, "Damage calculated", true, false, false, Timing("on_damage_calculate")),
 	TimingOnDamageApplied:        timingDescriptor(TimingOnDamageApplied, TimingCategoryDamage, "Damage applied", true, false, false, Timing("on_damage_applied")),
-	TimingOnDamageTaken:          timingDescriptor(TimingOnDamageTaken, TimingCategoryDamage, "Damage taken", true, false, false, Timing("on_damage_taken")),
 	TimingBeforeMoraleLoss:       timingDescriptor(TimingBeforeMoraleLoss, TimingCategorySettle, "Before morale loss", true, false, false, Timing("on_morale_loss_applied")),
 	TimingBeforeCardDrawn:        timingDescriptor(TimingBeforeCardDrawn, TimingCategorySettle, "Before card drawn", true, false, false),
 	TimingOnCardDrawn:            timingDescriptor(TimingOnCardDrawn, TimingCategorySettle, "Card drawn", true, false, false),
@@ -63,14 +58,14 @@ var timingDescriptors = map[Timing]TimingDescriptor{
 	TimingActionPost:      timingDescriptor(TimingActionPost, TimingCategoryTurn, "Action post", true, true, false, Timing("post_action_end")),
 	TimingTurnEnd:         timingDescriptor(TimingTurnEnd, TimingCategoryTurn, "Turn end", true, true, false, TimingOnTurnEnd, Timing("on_turn_end"), Timing("on_turn_end_final")),
 
-	TimingAttackDeclare:         timingDescriptor(TimingAttackDeclare, TimingCategoryAttack, "Attack declare", true, true, false, TimingOnAttackDeclared, Timing("on_attack_declared")),
+	TimingAttackDeclare:         timingDescriptor(TimingAttackDeclare, TimingCategoryAttack, "Attack declare", true, true, false),
 	TimingAttackSelectTarget:    timingDescriptor(TimingAttackSelectTarget, TimingCategoryAttack, "Attack select target", true, true, false, Timing("on_attack_target_ctx")),
 	TimingAttackPlayCard:        timingDescriptor(TimingAttackPlayCard, TimingCategoryAttack, "Attack play card", true, true, false),
 	TimingAttackModifyCard:      timingDescriptor(TimingAttackModifyCard, TimingCategoryAttack, "Attack modify card", true, true, false, Timing("on_attack_card_hook"), Timing("on_attack_card_transform")),
 	TimingAttackCommitted:       timingDescriptor(TimingAttackCommitted, TimingCategoryAttack, "Attack committed", true, true, false),
 	TimingAttackForceHitCheck:   timingDescriptor(TimingAttackForceHitCheck, TimingCategoryAttack, "Attack force hit check", true, true, false),
 	TimingAttackNoResponseCheck: timingDescriptor(TimingAttackNoResponseCheck, TimingCategoryAttack, "Attack no response check", true, true, false, Timing("on_attack_gating")),
-	TimingAttackResponse:        timingDescriptor(TimingAttackResponse, TimingCategoryAttack, "Attack response", true, true, false, TimingOnHitCheck, Timing("on_hit_check")),
+	TimingAttackResponse:        timingDescriptor(TimingAttackResponse, TimingCategoryAttack, "Attack response", true, true, false),
 	TimingAttackHit:             timingDescriptor(TimingAttackHit, TimingCategoryAttack, "Attack hit", true, true, false, Timing("post_attack_hit")),
 	TimingAttackMiss:            timingDescriptor(TimingAttackMiss, TimingCategoryAttack, "Attack miss", true, true, false, Timing("on_attack_miss")),
 
@@ -85,13 +80,13 @@ var timingDescriptors = map[Timing]TimingDescriptor{
 	TimingMagicMissileCounter:       timingDescriptor(TimingMagicMissileCounter, TimingCategoryMagic, "Magic missile counter", true, true, false, Timing("on_magic_missile_counter")),
 	TimingMagicMissileResponseSkill: timingDescriptor(TimingMagicMissileResponseSkill, TimingCategoryMagic, "Magic missile response skill", true, true, false, Timing("on_magic_missile_response_skill_aug")),
 
-	TimingDamageSourceDeal:   timingDescriptor(TimingDamageSourceDeal, TimingCategoryDamage, "Damage source deal", true, true, false, TimingOnDamageCalculated, Timing("on_damage_calculate")),
+	TimingDamageSourceDeal:   timingDescriptor(TimingDamageSourceDeal, TimingCategoryDamage, "Damage source deal", true, true, false),
 	TimingDamageTargetBefore: timingDescriptor(TimingDamageTargetBefore, TimingCategoryDamage, "Damage target before", true, true, false, Timing("on_damage_before_taken")),
 	TimingHealBefore:         timingDescriptor(TimingHealBefore, TimingCategoryDamage, "Heal before", true, true, false, Timing("on_heal_resist")),
 	TimingHealUse:            timingDescriptor(TimingHealUse, TimingCategoryDamage, "Heal use", true, true, false),
 	TimingHealCap:            timingDescriptor(TimingHealCap, TimingCategoryDamage, "Heal cap", true, true, false, Timing("on_heal_cap_calculate")),
 	TimingDamageApplied:      timingDescriptor(TimingDamageApplied, TimingCategoryDamage, "Damage applied", true, true, false, TimingOnDamageApplied, Timing("on_damage_applied")),
-	TimingDamageTaken:        timingDescriptor(TimingDamageTaken, TimingCategoryDamage, "Damage taken", true, true, false, TimingOnDamageTaken, Timing("on_damage_taken")),
+	TimingDamageTaken:        timingDescriptor(TimingDamageTaken, TimingCategoryDamage, "Damage taken", true, true, false),
 	TimingSettleDraw:         timingDescriptor(TimingSettleDraw, TimingCategorySettle, "Settle draw", true, true, false, TimingBeforeCardDrawn, TimingOnCardDrawn),
 	TimingSettleDiscard:      timingDescriptor(TimingSettleDiscard, TimingCategorySettle, "Settle discard", true, true, false, TimingOnCardDiscarded, TimingOnCardPlayedOrRevealed),
 	TimingSettleHandLimit:    timingDescriptor(TimingSettleHandLimit, TimingCategorySettle, "Settle hand limit", true, true, false),
@@ -113,14 +108,12 @@ var timingDescriptors = map[Timing]TimingDescriptor{
 	Timing("before_action"):        roleTimingDescriptor("before_action", TimingCategoryTurn, "Before action", TimingOnBeforeAction, TimingActionStart),
 	Timing("on_action_end"):        roleTimingDescriptor("on_action_end", TimingCategoryTurn, "Action end role hook", TimingOnActionEnd, TimingActionEnd),
 
-	Timing("on_attack_declared"):    roleTimingDescriptor("on_attack_declared", TimingCategoryAttack, "Attack declared", TimingOnAttackDeclared),
 	Timing("on_attack_gating"):      roleTimingDescriptor("on_attack_gating", TimingCategoryAttack, "Attack gating"),
-	Timing("on_attack_card_hook"):   roleTimingDescriptor("on_attack_card_hook", TimingCategoryAttack, "Legacy attack card hook", Timing("on_attack_card_transform")),
+	Timing("on_attack_card_hook"):   roleTimingDescriptor("on_attack_card_hook", TimingCategoryAttack, "Attack card hook", Timing("on_attack_card_transform")),
 	Timing("on_attack_state_reset"): roleTimingDescriptor("on_attack_state_reset", TimingCategoryAttack, "Attack state reset"),
 	Timing("on_attack_target_ctx"):  roleTimingDescriptor("on_attack_target_ctx", TimingCategoryAttack, "Attack target context"),
 	Timing("on_attack_miss"):        roleTimingDescriptor("on_attack_miss", TimingCategoryAttack, "Attack miss"),
-	Timing("on_hit_check"):          roleTimingDescriptor("on_hit_check", TimingCategoryAttack, "Attack hit check", TimingOnHitCheck),
-	Timing("on_counter_policy"):     roleTimingDescriptor("on_counter_policy", TimingCategoryAttack, "Legacy counter policy"),
+	Timing("on_counter_policy"):     roleTimingDescriptor("on_counter_policy", TimingCategoryAttack, "Counter policy"),
 	Timing("on_defend_validation"):  roleTimingDescriptor("on_defend_validation", TimingCategoryAttack, "Defend validation"),
 	Timing("on_response_skill_aug"): roleTimingDescriptor("on_response_skill_aug", TimingCategoryAttack, "Response skill augment"),
 	Timing("on_response_skill_normalize"): roleTimingDescriptor(
@@ -138,11 +131,9 @@ var timingDescriptors = map[Timing]TimingDescriptor{
 		"on_magic_missile_response_skill_aug", TimingCategoryMagic, "Magic missile response skill augment", TimingMagicMissileResponseSkill,
 	),
 
-	Timing("on_damage_calculate"):    roleTimingDescriptor("on_damage_calculate", TimingCategoryDamage, "Damage calculate", TimingOnDamageCalculated),
 	Timing("on_damage_before_taken"): roleTimingDescriptor("on_damage_before_taken", TimingCategoryDamage, "Damage before taken"),
 	Timing("on_damage_after_taken"):  roleTimingDescriptor("on_damage_after_taken", TimingCategoryDamage, "Damage after taken"),
 	Timing("on_damage_applied"):      roleTimingDescriptor("on_damage_applied", TimingCategoryDamage, "Damage applied", TimingOnDamageApplied),
-	Timing("on_damage_taken"):        roleTimingDescriptor("on_damage_taken", TimingCategoryDamage, "Damage taken", TimingOnDamageTaken),
 	Timing("on_damage_after_apply"):  roleTimingDescriptor("on_damage_after_apply", TimingCategoryDamage, "Damage after apply"),
 	Timing("on_heal_resist"):         roleTimingDescriptor("on_heal_resist", TimingCategoryDamage, "Heal resist"),
 	Timing("on_heal_cap_calculate"):  roleTimingDescriptor("on_heal_cap_calculate", TimingCategoryDamage, "Heal cap calculate"),
@@ -166,7 +157,7 @@ var timingDescriptors = map[Timing]TimingDescriptor{
 	Timing("on_attack_card_transform"):     roleTimingDescriptor("on_attack_card_transform", TimingCategoryAttack, "Attack card transform", Timing("on_attack_card_hook")),
 }
 
-func timingDescriptor(id Timing, category TimingCategory, ruleName string, skillVisible, roleHookVisible, runtimeOnly bool, legacy ...Timing) TimingDescriptor {
+func timingDescriptor(id Timing, category TimingCategory, ruleName string, skillVisible, roleHookVisible, runtimeOnly bool, _ ...Timing) TimingDescriptor {
 	return TimingDescriptor{
 		ID:              id,
 		Category:        category,
@@ -174,12 +165,11 @@ func timingDescriptor(id Timing, category TimingCategory, ruleName string, skill
 		SkillVisible:    skillVisible,
 		RoleHookVisible: roleHookVisible,
 		RuntimeOnly:     runtimeOnly,
-		Legacy:          append([]Timing(nil), legacy...),
 	}
 }
 
-func roleTimingDescriptor(id string, category TimingCategory, ruleName string, legacy ...Timing) TimingDescriptor {
-	return timingDescriptor(Timing(id), category, ruleName, false, true, false, legacy...)
+func roleTimingDescriptor(id string, category TimingCategory, ruleName string, aliases ...Timing) TimingDescriptor {
+	return timingDescriptor(Timing(id), category, ruleName, false, true, false, aliases...)
 }
 
 // TimingDescriptorOf returns registry metadata for a known timing.
