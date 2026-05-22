@@ -56,7 +56,7 @@ func (e *GameEngine) AddPlayer(id, name, role string, camp model.Camp) error {
 
 	e.State.Players[id] = player
 	e.State.PlayerOrder = append(e.State.PlayerOrder, id)
-	e.rebuildTimingOnAttackDeclaredRegistry()
+	e.rebuildAttackDeclareRegistry()
 	e.refreshPlayerDerivedState(player)
 	return nil
 }

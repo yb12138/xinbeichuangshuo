@@ -39,14 +39,14 @@ func (l *defaultAttackLifecycle) RecordAttackTargetContext(player *model.Player,
 	if l == nil || l.engine == nil {
 		return
 	}
-	l.engine.recordTimingOnAttackDeclaredTargetContext(player, targetID)
+	l.engine.recordAttackDeclareTargetContext(player, targetID)
 }
 
 func (l *defaultAttackLifecycle) ResetAttackStartState(player *model.Player) {
 	if l == nil || l.engine == nil {
 		return
 	}
-	l.engine.resetTimingOnAttackDeclaredState(player)
+	l.engine.resetAttackDeclareState(player)
 }
 
 func (l *defaultAttackLifecycle) ApplyPreCombatRules(player *model.Player, target *model.Player, currentAction *model.QueuedAction, eventCtx *model.EventContext) {
@@ -66,7 +66,7 @@ func (l *defaultAttackLifecycle) RunPendingDamageAttackInit(pd *model.PendingDam
 		if victim != nil {
 			targetID = victim.ID
 		}
-		l.engine.dispatchAllRoleTimingHooks(engineplayer.TimingOnAttackDeclared, engineplayer.TimingHookContext{
+		l.engine.dispatchAllRoleTimingHooks(engineplayer.TimingAttackDeclare, engineplayer.TimingHookContext{
 			SourceID:      attacker.ID,
 			TargetID:      targetID,
 			PendingDamage: pd,

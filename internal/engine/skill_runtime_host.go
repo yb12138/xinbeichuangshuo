@@ -66,14 +66,14 @@ func (sd *SkillDispatcher) ApplyHitCheckAugment(skillIDs []string, ctx *model.Co
 	if sd == nil || sd.engine == nil {
 		return skillIDs
 	}
-	return sd.applyTimingOnHitCheckResponseSkillAugment(skillIDs, ctx)
+	return sd.applyAttackResponseSkillAugment(skillIDs, ctx)
 }
 
 func (sd *SkillDispatcher) ApplyHitCheckNormalize(skillIDs []string, ctx *model.Context) []string {
 	if sd == nil || sd.engine == nil {
 		return skillIDs
 	}
-	return sd.applyTimingOnHitCheckResponseSkillNormalize(skillIDs, ctx)
+	return sd.applyAttackResponseSkillNormalize(skillIDs, ctx)
 }
 
 func (sd *SkillDispatcher) PublishStartupInterrupt(playerID string, skillIDs []string, sharedCtx *model.Context) {

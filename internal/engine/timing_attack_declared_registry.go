@@ -2,8 +2,8 @@
 
 package engine
 
-// rebuildTimingOnAttackDeclaredRegistry 根据当前已上场角色，重建必要的执行表。
-func (e *GameEngine) rebuildTimingOnAttackDeclaredRegistry() {
+// rebuildAttackDeclareRegistry 根据当前已上场角色，重建必要的执行表。
+func (e *GameEngine) rebuildAttackDeclareRegistry() {
 	if e == nil {
 		return
 	}
@@ -19,4 +19,3 @@ func (e *GameEngine) rebuildTimingOnAttackDeclaredRegistry() {
 	e.gameStartAddPlayerHooks = []gameStartPlayerHook{bootstrapApplyRoleDefaults}
 	e.gameStartInitialDealHooks = []gameStartPlayerHook{bootstrapEnsureStarterRoleCards}
 }
-

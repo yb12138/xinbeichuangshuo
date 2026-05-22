@@ -325,7 +325,7 @@ func (e *GameEngine) handleCombatDefendResponse(act model.PlayerAction, player *
 	if !e.canUseHolyDefend(&combatReq) {
 		return errors.New("本次攻击受【一击无念】影响，不能使用【圣光】防御")
 	}
-	if res := e.applyTimingOnHitCheckCombatDefendValidation(player, &combatReq); res != nil {
+	if res := e.applyAttackResponseDefendValidation(player, &combatReq); res != nil {
 		return res
 	}
 	card, ok := e.cardForPlayerAction(player, act)
@@ -395,7 +395,7 @@ func (e *GameEngine) handleCombatCounterResponse(act model.PlayerAction, player 
 	if !ok {
 		return errors.New("无效的卡牌ID")
 	}
-	useSpecialCounterCard, counterCard, err := e.applyTimingOnHitCheckCombatCounterCardPolicy(player, &combatReq, card)
+	useSpecialCounterCard, counterCard, err := e.applyAttackResponseCounterCardPolicy(player, &combatReq, card)
 	if err != nil {
 		return err
 	}
@@ -412,7 +412,7 @@ func (e *GameEngine) handleCombatCounterResponse(act model.PlayerAction, player 
 			return errors.New("暗灭无法被应战，只能承受伤害或使用圣光抵挡（场上圣盾会自动生效）")
 		}
 		if card.Element != combatReq.Card.Element && card.Element != model.ElementDark {
-			allowedByPolicy, useFaction := e.applyTimingOnHitCheckCombatCounterElementPolicy(player, &combatReq, card)
+			allowedByPolicy, useFaction := e.applyAttackResponseCounterElementPolicy(player, &combatReq, card)
 			if allowedByPolicy {
 				useFactionCounter = useFaction
 			} else {
@@ -471,7 +471,7 @@ func (e *GameEngine) handleCombatCounterResponse(act model.PlayerAction, player 
 		return err
 	}
 	e.State.DiscardPile = append(e.State.DiscardPile, card)
-	e.applyTimingOnHitCheckCombatCounterResolvePolicy(player, &combatReq, &card, useFactionCounter)
+	e.applyAttackResponseCounterResolvePolicy(player, &combatReq, &card, useFactionCounter)
 
 	missCtx := &model.EventContext{
 		Type:     model.EventAttack,

@@ -344,7 +344,7 @@ func (e *GameEngine) maybeAdvanceResponseSkillSelection() bool {
 	}
 
 	nextSkillIDs := e.dispatcher.getOtherUsableSkills("", player, ctx)
-	nextSkillIDs = e.dispatcher.applyTimingOnHitCheckResponseSkillNormalize(nextSkillIDs, ctx)
+	nextSkillIDs = e.dispatcher.applyAttackResponseSkillNormalize(nextSkillIDs, ctx)
 	if len(nextSkillIDs) == 0 {
 		return false
 	}

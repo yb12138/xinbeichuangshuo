@@ -24,12 +24,26 @@ const (
 	TimingOnActionEnd    TimingPoint = model.TimingActionEnd // 行动结束（非 post_action_end，用于技能后）
 
 	// 新增 - 攻击阶段
-	TimingOnAttackDeclared   TimingPoint = model.TimingAttackDeclare         // 攻击宣告时
-	TimingOnAttackGating     TimingPoint = model.TimingAttackNoResponseCheck // 攻击门控检查
-	TimingOnAttackCardHook   TimingPoint = model.TimingAttackModifyCard      // 攻击卡牌变换
-	TimingOnAttackStateReset TimingPoint = "on_attack_state_reset"           // 攻击状态重置
-	TimingOnAttackTargetCtx  TimingPoint = model.TimingAttackSelectTarget
-	TimingOnAttackMiss       TimingPoint = model.TimingAttackMiss // 攻击未命中后
+	TimingAttackDeclare        TimingPoint = model.TimingAttackDeclare         // 攻击宣告时
+	TimingAttackNoResponse     TimingPoint = model.TimingAttackNoResponseCheck // 攻击门控检查
+	TimingAttackModifyCard     TimingPoint = model.TimingAttackModifyCard      // 攻击卡牌变换
+	TimingAttackStateReset     TimingPoint = "on_attack_state_reset"           // 攻击状态重置
+	TimingAttackSelectTarget   TimingPoint = model.TimingAttackSelectTarget
+	TimingAttackMiss           TimingPoint = model.TimingAttackMiss // 攻击未命中后
+	TimingAttackDeclareRuntime TimingPoint = "on_attack_declared_interrupt"
+
+	// Deprecated: use TimingAttackDeclare.
+	TimingOnAttackDeclared TimingPoint = TimingAttackDeclare
+	// Deprecated: use TimingAttackNoResponse.
+	TimingOnAttackGating TimingPoint = TimingAttackNoResponse
+	// Deprecated: use TimingAttackModifyCard.
+	TimingOnAttackCardHook TimingPoint = TimingAttackModifyCard
+	// Deprecated: use TimingAttackStateReset.
+	TimingOnAttackStateReset TimingPoint = TimingAttackStateReset
+	// Deprecated: use TimingAttackSelectTarget.
+	TimingOnAttackTargetCtx TimingPoint = TimingAttackSelectTarget
+	// Deprecated: use TimingAttackMiss.
+	TimingOnAttackMiss TimingPoint = TimingAttackMiss
 
 	// 新增 - 命中判定阶段
 	TimingOnHitCheck                     TimingPoint = "on_hit_check"                        // 命中判定
@@ -85,15 +99,18 @@ const (
 	TimingOnMoraleLossApplied TimingPoint = model.TimingMoraleLossApplied // 士气损失应用后（伤害驱动的角色效果）
 
 	// 新增 - 行动选择策略（原 PolicySpec）
-	TimingBeforeActionOption        TimingPoint = "before_action_option"         // 行动选项策略
-	TimingBeforeActionValidation    TimingPoint = "before_action_validation"     // 行动验证策略
-	TimingOnAttackDeclaredInterrupt TimingPoint = "on_attack_declared_interrupt" // 攻击宣言中断
-	TimingOnCombatCounterCard       TimingPoint = "on_combat_counter_card"       // 反击卡牌策略
-	TimingAfterCannotAct            TimingPoint = "on_after_cannot_act"          // 无法行动后续
-	TimingOnSpecialActionOverride   TimingPoint = "on_special_action_override"   // 特殊行动覆盖
-	TimingOnSpecialActionPost       TimingPoint = "on_special_action_post"       // 特殊行动后置
-	TimingOnSkillPost               TimingPoint = "on_skill_post"                // 技能后置钩子
-	TimingOnAttackCardTransform     TimingPoint = model.TimingAttackModifyCard   // 攻击牌变换
+	TimingBeforeActionOption      TimingPoint = "before_action_option"       // 行动选项策略
+	TimingBeforeActionValidation  TimingPoint = "before_action_validation"   // 行动验证策略
+	TimingAttackDeclareInterrupt  TimingPoint = TimingAttackDeclareRuntime   // 攻击宣言中断
+	TimingOnCombatCounterCard     TimingPoint = "on_combat_counter_card"     // 反击卡牌策略
+	TimingAfterCannotAct          TimingPoint = "on_after_cannot_act"        // 无法行动后续
+	TimingOnSpecialActionOverride TimingPoint = "on_special_action_override" // 特殊行动覆盖
+	TimingOnSpecialActionPost     TimingPoint = "on_special_action_post"     // 特殊行动后置
+	TimingOnSkillPost             TimingPoint = "on_skill_post"              // 技能后置钩子
+	TimingOnAttackCardTransform   TimingPoint = model.TimingAttackModifyCard // 攻击牌变换
+
+	// Deprecated: use TimingAttackDeclareInterrupt.
+	TimingOnAttackDeclaredInterrupt TimingPoint = TimingAttackDeclareInterrupt
 )
 
 // TimingHookSpec 角色贡献到全局 timing hook 链的条目。

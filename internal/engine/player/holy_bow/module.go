@@ -22,7 +22,7 @@ func RoleEntry() player.RoleEntry {
 			{Timing: player.TimingDamageSourceDeal, Priority: 700, Hook: damageCalculateHook},
 			{Timing: player.TimingPostAttackHit, Priority: 100, Hook: postAttackHitHook},
 			{Timing: player.TimingOnTurnEndFinal, Priority: 800, Hook: turnEndAutoFillHook},
-			{Timing: player.TimingOnAttackMiss, Priority: 400, Hook: attackMissHook},
+			{Timing: player.TimingAttackMiss, Priority: 400, Hook: attackMissHook},
 			{Timing: player.TimingOnSpecialActionPost, Priority: 100, Hook: holyGloryExitHook},
 		},
 	}

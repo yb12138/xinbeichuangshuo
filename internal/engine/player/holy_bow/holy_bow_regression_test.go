@@ -274,7 +274,7 @@ func TestHolyBow_MeteorBullet_RequiresOtherAlly(t *testing.T) {
 	p1.Form = model.FormHolyBowHolyGlory
 	p1.Heal = 1
 
-	ctx := game.BuildContext(p1, p2, model.TimingOnAttackDeclared, &model.EventContext{
+	ctx := game.BuildContext(p1, p2, model.TimingAttackDeclare, &model.EventContext{
 		Type:     model.EventAttack,
 		SourceID: p1.ID,
 		TargetID: p2.ID,

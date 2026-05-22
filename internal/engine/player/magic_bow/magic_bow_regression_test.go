@@ -672,7 +672,7 @@ func TestMagicBowCharge_LockTurnDisablesPierceAndScatter(t *testing.T) {
 
 	// 魔贯冲击在锁回合内也应不可用（即使火充能与目标条件满足）。
 	attackCard := magicBowTestCard("atk_lock", "火焰斩", model.CardTypeAttack, model.ElementFire)
-	pierceCtx := game.BuildContext(p1, p2, model.TimingOnAttackDeclared, &model.EventContext{
+	pierceCtx := game.BuildContext(p1, p2, model.TimingAttackDeclare, &model.EventContext{
 		Type:     model.EventAttack,
 		SourceID: p1.ID,
 		TargetID: p2.ID,

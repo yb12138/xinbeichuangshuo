@@ -18,8 +18,8 @@ func RoleEntry() player.RoleEntry {
 		CannotActChecker: CannotActCheckerFn,
 		TimingHookSpecs: []player.TimingHookSpec{
 			{Timing: player.TimingDamageSourceDeal, Priority: 200, Hook: damageCalculateHook},
-			{Timing: player.TimingOnAttackStateReset, Priority: 100, Hook: attackStateResetHook},
-			{Timing: player.TimingOnAttackGating, Priority: 200, Hook: attackGatingHook},
+			{Timing: player.TimingAttackStateReset, Priority: 100, Hook: attackStateResetHook},
+			{Timing: player.TimingAttackNoResponse, Priority: 200, Hook: attackGatingHook},
 			{Timing: player.TimingPostAttackHit, Priority: 500, Hook: postAttackHitHook},
 			{Timing: player.TimingBeforeAction, Priority: 100, Hook: beforeActionShadowReleaseHook},
 			{Timing: player.TimingOnCombatInteraction, Priority: 400, Hook: darkElementResponseHook},

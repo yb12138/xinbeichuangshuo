@@ -17,11 +17,11 @@ func RoleEntry() player.RoleEntry {
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
 		TimingHookSpecs: []player.TimingHookSpec{
-			{Timing: player.TimingOnAttackGating, Priority: 200, Hook: attackGatingHook},
+			{Timing: player.TimingAttackNoResponse, Priority: 200, Hook: attackGatingHook},
 			{Timing: player.TimingOnTurnEnd, Priority: 100, Hook: turnEndMoonCycleHook},
 			{Timing: player.TimingPostDamageResolved, Priority: 900, Hook: postDamageResolvedHook},
 			{Timing: player.TimingOnTurnEndFinal, Priority: 100, Hook: turnEndFinalHook},
-			{Timing: player.TimingOnAttackDeclaredInterrupt, Priority: 100, Hook: medusaInterruptHook},
+			{Timing: player.TimingAttackDeclareInterrupt, Priority: 100, Hook: medusaInterruptHook},
 		},
 	}
 }

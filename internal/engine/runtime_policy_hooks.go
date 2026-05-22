@@ -71,27 +71,20 @@ func (e *GameEngine) RunAttackResponseCombatInteractionPolicies(req *model.Comba
 	return result.Interrupted
 }
 
-// RunTimingOnHitCheckCombatInteractionPolicies 在战斗交互阶段执行命中判定策略链。
-//
-// Deprecated: use RunAttackResponseCombatInteractionPolicies.
-func (e *GameEngine) RunTimingOnHitCheckCombatInteractionPolicies(req *model.CombatRequest) bool {
-	return e.RunAttackResponseCombatInteractionPolicies(req)
-}
-
-// runTimingOnAttackDeclaredInterruptPolicies 在攻击宣言后执行中断策略。
-func (e *GameEngine) runTimingOnAttackDeclaredInterruptPolicies(attacker *model.Player, target *model.Player, currentAction *model.QueuedAction, userCtx *model.Context) bool {
+// runAttackDeclareInterruptPolicies 在攻击宣言后执行中断策略。
+func (e *GameEngine) runAttackDeclareInterruptPolicies(attacker *model.Player, target *model.Player, currentAction *model.QueuedAction, userCtx *model.Context) bool {
 	ctx := engineplayer.TimingHookContext{
 		Attacker: attacker,
 		Target:   target,
 		Action:   currentAction,
 		UserCtx:  userCtx,
 	}
-	result := e.dispatchRoleTimingHook(engineplayer.TimingOnAttackDeclaredInterrupt, ctx)
+	result := e.dispatchRoleTimingHook(engineplayer.TimingAttackDeclareInterrupt, ctx)
 	return result.Interrupted
 }
 
-// applyTimingOnHitCheckCombatDefendValidation 在防御判定时执行校验策略。
-func (e *GameEngine) applyTimingOnHitCheckCombatDefendValidation(player *model.Player, req *model.CombatRequest) error {
+// applyAttackResponseDefendValidation 在防御判定时执行校验策略。
+func (e *GameEngine) applyAttackResponseDefendValidation(player *model.Player, req *model.CombatRequest) error {
 	result := e.dispatchRoleTimingHook(engineplayer.TimingOnDefendValidation, engineplayer.TimingHookContext{
 		Player:        player,
 		CombatRequest: req,
@@ -99,8 +92,8 @@ func (e *GameEngine) applyTimingOnHitCheckCombatDefendValidation(player *model.P
 	return result.ValidationError
 }
 
-// applyTimingOnHitCheckCombatCounterCardPolicy 在应战出牌时执行卡牌校验策略。
-func (e *GameEngine) applyTimingOnHitCheckCombatCounterCardPolicy(player *model.Player, req *model.CombatRequest, card model.Card) (bool, model.Card, error) {
+// applyAttackResponseCounterCardPolicy 在应战出牌时执行卡牌校验策略。
+func (e *GameEngine) applyAttackResponseCounterCardPolicy(player *model.Player, req *model.CombatRequest, card model.Card) (bool, model.Card, error) {
 	ctx := engineplayer.TimingHookContext{
 		Player:        player,
 		CombatRequest: req,
@@ -113,8 +106,8 @@ func (e *GameEngine) applyTimingOnHitCheckCombatCounterCardPolicy(player *model.
 	return result.Handled, result.Card, nil
 }
 
-// applyTimingOnHitCheckCombatCounterElementPolicy 在应战元素判定时执行校验策略。
-func (e *GameEngine) applyTimingOnHitCheckCombatCounterElementPolicy(player *model.Player, req *model.CombatRequest, counterCard model.Card) (bool, bool) {
+// applyAttackResponseCounterElementPolicy 在应战元素判定时执行校验策略。
+func (e *GameEngine) applyAttackResponseCounterElementPolicy(player *model.Player, req *model.CombatRequest, counterCard model.Card) (bool, bool) {
 	ctx := engineplayer.TimingHookContext{
 		Player:        player,
 		CombatRequest: req,
@@ -124,8 +117,8 @@ func (e *GameEngine) applyTimingOnHitCheckCombatCounterElementPolicy(player *mod
 	return result.Handled, result.UseFaction
 }
 
-// applyTimingOnHitCheckCombatCounterResolvePolicy 在应战成立后执行结算策略。
-func (e *GameEngine) applyTimingOnHitCheckCombatCounterResolvePolicy(player *model.Player, req *model.CombatRequest, counterCard *model.Card, useFaction bool) {
+// applyAttackResponseCounterResolvePolicy 在应战成立后执行结算策略。
+func (e *GameEngine) applyAttackResponseCounterResolvePolicy(player *model.Player, req *model.CombatRequest, counterCard *model.Card, useFaction bool) {
 	ctx := engineplayer.TimingHookContext{
 		Player:         player,
 		CombatRequest:  req,
@@ -185,8 +178,8 @@ func (e *GameEngine) buildMagicMissileTimingContext(player *model.Player, chain 
 	})
 }
 
-// applyTimingOnHitCheckResponseSkillAugment 在响应技能列表构建时追加技能。
-func (sd *SkillDispatcher) applyTimingOnHitCheckResponseSkillAugment(skillIDs []string, ctx *model.Context) []string {
+// applyAttackResponseSkillAugment 在响应技能列表构建时追加技能。
+func (sd *SkillDispatcher) applyAttackResponseSkillAugment(skillIDs []string, ctx *model.Context) []string {
 	if sd == nil || sd.engine == nil {
 		return skillIDs
 	}
@@ -201,8 +194,8 @@ func (sd *SkillDispatcher) applyTimingOnHitCheckResponseSkillAugment(skillIDs []
 	return skillIDs
 }
 
-// applyTimingOnHitCheckResponseSkillNormalize 在响应技能列表展示前规范化顺序/互斥项。
-func (sd *SkillDispatcher) applyTimingOnHitCheckResponseSkillNormalize(skillIDs []string, ctx *model.Context) []string {
+// applyAttackResponseSkillNormalize 在响应技能列表展示前规范化顺序/互斥项。
+func (sd *SkillDispatcher) applyAttackResponseSkillNormalize(skillIDs []string, ctx *model.Context) []string {
 	if sd == nil || sd.engine == nil {
 		return skillIDs
 	}

@@ -94,7 +94,7 @@ func (e *GameEngine) BuildContext(user *model.Player, target *model.Player, timi
 	return ctx
 }
 
-// NewGameEngine 构造引擎：初始化状态、注册技能 handler、装配 TimingOnAttackDeclared 等钩子表。
+// NewGameEngine 构造引擎：初始化状态、注册技能 handler、装配 TimingAttackDeclare 等钩子表。
 func NewGameEngine(observer model.GameObserver) *GameEngine {
 	engine := &GameEngine{
 		State:                  model.NewGameState(),
@@ -110,7 +110,7 @@ func NewGameEngine(observer model.GameObserver) *GameEngine {
 	engine.choiceEngine.SetHost(&choiceHostBridge{e: engine})
 	bootstrapChoiceSpecs(engine)
 	engine.installInterruptOrchestrator()
-	engine.rebuildTimingOnAttackDeclaredRegistry()
+	engine.rebuildAttackDeclareRegistry()
 	engine.roleTimingHooks = mountRoleTimingHooks()
 	return engine
 }

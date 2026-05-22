@@ -213,7 +213,7 @@ func TestSoulSorcererSoulConvert_OnAttackStartChoice_DoesNotStallInResponsePhase
 		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	})
 
-	// 新流程：攻击宣言时 TimingOnAttackDeclaredInterrupt 钩子直接推送三选一中断
+	// 新流程：攻击宣言时 TimingAttackDeclareInterrupt 钩子直接推送三选一中断
 	testutils.RequireChoicePrompt(t, game, "p1", "ss_convert_color")
 	// 选择第一个方向（b2y: 蓝魂转黄魂）
 	testutils.MustHandleAction(t, game, model.PlayerAction{

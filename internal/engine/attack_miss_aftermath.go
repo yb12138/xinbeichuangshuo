@@ -12,7 +12,7 @@ func (e *GameEngine) resolveMagicBowPierceMiss(attackerID, targetID string, atta
 }
 
 func (e *GameEngine) resolveMagicBowPierceMissWithOverride(attackerID, targetID string, attackCard *model.Card, forceHeroRoarMiss, forceFighterChargeMiss, isCounter bool) {
-	e.dispatchAllRoleTimingHooks(engineplayer.TimingOnAttackMiss, engineplayer.TimingHookContext{
+	e.dispatchAllRoleTimingHooks(engineplayer.TimingAttackMiss, engineplayer.TimingHookContext{
 		SourceID:               attackerID,
 		TargetID:               targetID,
 		Card:                   attackCard,

@@ -138,17 +138,13 @@ func (e *GameEngine) driveBeforeActionAttack(currentPid string, player *model.Pl
 	if !head.HasDispatchedAttackDeclared {
 		e.resetAttackStartLifecycle(player)
 		head.HasDispatchedAttackDeclared = true
-		attackStartCtx := e.BuildContext(player, target, model.TimingOnAttackDeclared, eventCtx)
+		attackStartCtx := e.BuildContext(player, target, model.TimingAttackDeclare, eventCtx)
 		player.TurnState.LastActionType = string(model.ActionAttack)
 		cardSnapshot := *head.Card
 		player.TurnState.LastActionCard = &cardSnapshot
-		e.dispatcher.OnTiming(attackStartCtx.Timing, attackStartCtx)
 		// 保存事件上下文，响应技能中断后复用（技能可能修改了 AttackInfo）
 		head.SavedAttackEventCtx = eventCtx
-		if e.State.PendingInterrupt != nil {
-			return driveStop
-		}
-		if e.runTimingOnAttackDeclaredInterruptPolicies(player, target, head, attackStartCtx) {
+		if e.runAttackDeclareInterruptPolicies(player, target, head, attackStartCtx) {
 			return driveStop
 		}
 		attackKind := model.AttackKindActive

@@ -97,7 +97,7 @@ func TestOnmyojiBinding_RequiresGemAndCrystal(t *testing.T) {
 	// 仅2宝石，0水晶：不满足式神咒束代应战成本
 	game.State.BlueGems = 2
 	game.State.BlueCrystals = 0
-	if game.RunTimingOnHitCheckCombatInteractionPolicies(&req) {
+	if game.RunAttackResponseCombatInteractionPolicies(&req) {
 		t.Fatalf("binding should not start without crystal")
 	}
 
@@ -110,7 +110,7 @@ func TestOnmyojiBinding_RequiresGemAndCrystal(t *testing.T) {
 	}
 	game.State.BlueGems = 1
 	game.State.BlueCrystals = 1
-	if !game.RunTimingOnHitCheckCombatInteractionPolicies(&req2) {
+	if !game.RunAttackResponseCombatInteractionPolicies(&req2) {
 		t.Fatalf("binding should start with 1 gem + 1 crystal")
 	}
 	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptChoice {
@@ -151,7 +151,7 @@ func TestOnmyojiBinding_FullFlow(t *testing.T) {
 		Card:           &model.Card{ID: "atk", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Faction: "咏", Damage: 2},
 		CanBeResponded: true,
 	}
-	if !game.RunTimingOnHitCheckCombatInteractionPolicies(&req) {
+	if !game.RunAttackResponseCombatInteractionPolicies(&req) {
 		t.Fatalf("binding should start")
 	}
 
@@ -236,7 +236,7 @@ func TestOnmyojiBinding_WithYinyangConversion(t *testing.T) {
 		Card:           &model.Card{ID: "atk", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Faction: "咏", Damage: 2},
 		CanBeResponded: true,
 	}
-	if !game.RunTimingOnHitCheckCombatInteractionPolicies(&req) {
+	if !game.RunAttackResponseCombatInteractionPolicies(&req) {
 		t.Fatalf("binding should start")
 	}
 

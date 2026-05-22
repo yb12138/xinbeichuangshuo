@@ -122,7 +122,7 @@ func (h *SoulSorcererSoulRecallHandler) Execute(ctx *model.Context) error {
 }
 
 func (h *SoulSorcererSoulConvertHandler) CanUse(ctx *model.Context) bool {
-	// 灵魂转换已迁移至 TimingOnAttackDeclaredInterrupt 时序钩子直接推送选择中断，
+	// 灵魂转换已迁移至 TimingAttackDeclareInterrupt 时序钩子直接推送选择中断，
 	// 不再走响应技能确认流程，此 handler 仅保留注册占位。
 	return false
 }

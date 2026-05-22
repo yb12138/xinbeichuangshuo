@@ -75,7 +75,7 @@ func (e *GameEngine) debugResetPlayerForRole(player *model.Player, char *model.C
 	player.TurnState = model.NewPlayerTurnState()
 	e.applyRoleDefaults(player)
 	e.ensureStarterRoleCards(player)
-	e.rebuildTimingOnAttackDeclaredRegistry()
+	e.rebuildAttackDeclareRegistry()
 	e.refreshPlayerDerivedState(player)
 }
 

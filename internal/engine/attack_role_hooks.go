@@ -10,23 +10,23 @@ import (
 
 // ---------- 攻击目标上下文 / 状态重置 / 预战斗规则 ----------
 
-// recordTimingOnAttackDeclaredTargetContext 在攻击宣言时写入目标上下文。
-func (e *GameEngine) recordTimingOnAttackDeclaredTargetContext(player *model.Player, targetID string) {
+// recordAttackDeclareTargetContext 在攻击宣言时写入目标上下文。
+func (e *GameEngine) recordAttackDeclareTargetContext(player *model.Player, targetID string) {
 	if player == nil {
 		return
 	}
-	e.dispatchAllRoleTimingHooks(engineplayer.TimingOnAttackTargetCtx, engineplayer.TimingHookContext{
+	e.dispatchAllRoleTimingHooks(engineplayer.TimingAttackSelectTarget, engineplayer.TimingHookContext{
 		SourceID: player.ID,
 		TargetID: targetID,
 	})
 }
 
-// resetTimingOnAttackDeclaredState 在攻击宣言时清理一次性状态。
-func (e *GameEngine) resetTimingOnAttackDeclaredState(player *model.Player) {
+// resetAttackDeclareState 在攻击宣言时清理一次性状态。
+func (e *GameEngine) resetAttackDeclareState(player *model.Player) {
 	if player == nil {
 		return
 	}
-	e.dispatchAllRoleTimingHooks(engineplayer.TimingOnAttackStateReset, engineplayer.TimingHookContext{
+	e.dispatchAllRoleTimingHooks(engineplayer.TimingAttackStateReset, engineplayer.TimingHookContext{
 		SourceID: player.ID,
 	})
 }
@@ -44,7 +44,7 @@ func (e *GameEngine) applyAttackDeclarePreCombatRules(player *model.Player, targ
 		if target != nil {
 			tid = target.ID
 		}
-		e.dispatchAllRoleTimingHooks(engineplayer.TimingOnAttackGating, engineplayer.TimingHookContext{
+		e.dispatchAllRoleTimingHooks(engineplayer.TimingAttackNoResponse, engineplayer.TimingHookContext{
 			SourceID:   player.ID,
 			TargetID:   tid,
 			Card:       card,

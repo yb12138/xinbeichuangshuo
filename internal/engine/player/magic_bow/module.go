@@ -20,8 +20,8 @@ func RoleEntry() player.RoleEntry {
 			model.FlowContinuationAfterDiscard: handleMagicBowAfterDiscard,
 		},
 		TimingHookSpecs: []player.TimingHookSpec{
-			{Timing: player.TimingOnAttackMiss, Priority: 300, Hook: attackMissHook},
-			{Timing: player.TimingOnAttackTargetCtx, Priority: 100, Hook: attackTargetCtxHook},
+			{Timing: player.TimingAttackMiss, Priority: 300, Hook: attackMissHook},
+			{Timing: player.TimingAttackSelectTarget, Priority: 100, Hook: attackTargetCtxHook},
 			{Timing: player.TimingPostAttackHit, Priority: 600, Hook: postAttackHitHook},
 		},
 		SkillUsabilityCheckers: map[string]player.SkillUsabilityChecker{

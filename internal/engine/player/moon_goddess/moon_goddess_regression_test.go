@@ -773,7 +773,7 @@ func TestMoonGoddessMedusa_ExcludesConvertedAttacks(t *testing.T) {
 		moonTestCard("dm_fire", "火暗月", model.CardTypeAttack, model.ElementFire),
 	})
 	attackCard := moonTestCard("atk", "火斩", model.CardTypeAttack, model.ElementFire)
-	attackStartCtx := game.BuildContext(enemy, ally, model.TimingOnAttackDeclared, &model.EventContext{
+	attackStartCtx := game.BuildContext(enemy, ally, model.TimingAttackDeclare, &model.EventContext{
 		Type:     model.EventAttack,
 		SourceID: enemy.ID,
 		TargetID: ally.ID,
@@ -849,7 +849,7 @@ func TestMoonGoddessMedusa_OnlyAtAttackStart(t *testing.T) {
 	}
 
 	// 攻击开始上下文：可触发。
-	attackStartCtx := game.BuildContext(enemy, ally, model.TimingOnAttackDeclared, &model.EventContext{
+	attackStartCtx := game.BuildContext(enemy, ally, model.TimingAttackDeclare, &model.EventContext{
 		Type:     model.EventAttack,
 		SourceID: enemy.ID,
 		TargetID: ally.ID,
@@ -892,7 +892,7 @@ func TestMoonGoddessMedusa_MagicDarkMoonExtraDamageTargetsAttackerOnly(t *testin
 		moonTestCard("discard1", "弃牌", model.CardTypeAttack, model.ElementWater),
 	}
 	attackCard := moonTestCard("atk", "火斩", model.CardTypeAttack, model.ElementFire)
-	attackStartCtx := game.BuildContext(attacker, ally, model.TimingOnAttackDeclared, &model.EventContext{
+	attackStartCtx := game.BuildContext(attacker, ally, model.TimingAttackDeclare, &model.EventContext{
 		Type:     model.EventAttack,
 		SourceID: attacker.ID,
 		TargetID: ally.ID,
