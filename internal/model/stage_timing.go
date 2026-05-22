@@ -41,29 +41,53 @@ type Timing string
 type FlowTiming = Timing
 
 const (
-	TimingUnknown                FlowTiming = ""
-	TimingOnGameStart            FlowTiming = "TimingOnGameStart"
-	TimingOnCampChanged          FlowTiming = "TimingOnCampChanged"
-	TimingActive                 FlowTiming = "TimingActive"
-	TimingStartup                FlowTiming = "TimingStartup"
-	TimingOnTurnStart            FlowTiming = "TimingOnTurnStart"
-	TimingOnBeforeAction         FlowTiming = "TimingOnBeforeAction"
-	TimingBeforeActionExecute    FlowTiming = "TimingBeforeActionExecute"
-	TimingOnActionEnd            FlowTiming = "TimingOnActionEnd"
-	TimingOnSkillExecuted        FlowTiming = "TimingOnSkillExecuted"
-	TimingOnAttackDeclared       FlowTiming = "TimingOnAttackDeclared"
-	TimingOnMagicDeclared        FlowTiming = "TimingOnMagicDeclared"
-	TimingOnHitCheck             FlowTiming = "TimingOnHitCheck"
-	TimingOnDamageCalculated     FlowTiming = "TimingOnDamageCalculated"
-	TimingOnDamageApplied        FlowTiming = "TimingOnDamageApplied"
-	TimingOnDamageTaken          FlowTiming = "TimingOnDamageTaken"
-	TimingBeforeMoraleLoss       FlowTiming = "TimingBeforeMoraleLoss"
-	TimingBeforeCardDrawn        FlowTiming = "TimingBeforeCardDrawn"
-	TimingOnCardDrawn            FlowTiming = "TimingOnCardDrawn"
-	TimingOnCardDiscarded        FlowTiming = "TimingOnCardDiscarded"
+	TimingUnknown FlowTiming = ""
+	// Deprecated: use TimingGameInitial.
+	TimingOnGameStart FlowTiming = "TimingOnGameStart"
+	// Deprecated: lifecycle timing; keep runtime-only compatibility.
+	TimingOnCampChanged FlowTiming = "TimingOnCampChanged"
+	// Deprecated: use TimingActionDuring for rulebook timeline work.
+	TimingActive FlowTiming = "TimingActive"
+	// Deprecated: use TimingActionStart.
+	TimingStartup FlowTiming = "TimingStartup"
+	// Deprecated: use TimingTurnStart.
+	TimingOnTurnStart FlowTiming = "TimingOnTurnStart"
+	// Deprecated: use TimingActionBefore.
+	TimingOnBeforeAction FlowTiming = "TimingOnBeforeAction"
+	// Deprecated: use TimingActionStart.
+	TimingBeforeActionExecute FlowTiming = "TimingBeforeActionExecute"
+	// Deprecated: use TimingActionEnd or TimingActionPost according to the rulebook phase.
+	TimingOnActionEnd FlowTiming = "TimingOnActionEnd"
+	// Deprecated: lifecycle timing; keep compatibility until skill-post hooks are fully migrated.
+	TimingOnSkillExecuted FlowTiming = "TimingOnSkillExecuted"
+	// Deprecated: use TimingAttackDeclare, TimingAttackSelectTarget, TimingAttackPlayCard, TimingAttackModifyCard, or TimingAttackCommitted.
+	TimingOnAttackDeclared FlowTiming = "TimingOnAttackDeclared"
+	// Deprecated: use TimingMagicDeclare, TimingMagicSelectTarget, TimingMagicValidate, TimingMagicResolve, or TimingMagicHealOverflow.
+	TimingOnMagicDeclared FlowTiming = "TimingOnMagicDeclared"
+	// Deprecated: use TimingAttackForceHitCheck, TimingAttackNoResponseCheck, TimingAttackResponse, TimingAttackHit, or TimingAttackMiss.
+	TimingOnHitCheck FlowTiming = "TimingOnHitCheck"
+	// Deprecated: use TimingDamageSourceDeal.
+	TimingOnDamageCalculated FlowTiming = "TimingOnDamageCalculated"
+	// Deprecated: use TimingDamageApplied.
+	TimingOnDamageApplied FlowTiming = "TimingOnDamageApplied"
+	// Deprecated: use TimingDamageTaken.
+	TimingOnDamageTaken FlowTiming = "TimingOnDamageTaken"
+	// Deprecated: use TimingMoraleLossCheck.
+	TimingBeforeMoraleLoss FlowTiming = "TimingBeforeMoraleLoss"
+	// Deprecated: use TimingSettleDraw.
+	TimingBeforeCardDrawn FlowTiming = "TimingBeforeCardDrawn"
+	// Deprecated: use TimingSettleDraw.
+	TimingOnCardDrawn FlowTiming = "TimingOnCardDrawn"
+	// Deprecated: use TimingSettleDiscard.
+	TimingOnCardDiscarded FlowTiming = "TimingOnCardDiscarded"
+	// Deprecated: use TimingSettleDiscard for settlement, or keep this legacy card-use timing until card play phases are fully split.
 	TimingOnCardPlayedOrRevealed FlowTiming = "TimingOnCardPlayedOrRevealed"
-	TimingOnHealOverflow         FlowTiming = "TimingOnHealOverflow"
-	TimingOnFieldMarkChanged     FlowTiming = "TimingOnFieldMarkChanged"
-	TimingOnOrientationChanged   FlowTiming = "TimingOnOrientationChanged"
-	TimingOnTurnEnd              FlowTiming = "TimingOnTurnEnd"
+	// Deprecated: use TimingMagicHealOverflow or TimingHealCap according to context.
+	TimingOnHealOverflow FlowTiming = "TimingOnHealOverflow"
+	// Deprecated: lifecycle timing; keep compatibility until field mark hooks are split.
+	TimingOnFieldMarkChanged FlowTiming = "TimingOnFieldMarkChanged"
+	// Deprecated: lifecycle timing; keep compatibility until orientation hooks are split.
+	TimingOnOrientationChanged FlowTiming = "TimingOnOrientationChanged"
+	// Deprecated: use TimingTurnEnd.
+	TimingOnTurnEnd FlowTiming = "TimingOnTurnEnd"
 )

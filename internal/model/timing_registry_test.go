@@ -210,6 +210,25 @@ func TestLegacyTimingNameMapsSplitAttackTimings(t *testing.T) {
 	}
 }
 
+func TestTimingRegistryLegacyReferencesAreRegistered(t *testing.T) {
+	for timing, desc := range timingDescriptors {
+		for _, legacy := range desc.Legacy {
+			if _, ok := TimingDescriptorOf(legacy); !ok {
+				t.Fatalf("descriptor %q references unregistered legacy timing %q", timing, legacy)
+			}
+		}
+	}
+}
+
+func TestTimingRegistryNormalizedDescriptorsAreRegistered(t *testing.T) {
+	for timing := range timingDescriptors {
+		normalized := NormalizeTiming(timing)
+		if _, ok := TimingDescriptorOf(normalized); !ok {
+			t.Fatalf("NormalizeTiming(%q) = %q has no descriptor", timing, normalized)
+		}
+	}
+}
+
 func assertTimingDescriptors(t *testing.T, timings []Timing) {
 	t.Helper()
 	for _, timing := range timings {
