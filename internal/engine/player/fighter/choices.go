@@ -116,4 +116,3 @@ func handleFighterHundredDragonTargetChoice(rt engineplayer.ChoiceRuntime, selec
 	}
 	return nil
 }
-

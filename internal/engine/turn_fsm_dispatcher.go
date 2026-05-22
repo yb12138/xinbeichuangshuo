@@ -130,7 +130,7 @@ func (e *GameEngine) driveBeforeActionStage(currentPid string, player *model.Pla
 		return driveContinueLoop
 	}
 	// 其余 TimingOnBeforeAction 的通用技能/状态仍走 dispatcher 主流程。
-	skillCtx := e.BuildContext(player, nil, model.TimingOnBeforeAction, nil)
+	skillCtx := e.BuildContext(player, nil, model.TimingActionBefore, nil)
 	e.dispatcher.OnTiming(skillCtx.Timing, skillCtx)
 	if e.State.PendingInterrupt != nil {
 		return driveStop
@@ -190,7 +190,7 @@ func (e *GameEngine) driveTurnStartStage(currentPid string, player *model.Player
 		return driveContinueLoop
 	}
 	player.TurnState.HasProcessedTurnStart = true
-	turnStartCtx := e.BuildTimedContext(player, nil, model.TimingOnTurnStart, eventCtx)
+	turnStartCtx := e.BuildTimedContext(player, nil, model.TimingTurnStart, eventCtx)
 	e.dispatcher.OnTiming(turnStartCtx.Timing, turnStartCtx)
 	if e.State.PendingInterrupt != nil {
 		return driveStop
@@ -211,7 +211,7 @@ func (e *GameEngine) driveActionStartStage(currentPid string, player *model.Play
 		}
 		return driveContinueLoop
 	}
-	startupCtx := e.BuildTimedContext(player, nil, model.TimingStartup, &model.EventContext{
+	startupCtx := e.BuildTimedContext(player, nil, model.TimingActionStart, &model.EventContext{
 		Type:     model.EventTurnStart,
 		SourceID: currentPid,
 	})
@@ -494,7 +494,7 @@ func (e *GameEngine) runActionEndSequence(currentPid string, player *model.Playe
 			CounterInitiator: "",
 		}
 	}
-	skillCtx := e.BuildContext(player, nil, model.TimingOnActionEnd, eventCtx)
+	skillCtx := e.BuildContext(player, nil, model.TimingActionEnd, eventCtx)
 	if skillCtx.Selections == nil {
 		skillCtx.Selections = map[string]interface{}{}
 	}

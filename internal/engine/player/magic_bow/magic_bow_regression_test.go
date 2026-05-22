@@ -143,7 +143,7 @@ func TestMagicBowMagicPierce_MissDealsMagicDamageAndLocksMultiShot(t *testing.T)
 		t.Fatalf("expected magic pierce used mark=1, got %d", got)
 	}
 
-	multiShotCtx := game.BuildContext(p1, nil, model.TimingOnActionEnd, &model.EventContext{
+	multiShotCtx := game.BuildContext(p1, nil, model.TimingActionEnd, &model.EventContext{
 		Type:       model.EventPhaseEnd,
 		SourceID:   "p1",
 		ActionType: model.ActionAttack,
@@ -175,7 +175,7 @@ func TestMagicBowMultiShot_TargetCannotRepeatPrevious(t *testing.T) {
 	p1.TurnState.UsedSkillCounts["mb_last_attack_target_order"] = 2
 	giveMagicBowCharges(p1, model.ElementWind)
 
-	ctx := game.BuildContext(p1, nil, model.TimingOnActionEnd, &model.EventContext{
+	ctx := game.BuildContext(p1, nil, model.TimingActionEnd, &model.EventContext{
 		Type:       model.EventPhaseEnd,
 		SourceID:   "p1",
 		ActionType: model.ActionAttack,
@@ -242,7 +242,7 @@ func TestMagicBowCharge_FollowupPlaceCharges(t *testing.T) {
 		magicBowTestCard("d3", "补牌3", model.CardTypeAttack, model.ElementWater),
 	}
 
-	ctx := game.BuildContext(p1, nil, model.TimingOnTurnStart, &model.EventContext{
+	ctx := game.BuildContext(p1, nil, model.TimingTurnStart, &model.EventContext{
 		Type:     model.EventTurnStart,
 		SourceID: "p1",
 	})
@@ -301,7 +301,7 @@ func TestMagicBowCharge_DiscardFirstThenChooseX(t *testing.T) {
 		magicBowTestCard("h6", "魔弹", model.CardTypeMagic, model.ElementDark),
 	}
 
-	ctx := game.BuildContext(p1, nil, model.TimingOnTurnStart, &model.EventContext{
+	ctx := game.BuildContext(p1, nil, model.TimingTurnStart, &model.EventContext{
 		Type:     model.EventTurnStart,
 		SourceID: "p1",
 	})
@@ -355,7 +355,7 @@ func TestMagicBowCharge_DrawOverflowMoraleLossWithoutDiscard(t *testing.T) {
 	}
 	redMoraleBefore := game.State.RedMorale
 
-	ctx := game.BuildContext(p1, nil, model.TimingOnTurnStart, &model.EventContext{
+	ctx := game.BuildContext(p1, nil, model.TimingTurnStart, &model.EventContext{
 		Type:     model.EventTurnStart,
 		SourceID: "p1",
 	})
@@ -649,7 +649,7 @@ func TestMagicBowCharge_LockTurnDisablesPierceAndScatter(t *testing.T) {
 	game.State.CurrentTurn = 0
 	game.State.TurnStage = model.TurnStageActionStart
 
-	ctx := game.BuildContext(p1, nil, model.TimingOnTurnStart, &model.EventContext{
+	ctx := game.BuildContext(p1, nil, model.TimingTurnStart, &model.EventContext{
 		Type:     model.EventTurnStart,
 		SourceID: p1.ID,
 	})
@@ -962,7 +962,7 @@ func TestMagicBowCharge_FullCapSkipsPlaceChoice(t *testing.T) {
 		magicBowTestCard("d2", "补牌2", model.CardTypeMagic, model.ElementThunder),
 	}
 
-	ctx := game.BuildContext(p1, nil, model.TimingOnTurnStart, &model.EventContext{
+	ctx := game.BuildContext(p1, nil, model.TimingTurnStart, &model.EventContext{
 		Type:     model.EventTurnStart,
 		SourceID: "p1",
 	})
@@ -1018,7 +1018,7 @@ func TestMagicBowCharge_StartupSkillGemSubstitution(t *testing.T) {
 	}
 
 	// 构建启动技上下文（TimingStartup）
-	ctx := game.BuildContext(p1, nil, model.TimingStartup, &model.EventContext{
+	ctx := game.BuildContext(p1, nil, model.TimingActionStart, &model.EventContext{
 		Type:     model.EventTurnStart,
 		SourceID: "p1",
 	})

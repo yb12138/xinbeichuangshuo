@@ -23,7 +23,7 @@ func responseSkillAugmentHook(rt engineplayer.HookRuntime, ctx engineplayer.Timi
 	}
 
 	// 条件1：必须是在行动结束后的攻击事件
-	if userCtx.Timing != model.TimingOnActionEnd || userCtx.EventCtx == nil || userCtx.EventCtx.ActionType != model.ActionAttack {
+	if userCtx.Timing != model.TimingActionEnd || userCtx.EventCtx == nil || userCtx.EventCtx.ActionType != model.ActionAttack {
 		return engineplayer.TimingHookResult{SkillIDs: skillIDs}
 	}
 

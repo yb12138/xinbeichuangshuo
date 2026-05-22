@@ -8,11 +8,6 @@ func TestTimingDescriptorOfCoversCurrentFlowTimings(t *testing.T) {
 		TimingOnGameStart,
 		TimingOnCampChanged,
 		TimingActive,
-		TimingStartup,
-		TimingOnTurnStart,
-		TimingOnBeforeAction,
-		TimingBeforeActionExecute,
-		TimingOnActionEnd,
 		TimingOnSkillExecuted,
 		TimingOnMagicDeclared,
 		TimingOnDamageApplied,
@@ -96,7 +91,7 @@ func TestTimingRegistryRejectsUnknownTiming(t *testing.T) {
 
 func TestTimingRegistryCategoriesCurrentTimelines(t *testing.T) {
 	tests := map[Timing]TimingCategory{
-		TimingOnTurnStart:           TimingCategoryTurn,
+		TimingTurnStart:             TimingCategoryTurn,
 		TimingAttackDeclare:         TimingCategoryAttack,
 		TimingOnMagicDeclared:       TimingCategoryMagic,
 		TimingMagicMissileResponse:  TimingCategoryMagic,

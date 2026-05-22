@@ -332,7 +332,7 @@ func TestBloodPriestessBloodSorrow_TransferThenRemove(t *testing.T) {
 	// 2) 启动血之哀伤，选择“转移”到 p3。
 	game.State.CurrentTurn = 0
 	p1.IsActive = true
-	ctx := game.BuildContext(p1, nil, model.TimingOnTurnStart, nil)
+	ctx := game.BuildContext(p1, nil, model.TimingTurnStart, nil)
 	h := &bloodpriestesspkg.BloodSorrowHandler{}
 	if !h.CanUse(ctx) {
 		t.Fatalf("expected blood sorrow can use when shared life exists")
@@ -362,7 +362,7 @@ func TestBloodPriestessBloodSorrow_TransferThenRemove(t *testing.T) {
 	// 3) 再次发动血之哀伤，选择“移除”。
 	game.State.CurrentTurn = 0
 	p1.IsActive = true
-	ctx = game.BuildContext(p1, nil, model.TimingOnTurnStart, nil)
+	ctx = game.BuildContext(p1, nil, model.TimingTurnStart, nil)
 	if !h.CanUse(ctx) {
 		t.Fatalf("expected blood sorrow can use before remove branch")
 	}
@@ -442,7 +442,7 @@ func TestBloodPriestessBloodSorrow_Remove_ShouldEnterBleedWhenDamageCausesMorale
 	game.State.TurnStage = model.TurnStageActionStart
 
 	// 发动血之哀伤并选择“移除同生共死”。
-	ctx := game.BuildContext(p1, nil, model.TimingOnTurnStart, nil)
+	ctx := game.BuildContext(p1, nil, model.TimingTurnStart, nil)
 	h := &bloodpriestesspkg.BloodSorrowHandler{}
 	if !h.CanUse(ctx) {
 		t.Fatalf("expected blood sorrow can use when shared life exists")

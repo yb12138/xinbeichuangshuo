@@ -33,7 +33,7 @@ func (h *PriestDivineRevelationHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Timing != model.TimingOnActionEnd {
+	if ctx.Timing != model.TimingActionEnd {
 		return false
 	}
 	return ctx.EventCtx.ActionType == model.ActionBuy ||
@@ -174,14 +174,14 @@ func priestDivineContractTargets(game model.IGameEngine, user *model.Player) []s
 }
 
 func priestDivineContractWaitingPhase(ctx *model.Context) model.TurnStage {
-	if ctx != nil && ctx.Timing == model.TimingOnTurnStart {
+	if ctx != nil && ctx.Timing == model.TimingTurnStart {
 		return model.TurnStageActionStart
 	}
 	return model.TurnStageActionExecution
 }
 
 func priestDivineContractResumePhase(ctx *model.Context) model.TurnStage {
-	if ctx != nil && ctx.Timing == model.TimingOnTurnStart {
+	if ctx != nil && ctx.Timing == model.TimingTurnStart {
 		return model.TurnStageActionExecution
 	}
 	return model.TurnStageExtraAction
@@ -246,4 +246,3 @@ func hasElementCard(p *model.Player, element model.Element) bool {
 	}
 	return false
 }
-

@@ -61,9 +61,9 @@ func buildHolySwordDrawPrompt(rt engineplayer.ChoiceRuntime) *model.Prompt {
 	playerID := interrupt.PlayerID
 
 	return &model.Prompt{
-		Type:         model.PromptConfirm,
-		PlayerID:     playerID,
-		Message:      "【圣剑】第3次攻击结束！选择摸X张牌然后弃X张牌 (X=0-3)：",
+		Type:     model.PromptConfirm,
+		PlayerID: playerID,
+		Message:  "【圣剑】第3次攻击结束！选择摸X张牌然后弃X张牌 (X=0-3)：",
 		Options: []model.PromptOption{
 			{ID: "0", Label: "X=0"},
 			{ID: "1", Label: "X=1"},

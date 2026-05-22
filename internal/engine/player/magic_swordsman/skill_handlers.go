@@ -21,7 +21,7 @@ type MagicSwordsmanShadowMeteorHandler struct{ engineplayer.BaseHandler }
 type MagicSwordsmanYellowSpringHandler struct{ engineplayer.BaseHandler }
 
 func (h *MagicSwordsmanAsuraComboHandler) CanUse(ctx *model.Context) bool {
-	if ctx.Timing != model.TimingOnActionEnd || ctx.EventCtx == nil {
+	if ctx.Timing != model.TimingActionEnd || ctx.EventCtx == nil {
 		return false
 	}
 	if ctx.EventCtx.ActionType != model.ActionAttack {

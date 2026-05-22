@@ -47,8 +47,8 @@ func SkillEntries() []player.SkillEntry {
 // ChoiceRouteSpecs 导出角色 choice 路由声明。
 func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 	return map[string]types.ChoiceRouteSpec{
-		"elementalist_bonus_card":          types.ChoiceRouteRole("elementalist"),
-		"elementalist_primordial_pick":     types.ChoiceRouteRole("elementalist"),
+		"elementalist_bonus_card":           types.ChoiceRouteRole("elementalist"),
+		"elementalist_primordial_pick":      types.ChoiceRouteRole("elementalist"),
 		"elementalist_freeze_damage_target": types.ChoiceRouteRole("elementalist"),
 		"elementalist_freeze_heal_target":   types.ChoiceRouteRole("elementalist"),
 	}

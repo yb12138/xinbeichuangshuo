@@ -29,7 +29,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			},
 			Min:          1,
 			Max:          1,
-				Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
+			Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 		}
 	default:
 		return nil
@@ -87,4 +87,3 @@ func handleAssassinStealthDrawChoice(rt engineplayer.ChoiceRuntime, selectionInd
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
 }
-

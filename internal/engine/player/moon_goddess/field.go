@@ -32,7 +32,7 @@ func AddDarkMoonCards(p *model.Player, cards []model.Card) int {
 			Effect:   model.EffectMoonDarkMoon,
 			Hook:     model.FieldHookManual,
 			OwnerID:  p.ID,
-			SourceID:  p.ID,
+			SourceID: p.ID,
 		})
 		added++
 	}

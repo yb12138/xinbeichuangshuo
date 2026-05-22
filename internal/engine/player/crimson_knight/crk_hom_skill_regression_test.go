@@ -69,7 +69,7 @@ func TestCrimsonKnightCalmMind_AutoGrantsEndedActionType(t *testing.T) {
 	if h == nil {
 		t.Fatalf("crk_calm_mind handler not found")
 	}
-	ctx := g.BuildContext(p1, nil, model.TimingOnActionEnd, &model.EventContext{
+	ctx := g.BuildContext(p1, nil, model.TimingActionEnd, &model.EventContext{
 		Type:       model.EventPhaseEnd,
 		SourceID:   p1.ID,
 		ActionType: model.ActionMagic, // 法术行动结束后，仍应允许选择“攻击行动”
@@ -238,7 +238,7 @@ func TestHomRuneReforge_ReallocateAndOverflowCheckOnTurnEnd(t *testing.T) {
 	if h == nil {
 		t.Fatalf("hom_rune_reforge handler not found")
 	}
-	ctx := g.BuildContext(p1, nil, model.TimingOnTurnStart, &model.EventContext{
+	ctx := g.BuildContext(p1, nil, model.TimingTurnStart, &model.EventContext{
 		SourceID: p1.ID,
 	})
 	if !h.CanUse(ctx) {

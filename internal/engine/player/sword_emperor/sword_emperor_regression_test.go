@@ -502,7 +502,7 @@ func TestSwordEmperor_IndomitableWill_DrawQiAndExtraAttack(t *testing.T) {
 		swordEmperorTestCard("d1", "补牌1", model.CardTypeAttack, model.ElementFire, 2),
 	}
 
-	ctx := game.BuildContext(p1, nil, model.TimingOnActionEnd, &model.EventContext{
+	ctx := game.BuildContext(p1, nil, model.TimingActionEnd, &model.EventContext{
 		Type:       model.EventPhaseEnd,
 		SourceID:   "p1",
 		ActionType: model.ActionAttack,

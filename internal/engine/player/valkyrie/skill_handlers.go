@@ -20,7 +20,7 @@ func minInt(a, b int) int {
 type ValkyrieDivinePursuitHandler struct{ engineplayer.BaseHandler }
 
 func (h *ValkyrieDivinePursuitHandler) CanUse(ctx *model.Context) bool {
-	if ctx.Timing != model.TimingOnActionEnd || ctx.EventCtx == nil {
+	if ctx.Timing != model.TimingActionEnd || ctx.EventCtx == nil {
 		return false
 	}
 	if ctx.EventCtx.ActionType != model.ActionAttack && ctx.EventCtx.ActionType != model.ActionMagic {
@@ -73,7 +73,7 @@ func (h *ValkyriePeaceWalkerHandler) Execute(ctx *model.Context) error {
 type ValkyrieMilitaryGloryHandler struct{ engineplayer.BaseHandler }
 
 func (h *ValkyrieMilitaryGloryHandler) CanUse(ctx *model.Context) bool {
-	return ctx != nil && ctx.Timing == model.TimingOnTurnStart && engineplayer.HasForm(ctx.User, model.FormValkyrieHeroic)
+	return ctx != nil && ctx.Timing == model.TimingTurnStart && engineplayer.HasForm(ctx.User, model.FormValkyrieHeroic)
 }
 
 func (h *ValkyrieMilitaryGloryHandler) Execute(ctx *model.Context) error {

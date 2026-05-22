@@ -59,7 +59,7 @@ func targetsForTiming(h timingStateHost, timing model.FlowTiming, ctx *model.Con
 	}
 	var targetsToCheck []checkTarget
 	switch timing {
-	case model.TimingOnTurnStart, model.TimingStartup:
+	case model.TimingTurnStart, model.TimingActionStart:
 		return currentPlayerTarget(h)
 
 	case model.TimingOnFieldMarkChanged:

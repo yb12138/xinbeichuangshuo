@@ -187,7 +187,7 @@ func (ctx *Context) ResumeActionEndPhase() bool {
 	if ctx == nil {
 		return false
 	}
-	return ctx.Timing == TimingActionEnd || ctx.Timing == TimingOnActionEnd
+	return ctx.Timing == TimingActionEnd
 }
 
 // TurnStartOrStartupWindow 回合开始或启动技能窗口（弃牌后续恢复等）。
@@ -196,7 +196,7 @@ func (ctx *Context) TurnStartOrStartupWindow() bool {
 		return false
 	}
 	switch ctx.Timing {
-	case TimingTurnStart, TimingActionStart, TimingOnTurnStart, TimingStartup:
+	case TimingTurnStart, TimingActionStart:
 		return true
 	default:
 		return false

@@ -154,7 +154,7 @@ func (h *StealthHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil {
 		return false
 	}
-	if ctx.Timing != model.TimingOnTurnStart && ctx.Timing != model.TimingStartup {
+	if ctx.Timing != model.TimingTurnStart && ctx.Timing != model.TimingActionStart {
 		return false
 	}
 	if ctx.User.Gem < 1 {

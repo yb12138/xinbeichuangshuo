@@ -414,7 +414,7 @@ func TestBladeMaster_WindFuryCancel_WithStaleLastActionType_NoRepromptAndKeepExt
 			CounterInitiator: "",
 		},
 	}
-	userCtx := game.BuildContext(p1, nil, model.TimingOnActionEnd, eventCtx)
+	userCtx := game.BuildContext(p1, nil, model.TimingActionEnd, eventCtx)
 	game.State.PendingInterrupt = &model.Interrupt{
 		Type:     model.InterruptResponseSkill,
 		PlayerID: "p1",
@@ -465,7 +465,7 @@ func TestBladeMaster_DiscardContextResume_OnActionEnd_ClearsLastActionCatchup(t 
 	p1.TurnState.LastActionType = string(model.ActionAttack)
 	p1.TurnState.LastActionCard = &model.Card{ID: "attack-ended", Name: "已结束攻击", Type: model.CardTypeAttack, Element: model.ElementWind, Damage: 1}
 
-	ctx := game.BuildContext(p1, nil, model.TimingOnActionEnd, &model.EventContext{
+	ctx := game.BuildContext(p1, nil, model.TimingActionEnd, &model.EventContext{
 		Type:       model.EventPhaseEnd,
 		SourceID:   p1.ID,
 		ActionType: model.ActionAttack,
@@ -514,7 +514,7 @@ func TestBladeMaster_MultiResponse_ConfirmOneSettlesBeforeRemaining(t *testing.T
 	game.State.TurnStage = model.TurnStageActionEnd
 	game.State.Subflow = model.SubflowResponse
 
-	ctx := game.BuildContext(p1, nil, model.TimingOnActionEnd, &model.EventContext{
+	ctx := game.BuildContext(p1, nil, model.TimingActionEnd, &model.EventContext{
 		ActionType: model.ActionAttack,
 		AttackInfo: &model.AttackEventInfo{
 			ActionType:       string(model.ActionAttack),

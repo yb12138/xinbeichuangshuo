@@ -19,7 +19,7 @@ func (h *WindFuryHandler) CanUse(ctx *model.Context) bool {
 	if ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Timing != model.TimingOnActionEnd {
+	if ctx.Timing != model.TimingActionEnd {
 		return false
 	}
 	if ctx.EventCtx.ActionType != model.ActionAttack {
@@ -83,7 +83,7 @@ func (h *SwordShadowHandler) CanUse(ctx *model.Context) bool {
 	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
-	if ctx.Timing != model.TimingOnActionEnd {
+	if ctx.Timing != model.TimingActionEnd {
 		return false
 	}
 	if !engineplayer.CanPayCrystalLike(ctx, 1) {

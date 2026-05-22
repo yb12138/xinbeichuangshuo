@@ -56,7 +56,7 @@ func TestElementalistFreeze_StepByStepTargetSelection(t *testing.T) {
 		PlayerID:   "p1",
 		Type:       model.CmdSkill,
 		SkillID:    "elementalist_freeze",
-		TargetIDs:  nil,  // 分步模式不需要预先选目标
+		TargetIDs:  nil, // 分步模式不需要预先选目标
 		Selections: []int{0},
 	})
 
@@ -74,7 +74,7 @@ func TestElementalistFreeze_StepByStepTargetSelection(t *testing.T) {
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID:   "p1",
 		Type:       model.CmdSelect,
-		Selections: []int{1},  // p2 是第二个选项（p1=0, p2=1）
+		Selections: []int{1}, // p2 是第二个选项（p1=0, p2=1）
 	})
 
 	// 检查第二步：选择治疗目标
@@ -91,7 +91,7 @@ func TestElementalistFreeze_StepByStepTargetSelection(t *testing.T) {
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID:   "p1",
 		Type:       model.CmdSelect,
-		Selections: []int{0},  // p1 是第一个选项
+		Selections: []int{0}, // p1 是第一个选项
 	})
 
 	// 验证效果：p1 治疗+1

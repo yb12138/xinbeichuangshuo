@@ -41,7 +41,7 @@ func TestCrimsonBloodRose_StepByStepTargetSelection(t *testing.T) {
 		PlayerID:  "p1",
 		Type:      model.CmdSkill,
 		SkillID:   "css_blood_rose",
-		TargetIDs: nil,  // 分步模式不需要预先选目标
+		TargetIDs: nil, // 分步模式不需要预先选目标
 	})
 
 	// 检查第一步：选择移除治疗目标
@@ -58,7 +58,7 @@ func TestCrimsonBloodRose_StepByStepTargetSelection(t *testing.T) {
 	testutils.MustHandleAction(t, g, model.PlayerAction{
 		PlayerID:   "p1",
 		Type:       model.CmdSelect,
-		Selections: []int{1},  // p2 是第二个选项
+		Selections: []int{1}, // p2 是第二个选项
 	})
 
 	// 检查第二步：选择获得治疗的队友（仅队友可选）
@@ -79,7 +79,7 @@ func TestCrimsonBloodRose_StepByStepTargetSelection(t *testing.T) {
 	testutils.MustHandleAction(t, g, model.PlayerAction{
 		PlayerID:   "p1",
 		Type:       model.CmdSelect,
-		Selections: []int{0},  // 第一个队友选项（p1 或 p3）
+		Selections: []int{0}, // 第一个队友选项（p1 或 p3）
 	})
 
 	// 验证效果
@@ -104,7 +104,7 @@ func TestCrimsonBloodRose_SecondTargetMustBeAlly(t *testing.T) {
 	}
 
 	p1 := g.State.Players["p1"]
-	_ = g.State.Players["p2"]  // p2 存在但测试中不直接使用
+	_ = g.State.Players["p2"] // p2 存在但测试中不直接使用
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
 	p1.Tokens["css_blood"] = 2
@@ -123,7 +123,7 @@ func TestCrimsonBloodRose_SecondTargetMustBeAlly(t *testing.T) {
 	testutils.MustHandleAction(t, g, model.PlayerAction{
 		PlayerID:   "p1",
 		Type:       model.CmdSelect,
-		Selections: []int{1},  // p2
+		Selections: []int{1}, // p2
 	})
 
 	// 第二步的目标列表应该只有队友（p1）

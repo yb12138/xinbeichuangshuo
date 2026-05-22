@@ -31,7 +31,7 @@ func TestArbiterLaw_GrantsInitialCrystalAndDoesNotReactivateOnTurnStart(t *testi
 		t.Fatalf("expected crystal=2 immediately after arbiter init, got %d", p1.Crystal)
 	}
 
-	ctx := game.BuildContext(p1, nil, model.TimingOnTurnStart, &model.EventContext{
+	ctx := game.BuildContext(p1, nil, model.TimingTurnStart, &model.EventContext{
 		Type:     model.EventTurnStart,
 		SourceID: "p1",
 	})

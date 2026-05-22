@@ -25,7 +25,7 @@ func hasElementCard(p *model.Player, element model.Element) bool {
 type PlagueImmortalHandler struct{ engineplayer.BaseHandler }
 
 func (h *PlagueImmortalHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.Timing != model.TimingOnActionEnd || ctx.EventCtx == nil {
+	if ctx == nil || ctx.User == nil || ctx.Timing != model.TimingActionEnd || ctx.EventCtx == nil {
 		return false
 	}
 	if ctx.EventCtx.ActionType != model.ActionMagic {

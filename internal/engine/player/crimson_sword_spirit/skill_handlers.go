@@ -33,7 +33,7 @@ func (h *CrimsonBloodThornsHandler) Execute(ctx *model.Context) error {
 type CrimsonFlashHandler struct{ BaseHandler }
 
 func (h *CrimsonFlashHandler) CanUse(ctx *model.Context) bool {
-	if ctx.Timing != model.TimingOnActionEnd || ctx.EventCtx == nil {
+	if ctx.Timing != model.TimingActionEnd || ctx.EventCtx == nil {
 		return false
 	}
 	if ctx.EventCtx.ActionType != model.ActionAttack {

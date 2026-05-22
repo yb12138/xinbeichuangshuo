@@ -449,9 +449,9 @@ func debugCheatEventTypeForTiming(t model.FlowTiming) model.EventType {
 		return model.EventBeforeDraw
 	case model.TimingOnCardDrawn:
 		return model.EventAfterDraw
-	case model.TimingOnTurnStart, model.TimingStartup:
+	case model.TimingTurnStart, model.TimingActionStart:
 		return model.EventTurnStart
-	case model.TimingOnActionEnd:
+	case model.TimingActionEnd:
 		return model.EventPhaseEnd
 	default:
 		return model.EventNone

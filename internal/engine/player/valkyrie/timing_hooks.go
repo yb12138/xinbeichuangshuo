@@ -23,7 +23,7 @@ func turnStartMilitaryGloryHook(rt engineplayer.HookRuntime, ctx engineplayer.Ti
 	if crt == nil {
 		return engineplayer.TimingHookResult{}
 	}
-	ctx2 := crt.BuildContext(player, nil, model.TimingOnTurnStart, &model.EventContext{
+	ctx2 := crt.BuildContext(player, nil, model.TimingTurnStart, &model.EventContext{
 		Type:     model.EventTurnStart,
 		SourceID: player.ID,
 	})

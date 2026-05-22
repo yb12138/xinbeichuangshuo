@@ -178,7 +178,7 @@ func TestElfRitualStartupConfirmShouldNotLeaveOverflowDiscard(t *testing.T) {
 		{ID: "h6", Name: "手牌6", Type: model.CardTypeMagic, Element: model.ElementLight, Damage: 0},
 	}
 
-	startupCtx := game.BuildContext(p1, nil, model.TimingOnTurnStart, &model.EventContext{
+	startupCtx := game.BuildContext(p1, nil, model.TimingTurnStart, &model.EventContext{
 		Type:     model.EventTurnStart,
 		SourceID: p1.ID,
 	})

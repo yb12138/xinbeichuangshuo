@@ -245,7 +245,7 @@ func (h *SwordEmperorIndomitableWillHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Timing != model.TimingOnActionEnd {
+	if ctx.Timing != model.TimingActionEnd {
 		return false
 	}
 	if ctx.EventCtx.ActionType != model.ActionAttack {

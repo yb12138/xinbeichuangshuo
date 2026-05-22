@@ -35,7 +35,7 @@ func TestCrimsonFlash_PhaseEndDamageShouldNotStall(t *testing.T) {
 		ActionType: model.ActionAttack,
 		AttackInfo: &model.AttackEventInfo{ActionType: string(model.ActionAttack), CounterInitiator: ""},
 	}
-	ctx := g.BuildContext(p1, nil, model.TimingOnActionEnd, eventCtx)
+	ctx := g.BuildContext(p1, nil, model.TimingActionEnd, eventCtx)
 	g.Dispatcher().OnTiming(ctx.Timing, ctx)
 
 	if g.State.PendingInterrupt == nil || g.State.PendingInterrupt.Type != model.InterruptResponseSkill {

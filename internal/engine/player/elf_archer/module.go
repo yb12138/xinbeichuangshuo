@@ -61,10 +61,10 @@ func SkillEntries() []player.SkillEntry {
 // ChoiceRouteSpecs 导出角色 choice 路由声明。
 func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 	return map[string]types.ChoiceRouteSpec{
-		"elf_archer_elemental_shot_pick":     types.ChoiceRouteRole("elf_archer"),
-		"elf_archer_pet_pick":                types.ChoiceRouteRole("elf_archer"),
-		"elf_pet_empower_confirm":            types.ChoiceRouteRole("elf_archer"),
-		"elf_pet_empower_target":             types.ChoiceRouteRole("elf_archer"),
-		"elf_ritual_release_target":          types.ChoiceRouteRole("elf_archer"),
+		"elf_archer_elemental_shot_pick": types.ChoiceRouteRole("elf_archer"),
+		"elf_archer_pet_pick":            types.ChoiceRouteRole("elf_archer"),
+		"elf_pet_empower_confirm":        types.ChoiceRouteRole("elf_archer"),
+		"elf_pet_empower_target":         types.ChoiceRouteRole("elf_archer"),
+		"elf_ritual_release_target":      types.ChoiceRouteRole("elf_archer"),
 	}
 }

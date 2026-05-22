@@ -108,7 +108,7 @@ func TestBeastSamurai_WarriorZanshinThenOneStrikeBecomesAvailable(t *testing.T) 
 	game, p1, p2 := newBeastSamuraiTestEngine(t, testutils.NoopObserver{}, "")
 	p1.Tokens["bs_zanshin"] = 3
 
-	ctx := game.BuildContext(p1, p2, model.TimingOnActionEnd, &model.EventContext{
+	ctx := game.BuildContext(p1, p2, model.TimingActionEnd, &model.EventContext{
 		Type:       model.EventPhaseEnd,
 		SourceID:   p1.ID,
 		TargetID:   p2.ID,
@@ -873,7 +873,7 @@ func TestBeastSamurai_IaijutsuStyle_CanOverflowBeastSoulAndEnterForm(t *testing.
 		t.Fatalf("expected iaijutsu style handler")
 	}
 	game.State.TurnStage = model.TurnStageActionStart
-	ctx := game.BuildContext(p1, nil, model.TimingOnTurnStart, &model.EventContext{
+	ctx := game.BuildContext(p1, nil, model.TimingTurnStart, &model.EventContext{
 		Type:     model.EventTurnStart,
 		SourceID: p1.ID,
 	})
