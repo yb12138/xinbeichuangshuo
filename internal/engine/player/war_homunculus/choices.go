@@ -572,7 +572,7 @@ func resolveRuneChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]interfa
 			damage = 0
 		}
 		if damage > 0 && targetID != "" {
-			rt.AddPendingDamage(model.PendingDamage{
+			rt.AddPendingDamageFront(model.PendingDamage{
 				SourceID:   user.ID,
 				TargetID:   targetID,
 				Damage:     damage,
@@ -600,7 +600,7 @@ func resolveRuneChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]interfa
 		*rawCtx.EventCtx.DamageVal += bonusDamage
 	}
 	if yVal > 0 && targetID != "" {
-		rt.AddPendingDamage(model.PendingDamage{
+		rt.AddPendingDamageFront(model.PendingDamage{
 			SourceID:   user.ID,
 			TargetID:   targetID,
 			Damage:     yVal,

@@ -255,6 +255,13 @@ func (r roleChoiceRuntime) ApplyChoiceResumePoint(raw interface{}) {
 
 // ---- DamageOps 实现 ----
 
+func (r roleChoiceRuntime) AddPendingDamageFront(pd model.PendingDamage) {
+	if r.GameEngine == nil {
+		return
+	}
+	r.GameEngine.AddPendingDamageFront(pd)
+}
+
 func (r roleChoiceRuntime) RoutePendingDamageOr(defaultReturn interface{}, onNoPending func()) bool {
 	if r.GameEngine == nil {
 		return false

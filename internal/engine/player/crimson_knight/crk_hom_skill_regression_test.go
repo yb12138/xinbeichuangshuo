@@ -896,7 +896,10 @@ func TestHomRuneSmash_BurstAddsAttackAndMagicDamage(t *testing.T) {
 		{ID: "f2", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2},
 	}
 
-	damageVal := 2
+	g.State.PendingDamageQueue = []model.PendingDamage{
+		{SourceID: p1.ID, TargetID: p2.ID, Damage: 2, DamageType: model.AttackDamage},
+	}
+	damageVal := &g.State.PendingDamageQueue[0].Damage
 	h := skills.GetHandler("hom_rune_smash")
 	if h == nil {
 		t.Fatalf("hom_rune_smash handler not found")
@@ -905,7 +908,7 @@ func TestHomRuneSmash_BurstAddsAttackAndMagicDamage(t *testing.T) {
 		Type:      model.EventAttack,
 		SourceID:  p1.ID,
 		TargetID:  p2.ID,
-		DamageVal: &damageVal,
+		DamageVal: damageVal,
 		Card: &model.Card{
 			ID:      "atk",
 			Name:    "火焰斩",
@@ -944,18 +947,22 @@ func TestHomRuneSmash_BurstAddsAttackAndMagicDamage(t *testing.T) {
 		t.Fatalf("choose rune smash y failed: %v", err)
 	}
 
-	if damageVal != 3 {
-		t.Fatalf("expected attack damage +1 (X-1), got %d", damageVal)
+	if *damageVal != 3 {
+		t.Fatalf("expected attack damage +1 (X-1), got %d", *damageVal)
 	}
 	if p1.Tokens["hom_war_rune"] != 1 || p1.Tokens["hom_magic_rune"] != 2 {
 		t.Fatalf("unexpected rune flip result war=%d magic=%d", p1.Tokens["hom_war_rune"], p1.Tokens["hom_magic_rune"])
 	}
-	if len(g.State.PendingDamageQueue) == 0 {
-		t.Fatalf("expected pending magic damage from Y")
+	if len(g.State.PendingDamageQueue) != 2 {
+		t.Fatalf("expected rune smash Y damage to be inserted before original attack damage, got %+v", g.State.PendingDamageQueue)
 	}
 	pd := g.State.PendingDamageQueue[0]
 	if pd.TargetID != p2.ID || pd.Damage != 1 || pd.DamageType != "magic" {
 		t.Fatalf("unexpected rune smash pending damage: %+v", pd)
+	}
+	original := g.State.PendingDamageQueue[1]
+	if original.DamageType != model.AttackDamage || original.Damage != *damageVal {
+		t.Fatalf("expected original attack damage to remain behind rune smash damage, got %+v", original)
 	}
 }
 

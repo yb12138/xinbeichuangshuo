@@ -83,6 +83,7 @@ type StageOps interface {
 
 // DamageOps 伤害路由。
 type DamageOps interface {
+	AddPendingDamageFront(pd model.PendingDamage)
 	RoutePendingDamageOr(defaultReturn interface{}, onNoPending func()) bool
 	RoutePendingDamageWithReturn(returnTo interface{}) bool
 	ResumePendingMoraleLoss(ctx *model.Context) bool
