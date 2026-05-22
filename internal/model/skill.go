@@ -182,6 +182,13 @@ type AttackEventInfo struct {
 	ElementOverride  string // 非-empty 时覆盖卡牌元素的显示（如天枪暗属性）
 }
 
+type AttackKind string
+
+const (
+	AttackKindActive  AttackKind = "active"
+	AttackKindCounter AttackKind = "counter"
+)
+
 // PromptType 定义用户交互类型
 type PromptType string
 

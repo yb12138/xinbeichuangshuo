@@ -151,11 +151,27 @@ func (e *GameEngine) driveBeforeActionAttack(currentPid string, player *model.Pl
 		if e.runTimingOnAttackDeclaredInterruptPolicies(player, target, head, attackStartCtx) {
 			return driveStop
 		}
+		attackKind := model.AttackKindActive
+		if e.dispatchAttackRulebookTiming(model.TimingAttackDeclare, player, target, head.Card, eventCtx.AttackInfo, attackKind) {
+			return driveStop
+		}
+		if e.dispatchAttackRulebookTiming(model.TimingAttackSelectTarget, player, target, head.Card, eventCtx.AttackInfo, attackKind) {
+			return driveStop
+		}
+		if e.dispatchAttackRulebookTiming(model.TimingAttackPlayCard, player, target, head.Card, eventCtx.AttackInfo, attackKind) {
+			return driveStop
+		}
+		if e.dispatchAttackRulebookTiming(model.TimingAttackModifyCard, player, target, head.Card, eventCtx.AttackInfo, attackKind) {
+			return driveStop
+		}
 	}
 
 	e.applyAttackPreCombatLifecycle(player, target, head, eventCtx)
 	isForcedHit := eventCtx.AttackInfo != nil && eventCtx.AttackInfo.IsHitForced
 	ignoreShield := eventCtx.AttackInfo != nil && eventCtx.AttackInfo.IgnoreShield
+	if e.dispatchAttackRulebookTiming(model.TimingAttackCommitted, player, target, head.Card, eventCtx.AttackInfo, model.AttackKindActive) {
+		return driveStop
+	}
 
 	card := *head.Card
 	if !head.UsesVirtualCard {

@@ -308,14 +308,24 @@ func (e *GameEngine) driveCombatInteractionPhase(currentPid string, player *mode
 	if e.RunTimingOnHitCheckCombatInteractionPolicies(combatReq) {
 		return driveStop
 	}
+	attackKind := attackKindFromCounter(combatReq.IsCounter)
+	if e.dispatchAttackRulebookTiming(model.TimingAttackForceHitCheck, attacker, target, combatReq.Card, attackInfoFromCombatRequest(combatReq, false), attackKind) {
+		return driveStop
+	}
 	if e.resolveForcedHitCombat(combatReq) {
 		return driveContinueLoop
+	}
+	if e.dispatchAttackRulebookTiming(model.TimingAttackNoResponseCheck, attacker, target, combatReq.Card, attackInfoFromCombatRequest(combatReq, false), attackKind) {
+		return driveStop
 	}
 
 	shieldFallbackReady := e.HasUsableShieldForCombat(target, *combatReq)
 	counterTargets := e.buildCombatCounterTargets(combatReq.AttackerID)
 	options := e.buildCombatResponseOptions(combatReq, shieldFallbackReady, counterTargets)
 	hints := e.buildCombatInteractionHints(*combatReq, shieldFallbackReady)
+	if e.dispatchAttackRulebookTiming(model.TimingAttackResponse, attacker, target, combatReq.Card, attackInfoFromCombatRequest(combatReq, false), attackKind) {
+		return driveStop
+	}
 
 	attackerRole := combatReq.AttackerID
 	if attacker != nil {

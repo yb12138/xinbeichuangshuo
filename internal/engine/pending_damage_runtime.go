@@ -170,6 +170,9 @@ func (e *GameEngine) processPendingAttackHit(pd *model.PendingDamage) bool {
 			}(),
 		},
 	}
+	if e.dispatchAttackRulebookTiming(model.TimingAttackHit, attacker, victim, pd.Card, hitEventCtx.AttackInfo, attackKindFromCounter(pd.IsCounter)) {
+		return true
+	}
 	hitCtx := e.BuildContext(attacker, victim, model.TimingOnHitCheck, hitEventCtx)
 	e.dispatcher.OnTiming(hitCtx.Timing, hitCtx)
 	if e.State.PendingInterrupt != nil {

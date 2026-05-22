@@ -200,6 +200,9 @@ func (e *GameEngine) consumeShieldForCombatTake(target *model.Player, combatReq 
 		"attacker_id": combatReq.AttackerID,
 		"target_id":   combatReq.TargetID,
 	}
+	if e.dispatchAttackRulebookTiming(model.TimingAttackMiss, e.State.Players[combatReq.AttackerID], e.State.Players[combatReq.TargetID], combatReq.Card, missCtx.AttackInfo, attackKindFromCounter(combatReq.IsCounter)) {
+		return true
+	}
 	e.dispatcher.OnTiming(skillCtx.Timing, skillCtx)
 	if e.State.PendingInterrupt != nil {
 		return true
@@ -326,6 +329,10 @@ func (e *GameEngine) handleCombatDefendResponse(act model.PlayerAction, player *
 		"attacker_id": combatReq.AttackerID,
 		"target_id":   combatReq.TargetID,
 	}
+	if e.dispatchAttackRulebookTiming(model.TimingAttackMiss, e.State.Players[combatReq.AttackerID], e.State.Players[combatReq.TargetID], combatReq.Card, missCtx.AttackInfo, attackKindFromCounter(combatReq.IsCounter)) {
+		e.bindPendingChoiceUserCtxIfMissing(skillCtx)
+		return nil
+	}
 	e.dispatcher.OnTiming(skillCtx.Timing, skillCtx)
 	if e.State.PendingInterrupt != nil {
 		e.bindPendingChoiceUserCtxIfMissing(skillCtx)
@@ -396,6 +403,29 @@ func (e *GameEngine) handleCombatCounterResponse(act model.PlayerAction, player 
 		return errors.New("应战反弹目标必须是攻击方的队友")
 	}
 
+	counterInfo := &model.AttackEventInfo{
+		ActionType:       string(model.ActionAttack),
+		CanBeResponded:   true,
+		CounterInitiator: player.ID,
+		Element:          string(card.Element),
+		InterceptTags:    map[model.CombatInterceptTag]bool{},
+	}
+	if e.dispatchAttackRulebookTiming(model.TimingAttackDeclare, player, target, &card, counterInfo, model.AttackKindCounter) {
+		return nil
+	}
+	if e.dispatchAttackRulebookTiming(model.TimingAttackSelectTarget, player, target, &card, counterInfo, model.AttackKindCounter) {
+		return nil
+	}
+	if e.dispatchAttackRulebookTiming(model.TimingAttackPlayCard, player, target, &card, counterInfo, model.AttackKindCounter) {
+		return nil
+	}
+	if e.dispatchAttackRulebookTiming(model.TimingAttackModifyCard, player, target, &card, counterInfo, model.AttackKindCounter) {
+		return nil
+	}
+	if e.dispatchAttackRulebookTiming(model.TimingAttackCommitted, player, target, &card, counterInfo, model.AttackKindCounter) {
+		return nil
+	}
+
 	e.dispatchCardTiming(player, model.TimingOnCardPlayedOrRevealed, "", card)
 	e.NotifyCardRevealed(act.PlayerID, []model.Card{card}, "counter")
 	e.NotifyCombatCue(combatReq.AttackerID, combatReq.TargetID, "counter")
@@ -428,6 +458,9 @@ func (e *GameEngine) handleCombatCounterResponse(act model.PlayerAction, player 
 		"counter_player_id": act.PlayerID,
 		"counter_target_id": targetID,
 		"counter_card":      card,
+	}
+	if e.dispatchAttackRulebookTiming(model.TimingAttackMiss, e.State.Players[combatReq.AttackerID], e.State.Players[combatReq.TargetID], combatReq.Card, missCtx.AttackInfo, attackKindFromCounter(combatReq.IsCounter)) {
+		return nil
 	}
 	e.dispatcher.OnTiming(skillCtx.Timing, skillCtx)
 	if e.State.PendingInterrupt != nil {
