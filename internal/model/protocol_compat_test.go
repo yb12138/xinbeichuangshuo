@@ -61,4 +61,17 @@ func TestTimingRefactorDoesNotChangeFrontendProtocolConstants(t *testing.T) {
 			t.Fatalf("PlayerActionType protocol changed: got %q, want %q", got, want)
 		}
 	}
+
+	promptChoiceTypes := []string{
+		"assassin_stealth_draw",
+		"heal",
+		"discard",
+		"counter",
+		"take",
+	}
+	for _, choiceType := range promptChoiceTypes {
+		if choiceType == "" {
+			t.Fatal("ChoiceType protocol sentinel changed to empty string")
+		}
+	}
 }
