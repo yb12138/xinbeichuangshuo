@@ -31,8 +31,8 @@ func (e *GameEngine) resetTimingOnAttackDeclaredState(player *model.Player) {
 	})
 }
 
-// applyTimingOnAttackDeclaredPreCombatRules 在进入战斗交互前应用攻击劫持策略。
-func (e *GameEngine) applyTimingOnAttackDeclaredPreCombatRules(player *model.Player, target *model.Player, currentAction *model.QueuedAction, eventCtx *model.EventContext) {
+// applyAttackDeclarePreCombatRules 在进入战斗交互前应用攻击劫持策略。
+func (e *GameEngine) applyAttackDeclarePreCombatRules(player *model.Player, target *model.Player, currentAction *model.QueuedAction, eventCtx *model.EventContext) {
 	applyCombatPolicyAttackGating(nil, player, nil, currentAction, eventCtx)
 	applyDarkElementNoCounterRule(nil, nil, nil, currentAction, eventCtx)
 	if player != nil && eventCtx != nil && eventCtx.AttackInfo != nil {
@@ -77,8 +77,8 @@ func applyDarkElementNoCounterRule(_ *GameEngine, _ *model.Player, _ *model.Play
 
 // ---------- 攻击卡牌变换 ----------
 
-// applyTimingOnAttackDeclaredCardTransforms 在攻击宣言时按固定顺序应用卡面变换规则。
-func (e *GameEngine) applyTimingOnAttackDeclaredCardTransforms(player *model.Player, card model.Card) model.Card {
+// applyAttackModifyCardTransforms 在攻击宣言时按固定顺序应用卡面变换规则。
+func (e *GameEngine) applyAttackModifyCardTransforms(player *model.Player, card model.Card) model.Card {
 	ctx := engineplayer.TimingHookContext{
 		Player:      player,
 		CounterCard: &card,
@@ -92,8 +92,8 @@ func (e *GameEngine) applyTimingOnAttackDeclaredCardTransforms(player *model.Pla
 
 // ---------- 攻击被动增伤（原 attack_passive_runtime_hooks.go） ----------
 
-// applyTimingOnDamageCalculatedAttackPassiveModifiers 在伤害计算时按固定顺序应用攻击方被动修正。
-func (e *GameEngine) applyTimingOnDamageCalculatedAttackPassiveModifiers(attacker *model.Player, target *model.Player, action model.Action, baseDamage int) int {
+// applyDamageSourceDealAttackModifiers 在伤害计算时按固定顺序应用攻击方被动修正。
+func (e *GameEngine) applyDamageSourceDealAttackModifiers(attacker *model.Player, target *model.Player, action model.Action, baseDamage int) int {
 	damage := baseDamage
 	if attacker != nil {
 		var targetID string

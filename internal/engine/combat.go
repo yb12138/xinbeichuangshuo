@@ -119,7 +119,7 @@ func (e *GameEngine) addCampResource(camp model.Camp, resourceType string) bool 
 
 // ApplyPassiveAttackEffects 应用攻击者的被动技能效果
 func (e *GameEngine) ApplyPassiveAttackEffects(attacker, target *model.Player, baseDamage int, action model.Action) int {
-	return e.applyTimingOnDamageCalculatedAttackPassiveModifiers(attacker, target, action, baseDamage)
+	return e.applyDamageSourceDealAttackModifiers(attacker, target, action, baseDamage)
 }
 
 // applyDamageWithOptions 应用伤害逻辑 (治疗抵消 + 摸牌)

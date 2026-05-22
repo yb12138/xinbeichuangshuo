@@ -12,8 +12,8 @@ import (
 
 // ---------- 命中判定规则（原 damage_attack_hit_hooks.go） ----------
 
-// applyTimingOnHitCheckPendingDamageAttackHitRules 在命中判定时处理攻击伤害命中规则。
-func (e *GameEngine) applyTimingOnHitCheckPendingDamageAttackHitRules(pd *model.PendingDamage, attacker *model.Player, victim *model.Player) {
+// applyAttackHitPendingDamageRules 在命中判定时处理攻击伤害命中规则。
+func (e *GameEngine) applyAttackHitPendingDamageRules(pd *model.PendingDamage, attacker *model.Player, victim *model.Player) {
 	result := e.dispatchRoleTimingHook(engineplayer.TimingOnHitCheck, engineplayer.TimingHookContext{
 		SourceID:      pd.SourceID,
 		TargetID:      pd.TargetID,
@@ -28,8 +28,8 @@ func (e *GameEngine) applyTimingOnHitCheckPendingDamageAttackHitRules(pd *model.
 
 // ---------- 承伤/转伤钩子 ----------
 
-// applyTimingOnDamageCalculatedBeforeTakenRules 在承伤触发前处理伤害计算阶段规则。
-func (e *GameEngine) applyTimingOnDamageCalculatedBeforeTakenRules(pd *model.PendingDamage) bool {
+// applyDamageTargetBeforeRules 在承伤触发前处理伤害计算阶段规则。
+func (e *GameEngine) applyDamageTargetBeforeRules(pd *model.PendingDamage) bool {
 	result := e.dispatchRoleTimingHook(engineplayer.TimingOnDamageBeforeTaken, engineplayer.TimingHookContext{
 		SourceID:      pd.SourceID,
 		TargetID:      pd.TargetID,
@@ -89,8 +89,8 @@ func (e *GameEngine) applyTimingOnDamageTakenRules(pd *model.PendingDamage) bool
 	return result.Interrupted
 }
 
-// applyTimingOnDamageCalculatedHealCapRules 在治疗抵伤额度计算时应用上限规则。
-func (e *GameEngine) applyTimingOnDamageCalculatedHealCapRules(pd *model.PendingDamage, target *model.Player, maxHeal int) int {
+// applyHealCapRules 在治疗抵伤额度计算时应用上限规则。
+func (e *GameEngine) applyHealCapRules(pd *model.PendingDamage, target *model.Player, maxHeal int) int {
 	result := e.dispatchAllRoleTimingHooks(engineplayer.TimingOnHealCapCalculate, engineplayer.TimingHookContext{
 		TargetID:      target.ID,
 		PendingDamage: pd,

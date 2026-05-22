@@ -91,7 +91,7 @@ func (e *GameEngine) processPendingDamageBeforeApply(pd *model.PendingDamage) bo
 	if e.dispatchDamageRulebookTimingOnce(model.TimingDamageTargetBefore, pd, pendingDamageCheckTimingDamageTargetBefore) {
 		return true
 	}
-	if e.applyTimingOnDamageCalculatedBeforeTakenRules(pd) {
+	if e.applyDamageTargetBeforeRules(pd) {
 		return true
 	}
 	if e.dispatchPendingDamageTaken(pd) {

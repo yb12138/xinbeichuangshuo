@@ -63,12 +63,19 @@ func (e *GameEngine) applyTimingBeforeActionExecuteValidationPolicies(player *mo
 	e.dispatchAllRoleTimingHooks(engineplayer.TimingBeforeActionValidation, ctx)
 }
 
-// RunTimingOnHitCheckCombatInteractionPolicies 在战斗交互阶段执行命中判定策略链。
-func (e *GameEngine) RunTimingOnHitCheckCombatInteractionPolicies(req *model.CombatRequest) bool {
+// RunAttackResponseCombatInteractionPolicies 在战斗交互阶段执行命中判定策略链。
+func (e *GameEngine) RunAttackResponseCombatInteractionPolicies(req *model.CombatRequest) bool {
 	result := e.dispatchRoleTimingHook(engineplayer.TimingOnCombatInteraction, engineplayer.TimingHookContext{
 		CombatRequest: req,
 	})
 	return result.Interrupted
+}
+
+// RunTimingOnHitCheckCombatInteractionPolicies 在战斗交互阶段执行命中判定策略链。
+//
+// Deprecated: use RunAttackResponseCombatInteractionPolicies.
+func (e *GameEngine) RunTimingOnHitCheckCombatInteractionPolicies(req *model.CombatRequest) bool {
+	return e.RunAttackResponseCombatInteractionPolicies(req)
 }
 
 // runTimingOnAttackDeclaredInterruptPolicies 在攻击宣言后执行中断策略。

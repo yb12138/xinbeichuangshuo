@@ -32,7 +32,7 @@ func (l *defaultAttackLifecycle) TransformAttackCard(player *model.Player, card 
 	if l == nil || l.engine == nil {
 		return card
 	}
-	return l.engine.applyTimingOnAttackDeclaredCardTransforms(player, card)
+	return l.engine.applyAttackModifyCardTransforms(player, card)
 }
 
 func (l *defaultAttackLifecycle) RecordAttackTargetContext(player *model.Player, targetID string) {
@@ -53,7 +53,7 @@ func (l *defaultAttackLifecycle) ApplyPreCombatRules(player *model.Player, targe
 	if l == nil || l.engine == nil {
 		return
 	}
-	l.engine.applyTimingOnAttackDeclaredPreCombatRules(player, target, currentAction, eventCtx)
+	l.engine.applyAttackDeclarePreCombatRules(player, target, currentAction, eventCtx)
 }
 
 func (l *defaultAttackLifecycle) RunPendingDamageAttackInit(pd *model.PendingDamage, attacker *model.Player, victim *model.Player) {
@@ -79,7 +79,7 @@ func (l *defaultAttackLifecycle) RunPendingDamageAttackHit(pd *model.PendingDama
 	if l == nil || l.engine == nil {
 		return
 	}
-	l.engine.applyTimingOnHitCheckPendingDamageAttackHitRules(pd, attacker, victim)
+	l.engine.applyAttackHitPendingDamageRules(pd, attacker, victim)
 }
 
 // ---------- 备用入口（直接委托 lifecycle） ----------

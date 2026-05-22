@@ -305,7 +305,7 @@ func (e *GameEngine) driveCombatInteractionPhase(currentPid string, player *mode
 	if !ok {
 		return driveStop
 	}
-	if e.RunTimingOnHitCheckCombatInteractionPolicies(combatReq) {
+	if e.RunAttackResponseCombatInteractionPolicies(combatReq) {
 		return driveStop
 	}
 	attackKind := attackKindFromCounter(combatReq.IsCounter)
