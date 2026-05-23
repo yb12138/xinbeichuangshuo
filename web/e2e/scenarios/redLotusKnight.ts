@@ -67,7 +67,7 @@ const redLotusKnightCharacter = characterView({
     {
       id: RED_LOTUS_KNIGHT_MODESTY_ID,
       title: '戒骄戒躁',
-      description: '［水晶］（热血形态中）脱离热血形态，选择：Ⅰ、摸2张牌；Ⅱ、+2［治疗］。',
+      description: '［水晶］（热血形态中）脱离热血形态，额外+1［攻击行动］或［法术行动］。',
       type: 3, // 响应(大招)
       min_targets: 0, max_targets: 0, target_type: 0,
       cost_gem: 0, cost_crystal: 0, cost_discards: 0,
@@ -303,17 +303,17 @@ export function modestyScenario(): ProtocolHarnessScenario {
   });
 }
 
-export function modestyBranchPrompt(): WsMessage {
+export function modestyExtraActionPrompt(): WsMessage {
   return requireActionMessage({
     type: 'confirm',
     player_id: RED_LOTUS_KNIGHT_PLAYER_ID,
-    message: '【戒骄戒躁】脱离热血形态，选择：',
-    choice_type: 'crk_modesty_branch',
+    message: '当前为额外行动，可执行攻击或法术。请选择行动类型',
+    choice_type: 'action_hub',
     options: [
-      { id: 'draw', label: '摸2张牌', button_label: '摸2张牌' },
-      { id: 'heal', label: '+2治疗', button_label: '+2治疗' },
+      { id: 'attack', label: '攻击', button_label: '攻击' },
+      { id: 'magic', label: '法术', button_label: '法术' },
     ],
-    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
+    presentation: { kind: 'action_hub', numeric_base: 0 },
     min: 1, max: 1,
   } satisfies Prompt);
 }

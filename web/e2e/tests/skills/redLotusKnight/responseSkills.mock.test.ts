@@ -6,7 +6,7 @@ import {
   slaughterFeastScenario,
   slaughterFeastPrompt,
   modestyScenario,
-  modestyBranchPrompt,
+  modestyExtraActionPrompt,
 } from '../../../scenarios/redLotusKnight';
 
 async function clickOverlayOption(page: Page, selector: string) {
@@ -78,30 +78,14 @@ test.describe('red lotus knight slaughter feast protocol harness', () => {
 });
 
 test.describe('red lotus knight modesty protocol harness', () => {
-  test('modesty: select draw 2 cards', async ({ page, protocolHarness }) => {
+  test('modesty: extra action panel shows attack and magic', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(modestyScenario());
 
-    // Server pushes modesty branch prompt when in hot blood form
-    await protocolHarness.pushServerMessage(modestyBranchPrompt());
+    await protocolHarness.pushServerMessage(modestyExtraActionPrompt());
 
-    // Select draw option
-    await clickOverlayOption(page, 'prompt-option-draw');
-    await protocolHarness.expectSubmitAction({
-      action_type: 'Select',
-      option_indexes: [0],
-    });
-  });
-
-  test('modesty: select +2 heal', async ({ page, protocolHarness }) => {
-    await protocolHarness.bootGame(modestyScenario());
-
-    await protocolHarness.pushServerMessage(modestyBranchPrompt());
-
-    // Select heal option
-    await clickOverlayOption(page, 'prompt-option-heal');
-    await protocolHarness.expectSubmitAction({
-      action_type: 'Select',
-      option_indexes: [1],
-    });
+    await page.getByTestId('decision-overlay').waitFor({ state: 'hidden' });
+    await page.getByTestId('action-attack').waitFor({ state: 'visible' });
+    await page.getByTestId('action-magic').waitFor({ state: 'visible' });
+    await page.getByTestId('action-special').waitFor({ state: 'detached' });
   });
 });
