@@ -18,8 +18,6 @@ func addMagicAction(p *model.Player, source string) {
 
 type PrayerEnterFormHandler struct{ engineplayer.BaseHandler }
 
-type PrayerRuneGainHandler struct{ engineplayer.BaseHandler }
-
 type PrayerRadiantFaithHandler struct{ engineplayer.BaseHandler }
 
 type PrayerDarkCurseHandler struct{ engineplayer.BaseHandler }
@@ -47,29 +45,6 @@ func (h *PrayerEnterFormHandler) Execute(ctx *model.Context) error {
 	}
 	engineplayer.SetForm(ctx.User, model.FormPrayerMasterPrayer)
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [祈祷]，进入祈祷形态", ctx.User.Name))
-	return nil
-}
-
-func (h *PrayerRuneGainHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
-		return false
-	}
-	if !engineplayer.HasForm(ctx.User, model.FormPrayerMasterPrayer) {
-		return false
-	}
-	if !ctx.AttackDeclarePhase() {
-		return false
-	}
-	// 仅主动攻击
-	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
-		return false
-	}
-	return true
-}
-
-func (h *PrayerRuneGainHandler) Execute(ctx *model.Context) error {
-	v := engineplayer.AddToken(ctx.User, "prayer_rune", 2, 3)
-	ctx.Game.Log(fmt.Sprintf("%s 的 [祈祷符文] 触发，祈祷符文=%d", ctx.User.Name, v))
 	return nil
 }
 

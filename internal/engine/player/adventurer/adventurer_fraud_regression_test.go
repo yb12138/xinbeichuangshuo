@@ -71,6 +71,19 @@ func TestAdventurerFraud_PickTwoThenChooseAttackElement(t *testing.T) {
 	if _, ok := ctxData["need_count"]; ok {
 		t.Fatalf("fraud should not use legacy need_count, got %+v", ctxData)
 	}
+	pickPrompt := game.BuildPendingInterruptPrompt()
+	if pickPrompt == nil {
+		t.Fatalf("expected fraud card picker prompt")
+	}
+	if pickPrompt.Type != model.PromptChooseCards {
+		t.Fatalf("expected fraud card picker choose_cards prompt, got %s", pickPrompt.Type)
+	}
+	if pickPrompt.Min != 2 || pickPrompt.Max != 3 {
+		t.Fatalf("expected fraud card picker min/max 2..3, got min=%d max=%d", pickPrompt.Min, pickPrompt.Max)
+	}
+	if pickPrompt.Presentation == nil || pickPrompt.Presentation.Kind != model.PresentationCardPicker || pickPrompt.Presentation.CardFilter != "same_element_combo" {
+		t.Fatalf("expected fraud same-element card picker presentation, got %+v", pickPrompt.Presentation)
+	}
 
 	// 先在手牌区选择2张同系牌（火）
 	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0, 1}})

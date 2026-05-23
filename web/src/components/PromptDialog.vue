@@ -45,6 +45,17 @@ const {
   submitRespondDefend,
 } = interaction
 const myHand = computed(() => playerViews.value[myPlayerId.value]?.hand || [])
+const myPromptSelectableCards = computed(() => {
+  const player = playerViews.value[myPlayerId.value]
+  const handCards = (player?.hand || []).map((card, index) => ({ card, index }))
+  const blessingCards = (player?.field || [])
+    .filter((fieldCard) => fieldCard?.mode === 'Cover' && fieldCard.effect === 'ElfBlessing' && !!fieldCard.card)
+    .map((fieldCard, offset) => ({
+      card: fieldCard.card!,
+      index: handCards.length + offset,
+    }))
+  return [...handCards, ...blessingCards]
+})
 
 // 行动选择（攻击/法术/购买/提取/合成）不在这里显示，由 ActionPanel 承载
 const isActionSelectionPrompt = computed(() => {
@@ -713,17 +724,18 @@ function optionCardID(option: { card_id?: string | null }): string {
 function handIndexForPromptOption(option: { card_id?: string | null }): number | null {
   const cardID = optionCardID(option)
   if (!cardID) return null
-  const idx = myHand.value.findIndex(card => String(card.id || '').trim() === cardID)
-  return idx >= 0 ? idx : null
+  const entry = myPromptSelectableCards.value.find(({ card }) => String(card.id || '').trim() === cardID)
+  return entry ? entry.index : null
 }
 
 function promptOptionForHandIndex(handIndex: number): PromptOption | null {
   if (!prompt.value?.options?.length) return null
-  const handCardID = String(myHand.value[handIndex]?.id || '').trim()
-  if (!handCardID) return null
+  const selectedEntry = myPromptSelectableCards.value.find((entry) => entry.index === handIndex)
+  const selectedCardID = String(selectedEntry?.card?.id || '').trim()
+  if (!selectedCardID) return null
   for (const option of prompt.value.options) {
     const cardID = optionCardID(option)
-    if (cardID && cardID === handCardID) return option
+    if (cardID && cardID === selectedCardID) return option
   }
   return null
 }
@@ -749,7 +761,7 @@ function isPromptHandCardOption(option: { id: string; label: string; card_id?: s
   if (p.kind === 'target_picker') return false
   if (p.kind === 'branch_select') return false
   if (p.kind === 'skill_choice') return false
-  // card_picker with card_source=hand/proxy: selectable cards are matched by card_id in my hand.
+  // card_picker with card_source=hand/proxy: selectable cards are matched by card_id in hand-like playable zones.
   if (p.kind === 'card_picker' && (p.card_source === 'hand' || p.card_source === 'proxy')) {
     return handIndexForPromptOption(option) !== null
   }

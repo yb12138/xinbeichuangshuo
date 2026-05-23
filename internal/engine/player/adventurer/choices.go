@@ -29,10 +29,10 @@ func ChoiceSpecs() []engineplayer.ChoiceSpec {
 		{ChoiceType: "adventurer_extract_paradise_check", BuildPrompt: buildExtractParadiseCheckPrompt, HandleChoice: handleExtractParadiseCheck},
 		{ChoiceType: "adventurer_paradise_pick", BuildPrompt: buildParadiseAllyPickPrompt, HandleChoice: handleParadiseAllyPick},
 		{
-			ChoiceType:          "adventurer_fraud_pick",
-			BuildPrompt:         buildFraudPickPrompt,
-			HandleChoice:        handleFraudPick,
-			SequentialRemaining: engineplayer.ChoiceRemainingFromFlowFlexibleRange(adventurerFraudCardsStep, 2, 3),
+			ChoiceType:        "adventurer_fraud_pick",
+			BuildPrompt:       buildFraudPickPrompt,
+			HandleChoice:      handleFraudPick,
+			HandleMultiSelect: handleFraudPickMultiSelect,
 		},
 		{ChoiceType: "adventurer_fraud_attack_element", BuildPrompt: buildFraudElementPrompt, HandleChoice: handleFraudElement},
 		{ChoiceType: "adventurer_steal_sky_mode", BuildPrompt: buildStealSkyModePrompt, HandleChoice: handleStealSkyMode},
@@ -217,18 +217,12 @@ func buildFraudPickPrompt(_ engineplayer.ChoiceRuntime, playerID string, player 
 	if player == nil {
 		return nil
 	}
-	flow, err := model.RequirePromptFlow(data, adventurerFraudFlowID, "欺诈")
-	if err != nil {
+	if _, err := model.RequirePromptFlow(data, adventurerFraudFlowID, "欺诈"); err != nil {
 		return nil
 	}
 	remainingIndices := runtimeutil.ParseChoiceIntSlice(data["remaining_indices"])
 	if len(remainingIndices) == 0 {
 		remainingIndices = engineplayer.AllHandIndices(player)
-	}
-	selectedIndices := flow.Selection(adventurerFraudCardsStep).OptionIndexes
-	remaining := 2 - len(selectedIndices)
-	if remaining <= 0 {
-		remaining = 1
 	}
 	opts := make([]engineplayer.PromptOptionSpec, 0, len(remainingIndices))
 	for _, idx := range remainingIndices {
@@ -236,80 +230,69 @@ func buildFraudPickPrompt(_ engineplayer.ChoiceRuntime, playerID string, player 
 			opts = append(opts, engineplayer.CardOption(strconv.Itoa(idx), promptfmt.FormatCardInfo(player.Hand[idx]), player.Hand[idx].ID))
 		}
 	}
-	p := engineplayer.NewPrompt(playerID, fmt.Sprintf("【欺诈】请选择手牌（还需选择%d张同系牌）：", remaining)).
+	p := engineplayer.NewPrompt(playerID, "【欺诈】请选择2~3张同系手牌：").
 		Options(opts...).Build()
+	p.Type = model.PromptChooseCards
+	p.Min = 2
+	p.Max = 3
 	p.Presentation = &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand", CardFilter: "same_element_combo"}
 	return p
 }
 
-func handleFraudPick(rt engineplayer.ChoiceRuntime, playerID string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
+func handleFraudPick(_ engineplayer.ChoiceRuntime, _ string, _ int, _ map[string]interface{}) (bool, error) {
+	return true, fmt.Errorf("欺诈请一次选择2~3张同系手牌后确认提交")
+}
+
+func handleFraudPickMultiSelect(rt engineplayer.ChoiceRuntime, playerID string, selections []int, ctxData map[string]interface{}) (bool, error) {
 	user := rt.GetPlayers()[playerID]
 	if user == nil {
 		return true, fmt.Errorf("玩家不存在")
+	}
+	if len(selections) < 2 || len(selections) > 3 {
+		return true, fmt.Errorf("欺诈需要选择2或3张同系手牌")
 	}
 	flow, err := model.RequirePromptFlow(ctxData, adventurerFraudFlowID, "欺诈")
 	if err != nil {
 		return true, err
 	}
-	selectedIndices := append([]int{}, flow.Selection(adventurerFraudCardsStep).OptionIndexes...)
 	remainingIndices := runtimeutil.ParseChoiceIntSlice(ctxData["remaining_indices"])
 	if len(remainingIndices) == 0 {
 		remainingIndices = engineplayer.AllHandIndices(user)
 	}
-
-	cardIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, remainingIndices)
-	if !ok || cardIdx < 0 || cardIdx >= len(user.Hand) {
-		return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
+	allowed := map[int]bool{}
+	for _, idx := range remainingIndices {
+		allowed[idx] = true
 	}
-	for _, idx := range selectedIndices {
-		if idx == cardIdx {
-			return true, fmt.Errorf("这张牌已经被选择过")
+
+	seen := map[int]bool{}
+	var commonElement model.Element
+	for _, idx := range selections {
+		if idx < 0 || idx >= len(user.Hand) || !allowed[idx] {
+			return true, fmt.Errorf("无效的选项索引: %d", idx)
+		}
+		if seen[idx] {
+			return true, fmt.Errorf("欺诈不能重复选择同一张牌")
+		}
+		seen[idx] = true
+
+		cardElement := user.Hand[idx].Element
+		if cardElement == "" {
+			return true, fmt.Errorf("欺诈需选择有系别的手牌")
+		}
+		if commonElement == "" {
+			commonElement = cardElement
+			continue
+		}
+		if cardElement != commonElement {
+			return true, fmt.Errorf("欺诈需选择同系牌（2张可选五系攻击，3张自动转暗灭）")
 		}
 	}
 
-	selectedIndices = append(selectedIndices, cardIdx)
-	remainingIndices = removeInt(remainingIndices, cardIdx)
-	flow.PutSelection(adventurerFraudCardsStep, model.PromptFlowSelection{OptionIndexes: append([]int{}, selectedIndices...)})
-	ctxData["remaining_indices"] = remainingIndices
-
-	// 还没选够，继续选
-	if len(selectedIndices) < 2 {
-		if intr := rt.GetPendingInterrupt(); intr != nil {
-			intr.Context = ctxData
-		}
-		rt.NotifyInterruptPrompt()
-		return true, nil
+	flow.PutSelection(adventurerFraudCardsStep, model.PromptFlowSelection{OptionIndexes: append([]int{}, selections...)})
+	if len(selections) == 3 {
+		return resolveFraudAttack(rt, user, selections, ctxData, model.ElementDark)
 	}
 
-	// 选够后：检查是否还有顺序选牌未完成（多选批次中间步骤）
-	seqRemaining := runtimeutil.ToIntContextValue(ctxData["sequential_remaining"])
-	if seqRemaining > 0 {
-		if intr := rt.GetPendingInterrupt(); intr != nil {
-			intr.Context = ctxData
-		}
-		rt.NotifyInterruptPrompt()
-		return true, nil
-	}
-
-	// 判断元素同系
-	cards := collectCards(user, selectedIndices)
-	commonElement := findCommonElement(cards)
-
-	if len(selectedIndices) >= 3 {
-		// 3张 → 暗灭（不要求同系）
-		return resolveFraudAttack(rt, user, selectedIndices, ctxData, model.ElementDark)
-	}
-	if commonElement == "" {
-		// 2张不同系，重新选
-		flow.PutSelection(adventurerFraudCardsStep, model.PromptFlowSelection{})
-		ctxData["remaining_indices"] = engineplayer.AllHandIndices(user)
-		if intr := rt.GetPendingInterrupt(); intr != nil {
-			intr.Context = ctxData
-		}
-		rt.NotifyInterruptPrompt()
-		return true, nil
-	}
-	// 2张同系 → 进入五系选择
 	flow.PutSelection(adventurerFraudElementStep, model.PromptFlowSelection{Element: string(commonElement)})
 	if err := adventurerFraudFlowRuntime.MoveTo(flow, adventurerFraudElementStep); err != nil {
 		return true, err
@@ -386,38 +369,3 @@ func resolveFraudAttack(rt engineplayer.ChoiceRuntime, user *model.Player, indic
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-func collectCards(player *model.Player, indices []int) []model.Card {
-	cards := make([]model.Card, 0, len(indices))
-	for _, idx := range indices {
-		if idx >= 0 && idx < len(player.Hand) {
-			cards = append(cards, player.Hand[idx])
-		}
-	}
-	return cards
-}
-
-func findCommonElement(cards []model.Card) model.Element {
-	counts := map[model.Element]int{}
-	for _, c := range cards {
-		if c.Element != "" {
-			counts[c.Element]++
-		}
-	}
-	for ele, cnt := range counts {
-		if cnt >= 2 {
-			return ele
-		}
-	}
-	return ""
-}
-
-func removeInt(slice []int, val int) []int {
-	out := make([]int, 0, len(slice)-1)
-	for _, v := range slice {
-		if v != val {
-			out = append(out, v)
-		}
-	}
-	return out
-}

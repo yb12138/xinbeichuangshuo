@@ -23,6 +23,7 @@ func TestBuildStateForPlayer_UsesIndicatorsForDerivedDisplayState(t *testing.T) 
 
 	p1 := room.Engine.State.Players["p1"]
 	p2 := room.Engine.State.Players["p2"]
+	p1.Tokens["css_blood_cap"] = 4
 	p1.Tokens["mb_charge_count"] = 99
 	p1.Tokens["hero_anger"] = 2
 	p1.Field = append(p1.Field,
@@ -56,6 +57,9 @@ func TestBuildStateForPlayer_UsesIndicatorsForDerivedDisplayState(t *testing.T) 
 	if _, ok := view.Tokens["mb_charge_count"]; ok {
 		t.Fatalf("expected derived mirror to be removed from tokens, got %+v", view.Tokens)
 	}
+	if _, ok := view.Tokens["css_blood_cap"]; ok {
+		t.Fatalf("expected blood cap to be removed from tokens, got %+v", view.Tokens)
+	}
 
 	expectedIndicators := map[string]int{
 		"mb_charge_count":                   1,
@@ -77,6 +81,7 @@ func TestBuildStateForPlayer_UsesIndicatorsForDerivedDisplayState(t *testing.T) 
 	text := string(raw)
 	for _, legacy := range []string{
 		`"mb_charge_count":99`,
+		`"css_blood_cap":4`,
 		`"ml_dark_release_next_attack_bonus":1`,
 		`"ml_dark_release_lock_turn":1`,
 		`"se_sword_soul_count":1`,
@@ -98,6 +103,7 @@ func TestBuildStateForPlayer_UsesIndicatorsForDerivedDisplayState(t *testing.T) 
 		"bt_cocoon_count",
 		"bp_shared_life_active",
 		"bp_shared_life_bound",
+		"css_blood_cap",
 		"ml_dark_release_next_attack_bonus",
 		"ml_dark_release_lock_turn",
 		"se_sword_soul_count",

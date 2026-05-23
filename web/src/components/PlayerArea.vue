@@ -289,7 +289,6 @@ const TOKEN_DISPLAY: Record<string, { label: string; cls: string }> = {
   valkyrie_spirit: { label: '英灵', cls: 'bg-amber-800/70 text-amber-100 border-amber-500/40' },
   elf_blessing_count: { label: '祝福', cls: 'bg-teal-800/70 text-teal-100 border-teal-500/40' },
   css_blood: { label: '鲜血', cls: 'bg-rose-800/70 text-rose-100 border-rose-500/40' },
-  css_blood_cap: { label: '鲜血上限', cls: 'bg-rose-900/60 text-rose-100 border-rose-600/40' },
   prayer_rune: { label: '祈祷符文', cls: 'bg-yellow-900/70 text-yellow-100 border-yellow-500/40' },
   crk_blood_mark: { label: '血印', cls: 'bg-red-900/70 text-red-100 border-red-500/40' },
   hom_war_rune: { label: '战纹', cls: 'bg-indigo-900/70 text-indigo-100 border-indigo-500/40' },
@@ -332,6 +331,7 @@ const HIDDEN_TOKEN_KEYS = new Set([
   'elf_ritual_release_waiting',
   'plague_block_immortal',
   'ms_yellow_spring_pending',
+  'css_blood_cap',
   'css_blood_barrier_lock',
   'prayer_power_blessing_used',
   'prayer_swift_blessing_used',
@@ -377,7 +377,6 @@ const tokenIndicators = computed(() => {
   }
   const entries = Object.entries(indicatorSource)
     .filter(([key, value]) => !HIDDEN_TOKEN_KEYS.has(key) && !FORM_TOKEN_KEYS.has(key) && typeof value === 'number' && value > 0)
-    .filter(([key, value]) => !(key === 'css_blood_cap' && value <= 3))
     .map(([key, value]) => {
       const cfg = TOKEN_DISPLAY[key]
       return {

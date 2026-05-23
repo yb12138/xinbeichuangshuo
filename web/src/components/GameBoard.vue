@@ -1790,12 +1790,23 @@ function myRoleIdForCardRules(): string {
 }
 
 function effectiveHandCardElement(card: { type?: string; element: string }): string {
+  if (!shouldShowEffectiveHandCardElement()) return card.element
   return skillDiscardEffectiveElement(card, myRoleIdForCardRules(), myAreaPlayer.value?.form)
 }
 
 function effectiveHandCardHint(card: { type?: string; element: string }): string {
+  if (!shouldShowEffectiveHandCardElement()) return ''
   if (!hasBlazeWitchFlameElementOverride(card, myRoleIdForCardRules(), myAreaPlayer.value?.form)) return ''
   return '烈焰形态：非水/暗攻击牌视为火系'
+}
+
+function shouldShowEffectiveHandCardElement(): boolean {
+  if (skillMode.value === 'choosing_discard') return true
+  const prompt = currentPrompt.value
+  if (!prompt || !isPromptForMe.value) return false
+  const optionIds = new Set((prompt.options || []).map((option: any) => String(option?.id || '')))
+  if (optionIds.has('counter') || optionIds.has('defend')) return false
+  return prompt.choice_type === 'system_discard_cards' && !!prompt.skill_id
 }
 
 function isCardSelectableForSkillDiscard(idx: number): boolean {

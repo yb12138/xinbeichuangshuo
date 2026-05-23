@@ -25,74 +25,54 @@ async function clickHandCard(page: Page, index: number) {
   await page.getByTestId(`hand-card-${index}`).click();
 }
 
+async function confirmCardSelection(page: Page) {
+  await page.getByTestId('card-picker-prompt').getByTestId('prompt-confirm-btn').click();
+}
+
 async function selectTarget(page: Page, targetId: string) {
   await page.getByTestId(`player-area-${targetId}`).click();
 }
 
 test.describe('adventurer fraud protocol harness', () => {
-  // Backend flow: sequential card selection, then element if needed
-  // 1. Push fraudPickPrompt(flow need=2)
-  // 2. Select card 0 (light element) → expect option_indexes: [0]
-  // 3. Push fraudPickPrompt(remaining=1) again
-  // 4. Select card 1 (light element, same element) → expect option_indexes: [0, 1]
-  // 5. If same element → done, if different → push fraudElementPrompt
+  // Backend flow: multi-select same-element cards, then element if needed.
+  // 1. Push fraudPickPrompt(min=2,max=3)
+  // 2. Select 2 or 3 same-element cards in hand
+  // 3. Click confirm once → expect one Select action with all card_ids
 
-  test('fraud: select 2 same element cards (no element prompt needed)', async ({ page, protocolHarness }) => {
+  test('fraud: select 2 same element cards once, then choose attack element', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(fraudScenario());
 
-    // Initial prompt: need to select 2 cards
-    await protocolHarness.pushServerMessage(fraudPickPrompt(2));
+    await protocolHarness.pushServerMessage(fraudPickPrompt());
 
-    // Select first card (index 0)
     await clickHandCard(page, 0);
-    await protocolHarness.expectSubmitAction({
-      action_type: 'Select',
-      card_ids: ['adv-attack-1'],
-    });
-
-    // Push next prompt: need 1 more card
-    await protocolHarness.pushServerMessage(fraudPickPrompt(1));
-
-    // Select second card (index 1, same light element as card 0)
     await clickHandCard(page, 1);
-    // Backend detects same element → done, no element prompt
+    await confirmCardSelection(page);
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
-      card_ids: ['adv-attack-2'],
-    });
-  });
-
-  test('fraud: select 2 different element cards (element prompt needed)', async ({ page, protocolHarness }) => {
-    await protocolHarness.bootGame(fraudScenario());
-
-    // Initial prompt
-    await protocolHarness.pushServerMessage(fraudPickPrompt(2));
-
-    // Select first card (index 0, light)
-    await clickHandCard(page, 0);
-    await protocolHarness.expectSubmitAction({
-      action_type: 'Select',
-      card_ids: ['adv-attack-1'],
+      card_ids: ['adv-attack-1', 'adv-attack-2'],
     });
 
-    // Push next prompt
-    await protocolHarness.pushServerMessage(fraudPickPrompt(1));
-
-    // Select second card (index 2, fire - different element)
-    await clickHandCard(page, 2);
-    await protocolHarness.expectSubmitAction({
-      action_type: 'Select',
-      card_ids: ['adv-magic-1'],
-    });
-
-    // Backend pushes element prompt for different element cards
     await protocolHarness.pushServerMessage(fraudElementPrompt());
 
-    // Select fire element (option.id="Fire", testid="prompt-option-Fire")
     await clickOverlayOption(page, 'prompt-option-Fire');
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       option_indexes: [1],
+    });
+  });
+
+  test('fraud: select 3 same element cards once for dark attack', async ({ page, protocolHarness }) => {
+    await protocolHarness.bootGame(fraudScenario());
+
+    await protocolHarness.pushServerMessage(fraudPickPrompt());
+
+    await clickHandCard(page, 0);
+    await clickHandCard(page, 1);
+    await clickHandCard(page, 2);
+    await confirmCardSelection(page);
+    await protocolHarness.expectSubmitAction({
+      action_type: 'Select',
+      card_ids: ['adv-attack-1', 'adv-attack-2', 'adv-light-magic'],
     });
   });
 });

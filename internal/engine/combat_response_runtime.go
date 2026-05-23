@@ -117,6 +117,55 @@ func (e *GameEngine) resumePendingAttackMiss(ctx *model.Context) bool {
 	}
 }
 
+func (e *GameEngine) resolveCounterAttackAfterAttackMissTiming(counterPlayerID, counterTargetID string, counterCard model.Card) bool {
+	if e == nil || e.State == nil || len(e.State.CombatStack) == 0 {
+		return false
+	}
+	combatReq := e.State.CombatStack[len(e.State.CombatStack)-1]
+	missCtx := &model.EventContext{
+		Type:     model.EventAttack,
+		SourceID: combatReq.AttackerID,
+		TargetID: combatReq.TargetID,
+		Card:     combatReq.Card,
+		AttackInfo: &model.AttackEventInfo{
+			ActionType: string(model.ActionAttack),
+			CounterInitiator: func() string {
+				if combatReq.IsCounter {
+					return combatReq.AttackerID
+				}
+				return ""
+			}(),
+		},
+	}
+	counterCardForResume := counterCard
+	result := e.dispatchAttackRulebookEventTimingWithMarkers(model.TimingAttackMiss, e.State.Players[combatReq.AttackerID], e.State.Players[combatReq.TargetID], missCtx, attackKindFromCounter(combatReq.IsCounter), map[string]any{
+		"attack_miss_resume": attackMissResumeState{
+			Mode:            attackMissResumeCounter,
+			AttackerID:      combatReq.AttackerID,
+			TargetID:        combatReq.TargetID,
+			CounterPlayerID: counterPlayerID,
+			CounterTargetID: counterTargetID,
+			CounterCard:     &counterCardForResume,
+		},
+	})
+	if result.Interrupted {
+		return true
+	}
+
+	counterPlayer := e.State.Players[counterPlayerID]
+	counterTarget := e.State.Players[counterTargetID]
+	if counterPlayer != nil && counterTarget != nil {
+		e.Log(fmt.Sprintf("[Combat] %s 使用 %s 应战成功！攻击反弹给 %s", counterPlayer.Name, counterCard.Name, counterTarget.Name))
+	}
+	e.resolveMagicBowPierceMiss(combatReq.AttackerID, combatReq.TargetID, combatReq.Card, combatReq.IsCounter)
+	e.State.CombatStack = e.State.CombatStack[:len(e.State.CombatStack)-1]
+	e.initCombat(counterPlayerID, counterTargetID, &counterCard, false, true, false, nil, "", true)
+	if counterPlayer != nil && counterTarget != nil {
+		e.Log(fmt.Sprintf("[Combat] %s 应战成功！攻击转移向 %s", counterPlayer.Name, counterTarget.Name))
+	}
+	return true
+}
+
 func attackMissResumeFromContext(ctx *model.Context) (attackMissResumeState, bool) {
 	if ctx == nil || ctx.Selections == nil {
 		return attackMissResumeState{}, false

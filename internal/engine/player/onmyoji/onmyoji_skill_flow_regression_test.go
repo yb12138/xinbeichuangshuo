@@ -301,6 +301,84 @@ func TestOnmyojiBinding_WithYinyangConversion(t *testing.T) {
 	}
 }
 
+func TestOnmyojiBinding_TriggersActiveAttackMissResponsesBeforeCounter(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Hom", "war_homunculus", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "TargetAlly", "angel", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p3", "Onmyoji", "onmyoji", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p4", "AttackerAlly", "angel", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := game.State.Players["p1"]
+	p1.Tokens["hom_magic_rune"] = 1
+	p1.Hand = []model.Card{
+		{ID: "h1", Name: "水涟斩", Type: model.CardTypeAttack, Element: model.ElementWater, Damage: 2},
+		{ID: "h2", Name: "风神斩", Type: model.CardTypeAttack, Element: model.ElementWind, Damage: 2},
+	}
+
+	p3 := game.State.Players["p3"]
+	p3.Form = model.FormOnmyojiShikigami
+	p3.Hand = []model.Card{
+		{ID: "c1", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Faction: "咏", Damage: 2},
+	}
+
+	game.State.BlueGems = 1
+	game.State.BlueCrystals = 1
+	game.State.CombatStack = []model.CombatRequest{{
+		AttackerID:     "p1",
+		TargetID:       "p2",
+		Card:           &model.Card{ID: "atk", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Faction: "咏", Damage: 2},
+		CanBeResponded: true,
+	}}
+
+	req := &game.State.CombatStack[len(game.State.CombatStack)-1]
+	if !game.RunAttackResponseCombatInteractionPolicies(req) {
+		t.Fatalf("binding should start")
+	}
+
+	testutils.RequireChoicePrompt(t, game, "p3", "onmyoji_binding_confirm")
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p3",
+		Type:       model.CmdSelect,
+		Selections: []int{0},
+	})
+
+	testutils.RequireChoicePrompt(t, game, "p3", "onmyoji_binding_card")
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p3",
+		Type:       model.CmdSelect,
+		Selections: []int{0},
+	})
+
+	testutils.RequireChoicePrompt(t, game, "p3", "onmyoji_binding_counter_target")
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p3",
+		Type:       model.CmdSelect,
+		Selections: []int{0},
+	})
+
+	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptResponseSkill {
+		t.Fatalf("expected attack-miss response skill interrupt before counter, got %+v", game.State.PendingInterrupt)
+	}
+	testutils.RequireResponseSkillPrompt(t, game, "p1")
+	if !testutils.InterruptHasSkillID(game.State.PendingInterrupt, "hom_glyph_fusion") {
+		t.Fatalf("expected hom_glyph_fusion after binding counter makes active attack miss, got %+v", game.State.PendingInterrupt.SkillIDs)
+	}
+	if len(game.State.CombatStack) != 1 {
+		t.Fatalf("expected original combat to remain until miss responses resolve, got stack size %d", len(game.State.CombatStack))
+	}
+	if top := game.State.CombatStack[len(game.State.CombatStack)-1]; top.AttackerID != "p1" || top.TargetID != "p2" || top.IsCounter {
+		t.Fatalf("expected original active combat to remain on stack, got %+v", top)
+	}
+}
+
 func TestOnmyojiBinding_DeclineKeepsCombatFlowActive(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "Attacker", "berserker", model.RedCamp); err != nil {

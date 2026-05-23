@@ -244,6 +244,58 @@ func TestElfElementalShotPickAllowsBlessingMagic(t *testing.T) {
 	}
 }
 
+func TestElfElementalShotPickAcceptsBlessingCardIDSelection(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Elf", "elf_archer", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	game.State.CurrentTurn = 0
+	game.State.Deck = rules.InitDeck()
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p2.TurnState = model.NewPlayerTurnState()
+	p1.Hand = []model.Card{
+		{ID: "hand-attack", Name: "火斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 1},
+	}
+	playerpkg.SetForm(p1, model.FormElfArcherRitual)
+	markElfBlessings(p1, []model.Card{
+		{ID: "bless-magic", Name: "圣盾", Type: model.CardTypeMagic, Element: model.ElementLight, Damage: 0},
+	})
+
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
+	})
+	testutils.ChooseResponseSkillByID(t, game, "p1", "elf_elemental_shot")
+	testutils.RequireChoicePrompt(t, game, "p1", "elf_archer_elemental_shot_pick")
+	prompt := game.BuildChoicePrompt()
+	if prompt == nil {
+		t.Fatalf("expected elemental shot prompt")
+	}
+	if len(prompt.Options) != 1 || prompt.Options[0].CardID != "bless-magic" {
+		t.Fatalf("expected blessing card_id option, got %+v", prompt.Options)
+	}
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID: "p1",
+		Type:     model.CmdSelect,
+		CardIDs:  []string{"bless-magic"},
+	})
+
+	if got := elfarcher.CountBlessings(p1); got != 0 {
+		t.Fatalf("expected blessing selected by card_id to be consumed, got %d", got)
+	}
+}
+
 func TestElfRitualRelease_TargetsEnemyOnly(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "Elf", "elf_archer", model.RedCamp); err != nil {

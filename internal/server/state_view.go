@@ -144,6 +144,7 @@ func (r *Room) buildStateForPlayer(playerID string) GameStateUpdate {
 		delete(view.Tokens, "bt_cocoon_count")
 		delete(view.Tokens, "bp_shared_life_active")
 		delete(view.Tokens, "bp_shared_life_bound")
+		delete(view.Tokens, "css_blood_cap")
 		delete(view.Tokens, "ml_dark_release_next_attack_bonus")
 		delete(view.Tokens, "ml_dark_release_lock_turn")
 		delete(view.Tokens, "se_sword_soul_count")

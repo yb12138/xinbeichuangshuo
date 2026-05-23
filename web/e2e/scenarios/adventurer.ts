@@ -82,6 +82,7 @@ function adventurerHand(): Card[] {
   return [
     card({ id: 'adv-attack-1', name: '冒险斩', type: 'Attack', element: 'Light' }),
     card({ id: 'adv-attack-2', name: '探索斩', type: 'Attack', element: 'Light' }),
+    card({ id: 'adv-light-magic', name: '圣印', type: 'Magic', element: 'Light' }),
     card({ id: 'adv-magic-1', name: '火球', type: 'Magic', element: 'Fire' }),
     card({ id: 'adv-magic-2', name: '冰冻', type: 'Magic', element: 'Water' }),
     card({ id: 'adv-magic-3', name: '地刺', type: 'Magic', element: 'Earth' }),
@@ -169,33 +170,34 @@ export function adventurerScenario(options: {
 
 // ============================================================
 // Fraud (欺诈) - 响应技能
-// Backend flow: sequential card selection with PromptFlowState, then element if needed
+// Backend flow: multi-select same-element cards with PromptFlowState, then element if needed
 // ============================================================
 
 export function fraudScenario(): ProtocolHarnessScenario {
   return adventurerScenario();
 }
 
-// Initial prompt to select first card (flow need=2)
-export function fraudPickPrompt(remaining: number = 2): WsMessage {
+// Prompt to select 2-3 same-element hand cards in one submission.
+export function fraudPickPrompt(): WsMessage {
   return requireActionMessage({
     type: 'choose_cards',
     player_id: ADVENTURER_PLAYER_ID,
-    message: `【欺诈】请选择手牌（还需选择${remaining}张）：`,
+    message: '【欺诈】请选择2~3张同系手牌：',
     choice_type: 'adventurer_fraud_pick',
-    // Backend uses hand indices as option.id
+    // Backend uses hand indices as option.id.
     options: [
       { id: '0', label: '1: 冒险斩（光）', button_label: '选择', card_id: 'adv-attack-1' },
       { id: '1', label: '2: 探索斩（光）', button_label: '选择', card_id: 'adv-attack-2' },
-      { id: '2', label: '3: 火球（火）', button_label: '选择', card_id: 'adv-magic-1' },
-      { id: '3', label: '4: 冰冻（水）', button_label: '选择', card_id: 'adv-magic-2' },
-      { id: '4', label: '5: 地刺（地）', button_label: '选择', card_id: 'adv-magic-3' },
-      { id: '5', label: '6: 风刃（风）', button_label: '选择', card_id: 'adv-magic-4' },
-      { id: '6', label: '7: 雷击（雷）', button_label: '选择', card_id: 'adv-magic-5' },
-      { id: '7', label: '8: 暗影（暗）', button_label: '选择', card_id: 'adv-dark-magic' },
+      { id: '2', label: '3: 圣印（光）', button_label: '选择', card_id: 'adv-light-magic' },
+      { id: '3', label: '4: 火球（火）', button_label: '选择', card_id: 'adv-magic-1' },
+      { id: '4', label: '5: 冰冻（水）', button_label: '选择', card_id: 'adv-magic-2' },
+      { id: '5', label: '6: 地刺（地）', button_label: '选择', card_id: 'adv-magic-3' },
+      { id: '6', label: '7: 风刃（风）', button_label: '选择', card_id: 'adv-magic-4' },
+      { id: '7', label: '8: 雷击（雷）', button_label: '选择', card_id: 'adv-magic-5' },
+      { id: '8', label: '9: 暗影（暗）', button_label: '选择', card_id: 'adv-dark-magic' },
     ],
     presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'same_element_combo', numeric_base: 0 },
-    min: 1, max: 1,
+    min: 2, max: 3,
   } satisfies Prompt);
 }
 

@@ -66,6 +66,106 @@ func TestCrimsonFlash_PhaseEndDamageShouldNotStall(t *testing.T) {
 	}
 }
 
+func TestCrimsonFlash_SpendsOnlyBloodBeforeSelfDamageResponses(t *testing.T) {
+	g := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := g.AddPlayer("p1", "CSS", "crimson_sword_spirit", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.AddPlayer("p2", "Enemy", "angel", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := g.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Tokens["css_blood"] = 1
+	p1.Heal = 0
+	g.State.CurrentTurn = 0
+	g.State.TurnStage = model.TurnStageExtraAction
+	g.State.Deck = []model.Card{
+		{ID: "d1", Name: "补1", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2},
+		{ID: "d2", Name: "补2", Type: model.CardTypeAttack, Element: model.ElementWater, Damage: 2},
+	}
+
+	eventCtx := &model.EventContext{
+		Type:       model.EventPhaseEnd,
+		SourceID:   p1.ID,
+		ActionType: model.ActionAttack,
+		AttackInfo: &model.AttackEventInfo{ActionType: string(model.ActionAttack), CounterInitiator: ""},
+	}
+	ctx := g.BuildContext(p1, nil, model.TimingActionEnd, eventCtx)
+	g.Dispatcher().OnTiming(ctx.Timing, ctx)
+
+	if g.State.PendingInterrupt == nil || g.State.PendingInterrupt.Type != model.InterruptResponseSkill {
+		t.Fatalf("expected response prompt for css flash, got %+v", g.State.PendingInterrupt)
+	}
+	if err := g.ConfirmResponseSkill("p1", "css_crimson_flash"); err != nil {
+		t.Fatalf("confirm response failed: %v", err)
+	}
+	if got := p1.Tokens["css_blood"]; got != 0 {
+		t.Fatalf("expected crimson flash to spend the only blood immediately, got %d", got)
+	}
+
+	g.Drive()
+
+	if intr := g.State.PendingInterrupt; intr != nil {
+		t.Fatalf("expected no blood barrier prompt after crimson flash spent the only blood, got %+v", intr)
+	}
+	if got := p1.Tokens["css_blood"]; got != 0 {
+		t.Fatalf("expected blood to remain 0 after self damage, got %d", got)
+	}
+}
+
+func TestCrimsonFlash_SelfDamageCannotTriggerBloodBarrier(t *testing.T) {
+	g := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := g.AddPlayer("p1", "CSS", "crimson_sword_spirit", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.AddPlayer("p2", "Enemy", "angel", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := g.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Tokens["css_blood"] = 2
+	p1.Heal = 0
+	g.State.CurrentTurn = 0
+	g.State.TurnStage = model.TurnStageExtraAction
+	g.State.Deck = []model.Card{
+		{ID: "d1", Name: "补1", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2},
+		{ID: "d2", Name: "补2", Type: model.CardTypeAttack, Element: model.ElementWater, Damage: 2},
+	}
+
+	eventCtx := &model.EventContext{
+		Type:       model.EventPhaseEnd,
+		SourceID:   p1.ID,
+		ActionType: model.ActionAttack,
+		AttackInfo: &model.AttackEventInfo{ActionType: string(model.ActionAttack), CounterInitiator: ""},
+	}
+	ctx := g.BuildContext(p1, nil, model.TimingActionEnd, eventCtx)
+	g.Dispatcher().OnTiming(ctx.Timing, ctx)
+
+	if g.State.PendingInterrupt == nil || g.State.PendingInterrupt.Type != model.InterruptResponseSkill {
+		t.Fatalf("expected response prompt for css flash, got %+v", g.State.PendingInterrupt)
+	}
+	if err := g.ConfirmResponseSkill("p1", "css_crimson_flash"); err != nil {
+		t.Fatalf("confirm response failed: %v", err)
+	}
+	if got := p1.Tokens["css_blood"]; got != 1 {
+		t.Fatalf("expected crimson flash to spend one blood, got %d", got)
+	}
+
+	g.Drive()
+
+	if intr := g.State.PendingInterrupt; intr != nil {
+		t.Fatalf("expected no blood barrier prompt for crimson flash self damage, got %+v", intr)
+	}
+	if got := p1.Tokens["css_blood"]; got != 1 {
+		t.Fatalf("expected remaining blood not spent by blood barrier, got %d", got)
+	}
+}
+
 func TestCrimsonFlash_CombatFlow_DealsExactlyTwoAndKeepsTurnProgressing(t *testing.T) {
 	g := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := g.AddPlayer("p1", "CSS", "crimson_sword_spirit", model.RedCamp); err != nil {

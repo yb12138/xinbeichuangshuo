@@ -2,11 +2,98 @@ package prayer_master_test
 
 import (
 	"starcup-engine/internal/engine"
+	skillhandlers "starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/testutils"
 	"testing"
 
 	"starcup-engine/internal/model"
 )
+
+func TestPrayerRuneGain_IsHookNotRegisteredCharacterSkill(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Prayer", "prayer_master", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	p1 := game.State.Players["p1"]
+	for _, skill := range p1.Character.Skills {
+		if skill.ID == "prayer_rune_gain" {
+			t.Fatalf("prayer_rune_gain should be a passive hook, not a registered character skill")
+		}
+	}
+	if handler := skillhandlers.GetHandler("prayer_rune_gain"); handler != nil {
+		t.Fatalf("prayer_rune_gain should not register a skill handler")
+	}
+}
+
+func TestPrayerRuneGainHook_ActiveAttackAddsRuneOnlyInPrayerForm(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Prayer", "prayer_master", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Hand = []model.Card{{
+		ID:      "prayer-attack-1",
+		Name:    "光刃",
+		Type:    model.CardTypeAttack,
+		Element: model.ElementLight,
+		Damage:  2,
+	}}
+
+	if err := game.HandleAction(model.PlayerAction{
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
+	}); err != nil {
+		t.Fatalf("attack outside prayer form failed: %v", err)
+	}
+	if got := p1.Tokens["prayer_rune"]; got != 0 {
+		t.Fatalf("expected no rune outside prayer form, got %d", got)
+	}
+
+	game = engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Prayer", "prayer_master", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+	p1 = game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Form = model.FormPrayerMasterPrayer
+	p1.Tokens["prayer_rune"] = 2
+	p1.Hand = []model.Card{{
+		ID:      "prayer-attack-2",
+		Name:    "光刃",
+		Type:    model.CardTypeAttack,
+		Element: model.ElementLight,
+		Damage:  2,
+	}}
+
+	if err := game.HandleAction(model.PlayerAction{
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
+	}); err != nil {
+		t.Fatalf("attack in prayer form failed: %v", err)
+	}
+	if got := p1.Tokens["prayer_rune"]; got != 3 {
+		t.Fatalf("expected active attack in prayer form to cap rune at 3, got %d", got)
+	}
+}
 
 func TestPrayerEnterForm_ConsumesGemAndSetsForm(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})

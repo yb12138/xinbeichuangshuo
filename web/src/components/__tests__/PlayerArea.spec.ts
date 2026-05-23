@@ -81,6 +81,21 @@ describe('PlayerArea indicators', () => {
     expect(screen.queryByTitle('sc_power_count: 2')).toBeNull()
   })
 
+  it('keeps blood cap out of the token chip row', () => {
+    render(PlayerArea, {
+      props: {
+        player: buildPlayer({
+          tokens: { css_blood: 2, css_blood_cap: 4 },
+        }),
+      },
+      global: { plugins: [createPinia()] },
+    })
+
+    expect(screen.getByTitle('鲜血: 2')).toBeTruthy()
+    expect(screen.queryByText('鲜血上限')).toBeNull()
+    expect(screen.queryByTitle('css_blood_cap: 4')).toBeNull()
+  })
+
   it('lets indicators override stale legacy token values', () => {
     render(PlayerArea, {
       props: {

@@ -100,6 +100,9 @@ func (h *CrimsonBloodBarrierHandler) CanUse(ctx *model.Context) bool {
 	if !ctx.Flags["IsMagicDamage"] {
 		return false
 	}
+	if ctx.EventCtx.SourceID == "" || ctx.EventCtx.SourceID == ctx.User.ID || ctx.EventCtx.TargetID != ctx.User.ID {
+		return false
+	}
 	if engineplayer.GetSkillFlowState(ctx.User, "css_blood_barrier_lock") > 0 {
 		return false
 	}

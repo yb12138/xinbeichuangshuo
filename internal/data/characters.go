@@ -1219,16 +1219,6 @@ func GetCharacters() []model.Character {
 					TargetType:   model.TargetNone,
 				},
 				{
-					ID: "prayer_rune_gain", Timings: []model.FlowTiming{model.TimingAttackDeclare}, Title: "祈祷·攻击增符",
-					Type:        model.SkillTypePassive,
-					Description: "祈祷形态下，每次主动攻击时+2祈祷符文（上限3）。",
-
-					RequiredRole: model.RoleAttacker,
-					ResponseType: model.ResponseSilent,
-					LogicHandler: "prayer_rune_gain",
-					TargetType:   model.TargetNone,
-				},
-				{
 					ID: "prayer_radiant_faith", Timings: []model.FlowTiming{model.TimingActionDuring}, Title: "光辉信仰",
 					Type:         model.SkillTypeAction,
 					CostDiscards: 2,

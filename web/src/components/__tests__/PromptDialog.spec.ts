@@ -904,6 +904,62 @@ describe('PromptDialog', () => {
     expect(submitSelectCardIDsMock).toHaveBeenCalledWith(['h1'])
   })
 
+  it('submits elf blessing cover picker selections by matching card_id to playable blessing cards', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    useSessionStore().setRoomInfo('ROOM1', 'p2', 'Blue', 'elf_archer')
+    useSnapshotStore().updateGameState(buildState({
+      players: {
+        p2: buildPlayer({
+          id: 'p2',
+          name: 'Elf',
+          camp: 'Blue',
+          role: 'elf_archer',
+          hand: [
+            buildCard({ id: 'h0', name: '火焰斩', type: 'Attack', element: 'Fire' }),
+          ],
+          field: [
+            {
+              mode: 'Cover',
+              effect: 'ElfBlessing',
+              card: buildCard({ id: 'blessing-1', name: '祝福圣盾', type: 'Magic', element: 'Light' }),
+              owner_id: 'p2',
+              source_id: 'p2',
+              field_hook: 'Manual',
+              locked: false,
+              duration: 0,
+            },
+          ],
+        }),
+      },
+    }))
+    const interruptStore = useInterruptStore()
+    interruptStore.setPrompt(handCardPickerPrompt({
+      options: [
+        { id: '1', label: '2: 祝福圣盾', button_label: '选择', card_id: 'blessing-1' },
+      ],
+      presentation: {
+        kind: 'card_picker',
+        card_source: 'hand',
+        card_filter: 'magic_or_elf_blessing',
+        numeric_base: 0,
+      },
+    }))
+
+    render(PromptDialog, {
+      global: {
+        plugins: [pinia],
+      },
+    })
+
+    interruptStore.setSelectedHandIndexes([1])
+    await nextTick()
+
+    await userEvent.click(screen.getByTestId('prompt-confirm-btn'))
+    expect(submitSelectCardIDsMock).toHaveBeenCalledWith(['blessing-1'])
+  })
+
   it('renders card picker decline row via renderer and keeps cancel/confirm submission behavior', async () => {
     const pinia = createPinia()
     setActivePinia(pinia)
