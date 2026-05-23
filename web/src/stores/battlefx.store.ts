@@ -5,7 +5,7 @@ import { useSessionStore } from './session.store'
 import { useSnapshotStore } from './snapshot.store'
 import { useUiStore } from './ui.store'
 
-export type InitiatorFocusMode = 'attack' | 'magic' | 'skill'
+export type InitiatorFocusMode = 'attack' | 'magic' | 'skill' | 'turn' | 'response'
 export type InitiatorFocusSide = 'left' | 'right'
 
 export interface InitiatorFocusState {
@@ -168,6 +168,12 @@ export const useBattleFxStore = defineStore('battlefx', () => {
     if (!playerId) return
     setInitiatorFocus(playerId, mode)
     armSkillFocusIdleTimer()
+  }
+
+  function startActingPlayerFocus(playerId: string, mode: 'turn' | 'response' | 'magic' | 'skill' = 'turn') {
+    if (!playerId) return
+    setInitiatorFocus(playerId, mode)
+    cancelInitiatorFocusIdleTimer()
   }
 
   function touchSkillInitiatorFocus(playerId?: string) {
@@ -348,6 +354,7 @@ export const useBattleFxStore = defineStore('battlefx', () => {
     if (phase === 'defend' || phase === 'take' || phase === 'counter' || phase === 'shield') {
       notifyFlyingCardsEvent('combat_response')
       resolveAttackInitiatorFocus(attackerId)
+      startActingPlayerFocus(targetId, 'response')
     } else if (phase === 'attack') {
       startAttackInitiatorFocus(attackerId)
     }
@@ -463,6 +470,7 @@ export const useBattleFxStore = defineStore('battlefx', () => {
     startAttackInitiatorFocus,
     resolveAttackInitiatorFocus,
     startSkillInitiatorFocus,
+    startActingPlayerFocus,
     touchSkillInitiatorFocus,
     settleSkillInitiatorFocus,
     prepareForFlowUpdate,

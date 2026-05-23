@@ -221,7 +221,7 @@ describe('createGameplayMessageHandlers', () => {
     expect(interruptStore.waitingFor).toBe('')
   })
 
-  it('settles skill focus when a prompt arrives instead of keeping the board shifted', () => {
+  it('focuses the prompt actor when a prompt arrives', () => {
     const { handlers, battleFxStore, sessionStore } = buildHandlers()
     sessionStore.setRoomInfo('ROOM1', 'p1', 'Red', 'hero')
 
@@ -250,7 +250,56 @@ describe('createGameplayMessageHandlers', () => {
 
     vi.advanceTimersByTime(1100)
 
-    expect(battleFxStore.initiatorFocus).toBeNull()
+    expect(battleFxStore.initiatorFocus?.playerId).toBe('p1')
+    expect(battleFxStore.initiatorFocus?.mode).toBe('skill')
+  })
+
+  it('focuses the waiting response player even when the prompt is for another client', () => {
+    const { handlers, battleFxStore, interruptStore, sessionStore } = buildHandlers()
+    sessionStore.setRoomInfo('ROOM1', 'p1', 'Red', 'hero')
+
+    handlers.handleRequireAction({
+      interrupt_type: 'WaitChoice',
+      target_user_id: 'p2',
+      timeout: 0,
+      msg: '请选择应战方式',
+      prompt: {
+        type: 'confirm',
+        player_id: 'p2',
+        message: '请选择应战、防御或命中',
+        attacker_id: 'p1',
+        options: [
+          { id: 'counter', label: '应战', button_label: '应战' },
+          { id: 'defend', label: '防御', button_label: '防御' },
+          { id: 'take', label: '命中', button_label: '命中' },
+        ],
+        min: 1,
+        max: 1,
+        presentation: {
+          kind: 'branch_select',
+          numeric_base: 0,
+        },
+      },
+    })
+
+    expect(interruptStore.currentPrompt).toBeNull()
+    expect(interruptStore.waitingFor).toBe('p2')
+    expect(battleFxStore.initiatorFocus?.playerId).toBe('p2')
+    expect(battleFxStore.initiatorFocus?.mode).toBe('response')
+  })
+
+  it('focuses the player who resolves a combat response cue', () => {
+    const { handlers, battleFxStore } = buildHandlers()
+
+    handlers.handleGameplayEvent({
+      event_type: 'combat_cue',
+      attacker_id: 'p1',
+      target_id: 'p2',
+      phase: 'defend',
+    })
+
+    expect(battleFxStore.initiatorFocus?.playerId).toBe('p2')
+    expect(battleFxStore.initiatorFocus?.mode).toBe('response')
   })
 
   it('replays NotifyTimeline payloads into timeline entries and battle effects', () => {
