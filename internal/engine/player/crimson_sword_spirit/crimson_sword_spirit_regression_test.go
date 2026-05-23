@@ -7,6 +7,58 @@ import (
 	"testing"
 )
 
+func TestRoseCourtyard_DisablesHealResistForAllPlayers(t *testing.T) {
+	g := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := g.AddPlayer("p1", "CSS", "crimson_sword_spirit", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.AddPlayer("p2", "Attacker", "angel", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.AddPlayer("p3", "Target", "berserker", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := g.State.Players["p1"]
+	p3 := g.State.Players["p3"]
+	p1.Field = append(p1.Field, &model.FieldCard{
+		Card: model.Card{
+			ID:      "rose-courtyard",
+			Name:    "血蔷薇庭院",
+			Type:    model.CardTypeMagic,
+			Element: model.ElementDark,
+		},
+		OwnerID:  p1.ID,
+		SourceID: p1.ID,
+		Mode:     model.FieldEffect,
+		Effect:   model.EffectRoseCourtyard,
+	})
+	p3.Heal = 1
+	p3.Hand = nil
+	g.State.Deck = []model.Card{
+		{ID: "d1", Name: "补1", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2},
+		{ID: "d2", Name: "补2", Type: model.CardTypeAttack, Element: model.ElementWater, Damage: 2},
+	}
+
+	g.AddPendingDamage(model.PendingDamage{
+		SourceID:   "p2",
+		TargetID:   "p3",
+		Damage:     2,
+		DamageType: model.MagicAttack,
+	})
+	g.Drive()
+
+	if intr := g.State.PendingInterrupt; intr != nil {
+		t.Fatalf("rose courtyard should prevent heal-resist prompt for all players, got %+v", intr)
+	}
+	if got := p3.Heal; got != 1 {
+		t.Fatalf("expected target heal not spent, got %d", got)
+	}
+	if got := len(p3.Hand); got != 2 {
+		t.Fatalf("expected full damage draw because heal is disabled, got hand=%d", got)
+	}
+}
+
 func TestCrimsonFlash_PhaseEndDamageShouldNotStall(t *testing.T) {
 	g := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := g.AddPlayer("p1", "CSS", "crimson_sword_spirit", model.RedCamp); err != nil {

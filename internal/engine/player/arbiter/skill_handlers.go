@@ -51,6 +51,7 @@ func (h *ArbiterRitualHandler) Execute(ctx *model.Context) error {
 	engineplayer.SetForm(ctx.User, model.FormArbiterJudgment)
 	ctx.User.MaxHand = 5
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [仲裁仪式]，进入审判形态，手牌上限恒定为5", ctx.User.Name))
+	ctx.Game.CheckHandLimit(ctx.User.ID, true)
 	return nil
 }
 

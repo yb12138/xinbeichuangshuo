@@ -2,7 +2,7 @@
 // BloodSwordSpirit (血色剑灵) Protocol Harness Scenarios
 // ============================================================
 
-import type { AvailableSkill, Card, Prompt } from '../../src/types/game';
+import type { AvailableSkill, Card, FieldCard, Prompt } from '../../src/types/game';
 import type { WsMessage } from '../../src/network/protocol';
 import {
   availableSkill,
@@ -109,6 +109,7 @@ export function bloodSwordSpiritScenario(options: {
   turnStage?: string;
   heal?: number;
   tokens?: Record<string, number>;
+  field?: FieldCard[];
 } = {}): ProtocolHarnessScenario {
   const hand = options.hand ?? bloodSwordSpiritHand();
   const players = [
@@ -123,6 +124,7 @@ export function bloodSwordSpiritScenario(options: {
       gem: options.gem ?? 0,
       heal: options.heal ?? 0,
       max_heal: 4,
+      field: options.field ?? [],
       is_active: true,
       tokens: options.tokens ?? { blood: 2 },
     }),
@@ -166,6 +168,26 @@ export function bloodSwordSpiritScenario(options: {
       players,
     }),
   };
+}
+
+export function roseCourtyardFieldScenario(options: {
+  active?: boolean;
+} = {}): ProtocolHarnessScenario {
+  const active = options.active ?? true;
+  return bloodSwordSpiritScenario({
+    field: active
+      ? [{
+          card: card({ id: 'css-rose-courtyard', name: '血蔷薇庭院', type: 'Magic', element: 'Dark' }),
+          mode: 'Effect',
+          effect: 'RoseCourtyard',
+          source_id: BLOOD_SWORD_SPIRIT_PLAYER_ID,
+          owner_id: BLOOD_SWORD_SPIRIT_PLAYER_ID,
+          field_hook: 'Manual',
+          locked: false,
+          duration: 0,
+        }]
+      : [],
+  });
 }
 
 // ============================================================

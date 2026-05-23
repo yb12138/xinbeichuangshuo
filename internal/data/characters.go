@@ -833,9 +833,7 @@ func GetCharacters() []model.Character {
 					Type:         model.SkillTypeAction,
 					Description:  "主动技能：选择1名敌方角色，弃同系牌将本次视为一次主动攻击（弃2张同系可选五系攻击〔不含暗灭〕；弃3张同系视为暗灭）。",
 					LogicHandler: "adventurer_fraud",
-					TargetType:   model.TargetEnemy,
-					MinTargets:   1,
-					MaxTargets:   1,
+					TargetType:   model.TargetNone,
 				},
 				{
 					ID: "adventurer_lucky_fortune", Timings: []model.FlowTiming{model.TimingAttackDeclare}, Title: "强运",

@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/vue'
+import { render, screen, waitFor } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -263,6 +263,61 @@ describe('GameBoard target picker', () => {
     await userEvent.click(screen.getByTestId('player-area-p3'))
 
     expect(submitSelectMock).toHaveBeenCalledWith([1])
+  })
+
+  it('keeps rose courtyard ambient vfx while the field effect is active', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const me = buildPlayer({
+      id: 'p1',
+      name: '血色剑灵',
+      camp: 'Red',
+      role: 'crimson_sword_spirit',
+      field: [{
+        card: buildCard({ id: 'rose-courtyard', name: '血蔷薇庭院', type: 'Magic' }),
+        mode: 'Effect',
+        effect: 'RoseCourtyard',
+        source_id: 'p1',
+        owner_id: 'p1',
+        field_hook: 'Manual',
+        locked: false,
+        duration: 0,
+      }],
+    })
+    const target = buildPlayer({ id: 'p2', name: '对手', camp: 'Blue', role: 'fighter' })
+    const players = { p1: me, p2: target }
+
+    useSessionStore().setRoomInfo('ROOM1', 'p1', 'Red', 'crimson_sword_spirit')
+    useSessionStore().updateRoomPlayers(Object.values(players).map(buildPlayerInfo), 'p1')
+    useSnapshotStore().updateGameState(buildState(players))
+
+    render(GameBoard, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          PlayerArea: PlayerAreaStub,
+          ActionPanel: true,
+          BattleZone: true,
+          CardComponent: true,
+          SkillDetailModal: true,
+          VfxLayer: true,
+          ActionTimeline: true,
+          StatusEffectIcon: true,
+        },
+      },
+    })
+
+    expect(screen.getByTestId('rose-courtyard-vfx')).toBeTruthy()
+
+    useSnapshotStore().updateGameState(buildState({
+      p1: buildPlayer({ ...me, field: [] }),
+      p2: target,
+    }))
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('rose-courtyard-vfx')).toBeNull()
+    })
   })
 
   it('keeps enemy players selectable after choosing an attack card from the action hub', () => {

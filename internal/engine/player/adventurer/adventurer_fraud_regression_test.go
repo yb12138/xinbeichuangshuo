@@ -31,7 +31,7 @@ func requireChoiceType(t *testing.T, game *engine.GameEngine, playerID, ct strin
 	return ctx
 }
 
-// 回归测试：欺诈应先在手牌区选择同系牌；选择2张后再选择五系攻击元素。
+// 回归测试：欺诈应先在手牌区选择同系牌；选择2张后再选择五系攻击元素，最后选择攻击目标。
 func TestAdventurerFraud_PickTwoThenChooseAttackElement(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "Adventurer", "adventurer", model.RedCamp); err != nil {
@@ -58,13 +58,15 @@ func TestAdventurerFraud_PickTwoThenChooseAttackElement(t *testing.T) {
 
 	// 发动欺诈（技能入口）
 	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdSkill,
-		SkillID:   "adventurer_fraud",
-		TargetIDs: []string{"p2"},
+		PlayerID: "p1",
+		Type:     model.CmdSkill,
+		SkillID:  "adventurer_fraud",
 	})
 	ctxData := requireChoiceType(t, game, "p1", "adventurer_fraud_pick")
 	testutils.RequirePromptFlow(t, ctxData, "adventurer_fraud", "cards")
+	if got, _ := ctxData["fraud_target_id"].(string); got != "" {
+		t.Fatalf("fraud should not pick target before cards, got target=%q", got)
+	}
 	if _, ok := ctxData["selected_indices"]; ok {
 		t.Fatalf("fraud should store selections in prompt flow, got legacy selected_indices in %+v", ctxData)
 	}
@@ -121,6 +123,24 @@ func TestAdventurerFraud_PickTwoThenChooseAttackElement(t *testing.T) {
 
 	// 选择攻击系别=雷（索引4）
 	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{4}})
+	ctxData = requireChoiceType(t, game, "p1", "adventurer_fraud_target")
+	flow = testutils.RequirePromptFlow(t, ctxData, "adventurer_fraud", "target")
+	if got := flow.Selection("target").TargetIDs; len(got) != 1 || got[0] != "p2" {
+		t.Fatalf("expected fraud target options in prompt flow, got %+v", got)
+	}
+	targetPrompt := game.BuildPendingInterruptPrompt()
+	if targetPrompt == nil {
+		t.Fatalf("expected fraud target prompt")
+	}
+	if targetPrompt.Presentation == nil || targetPrompt.Presentation.Kind != model.PresentationTargetPicker {
+		t.Fatalf("expected fraud target picker prompt, got %+v", targetPrompt.Presentation)
+	}
+	if len(targetPrompt.Options) != 1 || targetPrompt.Options[0].TargetID != "p2" {
+		t.Fatalf("expected fraud target option p2, got %+v", targetPrompt.Options)
+	}
+
+	// 最后点击敌方角色头像选择目标并发动。
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, TargetID: "p2"})
 
 	// 欺诈攻击会被自动推进到战斗交互阶段，检查战斗栈中的攻击元素
 	if len(game.State.CombatStack) == 0 || (game.State.CombatStage != model.CombatStageDeclare && game.State.CombatStage != model.CombatStageHitCheck) {
@@ -171,10 +191,9 @@ func TestAdventurerFraud_PickThreeAutoConvertsToDark(t *testing.T) {
 	}
 
 	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdSkill,
-		SkillID:   "adventurer_fraud",
-		TargetIDs: []string{"p2"},
+		PlayerID: "p1",
+		Type:     model.CmdSkill,
+		SkillID:  "adventurer_fraud",
 	})
 	ctxData := requireChoiceType(t, game, "p1", "adventurer_fraud_pick")
 	testutils.RequirePromptFlow(t, ctxData, "adventurer_fraud", "cards")
@@ -182,8 +201,18 @@ func TestAdventurerFraud_PickThreeAutoConvertsToDark(t *testing.T) {
 		t.Fatalf("fraud should store selections in prompt flow, got legacy selected_indices in %+v", ctxData)
 	}
 
-	// 直接选择3张同系牌，应自动转暗灭攻击，不再弹攻击系别选择框。
+	// 直接选择3张同系牌，应自动转暗灭攻击，不再弹攻击系别选择框，但仍需最后选择目标。
 	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0, 1, 2}})
+	ctxData = requireChoiceType(t, game, "p1", "adventurer_fraud_target")
+	flow := testutils.RequirePromptFlow(t, ctxData, "adventurer_fraud", "target")
+	if got := flow.Selection("element").Element; got != string(model.ElementDark) {
+		t.Fatalf("expected dark element stored before target prompt, got %q", got)
+	}
+	if got := flow.Selection("target").TargetIDs; len(got) != 1 || got[0] != "p2" {
+		t.Fatalf("expected fraud target options in prompt flow, got %+v", got)
+	}
+
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, TargetID: "p2"})
 
 	if got := len(game.State.CombatStack); got == 0 {
 		t.Fatalf("expected combat stack entry after fraud dark convert")

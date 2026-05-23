@@ -62,6 +62,7 @@ func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 		"adventurer_extract_paradise_check": types.ChoiceRouteRole("adventurer"),
 		"adventurer_fraud_attack_element":   types.ChoiceRouteRole("adventurer"),
 		"adventurer_fraud_pick":             types.ChoiceRouteRole("adventurer"),
+		"adventurer_fraud_target":           types.ChoiceRouteRole("adventurer"),
 		"adventurer_paradise_pick":          types.ChoiceRouteRole("adventurer"),
 		"adventurer_steal_sky_mode":         types.ChoiceRouteRole("adventurer"),
 	}

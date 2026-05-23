@@ -370,6 +370,8 @@ const PLAYER_STATUS_EFFECT_LABEL: Record<string, string> = {
   BloodSharedLife: '同生共死',
 }
 
+const ROSE_COURTYARD_EFFECT = 'RoseCourtyard'
+
 const HIDDEN_MY_FIELD_EFFECTS = new Set<string>([
   'FighterHundredDragonLock',
 ])
@@ -395,6 +397,12 @@ const myFieldStatusItems = computed(() => {
       label: PLAYER_STATUS_EFFECT_LABEL[fc.effect] || fc.effect,
     }))
 })
+
+const roseCourtyardActive = computed(() =>
+  Object.values(players.value ?? {}).some((player: PlayerView) =>
+    player.field?.some((fc) => fc.mode === 'Effect' && fc.effect === ROSE_COURTYARD_EFFECT)
+  )
+)
 
 // 行动选择 prompt 不触发 blur（已在 ActionPanel 内联展示）
 const gameEndTitle = computed(() => {
@@ -2167,6 +2175,24 @@ const fighterHundredDragonByPlayer = computed(() => {
   <div ref="boardRootRef" class="h-full w-full flex flex-col board-shell p-2 sm:p-3 md:p-4 min-h-0 relative" data-testid="game-board">
     <div class="board-ambient board-ambient-left" />
     <div class="board-ambient board-ambient-right" />
+    <div v-if="roseCourtyardActive" class="rose-courtyard-vfx" data-testid="rose-courtyard-vfx" aria-hidden="true">
+      <div class="rose-courtyard-vfx__edge rose-courtyard-vfx__edge--top-left" />
+      <div class="rose-courtyard-vfx__edge rose-courtyard-vfx__edge--top-right" />
+      <div class="rose-courtyard-vfx__edge rose-courtyard-vfx__edge--bottom-left" />
+      <div class="rose-courtyard-vfx__edge rose-courtyard-vfx__edge--bottom-right" />
+      <div class="rose-courtyard-vfx__edge rose-courtyard-vfx__edge--left" />
+      <div class="rose-courtyard-vfx__edge rose-courtyard-vfx__edge--right" />
+      <div class="rose-courtyard-vfx__corner rose-courtyard-vfx__corner--tl" />
+      <div class="rose-courtyard-vfx__corner rose-courtyard-vfx__corner--tr" />
+      <div class="rose-courtyard-vfx__corner rose-courtyard-vfx__corner--bl" />
+      <div class="rose-courtyard-vfx__corner rose-courtyard-vfx__corner--br" />
+      <span
+        v-for="idx in 14"
+        :key="`rose-petal-${idx}`"
+        class="rose-courtyard-vfx__petal"
+        :class="`rose-courtyard-vfx__petal--${idx}`"
+      />
+    </div>
     <button
       v-if="isHostInRoom"
       type="button"
@@ -2918,7 +2944,7 @@ const fighterHundredDragonByPlayer = computed(() => {
   z-index: 0;
 }
 
-.board-shell > *:not(.link-lines-layer):not(.board-ambient):not(.draw-flight-layer):not(.host-dissolve-btn):not(.right-action-dock) {
+.board-shell > *:not(.link-lines-layer):not(.board-ambient):not(.rose-courtyard-vfx):not(.draw-flight-layer):not(.host-dissolve-btn):not(.right-action-dock) {
   position: relative;
   z-index: 2;
 }
@@ -2946,6 +2972,181 @@ const fighterHundredDragonByPlayer = computed(() => {
   right: -104px;
   top: 10%;
   background: rgba(213, 168, 104, 0.16);
+}
+
+.rose-courtyard-vfx {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  overflow: hidden;
+  mix-blend-mode: screen;
+}
+
+.rose-courtyard-vfx__edge,
+.rose-courtyard-vfx__corner,
+.rose-courtyard-vfx__petal {
+  position: absolute;
+  pointer-events: none;
+}
+
+.rose-courtyard-vfx__edge {
+  opacity: 0.62;
+  filter:
+    drop-shadow(0 0 12px rgba(244, 63, 94, 0.34))
+    drop-shadow(0 0 22px rgba(136, 19, 55, 0.28));
+}
+
+.rose-courtyard-vfx__edge::before,
+.rose-courtyard-vfx__edge::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.rose-courtyard-vfx__edge::before {
+  background:
+    repeating-linear-gradient(118deg, transparent 0 26px, rgba(159, 18, 57, 0.36) 27px 30px, transparent 31px 54px),
+    linear-gradient(90deg, transparent, rgba(244, 63, 94, 0.28), transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
+  animation: roseVineDrift 7s linear infinite;
+}
+
+.rose-courtyard-vfx__edge::after {
+  background:
+    radial-gradient(circle at 14% 52%, rgba(251, 113, 133, 0.7) 0 4px, transparent 5px),
+    radial-gradient(circle at 36% 38%, rgba(225, 29, 72, 0.62) 0 3px, transparent 4px),
+    radial-gradient(circle at 62% 58%, rgba(251, 113, 133, 0.66) 0 4px, transparent 5px),
+    radial-gradient(circle at 84% 44%, rgba(190, 18, 60, 0.64) 0 3px, transparent 4px);
+  animation: rosePulse 3.8s ease-in-out infinite;
+}
+
+.rose-courtyard-vfx__edge--top-left,
+.rose-courtyard-vfx__edge--top-right,
+.rose-courtyard-vfx__edge--bottom-left,
+.rose-courtyard-vfx__edge--bottom-right {
+  width: clamp(132px, 14vw, 238px);
+  height: clamp(34px, 5.4vh, 72px);
+}
+
+.rose-courtyard-vfx__edge--top-left,
+.rose-courtyard-vfx__edge--top-right {
+  top: clamp(8px, 2.2vh, 28px);
+}
+
+.rose-courtyard-vfx__edge--top-left,
+.rose-courtyard-vfx__edge--bottom-left {
+  left: clamp(12px, 2vw, 34px);
+}
+
+.rose-courtyard-vfx__edge--top-right,
+.rose-courtyard-vfx__edge--bottom-right {
+  right: clamp(12px, 2vw, 34px);
+}
+
+.rose-courtyard-vfx__edge--bottom-left,
+.rose-courtyard-vfx__edge--bottom-right {
+  bottom: clamp(12px, 2.4vh, 34px);
+  transform: rotate(180deg);
+}
+
+.rose-courtyard-vfx__edge--left,
+.rose-courtyard-vfx__edge--right {
+  top: clamp(96px, 17vh, 178px);
+  bottom: clamp(128px, 20vh, 238px);
+  width: clamp(34px, 4.8vw, 72px);
+}
+
+.rose-courtyard-vfx__edge--left {
+  left: clamp(10px, 1.8vw, 30px);
+}
+
+.rose-courtyard-vfx__edge--right {
+  right: clamp(10px, 1.8vw, 30px);
+}
+
+.rose-courtyard-vfx__corner {
+  width: clamp(76px, 8vw, 128px);
+  height: clamp(76px, 8vw, 128px);
+  border-radius: 999px;
+  opacity: 0.46;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(251, 113, 133, 0.36), transparent 34%),
+    conic-gradient(from 20deg, transparent, rgba(190, 18, 60, 0.5), transparent 38%, rgba(244, 63, 94, 0.42), transparent 72%);
+  filter: blur(0.4px) drop-shadow(0 0 18px rgba(244, 63, 94, 0.28));
+  animation: roseCornerBloom 5.4s ease-in-out infinite;
+}
+
+.rose-courtyard-vfx__corner--tl {
+  top: clamp(58px, 8vh, 96px);
+  left: clamp(16px, 2vw, 36px);
+}
+
+.rose-courtyard-vfx__corner--tr {
+  top: clamp(58px, 8vh, 96px);
+  right: clamp(16px, 2vw, 36px);
+  animation-delay: -1.4s;
+}
+
+.rose-courtyard-vfx__corner--bl {
+  bottom: clamp(78px, 10vh, 132px);
+  left: clamp(16px, 2vw, 36px);
+  animation-delay: -2.7s;
+}
+
+.rose-courtyard-vfx__corner--br {
+  right: clamp(16px, 2vw, 36px);
+  bottom: clamp(78px, 10vh, 132px);
+  animation-delay: -4s;
+}
+
+.rose-courtyard-vfx__petal {
+  width: 9px;
+  height: 14px;
+  border-radius: 70% 30% 70% 30%;
+  background: linear-gradient(155deg, rgba(255, 205, 213, 0.86), rgba(225, 29, 72, 0.58) 58%, rgba(136, 19, 55, 0.18));
+  opacity: 0;
+  filter: drop-shadow(0 0 8px rgba(244, 63, 94, 0.42));
+  animation: rosePetalLoop 8.5s ease-in-out infinite;
+}
+
+.rose-courtyard-vfx__petal--1 { left: 7%; top: 22%; animation-delay: -0.4s; }
+.rose-courtyard-vfx__petal--2 { left: 13%; top: 67%; animation-delay: -3.1s; }
+.rose-courtyard-vfx__petal--3 { left: 18%; top: 7%; animation-delay: -5.8s; }
+.rose-courtyard-vfx__petal--4 { left: 29%; top: 5%; animation-delay: -1.9s; }
+.rose-courtyard-vfx__petal--5 { right: 29%; top: 5%; animation-delay: -6.8s; }
+.rose-courtyard-vfx__petal--6 { right: 18%; top: 7%; animation-delay: -2.8s; }
+.rose-courtyard-vfx__petal--7 { right: 8%; top: 24%; animation-delay: -4.4s; }
+.rose-courtyard-vfx__petal--8 { right: 13%; top: 68%; animation-delay: -0.9s; }
+.rose-courtyard-vfx__petal--9 { left: 9%; top: 45%; animation-delay: -7.2s; }
+.rose-courtyard-vfx__petal--10 { right: 9%; top: 46%; animation-delay: -5.2s; }
+.rose-courtyard-vfx__petal--11 { left: 20%; bottom: 6%; animation-delay: -2.2s; }
+.rose-courtyard-vfx__petal--12 { left: 32%; bottom: 5%; animation-delay: -6.2s; }
+.rose-courtyard-vfx__petal--13 { right: 32%; bottom: 5%; animation-delay: -3.8s; }
+.rose-courtyard-vfx__petal--14 { right: 18%; bottom: 11%; animation-delay: -1.2s; }
+
+@keyframes roseVineDrift {
+  0% { transform: translateX(-34px); opacity: 0.5; }
+  50% { opacity: 0.86; }
+  100% { transform: translateX(34px); opacity: 0.5; }
+}
+
+@keyframes rosePulse {
+  0%, 100% { transform: scale(0.96); opacity: 0.42; }
+  50% { transform: scale(1.04); opacity: 0.86; }
+}
+
+@keyframes roseCornerBloom {
+  0%, 100% { transform: scale(0.86) rotate(0deg); opacity: 0.28; }
+  48% { transform: scale(1.08) rotate(28deg); opacity: 0.58; }
+}
+
+@keyframes rosePetalLoop {
+  0% { transform: translate3d(0, 10px, 0) rotate(0deg) scale(0.7); opacity: 0; }
+  16% { opacity: 0.72; }
+  58% { opacity: 0.62; }
+  100% { transform: translate3d(18px, -46px, 0) rotate(172deg) scale(1); opacity: 0; }
 }
 
 .host-dissolve-btn {

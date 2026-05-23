@@ -4,10 +4,12 @@ import {
   fraudScenario,
   fraudPickPrompt,
   fraudElementPrompt,
+  fraudTargetPrompt,
   adventurerParadiseScenario,
   adventurerParadisePrompt,
   adventurerParadiseAllyPickPrompt,
   ALLY_PLAYER_ID,
+  ENEMY_PLAYER_ID,
 } from '../../../scenarios/adventurer';
 
 async function clickOverlayOption(page: Page, selector: string) {
@@ -34,12 +36,13 @@ async function selectTarget(page: Page, targetId: string) {
 }
 
 test.describe('adventurer fraud protocol harness', () => {
-  // Backend flow: multi-select same-element cards, then element if needed.
+  // Backend flow: multi-select same-element cards, then element if needed, then target.
   // 1. Push fraudPickPrompt(min=2,max=3)
   // 2. Select 2 or 3 same-element cards in hand
   // 3. Click confirm once → expect one Select action with all card_ids
+  // 4. Click enemy avatar on the target prompt → expect one Select action for the target
 
-  test('fraud: select 2 same element cards once, then choose attack element', async ({ page, protocolHarness }) => {
+  test('fraud: select 2 same element cards once, choose attack element, then target', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(fraudScenario());
 
     await protocolHarness.pushServerMessage(fraudPickPrompt());
@@ -59,9 +62,17 @@ test.describe('adventurer fraud protocol harness', () => {
       action_type: 'Select',
       option_indexes: [1],
     });
+
+    await protocolHarness.pushServerMessage(fraudTargetPrompt());
+
+    await selectTarget(page, ENEMY_PLAYER_ID);
+    await protocolHarness.expectSubmitAction({
+      action_type: 'Select',
+      option_indexes: [0],
+    });
   });
 
-  test('fraud: select 3 same element cards once for dark attack', async ({ page, protocolHarness }) => {
+  test('fraud: select 3 same element cards once for dark attack, then target', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(fraudScenario());
 
     await protocolHarness.pushServerMessage(fraudPickPrompt());
@@ -73,6 +84,14 @@ test.describe('adventurer fraud protocol harness', () => {
     await protocolHarness.expectSubmitAction({
       action_type: 'Select',
       card_ids: ['adv-attack-1', 'adv-attack-2', 'adv-light-magic'],
+    });
+
+    await protocolHarness.pushServerMessage(fraudTargetPrompt());
+
+    await selectTarget(page, ENEMY_PLAYER_ID);
+    await protocolHarness.expectSubmitAction({
+      action_type: 'Select',
+      option_indexes: [0],
     });
   });
 });

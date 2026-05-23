@@ -16,11 +16,13 @@ const (
 	adventurerFraudFlowID      = "adventurer_fraud"
 	adventurerFraudCardsStep   = "cards"
 	adventurerFraudElementStep = "element"
+	adventurerFraudTargetStep  = "target"
 )
 
 var adventurerFraudFlowRuntime = model.MustNewPromptFlowRuntime(adventurerFraudFlowID, []model.PromptFlowStepSpec{
 	{ID: adventurerFraudCardsStep, ChoiceType: "adventurer_fraud_pick", CancelPolicy: model.CancelPolicyAbort},
 	{ID: adventurerFraudElementStep, ChoiceType: "adventurer_fraud_attack_element", CancelPolicy: model.CancelPolicyBack},
+	{ID: adventurerFraudTargetStep, ChoiceType: "adventurer_fraud_target", CancelPolicy: model.CancelPolicyBack},
 })
 
 // ChoiceSpecs 声明式选择流程条目。
@@ -35,6 +37,7 @@ func ChoiceSpecs() []engineplayer.ChoiceSpec {
 			HandleMultiSelect: handleFraudPickMultiSelect,
 		},
 		{ChoiceType: "adventurer_fraud_attack_element", BuildPrompt: buildFraudElementPrompt, HandleChoice: handleFraudElement},
+		{ChoiceType: "adventurer_fraud_target", BuildPrompt: buildFraudTargetPrompt, HandleChoice: handleFraudTarget},
 		{ChoiceType: "adventurer_steal_sky_mode", BuildPrompt: buildStealSkyModePrompt, HandleChoice: handleStealSkyMode},
 	}
 }
@@ -290,7 +293,8 @@ func handleFraudPickMultiSelect(rt engineplayer.ChoiceRuntime, playerID string, 
 
 	flow.PutSelection(adventurerFraudCardsStep, model.PromptFlowSelection{OptionIndexes: append([]int{}, selections...)})
 	if len(selections) == 3 {
-		return resolveFraudAttack(rt, user, selections, ctxData, model.ElementDark)
+		flow.PutSelection(adventurerFraudElementStep, model.PromptFlowSelection{Element: string(model.ElementDark)})
+		return advanceFraudTargetStep(rt, user, ctxData, flow)
 	}
 
 	flow.PutSelection(adventurerFraudElementStep, model.PromptFlowSelection{Element: string(commonElement)})
@@ -334,7 +338,92 @@ func handleFraudElement(rt engineplayer.ChoiceRuntime, playerID string, selectio
 		OptionIndexes: []int{selectionIndex},
 		Element:       string(elements[selectionIndex]),
 	})
-	return resolveFraudAttack(rt, user, selectedIndices, ctxData, elements[selectionIndex])
+	if len(selectedIndices) < 2 || len(selectedIndices) > 3 {
+		return true, fmt.Errorf("欺诈需要选择2或3张同系手牌")
+	}
+	return advanceFraudTargetStep(rt, user, ctxData, flow)
+}
+
+func buildFraudTargetPrompt(rt engineplayer.ChoiceRuntime, playerID string, player *model.Player, data map[string]interface{}) *model.Prompt {
+	if player == nil {
+		return nil
+	}
+	if _, err := model.RequirePromptFlow(data, adventurerFraudFlowID, "欺诈"); err != nil {
+		return nil
+	}
+	targetIDs := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
+	if len(targetIDs) == 0 {
+		targetIDs = fraudEnemyTargetIDs(rt, player)
+		data["target_ids"] = targetIDs
+	}
+	if len(targetIDs) == 0 {
+		return nil
+	}
+	return engineplayer.BuildTargetChoicePrompt(rt, "adventurer_fraud_target", playerID, "【欺诈】请选择攻击目标：", data, false)
+}
+
+func handleFraudTarget(rt engineplayer.ChoiceRuntime, playerID string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
+	user := rt.GetPlayers()[playerID]
+	if user == nil {
+		return true, fmt.Errorf("玩家不存在")
+	}
+	flow, err := model.RequirePromptFlow(ctxData, adventurerFraudFlowID, "欺诈")
+	if err != nil {
+		return true, err
+	}
+	targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
+	if len(targetIDs) == 0 {
+		targetIDs = flow.Selection(adventurerFraudTargetStep).TargetIDs
+	}
+	if selectionIndex < 0 || selectionIndex >= len(targetIDs) {
+		return true, fmt.Errorf("无效的目标索引: %d", selectionIndex)
+	}
+	targetID := targetIDs[selectionIndex]
+	target := rt.GetPlayers()[targetID]
+	if target == nil {
+		return true, fmt.Errorf("欺诈目标不存在")
+	}
+	if target.Camp == user.Camp {
+		return true, fmt.Errorf("欺诈只能选择敌方角色")
+	}
+	flow.PutSelection(adventurerFraudTargetStep, model.PromptFlowSelection{
+		OptionIndexes: []int{selectionIndex},
+		TargetIDs:     []string{targetID},
+	})
+	ctxData["fraud_target_id"] = targetID
+	selectedIndices := flow.Selection(adventurerFraudCardsStep).OptionIndexes
+	element := model.Element(flow.Selection(adventurerFraudElementStep).Element)
+	if element == "" {
+		return true, fmt.Errorf("欺诈攻击系别不存在")
+	}
+	return resolveFraudAttack(rt, user, selectedIndices, ctxData, element)
+}
+
+func advanceFraudTargetStep(rt engineplayer.ChoiceRuntime, user *model.Player, ctxData map[string]interface{}, flow *model.PromptFlowState) (bool, error) {
+	targetIDs := fraudEnemyTargetIDs(rt, user)
+	if len(targetIDs) == 0 {
+		return true, fmt.Errorf("欺诈没有可选择的敌方目标")
+	}
+	ctxData["target_ids"] = targetIDs
+	flow.PutSelection(adventurerFraudTargetStep, model.PromptFlowSelection{TargetIDs: append([]string{}, targetIDs...)})
+	return true, engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, adventurerFraudFlowRuntime, flow, adventurerFraudTargetStep)
+}
+
+func fraudEnemyTargetIDs(rt engineplayer.ChoiceRuntime, user *model.Player) []string {
+	if rt == nil || user == nil {
+		return nil
+	}
+	if ids := rt.CampEnemyIDs(user.Camp); len(ids) > 0 {
+		return ids
+	}
+	ids := make([]string, 0)
+	for _, pid := range rt.GetPlayerOrder() {
+		p := rt.GetPlayers()[pid]
+		if p != nil && p.ID != user.ID && p.Camp != user.Camp {
+			ids = append(ids, p.ID)
+		}
+	}
+	return ids
 }
 
 // resolveFraudAttack 统一处理欺诈攻击结算：弃牌、构建虚拟攻击、入队。

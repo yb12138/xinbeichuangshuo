@@ -135,6 +135,48 @@ func TestArbiterRitual_EntersFormWithoutImmediateJudgment(t *testing.T) {
 	}
 }
 
+func TestArbiterRitual_ChecksHandOverflowAfterLimitDropsToFive(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Arbiter", "arbiter", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Dummy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionStart
+
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Gem = 1
+	p1.Hand = []model.Card{
+		{ID: "c1", Name: "测试牌1", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 1},
+		{ID: "c2", Name: "测试牌2", Type: model.CardTypeAttack, Element: model.ElementWater, Damage: 1},
+		{ID: "c3", Name: "测试牌3", Type: model.CardTypeAttack, Element: model.ElementEarth, Damage: 1},
+		{ID: "c4", Name: "测试牌4", Type: model.CardTypeAttack, Element: model.ElementWind, Damage: 1},
+		{ID: "c5", Name: "测试牌5", Type: model.CardTypeAttack, Element: model.ElementThunder, Damage: 1},
+		{ID: "c6", Name: "测试牌6", Type: model.CardTypeMagic, Element: model.ElementLight},
+	}
+
+	game.Drive()
+	ritualIdx := testutils.StartupSkillIndexByID(t, game, "p1", "arbiter_ritual")
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{ritualIdx},
+	})
+
+	ctxData := testutils.RequireChoiceContext(t, game, "p1", "system_discard_cards")
+	if got := ctxData["discard_count"]; got != 1 {
+		t.Fatalf("expected overflow discard_count=1 after ritual, got %+v", got)
+	}
+	if got := ctxData["discard_reason"]; got != "hand_overflow" {
+		t.Fatalf("expected hand_overflow discard reason after ritual, got %+v", got)
+	}
+}
+
 func TestArbiterRitualBreak_RestoresHandLimitAndAddsTeamGem(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "Arbiter", "arbiter", model.RedCamp); err != nil {

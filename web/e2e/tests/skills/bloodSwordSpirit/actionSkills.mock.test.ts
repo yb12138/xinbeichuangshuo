@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { test } from '../../../fixtures/protocolHarness.fixture';
+import { expect, test } from '../../../fixtures/protocolHarness.fixture';
 import {
   BLOOD_SWORD_SPIRIT_BLOOD_DYE_ROSE_ID,
   BLOOD_SWORD_SPIRIT_SCATTERING_DANCE_ID,
@@ -11,7 +11,9 @@ import {
   scatteringDanceBranchPrompt,
   scatteringDanceDamageTargetPrompt,
   scatteringDanceHealTargetPrompt,
+  roseCourtyardFieldScenario,
 } from '../../../scenarios/bloodSwordSpirit';
+import { syncStateMessage } from '../../../scenarios/builders';
 
 async function activatePanelSkill(page: Page, skillId: string) {
   await page.getByTestId('action-magic').click();
@@ -64,6 +66,32 @@ test.describe('blood sword spirit blood dye rose protocol harness', () => {
 });
 
 test.describe('blood sword spirit scattering dance protocol harness', () => {
+  test('rose courtyard field vfx persists until the field effect is removed', async ({ page, protocolHarness }) => {
+    await protocolHarness.bootGame(roseCourtyardFieldScenario({ active: true }));
+
+    await expect(page.getByTestId('rose-courtyard-vfx')).toBeVisible();
+    await expect(page.locator('.center-battle .rose-courtyard-vfx')).toHaveCount(0);
+    const centralOverlaps = await page.evaluate(() => {
+      const center = document.querySelector('.center-battle')?.getBoundingClientRect();
+      if (!center) return ['missing-center-battle'];
+      return Array.from(document.querySelectorAll('.rose-courtyard-vfx__edge, .rose-courtyard-vfx__corner, .rose-courtyard-vfx__petal'))
+        .filter((el) => {
+          const rect = el.getBoundingClientRect();
+          if (rect.width <= 0 || rect.height <= 0) return false;
+          return rect.right > center.left &&
+            rect.left < center.right &&
+            rect.bottom > center.top &&
+            rect.top < center.bottom;
+        })
+        .map((el) => el.className);
+    });
+    expect(centralOverlaps).toEqual([]);
+
+    await protocolHarness.pushServerMessage(syncStateMessage(roseCourtyardFieldScenario({ active: false }).initialState));
+
+    await expect(page.getByTestId('rose-courtyard-vfx')).toHaveCount(0);
+  });
+
   test('scattering dance: damage branch', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(scatteringDanceScenario());
 

@@ -32,8 +32,8 @@ const adventurerCharacter = characterView({
     {
       id: ADVENTURER_FRAUD_ID,
       title: '欺诈',
-      description: '（购买时发动）弃2张牌，选择一个系别，本次购买视为该系别；或弃3张牌，本次购买视为暗系。',
-      type: 3, // 响应
+      description: '主动技能：选择1名敌方角色，弃同系牌将本次视为一次主动攻击（弃2张同系可选五系攻击〔不含暗灭〕；弃3张同系视为暗灭）。',
+      type: 2, // 主动
       min_targets: 0, max_targets: 0, target_type: 0,
       cost_gem: 0, cost_crystal: 0, cost_discards: 0,
     },
@@ -170,7 +170,7 @@ export function adventurerScenario(options: {
 
 // ============================================================
 // Fraud (欺诈) - 响应技能
-// Backend flow: multi-select same-element cards with PromptFlowState, then element if needed
+// Backend flow: multi-select same-element cards with PromptFlowState, then element if needed, then target
 // ============================================================
 
 export function fraudScenario(): ProtocolHarnessScenario {
@@ -217,6 +217,21 @@ export function fraudElementPrompt(): WsMessage {
       { id: 'Thunder', label: '雷', button_label: '雷' },
     ],
     presentation: { kind: 'branch_select', layout: 'fraud_attack_element', numeric_base: 0 },
+    min: 1, max: 1,
+  } satisfies Prompt);
+}
+
+// Target selection prompt: click enemy avatar to submit the single target.
+export function fraudTargetPrompt(): WsMessage {
+  return requireActionMessage({
+    type: 'confirm',
+    player_id: ADVENTURER_PLAYER_ID,
+    message: '【欺诈】请选择攻击目标：',
+    choice_type: 'adventurer_fraud_target',
+    options: [
+      { id: '0', target_id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
+    ],
+    presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
     min: 1, max: 1,
   } satisfies Prompt);
 }

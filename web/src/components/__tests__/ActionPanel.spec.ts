@@ -192,6 +192,63 @@ describe('ActionPanel skill availability', () => {
     expect(useInterruptStore().skillMode).not.toBe('choosing_target')
   })
 
+  it('starts adventurer fraud without choosing a target first', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const fraudSkill: AvailableSkill = {
+      id: 'adventurer_fraud',
+      title: '欺诈',
+      description: '主动技能：选择1名敌方角色，弃同系牌将本次视为一次主动攻击。',
+      min_targets: 0,
+      max_targets: 0,
+      target_type: 0,
+      cost_gem: 0,
+      cost_crystal: 0,
+      cost_discards: 0,
+    }
+    const adventurerCharacter = buildCharacter({
+      id: 'adventurer',
+      name: '冒险家',
+      skills: [
+        {
+          ...fraudSkill,
+          type: 2,
+        },
+      ],
+    })
+
+    useSessionStore().setRoomInfo('ROOM', 'p1', 'Red', 'adventurer')
+    useSnapshotStore().updateGameState(buildState({
+      players: {
+        p1: buildPlayer({ id: 'p1', name: '冒险家', role: 'adventurer' }),
+        p2: buildPlayer({ id: 'p2', name: '目标', camp: 'Blue', role: 'enemy', is_active: false }),
+      },
+      available_skills: [fraudSkill],
+      characters: [adventurerCharacter],
+    }))
+    useInterruptStore().setSkillMode('choosing_skill')
+
+    render(ActionPanel, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          PromptDialog: true,
+        },
+      },
+    })
+
+    await userEvent.click(screen.getByTestId('skill-adventurer_fraud'))
+
+    expect(mocks.submitUseSkill).toHaveBeenCalledWith(
+      'adventurer_fraud',
+      [],
+      undefined,
+      { clearSkillMode: true },
+    )
+    expect(useInterruptStore().skillMode).not.toBe('choosing_target')
+  })
+
   it('requires exclusive-card confirmation before target selection for prayer blessing skills', async () => {
     const pinia = createPinia()
     setActivePinia(pinia)
