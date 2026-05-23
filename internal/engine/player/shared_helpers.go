@@ -25,6 +25,75 @@ func SpendCrystalLike(ctx *model.Context, amount int) bool {
 	return ctx.Game.ConsumeCrystalCost(ctx.User.ID, amount)
 }
 
+// PlayerEnergyTotal 返回玩家当前个人能量总量（红宝石 + 蓝水晶）。
+func PlayerEnergyTotal(p *model.Player) int {
+	if p == nil {
+		return 0
+	}
+	return p.Gem + p.Crystal
+}
+
+// PlayerEnergyRoom 返回玩家距离个人能量上限的剩余空间。
+func PlayerEnergyRoom(p *model.Player, cap int) int {
+	room := cap - PlayerEnergyTotal(p)
+	if room < 0 {
+		return 0
+	}
+	return room
+}
+
+// AddPlayerGemCapped 增加个人红宝石，并裁剪到个人能量总上限。
+// 返回实际增加量。
+func AddPlayerGemCapped(p *model.Player, amount int, cap int) int {
+	if p == nil || amount <= 0 {
+		return 0
+	}
+	gain := amount
+	if room := PlayerEnergyRoom(p, cap); gain > room {
+		gain = room
+	}
+	if gain <= 0 {
+		return 0
+	}
+	p.Gem += gain
+	return gain
+}
+
+// AddPlayerCrystalCapped 增加个人蓝水晶，并裁剪到个人能量总上限。
+// 返回实际增加量。
+func AddPlayerCrystalCapped(p *model.Player, amount int, cap int) int {
+	if p == nil || amount <= 0 {
+		return 0
+	}
+	gain := amount
+	if room := PlayerEnergyRoom(p, cap); gain > room {
+		gain = room
+	}
+	if gain <= 0 {
+		return 0
+	}
+	p.Crystal += gain
+	return gain
+}
+
+// AddPlayerGemWithCap 从引擎读取动态个人能量上限后增加红宝石。
+func AddPlayerGemWithCap(game model.IGameEngine, p *model.Player, amount int) int {
+	cap := 3
+	if game != nil {
+		cap = game.GetPlayerEnergyCap(p)
+	}
+	return AddPlayerGemCapped(p, amount, cap)
+}
+
+// AddPlayerCrystalWithCap 从引擎读取动态个人能量上限后增加蓝水晶。
+func AddPlayerCrystalWithCap(game model.IGameEngine, p *model.Player, amount int) int {
+	cap := 3
+	if game != nil {
+		cap = game.GetPlayerEnergyCap(p)
+	}
+	return AddPlayerCrystalCapped(p, amount, cap)
+}
+
 // EnsurePlayerTokensMap 确保 player.Tokens map 已初始化。
 func EnsurePlayerTokensMap(p *model.Player) {
 	if p != nil && p.Tokens == nil {

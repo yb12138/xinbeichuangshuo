@@ -1144,19 +1144,7 @@ func handleAutoFillResource(rt engineplayer.ChoiceRuntime, selectionIndex int, c
 			return fmt.Errorf("自动填充分支②需要1点红宝石")
 		}
 		user.Gem--
-		maxEnergy := rt.GetMaxHand(user) // Use GetMaxHand as proxy for energy cap
-		if maxEnergy <= 0 {
-			maxEnergy = 3
-		}
-		// Energy cap is typically 3 (gem + crystal total)
-		// Replaced: original uses e.getPlayerEnergyCap(user) which returns 3
-		energyCap := 3
-		if user.Gem+user.Crystal < energyCap {
-			user.Crystal++
-			if user.Gem+user.Crystal > energyCap {
-				user.Crystal -= user.Gem + user.Crystal - energyCap
-			}
-		}
+		engineplayer.AddPlayerCrystalWithCap(rt, user, 1)
 	default:
 		return fmt.Errorf("无效分支")
 	}

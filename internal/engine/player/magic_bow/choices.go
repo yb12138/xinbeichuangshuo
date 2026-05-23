@@ -749,11 +749,8 @@ func handleDemonEyeMode(rt engineplayer.ChoiceRuntime, ctxData map[string]interf
 		rt.Log(fmt.Sprintf("%s 的 [魔眼] 分支②生效：摸3张牌", user.Name))
 		if len(user.Hand) == 0 {
 			// No cards to charge: just grant +1 crystal
-			maxEnergy := getPlayerEnergyCap(user)
-			if user.Gem+user.Crystal < maxEnergy {
-				user.Crystal++
-			}
-			rt.Log(fmt.Sprintf("%s 的 [魔眼]：无手牌可充能，改为仅获得1点蓝水晶", user.Name))
+			gained := engineplayer.AddPlayerCrystalWithCap(rt, user, 1)
+			rt.Log(fmt.Sprintf("%s 的 [魔眼]：无手牌可充能，改为仅获得%d点蓝水晶", user.Name, gained))
 			rt.PopInterrupt()
 			if rt.GetPendingInterrupt() == nil {
 				rt.ApplyChoiceResumePoint(model.TurnStageActionStart)
@@ -954,14 +951,8 @@ func demonEyeAfterDiscardData(rt engineplayer.ChoiceRuntime, discardPlayer *mode
 
 	if len(user.Hand) == 0 {
 		// 无手牌：获得1点蓝水晶
-		maxEnergy := rt.GetPlayerEnergyCap(user)
-		if user.Gem+user.Crystal < maxEnergy {
-			user.Crystal++
-			if user.Gem+user.Crystal > maxEnergy {
-				user.Crystal -= user.Gem + user.Crystal - maxEnergy
-			}
-		}
-		rt.Log(fmt.Sprintf("%s 的 [魔眼] 生效：已完成目标弃牌，但自己无手牌可充能，改为仅获得1点蓝水晶", user.Name))
+		gained := engineplayer.AddPlayerCrystalWithCap(rt, user, 1)
+		rt.Log(fmt.Sprintf("%s 的 [魔眼] 生效：已完成目标弃牌，但自己无手牌可充能，改为仅获得%d点蓝水晶", user.Name, gained))
 		if rt.GetPendingInterrupt() == nil {
 			rt.ApplyChoiceResumePoint(model.TurnStageActionStart)
 		}
@@ -1108,14 +1099,8 @@ func handleMagicBowChargeSelection(rt engineplayer.ChoiceRuntime, ctxData map[st
 	}
 
 	if choiceType == "mb_demon_eye_charge_card" {
-		maxEnergy := getPlayerEnergyCap(user)
-		if user.Gem+user.Crystal < maxEnergy {
-			user.Crystal++
-			if user.Gem+user.Crystal > maxEnergy {
-				user.Crystal -= user.Gem + user.Crystal - maxEnergy
-			}
-		}
-		rt.Log(fmt.Sprintf("%s 的 [魔眼] 生效：放置1张充能并获得1点蓝水晶", user.Name))
+		gained := engineplayer.AddPlayerCrystalWithCap(rt, user, 1)
+		rt.Log(fmt.Sprintf("%s 的 [魔眼] 生效：放置1张充能并获得%d点蓝水晶", user.Name, gained))
 	} else {
 		rt.Log(fmt.Sprintf("%s 的 [充能] 生效：放置%d张充能", user.Name, toPlace))
 	}
@@ -1125,16 +1110,4 @@ func handleMagicBowChargeSelection(rt engineplayer.ChoiceRuntime, ctxData map[st
 		rt.ApplyChoiceResumePoint(model.TurnStageActionStart)
 	}
 	return true, nil
-}
-
-// ---------------------------------------------------------------------------
-// Local helpers
-// ---------------------------------------------------------------------------
-
-// getPlayerEnergyCap returns the energy capacity for a player (default 3).
-func getPlayerEnergyCap(player *model.Player) int {
-	if player == nil {
-		return 3
-	}
-	return 3
 }

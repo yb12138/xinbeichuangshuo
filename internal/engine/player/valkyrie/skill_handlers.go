@@ -47,8 +47,8 @@ type ValkyrieOrderSealHandler struct{ engineplayer.BaseHandler }
 func (h *ValkyrieOrderSealHandler) Execute(ctx *model.Context) error {
 	ctx.Game.DrawCards(ctx.User.ID, 2)
 	ctx.Game.Heal(ctx.User.ID, 1)
-	ctx.User.Crystal++
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [秩序之印]，摸2并获得1治疗+1蓝水晶", ctx.User.Name))
+	gained := engineplayer.AddPlayerCrystalWithCap(ctx.Game, ctx.User, 1)
+	ctx.Game.Log(fmt.Sprintf("%s 发动 [秩序之印]，摸2并获得1治疗+%d蓝水晶", ctx.User.Name, gained))
 	return nil
 }
 

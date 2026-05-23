@@ -94,8 +94,12 @@ func (h *AdventurerLuckyFortuneHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return nil
 	}
-	ctx.User.Crystal++
-	ctx.Game.Log(fmt.Sprintf("%s 的 [强运] 触发，获得1蓝水晶", ctx.User.Name))
+	gained := engineplayer.AddPlayerCrystalWithCap(ctx.Game, ctx.User, 1)
+	if gained > 0 {
+		ctx.Game.Log(fmt.Sprintf("%s 的 [强运] 触发，获得%d蓝水晶", ctx.User.Name, gained))
+	} else {
+		ctx.Game.Log(fmt.Sprintf("%s 的 [强运] 触发但能量已达上限，蓝水晶未增加", ctx.User.Name))
+	}
 	return nil
 }
 

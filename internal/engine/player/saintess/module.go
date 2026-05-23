@@ -177,9 +177,9 @@ func (h *MercyHandler) Execute(ctx *model.Context) error {
 	if player.HasForm(user, model.FormSaintessMercy) {
 		return fmt.Errorf("已处于怜悯状态")
 	}
-	user.Crystal += 1
+	gained := player.AddPlayerCrystalWithCap(game, user, 1)
 	player.SetForm(user, model.FormSaintessMercy)
-	game.Log(fmt.Sprintf("%s 发动 [怜悯]：横置并获得1水晶，手牌上限恒定为7", user.Name))
+	game.Log(fmt.Sprintf("%s 发动 [怜悯]：横置并获得%d水晶，手牌上限恒定为7", user.Name, gained))
 	return nil
 }
 

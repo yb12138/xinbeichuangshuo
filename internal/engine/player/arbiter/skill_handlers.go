@@ -25,8 +25,8 @@ type ArbiterDoomsdayHandler struct{ engineplayer.BaseHandler }
 type ArbiterBalanceHandler struct{ engineplayer.BaseHandler }
 
 func (h *ArbiterLawHandler) Execute(ctx *model.Context) error {
-	ctx.User.Crystal += 2
-	ctx.Game.Log(fmt.Sprintf("%s 的 [仲裁法则] 生效，获得2个蓝水晶", ctx.User.Name))
+	gained := engineplayer.AddPlayerCrystalWithCap(ctx.Game, ctx.User, 2)
+	ctx.Game.Log(fmt.Sprintf("%s 的 [仲裁法则] 生效，获得%d个蓝水晶", ctx.User.Name, gained))
 	return nil
 }
 

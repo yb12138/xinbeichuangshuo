@@ -46,7 +46,7 @@ func ApplyDefaults(p *model.Player) {
 	if p == nil {
 		return
 	}
-	p.Crystal += 2
+	player.AddPlayerCrystalCapped(p, 2, 3)
 	if p.Tokens == nil {
 		p.Tokens = map[string]int{}
 	}

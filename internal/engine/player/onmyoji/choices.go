@@ -639,7 +639,7 @@ func resolveOnmyojiLifeBarrierSupportTarget(rt engineplayer.ChoiceRuntime, ctxDa
 		return fmt.Errorf("目标不存在")
 	}
 	ghostFire := runtimeutil.ToIntContextValue(ctxData["ghost_fire"])
-	target.Gem++
+	gainedGem := engineplayer.AddPlayerGemWithCap(rt, target, 1)
 	rt.Heal(targetID, 1)
 	if ghostFire > 0 {
 		damageType := model.MagicAttack
@@ -650,7 +650,7 @@ func resolveOnmyojiLifeBarrierSupportTarget(rt engineplayer.ChoiceRuntime, ctxDa
 			DamageType: damageType,
 		})
 	}
-	rt.Log(fmt.Sprintf("%s 的 [生命结界] 分支①生效：%s +1宝石+1治疗，自身承受%d点法术伤害", user.Name, target.Name, ghostFire))
+	rt.Log(fmt.Sprintf("%s 的 [生命结界] 分支①生效：%s +%d宝石+1治疗，自身承受%d点法术伤害", user.Name, target.Name, gainedGem, ghostFire))
 	rt.PopInterrupt()
 	if rt.GetPendingInterrupt() == nil {
 		rt.RoutePendingDamageOr(model.TurnStageTurnEnd, func() {

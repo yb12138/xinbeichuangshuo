@@ -59,8 +59,7 @@ func postActionEndHook(rt player.HookRuntime, ctx player.TimingHookContext) play
 		p.TurnState.SkillFlowState["hero_calm_end_crystal_pending"] = 0
 	}
 	capV := rt.GetPlayerEnergyCap(p)
-	if p.Gem+p.Crystal < capV {
-		p.Crystal++
+	if player.AddPlayerCrystalCapped(p, 1, capV) > 0 {
 		rt.Log(fmt.Sprintf("%s 的 [明镜止水] 结算：水晶+1", p.Name))
 	} else {
 		rt.Log(fmt.Sprintf("%s 的 [明镜止水] 结算：能量已满，水晶未增加", p.Name))

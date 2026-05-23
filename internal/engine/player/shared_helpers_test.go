@@ -48,3 +48,27 @@ func TestAdvancePromptFlowRuntimeChoiceUsesStepSpecChoiceType(t *testing.T) {
 		t.Fatalf("expected pending context to receive derived choice_type, got %v", got)
 	}
 }
+
+func TestAddPlayerEnergyCapped(t *testing.T) {
+	t.Run("clips gem gain to remaining room", func(t *testing.T) {
+		p := &model.Player{Gem: 2, Crystal: 1}
+		got := engineplayer.AddPlayerGemCapped(p, 2, 4)
+		if got != 1 {
+			t.Fatalf("expected actual gem gain=1, got %d", got)
+		}
+		if p.Gem != 3 || p.Crystal != 1 {
+			t.Fatalf("expected total energy capped at 4 with gem=3 crystal=1, got gem=%d crystal=%d", p.Gem, p.Crystal)
+		}
+	})
+
+	t.Run("does not add crystal when energy is full", func(t *testing.T) {
+		p := &model.Player{Gem: 1, Crystal: 2}
+		got := engineplayer.AddPlayerCrystalCapped(p, 1, 3)
+		if got != 0 {
+			t.Fatalf("expected actual crystal gain=0, got %d", got)
+		}
+		if p.Gem != 1 || p.Crystal != 2 {
+			t.Fatalf("expected energy unchanged at cap, got gem=%d crystal=%d", p.Gem, p.Crystal)
+		}
+	})
+}

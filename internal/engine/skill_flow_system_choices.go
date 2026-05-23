@@ -5,6 +5,7 @@ package engine
 import (
 	"fmt"
 	"starcup-engine/internal/engine/core/runtimeutil"
+	playerrole "starcup-engine/internal/engine/player"
 	"strconv"
 
 	"starcup-engine/internal/model"
@@ -332,6 +333,11 @@ func (e *GameEngine) HandleExtractChoiceSelections(playerID string, selections [
 		}
 	}
 
+	energyCap := e.getPlayerEnergyCap(player)
+	if extractedGems+extractedCrystals > playerrole.PlayerEnergyRoom(player, energyCap) {
+		return fmt.Errorf("能量空间不足，无法提炼")
+	}
+
 	if player.Camp == model.RedCamp {
 		if extractedGems > e.State.RedGems || extractedCrystals > e.State.RedCrystals {
 			return fmt.Errorf("战绩区星石不足")
@@ -346,10 +352,10 @@ func (e *GameEngine) HandleExtractChoiceSelections(playerID string, selections [
 		e.State.BlueCrystals -= extractedCrystals
 	}
 
-	player.Gem += extractedGems
-	player.Crystal += extractedCrystals
+	gainedGems := playerrole.AddPlayerGemCapped(player, extractedGems, energyCap)
+	gainedCrystals := playerrole.AddPlayerCrystalCapped(player, extractedCrystals, energyCap)
 	e.Log(fmt.Sprintf("[Action] %s 提炼：从战绩区获得 %d 宝石 %d 水晶（当前能量: %d）",
-		player.Name, extractedGems, extractedCrystals, player.Gem+player.Crystal))
+		player.Name, gainedGems, gainedCrystals, player.Gem+player.Crystal))
 
 	return nil
 }

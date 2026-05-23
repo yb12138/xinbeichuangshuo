@@ -29,17 +29,6 @@ type SoulSorcererSoulLinkHandler struct{ engineplayer.BaseHandler }
 
 type SoulSorcererSoulAmpHandler struct{ engineplayer.BaseHandler }
 
-func playerEnergyCap(p *model.Player) int {
-	if p == nil {
-		return 3
-	}
-	cap := 3
-	if p.Character != nil && p.Character.ID == "sage" {
-		cap++
-	}
-	return cap
-}
-
 func soulBlue(user *model.Player) int {
 	return engineplayer.AddToken(user, "ss_blue_soul", 0, soulSorcererBlueCap)
 }
@@ -218,16 +207,7 @@ func (h *SoulSorcererSoulGrantHandler) Execute(ctx *model.Context) error {
 		return fmt.Errorf("蓝色灵魂不足3点")
 	}
 	addSoulBlue(ctx.User, -3)
-	cap := playerEnergyCap(target)
-	room := cap - (target.Gem + target.Crystal)
-	if room < 0 {
-		room = 0
-	}
-	gain := 2
-	if room < gain {
-		gain = room
-	}
-	target.Gem += gain
+	gain := engineplayer.AddPlayerGemWithCap(ctx.Game, target, 2)
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [灵魂赐予]：%s +%d宝石", ctx.User.Name, target.Name, gain))
 	return nil
 }

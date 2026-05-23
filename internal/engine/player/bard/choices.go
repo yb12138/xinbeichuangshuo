@@ -865,6 +865,10 @@ func handleVictoryMode(rt engineplayer.ChoiceRuntime, ctxData map[string]interfa
 		if rt.GetCampGems(camp)+rt.GetCampCrystals(camp) <= 0 {
 			return fmt.Errorf("我方战绩区没有可提炼的星石")
 		}
+		maxEnergy := rt.GetPlayerEnergyCap(holder)
+		if engineplayer.PlayerEnergyRoom(holder, maxEnergy) <= 0 {
+			return fmt.Errorf("能量已达上限，无法提炼")
+		}
 		ctxData["choice_type"] = "bd_victory_extract_stone"
 		intr := rt.GetPendingInterrupt()
 		if intr != nil {
@@ -909,6 +913,10 @@ func handleVictoryExtractStone(rt engineplayer.ChoiceRuntime, ctxData map[string
 	if selectionIndex < 0 || selectionIndex >= len(available) {
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
+	maxEnergy := rt.GetPlayerEnergyCap(holder)
+	if engineplayer.PlayerEnergyRoom(holder, maxEnergy) <= 0 {
+		return fmt.Errorf("能量已达上限，无法提炼")
+	}
 	addGem, addCrystal := 0, 0
 	switch available[selectionIndex] {
 	case "gem":
@@ -920,23 +928,13 @@ func handleVictoryExtractStone(rt engineplayer.ChoiceRuntime, ctxData map[string
 	default:
 		return fmt.Errorf("无效的星石类型")
 	}
-	maxEnergy := getPlayerEnergyCap(holder)
-	room := maxEnergy - (holder.Gem + holder.Crystal)
-	if room <= 0 {
-		rt.Log(fmt.Sprintf("%s 的 [胜利交响诗]：提炼成功但能量已满，未增加个人能量", holder.Name))
-	} else {
-		if addGem > room {
-			addGem = room
-			addCrystal = 0
-		}
-		if addCrystal > room {
-			addCrystal = room
-			addGem = 0
-		}
-		holder.Gem += addGem
-		holder.Crystal += addCrystal
-		rt.Log(fmt.Sprintf("%s 发动 [胜利交响诗]（%s 触发）：提炼1个星石为个人能量（+%d宝石 +%d水晶）", bard.Name, holder.Name, addGem, addCrystal))
+	if addGem > 0 {
+		addGem = engineplayer.AddPlayerGemCapped(holder, addGem, maxEnergy)
 	}
+	if addCrystal > 0 {
+		addCrystal = engineplayer.AddPlayerCrystalCapped(holder, addCrystal, maxEnergy)
+	}
+	rt.Log(fmt.Sprintf("%s 发动 [胜利交响诗]（%s 触发）：提炼1个星石为个人能量（+%d宝石 +%d水晶）", bard.Name, holder.Name, addGem, addCrystal))
 	resolveBardForbiddenVerseAfterSong(rt, bard, "胜利交响诗")
 	rt.PopInterrupt()
 	if rt.GetPendingInterrupt() == nil {
@@ -1252,14 +1250,6 @@ func addCampResource(rt engineplayer.ChoiceRuntime, camp string, resourceType st
 		rt.ModifyCrystal(camp, 1)
 	}
 	return true
-}
-
-// getPlayerEnergyCap returns the energy cap for a player (base 3).
-func getPlayerEnergyCap(player *model.Player) int {
-	if player == nil {
-		return 3
-	}
-	return 3
 }
 
 var _ engineplayer.CancelChoiceHandler = choiceHandler{}

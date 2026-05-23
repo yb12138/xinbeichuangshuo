@@ -32,7 +32,7 @@ func ApplyDefaults(p *model.Player) {
 	if p == nil {
 		return
 	}
-	p.Crystal += 2
+	player.AddPlayerCrystalCapped(p, 2, 3)
 }
 
 // SkillEntries 导出角色技能与策略绑定入口。
