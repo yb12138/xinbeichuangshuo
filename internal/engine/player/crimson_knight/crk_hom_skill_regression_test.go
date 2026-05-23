@@ -234,18 +234,14 @@ func TestHomRuneReforge_ReallocateAndOverflowCheckOnTurnEnd(t *testing.T) {
 	// 进入形态前 6 张手牌，符文改造摸1后=7（形态内上限+1），回合结束转正后应触发弃1。
 	p1.Hand = makeHandCards(6, model.ElementFire)
 
-	h := skills.GetHandler("hom_rune_reforge")
-	if h == nil {
-		t.Fatalf("hom_rune_reforge handler not found")
+	g.State.CurrentTurn = 0
+	g.State.TurnStage = model.TurnStageActionStart
+	g.Drive()
+	if g.State.PendingInterrupt == nil || g.State.PendingInterrupt.Type != model.InterruptStartupSkill {
+		t.Fatalf("expected startup interrupt for rune reforge, got %+v", g.State.PendingInterrupt)
 	}
-	ctx := g.BuildContext(p1, nil, model.TimingTurnStart, &model.EventContext{
-		SourceID: p1.ID,
-	})
-	if !h.CanUse(ctx) {
-		t.Fatalf("expected rune reforge can use with 1 gem and non-burst form")
-	}
-	if err := h.Execute(ctx); err != nil {
-		t.Fatalf("execute rune reforge failed: %v", err)
+	if err := g.ConfirmStartupSkill("p1", "hom_rune_reforge"); err != nil {
+		t.Fatalf("confirm rune reforge failed: %v", err)
 	}
 	if got := p1.Gem; got != 0 {
 		t.Fatalf("expected gem consumed to 0, got %d", got)
@@ -265,7 +261,6 @@ func TestHomRuneReforge_ReallocateAndOverflowCheckOnTurnEnd(t *testing.T) {
 		t.Fatalf("unexpected rune distribution: war=%d magic=%d", p1.Tokens["hom_war_rune"], p1.Tokens["hom_magic_rune"])
 	}
 
-	g.State.CurrentTurn = 0
 	g.State.TurnStage = model.TurnStageTurnEnd
 	g.Drive()
 

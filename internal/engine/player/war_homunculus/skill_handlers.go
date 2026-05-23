@@ -206,10 +206,7 @@ func (h *HomunculusRuneReforgeHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("符文改造上下文无效")
 	}
-	if ctx.User.Gem <= 0 {
-		return fmt.Errorf("符文改造需要红宝石")
-	}
-	ctx.User.Gem--
+	// CostGem 已在 ConfirmStartupSkillAction 由框架统一扣减（见 skill definition CostGem: 1）。
 	engineplayer.SetForm(ctx.User, model.FormWarHomunculusBurst)
 	ctx.Game.DrawCards(ctx.User.ID, 1)
 	totalRunes := engineplayer.GetToken(ctx.User, "hom_war_rune") + engineplayer.GetToken(ctx.User, "hom_magic_rune")

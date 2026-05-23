@@ -784,6 +784,49 @@ func TestMagicBowDemonEye_TargetPoolIncludesAll(t *testing.T) {
 	}
 }
 
+func TestMagicBowDemonEye_StartupPromptConsumesGemOnce(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "MagicBow", "magic_bow", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Gem = 1
+	p1.Hand = []model.Card{
+		magicBowTestCard("h1", "火焰斩", model.CardTypeAttack, model.ElementFire),
+	}
+
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionStart
+	game.Drive()
+
+	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptStartupSkill {
+		t.Fatalf("expected startup interrupt, got %+v", game.State.PendingInterrupt)
+	}
+	demonEyeIdx := testutils.StartupSkillIndexByID(t, game, "p1", "mb_demon_eye")
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{demonEyeIdx},
+	})
+
+	testutils.RequireChoicePrompt(t, game, "p1", "mb_demon_eye_mode")
+	if got := p1.Gem; got != 0 {
+		t.Fatalf("expected demon eye startup cost to consume exactly 1 gem, got %d", got)
+	}
+	if got := p1.Crystal; got != 0 {
+		t.Fatalf("expected demon eye not to consume or grant crystal before branch resolves, got %d", got)
+	}
+	if got := p1.TurnState.UsedSkillCounts["mb_demon_eye"]; got != 1 {
+		t.Fatalf("expected mb_demon_eye usage recorded once, got %d", got)
+	}
+}
+
 func TestMagicBowDemonEye_Branch2DrawThreeThenCharge(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "MagicBow", "magic_bow", model.RedCamp); err != nil {

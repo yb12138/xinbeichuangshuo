@@ -379,12 +379,8 @@ func (h *MagicBowDemonEyeHandler) Execute(ctx *model.Context) error {
 	if len(ctx.User.Hand) == 0 {
 		return fmt.Errorf("魔眼需要至少1张手牌作为充能")
 	}
-	if ctx.Timing != model.TimingActionDuring && ctx.User.Gem <= 0 {
-		return fmt.Errorf("魔眼需要1个红宝石")
-	}
-	if ctx.Timing != model.TimingActionDuring {
-		ctx.User.Gem--
-	}
+	// 启动技和行动技的能耗已由 runtime/UseSkill 流程在调用 Execute 前扣减。
+	// 这里仅负责进入分支选择，避免与框架统一扣费重复扣宝石。
 	// Build target list for branch 1 (includes self)
 	targetIDs := make([]string, 0)
 	for _, p := range ctx.Game.GetAllPlayers() {
