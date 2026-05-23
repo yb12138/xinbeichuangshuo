@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/vue'
+import { render, screen, waitFor } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -132,7 +132,7 @@ describe('ActionPanel skill availability', () => {
 
     const sharedLifeButton = screen.getByTestId('skill-bp_shared_life')
     expect(sharedLifeButton).toBeDisabled()
-    expect(sharedLifeButton).toHaveTextContent('缺少可用于发动的「同生共死」专属/独有牌')
+    expect(sharedLifeButton).toHaveTextContent('缺少可用于发动的「同生共死」独有技手牌')
   })
 
   it('submits server-published targeted skills before backend prompt-driven target selection', async () => {
@@ -190,5 +190,89 @@ describe('ActionPanel skill availability', () => {
       { clearSkillMode: true },
     )
     expect(useInterruptStore().skillMode).not.toBe('choosing_target')
+  })
+
+  it('requires exclusive-card confirmation before target selection for prayer blessing skills', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const prayerPowerBlessingSkill: AvailableSkill = {
+      id: 'prayer_power_blessing',
+      title: '威力赐福',
+      description: '将独有技手牌当法术牌打出并放置于1名队友面前。',
+      min_targets: 1,
+      max_targets: 1,
+      target_type: 3,
+      cost_gem: 0,
+      cost_crystal: 0,
+      cost_discards: 0,
+      require_exclusive: true,
+      place_card: true,
+      place_effect: 'PowerBlessing',
+    }
+    const prayerCharacter = buildCharacter({
+      id: 'prayer_master',
+      name: '祈祷师',
+      skills: [
+        {
+          ...prayerPowerBlessingSkill,
+          type: 2,
+        },
+      ],
+    })
+
+    useSessionStore().setRoomInfo('ROOM', 'p1', 'Red', 'prayer_master')
+    useSnapshotStore().updateGameState(buildState({
+      players: {
+        p1: buildPlayer({
+          id: 'p1',
+          name: '祈祷师',
+          role: 'prayer_master',
+          hand_count: 1,
+          hand: [
+            {
+              id: 'hand-p1-prayer_power_blessing',
+              name: '威力赐福',
+              type: 'Magic',
+              element: 'Light',
+              damage: 0,
+              description: '独有技卡',
+              exclusive_char1: 'prayer_master',
+              exclusive_skill1: '威力赐福',
+            },
+          ],
+        }),
+        p2: buildPlayer({ id: 'p2', name: '队友', camp: 'Red', role: 'angel', is_active: false }),
+      },
+      available_skills: [prayerPowerBlessingSkill],
+      characters: [prayerCharacter],
+    }))
+    useInterruptStore().setSkillMode('choosing_skill')
+
+    render(ActionPanel, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          PromptDialog: true,
+        },
+      },
+    })
+
+    await userEvent.click(screen.getByTestId('skill-prayer_power_blessing'))
+
+    expect(mocks.submitUseSkill).not.toHaveBeenCalled()
+    expect(useInterruptStore().skillMode).toBe('choosing_exclusive')
+    expect(screen.getByTestId('skill-exclusive-select-panel')).toBeInTheDocument()
+    expect(screen.getByTestId('skill-exclusive-confirm-btn')).toBeDisabled()
+
+    useInterruptStore().setSkillDiscardHandIndexes([0])
+    await waitFor(() => {
+      expect(screen.getByTestId('skill-exclusive-confirm-btn')).not.toBeDisabled()
+    })
+
+    await userEvent.click(screen.getByTestId('skill-exclusive-confirm-btn'))
+
+    expect(useInterruptStore().skillMode).toBe('choosing_target')
+    expect(useInterruptStore().selectedSkill?.id).toBe('prayer_power_blessing')
   })
 })

@@ -239,6 +239,10 @@ func (e *GameEngine) driveActionExecutionStage(currentPid string, player *model.
 		}
 		e.Log(fmt.Sprintf("[Debug] ActionExecution 命中 ActionEnd 补结算: player=%s last_action_type=%s action_queue=%d", currentPid, lastActionType, len(e.State.ActionQueue)))
 		return e.driveActionExecutionRecoveryPhase(currentPid, player)
+	case e.IsActionSelectionWindow() && (player == nil || player.TurnState.LastActionType == ""):
+		// 启动技结算后会回到 ActionExecution，但此时没有“刚结束的行动”可补收尾，
+		// 需要直接回到行动选择，而不是继续推入 ActionEnd/ExtraAction。
+		return e.driveActionSelectionPhase(currentPid, player)
 	case e.IsActionSelectionWindow():
 		return e.driveActionSelectionPhase(currentPid, player)
 	case e.IsBeforeActionWindow():

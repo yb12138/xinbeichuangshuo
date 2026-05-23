@@ -7,10 +7,11 @@ import GameBoard from '../GameBoard.vue'
 import { useInterruptStore } from '../../stores/interrupt.store'
 import { useSessionStore } from '../../stores/session.store'
 import { useSnapshotStore } from '../../stores/snapshot.store'
-import type { Card, CharacterView, GameStateUpdate, PlayerInfo, PlayerView, Prompt } from '../../types/game'
+import type { AvailableSkill, Card, CharacterView, GameStateUpdate, PlayerInfo, PlayerView, Prompt } from '../../types/game'
 
 const submitSelectMock = vi.fn()
 const submitSelectCardIDsMock = vi.fn()
+const submitUseSkillMock = vi.fn()
 
 vi.mock('../../composables/useSubmitAction', () => ({
   useSubmitAction: () => ({
@@ -22,7 +23,7 @@ vi.mock('../../composables/useSubmitAction', () => ({
     submitRespondCounter: vi.fn(),
     submitRespondDefend: vi.fn(),
     submitAction: vi.fn(),
-    submitUseSkill: vi.fn(),
+    submitUseSkill: submitUseSkillMock,
     submitSelectedBoardTarget: vi.fn(),
     takeoverPlayer: vi.fn(),
     dissolveRoom: vi.fn(),
@@ -226,6 +227,7 @@ describe('GameBoard target picker', () => {
     setActivePinia(createPinia())
     submitSelectMock.mockReset()
     submitSelectCardIDsMock.mockReset()
+    submitUseSkillMock.mockReset()
   })
 
   it('selects target picker options by target_id instead of player names or labels', async () => {
@@ -327,6 +329,106 @@ describe('GameBoard target picker', () => {
 
     expect(screen.getByTestId('player-area-p2')).not.toBeDisabled()
     expect(screen.getByTestId('player-area-p3')).toBeDisabled()
+  })
+
+  it('only allows matching hand cards for exclusive skill selection', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const prayerPowerBlessingSkill: AvailableSkill = {
+      id: 'prayer_power_blessing',
+      title: '威力赐福',
+      description: '将独有技手牌当法术牌打出并放置于1名队友面前。',
+      min_targets: 1,
+      max_targets: 1,
+      target_type: 3,
+      cost_gem: 0,
+      cost_crystal: 0,
+      cost_discards: 0,
+      require_exclusive: true,
+      place_card: true,
+      place_effect: 'PowerBlessing',
+    }
+
+    const me = buildPlayer({
+      id: 'p1',
+      name: '祈祷师',
+      camp: 'Red',
+      role: 'prayer_master',
+      hand: [
+        buildCard({
+          id: 'card-match',
+          name: '威力赐福',
+          type: 'Magic',
+          element: 'Light',
+          description: '独有技手牌',
+          exclusive_char1: 'prayer_master',
+          exclusive_skill1: '威力赐福',
+        }),
+        buildCard({
+          id: 'card-mismatch',
+          name: '火焰斩',
+          type: 'Attack',
+          element: 'Fire',
+          description: '普通手牌',
+        }),
+      ],
+      hand_count: 2,
+    })
+    const ally = buildPlayer({ id: 'p2', name: '队友', camp: 'Red', role: 'angel' })
+    const players = { p1: me, p2: ally }
+
+    useSessionStore().setRoomInfo('ROOM1', 'p1', 'Red', 'prayer_master')
+    useSessionStore().updateRoomPlayers(Object.values(players).map(buildPlayerInfo), 'p1')
+    useSnapshotStore().updateGameState(buildState(players, {
+      available_skills: [prayerPowerBlessingSkill],
+      characters: [
+        buildCharacter({
+          id: 'prayer_master',
+          name: '祈祷师',
+          skills: [
+            {
+              ...prayerPowerBlessingSkill,
+              type: 2,
+            },
+          ],
+        }),
+      ],
+    }))
+
+    const interruptStore = useInterruptStore()
+    interruptStore.setSkillMode('choosing_exclusive')
+    interruptStore.setSelectedSkill(prayerPowerBlessingSkill)
+
+    render(GameBoard, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          PlayerArea: PlayerAreaStub,
+          ActionPanel: true,
+          BattleZone: true,
+          SkillDetailModal: true,
+          VfxLayer: true,
+          ActionTimeline: true,
+          StatusEffectIcon: true,
+        },
+      },
+    })
+
+    await userEvent.click(screen.getByTestId('hand-card-1'))
+    expect(interruptStore.skillDiscardHandIndexes).toEqual([])
+
+    await userEvent.click(screen.getByTestId('hand-card-0'))
+    expect(interruptStore.skillDiscardHandIndexes).toEqual([0])
+
+    interruptStore.setSkillMode('choosing_target')
+    await userEvent.click(screen.getByTestId('player-area-p2'))
+    expect(submitUseSkillMock).toHaveBeenCalledWith(
+      'prayer_power_blessing',
+      ['p2'],
+      [0],
+      { clearSkillMode: true },
+    )
   })
 
   it('selects a single hand card picker card without auto-submitting', async () => {

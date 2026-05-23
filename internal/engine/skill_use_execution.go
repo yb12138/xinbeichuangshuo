@@ -24,6 +24,9 @@ func (e *GameEngine) consumeSkillInputs(use *skillUseRequest) error {
 		e.State.DiscardPile = append(e.State.DiscardPile, use.discardedCards...)
 	}
 
+	if err := e.consumeExclusiveSkillCard(use); err != nil {
+		return err
+	}
 	if use.skillDef.PlaceCard {
 		if err := e.placeSkillFieldCard(use); err != nil {
 			return err
@@ -32,6 +35,24 @@ func (e *GameEngine) consumeSkillInputs(use *skillUseRequest) error {
 	if use.consumedExclusiveCard != nil && !use.skillDef.PlaceCard {
 		e.State.DiscardPile = append(e.State.DiscardPile, *use.consumedExclusiveCard)
 	}
+	return nil
+}
+
+func (e *GameEngine) consumeExclusiveSkillCard(use *skillUseRequest) error {
+	if use == nil || use.skillDef == nil || use.player == nil || use.player.Character == nil {
+		return nil
+	}
+	if !use.skillDef.RequireExclusive || use.skillDef.CostDiscards > 0 || len(use.discardedCards) > 0 {
+		return nil
+	}
+	if use.policy.ManualExclusiveCard || use.consumedExclusiveCard != nil {
+		return nil
+	}
+	card, ok := use.player.ConsumeExclusiveCard(use.player.Character.ID, use.skillDef.Title)
+	if !ok {
+		return fmt.Errorf("未找到技能 [%s] 对应的专属技能卡", use.skillDef.Title)
+	}
+	use.consumedExclusiveCard = &card
 	return nil
 }
 

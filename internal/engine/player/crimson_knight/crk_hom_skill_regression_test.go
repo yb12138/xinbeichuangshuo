@@ -281,6 +281,69 @@ func TestHomRuneReforge_ReallocateAndOverflowCheckOnTurnEnd(t *testing.T) {
 	}
 }
 
+func TestHomGlyphFusion_BurstSurvivesSwiftBlessingExtraAttackAndOffersY(t *testing.T) {
+	g := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := g.AddPlayer("p1", "Hom", "war_homunculus", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := g.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.TurnState.PendingActions = []model.ActionContext{{Source: "迅捷赐福", MustType: string(model.ActionAttack)}}
+	p1.Tokens["hom_war_rune"] = 1
+	p1.Tokens["hom_magic_rune"] = 2
+	playerpkg.SetForm(p1, model.FormWarHomunculusBurst)
+	p1.Hand = []model.Card{
+		{ID: "h1", Name: "水涟斩", Type: model.CardTypeAttack, Element: model.ElementWater, Damage: 2},
+		{ID: "h2", Name: "风神斩", Type: model.CardTypeAttack, Element: model.ElementWind, Damage: 2},
+	}
+
+	if paused := g.RunTurnEndTimingStageHooks(p1, engine.TimingTurnEndPreExtra); paused {
+		t.Fatalf("pre-extra turn end hook should not pause")
+	}
+	if got := p1.Form; got != model.FormWarHomunculusBurst {
+		t.Fatalf("burst form should survive before swift blessing extra attack, got %q", got)
+	}
+
+	h := skills.GetHandler("hom_glyph_fusion")
+	if h == nil {
+		t.Fatalf("hom_glyph_fusion handler not found")
+	}
+	ctx := g.BuildContext(p1, g.State.Players["p2"], model.TimingAttackMiss, &model.EventContext{
+		Type:     model.EventAttack,
+		SourceID: p1.ID,
+		TargetID: "p2",
+		Card: &model.Card{
+			ID:      "atk",
+			Name:    "火焰斩",
+			Type:    model.CardTypeAttack,
+			Element: model.ElementFire,
+			Damage:  2,
+		},
+		AttackInfo: &model.AttackEventInfo{ActionType: "Attack", IsHit: false},
+	})
+	if !h.CanUse(ctx) {
+		t.Fatalf("expected glyph fusion can use during swift blessing extra attack")
+	}
+	if err := h.Execute(ctx); err != nil {
+		t.Fatalf("execute glyph fusion failed: %v", err)
+	}
+	data, _ := g.State.PendingInterrupt.Context.(map[string]interface{})
+	if maxY, _ := data["max_y"].(int); maxY != 1 {
+		t.Fatalf("expected burst glyph fusion max_y=1 with two magic runes, got %v", data["max_y"])
+	}
+	if err := g.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0, 1}}); err != nil {
+		t.Fatalf("choose glyph fusion cards failed: %v", err)
+	}
+	if got := choiceTypeOfInterrupt(g.State.PendingInterrupt); got != "hom_glyph_fusion_y" {
+		t.Fatalf("expected glyph fusion to offer extra rune flip Y, got %q", got)
+	}
+}
+
 func TestHomGlyphFusion_MaxXUsesDistinctElements(t *testing.T) {
 	g := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := g.AddPlayer("p1", "Hom", "war_homunculus", model.RedCamp); err != nil {

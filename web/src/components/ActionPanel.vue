@@ -592,10 +592,40 @@ const SKILL_REQUIRE_MANUAL_TARGET_CONFIRM_IDS = new Set([
 const SKILL_SUBMIT_BEFORE_TARGET_IDS = new Set([
     'mb_thunder_scatter',
 ])
+const SKILL_BACKEND_PROMPT_FLOW_IDS = new Set([
+    'elementalist_freeze',
+    'css_blood_rose',
+    'sage_arcane_codex',
+    'sage_holy_codex',
+    'mb_thunder_scatter',
+    'bd_dissonance_chord',
+])
 const isManualTargetConfirmSkillFlow = computed(() => {
     const skillId = interruptStore.selectedSkill?.id
     if (!skillId) return false
     return SKILL_REQUIRE_MANUAL_TARGET_CONFIRM_IDS.has(skillId)
+})
+
+function requiresExclusiveCardSelectionBeforeTarget(skill?: AvailableSkill | null): boolean {
+    return !!skill &&
+        !!skill.require_exclusive &&
+        (skill.target_type ?? 0) !== 0 &&
+        (skill.cost_discards ?? 0) === 0
+}
+
+function isSelectedExclusiveCardValid(skill: AvailableSkill): boolean {
+    if (interruptStore.skillDiscardHandIndexes.length !== 1) return false
+    const selectedIndex = interruptStore.skillDiscardHandIndexes[0]
+    const card = myHand.value[selectedIndex]
+    if (!card) return false
+    const roleId = sessionStore.myCharRole || myPlayer.value?.role || ''
+    return cardMatchesExclusive(card, roleId, skill.title)
+}
+
+const canConfirmExclusiveSkillSelection = computed(() => {
+    const skill = interruptStore.selectedSkill
+    if (!requiresExclusiveCardSelectionBeforeTarget(skill)) return false
+    return isSelectedExclusiveCardValid(skill)
 })
 
 function hasMatchingExclusiveCard(skill: AvailableSkill): boolean {
@@ -612,10 +642,15 @@ function selectSkill(skill: AvailableSkill) {
         return
     }
     interruptStore.setSelectedSkill(skill)
-    // Server-published skills are protocol intents: submit the skill id and let
-    // backend prompts drive costs, discards, branches, and target selection.
-    if (isServerPublishedAvailableSkill(skill)) {
+    // A few skills intentionally start a backend prompt flow before costs,
+    // branches, or targets are known. Regular server-published target skills
+    // still use the shared client-side target picker below.
+    if (isServerPublishedAvailableSkill(skill) && SKILL_BACKEND_PROMPT_FLOW_IDS.has(skill.id)) {
         actions.submitUseSkill(skill.id, [], undefined, { clearSkillMode: true })
+        return
+    }
+    if (requiresExclusiveCardSelectionBeforeTarget(skill)) {
+        interruptStore.setSkillMode('choosing_exclusive')
         return
     }
     // 如果技能需要弃牌，先进入弃牌选择模式
@@ -812,7 +847,7 @@ function skillDisabledReason(skill: AvailableSkill): string {
         return '手牌中没有风系牌，无法发动【风之洁净】。'
     }
     if (skill.require_exclusive && !hasMatchingExclusiveCard(skill)) {
-        return `缺少可用于发动的「${skill.title}」专属/独有牌。`
+        return `缺少可用于发动的「${skill.title}」独有技手牌。`
     }
     if (skill.cost_discards > 0) {
         const required = requiredDiscardCount(skill)
@@ -822,6 +857,9 @@ function skillDisabledReason(skill: AvailableSkill): string {
 }
 
 function proceedAfterDiscard(skill: AvailableSkill) {
+    if (requiresExclusiveCardSelectionBeforeTarget(skill)) {
+        return
+    }
     // 魔弓【雷光散射】先移除雷系充能，再根据额外移除数决定是否选择目标。
     if (SKILL_SUBMIT_BEFORE_TARGET_IDS.has(skill.id)) {
         const selections = interruptStore.skillDiscardHandIndexes.length > 0 ? [...interruptStore.skillDiscardHandIndexes] : undefined
@@ -860,6 +898,16 @@ function confirmSkill() {
     actions.submitUseSkill(skill.id, [...interruptStore.skillTargetIds], selections, { clearSkillMode: true })
 }
 
+function confirmExclusiveSkillSelection() {
+    const skill = interruptStore.selectedSkill
+    if (!skill || !requiresExclusiveCardSelectionBeforeTarget(skill)) return
+    if (!canConfirmExclusiveSkillSelection.value) {
+      interruptStore.showError(`请先选择对应的「${skill.title}」独有技手牌`)
+      return
+    }
+    interruptStore.setSkillMode('choosing_target')
+}
+
 watch(
     () => [interruptStore.skillMode, interruptStore.selectedSkill?.id, interruptStore.skillDiscardHandIndexes.length] as const,
     ([mode, _skillId, selectedCount]) => {
@@ -882,9 +930,9 @@ function skillCostText(skill: AvailableSkill): string {
     if (skill.cost_gem > 0) parts.push(`${skill.cost_gem}宝石`)
     if (skill.cost_crystal > 0) parts.push(`${skill.cost_crystal}水晶`)
     if (skill.cost_discards > 0) {
-        parts.push(skill.require_exclusive ? `弃${skill.cost_discards}独有牌` : `弃${skill.cost_discards}牌`)
+        parts.push(skill.require_exclusive ? `弃${skill.cost_discards}独有技手牌` : `弃${skill.cost_discards}牌`)
     } else if (skill.require_exclusive) {
-        parts.push('专属技能卡')
+        parts.push('独有技手牌')
     }
     return parts.length > 0 ? parts.join('+') : '免费'
 }
@@ -989,7 +1037,7 @@ function applyDebugExclusiveCard() {
     }
     const count = Number(debugExclusiveCount.value)
     if (!Number.isFinite(count) || count <= 0) {
-        interruptStore.showError('独有牌数量需为 > 0 的数字')
+        interruptStore.showError('独有技手牌数量需为 > 0 的数字')
         return
     }
     actions.cheatGiveExclusive(pid, debugExclusiveRoleId.value, debugExclusiveSkillId.value, Math.floor(count))
@@ -1069,7 +1117,7 @@ function requiredDiscardCount(skill: AvailableSkill): number {
 
 function skillDiscardGuideText(skill: AvailableSkill): string {
     if (skill.require_exclusive) {
-        return `弃标有「${skill.title}」的独有牌`
+        return `弃标有「${skill.title}」的独有技手牌`
     }
     if (skill.discard_element) {
         return `弃置${elementName(skill.discard_element)}牌`
@@ -1198,6 +1246,42 @@ function elementName(el: string): string {
             </div>
             <div class="flex gap-3 justify-center mt-2">
                 <button class="action-image-btn w-[72px] sm:w-[88px]" data-testid="skill-cancel-btn" title="取消" @click="interruptStore.clearSkillMode()">
+                    <img v-if="isMainActionImageReady('cancel')" class="action-image-btn-fill" :src="mainActionButtonImage('cancel')" alt="" @error="onMainActionImageError('cancel')" />
+                    <span v-else class="action-image-fallback-text">消</span>
+                    <span class="action-image-btn-label">取消</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- 技能发动流程：选择独有技手牌 -->
+        <div v-else-if="interruptStore.skillMode === 'choosing_exclusive' && interruptStore.selectedSkill" class="space-y-3 skill-discard-panel" data-testid="skill-exclusive-select-panel">
+            <div class="flex items-center justify-between">
+                <span class="text-amber-400 text-sm font-bold">{{ interruptStore.selectedSkill.title }}</span>
+                <span class="step-indicator">
+          {{ interruptStore.skillDiscardHandIndexes.length }}/1
+        </span>
+            </div>
+            <p v-if="interruptStore.selectedSkill.description" class="text-xs text-gray-400 whitespace-pre-wrap break-words">{{ interruptStore.selectedSkill.description }}</p>
+            <div class="text-xs text-gray-400">
+                请在手牌区选择对应的独有技手牌，然后点击确认。
+            </div>
+            <div v-if="interruptStore.skillDiscardHandIndexes.length > 0 && myHand[interruptStore.skillDiscardHandIndexes[0]]" class="text-[11px] text-amber-300">
+                已选独有技手牌：{{ myHand[interruptStore.skillDiscardHandIndexes[0]].name }}
+            </div>
+            <div class="flex gap-3 justify-center">
+                <button
+                    class="action-image-btn w-[72px] sm:w-[88px]"
+                    :class="{ 'opacity-50 cursor-not-allowed': !canConfirmExclusiveSkillSelection }"
+                    title="确认"
+                    :disabled="!canConfirmExclusiveSkillSelection"
+                    data-testid="skill-exclusive-confirm-btn"
+                    @click="confirmExclusiveSkillSelection"
+                >
+                    <img v-if="isMainActionImageReady('confirm')" class="action-image-btn-fill" :src="mainActionButtonImage('confirm')" alt="" @error="onMainActionImageError('confirm')" />
+                    <span v-else class="action-image-fallback-text">确</span>
+                    <span class="action-image-btn-label">确认</span>
+                </button>
+                <button class="action-image-btn w-[72px] sm:w-[88px]" title="取消" @click="interruptStore.clearSkillMode()">
                     <img v-if="isMainActionImageReady('cancel')" class="action-image-btn-fill" :src="mainActionButtonImage('cancel')" alt="" @error="onMainActionImageError('cancel')" />
                     <span v-else class="action-image-fallback-text">消</span>
                     <span class="action-image-btn-label">取消</span>

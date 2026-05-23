@@ -7,7 +7,7 @@ import { useInterruptStore } from '../stores/interrupt.store'
 import { useSessionStore } from '../stores/session.store'
 import { useSnapshotStore } from '../stores/snapshot.store'
 import { useUiStore } from '../stores/ui.store'
-import type { FieldCard, PlayerView, Prompt } from '../types/game'
+import type { AvailableSkill, FieldCard, PlayerView, Prompt } from '../types/game'
 import PlayerArea from './PlayerArea.vue'
 import ActionPanel from './ActionPanel.vue'
 import CardComponent from './CardComponent.vue'
@@ -1730,7 +1730,7 @@ function cardPassesSkillDiscardRules(idx: number): PromptCardSelectionState {
       return {
         selectable: false,
         reason: 'skill_discard_exclusive_mismatch',
-        error: `必须使用标有「${skill.title}」的独有牌`,
+        error: `必须使用标有「${skill.title}」的独有技手牌`,
       }
     }
   }
@@ -1788,9 +1788,20 @@ function isCardSelectableForSkillDiscard(idx: number): boolean {
   return cardPassesSkillDiscardRules(idx).selectable
 }
 
+function isCardSelectableForExclusiveSkillCard(idx: number): boolean {
+  if (idx < 0 || idx >= myHand.value.length) return false
+  const skill = selectedSkill.value
+  if (!requiresExclusiveCardSelectionBeforeTarget(skill)) return false
+  const card = myHand.value[idx]
+  if (!card) return false
+  const roleId = sessionStore.myCharRole || myAreaPlayer.value?.role || ''
+  return cardMatchesExclusive(card, roleId, skill?.title || '')
+}
+
 function isCardSelectableForAction(idx: number): boolean {
   if (isGameEnded.value) return false
   if (skillMode.value === 'choosing_discard') return isCardSelectableForSkillDiscard(idx)
+  if (skillMode.value === 'choosing_exclusive') return isCardSelectableForExclusiveSkillCard(idx)
   if (actionMode.value === 'attack') {
     const card = myPlayableCards.value.find(item => item.index === idx)?.card
     if (!card || card.type !== 'Attack') return false
@@ -1808,6 +1819,13 @@ function isCardSelectableForAction(idx: number): boolean {
   return isMyTurn.value
 }
 
+function requiresExclusiveCardSelectionBeforeTarget(skill?: AvailableSkill | null): boolean {
+  return !!skill &&
+    !!skill.require_exclusive &&
+    (skill.target_type ?? 0) !== 0 &&
+    (skill.cost_discards ?? 0) === 0
+}
+
 function togglePromptSelectedCard(idx: number) {
   const nextSelected = [...selectedHandIndexes.value]
   const existingIndex = nextSelected.indexOf(idx)
@@ -1821,9 +1839,21 @@ function togglePromptSelectedCard(idx: number) {
   interruptStore.setSelectedHandIndexes(nextSelected)
 }
 
+function toggleExclusiveSkillHandCard(idx: number) {
+  const skill = selectedSkill.value
+  if (!requiresExclusiveCardSelectionBeforeTarget(skill)) return
+  const card = myHand.value[idx]
+  const roleId = sessionStore.myCharRole || myAreaPlayer.value?.role || ''
+  if (!card || !cardMatchesExclusive(card, roleId, skill?.title || '')) {
+    interruptStore.showError(`请先在手牌区选择对应的「${skill?.title || '独有技'}」独有技手牌`)
+    return
+  }
+  interruptStore.setSkillDiscardHandIndexes(skillDiscardHandIndexes.value.includes(idx) ? [] : [idx])
+}
+
 function onCardClick(idx: number) {
   if (isGameEnded.value) return
-  // 优先级：actionMode > skillMode(弃牌) > prompt 选牌 > 默认
+  // 优先级：actionMode > skillMode(选牌/弃牌) > prompt 选牌 > 默认
   if (actionMode.value !== 'none') {
     const card = myPlayableCards.value.find(item => item.index === idx)?.card
     if (actionMode.value === 'magic' && card && card.type !== 'Magic') {
@@ -1862,6 +1892,10 @@ function onCardClick(idx: number) {
       return
     }
     interruptStore.toggleSkillDiscardHandIndex(idx)
+    return
+  }
+  if (skillMode.value === 'choosing_exclusive' && selectedSkill.value) {
+    toggleExclusiveSkillHandCard(idx)
     return
   }
   if (isPromptForMe.value) {

@@ -737,3 +737,51 @@ func TestPriestDivineContract_TargetAlreadyAbove4KeepsUnchanged(t *testing.T) {
 		t.Fatalf("expected ally heal unchanged when already >4, got %d", got)
 	}
 }
+
+func TestPriestDivineContract_ResumesToActionSelectionAfterStartup(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NewTestObserver(t))
+	if err := game.AddPlayer("p1", "Priest", "priest", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Ally", "berserker", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p3", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionStart
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Crystal = 1
+	p1.Heal = 3
+
+	game.Drive()
+	startupIdx := testutils.StartupSkillIndexByID(t, game, "p1", "priest_divine_contract")
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{startupIdx},
+	})
+	testutils.RequireChoicePrompt(t, game, "p1", "priest_divine_contract_target")
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{0},
+	})
+	testutils.RequireChoicePrompt(t, game, "p1", "priest_divine_contract_x")
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{0},
+	})
+
+	if got := game.State.TurnStage; got != model.TurnStageActionExecution {
+		t.Fatalf("expected startup skill to return to action selection, got turn stage %s", got)
+	}
+	if got := game.State.CurrentTurn; got != 0 {
+		t.Fatalf("expected to remain on p1's turn, got current turn index %d", got)
+	}
+}

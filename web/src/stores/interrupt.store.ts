@@ -16,7 +16,7 @@ export const useInterruptStore = defineStore('interrupt', () => {
   const actionMode = ref<'none' | 'attack' | 'magic'>('none')
   const magicSubChoice = ref<'none' | 'card' | 'skill'>('none')
   const selectedHandIndexForAction = ref<number | null>(null)
-  const skillMode = ref<'none' | 'choosing_skill' | 'choosing_discard' | 'choosing_target'>('none')
+  const skillMode = ref<'none' | 'choosing_skill' | 'choosing_exclusive' | 'choosing_discard' | 'choosing_target'>('none')
   const selectedSkill = ref<AvailableSkill | null>(null)
   const skillTargetIds = ref<string[]>([])
   const skillDiscardHandIndexes = ref<number[]>([])
@@ -71,7 +71,7 @@ export const useInterruptStore = defineStore('interrupt', () => {
     selectedHandIndexForAction.value = null
   }
 
-  function setSkillMode(mode: 'none' | 'choosing_skill' | 'choosing_discard' | 'choosing_target') {
+  function setSkillMode(mode: 'none' | 'choosing_skill' | 'choosing_exclusive' | 'choosing_discard' | 'choosing_target') {
     skillMode.value = mode
     if (mode === 'none') {
       selectedSkill.value = null

@@ -40,7 +40,7 @@ func TestPrayerEnterForm_ConsumesGemAndSetsForm(t *testing.T) {
 	}
 }
 
-func TestPrayerPowerBlessing_ConsumesExclusiveZoneCardDirectly(t *testing.T) {
+func TestPrayerPowerBlessing_ConsumesSelectedHandCard(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "Prayer", "prayer_master", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -59,9 +59,9 @@ func TestPrayerPowerBlessing_ConsumesExclusiveZoneCardDirectly(t *testing.T) {
 	p2 := game.State.Players["p2"]
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
-	p1.ExclusiveCards = []model.Card{
+	p1.Hand = []model.Card{
 		{
-			ID:              "starter-p1-prayer_power_blessing",
+			ID:              "hand-p1-prayer_power_blessing",
 			Name:            "威力赐福",
 			Type:            model.CardTypeMagic,
 			Element:         model.ElementLight,
@@ -70,18 +70,55 @@ func TestPrayerPowerBlessing_ConsumesExclusiveZoneCardDirectly(t *testing.T) {
 		},
 	}
 
-	if err := game.UseSkill("p1", "prayer_power_blessing", []string{"p2"}, nil); err != nil {
+	if err := game.UseSkill("p1", "prayer_power_blessing", []string{"p2"}, []int{0}); err != nil {
 		t.Fatalf("use prayer power blessing failed: %v", err)
 	}
-	if p1.HasExclusiveCard(p1.Character.ID, "威力赐福") {
-		t.Fatalf("expected power blessing consumed from exclusive zone")
+	if len(p1.Hand) != 0 {
+		t.Fatalf("expected selected power blessing hand card consumed, got %d cards", len(p1.Hand))
 	}
 	if !testutils.HasFieldEffect(p2, model.EffectPowerBlessing) {
 		t.Fatalf("expected power blessing field effect on ally")
 	}
 }
 
-func TestPrayerSwiftBlessing_ConsumesExclusiveZoneCardDirectly(t *testing.T) {
+func TestPrayerPowerBlessing_MissingTargetDoesNotConsumeExclusiveCard(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Prayer", "prayer_master", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Ally", "angel", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p3", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Hand = []model.Card{
+		{
+			ID:              "hand-p1-prayer_power_blessing",
+			Name:            "威力赐福",
+			Type:            model.CardTypeMagic,
+			Element:         model.ElementLight,
+			ExclusiveChar1:  "prayer_master",
+			ExclusiveSkill1: "威力赐福",
+		},
+	}
+
+	if err := game.UseSkill("p1", "prayer_power_blessing", nil, []int{0}); err == nil {
+		t.Fatalf("expected missing target to fail")
+	}
+	if len(p1.Hand) != 1 {
+		t.Fatalf("expected failed power blessing to keep selected hand card, got %d cards", len(p1.Hand))
+	}
+}
+
+func TestPrayerSwiftBlessing_ConsumesSelectedHandCard(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "Prayer", "prayer_master", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -100,9 +137,9 @@ func TestPrayerSwiftBlessing_ConsumesExclusiveZoneCardDirectly(t *testing.T) {
 	p2 := game.State.Players["p2"]
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
-	p1.ExclusiveCards = []model.Card{
+	p1.Hand = []model.Card{
 		{
-			ID:              "starter-p1-prayer_swift_blessing",
+			ID:              "hand-p1-prayer_swift_blessing",
 			Name:            "迅捷赐福",
 			Type:            model.CardTypeMagic,
 			Element:         model.ElementWind,
@@ -111,11 +148,11 @@ func TestPrayerSwiftBlessing_ConsumesExclusiveZoneCardDirectly(t *testing.T) {
 		},
 	}
 
-	if err := game.UseSkill("p1", "prayer_swift_blessing", []string{"p2"}, nil); err != nil {
+	if err := game.UseSkill("p1", "prayer_swift_blessing", []string{"p2"}, []int{0}); err != nil {
 		t.Fatalf("use prayer swift blessing failed: %v", err)
 	}
-	if p1.HasExclusiveCard(p1.Character.ID, "迅捷赐福") {
-		t.Fatalf("expected swift blessing consumed from exclusive zone")
+	if len(p1.Hand) != 0 {
+		t.Fatalf("expected selected swift blessing hand card consumed, got %d cards", len(p1.Hand))
 	}
 	if !testutils.HasFieldEffect(p2, model.EffectSwiftBlessing) {
 		t.Fatalf("expected swift blessing field effect on ally")

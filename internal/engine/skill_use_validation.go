@@ -88,16 +88,8 @@ func (e *GameEngine) validateSkillDiscardSelection(use *skillUseRequest) error {
 		if use.player.Character == nil || use.player.Character.ID == "" {
 			return fmt.Errorf("角色信息缺失，无法校验独有牌")
 		}
-		if use.policy.ManualExclusiveCard {
-			if !use.player.HasExclusiveCard(use.player.Character.ID, use.skillDef.Title) {
-				return fmt.Errorf("未找到技能 [%s] 对应的专属技能卡", use.skillDef.Title)
-			}
-		} else {
-			card, ok := use.player.ConsumeExclusiveCard(use.player.Character.ID, use.skillDef.Title)
-			if !ok {
-				return fmt.Errorf("未找到技能 [%s] 对应的专属技能卡", use.skillDef.Title)
-			}
-			use.consumedExclusiveCard = &card
+		if !use.player.HasExclusiveCard(use.player.Character.ID, use.skillDef.Title) {
+			return fmt.Errorf("未找到技能 [%s] 对应的专属技能卡", use.skillDef.Title)
 		}
 	}
 

@@ -173,18 +173,12 @@ func priestDivineContractTargets(game model.IGameEngine, user *model.Player) []s
 	return targetIDs
 }
 
-func priestDivineContractWaitingPhase(ctx *model.Context) model.TurnStage {
-	if ctx != nil && ctx.Timing == model.TimingTurnStart {
-		return model.TurnStageActionStart
-	}
-	return model.TurnStageActionExecution
+func priestDivineContractWaitingPhase(_ *model.Context) model.TurnStage {
+	return model.TurnStageActionStart
 }
 
-func priestDivineContractResumePhase(ctx *model.Context) model.TurnStage {
-	if ctx != nil && ctx.Timing == model.TimingTurnStart {
-		return model.TurnStageActionExecution
-	}
-	return model.TurnStageExtraAction
+func priestDivineContractResumePhase(_ *model.Context) model.TurnStage {
+	return model.TurnStageActionExecution
 }
 
 func (h *PriestDivineDomainHandler) CanUse(ctx *model.Context) bool {
