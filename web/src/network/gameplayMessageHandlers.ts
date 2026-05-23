@@ -348,8 +348,8 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
 
       case 'action_step':
         if (event.line) {
-          battleReviewStore.addActionStep(event.line)
           if (event.kind === 'summary') {
+            battleReviewStore.addActionStep(event.line)
             battleReviewStore.addBattleFeed({
               type: 'system',
               title: event.line,

@@ -84,9 +84,6 @@ func (e *GameEngine) HandleActionSelectionSpecialOrSkill(act model.PlayerAction,
 		if len(targetIDs) == 0 && act.TargetID != "" {
 			targetIDs = append(targetIDs, act.TargetID)
 		}
-		if err := e.UseSkill(act.PlayerID, act.SkillID, targetIDs, act.Selections); err != nil {
-			return fmt.Errorf("技能发动失败: %v", err)
-		}
 		skillTitle := act.SkillID
 		if player.Character != nil {
 			for _, s := range player.Character.Skills {
@@ -96,14 +93,11 @@ func (e *GameEngine) HandleActionSelectionSpecialOrSkill(act model.PlayerAction,
 				}
 			}
 		}
-		targets := []string{}
-		if act.TargetID != "" {
-			targets = append(targets, act.TargetID)
+		e.BeginActionSummary("skill", player.ID, skillTitle, targetIDs)
+		if err := e.UseSkill(act.PlayerID, act.SkillID, targetIDs, act.Selections); err != nil {
+			e.clearActionSummary()
+			return fmt.Errorf("技能发动失败: %v", err)
 		}
-		if len(act.TargetIDs) > 0 {
-			targets = append(targets, act.TargetIDs...)
-		}
-		e.BeginActionSummary("skill", player.ID, skillTitle, targets)
 		if e.State.PendingInterrupt != nil {
 			return nil
 		}

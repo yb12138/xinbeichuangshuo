@@ -35,6 +35,12 @@ func (e *GameEngine) consumeSkillInputs(use *skillUseRequest) error {
 	if use.consumedExclusiveCard != nil && !use.skillDef.PlaceCard {
 		e.State.DiscardPile = append(e.State.DiscardPile, *use.consumedExclusiveCard)
 	}
+	if use.player != nil {
+		e.addActionDiscard(use.player.ID, len(use.discardedCards))
+		if use.consumedExclusiveCard != nil && !use.skillDef.PlaceCard {
+			e.addActionDiscard(use.player.ID, 1)
+		}
+	}
 	return nil
 }
 

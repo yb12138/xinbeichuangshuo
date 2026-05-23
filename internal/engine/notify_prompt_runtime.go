@@ -164,14 +164,17 @@ func (e *GameEngine) NotifyActionStep(line string) {
 	if e.observer == nil || line == "" {
 		return
 	}
-	if e.actionSummary != nil && e.actionSummary.active {
-		e.addActionNote(line)
-		return
-	}
 	e.emitGameEvent(model.GameEvent{
 		Type:       model.EventActionStep,
 		ActionStep: &model.ActionStepPayload{Line: line, Kind: "detail"},
 	})
+}
+
+func (e *GameEngine) NotifyActionSummaryNote(line string) {
+	if e == nil || line == "" {
+		return
+	}
+	e.addActionSummaryNote(line)
 }
 
 func (e *GameEngine) NotifyActionSummary(line string) {

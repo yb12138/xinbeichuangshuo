@@ -302,6 +302,37 @@ describe('createGameplayMessageHandlers', () => {
     expect(battleFxStore.initiatorFocus?.mode).toBe('response')
   })
 
+  it('does not add detail action steps to action summaries', () => {
+    const { handlers, battleReviewStore } = buildHandlers()
+
+    handlers.handleGameplayEvent({
+      event_type: 'action_step',
+      line: '中间过程：Bob承受伤害',
+      kind: 'detail',
+    })
+
+    expect(battleReviewStore.actionSummaryLines).toEqual([])
+    expect(battleReviewStore.battleFeed).toEqual([])
+  })
+
+  it('adds summary action steps to action summaries and battle feed', () => {
+    const { handlers, battleReviewStore } = buildHandlers()
+
+    handlers.handleGameplayEvent({
+      event_type: 'action_step',
+      line: '回合1：Alice 使用攻击【火焰斩】 -> Bob；Bob 受到2点伤害',
+      kind: 'summary',
+    })
+
+    expect(battleReviewStore.actionSummaryLines).toEqual([
+      '回合1：Alice 使用攻击【火焰斩】 -> Bob；Bob 受到2点伤害',
+    ])
+    expect(battleReviewStore.battleFeed).toHaveLength(1)
+    expect(battleReviewStore.battleFeed[0]?.title).toBe(
+      '回合1：Alice 使用攻击【火焰斩】 -> Bob；Bob 受到2点伤害',
+    )
+  })
+
   it('replays NotifyTimeline payloads into timeline entries and battle effects', () => {
     const { handlers, timelineStore, battleFxStore } = buildHandlers()
 

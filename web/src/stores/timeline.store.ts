@@ -98,6 +98,20 @@ export const useTimelineStore = defineStore('timeline', () => {
     }
   }
 
+  function shouldDisplayTimelineEvent(event: TimelineEvent): boolean {
+    switch (event.gameplay_type) {
+      case 'action_step':
+        return event.detail_kind === 'summary'
+      case 'card_revealed':
+      case 'damage_dealt':
+      case 'draw_cards':
+      case 'game_end':
+        return true
+      default:
+        return false
+    }
+  }
+
   function push(payload: TimelineNotifyPayload) {
     payloads.value.push(payload)
     if (payloads.value.length > 80) {
@@ -106,6 +120,9 @@ export const useTimelineStore = defineStore('timeline', () => {
 
     const timestamp = Date.now()
     for (const event of payload.events || []) {
+      if (!shouldDisplayTimelineEvent(event)) {
+        continue
+      }
       entries.value.push({
         id: `${payload.room_id}:${event.event_id}`,
         eventId: event.event_id,
