@@ -94,7 +94,7 @@ func encodeBasicEffectOptions(options []basicEffectOption) []map[string]interfac
 type HolyShieldHandler struct{}
 
 func (h *HolyShieldHandler) CanUse(ctx *model.Context) bool {
-	if ctx.Timing != model.TimingOnDamageTaken {
+	if !ctx.DamageTakenPhase() {
 		return false
 	}
 	if ctx.EventCtx == nil || ctx.EventCtx.DamageVal == nil || *ctx.EventCtx.DamageVal <= 0 {
@@ -150,14 +150,11 @@ func (h *AngelBondHandler) CanUse(ctx *model.Context) bool {
 	if ctx.EventCtx == nil || ctx.User == nil {
 		return false
 	}
-	if ctx.Timing == model.TimingOnFieldMarkChanged {
+	if ctx.Timing == model.TimingFieldMarkChanged {
 		if ctx.EventCtx.SourceID != ctx.User.ID {
 			return false
 		}
 		return model.IsBasicEffect(ctx.EventCtx.BuffID)
-	}
-	if ctx.Timing == model.TimingOnFieldMarkChanged {
-		return ctx.EventCtx.SourceID == ctx.User.ID && ctx.EventCtx.BuffID == string(model.EffectShield)
 	}
 	return false
 }
@@ -183,6 +180,7 @@ func (h *AngelBondHandler) Execute(ctx *model.Context) error {
 			"choice_type":  "angel_bond_heal_target",
 			"user_id":      ctx.User.ID,
 			"target_ids":   targetIDs,
+			"buff_name":    ctx.EventCtx.BuffID,
 			"resume_phase": ctx.Selections["current_resume_point"],
 		},
 	})
@@ -285,29 +283,21 @@ func (h *AngelCleanseHandler) Execute(ctx *model.Context) error {
 		ctx.Game.Log(fmt.Sprintf("%s 的 [风之洁净] 发动：场上没有可移除的基础效果，跳过移除", ctx.User.Name))
 		return nil
 	}
-	if len(options) > 1 {
-		ctx.Game.PushInterrupt(&model.Interrupt{
-			Type:     model.InterruptChoice,
-			PlayerID: ctx.User.ID,
-			Context: map[string]interface{}{
-				"choice_type":  "basic_effect_pick",
-				"user_id":      ctx.User.ID,
-				"skill_name":   "风之洁净",
-				"operation":    "remove",
-				"resume_phase": model.TurnStageActionExecution,
-				"prompt":       "【风之洁净】请选择要移除的基础效果：",
-				"options":      encodeBasicEffectOptions(options),
-			},
-		})
-		ctx.Game.Log(fmt.Sprintf("%s 发动 [风之洁净]，请选择要移除的基础效果", ctx.User.Name))
-		return nil
-	}
-
-	selected := options[0]
-	if !ctx.Game.RemoveFieldCardBy(selected.TargetID, selected.Effect, ctx.User.ID) {
-		return fmt.Errorf("%s 面前的基础效果已不存在", ctx.Target.Name)
-	}
-	ctx.Game.Log(fmt.Sprintf("%s 的 [风之洁净] 发动，移除了 %s", ctx.User.Name, selected.Label))
+	ctx.Game.PushInterrupt(&model.Interrupt{
+		Type:     model.InterruptChoice,
+		PlayerID: ctx.User.ID,
+		Context: map[string]interface{}{
+			"choice_type":   "basic_effect_pick",
+			"user_id":       ctx.User.ID,
+			"skill_name":    "风之洁净",
+			"operation":     "remove",
+			"cancel_policy": "decline",
+			"resume_phase":  model.TurnStageActionExecution,
+			"prompt":        "【风之洁净】请选择要移除的基础效果：",
+			"options":       encodeBasicEffectOptions(options),
+		},
+	})
+	ctx.Game.Log(fmt.Sprintf("%s 发动 [风之洁净]，请选择要移除的基础效果", ctx.User.Name))
 	return nil
 }
 

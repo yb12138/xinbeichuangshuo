@@ -5,6 +5,7 @@ package priest
 import (
 	"fmt"
 
+	engineplayer "starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
 )
 
@@ -32,7 +33,7 @@ func (h *PriestDivineRevelationHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Timing != model.TimingOnActionEnd {
+	if ctx.Timing != model.TimingActionEnd {
 		return false
 	}
 	return ctx.EventCtx.ActionType == model.ActionBuy ||
@@ -106,7 +107,7 @@ func (h *PriestDivineContractHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return false
 	}
-	return ctx.User.Heal > 0 && canPayCrystalLike(ctx, 1) && len(priestDivineContractTargets(ctx.Game, ctx.User)) > 0
+	return ctx.User.Heal > 0 && engineplayer.CanPayCrystalLike(ctx, 1) && len(priestDivineContractTargets(ctx.Game, ctx.User)) > 0
 }
 
 func (h *PriestDivineContractHandler) Execute(ctx *model.Context) error {
@@ -120,9 +121,7 @@ func (h *PriestDivineContractHandler) Execute(ctx *model.Context) error {
 	if len(targetIDs) == 0 {
 		return fmt.Errorf("神圣契约需要至少1名其他队友")
 	}
-	if !spendCrystalLike(ctx, 1) {
-		return fmt.Errorf("神圣契约需要1蓝水晶（红宝石可替代）")
-	}
+	// CostCrystal 已在 ConfirmStartupSkillAction 由框架统一扣减（见 skill definition CostCrystal: 1）
 	waitingPhase := priestDivineContractWaitingPhase(ctx)
 	resumePhase := priestDivineContractResumePhase(ctx)
 	if ctx.Target == nil {
@@ -174,25 +173,19 @@ func priestDivineContractTargets(game model.IGameEngine, user *model.Player) []s
 	return targetIDs
 }
 
-func priestDivineContractWaitingPhase(ctx *model.Context) model.TurnStage {
-	if ctx != nil && ctx.Timing == model.TimingOnTurnStart {
-		return model.TurnStageActionStart
-	}
-	return model.TurnStageActionExecution
+func priestDivineContractWaitingPhase(_ *model.Context) model.TurnStage {
+	return model.TurnStageActionStart
 }
 
-func priestDivineContractResumePhase(ctx *model.Context) model.TurnStage {
-	if ctx != nil && ctx.Timing == model.TimingOnTurnStart {
-		return model.TurnStageActionExecution
-	}
-	return model.TurnStageExtraAction
+func priestDivineContractResumePhase(_ *model.Context) model.TurnStage {
+	return model.TurnStageActionExecution
 }
 
 func (h *PriestDivineDomainHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil {
 		return false
 	}
-	return canPayCrystalLike(ctx, 1)
+	return engineplayer.CanPayCrystalLike(ctx, 1)
 }
 
 func (h *PriestDivineDomainHandler) Execute(ctx *model.Context) error {
@@ -246,18 +239,4 @@ func hasElementCard(p *model.Player, element model.Element) bool {
 		}
 	}
 	return false
-}
-
-func canPayCrystalLike(ctx *model.Context, amount int) bool {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil {
-		return false
-	}
-	return ctx.Game.CanPayCrystalCost(ctx.User.ID, amount)
-}
-
-func spendCrystalLike(ctx *model.Context, amount int) bool {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil {
-		return false
-	}
-	return ctx.Game.ConsumeCrystalCost(ctx.User.ID, amount)
 }

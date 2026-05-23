@@ -5,6 +5,7 @@ import { useBattleReviewStore } from '../../stores/battleReview.store'
 import { useSessionStore } from '../../stores/session.store'
 import { useSnapshotStore } from '../../stores/snapshot.store'
 import { useTimelineStore } from '../../stores/timeline.store'
+import { useInterruptStore } from '../../stores/interrupt.store'
 import type { WsMessage } from '../../network/protocol'
 
 class FakeStorage {
@@ -148,7 +149,6 @@ describe('useWebSocket integration', () => {
             max_hand: 6,
             exclusive_card_count: 0,
             hand: [],
-            blessings: [],
             exclusive_cards: [],
             field: [],
             heal: 3,
@@ -189,6 +189,14 @@ describe('useWebSocket integration', () => {
         ],
       },
     })
+    socket?.receive({
+      Cmd: 'ProtocolError',
+      Data: {
+        code: 'unknown_cmd',
+        message: '未知命令',
+        cmd: 'RoomAction',
+      },
+    })
 
     expect(sessionStore.myPlayerId).toBe('p1')
     expect(sessionStore.reconnectToken).toBe('token-1')
@@ -197,6 +205,8 @@ describe('useWebSocket integration', () => {
     expect(snapshotStore.players.p1?.name).toBe('Alice')
     expect(timelineStore.entries).toHaveLength(1)
     expect(storage.getItem('xbs_reconnect_ROOM1_Alice')).toContain('token-1')
+    expect(useInterruptStore().errorMessage).toBe('未知命令')
+    expect(battleReviewStore.logs).toContain('[WS][ProtocolError] unknown_cmd: 未知命令')
 
     actions!.sendChat('hello')
     expect(socket?.sent).toContain('{"Cmd":"ChatMessage","Data":{"message":"hello"}}')

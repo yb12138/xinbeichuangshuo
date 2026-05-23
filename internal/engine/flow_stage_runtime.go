@@ -7,7 +7,7 @@ import (
 	"starcup-engine/internal/model"
 )
 
-func (e *GameEngine) runtimeStateLabel() string {
+func (e *GameEngine) RuntimeStateLabel() string {
 	if e == nil || e.State == nil {
 		return "turn=<nil> combat=<nil> subflow=<nil>"
 	}
@@ -16,14 +16,14 @@ func (e *GameEngine) runtimeStateLabel() string {
 		" subflow=" + string(e.State.Subflow)
 }
 
-func (e *GameEngine) isStartupWindow() bool {
+func (e *GameEngine) IsStartupWindow() bool {
 	return e != nil && e.State != nil &&
 		e.State.Subflow == model.SubflowNone &&
 		e.State.CombatStage == model.CombatStageNone &&
 		(e.State.TurnStage == model.TurnStageTurnStart || e.State.TurnStage == model.TurnStageActionStart)
 }
 
-func (e *GameEngine) isActionSelectionWindow() bool {
+func (e *GameEngine) IsActionSelectionWindow() bool {
 	return e != nil && e.State != nil &&
 		e.State.Subflow == model.SubflowNone &&
 		e.State.CombatStage == model.CombatStageNone &&
@@ -42,7 +42,7 @@ func (e *GameEngine) needsActionExecutionActionEndCatchup(player *model.Player) 
 		player.TurnState.LastActionType != ""
 }
 
-func (e *GameEngine) isBeforeActionWindow() bool {
+func (e *GameEngine) IsBeforeActionWindow() bool {
 	return e != nil && e.State != nil &&
 		e.State.Subflow == model.SubflowNone &&
 		e.State.CombatStage == model.CombatStageNone &&
@@ -50,7 +50,7 @@ func (e *GameEngine) isBeforeActionWindow() bool {
 		len(e.State.ActionQueue) > 0
 }
 
-func (e *GameEngine) isCombatInteractionWindow() bool {
+func (e *GameEngine) IsCombatInteractionWindow() bool {
 	return e != nil && e.State != nil &&
 		e.State.Subflow == model.SubflowNone &&
 		len(e.State.CombatStack) > 0 &&
@@ -104,6 +104,10 @@ func (e *GameEngine) routePendingDamageWithReturn(returnTo interface{}) bool {
 	return true
 }
 
+func (e *GameEngine) RoutePendingDamageWithReturn(returnTo interface{}) bool {
+	return e.routePendingDamageWithReturn(returnTo)
+}
+
 func (e *GameEngine) routePendingDamageOr(defaultReturn interface{}, onNoPending func()) bool {
 	if e.routePendingDamageWithDefaultReturn(defaultReturn) {
 		return true
@@ -114,12 +118,12 @@ func (e *GameEngine) routePendingDamageOr(defaultReturn interface{}, onNoPending
 	return false
 }
 
-func (e *GameEngine) enterDiscardSelection() {
+func (e *GameEngine) EnterDiscardSelection() {
 	if e == nil || e.State == nil {
 		return
 	}
-	if !e.hasDiscardSelectionInterrupt() {
-		e.Log("[Error] enterDiscardSelection: 缺少与弃牌子流程匹配的 PendingInterrupt")
+	if !e.HasDiscardSelectionInterrupt() {
+		e.Log("[Error] EnterDiscardSelection: 缺少与弃牌子流程匹配的 PendingInterrupt")
 		return
 	}
 	e.State.Subflow = model.SubflowDiscardSelection
@@ -148,6 +152,10 @@ func (e *GameEngine) enterActionEndStage() {
 	e.clearSubflow()
 	e.clearCombatStage()
 	e.setTurnStage(model.TurnStageActionEnd)
+}
+
+func (e *GameEngine) EnterActionEndStage() {
+	e.enterActionEndStage()
 }
 
 func (e *GameEngine) enterExtraActionStage() {
@@ -208,13 +216,13 @@ func (e *GameEngine) isDamageResolutionActive() bool {
 			e.State.CombatStage == model.CombatStageDraw)
 }
 
-func (e *GameEngine) isDiscardSelectionActive() bool {
+func (e *GameEngine) IsDiscardSelectionActive() bool {
 	return e != nil && e.State != nil &&
 		e.State.Subflow == model.SubflowDiscardSelection &&
-		e.hasDiscardSelectionInterrupt()
+		e.HasDiscardSelectionInterrupt()
 }
 
-func isDiscardSelectionInterrupt(intr *model.Interrupt) bool {
+func IsDiscardSelectionInterrupt(intr *model.Interrupt) bool {
 	if intr == nil {
 		return false
 	}
@@ -232,14 +240,14 @@ func isDiscardSelectionInterrupt(intr *model.Interrupt) bool {
 		return true
 	}
 	choiceType, _ := data["choice_type"].(string)
-	return isDiscardChoiceType(choiceType)
+	return IsDiscardChoiceType(choiceType)
 }
 
-func (e *GameEngine) hasDiscardSelectionInterrupt() bool {
+func (e *GameEngine) HasDiscardSelectionInterrupt() bool {
 	if e == nil || e.State == nil || e.State.PendingInterrupt == nil {
 		return false
 	}
-	return isDiscardSelectionInterrupt(e.State.PendingInterrupt)
+	return IsDiscardSelectionInterrupt(e.State.PendingInterrupt)
 }
 
 func (e *GameEngine) isResponseWindowActive() bool {
@@ -254,7 +262,7 @@ func (e *GameEngine) driveResponseRecoveryPhase() driveOutcome {
 		e.enterDamageResolution(nil)
 		return driveContinueLoop
 	}
-	if e.restoreReturnPoint() {
+	if e.RestoreReturnPoint() {
 		return driveContinueLoop
 	}
 	e.clearSubflow()
@@ -268,8 +276,8 @@ func (e *GameEngine) clearCombatStage() {
 	e.setCombatStage(model.CombatStageNone)
 }
 
-func (e *GameEngine) buildTimedContext(user *model.Player, target *model.Player, timing model.FlowTiming, eventCtx *model.EventContext) *model.Context {
-	ctx := e.buildContext(user, target, timing, eventCtx)
+func (e *GameEngine) BuildTimedContext(user *model.Player, target *model.Player, timing model.FlowTiming, eventCtx *model.EventContext) *model.Context {
+	ctx := e.BuildContext(user, target, timing, eventCtx)
 	ctx.Selections["current_turn_stage"] = e.State.TurnStage
 	ctx.Selections["current_combat_stage"] = e.State.CombatStage
 	ctx.Selections["current_subflow"] = e.State.Subflow

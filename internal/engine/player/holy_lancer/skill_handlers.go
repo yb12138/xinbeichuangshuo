@@ -9,10 +9,6 @@ import (
 	"starcup-engine/internal/model"
 )
 
-func addAttackAction(p *model.Player, source string) {
-	model.AppendAttackAction(p, source)
-}
-
 // --- 圣枪骑士技能处理器 ---
 
 type HolyLancerRevelationHandler struct{ engineplayer.BaseHandler }
@@ -31,7 +27,7 @@ func (h *HolyLancerRadianceHandler) Execute(ctx *model.Context) error {
 	for _, p := range ctx.Game.GetAllPlayers() {
 		ctx.Game.Heal(p.ID, 1)
 	}
-	addAttackAction(ctx.User, "辉耀")
+	model.AppendAttackAction(ctx.User, "辉耀")
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [辉耀]，全场+1治疗并获得额外攻击行动", ctx.User.Name))
 	return nil
 }
@@ -52,7 +48,7 @@ func (h *HolyLancerPunishmentHandler) Execute(ctx *model.Context) error {
 	if ctx.User.Heal < ctx.User.MaxHeal {
 		ctx.User.Heal++
 	}
-	addAttackAction(ctx.User, "惩戒")
+	model.AppendAttackAction(ctx.User, "惩戒")
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [惩戒]，从 %s 转移1点治疗并获得额外攻击行动", ctx.User.Name, ctx.Target.Name))
 	return nil
 }
@@ -63,11 +59,11 @@ func (h *HolyLancerHolyStrikeHandler) CanUse(ctx *model.Context) bool {
 	// 与地枪互斥：
 	// 若当前"主动攻击命中"下地枪可发动，则先进入地枪响应窗口；
 	// 仅当玩家不发动地枪（跳过响应）时，再由引擎补触发圣击治疗。
-	if ctx == nil || ctx.User == nil || ctx.Timing != model.TimingOnHitCheck || ctx.EventCtx == nil || ctx.EventCtx.AttackInfo == nil {
+	if ctx == nil || ctx.User == nil || !ctx.AttackHitPhase() || ctx.EventCtx == nil || ctx.EventCtx.AttackInfo == nil {
 		return false
 	}
 	info := ctx.EventCtx.AttackInfo
-	if info.ActionType != string(model.ActionAttack) || !info.IsHit {
+	if info.ActionType != string(model.ActionAttack) {
 		return false
 	}
 	if info.CounterInitiator == "" && ctx.User.Heal > 0 {
@@ -114,7 +110,7 @@ func (h *HolyLancerEarthSpearHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Timing != model.TimingOnHitCheck {
+	if !ctx.AttackHitPhase() {
 		return false
 	}
 	if ctx.User.Heal <= 0 || ctx.EventCtx.DamageVal == nil {
@@ -125,9 +121,6 @@ func (h *HolyLancerEarthSpearHandler) CanUse(ctx *model.Context) bool {
 		return false
 	}
 	if ctx.EventCtx.AttackInfo.ActionType != string(model.ActionAttack) {
-		return false
-	}
-	if !ctx.EventCtx.AttackInfo.IsHit {
 		return false
 	}
 	if ctx.EventCtx.AttackInfo.CounterInitiator != "" {
@@ -170,7 +163,7 @@ func (h *HolyLancerPrayerHandler) Execute(ctx *model.Context) error {
 		ctx.User.Heal = 5
 	}
 	ctx.User.TurnState.UsedSkillCounts["holy_lancer_prayer"] = 1
-	addAttackAction(ctx.User, "圣光祈愈")
+	model.AppendAttackAction(ctx.User, "圣光祈愈")
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [圣光祈愈]，治疗+2（上限5）并获得额外攻击行动", ctx.User.Name))
 	return nil
 }

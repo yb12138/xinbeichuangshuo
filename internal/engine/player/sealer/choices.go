@@ -5,6 +5,7 @@ package sealer
 import (
 	"fmt"
 
+	"starcup-engine/internal/engine/core/runtimeutil"
 	engineplayer "starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
 )
@@ -26,19 +27,20 @@ func (choiceHandler) BuildPrompt(_ engineplayer.ChoiceRuntime, choiceType, playe
 
 func buildFiveElementsBindPrompt(playerID string, data map[string]interface{}) *model.Prompt {
 	drawCount := 2
-	if dc, ok := data["draw_count"].(int); ok && dc > 0 {
+	if dc := runtimeutil.ToIntContextValue(data["draw_count"]); dc > 0 {
 		drawCount = dc
 	}
 	return &model.Prompt{
 		Type:     model.PromptConfirm,
 		PlayerID: playerID,
-		Message:  "【五行封印】请选择：",
+		Message:  "【五系束缚】请选择：",
 		Options: []model.PromptOption{
 			{ID: "0", Label: fmt.Sprintf("摸%d张牌", drawCount)},
 			{ID: "1", Label: "放弃行动"},
 		},
-		Min: 1,
-		Max: 1,
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 	}
 }
 

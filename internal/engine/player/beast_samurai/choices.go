@@ -14,6 +14,16 @@ import (
 
 type choiceHandler struct{}
 
+const (
+	beastReversalDiscardFlowID     = "bs_reversal_discard"
+	beastReversalDiscardNeedStep   = "need"
+	beastReversalDiscardActualStep = "actual"
+)
+
+var beastReversalDiscardFlowRuntime = model.MustNewPromptFlowRuntime(beastReversalDiscardFlowID, []model.PromptFlowStepSpec{
+	{ID: beastReversalDiscardActualStep, ChoiceType: "bs_reversal_target_discard", CancelPolicy: model.CancelPolicyAbort},
+})
+
 func NewChoiceHandler() engineplayer.ChoiceHandler {
 	return choiceHandler{}
 }
@@ -30,6 +40,8 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		return buildReversalXPrompt(playerID, data)
 	case "bs_iaijutsu_style_mode":
 		return buildIaijutsuStyleModePrompt(playerID, data)
+	case "bs_alert_target":
+		return engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, "【兽魂警戒】请选择 1 名让其弃 1 张牌的角色：", data, false)
 	case "bs_alert_source_discard",
 		"bs_beast_return_self_discard",
 		"bs_beast_return_source_discard",
@@ -43,30 +55,33 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 
 func buildBeastReturnXPrompt(playerID string, data map[string]interface{}) *model.Prompt {
 	maxX := runtimeutil.ToIntContextValue(data["max_x"])
-	options := make([]model.PromptOption, 0, maxX+1)
-	for x := 0; x <= maxX; x++ {
-		label := fmt.Sprintf("X=%d", x)
-		if x == 0 {
-			label = "X=0（不移除兽魂）"
-		}
+	if maxX < 1 {
+		return nil
+	}
+	options := make([]model.PromptOption, 0, maxX)
+	for x := 1; x <= maxX; x++ {
 		options = append(options, model.PromptOption{
 			ID:    fmt.Sprintf("%d", x),
-			Label: label,
+			Label: fmt.Sprintf("X=%d", x),
 		})
 	}
 	return &model.Prompt{
-		Type:       model.PromptConfirm,
-		PlayerID:   playerID,
-		ChoiceType: "bs_beast_return_x",
-		Message:    fmt.Sprintf("【兽返】请选择要移除的兽魂数量（0-%d）：", maxX),
-		Options:    options,
-		Min:        1,
-		Max:        1,
+		Type:         model.PromptConfirm,
+		PlayerID:     playerID,
+		ChoiceType:   "bs_beast_return_x",
+		Message:      fmt.Sprintf("【兽返】请选择要移除的兽魂数量（1-%d）：", maxX),
+		Options:      options,
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 0},
 	}
 }
 
 func buildReversalXPrompt(playerID string, data map[string]interface{}) *model.Prompt {
 	maxX := runtimeutil.ToIntContextValue(data["max_x"])
+	if maxX < 0 {
+		maxX = 0
+	}
 	options := make([]model.PromptOption, 0, maxX+1)
 	for x := 0; x <= maxX; x++ {
 		options = append(options, model.PromptOption{
@@ -75,13 +90,14 @@ func buildReversalXPrompt(playerID string, data map[string]interface{}) *model.P
 		})
 	}
 	return &model.Prompt{
-		Type:       model.PromptConfirm,
-		PlayerID:   playerID,
-		ChoiceType: "bs_reversal_x",
-		Message:    fmt.Sprintf("【逆反居合斩】请选择要移除的兽魂数量（0-%d）：", maxX),
-		Options:    options,
-		Min:        1,
-		Max:        1,
+		Type:         model.PromptConfirm,
+		PlayerID:     playerID,
+		ChoiceType:   "bs_reversal_x",
+		Message:      fmt.Sprintf("【逆反居合斩】请选择要移除的兽魂数量（0-%d）：", maxX),
+		Options:      options,
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 0},
 	}
 }
 
@@ -103,13 +119,14 @@ func buildIaijutsuStyleModePrompt(playerID string, data map[string]interface{}) 
 		return nil
 	}
 	return &model.Prompt{
-		Type:       model.PromptConfirm,
-		PlayerID:   playerID,
-		ChoiceType: "bs_iaijutsu_style_mode",
-		Message:    `【御魂流居合式】请选择"摸1张牌"或"弃1张牌"：`,
-		Options:    options,
-		Min:        1,
-		Max:        1,
+		Type:         model.PromptConfirm,
+		PlayerID:     playerID,
+		ChoiceType:   "bs_iaijutsu_style_mode",
+		Message:      `【御魂流居合式】请选择"摸1张牌"或"弃1张牌"：`,
+		Options:      options,
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 	}
 }
 
@@ -125,20 +142,24 @@ func buildDiscardPrompt(rt engineplayer.ChoiceRuntime, playerID string, player *
 	var message string
 	var min, max int
 
-	if count, ok := data["discard_count"].(int); ok && count > 0 {
-		min = count
-		max = count
+	if count := runtimeutil.ToIntContextValue(data["discard_count"]); count > 0 {
+		pickCount := count
+		if pickCount > len(player.Hand) {
+			pickCount = len(player.Hand)
+		}
+		min = pickCount
+		max = pickCount
 		message = fmt.Sprintf("请弃置 %d 张牌：", count)
 		if customMsg, ok := data["prompt"].(string); ok && customMsg != "" {
 			message = customMsg
 		}
 	} else {
-		if v, ok := data["min"].(int); ok {
+		if v := runtimeutil.ToIntContextValue(data["min"]); v > 0 {
 			min = v
 		} else {
 			min = 1
 		}
-		if v, ok := data["max"].(int); ok && v > 0 {
+		if v := runtimeutil.ToIntContextValue(data["max"]); v > 0 {
 			max = v
 		} else {
 			max = len(player.Hand)
@@ -175,19 +196,21 @@ func buildDiscardPrompt(rt engineplayer.ChoiceRuntime, playerID string, player *
 			continue
 		}
 		options = append(options, model.PromptOption{
-			ID:    strconv.Itoa(i),
-			Label: fmt.Sprintf("%d: %s", i+1, promptfmt.FormatCardInfo(card)),
+			ID:     strconv.Itoa(i),
+			Label:  fmt.Sprintf("%d: %s", i+1, promptfmt.FormatCardInfo(card)),
+			CardID: card.ID,
 		})
 	}
 
 	return &model.Prompt{
-		Type:       model.PromptChooseCards,
-		PlayerID:   playerID,
-		ChoiceType: promptChoiceType,
-		Message:    message,
-		Options:    options,
-		Min:        min,
-		Max:        max,
+		Type:         model.PromptChooseCards,
+		PlayerID:     playerID,
+		ChoiceType:   promptChoiceType,
+		Message:      message,
+		Options:      options,
+		Min:          min,
+		Max:          max,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand"},
 	}
 }
 
@@ -204,6 +227,8 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, playerID string
 		return true, handleReversalX(rt, ctxData, selectionIndex)
 	case "bs_iaijutsu_style_mode":
 		return true, handleIaijutsuStyleMode(rt, ctxData, selectionIndex)
+	case "bs_alert_target":
+		return true, handleAlertTarget(rt, ctxData, selectionIndex)
 	case "bs_alert_source_discard":
 		return true, handleAlertSourceDiscard(rt, ctxData, selectionIndex)
 	case "bs_beast_return_self_discard":
@@ -212,8 +237,6 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, playerID string
 		return true, handleBeastReturnSourceDiscard(rt, ctxData, selectionIndex)
 	case "bs_iaijutsu_style_discard":
 		return true, handleIaijutsuStyleDiscard(rt, ctxData, selectionIndex)
-	case "bs_reversal_target_discard":
-		return true, handleReversalTargetDiscard(rt, ctxData, selectionIndex)
 	default:
 		return false, nil
 	}
@@ -236,11 +259,11 @@ func handleBeastReturnX(rt engineplayer.ChoiceRuntime, ctxData map[string]interf
 	if current := BeastSoul(user); maxX > current {
 		maxX = current
 	}
-	if selectionIndex < 0 || selectionIndex > maxX {
+	x := selectionIndex + 1
+	if x < 1 || x > maxX {
 		return fmt.Errorf("无效的X值: %d", selectionIndex)
 	}
 
-	x := selectionIndex
 	consumed := consumeBeastSoul(user, x)
 	resumePoint := resumePointFromCtx(ctxData, model.CombatStageCalcDamage)
 	rt.Log(fmt.Sprintf("%s 的 [兽返] 结算：移除%d点兽魂，残心同步+%d", user.Name, consumed, consumed))
@@ -289,11 +312,11 @@ func handleReversalX(rt engineplayer.ChoiceRuntime, ctxData map[string]interface
 	if current := BeastSoul(user); maxX > current {
 		maxX = current
 	}
-	if selectionIndex < 0 || selectionIndex > maxX {
+	x := selectionIndex
+	if x < 0 || x > maxX {
 		return fmt.Errorf("无效的X值: %d", selectionIndex)
 	}
 
-	x := selectionIndex
 	consumed := consumeBeastSoul(user, x)
 	if user.TurnState.SkillFlowState == nil {
 		user.TurnState.SkillFlowState = map[string]int{}
@@ -312,17 +335,18 @@ func handleReversalX(rt engineplayer.ChoiceRuntime, ctxData map[string]interface
 		discardCount = len(target.Hand)
 	}
 	if discardCount > 0 {
-		replaceDiscardInterrupt(rt, target.ID, map[string]interface{}{
+		discardCtx := map[string]interface{}{
 			"choice_type":   "bs_reversal_target_discard",
 			"user_id":       user.ID,
 			"target_id":     target.ID,
 			"x_value":       x,
-			"need_count":    need,
 			"discard_count": discardCount,
-			"prompt":        fmt.Sprintf("【逆反居合斩】请选择弃置%d张手牌：", discardCount),
+			"prompt":        reversalDiscardPromptText(need, discardCount),
 			"resume_phase":  resumePoint,
 			"user_ctx":      ctxData["user_ctx"],
-		})
+		}
+		model.SetPromptFlowContext(discardCtx, initBeastReversalDiscardFlow(need))
+		replaceDiscardInterrupt(rt, target.ID, discardCtx)
 		return nil
 	}
 	finishReversal(rt, ctxData, target, need, 0, resumePoint)
@@ -382,6 +406,39 @@ func handleIaijutsuStyleMode(rt engineplayer.ChoiceRuntime, ctxData map[string]i
 	}
 }
 
+// handleAlertTarget 兽魂警戒目标选择阶段：根据 target_ids 解析所选角色，
+// 然后推送弃牌中断到该角色（沿用 bs_alert_source_discard 处理 1 张弃牌 +
+// 法术牌则术士+1 兽魂的既有逻辑）。
+func handleAlertTarget(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
+	userID, _ := ctxData["user_id"].(string)
+	user := rt.GetPlayers()[userID]
+	if user == nil {
+		return fmt.Errorf("兽魂警戒目标选择上下文丢失发动者")
+	}
+	targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
+	if selectionIndex < 0 || selectionIndex >= len(targetIDs) {
+		return fmt.Errorf("无效的目标索引: %d", selectionIndex)
+	}
+	actor := rt.GetPlayers()[targetIDs[selectionIndex]]
+	if actor == nil {
+		return fmt.Errorf("目标角色不存在")
+	}
+	resumePoint := resumePointFromCtx(ctxData, model.TurnStageActionExecution)
+	if len(actor.Hand) == 0 {
+		finishResume(rt, resumePoint)
+		return nil
+	}
+	replaceDiscardInterrupt(rt, actor.ID, map[string]interface{}{
+		"choice_type":   "bs_alert_source_discard",
+		"user_id":       user.ID,
+		"actor_id":      actor.ID,
+		"discard_count": 1,
+		"prompt":        "【兽魂警戒】请选择并展示弃置1张手牌：",
+		"resume_phase":  resumePoint,
+	})
+	return nil
+}
+
 func handleAlertSourceDiscard(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	userID, _ := ctxData["user_id"].(string)
 	actorID, _ := ctxData["actor_id"].(string)
@@ -391,7 +448,7 @@ func handleAlertSourceDiscard(rt engineplayer.ChoiceRuntime, ctxData map[string]
 		return fmt.Errorf("兽魂警戒弃牌上下文不存在")
 	}
 
-	removed := removeCardsByIndicesFromHand(actor, []int{selectionIndex})
+	removed, _ := engineplayer.RemoveCardsByIndicesFromHand(actor, []int{selectionIndex})
 	if len(removed) > 0 {
 		rt.NotifyCardRevealed(actor.ID, removed, "discard")
 		rt.AppendToDiscard(removed)
@@ -413,7 +470,7 @@ func handleBeastReturnSelfDiscard(rt engineplayer.ChoiceRuntime, ctxData map[str
 		return fmt.Errorf("兽返弃牌执行者不存在")
 	}
 
-	removed := removeCardsByIndicesFromHand(user, []int{selectionIndex})
+	removed, _ := engineplayer.RemoveCardsByIndicesFromHand(user, []int{selectionIndex})
 	if len(removed) > 0 {
 		rt.NotifyCardRevealed(user.ID, removed, "discard")
 		rt.AppendToDiscard(removed)
@@ -444,7 +501,7 @@ func handleBeastReturnSourceDiscard(rt engineplayer.ChoiceRuntime, ctxData map[s
 		return fmt.Errorf("兽返来源弃牌上下文不存在")
 	}
 
-	removed := removeCardsByIndicesFromHand(source, []int{selectionIndex})
+	removed, _ := engineplayer.RemoveCardsByIndicesFromHand(source, []int{selectionIndex})
 	if len(removed) > 0 {
 		rt.NotifyCardRevealed(source.ID, removed, "discard")
 		rt.AppendToDiscard(removed)
@@ -464,7 +521,7 @@ func handleIaijutsuStyleDiscard(rt engineplayer.ChoiceRuntime, ctxData map[strin
 		return fmt.Errorf("御魂流居合式弃牌执行者不存在")
 	}
 
-	removed := removeCardsByIndicesFromHand(user, []int{selectionIndex})
+	removed, _ := engineplayer.RemoveCardsByIndicesFromHand(user, []int{selectionIndex})
 	if len(removed) > 0 {
 		rt.NotifyCardRevealed(user.ID, removed, "discard")
 		rt.AppendToDiscard(removed)
@@ -473,23 +530,41 @@ func handleIaijutsuStyleDiscard(rt engineplayer.ChoiceRuntime, ctxData map[strin
 	return nil
 }
 
-func handleReversalTargetDiscard(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
+func handleReversalTargetDiscardMultiSelect(rt engineplayer.ChoiceRuntime, _ string, selections []int, ctxData map[string]interface{}) (bool, error) {
+	return true, handleReversalTargetDiscardSelections(rt, ctxData, selections)
+}
+
+func handleReversalTargetDiscardSelections(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selections []int) error {
 	targetID, _ := ctxData["target_id"].(string)
 	target := rt.GetPlayers()[targetID]
 	if target == nil {
 		return fmt.Errorf("逆反居合斩目标不存在")
 	}
 
-	need := runtimeutil.ToIntContextValue(ctxData["need_count"])
-	removed := removeCardsByIndicesFromHand(target, []int{selectionIndex})
+	flow, err := model.RequirePromptFlow(ctxData, beastReversalDiscardFlowID, "逆反居合斩弃牌")
+	if err != nil {
+		return err
+	}
+	need := flow.Selection(beastReversalDiscardNeedStep).Count
+	discardCount := runtimeutil.ToIntContextValue(ctxData["discard_count"])
+	if discardCount <= 0 || discardCount > len(target.Hand) {
+		discardCount = len(target.Hand)
+	}
+	if len(selections) != discardCount {
+		return fmt.Errorf("逆反居合斩需要选择%d张手牌，你选择了%d张", discardCount, len(selections))
+	}
+	removed, err := engineplayer.RemoveCardsByIndicesFromHand(target, append([]int{}, selections...))
+	if err != nil {
+		return err
+	}
 	if len(removed) > 0 {
 		rt.NotifyCardRevealed(target.ID, removed, "discard")
 		rt.AppendToDiscard(removed)
 	}
 
 	// Accumulate actually discarded count.
-	actualSoFar := runtimeutil.ToIntContextValue(ctxData["actual_discarded"]) + len(removed)
-	ctxData["actual_discarded"] = actualSoFar
+	actualSoFar := flow.Selection(beastReversalDiscardActualStep).Count + len(removed)
+	flow.PutSelection(beastReversalDiscardActualStep, model.PromptFlowSelection{Count: actualSoFar})
 
 	remainingNeeded := need - actualSoFar
 	if remainingNeeded > 0 && len(target.Hand) > 0 {
@@ -499,13 +574,27 @@ func handleReversalTargetDiscard(rt engineplayer.ChoiceRuntime, ctxData map[stri
 			nextCount = len(target.Hand)
 		}
 		ctxData["discard_count"] = nextCount
-		ctxData["prompt"] = fmt.Sprintf("【逆反居合斩】请选择弃置%d张手牌：", nextCount)
+		ctxData["prompt"] = reversalDiscardPromptText(need, nextCount)
 		replaceDiscardInterrupt(rt, target.ID, ctxData)
 		return nil
 	}
 
 	finishReversal(rt, ctxData, target, need, actualSoFar, resumePointFromCtx(ctxData, model.CombatStageCalcDamage))
 	return nil
+}
+
+func reversalDiscardPromptText(need, canDiscard int) string {
+	if canDiscard < need {
+		return fmt.Sprintf("【逆反居合斩】要求弃置%d张手牌；你当前只能弃置%d张，确认后你所在阵营士气-1。", need, canDiscard)
+	}
+	return fmt.Sprintf("【逆反居合斩】请选择弃置%d张手牌：", canDiscard)
+}
+
+func initBeastReversalDiscardFlow(need int) *model.PromptFlowState {
+	flow := beastReversalDiscardFlowRuntime.MustBeginAt(beastReversalDiscardActualStep)
+	flow.PutSelection(beastReversalDiscardNeedStep, model.PromptFlowSelection{Count: need})
+	flow.PutSelection(beastReversalDiscardActualStep, model.PromptFlowSelection{})
+	return flow
 }
 
 // ---------------------------------------------------------------------------
@@ -517,6 +606,9 @@ func handleReversalTargetDiscard(rt engineplayer.ChoiceRuntime, ctxData map[stri
 func resumePointFromCtx(ctxData map[string]interface{}, fallback interface{}) interface{} {
 	if raw, ok := ctxData["resume_phase"]; ok {
 		if _, valid := choiceResumePointValue(raw); valid {
+			if subflow, ok := raw.(model.Subflow); ok && subflow == model.SubflowResponse {
+				return fallback
+			}
 			return raw
 		}
 	}
@@ -640,35 +732,6 @@ func discardedMagicCount(cards []model.Card) int {
 		}
 	}
 	return count
-}
-
-// removeCardsByIndicesFromHand removes the cards at the given indices from the
-// player's hand and returns the removed cards. Indices must be valid.
-func removeCardsByIndicesFromHand(player *model.Player, indices []int) []model.Card {
-	if player == nil || len(indices) == 0 {
-		return nil
-	}
-	removed := make([]model.Card, 0, len(indices))
-	for _, idx := range indices {
-		if idx >= 0 && idx < len(player.Hand) {
-			removed = append(removed, player.Hand[idx])
-		}
-	}
-	newHand := make([]model.Card, 0, len(player.Hand)-len(indices))
-	for i, card := range player.Hand {
-		keep := true
-		for _, idx := range indices {
-			if i == idx {
-				keep = false
-				break
-			}
-		}
-		if keep {
-			newHand = append(newHand, card)
-		}
-	}
-	player.Hand = newHand
-	return removed
 }
 
 // ---------------------------------------------------------------------------

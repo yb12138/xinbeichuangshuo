@@ -13,10 +13,11 @@ func (e *GameEngine) AddPendingDamage(pd model.PendingDamage) {
 	e.State.PendingDamageQueue = append(e.State.PendingDamageQueue, pd)
 	e.Log(fmt.Sprintf("[System] 延迟伤害已添加: Source: %s, Target: %s, Damage: %d, Type: %s",
 		pd.SourceID, pd.TargetID, pd.Damage, pd.DamageType))
+	e.dispatchDamageRulebookTiming(model.TimingDamageSourceDeal, &pd)
 
 	if !e.isDamageResolutionActive() {
 		if e.State.ReturnTurnStage == "" && e.State.ReturnCombatStage == model.CombatStageNone && e.State.ReturnSubflow == model.SubflowNone {
-			if point := e.currentChoiceResumePoint(); hasChoiceResumePoint(point) {
+			if point := e.CurrentChoiceResumePoint(); hasChoiceResumePoint(point) {
 				e.setReturnPoint(point)
 			}
 		}
@@ -29,10 +30,11 @@ func (e *GameEngine) AddPendingDamageFront(pd model.PendingDamage) {
 	e.State.PendingDamageQueue = append([]model.PendingDamage{pd}, e.State.PendingDamageQueue...)
 	e.Log(fmt.Sprintf("[System] 延迟伤害已前插: Source: %s, Target: %s, Damage: %d, Type: %s",
 		pd.SourceID, pd.TargetID, pd.Damage, pd.DamageType))
+	e.dispatchDamageRulebookTiming(model.TimingDamageSourceDeal, &pd)
 
 	if !e.isDamageResolutionActive() {
 		if e.State.ReturnTurnStage == "" && e.State.ReturnCombatStage == model.CombatStageNone && e.State.ReturnSubflow == model.SubflowNone {
-			if point := e.currentChoiceResumePoint(); hasChoiceResumePoint(point) {
+			if point := e.CurrentChoiceResumePoint(); hasChoiceResumePoint(point) {
 				e.setReturnPoint(point)
 			}
 		}
@@ -40,13 +42,18 @@ func (e *GameEngine) AddPendingDamageFront(pd model.PendingDamage) {
 	}
 }
 
-// processPendingDamages 处理伤害队列中的所有伤害
+// ProcessPendingDamages 处理伤害队列中的所有伤害
 // 返回 true 如果产生了中断需要暂停 Drive
-func (e *GameEngine) processPendingDamages() bool {
+func (e *GameEngine) ProcessPendingDamages() bool {
 	for len(e.State.PendingDamageQueue) > 0 {
 		// 伤害流水线固定顺序：
 		// 1) 攻击命中链 -> 2) 承伤前规则 -> 3) 承伤触发 -> 4) 扣血前规则 -> 5) 扣血 -> 6) 结算后规则。
 		pd := &e.State.PendingDamageQueue[0]
+
+		// 如果有待处理的中断，暂停处理等待中断完成
+		if e.State.PendingInterrupt != nil {
+			return true
+		}
 
 		if e.processPendingAttackHit(pd) {
 			return true
@@ -59,7 +66,7 @@ func (e *GameEngine) processPendingDamages() bool {
 		}
 
 		resolved := e.applyAndPopPendingDamage(pd)
-		if e.applyTimingOnDamageTakenAfterResolvedRules(&resolved) {
+		if e.applyDamageResolvedRules(&resolved) {
 			return true
 		}
 		// 结算后若产生新中断（如爆牌/后续技能选择），暂停 Drive。
@@ -67,9 +74,6 @@ func (e *GameEngine) processPendingDamages() bool {
 			return true
 		}
 	}
-
-	// 伤害队列清空后，触发 after_damage 流程边界恢复点
-	e.processFlowContinuations(model.FlowContinuationAfterDamage)
 
 	return false
 }
@@ -84,19 +88,31 @@ func (e *GameEngine) removePendingDamageIfAttackMissed(pd *model.PendingDamage) 
 
 func (e *GameEngine) processPendingDamageBeforeApply(pd *model.PendingDamage) bool {
 	// 承伤前统一阶段：角色规则通过 hooks 注入，主流程不写角色特判。
-	if e.applyTimingOnDamageCalculatedBeforeTakenRules(pd) {
+	if e.dispatchDamageRulebookTimingOnce(model.TimingDamageTargetBefore, pd, pendingDamageCheckTimingDamageTargetBefore) {
+		return true
+	}
+	if e.applyDamageTargetBeforeRules(pd) {
 		return true
 	}
 	if e.dispatchPendingDamageTaken(pd) {
 		return true
 	}
-	if e.applyTimingOnDamageTakenAfterTakenRules(pd) {
+	if e.applyDamageAfterTakenRules(pd) {
+		return true
+	}
+	if e.dispatchDamageRulebookTimingOnce(model.TimingHealBefore, pd, pendingDamageCheckTimingHealBefore) {
 		return true
 	}
 	if e.resolvePendingDamageHealChoice(pd) {
 		return true
 	}
-	if e.applyTimingOnDamageAppliedBeforeApplyRules(pd) {
+	if e.dispatchDamageRulebookTimingOnce(model.TimingDamageApplied, pd, pendingDamageCheckTimingDamageApplied) {
+		return true
+	}
+	if e.applyDamageAppliedRules(pd) {
+		return true
+	}
+	if e.applyDamageTakenRules(pd) {
 		return true
 	}
 	return false
@@ -118,10 +134,11 @@ func (e *GameEngine) applyAndPopPendingDamage(pd *model.PendingDamage) model.Pen
 		// 扣血/摸牌等基础结算
 		e.applyDamageWithOptions(target, pd.Damage, pd.DamageType, pd.CapDrawToHandLimit, pd.SourceID, pd.SourceSkillID, pd.OverflowMoraleLossFixed)
 		// 扣血后角色/状态清理由 hooks 注入。
-		e.applyTimingOnDamageTakenAfterApplyRules(pd, target)
+		e.applyDamageAfterApplyRules(pd, target)
 	}
 
 	resolved := *pd
 	e.State.PendingDamageQueue = e.State.PendingDamageQueue[1:]
+	e.dispatchDamageRulebookTiming(model.TimingDamageResolved, &resolved)
 	return resolved
 }

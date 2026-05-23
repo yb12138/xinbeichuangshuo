@@ -11,51 +11,6 @@ import (
 
 // --- Helper functions ---
 
-func getToken(p *model.Player, key string) int {
-	if p == nil {
-		return 0
-	}
-	if p.Tokens == nil {
-		p.Tokens = map[string]int{}
-	}
-	return p.Tokens[key]
-}
-
-func setToken(p *model.Player, key string, v int) {
-	if p == nil {
-		return
-	}
-	if p.Tokens == nil {
-		p.Tokens = map[string]int{}
-	}
-	p.Tokens[key] = v
-}
-
-func addToken(p *model.Player, key string, delta int, minV int, maxV int) int {
-	cur := getToken(p, key)
-	cur += delta
-	if cur < minV {
-		cur = minV
-	}
-	if maxV >= minV && cur > maxV {
-		cur = maxV
-	}
-	setToken(p, key, cur)
-	return cur
-}
-
-func hasForm(p *model.Player, form string) bool {
-	return p != nil && p.Form == form
-}
-
-func enterForm(p *model.Player, form string) {
-	if p == nil {
-		return
-	}
-	p.Orientation = model.OrientationTapped
-	p.Form = form
-}
-
 func canPayCrystalLike(ctx *model.Context, amount int) bool {
 	return engineplayer.CanPayCrystalLike(ctx, amount)
 }
@@ -84,7 +39,7 @@ func (h *HomunculusRageSuppressHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Timing != model.TimingOnHitCheck {
+	if !ctx.AttackMissPhase() {
 		return false
 	}
 	if ctx.EventCtx.AttackInfo == nil {
@@ -93,21 +48,18 @@ func (h *HomunculusRageSuppressHandler) CanUse(ctx *model.Context) bool {
 	if ctx.EventCtx.AttackInfo.ActionType != string(model.ActionAttack) {
 		return false
 	}
-	if ctx.EventCtx.AttackInfo.IsHit {
-		return false
-	}
 	if ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
-	return getToken(ctx.User, "hom_war_rune") > 0
+	return engineplayer.GetToken(ctx.User, "hom_war_rune") > 0
 }
 
 func (h *HomunculusRageSuppressHandler) Execute(ctx *model.Context) error {
-	if getToken(ctx.User, "hom_war_rune") <= 0 {
+	if engineplayer.GetToken(ctx.User, "hom_war_rune") <= 0 {
 		return nil
 	}
-	addToken(ctx.User, "hom_war_rune", -1, 0, 99)
-	addToken(ctx.User, "hom_magic_rune", 1, 0, 99)
+	engineplayer.AddToken(ctx.User, "hom_war_rune", -1, 99)
+	engineplayer.AddToken(ctx.User, "hom_magic_rune", 1, 99)
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [怒火压制]，翻转1战纹为魔纹", ctx.User.Name))
 	return nil
 }
@@ -116,7 +68,7 @@ func (h *HomunculusRuneSmashHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Timing != model.TimingOnHitCheck {
+	if !ctx.AttackHitPhase() {
 		return false
 	}
 	if ctx.EventCtx.AttackInfo == nil {
@@ -125,67 +77,54 @@ func (h *HomunculusRuneSmashHandler) CanUse(ctx *model.Context) bool {
 	if ctx.EventCtx.AttackInfo.ActionType != string(model.ActionAttack) {
 		return false
 	}
-	if !ctx.EventCtx.AttackInfo.IsHit {
-		return false
-	}
 	if ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
-	if getToken(ctx.User, "hom_war_rune") <= 0 {
+	if engineplayer.GetToken(ctx.User, "hom_war_rune") <= 0 {
 		return false
 	}
-	if ctx.EventCtx.Card == nil {
-		return false
-	}
-	ele := ctx.EventCtx.Card.Element
-	sameCnt := 0
-	for _, c := range ctx.User.Hand {
-		if c.Element == ele {
-			sameCnt++
-		}
-	}
-	return sameCnt > 0
+	// 战纹碎击：只要有手牌就可以发动，选择的牌彼此同系即可（不要求与攻击牌同系）
+	return len(ctx.User.Hand) > 0
 }
 
 func (h *HomunculusRuneSmashHandler) Execute(ctx *model.Context) error {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.EventCtx == nil || ctx.EventCtx.Card == nil {
+	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.EventCtx == nil {
 		return fmt.Errorf("战纹碎击上下文无效")
 	}
-	if getToken(ctx.User, "hom_war_rune") <= 0 {
+	if engineplayer.GetToken(ctx.User, "hom_war_rune") <= 0 {
 		return fmt.Errorf("战纹不足")
 	}
-	attackEle := ctx.EventCtx.Card.Element
+	// 战纹碎击：所有手牌都可作为候选，选择的牌彼此同系即可
 	var candidates []int
-	for i, c := range ctx.User.Hand {
-		if c.Element == attackEle {
-			candidates = append(candidates, i)
-		}
+	for i := range ctx.User.Hand {
+		candidates = append(candidates, i)
 	}
 	if len(candidates) == 0 {
-		return fmt.Errorf("没有可弃置的同系牌")
+		return fmt.Errorf("没有可弃置的手牌")
 	}
 	maxY := 0
-	if hasForm(ctx.User, model.FormWarHomunculusBurst) {
-		warRunes := getToken(ctx.User, "hom_war_rune")
+	if engineplayer.HasForm(ctx.User, model.FormWarHomunculusBurst) {
+		warRunes := engineplayer.GetToken(ctx.User, "hom_war_rune")
 		if warRunes > 1 {
 			maxY = warRunes - 1
 		}
 	}
+	// 直接弹出选牌 interrupt，跳过 X 数值选择
 	ctx.Game.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
 		Context: map[string]interface{}{
-			"choice_type":       "hom_rune_smash_x",
-			"user_id":           ctx.User.ID,
-			"user_ctx":          ctx,
-			"attack_element":    string(attackEle),
-			"max_x":             len(candidates),
-			"candidate_indices": candidates,
-			"max_y":             maxY,
-			"selected_indices":  []int{},
+			"choice_type":              "hom_rune_smash_cards",
+			"user_id":                  ctx.User.ID,
+			"user_ctx":                 ctx,
+			"attack_element":           "", // 不再限制与攻击牌同系
+			"candidate_indices":        candidates,
+			"max_y":                    maxY,
+			"min_pick":                 1,
+			model.PromptFlowContextKey: runeSmashFlowRuntime.MustBeginAt(runeChoiceStepCards),
 		},
 	})
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [战纹碎击]，请选择X、弃牌与Y", ctx.User.Name))
+	ctx.Game.Log(fmt.Sprintf("%s 发动 [战纹碎击]，请选择要弃置的同系牌（所选牌彼此同系）", ctx.User.Name))
 	return nil
 }
 
@@ -193,7 +132,7 @@ func (h *HomunculusGlyphFusionHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Timing != model.TimingOnHitCheck {
+	if !ctx.AttackMissPhase() {
 		return false
 	}
 	if ctx.EventCtx.AttackInfo == nil {
@@ -202,75 +141,57 @@ func (h *HomunculusGlyphFusionHandler) CanUse(ctx *model.Context) bool {
 	if ctx.EventCtx.AttackInfo.ActionType != string(model.ActionAttack) {
 		return false
 	}
-	if ctx.EventCtx.AttackInfo.IsHit {
-		return false
-	}
 	if ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
-	if getToken(ctx.User, "hom_magic_rune") <= 0 {
+	if engineplayer.GetToken(ctx.User, "hom_magic_rune") <= 0 {
 		return false
 	}
-	attackEle := model.Element("")
-	if ctx.EventCtx.Card != nil {
-		attackEle = ctx.EventCtx.Card.Element
-	}
-	uniqueElements := map[model.Element]bool{}
-	for _, c := range ctx.User.Hand {
-		if c.Element != attackEle {
-			uniqueElements[c.Element] = true
-		}
-	}
-	return len(uniqueElements) >= 2
+	// 魔纹融合：只要有至少2张手牌就可以发动，选择的牌彼此异系即可（不要求与攻击牌异系）
+	// 至少需要2张牌才能选择彼此异系的牌
+	return len(ctx.User.Hand) >= 2
 }
 
 func (h *HomunculusGlyphFusionHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.EventCtx == nil {
 		return fmt.Errorf("魔纹融合上下文无效")
 	}
-	if getToken(ctx.User, "hom_magic_rune") <= 0 {
+	if engineplayer.GetToken(ctx.User, "hom_magic_rune") <= 0 {
 		return fmt.Errorf("魔纹不足")
 	}
-	attackEle := model.Element("")
-	if ctx.EventCtx.Card != nil {
-		attackEle = ctx.EventCtx.Card.Element
-	}
+	// 魔纹融合：所有手牌都可作为候选，选择的牌彼此异系即可
 	var candidates []int
-	for i, c := range ctx.User.Hand {
-		if c.Element != attackEle {
-			candidates = append(candidates, i)
-		}
+	for i := range ctx.User.Hand {
+		candidates = append(candidates, i)
 	}
-	uniqueElements := map[model.Element]bool{}
-	for _, idx := range candidates {
-		uniqueElements[ctx.User.Hand[idx].Element] = true
+	if len(candidates) < 2 {
+		return fmt.Errorf("手牌不足2张")
 	}
-	if len(uniqueElements) < 2 {
-		return fmt.Errorf("异系牌不足2张")
-	}
-	maxX := len(uniqueElements)
 	maxY := 0
-	if hasForm(ctx.User, model.FormWarHomunculusBurst) {
-		magicRunes := getToken(ctx.User, "hom_magic_rune")
+	if engineplayer.HasForm(ctx.User, model.FormWarHomunculusBurst) {
+		magicRunes := engineplayer.GetToken(ctx.User, "hom_magic_rune")
 		if magicRunes > 1 {
 			maxY = magicRunes - 1
 		}
 	}
+	// 直接弹出选牌 interrupt，跳过 X 数值选择
+	// 魔纹融合至少需要2张异系牌（元素互不相同）
+	minPick := 2
 	ctx.Game.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
 		Context: map[string]interface{}{
-			"choice_type":       "hom_glyph_fusion_x",
-			"user_id":           ctx.User.ID,
-			"user_ctx":          ctx,
-			"attack_element":    string(attackEle),
-			"max_x":             maxX,
-			"candidate_indices": candidates,
-			"max_y":             maxY,
-			"selected_indices":  []int{},
+			"choice_type":              "hom_glyph_fusion_cards",
+			"user_id":                  ctx.User.ID,
+			"user_ctx":                 ctx,
+			"attack_element":           "", // 不再限制与攻击牌异系
+			"candidate_indices":        candidates,
+			"max_y":                    maxY,
+			"min_pick":                 minPick,
+			model.PromptFlowContextKey: glyphFusionFlowRuntime.MustBeginAt(runeChoiceStepCards),
 		},
 	})
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [魔纹融合]，请选择X、弃牌与Y", ctx.User.Name))
+	ctx.Game.Log(fmt.Sprintf("%s 发动 [魔纹融合]，请选择要弃置的异系牌（所选牌彼此异系）", ctx.User.Name))
 	return nil
 }
 
@@ -278,20 +199,17 @@ func (h *HomunculusRuneReforgeHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil {
 		return false
 	}
-	return ctx.User.Gem > 0 && !hasForm(ctx.User, model.FormWarHomunculusBurst)
+	return ctx.User.Gem > 0 && !engineplayer.HasForm(ctx.User, model.FormWarHomunculusBurst)
 }
 
 func (h *HomunculusRuneReforgeHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("符文改造上下文无效")
 	}
-	if ctx.User.Gem <= 0 {
-		return fmt.Errorf("符文改造需要红宝石")
-	}
-	ctx.User.Gem--
-	enterForm(ctx.User, model.FormWarHomunculusBurst)
+	// CostGem 已在 ConfirmStartupSkillAction 由框架统一扣减（见 skill definition CostGem: 1）。
+	engineplayer.SetForm(ctx.User, model.FormWarHomunculusBurst)
 	ctx.Game.DrawCards(ctx.User.ID, 1)
-	totalRunes := getToken(ctx.User, "hom_war_rune") + getToken(ctx.User, "hom_magic_rune")
+	totalRunes := engineplayer.GetToken(ctx.User, "hom_war_rune") + engineplayer.GetToken(ctx.User, "hom_magic_rune")
 	if totalRunes <= 0 {
 		totalRunes = 3
 	}
@@ -312,7 +230,7 @@ func (h *HomunculusDualEchoHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Timing != model.TimingOnDamageTaken {
+	if !ctx.DamageTakenPhase() {
 		return false
 	}
 	if ctx.EventCtx.SourceID != ctx.User.ID {

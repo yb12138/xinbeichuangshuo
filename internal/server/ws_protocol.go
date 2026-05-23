@@ -1,6 +1,10 @@
 package server
 
-import "starcup-engine/internal/server/protocol"
+import (
+	"encoding/json"
+
+	"starcup-engine/internal/server/protocol"
+)
 
 const (
 	CmdSyncState      = protocol.CmdSyncState
@@ -11,7 +15,17 @@ const (
 	CmdRoomEvent      = protocol.CmdRoomEvent
 	CmdChatMessage    = protocol.CmdChatMessage
 	CmdProtocolError  = protocol.CmdProtocolError
+
+	RoomActionDissolveRoom   = protocol.RoomActionDissolveRoom
+	RoomActionAddBot         = protocol.RoomActionAddBot
+	RoomActionRemoveBot      = protocol.RoomActionRemoveBot
+	RoomActionTakeoverPlayer = protocol.RoomActionTakeoverPlayer
+	RoomActionChangeCamp     = protocol.RoomActionChangeCamp
+	RoomActionChangeRole     = protocol.RoomActionChangeRole
+	RoomActionStart          = protocol.RoomActionStart
 )
+
+type WSCommand = protocol.WSCommand
 
 type WSMessage = protocol.WSMessage
 
@@ -20,6 +34,8 @@ type ProtocolErrorPayload = protocol.ProtocolErrorPayload
 type TargetNode = protocol.TargetNode
 
 type ClientActionRequest = protocol.ClientActionRequest
+
+type RoomActionType = protocol.RoomActionType
 
 type RoomActionRequest = protocol.RoomActionRequest
 
@@ -33,9 +49,14 @@ type TimelineEvent = protocol.TimelineEvent
 
 type TimelineNotifyPayload = protocol.TimelineNotifyPayload
 
-func newWSMessage(cmd string, data interface{}) WSMessage {
+func newWSMessage(cmd protocol.WSCommand, data interface{}) WSMessage {
 	return protocol.WSMessage{
 		Cmd:  cmd,
 		Data: mustMarshal(data),
 	}
+}
+
+func mustMarshal(v interface{}) json.RawMessage {
+	data, _ := json.Marshal(v)
+	return data
 }

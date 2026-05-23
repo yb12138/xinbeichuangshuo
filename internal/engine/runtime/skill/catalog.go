@@ -25,12 +25,22 @@ func (c *Catalog) FindCharacterSkill(character *model.Character, skillID string)
 	return nil
 }
 
+// FindCharacterSkill 在角色技能表中查找定义（包级便捷函数）。
+func FindCharacterSkill(character *model.Character, skillID string) *model.SkillDefinition {
+	return (&Catalog{}).FindCharacterSkill(character, skillID)
+}
+
 // FindCharacterSkillOnPlayer 在玩家当前角色上查找技能。
 func (c *Catalog) FindCharacterSkillOnPlayer(player *model.Player, skillID string) *model.SkillDefinition {
 	if player == nil || player.Character == nil {
 		return nil
 	}
 	return c.FindCharacterSkill(player.Character, skillID)
+}
+
+// FindCharacterSkillOnPlayer 在玩家当前角色上查找技能（包级便捷函数）。
+func FindCharacterSkillOnPlayer(player *model.Player, skillID string) *model.SkillDefinition {
+	return (&Catalog{}).FindCharacterSkillOnPlayer(player, skillID)
 }
 
 // ResolveHandlerID LogicHandler 优先，否则回退技能 ID。

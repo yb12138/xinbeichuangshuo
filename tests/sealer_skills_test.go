@@ -35,7 +35,7 @@ func TestSealer_Skills(t *testing.T) {
 
 		// P1 使用法术 -> P2
 		action := model.PlayerAction{
-			PlayerID: "p1", Type: model.CmdMagic, TargetID: "p2", CardIndex: 0,
+			PlayerID: "p1", Type: model.CmdMagic, TargetID: "p2", CardID: testutils.PlayableCardID(t, game, "p1", 0),
 		}
 
 		// 此时应触发 Magic Surge 响应
@@ -121,7 +121,7 @@ func TestSealer_Skills(t *testing.T) {
 		// 这里的测试比较依赖 Engine Drive 的自动流转
 		// 五系束缚 FieldHookOnTurnStart: 回合开始触发 -> 弹出 InterruptChoice (摸牌取消效果)
 
-		// 我们手动触发 TimingOnTurnStart
+		// 我们手动触发 TimingTurnStart
 		// 实际上 Engine Drive 里会在 PhaseStartup 做这件事
 
 		// 由于是在 CLI 侧模拟，我们手动调用 Drive 看看是否进入 Prompt
@@ -129,8 +129,8 @@ func TestSealer_Skills(t *testing.T) {
 		game.State.TurnStage = model.TurnStageActionStart // 跳过 BuffResolve
 
 		// 理论上应该触发五系束缚的逻辑 (LogicHandler "five_elements_bind"?? No, it's a FieldCard dispatch)
-		// FieldCard TimingOnTurnStart 需要在 PhaseStartup 里被 Engine 扫描并触发
-		// 目前 Engine 似乎没有自动扫描 FieldCard TimingOnTurnStart 的逻辑?
+		// FieldCard TimingTurnStart 需要在 PhaseStartup 里被 Engine 扫描并触发
+		// 目前 Engine 似乎没有自动扫描 FieldCard TimingTurnStart 的逻辑?
 		// 检查 game.go PhaseStartup...
 		// "e.dispatcher.OnTiming(startCtx.Timing, startCtx)"
 		// 我们需要确保 FieldCard 的 Handler (FiveElementsBindHandler? No, usually generic field logic)
@@ -138,7 +138,7 @@ func TestSealer_Skills(t *testing.T) {
 		// 封印师定义里 PlaceHook: model.FieldHookOnTurnStart
 
 		// 如果 Engine 没实现 FieldCard 的自动触发，这个测试会失败。
-		// 假设 Engine 已经实现了 "TimingOnTurnStart" 会扫描所有 FieldCard
+		// 假设 Engine 已经实现了 "TimingTurnStart" 会扫描所有 FieldCard
 
 		t.Logf("✅ 五系束缚放置测试通过 (完整跳过逻辑依赖引擎TurnStart实现，暂略)")
 	})

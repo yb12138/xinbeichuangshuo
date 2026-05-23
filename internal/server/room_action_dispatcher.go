@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"starcup-engine/internal/model"
+	"starcup-engine/internal/server/bot"
 )
 
 func (r *Room) handleRoomAction(client *Client, payload json.RawMessage) {
@@ -18,23 +19,25 @@ func (r *Room) handleRoomAction(client *Client, payload json.RawMessage) {
 	}
 
 	switch roomAction.Action {
-	case "dissolve_room":
+	case RoomActionDissolveRoom:
 		r.handleDissolveRoomAction(client)
-	case "add_bot":
+	case RoomActionAddBot:
 		r.handleAddBotRoomAction(client, roomAction)
-	case "remove_bot":
+	case RoomActionRemoveBot:
 		r.handleRemoveBotRoomAction(client, roomAction)
-	case "takeover_player":
+	case RoomActionTakeoverPlayer:
 		r.handleTakeoverPlayerRoomAction(client, roomAction)
-	case "change_camp":
+	case RoomActionChangeCamp:
 		r.handleChangeCampRoomAction(client, roomAction)
-	case "change_role":
+	case RoomActionChangeRole:
 		r.handleChangeRoleRoomAction(client, roomAction)
-	case "start":
+	case RoomActionStart:
 		r.handleStartRoomAction(client)
 	default:
 		r.sendProtocolErrorToClient(client, protocolErrorCodeUnknownRoomAction, "未知房间动作", CmdRoomAction, map[string]interface{}{
-			"action": roomAction.Action,
+			"action":    roomAction.Action,
+			"room_code": r.Code,
+			"player_id": client.PlayerID,
 		})
 	}
 }
@@ -72,7 +75,7 @@ func (r *Room) handleDissolveRoomAction(client *Client) {
 	r.HostID = ""
 	r.botPromptCache = make(map[string]*model.Prompt)
 	r.botPromptEpoch++
-	r.botIntel = newBotIntel()
+	r.botIntel = bot.NewMemory()
 	r.mu.Unlock()
 
 	r.engineMu.Lock()

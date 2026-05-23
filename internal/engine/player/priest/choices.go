@@ -23,10 +23,10 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		options := make([]model.PromptOption, 0, len(allyIDs))
 		for _, allyID := range allyIDs {
 			if target := rt.GetPlayers()[allyID]; target != nil {
-				options = append(options, model.PromptOption{ID: allyID, Label: target.Name})
+				options = append(options, model.PromptOption{ID: allyID, Label: target.Name, TargetID: allyID})
 			}
 		}
-		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【神圣契约】请选择1名队友：", Options: options, Min: 1, Max: 1}
+		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【神圣契约】请选择1名队友：", Options: options, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationTargetPicker, TargetFilter: "custom"}}
 
 	case "priest_divine_contract_x":
 		maxX := runtimeutil.ToIntContextValue(data["max_x"])
@@ -49,7 +49,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 				message = fmt.Sprintf("【神圣契约】请选择转移治疗值X（目标：%s）：", targetName)
 			}
 		}
-		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: message, Options: options, Min: 1, Max: 1}
+		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: message, Options: options, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 0}}
 
 	case "priest_divine_domain_mode":
 		modeOptions := runtimeutil.ParseStringSliceContextValue(data["mode_options"])
@@ -62,13 +62,13 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 				options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", len(options)), Label: "分支②：你+2治疗，1名队友+1治疗"})
 			}
 		}
-		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【神圣领域】请选择发动分支：", Options: options, Min: 1, Max: 1}
+		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【神圣领域】请选择发动分支：", Options: options, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"}}
 
 	case "priest_divine_domain_damage_target":
-		return engineplayer.BuildTargetChoicePrompt(rt, playerID, "【神圣领域·分支①】请选择2点法术伤害目标：", data, false)
+		return engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, "【神圣领域·分支①】请选择2点法术伤害目标：", data, false)
 
 	case "priest_divine_domain_heal_target":
-		return engineplayer.BuildTargetChoicePrompt(rt, playerID, "【神圣领域·分支②】请选择+1治疗的队友：", data, false)
+		return engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, "【神圣领域·分支②】请选择+1治疗的队友：", data, false)
 	}
 
 	return nil
@@ -150,7 +150,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		rt.PopInterrupt()
 		if rt.GetPendingInterrupt() == nil {
 			// 规则：神圣契约是"选择目标+选择X"的两段式结算，最终恢复点必须由上游显式给出。
-			rt.ApplyChoiceResumePoint(mustChoiceResumePointFromMap(ctxData, "resume_phase"))
+			rt.ApplyChoiceResumePoint(engineplayer.MustChoiceResumePointFromMap(ctxData, "resume_phase"))
 		}
 		return true, nil
 
@@ -242,13 +242,4 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 	}
 
 	return false, nil
-}
-
-// Helper functions for priest
-
-func mustChoiceResumePointFromMap(data map[string]interface{}, key string) interface{} {
-	if data == nil {
-		return nil
-	}
-	return data[key]
 }

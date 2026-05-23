@@ -16,11 +16,11 @@ func RoleEntry() player.RoleEntry {
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
 		TimingHookSpecs: []player.TimingHookSpec{
-			{Timing: player.TimingOnDamageCalculate, Priority: 100, Hook: damageCalculateHook},
+			{Timing: player.TimingDamageSourceDeal, Priority: 100, Hook: damageCalculateHook},
 			{Timing: player.TimingPostActionEnd, Priority: 100, Hook: postActionEndHook},
 			{Timing: player.TimingPostAttackHit, Priority: 400, Hook: postAttackHitHook},
 			{Timing: player.TimingPostDamageResolved, Priority: 600, Hook: postDamageResolvedHook},
-			{Timing: player.TimingOnTurnEnd, Priority: 300, Hook: turnEndHook},
+			{Timing: player.TimingTurnEndPreExtra, Priority: 300, Hook: turnEndHook},
 		},
 		PlayableCoverEffects:   []model.EffectType{model.EffectElfBlessing},
 		ExcludeCardFromDiscard: IsBlessingCard,
@@ -61,13 +61,10 @@ func SkillEntries() []player.SkillEntry {
 // ChoiceRouteSpecs 导出角色 choice 路由声明。
 func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 	return map[string]types.ChoiceRouteSpec{
-		"elf_archer_elemental_shot_pick":     types.ChoiceRouteRole("elf_archer"),
-		"elf_archer_pet_pick":                types.ChoiceRouteRole("elf_archer"),
-		"elf_elemental_shot_cost":            types.ChoiceRouteRole("elf_archer"),
-		"elf_elemental_shot_discard_magic":   types.ChoiceRouteRole("elf_archer"),
-		"elf_elemental_shot_remove_blessing": types.ChoiceRouteRole("elf_archer"),
-		"elf_pet_empower_confirm":            types.ChoiceRouteRole("elf_archer"),
-		"elf_pet_empower_target":             types.ChoiceRouteRole("elf_archer"),
-		"elf_ritual_release_target":          types.ChoiceRouteRole("elf_archer"),
+		"elf_archer_elemental_shot_pick": types.ChoiceRouteRole("elf_archer"),
+		"elf_archer_pet_pick":            types.ChoiceRouteRole("elf_archer"),
+		"elf_pet_empower_confirm":        types.ChoiceRouteRole("elf_archer"),
+		"elf_pet_empower_target":         types.ChoiceRouteRole("elf_archer"),
+		"elf_ritual_release_target":      types.ChoiceRouteRole("elf_archer"),
 	}
 }

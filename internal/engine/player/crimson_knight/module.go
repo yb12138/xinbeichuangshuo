@@ -14,12 +14,13 @@ func RoleEntry() player.RoleEntry {
 		ID:               "crimson_knight",
 		Defaults:         ApplyDefaults,
 		Choices:          NewChoiceHandler(),
+		ChoiceSpecs:      ChoiceSpecs(),
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
 		TimingHookSpecs: []player.TimingHookSpec{
-			{Timing: player.TimingOnHealResist, Priority: 200, Hook: healResistHook},
-			{Timing: player.TimingOnTurnEnd, Priority: 600, Hook: turnEndHook},
-			{Timing: player.TimingOnMoraleLossApplied, Priority: 100, Hook: moraleLossHook},
+			{Timing: player.TimingHealBefore, Priority: 200, Hook: healResistHook},
+			{Timing: player.TimingTurnEndPreExtra, Priority: 600, Hook: turnEndHook},
+			{Timing: player.TimingMoraleLossApplied, Priority: 100, Hook: moraleLossHook},
 		},
 		MoraleLossModifier: func(engine player.MoraleLossModifierEngine, camp model.Camp, current int, proposedLoss int, extra player.MoraleLossModifierExtra) int {
 			if extra.Victim != nil && (extra.FromDamageDraw || extra.IsDamageResolution) {
@@ -28,6 +29,19 @@ func RoleEntry() player.RoleEntry {
 				}
 			}
 			return proposedLoss
+		},
+	}
+}
+
+// ChoiceSpecs 导出红莲骑士的声明式 choice 流。
+func ChoiceSpecs() []player.ChoiceSpec {
+	return []player.ChoiceSpec{
+		{
+			ChoiceType: "crk_bloody_prayer_split",
+			BuildPrompt: func(rt player.ChoiceRuntime, playerID string, _ *model.Player, data map[string]interface{}) *model.Prompt {
+				return buildCrimsonKnightBloodyPrayerSplitPrompt(rt, playerID, data)
+			},
+			HandleMultiSelect: handleCrimsonKnightBloodyPrayerSplitMultiSelect,
 		},
 	}
 }

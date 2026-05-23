@@ -8,8 +8,8 @@ import (
 	"starcup-engine/internal/model"
 )
 
-// runFieldCardsForHook 按场上牌的结算钩子处理效果牌（如中毒等）。
-func (e *GameEngine) runFieldCardsForHook(p *model.Player, hook model.FieldHook, ctx *model.Context) {
+// RunFieldCardsForHook 按场上牌的结算钩子处理效果牌（如中毒等）。
+func (e *GameEngine) RunFieldCardsForHook(p *model.Player, hook model.FieldHook, ctx *model.Context) {
 	var remain []*model.FieldCard
 
 	for _, fc := range p.Field {
@@ -49,9 +49,6 @@ func (e *GameEngine) applyPoisonEffect(p *model.Player, sourceID string, ctx *mo
 	e.Log(fmt.Sprintf("[Effect] %s 受到中毒伤害", p.Name))
 }
 
-// applyShieldEffect 应用圣盾效果。
-
-// applyWeakEffect 应用虚弱效果。
 
 func (e *GameEngine) findSourceEffectCard(source *model.Player, effect model.EffectType) (*model.Player, *model.FieldCard) {
 	if source == nil {
@@ -85,18 +82,6 @@ func (e *GameEngine) detachSourceEffectCard(source *model.Player, effect model.E
 	}
 	holder.RemoveFieldCard(fc)
 	return holder, fc.Card, true
-}
-
-func (e *GameEngine) findExclusiveEffectCard(source *model.Player, effect model.EffectType) (*model.Player, *model.FieldCard) {
-	return e.findSourceEffectCard(source, effect)
-}
-
-func (e *GameEngine) attachExclusiveEffectCard(source *model.Player, target *model.Player, effect model.EffectType, card model.Card) error {
-	return e.attachSourceEffectCard(source, target, effect, card)
-}
-
-func (e *GameEngine) detachExclusiveEffectCard(source *model.Player, effect model.EffectType) (*model.Player, model.Card, bool) {
-	return e.detachSourceEffectCard(source, effect)
 }
 
 func (e *GameEngine) removeExclusiveEffectCard(source *model.Player, effect model.EffectType, restoreCard bool) bool {

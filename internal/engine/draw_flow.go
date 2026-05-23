@@ -72,7 +72,7 @@ func (e *GameEngine) newDrawContextWithOptions(player *model.Player, amount int,
 		return nil
 	}
 
-	resumePoint := e.currentChoiceResumePoint()
+	resumePoint := e.CurrentChoiceResumePoint()
 	if intr := e.State.PendingInterrupt; intr != nil && intr.Type == model.InterruptChoice {
 		if data, ok := intr.Context.(map[string]interface{}); ok {
 			if waitingPoint, ok := choiceResumePointValue(data["waiting_phase"]); ok {
@@ -94,7 +94,7 @@ func (e *GameEngine) newDrawContextWithOptions(player *model.Player, amount int,
 			return model.ActionType(player.TurnState.LastActionType)
 		}(),
 	}
-	ctx := e.buildContext(player, player, model.TimingBeforeCardDrawn, eventCtx)
+	ctx := e.BuildContext(player, player, model.TimingSettleDraw, eventCtx)
 	if opts.PreventOverflow {
 		ctx.Flags["preventOverflow"] = true
 	}
@@ -117,11 +117,15 @@ func (e *GameEngine) startDraw(ctx *model.Context) bool {
 		return false
 	}
 
-	prevPending := e.State.PendingInterrupt
-	prevQueueLen := len(e.State.InterruptQueue)
-	e.dispatcher.OnTiming(ctx.Timing, ctx)
+	result := e.dispatchRuleTiming(ruleTimingDispatchInput{
+		Timing:  model.TimingSettleDraw,
+		Context: ctx,
+		Markers: map[string]any{
+			"settlement_timeline": true,
+		},
+	})
 
-	if e.State.PendingInterrupt != prevPending || len(e.State.InterruptQueue) > prevQueueLen {
+	if result.PendingChanged {
 		e.Log("[System] 等待响应前暂停摸牌...")
 		return false
 	}
@@ -165,18 +169,21 @@ func (e *GameEngine) restorePhaseAfterInterruptedDraw(ctx *model.Context) bool {
 func (e *GameEngine) executeResolvedDraw(ctx *model.Context, drawCount int, reason string) {
 	target := ctx.User
 	cards, newDeck, newDiscard := rules.DrawCards(e.State.Deck, e.State.DiscardPile, drawCount)
+	actualDrawCount := len(cards)
 	e.State.Deck = newDeck
 	e.State.DiscardPile = newDiscard
 	target.Hand = append(target.Hand, cards...)
-	e.NotifyDrawCards(target.ID, drawCount, reason)
+	e.NotifyDrawCards(target.ID, actualDrawCount, reason)
 
-	ctx.Timing = model.TimingOnCardDrawn
 	if ctx.EventCtx != nil {
 		ctx.EventCtx.Type = model.EventAfterDraw
-		ctx.EventCtx.DrawCount = &drawCount
+		ctx.EventCtx.DrawCount = &actualDrawCount
 	}
-	e.dispatcher.OnTiming(ctx.Timing, ctx)
 
-	e.checkHandLimit(target, ctx)
-	e.Log(fmt.Sprintf("%s 摸了 %d 张牌", target.Name, drawCount))
+	e.CheckHandLimitCtx(target, ctx)
+	if actualDrawCount < drawCount {
+		e.Log(fmt.Sprintf("%s 牌库与弃牌堆不足，原计划摸%d张，实际摸了%d张牌", target.Name, drawCount, actualDrawCount))
+		return
+	}
+	e.Log(fmt.Sprintf("%s 摸了 %d 张牌", target.Name, actualDrawCount))
 }

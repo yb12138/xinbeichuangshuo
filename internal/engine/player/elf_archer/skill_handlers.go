@@ -25,7 +25,7 @@ type ElfPetEmpowerHandler struct{ engineplayer.BaseHandler }
 
 // CanUse implements engineplayer.BaseHandler for ElfElementalShotHandler.
 func (h *ElfElementalShotHandler) CanUse(ctx *model.Context) bool {
-	if ctx.Timing != model.TimingOnAttackDeclared || ctx.EventCtx == nil || ctx.EventCtx.Card == nil {
+	if !ctx.AttackDeclarePhase() || ctx.EventCtx == nil || ctx.EventCtx.Card == nil {
 		return false
 	}
 	if ctx.EventCtx.Card.Element == model.ElementDark {
@@ -34,14 +34,20 @@ func (h *ElfElementalShotHandler) CanUse(ctx *model.Context) bool {
 	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
-	hasMagic := false
+	attackCardID := ctx.EventCtx.Card.ID
+	// 手牌中排除攻击牌后是否还有法术牌
 	for _, c := range ctx.User.Hand {
-		if c.Type == model.CardTypeMagic {
-			hasMagic = true
-			break
+		if c.Type == model.CardTypeMagic && c.ID != attackCardID {
+			return true
 		}
 	}
-	return hasMagic || countElfBlessings(ctx.User) > 0
+	// 祝福中排除攻击牌后是否还有可用祝福
+	for _, c := range elfBlessingCardsLocal(ctx.User) {
+		if c.ID != attackCardID {
+			return true
+		}
+	}
+	return false
 }
 
 // Execute implements engineplayer.BaseHandler for ElfElementalShotHandler.
@@ -49,27 +55,36 @@ func (h *ElfElementalShotHandler) Execute(ctx *model.Context) error {
 	if ctx.EventCtx == nil || ctx.EventCtx.Card == nil {
 		return nil
 	}
-	hasMagic := false
+	attackCardID := ""
+	if ctx.EventCtx.Card != nil {
+		attackCardID = ctx.EventCtx.Card.ID
+	}
+	candidateCount := 0
 	for _, c := range ctx.User.Hand {
-		if c.Type == model.CardTypeMagic {
-			hasMagic = true
-			break
+		if c.Type == model.CardTypeMagic && c.ID != attackCardID {
+			candidateCount++
 		}
 	}
-	hasBlessing := countElfBlessings(ctx.User) > 0
+	for _, c := range elfBlessingCardsLocal(ctx.User) {
+		if c.ID != attackCardID {
+			candidateCount++
+		}
+	}
+	if candidateCount == 0 {
+		return fmt.Errorf("元素射击需要至少1张法术牌或祝福")
+	}
 	ctx.Game.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
 		Context: map[string]interface{}{
-			"choice_type":       "elf_elemental_shot_cost",
-			"user_id":           ctx.User.ID,
-			"attack_element":    string(ctx.EventCtx.Card.Element),
-			"can_discard_magic": hasMagic,
-			"can_remove_bless":  hasBlessing,
-			"user_ctx":          ctx,
+			"choice_type":    "elf_archer_elemental_shot_pick",
+			"user_id":        ctx.User.ID,
+			"attack_element": string(ctx.EventCtx.Card.Element),
+			"attack_card_id": attackCardID,
+			"user_ctx":       ctx,
 		},
 	})
-	ctx.Game.Log(fmt.Sprintf("%s 可发动 [元素射击]，等待选择消耗方式", ctx.User.Name))
+	ctx.Game.Log(fmt.Sprintf("%s 可发动 [元素射击]，请选择1张法术牌或祝福发动", ctx.User.Name))
 	return nil
 }
 
@@ -78,7 +93,7 @@ func (h *ElfAnimalCompanionHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.Target == nil || ctx.EventCtx == nil || ctx.EventCtx.DamageVal == nil {
 		return false
 	}
-	if ctx.Timing != model.TimingOnDamageTaken || *ctx.EventCtx.DamageVal <= 0 {
+	if !ctx.DamageTakenPhase() || *ctx.EventCtx.DamageVal <= 0 {
 		return false
 	}
 	if ctx.EventCtx.SourceID != ctx.User.ID || ctx.EventCtx.TargetID == "" || ctx.EventCtx.TargetID == ctx.User.ID {
@@ -105,10 +120,7 @@ func (h *ElfRitualHandler) CanUse(ctx *model.Context) bool {
 
 // Execute implements engineplayer.BaseHandler for ElfRitualHandler.
 func (h *ElfRitualHandler) Execute(ctx *model.Context) error {
-	if ctx.User.Gem <= 0 {
-		return fmt.Errorf("精灵密仪需要至少1个红宝石")
-	}
-	ctx.User.Gem--
+	// CostGem 已在 ConfirmStartupSkillAction 由框架统一扣减（见 skill definition CostGem: 1）
 	player.SetForm(ctx.User, model.FormElfArcherRitual)
 	before := len(ctx.User.Hand)
 	ctx.Game.DrawCardsWithOptions(ctx.User.ID, 3, model.DrawOptions{
@@ -134,7 +146,7 @@ func (h *ElfPetEmpowerHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.Target == nil || ctx.EventCtx == nil || ctx.EventCtx.DamageVal == nil {
 		return false
 	}
-	if ctx.Timing != model.TimingOnDamageTaken || *ctx.EventCtx.DamageVal <= 0 {
+	if !ctx.DamageTakenPhase() || *ctx.EventCtx.DamageVal <= 0 {
 		return false
 	}
 	if ctx.EventCtx.SourceID != ctx.User.ID || ctx.EventCtx.TargetID != ctx.Target.ID {

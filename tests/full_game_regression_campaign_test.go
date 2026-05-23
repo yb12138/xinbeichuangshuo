@@ -9,16 +9,16 @@ import (
 )
 
 type fullGameCampaignResult struct {
-	lineups         [][]string
-	skillBatch map[string]int
-	roleObserved   map[string]bool
-	err             error
+	lineups      [][]string
+	skillBatch   map[string]int
+	roleObserved map[string]bool
+	err          error
 }
 
 type directedScenarioCampaignResult struct {
 	lineups               [][]string
 	scenarios             []directedScenarioPlan
-	skillBatch       map[string]int
+	skillBatch            map[string]int
 	targetSkillSet        map[string]struct{}
 	scenarioHitCounts     map[string]int
 	scenarioMissingSkills map[string][]string

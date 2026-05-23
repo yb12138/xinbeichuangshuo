@@ -20,6 +20,13 @@ type butterflyRuntime interface {
 	Log(msg string)
 }
 
+type butterflyDamageRuntime interface {
+	GetPlayers() map[string]*model.Player
+	GetPlayerOrder() []string
+	PushInterrupt(intr *model.Interrupt)
+	Log(msg string)
+}
+
 func ActionTargetIDs(rt butterflyRuntime) []string {
 	targetIDs := make([]string, 0, len(rt.PlayerOrder()))
 	for _, pid := range rt.PlayerOrder() {
@@ -73,11 +80,7 @@ func ResolveChrysalis(rt butterflyRuntime, userID string) error {
 		rt.PushInterrupt(&model.Interrupt{
 			Type:     model.InterruptChoice,
 			PlayerID: user.ID,
-			Context: map[string]interface{}{
-				"choice_type":   "bt_cocoon_overflow_discard",
-				"user_id":       user.ID,
-				"discard_count": overflow,
-			},
+			Context:  butterflyCocoonOverflowContext(user.ID, overflow),
 		})
 	}
 	return nil
@@ -103,43 +106,27 @@ func StartReverse(rt butterflyRuntime, userID string) error {
 	return nil
 }
 
-// MaybeDamageResponses checks butterfly dancer damage response triggers.
-func MaybeDamageResponses(rt engineplayer.ChoiceRuntime, pd *model.PendingDamage) bool {
+// MaybeDamageResponses checks butterfly dancer stage ⑤ damage response triggers.
+func MaybeDamageResponses(rt butterflyDamageRuntime, pd *model.PendingDamage) bool {
 	if pd == nil || pd.Damage <= 0 {
 		return false
 	}
-	if !pd.HasCheck(model.PendingDamageCheckBeforeApplyDefend) {
-		pd.SetCheck(model.PendingDamageCheckBeforeApplyDefend, true)
-		target := rt.GetPlayers()[pd.TargetID]
-		if target != nil && engineplayer.IsCharacter(target, "butterfly_dancer") && CocoonCount(target) > 0 {
-			indices := CocoonFieldIndices(target)
-			if len(indices) > 0 {
-				rt.PushInterrupt(&model.Interrupt{
-					Type:     model.InterruptChoice,
-					PlayerID: target.ID,
-					Context: map[string]interface{}{
-						"choice_type":    "bt_pilgrimage_pick",
-						"user_id":        target.ID,
-						"source_id":      pd.SourceID,
-						"target_id":      pd.TargetID,
-						"damage_index":   0,
-						"cocoon_indices": indices,
-					},
-				})
-				rt.Log(fmt.Sprintf("%s 的 [朝圣] 可触发：是否移除1个茧抵御1点伤害", target.Name))
-				return true
-			}
-		}
+
+	// 预取来源/目标名称，供 prompt message 使用
+	sourceName := ""
+	if src := rt.GetPlayers()[pd.SourceID]; src != nil {
+		sourceName = src.Name
 	}
+	targetName := ""
+	if tgt := rt.GetPlayers()[pd.TargetID]; tgt != nil {
+		targetName = tgt.Name
+	}
+	damageAmount := pd.Damage
+
 	if pd.DamageType != model.MagicDamage {
 		return false
 	}
-	if pd.HasCheck(model.PendingDamageCheckBeforeApplyResponse) {
-		return false
-	}
-	pd.SetCheck(model.PendingDamageCheckBeforeApplyResponse, true)
-
-	if pd.Damage == 1 {
+	if pd.Damage == 1 && !pd.HasCheck(model.PendingDamageCheckBeforeApplyPoison) {
 		for _, pid := range rt.GetPlayerOrder() {
 			user := rt.GetPlayers()[pid]
 			if user == nil || !engineplayer.IsCharacter(user, "butterfly_dancer") || CocoonCount(user) <= 0 {
@@ -149,6 +136,7 @@ func MaybeDamageResponses(rt engineplayer.ChoiceRuntime, pd *model.PendingDamage
 			if len(indices) == 0 {
 				continue
 			}
+			pd.SetCheck(model.PendingDamageCheckBeforeApplyPoison, true)
 			rt.PushInterrupt(&model.Interrupt{
 				Type:     model.InterruptChoice,
 				PlayerID: user.ID,
@@ -156,43 +144,67 @@ func MaybeDamageResponses(rt engineplayer.ChoiceRuntime, pd *model.PendingDamage
 					"choice_type":    "bt_poison_pick",
 					"user_id":        user.ID,
 					"source_id":      pd.SourceID,
+					"source_name":    sourceName,
 					"target_id":      pd.TargetID,
+					"target_name":    targetName,
 					"damage_index":   0,
+					"damage_amount":  damageAmount,
 					"cocoon_indices": indices,
 				},
 			})
 			rt.Log(fmt.Sprintf("%s 的 [毒粉] 可触发：是否移除1个茧令该次法术伤害+1", user.Name))
 			return true
 		}
-		return false
 	}
 
-	if pd.Damage == 2 {
-		for _, pid := range rt.GetPlayerOrder() {
-			user := rt.GetPlayers()[pid]
-			if user == nil || !engineplayer.IsCharacter(user, "butterfly_dancer") || CocoonCount(user) < 2 {
-				continue
-			}
-			defs, labels := mirrorPairDefs(user)
-			if len(defs) == 0 {
-				continue
-			}
-			rt.PushInterrupt(&model.Interrupt{
-				Type:     model.InterruptChoice,
-				PlayerID: user.ID,
-				Context: map[string]interface{}{
-					"choice_type":  "bt_mirror_pair",
-					"user_id":      user.ID,
-					"source_id":    pd.SourceID,
-					"target_id":    pd.TargetID,
-					"damage_index": 0,
-					"pair_defs":    defs,
-					"pair_labels":  labels,
-				},
-			})
-			rt.Log(fmt.Sprintf("%s 的 [镜花水月] 可触发：是否移除2张同系茧改写本次伤害来源", user.Name))
-			return true
+	if queueButterflyMirrorResponse(rt, pd, sourceName, targetName) {
+		return true
+	}
+
+	markButterflyMagicResponseWindowClosed(pd)
+	return false
+}
+
+func markButterflyMagicResponseWindowClosed(pd *model.PendingDamage) {
+	if pd == nil {
+		return
+	}
+	pd.SetCheck(model.PendingDamageCheckBeforeApplyPoison, true)
+	pd.SetCheck(model.PendingDamageCheckBeforeApplyMirror, true)
+}
+
+func queueButterflyMirrorResponse(rt butterflyDamageRuntime, pd *model.PendingDamage, sourceName, targetName string) bool {
+	if pd == nil || pd.Damage != 2 || pd.HasCheck(model.PendingDamageCheckBeforeApplyMirror) {
+		return false
+	}
+	for _, pid := range rt.GetPlayerOrder() {
+		user := rt.GetPlayers()[pid]
+		if user == nil || !engineplayer.IsCharacter(user, "butterfly_dancer") || CocoonCount(user) < 2 {
+			continue
 		}
+		defs, labels := mirrorPairDefs(user)
+		if len(defs) == 0 {
+			continue
+		}
+		pd.SetCheck(model.PendingDamageCheckBeforeApplyMirror, true)
+		rt.PushInterrupt(&model.Interrupt{
+			Type:     model.InterruptChoice,
+			PlayerID: user.ID,
+			Context: map[string]interface{}{
+				"choice_type":   "bt_mirror_pair",
+				"user_id":       user.ID,
+				"source_id":     pd.SourceID,
+				"source_name":   sourceName,
+				"target_id":     pd.TargetID,
+				"target_name":   targetName,
+				"damage_index":  0,
+				"damage_amount": pd.Damage,
+				"pair_defs":     defs,
+				"pair_labels":   labels,
+			},
+		})
+		rt.Log(fmt.Sprintf("%s 的 [镜花水月] 可触发：是否移除2张同系茧改写本次伤害来源", user.Name))
+		return true
 	}
 	return false
 }

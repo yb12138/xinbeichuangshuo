@@ -20,12 +20,6 @@ type SwordEmperorAngelSoulHandler struct{ engineplayer.BaseHandler }
 
 type SwordEmperorDemonSoulHandler struct{ engineplayer.BaseHandler }
 
-type SwordEmperorAngelSoulHitHandler struct{ engineplayer.BaseHandler }
-
-type SwordEmperorAngelSoulMissHandler struct{ engineplayer.BaseHandler }
-
-type SwordEmperorDemonSoulMissHandler struct{ engineplayer.BaseHandler }
-
 type SwordEmperorIndomitableWillHandler struct{ engineplayer.BaseHandler }
 
 func (h *SwordEmperorSwordSoulGuardHandler) CanUse(ctx *model.Context) bool { return false }
@@ -35,18 +29,6 @@ func (h *SwordEmperorSwordSoulGuardHandler) Execute(ctx *model.Context) error { 
 func (h *SwordEmperorFeintHandler) CanUse(ctx *model.Context) bool { return false }
 
 func (h *SwordEmperorFeintHandler) Execute(ctx *model.Context) error { return nil }
-
-func (h *SwordEmperorAngelSoulHitHandler) CanUse(ctx *model.Context) bool { return false }
-
-func (h *SwordEmperorAngelSoulHitHandler) Execute(ctx *model.Context) error { return nil }
-
-func (h *SwordEmperorAngelSoulMissHandler) CanUse(ctx *model.Context) bool { return false }
-
-func (h *SwordEmperorAngelSoulMissHandler) Execute(ctx *model.Context) error { return nil }
-
-func (h *SwordEmperorDemonSoulMissHandler) CanUse(ctx *model.Context) bool { return false }
-
-func (h *SwordEmperorDemonSoulMissHandler) Execute(ctx *model.Context) error { return nil }
 
 func swordEmperorEnergy(user *model.Player) int {
 	if user == nil {
@@ -145,34 +127,17 @@ func swordEmperorSlashTargets(game model.IGameEngine, user *model.Player, exclud
 	return ids
 }
 
-func canPayCrystalLike(ctx *model.Context, amount int) bool {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil {
-		return false
-	}
-	return ctx.Game.CanPayCrystalCost(ctx.User.ID, amount)
-}
-
-func spendCrystalLike(ctx *model.Context, amount int) bool {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil {
-		return false
-	}
-	return ctx.Game.ConsumeCrystalCost(ctx.User.ID, amount)
-}
-
 func (h *SwordEmperorSwordQiSlashHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Timing != model.TimingOnHitCheck {
+	if !ctx.AttackHitPhase() {
 		return false
 	}
 	if ctx.EventCtx.AttackInfo == nil {
 		return false
 	}
 	if ctx.EventCtx.AttackInfo.ActionType != string(model.ActionAttack) {
-		return false
-	}
-	if !ctx.EventCtx.AttackInfo.IsHit {
 		return false
 	}
 	if ctx.EventCtx.AttackInfo.CounterInitiator != "" {
@@ -203,11 +168,12 @@ func (h *SwordEmperorSwordQiSlashHandler) Execute(ctx *model.Context) error {
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
 		Context: map[string]interface{}{
-			"choice_type": "se_sword_qi_slash_x",
-			"user_id":     ctx.User.ID,
-			"max_x":       maxX,
-			"target_ids":  targetIDs,
-			"user_ctx":    ctx,
+			"choice_type":              "se_sword_qi_slash_x",
+			"user_id":                  ctx.User.ID,
+			"max_x":                    maxX,
+			"target_ids":               targetIDs,
+			"user_ctx":                 ctx,
+			model.PromptFlowContextKey: swordQiSlashFlowRuntime.Begin(),
 		},
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [剑气斩]：请选择X值", ctx.User.Name))
@@ -218,7 +184,7 @@ func (h *SwordEmperorAngelSoulHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Timing != model.TimingOnAttackDeclared {
+	if !ctx.AttackDeclarePhase() {
 		return false
 	}
 	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
@@ -248,7 +214,7 @@ func (h *SwordEmperorDemonSoulHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Timing != model.TimingOnAttackDeclared {
+	if !ctx.AttackDeclarePhase() {
 		return false
 	}
 	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
@@ -279,20 +245,20 @@ func (h *SwordEmperorIndomitableWillHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Timing != model.TimingOnActionEnd {
+	if ctx.Timing != model.TimingActionEnd {
 		return false
 	}
 	if ctx.EventCtx.ActionType != model.ActionAttack {
 		return false
 	}
-	return canPayCrystalLike(ctx, 1)
+	return engineplayer.CanPayCrystalLike(ctx, 1)
 }
 
 func (h *SwordEmperorIndomitableWillHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("不屈意志上下文无效")
 	}
-	if !spendCrystalLike(ctx, 1) {
+	if !engineplayer.SpendCrystalLike(ctx, 1) {
 		return fmt.Errorf("不屈意志需要1点蓝水晶（红宝石可替代）")
 	}
 	ctx.Game.DrawCards(ctx.User.ID, 1)

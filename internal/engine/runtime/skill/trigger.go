@@ -1,4 +1,4 @@
-// gameflow: 技能候选排序与中断推送决策（旧 processSkills）。
+// gameflow: 技能候选排序与中断推送决策。
 
 package skill
 
@@ -32,10 +32,6 @@ func (t *Trigger) ProcessSkillBatch(h Host, skillBatch []model.SkillDefinition, 
 
 	// 第一轮：执行启动技能（收集）和静默/强制技能（立即执行）
 	for _, sk := range skillBatch {
-		if ctx != nil && ctx.Timing == model.TimingBeforeMoraleLoss && sk.ID == "ss_soul_devour" {
-			continue
-		}
-
 		if sk.Type == model.SkillTypeStartup {
 			if ctx != nil && ctx.User != nil && ctx.User.TurnState.HasUsedActionSkill {
 				continue
@@ -91,6 +87,7 @@ func (t *Trigger) ProcessSkillBatch(h Host, skillBatch []model.SkillDefinition, 
 	if len(optionalSkillIDs) > 0 && ctx != nil && ctx.User != nil {
 		h.PublishResponseInterrupt(ctx.User, optionalSkillIDs, sharedCtx)
 		h.Log(fmt.Sprintf("%s 有 %d 个响应技能可以发动", ctx.User.Name, len(optionalSkillIDs)))
+		return
 	}
 }
 

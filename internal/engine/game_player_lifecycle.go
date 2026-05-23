@@ -56,7 +56,7 @@ func (e *GameEngine) AddPlayer(id, name, role string, camp model.Camp) error {
 
 	e.State.Players[id] = player
 	e.State.PlayerOrder = append(e.State.PlayerOrder, id)
-	e.rebuildTimingOnAttackDeclaredRegistry()
+	e.rebuildAttackDeclareRegistry()
 	e.refreshPlayerDerivedState(player)
 	return nil
 }
@@ -111,20 +111,20 @@ func (e *GameEngine) StartGame() error {
 func (e *GameEngine) checkGameEnd() {
 	// 星杯胜利：任一方星杯达到 5
 	if e.State.RedCups >= 5 {
-		e.Notify(model.EventGameEnd, "红方胜利！星杯达到 5", nil)
+		e.NotifyGameEnd("红方胜利！星杯达到 5")
 		e.setGameOver(true)
 		return
 	}
 	if e.State.BlueCups >= 5 {
-		e.Notify(model.EventGameEnd, "蓝方胜利！星杯达到 5", nil)
+		e.NotifyGameEnd("蓝方胜利！星杯达到 5")
 		e.setGameOver(true)
 		return
 	}
 	if e.State.RedMorale <= 0 {
-		e.Notify(model.EventGameEnd, "蓝方胜利！红方士气归零", nil)
+		e.NotifyGameEnd("蓝方胜利！红方士气归零")
 		e.setGameOver(true)
 	} else if e.State.BlueMorale <= 0 {
-		e.Notify(model.EventGameEnd, "红方胜利！蓝方士气归零", nil)
+		e.NotifyGameEnd("红方胜利！蓝方士气归零")
 		e.setGameOver(true)
 	}
 }

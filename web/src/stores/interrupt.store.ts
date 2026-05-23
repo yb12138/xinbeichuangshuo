@@ -5,7 +5,8 @@ import type { AvailableSkill, Prompt } from '../types/game'
 export const useInterruptStore = defineStore('interrupt', () => {
   const currentPrompt = ref<Prompt | null>(null)
   const waitingFor = ref('')
-  const selectedCards = ref<number[]>([])
+  const selectedHandIndexes = ref<number[]>([])
+  const selectedFieldOptionIndexes = ref<number[]>([])
   const selectedTargets = ref<string[]>([])
   const promptCounterTarget = ref('')
   const errorMessage = ref('')
@@ -14,11 +15,11 @@ export const useInterruptStore = defineStore('interrupt', () => {
   let skillEffectToastTimer: ReturnType<typeof setTimeout> | null = null
   const actionMode = ref<'none' | 'attack' | 'magic'>('none')
   const magicSubChoice = ref<'none' | 'card' | 'skill'>('none')
-  const selectedCardForAction = ref<number | null>(null)
-  const skillMode = ref<'none' | 'choosing_skill' | 'choosing_discard' | 'choosing_target'>('none')
+  const selectedHandIndexForAction = ref<number | null>(null)
+  const skillMode = ref<'none' | 'choosing_skill' | 'choosing_exclusive' | 'choosing_discard' | 'choosing_target'>('none')
   const selectedSkill = ref<AvailableSkill | null>(null)
   const skillTargetIds = ref<string[]>([])
-  const skillDiscardIndices = ref<number[]>([])
+  const skillDiscardHandIndexes = ref<number[]>([])
 
   function clearErrorTimer() {
     if (!errorTimer) return
@@ -33,7 +34,8 @@ export const useInterruptStore = defineStore('interrupt', () => {
   }
 
   function clearSelections() {
-    selectedCards.value = []
+    selectedHandIndexes.value = []
+    selectedFieldOptionIndexes.value = []
     selectedTargets.value = []
     promptCounterTarget.value = ''
   }
@@ -41,17 +43,17 @@ export const useInterruptStore = defineStore('interrupt', () => {
   function clearActionState() {
     actionMode.value = 'none'
     magicSubChoice.value = 'none'
-    selectedCardForAction.value = null
+    selectedHandIndexForAction.value = null
     skillMode.value = 'none'
     selectedSkill.value = null
     skillTargetIds.value = []
-    skillDiscardIndices.value = []
+    skillDiscardHandIndexes.value = []
   }
 
   function setActionMode(mode: 'none' | 'attack' | 'magic') {
     actionMode.value = mode
     if (mode === 'none') {
-      selectedCardForAction.value = null
+      selectedHandIndexForAction.value = null
     }
   }
 
@@ -59,37 +61,37 @@ export const useInterruptStore = defineStore('interrupt', () => {
     magicSubChoice.value = choice
   }
 
-  function setSelectedCardForAction(cardIndex: number | null) {
-    selectedCardForAction.value = cardIndex
+  function setSelectedHandIndexForAction(cardIndex: number | null) {
+    selectedHandIndexForAction.value = cardIndex
   }
 
   function clearActionMode() {
     actionMode.value = 'none'
     magicSubChoice.value = 'none'
-    selectedCardForAction.value = null
+    selectedHandIndexForAction.value = null
   }
 
-  function setSkillMode(mode: 'none' | 'choosing_skill' | 'choosing_discard' | 'choosing_target') {
+  function setSkillMode(mode: 'none' | 'choosing_skill' | 'choosing_exclusive' | 'choosing_discard' | 'choosing_target') {
     skillMode.value = mode
     if (mode === 'none') {
       selectedSkill.value = null
       skillTargetIds.value = []
-      skillDiscardIndices.value = []
+      skillDiscardHandIndexes.value = []
     }
   }
 
   function setSelectedSkill(skill: AvailableSkill | null) {
     selectedSkill.value = skill
     skillTargetIds.value = []
-    skillDiscardIndices.value = []
+    skillDiscardHandIndexes.value = []
   }
 
   function setSkillTargetIds(targets: string[]) {
     skillTargetIds.value = [...targets]
   }
 
-  function setSkillDiscardIndices(indices: number[]) {
-    skillDiscardIndices.value = [...indices]
+  function setSkillDiscardHandIndexes(indices: number[]) {
+    skillDiscardHandIndexes.value = [...indices]
   }
 
   function toggleSkillTarget(playerId: string) {
@@ -101,13 +103,13 @@ export const useInterruptStore = defineStore('interrupt', () => {
     skillTargetIds.value = skillTargetIds.value.filter(id => id !== playerId)
   }
 
-  function toggleSkillDiscard(cardIndex: number) {
-    const idx = skillDiscardIndices.value.indexOf(cardIndex)
+  function toggleSkillDiscardHandIndex(cardIndex: number) {
+    const idx = skillDiscardHandIndexes.value.indexOf(cardIndex)
     if (idx === -1) {
-      skillDiscardIndices.value = [...skillDiscardIndices.value, cardIndex]
+      skillDiscardHandIndexes.value = [...skillDiscardHandIndexes.value, cardIndex]
       return
     }
-    skillDiscardIndices.value = skillDiscardIndices.value.filter(i => i !== cardIndex)
+    skillDiscardHandIndexes.value = skillDiscardHandIndexes.value.filter(i => i !== cardIndex)
   }
 
   function clearSkillMode() {
@@ -130,8 +132,12 @@ export const useInterruptStore = defineStore('interrupt', () => {
     promptCounterTarget.value = playerId
   }
 
-  function setSelectedCards(cards: number[]) {
-    selectedCards.value = [...cards]
+  function setSelectedHandIndexes(cards: number[]) {
+    selectedHandIndexes.value = [...cards]
+  }
+
+  function setSelectedFieldOptionIndexes(options: number[]) {
+    selectedFieldOptionIndexes.value = [...options]
   }
 
   function setSelectedTargets(targets: string[]) {
@@ -139,8 +145,11 @@ export const useInterruptStore = defineStore('interrupt', () => {
   }
 
   function syncAfterStateUpdate() {
-    waitingFor.value = ''
+    // state_update means the previous prompt was accepted or superseded.
+    // If a new prompt is needed, the server sends RequireAction right after
+    // the fresh SyncState, so clearing here prevents stale controls sticking.
     currentPrompt.value = null
+    waitingFor.value = ''
     clearSelections()
     clearActionState()
   }
@@ -193,35 +202,37 @@ export const useInterruptStore = defineStore('interrupt', () => {
   return {
     currentPrompt,
     waitingFor,
-    selectedCards,
+    selectedHandIndexes,
+    selectedFieldOptionIndexes,
     selectedTargets,
     promptCounterTarget,
     errorMessage,
     skillEffectToast,
     actionMode,
     magicSubChoice,
-    selectedCardForAction,
+    selectedHandIndexForAction,
     skillMode,
     selectedSkill,
     skillTargetIds,
-    skillDiscardIndices,
+    skillDiscardHandIndexes,
     clearSelections,
     clearActionState,
     setActionMode,
     setMagicSubChoice,
-    setSelectedCardForAction,
+    setSelectedHandIndexForAction,
     clearActionMode,
     setSkillMode,
     setSelectedSkill,
     setSkillTargetIds,
-    setSkillDiscardIndices,
+    setSkillDiscardHandIndexes,
     toggleSkillTarget,
-    toggleSkillDiscard,
+    toggleSkillDiscardHandIndex,
     clearSkillMode,
     setPrompt,
     setWaiting,
     setPromptCounterTarget,
-    setSelectedCards,
+    setSelectedHandIndexes,
+    setSelectedFieldOptionIndexes,
     setSelectedTargets,
     syncAfterStateUpdate,
     setError,

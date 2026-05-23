@@ -16,12 +16,21 @@ func RoleEntry() player.RoleEntry {
 		Defaults:            ApplyDefaults,
 		StarterCards:        StarterCards,
 		Choices:             NewChoiceHandler(),
+		ChoiceSpecs:         ChoiceSpecs(),
 		Skills:              SkillEntries(),
 		ChoiceRouteSpecs:    ChoiceRouteSpecs(),
 		AfterMoraleLossHook: ApplySoulDevour,
 		TimingHookSpecs: []player.TimingHookSpec{
-			{Timing: player.TimingOnDamageBeforeTaken, Priority: 100, Hook: damageBeforeTakenHook},
+			{Timing: player.TimingAttackDeclareInterrupt, Priority: 200, Hook: soulConvertInterruptHook},
+			{Timing: player.TimingDamageTargetBefore, Priority: 100, Hook: damageBeforeTakenHook, RoleFilter: &player.HookRoleNone},
 		},
+	}
+}
+
+// ChoiceSpecs 导出角色 choice 声明（含多选处理器）。
+func ChoiceSpecs() []player.ChoiceSpec {
+	return []player.ChoiceSpec{
+		{ChoiceType: "ss_recall_pick", HandleMultiSelect: handleSoulRecallPickMultiSelect},
 	}
 }
 
@@ -79,11 +88,9 @@ func SkillEntries() []player.SkillEntry {
 // ChoiceRouteSpecs 导出角色 choice 路由声明。
 func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 	return map[string]types.ChoiceRouteSpec{
-		"ss_convert_color":    types.ChoiceRouteRole("soul_sorcerer"),
-		"ss_link_target":      types.ChoiceRouteRole("soul_sorcerer"),
-		"ss_link_transfer_x":  types.ChoiceRouteRole("soul_sorcerer"),
-		"ss_recall_pick":      types.ChoiceRouteRole("soul_sorcerer"),
-		"ss_soul_devour_pick": types.ChoiceRouteRole("soul_sorcerer"),
-		"ss_soul_recall_pick": types.ChoiceRouteRole("soul_sorcerer"),
+		"ss_convert_color":   types.ChoiceRouteRole("soul_sorcerer"),
+		"ss_link_target":     types.ChoiceRouteRole("soul_sorcerer"),
+		"ss_link_transfer_x": types.ChoiceRouteRole("soul_sorcerer"),
+		"ss_recall_pick":     types.ChoiceRouteRole("soul_sorcerer"),
 	}
 }

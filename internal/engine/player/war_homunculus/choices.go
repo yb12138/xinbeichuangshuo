@@ -13,6 +13,27 @@ import (
 
 type choiceHandler struct{}
 
+const (
+	runeSmashFlowID     = "hom_rune_smash"
+	glyphFusionFlowID   = "hom_glyph_fusion"
+	runeChoiceStepX     = "x"
+	runeChoiceStepCards = "cards"
+	runeChoiceStepY     = "y"
+)
+
+var (
+	runeSmashFlowRuntime = model.MustNewPromptFlowRuntime(runeSmashFlowID, []model.PromptFlowStepSpec{
+		{ID: runeChoiceStepX, ChoiceType: "hom_rune_smash_x", CancelPolicy: model.CancelPolicyAbort},
+		{ID: runeChoiceStepCards, ChoiceType: "hom_rune_smash_cards", CancelPolicy: model.CancelPolicyBack},
+		{ID: runeChoiceStepY, ChoiceType: "hom_rune_smash_y", CancelPolicy: model.CancelPolicyBack},
+	})
+	glyphFusionFlowRuntime = model.MustNewPromptFlowRuntime(glyphFusionFlowID, []model.PromptFlowStepSpec{
+		{ID: runeChoiceStepX, ChoiceType: "hom_glyph_fusion_x", CancelPolicy: model.CancelPolicyAbort},
+		{ID: runeChoiceStepCards, ChoiceType: "hom_glyph_fusion_cards", CancelPolicy: model.CancelPolicyBack},
+		{ID: runeChoiceStepY, ChoiceType: "hom_glyph_fusion_y", CancelPolicy: model.CancelPolicyBack},
+	})
+)
+
 func NewChoiceHandler() engineplayer.ChoiceHandler {
 	return choiceHandler{}
 }
@@ -43,21 +64,19 @@ func buildRuneReforgeDistributionPrompt(playerID string, data map[string]interfa
 	if total <= 0 {
 		total = 3
 	}
-	options := make([]model.PromptOption, 0, total+1)
-	for warRunes := 0; warRunes <= total; warRunes++ {
-		magicRunes := total - warRunes
-		options = append(options, model.PromptOption{
-			ID:    fmt.Sprintf("%d", warRunes),
-			Label: fmt.Sprintf("战纹 %d / 魔纹 %d", warRunes, magicRunes),
-		})
-	}
+	// 使用 presentation.layout="rune_allocate" 渲染战纹/魔纹两行数字选择器。
 	return &model.Prompt{
-		Type:     model.PromptConfirm,
-		PlayerID: playerID,
-		Message:  fmt.Sprintf("【符文改造】请选择战纹/魔纹分配（总计%d）：", total),
-		Options:  options,
-		Min:      1,
-		Max:      1,
+		Type:       model.PromptConfirm,
+		ChoiceType: "hom_rune_reforge_allocate",
+		PlayerID:   playerID,
+		Message:    fmt.Sprintf("【符文改造】请分配战纹/魔纹（总计%d）：", total),
+		Options: []model.PromptOption{
+			{ID: "hom_war_rune", Label: "战纹", Hint: fmt.Sprintf("max:%d", total)},
+			{ID: "hom_magic_rune", Label: "魔纹", Hint: fmt.Sprintf("max:%d", total)},
+		},
+		Min:          2,
+		Max:          2,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, Layout: "rune_allocate", NumericBase: 0},
 	}
 }
 
@@ -76,35 +95,57 @@ func buildRuneXPrompt(playerID string, data map[string]interface{}, glyph bool) 
 	for xValue := minX; xValue <= maxX; xValue++ {
 		options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", xValue), Label: fmt.Sprintf("X=%d", xValue)})
 	}
-	return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: message, Options: options, Min: 1, Max: 1}
+	return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: message, Options: options, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 0}}
 }
 
 func buildRuneCardsPrompt(playerID string, player *model.Player, data map[string]interface{}, glyph bool) *model.Prompt {
-	remaining := ParseIntSliceContextValue(data["remaining_indices"])
-	xValue := runtimeutil.ToIntContextValue(data["x_value"])
-	selectedCount := len(ParseIntSliceContextValue(data["selected_indices"]))
+	candidates := engineplayer.ParseIntSliceContextValue(data["candidate_indices"])
+	remaining := engineplayer.ParseIntSliceContextValue(data["remaining_indices"])
+	if len(remaining) == 0 {
+		remaining = candidates
+	}
+	flow, err := model.RequirePromptFlow(data, runeChoiceFlowID(glyph), runeChoiceLabel(glyph))
+	if err != nil {
+		return nil
+	}
+	xValue := flow.Selection(runeChoiceStepX).Count
+	minPick := runtimeutil.ToIntContextValue(data["min_pick"])
+	if minPick < 1 {
+		if glyph {
+			minPick = 2 // 魔纹融合至少2张
+		} else {
+			minPick = 1 // 战纹碎击至少1张
+		}
+	}
+	selectedCount := len(flow.Selection(runeChoiceStepCards).OptionIndexes)
 	options := make([]model.PromptOption, 0, len(remaining))
 	for _, idx := range remaining {
 		if player == nil || idx < 0 || idx >= len(player.Hand) {
 			continue
 		}
 		options = append(options, model.PromptOption{
-			ID:    fmt.Sprintf("%d", idx),
-			Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(player.Hand[idx])),
+			ID:     fmt.Sprintf("%d", idx),
+			Label:  fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(player.Hand[idx])),
+			CardID: player.Hand[idx].ID,
 		})
 	}
-	remainingPick := xValue - selectedCount
+	// 计算还需要选择多少张牌
+	remainingPick := minPick
+	if xValue > 0 {
+		remainingPick = xValue - selectedCount
+	}
 	if remainingPick < 1 {
 		remainingPick = 1
 	}
+	maxPick := len(options)
 	if len(options) > 0 && remainingPick > len(options) {
 		remainingPick = len(options)
 	}
-	message := fmt.Sprintf("【战纹碎击】请选择要弃置的%d张牌：", remainingPick)
+	message := fmt.Sprintf("【战纹碎击】请选择要弃置的同系牌（所选牌彼此同系，至少%d张）：", minPick)
 	if glyph {
-		message = fmt.Sprintf("【魔纹融合】请选择要弃置的%d张牌（元素不可重复）：", remainingPick)
+		message = fmt.Sprintf("【魔纹融合】请选择要弃置的异系牌（所选牌彼此异系，至少%d张）：", minPick)
 	}
-	return &model.Prompt{Type: model.PromptChooseCards, PlayerID: playerID, Message: message, Options: options, Min: remainingPick, Max: remainingPick}
+	return &model.Prompt{Type: model.PromptChooseCards, PlayerID: playerID, Message: message, Options: options, Min: remainingPick, Max: maxPick, Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand"}}
 }
 
 func buildRuneYPrompt(playerID string, data map[string]interface{}, glyph bool) *model.Prompt {
@@ -117,7 +158,7 @@ func buildRuneYPrompt(playerID string, data map[string]interface{}, glyph bool) 
 	if glyph {
 		message = "【魔纹融合】请选择Y（额外翻转魔纹数）："
 	}
-	return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: message, Options: options, Min: 1, Max: 1}
+	return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: message, Options: options, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 0}}
 }
 
 func buildDualEchoTargetPrompt(rt engineplayer.ChoiceRuntime, playerID string, data map[string]interface{}) *model.Prompt {
@@ -125,18 +166,19 @@ func buildDualEchoTargetPrompt(rt engineplayer.ChoiceRuntime, playerID string, d
 	options := make([]model.PromptOption, 0, len(targetIDs)+1)
 	for _, targetID := range targetIDs {
 		if target := rt.GetPlayers()[targetID]; target != nil {
-			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", len(options)), Label: target.Name})
+			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", len(options)), Label: target.Name, TargetID: targetID})
 		}
 	}
 	options = append(options, model.PromptOption{ID: "cancel", Label: "取消"})
 	damage := runtimeutil.ToIntContextValue(data["damage"])
 	return &model.Prompt{
-		Type:     model.PromptConfirm,
-		PlayerID: playerID,
-		Message:  fmt.Sprintf("【双重回响】请选择额外造成%d点法术伤害的目标：", damage),
-		Options:  options,
-		Min:      1,
-		Max:      1,
+		Type:         model.PromptConfirm,
+		PlayerID:     playerID,
+		Message:      fmt.Sprintf("【双重回响】请选择额外造成%d点法术伤害的目标：", damage),
+		Options:      options,
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationTargetPicker, TargetFilter: "custom"},
 	}
 }
 
@@ -148,7 +190,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 	choiceType, _ := ctxData["choice_type"].(string)
 
 	switch choiceType {
-	case "hom_rune_reforge_distribution":
+	case "hom_rune_reforge_distribution", "hom_rune_reforge_allocate":
 		return true, handleRuneReforgeDistribution(rt, ctxData, selectionIndex)
 	case "hom_rune_smash_x", "hom_glyph_fusion_x":
 		return true, handleRuneX(rt, ctxData, selectionIndex, choiceType == "hom_glyph_fusion_x")
@@ -209,10 +251,8 @@ func handleRuneReforgeDistribution(rt engineplayer.ChoiceRuntime, ctxData map[st
 func handleRuneX(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int, glyph bool) error {
 	maxX := runtimeutil.ToIntContextValue(ctxData["max_x"])
 	minX := 1
-	nextChoice := "hom_rune_smash_cards"
 	if glyph {
 		minX = 2
-		nextChoice = "hom_glyph_fusion_cards"
 	}
 
 	xValue := selectionIndex
@@ -223,17 +263,22 @@ func handleRuneX(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, 
 		return fmt.Errorf("无效的X值")
 	}
 
-	candidates := ParseIntSliceContextValue(ctxData["candidate_indices"])
+	candidates := engineplayer.ParseIntSliceContextValue(ctxData["candidate_indices"])
 	if xValue > len(candidates) {
 		return fmt.Errorf("可选牌数量不足")
 	}
 
-	ctxData["choice_type"] = nextChoice
-	ctxData["x_value"] = xValue
-	ctxData["selected_indices"] = []int{}
+	flow, err := model.RequirePromptFlow(ctxData, runeChoiceFlowID(glyph), runeChoiceLabel(glyph))
+	if err != nil {
+		return err
+	}
+	flow.PutSelection(runeChoiceStepX, model.PromptFlowSelection{
+		OptionIndexes: []int{selectionIndex},
+		Count:         xValue,
+	})
+	flow.PutSelection(runeChoiceStepCards, model.PromptFlowSelection{Count: xValue})
 	ctxData["remaining_indices"] = append([]int{}, candidates...)
-	updateRuneChoiceContext(rt, ctxData)
-	return nil
+	return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, runeChoiceFlowRuntime(glyph), flow, runeChoiceStepCards)
 }
 
 func handleRuneCards(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int, glyph bool) error {
@@ -243,9 +288,16 @@ func handleRuneCards(rt engineplayer.ChoiceRuntime, ctxData map[string]interface
 		return fmt.Errorf("玩家不存在")
 	}
 
-	remaining := ParseIntSliceContextValue(ctxData["remaining_indices"])
-	selected := ParseIntSliceContextValue(ctxData["selected_indices"])
-	xValue := runtimeutil.ToIntContextValue(ctxData["x_value"])
+	remaining := engineplayer.ParseIntSliceContextValue(ctxData["remaining_indices"])
+	if len(remaining) == 0 {
+		remaining = engineplayer.ParseIntSliceContextValue(ctxData["candidate_indices"])
+	}
+	flow, err := model.RequirePromptFlow(ctxData, runeChoiceFlowID(glyph), runeChoiceLabel(glyph))
+	if err != nil {
+		return err
+	}
+	selected := append([]int{}, flow.Selection(runeChoiceStepCards).OptionIndexes...)
+	xValue := flow.Selection(runeChoiceStepX).Count
 	cardIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, remaining)
 	if !ok {
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
@@ -256,10 +308,10 @@ func handleRuneCards(rt engineplayer.ChoiceRuntime, ctxData map[string]interface
 
 	attackElement, _ := ctxData["attack_element"].(string)
 	nextSelected := append(append([]int{}, selected...), cardIdx)
-	mismatchErr := "战纹碎击需选择与攻击同系的牌"
+	mismatchErr := "战纹碎击需选择彼此同系的牌"
 	duplicateErr := ""
 	if glyph {
-		mismatchErr = "魔纹融合需选择与攻击异系的牌"
+		mismatchErr = "魔纹融合需选择彼此异系的牌"
 		duplicateErr = "魔纹融合需选择元素互不相同的异系牌"
 	}
 	if err := validateRuneCardSelection(user, nextSelected, attackElement, glyph, mismatchErr, duplicateErr); err != nil {
@@ -267,27 +319,150 @@ func handleRuneCards(rt engineplayer.ChoiceRuntime, ctxData map[string]interface
 	}
 
 	nextRemaining := filterRuneRemainingCandidates(user, remaining, cardIdx, glyph)
-	if len(nextSelected) < xValue {
-		ctxData["selected_indices"] = nextSelected
+	// 如果还在直接选牌模式（xValue == 0），检查是否需要继续选牌
+	if xValue == 0 {
+		minPick := runtimeutil.ToIntContextValue(ctxData["min_pick"])
+		if minPick < 1 {
+			if glyph {
+				minPick = 2
+			} else {
+				minPick = 1
+			}
+		}
+		// 选择了足够数量的牌，进入 Y 选择或结算
+		if len(nextSelected) >= minPick {
+			flow.PutSelection(runeChoiceStepCards, model.PromptFlowSelection{
+				OptionIndexes: nextSelected,
+				Count:         len(nextSelected),
+			})
+			maxY := runtimeutil.ToIntContextValue(ctxData["max_y"])
+			if maxY > 0 {
+				return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, runeChoiceFlowRuntime(glyph), flow, runeChoiceStepY)
+			}
+			return resolveRuneChoice(rt, ctxData, glyph)
+		}
+		// 还需要继续选牌
+		flow.PutSelection(runeChoiceStepCards, model.PromptFlowSelection{OptionIndexes: nextSelected})
 		ctxData["remaining_indices"] = nextRemaining
-		updateRuneChoiceContext(rt, ctxData)
+		engineplayer.NotifyChoiceContext(rt, ctxData)
 		return nil
 	}
 
-	ctxData["selected_indices"] = nextSelected
+	// 逐张选牌模式：继续收集直到达到 xValue。
+	if len(nextSelected) < xValue {
+		flow.PutSelection(runeChoiceStepCards, model.PromptFlowSelection{
+			OptionIndexes: nextSelected,
+			Count:         xValue,
+		})
+		ctxData["remaining_indices"] = nextRemaining
+		engineplayer.NotifyChoiceContext(rt, ctxData)
+		return nil
+	}
+
+	flow.PutSelection(runeChoiceStepCards, model.PromptFlowSelection{
+		OptionIndexes: nextSelected,
+		Count:         xValue,
+	})
 	maxY := runtimeutil.ToIntContextValue(ctxData["max_y"])
 	if maxY > 0 {
-		if glyph {
-			ctxData["choice_type"] = "hom_glyph_fusion_y"
-		} else {
-			ctxData["choice_type"] = "hom_rune_smash_y"
-		}
-		updateRuneChoiceContext(rt, ctxData)
-		return nil
+		return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, runeChoiceFlowRuntime(glyph), flow, runeChoiceStepY)
 	}
 
-	ctxData["y_value"] = 0
 	return resolveRuneChoice(rt, ctxData, glyph)
+}
+
+// handleRuneCardsMultiSelect 返回处理多选的函数。
+func handleRuneCardsMultiSelect(glyph bool) func(rt engineplayer.ChoiceRuntime, playerID string, selections []int, ctxData map[string]interface{}) (bool, error) {
+	return func(rt engineplayer.ChoiceRuntime, playerID string, selections []int, ctxData map[string]interface{}) (bool, error) {
+		userID, _ := ctxData["user_id"].(string)
+		user := rt.GetPlayers()[userID]
+		if user == nil {
+			return false, fmt.Errorf("玩家不存在")
+		}
+
+		minPick := runtimeutil.ToIntContextValue(ctxData["min_pick"])
+		if minPick < 1 {
+			if glyph {
+				minPick = 2 // 魔纹融合至少2张
+			} else {
+				minPick = 1 // 战纹碎击至少1张
+			}
+		}
+
+		if len(selections) < minPick {
+			return false, fmt.Errorf("至少需要选择%d张牌", minPick)
+		}
+
+		attackElement, _ := ctxData["attack_element"].(string)
+		mismatchErr := "战纹碎击需选择彼此同系的牌"
+		duplicateErr := ""
+		if glyph {
+			mismatchErr = "魔纹融合需选择彼此异系的牌"
+			duplicateErr = "魔纹融合需选择元素互不相同的异系牌"
+		}
+		if err := validateRuneCardSelection(user, selections, attackElement, glyph, mismatchErr, duplicateErr); err != nil {
+			return false, err
+		}
+
+		flow, err := model.RequirePromptFlow(ctxData, runeChoiceFlowID(glyph), runeChoiceLabel(glyph))
+		if err != nil {
+			return false, err
+		}
+		flow.PutSelection(runeChoiceStepCards, model.PromptFlowSelection{
+			OptionIndexes: append([]int{}, selections...),
+			Count:         len(selections),
+		})
+		maxY := runtimeutil.ToIntContextValue(ctxData["max_y"])
+		if maxY > 0 {
+			if err := engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, runeChoiceFlowRuntime(glyph), flow, runeChoiceStepY); err != nil {
+				return false, err
+			}
+			return true, nil // 消费当前选择步骤，继续弹出 Y 选择
+		}
+
+		return true, resolveRuneChoice(rt, ctxData, glyph)
+	}
+}
+
+// handleRuneReforgeAllocate 处理符文改造的多选（战纹/魔纹分配）。
+func handleRuneReforgeAllocate(rt engineplayer.ChoiceRuntime, playerID string, selections []int, ctxData map[string]interface{}) (bool, error) {
+	userID, _ := ctxData["user_id"].(string)
+	user := rt.GetPlayers()[userID]
+	if user == nil {
+		return false, fmt.Errorf("玩家不存在")
+	}
+
+	total := runtimeutil.ToIntContextValue(ctxData["total_runes"])
+	if total <= 0 {
+		total = 3
+	}
+
+	if len(selections) != 2 {
+		return false, fmt.Errorf("请为战纹和魔纹分别选择数量")
+	}
+
+	warRunes := selections[0]
+	magicRunes := selections[1]
+
+	if warRunes < 0 || magicRunes < 0 {
+		return false, fmt.Errorf("分配数量不能为负")
+	}
+
+	if warRunes+magicRunes != total {
+		return false, fmt.Errorf("战纹和魔纹之和必须等于%d，当前：%d+%d=%d", total, warRunes, magicRunes, warRunes+magicRunes)
+	}
+
+	if user.Tokens == nil {
+		user.Tokens = map[string]int{}
+	}
+	user.Tokens["hom_war_rune"] = warRunes
+	user.Tokens["hom_magic_rune"] = magicRunes
+	rt.Log(fmt.Sprintf("%s 的 [符文改造]：战纹=%d，魔纹=%d", user.Name, user.Tokens["hom_war_rune"], user.Tokens["hom_magic_rune"]))
+	rt.PopInterrupt()
+	if rt.GetPendingInterrupt() == nil {
+		rt.ApplyChoiceResumePoint(model.TurnStageActionStart)
+	}
+	return true, nil
 }
 
 func handleRuneY(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int, glyph bool) error {
@@ -296,7 +471,14 @@ func handleRuneY(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, 
 	if yValue < 0 || yValue > maxY {
 		return fmt.Errorf("无效的Y值")
 	}
-	ctxData["y_value"] = yValue
+	flow, err := model.RequirePromptFlow(ctxData, runeChoiceFlowID(glyph), runeChoiceLabel(glyph))
+	if err != nil {
+		return err
+	}
+	flow.PutSelection(runeChoiceStepY, model.PromptFlowSelection{
+		OptionIndexes: []int{selectionIndex},
+		Count:         yValue,
+	})
 	return resolveRuneChoice(rt, ctxData, glyph)
 }
 
@@ -348,21 +530,26 @@ func resolveRuneChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]interfa
 	if rawCtx == nil || rawCtx.EventCtx == nil {
 		return fmt.Errorf("英灵人形技能上下文丢失")
 	}
-	xVal := runtimeutil.ToIntContextValue(ctxData["x_value"])
-	yVal := runtimeutil.ToIntContextValue(ctxData["y_value"])
+	flow, err := model.RequirePromptFlow(ctxData, runeChoiceFlowID(glyph), runeChoiceLabel(glyph))
+	if err != nil {
+		return err
+	}
+	cardSelection := flow.Selection(runeChoiceStepCards)
+	xVal := cardSelection.Count
+	yVal := flow.Selection(runeChoiceStepY).Count
 	if xVal <= 0 || yVal < 0 {
 		return fmt.Errorf("X/Y 参数无效")
 	}
-	selected := runtimeutil.ParseChoiceIntSlice(ctxData["selected_indices"])
+	selected := append([]int{}, cardSelection.OptionIndexes...)
 	if len(selected) != xVal {
 		return fmt.Errorf("弃牌数量与X不一致")
 	}
 
 	attackElement, _ := ctxData["attack_element"].(string)
-	mismatchErr := "战纹碎击需弃置同系牌"
+	mismatchErr := "战纹碎击需弃置彼此同系的牌"
 	duplicateErr := ""
 	if glyph {
-		mismatchErr = "魔纹融合需弃置异系牌"
+		mismatchErr = "魔纹融合需弃置彼此异系的牌"
 		duplicateErr = "魔纹融合需弃置元素互不相同的异系牌"
 	}
 	if err := validateRuneCardSelection(user, selected, attackElement, glyph, mismatchErr, duplicateErr); err != nil {
@@ -374,7 +561,7 @@ func resolveRuneChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]interfa
 		return err
 	}
 
-	removed := removeCardsByIndicesFromHand(user, append([]int{}, selected...))
+	removed, _ := engineplayer.RemoveCardsByIndicesFromHand(user, append([]int{}, selected...))
 	rt.NotifyCardRevealed(user.ID, removed, "discard")
 	rt.AppendToDiscard(removed)
 
@@ -385,7 +572,7 @@ func resolveRuneChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]interfa
 			damage = 0
 		}
 		if damage > 0 && targetID != "" {
-			rt.AddPendingDamage(model.PendingDamage{
+			rt.AddPendingDamageFront(model.PendingDamage{
 				SourceID:   user.ID,
 				TargetID:   targetID,
 				Damage:     damage,
@@ -413,7 +600,7 @@ func resolveRuneChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]interfa
 		*rawCtx.EventCtx.DamageVal += bonusDamage
 	}
 	if yVal > 0 && targetID != "" {
-		rt.AddPendingDamage(model.PendingDamage{
+		rt.AddPendingDamageFront(model.PendingDamage{
 			SourceID:   user.ID,
 			TargetID:   targetID,
 			Damage:     yVal,
@@ -430,22 +617,34 @@ func resolveRuneChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]interfa
 // Interrupt context helpers
 // ---------------------------------------------------------------------------
 
-// updateRuneChoiceContext replaces the current pending interrupt context and
-// re-notifies the prompt.
-func updateRuneChoiceContext(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}) {
-	if intr := rt.GetPendingInterrupt(); intr != nil {
-		intr.Context = ctxData
-	}
-	rt.NotifyInterruptPrompt()
-}
-
 // ---------------------------------------------------------------------------
 // Rune validation & mutation helpers
 // ---------------------------------------------------------------------------
 
+func runeChoiceFlowID(glyph bool) string {
+	if glyph {
+		return glyphFusionFlowID
+	}
+	return runeSmashFlowID
+}
+
+func runeChoiceLabel(glyph bool) string {
+	if glyph {
+		return "魔纹融合"
+	}
+	return "战纹碎击"
+}
+
+func runeChoiceFlowRuntime(glyph bool) *model.PromptFlowRuntime {
+	if glyph {
+		return glyphFusionFlowRuntime
+	}
+	return runeSmashFlowRuntime
+}
+
 // validateRuneCardSelection checks that the selected hand indices satisfy the
-// element-matching rules for 战纹碎击 (same element) or 魔纹融合 (different
-// element from attack element, no duplicates).
+// element-matching rules for 战纹碎击 (selected cards must be same element with each other)
+// or 魔纹融合 (selected cards must be different elements from each other).
 func validateRuneCardSelection(user *model.Player, selected []int, attackElement string, glyph bool, mismatchErr, duplicateErr string) error {
 	seen := map[model.Element]bool{}
 	for _, idx := range selected {
@@ -454,16 +653,20 @@ func validateRuneCardSelection(user *model.Player, selected []int, attackElement
 		}
 		elem := user.Hand[idx].Element
 		if glyph {
-			if attackElement != "" && string(elem) == attackElement {
-				return fmt.Errorf(mismatchErr)
-			}
+			// 魔纹融合：选择的牌彼此异系（元素互不相同）
 			if duplicateErr != "" && seen[elem] {
 				return fmt.Errorf(duplicateErr)
 			}
 			seen[elem] = true
 			continue
 		}
-		if attackElement != "" && string(elem) != attackElement {
+		// 战纹碎击：选择的牌彼此同系
+		// 第一张牌确定元素，后续牌必须与第一张牌元素相同
+		if len(seen) == 0 {
+			seen[elem] = true
+			continue
+		}
+		if !seen[elem] || len(seen) > 1 {
 			return fmt.Errorf(mismatchErr)
 		}
 	}
@@ -492,16 +695,26 @@ func applyRuneFlip(user *model.Player, glyph bool, flipCount int) error {
 }
 
 // filterRuneRemainingCandidates filters out the picked card index from the
-// remaining candidate list. For glyph mode, it also removes cards with the
-// same element as the picked card.
+// remaining candidate list.
+// For glyph mode (魔纹融合), it removes cards with the same element as the picked card (彼此异系).
+// For rune smash mode (战纹碎击), it removes cards with different element from the picked card (彼此同系).
 func filterRuneRemainingCandidates(user *model.Player, remaining []int, picked int, glyph bool) []int {
 	nextRemaining := make([]int, 0, len(remaining))
 	for _, idx := range remaining {
 		if idx == picked {
 			continue
 		}
-		if glyph && idx >= 0 && idx < len(user.Hand) && picked >= 0 && picked < len(user.Hand) && user.Hand[idx].Element == user.Hand[picked].Element {
-			continue
+		if idx >= 0 && idx < len(user.Hand) && picked >= 0 && picked < len(user.Hand) {
+			pickedElem := user.Hand[picked].Element
+			currentElem := user.Hand[idx].Element
+			if glyph && currentElem == pickedElem {
+				// 魔纹融合：过滤掉相同元素的牌（彼此异系）
+				continue
+			}
+			if !glyph && currentElem != pickedElem {
+				// 战纹碎击：过滤掉不同元素的牌（彼此同系）
+				continue
+			}
 		}
 		nextRemaining = append(nextRemaining, idx)
 	}
@@ -512,52 +725,6 @@ func filterRuneRemainingCandidates(user *model.Player, remaining []int, picked i
 // Card helpers
 // ---------------------------------------------------------------------------
 
-// removeCardsByIndicesFromHand removes the cards at the given indices from the
-// player's hand and returns the removed cards.
-func removeCardsByIndicesFromHand(player *model.Player, indices []int) []model.Card {
-	if player == nil || len(indices) == 0 {
-		return nil
-	}
-	removed := make([]model.Card, 0, len(indices))
-	for _, idx := range indices {
-		if idx >= 0 && idx < len(player.Hand) {
-			removed = append(removed, player.Hand[idx])
-		}
-	}
-	newHand := make([]model.Card, 0, len(player.Hand)-len(indices))
-	for i, card := range player.Hand {
-		keep := true
-		for _, idx := range indices {
-			if i == idx {
-				keep = false
-				break
-			}
-		}
-		if keep {
-			newHand = append(newHand, card)
-		}
-	}
-	player.Hand = newHand
-	return removed
-}
-
 // ---------------------------------------------------------------------------
 // Context value helpers
 // ---------------------------------------------------------------------------
-
-// parseIntSliceContextValue extracts a []int from an interface{}, handling both
-// []int and []interface{} slices.
-func ParseIntSliceContextValue(raw interface{}) []int {
-	var out []int
-	switch arr := raw.(type) {
-	case []int:
-		out = append(out, arr...)
-	case []interface{}:
-		for _, item := range arr {
-			if f, ok := item.(float64); ok {
-				out = append(out, int(f))
-			}
-		}
-	}
-	return out
-}

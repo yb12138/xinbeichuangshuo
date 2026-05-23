@@ -29,64 +29,20 @@ type SoulSorcererSoulLinkHandler struct{ engineplayer.BaseHandler }
 
 type SoulSorcererSoulAmpHandler struct{ engineplayer.BaseHandler }
 
-func getToken(p *model.Player, key string) int {
-	if p == nil {
-		return 0
-	}
-	if p.Tokens == nil {
-		p.Tokens = map[string]int{}
-	}
-	return p.Tokens[key]
-}
-
-func setToken(p *model.Player, key string, v int) {
-	if p == nil {
-		return
-	}
-	if p.Tokens == nil {
-		p.Tokens = map[string]int{}
-	}
-	p.Tokens[key] = v
-}
-
-func addToken(p *model.Player, key string, delta int, minV int, maxV int) int {
-	cur := getToken(p, key)
-	cur += delta
-	if cur < minV {
-		cur = minV
-	}
-	if maxV >= minV && cur > maxV {
-		cur = maxV
-	}
-	setToken(p, key, cur)
-	return cur
-}
-
-func playerEnergyCap(p *model.Player) int {
-	if p == nil {
-		return 3
-	}
-	cap := 3
-	if p.Character != nil && p.Character.ID == "sage" {
-		cap++
-	}
-	return cap
-}
-
 func soulBlue(user *model.Player) int {
-	return addToken(user, "ss_blue_soul", 0, 0, soulSorcererBlueCap)
+	return engineplayer.AddToken(user, "ss_blue_soul", 0, soulSorcererBlueCap)
 }
 
 func soulYellow(user *model.Player) int {
-	return addToken(user, "ss_yellow_soul", 0, 0, soulSorcererYellowCap)
+	return engineplayer.AddToken(user, "ss_yellow_soul", 0, soulSorcererYellowCap)
 }
 
 func addSoulBlue(user *model.Player, delta int) int {
-	return addToken(user, "ss_blue_soul", delta, 0, soulSorcererBlueCap)
+	return engineplayer.AddToken(user, "ss_blue_soul", delta, soulSorcererBlueCap)
 }
 
 func addSoulYellow(user *model.Player, delta int) int {
-	return addToken(user, "ss_yellow_soul", delta, 0, soulSorcererYellowCap)
+	return engineplayer.AddToken(user, "ss_yellow_soul", delta, soulSorcererYellowCap)
 }
 
 func soulSorcererAllyIDs(game model.IGameEngine, user *model.Player, includeSelf bool) []string {
@@ -155,49 +111,12 @@ func (h *SoulSorcererSoulRecallHandler) Execute(ctx *model.Context) error {
 }
 
 func (h *SoulSorcererSoulConvertHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
-		return false
-	}
-	if ctx.Timing != model.TimingOnAttackDeclared {
-		return false
-	}
-	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
-		return false
-	}
-	y := soulYellow(ctx.User)
-	b := soulBlue(ctx.User)
-	canY2B := y > 0 && b < soulSorcererBlueCap
-	canB2Y := b > 0 && y < soulSorcererYellowCap
-	return canY2B || canB2Y
+	// 灵魂转换已迁移至 TimingAttackDeclareInterrupt 时序钩子直接推送选择中断，
+	// 不再走响应技能确认流程，此 handler 仅保留注册占位。
+	return false
 }
 
 func (h *SoulSorcererSoulConvertHandler) Execute(ctx *model.Context) error {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil {
-		return fmt.Errorf("灵魂转换上下文无效")
-	}
-	y := soulYellow(ctx.User)
-	b := soulBlue(ctx.User)
-	modeOrder := make([]string, 0, 2)
-	if y > 0 && b < soulSorcererBlueCap {
-		modeOrder = append(modeOrder, "y2b")
-	}
-	if b > 0 && y < soulSorcererYellowCap {
-		modeOrder = append(modeOrder, "b2y")
-	}
-	if len(modeOrder) == 0 {
-		return fmt.Errorf("当前无可执行的灵魂转换")
-	}
-	ctx.Game.PushInterrupt(&model.Interrupt{
-		Type:     model.InterruptChoice,
-		PlayerID: ctx.User.ID,
-		Context: map[string]interface{}{
-			"choice_type": "ss_convert_color",
-			"user_id":     ctx.User.ID,
-			"mode_order":  modeOrder,
-			"user_ctx":    ctx,
-		},
-	})
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [灵魂转换]：请选择转换方向", ctx.User.Name))
 	return nil
 }
 
@@ -288,16 +207,7 @@ func (h *SoulSorcererSoulGrantHandler) Execute(ctx *model.Context) error {
 		return fmt.Errorf("蓝色灵魂不足3点")
 	}
 	addSoulBlue(ctx.User, -3)
-	cap := playerEnergyCap(target)
-	room := cap - (target.Gem + target.Crystal)
-	if room < 0 {
-		room = 0
-	}
-	gain := 2
-	if room < gain {
-		gain = room
-	}
-	target.Gem += gain
+	gain := engineplayer.AddPlayerGemWithCap(ctx.Game, target, 2)
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [灵魂赐予]：%s +%d宝石", ctx.User.Name, target.Name, gain))
 	return nil
 }

@@ -20,7 +20,7 @@ func hitCheckHook(rt player.HookRuntime, ctx player.TimingHookContext) player.Ti
 	if ctx.PendingDamage != nil {
 		ctx.PendingDamage.SetInterceptTag(model.CombatInterceptForceHit)
 		ctx.PendingDamage.SetInterceptTag(model.CombatInterceptIgnoreHolyShield)
-		ctx.PendingDamage.IgnoreHeal = true
+		// 注意：血腥咆哮仅强制命中+无视圣盾，不禁止目标使用治疗抵消伤害
 		rt.Log(fmt.Sprintf("%s 发动 [血腥咆哮]！目标治疗剂为2，强制命中且无视圣盾", attacker.Name))
 	}
 	return player.TimingHookResult{}

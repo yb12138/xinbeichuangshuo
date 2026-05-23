@@ -27,8 +27,9 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			{ID: "0", Label: "是"},
 			{ID: "1", Label: "否"},
 		},
-		Min: 1,
-		Max: 1,
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 	}
 }
 
@@ -60,8 +61,8 @@ func handleMagicSwordsmanShadowMeteorReleaseConfirmChoice(rt engineplayer.Choice
 			rt.ModifyGem(camp, -remain)
 		}
 		user.Form = ""
-		user.Gem++
-		rt.Log(fmt.Sprintf("%s 通过[暗影流星]额外效果转正并获得1红宝石", user.Name))
+		gainedGem := engineplayer.AddPlayerGemWithCap(rt, user, 1)
+		rt.Log(fmt.Sprintf("%s 通过[暗影流星]额外效果转正并获得%d红宝石", user.Name, gainedGem))
 	}
 	rt.PopInterrupt()
 	if rt.GetPendingInterrupt() == nil {

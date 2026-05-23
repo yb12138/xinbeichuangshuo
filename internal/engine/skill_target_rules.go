@@ -158,6 +158,21 @@ func matchTargetSelf(user *model.Player, target *model.Player, rule TargetSelfRu
 	}
 }
 
+func hasBasicFieldEffect(player *model.Player) bool {
+	if player == nil {
+		return false
+	}
+	for _, fc := range player.Field {
+		if fc == nil || fc.Mode != model.FieldEffect {
+			continue
+		}
+		if model.IsBasicEffect(string(fc.Effect)) {
+			return true
+		}
+	}
+	return false
+}
+
 func effectiveTargetCountRange(use *skillUseRequest) (min int, max int, customErr string) {
 	if use == nil || use.skillDef == nil {
 		return 0, 0, ""
@@ -179,6 +194,10 @@ func effectiveTargetCountRange(use *skillUseRequest) (min int, max int, customEr
 }
 
 func formatTargetCountError(selected, min, max int, customErr string) error {
+	// 分步选择模式：由后端流程控制目标，前端不需要预先选择
+	if customErr == "分步选择" {
+		return nil
+	}
 	if customErr != "" {
 		return fmt.Errorf(customErr)
 	}

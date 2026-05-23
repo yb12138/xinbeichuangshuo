@@ -35,7 +35,7 @@ export function useBattleInteractionState() {
   const {
     currentPrompt,
     actionMode,
-    selectedCardForAction,
+    selectedHandIndexForAction,
     selectedSkill,
     skillTargetIds,
   } = storeToRefs(interruptStore)
@@ -46,12 +46,11 @@ export function useBattleInteractionState() {
     const fieldBlessings = (myPlayer.value?.field || [])
       .filter((fieldCard) => fieldCard?.mode === 'Cover' && fieldCard.effect === ELF_BLESSING_EFFECT && !!fieldCard.card)
       .map((fieldCard) => fieldCard.card)
-    if (fieldBlessings.length > 0) return fieldBlessings
-    return myPlayer.value?.blessings || []
+    return fieldBlessings
   })
   const myExclusiveCards = computed(() => myPlayer.value?.exclusive_cards || [])
-  const myPlayableCards = computed(() =>
-    [
+  const myPlayableCards = computed(() => {
+    const all = [
       ...myHand.value.map((card, index) => ({
         card,
         index,
@@ -63,7 +62,16 @@ export function useBattleInteractionState() {
         source: 'blessing' as const
       }))
     ]
-  )
+    return all
+  })
+  const extraActionElementConstraint = computed<string[] | null>(() => {
+    const extraAction = myPlayer.value?.current_extra_action
+    const extraElements = myPlayer.value?.current_extra_element
+    if (extraAction === 'Attack' && extraElements && extraElements.length > 0) {
+      return extraElements.map(e => e.toLowerCase())
+    }
+    return null
+  })
   const isMyTurn = computed(() => currentPlayer.value === myPlayerId.value)
   const isPromptForMe = computed(() => currentPrompt.value?.player_id === myPlayerId.value)
 
@@ -125,8 +133,8 @@ export function useBattleInteractionState() {
   }
 
   const selectedActionCard = computed(() => {
-    if (selectedCardForAction.value === null) return null
-    return myPlayableCards.value.find((item) => item.index === selectedCardForAction.value)?.card || null
+    if (selectedHandIndexForAction.value === null) return null
+    return myPlayableCards.value.find((item) => item.index === selectedHandIndexForAction.value)?.card || null
   })
 
   const selectedActionIsMagicBullet = computed(() =>
@@ -136,8 +144,8 @@ export function useBattleInteractionState() {
   )
 
   function selectedMagicBasicEffect(): string {
-    if (actionMode.value !== 'magic' || selectedCardForAction.value === null) return ''
-    const item = myPlayableCards.value.find((it) => it.index === selectedCardForAction.value)
+    if (actionMode.value !== 'magic' || selectedHandIndexForAction.value === null) return ''
+    const item = myPlayableCards.value.find((it) => it.index === selectedHandIndexForAction.value)
     if (!item || item.card.type !== 'Magic') return ''
     return BASIC_EFFECT_BY_MAGIC_CARD_NAME[item.card.name] || ''
   }
@@ -211,29 +219,16 @@ export function useBattleInteractionState() {
 
   const canTargetOpponent = computed(() =>
     actionMode.value !== 'none' &&
-    selectedCardForAction.value !== null &&
+    selectedHandIndexForAction.value !== null &&
     !(actionMode.value === 'magic' && selectedActionIsMagicBullet.value)
   )
 
-  const effectiveAvailableSkills = computed((): AvailableSkill[] => {
-    // 行动阶段且轮到自己时，主动技可用性以后端 available_skills 为准（包含空列表）。
-    // 避免前端 fallback 重新“猜”规则导致与后端可用态漂移。
-    if (isMyTurn.value && turnStage.value === 'ActionExecution') {
-      return availableSkills.value
-    }
-    if (availableSkills.value.length > 0) return availableSkills.value
+  function catalogActionSkills(): AvailableSkill[] {
     const roleLookup = myCharRole.value || myPlayer.value?.role || ''
     const char = getCharacter(roleLookup)
     if (!char?.skills?.length) return []
-    const roleId = myCharRole.value || char.id
-    const roleName = char.name
     const actionSkills = char.skills.filter((skill: { type?: number }) => (skill.type ?? 2) === 2)
-    return actionSkills
-      .filter((skill: SkillView) => {
-        if (!skill.require_exclusive) return true
-        return myHand.value.some((card) => cardMatchesExclusive(card, roleId, skill.title, roleName)) ||
-          myExclusiveCards.value.some((card) => cardMatchesExclusive(card, roleId, skill.title, roleName))
-      })
+    const catalogAvailableSkills = actionSkills
       .map((skill: SkillView) => {
         const targetType = skill.target_type ?? 0
         const minTargets = skill.min_targets ?? 0
@@ -252,6 +247,26 @@ export function useBattleInteractionState() {
           require_exclusive: skill.require_exclusive,
         }
       })
+    return catalogAvailableSkills
+  }
+
+  const effectiveAvailableSkills = computed((): AvailableSkill[] => {
+    if (isMyTurn.value && turnStage.value === 'ActionExecution') {
+      const serverSkillByID = new Map(availableSkills.value.map(skill => [skill.id, skill]))
+      const merged = catalogActionSkills().map(skill => serverSkillByID.get(skill.id) || skill)
+      const seen = new Set(merged.map(skill => skill.id))
+      for (const skill of availableSkills.value) {
+        if (!seen.has(skill.id)) {
+          merged.push(skill)
+        }
+      }
+      return merged
+    }
+    if (turnStage.value === 'ActionExecution') {
+      return availableSkills.value
+    }
+    if (availableSkills.value.length > 0) return availableSkills.value
+    return catalogActionSkills()
   })
 
   const canConfirmSkill = computed(() => {
@@ -270,6 +285,7 @@ export function useBattleInteractionState() {
     myBlessings,
     myExclusiveCards,
     myPlayableCards,
+    extraActionElementConstraint,
     isMyTurn,
     isPromptForMe,
     selectedActionCard,

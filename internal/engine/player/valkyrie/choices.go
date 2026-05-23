@@ -32,12 +32,13 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			})
 		}
 		return &model.Prompt{
-			Type:     model.PromptConfirm,
-			PlayerID: playerID,
-			Message:  "【军威神光】请选择效果：",
-			Options:  options,
-			Min:      1,
-			Max:      1,
+			Type:         model.PromptConfirm,
+			PlayerID:     playerID,
+			Message:      "【军威神光】请选择效果：",
+			Options:      options,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 		}
 
 	case "valkyrie_military_glory_x":
@@ -50,12 +51,13 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			})
 		}
 		return &model.Prompt{
-			Type:     model.PromptConfirm,
-			PlayerID: playerID,
-			Message:  "【军威神光】请选择X：",
-			Options:  options,
-			Min:      1,
-			Max:      1,
+			Type:         model.PromptConfirm,
+			PlayerID:     playerID,
+			Message:      "【军威神光】请选择X：",
+			Options:      options,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 0},
 		}
 
 	case "valkyrie_military_glory_target":
@@ -64,18 +66,20 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		for _, targetID := range targetIDs {
 			if target := rt.GetPlayers()[targetID]; target != nil {
 				options = append(options, model.PromptOption{
-					ID:    targetID,
-					Label: target.Name,
+					ID:       targetID,
+					Label:    target.Name,
+					TargetID: targetID,
 				})
 			}
 		}
 		return &model.Prompt{
-			Type:     model.PromptConfirm,
-			PlayerID: playerID,
-			Message:  "【军威神光】请选择目标角色：",
-			Options:  options,
-			Min:      1,
-			Max:      1,
+			Type:         model.PromptConfirm,
+			PlayerID:     playerID,
+			Message:      "【军威神光】请选择目标角色：",
+			Options:      options,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationTargetPicker, TargetFilter: "custom"},
 		}
 
 	case "valkyrie_heroic_discard_card":
@@ -89,18 +93,20 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 				continue
 			}
 			options = append(options, model.PromptOption{
-				ID:    strconv.Itoa(idx),
-				Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(player.Hand[idx])),
+				ID:     strconv.Itoa(idx),
+				Label:  fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(player.Hand[idx])),
+				CardID: player.Hand[idx].ID,
 			})
 		}
 		options = append(options, model.PromptOption{ID: "cancel", Label: "放弃额外效果"})
 		return &model.Prompt{
-			Type:     model.PromptChooseCards,
-			PlayerID: playerID,
-			Message:  "【英灵召唤】可额外弃1张法术牌并令当前战斗目标+1治疗（或点击取消放弃本次额外效果）：",
-			Options:  options,
-			Min:      1,
-			Max:      1,
+			Type:         model.PromptChooseCards,
+			PlayerID:     playerID,
+			Message:      "【英灵召唤】可额外弃1张法术牌并令当前战斗目标+1治疗（或点击取消放弃本次额外效果）：",
+			Options:      options,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand", CardFilter: "magic_only", HasDecline: true},
 		}
 	default:
 		return nil

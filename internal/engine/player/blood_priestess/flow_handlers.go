@@ -141,11 +141,16 @@ func handleBloodPriestessAfterDamage(rt engineplayer.ChoiceRuntime, cont model.F
 		rt.PushInterrupt(&model.Interrupt{
 			Type:     model.InterruptChoice,
 			PlayerID: user.ID,
-			Context: map[string]any{
-				"choice_type":   "bp_curse_discard",
-				"user_id":       user.ID,
-				"discard_count": discardNeed,
-			},
+			Context: func() map[string]any {
+				data := map[string]any{
+					"choice_type":     "bp_curse_discard",
+					"discard_subflow": true,
+					"user_id":         user.ID,
+					"discard_count":   discardNeed,
+				}
+				model.SetPromptFlowContext(data, initBloodCurseDiscardFlow(discardNeed))
+				return data
+			}(),
 		})
 		rt.Log(fmt.Sprintf("%s 的 [血之诅咒] 后续：伤害结算完成，请弃置%d张牌", user.Name, discardNeed))
 		return nil

@@ -23,13 +23,19 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		if len(options) == 0 {
 			return nil
 		}
+		buffName, _ := data["buff_name"].(string)
+		msg := "【天使羁绊】请选择1名角色获得+1治疗"
+		if buffName != "" {
+			msg = fmt.Sprintf("【天使羁绊】%s触发，请选择1名角色获得+1治疗", buffName)
+		}
 		return &model.Prompt{
-			Type:     model.PromptConfirm,
-			PlayerID: playerID,
-			Message:  "【天使羁绊】请选择1名角色获得+1治疗：",
-			Options:  options,
-			Min:      1,
-			Max:      1,
+			Type:         "choose_target",
+			PlayerID:     playerID,
+			Message:      msg,
+			Options:      options,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationTargetPicker, TargetFilter: "custom"},
 		}
 	case "god_protection_x":
 		maxX := runtimeutil.ToIntContextValue(data["max_x"])
@@ -44,12 +50,13 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			})
 		}
 		return &model.Prompt{
-			Type:     model.PromptConfirm,
-			PlayerID: playerID,
-			Message:  "【神之庇护】请选择X值：",
-			Options:  options,
-			Min:      1,
-			Max:      1,
+			Type:         model.PromptConfirm,
+			PlayerID:     playerID,
+			Message:      "【神之庇护】请选择X值：",
+			Options:      options,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 1},
 		}
 	default:
 		return nil
@@ -132,9 +139,15 @@ func buildPromptOptionsForPlayerIDs(players map[string]*model.Player, ids []stri
 	options := make([]model.PromptOption, 0, len(ids))
 	for _, id := range ids {
 		if p := players[id]; p != nil {
+			label := p.Name
+			if p.Character != nil {
+				label = fmt.Sprintf("%s（%s）", p.Name, p.Character.Name)
+			}
 			options = append(options, model.PromptOption{
-				ID:    id,
-				Label: p.Name,
+				ID:       id,
+				Label:    label,
+				TargetID: id,
+				Hint:     fmt.Sprintf("当前治疗：%d/%d", p.Heal, p.MaxHeal),
 			})
 		}
 	}

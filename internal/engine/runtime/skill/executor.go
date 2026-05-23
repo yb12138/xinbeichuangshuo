@@ -16,7 +16,7 @@ func NewExecutor() *Executor {
 	return &Executor{}
 }
 
-// ExecuteSkill 执行单个技能（与旧 executeSkill 对齐）。
+// ExecuteSkill 执行单个技能。
 func (x *Executor) ExecuteSkill(h Host, skill model.SkillDefinition, ctx *model.Context) {
 	handler := skillhandlers.GetHandler(ResolveHandlerID(skill))
 	if handler == nil {

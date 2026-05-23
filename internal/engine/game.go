@@ -31,7 +31,7 @@ type GameEngine struct {
 	// Turn 主流程阶段：动态装配阶段钩子与中断策略。
 	beforeActionFieldHooks []turnTimingHook
 
-	// TimingOnGameStart：入场初始化 / 开局发牌后。
+	// TimingGameStart：入场初始化 / 开局发牌后。
 	gameStartAddPlayerHooks   []gameStartPlayerHook
 	gameStartInitialDealHooks []gameStartPlayerHook
 	// turnMagicDamageTargets 本回合「施法者 → 曾对其造成法术伤害的敌方」；用于吟游诗人【沉沦协奏曲】等统计。
@@ -66,8 +66,13 @@ func (e *GameEngine) resetTurnMagicDamageTracker() {
 	e.turnMagicDamageTargets = map[string]map[string]bool{}
 }
 
-// buildContext：组装 User/Target/Timing/EventCtx。
-func (e *GameEngine) buildContext(user *model.Player, target *model.Player, timing model.FlowTiming, eventCtx *model.EventContext) *model.Context {
+// HasPostActionEndResume reports whether there is a pending post-action-end resume state (for testing).
+func (e *GameEngine) HasPostActionEndResume() bool {
+	return e != nil && e.postActionEndResume != nil
+}
+
+// BuildContext：组装 User/Target/Timing/EventCtx。
+func (e *GameEngine) BuildContext(user *model.Player, target *model.Player, timing model.FlowTiming, eventCtx *model.EventContext) *model.Context {
 	ctx := &model.Context{
 		Game:             e,
 		User:             user,
@@ -79,7 +84,7 @@ func (e *GameEngine) buildContext(user *model.Player, target *model.Player, timi
 		PendingInterrupt: e.State.PendingInterrupt,
 		Targets:          []*model.Player{},
 	}
-	ctx.Selections["current_resume_point"] = e.currentChoiceResumePoint()
+	ctx.Selections["current_resume_point"] = e.CurrentChoiceResumePoint()
 	ctx.Selections["current_turn_stage"] = e.State.TurnStage
 	ctx.Selections["current_combat_stage"] = e.State.CombatStage
 	ctx.Selections["current_subflow"] = e.State.Subflow
@@ -89,7 +94,7 @@ func (e *GameEngine) buildContext(user *model.Player, target *model.Player, timi
 	return ctx
 }
 
-// NewGameEngine 构造引擎：初始化状态、注册技能 handler、装配 TimingOnAttackDeclared 等钩子表。
+// NewGameEngine 构造引擎：初始化状态、注册技能 handler、装配 TimingAttackDeclare 等钩子表。
 func NewGameEngine(observer model.GameObserver) *GameEngine {
 	engine := &GameEngine{
 		State:                  model.NewGameState(),
@@ -105,7 +110,17 @@ func NewGameEngine(observer model.GameObserver) *GameEngine {
 	engine.choiceEngine.SetHost(&choiceHostBridge{e: engine})
 	bootstrapChoiceSpecs(engine)
 	engine.installInterruptOrchestrator()
-	engine.rebuildTimingOnAttackDeclaredRegistry()
+	engine.rebuildAttackDeclareRegistry()
 	engine.roleTimingHooks = mountRoleTimingHooks()
 	return engine
+}
+
+// Dispatcher returns the internal skill dispatcher for testing.
+func (e *GameEngine) Dispatcher() *SkillDispatcher {
+	return e.dispatcher
+}
+
+// HasSkillResume reports whether a skill resume context is pending.
+func (e *GameEngine) HasSkillResume() bool {
+	return e.skillResume != nil
 }

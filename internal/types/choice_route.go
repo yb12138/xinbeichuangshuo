@@ -12,8 +12,9 @@ const (
 
 // ChoiceRouteSpec 定义 choice_type 的路由目的地（角色路由/系统路由）。
 type ChoiceRouteSpec struct {
-	Kind ChoiceRouteKind
-	Role string
+	Kind      ChoiceRouteKind
+	Role      string
+	PhaseSync string
 }
 
 // ChoiceRouteRole 返回角色路由规格。
@@ -21,6 +22,15 @@ func ChoiceRouteRole(role string) ChoiceRouteSpec {
 	return ChoiceRouteSpec{
 		Kind: ChoiceRouteKindRole,
 		Role: role,
+	}
+}
+
+// ChoiceRouteRoleWithPhaseSync 返回带阶段同步声明的角色路由规格。
+func ChoiceRouteRoleWithPhaseSync(role, phaseSync string) ChoiceRouteSpec {
+	return ChoiceRouteSpec{
+		Kind:      ChoiceRouteKindRole,
+		Role:      role,
+		PhaseSync: phaseSync,
 	}
 }
 

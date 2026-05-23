@@ -5,6 +5,7 @@ package engine
 import (
 	"fmt"
 	"starcup-engine/internal/engine/core/runtimeutil"
+	engineplayer "starcup-engine/internal/engine/player"
 
 	"starcup-engine/internal/model"
 )
@@ -21,7 +22,7 @@ type handOverflowContext struct {
 	drawResumePoint         interface{}
 }
 
-func (e *GameEngine) checkHandLimit(player *model.Player, ctx *model.Context) {
+func (e *GameEngine) CheckHandLimitCtx(player *model.Player, ctx *model.Context) {
 	if player == nil {
 		return
 	}
@@ -33,8 +34,18 @@ func (e *GameEngine) checkHandLimit(player *model.Player, ctx *model.Context) {
 	overflowCtx := e.buildHandOverflowContext(ctx)
 	over := len(player.Hand) - e.GetMaxHand(player)
 	if over > 0 {
+		e.dispatchSettlementRulebookTiming(model.TimingSettleHandLimit, player, player, &model.EventContext{
+			Type:     model.EventAfterDraw,
+			SourceID: player.ID,
+			TargetID: player.ID,
+			ActionType: func() model.ActionType {
+				if ctx == nil || ctx.EventCtx == nil {
+					return ""
+				}
+				return ctx.EventCtx.ActionType
+			}(),
+		})
 		e.pushHandOverflowDiscardInterrupt(player, over, overflowCtx)
-		e.enterDiscardSelection()
 		e.Log(fmt.Sprintf("[System] %s 手牌超出上限 %d 张！需要选择 %d 张牌丢弃", player.Name, len(player.Hand), over))
 		return
 	}
@@ -67,6 +78,7 @@ func (e *GameEngine) buildHandOverflowContext(ctx *model.Context) handOverflowCo
 func (e *GameEngine) pushHandOverflowDiscardInterrupt(player *model.Player, discardCount int, overflowCtx handOverflowContext) {
 	e.PushInterrupt(newDiscardChoiceInterrupt(player.ID, map[string]interface{}{
 		"discard_count":              discardCount,
+		"discard_reason":             discardReasonHandOverflow,
 		"is_magic":                   overflowCtx.isMagic,
 		"from_damage_draw":           overflowCtx.fromDamageDraw,
 		"no_morale_loss":             overflowCtx.noMoraleLoss,
@@ -85,7 +97,7 @@ func (e *GameEngine) handOverflowSelectableIndices(player *model.Player) []int {
 	if player == nil {
 		return nil
 	}
-	indices := allHandIndices(player)
+	indices := engineplayer.AllHandIndices(player)
 	if len(e.State.ActionQueue) == 0 {
 		return indices
 	}
@@ -93,13 +105,13 @@ func (e *GameEngine) handOverflowSelectableIndices(player *model.Player) []int {
 	if current.SourceID != player.ID || current.UsesVirtualCard {
 		return indices
 	}
-	lockedIdx := current.CardIndex
-	if lockedIdx < 0 || lockedIdx >= len(player.Hand) {
+	lockedCardID := queuedActionCardID(&current)
+	if lockedCardID == "" {
 		return indices
 	}
 	filtered := make([]int, 0, len(indices))
 	for _, idx := range indices {
-		if idx == lockedIdx {
+		if idx >= 0 && idx < len(player.Hand) && player.Hand[idx].ID == lockedCardID {
 			continue
 		}
 		filtered = append(filtered, idx)

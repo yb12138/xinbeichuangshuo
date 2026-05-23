@@ -7,7 +7,7 @@ import { useInterruptStore } from '../stores/interrupt.store'
 import { useSessionStore } from '../stores/session.store'
 import { useSnapshotStore } from '../stores/snapshot.store'
 import { useUiStore } from '../stores/ui.store'
-import type { FieldCard, PlayerView, Prompt } from '../types/game'
+import type { AvailableSkill, FieldCard, PlayerView, Prompt } from '../types/game'
 import PlayerArea from './PlayerArea.vue'
 import ActionPanel from './ActionPanel.vue'
 import CardComponent from './CardComponent.vue'
@@ -15,8 +15,14 @@ import SkillDetailModal from './SkillDetailModal.vue'
 import BattleZone from './BattleZone.vue'
 import VfxLayer from './VfxLayer.vue'
 import ActionTimeline from './ActionTimeline.vue'
+import StatusEffectIcon from './StatusIcons/StatusEffectIcon.vue'
 import { useSubmitAction } from '../composables/useSubmitAction'
 import { useBattleInteractionState } from '../composables/useBattleInteractionState'
+import { useInteractionController } from '../composables/useInteractionController'
+import {
+  hasBlazeWitchFlameElementOverride,
+  skillDiscardEffectiveElement,
+} from '../constants/skillDisplayRules'
 
 const battleFxStore = useBattleFxStore()
 const battleReviewStore = useBattleReviewStore()
@@ -25,17 +31,18 @@ const snapshotStore = useSnapshotStore()
 const interruptStore = useInterruptStore()
 const uiStore = useUiStore()
 const actions = useSubmitAction()
+const interaction = useInteractionController()
 const {
   myPlayer: myAreaPlayer,
   myHand,
   myExclusiveCards,
   myPlayableCards,
+  extraActionElementConstraint,
   isMyTurn,
   isPromptForMe,
   targetablePlayers,
   targetablePlayersForSkill,
   canTargetOpponent,
-  getRoleDisplayName,
   cardMatchesExclusive,
 } = useBattleInteractionState()
 
@@ -46,7 +53,6 @@ const {
 const { drawBursts, initiatorFocus } = storeToRefs(battleFxStore)
 const { roomPlayers, myPlayerId, myCamp } = storeToRefs(sessionStore)
 const {
-  currentPlayer,
   players,
   redMorale,
   blueMorale,
@@ -61,18 +67,19 @@ const {
 } = storeToRefs(snapshotStore)
 const {
   currentPrompt,
-  selectedCards,
+  selectedHandIndexes,
+  selectedFieldOptionIndexes,
   selectedTargets,
   promptCounterTarget,
   errorMessage,
   skillEffectToast,
   actionMode,
   magicSubChoice,
-  selectedCardForAction,
+  selectedHandIndexForAction,
   skillMode,
   selectedSkill,
   skillTargetIds,
-  skillDiscardIndices,
+  skillDiscardHandIndexes,
 } = storeToRefs(interruptStore)
 const {
   skillModalCharacterId,
@@ -126,20 +133,14 @@ function playableIndexForBlessingCover(fieldIndex: number): number | null {
   const cover = myCoverCards.value.find((entry) => entry.fieldIndex === fieldIndex)
   if (!cover) return null
   if (cover.fieldCard.effect !== ELF_BLESSING_EFFECT) return null
+
   const blessingPlayableCards = myPlayableCards.value.filter((item) => item.source === 'blessing')
   if (blessingPlayableCards.length <= 0) return null
 
-  // 优先按卡牌 ID 精确匹配；若服务端未下发可见 ID，再回退到祝福区顺序映射。
   const coverCardID = String(cover.fieldCard.card?.id || '').trim()
-  if (coverCardID) {
-    const playable = blessingPlayableCards.find((item) => String(item.card?.id || '').trim() === coverCardID)
-    if (playable) return playable.index
-  }
-
-  const blessingCoverEntries = myCoverCards.value.filter((entry) => entry.fieldCard.effect === ELF_BLESSING_EFFECT)
-  const blessingOrdinal = blessingCoverEntries.findIndex((entry) => entry.fieldIndex === fieldIndex)
-  if (blessingOrdinal < 0 || blessingOrdinal >= blessingPlayableCards.length) return null
-  return blessingPlayableCards[blessingOrdinal]?.index ?? null
+  if (!coverCardID) return null
+  const playable = blessingPlayableCards.find((item) => String(item.card?.id || '').trim() === coverCardID)
+  return playable?.index ?? null
 }
 
 const orderedPlayerIds = computed(() => {
@@ -168,22 +169,14 @@ const turnOrderMap = computed(() => {
   return map
 })
 
-const orderedOtherPlayers = computed(() =>
+const orderedBoardPlayers = computed(() =>
   orderedPlayerIds.value
-    .filter((id) => id !== myPlayerId.value)
     .map((id) => players.value[id])
     .filter((p): p is PlayerView => !!p)
 )
 
-const currentTurnCamp = computed(() => {
-  const current = currentPlayer.value ? players.value[currentPlayer.value] : undefined
-  if (current?.camp === 'Red' || current?.camp === 'Blue') return current.camp
-  if (myCamp.value === 'Red' || myCamp.value === 'Blue') return myCamp.value
-  return 'Red'
-})
-
-const leftCamp = computed(() => (currentTurnCamp.value === 'Red' ? 'Blue' : 'Red'))
-const rightCamp = computed(() => currentTurnCamp.value)
+const leftRailPlayers = computed(() => orderedBoardPlayers.value.slice(0, 3))
+const rightRailPlayers = computed(() => orderedBoardPlayers.value.slice(3, 6))
 const isHostInRoom = computed(() =>
   roomPlayers.value.some(p => p.id === myPlayerId.value && p.is_host)
 )
@@ -192,18 +185,159 @@ const offlinePlayers = computed(() =>
 )
 const canHostTakeover = computed(() => isHostInRoom.value && offlinePlayers.value.length > 0)
 
-const leftRailPlayers = computed(() =>
-  orderedOtherPlayers.value
-    .filter((p) => p.camp === leftCamp.value)
-    .slice(0, 3)
-)
-const rightRailPlayers = computed(() =>
-  orderedOtherPlayers.value
-    .filter((p) => p.camp === rightCamp.value)
-    .slice(0, 2)
+type SoulLinkBindingDisplay = {
+  text: string
+  title: string
+}
+
+const soulLinkBindingDisplayByPlayer = computed(() => {
+  const allPlayers = players.value ?? {}
+  const bindings: Record<string, SoulLinkBindingDisplay> = {}
+  const seen = new Set<string>()
+
+  for (const player of Object.values(allPlayers) as PlayerView[]) {
+    if (!player.field?.length) continue
+    for (const fc of player.field) {
+      if (fc.mode !== 'Effect' || fc.effect !== 'SoulLink') continue
+
+      const sourceId = fc.source_id
+      const ownerId = player.id
+      if (!sourceId || !ownerId || sourceId === ownerId) continue
+
+      const pairKey = [sourceId, ownerId].sort().join('|')
+      if (seen.has(pairKey)) continue
+      seen.add(pairKey)
+
+      const sourceName = allPlayers[sourceId]?.name || sourceId
+      const targetName = allPlayers[ownerId]?.name || ownerId
+      const title = `灵魂链接：${sourceName} ↔ ${targetName}`
+      bindings[sourceId] = {
+        text: `灵链 ${compactSoulLinkTargetLabel(targetName)}`,
+        title,
+      }
+      bindings[ownerId] = {
+        text: `灵链 ${compactSoulLinkTargetLabel(sourceName)}`,
+        title,
+      }
+    }
+  }
+
+  return bindings
+})
+
+function compactSoulLinkTargetLabel(name: string): string {
+  const trimmed = String(name || '').trim()
+  if (!trimmed) return '未知目标'
+  return trimmed.length > 8 ? `${trimmed.slice(0, 8)}…` : trimmed
+}
+
+// === 双人关联连线（保留挑衅等需要可视化连线的关系效果）===
+const LINK_EFFECT_COLORS: Record<string, string> = {
+  HeroTaunt: 'rgba(220, 38, 38, 1)',
+}
+
+const LINK_EFFECT_STROKE: Record<string, { opacity: number; strokeWidth: number }> = {
+  HeroTaunt: { opacity: 0.58, strokeWidth: 2 },
+}
+
+const LINK_EFFECT_INFO: Record<string, { label: string; description: string }> = {
+  HeroTaunt: { label: '挑衅', description: '该玩家在下回合必须且只能主动攻击勇者，否则跳过该阶段' },
+}
+
+type LinkLine = {
+  id: string
+  path: string
+  color: string
+  strokeOpacity: number
+  strokeWidth: number
+  effect: string
+  midX: number
+  midY: number
+  label: string
+  description: string
+}
+
+const linkLines = ref<LinkLine[]>([])
+
+function buildLinkPath(x1: number, y1: number, x2: number, y2: number): string {
+  const mx = (x1 + x2) / 2
+  const my = (y1 + y2) / 2
+  const dist = Math.hypot(x2 - x1, y2 - y1)
+  const offset = Math.min(dist * 0.3, 60)
+  return `M ${x1} ${y1} Q ${mx} ${my - offset} ${x2} ${y2}`
+}
+
+function rebuildLinkLines() {
+  const root = boardRootRef.value
+  if (!root) { linkLines.value = []; return }
+
+  const allPlayers = players.value
+  if (!allPlayers) { linkLines.value = []; return }
+
+  const rootRect = root.getBoundingClientRect()
+  const seen = new Set<string>()
+  const lines: LinkLine[] = []
+
+  for (const player of Object.values(allPlayers) as PlayerView[]) {
+    if (!player.field?.length) continue
+    for (const fc of player.field) {
+      if (fc.mode !== 'Effect' || !LINK_EFFECT_COLORS[fc.effect]) continue
+      const sourceId = fc.source_id
+      const ownerId = player.id
+      if (!sourceId || sourceId === ownerId) continue
+
+      const pairKey = [sourceId, ownerId].sort().join('|') + '|' + fc.effect
+      if (seen.has(pairKey)) continue
+      seen.add(pairKey)
+
+      const srcEl = root.querySelector<HTMLElement>(`[data-player-anchor="${sourceId}"]`)
+      const tgtEl = root.querySelector<HTMLElement>(`[data-player-anchor="${ownerId}"]`)
+      if (!srcEl || !tgtEl) continue
+
+      const srcRect = srcEl.getBoundingClientRect()
+      const tgtRect = tgtEl.getBoundingClientRect()
+      const x1 = srcRect.left + srcRect.width / 2 - rootRect.left
+      const y1 = srcRect.top + srcRect.height / 2 - rootRect.top
+      const x2 = tgtRect.left + tgtRect.width / 2 - rootRect.left
+      const y2 = tgtRect.top + tgtRect.height / 2 - rootRect.top
+
+      const info = LINK_EFFECT_INFO[fc.effect]
+      const stroke = LINK_EFFECT_STROKE[fc.effect] ?? { opacity: 0.22, strokeWidth: 1.5 }
+      lines.push({
+        id: pairKey,
+        path: buildLinkPath(x1, y1, x2, y2),
+        color: LINK_EFFECT_COLORS[fc.effect]!,
+        strokeOpacity: stroke.opacity,
+        strokeWidth: stroke.strokeWidth,
+        effect: fc.effect,
+        midX: (x1 + x2) / 2,
+        midY: (y1 + y2) / 2,
+        label: info?.label ?? fc.effect,
+        description: info?.description ?? '',
+      })
+    }
+  }
+
+  linkLines.value = lines
+}
+
+function refreshLinkLinesSoon() {
+  nextTick(() => rebuildLinkLines())
+}
+
+watch(
+  () => {
+    const allPlayers = players.value
+    if (!allPlayers) return ''
+    return Object.values(allPlayers)
+      .map((p: PlayerView) => (p.field || []).filter(fc => fc.mode === 'Effect' && LINK_EFFECT_COLORS[fc.effect]).map(fc => `${p.id}:${fc.effect}:${fc.source_id}`).join(','))
+      .join('|')
+  },
+  () => refreshLinkLinesSoon(),
+  { immediate: true }
 )
 
-type PlayerAnchorSlot = 'left' | 'right' | 'bottom'
+type PlayerAnchorSlot = 'left' | 'right'
 
 function playerAnchorClasses(playerId: string, slot: PlayerAnchorSlot) {
   const focus = initiatorFocus.value
@@ -215,6 +349,60 @@ function playerAnchorClasses(playerId: string, slot: PlayerAnchorSlot) {
     [`player-anchor-wrap--focus-mode-${focus?.mode || 'attack'}`]: active
   }
 }
+
+const PLAYER_STATUS_EFFECT_LABEL: Record<string, string> = {
+  Shield: '圣盾',
+  Poison: '中毒',
+  Weak: '虚弱',
+  SealFire: '火封印',
+  SealWater: '水封印',
+  SealEarth: '地封印',
+  SealWind: '风封印',
+  SealThunder: '雷封印',
+  FiveElementsBind: '五系束缚',
+  Stealth: '潜行',
+  PowerBlessing: '威力赐福',
+  SwiftBlessing: '迅捷赐福',
+  BardEternalMovement: '永恒乐章',
+  RoseCourtyard: '血蔷薇庭院',
+  HeroTaunt: '挑衅',
+  SoulLink: '灵魂链接',
+  BloodSharedLife: '同生共死',
+}
+
+const ROSE_COURTYARD_EFFECT = 'RoseCourtyard'
+
+const HIDDEN_MY_FIELD_EFFECTS = new Set<string>([
+  'FighterHundredDragonLock',
+])
+
+const myStatusMaxHand = computed(() => {
+  const maxHand = myAreaPlayer.value?.max_hand
+  return typeof maxHand === 'number' && maxHand >= 0 ? maxHand : 0
+})
+
+const myStatusRoleName = computed(() => {
+  const roleId = String(myAreaPlayer.value?.role || sessionStore.myCharRole || '').trim()
+  if (!roleId) return ''
+  return characters.value[roleId]?.name || roleId
+})
+
+const myFieldStatusItems = computed(() => {
+  const field = myAreaPlayer.value?.field || []
+  return field
+    .filter((fc) => fc.mode === 'Effect' && fc.effect && !HIDDEN_MY_FIELD_EFFECTS.has(fc.effect))
+    .map((fc, idx) => ({
+      key: `${fc.effect}-${idx}`,
+      effect: fc.effect,
+      label: PLAYER_STATUS_EFFECT_LABEL[fc.effect] || fc.effect,
+    }))
+})
+
+const roseCourtyardActive = computed(() =>
+  Object.values(players.value ?? {}).some((player: PlayerView) =>
+    player.field?.some((fc) => fc.mode === 'Effect' && fc.effect === ROSE_COURTYARD_EFFECT)
+  )
+)
 
 // 行动选择 prompt 不触发 blur（已在 ActionPanel 内联展示）
 const gameEndTitle = computed(() => {
@@ -279,10 +467,10 @@ function logTargetDebug(stage: string, payload?: Record<string, unknown>) {
     me: myPlayerId.value,
     isMyTurn: isMyTurn.value,
     isPromptForMe: isPromptForMe.value,
-    promptType: currentPrompt.value?.type || '',
+    promptPresentationKind: currentPrompt.value?.presentation?.kind || '',
     actionMode: actionMode.value,
     skillMode: skillMode.value,
-    selectedCardForAction: selectedCardForAction.value ?? -1,
+    selectedHandIndexForAction: selectedHandIndexForAction.value ?? -1,
     selectedTargets: [...selectedTargets.value],
     skillTargets: [...skillTargetIds.value],
     promptCounterTarget: promptCounterTarget.value,
@@ -299,23 +487,12 @@ function normalizeActionHubOptionId(option: { id?: string; label?: string }): Ac
   if (id === 'attack' || id === 'magic' || id === 'special' || id === 'cannot_act') {
     return id
   }
-  const label = String(option?.label || '').trim()
-  if (!label) return null
-  if (label.includes('攻击行动') || label.includes('攻击')) return 'attack'
-  if (label.includes('法术行动') || label.includes('法术')) return 'magic'
-  if (label.includes('跳过额外行动') || label.includes('无法行动')) return 'cannot_act'
-  if (label.includes('特殊')) return 'special'
   return null
 }
 
 function isActionSelectionPrompt(prompt: Prompt | null): boolean {
   if (!prompt) return false
-  if (prompt.ui_mode === 'action_hub') return true
-  if (prompt.type !== 'confirm') return false
-  const normalizedMessage = String(prompt.message || '').trim()
-  // 仅识别主流程“请选择行动类型”提示；
-  // 避免把【圣疗】“请选择额外行动类型”误判成行动枢纽。
-  if (!normalizedMessage.includes('请选择行动类型')) return false
+  if (prompt.presentation?.kind !== 'action_hub') return false
   return (prompt.options || []).some((option: any) => normalizeActionHubOptionId(option) !== null)
 }
 
@@ -340,6 +517,15 @@ function parseCocoonFieldIndexFromLabel(label: string): number | null {
   return parsed
 }
 
+function parseCocoonFieldIndexFromOption(option: any): number | null {
+  const rawFieldIndex = option?.field_index
+  if (rawFieldIndex !== undefined && rawFieldIndex !== null && rawFieldIndex !== '') {
+    const parsed = Number.parseInt(String(rawFieldIndex), 10)
+    if (Number.isFinite(parsed) && parsed >= 0) return parsed
+  }
+  return parseCocoonFieldIndexFromLabel(String(option?.label || ''))
+}
+
 const cocoonPromptContext = computed(() => {
   const p = promptGuideContext.value
   if (!p || !Array.isArray(p.options) || p.options.length === 0) {
@@ -356,7 +542,7 @@ const cocoonPromptContext = computed(() => {
   const options: CocoonPromptOption[] = []
   for (let idx = 0; idx < p.options.length; idx++) {
     const option = p.options[idx]
-    const fieldIndex = parseCocoonFieldIndexFromLabel(String(option?.label || ''))
+    const fieldIndex = parseCocoonFieldIndexFromOption(option)
     if (fieldIndex === null) continue
     options.push({
       optionIndex: idx,
@@ -377,6 +563,9 @@ const cocoonPromptContext = computed(() => {
   let mode: CocoonPromptMode = 'none'
   if (p.type === 'confirm') mode = 'confirm'
   if (p.type === 'choose_card' || p.type === 'choose_cards') mode = 'cards'
+  if (p.presentation?.kind === 'card_picker') {
+    mode = (Number.isFinite(p.max) ? p.max : 1) > 1 ? 'cards' : 'confirm'
+  }
   if (mode === 'none') {
     return {
       active: false,
@@ -409,15 +598,125 @@ const selectedCocoonFieldIndices = ref<number[]>([])
 
 const promptNeedsCocoonGuide = computed(() => cocoonPromptContext.value.active)
 
-const promptNeedsBlessingRemoveGuide = computed(() => {
+type SpiritCasterPowerPromptOption = {
+  optionIndex: number
+  powerIndex: number
+  fieldIndex: number
+}
+
+function numericPromptOptionId(optionId: unknown): number | null {
+  const normalized = String(optionId ?? '').trim()
+  if (!/^\d+$/.test(normalized)) return null
+  const parsed = Number.parseInt(normalized, 10)
+  if (!Number.isFinite(parsed) || parsed < 0) return null
+  return parsed
+}
+
+function parseSpiritCasterPowerIndexFromLabel(label: string): number | null {
+  const matched = String(label || '').match(/妖力\[(\d+)\]/)
+  if (!matched) return null
+  const parsed = Number.parseInt(matched[1] || '', 10)
+  if (!Number.isFinite(parsed) || parsed < 0) return null
+  return parsed
+}
+
+const spiritCasterPowerPromptContext = computed(() => {
+  const p = promptGuideContext.value
+  if (!p || !Array.isArray(p.options) || p.options.length === 0 || p.presentation?.card_source !== 'field') {
+    return {
+      active: false,
+      min: 0,
+      max: 0,
+      options: [] as SpiritCasterPowerPromptOption[],
+      fieldToOptionIndex: {} as Record<number, number>
+    }
+  }
+
+  // 获取妖力盖牌列表，按 field 顺序排列
+  const spiritCasterPowerEntries = myCoverCards.value.filter(entry => entry.fieldCard.effect === 'SpiritCasterPower')
+
+  const options: SpiritCasterPowerPromptOption[] = []
+  for (let idx = 0; idx < p.options.length; idx++) {
+    const option = p.options[idx]
+    const fieldIndexFromOption = numericPromptOptionId(option?.field_index)
+    if (fieldIndexFromOption !== null && spiritCasterPowerEntries.some(entry => entry.fieldIndex === fieldIndexFromOption)) {
+      options.push({
+        optionIndex: idx,
+        powerIndex: spiritCasterPowerEntries.findIndex(entry => entry.fieldIndex === fieldIndexFromOption),
+        fieldIndex: fieldIndexFromOption
+      })
+      continue
+    }
+
+    const powerIndex = numericPromptOptionId(option?.id) ?? parseSpiritCasterPowerIndexFromLabel(String(option?.label || ''))
+    if (powerIndex === null) continue
+    // powerIndex 是妖力在 spiritCasterPowerEntries 中的索引
+    if (powerIndex < 0 || powerIndex >= spiritCasterPowerEntries.length) continue
+    const powerEntry = spiritCasterPowerEntries[powerIndex]
+    if (!powerEntry) continue
+    const fieldIndex = powerEntry.fieldIndex
+    options.push({
+      optionIndex: idx,
+      powerIndex,
+      fieldIndex
+    })
+  }
+  if (options.length === 0) {
+    return {
+      active: false,
+      min: 0,
+      max: 0,
+      options: [] as SpiritCasterPowerPromptOption[],
+      fieldToOptionIndex: {} as Record<number, number>
+    }
+  }
+
+  const fieldToOptionIndex: Record<number, number> = {}
+  for (const option of options) {
+    if (fieldToOptionIndex[option.fieldIndex] === undefined) {
+      fieldToOptionIndex[option.fieldIndex] = option.optionIndex
+    }
+  }
+
+  return {
+    active: true,
+    min: Math.max(1, Number.isFinite(p.min) ? p.min : 1),
+    max: Math.max(1, Number.isFinite(p.max) ? p.max : 1),
+    options,
+    fieldToOptionIndex,
+  }
+})
+
+const promptNeedsSpiritCasterPowerGuide = computed(() => spiritCasterPowerPromptContext.value.active)
+
+const spiritCasterPowerGuideText = computed(() => {
+  const ctx = spiritCasterPowerPromptContext.value
+  if (!ctx.active) return ''
+  return '请在扩展区点击对应妖力，完成后点击确认'
+})
+
+const promptNeedsElementalShotGuide = computed(() => {
   const p = promptGuideContext.value
   if (!p || !isPromptForMe.value) return false
-  return p.choice_type === 'elf_elemental_shot_remove_blessing'
+  return p.presentation?.card_filter === 'magic_or_elf_blessing'
+})
+
+const promptNeedsCardSelectionGuide = computed(() => {
+  const p = promptGuideContext.value
+  if (!p || !isPromptForMe.value) return false
+  return p.presentation?.card_filter === 'magic_or_elf_blessing'
 })
 
 const cocoonGuideText = computed(() => {
   const ctx = cocoonPromptContext.value
+  const p = promptGuideContext.value
   if (!ctx.active) return ''
+  if (p?.presentation?.card_filter === 'effect:MoonDarkMoon') {
+    return '请在扩展区点击要展示并移除的同系闇月'
+  }
+  if (p?.presentation?.kind === 'card_picker' && p.presentation?.card_source === 'field') {
+    return '请在扩展区点击对应盖牌，完成后点击确认'
+  }
   if (ctx.mode === 'confirm') {
     return '请在扩展区点击对应的茧完成选择'
   }
@@ -446,7 +745,25 @@ watch(
 )
 
 watch(
-  () => promptNeedsBlessingRemoveGuide.value,
+  () => promptNeedsElementalShotGuide.value,
+  (active) => {
+    if (active) {
+      showExpansionCards.value = true
+    }
+  }
+)
+
+watch(
+  () => promptNeedsCardSelectionGuide.value,
+  (active) => {
+    if (active) {
+      showExpansionCards.value = true
+    }
+  }
+)
+
+watch(
+  () => promptNeedsSpiritCasterPowerGuide.value,
   (active) => {
     if (active) {
       showExpansionCards.value = true
@@ -463,26 +780,25 @@ watch(
 
 const promptNeedsCardGuide = computed(() => {
   if (promptNeedsCocoonGuide.value) return false
-  if (promptNeedsBlessingRemoveGuide.value) return false
+  if (promptNeedsElementalShotGuide.value) return false
+  if (promptNeedsCardSelectionGuide.value) return false
+  if (promptNeedsSpiritCasterPowerGuide.value) return false
   const p = promptGuideContext.value
   if (!p) return false
-  if (p.choice_type === 'plague_death_touch_element') return true
-  if (promptHandCardIndexSet().size > 0) return true
-  if (p.type === 'choose_card' || p.type === 'choose_cards') return true
+  if (p.presentation?.card_filter === 'magic_or_elf_blessing') return true
+  if (p.presentation?.card_source === 'proxy') return true
+  if (promptHandOptionUIIndexSet().size > 0) return true
+  if (p.presentation?.kind === 'card_picker') return true
   const optionIds = new Set((p.options || []).map((option: any) => String(option?.id || '')))
   return optionIds.has('counter') || optionIds.has('defend')
 })
 
 function isOverflowDiscardPrompt(prompt: Prompt | null): boolean {
   if (!prompt) return false
-  if (prompt.type !== 'choose_card' && prompt.type !== 'choose_cards') return false
-  const message = String(prompt.message || '')
-  if (!message) return false
-
-  if (message.includes('手牌上限溢出')) return true
-  if (message.includes('爆牌')) return true
-  if (message.includes('手牌上限') && (message.includes('弃置') || message.includes('弃牌'))) return true
-  return false
+  if (prompt.presentation?.kind !== 'card_picker') return false
+  const discardReason = String(prompt.presentation?.discard_reason || '').trim()
+  if (discardReason) return discardReason === 'hand_overflow'
+  return prompt.presentation?.card_filter === 'overflow_discard'
 }
 
 function parseOverflowDiscardCount(prompt: Prompt | null): number | null {
@@ -490,12 +806,7 @@ function parseOverflowDiscardCount(prompt: Prompt | null): number | null {
   if (Number.isFinite(prompt.min) && Number.isFinite(prompt.max) && prompt.min > 0 && prompt.min === prompt.max) {
     return prompt.min
   }
-  const message = String(prompt.message || '')
-  const matched = message.match(/弃[置牌]\s*(\d+)\s*张/)
-  if (!matched) return null
-  const count = Number.parseInt(matched[1] || '', 10)
-  if (!Number.isFinite(count) || count <= 0) return null
-  return count
+  return null
 }
 
 const promptNeedsOverflowDiscardGuide = computed(() => {
@@ -531,6 +842,20 @@ function isCoverSelectable(fieldIndex: number): boolean {
   if (ctx.active) {
     return isCocoonCoverSelectable(fieldIndex)
   }
+  const powerCtx = spiritCasterPowerPromptContext.value
+  if (powerCtx.active) {
+    return powerCtx.options.some((option) => option.fieldIndex === fieldIndex)
+  }
+  // 元素射击：祝福盖牌根据 prompt.options 判断可选性
+  if (currentPrompt.value?.presentation?.card_filter === 'magic_or_elf_blessing') {
+    const cover = myCoverCards.value.find((entry) => entry.fieldIndex === fieldIndex)
+    if (cover && cover.fieldCard.effect === ELF_BLESSING_EFFECT) {
+      const coverCardID = String(cover.fieldCard.card?.id || '').trim()
+      if (!coverCardID) return false
+      const validCardIDs = new Set((currentPrompt.value?.options || []).map((o: any) => String(o?.card_id || '').trim()).filter(Boolean))
+      return validCardIDs.has(coverCardID)
+    }
+  }
   const playableIndex = playableIndexForBlessingCover(fieldIndex)
   if (playableIndex === null) return false
   return isCardSelectableForAction(playableIndex)
@@ -541,18 +866,43 @@ function isCoverSelected(fieldIndex: number): boolean {
   if (ctx.active) {
     return isCocoonCoverSelected(fieldIndex)
   }
+  const powerCtx = spiritCasterPowerPromptContext.value
+  if (powerCtx.active) {
+    const optionIndex = powerCtx.fieldToOptionIndex[fieldIndex]
+    return optionIndex !== undefined && selectedFieldOptionIndexes.value.includes(optionIndex)
+  }
+  // 元素射击：祝福盖牌的选择状态
+  if (currentPrompt.value?.presentation?.card_filter === 'magic_or_elf_blessing') {
+    const cover = myCoverCards.value.find((entry) => entry.fieldIndex === fieldIndex)
+    if (cover && cover.fieldCard.effect === ELF_BLESSING_EFFECT) {
+      const playableIdx = playableIndexForBlessingCover(fieldIndex)
+      if (playableIdx === null) return false
+      return selectedHandIndexes.value.includes(playableIdx) ||
+        selectedHandIndexForAction.value === playableIdx ||
+        skillDiscardHandIndexes.value.includes(playableIdx)
+    }
+  }
   const playableIndex = playableIndexForBlessingCover(fieldIndex)
   if (playableIndex === null) return false
-  return selectedCards.value.includes(playableIndex) ||
-    selectedCardForAction.value === playableIndex ||
-    skillDiscardIndices.value.includes(playableIndex)
+  return selectedHandIndexes.value.includes(playableIndex) ||
+    selectedHandIndexForAction.value === playableIndex ||
+    skillDiscardHandIndexes.value.includes(playableIndex)
 }
 
 function onCoverCardClick(fieldIndex: number) {
   const ctx = cocoonPromptContext.value
+  const prompt = currentPrompt.value
+  const isFieldCardPicker =
+    prompt?.presentation?.kind === 'card_picker' &&
+    prompt?.presentation?.card_source === 'field'
   if (ctx.active) {
     if (!isCocoonCoverSelectable(fieldIndex)) {
-      interruptStore.showError('当前步骤不可选择该茧')
+      const isFieldPicker = currentPrompt.value?.presentation?.card_source === 'field'
+      if (isFieldPicker) {
+        interruptStore.showError('当前步骤不可选择该闇月')
+      } else {
+        interruptStore.showError('当前步骤不可选择该茧')
+      }
       return
     }
 
@@ -562,18 +912,27 @@ function onCoverCardClick(fieldIndex: number) {
         interruptStore.showError('未找到对应茧选项，请重试')
         return
       }
-      actions.submitSelect([optionIndex])
+      if (isFieldCardPicker) {
+        selectedCocoonFieldIndices.value = [fieldIndex]
+        interruptStore.setSelectedFieldOptionIndexes([optionIndex])
+        return
+      }
+      interaction.submitOptionIndex(optionIndex)
       return
     }
 
     if (ctx.max <= 1) {
-      actions.submitSelect([fieldIndex])
+      interaction.submitOptionIndex(fieldIndex)
       return
     }
 
     const pos = selectedCocoonFieldIndices.value.indexOf(fieldIndex)
     if (pos >= 0) {
       selectedCocoonFieldIndices.value.splice(pos, 1)
+      const selectedOptionIndexes = selectedCocoonFieldIndices.value
+        .map((idx) => ctx.fieldToOptionIndex[idx])
+        .filter((idx): idx is number => idx !== undefined)
+      interruptStore.setSelectedFieldOptionIndexes(selectedOptionIndexes)
       return
     }
     if (selectedCocoonFieldIndices.value.length >= ctx.max) {
@@ -582,7 +941,42 @@ function onCoverCardClick(fieldIndex: number) {
     }
     selectedCocoonFieldIndices.value.push(fieldIndex)
     selectedCocoonFieldIndices.value.sort((a, b) => a - b)
+    {
+      const selectedOptionIndexes = selectedCocoonFieldIndices.value
+        .map((idx) => ctx.fieldToOptionIndex[idx])
+        .filter((idx): idx is number => idx !== undefined)
+      interruptStore.setSelectedFieldOptionIndexes(selectedOptionIndexes)
+    }
     return
+  }
+
+  const powerCtx = spiritCasterPowerPromptContext.value
+  if (powerCtx.active) {
+    if (!powerCtx.options.some((option) => option.fieldIndex === fieldIndex)) {
+      interruptStore.showError('当前步骤不可选择该妖力')
+      return
+    }
+    const optionIndex = powerCtx.fieldToOptionIndex[fieldIndex]
+    if (optionIndex === undefined) {
+      interruptStore.showError('未找到对应妖力选项，请重试')
+      return
+    }
+    interruptStore.setSelectedFieldOptionIndexes([optionIndex])
+    return
+  }
+
+  // 元素射击：祝福盖牌直接计算可操作索引
+  if (currentPrompt.value?.presentation?.card_filter === 'magic_or_elf_blessing') {
+    const cover = myCoverCards.value.find((entry) => entry.fieldIndex === fieldIndex)
+    if (cover && cover.fieldCard.effect === ELF_BLESSING_EFFECT) {
+      const playableIdx = playableIndexForBlessingCover(fieldIndex)
+      if (playableIdx === null) {
+        interruptStore.showError('当前步骤不可选择该盖牌')
+        return
+      }
+      onCardClick(playableIdx)
+      return
+    }
   }
 
   const playableIndex = playableIndexForBlessingCover(fieldIndex)
@@ -599,23 +993,57 @@ function onCoverCardClick(fieldIndex: number) {
 
 function confirmCocoonSelection() {
   const ctx = cocoonPromptContext.value
-  if (!ctx.active || ctx.mode !== 'cards') return
+  if (!ctx.active) return
   if (!canConfirmCocoonSelection.value) {
     interruptStore.showError(`请选择 ${ctx.min}-${ctx.max} 个茧`)
     return
   }
-  actions.submitSelect([...selectedCocoonFieldIndices.value])
+  const prompt = currentPrompt.value
+  const isFieldCardPicker =
+    prompt?.presentation?.kind === 'card_picker' &&
+    prompt?.presentation?.card_source === 'field'
+  if (isFieldCardPicker) {
+    const selectedOptionIndexes = selectedCocoonFieldIndices.value.map((fieldIndex) => ctx.fieldToOptionIndex[fieldIndex])
+    if (selectedOptionIndexes.some((optionIndex) => optionIndex === undefined)) {
+      interruptStore.showError('未找到对应盖牌选项，请重试')
+      return
+    }
+    interaction.submitOptionIndexes(selectedOptionIndexes as number[])
+    return
+  }
+  interaction.submitOptionIndexes([...selectedCocoonFieldIndices.value])
 }
 
 const promptNeedsTargetGuide = computed(() => {
+  if (actionMode.value === 'attack' && selectedHandIndexForAction.value !== null) {
+    return targetablePlayers.value.length > 0
+  }
+  if (
+    actionMode.value === 'magic' &&
+    magicSubChoice.value === 'card' &&
+    selectedHandIndexForAction.value !== null
+  ) {
+    return targetablePlayers.value.length > 0
+  }
   const p = promptGuideContext.value
   if (!p) return false
+  if (p.presentation?.kind === 'target_picker') return true
   if (p.type === 'choose_target') return true
   if ((p.counter_target_ids?.length ?? 0) > 0) return true
   return Object.keys(players.value).some((playerId) => promptOptionIndexForPlayer(playerId) >= 0)
 })
 
 const targetGuideHintText = computed(() => {
+  if (actionMode.value === 'attack' && selectedHandIndexForAction.value !== null) {
+    return '请选择可攻击的敌方目标'
+  }
+  if (
+    actionMode.value === 'magic' &&
+    magicSubChoice.value === 'card' &&
+    selectedHandIndexForAction.value !== null
+  ) {
+    return '请选择法术目标'
+  }
   const p = promptGuideContext.value
   if (!p) return '点击角色选择目标'
   const message = String(p.message || '').trim()
@@ -625,31 +1053,6 @@ const targetGuideHintText = computed(() => {
   return '点击角色选择目标'
 })
 
-function playerPromptMarkers(playerId: string): string[] {
-  const p = players.value[playerId]
-  if (!p) return []
-  const markers = new Set<string>()
-  if (p.id) markers.add(p.id)
-  if (p.name) markers.add(p.name)
-  if (p.role) {
-    markers.add(p.role)
-    const roleName = getRoleDisplayName(p.role)
-    if (roleName && roleName !== '未知角色') {
-      markers.add(roleName)
-    }
-  }
-  return [...markers]
-}
-
-function labelMatchesMarkers(label: string, markers: string[]): boolean {
-  if (!label || markers.length === 0) return false
-  const low = label.toLowerCase()
-  return markers.some((marker) => {
-    const token = marker.trim().toLowerCase()
-    return !!token && low.includes(token)
-  })
-}
-
 function promptOptionIndexForPlayer(playerId: string, debugTrace: boolean = false): number {
   const p = currentPrompt.value
   if (!p || !isPromptForMe.value || !Array.isArray(p.options)) {
@@ -658,47 +1061,38 @@ function promptOptionIndexForPlayer(playerId: string, debugTrace: boolean = fals
     }
     return -1
   }
-  const directIdx = p.options.findIndex((o: any) => o?.id === playerId)
+  const directIdx = p.options.findIndex((o: any) => String(o?.target_id || '').trim() === playerId)
   if (directIdx >= 0) {
     if (debugTrace) {
-      logTargetDebug('prompt_option_resolve_by_id', { playerId, optionIdx: directIdx })
+      logTargetDebug('prompt_option_resolve_by_target_id', { playerId, optionIdx: directIdx })
     }
     return directIdx
   }
-
-  const markers = playerPromptMarkers(playerId)
-  if (markers.length === 0) {
-    if (debugTrace) {
-      logTargetDebug('prompt_option_resolve_no_player_markers', { playerId })
-    }
-    return -1
-  }
-
-  const allMarkerMap = Object.fromEntries(
-    Object.keys(players.value).map((id) => [id, playerPromptMarkers(id)])
-  ) as Record<string, string[]>
-
-  let matchedIdx = -1
-  for (let i = 0; i < p.options.length; i++) {
-    const option = p.options[i] as any
-    const label = String(option?.label || '')
-    if (!labelMatchesMarkers(label, markers)) continue
-    const hitOtherMarker = Object.entries(allMarkerMap).some(([otherId, otherMarkers]) =>
-      otherId !== playerId && labelMatchesMarkers(label, otherMarkers)
-    )
-    if (hitOtherMarker) continue
-    if (matchedIdx !== -1) {
-      if (debugTrace) {
-        logTargetDebug('prompt_option_resolve_ambiguous', { playerId, prevIdx: matchedIdx, nextIdx: i })
-      }
-      return -1
-    }
-    matchedIdx = i
-  }
   if (debugTrace) {
-    logTargetDebug('prompt_option_resolve_by_label', { playerId, optionIdx: matchedIdx })
+    logTargetDebug('prompt_option_resolve_missing_target_id', { playerId })
   }
-  return matchedIdx
+  return -1
+}
+
+function promptRequiresManualTargetConfirm(prompt: Prompt | null): boolean {
+  if (!prompt || prompt.presentation?.kind !== 'target_picker') return false
+  return !!prompt.presentation?.multi_target
+}
+
+function togglePromptTargetSelection(playerId: string) {
+  const prompt = currentPrompt.value
+  if (!prompt) return
+  const selected = selectedTargets.value
+  if (selected.includes(playerId)) {
+    interruptStore.setSelectedTargets(selected.filter(id => id !== playerId))
+    return
+  }
+  const max = Math.max(1, prompt.max || 1)
+  if (selected.length >= max) {
+    interruptStore.showError(`最多选择${max}名目标`)
+    return
+  }
+  interruptStore.setSelectedTargets([...selected, playerId])
 }
 
 type PlayerSelectState = {
@@ -716,13 +1110,13 @@ function playerSelectState(playerId: string): PlayerSelectState {
   }
 
   if (prompt && isPromptForMe.value && !promptIsActionHub) {
-    if (prompt.type === 'choose_skill') {
-      return { selectable: false, reason: 'prompt_choose_skill_requires_button' }
+    if (prompt.presentation?.kind === 'skill_choice') {
+      return { selectable: false, reason: 'prompt_skill_choice_requires_button' }
     }
     const idx = promptOptionIndexForPlayer(playerId)
-    if (prompt.type === 'choose_target') {
-      if (idx >= 0) return { selectable: true, reason: `prompt_choose_target_option_${idx}` }
-      return { selectable: false, reason: 'prompt_choose_target_no_option_match' }
+    if (prompt.presentation?.kind === 'target_picker') {
+      if (idx >= 0) return { selectable: true, reason: `prompt_target_picker_option_${idx}` }
+      return { selectable: false, reason: 'prompt_target_picker_no_option_match' }
     }
     if (idx >= 0) return { selectable: true, reason: `prompt_confirm_option_${idx}` }
     if (isPromptCounterTargetSelectable(playerId)) {
@@ -731,11 +1125,21 @@ function playerSelectState(playerId: string): PlayerSelectState {
     return { selectable: false, reason: 'prompt_confirm_no_option_match' }
   }
 
-  if (prompt && isPromptForMe.value && promptIsActionHub && actionMode.value === 'none' && skillMode.value === 'none') {
+  if (
+    prompt &&
+    isPromptForMe.value &&
+    promptIsActionHub &&
+    actionMode.value === 'none' &&
+    skillMode.value === 'none'
+  ) {
     return { selectable: false, reason: 'action_hub_waiting_for_mode_choice' }
   }
 
-  if (canTargetOpponent.value && targetablePlayers.value.some((t) => t.id === playerId)) {
+  if (
+    actionMode.value === 'attack' &&
+    selectedHandIndexForAction.value !== null &&
+    targetablePlayers.value.some((t) => t.id === playerId)
+  ) {
     return { selectable: true, reason: 'action_mode_targetable' }
   }
   if (skillMode.value === 'choosing_target' && targetablePlayersForSkill.value.some((t) => t.id === playerId)) {
@@ -743,7 +1147,7 @@ function playerSelectState(playerId: string): PlayerSelectState {
   }
   if (
     actionMode.value === 'magic' &&
-    selectedCardForAction.value !== null &&
+    selectedHandIndexForAction.value !== null &&
     targetablePlayers.value.some((t) => t.id === playerId)
   ) {
     return { selectable: true, reason: 'magic_mode_targetable' }
@@ -753,7 +1157,7 @@ function playerSelectState(playerId: string): PlayerSelectState {
     return { selectable: false, reason: 'skill_mode_target_not_in_targetablePlayersForSkill' }
   }
   if (actionMode.value !== 'none') {
-    if (selectedCardForAction.value === null) return { selectable: false, reason: 'action_mode_no_card_selected' }
+    if (selectedHandIndexForAction.value === null) return { selectable: false, reason: 'action_mode_no_card_selected' }
     if (!canTargetOpponent.value) return { selectable: false, reason: 'action_mode_canTargetOpponent_false' }
     return { selectable: false, reason: 'action_mode_target_not_in_targetablePlayers' }
   }
@@ -769,7 +1173,8 @@ function isPromptCounterTargetSelectable(playerId: string): boolean {
 
 function isPlayerSelected(playerId: string): boolean {
   if (skillMode.value === 'choosing_target' && skillTargetIds.value.includes(playerId)) return true
-  if (currentPrompt.value?.type === 'choose_target' && selectedTargets.value.includes(playerId)) return true
+  if (currentPrompt.value?.presentation?.kind === 'target_picker' && selectedTargets.value.includes(playerId)) return true
+  if (promptRequiresManualTargetConfirm(currentPrompt.value) && selectedTargets.value.includes(playerId)) return true
   if (promptCounterTarget.value === playerId && isPromptCounterTargetSelectable(playerId)) return true
   return false
 }
@@ -797,24 +1202,38 @@ function onTargetClick(playerId: string) {
   })
   
   if (prompt && isPromptForMe.value && !promptIsActionHub) {
-    if (prompt.type === 'choose_skill') {
-      logTargetDebug('prompt_choose_skill_ignore_target_click', { playerId })
+    if (prompt.presentation?.kind === 'skill_choice') {
+      logTargetDebug('prompt_skill_choice_ignore_target_click', { playerId })
       return
     }
-    if (prompt.type === 'choose_target') {
+    if (promptRequiresManualTargetConfirm(prompt)) {
       const promptIdx = promptOptionIndexForPlayer(playerId, true)
       if (promptIdx >= 0) {
-        logTargetDebug('prompt_choose_target_send_action', { playerId, optionIdx: promptIdx })
-        actions.submitPromptTarget(playerId)
+        togglePromptTargetSelection(playerId)
+        logTargetDebug('prompt_target_picker_toggled', {
+          playerId,
+          optionIdx: promptIdx,
+          selectedTargets: [...selectedTargets.value]
+        })
       } else {
-        logTargetDebug('prompt_choose_target_reject_click', { playerId })
+        logTargetDebug('prompt_target_picker_reject_click', { playerId })
+      }
+      return
+    }
+    if (prompt.presentation?.kind === 'target_picker') {
+      const promptIdx = promptOptionIndexForPlayer(playerId, true)
+      if (promptIdx >= 0) {
+        logTargetDebug('prompt_target_picker_send_select', { playerId, optionIdx: promptIdx })
+        interaction.submitOptionIndex(promptIdx)
+      } else {
+        logTargetDebug('prompt_target_picker_reject_click', { playerId })
       }
       return
     }
     const optionIdx = promptOptionIndexForPlayer(playerId, true)
     if (optionIdx >= 0) {
       logTargetDebug('prompt_option_send_select', { playerId, optionIdx })
-      actions.submitSelect([optionIdx])
+      interaction.submitOptionIndex(optionIdx)
       return
     }
     if (isPromptCounterTargetSelectable(playerId)) {
@@ -830,7 +1249,7 @@ function onTargetClick(playerId: string) {
     logTargetDebug('action_hub_prompt_bypassed_for_target_click', {
       playerId,
       actionMode: actionMode.value,
-      selectedCardForAction: selectedCardForAction.value ?? -1
+      selectedHandIndexForAction: selectedHandIndexForAction.value ?? -1
     })
   }
 
@@ -863,7 +1282,7 @@ function onTargetClick(playerId: string) {
           maxTargets,
           skillTargets: currentTargets,
         })
-        const selections = skillDiscardIndices.value.length > 0 ? [...skillDiscardIndices.value] : undefined
+        const selections = skillDiscardHandIndexes.value.length > 0 ? [...skillDiscardHandIndexes.value] : undefined
         actions.submitUseSkill(skill.id, currentTargets, selections, { clearSkillMode: true })
         return
       }
@@ -901,7 +1320,7 @@ function onTargetClick(playerId: string) {
         minTargets,
         maxTargets,
       })
-      const selections = skillDiscardIndices.value.length > 0 ? [...skillDiscardIndices.value] : undefined
+      const selections = skillDiscardHandIndexes.value.length > 0 ? [...skillDiscardHandIndexes.value] : undefined
       actions.submitUseSkill(skill.id, nextTargets, selections, { clearSkillMode: true })
     }
     return
@@ -911,107 +1330,67 @@ function onTargetClick(playerId: string) {
     logTargetDebug('action_target_blocked_canTargetOpponent_false', { playerId })
     return
   }
-  const cardIdx = selectedCardForAction.value
+  const cardIdx = selectedHandIndexForAction.value
   if (cardIdx === null) {
     logTargetDebug('action_target_blocked_no_card_selected', { playerId })
     return
   }
   const selectedItem = myPlayableCards.value.find(item => item.index === cardIdx)
   if (!selectedItem) {
-    interruptStore.setSelectedCardForAction(null)
+    interruptStore.setSelectedHandIndexForAction(null)
     interruptStore.showError('所选卡牌已变化，请重新选择')
     logTargetDebug('action_target_blocked_card_not_found', { playerId, cardIdx })
     return
   }
   if (actionMode.value === 'attack') {
     if (selectedItem.card.type !== 'Attack') {
-      interruptStore.setSelectedCardForAction(null)
+      interruptStore.setSelectedHandIndexForAction(null)
       interruptStore.showError('所选卡牌不是攻击牌，请重新选择')
       logTargetDebug('action_target_blocked_card_not_attack', { playerId, cardIdx, cardType: selectedItem.card.type })
       return
     }
     logTargetDebug('action_attack_send', { playerId, cardIdx, cardName: selectedItem.card.name })
-    actions.submitAttack(playerId, cardIdx)
+    actions.submitAttack(playerId, selectedItem.card.id)
   } else if (actionMode.value === 'magic') {
     if (selectedItem.card.type !== 'Magic') {
-      interruptStore.setSelectedCardForAction(null)
+      interruptStore.setSelectedHandIndexForAction(null)
       interruptStore.showError('所选卡牌不是法术牌，请重新选择')
       logTargetDebug('action_target_blocked_card_not_magic', { playerId, cardIdx, cardType: selectedItem.card.type })
       return
     }
     if (isMagicBulletCard(cardIdx)) {
       logTargetDebug('action_magic_missile_send', { playerId, cardIdx, cardName: selectedItem.card.name })
-      actions.submitMagic(undefined, cardIdx)
+      actions.submitMagic(undefined, selectedItem.card.id)
     } else {
       logTargetDebug('action_magic_send', { playerId, cardIdx, cardName: selectedItem.card.name })
-      actions.submitMagic(playerId, cardIdx)
+      actions.submitMagic(playerId, selectedItem.card.id)
     }
   }
-}
-
-function parsePromptCardIndex(optionId: string): number | null {
-  const normalized = String(optionId || '').trim()
-  if (!/^-?\d+$/.test(normalized)) return null
-  const parsed = Number.parseInt(normalized, 10)
-  if (!Number.isFinite(parsed)) return null
-  return parsed
-}
-
-function parseHandIndexFromPromptLabel(label: string): number | null {
-  const text = String(label || '').trim()
-  let displayIndex: number | null = null
-  const prefixed = text.match(/^(\d+)\s*[:：]/)
-  if (prefixed) {
-    displayIndex = Number.parseInt(prefixed[1] || '', 10)
-  } else {
-    const nth = text.match(/第\s*(\d+)\s*张\s*[:：]/)
-    if (nth) {
-      displayIndex = Number.parseInt(nth[1] || '', 10)
-    }
-  }
-  if (displayIndex === null) return null
-  if (!Number.isFinite(displayIndex) || displayIndex <= 0) return null
-  return displayIndex - 1
-}
-
-function normalizePromptElementToken(raw: string): string {
-  const text = String(raw || '').trim().toLowerCase()
-  if (!text) return ''
-  if (text.includes('water') || text.includes('水')) return 'Water'
-  if (text.includes('fire') || text.includes('火')) return 'Fire'
-  if (text.includes('earth') || text.includes('地')) return 'Earth'
-  if (text.includes('wind') || text.includes('风')) return 'Wind'
-  if (text.includes('thunder') || text.includes('雷')) return 'Thunder'
-  if (text.includes('light') || text.includes('光')) return 'Light'
-  if (text.includes('dark') || text.includes('暗')) return 'Dark'
-  return ''
 }
 
 function plagueDeathTouchPromptElementSet(prompt: Prompt | null): Set<string> {
   const set = new Set<string>()
-  if (!prompt || prompt.choice_type !== 'plague_death_touch_element') return set
+  if (!prompt || prompt.presentation?.card_filter !== 'plague_death_touch_element') return set
   for (const option of prompt.options || []) {
-    const resolved = normalizePromptElementToken(`${option.label || ''} ${option.button_label || ''}`)
-    if (resolved) {
-      set.add(resolved)
-      continue
-    }
-    const fallback = normalizePromptElementToken(option.id || '')
-    if (fallback) set.add(fallback)
+    const element = String(option.element || '').trim()
+    if (element) set.add(element)
   }
   return set
 }
 
-function promptHandCardIndexSet(): Set<number> {
+// UI-only helper: maps prompt option card UUIDs back to current hand/blessing
+// display indexes for highlighting. Submission still uses card_id/card_ids.
+function promptHandOptionUIIndexSet(): Set<number> {
   const set = new Set<number>()
-  const choiceType = String(currentPrompt.value?.choice_type || '').trim()
-  if (NON_HAND_INDEXED_PROMPT_CHOICE_TYPES.has(choiceType)) return set
+  const p = currentPrompt.value?.presentation
+  if (!p) return set
+  if (p.kind !== 'card_picker' || (p.card_source !== 'hand' && p.card_source !== 'proxy')) return set
   const options = currentPrompt.value?.options || []
   for (const option of options) {
-    const idx = parsePromptCardIndex(option.id)
-    if (idx === null || idx < 0 || idx >= myHand.value.length) continue
-    const labelIdx = parseHandIndexFromPromptLabel(option.label)
-    if (labelIdx === idx) set.add(idx)
+    const optionCardID = String(option.card_id || '').trim()
+    if (!optionCardID) continue
+    const handIndex = myHand.value.findIndex(card => String(card.id || '').trim() === optionCardID)
+    if (handIndex >= 0) set.add(handIndex)
   }
   return set
 }
@@ -1042,9 +1421,7 @@ type PromptCardSelectionState = {
   error?: string
 }
 
-const NON_HAND_INDEXED_PROMPT_CHOICE_TYPES = new Set([
-  'elf_elemental_shot_remove_blessing',
-])
+
 
 function promptCardSelectionState(idx: number): PromptCardSelectionState {
   const prompt = currentPrompt.value
@@ -1054,9 +1431,26 @@ function promptCardSelectionState(idx: number): PromptCardSelectionState {
   if (isActionSelectionPrompt(prompt)) {
     return { selectable: false, reason: 'action_hub_prompt' }
   }
+  if (prompt.presentation?.card_source === 'field') {
+    const fieldPickHint = prompt.presentation?.card_filter === 'effect:SpiritCasterPower'
+      ? '请在扩展区选择要移除的妖力'
+      : '请在扩展区选择对应盖牌'
+    return { selectable: false, reason: 'prompt_field_cover_only', error: fieldPickHint }
+  }
 
   const playableItem = myPlayableCards.value.find((item) => item.index === idx)
   const playableCard = playableItem?.card
+
+  // 对于元素射击，根据 prompt.options 判断可选性（后端已排除攻击牌）
+  if (prompt.presentation?.card_filter === 'magic_or_elf_blessing') {
+    const cardID = String(playableCard?.id || '').trim()
+    const validCardIDs = new Set((prompt.options || []).map((o: any) => String(o?.card_id || '').trim()).filter(Boolean))
+    if (!cardID || !validCardIDs.has(cardID)) {
+      return { selectable: false, reason: 'prompt_elf_elemental_shot_pick_not_in_options' }
+    }
+    return { selectable: true, reason: 'prompt_elf_elemental_shot_pick_valid' }
+  }
+
   if (!playableCard) {
     return { selectable: false, reason: 'card_not_playable', error: '请从手牌区选择有效卡牌' }
   }
@@ -1065,7 +1459,7 @@ function promptCardSelectionState(idx: number): PromptCardSelectionState {
   const optionIds = new Set(options.map((option: any) => String(option?.id || '')))
   const hasCounter = optionIds.has('counter')
   const hasDefend = optionIds.has('defend')
-  const isMagicMissilePrompt = String(prompt.message || '').includes('魔弹')
+  const isMagicMissilePrompt = prompt.presentation?.kind === 'response' && prompt.presentation?.layout === 'magic_missile'
   const allowShadowMagicCounter = canUseShadowRejectMagicResponse()
 
   if (hasCounter || hasDefend) {
@@ -1112,41 +1506,13 @@ function promptCardSelectionState(idx: number): PromptCardSelectionState {
     }
   }
 
-  if (prompt.choice_type === 'elf_elemental_shot_remove_blessing') {
-    if (playableItem?.source !== 'blessing') {
-      return {
-        selectable: false,
-        reason: 'prompt_elf_blessing_remove_requires_blessing_cover',
-        error: '请在扩展区选择要移除的祝福牌'
-      }
-    }
-    const blessingIndex = idx - myHand.value.length
-    const blessingCount = myPlayableCards.value.filter((item) => item.source === 'blessing').length
-    if (blessingIndex < 0 || blessingIndex >= blessingCount) {
-      return {
-        selectable: false,
-        reason: 'prompt_elf_blessing_remove_invalid_index',
-        error: '当前祝福牌索引无效，请重新选择'
-      }
-    }
-    const optionIds = new Set((prompt.options || []).map((option: any) => String(option?.id || '')))
-    if (optionIds.size > 0 && !optionIds.has(String(blessingIndex))) {
-      return {
-        selectable: false,
-        reason: 'prompt_elf_blessing_remove_not_in_candidates',
-        error: '该祝福不在本次可移除范围内'
-      }
-    }
-    return { selectable: true, reason: 'prompt_elf_blessing_remove_selectable' }
-  }
-
   const card = myHand.value[idx]
   if (!card) {
     return { selectable: false, reason: 'prompt_hand_only', error: '当前步骤只能选择手牌区卡牌' }
   }
 
   if (isWaterShadowPromptForSelection(prompt)) {
-    const selectedPromptCards = selectedCards.value
+    const selectedPromptCards = selectedHandIndexes.value
       .map((i) => myHand.value[i])
       .filter((c): c is NonNullable<typeof c> => !!c)
     const waterCount = selectedPromptCards.filter((c) => c.element === 'Water').length
@@ -1156,7 +1522,7 @@ function promptCardSelectionState(idx: number): PromptCardSelectionState {
       return { selectable: true, reason: 'prompt_water_shadow_water' }
     }
     if (stealthed && card.type === 'Magic') {
-      if (selectedCards.value.includes(idx)) {
+      if (selectedHandIndexes.value.includes(idx)) {
         return { selectable: true, reason: 'prompt_water_shadow_keep_selected_magic' }
       }
       if (magicCount >= 1) {
@@ -1177,8 +1543,8 @@ function promptCardSelectionState(idx: number): PromptCardSelectionState {
     }
   }
 
-  if (prompt.choice_type === 'adventurer_fraud_pick') {
-    const handOptionSet = promptHandCardIndexSet()
+  if (prompt.presentation?.card_filter === 'same_element_combo') {
+    const handOptionSet = promptHandOptionUIIndexSet()
     if (handOptionSet.size > 0 && !handOptionSet.has(idx)) {
       return {
         selectable: false,
@@ -1186,10 +1552,10 @@ function promptCardSelectionState(idx: number): PromptCardSelectionState {
         error: '当前步骤只能选择可用于欺诈的同系手牌'
       }
     }
-    if (selectedCards.value.includes(idx)) {
+    if (selectedHandIndexes.value.includes(idx)) {
       return { selectable: true, reason: 'prompt_fraud_pick_keep_selected' }
     }
-    const selectedFraudCards = selectedCards.value
+    const selectedFraudCards = selectedHandIndexes.value
       .map((i) => myHand.value[i])
       .filter((c): c is NonNullable<typeof c> => !!c)
     if (selectedFraudCards.length >= 3) {
@@ -1212,7 +1578,7 @@ function promptCardSelectionState(idx: number): PromptCardSelectionState {
     return { selectable: true, reason: 'prompt_fraud_pick_same_element' }
   }
 
-  if (prompt.choice_type === 'plague_death_touch_element') {
+  if (prompt.presentation?.card_filter === 'plague_death_touch_element') {
     const allowedElements = plagueDeathTouchPromptElementSet(prompt)
     if (allowedElements.size === 0) {
       return {
@@ -1228,7 +1594,7 @@ function promptCardSelectionState(idx: number): PromptCardSelectionState {
         error: '死亡之触需选择提示系别对应的手牌'
       }
     }
-    const selectedPromptCards = selectedCards.value
+    const selectedPromptCards = selectedHandIndexes.value
       .map((i) => myHand.value[i])
       .filter((c): c is NonNullable<typeof c> => !!c)
     if (selectedPromptCards.length > 0) {
@@ -1244,7 +1610,108 @@ function promptCardSelectionState(idx: number): PromptCardSelectionState {
     return { selectable: true, reason: 'prompt_plague_death_touch_element_match' }
   }
 
-  const handOptionSet = promptHandCardIndexSet()
+  if (prompt.presentation?.card_filter === 'same_element_attack_pair') {
+    const handOptionSet = promptHandOptionUIIndexSet()
+    if (handOptionSet.size > 0 && !handOptionSet.has(idx)) {
+      return {
+        selectable: false,
+        reason: 'prompt_holy_shard_not_in_candidates',
+        error: '圣屑飓暴需选择可组成同系组合的攻击牌'
+      }
+    }
+    if (card.type !== 'Attack') {
+      return {
+        selectable: false,
+        reason: 'prompt_holy_shard_not_attack',
+        error: '圣屑飓暴只能弃置攻击牌'
+      }
+    }
+    if (selectedHandIndexes.value.includes(idx)) {
+      return { selectable: true, reason: 'prompt_holy_shard_keep_selected' }
+    }
+    if (selectedHandIndexes.value.length >= 2) {
+      return {
+        selectable: false,
+        reason: 'prompt_holy_shard_max_reached',
+        error: '圣屑飓暴只能选择2张同系攻击牌'
+      }
+    }
+    const selectedShardCards = selectedHandIndexes.value
+      .map((i) => myHand.value[i])
+      .filter((c): c is NonNullable<typeof c> => !!c)
+    if (selectedShardCards.length > 0) {
+      const requiredElement = selectedShardCards[0]?.element
+      if (requiredElement && card.element !== requiredElement) {
+        return {
+          selectable: false,
+          reason: 'prompt_holy_shard_element_mismatch',
+          error: '圣屑飓暴需选择2张同系攻击牌'
+        }
+      }
+    }
+    return { selectable: true, reason: 'prompt_holy_shard_same_element_attack' }
+  }
+
+  // 暗之障壁：单步选择法术牌或雷系牌，级联约束（选了法术牌就只能继续选法术牌）
+  if (prompt.presentation?.card_filter === 'magic_or_thunder_chain') {
+    const isMagic = card.type === 'Magic'
+    const isThunder = card.element === 'Thunder'
+    if (!isMagic && !isThunder) {
+      return {
+        selectable: false,
+        reason: 'prompt_dark_barrier_not_magic_or_thunder',
+        error: '暗之障壁需选择法术牌或雷系牌'
+      }
+    }
+    if (selectedHandIndexes.value.includes(idx)) {
+      return { selectable: true, reason: 'prompt_dark_barrier_keep_selected' }
+    }
+    const selectedTypes = selectedHandIndexes.value.map(i => {
+      const c = myHand.value[i]
+      return { isMagic: c?.type === 'Magic', isThunder: c?.element === 'Thunder' }
+    })
+    const selectedHasMagic = selectedTypes.some(t => t.isMagic)
+    const selectedHasThunder = selectedTypes.some(t => t.isThunder)
+    // 级联约束：已选法术牌 → 只能继续选法术牌（雷系牌灰显）
+    if (selectedHasMagic && !isMagic) {
+      return {
+        selectable: false,
+        reason: 'prompt_dark_barrier_magic_only',
+        error: '已选择法术牌，需继续选择法术牌'
+      }
+    }
+    // 级联约束：已选雷系牌 → 只能继续选雷系牌（法术牌灰显）
+    if (selectedHasThunder && !isThunder) {
+      return {
+        selectable: false,
+        reason: 'prompt_dark_barrier_thunder_only',
+        error: '已选择雷系牌，需继续选择雷系牌'
+      }
+    }
+    return { selectable: true, reason: 'prompt_dark_barrier_same_type' }
+  }
+
+  // 充盈弃牌步骤：从手牌区选择弃牌
+  if (prompt.presentation?.card_filter === 'option_limited') {
+    const validIndices = new Set(
+      (prompt.options || []).map((o: any) => {
+        const cardID = String(o?.card_id || '').trim()
+        if (!cardID) return null
+        const idx = myHand.value.findIndex(card => String(card.id || '').trim() === cardID)
+        return idx >= 0 ? idx : null
+      }).filter((i): i is number => i !== null)
+    )
+    if (validIndices.size > 0 && !validIndices.has(idx)) {
+      return {
+        selectable: false,
+        reason: 'prompt_fullness_discard_not_in_candidates',
+        error: '当前步骤只能选择提示中的手牌'
+      }
+    }
+    return { selectable: true, reason: 'prompt_fullness_discard_valid' }
+  }
+
+  const handOptionSet = promptHandOptionUIIndexSet()
   if (handOptionSet.size > 0) {
     if (handOptionSet.has(idx)) {
       return { selectable: true, reason: 'prompt_hand_option_match' }
@@ -1256,8 +1723,8 @@ function promptCardSelectionState(idx: number): PromptCardSelectionState {
     }
   }
 
-  if (prompt.type === 'choose_card' || prompt.type === 'choose_cards') {
-    return { selectable: false, reason: 'prompt_choose_cards_no_hand_option' }
+  if (prompt.presentation?.kind === 'card_picker') {
+    return { selectable: false, reason: 'prompt_card_picker_missing_card_id_option' }
   }
 
   return { selectable: false, reason: 'prompt_not_card_selection' }
@@ -1275,11 +1742,12 @@ function cardPassesSkillDiscardRules(idx: number): PromptCardSelectionState {
       return {
         selectable: false,
         reason: 'skill_discard_exclusive_mismatch',
-        error: `必须使用标有「${skill.title}」的独有牌`,
+        error: `必须使用标有「${skill.title}」的独有技手牌`,
       }
     }
   }
-  if (skill.discard_element && card.element !== skill.discard_element) {
+  const effectiveElement = skillDiscardEffectiveElement(card, myRoleIdForCardRules(), myAreaPlayer.value?.form)
+  if (skill.discard_element && effectiveElement !== skill.discard_element) {
     return {
       selectable: false,
       reason: 'skill_discard_element_mismatch',
@@ -1293,7 +1761,7 @@ function cardPassesSkillDiscardRules(idx: number): PromptCardSelectionState {
       error: `需要弃置${skill.discard_type === 'Magic' ? '法术' : '攻击'}牌`,
     }
   }
-  if (skill.id === 'magic_bullet_fusion' && card.element !== 'Fire' && card.element !== 'Earth') {
+  if ((skill.id === 'magic_bullet_fusion' || skill.id === 'magic_bullet_fusion_chain') && card.element !== 'Fire' && card.element !== 'Earth') {
     return {
       selectable: false,
       reason: 'skill_discard_magic_bullet_fusion_mismatch',
@@ -1308,7 +1776,7 @@ function cardPassesSkillDiscardRules(idx: number): PromptCardSelectionState {
         error: '式神降临需要弃置有命格的手牌',
       }
     }
-    const selected = skillDiscardIndices.value
+    const selected = skillDiscardHandIndexes.value
       .map((i) => myHand.value[i])
       .filter((c): c is NonNullable<typeof c> => !!c)
     if (selected.length > 0) {
@@ -1325,20 +1793,60 @@ function cardPassesSkillDiscardRules(idx: number): PromptCardSelectionState {
   return { selectable: true, reason: 'skill_discard_pass' }
 }
 
+function myRoleIdForCardRules(): string {
+  return String(sessionStore.myCharRole || myAreaPlayer.value?.role || '').trim()
+}
+
+function effectiveHandCardElement(card: { type?: string; element: string }): string {
+  if (!shouldShowEffectiveHandCardElement()) return card.element
+  return skillDiscardEffectiveElement(card, myRoleIdForCardRules(), myAreaPlayer.value?.form)
+}
+
+function effectiveHandCardHint(card: { type?: string; element: string }): string {
+  if (!shouldShowEffectiveHandCardElement()) return ''
+  if (!hasBlazeWitchFlameElementOverride(card, myRoleIdForCardRules(), myAreaPlayer.value?.form)) return ''
+  return '烈焰形态：非水/暗攻击牌视为火系'
+}
+
+function shouldShowEffectiveHandCardElement(): boolean {
+  if (skillMode.value === 'choosing_discard') return true
+  const prompt = currentPrompt.value
+  if (!prompt || !isPromptForMe.value) return false
+  const optionIds = new Set((prompt.options || []).map((option: any) => String(option?.id || '')))
+  if (optionIds.has('counter') || optionIds.has('defend')) return false
+  return prompt.choice_type === 'system_discard_cards' && !!prompt.skill_id
+}
+
 function isCardSelectableForSkillDiscard(idx: number): boolean {
   if (idx < 0 || idx >= myHand.value.length) return false
   if (!selectedSkill.value) return false
-  if (skillDiscardIndices.value.includes(idx)) return true
-  if (skillDiscardIndices.value.length >= selectedSkill.value.cost_discards) return false
+  if (skillDiscardHandIndexes.value.includes(idx)) return true
+  if (skillDiscardHandIndexes.value.length >= selectedSkill.value.cost_discards) return false
   return cardPassesSkillDiscardRules(idx).selectable
+}
+
+function isCardSelectableForExclusiveSkillCard(idx: number): boolean {
+  if (idx < 0 || idx >= myHand.value.length) return false
+  const skill = selectedSkill.value
+  if (!requiresExclusiveCardSelectionBeforeTarget(skill)) return false
+  const card = myHand.value[idx]
+  if (!card) return false
+  const roleId = sessionStore.myCharRole || myAreaPlayer.value?.role || ''
+  return cardMatchesExclusive(card, roleId, skill?.title || '')
 }
 
 function isCardSelectableForAction(idx: number): boolean {
   if (isGameEnded.value) return false
   if (skillMode.value === 'choosing_discard') return isCardSelectableForSkillDiscard(idx)
+  if (skillMode.value === 'choosing_exclusive') return isCardSelectableForExclusiveSkillCard(idx)
   if (actionMode.value === 'attack') {
     const card = myPlayableCards.value.find(item => item.index === idx)?.card
-    return !!card && card.type === 'Attack'
+    if (!card || card.type !== 'Attack') return false
+    // 额外行动元素约束：只有符合元素要求的攻击牌可选
+    if (extraActionElementConstraint.value && !extraActionElementConstraint.value.includes(card.element.toLowerCase())) {
+      return false
+    }
+    return true
   }
   if (actionMode.value === 'magic' && magicSubChoice.value === 'card') {
     const card = myPlayableCards.value.find(item => item.index === idx)?.card
@@ -1348,8 +1856,15 @@ function isCardSelectableForAction(idx: number): boolean {
   return isMyTurn.value
 }
 
+function requiresExclusiveCardSelectionBeforeTarget(skill?: AvailableSkill | null): boolean {
+  return !!skill &&
+    !!skill.require_exclusive &&
+    (skill.target_type ?? 0) !== 0 &&
+    (skill.cost_discards ?? 0) === 0
+}
+
 function togglePromptSelectedCard(idx: number) {
-  const nextSelected = [...selectedCards.value]
+  const nextSelected = [...selectedHandIndexes.value]
   const existingIndex = nextSelected.indexOf(idx)
   if (existingIndex >= 0) {
     nextSelected.splice(existingIndex, 1)
@@ -1358,12 +1873,24 @@ function togglePromptSelectedCard(idx: number) {
   } else {
     nextSelected.push(idx)
   }
-  interruptStore.setSelectedCards(nextSelected)
+  interruptStore.setSelectedHandIndexes(nextSelected)
+}
+
+function toggleExclusiveSkillHandCard(idx: number) {
+  const skill = selectedSkill.value
+  if (!requiresExclusiveCardSelectionBeforeTarget(skill)) return
+  const card = myHand.value[idx]
+  const roleId = sessionStore.myCharRole || myAreaPlayer.value?.role || ''
+  if (!card || !cardMatchesExclusive(card, roleId, skill?.title || '')) {
+    interruptStore.showError(`请先在手牌区选择对应的「${skill?.title || '独有技'}」独有技手牌`)
+    return
+  }
+  interruptStore.setSkillDiscardHandIndexes(skillDiscardHandIndexes.value.includes(idx) ? [] : [idx])
 }
 
 function onCardClick(idx: number) {
   if (isGameEnded.value) return
-  // 优先级：actionMode > skillMode(弃牌) > prompt 选牌 > 默认
+  // 优先级：actionMode > skillMode(选牌/弃牌) > prompt 选牌 > 默认
   if (actionMode.value !== 'none') {
     const card = myPlayableCards.value.find(item => item.index === idx)?.card
     if (actionMode.value === 'magic' && card && card.type !== 'Magic') {
@@ -1374,30 +1901,38 @@ function onCardClick(idx: number) {
       interruptStore.showError('请选择攻击牌')
       return
     }
-    if (actionMode.value === 'magic' && isMagicBulletCard(idx)) {
-      // 魔弹按固定传递顺序自动结算，不需要手动点目标。
-      actions.submitMagic(undefined, idx)
+    if (actionMode.value === 'attack' && card && extraActionElementConstraint.value && !extraActionElementConstraint.value.includes(card.element.toLowerCase())) {
+      interruptStore.showError('当前为额外攻击行动，只能使用对应系别的攻击牌')
       return
     }
-    interruptStore.setSelectedCardForAction(selectedCardForAction.value === idx ? null : idx)
+    if (actionMode.value === 'magic' && card && isMagicBulletCard(idx)) {
+      // 魔弹按固定传递顺序自动结算，不需要手动点目标。
+      actions.submitMagic(undefined, card.id)
+      return
+    }
+    interruptStore.setSelectedHandIndexForAction(selectedHandIndexForAction.value === idx ? null : idx)
     return
   }
   // 技能弃牌模式：检查元素要求后切换选中
   if (skillMode.value === 'choosing_discard' && selectedSkill.value) {
     const skill = selectedSkill.value
     const state = cardPassesSkillDiscardRules(idx)
-    if (!state.selectable && !skillDiscardIndices.value.includes(idx)) {
+    if (!state.selectable && !skillDiscardHandIndexes.value.includes(idx)) {
       if (state.error) {
         interruptStore.showError(state.error)
       }
       return
     }
     // 检查是否已选满
-    if (!skillDiscardIndices.value.includes(idx) && skillDiscardIndices.value.length >= skill.cost_discards) {
+    if (!skillDiscardHandIndexes.value.includes(idx) && skillDiscardHandIndexes.value.length >= skill.cost_discards) {
       interruptStore.showError(`最多选择 ${skill.cost_discards} 张牌`)
       return
     }
-    interruptStore.toggleSkillDiscard(idx)
+    interruptStore.toggleSkillDiscardHandIndex(idx)
+    return
+  }
+  if (skillMode.value === 'choosing_exclusive' && selectedSkill.value) {
+    toggleExclusiveSkillHandCard(idx)
     return
   }
   if (isPromptForMe.value) {
@@ -1415,18 +1950,26 @@ function onCardClick(idx: number) {
     togglePromptSelectedCard(idx)
     logTargetDebug('prompt_card_toggled', {
       cardIdx: idx,
-      selectedCards: [...selectedCards.value],
+      selectedHandIndexes: [...selectedHandIndexes.value],
       reason: state.reason
     })
     return
   }
   if (isMyTurn.value) {
-    interruptStore.setSelectedCardForAction(selectedCardForAction.value === idx ? null : idx)
+    interruptStore.setSelectedHandIndexForAction(selectedHandIndexForAction.value === idx ? null : idx)
   }
 }
 
 function turnOrderFor(playerId: string): number | undefined {
   return turnOrderMap.value[playerId]
+}
+
+function soulLinkBindingTextFor(playerId: string): string | undefined {
+  return soulLinkBindingDisplayByPlayer.value?.[playerId]?.text
+}
+
+function soulLinkBindingTitleFor(playerId: string): string | undefined {
+  return soulLinkBindingDisplayByPlayer.value?.[playerId]?.title
 }
 
 type DrawFlightVisual = {
@@ -1516,6 +2059,7 @@ function handleResize() {
   if (drawBursts.value.length > 0) {
     rebuildDrawFlights()
   }
+  rebuildLinkLines()
 }
 
 function toggleExpansionCards() {
@@ -1536,21 +2080,119 @@ function leaveToLobby() {
 
 function takeoverOfflinePlayer(playerId: string) {
   if (!playerId) return
-  actions.sendRoomAction('takeover_player', { target_id: playerId })
+  actions.takeoverPlayer(playerId)
 }
 
 function dissolveRoomByHost() {
   if (!isHostInRoom.value) return
   const confirmed = window.confirm('确认解散房间吗？所有玩家将被退出到大厅。')
   if (!confirmed) return
-  actions.sendRoomAction('dissolve_room')
+  actions.dissolveRoom()
 }
+
+const bloodSharedLifeByPlayer = computed(() => {
+  const result: Record<string, { text: string; title: string; role: 'source' | 'bound' }> = {}
+  const seen = new Set<string>()
+
+  for (const player of Object.values(players.value ?? {}) as PlayerView[]) {
+    if (!player.field?.length) continue
+    for (const fc of player.field) {
+      if (fc.mode !== 'Effect' || fc.effect !== 'BloodSharedLife') continue
+      const sourceId = fc.source_id
+      const ownerId = player.id
+      if (!sourceId || !ownerId) continue
+
+      const pairKey = [sourceId, ownerId].sort().join('|')
+      if (seen.has(pairKey)) continue
+      seen.add(pairKey)
+
+      const sourceName = players.value[sourceId]?.name || sourceId
+      const ownerName = players.value[ownerId]?.name || ownerId
+      const title = sourceId === ownerId
+        ? `同生共死：${sourceName}`
+        : `同生共死：${sourceName} 与 ${ownerName} 的手牌上限保持联动`
+
+      result[sourceId] = {
+        text: '同生共死',
+        title,
+        role: 'source',
+      }
+      if (ownerId !== sourceId) {
+        result[ownerId] = {
+          text: '同生共死',
+          title,
+          role: 'bound',
+        }
+      }
+    }
+  }
+
+  return result
+})
+
+const fighterHundredDragonByPlayer = computed(() => {
+  const result: Record<string, { text: string; title: string; role: 'source' | 'bound' }> = {}
+  const seen = new Set<string>()
+
+  for (const player of Object.values(players.value ?? {}) as PlayerView[]) {
+    if (!player.field?.length) continue
+    for (const fc of player.field) {
+      if (fc.mode !== 'Effect' || fc.effect !== 'FighterHundredDragonLock') continue
+      const sourceId = fc.source_id
+      const ownerId = player.id
+      if (!sourceId || !ownerId) continue
+
+      const pairKey = [sourceId, ownerId].sort().join('|')
+      if (seen.has(pairKey)) continue
+      seen.add(pairKey)
+
+      const sourceName = players.value[sourceId]?.name || sourceId
+      const ownerName = players.value[ownerId]?.name || ownerId
+      const title = sourceId === ownerId
+        ? `百式幻龙拳：${sourceName} 的本行动阶段锁定目标`
+        : `百式幻龙拳：${sourceName} 锁定 ${ownerName}，本行动阶段只能主动攻击该角色`
+
+      result[sourceId] = {
+        text: '幻龙锁定',
+        title,
+        role: 'source',
+      }
+      if (ownerId !== sourceId) {
+        result[ownerId] = {
+          text: '幻龙锁定',
+          title,
+          role: 'bound',
+        }
+      }
+    }
+  }
+
+  return result
+})
 </script>
 
 <template>
-  <div ref="boardRootRef" class="h-full w-full flex flex-col board-shell p-2 sm:p-3 md:p-4 min-h-0 relative">
+  <div ref="boardRootRef" class="h-full w-full flex flex-col board-shell p-2 sm:p-3 md:p-4 min-h-0 relative" data-testid="game-board">
     <div class="board-ambient board-ambient-left" />
     <div class="board-ambient board-ambient-right" />
+    <div v-if="roseCourtyardActive" class="rose-courtyard-vfx" data-testid="rose-courtyard-vfx" aria-hidden="true">
+      <div class="rose-courtyard-vfx__edge rose-courtyard-vfx__edge--top-left" />
+      <div class="rose-courtyard-vfx__edge rose-courtyard-vfx__edge--top-right" />
+      <div class="rose-courtyard-vfx__edge rose-courtyard-vfx__edge--bottom-left" />
+      <div class="rose-courtyard-vfx__edge rose-courtyard-vfx__edge--bottom-right" />
+      <div class="rose-courtyard-vfx__edge rose-courtyard-vfx__edge--left" />
+      <div class="rose-courtyard-vfx__edge rose-courtyard-vfx__edge--right" />
+      <div class="rose-courtyard-vfx__corner rose-courtyard-vfx__corner--tl" />
+      <div class="rose-courtyard-vfx__corner rose-courtyard-vfx__corner--tr" />
+      <div class="rose-courtyard-vfx__corner rose-courtyard-vfx__corner--bl" />
+      <div class="rose-courtyard-vfx__corner rose-courtyard-vfx__corner--br" />
+      <span
+        v-for="idx in 14"
+        :key="`rose-petal-${idx}`"
+        class="rose-courtyard-vfx__petal"
+        :class="`rose-courtyard-vfx__petal--${idx}`"
+      />
+    </div>
     <button
       v-if="isHostInRoom"
       type="button"
@@ -1638,8 +2280,16 @@ function dissolveRoomByHost() {
             :isOpponent="p.camp !== myCamp"
             :selectable="isPlayerSelectable(p.id)"
             :debugTargetReason="playerSelectReason(p.id)"
-            :selected="isPlayerSelected(p.id)"
-            :turnOrder="turnOrderFor(p.id)"
+          :selected="isPlayerSelected(p.id)"
+          :turnOrder="turnOrderFor(p.id)"
+          :soulLinkBindingText="soulLinkBindingTextFor(p.id)"
+          :soulLinkBindingTitle="soulLinkBindingTitleFor(p.id)"
+          :fighterHundredDragonText="fighterHundredDragonByPlayer[p.id]?.text"
+          :fighterHundredDragonTitle="fighterHundredDragonByPlayer[p.id]?.title"
+          :fighterHundredDragonRole="fighterHundredDragonByPlayer[p.id]?.role"
+          :bloodSharedLifeText="bloodSharedLifeByPlayer[p.id]?.text"
+          :bloodSharedLifeTitle="bloodSharedLifeByPlayer[p.id]?.title"
+          :bloodSharedLifeRole="bloodSharedLifeByPlayer[p.id]?.role"
           compact
           @select="onTargetClick"
         />
@@ -1659,32 +2309,38 @@ function dissolveRoomByHost() {
         <div class="bottom-hud flex-shrink-0 min-h-0 mt-2">
           <div class="bottom-hud-main">
             <div
-              class="bottom-slot-me player-anchor-wrap"
-              :class="[
-                playerAnchorClasses(myPlayerId, 'bottom'),
-                { 'target-guide-pulse': promptNeedsTargetGuide && isPlayerSelectable(myPlayerId) }
-              ]"
-              :data-player-anchor="myPlayerId"
-            >
-        <PlayerArea
-                v-if="myAreaPlayer"
-                :player="myAreaPlayer"
-                is-me
-                :selectable="isPlayerSelectable(myAreaPlayer.id)"
-                :debugTargetReason="playerSelectReason(myAreaPlayer.id)"
-                :selected="isPlayerSelected(myAreaPlayer.id)"
-                :turnOrder="turnOrderFor(myAreaPlayer.id)"
-          compact
-          @select="onTargetClick"
-        />
-      </div>
-            <div
               class="hand-rail bottom-slot-hand rounded-lg sm:rounded-xl p-2 sm:p-2 min-h-0"
               :class="{
                 'hand-rail--prompt-guide': promptNeedsCardGuide,
                 'hand-rail--overflow-discard': promptNeedsOverflowDiscardGuide
               }"
             >
+              <div v-if="myAreaPlayer" class="my-status-strip">
+                <div class="my-status-primary">
+                  <span class="my-status-name">{{ myStatusRoleName }}</span>
+                  <span class="my-status-chip my-status-chip--heal">治疗 {{ myAreaPlayer.heal }}/{{ myAreaPlayer.max_heal }}</span>
+                  <span class="my-status-chip">手牌上限 {{ myStatusMaxHand }}</span>
+                  <span v-if="myAreaPlayer.gem" class="my-status-chip my-status-chip--gem">宝石 {{ myAreaPlayer.gem }}</span>
+                  <span v-if="myAreaPlayer.crystal" class="my-status-chip my-status-chip--crystal">水晶 {{ myAreaPlayer.crystal }}</span>
+                </div>
+                <div class="my-status-secondary">
+                  <span
+                    v-for="field in myFieldStatusItems"
+                    :key="`field-${field.key}`"
+                    class="my-status-pill my-status-pill--field"
+                    :title="field.label"
+                  >
+                    <StatusEffectIcon :effect="field.effect" />
+                    {{ field.label }}
+                  </span>
+                  <span
+                    v-if="myFieldStatusItems.length === 0"
+                    class="my-status-empty"
+                  >
+                    无场上状态
+                  </span>
+                </div>
+              </div>
               <div class="exclusive-toggle-row mb-2">
                 <button
                   type="button"
@@ -1709,7 +2365,7 @@ function dissolveRoomByHost() {
                 <div v-if="promptNeedsCocoonGuide" class="expansion-cocoon-guide">
                   <div class="expansion-cocoon-guide-text">{{ cocoonGuideText }}</div>
                   <button
-                    v-if="cocoonPromptContext.mode === 'cards' && cocoonPromptContext.max > 1"
+                    v-if="cocoonPromptContext.mode === 'cards'"
                     class="expansion-cocoon-confirm-btn"
                     :class="{ 'expansion-cocoon-confirm-btn--disabled': !canConfirmCocoonSelection }"
                     :disabled="!canConfirmCocoonSelection"
@@ -1718,8 +2374,13 @@ function dissolveRoomByHost() {
                     确认选择
                   </button>
     </div>
-                <div v-else-if="promptNeedsBlessingRemoveGuide" class="expansion-cocoon-guide">
-                  <div class="expansion-cocoon-guide-text">请在扩展区选择要移除的祝福牌，然后在行动区点击确认。</div>
+                <div v-else-if="promptNeedsElementalShotGuide" class="expansion-cocoon-guide">
+                  <div class="expansion-cocoon-guide-text">
+                    请点击手牌区或扩展区的法术牌/祝福牌完成元素射击消耗选择。
+                  </div>
+                </div>
+                <div v-else-if="promptNeedsSpiritCasterPowerGuide" class="expansion-cocoon-guide">
+                  <div class="expansion-cocoon-guide-text">{{ spiritCasterPowerGuideText }}</div>
                 </div>
                 <div class="expansion-zone-scroll">
                   <div class="expansion-zone-content">
@@ -1745,6 +2406,7 @@ function dissolveRoomByHost() {
                           <CardComponent
                             :card="cover.fieldCard.card"
                             :index="cover.fieldIndex"
+                            :test-id="`cover-card-${cover.fieldIndex}`"
                             medium
                             :selectable="isCoverSelectable(cover.fieldIndex)"
                             :selected="isCoverSelected(cover.fieldIndex)"
@@ -1783,15 +2445,25 @@ function dissolveRoomByHost() {
                     :key="entry.index"
                     :card="entry.card"
                     :index="entry.index"
+                    :effective-element="effectiveHandCardElement(entry.card)"
+                    :effective-element-hint="effectiveHandCardHint(entry.card)"
                     medium
                     :selectable="isCardSelectableForAction(entry.index)"
-                    :selected="selectedCards.includes(entry.index) || selectedCardForAction === entry.index || skillDiscardIndices.includes(entry.index)"
+                    :selected="selectedHandIndexes.includes(entry.index) || selectedHandIndexForAction === entry.index || skillDiscardHandIndexes.includes(entry.index)"
                     @click="onCardClick(entry.index)"
                   />
-                </div>
+              </div>
           <div v-if="myHand.length === 0" class="text-gray-500 py-4 text-sm">没有手牌</div>
         </div>
       </div>
+            <div
+              class="right-action-dock"
+              :class="{
+                'right-action-dock--active': isMyTurn
+              }"
+            >
+              <ActionPanel />
+            </div>
       </div>
         </div>
       </section>
@@ -1815,6 +2487,14 @@ function dissolveRoomByHost() {
             :debugTargetReason="playerSelectReason(p.id)"
             :selected="isPlayerSelected(p.id)"
             :turnOrder="turnOrderFor(p.id)"
+            :soulLinkBindingText="soulLinkBindingTextFor(p.id)"
+            :soulLinkBindingTitle="soulLinkBindingTitleFor(p.id)"
+            :fighterHundredDragonText="fighterHundredDragonByPlayer[p.id]?.text"
+            :fighterHundredDragonTitle="fighterHundredDragonByPlayer[p.id]?.title"
+            :fighterHundredDragonRole="fighterHundredDragonByPlayer[p.id]?.role"
+            :bloodSharedLifeText="bloodSharedLifeByPlayer[p.id]?.text"
+            :bloodSharedLifeTitle="bloodSharedLifeByPlayer[p.id]?.title"
+            :bloodSharedLifeRole="bloodSharedLifeByPlayer[p.id]?.role"
             compact
             @select="onTargetClick"
           />
@@ -1831,10 +2511,6 @@ function dissolveRoomByHost() {
       >
         <div class="draw-flight-card-face" />
       </div>
-    </div>
-
-    <div class="right-action-dock" :class="{ 'right-action-dock--active': isMyTurn }">
-      <ActionPanel />
     </div>
 
     <!-- Toast 通知（参考 noname） -->
@@ -1940,6 +2616,28 @@ function dissolveRoomByHost() {
         </div>
       </div>
     </Transition>
+    <!-- 双人关联连线 SVG 层 -->
+    <svg v-if="linkLines.length" class="link-lines-layer" aria-hidden="true">
+      <defs>
+        <filter id="link-glow">
+          <feGaussianBlur stdDeviation="2" result="blur" />
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+      <path
+        v-for="link in linkLines"
+        :key="link.id"
+        :d="link.path"
+        :stroke="link.color"
+        :stroke-width="link.strokeWidth"
+        fill="none"
+        :opacity="link.strokeOpacity"
+        stroke-dasharray="6 4"
+        filter="url(#link-glow)"
+        class="link-line"
+      />
+    </svg>
+
     <VfxLayer />
   </div>
 </template>
@@ -1955,6 +2653,21 @@ function dissolveRoomByHost() {
   opacity: 0;
 }
 
+.link-lines-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 50;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.link-line {
+  transition: opacity 0.3s ease;
+}
+
+/* 连线中点图标 */
 .game-end-overlay {
   position: absolute;
   inset: 0;
@@ -2231,7 +2944,7 @@ function dissolveRoomByHost() {
   z-index: 0;
 }
 
-.board-shell > * {
+.board-shell > *:not(.link-lines-layer):not(.board-ambient):not(.rose-courtyard-vfx):not(.draw-flight-layer):not(.host-dissolve-btn):not(.right-action-dock) {
   position: relative;
   z-index: 2;
 }
@@ -2259,6 +2972,181 @@ function dissolveRoomByHost() {
   right: -104px;
   top: 10%;
   background: rgba(213, 168, 104, 0.16);
+}
+
+.rose-courtyard-vfx {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  overflow: hidden;
+  mix-blend-mode: screen;
+}
+
+.rose-courtyard-vfx__edge,
+.rose-courtyard-vfx__corner,
+.rose-courtyard-vfx__petal {
+  position: absolute;
+  pointer-events: none;
+}
+
+.rose-courtyard-vfx__edge {
+  opacity: 0.62;
+  filter:
+    drop-shadow(0 0 12px rgba(244, 63, 94, 0.34))
+    drop-shadow(0 0 22px rgba(136, 19, 55, 0.28));
+}
+
+.rose-courtyard-vfx__edge::before,
+.rose-courtyard-vfx__edge::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.rose-courtyard-vfx__edge::before {
+  background:
+    repeating-linear-gradient(118deg, transparent 0 26px, rgba(159, 18, 57, 0.36) 27px 30px, transparent 31px 54px),
+    linear-gradient(90deg, transparent, rgba(244, 63, 94, 0.28), transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
+  animation: roseVineDrift 7s linear infinite;
+}
+
+.rose-courtyard-vfx__edge::after {
+  background:
+    radial-gradient(circle at 14% 52%, rgba(251, 113, 133, 0.7) 0 4px, transparent 5px),
+    radial-gradient(circle at 36% 38%, rgba(225, 29, 72, 0.62) 0 3px, transparent 4px),
+    radial-gradient(circle at 62% 58%, rgba(251, 113, 133, 0.66) 0 4px, transparent 5px),
+    radial-gradient(circle at 84% 44%, rgba(190, 18, 60, 0.64) 0 3px, transparent 4px);
+  animation: rosePulse 3.8s ease-in-out infinite;
+}
+
+.rose-courtyard-vfx__edge--top-left,
+.rose-courtyard-vfx__edge--top-right,
+.rose-courtyard-vfx__edge--bottom-left,
+.rose-courtyard-vfx__edge--bottom-right {
+  width: clamp(132px, 14vw, 238px);
+  height: clamp(34px, 5.4vh, 72px);
+}
+
+.rose-courtyard-vfx__edge--top-left,
+.rose-courtyard-vfx__edge--top-right {
+  top: clamp(8px, 2.2vh, 28px);
+}
+
+.rose-courtyard-vfx__edge--top-left,
+.rose-courtyard-vfx__edge--bottom-left {
+  left: clamp(12px, 2vw, 34px);
+}
+
+.rose-courtyard-vfx__edge--top-right,
+.rose-courtyard-vfx__edge--bottom-right {
+  right: clamp(12px, 2vw, 34px);
+}
+
+.rose-courtyard-vfx__edge--bottom-left,
+.rose-courtyard-vfx__edge--bottom-right {
+  bottom: clamp(12px, 2.4vh, 34px);
+  transform: rotate(180deg);
+}
+
+.rose-courtyard-vfx__edge--left,
+.rose-courtyard-vfx__edge--right {
+  top: clamp(96px, 17vh, 178px);
+  bottom: clamp(128px, 20vh, 238px);
+  width: clamp(34px, 4.8vw, 72px);
+}
+
+.rose-courtyard-vfx__edge--left {
+  left: clamp(10px, 1.8vw, 30px);
+}
+
+.rose-courtyard-vfx__edge--right {
+  right: clamp(10px, 1.8vw, 30px);
+}
+
+.rose-courtyard-vfx__corner {
+  width: clamp(76px, 8vw, 128px);
+  height: clamp(76px, 8vw, 128px);
+  border-radius: 999px;
+  opacity: 0.46;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(251, 113, 133, 0.36), transparent 34%),
+    conic-gradient(from 20deg, transparent, rgba(190, 18, 60, 0.5), transparent 38%, rgba(244, 63, 94, 0.42), transparent 72%);
+  filter: blur(0.4px) drop-shadow(0 0 18px rgba(244, 63, 94, 0.28));
+  animation: roseCornerBloom 5.4s ease-in-out infinite;
+}
+
+.rose-courtyard-vfx__corner--tl {
+  top: clamp(58px, 8vh, 96px);
+  left: clamp(16px, 2vw, 36px);
+}
+
+.rose-courtyard-vfx__corner--tr {
+  top: clamp(58px, 8vh, 96px);
+  right: clamp(16px, 2vw, 36px);
+  animation-delay: -1.4s;
+}
+
+.rose-courtyard-vfx__corner--bl {
+  bottom: clamp(78px, 10vh, 132px);
+  left: clamp(16px, 2vw, 36px);
+  animation-delay: -2.7s;
+}
+
+.rose-courtyard-vfx__corner--br {
+  right: clamp(16px, 2vw, 36px);
+  bottom: clamp(78px, 10vh, 132px);
+  animation-delay: -4s;
+}
+
+.rose-courtyard-vfx__petal {
+  width: 9px;
+  height: 14px;
+  border-radius: 70% 30% 70% 30%;
+  background: linear-gradient(155deg, rgba(255, 205, 213, 0.86), rgba(225, 29, 72, 0.58) 58%, rgba(136, 19, 55, 0.18));
+  opacity: 0;
+  filter: drop-shadow(0 0 8px rgba(244, 63, 94, 0.42));
+  animation: rosePetalLoop 8.5s ease-in-out infinite;
+}
+
+.rose-courtyard-vfx__petal--1 { left: 7%; top: 22%; animation-delay: -0.4s; }
+.rose-courtyard-vfx__petal--2 { left: 13%; top: 67%; animation-delay: -3.1s; }
+.rose-courtyard-vfx__petal--3 { left: 18%; top: 7%; animation-delay: -5.8s; }
+.rose-courtyard-vfx__petal--4 { left: 29%; top: 5%; animation-delay: -1.9s; }
+.rose-courtyard-vfx__petal--5 { right: 29%; top: 5%; animation-delay: -6.8s; }
+.rose-courtyard-vfx__petal--6 { right: 18%; top: 7%; animation-delay: -2.8s; }
+.rose-courtyard-vfx__petal--7 { right: 8%; top: 24%; animation-delay: -4.4s; }
+.rose-courtyard-vfx__petal--8 { right: 13%; top: 68%; animation-delay: -0.9s; }
+.rose-courtyard-vfx__petal--9 { left: 9%; top: 45%; animation-delay: -7.2s; }
+.rose-courtyard-vfx__petal--10 { right: 9%; top: 46%; animation-delay: -5.2s; }
+.rose-courtyard-vfx__petal--11 { left: 20%; bottom: 6%; animation-delay: -2.2s; }
+.rose-courtyard-vfx__petal--12 { left: 32%; bottom: 5%; animation-delay: -6.2s; }
+.rose-courtyard-vfx__petal--13 { right: 32%; bottom: 5%; animation-delay: -3.8s; }
+.rose-courtyard-vfx__petal--14 { right: 18%; bottom: 11%; animation-delay: -1.2s; }
+
+@keyframes roseVineDrift {
+  0% { transform: translateX(-34px); opacity: 0.5; }
+  50% { opacity: 0.86; }
+  100% { transform: translateX(34px); opacity: 0.5; }
+}
+
+@keyframes rosePulse {
+  0%, 100% { transform: scale(0.96); opacity: 0.42; }
+  50% { transform: scale(1.04); opacity: 0.86; }
+}
+
+@keyframes roseCornerBloom {
+  0%, 100% { transform: scale(0.86) rotate(0deg); opacity: 0.28; }
+  48% { transform: scale(1.08) rotate(28deg); opacity: 0.58; }
+}
+
+@keyframes rosePetalLoop {
+  0% { transform: translate3d(0, 10px, 0) rotate(0deg) scale(0.7); opacity: 0; }
+  16% { opacity: 0.72; }
+  58% { opacity: 0.62; }
+  100% { transform: translate3d(18px, -46px, 0) rotate(172deg) scale(1); opacity: 0; }
 }
 
 .host-dissolve-btn {
@@ -2551,19 +3439,24 @@ function dissolveRoomByHost() {
 
 .main-grid {
   display: grid;
-  grid-template-columns: 144px minmax(0, 1fr) 144px;
+  flex: 1 1 0;
+  grid-template-columns: 156px minmax(0, 1fr) 156px;
+  grid-template-rows: minmax(0, 1fr);
   gap: 12px;
+  align-items: stretch;
+  min-height: 0;
+  min-width: 0;
 }
 
 @media (min-width: 1600px) {
   .main-grid {
-    grid-template-columns: 168px minmax(0, 1fr) 168px;
+    grid-template-columns: 180px minmax(0, 1fr) 180px;
     gap: 16px;
   }
 
   .bottom-hud {
-    --me-slot-width: 158px;
-    --hand-max-width: 920px;
+    --hand-max-width: 940px;
+    --action-dock-width: 320px;
   }
 }
 
@@ -2573,13 +3466,13 @@ function dissolveRoomByHost() {
   }
 
   .main-grid {
-    grid-template-columns: 196px minmax(0, 1fr) 196px;
+    grid-template-columns: 204px minmax(0, 1fr) 204px;
     gap: 18px;
   }
 
   .bottom-hud {
-    --me-slot-width: 186px;
-    --hand-max-width: 1020px;
+    --hand-max-width: 1040px;
+    --action-dock-width: 340px;
   }
 
   .hand-rail {
@@ -2662,6 +3555,7 @@ function dissolveRoomByHost() {
 }
 
 .center-stage {
+  height: 100%;
   min-height: 0;
   min-width: 0;
   position: relative;
@@ -2818,6 +3712,98 @@ function dissolveRoomByHost() {
     0 10px 28px rgba(1, 8, 16, 0.48),
     0 0 0 1px rgba(216, 139, 103, 0.32);
   animation: overflowDiscardPulse 1.45s ease-in-out infinite;
+}
+
+.my-status-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+  padding: 7px 9px;
+  border-radius: 10px;
+  border: 1px solid rgba(132, 172, 207, 0.28);
+  background: linear-gradient(180deg, rgba(18, 36, 54, 0.72), rgba(10, 23, 37, 0.82));
+  box-shadow:
+    inset 0 1px 0 rgba(236, 247, 255, 0.08),
+    0 6px 14px rgba(2, 8, 16, 0.22);
+}
+
+.my-status-primary,
+.my-status-secondary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.my-status-name {
+  max-width: 112px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #f8dfad;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.my-status-chip,
+.my-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 20px;
+  border-radius: 999px;
+  border: 1px solid rgba(142, 178, 205, 0.34);
+  background: rgba(5, 14, 25, 0.54);
+  color: rgba(219, 235, 248, 0.95);
+  font-size: 11px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.my-status-chip {
+  padding: 4px 8px;
+  font-weight: 700;
+}
+
+.my-status-chip--heal {
+  color: #ffd0d7;
+  border-color: rgba(221, 118, 138, 0.38);
+}
+
+.my-status-chip--gem {
+  color: #f8b8ae;
+  border-color: rgba(220, 106, 92, 0.38);
+}
+
+.my-status-chip--crystal {
+  color: #b7ddf4;
+  border-color: rgba(106, 172, 211, 0.4);
+}
+
+.my-status-pill {
+  padding: 3px 7px;
+  font-weight: 600;
+}
+
+.my-status-pill--field {
+  color: #f8e5b8;
+  background: rgba(46, 35, 16, 0.58);
+  border-color: rgba(220, 179, 104, 0.38);
+}
+
+.my-status-pill--field :deep(.status-effect-icon) {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.my-status-empty {
+  color: rgba(164, 190, 208, 0.78);
+  font-size: 11px;
+  line-height: 1;
 }
 
 .prompt-card-guide-chip {
@@ -3113,56 +4099,41 @@ function dissolveRoomByHost() {
   padding-top: 4px;
   display: flex;
   flex-direction: column;
-  align-items: stretch;
+  align-items: flex-start;
   width: 100%;
   gap: 8px;
   position: relative;
   z-index: 2;
-  --me-slot-width: 142px;
-  --hand-max-width: 840px;
-  --hud-main-gap: 8px;
+  --hand-max-width: 820px;
+  --action-dock-width: 300px;
+  --hud-main-gap: 10px;
 }
 
 .bottom-hud-main {
-  width: min(100%, calc(var(--me-slot-width) + var(--hand-max-width) + var(--hud-main-gap)));
+  width: min(100%, calc(var(--hand-max-width) + var(--action-dock-width) + var(--hud-main-gap)));
   min-width: 0;
   display: grid;
-  grid-template-columns: var(--me-slot-width) minmax(0, 1fr);
+  grid-template-columns: minmax(0, var(--hand-max-width)) var(--action-dock-width);
   align-items: end;
   column-gap: var(--hud-main-gap);
   margin: 0;
 }
 
-.bottom-slot-me {
-  flex-shrink: 0;
-}
-
-.bottom-slot-me {
-  width: var(--me-slot-width);
-  justify-self: start;
-}
-
-.bottom-slot-me :deep(.player-area) {
-  width: 100%;
-  min-width: 100% !important;
-  max-width: 100% !important;
-}
-
 .bottom-slot-hand {
   width: 100%;
-  max-width: min(100%, var(--hand-max-width));
+  max-width: var(--hand-max-width);
   min-width: 0;
   justify-self: stretch;
 }
 
 .right-action-dock {
-  position: absolute;
-  right: max(10px, var(--safe-right));
-  bottom: calc(12px + var(--safe-bottom));
-  width: clamp(250px, 18vw, 320px);
+  position: static;
+  width: 100%;
   z-index: 24;
   pointer-events: auto;
   transition: filter 0.22s ease, transform 0.22s ease;
+  align-self: end;
+  justify-self: stretch;
 }
 
 .right-action-dock--active {
@@ -3171,30 +4142,26 @@ function dissolveRoomByHost() {
 }
 
 @media (max-width: 1200px) {
-  .right-action-dock {
-    width: clamp(198px, 19vw, 248px);
+  .bottom-hud {
+    --hand-max-width: 700px;
+    --action-dock-width: 248px;
   }
 }
 
 @media (max-width: 900px) {
   .right-action-dock {
-    position: fixed;
-    right: max(8px, var(--safe-right));
-    bottom: calc(10px + var(--safe-bottom));
-    width: min(198px, 46vw);
     z-index: 36;
   }
 }
 
 @media (max-width: 640px) {
-  .right-action-dock {
-    width: min(176px, 48vw);
+  .bottom-hud {
+    --action-dock-width: min(176px, 48vw);
   }
 }
 
 @media (min-width: 640px) {
   .bottom-hud {
-    --me-slot-width: 142px;
     --hand-max-width: 860px;
   }
 }
@@ -3211,12 +4178,8 @@ function dissolveRoomByHost() {
   }
 
   .bottom-hud {
-    --me-slot-width: 162px;
     --hand-max-width: 760px;
-  }
-
-  .right-action-dock {
-    width: clamp(270px, 20vw, 330px);
+    --action-dock-width: 320px;
   }
 }
 
@@ -3230,8 +4193,8 @@ function dissolveRoomByHost() {
   }
 
   .bottom-hud {
-    --me-slot-width: 132px;
     --hand-max-width: 700px;
+    --action-dock-width: 238px;
   }
 
   .hand-rail {
@@ -3347,8 +4310,8 @@ function dissolveRoomByHost() {
   }
 
   .bottom-hud {
-    --me-slot-width: 124px;
     --hand-max-width: 100%;
+    --action-dock-width: 230px;
     --hud-main-gap: 6px;
   }
 
@@ -3383,7 +4346,7 @@ function dissolveRoomByHost() {
   }
 
   .bottom-hud {
-    --me-slot-width: 108px;
+    --action-dock-width: 208px;
   }
 }
 
@@ -3407,6 +4370,7 @@ function dissolveRoomByHost() {
 
   .main-grid {
     grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr) auto;
     gap: 8px;
   }
 
@@ -3463,17 +4427,13 @@ function dissolveRoomByHost() {
   .bottom-hud {
     width: 100%;
     gap: 6px;
-    --me-slot-width: 128px;
     --hand-max-width: 100%;
+    --action-dock-width: min(198px, 42vw);
     --hud-main-gap: 6px;
   }
 
   .bottom-hud-main {
-    grid-template-columns: var(--me-slot-width) minmax(0, 1fr);
-  }
-
-  .bottom-slot-me {
-    width: var(--me-slot-width);
+    grid-template-columns: minmax(0, 1fr) var(--action-dock-width);
   }
 
   .hand-rail {

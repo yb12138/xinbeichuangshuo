@@ -18,7 +18,7 @@ func MilitaryGlory(rt engineplayer.ChoiceRuntime, player *model.Player) bool {
 	if !InHeroicForm(player) || player.TurnState.UsedSkillCounts["valkyrie_military_glory"] > 0 {
 		return false
 	}
-	ctx := rt.BuildContext(player, nil, model.TimingOnTurnStart, &model.EventContext{
+	ctx := rt.BuildContext(player, nil, model.TimingTurnStart, &model.EventContext{
 		Type:     model.EventTurnStart,
 		SourceID: player.ID,
 	})

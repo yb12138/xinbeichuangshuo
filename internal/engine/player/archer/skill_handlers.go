@@ -16,10 +16,7 @@ type BaseHandler = engineplayer.BaseHandler
 type PiercingShotHandler struct{ BaseHandler }
 
 func (h *PiercingShotHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.Timing != model.TimingOnHitCheck || ctx.EventCtx == nil || ctx.EventCtx.AttackInfo == nil {
-		return false
-	}
-	if ctx.EventCtx.AttackInfo.IsHit {
+	if ctx == nil || ctx.User == nil || !ctx.AttackMissPhase() || ctx.EventCtx == nil || ctx.EventCtx.AttackInfo == nil {
 		return false
 	}
 	if ctx.EventCtx.AttackInfo.ActionType != string(model.ActionAttack) {
@@ -106,6 +103,9 @@ func (h *PreciseShotHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.User.Character == nil || ctx.EventCtx == nil || ctx.EventCtx.AttackInfo == nil || ctx.EventCtx.Card == nil {
 		return false
 	}
+	if !ctx.AttackDeclarePhase() {
+		return false
+	}
 	info := ctx.EventCtx.AttackInfo
 	if info.ActionType != string(model.ActionAttack) || info.CounterInitiator != "" {
 		return false
@@ -117,18 +117,15 @@ func (h *PreciseShotHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.EventCtx == nil {
 		return nil
 	}
-	switch ctx.Timing {
-	case model.TimingOnAttackDeclared:
-		ctx.Game.Log(fmt.Sprintf("%s 发动 [精准射击]，攻击强制命中但伤害-1", ctx.User.Name))
-		if ctx.EventCtx.AttackInfo != nil {
-			ctx.EventCtx.AttackInfo.SetInterceptTag(model.CombatInterceptForceHit)
-		}
-	case model.TimingOnDamageCalculated:
-		if ctx.EventCtx.DamageVal != nil {
-			*ctx.EventCtx.DamageVal -= 1
-		}
-	default:
+	if !ctx.AttackDeclarePhase() {
 		return nil
+	}
+	ctx.Game.Log(fmt.Sprintf("%s 发动 [精准射击]，攻击强制命中但伤害-1", ctx.User.Name))
+	if ctx.EventCtx.AttackInfo != nil {
+		ctx.EventCtx.AttackInfo.SetInterceptTag(model.CombatInterceptForceHit)
+	}
+	if ctx.User != nil && ctx.Game != nil {
+		ctx.Game.ApplyNextAttackDamageRule(ctx.User.ID, preciseShotDamageModifierID, "precise_shot", -1, model.RuleLifeThisEffectChain)
 	}
 	return nil
 }

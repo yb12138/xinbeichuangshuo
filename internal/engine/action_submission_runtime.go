@@ -10,8 +10,8 @@ import (
 	"starcup-engine/internal/model"
 )
 
-// handleActionSelection 处理行动选择阶段的行动
-func (e *GameEngine) handleActionSelection(act model.PlayerAction) error {
+// HandleActionSelection 处理行动选择阶段的行动
+func (e *GameEngine) HandleActionSelection(act model.PlayerAction) error {
 	currentPid := e.State.PlayerOrder[e.State.CurrentTurn]
 	player := e.State.Players[currentPid]
 
@@ -33,25 +33,25 @@ func (e *GameEngine) handleActionSelection(act model.PlayerAction) error {
 
 	handlers := map[model.PlayerActionType]func() error{
 		model.CmdBuy: func() error {
-			return e.handleActionSelectionSpecialOrSkill(act, currentPid, player)
+			return e.HandleActionSelectionSpecialOrSkill(act, currentPid, player)
 		},
 		model.CmdSynthesize: func() error {
-			return e.handleActionSelectionSpecialOrSkill(act, currentPid, player)
+			return e.HandleActionSelectionSpecialOrSkill(act, currentPid, player)
 		},
 		model.CmdExtract: func() error {
-			return e.handleActionSelectionSpecialOrSkill(act, currentPid, player)
+			return e.HandleActionSelectionSpecialOrSkill(act, currentPid, player)
 		},
 		model.CmdSkill: func() error {
-			return e.handleActionSelectionSpecialOrSkill(act, currentPid, player)
+			return e.HandleActionSelectionSpecialOrSkill(act, currentPid, player)
 		},
 		model.CmdAttack: func() error {
-			return e.handleActionSelectionAttackOrMagic(act, currentPid, player, validationResult)
+			return e.HandleActionSelectionAttackOrMagic(act, currentPid, player, validationResult)
 		},
 		model.CmdMagic: func() error {
-			return e.handleActionSelectionAttackOrMagic(act, currentPid, player, validationResult)
+			return e.HandleActionSelectionAttackOrMagic(act, currentPid, player, validationResult)
 		},
 		model.CmdCannotAct: func() error {
-			return e.handleActionSelectionCannotAct(player)
+			return e.HandleActionSelectionCannotAct(player)
 		},
 	}
 	handler, ok := handlers[act.Type]
@@ -61,7 +61,7 @@ func (e *GameEngine) handleActionSelection(act model.PlayerAction) error {
 	return handler()
 }
 
-func (e *GameEngine) handleActionSelectionSpecialOrSkill(act model.PlayerAction, currentPid string, player *model.Player) error {
+func (e *GameEngine) HandleActionSelectionSpecialOrSkill(act model.PlayerAction, currentPid string, player *model.Player) error {
 	if player.TurnState.HasStartupSkillOrSpecialActionsLocked() &&
 		(act.Type == model.CmdBuy || act.Type == model.CmdSynthesize || act.Type == model.CmdExtract) {
 		return fmt.Errorf("你本回合已执行启动技能，不能执行特殊行动")
@@ -103,7 +103,7 @@ func (e *GameEngine) handleActionSelectionSpecialOrSkill(act model.PlayerAction,
 		if len(act.TargetIDs) > 0 {
 			targets = append(targets, act.TargetIDs...)
 		}
-		e.beginActionSummary("skill", player.ID, skillTitle, targets)
+		e.BeginActionSummary("skill", player.ID, skillTitle, targets)
 		if e.State.PendingInterrupt != nil {
 			return nil
 		}
@@ -121,7 +121,7 @@ func (e *GameEngine) handleActionSelectionSpecialOrSkill(act model.PlayerAction,
 		specialName = "提炼"
 	}
 	if specialName != "" {
-		e.beginActionSummary("special", player.ID, specialName, nil)
+		e.BeginActionSummary("special", player.ID, specialName, nil)
 	}
 	if err := e.executeSpecialActionWithRuntime(player, actionType); err != nil {
 		return err
@@ -133,14 +133,10 @@ func (e *GameEngine) handleActionSelectionSpecialOrSkill(act model.PlayerAction,
 	return nil
 }
 
-func (e *GameEngine) handleActionSelectionAttackOrMagic(act model.PlayerAction, currentPid string, player *model.Player, validationResult actionSelectionValidationResult) error {
-	if act.CardIndex < 0 {
-		return fmt.Errorf("需要指定卡牌索引")
-	}
-
-	card, _, _, ok := e.getPlayableCardByIndex(player, act.CardIndex)
+func (e *GameEngine) HandleActionSelectionAttackOrMagic(act model.PlayerAction, currentPid string, player *model.Player, validationResult actionSelectionValidationResult) error {
+	card, ok := e.cardForPlayerAction(player, act)
 	if !ok {
-		return fmt.Errorf("无效的卡牌索引")
+		return fmt.Errorf("无效的卡牌ID")
 	}
 
 	if act.Type == model.CmdAttack && card.Type != model.CardTypeAttack {
@@ -203,7 +199,7 @@ func (e *GameEngine) handleActionSelectionAttackOrMagic(act model.PlayerAction, 
 		Type:        actionType,
 		Element:     card.Element,
 		Card:        &card,
-		CardIndex:   act.CardIndex,
+		CardID:      card.ID,
 		SourceSkill: "",
 	}
 	if actionType == model.ActionAttack {
@@ -219,9 +215,9 @@ func (e *GameEngine) handleActionSelectionAttackOrMagic(act model.PlayerAction, 
 		targets = append(targets, act.TargetIDs...)
 	}
 	if actionType == model.ActionAttack {
-		e.beginActionSummary("attack", player.ID, card.Name, targets)
+		e.BeginActionSummary("attack", player.ID, card.Name, targets)
 	} else {
-		e.beginActionSummary("magic", player.ID, card.Name, targets)
+		e.BeginActionSummary("magic", player.ID, card.Name, targets)
 	}
 
 	if actionType == model.ActionAttack && validationResult.afterAttackAccepted != nil {
@@ -235,7 +231,7 @@ func (e *GameEngine) handleActionSelectionAttackOrMagic(act model.PlayerAction, 
 	return nil
 }
 
-func (e *GameEngine) handleActionSelectionCannotAct(player *model.Player) error {
+func (e *GameEngine) HandleActionSelectionCannotAct(player *model.Player) error {
 	// === 额外行动阶段：直接跳过 ===
 	if player.TurnState.CurrentExtraAction != "" {
 		if e.checkExtraActionCards(player, player.TurnState.CurrentExtraAction, player.TurnState.CurrentExtraElement) {
@@ -268,7 +264,11 @@ func (e *GameEngine) validateExtraActionConstraint(p *model.Player, act model.Pl
 		}
 
 		isMatch := false
-		if requiredType == "Attack" {
+		if requiredType == model.ExtraActionAny {
+			if act.Type == model.CmdAttack || act.Type == model.CmdMagic || act.Type == model.CmdSkill {
+				isMatch = true
+			}
+		} else if requiredType == "Attack" {
 			if act.Type == model.CmdAttack {
 				isMatch = true
 			}
@@ -279,6 +279,9 @@ func (e *GameEngine) validateExtraActionConstraint(p *model.Player, act model.Pl
 		}
 
 		if !isMatch {
+			if requiredType == model.ExtraActionAny {
+				return fmt.Errorf("当前额外行动只能选择攻击或法术")
+			}
 			if requiredType == "Attack" && act.Type == model.CmdSkill {
 				return fmt.Errorf("当前额外行动必须是 [Attack]，不能使用技能")
 			}
@@ -287,7 +290,7 @@ func (e *GameEngine) validateExtraActionConstraint(p *model.Player, act model.Pl
 	}
 
 	if len(p.TurnState.CurrentExtraElement) > 0 && (act.Type == model.CmdAttack || act.Type == model.CmdMagic) {
-		if card, _, _, ok := e.getPlayableCardByIndex(p, act.CardIndex); ok {
+		if card, ok := e.cardForPlayerAction(p, act); ok {
 			if act.Type == model.CmdAttack {
 				card = e.transformAttackCard(p, card)
 			}
@@ -318,8 +321,20 @@ func (e *GameEngine) validateExtraActionConstraint(p *model.Player, act model.Pl
 	return nil
 }
 
+func (e *GameEngine) cardForPlayerAction(p *model.Player, act model.PlayerAction) (model.Card, bool) {
+	if act.CardID == "" {
+		return model.Card{}, false
+	}
+	card, _, _, ok := e.getPlayableCardByID(p, act.CardID)
+	return card, ok
+}
+
 // checkExtraActionCards 检查玩家是否有符合额外行动约束的牌
 func (e *GameEngine) checkExtraActionCards(p *model.Player, mustType string, mustElement []model.Element) bool {
+	if mustType == model.ExtraActionAny {
+		return e.checkExtraActionCards(p, string(model.ActionAttack), mustElement) ||
+			e.checkExtraActionCards(p, string(model.ActionMagic), mustElement)
+	}
 	total := e.playableCardCount(p)
 	for idx := 0; idx < total; idx++ {
 		card, _, _, ok := e.getPlayableCardByIndex(p, idx)
@@ -392,17 +407,19 @@ func (e *GameEngine) repairQueuedActionCard(player *model.Player, qa *model.Queu
 	}
 
 	if qa.Card != nil {
-		if idx := e.findPlayableCardIndexByID(player, qa.Card.ID); idx >= 0 {
-			if card, _, _, ok := e.getPlayableCardByIndex(player, idx); ok && card.Type == requiredType {
-				if requiredType == model.CardTypeAttack {
-					card = e.transformAttackCard(player, card)
-				}
-				qa.CardIndex = idx
-				qa.Element = card.Element
-				cardCopy := card
-				qa.Card = &cardCopy
-				return true
+		cardID := qa.CardID
+		if cardID == "" {
+			cardID = qa.Card.ID
+		}
+		if card, _, _, ok := e.getPlayableCardByID(player, cardID); ok && card.Type == requiredType {
+			if requiredType == model.CardTypeAttack {
+				card = e.transformAttackCard(player, card)
 			}
+			qa.CardID = card.ID
+			qa.Element = card.Element
+			cardCopy := card
+			qa.Card = &cardCopy
+			return true
 		}
 		// 规则约束：队列中的行动卡必须与玩家最初选择的实体卡一致，不允许同类自动替代。
 		return false
@@ -427,7 +444,11 @@ func (e *GameEngine) buildConstraintInfo(mustType string, mustElement []model.El
 		}
 	}
 	if mustType != "" {
-		constraintInfo += fmt.Sprintf("[%s行动]", mustType)
+		if mustType == model.ExtraActionAny {
+			constraintInfo += "[攻击/法术行动]"
+		} else {
+			constraintInfo += fmt.Sprintf("[%s行动]", mustType)
+		}
 	}
 	return constraintInfo
 }

@@ -27,7 +27,7 @@ type actionSummary struct {
 	notes []string
 }
 
-func (e *GameEngine) beginActionSummary(actionType, actorID, actionName string, targets []string) {
+func (e *GameEngine) BeginActionSummary(actionType, actorID, actionName string, targets []string) {
 	if e == nil {
 		return
 	}
@@ -234,7 +234,7 @@ func (e *GameEngine) isActionFinalizeIdle() bool {
 	}
 }
 
-func (e *GameEngine) finalizeActionSummaryIfIdle() {
+func (e *GameEngine) FinalizeActionSummaryIfIdle() {
 	if e == nil || e.actionSummary == nil || !e.actionSummary.active {
 		return
 	}

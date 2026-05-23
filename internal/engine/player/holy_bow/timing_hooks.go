@@ -75,7 +75,7 @@ func damageCalculateHook(rt player.HookRuntime, ctx player.TimingHookContext) pl
 
 func postAttackHitHook(rt player.HookRuntime, ctx player.TimingHookContext) player.TimingHookResult {
 	p := rt.GetPlayer(ctx.SourceID)
-	if p == nil {
+	if p == nil || !player.IsCharacter(p, "holy_bow") {
 		return player.TimingHookResult{}
 	}
 	if p.TurnState.SkillFlowState["hb_shard_miss_pending"] > 0 {

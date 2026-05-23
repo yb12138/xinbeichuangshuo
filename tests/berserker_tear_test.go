@@ -48,10 +48,10 @@ func TestBerserker_Tear(t *testing.T) {
 	// 3. P1 发起攻击
 	t.Logf("\n👉 [Step 1] P1 发起攻击 -> P2")
 	actionAtk := model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
 	}
 	if err := game.HandleAction(actionAtk); err != nil {
 		t.Fatalf("攻击失败: %v", err)

@@ -23,11 +23,13 @@ func RoleEntry() player.RoleEntry {
 			},
 		},
 		Choices:          NewChoiceHandler(),
+		ChoiceSpecs:      ChoiceSpecs(),
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
 		TimingHookSpecs: []player.TimingHookSpec{
-			{Timing: player.TimingOnTurnBeforeStart, Priority: 100, Hook: witherExpiryHook},
-			{Timing: player.TimingOnDamageBeforeApply, Priority: 100, Hook: damageBeforeApplyHook},
+			{Timing: player.TimingTurnBeforeStart, Priority: 100, Hook: witherExpiryHook},
+			{Timing: player.TimingDamageApplied, Priority: 100, Hook: damageResponseHook, RoleFilter: &player.HookRoleNone},
+			{Timing: player.TimingDamageTaken, Priority: 100, Hook: pilgrimageBeforeApplyHook, RoleFilter: &player.HookRoleNone},
 		},
 		MoraleLossModifier: func(engine player.MoraleLossModifierEngine, camp model.Camp, current int, proposedLoss int, extra player.MoraleLossModifierExtra) int {
 			for _, p := range engine.GetAllPlayers() {
@@ -47,6 +49,13 @@ func RoleEntry() player.RoleEntry {
 	}
 }
 
+// ChoiceSpecs 导出角色 choice 声明（含多选处理器）。
+func ChoiceSpecs() []player.ChoiceSpec {
+	return []player.ChoiceSpec{
+		{ChoiceType: "bt_cocoon_overflow_discard", HandleMultiSelect: handleCocoonOverflowDiscardMultiSelect},
+	}
+}
+
 // ApplyDefaults 初始化角色默认属性。
 func ApplyDefaults(p *model.Player) {
 	if p == nil {
@@ -63,7 +72,7 @@ func SkillEntries() []player.SkillEntry {
 	return []player.SkillEntry{
 		{ID: "bt_life_fire", Handler: &ButterflyLifeFireHandler{}},
 		{ID: "bt_dance", Handler: &ButterflyDanceHandler{}},
-		{ID: "bt_poison_pow", Handler: &ButterflyPoisonPowderHandler{}},
+		{ID: "bt_poison_powder", Handler: &ButterflyPoisonPowderHandler{}},
 		{ID: "bt_pilgrimage", Handler: &ButterflyPilgrimageHandler{}},
 		{ID: "bt_mirror", Handler: &ButterflyMirrorHandler{}},
 		{ID: "bt_wither", Handler: &ButterflyWitherHandler{}},
@@ -80,6 +89,7 @@ func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 		"bt_dance_discard":           types.ChoiceRouteRole("butterfly_dancer"),
 		"bt_dance_mode":              types.ChoiceRouteRole("butterfly_dancer"),
 		"bt_mirror_pair":             types.ChoiceRouteRole("butterfly_dancer"),
+		"bt_pilgrimage_confirm":      types.ChoiceRouteRole("butterfly_dancer"),
 		"bt_pilgrimage_pick":         types.ChoiceRouteRole("butterfly_dancer"),
 		"bt_poison_pick":             types.ChoiceRouteRole("butterfly_dancer"),
 		"bt_reverse_branch1_pick":    types.ChoiceRouteRole("butterfly_dancer"),

@@ -57,7 +57,7 @@ func matchingElementCardIndices(p *model.Player, element model.Element) []int {
 type ElementalistAbsorbHandler struct{}
 
 func (h *ElementalistAbsorbHandler) CanUse(ctx *model.Context) bool {
-	if ctx.Timing != model.TimingOnDamageTaken || ctx.EventCtx == nil {
+	if !ctx.DamageTakenPhase() || ctx.EventCtx == nil {
 		return false
 	}
 	if !ctx.Flags["IsMagicDamage"] {
@@ -150,50 +150,23 @@ type ElementalistFreezeHandler struct{}
 func (h *ElementalistFreezeHandler) CanUse(ctx *model.Context) bool { return true }
 
 func (h *ElementalistFreezeHandler) Execute(ctx *model.Context) error {
-	if len(ctx.Targets) == 0 && ctx.Target == nil {
-		return fmt.Errorf("冰冻需要至少1个目标")
+	// 分步选择流程：先选伤害目标，再选治疗目标
+	allPlayerIDs := make([]string, 0, len(ctx.Game.GetPlayers()))
+	for _, p := range ctx.Game.GetAllPlayers() {
+		allPlayerIDs = append(allPlayerIDs, p.ID)
 	}
-	var dmgTarget *model.Player
-	var healTarget *model.Player
-	if len(ctx.Targets) >= 1 {
-		dmgTarget = ctx.Targets[0]
-	}
-	if len(ctx.Targets) >= 2 {
-		healTarget = ctx.Targets[1]
-	}
-	if dmgTarget == nil {
-		dmgTarget = ctx.Target
-	}
-	if healTarget == nil {
-		healTarget = ctx.User
-	}
-	if !ctx.User.HasElement(model.ElementWater) {
-		ctx.Game.InflictDamage(ctx.User.ID, dmgTarget.ID, 1, model.MagicAttack)
-		ctx.Game.Heal(healTarget.ID, 1)
-		ctx.Game.Log(fmt.Sprintf("%s 发动 [冰冻]，对 %s 造成1点法术伤害并治疗 %s 1点", ctx.User.Name, dmgTarget.Name, healTarget.Name))
-		return nil
-	}
-	matching := matchingElementCardIndices(ctx.User, model.ElementWater)
-	if len(matching) == 0 {
-		ctx.Game.InflictDamage(ctx.User.ID, dmgTarget.ID, 1, model.MagicAttack)
-		ctx.Game.Heal(healTarget.ID, 1)
-		ctx.Game.Log(fmt.Sprintf("%s 发动 [冰冻]，对 %s 造成1点法术伤害并治疗 %s 1点", ctx.User.Name, dmgTarget.Name, healTarget.Name))
-		return nil
-	}
-	data := map[string]interface{}{
-		"choice_type":        "elementalist_bonus_card",
-		"user_id":            ctx.User.ID,
-		"damage_target_id":   dmgTarget.ID,
-		"heal_target_id":     healTarget.ID,
-		"base_damage":        1,
-		"bonus_element":      string(model.ElementWater),
-		"matching_indices":   matching,
-		"camp_gem_bonus":     0,
-		"grant_attack":       false,
-		"grant_magic":        false,
-		"skill_display_name": "冰冻",
-	}
-	ctx.Game.PushInterrupt(&model.Interrupt{Type: model.InterruptChoice, PlayerID: ctx.User.ID, Context: data})
+
+	ctx.Game.PushInterrupt(&model.Interrupt{
+		Type:     model.InterruptChoice,
+		PlayerID: ctx.User.ID,
+		Context: map[string]interface{}{
+			"choice_type":        "elementalist_freeze_damage_target",
+			"user_id":            ctx.User.ID,
+			"target_ids":         allPlayerIDs,
+			"skill_display_name": "冰冻",
+		},
+	})
+	ctx.Game.Log(fmt.Sprintf("%s 发动 [冰冻]，等待选择法术伤害目标", ctx.User.Name))
 	return nil
 }
 

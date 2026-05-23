@@ -81,9 +81,10 @@ func (h *BardDissonanceChordHandler) Execute(ctx *model.Context) error {
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
 		Context: map[string]interface{}{
-			"choice_type": "bd_dissonance_x",
-			"user_id":     ctx.User.ID,
-			"max_x":       inspiration,
+			"choice_type":              "bd_dissonance_x",
+			"user_id":                  ctx.User.ID,
+			"max_x":                    inspiration,
+			model.PromptFlowContextKey: dissonanceFlowRuntime.Begin(),
 		},
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [不谐和弦]，请选择X值（2~%d）", ctx.User.Name, inspiration))
@@ -95,75 +96,80 @@ func (h *BardForbiddenVerseHandler) CanUse(ctx *model.Context) bool { return fal
 func (h *BardForbiddenVerseHandler) Execute(ctx *model.Context) error { return nil }
 
 func (h *BardRousingRhapsodyHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.User.Character == nil {
+	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return false
 	}
 	stage, _ := ctx.Selections["bd_song_stage"].(string)
-	if stage != "turn_start" || !ctx.User.IsActive {
+	if stage != "turn_start" {
 		return false
 	}
-	if !bardHasEternalMovement(ctx.Game, ctx.User) {
+	bardID, _ := ctx.Selections["bard_id"].(string)
+	if bardID == "" {
 		return false
 	}
-	if !ctx.User.HasExclusiveCard(ctx.User.Character.ID, "激昂狂想曲") {
+	bard := ctx.Game.GetPlayers()[bardID]
+	if bard == nil || !bardHasEternalMovement(ctx.Game, bard) {
 		return false
 	}
-	return len(bardEnemyIDs(ctx.Game, ctx.User)) >= 2 || len(ctx.User.Hand) >= 2
+	holder := ctx.User
+	return len(bardEnemyIDs(ctx.Game, holder)) >= 2 || len(holder.Hand) >= 2
 }
 
 func (h *BardRousingRhapsodyHandler) Execute(ctx *model.Context) error {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.User.Character == nil {
+	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("激昂狂想曲上下文无效")
 	}
-	card, ok := ctx.User.ConsumeExclusiveCard(ctx.User.Character.ID, "激昂狂想曲")
-	if !ok {
-		return fmt.Errorf("未找到【激昂狂想曲】专属技能卡")
-	}
-	ctx.Game.NotifyCardRevealed(ctx.User.ID, []model.Card{card}, "counter")
-	ctx.Game.AppendToDiscard([]model.Card{card})
+	bardID, _ := ctx.Selections["bard_id"].(string)
+	holder := ctx.User
 	ctx.Game.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
-		PlayerID: ctx.User.ID,
+		PlayerID: holder.ID,
 		Context: map[string]interface{}{
-			"choice_type": "bd_rousing_mode",
-			"user_id":     ctx.User.ID,
-			"target_ids":  bardEnemyIDs(ctx.Game, ctx.User),
+			"choice_type":              "bd_rousing_mode",
+			"user_id":                  holder.ID,
+			"bard_id":                  bardID,
+			"target_ids":               bardEnemyIDs(ctx.Game, holder),
+			"response_resume_phase":    ctx.Selections["current_resume_point"],
+			model.PromptFlowContextKey: rousingFlowRuntime.Begin(),
 		},
 	})
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [激昂狂想曲]，请选择效果", ctx.User.Name))
+	ctx.Game.Log(fmt.Sprintf("%s 发动 [激昂狂想曲]，请选择效果", holder.Name))
 	return nil
 }
 
 func (h *BardVictorySymphonyHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.User.Character == nil {
+	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return false
 	}
 	stage, _ := ctx.Selections["bd_song_stage"].(string)
-	if stage != "turn_end" || !ctx.User.IsActive {
+	if stage != "turn_end" {
 		return false
 	}
-	if !bardHasEternalMovement(ctx.Game, ctx.User) {
+	bardID, _ := ctx.Selections["bard_id"].(string)
+	if bardID == "" {
 		return false
 	}
-	return ctx.User.HasExclusiveCard(ctx.User.Character.ID, "胜利交响诗")
+	bard := ctx.Game.GetPlayers()[bardID]
+	if bard == nil || !bardHasEternalMovement(ctx.Game, bard) {
+		return false
+	}
+	return true
 }
 
 func (h *BardVictorySymphonyHandler) Execute(ctx *model.Context) error {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.User.Character == nil {
+	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("胜利交响诗上下文无效")
 	}
-	card, ok := ctx.User.ConsumeExclusiveCard(ctx.User.Character.ID, "胜利交响诗")
-	if !ok {
-		return fmt.Errorf("未找到【胜利交响诗】专属技能卡")
-	}
-	ctx.Game.NotifyCardRevealed(ctx.User.ID, []model.Card{card}, "counter")
-	ctx.Game.AppendToDiscard([]model.Card{card})
+	bardID, _ := ctx.Selections["bard_id"].(string)
+	holder := ctx.User
 	ctx.Game.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
-		PlayerID: ctx.User.ID,
+		PlayerID: holder.ID,
 		Context: map[string]interface{}{
-			"choice_type": "bd_victory_mode",
-			"user_id":     ctx.User.ID,
+			"choice_type":           "bd_victory_mode",
+			"user_id":               holder.ID,
+			"bard_id":               bardID,
+			"response_resume_phase": ctx.Selections["current_resume_point"],
 		},
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [胜利交响诗]，请选择效果", ctx.User.Name))
@@ -174,35 +180,21 @@ func (h *BardHopeFugueHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.User.Character == nil {
 		return false
 	}
-	return canPayCrystalLike(ctx, 1) && ctx.User.HasExclusiveCard(ctx.User.Character.ID, "希望赋格曲")
+	return engineplayer.CanPayCrystalLike(ctx, 1)
 }
 
 func (h *BardHopeFugueHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.User.Character == nil {
 		return fmt.Errorf("希望赋格曲上下文无效")
 	}
-	card, ok := ctx.User.ConsumeExclusiveCard(ctx.User.Character.ID, "希望赋格曲")
-	if !ok {
-		return fmt.Errorf("未找到【希望赋格曲】专属技能卡")
-	}
-	ctx.Game.NotifyCardRevealed(ctx.User.ID, []model.Card{card}, "magic")
 	ctx.Game.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
 		Context: map[string]interface{}{
 			"choice_type": "bd_hope_draw_confirm",
 			"user_id":     ctx.User.ID,
-			"played_card": card,
 		},
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [希望赋格曲]，请先选择是否摸1张牌", ctx.User.Name))
 	return nil
-}
-
-// canPayCrystalLike 检查是否可以用类似水晶的资源支付。
-func canPayCrystalLike(ctx *model.Context, amount int) bool {
-	if ctx == nil || ctx.User == nil {
-		return false
-	}
-	return ctx.User.Crystal >= amount || ctx.User.Gem >= amount
 }

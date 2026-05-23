@@ -85,8 +85,8 @@ describe('createRoomMessageHandlers', () => {
       action: 'player_list',
       room_code: 'ROOM1',
       players: [
-        { id: 'p1', name: 'Alice', camp: 'Red', char_role: 'hero', ready: true },
-        { id: 'p2', name: 'Bob', camp: 'Blue', char_role: 'angel', ready: false },
+        { id: 'p1', name: 'Alice', camp: 'Red', char_role: 'hero', ready: true, is_online: true },
+        { id: 'p2', name: 'Bob', camp: 'Blue', char_role: 'angel', ready: false, is_online: true },
       ],
       characters: [
         {

@@ -26,11 +26,11 @@ func RoleEntry() player.RoleEntry {
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
 		TimingHookSpecs: []player.TimingHookSpec{
-			{Timing: player.TimingBeforeAction, Priority: 100, Hook: beforeActionFlameReleaseHook},
+			{Timing: player.TimingActionStart, Priority: 100, Hook: beforeActionFlameReleaseHook},
 			{Timing: player.TimingPostDamageResolved, Priority: 200, Hook: postDamageResolvedHook},
-			{Timing: player.TimingOnDamageAfterApply, Priority: 100, Hook: afterApplyHook},
-			{Timing: player.TimingOnMoraleLossApplied, Priority: 100, Hook: moraleLossHook},
-			{Timing: player.TimingOnAttackCardTransform, Priority: 100, Hook: attackCardTransformHook},
+			{Timing: player.TimingDamageAfterApply, Priority: 100, Hook: afterApplyHook},
+			{Timing: player.TimingMoraleLossApplied, Priority: 100, Hook: moraleLossHook},
+			{Timing: player.TimingAttackModifyCard, Priority: 100, Hook: attackCardTransformHook},
 		},
 		AttackCardElementTransform: AttackElement,
 		AttackElementResolver:      AttackElement,
@@ -40,7 +40,7 @@ func RoleEntry() player.RoleEntry {
 // ChoiceSpecs 导出角色 choice 声明。
 func ChoiceSpecs() []player.ChoiceSpec {
 	return []player.ChoiceSpec{
-		{ChoiceType: "bw_mana_inversion_cards", SequentialRemaining: player.ChoiceRemainingFromSelectionKey("x_value")},
+		{ChoiceType: "bw_mana_inversion_cards", HandleMultiSelect: handleBlazeWitchManaInversionCardsMultiSelect},
 	}
 }
 
@@ -93,9 +93,9 @@ func SkillEntries() []player.SkillEntry {
 // ChoiceRouteSpecs 导出角色 choice 路由声明。
 func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 	return map[string]types.ChoiceRouteSpec{
+		"bw_blazing_codex_target":   types.ChoiceRouteRole("blaze_witch"),
 		"bw_mana_inversion_cards":   types.ChoiceRouteRole("blaze_witch"),
 		"bw_mana_inversion_target":  types.ChoiceRouteRole("blaze_witch"),
-		"bw_mana_inversion_x":       types.ChoiceRouteRole("blaze_witch"),
 		"bw_pain_link_pick":         types.ChoiceRouteRole("blaze_witch"),
 		"bw_substitute_doll_card":   types.ChoiceRouteRole("blaze_witch"),
 		"bw_substitute_doll_target": types.ChoiceRouteRole("blaze_witch"),

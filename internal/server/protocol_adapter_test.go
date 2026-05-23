@@ -7,9 +7,11 @@ import (
 
 	"starcup-engine/internal/engine"
 	"starcup-engine/internal/model"
+	"starcup-engine/internal/server/prompting"
+	"starcup-engine/internal/server/timeline"
 )
 
-func TestTranslateClientAction_AttackUsesUUIDAndTargets(t *testing.T) {
+func TestTranslateClientAction_AttackUsesCardIDAndTargets(t *testing.T) {
 	room := NewRoom("PROTO")
 	room.Engine = engine.NewGameEngine(room)
 
@@ -25,8 +27,8 @@ func TestTranslateClientAction_AttackUsesUUIDAndTargets(t *testing.T) {
 	}
 
 	req := ClientActionRequest{
-		ActionType:    string(model.CmdAttack),
-		UsedCardUUIDs: []string{"card-001"},
+		ActionType: model.CmdAttack,
+		CardID:     "card-001",
 		Targets: []TargetNode{
 			{TargetUserID: "p2"},
 		},
@@ -39,14 +41,45 @@ func TestTranslateClientAction_AttackUsesUUIDAndTargets(t *testing.T) {
 	if got.Type != model.CmdAttack {
 		t.Fatalf("expected action type %s, got %s", model.CmdAttack, got.Type)
 	}
-	if got.CardIndex != 0 {
-		t.Fatalf("expected card index 0, got %d", got.CardIndex)
+	if got.CardID != "card-001" {
+		t.Fatalf("expected card id card-001, got %q", got.CardID)
 	}
 	if got.TargetID != "p2" {
 		t.Fatalf("expected target p2, got %q", got.TargetID)
 	}
 	if len(got.TargetIDs) != 1 || got.TargetIDs[0] != "p2" {
 		t.Fatalf("expected target IDs [p2], got %+v", got.TargetIDs)
+	}
+}
+
+func TestTranslateClientAction_SelectCardIDsStayAsCardIDs(t *testing.T) {
+	room := NewRoom("PROTO_SELECT")
+	room.Engine = engine.NewGameEngine(room)
+
+	if err := room.Engine.AddPlayer("p1", "Alice", "sage", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	room.Engine.State.Players["p1"].Hand = []model.Card{
+		{ID: "card-a", Name: "A", Type: model.CardTypeAttack, Element: model.ElementFire},
+		{ID: "card-b", Name: "B", Type: model.CardTypeMagic, Element: model.ElementWater},
+		{ID: "card-c", Name: "C", Type: model.CardTypeAttack, Element: model.ElementWind},
+	}
+
+	got, err := room.translateClientAction("p1", ClientActionRequest{
+		ActionType: model.CmdSelect,
+		CardIDs:    []string{"card-c", "card-a"},
+	})
+	if err != nil {
+		t.Fatalf("translateClientAction error: %v", err)
+	}
+	if got.CardID != "card-c" {
+		t.Fatalf("expected first card id card-c, got %q", got.CardID)
+	}
+	if len(got.CardIDs) != 2 || got.CardIDs[0] != "card-c" || got.CardIDs[1] != "card-a" {
+		t.Fatalf("expected card ids preserved, got %+v", got.CardIDs)
+	}
+	if len(got.Selections) != 0 {
+		t.Fatalf("expected protocol adapter not to translate card ids to selections, got %+v", got.Selections)
 	}
 }
 
@@ -59,7 +92,7 @@ func TestHandleAction_NotStartedUsesNotifyTimelineEnvelope(t *testing.T) {
 		Name:     "Alice",
 	}
 
-	room.handleAction(client, mustMarshal(ClientActionRequest{ActionType: string(model.CmdPass)}))
+	room.handleAction(client, mustMarshal(ClientActionRequest{ActionType: model.CmdPass}))
 
 	raw := <-client.Send
 	var msg WSMessage
@@ -96,18 +129,20 @@ func TestBuildTimelineNotify_DamageEvent(t *testing.T) {
 	room.Engine.State.CombatStage = model.CombatStageApply
 	room.Engine.State.CombatStack = []model.CombatRequest{{AttackerID: "p1", TargetID: "p2"}}
 
-	payload := room.buildTimelineNotify("damage_dealt", map[string]interface{}{
-		"source_id":   "p1",
-		"source_name": "Alice",
-		"target_id":   "p2",
-		"target_name": "Bob",
-		"damage":      3,
-		"damage_type": "Attack",
-		"action_type": "attack",
-		"cards": []model.Card{
+	payload := room.buildTimelineNotify(timeline.Payload{
+		Type:       "damage_dealt",
+		SourceID:   "p1",
+		SourceName: "Alice",
+		TargetID:   "p2",
+		TargetName: "Bob",
+		Damage:     3,
+		DamageType: "Attack",
+		ActionType: "attack",
+		Cards: []model.Card{
 			{ID: "card-001", Name: "烈焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 3},
 		},
-	}, "造成3点伤害")
+		Message: "造成3点伤害",
+	})
 
 	if payload.RoomID != "TIMELINE" {
 		t.Fatalf("expected room id TIMELINE, got %q", payload.RoomID)
@@ -161,6 +196,35 @@ func TestBuildTimelineNotify_DamageEvent(t *testing.T) {
 	}
 }
 
+func TestBuildTimelineNotify_SelfDamageKeepsTarget(t *testing.T) {
+	room := NewRoom("TIMELINE_SELF_DAMAGE")
+	room.Engine = engine.NewGameEngine(room)
+
+	payload := room.buildTimelineNotify(timeline.Payload{
+		Type:       "damage_dealt",
+		SourceID:   "p1",
+		SourceName: "Alice",
+		TargetID:   "p1",
+		TargetName: "Alice",
+		Damage:     3,
+		DamageType: "magic",
+	})
+
+	if len(payload.Events) != 1 {
+		t.Fatalf("expected 1 timeline event, got %d", len(payload.Events))
+	}
+	event := payload.Events[0]
+	if event.ActorUserID != "p1" {
+		t.Fatalf("expected actor p1, got %+v", event)
+	}
+	if len(event.TargetUserIDs) != 1 || event.TargetUserIDs[0] != "p1" {
+		t.Fatalf("expected self-damage target p1 to be preserved, got %+v", event)
+	}
+	if len(event.Deltas) != 1 || event.Deltas[0].TargetUserID != "p1" || event.Deltas[0].Value != 3 {
+		t.Fatalf("expected self-damage delta on p1, got %+v", event.Deltas)
+	}
+}
+
 func TestBuildRequireActionPayload_UsesStructuredPromptField(t *testing.T) {
 	prompt := &model.Prompt{
 		Type:       model.PromptConfirm,
@@ -175,16 +239,16 @@ func TestBuildRequireActionPayload_UsesStructuredPromptField(t *testing.T) {
 		SpecialOptions: []model.PromptOption{
 			{ID: "cancel", Label: "取消", ButtonLabel: "取消"},
 		},
-		UIMode:           model.PromptUIModeActionHub,
 		EffectHints:      []string{"命中后附加 1 点伤害"},
 		Min:              1,
 		Max:              1,
 		AttackerID:       "p2",
 		CounterTargetIDs: []string{"p3"},
 		AttackElement:    string(model.ElementFire),
+		Presentation:     &model.PromptPresentation{Kind: model.PresentationResponse, Layout: "inline"},
 	}
 
-	payload := buildRequireActionPayload(prompt)
+	payload := prompting.BuildRequireActionPayload(prompt)
 	if payload.Prompt == nil {
 		t.Fatalf("expected structured prompt payload")
 	}
@@ -259,5 +323,26 @@ func TestBuildSyncStatePayload_UsesStructuredFields(t *testing.T) {
 	}
 	if strings.Contains(text, "legacy_state") {
 		t.Fatalf("unexpected legacy_state field in payload json: %s", text)
+	}
+}
+
+func TestBuildSyncStatePayload_DerivesTurnPlayerFromCurrentTurn(t *testing.T) {
+	room := NewRoom("SYNC_TURN")
+	room.Engine = engine.NewGameEngine(room)
+	room.Started = true
+
+	if err := room.Engine.AddPlayer("p1", "Alice", "berserker", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := room.Engine.AddPlayer("p2", "Bob", "angel", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	room.Engine.State.CurrentTurn = 1
+	room.Engine.State.CurrentPlayer = "p1" // Stale legacy field; CurrentTurn/PlayerOrder is authoritative.
+
+	payload := room.buildSyncStatePayload("p1")
+	if payload.TurnPlayerID != "p2" {
+		t.Fatalf("expected turn player from CurrentTurn p2, got %q", payload.TurnPlayerID)
 	}
 }

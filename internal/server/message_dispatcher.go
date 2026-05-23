@@ -7,6 +7,7 @@ import (
 	"log"
 
 	"starcup-engine/internal/model"
+	"starcup-engine/internal/server/timeline"
 )
 
 const (
@@ -34,7 +35,7 @@ func newProtocolInputError(code, message string, context map[string]interface{})
 	}
 }
 
-func (r *Room) sendProtocolErrorToClient(client *Client, code, message, cmd string, context map[string]interface{}) {
+func (r *Room) sendProtocolErrorToClient(client *Client, code, message string, cmd WSCommand, context map[string]interface{}) {
 	payload := ProtocolErrorPayload{
 		Code:    code,
 		Message: message,
@@ -47,7 +48,7 @@ func (r *Room) sendProtocolErrorToClient(client *Client, code, message, cmd stri
 // HandleMessage processes incoming WebSocket messages.
 func (r *Room) HandleMessage(client *Client, msg *WSMessage) {
 	if msg == nil {
-		r.sendProtocolErrorToClient(client, protocolErrorCodeInvalidJSON, "消息体为空", "", nil)
+		r.sendProtocolErrorToClient(client, protocolErrorCodeInvalidJSON, "消息体为空", WSCommand(""), nil)
 		return
 	}
 	switch msg.Cmd {
@@ -66,7 +67,7 @@ func (r *Room) HandleMessage(client *Client, msg *WSMessage) {
 
 func (r *Room) handleAction(client *Client, payload json.RawMessage) {
 	if !r.Started || r.Engine == nil {
-		r.sendNotifyTimelineToClient(client, "error", map[string]interface{}{"message": "游戏尚未开始"}, "游戏尚未开始")
+		r.sendNotifyTimelineToClient(client, timeline.Payload{Type: "error", Message: "游戏尚未开始"})
 		return
 	}
 
@@ -86,12 +87,12 @@ func (r *Room) handleAction(client *Client, payload json.RawMessage) {
 			r.sendProtocolErrorToClient(client, protocolErr.code, protocolErr.message, CmdSubmitAction, protocolErr.context)
 			return
 		}
-		r.sendNotifyTimelineToClient(client, "error", map[string]interface{}{"message": err.Error()}, err.Error())
+		r.sendNotifyTimelineToClient(client, timeline.Payload{Type: "error", Message: err.Error()})
 		return
 	}
 
 	if err := r.submitAction(action); err != nil {
-		r.sendNotifyTimelineToClient(client, "error", map[string]interface{}{"message": err.Error()}, err.Error())
+		r.sendNotifyTimelineToClient(client, timeline.Payload{Type: "error", Message: err.Error()})
 		return
 	}
 }
@@ -139,9 +140,10 @@ func (r *Room) handleChat(client *Client, payload json.RawMessage) {
 		return
 	}
 
-	r.broadcastTimeline("chat", map[string]interface{}{
-		"player_id":   client.PlayerID,
-		"player_name": client.Name,
-		"message":     chatMsg.Message,
-	}, chatMsg.Message)
+	r.broadcastTimeline(timeline.Payload{
+		Type:       "chat",
+		Message:    chatMsg.Message,
+		PlayerID:   client.PlayerID,
+		PlayerName: client.Name,
+	})
 }

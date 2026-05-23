@@ -25,6 +25,75 @@ func SpendCrystalLike(ctx *model.Context, amount int) bool {
 	return ctx.Game.ConsumeCrystalCost(ctx.User.ID, amount)
 }
 
+// PlayerEnergyTotal 返回玩家当前个人能量总量（红宝石 + 蓝水晶）。
+func PlayerEnergyTotal(p *model.Player) int {
+	if p == nil {
+		return 0
+	}
+	return p.Gem + p.Crystal
+}
+
+// PlayerEnergyRoom 返回玩家距离个人能量上限的剩余空间。
+func PlayerEnergyRoom(p *model.Player, cap int) int {
+	room := cap - PlayerEnergyTotal(p)
+	if room < 0 {
+		return 0
+	}
+	return room
+}
+
+// AddPlayerGemCapped 增加个人红宝石，并裁剪到个人能量总上限。
+// 返回实际增加量。
+func AddPlayerGemCapped(p *model.Player, amount int, cap int) int {
+	if p == nil || amount <= 0 {
+		return 0
+	}
+	gain := amount
+	if room := PlayerEnergyRoom(p, cap); gain > room {
+		gain = room
+	}
+	if gain <= 0 {
+		return 0
+	}
+	p.Gem += gain
+	return gain
+}
+
+// AddPlayerCrystalCapped 增加个人蓝水晶，并裁剪到个人能量总上限。
+// 返回实际增加量。
+func AddPlayerCrystalCapped(p *model.Player, amount int, cap int) int {
+	if p == nil || amount <= 0 {
+		return 0
+	}
+	gain := amount
+	if room := PlayerEnergyRoom(p, cap); gain > room {
+		gain = room
+	}
+	if gain <= 0 {
+		return 0
+	}
+	p.Crystal += gain
+	return gain
+}
+
+// AddPlayerGemWithCap 从引擎读取动态个人能量上限后增加红宝石。
+func AddPlayerGemWithCap(game model.IGameEngine, p *model.Player, amount int) int {
+	cap := 3
+	if game != nil {
+		cap = game.GetPlayerEnergyCap(p)
+	}
+	return AddPlayerGemCapped(p, amount, cap)
+}
+
+// AddPlayerCrystalWithCap 从引擎读取动态个人能量上限后增加蓝水晶。
+func AddPlayerCrystalWithCap(game model.IGameEngine, p *model.Player, amount int) int {
+	cap := 3
+	if game != nil {
+		cap = game.GetPlayerEnergyCap(p)
+	}
+	return AddPlayerCrystalCapped(p, amount, cap)
+}
+
 // EnsurePlayerTokensMap 确保 player.Tokens map 已初始化。
 func EnsurePlayerTokensMap(p *model.Player) {
 	if p != nil && p.Tokens == nil {
@@ -73,6 +142,38 @@ func SetSkillFlowState(p *model.Player, key string, value int) {
 	}
 	EnsurePlayerSkillFlowState(p)
 	p.TurnState.SkillFlowState[key] = value
+}
+
+// NotifyChoiceContext refreshes the pending choice interrupt after its context
+// has been mutated by a choice handler.
+func NotifyChoiceContext(rt ChoiceRuntime, ctxData map[string]interface{}) {
+	if rt == nil {
+		return
+	}
+	if intr := rt.GetPendingInterrupt(); intr != nil {
+		intr.Context = ctxData
+	}
+	rt.NotifyInterruptPrompt()
+}
+
+// AdvancePromptFlowRuntimeChoice moves a prompt flow to another declared step
+// and synchronizes the internal choice route key from that step's spec.
+func AdvancePromptFlowRuntimeChoice(rt ChoiceRuntime, ctxData map[string]interface{}, flowRT *model.PromptFlowRuntime, flow *model.PromptFlowState, stepID string) error {
+	if flowRT == nil {
+		return fmt.Errorf("prompt flow runtime is nil")
+	}
+	if err := flowRT.MoveTo(flow, stepID); err != nil {
+		return err
+	}
+	step, ok := flowRT.Step(stepID)
+	if !ok || step.ChoiceType == "" {
+		return fmt.Errorf("prompt flow %q missing choice route for step %q", flowRT.FlowID, stepID)
+	}
+	if ctxData != nil {
+		ctxData["choice_type"] = step.ChoiceType
+	}
+	NotifyChoiceContext(rt, ctxData)
+	return nil
 }
 
 // TokenValue 读取并规范化玩家 token 值：
@@ -138,6 +239,19 @@ func ParseIntSliceContextValue(raw interface{}) []int {
 	return result
 }
 
+// ElementOrderForPrompt returns the canonical element order for prompts.
+func ElementOrderForPrompt() []model.Element {
+	return []model.Element{
+		model.ElementEarth,
+		model.ElementWater,
+		model.ElementFire,
+		model.ElementWind,
+		model.ElementThunder,
+		model.ElementLight,
+		model.ElementDark,
+	}
+}
+
 // GetFieldEffectCard 返回玩家场上指定效果类型的场地牌（纯函数，无 engine 依赖）。
 func GetFieldEffectCard(p *model.Player, effect model.EffectType) *model.FieldCard {
 	if p == nil {
@@ -182,24 +296,114 @@ func MaxSameElementCount(p *model.Player) int {
 	return maxCount
 }
 
+// RemoveCardsByIndicesFromHand 从玩家手牌中移除指定索引的牌，返回移除的牌列表。
+// 索引从大到小排序后删除，避免索引位移。重复索引会报错。
+func RemoveCardsByIndicesFromHand(player *model.Player, indices []int) ([]model.Card, error) {
+	if player == nil {
+		return nil, fmt.Errorf("玩家不存在")
+	}
+	if len(indices) == 0 {
+		return nil, nil
+	}
+	for _, idx := range indices {
+		if idx < 0 || idx >= len(player.Hand) {
+			return nil, fmt.Errorf("无效的手牌索引: %d", idx)
+		}
+	}
+	seen := map[int]bool{}
+	for _, idx := range indices {
+		if seen[idx] {
+			return nil, fmt.Errorf("不能重复选择同一张牌")
+		}
+		seen[idx] = true
+	}
+	// 从大到小删除，避免索引位移。
+	sorted := make([]int, len(indices))
+	copy(sorted, indices)
+	for i := 0; i < len(sorted); i++ {
+		for j := i + 1; j < len(sorted); j++ {
+			if sorted[i] < sorted[j] {
+				sorted[i], sorted[j] = sorted[j], sorted[i]
+			}
+		}
+	}
+	var removed []model.Card
+	for _, idx := range sorted {
+		removed = append(removed, player.Hand[idx])
+		player.Hand = append(player.Hand[:idx], player.Hand[idx+1:]...)
+	}
+	return removed, nil
+}
+
+// AllHandIndices 返回玩家手牌的所有索引 [0, 1, ..., len(hand)-1]。
+func AllHandIndices(p *model.Player) []int {
+	if p == nil {
+		return nil
+	}
+	out := make([]int, 0, len(p.Hand))
+	for i := range p.Hand {
+		out = append(out, i)
+	}
+	return out
+}
+
+// GetCardIndicesByElement 返回玩家手牌中指定元素牌的索引列表。
+func GetCardIndicesByElement(p *model.Player, element model.Element) []int {
+	if p == nil {
+		return nil
+	}
+	var out []int
+	for i, c := range p.Hand {
+		if c.Element == element {
+			out = append(out, i)
+		}
+	}
+	return out
+}
+
+// MustChoiceResumePointFromMap 从选择上下文中提取恢复点，缺失则 panic。
+func MustChoiceResumePointFromMap(data map[string]interface{}, key string) interface{} {
+	if data == nil {
+		panic(fmt.Sprintf("missing resume point map for key %q", key))
+	}
+	raw, ok := data[key]
+	if !ok {
+		panic(fmt.Sprintf("missing resume point key %q", key))
+	}
+	if raw == nil {
+		panic(fmt.Sprintf("nil resume point for key %q", key))
+	}
+	return raw
+}
+
 // BuildTargetChoicePrompt 构造通用目标选择 Prompt（目标列表由 data["target_ids"] 提供）。
-func BuildTargetChoicePrompt(rt ChoiceRuntime, playerID string, message string, data map[string]interface{}, allowCancel bool) *model.Prompt {
+//
+// choiceType 必须为非空字符串：会写入返回的 Prompt.ChoiceType，前端依赖该字段把
+// 「连续数字 option id」豁免出手牌索引匹配（见 PromptDialog.vue 中
+// NON_HAND_INDEXED_PROMPT_CHOICE_TYPES）。若未设置 choice_type，
+// id 为 "0"/"1" 等的目标选项会被前端误判为手牌索引。
+func BuildTargetChoicePrompt(rt ChoiceRuntime, choiceType, playerID string, message string, data map[string]interface{}, allowCancel bool) *model.Prompt {
 	targetIDs := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
 	options := make([]model.PromptOption, 0, len(targetIDs)+1)
 	for _, targetID := range targetIDs {
 		if target := rt.GetPlayers()[targetID]; target != nil {
-			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", len(options)), Label: target.Name})
+			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", len(options)), Label: target.Name, TargetID: targetID})
 		}
 	}
 	if allowCancel {
 		options = append(options, model.PromptOption{ID: "cancel", Label: "取消"})
 	}
 	return &model.Prompt{
-		Type:     model.PromptConfirm,
-		PlayerID: playerID,
-		Message:  message,
-		Options:  options,
-		Min:      1,
-		Max:      1,
+		Type:       model.PromptConfirm,
+		ChoiceType: choiceType,
+		PlayerID:   playerID,
+		Message:    message,
+		Options:    options,
+		Min:        1,
+		Max:        1,
+		Presentation: &model.PromptPresentation{
+			Kind:         model.PresentationTargetPicker,
+			TargetFilter: "custom",
+		},
 	}
 }

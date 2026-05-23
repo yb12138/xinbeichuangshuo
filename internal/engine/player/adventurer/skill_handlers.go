@@ -4,34 +4,10 @@ package adventurer
 
 import (
 	"fmt"
+
 	engineplayer "starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
 )
-
-func getSkillFlow(p *model.Player, key string) int {
-	if p == nil || p.TurnState.SkillFlowState == nil {
-		return 0
-	}
-	return p.TurnState.SkillFlowState[key]
-}
-
-func setSkillFlow(p *model.Player, key string, v int) {
-	if p == nil {
-		return
-	}
-	if p.TurnState.SkillFlowState == nil {
-		p.TurnState.SkillFlowState = make(map[string]int)
-	}
-	p.TurnState.SkillFlowState[key] = v
-}
-
-// 红宝石可替代蓝水晶（仅水晶消耗方向）
-func canPayCrystalLike(ctx *model.Context, amount int) bool {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil {
-		return false
-	}
-	return ctx.Game.CanPayCrystalCost(ctx.User.ID, amount)
-}
 
 // --- 冒险家技能处理器 ---
 
@@ -70,32 +46,40 @@ func (h *AdventurerFraudHandler) Execute(ctx *model.Context) error {
 		}
 	}
 	if !canPick {
-		return nil
+		return fmt.Errorf("欺诈需要至少2张同系手牌")
 	}
 	ctx.Game.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
-		Context: map[string]interface{}{
-			"choice_type": "adventurer_fraud_pick",
-			"user_id":     ctx.User.ID,
-			"user_ctx":    ctx,
-			"fraud_target_id": func() string {
-				if ctx.Target != nil {
-					return ctx.Target.ID
-				}
-				return ""
-			}(),
-			"fraud_from_skill": true,
-		},
+		Context:  fraudChoiceContext(ctx),
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [欺诈]，请先选择同系手牌", ctx.User.Name))
 	return nil
 }
 
+func fraudChoiceContext(ctx *model.Context) map[string]interface{} {
+	data := map[string]interface{}{
+		"choice_type": "adventurer_fraud_pick",
+		"user_id":     ctx.User.ID,
+		"user_ctx":    ctx,
+		"fraud_target_id": func() string {
+			if ctx.Target != nil {
+				return ctx.Target.ID
+			}
+			return ""
+		}(),
+		"fraud_from_skill": true,
+	}
+	flow := adventurerFraudFlowRuntime.MustBeginAt(adventurerFraudCardsStep)
+	flow.PutSelection(adventurerFraudCardsStep, model.PromptFlowSelection{})
+	model.SetPromptFlowContext(data, flow)
+	return data
+}
+
 type AdventurerLuckyFortuneHandler struct{ engineplayer.BaseHandler }
 
 func (h *AdventurerLuckyFortuneHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.Timing != model.TimingOnAttackDeclared {
+	if ctx == nil || ctx.User == nil || !ctx.AttackDeclarePhase() {
 		return false
 	}
 	if ctx.EventCtx == nil || ctx.EventCtx.Card == nil {
@@ -110,8 +94,12 @@ func (h *AdventurerLuckyFortuneHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return nil
 	}
-	ctx.User.Crystal++
-	ctx.Game.Log(fmt.Sprintf("%s 的 [强运] 触发，获得1蓝水晶", ctx.User.Name))
+	gained := engineplayer.AddPlayerCrystalWithCap(ctx.Game, ctx.User, 1)
+	if gained > 0 {
+		ctx.Game.Log(fmt.Sprintf("%s 的 [强运] 触发，获得%d蓝水晶", ctx.User.Name, gained))
+	} else {
+		ctx.Game.Log(fmt.Sprintf("%s 的 [强运] 触发但能量已达上限，蓝水晶未增加", ctx.User.Name))
+	}
 	return nil
 }
 
@@ -130,7 +118,7 @@ func (h *AdventurerUndergroundLawHandler) Execute(ctx *model.Context) error {
 type AdventurerStealSkyHandler struct{ engineplayer.BaseHandler }
 
 func (h *AdventurerStealSkyHandler) CanUse(ctx *model.Context) bool {
-	return canPayCrystalLike(ctx, 1)
+	return engineplayer.CanPayCrystalLike(ctx, 1)
 }
 
 func (h *AdventurerStealSkyHandler) Execute(ctx *model.Context) error {

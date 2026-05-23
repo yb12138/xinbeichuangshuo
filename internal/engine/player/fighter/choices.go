@@ -19,9 +19,9 @@ func NewChoiceHandler() engineplayer.ChoiceHandler {
 func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, playerID string, _ *model.Player, data map[string]interface{}) *model.Prompt {
 	switch choiceType {
 	case "fighter_psi_bullet_target":
-		return engineplayer.BuildTargetChoicePrompt(rt, playerID, "【念弹】请选择1名目标对手：", data, false)
+		return engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, "【念弹】请选择1名目标对手：", data, false)
 	case "fighter_hundred_dragon_target":
-		return engineplayer.BuildTargetChoicePrompt(rt, playerID, "【百式幻龙拳】请选择本行动阶段锁定的目标角色：", data, false)
+		return engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, "【百式幻龙拳】请选择本行动阶段锁定的目标角色：", data, false)
 	default:
 		return nil
 	}
@@ -105,35 +105,14 @@ func handleFighterHundredDragonTargetChoice(rt engineplayer.ChoiceRuntime, selec
 	}
 	engineplayer.EnsurePlayerSkillFlowState(user)
 	user.TurnState.SkillFlowState["fighter_hundred_dragon_target_order"] = targetOrder
+	if err := placeHundredDragonLock(rt, user, target); err != nil {
+		return err
+	}
 	rt.Log(fmt.Sprintf("%s 的 [百式幻龙拳] 锁定目标：%s", user.Name, target.Name))
 	rt.PopInterrupt()
 	if rt.GetPendingInterrupt() == nil {
 		// 规则：百式幻龙拳的"锁定目标"仅是中间步骤，结算后必须回到 waiting_phase 指定的行动窗口。
-		rt.ApplyChoiceResumePoint(mustChoiceResumePointFromMap(ctxData, "waiting_phase"))
+		rt.ApplyChoiceResumePoint(engineplayer.MustChoiceResumePointFromMap(ctxData, "waiting_phase"))
 	}
 	return nil
-}
-
-func ensurePlayerTokensMap(player *model.Player) {
-	if player != nil && player.Tokens == nil {
-		player.Tokens = map[string]int{}
-	}
-}
-
-func mustChoiceResumePointFromMap(data map[string]interface{}, key string) interface{} {
-	if data == nil {
-		panic(fmt.Sprintf("missing resume point map for key %q", key))
-	}
-	raw, ok := data[key]
-	if !ok {
-		panic(fmt.Sprintf("missing resume point key %q", key))
-	}
-	return mustChoiceResumePoint(raw, key)
-}
-
-func mustChoiceResumePoint(raw interface{}, key string) interface{} {
-	if raw == nil {
-		panic(fmt.Sprintf("nil resume point for key %q", key))
-	}
-	return raw
 }

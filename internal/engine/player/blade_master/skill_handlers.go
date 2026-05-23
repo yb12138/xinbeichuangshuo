@@ -19,7 +19,7 @@ func (h *WindFuryHandler) CanUse(ctx *model.Context) bool {
 	if ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Timing != model.TimingOnActionEnd {
+	if ctx.Timing != model.TimingActionEnd {
 		return false
 	}
 	if ctx.EventCtx.ActionType != model.ActionAttack {
@@ -29,6 +29,17 @@ func (h *WindFuryHandler) CanUse(ctx *model.Context) bool {
 		return false
 	}
 	if ctx.User.TurnState.UsedSkillCounts["wind_fury"] > 0 {
+		return false
+	}
+	// 手牌中必须存在风系攻击牌才可触发
+	hasWindAttack := false
+	for _, c := range ctx.User.Hand {
+		if c.Type == model.CardTypeAttack && c.Element == model.ElementWind {
+			hasWindAttack = true
+			break
+		}
+	}
+	if !hasWindAttack {
 		return false
 	}
 	return true
@@ -43,7 +54,7 @@ func (h *WindFuryHandler) Execute(ctx *model.Context) error {
 type HolySwordHandler struct{ BaseHandler }
 
 func (h *HolySwordHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.Timing != model.TimingOnAttackDeclared || ctx.EventCtx == nil || ctx.EventCtx.AttackInfo == nil {
+	if ctx == nil || ctx.User == nil || !ctx.AttackDeclarePhase() || ctx.EventCtx == nil || ctx.EventCtx.AttackInfo == nil {
 		return false
 	}
 	if ctx.EventCtx.AttackInfo.ActionType != string(model.ActionAttack) || ctx.EventCtx.AttackInfo.CounterInitiator != "" {
@@ -72,7 +83,7 @@ func (h *SwordShadowHandler) CanUse(ctx *model.Context) bool {
 	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
-	if ctx.Timing != model.TimingOnActionEnd {
+	if ctx.Timing != model.TimingActionEnd {
 		return false
 	}
 	if !engineplayer.CanPayCrystalLike(ctx, 1) {
@@ -105,7 +116,7 @@ func (h *GaleSkillHandler) Execute(ctx *model.Context) error {
 type GaleSlashHandler struct{ BaseHandler }
 
 func (h *GaleSlashHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.Timing != model.TimingOnAttackDeclared || ctx.Target == nil || ctx.EventCtx == nil || ctx.EventCtx.AttackInfo == nil {
+	if ctx == nil || !ctx.AttackDeclarePhase() || ctx.Target == nil || ctx.EventCtx == nil || ctx.EventCtx.AttackInfo == nil {
 		return false
 	}
 	if ctx.EventCtx.AttackInfo.ActionType != string(model.ActionAttack) || ctx.EventCtx.AttackInfo.CounterInitiator != "" {

@@ -27,16 +27,9 @@ func postDamageResolvedHook(rt player.HookRuntime, ctx player.TimingHookContext)
 	// Wisdom Codex: damage > 3
 	if ctx.Damage > 3 {
 		maxEnergy := rt.GetPlayerEnergyCap(target)
-		if target.Gem+target.Crystal < maxEnergy {
-			room := maxEnergy - (target.Gem + target.Crystal)
-			gain := 2
-			if gain > room {
-				gain = room
-			}
-			target.Gem += gain
-			if gain > 0 {
-				rt.Log(fmt.Sprintf("%s 的 [智慧法典] 触发：获得%d点红宝石", target.Name, gain))
-			}
+		gain := player.AddPlayerGemCapped(target, 2, maxEnergy)
+		if gain > 0 {
+			rt.Log(fmt.Sprintf("%s 的 [智慧法典] 触发：获得%d点红宝石", target.Name, gain))
 		} else {
 			rt.Log(fmt.Sprintf("%s 的 [智慧法典] 触发：能量已满，红宝石未增加", target.Name))
 		}
@@ -58,8 +51,9 @@ func postDamageResolvedHook(rt player.HookRuntime, ctx player.TimingHookContext)
 				Type:     model.InterruptChoice,
 				PlayerID: target.ID,
 				Context: map[string]interface{}{
-					"choice_type": "sage_magic_rebound_confirm",
-					"user_id":     target.ID,
+					"choice_type":              "sage_magic_rebound_confirm",
+					"user_id":                  target.ID,
+					model.PromptFlowContextKey: sageMagicReboundFlowRuntime.Begin(),
 				},
 			})
 			rt.Log(fmt.Sprintf("%s 的 [法术反弹] 可触发：承受1点法术伤害，最大同系手牌=%d", target.Name, sameCount))

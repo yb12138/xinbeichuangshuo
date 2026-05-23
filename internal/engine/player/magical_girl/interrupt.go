@@ -51,43 +51,10 @@ func buildMagicMissilePrompt(rt player.ChoiceRuntime) *model.Prompt {
 			{ID: "counter", Label: "打出【魔弹】传递"},
 			{ID: "defend", Label: "使用【圣光】抵挡"},
 		},
-		EffectHints: effectHints,
-		Min:         1,
-		Max:         1,
-	}
-}
-
-func buildMagicBulletFusionPrompt(rt player.ChoiceRuntime) *model.Prompt {
-	interrupt := rt.GetPendingInterrupt()
-	if interrupt == nil {
-		return nil
-	}
-	playerID := interrupt.PlayerID
-	p := rt.GetPlayers()[playerID]
-	if p == nil {
-		return nil
-	}
-
-	data, ok := interrupt.Context.(map[string]interface{})
-	if !ok {
-		return nil
-	}
-	cardIdx, _ := data["card_idx"].(int)
-	card, cardOK := rt.GetPlayableCardByIndex(p, cardIdx)
-	if !cardOK {
-		return nil
-	}
-
-	return &model.Prompt{
-		Type:     model.PromptConfirm,
-		PlayerID: playerID,
-		Message:  fmt.Sprintf("【魔弹融合】是否将 %s (%s系) 当魔弹使用？", card.Name, promptfmt.ElementName(string(card.Element))),
-		Options: []model.PromptOption{
-			{ID: "yes", Label: "是 - 当魔弹使用"},
-			{ID: "no", Label: "否 - 正常使用"},
-		},
-		Min: 1,
-		Max: 1,
+		EffectHints:  effectHints,
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationResponse, Layout: "magic_missile"},
 	}
 }
 
@@ -106,8 +73,9 @@ func buildMagicBulletDirectionPrompt(rt player.ChoiceRuntime) *model.Prompt {
 			{ID: "normal", Label: "默认方向 (右手边，前一位对手)"},
 			{ID: "reverse", Label: "逆向传递 (左手边，后一位对手)"},
 		},
-		Min: 1,
-		Max: 1,
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 	}
 }
 
@@ -127,22 +95,24 @@ func buildMagicBlastPrompt(rt player.ChoiceRuntime) *model.Prompt {
 
 	if stage == magicBlastStageCasterForcedDiscard {
 		return &model.Prompt{
-			Type:     model.PromptChooseCards,
-			PlayerID: playerID,
-			Message:  "【魔爆冲击】请选择弃1张牌：",
-			Options:  magicBlastCasterForcedDiscardOptions(p),
-			Min:      1,
-			Max:      1,
+			Type:         model.PromptChooseCards,
+			PlayerID:     playerID,
+			Message:      "【魔爆冲击】请选择弃1张牌：",
+			Options:      magicBlastCasterForcedDiscardOptions(p),
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand"},
 		}
 	}
 
 	return &model.Prompt{
-		Type:     model.PromptChooseCards,
-		PlayerID: playerID,
-		Message:  "【魔爆冲击】请选择弃一张法术牌，否则受到2点伤害：",
-		Options:  magicBlastTargetDiscardOptions(p),
-		Min:      1,
-		Max:      1,
+		Type:         model.PromptChooseCards,
+		PlayerID:     playerID,
+		Message:      "【魔爆冲击】请选择弃一张法术牌，否则受到2点伤害：",
+		Options:      magicBlastTargetDiscardOptions(p),
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand"},
 	}
 }
 
@@ -160,8 +130,9 @@ func magicBlastCasterForcedDiscardOptions(p *model.Player) []model.PromptOption 
 	options := make([]model.PromptOption, 0, len(p.Hand))
 	for i, card := range p.Hand {
 		options = append(options, model.PromptOption{
-			ID:    strconv.Itoa(i),
-			Label: fmt.Sprintf("%d: %s", i+1, promptfmt.FormatCardInfo(card)),
+			ID:     strconv.Itoa(i),
+			Label:  fmt.Sprintf("%d: %s", i+1, promptfmt.FormatCardInfo(card)),
+			CardID: card.ID,
 		})
 	}
 	return options
@@ -174,8 +145,9 @@ func magicBlastTargetDiscardOptions(p *model.Player) []model.PromptOption {
 			continue
 		}
 		options = append(options, model.PromptOption{
-			ID:    strconv.Itoa(i),
-			Label: fmt.Sprintf("%d: %s", i+1, promptfmt.FormatCardInfo(card)),
+			ID:     strconv.Itoa(i),
+			Label:  fmt.Sprintf("%d: %s", i+1, promptfmt.FormatCardInfo(card)),
+			CardID: card.ID,
 		})
 	}
 	options = append(options, model.PromptOption{
@@ -271,9 +243,9 @@ func resolveMagicMissileTake(rt player.ChoiceRuntime, p *model.Player, chain *mo
 }
 
 func resolveMagicMissileCounter(rt player.ChoiceRuntime, p *model.Player, chain *model.MagicBulletChain, act model.PlayerAction) error {
-	card, cardOK := rt.GetPlayableCardByIndex(p, act.CardIndex)
+	card, cardOK := playableCardForAction(rt, p, act)
 	if !cardOK {
-		return fmt.Errorf("无效的卡牌索引")
+		return fmt.Errorf("无效的卡牌ID")
 	}
 	if err := rt.DispatchHitCheckMagicMissileCounter(p, chain, &card); err != nil {
 		return err
@@ -293,13 +265,61 @@ func resolveMagicMissileCounter(rt player.ChoiceRuntime, p *model.Player, chain 
 		return fmt.Errorf("你在本轮传递中已参与过，无法再次传递")
 	}
 
-	consumed, err := rt.ConsumePlayableCardByIndex(p, act.CardIndex)
+	consumed, err := consumePlayableCardForAction(rt, p, act)
 	if err != nil {
 		return err
 	}
 	rt.AppendToDiscard([]model.Card{consumed})
 	rt.Log(fmt.Sprintf("[Magic] %s 打出魔弹，将伤害传递给下一位！伤害+1", p.Name))
 
+	return passMagicMissileToNext(rt, p, chain)
+}
+
+func resolveMagicMissileDefend(rt player.ChoiceRuntime, p *model.Player, chain *model.MagicBulletChain, act model.PlayerAction) error {
+	if err := rt.DispatchHitCheckMagicMissileDefend(p, chain); err != nil {
+		return err
+	}
+	card, cardOK := playableCardForAction(rt, p, act)
+	if !cardOK {
+		return fmt.Errorf("无效的卡牌ID")
+	}
+	if card.Name == "圣盾" {
+		return fmt.Errorf("【圣盾】不能在防御时打出，请提前放置到场上触发")
+	}
+	if card.Name != "圣光" {
+		return fmt.Errorf("必须使用【圣光】抵挡")
+	}
+	rt.Log(fmt.Sprintf("[Magic] %s 使用【圣光】，抵挡了魔弹", p.Name))
+	consumed, err := consumePlayableCardForAction(rt, p, act)
+	if err != nil {
+		return err
+	}
+	rt.AppendToDiscard([]model.Card{consumed})
+
+	rt.SetMagicBulletChain(nil)
+	rt.PopInterrupt()
+	return nil
+}
+
+func playableCardForAction(rt player.ChoiceRuntime, p *model.Player, act model.PlayerAction) (model.Card, bool) {
+	if act.CardID == "" {
+		return model.Card{}, false
+	}
+	return rt.GetPlayableCardByCardID(p, act.CardID)
+}
+
+func consumePlayableCardForAction(rt player.ChoiceRuntime, p *model.Player, act model.PlayerAction) (model.Card, error) {
+	if act.CardID == "" {
+		return model.Card{}, fmt.Errorf("无效的卡牌ID")
+	}
+	card, ok := rt.ConsumePlayableCardByCardID(p.ID, act.CardID)
+	if !ok {
+		return model.Card{}, fmt.Errorf("无效的卡牌ID")
+	}
+	return card, nil
+}
+
+func passMagicMissileToNext(rt player.ChoiceRuntime, p *model.Player, chain *model.MagicBulletChain) error {
 	chain.CurrentDamage += 1
 	chain.SourcePlayerID = p.ID
 	chain.InvolvedIDs = append(chain.InvolvedIDs, p.ID)
@@ -323,105 +343,23 @@ func resolveMagicMissileCounter(rt player.ChoiceRuntime, p *model.Player, chain 
 	chain.TargetID = nextTargetID
 	if intr := rt.GetPendingInterrupt(); intr != nil {
 		intr.PlayerID = nextTargetID
-	}
-	data := map[string]interface{}{
-		"damage":    chain.CurrentDamage,
-		"source_id": p.ID,
-	}
-	func() {
-		if intr := rt.GetPendingInterrupt(); intr != nil {
-			intr.Context = data
+		intr.Context = map[string]interface{}{
+			"damage":    chain.CurrentDamage,
+			"source_id": p.ID,
 		}
-	}()
+	}
+	rt.OfferMagicMissileResponseSkills()
+	if intr := rt.GetPendingInterrupt(); intr == nil || intr.Type != model.InterruptMagicMissile {
+		if nextTarget != nil {
+			rt.Log(fmt.Sprintf("[Magic] 魔弹指向 %s (伤害: %d)，等待响应...", nextTarget.Name, chain.CurrentDamage))
+		}
+		return nil
+	}
 	rt.NotifyInterruptPrompt()
 	if nextTarget != nil {
 		rt.Log(fmt.Sprintf("[Magic] 魔弹指向 %s (伤害: %d)，等待响应...", nextTarget.Name, chain.CurrentDamage))
 	}
 	return nil
-}
-
-func resolveMagicMissileDefend(rt player.ChoiceRuntime, p *model.Player, chain *model.MagicBulletChain, act model.PlayerAction) error {
-	if err := rt.DispatchHitCheckMagicMissileDefend(p, chain); err != nil {
-		return err
-	}
-	card, cardOK := rt.GetPlayableCardByIndex(p, act.CardIndex)
-	if !cardOK {
-		return fmt.Errorf("无效的卡牌索引")
-	}
-	if card.Name == "圣盾" {
-		return fmt.Errorf("【圣盾】不能在防御时打出，请提前放置到场上触发")
-	}
-	if card.Name != "圣光" {
-		return fmt.Errorf("必须使用【圣光】抵挡")
-	}
-	rt.Log(fmt.Sprintf("[Magic] %s 使用【圣光】，抵挡了魔弹", p.Name))
-	consumed, err := rt.ConsumePlayableCardByIndex(p, act.CardIndex)
-	if err != nil {
-		return err
-	}
-	rt.AppendToDiscard([]model.Card{consumed})
-
-	rt.SetMagicBulletChain(nil)
-	rt.PopInterrupt()
-	return nil
-}
-
-func handleMagicBulletFusionAction(rt player.ChoiceRuntime, act model.PlayerAction) (player.InterruptActionResult, error) {
-	return resultAfterMagicGirlInterrupt(rt, func() error {
-		return resolveMagicBulletFusionAction(rt, act)
-	})
-}
-
-func resolveMagicBulletFusionAction(rt player.ChoiceRuntime, act model.PlayerAction) error {
-	interrupt := rt.GetPendingInterrupt()
-	if interrupt == nil {
-		return fmt.Errorf("没有待处理的中断")
-	}
-
-	data, ok := interrupt.Context.(map[string]interface{})
-	if !ok {
-		return fmt.Errorf("中断上下文格式错误")
-	}
-
-	p := rt.GetPlayers()[act.PlayerID]
-	if p == nil {
-		return fmt.Errorf("玩家不存在")
-	}
-
-	cardIdx, _ := data["card_idx"].(int)
-	targetID, _ := data["target_id"].(string)
-	card, cardOK := rt.GetPlayableCardByIndex(p, cardIdx)
-	if !cardOK {
-		return fmt.Errorf("无效的卡牌索引")
-	}
-
-	choice := 1
-	if len(act.Selections) > 0 {
-		choice = act.Selections[0]
-	}
-
-	rt.PopInterrupt()
-	if choice == 0 {
-		rt.Log(fmt.Sprintf("[Skill] %s 发动【魔弹融合】，将 %s 当魔弹使用！", p.Name, card.Name))
-		rt.NotifyCardRevealed(p.ID, []model.Card{card}, model.MagicDamage)
-		if _, err := rt.ConsumePlayableCardByIndex(p, cardIdx); err != nil {
-			return err
-		}
-		rt.AppendToDiscard([]model.Card{card})
-		rt.PushInterrupt(&model.Interrupt{
-			Type:     model.InterruptMagicBulletDirection,
-			PlayerID: p.ID,
-			Context: map[string]interface{}{
-				"source_id":   p.ID,
-				"is_fusion":   true,
-				"fusion_card": card,
-			},
-		})
-		return nil
-	}
-
-	rt.Log(fmt.Sprintf("[Magic] %s 选择正常使用 %s", p.Name, card.Name))
-	return rt.PerformMagic(act.PlayerID, targetID, cardIdx, true)
 }
 
 func handleMagicBulletDirectionAction(rt player.ChoiceRuntime, act model.PlayerAction) (player.InterruptActionResult, error) {

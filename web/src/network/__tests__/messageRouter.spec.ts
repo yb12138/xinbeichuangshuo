@@ -1,6 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
 import { routeWsMessage } from '../messageRouter'
-import type { WsMessage } from '../protocol'
+import { normalizeWsMessage } from '../protocol'
+import type { RoutedWsMessage, UnknownWsMessage } from '../protocol'
+
+function routed(raw: unknown): RoutedWsMessage {
+  const msg = normalizeWsMessage(raw)
+  if (!msg) throw new Error('invalid test envelope')
+  return msg
+}
 
 describe('routeWsMessage', () => {
   it('dispatches known commands to their dedicated handlers', () => {
@@ -9,16 +16,18 @@ describe('routeWsMessage', () => {
       onSyncState: vi.fn(),
       onRequireAction: vi.fn(),
       onNotifyTimeline: vi.fn(),
+      onProtocolError: vi.fn(),
       onChatMessage: vi.fn(),
       onUnknown: vi.fn(),
     }
 
-    const cases: Array<[WsMessage, keyof typeof handlers]> = [
-      [{ Cmd: 'RoomEvent', Data: { action: 'joined' } }, 'onRoomEvent'],
-      [{ Cmd: 'SyncState', Data: { room_state: 'Playing' } }, 'onSyncState'],
-      [{ Cmd: 'RequireAction', Data: { interrupt_type: 'Prompt' } }, 'onRequireAction'],
-      [{ Cmd: 'NotifyTimeline', Data: { room_id: 'ROOM1' } }, 'onNotifyTimeline'],
-      [{ Cmd: 'ChatMessage', Data: { message: 'hello' } }, 'onChatMessage'],
+    const cases: Array<[RoutedWsMessage, keyof typeof handlers]> = [
+      [routed({ Cmd: 'RoomEvent', Data: { action: 'joined' } }), 'onRoomEvent'],
+      [routed({ Cmd: 'SyncState', Data: { room_state: 'Playing' } }), 'onSyncState'],
+      [routed({ Cmd: 'RequireAction', Data: { interrupt_type: 'Prompt' } }), 'onRequireAction'],
+      [routed({ Cmd: 'NotifyTimeline', Data: { room_id: 'ROOM1' } }), 'onNotifyTimeline'],
+      [routed({ Cmd: 'ChatMessage', Data: { message: 'hello' } }), 'onChatMessage'],
+      [routed({ Cmd: 'ProtocolError', Data: { code: 'unknown_cmd', message: '未知命令' } }), 'onProtocolError'],
     ]
 
     for (const [message, expectedHandler] of cases) {
@@ -35,10 +44,11 @@ describe('routeWsMessage', () => {
       onSyncState: vi.fn(),
       onRequireAction: vi.fn(),
       onNotifyTimeline: vi.fn(),
+      onProtocolError: vi.fn(),
       onUnknown: vi.fn(),
     }
 
-    routeWsMessage({ Cmd: 'FutureCommand', Data: { foo: 1 } }, handlers)
+    routeWsMessage({ Known: false, Cmd: 'FutureCommand', Data: { foo: 1 } } satisfies UnknownWsMessage, handlers)
 
     expect(handlers.onUnknown).toHaveBeenCalledWith('FutureCommand', { foo: 1 })
   })
@@ -49,10 +59,11 @@ describe('routeWsMessage', () => {
       onSyncState: vi.fn(),
       onRequireAction: vi.fn(),
       onNotifyTimeline: vi.fn(),
+      onProtocolError: vi.fn(),
       onUnknown: vi.fn(),
     }
 
-    routeWsMessage({ Cmd: 'NotifyEvent', Data: { event_type: 'log' } }, handlers)
+    routeWsMessage({ Known: false, Cmd: 'NotifyEvent', Data: { event_type: 'log' } } satisfies UnknownWsMessage, handlers)
 
     expect(handlers.onUnknown).toHaveBeenCalledWith('NotifyEvent', { event_type: 'log' })
   })
@@ -63,11 +74,12 @@ describe('routeWsMessage', () => {
       onSyncState: vi.fn(),
       onRequireAction: vi.fn(),
       onNotifyTimeline: vi.fn(),
+      onProtocolError: vi.fn(),
       onUnknown: vi.fn(),
     }
 
     expect(() => {
-      routeWsMessage({ Cmd: 'ChatMessage', Data: { message: 'hello' } }, handlers)
+      routeWsMessage(routed({ Cmd: 'ChatMessage', Data: { message: 'hello' } }), handlers)
     }).not.toThrow()
     expect(handlers.onUnknown).not.toHaveBeenCalled()
   })

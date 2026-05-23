@@ -17,10 +17,13 @@ func RoleEntry() player.RoleEntry {
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
 		TimingHookSpecs: []player.TimingHookSpec{
-			{Timing: player.TimingOnDamageCalculate, Priority: 800, Hook: damageCalculateHook},
-			{Timing: player.TimingOnAttackStateReset, Priority: 100, Hook: attackStateResetHook},
-			{Timing: player.TimingOnAttackMiss, Priority: 500, Hook: attackMissHook},
-			{Timing: player.TimingOnDamageAfterTaken, Priority: 100, Hook: damageAfterTakenHook},
+			{Timing: player.TimingDamageSourceDeal, Priority: 800, Hook: damageCalculateHook},
+			{Timing: player.TimingAttackStateReset, Priority: 100, Hook: attackStateResetHook},
+			{Timing: player.TimingAttackMiss, Priority: 500, Hook: attackMissHook},
+			{Timing: player.TimingAttackMiss, Priority: 510, Hook: angelSoulMissHook},
+			{Timing: player.TimingAttackMiss, Priority: 520, Hook: demonSoulMissHook},
+			{Timing: player.TimingAttackMiss, Priority: 900, Hook: attackMissCleanupHook},
+			{Timing: player.TimingDamageAfterTaken, Priority: 100, Hook: angelSoulHitHook},
 		},
 	}
 }
@@ -44,9 +47,6 @@ func SkillEntries() []player.SkillEntry {
 		{ID: "se_sword_qi_slash", Handler: &SwordEmperorSwordQiSlashHandler{}},
 		{ID: "se_angel_soul", Handler: &SwordEmperorAngelSoulHandler{}},
 		{ID: "se_demon_soul", Handler: &SwordEmperorDemonSoulHandler{}},
-		{ID: "se_angel_soul_hit", Handler: &SwordEmperorAngelSoulHitHandler{}},
-		{ID: "se_angel_soul_miss", Handler: &SwordEmperorAngelSoulMissHandler{}},
-		{ID: "se_demon_soul_miss", Handler: &SwordEmperorDemonSoulMissHandler{}},
 		{ID: "se_indomitable_will", Handler: &SwordEmperorIndomitableWillHandler{}},
 	}
 }
@@ -57,5 +57,7 @@ func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 		"se_soul_pick":             types.ChoiceRouteRole("sword_emperor"),
 		"se_sword_qi_slash_target": types.ChoiceRouteRole("sword_emperor"),
 		"se_sword_qi_slash_x":      types.ChoiceRouteRole("sword_emperor"),
+		"se_sword_rain_discard":    types.ChoiceRouteRole("sword_emperor"),
+		"se_sword_rain_target":     types.ChoiceRouteRole("sword_emperor"),
 	}
 }

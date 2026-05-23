@@ -25,9 +25,9 @@ func RoleEntry() player.RoleEntry {
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
 		TimingHookSpecs: []player.TimingHookSpec{
-			{Timing: player.TimingPostActionEnd, Priority: 100, Hook: postActionEndBleedExitHook},
-			{Timing: player.TimingOnMoraleLossApplied, Priority: 100, Hook: moraleLossHook},
-			{Timing: player.TimingOnTurnStart, Priority: 100, Hook: turnStartBleedTickHook},
+			{Timing: player.TimingPostActionEnd, Priority: 100, Hook: postActionEndBleedExitHook, RoleFilter: &player.HookRoleNone},
+			{Timing: player.TimingMoraleLossApplied, Priority: 100, Hook: moraleLossHook},
+			{Timing: player.TimingTurnStart, Priority: 100, Hook: turnStartBleedTickHook},
 		},
 	}
 }
@@ -35,7 +35,10 @@ func RoleEntry() player.RoleEntry {
 // ChoiceSpecs 导出角色 choice 声明。
 func ChoiceSpecs() []player.ChoiceSpec {
 	return []player.ChoiceSpec{
-		{ChoiceType: "bp_curse_discard", SequentialRemaining: player.ChoiceRemainingFromSelectionKey("discard_count")},
+		{
+			ChoiceType:          "bp_curse_discard",
+			SequentialRemaining: player.ChoiceRemainingFromFlowSelectionCount(bloodCurseDiscardNeedStep, bloodCurseDiscardCardsStep),
+		},
 	}
 }
 
@@ -70,7 +73,13 @@ func SkillEntries() []player.SkillEntry {
 		{ID: "bp_bleeding", Handler: &BleedingHandler{}},
 		{ID: "bp_backflow", Handler: &BackflowHandler{}},
 		{ID: "bp_blood_wail", Handler: &BloodWailHandler{}},
-		{ID: "bp_shared_life", Handler: &SharedLifeHandler{}},
+		{
+			ID:      "bp_shared_life",
+			Handler: &SharedLifeHandler{},
+			Policy: types.SkillPolicy{
+				ManualExclusiveCard: true,
+			},
+		},
 		{ID: "bp_blood_curse", Handler: &BloodCurseHandler{}},
 	}
 }

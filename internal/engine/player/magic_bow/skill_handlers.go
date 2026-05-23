@@ -37,8 +37,42 @@ func magicBowChargeCount(user *model.Player, element model.Element) int {
 	return count
 }
 
+func magicBowChargeFieldIndices(user *model.Player, element model.Element) []int {
+	if user == nil {
+		return nil
+	}
+	out := make([]int, 0)
+	for idx, fc := range user.Field {
+		if fc == nil || fc.Mode != model.FieldCover || fc.Effect != model.EffectMagicBowCharge {
+			continue
+		}
+		if element != "" && fc.Card.Element != element {
+			continue
+		}
+		out = append(out, idx)
+	}
+	return out
+}
+
 func syncMagicBowChargeToken(user *model.Player) {
-	// no-op: mb_charge_count 在服务端 buildStateForPlayer 中按场上盖牌派生写入 PlayerView.tokens
+	// no-op: mb_charge_count 在服务端 buildStateForPlayer 中按场上盖牌派生写入 PlayerView.indicators
+}
+
+func removeMagicBowChargeAtFieldIndex(user *model.Player, fieldIndex int, element model.Element) (model.Card, bool) {
+	if user == nil || fieldIndex < 0 || fieldIndex >= len(user.Field) {
+		return model.Card{}, false
+	}
+	fc := user.Field[fieldIndex]
+	if fc == nil || fc.Mode != model.FieldCover || fc.Effect != model.EffectMagicBowCharge {
+		return model.Card{}, false
+	}
+	if element != "" && fc.Card.Element != element {
+		return model.Card{}, false
+	}
+	card := fc.Card
+	user.RemoveFieldCard(fc)
+	syncMagicBowChargeToken(user)
+	return card, true
 }
 
 func removeMagicBowChargeByElement(user *model.Player, element model.Element) (model.Card, bool) {
@@ -97,32 +131,6 @@ func magicBowAllHandIndices(user *model.Player) []int {
 	return out
 }
 
-// --- 资源校验/消耗辅助 ---
-// 红宝石可替代蓝水晶（仅水晶消耗方向）
-func canPayCrystalLike(ctx *model.Context, amount int) bool {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil {
-		return false
-	}
-	return ctx.Game.CanPayCrystalCost(ctx.User.ID, amount)
-}
-
-func spendCrystalLike(ctx *model.Context, amount int) bool {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil {
-		return false
-	}
-	return ctx.Game.ConsumeCrystalCost(ctx.User.ID, amount)
-}
-
-func setSkillFlow(p *model.Player, key string, v int) {
-	if p == nil {
-		return
-	}
-	if p.TurnState.SkillFlowState == nil {
-		p.TurnState.SkillFlowState = make(map[string]int)
-	}
-	p.TurnState.SkillFlowState[key] = v
-}
-
 // --- 魔弓 ---
 
 type MagicBowMagicPierceHandler struct{ engineplayer.BaseHandler }
@@ -139,7 +147,7 @@ func (h *MagicBowMagicPierceHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.Target == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Timing != model.TimingOnAttackDeclared {
+	if !ctx.AttackDeclarePhase() {
 		return false
 	}
 	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
@@ -165,13 +173,19 @@ func (h *MagicBowMagicPierceHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil || ctx.EventCtx.Card == nil {
 		return fmt.Errorf("魔贯冲击上下文无效")
 	}
-	if _, ok := removeMagicBowChargeByElement(ctx.User, model.ElementFire); !ok {
+	if magicBowChargeCount(ctx.User, model.ElementFire) <= 0 {
 		return fmt.Errorf("火系充能不足")
 	}
-	ctx.User.TurnState.UsedSkillCounts["mb_magic_pierce_used_turn"]++
-	setSkillFlow(ctx.User, "mb_magic_pierce_pending", 1)
-	ctx.EventCtx.Card.Damage++
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [魔贯冲击]：移除1个火系充能，本次攻击伤害+1", ctx.User.Name))
+	ctx.Game.PushInterrupt(&model.Interrupt{
+		Type:     model.InterruptChoice,
+		PlayerID: ctx.User.ID,
+		Context: map[string]interface{}{
+			"choice_type": "mb_magic_pierce_charge",
+			"user_id":     ctx.User.ID,
+			"user_ctx":    ctx,
+		},
+	})
+	ctx.Game.Log(fmt.Sprintf("%s 确认发动 [魔贯冲击]：请选择移除1个火系充能", ctx.User.Name))
 	return nil
 }
 
@@ -192,7 +206,7 @@ func (h *MagicBowThunderScatterHandler) Execute(ctx *model.Context) error {
 	if ctx.User.TurnState.UsedSkillCounts["mb_charge_lock_turn"] > 0 {
 		return fmt.Errorf("本回合已发动[充能]，不能发动雷光散射")
 	}
-	if _, ok := removeMagicBowChargeByElement(ctx.User, model.ElementThunder); !ok {
+	if magicBowChargeCount(ctx.User, model.ElementThunder) <= 0 {
 		return fmt.Errorf("雷系充能不足")
 	}
 	enemyIDs := make([]string, 0)
@@ -213,31 +227,17 @@ func (h *MagicBowThunderScatterHandler) Execute(ctx *model.Context) error {
 		}
 		lockedTargetID = ctx.Target.ID
 	}
-	maxExtra := magicBowChargeCount(ctx.User, model.ElementThunder)
-	if maxExtra <= 0 {
-		for _, enemyID := range enemyIDs {
-			ctx.Game.AddPendingDamage(model.PendingDamage{
-				SourceID:   ctx.User.ID,
-				TargetID:   enemyID,
-				Damage:     1,
-				DamageType: model.MagicAttack,
-			})
-		}
-		ctx.Game.Log(fmt.Sprintf("%s 发动 [雷光散射]：对所有对手各造成1点法术伤害", ctx.User.Name))
-		return nil
-	}
 	ctx.Game.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
 		Context: map[string]interface{}{
-			"choice_type":      "mb_thunder_scatter_extra",
+			"choice_type":      "mb_thunder_scatter_base_charge",
 			"user_id":          ctx.User.ID,
 			"target_ids":       enemyIDs,
-			"max_extra":        maxExtra,
 			"locked_target_id": lockedTargetID,
 		},
 	})
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [雷光散射]：可额外移除0~%d个雷系充能并指定目标", ctx.User.Name, maxExtra))
+	ctx.Game.Log(fmt.Sprintf("%s 发动 [雷光散射]：请选择移除1个雷系充能", ctx.User.Name))
 	return nil
 }
 
@@ -245,7 +245,7 @@ func (h *MagicBowMultiShotHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Timing != model.TimingOnActionEnd {
+	if ctx.Timing != model.TimingActionEnd {
 		return false
 	}
 	if ctx.EventCtx.ActionType != model.ActionAttack {
@@ -292,21 +292,20 @@ func (h *MagicBowMultiShotHandler) Execute(ctx *model.Context) error {
 		ctx.Game.Log(fmt.Sprintf("%s 发动 [多重射击] 失败：无可攻击目标", ctx.User.Name))
 		return nil
 	}
-	if _, ok := removeMagicBowChargeByElement(ctx.User, model.ElementWind); !ok {
+	if magicBowChargeCount(ctx.User, model.ElementWind) <= 0 {
 		return fmt.Errorf("风系充能不足")
 	}
-	ctx.User.TurnState.UsedSkillCounts["mb_multi_shot_used_turn"]++
 
 	ctx.Game.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
 		Context: map[string]interface{}{
-			"choice_type": "mb_multi_shot_target",
+			"choice_type": "mb_multi_shot_charge",
 			"user_id":     ctx.User.ID,
 			"target_ids":  enemyIDs,
 		},
 	})
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [多重射击]：请选择暗系追加攻击目标", ctx.User.Name))
+	ctx.Game.Log(fmt.Sprintf("%s 确认发动 [多重射击]：请选择移除1个风系充能", ctx.User.Name))
 	return nil
 }
 
@@ -314,23 +313,28 @@ func (h *MagicBowChargeHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil {
 		return false
 	}
-	return canPayCrystalLike(ctx, 1)
+	// 启动技在 ActionStart 阶段检查可用性时，
+	// runtime 会先检查 skillDef.CostCrystal，确认玩家有足够资源后才会创建中断。
+	// CanUse 不需要重复检查资源（否则会导致红宝石替代水晶的判定与 runtime 不一致）。
+	// 对于响应技等其他时点，依赖 CanPayCrystalLike 检查。
+	if ctx.Timing == model.TimingActionStart || ctx.Timing == model.TimingActionDuring {
+		return true
+	}
+	return engineplayer.CanPayCrystalLike(ctx, 1)
 }
 
 func (h *MagicBowChargeHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("充能上下文无效")
 	}
-	if ctx.Timing != model.TimingActive && !spendCrystalLike(ctx, 1) {
+	// 启动技和行动技的能耗已由 runtime/UseSkill 流程在调用 Execute 前扣减，
+	// 仅响应技等其他时点需要 handler 内自行扣减。
+	if ctx.Timing != model.TimingActionStart && ctx.Timing != model.TimingActionDuring && !engineplayer.SpendCrystalLike(ctx, 1) {
 		return fmt.Errorf("充能需要1蓝水晶（红宝石可替代）")
 	}
 	ctx.User.TurnState.UsedSkillCounts["mb_charge_lock_turn"] = 1
 
-	discardNeed := len(ctx.User.Hand) - 4
-	if discardNeed < 0 {
-		discardNeed = 0
-	}
-	if discardNeed > 0 {
+	if len(ctx.User.Hand) > 4 {
 		ctx.Game.PushInterrupt(&model.Interrupt{
 			Type:     model.InterruptChoice,
 			PlayerID: ctx.User.ID,
@@ -340,12 +344,11 @@ func (h *MagicBowChargeHandler) Execute(ctx *model.Context) error {
 				"flow_continuation_role_id":   "magic_bow",
 				"flow_continuation_player_id": ctx.User.ID,
 				"flow_continuation_skill_id":  "mb_charge",
-				"discard_count":               discardNeed,
-				"min":                         discardNeed,
-				"max":                         discardNeed,
+				"discard_down_to":             4,
+				"stay_in_turn":                true,
 				"discard_forced":              true,
 				"forced_reason":               "【充能】弃牌为强制步骤，不能取消",
-				"prompt":                      fmt.Sprintf("【充能】请先弃置%d张手牌至4张：", discardNeed),
+				"prompt":                      "【充能】请先弃置手牌至4张：",
 			},
 		})
 		ctx.Game.Log(fmt.Sprintf("%s 发动 [充能]：先弃至4张，再选择摸牌数量X（0~4）", ctx.User.Name))
@@ -376,71 +379,26 @@ func (h *MagicBowDemonEyeHandler) Execute(ctx *model.Context) error {
 	if len(ctx.User.Hand) == 0 {
 		return fmt.Errorf("魔眼需要至少1张手牌作为充能")
 	}
-	if ctx.Timing != model.TimingActive && ctx.User.Gem <= 0 {
-		return fmt.Errorf("魔眼需要1个红宝石")
-	}
+	// 启动技和行动技的能耗已由 runtime/UseSkill 流程在调用 Execute 前扣减。
+	// 这里仅负责进入分支选择，避免与框架统一扣费重复扣宝石。
+	// Build target list for branch 1 (includes self)
 	targetIDs := make([]string, 0)
 	for _, p := range ctx.Game.GetAllPlayers() {
-		if p == nil || p.ID == ctx.User.ID {
+		if p == nil {
 			continue
 		}
 		targetIDs = append(targetIDs, p.ID)
 	}
-	if ctx.Target == nil && len(targetIDs) == 0 {
-		return fmt.Errorf("魔眼没有可选目标")
-	}
-	if ctx.Target != nil {
-		if ctx.Target.ID == ctx.User.ID {
-			return fmt.Errorf("魔眼不能以自己为目标")
-		}
-	}
-	if ctx.Timing != model.TimingActive {
-		ctx.User.Gem--
-	}
-	if ctx.Target != nil {
-		if len(ctx.Target.Hand) > 0 {
-			ctx.Game.PushInterrupt(&model.Interrupt{
-				Type:     model.InterruptChoice,
-				PlayerID: ctx.Target.ID,
-				Context: map[string]interface{}{
-					"choice_type":                 "system_discard_cards",
-					"discard_subflow":             true,
-					"discard_count":               1,
-					"flow_continuation_role_id":   "magic_bow",
-					"flow_continuation_player_id": ctx.User.ID,
-					"flow_continuation_skill_id":  "mb_demon_eye",
-					"prompt":                      "【魔眼】请选择弃置1张手牌：",
-					"mb_demon_eye_user_id":        ctx.User.ID,
-					"mb_demon_eye_target_id":      ctx.Target.ID,
-				},
-			})
-			ctx.Game.Log(fmt.Sprintf("%s 发动 [魔眼]：请选择 %s 弃置1张手牌", ctx.User.Name, ctx.Target.Name))
-			return nil
-		}
-		ctx.Game.DrawCards(ctx.User.ID, 3)
-		ctx.Game.PushInterrupt(&model.Interrupt{
-			Type:     model.InterruptChoice,
-			PlayerID: ctx.User.ID,
-			Context: map[string]interface{}{
-				"choice_type":       "mb_demon_eye_charge_card",
-				"user_id":           ctx.User.ID,
-				"need_count":        1,
-				"selected_indices":  []int{},
-				"remaining_indices": magicBowAllHandIndices(ctx.User),
-			},
-		})
-		ctx.Game.Log(fmt.Sprintf("%s 发动 [魔眼]：%s 无法弃牌，改为自己摸3张牌并选择1张作为充能", ctx.User.Name, ctx.Target.Name))
-		return nil
-	}
+	// Push branch selection first
 	ctx.Game.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
 		Context: map[string]interface{}{
-			"choice_type": "mb_demon_eye_target",
+			"choice_type": "mb_demon_eye_mode",
 			"user_id":     ctx.User.ID,
 			"target_ids":  targetIDs,
 		},
 	})
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [魔眼]：请选择目标角色", ctx.User.Name))
+	ctx.Game.Log(fmt.Sprintf("%s 发动 [魔眼]，请选择分支", ctx.User.Name))
 	return nil
 }

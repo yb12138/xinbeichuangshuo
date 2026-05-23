@@ -14,7 +14,29 @@ type EventMeta struct {
 	ChainID     string
 }
 
-func BuildEvent(meta EventMeta, eventType string, data map[string]interface{}, message string) protocol.TimelineEvent {
+type Payload struct {
+	Type       string
+	Message    string
+	PlayerID   string
+	PlayerName string
+	SourceID   string
+	SourceName string
+	TargetID   string
+	TargetName string
+	AttackerID string
+	ActionType string
+	SkillID    string
+	Cards      []model.Card
+	Hidden     bool
+	Damage     int
+	DamageType string
+	Kind       string
+	Phase      string
+	DrawCount  int
+	Reason     string
+}
+
+func BuildEvent(meta EventMeta, payload Payload) protocol.TimelineEvent {
 	event := protocol.TimelineEvent{
 		EventID:      meta.EventID,
 		TurnID:       meta.TurnID,
@@ -22,67 +44,47 @@ func BuildEvent(meta EventMeta, eventType string, data map[string]interface{}, m
 		CombatStage:  meta.CombatStage,
 		Subflow:      meta.Subflow,
 		ChainID:      meta.ChainID,
-		Type:         mapGameplayTimelineType(eventType, data),
-		Outcome:      mapGameplayTimelineOutcome(eventType),
+		Type:         mapGameplayTimelineType(payload),
+		Outcome:      mapGameplayTimelineOutcome(payload.Type),
 		Visibility:   "TimelineVisibilityPublic",
-		Message:      message,
-		GameplayType: eventType,
+		Message:      payload.Message,
+		GameplayType: payload.Type,
+		ActionType:   payload.ActionType,
+		SkillID:      payload.SkillID,
+		Cards:        cloneCards(payload.Cards),
+		CardIDs:      cardIDs(payload.Cards),
+		Hidden:       payload.Hidden,
+		Damage:       payload.Damage,
+		DamageType:   payload.DamageType,
+		DetailKind:   payload.Kind,
+		CuePhase:     payload.Phase,
+		DrawCount:    payload.DrawCount,
+		Reason:       payload.Reason,
 	}
 
-	if actor := firstNonEmptyString(
-		StringValue(data["player_id"]),
-		StringValue(data["source_id"]),
-		StringValue(data["attacker_id"]),
-	); actor != "" {
+	if actor := firstNonEmptyString(payload.PlayerID, payload.SourceID, payload.AttackerID); actor != "" {
 		event.ActorUserID = actor
 	}
-	if actorName := firstNonEmptyString(
-		StringValue(data["player_name"]),
-		StringValue(data["source_name"]),
-	); actorName != "" {
+	if actorName := firstNonEmptyString(payload.PlayerName, payload.SourceName); actorName != "" {
 		event.ActorName = actorName
 	}
-	if target := firstNonEmptyString(
-		StringValue(data["target_id"]),
-		StringValue(data["player_id"]),
-	); target != "" && target != event.ActorUserID {
+	if target := firstNonEmptyString(payload.TargetID, payload.PlayerID); target != "" && (payload.Type == "damage_dealt" || target != event.ActorUserID) {
 		event.TargetUserIDs = []string{target}
 	}
-	if targetName := StringValue(data["target_name"]); targetName != "" {
-		event.TargetName = targetName
+	if payload.TargetName != "" {
+		event.TargetName = payload.TargetName
 	}
-	if actionType := StringValue(data["action_type"]); actionType != "" {
-		event.ActionType = actionType
-	}
-	if skillID := StringValue(data["skill_id"]); skillID != "" {
-		event.SkillID = skillID
-	}
-	event.CardIDs = extractCardIDs(data["cards"])
-	event.Cards = extractCards(data["cards"])
-	event.Hidden = boolValue(data["hidden"])
-	event.Damage = intValue(data["damage"])
-	event.DamageType = StringValue(data["damage_type"])
-	event.DetailKind = StringValue(data["kind"])
-	event.CuePhase = StringValue(data["phase"])
-	event.DrawCount = intValue(data["draw_count"])
-	event.Reason = StringValue(data["reason"])
-	event.Deltas = buildTimelineDeltas(eventType, data)
+	event.Deltas = buildTimelineDeltas(payload)
 
 	return event
 }
 
-func StringValue(v interface{}) string {
-	s, _ := v.(string)
-	return s
-}
-
-func mapGameplayTimelineType(eventType string, data map[string]interface{}) string {
-	switch eventType {
+func mapGameplayTimelineType(payload Payload) string {
+	switch payload.Type {
 	case "prompt":
 		return "TimelineInterruptRaised"
 	case "card_revealed":
-		actionType := StringValue(data["action_type"])
-		if actionType == "defend" || actionType == "counter" {
+		if payload.ActionType == "defend" || payload.ActionType == "counter" {
 			return "TimelineResponseSelected"
 		}
 		return "TimelineActionDeclared"
@@ -106,113 +108,48 @@ func mapGameplayTimelineOutcome(eventType string) string {
 	}
 }
 
-func buildTimelineDeltas(eventType string, data map[string]interface{}) []protocol.TimelineDelta {
-	switch eventType {
+func buildTimelineDeltas(payload Payload) []protocol.TimelineDelta {
+	switch payload.Type {
 	case "damage_dealt":
-		targetID := StringValue(data["target_id"])
-		damage := intValue(data["damage"])
-		if targetID != "" && damage > 0 {
+		if payload.TargetID != "" && payload.Damage > 0 {
 			return []protocol.TimelineDelta{{
 				Type:         "TimelineDeltaDamage",
-				TargetUserID: targetID,
-				Value:        damage,
+				TargetUserID: payload.TargetID,
+				Value:        payload.Damage,
 			}}
 		}
 	case "draw_cards":
-		playerID := StringValue(data["player_id"])
-		count := intValue(data["draw_count"])
-		if playerID != "" && count > 0 {
+		if payload.PlayerID != "" && payload.DrawCount > 0 {
 			return []protocol.TimelineDelta{{
 				Type:         "TimelineDeltaHandCount",
-				TargetUserID: playerID,
-				Value:        count,
+				TargetUserID: payload.PlayerID,
+				Value:        payload.DrawCount,
 			}}
 		}
 	}
 	return nil
 }
 
-func extractCardIDs(raw interface{}) []string {
-	switch cards := raw.(type) {
-	case []model.Card:
-		out := make([]string, 0, len(cards))
-		for _, card := range cards {
-			if card.ID != "" {
-				out = append(out, card.ID)
-			}
+func cardIDs(cards []model.Card) []string {
+	out := make([]string, 0, len(cards))
+	for _, card := range cards {
+		if card.ID != "" {
+			out = append(out, card.ID)
 		}
-		return out
-	case []interface{}:
-		out := make([]string, 0, len(cards))
-		for _, item := range cards {
-			m, ok := item.(map[string]interface{})
-			if !ok {
-				continue
-			}
-			if id := StringValue(m["id"]); id != "" {
-				out = append(out, id)
-			}
-		}
-		return out
-	default:
+	}
+	if len(out) == 0 {
 		return nil
 	}
+	return out
 }
 
-func extractCards(raw interface{}) []model.Card {
-	switch cards := raw.(type) {
-	case []model.Card:
-		if len(cards) == 0 {
-			return nil
-		}
-		out := make([]model.Card, len(cards))
-		copy(out, cards)
-		return out
-	case []interface{}:
-		out := make([]model.Card, 0, len(cards))
-		for _, item := range cards {
-			switch card := item.(type) {
-			case model.Card:
-				out = append(out, card)
-			case map[string]interface{}:
-				out = append(out, model.Card{
-					ID:          StringValue(card["id"]),
-					Name:        StringValue(card["name"]),
-					Type:        model.CardType(StringValue(card["type"])),
-					Element:     model.Element(StringValue(card["element"])),
-					Faction:     StringValue(card["faction"]),
-					Damage:      intValue(card["damage"]),
-					Description: StringValue(card["description"]),
-				})
-			}
-		}
-		if len(out) == 0 {
-			return nil
-		}
-		return out
-	default:
+func cloneCards(cards []model.Card) []model.Card {
+	if len(cards) == 0 {
 		return nil
 	}
-}
-
-func intValue(v interface{}) int {
-	switch t := v.(type) {
-	case int:
-		return t
-	case int64:
-		return int(t)
-	case float64:
-		return int(t)
-	case float32:
-		return int(t)
-	default:
-		return 0
-	}
-}
-
-func boolValue(v interface{}) bool {
-	b, _ := v.(bool)
-	return b
+	out := make([]model.Card, len(cards))
+	copy(out, cards)
+	return out
 }
 
 func firstNonEmptyString(values ...string) string {

@@ -59,8 +59,7 @@ func postActionEndHook(rt player.HookRuntime, ctx player.TimingHookContext) play
 		p.TurnState.SkillFlowState["hero_calm_end_crystal_pending"] = 0
 	}
 	capV := rt.GetPlayerEnergyCap(p)
-	if p.Gem+p.Crystal < capV {
-		p.Crystal++
+	if player.AddPlayerCrystalCapped(p, 1, capV) > 0 {
 		rt.Log(fmt.Sprintf("%s 的 [明镜止水] 结算：水晶+1", p.Name))
 	} else {
 		rt.Log(fmt.Sprintf("%s 的 [明镜止水] 结算：能量已满，水晶未增加", p.Name))
@@ -87,13 +86,12 @@ func turnStartExhaustionReleaseHook(rt player.HookRuntime, ctx player.TimingHook
 	if p == nil || !rt.IsCharacter(p, "hero") || p.TurnState.HasUsedActionSkill || !InExhaustionForm(p) {
 		return player.TimingHookResult{}
 	}
-	player.EnsurePlayerSkillFlowState(p)
-	if p.TurnState.SkillFlowState["hero_exhaustion_release_pending"] <= 0 {
+	if !hasExhaustionReleasePending(p) {
 		return player.TimingHookResult{}
 	}
 	defer rt.PoseChangeGuard()
 	LeaveExhaustionForm(p)
-	p.TurnState.SkillFlowState["hero_exhaustion_release_pending"] = 0
+	clearExhaustionReleasePending(p)
 	rt.Log(fmt.Sprintf("%s 的 [精疲力竭] 结束：转正，手牌上限恢复，并对自己造成3点法术伤害", p.Name))
 	rt.AddPendingDamage(model.PendingDamage{
 		SourceID:   p.ID,

@@ -5,74 +5,77 @@ package player
 import "starcup-engine/internal/model"
 
 // TimingPoint 标识 Hook 触发时机。
-type TimingPoint string
+// 保留为别名，实际 canonical 类型在 model.Timing。
+type TimingPoint = model.Timing
 
 const (
 	// 已有 - 行动后/攻击后/伤害后
-	TimingPostActionEnd      TimingPoint = "post_action_end"
-	TimingPostAttackHit      TimingPoint = "post_attack_hit"
-	TimingPostDamageResolved TimingPoint = "post_damage_resolved"
+	TimingPostActionEnd      TimingPoint = model.TimingActionPost
+	TimingPostAttackHit      TimingPoint = model.TimingAttackHit
+	TimingPostDamageResolved TimingPoint = model.TimingDamageResolved
 
-	// 新增 - 回合阶段
-	TimingOnTurnBeforeStart TimingPoint = "on_turn_before_start" // 回合开始前（效果过期等）
-	TimingOnTurnStart       TimingPoint = "on_turn_start"        // 回合开始（形态检查、状态清理）
-	TimingOnTurnEnd         TimingPoint = "on_turn_end"          // 回合结束前置（形态释放，额外行动前）
-	TimingOnTurnEndFinal    TimingPoint = "on_turn_end_final"    // 回合结束最终（额外行动耗尽后）
-	TimingBeforeAction      TimingPoint = "before_action"        // 行动前（场上效果检查）
-	TimingOnActionEnd       TimingPoint = "on_action_end"        // 行动结束（非 post_action_end，用于技能后）
+	// 回合时间轴。
+	TimingTurnBeforeStart TimingPoint = model.TimingTurnBeforeStart // 回合开始前（效果过期等）
+	TimingTurnStart       TimingPoint = model.TimingTurnStart       // 回合开始（形态检查、状态清理）
+	// 回合结束当前有 pre-extra/final 两个运行时子阶段，暂不合并到 TimingTurnEnd，避免触发次数变化。
+	TimingTurnEndPreExtra TimingPoint = "on_turn_end"       // 回合结束前置（形态释放，额外行动前）
+	TimingTurnEndFinal    TimingPoint = "on_turn_end_final" // 回合结束最终（额外行动耗尽后）
+	TimingActionStart     TimingPoint = model.TimingActionStart
+	TimingActionEnd       TimingPoint = model.TimingActionEnd // 行动结束（非 post_action_end，用于技能后）
 
 	// 新增 - 攻击阶段
-	TimingOnAttackDeclared   TimingPoint = "on_attack_declared"    // 攻击宣告时
-	TimingOnAttackGating     TimingPoint = "on_attack_gating"      // 攻击门控检查
-	TimingOnAttackCardHook   TimingPoint = "on_attack_card_hook"   // 攻击卡牌变换
-	TimingOnAttackStateReset TimingPoint = "on_attack_state_reset" // 攻击状态重置
-	TimingOnAttackTargetCtx  TimingPoint = "on_attack_target_ctx"  // 目标上下文记录
-	TimingOnAttackMiss       TimingPoint = "on_attack_miss"        // 攻击未命中后
+	TimingAttackDeclare        TimingPoint = model.TimingAttackDeclare         // 攻击宣告时
+	TimingAttackNoResponse     TimingPoint = model.TimingAttackNoResponseCheck // 攻击门控检查
+	TimingAttackModifyCard     TimingPoint = model.TimingAttackModifyCard      // 攻击卡牌变换
+	TimingAttackStateReset     TimingPoint = "on_attack_state_reset"           // 攻击状态重置
+	TimingAttackSelectTarget   TimingPoint = model.TimingAttackSelectTarget
+	TimingAttackMiss           TimingPoint = model.TimingAttackMiss // 攻击未命中后
+	TimingAttackDeclareRuntime TimingPoint = "on_attack_declared_interrupt"
 
 	// 新增 - 命中判定阶段
-	TimingOnHitCheck               TimingPoint = "on_hit_check"                // 命中判定
-	TimingOnCounterPolicy          TimingPoint = "on_counter_policy"           // 反击策略
-	TimingOnDefendValidation       TimingPoint = "on_defend_validation"        // 防御验证
-	TimingOnResponseSkillAug       TimingPoint = "on_response_skill_aug"       // 响应技能增强
-	TimingOnResponseSkillNormalize TimingPoint = "on_response_skill_normalize" // 响应技能规范化
-	TimingOnResponseSkillAdvance   TimingPoint = "on_response_skill_advance"   // 响应技能推进（格斗家蓄力→气绝）
-	TimingOnResponseSkillSkip      TimingPoint = "on_response_skill_skip"      // 响应技能跳过后（圣枪圣击）
-	TimingOnCombatInteraction      TimingPoint = "on_combat_interaction"       // 战斗交互（阴阳师绑定等）
-	TimingOnCounterCardPolicy      TimingPoint = "on_counter_card_policy"      // 反击卡牌策略
-	TimingOnCounterElementCheck    TimingPoint = "on_counter_element_check"    // 反击元素检查
-	TimingOnCounterResolve         TimingPoint = "on_counter_resolve"          // 反击结算
-	TimingOnMagicMissileDefend     TimingPoint = "on_magic_missile_defend"     // 魔弹链防御验证
-	TimingOnMagicMissileCounter    TimingPoint = "on_magic_missile_counter"    // 魔弹链反击验证
+	TimingCounterPolicy                TimingPoint = "on_counter_policy"                   // 反击策略
+	TimingDefendValidation             TimingPoint = "on_defend_validation"                // 防御验证
+	TimingResponseSkillAug             TimingPoint = "on_response_skill_aug"               // 响应技能增强
+	TimingResponseSkillNormalize       TimingPoint = "on_response_skill_normalize"         // 响应技能规范化
+	TimingResponseSkillAdvance         TimingPoint = "on_response_skill_advance"           // 响应技能推进（格斗家蓄力→气绝）
+	TimingResponseSkillSkip            TimingPoint = "on_response_skill_skip"              // 响应技能跳过后（圣枪圣击）
+	TimingCombatInteraction            TimingPoint = "on_combat_interaction"               // 战斗交互（阴阳师绑定等）
+	TimingCounterCardPolicy            TimingPoint = "on_counter_card_policy"              // 反击卡牌策略
+	TimingCounterElementCheck          TimingPoint = "on_counter_element_check"            // 反击元素检查
+	TimingCounterResolve               TimingPoint = "on_counter_resolve"                  // 反击结算
+	TimingMagicMissileDefend           TimingPoint = "on_magic_missile_defend"             // 魔弹链防御验证
+	TimingMagicMissileCounter          TimingPoint = "on_magic_missile_counter"            // 魔弹链反击验证
+	TimingMagicMissileResponseSkillAug TimingPoint = "on_magic_missile_response_skill_aug" // 魔弹响应技能增强
 
 	// 新增 - 伤害阶段
-	TimingOnDamageCalculate   TimingPoint = "on_damage_calculate"    // 伤害计算（被动增伤）
-	TimingOnDamageBeforeTaken TimingPoint = "on_damage_before_taken" // 承伤触发前（灵魂链接等）
-	TimingOnDamageAfterTaken  TimingPoint = "on_damage_after_taken"  // 承伤触发后（剑帝命中后置）
-	TimingOnDamageBeforeApply TimingPoint = "on_damage_before_apply" // 伤害应用前（蝶舞者等）
-	TimingOnDamageAfterApply  TimingPoint = "on_damage_after_apply"  // 伤害应用后（封印师等）
-	TimingOnHealResist        TimingPoint = "on_heal_resist"         // 治愈抵抗规则
-	TimingOnHealCapCalculate  TimingPoint = "on_heal_cap_calculate"  // 治疗抵伤额度计算（牧师上限）
+	TimingDamageSourceDeal   TimingPoint = model.TimingDamageSourceDeal   // 伤害来源造成伤害
+	TimingDamageTargetBefore TimingPoint = model.TimingDamageTargetBefore // 承伤触发前（灵魂链接等内部子阶段）
+	TimingDamageAfterTaken   TimingPoint = "on_damage_after_taken"        // 承伤触发后（剑帝命中后置内部子阶段）
+	TimingDamageApplied      TimingPoint = model.TimingDamageApplied      // ⑤ 实际产生伤害时（扣除治疗后，未摸牌前）
+	TimingDamageTaken        TimingPoint = model.TimingDamageTaken        // ⑥ 实际承受伤害，准备摸牌前
+	TimingDamageAfterApply   TimingPoint = "on_damage_after_apply"        // 伤害应用后（封印师等内部子阶段，暂不同于整次伤害 resolved）
+	TimingHealBefore         TimingPoint = model.TimingHealBefore         // 治愈抵抗规则
+	TimingHealCap            TimingPoint = model.TimingHealCap            // 治疗抵伤额度计算（牧师上限）
 
 	// 新增 - 特殊阶段
-	TimingOnGameStart      TimingPoint = "on_game_start"       // 游戏开始
-	TimingOnPlayerAdded    TimingPoint = "on_player_added"     // 玩家加入
-	TimingOnCampChanged    TimingPoint = "on_camp_changed"     // 阵营变化
-	TimingOnPlayerSetup    TimingPoint = "on_player_setup"     // 玩家设置（加入后初始化派生状态）
-	TimingOnCampCupChanged TimingPoint = "on_camp_cup_changed" // 阵营杯子变化（派生状态同步）
+	TimingGameStart      TimingPoint = "on_game_start"       // 游戏开始
+	TimingPlayerAdded    TimingPoint = "on_player_added"     // 玩家加入
+	TimingCampChanged    TimingPoint = "on_camp_changed"     // 阵营变化
+	TimingPlayerSetup    TimingPoint = "on_player_setup"     // 玩家设置（加入后初始化派生状态）
+	TimingCampCupChanged TimingPoint = "on_camp_cup_changed" // 阵营杯子变化（派生状态同步）
 
 	// 新增 - 士气损失阶段
-	TimingOnMoraleLossApplied TimingPoint = "on_morale_loss_applied" // 士气损失应用后（伤害驱动的角色效果）
+	TimingMoraleLossApplied TimingPoint = model.TimingMoraleLossApplied // 士气损失应用后（伤害驱动的角色效果）
 
 	// 新增 - 行动选择策略（原 PolicySpec）
-	TimingBeforeActionOption        TimingPoint = "before_action_option"         // 行动选项策略
-	TimingBeforeActionValidation    TimingPoint = "before_action_validation"     // 行动验证策略
-	TimingOnAttackDeclaredInterrupt TimingPoint = "on_attack_declared_interrupt" // 攻击宣言中断
-	TimingOnCombatCounterCard       TimingPoint = "on_combat_counter_card"       // 反击卡牌策略
-	TimingAfterCannotAct            TimingPoint = "on_after_cannot_act"          // 无法行动后续
-	TimingOnSpecialActionOverride   TimingPoint = "on_special_action_override"   // 特殊行动覆盖
-	TimingOnSpecialActionPost       TimingPoint = "on_special_action_post"       // 特殊行动后置
-	TimingOnSkillPost               TimingPoint = "on_skill_post"                // 技能后置钩子
-	TimingOnAttackCardTransform     TimingPoint = "on_attack_card_transform"     // 攻击牌变换
+	TimingActionStartOption      TimingPoint = "before_action_option"       // 行动选项策略
+	TimingActionStartValidation  TimingPoint = "before_action_validation"   // 行动验证策略
+	TimingAttackDeclareInterrupt TimingPoint = TimingAttackDeclareRuntime   // 攻击宣言中断
+	TimingCombatCounterCard      TimingPoint = "on_combat_counter_card"     // 反击卡牌策略
+	TimingAfterCannotAct         TimingPoint = "on_after_cannot_act"        // 无法行动后续
+	TimingSpecialActionOverride  TimingPoint = "on_special_action_override" // 特殊行动覆盖
+	TimingSpecialActionPost      TimingPoint = "on_special_action_post"     // 特殊行动后置
+	TimingSkillPost              TimingPoint = "on_skill_post"              // 技能后置钩子
 )
 
 // TimingHookSpec 角色贡献到全局 timing hook 链的条目。
@@ -80,7 +83,16 @@ type TimingHookSpec struct {
 	Timing   TimingPoint
 	Priority int // 数值越小越先执行
 	Hook     TimingHookFunc
+	// RoleFilter 声明 hook 的角色过滤规则：
+	//   nil（默认）= 按 SourceID 玩家的 Character.ID == RoleID 过滤
+	//   "none"     = 不按角色过滤，全局执行（跨角色 hook 使用）
+	RoleFilter *string
 }
+
+// HookRoleNone 标记 hook 不按角色过滤（跨角色场景）。
+// HookRoleNone 标记 hook 不按角色过滤（跨角色场景）。
+// 声明为 var 以便取地址赋值给 *string 类型的 RoleFilter 字段；请勿修改此值。
+var HookRoleNone = "none"
 
 // TimingHookContext 传递给 Hook 的上下文。
 type TimingHookContext struct {
@@ -229,7 +241,6 @@ type HookRuntime interface {
 
 	// 新增 - 卡牌操作
 	GetCardByIndex(player *model.Player, idx int) (model.Card, bool)
-	ConsumeCardByIndex(player *model.Player, idx int) (model.Card, error)
 	AddToDiscardPile(cards ...model.Card)
 	TakeDiscardPileCardByID(cardID string) (model.Card, bool)
 
@@ -259,9 +270,7 @@ type HookRuntime interface {
 	GetPlayerOrientation(player *model.Player) model.CharacterOrientation
 
 	// 新增 - 场上效果卡查找（用于伤害钩子）
-	FindExclusiveEffectCard(source *model.Player, effect model.EffectType) (*model.Player, *model.FieldCard)
 	FindSourceEffectCard(source *model.Player, effect model.EffectType) (*model.Player, *model.FieldCard)
-	AttachExclusiveEffectCard(source, target *model.Player, effect model.EffectType, card model.Card) error
 
 	// 新增 - 伤害应用钩子所需
 	RemoveFieldCard(targetID string, effect model.EffectType) bool

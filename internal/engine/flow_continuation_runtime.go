@@ -27,18 +27,20 @@ func (e *GameEngine) processFlowContinuations(kind model.FlowContinuationKind) {
 		// 查找角色 handler
 		entry := roleRegistry.Entry(cont.RoleID)
 		if entry.ID == "" {
-			e.Log(fmt.Sprintf("[Warn] FlowContinuation 角色未注册: %s", cont.RoleID))
+			e.Log(fmt.Sprintf("[Error] FlowContinuation 角色未注册: %s — 流程配置错误", cont.RoleID))
+			e.State.FlowContinuations = append(e.State.FlowContinuations, cont)
 			continue
 		}
 
 		handler := entry.FlowContinuationHandlers[kind]
 		if handler == nil {
-			e.Log(fmt.Sprintf("[Warn] FlowContinuation handler 未注册: %s/%s", cont.RoleID, kind))
+			e.Log(fmt.Sprintf("[Error] FlowContinuation handler 未注册: %s/%s — 流程配置错误", cont.RoleID, kind))
+			e.State.FlowContinuations = append(e.State.FlowContinuations, cont)
 			continue
 		}
 
 		// 执行
-		rt := newRoleChoiceRuntime(e)
+		rt := NewRoleChoiceRuntime(e)
 		if err := handler(rt, cont); err != nil {
 			e.Log(fmt.Sprintf("[Error] FlowContinuation 处理失败: %s/%s - %v", cont.RoleID, kind, err))
 		}

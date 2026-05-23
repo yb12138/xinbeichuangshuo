@@ -9,6 +9,17 @@ import (
 	"starcup-engine/internal/model"
 )
 
+type butterflyDamageHookRuntime struct {
+	player.HookRuntime
+}
+
+func (r butterflyDamageHookRuntime) GetPlayerOrder() []string {
+	if r.HookRuntime == nil {
+		return nil
+	}
+	return r.HookRuntime.GetPlayerOrder()
+}
+
 // witherExpiryHook 回合开始前检查凋零效果到期。
 func witherExpiryHook(rt player.HookRuntime, ctx player.TimingHookContext) player.TimingHookResult {
 	playerObj := rt.GetPlayer(ctx.TargetID)
@@ -24,49 +35,29 @@ func witherExpiryHook(rt player.HookRuntime, ctx player.TimingHookContext) playe
 	return player.TimingHookResult{}
 }
 
-// damageBeforeApplyHook 蝶舞者承伤前响应：治疗抵伤处理后、正式扣血前的统一插入点。
-func damageBeforeApplyHook(rt player.HookRuntime, ctx player.TimingHookContext) player.TimingHookResult {
+// damageResponseHook 处理蝶舞者时间轴⑤：治疗抵御后、承受伤害前的法术伤害响应。
+func damageResponseHook(rt player.HookRuntime, ctx player.TimingHookContext) player.TimingHookResult {
 	pd := ctx.PendingDamage
 	if pd == nil || pd.Damage <= 0 {
 		return player.TimingHookResult{}
 	}
-
-	// 朝圣：移除1个茧抵御1点伤害
-	if !pd.HasCheck(model.PendingDamageCheckBeforeApplyDefend) {
-		pd.SetCheck(model.PendingDamageCheckBeforeApplyDefend, true)
-		target := rt.GetPlayer(ctx.TargetID)
-		if target != nil && rt.IsCharacter(target, "butterfly_dancer") && CocoonCount(target) > 0 {
-			indices := CocoonFieldIndices(target)
-			if len(indices) > 0 {
-				rt.PushInterrupt(&model.Interrupt{
-					Type:     model.InterruptChoice,
-					PlayerID: target.ID,
-					Context: map[string]interface{}{
-						"choice_type":    "bt_pilgrimage_pick",
-						"user_id":        target.ID,
-						"source_id":      pd.SourceID,
-						"target_id":      pd.TargetID,
-						"damage_index":   0,
-						"cocoon_indices": indices,
-					},
-				})
-				rt.Log(fmt.Sprintf("%s 的 [朝圣] 可触发：是否移除1个茧抵御1点伤害", target.Name))
-				return player.TimingHookResult{Interrupted: true}
-			}
-		}
+	sourceName := ""
+	if src := rt.GetPlayer(pd.SourceID); src != nil {
+		sourceName = src.Name
 	}
+	targetName := ""
+	if tgt := rt.GetPlayer(pd.TargetID); tgt != nil {
+		targetName = tgt.Name
+	}
+	damageAmount := pd.Damage
 
-	// 毒粉/镜花水月：法术伤害响应
 	if pd.DamageType != model.MagicDamage {
 		return player.TimingHookResult{}
 	}
-	if pd.HasCheck(model.PendingDamageCheckBeforeApplyResponse) {
-		return player.TimingHookResult{}
-	}
-	pd.SetCheck(model.PendingDamageCheckBeforeApplyResponse, true)
-
-	// 毒粉：伤害为1时，蝶舞者可移除1个茧令伤害+1
-	if pd.Damage == 1 {
+	// 毒粉：伤害为1时，蝶舞者可移除1个茧令伤害+1。该检查仅在⑤窗口执行一次，
+	// 避免朝圣在⑥把2点伤害降为1点后又倒回触发毒粉。
+	if pd.Damage == 1 && !pd.HasCheck(model.PendingDamageCheckBeforeApplyPoison) {
+		pd.SetCheck(model.PendingDamageCheckBeforeApplyPoison, true)
 		for _, pid := range rt.GetPlayerOrder() {
 			user := rt.GetPlayer(pid)
 			if user == nil || !rt.IsCharacter(user, "butterfly_dancer") || CocoonCount(user) <= 0 {
@@ -83,42 +74,59 @@ func damageBeforeApplyHook(rt player.HookRuntime, ctx player.TimingHookContext) 
 					"choice_type":    "bt_poison_pick",
 					"user_id":        user.ID,
 					"source_id":      pd.SourceID,
+					"source_name":    sourceName,
 					"target_id":      pd.TargetID,
+					"target_name":    targetName,
 					"damage_index":   0,
+					"damage_amount":  damageAmount,
 					"cocoon_indices": indices,
 				},
 			})
 			rt.Log(fmt.Sprintf("%s 的 [毒粉] 可触发：是否移除1个茧令该次法术伤害+1", user.Name))
 			return player.TimingHookResult{Interrupted: true}
 		}
-		return player.TimingHookResult{}
 	}
 
-	// 镜花水月：伤害为2时，蝶舞者可移除2张同系茧改写伤害来源
-	if pd.Damage == 2 {
-		for _, pid := range rt.GetPlayerOrder() {
-			user := rt.GetPlayer(pid)
-			if user == nil || !rt.IsCharacter(user, "butterfly_dancer") || CocoonCount(user) < 2 {
-				continue
-			}
-			defs, labels := mirrorPairDefs(user)
-			if len(defs) == 0 {
-				continue
-			}
+	if queueButterflyMirrorResponse(butterflyDamageHookRuntime{HookRuntime: rt}, pd, sourceName, targetName) {
+		return player.TimingHookResult{Interrupted: true}
+	}
+
+	markButterflyMagicResponseWindowClosed(pd)
+	return player.TimingHookResult{}
+}
+
+func pilgrimageBeforeApplyHook(rt player.HookRuntime, ctx player.TimingHookContext) player.TimingHookResult {
+	pd := ctx.PendingDamage
+	if pd == nil || pd.Damage <= 0 {
+		return player.TimingHookResult{}
+	}
+	return triggerPilgrimageBeforeApply(rt, pd, ctx.TargetID)
+}
+
+func triggerPilgrimageBeforeApply(rt player.HookRuntime, pd *model.PendingDamage, targetID string) player.TimingHookResult {
+	// 朝圣：⑥ 承受伤害时，移除1个茧抵御1点伤害。
+	if pd.HasCheck(model.PendingDamageCheckBeforeApplyDefend) {
+		return player.TimingHookResult{}
+	}
+	pd.SetCheck(model.PendingDamageCheckBeforeApplyDefend, true)
+
+	target := rt.GetPlayer(targetID)
+	if target != nil && rt.IsCharacter(target, "butterfly_dancer") && CocoonCount(target) > 0 {
+		indices := CocoonFieldIndices(target)
+		if len(indices) > 0 {
 			rt.PushInterrupt(&model.Interrupt{
 				Type:     model.InterruptChoice,
-				PlayerID: user.ID,
+				PlayerID: target.ID,
 				Context: map[string]interface{}{
-					"choice_type":  "bt_mirror_pair",
-					"user_id":      user.ID,
-					"source_id":    pd.SourceID,
-					"target_id":    pd.TargetID,
-					"damage_index": 0,
-					"pair_defs":    defs,
-					"pair_labels":  labels,
+					"choice_type":    "bt_pilgrimage_confirm",
+					"user_id":        target.ID,
+					"source_id":      pd.SourceID,
+					"target_id":      pd.TargetID,
+					"damage_index":   0,
+					"cocoon_indices": indices,
 				},
 			})
-			rt.Log(fmt.Sprintf("%s 的 [镜花水月] 可触发：是否移除2张同系茧改写本次伤害来源", user.Name))
+			rt.Log(fmt.Sprintf("%s 的 [朝圣] 可触发：是否移除1个茧抵御1点伤害", target.Name))
 			return player.TimingHookResult{Interrupted: true}
 		}
 	}

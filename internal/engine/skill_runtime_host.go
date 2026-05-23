@@ -1,4 +1,4 @@
-// gameflow: runtime/skill.Host 的 GameEngine 侧实现。
+// gameflow: SkillDispatcher 实现 skillrt.Host，提供技能执行与中断所需的引擎能力。
 
 package engine
 
@@ -9,93 +9,90 @@ import (
 	"starcup-engine/internal/model"
 )
 
-type gameSkillHost struct {
-	sd *SkillDispatcher
-}
+var _ skillrt.Host = (*SkillDispatcher)(nil)
 
 func (sd *SkillDispatcher) skillHost() skillrt.Host {
 	if sd == nil {
 		return nil
 	}
-	return &gameSkillHost{sd: sd}
+	return sd
 }
 
-func (h *gameSkillHost) Log(msg string) {
-	if h == nil || h.sd == nil || h.sd.engine == nil {
+func (sd *SkillDispatcher) Log(msg string) {
+	if sd == nil || sd.engine == nil {
 		return
 	}
-	h.sd.engine.Log(msg)
+	sd.engine.Log(msg)
 }
 
-func (h *gameSkillHost) GameState() *model.GameState {
-	if h == nil || h.sd == nil || h.sd.engine == nil {
+func (sd *SkillDispatcher) GameState() *model.GameState {
+	if sd == nil || sd.engine == nil {
 		return nil
 	}
-	return h.sd.engine.State
+	return sd.engine.State
 }
 
-func (h *gameSkillHost) SnapshotPlayerPoses() any {
-	if h == nil || h.sd == nil || h.sd.engine == nil {
+func (sd *SkillDispatcher) SnapshotPlayerPoses() any {
+	if sd == nil || sd.engine == nil {
 		return nil
 	}
-	return h.sd.engine.snapshotPlayerPoses()
+	return sd.engine.SnapshotPlayerPoses()
 }
 
-func (h *gameSkillHost) DispatchOrientationChanges(before any) {
-	if h == nil || h.sd == nil || h.sd.engine == nil {
+func (sd *SkillDispatcher) DispatchOrientationChanges(before any) {
+	if sd == nil || sd.engine == nil {
 		return
 	}
 	if m, ok := before.(map[string]poseSnapshot); ok {
-		h.sd.engine.dispatchOrientationChanges(m)
+		sd.engine.DispatchOrientationChanges(m)
 	}
 }
 
-func (h *gameSkillHost) SyncPendingDamageFromContext(ctx *model.Context) {
-	if h == nil || h.sd == nil || h.sd.engine == nil {
+func (sd *SkillDispatcher) SyncPendingDamageFromContext(ctx *model.Context) {
+	if sd == nil || sd.engine == nil {
 		return
 	}
-	h.sd.engine.syncPendingDamageRuntimeFromContext(ctx)
+	sd.engine.syncPendingDamageRuntimeFromContext(ctx)
 }
 
-func (h *gameSkillHost) RecordSkillUsage(playerID, title string, skillType model.SkillType) {
-	if h == nil || h.sd == nil || h.sd.engine == nil {
+func (sd *SkillDispatcher) RecordSkillUsage(playerID, title string, skillType model.SkillType) {
+	if sd == nil || sd.engine == nil {
 		return
 	}
-	h.sd.engine.recordSkillUsage(playerID, title, skillType)
+	sd.engine.recordSkillUsage(playerID, title, skillType)
 }
 
-func (h *gameSkillHost) ApplyHitCheckAugment(skillIDs []string, ctx *model.Context) []string {
-	if h == nil || h.sd == nil {
+func (sd *SkillDispatcher) ApplyHitCheckAugment(skillIDs []string, ctx *model.Context) []string {
+	if sd == nil || sd.engine == nil {
 		return skillIDs
 	}
-	return h.sd.applyTimingOnHitCheckResponseSkillAugment(skillIDs, ctx)
+	return sd.applyAttackResponseSkillAugment(skillIDs, ctx)
 }
 
-func (h *gameSkillHost) ApplyHitCheckNormalize(skillIDs []string, ctx *model.Context) []string {
-	if h == nil || h.sd == nil {
+func (sd *SkillDispatcher) ApplyHitCheckNormalize(skillIDs []string, ctx *model.Context) []string {
+	if sd == nil || sd.engine == nil {
 		return skillIDs
 	}
-	return h.sd.applyTimingOnHitCheckResponseSkillNormalize(skillIDs, ctx)
+	return sd.applyAttackResponseSkillNormalize(skillIDs, ctx)
 }
 
-func (h *gameSkillHost) PublishStartupInterrupt(playerID string, skillIDs []string, sharedCtx *model.Context) {
-	if h == nil || h.sd == nil || h.sd.engine == nil {
+func (sd *SkillDispatcher) PublishStartupInterrupt(playerID string, skillIDs []string, sharedCtx *model.Context) {
+	if sd == nil || sd.engine == nil {
 		return
 	}
-	e := h.sd.engine
-	e.State.PendingInterrupt = &model.Interrupt{
+	sd.engine.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptStartupSkill,
 		PlayerID: playerID,
 		SkillIDs: skillIDs,
 		Context:  sharedCtx,
-	}
+	})
 }
 
-func (h *gameSkillHost) PublishResponseInterrupt(player *model.Player, skillIDs []string, sharedCtx *model.Context) {
-	if h == nil || h.sd == nil || h.sd.engine == nil || player == nil {
+func (sd *SkillDispatcher) PublishResponseInterrupt(player *model.Player, skillIDs []string, sharedCtx *model.Context) {
+	if sd == nil || sd.engine == nil || player == nil {
 		return
 	}
-	h.sd.engine.PushInterrupt(&model.Interrupt{
+	sd.engine.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptResponseSkill,
 		PlayerID: player.ID,
 		SkillIDs: skillIDs,
@@ -103,95 +100,98 @@ func (h *gameSkillHost) PublishResponseInterrupt(player *model.Player, skillIDs 
 	})
 }
 
-func (h *gameSkillHost) OnStartupInterruptPublished() {
-	if h == nil || h.sd == nil || h.sd.engine == nil {
+func (sd *SkillDispatcher) OnStartupInterruptPublished() {
+	if sd == nil || sd.engine == nil {
 		return
 	}
-	e := h.sd.engine
-	e.setTurnStage(model.TurnStageActionStart)
-	e.clearCombatStage()
-	e.clearSubflow()
+	sd.engine.setTurnStage(model.TurnStageActionStart)
+	sd.engine.clearCombatStage()
+	sd.engine.clearSubflow()
 }
 
-func (h *gameSkillHost) GetMaxHand(player *model.Player) int {
-	if h == nil || h.sd == nil || h.sd.engine == nil {
+func (sd *SkillDispatcher) GetMaxHand(player *model.Player) int {
+	if sd == nil || sd.engine == nil {
 		return 0
 	}
-	return h.sd.engine.GetMaxHand(player)
+	return sd.engine.GetMaxHand(player)
 }
 
-func (h *gameSkillHost) GetPlayerEnergyCap(player *model.Player) int {
-	if h == nil || h.sd == nil || h.sd.engine == nil {
-		return 0
-	}
-	return h.sd.engine.GetPlayerEnergyCap(player)
-}
-
-func (h *gameSkillHost) DropQueuedOverflowDiscardForPlayer(playerID string) {
-	if h == nil || h.sd == nil || h.sd.engine == nil {
+func (sd *SkillDispatcher) DropQueuedOverflowDiscardForPlayer(playerID string) {
+	if sd == nil || sd.engine == nil {
 		return
 	}
-	dropQueuedOverflowDiscardForPlayer(h.sd.engine, playerID)
+	dropQueuedOverflowDiscardForPlayer(sd.engine, playerID)
 }
 
-func (h *gameSkillHost) PopInterrupt() {
-	if h == nil || h.sd == nil || h.sd.engine == nil {
+func (sd *SkillDispatcher) PopInterrupt() {
+	if sd == nil || sd.engine == nil {
 		return
 	}
-	h.sd.engine.PopInterrupt()
+	sd.engine.PopInterrupt()
 }
 
-func (h *gameSkillHost) SetPendingInterrupt(intr *model.Interrupt) {
-	if h == nil || h.sd == nil || h.sd.engine == nil {
+func (sd *SkillDispatcher) SetPendingInterrupt(intr *model.Interrupt) {
+	if sd == nil || sd.engine == nil {
 		return
 	}
-	h.sd.engine.State.PendingInterrupt = intr
+	sd.engine.State.SetPendingInterrupt(intr)
 }
 
-func (h *gameSkillHost) PendingInterrupt() *model.Interrupt {
-	if h == nil || h.sd == nil || h.sd.engine == nil {
+func (sd *SkillDispatcher) PendingInterrupt() *model.Interrupt {
+	if sd == nil || sd.engine == nil {
 		return nil
 	}
-	return h.sd.engine.State.PendingInterrupt
+	return sd.engine.State.PendingInterrupt
 }
 
-func (h *gameSkillHost) EnterDiscardSelection() {
-	if h == nil || h.sd == nil || h.sd.engine == nil {
+func (sd *SkillDispatcher) EnterDiscardSelection() {
+	if sd == nil || sd.engine == nil {
 		return
 	}
-	h.sd.engine.enterDiscardSelection()
+	sd.engine.EnterDiscardSelection()
 }
 
-func (h *gameSkillHost) NotifyInterruptPrompt() {
-	if h == nil || h.sd == nil || h.sd.engine == nil {
+func (sd *SkillDispatcher) NotifyInterruptPrompt() {
+	if sd == nil || sd.engine == nil {
 		return
 	}
-	h.sd.engine.notifyInterruptPrompt()
+	sd.engine.notifyInterruptPrompt()
 }
 
-func (h *gameSkillHost) CaptureResponseResumeStateOnConfirm(skillID string, ctx *model.Context) any {
-	if h == nil || h.sd == nil || h.sd.engine == nil {
+func (sd *SkillDispatcher) CaptureResponseResumeStateOnConfirm(skillID string, ctx *model.Context) any {
+	if sd == nil || sd.engine == nil {
 		return responseResumeState{}
 	}
-	return h.sd.engine.captureResponseResumeStateFromContext(responseCompletionConfirm, skillID, ctx)
+	return sd.engine.captureResponseResumeStateFromContext(responseCompletionConfirm, skillID, ctx)
 }
 
-func (h *gameSkillHost) PrepareConfirmedResponseResume(state any) {
-	if h == nil || h.sd == nil || h.sd.engine == nil {
+func (sd *SkillDispatcher) PrepareConfirmedResponseResume(state any) {
+	if sd == nil || sd.engine == nil {
 		return
 	}
 	if s, ok := state.(responseResumeState); ok {
-		h.sd.engine.prepareConfirmedResponseResume(s)
+		sd.engine.prepareConfirmedResponseResume(s)
 	}
 }
 
-func (h *gameSkillHost) RestoreConfirmedResponseAfterPop(state any) {
-	if h == nil || h.sd == nil || h.sd.engine == nil {
+func (sd *SkillDispatcher) RestoreConfirmedResponseAfterPop(state any) {
+	if sd == nil || sd.engine == nil {
 		return
 	}
 	if s, ok := state.(responseResumeState); ok {
-		h.sd.engine.restoreConfirmedResponseAfterPop(s)
+		sd.engine.restoreConfirmedResponseAfterPop(s)
 	}
+}
+
+func (sd *SkillDispatcher) ConsumeSkillEnergyCost(playerID string, gemCost, crystalCost int) bool {
+	if sd == nil || sd.engine == nil {
+		return false
+	}
+	p := sd.engine.State.Players[playerID]
+	if p == nil {
+		return false
+	}
+	return consumeSkillEnergyCost(p, gemCost, crystalCost)
 }
 
 // dropQueuedOverflowDiscardForPlayer 清理精灵密仪等确认后残留的爆牌弃牌中断。
@@ -206,23 +206,19 @@ func dropQueuedOverflowDiscardForPlayer(e *GameEngine, playerID string) {
 	if len(player.Hand) > e.GetMaxHand(player) {
 		return
 	}
-	filtered := make([]*model.Interrupt, 0, len(e.State.InterruptQueue))
-	for _, intr := range e.State.InterruptQueue {
-		if intr == nil || intr.PlayerID != playerID || !isDiscardSelectionInterrupt(intr) {
-			filtered = append(filtered, intr)
-			continue
+	e.RemoveQueuedInterruptByPredicate(func(intr *model.Interrupt) bool {
+		if intr == nil || intr.PlayerID != playerID || !IsDiscardSelectionInterrupt(intr) {
+			return false
 		}
 		data, ok := intr.Context.(map[string]interface{})
 		if !ok {
-			filtered = append(filtered, intr)
-			continue
+			return false
 		}
 		victimID, _ := data["victim_id"].(string)
 		if victimID == playerID {
 			e.Log(fmt.Sprintf("[System] 清理过期中断: %s 的爆牌弃牌请求", player.Name))
-			continue
+			return true
 		}
-		filtered = append(filtered, intr)
-	}
-	e.State.InterruptQueue = filtered
+		return false
+	})
 }

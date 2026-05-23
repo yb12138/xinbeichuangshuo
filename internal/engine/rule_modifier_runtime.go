@@ -170,7 +170,7 @@ func combatPolicyRuleMatchesAction(modifier *model.RuleModifierInstance, action 
 	return true
 }
 
-func attackDamageRuleBonusForModifier(player *model.Player, modifierID string) int {
+func AttackDamageRuleBonusForModifier(player *model.Player, modifierID string) int {
 	if player == nil || modifierID == "" || len(player.ActiveRuleModifiers) == 0 {
 		return 0
 	}
@@ -220,6 +220,25 @@ func consumeAttackCombatPolicyInterceptTags(player *model.Player, action model.A
 		if modifier.CombatPolicyPayload.ConsumeOnMatch {
 			delete(player.ActiveRuleModifiers, key)
 		}
+	}
+	if len(player.ActiveRuleModifiers) == 0 {
+		player.ActiveRuleModifiers = nil
+	}
+}
+
+func (e *GameEngine) ClearRuleModifiersByModifierID(playerID string, modifierID string) {
+	if e == nil || e.State == nil || playerID == "" || modifierID == "" {
+		return
+	}
+	player := e.State.Players[playerID]
+	if player == nil || len(player.ActiveRuleModifiers) == 0 {
+		return
+	}
+	for key, modifier := range player.ActiveRuleModifiers {
+		if modifier == nil || modifier.ModifierID != modifierID {
+			continue
+		}
+		delete(player.ActiveRuleModifiers, key)
 	}
 	if len(player.ActiveRuleModifiers) == 0 {
 		player.ActiveRuleModifiers = nil

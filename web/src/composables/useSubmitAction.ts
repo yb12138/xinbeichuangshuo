@@ -60,6 +60,14 @@ export function useSubmitAction() {
     ws.select(selections)
   }
 
+  function submitSelectCardIDs(cardIds: string[]) {
+    submitAction({
+      player_id: myPlayerID(),
+      type: 'Select',
+      card_ids: cardIds,
+    })
+  }
+
   function submitPromptTarget(playerId: string) {
     submitAction({
       player_id: myPlayerID(),
@@ -72,21 +80,36 @@ export function useSubmitAction() {
     ws.respond('take')
   }
 
+  function selectedCardIDByPlayableIndex(playableIndex: number | undefined): string {
+    if (playableIndex === undefined) return ''
+    return String(myPlayableCards.value.find(item => item.index === playableIndex)?.card?.id || '').trim()
+  }
+
   function submitRespondCounter(isMagicMissilePrompt = false) {
-    if (interruptStore.selectedCards.length === 0) {
+    if (interruptStore.selectedHandIndexes.length === 0) {
       interruptStore.showError(isMagicMissilePrompt ? '请先选择一张【魔弹】再传递' : '请先选择一张应战牌')
       return false
     }
-    ws.respond('counter', interruptStore.selectedCards[0], interruptStore.promptCounterTarget || undefined)
+    const cardID = selectedCardIDByPlayableIndex(interruptStore.selectedHandIndexes[0])
+    if (!cardID) {
+      interruptStore.showError('所选卡牌已变化，请重新选择')
+      return false
+    }
+    ws.respond('counter', cardID, interruptStore.promptCounterTarget || undefined)
     return true
   }
 
   function submitRespondDefend() {
-    if (interruptStore.selectedCards.length === 0) {
+    if (interruptStore.selectedHandIndexes.length === 0) {
       interruptStore.showError('请先选择一张【圣光】进行防御（圣盾需提前放置）')
       return false
     }
-    ws.respond('defend', interruptStore.selectedCards[0])
+    const cardID = selectedCardIDByPlayableIndex(interruptStore.selectedHandIndexes[0])
+    if (!cardID) {
+      interruptStore.showError('所选卡牌已变化，请重新选择')
+      return false
+    }
+    ws.respond('defend', cardID)
     return true
   }
 
@@ -98,12 +121,12 @@ export function useSubmitAction() {
     return true
   }
 
-  function submitAttack(targetId: string, cardIndex: number) {
-    ws.attack(targetId, cardIndex)
+  function submitAttack(targetId: string, cardID: string) {
+    ws.attack(targetId, cardID)
   }
 
-  function submitMagic(targetId: string | undefined, cardIndex: number) {
-    ws.magic(targetId, cardIndex)
+  function submitMagic(targetId: string | undefined, cardID: string) {
+    ws.magic(targetId, cardID)
   }
 
   function submitSelectedBoardTarget(playerId: string) {
@@ -111,39 +134,39 @@ export function useSubmitAction() {
       return false
     }
 
-    const cardIdx = interruptStore.selectedCardForAction
+    const cardIdx = interruptStore.selectedHandIndexForAction
     if (cardIdx === null) {
       return false
     }
 
     const selectedItem = myPlayableCards.value.find(item => item.index === cardIdx)
     if (!selectedItem) {
-      interruptStore.setSelectedCardForAction(null)
+      interruptStore.setSelectedHandIndexForAction(null)
       interruptStore.showError('所选卡牌已变化，请重新选择')
       return false
     }
 
     if (interruptStore.actionMode === 'attack') {
       if (selectedItem.card.type !== 'Attack') {
-        interruptStore.setSelectedCardForAction(null)
+        interruptStore.setSelectedHandIndexForAction(null)
         interruptStore.showError('所选卡牌不是攻击牌，请重新选择')
         return false
       }
-      ws.attack(playerId, cardIdx)
+      ws.attack(playerId, selectedItem.card.id)
       return true
     }
 
     if (interruptStore.actionMode === 'magic') {
       if (selectedItem.card.type !== 'Magic') {
-        interruptStore.setSelectedCardForAction(null)
+        interruptStore.setSelectedHandIndexForAction(null)
         interruptStore.showError('所选卡牌不是法术牌，请重新选择')
         return false
       }
       if (selectedItem.card.name === '魔弹') {
-        ws.magic(undefined, cardIdx)
+        ws.magic(undefined, selectedItem.card.id)
         return true
       }
-      ws.magic(playerId, cardIdx)
+      ws.magic(playerId, selectedItem.card.id)
       return true
     }
 
@@ -152,8 +175,14 @@ export function useSubmitAction() {
 
   return {
     disconnect: ws.disconnect,
-    sendRoomAction: ws.sendRoomAction,
     sendChat: ws.sendChat,
+    changeCamp: ws.changeCamp,
+    changeRole: ws.changeRole,
+    addBot: ws.addBot,
+    removeBot: ws.removeBot,
+    takeoverPlayer: ws.takeoverPlayer,
+    startRoom: ws.startRoom,
+    dissolveRoom: ws.dissolveRoom,
     submitAction,
     submitCannotAct,
     submitSynthesize,
@@ -163,6 +192,7 @@ export function useSubmitAction() {
     submitConfirm,
     submitCancel,
     submitSelect,
+    submitSelectCardIDs,
     submitPromptTarget,
     submitRespondTake,
     submitRespondCounter,

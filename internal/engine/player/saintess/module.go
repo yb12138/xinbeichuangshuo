@@ -20,7 +20,7 @@ func (h *FrostPrayerHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil {
 		return false
 	}
-	if ctx.Timing != model.TimingOnCardPlayedOrRevealed {
+	if ctx.Timing != model.TimingCardPlayedRevealed {
 		return false
 	}
 	if ctx.EventCtx == nil || ctx.EventCtx.Card == nil {
@@ -105,6 +105,11 @@ func (h *HealHandler) Execute(ctx *model.Context) error {
 
 type SaintHealHandler struct{ baseHandler }
 
+type saintHealPhaseAdvancer interface {
+	RoutePendingDamageWithReturn(returnTo interface{}) bool
+	EnterActionEndStage()
+}
+
 func (h *SaintHealHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.Game == nil || ctx.User == nil {
 		return fmt.Errorf("圣疗上下文无效")
@@ -126,29 +131,53 @@ func (h *SaintHealHandler) Execute(ctx *model.Context) error {
 	if len(targetIDs) == 0 {
 		return fmt.Errorf("圣疗缺少有效目标")
 	}
+	if len(targetIDs) != 2 {
+		return resolveSaintHealDirect(ctx.Game, ctx.User, targetIDs, saintHealDefaultAllocations(targetIDs))
+	}
+
 	data := map[string]interface{}{
 		"targets": targetIDs,
-	}
-	if len(targetIDs) == 2 {
-		data["stage"] = "allocate_heal"
-	} else {
-		data["stage"] = "choose_extra_action"
-		allocations := map[string]int{}
-		if len(targetIDs) == 1 {
-			allocations[targetIDs[0]] = 3
-		} else {
-			for _, targetID := range targetIDs {
-				allocations[targetID] = 1
-			}
-		}
-		data["allocations"] = allocations
+		"stage":   saintHealStageAllocateHeal,
 	}
 	ctx.Game.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptSaintHeal,
 		PlayerID: ctx.User.ID,
 		Context:  data,
 	})
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [圣疗]，等待分配治疗并选择额外行动类型", ctx.User.Name))
+	ctx.Game.Log(fmt.Sprintf("%s 发动 [圣疗]，等待分配治疗", ctx.User.Name))
+	return nil
+}
+
+func resolveSaintHealDirect(game model.IGameEngine, user *model.Player, targetIDs []string, allocations map[string]int) error {
+	if game == nil || user == nil {
+		return fmt.Errorf("圣疗上下文无效")
+	}
+	if len(targetIDs) == 0 {
+		return fmt.Errorf("圣疗缺少目标")
+	}
+	players := game.GetPlayers()
+	for _, targetID := range targetIDs {
+		healAmount := allocations[targetID]
+		if healAmount <= 0 {
+			continue
+		}
+		game.Heal(targetID, healAmount)
+		if target := players[targetID]; target != nil {
+			game.Log(fmt.Sprintf("[Skill] %s 获得 %d 点治疗", target.Name, healAmount))
+		}
+	}
+
+	model.AppendExtraAction(user, "圣疗", "")
+	game.Log(fmt.Sprintf("[Skill] %s 发动 [圣疗]，获得额外行动（可选择攻击或法术）", user.Name))
+	user.TurnState.HasActed = true
+	user.TurnState.LastActionType = string(model.ActionMagic)
+	user.TurnState.LastActionCard = nil
+
+	if phase, ok := game.(saintHealPhaseAdvancer); ok {
+		if !phase.RoutePendingDamageWithReturn(model.TurnStageActionEnd) {
+			phase.EnterActionEndStage()
+		}
+	}
 	return nil
 }
 
@@ -158,7 +187,7 @@ func (h *MercyHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil {
 		return false
 	}
-	if ctx.Timing != model.TimingOnTurnStart && ctx.Timing != model.TimingStartup {
+	if ctx.Timing != model.TimingTurnStart && ctx.Timing != model.TimingActionStart {
 		return false
 	}
 	if ctx.User.Gem < 1 {
@@ -173,16 +202,13 @@ func (h *MercyHandler) Execute(ctx *model.Context) error {
 	if user == nil || game == nil {
 		return fmt.Errorf("怜悯上下文无效")
 	}
-	if user.Gem < 1 {
-		return fmt.Errorf("宝石不足，无法发动怜悯")
-	}
+	// CostGem 已在 ConfirmStartupSkillAction 由框架统一扣减（见 skill definition CostGem: 1）
 	if player.HasForm(user, model.FormSaintessMercy) {
 		return fmt.Errorf("已处于怜悯状态")
 	}
-	user.Gem -= 1
-	user.Crystal += 1
+	gained := player.AddPlayerCrystalWithCap(game, user, 1)
 	player.SetForm(user, model.FormSaintessMercy)
-	game.Log(fmt.Sprintf("%s 发动 [怜悯]：横置并获得1水晶，手牌上限恒定为7", user.Name))
+	game.Log(fmt.Sprintf("%s 发动 [怜悯]：横置并获得%d水晶，手牌上限恒定为7", user.Name, gained))
 	return nil
 }
 

@@ -17,7 +17,7 @@ type BaseHandler = engineplayer.BaseHandler
 type BacklashHandler struct{ BaseHandler }
 
 func (h *BacklashHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.Timing != model.TimingOnDamageTaken || ctx.EventCtx == nil {
+	if ctx == nil || !ctx.DamageTakenPhase() || ctx.EventCtx == nil {
 		return false
 	}
 	if ctx.EventCtx.DamageVal == nil || *ctx.EventCtx.DamageVal <= 0 {
@@ -120,14 +120,6 @@ func (h *WaterShadowHandler) Execute(ctx *model.Context) error {
 	if waterCards == 0 {
 		return fmt.Errorf("至少需要弃1张水系牌")
 	}
-	originalDrawCount := *ctx.EventCtx.DrawCount
-	if originalDrawCount <= 0 {
-		return fmt.Errorf("当前摸牌值已为0，无法发动水影")
-	}
-	if waterCards > originalDrawCount {
-		return fmt.Errorf("水影最多只能弃置 %d 张水系牌", originalDrawCount)
-	}
-
 	if !isStealthed && magicCards > 0 {
 		return fmt.Errorf("不在潜行状态下不能弃法术牌")
 	}
@@ -147,15 +139,8 @@ func (h *WaterShadowHandler) Execute(ctx *model.Context) error {
 	ctx.Game.NotifyCardRevealed(player.ID, discardedCards, "discard")
 
 	ctx.Selections["discardedCards"] = discardedCards
-	remainingDraw := originalDrawCount - waterCards
-	*ctx.EventCtx.DrawCount = remainingDraw
-	ctx.Flags["cancelDraw"] = remainingDraw == 0
 
-	if remainingDraw == 0 {
-		ctx.Game.Log(fmt.Sprintf("%s 发动 [水影]，展示并弃置了 %d 张水系牌，本次摸牌由 %d 改为弃牌", player.Name, waterCards, originalDrawCount))
-	} else {
-		ctx.Game.Log(fmt.Sprintf("%s 发动 [水影]，展示并弃置了 %d 张水系牌，本次摸牌由 %d 改为 %d", player.Name, waterCards, originalDrawCount, remainingDraw))
-	}
+	ctx.Game.Log(fmt.Sprintf("%s 发动 [水影]，展示并弃置了 %d 张水系牌", player.Name, waterCards+magicCards))
 	if magicCards > 0 {
 		ctx.Game.Log(fmt.Sprintf("%s 处于[潜行]，额外展示并弃置了 %d 张法术牌", player.Name, magicCards))
 	}
@@ -169,7 +154,7 @@ func (h *StealthHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil {
 		return false
 	}
-	if ctx.Timing != model.TimingOnTurnStart && ctx.Timing != model.TimingStartup {
+	if ctx.Timing != model.TimingTurnStart && ctx.Timing != model.TimingActionStart {
 		return false
 	}
 	if ctx.User.Gem < 1 {
@@ -182,13 +167,10 @@ func (h *StealthHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("潜行上下文无效")
 	}
-	if ctx.User.Gem < 1 {
-		return fmt.Errorf("宝石不足，无法发动潜行")
-	}
+	// CostGem 已在 ConfirmStartupSkillAction 由框架统一扣减（见 skill definition CostGem: 1）
 	if engineplayer.HasForm(ctx.User, model.FormAssassinStealth) {
 		return fmt.Errorf("已处于潜行状态")
 	}
-	ctx.User.Gem -= 1
 
 	ctx.Game.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,

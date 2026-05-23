@@ -88,13 +88,15 @@ func buildBasicEffectChoicePrompt(playerID string, data map[string]interface{}) 
 			Label: option.Label,
 		})
 	}
+	cancelPolicy, _ := data["cancel_policy"].(string)
 	return &model.Prompt{
-		Type:     model.PromptConfirm,
-		PlayerID: playerID,
-		Message:  promptMessage,
-		Options:  promptOptions,
-		Min:      1,
-		Max:      1,
+		Type:         model.PromptConfirm,
+		PlayerID:     playerID,
+		Message:      promptMessage,
+		Options:      promptOptions,
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay", CancelPolicy: cancelPolicy},
 	}
 }
 
@@ -137,26 +139,4 @@ func (e *GameEngine) afterBasicEffectChoice(data map[string]any) {
 	// 规则：这里是技能执行中的“目标选择子步骤”，不是系统自动阶段结算。
 	// 选择完成后按技能声明的 resume_phase 继续流程，保证后续仍在该技能约束的阶段节点上。
 	e.applyChoiceResumePoint(mustChoiceResumePointFromMap(choiceCtxAsInterfaceMap(data), "resume_phase"))
-}
-
-func (e *GameEngine) RemoveFieldCardAt(targetID string, fieldIndex int, sourceID string) (model.Card, error) {
-	target := e.State.Players[targetID]
-	if target == nil {
-		return model.Card{}, fmt.Errorf("目标不存在")
-	}
-	if fieldIndex < 0 || fieldIndex >= len(target.Field) {
-		return model.Card{}, fmt.Errorf("无效的场上牌索引")
-	}
-	fc := target.Field[fieldIndex]
-	if fc == nil {
-		return model.Card{}, fmt.Errorf("场上牌不存在")
-	}
-
-	target.Field = append(target.Field[:fieldIndex], target.Field[fieldIndex+1:]...)
-	e.State.DiscardPile = append(e.State.DiscardPile, fc.Card)
-	e.Log(fmt.Sprintf("%s 的场上牌被移除: %s", target.Name, fc.Effect))
-	if fc.Mode == model.FieldEffect {
-		e.emitBuffRemovedDispatch(sourceID, targetID, fc.Effect)
-	}
-	return fc.Card, nil
 }

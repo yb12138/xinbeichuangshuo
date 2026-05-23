@@ -10,13 +10,13 @@ import (
 	"starcup-engine/internal/model"
 )
 
-// damageCalculateHook 兽灵武士·御魂流居合形态被动增伤：横置目标主动攻击伤害 +1。
+// damageCalculateHook 兽灵武士·御魂流居合形态被动增伤：攻击横置目标伤害 +1。
 func damageCalculateHook(rt player.HookRuntime, ctx player.TimingHookContext) player.TimingHookResult {
 	p := rt.GetPlayer(ctx.SourceID)
 	if p == nil || !rt.IsCharacter(p, "beast_samurai") {
 		return player.TimingHookResult{}
 	}
-	if ctx.ActionType != model.ActionAttack || ctx.CounterInitiator != "" {
+	if ctx.ActionType != model.ActionAttack {
 		return player.TimingHookResult{}
 	}
 	if !InIaijutsuForm(p) {
@@ -29,7 +29,7 @@ func damageCalculateHook(rt player.HookRuntime, ctx player.TimingHookContext) pl
 	if rt.GetPlayerOrientation(target) != model.OrientationTapped {
 		return player.TimingHookResult{}
 	}
-	rt.Log(fmt.Sprintf("[Passive] %s 的 [御魂流居合形态·横置目标增伤] 生效，本次主动攻击伤害 +1", p.Name))
+	rt.Log(fmt.Sprintf("[Passive] %s 的 [御魂流居合形态·横置目标增伤] 生效，本次攻击伤害 +1", p.Name))
 	return player.TimingHookResult{DamageDelta: 1}
 }
 
@@ -116,7 +116,7 @@ func postDamageResolvedHook(rt player.HookRuntime, ctx player.TimingHookContext)
 // turnEndHook 回合结束：居合形态扣魂 + 兽魂归零退场 + 状态清理。
 func turnEndHook(rt player.HookRuntime, ctx player.TimingHookContext) player.TimingHookResult {
 	p := rt.GetPlayer(ctx.SourceID)
-	if p == nil || !player.IsCharacter(p, "beast_samurai") {
+	if p == nil {
 		return player.TimingHookResult{}
 	}
 	player.EnsurePlayerTokensMap(p)
@@ -136,7 +136,19 @@ func turnEndHook(rt player.HookRuntime, ctx player.TimingHookContext) player.Tim
 			rt.Log(fmt.Sprintf("%s 的 [御魂流居合形态·兽魂归零退场] 生效：转正并脱离御魂流居合形态", p.Name))
 		}
 	}
-	p.TurnState.UsedSkillCounts["bs_one_strike_armed"] = 0
 	ClearAttackTokens(p)
+	return player.TimingHookResult{}
+}
+
+// turnEndFinalHook 在额外行动耗尽后的回合结束点清理一击无念挂载（避免在 PendingActions 额外攻击发放前清掉 armed）。
+func turnEndFinalHook(rt player.HookRuntime, ctx player.TimingHookContext) player.TimingHookResult {
+	p := rt.GetPlayer(ctx.SourceID)
+	if p == nil {
+		return player.TimingHookResult{}
+	}
+	if p.TurnState.UsedSkillCounts["bs_one_strike_armed"] > 0 {
+		p.TurnState.UsedSkillCounts["bs_one_strike_armed"] = 0
+		rt.Log(fmt.Sprintf("%s 的 [一击无念·挂载过期] 生效：本回合未消耗的下次攻击劫持已移除", p.Name))
+	}
 	return player.TimingHookResult{}
 }

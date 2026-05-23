@@ -21,9 +21,10 @@ func RoleEntry() player.RoleEntry {
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
 		TimingHookSpecs: []player.TimingHookSpec{
-			{Timing: player.TimingOnTurnStart, Priority: 100, Hook: turnStartRousingHook},
-			{Timing: player.TimingOnTurnEnd, Priority: 100, Hook: turnEndVictoryHook},
-			{Timing: player.TimingPostDamageResolved, Priority: 500, Hook: postDamageResolvedHook},
+			{Timing: player.TimingTurnStart, Priority: 200, Hook: turnStartRousingHook, RoleFilter: &player.HookRoleNone},
+			{Timing: player.TimingTurnEndPreExtra, Priority: 200, Hook: turnEndVictoryHook, RoleFilter: &player.HookRoleNone},
+			{Timing: player.TimingPostDamageResolved, Priority: 500, Hook: postDamageResolvedHook, RoleFilter: &player.HookRoleNone},
+			{Timing: player.TimingTurnEndPreExtra, Priority: 300, Hook: turnEndDescentHook, RoleFilter: &player.HookRoleNone},
 		},
 		SkillUsabilityCheckers: map[string]player.SkillUsabilityChecker{
 			"bd_dissonance_chord": CheckDissonanceChordUsability,
@@ -34,9 +35,9 @@ func RoleEntry() player.RoleEntry {
 // ChoiceSpecs 导出角色 choice 声明。
 func ChoiceSpecs() []player.ChoiceSpec {
 	return []player.ChoiceSpec{
-		{ChoiceType: "bd_descent_cards", SequentialRemaining: player.ChoiceRemainingFromFixedTotal(2)},
-		{ChoiceType: "bd_dissonance_discard_step", SequentialRemaining: player.ChoiceRemainingFromNeedAndSelected("need_count", "selected_count")},
-		{ChoiceType: "bd_rousing_discard_cards", SequentialRemaining: player.ChoiceRemainingFromFixedTotal(2)},
+		{ChoiceType: "bd_descent_cards", SequentialRemaining: player.ChoiceRemainingFromFlowSelectionCount(descentStepCards, descentStepCards)},
+		{ChoiceType: "bd_dissonance_discard_step", SequentialRemaining: player.ChoiceRemainingFromFlowSelectionCount(dissonanceStepDiscard, dissonanceStepDiscard)},
+		{ChoiceType: "bd_rousing_discard_cards", SequentialRemaining: player.ChoiceRemainingFromFlowSelectionCount(rousingStepDiscard, rousingStepDiscard)},
 	}
 }
 
@@ -58,34 +59,13 @@ func StarterCards(p *model.Player) []model.Card {
 	}
 	return []model.Card{
 		{
-			ID:              fmt.Sprintf("starter-%s-bd_rousing_rhapsody", p.ID),
-			Name:            "激昂狂想曲",
-			Type:            model.CardTypeMagic,
-			Element:         model.ElementDark,
-			Faction:         p.Character.Faction,
-			Description:     "吟游诗人开局自带专属技能卡",
-			ExclusiveChar1:  p.Character.ID,
-			ExclusiveSkill1: "激昂狂想曲",
-		},
-		{
-			ID:              fmt.Sprintf("starter-%s-bd_victory_symphony", p.ID),
-			Name:            "胜利交响诗",
-			Type:            model.CardTypeMagic,
-			Element:         model.ElementDark,
-			Faction:         p.Character.Faction,
-			Description:     "吟游诗人开局自带专属技能卡",
-			ExclusiveChar1:  p.Character.ID,
-			ExclusiveSkill1: "胜利交响诗",
-		},
-		{
-			ID:              fmt.Sprintf("starter-%s-bd_hope_fugue", p.ID),
-			Name:            "希望赋格曲",
-			Type:            model.CardTypeMagic,
-			Element:         model.ElementDark,
-			Faction:         p.Character.Faction,
-			Description:     "吟游诗人开局自带专属技能卡",
-			ExclusiveChar1:  p.Character.ID,
-			ExclusiveSkill1: "希望赋格曲",
+			ID:             fmt.Sprintf("starter-%s-bd_eternal_movement", p.ID),
+			Name:           "永恒乐章",
+			Type:           model.CardTypeMagic,
+			Element:        model.ElementDark,
+			Faction:        p.Character.Faction,
+			Description:    "吟游诗人开局自带专属牌",
+			ExclusiveChar1: p.Character.ID,
 		},
 	}
 }
@@ -99,7 +79,7 @@ func SkillEntries() []player.SkillEntry {
 			Handler: &BardDissonanceChordHandler{},
 			Policy: types.SkillPolicy{
 				TargetRules: types.TargetRuleSet{
-					Count: types.TargetCountRule{Min: 0, Max: 1},
+					Count: types.TargetCountRule{Min: 0, Max: 0, Err: "分步选择"}, // 目标选择由后端 bd_dissonance_target prompt 推送
 				},
 			},
 		},
@@ -125,12 +105,11 @@ func SkillEntries() []player.SkillEntry {
 // ChoiceRouteSpecs 导出角色 choice 路由声明。
 func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 	return map[string]types.ChoiceRouteSpec{
+		"bd_descent_confirm":         types.ChoiceRouteRole("bard"),
 		"bd_descent_cards":           types.ChoiceRouteRole("bard"),
-		"bd_descent_element":         types.ChoiceRouteRole("bard"),
 		"bd_descent_target":          types.ChoiceRouteRole("bard"),
 		"bd_dissonance_discard_step": types.ChoiceRouteRole("bard"),
 		"bd_dissonance_mode":         types.ChoiceRouteRole("bard"),
-		"bd_dissonance_pick":         types.ChoiceRouteRole("bard"),
 		"bd_dissonance_target":       types.ChoiceRouteRole("bard"),
 		"bd_dissonance_x":            types.ChoiceRouteRole("bard"),
 		"bd_forbidden_verse_pick":    types.ChoiceRouteRole("bard"),
@@ -139,9 +118,11 @@ func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 		"bd_hope_place_target":       types.ChoiceRouteRole("bard"),
 		"bd_hope_transfer_discard":   types.ChoiceRouteRole("bard"),
 		"bd_hope_transfer_target":    types.ChoiceRouteRole("bard"),
+		"bd_rousing_confirm":         types.ChoiceRouteRole("bard"),
 		"bd_rousing_discard_cards":   types.ChoiceRouteRole("bard"),
 		"bd_rousing_mode":            types.ChoiceRouteRole("bard"),
 		"bd_rousing_targets":         types.ChoiceRouteRole("bard"),
+		"bd_victory_confirm":         types.ChoiceRouteRole("bard"),
 		"bd_victory_extract_stone":   types.ChoiceRouteRole("bard"),
 		"bd_victory_mode":            types.ChoiceRouteRole("bard"),
 	}

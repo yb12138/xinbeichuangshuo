@@ -255,6 +255,13 @@ func (r roleChoiceRuntime) ApplyChoiceResumePoint(raw interface{}) {
 
 // ---- DamageOps 实现 ----
 
+func (r roleChoiceRuntime) AddPendingDamageFront(pd model.PendingDamage) {
+	if r.GameEngine == nil {
+		return
+	}
+	r.GameEngine.AddPendingDamageFront(pd)
+}
+
 func (r roleChoiceRuntime) RoutePendingDamageOr(defaultReturn interface{}, onNoPending func()) bool {
 	if r.GameEngine == nil {
 		return false
@@ -309,12 +316,11 @@ func (r roleChoiceRuntime) ConsumePlayableCardByCardID(playerID, cardID string) 
 	if player == nil {
 		return model.Card{}, false
 	}
-	cardIdx := r.GameEngine.findPlayableCardIndexByID(player, cardID)
-	card, _, _, ok := r.GameEngine.getPlayableCardByIndex(player, cardIdx)
+	card, _, _, ok := r.GameEngine.getPlayableCardByID(player, cardID)
 	if !ok {
 		return model.Card{}, false
 	}
-	if _, err := r.GameEngine.consumePlayableCardByIndex(player, cardIdx); err != nil {
+	if _, err := r.GameEngine.consumePlayableCardByID(player, cardID); err != nil {
 		return model.Card{}, false
 	}
 	return card, true
@@ -330,7 +336,7 @@ func (r roleChoiceRuntime) EnqueueVirtualAttack(sourceID, targetID string, card 
 		Type:            model.ActionAttack,
 		Element:         card.Element,
 		Card:            &card,
-		CardIndex:       -1,
+		CardID:          card.ID,
 		SourceSkill:     sourceSkill,
 		UsesVirtualCard: true,
 	})
@@ -364,7 +370,7 @@ func (r roleChoiceRuntime) DrawCardsDirect(playerID string, amount int, reason s
 	r.State.Deck = newDeck
 	r.State.DiscardPile = newDiscard
 	p.Hand = append(p.Hand, cards...)
-	r.NotifyDrawCards(playerID, amount, reason)
+	r.NotifyDrawCards(playerID, len(cards), reason)
 }
 
 func (r roleChoiceRuntime) DrawRawCards(amount int) ([]model.Card, bool) {
@@ -428,9 +434,9 @@ func (r roleChoiceRuntime) PoseChangeGuard() func() {
 	if r.GameEngine == nil {
 		return func() {}
 	}
-	before := r.snapshotPlayerPoses()
+	before := r.SnapshotPlayerPoses()
 	return func() {
-		r.dispatchOrientationChanges(before)
+		r.DispatchOrientationChanges(before)
 	}
 }
 
@@ -448,15 +454,16 @@ func (r roleChoiceRuntime) GetPlayableCardByIndex(player *model.Player, idx int)
 	return card, ok
 }
 
-func (r roleChoiceRuntime) ConsumePlayableCardByIndex(player *model.Player, idx int) (model.Card, error) {
-	return r.GameEngine.consumePlayableCardByIndex(player, idx)
+func (r roleChoiceRuntime) GetPlayableCardByCardID(player *model.Player, cardID string) (model.Card, bool) {
+	card, _, _, ok := r.GameEngine.getPlayableCardByID(player, cardID)
+	return card, ok
 }
 
-func (r roleChoiceRuntime) PerformMagic(playerID, targetID string, cardIdx int, isFusion bool) error {
+func (r roleChoiceRuntime) PerformMagic(playerID, targetID string, cardIdx int) error {
 	if r.GameEngine == nil {
 		return fmt.Errorf("engine not available")
 	}
-	return r.performMagic(playerID, targetID, cardIdx, isFusion)
+	return r.GameEngine.PerformMagic(playerID, targetID, cardIdx)
 }
 
 func (r roleChoiceRuntime) ExecuteMagicBullet(player *model.Player, reverse, isFusion bool, fusionCard *model.Card) error {
@@ -473,18 +480,25 @@ func (r roleChoiceRuntime) FindNextMagicBulletTarget(playerID string) string {
 	return r.findNextMagicBulletTarget(playerID)
 }
 
+func (r roleChoiceRuntime) OfferMagicMissileResponseSkills() {
+	if r.GameEngine == nil {
+		return
+	}
+	r.offerMagicMissileResponseSkills()
+}
+
 func (r roleChoiceRuntime) DispatchHitCheckMagicMissileCounter(player *model.Player, chain *model.MagicBulletChain, card *model.Card) error {
 	if r.GameEngine == nil {
 		return nil
 	}
-	return r.GameEngine.applyTimingOnHitCheckMagicMissileCounterValidation(player, chain, *card)
+	return r.GameEngine.applyTimingMagicMissileCounterValidation(player, chain, *card)
 }
 
 func (r roleChoiceRuntime) DispatchHitCheckMagicMissileDefend(player *model.Player, chain *model.MagicBulletChain) error {
 	if r.GameEngine == nil {
 		return nil
 	}
-	return r.GameEngine.applyTimingOnHitCheckMagicMissileDefendValidation(player, chain)
+	return r.GameEngine.applyTimingMagicMissileDefendValidation(player, chain)
 }
 
 // ---- SkillOps 实现 ----
@@ -493,7 +507,7 @@ func (r roleChoiceRuntime) IsSkillStillUsable(skillID string, user *model.Player
 	if r.GameEngine == nil || r.dispatcher == nil {
 		return false
 	}
-	return r.dispatcher.isSkillStillUsable(skillID, user, ctx)
+	return r.dispatcher.IsSkillStillUsable(skillID, user, ctx)
 }
 
 func (r roleChoiceRuntime) RecordSkillUsage(playerID, title string, skillType model.SkillType) {
@@ -514,20 +528,20 @@ func (r roleChoiceRuntime) RecordMagicDamageTarget(sourceID, targetID string) {
 	if r.GameEngine == nil {
 		return
 	}
-	if r.turnMagicDamageTargets == nil {
-		r.turnMagicDamageTargets = map[string]map[string]bool{}
+	if r.GameEngine.turnMagicDamageTargets == nil {
+		r.GameEngine.turnMagicDamageTargets = map[string]map[string]bool{}
 	}
-	if _, ok := r.turnMagicDamageTargets[sourceID]; !ok {
-		r.turnMagicDamageTargets[sourceID] = map[string]bool{}
+	if _, ok := r.GameEngine.turnMagicDamageTargets[sourceID]; !ok {
+		r.GameEngine.turnMagicDamageTargets[sourceID] = map[string]bool{}
 	}
-	r.turnMagicDamageTargets[sourceID][targetID] = true
+	r.GameEngine.turnMagicDamageTargets[sourceID][targetID] = true
 }
 
 func (r roleChoiceRuntime) MagicDamageTargetCount(sourceID string) int {
-	if r.GameEngine == nil || r.turnMagicDamageTargets == nil {
+	if r.GameEngine == nil || r.GameEngine.turnMagicDamageTargets == nil {
 		return 0
 	}
-	return len(r.turnMagicDamageTargets[sourceID])
+	return len(r.GameEngine.turnMagicDamageTargets[sourceID])
 }
 
 // ---- MoraleOps 实现 ----
@@ -543,7 +557,7 @@ func (r roleChoiceRuntime) ApplyCampMoraleLoss(camp model.Camp, wantLoss int) in
 	if r.GameEngine == nil {
 		return 0
 	}
-	return r.applyCampMoraleLoss(camp, wantLoss)
+	return r.GameEngine.ApplyCampMoraleLoss(camp, wantLoss)
 }
 
 // ---- GameOps 实现 ----
@@ -559,14 +573,14 @@ func (r roleChoiceRuntime) RefreshAllPlayerDerivedStates() {
 	if r.GameEngine == nil {
 		return
 	}
-	r.refreshAllPlayerDerivedStates()
+	r.RefreshAllPlayerDerivedStates()
 }
 
 func (r roleChoiceRuntime) BuildContext(user, target *model.Player, timing model.FlowTiming, eventCtx *model.EventContext) *model.Context {
 	if r.GameEngine == nil {
 		return nil
 	}
-	return r.buildContext(user, target, timing, eventCtx)
+	return r.GameEngine.BuildContext(user, target, timing, eventCtx)
 }
 
 var _ engineplayer.ChoiceRuntime = roleChoiceRuntime{}
@@ -698,7 +712,7 @@ func (r roleChoiceRuntime) AllOtherPlayerIDs(userID string) []string {
 	return out
 }
 
-func newRoleChoiceRuntime(e *GameEngine) engineplayer.ChoiceRuntime {
+func NewRoleChoiceRuntime(e *GameEngine) engineplayer.ChoiceRuntime {
 	return roleChoiceRuntime{GameEngine: e}
 }
 
@@ -707,7 +721,7 @@ func (e *GameEngine) buildRoleChoicePrompt(roleID, choiceType, playerID string, 
 	if entry.ID == "" {
 		return nil
 	}
-	return entry.BuildChoicePrompt(newRoleChoiceRuntime(e), choiceType, playerID, player, data)
+	return entry.BuildChoicePrompt(NewRoleChoiceRuntime(e), choiceType, playerID, player, data)
 }
 
 func (e *GameEngine) handleRoleChoiceInput(roleID, playerID string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
@@ -715,7 +729,7 @@ func (e *GameEngine) handleRoleChoiceInput(roleID, playerID string, selectionInd
 	if entry.ID == "" {
 		return false, nil
 	}
-	return entry.HandleChoice(newRoleChoiceRuntime(e), playerID, selectionIndex, ctxData)
+	return entry.HandleChoice(NewRoleChoiceRuntime(e), playerID, selectionIndex, ctxData)
 }
 
 func (e *GameEngine) handleRoleChoiceCancel(roleID, playerID string, ctxData map[string]interface{}) (bool, error) {
@@ -726,5 +740,5 @@ func (e *GameEngine) handleRoleChoiceCancel(roleID, playerID string, ctxData map
 	if ctxData == nil && e != nil && e.State != nil && e.State.PendingInterrupt != nil {
 		ctxData, _ = e.State.PendingInterrupt.Context.(map[string]interface{})
 	}
-	return entry.HandleChoiceCancel(newRoleChoiceRuntime(e), playerID, ctxData)
+	return entry.HandleChoiceCancel(NewRoleChoiceRuntime(e), playerID, ctxData)
 }

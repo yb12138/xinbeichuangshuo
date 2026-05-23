@@ -54,7 +54,7 @@ func (e *GameEngine) beforeActionRecoverAfterDroppedHead() driveOutcome {
 	return driveContinueLoop
 }
 
-// beforeActionRunCardUsedIfNeeded 触发技能与状态上的「打出/展示卡牌」时点（TimingOnCardPlayedOrRevealed），例如五系封印等会在此后插入延迟伤害并优先结算。
+// beforeActionRunCardUsedIfNeeded 触发技能与状态上的「打出/展示卡牌」时点（TimingCardPlayedRevealed），例如五系封印等会在此后插入延迟伤害并优先结算。
 // virtualSkipCardDispatch：技能视为的攻击（欺诈、多重射击等）不从手牌打出实体攻击牌，规则上不走「使用那张手牌」的触发链，只记标记以免重复。
 func (e *GameEngine) beforeActionRunCardUsedIfNeeded(player *model.Player, currentPid, targetID string, head *model.QueuedAction, cardForEvent *model.Card, virtualSkipCardDispatch bool) (immediate driveOutcome, stop bool) {
 	if head.HasDispatchedCardUsed {
@@ -73,13 +73,13 @@ func (e *GameEngine) beforeActionRunCardUsedIfNeeded(player *model.Player, curre
 		SourceID: currentPid,
 		TargetID: targetID,
 	}
-	skillCtx := e.buildContext(player, nil, model.TimingOnCardPlayedOrRevealed, cardCtx)
+	skillCtx := e.BuildContext(player, nil, model.TimingCardPlayedRevealed, cardCtx)
 	e.dispatcher.OnTiming(skillCtx.Timing, skillCtx)
 	head.HasDispatchedCardUsed = true
 	if e.State.PendingInterrupt != nil {
 		return driveStop, true
 	}
-	if e.processPendingDamages() {
+	if e.ProcessPendingDamages() {
 		return driveStop, true
 	}
 	if e.State.PendingInterrupt != nil {
@@ -105,7 +105,7 @@ func (e *GameEngine) driveBeforeActionAttack(currentPid string, player *model.Pl
 	var cardForUsed *model.Card
 	if !head.UsesVirtualCard {
 		c := *head.Card
-		// 先变换卡牌（如烈焰魔女火焰形态），再触发 TimingOnCardPlayedOrRevealed
+		// 先变换卡牌（如烈焰魔女火焰形态），再触发 TimingCardPlayedRevealed
 		c = e.transformAttackCard(player, c)
 		cardForUsed = &c
 	}
@@ -115,32 +115,49 @@ func (e *GameEngine) driveBeforeActionAttack(currentPid string, player *model.Pl
 
 	e.recordAttackTargetLifecycle(player, targetID)
 
-	eventCtx := &model.EventContext{
-		Type:     model.EventAttack,
-		SourceID: currentPid,
-		TargetID: targetID,
-		Card:     head.Card,
-		AttackInfo: &model.AttackEventInfo{
-			IsHit:            false,
-			CanBeResponded:   true,
-			ActionType:       string(model.ActionAttack),
-			CounterInitiator: "",
-			InterceptTags:    map[model.CombatInterceptTag]bool{},
-		},
+	// 复用已保存的事件上下文（响应技能中断后恢复时，技能可能已修改 AttackInfo）
+	var eventCtx *model.EventContext
+	if head.HasDispatchedAttackDeclared && head.SavedAttackEventCtx != nil {
+		eventCtx = head.SavedAttackEventCtx
+	} else {
+		eventCtx = &model.EventContext{
+			Type:     model.EventAttack,
+			SourceID: currentPid,
+			TargetID: targetID,
+			Card:     head.Card,
+			AttackInfo: &model.AttackEventInfo{
+				IsHit:            false,
+				CanBeResponded:   true,
+				ActionType:       string(model.ActionAttack),
+				CounterInitiator: "",
+				InterceptTags:    map[model.CombatInterceptTag]bool{},
+			},
+		}
 	}
 
 	if !head.HasDispatchedAttackDeclared {
 		e.resetAttackStartLifecycle(player)
 		head.HasDispatchedAttackDeclared = true
-		attackStartCtx := e.buildContext(player, target, model.TimingOnAttackDeclared, eventCtx)
+		attackStartCtx := e.BuildContext(player, target, model.TimingAttackDeclare, eventCtx)
 		player.TurnState.LastActionType = string(model.ActionAttack)
 		cardSnapshot := *head.Card
 		player.TurnState.LastActionCard = &cardSnapshot
-		e.dispatcher.OnTiming(attackStartCtx.Timing, attackStartCtx)
-		if e.State.PendingInterrupt != nil {
+		// 保存事件上下文，响应技能中断后复用（技能可能修改了 AttackInfo）
+		head.SavedAttackEventCtx = eventCtx
+		if e.runAttackDeclareInterruptPolicies(player, target, head, attackStartCtx) {
 			return driveStop
 		}
-		if e.runTimingOnAttackDeclaredInterruptPolicies(player, target, head, attackStartCtx) {
+		attackKind := model.AttackKindActive
+		if e.dispatchAttackRulebookTiming(model.TimingAttackDeclare, player, target, head.Card, eventCtx.AttackInfo, attackKind) {
+			return driveStop
+		}
+		if e.dispatchAttackRulebookTiming(model.TimingAttackSelectTarget, player, target, head.Card, eventCtx.AttackInfo, attackKind) {
+			return driveStop
+		}
+		if e.dispatchAttackRulebookTiming(model.TimingAttackPlayCard, player, target, head.Card, eventCtx.AttackInfo, attackKind) {
+			return driveStop
+		}
+		if e.dispatchAttackRulebookTiming(model.TimingAttackModifyCard, player, target, head.Card, eventCtx.AttackInfo, attackKind) {
 			return driveStop
 		}
 	}
@@ -148,11 +165,14 @@ func (e *GameEngine) driveBeforeActionAttack(currentPid string, player *model.Pl
 	e.applyAttackPreCombatLifecycle(player, target, head, eventCtx)
 	isForcedHit := eventCtx.AttackInfo != nil && eventCtx.AttackInfo.IsHitForced
 	ignoreShield := eventCtx.AttackInfo != nil && eventCtx.AttackInfo.IgnoreShield
+	if e.dispatchAttackRulebookTiming(model.TimingAttackCommitted, player, target, head.Card, eventCtx.AttackInfo, model.AttackKindActive) {
+		return driveStop
+	}
 
 	card := *head.Card
 	if !head.UsesVirtualCard {
-		if _, err := e.consumePlayableCardByIndex(player, head.CardIndex); err != nil {
-			e.Log("[Warn] PhaseBeforeAction: 卡牌索引失效，丢弃该行动")
+		if _, err := e.consumeQueuedActionCard(player, head); err != nil {
+			e.Log("[Warn] PhaseBeforeAction: 卡牌ID失效，丢弃该行动")
 			e.enterExtraActionStage()
 			return driveContinueLoop
 		}
@@ -188,7 +208,8 @@ func (e *GameEngine) driveBeforeActionMagic(currentPid string, player *model.Pla
 		player.TurnState.LastActionCard = nil
 	}
 
-	if err := e.PerformMagic(currentPid, targetID, head.CardIndex); err != nil {
+	cardID := queuedActionCardID(head)
+	if err := e.PerformMagicByID(currentPid, targetID, cardID); err != nil {
 		e.Log(fmt.Sprintf("[Error] 法术执行失败: %v", err))
 	}
 	if e.State.PendingInterrupt != nil {

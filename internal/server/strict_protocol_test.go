@@ -142,4 +142,10 @@ func TestHandleRoomAction_UnknownActionReturnsProtocolError(t *testing.T) {
 	if payload.Cmd != CmdRoomAction {
 		t.Fatalf("expected cmd %s, got %s", CmdRoomAction, payload.Cmd)
 	}
+	if payload.Context["room_code"] != "STRICT_ROOM_ACTION" {
+		t.Fatalf("expected room_code context STRICT_ROOM_ACTION, got %+v", payload.Context)
+	}
+	if payload.Context["player_id"] != "p1" {
+		t.Fatalf("expected player_id context p1, got %+v", payload.Context)
+	}
 }

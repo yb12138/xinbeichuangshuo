@@ -15,6 +15,25 @@ import (
 
 type choiceHandler struct{}
 
+const (
+	butterflyCocoonOverflowFlowID    = "bt_cocoon_overflow"
+	butterflyCocoonOverflowNeedStep  = "need"
+	butterflyCocoonOverflowCardsStep = "cards"
+
+	butterflyReverseBranch2FlowID    = "bt_reverse_branch2"
+	butterflyReverseBranch2NeedStep  = "need"
+	butterflyReverseBranch2CardsStep = "cards"
+)
+
+var (
+	butterflyCocoonOverflowFlowRuntime = model.MustNewPromptFlowRuntime(butterflyCocoonOverflowFlowID, []model.PromptFlowStepSpec{
+		{ID: butterflyCocoonOverflowCardsStep, ChoiceType: "bt_cocoon_overflow_discard", CancelPolicy: model.CancelPolicyAbort},
+	})
+	butterflyReverseBranch2FlowRuntime = model.MustNewPromptFlowRuntime(butterflyReverseBranch2FlowID, []model.PromptFlowStepSpec{
+		{ID: butterflyReverseBranch2CardsStep, ChoiceType: "bt_reverse_branch2_pick", CancelPolicy: model.CancelPolicyAbort},
+	})
+)
+
 func NewChoiceHandler() engineplayer.ChoiceHandler {
 	return choiceHandler{}
 }
@@ -38,7 +57,9 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 	case "bt_reverse_branch2_cost":
 		return buildReverseBranch2CostPrompt(playerID, data)
 	case "bt_reverse_branch2_pick":
-		return buildReverseBranch2PickPrompt(playerID, player)
+		return buildReverseBranch2PickPrompt(playerID, player, data)
+	case "bt_pilgrimage_confirm":
+		return buildPilgrimageConfirmPrompt(playerID, data)
 	case "bt_pilgrimage_pick", "bt_poison_pick":
 		return buildPilgrimageOrPoisonPickPrompt(playerID, player, data, choiceType)
 	case "bt_mirror_pair":
@@ -73,6 +94,8 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		return true, handleReverseBranch2Cost(rt, ctxData, selectionIndex)
 	case "bt_reverse_branch2_pick":
 		return true, handleReverseBranch2Pick(rt, ctxData, selectionIndex)
+	case "bt_pilgrimage_confirm":
+		return true, handlePilgrimageConfirm(rt, ctxData, selectionIndex)
 	case "bt_pilgrimage_pick", "bt_poison_pick":
 		return true, handlePilgrimageOrPoisonPick(rt, ctxData, selectionIndex)
 	case "bt_mirror_pair":
@@ -86,6 +109,18 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 	}
 }
 
+func (choiceHandler) HandleCancel(rt engineplayer.ChoiceRuntime, _ string, ctxData map[string]interface{}) (bool, error) {
+	choiceType, _ := ctxData["choice_type"].(string)
+	switch choiceType {
+	case "bt_pilgrimage_confirm", "bt_pilgrimage_pick", "bt_poison_pick", "bt_mirror_pair":
+		return true, declinePilgrimageOrPoison(rt)
+	default:
+		return false, nil
+	}
+}
+
+var _ engineplayer.CancelChoiceHandler = choiceHandler{}
+
 // ===========================================================================
 // BuildPrompt helpers
 // ===========================================================================
@@ -97,13 +132,14 @@ func buildDanceModePrompt(playerID string, data map[string]interface{}) *model.P
 		options = append(options, model.PromptOption{ID: "1", Label: "弃1张牌"})
 	}
 	return &model.Prompt{
-		Type:       model.PromptConfirm,
-		PlayerID:   playerID,
-		ChoiceType: "bt_dance_mode",
-		Message:    "【舞动】请选择先执行的动作：",
-		Options:    options,
-		Min:        1,
-		Max:        1,
+		Type:         model.PromptConfirm,
+		PlayerID:     playerID,
+		ChoiceType:   "bt_dance_mode",
+		Message:      "【舞动】请选择先执行的动作：",
+		Options:      options,
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 	}
 }
 
@@ -111,8 +147,9 @@ func buildDanceDiscardPrompt(playerID string, player *model.Player) *model.Promp
 	var options []model.PromptOption
 	for idx, c := range player.Hand {
 		options = append(options, model.PromptOption{
-			ID:    fmt.Sprintf("%d", idx),
-			Label: fmt.Sprintf("%d: %s", idx+1, formatCardInfo(c)),
+			ID:     fmt.Sprintf("%d", idx),
+			Label:  fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(c)),
+			CardID: c.ID,
 		})
 	}
 	return &model.Prompt{
@@ -123,11 +160,15 @@ func buildDanceDiscardPrompt(playerID string, player *model.Player) *model.Promp
 		Options:    options,
 		Min:        1,
 		Max:        1,
+		Presentation: &model.PromptPresentation{
+			Kind:       model.PresentationCardPicker,
+			CardSource: "hand",
+		},
 	}
 }
 
 func buildCocoonOverflowDiscardPrompt(playerID string, player *model.Player, data map[string]interface{}) *model.Prompt {
-	discardCount := runtimeutil.ToIntContextValue(data["discard_count"])
+	discardCount := promptFlowNeedCount(data, butterflyCocoonOverflowFlowID, butterflyCocoonOverflowNeedStep)
 	if discardCount < 0 {
 		discardCount = 0
 	}
@@ -135,8 +176,17 @@ func buildCocoonOverflowDiscardPrompt(playerID string, player *model.Player, dat
 	if discardCount > len(cocoonIndices) {
 		discardCount = len(cocoonIndices)
 	}
+	picked := promptFlowPickedIndices(data, butterflyCocoonOverflowFlowID, butterflyCocoonOverflowCardsStep)
+	pickedSet := intSet(picked)
+	remainingNeed := discardCount - len(picked)
+	if remainingNeed < 0 {
+		remainingNeed = 0
+	}
 	var options []model.PromptOption
 	for _, idx := range cocoonIndices {
+		if pickedSet[idx] {
+			continue
+		}
 		if idx < 0 || idx >= len(player.Field) || player.Field[idx] == nil {
 			continue
 		}
@@ -146,17 +196,23 @@ func buildCocoonOverflowDiscardPrompt(playerID string, player *model.Player, dat
 		}
 		options = append(options, model.PromptOption{
 			ID:    fmt.Sprintf("%d", idx),
-			Label: fmt.Sprintf("茧[%d]: %s", idx, formatCardInfo(fc.Card)),
+			Label: fmt.Sprintf("茧[%d]: %s", idx, promptfmt.FormatCardInfo(fc.Card)),
 		})
 	}
 	return &model.Prompt{
 		Type:       model.PromptChooseCards,
 		PlayerID:   playerID,
 		ChoiceType: "bt_cocoon_overflow_discard",
-		Message:    fmt.Sprintf("【茧上限】请选择要舍弃的%d个茧：", discardCount),
+		Message:    fmt.Sprintf("【茧上限】请选择要舍弃的%d个茧：", remainingNeed),
 		Options:    options,
-		Min:        discardCount,
-		Max:        discardCount,
+		Min:        remainingNeed,
+		Max:        remainingNeed,
+		Presentation: &model.PromptPresentation{
+			Kind:       model.PresentationCardPicker,
+			Layout:     "field_cover",
+			CardSource: "field",
+			CardFilter: "effect:ButterflyCocoon",
+		},
 	}
 }
 
@@ -167,13 +223,14 @@ func buildReverseModePrompt(playerID string, data map[string]interface{}) *model
 		options = append(options, model.PromptOption{ID: "1", Label: "分支②：移除2个茧或自伤4，然后移除1个蛹"})
 	}
 	return &model.Prompt{
-		Type:       model.PromptConfirm,
-		PlayerID:   playerID,
-		ChoiceType: "bt_reverse_mode",
-		Message:    "【倒逆之蝶】请选择发动分支：",
-		Options:    options,
-		Min:        1,
-		Max:        1,
+		Type:         model.PromptConfirm,
+		PlayerID:     playerID,
+		ChoiceType:   "bt_reverse_mode",
+		Message:      "【倒逆之蝶】请选择发动分支：",
+		Options:      options,
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 	}
 }
 
@@ -182,7 +239,7 @@ func buildReverseTargetPrompt(rt engineplayer.ChoiceRuntime, playerID string, da
 	var options []model.PromptOption
 	for _, tid := range targetIDs {
 		if p := rt.GetPlayers()[tid]; p != nil {
-			options = append(options, model.PromptOption{ID: tid, Label: p.Name})
+			options = append(options, model.PromptOption{ID: tid, Label: p.Name, TargetID: tid})
 		}
 	}
 	return &model.Prompt{
@@ -193,6 +250,10 @@ func buildReverseTargetPrompt(rt engineplayer.ChoiceRuntime, playerID string, da
 		Options:    options,
 		Min:        1,
 		Max:        1,
+		Presentation: &model.PromptPresentation{
+			Kind:         model.PresentationTargetPicker,
+			TargetFilter: "custom",
+		},
 	}
 }
 
@@ -211,17 +272,30 @@ func buildReverseBranch2CostPrompt(playerID string, data map[string]interface{})
 		Options:    options,
 		Min:        1,
 		Max:        1,
+		Presentation: &model.PromptPresentation{
+			Kind:   model.PresentationBranchSelect,
+			Layout: "overlay",
+		},
 	}
 }
 
-func buildReverseBranch2PickPrompt(playerID string, player *model.Player) *model.Prompt {
+func buildReverseBranch2PickPrompt(playerID string, player *model.Player, data map[string]interface{}) *model.Prompt {
 	cocoonIndices := CocoonFieldIndices(player)
-	pickCount := 2
+	pickCount := promptFlowNeedCount(data, butterflyReverseBranch2FlowID, butterflyReverseBranch2NeedStep)
 	if pickCount > len(cocoonIndices) {
 		pickCount = len(cocoonIndices)
 	}
+	picked := promptFlowPickedIndices(data, butterflyReverseBranch2FlowID, butterflyReverseBranch2CardsStep)
+	pickedSet := intSet(picked)
+	remainingNeed := pickCount - len(picked)
+	if remainingNeed < 0 {
+		remainingNeed = 0
+	}
 	var options []model.PromptOption
 	for _, idx := range cocoonIndices {
+		if pickedSet[idx] {
+			continue
+		}
 		if idx < 0 || idx >= len(player.Field) || player.Field[idx] == nil {
 			continue
 		}
@@ -231,17 +305,23 @@ func buildReverseBranch2PickPrompt(playerID string, player *model.Player) *model
 		}
 		options = append(options, model.PromptOption{
 			ID:    fmt.Sprintf("%d", idx),
-			Label: fmt.Sprintf("茧[%d]: %s", idx, formatCardInfo(fc.Card)),
+			Label: fmt.Sprintf("茧[%d]: %s", idx, promptfmt.FormatCardInfo(fc.Card)),
 		})
 	}
 	return &model.Prompt{
 		Type:       model.PromptChooseCards,
 		PlayerID:   playerID,
 		ChoiceType: "bt_reverse_branch2_pick",
-		Message:    fmt.Sprintf("【倒逆之蝶】分支②请选择要移除的%d个茧：", pickCount),
+		Message:    fmt.Sprintf("【倒逆之蝶】分支②请选择要移除的%d个茧：", remainingNeed),
 		Options:    options,
-		Min:        pickCount,
-		Max:        pickCount,
+		Min:        remainingNeed,
+		Max:        remainingNeed,
+		Presentation: &model.PromptPresentation{
+			Kind:       model.PresentationCardPicker,
+			Layout:     "field_cover",
+			CardSource: "field",
+			CardFilter: "effect:ButterflyCocoon",
+		},
 	}
 }
 
@@ -256,23 +336,71 @@ func buildPilgrimageOrPoisonPickPrompt(playerID string, player *model.Player, da
 		if fc.Mode != model.FieldCover || fc.Effect != model.EffectButterflyCocoon {
 			continue
 		}
+		fieldIndex := idx
+		cardLabel := promptfmt.FormatCardInfo(fc.Card)
 		options = append(options, model.PromptOption{
-			ID:    fmt.Sprintf("%d", len(options)),
-			Label: fmt.Sprintf("移除茧[%d]: %s", idx, formatCardInfo(fc.Card)),
+			ID:          fmt.Sprintf("%d", len(options)),
+			Label:       fmt.Sprintf("移除茧[%d]: %s", idx, cardLabel),
+			ButtonLabel: fmt.Sprintf("移除茧[%d]", idx),
+			Hint:        cardLabel,
+			FieldIndex:  &fieldIndex,
 		})
 	}
+	sourceName, _ := data["source_name"].(string)
+	targetName, _ := data["target_name"].(string)
+	damageAmount := runtimeutil.ToIntContextValue(data["damage_amount"])
 	msg := "【朝圣】是否移除1个茧抵御1点伤害？"
 	if choiceType == "bt_poison_pick" {
-		msg = "【毒粉】是否移除1个茧使该次法术伤害+1？"
+		if sourceName != "" && damageAmount > 0 {
+			msg = fmt.Sprintf("【毒粉】%s 对 %s 造成 %d 点法术伤害，是否移除1个茧使该次法术伤害+1？", sourceName, targetName, damageAmount)
+		} else {
+			msg = "【毒粉】是否移除1个茧使该次法术伤害+1？"
+		}
+	} else {
+		// 朝圣
+		if sourceName != "" && damageAmount > 0 {
+			msg = fmt.Sprintf("【朝圣】%s 对 %s 造成 %d 点伤害，是否移除1个茧抵御1点伤害？", sourceName, targetName, damageAmount)
+		}
+	}
+	return &model.Prompt{
+		Type:         model.PromptConfirm,
+		PlayerID:     playerID,
+		ChoiceType:   choiceType,
+		Message:      msg,
+		Options:      options,
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, Layout: "field_cover", CardSource: "field", CardFilter: "effect:ButterflyCocoon", CancelPolicy: "decline", HasDecline: true, DeclineIndex: 0},
+	}
+}
+
+func buildPilgrimageConfirmPrompt(playerID string, data map[string]interface{}) *model.Prompt {
+	sourceName, _ := data["source_name"].(string)
+	targetName, _ := data["target_name"].(string)
+	damageAmount := runtimeutil.ToIntContextValue(data["damage_amount"])
+	message := "【朝圣】是否发动，移除1个茧抵御1点伤害？"
+	if sourceName != "" && damageAmount > 0 {
+		message = fmt.Sprintf("【朝圣】%s 对 %s 造成 %d 点伤害，是否发动并移除1个茧抵御1点伤害？", sourceName, targetName, damageAmount)
 	}
 	return &model.Prompt{
 		Type:       model.PromptConfirm,
 		PlayerID:   playerID,
-		ChoiceType: choiceType,
-		Message:    msg,
-		Options:    options,
-		Min:        1,
-		Max:        1,
+		ChoiceType: "bt_pilgrimage_confirm",
+		Message:    message,
+		Options: []model.PromptOption{
+			{ID: "0", Label: "发动", ButtonLabel: "发动"},
+			{ID: "1", Label: "取消", ButtonLabel: "取消"},
+		},
+		Min: 1,
+		Max: 1,
+		Presentation: &model.PromptPresentation{
+			Kind:         model.PresentationBranchSelect,
+			Layout:       "overlay",
+			CancelPolicy: "decline",
+			CancelLabel:  "取消",
+			HasDecline:   true,
+			DeclineIndex: 1,
+		},
 	}
 }
 
@@ -285,14 +413,28 @@ func buildMirrorPairPrompt(playerID string, data map[string]interface{}) *model.
 			Label: fmt.Sprintf("移除并展示：%s", label),
 		})
 	}
+	sourceName, _ := data["source_name"].(string)
+	targetName, _ := data["target_name"].(string)
+	damageAmount := runtimeutil.ToIntContextValue(data["damage_amount"])
+	message := "【镜花水月】是否发动并改写该次2点法术伤害？"
+	if sourceName != "" && damageAmount > 0 {
+		message = fmt.Sprintf("【镜花水月】%s 对 %s 造成 %d 点法术伤害，是否移除2张同系茧改写该次伤害？", sourceName, targetName, damageAmount)
+	}
 	return &model.Prompt{
 		Type:       model.PromptConfirm,
 		PlayerID:   playerID,
 		ChoiceType: "bt_mirror_pair",
-		Message:    "【镜花水月】是否发动并改写该次2点法术伤害？",
+		Message:    message,
 		Options:    options,
 		Min:        1,
 		Max:        1,
+		Presentation: &model.PromptPresentation{
+			Kind:         model.PresentationBranchSelect,
+			Layout:       "overlay",
+			CancelPolicy: "decline",
+			HasDecline:   true,
+			DeclineIndex: 0,
+		},
 	}
 }
 
@@ -308,6 +450,10 @@ func buildWitherConfirmPrompt(playerID string) *model.Prompt {
 		},
 		Min: 1,
 		Max: 1,
+		Presentation: &model.PromptPresentation{
+			Kind:   model.PresentationBranchSelect,
+			Layout: "overlay",
+		},
 	}
 }
 
@@ -316,7 +462,7 @@ func buildWitherTargetPrompt(rt engineplayer.ChoiceRuntime, playerID string, dat
 	var options []model.PromptOption
 	for _, tid := range targetIDs {
 		if p := rt.GetPlayers()[tid]; p != nil {
-			options = append(options, model.PromptOption{ID: tid, Label: p.Name})
+			options = append(options, model.PromptOption{ID: tid, Label: p.Name, TargetID: tid})
 		}
 	}
 	return &model.Prompt{
@@ -327,6 +473,10 @@ func buildWitherTargetPrompt(rt engineplayer.ChoiceRuntime, playerID string, dat
 		Options:    options,
 		Min:        1,
 		Max:        1,
+		Presentation: &model.PromptPresentation{
+			Kind:         model.PresentationTargetPicker,
+			TargetFilter: "custom",
+		},
 	}
 }
 
@@ -381,11 +531,7 @@ func handleDanceMode(rt engineplayer.ChoiceRuntime, ctxData map[string]interface
 		rt.PushInterrupt(&model.Interrupt{
 			Type:     model.InterruptChoice,
 			PlayerID: user.ID,
-			Context: map[string]interface{}{
-				"choice_type":   "bt_cocoon_overflow_discard",
-				"user_id":       user.ID,
-				"discard_count": overflow,
-			},
+			Context:  butterflyCocoonOverflowContext(user.ID, overflow),
 		})
 	}
 	rt.PopInterrupt()
@@ -425,11 +571,7 @@ func handleDanceDiscard(rt engineplayer.ChoiceRuntime, ctxData map[string]interf
 		rt.PushInterrupt(&model.Interrupt{
 			Type:     model.InterruptChoice,
 			PlayerID: user.ID,
-			Context: map[string]interface{}{
-				"choice_type":   "bt_cocoon_overflow_discard",
-				"user_id":       user.ID,
-				"discard_count": overflow,
-			},
+			Context:  butterflyCocoonOverflowContext(user.ID, overflow),
 		})
 	}
 	rt.PopInterrupt()
@@ -439,6 +581,78 @@ func handleDanceDiscard(rt engineplayer.ChoiceRuntime, ctxData map[string]interf
 	return nil
 }
 
+// finalizeCocoonOverflowDiscard 收尾：实际移除已选茧并恢复行动阶段。
+func finalizeCocoonOverflowDiscard(rt engineplayer.ChoiceRuntime, user *model.Player, picked []int) {
+	var removed []model.Card
+	for _, idx := range picked {
+		if idx < 0 || idx >= len(user.Field) || user.Field[idx] == nil {
+			continue
+		}
+		fc := user.Field[idx]
+		if fc.Mode != model.FieldCover || fc.Effect != model.EffectButterflyCocoon {
+			continue
+		}
+		removed = append(removed, fc.Card)
+	}
+	RemoveCocoonByFieldIndices(user, picked)
+	if len(removed) > 0 {
+		rt.AppendToDiscard(removed)
+	}
+	rt.Log(fmt.Sprintf("%s 的 [茧上限] 结算：舍弃%d个茧", user.Name, len(picked)))
+	rt.PopInterrupt()
+	if rt.GetPendingInterrupt() == nil {
+		rt.EnterExtraActionStage()
+	}
+}
+
+func butterflyCocoonOverflowContext(userID string, discardNeed int) map[string]interface{} {
+	ctxData := map[string]interface{}{
+		"choice_type": "bt_cocoon_overflow_discard",
+		"user_id":     userID,
+	}
+	model.SetPromptFlowContext(ctxData, initButterflyCocoonOverflowFlow(discardNeed))
+	return ctxData
+}
+
+func initButterflyCocoonOverflowFlow(discardNeed int) *model.PromptFlowState {
+	flow := butterflyCocoonOverflowFlowRuntime.MustBeginAt(butterflyCocoonOverflowCardsStep)
+	flow.PutSelection(butterflyCocoonOverflowNeedStep, model.PromptFlowSelection{Count: discardNeed})
+	flow.PutSelection(butterflyCocoonOverflowCardsStep, model.PromptFlowSelection{})
+	return flow
+}
+
+func initButterflyReverseBranch2Flow(pickNeed int) *model.PromptFlowState {
+	flow := butterflyReverseBranch2FlowRuntime.MustBeginAt(butterflyReverseBranch2CardsStep)
+	flow.PutSelection(butterflyReverseBranch2NeedStep, model.PromptFlowSelection{Count: pickNeed})
+	flow.PutSelection(butterflyReverseBranch2CardsStep, model.PromptFlowSelection{})
+	return flow
+}
+
+func promptFlowNeedCount(data map[string]interface{}, flowID, needStep string) int {
+	flow := model.PromptFlowFromContext(data)
+	if flow == nil || flow.FlowID != flowID {
+		return 0
+	}
+	return flow.Selection(needStep).Count
+}
+
+func promptFlowPickedIndices(data map[string]interface{}, flowID, cardsStep string) []int {
+	flow := model.PromptFlowFromContext(data)
+	if flow == nil || flow.FlowID != flowID {
+		return nil
+	}
+	return append([]int{}, flow.Selection(cardsStep).OptionIndexes...)
+}
+
+func intSet(values []int) map[int]bool {
+	set := make(map[int]bool, len(values))
+	for _, v := range values {
+		set[v] = true
+	}
+	return set
+}
+
+// handleCocoonOverflowDiscard 单选累积路径：用于前端逐个提交茧索引。
 func handleCocoonOverflowDiscard(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	if selectionIndex < 0 {
 		return fmt.Errorf("请先选择要舍弃的茧后再确认")
@@ -448,7 +662,11 @@ func handleCocoonOverflowDiscard(rt engineplayer.ChoiceRuntime, ctxData map[stri
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
-	discardNeed := runtimeutil.ToIntContextValue(ctxData["discard_count"])
+	flow, err := model.RequirePromptFlow(ctxData, butterflyCocoonOverflowFlowID, "茧上限弃置")
+	if err != nil {
+		return err
+	}
+	discardNeed := flow.Selection(butterflyCocoonOverflowNeedStep).Count
 	if discardNeed < 0 {
 		discardNeed = 0
 	}
@@ -456,28 +674,97 @@ func handleCocoonOverflowDiscard(rt engineplayer.ChoiceRuntime, ctxData map[stri
 	if discardNeed > len(cocoonIndices) {
 		discardNeed = len(cocoonIndices)
 	}
-	if discardNeed != 1 {
-		return fmt.Errorf("需要选择 %d 个茧舍弃", discardNeed)
+	if discardNeed <= 0 {
+		rt.PopInterrupt()
+		if rt.GetPendingInterrupt() == nil {
+			rt.EnterExtraActionStage()
+		}
+		return nil
 	}
-	fieldIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, cocoonIndices)
+
+	picked := append([]int{}, flow.Selection(butterflyCocoonOverflowCardsStep).OptionIndexes...)
+	// 候选列表需排除已选项，保证 selectionIndex 位置语义与 build prompt 一致
+	pickedSet := map[int]bool{}
+	for _, p := range picked {
+		pickedSet[p] = true
+	}
+	remaining := make([]int, 0, len(cocoonIndices))
+	for _, idx := range cocoonIndices {
+		if !pickedSet[idx] {
+			remaining = append(remaining, idx)
+		}
+	}
+
+	fieldIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, remaining)
 	if !ok {
 		return fmt.Errorf("无效的茧索引: %d", selectionIndex)
 	}
-
-	// Remove cocoon at fieldIdx
-	fc, ok := RemoveCocoonByFieldIndex(user, fieldIdx)
-	if !ok {
-		return fmt.Errorf("选择的茧无效")
+	if pickedSet[fieldIdx] {
+		return fmt.Errorf("该茧已被选择")
 	}
-	removed := []model.Card{fc.Card}
-	rt.AppendToDiscard(removed)
+	picked = append(picked, fieldIdx)
+	flow.PutSelection(butterflyCocoonOverflowCardsStep, model.PromptFlowSelection{OptionIndexes: append([]int{}, picked...)})
 
-	rt.Log(fmt.Sprintf("%s 的 [茧上限] 结算：舍弃1个茧", user.Name))
-	rt.PopInterrupt()
-	if rt.GetPendingInterrupt() == nil {
-		rt.EnterExtraActionStage()
+	if len(picked) < discardNeed {
+		intr := rt.GetPendingInterrupt()
+		if intr != nil {
+			intr.Context = ctxData
+		}
+		rt.NotifyInterruptPrompt()
+		return nil
 	}
+
+	finalizeCocoonOverflowDiscard(rt, user, picked)
 	return nil
+}
+
+// handleCocoonOverflowDiscardMultiSelect 批量路径：前端一次性提交所有茧索引。
+func handleCocoonOverflowDiscardMultiSelect(rt engineplayer.ChoiceRuntime, _ string, selections []int, ctxData map[string]interface{}) (bool, error) {
+	userID, _ := ctxData["user_id"].(string)
+	user := rt.GetPlayers()[userID]
+	if user == nil {
+		return false, fmt.Errorf("玩家不存在")
+	}
+	flow, err := model.RequirePromptFlow(ctxData, butterflyCocoonOverflowFlowID, "茧上限弃置")
+	if err != nil {
+		return false, err
+	}
+	discardNeed := flow.Selection(butterflyCocoonOverflowNeedStep).Count
+	if discardNeed < 0 {
+		discardNeed = 0
+	}
+	cocoonIndices := CocoonFieldIndices(user)
+	if discardNeed > len(cocoonIndices) {
+		discardNeed = len(cocoonIndices)
+	}
+	if discardNeed <= 0 {
+		rt.PopInterrupt()
+		if rt.GetPendingInterrupt() == nil {
+			rt.EnterExtraActionStage()
+		}
+		return true, nil
+	}
+	if len(selections) != discardNeed {
+		return false, fmt.Errorf("需要选择 %d 个茧舍弃，实际选择了 %d 个", discardNeed, len(selections))
+	}
+
+	picked := make([]int, 0, len(selections))
+	seen := map[int]bool{}
+	for _, sel := range selections {
+		fieldIdx, ok := runtimeutil.ResolveSelectionToCandidate(sel, cocoonIndices)
+		if !ok {
+			return false, fmt.Errorf("无效的茧索引: %d", sel)
+		}
+		if seen[fieldIdx] {
+			return false, fmt.Errorf("该茧已被选择: %d", fieldIdx)
+		}
+		seen[fieldIdx] = true
+		picked = append(picked, fieldIdx)
+	}
+	flow.PutSelection(butterflyCocoonOverflowCardsStep, model.PromptFlowSelection{OptionIndexes: append([]int{}, picked...)})
+
+	finalizeCocoonOverflowDiscard(rt, user, picked)
+	return true, nil
 }
 
 func handleReverseMode(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
@@ -564,8 +851,7 @@ func handleReverseBranch2Cost(rt engineplayer.ChoiceRuntime, ctxData map[string]
 	}
 	if modes[selectionIndex] == "remove_cocoon" {
 		ctxData["choice_type"] = "bt_reverse_branch2_pick"
-		delete(ctxData, "remaining_indices")
-		delete(ctxData, "selected_indices")
+		model.SetPromptFlowContext(ctxData, initButterflyReverseBranch2Flow(2))
 		intr := rt.GetPendingInterrupt()
 		if intr != nil {
 			intr.Context = ctxData
@@ -600,21 +886,32 @@ func handleReverseBranch2Pick(rt engineplayer.ChoiceRuntime, ctxData map[string]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
-	const pickNeed = 2
 	cocoonIndices := CocoonFieldIndices(user)
 
-	fieldIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, cocoonIndices)
+	flow, err := model.RequirePromptFlow(ctxData, butterflyReverseBranch2FlowID, "倒逆之蝶分支②")
+	if err != nil {
+		return err
+	}
+	pickNeed := flow.Selection(butterflyReverseBranch2NeedStep).Count
+	picked := append([]int{}, flow.Selection(butterflyReverseBranch2CardsStep).OptionIndexes...)
+	pickedSet := intSet(picked)
+	remaining := make([]int, 0, len(cocoonIndices))
+	for _, idx := range cocoonIndices {
+		if !pickedSet[idx] {
+			remaining = append(remaining, idx)
+		}
+	}
+	fieldIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, remaining)
 	if !ok {
 		return fmt.Errorf("无效的茧索引: %d", selectionIndex)
 	}
-
-	// Collect picked indices from context
-	picked := append([]int{}, parseIntSlice(ctxData["picked_indices"])...)
+	if pickedSet[fieldIdx] {
+		return fmt.Errorf("该茧已被选择")
+	}
 	picked = append(picked, fieldIdx)
+	flow.PutSelection(butterflyReverseBranch2CardsStep, model.PromptFlowSelection{OptionIndexes: append([]int{}, picked...)})
 
 	if len(picked) < pickNeed {
-		// Need more picks - update context and re-prompt
-		ctxData["picked_indices"] = picked
 		intr := rt.GetPendingInterrupt()
 		if intr != nil {
 			intr.Context = ctxData
@@ -623,14 +920,18 @@ func handleReverseBranch2Pick(rt engineplayer.ChoiceRuntime, ctxData map[string]
 		return nil
 	}
 
-	// Have enough picks - resolve
-	RemoveCocoonByFieldIndices(user, picked)
-	// Collect removed cards for notification
 	var removed []model.Card
 	for _, idx := range picked {
-		// Cards were already removed by RemoveCocoonByFieldIndices, we log the effect
-		_ = idx
+		if idx < 0 || idx >= len(user.Field) || user.Field[idx] == nil {
+			continue
+		}
+		fc := user.Field[idx]
+		if fc.Mode != model.FieldCover || fc.Effect != model.EffectButterflyCocoon {
+			continue
+		}
+		removed = append(removed, fc.Card)
 	}
+	RemoveCocoonByFieldIndices(user, picked)
 	rt.NotifyCardRevealed(user.ID, removed, model.DamageType("discard"))
 	rt.AppendToDiscard(removed)
 
@@ -662,13 +963,7 @@ func handlePilgrimageOrPoisonPick(rt engineplayer.ChoiceRuntime, ctxData map[str
 
 	// selectionIndex == -1 or 0 means "skip"
 	if selectionIndex == -1 || selectionIndex == 0 {
-		rt.PopInterrupt()
-		if rt.GetPendingInterrupt() == nil {
-			if !rt.RoutePendingDamageOr(nil, nil) {
-				rt.EnterExtraActionStage()
-			}
-		}
-		return nil
+		return declinePilgrimageOrPoison(rt)
 	}
 
 	pickIdx := -1
@@ -711,7 +1006,40 @@ func handlePilgrimageOrPoisonPick(rt engineplayer.ChoiceRuntime, ctxData map[str
 
 	rt.PopInterrupt()
 	if rt.GetPendingInterrupt() == nil {
+		if choiceType == "bt_poison_pick" && pd.Damage == 2 {
+			sourceName, _ := ctxData["source_name"].(string)
+			targetName, _ := ctxData["target_name"].(string)
+			if queueButterflyMirrorResponse(rt, pd, sourceName, targetName) {
+				return nil
+			}
+			markButterflyMagicResponseWindowClosed(pd)
+		}
 		rt.EnterDamageResolution(nil)
+	}
+	return nil
+}
+
+func handlePilgrimageConfirm(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
+	if selectionIndex == -1 || selectionIndex == 1 {
+		return declinePilgrimageOrPoison(rt)
+	}
+	if selectionIndex != 0 {
+		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
+	}
+	ctxData["choice_type"] = "bt_pilgrimage_pick"
+	if intr := rt.GetPendingInterrupt(); intr != nil {
+		intr.Context = ctxData
+	}
+	rt.NotifyInterruptPrompt()
+	return nil
+}
+
+func declinePilgrimageOrPoison(rt engineplayer.ChoiceRuntime) error {
+	rt.PopInterrupt()
+	if rt.GetPendingInterrupt() == nil {
+		if !rt.RoutePendingDamageOr(nil, nil) {
+			rt.EnterExtraActionStage()
+		}
 	}
 	return nil
 }
@@ -783,18 +1111,18 @@ func handleMirrorPair(rt engineplayer.ChoiceRuntime, ctxData map[string]interfac
 	if !ok {
 		return fmt.Errorf("伤害上下文不存在")
 	}
-	originSourceID := pd.SourceID
+	originTargetID := pd.TargetID
 	pd.Damage = 0
 
 	rt.AddPendingDamage(model.PendingDamage{
 		SourceID:   user.ID,
-		TargetID:   originSourceID,
+		TargetID:   originTargetID,
 		Damage:     1,
 		DamageType: model.MagicAttack,
 	})
 	rt.AddPendingDamage(model.PendingDamage{
 		SourceID:   user.ID,
-		TargetID:   originSourceID,
+		TargetID:   originTargetID,
 		Damage:     1,
 		DamageType: model.MagicAttack,
 	})
@@ -805,7 +1133,7 @@ func handleMirrorPair(rt engineplayer.ChoiceRuntime, ctxData map[string]interfac
 		}
 	}
 
-	if target := rt.GetPlayers()[originSourceID]; target != nil {
+	if target := rt.GetPlayers()[originTargetID]; target != nil {
 		rt.Log(fmt.Sprintf("%s 发动 [镜花水月]：抵御原伤害，并改为对 %s 造成2次1点法术伤害", user.Name, target.Name))
 	}
 
@@ -924,10 +1252,6 @@ func handleWitherTarget(rt engineplayer.ChoiceRuntime, ctxData map[string]interf
 // ===========================================================================
 // Local helpers
 // ===========================================================================
-
-func formatCardInfo(card model.Card) string {
-	return promptfmt.FormatCardInfo(card)
-}
 
 // allPlayerIDs returns all player IDs in order.
 func allPlayerIDs(rt engineplayer.ChoiceRuntime) []string {

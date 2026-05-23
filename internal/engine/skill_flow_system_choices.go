@@ -5,6 +5,7 @@ package engine
 import (
 	"fmt"
 	"starcup-engine/internal/engine/core/runtimeutil"
+	playerrole "starcup-engine/internal/engine/player"
 	"strconv"
 
 	"starcup-engine/internal/model"
@@ -24,11 +25,15 @@ func (e *GameEngine) buildSystemChoicePrompt(choiceType, playerID string, player
 			PlayerID: playerID,
 			Message:  fmt.Sprintf("【虚弱状态】%s，你需要做出选择：", playerName),
 			Options: []model.PromptOption{
-				{ID: "0", Label: "跳过行动阶段 (移除虚弱)"},
-				{ID: "1", Label: "摸3张牌后继续行动阶段"},
+				{ID: "draw_continue", Label: "摸3张牌继续执行后续行动"},
+				{ID: "skip_turn", Label: "跳过此回合"},
 			},
 			Min: 1,
 			Max: 1,
+			Presentation: &model.PromptPresentation{
+				Kind:   model.PresentationBranchSelect,
+				Layout: "overlay",
+			},
 		}
 
 	case "buy_resource":
@@ -40,8 +45,9 @@ func (e *GameEngine) buildSystemChoicePrompt(choiceType, playerID string, player
 				{ID: "0", Label: "添加宝石"},
 				{ID: "1", Label: "添加水晶"},
 			},
-			Min: 1,
-			Max: 1,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 		}
 
 	case "heal":
@@ -61,12 +67,13 @@ func (e *GameEngine) buildSystemChoicePrompt(choiceType, playerID string, player
 			})
 		}
 		return &model.Prompt{
-			Type:     model.PromptConfirm,
-			PlayerID: playerID,
-			Message:  fmt.Sprintf("%s 受到伤害，可选择使用治疗抵消：", playerName),
-			Options:  options,
-			Min:      1,
-			Max:      1,
+			Type:         model.PromptConfirm,
+			PlayerID:     playerID,
+			Message:      fmt.Sprintf("%s 受到伤害，可选择使用治疗抵消：", playerName),
+			Options:      options,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 0},
 		}
 
 	case "basic_effect_pick":
@@ -90,12 +97,13 @@ func (e *GameEngine) buildSystemChoicePrompt(choiceType, playerID string, player
 		}
 		message := fmt.Sprintf("战绩区可提炼的星石（共 %d 个）：请选择 %d-%d 个提炼到能量区：", len(options), minSel, maxSel)
 		return &model.Prompt{
-			Type:     model.PromptChooseExtract,
-			PlayerID: playerID,
-			Message:  message,
-			Options:  options,
-			Min:      minSel,
-			Max:      maxSel,
+			Type:         model.PromptChooseExtract,
+			PlayerID:     playerID,
+			Message:      message,
+			Options:      options,
+			Min:          minSel,
+			Max:          maxSel,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, Layout: "extract", CardSource: "field"},
 		}
 	}
 
@@ -113,11 +121,6 @@ func (e *GameEngine) handleSystemWeakChoice(playerID string, selectionIndex int,
 
 	switch selectionIndex {
 	case 0:
-		e.Log(fmt.Sprintf("[Weak] %s 选择跳过行动阶段", player.Name))
-		player.TurnState.ActionPhaseSkippedThisTurn = true
-		ctxData["weak_next_stage"] = "turn_end"
-		return nil
-	case 1:
 		e.Log(fmt.Sprintf("[Weak] %s 选择摸3张牌后继续行动阶段", player.Name))
 		cards, newDeck, newDiscard := rules.DrawCards(e.State.Deck, e.State.DiscardPile, 3)
 		e.State.Deck = newDeck
@@ -125,11 +128,16 @@ func (e *GameEngine) handleSystemWeakChoice(playerID string, selectionIndex int,
 		player.Hand = append(player.Hand, cards...)
 		e.NotifyDrawCards(player.ID, 3, "weak_choice")
 
-		checkCtx := e.buildContext(player, nil, model.TimingActive, nil)
+		checkCtx := e.BuildContext(player, nil, model.TimingActionDuring, nil)
 		checkCtx.Flags["StayInTurn"] = true
-		e.checkHandLimit(player, checkCtx)
+		e.CheckHandLimitCtx(player, checkCtx)
 
 		ctxData["weak_next_stage"] = "action_start"
+		return nil
+	case 1:
+		e.Log(fmt.Sprintf("[Weak] %s 选择跳过此回合", player.Name))
+		player.TurnState.ActionPhaseSkippedThisTurn = true
+		ctxData["weak_next_stage"] = "turn_end"
 		return nil
 	default:
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
@@ -172,11 +180,19 @@ func (e *GameEngine) afterSystemWeakChoice(ctxData map[string]any) {
 }
 
 func (e *GameEngine) handleSystemHealChoice(selectionIndex int, ctxData map[string]interface{}) error {
-	damageIdx := runtimeutil.ToIntContextValue(ctxData["damage_index"])
-	if damageIdx < 0 || damageIdx >= len(e.State.PendingDamageQueue) {
-		return fmt.Errorf("伤害上下文不存在")
+	targetID, _ := ctxData["target_id"].(string)
+	if targetID == "" {
+		return fmt.Errorf("伤害上下文缺少 target_id")
 	}
-	pd := &e.State.PendingDamageQueue[damageIdx]
+
+	if len(e.State.PendingDamageQueue) == 0 {
+		return fmt.Errorf("伤害上下文不存在 (target_id=%s)", targetID)
+	}
+	pd := &e.State.PendingDamageQueue[0]
+	if pd.TargetID != targetID {
+		return fmt.Errorf("伤害上下文目标不匹配 (target_id=%s, queue_target_id=%s)", targetID, pd.TargetID)
+	}
+
 	target := e.State.Players[pd.TargetID]
 	if target == nil {
 		return fmt.Errorf("目标不存在")
@@ -191,6 +207,13 @@ func (e *GameEngine) handleSystemHealChoice(selectionIndex int, ctxData map[stri
 	if healToUse > pd.Damage {
 		healToUse = pd.Damage
 	}
+	e.dispatchSettlementRulebookTiming(model.TimingHealUse, target, e.State.Players[pd.SourceID], &model.EventContext{
+		Type:      model.EventHeal,
+		SourceID:  pd.SourceID,
+		TargetID:  pd.TargetID,
+		DamageVal: &healToUse,
+		Card:      pd.Card,
+	})
 	if healToUse > 0 {
 		target.Heal -= healToUse
 		pd.Damage -= healToUse
@@ -260,7 +283,7 @@ func buildExtractChoicePromptOptions(raw interface{}) []model.PromptOption {
 	return options
 }
 
-func (e *GameEngine) handleExtractChoiceSelections(playerID string, selections []int) error {
+func (e *GameEngine) HandleExtractChoiceSelections(playerID string, selections []int) error {
 	if e.State.PendingInterrupt == nil {
 		return fmt.Errorf("没有待处理的中断")
 	}
@@ -310,6 +333,11 @@ func (e *GameEngine) handleExtractChoiceSelections(playerID string, selections [
 		}
 	}
 
+	energyCap := e.getPlayerEnergyCap(player)
+	if extractedGems+extractedCrystals > playerrole.PlayerEnergyRoom(player, energyCap) {
+		return fmt.Errorf("能量空间不足，无法提炼")
+	}
+
 	if player.Camp == model.RedCamp {
 		if extractedGems > e.State.RedGems || extractedCrystals > e.State.RedCrystals {
 			return fmt.Errorf("战绩区星石不足")
@@ -324,10 +352,29 @@ func (e *GameEngine) handleExtractChoiceSelections(playerID string, selections [
 		e.State.BlueCrystals -= extractedCrystals
 	}
 
-	player.Gem += extractedGems
-	player.Crystal += extractedCrystals
+	gainedGems := playerrole.AddPlayerGemCapped(player, extractedGems, energyCap)
+	gainedCrystals := playerrole.AddPlayerCrystalCapped(player, extractedCrystals, energyCap)
 	e.Log(fmt.Sprintf("[Action] %s 提炼：从战绩区获得 %d 宝石 %d 水晶（当前能量: %d）",
-		player.Name, extractedGems, extractedCrystals, player.Gem+player.Crystal))
+		player.Name, gainedGems, gainedCrystals, player.Gem+player.Crystal))
 
+	return nil
+}
+
+func (e *GameEngine) cancelExtractChoice(playerID string) error {
+	e.PopInterrupt()
+	if p := e.State.Players[playerID]; p != nil {
+		// 提炼取消属于"行动未提交"，需要回滚预写入的行动收尾标记。
+		p.TurnState.LastActionType = ""
+		p.TurnState.LastActionCard = nil
+		p.TurnState.HasActed = false
+	}
+	if e.State.PendingInterrupt == nil {
+		e.enterActionExecutionStage()
+	}
+	if p := e.State.Players[playerID]; p != nil {
+		e.Log("[System] " + p.Name + " 取消了提炼操作")
+	} else {
+		e.Log("[System] " + playerID + " 取消了提炼操作")
+	}
 	return nil
 }

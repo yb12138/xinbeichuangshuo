@@ -1,4 +1,4 @@
-// gameflow: 技能候选收集与可用性判定（与旧 collectSkillsForTiming / isSkillStillUsable 对齐）。
+// gameflow: 技能候选收集与可用性判定。
 
 package skill
 
@@ -40,7 +40,7 @@ func (e *Eligibility) CollectCandidates(
 	var skillBatch []model.SkillDefinition
 
 	for _, sk := range player.Character.Skills {
-		if ctx != nil && ctx.Timing == model.TimingStartup {
+		if ctx != nil && ctx.Timing == model.TimingActionStart {
 			if sk.Type != model.SkillTypeStartup {
 				continue
 			}
@@ -62,8 +62,8 @@ func (e *Eligibility) CollectCandidates(
 			continue
 		}
 
-		// 可选响应技能在 TimingOnActionEnd 时延迟 CanUse 检查（让静默技能先执行更新状态）
-		if sk.ResponseType == model.ResponseOptional && timing == model.TimingOnActionEnd {
+		// 可选响应技能在 TimingActionEnd 时延迟 CanUse 检查（让静默技能先执行更新状态）
+		if sk.ResponseType == model.ResponseOptional && timing == model.TimingActionEnd {
 			// 只检查基本条件，不调用 handler.CanUse
 			if !CanPaySkillEnergyCost(player, sk.CostGem, sk.CostCrystal) {
 				continue
@@ -117,7 +117,7 @@ func (e *Eligibility) CollectCandidates(
 		skillBatch = append(skillBatch, sk)
 	}
 
-	if ctx != nil && ctx.Timing == model.TimingStartup {
+	if ctx != nil && ctx.Timing == model.TimingActionStart {
 		return skillBatch
 	}
 
@@ -153,7 +153,7 @@ func (e *Eligibility) CollectCandidates(
 }
 
 func skillMatchesTiming(skill model.SkillDefinition, timing model.FlowTiming) bool {
-	if timing == model.TimingStartup && skill.Type == model.SkillTypeStartup {
+	if timing == model.TimingActionStart && skill.Type == model.SkillTypeStartup {
 		return true
 	}
 	return skill.HasTiming(timing)

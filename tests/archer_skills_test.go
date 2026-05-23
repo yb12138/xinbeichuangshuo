@@ -42,13 +42,13 @@ func TestArcher_Skills(t *testing.T) {
 		initialHandP2 := len(p2.Hand)
 
 		// P1 攻击
-		action := model.PlayerAction{PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardIndex: 0}
+		action := model.PlayerAction{PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardID: testutils.PlayableCardID(t, game, "p1", 0)}
 		if err := game.HandleAction(action); err != nil {
 			t.Fatalf("P1 发起攻击失败: %v", err)
 		}
 
 		// P2 应战，反弹给 P1 的队友 P3
-		actionCounter := model.PlayerAction{PlayerID: "p2", Type: model.CmdRespond, ExtraArgs: []string{"counter"}, CardIndex: 0, TargetID: "p3"}
+		actionCounter := model.PlayerAction{PlayerID: "p2", Type: model.CmdRespond, ExtraArgs: []string{"counter"}, CardID: testutils.PlayableCardID(t, game, "p2", 0), TargetID: "p3"}
 		if err := game.HandleAction(actionCounter); err != nil {
 			t.Fatalf("P2 应战失败: %v", err)
 		}

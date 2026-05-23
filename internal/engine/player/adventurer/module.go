@@ -19,8 +19,8 @@ func RoleEntry() player.RoleEntry {
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
 		TimingHookSpecs: []player.TimingHookSpec{
-			{Timing: player.TimingOnSpecialActionOverride, Priority: 100, Hook: undergroundLawOverrideHook},
-			{Timing: player.TimingOnSpecialActionOverride, Priority: 200, Hook: extractOverrideHook},
+			{Timing: player.TimingSpecialActionOverride, Priority: 100, Hook: undergroundLawOverrideHook},
+			{Timing: player.TimingSpecialActionOverride, Priority: 200, Hook: extractOverrideHook},
 		},
 		SpecialActionHook: player.SpecialActionHookSpec{
 			BuyRewardOverride: func(p *model.Player, campStones int, maxStones int) player.BuyRewardResult {
@@ -62,6 +62,7 @@ func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 		"adventurer_extract_paradise_check": types.ChoiceRouteRole("adventurer"),
 		"adventurer_fraud_attack_element":   types.ChoiceRouteRole("adventurer"),
 		"adventurer_fraud_pick":             types.ChoiceRouteRole("adventurer"),
+		"adventurer_fraud_target":           types.ChoiceRouteRole("adventurer"),
 		"adventurer_paradise_pick":          types.ChoiceRouteRole("adventurer"),
 		"adventurer_steal_sky_mode":         types.ChoiceRouteRole("adventurer"),
 	}

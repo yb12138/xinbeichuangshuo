@@ -2,8 +2,8 @@
 
 package engine
 
-// rebuildTimingOnAttackDeclaredRegistry 根据当前已上场角色，重建必要的执行表。
-func (e *GameEngine) rebuildTimingOnAttackDeclaredRegistry() {
+// rebuildAttackDeclareRegistry 根据当前已上场角色，重建必要的执行表。
+func (e *GameEngine) rebuildAttackDeclareRegistry() {
 	if e == nil {
 		return
 	}
@@ -18,18 +18,4 @@ func (e *GameEngine) rebuildTimingOnAttackDeclaredRegistry() {
 	// 游戏启动钩子
 	e.gameStartAddPlayerHooks = []gameStartPlayerHook{bootstrapApplyRoleDefaults}
 	e.gameStartInitialDealHooks = []gameStartPlayerHook{bootstrapEnsureStarterRoleCards}
-}
-
-func (e *GameEngine) currentCharacterPresence() map[string]bool {
-	presence := map[string]bool{}
-	if e == nil || e.State == nil {
-		return presence
-	}
-	for _, player := range e.State.Players {
-		if player == nil || player.Character == nil || player.Character.ID == "" {
-			continue
-		}
-		presence[player.Character.ID] = true
-	}
-	return presence
 }

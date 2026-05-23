@@ -24,18 +24,16 @@ func (h *BerserkerFrenzyHandler) CanUse(ctx *model.Context) bool {
 	if info == nil || info.ActionType != "Attack" {
 		return false
 	}
-	if ctx.Timing == model.TimingOnHitCheck && !info.IsHit {
-		return false
-	}
-	return ctx.Timing == model.TimingOnDamageCalculated || ctx.Timing == model.TimingOnHitCheck
+	return ctx.DamageSourceDealPhase() || ctx.AttackHitPhase()
 }
 
 func (h *BerserkerFrenzyHandler) Execute(ctx *model.Context) error {
 	bonus := 0
-	switch ctx.Timing {
-	case model.TimingOnDamageCalculated:
+	sourceDealPhase := ctx.DamageSourceDealPhase()
+	switch {
+	case sourceDealPhase:
 		bonus = 1
-	case model.TimingOnHitCheck:
+	case ctx.AttackHitPhase():
 		if len(ctx.User.Hand) > 3 {
 			bonus = 1
 		}
@@ -46,7 +44,7 @@ func (h *BerserkerFrenzyHandler) Execute(ctx *model.Context) error {
 		return nil
 	}
 	*ctx.EventCtx.DamageVal += bonus
-	if ctx.Timing == model.TimingOnDamageCalculated {
+	if sourceDealPhase {
 		ctx.Game.NotifyActionStep(fmt.Sprintf("%s 的被动技【狂化】生效：本次攻击伤害+1", model.GetPlayerDisplayName(ctx.User)))
 		ctx.Game.Log(fmt.Sprintf("[Passive] %s 的【狂化】基础效果生效：伤害 +1", ctx.User.Name))
 	} else {
@@ -59,7 +57,7 @@ func (h *BerserkerFrenzyHandler) Execute(ctx *model.Context) error {
 type BerserkerTearHandler struct{ BaseHandler }
 
 func (h *BerserkerTearHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.Timing != model.TimingOnHitCheck || ctx.EventCtx == nil || ctx.EventCtx.AttackInfo == nil {
+	if ctx == nil || ctx.User == nil || !ctx.AttackHitPhase() || ctx.EventCtx == nil || ctx.EventCtx.AttackInfo == nil {
 		return false
 	}
 	// 2. [新增] 资源检查：必须至少有 1 颗宝石
@@ -67,7 +65,7 @@ func (h *BerserkerTearHandler) CanUse(ctx *model.Context) bool {
 		return false
 	}
 	info := ctx.EventCtx.AttackInfo
-	return info.ActionType == "Attack" && info.IsHit
+	return info.ActionType == "Attack"
 }
 
 func (h *BerserkerTearHandler) Execute(ctx *model.Context) error {
@@ -108,11 +106,11 @@ func (h *BloodRoarHandler) Execute(ctx *model.Context) error {
 type BloodBladeHandler struct{ BaseHandler }
 
 func (h *BloodBladeHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil || ctx.Target == nil || ctx.Timing != model.TimingOnHitCheck || ctx.EventCtx == nil || ctx.EventCtx.DamageVal == nil {
+	if ctx == nil || ctx.User == nil || ctx.Target == nil || !ctx.AttackHitPhase() || ctx.EventCtx == nil || ctx.EventCtx.DamageVal == nil {
 		return false
 	}
 	info := ctx.EventCtx.AttackInfo
-	if info == nil || info.ActionType != "Attack" || !info.IsHit || info.CounterInitiator != "" || ctx.EventCtx.Card == nil {
+	if info == nil || info.ActionType != "Attack" || info.CounterInitiator != "" || ctx.EventCtx.Card == nil {
 		return false
 	}
 	if ctx.User.Character == nil {

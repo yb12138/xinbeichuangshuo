@@ -17,8 +17,9 @@ func RoleEntry() player.RoleEntry {
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
 		TimingHookSpecs: []player.TimingHookSpec{
-			{Timing: player.TimingPostActionEnd, Priority: 300, Hook: postActionEndHook},
-			{Timing: player.TimingPostAttackHit, Priority: 300, Hook: postAttackHitHook},
+			{Timing: player.TimingAttackDeclareInterrupt, Priority: 250, Hook: attackRuneGainHook},
+			{Timing: player.TimingPostActionEnd, Priority: 300, Hook: postActionEndHook, RoleFilter: &player.HookRoleNone},
+			{Timing: player.TimingPostAttackHit, Priority: 300, Hook: postAttackHitHook, RoleFilter: &player.HookRoleNone},
 		},
 	}
 }
@@ -38,7 +39,6 @@ func ApplyDefaults(p *model.Player) {
 func SkillEntries() []player.SkillEntry {
 	return []player.SkillEntry{
 		{ID: "prayer_enter_form", Handler: &PrayerEnterFormHandler{}},
-		{ID: "prayer_rune_gain", Handler: &PrayerRuneGainHandler{}},
 		{ID: "prayer_radiant_faith", Handler: &PrayerRadiantFaithHandler{}},
 		{ID: "prayer_dark_curse", Handler: &PrayerDarkCurseHandler{}},
 		{ID: "prayer_power_blessing", Handler: &PrayerPowerBlessingHandler{}},

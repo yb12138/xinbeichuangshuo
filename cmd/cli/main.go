@@ -26,12 +26,11 @@ func (c *CLI) OnGameEvent(event model.GameEvent) {
 			fmt.Printf("[STATE] %s\n", event.Message)
 		}
 	case model.EventAskInput:
-		// 解析 Prompt 数据
-		if prompt, ok := event.Data.(*model.Prompt); ok {
-			printPrompt(prompt)
+		if event.Prompt != nil {
+			printPrompt(event.Prompt)
 			// 更新当前交互玩家，并在界面上醒目提示
-			c.CurrentInteractingPlayer = prompt.PlayerID
-			fmt.Printf("\n>>> 轮到玩家 [%s] 进行操作 <<<\n", prompt.PlayerID)
+			c.CurrentInteractingPlayer = event.Prompt.PlayerID
+			fmt.Printf("\n>>> 轮到玩家 [%s] 进行操作 <<<\n", event.Prompt.PlayerID)
 		} else {
 			fmt.Printf("[Prompt] %s\n", event.Message)
 		}
@@ -227,14 +226,16 @@ func parseInput(line string, game *engine.GameEngine, cli *CLI) (model.PlayerAct
 	case "atk": // atk <target> <idx>
 		action.Type = model.CmdAttack
 		if len(parts) < 3 {
-			return action, fmt.Errorf("用法: atk <target_id> <card_index>")
+			return action, fmt.Errorf("用法: atk <target_id> <hand_no>")
 		}
 		action.TargetID = parts[1]
 		idx, err := strconv.Atoi(parts[2])
 		if err != nil {
 			return action, fmt.Errorf("卡牌索引必须是数字")
 		}
-		action.CardIndex = idx - 1 // 转换为 0-based
+		if err := setActionCardIDFromPlayableIndex(&action, game, action.PlayerID, idx-1); err != nil {
+			return action, err
+		}
 
 	// === 2. 修复 响应指令映射 ===
 	case "take":
@@ -244,41 +245,43 @@ func parseInput(line string, game *engine.GameEngine, cli *CLI) (model.PlayerAct
 	case "defend":
 		action.Type = model.CmdRespond
 		action.ExtraArgs = []string{"defend"}
-		// defend <card_idx> (可选)
+		// defend <hand_no> (可选)
 		if len(parts) > 1 {
 			idx, err := strconv.Atoi(parts[1])
 			if err == nil {
-				action.CardIndex = idx - 1 // 转 0-based
-			} else {
-				action.CardIndex = -1 // 自动/默认
+				if err := setActionCardIDFromPlayableIndex(&action, game, action.PlayerID, idx-1); err != nil {
+					return action, err
+				}
 			}
-		} else {
-			action.CardIndex = -1
 		}
 
 	case "counter":
 		action.Type = model.CmdRespond
 		action.ExtraArgs = []string{"counter"}
-		// counter <target> <card_idx> (应战攻击)
-		// counter <card_idx> (魔弹传递)
+		// counter <target> <hand_no> (应战攻击)
+		// counter <hand_no> (魔弹传递)
 		if len(parts) == 2 {
-			// counter <card_idx>
+			// counter <hand_no>
 			idx, err := strconv.Atoi(parts[1])
 			if err != nil {
 				return action, fmt.Errorf("卡牌索引必须是数字")
 			}
-			action.CardIndex = idx - 1
+			if err := setActionCardIDFromPlayableIndex(&action, game, action.PlayerID, idx-1); err != nil {
+				return action, err
+			}
 			action.TargetID = "" // 让后端逻辑决定是否需要 TargetID
 		} else if len(parts) >= 3 {
-			// counter <target> <card_idx>
+			// counter <target> <hand_no>
 			action.TargetID = parts[1]
 			idx, err := strconv.Atoi(parts[2])
 			if err != nil {
 				return action, fmt.Errorf("卡牌索引必须是数字")
 			}
-			action.CardIndex = idx - 1
+			if err := setActionCardIDFromPlayableIndex(&action, game, action.PlayerID, idx-1); err != nil {
+				return action, err
+			}
 		} else {
-			return action, fmt.Errorf("用法: counter [target_id] <card_index>")
+			return action, fmt.Errorf("用法: counter [target_id] <hand_no>")
 		}
 
 	case "cheat": // cheat <player_id> <card_name> [count]
@@ -292,14 +295,16 @@ func parseInput(line string, game *engine.GameEngine, cli *CLI) (model.PlayerAct
 	case "magic": // magic <target> <idx>
 		action.Type = model.CmdMagic
 		if len(parts) < 3 {
-			return action, fmt.Errorf("用法: magic <target_id> <card_index>")
+			return action, fmt.Errorf("用法: magic <target_id> <hand_no>")
 		}
 		action.TargetID = parts[1]
 		idx, err := strconv.Atoi(parts[2])
 		if err != nil {
 			return action, fmt.Errorf("卡牌索引必须是数字")
 		}
-		action.CardIndex = idx - 1
+		if err := setActionCardIDFromPlayableIndex(&action, game, action.PlayerID, idx-1); err != nil {
+			return action, err
+		}
 	case "confirm":
 		action.Type = model.CmdConfirm
 	case "cancel", "skip":
@@ -358,6 +363,42 @@ func parseInput(line string, game *engine.GameEngine, cli *CLI) (model.PlayerAct
 	}
 
 	return action, nil
+}
+
+func setActionCardIDFromPlayableIndex(action *model.PlayerAction, game *engine.GameEngine, playerID string, index int) error {
+	cardID, err := playableCardIDAtIndex(game, playerID, index)
+	if err != nil {
+		return err
+	}
+	action.CardID = cardID
+	return nil
+}
+
+func playableCardIDAtIndex(game *engine.GameEngine, playerID string, index int) (string, error) {
+	if game == nil || game.State == nil {
+		return "", fmt.Errorf("游戏状态不可用")
+	}
+	player := game.State.Players[playerID]
+	if player == nil {
+		return "", fmt.Errorf("未找到玩家: %s", playerID)
+	}
+	if index < 0 {
+		return "", fmt.Errorf("卡牌索引必须从 1 开始")
+	}
+	if index < len(player.Hand) {
+		return player.Hand[index].ID, nil
+	}
+	offset := index - len(player.Hand)
+	for _, fc := range player.Field {
+		if fc == nil || fc.Mode != model.FieldCover || fc.Effect != model.EffectElfBlessing {
+			continue
+		}
+		if offset == 0 {
+			return fc.Card.ID, nil
+		}
+		offset--
+	}
+	return "", fmt.Errorf("卡牌索引超出可用卡牌范围: %d", index+1)
 }
 
 func printStatus(g *engine.GameEngine) {

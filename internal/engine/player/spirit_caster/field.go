@@ -20,12 +20,15 @@ func PowerCount(p *model.Player, element model.Element) int {
 	return player.CoverCountByEffectAndElement(p, model.EffectSpiritCasterPower, element)
 }
 
-// SyncPowerToken 将灵力数量同步到玩家 Token（已弃用：派生值实时计算）。
+// SyncPowerToken 清理旧版灵力 Token 镜像；妖力数量由场上盖牌实时派生。
 func SyncPowerToken(p *model.Player) {
-	// 不再同步到 Tokens，服务端 buildStateForPlayer 实时计算 PowerCount
+	if p == nil || p.Tokens == nil {
+		return
+	}
+	delete(p.Tokens, "sc_power_count")
 }
 
-// AddPowerCard 将卡牌作为灵力盖牌加入玩家场区，并同步 Token。
+// AddPowerCard 将卡牌作为灵力盖牌加入玩家场区。
 func AddPowerCard(p *model.Player, card model.Card) {
 	p.AddFieldCard(&model.FieldCard{
 		Card:     card,

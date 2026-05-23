@@ -10,9 +10,10 @@ import (
 
 // Orchestrator 绑定宿主与规则表。
 type Orchestrator struct {
-	engine      EngineInterface
-	actionRules *ActionRules
-	promptRules *PromptRules
+	engine           EngineInterface
+	actionRules      *ActionRules
+	promptRules      *PromptRules
+	deferredAfterPop []func(EngineInterface)
 }
 
 // NewOrchestrator 创建编排器。
@@ -56,10 +57,10 @@ func (o *Orchestrator) DispatchAction(act model.PlayerAction) error {
 		return err
 	}
 	if result.Consumed && before != nil && st.PendingInterrupt == before {
-		o.PopInterrupt()
-		if result.AfterPop != nil && st.PendingInterrupt == nil {
-			result.AfterPop(o.engine)
+		if result.AfterPop != nil {
+			o.deferredAfterPop = append(o.deferredAfterPop, result.AfterPop)
 		}
+		o.PopInterrupt()
 	}
 	return nil
 }
@@ -90,7 +91,7 @@ func (o *Orchestrator) PushInterrupt(interrupt *model.Interrupt) {
 		return
 	}
 	if st.PendingInterrupt == nil {
-		st.PendingInterrupt = interrupt
+		st.SetPendingInterrupt(interrupt)
 		o.engine.ApplyInterruptPhase(interrupt)
 		choiceType := ""
 		if data, ok := interrupt.Context.(map[string]interface{}); ok {
@@ -106,8 +107,29 @@ func (o *Orchestrator) PushInterrupt(interrupt *model.Interrupt) {
 		o.engine.NotifyInterruptPrompt()
 		return
 	}
-	st.InterruptQueue = append(st.InterruptQueue, interrupt)
+	st.EnqueueInterrupt(interrupt)
 	o.engine.Log(fmt.Sprintf("新中断入队等待: %s (Player: %s)", interrupt.Type, interrupt.PlayerID))
+}
+
+// RemoveQueuedInterruptByPredicate 从中断队列中移除所有满足 predicate 的中断。
+func (o *Orchestrator) RemoveQueuedInterruptByPredicate(predicate func(*model.Interrupt) bool) {
+	if o == nil || o.engine == nil || predicate == nil {
+		return
+	}
+	st := o.engine.GetState()
+	if st == nil || len(st.InterruptQueue) == 0 {
+		return
+	}
+	filtered := make([]*model.Interrupt, 0, len(st.InterruptQueue))
+	for _, intr := range st.InterruptQueue {
+		if !predicate(intr) {
+			filtered = append(filtered, intr)
+		}
+	}
+	if len(filtered) != len(st.InterruptQueue) {
+		st.InterruptQueue = filtered
+		st.TouchInterruptRevision()
+	}
 }
 
 // PopInterrupt 弹出当前中断；若队列非空则激活下一个并同步阶段。
@@ -120,11 +142,12 @@ func (o *Orchestrator) PopInterrupt() {
 		return
 	}
 	popped := st.PendingInterrupt
-	st.PendingInterrupt = nil
+	st.SetPendingInterrupt(nil)
 	if len(st.InterruptQueue) > 0 {
 		nextInterrupt := st.InterruptQueue[0]
 		st.InterruptQueue = st.InterruptQueue[1:]
-		st.PendingInterrupt = nextInterrupt
+		st.TouchInterruptRevision()
+		st.SetPendingInterrupt(nextInterrupt)
 		o.engine.Log(fmt.Sprintf("[System] 队列弹出中断: %s", nextInterrupt.Type))
 		o.engine.ApplyInterruptPhase(nextInterrupt)
 		o.engine.NotifyInterruptPrompt()
@@ -132,4 +155,19 @@ func (o *Orchestrator) PopInterrupt() {
 		o.engine.Log("[System] 所有中断处理完毕，恢复主流程")
 	}
 	o.engine.ReconcileSubflowAfterInterruptPop(popped)
+	o.drainDeferredAfterPop()
+}
+
+func (o *Orchestrator) drainDeferredAfterPop() {
+	if o == nil || o.engine == nil {
+		return
+	}
+	st := o.engine.GetState()
+	for st != nil && st.PendingInterrupt == nil && len(o.deferredAfterPop) > 0 {
+		after := o.deferredAfterPop[0]
+		o.deferredAfterPop = o.deferredAfterPop[1:]
+		if after != nil {
+			after(o.engine)
+		}
+	}
 }

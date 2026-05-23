@@ -20,8 +20,8 @@ func RoleEntry() player.RoleEntry {
 			model.FlowContinuationAfterDiscard: handleMagicBowAfterDiscard,
 		},
 		TimingHookSpecs: []player.TimingHookSpec{
-			{Timing: player.TimingOnAttackMiss, Priority: 300, Hook: attackMissHook},
-			{Timing: player.TimingOnAttackTargetCtx, Priority: 100, Hook: attackTargetCtxHook},
+			{Timing: player.TimingAttackMiss, Priority: 300, Hook: attackMissHook},
+			{Timing: player.TimingAttackSelectTarget, Priority: 100, Hook: attackTargetCtxHook},
 			{Timing: player.TimingPostAttackHit, Priority: 600, Hook: postAttackHitHook},
 		},
 		SkillUsabilityCheckers: map[string]player.SkillUsabilityChecker{
@@ -33,8 +33,14 @@ func RoleEntry() player.RoleEntry {
 // ChoiceSpecs 导出角色 choice 声明。
 func ChoiceSpecs() []player.ChoiceSpec {
 	return []player.ChoiceSpec{
-		{ChoiceType: "mb_charge_place_cards", SequentialRemaining: player.ChoiceRemainingFromSelectionKey("need_count")},
-		{ChoiceType: "mb_demon_eye_charge_card", SequentialRemaining: player.ChoiceRemainingFromSelectionKeyFloor("need_count", 1)},
+		{
+			ChoiceType:        "mb_charge_place_cards",
+			HandleMultiSelect: handleChargePlaceCardsMultiSelect,
+		},
+		{
+			ChoiceType:          "mb_demon_eye_charge_card",
+			SequentialRemaining: player.ChoiceRemainingFromFlowSelectionCount("need", "cards"),
+		},
 	}
 }
 
@@ -61,10 +67,7 @@ func SkillEntries() []player.SkillEntry {
 			Handler: &MagicBowDemonEyeHandler{},
 			Policy: types.SkillPolicy{
 				TargetRules: types.TargetRuleSet{
-					Count: types.TargetCountRule{Min: 0, Max: 1, Err: "魔眼需要且仅能指定1名其他角色"},
-					Slots: []types.TargetSlotRule{
-						{Index: 0, Self: types.TargetSelfOther, Err: "魔眼不能以自己为目标"},
-					},
+					Count: types.TargetCountRule{Min: 0, Max: 0},
 				},
 			},
 		},
@@ -74,15 +77,21 @@ func SkillEntries() []player.SkillEntry {
 // ChoiceRouteSpecs 导出角色 choice 路由声明。
 func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 	return map[string]types.ChoiceRouteSpec{
-		"mb_charge_discard_pick":    types.ChoiceRouteRole("magic_bow"),
-		"mb_charge_draw_x":          types.ChoiceRouteRole("magic_bow"),
-		"mb_charge_place_cards":     types.ChoiceRouteRole("magic_bow"),
-		"mb_charge_place_count":     types.ChoiceRouteRole("magic_bow"),
-		"mb_demon_eye_charge_card":  types.ChoiceRouteRole("magic_bow"),
-		"mb_demon_eye_pick":         types.ChoiceRouteRole("magic_bow"),
-		"mb_demon_eye_target":       types.ChoiceRouteRole("magic_bow"),
-		"mb_multi_shot_target":      types.ChoiceRouteRole("magic_bow"),
-		"mb_thunder_scatter_extra":  types.ChoiceRouteRole("magic_bow"),
-		"mb_thunder_scatter_target": types.ChoiceRouteRole("magic_bow"),
+		"mb_charge_discard_pick":         types.ChoiceRouteRole("magic_bow"),
+		"mb_charge_draw_x":               types.ChoiceRouteRole("magic_bow"),
+		"mb_charge_place_cards":          types.ChoiceRouteRole("magic_bow"),
+		"mb_charge_place_count":          types.ChoiceRouteRole("magic_bow"),
+		"mb_demon_eye_charge_card":       types.ChoiceRouteRole("magic_bow"),
+		"mb_demon_eye_mode":              types.ChoiceRouteRole("magic_bow"),
+		"mb_demon_eye_pick":              types.ChoiceRouteRole("magic_bow"),
+		"mb_demon_eye_target":            types.ChoiceRouteRole("magic_bow"),
+		"mb_magic_pierce_charge":         types.ChoiceRouteRole("magic_bow"),
+		"mb_magic_pierce_hit_bonus":      types.ChoiceRouteRole("magic_bow"),
+		"mb_magic_pierce_hit_charge":     types.ChoiceRouteRole("magic_bow"),
+		"mb_multi_shot_charge":           types.ChoiceRouteRole("magic_bow"),
+		"mb_multi_shot_target":           types.ChoiceRouteRole("magic_bow"),
+		"mb_thunder_scatter_base_charge": types.ChoiceRouteRole("magic_bow"),
+		"mb_thunder_scatter_extra":       types.ChoiceRouteRole("magic_bow"),
+		"mb_thunder_scatter_target":      types.ChoiceRouteRole("magic_bow"),
 	}
 }

@@ -10,29 +10,29 @@ import (
 
 // ---------- 攻击目标上下文 / 状态重置 / 预战斗规则 ----------
 
-// recordTimingOnAttackDeclaredTargetContext 在攻击宣言时写入目标上下文。
-func (e *GameEngine) recordTimingOnAttackDeclaredTargetContext(player *model.Player, targetID string) {
+// recordAttackDeclareTargetContext 在攻击宣言时写入目标上下文。
+func (e *GameEngine) recordAttackDeclareTargetContext(player *model.Player, targetID string) {
 	if player == nil {
 		return
 	}
-	e.dispatchAllRoleTimingHooks(engineplayer.TimingOnAttackTargetCtx, engineplayer.TimingHookContext{
+	e.dispatchAllRoleTimingHooks(engineplayer.TimingAttackSelectTarget, engineplayer.TimingHookContext{
 		SourceID: player.ID,
 		TargetID: targetID,
 	})
 }
 
-// resetTimingOnAttackDeclaredState 在攻击宣言时清理一次性状态。
-func (e *GameEngine) resetTimingOnAttackDeclaredState(player *model.Player) {
+// resetAttackDeclareState 在攻击宣言时清理一次性状态。
+func (e *GameEngine) resetAttackDeclareState(player *model.Player) {
 	if player == nil {
 		return
 	}
-	e.dispatchAllRoleTimingHooks(engineplayer.TimingOnAttackStateReset, engineplayer.TimingHookContext{
+	e.dispatchAllRoleTimingHooks(engineplayer.TimingAttackStateReset, engineplayer.TimingHookContext{
 		SourceID: player.ID,
 	})
 }
 
-// applyTimingOnAttackDeclaredPreCombatRules 在进入战斗交互前应用攻击劫持策略。
-func (e *GameEngine) applyTimingOnAttackDeclaredPreCombatRules(player *model.Player, target *model.Player, currentAction *model.QueuedAction, eventCtx *model.EventContext) {
+// applyAttackDeclarePreCombatRules 在进入战斗交互前应用攻击劫持策略。
+func (e *GameEngine) applyAttackDeclarePreCombatRules(player *model.Player, target *model.Player, currentAction *model.QueuedAction, eventCtx *model.EventContext) {
 	applyCombatPolicyAttackGating(nil, player, nil, currentAction, eventCtx)
 	applyDarkElementNoCounterRule(nil, nil, nil, currentAction, eventCtx)
 	if player != nil && eventCtx != nil && eventCtx.AttackInfo != nil {
@@ -44,7 +44,7 @@ func (e *GameEngine) applyTimingOnAttackDeclaredPreCombatRules(player *model.Pla
 		if target != nil {
 			tid = target.ID
 		}
-		e.dispatchAllRoleTimingHooks(engineplayer.TimingOnAttackGating, engineplayer.TimingHookContext{
+		e.dispatchAllRoleTimingHooks(engineplayer.TimingAttackNoResponse, engineplayer.TimingHookContext{
 			SourceID:   player.ID,
 			TargetID:   tid,
 			Card:       card,
@@ -77,13 +77,13 @@ func applyDarkElementNoCounterRule(_ *GameEngine, _ *model.Player, _ *model.Play
 
 // ---------- 攻击卡牌变换 ----------
 
-// applyTimingOnAttackDeclaredCardTransforms 在攻击宣言时按固定顺序应用卡面变换规则。
-func (e *GameEngine) applyTimingOnAttackDeclaredCardTransforms(player *model.Player, card model.Card) model.Card {
+// applyAttackModifyCardTransforms 在攻击宣言时按固定顺序应用卡面变换规则。
+func (e *GameEngine) applyAttackModifyCardTransforms(player *model.Player, card model.Card) model.Card {
 	ctx := engineplayer.TimingHookContext{
 		Player:      player,
 		CounterCard: &card,
 	}
-	result := e.dispatchRoleTimingHook(engineplayer.TimingOnAttackCardTransform, ctx)
+	result := e.dispatchRoleTimingHook(engineplayer.TimingAttackModifyCard, ctx)
 	if result.Handled && result.Card.Name != "" {
 		return result.Card
 	}
@@ -92,15 +92,15 @@ func (e *GameEngine) applyTimingOnAttackDeclaredCardTransforms(player *model.Pla
 
 // ---------- 攻击被动增伤（原 attack_passive_runtime_hooks.go） ----------
 
-// applyTimingOnDamageCalculatedAttackPassiveModifiers 在伤害计算时按固定顺序应用攻击方被动修正。
-func (e *GameEngine) applyTimingOnDamageCalculatedAttackPassiveModifiers(attacker *model.Player, target *model.Player, action model.Action, baseDamage int) int {
+// applyDamageSourceDealAttackModifiers 在伤害计算时按固定顺序应用攻击方被动修正。
+func (e *GameEngine) applyDamageSourceDealAttackModifiers(attacker *model.Player, target *model.Player, action model.Action, baseDamage int) int {
 	damage := baseDamage
 	if attacker != nil {
 		var targetID string
 		if target != nil {
 			targetID = target.ID
 		}
-		result := e.dispatchAllRoleTimingHooks(engineplayer.TimingOnDamageCalculate, engineplayer.TimingHookContext{
+		result := e.dispatchAllRoleTimingHooks(engineplayer.TimingDamageSourceDeal, engineplayer.TimingHookContext{
 			SourceID:         attacker.ID,
 			TargetID:         targetID,
 			ActionType:       action.Type,

@@ -67,7 +67,7 @@ func (e *GameEngine) checkPlayerCannotAct(player *model.Player) (bool, string) {
 // skipExtraAction 跳过额外行动。
 func (e *GameEngine) skipExtraAction(player *model.Player) {
 	constraintInfo := e.buildConstraintInfo(player.TurnState.CurrentExtraAction, player.TurnState.CurrentExtraElement)
-	e.beginActionSummary("cannot_act", player.ID, "跳过额外行动", nil)
+	e.BeginActionSummary("cannot_act", player.ID, "跳过额外行动", nil)
 	e.Log(fmt.Sprintf("[Turn] %s 宣告【无法行动】，跳过本次额外行动%s", player.Name, constraintInfo))
 	player.TurnState.CurrentExtraAction = ""
 	player.TurnState.CurrentExtraElement = nil
@@ -76,7 +76,7 @@ func (e *GameEngine) skipExtraAction(player *model.Player) {
 
 // executeCannotActFlow 执行无法行动流程（展示、弃牌、重摸）。
 func (e *GameEngine) executeCannotActFlow(player *model.Player) {
-	e.beginActionSummary("cannot_act", player.ID, "无法行动", nil)
+	e.BeginActionSummary("cannot_act", player.ID, "无法行动", nil)
 	handCount := len(player.Hand)
 
 	if handCount == 0 {

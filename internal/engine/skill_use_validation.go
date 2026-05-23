@@ -18,14 +18,17 @@ func (e *GameEngine) maybeRequestSkillDiscardSelection(use *skillUseRequest) (bo
 		return false, fmt.Errorf("手牌不足：发动 [%s] 需要弃置 %d 张牌", use.skillDef.Title, use.requiredDiscards)
 	}
 
-	e.State.PendingInterrupt = newDiscardChoiceInterrupt(use.player.ID, map[string]interface{}{
-		"discard_count": use.requiredDiscards,
-		"skill_id":      use.skillID,
-		"target_ids":    use.targetIDs,
-		"resume_phase":  e.currentChoiceResumePoint(),
+	intr := newDiscardChoiceInterrupt(use.player.ID, map[string]interface{}{
+		"discard_count":   use.requiredDiscards,
+		"discard_reason":  discardReasonSkillCost,
+		"discard_type":    use.skillDef.DiscardType,
+		"discard_element": use.skillDef.DiscardElement,
+		"skill_id":        use.skillID,
+		"target_ids":      use.targetIDs,
+		"resume_phase":    e.CurrentChoiceResumePoint(),
 	})
-	e.State.PendingInterrupt.SkillIDs = []string{use.skillID}
-	e.syncGamePhaseWithInterrupt(e.State.PendingInterrupt)
+	intr.SkillIDs = []string{use.skillID}
+	e.PushInterrupt(intr)
 	e.Log(fmt.Sprintf("%s 请选择用于发动 [%s] 的卡牌", use.player.Name, use.skillDef.Title))
 	return true, nil
 }
@@ -85,16 +88,8 @@ func (e *GameEngine) validateSkillDiscardSelection(use *skillUseRequest) error {
 		if use.player.Character == nil || use.player.Character.ID == "" {
 			return fmt.Errorf("角色信息缺失，无法校验独有牌")
 		}
-		if use.policy.ManualExclusiveCard {
-			if !use.player.HasExclusiveCard(use.player.Character.ID, use.skillDef.Title) {
-				return fmt.Errorf("未找到技能 [%s] 对应的专属技能卡", use.skillDef.Title)
-			}
-		} else {
-			card, ok := use.player.ConsumeExclusiveCard(use.player.Character.ID, use.skillDef.Title)
-			if !ok {
-				return fmt.Errorf("未找到技能 [%s] 对应的专属技能卡", use.skillDef.Title)
-			}
-			use.consumedExclusiveCard = &card
+		if !use.player.HasExclusiveCard(use.player.Character.ID, use.skillDef.Title) {
+			return fmt.Errorf("未找到技能 [%s] 对应的专属技能卡", use.skillDef.Title)
 		}
 	}
 
@@ -104,11 +99,11 @@ func (e *GameEngine) validateSkillDiscardSelection(use *skillUseRequest) error {
 func (e *GameEngine) validateSkillActivation(use *skillUseRequest) error {
 	switch use.skillDef.Type {
 	case model.SkillTypeStartup:
-		if !e.isStartupWindow() {
+		if !e.IsStartupWindow() {
 			return fmt.Errorf("startup skills can only be used during the startup skill window")
 		}
 	case model.SkillTypeAction:
-		if !e.isActionSelectionWindow() {
+		if !e.IsActionSelectionWindow() {
 			return fmt.Errorf("action skills can only be used during action phase")
 		}
 	case model.SkillTypeResponse:

@@ -13,8 +13,8 @@ const (
 	timingOnGameStartInitialDeal
 )
 
-// runTimingOnGameStartHooks 统一处理 TimingOnGameStart 阶段规则。
-func (e *GameEngine) runTimingOnGameStartHooks(player *model.Player, stage timingOnGameStartStage) bool {
+// runTimingGameStartHooks 统一处理 TimingGameStart 阶段规则。
+func (e *GameEngine) runTimingGameStartHooks(player *model.Player, stage timingOnGameStartStage) bool {
 	switch stage {
 	case timingOnGameStartAddPlayer:
 		for _, hook := range e.gameStartAddPlayerHooks {
@@ -25,19 +25,19 @@ func (e *GameEngine) runTimingOnGameStartHooks(player *model.Player, stage timin
 			hook(e, player)
 		}
 	default:
-		panic("unregistered TimingOnGameStart stage")
+		panic("unregistered TimingGameStart stage")
 	}
 	return false
 }
 
 // runPlayerAddBootstrapTiming 在玩家入场时执行初始化规则。
 func (e *GameEngine) runPlayerAddBootstrapTiming(player *model.Player) {
-	e.runTimingOnGameStartHooks(player, timingOnGameStartAddPlayer)
+	e.runTimingGameStartHooks(player, timingOnGameStartAddPlayer)
 }
 
 // runPlayerGameStartBootstrapTiming 在游戏开局发牌后执行开局规则。
 func (e *GameEngine) runPlayerGameStartBootstrapTiming(player *model.Player) {
-	e.runTimingOnGameStartHooks(player, timingOnGameStartInitialDeal)
+	e.runTimingGameStartHooks(player, timingOnGameStartInitialDeal)
 }
 
 func bootstrapApplyRoleDefaults(e *GameEngine, player *model.Player) {

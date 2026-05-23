@@ -33,33 +33,13 @@ const (
 	SubflowDiscardSelection Subflow = "DiscardSelection"
 )
 
-type FlowTiming string
+// Timing is the canonical rule timing identifier used by both skill dispatch
+// and role timing hooks.
+type Timing string
+
+// FlowTiming is kept as a compatibility alias for existing skill flow code.
+type FlowTiming = Timing
 
 const (
-	TimingUnknown                FlowTiming = ""
-	TimingOnGameStart            FlowTiming = "TimingOnGameStart"
-	TimingOnCampChanged          FlowTiming = "TimingOnCampChanged"
-	TimingActive                 FlowTiming = "TimingActive"
-	TimingStartup                FlowTiming = "TimingStartup"
-	TimingOnTurnStart            FlowTiming = "TimingOnTurnStart"
-	TimingOnBeforeAction         FlowTiming = "TimingOnBeforeAction"
-	TimingBeforeActionExecute    FlowTiming = "TimingBeforeActionExecute"
-	TimingOnActionEnd            FlowTiming = "TimingOnActionEnd"
-	TimingOnSkillExecuted        FlowTiming = "TimingOnSkillExecuted"
-	TimingOnAttackDeclared       FlowTiming = "TimingOnAttackDeclared"
-	TimingOnMagicDeclared        FlowTiming = "TimingOnMagicDeclared"
-	TimingOnHitCheck             FlowTiming = "TimingOnHitCheck"
-	TimingOnDamageCalculated     FlowTiming = "TimingOnDamageCalculated"
-	TimingOnDamageApplied        FlowTiming = "TimingOnDamageApplied"
-	TimingOnDamageTaken          FlowTiming = "TimingOnDamageTaken"
-	TimingBeforeMoraleLoss       FlowTiming = "TimingBeforeMoraleLoss"
-	TimingBeforeCardDrawn        FlowTiming = "TimingBeforeCardDrawn"
-	TimingOnCardDrawn            FlowTiming = "TimingOnCardDrawn"
-	TimingOnCardDiscarded        FlowTiming = "TimingOnCardDiscarded"
-	TimingOnCardPlayedOrRevealed FlowTiming = "TimingOnCardPlayedOrRevealed"
-	TimingOnHealOverflow         FlowTiming = "TimingOnHealOverflow"
-	TimingOnFieldMarkChanged     FlowTiming = "TimingOnFieldMarkChanged"
-	TimingOnOrientationChanged   FlowTiming = "TimingOnOrientationChanged"
-	TimingOnTurnEnd              FlowTiming = "TimingOnTurnEnd"
+	TimingUnknown FlowTiming = ""
 )
-

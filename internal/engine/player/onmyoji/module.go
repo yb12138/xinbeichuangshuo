@@ -20,10 +20,10 @@ func RoleEntry() player.RoleEntry {
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
 		TimingHookSpecs: []player.TimingHookSpec{
-			{Timing: player.TimingOnTurnEnd, Priority: 100, Hook: turnEndDarkRitualHook},
-			{Timing: player.TimingOnCombatInteraction, Priority: 100, Hook: combatInteractionTimingHook},
-			{Timing: player.TimingOnCounterElementCheck, Priority: 100, Hook: factionElementHook},
-			{Timing: player.TimingOnCounterResolve, Priority: 100, Hook: factionResolveHook},
+			{Timing: player.TimingTurnEndPreExtra, Priority: 100, Hook: turnEndDarkRitualHook},
+			{Timing: player.TimingCombatInteraction, Priority: 100, Hook: combatInteractionTimingHook},
+			{Timing: player.TimingCounterElementCheck, Priority: 100, Hook: factionElementHook},
+			{Timing: player.TimingCounterResolve, Priority: 100, Hook: factionResolveHook},
 		},
 		SkillUsabilityCheckers: map[string]player.SkillUsabilityChecker{
 			"onmyoji_shikigami_descend": CheckShikigamiDescendUsability,
@@ -72,10 +72,7 @@ func SkillEntries() []player.SkillEntry {
 			Handler: &OnmyojiLifeBarrierHandler{},
 			Policy: types.SkillPolicy{
 				TargetRules: types.TargetRuleSet{
-					Count: types.TargetCountRule{Min: 0, Max: 1, Err: "生命结界需要且仅能指定1名其他队友"},
-					Slots: []types.TargetSlotRule{
-						{Index: 0, Camp: types.TargetCampAlly, Self: types.TargetSelfOther, Err: "生命结界目标必须是其他队友"},
-					},
+					Count: types.TargetCountRule{Min: 0, Max: 0},
 				},
 			},
 		},
@@ -85,9 +82,9 @@ func SkillEntries() []player.SkillEntry {
 // ChoiceRouteSpecs 导出角色 choice 路由声明。
 func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 	return map[string]types.ChoiceRouteSpec{
-		"onmyoji_binding_card":                types.ChoiceRouteRole("onmyoji"),
-		"onmyoji_binding_confirm":             types.ChoiceRouteRole("onmyoji"),
-		"onmyoji_binding_counter_target":      types.ChoiceRouteRole("onmyoji"),
+		"onmyoji_binding_card":                types.ChoiceRouteRoleWithPhaseSync("onmyoji", string(player.InterruptPhaseSyncResponseWindow)),
+		"onmyoji_binding_confirm":             types.ChoiceRouteRoleWithPhaseSync("onmyoji", string(player.InterruptPhaseSyncResponseWindow)),
+		"onmyoji_binding_counter_target":      types.ChoiceRouteRoleWithPhaseSync("onmyoji", string(player.InterruptPhaseSyncResponseWindow)),
 		"onmyoji_binding_pick":                types.ChoiceRouteRole("onmyoji"),
 		"onmyoji_dark_ritual_pick":            types.ChoiceRouteRole("onmyoji"),
 		"onmyoji_dark_ritual_target":          types.ChoiceRouteRole("onmyoji"),
@@ -97,9 +94,9 @@ func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 		"onmyoji_life_barrier_support_target": types.ChoiceRouteRole("onmyoji"),
 		"onmyoji_shikigami_pick":              types.ChoiceRouteRole("onmyoji"),
 		"onmyoji_shikigami_shift_pick":        types.ChoiceRouteRole("onmyoji"),
-		"onmyoji_yinyang_card":                types.ChoiceRouteRole("onmyoji"),
-		"onmyoji_yinyang_confirm":             types.ChoiceRouteRole("onmyoji"),
-		"onmyoji_yinyang_counter_target":      types.ChoiceRouteRole("onmyoji"),
+		"onmyoji_yinyang_card":                types.ChoiceRouteRoleWithPhaseSync("onmyoji", string(player.InterruptPhaseSyncResponseWindow)),
+		"onmyoji_yinyang_confirm":             types.ChoiceRouteRoleWithPhaseSync("onmyoji", string(player.InterruptPhaseSyncResponseWindow)),
+		"onmyoji_yinyang_counter_target":      types.ChoiceRouteRoleWithPhaseSync("onmyoji", string(player.InterruptPhaseSyncResponseWindow)),
 		"onmyoji_yinyang_shift_pick":          types.ChoiceRouteRole("onmyoji"),
 	}
 }

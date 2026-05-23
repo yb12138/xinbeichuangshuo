@@ -34,19 +34,21 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		for _, mode := range modeOrder {
 			switch mode {
 			case "y2b":
-				options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", len(options)), Label: "黄魂 -> 蓝魂（转换1点）"})
+				options = append(options, model.PromptOption{ID: "yellow_to_blue", Label: "黄色灵魂转蓝色灵魂", ButtonLabel: "黄色灵魂转蓝色灵魂"})
 			case "b2y":
-				options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", len(options)), Label: "蓝魂 -> 黄魂（转换1点）"})
+				options = append(options, model.PromptOption{ID: "blue_to_yellow", Label: "蓝色灵魂转黄色灵魂", ButtonLabel: "蓝色灵魂转黄色灵魂"})
 			}
 		}
+		options = append(options, model.PromptOption{ID: "cancel", Label: "取消", ButtonLabel: "取消"})
 		return &model.Prompt{
-			Type:       model.PromptConfirm,
-			PlayerID:   playerID,
-			ChoiceType: choiceType,
-			Message:    "【灵魂转换】请选择转换方向：",
-			Options:    options,
-			Min:        1,
-			Max:        1,
+			Type:         model.PromptConfirm,
+			PlayerID:     playerID,
+			ChoiceType:   choiceType,
+			Message:      "【灵魂转换】请选择转换方向：",
+			Options:      options,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 		}
 	case "ss_link_target":
 		var allyIDs []string
@@ -62,23 +64,34 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		var options []model.PromptOption
 		for _, aid := range allyIDs {
 			if p := rt.GetPlayers()[aid]; p != nil {
-				options = append(options, model.PromptOption{ID: aid, Label: p.Name})
+				options = append(options, model.PromptOption{ID: aid, Label: p.Name, TargetID: aid})
 			}
 		}
 		return &model.Prompt{
-			Type:       model.PromptConfirm,
-			PlayerID:   playerID,
-			ChoiceType: choiceType,
-			Message:    "【灵魂链接】请选择要放置灵魂链接的队友：",
-			Options:    options,
-			Min:        1,
-			Max:        1,
+			Type:         model.PromptConfirm,
+			PlayerID:     playerID,
+			ChoiceType:   choiceType,
+			Message:      "【灵魂链接】请选择要放置灵魂链接的队友：",
+			Options:      options,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationTargetPicker, TargetFilter: "custom"},
 		}
 	case "ss_link_transfer_x":
 		maxX := runtimeutil.ToIntContextValue(data["max_x"])
 		if maxX < 0 {
 			maxX = 0
 		}
+		originalDamage := runtimeutil.ToIntContextValue(data["original_damage"])
+		targetName, _ := data["target_name"].(string)
+		if targetName == "" {
+			targetName = "队友"
+		}
+		counterpartName, _ := data["counterpart_name"].(string)
+		if counterpartName == "" {
+			counterpartName = "另一方"
+		}
+		message := fmt.Sprintf("【灵魂链接】%s 受到 %d 点伤害，请选择转移给 %s 的点数X：", targetName, originalDamage, counterpartName)
 		xOptions := make([]model.PromptOption, 0, maxX+1)
 		for x := 0; x <= maxX; x++ {
 			label := fmt.Sprintf("移除%d点蓝魂并转移%d点伤害", x, x)
@@ -88,13 +101,14 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			xOptions = append(xOptions, model.PromptOption{ID: fmt.Sprintf("%d", x), Label: label})
 		}
 		return &model.Prompt{
-			Type:       model.PromptConfirm,
-			PlayerID:   playerID,
-			ChoiceType: choiceType,
-			Message:    "【灵魂链接】请选择要转移的伤害点数X：",
-			Options:    xOptions,
-			Min:        1,
-			Max:        1,
+			Type:         model.PromptConfirm,
+			PlayerID:     playerID,
+			ChoiceType:   choiceType,
+			Message:      message,
+			Options:      xOptions,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 0},
 		}
 	case "ss_recall_pick":
 		var magicIndices []int
@@ -127,8 +141,9 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 				continue
 			}
 			options = append(options, model.PromptOption{
-				ID:    fmt.Sprintf("%d", idx),
-				Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(player.Hand[idx])),
+				ID:     fmt.Sprintf("%d", idx),
+				Label:  fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(player.Hand[idx])),
+				CardID: player.Hand[idx].ID,
 			})
 		}
 		maxSelect := len(options)
@@ -136,13 +151,14 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			maxSelect = 1
 		}
 		return &model.Prompt{
-			Type:       model.PromptChooseCards,
-			PlayerID:   playerID,
-			ChoiceType: choiceType,
-			Message:    "【灵魂召还】请选择要弃置的法术牌（至少1张）：",
-			Options:    options,
-			Min:        1,
-			Max:        maxSelect,
+			Type:         model.PromptChooseCards,
+			PlayerID:     playerID,
+			ChoiceType:   choiceType,
+			Message:      "【灵魂召还】请选择要弃置的法术牌（至少1张）：",
+			Options:      options,
+			Min:          1,
+			Max:          maxSelect,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand", CardFilter: "magic_only"},
 		}
 	}
 	return nil
@@ -172,6 +188,23 @@ func handleSoulConvertColorChoice(rt engineplayer.ChoiceRuntime, selectionIndex 
 	}
 
 	modeOrder := runtimeutil.ParseStringSliceContextValue(ctxData["mode_order"])
+
+	// 取消：selectionIndex == len(modeOrder)，即最后一个选项
+	if selectionIndex == len(modeOrder) {
+		rt.Log(fmt.Sprintf("%s 取消 [灵魂转换]", user.Name))
+		rt.PopInterrupt()
+		if rt.GetPendingInterrupt() == nil {
+			rt.RoutePendingDamageOr(model.TurnStageExtraAction, func() {
+				if len(rt.GetActionQueue()) > 0 {
+					rt.EnterActionExecutionStage()
+				} else {
+					rt.EnterExtraActionStage()
+				}
+			})
+		}
+		return nil
+	}
+
 	if selectionIndex < 0 || selectionIndex >= len(modeOrder) {
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
@@ -336,7 +369,22 @@ func handleSoulRecallPickChoice(rt engineplayer.ChoiceRuntime, selectionIndex in
 	if selectionIndex < 0 {
 		return fmt.Errorf("请从可选法术牌中至少选择1张")
 	}
+	return finalizeSoulRecallPick(rt, ctxData, []int{selectionIndex})
+}
 
+// handleSoulRecallPickMultiSelect 批量路径：前端一次性提交多张法术牌索引。
+func handleSoulRecallPickMultiSelect(rt engineplayer.ChoiceRuntime, _ string, selections []int, ctxData map[string]interface{}) (bool, error) {
+	if len(selections) == 0 {
+		return true, fmt.Errorf("请至少选择1张法术牌")
+	}
+	if err := finalizeSoulRecallPick(rt, ctxData, selections); err != nil {
+		return true, err
+	}
+	return true, nil
+}
+
+// finalizeSoulRecallPick 将给定的选项索引解析为受允许的手牌索引，统一执行弃牌与蓝魂+X 逻辑。
+func finalizeSoulRecallPick(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selections []int) error {
 	userID, _ := ctxData["user_id"].(string)
 	if userID == "" {
 		return fmt.Errorf("玩家ID缺失")
@@ -367,14 +415,21 @@ func handleSoulRecallPickChoice(rt engineplayer.ChoiceRuntime, selectionIndex in
 		return fmt.Errorf("灵魂召还没有可弃置的法术牌")
 	}
 
-	resolvedIdx, ok := runtimeutil.ResolveSelectionToAllowedIndex(selectionIndex, orderedCandidates, allowed)
-	if !ok {
-		return fmt.Errorf("灵魂召还只能选择法术牌")
+	picked := make([]int, 0, len(selections))
+	seen := make(map[int]struct{}, len(selections))
+	for _, sel := range selections {
+		resolvedIdx, ok := runtimeutil.ResolveSelectionToAllowedIndex(sel, orderedCandidates, allowed)
+		if !ok {
+			return fmt.Errorf("灵魂召还只能选择法术牌")
+		}
+		if _, dup := seen[resolvedIdx]; dup {
+			return fmt.Errorf("不能重复选择同一张牌")
+		}
+		seen[resolvedIdx] = struct{}{}
+		picked = append(picked, resolvedIdx)
 	}
 
-	picked := []int{resolvedIdx}
-
-	removed, err := removeCardsByIndicesFromHand(user, picked)
+	removed, err := engineplayer.RemoveCardsByIndicesFromHand(user, picked)
 	if err != nil {
 		return err
 	}
@@ -393,38 +448,4 @@ func handleSoulRecallPickChoice(rt engineplayer.ChoiceRuntime, selectionIndex in
 		}
 	}
 	return nil
-}
-
-// removeCardsByIndicesFromHand removes cards at the given indices from a player's hand,
-// returning the removed cards. Indices must be valid and unique.
-func removeCardsByIndicesFromHand(player *model.Player, indices []int) ([]model.Card, error) {
-	if player == nil {
-		return nil, fmt.Errorf("玩家不存在")
-	}
-	for _, idx := range indices {
-		if idx < 0 || idx >= len(player.Hand) {
-			return nil, fmt.Errorf("无效的手牌索引: %d", idx)
-		}
-	}
-	seen := map[int]bool{}
-	for _, idx := range indices {
-		if seen[idx] {
-			return nil, fmt.Errorf("不能重复选择同一张牌")
-		}
-		seen[idx] = true
-	}
-	// Sort indices descending to avoid shift during removal.
-	for i := 0; i < len(indices); i++ {
-		for j := i + 1; j < len(indices); j++ {
-			if indices[i] < indices[j] {
-				indices[i], indices[j] = indices[j], indices[i]
-			}
-		}
-	}
-	var removed []model.Card
-	for _, idx := range indices {
-		removed = append(removed, player.Hand[idx])
-		player.Hand = append(player.Hand[:idx], player.Hand[idx+1:]...)
-	}
-	return removed, nil
 }

@@ -5,7 +5,7 @@ import { useSessionStore } from './session.store'
 import { useSnapshotStore } from './snapshot.store'
 import { useUiStore } from './ui.store'
 
-export type InitiatorFocusMode = 'attack' | 'magic' | 'skill'
+export type InitiatorFocusMode = 'attack' | 'magic' | 'skill' | 'turn' | 'response'
 export type InitiatorFocusSide = 'left' | 'right'
 
 export interface InitiatorFocusState {
@@ -66,7 +66,7 @@ export const useBattleFxStore = defineStore('battlefx', () => {
   const sessionStore = useSessionStore()
   const snapshotStore = useSnapshotStore()
   const uiStore = useUiStore()
-  const { myPlayerId, myCamp } = storeToRefs(sessionStore)
+  const { roomPlayers, myPlayerId, myCamp } = storeToRefs(sessionStore)
   const { players } = storeToRefs(snapshotStore)
   const { cinematicMode } = storeToRefs(uiStore)
 
@@ -92,12 +92,17 @@ export const useBattleFxStore = defineStore('battlefx', () => {
   let damageEffectsId = 0
 
   function resolveInitiatorFocusSide(playerId: string): InitiatorFocusSide {
+    const rosterIndex = roomPlayers.value.findIndex((player) => player.id === playerId)
+    if (rosterIndex >= 0) {
+      return rosterIndex < 3 ? 'left' : 'right'
+    }
+
     const actorCamp = players.value[playerId]?.camp
     if ((myCamp.value === 'Red' || myCamp.value === 'Blue') && (actorCamp === 'Red' || actorCamp === 'Blue')) {
-      return actorCamp === myCamp.value ? 'right' : 'left'
+      return actorCamp === myCamp.value ? 'left' : 'right'
     }
-    if (playerId === myPlayerId.value) return 'right'
-    return 'left'
+    if (playerId === myPlayerId.value) return 'left'
+    return 'right'
   }
 
   function cancelInitiatorFocusIdleTimer() {
@@ -163,6 +168,12 @@ export const useBattleFxStore = defineStore('battlefx', () => {
     if (!playerId) return
     setInitiatorFocus(playerId, mode)
     armSkillFocusIdleTimer()
+  }
+
+  function startActingPlayerFocus(playerId: string, mode: 'turn' | 'response' | 'magic' | 'skill' = 'turn') {
+    if (!playerId) return
+    setInitiatorFocus(playerId, mode)
+    cancelInitiatorFocusIdleTimer()
   }
 
   function touchSkillInitiatorFocus(playerId?: string) {
@@ -343,6 +354,7 @@ export const useBattleFxStore = defineStore('battlefx', () => {
     if (phase === 'defend' || phase === 'take' || phase === 'counter' || phase === 'shield') {
       notifyFlyingCardsEvent('combat_response')
       resolveAttackInitiatorFocus(attackerId)
+      startActingPlayerFocus(targetId, 'response')
     } else if (phase === 'attack') {
       startAttackInitiatorFocus(attackerId)
     }
@@ -458,6 +470,7 @@ export const useBattleFxStore = defineStore('battlefx', () => {
     startAttackInitiatorFocus,
     resolveAttackInitiatorFocus,
     startSkillInitiatorFocus,
+    startActingPlayerFocus,
     touchSkillInitiatorFocus,
     settleSkillInitiatorFocus,
     prepareForFlowUpdate,

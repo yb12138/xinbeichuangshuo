@@ -1,0 +1,356 @@
+// ============================================================
+// Valkyrie (女武神) Protocol Harness Scenarios
+// ============================================================
+
+import type { AvailableSkill, Card, Prompt } from '../../src/types/game';
+import type { WsMessage } from '../../src/network/protocol';
+import {
+  availableSkill,
+  card,
+  characterView,
+  playerInfo,
+  playerView,
+  requireActionMessage,
+  syncState,
+  type ProtocolHarnessScenario,
+} from './builders';
+
+export const VALKYRIE_PLAYER_ID = 'valkyrie_player';
+export const ENEMY_PLAYER_ID = 'enemy_1';
+export const ALLY_PLAYER_ID = 'ally_1';
+
+export const VALKYRIE_HOLY_PURSUIT_ID = 'valkyrie_holy_pursuit';
+export const VALKYRIE_ORDER_MARK_ID = 'valkyrie_order_mark';
+export const VALKYRIE_PEACE_WALKER_ID = 'valkyrie_peace_walker';
+export const VALKYRIE_MARTIAL_GOD_LIGHT_ID = 'valkyrie_martial_god_light';
+export const VALKYRIE_HEROIC_SUMMON_ID = 'valkyrie_heroic_summon';
+
+const valkyrieCharacter = characterView({
+  id: 'valkyrie',
+  name: '女武神',
+  title: '咏',
+  faction: '咏',
+  skills: [
+    {
+      id: VALKYRIE_HOLY_PURSUIT_ID,
+      title: '神圣追击',
+      description: '（行动结束时发动）移除自己2点［治疗］，额外进行一次攻击行动。',
+      type: 3, // 响应
+      min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
+    },
+    {
+      id: VALKYRIE_ORDER_MARK_ID,
+      title: '秩序之印',
+      description: '作为攻击行动时，你可以额外摸1张牌。若如此做，该次攻击的伤害-1，且本次攻击行动结束时你+1［治疗］。',
+      type: 2, // 法术
+      min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
+    },
+    {
+      id: VALKYRIE_PEACE_WALKER_ID,
+      title: '和平行者',
+      description: '（英灵形态中）回合开始时，你可以对自己造成1点法术伤害③，令一名队友获得1［治疗］。',
+      type: 3, // 响应（被动形态）
+      min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
+    },
+    {
+      id: VALKYRIE_MARTIAL_GOD_LIGHT_ID,
+      title: '军威神光',
+      description: '（回合开始时发动）你选择：Ⅰ、摸2张牌；Ⅱ、对一名对手造成1点法术伤害③。',
+      type: 3, // 响应
+      min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
+    },
+    {
+      id: VALKYRIE_HEROIC_SUMMON_ID,
+      title: '英灵召唤',
+      description: '（命中后发动）［水晶］弃1张法术牌［展示］，对一名对手造成2点法术伤害③，并给自己或一名队友+1［治疗］。',
+      type: 3, // 响应(大招)
+      min_targets: 0, max_targets: 0, target_type: 0,
+      cost_gem: 0, cost_crystal: 0, cost_discards: 0,
+    },
+  ],
+});
+
+const enemyCharacter = characterView({
+  id: 'enemy_char', name: '守卫', title: '测试目标', faction: '异端', skills: [],
+});
+
+const allyCharacter = characterView({
+  id: 'ally_char', name: '勇者', title: '测试队友', faction: '咏', skills: [],
+});
+
+const defaultCharacters = [valkyrieCharacter, enemyCharacter, allyCharacter];
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function valkyrieHand(): Card[] {
+  return [
+    card({ id: 'valk-attack-1', name: '圣枪', type: 'Attack', element: 'Light' }),
+    card({ id: 'valk-attack-2', name: '光刃', type: 'Attack', element: 'Light' }),
+    card({ id: 'valk-magic-1', name: '圣光', type: 'Magic', element: 'Light' }),
+    card({ id: 'valk-magic-2', name: '神圣', type: 'Magic', element: 'Light' }),
+    card({ id: 'valk-water-magic', name: '治愈', type: 'Magic', element: 'Water' }),
+  ];
+}
+
+function valkyrieAvailableSkill(skill: Partial<AvailableSkill> & { id: string; title: string }): AvailableSkill {
+  return availableSkill({
+    description: '',
+    target_type: 0,
+    min_targets: 0, max_targets: 0,
+    ...skill,
+  });
+}
+
+// Export for use in tests that need to test response_skills trigger mechanism
+export { valkyrieAvailableSkill };
+
+// ---------------------------------------------------------------------------
+// Scenario Factory
+// ---------------------------------------------------------------------------
+
+export function valkyrieScenario(options: {
+  hand?: Card[];
+  availableSkills?: AvailableSkill[];
+  crystal?: number;
+  gem?: number;
+  turnStage?: string;
+  heal?: number;
+  buffs?: { id: string; name: string; duration: number; value: number; source_id: string }[];
+} = {}): ProtocolHarnessScenario {
+  const hand = options.hand ?? valkyrieHand();
+  const players = [
+    playerView({
+      id: VALKYRIE_PLAYER_ID,
+      name: 'E2E Valkyrie',
+      camp: 'Red',
+      role: 'valkyrie',
+      hand,
+      hand_count: hand.length,
+      crystal: options.crystal ?? 0,
+      gem: options.gem ?? 0,
+      heal: options.heal ?? 2,
+      max_heal: 4,
+      is_active: true,
+      buffs: options.buffs ?? [],
+    }),
+    playerView({
+      id: ENEMY_PLAYER_ID,
+      name: 'Enemy E1',
+      camp: 'Blue',
+      role: 'enemy_char',
+      hand: [card({ id: 'en-card-1', name: '测试牌', type: 'Attack', element: 'Fire' })],
+      hand_count: 1, max_hand: 6,
+      heal: 0, max_heal: 4,
+      is_active: false,
+    }),
+    playerView({
+      id: ALLY_PLAYER_ID,
+      name: 'Ally A1',
+      camp: 'Red',
+      role: 'ally_char',
+      hand: [card({ id: 'al-card-1', name: '测试牌', type: 'Attack', element: 'Water' })],
+      hand_count: 1, max_hand: 6,
+      heal: 0, max_heal: 4,
+      is_active: false,
+    }),
+  ];
+
+  return {
+    roomCode: 'MOCK',
+    myPlayerId: VALKYRIE_PLAYER_ID,
+    myPlayerName: 'E2E Valkyrie',
+    characters: defaultCharacters,
+    players: [
+      playerInfo({ id: VALKYRIE_PLAYER_ID, name: 'E2E Valkyrie', camp: 'Red', char_role: 'valkyrie', is_host: true }),
+      playerInfo({ id: ENEMY_PLAYER_ID, name: 'Enemy E1', camp: 'Blue', char_role: 'enemy_char' }),
+      playerInfo({ id: ALLY_PLAYER_ID, name: 'Ally A1', camp: 'Red', char_role: 'ally_char' }),
+    ],
+    initialState: syncState({
+      turn_player_id: VALKYRIE_PLAYER_ID,
+      turn_stage: options.turnStage ?? 'ActionExecution',
+      available_skills: options.availableSkills ?? [],
+      characters: defaultCharacters,
+      players,
+    }),
+  };
+}
+
+// ============================================================
+// Holy Pursuit (神圣追击) - 响应技能
+// 后端通过 RequireAction + skill_choice prompt 触发
+// ============================================================
+
+export function holyPursuitScenario(options: {
+  heal?: number;
+} = {}): ProtocolHarnessScenario {
+  return valkyrieScenario({
+    heal: options.heal ?? 2,
+  });
+}
+
+export function holyPursuitPrompt(): WsMessage {
+  return requireActionMessage({
+    type: 'choose_skill',
+    player_id: VALKYRIE_PLAYER_ID,
+    message: '【神圣追击】行动结束时发动，是否移除2点治疗额外进行一次攻击行动？',
+    choice_type: 'response_skill_choice',
+    options: [
+      { id: VALKYRIE_HOLY_PURSUIT_ID, label: '发动神圣追击', button_label: '发动' },
+      { id: 'skip', label: '跳过', button_label: '跳过' },
+    ],
+    min: 1, max: 1,
+    presentation: { kind: 'skill_choice', layout: 'overlay', numeric_base: 0 },
+  } satisfies Prompt);
+}
+
+// ============================================================
+// Order Mark (秩序之印) - 法术技能
+// ============================================================
+
+export function orderMarkScenario(): ProtocolHarnessScenario {
+  return valkyrieScenario({
+    availableSkills: [
+      valkyrieAvailableSkill({
+        id: VALKYRIE_ORDER_MARK_ID,
+        title: '秩序之印',
+      }),
+    ],
+  });
+}
+
+// ============================================================
+// Peace Walker (和平行者) - 响应技能(被动形态)
+// 后端通过 RequireAction + skill_choice prompt 触发
+// ============================================================
+
+export function peaceWalkerScenario(): ProtocolHarnessScenario {
+  return valkyrieScenario({
+    buffs: [{ id: 'heroic_form', name: '英灵形态', duration: 0, value: 0, source_id: VALKYRIE_HEROIC_SUMMON_ID }],
+    turnStage: 'TurnStart',
+  });
+}
+
+export function peaceWalkerPrompt(): WsMessage {
+  return requireActionMessage({
+    type: 'choose_skill',
+    player_id: VALKYRIE_PLAYER_ID,
+    message: '【和平行者】回合开始时，是否对自己造成1点法术伤害，令一名队友获得1治疗？',
+    choice_type: 'response_skill_choice',
+    options: [
+      { id: VALKYRIE_PEACE_WALKER_ID, label: '发动和平行者', button_label: '发动' },
+      { id: 'skip', label: '跳过', button_label: '跳过' },
+    ],
+    min: 1, max: 1,
+    presentation: { kind: 'skill_choice', layout: 'overlay', numeric_base: 0 },
+  } satisfies Prompt);
+}
+
+// ============================================================
+// Martial God Light (军威神光) - 响应技能
+// ============================================================
+
+export function martialGodLightScenario(): ProtocolHarnessScenario {
+  return valkyrieScenario({
+    turnStage: 'TurnStart',
+  });
+}
+
+export function martialGodLightBranchPrompt(maxX: number): WsMessage {
+  const options = [
+    { id: '0', label: '你+1治疗并脱离英灵形态', button_label: '脱离+治疗' },
+  ];
+  if (maxX > 0) {
+    options.push({ id: '1', label: `移除我方战绩区星石（1~${maxX}）并指定角色+X治疗`, button_label: '星石+治疗' });
+  }
+  return requireActionMessage({
+    type: 'confirm',
+    player_id: VALKYRIE_PLAYER_ID,
+    message: '【军威神光】请选择效果：',
+    choice_type: 'valkyrie_military_glory_mode',
+    options,
+    min: 1, max: 1,
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
+  } satisfies Prompt);
+}
+
+export function martialGodLightXPrompt(maxX: number): WsMessage {
+  const options: Array<{ id: string; label: string; button_label: string }> = [];
+  for (let x = 1; x <= maxX; x++) {
+    options.push({ id: String(x), label: `X=${x}`, button_label: String(x) });
+  }
+  return requireActionMessage({
+    type: 'confirm',
+    player_id: VALKYRIE_PLAYER_ID,
+    message: '【军威神光】请选择X：',
+    choice_type: 'valkyrie_military_glory_x',
+    options,
+    min: 1, max: 1,
+    presentation: { kind: 'numeric', numeric_base: 0 },
+  } satisfies Prompt);
+}
+
+export function martialGodLightTargetPrompt(): WsMessage {
+  return requireActionMessage({
+    type: 'confirm',
+    player_id: VALKYRIE_PLAYER_ID,
+    message: '【军威神光】请选择目标角色：',
+    choice_type: 'valkyrie_military_glory_target',
+    presentation: { kind: 'target_picker', target_filter: 'custom', numeric_base: 0 },
+    options: [
+      { id: VALKYRIE_PLAYER_ID, target_id: VALKYRIE_PLAYER_ID, label: 'E2E Valkyrie', button_label: '选择' },
+      { id: ENEMY_PLAYER_ID, target_id: ENEMY_PLAYER_ID, label: 'Enemy E1', button_label: '选择' },
+      { id: ALLY_PLAYER_ID, target_id: ALLY_PLAYER_ID, label: 'Ally A1', button_label: '选择' },
+    ],
+    min: 1, max: 1,
+  } satisfies Prompt);
+}
+
+// ============================================================
+// Heroic Summon (英灵召唤) - 响应技能(大招)
+// 后端通过 RequireAction + skill_choice prompt 触发
+// 弃牌通过后端 choice_type: valkyrie_heroic_discard_card
+// ============================================================
+
+export function heroicSummonScenario(): ProtocolHarnessScenario {
+  return valkyrieScenario({
+    crystal: 1,
+    heal: 0,
+  });
+}
+
+export function heroicSummonSkillPrompt(): WsMessage {
+  return requireActionMessage({
+    type: 'choose_skill',
+    player_id: VALKYRIE_PLAYER_ID,
+    message: '【英灵召唤】命中后发动，是否弃1张法术牌对一名对手造成2点法术伤害？',
+    choice_type: 'response_skill_choice',
+    options: [
+      { id: VALKYRIE_HEROIC_SUMMON_ID, label: '发动英灵召唤', button_label: '发动' },
+      { id: 'skip', label: '跳过', button_label: '跳过' },
+    ],
+    min: 1, max: 1,
+    presentation: { kind: 'skill_choice', layout: 'overlay', numeric_base: 0 },
+  } satisfies Prompt);
+}
+
+export function heroicSummonDiscardPrompt(): WsMessage {
+  return requireActionMessage({
+    type: 'choose_cards',
+    player_id: VALKYRIE_PLAYER_ID,
+    message: '【英灵召唤】可额外弃1张法术牌并令当前战斗目标+1治疗（或点击取消放弃本次额外效果）：',
+    choice_type: 'valkyrie_heroic_discard_card',
+    options: [
+      { id: '2', label: '3: 圣光（法术）', button_label: '选择', card_id: 'valk-magic-1' },
+      { id: '3', label: '4: 神圣（法术）', button_label: '选择', card_id: 'valk-magic-2' },
+      { id: '4', label: '5: 治愈（法术）', button_label: '选择', card_id: 'valk-water-magic' },
+    ],
+    presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'type:Magic', has_decline: true, numeric_base: 0 },
+    min: 1, max: 1,
+  } satisfies Prompt);
+}

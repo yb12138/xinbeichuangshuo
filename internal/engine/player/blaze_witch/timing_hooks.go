@@ -48,9 +48,9 @@ func postDamageResolvedHook(rt player.HookRuntime, ctx player.TimingHookContext)
 	source.TurnState.SkillFlowState["bw_pain_link_pending_discard"] = 0
 	if len(source.Hand) > 3 {
 		rt.PushDiscardChoiceInterrupt(source.ID, map[string]interface{}{
-			"discard_count": len(source.Hand) - 3,
-			"stay_in_turn":  true,
-			"prompt":        "【痛苦链接】请弃牌至3张手牌：",
+			"discard_down_to": 3,
+			"stay_in_turn":    true,
+			"prompt":          "【痛苦链接】请弃牌至3张手牌：",
 		})
 		return player.TimingHookResult{Interrupted: true}
 	}

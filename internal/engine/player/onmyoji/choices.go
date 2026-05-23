@@ -18,11 +18,36 @@ func NewChoiceHandler() engineplayer.ChoiceHandler {
 	return choiceHandler{}
 }
 
+func (choiceHandler) HandleCancel(rt engineplayer.ChoiceRuntime, _ string, ctxData map[string]interface{}) (bool, error) {
+	choiceType, _ := ctxData["choice_type"].(string)
+	switch choiceType {
+	case "onmyoji_binding_confirm", "onmyoji_yinyang_confirm":
+		rt.PopInterrupt()
+		rt.EnsureCombatInteractionWindow()
+		return true, nil
+	default:
+		return false, nil
+	}
+}
+
 type onmyojiCardOption struct {
 	CardID     string
 	UseFaction bool
 	Label      string
 }
+
+const (
+	onmyojiCounterFlowID          = "onmyoji_counter"
+	onmyojiCounterStepCard        = "card"
+	onmyojiCounterStepTarget      = "target"
+	onmyojiCounterUseFactionFlag  = "1"
+	onmyojiCounterSkipFactionFlag = "0"
+)
+
+var onmyojiCounterFlowRuntime = model.MustNewPromptFlowRuntime(onmyojiCounterFlowID, []model.PromptFlowStepSpec{
+	{ID: onmyojiCounterStepCard, ChoiceType: "onmyoji_counter_card", CancelPolicy: model.CancelPolicyAbort},
+	{ID: onmyojiCounterStepTarget, ChoiceType: "onmyoji_counter_target", CancelPolicy: model.CancelPolicyBack},
+})
 
 func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, playerID string, player *model.Player, data map[string]interface{}) *model.Prompt {
 	switch choiceType {
@@ -39,12 +64,13 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			})
 		}
 		return &model.Prompt{
-			Type:     model.PromptConfirm,
-			PlayerID: playerID,
-			Message:  fmt.Sprintf("【生命结界】当前鬼火=%d，请选择发动分支：", ghostFire),
-			Options:  options,
-			Min:      1,
-			Max:      1,
+			Type:         model.PromptConfirm,
+			PlayerID:     playerID,
+			Message:      fmt.Sprintf("【生命结界】当前鬼火=%d，请选择发动分支：", ghostFire),
+			Options:      options,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 		}
 
 	case "onmyoji_life_barrier_release_combo":
@@ -72,22 +98,23 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			return nil
 		}
 		return &model.Prompt{
-			Type:     model.PromptConfirm,
-			PlayerID: playerID,
-			Message:  "【生命结界·分支②】请选择要弃置的2张同命格手牌：",
-			Options:  options,
-			Min:      1,
-			Max:      1,
+			Type:         model.PromptConfirm,
+			PlayerID:     playerID,
+			Message:      "【生命结界·分支②】请选择要弃置的2张同命格手牌：",
+			Options:      options,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 		}
 
 	case "onmyoji_dark_ritual_target":
-		return engineplayer.BuildTargetChoicePrompt(rt, playerID, "【黑暗祭礼】请选择2点法术伤害目标：", data, false)
+		return engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, "【黑暗祭礼】请选择2点法术伤害目标：", data, false)
 
 	case "onmyoji_life_barrier_support_target":
-		return engineplayer.BuildTargetChoicePrompt(rt, playerID, "【生命结界·分支①】请选择获得+1宝石/+1治疗的队友：", data, false)
+		return engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, "【生命结界·分支①】请选择获得+1宝石/+1治疗的队友：", data, false)
 
 	case "onmyoji_life_barrier_release_target":
-		return engineplayer.BuildTargetChoicePrompt(rt, playerID, "【生命结界·分支②】请选择弃1张手牌的队友：", data, false)
+		return engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, "【生命结界·分支②】请选择弃1张手牌的队友：", data, false)
 
 	case "onmyoji_yinyang_confirm":
 		return &model.Prompt{
@@ -98,26 +125,28 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 				{ID: "0", Label: "是"},
 				{ID: "1", Label: "否"},
 			},
-			Min: 1,
-			Max: 1,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 		}
 
 	case "onmyoji_yinyang_card":
 		rawOptions := parseOnmyojiCardOptions(data["card_options"])
 		options := make([]model.PromptOption, 0, len(rawOptions))
-		for _, option := range rawOptions {
-			options = append(options, model.PromptOption{ID: option.CardID, Label: option.Label})
+		for idx, option := range rawOptions {
+			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", idx), Label: option.Label, CardID: option.CardID})
 		}
 		if len(options) == 0 {
 			return nil
 		}
 		return &model.Prompt{
-			Type:     model.PromptConfirm,
-			PlayerID: playerID,
-			Message:  "【阴阳转换】请选择用于同命格应战的攻击牌：",
-			Options:  options,
-			Min:      1,
-			Max:      1,
+			Type:         model.PromptChooseCards,
+			PlayerID:     playerID,
+			Message:      "【阴阳转换】请选择用于同命格应战的攻击牌：",
+			Options:      options,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand"},
 		}
 
 	case "onmyoji_yinyang_counter_target":
@@ -126,12 +155,13 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			return nil
 		}
 		return &model.Prompt{
-			Type:     model.PromptConfirm,
-			PlayerID: playerID,
-			Message:  "【阴阳转换】请选择应战反弹目标：",
-			Options:  options,
-			Min:      1,
-			Max:      1,
+			Type:         model.PromptConfirm,
+			PlayerID:     playerID,
+			Message:      "【阴阳转换】请选择应战反弹目标：",
+			Options:      options,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationTargetPicker, TargetFilter: "custom"},
 		}
 
 	case "onmyoji_binding_confirm":
@@ -143,26 +173,28 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 				{ID: "0", Label: "是"},
 				{ID: "1", Label: "否"},
 			},
-			Min: 1,
-			Max: 1,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 		}
 
 	case "onmyoji_binding_card":
 		rawOptions := parseOnmyojiCardOptions(data["card_options"])
 		options := make([]model.PromptOption, 0, len(rawOptions))
-		for _, option := range rawOptions {
-			options = append(options, model.PromptOption{ID: option.CardID, Label: option.Label})
+		for idx, option := range rawOptions {
+			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", idx), Label: option.Label, CardID: option.CardID})
 		}
 		if len(options) == 0 {
 			return nil
 		}
 		return &model.Prompt{
-			Type:     model.PromptConfirm,
-			PlayerID: playerID,
-			Message:  "【式神咒束】请选择用于代应战的攻击牌：",
-			Options:  options,
-			Min:      1,
-			Max:      1,
+			Type:         model.PromptChooseCards,
+			PlayerID:     playerID,
+			Message:      "【式神咒束】请选择用于代应战的攻击牌：",
+			Options:      options,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand"},
 		}
 
 	case "onmyoji_binding_counter_target":
@@ -171,12 +203,13 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			return nil
 		}
 		return &model.Prompt{
-			Type:     model.PromptConfirm,
-			PlayerID: playerID,
-			Message:  "【式神咒束】请选择应战反弹目标：",
-			Options:  options,
-			Min:      1,
-			Max:      1,
+			Type:         model.PromptConfirm,
+			PlayerID:     playerID,
+			Message:      "【式神咒束】请选择应战反弹目标：",
+			Options:      options,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationTargetPicker, TargetFilter: "custom"},
 		}
 	}
 
@@ -324,9 +357,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		}
 		if selectionIndex == 1 {
 			rt.PopInterrupt()
-			if rt.GetPendingInterrupt() == nil {
-				// 简化处理
-			}
+			rt.EnsureCombatInteractionWindow()
 			return true, nil
 		}
 		cardOptions := parseOnmyojiCardOptions(ctxData["card_options"])
@@ -375,7 +406,15 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		if selectionIndex < 0 || selectionIndex >= len(cardOptions) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
-		ctxData["selected_card_id"] = cardOptions[selectionIndex].CardID
+		flow := onmyojiCounterFlowRuntime.MustBeginAt(onmyojiCounterStepCard)
+		flow.PutSelection(onmyojiCounterStepCard, model.PromptFlowSelection{
+			OptionIndexes: []int{selectionIndex},
+			CardIDs:       []string{cardOptions[selectionIndex].CardID},
+		})
+		model.SetPromptFlowContext(ctxData, flow)
+		if err := onmyojiCounterFlowRuntime.MoveTo(flow, onmyojiCounterStepTarget); err != nil {
+			return true, err
+		}
 		ctxData["choice_type"] = "onmyoji_yinyang_counter_target"
 		if intr := rt.GetPendingInterrupt(); intr != nil {
 			intr.Context = ctxData
@@ -390,7 +429,15 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		}
 		counterTargetID := counterTargetIDs[selectionIndex]
 		actorID, _ := ctxData["actor_id"].(string)
-		selectedCardID, _ := ctxData["selected_card_id"].(string)
+		flow, err := model.RequirePromptFlow(ctxData, onmyojiCounterFlowID, "阴阳转换")
+		if err != nil {
+			return true, err
+		}
+		cardIDs := flow.Selection(onmyojiCounterStepCard).CardIDs
+		if len(cardIDs) != 1 || cardIDs[0] == "" {
+			return true, fmt.Errorf("阴阳转换缺少选定卡牌")
+		}
+		selectedCardID := cardIDs[0]
 		actor := rt.GetPlayers()[actorID]
 		if actor == nil {
 			return true, fmt.Errorf("阴阳师不存在")
@@ -428,8 +475,20 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		if selectionIndex < 0 || selectionIndex >= len(cardOptions) {
 			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
-		ctxData["selected_card_id"] = cardOptions[selectionIndex].CardID
-		ctxData["selected_use_faction"] = cardOptions[selectionIndex].UseFaction
+		useFactionFlag := onmyojiCounterSkipFactionFlag
+		if cardOptions[selectionIndex].UseFaction {
+			useFactionFlag = onmyojiCounterUseFactionFlag
+		}
+		flow := onmyojiCounterFlowRuntime.MustBeginAt(onmyojiCounterStepCard)
+		flow.PutSelection(onmyojiCounterStepCard, model.PromptFlowSelection{
+			OptionIndexes: []int{selectionIndex},
+			CardIDs:       []string{cardOptions[selectionIndex].CardID},
+			Element:       useFactionFlag,
+		})
+		model.SetPromptFlowContext(ctxData, flow)
+		if err := onmyojiCounterFlowRuntime.MoveTo(flow, onmyojiCounterStepTarget); err != nil {
+			return true, err
+		}
 		ctxData["choice_type"] = "onmyoji_binding_counter_target"
 		if intr := rt.GetPendingInterrupt(); intr != nil {
 			intr.Context = ctxData
@@ -438,10 +497,55 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		return true, nil
 
 	case "onmyoji_binding_counter_target":
-		rt.PopInterrupt()
-		if rt.GetPendingInterrupt() == nil {
-			// 简化处理
+		counterTargetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["counter_target_ids"])
+		if selectionIndex < 0 || selectionIndex >= len(counterTargetIDs) {
+			return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 		}
+		counterTargetID := counterTargetIDs[selectionIndex]
+		actorID, _ := ctxData["actor_id"].(string)
+		flow, err := model.RequirePromptFlow(ctxData, onmyojiCounterFlowID, "式神咒束")
+		if err != nil {
+			return true, err
+		}
+		selection := flow.Selection(onmyojiCounterStepCard)
+		if len(selection.CardIDs) != 1 || selection.CardIDs[0] == "" {
+			return true, fmt.Errorf("式神咒束缺少选定卡牌")
+		}
+		selectedCardID := selection.CardIDs[0]
+		selectedUseFaction := selection.Element == onmyojiCounterUseFactionFlag
+		actor := rt.GetPlayers()[actorID]
+		if actor == nil {
+			return true, fmt.Errorf("阴阳师不存在")
+		}
+
+		// Consume the card from actor's hand
+		card, ok := rt.ConsumePlayableCardByCardID(actorID, selectedCardID)
+		if !ok {
+			return true, fmt.Errorf("无法消耗选定的卡牌")
+		}
+
+		// Apply 阴阳转换 + 式神转换 bonuses (统一入口)
+		// 注意：selectedUseFaction 表示是否使用同命格应战（阴阳转换）
+		if selectedUseFaction {
+			ApplyFactionCounterBonuses(rt, actor, &card)
+		}
+
+		// Add card to discard pile
+		rt.AppendToDiscard([]model.Card{card})
+		rt.NotifyCardRevealed(actorID, []model.Card{card}, "counter")
+
+		// Get original combat info for cue
+		var topCombat *model.CombatRequest
+		if stack := rt.GetCombatStack(); len(stack) > 0 {
+			topCombat = &stack[len(stack)-1]
+		}
+		if topCombat != nil {
+			rt.NotifyCombatCue(topCombat.AttackerID, topCombat.TargetID, "counter")
+		}
+
+		// Resolve counter attack: pop original combat and create reflected one
+		rt.PopInterrupt()
+		rt.ResolveCounterAttack(actorID, counterTargetID, card)
 		return true, nil
 	}
 
@@ -496,8 +600,9 @@ func buildPromptOptionsForPlayerIDs(rt engineplayer.ChoiceRuntime, targetIDs []s
 	for _, targetID := range targetIDs {
 		if player := rt.GetPlayers()[targetID]; player != nil {
 			options = append(options, model.PromptOption{
-				ID:    targetID,
-				Label: player.Name,
+				ID:       targetID,
+				Label:    player.Name,
+				TargetID: targetID,
 			})
 		}
 	}
@@ -513,27 +618,12 @@ func stringSliceContains(items []string, want string) bool {
 	return false
 }
 
-func playerHasForm(player *model.Player, form string) bool {
-	if player == nil {
-		return false
-	}
-	return player.Form == form
-}
-
 func hasOnmyojiShikigamiForm(player *model.Player) bool {
-	return playerHasForm(player, model.FormOnmyojiShikigami)
-}
-
-func clearPlayerForm(player *model.Player, form string) bool {
-	if player == nil || player.Form != form {
-		return false
-	}
-	player.Form = ""
-	return true
+	return engineplayer.HasForm(player, model.FormOnmyojiShikigami)
 }
 
 func leaveOnmyojiShikigamiForm(player *model.Player) bool {
-	return clearPlayerForm(player, model.FormOnmyojiShikigami)
+	return engineplayer.ClearForm(player, model.FormOnmyojiShikigami)
 }
 
 func resolveOnmyojiLifeBarrierSupportTarget(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, user *model.Player, targetID string) error {
@@ -549,7 +639,7 @@ func resolveOnmyojiLifeBarrierSupportTarget(rt engineplayer.ChoiceRuntime, ctxDa
 		return fmt.Errorf("目标不存在")
 	}
 	ghostFire := runtimeutil.ToIntContextValue(ctxData["ghost_fire"])
-	target.Gem++
+	gainedGem := engineplayer.AddPlayerGemWithCap(rt, target, 1)
 	rt.Heal(targetID, 1)
 	if ghostFire > 0 {
 		damageType := model.MagicAttack
@@ -560,7 +650,7 @@ func resolveOnmyojiLifeBarrierSupportTarget(rt engineplayer.ChoiceRuntime, ctxDa
 			DamageType: damageType,
 		})
 	}
-	rt.Log(fmt.Sprintf("%s 的 [生命结界] 分支①生效：%s +1宝石+1治疗，自身承受%d点法术伤害", user.Name, target.Name, ghostFire))
+	rt.Log(fmt.Sprintf("%s 的 [生命结界] 分支①生效：%s +%d宝石+1治疗，自身承受%d点法术伤害", user.Name, target.Name, gainedGem, ghostFire))
 	rt.PopInterrupt()
 	if rt.GetPendingInterrupt() == nil {
 		rt.RoutePendingDamageOr(model.TurnStageTurnEnd, func() {

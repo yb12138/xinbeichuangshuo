@@ -38,7 +38,7 @@ func RemoveEternalMovement(rt engineplayer.ChoiceRuntime, bard *model.Player) bo
 	if !ok {
 		return false
 	}
-	rt.AppendToDiscard([]model.Card{card})
+	bard.RestoreExclusiveCard(card)
 	rt.EmitBuffRemovedDispatch(bard.ID, holder.ID, model.EffectBardEternalMovement)
 	return true
 }

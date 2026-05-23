@@ -27,8 +27,9 @@ func (choiceHandler) BuildPrompt(_ engineplayer.ChoiceRuntime, choiceType, playe
 				{ID: "0", Label: "摸0张"},
 				{ID: "1", Label: "摸1张"},
 			},
-			Min: 1,
-			Max: 1,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 0},
 		}
 	default:
 		return nil

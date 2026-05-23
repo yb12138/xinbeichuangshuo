@@ -37,7 +37,7 @@ func (e *GameEngine) isActionSkillUsableForExtraMagic(playerObj *model.Player, s
 		return false
 	}
 	// 弃牌成本可达成性。
-	if !e.canSatisfyActionSkillDiscardRequirement(playerObj, skillDef) {
+	if !e.CanSatisfyActionSkillDiscardRequirement(playerObj, skillDef) {
 		return false
 	}
 	// 目标可达成性（仅做最小目标数校验）。
@@ -58,7 +58,7 @@ func (e *GameEngine) isActionSkillUsableForExtraMagic(playerObj *model.Player, s
 	return true
 }
 
-func (e *GameEngine) canSatisfyActionSkillDiscardRequirement(playerObj *model.Player, skillDef model.SkillDefinition) bool {
+func (e *GameEngine) CanSatisfyActionSkillDiscardRequirement(playerObj *model.Player, skillDef model.SkillDefinition) bool {
 	requiredDiscards := skillDef.CostDiscards
 	if requiredDiscards <= 0 {
 		return true

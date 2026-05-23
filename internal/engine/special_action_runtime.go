@@ -11,7 +11,7 @@ import (
 )
 
 func (e *GameEngine) executeSpecialActionWithRuntime(player *model.Player, actionType model.ActionType) error {
-	handled, err := e.applyTimingBeforeActionExecuteSpecialActionOverride(player, actionType)
+	handled, err := e.applyTimingActionStartExecuteSpecialActionOverride(player, actionType)
 	if err != nil {
 		return err
 	}
@@ -28,7 +28,7 @@ func (e *GameEngine) executeSpecialAction(p *model.Player, actType model.ActionT
 	case model.ActionSynthesize:
 		return e.handleSynthesize(p)
 	case model.ActionExtract:
-		return e.handleExtract(p)
+		return e.HandleExtract(p)
 	default:
 		return fmt.Errorf("未知的特殊行动类型: %s", actType)
 	}
@@ -154,7 +154,7 @@ func (e *GameEngine) handleSynthesize(p *model.Player) error {
 	return nil
 }
 
-func (e *GameEngine) handleExtract(p *model.Player) error {
+func (e *GameEngine) HandleExtract(p *model.Player) error {
 	currentEnergy := p.Gem + p.Crystal
 	maxEnergy := e.getPlayerEnergyCap(p)
 
@@ -233,31 +233,31 @@ func (e *GameEngine) StartExtractForPlayer(playerID string) error {
 	if !ok || p == nil {
 		return fmt.Errorf("玩家不存在: %s", playerID)
 	}
-	return e.handleExtract(p)
+	return e.HandleExtract(p)
 }
 
 func (e *GameEngine) runPostSpecialActionRuntime(player *model.Player, actionType model.ActionType) {
-	e.runTimingOnActionEndSpecialActionPost(player, actionType)
+	e.runTimingActionEndSpecialActionPost(player, actionType)
 }
 
-// applyTimingBeforeActionExecuteSpecialActionOverride 在执行特殊行动前应用覆盖策略。
-func (e *GameEngine) applyTimingBeforeActionExecuteSpecialActionOverride(player *model.Player, actionType model.ActionType) (bool, error) {
+// applyTimingActionStartExecuteSpecialActionOverride 在执行特殊行动前应用覆盖策略。
+func (e *GameEngine) applyTimingActionStartExecuteSpecialActionOverride(player *model.Player, actionType model.ActionType) (bool, error) {
 	ctx := playerpkg.TimingHookContext{
 		Player:     player,
 		ActionType: actionType,
 	}
-	result := e.dispatchRoleTimingHook(playerpkg.TimingOnSpecialActionOverride, ctx)
+	result := e.dispatchRoleTimingHook(playerpkg.TimingSpecialActionOverride, ctx)
 	if result.ValidationError != nil {
 		return false, result.ValidationError
 	}
 	return result.Handled, nil
 }
 
-// runTimingOnActionEndSpecialActionPost 在特殊行动完成后执行后置规则。
-func (e *GameEngine) runTimingOnActionEndSpecialActionPost(player *model.Player, actionType model.ActionType) {
+// runTimingActionEndSpecialActionPost 在特殊行动完成后执行后置规则。
+func (e *GameEngine) runTimingActionEndSpecialActionPost(player *model.Player, actionType model.ActionType) {
 	ctx := playerpkg.TimingHookContext{
 		Player:     player,
 		ActionType: actionType,
 	}
-	e.dispatchAllRoleTimingHooks(playerpkg.TimingOnSpecialActionPost, ctx)
+	e.dispatchAllRoleTimingHooks(playerpkg.TimingSpecialActionPost, ctx)
 }

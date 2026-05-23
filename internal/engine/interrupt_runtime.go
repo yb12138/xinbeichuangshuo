@@ -9,6 +9,7 @@ import (
 	"starcup-engine/internal/engine/core/runtimeutil"
 	playerpkg "starcup-engine/internal/engine/player"
 	intr "starcup-engine/internal/engine/runtime/interrupt"
+	skillhandlers "starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 )
 
@@ -80,14 +81,36 @@ func (e *GameEngine) handleInterruptStartupSkillAction(act model.PlayerAction) (
 
 func (e *GameEngine) skipResponseActionResult() (intr.ActionResult, error) {
 	before := e.State.PendingInterrupt
+	if missileInterrupt, ok := magicMissileInterruptFromResponse(before); ok {
+		return intr.ActionResult{Consumed: true, AfterPop: func(intr.EngineInterface) {
+			e.State.SetPendingInterrupt(missileInterrupt)
+			e.syncGamePhaseWithInterrupt(missileInterrupt)
+			e.NotifyInterruptPrompt()
+		}}, nil
+	}
 	if !isBeforeDrawResponseInterrupt(before) && e.maybeAdvanceResponseSkillSelection() {
 		return intr.ActionResult{}, nil
 	}
 	state := e.captureResponseResumeStateFromInterrupt(responseCompletionSkip, "", before)
 	return intr.ActionResult{Consumed: true, AfterPop: func(intr.EngineInterface) {
-		e.runTimingOnResponseSkipEffects(&state)
+		e.runResponseSkillSkipEffects(&state)
 		e.restoreSkippedResponseAfterPop(state)
 	}}, nil
+}
+
+func magicMissileInterruptFromResponse(intr *model.Interrupt) (*model.Interrupt, bool) {
+	if intr == nil || intr.Type != model.InterruptResponseSkill {
+		return nil, false
+	}
+	ctx, ok := intr.Context.(*model.Context)
+	if !ok || ctx == nil || ctx.Selections == nil {
+		return nil, false
+	}
+	missileInterrupt, ok := ctx.Selections["magic_missile_interrupt"].(*model.Interrupt)
+	if !ok || missileInterrupt == nil || missileInterrupt.Type != model.InterruptMagicMissile {
+		return nil, false
+	}
+	return cloneInterrupt(missileInterrupt), true
 }
 
 func (e *GameEngine) handleInterruptGiveCardsAction(act model.PlayerAction) (intr.ActionResult, error) {
@@ -110,7 +133,7 @@ func (e *GameEngine) GetCurrentPrompt() *model.Prompt {
 			_ = e.SkipResponse()
 			return nil
 		}
-		prompt = e.buildPendingInterruptPrompt()
+		prompt = e.BuildPendingInterruptPrompt()
 	}
 	if prompt != nil {
 		return e.decoratePromptForClient(prompt)
@@ -159,7 +182,18 @@ func (e *GameEngine) prunePendingResponseSkills() bool {
 		if skillID == "" {
 			continue
 		}
-		if e.dispatcher.isSkillStillUsable(skillID, player, ctx) {
+		// 吟游诗人响应技能特殊处理：技能定义属于 bard，但弹窗给持有者。
+		// 实时校验时直接调用 handler.CanUse(ctx)，因为 ctx.Selections["bard_id"] 已存在。
+		if skillID == "bd_rousing_rhapsody" || skillID == "bd_victory_symphony" {
+			handler := skillhandlers.GetHandler(skillID)
+			if handler != nil && handler.CanUse(ctx) {
+				filtered = append(filtered, skillID)
+				continue
+			}
+			// handler 找不到或 CanUse 返回 false，跳过此技能
+			continue
+		}
+		if e.dispatcher.IsSkillStillUsable(skillID, player, ctx) {
 			filtered = append(filtered, skillID)
 		}
 	}
@@ -194,12 +228,7 @@ func (e *GameEngine) resolveGiveCardsInterrupt(giverID, receiverID string, indic
 		return fmt.Errorf("中断上下文错误")
 	}
 
-	var giveCount int
-	if gc, ok := data["give_count"].(int); ok {
-		giveCount = gc
-	} else if gcf, ok := data["give_count"].(float64); ok {
-		giveCount = int(gcf)
-	}
+	giveCount := runtimeutil.ToIntContextValue(data["give_count"])
 	ctxReceiverID, _ := data["receiver_id"].(string)
 	if ctxReceiverID != receiverID {
 		return fmt.Errorf("接收者不匹配")
@@ -234,7 +263,7 @@ func (e *GameEngine) resolveGiveCardsInterrupt(giverID, receiverID string, indic
 
 	receiver.Hand = append(receiver.Hand, givenCards...)
 	e.Log(fmt.Sprintf("[Skill] %s 将 %d 张牌交给了 %s", giver.Name, len(givenCards), receiver.Name))
-	overflowCtx := e.buildContext(receiver, nil, model.TimingActive, nil)
+	overflowCtx := e.BuildContext(receiver, nil, model.TimingActionDuring, nil)
 	if runtimeutil.ToBoolContextValue(data["stay_in_turn"]) {
 		overflowCtx.Flags["StayInTurn"] = true
 	}
@@ -242,7 +271,7 @@ func (e *GameEngine) resolveGiveCardsInterrupt(giverID, receiverID string, indic
 		overflowCtx.Flags["StayInTurn"] = true
 		overflowCtx.Selections["draw_resume_phase"] = point
 	}
-	e.checkHandLimit(receiver, overflowCtx)
+	e.CheckHandLimitCtx(receiver, overflowCtx)
 	e.Log(fmt.Sprintf("[Debug] 给牌完成，队列中还有 %d 个中断", len(e.State.InterruptQueue)))
 	return nil
 }
@@ -254,7 +283,7 @@ func (e *GameEngine) SkipResponse() error {
 	}
 	state := e.captureResponseResumeStateFromInterrupt(responseCompletionSkip, "", e.State.PendingInterrupt)
 	e.PopInterrupt()
-	e.runTimingOnResponseSkipEffects(&state)
+	e.runResponseSkillSkipEffects(&state)
 	e.restoreSkippedResponseAfterPop(state)
 	return nil
 }
@@ -303,7 +332,7 @@ func (e *GameEngine) maybeAdvanceResponseSkillSelection() bool {
 	}
 
 	// 角色响应技能推进（如格斗家蓄力→气绝）
-	advanceResult := e.dispatchRoleTimingHook(playerpkg.TimingOnResponseSkillAdvance, playerpkg.TimingHookContext{
+	advanceResult := e.dispatchRoleTimingHook(playerpkg.TimingResponseSkillAdvance, playerpkg.TimingHookContext{
 		Player:          player,
 		OfferedSkillIDs: intr.SkillIDs,
 		UserCtx:         ctx,
@@ -315,7 +344,7 @@ func (e *GameEngine) maybeAdvanceResponseSkillSelection() bool {
 	}
 
 	nextSkillIDs := e.dispatcher.getOtherUsableSkills("", player, ctx)
-	nextSkillIDs = e.dispatcher.applyTimingOnHitCheckResponseSkillNormalize(nextSkillIDs, ctx)
+	nextSkillIDs = e.dispatcher.applyAttackResponseSkillNormalize(nextSkillIDs, ctx)
 	if len(nextSkillIDs) == 0 {
 		return false
 	}

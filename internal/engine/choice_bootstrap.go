@@ -37,7 +37,15 @@ func registerRoleChoiceSpec(reg *choicert.SpecRegistry, roleID string, spec engi
 		return
 	}
 	var multi func(choicert.Host, string, []int, map[string]any) (bool, error)
-	if spec.SequentialRemaining != nil {
+	if spec.HandleMultiSelect != nil {
+		multi = func(h choicert.Host, playerID string, selections []int, ctx map[string]any) (bool, error) {
+			ge := engFromHost(h)
+			if ge == nil {
+				return false, fmt.Errorf("choice: engine bridge unavailable")
+			}
+			return spec.HandleMultiSelect(NewRoleChoiceRuntime(ge), playerID, selections, choiceCtxAsInterfaceMap(ctx))
+		}
+	} else if spec.SequentialRemaining != nil {
 		multi = func(h choicert.Host, playerID string, selections []int, _ map[string]any) (bool, error) {
 			ge := engFromHost(h)
 			if ge == nil {
@@ -47,7 +55,8 @@ func registerRoleChoiceSpec(reg *choicert.SpecRegistry, roleID string, spec engi
 		}
 	}
 	reg.Register(&choicert.ChoiceSpec{
-		Type: spec.ChoiceType,
+		Type:      spec.ChoiceType,
+		PhaseSync: string(spec.PhaseSync),
 		BuildPrompt: func(h choicert.Host, choiceType, playerID string, player *model.Player, data map[string]any) *model.Prompt {
 			ge := engFromHost(h)
 			if ge == nil {
@@ -68,7 +77,11 @@ func registerRoleChoiceSpec(reg *choicert.SpecRegistry, roleID string, spec engi
 			if ge == nil {
 				return false, fmt.Errorf("choice: engine bridge unavailable")
 			}
-			return ge.handleRoleChoiceCancel(roleID, playerID, choiceCtxAsInterfaceMap(ctxData))
+			handled, err := ge.handleRoleChoiceCancel(roleID, playerID, choiceCtxAsInterfaceMap(ctxData))
+			if err != nil || handled {
+				return handled, err
+			}
+			return ge.cancelPromptFlowChoice(playerID, ctxData)
 		},
 		SequentialRemaining: func(ctxData map[string]any) (int, bool) {
 			if spec.SequentialRemaining == nil {
@@ -148,37 +161,14 @@ func bootstrapChoiceSpecs(e *GameEngine) {
 	}
 	reg := e.choiceEngine.Registry()
 
-	registerChoiceSpec(reg, choiceTypeSystemDiscardCards, catalogSpecPlan{
-		build: (*GameEngine).buildSystemChoicePrompt,
-		sel: func(ge *GameEngine, pid string, idx int, _ map[string]any) (bool, error) {
-			return true, ge.handleSystemDiscardChoiceSelections(pid, []int{idx})
-		},
-		multi: (*GameEngine).handleSystemDiscardChoiceSelections,
-		cancel: func(ge *GameEngine, pid string, _ map[string]any) (bool, error) {
-			if ge.State == nil || ge.State.PendingInterrupt == nil {
-				return false, fmt.Errorf("当前没有待处理的弃牌操作")
-			}
-			ctxData, _ := ge.State.PendingInterrupt.Context.(map[string]interface{})
-			return true, ge.cancelSystemDiscardChoice(pid, ctxData)
-		},
-		consumes: func(ctx map[string]any) bool {
-			if ctx == nil {
-				return false
-			}
-			skillID, _ := ctx["skill_id"].(string)
-			return skillID == ""
-		},
-		after: (*GameEngine).afterSystemDiscardChoice,
-	})
-
 	registerChoiceSpec(reg, "extract", catalogSpecPlan{
 		autoConsume: true,
 		build:       (*GameEngine).buildSystemChoicePrompt,
 		sel: func(ge *GameEngine, pid string, idx int, _ map[string]any) (bool, error) {
-			return true, ge.handleExtractChoiceSelections(pid, []int{idx})
+			return true, ge.HandleExtractChoiceSelections(pid, []int{idx})
 		},
 		multi: func(ge *GameEngine, pid string, sel []int) error {
-			return ge.handleExtractChoiceSelections(pid, sel)
+			return ge.HandleExtractChoiceSelections(pid, sel)
 		},
 		cancel: func(ge *GameEngine, pid string, _ map[string]any) (bool, error) {
 			return true, ge.cancelExtractChoice(pid)
@@ -209,10 +199,16 @@ func (e *GameEngine) bootstrapRoleChoiceSpecs(reg *choicert.SpecRegistry) {
 				roleID = entry.ID
 			}
 			if spec, ok := entry.ChoiceSpecFor(choiceType); ok {
+				if spec.PhaseSync == "" && route.PhaseSync != "" {
+					spec.PhaseSync = engineplayer.InterruptPhaseSync(route.PhaseSync)
+				}
 				registerRoleChoiceSpec(reg, roleID, spec)
 				continue
 			}
-			registerRoleChoiceSpec(reg, roleID, engineplayer.ChoiceSpec{ChoiceType: choiceType})
+			registerRoleChoiceSpec(reg, roleID, engineplayer.ChoiceSpec{
+				ChoiceType: choiceType,
+				PhaseSync:  engineplayer.InterruptPhaseSync(route.PhaseSync),
+			})
 		}
 	}
 }

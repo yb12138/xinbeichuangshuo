@@ -60,7 +60,7 @@ func TestCurrentChoiceResumePoint_InvalidTurnStagePanics(t *testing.T) {
 			t.Fatal("expected panic for invalid turn stage")
 		}
 	}()
-	_ = game.currentChoiceResumePoint()
+	_ = game.CurrentChoiceResumePoint()
 }
 
 func TestCurrentChoiceResumePoint_NilEnginePanics(t *testing.T) {
@@ -70,5 +70,5 @@ func TestCurrentChoiceResumePoint_NilEnginePanics(t *testing.T) {
 			t.Fatal("expected panic for nil engine")
 		}
 	}()
-	_ = game.currentChoiceResumePoint()
+	_ = game.CurrentChoiceResumePoint()
 }

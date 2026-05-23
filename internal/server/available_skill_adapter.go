@@ -3,6 +3,7 @@ package server
 import (
 	"starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
+	"starcup-engine/internal/server/bot"
 	"starcup-engine/internal/server/stateview"
 )
 
@@ -62,6 +63,18 @@ func (r *Room) buildAvailableActionSkills(playerID string) []AvailableSkill {
 				continue
 			}
 		}
+		if sd.ID == "ss_soul_recall" {
+			hasMagic := false
+			for _, c := range p.Hand {
+				if c.Type == model.CardTypeMagic {
+					hasMagic = true
+					break
+				}
+			}
+			if !hasMagic {
+				continue
+			}
+		}
 		if sd.ID == "mb_thunder_scatter" {
 			if p.TurnState.UsedSkillCounts["mb_charge_lock_turn"] > 0 {
 				continue
@@ -112,7 +125,12 @@ func (r *Room) buildAvailableActionSkills(playerID string) []AvailableSkill {
 				continue
 			}
 		}
-		// 通用可用性兜底：复用技能 Handler 的 CanUse，提前过滤“指示物不足/形态不符”等条件。
+		// 弃牌成本可达成性：检查手牌中是否有满足元素/类型/独有技要求的牌。
+		// CostDiscards=0 的专属卡区技能仍由上方 HasExclusiveCard 保证可用性。
+		if !r.Engine.CanSatisfyActionSkillDiscardRequirement(p, sd) {
+			continue
+		}
+		// 通用可用性兜底：复用技能 Handler 的 CanUse，提前过滤”指示物不足/形态不符”等条件。
 		// 这样前端会直接把技能置灰（或不展示），避免点击后才报“技能发动失败”。
 		if !r.canUseActionSkillNow(p, sd) {
 			continue
@@ -182,7 +200,7 @@ func (r *Room) canUseActionSkillNow(user *model.Player, sd model.SkillDefinition
 	}
 	// PlaceCard 主动技里有一类“放置现在、触发在未来”的场牌（如五系封印）。
 	// 这些 handler 的 CanUse 语义是“未来触发时机是否成立”，不适合作为“当前可施放性”过滤，
-	// 否则会被 TimingActive 探测误判为 false，导致前端按钮错误置灰。
+	// 否则会被 TimingActionDuring 探测误判为 false，导致前端按钮错误置灰。
 	if sd.Type == model.SkillTypeAction &&
 		sd.PlaceCard &&
 		sd.PlaceMode == model.FieldEffect &&
@@ -202,7 +220,7 @@ func (r *Room) canUseActionSkillNow(user *model.Player, sd model.SkillDefinition
 		Game:   r.Engine,
 		User:   user,
 		Target: probeTarget,
-		Timing: model.TimingActive,
+		Timing: model.TimingActionDuring,
 		EventCtx: &model.EventContext{
 			Type:     model.EventNone,
 			SourceID: user.ID,
@@ -215,4 +233,28 @@ func (r *Room) canUseActionSkillNow(user *model.Player, sd model.SkillDefinition
 		ctx.Targets = []*model.Player{probeTarget}
 	}
 	return handler.CanUse(ctx)
+}
+
+// buildBotAvailableSkills 构建 bot 决策所需的可用技能列表
+func buildBotAvailableSkills(skills []AvailableSkill) []bot.AvailableSkill {
+	result := make([]bot.AvailableSkill, 0, len(skills))
+	for _, sk := range skills {
+		result = append(result, bot.AvailableSkill{
+			ID:               sk.ID,
+			Title:            sk.Title,
+			Description:      sk.Description,
+			MinTargets:       sk.MinTargets,
+			MaxTargets:       sk.MaxTargets,
+			TargetType:       sk.TargetType,
+			CostGem:          sk.CostGem,
+			CostCrystal:      sk.CostCrystal,
+			CostDiscards:     sk.CostDiscards,
+			DiscardType:      sk.DiscardType,
+			DiscardElement:   sk.DiscardElement,
+			RequireExclusive: sk.RequireExclusive,
+			PlaceCard:        sk.PlaceCard,
+			PlaceEffect:      sk.PlaceEffect,
+		})
+	}
+	return result
 }

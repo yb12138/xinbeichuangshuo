@@ -31,7 +31,9 @@ func SkillEntries() []player.SkillEntry {
 			Handler: &ElementalistFreezeHandler{},
 			Policy: types.SkillPolicy{
 				TargetRules: types.TargetRuleSet{
-					Count: types.TargetCountRule{Min: 2, Max: 2, Err: "冰冻需要指定2名目标"},
+					// 分步选择模式：由后端流程控制，前端不需要一次性选目标
+					// 使用 Err 字段触发 HasCountOverride，使 min/max=0生效
+					Count: types.TargetCountRule{Min: 0, Max: 0, Err: "分步选择"},
 				},
 			},
 		},
@@ -45,7 +47,9 @@ func SkillEntries() []player.SkillEntry {
 // ChoiceRouteSpecs 导出角色 choice 路由声明。
 func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 	return map[string]types.ChoiceRouteSpec{
-		"elementalist_bonus_card":      types.ChoiceRouteRole("elementalist"),
-		"elementalist_primordial_pick": types.ChoiceRouteRole("elementalist"),
+		"elementalist_bonus_card":           types.ChoiceRouteRole("elementalist"),
+		"elementalist_primordial_pick":      types.ChoiceRouteRole("elementalist"),
+		"elementalist_freeze_damage_target": types.ChoiceRouteRole("elementalist"),
+		"elementalist_freeze_heal_target":   types.ChoiceRouteRole("elementalist"),
 	}
 }

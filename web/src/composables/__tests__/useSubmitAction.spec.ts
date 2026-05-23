@@ -9,8 +9,14 @@ import type { Card, GameStateUpdate, PlayerView } from '../../types/game'
 const wsMock = {
   disconnect: vi.fn(),
   sendAction: vi.fn(),
-  sendRoomAction: vi.fn(),
   sendChat: vi.fn(),
+  changeCamp: vi.fn(),
+  changeRole: vi.fn(),
+  addBot: vi.fn(),
+  removeBot: vi.fn(),
+  takeoverPlayer: vi.fn(),
+  startRoom: vi.fn(),
+  dissolveRoom: vi.fn(),
   attack: vi.fn(),
   magic: vi.fn(),
   useSkill: vi.fn(),
@@ -57,7 +63,6 @@ function buildPlayer(overrides: Partial<PlayerView> = {}): PlayerView {
     max_hand: 6,
     exclusive_card_count: 0,
     hand: [],
-    blessings: [],
     exclusive_cards: [],
     field: [],
     heal: 0,
@@ -143,12 +148,12 @@ describe('useSubmitAction', () => {
     const actions = useSubmitAction()
 
     interruptStore.setActionMode('attack')
-    interruptStore.setSelectedCardForAction(99)
+    interruptStore.setSelectedHandIndexForAction(99)
 
     const ok = actions.submitSelectedBoardTarget('p2')
 
     expect(ok).toBe(false)
-    expect(interruptStore.selectedCardForAction).toBeNull()
+    expect(interruptStore.selectedHandIndexForAction).toBeNull()
     expect(interruptStore.errorMessage).toBe('所选卡牌已变化，请重新选择')
     expect(wsMock.attack).not.toHaveBeenCalled()
   })
@@ -158,11 +163,11 @@ describe('useSubmitAction', () => {
     const actions = useSubmitAction()
 
     interruptStore.setActionMode('attack')
-    interruptStore.setSelectedCardForAction(0)
+    interruptStore.setSelectedHandIndexForAction(0)
 
     const ok = actions.submitSelectedBoardTarget('p2')
 
     expect(ok).toBe(true)
-    expect(wsMock.attack).toHaveBeenCalledWith('p2', 0)
+    expect(wsMock.attack).toHaveBeenCalledWith('p2', 'attack-1')
   })
 })

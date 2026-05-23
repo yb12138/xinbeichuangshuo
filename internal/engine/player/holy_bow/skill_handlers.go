@@ -173,10 +173,11 @@ func (h *HolyBowShardStormHandler) Execute(ctx *model.Context) error {
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
 		Context: map[string]interface{}{
-			"choice_type": "hb_holy_shard_combo",
-			"user_id":     ctx.User.ID,
-			"combos":      combos,
-			"target_ids":  enemyIDs,
+			"choice_type":              "hb_holy_shard_combo",
+			"user_id":                  ctx.User.ID,
+			"combos":                   combos,
+			"target_ids":               enemyIDs,
+			model.PromptFlowContextKey: holyShardFlowRuntime.Begin(),
 		},
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [圣屑飓暴]：请选择弃置的同系攻击牌组合", ctx.User.Name))
@@ -266,11 +267,12 @@ func (h *HolyBowLightBurstHandler) Execute(ctx *model.Context) error {
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
 		Context: map[string]interface{}{
-			"choice_type": "hb_light_burst_mode",
-			"user_id":     ctx.User.ID,
-			"ally_ids":    allyIDs,
-			"enemy_ids":   enemyIDs,
-			"max_x":       maxX,
+			"choice_type":              "hb_light_burst_mode",
+			"user_id":                  ctx.User.ID,
+			"ally_ids":                 allyIDs,
+			"enemy_ids":                enemyIDs,
+			"max_x":                    maxX,
+			model.PromptFlowContextKey: lightBurstFlowRuntime.Begin(),
 		},
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [圣光爆裂]：请选择发动分支", ctx.User.Name))
@@ -283,7 +285,7 @@ func (h *HolyBowMeteorBulletHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Timing != model.TimingOnAttackDeclared {
+	if !ctx.AttackDeclarePhase() {
 		return false
 	}
 	if !InHolyGloryForm(ctx.User) {
@@ -346,7 +348,11 @@ func (h *HolyBowRadiantCannonHandler) CanUse(ctx *model.Context) bool {
 	if Cannon(ctx.User) <= 0 {
 		return false
 	}
-	requiredFaith := 4 + skillMoraleGap(ctx.Game, ctx.User)
+	moraleGap := skillMoraleGap(ctx.Game, ctx.User)
+	if moraleGap <= 0 {
+		return false
+	}
+	requiredFaith := 4 + moraleGap
 	return Faith(ctx.User) >= requiredFaith
 }
 
@@ -360,7 +366,11 @@ func (h *HolyBowRadiantCannonHandler) Execute(ctx *model.Context) error {
 	if Cannon(ctx.User) <= 0 {
 		return fmt.Errorf("圣煌辉光炮指示物不足")
 	}
-	requiredFaith := 4 + skillMoraleGap(ctx.Game, ctx.User)
+	moraleGap := skillMoraleGap(ctx.Game, ctx.User)
+	if moraleGap <= 0 {
+		return fmt.Errorf("我方士气未落后敌方，无法发动圣煌辉光炮")
+	}
+	requiredFaith := 4 + moraleGap
 	if Faith(ctx.User) < requiredFaith {
 		return fmt.Errorf("信仰不足，需要%d点", requiredFaith)
 	}

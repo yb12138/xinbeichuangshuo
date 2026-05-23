@@ -1,0 +1,211 @@
+package elf_archer_test
+
+import (
+	"starcup-engine/internal/engine"
+	"starcup-engine/internal/testutils"
+	"testing"
+
+	elfarcher "starcup-engine/internal/engine/player/elf_archer"
+	"starcup-engine/internal/engine/skill"
+	"starcup-engine/internal/model"
+	"starcup-engine/internal/rules"
+)
+
+type noopElfBlessingObserver struct{}
+
+func (noopElfBlessingObserver) OnGameEvent(event model.GameEvent) {}
+
+func buildElfBlessingGame(t *testing.T) *engine.GameEngine {
+	t.Helper()
+
+	game := engine.NewGameEngine(noopElfBlessingObserver{})
+	game.State.Deck = rules.InitDeck()
+
+	if err := game.AddPlayer("p1", "Elf", "elf_archer", model.RedCamp); err != nil {
+		t.Fatalf("add p1 failed: %v", err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatalf("add p2 failed: %v", err)
+	}
+
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+	game.State.PlayerOrder = []string{"p1", "p2"}
+
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+
+	return game
+}
+
+// markElfBlessings adds cards as elf blessing field covers for testing.
+func markElfBlessings(p *model.Player, cards []model.Card) {
+	for _, c := range cards {
+		p.Field = append(p.Field, &model.FieldCard{
+			Mode:   model.FieldCover,
+			Effect: model.EffectElfBlessing,
+			Card:   c,
+		})
+		p.CharaZone = append(p.CharaZone, "elf_blessing:"+c.ID)
+	}
+}
+func TestElfRitualStoresBlessingsOutsideHand(t *testing.T) {
+	game := buildElfBlessingGame(t)
+	p1 := game.State.Players["p1"]
+
+	p1.Gem = 1
+	p1.Hand = []model.Card{
+		{ID: "hand-1", Name: "普通手牌1", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 1},
+		{ID: "hand-2", Name: "普通手牌2", Type: model.CardTypeAttack, Element: model.ElementWater, Damage: 1},
+		{ID: "hand-3", Name: "普通手牌3", Type: model.CardTypeMagic, Element: model.ElementWind, Damage: 0},
+		{ID: "hand-4", Name: "普通手牌4", Type: model.CardTypeMagic, Element: model.ElementEarth, Damage: 0},
+		{ID: "hand-5", Name: "普通手牌5", Type: model.CardTypeAttack, Element: model.ElementThunder, Damage: 1},
+		{ID: "hand-6", Name: "普通手牌6", Type: model.CardTypeMagic, Element: model.ElementLight, Damage: 0},
+	}
+	beforeHand := len(p1.Hand)
+
+	handler := skills.GetHandler("elf_ritual")
+	if handler == nil {
+		t.Fatalf("elf_ritual handler not found")
+	}
+	ctx := &model.Context{
+		Game:  game,
+		User:  p1,
+		Flags: map[string]bool{},
+	}
+	if !handler.CanUse(ctx) {
+		t.Fatalf("elf_ritual should be usable")
+	}
+	// 模拟框架在 ConfirmStartupSkillAction 中扣减宝石（skill definition CostGem: 1）
+	p1.Gem--
+	if err := handler.Execute(ctx); err != nil {
+		t.Fatalf("elf_ritual execute failed: %v", err)
+	}
+
+	if got := len(p1.Hand); got != beforeHand {
+		t.Fatalf("ritual should not change normal hand size, got=%d want=%d", got, beforeHand)
+	}
+	if got := elfarcher.CountBlessings(p1); got != 3 {
+		t.Fatalf("ritual should create 3 blessings, got=%d", got)
+	}
+	if game.State.PendingInterrupt != nil {
+		t.Fatalf("ritual draw should not dispatch overflow discard interrupt")
+	}
+	if p1.Gem != 0 {
+		t.Fatalf("ritual should consume 1 gem, got=%d", p1.Gem)
+	}
+	if p1.Form != model.FormElfArcherRitual {
+		t.Fatalf("elf ritual should enter Player.Form, got=%q", p1.Form)
+	}
+}
+
+func TestElfBlessingCanBePlayedAsMagic(t *testing.T) {
+	game := buildElfBlessingGame(t)
+	p1 := game.State.Players["p1"]
+
+	p1.Hand = nil
+	markElfBlessings(p1, []model.Card{
+		{ID: "bless-magic", Name: "圣盾", Type: model.CardTypeMagic, Element: model.ElementLight, Damage: 0},
+	})
+
+	if err := game.HandleAction(model.PlayerAction{
+		PlayerID: "p1",
+		Type:     model.CmdMagic,
+		TargetID: "p1",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0), // 手牌为空时，索引0指向第一张祝福
+	}); err != nil {
+		t.Fatalf("magic with blessing should succeed: %v", err)
+	}
+
+	if got := elfarcher.CountBlessings(p1); got != 0 {
+		t.Fatalf("blessing should be consumed after play, got=%d", got)
+	}
+	if p1.HasFieldEffect(model.EffectShield) == false {
+		t.Fatalf("blessing magic should resolve to shield field effect")
+	}
+	if got := len(game.State.DiscardPile); got != 0 {
+		t.Fatalf("shield should stay on field instead of discard, got discard=%d", got)
+	}
+}
+
+func TestElfBlessingCanBePlayedAsAttack(t *testing.T) {
+	game := buildElfBlessingGame(t)
+	p1 := game.State.Players["p1"]
+
+	p1.Hand = nil
+	markElfBlessings(p1, []model.Card{
+		// 使用暗系避免触发「元素射击」中断，聚焦验证“祝福可作为攻击牌打出”。
+		{ID: "bless-attack", Name: "祝福之刃", Type: model.CardTypeAttack, Element: model.ElementDark, Damage: 1},
+	})
+
+	if err := game.HandleAction(model.PlayerAction{
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0), // 手牌为空时，索引0指向第一张祝福
+	}); err != nil {
+		t.Fatalf("attack with blessing should enqueue action: %v", err)
+	}
+
+	game.Drive()
+
+	if got := elfarcher.CountBlessings(p1); got != 0 {
+		t.Fatalf("blessing should be consumed after attack, got=%d", got)
+	}
+	if got := len(game.State.CombatStack); got != 1 {
+		t.Fatalf("combat stack should have 1 request, got=%d", got)
+	}
+	if game.State.CombatStack[0].Card == nil || game.State.CombatStack[0].Card.ID != "bless-attack" {
+		t.Fatalf("combat card should be the blessing attack card")
+	}
+	if got := len(game.State.DiscardPile); got != 1 {
+		t.Fatalf("discard pile should include used blessing attack, got=%d", got)
+	}
+}
+
+func TestElfRitualStartupConfirmShouldNotLeaveOverflowDiscard(t *testing.T) {
+	game := buildElfBlessingGame(t)
+	p1 := game.State.Players["p1"]
+
+	p1.Gem = 1
+	p1.Hand = []model.Card{
+		{ID: "h1", Name: "手牌1", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 1},
+		{ID: "h2", Name: "手牌2", Type: model.CardTypeAttack, Element: model.ElementWater, Damage: 1},
+		{ID: "h3", Name: "手牌3", Type: model.CardTypeMagic, Element: model.ElementWind, Damage: 0},
+		{ID: "h4", Name: "手牌4", Type: model.CardTypeMagic, Element: model.ElementEarth, Damage: 0},
+		{ID: "h5", Name: "手牌5", Type: model.CardTypeAttack, Element: model.ElementThunder, Damage: 1},
+		{ID: "h6", Name: "手牌6", Type: model.CardTypeMagic, Element: model.ElementLight, Damage: 0},
+	}
+
+	startupCtx := game.BuildContext(p1, nil, model.TimingTurnStart, &model.EventContext{
+		Type:     model.EventTurnStart,
+		SourceID: p1.ID,
+	})
+	game.State.PendingInterrupt = &model.Interrupt{
+		Type:     model.InterruptStartupSkill,
+		PlayerID: p1.ID,
+		SkillIDs: []string{"elf_ritual"},
+		Context:  startupCtx,
+	}
+	game.State.TurnStage = model.TurnStageActionStart
+
+	if err := game.ConfirmStartupSkill(p1.ID, "elf_ritual"); err != nil {
+		t.Fatalf("confirm startup ritual failed: %v", err)
+	}
+
+	if got := len(p1.Hand); got != 6 {
+		t.Fatalf("ritual startup confirm should keep normal hand size 6, got=%d", got)
+	}
+	if got := elfarcher.CountBlessings(p1); got != 3 {
+		t.Fatalf("ritual startup confirm should create 3 blessings, got=%d", got)
+	}
+	if game.State.PendingInterrupt != nil && engine.IsDiscardSelectionInterrupt(game.State.PendingInterrupt) {
+		t.Fatalf("should not leave pending discard interrupt after ritual")
+	}
+	for _, intr := range game.State.InterruptQueue {
+		if intr != nil && engine.IsDiscardSelectionInterrupt(intr) && intr.PlayerID == p1.ID {
+			t.Fatalf("should not keep queued discard interrupt for ritual player")
+		}
+	}
+}

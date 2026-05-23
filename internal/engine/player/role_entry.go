@@ -83,6 +83,7 @@ type StageOps interface {
 
 // DamageOps 伤害路由。
 type DamageOps interface {
+	AddPendingDamageFront(pd model.PendingDamage)
 	RoutePendingDamageOr(defaultReturn interface{}, onNoPending func()) bool
 	RoutePendingDamageWithReturn(returnTo interface{}) bool
 	ResumePendingMoraleLoss(ctx *model.Context) bool
@@ -140,10 +141,11 @@ type PoseOps interface {
 type MagicBulletOps interface {
 	SetMagicBulletChain(chain *model.MagicBulletChain)
 	GetPlayableCardByIndex(player *model.Player, idx int) (model.Card, bool)
-	ConsumePlayableCardByIndex(player *model.Player, idx int) (model.Card, error)
-	PerformMagic(playerID, targetID string, cardIdx int, isFusion bool) error
+	GetPlayableCardByCardID(player *model.Player, cardID string) (model.Card, bool)
+	PerformMagic(playerID, targetID string, cardIdx int) error
 	ExecuteMagicBullet(player *model.Player, reverse, isFusion bool, fusionCard *model.Card) error
 	FindNextMagicBulletTarget(playerID string) string
+	OfferMagicMissileResponseSkills()
 	DispatchHitCheckMagicMissileCounter(player *model.Player, chain *model.MagicBulletChain, card *model.Card) error
 	DispatchHitCheckMagicMissileDefend(player *model.Player, chain *model.MagicBulletChain) error
 }
@@ -184,11 +186,12 @@ type CombatPolicyContext struct {
 type InterruptPhaseSync string
 
 const (
-	InterruptPhaseSyncNone            InterruptPhaseSync = ""
-	InterruptPhaseSyncResponseWindow  InterruptPhaseSync = "response_window"
-	InterruptPhaseSyncActionExecution InterruptPhaseSync = "action_execution"
-	InterruptPhaseSyncCombatDraw      InterruptPhaseSync = "combat_draw"
-	InterruptPhaseSyncCombatHeal      InterruptPhaseSync = "combat_heal"
+	InterruptPhaseSyncNone             InterruptPhaseSync = ""
+	InterruptPhaseSyncResponseWindow   InterruptPhaseSync = "response_window"
+	InterruptPhaseSyncActionExecution  InterruptPhaseSync = "action_execution"
+	InterruptPhaseSyncDamageResolution InterruptPhaseSync = "damage_resolution"
+	InterruptPhaseSyncCombatDraw       InterruptPhaseSync = "combat_draw"
+	InterruptPhaseSyncCombatHeal       InterruptPhaseSync = "combat_heal"
 )
 
 type InterruptSpec struct {
@@ -198,6 +201,8 @@ type InterruptSpec struct {
 	HandleActionResult   func(rt ChoiceRuntime, act model.PlayerAction) (InterruptActionResult, error)
 	AllowedActionTypes   []model.PlayerActionType
 	InvalidActionMessage string
+	// Presentation 声明弹框展示类型（后端显式声明，前端按此渲染）
+	Presentation *model.PromptPresentation
 }
 
 // InterruptActionResult 描述角色中断输入是否消费当前中断。
@@ -211,9 +216,13 @@ type ChoiceSequentialRemaining func(ctxData map[string]interface{}) (int, bool)
 
 type ChoiceSpec struct {
 	ChoiceType          string
+	PhaseSync           InterruptPhaseSync
 	BuildPrompt         func(rt ChoiceRuntime, playerID string, player *model.Player, data map[string]interface{}) *model.Prompt
 	HandleChoice        func(rt ChoiceRuntime, playerID string, selectionIndex int, data map[string]interface{}) (bool, error)
+	HandleMultiSelect   func(rt ChoiceRuntime, playerID string, selections []int, data map[string]interface{}) (bool, error)
 	SequentialRemaining ChoiceSequentialRemaining
+	// Presentation 声明弹框展示类型（后端显式声明，前端按此渲染）
+	Presentation *model.PromptPresentation
 }
 
 // ChoiceRuntime 抽象角色选择流运行时能力（嵌入子接口的组合接口）。

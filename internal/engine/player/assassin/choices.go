@@ -27,8 +27,9 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 				{ID: "0", Label: "摸1张牌"},
 				{ID: "1", Label: "不摸牌"},
 			},
-			Min: 1,
-			Max: 1,
+			Min:          1,
+			Max:          1,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 		}
 	default:
 		return nil
@@ -79,28 +80,10 @@ func handleAssassinStealthDrawChoice(rt engineplayer.ChoiceRuntime, selectionInd
 		rt.PopInterrupt()
 		if rt.GetPendingInterrupt() == nil {
 			// 规则：潜行选择结束后要回到触发前的等待阶段，不允许隐式回落到任意默认阶段。
-			rt.ApplyChoiceResumePoint(mustChoiceResumePointFromMap(ctxData, "waiting_phase"))
+			rt.ApplyChoiceResumePoint(engineplayer.MustChoiceResumePointFromMap(ctxData, "waiting_phase"))
 		}
 		return nil
 	default:
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
-}
-
-func mustChoiceResumePointFromMap(data map[string]interface{}, key string) interface{} {
-	if data == nil {
-		panic(fmt.Sprintf("missing resume point map for key %q", key))
-	}
-	raw, ok := data[key]
-	if !ok {
-		panic(fmt.Sprintf("missing resume point key %q", key))
-	}
-	return mustChoiceResumePoint(raw, key)
-}
-
-func mustChoiceResumePoint(raw interface{}, key string) interface{} {
-	if raw == nil {
-		panic(fmt.Sprintf("nil resume point for key %q", key))
-	}
-	return raw
 }

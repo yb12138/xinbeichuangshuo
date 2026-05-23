@@ -7,8 +7,8 @@ import (
 	"starcup-engine/internal/model"
 )
 
-// handlePostAttackHitEffects 处理"攻击命中后"的角色附加效果。
-func (e *GameEngine) handlePostAttackHitEffects(pd *model.PendingDamage) bool {
+// HandlePostAttackHitEffects 处理"攻击命中后"的角色附加效果。
+func (e *GameEngine) HandlePostAttackHitEffects(pd *model.PendingDamage) bool {
 	if pd == nil {
 		return false
 	}
@@ -29,8 +29,8 @@ func (e *GameEngine) handlePostAttackHitEffects(pd *model.PendingDamage) bool {
 	return result.Interrupted
 }
 
-// handlePostActionEndEffects 处理行动结束后的场上效果追加结算。
-func (e *GameEngine) handlePostActionEndEffects(player *model.Player, actionType model.ActionType) bool {
+// HandlePostActionEndEffects 处理行动结束后的场上效果追加结算。
+func (e *GameEngine) HandlePostActionEndEffects(player *model.Player, actionType model.ActionType) bool {
 	if player == nil {
 		return false
 	}
@@ -44,9 +44,9 @@ func (e *GameEngine) handlePostActionEndEffects(player *model.Player, actionType
 	return result.Interrupted
 }
 
-// handlePostDamageResolved 处理"伤害结算完成后"的附加效果。
+// HandlePostDamageResolved 处理"伤害结算完成后"的附加效果。
 // 使用 dispatchAllRoleTimingHooks 确保所有角色的 hook 都能执行（不短路）。
-func (e *GameEngine) handlePostDamageResolved(pd *model.PendingDamage) bool {
+func (e *GameEngine) HandlePostDamageResolved(pd *model.PendingDamage) bool {
 	if pd == nil {
 		return false
 	}

@@ -99,7 +99,6 @@ type Action struct {
 	SourceID  string     `json:"source_id"`
 	TargetID  string     `json:"target_id"`
 	Card      *Card      `json:"card"` // 使用的卡牌
-	CardIdx   int        `json:"card_idx"`
 	ExtraArgs []string   `json:"extra_args"`
 
 	CounterInitiator string `json:"counter_initiator,omitempty"` // 原始应战发起者
@@ -107,17 +106,18 @@ type Action struct {
 
 // QueuedAction 队列中的行动（用于额外行动处理）
 type QueuedAction struct {
-	SourceID                    string     `json:"source_id"`                      // 发起者ID
-	TargetID                    string     `json:"target_id"`                      // 目标ID（攻击/法术的目标）
-	TargetIDs                   []string   `json:"target_ids,omitempty"`           // 多目标ID (新增支持)
-	Type                        ActionType `json:"type"`                           // Attack 或 Magic
-	Element                     Element    `json:"element"`                        // 可选：元素限制（如疾风技要求风系）
-	Card                        *Card      `json:"card"`                           // 可选：预定义的卡牌（如果已选择）
-	CardIndex                   int        `json:"card_index"`                     // 卡牌在手牌中的索引
-	SourceSkill                 string     `json:"source_skill"`                   // 来源技能ID（如疾风技、烈风技）
-	UsesVirtualCard             bool       `json:"uses_virtual_card,omitempty"`    // 是否为非手牌实体驱动的虚拟牌行动
-	HasDispatchedCardUsed       bool       `json:"has_dispatched_card_used"`       // 是否已触发卡牌使用事件
-	HasDispatchedAttackDeclared bool       `json:"has_dispatched_attack_declared"` // 是否已触发攻击开始（避免确认响应技能后再次触发）
+	SourceID                    string        `json:"source_id"`                      // 发起者ID
+	TargetID                    string        `json:"target_id"`                      // 目标ID（攻击/法术的目标）
+	TargetIDs                   []string      `json:"target_ids,omitempty"`           // 多目标ID (新增支持)
+	Type                        ActionType    `json:"type"`                           // Attack 或 Magic
+	Element                     Element       `json:"element"`                        // 可选：元素限制（如疾风技要求风系）
+	Card                        *Card         `json:"card"`                           // 可选：预定义的卡牌（如果已选择）
+	CardID                      string        `json:"card_id,omitempty"`              // 所选实体卡 UUID
+	SourceSkill                 string        `json:"source_skill"`                   // 来源技能ID（如疾风技、烈风技）
+	UsesVirtualCard             bool          `json:"uses_virtual_card,omitempty"`    // 是否为非手牌实体驱动的虚拟牌行动
+	HasDispatchedCardUsed       bool          `json:"has_dispatched_card_used"`       // 是否已触发卡牌使用事件
+	HasDispatchedAttackDeclared bool          `json:"has_dispatched_attack_declared"` // 是否已触发攻击开始（避免确认响应技能后再次触发）
+	SavedAttackEventCtx         *EventContext `json:"-"`                              // 攻击宣言时保存的事件上下文（响应技能中断后复用，技能可能修改 AttackInfo）
 }
 
 // CombatRequest 战斗请求（用于战斗交互阶段）
@@ -134,6 +134,9 @@ type CombatRequest struct {
 
 	// 阴阳师”阴阳转换”交互标记：仅用于控制”先询问是否发动”流程不重复弹出
 	OnmyojiYinYangChecked bool `json:”onmyoji_yinyang_checked,omitempty”`
+
+	// 阴阳师”式神咒束”交互标记：用于避免同一条战斗请求在拒绝后重复弹出代应战确认。
+	OnmyojiBindingChecked bool `json:"onmyoji_binding_checked,omitempty"`
 }
 
 // GameState 游戏状态
@@ -191,8 +194,9 @@ type GameState struct {
 	PendingOptionalSkills []PendingSkill `json:"pending_optional_skills"` // 等待确认的可选技能
 
 	// Interrupt system - unified blocking game states
-	PendingInterrupt *Interrupt   `json:"pending_interrupt,omitempty"` // Current interrupt (nil if no interrupt)
-	InterruptQueue   []*Interrupt `json:"interrupt_queue,omitempty"`   // Wait list for interrupts
+	PendingInterrupt  *Interrupt   `json:"pending_interrupt,omitempty"` // Current interrupt (nil if no interrupt)
+	InterruptQueue    []*Interrupt `json:"interrupt_queue,omitempty"`   // Wait list for interrupts
+	InterruptRevision uint64       `json:"-"`                           // Internal version for interrupt writes.
 
 	// 11步回合结构新增字段
 	ActionQueue []QueuedAction  `json:"action_queue,omitempty"` // 额外行动队列
@@ -213,6 +217,35 @@ type GameState struct {
 
 	// 回合控制
 	NextTurnPlayerOverride string `json:"next_turn_player_override,omitempty"` // 下回合玩家覆盖（用于额外回合等）
+}
+
+// TouchInterruptRevision records an internal interrupt-state write.
+func (s *GameState) TouchInterruptRevision() {
+	if s == nil {
+		return
+	}
+	s.InterruptRevision++
+}
+
+// SetPendingInterrupt updates the current interrupt and bumps the internal revision.
+func (s *GameState) SetPendingInterrupt(intr *Interrupt) {
+	if s == nil {
+		return
+	}
+	if s.PendingInterrupt == intr {
+		return
+	}
+	s.PendingInterrupt = intr
+	s.TouchInterruptRevision()
+}
+
+// EnqueueInterrupt appends an interrupt to the wait queue and bumps the internal revision.
+func (s *GameState) EnqueueInterrupt(intr *Interrupt) {
+	if s == nil || intr == nil {
+		return
+	}
+	s.InterruptQueue = append(s.InterruptQueue, intr)
+	s.TouchInterruptRevision()
 }
 
 // DamageType 定义伤害/行动类型枚举文本。
@@ -260,6 +293,8 @@ const (
 	PendingDamageCheckFromSoulLink           PendingDamageCheckKey = "from_soul_link"
 	PendingDamageCheckBeforeApplyDefend      PendingDamageCheckKey = "before_apply_defend_checked"
 	PendingDamageCheckBeforeApplyResponse    PendingDamageCheckKey = "before_apply_response_checked"
+	PendingDamageCheckBeforeApplyPoison      PendingDamageCheckKey = "before_apply_poison_checked"
+	PendingDamageCheckBeforeApplyMirror      PendingDamageCheckKey = "before_apply_mirror_checked"
 )
 
 func (pd *PendingDamage) HasCheck(key PendingDamageCheckKey) bool {
@@ -541,6 +576,8 @@ const (
 	EffectBardEternalMovement EffectType = "BardEternalMovement"
 	// 勇者“挑衅”场上效果标识（Mode=Effect）。
 	EffectHeroTaunt EffectType = "HeroTaunt"
+	// 格斗家“百式幻龙拳”锁定目标场上效果标识（Mode=Effect）。
+	EffectFighterHundredDragonLock EffectType = "FighterHundredDragonLock"
 	// 剑帝“剑魂”盖牌效果标识（Mode=Cover）。
 	EffectSwordSoul EffectType = "SwordSoul"
 	// 灵魂术士“灵魂链接”场上效果标识（Mode=Effect）。

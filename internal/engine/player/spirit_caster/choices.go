@@ -36,7 +36,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 	case "sc_hundred_night_exclude_pick":
 		return buildHundredNightExcludePickPrompt(rt, playerID, data)
 	case "sc_hundred_night_target":
-		return engineplayer.BuildTargetChoicePrompt(rt, playerID, "【百鬼夜行】请选择1点法术伤害目标：", data, false)
+		return engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, "【百鬼夜行】请选择1点法术伤害目标：", data, false)
 	case "sc_spiritual_collapse_confirm":
 		return buildSpiritualCollapseConfirmPrompt(playerID)
 	case "sc_talisman_wind_discard":
@@ -86,38 +86,44 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 
 func buildIncantConfirmPrompt(playerID string) *model.Prompt {
 	return &model.Prompt{
-		Type:     model.PromptConfirm,
-		PlayerID: playerID,
-		Message:  "【念咒】是否将1张手牌面朝下放置为妖力？",
-		Options:  []model.PromptOption{{ID: "0", Label: "是"}, {ID: "1", Label: "否"}},
-		Min:      1,
-		Max:      1,
+		Type:         model.PromptConfirm,
+		PlayerID:     playerID,
+		Message:      "【念咒】是否将1张手牌面朝下放置为妖力？",
+		ChoiceType:   "sc_incant_confirm",
+		Options:      []model.PromptOption{{ID: "0", Label: "是"}, {ID: "1", Label: "否"}},
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 	}
 }
 
 func buildIncantConfirmNoHandPrompt(playerID string) *model.Prompt {
 	return &model.Prompt{
-		Type:     model.PromptConfirm,
-		PlayerID: playerID,
-		Message:  "【念咒】无手牌可放置为妖力，是否跳过？",
-		Options:  []model.PromptOption{{ID: "0", Label: "跳过念咒"}, {ID: "1", Label: "取消"}},
-		Min:      1,
-		Max:      1,
+		Type:         model.PromptConfirm,
+		PlayerID:     playerID,
+		Message:      "【念咒】无手牌可放置为妖力，是否跳过？",
+		ChoiceType:   "sc_incant_confirm_no_hand",
+		Options:      []model.PromptOption{{ID: "0", Label: "跳过念咒"}, {ID: "1", Label: "取消"}},
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 	}
 }
 
 func buildIncantCardPrompt(playerID string, player *model.Player) *model.Prompt {
 	options := make([]model.PromptOption, 0, len(player.Hand))
 	for idx, c := range player.Hand {
-		options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", idx), Label: fmt.Sprintf("%d: %s", idx+1, formatCardInfo(c))})
+		options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", idx), Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(c)), CardID: c.ID})
 	}
 	return &model.Prompt{
-		Type:     model.PromptConfirm,
-		PlayerID: playerID,
-		Message:  "【念咒】请选择要作为妖力盖放的手牌：",
-		Options:  options,
-		Min:      1,
-		Max:      1,
+		Type:         model.PromptConfirm,
+		PlayerID:     playerID,
+		Message:      "【念咒】请选择要作为妖力盖放的手牌：",
+		ChoiceType:   "sc_incant_card",
+		Options:      options,
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand"},
 	}
 }
 
@@ -132,26 +138,41 @@ func buildHundredNightPowerPrompt(playerID string, player *model.Player) *model.
 		if eleZh == "" {
 			eleZh = string(fc.Card.Element)
 		}
-		options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", i), Label: fmt.Sprintf("%s（%s系）", fc.Card.Name, eleZh)})
+		fieldIndex := -1
+		for idx, fieldCard := range player.Field {
+			if fieldCard == fc {
+				fieldIndex = idx
+				break
+			}
+		}
+		option := model.PromptOption{ID: fmt.Sprintf("%d", i), Label: fmt.Sprintf("妖力[%d] %s（%s系）", i, fc.Card.Name, eleZh)}
+		if fieldIndex >= 0 {
+			option.FieldIndex = &fieldIndex
+		}
+		options = append(options, option)
 	}
 	return &model.Prompt{
-		Type:     model.PromptConfirm,
-		PlayerID: playerID,
-		Message:  "【百鬼夜行】请选择要移除的1个妖力：",
-		Options:  options,
-		Min:      1,
-		Max:      1,
+		Type:         model.PromptConfirm,
+		PlayerID:     playerID,
+		ChoiceType:   "sc_hundred_night_power",
+		Message:      "【百鬼夜行】请选择要移除的1个妖力：",
+		Options:      options,
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, Layout: "field_cover", CardSource: "field", CardFilter: "effect:SpiritCasterPower"},
 	}
 }
 
 func buildHundredNightFireRevealPrompt(playerID string) *model.Prompt {
 	return &model.Prompt{
-		Type:     model.PromptConfirm,
-		PlayerID: playerID,
-		Message:  "【百鬼夜行】移除的是火系妖力，是否展示并改为范围伤害？",
-		Options:  []model.PromptOption{{ID: "0", Label: "展示并改为范围伤害"}, {ID: "1", Label: "不展示，改为单体伤害"}},
-		Min:      1,
-		Max:      1,
+		Type:         model.PromptConfirm,
+		PlayerID:     playerID,
+		Message:      "【百鬼夜行】移除的是火系妖力，是否展示并改为范围伤害？",
+		ChoiceType:   "sc_hundred_night_fire_reveal",
+		Options:      []model.PromptOption{{ID: "0", Label: "展示并改为范围伤害"}, {ID: "1", Label: "不展示，改为单体伤害"}},
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 	}
 }
 
@@ -164,27 +185,31 @@ func buildHundredNightExcludePickPrompt(rt engineplayer.ChoiceRuntime, playerID 
 			continue
 		}
 		if target := rt.GetPlayers()[targetID]; target != nil {
-			options = append(options, model.PromptOption{ID: targetID, Label: target.Name})
+			options = append(options, model.PromptOption{ID: targetID, Label: target.Name, TargetID: targetID})
 		}
 	}
 	return &model.Prompt{
-		Type:     model.PromptConfirm,
-		PlayerID: playerID,
-		Message:  fmt.Sprintf("【百鬼夜行】请选择第 %d/2 名排除目标：", len(selectedSet)+1),
-		Options:  options,
-		Min:      1,
-		Max:      1,
+		Type:         model.PromptConfirm,
+		PlayerID:     playerID,
+		Message:      fmt.Sprintf("【百鬼夜行】请选择第 %d/2 名排除目标：", len(selectedSet)+1),
+		ChoiceType:   "sc_hundred_night_exclude_pick",
+		Options:      options,
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationTargetPicker, TargetFilter: "custom"},
 	}
 }
 
 func buildSpiritualCollapseConfirmPrompt(playerID string) *model.Prompt {
 	return &model.Prompt{
-		Type:     model.PromptConfirm,
-		PlayerID: playerID,
-		Message:  "【灵力崩解】是否消耗1点水晶（红宝石可替代），使本次每段伤害额外+1？",
-		Options:  []model.PromptOption{{ID: "0", Label: "是"}, {ID: "1", Label: "否"}},
-		Min:      1,
-		Max:      1,
+		Type:         model.PromptConfirm,
+		PlayerID:     playerID,
+		Message:      "【灵力崩解】是否消耗1点水晶（红宝石可替代），使本次每段伤害额外+1？",
+		ChoiceType:   "sc_spiritual_collapse_confirm",
+		Options:      []model.PromptOption{{ID: "0", Label: "是"}, {ID: "1", Label: "否"}},
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 	}
 }
 
@@ -196,15 +221,17 @@ func buildTalismanWindDiscardPrompt(rt engineplayer.ChoiceRuntime, playerID stri
 	}
 	options := make([]model.PromptOption, 0, len(target.Hand))
 	for idx, c := range target.Hand {
-		options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", idx), Label: fmt.Sprintf("%d: %s", idx+1, formatCardInfo(c))})
+		options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", idx), Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(c)), CardID: c.ID})
 	}
 	return &model.Prompt{
-		Type:     model.PromptConfirm,
-		PlayerID: playerID,
-		Message:  fmt.Sprintf("【灵符-风行】请 %s 选择1张手牌弃置：", target.Name),
-		Options:  options,
-		Min:      1,
-		Max:      1,
+		Type:         model.PromptConfirm,
+		PlayerID:     playerID,
+		Message:      fmt.Sprintf("【灵符-风行】请 %s 选择1张手牌弃置：", target.Name),
+		ChoiceType:   "sc_talisman_wind_discard",
+		Options:      options,
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "proxy"},
 	}
 }
 
@@ -213,12 +240,14 @@ func buildTalismanPickPrompt(playerID string, player *model.Player) *model.Promp
 	options = append(options, model.PromptOption{ID: "0", Label: "灵符-雷鸣"})
 	options = append(options, model.PromptOption{ID: "1", Label: "灵符-风行"})
 	return &model.Prompt{
-		Type:     model.PromptConfirm,
-		PlayerID: playerID,
-		Message:  "【灵符】请选择要发动的灵符类型：",
-		Options:  options,
-		Min:      1,
-		Max:      1,
+		Type:         model.PromptConfirm,
+		PlayerID:     playerID,
+		Message:      "【灵符】请选择要发动的灵符类型：",
+		ChoiceType:   "sc_talisman_pick",
+		Options:      options,
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 	}
 }
 
@@ -527,7 +556,7 @@ func handleTalismanWindDiscard(rt engineplayer.ChoiceRuntime, ctxData map[string
 	if len(target.Hand) == 0 {
 		rt.Log(fmt.Sprintf("%s 的 [灵符-风行]：%s 已无手牌，跳过", user.Name, target.Name))
 	} else {
-		candidates := allHandIndices(target)
+		candidates := engineplayer.AllHandIndices(target)
 		cardIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, candidates)
 		if !ok || cardIdx < 0 || cardIdx >= len(target.Hand) {
 			return fmt.Errorf("无效的选项索引: %d", selectionIndex)
@@ -633,7 +662,7 @@ func startWindDiscardFlow(rt engineplayer.ChoiceRuntime, user *model.Player, tar
 		return fmt.Errorf("玩家不存在")
 	}
 	targetSet := runtimeutil.IDsToSet(runtimeutil.DedupeIDs(targetIDs))
-	orderedAll := reverseOrderTargetIDsFrom(rt, user.ID, true)
+	orderedAll := engineplayer.ReversePlayerIDsFromRuntime(rt, user.ID, engineplayer.ReverseOrderOption{IncludeSelf: true})
 	ordered := make([]string, 0, len(targetIDs))
 	for _, playerID := range orderedAll {
 		if !targetSet[playerID] {
@@ -693,7 +722,7 @@ func resolveThunderDamage(rt engineplayer.ChoiceRuntime, user *model.Player, tar
 		damage = 0
 	}
 	targetSet := runtimeutil.IDsToSet(runtimeutil.DedupeIDs(targetIDs))
-	ordered := reverseOrderTargetIDsFrom(rt, user.ID, true)
+	ordered := engineplayer.ReversePlayerIDsFromRuntime(rt, user.ID, engineplayer.ReverseOrderOption{IncludeSelf: true})
 	hitCount := 0
 	for _, targetID := range ordered {
 		if !targetSet[targetID] {
@@ -741,7 +770,7 @@ func resolveHundredNightFireAOE(rt engineplayer.ChoiceRuntime, user *model.Playe
 	}
 	exclude := runtimeutil.IDsToSet(runtimeutil.DedupeIDs(excludeIDs))
 	damage := 1 + bonus
-	ordered := reverseOrderTargetIDsFrom(rt, user.ID, true)
+	ordered := engineplayer.ReversePlayerIDsFromRuntime(rt, user.ID, engineplayer.ReverseOrderOption{IncludeSelf: true})
 	hitCount := 0
 	for _, playerID := range ordered {
 		if exclude[playerID] {
@@ -766,51 +795,3 @@ func resolveHundredNightFireAOE(rt engineplayer.ChoiceRuntime, user *model.Playe
 // ===========================================================================
 // Utility helpers
 // ===========================================================================
-
-// reverseOrderTargetIDsFrom returns player IDs in reverse play order starting
-// from the source player's position.
-func reverseOrderTargetIDsFrom(rt engineplayer.ChoiceRuntime, sourceID string, includeSelf bool) []string {
-	playerOrder := rt.GetPlayerOrder()
-	if len(playerOrder) == 0 {
-		return nil
-	}
-	start := -1
-	for i, pid := range playerOrder {
-		if pid == sourceID {
-			start = i
-			break
-		}
-	}
-	if start < 0 {
-		return nil
-	}
-	n := len(playerOrder)
-	var ids []string
-	stepStart := 1
-	stepEnd := n
-	if includeSelf {
-		stepStart = 0
-	}
-	for step := stepStart; step < stepEnd; step++ {
-		idx := (start - step + n) % n
-		ids = append(ids, playerOrder[idx])
-	}
-	return ids
-}
-
-// allHandIndices returns a slice of all valid hand indices for the player.
-func allHandIndices(player *model.Player) []int {
-	if player == nil {
-		return nil
-	}
-	out := make([]int, 0, len(player.Hand))
-	for i := range player.Hand {
-		out = append(out, i)
-	}
-	return out
-}
-
-// formatCardInfo formats card information for prompt display.
-func formatCardInfo(card model.Card) string {
-	return promptfmt.FormatCardInfo(card)
-}

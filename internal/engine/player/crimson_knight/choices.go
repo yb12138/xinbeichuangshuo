@@ -13,6 +13,21 @@ import (
 
 type choiceHandler struct{}
 
+const (
+	bloodyPrayerFlowID     = "crk_bloody_prayer"
+	bloodyPrayerStepX      = "x"
+	bloodyPrayerStepCount  = "ally_count"
+	bloodyPrayerStepTarget = "target"
+	bloodyPrayerStepSplit  = "split"
+)
+
+var bloodyPrayerFlowRuntime = model.MustNewPromptFlowRuntime(bloodyPrayerFlowID, []model.PromptFlowStepSpec{
+	{ID: bloodyPrayerStepX, ChoiceType: "crk_bloody_prayer_x", CancelPolicy: model.CancelPolicyAbort},
+	{ID: bloodyPrayerStepCount, ChoiceType: "crk_bloody_prayer_ally_count", CancelPolicy: model.CancelPolicyBack},
+	{ID: bloodyPrayerStepTarget, ChoiceType: "crk_bloody_prayer_target", CancelPolicy: model.CancelPolicyBack},
+	{ID: bloodyPrayerStepSplit, ChoiceType: "crk_bloody_prayer_split", CancelPolicy: model.CancelPolicyAbort},
+})
+
 func NewChoiceHandler() engineplayer.ChoiceHandler {
 	return choiceHandler{}
 }
@@ -25,11 +40,15 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		for x := 1; x <= maxX; x++ {
 			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", x), Label: fmt.Sprintf("X=%d（移除%d治疗并对自己造成%d法伤）", x, x, x)})
 		}
-		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【血腥祷言】请选择X值：", Options: options, Min: 1, Max: 1}
+		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【血腥祷言】请选择X值：", Options: options, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 0}}
 
 	case "crk_bloody_prayer_ally_count":
 		allyIDs := runtimeutil.ParseStringSliceContextValue(data["ally_ids"])
-		xValue := runtimeutil.ToIntContextValue(data["x_value"])
+		flow, err := model.RequirePromptFlow(data, bloodyPrayerFlowID, "血腥祷言")
+		if err != nil {
+			return nil
+		}
+		xValue := flow.Selection(bloodyPrayerStepX).Count
 		if xValue <= 0 {
 			xValue = 1
 		}
@@ -37,12 +56,17 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		if len(allyIDs) >= 2 && xValue >= 2 {
 			options = append(options, model.PromptOption{ID: "1", Label: "选择2名队友（治疗将分配）"})
 		}
-		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【血腥祷言】请选择要分配治疗的队友数量：", Options: options, Min: 1, Max: 1}
+		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【血腥祷言】请选择要分配治疗的队友数量：", Options: options, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"}}
 
 	case "crk_bloody_prayer_target":
 		allyIDs := runtimeutil.ParseStringSliceContextValue(data["ally_ids"])
-		selectedSet := runtimeutil.IDsToSet(runtimeutil.ParseStringSliceContextValue(data["selected_ally_ids"]))
-		allyCount := runtimeutil.ToIntContextValue(data["ally_count"])
+		flow, err := model.RequirePromptFlow(data, bloodyPrayerFlowID, "血腥祷言")
+		if err != nil {
+			return nil
+		}
+		selectedIDs := flow.Selection(bloodyPrayerStepTarget).TargetIDs
+		selectedSet := runtimeutil.IDsToSet(selectedIDs)
+		allyCount := flow.Selection(bloodyPrayerStepCount).Count
 		if allyCount <= 0 {
 			allyCount = 1
 		}
@@ -52,32 +76,14 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 				continue
 			}
 			if target := rt.GetPlayers()[allyID]; target != nil {
-				options = append(options, model.PromptOption{ID: allyID, Label: target.Name})
+				options = append(options, model.PromptOption{ID: allyID, Label: target.Name, TargetID: allyID})
 			}
 		}
-		pickIndex := len(selectedSet) + 1
-		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: fmt.Sprintf("【血腥祷言】请选择第 %d/%d 名队友：", pickIndex, allyCount), Options: options, Min: 1, Max: 1}
+		pickIndex := len(selectedIDs) + 1
+		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: fmt.Sprintf("【血腥祷言】请选择第 %d/%d 名队友：", pickIndex, allyCount), Options: options, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationTargetPicker, TargetFilter: "custom"}}
 
 	case "crk_bloody_prayer_split":
-		selected := runtimeutil.ParseStringSliceContextValue(data["selected_ally_ids"])
-		if len(selected) != 2 {
-			return nil
-		}
-		xValue := runtimeutil.ToIntContextValue(data["x_value"])
-		if xValue < 2 {
-			return nil
-		}
-		first := rt.GetPlayers()[selected[0]]
-		second := rt.GetPlayers()[selected[1]]
-		if first == nil || second == nil {
-			return nil
-		}
-		options := make([]model.PromptOption, 0, xValue-1)
-		for firstHeal := 1; firstHeal < xValue; firstHeal++ {
-			secondHeal := xValue - firstHeal
-			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", firstHeal-1), Label: fmt.Sprintf("%s +%d，%s +%d", first.Name, firstHeal, second.Name, secondHeal)})
-		}
-		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【血腥祷言】请选择治疗分配：", Options: options, Min: 1, Max: 1}
+		return buildCrimsonKnightBloodyPrayerSplitPrompt(rt, playerID, data)
 	}
 
 	return nil
@@ -109,28 +115,32 @@ func handleCrimsonKnightBloodyPrayerX(rt engineplayer.ChoiceRuntime, selectionIn
 	if xValue < 1 || xValue > maxX {
 		return fmt.Errorf("无效的X值")
 	}
-	ctxData["x_value"] = xValue
-	ctxData["selected_ally_ids"] = []string{}
+	flow, err := model.RequirePromptFlow(ctxData, bloodyPrayerFlowID, "血腥祷言")
+	if err != nil {
+		return err
+	}
+	flow.PutSelection(bloodyPrayerStepX, model.PromptFlowSelection{
+		OptionIndexes: []int{selectionIndex},
+		Count:         xValue,
+	})
 	allyIDs := runtimeutil.ParseStringSliceContextValue(ctxData["ally_ids"])
 	if len(allyIDs) == 0 {
 		return fmt.Errorf("没有可分配治疗的队友")
 	}
 	if len(allyIDs) >= 2 && xValue >= 2 {
-		ctxData["choice_type"] = "crk_bloody_prayer_ally_count"
+		return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, bloodyPrayerFlowRuntime, flow, bloodyPrayerStepCount)
 	} else {
-		ctxData["ally_count"] = 1
-		ctxData["choice_type"] = "crk_bloody_prayer_target"
+		flow.PutSelection(bloodyPrayerStepCount, model.PromptFlowSelection{Count: 1})
+		return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, bloodyPrayerFlowRuntime, flow, bloodyPrayerStepTarget)
 	}
-	intr := rt.GetPendingInterrupt()
-	if intr != nil {
-		intr.Context = ctxData
-	}
-	rt.NotifyInterruptPrompt()
-	return nil
 }
 
 func handleCrimsonKnightBloodyPrayerAllyCount(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
-	xValue := runtimeutil.ToIntContextValue(ctxData["x_value"])
+	flow, err := model.RequirePromptFlow(ctxData, bloodyPrayerFlowID, "血腥祷言")
+	if err != nil {
+		return err
+	}
+	xValue := flow.Selection(bloodyPrayerStepX).Count
 	allyIDs := runtimeutil.ParseStringSliceContextValue(ctxData["ally_ids"])
 	maxCount := 1
 	if len(allyIDs) >= 2 && xValue >= 2 {
@@ -140,15 +150,12 @@ func handleCrimsonKnightBloodyPrayerAllyCount(rt engineplayer.ChoiceRuntime, sel
 	if allyCount < 1 || allyCount > maxCount {
 		return fmt.Errorf("无效的队友数量选择")
 	}
-	ctxData["ally_count"] = allyCount
-	ctxData["selected_ally_ids"] = []string{}
-	ctxData["choice_type"] = "crk_bloody_prayer_target"
-	intr := rt.GetPendingInterrupt()
-	if intr != nil {
-		intr.Context = ctxData
-	}
-	rt.NotifyInterruptPrompt()
-	return nil
+	flow.PutSelection(bloodyPrayerStepCount, model.PromptFlowSelection{
+		OptionIndexes: []int{selectionIndex},
+		Count:         allyCount,
+	})
+	flow.PutSelection(bloodyPrayerStepTarget, model.PromptFlowSelection{})
+	return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, bloodyPrayerFlowRuntime, flow, bloodyPrayerStepTarget)
 }
 
 func handleCrimsonKnightBloodyPrayerTarget(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
@@ -158,7 +165,11 @@ func handleCrimsonKnightBloodyPrayerTarget(rt engineplayer.ChoiceRuntime, select
 		return fmt.Errorf("玩家不存在")
 	}
 	allyIDs := runtimeutil.ParseStringSliceContextValue(ctxData["ally_ids"])
-	selected := dedupeNonEmptyIDs(runtimeutil.ParseStringSliceContextValue(ctxData["selected_ally_ids"]))
+	flow, err := model.RequirePromptFlow(ctxData, bloodyPrayerFlowID, "血腥祷言")
+	if err != nil {
+		return err
+	}
+	selected := dedupeNonEmptyIDs(flow.Selection(bloodyPrayerStepTarget).TargetIDs)
 	selectedSet := runtimeutil.IDsToSet(selected)
 	remaining := make([]string, 0, len(allyIDs))
 	for _, allyID := range allyIDs {
@@ -169,25 +180,21 @@ func handleCrimsonKnightBloodyPrayerTarget(rt engineplayer.ChoiceRuntime, select
 	if selectionIndex < 0 || selectionIndex >= len(remaining) {
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
-	allyCount := runtimeutil.ToIntContextValue(ctxData["ally_count"])
+	allyCount := flow.Selection(bloodyPrayerStepCount).Count
 	if allyCount <= 0 {
 		allyCount = 1
 	}
 	chosenID := remaining[selectionIndex]
 	selected = append(selected, chosenID)
-	ctxData["selected_ally_ids"] = selected
+	flow.PutSelection(bloodyPrayerStepTarget, model.PromptFlowSelection{TargetIDs: selected})
 
-	xValue := runtimeutil.ToIntContextValue(ctxData["x_value"])
+	xValue := flow.Selection(bloodyPrayerStepX).Count
 	if xValue <= 0 || user.Heal < xValue {
 		return fmt.Errorf("治疗不足，无法结算血腥祷言")
 	}
 	if len(selected) < allyCount {
 		ctxData["choice_type"] = "crk_bloody_prayer_target"
-		intr := rt.GetPendingInterrupt()
-		if intr != nil {
-			intr.Context = ctxData
-		}
-		rt.NotifyInterruptPrompt()
+		engineplayer.NotifyChoiceContext(rt, ctxData)
 		return nil
 	}
 
@@ -199,13 +206,7 @@ func handleCrimsonKnightBloodyPrayerTarget(rt engineplayer.ChoiceRuntime, select
 		if xValue < 2 {
 			return fmt.Errorf("X不足以分配给2名队友")
 		}
-		ctxData["choice_type"] = "crk_bloody_prayer_split"
-		intr := rt.GetPendingInterrupt()
-		if intr != nil {
-			intr.Context = ctxData
-		}
-		rt.NotifyInterruptPrompt()
-		return nil
+		return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, bloodyPrayerFlowRuntime, flow, bloodyPrayerStepSplit)
 	}
 
 	rt.PopInterrupt()
@@ -216,24 +217,111 @@ func handleCrimsonKnightBloodyPrayerTarget(rt engineplayer.ChoiceRuntime, select
 }
 
 func handleCrimsonKnightBloodyPrayerSplit(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
+	firstHeal := selectionIndex + 1
+	return finishCrimsonKnightBloodyPrayerSplit(rt, ctxData, firstHeal)
+}
+
+func handleCrimsonKnightBloodyPrayerSplitMultiSelect(rt engineplayer.ChoiceRuntime, playerID string, selections []int, ctxData map[string]interface{}) (bool, error) {
+	if len(selections) != 2 {
+		return true, fmt.Errorf("请为两名队友分别选择治疗点数")
+	}
+	flow, err := model.RequirePromptFlow(ctxData, bloodyPrayerFlowID, "血腥祷言")
+	if err != nil {
+		return true, err
+	}
+	xValue := flow.Selection(bloodyPrayerStepX).Count
+	if xValue < 2 {
+		return true, fmt.Errorf("治疗不足，无法结算血腥祷言")
+	}
+	firstHeal := selections[0]
+	secondHeal := selections[1]
+	if firstHeal < 0 || secondHeal < 0 || firstHeal+secondHeal != xValue {
+		return true, fmt.Errorf("所有人的治疗点数之和必须等于%d", xValue)
+	}
+	userID, _ := ctxData["user_id"].(string)
+	user := rt.GetPlayers()[userID]
+	if user == nil {
+		return true, fmt.Errorf("玩家不存在")
+	}
+	selected := flow.Selection(bloodyPrayerStepTarget).TargetIDs
+	if len(selected) != 2 {
+		return true, fmt.Errorf("血腥祷言分配目标数量异常")
+	}
+	flow.PutSelection(bloodyPrayerStepSplit, model.PromptFlowSelection{
+		Count:         firstHeal,
+		OptionIndexes: []int{firstHeal - 1},
+		TargetIDs:     append([]string{}, selected...),
+	})
+	if err := finishCrimsonKnightBloodyPrayerSplit(rt, ctxData, firstHeal); err != nil {
+		return true, err
+	}
+	return true, nil
+}
+
+func buildCrimsonKnightBloodyPrayerSplitPrompt(rt engineplayer.ChoiceRuntime, playerID string, data map[string]interface{}) *model.Prompt {
+	flow, err := model.RequirePromptFlow(data, bloodyPrayerFlowID, "血腥祷言")
+	if err != nil {
+		return nil
+	}
+	selected := flow.Selection(bloodyPrayerStepTarget).TargetIDs
+	if len(selected) != 2 {
+		return nil
+	}
+	xValue := flow.Selection(bloodyPrayerStepX).Count
+	if xValue < 2 {
+		return nil
+	}
+	first := rt.GetPlayers()[selected[0]]
+	second := rt.GetPlayers()[selected[1]]
+	if first == nil || second == nil {
+		return nil
+	}
+	options := []model.PromptOption{
+		{ID: selected[0], Label: fmt.Sprintf("%s（治疗:%d）", first.Name, first.Heal), TargetID: selected[0]},
+		{ID: selected[1], Label: fmt.Sprintf("%s（治疗:%d）", second.Name, second.Heal), TargetID: selected[1]},
+	}
+	return &model.Prompt{
+		Type:     model.PromptConfirm,
+		PlayerID: playerID,
+		Message:  fmt.Sprintf("【血腥祷言】请选择治疗分配：所有人加起来的治疗点数必须等于 %d", xValue),
+		Options:  options,
+		Min:      2,
+		Max:      2,
+		Presentation: &model.PromptPresentation{
+			Kind:        model.PresentationNumeric,
+			Layout:      "blood_prayer_allocate",
+			NumericBase: 0,
+		},
+	}
+}
+
+func finishCrimsonKnightBloodyPrayerSplit(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, firstHeal int) error {
 	userID, _ := ctxData["user_id"].(string)
 	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
-	xValue := runtimeutil.ToIntContextValue(ctxData["x_value"])
+	flow, err := model.RequirePromptFlow(ctxData, bloodyPrayerFlowID, "血腥祷言")
+	if err != nil {
+		return err
+	}
+	xValue := flow.Selection(bloodyPrayerStepX).Count
 	if xValue < 2 || user.Heal < xValue {
 		return fmt.Errorf("治疗不足，无法结算血腥祷言")
 	}
-	selected := runtimeutil.ParseStringSliceContextValue(ctxData["selected_ally_ids"])
+	selected := flow.Selection(bloodyPrayerStepTarget).TargetIDs
 	if len(selected) != 2 {
 		return fmt.Errorf("血腥祷言分配目标数量异常")
 	}
-	if selectionIndex < 0 || selectionIndex >= xValue-1 {
-		return fmt.Errorf("无效的分配选项")
+	if firstHeal <= 0 || firstHeal >= xValue {
+		return fmt.Errorf("无效的治疗分配")
 	}
-	firstHeal := selectionIndex + 1
 	secondHeal := xValue - firstHeal
+	flow.PutSelection(bloodyPrayerStepSplit, model.PromptFlowSelection{
+		Count:         firstHeal,
+		OptionIndexes: []int{firstHeal - 1},
+		TargetIDs:     append([]string{}, selected...),
+	})
 	alloc := map[string]int{selected[0]: firstHeal, selected[1]: secondHeal}
 	if err := resolveCrimsonKnightBloodyPrayer(rt, user, xValue, alloc); err != nil {
 		return err

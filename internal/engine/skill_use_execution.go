@@ -24,6 +24,9 @@ func (e *GameEngine) consumeSkillInputs(use *skillUseRequest) error {
 		e.State.DiscardPile = append(e.State.DiscardPile, use.discardedCards...)
 	}
 
+	if err := e.consumeExclusiveSkillCard(use); err != nil {
+		return err
+	}
 	if use.skillDef.PlaceCard {
 		if err := e.placeSkillFieldCard(use); err != nil {
 			return err
@@ -32,6 +35,24 @@ func (e *GameEngine) consumeSkillInputs(use *skillUseRequest) error {
 	if use.consumedExclusiveCard != nil && !use.skillDef.PlaceCard {
 		e.State.DiscardPile = append(e.State.DiscardPile, *use.consumedExclusiveCard)
 	}
+	return nil
+}
+
+func (e *GameEngine) consumeExclusiveSkillCard(use *skillUseRequest) error {
+	if use == nil || use.skillDef == nil || use.player == nil || use.player.Character == nil {
+		return nil
+	}
+	if !use.skillDef.RequireExclusive || use.skillDef.CostDiscards > 0 || len(use.discardedCards) > 0 {
+		return nil
+	}
+	if use.policy.ManualExclusiveCard || use.consumedExclusiveCard != nil {
+		return nil
+	}
+	card, ok := use.player.ConsumeExclusiveCard(use.player.Character.ID, use.skillDef.Title)
+	if !ok {
+		return fmt.Errorf("未找到技能 [%s] 对应的专属技能卡", use.skillDef.Title)
+	}
+	use.consumedExclusiveCard = &card
 	return nil
 }
 
@@ -120,18 +141,18 @@ func (e *GameEngine) executeSkillFlow(use *skillUseRequest) error {
 		return fmt.Errorf("skill handler not found for %s", use.skillID)
 	}
 
-	ctx := e.buildContext(use.player, use.target, model.TimingActive, nil)
+	ctx := e.BuildContext(use.player, use.target, model.TimingActionDuring, nil)
 	ctx.Targets = use.actualTargets
 	if ctx.Selections == nil {
 		ctx.Selections = map[string]interface{}{}
 	}
 	ctx.Selections["discardedCards"] = use.discardedCards
 
-	beforePoses := e.snapshotPlayerPoses()
+	beforePoses := e.SnapshotPlayerPoses()
 	if err := handler.Execute(ctx); err != nil {
 		return fmt.Errorf("skill execution failed: %v", err)
 	}
-	e.dispatchOrientationChanges(beforePoses)
+	e.DispatchOrientationChanges(beforePoses)
 	if use.policy.AfterExecute != nil {
 		if err := use.policy.AfterExecute(enginePolicyHost{e: e}, use.policyContext()); err != nil {
 			return err
@@ -144,7 +165,7 @@ func (e *GameEngine) finishSkillUse(use *skillUseRequest) error {
 	if use.skillDef.PlaceCard && use.skillDef.PlaceMode == model.FieldEffect && len(use.actualTargets) > 0 {
 		e.emitBuffAddedDispatch(use.player.ID, use.actualTargets[0].ID, use.skillDef.PlaceEffect)
 	}
-	e.runTimingOnActionEndSkillPost(use)
+	e.runTimingActionEndSkillPost(use)
 	e.recordSkillUsage(use.player.ID, use.skillDef.Title, use.skillDef.Type)
 	e.Log(fmt.Sprintf("[Skill] %s 使用了技能: %s (%s)", use.player.Name, use.skillDef.Title, use.skillDef.Description))
 

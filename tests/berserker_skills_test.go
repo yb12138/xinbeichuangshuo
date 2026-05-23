@@ -37,7 +37,7 @@ func TestBerserker_Skills(t *testing.T) {
 			initialHandP2 := len(p2.Hand)
 
 			if err := game.HandleAction(model.PlayerAction{
-				PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardIndex: 0,
+				PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardID: testutils.PlayableCardID(t, game, "p1", 0),
 			}); err != nil {
 				t.Fatalf("攻击失败: %v", err)
 			}
@@ -101,7 +101,7 @@ func TestBerserker_Skills(t *testing.T) {
 
 		// P1 攻击
 		action := model.PlayerAction{
-			PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardIndex: 0,
+			PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardID: testutils.PlayableCardID(t, game, "p1", 0),
 		}
 
 		// 执行攻击
@@ -118,7 +118,7 @@ func TestBerserker_Skills(t *testing.T) {
 			// 如果提示包含 "counter" 选项，说明逻辑可能没完全封死，或者UI层展示
 			// 尝试发送 Counter 指令，看是否被拒绝
 			actionCounter := model.PlayerAction{
-				PlayerID: "p2", Type: model.CmdRespond, ExtraArgs: []string{"counter"}, CardIndex: 0, TargetID: "p1",
+				PlayerID: "p2", Type: model.CmdRespond, ExtraArgs: []string{"counter"}, CardID: testutils.PlayableCardID(t, game, "p2", 0), TargetID: "p1",
 			}
 			err := game.HandleAction(actionCounter)
 			if err == nil {
@@ -160,7 +160,7 @@ func TestBerserker_Skills(t *testing.T) {
 			initialHand := len(p2.Hand)
 
 			if err := game.HandleAction(model.PlayerAction{
-				PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardIndex: 0,
+				PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardID: testutils.PlayableCardID(t, game, "p1", 0),
 			}); err != nil {
 				t.Fatalf("攻击失败: %v", err)
 			}

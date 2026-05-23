@@ -28,7 +28,7 @@ func (e *GameEngine) prependPendingDamages(pds []model.PendingDamage) {
 // syncPendingDamageRuntimeFromContext 将响应/被动技能在当前伤害上下文里写入的运行时元数据，
 // 回填到正在处理的 PendingDamage 头结点，确保中断恢复后状态仍然存在。
 func (e *GameEngine) syncPendingDamageRuntimeFromContext(ctx *model.Context) {
-	if e == nil || ctx == nil || ctx.Timing != model.TimingOnDamageTaken || len(e.State.PendingDamageQueue) == 0 {
+	if e == nil || ctx == nil || !ctx.DamageTakenPhase() || len(e.State.PendingDamageQueue) == 0 {
 		return
 	}
 
@@ -135,7 +135,7 @@ func (e *GameEngine) processPendingAttackHit(pd *model.PendingDamage) bool {
 			return ""
 		}(),
 	}
-	pd.Damage = e.applyAttackDamageModifiers(attacker, victim, pd.Damage, action)
+	pd.Damage = e.ApplyAttackDamageModifiers(attacker, victim, pd.Damage, action)
 
 	resourceType := "gem"
 	if pd.IsCounter {
@@ -170,12 +170,10 @@ func (e *GameEngine) processPendingAttackHit(pd *model.PendingDamage) bool {
 			}(),
 		},
 	}
-	hitCtx := e.buildContext(attacker, victim, model.TimingOnHitCheck, hitEventCtx)
-	e.dispatcher.OnTiming(hitCtx.Timing, hitCtx)
-	if e.State.PendingInterrupt != nil {
+	if e.dispatchAttackRulebookEventTimingWithMarkers(model.TimingAttackHit, attacker, victim, hitEventCtx, attackKindFromCounter(pd.IsCounter), nil).Interrupted {
 		return true
 	}
-	if e.handlePostAttackHitEffects(pd) {
+	if e.HandlePostAttackHitEffects(pd) {
 		pd.AttackHitFlowDispatched = true
 		return true
 	}
@@ -189,26 +187,9 @@ func (e *GameEngine) dispatchPendingDamageTaken(pd *model.PendingDamage) bool {
 		return false
 	}
 
-	damageEventCtx := &model.EventContext{
-		Type:      model.EventDamage,
-		SourceID:  pd.SourceID,
-		TargetID:  pd.TargetID,
-		DamageVal: &pd.Damage,
-		Card:      pd.Card,
-	}
-	damageCtx := e.buildContext(e.State.Players[pd.TargetID], e.State.Players[pd.SourceID], model.TimingOnDamageTaken, damageEventCtx)
-	damageCtx.Flags["IsMagicDamage"] = !strings.EqualFold(string(pd.DamageType), string(model.AttackDamage))
-	damageCtx.Flags["holy_shield_eligible"] = strings.EqualFold(string(pd.DamageType), string(model.AttackDamage)) ||
-		(pd.Card != nil && strings.TrimSpace(pd.Card.Name) == "魔弹")
-	damageCtx.Flags["ignore_shield"] = pd.IgnoreShield || pd.HasInterceptTag(model.CombatInterceptIgnoreHolyShield)
-	if damageCtx.Selections == nil {
-		damageCtx.Selections = map[string]any{}
-	}
-	damageCtx.Selections["damage_type"] = pd.DamageType
 	pd.DamageTakenFlowDispatched = true
 
-	e.dispatcher.OnTiming(damageCtx.Timing, damageCtx)
-	return e.State.PendingInterrupt != nil
+	return e.dispatchDamageRulebookTiming(model.TimingDamageTaken, pd)
 }
 
 func (e *GameEngine) resolvePendingDamageHealChoice(pd *model.PendingDamage) bool {
@@ -222,15 +203,23 @@ func (e *GameEngine) resolvePendingDamageHealChoice(pd *model.PendingDamage) boo
 		if pd.Damage < maxHeal {
 			maxHeal = pd.Damage
 		}
-		maxHeal = e.applyTimingOnDamageCalculatedHealCapRules(pd, target, maxHeal)
+		e.dispatchSettlementRulebookTiming(model.TimingHealCap, target, e.State.Players[pd.SourceID], &model.EventContext{
+			Type:      model.EventHeal,
+			SourceID:  pd.SourceID,
+			TargetID:  pd.TargetID,
+			DamageVal: &maxHeal,
+			Card:      pd.Card,
+		})
+		maxHeal = e.applyHealCapRules(pd, target, maxHeal)
 		if maxHeal > 0 {
+			pd.HealResolved = true // 设置标记防止重复推入中断
 			e.PushInterrupt(&model.Interrupt{
 				Type:     model.InterruptChoice,
 				PlayerID: pd.TargetID,
 				Context: map[string]interface{}{
-					"choice_type":  "heal",
-					"max_heal":     maxHeal,
-					"damage_index": 0,
+					"choice_type": "heal",
+					"max_heal":    maxHeal,
+					"target_id":   pd.TargetID,
 				},
 			})
 			return true

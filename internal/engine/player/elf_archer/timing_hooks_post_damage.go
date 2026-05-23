@@ -30,7 +30,7 @@ func postDamageResolvedHook(rt engineplayer.HookRuntime, ctx engineplayer.Timing
 	}
 
 	damageVal := pd.Damage
-	cctx := rt.BuildContext(source, target, model.TimingOnDamageTaken, &model.EventContext{
+	cctx := rt.BuildContext(source, target, model.TimingDamageTaken, &model.EventContext{
 		Type:      model.EventDamage,
 		SourceID:  pd.SourceID,
 		TargetID:  pd.TargetID,

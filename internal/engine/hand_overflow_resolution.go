@@ -19,19 +19,8 @@ const (
 	discardPhaseActionQueue
 )
 
-func (e *GameEngine) handleDiscardSelection(playerID string, indices []int, data map[string]interface{}) error {
-	if err := e.resolveDiscardSelection(playerID, indices, data); err != nil {
-		return err
-	}
-	e.PopInterrupt()
-	if e.State.PendingInterrupt == nil {
-		e.afterSystemDiscardChoice(data)
-	}
-	return nil
-}
-
 func (e *GameEngine) resolveDiscardSelection(playerID string, indices []int, data map[string]interface{}) error {
-	discardCount := runtimeutil.ToIntContextValue(data["discard_count"])
+	discardCount := resolveDiscardCount(data, e.State.Players[playerID])
 	if len(indices) != discardCount {
 		return fmt.Errorf("需要选择 %d 张牌丢弃，你选择了 %d 张", discardCount, len(indices))
 	}
@@ -52,11 +41,15 @@ func (e *GameEngine) resolveDiscardSelection(playerID string, indices []int, dat
 		return fmt.Errorf("玩家不存在")
 	}
 
-	discardedCards, err := e.discardCardsFromHand(player, indices)
+	e.dispatchSettlementRulebookTiming(model.TimingSettleDiscard, player, player, &model.EventContext{
+		Type:     model.EventCardUsed,
+		SourceID: player.ID,
+		TargetID: player.ID,
+	})
+	discardedCards, err := e.PerformDiscardFromHand(player, indices)
 	if err != nil {
 		return err
 	}
-	e.notifyHiddenDiscard(playerID, discardedCards)
 
 	finalLoss, pending, err := e.resolveDiscardSelectionMoraleLoss(player, discardedCards, data)
 	if err != nil || pending {
@@ -69,6 +62,10 @@ func (e *GameEngine) resolveDiscardSelection(playerID string, indices []int, dat
 		// 角色后续可能已插入新的中断；若无中断，继续恢复流程。
 	}
 
+	e.dispatchSettlementRulebookTiming(model.TimingGameEndCheck, player, nil, &model.EventContext{
+		Type:     model.EventPhaseEnd,
+		SourceID: player.ID,
+	})
 	e.checkGameEnd()
 	return nil
 }
@@ -155,12 +152,18 @@ func (e *GameEngine) resolveDiscardSelectionMoraleLoss(player *model.Player, dis
 		IsDamageResolution: isDamageResolution,
 	})
 	if moraleLoss <= 0 {
-		finalLoss = e.applyMoraleLossAfterTimingWindow(victim, moraleLoss, isMagic, fromDamageDraw, overflowMoraleLossFixed, discardedCards, nil)
+		finalLoss = e.ApplyMoraleLossAfterTimingWindow(victim, moraleLoss, isMagic, fromDamageDraw, overflowMoraleLossFixed, discardedCards, nil)
 		return finalLoss, false, nil
 	}
 
 	lossCtx := e.buildDiscardMoraleLossContext(victim, player, discardedCards, moraleLoss, isMagic, fromDamageDraw, stayInTurn, isDamageResolution, data)
-	e.dispatcher.OnTiming(lossCtx.Timing, lossCtx)
+	e.dispatchRuleTiming(ruleTimingDispatchInput{
+		Timing:  model.TimingMoraleLossCheck,
+		Context: lossCtx,
+		Markers: map[string]any{
+			"settlement_timeline": true,
+		},
+	})
 	if e.hasQueuedMoraleLossResponse() {
 		lossCtx.Selections["morale_loss_pending"] = true
 		lossCtx.Selections["morale_loss_value"] = moraleLoss
@@ -170,7 +173,7 @@ func (e *GameEngine) resolveDiscardSelectionMoraleLoss(player *model.Player, dis
 		return 0, true, nil
 	}
 
-	finalLoss = e.applyMoraleLossAfterTimingWindow(victim, moraleLoss, isMagic, fromDamageDraw, overflowMoraleLossFixed, discardedCards, lossCtx)
+	finalLoss = e.ApplyMoraleLossAfterTimingWindow(victim, moraleLoss, isMagic, fromDamageDraw, overflowMoraleLossFixed, discardedCards, lossCtx)
 	return finalLoss, false, nil
 }
 
@@ -179,7 +182,7 @@ func (e *GameEngine) buildDiscardMoraleLossContext(victim *model.Player, player 
 		Type:      model.EventDamage,
 		DamageVal: &moraleLoss,
 	}
-	lossCtx := e.buildContext(victim, nil, model.TimingBeforeMoraleLoss, lossEventCtx)
+	lossCtx := e.BuildContext(victim, nil, model.TimingMoraleLossCheck, lossEventCtx)
 	lossCtx.Flags["IsMagicDamage"] = isMagic
 	if lossCtx.Selections == nil {
 		lossCtx.Selections = map[string]any{}
@@ -264,7 +267,7 @@ func (e *GameEngine) restoreDiscardResolutionPhaseByOrder(order []discardPhaseCa
 	for _, candidate := range order {
 		switch candidate {
 		case discardPhaseReturn:
-			if e.restoreReturnPoint() {
+			if e.RestoreReturnPoint() {
 				return
 			}
 		case discardPhasePendingDamage:
@@ -302,7 +305,7 @@ func (e *GameEngine) resumePendingMoraleLoss(ctx *model.Context) bool {
 	overflowMoraleLossFixed := runtimeutil.ToIntContextValue(ctx.Selections["overflow_morale_loss_fixed"])
 	discardedCards := discardedCardsFromContext(ctx.Selections["discarded_cards"])
 
-	finalLoss := e.applyMoraleLossAfterTimingWindow(victim, moraleLoss, isMagic, fromDamageDraw, overflowMoraleLossFixed, discardedCards, ctx)
+	finalLoss := e.ApplyMoraleLossAfterTimingWindow(victim, moraleLoss, isMagic, fromDamageDraw, overflowMoraleLossFixed, discardedCards, ctx)
 	discardPlayerID, _ := ctx.Selections["discard_player_id"].(string)
 	discardPlayer := e.State.Players[discardPlayerID]
 	if discardPlayer == nil {

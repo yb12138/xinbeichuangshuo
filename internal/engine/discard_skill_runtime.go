@@ -10,38 +10,36 @@ import (
 	"starcup-engine/internal/model"
 )
 
-// ConfirmDiscard 确认执行弃牌。
+// ConfirmDiscard 确认执行弃牌（外部命令入口，走 ChoiceEngine 消费语义）。
 func (e *GameEngine) ConfirmDiscard(playerID string, indices []int) error {
-	data, err := e.pendingDiscardContext()
-	if err != nil {
-		return err
-	}
-
 	if e.State.PendingInterrupt == nil {
 		return fmt.Errorf("当前没有待处理的弃牌操作")
 	}
 	if e.State.PendingInterrupt.PlayerID != "" && e.State.PendingInterrupt.PlayerID != playerID {
 		return fmt.Errorf("当前不是你的弃牌回合")
 	}
-	if hasSkillDiscardID(data) {
-		return e.handleSkillDiscardSelection(playerID, indices, data)
+	if e.choiceEngine == nil {
+		return fmt.Errorf("选择引擎未初始化")
 	}
-
-	return e.handleDiscardSelection(playerID, indices, data)
-}
-
-func (e *GameEngine) confirmDiscardChoiceSelections(playerID string, indices []int, data map[string]interface{}) error {
-	if data == nil {
-		var err error
-		data, err = e.pendingDiscardContext()
-		if err != nil {
-			return err
+	data, ok := choiceCtxAsAnyMap(e.State.PendingInterrupt.Context)
+	if !ok {
+		return fmt.Errorf("中断上下文格式错误")
+	}
+	ct, _ := data["choice_type"].(string)
+	if ct == "" {
+		ct = choiceTypeSystemDiscardCards
+	}
+	result, err := e.choiceEngine.HandleMultiSelectResult(playerID, ct, indices, data)
+	if err != nil {
+		return err
+	}
+	if result.ConsumedInterrupt {
+		e.PopInterrupt()
+		if result.AfterConsume != nil {
+			result.AfterConsume(&choiceHostBridge{e: e})
 		}
 	}
-	if hasSkillDiscardID(data) {
-		return e.handleSkillDiscardSelection(playerID, indices, data)
-	}
-	return e.handleDiscardSelection(playerID, indices, data)
+	return nil
 }
 
 func hasSkillDiscardID(data map[string]interface{}) bool {
@@ -67,6 +65,17 @@ func (e *GameEngine) handleSkillDiscardResume(playerID, skillID string, indices 
 	targetIDs := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
 	resumePoint := data["resume_phase"]
 
+	use, err := e.prepareSkillUse(playerID, skillID, targetIDs, indices)
+	if err != nil {
+		return err
+	}
+	if err := e.validateSkillDiscardSelection(use); err != nil {
+		return err
+	}
+	if skillID == "bw_blazing_codex" && len(targetIDs) == 0 {
+		return e.queueBlazingCodexTargetChoice(playerID, indices, resumePoint)
+	}
+
 	e.PopInterrupt()
 	if e.State.PendingInterrupt != nil {
 		return fmt.Errorf("当前仍有其他待处理的中断")
@@ -76,9 +85,47 @@ func (e *GameEngine) handleSkillDiscardResume(playerID, skillID string, indices 
 	return e.UseSkill(playerID, skillID, targetIDs, indices)
 }
 
+func (e *GameEngine) queueBlazingCodexTargetChoice(playerID string, discardIndices []int, resumePoint interface{}) error {
+	targetIDs := make([]string, 0, len(e.State.PlayerOrder))
+	for _, targetID := range e.State.PlayerOrder {
+		if targetID == playerID {
+			continue
+		}
+		if e.State.Players[targetID] == nil {
+			continue
+		}
+		targetIDs = append(targetIDs, targetID)
+	}
+	if len(targetIDs) == 0 {
+		return fmt.Errorf("苍炎法典需要且仅能指定1名其他角色")
+	}
+
+	e.PopInterrupt()
+	if e.State.PendingInterrupt != nil {
+		return fmt.Errorf("当前仍有其他待处理的中断")
+	}
+	e.applyChoiceResumePoint(mustChoiceResumePoint(resumePoint, "resume_phase"))
+	e.PushInterrupt(&model.Interrupt{
+		Type:     model.InterruptChoice,
+		PlayerID: playerID,
+		SkillIDs: []string{"bw_blazing_codex"},
+		Context: map[string]interface{}{
+			"choice_type":     "bw_blazing_codex_target",
+			"skill_id":        "bw_blazing_codex",
+			"discard_indices": append([]int{}, discardIndices...),
+			"target_ids":      targetIDs,
+			"resume_phase":    resumePoint,
+		},
+	})
+	if user := e.State.Players[playerID]; user != nil {
+		e.Log(fmt.Sprintf("%s 请选择 [苍炎法典] 的目标", user.Name))
+	}
+	return nil
+}
+
 func (e *GameEngine) handleContextSkillDiscardSelection(skillID string, indices []int, data map[string]interface{}) error {
-	minSelect, _ := data["min"].(int)
-	maxSelect, _ := data["max"].(int)
+	minSelect := runtimeutil.ToIntContextValue(data["min"])
+	maxSelect := runtimeutil.ToIntContextValue(data["max"])
 	if len(indices) < minSelect {
 		return fmt.Errorf("至少需要选择 %d 张牌，你选择了 %d 张", minSelect, len(indices))
 	}
@@ -98,42 +145,58 @@ func (e *GameEngine) handleContextSkillDiscardSelection(skillID string, indices 
 		ctx.Selections = make(map[string]any)
 	}
 	ctx.Selections["discard_indices"] = indices
+	wasBeforeDraw := ctx.BeforeDrawPhase()
 
 	handler := skills.GetHandler(skillID)
 	if handler == nil {
 		return fmt.Errorf("技能处理器不存在")
 	}
 
-	beforePoses := e.snapshotPlayerPoses()
+	beforePoses := e.SnapshotPlayerPoses()
 	if err := handler.Execute(ctx); err != nil {
 		return fmt.Errorf("技能执行失败: %v", err)
 	}
-	e.dispatchOrientationChanges(beforePoses)
+	e.DispatchOrientationChanges(beforePoses)
 
 	if discardedCards, ok := ctx.Selections["discardedCards"].([]model.Card); ok {
 		e.State.DiscardPile = append(e.State.DiscardPile, discardedCards...)
 	}
-	if ctx.BeforeDrawPhase() {
+	if wasBeforeDraw {
 		e.resumePendingDraw(ctx)
 	}
 
 	if nextSkillIDs, ok := data["remaining_skills"].([]string); ok && len(nextSkillIDs) > 0 {
-		e.State.PendingInterrupt.Type = model.InterruptResponseSkill
-		e.State.PendingInterrupt.SkillIDs = nextSkillIDs
-		e.State.PendingInterrupt.Context = ctx
+		playerID := e.State.PendingInterrupt.PlayerID
+		e.PopInterrupt()
+		e.PushInterrupt(&model.Interrupt{
+			Type:     model.InterruptResponseSkill,
+			PlayerID: playerID,
+			SkillIDs: nextSkillIDs,
+			Context:  ctx,
+		})
 		e.Log("[System] 弃牌技能执行完毕，你还可以选择发动其他技能")
-		e.enterResponseWindow()
 		return nil
 	}
 
 	e.PopInterrupt()
 	if e.State.PendingInterrupt == nil {
-		e.resumePhaseAfterSkillDiscardContext(ctx)
+		if missileInterrupt, ok := ctx.Selections["magic_missile_interrupt"].(*model.Interrupt); ok && missileInterrupt != nil {
+			if e.resumeMagicMissileAfterResponseSkill(ctx, missileInterrupt) {
+				return nil
+			}
+			e.PushInterrupt(missileInterrupt)
+			return nil
+		}
+		if wasBeforeDraw {
+			e.restorePhaseAfterInterruptedDraw(ctx)
+			return nil
+		}
+		e.ResumePhaseAfterSkillDiscardContext(ctx)
 	}
 	return nil
 }
 
-func (e *GameEngine) resumePhaseAfterSkillDiscardContext(ctx *model.Context) bool {
+func (e *GameEngine) ResumePhaseAfterSkillDiscardContext(ctx *model.Context) bool {
 	if ctx == nil || e.State.PendingInterrupt != nil {
 		return false
 	}

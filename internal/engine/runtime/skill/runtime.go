@@ -58,11 +58,6 @@ func (r *Runtime) OnTiming(h Host, timing model.FlowTiming, ctx *model.Context) 
 	r.runOnTiming(h, timing, ctx)
 }
 
-// OnTimingWithAugment 预留与旧 dispatcher 相同的 augment 签名（augment 在 Host 的 ApplyHitCheck* 中完成）。
-func (r *Runtime) OnTimingWithAugment(h Host, timing model.FlowTiming, ctx *model.Context, _ /* augmenters */ []any, _ /* normalizers */ []any) {
-	r.OnTiming(h, timing, ctx)
-}
-
 // ProcessSkillBatch 供调试/作弊路径直接处理一批技能定义。
 func (r *Runtime) ProcessSkillBatch(h Host, batch []model.SkillDefinition, ctx *model.Context) {
 	if h == nil {
@@ -71,12 +66,12 @@ func (r *Runtime) ProcessSkillBatch(h Host, batch []model.SkillDefinition, ctx *
 	r.trig.ProcessSkillBatch(h, batch, ctx)
 }
 
-// IsSkillStillUsable 与旧 dispatcher.isSkillStillUsable 一致。
+// IsSkillStillUsable 判断技能是否仍可用。
 func (r *Runtime) IsSkillStillUsable(skillID string, user *model.Player, ctx *model.Context) bool {
 	return r.elig.IsStillUsable(skillID, user, ctx)
 }
 
-// GetOtherUsableResponseSkills 从中断提供的技能列表中，排除当前技能后仍可用且不互斥的 ID（与旧 getOtherUsableSkills 一致）。
+// GetOtherUsableResponseSkills 从中断提供的技能列表中，排除当前技能后仍可用且不互斥的 ID。
 func (r *Runtime) GetOtherUsableResponseSkills(currentSkillID string, player *model.Player, ctx *model.Context, interruptSkillIDs []string) []string {
 	return r.elig.FilterRemainingUsable(currentSkillID, player, ctx, interruptSkillIDs)
 }
@@ -143,6 +138,21 @@ func (r *Runtime) ConfirmStartupSkillAction(h Host, playerID, skillID string) (I
 	skillDef := r.cat.FindCharacterSkillOnPlayer(player, skillID)
 	if skillDef == nil {
 		return InterruptActionResult{}, fmt.Errorf("技能不存在")
+	}
+
+	// 扣减能量费用（宝石/水晶），与主动技 UseSkill 路径对齐。
+	gemCost := skillDef.CostGem
+	crystalCost := skillDef.CostCrystal
+	if gemCost < 0 {
+		gemCost = 0
+	}
+	if crystalCost < 0 {
+		crystalCost = 0
+	}
+	if gemCost > 0 || crystalCost > 0 {
+		if !h.ConsumeSkillEnergyCost(playerID, gemCost, crystalCost) {
+			return InterruptActionResult{}, fmt.Errorf("资源不足: 需要 宝石%d/水晶%d", gemCost, crystalCost)
+		}
 	}
 
 	r.exec.ExecuteSkill(h, *skillDef, ctx)
@@ -227,7 +237,22 @@ func (r *Runtime) ConfirmResponseSkillAction(h Host, playerID, skillID string) (
 	if player == nil || player.Character == nil {
 		return InterruptActionResult{}, fmt.Errorf("玩家不存在")
 	}
-	skillDef := r.cat.FindCharacterSkillOnPlayer(player, skillID)
+
+	// 吟游诗人响应技能特殊处理：技能定义属于 bard，但弹窗给持有者。
+	// 从 ctx.Selections["bard_id"] 获取 bardID，然后从 bard 身上查找技能定义。
+	var skillDef *model.SkillDefinition
+	if skillID == "bd_rousing_rhapsody" || skillID == "bd_victory_symphony" {
+		bardID, _ := ctx.Selections["bard_id"].(string)
+		if bardID != "" {
+			bard := h.GameState().Players[bardID]
+			if bard != nil {
+				skillDef = r.cat.FindCharacterSkillOnPlayer(bard, skillID)
+			}
+		}
+	}
+	if skillDef == nil {
+		skillDef = r.cat.FindCharacterSkillOnPlayer(player, skillID)
+	}
 	if skillDef == nil {
 		return InterruptActionResult{}, fmt.Errorf("技能不存在")
 	}
@@ -235,14 +260,10 @@ func (r *Runtime) ConfirmResponseSkillAction(h Host, playerID, skillID string) (
 		return InterruptActionResult{}, fmt.Errorf("该独有技与当前打出的牌不匹配")
 	}
 
-	if player.Gem < skillDef.CostGem {
-		return InterruptActionResult{}, fmt.Errorf("宝石不足 (需要 %d, 拥有 %d)", skillDef.CostGem, player.Gem)
-	}
-	usableCrystal := player.Crystal + (player.Gem - skillDef.CostGem)
-	if usableCrystal < skillDef.CostCrystal {
+	if !CanPaySkillEnergyCost(player, skillDef.CostGem, skillDef.CostCrystal) {
 		return InterruptActionResult{}, fmt.Errorf(
-			"水晶不足 (需要 %d, 可用 %d = 水晶%d + 可替代宝石%d)",
-			skillDef.CostCrystal, usableCrystal, player.Crystal, player.Gem-skillDef.CostGem,
+			"资源不足: 需要 宝石%d/水晶%d，当前 宝石%d/水晶%d（红宝石可替代水晶）",
+			skillDef.CostGem, skillDef.CostCrystal, player.Gem, player.Crystal,
 		)
 	}
 
@@ -255,6 +276,7 @@ func (r *Runtime) ConfirmResponseSkillAction(h Host, playerID, skillID string) (
 			Context: map[string]interface{}{
 				"choice_type":      "system_discard_cards",
 				"discard_subflow":  true,
+				"discard_reason":   "skill_cost",
 				"skill_id":         skillID,
 				"user_ctx":         ctx,
 				"min":              skillDef.InteractionConfig.MinSelect,

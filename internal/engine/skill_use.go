@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"starcup-engine/internal/model"
+	skillrt "starcup-engine/internal/engine/runtime/skill"
 	"starcup-engine/internal/types"
 )
 
@@ -112,7 +113,16 @@ func (e *GameEngine) UseSkill(playerID, skillID string, targetIDs []string, disc
 	if err := e.executeSkillFlow(use); err != nil {
 		return err
 	}
-	return e.finishSkillUse(use)
+	if err := e.finishSkillUse(use); err != nil {
+		return err
+	}
+
+	// 如果 Execute() 推入了中断，立即通知前端
+	// 因为 Drive() 在检测到 PendingInterrupt 时会直接返回而不通知
+	if e.State.PendingInterrupt != nil {
+		e.notifyInterruptPrompt()
+	}
+	return nil
 }
 
 func (e *GameEngine) prepareSkillUse(playerID, skillID string, targetIDs []string, discardIndices []int) (*skillUseRequest, error) {
@@ -127,7 +137,7 @@ func (e *GameEngine) prepareSkillUse(playerID, skillID string, targetIDs []strin
 		return nil, fmt.Errorf("no character assigned")
 	}
 
-	skillDef := findCharacterSkill(player.Character, skillID)
+	skillDef := skillrt.FindCharacterSkill(player.Character, skillID)
 	if skillDef == nil {
 		return nil, fmt.Errorf("skill %s not found for character %s", skillID, player.Character.ID)
 	}
@@ -154,16 +164,4 @@ func (e *GameEngine) prepareSkillUse(playerID, skillID string, targetIDs []strin
 		discardIndices:   append([]int{}, discardIndices...),
 		requiredDiscards: requiredDiscards,
 	}, nil
-}
-
-func findCharacterSkill(character *model.Character, skillID string) *model.SkillDefinition {
-	if character == nil {
-		return nil
-	}
-	for i := range character.Skills {
-		if character.Skills[i].ID == skillID {
-			return &character.Skills[i]
-		}
-	}
-	return nil
 }

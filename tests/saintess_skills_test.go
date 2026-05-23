@@ -52,7 +52,7 @@ func TestSaintess_Skills(t *testing.T) {
 
 		// 假设它是给 Card Target 加血。
 		action := model.PlayerAction{
-			PlayerID: "p1", Type: model.CmdMagic, TargetID: "p2", CardIndex: 0,
+			PlayerID: "p1", Type: model.CmdMagic, TargetID: "p2", CardID: testutils.PlayableCardID(t, game, "p1", 0),
 		}
 		game.HandleAction(action)
 
@@ -163,31 +163,13 @@ func TestSaintess_Skills(t *testing.T) {
 			t.Fatalf("预期圣疗第一阶段为 allocate_heal，实际: %q", got)
 		}
 
-		// 选第一项：Ally1 +2，Ally2 +1。
+		// 分配：Ally1 +2，Ally2 +1。
 		if err := game.HandleAction(model.PlayerAction{
 			PlayerID:   "p1",
 			Type:       model.CmdSelect,
-			Selections: []int{0},
+			Selections: []int{2, 1},
 		}); err != nil {
 			t.Fatalf("圣疗分配治疗失败: %v", err)
-		}
-		if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptSaintHeal {
-			t.Fatalf("预期进入圣疗额外行动选择，实际: %v", game.State.PendingInterrupt)
-		}
-		ctxData, ok = game.State.PendingInterrupt.Context.(map[string]interface{})
-		if !ok {
-			t.Fatalf("圣疗额外行动上下文类型错误: %T", game.State.PendingInterrupt.Context)
-		}
-		if got, _ := ctxData["stage"].(string); got != "choose_extra_action" {
-			t.Fatalf("预期圣疗第二阶段为 choose_extra_action，实际: %q", got)
-		}
-
-		if err := game.HandleAction(model.PlayerAction{
-			PlayerID:   "p1",
-			Type:       model.CmdSelect,
-			Selections: []int{0}, // 额外攻击行动
-		}); err != nil {
-			t.Fatalf("圣疗选择额外行动失败: %v", err)
 		}
 
 		if p2.Heal != 3 || p3.Heal != 2 {
@@ -202,8 +184,8 @@ func TestSaintess_Skills(t *testing.T) {
 			game.State.Subflow != model.SubflowNone {
 			t.Errorf("圣疗额外行动未生效: turn=%d turnStage=%s combat=%s subflow=%s", game.State.CurrentTurn, game.State.TurnStage, game.State.CombatStage, game.State.Subflow)
 		}
-		if p1.TurnState.CurrentExtraAction != string(model.ActionAttack) {
-			t.Fatalf("圣疗应授予额外攻击行动，实际: %q", p1.TurnState.CurrentExtraAction)
+		if p1.TurnState.CurrentExtraAction != model.ExtraActionAny {
+			t.Fatalf("圣疗应授予不限类型额外行动，实际: %q", p1.TurnState.CurrentExtraAction)
 		}
 		t.Logf("✅ 圣疗测试通过")
 	})

@@ -32,11 +32,11 @@ func RoleEntry() player.RoleEntry {
 			model.FlowContinuationAfterDiscard: handleMagicLancerAfterDiscard,
 		},
 		TimingHookSpecs: []player.TimingHookSpec{
-			{Timing: player.TimingOnDamageCalculate, Priority: 300, Hook: damageCalculateHook},
+			{Timing: player.TimingDamageSourceDeal, Priority: 300, Hook: damageCalculateHook},
 			{Timing: player.TimingPostDamageResolved, Priority: 300, Hook: postDamageResolvedHook},
-			{Timing: player.TimingOnDefendValidation, Priority: 100, Hook: defendValidationHook},
-			{Timing: player.TimingOnMagicMissileDefend, Priority: 100, Hook: magicMissileDefendHook},
-			{Timing: player.TimingOnMagicMissileCounter, Priority: 100, Hook: magicMissileCounterHook},
+			{Timing: player.TimingDefendValidation, Priority: 100, Hook: defendValidationHook},
+			{Timing: player.TimingMagicMissileDefend, Priority: 100, Hook: magicMissileDefendHook},
+			{Timing: player.TimingMagicMissileCounter, Priority: 100, Hook: magicMissileCounterHook},
 		},
 	}
 }
@@ -44,7 +44,7 @@ func RoleEntry() player.RoleEntry {
 // ChoiceSpecs 导出角色 choice 声明。
 func ChoiceSpecs() []player.ChoiceSpec {
 	return []player.ChoiceSpec{
-		{ChoiceType: "ml_dark_barrier_cards", SequentialRemaining: player.ChoiceRemainingFromSelectionKey("x_value")},
+		{ChoiceType: "ml_dark_barrier_cards", HandleMultiSelect: handleDarkBarrierCardsMultiSelect},
 	}
 }
 
@@ -93,7 +93,6 @@ func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 		"ml_black_spear_x":         types.ChoiceRouteRole("magic_lancer"),
 		"ml_dark_barrier_cards":    types.ChoiceRouteRole("magic_lancer"),
 		"ml_dark_barrier_mode":     types.ChoiceRouteRole("magic_lancer"),
-		"ml_dark_barrier_x":        types.ChoiceRouteRole("magic_lancer"),
 		"ml_dark_release_pick":     types.ChoiceRouteRole("magic_lancer"),
 		"ml_fullness_cost_card":    types.ChoiceRouteRole("magic_lancer"),
 		"ml_fullness_discard_step": types.ChoiceRouteRole("magic_lancer"),

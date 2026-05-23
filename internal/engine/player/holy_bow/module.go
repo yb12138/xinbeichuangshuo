@@ -18,12 +18,12 @@ func RoleEntry() player.RoleEntry {
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
 		TimingHookSpecs: []player.TimingHookSpec{
-			{Timing: player.TimingOnTurnStart, Priority: 100, Hook: turnStartResetHook},
-			{Timing: player.TimingOnDamageCalculate, Priority: 700, Hook: damageCalculateHook},
+			{Timing: player.TimingTurnStart, Priority: 100, Hook: turnStartResetHook},
+			{Timing: player.TimingDamageSourceDeal, Priority: 700, Hook: damageCalculateHook},
 			{Timing: player.TimingPostAttackHit, Priority: 100, Hook: postAttackHitHook},
-			{Timing: player.TimingOnTurnEndFinal, Priority: 800, Hook: turnEndAutoFillHook},
-			{Timing: player.TimingOnAttackMiss, Priority: 400, Hook: attackMissHook},
-			{Timing: player.TimingOnSpecialActionPost, Priority: 100, Hook: holyGloryExitHook},
+			{Timing: player.TimingTurnEndFinal, Priority: 800, Hook: turnEndAutoFillHook},
+			{Timing: player.TimingAttackMiss, Priority: 400, Hook: attackMissHook},
+			{Timing: player.TimingSpecialActionPost, Priority: 100, Hook: holyGloryExitHook},
 		},
 	}
 }
@@ -31,7 +31,8 @@ func RoleEntry() player.RoleEntry {
 // ChoiceSpecs 导出角色 choice 声明。
 func ChoiceSpecs() []player.ChoiceSpec {
 	return []player.ChoiceSpec{
-		{ChoiceType: "hb_light_burst_mode_b_discard", SequentialRemaining: player.ChoiceRemainingFromSelectionKey("x_value")},
+		{ChoiceType: "hb_holy_shard_combo", HandleMultiSelect: handleHolyShardComboMultiSelect},
+		{ChoiceType: "hb_light_burst_mode_b_discard", SequentialRemaining: player.ChoiceRemainingFromFlowSelectionCount(lightBurstStepModeBX, lightBurstStepModeBDiscard)},
 	}
 }
 
@@ -40,7 +41,7 @@ func ApplyDefaults(p *model.Player) {
 	if p == nil {
 		return
 	}
-	p.Crystal += 2
+	player.AddPlayerCrystalCapped(p, 2, 3)
 	p.MaxHeal += 1
 	if p.Tokens == nil {
 		p.Tokens = map[string]int{}

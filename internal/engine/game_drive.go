@@ -18,13 +18,13 @@ func (e *GameEngine) Drive() {
 		return true, outcome == driveStop
 	}
 	for {
-		e.Log(fmt.Sprintf("[Debug] Drive Loop: %d, %s", iterations, e.runtimeStateLabel()))
+		e.Log(fmt.Sprintf("[Debug] Drive Loop: %d, %s", iterations, e.RuntimeStateLabel()))
 		iterations++
 		// 如果有待处理的中断，不自动推进
 		if e.State.PendingInterrupt != nil {
 			return
 		}
-		if handled, shouldStop := e.runDriveStep(e.processPendingSkillResume); handled {
+		if handled, shouldStop := e.runDriveStep(e.ProcessPendingSkillResume); handled {
 			if shouldStop {
 				return
 			}
@@ -43,7 +43,7 @@ func (e *GameEngine) Drive() {
 		}
 
 		// 行动汇总：当系统回到可继续行动的空闲状态时输出汇总信息
-		e.finalizeActionSummaryIfIdle()
+		e.FinalizeActionSummaryIfIdle()
 
 		currentPid := e.State.PlayerOrder[e.State.CurrentTurn]
 		player := e.State.Players[currentPid]

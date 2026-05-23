@@ -20,11 +20,11 @@ func (e *GameEngine) driveNonTurnPhase(currentPid string, player *model.Player) 
 	switch {
 	case e.isDamageResolutionActive():
 		return e.drivePendingDamageResolutionPhase()
-	case e.isDiscardSelectionActive():
-		return e.driveDiscardSelectionPhase()
+	case e.IsDiscardSelectionActive():
+		return e.DriveDiscardSelectionPhase()
 	case e.isResponseWindowActive():
 		return e.driveResponseRecoveryPhase()
-	case e.isCombatInteractionWindow():
+	case e.IsCombatInteractionWindow():
 		return e.driveCombatInteractionPhase(currentPid, player)
 	default:
 		return driveUnhandled
@@ -99,7 +99,7 @@ func (e *GameEngine) driveTurnBeforeStartStage(player *model.Player) driveOutcom
 		return driveUnhandled
 	}
 
-	if e.runTimingOnTurnStartBeforeStartHooks(player) {
+	if e.runTimingTurnStartBeforeStartHooks(player) {
 		if e.State.PendingInterrupt != nil {
 			return driveStop
 		}
@@ -116,14 +116,21 @@ func (e *GameEngine) driveBeforeActionStage(currentPid string, player *model.Pla
 	}
 
 	// 回合开始前先按固定顺序结算基础效果 hook（如中毒、五系束缚、虚弱）。
-	if e.runTimingOnBeforeActionStageHooks(player, timingOnBeforeActionResolveField) {
+	if e.runActionBoundaryTimingStageHooks(player, actionBoundaryResolveField) {
 		if e.State.PendingInterrupt != nil {
 			return driveStop
 		}
 		return driveContinueLoop
 	}
-	// 其余 TimingOnBeforeAction 的通用技能/状态仍走 dispatcher 主流程。
-	skillCtx := e.buildContext(player, nil, model.TimingOnBeforeAction, nil)
+	// 角色 TimingActionStart hooks（如精疲力竭结束结算）。
+	if e.runActionBoundaryTimingStageHooks(player, actionBoundaryResolveActionStart) {
+		if e.State.PendingInterrupt != nil {
+			return driveStop
+		}
+		return driveContinueLoop
+	}
+	// 其余 TimingActionBefore 的通用技能/状态仍走 dispatcher 主流程。
+	skillCtx := e.BuildContext(player, nil, model.TimingActionBefore, nil)
 	e.dispatcher.OnTiming(skillCtx.Timing, skillCtx)
 	if e.State.PendingInterrupt != nil {
 		return driveStop
@@ -144,12 +151,12 @@ func (e *GameEngine) driveBeforeActionStage(currentPid string, player *model.Pla
 
 func (e *GameEngine) drivePendingDamageResolutionPhase() driveOutcome {
 	// 延迟伤害结算阶段
-	if e.processPendingDamages() {
+	if e.ProcessPendingDamages() {
 		return driveStop // 有中断，暂停
 	}
 
 	// 队列处理完毕，进入下一阶段
-	if e.restoreReturnPoint() {
+	if e.RestoreReturnPoint() {
 	} else {
 		e.clearSubflow()
 		e.clearCombatStage()
@@ -176,14 +183,14 @@ func (e *GameEngine) driveTurnStartStage(currentPid string, player *model.Player
 		return driveContinueLoop
 	}
 
-	if e.runTimingOnTurnStartHooks(player) {
+	if e.runTimingTurnStartHooks(player) {
 		if e.State.PendingInterrupt != nil {
 			return driveStop
 		}
 		return driveContinueLoop
 	}
 	player.TurnState.HasProcessedTurnStart = true
-	turnStartCtx := e.buildTimedContext(player, nil, model.TimingOnTurnStart, eventCtx)
+	turnStartCtx := e.BuildTimedContext(player, nil, model.TimingTurnStart, eventCtx)
 	e.dispatcher.OnTiming(turnStartCtx.Timing, turnStartCtx)
 	if e.State.PendingInterrupt != nil {
 		return driveStop
@@ -198,13 +205,13 @@ func (e *GameEngine) driveActionStartStage(currentPid string, player *model.Play
 		return driveUnhandled
 	}
 
-	if e.runTimingOnBeforeActionStageHooks(player, timingOnBeforeActionResolveActionStart) {
+	if e.runActionBoundaryTimingStageHooks(player, actionBoundaryResolveActionStart) {
 		if e.State.PendingInterrupt != nil {
 			return driveStop
 		}
 		return driveContinueLoop
 	}
-	startupCtx := e.buildTimedContext(player, nil, model.TimingStartup, &model.EventContext{
+	startupCtx := e.BuildTimedContext(player, nil, model.TimingActionStart, &model.EventContext{
 		Type:     model.EventTurnStart,
 		SourceID: currentPid,
 	})
@@ -213,7 +220,7 @@ func (e *GameEngine) driveActionStartStage(currentPid string, player *model.Play
 		if e.State.PendingInterrupt.Type == model.InterruptStartupSkill {
 			// Startup 中断由 dispatcher 直接写入 PendingInterrupt，这里补发提示。
 			prompt := e.buildStartupSkillPrompt()
-			e.Notify(model.EventAskInput, "请选择是否发动启动技能", prompt)
+			e.NotifyPrompt(prompt)
 		}
 		return driveStop
 	}
@@ -232,9 +239,13 @@ func (e *GameEngine) driveActionExecutionStage(currentPid string, player *model.
 		}
 		e.Log(fmt.Sprintf("[Debug] ActionExecution 命中 ActionEnd 补结算: player=%s last_action_type=%s action_queue=%d", currentPid, lastActionType, len(e.State.ActionQueue)))
 		return e.driveActionExecutionRecoveryPhase(currentPid, player)
-	case e.isActionSelectionWindow():
+	case e.IsActionSelectionWindow() && (player == nil || player.TurnState.LastActionType == ""):
+		// 启动技结算后会回到 ActionExecution，但此时没有“刚结束的行动”可补收尾，
+		// 需要直接回到行动选择，而不是继续推入 ActionEnd/ExtraAction。
 		return e.driveActionSelectionPhase(currentPid, player)
-	case e.isBeforeActionWindow():
+	case e.IsActionSelectionWindow():
+		return e.driveActionSelectionPhase(currentPid, player)
+	case e.IsBeforeActionWindow():
 		return e.driveBeforeActionPhase(currentPid, player)
 	case e.State.Subflow == model.SubflowNone && len(e.State.CombatStack) == 0 && e.State.TurnStage == model.TurnStageActionExecution:
 		return e.driveActionExecutionRecoveryPhase(currentPid, player)
@@ -246,23 +257,24 @@ func (e *GameEngine) driveActionExecutionStage(currentPid string, player *model.
 func (e *GameEngine) driveActionSelectionPhase(currentPid string, player *model.Player) driveOutcome {
 	e.setTurnStage(model.TurnStageActionExecution)
 
-	state := e.buildActionSelectionOptions(currentPid, player)
+	state := e.BuildActionSelectionOptions(currentPid, player)
 	prompt := &model.Prompt{
 		Type:           model.PromptConfirm,
 		PlayerID:       currentPid,
 		Message:        state.promptMessage,
 		ChoiceType:     state.promptChoiceType,
 		SkillID:        state.promptSkillID,
-		Options:        state.validOptions,
+		Options:        state.ValidOptions,
 		SpecialOptions: state.specialOptions,
 		UIMode:         model.PromptUIModeActionHub,
+		Presentation:   &model.PromptPresentation{Kind: model.PresentationActionHub},
 	}
-	e.Notify(model.EventAskInput, "请选择行动类型", prompt)
+	e.NotifyPrompt(prompt)
 	return driveStop
 }
 
-func (e *GameEngine) driveDiscardSelectionPhase() driveOutcome {
-	if e.State.PendingInterrupt == nil || !isDiscardSelectionInterrupt(e.State.PendingInterrupt) {
+func (e *GameEngine) DriveDiscardSelectionPhase() driveOutcome {
+	if e.State.PendingInterrupt == nil || !IsDiscardSelectionInterrupt(e.State.PendingInterrupt) {
 		return driveUnhandled
 	}
 	return driveStop
@@ -297,17 +309,27 @@ func (e *GameEngine) driveCombatInteractionPhase(currentPid string, player *mode
 	if !ok {
 		return driveStop
 	}
-	if e.runTimingOnHitCheckCombatInteractionPolicies(combatReq) {
+	if e.RunAttackResponseCombatInteractionPolicies(combatReq) {
+		return driveStop
+	}
+	attackKind := attackKindFromCounter(combatReq.IsCounter)
+	if e.dispatchAttackRulebookTiming(model.TimingAttackForceHitCheck, attacker, target, combatReq.Card, attackInfoFromCombatRequest(combatReq, false), attackKind) {
 		return driveStop
 	}
 	if e.resolveForcedHitCombat(combatReq) {
 		return driveContinueLoop
 	}
+	if e.dispatchAttackRulebookTiming(model.TimingAttackNoResponseCheck, attacker, target, combatReq.Card, attackInfoFromCombatRequest(combatReq, false), attackKind) {
+		return driveStop
+	}
 
-	shieldFallbackReady := e.hasUsableShieldForCombat(target, *combatReq)
+	shieldFallbackReady := e.HasUsableShieldForCombat(target, *combatReq)
 	counterTargets := e.buildCombatCounterTargets(combatReq.AttackerID)
 	options := e.buildCombatResponseOptions(combatReq, shieldFallbackReady, counterTargets)
 	hints := e.buildCombatInteractionHints(*combatReq, shieldFallbackReady)
+	if e.dispatchAttackRulebookTiming(model.TimingAttackResponse, attacker, target, combatReq.Card, attackInfoFromCombatRequest(combatReq, false), attackKind) {
+		return driveStop
+	}
 
 	attackerRole := combatReq.AttackerID
 	if attacker != nil {
@@ -324,9 +346,10 @@ func (e *GameEngine) driveCombatInteractionPhase(currentPid string, player *mode
 			target.Name,
 			attackerRole,
 			combatReq.Card.Name),
-		Options: options,
+		Options:      options,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationResponse, Layout: "inline"},
 	}
-	e.Notify(model.EventAskInput, "请选择响应方式", prompt)
+	e.NotifyPrompt(prompt)
 	return driveStop
 }
 
@@ -475,7 +498,7 @@ func (e *GameEngine) runActionEndSequence(currentPid string, player *model.Playe
 			CounterInitiator: "",
 		}
 	}
-	skillCtx := e.buildContext(player, nil, model.TimingOnActionEnd, eventCtx)
+	skillCtx := e.BuildContext(player, nil, model.TimingActionEnd, eventCtx)
 	if skillCtx.Selections == nil {
 		skillCtx.Selections = map[string]interface{}{}
 	}
@@ -492,7 +515,7 @@ func (e *GameEngine) runActionEndSequence(currentPid string, player *model.Playe
 		e.queuePostActionEndResume(player.ID, actionType)
 		return true
 	}
-	return e.handlePostActionEndEffects(player, actionType)
+	return e.HandlePostActionEndEffects(player, actionType)
 }
 
 func (e *GameEngine) driveExtraActionStage(currentPid string, player *model.Player) driveOutcome {
@@ -541,7 +564,7 @@ func (e *GameEngine) driveTurnEndStage(currentPid string, player *model.Player) 
 	e.Log(fmt.Sprintf("[Debug] TurnEnd 阶段: player=%s pending_action_tokens=%d", currentPid, pendingTokenCount))
 
 	// 9. 回合结束阶段
-	if e.runTimingOnTurnEndPreExtraHooks(player) {
+	if e.runTimingTurnEndPreExtraHooks(player) {
 		return driveStop
 	}
 	// 检查是否有待执行的行动令牌 (处理额外行动)
@@ -555,20 +578,24 @@ func (e *GameEngine) driveTurnEndStage(currentPid string, player *model.Player) 
 		player.TurnState.HasActed = false
 
 		// 设置 TurnState 中的约束，然后调用 Drive (进入 ActionSelection)
-		player.TurnState.CurrentExtraAction = currentAction.MustType
+		if currentAction.MustType == "" {
+			player.TurnState.CurrentExtraAction = model.ExtraActionAny
+		} else {
+			player.TurnState.CurrentExtraAction = currentAction.MustType
+		}
 		player.TurnState.CurrentExtraElement = currentAction.MustElement
 
 		e.enterActionExecutionStage()
 
 		// 显示行动约束信息
-		constraintInfo := e.buildConstraintInfo(currentAction.MustType, currentAction.MustElement)
+		constraintInfo := e.buildConstraintInfo(player.TurnState.CurrentExtraAction, currentAction.MustElement)
 		e.Log(fmt.Sprintf("[Turn] %s %s 额外行动开始 (剩余 %d 次额外行动)%s",
 			player.Name, currentAction.Source, len(player.TurnState.PendingActions)+1, constraintInfo))
 
 		return driveContinueLoop
 	}
 
-	if e.runTimingOnTurnEndFinalHooks(player) {
+	if e.runTimingTurnEndFinalHooks(player) {
 		return driveStop
 	}
 
@@ -578,10 +605,18 @@ func (e *GameEngine) driveTurnEndStage(currentPid string, player *model.Player) 
 
 func (e *GameEngine) driveActionExecutionRecoveryPhase(currentPid string, player *model.Player) driveOutcome {
 	e.setTurnStage(model.TurnStageActionExecution)
-	// 行动执行阶段通常用于“行动中弹出的中断”（如魔弹融合/圣疗等）。
+	// 行动执行阶段通常用于"行动中弹出的中断"（如魔弹融合/圣疗等）。
 	// 当中断被消费后，如果没有显式阶段回切，这里负责把流程接回主状态机，
 	// 避免停在 ActionExecution 导致 Drive 直接返回而卡局。
-	if e.routePendingDamageWithDefaultReturn(model.TurnStageExtraAction) {
+	//
+	// 返回点判断：
+	// - 启动技能场景（LastActionType == ""）：伤害结算后应回到 ActionExecution，进入行动选择
+	// - 正常行动结束场景（LastActionType != ""）：伤害结算后应回到 ExtraAction，检查额外行动队列
+	defaultReturn := model.TurnStageExtraAction
+	if player != nil && player.TurnState.LastActionType == "" {
+		defaultReturn = model.TurnStageActionExecution
+	}
+	if e.routePendingDamageWithDefaultReturn(defaultReturn) {
 		return driveContinueLoop
 	}
 	if len(e.State.CombatStack) > 0 {

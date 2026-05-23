@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 
 	"starcup-engine/internal/model"
+	"starcup-engine/internal/server/prompting"
+	"starcup-engine/internal/server/timeline"
 )
 
-func (r *Room) sendToClient(client *Client, cmd string, data interface{}) {
+func (r *Room) sendToClient(client *Client, cmd WSCommand, data interface{}) {
 	if client == nil || client.IsBot || client.Disconnected {
 		return
 	}
@@ -17,11 +19,11 @@ func (r *Room) sendRoomEventToClient(client *Client, event RoomEvent) {
 	r.sendToClient(client, CmdRoomEvent, event)
 }
 
-func (r *Room) sendNotifyTimelineToClient(client *Client, eventType string, data map[string]interface{}, message string) {
+func (r *Room) sendNotifyTimelineToClient(client *Client, payload timeline.Payload) {
 	if client == nil {
 		return
 	}
-	r.sendToClient(client, CmdNotifyTimeline, r.buildTimelineNotify(eventType, data, message))
+	r.sendToClient(client, CmdNotifyTimeline, r.buildTimelineNotify(payload))
 }
 
 func (r *Room) sendSyncStateToClient(client *Client) {
@@ -35,10 +37,10 @@ func (r *Room) sendRequireActionToClient(client *Client, prompt *model.Prompt) {
 	if prompt == nil {
 		return
 	}
-	r.sendToClient(client, CmdRequireAction, buildRequireActionPayload(prompt))
+	r.sendToClient(client, CmdRequireAction, prompting.BuildRequireActionPayload(prompt))
 }
 
-func (r *Room) broadcastHumans(cmd string, data interface{}) {
+func (r *Room) broadcastHumans(cmd WSCommand, data interface{}) {
 	msg := newWSMessage(cmd, data)
 	raw, _ := json.Marshal(msg)
 	for _, c := range r.Clients {
@@ -47,6 +49,22 @@ func (r *Room) broadcastHumans(cmd string, data interface{}) {
 		}
 		select {
 		case c.Send <- raw:
+		default:
+		}
+	}
+}
+
+func (r *Room) broadcastRoomEvent(event RoomEvent) {
+	r.broadcastHumans(CmdRoomEvent, event)
+}
+
+func (r *Room) broadcastToAll(message []byte) {
+	for _, client := range r.Clients {
+		if client.IsBot || client.Disconnected {
+			continue
+		}
+		select {
+		case client.Send <- message:
 		default:
 		}
 	}

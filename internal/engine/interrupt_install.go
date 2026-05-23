@@ -65,14 +65,14 @@ func registerInterruptPromptRules(r *intr.PromptRules) {
 	// 通用中断类型（非角色专属）
 	r.Register(model.InterruptResponseSkill, wrap((*GameEngine).buildResponseSkillPrompt))
 	r.Register(model.InterruptStartupSkill, wrap((*GameEngine).buildStartupSkillPrompt))
-	r.Register(model.InterruptChoice, wrap((*GameEngine).buildChoicePrompt))
+	r.Register(model.InterruptChoice, wrap((*GameEngine).BuildChoicePrompt))
 	r.Register(model.InterruptGiveCards, wrap((*GameEngine).buildGiveCardsPrompt))
 
 	// 角色专属中断类型：通过 InterruptSpecs 动态注册
 	mountRoleInterruptSpecs(nil, r)
 }
 
-func (e *GameEngine) buildPendingInterruptPrompt() *model.Prompt {
+func (e *GameEngine) BuildPendingInterruptPrompt() *model.Prompt {
 	if e == nil || e.interruptOrchestrator == nil {
 		return nil
 	}
@@ -97,7 +97,7 @@ func (e *GameEngine) ReconcileSubflowAfterInterruptPop(popped *model.Interrupt) 
 	if e == nil || e.State == nil {
 		return
 	}
-	if e.State.Subflow == model.SubflowDiscardSelection && !e.hasDiscardSelectionInterrupt() && isDiscardSelectionInterrupt(popped) {
+	if e.State.Subflow == model.SubflowDiscardSelection && !e.HasDiscardSelectionInterrupt() && IsDiscardSelectionInterrupt(popped) {
 		e.clearSubflow()
 	}
 }
@@ -117,19 +117,51 @@ func (e *GameEngine) syncGamePhaseWithInterrupt(interrupt *model.Interrupt) {
 			e.setTurnStage(model.TurnStageActionStart)
 		}
 	case model.InterruptChoice:
-		if isDiscardSelectionInterrupt(interrupt) {
-			e.enterDiscardSelection()
+		if IsDiscardSelectionInterrupt(interrupt) {
+			e.EnterDiscardSelection()
 		} else {
-			e.clearSubflow()
-			e.clearCombatStage()
-			if e.State.TurnStage == "" {
-				e.setTurnStage(model.TurnStageActionExecution)
+			if phaseSync, ok := e.choiceInterruptPhaseSync(interrupt); ok {
+				e.applyInterruptPhaseSync(phaseSync)
+			} else {
+				e.clearSubflow()
+				e.clearCombatStage()
+				if e.State.TurnStage == "" {
+					e.setTurnStage(model.TurnStageActionExecution)
+				}
 			}
 		}
 	case model.InterruptGiveCards:
-		e.enterDiscardSelection()
+		e.EnterDiscardSelection()
 	default:
 		e.syncRoleInterruptPhase(interrupt.Type)
+	}
+}
+
+func (e *GameEngine) choiceInterruptPhaseSync(interrupt *model.Interrupt) (engineplayer.InterruptPhaseSync, bool) {
+	if e == nil || e.choiceEngine == nil || interrupt == nil || interrupt.Type != model.InterruptChoice {
+		return "", false
+	}
+	data, ok := interrupt.Context.(map[string]interface{})
+	if !ok || data == nil {
+		return "", false
+	}
+	choiceType, _ := data["choice_type"].(string)
+	if choiceType == "" {
+		return "", false
+	}
+	spec := e.choiceEngine.Registry().Get(choiceType)
+	if spec == nil || spec.PhaseSync == "" {
+		return "", false
+	}
+	switch engineplayer.InterruptPhaseSync(spec.PhaseSync) {
+	case engineplayer.InterruptPhaseSyncResponseWindow,
+		engineplayer.InterruptPhaseSyncActionExecution,
+		engineplayer.InterruptPhaseSyncDamageResolution,
+		engineplayer.InterruptPhaseSyncCombatDraw,
+		engineplayer.InterruptPhaseSyncCombatHeal:
+		return engineplayer.InterruptPhaseSync(spec.PhaseSync), true
+	default:
+		return "", false
 	}
 }
 
@@ -152,6 +184,11 @@ func (e *GameEngine) applyInterruptPhaseSync(sync engineplayer.InterruptPhaseSyn
 		e.clearSubflow()
 		e.clearCombatStage()
 		e.setTurnStage(model.TurnStageActionExecution)
+	case engineplayer.InterruptPhaseSyncDamageResolution:
+		e.clearSubflow()
+		if len(e.State.PendingDamageQueue) > 0 && !e.isDamageResolutionActive() {
+			e.enterDamageResolution(nil)
+		}
 	case engineplayer.InterruptPhaseSyncCombatDraw:
 		e.clearSubflow()
 		e.setCombatStage(model.CombatStageDraw)
@@ -169,7 +206,7 @@ func mountRoleInterruptSpecs(ar *intr.ActionRules, pr *intr.PromptRules) {
 			if ar != nil && s.HandleActionResult != nil {
 				ar.Register(s.Type, &intr.ActionRule{
 					HandleResult: func(en intr.EngineInterface, act model.PlayerAction) (intr.ActionResult, error) {
-						rt := newRoleChoiceRuntime(en.(*GameEngine))
+						rt := NewRoleChoiceRuntime(en.(*GameEngine))
 						result, err := s.HandleActionResult(rt, act)
 						return intr.ActionResult{
 							Consumed: result.Consumed,
@@ -186,7 +223,7 @@ func mountRoleInterruptSpecs(ar *intr.ActionRules, pr *intr.PromptRules) {
 			}
 			if pr != nil && s.BuildPrompt != nil {
 				pr.Register(s.Type, intr.PromptBuilder(func(en intr.EngineInterface) *model.Prompt {
-					return s.BuildPrompt(newRoleChoiceRuntime(en.(*GameEngine)))
+					return s.BuildPrompt(NewRoleChoiceRuntime(en.(*GameEngine)))
 				}))
 			}
 		}
@@ -213,4 +250,12 @@ func (e *GameEngine) PopInterrupt() {
 		panic("engine: interrupt orchestrator not installed")
 	}
 	e.interruptOrchestrator.PopInterrupt()
+}
+
+// RemoveQueuedInterruptByPredicate 经 interrupt.Orchestrator 从队列中移除满足条件的中断。
+func (e *GameEngine) RemoveQueuedInterruptByPredicate(predicate func(*model.Interrupt) bool) {
+	if e == nil || e.interruptOrchestrator == nil {
+		return
+	}
+	e.interruptOrchestrator.RemoveQueuedInterruptByPredicate(predicate)
 }

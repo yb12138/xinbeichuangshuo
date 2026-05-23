@@ -49,7 +49,7 @@ func TestSealer_SealBreak(t *testing.T) {
 		SourceID: "p2", // 假设自己上的
 		Mode:     model.FieldEffect,
 		Effect:   model.EffectShield,
-		Hook: model.FieldHookOnDamaged, // 圣盾通常是OnDamaged或者特殊Dispatch
+		Hook:     model.FieldHookOnDamaged, // 圣盾通常是OnDamaged或者特殊Dispatch
 	}
 	p2.AddFieldCard(shieldCard)
 

@@ -5,6 +5,7 @@ package engine
 import (
 	"fmt"
 	"sort"
+	"starcup-engine/internal/engine/resource"
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/rules"
 )
@@ -61,10 +62,7 @@ func (e *GameEngine) ModifyCrystal(camp string, amount int) {
 // 蓝水晶 + 可替代的红宝石。
 func (e *GameEngine) GetUsableCrystal(playerID string) int {
 	p := e.State.Players[playerID]
-	if p == nil {
-		return 0
-	}
-	return p.Crystal + p.Gem
+	return resource.UsableCrystal(p)
 }
 
 func (e *GameEngine) GetPlayerOrientation(playerID string) model.CharacterOrientation {
@@ -85,76 +83,24 @@ func (e *GameEngine) RefreshPlayerDerivedState(playerID string) {
 }
 
 func (e *GameEngine) CanPayCrystalCost(playerID string, amount int) bool {
-	if amount <= 0 {
-		return true
-	}
-	return e.GetUsableCrystal(playerID) >= amount
+	return resource.CanPayCrystalCost(e.State.Players[playerID], amount)
 }
 
 // ConsumeCrystalCost 结算“蓝水晶消耗，可由红宝石替代”。
 // 扣除顺序：优先蓝水晶，再扣红宝石。
 func (e *GameEngine) ConsumeCrystalCost(playerID string, amount int) bool {
-	if amount <= 0 {
-		return true
-	}
-	p := e.State.Players[playerID]
-	if p == nil {
-		return false
-	}
-	if p.Crystal+p.Gem < amount {
-		return false
-	}
-	useCrystal := amount
-	if useCrystal > p.Crystal {
-		useCrystal = p.Crystal
-	}
-	p.Crystal -= useCrystal
-	remain := amount - useCrystal
-	if remain > 0 {
-		p.Gem -= remain
-	}
-	return true
+	return resource.SpendCrystalCost(e.State.Players[playerID], amount)
 }
 
 // canPaySkillEnergyCost 规则：
 // 1) 宝石消耗必须由宝石支付（不可用水晶替代）；
 // 2) 水晶消耗可由“剩余宝石”替代。
 func canPaySkillEnergyCost(p *model.Player, gemCost, crystalCost int) bool {
-	if p == nil {
-		return false
-	}
-	if gemCost < 0 {
-		gemCost = 0
-	}
-	if crystalCost < 0 {
-		crystalCost = 0
-	}
-	if p.Gem < gemCost {
-		return false
-	}
-	remainingGem := p.Gem - gemCost
-	return p.Crystal+remainingGem >= crystalCost
+	return resource.CanPaySkillEnergyCost(p, gemCost, crystalCost)
 }
 
 func consumeSkillEnergyCost(p *model.Player, gemCost, crystalCost int) bool {
-	if !canPaySkillEnergyCost(p, gemCost, crystalCost) {
-		return false
-	}
-	if gemCost < 0 {
-		gemCost = 0
-	}
-	if crystalCost < 0 {
-		crystalCost = 0
-	}
-	p.Gem -= gemCost
-	if p.Crystal >= crystalCost {
-		p.Crystal -= crystalCost
-		return true
-	}
-	needGemAsCrystal := crystalCost - p.Crystal
-	p.Crystal = 0
-	p.Gem -= needGemAsCrystal
-	return true
+	return resource.SpendSkillEnergyCost(p, gemCost, crystalCost)
 }
 
 // CheckHandLimit 提供给技能处理器的手牌上限检查入口。
@@ -163,11 +109,11 @@ func (e *GameEngine) CheckHandLimit(playerID string, stayInTurn bool) {
 	if player == nil {
 		return
 	}
-	ctx := e.buildContext(player, nil, model.TimingActive, nil)
+	ctx := e.BuildContext(player, nil, model.TimingActionDuring, nil)
 	if stayInTurn {
 		ctx.Flags["StayInTurn"] = true
 	}
-	e.checkHandLimit(player, ctx)
+	e.CheckHandLimitCtx(player, ctx)
 }
 
 // GetAllPlayers 返回所有玩家的切片。
@@ -324,7 +270,7 @@ func (e *GameEngine) emitBuffRemovedDispatch(sourceID, targetID string, effect m
 		TargetID: targetID, // 哪个目标身上的基础效果被移除
 		BuffID:   string(effect),
 	}
-	ctx := e.buildContext(target, nil, model.TimingOnFieldMarkChanged, eventCtx)
+	ctx := e.BuildContext(target, nil, model.TimingFieldMarkChanged, eventCtx)
 	e.dispatcher.OnTiming(ctx.Timing, ctx)
 }
 
@@ -339,7 +285,7 @@ func (e *GameEngine) emitBuffAddedDispatch(sourceID, targetID string, effect mod
 		TargetID: targetID,
 		BuffID:   string(effect),
 	}
-	ctx := e.buildContext(target, nil, model.TimingOnFieldMarkChanged, eventCtx)
+	ctx := e.BuildContext(target, nil, model.TimingFieldMarkChanged, eventCtx)
 	e.dispatcher.OnTiming(ctx.Timing, ctx)
 }
 

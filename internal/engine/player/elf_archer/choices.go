@@ -4,6 +4,7 @@ package elf_archer
 
 import (
 	"fmt"
+	"sort"
 
 	"starcup-engine/internal/engine/core/runtimeutil"
 	"starcup-engine/internal/engine/hook/promptfmt"
@@ -19,61 +20,40 @@ func NewChoiceHandler() engineplayer.ChoiceHandler {
 
 func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, playerID string, player *model.Player, data map[string]interface{}) *model.Prompt {
 	switch choiceType {
-	case "elf_elemental_shot_cost":
-		canMagic, _ := data["can_discard_magic"].(bool)
-		canBless, _ := data["can_remove_bless"].(bool)
-		options := make([]model.PromptOption, 0, 2)
-		if canMagic {
-			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", len(options)), Label: "弃1张法术牌发动"})
-		}
-		if canBless {
-			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", len(options)), Label: "移除1个祝福发动"})
-		}
-		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【元素射击】请选择发动消耗：", Options: options, Min: 1, Max: 1}
-
-	case "elf_elemental_shot_discard_magic":
+	case "elf_archer_elemental_shot_pick":
 		if player == nil {
 			return nil
 		}
-		idxs := runtimeutil.ParseChoiceIntSlice(data["magic_indices"])
+		attackCardID, _ := data["attack_card_id"].(string)
+		idxs := elfElementalShotCandidateIndices(player, attackCardID)
 		options := make([]model.PromptOption, 0, len(idxs))
 		for _, idx := range idxs {
-			if idx < 0 || idx >= len(player.Hand) {
+			card, ok := getElfPlayableCardByIndex(player, idx)
+			if !ok {
 				continue
 			}
-			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", idx), Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(player.Hand[idx]))})
-		}
-		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【元素射击】请选择弃置的法术牌：", Options: options, Min: 1, Max: 1}
-
-	case "elf_elemental_shot_remove_blessing":
-		if player == nil {
-			return nil
-		}
-		blessings := elfBlessingCards(player)
-		idxs := runtimeutil.ParseChoiceIntSlice(data["blessing_indices"])
-		options := make([]model.PromptOption, 0, len(idxs))
-		for _, idx := range idxs {
-			if idx < 0 || idx >= len(blessings) {
+			// 手牌必须是法术牌，祝福不限制类型
+			if idx < len(player.Hand) && card.Type != model.CardTypeMagic {
 				continue
 			}
-			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", idx), Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(blessings[idx]))})
+			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", idx), Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(card)), CardID: card.ID})
 		}
-		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【元素射击】请选择要移除的祝福：", Options: options, Min: 1, Max: 1}
+		return &model.Prompt{Type: model.PromptChooseCards, PlayerID: playerID, Message: "【元素射击】请选择发动消耗（法术牌或祝福）：", Options: options, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand", CardFilter: "magic_or_elf_blessing", CancelPolicy: "abort"}}
 
 	case "elf_animal_companion_confirm":
-		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【动物伙伴】是否发动（摸1弃1）？", Options: []model.PromptOption{{ID: "0", Label: "是"}, {ID: "1", Label: "否"}}, Min: 1, Max: 1}
+		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【动物伙伴】是否发动（摸1弃1）？", Options: []model.PromptOption{{ID: "0", Label: "是"}, {ID: "1", Label: "否"}}, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"}}
 
 	case "elf_pet_empower_confirm":
-		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【宠物强化】是否消耗1蓝水晶，将效果改为任意角色摸1弃1？", Options: []model.PromptOption{{ID: "0", Label: "是"}, {ID: "1", Label: "否"}}, Min: 1, Max: 1}
+		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【宠物强化】是否消耗1蓝水晶，将效果改为任意角色摸1弃1？", Options: []model.PromptOption{{ID: "0", Label: "是"}, {ID: "1", Label: "否"}}, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"}}
 
 	case "elf_elemental_shot_water_target":
-		return engineplayer.BuildTargetChoicePrompt(rt, playerID, "【水之矢】请选择+1治疗目标：", data, false)
+		return engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, "【水之矢】请选择+1治疗目标：", data, false)
 	case "elf_elemental_shot_earth_target":
-		return engineplayer.BuildTargetChoicePrompt(rt, playerID, "【地之矢】请选择1点法术伤害目标：", data, false)
+		return engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, "【地之矢】请选择1点法术伤害目标：", data, false)
 	case "elf_pet_empower_target":
-		return engineplayer.BuildTargetChoicePrompt(rt, playerID, "【宠物强化】请选择摸1弃1目标：", data, false)
+		return engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, "【宠物强化】请选择摸1弃1目标：", data, false)
 	case "elf_ritual_release_target":
-		return engineplayer.BuildTargetChoicePrompt(rt, playerID, "【精灵密仪】你已无祝福，转正并请选择1名敌方角色承受2点法术伤害：", data, false)
+		return engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, "【精灵密仪】你已无祝福，转正并请选择1名敌方角色承受2点法术伤害：", data, false)
 	}
 	return nil
 }
@@ -82,11 +62,8 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 	choiceType, _ := ctxData["choice_type"].(string)
 
 	switch choiceType {
-	case "elf_elemental_shot_cost":
-		return true, handleElfElementalShotCost(rt, selectionIndex, ctxData)
-
-	case "elf_elemental_shot_discard_magic", "elf_elemental_shot_remove_blessing":
-		return true, handleElfElementalShotDiscardOrRemoveBlessing(rt, selectionIndex, ctxData)
+	case "elf_archer_elemental_shot_pick":
+		return true, handleElfElementalShotPick(rt, selectionIndex, ctxData)
 
 	case "elf_animal_companion_confirm":
 		return true, handleElfAnimalCompanionConfirm(rt, selectionIndex, ctxData)
@@ -106,7 +83,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 
 func (choiceHandler) HandleCancel(rt engineplayer.ChoiceRuntime, playerID string, ctxData map[string]interface{}) (bool, error) {
 	choiceType, _ := ctxData["choice_type"].(string)
-	if choiceType != "elf_elemental_shot_cost" {
+	if choiceType != "elf_archer_elemental_shot_pick" {
 		return false, nil
 	}
 
@@ -124,79 +101,32 @@ func (choiceHandler) HandleCancel(rt engineplayer.ChoiceRuntime, playerID string
 	return true, nil
 }
 
-func handleElfElementalShotCost(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
+func handleElfElementalShotPick(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
 	userID, _ := ctxData["user_id"].(string)
 	user := rt.GetPlayers()[userID]
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
-	canMagic, _ := ctxData["can_discard_magic"].(bool)
-	canBless, _ := ctxData["can_remove_bless"].(bool)
-	modeList := make([]int, 0, 2)
-	if canMagic {
-		modeList = append(modeList, 0)
-	}
-	if canBless {
-		modeList = append(modeList, 1)
-	}
-	if selectionIndex < 0 || selectionIndex >= len(modeList) {
-		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
-	}
-	if modeList[selectionIndex] == 0 {
-		if intr := rt.GetPendingInterrupt(); intr != nil {
-			intr.Context = map[string]interface{}{
-				"choice_type":    "elf_elemental_shot_discard_magic",
-				"user_id":        userID,
-				"magic_indices":  getCardIndicesByType(user, model.CardTypeMagic),
-				"attack_element": ctxData["attack_element"],
-			}
-		}
-	} else {
-		if intr := rt.GetPendingInterrupt(); intr != nil {
-			intr.Context = map[string]interface{}{
-				"choice_type":      "elf_elemental_shot_remove_blessing",
-				"user_id":          userID,
-				"blessing_indices": elfBlessingHandIndices(user),
-				"attack_element":   ctxData["attack_element"],
-			}
-		}
-	}
-	rt.NotifyInterruptPrompt()
-	return nil
-}
-
-func handleElfElementalShotDiscardOrRemoveBlessing(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
-	userID, _ := ctxData["user_id"].(string)
-	user := rt.GetPlayers()[userID]
-	if user == nil {
-		return fmt.Errorf("玩家不存在")
-	}
-
-	choiceType, _ := ctxData["choice_type"].(string)
-	key := "magic_indices"
-	if choiceType == "elf_elemental_shot_remove_blessing" {
-		key = "blessing_indices"
-	}
-	candidates := runtimeutil.ParseChoiceIntSlice(ctxData[key])
+	attackCardID, _ := ctxData["attack_card_id"].(string)
+	candidates := elfElementalShotCandidateIndices(user, attackCardID)
 	cardIdx, ok := runtimeutil.ResolveSelectionToCandidate(selectionIndex, candidates)
 	if !ok {
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
-
-	var card model.Card
-	if choiceType == "elf_elemental_shot_remove_blessing" {
-		blessings := elfBlessingCards(user)
-		if cardIdx < 0 || cardIdx >= len(blessings) {
-			return fmt.Errorf("无效的祝福索引: %d", selectionIndex)
+	// 手牌必须是法术牌，祝福不限制类型
+	if cardIdx < len(user.Hand) {
+		card := user.Hand[cardIdx]
+		if card.Type != model.CardTypeMagic {
+			return fmt.Errorf("手牌区只能选择法术牌发动元素射击")
 		}
-		card = blessings[cardIdx]
-		removeElfBlessingByCardID(user, card.ID)
-	} else {
-		if cardIdx < 0 || cardIdx >= len(user.Hand) {
-			return fmt.Errorf("无效的手牌索引: %d", selectionIndex)
-		}
-		card = user.Hand[cardIdx]
-		user.Hand = append(user.Hand[:cardIdx], user.Hand[cardIdx+1:]...)
+	}
+	selectedCard, ok := rt.GetPlayableCardByIndex(user, cardIdx)
+	if !ok || selectedCard.ID == "" {
+		return fmt.Errorf("无效的卡牌选项: %d", selectionIndex)
+	}
+	card, ok := rt.ConsumePlayableCardByCardID(userID, selectedCard.ID)
+	if !ok {
+		return fmt.Errorf("未找到卡牌: %s", selectedCard.ID)
 	}
 	rt.NotifyCardRevealed(userID, []model.Card{card}, "discard")
 	rt.AppendToDiscard([]model.Card{card})
@@ -457,6 +387,50 @@ func getCardIndicesByType(player *model.Player, cardType model.CardType) []int {
 			out = append(out, i)
 		}
 	}
+	return out
+}
+
+func getElfPlayableCardByIndex(player *model.Player, idx int) (model.Card, bool) {
+	if player == nil || idx < 0 {
+		return model.Card{}, false
+	}
+	if idx < len(player.Hand) {
+		return player.Hand[idx], true
+	}
+	offset := idx - len(player.Hand)
+	covers := elfBlessingCards(player)
+	if offset < 0 || offset >= len(covers) {
+		return model.Card{}, false
+	}
+	return covers[offset], true
+}
+
+func elfElementalShotCandidateIndices(player *model.Player, excludeCardIDs ...string) []int {
+	if player == nil {
+		return nil
+	}
+	exclude := make(map[string]bool, len(excludeCardIDs))
+	for _, id := range excludeCardIDs {
+		if id != "" {
+			exclude[id] = true
+		}
+	}
+	var out []int
+	// 手牌：只有法术牌可用于元素射击
+	for i, card := range player.Hand {
+		if card.Type == model.CardTypeMagic && !exclude[card.ID] {
+			out = append(out, i)
+		}
+	}
+	// 祝福：所有祝福都可用于元素射击（不限制类型），排除攻击牌
+	offset := len(player.Hand)
+	blessings := elfBlessingCards(player)
+	for i, card := range blessings {
+		if !exclude[card.ID] {
+			out = append(out, offset+i)
+		}
+	}
+	sort.Ints(out)
 	return out
 }
 

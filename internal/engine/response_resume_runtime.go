@@ -144,12 +144,12 @@ func (e *GameEngine) prepareConfirmedResponseResume(state responseResumeState) {
 	}
 }
 
-// runTimingOnResponseSkipEffects 在"跳过响应"时执行后效。
-func (e *GameEngine) runTimingOnResponseSkipEffects(state *responseResumeState) {
+// runResponseSkillSkipEffects 在"跳过响应"时执行后效。
+func (e *GameEngine) runResponseSkillSkipEffects(state *responseResumeState) {
 	if state == nil {
 		return
 	}
-	e.dispatchRoleTimingHook(engineplayer.TimingOnResponseSkillSkip, engineplayer.TimingHookContext{
+	e.dispatchRoleTimingHook(engineplayer.TimingResponseSkillSkip, engineplayer.TimingHookContext{
 		TargetID:       state.playerID,
 		OfferedSkillID: state.skillID,
 		OfferedSkills:  state.offeredSkills,

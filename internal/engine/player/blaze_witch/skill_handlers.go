@@ -11,93 +11,6 @@ import (
 
 // --- Helper functions ---
 
-func getToken(p *model.Player, key string) int {
-	if p == nil {
-		return 0
-	}
-	if p.Tokens == nil {
-		p.Tokens = map[string]int{}
-	}
-	return p.Tokens[key]
-}
-
-func setToken(p *model.Player, key string, v int) {
-	if p == nil {
-		return
-	}
-	if p.Tokens == nil {
-		p.Tokens = map[string]int{}
-	}
-	p.Tokens[key] = v
-}
-
-func getSkillFlow(p *model.Player, key string) int {
-	if p == nil || p.TurnState.SkillFlowState == nil {
-		return 0
-	}
-	return p.TurnState.SkillFlowState[key]
-}
-
-func setSkillFlow(p *model.Player, key string, v int) {
-	if p == nil {
-		return
-	}
-	if p.TurnState.SkillFlowState == nil {
-		p.TurnState.SkillFlowState = make(map[string]int)
-	}
-	p.TurnState.SkillFlowState[key] = v
-}
-
-func addToken(p *model.Player, key string, delta int, minV int, maxV int) int {
-	cur := getToken(p, key)
-	cur += delta
-	if cur < minV {
-		cur = minV
-	}
-	if maxV >= minV && cur > maxV {
-		cur = maxV
-	}
-	setToken(p, key, cur)
-	return cur
-}
-
-func hasForm(p *model.Player, form string) bool {
-	return p != nil && p.Form == form
-}
-
-func enterForm(p *model.Player, form string) {
-	if p == nil {
-		return
-	}
-	p.Orientation = model.OrientationTapped
-	p.Form = form
-}
-
-func leaveForm(p *model.Player, form string) {
-	if p == nil {
-		return
-	}
-	if form != "" && p.Form != form {
-		return
-	}
-	p.Orientation = model.OrientationNormal
-	p.Form = ""
-}
-
-func canPayCrystalLike(ctx *model.Context, amount int) bool {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil {
-		return false
-	}
-	return ctx.Game.CanPayCrystalCost(ctx.User.ID, amount)
-}
-
-func spendCrystalLike(ctx *model.Context, amount int) bool {
-	if ctx == nil || ctx.User == nil || ctx.Game == nil {
-		return false
-	}
-	return ctx.Game.ConsumeCrystalCost(ctx.User.ID, amount)
-}
-
 // --- BlazeWitch Handlers ---
 
 type BlazeWitchRebirthClockHandler struct{ engineplayer.BaseHandler }
@@ -142,10 +55,10 @@ func (h *BlazeWitchHeavenfireCleaveHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil {
 		return false
 	}
-	if hasForm(ctx.User, model.FormBlazeWitchFlame) {
+	if engineplayer.HasForm(ctx.User, model.FormBlazeWitchFlame) {
 		return true
 	}
-	return getToken(ctx.User, "bw_rebirth") > 0
+	return engineplayer.GetToken(ctx.User, "bw_rebirth") > 0
 }
 
 func (h *BlazeWitchHeavenfireCleaveHandler) Execute(ctx *model.Context) error {
@@ -158,11 +71,11 @@ func (h *BlazeWitchHeavenfireCleaveHandler) Execute(ctx *model.Context) error {
 	if userCampMorale < targetCampMorale {
 		damage++
 	}
-	if !hasForm(ctx.User, model.FormBlazeWitchFlame) {
-		if getToken(ctx.User, "bw_rebirth") <= 0 {
+	if !engineplayer.HasForm(ctx.User, model.FormBlazeWitchFlame) {
+		if engineplayer.GetToken(ctx.User, "bw_rebirth") <= 0 {
 			return fmt.Errorf("天火断空需要至少1点重生")
 		}
-		addToken(ctx.User, "bw_rebirth", -1, 0, 4)
+		engineplayer.AddToken(ctx.User, "bw_rebirth", -1, 4)
 	}
 	ctx.Game.AddPendingDamage(model.PendingDamage{
 		SourceID:   ctx.User.ID,
@@ -191,8 +104,8 @@ func (h *BlazeWitchWitchWrathHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("魔女之怒上下文无效")
 	}
-	enterForm(ctx.User, model.FormBlazeWitchFlame)
-	setSkillFlow(ctx.User, "bw_flame_release_pending", 1)
+	engineplayer.SetForm(ctx.User, model.FormBlazeWitchFlame)
+	engineplayer.SetSkillFlowState(ctx.User, "bw_flame_release_pending", 1)
 	ctx.Game.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
@@ -210,10 +123,10 @@ func (h *BlazeWitchSubstituteDollHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Timing != model.TimingOnDamageTaken {
+	if !ctx.DamageTakenPhase() {
 		return false
 	}
-	if getSkillFlow(ctx.User, "bw_substitute_lock") > 0 {
+	if engineplayer.GetSkillFlowState(ctx.User, "bw_substitute_lock") > 0 {
 		return false
 	}
 	if ctx.Flags["IsMagicDamage"] {
@@ -243,7 +156,7 @@ func (h *BlazeWitchSubstituteDollHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("替身玩偶上下文无效")
 	}
-	setSkillFlow(ctx.User, "bw_substitute_lock", 1)
+	engineplayer.SetSkillFlowState(ctx.User, "bw_substitute_lock", 1)
 	var magicIndices []int
 	for i, c := range ctx.User.Hand {
 		if c.Type == model.CardTypeMagic {
@@ -257,7 +170,7 @@ func (h *BlazeWitchSubstituteDollHandler) Execute(ctx *model.Context) error {
 		}
 	}
 	if len(magicIndices) == 0 || len(allyIDs) == 0 {
-		setSkillFlow(ctx.User, "bw_substitute_lock", 0)
+		engineplayer.SetSkillFlowState(ctx.User, "bw_substitute_lock", 0)
 		return fmt.Errorf("替身玩偶缺少可用牌或队友")
 	}
 	ctx.Game.PushInterrupt(&model.Interrupt{
@@ -268,6 +181,11 @@ func (h *BlazeWitchSubstituteDollHandler) Execute(ctx *model.Context) error {
 			"user_id":       ctx.User.ID,
 			"magic_indices": magicIndices,
 			"ally_ids":      allyIDs,
+			model.PromptFlowContextKey: func() *model.PromptFlowState {
+				flow := substituteDollFlowRuntime.Begin()
+				flow.PutSelection(substituteDollStepCard, model.PromptFlowSelection{})
+				return flow
+			}(),
 		},
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [替身玩偶]，请选择要弃置的法术牌", ctx.User.Name))
@@ -278,7 +196,7 @@ func (h *BlazeWitchPainLinkHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil {
 		return false
 	}
-	return canPayCrystalLike(ctx, 1)
+	return engineplayer.CanPayCrystalLike(ctx, 1)
 }
 
 func (h *BlazeWitchPainLinkHandler) Execute(ctx *model.Context) error {
@@ -297,8 +215,8 @@ func (h *BlazeWitchPainLinkHandler) Execute(ctx *model.Context) error {
 		Damage:     1,
 		DamageType: model.MagicAttack,
 	})
-	setSkillFlow(ctx.User, "bw_pain_link_pending_discard", 1)
-	setSkillFlow(ctx.User, "bw_pain_link_pending_hits", 2)
+	engineplayer.SetSkillFlowState(ctx.User, "bw_pain_link_pending_discard", 1)
+	engineplayer.SetSkillFlowState(ctx.User, "bw_pain_link_pending_hits", 2)
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [痛苦链接]，先对 %s 后对自己各造成1点法术伤害", ctx.User.Name, ctx.Target.Name))
 	return nil
 }
@@ -307,10 +225,10 @@ func (h *BlazeWitchManaInversionHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Timing != model.TimingOnDamageTaken {
+	if !ctx.DamageTakenPhase() {
 		return false
 	}
-	if getSkillFlow(ctx.User, "bw_mana_inversion_lock") > 0 {
+	if engineplayer.GetSkillFlowState(ctx.User, "bw_mana_inversion_lock") > 0 {
 		return false
 	}
 	if !ctx.Flags["IsMagicDamage"] {
@@ -328,7 +246,7 @@ func (h *BlazeWitchManaInversionHandler) CanUse(ctx *model.Context) bool {
 	if magicCount < 2 {
 		return false
 	}
-	if !canPayCrystalLike(ctx, 1) {
+	if !engineplayer.CanPayCrystalLike(ctx, 1) {
 		return false
 	}
 	for _, p := range ctx.Game.GetAllPlayers() {
@@ -343,25 +261,33 @@ func (h *BlazeWitchManaInversionHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("魔能反转上下文无效")
 	}
-	if !spendCrystalLike(ctx, 1) {
+	if !engineplayer.SpendCrystalLike(ctx, 1) {
 		return fmt.Errorf("魔能反转需要1蓝水晶（红宝石可替代）")
 	}
-	setSkillFlow(ctx.User, "bw_mana_inversion_lock", 1)
-	magicCount := 0
-	for _, c := range ctx.User.Hand {
-		if c.Type == model.CardTypeMagic {
-			magicCount++
-		}
-	}
+	engineplayer.SetSkillFlowState(ctx.User, "bw_mana_inversion_lock", 1)
 	ctx.Game.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
 		Context: map[string]interface{}{
-			"choice_type": "bw_mana_inversion_x",
-			"user_id":     ctx.User.ID,
-			"max_x":       magicCount,
+			"choice_type":              "bw_mana_inversion_cards",
+			"user_id":                  ctx.User.ID,
+			"remaining_indices":        magicIndicesForManaInversion(ctx.User),
+			model.PromptFlowContextKey: manaInversionFlowRuntime.Begin(),
 		},
 	})
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [魔能反转]，请选择弃牌数量X", ctx.User.Name))
+	ctx.Game.Log(fmt.Sprintf("%s 发动 [魔能反转]，请选择要弃置的法术牌", ctx.User.Name))
 	return nil
+}
+
+func magicIndicesForManaInversion(user *model.Player) []int {
+	if user == nil {
+		return nil
+	}
+	indices := make([]int, 0, len(user.Hand))
+	for i, c := range user.Hand {
+		if c.Type == model.CardTypeMagic {
+			indices = append(indices, i)
+		}
+	}
+	return indices
 }

@@ -1,4 +1,4 @@
-import type { GameEvent } from '../types/game'
+import type { GameEvent, GameStateUpdate, Prompt } from '../types/game'
 import { extractGameplayEventsFromTimeline } from './gameplayTimeline'
 import type { RequireActionPayload, SyncStatePayload, TimelineNotifyPayload } from './protocol'
 import { buildGameStateUpdateFromSyncState } from './syncState'
@@ -116,13 +116,34 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
     }
   }
 
-  const deriveEndMessageFromState = (state?: GameEvent['state']) => {
+  const deriveEndMessageFromState = (state?: GameStateUpdate) => {
     if (!state) return ''
     if (state.red_cups >= 5) return '红方胜利！星杯达到 5'
     if (state.blue_cups >= 5) return '蓝方胜利！星杯达到 5'
     if (state.red_morale <= 0) return '蓝方胜利！红方士气归零'
     if (state.blue_morale <= 0) return '红方胜利！蓝方士气归零'
     return ''
+  }
+
+  const isResponsePrompt = (prompt?: Prompt | null) => {
+    if (!prompt) return false
+    if (prompt.attacker_id || prompt.attack_element || (prompt.counter_target_ids?.length ?? 0) > 0) return true
+    const responseOptionIds = new Set(['take', 'hit', 'defend', 'counter', 'shield'])
+    return (prompt.options || []).some(option => responseOptionIds.has(String(option?.id || '').trim()))
+  }
+
+  const focusPromptActor = (prompt?: Prompt | null, fallbackPlayerId?: string) => {
+    const playerId = prompt?.player_id || fallbackPlayerId || ''
+    if (!playerId) return
+    if (isResponsePrompt(prompt)) {
+      battleFxStore.startActingPlayerFocus(playerId, 'response')
+      return
+    }
+    if (prompt?.presentation?.kind === 'action_hub') {
+      battleFxStore.startActingPlayerFocus(playerId, 'turn')
+      return
+    }
+    battleFxStore.startActingPlayerFocus(playerId, 'skill')
   }
 
   function handleSyncState(payload: SyncStatePayload) {
@@ -141,9 +162,7 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
   function handleRequireAction(payload: RequireActionPayload) {
     const prompt = payload.prompt
     if (prompt) {
-      if (prompt.player_id) {
-        battleFxStore.touchSkillInitiatorFocus(prompt.player_id)
-      }
+      focusPromptActor(prompt, payload.target_user_id)
       if (payload.target_user_id === sessionStore.myPlayerId) {
         interruptStore.setPrompt(prompt)
         interruptStore.setWaiting('')
@@ -155,10 +174,12 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
     }
 
     if (payload.target_user_id === sessionStore.myPlayerId) {
+      battleFxStore.startActingPlayerFocus(payload.target_user_id, 'skill')
       interruptStore.setWaiting('')
     } else {
       interruptStore.setPrompt(null)
       interruptStore.setWaiting(payload.target_user_id || '')
+      battleFxStore.startActingPlayerFocus(payload.target_user_id || '', 'skill')
     }
   }
 
@@ -227,6 +248,9 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
             battleReviewStore.addLog(`游戏结束: ${fallbackEndMsg}`)
           }
           const nextCurrent = event.state.current_player
+          if (nextCurrent && event.state.turn_stage === 'ActionExecution') {
+            battleFxStore.startActingPlayerFocus(nextCurrent, 'turn')
+          }
           if (nextCurrent && nextCurrent !== prevCurrent) {
             if (prevCurrent) {
               const prevName = playerNameById(prevCurrent)
@@ -251,9 +275,7 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
       case 'prompt':
         if (event.prompt) {
           interruptStore.setPrompt(event.prompt)
-          if (event.prompt.player_id) {
-            battleFxStore.touchSkillInitiatorFocus(event.prompt.player_id)
-          }
+          focusPromptActor(event.prompt)
           interruptStore.setWaiting('')
         }
         break
@@ -261,6 +283,7 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
       case 'waiting':
         interruptStore.setPrompt(null)
         interruptStore.setWaiting(event.player_id || '')
+        battleFxStore.startActingPlayerFocus(event.player_id || '', 'skill')
         break
 
       case 'error':
@@ -336,7 +359,15 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
         break
 
       case 'combat_cue':
-        if (event.attacker_id && event.target_id && event.phase) {
+        if (
+          event.attacker_id &&
+          event.target_id &&
+          (event.phase === 'attack' ||
+            event.phase === 'defend' ||
+            event.phase === 'take' ||
+            event.phase === 'counter' ||
+            event.phase === 'shield')
+        ) {
           battleFxStore.addCombatCue(event.attacker_id, event.target_id, event.phase)
         }
         break

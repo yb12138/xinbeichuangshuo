@@ -35,6 +35,57 @@ func systemChoiceSelect(typ string) func(*GameEngine, string, int, map[string]an
 	}
 }
 
+func systemChoiceMulti(typ string) func(*GameEngine, string, []int) error {
+	switch typ {
+	case choiceTypeSystemDiscardCards:
+		return (*GameEngine).handleSystemDiscardChoiceSelections
+	default:
+		return nil
+	}
+}
+
+func systemChoiceCancel(typ string) func(*GameEngine, string, map[string]any) (bool, error) {
+	switch typ {
+	case choiceTypeSystemDiscardCards:
+		return func(ge *GameEngine, pid string, _ map[string]any) (bool, error) {
+			if ge.State == nil || ge.State.PendingInterrupt == nil {
+				return false, fmt.Errorf("当前没有待处理的弃牌操作")
+			}
+			ctxData, _ := ge.State.PendingInterrupt.Context.(map[string]interface{})
+			return true, ge.cancelSystemDiscardChoice(pid, ctxData)
+		}
+	case "basic_effect_pick":
+		return func(ge *GameEngine, pid string, ctx map[string]any) (bool, error) {
+			prompt := buildBasicEffectChoicePrompt(pid, choiceCtxAsInterfaceMap(ctx))
+			if prompt == nil || prompt.Presentation == nil || prompt.Presentation.CancelPolicy == "" || prompt.Presentation.CancelPolicy == "deny" {
+				return false, fmt.Errorf("当前选择不可取消")
+			}
+			skillName, _ := ctx["skill_name"].(string)
+			if user := ge.State.Players[pid]; user != nil && skillName != "" {
+				ge.Log(fmt.Sprintf("%s 放弃了 [%s] 的效果移除", user.Name, skillName))
+			}
+			return true, nil
+		}
+	default:
+		return nil
+	}
+}
+
+func systemChoiceConsumes(typ string) func(map[string]any) bool {
+	switch typ {
+	case choiceTypeSystemDiscardCards:
+		return func(ctx map[string]any) bool {
+			if ctx == nil {
+				return false
+			}
+			skillID, _ := ctx["skill_id"].(string)
+			return skillID == ""
+		}
+	default:
+		return nil
+	}
+}
+
 func catalogChoiceBinding(typ string) catalogSpecPlan {
 	spec, ok := catalogChoiceRouteSpecTable[typ]
 	if !ok {
@@ -45,10 +96,15 @@ func catalogChoiceBinding(typ string) catalogSpecPlan {
 	}
 	switch spec.Kind {
 	case ChoiceRouteKindSystem:
+		consumesFn := systemChoiceConsumes(typ)
+		autoConsume := consumesFn == nil // 只有无自定义 consumes 规则的才自动消费
 		return catalogSpecPlan{
-			autoConsume: true,
+			autoConsume: autoConsume,
+			consumes:    consumesFn,
 			build:       (*GameEngine).buildSystemChoicePrompt,
 			sel:         systemChoiceSelect(typ),
+			multi:       systemChoiceMulti(typ),
+			cancel:      systemChoiceCancel(typ),
 			after:       systemChoiceAfterConsume(typ),
 		}
 	case ChoiceRouteKindRole:
@@ -61,7 +117,11 @@ func catalogChoiceBinding(typ string) catalogSpecPlan {
 				return ge.handleRoleChoiceInput(roleID, playerID, idx, choiceCtxAsInterfaceMap(ctx))
 			},
 			cancel: func(ge *GameEngine, playerID string, ctx map[string]any) (bool, error) {
-				return ge.handleRoleChoiceCancel(roleID, playerID, choiceCtxAsInterfaceMap(ctx))
+				handled, err := ge.handleRoleChoiceCancel(roleID, playerID, choiceCtxAsInterfaceMap(ctx))
+				if err != nil || handled {
+					return handled, err
+				}
+				return ge.cancelPromptFlowChoice(playerID, ctx)
 			},
 		}
 	default:

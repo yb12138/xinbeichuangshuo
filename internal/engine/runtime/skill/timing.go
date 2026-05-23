@@ -21,134 +21,20 @@ type targetSkillsBatch struct {
 	seatOrder int
 }
 
-// runOnTiming 在某个 Timing 窗口触发技能分发（与旧 skill_dispatcher_trigger 一致）。
+type timingStateHost interface {
+	GameState() *model.GameState
+}
+
+// runOnTiming 在某个 Timing 窗口触发技能分发。
 func (r *Runtime) runOnTiming(h Host, timing model.FlowTiming, ctx *model.Context) {
 	if ctx == nil || h == nil {
 		return
 	}
 	ctx.Timing = timing
 
-	var targetsToCheck []checkTarget
+	targetsToCheck := targetsForTiming(h, timing, ctx)
 
-	switch timing {
-	case model.TimingOnTurnStart, model.TimingStartup:
-		currentPid := h.GameState().PlayerOrder[h.GameState().CurrentTurn]
-		if player := h.GameState().Players[currentPid]; player != nil {
-			targetsToCheck = append(targetsToCheck, checkTarget{Player: player, Role: model.RoleAny})
-		}
-
-	case model.TimingOnAttackDeclared, model.TimingOnHitCheck, model.TimingOnDamageCalculated:
-		if ctx.User != nil {
-			targetsToCheck = append(targetsToCheck, checkTarget{
-				Player: ctx.User,
-				Role:   model.RoleAttacker,
-			})
-		}
-		if ctx.Target != nil {
-			targetsToCheck = append(targetsToCheck, checkTarget{
-				Player: ctx.Target,
-				Role:   model.RoleDefender,
-			})
-		}
-
-	case model.TimingOnDamageTaken:
-		if ctx.User != nil {
-			targetsToCheck = append(targetsToCheck, checkTarget{
-				Player: ctx.User,
-				Role:   model.RoleDefender,
-			})
-		}
-		if ctx.Target != nil {
-			targetsToCheck = append(targetsToCheck, checkTarget{
-				Player: ctx.Target,
-				Role:   model.RoleAttacker,
-			})
-		}
-
-	case model.TimingOnCardPlayedOrRevealed:
-		if ctx.User != nil {
-			targetsToCheck = append(targetsToCheck, checkTarget{Player: ctx.User, Role: model.RoleAny})
-		}
-
-	case model.TimingBeforeCardDrawn, model.TimingOnCardDrawn:
-		if ctx.User != nil {
-			targetsToCheck = append(targetsToCheck, checkTarget{Player: ctx.User, Role: model.RoleAny})
-		}
-
-	case model.TimingOnActionEnd, model.TimingOnFieldMarkChanged:
-		if ctx.User != nil {
-			targetsToCheck = append(targetsToCheck, checkTarget{Player: ctx.User, Role: model.RoleAny})
-		}
-		if timing == model.TimingOnFieldMarkChanged {
-			for _, p := range h.GameState().Players {
-				if p != nil && ctx.User != nil && p.ID != ctx.User.ID {
-					targetsToCheck = append(targetsToCheck, checkTarget{Player: p, Role: model.RoleAny})
-				}
-			}
-		}
-
-	case model.TimingOnOrientationChanged:
-		for _, pid := range h.GameState().PlayerOrder {
-			if player := h.GameState().Players[pid]; player != nil {
-				targetsToCheck = append(targetsToCheck, checkTarget{Player: player, Role: model.RoleAny})
-			}
-		}
-		for pid, player := range h.GameState().Players {
-			if player == nil {
-				continue
-			}
-			seen := false
-			for _, queued := range targetsToCheck {
-				if queued.Player != nil && queued.Player.ID == pid {
-					seen = true
-					break
-				}
-			}
-			if !seen {
-				targetsToCheck = append(targetsToCheck, checkTarget{Player: player, Role: model.RoleAny})
-			}
-		}
-
-	case model.TimingBeforeMoraleLoss:
-		if ctx.User != nil {
-			orderedPlayers := make([]*model.Player, 0, len(h.GameState().Players))
-			seen := make(map[string]struct{}, len(h.GameState().Players))
-			for _, pid := range h.GameState().PlayerOrder {
-				p := h.GameState().Players[pid]
-				if p == nil || p.Camp != ctx.User.Camp {
-					continue
-				}
-				orderedPlayers = append(orderedPlayers, p)
-				seen[pid] = struct{}{}
-			}
-			for pid, p := range h.GameState().Players {
-				if p == nil || p.Camp != ctx.User.Camp {
-					continue
-				}
-				if _, ok := seen[pid]; ok {
-					continue
-				}
-				orderedPlayers = append(orderedPlayers, p)
-				seen[pid] = struct{}{}
-			}
-			for _, p := range orderedPlayers {
-				targetsToCheck = append(targetsToCheck, checkTarget{
-					Player: p,
-					Role:   model.RoleAny,
-				})
-			}
-		}
-
-	default:
-		if ctx.User != nil {
-			targetsToCheck = append(targetsToCheck, checkTarget{Player: ctx.User, Role: model.RoleAny})
-		}
-		if ctx.Target != nil && ctx.Target != ctx.User {
-			targetsToCheck = append(targetsToCheck, checkTarget{Player: ctx.Target, Role: model.RoleAny})
-		}
-	}
-
-	if timing == model.TimingBeforeMoraleLoss {
+	if timingPriorityOrdered(timing) {
 		for _, item := range r.collectTargetsWithSkillsByPriority(h, targetsToCheck, timing, ctx) {
 			r.trig.ProcessSkillBatch(h, item.skills, item.ctx)
 		}
@@ -165,6 +51,167 @@ func (r *Runtime) runOnTiming(h Host, timing model.FlowTiming, ctx *model.Contex
 		skills := r.elig.CollectCandidates(target.Player, timing, &skillCtx, target.Role)
 		r.trig.ProcessSkillBatch(h, skills, &skillCtx)
 	}
+}
+
+func targetsForTiming(h timingStateHost, timing model.FlowTiming, ctx *model.Context) []checkTarget {
+	if h == nil || h.GameState() == nil || ctx == nil {
+		return nil
+	}
+	var targetsToCheck []checkTarget
+	switch timing {
+	case model.TimingTurnStart, model.TimingActionStart:
+		return currentPlayerTarget(h)
+
+	case model.TimingFieldMarkChanged:
+		if ctx.User != nil {
+			targetsToCheck = append(targetsToCheck, checkTarget{Player: ctx.User, Role: model.RoleAny})
+		}
+		for _, p := range h.GameState().Players {
+			if p != nil && ctx.User != nil && p.ID != ctx.User.ID {
+				targetsToCheck = append(targetsToCheck, checkTarget{Player: p, Role: model.RoleAny})
+			}
+		}
+		return targetsToCheck
+
+	case model.TimingOrientationChanged:
+		return allPlayersInSeatOrder(h)
+	}
+
+	switch timing {
+	case model.TimingTurnStart, model.TimingActionStart:
+		return currentPlayerTarget(h)
+
+	case model.TimingAttackDeclare,
+		model.TimingAttackSelectTarget,
+		model.TimingAttackPlayCard,
+		model.TimingAttackModifyCard,
+		model.TimingAttackCommitted,
+		model.TimingAttackForceHitCheck,
+		model.TimingAttackNoResponseCheck,
+		model.TimingAttackResponse,
+		model.TimingAttackHit,
+		model.TimingAttackMiss,
+		model.TimingDamageSourceDeal:
+		if ctx.User != nil {
+			targetsToCheck = append(targetsToCheck, checkTarget{
+				Player: ctx.User,
+				Role:   model.RoleAttacker,
+			})
+		}
+		if ctx.Target != nil {
+			targetsToCheck = append(targetsToCheck, checkTarget{
+				Player: ctx.Target,
+				Role:   model.RoleDefender,
+			})
+		}
+
+	case model.TimingDamageTaken:
+		if ctx.User != nil {
+			targetsToCheck = append(targetsToCheck, checkTarget{
+				Player: ctx.User,
+				Role:   model.RoleDefender,
+			})
+		}
+		if ctx.Target != nil {
+			targetsToCheck = append(targetsToCheck, checkTarget{
+				Player: ctx.Target,
+				Role:   model.RoleAttacker,
+			})
+		}
+
+	case model.TimingMoraleLossCheck:
+		if ctx.User != nil {
+			for _, p := range campPlayersInSeatOrder(h, ctx.User.Camp) {
+				targetsToCheck = append(targetsToCheck, checkTarget{
+					Player: p,
+					Role:   model.RoleAny,
+				})
+			}
+		}
+
+	default:
+		if ctx.User != nil {
+			targetsToCheck = append(targetsToCheck, checkTarget{Player: ctx.User, Role: model.RoleAny})
+		}
+		if ctx.Target != nil && ctx.Target != ctx.User {
+			targetsToCheck = append(targetsToCheck, checkTarget{Player: ctx.Target, Role: model.RoleAny})
+		}
+	}
+	return targetsToCheck
+}
+
+func currentPlayerTarget(h timingStateHost) []checkTarget {
+	if h == nil || h.GameState() == nil {
+		return nil
+	}
+	gs := h.GameState()
+	if gs.CurrentTurn < 0 || gs.CurrentTurn >= len(gs.PlayerOrder) {
+		return nil
+	}
+	currentPid := gs.PlayerOrder[gs.CurrentTurn]
+	if player := gs.Players[currentPid]; player != nil {
+		return []checkTarget{{Player: player, Role: model.RoleAny}}
+	}
+	return nil
+}
+
+func allPlayersInSeatOrder(h timingStateHost) []checkTarget {
+	if h == nil || h.GameState() == nil {
+		return nil
+	}
+	gs := h.GameState()
+	targets := make([]checkTarget, 0, len(gs.Players))
+	seen := make(map[string]struct{}, len(gs.Players))
+	for _, pid := range gs.PlayerOrder {
+		player := gs.Players[pid]
+		if player == nil {
+			continue
+		}
+		targets = append(targets, checkTarget{Player: player, Role: model.RoleAny})
+		seen[pid] = struct{}{}
+	}
+	for pid, player := range gs.Players {
+		if player == nil {
+			continue
+		}
+		if _, ok := seen[pid]; ok {
+			continue
+		}
+		targets = append(targets, checkTarget{Player: player, Role: model.RoleAny})
+	}
+	return targets
+}
+
+func campPlayersInSeatOrder(h timingStateHost, camp model.Camp) []*model.Player {
+	if h == nil || h.GameState() == nil {
+		return nil
+	}
+	gs := h.GameState()
+	orderedPlayers := make([]*model.Player, 0, len(gs.Players))
+	seen := make(map[string]struct{}, len(gs.Players))
+	for _, pid := range gs.PlayerOrder {
+		p := gs.Players[pid]
+		if p == nil || p.Camp != camp {
+			continue
+		}
+		orderedPlayers = append(orderedPlayers, p)
+		seen[pid] = struct{}{}
+	}
+	for pid, p := range gs.Players {
+		if p == nil || p.Camp != camp {
+			continue
+		}
+		if _, ok := seen[pid]; ok {
+			continue
+		}
+		orderedPlayers = append(orderedPlayers, p)
+		seen[pid] = struct{}{}
+	}
+	return orderedPlayers
+}
+
+func timingPriorityOrdered(timing model.FlowTiming) bool {
+	return timing == model.TimingMoraleLossCheck || timing == model.TimingDamageTaken
 }
 
 func (r *Runtime) collectTargetsWithSkillsByPriority(h Host, targets []checkTarget, timing model.FlowTiming, ctx *model.Context) []targetSkillsBatch {

@@ -139,7 +139,7 @@ func (s SkillDefinition) PrimaryTimingOrLegacy() FlowTiming {
 	if len(s.Timings) > 0 {
 		return s.Timings[0]
 	}
-	return TimingActive
+	return TimingActionDuring
 }
 
 // 3. 增强：事件上下文 (支持数据修改)
@@ -182,6 +182,13 @@ type AttackEventInfo struct {
 	ElementOverride  string // 非-empty 时覆盖卡牌元素的显示（如天枪暗属性）
 }
 
+type AttackKind string
+
+const (
+	AttackKindActive  AttackKind = "active"
+	AttackKindCounter AttackKind = "counter"
+)
+
 // PromptType 定义用户交互类型
 type PromptType string
 
@@ -192,6 +199,45 @@ const (
 	PromptChooseExtract PromptType = "choose_extract" // 提炼：多选星石
 )
 
+// PresentationKind 定义弹框展示类型（用于前端渲染决策）
+type PresentationKind string
+
+const (
+	PresentationResponse     PresentationKind = "response"      // 命中/应战/防御（图标按钮）
+	PresentationBranchSelect PresentationKind = "branch_select" // 分支选择（长文案按钮）
+	PresentationNumeric      PresentationKind = "numeric"       // 数字选择（X值/治疗点数）
+	PresentationCardPicker   PresentationKind = "card_picker"   // 卡牌选择
+	PresentationTargetPicker PresentationKind = "target_picker" // 目标选择
+	PresentationSkillChoice  PresentationKind = "skill_choice"  // 技能选择
+	PresentationActionHub    PresentationKind = "action_hub"    // 行动枢纽
+)
+
+// PromptPresentation 定义弹框展示细节（后端显式声明，前端只渲染）
+type PromptPresentation struct {
+	Kind         PresentationKind `json:"kind"`                    // 必填：展示类型
+	Layout       string           `json:"layout,omitempty"`        // 可选："inline"/"overlay"/"grid"
+	NumericBase  int              `json:"numeric_base"`            // numeric 类型的数字起始值（0 或 1）
+	CancelPolicy string           `json:"cancel_policy,omitempty"` // 可选："deny"/"abort"/"decline"/"back"
+	CancelLabel  string           `json:"cancel_label,omitempty"`  // 取消按钮短文案（如：取消/返回/不发动）
+
+	// 目标选择约束（kind=target_picker 时使用）
+	TargetFilter string `json:"target_filter,omitempty"` // all/enemies/allies/allies_exclude_self/any_exclude_self/custom
+	MultiTarget  bool   `json:"multi_target,omitempty"`  // true=批量多选目标
+
+	// 卡牌选择语义（kind=card_picker 时使用）
+	CardSource    string `json:"card_source,omitempty"`    // hand/field/proxy
+	CardFilter    string `json:"card_filter,omitempty"`    // same_element/diff_element/magic_only/attack_only/element:{ele}
+	DiscardReason string `json:"discard_reason,omitempty"` // hand_overflow/skill_cost/skill_effect/forced_discard
+
+	// 确认+选择组合（kind=branch_select 时使用）
+	HasDecline   bool `json:"has_decline,omitempty"`   // true=选项中包含"不发动/取消"
+	DeclineIndex int  `json:"decline_index,omitempty"` // 取消选项的索引位置（默认0）
+
+	// 多步流追踪
+	StepIndex  int `json:"step_index,omitempty"`  // 当前步骤（从1开始）
+	TotalSteps int `json:"total_steps,omitempty"` // 总步骤数（0=单步）
+}
+
 const (
 	PromptUIModeActionHub = "action_hub"
 )
@@ -199,9 +245,13 @@ const (
 // PromptOption 定义可选项
 type PromptOption struct {
 	ID          string `json:"id"`                     // 选项ID (card index / skill id)
-	Label       string `json:"label"`                  // 原始显示标签（兼容老客户端）
+	Label       string `json:"label"`                  // display label
 	ButtonLabel string `json:"button_label,omitempty"` // 按钮短文案（如：发动/放弃/取消/1）
 	Hint        string `json:"hint,omitempty"`         // 选项说明（展示在按钮上方）
+	CardID      string `json:"card_id,omitempty"`      // 关联实体卡 UUID（卡牌选择专用）
+	TargetID    string `json:"target_id,omitempty"`    // 关联目标玩家/实体 ID（目标选择专用）
+	FieldIndex  *int   `json:"field_index,omitempty"`  // 场区索引（场牌/盖牌选择专用）
+	Element     string `json:"element,omitempty"`      // 结构化元素值（元素选择专用）
 }
 
 // Prompt 定义用户交互提示
@@ -213,11 +263,13 @@ type Prompt struct {
 	ChoiceType string         `json:"choice_type,omitempty"`
 	SkillID    string         `json:"skill_id,omitempty"`
 	Options    []PromptOption `json:"options"` // 可选项
-	// 行动选择场景下“特殊”按钮对应的子选项（如：购买/合成/提炼）
+	// 行动选择场景下"特殊"按钮对应的子选项（如：购买/合成/提炼）
 	SpecialOptions []PromptOption `json:"special_options,omitempty"`
 	// 可选 UI 渲染模式；action_hub 表示由底部行动半球承载
 	UIMode string `json:"ui_mode,omitempty"`
-	// 额外效果提示（用于前端在响应弹窗中解释“为何可/不可应战、命中后附加效果”等）
+	// 展示协议：后端显式声明展示类型，前端按此渲染（不再猜测）
+	Presentation *PromptPresentation `json:"presentation,omitempty"`
+	// 额外效果提示（用于前端在响应弹窗中解释"为何可/不可应战、命中后附加效果"等）
 	EffectHints []string `json:"effect_hints,omitempty"`
 
 	// 选择约束 (CLI只展示，不理解语义)
@@ -277,7 +329,7 @@ type IGameEngine interface {
 	// 资源操作
 	ModifyGem(camp string, amount int)
 	ModifyCrystal(camp string, amount int)
-	// 红宝石可作为蓝水晶替代（仅“水晶消耗”方向）
+	// 红宝石可作为蓝水晶替代（仅"水晶消耗"方向）
 	GetUsableCrystal(playerID string) int
 	CanPayCrystalCost(playerID string, amount int) bool
 	ConsumeCrystalCost(playerID string, amount int) bool
@@ -301,6 +353,7 @@ type IGameEngine interface {
 	GetPlayerForm(playerID string) string
 	RefreshPlayerDerivedState(playerID string)
 	ApplySkillGateRule(playerID string, modifierID string, sourceSkillID string, skillIDs []string, lifetime RuleModifierLifetimeType)
+	ClearRuleModifiersByModifierID(playerID string, modifierID string)
 	ApplyNextAttackDamageRule(playerID string, modifierID string, sourceSkillID string, bonus int, lifetime RuleModifierLifetimeType)
 	ApplyNextAttackInterceptTagRule(playerID string, modifierID string, sourceSkillID string, tag CombatInterceptTag, lifetime RuleModifierLifetimeType)
 	IsSkillBlocked(playerID string, skillID string) bool
@@ -344,7 +397,6 @@ type IGameEngine interface {
 
 	PushInterrupt(intr *Interrupt)
 
-	ResolveDamage(sourceID, targetID string, card *Card, damageType DamageType) error
 	AddPendingDamage(pd PendingDamage)
 	AddPendingDamageFront(pd PendingDamage)
 
@@ -365,7 +417,7 @@ type Context struct {
 	// 触发上下文（可选，用于复杂事件）
 	EventCtx *EventContext
 
-	// 命令行参数（向后兼容）
+	// 命令行/调试参数
 	Args []string
 
 	// 技能私有输入（UI / AI 注入）
@@ -411,7 +463,7 @@ type PlayerTurnState struct {
 	ActionPhaseSkippedThisTurn   bool            `json:"action_phase_skipped_this_turn"`   // 本回合行动阶段被跳过（虚弱/五行封印/无法行动等）
 	UsedSkillCounts              map[string]int  `json:"used_skill_counts"`                // 技能ID -> 本回合使用次数
 	PendingActions               []ActionContext `json:"pending_actions"`                  // 待执行的行动队列
-	CurrentExtraAction           string          `json:"current_extra_action"`             // 当前额外行动类型: "Attack", "Magic", ""
+	CurrentExtraAction           string          `json:"current_extra_action"`             // 当前额外行动类型: "Attack", "Magic", "Any", ""
 	CurrentExtraElement          []Element       `json:"current_extra_element"`            // 当前额外行动元素限制: "Wind", "Fire", etc.
 	AttackCount                  int             `json:"attack_count"`                     // 本回合攻击行动次数
 	LastActionType               string          `json:"last_action_type"`                 // 记录刚刚结束的行动类型 (Attack/Magic)

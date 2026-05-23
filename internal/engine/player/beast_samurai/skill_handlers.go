@@ -17,58 +17,15 @@ type BeastSamuraiWarriorZanshinHandler struct{ engineplayer.BaseHandler }
 
 type BeastSamuraiOneStrikeNoThoughtHandler struct{ engineplayer.BaseHandler }
 
-type BeastSamuraiOneStrikeInterceptHandler struct{ engineplayer.BaseHandler }
-
 type BeastSamuraiBeastSoulWillHandler struct{ engineplayer.BaseHandler }
 
 type BeastSamuraiBeastSoulAlertHandler struct{ engineplayer.BaseHandler }
 
 type BeastSamuraiBeastReturnHandler struct{ engineplayer.BaseHandler }
 
-type BeastSamuraiIaijutsuTurnEndDrainHandler struct{ engineplayer.BaseHandler }
-
-type BeastSamuraiIaijutsuExitOnDealDamageHandler struct{ engineplayer.BaseHandler }
-
-type BeastSamuraiIaijutsuExitOnZeroHandler struct{ engineplayer.BaseHandler }
-
-type BeastSamuraiIaijutsuTappedBoostHandler struct{ engineplayer.BaseHandler }
-
 type BeastSamuraiReversalIaijutsuSlashHandler struct{ engineplayer.BaseHandler }
 
 type BeastSamuraiIaijutsuStyleHandler struct{ engineplayer.BaseHandler }
-
-func getToken(p *model.Player, key string) int {
-	if p == nil {
-		return 0
-	}
-	if p.Tokens == nil {
-		p.Tokens = map[string]int{}
-	}
-	return p.Tokens[key]
-}
-
-func setToken(p *model.Player, key string, v int) {
-	if p == nil {
-		return
-	}
-	if p.Tokens == nil {
-		p.Tokens = map[string]int{}
-	}
-	p.Tokens[key] = v
-}
-
-func addToken(p *model.Player, key string, delta int, minV int, maxV int) int {
-	cur := getToken(p, key)
-	cur += delta
-	if cur < minV {
-		cur = minV
-	}
-	if maxV >= minV && cur > maxV {
-		cur = maxV
-	}
-	setToken(p, key, cur)
-	return cur
-}
 
 func beastSamuraiResumePhase(ctx *model.Context) interface{} {
 	if ctx == nil || ctx.Selections == nil {
@@ -99,7 +56,7 @@ func (h *BeastSamuraiWarriorZanshinHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Timing != model.TimingOnActionEnd {
+	if ctx.Timing != model.TimingActionEnd {
 		return false
 	}
 	if ctx.EventCtx.ActionType != model.ActionAttack {
@@ -115,7 +72,7 @@ func (h *BeastSamuraiWarriorZanshinHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("武者残心上下文无效")
 	}
-	now := addToken(ctx.User, "bs_zanshin", 1, 0, beastSamuraiZanshinCap)
+	now := engineplayer.AddToken(ctx.User, "bs_zanshin", 1, beastSamuraiZanshinCap)
 	ctx.Game.Log(fmt.Sprintf("%s 的 [武者残心] 生效：残心+1（当前%d）", ctx.User.Name, now))
 	return nil
 }
@@ -124,7 +81,7 @@ func (h *BeastSamuraiOneStrikeNoThoughtHandler) CanUse(ctx *model.Context) bool 
 	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Timing != model.TimingOnActionEnd {
+	if ctx.Timing != model.TimingActionEnd {
 		return false
 	}
 	if ctx.EventCtx.ActionType != model.ActionAttack {
@@ -133,26 +90,22 @@ func (h *BeastSamuraiOneStrikeNoThoughtHandler) CanUse(ctx *model.Context) bool 
 	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
-	return getToken(ctx.User, "bs_zanshin") >= beastSamuraiZanshinCap
+	return engineplayer.GetToken(ctx.User, "bs_zanshin") >= beastSamuraiZanshinCap
 }
 
 func (h *BeastSamuraiOneStrikeNoThoughtHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("一击无念上下文无效")
 	}
-	if getToken(ctx.User, "bs_zanshin") < beastSamuraiZanshinCap {
+	if engineplayer.GetToken(ctx.User, "bs_zanshin") < beastSamuraiZanshinCap {
 		return fmt.Errorf("残心不足4点，无法发动一击无念")
 	}
-	left := addToken(ctx.User, "bs_zanshin", -4, 0, beastSamuraiZanshinCap)
+	left := engineplayer.AddToken(ctx.User, "bs_zanshin", -4, beastSamuraiZanshinCap)
 	ctx.User.TurnState.UsedSkillCounts["bs_one_strike_armed"] = 1
 	model.AppendAttackAction(ctx.User, "一击无念")
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [一击无念]：移除4点残心（剩余%d），额外获得1次攻击行动并挂载下次攻击劫持", ctx.User.Name, left))
 	return nil
 }
-
-func (h *BeastSamuraiOneStrikeInterceptHandler) CanUse(ctx *model.Context) bool { return false }
-
-func (h *BeastSamuraiOneStrikeInterceptHandler) Execute(ctx *model.Context) error { return nil }
 
 func (h *BeastSamuraiBeastSoulWillHandler) CanUse(ctx *model.Context) bool { return false }
 
@@ -162,7 +115,7 @@ func (h *BeastSamuraiBeastSoulAlertHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Timing != model.TimingOnOrientationChanged {
+	if ctx.Timing != model.TimingOrientationChanged {
 		return false
 	}
 	if ctx.EventCtx.OperatorID == "" || ctx.EventCtx.OperatorID == ctx.User.ID {
@@ -171,46 +124,52 @@ func (h *BeastSamuraiBeastSoulAlertHandler) CanUse(ctx *model.Context) bool {
 	if ctx.EventCtx.NewOrientation != model.OrientationTapped {
 		return false
 	}
-	return getToken(ctx.User, "bs_beast_soul") >= 1
+	if InIaijutsuForm(ctx.User) {
+		return false
+	}
+	return engineplayer.GetToken(ctx.User, "bs_beast_soul") >= 1
 }
 
 func (h *BeastSamuraiBeastSoulAlertHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.EventCtx == nil {
 		return fmt.Errorf("兽魂警戒上下文无效")
 	}
-	actorID := ctx.EventCtx.OperatorID
-	if actorID == "" {
-		return fmt.Errorf("兽魂警戒缺少触发角色")
-	}
-	actor := ctx.Target
-	if actor == nil || actor.ID != actorID {
-		for _, p := range ctx.Game.GetAllPlayers() {
-			if p != nil && p.ID == actorID {
-				actor = p
-				break
-			}
-		}
-	}
-	if getToken(ctx.User, "bs_beast_soul") <= 0 {
+	if engineplayer.GetToken(ctx.User, "bs_beast_soul") <= 0 {
 		return fmt.Errorf("兽魂不足，无法发动兽魂警戒")
 	}
-	leftSoul := addToken(ctx.User, "bs_beast_soul", -1, 0, beastSamuraiBeastSoulCap)
-	nowZanshin := addToken(ctx.User, "bs_zanshin", 1, 0, beastSamuraiZanshinCap)
+	if InIaijutsuForm(ctx.User) {
+		return fmt.Errorf("已处于御魂流居合形态，无法发动兽魂警戒")
+	}
+	leftSoul := engineplayer.AddToken(ctx.User, "bs_beast_soul", -1, beastSamuraiBeastSoulCap)
+	nowZanshin := engineplayer.AddToken(ctx.User, "bs_zanshin", 1, beastSamuraiZanshinCap)
 	ctx.User.Orientation = model.OrientationTapped
 	ctx.User.Form = "beast_samurai_iaijutsu_form"
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [兽魂警戒]：移除1点兽魂（剩余%d），残心+1（当前%d），进入御魂流居合形态", ctx.User.Name, leftSoul, nowZanshin))
-	if actor == nil || len(actor.Hand) == 0 {
+
+	// 令触发横置的角色（EventCtx.OperatorID）展示并弃 1 张手牌，不由兽灵武士另选目标。
+	operatorID := ctx.EventCtx.OperatorID
+	if operatorID == "" || operatorID == ctx.User.ID {
+		return nil
+	}
+	var operator *model.Player
+	for _, p := range ctx.Game.GetAllPlayers() {
+		if p != nil && p.ID == operatorID {
+			operator = p
+			break
+		}
+	}
+	if operator == nil || len(operator.Hand) == 0 {
 		return nil
 	}
 	ctx.Game.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
-		PlayerID: actor.ID,
+		PlayerID: operatorID,
 		Context: map[string]interface{}{
 			"choice_type":     "bs_alert_source_discard",
-			"discard_subflow": true,
 			"user_id":         ctx.User.ID,
-			"actor_id":        actor.ID,
+			"actor_id":        operatorID,
 			"discard_count":   1,
+			"discard_subflow": true,
 			"prompt":          "【兽魂警戒】请选择并展示弃置1张手牌：",
 			"resume_phase":    beastSamuraiResumePhase(ctx),
 		},
@@ -222,7 +181,7 @@ func (h *BeastSamuraiBeastReturnHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Timing != model.TimingOnDamageTaken {
+	if !ctx.DamageTakenPhase() {
 		return false
 	}
 	if !ctx.Flags["IsMagicDamage"] {
@@ -231,14 +190,17 @@ func (h *BeastSamuraiBeastReturnHandler) CanUse(ctx *model.Context) bool {
 	if ctx.Target == nil || ctx.Target.ID == ctx.User.ID {
 		return false
 	}
-	return true
+	return engineplayer.GetToken(ctx.User, "bs_beast_soul") > 0
 }
 
 func (h *BeastSamuraiBeastReturnHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.Target == nil {
 		return fmt.Errorf("兽返上下文无效")
 	}
-	maxX := getToken(ctx.User, "bs_beast_soul")
+	maxX := engineplayer.GetToken(ctx.User, "bs_beast_soul")
+	if maxX <= 0 {
+		return fmt.Errorf("兽返需要至少1点兽魂")
+	}
 	ctx.Game.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
@@ -250,40 +212,21 @@ func (h *BeastSamuraiBeastReturnHandler) Execute(ctx *model.Context) error {
 			"resume_phase": beastSamuraiResumePhase(ctx),
 		},
 	})
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [兽返]：请选择X（0~%d）", ctx.User.Name, maxX))
+	ctx.Game.Log(fmt.Sprintf("%s 发动 [兽返]：请选择X（1~%d）", ctx.User.Name, maxX))
 	return nil
 }
-
-func (h *BeastSamuraiIaijutsuTurnEndDrainHandler) CanUse(ctx *model.Context) bool { return false }
-
-func (h *BeastSamuraiIaijutsuTurnEndDrainHandler) Execute(ctx *model.Context) error { return nil }
-
-func (h *BeastSamuraiIaijutsuExitOnDealDamageHandler) CanUse(ctx *model.Context) bool { return false }
-
-func (h *BeastSamuraiIaijutsuExitOnDealDamageHandler) Execute(ctx *model.Context) error { return nil }
-
-func (h *BeastSamuraiIaijutsuExitOnZeroHandler) CanUse(ctx *model.Context) bool { return false }
-
-func (h *BeastSamuraiIaijutsuExitOnZeroHandler) Execute(ctx *model.Context) error { return nil }
-
-func (h *BeastSamuraiIaijutsuTappedBoostHandler) CanUse(ctx *model.Context) bool { return false }
-
-func (h *BeastSamuraiIaijutsuTappedBoostHandler) Execute(ctx *model.Context) error { return nil }
 
 func (h *BeastSamuraiReversalIaijutsuSlashHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if ctx.Timing != model.TimingOnHitCheck {
+	if !ctx.AttackHitPhase() {
 		return false
 	}
 	if ctx.EventCtx.AttackInfo == nil {
 		return false
 	}
 	if ctx.EventCtx.AttackInfo.ActionType != string(model.ActionAttack) {
-		return false
-	}
-	if !ctx.EventCtx.AttackInfo.IsHit {
 		return false
 	}
 	if ctx.EventCtx.AttackInfo.CounterInitiator != "" {
@@ -303,7 +246,7 @@ func (h *BeastSamuraiReversalIaijutsuSlashHandler) Execute(ctx *model.Context) e
 	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.Target == nil {
 		return fmt.Errorf("逆反居合斩上下文无效")
 	}
-	maxX := getToken(ctx.User, "bs_beast_soul")
+	maxX := engineplayer.GetToken(ctx.User, "bs_beast_soul")
 	ctx.Game.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,

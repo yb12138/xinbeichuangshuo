@@ -2,9 +2,13 @@
 import { storeToRefs } from 'pinia'
 import { computed } from 'vue'
 import { useBattleFxStore } from '../stores/battlefx.store'
+import { useSnapshotStore } from '../stores/snapshot.store'
+import RoseCourtyardIcon from './StatusIcons/RoseCourtyardIcon.vue'
 
 const battleFxStore = useBattleFxStore()
+const snapshotStore = useSnapshotStore()
 const { combatCue } = storeToRefs(battleFxStore)
+const { players } = storeToRefs(snapshotStore)
 
 const duelPhaseLabel = computed(() => {
   const phase = combatCue.value?.phase
@@ -14,6 +18,12 @@ const duelPhaseLabel = computed(() => {
   if (phase === 'shield') return '圣盾'
   return '命中'
 })
+
+const hasRoseCourtyard = computed(() => {
+  return Object.values(players.value).some(p =>
+    p.field?.some(fc => fc.mode === 'Effect' && fc.effect === 'RoseCourtyard')
+  )
+})
 </script>
 
 <template>
@@ -21,6 +31,14 @@ const duelPhaseLabel = computed(() => {
     <div class="battle-content">
       <div v-if="combatCue" :key="combatCue.id" class="duel-center-only">
         <div class="duel-effect" :class="`phase-${combatCue.phase}`">{{ duelPhaseLabel }}</div>
+      </div>
+
+      <div v-else-if="hasRoseCourtyard" class="rose-courtyard-display">
+        <div class="rose-courtyard-icon-wrap">
+          <RoseCourtyardIcon />
+        </div>
+        <span class="rose-courtyard-label">血蔷薇庭院</span>
+        <span class="rose-courtyard-hint">玩家无法使用治疗抵消伤害</span>
       </div>
 
       <div
@@ -220,6 +238,54 @@ const duelPhaseLabel = computed(() => {
 .battle-idle-icon {
   font-size: 22px;
   opacity: 0.4;
+}
+
+/* 血蔷薇庭院 */
+.rose-courtyard-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  animation: duelShow 0.3s ease-out;
+}
+
+.rose-courtyard-icon-wrap {
+  width: 64px;
+  height: 64px;
+  background: rgba(0, 0, 0, 0.65);
+  border-radius: 14px;
+  padding: 6px;
+  backdrop-filter: blur(6px);
+  border: 2px solid rgba(251, 113, 133, 0.45);
+  box-shadow: 0 4px 16px rgba(190, 18, 60, 0.35);
+  animation: roseCourtyardPulse 3s ease-in-out infinite;
+}
+
+.rose-courtyard-label {
+  font-size: 14px;
+  font-weight: bold;
+  color: #fb7185;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+
+.rose-courtyard-hint {
+  font-size: 10px;
+  color: #fca5a5;
+  background: rgba(0, 0, 0, 0.7);
+  padding: 2px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(251, 113, 133, 0.25);
+  text-align: center;
+  max-width: 180px;
+}
+
+@keyframes roseCourtyardPulse {
+  0%, 100% {
+    box-shadow: 0 4px 16px rgba(190, 18, 60, 0.35);
+  }
+  50% {
+    box-shadow: 0 6px 22px rgba(190, 18, 60, 0.55);
+  }
 }
 
 @media (max-width: 640px) {

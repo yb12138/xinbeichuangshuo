@@ -32,9 +32,9 @@ func RoleEntry() player.RoleEntry {
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
 		TimingHookSpecs: []player.TimingHookSpec{
-			{Timing: player.TimingBeforeAction, Priority: 200, Hook: beforeActionStealthReleaseHook},
-			{Timing: player.TimingOnDamageCalculate, Priority: 600, Hook: damageCalculateHook},
-			{Timing: player.TimingOnAttackGating, Priority: 200, Hook: attackGatingHook},
+			{Timing: player.TimingActionStart, Priority: 200, Hook: beforeActionStealthReleaseHook},
+			{Timing: player.TimingDamageSourceDeal, Priority: 600, Hook: damageCalculateHook},
+			{Timing: player.TimingAttackNoResponse, Priority: 200, Hook: attackGatingHook},
 		},
 	}
 }

@@ -7,13 +7,14 @@ import { useBattleReviewStore } from '../stores/battleReview.store'
 import { useInterruptStore } from '../stores/interrupt.store'
 import { useUiStore } from '../stores/ui.store'
 import { useBattleInteractionState } from '../composables/useBattleInteractionState'
+import StatusEffectIcon from './StatusIcons/StatusEffectIcon.vue'
 
 const battleFxStore = useBattleFxStore()
 const battleReviewStore = useBattleReviewStore()
 const interruptStore = useInterruptStore()
 const uiStore = useUiStore()
 const { damageEffects } = storeToRefs(battleFxStore)
-const { currentPrompt, actionMode, selectedCardForAction, skillMode } = storeToRefs(interruptStore)
+const { currentPrompt, actionMode, selectedHandIndexForAction, skillMode } = storeToRefs(interruptStore)
 const { skillModalCharacterId } = storeToRefs(uiStore)
 const { getCharacter, getRoleDisplayName, isPromptForMe } = useBattleInteractionState()
 
@@ -26,6 +27,14 @@ const props = defineProps<{
   debugTargetReason?: string
   compact?: boolean
   turnOrder?: number
+  soulLinkBindingText?: string
+  soulLinkBindingTitle?: string
+  fighterHundredDragonText?: string
+  fighterHundredDragonTitle?: string
+  fighterHundredDragonRole?: 'source' | 'bound'
+  bloodSharedLifeText?: string
+  bloodSharedLifeTitle?: string
+  bloodSharedLifeRole?: 'source' | 'bound'
 }>()
 
 const emit = defineEmits<{
@@ -52,6 +61,10 @@ function onCharImageError() {
 }
 
 function openSkillModal(event?: MouseEvent) {
+  if (props.selectable) {
+    emit('select', props.player.id)
+    return
+  }
   if (!props.player.role) return
   if (skillModalCharacterId.value === props.player.role) {
     uiStore.openSkillModal(null)
@@ -87,16 +100,42 @@ const maxHand = computed(() => {
 
 const isActive = computed(() => !!props.player.is_active)
 
-const EFFECT_DISPLAY: Record<string, { icon: string; label: string; cls: string }> = {
+type EffectOverlay = {
+  gradient: string
+  animation: string
+  opacity: number
+  duration: string
+  backgroundSize?: string
+}
+
+const EFFECT_DISPLAY: Record<string, { icon: string; label: string; cls: string; overlay?: EffectOverlay }> = {
   Shield: { icon: '🛡️', label: '圣盾', cls: 'bg-yellow-800/60' },
   Poison: { icon: '☠️', label: '中毒', cls: 'bg-green-800/60' },
   Weak: { icon: '💫', label: '虚弱', cls: 'bg-purple-800/60' },
-  SealFire: { icon: '🔥', label: '火封印', cls: 'bg-red-800/60' },
-  SealWater: { icon: '💧', label: '水封印', cls: 'bg-blue-800/60' },
-  SealEarth: { icon: '🪨', label: '地封印', cls: 'bg-amber-800/60' },
-  SealWind: { icon: '🌪️', label: '风封印', cls: 'bg-teal-800/60' },
-  SealThunder: { icon: '⚡', label: '雷封印', cls: 'bg-indigo-800/60' },
-  FiveElementsBind: { icon: '⛓️', label: '五系束缚', cls: 'bg-gray-700/80' },
+  SealFire: { icon: '🔥', label: '火封印', cls: 'bg-red-800/60', overlay: {
+    gradient: 'conic-gradient(from 0deg, rgba(239,68,68,0.7) 0%, rgba(239,68,68,0.5) 25%, rgba(239,68,68,0.7) 50%, rgba(239,68,68,0.5) 75%, rgba(239,68,68,0.7) 100%)',
+    animation: 'effectSealRotate', opacity: 0.5, duration: '12s',
+  }},
+  SealWater: { icon: '💧', label: '水封印', cls: 'bg-blue-800/60', overlay: {
+    gradient: 'conic-gradient(from 0deg, rgba(59,130,246,0.7) 0%, rgba(59,130,246,0.5) 25%, rgba(59,130,246,0.7) 50%, rgba(59,130,246,0.5) 75%, rgba(59,130,246,0.7) 100%)',
+    animation: 'effectSealRotate', opacity: 0.5, duration: '12s',
+  }},
+  SealEarth: { icon: '🪨', label: '地封印', cls: 'bg-amber-800/60', overlay: {
+    gradient: 'conic-gradient(from 0deg, rgba(217,119,6,0.7) 0%, rgba(217,119,6,0.5) 25%, rgba(217,119,6,0.7) 50%, rgba(217,119,6,0.5) 75%, rgba(217,119,6,0.7) 100%)',
+    animation: 'effectSealRotate', opacity: 0.5, duration: '12s',
+  }},
+  SealWind: { icon: '🌪️', label: '风封印', cls: 'bg-teal-800/60', overlay: {
+    gradient: 'conic-gradient(from 0deg, rgba(20,184,166,0.7) 0%, rgba(20,184,166,0.5) 25%, rgba(20,184,166,0.7) 50%, rgba(20,184,166,0.5) 75%, rgba(20,184,166,0.7) 100%)',
+    animation: 'effectSealRotate', opacity: 0.5, duration: '12s',
+  }},
+  SealThunder: { icon: '⚡', label: '雷封印', cls: 'bg-indigo-800/60', overlay: {
+    gradient: 'conic-gradient(from 0deg, rgba(99,102,241,0.7) 0%, rgba(99,102,241,0.5) 25%, rgba(99,102,241,0.7) 50%, rgba(99,102,241,0.5) 75%, rgba(99,102,241,0.7) 100%)',
+    animation: 'effectSealRotate', opacity: 0.5, duration: '12s',
+  }},
+  FiveElementsBind: { icon: '⛓️', label: '五系束缚', cls: 'bg-gray-700/80', overlay: {
+    gradient: 'conic-gradient(from 0deg, rgba(107,114,128,0.7) 0%, rgba(107,114,128,0.5) 25%, rgba(107,114,128,0.7) 50%, rgba(107,114,128,0.5) 75%, rgba(107,114,128,0.7) 100%)',
+    animation: 'effectSealRotate', opacity: 0.45, duration: '10s',
+  }},
   RoseCourtyard: { icon: '🌹', label: '血蔷薇庭院', cls: 'bg-rose-900/75' },
   PowerBlessing: { icon: '✨', label: '威力赐福', cls: 'bg-orange-900/75' },
   SwiftBlessing: { icon: '🪽', label: '迅捷赐福', cls: 'bg-cyan-900/75' },
@@ -107,11 +146,98 @@ const EFFECT_DISPLAY: Record<string, { icon: string; label: string; cls: string 
   BloodSharedLife: { icon: '🩸', label: '同生共死', cls: 'bg-rose-900/75' },
 }
 
+// @ts-expect-error fieldEffects computed is used for future field effect display feature
 const fieldEffects = computed(() => {
   if (!props.player.field?.length) return []
   return props.player.field
     .filter(fc => fc.mode === 'Effect' && fc.effect)
     .map(fc => EFFECT_DISPLAY[fc.effect] || { icon: '✦', label: fc.effect, cls: 'bg-gray-700/60' })
+})
+
+const activeOverlays = computed(() => {
+  if (!props.player.field?.length) return []
+  return props.player.field
+    .filter(fc => fc.mode === 'Effect' && fc.effect)
+    .map(fc => EFFECT_DISPLAY[fc.effect]?.overlay)
+    .filter((o): o is EffectOverlay => !!o)
+})
+
+const hasStealth = computed(() =>
+  props.player.field?.some(fc => fc.mode === 'Effect' && fc.effect === 'Stealth') ?? false
+)
+
+// 需要显示图标的状态效果（排除场地效果）
+const ICON_EFFECTS = new Set([
+  'Shield', 'Poison', 'Weak',
+  'SealFire', 'SealWater', 'SealEarth', 'SealWind', 'SealThunder',
+  'FiveElementsBind', 'Stealth',
+  'PowerBlessing', 'SwiftBlessing',
+  'BardEternalMovement',
+])
+
+const statusIconEffects = computed(() => {
+  if (!props.player.field?.length) return []
+  return props.player.field
+    .filter(fc => fc.mode === 'Effect' && fc.effect && ICON_EFFECTS.has(fc.effect))
+    .map(fc => ({
+      effect: fc.effect!,
+      title: EFFECT_DISPLAY[fc.effect]?.label || fc.effect,
+    }))
+})
+
+const portraitBadges = computed(() => {
+  const badges: Array<{
+    key: string
+    text: string
+    title: string
+    cls: string
+    icon?: string
+  }> = []
+
+  if (typeof props.turnOrder === 'number') {
+    badges.push({
+      key: 'turn-order',
+      text: `#${props.turnOrder}`,
+      title: `行动顺序 #${props.turnOrder}`,
+      cls: 'player-portrait-badge--turn-order',
+    })
+  }
+
+  if (props.soulLinkBindingText) {
+    badges.push({
+      key: 'soul-link',
+      text: props.soulLinkBindingText,
+      title: props.soulLinkBindingTitle || props.soulLinkBindingText,
+      cls: 'player-portrait-badge--soul-link',
+    })
+  }
+
+  if (props.fighterHundredDragonText) {
+    badges.push({
+      key: 'fighter-hundred-dragon',
+      text: props.fighterHundredDragonText,
+      title: props.fighterHundredDragonTitle || props.fighterHundredDragonText,
+      cls: [
+        'player-portrait-badge--fighter-hundred-dragon',
+        props.fighterHundredDragonRole ? `player-portrait-badge--fighter-hundred-dragon-${props.fighterHundredDragonRole}` : '',
+      ].filter(Boolean).join(' '),
+    })
+  }
+
+  if (props.bloodSharedLifeText) {
+    badges.push({
+      key: 'blood-shared-life',
+      text: props.bloodSharedLifeText,
+      title: props.bloodSharedLifeTitle || props.bloodSharedLifeText,
+      cls: [
+        'player-portrait-badge--blood-shared-life',
+        props.bloodSharedLifeRole ? `player-portrait-badge--blood-shared-life-${props.bloodSharedLifeRole}` : '',
+      ].filter(Boolean).join(' '),
+      icon: 'BloodSharedLife',
+    })
+  }
+
+  return badges
 })
 
 // 当前玩家身上的伤害特效（暴血）
@@ -163,7 +289,6 @@ const TOKEN_DISPLAY: Record<string, { label: string; cls: string }> = {
   valkyrie_spirit: { label: '英灵', cls: 'bg-amber-800/70 text-amber-100 border-amber-500/40' },
   elf_blessing_count: { label: '祝福', cls: 'bg-teal-800/70 text-teal-100 border-teal-500/40' },
   css_blood: { label: '鲜血', cls: 'bg-rose-800/70 text-rose-100 border-rose-500/40' },
-  css_blood_cap: { label: '鲜血上限', cls: 'bg-rose-900/60 text-rose-100 border-rose-600/40' },
   prayer_rune: { label: '祈祷符文', cls: 'bg-yellow-900/70 text-yellow-100 border-yellow-500/40' },
   crk_blood_mark: { label: '血印', cls: 'bg-red-900/70 text-red-100 border-red-500/40' },
   hom_war_rune: { label: '战纹', cls: 'bg-indigo-900/70 text-indigo-100 border-indigo-500/40' },
@@ -173,7 +298,6 @@ const TOKEN_DISPLAY: Record<string, { label: string; cls: string }> = {
   mb_charge_count: { label: '充能', cls: 'bg-indigo-900/70 text-indigo-100 border-indigo-500/40' },
   bd_inspiration: { label: '灵感', cls: 'bg-violet-900/70 text-violet-100 border-violet-500/40' },
   ml_dark_release_next_attack_bonus: { label: '下次主动攻+伤', cls: 'bg-rose-900/70 text-rose-100 border-rose-500/40' },
-  ml_fullness_next_attack_bonus: { label: '充盈下次攻+伤', cls: 'bg-orange-900/70 text-orange-100 border-orange-500/40' },
   ml_dark_release_lock_turn: { label: '本回合锁技能', cls: 'bg-zinc-800/75 text-zinc-100 border-zinc-500/40' },
   hero_anger: { label: '怒气', cls: 'bg-rose-900/70 text-rose-100 border-rose-500/40' },
   hero_wisdom: { label: '知性', cls: 'bg-sky-900/70 text-sky-100 border-sky-500/40' },
@@ -189,9 +313,13 @@ const TOKEN_DISPLAY: Record<string, { label: string; cls: string }> = {
   mg_next_attack_no_counter: { label: '下次攻不可应战', cls: 'bg-rose-900/70 text-rose-100 border-rose-500/40' },
   bp_shared_life_active: { label: '同生共死在场', cls: 'bg-rose-900/70 text-rose-100 border-rose-500/40' },
   bp_shared_life_bound: { label: '同生共死绑定', cls: 'bg-rose-950/75 text-rose-100 border-rose-400/50' },
+  se_sword_qi: { label: '剑气', cls: 'bg-sky-900/70 text-sky-100 border-sky-500/40' },
+  se_sword_soul_count: { label: '剑魂', cls: 'bg-slate-900/75 text-slate-100 border-slate-500/40' },
   bt_pupa: { label: '蛹', cls: 'bg-amber-900/70 text-amber-100 border-amber-500/40' },
   bt_cocoon_count: { label: '茧', cls: 'bg-indigo-900/70 text-indigo-100 border-indigo-500/40' },
   bt_wither_active: { label: '凋零生效', cls: 'bg-red-900/70 text-red-100 border-red-500/40' },
+  bs_beast_soul: { label: '兽魂', cls: 'bg-orange-900/70 text-orange-100 border-orange-500/40' },
+  bs_zanshin: { label: '残心', cls: 'bg-cyan-900/70 text-cyan-100 border-cyan-500/40' },
 }
 
 const HIDDEN_TOKEN_KEYS = new Set([
@@ -203,6 +331,7 @@ const HIDDEN_TOKEN_KEYS = new Set([
   'elf_ritual_release_waiting',
   'plague_block_immortal',
   'ms_yellow_spring_pending',
+  'css_blood_cap',
   'css_blood_barrier_lock',
   'prayer_power_blessing_used',
   'prayer_swift_blessing_used',
@@ -216,6 +345,9 @@ const HIDDEN_TOKEN_KEYS = new Set([
   'ml_stardust_pending',
   'ml_stardust_wait_discard',
   'ml_stardust_morale_before',
+  'ml_fullness_next_attack_bonus',
+  'bp_shared_life_active',
+  'bp_shared_life_bound',
   'hero_exhaustion_release_pending',
   'hero_roar_active',
   'hero_calm_force_no_counter',
@@ -226,6 +358,11 @@ const HIDDEN_TOKEN_KEYS = new Set([
   'hb_special_used_turn',
   'hb_auto_fill_done_turn',
   'hb_shard_miss_pending',
+  // 灵符师妖力是盖牌数量派生展示，不作为头像 token chip 展示
+  'sc_power_count',
+  // 魔枪的回合态展示放在行动面板，不在头像 token 区重复显示
+  'ml_dark_release_next_attack_bonus',
+  'ml_dark_release_lock_turn',
   'mg_blasphemy_used_turn',
   'mg_blasphemy_pending',
   'bt_wither_pending',
@@ -234,9 +371,12 @@ const HIDDEN_TOKEN_KEYS = new Set([
 ])
 
 const tokenIndicators = computed(() => {
-  const entries = Object.entries(props.player.tokens ?? {})
+  const indicatorSource = {
+    ...(props.player.tokens ?? {}),
+    ...(props.player.indicators ?? {}),
+  }
+  const entries = Object.entries(indicatorSource)
     .filter(([key, value]) => !HIDDEN_TOKEN_KEYS.has(key) && !FORM_TOKEN_KEYS.has(key) && typeof value === 'number' && value > 0)
-    .filter(([key, value]) => !(key === 'css_blood_cap' && value <= 3))
     .map(([key, value]) => {
       const cfg = TOKEN_DISPLAY[key]
       return {
@@ -248,6 +388,8 @@ const tokenIndicators = computed(() => {
   })
   return entries
 })
+
+const allIndicators = computed(() => tokenIndicators.value)
 
 const formIndicator = computed(() => {
   const form = props.player.form
@@ -271,7 +413,7 @@ const showStealthBlockedHint = computed(() => {
   if (props.selectable) return false
   if (!props.isOpponent) return false
   if (actionMode.value !== 'attack') return false
-  if (selectedCardForAction.value === null) return false
+  if (selectedHandIndexForAction.value === null) return false
   return !!props.player.field?.some((fc) => fc.mode === 'Effect' && fc.effect === 'Stealth')
 })
 
@@ -292,7 +434,7 @@ function logTargetDebug(stage: string, payload?: Record<string, unknown>) {
     reason: props.debugTargetReason || '',
     actionMode: actionMode.value,
     skillMode: skillMode.value,
-    promptType: currentPrompt.value?.type || '',
+    promptPresentationKind: currentPrompt.value?.presentation?.kind || '',
     isPromptForMe: isPromptForMe.value,
     ...payload
   }
@@ -328,9 +470,11 @@ function handleClick(e: MouseEvent) {
       campClass,
       isActive ? 'player-area--active' : '',
       showStealthBlockedHint ? 'opacity-60 grayscale saturate-75' : '',
+      hasStealth ? 'player-area--stealth' : '',
       selectable ? 'cursor-pointer hover:scale-[1.03] hover:ring-2 hover:ring-yellow-400 hover:shadow-lg hover:shadow-yellow-500/20' : '',
       selected ? 'player-area--selected' : ''
     ]"
+    :data-testid="`player-area-${player.id}`"
     @click="handleClick"
   >
     <img
@@ -347,8 +491,31 @@ function handleClick(e: MouseEvent) {
       {{ (charInfo?.name || player.name || '?').charAt(0) }}
     </div>
 
-    <div v-if="typeof turnOrder === 'number'" class="turn-order-badge" :title="`行动顺序 #${turnOrder}`">
-      #{{ turnOrder }}
+    <!-- 状态效果叠加层 -->
+    <div
+      v-for="(overlay, idx) in activeOverlays"
+      :key="'fx-' + idx"
+      class="effect-overlay-layer"
+      :style="{
+        background: overlay.gradient,
+        backgroundSize: overlay.backgroundSize || 'auto',
+        opacity: overlay.opacity,
+        'animation-name': overlay.animation,
+        'animation-duration': overlay.duration,
+      }"
+    />
+
+    <div v-if="portraitBadges.length" class="player-portrait-badges">
+      <div
+        v-for="badge in portraitBadges"
+        :key="badge.key"
+        class="player-portrait-badge"
+        :class="badge.cls"
+        :title="badge.title"
+      >
+        <StatusEffectIcon v-if="badge.icon" :effect="badge.icon" class="player-portrait-badge-icon" />
+        <span class="player-portrait-badge-text">{{ badge.text }}</span>
+      </div>
     </div>
 
     <div v-if="formIndicator" class="form-badge" :class="formIndicator.cls" :title="formIndicator.label">
@@ -392,19 +559,22 @@ function handleClick(e: MouseEvent) {
         潜行状态无法选中
       </div>
 
-      <div v-if="fieldEffects.length" class="player-overlay-effects">
-        <span
-          v-for="(eff, i) in fieldEffects"
-          :key="i"
-          :title="eff.label"
-          class="text-[10px] px-1 rounded"
-          :class="eff.cls"
-        >{{ eff.icon }}</span>
+      <div v-if="statusIconEffects.length" class="player-overlay-effects">
+        <div
+          v-for="(statusEffect, idx) in statusIconEffects"
+          :key="`status-${statusEffect.effect}-${idx}`"
+          class="effect-icon-item"
+          :title="statusEffect.title"
+        >
+          <StatusEffectIcon
+            :effect="statusEffect.effect"
+          />
+        </div>
       </div>
 
-      <div v-if="tokenIndicators.length" class="player-overlay-tokens">
+      <div v-if="allIndicators.length" class="player-overlay-tokens">
         <span
-          v-for="token in tokenIndicators"
+          v-for="token in allIndicators"
           :key="token.key"
           class="inline-flex items-center gap-1 px-1 py-0.5 rounded border text-[9px] leading-none"
           :class="token.cls"
@@ -498,23 +668,101 @@ function handleClick(e: MouseEvent) {
   z-index: 1;
 }
 
-.turn-order-badge {
+.player-portrait-badges {
   position: absolute;
   top: 6px;
   left: 6px;
   z-index: 5;
+  max-width: calc(100% - 58px);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  pointer-events: auto;
+}
+
+.player-portrait-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 18px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid rgba(167, 139, 250, 0.62);
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1.25;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.72);
+  box-shadow: 0 3px 8px rgba(19, 12, 43, 0.34);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.player-portrait-badge-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.player-portrait-badge-icon {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+}
+
+.player-portrait-badge--turn-order {
   min-width: 24px;
-  height: 18px;
-  border-radius: 999px;
-  border: 1px solid rgba(235, 203, 144, 0.76);
+  justify-content: center;
+  border-color: rgba(235, 203, 144, 0.76);
   background: linear-gradient(180deg, rgba(110, 78, 35, 0.92), rgba(71, 49, 21, 0.92));
   color: #ffe8be;
-  font-size: 10px;
-  font-weight: 800;
-  line-height: 16px;
-  text-align: center;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.62);
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.34);
+}
+
+.player-portrait-badge--soul-link {
+  border-color: rgba(167, 139, 250, 0.62);
+  background: rgba(35, 28, 64, 0.88);
+  color: #ddd6fe;
+}
+
+.player-portrait-badge--fighter-hundred-dragon {
+  border-color: rgba(251, 146, 60, 0.78);
+  background: rgba(72, 28, 10, 0.9);
+  color: #ffedd5;
+}
+
+.player-portrait-badge--fighter-hundred-dragon-source {
+  box-shadow:
+    0 0 0 1px rgba(251, 146, 60, 0.2),
+    0 3px 8px rgba(19, 12, 43, 0.34),
+    0 0 12px rgba(249, 115, 22, 0.2);
+}
+
+.player-portrait-badge--fighter-hundred-dragon-bound {
+  border-style: dashed;
+  box-shadow:
+    0 0 0 1px rgba(251, 146, 60, 0.12),
+    0 3px 8px rgba(19, 12, 43, 0.34);
+}
+
+.player-portrait-badge--blood-shared-life {
+  border-color: rgba(251, 113, 133, 0.75);
+  background: rgba(83, 20, 33, 0.88);
+  color: #ffe4e6;
+}
+
+.player-portrait-badge--blood-shared-life-source {
+  box-shadow:
+    0 0 0 1px rgba(251, 113, 133, 0.2),
+    0 3px 8px rgba(19, 12, 43, 0.34),
+    0 0 12px rgba(244, 63, 94, 0.22);
+}
+
+.player-portrait-badge--blood-shared-life-bound {
+  border-style: dashed;
+  box-shadow:
+    0 0 0 1px rgba(251, 113, 133, 0.12),
+    0 3px 8px rgba(19, 12, 43, 0.34);
 }
 
 .form-badge {
@@ -615,9 +863,16 @@ function handleClick(e: MouseEvent) {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 2px;
-  max-height: 20px;
+  gap: 4px;
+  max-height: 32px;
   overflow: hidden;
+  align-items: center;
+}
+
+.effect-icon-item {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
 }
 
 .player-overlay-tokens {
@@ -772,11 +1027,6 @@ function handleClick(e: MouseEvent) {
     min-height: 56%;
   }
 
-  .turn-order-badge {
-    top: 5px;
-    left: 5px;
-  }
-
   .player-overlay-role {
     font-size: 10px;
   }
@@ -816,7 +1066,30 @@ function handleClick(e: MouseEvent) {
   }
 
   .player-overlay-effects {
-    max-height: 16px;
+    max-height: 24px;
+    gap: 3px;
+  }
+
+  .effect-icon-item {
+    width: 20px;
+    height: 20px;
+  }
+
+  .player-portrait-badges {
+    top: 5px;
+    left: 5px;
+    max-width: calc(100% - 50px);
+  }
+
+  .player-portrait-badge {
+    font-size: 8px;
+    min-height: 16px;
+    padding: 1px 5px;
+  }
+
+  .player-portrait-badge-icon {
+    width: 10px;
+    height: 10px;
   }
 
   .player-overlay-tokens {
@@ -838,11 +1111,40 @@ function handleClick(e: MouseEvent) {
     padding: 1px 3px;
   }
 
-  .turn-order-badge {
-    min-width: 22px;
-    height: 16px;
-    font-size: 9px;
-    line-height: 14px;
-  }
+}
+
+/* 状态效果叠加层 */
+.effect-overlay-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+/* 潜行整卡变灰 */
+.player-area--stealth {
+  filter: grayscale(0.7) brightness(0.85);
+}
+
+@keyframes effectPoisonDrift {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes effectWeakPulse {
+  0%, 100% { transform: scale(0.95); }
+  50% { transform: scale(1.05); }
+}
+
+@keyframes effectShieldShimmer {
+  0% { background-position: -100% -100%; }
+  100% { background-position: 200% 200%; }
+}
+
+@keyframes effectSealRotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 </style>

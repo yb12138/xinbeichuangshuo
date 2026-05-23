@@ -105,6 +105,13 @@ func TestAngel_Skills(t *testing.T) {
 		if err := game.HandleAction(action); err != nil {
 			t.Fatalf("风之洁净发动失败: %v", err)
 		}
+		if err := game.HandleAction(model.PlayerAction{
+			PlayerID:   "p1",
+			Type:       model.CmdSelect,
+			Selections: []int{0},
+		}); err != nil {
+			t.Fatalf("处理风之洁净移除目标失败: %v", err)
+		}
 
 		// 验证 P2 虚弱是否移除
 		hasWeak := false
@@ -291,7 +298,7 @@ func TestAngel_Skills(t *testing.T) {
 		action := model.PlayerAction{
 			PlayerID:  "p1",
 			Type:      model.CmdMagic,
-			CardIndex: 0,
+			CardID:    testutils.PlayableCardID(t, game, "p1", 0),
 			TargetIDs: []string{"p2"}, // 给 P2 贴膜
 		}
 

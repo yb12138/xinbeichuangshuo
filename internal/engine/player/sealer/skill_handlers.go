@@ -156,7 +156,7 @@ func (h *SealBreakHandler) Execute(ctx *model.Context) error {
 type FiveElementsBindHandler struct{ engineplayer.BaseHandler }
 
 func (h *FiveElementsBindHandler) CanUse(ctx *model.Context) bool {
-	return ctx != nil && ctx.Timing == model.TimingActive && ctx.User != nil && ctx.Target != nil
+	return ctx != nil && ctx.Timing == model.TimingActionDuring && ctx.User != nil && ctx.Target != nil
 }
 
 func (h *FiveElementsBindHandler) Execute(ctx *model.Context) error {
@@ -179,7 +179,7 @@ func (h *FiveElementsBindHandler) Execute(ctx *model.Context) error {
 //
 // Phase 2: Trigger Seal (handled by SkillDispatcher)
 //   - Target player plays/reveals matching element card
-//   - Trigger TimingOnCardPlayedOrRevealed
+//   - Trigger TimingCardPlayedRevealed
 //   - collectSkillsForTiming iterates Field, finds matching seal
 //   - SealLogic.CanUse -> canResolveElementalSealStatus
 //
@@ -201,7 +201,7 @@ func (s *SealLogic) CanUse(ctx *model.Context) bool {
 }
 
 func (s *SealLogic) Execute(ctx *model.Context) error {
-	if ctx != nil && ctx.Timing == model.TimingActive {
+	if ctx != nil && ctx.Timing == model.TimingActionDuring {
 		return nil
 	}
 	return executeFieldStatus(ctx, s.EffectType)
@@ -256,14 +256,14 @@ func resolveFieldStatusSpec(ctx *model.Context, effect model.EffectType) (*field
 
 // canResolveElementalSealStatus checks if five elements seal can trigger
 // Trigger conditions:
-//  1. Timing is TimingOnCardPlayedOrRevealed (play or reveal card)
+//  1. Timing is TimingCardPlayedRevealed (play or reveal card)
 //  2. The element of the played/revealed card matches the bound element of the seal
 func canResolveElementalSealStatus(ctx *model.Context, fc *model.FieldCard) bool {
 	if ctx == nil || ctx.User == nil || fc == nil {
 		return false
 	}
 	// Only trigger on "play card" or "reveal card"
-	if ctx.Timing != model.TimingOnCardPlayedOrRevealed {
+	if ctx.Timing != model.TimingCardPlayedRevealed {
 		return false
 	}
 	if ctx.EventCtx == nil || ctx.EventCtx.Card == nil {
@@ -289,7 +289,7 @@ func executeElementalSealStatus(ctx *model.Context, fc *model.FieldCard) error {
 		sourceID = ctx.User.ID
 	}
 	actionWord := "打出"
-	if ctx.Timing == model.TimingOnCardPlayedOrRevealed {
+	if ctx.Timing == model.TimingCardPlayedRevealed {
 		actionWord = "展示"
 	}
 	ctx.Game.Log(fmt.Sprintf(

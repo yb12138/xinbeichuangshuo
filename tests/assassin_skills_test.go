@@ -31,7 +31,7 @@ func TestAssassin_Skills(t *testing.T) {
 		p2.Hand = []model.Card{{ID: "atk", Name: "斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2}}
 		// initialHandSize := len(p2.Hand) // Unused
 
-		action := model.PlayerAction{PlayerID: "p2", Type: model.CmdAttack, TargetID: "p1", CardIndex: 0}
+		action := model.PlayerAction{PlayerID: "p2", Type: model.CmdAttack, TargetID: "p1", CardID: testutils.PlayableCardID(t, game, "p2", 0)}
 		game.HandleAction(action)
 
 		// P1 承受

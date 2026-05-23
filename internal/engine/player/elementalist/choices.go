@@ -4,6 +4,7 @@ package elementalist
 
 import (
 	"fmt"
+	"strings"
 
 	"starcup-engine/internal/engine/core/runtimeutil"
 	"starcup-engine/internal/engine/hook/promptfmt"
@@ -17,8 +18,16 @@ func NewChoiceHandler() engineplayer.ChoiceHandler {
 	return choiceHandler{}
 }
 
-func (choiceHandler) BuildPrompt(_ engineplayer.ChoiceRuntime, choiceType, playerID string, player *model.Player, data map[string]interface{}) *model.Prompt {
+func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, playerID string, player *model.Player, data map[string]interface{}) *model.Prompt {
 	switch choiceType {
+	case "elementalist_freeze_damage_target":
+		return engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, "【冰冻】请选择法术伤害目标：", data, false)
+	case "elementalist_freeze_heal_target":
+		prompt := engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, "【冰冻】请选择治疗目标（可选择自己）：", data, false)
+		if prompt != nil {
+			prompt.Presentation = &model.PromptPresentation{Kind: model.PresentationTargetPicker, TargetFilter: "custom"}
+		}
+		return prompt
 	case "elementalist_bonus_card":
 		if player == nil {
 			return nil
@@ -30,23 +39,27 @@ func (choiceHandler) BuildPrompt(_ engineplayer.ChoiceRuntime, choiceType, playe
 		eleLabel := promptfmt.ElementName(fmt.Sprint(data["bonus_element"]))
 		matching := runtimeutil.ParseChoiceIntSlice(data["matching_indices"])
 		options := make([]model.PromptOption, 0, len(matching)+1)
+		effectHints := elementalistBonusEffectHints(rt, data)
 		for _, idx := range matching {
 			if idx < 0 || idx >= len(player.Hand) {
 				continue
 			}
 			options = append(options, model.PromptOption{
-				ID:    fmt.Sprintf("%d", idx),
-				Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(player.Hand[idx])),
+				ID:     fmt.Sprintf("%d", idx),
+				Label:  fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(player.Hand[idx])),
+				CardID: player.Hand[idx].ID,
 			})
 		}
 		options = append(options, model.PromptOption{ID: "cancel", Label: "放弃额外效果"})
 		return &model.Prompt{
-			Type:     model.PromptChooseCards,
-			PlayerID: playerID,
-			Message:  fmt.Sprintf("【%s】可额外弃1张%s系牌使本次法术伤害+1（或点击取消放弃本次额外效果）：", skillName, eleLabel),
-			Options:  options,
-			Min:      1,
-			Max:      1,
+			Type:         model.PromptChooseCards,
+			PlayerID:     playerID,
+			Message:      elementalistBonusPromptMessage(skillName, eleLabel, effectHints),
+			Options:      options,
+			Min:          1,
+			Max:          1,
+			EffectHints:  effectHints,
+			Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand"},
 		}
 	default:
 		return nil
@@ -56,6 +69,10 @@ func (choiceHandler) BuildPrompt(_ engineplayer.ChoiceRuntime, choiceType, playe
 func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
 	choiceType, _ := ctxData["choice_type"].(string)
 	switch choiceType {
+	case "elementalist_freeze_damage_target":
+		return true, handleFreezeDamageTargetChoice(rt, selectionIndex, ctxData)
+	case "elementalist_freeze_heal_target":
+		return true, handleFreezeHealTargetChoice(rt, selectionIndex, ctxData)
 	case "elementalist_bonus_card":
 		return true, handleElementalistBonusCardChoice(rt, selectionIndex, ctxData)
 	default:
@@ -135,6 +152,145 @@ func resolveElementalistBonus(rt engineplayer.ChoiceRuntime, ctxData map[string]
 	rt.Log(fmt.Sprintf("%s 发动 [%s]，对 %s 造成%d点法术伤害", user.Name, skillName, target.Name, damage))
 	rt.PopInterrupt()
 	return nil
+}
+
+// handleFreezeDamageTargetChoice 处理冰冻第1步：选择伤害目标后切换到第2步
+func handleFreezeDamageTargetChoice(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
+	userID, _ := ctxData["user_id"].(string)
+	user := rt.GetPlayers()[userID]
+	if user == nil {
+		return fmt.Errorf("玩家不存在")
+	}
+
+	targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
+	if selectionIndex < 0 || selectionIndex >= len(targetIDs) {
+		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
+	}
+	damageTargetID := targetIDs[selectionIndex]
+	damageTarget := rt.GetPlayers()[damageTargetID]
+	if damageTarget == nil {
+		return fmt.Errorf("目标不存在")
+	}
+
+	// 存储伤害目标，切换到治疗目标选择阶段
+	allPlayerIDs := make([]string, 0, len(rt.GetPlayers()))
+	for _, p := range rt.GetAllPlayers() {
+		allPlayerIDs = append(allPlayerIDs, p.ID)
+	}
+
+	ctxData["damage_target_id"] = damageTargetID
+	ctxData["target_ids"] = allPlayerIDs
+	ctxData["choice_type"] = "elementalist_freeze_heal_target"
+
+	intr := rt.GetPendingInterrupt()
+	if intr != nil {
+		intr.Context = ctxData
+	}
+	rt.NotifyInterruptPrompt()
+	rt.Log(fmt.Sprintf("%s 的 [冰冻] 选择 %s 为法术伤害目标，继续选择治疗目标", user.Name, damageTarget.Name))
+	return nil
+}
+
+// handleFreezeHealTargetChoice 处理冰冻第2步：选择治疗目标后结算效果
+func handleFreezeHealTargetChoice(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
+	userID, _ := ctxData["user_id"].(string)
+	user := rt.GetPlayers()[userID]
+	if user == nil {
+		return fmt.Errorf("玩家不存在")
+	}
+
+	damageTargetID, _ := ctxData["damage_target_id"].(string)
+	damageTarget := rt.GetPlayers()[damageTargetID]
+	if damageTarget == nil {
+		return fmt.Errorf("伤害目标不存在")
+	}
+
+	targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
+	if selectionIndex < 0 || selectionIndex >= len(targetIDs) {
+		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
+	}
+	healTargetID := targetIDs[selectionIndex]
+	healTarget := rt.GetPlayers()[healTargetID]
+	if healTarget == nil {
+		return fmt.Errorf("治疗目标不存在")
+	}
+
+	// 检查是否有水系牌额外效果
+	if !user.HasElement(model.ElementWater) {
+		rt.InflictDamage(userID, damageTargetID, 1, model.MagicAttack)
+		rt.Heal(healTargetID, 1)
+		rt.Log(fmt.Sprintf("%s 发动 [冰冻]，对 %s 造成1点法术伤害，%s +1治疗", user.Name, damageTarget.Name, healTarget.Name))
+		rt.PopInterrupt()
+		return nil
+	}
+
+	matching := matchingElementCardIndices(user, model.ElementWater)
+	if len(matching) == 0 {
+		rt.InflictDamage(userID, damageTargetID, 1, model.MagicAttack)
+		rt.Heal(healTargetID, 1)
+		rt.Log(fmt.Sprintf("%s 发动 [冰冻]，对 %s 造成1点法术伤害，%s +1治疗", user.Name, damageTarget.Name, healTarget.Name))
+		rt.PopInterrupt()
+		return nil
+	}
+
+	// 有水系牌，切换到额外弃牌选择阶段
+	ctxData["heal_target_id"] = healTargetID
+	ctxData["base_damage"] = 1
+	ctxData["bonus_element"] = string(model.ElementWater)
+	ctxData["matching_indices"] = matching
+	ctxData["camp_gem_bonus"] = 0
+	ctxData["grant_attack"] = false
+	ctxData["grant_magic"] = false
+	ctxData["choice_type"] = "elementalist_bonus_card"
+
+	intr := rt.GetPendingInterrupt()
+	if intr != nil {
+		intr.Context = ctxData
+	}
+	rt.NotifyInterruptPrompt()
+	rt.Log(fmt.Sprintf("%s 的 [冰冻] 选择 %s 为治疗目标，可选择弃水系牌增强效果", user.Name, healTarget.Name))
+	return nil
+}
+
+func elementalistBonusPromptMessage(skillName, eleLabel string, effectHints []string) string {
+	skillTitle := strings.TrimSpace(skillName)
+	if skillTitle == "" {
+		skillTitle = "元素附加效果"
+	}
+	elementLabel := strings.TrimSpace(eleLabel)
+	if elementLabel == "" {
+		elementLabel = "指定"
+	}
+	effectText := strings.Join(effectHints, "；")
+	if effectText == "" {
+		effectText = "本次效果提升"
+	}
+	return fmt.Sprintf("【%s】可额外弃1张%s系牌，获得以下额外效果：%s（或点击取消放弃本次额外效果）：", skillTitle, elementLabel, effectText)
+}
+
+func elementalistBonusEffectHints(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}) []string {
+	hints := []string{}
+	hints = append(hints, "本次法术伤害+1")
+
+	if healTargetID, ok := ctxData["heal_target_id"].(string); ok && healTargetID != "" {
+		if healTarget := rt.GetPlayers()[healTargetID]; healTarget != nil {
+			hints = append(hints, fmt.Sprintf("%s+1治疗", healTarget.Name))
+		} else {
+			hints = append(hints, "指定目标+1治疗")
+		}
+	}
+
+	campGemBonus := runtimeutil.ToIntContextValue(ctxData["camp_gem_bonus"])
+	if campGemBonus > 0 {
+		hints = append(hints, fmt.Sprintf("我方阵营+%d宝石", campGemBonus))
+	}
+	if runtimeutil.ToBoolContextValue(ctxData["grant_attack"]) {
+		hints = append(hints, "获得1次额外攻击行动")
+	}
+	if runtimeutil.ToBoolContextValue(ctxData["grant_magic"]) {
+		hints = append(hints, "获得1次额外法术行动")
+	}
+	return hints
 }
 
 var _ engineplayer.CancelChoiceHandler = choiceHandler{}

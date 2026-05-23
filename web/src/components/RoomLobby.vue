@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useInterruptStore } from '../stores/interrupt.store'
 import { useSessionStore } from '../stores/session.store'
 import { useSnapshotStore } from '../stores/snapshot.store'
 import { useSubmitAction } from '../composables/useSubmitAction'
 import { useWebSocket } from '../composables/useWebSocket'
 import { ROLE_NAME_MAP } from '../constants/roleNameMap'
+import { autoJoinRoomFromUrl } from '../utils/autoJoinRoom'
 import SkillDetailModal from './SkillDetailModal.vue'
 
 const interruptStore = useInterruptStore()
@@ -132,6 +133,24 @@ function joinRoom() {
   ws.connect(roomCodeInput.value.trim().toUpperCase(), playerName.value.trim())
 }
 
+onMounted(() => {
+  if (typeof window === 'undefined') return
+
+  const didAutoJoin = autoJoinRoomFromUrl({
+    search: window.location.search,
+    isInRoom: () => sessionStore.isInRoom,
+    connect: (roomCode, name) => {
+      playerName.value = name
+      roomCodeInput.value = roomCode
+      isJoining.value = true
+      errorMsg.value = ''
+      ws.connect(roomCode, name)
+    },
+  })
+
+  if (!didAutoJoin) return
+})
+
 function getCharacterName(roleId: string) {
   if (!roleId) return '未选择角色'
   return snapshotStore.characters[roleId]?.name || ROLE_NAME_MAP[roleId] || '未知角色'
@@ -183,21 +202,21 @@ function closeSkillModal() {
 }
 
 function selectCamp(camp: string) {
-  actions.sendRoomAction('change_camp', { camp })
+  actions.changeCamp(camp)
 }
 
 function selectRole(role: string) {
   if (!role) return
-  actions.sendRoomAction('change_role', { char_role: role })
+  actions.changeRole(role)
 }
 
 function selectCampFor(playerId: string, camp: string) {
-  actions.sendRoomAction('change_camp', { target_id: playerId, camp })
+  actions.changeCamp(camp, playerId)
 }
 
 function selectRoleFor(playerId: string, role: string) {
   if (!role) return
-  actions.sendRoomAction('change_role', { target_id: playerId, char_role: role })
+  actions.changeRole(role, playerId)
 }
 
 function pickRole(roleId: string) {
@@ -212,22 +231,22 @@ function canJoinCamp(camp: 'Red' | 'Blue') {
 }
 
 function addBot() {
-  actions.sendRoomAction('add_bot', { bot_name: `机器人${botCount.value + 1}` })
+  actions.addBot(`机器人${botCount.value + 1}`)
 }
 
 function removeBot(playerId: string) {
-  actions.sendRoomAction('remove_bot', { target_id: playerId })
+  actions.removeBot(playerId)
 }
 
 function startGame() {
-  actions.sendRoomAction('start')
+  actions.startRoom()
 }
 
 function dissolveRoom() {
   if (!isHost.value) return
   const confirmed = window.confirm('确认解散房间吗？所有玩家将被退出到大厅。')
   if (!confirmed) return
-  actions.sendRoomAction('dissolve_room')
+  actions.dissolveRoom()
 }
 </script>
 
@@ -257,6 +276,7 @@ function dissolveRoom() {
           <div class="space-y-4">
             <button
               class="w-full py-3 bg-gradient-to-r from-yellow-500 to-orange-500 text-white font-bold rounded-lg hover:from-yellow-400 hover:to-orange-400 transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+              data-testid="create-room-button"
               :disabled="isJoining"
               @click="createRoom"
             >
@@ -309,7 +329,7 @@ function dissolveRoom() {
                 class="room-code-btn"
                 @click="copyRoomCode"
               >
-                <span class="room-code">{{ sessionStore.roomCode }}</span>
+                <span class="room-code" data-testid="room-code">{{ sessionStore.roomCode }}</span>
                 <span class="room-copy-hint">{{ copyFeedback ? '✓ 已复制' : '📋 复制' }}</span>
               </button>
             </div>
@@ -323,6 +343,7 @@ function dissolveRoom() {
               <button
                 v-if="isHost && !sessionStore.gameStarted && roomPlayers.length < 6"
                 class="draft-btn draft-btn-bot"
+                data-testid="add-bot-button"
                 @click="addBot"
               >
                 + 添加机器人
@@ -330,6 +351,7 @@ function dissolveRoom() {
               <button
                 v-if="isHost && allReadyToStart && !sessionStore.gameStarted"
                 class="draft-btn draft-btn-start"
+                data-testid="start-game-button"
                 @click="startGame"
               >
                 手动开始（备用）
@@ -351,6 +373,7 @@ function dissolveRoom() {
                 <button
                   v-if="!sessionStore.gameStarted"
                   class="team-join-btn"
+                  data-testid="join-camp-blue"
                   :disabled="!canJoinCamp('Blue')"
                   @click="selectCamp('Blue')"
                 >
@@ -399,6 +422,7 @@ function dissolveRoom() {
                     <div v-if="player.is_bot && isHost && !sessionStore.gameStarted" class="slot-bot-controls">
                       <select
                         class="bot-role-select"
+                        :data-testid="`bot-role-${player.id}`"
                         :value="player.char_role || ''"
                         @change="selectRoleFor(player.id, ($event.target as HTMLSelectElement).value)"
                       >
@@ -413,7 +437,7 @@ function dissolveRoom() {
                         </option>
                       </select>
                       <div class="bot-camp-row">
-                        <button class="bot-camp-btn" @click="selectCampFor(player.id, 'Red')" :disabled="redCount >= 3">改去红方</button>
+                        <button class="bot-camp-btn" :data-testid="`bot-camp-red-${player.id}`" @click="selectCampFor(player.id, 'Red')" :disabled="redCount >= 3">改去红方</button>
                         <button class="bot-remove-btn" @click="removeBot(player.id)">移除</button>
                       </div>
                     </div>
@@ -433,8 +457,8 @@ function dissolveRoom() {
                     <span>{{ player.name }} ({{ player.id }})</span>
                     <span v-if="player.id === sessionStore.myPlayerId" class="pending-me">你</span>
                     <template v-if="player.is_bot && isHost && !sessionStore.gameStarted">
-                      <button class="pending-btn pending-btn-blue" :disabled="blueCount >= 3" @click="selectCampFor(player.id, 'Blue')">蓝方</button>
-                      <button class="pending-btn pending-btn-red" :disabled="redCount >= 3" @click="selectCampFor(player.id, 'Red')">红方</button>
+                      <button class="pending-btn pending-btn-blue" :data-testid="`bot-camp-blue-${player.id}`" :disabled="blueCount >= 3" @click="selectCampFor(player.id, 'Blue')">蓝方</button>
+                      <button class="pending-btn pending-btn-red" :data-testid="`bot-camp-red-${player.id}`" :disabled="redCount >= 3" @click="selectCampFor(player.id, 'Red')">红方</button>
                     </template>
                   </div>
                 </div>
@@ -450,6 +474,7 @@ function dissolveRoom() {
                     'role-card-taken': roleTakenBy(role.id),
                     'role-card-disabled': !canSelectRole(role.id)
                   }"
+                  :data-testid="`role-card-${role.id}`"
                   @click="pickRole(role.id)"
                 >
                   <img
@@ -483,6 +508,7 @@ function dissolveRoom() {
                 <button
                   v-if="!sessionStore.gameStarted"
                   class="team-join-btn"
+                  data-testid="join-camp-red"
                   :disabled="!canJoinCamp('Red')"
                   @click="selectCamp('Red')"
                 >
@@ -531,6 +557,7 @@ function dissolveRoom() {
                     <div v-if="player.is_bot && isHost && !sessionStore.gameStarted" class="slot-bot-controls">
                       <select
                         class="bot-role-select"
+                        :data-testid="`bot-role-${player.id}`"
                         :value="player.char_role || ''"
                         @change="selectRoleFor(player.id, ($event.target as HTMLSelectElement).value)"
                       >
@@ -545,7 +572,7 @@ function dissolveRoom() {
                         </option>
                       </select>
                       <div class="bot-camp-row">
-                        <button class="bot-camp-btn" @click="selectCampFor(player.id, 'Blue')" :disabled="blueCount >= 3">改去蓝方</button>
+                        <button class="bot-camp-btn" :data-testid="`bot-camp-blue-${player.id}`" @click="selectCampFor(player.id, 'Blue')" :disabled="blueCount >= 3">改去蓝方</button>
                         <button class="bot-remove-btn" @click="removeBot(player.id)">移除</button>
                       </div>
                     </div>

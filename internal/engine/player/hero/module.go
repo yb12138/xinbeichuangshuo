@@ -28,15 +28,15 @@ func RoleEntry() player.RoleEntry {
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
 		TimingHookSpecs: []player.TimingHookSpec{
-			{Timing: player.TimingOnDamageCalculate, Priority: 500, Hook: damageCalculateHook},
-			{Timing: player.TimingOnAttackDeclared, Priority: 100, Hook: pendingDamageInitHook},
-			{Timing: player.TimingOnAttackGating, Priority: 200, Hook: attackGatingHook},
-			{Timing: player.TimingOnAttackMiss, Priority: 100, Hook: attackMissHook},
+			{Timing: player.TimingDamageSourceDeal, Priority: 500, Hook: damageCalculateHook},
+			{Timing: player.TimingAttackDeclare, Priority: 100, Hook: pendingDamageInitHook},
+			{Timing: player.TimingAttackNoResponse, Priority: 200, Hook: attackGatingHook},
+			{Timing: player.TimingAttackMiss, Priority: 100, Hook: attackMissHook},
 			{Timing: player.TimingPostActionEnd, Priority: 200, Hook: postActionEndHook},
-			{Timing: player.TimingBeforeAction, Priority: 100, Hook: turnStartExhaustionReleaseHook},
-			{Timing: player.TimingOnTurnStart, Priority: 200, Hook: turnStartTauntStartupHook},
-			{Timing: player.TimingBeforeActionOption, Priority: 200, Hook: beforeActionOptionHook},
-			{Timing: player.TimingBeforeActionValidation, Priority: 200, Hook: beforeActionValidationHook},
+			{Timing: player.TimingActionStart, Priority: 100, Hook: turnStartExhaustionReleaseHook},
+			{Timing: player.TimingTurnStart, Priority: 200, Hook: turnStartTauntStartupHook, RoleFilter: &player.HookRoleNone},
+			{Timing: player.TimingActionStartOption, Priority: 200, Hook: beforeActionOptionHook, RoleFilter: &player.HookRoleNone},
+			{Timing: player.TimingActionStartValidation, Priority: 200, Hook: beforeActionValidationHook, RoleFilter: &player.HookRoleNone},
 		},
 	}
 }
@@ -46,7 +46,7 @@ func ApplyDefaults(p *model.Player) {
 	if p == nil {
 		return
 	}
-	p.Crystal += 2
+	player.AddPlayerCrystalCapped(p, 2, 3)
 	if p.Tokens == nil {
 		p.Tokens = map[string]int{}
 	}

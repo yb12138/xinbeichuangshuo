@@ -10,6 +10,23 @@ import (
 	"starcup-engine/internal/model"
 )
 
+type attackMissResumeMode string
+
+const (
+	attackMissResumeDefend  attackMissResumeMode = "defend"
+	attackMissResumeShield  attackMissResumeMode = "shield"
+	attackMissResumeCounter attackMissResumeMode = "counter"
+)
+
+type attackMissResumeState struct {
+	Mode            attackMissResumeMode
+	AttackerID      string
+	TargetID        string
+	CounterPlayerID string
+	CounterTargetID string
+	CounterCard     *model.Card
+}
+
 // markPendingAttackDamageHitProcessed 将命中后响应结束的攻击伤害标记为已完成 OnAttackHit。
 func (e *GameEngine) markPendingAttackDamageHitProcessed(ctx *model.Context) bool {
 	if ctx == nil || ctx.EventCtx == nil || len(e.State.PendingDamageQueue) == 0 {
@@ -47,27 +64,20 @@ func (e *GameEngine) resumePendingAttackMiss(ctx *model.Context) bool {
 	if ctx == nil || ctx.Selections == nil || len(e.State.CombatStack) == 0 {
 		return false
 	}
-	raw := ctx.Selections["attack_miss_resume"]
-	data, ok := raw.(map[string]interface{})
-	if !ok || data == nil {
+	resume, ok := attackMissResumeFromContext(ctx)
+	if !ok || resume.Mode == "" {
 		return false
 	}
-	mode, _ := data["mode"].(string)
-	if mode == "" {
-		return false
-	}
-	attackerID, _ := data["attacker_id"].(string)
-	targetID, _ := data["target_id"].(string)
 	top := e.State.CombatStack[len(e.State.CombatStack)-1]
-	if attackerID != "" && top.AttackerID != attackerID {
+	if resume.AttackerID != "" && top.AttackerID != resume.AttackerID {
 		return false
 	}
-	if targetID != "" && top.TargetID != targetID {
+	if resume.TargetID != "" && top.TargetID != resume.TargetID {
 		return false
 	}
 
-	switch mode {
-	case "defend":
+	switch resume.Mode {
+	case attackMissResumeDefend:
 		defender := e.State.Players[top.TargetID]
 		if defender != nil {
 			e.Log(fmt.Sprintf("[Combat] %s 防御成功，攻击未命中", defender.Name))
@@ -78,37 +88,26 @@ func (e *GameEngine) resumePendingAttackMiss(ctx *model.Context) bool {
 			e.enterActionEndStage()
 		}
 		return true
-	case "shield":
+	case attackMissResumeShield:
 		e.resolveMagicBowPierceMiss(top.AttackerID, top.TargetID, top.Card, top.IsCounter)
 		e.clearCombatStack()
 		if !e.routePendingDamageWithReturn(model.TurnStageExtraAction) {
 			e.enterExtraActionStage()
 		}
 		return true
-	case "counter":
-		counterPlayerID, _ := data["counter_player_id"].(string)
-		counterTargetID, _ := data["counter_target_id"].(string)
-		var counterCard model.Card
-		switch v := data["counter_card"].(type) {
-		case model.Card:
-			counterCard = v
-		case *model.Card:
-			if v != nil {
-				counterCard = *v
-			}
-		}
-		if counterPlayerID == "" || counterTargetID == "" || counterCard.Name == "" {
+	case attackMissResumeCounter:
+		if resume.CounterPlayerID == "" || resume.CounterTargetID == "" || resume.CounterCard == nil || resume.CounterCard.Name == "" {
 			return false
 		}
-		counterPlayer := e.State.Players[counterPlayerID]
-		counterTarget := e.State.Players[counterTargetID]
+		counterPlayer := e.State.Players[resume.CounterPlayerID]
+		counterTarget := e.State.Players[resume.CounterTargetID]
 		if counterPlayer != nil && counterTarget != nil {
 			e.Log(fmt.Sprintf("[Combat] %s 使用 %s 应战成功！攻击反弹给 %s",
-				counterPlayer.Name, counterCard.Name, counterTarget.Name))
+				counterPlayer.Name, resume.CounterCard.Name, counterTarget.Name))
 		}
 		e.resolveMagicBowPierceMiss(top.AttackerID, top.TargetID, top.Card, top.IsCounter)
 		e.State.CombatStack = e.State.CombatStack[:len(e.State.CombatStack)-1]
-		e.initCombat(counterPlayerID, counterTargetID, &counterCard, false, true, false, nil, "", true)
+		e.initCombat(resume.CounterPlayerID, resume.CounterTargetID, resume.CounterCard, false, true, false, nil, "", true)
 		if counterPlayer != nil && counterTarget != nil {
 			e.Log(fmt.Sprintf("[Combat] %s 应战成功！攻击转移向 %s", counterPlayer.Name, counterTarget.Name))
 		}
@@ -116,6 +115,101 @@ func (e *GameEngine) resumePendingAttackMiss(ctx *model.Context) bool {
 	default:
 		return false
 	}
+}
+
+func (e *GameEngine) resolveCounterAttackAfterAttackMissTiming(counterPlayerID, counterTargetID string, counterCard model.Card) bool {
+	if e == nil || e.State == nil || len(e.State.CombatStack) == 0 {
+		return false
+	}
+	combatReq := e.State.CombatStack[len(e.State.CombatStack)-1]
+	missCtx := &model.EventContext{
+		Type:     model.EventAttack,
+		SourceID: combatReq.AttackerID,
+		TargetID: combatReq.TargetID,
+		Card:     combatReq.Card,
+		AttackInfo: &model.AttackEventInfo{
+			ActionType: string(model.ActionAttack),
+			CounterInitiator: func() string {
+				if combatReq.IsCounter {
+					return combatReq.AttackerID
+				}
+				return ""
+			}(),
+		},
+	}
+	counterCardForResume := counterCard
+	result := e.dispatchAttackRulebookEventTimingWithMarkers(model.TimingAttackMiss, e.State.Players[combatReq.AttackerID], e.State.Players[combatReq.TargetID], missCtx, attackKindFromCounter(combatReq.IsCounter), map[string]any{
+		"attack_miss_resume": attackMissResumeState{
+			Mode:            attackMissResumeCounter,
+			AttackerID:      combatReq.AttackerID,
+			TargetID:        combatReq.TargetID,
+			CounterPlayerID: counterPlayerID,
+			CounterTargetID: counterTargetID,
+			CounterCard:     &counterCardForResume,
+		},
+	})
+	if result.Interrupted {
+		return true
+	}
+
+	counterPlayer := e.State.Players[counterPlayerID]
+	counterTarget := e.State.Players[counterTargetID]
+	if counterPlayer != nil && counterTarget != nil {
+		e.Log(fmt.Sprintf("[Combat] %s 使用 %s 应战成功！攻击反弹给 %s", counterPlayer.Name, counterCard.Name, counterTarget.Name))
+	}
+	e.resolveMagicBowPierceMiss(combatReq.AttackerID, combatReq.TargetID, combatReq.Card, combatReq.IsCounter)
+	e.State.CombatStack = e.State.CombatStack[:len(e.State.CombatStack)-1]
+	e.initCombat(counterPlayerID, counterTargetID, &counterCard, false, true, false, nil, "", true)
+	if counterPlayer != nil && counterTarget != nil {
+		e.Log(fmt.Sprintf("[Combat] %s 应战成功！攻击转移向 %s", counterPlayer.Name, counterTarget.Name))
+	}
+	return true
+}
+
+func attackMissResumeFromContext(ctx *model.Context) (attackMissResumeState, bool) {
+	if ctx == nil || ctx.Selections == nil {
+		return attackMissResumeState{}, false
+	}
+	switch data := ctx.Selections["attack_miss_resume"].(type) {
+	case attackMissResumeState:
+		return data, true
+	case *attackMissResumeState:
+		if data == nil {
+			return attackMissResumeState{}, false
+		}
+		return *data, true
+	case map[string]interface{}:
+		return legacyAttackMissResumeFromMap(data)
+	default:
+		return attackMissResumeState{}, false
+	}
+}
+
+func legacyAttackMissResumeFromMap(data map[string]interface{}) (attackMissResumeState, bool) {
+	if data == nil {
+		return attackMissResumeState{}, false
+	}
+	mode, _ := data["mode"].(string)
+	resume := attackMissResumeState{
+		Mode:            attackMissResumeMode(mode),
+		AttackerID:      stringContextValue(data["attacker_id"]),
+		TargetID:        stringContextValue(data["target_id"]),
+		CounterPlayerID: stringContextValue(data["counter_player_id"]),
+		CounterTargetID: stringContextValue(data["counter_target_id"]),
+	}
+	switch v := data["counter_card"].(type) {
+	case model.Card:
+		card := v
+		resume.CounterCard = &card
+	case *model.Card:
+		resume.CounterCard = v
+	}
+	return resume, resume.Mode != ""
+}
+
+func stringContextValue(value any) string {
+	s, _ := value.(string)
+	return s
 }
 
 func (e *GameEngine) bindPendingChoiceUserCtxIfMissing(userCtx *model.Context) {
@@ -137,7 +231,7 @@ func (e *GameEngine) bindPendingChoiceUserCtxIfMissing(userCtx *model.Context) {
 	intr.Context = ctxData
 }
 
-func (e *GameEngine) hasUsableShieldForCombat(target *model.Player, combatReq model.CombatRequest) bool {
+func (e *GameEngine) HasUsableShieldForCombat(target *model.Player, combatReq model.CombatRequest) bool {
 	if target == nil {
 		return false
 	}
@@ -153,7 +247,7 @@ func (e *GameEngine) hasUsableShieldForCombat(target *model.Player, combatReq mo
 }
 
 func (e *GameEngine) consumeShieldForCombatTake(target *model.Player, combatReq model.CombatRequest) bool {
-	if !e.hasUsableShieldForCombat(target, combatReq) {
+	if !e.HasUsableShieldForCombat(target, combatReq) {
 		return false
 	}
 	if target == nil {
@@ -194,14 +288,14 @@ func (e *GameEngine) consumeShieldForCombatTake(target *model.Player, combatReq 
 			}(),
 		},
 	}
-	skillCtx := e.buildContext(e.State.Players[combatReq.AttackerID], e.State.Players[combatReq.TargetID], model.TimingOnHitCheck, missCtx)
-	skillCtx.Selections["attack_miss_resume"] = map[string]interface{}{
-		"mode":        "shield",
-		"attacker_id": combatReq.AttackerID,
-		"target_id":   combatReq.TargetID,
-	}
-	e.dispatcher.OnTiming(skillCtx.Timing, skillCtx)
-	if e.State.PendingInterrupt != nil {
+	result := e.dispatchAttackRulebookEventTimingWithMarkers(model.TimingAttackMiss, e.State.Players[combatReq.AttackerID], e.State.Players[combatReq.TargetID], missCtx, attackKindFromCounter(combatReq.IsCounter), map[string]any{
+		"attack_miss_resume": attackMissResumeState{
+			Mode:       attackMissResumeShield,
+			AttackerID: combatReq.AttackerID,
+			TargetID:   combatReq.TargetID,
+		},
+	})
+	if result.Interrupted {
 		return true
 	}
 
@@ -213,8 +307,8 @@ func (e *GameEngine) consumeShieldForCombatTake(target *model.Player, combatReq 
 	return true
 }
 
-// handleCombatResponse 处理战斗交互阶段的响应。
-func (e *GameEngine) handleCombatResponse(act model.PlayerAction) error {
+// HandleCombatResponse 处理战斗交互阶段的响应。
+func (e *GameEngine) HandleCombatResponse(act model.PlayerAction) error {
 	if len(e.State.CombatStack) == 0 {
 		return errors.New("响应时，战斗栈为空")
 	}
@@ -280,12 +374,12 @@ func (e *GameEngine) handleCombatDefendResponse(act model.PlayerAction, player *
 	if !e.canUseHolyDefend(&combatReq) {
 		return errors.New("本次攻击受【一击无念】影响，不能使用【圣光】防御")
 	}
-	if res := e.applyTimingOnHitCheckCombatDefendValidation(player, &combatReq); res != nil {
+	if res := e.applyAttackResponseDefendValidation(player, &combatReq); res != nil {
 		return res
 	}
-	card, _, _, ok := e.getPlayableCardByIndex(player, act.CardIndex)
+	card, ok := e.cardForPlayerAction(player, act)
 	if !ok {
-		return errors.New("无效的卡牌索引")
+		return errors.New("无效的卡牌ID")
 	}
 	if card.Type != model.CardTypeMagic {
 		return errors.New("只能使用法术牌进行防御")
@@ -297,10 +391,10 @@ func (e *GameEngine) handleCombatDefendResponse(act model.PlayerAction, player *
 		return errors.New("防御只能使用【圣光】；【圣盾】需提前放置到场上")
 	}
 
-	e.dispatchCardTiming(player, model.TimingOnCardPlayedOrRevealed, "", card)
+	e.dispatchCardTiming(player, model.TimingCardPlayedRevealed, "", card)
 	e.NotifyCardRevealed(act.PlayerID, []model.Card{card}, "defend")
 	e.NotifyCombatCue(combatReq.AttackerID, combatReq.TargetID, "defend")
-	if _, err := e.consumePlayableCardByIndex(player, act.CardIndex); err != nil {
+	if _, err := e.consumePlayableCardByID(player, act.CardID); err != nil {
 		return err
 	}
 	e.State.DiscardPile = append(e.State.DiscardPile, card)
@@ -320,15 +414,15 @@ func (e *GameEngine) handleCombatDefendResponse(act model.PlayerAction, player *
 			}(),
 		},
 	}
-	skillCtx := e.buildContext(e.State.Players[combatReq.AttackerID], e.State.Players[combatReq.TargetID], model.TimingOnHitCheck, missCtx)
-	skillCtx.Selections["attack_miss_resume"] = map[string]interface{}{
-		"mode":        "defend",
-		"attacker_id": combatReq.AttackerID,
-		"target_id":   combatReq.TargetID,
-	}
-	e.dispatcher.OnTiming(skillCtx.Timing, skillCtx)
-	if e.State.PendingInterrupt != nil {
-		e.bindPendingChoiceUserCtxIfMissing(skillCtx)
+	result := e.dispatchAttackRulebookEventTimingWithMarkers(model.TimingAttackMiss, e.State.Players[combatReq.AttackerID], e.State.Players[combatReq.TargetID], missCtx, attackKindFromCounter(combatReq.IsCounter), map[string]any{
+		"attack_miss_resume": attackMissResumeState{
+			Mode:       attackMissResumeDefend,
+			AttackerID: combatReq.AttackerID,
+			TargetID:   combatReq.TargetID,
+		},
+	})
+	if result.Interrupted {
+		e.bindPendingChoiceUserCtxIfMissing(result.Context)
 		return nil
 	}
 
@@ -346,11 +440,11 @@ func (e *GameEngine) handleCombatCounterResponse(act model.PlayerAction, player 
 		return errors.New("此攻击无法被应战")
 	}
 
-	card, _, _, ok := e.getPlayableCardByIndex(player, act.CardIndex)
+	card, ok := e.cardForPlayerAction(player, act)
 	if !ok {
-		return errors.New("无效的卡牌索引")
+		return errors.New("无效的卡牌ID")
 	}
-	useSpecialCounterCard, counterCard, err := e.applyTimingOnHitCheckCombatCounterCardPolicy(player, &combatReq, card)
+	useSpecialCounterCard, counterCard, err := e.applyAttackResponseCounterCardPolicy(player, &combatReq, card)
 	if err != nil {
 		return err
 	}
@@ -367,7 +461,7 @@ func (e *GameEngine) handleCombatCounterResponse(act model.PlayerAction, player 
 			return errors.New("暗灭无法被应战，只能承受伤害或使用圣光抵挡（场上圣盾会自动生效）")
 		}
 		if card.Element != combatReq.Card.Element && card.Element != model.ElementDark {
-			allowedByPolicy, useFaction := e.applyTimingOnHitCheckCombatCounterElementPolicy(player, &combatReq, card)
+			allowedByPolicy, useFaction := e.applyAttackResponseCounterElementPolicy(player, &combatReq, card)
 			if allowedByPolicy {
 				useFactionCounter = useFaction
 			} else {
@@ -396,14 +490,37 @@ func (e *GameEngine) handleCombatCounterResponse(act model.PlayerAction, player 
 		return errors.New("应战反弹目标必须是攻击方的队友")
 	}
 
-	e.dispatchCardTiming(player, model.TimingOnCardPlayedOrRevealed, "", card)
+	counterInfo := &model.AttackEventInfo{
+		ActionType:       string(model.ActionAttack),
+		CanBeResponded:   true,
+		CounterInitiator: player.ID,
+		Element:          string(card.Element),
+		InterceptTags:    map[model.CombatInterceptTag]bool{},
+	}
+	if e.dispatchAttackRulebookTiming(model.TimingAttackDeclare, player, target, &card, counterInfo, model.AttackKindCounter) {
+		return nil
+	}
+	if e.dispatchAttackRulebookTiming(model.TimingAttackSelectTarget, player, target, &card, counterInfo, model.AttackKindCounter) {
+		return nil
+	}
+	if e.dispatchAttackRulebookTiming(model.TimingAttackPlayCard, player, target, &card, counterInfo, model.AttackKindCounter) {
+		return nil
+	}
+	if e.dispatchAttackRulebookTiming(model.TimingAttackModifyCard, player, target, &card, counterInfo, model.AttackKindCounter) {
+		return nil
+	}
+	if e.dispatchAttackRulebookTiming(model.TimingAttackCommitted, player, target, &card, counterInfo, model.AttackKindCounter) {
+		return nil
+	}
+
+	e.dispatchCardTiming(player, model.TimingCardPlayedRevealed, "", card)
 	e.NotifyCardRevealed(act.PlayerID, []model.Card{card}, "counter")
 	e.NotifyCombatCue(combatReq.AttackerID, combatReq.TargetID, "counter")
-	if _, err := e.consumePlayableCardByIndex(player, act.CardIndex); err != nil {
+	if _, err := e.consumePlayableCardByID(player, act.CardID); err != nil {
 		return err
 	}
 	e.State.DiscardPile = append(e.State.DiscardPile, card)
-	e.applyTimingOnHitCheckCombatCounterResolvePolicy(player, &combatReq, &card, useFactionCounter)
+	e.applyAttackResponseCounterResolvePolicy(player, &combatReq, &card, useFactionCounter)
 
 	missCtx := &model.EventContext{
 		Type:     model.EventAttack,
@@ -420,17 +537,18 @@ func (e *GameEngine) handleCombatCounterResponse(act model.PlayerAction, player 
 			}(),
 		},
 	}
-	skillCtx := e.buildContext(e.State.Players[combatReq.AttackerID], e.State.Players[combatReq.TargetID], model.TimingOnHitCheck, missCtx)
-	skillCtx.Selections["attack_miss_resume"] = map[string]interface{}{
-		"mode":              "counter",
-		"attacker_id":       combatReq.AttackerID,
-		"target_id":         combatReq.TargetID,
-		"counter_player_id": act.PlayerID,
-		"counter_target_id": targetID,
-		"counter_card":      card,
-	}
-	e.dispatcher.OnTiming(skillCtx.Timing, skillCtx)
-	if e.State.PendingInterrupt != nil {
+	counterCardForResume := card
+	result := e.dispatchAttackRulebookEventTimingWithMarkers(model.TimingAttackMiss, e.State.Players[combatReq.AttackerID], e.State.Players[combatReq.TargetID], missCtx, attackKindFromCounter(combatReq.IsCounter), map[string]any{
+		"attack_miss_resume": attackMissResumeState{
+			Mode:            attackMissResumeCounter,
+			AttackerID:      combatReq.AttackerID,
+			TargetID:        combatReq.TargetID,
+			CounterPlayerID: act.PlayerID,
+			CounterTargetID: targetID,
+			CounterCard:     &counterCardForResume,
+		},
+	})
+	if result.Interrupted {
 		return nil
 	}
 

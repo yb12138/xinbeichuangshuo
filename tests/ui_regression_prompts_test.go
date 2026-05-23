@@ -16,8 +16,8 @@ func (o *uiPromptObserver) OnGameEvent(event model.GameEvent) {
 	if event.Type != model.EventAskInput {
 		return
 	}
-	if p, ok := event.Data.(*model.Prompt); ok && p != nil {
-		o.lastPrompt = p
+	if event.Prompt != nil {
+		o.lastPrompt = event.Prompt
 	}
 }
 
@@ -78,10 +78,10 @@ func TestUIRegression_YellowSpring_HidesCounterOptionInResponsePrompt(t *testing
 	game.State.TurnStage = model.TurnStageActionExecution
 
 	if err := game.HandleAction(model.PlayerAction{
-		PlayerID:  "p1",
-		Type:      model.CmdAttack,
-		TargetID:  "p2",
-		CardIndex: 0,
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   "atk",
 	}); err != nil {
 		t.Fatalf("发起攻击失败: %v", err)
 	}
@@ -135,9 +135,9 @@ func TestUIRegression_CrimsonBloodBarrier_ResolvesWithoutNestedChoicePrompt(t *t
 	game.State.TurnStage = model.TurnStageActionExecution
 
 	if err := game.HandleAction(model.PlayerAction{
-		PlayerID:  "p2",
-		Type:      model.CmdMagic,
-		CardIndex: 0,
+		PlayerID: "p2",
+		Type:     model.CmdMagic,
+		CardID:   "mb1",
 	}); err != nil {
 		t.Fatalf("敌方打出魔弹失败: %v", err)
 	}

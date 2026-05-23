@@ -9,75 +9,6 @@ import (
 	"starcup-engine/internal/model"
 )
 
-// --- Helper functions ---
-
-func getToken(p *model.Player, key string) int {
-	if p == nil {
-		return 0
-	}
-	if p.Tokens == nil {
-		p.Tokens = map[string]int{}
-	}
-	return p.Tokens[key]
-}
-
-func setToken(p *model.Player, key string, v int) {
-	if p == nil {
-		return
-	}
-	if p.Tokens == nil {
-		p.Tokens = map[string]int{}
-	}
-	p.Tokens[key] = v
-}
-
-func addToken(p *model.Player, key string, delta int, minV int, maxV int) int {
-	cur := getToken(p, key)
-	cur += delta
-	if cur < minV {
-		cur = minV
-	}
-	if maxV >= minV && cur > maxV {
-		cur = maxV
-	}
-	setToken(p, key, cur)
-	return cur
-}
-
-func hasForm(p *model.Player, form string) bool {
-	return p != nil && p.Form == form
-}
-
-func enterForm(p *model.Player, form string) {
-	if p == nil {
-		return
-	}
-	p.Orientation = model.OrientationTapped
-	p.Form = form
-}
-
-func leaveForm(p *model.Player, form string) {
-	if p == nil {
-		return
-	}
-	if form != "" && p.Form != form {
-		return
-	}
-	p.Orientation = model.OrientationNormal
-	p.Form = ""
-}
-
-func addAttackAction(p *model.Player, source string) {
-	model.AppendAttackAction(p, source)
-}
-
-func canPayCrystalLike(ctx *model.Context, amount int) bool {
-	if ctx == nil || ctx.User == nil {
-		return false
-	}
-	return ctx.User.Crystal >= amount || ctx.User.Gem >= amount
-}
-
 // --- Onmyoji Handlers ---
 
 type OnmyojiShikigamiDescendHandler struct{ engineplayer.BaseHandler }
@@ -86,7 +17,7 @@ func (h *OnmyojiShikigamiDescendHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil {
 		return false
 	}
-	if hasForm(ctx.User, model.FormOnmyojiShikigami) {
+	if engineplayer.HasForm(ctx.User, model.FormOnmyojiShikigami) {
 		return false
 	}
 	if len(ctx.User.Hand) < 2 {
@@ -109,12 +40,12 @@ func (h *OnmyojiShikigamiDescendHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("上下文无效")
 	}
-	if hasForm(ctx.User, model.FormOnmyojiShikigami) {
+	if engineplayer.HasForm(ctx.User, model.FormOnmyojiShikigami) {
 		return fmt.Errorf("已处于式神形态")
 	}
-	enterForm(ctx.User, model.FormOnmyojiShikigami)
-	addToken(ctx.User, "onmyoji_ghost_fire", 1, 0, 3)
-	addAttackAction(ctx.User, "式神降临")
+	engineplayer.SetForm(ctx.User, model.FormOnmyojiShikigami)
+	engineplayer.AddToken(ctx.User, "onmyoji_ghost_fire", 1, 3)
+	model.AppendAttackAction(ctx.User, "式神降临")
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [式神降临]，弃2张同命格手牌后进入式神形态并+1鬼火，获得额外攻击行动", ctx.User.Name))
 	return nil
 }
@@ -140,7 +71,7 @@ func (h *OnmyojiShikigamiShiftHandler) Execute(ctx *model.Context) error {
 		return fmt.Errorf("上下文无效")
 	}
 	ctx.Game.DrawCards(ctx.User.ID, 1)
-	addToken(ctx.User, "onmyoji_ghost_fire", 1, 0, 3)
+	engineplayer.AddToken(ctx.User, "onmyoji_ghost_fire", 1, 3)
 	ctx.Game.Log(fmt.Sprintf("%s 的 [式神转换] 触发：摸1并鬼火+1", ctx.User.Name))
 	return nil
 }
@@ -161,7 +92,7 @@ func (h *OnmyojiLifeBarrierHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return false
 	}
-	if !canPayCrystalLike(ctx, 1) {
+	if !engineplayer.CanPayCrystalLike(ctx, 1) {
 		return false
 	}
 	for _, p := range ctx.Game.GetAllPlayers() {
@@ -176,7 +107,7 @@ func (h *OnmyojiLifeBarrierHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("生命结界上下文无效")
 	}
-	gf := addToken(ctx.User, "onmyoji_ghost_fire", 1, 0, 3)
+	gf := engineplayer.AddToken(ctx.User, "onmyoji_ghost_fire", 1, 3)
 
 	// 分支①可选队友（不含自己）
 	var supportTargetIDs []string
@@ -209,7 +140,7 @@ func (h *OnmyojiLifeBarrierHandler) Execute(ctx *model.Context) error {
 
 	// 分支②：式神形态 + 手牌中存在"2张同命格"组合 + 有队友可弃牌
 	var releaseCombos []string
-	if hasForm(ctx.User, model.FormOnmyojiShikigami) && len(releaseTargetIDs) > 0 {
+	if engineplayer.HasForm(ctx.User, model.FormOnmyojiShikigami) && len(releaseTargetIDs) > 0 {
 		for i := 0; i < len(ctx.User.Hand); i++ {
 			if ctx.User.Hand[i].Faction == "" {
 				continue

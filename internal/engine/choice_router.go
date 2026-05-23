@@ -4,7 +4,9 @@ package engine
 
 import (
 	"fmt"
+	"strconv"
 
+	runtimeutil "starcup-engine/internal/engine/core/runtimeutil"
 	choicert "starcup-engine/internal/engine/runtime/choice"
 	intr "starcup-engine/internal/engine/runtime/interrupt"
 	"starcup-engine/internal/model"
@@ -66,13 +68,35 @@ func (e *GameEngine) handleInterruptChoiceAction(act model.PlayerAction) (intr.A
 		if ct == "" {
 			return intr.ActionResult{}, fmt.Errorf("中断上下文缺少 choice_type")
 		}
-		if len(act.Selections) > 1 {
-			result, err = e.choiceEngine.HandleMultiSelectResult(act.PlayerID, ct, act.Selections, data)
+		// 当 Selections 为空但 TargetID 非空时，从 target_ids 列表解析索引
+		selections := act.Selections
+		if len(selections) == 0 && len(act.CardIDs) > 0 {
+			selections, err = e.choiceSelectionsFromCardIDs(act.CardIDs)
+			if err != nil {
+				return intr.ActionResult{}, err
+			}
+		}
+		if len(selections) == 0 && act.TargetID != "" {
+			ids := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
+			for i, id := range ids {
+				if id == act.TargetID {
+					selections = []int{i}
+					break
+				}
+			}
+		}
+		if len(selections) == 0 && act.TargetID != "" {
+			return intr.ActionResult{}, fmt.Errorf("目标 %q 不在可选列表中", act.TargetID)
+		}
+		if e.choiceTypeRequiresMultiSelect(ct) {
+			result, err = e.choiceEngine.HandleMultiSelectResult(act.PlayerID, ct, selections, data)
+		} else if len(selections) > 1 {
+			result, err = e.choiceEngine.HandleMultiSelectResult(act.PlayerID, ct, selections, data)
 		} else {
-			if len(act.Selections) != 1 {
+			if len(selections) != 1 {
 				return intr.ActionResult{}, fmt.Errorf("请选择一个选项")
 			}
-			result, err = e.applyInterruptChoiceSelect(act.PlayerID, act.Selections[0], data)
+			result, err = e.applyInterruptChoiceSelect(act.PlayerID, selections[0], data)
 		}
 	} else {
 		return intr.ActionResult{}, fmt.Errorf("当前中断类型不支持该指令")
@@ -90,21 +114,41 @@ func (e *GameEngine) handleInterruptChoiceAction(act model.PlayerAction) (intr.A
 	}, nil
 }
 
-func (e *GameEngine) cancelExtractChoice(playerID string) error {
-	e.PopInterrupt()
-	if p := e.State.Players[playerID]; p != nil {
-		// 提炼取消属于“行动未提交”，需要回滚预写入的行动收尾标记。
-		p.TurnState.LastActionType = ""
-		p.TurnState.LastActionCard = nil
-		p.TurnState.HasActed = false
+func (e *GameEngine) choiceTypeRequiresMultiSelect(choiceType string) bool {
+	switch choiceType {
+	case "adventurer_fraud_pick", "bs_reversal_target_discard":
+		return true
+	default:
+		return false
 	}
-	if e.State.PendingInterrupt == nil {
-		e.enterActionExecutionStage()
+}
+
+func (e *GameEngine) choiceSelectionsFromCardIDs(cardIDs []string) ([]int, error) {
+	if len(cardIDs) == 0 {
+		return nil, nil
 	}
-	if p := e.State.Players[playerID]; p != nil {
-		e.Log("[System] " + p.Name + " 取消了提炼操作")
-	} else {
-		e.Log("[System] " + playerID + " 取消了提炼操作")
+	prompt := e.BuildChoicePrompt()
+	if prompt == nil {
+		return nil, fmt.Errorf("当前选择缺少可解析的卡牌选项")
 	}
-	return nil
+	selections := make([]int, 0, len(cardIDs))
+	for _, cardID := range cardIDs {
+		matched := false
+		for optionIndex, option := range prompt.Options {
+			if option.CardID != cardID {
+				continue
+			}
+			selection, err := strconv.Atoi(option.ID)
+			if err != nil {
+				selection = optionIndex
+			}
+			selections = append(selections, selection)
+			matched = true
+			break
+		}
+		if !matched {
+			return nil, fmt.Errorf("卡牌 %q 不在当前可选列表中", cardID)
+		}
+	}
+	return selections, nil
 }
