@@ -13,8 +13,10 @@ import (
 type ActionSelectionState struct {
 	currentPID string // 当前回合行动玩家 ID，供 Prompt 绑定
 
-	// currentExtraAction 来自 TurnState：本段是否为「额外行动」及其类型（"" / Attack / Magic）。
+	// currentExtraAction 来自 TurnState：本段是否为「额外行动」及其类型（"" / Any / Attack / Magic）。
 	currentExtraAction string
+	// isFlexibleExtraAction：当前处于不限攻击/法术二选一的额外行动。
+	isFlexibleExtraAction bool
 	// isRestrictedExtraAction：当前处于额外行动且类型为攻击或法术时，行动枢纽只能选对应大类（不能买合提等混选）。
 	isRestrictedExtraAction bool
 	// canMagicAction：当前形态与规则下是否允许从手牌打出法术（如部分形态禁法术）。
@@ -107,11 +109,12 @@ func (e *GameEngine) buildActionSelectionState(currentPID string, player *model.
 	}
 
 	state.currentExtraAction = player.TurnState.CurrentExtraAction
+	state.isFlexibleExtraAction = state.currentExtraAction == model.ExtraActionAny
 	state.isRestrictedExtraAction = state.currentExtraAction == "Attack" || state.currentExtraAction == "Magic"
 	state.canMagicAction = e.canCastMagicInAction(player)
 	state.canMagicSkillAction = e.hasUsableActionSkillForExtraMagic(player)
 	state.hasRestrictedExtraAction = true
-	if state.isRestrictedExtraAction {
+	if state.isRestrictedExtraAction || state.isFlexibleExtraAction {
 		state.hasRestrictedExtraAction = e.checkExtraActionCards(player, state.currentExtraAction, player.TurnState.CurrentExtraElement)
 	}
 	e.applyActionSelectionPolicies(player, &state)
@@ -144,6 +147,13 @@ func (e *GameEngine) appendBaseActionSelectionOptions(player *model.Player, stat
 		if state.hasRestrictedExtraAction {
 			state.ValidOptions = append(state.ValidOptions, model.PromptOption{ID: "magic", Label: "法术"})
 		}
+	case model.ExtraActionAny:
+		if e.checkExtraActionCards(player, string(model.ActionAttack), player.TurnState.CurrentExtraElement) {
+			state.ValidOptions = append(state.ValidOptions, model.PromptOption{ID: "attack", Label: "攻击"})
+		}
+		if e.checkExtraActionCards(player, string(model.ActionMagic), player.TurnState.CurrentExtraElement) {
+			state.ValidOptions = append(state.ValidOptions, model.PromptOption{ID: "magic", Label: "法术"})
+		}
 	default:
 		if state.ActionRuleMode == ActionSelectionRuleForceSkillAsMagic {
 			state.ValidOptions = append(state.ValidOptions, model.PromptOption{ID: "magic", Label: "法术（仅限末日审判）"})
@@ -161,7 +171,7 @@ func (e *GameEngine) appendBaseActionSelectionOptions(player *model.Player, stat
 		}
 	}
 
-	if state.ActionRuleMode == ActionSelectionRuleNone && !state.isRestrictedExtraAction && !player.TurnState.HasStartupSkillOrSpecialActionsLocked() {
+	if state.ActionRuleMode == ActionSelectionRuleNone && !state.isRestrictedExtraAction && !state.isFlexibleExtraAction && !player.TurnState.HasStartupSkillOrSpecialActionsLocked() {
 		maxHand := e.GetMaxHand(player)
 		canBuyOrSynth := len(player.Hand)+3 <= maxHand
 
@@ -189,7 +199,7 @@ func (e *GameEngine) appendBaseActionSelectionOptions(player *model.Player, stat
 		}
 	}
 
-	if !state.isRestrictedExtraAction {
+	if !state.isRestrictedExtraAction && !state.isFlexibleExtraAction {
 		if state.ActionRuleMode == ActionSelectionRuleForceAttackOrSkip {
 			state.ValidOptions = append(state.ValidOptions, model.PromptOption{ID: "cannot_act", Label: "跳过行动（移除挑衅）"})
 			return
@@ -212,6 +222,8 @@ func (e *GameEngine) finalizeActionSelectionPromptState(player *model.Player, st
 		state.promptMessage = "当前为额外攻击行动，仅可执行攻击。请选择行动类型"
 	} else if state.currentExtraAction == "Magic" {
 		state.promptMessage = "当前为额外法术行动，仅可执行法术。请选择行动类型"
+	} else if state.currentExtraAction == model.ExtraActionAny {
+		state.promptMessage = "当前为额外行动，可执行攻击或法术。请选择行动类型"
 	} else if state.ActionRuleMode == ActionSelectionRuleForceSkillAsMagic {
 		if state.actionRulePromptMessage != "" {
 			state.promptMessage = state.actionRulePromptMessage
@@ -235,7 +247,7 @@ func (e *GameEngine) finalizeActionSelectionPromptState(player *model.Player, st
 			state.promptMessage = fmt.Sprintf("你受到约束效果影响：本次行动阶段必须且只能主动攻击 %s，或选择跳过行动并移除此牌。", targetName)
 		}
 	}
-	if state.isRestrictedExtraAction && !state.hasRestrictedExtraAction {
+	if (state.isRestrictedExtraAction || state.isFlexibleExtraAction) && !state.hasRestrictedExtraAction {
 		state.promptMessage = "当前为额外行动阶段，但你没有满足约束的可执行动作。可选择跳过本次额外行动。"
 	}
 	if bonus := magicLancerFullnessAttackPromptBonus(player, state); bonus > 0 {

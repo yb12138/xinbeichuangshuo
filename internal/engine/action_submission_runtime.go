@@ -264,7 +264,11 @@ func (e *GameEngine) validateExtraActionConstraint(p *model.Player, act model.Pl
 		}
 
 		isMatch := false
-		if requiredType == "Attack" {
+		if requiredType == model.ExtraActionAny {
+			if act.Type == model.CmdAttack || act.Type == model.CmdMagic || act.Type == model.CmdSkill {
+				isMatch = true
+			}
+		} else if requiredType == "Attack" {
 			if act.Type == model.CmdAttack {
 				isMatch = true
 			}
@@ -275,6 +279,9 @@ func (e *GameEngine) validateExtraActionConstraint(p *model.Player, act model.Pl
 		}
 
 		if !isMatch {
+			if requiredType == model.ExtraActionAny {
+				return fmt.Errorf("当前额外行动只能选择攻击或法术")
+			}
 			if requiredType == "Attack" && act.Type == model.CmdSkill {
 				return fmt.Errorf("当前额外行动必须是 [Attack]，不能使用技能")
 			}
@@ -324,6 +331,10 @@ func (e *GameEngine) cardForPlayerAction(p *model.Player, act model.PlayerAction
 
 // checkExtraActionCards 检查玩家是否有符合额外行动约束的牌
 func (e *GameEngine) checkExtraActionCards(p *model.Player, mustType string, mustElement []model.Element) bool {
+	if mustType == model.ExtraActionAny {
+		return e.checkExtraActionCards(p, string(model.ActionAttack), mustElement) ||
+			e.checkExtraActionCards(p, string(model.ActionMagic), mustElement)
+	}
 	total := e.playableCardCount(p)
 	for idx := 0; idx < total; idx++ {
 		card, _, _, ok := e.getPlayableCardByIndex(p, idx)
@@ -433,7 +444,11 @@ func (e *GameEngine) buildConstraintInfo(mustType string, mustElement []model.El
 		}
 	}
 	if mustType != "" {
-		constraintInfo += fmt.Sprintf("[%s行动]", mustType)
+		if mustType == model.ExtraActionAny {
+			constraintInfo += "[攻击/法术行动]"
+		} else {
+			constraintInfo += fmt.Sprintf("[%s行动]", mustType)
+		}
 	}
 	return constraintInfo
 }

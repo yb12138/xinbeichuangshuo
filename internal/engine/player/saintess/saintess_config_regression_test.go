@@ -30,7 +30,7 @@ func requireSaintHealStage(t *testing.T, game *engine.GameEngine, playerID, stag
 	return ctx
 }
 
-func TestSaintess_SaintHeal_TwoTargetSplitCanChooseMagicExtraAction(t *testing.T) {
+func TestSaintess_SaintHeal_TwoTargetSplitGrantsUnrestrictedExtraAction(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "Saintess", "saintess", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -65,14 +65,6 @@ func TestSaintess_SaintHeal_TwoTargetSplitCanChooseMagicExtraAction(t *testing.T
 		Type:       model.CmdSelect,
 		Selections: []int{1, 2},
 	})
-	requireSaintHealStage(t, game, "p1", "choose_extra_action")
-
-	// 选择额外法术行动。
-	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:   "p1",
-		Type:       model.CmdSelect,
-		Selections: []int{1},
-	})
 
 	if p1.Heal != 1 || p2.Heal != 2 {
 		t.Fatalf("expected saint heal split p1=1 p2=2, got p1=%d p2=%d", p1.Heal, p2.Heal)
@@ -81,14 +73,14 @@ func TestSaintess_SaintHeal_TwoTargetSplitCanChooseMagicExtraAction(t *testing.T
 		t.Fatalf("expected saint heal flow to resolve cleanly, got %+v", game.State.PendingInterrupt)
 	}
 	if !game.IsActionSelectionWindow() {
-		t.Fatalf("expected extra magic action to enter action selection window, got %s", game.RuntimeStateLabel())
+		t.Fatalf("expected unrestricted extra action to enter action selection window, got %s", game.RuntimeStateLabel())
 	}
-	if p1.TurnState.CurrentExtraAction != "Magic" {
-		t.Fatalf("expected saint heal to grant extra magic action, got %q", p1.TurnState.CurrentExtraAction)
+	if p1.TurnState.CurrentExtraAction != model.ExtraActionAny {
+		t.Fatalf("expected saint heal to grant unrestricted extra action, got %q", p1.TurnState.CurrentExtraAction)
 	}
 }
 
-func TestSaintess_SaintHeal_ThreeTargetsApplyHealAfterExtraActionChoice(t *testing.T) {
+func TestSaintess_SaintHeal_ThreeTargetsApplyHealWithoutExtraActionChoice(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "Saintess", "saintess", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -119,14 +111,6 @@ func TestSaintess_SaintHeal_ThreeTargetsApplyHealAfterExtraActionChoice(t *testi
 		SkillID:   "saint_heal",
 		TargetIDs: []string{"p1", "p2", "p3"},
 	})
-	requireSaintHealStage(t, game, "p1", "choose_extra_action")
-
-	// 选择额外攻击行动，随后应结算三名目标各 +1 治疗。
-	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:   "p1",
-		Type:       model.CmdSelect,
-		Selections: []int{0},
-	})
 
 	if p1.Heal != 1 || p2.Heal != 1 || p3.Heal != 1 {
 		t.Fatalf("expected saint heal three-target split p1=1 p2=1 p3=1, got p1=%d p2=%d p3=%d", p1.Heal, p2.Heal, p3.Heal)
@@ -134,8 +118,11 @@ func TestSaintess_SaintHeal_ThreeTargetsApplyHealAfterExtraActionChoice(t *testi
 	if game.State.PendingInterrupt != nil {
 		t.Fatalf("expected saint heal flow resolved, got %+v", game.State.PendingInterrupt)
 	}
-	if p1.TurnState.CurrentExtraAction != "Attack" {
-		t.Fatalf("expected saint heal to grant extra attack action, got %q", p1.TurnState.CurrentExtraAction)
+	if !game.IsActionSelectionWindow() {
+		t.Fatalf("expected unrestricted extra action to enter action selection window, got %s", game.RuntimeStateLabel())
+	}
+	if p1.TurnState.CurrentExtraAction != model.ExtraActionAny {
+		t.Fatalf("expected saint heal to grant unrestricted extra action, got %q", p1.TurnState.CurrentExtraAction)
 	}
 }
 

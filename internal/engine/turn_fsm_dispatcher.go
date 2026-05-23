@@ -578,13 +578,17 @@ func (e *GameEngine) driveTurnEndStage(currentPid string, player *model.Player) 
 		player.TurnState.HasActed = false
 
 		// 设置 TurnState 中的约束，然后调用 Drive (进入 ActionSelection)
-		player.TurnState.CurrentExtraAction = currentAction.MustType
+		if currentAction.MustType == "" {
+			player.TurnState.CurrentExtraAction = model.ExtraActionAny
+		} else {
+			player.TurnState.CurrentExtraAction = currentAction.MustType
+		}
 		player.TurnState.CurrentExtraElement = currentAction.MustElement
 
 		e.enterActionExecutionStage()
 
 		// 显示行动约束信息
-		constraintInfo := e.buildConstraintInfo(currentAction.MustType, currentAction.MustElement)
+		constraintInfo := e.buildConstraintInfo(player.TurnState.CurrentExtraAction, currentAction.MustElement)
 		e.Log(fmt.Sprintf("[Turn] %s %s 额外行动开始 (剩余 %d 次额外行动)%s",
 			player.Name, currentAction.Source, len(player.TurnState.PendingActions)+1, constraintInfo))
 

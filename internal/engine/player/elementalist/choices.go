@@ -4,6 +4,7 @@ package elementalist
 
 import (
 	"fmt"
+	"strings"
 
 	"starcup-engine/internal/engine/core/runtimeutil"
 	"starcup-engine/internal/engine/hook/promptfmt"
@@ -38,6 +39,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		eleLabel := promptfmt.ElementName(fmt.Sprint(data["bonus_element"]))
 		matching := runtimeutil.ParseChoiceIntSlice(data["matching_indices"])
 		options := make([]model.PromptOption, 0, len(matching)+1)
+		effectHints := elementalistBonusEffectHints(rt, data)
 		for _, idx := range matching {
 			if idx < 0 || idx >= len(player.Hand) {
 				continue
@@ -52,10 +54,11 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		return &model.Prompt{
 			Type:         model.PromptChooseCards,
 			PlayerID:     playerID,
-			Message:      fmt.Sprintf("【%s】可额外弃1张%s系牌使本次法术伤害+1（或点击取消放弃本次额外效果）：", skillName, eleLabel),
+			Message:      elementalistBonusPromptMessage(skillName, eleLabel, effectHints),
 			Options:      options,
 			Min:          1,
 			Max:          1,
+			EffectHints:  effectHints,
 			Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand"},
 		}
 	default:
@@ -247,6 +250,47 @@ func handleFreezeHealTargetChoice(rt engineplayer.ChoiceRuntime, selectionIndex 
 	rt.NotifyInterruptPrompt()
 	rt.Log(fmt.Sprintf("%s 的 [冰冻] 选择 %s 为治疗目标，可选择弃水系牌增强效果", user.Name, healTarget.Name))
 	return nil
+}
+
+func elementalistBonusPromptMessage(skillName, eleLabel string, effectHints []string) string {
+	skillTitle := strings.TrimSpace(skillName)
+	if skillTitle == "" {
+		skillTitle = "元素附加效果"
+	}
+	elementLabel := strings.TrimSpace(eleLabel)
+	if elementLabel == "" {
+		elementLabel = "指定"
+	}
+	effectText := strings.Join(effectHints, "；")
+	if effectText == "" {
+		effectText = "本次效果提升"
+	}
+	return fmt.Sprintf("【%s】可额外弃1张%s系牌，获得以下额外效果：%s（或点击取消放弃本次额外效果）：", skillTitle, elementLabel, effectText)
+}
+
+func elementalistBonusEffectHints(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}) []string {
+	hints := []string{}
+	hints = append(hints, "本次法术伤害+1")
+
+	if healTargetID, ok := ctxData["heal_target_id"].(string); ok && healTargetID != "" {
+		if healTarget := rt.GetPlayers()[healTargetID]; healTarget != nil {
+			hints = append(hints, fmt.Sprintf("%s+1治疗", healTarget.Name))
+		} else {
+			hints = append(hints, "指定目标+1治疗")
+		}
+	}
+
+	campGemBonus := runtimeutil.ToIntContextValue(ctxData["camp_gem_bonus"])
+	if campGemBonus > 0 {
+		hints = append(hints, fmt.Sprintf("我方阵营+%d宝石", campGemBonus))
+	}
+	if runtimeutil.ToBoolContextValue(ctxData["grant_attack"]) {
+		hints = append(hints, "获得1次额外攻击行动")
+	}
+	if runtimeutil.ToBoolContextValue(ctxData["grant_magic"]) {
+		hints = append(hints, "获得1次额外法术行动")
+	}
+	return hints
 }
 
 var _ engineplayer.CancelChoiceHandler = choiceHandler{}

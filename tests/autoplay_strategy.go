@@ -957,6 +957,17 @@ func performAggressiveActionSelection(game *engine.GameEngine) error {
 			return nil
 		}
 		return fmt.Errorf("extra magic action has no legal executable move")
+	case model.ExtraActionAny:
+		if err := tryAttackActions(game, pid, enemies, attackIdx); err == nil {
+			return nil
+		}
+		if err := tryMagicActions(game, pid, enemies, magicIdx); err == nil {
+			return nil
+		}
+		if err := game.HandleAction(model.PlayerAction{PlayerID: pid, Type: model.CmdCannotAct}); err == nil {
+			return nil
+		}
+		return fmt.Errorf("flexible extra action has no legal executable move")
 	}
 
 	if err := tryAttackActions(game, pid, enemies, attackIdx); err == nil {
@@ -1052,6 +1063,8 @@ func scenarioActionAllowedByExtra(extraAction string, action string) bool {
 		return action == autoPlanActionAttack
 	case "Magic":
 		return action == autoPlanActionMagic
+	case model.ExtraActionAny:
+		return action == autoPlanActionAttack || action == autoPlanActionMagic || action == autoPlanActionSkill
 	default:
 		return true
 	}
@@ -2574,7 +2587,7 @@ func chooseInterruptSelections(game *engine.GameEngine, intr *model.Interrupt, p
 	case model.InterruptChoice:
 		return chooseChoiceInterruptSelections(game, intr, prompt)
 	case model.InterruptSaintHeal:
-		// 圣疗：双目标分配阶段需提交 [a,b]（a+b=3）；其他阶段（额外行动选择）仍走默认。
+		// 圣疗：双目标分配阶段需提交 [a,b]（a+b=3）；分配后直接进入行动面板。
 		if intr != nil {
 			if data, ok := intr.Context.(map[string]interface{}); ok {
 				stage, _ := data["stage"].(string)

@@ -142,6 +142,26 @@ func TestActionSelectionPrompt_ExtraMagicOnlyShowsMagic(t *testing.T) {
 	}
 }
 
+func TestActionSelectionPrompt_FlexibleExtraActionShowsAttackAndMagicOnly(t *testing.T) {
+	game, obs := buildActionSelectionEngine(t, model.ExtraActionAny)
+	game.Drive()
+
+	if obs.lastPrompt == nil {
+		t.Fatalf("expected action selection prompt, got nil")
+	}
+
+	options := promptOptionSet(obs.lastPrompt)
+	if !options["attack"] || !options["magic"] {
+		t.Fatalf("expected attack and magic options for flexible extra action, got %+v", obs.lastPrompt.Options)
+	}
+	if options["special"] || options["buy"] || options["extract"] || options["synthesize"] || options["cannot_act"] {
+		t.Fatalf("unexpected options for flexible extra action prompt: %+v", obs.lastPrompt.Options)
+	}
+	if !strings.Contains(obs.lastPrompt.Message, "攻击或法术") {
+		t.Fatalf("expected flexible extra-action hint in prompt message, got: %s", obs.lastPrompt.Message)
+	}
+}
+
 func TestActionSelectionPrompt_ExtraAttackNoLegalActionShowsSkip(t *testing.T) {
 	game, obs := buildActionSelectionEngine(t, "Attack")
 	game.State.Players["p1"].Hand = []model.Card{

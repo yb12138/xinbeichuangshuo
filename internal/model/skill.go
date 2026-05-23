@@ -463,7 +463,7 @@ type PlayerTurnState struct {
 	ActionPhaseSkippedThisTurn   bool            `json:"action_phase_skipped_this_turn"`   // 本回合行动阶段被跳过（虚弱/五行封印/无法行动等）
 	UsedSkillCounts              map[string]int  `json:"used_skill_counts"`                // 技能ID -> 本回合使用次数
 	PendingActions               []ActionContext `json:"pending_actions"`                  // 待执行的行动队列
-	CurrentExtraAction           string          `json:"current_extra_action"`             // 当前额外行动类型: "Attack", "Magic", ""
+	CurrentExtraAction           string          `json:"current_extra_action"`             // 当前额外行动类型: "Attack", "Magic", "Any", ""
 	CurrentExtraElement          []Element       `json:"current_extra_element"`            // 当前额外行动元素限制: "Wind", "Fire", etc.
 	AttackCount                  int             `json:"attack_count"`                     // 本回合攻击行动次数
 	LastActionType               string          `json:"last_action_type"`                 // 记录刚刚结束的行动类型 (Attack/Magic)

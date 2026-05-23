@@ -104,6 +104,10 @@ func (e *GameEngine) routePendingDamageWithReturn(returnTo interface{}) bool {
 	return true
 }
 
+func (e *GameEngine) RoutePendingDamageWithReturn(returnTo interface{}) bool {
+	return e.routePendingDamageWithReturn(returnTo)
+}
+
 func (e *GameEngine) routePendingDamageOr(defaultReturn interface{}, onNoPending func()) bool {
 	if e.routePendingDamageWithDefaultReturn(defaultReturn) {
 		return true
@@ -148,6 +152,10 @@ func (e *GameEngine) enterActionEndStage() {
 	e.clearSubflow()
 	e.clearCombatStage()
 	e.setTurnStage(model.TurnStageActionEnd)
+}
+
+func (e *GameEngine) EnterActionEndStage() {
+	e.enterActionEndStage()
 }
 
 func (e *GameEngine) enterExtraActionStage() {

@@ -9,7 +9,7 @@ import {
   healSkillScenario,
   healSkillTargetPrompt,
   holyHealScenario,
-  holyHealBranchPrompt,
+  holyHealExtraActionPrompt,
 } from '../../../scenarios/saintess';
 
 async function activatePanelSkill(page: Page, skillId: string) {
@@ -115,36 +115,16 @@ test.describe('saintess holy heal protocol harness', () => {
     });
   });
 
-  test('holy heal: select branch after distribute - attack action', async ({ page, protocolHarness }) => {
+  test('holy heal: extra action panel shows attack and magic', async ({ page, protocolHarness }) => {
     await protocolHarness.bootGame(holyHealScenario());
 
     await activatePanelSkill(page, SAINTESS_HOLY_HEAL_ID);
 
-    // Server pushes branch selection (branch_select overlay)
-    await protocolHarness.pushServerMessage(holyHealBranchPrompt());
+    await protocolHarness.pushServerMessage(holyHealExtraActionPrompt());
 
-    // Select attack action (branch-option-0)
-    await expect(page.getByTestId('decision-overlay')).toBeVisible();
-    await page.getByTestId('decision-overlay').getByTestId('branch-option-0').click();
-    await protocolHarness.expectSubmitAction({
-      action_type: 'Select',
-      option_indexes: [0],
-    });
-  });
-
-  test('holy heal: select branch - magic action', async ({ page, protocolHarness }) => {
-    await protocolHarness.bootGame(holyHealScenario());
-
-    await activatePanelSkill(page, SAINTESS_HOLY_HEAL_ID);
-
-    await protocolHarness.pushServerMessage(holyHealBranchPrompt());
-
-    // Select magic action (branch-option-1)
-    await expect(page.getByTestId('decision-overlay')).toBeVisible();
-    await page.getByTestId('decision-overlay').getByTestId('branch-option-1').click();
-    await protocolHarness.expectSubmitAction({
-      action_type: 'Select',
-      option_indexes: [1],
-    });
+    await expect(page.getByTestId('decision-overlay')).toBeHidden();
+    await expect(page.getByTestId('action-attack')).toBeVisible();
+    await expect(page.getByTestId('action-magic')).toBeVisible();
+    await expect(page.getByTestId('action-special')).toHaveCount(0);
   });
 });

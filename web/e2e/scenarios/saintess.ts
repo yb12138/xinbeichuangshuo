@@ -294,17 +294,17 @@ export function holyHealDistributePrompt(): WsMessage {
   } satisfies Prompt);
 }
 
-export function holyHealBranchPrompt(): WsMessage {
+export function holyHealExtraActionPrompt(): WsMessage {
   return requireActionMessage({
     type: 'confirm',
     player_id: SAINTESS_PLAYER_ID,
-    message: '【圣疗】请选择额外获得的行动：',
-    choice_type: 'saintess_holy_heal_branch',
+    message: '当前为额外行动，可执行攻击或法术。请选择行动类型',
+    choice_type: 'action_hub',
     options: [
-      { id: '0', label: '额外+1［攻击行动］', button_label: '攻击行动' },
-      { id: '1', label: '额外+1［法术行动］', button_label: '法术行动' },
+      { id: 'attack', label: '攻击', button_label: '攻击' },
+      { id: 'magic', label: '法术', button_label: '法术' },
     ],
-    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
+    presentation: { kind: 'action_hub', numeric_base: 0 },
     min: 1, max: 1,
   } satisfies Prompt);
 }

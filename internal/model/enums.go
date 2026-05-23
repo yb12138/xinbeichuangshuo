@@ -39,3 +39,5 @@ const (
 	ActionSynthesize ActionType = "Synthesize"
 	ActionExtract    ActionType = "Extract"
 )
+
+const ExtraActionAny = "Any"

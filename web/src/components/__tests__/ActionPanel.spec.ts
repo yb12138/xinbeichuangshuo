@@ -107,6 +107,49 @@ function buildState(overrides: Partial<GameStateUpdate> = {}): GameStateUpdate {
   }
 }
 
+const ELEMENTALIST_EXCLUSIVE_PROMPT_SKILLS = [
+  {
+    id: 'elementalist_thunder_strike',
+    title: '雷击',
+    description: '独有技法术：可额外弃1张雷系牌。',
+  },
+  {
+    id: 'elementalist_freeze',
+    title: '冰冻',
+    description: '独有技法术：可额外弃1张水系牌。',
+  },
+  {
+    id: 'elementalist_wind_blade',
+    title: '风刃',
+    description: '独有技法术：可额外弃1张风系牌。',
+  },
+  {
+    id: 'elementalist_meteor',
+    title: '陨石',
+    description: '独有技法术：可额外弃1张地系牌。',
+  },
+  {
+    id: 'elementalist_fireball',
+    title: '火球',
+    description: '独有技法术：可额外弃1张火系牌。',
+  },
+] as const
+
+function buildElementalistExclusiveSkill(skill: typeof ELEMENTALIST_EXCLUSIVE_PROMPT_SKILLS[number]): AvailableSkill {
+  return {
+    id: skill.id,
+    title: skill.title,
+    description: skill.description,
+    min_targets: 2,
+    max_targets: 2,
+    target_type: 5,
+    cost_gem: 0,
+    cost_crystal: 0,
+    cost_discards: 1,
+    require_exclusive: true,
+  }
+}
+
 describe('ActionPanel skill availability', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -331,5 +374,83 @@ describe('ActionPanel skill availability', () => {
 
     expect(useInterruptStore().skillMode).toBe('choosing_target')
     expect(useInterruptStore().selectedSkill?.id).toBe('prayer_power_blessing')
+  })
+
+  it('keeps all elementalist exclusive prompt-flow skills on the exclusive-card confirmation panel before handing off to the backend prompt flow', async () => {
+    for (const skillDef of ELEMENTALIST_EXCLUSIVE_PROMPT_SKILLS) {
+      const pinia = createPinia()
+      setActivePinia(pinia)
+      mocks.submitUseSkill.mockReset()
+
+      const skill = buildElementalistExclusiveSkill(skillDef)
+      const elementalistCharacter = buildCharacter({
+        id: 'elementalist',
+        name: '元素师',
+        skills: [
+          {
+            ...skill,
+            type: 2,
+          },
+        ],
+      })
+
+      useSessionStore().setRoomInfo('ROOM', 'p1', 'Red', 'elementalist')
+      useSnapshotStore().updateGameState(buildState({
+        players: {
+          p1: buildPlayer({
+            id: 'p1',
+            name: '元素师',
+            role: 'elementalist',
+            hand_count: 1,
+            hand: [
+              {
+                id: `hand-p1-${skill.id}`,
+                name: skill.title,
+                type: 'Magic',
+                element: 'Water',
+                damage: 0,
+                description: '独有技卡',
+                exclusive_char1: 'elementalist',
+                exclusive_skill1: skill.title,
+              },
+            ],
+          }),
+        },
+        available_skills: [skill],
+        characters: [elementalistCharacter],
+      }))
+      useInterruptStore().setSkillMode('choosing_skill')
+
+      const { unmount } = render(ActionPanel, {
+        global: {
+          plugins: [pinia],
+          stubs: {
+            PromptDialog: true,
+          },
+        },
+      })
+
+      await userEvent.click(screen.getByTestId(`skill-${skill.id}`))
+
+      expect(mocks.submitUseSkill).not.toHaveBeenCalled()
+      expect(useInterruptStore().skillMode).toBe('choosing_exclusive')
+      expect(screen.getByTestId('skill-exclusive-select-panel')).toBeInTheDocument()
+      expect(screen.getByTestId('skill-exclusive-confirm-btn')).toBeDisabled()
+
+      useInterruptStore().setSkillDiscardHandIndexes([0])
+      await waitFor(() => {
+        expect(screen.getByTestId('skill-exclusive-confirm-btn')).not.toBeDisabled()
+      })
+
+      await userEvent.click(screen.getByTestId('skill-exclusive-confirm-btn'))
+
+      expect(mocks.submitUseSkill).toHaveBeenCalledWith(
+        skill.id,
+        [],
+        [0],
+        { clearSkillMode: true },
+      )
+      unmount()
+    }
   })
 })

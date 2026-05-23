@@ -154,6 +154,12 @@ const isElfElementalShotPickPrompt = computed(() =>
   prompt.value?.presentation?.kind === 'card_picker' && prompt.value?.presentation?.card_filter === 'magic_or_elf_blessing'
 )
 
+const promptEffectHints = computed(() =>
+  Array.isArray(prompt.value?.effect_hints)
+    ? prompt.value.effect_hints.map((hint) => String(hint || '').trim()).filter((hint) => hint.length > 0)
+    : []
+)
+
 const promptInteraction = computed(() => prompt.value?.interaction ?? null)
 
 function promptSelectedCountForContract(): number {
@@ -1850,6 +1856,7 @@ watch(autoResolveOptionId, (optionId) => {
             v-else-if="promptRendererKey === 'card_picker'"
             :visible="promptNeedsCardConfirm"
             :message="cardPickerPromptMessage"
+            :effect-hints="promptEffectHints"
             :can-confirm="canConfirmPrompt"
             :show-cancel="showCardConfirmCancelRow"
             :confirm-image-src="promptConfirmImageSrc()"

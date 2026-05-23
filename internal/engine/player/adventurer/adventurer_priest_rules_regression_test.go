@@ -86,8 +86,8 @@ func TestAdventurerStealSky_ModeAndExtraActionChoice(t *testing.T) {
 	if game.State.TurnStage != model.TurnStageActionExecution {
 		t.Fatalf("expected TurnStage=ActionExecution for extra action, got %s", game.State.TurnStage)
 	}
-	if p1.TurnState.CurrentExtraAction != "" {
-		// MustType="" 表示无约束，被消费后应已清空
+	if p1.TurnState.CurrentExtraAction != model.ExtraActionAny {
+		t.Fatalf("expected unrestricted extra action, got %q", p1.TurnState.CurrentExtraAction)
 	}
 }
 

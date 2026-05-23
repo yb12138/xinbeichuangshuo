@@ -876,6 +876,31 @@ describe('PromptDialog', () => {
     expect(submitSelectCardIDsMock).toHaveBeenCalledWith(['h0'])
   })
 
+  it('renders card picker effect hints for elementalist bonus discard prompts', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    useSessionStore().setRoomInfo('ROOM1', 'p2', 'Blue', 'elementalist')
+    useSnapshotStore().updateGameState(buildState())
+    useInterruptStore().setPrompt(handCardPickerPrompt({
+      message: '【雷击】可额外弃1张雷系牌，获得以下额外效果：本次法术伤害+1；我方阵营+1宝石（或点击取消放弃本次额外效果）：',
+      effect_hints: [
+        '本次法术伤害+1',
+        '我方阵营+1宝石',
+      ],
+    }))
+
+    render(PromptDialog, {
+      global: {
+        plugins: [pinia],
+      },
+    })
+
+    expect(screen.getByTestId('card-picker-prompt')).toBeInTheDocument()
+    expect(screen.getByText('本次法术伤害+1')).toBeInTheDocument()
+    expect(screen.getByText('我方阵营+1宝石')).toBeInTheDocument()
+  })
+
   it('submits proxy card picker selections by matching card_id to hand cards', async () => {
     const pinia = createPinia()
     setActivePinia(pinia)

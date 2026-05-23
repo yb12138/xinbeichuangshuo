@@ -4,15 +4,13 @@ package saintess
 
 import (
 	"fmt"
-	"strings"
 
 	"starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
 )
 
 const (
-	saintHealStageAllocateHeal      = "allocate_heal"
-	saintHealStageChooseExtraAction = "choose_extra_action"
+	saintHealStageAllocateHeal = "allocate_heal"
 )
 
 // --- SaintHeal helpers ---
@@ -81,40 +79,13 @@ func saintHealStageFromContext(data map[string]interface{}, targetIDs []string) 
 		if len(targetIDs) == 2 {
 			return saintHealStageAllocateHeal, nil
 		}
-		return saintHealStageChooseExtraAction, nil
+		return "", nil
 	}
 	switch stage {
-	case saintHealStageAllocateHeal, saintHealStageChooseExtraAction:
+	case saintHealStageAllocateHeal:
 		return stage, nil
 	default:
 		return "", fmt.Errorf("无效的圣疗阶段: %s", stage)
-	}
-}
-
-func saintHealAllocationSummary(rt player.ChoiceRuntime, targetIDs []string, allocations map[string]int) string {
-	parts := make([]string, 0, len(targetIDs))
-	for _, targetID := range targetIDs {
-		target := rt.GetPlayers()[targetID]
-		if target == nil {
-			continue
-		}
-		amount := allocations[targetID]
-		if amount <= 0 {
-			continue
-		}
-		parts = append(parts, fmt.Sprintf("%s +%d治疗", target.Name, amount))
-	}
-	return strings.Join(parts, "，")
-}
-
-func parseSaintHealExtraActionSelection(selection int) (string, string, error) {
-	switch selection {
-	case 0:
-		return "Attack", "攻击", nil
-	case 1:
-		return "Magic", "法术", nil
-	default:
-		return "", "", fmt.Errorf("无效的额外行动类型选项: %d", selection)
 	}
 }
 
@@ -164,29 +135,7 @@ func buildSaintHealPrompt(rt player.ChoiceRuntime) *model.Prompt {
 		}
 	}
 
-	allocations, err := saintHealAllocationsFromContext(data, targetIDs)
-	if err != nil {
-		return nil
-	}
-	summary := saintHealAllocationSummary(rt, targetIDs, allocations)
-	if summary == "" {
-		summary = "已选择治疗目标"
-	}
-	return &model.Prompt{
-		Type:     model.PromptConfirm,
-		PlayerID: interrupt.PlayerID,
-		Message:  fmt.Sprintf("【圣疗】%s。请选择额外行动类型：", summary),
-		Options: []model.PromptOption{
-			{ID: "0", Label: "额外攻击行动"},
-			{ID: "1", Label: "额外法术行动"},
-		},
-		Min: 1,
-		Max: 1,
-		Presentation: &model.PromptPresentation{
-			Kind:   model.PresentationBranchSelect,
-			Layout: "overlay",
-		},
-	}
+	return nil
 }
 
 // --- SaintHeal action ---
@@ -214,12 +163,9 @@ func handleSaintHealAction(rt player.ChoiceRuntime, act model.PlayerAction) (pla
 	}
 
 	if stage == saintHealStageAllocateHeal {
-		if err := resolveSaintHealAllocationStage(rt, act, data, targetIDs); err != nil {
-			return player.InterruptActionResult{}, err
-		}
-		return player.InterruptActionResult{}, nil
+		return resolveSaintHealAllocationStage(rt, act, data, targetIDs)
 	}
-	return resolveSaintHealExtraActionStage(rt, act, data, targetIDs)
+	return resolveSaintHeal(rt, act.PlayerID, data, targetIDs)
 }
 
 func resolveSaintHealAllocationStage(
@@ -227,18 +173,18 @@ func resolveSaintHealAllocationStage(
 	act model.PlayerAction,
 	data map[string]interface{},
 	targetIDs []string,
-) error {
+) (player.InterruptActionResult, error) {
 	if len(targetIDs) != 2 {
-		return fmt.Errorf("圣疗双目标分配配置无效")
+		return player.InterruptActionResult{}, fmt.Errorf("圣疗双目标分配配置无效")
 	}
 	if act.Type != model.CmdSelect || len(act.Selections) != 2 {
-		return fmt.Errorf("请为两名角色分别选择治疗点数")
+		return player.InterruptActionResult{}, fmt.Errorf("请为两名角色分别选择治疗点数")
 	}
 
 	first := act.Selections[0]
 	second := act.Selections[1]
 	if first < 0 || second < 0 || first > 3 || second > 3 || first+second != 3 {
-		return fmt.Errorf("圣疗分配必须满足两项之和=3 且单项在 0..3 之间，当前：%d/%d", first, second)
+		return player.InterruptActionResult{}, fmt.Errorf("圣疗分配必须满足两项之和=3 且单项在 0..3 之间，当前：%d/%d", first, second)
 	}
 
 	allocations := map[string]int{
@@ -247,32 +193,19 @@ func resolveSaintHealAllocationStage(
 	}
 
 	data["allocations"] = allocations
-	data["stage"] = saintHealStageChooseExtraAction
-	intr := rt.GetPendingInterrupt()
-	if intr != nil {
-		intr.Context = data
-	}
-	rt.NotifyInterruptPrompt()
-	return nil
+	delete(data, "stage")
+	return resolveSaintHeal(rt, act.PlayerID, data, targetIDs)
 }
 
-func resolveSaintHealExtraActionStage(
+func resolveSaintHeal(
 	rt player.ChoiceRuntime,
-	act model.PlayerAction,
+	playerID string,
 	data map[string]interface{},
 	targetIDs []string,
 ) (player.InterruptActionResult, error) {
-	p := rt.GetPlayers()[act.PlayerID]
+	p := rt.GetPlayers()[playerID]
 	if p == nil {
 		return player.InterruptActionResult{}, fmt.Errorf("玩家不存在")
-	}
-	if act.Type != model.CmdSelect || len(act.Selections) != 1 {
-		return player.InterruptActionResult{}, fmt.Errorf("请选择额外行动类型")
-	}
-
-	extraActionType, extraActionLabel, err := parseSaintHealExtraActionSelection(act.Selections[0])
-	if err != nil {
-		return player.InterruptActionResult{}, err
 	}
 	allocations, err := saintHealAllocationsFromContext(data, targetIDs)
 	if err != nil {
@@ -290,8 +223,8 @@ func resolveSaintHealExtraActionStage(
 		}
 	}
 
-	model.AppendExtraAction(p, "圣疗", extraActionType)
-	rt.Log(fmt.Sprintf("[Skill] %s 发动 [圣疗]，获得额外%s行动", p.Name, extraActionLabel))
+	model.AppendExtraAction(p, "圣疗", "")
+	rt.Log(fmt.Sprintf("[Skill] %s 发动 [圣疗]，获得额外行动（可选择攻击或法术）", p.Name))
 	p.TurnState.HasActed = true
 	p.TurnState.LastActionType = string(model.ActionMagic)
 	p.TurnState.LastActionCard = nil

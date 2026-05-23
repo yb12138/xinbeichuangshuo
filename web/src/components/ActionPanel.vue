@@ -595,11 +595,22 @@ const SKILL_SUBMIT_BEFORE_TARGET_IDS = new Set([
 ])
 const SKILL_BACKEND_PROMPT_FLOW_IDS = new Set([
     'elementalist_freeze',
+    'elementalist_thunder_strike',
+    'elementalist_wind_blade',
+    'elementalist_meteor',
+    'elementalist_fireball',
     'css_blood_rose',
     'sage_arcane_codex',
     'sage_holy_codex',
     'mb_thunder_scatter',
     'bd_dissonance_chord',
+])
+const ELEMENTALIST_EXCLUSIVE_PROMPT_FLOW_SKILL_IDS = new Set([
+    'elementalist_thunder_strike',
+    'elementalist_freeze',
+    'elementalist_wind_blade',
+    'elementalist_meteor',
+    'elementalist_fireball',
 ])
 const isManualTargetConfirmSkillFlow = computed(() => {
     const skillId = interruptStore.selectedSkill?.id
@@ -611,7 +622,17 @@ function requiresExclusiveCardSelectionBeforeTarget(skill?: AvailableSkill | nul
     return !!skill &&
         !!skill.require_exclusive &&
         (skill.target_type ?? 0) !== 0 &&
-        (skill.cost_discards ?? 0) === 0
+        ((skill.cost_discards ?? 0) === 0 || ELEMENTALIST_EXCLUSIVE_PROMPT_FLOW_SKILL_IDS.has(skill.id))
+}
+
+function isBackendPromptFlowSkill(skill?: AvailableSkill | null): boolean {
+    if (!skill) return false
+    return isServerPublishedAvailableSkill(skill) && SKILL_BACKEND_PROMPT_FLOW_IDS.has(skill.id)
+}
+
+function isElementalistExclusivePromptFlowSkill(skill?: AvailableSkill | null): boolean {
+    if (!skill) return false
+    return isServerPublishedAvailableSkill(skill) && ELEMENTALIST_EXCLUSIVE_PROMPT_FLOW_SKILL_IDS.has(skill.id)
 }
 
 function isSelectedExclusiveCardValid(skill?: AvailableSkill | null): boolean {
@@ -654,7 +675,11 @@ function selectSkill(skill: AvailableSkill) {
     // A few skills intentionally start a backend prompt flow before costs,
     // branches, or targets are known. Regular server-published target skills
     // still use the shared client-side target picker below.
-    if (isServerPublishedAvailableSkill(skill) && SKILL_BACKEND_PROMPT_FLOW_IDS.has(skill.id)) {
+    if (isElementalistExclusivePromptFlowSkill(skill)) {
+        interruptStore.setSkillMode('choosing_exclusive')
+        return
+    }
+    if (isBackendPromptFlowSkill(skill)) {
         actions.submitUseSkill(skill.id, [], undefined, { clearSkillMode: true })
         return
     }
@@ -914,6 +939,11 @@ function confirmExclusiveSkillSelection() {
     if (!canConfirmExclusiveSkillSelection.value) {
       interruptStore.showError(`请先选择对应的「${skill.title}」独有技手牌`)
       return
+    }
+    if (isElementalistExclusivePromptFlowSkill(skill)) {
+        const selections = interruptStore.skillDiscardHandIndexes.length > 0 ? [...interruptStore.skillDiscardHandIndexes] : undefined
+        actions.submitUseSkill(skill.id, [], selections, { clearSkillMode: true })
+        return
     }
     interruptStore.setSkillMode('choosing_target')
 }
@@ -1437,6 +1467,7 @@ function elementName(el: string): string {
                 <button
                     v-if="showSpecialHubEntry"
                     class="action-hub-desktop-btn action-image-btn action-image-btn--special"
+                    data-testid="action-special"
                     :class="{ 'action-image-btn--muted': !hasHubSpecialActions || isStartupSpecialLocked }"
                     :title="isStartupSpecialLocked ? '本回合已执行启动技能，特殊行动已禁用' : actionPromptLabel('special', '特殊')"
                     :aria-label="actionPromptLabel('special', '特殊')"

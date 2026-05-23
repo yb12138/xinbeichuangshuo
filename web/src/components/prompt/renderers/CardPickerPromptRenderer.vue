@@ -2,6 +2,7 @@
 withDefaults(defineProps<{
   visible: boolean
   message: string
+  effectHints?: string[]
   canConfirm: boolean
   showCancel: boolean
   confirmTitle?: string
@@ -21,6 +22,7 @@ withDefaults(defineProps<{
   cancelTitle: '',
   cancelAriaLabel: '',
   cancelFallbackText: '消',
+  effectHints: () => [],
 })
 
 const emit = defineEmits<{
@@ -34,6 +36,11 @@ const emit = defineEmits<{
 <template>
   <div v-if="visible" class="prompt-card-picker-entry" data-testid="card-picker-prompt">
     <div class="prompt-card-picker-hint">{{ message }}</div>
+    <div v-if="effectHints.length > 0" class="prompt-card-picker-effects">
+      <div v-for="hint in effectHints" :key="hint" class="prompt-card-picker-effect">
+        {{ hint }}
+      </div>
+    </div>
 
     <div v-if="showCancel" class="prompt-card-picker-actions-row">
       <button
@@ -111,6 +118,23 @@ const emit = defineEmits<{
   font-size: 11px;
   line-height: 1.35;
   letter-spacing: 0.01em;
+}
+
+.prompt-card-picker-effects {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  padding: 2px 6px 0;
+}
+
+.prompt-card-picker-effect {
+  text-align: center;
+  color: rgba(228, 241, 252, 0.95);
+  font-size: 11px;
+  line-height: 1.35;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .prompt-card-picker-actions-row {

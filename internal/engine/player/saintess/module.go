@@ -105,6 +105,11 @@ func (h *HealHandler) Execute(ctx *model.Context) error {
 
 type SaintHealHandler struct{ baseHandler }
 
+type saintHealPhaseAdvancer interface {
+	RoutePendingDamageWithReturn(returnTo interface{}) bool
+	EnterActionEndStage()
+}
+
 func (h *SaintHealHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.Game == nil || ctx.User == nil {
 		return fmt.Errorf("圣疗上下文无效")
@@ -126,29 +131,53 @@ func (h *SaintHealHandler) Execute(ctx *model.Context) error {
 	if len(targetIDs) == 0 {
 		return fmt.Errorf("圣疗缺少有效目标")
 	}
+	if len(targetIDs) != 2 {
+		return resolveSaintHealDirect(ctx.Game, ctx.User, targetIDs, saintHealDefaultAllocations(targetIDs))
+	}
+
 	data := map[string]interface{}{
 		"targets": targetIDs,
-	}
-	if len(targetIDs) == 2 {
-		data["stage"] = "allocate_heal"
-	} else {
-		data["stage"] = "choose_extra_action"
-		allocations := map[string]int{}
-		if len(targetIDs) == 1 {
-			allocations[targetIDs[0]] = 3
-		} else {
-			for _, targetID := range targetIDs {
-				allocations[targetID] = 1
-			}
-		}
-		data["allocations"] = allocations
+		"stage":   saintHealStageAllocateHeal,
 	}
 	ctx.Game.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptSaintHeal,
 		PlayerID: ctx.User.ID,
 		Context:  data,
 	})
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [圣疗]，等待分配治疗并选择额外行动类型", ctx.User.Name))
+	ctx.Game.Log(fmt.Sprintf("%s 发动 [圣疗]，等待分配治疗", ctx.User.Name))
+	return nil
+}
+
+func resolveSaintHealDirect(game model.IGameEngine, user *model.Player, targetIDs []string, allocations map[string]int) error {
+	if game == nil || user == nil {
+		return fmt.Errorf("圣疗上下文无效")
+	}
+	if len(targetIDs) == 0 {
+		return fmt.Errorf("圣疗缺少目标")
+	}
+	players := game.GetPlayers()
+	for _, targetID := range targetIDs {
+		healAmount := allocations[targetID]
+		if healAmount <= 0 {
+			continue
+		}
+		game.Heal(targetID, healAmount)
+		if target := players[targetID]; target != nil {
+			game.Log(fmt.Sprintf("[Skill] %s 获得 %d 点治疗", target.Name, healAmount))
+		}
+	}
+
+	model.AppendExtraAction(user, "圣疗", "")
+	game.Log(fmt.Sprintf("[Skill] %s 发动 [圣疗]，获得额外行动（可选择攻击或法术）", user.Name))
+	user.TurnState.HasActed = true
+	user.TurnState.LastActionType = string(model.ActionMagic)
+	user.TurnState.LastActionCard = nil
+
+	if phase, ok := game.(saintHealPhaseAdvancer); ok {
+		if !phase.RoutePendingDamageWithReturn(model.TurnStageActionEnd) {
+			phase.EnterActionEndStage()
+		}
+	}
 	return nil
 }
 
