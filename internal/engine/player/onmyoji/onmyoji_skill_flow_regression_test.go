@@ -300,3 +300,69 @@ func TestOnmyojiBinding_WithYinyangConversion(t *testing.T) {
 		t.Fatalf("expected counter target to be p4, got %s", counterReq.TargetID)
 	}
 }
+
+func TestOnmyojiBinding_DeclineKeepsCombatFlowActive(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Attacker", "berserker", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "TargetAlly", "angel", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p3", "Onmyoji", "onmyoji", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p4", "AttackerAlly", "angel", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p3 := game.State.Players["p3"]
+	p3.Form = model.FormOnmyojiShikigami
+	p3.Hand = []model.Card{
+		{ID: "c1", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Faction: "咏", Damage: 2},
+	}
+	game.State.BlueGems = 1
+	game.State.BlueCrystals = 1
+	game.State.CombatStack = []model.CombatRequest{
+		{
+			AttackerID:     "p1",
+			TargetID:       "p2",
+			Card:           &model.Card{ID: "atk", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Faction: "咏", Damage: 2},
+			CanBeResponded: true,
+		},
+	}
+
+	req := model.CombatRequest{
+		AttackerID:     "p1",
+		TargetID:       "p2",
+		Card:           &model.Card{ID: "atk", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Faction: "咏", Damage: 2},
+		CanBeResponded: true,
+	}
+	if !game.RunAttackResponseCombatInteractionPolicies(&req) {
+		t.Fatalf("binding should start")
+	}
+
+	testutils.RequireChoicePrompt(t, game, "p3", "onmyoji_binding_confirm")
+	if err := game.HandleAction(model.PlayerAction{PlayerID: "p3", Type: model.CmdSelect, Selections: []int{1}}); err != nil {
+		t.Fatalf("decline binding failed: %v", err)
+	}
+
+	game.Drive()
+
+	if game.State.PendingInterrupt != nil {
+		t.Fatalf("expected no pending interrupt after declining binding, got %+v", game.State.PendingInterrupt)
+	}
+	if got := len(game.State.CombatStack); got != 1 {
+		t.Fatalf("expected original combat request to remain on stack, got %d", got)
+	}
+	if got := game.State.CombatStack[len(game.State.CombatStack)-1].OnmyojiBindingChecked; !got {
+		t.Fatalf("expected binding check to be marked as processed")
+	}
+
+	if !game.IsCombatInteractionWindow() {
+		t.Fatalf("expected standard combat response window after decline, got turn=%s combat=%s subflow=%s", game.State.TurnStage, game.State.CombatStage, game.State.Subflow)
+	}
+	if got := choiceTypeOf(game.State.PendingInterrupt); got == "onmyoji_binding_confirm" {
+		t.Fatalf("expected binding confirm not to reappear after decline")
+	}
+}

@@ -25,6 +25,7 @@ describe('rendererRegistry', () => {
       fraudElementOptionCount: 0,
       isSaintHealAllocatePrompt: false,
       isRuneReforgeAllocatePrompt: false,
+      isBloodPrayerAllocatePrompt: false,
     })).toBe('skill_overlay')
   })
 
@@ -51,6 +52,7 @@ describe('rendererRegistry', () => {
       fraudElementOptionCount: 0,
       isSaintHealAllocatePrompt: false,
       isRuneReforgeAllocatePrompt: false,
+      isBloodPrayerAllocatePrompt: false,
     })).toBe('inline_buttons')
   })
 

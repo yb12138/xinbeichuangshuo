@@ -240,6 +240,10 @@ const isRuneReforgeAllocatePrompt = computed(() => prompt.value?.presentation?.l
 const runeReforgeAllocations = ref<number[]>([])
 const RUNE_REFORGE_TOTAL = 3
 
+// 血腥祷言分配：两名队友逐行分配，要求总和等于本次 X。
+const isBloodPrayerAllocatePrompt = computed(() => prompt.value?.presentation?.layout === 'blood_prayer_allocate')
+const bloodPrayerAllocations = ref<number[]>([])
+
 watch(
   () => prompt.value,
   () => {
@@ -253,6 +257,11 @@ watch(
     } else {
       runeReforgeAllocations.value = []
     }
+    if (isBloodPrayerAllocatePrompt.value && prompt.value) {
+      bloodPrayerAllocations.value = prompt.value.options.map(() => 0)
+    } else {
+      bloodPrayerAllocations.value = []
+    }
   },
   { immediate: true }
 )
@@ -265,6 +274,19 @@ const saintHealRemaining = computed(() => {
 const runeReforgeRemaining = computed(() => {
   const used = runeReforgeAllocations.value.reduce((s, v) => s + (v || 0), 0)
   return RUNE_REFORGE_TOTAL - used
+})
+
+const bloodPrayerTotal = computed(() => {
+  if (!isBloodPrayerAllocatePrompt.value || !prompt.value) return 0
+  const message = String(prompt.value.message || '')
+  const match = message.match(/等于\s*(\d+)/)
+  if (match?.[1]) return Number(match[1]) || 0
+  return prompt.value.options?.length || 0
+})
+
+const bloodPrayerRemaining = computed(() => {
+  const used = bloodPrayerAllocations.value.reduce((s, v) => s + (v || 0), 0)
+  return bloodPrayerTotal.value - used
 })
 
 function setSaintHealAllocation(index: number, value: number) {
@@ -291,6 +313,18 @@ function setRuneReforgeAllocation(index: number, value: number) {
   runeReforgeAllocations.value = next
 }
 
+function setBloodPrayerAllocation(index: number, value: number) {
+  if (!isBloodPrayerAllocatePrompt.value) return
+  const current = bloodPrayerAllocations.value[index] || 0
+  const otherSum = bloodPrayerAllocations.value.reduce((s, v, i) => s + (i === index ? 0 : (v || 0)), 0)
+  const maxAllowed = Math.max(0, bloodPrayerTotal.value - otherSum)
+  const clamped = Math.max(0, Math.min(value, Math.min(bloodPrayerTotal.value, maxAllowed)))
+  if (clamped === current) return
+  const next = bloodPrayerAllocations.value.slice()
+  next[index] = clamped
+  bloodPrayerAllocations.value = next
+}
+
 const canSubmitSaintHeal = computed(() => {
   if (!isSaintHealAllocatePrompt.value) return false
   if (saintHealAllocations.value.length === 0) return false
@@ -303,6 +337,12 @@ const canSubmitRuneReforge = computed(() => {
   if (runeReforgeAllocations.value.length === 0) return false
   // 符文改造强制总和 = 3
   return runeReforgeAllocations.value.reduce((s, v) => s + (v || 0), 0) === RUNE_REFORGE_TOTAL
+})
+
+const canSubmitBloodPrayer = computed(() => {
+  if (!isBloodPrayerAllocatePrompt.value) return false
+  if (bloodPrayerAllocations.value.length !== 2) return false
+  return bloodPrayerAllocations.value.reduce((s, v) => s + (v || 0), 0) === bloodPrayerTotal.value
 })
 
 function submitSaintHealAllocation() {
@@ -319,6 +359,14 @@ function submitRuneReforgeAllocation() {
     return
   }
   submitOptionIndexes([...runeReforgeAllocations.value])
+}
+
+function submitBloodPrayerAllocation() {
+  if (!canSubmitBloodPrayer.value) {
+    showPromptError(`分配无效（治疗点数之和必须等于 ${bloodPrayerTotal.value}）`)
+    return
+  }
+  submitOptionIndexes([...bloodPrayerAllocations.value])
 }
 
 
@@ -1164,6 +1212,7 @@ const promptRendererKey = computed(() =>
     fraudElementOptionCount: fraudElementCardOptions.value.length,
     isSaintHealAllocatePrompt: isSaintHealAllocatePrompt.value,
     isRuneReforgeAllocatePrompt: isRuneReforgeAllocatePrompt.value,
+    isBloodPrayerAllocatePrompt: isBloodPrayerAllocatePrompt.value,
   })
 )
 
@@ -1240,6 +1289,7 @@ const inlinePrimaryButtons = computed<DockButtonOption[]>(() => {
   if (isFraudElementCardPickerPrompt.value) return []
   if (isSaintHealAllocatePrompt.value) return []
   if (isRuneReforgeAllocatePrompt.value) return []
+  if (isBloodPrayerAllocatePrompt.value) return []
   if (needsCardSelection.value) return buildDockButtons(cardFooterOptions.value)
   // 响应技能选择（choose_skill）：直接从 prompt.options 构建按钮
   if (prompt.value?.presentation?.kind === 'skill_choice') {
@@ -1474,6 +1524,7 @@ const showDecisionOverlay = computed(() => {
   if (isExtractPrompt.value) return false              // → 提取选择网格
   if (isSaintHealAllocatePrompt.value) return false    // → 圣疗分配专属弹窗
   if (isRuneReforgeAllocatePrompt.value) return false  // → 符文改造分配专属弹窗
+  if (isBloodPrayerAllocatePrompt.value) return false  // → 血腥祷言分配专属弹窗
   if (needsCardSelection.value) return false           // → 卡牌选择流程（命中/防御/应战按钮留内联）
   // 简单确认弹框（是/否两个按钮）→ 也走 overlay 决策弹框，便于统一展示
   // 注意：已删除旧的 return false 逻辑，让 是/否 弹框也进入 overlay
@@ -1898,6 +1949,20 @@ watch(autoResolveOptionId, (optionId) => {
     submit-label="确认分配"
     @change="setRuneReforgeAllocation"
     @submit="submitRuneReforgeAllocation"
+  />
+
+  <AllocationOverlayRenderer
+    :visible="isVisible && isBloodPrayerAllocatePrompt"
+    :title="prompt?.message || '请分配治疗'"
+    :rows="prompt?.options || []"
+    :values="bloodPrayerAllocations"
+    :remaining="bloodPrayerRemaining"
+    :total="bloodPrayerTotal"
+    :can-submit="canSubmitBloodPrayer"
+    submit-label="确认分配"
+    total-label="剩余待分配"
+    @change="setBloodPrayerAllocation"
+    @submit="submitBloodPrayerAllocation"
   />
 </template>
 

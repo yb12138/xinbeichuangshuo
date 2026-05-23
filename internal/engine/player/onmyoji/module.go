@@ -82,9 +82,9 @@ func SkillEntries() []player.SkillEntry {
 // ChoiceRouteSpecs 导出角色 choice 路由声明。
 func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 	return map[string]types.ChoiceRouteSpec{
-		"onmyoji_binding_card":                types.ChoiceRouteRole("onmyoji"),
-		"onmyoji_binding_confirm":             types.ChoiceRouteRole("onmyoji"),
-		"onmyoji_binding_counter_target":      types.ChoiceRouteRole("onmyoji"),
+		"onmyoji_binding_card":                types.ChoiceRouteRoleWithPhaseSync("onmyoji", string(player.InterruptPhaseSyncResponseWindow)),
+		"onmyoji_binding_confirm":             types.ChoiceRouteRoleWithPhaseSync("onmyoji", string(player.InterruptPhaseSyncResponseWindow)),
+		"onmyoji_binding_counter_target":      types.ChoiceRouteRoleWithPhaseSync("onmyoji", string(player.InterruptPhaseSyncResponseWindow)),
 		"onmyoji_binding_pick":                types.ChoiceRouteRole("onmyoji"),
 		"onmyoji_dark_ritual_pick":            types.ChoiceRouteRole("onmyoji"),
 		"onmyoji_dark_ritual_target":          types.ChoiceRouteRole("onmyoji"),
@@ -94,9 +94,9 @@ func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 		"onmyoji_life_barrier_support_target": types.ChoiceRouteRole("onmyoji"),
 		"onmyoji_shikigami_pick":              types.ChoiceRouteRole("onmyoji"),
 		"onmyoji_shikigami_shift_pick":        types.ChoiceRouteRole("onmyoji"),
-		"onmyoji_yinyang_card":                types.ChoiceRouteRole("onmyoji"),
-		"onmyoji_yinyang_confirm":             types.ChoiceRouteRole("onmyoji"),
-		"onmyoji_yinyang_counter_target":      types.ChoiceRouteRole("onmyoji"),
+		"onmyoji_yinyang_card":                types.ChoiceRouteRoleWithPhaseSync("onmyoji", string(player.InterruptPhaseSyncResponseWindow)),
+		"onmyoji_yinyang_confirm":             types.ChoiceRouteRoleWithPhaseSync("onmyoji", string(player.InterruptPhaseSyncResponseWindow)),
+		"onmyoji_yinyang_counter_target":      types.ChoiceRouteRoleWithPhaseSync("onmyoji", string(player.InterruptPhaseSyncResponseWindow)),
 		"onmyoji_yinyang_shift_pick":          types.ChoiceRouteRole("onmyoji"),
 	}
 }

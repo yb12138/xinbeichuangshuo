@@ -15,8 +15,10 @@ const props = withDefaults(defineProps<{
   total: number
   canSubmit: boolean
   submitLabel?: string
+  totalLabel?: string
 }>(), {
   submitLabel: '确认分配',
+  totalLabel: '剩余可分配',
 })
 
 const emit = defineEmits<{
@@ -52,7 +54,7 @@ function isValueDisabled(index: number, value: number): boolean {
           </div>
           <div class="overlay-panel-body overlay-saint-heal">
             <div class="overlay-saint-heal-summary" data-testid="allocation-summary">
-              剩余可分配：{{ remaining }} / {{ total }}
+              {{ totalLabel }}：{{ remaining }} / {{ total }}
             </div>
             <div
               v-for="(row, index) in rows"

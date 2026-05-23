@@ -134,6 +134,9 @@ type CombatRequest struct {
 
 	// 阴阳师”阴阳转换”交互标记：仅用于控制”先询问是否发动”流程不重复弹出
 	OnmyojiYinYangChecked bool `json:”onmyoji_yinyang_checked,omitempty”`
+
+	// 阴阳师”式神咒束”交互标记：用于避免同一条战斗请求在拒绝后重复弹出代应战确认。
+	OnmyojiBindingChecked bool `json:"onmyoji_binding_checked,omitempty"`
 }
 
 // GameState 游戏状态

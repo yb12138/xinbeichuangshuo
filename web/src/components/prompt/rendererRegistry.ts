@@ -13,6 +13,7 @@ export type PromptRendererKey =
   | 'fraud_element_overlay'
   | 'allocation_heal_overlay'
   | 'allocation_rune_overlay'
+  | 'allocation_blood_prayer_overlay'
 
 export type PromptRendererSelectionContext = {
   visible: boolean
@@ -36,6 +37,7 @@ export type PromptRendererSelectionContext = {
   fraudElementOptionCount: number
   isSaintHealAllocatePrompt: boolean
   isRuneReforgeAllocatePrompt: boolean
+  isBloodPrayerAllocatePrompt: boolean
 }
 
 export function selectPromptRenderer(ctx: PromptRendererSelectionContext): PromptRendererKey {
@@ -43,6 +45,7 @@ export function selectPromptRenderer(ctx: PromptRendererSelectionContext): Promp
 
   if (ctx.isSaintHealAllocatePrompt) return 'allocation_heal_overlay'
   if (ctx.isRuneReforgeAllocatePrompt) return 'allocation_rune_overlay'
+  if (ctx.isBloodPrayerAllocatePrompt) return 'allocation_blood_prayer_overlay'
   if (ctx.isDirectionPrompt && ctx.directionOptionCount > 0) return 'direction_overlay'
   if (ctx.isFraudElementCardPickerPrompt && ctx.fraudElementOptionCount > 0) return 'fraud_element_overlay'
   if (ctx.isMultiSkillNameChoiceMode && ctx.skillBranchCount > 0) return 'skill_overlay'

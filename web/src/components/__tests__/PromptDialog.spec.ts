@@ -280,6 +280,26 @@ function runeReforgeAllocatePrompt(): Prompt {
   }
 }
 
+function bloodyPrayerAllocatePrompt(): Prompt {
+  return {
+    type: 'confirm',
+    player_id: 'p2',
+    choice_type: 'crk_bloody_prayer_split',
+    message: '【血腥祷言】请选择治疗分配：所有人加起来的治疗点数必须等于 3',
+    options: [
+      { id: 'p2', label: '治疗目标一（治疗:2）', button_label: '治疗目标一', target_id: 'p2' },
+      { id: 'p3', label: '治疗目标二（治疗:1）', button_label: '治疗目标二', target_id: 'p3' },
+    ],
+    min: 2,
+    max: 2,
+    presentation: {
+      kind: 'numeric',
+      layout: 'blood_prayer_allocate',
+      numeric_base: 0,
+    },
+  }
+}
+
 function fraudAttackElementPrompt(): Prompt {
   return {
     type: 'confirm',
@@ -771,6 +791,31 @@ describe('PromptDialog', () => {
     await userEvent.click(screen.getByTestId('allocation-submit'))
 
     expect(submitSelectMock).toHaveBeenCalledWith([2, 1])
+  })
+
+  it('renders bloody prayer allocation through the allocation renderer and submits values', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    useSessionStore().setRoomInfo('ROOM1', 'p2', 'Blue', 'crimson_knight')
+    useSnapshotStore().updateGameState(buildState())
+    useInterruptStore().setPrompt(bloodyPrayerAllocatePrompt())
+
+    render(PromptDialog, {
+      global: {
+        plugins: [pinia],
+      },
+    })
+
+    expect(screen.getByTestId('allocation-overlay')).toBeInTheDocument()
+    expect(screen.getByText('治疗目标一（治疗:2）')).toBeInTheDocument()
+    expect(screen.getByText('治疗目标二（治疗:1）')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByTestId('allocation-option-0-1'))
+    await userEvent.click(screen.getByTestId('allocation-option-1-2'))
+    await userEvent.click(screen.getByTestId('allocation-submit'))
+
+    expect(submitSelectMock).toHaveBeenCalledWith([1, 2])
   })
 
   it('renders response prompt through the response renderer and keeps take submit behavior', async () => {

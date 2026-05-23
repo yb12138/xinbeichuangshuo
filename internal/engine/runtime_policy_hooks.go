@@ -66,7 +66,7 @@ func (e *GameEngine) applyTimingActionStartExecuteValidationPolicies(player *mod
 // RunAttackResponseCombatInteractionPolicies 在战斗交互阶段执行命中判定策略链。
 func (e *GameEngine) RunAttackResponseCombatInteractionPolicies(req *model.CombatRequest) bool {
 	result := e.dispatchRoleTimingHook(engineplayer.TimingCombatInteraction, engineplayer.TimingHookContext{
-		CombatRequest: req,
+		CombatRequest: e.resolveCombatRequestPolicyTarget(req),
 	})
 	return result.Interrupted
 }
@@ -87,7 +87,7 @@ func (e *GameEngine) runAttackDeclareInterruptPolicies(attacker *model.Player, t
 func (e *GameEngine) applyAttackResponseDefendValidation(player *model.Player, req *model.CombatRequest) error {
 	result := e.dispatchRoleTimingHook(engineplayer.TimingDefendValidation, engineplayer.TimingHookContext{
 		Player:        player,
-		CombatRequest: req,
+		CombatRequest: e.resolveCombatRequestPolicyTarget(req),
 	})
 	return result.ValidationError
 }
@@ -96,7 +96,7 @@ func (e *GameEngine) applyAttackResponseDefendValidation(player *model.Player, r
 func (e *GameEngine) applyAttackResponseCounterCardPolicy(player *model.Player, req *model.CombatRequest, card model.Card) (bool, model.Card, error) {
 	ctx := engineplayer.TimingHookContext{
 		Player:        player,
-		CombatRequest: req,
+		CombatRequest: e.resolveCombatRequestPolicyTarget(req),
 		CounterCard:   &card,
 	}
 	result := e.dispatchRoleTimingHook(engineplayer.TimingCombatCounterCard, ctx)
@@ -110,7 +110,7 @@ func (e *GameEngine) applyAttackResponseCounterCardPolicy(player *model.Player, 
 func (e *GameEngine) applyAttackResponseCounterElementPolicy(player *model.Player, req *model.CombatRequest, counterCard model.Card) (bool, bool) {
 	ctx := engineplayer.TimingHookContext{
 		Player:        player,
-		CombatRequest: req,
+		CombatRequest: e.resolveCombatRequestPolicyTarget(req),
 		CounterCard:   &counterCard,
 	}
 	result := e.dispatchRoleTimingHook(engineplayer.TimingCounterElementCheck, ctx)
@@ -121,11 +121,46 @@ func (e *GameEngine) applyAttackResponseCounterElementPolicy(player *model.Playe
 func (e *GameEngine) applyAttackResponseCounterResolvePolicy(player *model.Player, req *model.CombatRequest, counterCard *model.Card, useFaction bool) {
 	ctx := engineplayer.TimingHookContext{
 		Player:         player,
-		CombatRequest:  req,
+		CombatRequest:  e.resolveCombatRequestPolicyTarget(req),
 		CounterCardPtr: counterCard,
 		UseFaction:     useFaction,
 	}
 	e.dispatchAllRoleTimingHooks(engineplayer.TimingCounterResolve, ctx)
+}
+
+func (e *GameEngine) resolveCombatRequestPolicyTarget(req *model.CombatRequest) *model.CombatRequest {
+	if e == nil || e.State == nil || req == nil || len(e.State.CombatStack) == 0 {
+		return req
+	}
+	top := &e.State.CombatStack[len(e.State.CombatStack)-1]
+	if combatRequestMatches(top, req) {
+		return top
+	}
+	return req
+}
+
+func combatRequestMatches(a, b *model.CombatRequest) bool {
+	if a == nil || b == nil {
+		return false
+	}
+	if a.AttackerID != b.AttackerID || a.TargetID != b.TargetID || a.IsForcedHit != b.IsForcedHit ||
+		a.IgnoreShield != b.IgnoreShield || a.CanBeResponded != b.CanBeResponded || a.IsCounter != b.IsCounter ||
+		a.ElementOverride != b.ElementOverride {
+		return false
+	}
+	switch {
+	case a.Card == nil && b.Card == nil:
+		return true
+	case a.Card == nil || b.Card == nil:
+		return false
+	default:
+		return a.Card.ID == b.Card.ID &&
+			a.Card.Name == b.Card.Name &&
+			a.Card.Type == b.Card.Type &&
+			a.Card.Element == b.Card.Element &&
+			a.Card.Damage == b.Card.Damage &&
+			a.Card.Faction == b.Card.Faction
+	}
 }
 
 // applyTimingMagicMissileDefendValidation 在魔弹防御判定时执行校验策略。

@@ -18,6 +18,18 @@ func NewChoiceHandler() engineplayer.ChoiceHandler {
 	return choiceHandler{}
 }
 
+func (choiceHandler) HandleCancel(rt engineplayer.ChoiceRuntime, _ string, ctxData map[string]interface{}) (bool, error) {
+	choiceType, _ := ctxData["choice_type"].(string)
+	switch choiceType {
+	case "onmyoji_binding_confirm", "onmyoji_yinyang_confirm":
+		rt.PopInterrupt()
+		rt.EnsureCombatInteractionWindow()
+		return true, nil
+	default:
+		return false, nil
+	}
+}
+
 type onmyojiCardOption struct {
 	CardID     string
 	UseFaction bool
@@ -345,9 +357,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		}
 		if selectionIndex == 1 {
 			rt.PopInterrupt()
-			if rt.GetPendingInterrupt() == nil {
-				// 简化处理
-			}
+			rt.EnsureCombatInteractionWindow()
 			return true, nil
 		}
 		cardOptions := parseOnmyojiCardOptions(ctxData["card_options"])

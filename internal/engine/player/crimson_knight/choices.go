@@ -83,29 +83,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: fmt.Sprintf("【血腥祷言】请选择第 %d/%d 名队友：", pickIndex, allyCount), Options: options, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationTargetPicker, TargetFilter: "custom"}}
 
 	case "crk_bloody_prayer_split":
-		flow, err := model.RequirePromptFlow(data, bloodyPrayerFlowID, "血腥祷言")
-		if err != nil {
-			return nil
-		}
-		selected := flow.Selection(bloodyPrayerStepTarget).TargetIDs
-		if len(selected) != 2 {
-			return nil
-		}
-		xValue := flow.Selection(bloodyPrayerStepX).Count
-		if xValue < 2 {
-			return nil
-		}
-		first := rt.GetPlayers()[selected[0]]
-		second := rt.GetPlayers()[selected[1]]
-		if first == nil || second == nil {
-			return nil
-		}
-		options := make([]model.PromptOption, 0, xValue-1)
-		for firstHeal := 1; firstHeal < xValue; firstHeal++ {
-			secondHeal := xValue - firstHeal
-			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", firstHeal-1), Label: fmt.Sprintf("%s +%d，%s +%d", first.Name, firstHeal, second.Name, secondHeal)})
-		}
-		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【血腥祷言】请选择治疗分配：", Options: options, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"}}
+		return buildCrimsonKnightBloodyPrayerSplitPrompt(rt, playerID, data)
 	}
 
 	return nil
@@ -239,6 +217,85 @@ func handleCrimsonKnightBloodyPrayerTarget(rt engineplayer.ChoiceRuntime, select
 }
 
 func handleCrimsonKnightBloodyPrayerSplit(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
+	firstHeal := selectionIndex + 1
+	return finishCrimsonKnightBloodyPrayerSplit(rt, ctxData, firstHeal)
+}
+
+func handleCrimsonKnightBloodyPrayerSplitMultiSelect(rt engineplayer.ChoiceRuntime, playerID string, selections []int, ctxData map[string]interface{}) (bool, error) {
+	if len(selections) != 2 {
+		return true, fmt.Errorf("请为两名队友分别选择治疗点数")
+	}
+	flow, err := model.RequirePromptFlow(ctxData, bloodyPrayerFlowID, "血腥祷言")
+	if err != nil {
+		return true, err
+	}
+	xValue := flow.Selection(bloodyPrayerStepX).Count
+	if xValue < 2 {
+		return true, fmt.Errorf("治疗不足，无法结算血腥祷言")
+	}
+	firstHeal := selections[0]
+	secondHeal := selections[1]
+	if firstHeal < 0 || secondHeal < 0 || firstHeal+secondHeal != xValue {
+		return true, fmt.Errorf("所有人的治疗点数之和必须等于%d", xValue)
+	}
+	userID, _ := ctxData["user_id"].(string)
+	user := rt.GetPlayers()[userID]
+	if user == nil {
+		return true, fmt.Errorf("玩家不存在")
+	}
+	selected := flow.Selection(bloodyPrayerStepTarget).TargetIDs
+	if len(selected) != 2 {
+		return true, fmt.Errorf("血腥祷言分配目标数量异常")
+	}
+	flow.PutSelection(bloodyPrayerStepSplit, model.PromptFlowSelection{
+		Count:         firstHeal,
+		OptionIndexes: []int{firstHeal - 1},
+		TargetIDs:     append([]string{}, selected...),
+	})
+	if err := finishCrimsonKnightBloodyPrayerSplit(rt, ctxData, firstHeal); err != nil {
+		return true, err
+	}
+	return true, nil
+}
+
+func buildCrimsonKnightBloodyPrayerSplitPrompt(rt engineplayer.ChoiceRuntime, playerID string, data map[string]interface{}) *model.Prompt {
+	flow, err := model.RequirePromptFlow(data, bloodyPrayerFlowID, "血腥祷言")
+	if err != nil {
+		return nil
+	}
+	selected := flow.Selection(bloodyPrayerStepTarget).TargetIDs
+	if len(selected) != 2 {
+		return nil
+	}
+	xValue := flow.Selection(bloodyPrayerStepX).Count
+	if xValue < 2 {
+		return nil
+	}
+	first := rt.GetPlayers()[selected[0]]
+	second := rt.GetPlayers()[selected[1]]
+	if first == nil || second == nil {
+		return nil
+	}
+	options := []model.PromptOption{
+		{ID: selected[0], Label: fmt.Sprintf("%s（治疗:%d）", first.Name, first.Heal), TargetID: selected[0]},
+		{ID: selected[1], Label: fmt.Sprintf("%s（治疗:%d）", second.Name, second.Heal), TargetID: selected[1]},
+	}
+	return &model.Prompt{
+		Type:     model.PromptConfirm,
+		PlayerID: playerID,
+		Message:  fmt.Sprintf("【血腥祷言】请选择治疗分配：所有人加起来的治疗点数必须等于 %d", xValue),
+		Options:  options,
+		Min:      2,
+		Max:      2,
+		Presentation: &model.PromptPresentation{
+			Kind:        model.PresentationNumeric,
+			Layout:      "blood_prayer_allocate",
+			NumericBase: 0,
+		},
+	}
+}
+
+func finishCrimsonKnightBloodyPrayerSplit(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, firstHeal int) error {
 	userID, _ := ctxData["user_id"].(string)
 	user := rt.GetPlayers()[userID]
 	if user == nil {
@@ -256,14 +313,14 @@ func handleCrimsonKnightBloodyPrayerSplit(rt engineplayer.ChoiceRuntime, selecti
 	if len(selected) != 2 {
 		return fmt.Errorf("血腥祷言分配目标数量异常")
 	}
-	if selectionIndex < 0 || selectionIndex >= xValue-1 {
-		return fmt.Errorf("无效的分配选项")
+	if firstHeal <= 0 || firstHeal >= xValue {
+		return fmt.Errorf("无效的治疗分配")
 	}
-	firstHeal := selectionIndex + 1
 	secondHeal := xValue - firstHeal
 	flow.PutSelection(bloodyPrayerStepSplit, model.PromptFlowSelection{
-		OptionIndexes: []int{selectionIndex},
 		Count:         firstHeal,
+		OptionIndexes: []int{firstHeal - 1},
+		TargetIDs:     append([]string{}, selected...),
 	})
 	alloc := map[string]int{selected[0]: firstHeal, selected[1]: secondHeal}
 	if err := resolveCrimsonKnightBloodyPrayer(rt, user, xValue, alloc); err != nil {

@@ -111,6 +111,10 @@ func tryYinYangInterrupt(rt engineplayer.HookRuntime, req *model.CombatRequest, 
 
 // tryBindingInterrupt 式神咒束中断：同阵营阴阳师代替队友应战。
 func tryBindingInterrupt(rt engineplayer.HookRuntime, req *model.CombatRequest, target, attacker *model.Player) engineplayer.TimingHookResult {
+	if req.OnmyojiBindingChecked {
+		return engineplayer.TimingHookResult{}
+	}
+
 	crt := rt.AsChoiceRuntime()
 	if crt == nil {
 		return engineplayer.TimingHookResult{}
@@ -139,6 +143,7 @@ func tryBindingInterrupt(rt engineplayer.HookRuntime, req *model.CombatRequest, 
 		if len(cardOptions) == 0 {
 			continue
 		}
+		req.OnmyojiBindingChecked = true
 		rt.PushInterrupt(&model.Interrupt{
 			Type:     model.InterruptChoice,
 			PlayerID: actor.ID,
