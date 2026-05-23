@@ -15,6 +15,8 @@ const props = defineProps<{
   faceDown?: boolean
   small?: boolean
   medium?: boolean
+  effectiveElement?: string
+  effectiveElementHint?: string
 }>()
 
 const emit = defineEmits<{
@@ -60,8 +62,20 @@ const elementLabel = computed(() => {
   return ELEMENT_LABEL_MAP[props.card.element] ?? props.card.element
 })
 
+const effectiveElementLabel = computed(() => {
+  if (!props.effectiveElement || props.effectiveElement === props.card.element) return ''
+  return ELEMENT_LABEL_MAP[props.effectiveElement] ?? props.effectiveElement
+})
+
+const hasEffectiveElementHint = computed(() => !!effectiveElementLabel.value)
+
 const detailRibbonText = computed(() => {
   const base = `${elementLabel.value}系${props.card.type === 'Attack' ? '攻击' : '法术'}`
+  if (effectiveElementLabel.value) {
+    const transformed = `${base} -> ${effectiveElementLabel.value}系`
+    if (!fateText.value) return transformed
+    return `${transformed}  ${fateText.value}`
+  }
   if (!fateText.value) return base
   return `${base}  ${fateText.value}`
 })
@@ -191,6 +205,14 @@ function handleClick() {
 
       <div class="layer card-element-medal">
         <span>{{ elementLabel }}</span>
+      </div>
+
+      <div
+        v-if="hasEffectiveElementHint"
+        class="layer card-effective-element-badge"
+        :title="effectiveElementHint || `视为${effectiveElementLabel}系`"
+      >
+        视为{{ effectiveElementLabel }}系
       </div>
 
       <div class="layer card-art-frame">
@@ -358,6 +380,25 @@ function handleClick() {
   color: var(--medal-fg);
   font-weight: 900;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+}
+
+.card-effective-element-badge {
+  right: 5%;
+  top: 17%;
+  z-index: 26;
+  border: 1px solid rgba(255, 215, 138, 0.72);
+  border-radius: 4px;
+  background: linear-gradient(180deg, rgba(119, 42, 22, 0.94), rgba(64, 24, 17, 0.92));
+  color: #ffe9bd;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  padding: 4px 5px;
+  box-shadow:
+    0 1px 5px rgba(0, 0, 0, 0.45),
+    0 0 8px rgba(255, 112, 60, 0.36);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.72);
+  pointer-events: none;
 }
 
 .card-art-frame {

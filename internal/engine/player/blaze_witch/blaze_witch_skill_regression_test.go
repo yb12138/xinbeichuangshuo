@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"starcup-engine/internal/engine"
 	"starcup-engine/internal/testutils"
+	"strings"
 	"testing"
 
 	"starcup-engine/internal/data"
@@ -191,6 +192,49 @@ func TestBlazeWitchHeavenfireCleave_AllowsNonFireAttackDiscardInFlameForm(t *tes
 	}
 	if game.State.PendingDamageQueue[0].Damage != 3 || game.State.PendingDamageQueue[1].Damage != 3 {
 		t.Fatalf("expected heavenfire base damage 3 when morale not behind, got %+v", game.State.PendingDamageQueue)
+	}
+}
+
+func TestBlazeWitchFlameForm_DiscardPromptShowsEffectiveFireAttackCards(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Blaze", "blaze_witch", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Form = model.FormBlazeWitchFlame
+	p1.Tokens["bw_rebirth"] = 1
+	p1.Hand = []model.Card{
+		{ID: "wind", Name: "风神斩", Type: model.CardTypeAttack, Element: model.ElementWind, Faction: "血", Damage: 2},
+		{ID: "thunder", Name: "雷光斩", Type: model.CardTypeAttack, Element: model.ElementThunder, Faction: "血", Damage: 2},
+		{ID: "water", Name: "水涟斩", Type: model.CardTypeAttack, Element: model.ElementWater, Faction: "血", Damage: 2},
+		{ID: "dark", Name: "暗灭", Type: model.CardTypeAttack, Element: model.ElementDark, Faction: "血", Damage: 2},
+	}
+
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	if err := game.UseSkill("p1", "bw_heavenfire_cleave", []string{"p2"}, nil); err != nil {
+		t.Fatalf("request heavenfire discard prompt failed: %v", err)
+	}
+	prompt := game.BuildChoicePrompt()
+	if prompt == nil {
+		t.Fatalf("expected discard prompt")
+	}
+	gotIDs := map[string]string{}
+	for _, option := range prompt.Options {
+		gotIDs[option.CardID] = option.Label
+	}
+	if len(gotIDs) != 2 || gotIDs["wind"] == "" || gotIDs["thunder"] == "" {
+		t.Fatalf("expected only wind/thunder attack cards to be selectable as effective fire, got %+v", gotIDs)
+	}
+	if !strings.Contains(gotIDs["wind"], "视为火系") || !strings.Contains(gotIDs["thunder"], "视为火系") {
+		t.Fatalf("expected effective fire hint in option labels, got %+v", gotIDs)
 	}
 }
 

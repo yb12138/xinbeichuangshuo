@@ -19,6 +19,10 @@ import StatusEffectIcon from './StatusIcons/StatusEffectIcon.vue'
 import { useSubmitAction } from '../composables/useSubmitAction'
 import { useBattleInteractionState } from '../composables/useBattleInteractionState'
 import { useInteractionController } from '../composables/useInteractionController'
+import {
+  hasBlazeWitchFlameElementOverride,
+  skillDiscardEffectiveElement,
+} from '../constants/skillDisplayRules'
 
 const battleFxStore = useBattleFxStore()
 const battleReviewStore = useBattleReviewStore()
@@ -1734,7 +1738,8 @@ function cardPassesSkillDiscardRules(idx: number): PromptCardSelectionState {
       }
     }
   }
-  if (skill.discard_element && card.element !== skill.discard_element) {
+  const effectiveElement = skillDiscardEffectiveElement(card, myRoleIdForCardRules(), myAreaPlayer.value?.form)
+  if (skill.discard_element && effectiveElement !== skill.discard_element) {
     return {
       selectable: false,
       reason: 'skill_discard_element_mismatch',
@@ -1778,6 +1783,19 @@ function cardPassesSkillDiscardRules(idx: number): PromptCardSelectionState {
     }
   }
   return { selectable: true, reason: 'skill_discard_pass' }
+}
+
+function myRoleIdForCardRules(): string {
+  return String(sessionStore.myCharRole || myAreaPlayer.value?.role || '').trim()
+}
+
+function effectiveHandCardElement(card: { type?: string; element: string }): string {
+  return skillDiscardEffectiveElement(card, myRoleIdForCardRules(), myAreaPlayer.value?.form)
+}
+
+function effectiveHandCardHint(card: { type?: string; element: string }): string {
+  if (!hasBlazeWitchFlameElementOverride(card, myRoleIdForCardRules(), myAreaPlayer.value?.form)) return ''
+  return '烈焰形态：非水/暗攻击牌视为火系'
 }
 
 function isCardSelectableForSkillDiscard(idx: number): boolean {
@@ -2390,6 +2408,8 @@ const fighterHundredDragonByPlayer = computed(() => {
                     :key="entry.index"
                     :card="entry.card"
                     :index="entry.index"
+                    :effective-element="effectiveHandCardElement(entry.card)"
+                    :effective-element-hint="effectiveHandCardHint(entry.card)"
                     medium
                     :selectable="isCardSelectableForAction(entry.index)"
                     :selected="selectedHandIndexes.includes(entry.index) || selectedHandIndexForAction === entry.index || skillDiscardHandIndexes.includes(entry.index)"

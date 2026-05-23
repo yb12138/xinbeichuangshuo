@@ -1,6 +1,7 @@
 import type { Card } from '../types/game'
 
 type SkillId = string
+type CardElementLike = Pick<Card, 'element' | 'type'> | { element: string; type?: string }
 
 const SKILL_DISCARD_ELEMENT_RULES: Record<string, Card['element'][]> = {
   magic_bullet_fusion: ['Fire', 'Earth'],
@@ -37,6 +38,34 @@ export function skillSpecificDisabledReason(skillId: SkillId): string {
 
 export function skillCostTextOverride(skillId: SkillId): string {
   return SKILL_COST_TEXT_OVERRIDES[skillId] || ''
+}
+
+export function blazeWitchFlameEffectiveElement(
+  card: CardElementLike,
+  roleId?: string,
+  form?: string,
+): string {
+  if (roleId !== 'blaze_witch') return card.element
+  if (form !== 'blaze_witch_flame_form') return card.element
+  if (card.type !== 'Attack') return card.element
+  if (card.element === 'Water' || card.element === 'Dark') return card.element
+  return 'Fire'
+}
+
+export function hasBlazeWitchFlameElementOverride(
+  card: CardElementLike,
+  roleId?: string,
+  form?: string,
+): boolean {
+  return blazeWitchFlameEffectiveElement(card, roleId, form) !== card.element
+}
+
+export function skillDiscardEffectiveElement(
+  card: CardElementLike,
+  roleId?: string,
+  form?: string,
+): string {
+  return blazeWitchFlameEffectiveElement(card, roleId, form)
 }
 
 export function skillCanUseDiscardCard(skillId: SkillId, card: Pick<Card, 'element'> | { element: string }): boolean {

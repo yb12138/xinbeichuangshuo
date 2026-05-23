@@ -7,6 +7,7 @@ import { useBattleInteractionState } from '../composables/useBattleInteractionSt
 import { useSubmitAction } from '../composables/useSubmitAction'
 import { useInteractionController } from '../composables/useInteractionController'
 import {
+    skillDiscardEffectiveElement,
     skillCanUseDiscardCard,
     skillCostTextOverride,
     skillDiscardGuideText as skillDiscardGuideTextById,
@@ -613,14 +614,22 @@ function requiresExclusiveCardSelectionBeforeTarget(skill?: AvailableSkill | nul
         (skill.cost_discards ?? 0) === 0
 }
 
-function isSelectedExclusiveCardValid(skill: AvailableSkill): boolean {
+function isSelectedExclusiveCardValid(skill?: AvailableSkill | null): boolean {
+    if (!skill) return false
     if (interruptStore.skillDiscardHandIndexes.length !== 1) return false
     const selectedIndex = interruptStore.skillDiscardHandIndexes[0]
+    if (selectedIndex === undefined) return false
     const card = myHand.value[selectedIndex]
     if (!card) return false
     const roleId = sessionStore.myCharRole || myPlayer.value?.role || ''
     return cardMatchesExclusive(card, roleId, skill.title)
 }
+
+const selectedExclusiveSkillCard = computed(() => {
+    const selectedIndex = interruptStore.skillDiscardHandIndexes[0]
+    if (selectedIndex === undefined) return null
+    return myHand.value[selectedIndex] || null
+})
 
 const canConfirmExclusiveSkillSelection = computed(() => {
     const skill = interruptStore.selectedSkill
@@ -678,7 +687,8 @@ function cardMatchesSkillDiscard(card: { type: string; element: string; faction?
         if (!roleId || !cardMatchesExclusive(card, roleId, skill.title)) return false
     }
     if (skill.discard_type && card.type !== skill.discard_type) return false
-    if (skill.discard_element) return card.element === skill.discard_element
+    const effectiveElement = skillDiscardEffectiveElement(card, resolveMyRoleIdForExclusive(), myPlayer.value?.form)
+    if (skill.discard_element) return effectiveElement === skill.discard_element
     if (!skillCanUseDiscardCard(skill.id, card)) return false
     return true
 }
@@ -1265,8 +1275,8 @@ function elementName(el: string): string {
             <div class="text-xs text-gray-400">
                 请在手牌区选择对应的独有技手牌，然后点击确认。
             </div>
-            <div v-if="interruptStore.skillDiscardHandIndexes.length > 0 && myHand[interruptStore.skillDiscardHandIndexes[0]]" class="text-[11px] text-amber-300">
-                已选独有技手牌：{{ myHand[interruptStore.skillDiscardHandIndexes[0]].name }}
+            <div v-if="selectedExclusiveSkillCard" class="text-[11px] text-amber-300">
+                已选独有技手牌：{{ selectedExclusiveSkillCard.name }}
             </div>
             <div class="flex gap-3 justify-center">
                 <button

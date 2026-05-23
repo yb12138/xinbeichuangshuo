@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"starcup-engine/internal/engine/core/runtimeutil"
+	"starcup-engine/internal/engine/hook/promptfmt"
 	playerpkg "starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
 )
@@ -193,15 +194,25 @@ func (e *GameEngine) buildDiscardChoicePromptFromData(playerID string, data map[
 		if discardType != "" && card.Type != discardType {
 			continue
 		}
-		if discardElement != "" && card.Element != discardElement {
+		effectiveElement := card.Element
+		if discardElement != "" && player.Character != nil {
+			if transformFn := roleRegistry.AttackCardElementTransform(player.Character.ID); transformFn != nil {
+				effectiveElement = transformFn(player, card)
+			}
+		}
+		if discardElement != "" && effectiveElement != discardElement {
 			continue
 		}
 		if excludeBlessings && shouldExcludeCardFromDiscard(player, card) {
 			continue
 		}
+		label := fmt.Sprintf("%d: %s", i+1, formatCardInfo(card))
+		if discardElement != "" && effectiveElement != card.Element {
+			label += fmt.Sprintf("（视为%s系）", promptfmt.ElementName(string(effectiveElement)))
+		}
 		options = append(options, model.PromptOption{
 			ID:     strconv.Itoa(i),
-			Label:  fmt.Sprintf("%d: %s", i+1, formatCardInfo(card)),
+			Label:  label,
 			CardID: card.ID,
 		})
 	}
