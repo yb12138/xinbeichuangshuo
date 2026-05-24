@@ -80,16 +80,19 @@ type PlayerAction struct {
 type GameEventType string
 
 const (
-	EventLog          GameEventType = "Log"          // 普通日志
-	EventStateUpdate  GameEventType = "StateUpdate"  // 状态变更 (UI刷新)
-	EventAskInput     GameEventType = "AskInput"     // 请求输入 (Prompt)
-	EventError        GameEventType = "Error"        // 操作错误
-	EventGameEnd      GameEventType = "GameEnd"      // 游戏结束
-	EventCardRevealed GameEventType = "CardRevealed" // 明牌展示：出牌/弃牌等，供前端动画
-	EventDamageDealt  GameEventType = "DamageDealt"  // 伤害结算：攻击/法术命中，供前端暴血特效
-	EventActionStep   GameEventType = "ActionStep"   // 行动步骤：供桌面区域展示行动流程
-	EventCombatCue    GameEventType = "CombatCue"    // 对战提示：攻击/防御/承受/应战，供前端对战动画
-	EventDrawCards    GameEventType = "DrawCards"    // 摸牌事件：供前端公共牌堆->角色区动画
+	EventLog            GameEventType = "Log"            // 普通日志
+	EventStateUpdate    GameEventType = "StateUpdate"    // 状态变更 (UI刷新)
+	EventAskInput       GameEventType = "AskInput"       // 请求输入 (Prompt)
+	EventError          GameEventType = "Error"          // 操作错误
+	EventGameEnd        GameEventType = "GameEnd"        // 游戏结束
+	EventCardRevealed   GameEventType = "CardRevealed"   // 明牌展示：出牌/弃牌等，供前端动画
+	EventDamageDealt    GameEventType = "DamageDealt"    // 伤害结算：攻击/法术命中，供前端暴血特效
+	EventActionStep     GameEventType = "ActionStep"     // 行动步骤：供桌面区域展示行动流程
+	EventCombatCue      GameEventType = "CombatCue"      // 对战提示：攻击/防御/承受/应战，供前端对战动画
+	EventDrawCards      GameEventType = "DrawCards"      // 摸牌事件：供前端公共牌堆->角色区动画
+	EventSkillActivated GameEventType = "SkillActivated" // 技能成功发动，供前端技能牌匾/历史播报
+	EventSpecialAction  GameEventType = "SpecialAction"  // 购买/提炼/合成等特殊行动
+	EventStateDelta     GameEventType = "StateDelta"     // 公共可见状态变化
 )
 
 // GameEvent 引擎发送给 UI 的唯一数据包
@@ -97,12 +100,15 @@ type GameEvent struct {
 	Type    GameEventType `json:"type"`
 	Message string        `json:"message"` // 用于 Log/Error
 
-	Prompt       *Prompt              `json:"prompt,omitempty"`
-	CardRevealed *CardRevealedPayload `json:"card_revealed,omitempty"`
-	DamageDealt  *DamageDealtPayload  `json:"damage_dealt,omitempty"`
-	ActionStep   *ActionStepPayload   `json:"action_step,omitempty"`
-	CombatCue    *CombatCuePayload    `json:"combat_cue,omitempty"`
-	DrawCards    *DrawCardsPayload    `json:"draw_cards,omitempty"`
+	Prompt         *Prompt                `json:"prompt,omitempty"`
+	CardRevealed   *CardRevealedPayload   `json:"card_revealed,omitempty"`
+	DamageDealt    *DamageDealtPayload    `json:"damage_dealt,omitempty"`
+	ActionStep     *ActionStepPayload     `json:"action_step,omitempty"`
+	CombatCue      *CombatCuePayload      `json:"combat_cue,omitempty"`
+	DrawCards      *DrawCardsPayload      `json:"draw_cards,omitempty"`
+	SkillActivated *SkillActivatedPayload `json:"skill_activated,omitempty"`
+	SpecialAction  *SpecialActionPayload  `json:"special_action,omitempty"`
+	StateDelta     *StateDeltaPayload     `json:"state_delta,omitempty"`
 }
 
 // GameObserver 观察者接口
@@ -126,18 +132,21 @@ const (
 type WSEventType string
 
 const (
-	WSEventLog          WSEventType = "log"           // 日志
-	WSEventStateUpdate  WSEventType = "state_update"  // 状态更新
-	WSEventPrompt       WSEventType = "prompt"        // 请求输入
-	WSEventWaiting      WSEventType = "waiting"       // 等待其他玩家
-	WSEventError        WSEventType = "error"         // 错误
-	WSEventGameEnd      WSEventType = "game_end"      // 游戏结束
-	WSEventChat         WSEventType = "chat"          // 聊天
-	WSEventCardRevealed WSEventType = "card_revealed" // 明牌展示（出牌/弃牌动画）
-	WSEventDamageDealt  WSEventType = "damage_dealt"  // 伤害结算（暴血特效）
-	WSEventActionStep   WSEventType = "action_step"   // 行动步骤（桌面展示）
-	WSEventCombatCue    WSEventType = "combat_cue"    // 对战提示（攻击/防御/承受/应战）
-	WSEventDrawCards    WSEventType = "draw_cards"    // 摸牌动画触发（事件驱动）
+	WSEventLog            WSEventType = "log"             // 日志
+	WSEventStateUpdate    WSEventType = "state_update"    // 状态更新
+	WSEventPrompt         WSEventType = "prompt"          // 请求输入
+	WSEventWaiting        WSEventType = "waiting"         // 等待其他玩家
+	WSEventError          WSEventType = "error"           // 错误
+	WSEventGameEnd        WSEventType = "game_end"        // 游戏结束
+	WSEventChat           WSEventType = "chat"            // 聊天
+	WSEventCardRevealed   WSEventType = "card_revealed"   // 明牌展示（出牌/弃牌动画）
+	WSEventDamageDealt    WSEventType = "damage_dealt"    // 伤害结算（暴血特效）
+	WSEventActionStep     WSEventType = "action_step"     // 行动步骤（桌面展示）
+	WSEventCombatCue      WSEventType = "combat_cue"      // 对战提示（攻击/防御/承受/应战）
+	WSEventDrawCards      WSEventType = "draw_cards"      // 摸牌动画触发（事件驱动）
+	WSEventSkillActivated WSEventType = "skill_activated" // 技能成功发动
+	WSEventSpecialAction  WSEventType = "special_action"  // 购买/提炼/合成
+	WSEventStateDelta     WSEventType = "state_delta"     // 公共可见状态变化
 )
 
 // RoomActionType 房间事件类型

@@ -386,6 +386,11 @@ const myStatusRoleName = computed(() => {
   return characters.value[roleId]?.name || roleId
 })
 
+const myStatusPortraitSrc = computed(() => {
+  const roleId = String(myAreaPlayer.value?.role || sessionStore.myCharRole || '').trim()
+  return roleId ? `/characters/${roleId}.png` : ''
+})
+
 const myFieldStatusItems = computed(() => {
   const field = myAreaPlayer.value?.field || []
   return field
@@ -2320,38 +2325,61 @@ const fighterHundredDragonByPlayer = computed(() => {
         <div class="bottom-hud flex-shrink-0 min-h-0 mt-2">
           <div class="bottom-hud-main">
             <div
+              class="my-status-strip"
+              :class="{ 'my-status-strip--empty': !myAreaPlayer }"
+            >
+              <template v-if="myAreaPlayer">
+                <div class="my-status-portrait-column">
+                  <img
+                    v-if="myStatusPortraitSrc"
+                    class="my-status-portrait"
+                    :src="myStatusPortraitSrc"
+                    :alt="myStatusRoleName"
+                    :title="myStatusRoleName"
+                  >
+                  <span
+                    v-else
+                    class="my-status-portrait my-status-portrait--placeholder"
+                    :title="myStatusRoleName || '当前角色'"
+                    aria-hidden="true"
+                  >
+                    {{ (myStatusRoleName || '?').charAt(0) }}
+                  </span>
+                </div>
+                <div class="my-status-content">
+                  <div class="my-status-primary">
+                    <span class="my-status-chip my-status-chip--heal">治疗 {{ myAreaPlayer.heal }}/{{ myAreaPlayer.max_heal }}</span>
+                    <span class="my-status-chip">手牌上限 {{ myStatusMaxHand }}</span>
+                    <span v-if="myAreaPlayer.gem" class="my-status-chip my-status-chip--gem">宝石 {{ myAreaPlayer.gem }}</span>
+                    <span v-if="myAreaPlayer.crystal" class="my-status-chip my-status-chip--crystal">水晶 {{ myAreaPlayer.crystal }}</span>
+                  </div>
+                  <div class="my-status-secondary">
+                    <span
+                      v-for="field in myFieldStatusItems"
+                      :key="`field-${field.key}`"
+                      class="my-status-pill my-status-pill--field"
+                      :title="field.label"
+                    >
+                      <StatusEffectIcon :effect="field.effect" />
+                      {{ field.label }}
+                    </span>
+                    <span
+                      v-if="myFieldStatusItems.length === 0"
+                      class="my-status-empty"
+                    >
+                      无场上状态
+                    </span>
+                  </div>
+                </div>
+              </template>
+            </div>
+            <div
               class="hand-rail bottom-slot-hand rounded-lg sm:rounded-xl p-2 sm:p-2 min-h-0"
               :class="{
                 'hand-rail--prompt-guide': promptNeedsCardGuide,
                 'hand-rail--overflow-discard': promptNeedsOverflowDiscardGuide
               }"
             >
-              <div v-if="myAreaPlayer" class="my-status-strip">
-                <div class="my-status-primary">
-                  <span class="my-status-name">{{ myStatusRoleName }}</span>
-                  <span class="my-status-chip my-status-chip--heal">治疗 {{ myAreaPlayer.heal }}/{{ myAreaPlayer.max_heal }}</span>
-                  <span class="my-status-chip">手牌上限 {{ myStatusMaxHand }}</span>
-                  <span v-if="myAreaPlayer.gem" class="my-status-chip my-status-chip--gem">宝石 {{ myAreaPlayer.gem }}</span>
-                  <span v-if="myAreaPlayer.crystal" class="my-status-chip my-status-chip--crystal">水晶 {{ myAreaPlayer.crystal }}</span>
-                </div>
-                <div class="my-status-secondary">
-                  <span
-                    v-for="field in myFieldStatusItems"
-                    :key="`field-${field.key}`"
-                    class="my-status-pill my-status-pill--field"
-                    :title="field.label"
-                  >
-                    <StatusEffectIcon :effect="field.effect" />
-                    {{ field.label }}
-                  </span>
-                  <span
-                    v-if="myFieldStatusItems.length === 0"
-                    class="my-status-empty"
-                  >
-                    无场上状态
-                  </span>
-                </div>
-              </div>
               <div class="exclusive-toggle-row mb-2">
                 <button
                   type="button"
@@ -3717,35 +3745,90 @@ const fighterHundredDragonByPlayer = computed(() => {
 }
 
 .my-status-strip {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin-bottom: 8px;
-  padding: 7px 9px;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  width: 100%;
+  margin-bottom: 0;
+  min-height: 178px;
+  padding: 10px;
   border-radius: 10px;
   border: 1px solid rgba(132, 172, 207, 0.28);
   background: linear-gradient(180deg, rgba(18, 36, 54, 0.72), rgba(10, 23, 37, 0.82));
   box-shadow:
     inset 0 1px 0 rgba(236, 247, 255, 0.08),
     0 6px 14px rgba(2, 8, 16, 0.22);
+  overflow: hidden;
+}
+
+.my-status-strip--empty {
+  visibility: hidden;
+}
+
+.my-status-strip::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background:
+    linear-gradient(180deg, rgba(2, 8, 16, 0) 34%, rgba(2, 8, 16, 0.58) 70%, rgba(2, 8, 16, 0.88) 100%),
+    linear-gradient(90deg, rgba(2, 8, 16, 0.28), rgba(2, 8, 16, 0) 42%, rgba(2, 8, 16, 0.26));
+  pointer-events: none;
+}
+
+.my-status-portrait-column {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 0;
+}
+
+.my-status-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
 }
 
 .my-status-primary,
 .my-status-secondary {
   display: flex;
   align-items: center;
+  justify-content: center;
   flex-wrap: wrap;
   gap: 6px;
   min-width: 0;
 }
 
-.my-status-name {
-  max-width: 112px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.my-status-portrait {
+  width: 100%;
+  height: 100%;
+  flex: 1 1 auto;
+  border-radius: 0;
+  border: 0;
+  background: radial-gradient(circle at 50% 18%, rgba(237, 205, 143, 0.26), rgba(5, 14, 25, 0.84));
+  box-shadow: none;
+  object-fit: cover;
+  object-position: 50% 18%;
+}
+
+.my-status-portrait--placeholder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   color: #f8dfad;
-  font-size: 12px;
+  font-size: 40px;
   font-weight: 800;
   line-height: 1;
 }
@@ -4107,15 +4190,16 @@ const fighterHundredDragonByPlayer = computed(() => {
   position: relative;
   z-index: 2;
   --hand-max-width: 820px;
+  --status-card-width: 176px;
   --action-dock-width: 300px;
   --hud-main-gap: 10px;
 }
 
 .bottom-hud-main {
-  width: min(100%, calc(var(--hand-max-width) + var(--action-dock-width) + var(--hud-main-gap)));
+  width: min(100%, calc(var(--status-card-width) + var(--hand-max-width) + var(--action-dock-width) + var(--hud-main-gap) + var(--hud-main-gap)));
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(0, var(--hand-max-width)) var(--action-dock-width);
+  grid-template-columns: var(--status-card-width) minmax(0, var(--hand-max-width)) var(--action-dock-width);
   align-items: end;
   column-gap: var(--hud-main-gap);
   margin: 0;
@@ -4146,6 +4230,7 @@ const fighterHundredDragonByPlayer = computed(() => {
 @media (max-width: 1200px) {
   .bottom-hud {
     --hand-max-width: 700px;
+    --status-card-width: 154px;
     --action-dock-width: 248px;
   }
 }
@@ -4158,6 +4243,7 @@ const fighterHundredDragonByPlayer = computed(() => {
 
 @media (max-width: 640px) {
   .bottom-hud {
+    --status-card-width: min(118px, 30vw);
     --action-dock-width: min(176px, 48vw);
   }
 }
@@ -4181,6 +4267,7 @@ const fighterHundredDragonByPlayer = computed(() => {
 
   .bottom-hud {
     --hand-max-width: 760px;
+    --status-card-width: 168px;
     --action-dock-width: 320px;
   }
 }
@@ -4196,6 +4283,7 @@ const fighterHundredDragonByPlayer = computed(() => {
 
   .bottom-hud {
     --hand-max-width: 700px;
+    --status-card-width: 146px;
     --action-dock-width: 238px;
   }
 
@@ -4313,6 +4401,7 @@ const fighterHundredDragonByPlayer = computed(() => {
 
   .bottom-hud {
     --hand-max-width: 100%;
+    --status-card-width: 136px;
     --action-dock-width: 230px;
     --hud-main-gap: 6px;
   }
@@ -4348,6 +4437,7 @@ const fighterHundredDragonByPlayer = computed(() => {
   }
 
   .bottom-hud {
+    --status-card-width: 122px;
     --action-dock-width: 208px;
   }
 }
@@ -4430,12 +4520,13 @@ const fighterHundredDragonByPlayer = computed(() => {
     width: 100%;
     gap: 6px;
     --hand-max-width: 100%;
+    --status-card-width: min(132px, 28vw);
     --action-dock-width: min(198px, 42vw);
     --hud-main-gap: 6px;
   }
 
   .bottom-hud-main {
-    grid-template-columns: minmax(0, 1fr) var(--action-dock-width);
+    grid-template-columns: var(--status-card-width) minmax(0, 1fr) var(--action-dock-width);
   }
 
   .hand-rail {

@@ -11,6 +11,9 @@ const SUPPORTED_GAMEPLAY_TIMELINE_TYPES = new Set<GameEvent['event_type']>([
   'action_step',
   'combat_cue',
   'draw_cards',
+  'skill_activated',
+  'special_action',
+  'state_delta',
 ])
 
 export function extractGameplayEventsFromTimeline(events: TimelineEvent[]): GameEvent[] {
@@ -86,6 +89,31 @@ function buildGameEvent(event: TimelineEvent, gameplayType: GameEvent['event_typ
         player_name: event.actor_name ?? '',
         draw_count: event.draw_count ?? extractDeltaValue(event, 'TimelineDeltaHandCount') ?? 0,
         reason: event.reason ?? '',
+      }
+    case 'skill_activated':
+      return {
+        event_type: 'skill_activated',
+        player_id: event.actor_user_id ?? '',
+        player_name: event.actor_name ?? '',
+        skill_id: event.skill_id ?? '',
+        skill_name: event.skill_name ?? '',
+        effect_text: event.effect_text ?? '',
+        target_ids: event.target_user_ids || [],
+      }
+    case 'special_action':
+      return {
+        event_type: 'special_action',
+        player_id: event.actor_user_id ?? '',
+        player_name: event.actor_name ?? '',
+        action_type: event.action_type ?? '',
+        target_ids: event.target_user_ids || [],
+        summary: event.summary || event.message || '',
+      }
+    case 'state_delta':
+      return {
+        event_type: 'state_delta',
+        deltas: event.deltas || [],
+        reason: event.reason,
       }
     default:
       return null

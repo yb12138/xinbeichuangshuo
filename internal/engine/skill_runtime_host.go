@@ -62,6 +62,13 @@ func (sd *SkillDispatcher) RecordSkillUsage(playerID, title string, skillType mo
 	sd.engine.recordSkillUsage(playerID, title, skillType)
 }
 
+func (sd *SkillDispatcher) NotifySkillActivated(playerID, skillID, skillName, effectText string, targetIDs []string) {
+	if sd == nil || sd.engine == nil {
+		return
+	}
+	sd.engine.NotifySkillActivated(playerID, skillID, skillName, effectText, targetIDs)
+}
+
 func (sd *SkillDispatcher) ApplyHitCheckAugment(skillIDs []string, ctx *model.Context) []string {
 	if sd == nil || sd.engine == nil {
 		return skillIDs

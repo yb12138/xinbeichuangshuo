@@ -771,7 +771,10 @@ describe('GameBoard target picker', () => {
     expect(screen.getAllByTestId(/^player-area-p/)).toHaveLength(6)
     expect(screen.getByTestId('player-area-p1')).toBeInTheDocument()
     expect(screen.getByText('治疗 1/5')).toBeInTheDocument()
-    expect(document.querySelector('.my-status-name')).toHaveTextContent('剑斗士')
+    const statusPortrait = document.querySelector('.my-status-portrait') as HTMLImageElement | null
+    expect(statusPortrait).not.toBeNull()
+    expect(statusPortrait?.alt).toBe('剑斗士')
+    expect(statusPortrait?.getAttribute('src')).toBe('/characters/fighter.png')
   })
 
   it('passes hundred dragon lock badges to source and target players without rendering a link line', () => {

@@ -129,19 +129,67 @@ describe('useTimelineStore', () => {
           gameplay_type: 'log',
           message: '[Skill] Alice 使用了技能: 苍炎法典',
         },
+        {
+          event_id: 11,
+          turn_id: 1,
+          chain_id: 'chain_11',
+          type: 'TimelineActionDeclared',
+          outcome: 'TimelineOutcomeSuccess',
+          visibility: 'TimelineVisibilityPublic',
+          gameplay_type: 'skill_activated',
+          actor_user_id: 'p1',
+          actor_name: 'Alice',
+          skill_id: 'sage_arcane_codex',
+          skill_name: '苍炎法典',
+          effect_text: '造成法术伤害',
+        },
+        {
+          event_id: 12,
+          turn_id: 1,
+          chain_id: 'chain_12',
+          type: 'TimelineActionDeclared',
+          outcome: 'TimelineOutcomeSuccess',
+          visibility: 'TimelineVisibilityPublic',
+          gameplay_type: 'special_action',
+          actor_user_id: 'p1',
+          actor_name: 'Alice',
+          action_type: 'Buy',
+          summary: 'Alice 执行特殊行动【购买】',
+        },
+        {
+          event_id: 13,
+          turn_id: 1,
+          chain_id: 'chain_13',
+          type: 'TimelineEffectResolved',
+          outcome: 'TimelineOutcomeSuccess',
+          visibility: 'TimelineVisibilityPublic',
+          gameplay_type: 'state_delta',
+          deltas: [
+            {
+              type: 'morale',
+              scope: 'team',
+              camp: 'Red',
+              field: 'morale',
+              before: 15,
+              after: 14,
+              value: -1,
+            },
+          ],
+        },
       ],
     }
 
     store.push(payload)
 
     expect(store.payloads).toHaveLength(1)
-    expect(store.payloads[0]?.events).toHaveLength(10)
+    expect(store.payloads[0]?.events).toHaveLength(13)
     expect(store.entries.map((entry) => entry.title)).toEqual([
       '回合1：Alice 使用攻击【火焰斩】 -> Bob',
       'skill_reward',
-      'Alice 发动 [苍炎法典]，先对 Bob 后对自己各造成2点法术伤害',
-      'Alice 的 [魔能反转] 生效：弃2张法术牌，对 Bob 造成1点法术伤害',
+      'Alice 发动「苍炎法典」',
+      'Alice 执行特殊行动【购买】',
+      '红方士气 -1',
     ])
-    expect(store.entries.map((entry) => entry.type)).toEqual(['system', 'resource', 'skill', 'skill'])
+    expect(store.entries.map((entry) => entry.type)).toEqual(['system', 'resource', 'skill', 'resource', 'damage'])
   })
 })

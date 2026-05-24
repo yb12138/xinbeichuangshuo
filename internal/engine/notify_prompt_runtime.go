@@ -222,6 +222,68 @@ func (e *GameEngine) NotifyDrawCards(playerID string, count int, reason string) 
 	})
 }
 
+func (e *GameEngine) NotifySkillActivated(playerID, skillID, skillName, effectText string, targetIDs []string) {
+	if e.observer == nil || playerID == "" || skillID == "" || skillName == "" {
+		return
+	}
+	p := e.State.Players[playerID]
+	playerName := playerID
+	if p != nil {
+		playerName = p.Name
+	}
+	e.emitGameEvent(model.GameEvent{
+		Type: model.EventSkillActivated,
+		SkillActivated: &model.SkillActivatedPayload{
+			PlayerID:   playerID,
+			PlayerName: playerName,
+			SkillID:    skillID,
+			SkillName:  skillName,
+			EffectText: effectText,
+			TargetIDs:  append([]string{}, targetIDs...),
+		},
+	})
+}
+
+func (e *GameEngine) NotifySpecialAction(playerID string, actionType model.ActionType, summary string, targetIDs []string) {
+	if e.observer == nil || playerID == "" || actionType == "" {
+		return
+	}
+	p := e.State.Players[playerID]
+	playerName := playerID
+	if p != nil {
+		playerName = p.Name
+	}
+	if summary == "" {
+		summary = specialActionSummary(playerName, actionType)
+	}
+	e.emitGameEvent(model.GameEvent{
+		Type: model.EventSpecialAction,
+		SpecialAction: &model.SpecialActionPayload{
+			PlayerID:   playerID,
+			PlayerName: playerName,
+			ActionType: string(actionType),
+			TargetIDs:  append([]string{}, targetIDs...),
+			Summary:    summary,
+		},
+	})
+}
+
+func specialActionSummary(playerName string, actionType model.ActionType) string {
+	label := string(actionType)
+	switch actionType {
+	case model.ActionBuy:
+		label = "购买"
+	case model.ActionSynthesize:
+		label = "合成"
+	case model.ActionExtract:
+		label = "提炼"
+	}
+	if playerName == "" {
+		return label
+	}
+	return fmt.Sprintf("%s 执行特殊行动【%s】", playerName, label)
+}
+
 func (e *GameEngine) notifyInterruptPrompt() {
 	if e.State.PendingInterrupt == nil {
 		return

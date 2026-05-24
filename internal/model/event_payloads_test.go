@@ -42,6 +42,18 @@ func TestGameEventValidateRequiresMatchingTypedPayload(t *testing.T) {
 			event: GameEvent{Type: EventDrawCards, DrawCards: &DrawCardsPayload{}},
 		},
 		{
+			name:  "skill activated needs payload",
+			event: GameEvent{Type: EventSkillActivated, SkillActivated: &SkillActivatedPayload{PlayerID: "p1", SkillID: "s1", SkillName: "技能"}},
+		},
+		{
+			name:  "special action needs payload",
+			event: GameEvent{Type: EventSpecialAction, SpecialAction: &SpecialActionPayload{PlayerID: "p1", ActionType: "Buy"}},
+		},
+		{
+			name:  "state delta needs payload",
+			event: GameEvent{Type: EventStateDelta, StateDelta: &StateDeltaPayload{Deltas: []StateDeltaItem{{Type: "morale", Camp: "Red", Before: 15, After: 14, Value: -1}}}},
+		},
+		{
 			name:    "log rejects typed payloads",
 			event:   GameEvent{Type: EventLog, Message: "ok", Prompt: &Prompt{}},
 			wantErr: true,

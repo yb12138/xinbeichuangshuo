@@ -120,6 +120,7 @@ func (e *GameEngine) HandleActionSelectionSpecialOrSkill(act model.PlayerAction,
 	if err := e.executeSpecialActionWithRuntime(player, actionType); err != nil {
 		return err
 	}
+	e.NotifySpecialAction(player.ID, actionType, specialActionSummary(player.Name, actionType), nil)
 	e.runPostSpecialActionRuntime(player, actionType)
 	player.TurnState.LastActionType = string(actionType)
 	player.TurnState.LastActionCard = nil

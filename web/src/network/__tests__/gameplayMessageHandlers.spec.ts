@@ -333,7 +333,7 @@ describe('createGameplayMessageHandlers', () => {
     )
   })
 
-  it('turns skill logs into battle announcements instead of skill toasts', () => {
+  it('does not let skill-looking logs drive battle UI', () => {
     const { handlers, battleFxStore, battleReviewStore, interruptStore, snapshotStore } = buildHandlers()
     snapshotStore.updateGameState({
       turn_stage: 'ActionExecution',
@@ -362,6 +362,46 @@ describe('createGameplayMessageHandlers', () => {
     })
 
     expect(interruptStore.skillEffectToast).toBe('')
+    expect(battleFxStore.skillAnnouncements).toHaveLength(0)
+    expect(battleReviewStore.battleFeed).toHaveLength(0)
+    expect(battleReviewStore.logs).toEqual([
+      'Alice 发动 [苍炎法典]，先对 Bob 后对自己各造成2点法术伤害',
+    ])
+  })
+
+  it('uses skill_activated events for battle announcements', () => {
+    const { handlers, battleFxStore, battleReviewStore, snapshotStore } = buildHandlers()
+    snapshotStore.updateGameState({
+      turn_stage: 'ActionExecution',
+      current_player: 'p1',
+      has_performed_startup: true,
+      players: {
+        p1: buildSyncPlayer('p1', 'Red'),
+        p2: buildSyncPlayer('p2', 'Blue'),
+      },
+      red_morale: 15,
+      blue_morale: 15,
+      red_cups: 0,
+      blue_cups: 0,
+      red_gems: 0,
+      blue_gems: 0,
+      red_crystals: 0,
+      blue_crystals: 0,
+      deck_count: 30,
+      discard_count: 0,
+      available_skills: [],
+    })
+
+    handlers.handleGameplayEvent({
+      event_type: 'skill_activated',
+      player_id: 'p1',
+      player_name: 'Alice',
+      skill_id: 'sage_arcane_codex',
+      skill_name: '苍炎法典',
+      effect_text: '先对 Bob 后对自己各造成2点法术伤害',
+      target_ids: ['p2'],
+    })
+
     expect(battleFxStore.skillAnnouncements).toHaveLength(1)
     expect(battleFxStore.skillAnnouncements[0]).toMatchObject({
       actorId: 'p1',
@@ -376,6 +416,50 @@ describe('createGameplayMessageHandlers', () => {
       detail: '先对 Bob 后对自己各造成2点法术伤害',
       actorId: 'p1',
     })
+  })
+
+  it('records state_delta morale and resource changes without log hints', () => {
+    const { handlers, battleReviewStore } = buildHandlers()
+
+    handlers.handleGameplayEvent({
+      event_type: 'state_delta',
+      reason: 'DamageDealt',
+      deltas: [
+        {
+          type: 'morale',
+          scope: 'team',
+          camp: 'Red',
+          field: 'morale',
+          before: 15,
+          after: 13,
+          value: -2,
+          reason: 'DamageDealt',
+        },
+        {
+          type: 'team_gem',
+          scope: 'team',
+          camp: 'Blue',
+          field: 'gem',
+          before: 0,
+          after: 1,
+          value: 1,
+          reason: 'DamageDealt',
+        },
+      ],
+    })
+
+    expect(battleReviewStore.moraleChanges).toHaveLength(1)
+    expect(battleReviewStore.moraleChanges[0]).toMatchObject({
+      camp: 'Red',
+      before: 15,
+      after: 13,
+      delta: -2,
+      source: 'DamageDealt',
+    })
+    expect(battleReviewStore.battleFeed.map(entry => entry.title)).toEqual([
+      '红方士气 -2',
+      '蓝方阵营宝石 +1',
+    ])
   })
 
   it('replays damage timeline payloads into effects without adding battle feed entries', () => {

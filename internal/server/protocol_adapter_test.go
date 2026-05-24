@@ -225,6 +225,61 @@ func TestBuildTimelineNotify_SelfDamageKeepsTarget(t *testing.T) {
 	}
 }
 
+func TestBuildTimelineNotify_StructuredGameplayEvents(t *testing.T) {
+	room := NewRoom("TIMELINE_STRUCTURED")
+	room.Engine = engine.NewGameEngine(room)
+
+	skillPayload := room.buildTimelineNotify(timeline.Payload{
+		Type:       "skill_activated",
+		PlayerID:   "p1",
+		PlayerName: "Alice",
+		SkillID:    "sage_arcane_codex",
+		SkillName:  "苍炎法典",
+		EffectText: "造成法术伤害",
+		TargetIDs:  []string{"p2"},
+	})
+	skillEvent := skillPayload.Events[0]
+	if skillEvent.GameplayType != "skill_activated" || skillEvent.SkillName != "苍炎法典" || skillEvent.EffectText != "造成法术伤害" {
+		t.Fatalf("unexpected skill event %+v", skillEvent)
+	}
+	if len(skillEvent.TargetUserIDs) != 1 || skillEvent.TargetUserIDs[0] != "p2" {
+		t.Fatalf("expected skill target p2, got %+v", skillEvent.TargetUserIDs)
+	}
+
+	specialPayload := room.buildTimelineNotify(timeline.Payload{
+		Type:       "special_action",
+		PlayerID:   "p1",
+		PlayerName: "Alice",
+		ActionType: "Buy",
+		Summary:    "Alice 执行特殊行动【购买】",
+	})
+	specialEvent := specialPayload.Events[0]
+	if specialEvent.GameplayType != "special_action" || specialEvent.ActionType != "Buy" || specialEvent.Summary == "" {
+		t.Fatalf("unexpected special action event %+v", specialEvent)
+	}
+
+	deltaPayload := room.buildTimelineNotify(timeline.Payload{
+		Type: "state_delta",
+		Deltas: []TimelineDelta{{
+			Type:   "morale",
+			Scope:  "team",
+			Camp:   "Red",
+			Field:  "morale",
+			Before: 15,
+			After:  14,
+			Value:  -1,
+			Reason: "test",
+		}},
+	})
+	deltaEvent := deltaPayload.Events[0]
+	if deltaEvent.GameplayType != "state_delta" || len(deltaEvent.Deltas) != 1 {
+		t.Fatalf("unexpected state delta event %+v", deltaEvent)
+	}
+	if deltaEvent.Deltas[0].Type != "morale" || deltaEvent.Deltas[0].Camp != "Red" || deltaEvent.Deltas[0].Value != -1 {
+		t.Fatalf("unexpected delta %+v", deltaEvent.Deltas[0])
+	}
+}
+
 func TestBuildRequireActionPayload_UsesStructuredPromptField(t *testing.T) {
 	prompt := &model.Prompt{
 		Type:       model.PromptConfirm,

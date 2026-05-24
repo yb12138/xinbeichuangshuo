@@ -13,6 +13,7 @@ type Host interface {
 	DispatchOrientationChanges(before any)
 	SyncPendingDamageFromContext(ctx *model.Context)
 	RecordSkillUsage(playerID, title string, skillType model.SkillType)
+	NotifySkillActivated(playerID, skillID, skillName, effectText string, targetIDs []string)
 
 	ApplyHitCheckAugment(skillIDs []string, ctx *model.Context) []string
 	ApplyHitCheckNormalize(skillIDs []string, ctx *model.Context) []string

@@ -314,8 +314,18 @@ export interface TargetNode {
 
 export interface TimelineDelta {
   type: string
+  scope?: string
   target_user_id?: string
+  camp?: string
+  field?: string
+  before?: number
+  after?: number
   value?: number
+  reason?: string
+  source_event_id?: string
+  before_text?: string
+  after_text?: string
+  field_card?: FieldCard
 }
 
 export interface TimelineEvent {
@@ -336,6 +346,9 @@ export interface TimelineEvent {
   target_name?: string
   action_type?: string
   skill_id?: string
+  skill_name?: string
+  effect_text?: string
+  summary?: string
   card_ids?: string[]
   cards?: Card[]
   hidden?: boolean
@@ -376,3 +389,7 @@ export type GameplayEvent =
   | ({ event_type: 'action_step'; line: ActionStepPayload['line']; kind: ActionStepPayload['kind'] })
   | ({ event_type: 'combat_cue'; attacker_id: CombatCuePayload['attacker_id']; target_id: CombatCuePayload['target_id']; phase: CombatCuePayload['phase'] })
   | ({ event_type: 'draw_cards'; player_id: DrawCardsPayload['player_id']; player_name: DrawCardsPayload['player_name']; draw_count: DrawCardsPayload['draw_count']; reason: DrawCardsPayload['reason'] })
+
+  | { event_type: 'skill_activated'; player_id: string; player_name: string; skill_id: string; skill_name: string; effect_text: string; target_ids?: string[] }
+  | { event_type: 'special_action'; player_id: string; player_name: string; action_type: string; target_ids?: string[]; summary: string }
+  | { event_type: 'state_delta'; deltas: TimelineDelta[]; reason?: string }

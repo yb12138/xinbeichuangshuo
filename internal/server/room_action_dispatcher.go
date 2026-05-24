@@ -76,6 +76,7 @@ func (r *Room) handleDissolveRoomAction(client *Client) {
 	r.botPromptCache = make(map[string]*model.Prompt)
 	r.botPromptEpoch++
 	r.botIntel = bot.NewMemory()
+	r.publicTimelineSnapshot = nil
 	r.mu.Unlock()
 
 	r.engineMu.Lock()

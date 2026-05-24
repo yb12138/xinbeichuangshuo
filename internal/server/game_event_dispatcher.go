@@ -15,6 +15,9 @@ type scheduledBotPrompt struct {
 // OnGameEvent implements model.GameObserver.
 func (r *Room) OnGameEvent(event model.GameEvent) {
 	scheduledBot := r.dispatchGameEvent(event)
+	if event.Type != model.EventStateDelta {
+		r.broadcastPublicStateDelta(string(event.Type))
+	}
 	if scheduledBot.playerID != "" {
 		go r.scheduleBotIfNeeded(scheduledBot.playerID, scheduledBot.prompt, scheduledBot.epoch)
 	}
@@ -42,6 +45,12 @@ func (r *Room) dispatchGameEvent(event model.GameEvent) scheduledBotPrompt {
 		r.handleCombatCueGameEvent(event)
 	case model.EventDrawCards:
 		r.handleDrawCardsGameEvent(event)
+	case model.EventSkillActivated:
+		r.handleSkillActivatedGameEvent(event)
+	case model.EventSpecialAction:
+		r.handleSpecialActionGameEvent(event)
+	case model.EventStateDelta:
+		r.handleStateDeltaGameEvent(event)
 	}
 	return scheduledBotPrompt{}
 }
@@ -179,6 +188,75 @@ func (r *Room) handleDrawCardsGameEvent(event model.GameEvent) {
 	})
 }
 
+func (r *Room) handleSkillActivatedGameEvent(event model.GameEvent) {
+	payload := event.SkillActivated
+	if payload == nil {
+		return
+	}
+	r.broadcastTimeline(timeline.Payload{
+		Type:       "skill_activated",
+		PlayerID:   payload.PlayerID,
+		PlayerName: payload.PlayerName,
+		SkillID:    payload.SkillID,
+		SkillName:  payload.SkillName,
+		EffectText: payload.EffectText,
+		TargetIDs:  append([]string{}, payload.TargetIDs...),
+	})
+}
+
+func (r *Room) handleSpecialActionGameEvent(event model.GameEvent) {
+	payload := event.SpecialAction
+	if payload == nil {
+		return
+	}
+	r.broadcastTimeline(timeline.Payload{
+		Type:       "special_action",
+		PlayerID:   payload.PlayerID,
+		PlayerName: payload.PlayerName,
+		ActionType: payload.ActionType,
+		TargetIDs:  append([]string{}, payload.TargetIDs...),
+		Summary:    payload.Summary,
+		Message:    payload.Summary,
+	})
+}
+
+func (r *Room) handleStateDeltaGameEvent(event model.GameEvent) {
+	payload := event.StateDelta
+	if payload == nil || len(payload.Deltas) == 0 {
+		return
+	}
+	r.broadcastTimeline(timeline.Payload{
+		Type:   "state_delta",
+		Reason: payload.Reason,
+		Deltas: timelineDeltasFromModel(payload.Deltas),
+	})
+}
+
 func (r *Room) broadcastTimeline(payload timeline.Payload) {
 	r.broadcastHumans(CmdNotifyTimeline, r.buildTimelineNotify(payload))
+}
+
+func timelineDeltasFromModel(items []model.StateDeltaItem) []TimelineDelta {
+	if len(items) == 0 {
+		return nil
+	}
+	out := make([]TimelineDelta, 0, len(items))
+	for _, item := range items {
+		out = append(out, TimelineDelta{
+			Type:          item.Type,
+			Scope:         item.Scope,
+			TargetUserID:  item.TargetUserID,
+			Camp:          item.Camp,
+			Field:         item.Field,
+			Before:        item.Before,
+			After:         item.After,
+			Value:         item.Value,
+			Reason:        item.Reason,
+			SourceEventID: item.SourceEventID,
+			BeforeText:    item.BeforeText,
+			AfterText:     item.AfterText,
+			FieldCard:     item.FieldCard,
+		})
+	}
+	return out
 }

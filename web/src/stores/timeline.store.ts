@@ -43,10 +43,63 @@ export const useTimelineStore = defineStore('timeline', () => {
     return String(actionType || '').trim().toLowerCase()
   }
 
+  function campLabel(camp?: string) {
+    if (camp === 'Red') return '红方'
+    if (camp === 'Blue') return '蓝方'
+    return camp || ''
+  }
+
+  function signed(value?: number) {
+    const numeric = Number(value || 0)
+    return numeric > 0 ? `+${numeric}` : String(numeric)
+  }
+
+  function firstDeltaTitle(event: TimelineEvent): string {
+    const delta = event.deltas?.[0]
+    if (!delta) return '状态变化'
+    const actor = event.actor_name || delta.target_user_id || campLabel(delta.camp) || '状态'
+    const fieldCardName = delta.field_card?.card?.name || delta.after_text || delta.before_text || '场上牌'
+    switch (delta.type) {
+      case 'morale':
+        return `${campLabel(delta.camp)}士气 ${signed(delta.value)}`
+      case 'team_gem':
+        return `${campLabel(delta.camp)}阵营宝石 ${signed(delta.value)}`
+      case 'team_crystal':
+        return `${campLabel(delta.camp)}阵营水晶 ${signed(delta.value)}`
+      case 'team_cup':
+        return `${campLabel(delta.camp)}星杯 ${signed(delta.value)}`
+      case 'player_gem':
+        return `${actor} 宝石 ${signed(delta.value)}`
+      case 'player_crystal':
+        return `${actor} 水晶 ${signed(delta.value)}`
+      case 'heal':
+        return `${actor} 治疗 ${signed(delta.value)}`
+      case 'hand_count':
+        return `${actor} 手牌数 ${signed(delta.value)}`
+      case 'discard_count':
+        return `弃牌堆 ${signed(delta.value)}`
+      case 'field_card_added':
+        return `${actor} 放置 ${fieldCardName}`
+      case 'field_card_removed':
+        return `${actor} 移除 ${fieldCardName}`
+      case 'form':
+        return `${actor} 形态变化`
+      case 'orientation':
+        return `${actor} 朝向变化`
+      default:
+        return `${actor} ${delta.type} ${signed(delta.value)}`
+    }
+  }
+
   function buildFeedType(event: TimelineEvent): TimelineFeedType {
     const actionType = normalizeActionType(event.action_type)
-    if (event.gameplay_type === 'log' && isSkillTimelineLog(event.message)) {
-      return 'skill'
+    if (event.gameplay_type === 'skill_activated') return 'skill'
+    if (event.gameplay_type === 'special_action') return 'resource'
+    if (event.gameplay_type === 'state_delta') {
+      const firstType = event.deltas?.[0]?.type || ''
+      if (firstType === 'morale') return 'damage'
+      if (firstType.includes('gem') || firstType.includes('crystal') || firstType.includes('cup') || firstType.endsWith('_count')) return 'resource'
+      return 'system'
     }
     switch (event.type) {
       case 'TimelineCombatResolved':
@@ -77,7 +130,7 @@ export const useTimelineStore = defineStore('timeline', () => {
 
   function buildFeedTitle(event: TimelineEvent): string {
     const message = String(event.message || '').trim()
-    if (message) return message
+    if (message && event.gameplay_type !== 'state_delta') return message
 
     switch (event.gameplay_type) {
       case 'prompt':
@@ -92,6 +145,12 @@ export const useTimelineStore = defineStore('timeline', () => {
         return '进入战斗交互'
       case 'draw_cards':
         return '摸牌'
+      case 'skill_activated':
+        return `${event.actor_name || '玩家'} 发动「${event.skill_name || event.skill_id || '技能'}」`
+      case 'special_action':
+        return event.summary || `${event.actor_name || '玩家'} 执行特殊行动`
+      case 'state_delta':
+        return firstDeltaTitle(event)
       case 'game_end':
         return '游戏结束'
       case 'chat':
@@ -101,28 +160,21 @@ export const useTimelineStore = defineStore('timeline', () => {
     }
   }
 
-  function isSkillTimelineLog(message?: string): boolean {
-    const text = String(message || '').trim()
-    if (!text) return false
-    if (/^\[(Debug|System|Damage|Draw|Interrupt|Warn|Action)\]/.test(text)) return false
-    if (/^\[Skill\]\s*.+?\s*使用了技能[:：]/.test(text)) return false
-    return (
-      /^.+?\s*发动\s*\[[^\]]+\]/.test(text) ||
-      /^.+?\s*的\s*\[[^\]]+\]\s*生效/.test(text) ||
-      /^\[Skill\]\s*.+?\s*发动\s*\[[^\]]+\]/.test(text)
-    )
-  }
-
   function shouldDisplayTimelineEvent(event: TimelineEvent): boolean {
     switch (event.gameplay_type) {
       case 'log':
-        return isSkillTimelineLog(event.message)
+        return false
       case 'action_step':
         return event.detail_kind === 'summary'
       case 'card_revealed':
         return true
       case 'draw_cards':
         return event.reason !== 'damage_draw'
+      case 'skill_activated':
+      case 'special_action':
+        return true
+      case 'state_delta':
+        return (event.deltas?.length || 0) > 0
       case 'game_end':
         return true
       default:

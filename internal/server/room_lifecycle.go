@@ -147,6 +147,7 @@ func (r *Room) startGame() error {
 			log.Printf("Error adding player: %v", err)
 		}
 	}
+	r.resetPublicTimelineSnapshot()
 
 	// Broadcast game started（含角色数据供前端技能 fallback）。
 	r.broadcastRoomEvent(RoomEvent{
@@ -165,6 +166,7 @@ func (r *Room) startGame() error {
 		r.Started = false
 		r.mu.Unlock()
 		r.Engine = nil
+		r.publicTimelineSnapshot = nil
 		r.broadcastRoomEvent(RoomEvent{
 			Action:  "error",
 			Message: fmt.Sprintf("游戏启动失败: %v", err),

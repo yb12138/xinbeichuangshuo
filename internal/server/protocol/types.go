@@ -107,9 +107,19 @@ type RequireActionPayload struct {
 }
 
 type TimelineDelta struct {
-	Type         string `json:"type"`
-	TargetUserID string `json:"target_user_id,omitempty"`
-	Value        int    `json:"value,omitempty"`
+	Type          string           `json:"type"`
+	Scope         string           `json:"scope,omitempty"`
+	TargetUserID  string           `json:"target_user_id,omitempty"`
+	Camp          string           `json:"camp,omitempty"`
+	Field         string           `json:"field,omitempty"`
+	Before        int              `json:"before,omitempty"`
+	After         int              `json:"after,omitempty"`
+	Value         int              `json:"value,omitempty"`
+	Reason        string           `json:"reason,omitempty"`
+	SourceEventID string           `json:"source_event_id,omitempty"`
+	BeforeText    string           `json:"before_text,omitempty"`
+	AfterText     string           `json:"after_text,omitempty"`
+	FieldCard     *model.FieldCard `json:"field_card,omitempty"`
 }
 
 type TimelineEvent struct {
@@ -130,6 +140,9 @@ type TimelineEvent struct {
 	TargetName    string          `json:"target_name,omitempty"`
 	ActionType    string          `json:"action_type,omitempty"`
 	SkillID       string          `json:"skill_id,omitempty"`
+	SkillName     string          `json:"skill_name,omitempty"`
+	EffectText    string          `json:"effect_text,omitempty"`
+	Summary       string          `json:"summary,omitempty"`
 	CardIDs       []string        `json:"card_ids,omitempty"`
 	Cards         []model.Card    `json:"cards,omitempty"`
 	Hidden        bool            `json:"hidden,omitempty"`

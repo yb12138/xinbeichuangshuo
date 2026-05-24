@@ -175,6 +175,7 @@ func (e *GameEngine) finishSkillUse(use *skillUseRequest) error {
 	}
 	e.runTimingActionEndSkillPost(use)
 	e.recordSkillUsage(use.player.ID, use.skillDef.Title, use.skillDef.Type)
+	e.NotifySkillActivated(use.player.ID, use.skillDef.ID, use.skillDef.Title, use.skillDef.Description, use.resolvedTargetIDs())
 	e.Log(fmt.Sprintf("[Skill] %s 使用了技能: %s (%s)", use.player.Name, use.skillDef.Title, use.skillDef.Description))
 
 	if use.skillDef.Type == model.SkillTypeAction && !use.policy.SkipAutoPhaseEnd {

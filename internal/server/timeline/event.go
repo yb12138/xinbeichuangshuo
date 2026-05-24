@@ -26,6 +26,10 @@ type Payload struct {
 	AttackerID string
 	ActionType string
 	SkillID    string
+	SkillName  string
+	EffectText string
+	Summary    string
+	TargetIDs  []string
 	Cards      []model.Card
 	Hidden     bool
 	Damage     int
@@ -34,6 +38,7 @@ type Payload struct {
 	Phase      string
 	DrawCount  int
 	Reason     string
+	Deltas     []protocol.TimelineDelta
 }
 
 func BuildEvent(meta EventMeta, payload Payload) protocol.TimelineEvent {
@@ -51,6 +56,9 @@ func BuildEvent(meta EventMeta, payload Payload) protocol.TimelineEvent {
 		GameplayType: payload.Type,
 		ActionType:   payload.ActionType,
 		SkillID:      payload.SkillID,
+		SkillName:    payload.SkillName,
+		EffectText:   payload.EffectText,
+		Summary:      payload.Summary,
 		Cards:        cloneCards(payload.Cards),
 		CardIDs:      cardIDs(payload.Cards),
 		Hidden:       payload.Hidden,
@@ -68,7 +76,9 @@ func BuildEvent(meta EventMeta, payload Payload) protocol.TimelineEvent {
 	if actorName := firstNonEmptyString(payload.PlayerName, payload.SourceName); actorName != "" {
 		event.ActorName = actorName
 	}
-	if target := firstNonEmptyString(payload.TargetID, payload.PlayerID); target != "" && (payload.Type == "damage_dealt" || target != event.ActorUserID) {
+	if len(payload.TargetIDs) > 0 {
+		event.TargetUserIDs = append([]string{}, payload.TargetIDs...)
+	} else if target := firstNonEmptyString(payload.TargetID, payload.PlayerID); target != "" && (payload.Type == "damage_dealt" || target != event.ActorUserID) {
 		event.TargetUserIDs = []string{target}
 	}
 	if payload.TargetName != "" {
@@ -92,6 +102,10 @@ func mapGameplayTimelineType(payload Payload) string {
 		return "TimelineCombatResolved"
 	case "combat_cue":
 		return "TimelineActionDeclared"
+	case "skill_activated", "special_action":
+		return "TimelineActionDeclared"
+	case "state_delta":
+		return "TimelineEffectResolved"
 	case "game_end":
 		return "TimelineChainClosed"
 	default:
@@ -109,6 +123,11 @@ func mapGameplayTimelineOutcome(eventType string) string {
 }
 
 func buildTimelineDeltas(payload Payload) []protocol.TimelineDelta {
+	if len(payload.Deltas) > 0 {
+		out := make([]protocol.TimelineDelta, len(payload.Deltas))
+		copy(out, payload.Deltas)
+		return out
+	}
 	switch payload.Type {
 	case "damage_dealt":
 		if payload.TargetID != "" && payload.Damage > 0 {
