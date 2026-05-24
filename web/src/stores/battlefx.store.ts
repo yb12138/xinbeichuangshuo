@@ -56,10 +56,29 @@ export interface CombatCueView {
   phase: 'attack' | 'defend' | 'take' | 'counter' | 'shield'
 }
 
+export type SkillAnnouncementPhase = 'featured' | 'settled'
+
+export interface SkillAnnouncementView {
+  id: number
+  actorId: string
+  actorName: string
+  skillName: string
+  effectText: string
+  phase: SkillAnnouncementPhase
+  startedAt: number
+}
+
 interface CombatCueQueueItem {
   attackerId: string
   targetId: string
   phase: 'attack' | 'defend' | 'take' | 'counter' | 'shield'
+}
+
+interface SkillAnnouncementQueueItem {
+  actorId: string
+  actorName: string
+  skillName: string
+  effectText: string
 }
 
 export const useBattleFxStore = defineStore('battlefx', () => {
@@ -92,6 +111,12 @@ export const useBattleFxStore = defineStore('battlefx', () => {
   const damageEffects = ref<DamageEffectView[]>([])
   let damageEffectsId = 0
 
+  const skillAnnouncements = ref<SkillAnnouncementView[]>([])
+  let skillAnnouncementId = 0
+  const skillAnnouncementQueue = ref<SkillAnnouncementQueueItem[]>([])
+  let skillAnnouncementTimer: ReturnType<typeof setTimeout> | null = null
+  const skillAnnouncementRemovalTimers = new Map<number, ReturnType<typeof setTimeout>>()
+
   function resolveInitiatorFocusSide(playerId: string): InitiatorFocusSide {
     const rosterIndex = roomPlayers.value.findIndex((player) => player.id === playerId)
     if (rosterIndex >= 0) {
@@ -122,6 +147,19 @@ export const useBattleFxStore = defineStore('battlefx', () => {
     cancelInitiatorFocusIdleTimer()
     cancelInitiatorFocusResolveTimer()
     initiatorFocus.value = null
+  }
+
+  function clearSkillAnnouncementTimer() {
+    if (!skillAnnouncementTimer) return
+    clearTimeout(skillAnnouncementTimer)
+    skillAnnouncementTimer = null
+  }
+
+  function clearSkillAnnouncementRemovalTimers() {
+    for (const timer of skillAnnouncementRemovalTimers.values()) {
+      clearTimeout(timer)
+    }
+    skillAnnouncementRemovalTimers.clear()
   }
 
   function setInitiatorFocus(playerId: string, mode: InitiatorFocusMode) {
@@ -264,17 +302,18 @@ export const useBattleFxStore = defineStore('battlefx', () => {
 
   function notifyFlyingCardsEvent(kind: 'card_revealed' | 'draw' | 'combat_response' | 'damage', actionType?: string) {
     const normalizedActionType = normalizeFlyingActionType(actionType)
-    if (kind === 'card_revealed' && (normalizedActionType === 'defend' || normalizedActionType === 'counter')) {
-      return
-    }
-
-    if (kind === 'damage' || kind === 'combat_response') {
-      dropActiveFlyingCards()
+    if (kind === 'card_revealed') {
+      if (normalizedActionType === 'defend' || normalizedActionType === 'counter') return
       pumpFlyingCards()
       return
     }
 
-    if (kind === 'draw' || kind === 'card_revealed') {
+    if (kind === 'damage' || kind === 'combat_response') {
+      pumpFlyingCards()
+      return
+    }
+
+    if (kind === 'draw') {
       dropActiveFlyingCards()
       pumpFlyingCards()
     }
@@ -298,6 +337,113 @@ export const useBattleFxStore = defineStore('battlefx', () => {
 
   function clearBattlefieldReveals() {
     battlefieldRevealClearToken.value += 1
+  }
+
+  function settleFlyingCardToBattlefield(id: number) {
+    if (!flyingCards.value.some((item) => item.id === id)) return
+    flyingCards.value = flyingCards.value.filter((item) => item.id !== id)
+    pumpFlyingCards()
+  }
+
+  function addSkillAnnouncement(actorId: string, actorName: string, skillName: string, effectText: string) {
+    const normalizedActorId = String(actorId || '').trim()
+    const normalizedSkillName = String(skillName || '').trim()
+    const normalizedEffectText = String(effectText || '').trim()
+    if (!normalizedActorId || !normalizedSkillName) return
+    const isGenericEffect = (text: string) => text === '技能发动' || text === '技能效果生效'
+    const shouldReplaceEffect = (current: string, next: string) => !!next && (isGenericEffect(current) || next.length > current.length)
+
+    const active = skillAnnouncements.value.find((item) =>
+      item.actorId === normalizedActorId &&
+      item.skillName === normalizedSkillName &&
+      Date.now() - item.startedAt < 3200
+    )
+    if (active) {
+      active.actorName = actorName || normalizedActorId
+      if (shouldReplaceEffect(active.effectText, normalizedEffectText)) {
+        active.effectText = normalizedEffectText
+      }
+      return
+    }
+
+    const queued = skillAnnouncementQueue.value.find((item) =>
+      item.actorId === normalizedActorId &&
+      item.skillName === normalizedSkillName
+    )
+    if (queued) {
+      queued.actorName = actorName || normalizedActorId
+      if (shouldReplaceEffect(queued.effectText, normalizedEffectText)) {
+        queued.effectText = normalizedEffectText
+      }
+      return
+    }
+
+    skillAnnouncementQueue.value.push({
+      actorId: normalizedActorId,
+      actorName: actorName || normalizedActorId,
+      skillName: normalizedSkillName,
+      effectText: normalizedEffectText || '技能效果生效',
+    })
+    pumpSkillAnnouncements()
+  }
+
+  function removeSkillAnnouncement(id: number) {
+    skillAnnouncements.value = skillAnnouncements.value.filter((item) => item.id !== id)
+    const timer = skillAnnouncementRemovalTimers.get(id)
+    if (timer) {
+      clearTimeout(timer)
+      skillAnnouncementRemovalTimers.delete(id)
+    }
+  }
+
+  function pumpSkillAnnouncements() {
+    if (skillAnnouncements.value.some((item) => item.phase === 'featured')) return
+    if (skillAnnouncementQueue.value.length === 0) return
+    const next = skillAnnouncementQueue.value.shift()
+    if (!next) return
+
+    skillAnnouncementId++
+    const id = skillAnnouncementId
+    skillAnnouncements.value = [
+      ...skillAnnouncements.value,
+      {
+        id,
+        actorId: next.actorId,
+        actorName: next.actorName,
+        skillName: next.skillName,
+        effectText: next.effectText,
+        phase: 'featured',
+        startedAt: Date.now(),
+      },
+    ]
+
+    const featuredMs = cinematicMode.value ? 1650 : 1100
+    clearSkillAnnouncementTimer()
+    skillAnnouncementTimer = setTimeout(() => {
+      const item = skillAnnouncements.value.find((entry) => entry.id === id)
+      if (!item) {
+        skillAnnouncementTimer = null
+        pumpSkillAnnouncements()
+        return
+      }
+      item.phase = 'settled'
+      skillAnnouncementTimer = null
+
+      const removalMs = cinematicMode.value ? 7000 : 5200
+      const removalTimer = setTimeout(() => {
+        removeSkillAnnouncement(id)
+      }, removalMs)
+      skillAnnouncementRemovalTimers.set(id, removalTimer)
+
+      pumpSkillAnnouncements()
+    }, featuredMs)
+  }
+
+  function clearSkillAnnouncements() {
+    skillAnnouncementQueue.value = []
+    skillAnnouncements.value = []
+    clearSkillAnnouncementTimer()
+    clearSkillAnnouncementRemovalTimers()
   }
 
   function pumpFlyingCards() {
@@ -442,6 +588,7 @@ export const useBattleFxStore = defineStore('battlefx', () => {
 
   function clearForGameEnd() {
     clearBattlefieldReveals()
+    clearSkillAnnouncements()
     drawBursts.value = []
     for (const timer of drawBurstTimers.values()) clearTimeout(timer)
     drawBurstTimers.clear()
@@ -456,6 +603,7 @@ export const useBattleFxStore = defineStore('battlefx', () => {
 
   function reset() {
     clearBattlefieldReveals()
+    clearSkillAnnouncements()
     flyingCards.value = []
     flyingCardsQueue.value = []
     if (flyingCardsTimer) {
@@ -482,6 +630,7 @@ export const useBattleFxStore = defineStore('battlefx', () => {
     combatCue,
     initiatorFocus,
     damageEffects,
+    skillAnnouncements,
     startAttackInitiatorFocus,
     resolveAttackInitiatorFocus,
     startSkillInitiatorFocus,
@@ -492,6 +641,9 @@ export const useBattleFxStore = defineStore('battlefx', () => {
     syncInitiatorFocusWithState,
     addFlyingCards,
     clearBattlefieldReveals,
+    settleFlyingCardToBattlefield,
+    addSkillAnnouncement,
+    clearSkillAnnouncements,
     addDrawBurst,
     addDamageEffect,
     addCombatCue,

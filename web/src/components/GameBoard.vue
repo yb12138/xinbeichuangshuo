@@ -72,7 +72,6 @@ const {
   selectedTargets,
   promptCounterTarget,
   errorMessage,
-  skillEffectToast,
   actionMode,
   magicSubChoice,
   selectedHandIndexForAction,
@@ -2534,15 +2533,6 @@ const fighterHundredDragonByPlayer = computed(() => {
         {{ errorMessage }}
       </div>
     </Transition>
-    <Transition name="toast">
-      <div 
-        v-if="skillEffectToast" 
-        class="toast skill"
-      >
-        {{ skillEffectToast }}
-      </div>
-    </Transition>
-
     <!-- 伤害结算通知弹框 -->
 
     <!-- 技能详情中央弹窗（所有人可查看任意角色） -->

@@ -289,6 +289,111 @@ func TestBladeMaster_GaleSkillExtraAction_PreservedWhenWindFuryCanceled(t *testi
 	}
 }
 
+func TestBladeMaster_GaleSkillAndWindFury_ConsumesExactlyTwoExtraAttacks(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "BladeMaster", "blade_master", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Dummy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	game.State.CurrentTurn = 0
+	game.State.Deck = rules.InitDeck()
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p2.Heal = 0
+
+	p1.Hand = []model.Card{
+		{
+			ID:              "gale-attack",
+			Name:            "疾风斩",
+			Type:            model.CardTypeAttack,
+			Element:         model.ElementWind,
+			Damage:          1,
+			ExclusiveChar1:  "blade_master",
+			ExclusiveSkill1: "疾风技",
+		},
+		{ID: "plain-extra-attack", Name: "火斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 1},
+		{ID: "wind-fury-attack", Name: "风斩", Type: model.CardTypeAttack, Element: model.ElementWind, Damage: 1},
+	}
+
+	if err := game.HandleAction(model.PlayerAction{
+		PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardID: testutils.PlayableCardID(t, game, "p1", 0),
+	}); err != nil {
+		t.Fatalf("gale attack failed: %v", err)
+	}
+	if err := game.HandleAction(model.PlayerAction{
+		PlayerID: "p2", Type: model.CmdRespond, ExtraArgs: []string{"take"},
+	}); err != nil {
+		t.Fatalf("gale take failed: %v", err)
+	}
+	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptResponseSkill {
+		t.Fatalf("expected wind_fury prompt, got %+v", game.State.PendingInterrupt)
+	}
+	if len(game.State.PendingInterrupt.SkillIDs) != 1 || game.State.PendingInterrupt.SkillIDs[0] != "wind_fury" {
+		t.Fatalf("expected only wind_fury, got %+v", game.State.PendingInterrupt.SkillIDs)
+	}
+	if err := game.HandleAction(model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{0},
+	}); err != nil {
+		t.Fatalf("confirm wind_fury failed: %v", err)
+	}
+	if got := len(p1.TurnState.PendingActions); got != 1 {
+		t.Fatalf("expected one queued extra token after first token becomes current, got %d", got)
+	}
+	if got := p1.TurnState.CurrentExtraAction; got != string(model.ActionAttack) {
+		t.Fatalf("expected first extra attack window, got %q", got)
+	}
+
+	if err := game.HandleAction(model.PlayerAction{
+		PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardID: testutils.PlayableCardID(t, game, "p1", 0),
+	}); err != nil {
+		t.Fatalf("first extra attack failed: %v", err)
+	}
+	if err := game.HandleAction(model.PlayerAction{
+		PlayerID: "p2", Type: model.CmdRespond, ExtraArgs: []string{"take"},
+	}); err != nil {
+		t.Fatalf("first extra take failed: %v", err)
+	}
+	if game.State.PendingInterrupt != nil {
+		t.Fatalf("did not expect response after first extra attack, got %+v", game.State.PendingInterrupt)
+	}
+	if game.State.CurrentTurn != 0 || p1.TurnState.CurrentExtraAction != string(model.ActionAttack) {
+		t.Fatalf("expected second extra attack window, turn=%d current=%q", game.State.CurrentTurn, p1.TurnState.CurrentExtraAction)
+	}
+
+	if err := game.HandleAction(model.PlayerAction{
+		PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardID: testutils.PlayableCardID(t, game, "p1", 0),
+	}); err != nil {
+		t.Fatalf("second extra attack failed: %v", err)
+	}
+	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptHolySwordDraw {
+		t.Fatalf("expected holy sword draw prompt after third forced-hit attack, got %+v", game.State.PendingInterrupt)
+	}
+	if err := game.HandleAction(model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{0},
+	}); err != nil {
+		t.Fatalf("resolve holy sword x=0 failed: %v", err)
+	}
+
+	if game.State.CurrentTurn == 0 {
+		t.Fatalf("expected blade master turn to end after exactly two extra attacks; current=%q pending=%d hand=%d stage=%s",
+			p1.TurnState.CurrentExtraAction, len(p1.TurnState.PendingActions), len(p1.Hand), game.State.TurnStage)
+	}
+	if p1.TurnState.CurrentExtraAction != "" || len(p1.TurnState.PendingActions) != 0 {
+		t.Fatalf("expected no leftover extra action state, current=%q pending=%d", p1.TurnState.CurrentExtraAction, len(p1.TurnState.PendingActions))
+	}
+}
+
 // 回归测试：攻击被圣盾抵挡（未命中）时，取消风怒追击也不应吞掉疾风技额外行动。
 func TestBladeMaster_GaleSkillExtraAction_PreservedWhenWindFuryCanceled_AfterShieldMiss(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})

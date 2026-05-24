@@ -333,6 +333,51 @@ describe('createGameplayMessageHandlers', () => {
     )
   })
 
+  it('turns skill logs into battle announcements instead of skill toasts', () => {
+    const { handlers, battleFxStore, battleReviewStore, interruptStore, snapshotStore } = buildHandlers()
+    snapshotStore.updateGameState({
+      turn_stage: 'ActionExecution',
+      current_player: 'p1',
+      has_performed_startup: true,
+      players: {
+        p1: buildSyncPlayer('p1', 'Red'),
+        p2: buildSyncPlayer('p2', 'Blue'),
+      },
+      red_morale: 15,
+      blue_morale: 15,
+      red_cups: 0,
+      blue_cups: 0,
+      red_gems: 0,
+      blue_gems: 0,
+      red_crystals: 0,
+      blue_crystals: 0,
+      deck_count: 30,
+      discard_count: 0,
+      available_skills: [],
+    })
+
+    handlers.handleGameplayEvent({
+      event_type: 'log',
+      message: 'Alice 发动 [苍炎法典]，先对 Bob 后对自己各造成2点法术伤害',
+    })
+
+    expect(interruptStore.skillEffectToast).toBe('')
+    expect(battleFxStore.skillAnnouncements).toHaveLength(1)
+    expect(battleFxStore.skillAnnouncements[0]).toMatchObject({
+      actorId: 'p1',
+      actorName: 'Alice',
+      skillName: '苍炎法典',
+      effectText: '先对 Bob 后对自己各造成2点法术伤害',
+      phase: 'featured',
+    })
+    expect(battleReviewStore.battleFeed[battleReviewStore.battleFeed.length - 1]).toMatchObject({
+      type: 'skill',
+      title: 'Alice 发动「苍炎法典」',
+      detail: '先对 Bob 后对自己各造成2点法术伤害',
+      actorId: 'p1',
+    })
+  })
+
   it('replays damage timeline payloads into effects without adding battle feed entries', () => {
     const { handlers, timelineStore, battleFxStore } = buildHandlers()
 

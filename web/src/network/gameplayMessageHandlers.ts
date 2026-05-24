@@ -58,6 +58,36 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
     return undefined
   }
 
+  const cleanLogMessage = (message: string) => {
+    return String(message || '').replace(/^\[[^\]]+\]\s*/, '').trim()
+  }
+
+  const parseSkillAnnouncementFromLog = (message: string) => {
+    const normalized = cleanLogMessage(message)
+    if (!normalized) return null
+
+    const directUse = message.match(/^\[Skill\]\s*(.+?)\s*使用了技能[:：]\s*(.+?)\s*$/)
+    if (directUse) {
+      return {
+        actorToken: directUse[1]?.trim() || '',
+        skillName: directUse[2]?.trim() || '',
+        effectText: '技能发动',
+      }
+    }
+
+    const bracketed = normalized.match(/^(.+?)\s*发动\s*\[([^\]]+)\]\s*[，,:：]?\s*(.*)$/)
+    if (bracketed) {
+      const effectText = bracketed[3]?.trim()
+      return {
+        actorToken: bracketed[1]?.trim() || '',
+        skillName: bracketed[2]?.trim() || '',
+        effectText: effectText || '技能效果生效',
+      }
+    }
+
+    return null
+  }
+
   const parseMoraleHintFromLog = (line: string) => {
     if (!line) return
     const normalized = line.replace(/^\[[^\]]+\]\s*/, '').trim()
@@ -198,17 +228,26 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
         if (event.message) {
           battleReviewStore.addLog(event.message)
           parseMoraleHintFromLog(event.message)
-          const skillActorToken =
-            event.message.match(/^\[Skill\]\s*(.+?)\s*使用了技能[:：]/)?.[1] ||
-            event.message.match(/^(.+?)\s*发动\s*\[[^\]]+\]/)?.[1] ||
-            ''
-          const skillActorId = resolvePlayerIdByToken(skillActorToken)
-          if (skillActorId) {
-            battleFxStore.startSkillInitiatorFocus(skillActorId, 'skill')
-          }
-          const match = event.message.match(/发动\s*\[([^\]]+)\]/)
-          if (match) {
-            interruptStore.showSkillEffectToast(`${match[1]} 技能生效！`)
+          const skillAnnouncement = parseSkillAnnouncementFromLog(event.message)
+          if (skillAnnouncement?.skillName) {
+            const skillActorId = resolvePlayerIdByToken(skillAnnouncement.actorToken)
+            if (skillActorId) {
+              const actorName = playerNameById(skillActorId) || skillAnnouncement.actorToken
+              battleFxStore.startSkillInitiatorFocus(skillActorId, 'skill')
+              battleFxStore.addSkillAnnouncement(
+                skillActorId,
+                actorName,
+                skillAnnouncement.skillName,
+                skillAnnouncement.effectText,
+              )
+              battleReviewStore.addBattleFeed({
+                type: 'skill',
+                title: `${actorName} 发动「${skillAnnouncement.skillName}」`,
+                detail: skillAnnouncement.effectText,
+                actorId: skillActorId,
+                actorName,
+              })
+            }
           }
         }
         break

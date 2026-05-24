@@ -547,6 +547,8 @@ func (e *GameEngine) driveExtraActionStage(currentPid string, player *model.Play
 	} else {
 		// 队列为空，进入回合结束
 		e.Log("[Debug] ExtraAction 队列为空，进入 TurnEnd")
+		player.TurnState.CurrentExtraAction = ""
+		player.TurnState.CurrentExtraElement = nil
 		e.enterTurnEndStage()
 	}
 

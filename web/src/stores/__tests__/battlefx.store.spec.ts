@@ -1,9 +1,20 @@
 import { createPinia, setActivePinia } from 'pinia'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useBattleFxStore } from '../battlefx.store'
 import { useSessionStore } from '../session.store'
 import { useSnapshotStore } from '../snapshot.store'
-import type { GameStateUpdate, PlayerInfo, PlayerView } from '../../types/game'
+import type { Card, GameStateUpdate, PlayerInfo, PlayerView } from '../../types/game'
+
+function buildCard(id: string): Card {
+  return {
+    id,
+    name: id,
+    type: 'Attack',
+    element: 'Fire',
+    damage: 2,
+    description: '',
+  }
+}
 
 function buildPlayer(overrides: Partial<PlayerView> = {}): PlayerView {
   return {
@@ -63,6 +74,12 @@ function buildState(players: Record<string, PlayerView>): GameStateUpdate {
 describe('battlefx store focus side', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.runOnlyPendingTimers()
+    vi.useRealTimers()
   })
 
   it('uses the displayed roster order to resolve focus side', () => {
@@ -89,5 +106,60 @@ describe('battlefx store focus side', () => {
 
     battleFxStore.startSkillInitiatorFocus('p4', 'skill')
     expect(battleFxStore.initiatorFocus?.side).toBe('right')
+  })
+
+  it('shows skill announcements as featured, settles them, then removes them', () => {
+    const battleFxStore = useBattleFxStore()
+
+    battleFxStore.addSkillAnnouncement('p1', 'Alice', '苍炎法典', '对 Bob 造成2点法术伤害')
+
+    expect(battleFxStore.skillAnnouncements).toHaveLength(1)
+    expect(battleFxStore.skillAnnouncements[0]?.phase).toBe('featured')
+    expect(battleFxStore.skillAnnouncements[0]?.skillName).toBe('苍炎法典')
+
+    vi.advanceTimersByTime(1650)
+
+    expect(battleFxStore.skillAnnouncements[0]?.phase).toBe('settled')
+
+    vi.advanceTimersByTime(7000)
+
+    expect(battleFxStore.skillAnnouncements).toHaveLength(0)
+  })
+
+  it('merges repeated skill announcement logs into one richer announcement', () => {
+    const battleFxStore = useBattleFxStore()
+
+    battleFxStore.addSkillAnnouncement('p1', 'Alice', '苍炎法典', '技能发动')
+    battleFxStore.addSkillAnnouncement('p1', 'Alice', '苍炎法典', '先对 Bob 后对自己各造成2点法术伤害')
+
+    expect(battleFxStore.skillAnnouncements).toHaveLength(1)
+    expect(battleFxStore.skillAnnouncements[0]?.effectText).toBe('先对 Bob 后对自己各造成2点法术伤害')
+  })
+
+  it('keeps revealed attack and magic cards queued for battlefield reading', () => {
+    const battleFxStore = useBattleFxStore()
+
+    battleFxStore.addFlyingCards([buildCard('火焰斩')], 'p1', 'Alice', 'attack', false)
+    battleFxStore.addFlyingCards([buildCard('魔弹')], 'p2', 'Bob', 'magic', false)
+
+    expect(battleFxStore.flyingCards).toHaveLength(1)
+    expect(battleFxStore.flyingCards[0]?.cards[0]?.name).toBe('火焰斩')
+
+    battleFxStore.settleFlyingCardToBattlefield(battleFxStore.flyingCards[0]?.id ?? -1)
+
+    expect(battleFxStore.flyingCards).toHaveLength(1)
+    expect(battleFxStore.flyingCards[0]?.cards[0]?.name).toBe('魔弹')
+  })
+
+  it('does not clear revealed cards when damage or response cues arrive', () => {
+    const battleFxStore = useBattleFxStore()
+
+    battleFxStore.addFlyingCards([buildCard('火焰斩')], 'p1', 'Alice', 'attack', false)
+    const activeId = battleFxStore.flyingCards[0]?.id
+
+    battleFxStore.addDamageEffect('p2', 'Bob', 2, 'Attack')
+    battleFxStore.addCombatCue('p1', 'p2', 'take')
+
+    expect(battleFxStore.flyingCards[0]?.id).toBe(activeId)
   })
 })

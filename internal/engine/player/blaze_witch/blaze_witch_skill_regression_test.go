@@ -328,7 +328,7 @@ func TestBlazeWitchRebirthClock_IncreasesOnMagicMoraleLossWithCap(t *testing.T) 
 	}
 }
 
-func TestBlazeWitchFlameForm_ReleasesAtStartup(t *testing.T) {
+func TestBlazeWitchFlameForm_ReleasesAtTurnStart(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "Blaze", "blaze_witch", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -345,15 +345,18 @@ func TestBlazeWitchFlameForm_ReleasesAtStartup(t *testing.T) {
 	p1.Hand = makeBlazeWitchTestCards(5)
 
 	game.State.CurrentTurn = 0
-	game.State.TurnStage = model.TurnStageActionStart
+	game.State.TurnStage = model.TurnStageTurnStart
 
 	game.Drive()
 
 	if got := p1.Form; got != "" {
-		t.Fatalf("expected flame form released at startup, got %q", got)
+		t.Fatalf("expected flame form released at turn start, got %q", got)
 	}
 	if got := p1.TurnState.SkillFlowState["bw_flame_release_pending"]; got != 0 {
 		t.Fatalf("expected flame release flag cleared, got %d", got)
+	}
+	if got := game.State.TurnStage; got != model.TurnStageActionExecution {
+		t.Fatalf("expected drive to continue into action execution after release, got %s", got)
 	}
 }
 

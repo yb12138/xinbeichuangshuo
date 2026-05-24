@@ -73,7 +73,7 @@
 
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
-import { computed, ref, watch, nextTick } from 'vue'
+import { computed, onBeforeUnmount, ref, watch, nextTick } from 'vue'
 import { useBattleFxStore } from '../stores/battlefx.store'
 import CardComponent from './CardComponent.vue'
 import type { Card } from '../types/game'
@@ -121,6 +121,7 @@ interface FlyingCardEntity {
 const displayCards = ref<FlyingCardEntity[]>([])
 const previewCardId = ref<number | null>(null)
 const previewCard = computed(() => displayCards.value.find((item) => item.id === previewCardId.value) ?? null)
+const featuredSettleTimers = new Map<number, ReturnType<typeof setTimeout>>()
 
 type RevealSide = 'top' | 'right' | 'bottom' | 'left'
 
@@ -292,8 +293,29 @@ function settleFeaturedReveals(exceptId?: number) {
     if (item.id === exceptId) continue
     if (item.revealState !== 'featured') continue
     item.revealState = 'settled'
+    cancelFeaturedSettleTimer(item.id)
   }
   nextTick(() => refreshPersistentRevealLayout())
+}
+
+function cancelFeaturedSettleTimer(id: number) {
+  const timer = featuredSettleTimers.get(id)
+  if (!timer) return
+  clearTimeout(timer)
+  featuredSettleTimers.delete(id)
+}
+
+function armFeaturedSettleTimer(id: number) {
+  cancelFeaturedSettleTimer(id)
+  const timer = setTimeout(() => {
+    const item = displayCards.value.find((entry) => entry.id === id)
+    if (item?.persistentBattleReveal && item.revealState === 'featured') {
+      item.revealState = 'settled'
+      nextTick(() => refreshPersistentRevealLayout())
+    }
+    featuredSettleTimers.delete(id)
+  }, 1350)
+  featuredSettleTimers.set(id, timer)
 }
 
 function openPreview(item: FlyingCardEntity) {
@@ -303,6 +325,10 @@ function openPreview(item: FlyingCardEntity) {
 
 function closePreview() {
   previewCardId.value = null
+}
+
+function shouldPersistBattleReveal(hidden?: boolean) {
+  return hidden !== true
 }
 
 watch(flyingCards, (newVals) => {
@@ -322,6 +348,7 @@ watch(flyingCards, (newVals) => {
         const offsetIdx = displayCards.value.length
         const offsetX = offsetIdx * 20
         const offsetY = offsetIdx * 20
+        const isPersistentBattleReveal = shouldPersistBattleReveal(batch.hidden)
 
         const entity: FlyingCardEntity = {
           id: batch.id,
@@ -337,7 +364,8 @@ watch(flyingCards, (newVals) => {
           transform: 'scale(0.3) rotate(-15deg)',
           opacity: 0,
           duration: 0,
-          revealState: batch.hidden ? undefined : 'featured',
+          persistentBattleReveal: isPersistentBattleReveal,
+          revealState: isPersistentBattleReveal ? 'featured' : undefined,
         }
         
         displayCards.value.push(entity)
@@ -346,7 +374,6 @@ watch(flyingCards, (newVals) => {
           void document.body.offsetHeight;
           const el = displayCards.value.find(f => f.id === batch.id)
           if (el) {
-            const isPersistentBattleReveal = !batch.hidden
             const revealPosition = isPersistentBattleReveal
               ? featuredRevealPosition()
               : null
@@ -357,6 +384,10 @@ watch(flyingCards, (newVals) => {
             el.transform = revealPosition ? 'scale(1) rotate(0deg)' : 'scale(1.2) rotate(0deg)'
             el.opacity = 1
             el.persistentBattleReveal = isPersistentBattleReveal
+            if (isPersistentBattleReveal) {
+              armFeaturedSettleTimer(el.id)
+              battleFxStore.settleFlyingCardToBattlefield(el.id)
+            }
           }
         }, 50)
 
@@ -372,6 +403,11 @@ watch(flyingCards, (newVals) => {
   displayCards.value.forEach(fc => {
     if (!currentIds.includes(fc.id) && !fc.isRemoving) {
       if (fc.persistentBattleReveal) {
+        if (fc.revealState === 'featured') {
+          fc.revealState = 'settled'
+          cancelFeaturedSettleTimer(fc.id)
+          nextTick(() => refreshPersistentRevealLayout())
+        }
         return
       }
       fc.isRemoving = true
@@ -428,6 +464,11 @@ watch(flyingCards, (newVals) => {
 
 watch(battlefieldRevealClearToken, () => {
   closePreview()
+  for (const item of displayCards.value) {
+    if (item.persistentBattleReveal) {
+      cancelFeaturedSettleTimer(item.id)
+    }
+  }
   displayCards.value = displayCards.value.filter((item) => !item.persistentBattleReveal)
 })
 
@@ -440,6 +481,13 @@ watch(
   () => displayCards.value.some((item) => item.persistentBattleReveal && item.revealState === 'featured'),
   () => nextTick(() => refreshPersistentRevealLayout())
 )
+
+onBeforeUnmount(() => {
+  for (const timer of featuredSettleTimers.values()) {
+    clearTimeout(timer)
+  }
+  featuredSettleTimers.clear()
+})
 </script>
 
 <style scoped>

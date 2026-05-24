@@ -7,8 +7,18 @@ import RoseCourtyardIcon from './StatusIcons/RoseCourtyardIcon.vue'
 
 const battleFxStore = useBattleFxStore()
 const snapshotStore = useSnapshotStore()
-const { combatCue } = storeToRefs(battleFxStore)
+const { combatCue, skillAnnouncements } = storeToRefs(battleFxStore)
 const { players } = storeToRefs(snapshotStore)
+
+const featuredSkillAnnouncement = computed(() =>
+  skillAnnouncements.value.find((item) => item.phase === 'featured') ?? null
+)
+
+const settledSkillAnnouncements = computed(() =>
+  skillAnnouncements.value
+    .filter((item) => item.phase === 'settled')
+    .slice(-3)
+)
 
 const duelPhaseLabel = computed(() => {
   const phase = combatCue.value?.phase
@@ -49,6 +59,35 @@ const hasRoseCourtyard = computed(() => {
         <span>战区</span>
       </div>
     </div>
+
+    <Transition name="skill-plaque-featured">
+      <div
+        v-if="featuredSkillAnnouncement"
+        :key="featuredSkillAnnouncement.id"
+        class="skill-plaque skill-plaque--featured"
+      >
+        <div class="skill-plaque__glow"></div>
+        <div class="skill-plaque__body">
+          <div class="skill-plaque__eyebrow">{{ featuredSkillAnnouncement.actorName }} 发动技能</div>
+          <div class="skill-plaque__title">{{ featuredSkillAnnouncement.skillName }}</div>
+          <div class="skill-plaque__effect">{{ featuredSkillAnnouncement.effectText }}</div>
+        </div>
+      </div>
+    </Transition>
+
+    <TransitionGroup name="skill-plaque-settled" tag="div" class="skill-plaque-stack">
+      <div
+        v-for="item in settledSkillAnnouncements"
+        :key="item.id"
+        class="skill-plaque skill-plaque--settled"
+      >
+        <div class="skill-plaque__body">
+          <div class="skill-plaque__eyebrow">{{ item.actorName }}</div>
+          <div class="skill-plaque__title">{{ item.skillName }}</div>
+          <div class="skill-plaque__effect">{{ item.effectText }}</div>
+        </div>
+      </div>
+    </TransitionGroup>
   </div>
 </template>
 
@@ -63,6 +102,205 @@ const hasRoseCourtyard = computed(() => {
   border: 1px solid rgba(100, 140, 190, 0.12);
   background: radial-gradient(ellipse 80% 70% at 50% 50%, rgba(30, 60, 100, 0.12), transparent 70%);
   padding: 10px 10px 8px;
+}
+
+.skill-plaque {
+  position: absolute;
+  pointer-events: none;
+  color: #f8ecd1;
+  isolation: isolate;
+}
+
+.skill-plaque::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image:
+    linear-gradient(90deg, rgba(4, 10, 20, 0.28), rgba(4, 10, 20, 0.06), rgba(4, 10, 20, 0.28)),
+    url('/assets/ui/skill-plaque-bg.png');
+  background-size: cover;
+  background-position: center;
+  border-radius: inherit;
+}
+
+.skill-plaque__body {
+  position: relative;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  overflow: hidden;
+}
+
+.skill-plaque__eyebrow {
+  max-width: 100%;
+  color: rgba(244, 219, 165, 0.86);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.15;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.skill-plaque__title {
+  max-width: 100%;
+  color: #fff2c8;
+  font-weight: 900;
+  line-height: 1.05;
+  text-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.88),
+    0 0 18px rgba(235, 179, 88, 0.42);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.skill-plaque__effect {
+  max-width: 100%;
+  color: rgba(235, 240, 246, 0.9);
+  line-height: 1.25;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.86);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.skill-plaque--featured {
+  left: 50%;
+  top: 50%;
+  width: min(520px, calc(100% - 52px));
+  min-height: 126px;
+  padding: 18px 46px;
+  border-radius: 12px;
+  transform: translate(-50%, -50%);
+  z-index: 16;
+  filter: drop-shadow(0 20px 34px rgba(0, 0, 0, 0.44));
+}
+
+.skill-plaque--featured::before {
+  box-shadow:
+    inset 0 0 0 1px rgba(251, 231, 176, 0.42),
+    inset 0 0 36px rgba(255, 208, 116, 0.16),
+    0 0 0 1px rgba(24, 12, 4, 0.42);
+}
+
+.skill-plaque--featured .skill-plaque__body {
+  gap: 8px;
+}
+
+.skill-plaque--featured .skill-plaque__eyebrow {
+  font-size: clamp(11px, 1.35vw, 13px);
+}
+
+.skill-plaque--featured .skill-plaque__title {
+  font-size: clamp(25px, 4.2vw, 42px);
+}
+
+.skill-plaque--featured .skill-plaque__effect {
+  width: min(390px, 100%);
+  font-size: clamp(12px, 1.55vw, 15px);
+  -webkit-line-clamp: 2;
+}
+
+.skill-plaque__glow {
+  position: absolute;
+  inset: -18px 16%;
+  z-index: -2;
+  border-radius: 999px;
+  background: radial-gradient(ellipse at center, rgba(237, 181, 91, 0.3), rgba(237, 181, 91, 0));
+  filter: blur(10px);
+  animation: skillPlaqueGlow 1.1s ease-out both;
+}
+
+.skill-plaque-stack {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  z-index: 12;
+  width: min(300px, calc(100% - 24px));
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.skill-plaque--settled {
+  position: relative;
+  width: min(284px, 100%);
+  min-height: 58px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  filter: drop-shadow(0 10px 16px rgba(0, 0, 0, 0.36));
+}
+
+.skill-plaque--settled::before {
+  opacity: 0.92;
+  box-shadow:
+    inset 0 0 0 1px rgba(236, 211, 154, 0.28),
+    inset 0 0 22px rgba(223, 168, 90, 0.08);
+}
+
+.skill-plaque--settled .skill-plaque__body {
+  align-items: flex-start;
+  text-align: left;
+  gap: 2px;
+}
+
+.skill-plaque--settled .skill-plaque__eyebrow {
+  max-width: 100%;
+  font-size: 10px;
+}
+
+.skill-plaque--settled .skill-plaque__title {
+  max-width: 100%;
+  font-size: 15px;
+}
+
+.skill-plaque--settled .skill-plaque__effect {
+  max-width: 100%;
+  color: rgba(229, 236, 243, 0.78);
+  font-size: 11px;
+  -webkit-line-clamp: 1;
+}
+
+.skill-plaque-featured-enter-active,
+.skill-plaque-featured-leave-active {
+  transition:
+    opacity 0.28s ease,
+    transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1),
+    filter 0.28s ease;
+}
+
+.skill-plaque-featured-enter-from,
+.skill-plaque-featured-leave-to {
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.86);
+  filter: blur(2px) drop-shadow(0 10px 18px rgba(0, 0, 0, 0.3));
+}
+
+.skill-plaque-settled-enter-active,
+.skill-plaque-settled-leave-active {
+  transition:
+    opacity 0.24s ease,
+    transform 0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.skill-plaque-settled-enter-from,
+.skill-plaque-settled-leave-to {
+  opacity: 0;
+  transform: translateX(16px) scale(0.96);
+}
+
+@keyframes skillPlaqueGlow {
+  0% { opacity: 0; transform: scaleX(0.7); }
+  30% { opacity: 1; transform: scaleX(1.05); }
+  100% { opacity: 0.72; transform: scaleX(1); }
 }
 
 .battle-zone-shell > * {
