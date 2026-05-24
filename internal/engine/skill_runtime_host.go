@@ -191,7 +191,11 @@ func (sd *SkillDispatcher) ConsumeSkillEnergyCost(playerID string, gemCost, crys
 	if p == nil {
 		return false
 	}
-	return consumeSkillEnergyCost(p, gemCost, crystalCost)
+	if !consumeSkillEnergyCost(p, gemCost, crystalCost) {
+		return false
+	}
+	sd.engine.recordActionResourceDelta()
+	return true
 }
 
 // dropQueuedOverflowDiscardForPlayer 清理精灵密仪等确认后残留的爆牌弃牌中断。

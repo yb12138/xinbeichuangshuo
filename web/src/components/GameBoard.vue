@@ -1025,6 +1025,9 @@ const promptNeedsTargetGuide = computed(() => {
   ) {
     return targetablePlayers.value.length > 0
   }
+  if (skillMode.value === 'choosing_target' && selectedSkill.value) {
+    return targetablePlayersForSkill.value.length > 0
+  }
   const p = promptGuideContext.value
   if (!p) return false
   if (p.presentation?.kind === 'target_picker') return true
@@ -1043,6 +1046,15 @@ const targetGuideHintText = computed(() => {
     selectedHandIndexForAction.value !== null
   ) {
     return '请选择法术目标'
+  }
+  if (skillMode.value === 'choosing_target' && selectedSkill.value) {
+    const skill = selectedSkill.value
+    const minTargets = (skill.min_targets || 0) > 0 ? skill.min_targets : (skill.target_type >= 2 ? 1 : 0)
+    const maxTargets = (skill.max_targets || 0) > 0 ? skill.max_targets : 1
+    if (minTargets === maxTargets && minTargets > 1) {
+      return `请选择${minTargets}名【${skill.title}】目标`
+    }
+    return `请选择【${skill.title}】目标`
   }
   const p = promptGuideContext.value
   if (!p) return '点击角色选择目标'

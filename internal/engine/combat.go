@@ -88,6 +88,7 @@ func (e *GameEngine) addCampResource(camp model.Camp, resourceType string) bool 
 			currentTotal := e.State.RedCrystals + e.State.RedGems
 			if currentTotal < maxTotalResources {
 				e.State.RedGems++
+				e.recordActionResourceDelta()
 				fmt.Printf("[Combat] 攻击命中！红方阵营获得 1 宝石\n")
 				return true
 			}
@@ -96,6 +97,7 @@ func (e *GameEngine) addCampResource(camp model.Camp, resourceType string) bool 
 			currentTotal := e.State.RedCrystals + e.State.RedGems
 			if currentTotal < maxTotalResources {
 				e.State.RedCrystals++
+				e.recordActionResourceDelta()
 				fmt.Printf("[Combat] 红方阵营获得 1 水晶\n")
 				return true
 			}
@@ -107,6 +109,7 @@ func (e *GameEngine) addCampResource(camp model.Camp, resourceType string) bool 
 			currentTotal := e.State.BlueCrystals + e.State.BlueGems
 			if currentTotal < maxTotalResources {
 				e.State.BlueGems++
+				e.recordActionResourceDelta()
 				fmt.Printf("[Combat] 攻击命中！蓝方阵营获得 1 宝石\n")
 				return true
 			}
@@ -115,6 +118,7 @@ func (e *GameEngine) addCampResource(camp model.Camp, resourceType string) bool 
 			currentTotal := e.State.BlueCrystals + e.State.BlueGems
 			if currentTotal < maxTotalResources {
 				e.State.BlueCrystals++
+				e.recordActionResourceDelta()
 				fmt.Printf("[Combat] 蓝方阵营获得 1 水晶\n")
 				return true
 			}

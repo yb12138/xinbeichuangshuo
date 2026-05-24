@@ -217,6 +217,7 @@ func (e *GameEngine) handleSystemHealChoice(selectionIndex int, ctxData map[stri
 	if healToUse > 0 {
 		target.Heal -= healToUse
 		pd.Damage -= healToUse
+		e.addActionHealUse(target.ID, healToUse)
 		e.Log(fmt.Sprintf("[Combat] %s 使用 %d 点治疗抵消伤害", target.Name, healToUse))
 	} else {
 		e.Log(fmt.Sprintf("[Combat] %s 选择不使用治疗", target.Name))

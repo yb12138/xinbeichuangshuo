@@ -333,7 +333,7 @@ describe('createGameplayMessageHandlers', () => {
     )
   })
 
-  it('replays NotifyTimeline payloads into timeline entries and battle effects', () => {
+  it('replays damage timeline payloads into effects without adding battle feed entries', () => {
     const { handlers, timelineStore, battleFxStore } = buildHandlers()
 
     const payload: TimelineNotifyPayload = {
@@ -363,8 +363,7 @@ describe('createGameplayMessageHandlers', () => {
 
     handlers.handleNotifyTimeline(payload)
 
-    expect(timelineStore.entries).toHaveLength(1)
-    expect(timelineStore.entries[0]?.gameplayType).toBe('damage_dealt')
+    expect(timelineStore.entries).toHaveLength(0)
     expect(battleFxStore.damageEffects).toHaveLength(1)
     expect(battleFxStore.damageEffects[0]?.targetId).toBe('p2')
     expect(battleFxStore.damageEffects[0]?.damage).toBe(3)

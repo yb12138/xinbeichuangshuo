@@ -9,38 +9,77 @@
       </div>
     </div>
 
-    <!-- Flying Cards -->
+    <!-- Flying Cards / battlefield reveal cards -->
     <div
       v-for="fc in displayCards"
       :key="fc.id"
-      class="absolute flex flex-col items-center pointer-events-none"
+      class="absolute flex flex-col items-center"
+      :class="[
+        fc.persistentBattleReveal ? 'pointer-events-auto cursor-zoom-in battlefield-reveal-card' : 'pointer-events-none',
+        fc.revealState === 'featured' ? 'battlefield-reveal-card--featured' : 'battlefield-reveal-card--settled',
+      ]"
       :style="{
         left: fc.x + 'px',
         top: fc.y + 'px',
         transform: fc.transform,
         opacity: fc.opacity,
         transition: `transform ${fc.duration}ms cubic-bezier(0.2, 0.8, 0.2, 1), left ${fc.duration}ms cubic-bezier(0.2, 0.8, 0.2, 1), top ${fc.duration}ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity ${fc.duration}ms linear`,
-        zIndex: 10000
+        zIndex: fc.revealState === 'featured' ? 10025 : 10000
       }"
+      @click.stop="openPreview(fc)"
     >
-      <div class="relative flex">
-        <div v-for="(c, cidx) in fc.cards" :key="cidx" class="relative" :style="{ marginLeft: cidx > 0 ? '-30px' : '0' }">
-          <CardComponent :card="c" :face-down="fc.hidden" small class="shadow-2xl" />
+      <div
+        v-if="fc.persistentBattleReveal"
+        class="battlefield-reveal-owner"
+        :class="`battlefield-reveal-owner--${fc.revealSide || 'bottom'}`"
+      >
+        {{ fc.playerName }}
+      </div>
+      <div class="relative flex battlefield-reveal-stack">
+        <div v-for="(c, cidx) in fc.cards" :key="cidx" class="relative" :style="{ marginLeft: cidx > 0 ? '-24px' : '0' }">
+          <CardComponent
+            :card="c"
+            :face-down="fc.hidden"
+            :small="fc.revealState !== 'featured'"
+            class="shadow-2xl"
+          />
         </div>
       </div>
     </div>
+
+    <Teleport to="body">
+      <div v-if="previewCard" class="battlefield-preview-overlay" @click="closePreview">
+        <div class="battlefield-preview-panel" @click.stop>
+          <div class="battlefield-preview-meta">
+            <div class="battlefield-preview-title">{{ previewCard.playerName }}</div>
+            <div class="battlefield-preview-subtitle">
+              {{ previewCard.hidden ? '暗牌' : '公开牌' }} · {{ actionLabel(previewCard.actionType) }}
+            </div>
+          </div>
+          <div class="battlefield-preview-card-wrap">
+            <CardComponent
+              v-if="previewCard.cards[0]"
+              :card="previewCard.cards[0]"
+              :face-down="previewCard.hidden"
+              class="battlefield-preview-card"
+            />
+          </div>
+          <button type="button" class="battlefield-preview-close" @click="closePreview">关闭</button>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
-import { ref, watch, nextTick } from 'vue'
+import { computed, ref, watch, nextTick } from 'vue'
 import { useBattleFxStore } from '../stores/battlefx.store'
 import CardComponent from './CardComponent.vue'
 import type { Card } from '../types/game'
 
 const battleFxStore = useBattleFxStore()
-const { flyingCards, combatCue, damageEffects } = storeToRefs(battleFxStore)
+const { flyingCards, combatCue, damageEffects, battlefieldRevealClearToken } = storeToRefs(battleFxStore)
 
 interface Explosion {
   id: number
@@ -64,17 +103,54 @@ interface FlyingCardEntity {
   cards: Card[]
   hidden?: boolean
   actionType: string
+  playerId: string
+  playerName: string
   x: number
   y: number
   transform: string
   opacity: number
   duration: number
   isRemoving?: boolean
+  persistentBattleReveal?: boolean
+  revealState?: 'featured' | 'settled'
+  revealSide?: RevealSide
   targetOffsetX?: number
   targetOffsetY?: number
 }
 
 const displayCards = ref<FlyingCardEntity[]>([])
+const previewCardId = ref<number | null>(null)
+const previewCard = computed(() => displayCards.value.find((item) => item.id === previewCardId.value) ?? null)
+
+type RevealSide = 'top' | 'right' | 'bottom' | 'left'
+
+const FEATURED_CARD_WIDTH = 132
+const FEATURED_CARD_HEIGHT = 198
+const SETTLED_CARD_WIDTH = 92
+const SETTLED_CARD_HEIGHT = 138
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max)
+}
+
+function getBoardRect() {
+  return document.querySelector('.board-shell')?.getBoundingClientRect() ?? null
+}
+
+function getBattleRectRelativeToBoard() {
+  const boardRect = getBoardRect()
+  const battleEl = document.querySelector('.center-battle') || document.querySelector('.battle-zone-fill')
+  if (!boardRect || !battleEl) return null
+  const battleRect = battleEl.getBoundingClientRect()
+  return {
+    left: battleRect.left - boardRect.left,
+    top: battleRect.top - boardRect.top,
+    width: battleRect.width,
+    height: battleRect.height,
+    centerX: battleRect.left + battleRect.width / 2 - boardRect.left,
+    centerY: battleRect.top + battleRect.height / 2 - boardRect.top,
+  }
+}
 
 function getElementCenter(selector: string) {
   const el = document.querySelector(selector)
@@ -106,6 +182,129 @@ function getBattleCenter() {
   }
 }
 
+function actionLabel(actionType: string) {
+  const normalized = String(actionType || '').trim().toLowerCase()
+  if (normalized === 'attack') return '攻击'
+  if (normalized === 'magic') return '法术'
+  if (normalized === 'skill') return '技能'
+  if (normalized === 'respond' || normalized === 'counter' || normalized === 'defend') return '响应'
+  if (normalized === 'discard') return '弃置'
+  return normalized || '出牌'
+}
+
+function resolveRevealSide(playerCenter: { x: number; y: number } | null, battle: NonNullable<ReturnType<typeof getBattleRectRelativeToBoard>>): RevealSide {
+  if (!playerCenter) return 'bottom'
+  const dx = playerCenter.x - battle.centerX
+  const dy = playerCenter.y - battle.centerY
+  return Math.abs(dx) > Math.abs(dy)
+    ? (dx < 0 ? 'left' : 'right')
+    : (dy < 0 ? 'top' : 'bottom')
+}
+
+function revealEntitiesForPlayer(playerId: string) {
+  return displayCards.value
+    .filter((item) => item.persistentBattleReveal && item.playerId === playerId)
+    .sort((a, b) => a.id - b.id)
+}
+
+function persistentRevealPosition(playerId: string, playerCenter: { x: number; y: number } | null, revealIndex?: number) {
+  const battle = getBattleRectRelativeToBoard()
+  if (!battle) {
+    const fallback = getBattleCenter()
+    return { x: fallback.x - SETTLED_CARD_WIDTH / 2, y: fallback.y - SETTLED_CARD_HEIGHT / 2, side: 'bottom' as RevealSide }
+  }
+
+  const side = resolveRevealSide(playerCenter, battle)
+  const siblingIndex = revealIndex ?? revealEntitiesForPlayer(playerId).length
+  const spread = 24
+  const gap = 12
+
+  let x = battle.centerX - SETTLED_CARD_WIDTH / 2
+  let y = battle.centerY - SETTLED_CARD_HEIGHT / 2
+
+  if (side === 'left' || side === 'right') {
+    y = (playerCenter?.y ?? battle.centerY) - SETTLED_CARD_HEIGHT / 2 + siblingIndex * spread
+    y = clamp(y, battle.top + gap, battle.top + battle.height - SETTLED_CARD_HEIGHT - gap)
+    x = side === 'left'
+      ? battle.left + gap + siblingIndex * 5
+      : battle.left + battle.width - SETTLED_CARD_WIDTH - gap - siblingIndex * 5
+  } else {
+    x = (playerCenter?.x ?? battle.centerX) - SETTLED_CARD_WIDTH / 2 + siblingIndex * spread
+    x = clamp(x, battle.left + gap, battle.left + battle.width - SETTLED_CARD_WIDTH - gap)
+    y = side === 'top'
+      ? battle.top + gap + siblingIndex * 4
+      : battle.top + battle.height - SETTLED_CARD_HEIGHT - gap - siblingIndex * 4
+  }
+
+  return { x, y, side }
+}
+
+function featuredRevealPosition() {
+  const battle = getBattleRectRelativeToBoard()
+  if (!battle) {
+    const fallback = getBattleCenter()
+    return {
+      x: fallback.x - FEATURED_CARD_WIDTH / 2,
+      y: fallback.y - FEATURED_CARD_HEIGHT / 2,
+      side: undefined,
+    }
+  }
+  return {
+    x: battle.centerX - FEATURED_CARD_WIDTH / 2,
+    y: battle.centerY - FEATURED_CARD_HEIGHT / 2,
+    side: undefined,
+  }
+}
+
+function refreshPersistentRevealLayout() {
+  const persistent = displayCards.value
+    .filter((item) => item.persistentBattleReveal)
+    .sort((a, b) => a.id - b.id)
+  const playerCounts = new Map<string, number>()
+  for (const item of persistent) {
+    if (item.revealState === 'featured') {
+      const position = featuredRevealPosition()
+      item.duration = 260
+      item.x = position.x
+      item.y = position.y
+      item.revealSide = undefined
+      item.transform = 'scale(1) rotate(0deg)'
+      item.opacity = 1
+      continue
+    }
+
+    const revealIndex = playerCounts.get(item.playerId) ?? 0
+    playerCounts.set(item.playerId, revealIndex + 1)
+    const playerCenter = getElementCenter(`[data-player-anchor="${item.playerId}"]`)
+    const position = persistentRevealPosition(item.playerId, playerCenter, revealIndex)
+    item.duration = 260
+    item.x = position.x
+    item.y = position.y
+    item.revealSide = position.side
+    item.transform = 'scale(1) rotate(0deg)'
+    item.opacity = 1
+  }
+}
+
+function settleFeaturedReveals(exceptId?: number) {
+  for (const item of displayCards.value) {
+    if (!item.persistentBattleReveal) continue
+    if (item.id === exceptId) continue
+    if (item.revealState !== 'featured') continue
+    item.revealState = 'settled'
+  }
+  nextTick(() => refreshPersistentRevealLayout())
+}
+
+function openPreview(item: FlyingCardEntity) {
+  if (!item.persistentBattleReveal) return
+  previewCardId.value = item.id
+}
+
+function closePreview() {
+  previewCardId.value = null
+}
+
 watch(flyingCards, (newVals) => {
   // 1. 处理新增的卡牌
   newVals.forEach(batch => {
@@ -128,6 +327,8 @@ watch(flyingCards, (newVals) => {
           id: batch.id,
           cards: batch.cards,
           hidden: batch.hidden,
+          playerId: batch.playerId,
+          playerName: batch.playerName,
           targetOffsetX: offsetX,
           targetOffsetY: offsetY,
           actionType: batch.actionType,
@@ -135,7 +336,8 @@ watch(flyingCards, (newVals) => {
           y: startY,
           transform: 'scale(0.3) rotate(-15deg)',
           opacity: 0,
-          duration: 0
+          duration: 0,
+          revealState: batch.hidden ? undefined : 'featured',
         }
         
         displayCards.value.push(entity)
@@ -144,13 +346,23 @@ watch(flyingCards, (newVals) => {
           void document.body.offsetHeight;
           const el = displayCards.value.find(f => f.id === batch.id)
           if (el) {
+            const isPersistentBattleReveal = !batch.hidden
+            const revealPosition = isPersistentBattleReveal
+              ? featuredRevealPosition()
+              : null
             el.duration = 800 // 速度放慢一倍 (原来是400)
-            el.x = destX - 40 + (el.targetOffsetX || 0)
-            el.y = destY - 60 + (el.targetOffsetY || 0)
-            el.transform = 'scale(1.2) rotate(0deg)'
+            el.x = revealPosition ? revealPosition.x : destX - 40 + (el.targetOffsetX || 0)
+            el.y = revealPosition ? revealPosition.y : destY - 60 + (el.targetOffsetY || 0)
+            el.revealSide = revealPosition?.side
+            el.transform = revealPosition ? 'scale(1) rotate(0deg)' : 'scale(1.2) rotate(0deg)'
             el.opacity = 1
+            el.persistentBattleReveal = isPersistentBattleReveal
           }
         }, 50)
+
+        if (!batch.hidden) {
+          settleFeaturedReveals(batch.id)
+        }
       })
     }
   })
@@ -159,6 +371,9 @@ watch(flyingCards, (newVals) => {
   const currentIds = newVals.map(b => b.id)
   displayCards.value.forEach(fc => {
     if (!currentIds.includes(fc.id) && !fc.isRemoving) {
+      if (fc.persistentBattleReveal) {
+        return
+      }
       fc.isRemoving = true
       
       const cue = combatCue.value
@@ -210,6 +425,21 @@ watch(flyingCards, (newVals) => {
   })
 
 }, { deep: true })
+
+watch(battlefieldRevealClearToken, () => {
+  closePreview()
+  displayCards.value = displayCards.value.filter((item) => !item.persistentBattleReveal)
+})
+
+watch(
+  () => displayCards.value.filter((item) => item.persistentBattleReveal).map((item) => `${item.id}:${item.playerId}:${item.revealState || ''}`).join('|'),
+  () => nextTick(() => refreshPersistentRevealLayout())
+)
+
+watch(
+  () => displayCards.value.some((item) => item.persistentBattleReveal && item.revealState === 'featured'),
+  () => nextTick(() => refreshPersistentRevealLayout())
+)
 </script>
 
 <style scoped>
@@ -221,6 +451,132 @@ watch(flyingCards, (newVals) => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
+}
+
+.battlefield-reveal-card {
+  filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.42));
+}
+
+.battlefield-reveal-card--featured {
+  transform-origin: center center;
+}
+
+.battlefield-reveal-card--featured .battlefield-reveal-stack {
+  padding: 6px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(14, 28, 44, 0.5), rgba(7, 14, 24, 0.28));
+  box-shadow:
+    inset 0 0 0 1px rgba(240, 219, 160, 0.3),
+    0 10px 28px rgba(0, 0, 0, 0.34);
+}
+
+.battlefield-reveal-card--featured .battlefield-reveal-owner {
+  margin-bottom: 5px;
+}
+
+.battlefield-reveal-card--settled .battlefield-reveal-stack {
+  padding: 3px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(9, 19, 32, 0.42), rgba(5, 10, 18, 0.28));
+  box-shadow:
+    inset 0 0 0 1px rgba(210, 185, 126, 0.22),
+    0 0 0 1px rgba(5, 10, 18, 0.26);
+}
+
+.battlefield-reveal-stack {
+  transition: padding 0.24s ease, border-radius 0.24s ease, box-shadow 0.24s ease, transform 0.24s ease;
+}
+
+.battlefield-reveal-owner {
+  max-width: 92px;
+  margin-bottom: 3px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(224, 198, 128, 0.4);
+  background: rgba(8, 16, 28, 0.72);
+  color: #f8e7b8;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.15;
+  text-align: center;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.battlefield-reveal-owner--bottom {
+  order: 2;
+  margin-top: 3px;
+  margin-bottom: 0;
+}
+
+.battlefield-preview-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 13000;
+  background: rgba(4, 10, 18, 0.78);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+}
+
+.battlefield-preview-panel {
+  width: min(420px, calc(100vw - 32px));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 16px 14px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(10, 18, 30, 0.96), rgba(7, 12, 22, 0.98));
+  box-shadow:
+    0 20px 54px rgba(0, 0, 0, 0.54),
+    inset 0 0 0 1px rgba(226, 197, 128, 0.18);
+}
+
+.battlefield-preview-meta {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.battlefield-preview-title {
+  color: #f7e6ba;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.battlefield-preview-subtitle {
+  color: rgba(219, 230, 243, 0.72);
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.battlefield-preview-card-wrap {
+  transform: scale(1.48);
+  transform-origin: center center;
+  margin: 10px 0 8px;
+}
+
+.battlefield-preview-card {
+  pointer-events: none;
+}
+
+.battlefield-preview-close {
+  border: 1px solid rgba(231, 205, 146, 0.28);
+  border-radius: 999px;
+  background: rgba(15, 26, 42, 0.88);
+  color: #f2e2b6;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 14px;
+  cursor: pointer;
 }
 
 .explosion-effect {

@@ -74,6 +74,7 @@ export const useBattleFxStore = defineStore('battlefx', () => {
   let flyingCardsId = 0
   const flyingCardsQueue = ref<FlyingCardQueueItem[]>([])
   let flyingCardsTimer: ReturnType<typeof setTimeout> | null = null
+  const battlefieldRevealClearToken = ref(0)
 
   const drawBursts = ref<DrawBurstView[]>([])
   let drawBurstId = 0
@@ -244,8 +245,12 @@ export const useBattleFxStore = defineStore('battlefx', () => {
   }
 
   function resolveFlyingHoldMode(actionType: string): 'timed' | 'until_response' | 'until_next_card_or_draw' {
-    if (actionType !== 'discard') return 'until_response'
+    if (normalizeFlyingActionType(actionType) !== 'discard') return 'until_response'
     return 'until_next_card_or_draw'
+  }
+
+  function normalizeFlyingActionType(actionType?: string) {
+    return String(actionType || '').trim().toLowerCase()
   }
 
   function dropActiveFlyingCards() {
@@ -258,7 +263,8 @@ export const useBattleFxStore = defineStore('battlefx', () => {
   }
 
   function notifyFlyingCardsEvent(kind: 'card_revealed' | 'draw' | 'combat_response' | 'damage', actionType?: string) {
-    if (kind === 'card_revealed' && (actionType === 'defend' || actionType === 'counter')) {
+    const normalizedActionType = normalizeFlyingActionType(actionType)
+    if (kind === 'card_revealed' && (normalizedActionType === 'defend' || normalizedActionType === 'counter')) {
       return
     }
 
@@ -276,16 +282,22 @@ export const useBattleFxStore = defineStore('battlefx', () => {
 
   function addFlyingCards(cards: Card[], playerId: string, playerName: string, actionType: string, hidden?: boolean) {
     if (!cards?.length) return
-    notifyFlyingCardsEvent('card_revealed', actionType)
+    const normalizedActionType = normalizeFlyingActionType(actionType)
+    if (normalizedActionType === 'discard' && hidden) return
+    notifyFlyingCardsEvent('card_revealed', normalizedActionType)
     flyingCardsQueue.value.push({
       cards,
       playerId,
       playerName,
-      actionType,
-      holdMode: resolveFlyingHoldMode(actionType),
+      actionType: normalizedActionType,
+      holdMode: resolveFlyingHoldMode(normalizedActionType),
       hidden,
     })
     pumpFlyingCards()
+  }
+
+  function clearBattlefieldReveals() {
+    battlefieldRevealClearToken.value += 1
   }
 
   function pumpFlyingCards() {
@@ -429,6 +441,7 @@ export const useBattleFxStore = defineStore('battlefx', () => {
   }
 
   function clearForGameEnd() {
+    clearBattlefieldReveals()
     drawBursts.value = []
     for (const timer of drawBurstTimers.values()) clearTimeout(timer)
     drawBurstTimers.clear()
@@ -442,6 +455,7 @@ export const useBattleFxStore = defineStore('battlefx', () => {
   }
 
   function reset() {
+    clearBattlefieldReveals()
     flyingCards.value = []
     flyingCardsQueue.value = []
     if (flyingCardsTimer) {
@@ -463,6 +477,7 @@ export const useBattleFxStore = defineStore('battlefx', () => {
 
   return {
     flyingCards,
+    battlefieldRevealClearToken,
     drawBursts,
     combatCue,
     initiatorFocus,
@@ -476,6 +491,7 @@ export const useBattleFxStore = defineStore('battlefx', () => {
     prepareForFlowUpdate,
     syncInitiatorFocusWithState,
     addFlyingCards,
+    clearBattlefieldReveals,
     addDrawBurst,
     addDamageEffect,
     addCombatCue,

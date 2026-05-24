@@ -5,6 +5,7 @@ package engine
 import (
 	"fmt"
 	"sort"
+	"strings"
 
 	"starcup-engine/internal/engine/core/runtimeutil"
 	playerpkg "starcup-engine/internal/engine/player"
@@ -122,7 +123,15 @@ func (e *GameEngine) handleInterruptGiveCardsAction(act model.PlayerAction) (int
 		return intr.ActionResult{}, fmt.Errorf("给牌中断上下文错误")
 	}
 	receiverID, _ := data["receiver_id"].(string)
-	return intr.ActionResult{Consumed: true}, e.resolveGiveCardsInterrupt(act.PlayerID, receiverID, act.Selections)
+	selections := act.Selections
+	if len(selections) == 0 && len(act.CardIDs) > 0 {
+		var err error
+		selections, err = e.giveCardSelectionsFromCardIDs(act.PlayerID, act.CardIDs)
+		if err != nil {
+			return intr.ActionResult{}, err
+		}
+	}
+	return intr.ActionResult{Consumed: true}, e.resolveGiveCardsInterrupt(act.PlayerID, receiverID, selections)
 }
 
 // GetCurrentPrompt 获取当前用户交互提示。
@@ -274,6 +283,42 @@ func (e *GameEngine) resolveGiveCardsInterrupt(giverID, receiverID string, indic
 	e.CheckHandLimitCtx(receiver, overflowCtx)
 	e.Log(fmt.Sprintf("[Debug] 给牌完成，队列中还有 %d 个中断", len(e.State.InterruptQueue)))
 	return nil
+}
+
+func (e *GameEngine) giveCardSelectionsFromCardIDs(giverID string, cardIDs []string) ([]int, error) {
+	giver := e.State.Players[giverID]
+	if giver == nil {
+		return nil, fmt.Errorf("玩家不存在")
+	}
+	if len(cardIDs) == 0 {
+		return nil, nil
+	}
+
+	seen := make(map[int]bool, len(cardIDs))
+	indices := make([]int, 0, len(cardIDs))
+	for _, rawCardID := range cardIDs {
+		cardID := strings.TrimSpace(rawCardID)
+		if cardID == "" {
+			return nil, fmt.Errorf("无效的卡牌ID")
+		}
+
+		foundIndex := -1
+		for idx, card := range giver.Hand {
+			if strings.TrimSpace(card.ID) == cardID {
+				foundIndex = idx
+				break
+			}
+		}
+		if foundIndex < 0 {
+			return nil, fmt.Errorf("卡牌 %q 不在当前可选列表中", cardID)
+		}
+		if seen[foundIndex] {
+			return nil, fmt.Errorf("不能重复选择同一张牌")
+		}
+		seen[foundIndex] = true
+		indices = append(indices, foundIndex)
+	}
+	return indices, nil
 }
 
 // SkipResponse 跳过响应阶段。

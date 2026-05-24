@@ -45,6 +45,9 @@ export const useTimelineStore = defineStore('timeline', () => {
 
   function buildFeedType(event: TimelineEvent): TimelineFeedType {
     const actionType = normalizeActionType(event.action_type)
+    if (event.gameplay_type === 'log' && isSkillTimelineLog(event.message)) {
+      return 'skill'
+    }
     switch (event.type) {
       case 'TimelineCombatResolved':
         return 'damage'
@@ -98,13 +101,28 @@ export const useTimelineStore = defineStore('timeline', () => {
     }
   }
 
+  function isSkillTimelineLog(message?: string): boolean {
+    const text = String(message || '').trim()
+    if (!text) return false
+    if (/^\[(Debug|System|Damage|Draw|Interrupt|Warn|Action)\]/.test(text)) return false
+    if (/^\[Skill\]\s*.+?\s*使用了技能[:：]/.test(text)) return false
+    return (
+      /^.+?\s*发动\s*\[[^\]]+\]/.test(text) ||
+      /^.+?\s*的\s*\[[^\]]+\]\s*生效/.test(text) ||
+      /^\[Skill\]\s*.+?\s*发动\s*\[[^\]]+\]/.test(text)
+    )
+  }
+
   function shouldDisplayTimelineEvent(event: TimelineEvent): boolean {
     switch (event.gameplay_type) {
+      case 'log':
+        return isSkillTimelineLog(event.message)
       case 'action_step':
         return event.detail_kind === 'summary'
       case 'card_revealed':
-      case 'damage_dealt':
+        return true
       case 'draw_cards':
+        return event.reason !== 'damage_draw'
       case 'game_end':
         return true
       default:

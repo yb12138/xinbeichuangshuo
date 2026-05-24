@@ -248,6 +248,9 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
             battleReviewStore.addLog(`游戏结束: ${fallbackEndMsg}`)
           }
           const nextCurrent = event.state.current_player
+          if (nextCurrent && nextCurrent !== prevCurrent) {
+            battleFxStore.clearBattlefieldReveals()
+          }
           if (nextCurrent && event.state.turn_stage === 'ActionExecution') {
             battleFxStore.startActingPlayerFocus(nextCurrent, 'turn')
           }

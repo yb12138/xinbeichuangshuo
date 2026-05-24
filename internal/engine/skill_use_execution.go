@@ -123,6 +123,7 @@ func buildFieldCardMeta(use *skillUseRequest, placedCard model.Card) map[string]
 
 func (e *GameEngine) consumeSkillEnergyCost(use *skillUseRequest) error {
 	if consumeSkillEnergyCost(use.player, use.skillDef.CostGem, use.skillDef.CostCrystal) {
+		e.recordActionResourceDelta()
 		return nil
 	}
 	return fmt.Errorf(
@@ -158,6 +159,7 @@ func (e *GameEngine) executeSkillFlow(use *skillUseRequest) error {
 	if err := handler.Execute(ctx); err != nil {
 		return fmt.Errorf("skill execution failed: %v", err)
 	}
+	e.recordActionResourceDelta()
 	e.DispatchOrientationChanges(beforePoses)
 	if use.policy.AfterExecute != nil {
 		if err := use.policy.AfterExecute(enginePolicyHost{e: e}, use.policyContext()); err != nil {

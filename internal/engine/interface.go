@@ -35,6 +35,7 @@ func (e *GameEngine) ModifyGem(camp string, amount int) {
 			}
 		}
 	}
+	e.recordActionResourceDelta()
 }
 
 func (e *GameEngine) ModifyCrystal(camp string, amount int) {
@@ -56,6 +57,7 @@ func (e *GameEngine) ModifyCrystal(camp string, amount int) {
 			}
 		}
 	}
+	e.recordActionResourceDelta()
 }
 
 // GetUsableCrystal 返回“可用于支付蓝水晶消耗”的总量：
@@ -89,7 +91,11 @@ func (e *GameEngine) CanPayCrystalCost(playerID string, amount int) bool {
 // ConsumeCrystalCost 结算“蓝水晶消耗，可由红宝石替代”。
 // 扣除顺序：优先蓝水晶，再扣红宝石。
 func (e *GameEngine) ConsumeCrystalCost(playerID string, amount int) bool {
-	return resource.SpendCrystalCost(e.State.Players[playerID], amount)
+	if !resource.SpendCrystalCost(e.State.Players[playerID], amount) {
+		return false
+	}
+	e.recordActionResourceDelta()
+	return true
 }
 
 // canPaySkillEnergyCost 规则：

@@ -386,6 +386,60 @@ describe('GameBoard target picker', () => {
     expect(screen.getByTestId('player-area-p3')).toBeDisabled()
   })
 
+  it('pulses selectable enemies while choosing destruction storm targets', () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const me = buildPlayer({ id: 'p1', name: '魔法少女', camp: 'Red', role: 'magical_girl' })
+    const enemyA = buildPlayer({ id: 'p2', name: '目标A', camp: 'Blue', role: 'fighter' })
+    const enemyB = buildPlayer({ id: 'p3', name: '目标B', camp: 'Blue', role: 'fighter' })
+    const ally = buildPlayer({ id: 'p4', name: '队友', camp: 'Red', role: 'fighter' })
+    const players = { p1: me, p2: enemyA, p3: enemyB, p4: ally }
+
+    const destructionStorm: AvailableSkill = {
+      id: 'destruction_storm',
+      title: '毁灭风暴',
+      description: '［宝石］对任2名目标对手各造成2点法术伤害③。',
+      min_targets: 2,
+      max_targets: 2,
+      target_type: 2,
+      cost_gem: 1,
+      cost_crystal: 0,
+      cost_discards: 0,
+    }
+
+    useSessionStore().setRoomInfo('ROOM1', 'p1', 'Red', 'magical_girl')
+    useSessionStore().updateRoomPlayers(Object.values(players).map(buildPlayerInfo), 'p1')
+    useSnapshotStore().updateGameState(buildState(players))
+    const interruptStore = useInterruptStore()
+    interruptStore.setSelectedSkill(destructionStorm)
+    interruptStore.setSkillMode('choosing_target')
+
+    render(GameBoard, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          PlayerArea: PlayerAreaStub,
+          ActionPanel: true,
+          BattleZone: true,
+          CardComponent: true,
+          SkillDetailModal: true,
+          VfxLayer: true,
+          ActionTimeline: true,
+          StatusEffectIcon: true,
+        },
+      },
+    })
+
+    expect(screen.getByTestId('player-area-p2')).not.toBeDisabled()
+    expect(screen.getByTestId('player-area-p3')).not.toBeDisabled()
+    expect(screen.getByTestId('player-area-p4')).toBeDisabled()
+    expect(screen.getByTestId('player-area-p2').closest('.target-guide-pulse')).not.toBeNull()
+    expect(screen.getByTestId('player-area-p3').closest('.target-guide-pulse')).not.toBeNull()
+    expect(screen.getByTestId('player-area-p4').closest('.target-guide-pulse')).toBeNull()
+    expect(screen.getByText('请选择2名【毁灭风暴】目标')).toBeTruthy()
+  })
+
   it('only allows matching hand cards for exclusive skill selection', async () => {
     const pinia = createPinia()
     setActivePinia(pinia)
