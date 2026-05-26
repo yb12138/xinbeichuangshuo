@@ -521,6 +521,9 @@ export const useBattleFxStore = defineStore('battlefx', () => {
 
       if ((visualKind === 'effect_token' || visualKind === 'action_marker') && actorId) {
         const title = event.field_card?.card?.name || event.summary || event.extra_action_type || event.effect_type || '效果'
+        for (const targetId of targetIds) {
+          addNarrativeLink({ type: 'actor', id: actorId }, targetId, 'skill')
+        }
         addNarrativeEvent({
           timelineEventId: eventId,
           kind: 'skill',

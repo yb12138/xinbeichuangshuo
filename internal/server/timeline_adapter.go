@@ -30,6 +30,16 @@ func (r *Room) buildTimelineNotify(payload timeline.Payload) TimelineNotifyPaylo
 		payload.Trace = r.inheritActiveNarrativeTrace()
 	}
 	eventID, chainID, turnID, turnStage, combatStage, subflow := r.nextTimelineEventMeta()
+	if payload.Trace != nil {
+		switch {
+		case payload.Trace.NarrativeWindowID != "":
+			chainID = payload.Trace.NarrativeWindowID
+		case payload.Trace.ActionID != "":
+			chainID = payload.Trace.ActionID
+		case payload.Trace.CombatID != "":
+			chainID = payload.Trace.CombatID
+		}
+	}
 	event := timeline.BuildEvent(timeline.EventMeta{
 		EventID:     eventID,
 		TurnID:      turnID,

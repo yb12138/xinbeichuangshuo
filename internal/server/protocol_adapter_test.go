@@ -196,6 +196,79 @@ func TestBuildTimelineNotify_DamageEvent(t *testing.T) {
 	}
 }
 
+func TestBuildTimelineNotify_UsesNarrativeWindowAsChainID(t *testing.T) {
+	room := NewRoom("TIMELINE_CHAIN")
+	room.Engine = engine.NewGameEngine(room)
+
+	payload := room.buildTimelineNotify(timeline.Payload{
+		Type:     "timeline_marker",
+		PlayerID: "p1",
+		Trace: &model.NarrativeTracePayload{
+			NarrativeWindowID: "nw-t1-p1",
+			ActionID:          "nw-t1-p1-a1-attack",
+			NarrativeKind:     "action_started",
+			VisualKind:        "action_marker",
+		},
+	})
+
+	if len(payload.Events) != 1 {
+		t.Fatalf("expected 1 timeline event, got %d", len(payload.Events))
+	}
+	event := payload.Events[0]
+	if event.ChainID != "nw-t1-p1" {
+		t.Fatalf("expected narrative window chain id, got %+v", event)
+	}
+	if event.NarrativeWindowID != "nw-t1-p1" || event.ActionID != "nw-t1-p1-a1-attack" {
+		t.Fatalf("expected structured narrative ids, got %+v", event)
+	}
+}
+
+func TestBuildTimelineNotify_FieldDeltaCarriesNarrativeActorAndTarget(t *testing.T) {
+	room := NewRoom("TIMELINE_FIELD")
+	room.Engine = engine.NewGameEngine(room)
+
+	fieldCard := &model.FieldCard{
+		Card:     model.Card{ID: "seal-card", Name: "水之封印", Type: model.CardTypeMagic, Element: model.ElementWater},
+		OwnerID:  "p2",
+		SourceID: "p1",
+		Mode:     model.FieldEffect,
+		Effect:   model.EffectSealWater,
+	}
+	payload := room.buildTimelineNotify(timeline.Payload{
+		Type: "state_delta",
+		Deltas: []TimelineDelta{{
+			Type:         "field_card_added",
+			Scope:        "player",
+			TargetUserID: "p2",
+			FieldCard:    fieldCard,
+		}},
+		Trace: &model.NarrativeTracePayload{
+			NarrativeWindowID: "nw-t1-p1",
+			ActionID:          "nw-t1-p1-a1-skill",
+		},
+	})
+
+	if len(payload.Events) != 1 {
+		t.Fatalf("expected 1 timeline event, got %d", len(payload.Events))
+	}
+	event := payload.Events[0]
+	if event.NarrativeKind != "field_effect_applied" || event.VisualKind != "effect_token" {
+		t.Fatalf("expected field effect narrative token, got %+v", event)
+	}
+	if event.ActorUserID != "p1" {
+		t.Fatalf("expected source actor p1, got %+v", event)
+	}
+	if len(event.TargetUserIDs) != 1 || event.TargetUserIDs[0] != "p2" {
+		t.Fatalf("expected target p2, got %+v", event)
+	}
+	if event.FieldCard == nil || event.FieldCard.Card.Name != "水之封印" {
+		t.Fatalf("expected field card payload, got %+v", event.FieldCard)
+	}
+	if event.EffectType != string(model.EffectSealWater) {
+		t.Fatalf("expected effect type %s, got %q", model.EffectSealWater, event.EffectType)
+	}
+}
+
 func TestBuildTimelineNotify_SelfDamageKeepsTarget(t *testing.T) {
 	room := NewRoom("TIMELINE_SELF_DAMAGE")
 	room.Engine = engine.NewGameEngine(room)

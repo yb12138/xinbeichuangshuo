@@ -735,6 +735,38 @@ describe('createGameplayMessageHandlers', () => {
           damage_type: 'Attack',
           gameplay_type: 'damage_dealt',
         },
+        {
+          event_id: 6,
+          turn_id: 1,
+          chain_id: 'nw-t1-p1',
+          type: 'TimelineEffectResolved',
+          outcome: 'TimelineOutcomeSuccess',
+          visibility: 'TimelineVisibilityPublic',
+          narrative_window_id: 'nw-t1-p1',
+          action_id: 'nw-t1-p1-a2-skill',
+          narrative_kind: 'field_effect_applied',
+          visual_kind: 'effect_token',
+          effect_type: 'SealWater',
+          actor_user_id: 'p3',
+          target_user_ids: ['p2'],
+          field_card: {
+            card: {
+              id: 'seal-card',
+              name: '水之封印',
+              type: 'Magic',
+              element: 'Water',
+              damage: 0,
+              description: '',
+            },
+            owner_id: 'p2',
+            source_id: 'p3',
+            mode: 'Effect',
+            effect: 'SealWater',
+            field_hook: 'OnBeforeAction',
+            locked: false,
+            duration: 0,
+          },
+        },
       ],
     }
 
@@ -748,8 +780,9 @@ describe('createGameplayMessageHandlers', () => {
       actionType: 'attack',
     })
     expect(battleFxStore.actionNarrative?.events.map(event => event.label)).toEqual(
-      expect.arrayContaining(['水之封印：放置水系封印', '造成 2 点伤害']),
+      expect.arrayContaining(['水之封印：放置水系封印', '造成 2 点伤害', '效果：水之封印']),
     )
+    expect(battleFxStore.actionNarrative?.links.some(link => link.fromId === 'p3' && link.toPlayerId === 'p2')).toBe(true)
     expect(battleFxStore.damageEffects).toHaveLength(0)
     expect(battleReviewStore.battleFeed).toHaveLength(0)
   })

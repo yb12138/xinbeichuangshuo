@@ -101,6 +101,7 @@ func BuildEvent(meta EventMeta, payload Payload) protocol.TimelineEvent {
 	}
 	event.Deltas = buildTimelineDeltas(payload)
 	applyDefaultNarrativeFields(&event, payload)
+	applyNarrativeDeltaFields(&event)
 
 	return event
 }
@@ -146,6 +147,35 @@ func applyDefaultNarrativeFields(event *protocol.TimelineEvent, payload Payload)
 	}
 	if event.NarrativeKind == "field_effect_applied" || event.NarrativeKind == "field_effect_removed" {
 		event.VisualKind = firstNonEmptyString(event.VisualKind, "effect_token")
+	}
+}
+
+func applyNarrativeDeltaFields(event *protocol.TimelineEvent) {
+	if event == nil || len(event.Deltas) == 0 {
+		return
+	}
+	for _, delta := range event.Deltas {
+		if delta.FieldCard == nil {
+			continue
+		}
+		if event.FieldCard == nil {
+			fieldCardCopy := *delta.FieldCard
+			event.FieldCard = &fieldCardCopy
+		}
+		if event.EffectType == "" {
+			event.EffectType = string(delta.FieldCard.Effect)
+		}
+		if event.ActorUserID == "" && delta.FieldCard.SourceID != "" {
+			event.ActorUserID = delta.FieldCard.SourceID
+		}
+		if len(event.TargetUserIDs) == 0 {
+			if delta.TargetUserID != "" {
+				event.TargetUserIDs = []string{delta.TargetUserID}
+			} else if delta.FieldCard.OwnerID != "" {
+				event.TargetUserIDs = []string{delta.FieldCard.OwnerID}
+			}
+		}
+		return
 	}
 }
 
