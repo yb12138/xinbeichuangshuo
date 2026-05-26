@@ -3,7 +3,14 @@ import gsap from 'gsap'
 import { storeToRefs } from 'pinia'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useBattleFxStore } from '../stores/battlefx.store'
-import type { ActionNarrativeCardView, ActionNarrativeEventView, NarrativeLinkKind } from '../stores/battlefx.store'
+import type {
+  ActionNarrativeCardView,
+  ActionNarrativeEventView,
+  NarrativeLinkKind,
+  NarrativePlaybackStepKind,
+  NarrativePlaybackStepStatus,
+  NarrativePlaybackStepView,
+} from '../stores/battlefx.store'
 import { useSnapshotStore } from '../stores/snapshot.store'
 import type { PlayerView } from '../types/game'
 import CardComponent from './CardComponent.vue'
@@ -16,7 +23,7 @@ const props = defineProps<{
 
 const battleFxStore = useBattleFxStore()
 const snapshotStore = useSnapshotStore()
-const { actionNarrative, skillAnnouncements } = storeToRefs(battleFxStore)
+const { actionNarrative, narrativePlayback, skillAnnouncements } = storeToRefs(battleFxStore)
 const { characters, players } = storeToRefs(snapshotStore)
 
 const featuredSkillAnnouncement = computed(() =>
@@ -66,7 +73,7 @@ const narrativeLinks = computed(() => actionNarrative.value?.links || [])
 type NarrativeSide = 'left' | 'right'
 type NarrativeRow = 'top' | 'middle' | 'bottom'
 type NarrativeActorRole = 'featured' | 'opposed' | 'settled'
-type NarrativeStackItemKind = 'card' | 'skill'
+type NarrativeStackItemKind = 'card' | 'skill' | 'damage'
 
 interface NarrativeStackItem {
   id: string
@@ -76,10 +83,26 @@ interface NarrativeStackItem {
   actionKind: NarrativeLinkKind
   createdAt: number
   stackIndex: number
+  stepId?: string
+  stepKind?: NarrativePlaybackStepKind
+  stepStatus?: NarrativePlaybackStepStatus
+  isActiveStep?: boolean
+  isContextStep?: boolean
   cardView?: ActionNarrativeCardView
   eventView?: ActionNarrativeEventView
   title?: string
   detail?: string
+  damage?: number
+}
+
+interface NarrativeStepGroup {
+  id: string
+  kind: NarrativePlaybackStepKind
+  label: string
+  status: NarrativePlaybackStepStatus
+  order: number
+  items: NarrativeStackItem[]
+  step?: NarrativePlaybackStepView
 }
 
 interface NarrativeMistSegment {
@@ -110,6 +133,7 @@ let narrativeMistResizeObserver: ResizeObserver | null = null
 let narrativeMistMeasureFrame = 0
 let narrativeGsapContext: gsap.Context | null = null
 let narrativeGsapTimeline: gsap.core.Timeline | null = null
+let lastAnimatedNarrativeStepId = ''
 
 function roleNameForPlayer(playerId?: string) {
   if (!playerId) return ''
@@ -196,6 +220,16 @@ function narrativeActionKindLabel(kind: NarrativeLinkKind) {
   return '发起攻击'
 }
 
+function narrativeCardActionLabel(actionType: string) {
+  const normalized = String(actionType || '').trim().toLowerCase()
+  if (normalized === 'counter') return '应战'
+  if (normalized === 'defend') return '防御'
+  if (normalized === 'shield') return '圣盾'
+  if (normalized === 'magic') return '法术'
+  if (normalized === 'discard' || normalized === 'skill_cost') return '弃牌'
+  return '发起攻击'
+}
+
 function narrativeSettledCardClasses(player: PlayerView) {
   const side = narrativeSideForPlayer(player.id, 'settled')
   const row = narrativeRowForPlayer(player.id)
@@ -216,7 +250,7 @@ function narrativeSettledCardStyle(player: PlayerView) {
 function linkKindForActionType(actionType: string): NarrativeLinkKind {
   const normalized = String(actionType || '').trim().toLowerCase()
   if (normalized === 'counter' || normalized === 'defend' || normalized === 'shield') return 'respond'
-  if (normalized === 'skill' || normalized === 'magic') return 'skill'
+  if (normalized === 'skill' || normalized === 'magic' || normalized === 'discard' || normalized === 'skill_cost') return 'skill'
   return 'attack'
 }
 
@@ -247,6 +281,40 @@ function skillTargetIdsForEvent(event: ActionNarrativeEventView) {
   return [...ids]
 }
 
+function playbackStepForItemId(itemId: string) {
+  return narrativePlayback.value?.steps.find(step => step.itemIds.includes(itemId))
+}
+
+function fallbackStepForItem(item: Omit<NarrativeStackItem, 'stackIndex'>): NarrativePlaybackStepView {
+  const cardAction = item.cardView?.actionType || ''
+  const normalized = String(cardAction).trim().toLowerCase()
+  const kind: NarrativePlaybackStepKind =
+    item.kind === 'damage' ? 'damage' :
+    item.kind === 'card' && ['counter', 'defend', 'shield'].includes(normalized) ? 'response' :
+    item.kind === 'card' && ['discard', 'skill_cost'].includes(normalized) ? 'discard' :
+    item.kind === 'card' ? 'combat' :
+    'skill'
+  return {
+    id: item.id,
+    kind,
+    label: item.kind === 'card' ? narrativeCardActionLabel(cardAction) : item.title || item.eventView?.label || '叙事',
+    actorId: item.sourcePlayerId,
+    targetIds: item.targetIds,
+    itemIds: [item.id],
+    order: item.createdAt,
+    durationMs: 940,
+    status: 'active',
+  }
+}
+
+function previousPlaybackStepId() {
+  const playback = narrativePlayback.value
+  if (!playback?.activeStepId) return undefined
+  const activeIndex = playback.steps.findIndex(step => step.id === playback.activeStepId)
+  if (activeIndex <= 0) return undefined
+  return playback.steps[activeIndex - 1]?.id
+}
+
 const narrativeStackItems = computed<NarrativeStackItem[]>(() => {
   const items: Omit<NarrativeStackItem, 'stackIndex'>[] = [
     ...narrativeCards.value.map((cardView) => ({
@@ -274,12 +342,65 @@ const narrativeStackItems = computed<NarrativeStackItem[]>(() => {
           detail: display.detail,
         }
       }),
+    ...narrativeEvents.value
+      .filter(event => event.kind === 'damage')
+      .map((eventView) => ({
+        id: `damage-${eventView.id}`,
+        kind: 'damage' as const,
+        sourcePlayerId: eventView.actorId || actionNarrative.value?.featuredActorId || actionNarrative.value?.currentActionPlayerId || '',
+        targetIds: eventView.targetId ? [eventView.targetId] : [],
+        actionKind: 'damage' as const,
+        createdAt: eventView.createdAt,
+        eventView,
+        title: '伤害',
+        detail: eventView.label,
+        damage: eventView.damage,
+      })),
   ]
 
   return items
     .filter(item => item.sourcePlayerId)
     .sort((a, b) => a.createdAt - b.createdAt)
-    .map((item, stackIndex) => ({ ...item, stackIndex }))
+    .map((item, stackIndex) => {
+      const step = playbackStepForItemId(item.id) || fallbackStepForItem(item)
+      const contextStepId = previousPlaybackStepId()
+      return {
+        ...item,
+        stackIndex,
+        stepId: step.id,
+        stepKind: step.kind,
+        stepStatus: step.status,
+        isActiveStep: step.status === 'active',
+        isContextStep: step.id === contextStepId,
+      }
+    })
+})
+
+const narrativeStepGroups = computed<NarrativeStepGroup[]>(() => {
+  const groups = new Map<string, NarrativeStepGroup>()
+
+  for (const item of narrativeStackItems.value) {
+    const step = item.stepId ? narrativePlayback.value?.steps.find(entry => entry.id === item.stepId) : undefined
+    const id = item.stepId || item.id
+    const existing = groups.get(id)
+    if (existing) {
+      existing.items.push(item)
+      continue
+    }
+    groups.set(id, {
+      id,
+      kind: step?.kind || item.stepKind || 'skill',
+      label: step?.label || item.title || item.eventView?.label || '叙事',
+      status: step?.status || item.stepStatus || 'active',
+      order: step?.order || item.createdAt,
+      items: [item],
+      step,
+    })
+  }
+
+  return [...groups.values()]
+    .filter(group => group.status !== 'pending' || narrativePlayback.value?.isReview)
+    .sort((a, b) => a.order - b.order || a.id.localeCompare(b.id))
 })
 
 function narrativeStackItemClasses(item: NarrativeStackItem) {
@@ -288,6 +409,9 @@ function narrativeStackItemClasses(item: NarrativeStackItem) {
     `narrative-stack-item--${item.kind}`,
     `narrative-stack-item--${item.actionKind}`,
     `narrative-stack-item--from-${sourceSide}`,
+    item.stepStatus ? `narrative-stack-item--step-${item.stepStatus}` : '',
+    item.isActiveStep ? 'narrative-stack-item--active-step' : '',
+    item.isContextStep ? 'narrative-stack-item--context-step' : '',
     item.stackIndex === narrativeStackItems.value.length - 1 ? 'narrative-stack-item--latest' : '',
   ]
 }
@@ -298,6 +422,13 @@ function narrativeStackItemStyle(item: NarrativeStackItem) {
     '--stack-order': String(item.stackIndex),
     zIndex: String(20 + item.stackIndex),
   }
+}
+
+function narrativeStepGroupClasses(group: NarrativeStepGroup) {
+  return [
+    `narrative-step-group--${group.kind}`,
+    `narrative-step-group--${group.status}`,
+  ]
 }
 
 function findNarrativeElement(kind: 'actor' | 'stack', id: string | number) {
@@ -372,8 +503,12 @@ function latestStackItemForDamage(event: ActionNarrativeEventView) {
 
 const narrativeMistBlueprints = computed(() => {
   const segments: Array<Omit<NarrativeMistSegment, 'x1' | 'y1' | 'x2' | 'y2' | 'path' | 'damageX' | 'damageY' | 'particleSeeds'>> = []
+  const visibleItems = narrativeStackItems.value.filter((item) => {
+    if (narrativePlayback.value?.isReview) return false
+    return !narrativePlayback.value || item.isActiveStep || item.isContextStep
+  })
 
-  for (const item of narrativeStackItems.value) {
+  for (const item of visibleItems) {
     segments.push({
       id: `${item.id}-actor-to-stack`,
       kind: item.actionKind,
@@ -400,7 +535,10 @@ const narrativeMistBlueprints = computed(() => {
     }
   }
 
-  for (const event of narrativeEvents.value.filter(event => event.kind === 'damage' && event.targetId && event.damage)) {
+  for (const event of visibleItems
+    .filter(item => item.kind === 'damage' && item.eventView?.targetId && item.damage)
+    .map(item => item.eventView)
+    .filter((event): event is ActionNarrativeEventView => !!event)) {
     const stackItem = latestStackItemForDamage(event)
     if (!stackItem || !event.targetId) continue
     segments.push({
@@ -507,9 +645,13 @@ function scheduleNarrativeAnimation() {
     narrativeGsapTimeline?.kill()
     narrativeGsapContext?.revert()
     narrativeGsapContext = gsap.context(() => {
-      const stackItems = gsap.utils.toArray<HTMLElement>('.narrative-stack-item')
+      const activeStepId = narrativePlayback.value?.activeStepId || 'fallback'
+      const stackItems = activeStepId === lastAnimatedNarrativeStepId
+        ? []
+        : gsap.utils.toArray<HTMLElement>('.narrative-step-group--active .narrative-stack-item')
       const paths = gsap.utils.toArray<SVGPathElement>('.narrative-mist__flow')
       const particles = gsap.utils.toArray<SVGCircleElement>('.narrative-mist-particle')
+      lastAnimatedNarrativeStepId = activeStepId
 
       if (prefersReducedNarrativeMotion()) {
         gsap.set([...stackItems, ...paths, ...particles], { clearProps: 'all' })
@@ -518,16 +660,18 @@ function scheduleNarrativeAnimation() {
       }
 
       narrativeGsapTimeline = gsap.timeline()
-      narrativeGsapTimeline.from(stackItems, {
-        opacity: 0,
-        x: (_index, target) => Number.parseFloat(getComputedStyle(target).getPropertyValue('--stack-enter-x')) || 0,
-        y: 18,
-        scale: 0.82,
-        rotate: -4,
-        duration: 0.34,
-        stagger: 0.045,
-        ease: 'back.out(1.7)',
-      }, 0)
+      if (stackItems.length) {
+        narrativeGsapTimeline.from(stackItems, {
+          opacity: 0,
+          x: (_index, target) => Number.parseFloat(getComputedStyle(target).getPropertyValue('--stack-enter-x')) || 0,
+          y: 18,
+          scale: 0.82,
+          rotate: -4,
+          duration: 0.34,
+          stagger: 0.045,
+          ease: 'back.out(1.7)',
+        }, 0)
+      }
 
       for (const path of paths) {
         const length = typeof path.getTotalLength === 'function' ? path.getTotalLength() : 0
@@ -678,40 +822,64 @@ function narrativeMistPathDomId(segmentId: string) {
         </div>
       </div>
 
-      <div v-if="actionNarrative" class="narrative-stack-lane">
+      <div
+        v-if="actionNarrative"
+        class="narrative-stack-lane"
+        :class="{ 'narrative-stack-lane--review': narrativePlayback?.isReview }"
+      >
         <div
-          v-for="item in narrativeStackItems"
-          :key="`narrative-stack-${item.id}`"
-          class="narrative-stack-item"
-          :class="narrativeStackItemClasses(item)"
-          :style="narrativeStackItemStyle(item)"
-          :data-narrative-stack-id="item.id"
-          :data-narrative-card-id="item.cardView?.id"
-          :data-narrative-skill-id="item.kind === 'skill' ? item.id : undefined"
+          v-for="group in narrativeStepGroups"
+          :key="`narrative-step-${group.id}`"
+          class="narrative-step-group"
+          :class="narrativeStepGroupClasses(group)"
+          :data-narrative-step-id="group.id"
         >
-          <div
-            v-if="item.cardView"
-            class="narrative-played-card"
-            :class="narrativePlayedCardClasses(item.cardView)"
-          >
-            <CardComponent :card="item.cardView.card" battle-mini />
-            <div class="narrative-stack-item__caption">
-              <span>{{ roleNameForPlayer(item.sourcePlayerId) }}</span>
-              <strong>{{ narrativeActionKindLabel(item.actionKind) }}</strong>
-              <span v-if="item.targetIds[0]">→ {{ roleNameForPlayer(item.targetIds[0]) }}</span>
-            </div>
-          </div>
+          <div class="narrative-step-group__label">{{ group.label }}</div>
+          <div class="narrative-step-group__items">
+            <div
+              v-for="item in group.items"
+              :key="`narrative-stack-${item.id}`"
+              class="narrative-stack-item"
+              :class="narrativeStackItemClasses(item)"
+              :style="narrativeStackItemStyle(item)"
+              :data-narrative-stack-id="item.id"
+              :data-narrative-card-id="item.cardView?.id"
+              :data-narrative-skill-id="item.kind === 'skill' ? item.id : undefined"
+            >
+              <div
+                v-if="item.cardView"
+                class="narrative-played-card"
+                :class="narrativePlayedCardClasses(item.cardView)"
+              >
+                <CardComponent :card="item.cardView.card" battle-mini />
+                <div class="narrative-stack-item__caption">
+                  <span>{{ roleNameForPlayer(item.sourcePlayerId) }}</span>
+                  <strong>{{ narrativeActionKindLabel(item.actionKind) }}</strong>
+                  <span v-if="item.targetIds[0]">→ {{ roleNameForPlayer(item.targetIds[0]) }}</span>
+                </div>
+              </div>
 
-          <div
-            v-else
-            class="narrative-skill-token"
-          >
-            <div class="narrative-skill-token__ring"></div>
-            <div class="narrative-skill-token__body">
-              <span>技能发动</span>
-              <strong>{{ item.title }}</strong>
-              <small v-if="item.detail">{{ item.detail }}</small>
-              <small v-else>{{ roleNameForPlayer(item.sourcePlayerId) }}</small>
+              <div
+                v-else-if="item.kind === 'damage'"
+                class="narrative-damage-token"
+              >
+                <span>伤害</span>
+                <strong>-{{ item.damage }}</strong>
+                <small v-if="item.targetIds[0]">{{ roleNameForPlayer(item.targetIds[0]) }}</small>
+              </div>
+
+              <div
+                v-else
+                class="narrative-skill-token"
+              >
+                <div class="narrative-skill-token__ring"></div>
+                <div class="narrative-skill-token__body">
+                  <span>技能发动</span>
+                  <strong>{{ item.title }}</strong>
+                  <small v-if="item.detail">{{ item.detail }}</small>
+                  <small v-else>{{ roleNameForPlayer(item.sourcePlayerId) }}</small>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -1014,9 +1182,89 @@ function narrativeMistPathDomId(segmentId: string) {
   align-content: center;
   justify-content: center;
   align-items: flex-start;
-  gap: 12px 14px;
+  gap: 10px 12px;
   min-width: 0;
+  overflow: hidden auto;
   pointer-events: none;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(162, 190, 214, 0.32) transparent;
+}
+
+.narrative-stack-lane--review {
+  align-content: flex-start;
+  justify-content: center;
+  padding: 8px 4px;
+}
+
+.narrative-step-group {
+  position: relative;
+  flex: 0 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  max-width: 192px;
+  padding: 6px 7px 7px;
+  border-radius: 10px;
+  border: 1px solid rgba(136, 173, 203, 0.2);
+  background: rgba(4, 12, 22, 0.34);
+  transition:
+    opacity 0.24s ease,
+    transform 0.24s ease,
+    filter 0.24s ease,
+    border-color 0.24s ease,
+    background 0.24s ease;
+}
+
+.narrative-step-group--active {
+  z-index: 4;
+  border-color: rgba(254, 226, 150, 0.58);
+  background: rgba(13, 25, 38, 0.58);
+  filter:
+    drop-shadow(0 12px 22px rgba(0, 0, 0, 0.4))
+    drop-shadow(0 0 15px rgba(246, 220, 153, 0.2));
+  transform: scale(1);
+}
+
+.narrative-step-group--completed {
+  z-index: 1;
+  opacity: 0.58;
+  filter: saturate(0.7);
+  transform: scale(0.84);
+  transform-origin: center center;
+}
+
+.narrative-stack-lane--review .narrative-step-group--completed {
+  opacity: 0.9;
+  transform: scale(0.9);
+}
+
+.narrative-step-group__label {
+  max-width: 100%;
+  overflow: hidden;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(177, 209, 235, 0.22);
+  background: rgba(3, 10, 19, 0.7);
+  color: rgba(231, 241, 249, 0.9);
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.narrative-step-group--active .narrative-step-group__label {
+  color: #ffe8a8;
+  border-color: rgba(251, 226, 153, 0.48);
+}
+
+.narrative-step-group__items {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 8px 10px;
 }
 
 .narrative-stack-item {
@@ -1027,6 +1275,10 @@ function narrativeMistPathDomId(segmentId: string) {
   transform-origin: center center;
   filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.45));
   animation: narrativeStackItemIn 0.32s cubic-bezier(0.2, 0.86, 0.24, 1) both;
+}
+
+.narrative-stack-item--step-completed {
+  animation: none;
 }
 
 .narrative-stack-item--latest {
@@ -1042,6 +1294,10 @@ function narrativeMistPathDomId(segmentId: string) {
 
 .narrative-stack-item--skill {
   width: 112px;
+}
+
+.narrative-stack-item--damage {
+  width: 92px;
 }
 
 .narrative-stack-item--respond .narrative-played-card,
@@ -1149,6 +1405,53 @@ function narrativeMistPathDomId(segmentId: string) {
   color: rgba(218, 232, 255, 0.9);
   font-size: 10px;
   line-height: 1.18;
+}
+
+.narrative-damage-token {
+  width: 92px;
+  min-height: 78px;
+  padding: 10px 9px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 170, 132, 0.58);
+  background:
+    radial-gradient(circle at 50% 18%, rgba(255, 214, 164, 0.2), transparent 38%),
+    linear-gradient(145deg, rgba(89, 30, 28, 0.92), rgba(24, 14, 24, 0.94) 62%, rgba(62, 24, 40, 0.88));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 0 16px rgba(248, 113, 113, 0.34),
+    0 12px 22px rgba(0, 0, 0, 0.44);
+  color: rgba(255, 236, 225, 0.96);
+  text-align: center;
+}
+
+.narrative-damage-token span {
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+  color: rgba(254, 205, 211, 0.86);
+}
+
+.narrative-damage-token strong {
+  font-size: 28px;
+  font-weight: 950;
+  line-height: 0.92;
+  color: #ffbea8;
+  text-shadow: 0 0 12px rgba(248, 113, 113, 0.66);
+}
+
+.narrative-damage-token small {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 10px;
+  line-height: 1.1;
+  color: rgba(255, 232, 218, 0.84);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .narrative-mist-layer {

@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/vue'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { defineComponent } from 'vue'
+import { defineComponent, nextTick } from 'vue'
 import BattleZone from '../BattleZone.vue'
 import { useBattleFxStore } from '../../stores/battlefx.store'
 import { useSnapshotStore } from '../../stores/snapshot.store'
@@ -263,7 +263,8 @@ describe('BattleZone action narrative', () => {
     expect(stackItem?.getAttribute('style')).toContain('--stack-order')
   })
 
-  it('highlights the latest played card while keeping prior cards visible in order', () => {
+  it('plays card steps one by one before entering review', async () => {
+    vi.useFakeTimers()
     const snapshotStore = useSnapshotStore()
     const battleFxStore = useBattleFxStore()
     snapshotStore.setCharacters([
@@ -306,17 +307,28 @@ describe('BattleZone action narrative', () => {
     })
 
     const first = container.querySelector<HTMLElement>('[data-narrative-stack-id="card-1"]')
-    const latest = container.querySelector<HTMLElement>('[data-narrative-stack-id="card-2"]')
+    const hiddenNext = container.querySelector<HTMLElement>('[data-narrative-stack-id="card-2"]')
 
     expect(first?.classList.contains('narrative-stack-item--latest')).toBe(false)
+    expect(first?.classList.contains('narrative-stack-item--active-step')).toBe(true)
+    expect(hiddenNext).toBeNull()
+
+    vi.advanceTimersByTime(950)
+    await nextTick()
+
+    const latest = container.querySelector<HTMLElement>('[data-narrative-stack-id="card-2"]')
+    expect(first?.classList.contains('narrative-stack-item--step-completed')).toBe(true)
     expect(latest?.classList.contains('narrative-stack-item--latest')).toBe(true)
     expect(latest?.classList.contains('narrative-stack-item--respond')).toBe(true)
+    expect(latest?.classList.contains('narrative-stack-item--active-step')).toBe(true)
     expect(Number(latest?.style.zIndex || 0)).toBeGreaterThan(Number(first?.style.zIndex || 0))
     expect(first?.style.getPropertyValue('--stack-order')).toBe('0')
     expect(latest?.style.getPropertyValue('--stack-order')).toBe('1')
+    vi.useRealTimers()
   })
 
-  it('keeps card and skill chain items expanded instead of overlapping them', () => {
+  it('keeps card and skill chain items grouped in the final review', async () => {
+    vi.useFakeTimers()
     const snapshotStore = useSnapshotStore()
     const battleFxStore = useBattleFxStore()
     snapshotStore.setCharacters([
@@ -349,14 +361,32 @@ describe('BattleZone action narrative', () => {
     battleFxStore.addNarrativeCard('p1', buildCard({ id: 'earth-slash', name: '地裂斩', element: 'Earth' }), 'attack', 'p2')
 
     const { container } = render(BattleZone)
-    const items = Array.from(container.querySelectorAll<HTMLElement>('.narrative-stack-item'))
 
     expect(screen.getByText('水之封印')).toBeTruthy()
+    expect(screen.queryByText('法术激荡')).toBeNull()
+
+    vi.advanceTimersByTime(1120)
+    await nextTick()
+
     expect(screen.getByText('法术激荡')).toBeTruthy()
+    expect(screen.queryByText('地裂斩')).toBeNull()
+
+    vi.advanceTimersByTime(1120)
+    await nextTick()
+
     expect(screen.getByText('地裂斩')).toBeTruthy()
+
+    vi.advanceTimersByTime(940)
+    await nextTick()
+
+    const items = Array.from(container.querySelectorAll<HTMLElement>('.narrative-stack-item'))
+    const groups = Array.from(container.querySelectorAll<HTMLElement>('.narrative-step-group'))
     expect(items).toHaveLength(3)
+    expect(groups).toHaveLength(3)
+    expect(container.querySelector('.narrative-stack-lane--review')).not.toBeNull()
     expect(items.map(item => item.style.getPropertyValue('--stack-order'))).toEqual(['0', '1', '2'])
     expect(items.every(item => item.style.getPropertyValue('--stack-offset-x') === '')).toBe(true)
+    vi.useRealTimers()
   })
 
   it('renders skill activations as central tokens with skill mist', async () => {
