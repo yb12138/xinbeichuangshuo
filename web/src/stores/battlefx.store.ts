@@ -905,6 +905,7 @@ export const useBattleFxStore = defineStore('battlefx', () => {
 
   function clearForGameEnd() {
     clearActionNarrative()
+    structuredNarrativeEventIds.clear()
     clearSkillAnnouncements()
     drawBursts.value = []
     for (const timer of drawBurstTimers.values()) clearTimeout(timer)
@@ -920,6 +921,7 @@ export const useBattleFxStore = defineStore('battlefx', () => {
 
   function reset() {
     clearActionNarrative()
+    structuredNarrativeEventIds.clear()
     clearSkillAnnouncements()
     drawBursts.value = []
     for (const timer of drawBurstTimers.values()) clearTimeout(timer)
