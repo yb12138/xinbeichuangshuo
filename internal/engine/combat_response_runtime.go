@@ -27,6 +27,22 @@ type attackMissResumeState struct {
 	CounterCard     *model.Card
 }
 
+func (e *GameEngine) publishAttackMissMarker(attackerID, targetID string) {
+	if e == nil || attackerID == "" || targetID == "" {
+		return
+	}
+	e.publishTimelineMarker(model.TimelineMarkerPayload{
+		PlayerID:      attackerID,
+		PlayerName:    e.playerName(attackerID),
+		TargetIDs:     []string{targetID},
+		Summary:       "未命中",
+		NarrativeKind: "field_effect_applied",
+		VisualKind:    "effect_token",
+		EffectType:    "attack_miss",
+		Timing:        string(model.TimingAttackMiss),
+	})
+}
+
 // markPendingAttackDamageHitProcessed 将命中后响应结束的攻击伤害标记为已完成 OnAttackHit。
 func (e *GameEngine) markPendingAttackDamageHitProcessed(ctx *model.Context) bool {
 	if ctx == nil || ctx.EventCtx == nil || len(e.State.PendingDamageQueue) == 0 {
@@ -82,6 +98,7 @@ func (e *GameEngine) resumePendingAttackMiss(ctx *model.Context) bool {
 		if defender != nil {
 			e.Log(fmt.Sprintf("[Combat] %s 防御成功，攻击未命中", defender.Name))
 		}
+		e.publishAttackMissMarker(top.AttackerID, top.TargetID)
 		e.resolveMagicBowPierceMiss(top.AttackerID, top.TargetID, top.Card, top.IsCounter)
 		e.clearCombatStack()
 		if !e.routePendingDamageWithReturn(model.TurnStageActionEnd) {
@@ -89,6 +106,7 @@ func (e *GameEngine) resumePendingAttackMiss(ctx *model.Context) bool {
 		}
 		return true
 	case attackMissResumeShield:
+		e.publishAttackMissMarker(top.AttackerID, top.TargetID)
 		e.resolveMagicBowPierceMiss(top.AttackerID, top.TargetID, top.Card, top.IsCounter)
 		e.clearCombatStack()
 		if !e.routePendingDamageWithReturn(model.TurnStageExtraAction) {
@@ -105,6 +123,7 @@ func (e *GameEngine) resumePendingAttackMiss(ctx *model.Context) bool {
 			e.Log(fmt.Sprintf("[Combat] %s 使用 %s 应战成功！攻击反弹给 %s",
 				counterPlayer.Name, resume.CounterCard.Name, counterTarget.Name))
 		}
+		e.publishAttackMissMarker(top.AttackerID, top.TargetID)
 		e.resolveMagicBowPierceMiss(top.AttackerID, top.TargetID, top.Card, top.IsCounter)
 		e.State.CombatStack = e.State.CombatStack[:len(e.State.CombatStack)-1]
 		e.initCombat(resume.CounterPlayerID, resume.CounterTargetID, resume.CounterCard, false, true, false, nil, "", true)
@@ -157,6 +176,7 @@ func (e *GameEngine) resolveCounterAttackAfterAttackMissTiming(counterPlayerID, 
 	if counterPlayer != nil && counterTarget != nil {
 		e.Log(fmt.Sprintf("[Combat] %s 使用 %s 应战成功！攻击反弹给 %s", counterPlayer.Name, counterCard.Name, counterTarget.Name))
 	}
+	e.publishAttackMissMarker(combatReq.AttackerID, combatReq.TargetID)
 	e.resolveMagicBowPierceMiss(combatReq.AttackerID, combatReq.TargetID, combatReq.Card, combatReq.IsCounter)
 	e.State.CombatStack = e.State.CombatStack[:len(e.State.CombatStack)-1]
 	e.initCombat(counterPlayerID, counterTargetID, &counterCard, false, true, false, nil, "", true)
@@ -299,6 +319,7 @@ func (e *GameEngine) consumeShieldForCombatTake(target *model.Player, combatReq 
 		return true
 	}
 
+	e.publishAttackMissMarker(combatReq.AttackerID, combatReq.TargetID)
 	e.resolveMagicBowPierceMiss(combatReq.AttackerID, combatReq.TargetID, combatReq.Card, combatReq.IsCounter)
 	e.clearCombatStack()
 	if !e.routePendingDamageWithReturn(model.TurnStageExtraAction) {
@@ -427,6 +448,7 @@ func (e *GameEngine) handleCombatDefendResponse(act model.PlayerAction, player *
 	}
 
 	e.Log(fmt.Sprintf("[Combat] %s 使用 %s 防御成功！", player.Name, card.Name))
+	e.publishAttackMissMarker(combatReq.AttackerID, combatReq.TargetID)
 	e.resolveMagicBowPierceMiss(combatReq.AttackerID, combatReq.TargetID, combatReq.Card, combatReq.IsCounter)
 	e.clearCombatStack()
 	if !e.routePendingDamageWithReturn(model.TurnStageActionEnd) {
@@ -553,6 +575,7 @@ func (e *GameEngine) handleCombatCounterResponse(act model.PlayerAction, player 
 	}
 
 	e.Log(fmt.Sprintf("[Combat] %s 使用 %s 应战成功！攻击反弹给 %s", player.Name, card.Name, target.Name))
+	e.publishAttackMissMarker(combatReq.AttackerID, combatReq.TargetID)
 	e.resolveMagicBowPierceMiss(combatReq.AttackerID, combatReq.TargetID, combatReq.Card, combatReq.IsCounter)
 	e.State.CombatStack = e.State.CombatStack[:len(e.State.CombatStack)-1]
 	e.initCombat(act.PlayerID, targetID, &card, false, true, false, nil, "", true)

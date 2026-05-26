@@ -158,6 +158,24 @@ func TestNarrativeTrace_CounterResponseUsesResponderAndBounceTarget(t *testing.T
 	if counterCue.Narrative.NarrativeKind != "combat_response" || counterCue.Narrative.CardRole != "counter" {
 		t.Fatalf("unexpected counter cue trace %+v", counterCue.Narrative)
 	}
+
+	var missMarker *model.GameEvent
+	for i := range obs.Events {
+		event := &obs.Events[i]
+		if event.Type == model.EventTimelineMarker && event.Narrative != nil && event.Narrative.EffectType == "attack_miss" {
+			missMarker = event
+			break
+		}
+	}
+	if missMarker == nil || missMarker.Narrative == nil || missMarker.TimelineMarker == nil {
+		t.Fatalf("expected attack miss timeline marker after counter response, got %+v", obs.Events)
+	}
+	if missMarker.TimelineMarker.PlayerID != "p1" || len(missMarker.TimelineMarker.TargetIDs) != 1 || missMarker.TimelineMarker.TargetIDs[0] != "p2" {
+		t.Fatalf("expected miss marker for original attacker p1 -> target p2, got %+v", missMarker.TimelineMarker)
+	}
+	if missMarker.Narrative.NarrativeKind != "field_effect_applied" || missMarker.Narrative.VisualKind != "effect_token" || missMarker.Narrative.Timing != string(model.TimingAttackMiss) {
+		t.Fatalf("unexpected miss marker narrative %+v", missMarker.Narrative)
+	}
 }
 
 func TestNarrativeTrace_ExtraActionGrantedAfterSkillResolution(t *testing.T) {

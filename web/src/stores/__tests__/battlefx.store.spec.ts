@@ -254,6 +254,23 @@ describe('battlefx store focus side', () => {
           damage: 3,
           damage_type: 'Attack',
         },
+        {
+          event_id: 6,
+          turn_id: 1,
+          chain_id: 'nw-t1-p1',
+          type: 'TimelineEffectResolved',
+          outcome: 'TimelineOutcomeSuccess',
+          visibility: 'TimelineVisibilityPublic',
+          narrative_window_id: 'nw-t1-p1',
+          action_id: 'nw-t1-p1-a1-attack',
+          combat_id: 'nw-t1-p1-c1-counter',
+          narrative_kind: 'field_effect_applied',
+          visual_kind: 'effect_token',
+          effect_type: 'attack_miss',
+          actor_user_id: 'p1',
+          target_user_ids: ['p2'],
+          summary: '未命中',
+        },
       ],
     })
 
@@ -262,6 +279,7 @@ describe('battlefx store focus side', () => {
       'response',
       'skill',
       'damage',
+      'effect',
     ])
     expect(battleFxStore.narrativePlayback?.activeStepId).toBe('card-1')
     expect(battleFxStore.narrativePlayback?.steps[0]).toMatchObject({
@@ -272,11 +290,15 @@ describe('battlefx store focus side', () => {
 
     vi.advanceTimersByTime(950)
 
-    expect(battleFxStore.narrativePlayback?.steps[0].status).toBe('completed')
+    expect(battleFxStore.narrativePlayback?.steps[0]?.status).toBe('completed')
     expect(battleFxStore.narrativePlayback?.steps[1]).toMatchObject({
       label: '应战',
       status: 'active',
       itemIds: ['card-2'],
+    })
+    expect(battleFxStore.narrativePlayback?.steps[4]).toMatchObject({
+      kind: 'effect',
+      label: '效果：未命中',
     })
   })
 })

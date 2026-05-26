@@ -464,7 +464,7 @@ export const useBattleFxStore = defineStore('battlefx', () => {
     let activeStepId = previous?.activeStepId && steps.some(step => step.id === previous.activeStepId)
       ? previous.activeStepId
       : undefined
-    let isReview = previous?.isReview && steps.every(step => previous?.steps.some(prevStep => prevStep.id === step.id))
+    let isReview = !!previous?.isReview && steps.every(step => previous.steps.some(prevStep => prevStep.id === step.id))
 
     for (const step of steps) {
       if (previousCompleted.has(step.id)) {
@@ -758,7 +758,9 @@ export const useBattleFxStore = defineStore('battlefx', () => {
       }
 
       if ((visualKind === 'effect_token' || visualKind === 'action_marker') && actorId) {
-        const title = event.field_card?.card?.name || event.summary || event.extra_action_type || event.effect_type || '效果'
+        const title = event.effect_type === 'attack_miss'
+          ? '未命中'
+          : event.field_card?.card?.name || event.summary || event.extra_action_type || event.effect_type || '效果'
         for (const targetId of targetIds) {
           addNarrativeLink({ type: 'actor', id: actorId }, targetId, 'skill')
         }
