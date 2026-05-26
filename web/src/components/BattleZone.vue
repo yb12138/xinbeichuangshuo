@@ -648,15 +648,23 @@ function scheduleNarrativeAnimation() {
     narrativeGsapContext?.revert()
     narrativeGsapContext = gsap.context(() => {
       const activeStepId = narrativePlayback.value?.activeStepId || 'fallback'
-      const stackItems = activeStepId === lastAnimatedNarrativeStepId
-        ? []
-        : gsap.utils.toArray<HTMLElement>('.narrative-step-group--active .narrative-stack-item')
+      const shouldAnimateStep = activeStepId !== lastAnimatedNarrativeStepId
+      const stackItems = shouldAnimateStep
+        ? gsap.utils.toArray<HTMLElement>('.narrative-step-group--active .narrative-stack-item')
+        : []
+      const skillTokens = shouldAnimateStep
+        ? gsap.utils.toArray<HTMLElement>('.narrative-step-group--active .narrative-skill-token')
+        : []
+      const skillShines = shouldAnimateStep
+        ? gsap.utils.toArray<HTMLElement>('.narrative-step-group--active .narrative-skill-token__shine')
+        : []
       const paths = gsap.utils.toArray<SVGPathElement>('.narrative-mist__flow')
       const particles = gsap.utils.toArray<SVGCircleElement>('.narrative-mist-particle')
       lastAnimatedNarrativeStepId = activeStepId
 
       if (prefersReducedNarrativeMotion()) {
-        gsap.set([...stackItems, ...paths, ...particles], { clearProps: 'all' })
+        gsap.set([...stackItems, ...skillTokens, ...skillShines, ...paths, ...particles], { clearProps: 'all' })
+        gsap.set(skillShines, { opacity: 0 })
         gsap.set(particles, { opacity: 0.42 })
         return
       }
@@ -673,6 +681,34 @@ function scheduleNarrativeAnimation() {
           stagger: 0.045,
           ease: 'back.out(1.7)',
         }, 0)
+      }
+
+      if (skillTokens.length) {
+        narrativeGsapTimeline.fromTo(skillTokens, {
+          filter: 'brightness(1)',
+        }, {
+          filter: 'brightness(1.24) drop-shadow(0 0 12px rgba(255, 238, 180, 0.52))',
+          duration: 0.18,
+          yoyo: true,
+          repeat: 1,
+          ease: 'sine.inOut',
+        }, 0.1)
+      }
+
+      if (skillShines.length) {
+        gsap.set(skillShines, { xPercent: -135, opacity: 0 })
+        narrativeGsapTimeline.to(skillShines, {
+          xPercent: 135,
+          opacity: 0.82,
+          duration: 0.42,
+          ease: 'power2.out',
+          stagger: 0.04,
+        }, 0.12)
+        narrativeGsapTimeline.to(skillShines, {
+          opacity: 0,
+          duration: 0.16,
+          ease: 'power1.out',
+        }, 0.42)
       }
 
       for (const path of paths) {
@@ -879,6 +915,7 @@ function narrativeMistPathDomId(segmentId: string) {
                 v-else
                 class="narrative-skill-token"
               >
+                <div class="narrative-skill-token__shine"></div>
                 <div class="narrative-skill-token__body">
                   <strong>{{ item.title }}</strong>
                 </div>
@@ -1350,6 +1387,23 @@ function narrativeMistPathDomId(segmentId: string) {
   border-radius: 0;
   background: transparent;
   box-shadow: none;
+}
+
+.narrative-skill-token__shine {
+  position: absolute;
+  inset: -8px -18px;
+  z-index: 0;
+  opacity: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 25%,
+    rgba(255, 246, 190, 0.76) 48%,
+    rgba(199, 210, 254, 0.48) 54%,
+    transparent 76%
+  );
+  mix-blend-mode: screen;
+  transform: translateX(-135%);
+  pointer-events: none;
 }
 
 .narrative-skill-token__body {

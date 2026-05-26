@@ -432,6 +432,7 @@ describe('BattleZone action narrative', () => {
     expect(screen.queryByText('对目标造成2点法术伤害')).toBeNull()
     expect(container.querySelector('[data-narrative-skill-id="skill-1"]')).not.toBeNull()
     expect(container.querySelector('.narrative-skill-token__ring')).toBeNull()
+    expect(container.querySelector('.narrative-skill-token__shine')).not.toBeNull()
     await waitFor(() => {
       expect(container.querySelectorAll('.narrative-mist--skill').length).toBeGreaterThanOrEqual(2)
     })
