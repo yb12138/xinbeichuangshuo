@@ -378,6 +378,23 @@ export const useBattleFxStore = defineStore('battlefx', () => {
     }
   }
 
+  function bindLatestNarrativeCardTarget(playerId: string, targetId: string, kind: NarrativeLinkKind) {
+    const current = actionNarrative.value
+    if (!current || !playerId || !targetId) return
+    const cards = [...current.playedCards]
+    for (let index = cards.length - 1; index >= 0; index--) {
+      const card = cards[index]
+      if (!card || card.playerId !== playerId || card.targetId) continue
+      cards[index] = { ...card, targetId }
+      actionNarrative.value = trimNarrative({
+        ...current,
+        playedCards: cards,
+      })
+      addNarrativeLink({ type: 'card', id: card.id }, targetId, kind)
+      return
+    }
+  }
+
   function addNarrativeCombatCue(attackerId: string, targetId: string, phase: CombatCueView['phase']) {
     if (!attackerId || !targetId) return
     if (!actionNarrative.value) {
@@ -466,7 +483,12 @@ export const useBattleFxStore = defineStore('battlefx', () => {
       const createdAt = eventId || Date.now()
 
       if (kind === 'action_started') {
-        if (actorId) beginActionNarrative(actorId)
+        if (actorId) {
+          beginActionNarrative(actorId)
+          for (const targetId of targetIds) {
+            narrativeTargetByActor.set(actorId, targetId)
+          }
+        }
         continue
       }
 
@@ -491,6 +513,11 @@ export const useBattleFxStore = defineStore('battlefx', () => {
       if (kind === 'combat_declared' || kind === 'combat_response') {
         for (const targetId of targetIds) {
           narrativeTargetByActor.set(actorId, targetId)
+          bindLatestNarrativeCardTarget(
+            actorId,
+            targetId,
+            kind === 'combat_response' ? 'respond' : 'attack',
+          )
         }
       }
 

@@ -786,4 +786,79 @@ describe('createGameplayMessageHandlers', () => {
     expect(battleFxStore.damageEffects).toHaveLength(0)
     expect(battleReviewStore.battleFeed).toHaveLength(0)
   })
+
+  it('backfills a structured card target when the combat cue arrives after the card reveal', () => {
+    const { handlers, battleFxStore } = buildHandlers()
+
+    handlers.handleNotifyTimeline({
+      room_id: 'ROOM1',
+      seq_start: 1,
+      seq_end: 3,
+      is_replay: false,
+      events: [
+        {
+          event_id: 1,
+          turn_id: 1,
+          chain_id: 'nw-t1-p1',
+          type: 'TimelineEffectResolved',
+          outcome: 'TimelineOutcomeSuccess',
+          visibility: 'TimelineVisibilityPublic',
+          narrative_window_id: 'nw-t1-p1',
+          action_id: 'nw-t1-p1-a1-attack',
+          narrative_kind: 'action_started',
+          visual_kind: 'action_marker',
+          actor_user_id: 'p1',
+          target_user_ids: ['p2'],
+          action_type: 'attack',
+        },
+        {
+          event_id: 2,
+          turn_id: 1,
+          chain_id: 'nw-t1-p1',
+          type: 'TimelineActionDeclared',
+          outcome: 'TimelineOutcomeSuccess',
+          visibility: 'TimelineVisibilityPublic',
+          narrative_window_id: 'nw-t1-p1',
+          action_id: 'nw-t1-p1-a1-attack',
+          narrative_kind: 'card_played',
+          visual_kind: 'card',
+          card_role: 'attack',
+          actor_user_id: 'p1',
+          cards: [{
+            id: 'earth-slash',
+            name: '地裂斩',
+            type: 'Attack',
+            element: 'Earth',
+            damage: 2,
+            description: '',
+          }],
+          gameplay_type: 'card_revealed',
+        },
+        {
+          event_id: 3,
+          turn_id: 1,
+          chain_id: 'nw-t1-p1',
+          type: 'TimelineActionDeclared',
+          outcome: 'TimelineOutcomeSuccess',
+          visibility: 'TimelineVisibilityPublic',
+          narrative_window_id: 'nw-t1-p1',
+          action_id: 'nw-t1-p1-a1-attack',
+          combat_id: 'nw-t1-p1-c1-combat',
+          narrative_kind: 'combat_declared',
+          visual_kind: 'none',
+          actor_user_id: 'p1',
+          target_user_ids: ['p2'],
+          cue_phase: 'attack',
+          gameplay_type: 'combat_cue',
+        },
+      ],
+    })
+
+    expect(battleFxStore.actionNarrative?.playedCards[0]).toMatchObject({
+      playerId: 'p1',
+      targetId: 'p2',
+      actionType: 'attack',
+    })
+    expect(battleFxStore.actionNarrative?.links.some(link => link.fromType === 'card' && link.toPlayerId === 'p2')).toBe(true)
+  })
 })
