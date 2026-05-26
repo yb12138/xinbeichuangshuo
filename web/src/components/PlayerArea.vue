@@ -35,6 +35,7 @@ const props = defineProps<{
   bloodSharedLifeText?: string
   bloodSharedLifeTitle?: string
   bloodSharedLifeRole?: 'source' | 'bound'
+  testIdSuffix?: string
 }>()
 
 const emit = defineEmits<{
@@ -183,7 +184,24 @@ const statusIconEffects = computed(() => {
       effect: fc.effect!,
       title: EFFECT_DISPLAY[fc.effect]?.label || fc.effect,
     }))
+    .slice(0, 3)
 })
+
+const isTargetingContext = computed(() => {
+  if (props.selectable || props.selected) return true
+  if ((actionMode.value === 'attack' || actionMode.value === 'magic') && selectedHandIndexForAction.value !== null) return true
+  if (skillMode.value === 'choosing_target') return true
+  const prompt = currentPrompt.value
+  if (!prompt || !isPromptForMe.value) return false
+  if (prompt.presentation?.kind === 'target_picker') return true
+  if (prompt.type === 'choose_target') return true
+  if ((prompt.counter_target_ids?.length ?? 0) > 0) return true
+  return (prompt.options ?? []).some((option: any) => !!option?.target_id)
+})
+
+const isTargetBlocked = computed(() =>
+  isTargetingContext.value && !isActive.value && !props.selectable && !props.selected && !props.isMe
+)
 
 const portraitBadges = computed(() => {
   const badges: Array<{
@@ -465,18 +483,25 @@ function handleClick(e: MouseEvent) {
     class="player-area border transition-all duration-300 rounded-xl overflow-hidden relative"
     :class="[
       compact
-        ? 'player-area--compact min-w-[108px] max-w-[124px] sm:min-w-[120px] sm:max-w-[140px] 2xl:min-w-[142px] 2xl:max-w-[166px]'
-        : 'player-area--full min-w-[124px] sm:min-w-[140px] 2xl:min-w-[166px]',
+        ? 'player-area--compact min-w-[102px] max-w-[120px] sm:min-w-[116px] sm:max-w-[136px] 2xl:min-w-[128px] 2xl:max-w-[152px]'
+        : 'player-area--full min-w-[116px] sm:min-w-[128px] 2xl:min-w-[152px]',
       campClass,
+      isMe ? 'player-area--me' : '',
       isActive ? 'player-area--active' : '',
-      showStealthBlockedHint ? 'opacity-60 grayscale saturate-75' : '',
+      isTargetBlocked ? 'player-area--target-blocked' : '',
+      showStealthBlockedHint && !isActive ? 'opacity-60 grayscale saturate-75' : '',
       hasStealth ? 'player-area--stealth' : '',
-      selectable ? 'cursor-pointer hover:scale-[1.03] hover:ring-2 hover:ring-yellow-400 hover:shadow-lg hover:shadow-yellow-500/20' : '',
+      selectable ? 'player-area--targetable cursor-pointer hover:scale-[1.03]' : '',
       selected ? 'player-area--selected' : ''
     ]"
-    :data-testid="`player-area-${player.id}`"
+    :data-testid="`player-area-${player.id}${testIdSuffix ? `-${testIdSuffix}` : ''}`"
     @click="handleClick"
   >
+    <div class="player-state-badges">
+      <span v-if="isMe" class="player-state-badge player-state-badge--me">你</span>
+      <span v-if="isActive" class="player-state-badge player-state-badge--active">当前行动</span>
+      <span v-if="selectable" class="player-state-badge player-state-badge--targetable">可选</span>
+    </div>
     <img
       v-if="characterImageSrc && showCharacterImage"
       :src="characterImageSrc"
@@ -621,10 +646,92 @@ function handleClick(e: MouseEvent) {
   pointer-events: none;
 }
 
+.player-area--me {
+  box-shadow:
+    inset 0 0 0 1px rgba(131, 204, 255, 0.44),
+    0 8px 22px rgba(16, 84, 142, 0.24);
+}
+
+.player-area--active {
+  border-color: rgba(255, 255, 255, 0.28);
+  box-shadow: 0 12px 28px rgba(3, 10, 20, 0.34);
+}
+
+.player-area--active.camp-blue {
+  border-color: #38bdf8 !important;
+  box-shadow:
+    0 0 20px rgba(56, 189, 248, 0.5),
+    inset 0 0 15px rgba(56, 189, 248, 0.3) !important;
+}
+
+.player-area--active.camp-red {
+  border-color: #f87171 !important;
+  box-shadow:
+    0 0 20px rgba(248, 113, 113, 0.5),
+    inset 0 0 15px rgba(248, 113, 113, 0.3) !important;
+}
+
+.player-area--targetable {
+  border-color: rgba(250, 218, 128, 0.82);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 236, 168, 0.36),
+    0 0 0 1px rgba(236, 186, 89, 0.34),
+    0 0 18px rgba(238, 190, 91, 0.28);
+}
+
+.player-area--target-blocked {
+  filter: grayscale(0.35) saturate(0.72) brightness(0.82);
+}
+
+.player-state-badges {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  pointer-events: none;
+}
+
+.player-state-badge {
+  min-height: 18px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(196, 215, 236, 0.5);
+  background: rgba(7, 16, 29, 0.82);
+  color: rgba(231, 241, 252, 0.96);
+  font-size: 9px;
+  font-weight: 900;
+  line-height: 1.2;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.72);
+  box-shadow: 0 3px 8px rgba(2, 8, 16, 0.34);
+}
+
+.player-state-badge--me {
+  border-color: rgba(125, 205, 255, 0.72);
+  background: linear-gradient(180deg, rgba(25, 87, 130, 0.92), rgba(12, 47, 78, 0.94));
+  color: #ddf4ff;
+}
+
+.player-state-badge--active {
+  border-color: rgba(238, 202, 121, 0.82);
+  background: linear-gradient(180deg, rgba(117, 82, 31, 0.94), rgba(78, 52, 20, 0.96));
+  color: #ffedbf;
+}
+
+.player-state-badge--targetable {
+  border-color: rgba(245, 221, 128, 0.82);
+  background: linear-gradient(180deg, rgba(128, 94, 29, 0.94), rgba(84, 60, 19, 0.96));
+  color: #fff1b8;
+}
+
 .player-area {
   padding: 0;
   isolation: isolate;
-  background: rgba(9, 18, 30, 0.74);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(9, 18, 30, 0.4);
 }
 
 .player-area::before {
@@ -638,20 +745,23 @@ function handleClick(e: MouseEvent) {
 }
 
 .player-area--compact {
-  height: 196px;
+  height: 140px;
 }
 
 .player-area--full {
-  height: 232px;
+  height: 256px;
 }
 
 .character-portrait-fill {
   position: absolute;
-  inset: 0;
+  top: 0;
+  left: 0;
   width: 100%;
-  height: 100%;
+  height: calc(100% - 46px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px 12px 0 0;
   object-fit: cover;
-  object-position: center 32%;
+  object-position: center 15%;
   z-index: 1;
 }
 
@@ -794,14 +904,15 @@ function handleClick(e: MouseEvent) {
   left: 0;
   right: 0;
   bottom: 0;
-  min-height: 52%;
-  padding: 6px 6px 7px;
+  height: 46px;
+  min-height: auto;
+  padding: 4px 8px;
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  justify-content: flex-end;
-  background:
-    linear-gradient(180deg, rgba(4, 10, 18, 0.04) 0%, rgba(8, 16, 27, 0.78) 32%, rgba(6, 12, 21, 0.94) 100%);
+  gap: 2px;
+  justify-content: space-between;
+  background: rgba(12, 18, 30, 0.95) !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(2px);
   z-index: 4;
 }
@@ -827,19 +938,14 @@ function handleClick(e: MouseEvent) {
 }
 
 .player-overlay-player {
-  font-size: 10px;
-  line-height: 1.1;
-  text-align: center;
-  color: rgba(196, 213, 227, 0.92);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: none;
 }
 
 .player-overlay-stats {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 2px 4px;
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  gap: 6px;
   font-size: 10px;
   color: rgba(228, 237, 245, 0.92);
 }
@@ -857,6 +963,12 @@ function handleClick(e: MouseEvent) {
   align-items: center;
   justify-content: center;
   gap: 6px;
+}
+
+.player-area--compact .player-overlay-resource,
+.player-area--compact .player-overlay-effects,
+.player-area--compact .player-overlay-tokens {
+  display: none;
 }
 
 .player-overlay-effects {
@@ -1005,26 +1117,26 @@ function handleClick(e: MouseEvent) {
 
 @media (min-width: 1800px) {
   .player-area--compact {
-    height: 212px;
+    height: 150px;
   }
 
   .player-area--full {
-    height: 252px;
+    height: 276px;
   }
 }
 
 @media (max-width: 900px) {
   .player-area--compact {
-    height: 184px;
+    height: 128px;
   }
 
   .player-area--full {
-    height: 214px;
+    height: 236px;
   }
 
   .player-overlay {
-    padding: 5px 5px 6px;
-    min-height: 56%;
+    padding: 4px;
+    min-height: auto;
   }
 
   .player-overlay-role {
@@ -1039,11 +1151,11 @@ function handleClick(e: MouseEvent) {
 
 @media (max-width: 640px) {
   .player-area--compact {
-    height: 176px;
+    height: 118px;
   }
 
   .player-area--full {
-    height: 202px;
+    height: 224px;
   }
 
   .player-overlay {
@@ -1126,6 +1238,11 @@ function handleClick(e: MouseEvent) {
 /* 潜行整卡变灰 */
 .player-area--stealth {
   filter: grayscale(0.7) brightness(0.85);
+}
+
+.player-area--active.player-area--target-blocked,
+.player-area--active.player-area--stealth {
+  filter: none;
 }
 
 @keyframes effectPoisonDrift {

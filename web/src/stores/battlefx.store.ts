@@ -15,25 +15,6 @@ export interface InitiatorFocusState {
   startedAt: number
 }
 
-export interface FlyingCardView {
-  id: number
-  cards: Card[]
-  playerId: string
-  playerName: string
-  actionType: string
-  holdMode: 'timed' | 'until_response' | 'until_next_card_or_draw'
-  hidden?: boolean
-}
-
-interface FlyingCardQueueItem {
-  cards: Card[]
-  playerId: string
-  playerName: string
-  actionType: string
-  holdMode: 'timed' | 'until_response' | 'until_next_card_or_draw'
-  hidden?: boolean
-}
-
 export interface DrawBurstView {
   id: number
   playerId: string
@@ -57,6 +38,9 @@ export interface CombatCueView {
 }
 
 export type SkillAnnouncementPhase = 'featured' | 'settled'
+export type NarrativeActorReason = 'turn' | 'attack' | 'response' | 'target' | 'skill' | 'damage'
+export type NarrativeEventKind = 'turn' | 'attack' | 'magic' | 'respond' | 'take' | 'damage' | 'skill' | 'system'
+export type NarrativeLinkKind = 'attack' | 'respond' | 'skill' | 'damage'
 
 export interface SkillAnnouncementView {
   id: number
@@ -65,6 +49,46 @@ export interface SkillAnnouncementView {
   skillName: string
   effectText: string
   phase: SkillAnnouncementPhase
+  startedAt: number
+}
+
+export interface ActionNarrativeCardView {
+  id: number
+  playerId: string
+  targetId?: string
+  card: Card
+  actionType: string
+  createdAt: number
+}
+
+export interface ActionNarrativeLinkView {
+  id: number
+  fromType: 'actor' | 'card'
+  fromId: string | number
+  toPlayerId: string
+  kind: NarrativeLinkKind
+  createdAt: number
+}
+
+export interface ActionNarrativeEventView {
+  id: number
+  kind: NarrativeEventKind
+  label: string
+  actorId?: string
+  targetId?: string
+  damage?: number
+  createdAt: number
+}
+
+export interface ActionNarrativeView {
+  currentActionPlayerId: string
+  featuredActorId: string
+  featuredReason: NarrativeActorReason
+  opposedActorIds: string[]
+  settledActorIds: string[]
+  playedCards: ActionNarrativeCardView[]
+  links: ActionNarrativeLinkView[]
+  events: ActionNarrativeEventView[]
   startedAt: number
 }
 
@@ -89,12 +113,6 @@ export const useBattleFxStore = defineStore('battlefx', () => {
   const { players } = storeToRefs(snapshotStore)
   const { cinematicMode } = storeToRefs(uiStore)
 
-  const flyingCards = ref<FlyingCardView[]>([])
-  let flyingCardsId = 0
-  const flyingCardsQueue = ref<FlyingCardQueueItem[]>([])
-  let flyingCardsTimer: ReturnType<typeof setTimeout> | null = null
-  const battlefieldRevealClearToken = ref(0)
-
   const drawBursts = ref<DrawBurstView[]>([])
   let drawBurstId = 0
   const drawBurstTimers = new Map<number, ReturnType<typeof setTimeout>>()
@@ -116,6 +134,12 @@ export const useBattleFxStore = defineStore('battlefx', () => {
   const skillAnnouncementQueue = ref<SkillAnnouncementQueueItem[]>([])
   let skillAnnouncementTimer: ReturnType<typeof setTimeout> | null = null
   const skillAnnouncementRemovalTimers = new Map<number, ReturnType<typeof setTimeout>>()
+
+  const actionNarrative = ref<ActionNarrativeView | null>(null)
+  let narrativeCardId = 0
+  let narrativeLinkId = 0
+  let narrativeEventId = 0
+  const narrativeTargetByActor = new Map<string, string>()
 
   function resolveInitiatorFocusSide(playerId: string): InitiatorFocusSide {
     const rosterIndex = roomPlayers.value.findIndex((player) => player.id === playerId)
@@ -160,6 +184,253 @@ export const useBattleFxStore = defineStore('battlefx', () => {
       clearTimeout(timer)
     }
     skillAnnouncementRemovalTimers.clear()
+  }
+
+  function normalizeNarrativeActionType(actionType?: string) {
+    return String(actionType || '').trim().toLowerCase()
+  }
+
+  function uniqueIds(ids: string[]) {
+    return [...new Set(ids.filter(Boolean))]
+  }
+
+  function trimNarrative(next: ActionNarrativeView): ActionNarrativeView {
+    return {
+      ...next,
+      settledActorIds: next.settledActorIds.slice(-5),
+      opposedActorIds: next.opposedActorIds.slice(-2),
+      playedCards: next.playedCards.slice(-4),
+      links: next.links.slice(-5),
+      events: next.events.slice(-7),
+    }
+  }
+
+  function ensureActionNarrative(playerId: string, reason: NarrativeActorReason = 'turn') {
+    if (!playerId) return null
+    if (!actionNarrative.value) {
+      actionNarrative.value = {
+        currentActionPlayerId: playerId,
+        featuredActorId: playerId,
+        featuredReason: reason,
+        opposedActorIds: [],
+        settledActorIds: [],
+        playedCards: [],
+        links: [],
+        events: [],
+        startedAt: Date.now(),
+      }
+      return actionNarrative.value
+    }
+    return actionNarrative.value
+  }
+
+  function beginActionNarrative(playerId: string) {
+    if (!playerId) return
+    if (actionNarrative.value?.currentActionPlayerId === playerId) {
+      actionNarrative.value = trimNarrative({
+        ...actionNarrative.value,
+        featuredActorId: actionNarrative.value.featuredActorId || playerId,
+        featuredReason: actionNarrative.value.featuredReason || 'turn',
+      })
+      return
+    }
+    narrativeTargetByActor.clear()
+    actionNarrative.value = {
+      currentActionPlayerId: playerId,
+      featuredActorId: playerId,
+      featuredReason: 'turn',
+      opposedActorIds: [],
+      settledActorIds: [],
+      playedCards: [],
+      links: [],
+      events: [],
+      startedAt: Date.now(),
+    }
+    addNarrativeEvent({ kind: 'turn', label: '行动回合', actorId: playerId })
+  }
+
+  function settleNarrativeActor(playerId: string) {
+    const current = actionNarrative.value
+    if (!current || !playerId) return
+    actionNarrative.value = trimNarrative({
+      ...current,
+      opposedActorIds: current.opposedActorIds.filter(id => id !== playerId),
+      settledActorIds: uniqueIds([...current.settledActorIds, playerId]),
+    })
+  }
+
+  function featureNarrativeActor(playerId: string, reason: NarrativeActorReason = 'turn') {
+    const current = ensureActionNarrative(playerId, reason)
+    if (!current || !playerId) return
+    const prevFeatured = current.featuredActorId
+    const settled = prevFeatured && prevFeatured !== playerId
+      ? uniqueIds([...current.settledActorIds, prevFeatured])
+      : current.settledActorIds
+    actionNarrative.value = trimNarrative({
+      ...current,
+      featuredActorId: playerId,
+      featuredReason: reason,
+      opposedActorIds: current.opposedActorIds.filter(id => id !== playerId),
+      settledActorIds: settled.filter(id => id !== playerId),
+    })
+  }
+
+  function opposeNarrativeActor(playerId: string) {
+    const current = actionNarrative.value
+    if (!current || !playerId || playerId === current.featuredActorId) return
+    actionNarrative.value = trimNarrative({
+      ...current,
+      opposedActorIds: uniqueIds([...current.opposedActorIds.filter(id => id !== playerId), playerId]),
+      settledActorIds: current.settledActorIds.filter(id => id !== playerId),
+    })
+  }
+
+  function addNarrativeLink(
+    from: { type: 'actor' | 'card'; id: string | number },
+    toPlayerId: string,
+    kind: NarrativeLinkKind,
+  ) {
+    const current = actionNarrative.value
+    if (!current || !toPlayerId) return
+    narrativeLinkId++
+    actionNarrative.value = trimNarrative({
+      ...current,
+      links: [
+        ...current.links,
+        {
+          id: narrativeLinkId,
+          fromType: from.type,
+          fromId: from.id,
+          toPlayerId,
+          kind,
+          createdAt: Date.now(),
+        },
+      ],
+    })
+  }
+
+  function eventLabelForCombatPhase(phase: CombatCueView['phase']) {
+    if (phase === 'attack') return '攻击'
+    if (phase === 'counter') return '应战'
+    if (phase === 'defend') return '防御'
+    if (phase === 'shield') return '圣盾'
+    return '命中'
+  }
+
+  function eventKindForCombatPhase(phase: CombatCueView['phase']): NarrativeEventKind {
+    if (phase === 'attack') return 'attack'
+    if (phase === 'counter' || phase === 'defend' || phase === 'shield') return 'respond'
+    return 'take'
+  }
+
+  function linkKindForActionType(actionType: string): NarrativeLinkKind {
+    const normalized = normalizeNarrativeActionType(actionType)
+    if (normalized === 'counter' || normalized === 'defend' || normalized === 'shield') return 'respond'
+    if (normalized === 'skill' || normalized === 'magic') return 'skill'
+    return 'attack'
+  }
+
+  function addNarrativeEvent(event: Omit<ActionNarrativeEventView, 'id' | 'createdAt'>) {
+    const actorId = event.actorId || actionNarrative.value?.featuredActorId || actionNarrative.value?.currentActionPlayerId
+    const current = ensureActionNarrative(actorId || event.targetId || '', event.kind === 'skill' ? 'skill' : 'turn')
+    if (!current) return
+    narrativeEventId++
+    actionNarrative.value = trimNarrative({
+      ...current,
+      events: [
+        ...current.events,
+        {
+          ...event,
+          id: narrativeEventId,
+          createdAt: Date.now(),
+        },
+      ],
+    })
+  }
+
+  function addNarrativeCard(playerId: string, card: Card, actionType: string, targetId?: string) {
+    const normalizedActionType = normalizeNarrativeActionType(actionType)
+    if (!playerId || !card || !['attack', 'magic', 'counter', 'defend', 'shield'].includes(normalizedActionType)) return
+    const current = ensureActionNarrative(playerId, normalizedActionType === 'magic' ? 'skill' : 'attack')
+    if (!current) return
+    const resolvedTargetId = targetId || narrativeTargetByActor.get(playerId)
+    narrativeCardId++
+    const cardView: ActionNarrativeCardView = {
+      id: narrativeCardId,
+      playerId,
+      targetId: resolvedTargetId,
+      card,
+      actionType: normalizedActionType,
+      createdAt: Date.now(),
+    }
+    actionNarrative.value = trimNarrative({
+      ...current,
+      playedCards: [...current.playedCards, cardView],
+    })
+    if (resolvedTargetId) {
+      addNarrativeLink({ type: 'card', id: cardView.id }, resolvedTargetId, linkKindForActionType(normalizedActionType))
+    }
+  }
+
+  function addNarrativeCombatCue(attackerId: string, targetId: string, phase: CombatCueView['phase']) {
+    if (!attackerId || !targetId) return
+    if (!actionNarrative.value) {
+      beginActionNarrative(attackerId)
+    }
+    narrativeTargetByActor.set(attackerId, targetId)
+    if (phase === 'attack') {
+      featureNarrativeActor(attackerId, 'attack')
+      opposeNarrativeActor(targetId)
+      addNarrativeLink({ type: 'actor', id: attackerId }, targetId, 'attack')
+    } else {
+      featureNarrativeActor(attackerId, 'response')
+      opposeNarrativeActor(targetId)
+      addNarrativeLink({ type: 'actor', id: attackerId }, targetId, phase === 'take' ? 'damage' : 'respond')
+    }
+    addNarrativeEvent({
+      kind: eventKindForCombatPhase(phase),
+      label: eventLabelForCombatPhase(phase),
+      actorId: attackerId,
+      targetId,
+    })
+  }
+
+  function addNarrativeDamage(sourceId: string | undefined, targetId: string, damage: number, damageType?: string) {
+    if (!targetId || damage <= 0) return
+    const actorId = sourceId || actionNarrative.value?.featuredActorId || targetId
+    ensureActionNarrative(actorId, 'damage')
+    opposeNarrativeActor(targetId)
+    addNarrativeEvent({
+      kind: 'damage',
+      label: `造成 ${damage} 点伤害`,
+      actorId,
+      targetId,
+      damage,
+    })
+    if (actorId && actorId !== targetId) {
+      addNarrativeLink({ type: 'actor', id: actorId }, targetId, 'damage')
+    }
+    void damageType
+  }
+
+  function addNarrativeSkill(actorId: string, skillName: string, effectText?: string, targetIds: string[] = []) {
+    if (!actorId || !skillName) return
+    featureNarrativeActor(actorId, 'skill')
+    for (const targetId of targetIds) {
+      opposeNarrativeActor(targetId)
+      addNarrativeLink({ type: 'actor', id: actorId }, targetId, 'skill')
+    }
+    addNarrativeEvent({
+      kind: 'skill',
+      label: effectText ? `${skillName}：${effectText}` : `发动「${skillName}」`,
+      actorId,
+      targetId: targetIds[0],
+    })
+  }
+
+  function clearActionNarrative() {
+    actionNarrative.value = null
+    narrativeTargetByActor.clear()
   }
 
   function setInitiatorFocus(playerId: string, mode: InitiatorFocusMode) {
@@ -282,69 +553,6 @@ export const useBattleFxStore = defineStore('battlefx', () => {
     settleSkillInitiatorFocus(focus.playerId, cinematicMode.value ? 420 : 240)
   }
 
-  function resolveFlyingHoldMode(actionType: string): 'timed' | 'until_response' | 'until_next_card_or_draw' {
-    if (normalizeFlyingActionType(actionType) !== 'discard') return 'until_response'
-    return 'until_next_card_or_draw'
-  }
-
-  function normalizeFlyingActionType(actionType?: string) {
-    return String(actionType || '').trim().toLowerCase()
-  }
-
-  function dropActiveFlyingCards() {
-    if (flyingCards.value.length === 0) return
-    flyingCards.value = []
-    if (flyingCardsTimer) {
-      clearTimeout(flyingCardsTimer)
-      flyingCardsTimer = null
-    }
-  }
-
-  function notifyFlyingCardsEvent(kind: 'card_revealed' | 'draw' | 'combat_response' | 'damage', actionType?: string) {
-    const normalizedActionType = normalizeFlyingActionType(actionType)
-    if (kind === 'card_revealed') {
-      if (normalizedActionType === 'defend' || normalizedActionType === 'counter') return
-      pumpFlyingCards()
-      return
-    }
-
-    if (kind === 'damage' || kind === 'combat_response') {
-      pumpFlyingCards()
-      return
-    }
-
-    if (kind === 'draw') {
-      dropActiveFlyingCards()
-      pumpFlyingCards()
-    }
-  }
-
-  function addFlyingCards(cards: Card[], playerId: string, playerName: string, actionType: string, hidden?: boolean) {
-    if (!cards?.length) return
-    const normalizedActionType = normalizeFlyingActionType(actionType)
-    if (normalizedActionType === 'discard' && hidden) return
-    notifyFlyingCardsEvent('card_revealed', normalizedActionType)
-    flyingCardsQueue.value.push({
-      cards,
-      playerId,
-      playerName,
-      actionType: normalizedActionType,
-      holdMode: resolveFlyingHoldMode(normalizedActionType),
-      hidden,
-    })
-    pumpFlyingCards()
-  }
-
-  function clearBattlefieldReveals() {
-    battlefieldRevealClearToken.value += 1
-  }
-
-  function settleFlyingCardToBattlefield(id: number) {
-    if (!flyingCards.value.some((item) => item.id === id)) return
-    flyingCards.value = flyingCards.value.filter((item) => item.id !== id)
-    pumpFlyingCards()
-  }
-
   function addSkillAnnouncement(actorId: string, actorName: string, skillName: string, effectText: string) {
     const normalizedActorId = String(actorId || '').trim()
     const normalizedSkillName = String(skillName || '').trim()
@@ -446,33 +654,8 @@ export const useBattleFxStore = defineStore('battlefx', () => {
     clearSkillAnnouncementRemovalTimers()
   }
 
-  function pumpFlyingCards() {
-    if (flyingCards.value.length > 0 || flyingCardsQueue.value.length === 0) return
-    const next = flyingCardsQueue.value.shift()
-    if (!next) return
-
-    flyingCardsId++
-    const id = flyingCardsId
-    if (next.holdMode === 'until_response') {
-      flyingCards.value = [...flyingCards.value, { id, ...next }]
-    } else {
-      flyingCards.value = [{ id, ...next }]
-    }
-
-    if (next.holdMode === 'timed') {
-      const displayMs = cinematicMode.value ? 2400 : 1600
-      if (flyingCardsTimer) clearTimeout(flyingCardsTimer)
-      flyingCardsTimer = setTimeout(() => {
-        flyingCards.value = flyingCards.value.filter((item) => item.id !== id)
-        flyingCardsTimer = null
-        pumpFlyingCards()
-      }, displayMs)
-    }
-  }
-
   function addDrawBurst(playerId: string, playerName: string, count: number) {
     if (!playerId || count <= 0) return
-    notifyFlyingCardsEvent('draw')
     drawBurstId++
     const id = drawBurstId
     drawBursts.value.push({
@@ -491,7 +674,6 @@ export const useBattleFxStore = defineStore('battlefx', () => {
 
   function addDamageEffect(targetId: string, targetName: string, damage: number, damageType: string) {
     if (damage <= 0) return
-    notifyFlyingCardsEvent('damage')
     touchSkillInitiatorFocus()
     damageEffectsId++
     const id = damageEffectsId
@@ -509,8 +691,8 @@ export const useBattleFxStore = defineStore('battlefx', () => {
 
   function addCombatCue(attackerId: string, targetId: string, phase: 'attack' | 'defend' | 'take' | 'counter' | 'shield') {
     if (!attackerId || !targetId) return
+    addNarrativeCombatCue(attackerId, targetId, phase)
     if (phase === 'defend' || phase === 'take' || phase === 'counter' || phase === 'shield') {
-      notifyFlyingCardsEvent('combat_response')
       resolveAttackInitiatorFocus(attackerId)
       startActingPlayerFocus(targetId, 'response')
     } else if (phase === 'attack') {
@@ -587,7 +769,7 @@ export const useBattleFxStore = defineStore('battlefx', () => {
   }
 
   function clearForGameEnd() {
-    clearBattlefieldReveals()
+    clearActionNarrative()
     clearSkillAnnouncements()
     drawBursts.value = []
     for (const timer of drawBurstTimers.values()) clearTimeout(timer)
@@ -602,14 +784,8 @@ export const useBattleFxStore = defineStore('battlefx', () => {
   }
 
   function reset() {
-    clearBattlefieldReveals()
+    clearActionNarrative()
     clearSkillAnnouncements()
-    flyingCards.value = []
-    flyingCardsQueue.value = []
-    if (flyingCardsTimer) {
-      clearTimeout(flyingCardsTimer)
-      flyingCardsTimer = null
-    }
     drawBursts.value = []
     for (const timer of drawBurstTimers.values()) clearTimeout(timer)
     drawBurstTimers.clear()
@@ -624,13 +800,21 @@ export const useBattleFxStore = defineStore('battlefx', () => {
   }
 
   return {
-    flyingCards,
-    battlefieldRevealClearToken,
     drawBursts,
     combatCue,
     initiatorFocus,
     damageEffects,
     skillAnnouncements,
+    actionNarrative,
+    beginActionNarrative,
+    featureNarrativeActor,
+    settleNarrativeActor,
+    addNarrativeCard,
+    addNarrativeLink,
+    addNarrativeEvent,
+    addNarrativeDamage,
+    addNarrativeSkill,
+    clearActionNarrative,
     startAttackInitiatorFocus,
     resolveAttackInitiatorFocus,
     startSkillInitiatorFocus,
@@ -639,9 +823,6 @@ export const useBattleFxStore = defineStore('battlefx', () => {
     settleSkillInitiatorFocus,
     prepareForFlowUpdate,
     syncInitiatorFocusWithState,
-    addFlyingCards,
-    clearBattlefieldReveals,
-    settleFlyingCardToBattlefield,
     addSkillAnnouncement,
     clearSkillAnnouncements,
     addDrawBurst,

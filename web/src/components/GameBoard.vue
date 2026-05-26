@@ -14,7 +14,6 @@ import CardComponent from './CardComponent.vue'
 import SkillDetailModal from './SkillDetailModal.vue'
 import BattleZone from './BattleZone.vue'
 import VfxLayer from './VfxLayer.vue'
-import ActionTimeline from './ActionTimeline.vue'
 import StatusEffectIcon from './StatusIcons/StatusEffectIcon.vue'
 import { useSubmitAction } from '../composables/useSubmitAction'
 import { useBattleInteractionState } from '../composables/useBattleInteractionState'
@@ -174,8 +173,14 @@ const orderedBoardPlayers = computed(() =>
     .filter((p): p is PlayerView => !!p)
 )
 
-const leftRailPlayers = computed(() => orderedBoardPlayers.value.slice(0, 3))
-const rightRailPlayers = computed(() => orderedBoardPlayers.value.slice(3, 6))
+const battleSeatPlayers = computed(() => orderedBoardPlayers.value.slice(0, 6))
+const battleSeatPositionByPlayerId = computed<Record<string, number>>(() => {
+  const positions: Record<string, number> = {}
+  battleSeatPlayers.value.forEach((player, index) => {
+    positions[player.id] = index
+  })
+  return positions
+})
 const isHostInRoom = computed(() =>
   roomPlayers.value.some(p => p.id === myPlayerId.value && p.is_host)
 )
@@ -336,7 +341,7 @@ watch(
   { immediate: true }
 )
 
-type PlayerAnchorSlot = 'left' | 'right'
+type PlayerAnchorSlot = 'left' | 'right' | 'table'
 
 function playerAnchorClasses(playerId: string, slot: PlayerAnchorSlot) {
   const focus = initiatorFocus.value
@@ -380,6 +385,12 @@ const myStatusMaxHand = computed(() => {
   return typeof maxHand === 'number' && maxHand >= 0 ? maxHand : 0
 })
 
+const myStatusHandCount = computed(() => {
+  const player = myAreaPlayer.value
+  if (!player) return 0
+  return player.hand?.length ?? player.hand_count ?? 0
+})
+
 const myStatusRoleName = computed(() => {
   const roleId = String(myAreaPlayer.value?.role || sessionStore.myCharRole || '').trim()
   if (!roleId) return ''
@@ -390,6 +401,71 @@ const myStatusPortraitSrc = computed(() => {
   const roleId = String(myAreaPlayer.value?.role || sessionStore.myCharRole || '').trim()
   return roleId ? `/characters/${roleId}.png` : ''
 })
+
+function portraitSrcForPlayer(player: PlayerView): string {
+  const roleId = String(player.role || '').trim()
+  return roleId ? `/characters/${roleId}.png` : ''
+}
+
+function roleNameForPlayer(player: PlayerView): string {
+  const roleId = String(player.role || '').trim()
+  return roleId ? (characters.value[roleId]?.name || roleId) : player.name
+}
+
+function handCountForPlayer(player: PlayerView): number {
+  return player.hand?.length ?? player.hand_count ?? 0
+}
+
+function maxHandForPlayer(player: PlayerView): number {
+  return typeof player.max_hand === 'number' && player.max_hand >= 0 ? player.max_hand : handCountForPlayer(player)
+}
+
+function fieldStatusItemsForPlayer(player: PlayerView) {
+  return (player.field || [])
+    .filter((fc) => fc.mode === 'Effect' && fc.effect && !HIDDEN_MY_FIELD_EFFECTS.has(fc.effect))
+    .map((fc, idx) => ({
+      key: `${fc.effect}-${idx}`,
+      effect: fc.effect,
+      label: PLAYER_STATUS_EFFECT_LABEL[fc.effect] || fc.effect,
+    }))
+    .slice(0, 4)
+}
+
+function tokenItemsForPlayer(player: PlayerView) {
+  const source = {
+    ...(player.tokens ?? {}),
+    ...(player.indicators ?? {}),
+  }
+  return Object.entries(source)
+    .filter(([, value]) => typeof value === 'number' && value > 0)
+    .map(([key, value]) => ({ key, value }))
+    .slice(0, 4)
+}
+
+const hoveredBattleSeatPlayerId = ref<string | null>(null)
+
+// 生成 15 个粒子的配置
+const particleList = computed(() => Array.from({ length: 15 }, (_, i) => i))
+
+// 获取每个粒子的随机动画属性（扩散角度、距离、大小、延迟）
+function getRandomParticleStyle(): Record<string, string> {
+  const angle = Math.random() * Math.PI * 2
+  const distance = 40 + Math.random() * 80
+  const tx = Math.cos(angle) * distance
+  const ty = Math.sin(angle) * distance
+  const size = 2 + Math.random() * 4
+  const delay = Math.random() * 2
+  const duration = 1.5 + Math.random() * 1.5
+
+  return {
+    '--tx': `${tx}px`,
+    '--ty': `${ty}px`,
+    '--animation-delay': `${delay}s`,
+    '--animation-duration': `${duration}s`,
+    width: `${size}px`,
+    height: `${size}px`,
+  }
+}
 
 const myFieldStatusItems = computed(() => {
   const field = myAreaPlayer.value?.field || []
@@ -1038,35 +1114,6 @@ const promptNeedsTargetGuide = computed(() => {
   if (p.type === 'choose_target') return true
   if ((p.counter_target_ids?.length ?? 0) > 0) return true
   return Object.keys(players.value).some((playerId) => promptOptionIndexForPlayer(playerId) >= 0)
-})
-
-const targetGuideHintText = computed(() => {
-  if (actionMode.value === 'attack' && selectedHandIndexForAction.value !== null) {
-    return '请选择可攻击的敌方目标'
-  }
-  if (
-    actionMode.value === 'magic' &&
-    magicSubChoice.value === 'card' &&
-    selectedHandIndexForAction.value !== null
-  ) {
-    return '请选择法术目标'
-  }
-  if (skillMode.value === 'choosing_target' && selectedSkill.value) {
-    const skill = selectedSkill.value
-    const minTargets = (skill.min_targets || 0) > 0 ? skill.min_targets : (skill.target_type >= 2 ? 1 : 0)
-    const maxTargets = (skill.max_targets || 0) > 0 ? skill.max_targets : 1
-    if (minTargets === maxTargets && minTargets > 1) {
-      return `请选择${minTargets}名【${skill.title}】目标`
-    }
-    return `请选择【${skill.title}】目标`
-  }
-  const p = promptGuideContext.value
-  if (!p) return '点击角色选择目标'
-  const message = String(p.message || '').trim()
-  if (message) return message
-  if ((p.counter_target_ids?.length ?? 0) > 0) return '请选择反弹目标角色'
-  if (p.type === 'choose_target') return '请选择目标角色'
-  return '点击角色选择目标'
 })
 
 function promptOptionIndexForPlayer(playerId: string, debugTrace: boolean = false): number {
@@ -2063,7 +2110,7 @@ watch(
 )
 
 watch(
-  () => [leftRailPlayers.value.length, rightRailPlayers.value.length, !!myAreaPlayer.value, myPlayerId.value, deckCount.value],
+  () => [battleSeatPlayers.value.length, !!myAreaPlayer.value, myPlayerId.value, deckCount.value],
   () => {
     if (drawBursts.value.length > 0) {
       refreshDrawFlightsSoon()
@@ -2274,51 +2321,161 @@ const fighterHundredDragonByPlayer = computed(() => {
       class="main-grid flex-1 min-h-0 min-w-0 mt-2 arena-blur-focus"
       
     >
-      <aside class="side-rail side-rail-left">
-        <Transition name="guide-hint">
-          <div v-if="promptNeedsTargetGuide" class="left-target-guide-hint">
-            {{ targetGuideHintText }}
-          </div>
-        </Transition>
-        <div
-          v-for="p in leftRailPlayers"
-          :key="p.id"
-          class="player-anchor-wrap"
-          :class="[
-            playerAnchorClasses(p.id, 'left'),
-            { 'target-guide-pulse': promptNeedsTargetGuide && isPlayerSelectable(p.id) }
-          ]"
-          :data-player-anchor="p.id"
-        >
-          <PlayerArea
-          :player="p"
-            :isMe="p.id === myPlayerId"
-            :isOpponent="p.camp !== myCamp"
-            :selectable="isPlayerSelectable(p.id)"
-            :debugTargetReason="playerSelectReason(p.id)"
-          :selected="isPlayerSelected(p.id)"
-          :turnOrder="turnOrderFor(p.id)"
-          :soulLinkBindingText="soulLinkBindingTextFor(p.id)"
-          :soulLinkBindingTitle="soulLinkBindingTitleFor(p.id)"
-          :fighterHundredDragonText="fighterHundredDragonByPlayer[p.id]?.text"
-          :fighterHundredDragonTitle="fighterHundredDragonByPlayer[p.id]?.title"
-          :fighterHundredDragonRole="fighterHundredDragonByPlayer[p.id]?.role"
-          :bloodSharedLifeText="bloodSharedLifeByPlayer[p.id]?.text"
-          :bloodSharedLifeTitle="bloodSharedLifeByPlayer[p.id]?.title"
-          :bloodSharedLifeRole="bloodSharedLifeByPlayer[p.id]?.role"
-          compact
-          @select="onTargetClick"
-        />
-      </div>
-      </aside>
-
       <section class="center-stage">
         <div class="stage-main">
+          <div class="battle-table-scene" data-testid="battle-table-scene">
+            <div class="battle-table-surface" aria-hidden="true">
+              <div class="battle-table-ring battle-table-ring--outer" />
+              <div class="battle-table-ring battle-table-ring--inner" />
+              <div class="battle-table-orb">
+                <span class="battle-table-orb__label">TURN</span>
+                <span class="battle-table-orb__count">{{ deckCount }}</span>
+              </div>
+            </div>
+
+            <div class="battle-seat-ring">
+              <div
+                v-for="(p, idx) in battleSeatPlayers"
+                :key="p.id"
+                class="player-anchor-wrap battle-table-seat"
+                :class="[
+                  `battle-table-seat--${idx}`,
+                  p.camp === 'Red' ? 'battle-table-seat--red' : 'battle-table-seat--blue',
+                  playerAnchorClasses(p.id, 'table'),
+                  {
+                    'battle-table-seat--me': p.id === myPlayerId,
+                    'battle-table-seat--active': p.is_active,
+                    'battle-table-seat--previewing': hoveredBattleSeatPlayerId === p.id,
+                    'target-guide-pulse': promptNeedsTargetGuide && isPlayerSelectable(p.id)
+                  }
+                ]"
+                :data-player-anchor="p.id"
+                :data-testid="`battle-table-seat-${idx}`"
+                @mouseenter="hoveredBattleSeatPlayerId = p.id"
+                @mouseleave="hoveredBattleSeatPlayerId = null"
+              >
+                <PlayerArea
+                  :player="p"
+                  :isMe="p.id === myPlayerId"
+                  :isOpponent="p.camp !== myCamp"
+                  :selectable="isPlayerSelectable(p.id)"
+                  :debugTargetReason="playerSelectReason(p.id)"
+                  :selected="isPlayerSelected(p.id)"
+                  :turnOrder="turnOrderFor(p.id)"
+                  :soulLinkBindingText="soulLinkBindingTextFor(p.id)"
+                  :soulLinkBindingTitle="soulLinkBindingTitleFor(p.id)"
+                  :fighterHundredDragonText="fighterHundredDragonByPlayer[p.id]?.text"
+                  :fighterHundredDragonTitle="fighterHundredDragonByPlayer[p.id]?.title"
+                  :fighterHundredDragonRole="fighterHundredDragonByPlayer[p.id]?.role"
+                  :bloodSharedLifeText="bloodSharedLifeByPlayer[p.id]?.text"
+                  :bloodSharedLifeTitle="bloodSharedLifeByPlayer[p.id]?.title"
+                  :bloodSharedLifeRole="bloodSharedLifeByPlayer[p.id]?.role"
+                  compact
+                  @select="onTargetClick"
+                />
+                <div
+                  v-if="hoveredBattleSeatPlayerId === p.id && portraitSrcForPlayer(p)"
+                  class="character-inspect-popout"
+                  :class="[
+                    idx <= 2 ? 'character-inspect-popout--from-left' : 'character-inspect-popout--from-right',
+                    idx === 0 || idx === 3 ? 'character-inspect-popout--top' : '',
+                    idx === 1 || idx === 4 ? 'character-inspect-popout--middle' : '',
+                    idx === 2 || idx === 5 ? 'character-inspect-popout--bottom' : ''
+                  ]"
+                  aria-hidden="true"
+                >
+                  <div class="popout-mist" :class="p.camp === 'Red' ? 'mist-red' : 'mist-blue'"></div>
+
+                  <div class="popout-particles">
+                    <span
+                      v-for="n in particleList"
+                      :key="`particle-${p.id}-${n}`"
+                      class="magic-particle"
+                      :class="p.camp === 'Red' ? 'particle-red' : 'particle-blue'"
+                      :style="getRandomParticleStyle()"
+                    ></span>
+                  </div>
+
+                  <div class="active-character-preview" :class="p.camp === 'Red' ? 'preview-camp-red' : 'preview-camp-blue'">
+                    <span v-if="p.id === myPlayerId" class="my-status-self-badge active-popout-self-badge">你</span>
+                    <span v-if="p.is_active" class="my-status-state-badge active-popout-state-badge">当前行动</span>
+
+                    <div class="my-status-portrait-column active-popout-portrait-column">
+                      <img
+                        v-if="portraitSrcForPlayer(p)"
+                        class="my-status-portrait active-popout-portrait"
+                        :src="portraitSrcForPlayer(p)"
+                        :alt="roleNameForPlayer(p)"
+                      >
+                      <span v-else class="my-status-portrait my-status-portrait--placeholder active-popout-portrait-placeholder">
+                        {{ (roleNameForPlayer(p) || '?').charAt(0) }}
+                      </span>
+                    </div>
+
+                    <div class="player-overlay my-status-overlay active-popout-overlay">
+                      <div class="player-overlay-title-row">
+                        <span class="text-sm" aria-hidden="true">{{ p.camp === 'Red' ? '🔴' : '🔵' }}</span>
+                        <span class="player-overlay-role" :title="roleNameForPlayer(p)">{{ roleNameForPlayer(p) }}</span>
+                      </div>
+
+                      <div class="player-overlay-player" :title="`玩家：${p.name || p.id}`">
+                        玩家：{{ p.name || p.id }}
+                      </div>
+
+                      <div class="player-overlay-stats">
+                        <div class="player-overlay-stat">
+                          <span aria-hidden="true">💖</span>
+                          <span>{{ p.heal }}/{{ p.max_heal }}</span>
+                        </div>
+                        <div class="player-overlay-stat" :title="`手牌 ${handCountForPlayer(p)}/${maxHandForPlayer(p)}`">
+                          <span aria-hidden="true">🃏</span>
+                          <span>{{ handCountForPlayer(p) }}/{{ maxHandForPlayer(p) }}</span>
+                        </div>
+                        <div v-if="(p.gem || 0) + (p.crystal || 0) > 0" class="player-overlay-resource">
+                          <span v-if="p.gem" class="my-status-resource my-status-resource--gem">
+                            <span aria-hidden="true">♦</span>{{ p.gem }}
+                          </span>
+                          <span v-if="p.crystal" class="my-status-resource my-status-resource--crystal">
+                            <span aria-hidden="true">🔷</span>{{ p.crystal }}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div v-if="fieldStatusItemsForPlayer(p).length" class="player-overlay-effects active-popout-effects">
+                        <div
+                          v-for="field in fieldStatusItemsForPlayer(p)"
+                          :key="`active-field-${p.id}-${field.key}`"
+                          class="effect-icon-item"
+                          :title="field.label"
+                        >
+                          <StatusEffectIcon :effect="field.effect" />
+                        </div>
+                      </div>
+
+                      <div v-if="tokenItemsForPlayer(p).length" class="active-popout-tokens">
+                        <span
+                          v-for="token in tokenItemsForPlayer(p)"
+                          :key="`active-token-${p.id}-${token.key}`"
+                          class="active-popout-token"
+                          :title="`${token.key}: ${token.value}`"
+                        >
+                          <span>{{ token.key }}</span>
+                          <span>×{{ token.value }}</span>
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div class="center-battle battle-field">
-            <BattleZone class="battle-zone-fill" />
-            <div class="battle-feed-float">
-              <ActionTimeline />
-      </div>
+            <BattleZone
+              class="battle-zone-fill"
+              :narrative-suspended="!!hoveredBattleSeatPlayerId"
+              :actor-seat-positions="battleSeatPositionByPlayerId"
+            />
           </div>
         </div>
 
@@ -2326,9 +2483,17 @@ const fighterHundredDragonByPlayer = computed(() => {
           <div class="bottom-hud-main">
             <div
               class="my-status-strip"
-              :class="{ 'my-status-strip--empty': !myAreaPlayer }"
+              :class="{
+                'my-status-strip--empty': !myAreaPlayer,
+                'my-status-strip--active': isMyTurn || isPromptForMe
+              }"
+              data-testid="my-status-strip"
             >
               <template v-if="myAreaPlayer">
+                <span class="my-status-self-badge">你</span>
+                <span v-if="isMyTurn || isPromptForMe" class="my-status-state-badge">
+                  {{ isMyTurn ? '当前行动' : '等待响应' }}
+                </span>
                 <div class="my-status-portrait-column">
                   <img
                     v-if="myStatusPortraitSrc"
@@ -2346,29 +2511,44 @@ const fighterHundredDragonByPlayer = computed(() => {
                     {{ (myStatusRoleName || '?').charAt(0) }}
                   </span>
                 </div>
-                <div class="my-status-content">
-                  <div class="my-status-primary">
-                    <span class="my-status-chip my-status-chip--heal">治疗 {{ myAreaPlayer.heal }}/{{ myAreaPlayer.max_heal }}</span>
-                    <span class="my-status-chip">手牌上限 {{ myStatusMaxHand }}</span>
-                    <span v-if="myAreaPlayer.gem" class="my-status-chip my-status-chip--gem">宝石 {{ myAreaPlayer.gem }}</span>
-                    <span v-if="myAreaPlayer.crystal" class="my-status-chip my-status-chip--crystal">水晶 {{ myAreaPlayer.crystal }}</span>
+                <div class="player-overlay my-status-overlay">
+                  <div class="player-overlay-title-row">
+                    <span class="text-sm" aria-hidden="true">{{ myAreaPlayer.camp === 'Red' ? '🔴' : '🔵' }}</span>
+                    <span class="player-overlay-role" :title="myStatusRoleName">{{ myStatusRoleName }}</span>
                   </div>
-                  <div class="my-status-secondary">
-                    <span
+
+                  <div class="player-overlay-player" :title="`玩家：${myAreaPlayer.name || myAreaPlayer.id}`">
+                    玩家：{{ myAreaPlayer.name || myAreaPlayer.id }}
+                  </div>
+
+                  <div class="player-overlay-stats">
+                    <div class="player-overlay-stat">
+                      <span aria-hidden="true">💖</span>
+                      <span>{{ myAreaPlayer.heal }}/{{ myAreaPlayer.max_heal }}</span>
+                    </div>
+                    <div class="player-overlay-stat" :title="`手牌 ${myStatusHandCount}/${myStatusMaxHand}`">
+                      <span aria-hidden="true">🃏</span>
+                      <span>{{ myStatusHandCount }}/{{ myStatusMaxHand }}</span>
+                    </div>
+                    <div v-if="(myAreaPlayer.gem || 0) + (myAreaPlayer.crystal || 0) > 0" class="player-overlay-resource">
+                      <span v-if="myAreaPlayer.gem" class="my-status-resource my-status-resource--gem">
+                        <span aria-hidden="true">♦</span>{{ myAreaPlayer.gem }}
+                      </span>
+                      <span v-if="myAreaPlayer.crystal" class="my-status-resource my-status-resource--crystal">
+                        <span aria-hidden="true">🔷</span>{{ myAreaPlayer.crystal }}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div v-if="myFieldStatusItems.length" class="player-overlay-effects">
+                    <div
                       v-for="field in myFieldStatusItems"
                       :key="`field-${field.key}`"
-                      class="my-status-pill my-status-pill--field"
+                      class="effect-icon-item"
                       :title="field.label"
                     >
                       <StatusEffectIcon :effect="field.effect" />
-                      {{ field.label }}
-                    </span>
-                    <span
-                      v-if="myFieldStatusItems.length === 0"
-                      class="my-status-empty"
-                    >
-                      无场上状态
-                    </span>
+                    </div>
                   </div>
                 </div>
               </template>
@@ -2498,7 +2678,7 @@ const fighterHundredDragonByPlayer = computed(() => {
             <div
               class="right-action-dock"
               :class="{
-                'right-action-dock--active': isMyTurn
+                'right-action-dock--active': isMyTurn || isPromptForMe
               }"
             >
               <ActionPanel />
@@ -2506,39 +2686,6 @@ const fighterHundredDragonByPlayer = computed(() => {
       </div>
         </div>
       </section>
-
-      <aside class="side-rail side-rail-right">
-        <div
-          v-for="p in rightRailPlayers"
-          :key="p.id"
-          class="player-anchor-wrap"
-          :class="[
-            playerAnchorClasses(p.id, 'right'),
-            { 'target-guide-pulse': promptNeedsTargetGuide && isPlayerSelectable(p.id) }
-          ]"
-          :data-player-anchor="p.id"
-        >
-          <PlayerArea
-            :player="p"
-            :isMe="p.id === myPlayerId"
-            :isOpponent="p.camp !== myCamp"
-            :selectable="isPlayerSelectable(p.id)"
-            :debugTargetReason="playerSelectReason(p.id)"
-            :selected="isPlayerSelected(p.id)"
-            :turnOrder="turnOrderFor(p.id)"
-            :soulLinkBindingText="soulLinkBindingTextFor(p.id)"
-            :soulLinkBindingTitle="soulLinkBindingTitleFor(p.id)"
-            :fighterHundredDragonText="fighterHundredDragonByPlayer[p.id]?.text"
-            :fighterHundredDragonTitle="fighterHundredDragonByPlayer[p.id]?.title"
-            :fighterHundredDragonRole="fighterHundredDragonByPlayer[p.id]?.role"
-            :bloodSharedLifeText="bloodSharedLifeByPlayer[p.id]?.text"
-            :bloodSharedLifeTitle="bloodSharedLifeByPlayer[p.id]?.title"
-            :bloodSharedLifeRole="bloodSharedLifeByPlayer[p.id]?.role"
-            compact
-            @select="onTargetClick"
-          />
-        </div>
-      </aside>
     </div>
 
     <div v-if="drawFlightCards.length > 0" class="draw-flight-layer">
@@ -2946,11 +3093,34 @@ const fighterHundredDragonByPlayer = computed(() => {
   margin: 0 auto;
   overflow: hidden;
   position: relative;
+  --battle-player-card-width: clamp(126px, 9.72vw, 140px);
+  --battle-player-card-height: clamp(122px, 9.38vw, 135px);
+  --battle-seat-edge-inset: clamp(22px, 2.78vw, 40px);
+  --battle-seat-vertical-inset: clamp(12px, 2.95vh, 20px);
+  --self-status-card-width: clamp(126px, 9.72vw, 140px);
+  --self-status-card-height: clamp(190px, 14.58vw, 210px);
+  --active-popout-width: clamp(170px, 13.2vw, 190px);
+  --active-popout-height: clamp(242px, 18.75vw, 270px);
+  --bottom-hud-height: 240px;
   padding-top: max(8px, var(--safe-top));
+  padding-right: 0;
   padding-bottom: calc(8px + var(--safe-bottom));
+  padding-left: 0;
   background: transparent;
   border: none;
   box-shadow: none;
+}
+
+@media (min-width: 1800px) {
+  .board-shell {
+    --battle-player-card-width: 150px;
+    --battle-player-card-height: 145px;
+    --self-status-card-width: 150px;
+    --self-status-card-height: 224px;
+    --active-popout-width: 204px;
+    --active-popout-height: 290px;
+    --bottom-hud-height: 254px;
+  }
 }
 
 .board-shell::before {
@@ -3204,8 +3374,9 @@ const fighterHundredDragonByPlayer = computed(() => {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  gap: 10px;
-  margin-bottom: 8px;
+  gap: 20px;
+  margin-bottom: 10px;
+  padding: 0 var(--battle-seat-edge-inset);
 }
 
 .disconnect-panel {
@@ -3470,20 +3641,15 @@ const fighterHundredDragonByPlayer = computed(() => {
 .main-grid {
   display: grid;
   flex: 1 1 0;
-  grid-template-columns: 156px minmax(0, 1fr) 156px;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
-  gap: 12px;
+  gap: 0;
   align-items: stretch;
   min-height: 0;
   min-width: 0;
 }
 
 @media (min-width: 1600px) {
-  .main-grid {
-    grid-template-columns: 180px minmax(0, 1fr) 180px;
-    gap: 16px;
-  }
-
   .bottom-hud {
     --hand-max-width: 940px;
     --action-dock-width: 320px;
@@ -3495,11 +3661,6 @@ const fighterHundredDragonByPlayer = computed(() => {
     max-width: 2080px;
   }
 
-  .main-grid {
-    grid-template-columns: 204px minmax(0, 1fr) 204px;
-    gap: 18px;
-  }
-
   .bottom-hud {
     --hand-max-width: 1040px;
     --action-dock-width: 340px;
@@ -3507,24 +3668,6 @@ const fighterHundredDragonByPlayer = computed(() => {
 
   .hand-rail {
     max-width: 1020px;
-  }
-}
-
-.side-rail {
-  min-height: 0;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-start;
-  gap: 8px;
-}
-
-@media (min-width: 901px) {
-  /* 侧边栏中的角色卡占满整列宽度，避免比 rail 更窄。 */
-  .side-rail :deep(.player-area) {
-    width: 100%;
-    min-width: 100%;
-    max-width: 100%;
   }
 }
 
@@ -3549,51 +3692,16 @@ const fighterHundredDragonByPlayer = computed(() => {
     0 12px 26px rgba(8, 22, 36, 0.4);
 }
 
-.player-anchor-wrap--focus-slot-left.player-anchor-wrap--focus-active {
-  transform: translate(clamp(34px, 4.2vw, 64px), 0) scale(1.04);
-}
-
-.player-anchor-wrap--focus-slot-right.player-anchor-wrap--focus-active {
-  transform: translate(clamp(-64px, -4.2vw, -34px), 0) scale(1.04);
-}
-
-.player-anchor-wrap--focus-slot-bottom.player-anchor-wrap--focus-active {
-  transform: translate(0, clamp(-72px, -8vh, -44px)) scale(1.05);
-}
-
-.side-rail-left {
-  align-items: flex-start;
-}
-
-.left-target-guide-hint {
-  width: 100%;
-  text-align: center;
-  margin-bottom: 6px;
-  padding: 4px 8px;
-  border-radius: 999px;
-  border: 1px solid rgba(219, 186, 123, 0.52);
-  background: linear-gradient(180deg, rgba(84, 59, 28, 0.9), rgba(62, 43, 20, 0.92));
-  color: #f9e4ba;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  box-shadow: 0 6px 14px rgba(10, 5, 1, 0.32);
-}
-
-.side-rail-right {
-  align-items: flex-end;
-}
-
 .center-stage {
   height: 100%;
   min-height: 0;
   min-width: 0;
   position: relative;
-  border-radius: 14px;
-  border: none;
+  border-radius: 0;
+  border: 0;
   background: transparent;
   box-shadow: none;
-  padding: 2px 0 0;
+  padding: 0;
   display: flex;
   flex-direction: column;
   overflow: visible;
@@ -3634,30 +3742,500 @@ const fighterHundredDragonByPlayer = computed(() => {
   flex: 1 1 auto;
   min-height: 0;
   min-width: 0;
-  display: flex;
+  display: grid;
   align-items: stretch;
   position: relative;
   overflow: hidden;
-  border-radius: 14px;
-  border: 1px solid rgba(120, 165, 210, 0.08);
-  background:
-    linear-gradient(180deg, rgba(12, 25, 42, 0.2), rgba(8, 18, 32, 0.35));
+  border-radius: 14px 14px 0 0;
+  border: 0;
+  background: transparent;
   z-index: 2;
   padding: 0;
-  box-shadow: inset 0 1px 0 rgba(200, 230, 255, 0.04);
+  box-shadow: none;
 }
 
 .stage-main::before {
-  content: none;
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 74% 52% at 50% 52%, rgba(103, 152, 196, 0.08), transparent 72%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 24%, rgba(0, 0, 0, 0.16));
+  z-index: 0;
+  display: none;
 }
 
 .stage-main::after {
-  content: none;
+  content: '';
+  position: absolute;
+  inset: clamp(28px, 5vw, 62px) clamp(58px, 8vw, 118px) clamp(44px, 7vw, 88px);
+  pointer-events: none;
+  border-radius: 50%;
+  border: 1px solid rgba(232, 200, 133, 0.2);
+  background:
+    radial-gradient(ellipse at 50% 45%, rgba(119, 170, 209, 0.18), rgba(19, 43, 69, 0.3) 52%, rgba(2, 8, 17, 0.18) 72%),
+    conic-gradient(from 24deg, rgba(221, 186, 111, 0.05), rgba(110, 164, 211, 0.1), rgba(221, 186, 111, 0.08), rgba(168, 79, 70, 0.08), rgba(221, 186, 111, 0.05));
+  box-shadow:
+    0 20px 42px rgba(0, 0, 0, 0.36),
+    inset 0 0 42px rgba(172, 206, 234, 0.08);
+  z-index: 0;
+  display: none;
 }
 
 .stage-main > * {
   position: relative;
   z-index: 2;
+}
+
+.battle-table-scene {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  pointer-events: none;
+}
+
+.battle-table-surface {
+  position: absolute;
+  inset: clamp(30px, 5.4vw, 68px) clamp(62px, 8.5vw, 126px) clamp(48px, 7.2vw, 96px);
+  border-radius: 50%;
+  pointer-events: none;
+  display: none;
+}
+
+.battle-table-ring {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.battle-table-ring--outer {
+  inset: 0;
+  border: 1px solid rgba(232, 196, 125, 0.32);
+  box-shadow:
+    0 0 34px rgba(115, 171, 213, 0.12),
+    inset 0 0 30px rgba(230, 200, 130, 0.08);
+}
+
+.battle-table-ring--inner {
+  inset: 22%;
+  border: 1px solid rgba(131, 183, 221, 0.22);
+  background: radial-gradient(circle, rgba(14, 35, 58, 0.7), rgba(4, 13, 25, 0.16) 62%, transparent 70%);
+}
+
+.battle-table-orb {
+  position: absolute;
+  left: 50%;
+  top: 48%;
+  width: clamp(72px, 7vw, 104px);
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  border-radius: 999px;
+  border: 1px solid rgba(226, 190, 118, 0.42);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(circle at 50% 34%, rgba(239, 211, 151, 0.18), transparent 44%),
+    rgba(5, 17, 30, 0.72);
+  box-shadow:
+    0 0 28px rgba(220, 181, 103, 0.14),
+    inset 0 0 22px rgba(119, 176, 217, 0.08);
+}
+
+.battle-table-orb__label {
+  color: rgba(177, 205, 225, 0.9);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+}
+
+.battle-table-orb__count {
+  color: #f6dba2;
+  font-size: clamp(22px, 2.6vw, 34px);
+  font-weight: 900;
+  line-height: 1;
+}
+
+.battle-seat-ring {
+  position: absolute;
+  inset: var(--battle-seat-vertical-inset) var(--battle-seat-edge-inset);
+  z-index: 7;
+  display: block;
+  pointer-events: none;
+}
+
+.battle-table-seat {
+  position: absolute;
+  width: var(--battle-player-card-width);
+  height: var(--battle-player-card-height);
+  --seat-scale: 1;
+  --seat-active-scale: 1;
+  --seat-focus-scale: 1.03;
+  z-index: var(--seat-z, 8);
+  transform-origin: center center;
+  transition: filter 0.28s ease, box-shadow 0.28s ease;
+  pointer-events: auto;
+}
+
+.battle-table-seat::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: 12px;
+  border: 1px solid rgba(143, 186, 219, 0.18);
+  background:
+    linear-gradient(180deg, rgba(17, 36, 58, 0.28), rgba(6, 16, 29, 0.42));
+  box-shadow:
+    inset 0 1px 0 rgba(233, 244, 255, 0.05),
+    0 10px 24px rgba(0, 0, 0, 0.18);
+  opacity: 0.82;
+  pointer-events: none;
+}
+
+.battle-table-seat :deep(.player-area) {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: var(--battle-player-card-height);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.battle-table-seat--0 {
+  top: 0;
+  left: 0;
+  --seat-z: 9;
+  transform-origin: left top;
+}
+
+.battle-table-seat--1 {
+  top: calc(50% - var(--battle-player-card-height) / 2);
+  left: 0;
+  --seat-z: 9;
+  transform-origin: left center;
+}
+
+.battle-table-seat--2 {
+  bottom: 0;
+  left: 0;
+  --seat-z: 9;
+  transform-origin: left bottom;
+}
+
+.battle-table-seat--3 {
+  top: 0;
+  right: 0;
+  --seat-z: 10;
+  transform-origin: right top;
+}
+
+.battle-table-seat--4 {
+  top: calc(50% - var(--battle-player-card-height) / 2);
+  right: 0;
+  --seat-z: 11;
+  transform-origin: right center;
+}
+
+.battle-table-seat--5 {
+  bottom: 0;
+  right: 0;
+  --seat-z: 10;
+  transform-origin: right bottom;
+}
+
+.battle-table-seat--active {
+  z-index: 14;
+}
+
+.battle-table-seat:hover {
+  z-index: 15;
+}
+
+.battle-table-seat--previewing {
+  z-index: 22;
+}
+
+.battle-table-seat.player-anchor-wrap--focus-slot-table.player-anchor-wrap--focus-active {
+  z-index: 16;
+}
+
+.battle-table-seat--me :deep(.player-area) {
+  box-shadow:
+    0 0 0 1px rgba(255, 221, 151, 0.44),
+    0 0 28px rgba(236, 192, 100, 0.22);
+}
+
+.battle-table-seat--active :deep(.player-area) {
+  box-shadow: none;
+}
+
+/* --- 包装器：统领光雾、粒子和卡牌 --- */
+.character-inspect-popout {
+  position: absolute;
+  width: var(--active-popout-width);
+  height: var(--active-popout-height);
+  z-index: 150;
+  pointer-events: none;
+}
+
+.character-inspect-popout .popout-mist,
+.character-inspect-popout .popout-particles {
+  opacity: 0.52;
+}
+
+.character-inspect-popout--top {
+  top: 0;
+}
+
+.character-inspect-popout--middle {
+  top: 0;
+  bottom: 0;
+  margin: auto 0;
+}
+
+.character-inspect-popout--bottom {
+  bottom: 0;
+}
+
+.character-inspect-popout--from-left {
+  left: calc(100% + 25px);
+  animation: popCardLeft 0.55s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.character-inspect-popout--from-right {
+  right: calc(100% + 25px);
+  animation: popCardRight 0.55s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* --- 层级1：弥散光雾 --- */
+.popout-mist {
+  position: absolute;
+  inset: -30px;
+  border-radius: 30px;
+  filter: blur(24px);
+  opacity: 0.7;
+  z-index: 1;
+  animation: mistBreathe 2.5s ease-in-out infinite alternate;
+}
+
+.mist-blue {
+  background: radial-gradient(circle, rgba(56, 189, 248, 0.8) 20%, transparent 70%);
+}
+
+.mist-red {
+  background: radial-gradient(circle, rgba(248, 113, 113, 0.8) 20%, transparent 70%);
+}
+
+@keyframes mistBreathe {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(1.1);
+    opacity: 0.8;
+  }
+}
+
+/* --- 层级2：流光粒子 --- */
+.popout-particles {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+}
+
+.magic-particle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  border-radius: 50%;
+  opacity: 0;
+  animation: particleFloat var(--animation-duration) cubic-bezier(0.25, 1, 0.5, 1) var(--animation-delay) infinite;
+}
+
+.particle-blue {
+  background: #bae6fd;
+  box-shadow: 0 0 6px #38bdf8, 0 0 12px #fff;
+}
+
+.particle-red {
+  background: #fecaca;
+  box-shadow: 0 0 6px #f87171, 0 0 12px #fff;
+}
+
+@keyframes particleFloat {
+  0% {
+    transform: translate(-50%, -50%) scale(0);
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+    transform: translate(calc(-50% + var(--tx) * 0.2), calc(-50% + var(--ty) * 0.2)) scale(1);
+  }
+  100% {
+    transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(0);
+    opacity: 0;
+  }
+}
+
+/* --- 层级3：卡牌实体 --- */
+.active-character-preview {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 10;
+  border-radius: 10px;
+  border: 1px solid rgba(132, 172, 207, 0.28);
+  overflow: hidden;
+  background: linear-gradient(180deg, rgba(18, 36, 54, 0.72), rgba(10, 23, 37, 0.82));
+  box-shadow:
+    inset 0 1px 0 rgba(236, 247, 255, 0.08),
+    0 10px 24px rgba(2, 8, 16, 0.34);
+}
+
+.active-character-preview.preview-camp-blue {
+  border-color: #38bdf8 !important;
+  box-shadow:
+    0 0 20px rgba(56, 189, 248, 0.5),
+    inset 0 0 15px rgba(56, 189, 248, 0.3);
+}
+
+.active-character-preview.preview-camp-red {
+  border-color: #f87171 !important;
+  box-shadow:
+    0 0 20px rgba(248, 113, 113, 0.5),
+    inset 0 0 15px rgba(248, 113, 113, 0.3);
+}
+
+.active-popout-self-badge,
+.active-popout-state-badge {
+  z-index: 3;
+}
+
+.active-popout-portrait-column {
+  z-index: 0;
+}
+
+.active-popout-portrait {
+  object-position: 50% 12%;
+}
+
+.active-popout-overlay.player-overlay {
+  z-index: 2;
+}
+
+.active-popout-effects {
+  max-height: 28px;
+}
+
+.active-popout-effects .effect-icon-item {
+  width: 22px;
+  height: 22px;
+}
+
+.active-popout-tokens {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 3px;
+  max-height: 36px;
+  overflow: hidden;
+}
+
+.active-popout-token {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  max-width: 100%;
+  padding: 2px 5px;
+  border-radius: 4px;
+  border: 1px solid rgba(148, 163, 184, 0.38);
+  background: rgba(15, 23, 42, 0.62);
+  color: rgba(226, 232, 240, 0.96);
+  font-size: 9px;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@keyframes popCardLeft {
+  0% {
+    opacity: 0;
+    transform: translateX(-40px) scale(0.85);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes popCardRight {
+  0% {
+    opacity: 0;
+    transform: translateX(40px) scale(0.85);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (max-width: 1180px) {
+  .board-shell {
+    --battle-player-card-width: clamp(116px, 12.5vw, 148px);
+    --battle-seat-edge-inset: clamp(6px, 1vw, 12px);
+    --battle-seat-vertical-inset: clamp(3px, 0.8vh, 8px);
+  }
+
+  .battle-seat-ring {
+    inset: var(--battle-seat-vertical-inset) var(--battle-seat-edge-inset);
+  }
+}
+
+@media (max-width: 900px) and (orientation: portrait) {
+  .battle-table-scene {
+    position: relative;
+    inset: auto;
+    min-height: 520px;
+  }
+
+  .battle-seat-ring {
+    position: relative;
+    inset: auto;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    padding: 54px 8px 10px;
+  }
+
+  .battle-table-seat,
+  .battle-table-seat--0,
+  .battle-table-seat--1,
+  .battle-table-seat--2,
+  .battle-table-seat--3,
+  .battle-table-seat--4,
+  .battle-table-seat--5 {
+    position: relative;
+    inset: auto;
+    width: auto;
+    transform: none;
+  }
+
+  .battle-table-surface {
+    inset: 34px 18px 18px;
+  }
+
+  .center-battle {
+    display: none;
+  }
 }
 
 .battle-zone-fill {
@@ -3669,22 +4247,22 @@ const fighterHundredDragonByPlayer = computed(() => {
 }
 
 .center-battle {
-  flex: 1 1 auto;
-  width: 100%;
-  height: 100%;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: calc(100% - var(--battle-player-card-width) * 2 - clamp(40px, 4vw, 80px));
+  height: calc(100% - clamp(8px, 1.8vh, 24px));
+  transform: translate(-50%, -50%);
   min-height: 0;
   min-width: 0;
   display: flex;
   align-items: stretch;
   justify-content: center;
-  position: relative;
-  border-radius: 14px;
-  border: 1px solid rgba(100, 145, 195, 0.1);
-  background:
-    radial-gradient(ellipse 90% 80% at 50% 50%, rgba(25, 55, 90, 0.15), transparent 65%);
-  box-shadow:
-    inset 0 0 40px rgba(40, 80, 130, 0.06),
-    0 0 20px rgba(20, 50, 90, 0.08);
+  border-radius: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  z-index: 5;
 }
 
 .battle-field {
@@ -3692,27 +4270,11 @@ const fighterHundredDragonByPlayer = computed(() => {
   overflow: hidden;
 }
 
-.battle-feed-float {
-  position: absolute;
-  top: 8px;
-  left: 10px;
-  right: auto;
-  width: fit-content;
-  max-width: calc(100% - 20px);
-  z-index: 8;
-  overflow: visible;
-}
-
-.battle-feed-float :deep(.timeline-strip-wrap) {
-  width: fit-content;
-  max-width: 100%;
-  min-height: 0;
-}
-
 .hand-rail {
   flex: 1 1 560px;
   min-width: 280px;
-  max-width: var(--hand-max-width);
+  max-width: none;
+  height: var(--self-status-card-height);
   position: relative;
   background:
     linear-gradient(180deg, rgba(12, 26, 42, 0.92), rgba(8, 18, 31, 0.95));
@@ -3746,15 +4308,17 @@ const fighterHundredDragonByPlayer = computed(() => {
 
 .my-status-strip {
   position: relative;
+  grid-area: status;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  width: 100%;
+  width: var(--self-status-card-width);
+  height: var(--self-status-card-height);
   margin-bottom: 0;
-  min-height: 178px;
-  padding: 10px;
+  min-height: 0;
+  padding: 8px;
   border-radius: 10px;
   border: 1px solid rgba(132, 172, 207, 0.28);
   background: linear-gradient(180deg, rgba(18, 36, 54, 0.72), rgba(10, 23, 37, 0.82));
@@ -3762,6 +4326,16 @@ const fighterHundredDragonByPlayer = computed(() => {
     inset 0 1px 0 rgba(236, 247, 255, 0.08),
     0 6px 14px rgba(2, 8, 16, 0.22);
   overflow: hidden;
+  pointer-events: auto;
+}
+
+.my-status-strip--active {
+  border-color: rgba(241, 207, 133, 0.7);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 241, 190, 0.18),
+    0 8px 18px rgba(2, 8, 16, 0.28),
+    0 0 0 1px rgba(234, 194, 107, 0.28),
+    0 0 22px rgba(216, 162, 74, 0.22);
 }
 
 .my-status-strip--empty {
@@ -3774,8 +4348,8 @@ const fighterHundredDragonByPlayer = computed(() => {
   inset: 0;
   z-index: 0;
   background:
-    linear-gradient(180deg, rgba(2, 8, 16, 0) 34%, rgba(2, 8, 16, 0.58) 70%, rgba(2, 8, 16, 0.88) 100%),
-    linear-gradient(90deg, rgba(2, 8, 16, 0.28), rgba(2, 8, 16, 0) 42%, rgba(2, 8, 16, 0.26));
+    linear-gradient(180deg, rgba(2, 8, 16, 0) 42%, rgba(2, 8, 16, 0.5) 72%, rgba(2, 8, 16, 0.9) 100%),
+    linear-gradient(90deg, rgba(2, 8, 16, 0.18), rgba(2, 8, 16, 0) 44%, rgba(2, 8, 16, 0.18));
   pointer-events: none;
 }
 
@@ -3790,25 +4364,37 @@ const fighterHundredDragonByPlayer = computed(() => {
   min-height: 0;
 }
 
-.my-status-content {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  width: 100%;
-  min-width: 0;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
+.my-status-self-badge,
+.my-status-state-badge {
+  position: absolute;
+  z-index: 2;
+  border-radius: 999px;
+  border: 1px solid rgba(226, 241, 255, 0.5);
+  background: rgba(5, 14, 25, 0.78);
+  box-shadow: 0 4px 10px rgba(2, 8, 16, 0.34);
+  font-weight: 900;
+  line-height: 1;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.72);
 }
 
-.my-status-primary,
-.my-status-secondary {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 6px;
-  min-width: 0;
+.my-status-self-badge {
+  top: 8px;
+  left: 8px;
+  padding: 5px 8px;
+  border-color: rgba(132, 207, 255, 0.72);
+  color: #def4ff;
+  background: linear-gradient(180deg, rgba(25, 88, 132, 0.92), rgba(12, 48, 80, 0.94));
+  font-size: 12px;
+}
+
+.my-status-state-badge {
+  top: 8px;
+  right: 8px;
+  padding: 5px 8px;
+  border-color: rgba(239, 203, 126, 0.76);
+  color: #ffedbf;
+  background: linear-gradient(180deg, rgba(121, 82, 31, 0.92), rgba(82, 53, 18, 0.95));
+  font-size: 11px;
 }
 
 .my-status-portrait {
@@ -3820,7 +4406,7 @@ const fighterHundredDragonByPlayer = computed(() => {
   background: radial-gradient(circle at 50% 18%, rgba(237, 205, 143, 0.26), rgba(5, 14, 25, 0.84));
   box-shadow: none;
   object-fit: cover;
-  object-position: 50% 18%;
+  object-position: 50% 12%;
 }
 
 .my-status-portrait--placeholder {
@@ -3833,62 +4419,110 @@ const fighterHundredDragonByPlayer = computed(() => {
   line-height: 1;
 }
 
-.my-status-chip,
-.my-status-pill {
-  display: inline-flex;
+.my-status-overlay.player-overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+  min-height: 52%;
+  padding: 6px 6px 7px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  justify-content: flex-end;
+  background:
+    linear-gradient(180deg, rgba(4, 10, 18, 0.04) 0%, rgba(8, 16, 27, 0.78) 32%, rgba(6, 12, 21, 0.94) 100%);
+  backdrop-filter: blur(2px);
+}
+
+.my-status-overlay .player-overlay-title-row {
+  display: flex;
   align-items: center;
+  justify-content: center;
   gap: 4px;
-  min-height: 20px;
-  border-radius: 999px;
-  border: 1px solid rgba(142, 178, 205, 0.34);
-  background: rgba(5, 14, 25, 0.54);
-  color: rgba(219, 235, 248, 0.95);
+  min-height: 16px;
+}
+
+.my-status-overlay .player-overlay-role {
+  max-width: calc(100% - 22px);
+  overflow: hidden;
+  color: rgba(241, 247, 255, 0.96);
   font-size: 11px;
-  line-height: 1;
+  font-weight: 700;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 2px rgba(3, 10, 20, 0.68);
   white-space: nowrap;
 }
 
-.my-status-chip {
-  padding: 4px 8px;
-  font-weight: 700;
+.my-status-overlay .player-overlay-player {
+  overflow: hidden;
+  color: rgba(196, 213, 227, 0.92);
+  font-size: 10px;
+  line-height: 1.1;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.my-status-chip--heal {
-  color: #ffd0d7;
-  border-color: rgba(221, 118, 138, 0.38);
+.my-status-overlay .player-overlay-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px 4px;
+  color: rgba(228, 237, 245, 0.92);
+  font-size: 10px;
 }
 
-.my-status-chip--gem {
+.my-status-overlay .player-overlay-stat {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.my-status-overlay .player-overlay-resource {
+  grid-column: 1 / -1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.my-status-resource {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.my-status-resource--gem {
   color: #f8b8ae;
-  border-color: rgba(220, 106, 92, 0.38);
 }
 
-.my-status-chip--crystal {
+.my-status-resource--crystal {
   color: #b7ddf4;
-  border-color: rgba(106, 172, 211, 0.4);
 }
 
-.my-status-pill {
-  padding: 3px 7px;
-  font-weight: 600;
+.my-status-overlay .player-overlay-effects {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  max-height: 32px;
+  overflow: hidden;
 }
 
-.my-status-pill--field {
-  color: #f8e5b8;
-  background: rgba(46, 35, 16, 0.58);
-  border-color: rgba(220, 179, 104, 0.38);
-}
-
-.my-status-pill--field :deep(.status-effect-icon) {
-  width: 16px;
-  height: 16px;
+.my-status-overlay .effect-icon-item {
+  width: 24px;
+  height: 24px;
   flex-shrink: 0;
 }
 
-.my-status-empty {
-  color: rgba(164, 190, 208, 0.78);
-  font-size: 11px;
-  line-height: 1;
+.my-status-overlay .effect-icon-item :deep(.status-effect-icon) {
+  width: 100%;
+  height: 100%;
 }
 
 .prompt-card-guide-chip {
@@ -3940,10 +4574,6 @@ const fighterHundredDragonByPlayer = computed(() => {
 .guide-hint-leave-to {
   opacity: 0;
   transform: translateY(8px);
-}
-
-.target-guide-pulse {
-  position: relative;
 }
 
 .target-guide-pulse::after {
@@ -4017,10 +4647,11 @@ const fighterHundredDragonByPlayer = computed(() => {
 
 .hand-list {
   width: 100%;
+  height: 100%;
   min-width: 0;
   /* 选中卡牌上移时预留顶部空间，避免在横向滚动容器内被裁切。 */
-  padding-top: 14px;
-  margin-top: -8px;
+  padding-top: 12px;
+  margin-top: -6px;
   scrollbar-width: thin;
   scrollbar-color: rgba(94, 138, 165, 0.74) rgba(7, 14, 22, 0.45);
 }
@@ -4030,7 +4661,7 @@ const fighterHundredDragonByPlayer = computed(() => {
   align-items: flex-end;
   width: max-content;
   min-width: 100%;
-  gap: 6px;
+  gap: 8px;
   padding-right: 2px;
 }
 
@@ -4181,38 +4812,53 @@ const fighterHundredDragonByPlayer = computed(() => {
 }
 
 .bottom-hud {
-  padding-top: 4px;
+  height: var(--bottom-hud-height);
+  padding: 0 var(--battle-seat-edge-inset) 20px;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: stretch;
+  justify-content: flex-end;
   width: 100%;
-  gap: 8px;
+  gap: 0;
   position: relative;
   z-index: 2;
-  --hand-max-width: 820px;
-  --status-card-width: 176px;
-  --action-dock-width: 300px;
-  --hud-main-gap: 10px;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  pointer-events: none;
+  margin-top: 0 !important;
+  --hand-max-width: none;
+  --status-card-width: var(--self-status-card-width);
+  --action-dock-width: 280px;
+  --hud-main-gap: 15px;
 }
 
 .bottom-hud-main {
-  width: min(100%, calc(var(--status-card-width) + var(--hand-max-width) + var(--action-dock-width) + var(--hud-main-gap) + var(--hud-main-gap)));
+  width: 100%;
   min-width: 0;
   display: grid;
-  grid-template-columns: var(--status-card-width) minmax(0, var(--hand-max-width)) var(--action-dock-width);
+  grid-template-columns: var(--status-card-width) minmax(0, 1fr) var(--action-dock-width);
+  grid-template-areas: "status hand action";
   align-items: end;
   column-gap: var(--hud-main-gap);
   margin: 0;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  pointer-events: none;
 }
 
 .bottom-slot-hand {
+  grid-area: hand;
   width: 100%;
-  max-width: var(--hand-max-width);
+  max-width: none;
   min-width: 0;
   justify-self: stretch;
+  pointer-events: auto;
 }
 
 .right-action-dock {
+  grid-area: action;
   position: static;
   width: 100%;
   z-index: 24;
@@ -4220,6 +4866,17 @@ const fighterHundredDragonByPlayer = computed(() => {
   transition: filter 0.22s ease, transform 0.22s ease;
   align-self: end;
   justify-self: stretch;
+  min-height: var(--self-status-card-height);
+  height: var(--self-status-card-height);
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(130, 170, 210, 0.15);
+  background:
+    linear-gradient(180deg, rgba(12, 25, 42, 0.86), rgba(8, 18, 32, 0.92));
+  box-shadow:
+    inset 0 1px 0 rgba(235, 245, 252, 0.09),
+    0 10px 24px rgba(1, 8, 16, 0.36);
+  overflow: hidden;
 }
 
 .right-action-dock--active {
@@ -4227,23 +4884,42 @@ const fighterHundredDragonByPlayer = computed(() => {
   transform: translateY(-2px);
 }
 
+.right-action-dock :deep(.action-panel-root) {
+  height: 100%;
+}
+
+.right-action-dock :deep(.action-panel-root--hub),
+.right-action-dock :deep(.action-panel-root--panel),
+.right-action-dock :deep(.action-panel-root--prompt-inline) {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
 @media (max-width: 1200px) {
   .bottom-hud {
     --hand-max-width: 700px;
-    --status-card-width: 154px;
     --action-dock-width: 248px;
   }
 }
 
 @media (max-width: 900px) {
+  .board-shell {
+    --self-status-card-width: clamp(112px, 15vw, 132px);
+    --self-status-card-height: 198px;
+  }
+
   .right-action-dock {
     z-index: 36;
   }
 }
 
 @media (max-width: 640px) {
+  .board-shell {
+    --self-status-card-width: min(112px, 29vw);
+    --self-status-card-height: 176px;
+  }
+
   .bottom-hud {
-    --status-card-width: min(118px, 30vw);
     --action-dock-width: min(176px, 48vw);
   }
 }
@@ -4254,8 +4930,17 @@ const fighterHundredDragonByPlayer = computed(() => {
   }
 }
 
-/* 针对 1440x678 这类“宽屏但高度较矮”的桌面，放大角色位宽度，避免立绘被 rail 压缩。 */
+/* 针对 1440x678 这类“宽屏但高度较矮”的桌面，收紧高度避免侧边座位互相压叠。 */
 @media (min-width: 1360px) and (max-width: 1599px) and (max-height: 760px) {
+  .board-shell {
+    --battle-player-card-width: 126px;
+    --battle-player-card-height: 122px;
+    --self-status-card-height: 200px;
+    --active-popout-width: 158px;
+    --active-popout-height: 224px;
+    --bottom-hud-height: 220px;
+  }
+
   .main-grid {
     grid-template-columns: 168px minmax(0, 1fr) 168px;
     gap: 14px;
@@ -4267,8 +4952,7 @@ const fighterHundredDragonByPlayer = computed(() => {
 
   .bottom-hud {
     --hand-max-width: 760px;
-    --status-card-width: 168px;
-    --action-dock-width: 320px;
+    --action-dock-width: 280px;
   }
 }
 
@@ -4283,12 +4967,11 @@ const fighterHundredDragonByPlayer = computed(() => {
 
   .bottom-hud {
     --hand-max-width: 700px;
-    --status-card-width: 146px;
     --action-dock-width: 238px;
   }
 
   .hand-rail {
-    max-width: 700px;
+    max-width: none;
   }
 
   .table-decor-base {
@@ -4401,7 +5084,6 @@ const fighterHundredDragonByPlayer = computed(() => {
 
   .bottom-hud {
     --hand-max-width: 100%;
-    --status-card-width: 136px;
     --action-dock-width: 230px;
     --hud-main-gap: 6px;
   }
@@ -4437,7 +5119,6 @@ const fighterHundredDragonByPlayer = computed(() => {
   }
 
   .bottom-hud {
-    --status-card-width: 122px;
     --action-dock-width: 208px;
   }
 }
@@ -4520,13 +5201,17 @@ const fighterHundredDragonByPlayer = computed(() => {
     width: 100%;
     gap: 6px;
     --hand-max-width: 100%;
-    --status-card-width: min(132px, 28vw);
     --action-dock-width: min(198px, 42vw);
     --hud-main-gap: 6px;
   }
 
   .bottom-hud-main {
-    grid-template-columns: var(--status-card-width) minmax(0, 1fr) var(--action-dock-width);
+    grid-template-columns: minmax(112px, var(--status-card-width)) minmax(160px, var(--action-dock-width));
+    grid-template-areas:
+      "status action"
+      "hand hand";
+    align-items: stretch;
+    row-gap: var(--hud-main-gap);
   }
 
   .hand-rail {
@@ -4645,11 +5330,64 @@ const fighterHundredDragonByPlayer = computed(() => {
   pointer-events: none;
 }
 
-.side-rail .player-anchor-wrap {
-  transition: transform 0.24s ease, filter 0.24s ease;
+/* Battle table layout wins over legacy side-rail media rules. */
+.main-grid {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  gap: 0;
 }
 
-.side-rail .player-anchor-wrap:hover:not(.player-anchor-wrap--focus-active) {
-  transform: translateY(-1px);
+.battle-table-seat:hover:not(.player-anchor-wrap--focus-active) {
+  filter: brightness(1.04);
+}
+
+@media (max-width: 1024px) {
+  .main-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+}
+
+@media (max-width: 1024px) and (orientation: landscape) and (pointer: coarse) {
+  .main-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+
+  .stage-main {
+    min-height: 0;
+  }
+
+  .board-shell {
+    --battle-player-card-width: clamp(102px, 14vw, 126px);
+    --battle-player-card-height: clamp(108px, 28vh, 124px);
+    --battle-seat-edge-inset: clamp(4px, 0.8vw, 8px);
+    --battle-seat-vertical-inset: clamp(2px, 0.6vh, 6px);
+  }
+
+  .battle-seat-ring {
+    inset: var(--battle-seat-vertical-inset) var(--battle-seat-edge-inset);
+  }
+
+  .center-battle {
+    width: calc(100% - var(--battle-player-card-width) * 2 - 36px);
+    height: 90%;
+  }
+}
+
+@media (max-width: 900px) and (orientation: portrait) {
+  .main-grid {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto;
+    gap: 8px;
+  }
+
+  .battle-table-seat.player-anchor-wrap--focus-slot-table.player-anchor-wrap--focus-active {
+    --seat-current-scale: 1.02;
+  }
+
+  .character-inspect-popout {
+    display: none;
+  }
 }
 </style>

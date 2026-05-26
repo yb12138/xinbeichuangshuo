@@ -222,10 +222,17 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
           }
           const nextCurrent = event.state.current_player
           if (nextCurrent && nextCurrent !== prevCurrent) {
-            battleFxStore.clearBattlefieldReveals()
+            battleFxStore.clearActionNarrative()
           }
           if (nextCurrent && event.state.turn_stage === 'ActionExecution') {
+            battleFxStore.beginActionNarrative(nextCurrent)
             battleFxStore.startActingPlayerFocus(nextCurrent, 'turn')
+          } else if (
+            event.state.turn_stage !== 'ActionExecution' &&
+            !event.state.combat_stage &&
+            event.state.subflow !== 'Response'
+          ) {
+            battleFxStore.clearActionNarrative()
           }
           if (nextCurrent && nextCurrent !== prevCurrent) {
             if (prevCurrent) {
@@ -297,15 +304,13 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
 
       case 'card_revealed':
         if (event.cards?.length && event.player_id) {
-          battleFxStore.addFlyingCards(
-            event.cards,
-            event.player_id,
-            event.player_name || event.player_id,
-            event.action_type || 'discard',
-            event.hidden,
-          )
           if (event.action_type === 'magic') {
             battleFxStore.startSkillInitiatorFocus(event.player_id, 'magic')
+          }
+          if (!event.hidden) {
+            for (const card of event.cards) {
+              battleFxStore.addNarrativeCard(event.player_id, card, event.action_type || 'discard')
+            }
           }
         }
         break
@@ -315,6 +320,12 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
           battleFxStore.addDamageEffect(
             event.target_id,
             event.target_name || event.target_id,
+            event.damage,
+            event.damage_type || 'Attack',
+          )
+          battleFxStore.addNarrativeDamage(
+            event.source_id,
+            event.target_id,
             event.damage,
             event.damage_type || 'Attack',
           )
@@ -364,6 +375,12 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
             actorName,
             event.skill_name,
             event.effect_text || '技能效果生效',
+          )
+          battleFxStore.addNarrativeSkill(
+            event.player_id,
+            event.skill_name,
+            event.effect_text || '技能效果生效',
+            event.target_ids || [],
           )
           battleReviewStore.addBattleFeed({
             type: 'skill',

@@ -136,30 +136,31 @@ describe('battlefx store focus side', () => {
     expect(battleFxStore.skillAnnouncements[0]?.effectText).toBe('先对 Bob 后对自己各造成2点法术伤害')
   })
 
-  it('keeps revealed attack and magic cards queued for battlefield reading', () => {
+  it('builds a real-time action narrative from combat cues, cards and damage', () => {
     const battleFxStore = useBattleFxStore()
 
-    battleFxStore.addFlyingCards([buildCard('火焰斩')], 'p1', 'Alice', 'attack', false)
-    battleFxStore.addFlyingCards([buildCard('魔弹')], 'p2', 'Bob', 'magic', false)
+    battleFxStore.beginActionNarrative('p1')
+    expect(battleFxStore.actionNarrative?.featuredActorId).toBe('p1')
 
-    expect(battleFxStore.flyingCards).toHaveLength(1)
-    expect(battleFxStore.flyingCards[0]?.cards[0]?.name).toBe('火焰斩')
+    battleFxStore.addCombatCue('p1', 'p2', 'attack')
+    battleFxStore.addNarrativeCard('p1', buildCard('火焰斩'), 'attack')
 
-    battleFxStore.settleFlyingCardToBattlefield(battleFxStore.flyingCards[0]?.id ?? -1)
+    expect(battleFxStore.actionNarrative?.opposedActorIds).toContain('p2')
+    expect(battleFxStore.actionNarrative?.playedCards[0]).toMatchObject({
+      playerId: 'p1',
+      targetId: 'p2',
+      actionType: 'attack',
+    })
 
-    expect(battleFxStore.flyingCards).toHaveLength(1)
-    expect(battleFxStore.flyingCards[0]?.cards[0]?.name).toBe('魔弹')
-  })
+    battleFxStore.addCombatCue('p2', 'p3', 'counter')
+    expect(battleFxStore.actionNarrative?.featuredActorId).toBe('p2')
+    expect(battleFxStore.actionNarrative?.settledActorIds).toContain('p1')
+    expect(battleFxStore.actionNarrative?.opposedActorIds).toContain('p3')
 
-  it('does not clear revealed cards when damage or response cues arrive', () => {
-    const battleFxStore = useBattleFxStore()
+    battleFxStore.addNarrativeDamage('p2', 'p3', 2, 'Attack')
+    expect(battleFxStore.actionNarrative?.events.map(event => event.label)).toContain('造成 2 点伤害')
 
-    battleFxStore.addFlyingCards([buildCard('火焰斩')], 'p1', 'Alice', 'attack', false)
-    const activeId = battleFxStore.flyingCards[0]?.id
-
-    battleFxStore.addDamageEffect('p2', 'Bob', 2, 'Attack')
-    battleFxStore.addCombatCue('p1', 'p2', 'take')
-
-    expect(battleFxStore.flyingCards[0]?.id).toBe(activeId)
+    battleFxStore.clearActionNarrative()
+    expect(battleFxStore.actionNarrative).toBeNull()
   })
 })

@@ -437,7 +437,7 @@ describe('GameBoard target picker', () => {
     expect(screen.getByTestId('player-area-p2').closest('.target-guide-pulse')).not.toBeNull()
     expect(screen.getByTestId('player-area-p3').closest('.target-guide-pulse')).not.toBeNull()
     expect(screen.getByTestId('player-area-p4').closest('.target-guide-pulse')).toBeNull()
-    expect(screen.getByText('请选择2名【毁灭风暴】目标')).toBeTruthy()
+    expect(document.querySelector('.table-target-guide-hint')).toBeNull()
   })
 
   it('only allows matching hand cards for exclusive skill selection', async () => {
@@ -729,7 +729,7 @@ describe('GameBoard target picker', () => {
     expect(screen.getByText('爆牌弃牌阶段')).toBeInTheDocument()
   })
 
-  it('renders the current player in the same 3+3 side layout as other players', () => {
+  it('renders all players around the battle table while keeping my HUD separate from the hand rail', () => {
     const pinia = createPinia()
     setActivePinia(pinia)
 
@@ -768,13 +768,34 @@ describe('GameBoard target picker', () => {
       },
     })
 
+    expect(screen.getByTestId('battle-table-scene')).toBeInTheDocument()
+    expect(document.querySelector('.team-track')).toBeNull()
+    expect(screen.getAllByTestId(/^battle-table-seat-/)).toHaveLength(6)
     expect(screen.getAllByTestId(/^player-area-p/)).toHaveLength(6)
     expect(screen.getByTestId('player-area-p1')).toBeInTheDocument()
-    expect(screen.getByText('治疗 1/5')).toBeInTheDocument()
+    expect(screen.getByTestId('battle-table-seat-0')).toContainElement(screen.getByTestId('player-area-p1'))
     const statusPortrait = document.querySelector('.my-status-portrait') as HTMLImageElement | null
+    const statusStrip = document.querySelector('.my-status-strip') as HTMLElement | null
+    const statusOverlay = statusStrip?.querySelector('.my-status-overlay.player-overlay') as HTMLElement | null
+    const handRail = document.querySelector('.hand-rail') as HTMLElement | null
+    const actionDock = document.querySelector('.right-action-dock') as HTMLElement | null
+    expect(statusStrip).not.toBeNull()
+    expect(statusOverlay).not.toBeNull()
+    expect(statusStrip?.querySelector('.my-status-content')).toBeNull()
+    expect(statusOverlay?.textContent).toContain('剑斗士')
+    expect(statusOverlay?.textContent).toContain('玩家：玩家1')
+    expect(statusOverlay?.textContent).toContain('1/5')
+    expect(statusOverlay?.textContent).toContain('0/6')
+    expect(handRail).not.toBeNull()
+    expect(actionDock).not.toBeNull()
+    expect(statusStrip?.compareDocumentPosition(handRail as Node)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(handRail?.compareDocumentPosition(actionDock as Node)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(statusPortrait).not.toBeNull()
     expect(statusPortrait?.alt).toBe('剑斗士')
     expect(statusPortrait?.getAttribute('src')).toBe('/characters/fighter.png')
+    expect(handRail?.querySelector('.my-status-portrait')).toBeNull()
+    expect(statusStrip?.classList.contains('my-status-strip--active')).toBe(true)
+    expect(actionDock?.classList.contains('right-action-dock--active')).toBe(true)
   })
 
   it('passes hundred dragon lock badges to source and target players without rendering a link line', () => {

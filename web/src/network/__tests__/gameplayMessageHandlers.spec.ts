@@ -497,4 +497,76 @@ describe('createGameplayMessageHandlers', () => {
     expect(battleFxStore.damageEffects[0]?.targetId).toBe('p2')
     expect(battleFxStore.damageEffects[0]?.damage).toBe(3)
   })
+
+  it('drives the action narrative directly from real-time gameplay events', () => {
+    const { handlers, battleFxStore, sessionStore } = buildHandlers()
+    sessionStore.setRoomInfo('ROOM1', 'p1', 'Red', 'hero')
+
+    handlers.handleSyncState({
+      room_state: 'Playing',
+      turn_stage: 'ActionExecution',
+      turn_player_id: 'p1',
+      has_performed_startup: true,
+      morale_red: 15,
+      morale_blue: 15,
+      cups_red: 0,
+      cups_blue: 0,
+      stones_red: [0, 0],
+      stones_blue: [0, 0],
+      deck_count: 30,
+      discard_count: 0,
+      available_skills: [],
+      characters: [],
+      players: [
+        buildSyncPlayer('p1', 'Red'),
+        buildSyncPlayer('p2', 'Blue'),
+        buildSyncPlayer('p3', 'Blue'),
+      ],
+    })
+
+    expect(battleFxStore.actionNarrative?.currentActionPlayerId).toBe('p1')
+    expect(battleFxStore.actionNarrative?.featuredActorId).toBe('p1')
+
+    handlers.handleGameplayEvent({
+      event_type: 'combat_cue',
+      attacker_id: 'p1',
+      target_id: 'p2',
+      phase: 'attack',
+    })
+    handlers.handleGameplayEvent({
+      event_type: 'card_revealed',
+      player_id: 'p1',
+      player_name: 'Alice',
+      action_type: 'attack',
+      cards: [{
+        id: 'fire-slash',
+        name: '火焰斩',
+        type: 'Attack',
+        element: 'Fire',
+        damage: 2,
+        description: '',
+      }],
+      hidden: false,
+    })
+    handlers.handleGameplayEvent({
+      event_type: 'damage_dealt',
+      source_id: 'p1',
+      source_name: 'Alice',
+      target_id: 'p2',
+      target_name: 'Player2',
+      damage: 2,
+      damage_type: 'Attack',
+    })
+
+    expect(battleFxStore.actionNarrative?.opposedActorIds).toContain('p2')
+    expect(battleFxStore.actionNarrative?.playedCards[0]).toMatchObject({
+      playerId: 'p1',
+      targetId: 'p2',
+      actionType: 'attack',
+    })
+    expect(battleFxStore.actionNarrative?.events.map(event => event.label)).toEqual(
+      expect.arrayContaining(['行动回合', '攻击', '造成 2 点伤害']),
+    )
+    expect(battleFxStore.damageEffects).toHaveLength(1)
+  })
 })

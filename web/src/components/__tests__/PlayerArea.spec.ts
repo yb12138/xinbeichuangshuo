@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/vue'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it } from 'vitest'
 import PlayerArea from '../PlayerArea.vue'
-import type { PlayerView } from '../../types/game'
+import type { FieldCard, PlayerView } from '../../types/game'
 
 function buildPlayer(overrides: Partial<PlayerView> = {}): PlayerView {
   return {
@@ -25,6 +25,26 @@ function buildPlayer(overrides: Partial<PlayerView> = {}): PlayerView {
     tokens: {},
     indicators: {},
     ...overrides,
+  }
+}
+
+function buildEffectField(effect: string): FieldCard {
+  return {
+    card: {
+      id: `field-${effect}`,
+      name: effect,
+      type: 'Magic',
+      element: 'Fire',
+      damage: 0,
+      description: '',
+    },
+    owner_id: 'p1',
+    source_id: 'p1',
+    mode: 'Effect',
+    effect,
+    field_hook: '',
+    locked: false,
+    duration: 0,
   }
 }
 
@@ -151,5 +171,42 @@ describe('PlayerArea indicators', () => {
 
     expect(screen.getByText('幻龙锁定')).toBeTruthy()
     expect(screen.getByTitle('百式幻龙拳：格斗家 锁定 圣女，本行动阶段只能主动攻击该角色')).toBeTruthy()
+  })
+
+  it('renders stable identity, active, and targetable badges', () => {
+    render(PlayerArea, {
+      props: {
+        player: buildPlayer({ is_active: true }),
+        isMe: true,
+        selectable: true,
+      },
+      global: { plugins: [createPinia()] },
+    })
+
+    const area = screen.getByTestId('player-area-p1')
+    expect(area.classList.contains('player-area--me')).toBe(true)
+    expect(area.classList.contains('player-area--active')).toBe(true)
+    expect(area.classList.contains('player-area--targetable')).toBe(true)
+    expect(screen.getByText('你')).toBeTruthy()
+    expect(screen.getByText('当前行动')).toBeTruthy()
+    expect(screen.getByText('可选')).toBeTruthy()
+  })
+
+  it('limits always-visible status effect icons to the first three', () => {
+    const { container } = render(PlayerArea, {
+      props: {
+        player: buildPlayer({
+          field: [
+            buildEffectField('Shield'),
+            buildEffectField('Poison'),
+            buildEffectField('Weak'),
+            buildEffectField('Stealth'),
+          ],
+        }),
+      },
+      global: { plugins: [createPinia()] },
+    })
+
+    expect(container.querySelectorAll('.effect-icon-item')).toHaveLength(3)
   })
 })
