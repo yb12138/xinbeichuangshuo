@@ -36,6 +36,10 @@ func (e *GameEngine) decoratePromptForClient(prompt *model.Prompt) *model.Prompt
 }
 
 func (e *GameEngine) emitGameEvent(event model.GameEvent) {
+	if event.Narrative == nil && e != nil && e.narrativeTrace != nil && e.narrativeTrace.windowID != "" {
+		trace := e.currentNarrativeTrace()
+		event.Narrative = &trace
+	}
 	if err := event.Validate(); err != nil {
 		panic(err)
 	}
@@ -129,7 +133,24 @@ func (e *GameEngine) notifyCards(playerID string, cards []model.Card, actionType
 			ActionType: string(actionType),
 			Hidden:     hidden,
 		},
+		Narrative: e.cardNarrativeTrace(actionType, hidden),
 	})
+}
+
+func (e *GameEngine) cardNarrativeTrace(actionType model.DamageType, hidden bool) *model.NarrativeTracePayload {
+	trace := e.currentNarrativeTrace()
+	trace.NarrativeKind = "card_played"
+	trace.VisualKind = "card"
+	trace.CardRole = strings.ToLower(string(actionType))
+	if hidden || trace.CardRole == "discard" {
+		trace.VisualKind = "none"
+	}
+	if trace.CardRole == "magic" {
+		trace.Timing = "magic.play_card"
+	} else if trace.CardRole == "attack" {
+		trace.Timing = "attack.play_card"
+	}
+	return &trace
 }
 
 func (e *GameEngine) NotifyDamageDealt(sourceID, targetID string, damage int, damageType model.DamageType) {
@@ -157,6 +178,7 @@ func (e *GameEngine) NotifyDamageDealt(sourceID, targetID string, damage int, da
 			Damage:     damage,
 			DamageType: string(damageType),
 		},
+		Narrative: e.narrativeTraceWith("damage_dealt", "damage"),
 	})
 }
 
@@ -198,7 +220,22 @@ func (e *GameEngine) NotifyCombatCue(attackerID, targetID, phase string) {
 			TargetID:   targetID,
 			Phase:      phase,
 		},
+		Narrative: e.combatCueNarrativeTrace(phase),
 	})
+}
+
+func (e *GameEngine) combatCueNarrativeTrace(phase string) *model.NarrativeTracePayload {
+	trace := e.currentNarrativeTrace()
+	if phase == "attack" {
+		trace.NarrativeKind = "combat_declared"
+		trace.Timing = "attack.declare"
+	} else {
+		trace.NarrativeKind = "combat_response"
+		trace.Timing = "combat.response"
+	}
+	trace.VisualKind = "none"
+	trace.CardRole = phase
+	return &trace
 }
 
 func (e *GameEngine) NotifyDrawCards(playerID string, count int, reason string) {
@@ -241,7 +278,23 @@ func (e *GameEngine) NotifySkillActivated(playerID, skillID, skillName, effectTe
 			EffectText: effectText,
 			TargetIDs:  append([]string{}, targetIDs...),
 		},
+		Narrative: e.skillNarrativeTrace("skill_triggered", "triggered"),
 	})
+}
+
+func (e *GameEngine) skillNarrativeTrace(kind, phase string) *model.NarrativeTracePayload {
+	trace := e.currentNarrativeTrace()
+	if e != nil && e.narrativeTrace != nil && e.narrativeTrace.actionType == "skill" {
+		kind = "skill_resolved"
+		phase = "resolved"
+		trace.VisualKind = "none"
+	} else {
+		trace.VisualKind = "skill_token"
+	}
+	trace.NarrativeKind = kind
+	trace.SkillPhase = phase
+	trace.Timing = "skill." + phase
+	return &trace
 }
 
 func (e *GameEngine) NotifySpecialAction(playerID string, actionType model.ActionType, summary string, targetIDs []string) {

@@ -11,6 +11,8 @@ type Host interface {
 
 	SnapshotPlayerPoses() any
 	DispatchOrientationChanges(before any)
+	SnapshotPendingActions(player *model.Player) any
+	PublishPendingActionDiff(player *model.Player, before any, source string)
 	SyncPendingDamageFromContext(ctx *model.Context)
 	RecordSkillUsage(playerID, title string, skillType model.SkillType)
 	NotifySkillActivated(playerID, skillID, skillName, effectText string, targetIDs []string)

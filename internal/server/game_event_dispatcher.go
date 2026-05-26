@@ -51,6 +51,8 @@ func (r *Room) dispatchGameEvent(event model.GameEvent) scheduledBotPrompt {
 		r.handleSpecialActionGameEvent(event)
 	case model.EventStateDelta:
 		r.handleStateDeltaGameEvent(event)
+	case model.EventTimelineMarker:
+		r.handleTimelineMarkerGameEvent(event)
 	}
 	return scheduledBotPrompt{}
 }
@@ -133,6 +135,7 @@ func (r *Room) handleCardRevealedGameEvent(event model.GameEvent) {
 		Cards:      payload.Cards,
 		ActionType: payload.ActionType,
 		Hidden:     payload.Hidden,
+		Trace:      event.Narrative,
 	})
 }
 
@@ -149,6 +152,7 @@ func (r *Room) handleDamageDealtGameEvent(event model.GameEvent) {
 		TargetName: payload.TargetName,
 		Damage:     payload.Damage,
 		DamageType: payload.DamageType,
+		Trace:      event.Narrative,
 	})
 }
 
@@ -170,6 +174,7 @@ func (r *Room) handleCombatCueGameEvent(event model.GameEvent) {
 		AttackerID: payload.AttackerID,
 		TargetID:   payload.TargetID,
 		Phase:      payload.Phase,
+		Trace:      event.Narrative,
 	})
 }
 
@@ -185,6 +190,7 @@ func (r *Room) handleDrawCardsGameEvent(event model.GameEvent) {
 		PlayerName: payload.PlayerName,
 		DrawCount:  payload.DrawCount,
 		Reason:     payload.Reason,
+		Trace:      event.Narrative,
 	})
 }
 
@@ -201,6 +207,7 @@ func (r *Room) handleSkillActivatedGameEvent(event model.GameEvent) {
 		SkillName:  payload.SkillName,
 		EffectText: payload.EffectText,
 		TargetIDs:  append([]string{}, payload.TargetIDs...),
+		Trace:      event.Narrative,
 	})
 }
 
@@ -217,6 +224,7 @@ func (r *Room) handleSpecialActionGameEvent(event model.GameEvent) {
 		TargetIDs:  append([]string{}, payload.TargetIDs...),
 		Summary:    payload.Summary,
 		Message:    payload.Summary,
+		Trace:      event.Narrative,
 	})
 }
 
@@ -229,11 +237,57 @@ func (r *Room) handleStateDeltaGameEvent(event model.GameEvent) {
 		Type:   "state_delta",
 		Reason: payload.Reason,
 		Deltas: timelineDeltasFromModel(payload.Deltas),
+		Trace:  event.Narrative,
+	})
+}
+
+func (r *Room) handleTimelineMarkerGameEvent(event model.GameEvent) {
+	payload := event.TimelineMarker
+	if payload == nil {
+		return
+	}
+	r.broadcastTimeline(timeline.Payload{
+		Type:       "timeline_marker",
+		PlayerID:   payload.PlayerID,
+		PlayerName: payload.PlayerName,
+		ActionType: payload.ActionType,
+		SkillID:    payload.SkillID,
+		SkillName:  payload.SkillName,
+		EffectText: payload.EffectText,
+		Summary:    payload.Summary,
+		TargetIDs:  append([]string{}, payload.TargetIDs...),
+		Trace:      mergeNarrativeTrace(event.Narrative, payload),
 	})
 }
 
 func (r *Room) broadcastTimeline(payload timeline.Payload) {
-	r.broadcastHumans(CmdNotifyTimeline, r.buildTimelineNotify(payload))
+	notify := r.buildTimelineNotify(payload)
+	r.recordTimelineHistory(notify.Events)
+	r.broadcastHumans(CmdNotifyTimeline, notify)
+}
+
+func mergeNarrativeTrace(base *model.NarrativeTracePayload, marker *model.TimelineMarkerPayload) *model.NarrativeTracePayload {
+	trace := model.NarrativeTracePayload{}
+	if base != nil {
+		trace = *base
+	}
+	if marker == nil {
+		return &trace
+	}
+	if marker.NarrativeKind != "" {
+		trace.NarrativeKind = marker.NarrativeKind
+	}
+	if marker.VisualKind != "" {
+		trace.VisualKind = marker.VisualKind
+	}
+	trace.CardRole = marker.CardRole
+	trace.SkillPhase = marker.SkillPhase
+	trace.Timing = marker.Timing
+	trace.EffectType = marker.EffectType
+	trace.ExtraActionType = marker.ExtraActionType
+	trace.ExtraActionElement = marker.ExtraActionElement
+	trace.FieldCard = marker.FieldCard
+	return &trace
 }
 
 func timelineDeltasFromModel(items []model.StateDeltaItem) []TimelineDelta {

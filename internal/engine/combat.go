@@ -15,6 +15,7 @@ func (e *GameEngine) initCombat(attackerID, targetID string, card *model.Card, i
 	attacker := e.State.Players[attackerID]
 	target := e.State.Players[targetID]
 	if attacker != nil && target != nil && card != nil {
+		e.beginNarrativeCombat(attackerID, len(isCounter) > 0 && isCounter[0])
 		e.NotifyActionStep(fmt.Sprintf("%s出%s攻击%s", model.GetPlayerDisplayName(attacker), card.Name, model.GetPlayerDisplayName(target)))
 		e.NotifyCombatCue(attackerID, targetID, "attack")
 	}

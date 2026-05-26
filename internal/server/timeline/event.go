@@ -39,35 +39,50 @@ type Payload struct {
 	DrawCount  int
 	Reason     string
 	Deltas     []protocol.TimelineDelta
+	Trace      *model.NarrativeTracePayload
 }
 
 func BuildEvent(meta EventMeta, payload Payload) protocol.TimelineEvent {
 	event := protocol.TimelineEvent{
-		EventID:      meta.EventID,
-		TurnID:       meta.TurnID,
-		TurnStage:    meta.TurnStage,
-		CombatStage:  meta.CombatStage,
-		Subflow:      meta.Subflow,
-		ChainID:      meta.ChainID,
-		Type:         mapGameplayTimelineType(payload),
-		Outcome:      mapGameplayTimelineOutcome(payload.Type),
-		Visibility:   "TimelineVisibilityPublic",
-		Message:      payload.Message,
-		GameplayType: payload.Type,
-		ActionType:   payload.ActionType,
-		SkillID:      payload.SkillID,
-		SkillName:    payload.SkillName,
-		EffectText:   payload.EffectText,
-		Summary:      payload.Summary,
-		Cards:        cloneCards(payload.Cards),
-		CardIDs:      cardIDs(payload.Cards),
-		Hidden:       payload.Hidden,
-		Damage:       payload.Damage,
-		DamageType:   payload.DamageType,
-		DetailKind:   payload.Kind,
-		CuePhase:     payload.Phase,
-		DrawCount:    payload.DrawCount,
-		Reason:       payload.Reason,
+		EventID:            meta.EventID,
+		TurnID:             meta.TurnID,
+		TurnStage:          meta.TurnStage,
+		CombatStage:        meta.CombatStage,
+		Subflow:            meta.Subflow,
+		ChainID:            meta.ChainID,
+		SourceEventID:      traceString(payload.Trace, func(t *model.NarrativeTracePayload) string { return t.SourceEventID }),
+		ParentEventID:      traceParentEventID(payload.Trace),
+		NarrativeWindowID:  traceString(payload.Trace, func(t *model.NarrativeTracePayload) string { return t.NarrativeWindowID }),
+		ActionID:           traceString(payload.Trace, func(t *model.NarrativeTracePayload) string { return t.ActionID }),
+		CombatID:           traceString(payload.Trace, func(t *model.NarrativeTracePayload) string { return t.CombatID }),
+		NarrativeKind:      traceString(payload.Trace, func(t *model.NarrativeTracePayload) string { return t.NarrativeKind }),
+		VisualKind:         traceString(payload.Trace, func(t *model.NarrativeTracePayload) string { return t.VisualKind }),
+		CardRole:           traceString(payload.Trace, func(t *model.NarrativeTracePayload) string { return t.CardRole }),
+		SkillPhase:         traceString(payload.Trace, func(t *model.NarrativeTracePayload) string { return t.SkillPhase }),
+		Timing:             traceString(payload.Trace, func(t *model.NarrativeTracePayload) string { return t.Timing }),
+		EffectType:         traceString(payload.Trace, func(t *model.NarrativeTracePayload) string { return t.EffectType }),
+		ExtraActionType:    traceString(payload.Trace, func(t *model.NarrativeTracePayload) string { return t.ExtraActionType }),
+		ExtraActionElement: traceString(payload.Trace, func(t *model.NarrativeTracePayload) string { return t.ExtraActionElement }),
+		FieldCard:          traceFieldCard(payload.Trace),
+		Type:               mapGameplayTimelineType(payload),
+		Outcome:            mapGameplayTimelineOutcome(payload.Type),
+		Visibility:         "TimelineVisibilityPublic",
+		Message:            payload.Message,
+		GameplayType:       payload.Type,
+		ActionType:         payload.ActionType,
+		SkillID:            payload.SkillID,
+		SkillName:          payload.SkillName,
+		EffectText:         payload.EffectText,
+		Summary:            payload.Summary,
+		Cards:              cloneCards(payload.Cards),
+		CardIDs:            cardIDs(payload.Cards),
+		Hidden:             payload.Hidden,
+		Damage:             payload.Damage,
+		DamageType:         payload.DamageType,
+		DetailKind:         payload.Kind,
+		CuePhase:           payload.Phase,
+		DrawCount:          payload.DrawCount,
+		Reason:             payload.Reason,
 	}
 
 	if actor := firstNonEmptyString(payload.PlayerID, payload.SourceID, payload.AttackerID); actor != "" {
@@ -85,8 +100,112 @@ func BuildEvent(meta EventMeta, payload Payload) protocol.TimelineEvent {
 		event.TargetName = payload.TargetName
 	}
 	event.Deltas = buildTimelineDeltas(payload)
+	applyDefaultNarrativeFields(&event, payload)
 
 	return event
+}
+
+func traceString(trace *model.NarrativeTracePayload, pick func(*model.NarrativeTracePayload) string) string {
+	if trace == nil {
+		return ""
+	}
+	return pick(trace)
+}
+
+func traceParentEventID(trace *model.NarrativeTracePayload) *int64 {
+	if trace == nil || trace.ParentEventID == nil {
+		return nil
+	}
+	value := *trace.ParentEventID
+	return &value
+}
+
+func traceFieldCard(trace *model.NarrativeTracePayload) *model.FieldCard {
+	if trace == nil || trace.FieldCard == nil {
+		return nil
+	}
+	cp := *trace.FieldCard
+	return &cp
+}
+
+func applyDefaultNarrativeFields(event *protocol.TimelineEvent, payload Payload) {
+	if event == nil {
+		return
+	}
+	if event.NarrativeKind == "" {
+		event.NarrativeKind = defaultNarrativeKind(payload)
+	}
+	if event.VisualKind == "" {
+		event.VisualKind = defaultVisualKind(payload)
+	}
+	if event.CardRole == "" && payload.Type == "card_revealed" {
+		event.CardRole = payload.ActionType
+	}
+	if event.SkillPhase == "" && payload.Type == "skill_activated" {
+		event.SkillPhase = "triggered"
+	}
+	if event.NarrativeKind == "field_effect_applied" || event.NarrativeKind == "field_effect_removed" {
+		event.VisualKind = firstNonEmptyString(event.VisualKind, "effect_token")
+	}
+}
+
+func defaultNarrativeKind(payload Payload) string {
+	switch payload.Type {
+	case "timeline_marker":
+		if payload.Trace != nil && payload.Trace.NarrativeKind != "" {
+			return payload.Trace.NarrativeKind
+		}
+	case "card_revealed":
+		return "card_played"
+	case "combat_cue":
+		if payload.Phase == "attack" {
+			return "combat_declared"
+		}
+		return "combat_response"
+	case "damage_dealt":
+		return "damage_dealt"
+	case "skill_activated":
+		return "skill_triggered"
+	case "draw_cards":
+		return "draw_cards"
+	case "state_delta":
+		return narrativeKindForStateDeltas(payload.Deltas)
+	}
+	return ""
+}
+
+func defaultVisualKind(payload Payload) string {
+	switch payload.Type {
+	case "card_revealed":
+		if payload.Hidden || payload.ActionType == "discard" {
+			return "none"
+		}
+		return "card"
+	case "skill_activated":
+		return "skill_token"
+	case "damage_dealt":
+		return "damage"
+	case "state_delta":
+		if narrativeKindForStateDeltas(payload.Deltas) != "" {
+			return "effect_token"
+		}
+	}
+	if payload.Trace != nil {
+		return payload.Trace.VisualKind
+	}
+	return ""
+}
+
+func narrativeKindForStateDeltas(deltas []protocol.TimelineDelta) string {
+	for _, delta := range deltas {
+		switch delta.Type {
+		case "field_card_added":
+			return "field_effect_applied"
+		case "field_card_removed":
+			return "field_effect_removed"
+		}
+	}
+	return "state_delta"
 }
 
 func mapGameplayTimelineType(payload Payload) string {
@@ -104,6 +223,11 @@ func mapGameplayTimelineType(payload Payload) string {
 		return "TimelineActionDeclared"
 	case "skill_activated", "special_action":
 		return "TimelineActionDeclared"
+	case "timeline_marker":
+		if payload.Trace != nil && payload.Trace.NarrativeKind == "action_closed" {
+			return "TimelineChainClosed"
+		}
+		return "TimelineEffectResolved"
 	case "state_delta":
 		return "TimelineEffectResolved"
 	case "game_end":

@@ -93,6 +93,19 @@ func (e *GameEngine) HandleActionSelectionSpecialOrSkill(act model.PlayerAction,
 				}
 			}
 		}
+		e.beginNarrativeAction("skill", player.ID)
+		e.publishTimelineMarker(model.TimelineMarkerPayload{
+			PlayerID:      player.ID,
+			PlayerName:    player.Name,
+			ActionType:    "skill",
+			SkillID:       act.SkillID,
+			SkillName:     skillTitle,
+			TargetIDs:     targetIDs,
+			NarrativeKind: "skill_declared",
+			VisualKind:    "skill_token",
+			SkillPhase:    "declared",
+			Timing:        "skill.declared",
+		})
 		e.BeginActionSummary("skill", player.ID, skillTitle, targetIDs)
 		if err := e.UseSkill(act.PlayerID, act.SkillID, targetIDs, act.Selections); err != nil {
 			e.clearActionSummary()
@@ -115,6 +128,16 @@ func (e *GameEngine) HandleActionSelectionSpecialOrSkill(act model.PlayerAction,
 		specialName = "提炼"
 	}
 	if specialName != "" {
+		e.beginNarrativeAction(strings.ToLower(string(actionType)), player.ID)
+		e.publishTimelineMarker(model.TimelineMarkerPayload{
+			PlayerID:      player.ID,
+			PlayerName:    player.Name,
+			ActionType:    string(actionType),
+			Summary:       specialActionSummary(player.Name, actionType),
+			NarrativeKind: "action_started",
+			VisualKind:    "action_marker",
+			Timing:        "action.started",
+		})
 		e.BeginActionSummary("special", player.ID, specialName, nil)
 	}
 	if err := e.executeSpecialActionWithRuntime(player, actionType); err != nil {
@@ -214,6 +237,17 @@ func (e *GameEngine) HandleActionSelectionAttackOrMagic(act model.PlayerAction, 
 	} else {
 		e.BeginActionSummary("magic", player.ID, card.Name, targets)
 	}
+	e.beginNarrativeAction(strings.ToLower(string(actionType)), player.ID)
+	e.publishTimelineMarker(model.TimelineMarkerPayload{
+		PlayerID:      player.ID,
+		PlayerName:    player.Name,
+		ActionType:    strings.ToLower(string(actionType)),
+		Summary:       card.Name,
+		TargetIDs:     targets,
+		NarrativeKind: "action_started",
+		VisualKind:    "action_marker",
+		Timing:        strings.ToLower(string(actionType)) + ".started",
+	})
 
 	if actionType == model.ActionAttack && validationResult.afterAttackAccepted != nil {
 		if err := validationResult.afterAttackAccepted(e, player, act); err != nil {

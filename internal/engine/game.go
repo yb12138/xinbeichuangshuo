@@ -48,6 +48,8 @@ type GameEngine struct {
 	skillResume *skillResumeState
 	// postActionEndResume 当前待补执行的行动后效果。
 	postActionEndResume *postActionEndResumeState
+	// narrativeTrace 为 NotifyTimeline 结构化事件链提供运行时上下文。
+	narrativeTrace *narrativeTraceState
 }
 
 type skillResumeState struct {

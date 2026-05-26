@@ -156,11 +156,13 @@ func (e *GameEngine) executeSkillFlow(use *skillUseRequest) error {
 	ctx.Selections["discardedCards"] = use.discardedCards
 
 	beforePoses := e.SnapshotPlayerPoses()
+	beforePendingActions := snapshotPendingActions(use.player)
 	if err := handler.Execute(ctx); err != nil {
 		return fmt.Errorf("skill execution failed: %v", err)
 	}
 	e.recordActionResourceDelta()
 	e.DispatchOrientationChanges(beforePoses)
+	e.publishPendingActionDiff(use.player, beforePendingActions, use.skillDef.Title)
 	if use.policy.AfterExecute != nil {
 		if err := use.policy.AfterExecute(enginePolicyHost{e: e}, use.policyContext()); err != nil {
 			return err

@@ -23,6 +23,10 @@ func (x *Executor) ExecuteSkill(h Host, skill model.SkillDefinition, ctx *model.
 		return
 	}
 	beforePoses := h.SnapshotPlayerPoses()
+	var beforePendingActions any
+	if ctx != nil && ctx.User != nil {
+		beforePendingActions = h.SnapshotPendingActions(ctx.User)
+	}
 
 	if model.ContainsSkillTag(skill.Tags, model.TagTurnLimit) && ctx != nil && ctx.User != nil {
 		ctx.User.TurnState.UsedSkillCounts[skill.ID]++
@@ -42,6 +46,9 @@ func (x *Executor) ExecuteSkill(h Host, skill model.SkillDefinition, ctx *model.
 	if ctx != nil && ctx.Game != nil && ctx.User != nil {
 		h.RecordSkillUsage(ctx.User.ID, skill.Title, skill.Type)
 		h.NotifySkillActivated(ctx.User.ID, skill.ID, skill.Title, skill.Description, targetIDsFromContext(ctx))
+	}
+	if ctx != nil && ctx.User != nil {
+		h.PublishPendingActionDiff(ctx.User, beforePendingActions, skill.Title)
 	}
 
 	if ctx != nil && ctx.Game != nil {

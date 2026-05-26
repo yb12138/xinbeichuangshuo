@@ -93,6 +93,7 @@ const (
 	EventSkillActivated GameEventType = "SkillActivated" // 技能成功发动，供前端技能牌匾/历史播报
 	EventSpecialAction  GameEventType = "SpecialAction"  // 购买/提炼/合成等特殊行动
 	EventStateDelta     GameEventType = "StateDelta"     // 公共可见状态变化
+	EventTimelineMarker GameEventType = "TimelineMarker" // 结构化叙事链标记
 )
 
 // GameEvent 引擎发送给 UI 的唯一数据包
@@ -109,6 +110,8 @@ type GameEvent struct {
 	SkillActivated *SkillActivatedPayload `json:"skill_activated,omitempty"`
 	SpecialAction  *SpecialActionPayload  `json:"special_action,omitempty"`
 	StateDelta     *StateDeltaPayload     `json:"state_delta,omitempty"`
+	TimelineMarker *TimelineMarkerPayload `json:"timeline_marker,omitempty"`
+	Narrative      *NarrativeTracePayload `json:"narrative,omitempty"`
 }
 
 // GameObserver 观察者接口

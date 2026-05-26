@@ -26,8 +26,8 @@ type Room struct {
 	Broadcast  chan []byte
 	actorInbox chan roomActorCall
 
-	mu       sync.RWMutex
-	engineMu sync.Mutex
+	mu         sync.RWMutex
+	engineMu   sync.Mutex
 	timelineMu sync.Mutex
 
 	// 机器人全局观察信息（用于手牌类型推断）。
@@ -39,7 +39,8 @@ type Room struct {
 	// NotifyTimeline 事件序号，需在单房间内严格单调递增。
 	timelineSeq int64
 	// timelineHistory 保存最近公共时间线，用于刷新/重连后重建当前战斗叙事层。
-	timelineHistory []TimelineEvent
+	timelineHistory         []TimelineEvent
+	activeNarrativeWindowID string
 	// publicTimelineSnapshot 是 timeline state_delta 的公共可见状态基线。
 	publicTimelineSnapshot *publicTimelineSnapshot
 	// BotsPaused E2E 测试模式：暂停 bot 自动行动

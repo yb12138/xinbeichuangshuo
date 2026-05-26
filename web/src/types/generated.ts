@@ -337,6 +337,18 @@ export interface TimelineEvent {
   timing?: string
   chain_id: string
   parent_event_id?: number
+  source_event_id?: string
+  narrative_window_id?: string
+  action_id?: string
+  combat_id?: string
+  narrative_kind?: string
+  visual_kind?: string
+  card_role?: string
+  skill_phase?: string
+  effect_type?: string
+  extra_action_type?: string
+  extra_action_element?: string
+  field_card?: FieldCard
   type: string
   outcome: string
   visibility: string

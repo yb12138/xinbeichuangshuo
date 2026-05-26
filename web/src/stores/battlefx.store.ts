@@ -1,6 +1,7 @@
 import { defineStore, storeToRefs } from 'pinia'
 import { ref } from 'vue'
 import type { Card } from '../types/game'
+import type { TimelineEvent, TimelineNotifyPayload } from '../network/protocol'
 import { useSessionStore } from './session.store'
 import { useSnapshotStore } from './snapshot.store'
 import { useUiStore } from './ui.store'
@@ -54,6 +55,7 @@ export interface SkillAnnouncementView {
 
 export interface ActionNarrativeCardView {
   id: number
+  timelineEventId?: number
   playerId: string
   targetId?: string
   card: Card
@@ -72,6 +74,7 @@ export interface ActionNarrativeLinkView {
 
 export interface ActionNarrativeEventView {
   id: number
+  timelineEventId?: number
   kind: NarrativeEventKind
   label: string
   actorId?: string
@@ -140,6 +143,7 @@ export const useBattleFxStore = defineStore('battlefx', () => {
   let narrativeLinkId = 0
   let narrativeEventId = 0
   const narrativeTargetByActor = new Map<string, string>()
+  const structuredNarrativeEventIds = new Set<number>()
 
   function resolveInitiatorFocusSide(playerId: string): InitiatorFocusSide {
     const rosterIndex = roomPlayers.value.findIndex((player) => player.id === playerId)
@@ -199,9 +203,9 @@ export const useBattleFxStore = defineStore('battlefx', () => {
       ...next,
       settledActorIds: next.settledActorIds.slice(-5),
       opposedActorIds: next.opposedActorIds.slice(-2),
-      playedCards: next.playedCards.slice(-12),
-      links: next.links.slice(-24),
-      events: next.events.slice(-24),
+      playedCards: next.playedCards,
+      links: next.links,
+      events: next.events,
     }
   }
 
@@ -330,25 +334,26 @@ export const useBattleFxStore = defineStore('battlefx', () => {
     return 'attack'
   }
 
-  function addNarrativeEvent(event: Omit<ActionNarrativeEventView, 'id' | 'createdAt'>) {
+  function addNarrativeEvent(event: Omit<ActionNarrativeEventView, 'id' | 'createdAt'> & { createdAt?: number }) {
     const actorId = event.actorId || actionNarrative.value?.featuredActorId || actionNarrative.value?.currentActionPlayerId
     const current = ensureActionNarrative(actorId || event.targetId || '', event.kind === 'skill' ? 'skill' : 'turn')
     if (!current) return
     narrativeEventId++
+    const { createdAt, ...rest } = event
     actionNarrative.value = trimNarrative({
       ...current,
       events: [
         ...current.events,
         {
-          ...event,
+          ...rest,
           id: narrativeEventId,
-          createdAt: Date.now(),
+          createdAt: createdAt ?? Date.now(),
         },
       ],
     })
   }
 
-  function addNarrativeCard(playerId: string, card: Card, actionType: string, targetId?: string) {
+  function addNarrativeCard(playerId: string, card: Card, actionType: string, targetId?: string, options?: { createdAt?: number; timelineEventId?: number }) {
     const normalizedActionType = normalizeNarrativeActionType(actionType)
     if (!playerId || !card || !['attack', 'magic', 'counter', 'defend', 'shield'].includes(normalizedActionType)) return
     const current = ensureActionNarrative(playerId, normalizedActionType === 'magic' ? 'skill' : 'attack')
@@ -361,7 +366,8 @@ export const useBattleFxStore = defineStore('battlefx', () => {
       targetId: resolvedTargetId,
       card,
       actionType: normalizedActionType,
-      createdAt: Date.now(),
+      createdAt: options?.createdAt ?? Date.now(),
+      timelineEventId: options?.timelineEventId,
     }
     actionNarrative.value = trimNarrative({
       ...current,
@@ -431,6 +437,105 @@ export const useBattleFxStore = defineStore('battlefx', () => {
   function clearActionNarrative() {
     actionNarrative.value = null
     narrativeTargetByActor.clear()
+  }
+
+  function hasStructuredNarrative(events: TimelineEvent[] = []) {
+    return events.some(event => !!event.narrative_kind || !!event.visual_kind || !!event.narrative_window_id)
+  }
+
+  function applyStructuredTimelineNarrative(payload: TimelineNotifyPayload) {
+    const events = [...(payload.events || [])]
+      .filter(event => !!event.narrative_kind || !!event.visual_kind || !!event.narrative_window_id)
+      .sort((a, b) => (a.event_id || 0) - (b.event_id || 0))
+    if (!events.length) return
+
+    if (payload.is_replay) {
+      clearActionNarrative()
+      structuredNarrativeEventIds.clear()
+    }
+
+    for (const event of events) {
+      const eventId = Number(event.event_id || 0)
+      if (eventId && structuredNarrativeEventIds.has(eventId)) continue
+      if (eventId) structuredNarrativeEventIds.add(eventId)
+
+      const kind = String(event.narrative_kind || '').trim()
+      const visualKind = String(event.visual_kind || '').trim()
+      const actorId = event.actor_user_id || ''
+      const targetIds = uniqueIds(event.target_user_ids || [])
+      const createdAt = eventId || Date.now()
+
+      if (kind === 'action_started') {
+        if (actorId) beginActionNarrative(actorId)
+        continue
+      }
+
+      if (kind === 'action_closed') {
+        clearActionNarrative()
+        continue
+      }
+
+      if (actorId) {
+        const reason: NarrativeActorReason =
+          kind.startsWith('skill') ? 'skill' :
+          kind === 'damage_dealt' ? 'damage' :
+          kind === 'combat_response' ? 'response' :
+          kind === 'combat_declared' || kind === 'card_played' ? 'attack' :
+          'turn'
+        featureNarrativeActor(actorId, reason)
+      }
+      for (const targetId of targetIds) {
+        opposeNarrativeActor(targetId)
+      }
+
+      if (kind === 'combat_declared' || kind === 'combat_response') {
+        for (const targetId of targetIds) {
+          narrativeTargetByActor.set(actorId, targetId)
+        }
+      }
+
+      if (visualKind === 'card' && event.cards?.length && actorId) {
+        const cardRole = String(event.card_role || event.action_type || '').trim().toLowerCase()
+        const targetId = targetIds[0] || narrativeTargetByActor.get(actorId)
+        for (const card of event.cards) {
+          addNarrativeCard(actorId, card as Card, cardRole || 'attack', targetId, { createdAt, timelineEventId: eventId })
+        }
+        continue
+      }
+
+      if (visualKind === 'skill_token' && actorId) {
+        const skillName = event.skill_name || event.summary || '技能发动'
+        for (const targetId of targetIds) {
+          addNarrativeLink({ type: 'actor', id: actorId }, targetId, 'skill')
+        }
+        addNarrativeEvent({
+          timelineEventId: eventId,
+          kind: 'skill',
+          label: event.effect_text ? `${skillName}：${event.effect_text}` : `发动「${skillName}」`,
+          actorId,
+          targetId: targetIds[0],
+          createdAt,
+        })
+        continue
+      }
+
+      if ((visualKind === 'effect_token' || visualKind === 'action_marker') && actorId) {
+        const title = event.field_card?.card?.name || event.summary || event.extra_action_type || event.effect_type || '效果'
+        addNarrativeEvent({
+          timelineEventId: eventId,
+          kind: 'skill',
+          label: visualKind === 'action_marker' ? `获得额外行动：${title}` : `效果：${title}`,
+          actorId,
+          targetId: targetIds[0],
+          createdAt,
+        })
+        continue
+      }
+
+      if (kind === 'damage_dealt' && targetIds[0] && event.damage) {
+        addNarrativeDamage(actorId, targetIds[0], event.damage, event.damage_type)
+      }
+    }
   }
 
   function setInitiatorFocus(playerId: string, mode: InitiatorFocusMode) {
@@ -814,6 +919,8 @@ export const useBattleFxStore = defineStore('battlefx', () => {
     addNarrativeEvent,
     addNarrativeDamage,
     addNarrativeSkill,
+    hasStructuredNarrative,
+    applyStructuredTimelineNarrative,
     clearActionNarrative,
     startAttackInitiatorFocus,
     resolveAttackInitiatorFocus,

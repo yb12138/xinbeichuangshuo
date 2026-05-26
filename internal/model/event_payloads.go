@@ -2,6 +2,48 @@ package model
 
 import "fmt"
 
+// NarrativeTracePayload carries stable event-chain metadata for timeline
+// projection. It is runtime-only metadata and is not part of saved game state.
+type NarrativeTracePayload struct {
+	NarrativeWindowID  string     `json:"narrative_window_id,omitempty"`
+	ActionID           string     `json:"action_id,omitempty"`
+	CombatID           string     `json:"combat_id,omitempty"`
+	SourceEventID      string     `json:"source_event_id,omitempty"`
+	ParentEventID      *int64     `json:"parent_event_id,omitempty"`
+	NarrativeKind      string     `json:"narrative_kind,omitempty"`
+	VisualKind         string     `json:"visual_kind,omitempty"`
+	CardRole           string     `json:"card_role,omitempty"`
+	SkillPhase         string     `json:"skill_phase,omitempty"`
+	Timing             string     `json:"timing,omitempty"`
+	EffectType         string     `json:"effect_type,omitempty"`
+	ExtraActionType    string     `json:"extra_action_type,omitempty"`
+	ExtraActionElement string     `json:"extra_action_element,omitempty"`
+	FieldCard          *FieldCard `json:"field_card,omitempty"`
+}
+
+// TimelineMarkerPayload is used for structured narrative events that do not
+// naturally map to a legacy gameplay payload, such as action_started or
+// extra_action_granted.
+type TimelineMarkerPayload struct {
+	PlayerID           string     `json:"player_id,omitempty"`
+	PlayerName         string     `json:"player_name,omitempty"`
+	ActionType         string     `json:"action_type,omitempty"`
+	SkillID            string     `json:"skill_id,omitempty"`
+	SkillName          string     `json:"skill_name,omitempty"`
+	EffectText         string     `json:"effect_text,omitempty"`
+	Summary            string     `json:"summary,omitempty"`
+	TargetIDs          []string   `json:"target_ids,omitempty"`
+	NarrativeKind      string     `json:"narrative_kind,omitempty"`
+	VisualKind         string     `json:"visual_kind,omitempty"`
+	CardRole           string     `json:"card_role,omitempty"`
+	SkillPhase         string     `json:"skill_phase,omitempty"`
+	Timing             string     `json:"timing,omitempty"`
+	EffectType         string     `json:"effect_type,omitempty"`
+	ExtraActionType    string     `json:"extra_action_type,omitempty"`
+	ExtraActionElement string     `json:"extra_action_element,omitempty"`
+	FieldCard          *FieldCard `json:"field_card,omitempty"`
+}
+
 // CardRevealedPayload is the typed payload for EventCardRevealed events.
 type CardRevealedPayload struct {
 	PlayerID   string `json:"player_id"`
@@ -88,7 +130,8 @@ type StateDeltaPayload struct {
 func (e GameEvent) Validate() error {
 	hasAnyTypedPayload := func() bool {
 		return e.Prompt != nil || e.CardRevealed != nil || e.DamageDealt != nil || e.ActionStep != nil ||
-			e.CombatCue != nil || e.DrawCards != nil || e.SkillActivated != nil || e.SpecialAction != nil || e.StateDelta != nil
+			e.CombatCue != nil || e.DrawCards != nil || e.SkillActivated != nil || e.SpecialAction != nil ||
+			e.StateDelta != nil || e.TimelineMarker != nil
 	}
 	hasOtherTypedPayload := func(expected string) bool {
 		if expected != "prompt" && e.Prompt != nil {
@@ -116,6 +159,9 @@ func (e GameEvent) Validate() error {
 			return true
 		}
 		if expected != "state_delta" && e.StateDelta != nil {
+			return true
+		}
+		if expected != "timeline_marker" && e.TimelineMarker != nil {
 			return true
 		}
 		return false
@@ -183,6 +229,13 @@ func (e GameEvent) Validate() error {
 			return fmt.Errorf("game event %s requires state_delta payload", e.Type)
 		}
 		if hasOtherTypedPayload("state_delta") {
+			return fmt.Errorf("game event %s cannot carry other typed payloads", e.Type)
+		}
+	case EventTimelineMarker:
+		if e.TimelineMarker == nil {
+			return fmt.Errorf("game event %s requires timeline_marker payload", e.Type)
+		}
+		if hasOtherTypedPayload("timeline_marker") {
 			return fmt.Errorf("game event %s cannot carry other typed payloads", e.Type)
 		}
 	case EventLog, EventStateUpdate, EventError, EventGameEnd:

@@ -279,7 +279,6 @@ const narrativeStackItems = computed<NarrativeStackItem[]>(() => {
   return items
     .filter(item => item.sourcePlayerId)
     .sort((a, b) => a.createdAt - b.createdAt)
-    .slice(-12)
     .map((item, stackIndex) => ({ ...item, stackIndex }))
 })
 
@@ -418,7 +417,7 @@ const narrativeMistBlueprints = computed(() => {
     })
   }
 
-  return segments.slice(-12)
+  return segments
 })
 
 function pointForEndpoint(

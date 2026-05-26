@@ -48,6 +48,18 @@ func (sd *SkillDispatcher) DispatchOrientationChanges(before any) {
 	}
 }
 
+func (sd *SkillDispatcher) SnapshotPendingActions(player *model.Player) any {
+	return snapshotPendingActions(player)
+}
+
+func (sd *SkillDispatcher) PublishPendingActionDiff(player *model.Player, before any, source string) {
+	if sd == nil || sd.engine == nil {
+		return
+	}
+	beforeMap, _ := before.(map[string]int)
+	sd.engine.publishPendingActionDiff(player, beforeMap, source)
+}
+
 func (sd *SkillDispatcher) SyncPendingDamageFromContext(ctx *model.Context) {
 	if sd == nil || sd.engine == nil {
 		return

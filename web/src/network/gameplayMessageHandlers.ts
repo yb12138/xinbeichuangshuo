@@ -183,12 +183,19 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
 
   function handleNotifyTimeline(payload: TimelineNotifyPayload) {
     timelineStore.push(payload)
+    const hasStructuredNarrative = battleFxStore.hasStructuredNarrative(payload.events || [])
+    if (hasStructuredNarrative) {
+      battleFxStore.applyStructuredTimelineNarrative(payload)
+    }
+    if (payload.is_replay) {
+      return
+    }
     for (const event of extractGameplayEventsFromTimeline(payload.events || [])) {
-      handleGameplayEvent(event)
+      handleGameplayEvent(event, { suppressNarrative: hasStructuredNarrative })
     }
   }
 
-  function handleGameplayEvent(event: GameEvent) {
+  function handleGameplayEvent(event: GameEvent, options: { suppressNarrative?: boolean } = {}) {
     console.log('Game event:', event)
 
     switch (event.event_type) {
@@ -305,7 +312,7 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
           if (event.action_type === 'magic') {
             battleFxStore.startSkillInitiatorFocus(event.player_id, 'magic')
           }
-          if (!event.hidden) {
+          if (!event.hidden && !options.suppressNarrative) {
             for (const card of event.cards) {
               battleFxStore.addNarrativeCard(event.player_id, card, event.action_type || 'discard')
             }
@@ -321,12 +328,14 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
             event.damage,
             event.damage_type || 'Attack',
           )
-          battleFxStore.addNarrativeDamage(
-            event.source_id,
-            event.target_id,
-            event.damage,
-            event.damage_type || 'Attack',
-          )
+          if (!options.suppressNarrative) {
+            battleFxStore.addNarrativeDamage(
+              event.source_id,
+              event.target_id,
+              event.damage,
+              event.damage_type || 'Attack',
+            )
+          }
           battleFxStore.settleSkillInitiatorFocus(event.source_id)
         }
         break
@@ -353,7 +362,9 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
             event.phase === 'counter' ||
             event.phase === 'shield')
         ) {
-          battleFxStore.addCombatCue(event.attacker_id, event.target_id, event.phase)
+          if (!options.suppressNarrative) {
+            battleFxStore.addCombatCue(event.attacker_id, event.target_id, event.phase)
+          }
         }
         break
 
@@ -374,12 +385,14 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
             event.skill_name,
             event.effect_text || '技能效果生效',
           )
-          battleFxStore.addNarrativeSkill(
-            event.player_id,
-            event.skill_name,
-            event.effect_text || '技能效果生效',
-            event.target_ids || [],
-          )
+          if (!options.suppressNarrative) {
+            battleFxStore.addNarrativeSkill(
+              event.player_id,
+              event.skill_name,
+              event.effect_text || '技能效果生效',
+              event.target_ids || [],
+            )
+          }
           battleReviewStore.addBattleFeed({
             type: 'skill',
             title: `${actorName} 发动「${event.skill_name}」`,

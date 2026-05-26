@@ -270,7 +270,7 @@ func (e *GameEngine) consumeShieldForCombatTake(target *model.Player, combatReq 
 
 	e.addActionResponse(fmt.Sprintf("%s 的【圣盾】自动抵挡本次攻击", target.Name))
 	e.NotifyActionStep(fmt.Sprintf("%s 的【圣盾】触发，自动抵挡了本次攻击", target.Name))
-	e.NotifyCombatCue(combatReq.AttackerID, combatReq.TargetID, "shield")
+	e.NotifyCombatCue(combatReq.TargetID, combatReq.AttackerID, "shield")
 	e.Log(fmt.Sprintf("[Combat] %s 选择承受伤害，触发【圣盾】抵挡本次攻击！", target.Name))
 
 	missCtx := &model.EventContext{
@@ -393,7 +393,7 @@ func (e *GameEngine) handleCombatDefendResponse(act model.PlayerAction, player *
 
 	e.dispatchCardTiming(player, model.TimingCardPlayedRevealed, "", card)
 	e.NotifyCardRevealed(act.PlayerID, []model.Card{card}, "defend")
-	e.NotifyCombatCue(combatReq.AttackerID, combatReq.TargetID, "defend")
+	e.NotifyCombatCue(act.PlayerID, combatReq.AttackerID, "defend")
 	if _, err := e.consumePlayableCardByID(player, act.CardID); err != nil {
 		return err
 	}
@@ -515,7 +515,7 @@ func (e *GameEngine) handleCombatCounterResponse(act model.PlayerAction, player 
 
 	e.dispatchCardTiming(player, model.TimingCardPlayedRevealed, "", card)
 	e.NotifyCardRevealed(act.PlayerID, []model.Card{card}, "counter")
-	e.NotifyCombatCue(combatReq.AttackerID, combatReq.TargetID, "counter")
+	e.NotifyCombatCue(act.PlayerID, targetID, "counter")
 	if _, err := e.consumePlayableCardByID(player, act.CardID); err != nil {
 		return err
 	}

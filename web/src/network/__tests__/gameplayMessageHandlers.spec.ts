@@ -630,4 +630,127 @@ describe('createGameplayMessageHandlers', () => {
     expect(battleFxStore.actionNarrative?.events.map(event => event.label)).toContain('行动回合')
     expect(battleFxStore.actionNarrative?.events.map(event => event.label)).not.toContain('水之封印：目标本回合无法使用水系牌')
   })
+
+  it('projects structured timeline replay into the central narrative without replaying transient effects', () => {
+    const { handlers, battleFxStore, battleReviewStore } = buildHandlers()
+
+    const payload: TimelineNotifyPayload = {
+      room_id: 'ROOM1',
+      seq_start: 1,
+      seq_end: 5,
+      is_replay: true,
+      events: [
+        {
+          event_id: 1,
+          turn_id: 1,
+          chain_id: 'nw-t1-p1',
+          type: 'TimelineEffectResolved',
+          outcome: 'TimelineOutcomeSuccess',
+          visibility: 'TimelineVisibilityPublic',
+          narrative_window_id: 'nw-t1-p1',
+          action_id: 'nw-t1-p1-a1-attack',
+          narrative_kind: 'action_started',
+          visual_kind: 'action_marker',
+          actor_user_id: 'p1',
+          actor_name: 'Alice',
+          action_type: 'attack',
+        },
+        {
+          event_id: 2,
+          turn_id: 1,
+          chain_id: 'nw-t1-p1',
+          type: 'TimelineActionDeclared',
+          outcome: 'TimelineOutcomeSuccess',
+          visibility: 'TimelineVisibilityPublic',
+          narrative_window_id: 'nw-t1-p1',
+          action_id: 'nw-t1-p1-a1-attack',
+          combat_id: 'nw-t1-p1-c1-combat',
+          narrative_kind: 'combat_declared',
+          visual_kind: 'none',
+          actor_user_id: 'p1',
+          target_user_ids: ['p2'],
+          cue_phase: 'attack',
+          gameplay_type: 'combat_cue',
+        },
+        {
+          event_id: 3,
+          turn_id: 1,
+          chain_id: 'nw-t1-p1',
+          type: 'TimelineActionDeclared',
+          outcome: 'TimelineOutcomeSuccess',
+          visibility: 'TimelineVisibilityPublic',
+          narrative_window_id: 'nw-t1-p1',
+          action_id: 'nw-t1-p1-a1-attack',
+          combat_id: 'nw-t1-p1-c1-combat',
+          narrative_kind: 'card_played',
+          visual_kind: 'card',
+          card_role: 'attack',
+          actor_user_id: 'p1',
+          actor_name: 'Alice',
+          target_user_ids: ['p2'],
+          action_type: 'attack',
+          cards: [{
+            id: 'earth-slash',
+            name: '地裂斩',
+            type: 'Attack',
+            element: 'Earth',
+            damage: 2,
+            description: '',
+          }],
+          gameplay_type: 'card_revealed',
+        },
+        {
+          event_id: 4,
+          turn_id: 1,
+          chain_id: 'nw-t1-p1',
+          type: 'TimelineEffectResolved',
+          outcome: 'TimelineOutcomeSuccess',
+          visibility: 'TimelineVisibilityPublic',
+          narrative_window_id: 'nw-t1-p1',
+          action_id: 'nw-t1-p1-a2-skill',
+          narrative_kind: 'skill_declared',
+          visual_kind: 'skill_token',
+          skill_phase: 'declared',
+          actor_user_id: 'p3',
+          actor_name: '封印师',
+          target_user_ids: ['p2'],
+          skill_name: '水之封印',
+          effect_text: '放置水系封印',
+        },
+        {
+          event_id: 5,
+          turn_id: 1,
+          chain_id: 'nw-t1-p1',
+          type: 'TimelineCombatResolved',
+          outcome: 'TimelineOutcomeSuccess',
+          visibility: 'TimelineVisibilityPublic',
+          narrative_window_id: 'nw-t1-p1',
+          action_id: 'nw-t1-p1-a1-attack',
+          combat_id: 'nw-t1-p1-c1-combat',
+          narrative_kind: 'damage_dealt',
+          visual_kind: 'damage',
+          actor_user_id: 'p1',
+          target_user_ids: ['p2'],
+          damage: 2,
+          damage_type: 'Attack',
+          gameplay_type: 'damage_dealt',
+        },
+      ],
+    }
+
+    handlers.handleNotifyTimeline(payload)
+
+    expect(battleFxStore.actionNarrative?.currentActionPlayerId).toBe('p1')
+    expect(battleFxStore.actionNarrative?.playedCards).toHaveLength(1)
+    expect(battleFxStore.actionNarrative?.playedCards[0]).toMatchObject({
+      playerId: 'p1',
+      targetId: 'p2',
+      actionType: 'attack',
+    })
+    expect(battleFxStore.actionNarrative?.events.map(event => event.label)).toEqual(
+      expect.arrayContaining(['水之封印：放置水系封印', '造成 2 点伤害']),
+    )
+    expect(battleFxStore.damageEffects).toHaveLength(0)
+    expect(battleReviewStore.battleFeed).toHaveLength(0)
+  })
 })
