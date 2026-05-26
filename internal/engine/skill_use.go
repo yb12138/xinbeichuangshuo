@@ -5,8 +5,8 @@ package engine
 import (
 	"fmt"
 
-	"starcup-engine/internal/model"
 	skillrt "starcup-engine/internal/engine/runtime/skill"
+	"starcup-engine/internal/model"
 	"starcup-engine/internal/types"
 )
 
@@ -86,6 +86,7 @@ func (e *GameEngine) UseSkill(playerID, skillID string, targetIDs []string, disc
 	if err := e.validateSkillFieldPlacement(use); err != nil {
 		return err
 	}
+	e.publishSkillDeclared(use)
 	if err := e.consumeSkillInputs(use); err != nil {
 		return err
 	}
@@ -123,6 +124,28 @@ func (e *GameEngine) UseSkill(playerID, skillID string, targetIDs []string, disc
 		e.notifyInterruptPrompt()
 	}
 	return nil
+}
+
+func (e *GameEngine) publishSkillDeclared(use *skillUseRequest) {
+	if e == nil || use == nil || use.player == nil || use.skillDef == nil {
+		return
+	}
+	if e.narrativeTrace == nil || e.narrativeTrace.actionID == "" || e.narrativeTrace.actionActor != use.player.ID {
+		e.beginNarrativeAction("skill", use.player.ID)
+	}
+	e.publishTimelineMarker(model.TimelineMarkerPayload{
+		PlayerID:      use.player.ID,
+		PlayerName:    use.player.Name,
+		ActionType:    "skill",
+		SkillID:       use.skillDef.ID,
+		SkillName:     use.skillDef.Title,
+		EffectText:    use.skillDef.Description,
+		TargetIDs:     use.resolvedTargetIDs(),
+		NarrativeKind: "skill_declared",
+		VisualKind:    "skill_token",
+		SkillPhase:    "declared",
+		Timing:        "skill.declared",
+	})
 }
 
 func (e *GameEngine) prepareSkillUse(playerID, skillID string, targetIDs []string, discardIndices []int) (*skillUseRequest, error) {

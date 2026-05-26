@@ -94,18 +94,6 @@ func (e *GameEngine) HandleActionSelectionSpecialOrSkill(act model.PlayerAction,
 			}
 		}
 		e.beginNarrativeAction("skill", player.ID)
-		e.publishTimelineMarker(model.TimelineMarkerPayload{
-			PlayerID:      player.ID,
-			PlayerName:    player.Name,
-			ActionType:    "skill",
-			SkillID:       act.SkillID,
-			SkillName:     skillTitle,
-			TargetIDs:     targetIDs,
-			NarrativeKind: "skill_declared",
-			VisualKind:    "skill_token",
-			SkillPhase:    "declared",
-			Timing:        "skill.declared",
-		})
 		e.BeginActionSummary("skill", player.ID, skillTitle, targetIDs)
 		if err := e.UseSkill(act.PlayerID, act.SkillID, targetIDs, act.Selections); err != nil {
 			e.clearActionSummary()

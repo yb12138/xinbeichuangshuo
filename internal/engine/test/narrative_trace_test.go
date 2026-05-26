@@ -206,3 +206,25 @@ func TestNarrativeTrace_ExtraActionGrantedAfterSkillResolution(t *testing.T) {
 		t.Fatalf("unexpected extra action trace %+v", extra)
 	}
 }
+
+func TestNarrativeTrace_FailedSkillDoesNotPublishDeclaredMarker(t *testing.T) {
+	obs := &testutils.CaptureObserver{}
+	game := newNarrativeTraceGame(obs)
+
+	if err := game.HandleAction(model.PlayerAction{
+		PlayerID: "p1",
+		Type:     model.CmdSkill,
+		SkillID:  "missing_skill",
+	}); err == nil {
+		t.Fatalf("expected missing skill action to fail")
+	}
+
+	for _, event := range obs.Events {
+		if event.Type != model.EventTimelineMarker || event.Narrative == nil {
+			continue
+		}
+		if event.Narrative.NarrativeKind == "skill_declared" {
+			t.Fatalf("failed skill should not publish skill_declared marker, got %+v", event)
+		}
+	}
+}
