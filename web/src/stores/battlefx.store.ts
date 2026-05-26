@@ -42,6 +42,8 @@ export type SkillAnnouncementPhase = 'featured' | 'settled'
 export type NarrativeActorReason = 'turn' | 'attack' | 'response' | 'target' | 'skill' | 'damage'
 export type NarrativeEventKind = 'turn' | 'attack' | 'magic' | 'respond' | 'take' | 'damage' | 'skill' | 'system'
 export type NarrativeLinkKind = 'attack' | 'respond' | 'skill' | 'damage'
+export type NarrativePlaybackStepKind = 'action' | 'combat' | 'response' | 'skill' | 'damage' | 'effect' | 'extra' | 'discard'
+export type NarrativePlaybackStepStatus = 'pending' | 'active' | 'completed'
 
 export interface SkillAnnouncementView {
   id: number
@@ -95,6 +97,26 @@ export interface ActionNarrativeView {
   startedAt: number
 }
 
+export interface NarrativePlaybackStepView {
+  id: string
+  kind: NarrativePlaybackStepKind
+  label: string
+  actorId?: string
+  targetIds: string[]
+  itemIds: string[]
+  order: number
+  durationMs: number
+  status: NarrativePlaybackStepStatus
+}
+
+export interface NarrativePlaybackView {
+  steps: NarrativePlaybackStepView[]
+  activeStepId?: string
+  completedStepIds: string[]
+  isReview: boolean
+  startedAt: number
+}
+
 interface CombatCueQueueItem {
   attackerId: string
   targetId: string
@@ -139,9 +161,11 @@ export const useBattleFxStore = defineStore('battlefx', () => {
   const skillAnnouncementRemovalTimers = new Map<number, ReturnType<typeof setTimeout>>()
 
   const actionNarrative = ref<ActionNarrativeView | null>(null)
+  const narrativePlayback = ref<NarrativePlaybackView | null>(null)
   let narrativeCardId = 0
   let narrativeLinkId = 0
   let narrativeEventId = 0
+  let narrativePlaybackTimer: ReturnType<typeof setTimeout> | null = null
   const narrativeTargetByActor = new Map<string, string>()
   const structuredNarrativeEventIds = new Set<number>()
 
@@ -330,8 +354,182 @@ export const useBattleFxStore = defineStore('battlefx', () => {
   function linkKindForActionType(actionType: string): NarrativeLinkKind {
     const normalized = normalizeNarrativeActionType(actionType)
     if (normalized === 'counter' || normalized === 'defend' || normalized === 'shield') return 'respond'
-    if (normalized === 'skill' || normalized === 'magic') return 'skill'
+    if (normalized === 'skill' || normalized === 'magic' || normalized === 'discard' || normalized === 'skill_cost') return 'skill'
     return 'attack'
+  }
+
+  function labelForCardAction(actionType: string) {
+    const normalized = normalizeNarrativeActionType(actionType)
+    if (normalized === 'counter') return '应战'
+    if (normalized === 'defend') return '防御'
+    if (normalized === 'shield') return '圣盾'
+    if (normalized === 'magic') return '法术'
+    if (normalized === 'discard' || normalized === 'skill_cost') return '弃牌'
+    return '发起攻击'
+  }
+
+  function playbackKindForCardAction(actionType: string): NarrativePlaybackStepKind {
+    const normalized = normalizeNarrativeActionType(actionType)
+    if (normalized === 'counter' || normalized === 'defend' || normalized === 'shield') return 'response'
+    if (normalized === 'discard' || normalized === 'skill_cost') return 'discard'
+    return 'combat'
+  }
+
+  function playbackKindForEvent(event: ActionNarrativeEventView): NarrativePlaybackStepKind {
+    if (event.kind === 'damage') return 'damage'
+    if (event.kind === 'turn') return 'action'
+    if (event.kind === 'respond' || event.kind === 'take') return 'response'
+    if (event.kind === 'attack' || event.kind === 'magic') return 'combat'
+    const label = event.label || ''
+    if (label.startsWith('获得额外行动')) return 'extra'
+    if (label.startsWith('效果：')) return 'effect'
+    return 'skill'
+  }
+
+  function playbackDurationForKind(kind: NarrativePlaybackStepKind) {
+    if (kind === 'skill') return 1120
+    if (kind === 'damage') return 1020
+    if (kind === 'effect' || kind === 'extra') return 1080
+    return 940
+  }
+
+  function clearNarrativePlaybackTimer() {
+    if (!narrativePlaybackTimer) return
+    clearTimeout(narrativePlaybackTimer)
+    narrativePlaybackTimer = null
+  }
+
+  function rebuildNarrativePlayback() {
+    const current = actionNarrative.value
+    if (!current) {
+      narrativePlayback.value = null
+      clearNarrativePlaybackTimer()
+      return
+    }
+
+    const steps: NarrativePlaybackStepView[] = []
+    const pushStep = (step: Omit<NarrativePlaybackStepView, 'status'>) => {
+      if (!step.itemIds.length) return
+      steps.push({ ...step, status: 'pending' })
+    }
+
+    for (const card of current.playedCards) {
+      const kind = playbackKindForCardAction(card.actionType)
+      pushStep({
+        id: `card-${card.id}`,
+        kind,
+        label: labelForCardAction(card.actionType),
+        actorId: card.playerId,
+        targetIds: card.targetId ? [card.targetId] : [],
+        itemIds: [`card-${card.id}`],
+        order: card.createdAt,
+        durationMs: playbackDurationForKind(kind),
+      })
+    }
+
+    for (const event of current.events) {
+      const kind = playbackKindForEvent(event)
+      if (kind === 'action') {
+        if (steps.some(step => step.kind === 'action' && step.actorId === event.actorId)) continue
+        pushStep({
+          id: `event-${event.id}`,
+          kind,
+          label: event.label,
+          actorId: event.actorId,
+          targetIds: event.targetId ? [event.targetId] : [],
+          itemIds: [],
+          order: event.createdAt,
+          durationMs: playbackDurationForKind(kind),
+        })
+        continue
+      }
+
+      if (event.kind !== 'skill' && event.kind !== 'damage') continue
+      pushStep({
+        id: `${event.kind}-${event.id}`,
+        kind,
+        label: event.label,
+        actorId: event.actorId,
+        targetIds: event.targetId ? [event.targetId] : [],
+        itemIds: [`${event.kind}-${event.id}`],
+        order: event.createdAt,
+        durationMs: playbackDurationForKind(kind),
+      })
+    }
+
+    steps.sort((a, b) => a.order - b.order || a.id.localeCompare(b.id))
+
+    const previous = narrativePlayback.value
+    const previousCompleted = new Set(previous?.completedStepIds || [])
+    let activeStepId = previous?.activeStepId && steps.some(step => step.id === previous.activeStepId)
+      ? previous.activeStepId
+      : undefined
+    let isReview = previous?.isReview && steps.every(step => previous?.steps.some(prevStep => prevStep.id === step.id))
+
+    for (const step of steps) {
+      if (previousCompleted.has(step.id)) {
+        step.status = 'completed'
+      }
+    }
+
+    if (!activeStepId && !isReview) {
+      const next = steps.find(step => !previousCompleted.has(step.id))
+      if (next) activeStepId = next.id
+    }
+
+    if (activeStepId) {
+      isReview = false
+      for (const step of steps) {
+        if (step.id === activeStepId) {
+          step.status = 'active'
+        } else if (previousCompleted.has(step.id) || step.order < (steps.find(item => item.id === activeStepId)?.order ?? 0)) {
+          step.status = 'completed'
+        } else {
+          step.status = 'pending'
+        }
+      }
+    } else if (steps.length) {
+      isReview = true
+      for (const step of steps) {
+        step.status = 'completed'
+      }
+    }
+
+    narrativePlayback.value = {
+      steps,
+      activeStepId,
+      completedStepIds: steps.filter(step => step.status === 'completed').map(step => step.id),
+      isReview,
+      startedAt: previous?.startedAt ?? Date.now(),
+    }
+    scheduleNarrativePlaybackAdvance()
+  }
+
+  function scheduleNarrativePlaybackAdvance() {
+    clearNarrativePlaybackTimer()
+    const playback = narrativePlayback.value
+    if (!playback || playback.isReview || !playback.activeStepId) return
+    const active = playback.steps.find(step => step.id === playback.activeStepId)
+    if (!active) return
+    narrativePlaybackTimer = setTimeout(() => {
+      const currentPlayback = narrativePlayback.value
+      if (!currentPlayback || currentPlayback.activeStepId !== active.id) return
+      const activeIndex = currentPlayback.steps.findIndex(step => step.id === active.id)
+      const nextStep = currentPlayback.steps.slice(activeIndex + 1).find(step => step.status !== 'completed')
+      const completedStepIds = uniqueIds([...currentPlayback.completedStepIds, active.id])
+      narrativePlayback.value = {
+        ...currentPlayback,
+        activeStepId: nextStep?.id,
+        completedStepIds,
+        isReview: !nextStep,
+        steps: currentPlayback.steps.map((step) => {
+          if (completedStepIds.includes(step.id)) return { ...step, status: 'completed' }
+          if (nextStep && step.id === nextStep.id) return { ...step, status: 'active' }
+          return { ...step, status: nextStep ? 'pending' : 'completed' }
+        }),
+      }
+      scheduleNarrativePlaybackAdvance()
+    }, active.durationMs)
   }
 
   function addNarrativeEvent(event: Omit<ActionNarrativeEventView, 'id' | 'createdAt'> & { createdAt?: number }) {
@@ -351,11 +549,12 @@ export const useBattleFxStore = defineStore('battlefx', () => {
         },
       ],
     })
+    rebuildNarrativePlayback()
   }
 
   function addNarrativeCard(playerId: string, card: Card, actionType: string, targetId?: string, options?: { createdAt?: number; timelineEventId?: number }) {
     const normalizedActionType = normalizeNarrativeActionType(actionType)
-    if (!playerId || !card || !['attack', 'magic', 'counter', 'defend', 'shield'].includes(normalizedActionType)) return
+    if (!playerId || !card || !['attack', 'magic', 'counter', 'defend', 'shield', 'discard', 'skill_cost'].includes(normalizedActionType)) return
     const current = ensureActionNarrative(playerId, normalizedActionType === 'magic' ? 'skill' : 'attack')
     if (!current) return
     const resolvedTargetId = targetId || narrativeTargetByActor.get(playerId)
@@ -376,6 +575,7 @@ export const useBattleFxStore = defineStore('battlefx', () => {
     if (resolvedTargetId) {
       addNarrativeLink({ type: 'card', id: cardView.id }, resolvedTargetId, linkKindForActionType(normalizedActionType))
     }
+    rebuildNarrativePlayback()
   }
 
   function bindLatestNarrativeCardTarget(playerId: string, targetId: string, kind: NarrativeLinkKind) {
@@ -391,6 +591,7 @@ export const useBattleFxStore = defineStore('battlefx', () => {
         playedCards: cards,
       })
       addNarrativeLink({ type: 'card', id: card.id }, targetId, kind)
+      rebuildNarrativePlayback()
       return
     }
   }
@@ -418,17 +619,25 @@ export const useBattleFxStore = defineStore('battlefx', () => {
     })
   }
 
-  function addNarrativeDamage(sourceId: string | undefined, targetId: string, damage: number, damageType?: string) {
+  function addNarrativeDamage(
+    sourceId: string | undefined,
+    targetId: string,
+    damage: number,
+    damageType?: string,
+    options?: { createdAt?: number; timelineEventId?: number },
+  ) {
     if (!targetId || damage <= 0) return
     const actorId = sourceId || actionNarrative.value?.featuredActorId || targetId
     ensureActionNarrative(actorId, 'damage')
     opposeNarrativeActor(targetId)
     addNarrativeEvent({
+      timelineEventId: options?.timelineEventId,
       kind: 'damage',
       label: `造成 ${damage} 点伤害`,
       actorId,
       targetId,
       damage,
+      createdAt: options?.createdAt,
     })
     if (actorId && actorId !== targetId) {
       addNarrativeLink({ type: 'actor', id: actorId }, targetId, 'damage')
@@ -453,6 +662,8 @@ export const useBattleFxStore = defineStore('battlefx', () => {
 
   function clearActionNarrative() {
     actionNarrative.value = null
+    narrativePlayback.value = null
+    clearNarrativePlaybackTimer()
     narrativeTargetByActor.clear()
   }
 
@@ -563,7 +774,7 @@ export const useBattleFxStore = defineStore('battlefx', () => {
       }
 
       if (kind === 'damage_dealt' && targetIds[0] && event.damage) {
-        addNarrativeDamage(actorId, targetIds[0], event.damage, event.damage_type)
+        addNarrativeDamage(actorId, targetIds[0], event.damage, event.damage_type, { createdAt, timelineEventId: eventId })
       }
     }
   }
@@ -943,6 +1154,7 @@ export const useBattleFxStore = defineStore('battlefx', () => {
     damageEffects,
     skillAnnouncements,
     actionNarrative,
+    narrativePlayback,
     beginActionNarrative,
     featureNarrativeActor,
     settleNarrativeActor,

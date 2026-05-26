@@ -163,4 +163,120 @@ describe('battlefx store focus side', () => {
     battleFxStore.clearActionNarrative()
     expect(battleFxStore.actionNarrative).toBeNull()
   })
+
+  it('builds readable playback steps from structured narrative events', () => {
+    const battleFxStore = useBattleFxStore()
+
+    battleFxStore.applyStructuredTimelineNarrative({
+      room_id: 'ROOM1',
+      seq_start: 1,
+      seq_end: 5,
+      is_replay: false,
+      events: [
+        {
+          event_id: 1,
+          turn_id: 1,
+          chain_id: 'nw-t1-p1',
+          type: 'TimelineEffectResolved',
+          outcome: 'TimelineOutcomeSuccess',
+          visibility: 'TimelineVisibilityPublic',
+          narrative_window_id: 'nw-t1-p1',
+          action_id: 'nw-t1-p1-a1-attack',
+          narrative_kind: 'action_started',
+          visual_kind: 'action_marker',
+          actor_user_id: 'p1',
+          target_user_ids: ['p2'],
+          action_type: 'attack',
+        },
+        {
+          event_id: 2,
+          turn_id: 1,
+          chain_id: 'nw-t1-p1',
+          type: 'TimelineActionDeclared',
+          outcome: 'TimelineOutcomeSuccess',
+          visibility: 'TimelineVisibilityPublic',
+          narrative_window_id: 'nw-t1-p1',
+          action_id: 'nw-t1-p1-a1-attack',
+          narrative_kind: 'card_played',
+          visual_kind: 'card',
+          card_role: 'attack',
+          actor_user_id: 'p1',
+          target_user_ids: ['p2'],
+          cards: [buildCard('破空箭')],
+        },
+        {
+          event_id: 3,
+          turn_id: 1,
+          chain_id: 'nw-t1-p1',
+          type: 'TimelineActionDeclared',
+          outcome: 'TimelineOutcomeSuccess',
+          visibility: 'TimelineVisibilityPublic',
+          narrative_window_id: 'nw-t1-p1',
+          action_id: 'nw-t1-p1-a1-attack',
+          combat_id: 'nw-t1-p1-c1-counter',
+          narrative_kind: 'card_played',
+          visual_kind: 'card',
+          card_role: 'counter',
+          actor_user_id: 'p2',
+          target_user_ids: ['p3'],
+          cards: [buildCard('地裂斩')],
+        },
+        {
+          event_id: 4,
+          turn_id: 1,
+          chain_id: 'nw-t1-p1',
+          type: 'TimelineEffectResolved',
+          outcome: 'TimelineOutcomeSuccess',
+          visibility: 'TimelineVisibilityPublic',
+          narrative_window_id: 'nw-t1-p1',
+          action_id: 'nw-t1-p1-a2-skill',
+          narrative_kind: 'skill_triggered',
+          visual_kind: 'skill_token',
+          skill_phase: 'triggered',
+          actor_user_id: 'p3',
+          skill_name: '水影',
+          effect_text: '弃置1张牌后承受伤害',
+        },
+        {
+          event_id: 5,
+          turn_id: 1,
+          chain_id: 'nw-t1-p1',
+          type: 'TimelineCombatResolved',
+          outcome: 'TimelineOutcomeSuccess',
+          visibility: 'TimelineVisibilityPublic',
+          narrative_window_id: 'nw-t1-p1',
+          action_id: 'nw-t1-p1-a1-attack',
+          combat_id: 'nw-t1-p1-c1-counter',
+          narrative_kind: 'damage_dealt',
+          visual_kind: 'damage',
+          actor_user_id: 'p2',
+          target_user_ids: ['p3'],
+          damage: 3,
+          damage_type: 'Attack',
+        },
+      ],
+    })
+
+    expect(battleFxStore.narrativePlayback?.steps.map(step => step.kind)).toEqual([
+      'combat',
+      'response',
+      'skill',
+      'damage',
+    ])
+    expect(battleFxStore.narrativePlayback?.activeStepId).toBe('card-1')
+    expect(battleFxStore.narrativePlayback?.steps[0]).toMatchObject({
+      label: '发起攻击',
+      status: 'active',
+      itemIds: ['card-1'],
+    })
+
+    vi.advanceTimersByTime(950)
+
+    expect(battleFxStore.narrativePlayback?.steps[0].status).toBe('completed')
+    expect(battleFxStore.narrativePlayback?.steps[1]).toMatchObject({
+      label: '应战',
+      status: 'active',
+      itemIds: ['card-2'],
+    })
+  })
 })
