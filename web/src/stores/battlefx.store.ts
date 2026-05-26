@@ -199,9 +199,9 @@ export const useBattleFxStore = defineStore('battlefx', () => {
       ...next,
       settledActorIds: next.settledActorIds.slice(-5),
       opposedActorIds: next.opposedActorIds.slice(-2),
-      playedCards: next.playedCards.slice(-4),
-      links: next.links.slice(-5),
-      events: next.events.slice(-7),
+      playedCards: next.playedCards.slice(-12),
+      links: next.links.slice(-24),
+      events: next.events.slice(-24),
     }
   }
 

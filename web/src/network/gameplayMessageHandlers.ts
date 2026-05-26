@@ -221,18 +221,16 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
             battleReviewStore.addLog(`游戏结束: ${fallbackEndMsg}`)
           }
           const nextCurrent = event.state.current_player
-          if (nextCurrent && nextCurrent !== prevCurrent) {
+          const nextActionPlayerStarted =
+            !!nextCurrent &&
+            nextCurrent !== prevCurrent &&
+            event.state.turn_stage === 'ActionExecution'
+          if (nextActionPlayerStarted) {
             battleFxStore.clearActionNarrative()
           }
           if (nextCurrent && event.state.turn_stage === 'ActionExecution') {
             battleFxStore.beginActionNarrative(nextCurrent)
             battleFxStore.startActingPlayerFocus(nextCurrent, 'turn')
-          } else if (
-            event.state.turn_stage !== 'ActionExecution' &&
-            !event.state.combat_stage &&
-            event.state.subflow !== 'Response'
-          ) {
-            battleFxStore.clearActionNarrative()
           }
           if (nextCurrent && nextCurrent !== prevCurrent) {
             if (prevCurrent) {

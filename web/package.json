@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite --host",
     "dev:quad": "node scripts/open-quad-room.mjs",
+    "dev:battle": "node scripts/open-test-battle.mjs",
     "build": "vue-tsc -b && vite build",
     "preview": "vite preview",
     "test": "vitest run",

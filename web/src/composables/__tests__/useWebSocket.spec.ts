@@ -77,6 +77,7 @@ describe('useWebSocket integration', () => {
         protocol: 'http:',
         hostname: 'localhost',
         host: 'localhost:5173',
+        search: '',
       },
       localStorage: storage,
     })
@@ -216,6 +217,28 @@ describe('useWebSocket integration', () => {
     actions!.sendChat('hello')
     expect(socket?.sent).toContain('{"Cmd":"ChatMessage","Data":{"message":"hello"}}')
     expect(battleReviewStore.logs).toContain('[WS] 连接成功')
+  })
+
+  it('allows a ws backend override from the URL query for local battle smoke tests', () => {
+    vi.unstubAllGlobals()
+    vi.stubGlobal('WebSocket', FakeWebSocket)
+    vi.stubGlobal('window', {
+      location: {
+        protocol: 'http:',
+        hostname: 'localhost',
+        host: 'localhost:5175',
+        search: '?ws=http%3A%2F%2F127.0.0.1%3A18080',
+      },
+      localStorage: storage,
+    })
+
+    actions = useWebSocket()
+    actions.connect('ROOM2', 'Bob')
+
+    const latestSocket = FakeWebSocket.instances[FakeWebSocket.instances.length - 1]
+    expect(latestSocket?.url).toBe(
+      'ws://127.0.0.1:18080/ws?room=ROOM2&name=Bob'
+    )
   })
 
   it('disconnect resets state without creating a new reconnect attempt', () => {

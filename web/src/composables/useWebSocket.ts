@@ -16,6 +16,17 @@ import { loadReconnectInfo, saveReconnectInfo } from '../network/wsReconnect'
 
 // 改造成一个函数，动态获取当前访问的 IP 和端口
 const getWsUrl = () => {
+  if (typeof window !== 'undefined') {
+    const queryWs = new URLSearchParams(window.location.search).get('ws')
+    if (queryWs) {
+      const normalized = queryWs
+        .replace(/^http:\/\//, 'ws://')
+        .replace(/^https:\/\//, 'wss://')
+        .replace(/\/+$/, '')
+      return normalized.endsWith('/ws') ? normalized : `${normalized}/ws`
+    }
+  }
+
   // 如果有配环境变量，优先用环境变量（方便以后线上部署）
   if (import.meta.env.VITE_WS_URL) {
     return import.meta.env.VITE_WS_URL

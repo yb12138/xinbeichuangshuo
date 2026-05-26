@@ -3,7 +3,7 @@ import gsap from 'gsap'
 import { storeToRefs } from 'pinia'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useBattleFxStore } from '../stores/battlefx.store'
-import type { ActionNarrativeCardView, ActionNarrativeEventView, ActionNarrativeLinkView, NarrativeLinkKind } from '../stores/battlefx.store'
+import type { ActionNarrativeCardView, ActionNarrativeEventView, NarrativeLinkKind } from '../stores/battlefx.store'
 import { useSnapshotStore } from '../stores/snapshot.store'
 import type { PlayerView } from '../types/game'
 import CardComponent from './CardComponent.vue'
@@ -189,6 +189,13 @@ function narrativePlayedCardClasses(item: ActionNarrativeCardView) {
   ]
 }
 
+function narrativeActionKindLabel(kind: NarrativeLinkKind) {
+  if (kind === 'respond') return '应战'
+  if (kind === 'skill') return '技能'
+  if (kind === 'damage') return '伤害'
+  return '发起攻击'
+}
+
 function narrativeSettledCardClasses(player: PlayerView) {
   const side = narrativeSideForPlayer(player.id, 'settled')
   const row = narrativeRowForPlayer(player.id)
@@ -216,11 +223,11 @@ function linkKindForActionType(actionType: string): NarrativeLinkKind {
 function skillDisplayFromEvent(event: ActionNarrativeEventView) {
   const label = String(event.label || '').trim()
   const quoted = label.match(/发动「(.+?)」/)
-  if (quoted) {
+  if (quoted?.[1]) {
     return { title: quoted[1], detail: '' }
   }
   const separated = label.match(/^(.+?)[：:](.+)$/)
-  if (separated) {
+  if (separated?.[1] && separated?.[2]) {
     return { title: separated[1].trim(), detail: separated[2].trim() }
   }
   return {
@@ -272,7 +279,7 @@ const narrativeStackItems = computed<NarrativeStackItem[]>(() => {
   return items
     .filter(item => item.sourcePlayerId)
     .sort((a, b) => a.createdAt - b.createdAt)
-    .slice(-5)
+    .slice(-12)
     .map((item, stackIndex) => ({ ...item, stackIndex }))
 })
 
@@ -287,13 +294,9 @@ function narrativeStackItemClasses(item: NarrativeStackItem) {
 }
 
 function narrativeStackItemStyle(item: NarrativeStackItem) {
-  const centerIndex = item.stackIndex - (narrativeStackItems.value.length - 1) / 2
-  const rotate = [-5, 3, -2, 4, 0][item.stackIndex % 5]
   return {
-    '--stack-offset-x': `${centerIndex * 10}px`,
-    '--stack-offset-y': `${centerIndex * -7}px`,
-    '--stack-rotate': `${rotate}deg`,
     '--stack-enter-x': narrativeSideForPlayer(item.sourcePlayerId) === 'left' ? '-42px' : '42px',
+    '--stack-order': String(item.stackIndex),
     zIndex: String(20 + item.stackIndex),
   }
 }
@@ -362,10 +365,10 @@ function bezierPath(x1: number, y1: number, x2: number, y2: number) {
 }
 
 function latestStackItemForDamage(event: ActionNarrativeEventView) {
-  const byActor = narrativeStackItems.value
+  const actorItems = narrativeStackItems.value
     .filter(item => item.sourcePlayerId === event.actorId && item.createdAt <= event.createdAt)
-    .at(-1)
-  return byActor ?? narrativeStackItems.value.at(-1)
+  const byActor = actorItems[actorItems.length - 1]
+  return byActor ?? narrativeStackItems.value[narrativeStackItems.value.length - 1]
 }
 
 const narrativeMistBlueprints = computed(() => {
@@ -541,7 +544,7 @@ function scheduleNarrativeAnimation() {
 
       for (const particle of particles) {
         const pathId = particle.dataset.mistPathId
-        const path = pathId ? root.querySelector<SVGPathElement>(`#${CSS.escape(pathId)}`) : null
+        const path = pathId ? root.querySelector<SVGPathElement>(`#${pathId}`) : null
         const length = path && typeof path.getTotalLength === 'function' ? path.getTotalLength() : 0
         if (!path || length <= 0) continue
         const seed = Number.parseFloat(particle.dataset.seed || '0')
@@ -608,6 +611,10 @@ function narrativeMistSegmentClasses(segment: NarrativeMistSegment) {
     `narrative-mist--to-${segment.toType}`,
   ]
 }
+
+function narrativeMistPathDomId(segmentId: string) {
+  return `narrative-mist-path-${segmentId.replace(/[^a-zA-Z0-9_-]/g, '-')}`
+}
 </script>
 
 <template>
@@ -672,71 +679,92 @@ function narrativeMistSegmentClasses(segment: NarrativeMistSegment) {
         </div>
       </div>
 
-      <div v-if="actionNarrative" class="narrative-card-lane">
+      <div v-if="actionNarrative" class="narrative-stack-lane">
         <div
-          v-for="item in narrativeCards"
-          :key="`narrative-card-${item.id}`"
-          class="narrative-played-card"
-          :class="narrativePlayedCardClasses(item)"
-          :style="narrativePlayedCardStyle(item)"
-          :data-narrative-card-id="item.id"
+          v-for="item in narrativeStackItems"
+          :key="`narrative-stack-${item.id}`"
+          class="narrative-stack-item"
+          :class="narrativeStackItemClasses(item)"
+          :style="narrativeStackItemStyle(item)"
+          :data-narrative-stack-id="item.id"
+          :data-narrative-card-id="item.cardView?.id"
+          :data-narrative-skill-id="item.kind === 'skill' ? item.id : undefined"
         >
-          <CardComponent :card="item.card" battle-mini />
-          <div class="narrative-played-card__caption">
-            {{ roleNameForPlayer(item.playerId) }}
-            <span v-if="item.targetId">→ {{ roleNameForPlayer(item.targetId) }}</span>
+          <div
+            v-if="item.cardView"
+            class="narrative-played-card"
+            :class="narrativePlayedCardClasses(item.cardView)"
+          >
+            <CardComponent :card="item.cardView.card" battle-mini />
+            <div class="narrative-stack-item__caption">
+              <span>{{ roleNameForPlayer(item.sourcePlayerId) }}</span>
+              <strong>{{ narrativeActionKindLabel(item.actionKind) }}</strong>
+              <span v-if="item.targetIds[0]">→ {{ roleNameForPlayer(item.targetIds[0]) }}</span>
+            </div>
+          </div>
+
+          <div
+            v-else
+            class="narrative-skill-token"
+          >
+            <div class="narrative-skill-token__ring"></div>
+            <div class="narrative-skill-token__body">
+              <span>技能发动</span>
+              <strong>{{ item.title }}</strong>
+              <small v-if="item.detail">{{ item.detail }}</small>
+              <small v-else>{{ roleNameForPlayer(item.sourcePlayerId) }}</small>
+            </div>
           </div>
         </div>
       </div>
 
       <svg
-        v-if="actionNarrative && narrativeLinkSegments.length"
-        ref="narrativeLinkLayerRef"
-        class="narrative-link-layer"
+        v-if="actionNarrative && narrativeMistBlueprints.length"
+        ref="narrativeMistLayerRef"
+        class="narrative-mist-layer"
         aria-hidden="true"
       >
         <defs>
-          <marker
-            id="narrative-link-arrow"
-            viewBox="0 0 10 10"
-            refX="8.5"
-            refY="5"
-            markerWidth="8"
-            markerHeight="8"
-            orient="auto-start-reverse"
-          >
-            <path d="M 0 0 L 10 5 L 0 10 z" class="narrative-link-arrowhead" />
-          </marker>
+          <filter id="narrative-mist-blur" x="-25%" y="-80%" width="150%" height="260%">
+            <feGaussianBlur stdDeviation="2.6" />
+          </filter>
         </defs>
         <g
-          v-for="segment in measuredNarrativeLinkSegments"
-          :key="`narrative-link-${segment.link.id}`"
-          class="narrative-link"
-          :class="narrativeLinkSegmentClasses(segment)"
+          v-for="segment in measuredNarrativeMistSegments"
+          :key="`narrative-mist-${segment.id}`"
+          class="narrative-mist"
+          :class="narrativeMistSegmentClasses(segment)"
+          :data-narrative-mist-id="segment.id"
         >
-          <line
-            class="narrative-link__stroke narrative-link__stroke--glow"
-            :x1="segment.x1"
-            :y1="segment.y1"
-            :x2="segment.x2"
-            :y2="segment.y2"
+          <path
+            class="narrative-mist__aura"
+            :d="segment.path"
           />
-          <line
-            class="narrative-link__stroke"
-            :x1="segment.x1"
-            :y1="segment.y1"
-            :x2="segment.x2"
-            :y2="segment.y2"
-            marker-end="url(#narrative-link-arrow)"
+          <path
+            :id="narrativeMistPathDomId(segment.id)"
+            class="narrative-mist__flow"
+            :d="segment.path"
+          />
+          <circle
+            v-for="(seed, index) in segment.particleSeeds"
+            :key="`particle-${segment.id}-${index}`"
+            class="narrative-mist-particle"
+            :class="index % 3 === 0 ? 'narrative-mist-particle--bright' : ''"
+            :cx="segment.x1"
+            :cy="segment.y1"
+            :r="index % 3 === 0 ? 2.2 : 1.35"
+            :data-mist-path-id="narrativeMistPathDomId(segment.id)"
+            :data-seed="seed"
           />
           <text
-            class="narrative-link__label"
-            :x="segment.labelX"
-            :y="segment.labelY - 2.2"
+            v-if="segment.damage"
+            class="narrative-mist__damage-label"
+            :x="segment.damageX"
+            :y="segment.damageY - 12"
             text-anchor="middle"
             dominant-baseline="middle"
           >
-            {{ linkLabel(segment.link.kind) }}
+            -{{ segment.damage }}
           </text>
         </g>
       </svg>
@@ -978,40 +1006,63 @@ function narrativeMistSegmentClasses(segment: NarrativeMistSegment) {
   animation: narrativeDamagePop 0.86s ease-out both;
 }
 
-.narrative-card-lane {
+.narrative-stack-lane {
   position: absolute;
-  inset: 14px 18px 54px;
+  inset: 14px calc(var(--narrative-actor-card-edge) + var(--narrative-actor-card-width) + 18px) 54px;
   z-index: 8;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: center;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 12px 14px;
+  min-width: 0;
   pointer-events: none;
 }
 
-.narrative-played-card {
-  position: absolute;
-  left: var(--played-card-x);
-  top: var(--played-card-y);
-  width: 74px;
-  animation: narrativeCardIn 0.3s cubic-bezier(0.2, 0.86, 0.24, 1) both;
+.narrative-stack-item {
+  position: relative;
+  flex: 0 0 auto;
+  width: 78px;
+  transform: translateY(calc(var(--stack-order, 0) * -1px));
+  transform-origin: center center;
   filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.45));
+  animation: narrativeStackItemIn 0.32s cubic-bezier(0.2, 0.86, 0.24, 1) both;
+}
+
+.narrative-stack-item--latest {
+  filter:
+    drop-shadow(0 12px 24px rgba(0, 0, 0, 0.54))
+    drop-shadow(0 0 12px rgba(246, 220, 153, 0.28));
+}
+
+.narrative-played-card {
+  width: 78px;
   transform-origin: center center;
 }
 
-.narrative-played-card--side-left {
-  --played-card-enter-x: -14px;
+.narrative-stack-item--skill {
+  width: 112px;
 }
 
-.narrative-played-card--side-right {
-  --played-card-enter-x: 14px;
+.narrative-stack-item--respond .narrative-played-card,
+.narrative-stack-item--skill .narrative-played-card {
+  filter: drop-shadow(0 0 10px rgba(125, 211, 252, 0.34));
+}
+
+.narrative-stack-item--damage .narrative-played-card {
+  filter: drop-shadow(0 0 10px rgba(248, 113, 113, 0.36));
 }
 
 .narrative-played-card :deep(.card-battle-mini) {
   transform: none !important;
 }
 
-.narrative-played-card__caption {
+.narrative-stack-item__caption {
   margin-top: 4px;
   width: max-content;
-  max-width: 118px;
-  transform: translateX(calc(37px - 50%));
+  max-width: 132px;
+  transform: translateX(calc(39px - 50%));
   overflow: hidden;
   padding: 3px 6px;
   border-radius: 999px;
@@ -1024,89 +1075,163 @@ function narrativeMistSegmentClasses(segment: NarrativeMistSegment) {
   text-overflow: ellipsis;
 }
 
-.narrative-link-layer {
+.narrative-stack-item__caption strong {
+  color: #ffe8a8;
+  font-weight: 900;
+}
+
+.narrative-skill-token {
+  position: relative;
+  width: 112px;
+  min-height: 82px;
+  padding: 10px 11px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 10px;
+  border: 1px solid rgba(207, 181, 255, 0.58);
+  background:
+    radial-gradient(circle at 50% 18%, rgba(247, 224, 164, 0.22), transparent 38%),
+    linear-gradient(145deg, rgba(48, 28, 89, 0.92), rgba(8, 17, 32, 0.92) 58%, rgba(28, 44, 84, 0.88));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 0 18px rgba(139, 92, 246, 0.34),
+    0 14px 24px rgba(0, 0, 0, 0.46);
+}
+
+.narrative-skill-token__ring {
+  position: absolute;
+  inset: 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(234, 214, 255, 0.4);
+  box-shadow:
+    inset 0 0 12px rgba(199, 210, 254, 0.22),
+    0 0 14px rgba(167, 139, 250, 0.32);
+  animation: narrativeSkillPulse 1.72s ease-in-out infinite;
+}
+
+.narrative-skill-token__body {
+  position: relative;
+  z-index: 1;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  text-align: center;
+  color: rgba(241, 245, 255, 0.96);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.82);
+}
+
+.narrative-skill-token__body span {
+  color: rgba(245, 208, 254, 0.88);
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.narrative-skill-token__body strong {
+  max-width: 100%;
+  overflow: hidden;
+  color: #fff0bd;
+  font-size: 15px;
+  font-weight: 950;
+  line-height: 1.08;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.narrative-skill-token__body small {
+  max-width: 100%;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: rgba(218, 232, 255, 0.9);
+  font-size: 10px;
+  line-height: 1.18;
+}
+
+.narrative-mist-layer {
   position: absolute;
   left: 18px;
   top: 14px;
   width: calc(100% - 36px);
   height: calc(100% - 68px);
-  z-index: 6;
+  z-index: 9;
   overflow: visible;
   pointer-events: none;
 }
 
-.narrative-link {
-  animation: narrativeLinkIn 0.36s ease-out both;
+.narrative-mist {
+  --mist-core: rgba(255, 199, 113, 0.84);
+  --mist-aura: rgba(255, 134, 82, 0.24);
+  --mist-particle: rgba(255, 239, 190, 0.92);
+  animation: narrativeMistIn 0.36s ease-out both;
 }
 
-.narrative-link__stroke {
+.narrative-mist__aura,
+.narrative-mist__flow {
   fill: none;
-  stroke: rgba(255, 188, 126, 0.92);
-  stroke-width: 2px;
   stroke-linecap: round;
+  stroke-linejoin: round;
   vector-effect: non-scaling-stroke;
-  filter: drop-shadow(0 0 4px rgba(255, 150, 96, 0.62));
 }
 
-.narrative-link__stroke--glow {
-  stroke: rgba(255, 116, 96, 0.42);
-  stroke-width: 7px;
-  marker-end: none;
-  filter: blur(0.4px);
+.narrative-mist__aura {
+  stroke: var(--mist-aura);
+  stroke-width: 15px;
+  filter: url(#narrative-mist-blur);
+  opacity: 0.9;
 }
 
-.narrative-link-arrowhead {
-  fill: rgba(255, 223, 160, 0.96);
+.narrative-mist__flow {
+  stroke: var(--mist-core);
+  stroke-width: 3px;
+  stroke-dasharray: 8 12;
+  filter: drop-shadow(0 0 7px var(--mist-core));
+  opacity: 0.88;
 }
 
-.narrative-link__label {
+.narrative-mist-particle {
+  fill: var(--mist-particle);
+  opacity: 0.66;
+  filter: drop-shadow(0 0 5px var(--mist-particle));
+}
+
+.narrative-mist-particle--bright {
+  opacity: 0.9;
+}
+
+.narrative-mist__damage-label {
   paint-order: stroke;
   stroke: rgba(5, 12, 22, 0.9);
-  stroke-width: 3px;
-  fill: #f8dfad;
-  font-size: 12px;
+  stroke-width: 5px;
+  fill: #ffbea8;
+  font-size: 26px;
   font-weight: 900;
   letter-spacing: 0;
+  filter: drop-shadow(0 0 10px rgba(248, 113, 113, 0.7));
   vector-effect: non-scaling-stroke;
+  animation: narrativeDamagePopSvg 0.92s ease-out both;
 }
 
-.narrative-link--respond .narrative-link__stroke {
-  stroke: rgba(139, 216, 255, 0.92);
-  filter: drop-shadow(0 0 4px rgba(125, 211, 252, 0.62));
+.narrative-mist--respond {
+  --mist-core: rgba(158, 226, 255, 0.9);
+  --mist-aura: rgba(96, 165, 250, 0.28);
+  --mist-particle: rgba(224, 247, 255, 0.94);
 }
 
-.narrative-link--respond .narrative-link__stroke--glow {
-  stroke: rgba(129, 140, 248, 0.38);
+.narrative-mist--skill {
+  --mist-core: rgba(226, 214, 255, 0.92);
+  --mist-aura: rgba(168, 85, 247, 0.3);
+  --mist-particle: rgba(255, 239, 190, 0.94);
 }
 
-.narrative-link--respond .narrative-link__label {
-  fill: #d8f3ff;
-}
-
-.narrative-link--skill .narrative-link__stroke {
-  stroke: rgba(230, 202, 255, 0.92);
-  filter: drop-shadow(0 0 4px rgba(216, 180, 254, 0.62));
-}
-
-.narrative-link--skill .narrative-link__stroke--glow {
-  stroke: rgba(192, 132, 252, 0.42);
-}
-
-.narrative-link--skill .narrative-link__label {
-  fill: #f2ddff;
-}
-
-.narrative-link--damage .narrative-link__stroke {
-  stroke: rgba(254, 202, 202, 0.96);
-  filter: drop-shadow(0 0 5px rgba(248, 113, 113, 0.72));
-}
-
-.narrative-link--damage .narrative-link__stroke--glow {
-  stroke: rgba(239, 68, 68, 0.48);
-}
-
-.narrative-link--damage .narrative-link__label {
-  fill: #ffd4ca;
+.narrative-mist--damage {
+  --mist-core: rgba(255, 159, 127, 0.94);
+  --mist-aura: rgba(239, 68, 68, 0.34);
+  --mist-particle: rgba(255, 215, 184, 0.96);
 }
 
 .narrative-settled-row {
@@ -1246,14 +1371,27 @@ function narrativeMistSegmentClasses(segment: NarrativeMistSegment) {
   to { opacity: 1; transform: translateX(0) scale(1); }
 }
 
-@keyframes narrativeCardIn {
-  from { opacity: 0; transform: translate(calc(-50% + var(--played-card-enter-x, 0px)), calc(-50% + 16px)) rotate(-4deg) scale(0.88); }
-  to { opacity: 1; transform: translate(-50%, -50%) rotate(0deg) scale(1); }
+@keyframes narrativeStackItemIn {
+  from {
+    opacity: 0;
+    transform:
+      translate(var(--stack-enter-x, 0px), calc(18px + var(--stack-order, 0) * -1px))
+      scale(0.86);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(calc(var(--stack-order, 0) * -1px)) scale(1);
+  }
 }
 
-@keyframes narrativeLinkIn {
+@keyframes narrativeMistIn {
   from { opacity: 0; }
   to { opacity: 1; }
+}
+
+@keyframes narrativeSkillPulse {
+  0%, 100% { opacity: 0.58; transform: scale(0.94); }
+  50% { opacity: 1; transform: scale(1.04); }
 }
 
 @keyframes narrativeEventIn {
@@ -1270,6 +1408,12 @@ function narrativeMistSegmentClasses(segment: NarrativeMistSegment) {
   0% { opacity: 0; transform: translate(-50%, -50%) scale(0.62); }
   24% { opacity: 1; transform: translate(-50%, -62%) scale(1.12); }
   100% { opacity: 0; transform: translate(-50%, -92%) scale(0.94); }
+}
+
+@keyframes narrativeDamagePopSvg {
+  0% { opacity: 0; transform: translateY(6px) scale(0.68); }
+  24% { opacity: 1; transform: translateY(-2px) scale(1.12); }
+  100% { opacity: 0; transform: translateY(-24px) scale(0.96); }
 }
 
 .skill-plaque {

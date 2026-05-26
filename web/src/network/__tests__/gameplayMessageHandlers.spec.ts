@@ -569,4 +569,65 @@ describe('createGameplayMessageHandlers', () => {
     )
     expect(battleFxStore.damageEffects).toHaveLength(1)
   })
+
+  it('keeps the action narrative through non-action phases until the next player starts acting', () => {
+    const { handlers, battleFxStore, sessionStore } = buildHandlers()
+    sessionStore.setRoomInfo('ROOM1', 'p1', 'Red', 'hero')
+
+    const baseState = {
+      room_state: 'Playing' as const,
+      has_performed_startup: true,
+      morale_red: 15,
+      morale_blue: 15,
+      cups_red: 0,
+      cups_blue: 0,
+      stones_red: [0, 0] as [number, number],
+      stones_blue: [0, 0] as [number, number],
+      deck_count: 30,
+      discard_count: 0,
+      available_skills: [],
+      characters: [],
+      players: [
+        buildSyncPlayer('p1', 'Red'),
+        buildSyncPlayer('p2', 'Blue'),
+      ],
+    }
+
+    handlers.handleSyncState({
+      ...baseState,
+      turn_stage: 'ActionExecution',
+      turn_player_id: 'p1',
+    })
+    handlers.handleGameplayEvent({
+      event_type: 'skill_activated',
+      player_id: 'p1',
+      player_name: 'Alice',
+      skill_id: 'water_seal',
+      skill_name: '水之封印',
+      effect_text: '目标本回合无法使用水系牌',
+      target_ids: ['p2'],
+    })
+
+    expect(battleFxStore.actionNarrative?.events.map(event => event.label)).toContain('水之封印：目标本回合无法使用水系牌')
+
+    handlers.handleSyncState({
+      ...baseState,
+      turn_stage: 'Settlement',
+      turn_player_id: 'p1',
+      combat_stage: '',
+      subflow: '',
+    })
+
+    expect(battleFxStore.actionNarrative?.events.map(event => event.label)).toContain('水之封印：目标本回合无法使用水系牌')
+
+    handlers.handleSyncState({
+      ...baseState,
+      turn_stage: 'ActionExecution',
+      turn_player_id: 'p2',
+    })
+
+    expect(battleFxStore.actionNarrative?.currentActionPlayerId).toBe('p2')
+    expect(battleFxStore.actionNarrative?.events.map(event => event.label)).toContain('行动回合')
+    expect(battleFxStore.actionNarrative?.events.map(event => event.label)).not.toContain('水之封印：目标本回合无法使用水系牌')
+  })
 })
