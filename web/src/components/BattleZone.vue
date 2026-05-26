@@ -390,7 +390,9 @@ const narrativeStepGroups = computed<NarrativeStepGroup[]>(() => {
     groups.set(id, {
       id,
       kind: step?.kind || item.stepKind || 'skill',
-      label: step?.label || item.title || item.eventView?.label || '叙事',
+      label: (step?.kind || item.stepKind) === 'skill'
+        ? item.title || step?.label || '技能'
+        : step?.label || item.title || item.eventView?.label || '叙事',
       status: step?.status || item.stepStatus || 'active',
       order: step?.order || item.createdAt,
       items: [item],
@@ -834,7 +836,12 @@ function narrativeMistPathDomId(segmentId: string) {
           :class="narrativeStepGroupClasses(group)"
           :data-narrative-step-id="group.id"
         >
-          <div class="narrative-step-group__label">{{ group.label }}</div>
+          <div
+            v-if="group.kind !== 'skill'"
+            class="narrative-step-group__label"
+          >
+            {{ group.label }}
+          </div>
           <div class="narrative-step-group__items">
             <div
               v-for="item in group.items"
@@ -872,12 +879,8 @@ function narrativeMistPathDomId(segmentId: string) {
                 v-else
                 class="narrative-skill-token"
               >
-                <div class="narrative-skill-token__ring"></div>
                 <div class="narrative-skill-token__body">
-                  <span>技能发动</span>
                   <strong>{{ item.title }}</strong>
-                  <small v-if="item.detail">{{ item.detail }}</small>
-                  <small v-else>{{ roleNameForPlayer(item.sourcePlayerId) }}</small>
                 </div>
               </div>
             </div>
@@ -1338,31 +1341,15 @@ function narrativeMistPathDomId(segmentId: string) {
 .narrative-skill-token {
   position: relative;
   width: 112px;
-  min-height: 82px;
-  padding: 10px 11px;
+  min-height: 42px;
+  padding: 4px 6px;
   display: grid;
   place-items: center;
   overflow: hidden;
-  border-radius: 10px;
-  border: 1px solid rgba(207, 181, 255, 0.58);
-  background:
-    radial-gradient(circle at 50% 18%, rgba(247, 224, 164, 0.22), transparent 38%),
-    linear-gradient(145deg, rgba(48, 28, 89, 0.92), rgba(8, 17, 32, 0.92) 58%, rgba(28, 44, 84, 0.88));
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.14),
-    0 0 18px rgba(139, 92, 246, 0.34),
-    0 14px 24px rgba(0, 0, 0, 0.46);
-}
-
-.narrative-skill-token__ring {
-  position: absolute;
-  inset: 8px;
-  border-radius: 999px;
-  border: 1px solid rgba(234, 214, 255, 0.4);
-  box-shadow:
-    inset 0 0 12px rgba(199, 210, 254, 0.22),
-    0 0 14px rgba(167, 139, 250, 0.32);
-  animation: narrativeSkillPulse 1.72s ease-in-out infinite;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .narrative-skill-token__body {
@@ -1372,39 +1359,22 @@ function narrativeMistPathDomId(segmentId: string) {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3px;
   text-align: center;
   color: rgba(241, 245, 255, 0.96);
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.82);
-}
-
-.narrative-skill-token__body span {
-  color: rgba(245, 208, 254, 0.88);
-  font-size: 10px;
-  font-weight: 800;
-  line-height: 1;
+  text-shadow:
+    0 1px 4px rgba(0, 0, 0, 0.92),
+    0 0 12px rgba(167, 139, 250, 0.36);
 }
 
 .narrative-skill-token__body strong {
   max-width: 100%;
   overflow: hidden;
   color: #fff0bd;
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 950;
-  line-height: 1.08;
+  line-height: 1.12;
   white-space: nowrap;
   text-overflow: ellipsis;
-}
-
-.narrative-skill-token__body small {
-  max-width: 100%;
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  color: rgba(218, 232, 255, 0.9);
-  font-size: 10px;
-  line-height: 1.18;
 }
 
 .narrative-damage-token {

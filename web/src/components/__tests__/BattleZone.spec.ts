@@ -429,8 +429,9 @@ describe('BattleZone action narrative', () => {
     })
 
     expect(screen.getByText('圣光裁决')).toBeTruthy()
-    expect(screen.getByText('对目标造成2点法术伤害')).toBeTruthy()
+    expect(screen.queryByText('对目标造成2点法术伤害')).toBeNull()
     expect(container.querySelector('[data-narrative-skill-id="skill-1"]')).not.toBeNull()
+    expect(container.querySelector('.narrative-skill-token__ring')).toBeNull()
     await waitFor(() => {
       expect(container.querySelectorAll('.narrative-mist--skill').length).toBeGreaterThanOrEqual(2)
     })
