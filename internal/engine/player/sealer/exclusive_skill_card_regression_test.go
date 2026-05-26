@@ -98,6 +98,68 @@ func TestFiveElementsBind_UsesExclusiveZoneCard(t *testing.T) {
 	}
 }
 
+func TestElementalSeal_RevealsPlacedExclusiveCardAsFieldEffect(t *testing.T) {
+	obs := &testutils.CaptureObserver{}
+	g := engine.NewGameEngine(obs)
+	if err := g.AddPlayer("p1", "Sealer", "sealer", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.AddPlayer("p2", "Dummy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	g.State.CurrentTurn = 0
+	g.State.TurnStage = model.TurnStageActionExecution
+	p1 := g.State.Players["p1"]
+	p2 := g.State.Players["p2"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Hand = []model.Card{{
+		ID:              "water-seal-card",
+		Name:            "水涟斩",
+		Type:            model.CardTypeAttack,
+		Element:         model.ElementWater,
+		Damage:          2,
+		ExclusiveChar1:  "sealer",
+		ExclusiveSkill1: "水之封印",
+	}}
+
+	if err := g.UseSkill("p1", "water_seal", []string{"p2"}, []int{0}); err != nil {
+		t.Fatalf("use water seal failed: %v", err)
+	}
+
+	if len(p1.Hand) != 0 {
+		t.Fatalf("expected placed exclusive card removed from hand, got %d cards", len(p1.Hand))
+	}
+	if len(g.State.DiscardPile) != 0 {
+		t.Fatalf("expected placed exclusive card not to enter discard pile, got %+v", g.State.DiscardPile)
+	}
+	if len(p2.Field) != 1 || p2.Field[0].Effect != model.EffectSealWater {
+		t.Fatalf("expected target to receive water seal field card, got %+v", p2.Field)
+	}
+	if p2.Field[0].Card.Name != "水涟斩" {
+		t.Fatalf("expected placed physical exclusive card on field, got %+v", p2.Field[0].Card)
+	}
+
+	var reveal *model.GameEvent
+	for i := range obs.Events {
+		event := &obs.Events[i]
+		if event.Type == model.EventCardRevealed && event.CardRevealed != nil {
+			reveal = event
+			break
+		}
+	}
+	if reveal == nil || reveal.Narrative == nil {
+		t.Fatalf("expected card reveal narrative event, got %+v", obs.Events)
+	}
+	if reveal.CardRevealed.ActionType != "field_effect" {
+		t.Fatalf("expected seal card reveal as field_effect, got %+v", reveal.CardRevealed)
+	}
+	if reveal.Narrative.CardRole != "field_effect" || reveal.Narrative.VisualKind != "card" {
+		t.Fatalf("unexpected seal card narrative trace %+v", reveal.Narrative)
+	}
+}
+
 func TestCrimsonDance_UsesAndReturnsRoseCourtyardExclusiveCard(t *testing.T) {
 	g := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := g.AddPlayer("p1", "CSS", "crimson_sword_spirit", model.RedCamp); err != nil {

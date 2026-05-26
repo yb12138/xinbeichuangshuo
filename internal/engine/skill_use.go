@@ -133,6 +133,10 @@ func (e *GameEngine) publishSkillDeclared(use *skillUseRequest) {
 	if e.narrativeTrace == nil || e.narrativeTrace.actionID == "" || e.narrativeTrace.actionActor != use.player.ID {
 		e.beginNarrativeAction("skill", use.player.ID)
 	}
+	visualKind := "skill_token"
+	if use.skillDef.PlaceCard {
+		visualKind = "none"
+	}
 	e.publishTimelineMarker(model.TimelineMarkerPayload{
 		PlayerID:      use.player.ID,
 		PlayerName:    use.player.Name,
@@ -142,7 +146,7 @@ func (e *GameEngine) publishSkillDeclared(use *skillUseRequest) {
 		EffectText:    use.skillDef.Description,
 		TargetIDs:     use.resolvedTargetIDs(),
 		NarrativeKind: "skill_declared",
-		VisualKind:    "skill_token",
+		VisualKind:    visualKind,
 		SkillPhase:    "declared",
 		Timing:        "skill.declared",
 	})

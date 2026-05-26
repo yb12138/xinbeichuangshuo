@@ -15,6 +15,7 @@ import { useSnapshotStore } from '../stores/snapshot.store'
 import type { PlayerView } from '../types/game'
 import CardComponent from './CardComponent.vue'
 import RoseCourtyardIcon from './StatusIcons/RoseCourtyardIcon.vue'
+import StatusEffectIcon from './StatusIcons/StatusEffectIcon.vue'
 
 const props = defineProps<{
   narrativeSuspended?: boolean
@@ -153,6 +154,31 @@ function latestDamageForPlayer(playerId?: string) {
   return [...narrativeEvents.value].reverse().find(event => event.kind === 'damage' && event.targetId === playerId) ?? null
 }
 
+const SEAL_EFFECT_LABELS: Record<string, string> = {
+  SealWater: '水之封印',
+  SealFire: '火之封印',
+  SealEarth: '地之封印',
+  SealWind: '风之封印',
+  SealThunder: '雷之封印',
+}
+
+function sealFieldEffectsForPlayer(playerId?: string) {
+  if (!playerId) return []
+  const player = players.value[playerId]
+  return (player?.field || [])
+    .filter(field => field.mode === 'Effect' && !!SEAL_EFFECT_LABELS[field.effect])
+    .map((field, index) => ({
+      key: `${field.effect}-${field.source_id || 'source'}-${index}`,
+      effect: field.effect,
+      label: SEAL_EFFECT_LABELS[field.effect] || field.effect,
+    }))
+}
+
+function latestSealFieldEffectForPlayer(playerId?: string) {
+  const seals = sealFieldEffectsForPlayer(playerId)
+  return seals[seals.length - 1] ?? null
+}
+
 function actorSeatIndex(playerId?: string): number | null {
   if (!playerId) return null
   const index = props.actorSeatPositions?.[playerId]
@@ -226,6 +252,7 @@ function narrativeCardActionLabel(actionType: string) {
   if (normalized === 'defend') return '防御'
   if (normalized === 'shield') return '圣盾'
   if (normalized === 'magic') return '法术'
+  if (normalized === 'field_effect') return '施加封印'
   if (normalized === 'discard' || normalized === 'skill_cost') return '弃牌'
   return '发起攻击'
 }
@@ -250,7 +277,7 @@ function narrativeSettledCardStyle(player: PlayerView) {
 function linkKindForActionType(actionType: string): NarrativeLinkKind {
   const normalized = String(actionType || '').trim().toLowerCase()
   if (normalized === 'counter' || normalized === 'defend' || normalized === 'shield') return 'respond'
-  if (normalized === 'skill' || normalized === 'magic' || normalized === 'discard' || normalized === 'skill_cost') return 'skill'
+  if (normalized === 'skill' || normalized === 'magic' || normalized === 'discard' || normalized === 'skill_cost' || normalized === 'field_effect') return 'skill'
   return 'attack'
 }
 
@@ -291,6 +318,7 @@ function fallbackStepForItem(item: Omit<NarrativeStackItem, 'stackIndex'>): Narr
   const kind: NarrativePlaybackStepKind =
     item.kind === 'damage' ? 'damage' :
     item.kind === 'card' && ['counter', 'defend', 'shield'].includes(normalized) ? 'response' :
+    item.kind === 'card' && normalized === 'field_effect' ? 'skill' :
     item.kind === 'card' && ['discard', 'skill_cost'].includes(normalized) ? 'discard' :
     item.kind === 'card' ? 'combat' :
     'skill'
@@ -830,6 +858,26 @@ function narrativeMistPathDomId(segmentId: string) {
           >
             -{{ latestDamageForPlayer(featuredPlayer.id)?.damage }}
           </div>
+          <div
+            v-if="sealFieldEffectsForPlayer(featuredPlayer.id).length"
+            class="narrative-seal-icons"
+            aria-label="封印效果"
+          >
+            <div
+              v-for="seal in sealFieldEffectsForPlayer(featuredPlayer.id)"
+              :key="seal.key"
+              class="narrative-seal-icon"
+              :title="seal.label"
+            >
+              <StatusEffectIcon :effect="seal.effect" />
+            </div>
+          </div>
+          <div
+            v-if="latestSealFieldEffectForPlayer(featuredPlayer.id)"
+            class="narrative-seal-pop"
+          >
+            受到{{ latestSealFieldEffectForPlayer(featuredPlayer.id)?.label }}
+          </div>
         </div>
 
         <div class="narrative-opposed-stack">
@@ -855,6 +903,26 @@ function narrativeMistPathDomId(segmentId: string) {
               class="narrative-damage-pop"
             >
               -{{ latestDamageForPlayer(player.id)?.damage }}
+            </div>
+            <div
+              v-if="sealFieldEffectsForPlayer(player.id).length"
+              class="narrative-seal-icons"
+              aria-label="封印效果"
+            >
+              <div
+                v-for="seal in sealFieldEffectsForPlayer(player.id)"
+                :key="seal.key"
+                class="narrative-seal-icon"
+                :title="seal.label"
+              >
+                <StatusEffectIcon :effect="seal.effect" />
+              </div>
+            </div>
+            <div
+              v-if="latestSealFieldEffectForPlayer(player.id)"
+              class="narrative-seal-pop"
+            >
+              受到{{ latestSealFieldEffectForPlayer(player.id)?.label }}
             </div>
           </div>
         </div>
@@ -990,6 +1058,20 @@ function narrativeMistPathDomId(segmentId: string) {
             :src="portraitSrcForPlayer(player.id)"
             :alt="roleNameForPlayer(player.id)"
           >
+          <div
+            v-if="sealFieldEffectsForPlayer(player.id).length"
+            class="narrative-seal-icons narrative-seal-icons--settled"
+            aria-label="封印效果"
+          >
+            <div
+              v-for="seal in sealFieldEffectsForPlayer(player.id)"
+              :key="seal.key"
+              class="narrative-seal-icon"
+              :title="seal.label"
+            >
+              <StatusEffectIcon :effect="seal.effect" />
+            </div>
+          </div>
           <span>{{ roleNameForPlayer(player.id) }}</span>
         </div>
       </div>
@@ -1088,7 +1170,7 @@ function narrativeMistPathDomId(segmentId: string) {
   --actor-enter-x: 0px;
   width: var(--narrative-actor-card-width);
   height: var(--narrative-actor-card-height);
-  overflow: hidden;
+  overflow: visible;
   border-radius: 12px;
   background: rgba(9, 18, 31, 0.88);
   box-shadow:
@@ -1150,6 +1232,7 @@ function narrativeMistPathDomId(segmentId: string) {
 .narrative-actor-card__portrait {
   width: 100%;
   height: 100%;
+  border-radius: inherit;
   object-fit: cover;
   object-position: 50% 12%;
 }
@@ -1211,6 +1294,53 @@ function narrativeMistPathDomId(segmentId: string) {
     0 0 18px rgba(248, 113, 113, 0.7);
   transform: translate(-50%, -50%);
   animation: narrativeDamagePop 0.86s ease-out both;
+}
+
+.narrative-seal-icons {
+  position: absolute;
+  top: 10px;
+  right: -10px;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  pointer-events: none;
+}
+
+.narrative-seal-icon {
+  width: 26px;
+  height: 26px;
+  padding: 3px;
+  border-radius: 999px;
+  border: 1px solid rgba(219, 234, 254, 0.54);
+  background: rgba(5, 14, 25, 0.78);
+  box-shadow:
+    0 0 12px rgba(147, 197, 253, 0.34),
+    0 8px 14px rgba(0, 0, 0, 0.34);
+  animation: narrativeSealIconIn 0.34s cubic-bezier(0.2, 0.86, 0.24, 1) both;
+}
+
+.narrative-seal-pop {
+  position: absolute;
+  top: 18px;
+  right: 22px;
+  z-index: 7;
+  max-width: calc(100% - 30px);
+  overflow: hidden;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(191, 219, 254, 0.46);
+  background: rgba(7, 18, 32, 0.82);
+  color: rgba(232, 244, 255, 0.96);
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.86);
+  box-shadow: 0 0 16px rgba(125, 211, 252, 0.28);
+  animation: narrativeSealPop 1.08s ease-out both;
 }
 
 .narrative-stack-lane {
@@ -1343,6 +1473,12 @@ function narrativeMistPathDomId(segmentId: string) {
 .narrative-stack-item--respond .narrative-played-card,
 .narrative-stack-item--skill .narrative-played-card {
   filter: drop-shadow(0 0 10px rgba(125, 211, 252, 0.34));
+}
+
+.narrative-played-card--field_effect {
+  filter:
+    drop-shadow(0 0 10px rgba(190, 219, 255, 0.36))
+    drop-shadow(0 0 16px rgba(167, 139, 250, 0.2));
 }
 
 .narrative-stack-item--damage .narrative-played-card {
@@ -1572,7 +1708,7 @@ function narrativeMistPathDomId(segmentId: string) {
   top: var(--settled-card-y);
   width: clamp(46px, 5.8vw, 70px);
   height: clamp(58px, 7.5vw, 86px);
-  overflow: hidden;
+  overflow: visible;
   border-radius: 8px;
   background: rgba(8, 17, 29, 0.86);
   border: 1px solid rgba(132, 172, 207, 0.32);
@@ -1600,8 +1736,21 @@ function narrativeMistPathDomId(segmentId: string) {
 .narrative-settled-card img {
   width: 100%;
   height: 100%;
+  border-radius: inherit;
   object-fit: cover;
   object-position: 50% 12%;
+}
+
+.narrative-seal-icons--settled {
+  top: 5px;
+  right: -8px;
+  gap: 2px;
+}
+
+.narrative-seal-icons--settled .narrative-seal-icon {
+  width: 18px;
+  height: 18px;
+  padding: 2px;
 }
 
 .narrative-settled-card span {
@@ -1740,6 +1889,18 @@ function narrativeMistPathDomId(segmentId: string) {
   0% { opacity: 0; transform: translateY(6px) scale(0.68); }
   24% { opacity: 1; transform: translateY(-2px) scale(1.12); }
   100% { opacity: 0; transform: translateY(-24px) scale(0.96); }
+}
+
+@keyframes narrativeSealIconIn {
+  from { opacity: 0; transform: translateX(8px) scale(0.68); }
+  to { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+@keyframes narrativeSealPop {
+  0% { opacity: 0; transform: translateX(8px) scale(0.92); }
+  18% { opacity: 1; transform: translateX(0) scale(1); }
+  72% { opacity: 1; transform: translateX(0) scale(1); }
+  100% { opacity: 0; transform: translateX(-4px) scale(0.96); }
 }
 
 .skill-plaque {

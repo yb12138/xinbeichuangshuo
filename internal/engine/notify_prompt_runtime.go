@@ -115,7 +115,7 @@ func (e *GameEngine) notifyCards(playerID string, cards []model.Card, actionType
 		}
 	}
 	p := e.State.Players[playerID]
-	if actionType == "discard" && !hidden && !e.suppressSealOnDiscard && p != nil {
+	if (actionType == "discard" || actionType == "field_effect") && !hidden && !e.suppressSealOnDiscard && p != nil {
 		for i := range cards {
 			e.dispatchCardTiming(p, model.TimingCardPlayedRevealed, "", cards[i])
 		}
@@ -149,6 +149,8 @@ func (e *GameEngine) cardNarrativeTrace(actionType model.DamageType, hidden bool
 		trace.Timing = "magic.play_card"
 	} else if trace.CardRole == "attack" {
 		trace.Timing = "attack.play_card"
+	} else if trace.CardRole == "field_effect" {
+		trace.Timing = "skill.place_field_card"
 	} else if trace.CardRole == "discard" {
 		trace.Timing = "card.discard"
 	}

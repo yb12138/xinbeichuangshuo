@@ -301,4 +301,85 @@ describe('battlefx store focus side', () => {
       label: '效果：未命中',
     })
   })
+
+  it('projects placed field effect cards without duplicate effect tokens', () => {
+    const battleFxStore = useBattleFxStore()
+
+    battleFxStore.applyStructuredTimelineNarrative({
+      room_id: 'ROOM1',
+      seq_start: 1,
+      seq_end: 4,
+      is_replay: false,
+      events: [
+        {
+          event_id: 1,
+          turn_id: 1,
+          chain_id: 'nw-t1-p1',
+          type: 'TimelineEffectResolved',
+          outcome: 'TimelineOutcomeSuccess',
+          visibility: 'TimelineVisibilityPublic',
+          narrative_window_id: 'nw-t1-p1',
+          action_id: 'nw-t1-p1-a1-skill',
+          narrative_kind: 'skill_declared',
+          visual_kind: 'none',
+          actor_user_id: 'p1',
+          target_user_ids: ['p2'],
+          skill_name: '水之封印',
+        },
+        {
+          event_id: 2,
+          turn_id: 1,
+          chain_id: 'nw-t1-p1',
+          type: 'TimelineActionDeclared',
+          outcome: 'TimelineOutcomeSuccess',
+          visibility: 'TimelineVisibilityPublic',
+          narrative_window_id: 'nw-t1-p1',
+          action_id: 'nw-t1-p1-a1-skill',
+          narrative_kind: 'card_played',
+          visual_kind: 'card',
+          card_role: 'field_effect',
+          actor_user_id: 'p1',
+          cards: [buildCard('水涟斩')],
+        },
+        {
+          event_id: 3,
+          turn_id: 1,
+          chain_id: 'nw-t1-p1',
+          type: 'TimelineEffectResolved',
+          outcome: 'TimelineOutcomeSuccess',
+          visibility: 'TimelineVisibilityPublic',
+          narrative_window_id: 'nw-t1-p1',
+          action_id: 'nw-t1-p1-a1-skill',
+          narrative_kind: 'field_effect_applied',
+          visual_kind: 'effect_token',
+          effect_type: 'SealWater',
+          actor_user_id: 'p1',
+          target_user_ids: ['p2'],
+          field_card: {
+            card: buildCard('水涟斩'),
+            owner_id: 'p2',
+            source_id: 'p1',
+            mode: 'Effect',
+            effect: 'SealWater',
+            field_hook: '',
+            locked: false,
+            duration: 0,
+          },
+        },
+      ],
+    })
+
+    expect(battleFxStore.actionNarrative?.playedCards).toHaveLength(1)
+    expect(battleFxStore.actionNarrative?.playedCards[0]).toMatchObject({
+      actionType: 'field_effect',
+      targetId: 'p2',
+    })
+    expect(battleFxStore.actionNarrative?.events).toHaveLength(0)
+    expect(battleFxStore.narrativePlayback?.steps).toHaveLength(1)
+    expect(battleFxStore.narrativePlayback?.steps[0]).toMatchObject({
+      kind: 'skill',
+      label: '施加封印',
+      targetIds: ['p2'],
+    })
+  })
 })

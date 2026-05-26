@@ -354,7 +354,7 @@ export const useBattleFxStore = defineStore('battlefx', () => {
   function linkKindForActionType(actionType: string): NarrativeLinkKind {
     const normalized = normalizeNarrativeActionType(actionType)
     if (normalized === 'counter' || normalized === 'defend' || normalized === 'shield') return 'respond'
-    if (normalized === 'skill' || normalized === 'magic' || normalized === 'discard' || normalized === 'skill_cost') return 'skill'
+    if (normalized === 'skill' || normalized === 'magic' || normalized === 'discard' || normalized === 'skill_cost' || normalized === 'field_effect') return 'skill'
     return 'attack'
   }
 
@@ -364,6 +364,7 @@ export const useBattleFxStore = defineStore('battlefx', () => {
     if (normalized === 'defend') return '防御'
     if (normalized === 'shield') return '圣盾'
     if (normalized === 'magic') return '法术'
+    if (normalized === 'field_effect') return '施加封印'
     if (normalized === 'discard' || normalized === 'skill_cost') return '弃牌'
     return '发起攻击'
   }
@@ -371,6 +372,7 @@ export const useBattleFxStore = defineStore('battlefx', () => {
   function playbackKindForCardAction(actionType: string): NarrativePlaybackStepKind {
     const normalized = normalizeNarrativeActionType(actionType)
     if (normalized === 'counter' || normalized === 'defend' || normalized === 'shield') return 'response'
+    if (normalized === 'field_effect') return 'skill'
     if (normalized === 'discard' || normalized === 'skill_cost') return 'discard'
     return 'combat'
   }
@@ -554,8 +556,8 @@ export const useBattleFxStore = defineStore('battlefx', () => {
 
   function addNarrativeCard(playerId: string, card: Card, actionType: string, targetId?: string, options?: { createdAt?: number; timelineEventId?: number }) {
     const normalizedActionType = normalizeNarrativeActionType(actionType)
-    if (!playerId || !card || !['attack', 'magic', 'counter', 'defend', 'shield', 'discard', 'skill_cost'].includes(normalizedActionType)) return
-    const current = ensureActionNarrative(playerId, normalizedActionType === 'magic' ? 'skill' : 'attack')
+    if (!playerId || !card || !['attack', 'magic', 'counter', 'defend', 'shield', 'discard', 'skill_cost', 'field_effect'].includes(normalizedActionType)) return
+    const current = ensureActionNarrative(playerId, normalizedActionType === 'magic' || normalizedActionType === 'field_effect' ? 'skill' : 'attack')
     if (!current) return
     const resolvedTargetId = targetId || narrativeTargetByActor.get(playerId)
     narrativeCardId++
@@ -678,11 +680,18 @@ export const useBattleFxStore = defineStore('battlefx', () => {
     const effectType = String(event.effect_type || '').trim()
     if (kind !== 'field_effect_applied' || visualKind !== 'effect_token' || !actionId) return false
     if (effectType === 'attack_miss') return false
-    return events.some((candidate) =>
+    const hasSkillToken = events.some((candidate) =>
       candidate !== event &&
       String(candidate.action_id || '').trim() === actionId &&
       String(candidate.visual_kind || '').trim() === 'skill_token' &&
       String(candidate.narrative_kind || '').trim().startsWith('skill')
+    )
+    if (hasSkillToken) return true
+    return events.some((candidate) =>
+      candidate !== event &&
+      String(candidate.action_id || '').trim() === actionId &&
+      String(candidate.visual_kind || '').trim() === 'card' &&
+      String(candidate.card_role || '').trim().toLowerCase() === 'field_effect'
     )
   }
 
@@ -707,6 +716,11 @@ export const useBattleFxStore = defineStore('battlefx', () => {
       const actorId = event.actor_user_id || ''
       const targetIds = uniqueIds(event.target_user_ids || [])
       const createdAt = eventId || Date.now()
+
+      const primaryTargetId = targetIds[0]
+      if (actorId && primaryTargetId) {
+        narrativeTargetByActor.set(actorId, primaryTargetId)
+      }
 
       if (isRedundantSkillFieldEffect(event, events)) {
         continue

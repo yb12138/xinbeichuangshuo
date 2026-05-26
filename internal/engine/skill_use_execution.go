@@ -12,7 +12,11 @@ import (
 // 技能发动流程（执行阶段）：
 // 在校验通过后，按“消耗输入 -> 扣资源 -> 执行 handler -> 收尾阶段推进”顺序处理。
 func (e *GameEngine) consumeSkillInputs(use *skillUseRequest) error {
-	e.NotifyCardRevealed(use.player.ID, use.discardedCards, "discard")
+	placedInputCard, discardPileCards := splitPlacedSkillInputCards(use)
+	if placedInputCard != nil {
+		e.NotifyCardRevealed(use.player.ID, []model.Card{*placedInputCard}, "field_effect")
+	}
+	e.NotifyCardRevealed(use.player.ID, discardPileCards, "discard")
 	sort.Sort(sort.Reverse(sort.IntSlice(use.discardIndices)))
 	for _, idx := range use.discardIndices {
 		use.player.Hand = append(use.player.Hand[:idx], use.player.Hand[idx+1:]...)
@@ -21,7 +25,7 @@ func (e *GameEngine) consumeSkillInputs(use *skillUseRequest) error {
 	if use.policy.ResolveDiscardPile != nil {
 		e.State.DiscardPile = append(e.State.DiscardPile, use.policy.ResolveDiscardPile(use.policyContext())...)
 	} else {
-		e.State.DiscardPile = append(e.State.DiscardPile, use.discardedCards...)
+		e.State.DiscardPile = append(e.State.DiscardPile, discardPileCards...)
 	}
 
 	if err := e.consumeExclusiveSkillCard(use); err != nil {
@@ -36,12 +40,21 @@ func (e *GameEngine) consumeSkillInputs(use *skillUseRequest) error {
 		e.State.DiscardPile = append(e.State.DiscardPile, *use.consumedExclusiveCard)
 	}
 	if use.player != nil {
-		e.addActionDiscard(use.player.ID, len(use.discardedCards))
+		e.addActionDiscard(use.player.ID, len(discardPileCards))
 		if use.consumedExclusiveCard != nil && !use.skillDef.PlaceCard {
 			e.addActionDiscard(use.player.ID, 1)
 		}
 	}
 	return nil
+}
+
+func splitPlacedSkillInputCards(use *skillUseRequest) (*model.Card, []model.Card) {
+	if use == nil || use.skillDef == nil || !use.skillDef.PlaceCard || len(use.discardedCards) == 0 {
+		return nil, append([]model.Card{}, use.discardedCards...)
+	}
+	placed := use.discardedCards[0]
+	remaining := append([]model.Card{}, use.discardedCards[1:]...)
+	return &placed, remaining
 }
 
 func (e *GameEngine) consumeExclusiveSkillCard(use *skillUseRequest) error {

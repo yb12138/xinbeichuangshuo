@@ -438,6 +438,122 @@ describe('BattleZone action narrative', () => {
     })
   })
 
+  it('shows elemental seal cards, target mist and seal icon prompts', async () => {
+    const snapshotStore = useSnapshotStore()
+    const battleFxStore = useBattleFxStore()
+    snapshotStore.setCharacters([
+      { id: 'sealer', name: '封印师', title: '', faction: '', skills: [] },
+      { id: 'berserker', name: '狂战士', title: '', faction: '', skills: [] },
+    ])
+    snapshotStore.updateGameState({
+      turn_stage: 'ActionExecution',
+      current_player: 'p1',
+      has_performed_startup: true,
+      players: {
+        p1: buildPlayer({ id: 'p1', name: '封印师玩家', role: 'sealer', camp: 'Blue' }),
+        p2: buildPlayer({
+          id: 'p2',
+          name: '狂战士玩家',
+          role: 'berserker',
+          camp: 'Red',
+          field: [{
+            card: buildCard({ id: 'water-seal-card', name: '水涟斩', element: 'Water' }),
+            owner_id: 'p2',
+            source_id: 'p1',
+            mode: 'Effect',
+            effect: 'SealWater',
+            field_hook: '',
+            locked: false,
+            duration: 0,
+          }],
+        }),
+      },
+      red_morale: 15,
+      blue_morale: 15,
+      red_cups: 0,
+      blue_cups: 0,
+      red_gems: 0,
+      blue_gems: 0,
+      red_crystals: 0,
+      blue_crystals: 0,
+      deck_count: 30,
+      discard_count: 0,
+      available_skills: [],
+    })
+
+    battleFxStore.applyStructuredTimelineNarrative({
+      room_id: 'ROOM1',
+      seq_start: 1,
+      seq_end: 3,
+      is_replay: false,
+      events: [
+        {
+          event_id: 1,
+          turn_id: 1,
+          chain_id: 'nw-t1-p1',
+          type: 'TimelineEffectResolved',
+          outcome: 'TimelineOutcomeSuccess',
+          visibility: 'TimelineVisibilityPublic',
+          narrative_window_id: 'nw-t1-p1',
+          action_id: 'nw-t1-p1-a1-skill',
+          narrative_kind: 'skill_declared',
+          visual_kind: 'none',
+          actor_user_id: 'p1',
+          target_user_ids: ['p2'],
+          skill_name: '水之封印',
+        },
+        {
+          event_id: 2,
+          turn_id: 1,
+          chain_id: 'nw-t1-p1',
+          type: 'TimelineActionDeclared',
+          outcome: 'TimelineOutcomeSuccess',
+          visibility: 'TimelineVisibilityPublic',
+          narrative_window_id: 'nw-t1-p1',
+          action_id: 'nw-t1-p1-a1-skill',
+          narrative_kind: 'card_played',
+          visual_kind: 'card',
+          card_role: 'field_effect',
+          actor_user_id: 'p1',
+          cards: [buildCard({ id: 'water-seal-card', name: '水涟斩', element: 'Water' })],
+        },
+        {
+          event_id: 3,
+          turn_id: 1,
+          chain_id: 'nw-t1-p1',
+          type: 'TimelineEffectResolved',
+          outcome: 'TimelineOutcomeSuccess',
+          visibility: 'TimelineVisibilityPublic',
+          narrative_window_id: 'nw-t1-p1',
+          action_id: 'nw-t1-p1-a1-skill',
+          narrative_kind: 'field_effect_applied',
+          visual_kind: 'effect_token',
+          effect_type: 'SealWater',
+          actor_user_id: 'p1',
+          target_user_ids: ['p2'],
+        },
+      ],
+    })
+
+    const { container } = render(BattleZone, {
+      props: {
+        actorSeatPositions: {
+          p1: 0,
+          p2: 3,
+        },
+      },
+    })
+
+    expect(screen.getByText('水涟斩')).toBeTruthy()
+    expect(screen.getByText('受到水之封印')).toBeTruthy()
+    expect(container.querySelector('.narrative-played-card--field_effect')).not.toBeNull()
+    expect(container.querySelector('.narrative-seal-icon')).not.toBeNull()
+    expect(container.querySelector('[data-narrative-skill-id]')).toBeNull()
+    await waitFor(() => {
+      expect(container.querySelectorAll('.narrative-mist--skill').length).toBeGreaterThanOrEqual(2)
+    })
+  })
+
   it('shows damage near mist target endpoints', async () => {
     const snapshotStore = useSnapshotStore()
     const battleFxStore = useBattleFxStore()
