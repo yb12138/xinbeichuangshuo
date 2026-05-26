@@ -380,6 +380,22 @@ const HIDDEN_MY_FIELD_EFFECTS = new Set<string>([
   'FighterHundredDragonLock',
 ])
 
+const SEAL_FIELD_EFFECTS = new Set<string>([
+  'SealFire',
+  'SealWater',
+  'SealEarth',
+  'SealWind',
+  'SealThunder',
+])
+
+const SEAL_FIELD_EFFECT_PROMPT_LABELS: Record<string, string> = {
+  SealFire: '火之封印',
+  SealWater: '水之封印',
+  SealEarth: '地之封印',
+  SealWind: '风之封印',
+  SealThunder: '雷之封印',
+}
+
 const myStatusMaxHand = computed(() => {
   const maxHand = myAreaPlayer.value?.max_hand
   return typeof maxHand === 'number' && maxHand >= 0 ? maxHand : 0
@@ -429,6 +445,22 @@ function fieldStatusItemsForPlayer(player: PlayerView) {
       label: PLAYER_STATUS_EFFECT_LABEL[fc.effect] || fc.effect,
     }))
     .slice(0, 4)
+}
+
+function sealStatusItemsForPlayer(player: PlayerView) {
+  return (player.field || [])
+    .filter((fc) => fc.mode === 'Effect' && SEAL_FIELD_EFFECTS.has(fc.effect))
+    .map((fc, idx) => ({
+      key: `${fc.effect}-${fc.source_id || 'source'}-${idx}`,
+      effect: fc.effect,
+      label: SEAL_FIELD_EFFECT_PROMPT_LABELS[fc.effect] || PLAYER_STATUS_EFFECT_LABEL[fc.effect] || fc.effect,
+    }))
+    .slice(0, 5)
+}
+
+function latestSealStatusItemForPlayer(player: PlayerView) {
+  const seals = sealStatusItemsForPlayer(player)
+  return seals[seals.length - 1] ?? null
 }
 
 function tokenItemsForPlayer(player: PlayerView) {
@@ -2374,6 +2406,28 @@ const fighterHundredDragonByPlayer = computed(() => {
                   @select="onTargetClick"
                 />
                 <div
+                  v-if="sealStatusItemsForPlayer(p).length"
+                  class="player-anchor-seal-effects"
+                  aria-label="封印效果"
+                >
+                  <div
+                    v-if="latestSealStatusItemForPlayer(p)"
+                    class="player-anchor-seal-pop"
+                  >
+                    受到{{ latestSealStatusItemForPlayer(p)?.label }}
+                  </div>
+                  <div class="player-anchor-seal-icons">
+                    <div
+                      v-for="seal in sealStatusItemsForPlayer(p)"
+                      :key="`anchor-seal-${p.id}-${seal.key}`"
+                      class="player-anchor-seal-icon"
+                      :title="seal.label"
+                    >
+                      <StatusEffectIcon :effect="seal.effect" />
+                    </div>
+                  </div>
+                </div>
+                <div
                   v-if="hoveredBattleSeatPlayerId === p.id && portraitSrcForPlayer(p)"
                   class="character-inspect-popout"
                   :class="[
@@ -3690,6 +3744,73 @@ const fighterHundredDragonByPlayer = computed(() => {
   box-shadow:
     0 0 0 1px rgba(237, 218, 164, 0.36),
     0 12px 26px rgba(8, 22, 36, 0.4);
+}
+
+.player-anchor-seal-effects {
+  position: absolute;
+  top: 50%;
+  right: -12px;
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+  transform: translate(100%, -50%);
+}
+
+.player-anchor-seal-pop {
+  max-width: 116px;
+  overflow: hidden;
+  padding: 5px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(191, 219, 254, 0.46);
+  background: rgba(7, 18, 32, 0.86);
+  color: rgba(232, 244, 255, 0.96);
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.86);
+  box-shadow: 0 0 16px rgba(125, 211, 252, 0.28);
+  animation: playerAnchorSealPopOut 1.16s ease-out both;
+}
+
+.player-anchor-seal-icons {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  opacity: 0;
+  animation: playerAnchorSealIconsIn 0.28s ease-out 0.86s both;
+}
+
+.player-anchor-seal-icon {
+  width: 26px;
+  height: 26px;
+  padding: 3px;
+  border-radius: 999px;
+  border: 1px solid rgba(219, 234, 254, 0.54);
+  background: rgba(5, 14, 25, 0.8);
+  box-shadow:
+    0 0 12px rgba(147, 197, 253, 0.34),
+    0 8px 14px rgba(0, 0, 0, 0.34);
+}
+
+.player-anchor-seal-icon :deep(.status-effect-icon) {
+  width: 100%;
+  height: 100%;
+}
+
+@keyframes playerAnchorSealPopOut {
+  0% { opacity: 0; transform: translateX(8px) scale(0.92); }
+  18% { opacity: 1; transform: translateX(0) scale(1); }
+  72% { opacity: 1; transform: translateX(0) scale(1); }
+  100% { opacity: 0; transform: translateX(-5px) scale(0.96); }
+}
+
+@keyframes playerAnchorSealIconsIn {
+  from { opacity: 0; transform: translateX(7px) scale(0.76); }
+  to { opacity: 1; transform: translateX(0) scale(1); }
 }
 
 .center-stage {

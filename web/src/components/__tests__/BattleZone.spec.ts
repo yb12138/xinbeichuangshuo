@@ -438,7 +438,7 @@ describe('BattleZone action narrative', () => {
     })
   })
 
-  it('shows elemental seal cards, target mist and seal icon prompts', async () => {
+  it('shows elemental seal cards directly in the center without step groups', async () => {
     const snapshotStore = useSnapshotStore()
     const battleFxStore = useBattleFxStore()
     snapshotStore.setCharacters([
@@ -545,9 +545,10 @@ describe('BattleZone action narrative', () => {
     })
 
     expect(screen.getByText('水涟斩')).toBeTruthy()
-    expect(screen.getByText('受到水之封印')).toBeTruthy()
+    expect(container.querySelector('.narrative-seal-card-stage')).not.toBeNull()
     expect(container.querySelector('.narrative-played-card--field_effect')).not.toBeNull()
-    expect(container.querySelector('.narrative-seal-icon')).not.toBeNull()
+    expect(container.querySelector('.narrative-step-group')).toBeNull()
+    expect(container.querySelector('.narrative-step-group__items')).toBeNull()
     expect(container.querySelector('[data-narrative-skill-id]')).toBeNull()
     await waitFor(() => {
       expect(container.querySelectorAll('.narrative-mist--skill').length).toBeGreaterThanOrEqual(2)

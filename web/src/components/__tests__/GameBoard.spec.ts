@@ -265,6 +265,59 @@ describe('GameBoard target picker', () => {
     expect(submitSelectMock).toHaveBeenCalledWith([1])
   })
 
+  it('shows seal prompt and icon on the target player anchor', () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const me = buildPlayer({ id: 'p1', name: '封印师玩家', camp: 'Red', role: 'sealer' })
+    const target = buildPlayer({
+      id: 'p2',
+      name: '狂战士玩家',
+      camp: 'Blue',
+      role: 'fighter',
+      field: [{
+        card: buildCard({ id: 'water-seal-card', name: '水涟斩', element: 'Water' }),
+        owner_id: 'p2',
+        source_id: 'p1',
+        mode: 'Effect',
+        effect: 'SealWater',
+        field_hook: '',
+        locked: false,
+        duration: 0,
+      }],
+    })
+    const players = { p1: me, p2: target }
+
+    useSessionStore().setRoomInfo('ROOM1', 'p1', 'Red', 'sealer')
+    useSessionStore().updateRoomPlayers(Object.values(players).map(buildPlayerInfo), 'p1')
+    useSnapshotStore().setCharacters([
+      buildCharacter({ id: 'sealer', name: '封印师' }),
+      buildCharacter({ id: 'fighter', name: '战士' }),
+    ])
+    useSnapshotStore().updateGameState(buildState(players))
+
+    const { container } = render(GameBoard, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          PlayerArea: PlayerAreaStub,
+          ActionPanel: true,
+          BattleZone: true,
+          CardComponent: true,
+          SkillDetailModal: true,
+          VfxLayer: true,
+          ActionTimeline: true,
+          StatusEffectIcon: true,
+        },
+      },
+    })
+
+    const targetAnchor = container.querySelector('[data-player-anchor="p2"]')
+    expect(targetAnchor?.querySelector('.player-anchor-seal-effects')).not.toBeNull()
+    expect(targetAnchor?.querySelector('.player-anchor-seal-pop')?.textContent).toContain('受到水之封印')
+    expect(targetAnchor?.querySelector('.player-anchor-seal-icon')).not.toBeNull()
+  })
+
   it('keeps rose courtyard ambient vfx while the field effect is active', async () => {
     const pinia = createPinia()
     setActivePinia(pinia)
