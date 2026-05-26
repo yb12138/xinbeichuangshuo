@@ -207,6 +207,29 @@ func TestNarrativeTrace_ExtraActionGrantedAfterSkillResolution(t *testing.T) {
 	}
 }
 
+func TestNarrativeTrace_PublicDiscardIsVisibleButHiddenDiscardIsNot(t *testing.T) {
+	obs := &testutils.CaptureObserver{}
+	game := newNarrativeTraceGame(obs)
+
+	game.NotifyCardRevealed("p1", []model.Card{
+		{ID: "discard-1", Name: "公开弃牌", Type: model.CardTypeMagic, Element: model.ElementWater},
+	}, "discard")
+	game.NotifyCardHidden("p1", []model.Card{
+		{ID: "hidden-1", Name: "隐藏弃牌", Type: model.CardTypeMagic, Element: model.ElementWater},
+	}, "discard")
+
+	cardEvents := narrativeEvents(obs, model.EventCardRevealed)
+	if len(cardEvents) != 2 || cardEvents[0].Narrative == nil || cardEvents[1].Narrative == nil {
+		t.Fatalf("expected two discard card events with narrative traces, got %+v", cardEvents)
+	}
+	if cardEvents[0].Narrative.CardRole != "discard" || cardEvents[0].Narrative.VisualKind != "card" {
+		t.Fatalf("public discard should be visible as a narrative card, got %+v", cardEvents[0].Narrative)
+	}
+	if cardEvents[1].Narrative.CardRole != "discard" || cardEvents[1].Narrative.VisualKind != "none" {
+		t.Fatalf("hidden discard should not reveal a narrative card, got %+v", cardEvents[1].Narrative)
+	}
+}
+
 func TestNarrativeTrace_FailedSkillDoesNotPublishDeclaredMarker(t *testing.T) {
 	obs := &testutils.CaptureObserver{}
 	game := newNarrativeTraceGame(obs)

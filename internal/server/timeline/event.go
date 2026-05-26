@@ -207,7 +207,7 @@ func defaultNarrativeKind(payload Payload) string {
 func defaultVisualKind(payload Payload) string {
 	switch payload.Type {
 	case "card_revealed":
-		if payload.Hidden || payload.ActionType == "discard" {
+		if payload.Hidden {
 			return "none"
 		}
 		return "card"

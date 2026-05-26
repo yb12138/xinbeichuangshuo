@@ -142,13 +142,15 @@ func (e *GameEngine) cardNarrativeTrace(actionType model.DamageType, hidden bool
 	trace.NarrativeKind = "card_played"
 	trace.VisualKind = "card"
 	trace.CardRole = strings.ToLower(string(actionType))
-	if hidden || trace.CardRole == "discard" {
+	if hidden {
 		trace.VisualKind = "none"
 	}
 	if trace.CardRole == "magic" {
 		trace.Timing = "magic.play_card"
 	} else if trace.CardRole == "attack" {
 		trace.Timing = "attack.play_card"
+	} else if trace.CardRole == "discard" {
+		trace.Timing = "card.discard"
 	}
 	return &trace
 }
