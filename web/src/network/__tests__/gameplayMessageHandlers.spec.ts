@@ -780,8 +780,9 @@ describe('createGameplayMessageHandlers', () => {
       actionType: 'attack',
     })
     expect(battleFxStore.actionNarrative?.events.map(event => event.label)).toEqual(
-      expect.arrayContaining(['水之封印：放置水系封印', '造成 2 点伤害', '效果：水之封印']),
+      expect.arrayContaining(['水之封印：放置水系封印', '造成 2 点伤害']),
     )
+    expect(battleFxStore.actionNarrative?.events.map(event => event.label)).not.toContain('效果：水之封印')
     expect(battleFxStore.actionNarrative?.links.some(link => link.fromId === 'p3' && link.toPlayerId === 'p2')).toBe(true)
     expect(battleFxStore.damageEffects).toHaveLength(0)
     expect(battleReviewStore.battleFeed).toHaveLength(0)

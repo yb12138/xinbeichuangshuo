@@ -671,6 +671,21 @@ export const useBattleFxStore = defineStore('battlefx', () => {
     return events.some(event => !!event.narrative_kind || !!event.visual_kind || !!event.narrative_window_id)
   }
 
+  function isRedundantSkillFieldEffect(event: TimelineEvent, events: TimelineEvent[]) {
+    const kind = String(event.narrative_kind || '').trim()
+    const visualKind = String(event.visual_kind || '').trim()
+    const actionId = String(event.action_id || '').trim()
+    const effectType = String(event.effect_type || '').trim()
+    if (kind !== 'field_effect_applied' || visualKind !== 'effect_token' || !actionId) return false
+    if (effectType === 'attack_miss') return false
+    return events.some((candidate) =>
+      candidate !== event &&
+      String(candidate.action_id || '').trim() === actionId &&
+      String(candidate.visual_kind || '').trim() === 'skill_token' &&
+      String(candidate.narrative_kind || '').trim().startsWith('skill')
+    )
+  }
+
   function applyStructuredTimelineNarrative(payload: TimelineNotifyPayload) {
     const events = [...(payload.events || [])]
       .filter(event => !!event.narrative_kind || !!event.visual_kind || !!event.narrative_window_id)
@@ -692,6 +707,10 @@ export const useBattleFxStore = defineStore('battlefx', () => {
       const actorId = event.actor_user_id || ''
       const targetIds = uniqueIds(event.target_user_ids || [])
       const createdAt = eventId || Date.now()
+
+      if (isRedundantSkillFieldEffect(event, events)) {
+        continue
+      }
 
       if (kind === 'action_started') {
         if (actorId) {
