@@ -118,8 +118,14 @@ const waitingName = computed(() => {
     return snapshotStore.players[interruptStore.waitingFor]?.name || interruptStore.waitingFor
 })
 const specialActionModalVisible = ref(false)
+const isActionSelectionSnapshot = computed(() =>
+    snapshotStore.turnStage === 'ActionExecution' &&
+    !snapshotStore.combatStage &&
+    !snapshotStore.subflow
+)
 const isIdleMainTurnPanel = computed(() =>
     isMyTurn.value &&
+    isActionSelectionSnapshot.value &&
     !prompt.value &&
     interruptStore.actionMode === 'none' &&
     interruptStore.skillMode === 'none'

@@ -6,15 +6,17 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	"starcup-engine/internal/model"
 )
 
 // TestScenarioRequest is the request body for POST /api/test/setup-scenario.
 type TestScenarioRequest struct {
-	HumanPlayer TestPlayerConfig   `json:"human_player"`
-	BotPlayers  []TestPlayerConfig `json:"bot_players"`
-	Setup       TestSetup          `json:"setup"`
+	HumanPlayer  TestPlayerConfig   `json:"human_player"`
+	HumanPlayers []TestPlayerConfig `json:"human_players"`
+	BotPlayers   []TestPlayerConfig `json:"bot_players"`
+	Setup        TestSetup          `json:"setup"`
 }
 
 // TestPlayerConfig describes a player for scenario setup.
@@ -40,9 +42,10 @@ type TestCheat struct {
 
 // TestScenarioResponse is returned after successful setup.
 type TestScenarioResponse struct {
-	RoomCode      string   `json:"room_code"`
-	HumanPlayerID string   `json:"human_player_id"`
-	BotPlayerIDs  []string `json:"bot_player_ids"`
+	RoomCode       string   `json:"room_code"`
+	HumanPlayerID  string   `json:"human_player_id"`
+	HumanPlayerIDs []string `json:"human_player_ids"`
+	BotPlayerIDs   []string `json:"bot_player_ids"`
 }
 
 // HandleTestSetupScenario creates a room with pre-configured players and state for E2E testing.
@@ -62,31 +65,42 @@ func (s *Server) HandleTestSetupScenario(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "Invalid JSON: "+err.Error(), http.StatusBadRequest)
 		return
 	}
+	humanPlayers := normalizeTestHumanPlayers(req)
+	if len(humanPlayers) == 0 {
+		http.Error(w, "At least one human player is required", http.StatusBadRequest)
+		return
+	}
 
 	room := s.createRoom()
 
 	// Add players directly under lock, bypassing WebSocket registration.
 	room.mu.Lock()
 
-	humanPID, err := room.nextAvailablePlayerIDLocked()
-	if err != nil {
-		room.mu.Unlock()
-		http.Error(w, "Failed to assign human player ID: "+err.Error(), http.StatusInternalServerError)
-		return
+	humanPIDs := make([]string, 0, len(humanPlayers))
+	for _, hp := range humanPlayers {
+		pid, err := room.nextAvailablePlayerIDLocked()
+		if err != nil {
+			room.mu.Unlock()
+			http.Error(w, "Failed to assign human player ID: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		human := &Client{
+			Room:           room,
+			Send:           make(chan []byte, 256),
+			PlayerID:       pid,
+			Name:           hp.Name,
+			Camp:           model.Camp(hp.Camp),
+			CharRole:       hp.CharRole,
+			IsBot:          false,
+			Disconnected:   true,
+			ReconnectToken: generateReconnectToken(),
+		}
+		room.Clients[pid] = human
+		if room.HostID == "" {
+			room.HostID = pid
+		}
+		humanPIDs = append(humanPIDs, pid)
 	}
-	human := &Client{
-		Room:           room,
-		Send:           make(chan []byte, 256),
-		PlayerID:       humanPID,
-		Name:           req.HumanPlayer.Name,
-		Camp:           model.Camp(req.HumanPlayer.Camp),
-		CharRole:       req.HumanPlayer.CharRole,
-		IsBot:          false,
-		Disconnected:   true,
-		ReconnectToken: generateReconnectToken(),
-	}
-	room.Clients[humanPID] = human
-	room.HostID = humanPID
 
 	botPIDs := make([]string, 0, len(req.BotPlayers))
 	for _, bp := range req.BotPlayers {
@@ -121,7 +135,7 @@ func (s *Server) HandleTestSetupScenario(w http.ResponseWriter, r *http.Request)
 	// Execute cheats sequentially under engineMu.
 	room.engineMu.Lock()
 	for _, cheat := range req.Setup.Cheats {
-		targetPID := resolveCheatTarget(cheat.Target, humanPID, botPIDs)
+		targetPID := resolveCheatTarget(cheat.Target, humanPIDs, botPIDs)
 		act := model.PlayerAction{
 			PlayerID:  targetPID,
 			Type:      model.CmdCheat,
@@ -138,7 +152,7 @@ func (s *Server) HandleTestSetupScenario(w http.ResponseWriter, r *http.Request)
 
 	// Force turn to the desired player, clearing any pending interrupts first.
 	if req.Setup.FirstTurnPlayer != "" {
-		turnPID := resolveCheatTarget(req.Setup.FirstTurnPlayer, humanPID, botPIDs)
+		turnPID := resolveCheatTarget(req.Setup.FirstTurnPlayer, humanPIDs, botPIDs)
 		room.Engine.State.PendingInterrupt = nil
 		room.Engine.State.InterruptQueue = nil
 		turnAct := model.PlayerAction{
@@ -156,27 +170,71 @@ func (s *Server) HandleTestSetupScenario(w http.ResponseWriter, r *http.Request)
 	}
 	room.engineMu.Unlock()
 
-	log.Printf("[TestAPI] Scenario setup complete: room=%s human=%s bots=%v", room.Code, humanPID, botPIDs)
+	log.Printf("[TestAPI] Scenario setup complete: room=%s humans=%v bots=%v", room.Code, humanPIDs, botPIDs)
 
 	resp := TestScenarioResponse{
-		RoomCode:      room.Code,
-		HumanPlayerID: humanPID,
-		BotPlayerIDs:  botPIDs,
+		RoomCode:       room.Code,
+		HumanPlayerID:  humanPIDs[0],
+		HumanPlayerIDs: humanPIDs,
+		BotPlayerIDs:   botPIDs,
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
 }
 
-func resolveCheatTarget(target string, humanPID string, botPIDs []string) string {
+func normalizeTestHumanPlayers(req TestScenarioRequest) []TestPlayerConfig {
+	if len(req.HumanPlayers) > 0 {
+		return req.HumanPlayers
+	}
+	if req.HumanPlayer.Name != "" || req.HumanPlayer.Camp != "" || req.HumanPlayer.CharRole != "" {
+		return []TestPlayerConfig{req.HumanPlayer}
+	}
+	return nil
+}
+
+func resolveCheatTarget(target string, humanPIDs []string, botPIDs []string) string {
 	switch target {
 	case "human":
-		return humanPID
+		if len(humanPIDs) > 0 {
+			return humanPIDs[0]
+		}
+	case "bot":
+		if len(botPIDs) > 0 {
+			return botPIDs[0]
+		}
 	default:
+		if index, ok := parseIndexedTestTarget(target, "human"); ok && index >= 0 && index < len(humanPIDs) {
+			return humanPIDs[index]
+		}
+		if index, ok := parseIndexedTestTarget(target, "bot"); ok && index >= 0 && index < len(botPIDs) {
+			return botPIDs[index]
+		}
 		for i, pid := range botPIDs {
 			if target == fmt.Sprintf("%d", i) || target == pid {
 				return pid
 			}
 		}
+		for i, pid := range humanPIDs {
+			if target == fmt.Sprintf("h%d", i) || target == pid {
+				return pid
+			}
+		}
 		return target
 	}
+	return target
+}
+
+func parseIndexedTestTarget(target string, prefix string) (int, bool) {
+	if !strings.HasPrefix(target, prefix) {
+		return 0, false
+	}
+	raw := strings.TrimPrefix(target, prefix)
+	if raw == "" {
+		return 0, false
+	}
+	var index int
+	if _, err := fmt.Sscanf(raw, "%d", &index); err != nil {
+		return 0, false
+	}
+	return index, true
 }

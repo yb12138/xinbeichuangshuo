@@ -11,6 +11,15 @@ import (
 	"starcup-engine/internal/server/timeline"
 )
 
+func stringSliceContains(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
+}
+
 func TestTranslateClientAction_AttackUsesCardIDAndTargets(t *testing.T) {
 	room := NewRoom("PROTO")
 	room.Engine = engine.NewGameEngine(room)
@@ -266,6 +275,520 @@ func TestBuildTimelineNotify_FieldDeltaCarriesNarrativeActorAndTarget(t *testing
 	}
 	if event.EffectType != string(model.EffectSealWater) {
 		t.Fatalf("expected effect type %s, got %q", model.EffectSealWater, event.EffectType)
+	}
+}
+
+func TestBuildTimelineNotify_ActionFlowAttackCounterAndMiss(t *testing.T) {
+	room := NewRoom("TIMELINE_FLOW_ATTACK")
+	room.Engine = engine.NewGameEngine(room)
+	_ = room.Engine.AddPlayer("p1", "Alice", "wind_sword_saint", model.BlueCamp)
+	_ = room.Engine.AddPlayer("p2", "Bob", "berserker", model.RedCamp)
+	_ = room.Engine.AddPlayer("p3", "Cara", "assassin", model.BlueCamp)
+
+	trace := func(kind, visual, role, combatID string) *model.NarrativeTracePayload {
+		return &model.NarrativeTracePayload{
+			NarrativeWindowID: "nw-t1-p1",
+			ActionID:          "nw-t1-p1-a1-attack",
+			CombatID:          combatID,
+			NarrativeKind:     kind,
+			VisualKind:        visual,
+			CardRole:          role,
+		}
+	}
+	record := func(payload timeline.Payload) TimelineNotifyPayload {
+		notify := room.buildTimelineNotify(payload)
+		room.recordTimelineHistory(notify.Events)
+		return notify
+	}
+
+	record(timeline.Payload{
+		Type:       "timeline_marker",
+		PlayerID:   "p1",
+		TargetIDs:  []string{"p2"},
+		ActionType: "attack",
+		Trace:      trace("action_started", "action_marker", "", ""),
+	})
+	record(timeline.Payload{
+		Type:       "combat_cue",
+		AttackerID: "p1",
+		TargetID:   "p2",
+		Phase:      "attack",
+		Trace:      trace("combat_declared", "none", "attack", "nw-t1-p1-c1-combat"),
+	})
+	record(timeline.Payload{
+		Type:       "card_revealed",
+		PlayerID:   "p1",
+		ActionType: "attack",
+		Cards:      []model.Card{{ID: "attack-card", Name: "水涟斩", Type: model.CardTypeAttack, Element: model.ElementWater, Damage: 2}},
+		Trace:      trace("card_played", "card", "attack", "nw-t1-p1-c1-combat"),
+	})
+	record(timeline.Payload{
+		Type:       "combat_cue",
+		AttackerID: "p2",
+		TargetID:   "p3",
+		Phase:      "counter",
+		Trace:      trace("combat_response", "none", "counter", "nw-t1-p1-c2-counter"),
+	})
+	record(timeline.Payload{
+		Type:       "card_revealed",
+		PlayerID:   "p2",
+		ActionType: "counter",
+		Cards:      []model.Card{{ID: "counter-card", Name: "地裂斩", Type: model.CardTypeAttack, Element: model.ElementEarth, Damage: 3}},
+		Trace:      trace("card_played", "card", "counter", "nw-t1-p1-c2-counter"),
+	})
+	missTrace := trace("field_effect_applied", "effect_token", "", "nw-t1-p1-c1-combat")
+	missTrace.EffectType = "attack_miss"
+	notify := record(timeline.Payload{
+		Type:      "timeline_marker",
+		PlayerID:  "p1",
+		TargetIDs: []string{"p2"},
+		Summary:   "未命中",
+		Trace:     missTrace,
+	})
+
+	if len(notify.ActionFlows) != 1 {
+		t.Fatalf("expected one action flow, got %+v", notify.ActionFlows)
+	}
+	flow := notify.ActionFlows[0]
+	if flow.FlowID != "nw-t1-p1-a1-attack" || flow.ActionType != "attack" {
+		t.Fatalf("unexpected flow identity %+v", flow)
+	}
+	if len(flow.Actors) != 3 || flow.Actors[0].PlayerID != "p1" || flow.Actors[1].PlayerID != "p2" || flow.Actors[2].PlayerID != "p3" {
+		t.Fatalf("expected stable actor order p1,p2,p3, got %+v", flow.Actors)
+	}
+	if len(flow.Edges) != 2 {
+		t.Fatalf("expected attack and counter edges, got %+v", flow.Edges)
+	}
+	if flow.Edges[0].Phase != "attack" || len(flow.Edges[0].Cards) != 1 || flow.Edges[0].Cards[0].ID != "attack-card" {
+		t.Fatalf("expected attack card on first edge, got %+v", flow.Edges[0])
+	}
+	if flow.Edges[0].Outcome != "miss" || flow.Edges[0].Label != "未命中" {
+		t.Fatalf("expected miss attached to original attack edge, got %+v", flow.Edges[0])
+	}
+	if flow.Edges[1].Phase != "counter" || len(flow.Edges[1].Cards) != 1 || flow.Edges[1].Cards[0].ID != "counter-card" {
+		t.Fatalf("expected counter card on second edge, got %+v", flow.Edges[1])
+	}
+	if len(flow.Logs) == 0 || !strings.Contains(flow.Logs[0].Text, "未命中") {
+		t.Fatalf("expected backend miss log, got %+v", flow.Logs)
+	}
+	for _, node := range flow.Nodes {
+		if node.Kind == "resolution" {
+			t.Fatalf("miss should stay on edge and not create resolution node: %+v in flow %+v", node, flow)
+		}
+	}
+}
+
+func TestBuildTimelineNotify_ActionFlowSimpleHitDoesNotCreateRedundantNodes(t *testing.T) {
+	room := NewRoom("TIMELINE_FLOW_HIT")
+	room.Engine = engine.NewGameEngine(room)
+	_ = room.Engine.AddPlayer("p1", "Alice", "wind_sword_saint", model.BlueCamp)
+	_ = room.Engine.AddPlayer("p2", "Bob", "berserker", model.RedCamp)
+
+	trace := func(kind, visual, role string) *model.NarrativeTracePayload {
+		return &model.NarrativeTracePayload{
+			NarrativeWindowID: "nw-t1-p1",
+			ActionID:          "nw-t1-p1-a1-attack",
+			CombatID:          "nw-t1-p1-c1-combat",
+			NarrativeKind:     kind,
+			VisualKind:        visual,
+			CardRole:          role,
+		}
+	}
+	record := func(payload timeline.Payload) TimelineNotifyPayload {
+		notify := room.buildTimelineNotify(payload)
+		room.recordTimelineHistory(notify.Events)
+		return notify
+	}
+
+	record(timeline.Payload{
+		Type:       "combat_cue",
+		AttackerID: "p1",
+		TargetID:   "p2",
+		Phase:      "attack",
+		Trace:      trace("combat_declared", "none", "attack"),
+	})
+	record(timeline.Payload{
+		Type:       "card_revealed",
+		PlayerID:   "p1",
+		ActionType: "attack",
+		TargetIDs:  []string{"p2"},
+		Cards:      []model.Card{{ID: "attack-card", Name: "水涟斩", Type: model.CardTypeAttack, Element: model.ElementWater, Damage: 2}},
+		Trace:      trace("card_played", "card", "attack"),
+	})
+	notify := record(timeline.Payload{
+		Type:       "damage_dealt",
+		SourceID:   "p1",
+		SourceName: "Alice",
+		TargetID:   "p2",
+		TargetName: "Bob",
+		Damage:     2,
+		DamageType: "Attack",
+		Trace:      trace("damage_dealt", "damage", ""),
+	})
+
+	if len(notify.ActionFlows) != 1 {
+		t.Fatalf("expected one action flow, got %+v", notify.ActionFlows)
+	}
+	flow := notify.ActionFlows[0]
+	if len(flow.Edges) != 1 {
+		t.Fatalf("expected one attack edge, got %+v", flow.Edges)
+	}
+	edge := flow.Edges[0]
+	if edge.Outcome != "hit" || edge.Damage != 2 || edge.DamageType != "Attack" {
+		t.Fatalf("expected hit damage to stay on edge, got %+v", edge)
+	}
+	for _, node := range flow.Nodes {
+		if node.Kind == "damage" || node.Kind == "effect" || node.Kind == "resolution" {
+			t.Fatalf("simple hit should not create redundant %s node: %+v in flow %+v", node.Kind, node, flow)
+		}
+	}
+}
+
+func TestBuildTimelineNotify_ActionFlowAttackHitSkillAnchorsToAttackEdge(t *testing.T) {
+	room := NewRoom("TIMELINE_FLOW_HIT_SKILL")
+	room.Engine = engine.NewGameEngine(room)
+	_ = room.Engine.AddPlayer("p1", "Alice", "berserker", model.RedCamp)
+	_ = room.Engine.AddPlayer("p2", "Bob", "wind_sword_saint", model.BlueCamp)
+
+	trace := func(kind, visual, role string) *model.NarrativeTracePayload {
+		return &model.NarrativeTracePayload{
+			NarrativeWindowID: "nw-t1-p1",
+			ActionID:          "nw-t1-p1-a1-attack",
+			CombatID:          "nw-t1-p1-c1-combat",
+			NarrativeKind:     kind,
+			VisualKind:        visual,
+			CardRole:          role,
+		}
+	}
+	record := func(payload timeline.Payload) TimelineNotifyPayload {
+		notify := room.buildTimelineNotify(payload)
+		room.recordTimelineHistory(notify.Events)
+		return notify
+	}
+
+	record(timeline.Payload{
+		Type:       "combat_cue",
+		AttackerID: "p1",
+		TargetID:   "p2",
+		Phase:      "attack",
+		Trace:      trace("combat_declared", "none", "attack"),
+	})
+	record(timeline.Payload{
+		Type:       "card_revealed",
+		PlayerID:   "p1",
+		ActionType: "attack",
+		TargetIDs:  []string{"p2"},
+		Cards:      []model.Card{{ID: "attack-card", Name: "雷光斩", Type: model.CardTypeAttack, Element: model.ElementThunder, Damage: 2}},
+		Trace:      trace("card_played", "card", "attack"),
+	})
+	record(timeline.Payload{
+		Type:       "damage_dealt",
+		SourceID:   "p1",
+		SourceName: "Alice",
+		TargetID:   "p2",
+		TargetName: "Bob",
+		Damage:     4,
+		DamageType: "Attack",
+		Trace:      trace("damage_dealt", "damage", ""),
+	})
+	notify := record(timeline.Payload{
+		Type:       "skill_activated",
+		PlayerID:   "p1",
+		PlayerName: "Alice",
+		SkillID:    "berserker_frenzy",
+		SkillName:  "狂化",
+		EffectText: "攻击命中后伤害增加",
+		TargetIDs:  []string{"p2"},
+		Trace:      trace("skill_triggered", "skill_token", ""),
+	})
+
+	if len(notify.ActionFlows) != 1 {
+		t.Fatalf("expected one action flow, got %+v", notify.ActionFlows)
+	}
+	flow := notify.ActionFlows[0]
+	if len(flow.Edges) != 1 || flow.Edges[0].Phase != "attack" {
+		t.Fatalf("expected only triggering attack edge, got %+v", flow.Edges)
+	}
+	attackEdgeID := flow.Edges[0].ID
+	foundFrenzy := false
+	frenzyNodeID := ""
+	for _, node := range flow.Nodes {
+		if node.Kind != "skill" || node.SkillName != "狂化" {
+			continue
+		}
+		foundFrenzy = true
+		frenzyNodeID = node.ID
+		if node.AnchorEdgeID != attackEdgeID {
+			t.Fatalf("expected frenzy anchored to triggering attack edge %s, got %+v", attackEdgeID, node)
+		}
+	}
+	if !foundFrenzy {
+		t.Fatalf("expected frenzy skill node, got %+v", flow.Nodes)
+	}
+	if len(flow.Edges[0].NodeIDs) == 0 || !stringSliceContains(flow.Edges[0].NodeIDs, frenzyNodeID) {
+		t.Fatalf("expected frenzy node attached to attack edge node_ids, got %+v", flow.Edges[0])
+	}
+}
+
+func TestBuildTimelineNotify_ActionFlowMagicAndInsertedSkill(t *testing.T) {
+	room := NewRoom("TIMELINE_FLOW_MAGIC")
+	room.Engine = engine.NewGameEngine(room)
+	_ = room.Engine.AddPlayer("p1", "Alice", "sealer", model.BlueCamp)
+	_ = room.Engine.AddPlayer("p2", "Bob", "berserker", model.RedCamp)
+	_ = room.Engine.AddPlayer("p3", "Cara", "angel", model.BlueCamp)
+
+	record := func(payload timeline.Payload) TimelineNotifyPayload {
+		notify := room.buildTimelineNotify(payload)
+		room.recordTimelineHistory(notify.Events)
+		return notify
+	}
+	baseTrace := &model.NarrativeTracePayload{
+		NarrativeWindowID: "nw-t1-p1",
+		ActionID:          "nw-t1-p1-a1-magic",
+	}
+	record(timeline.Payload{
+		Type:       "timeline_marker",
+		PlayerID:   "p1",
+		TargetIDs:  []string{"p2"},
+		ActionType: "magic",
+		Trace: &model.NarrativeTracePayload{
+			NarrativeWindowID: baseTrace.NarrativeWindowID,
+			ActionID:          baseTrace.ActionID,
+			NarrativeKind:     "action_started",
+			VisualKind:        "action_marker",
+		},
+	})
+	record(timeline.Payload{
+		Type:       "card_revealed",
+		PlayerID:   "p1",
+		ActionType: "magic",
+		Cards:      []model.Card{{ID: "magic-card", Name: "水之封印", Type: model.CardTypeMagic, Element: model.ElementWater}},
+		Trace: &model.NarrativeTracePayload{
+			NarrativeWindowID: baseTrace.NarrativeWindowID,
+			ActionID:          baseTrace.ActionID,
+			NarrativeKind:     "card_played",
+			VisualKind:        "card",
+			CardRole:          "magic",
+		},
+	})
+	record(timeline.Payload{
+		Type:       "skill_activated",
+		PlayerID:   "p3",
+		PlayerName: "Cara",
+		SkillID:    "angel_guard",
+		SkillName:  "神圣庇护",
+		EffectText: "响应法术结算",
+		TargetIDs:  []string{"p1"},
+		Trace: &model.NarrativeTracePayload{
+			NarrativeWindowID: baseTrace.NarrativeWindowID,
+			ActionID:          baseTrace.ActionID,
+			NarrativeKind:     "skill_triggered",
+			VisualKind:        "skill_token",
+			SkillPhase:        "triggered",
+		},
+	})
+	notify := record(timeline.Payload{
+		Type:       "skill_activated",
+		PlayerID:   "p3",
+		PlayerName: "Cara",
+		SkillID:    "angel_guard",
+		SkillName:  "神圣庇护",
+		EffectText: "响应法术结算完成",
+		TargetIDs:  []string{"p1"},
+		Trace: &model.NarrativeTracePayload{
+			NarrativeWindowID: baseTrace.NarrativeWindowID,
+			ActionID:          baseTrace.ActionID,
+			NarrativeKind:     "skill_resolved",
+			VisualKind:        "skill_token",
+			SkillPhase:        "resolved",
+		},
+	})
+
+	if len(notify.ActionFlows) != 1 {
+		t.Fatalf("expected one action flow, got %+v", notify.ActionFlows)
+	}
+	flow := notify.ActionFlows[0]
+	if flow.ActionType != "magic" {
+		t.Fatalf("expected magic action flow, got %+v", flow)
+	}
+	if len(flow.Edges) != 1 || flow.Edges[0].Phase != "magic" || flow.Edges[0].Cards[0].ID != "magic-card" {
+		t.Fatalf("expected magic card on magic edge, got %+v", flow.Edges)
+	}
+	if len(flow.Nodes) < 2 {
+		t.Fatalf("expected card and skill nodes, got %+v", flow.Nodes)
+	}
+	foundSkill := false
+	skillCount := 0
+	for _, node := range flow.Nodes {
+		if node.Kind == "skill" && node.SkillName == "神圣庇护" {
+			skillCount++
+			foundSkill = true
+			if node.AnchorEdgeID != flow.Edges[0].ID {
+				t.Fatalf("expected inserted skill anchored to magic edge, got %+v edge=%s", node, flow.Edges[0].ID)
+			}
+		}
+	}
+	if skillCount != 1 {
+		t.Fatalf("expected duplicate skill traces to collapse to one node, got %d in %+v", skillCount, flow.Nodes)
+	}
+	if !foundSkill {
+		t.Fatalf("expected inserted skill node, got %+v", flow.Nodes)
+	}
+}
+
+func TestBuildTimelineNotify_ActionFlowAnchorsEarlySkillAndMergesExtraAction(t *testing.T) {
+	room := NewRoom("TIMELINE_FLOW_GALE")
+	room.Engine = engine.NewGameEngine(room)
+	_ = room.Engine.AddPlayer("p1", "Alice", "blade_master", model.BlueCamp)
+	_ = room.Engine.AddPlayer("p2", "Bob", "berserker", model.RedCamp)
+
+	record := func(payload timeline.Payload) TimelineNotifyPayload {
+		notify := room.buildTimelineNotify(payload)
+		room.recordTimelineHistory(notify.Events)
+		return notify
+	}
+	baseTrace := &model.NarrativeTracePayload{
+		NarrativeWindowID: "nw-t1-p1",
+		ActionID:          "nw-t1-p1-a1-attack",
+	}
+	record(timeline.Payload{
+		Type:      "skill_activated",
+		PlayerID:  "p1",
+		SkillID:   "gale_skill",
+		SkillName: "疾风技",
+		Trace: &model.NarrativeTracePayload{
+			NarrativeWindowID: baseTrace.NarrativeWindowID,
+			ActionID:          baseTrace.ActionID,
+			NarrativeKind:     "skill_triggered",
+			VisualKind:        "skill_token",
+			SkillPhase:        "triggered",
+		},
+	})
+	record(timeline.Payload{
+		Type:       "timeline_marker",
+		PlayerID:   "p1",
+		ActionType: "Attack",
+		Summary:    "疾风技",
+		Trace: &model.NarrativeTracePayload{
+			NarrativeWindowID:  baseTrace.NarrativeWindowID,
+			ActionID:           baseTrace.ActionID,
+			NarrativeKind:      "extra_action_granted",
+			VisualKind:         "action_marker",
+			ExtraActionType:    "Attack",
+			ExtraActionElement: "",
+		},
+	})
+	notify := record(timeline.Payload{
+		Type:       "card_revealed",
+		PlayerID:   "p1",
+		ActionType: "attack",
+		TargetIDs:  []string{"p2"},
+		Cards:      []model.Card{{ID: "gale-card", Name: "水涟斩", Type: model.CardTypeAttack, Element: model.ElementWater, Damage: 2}},
+		Trace: &model.NarrativeTracePayload{
+			NarrativeWindowID: baseTrace.NarrativeWindowID,
+			ActionID:          baseTrace.ActionID,
+			NarrativeKind:     "card_played",
+			VisualKind:        "card",
+			CardRole:          "attack",
+		},
+	})
+
+	if len(notify.ActionFlows) != 1 {
+		t.Fatalf("expected one action flow, got %+v", notify.ActionFlows)
+	}
+	flow := notify.ActionFlows[0]
+	if len(flow.Edges) != 1 || flow.Edges[0].Phase != "attack" {
+		t.Fatalf("expected one attack edge, got %+v", flow.Edges)
+	}
+	attackEdgeID := flow.Edges[0].ID
+	skillCount := 0
+	extraActionCount := 0
+	skillNodeID := ""
+	for _, node := range flow.Nodes {
+		switch node.Kind {
+		case "skill":
+			if node.SkillName != "疾风技" {
+				continue
+			}
+			skillCount++
+			skillNodeID = node.ID
+			if node.AnchorEdgeID != attackEdgeID {
+				t.Fatalf("expected gale skill anchored to attack edge %s, got %+v", attackEdgeID, node)
+			}
+			if !stringSliceContains(node.TargetUserIDs, "p2") {
+				t.Fatalf("expected gale skill target inferred from attack edge, got %+v", node)
+			}
+			if !strings.Contains(node.EffectText, "额外+1攻击行动") {
+				t.Fatalf("expected extra action detail merged into skill node, got %+v", node)
+			}
+		case "extra_action":
+			extraActionCount++
+		}
+	}
+	if skillCount != 1 {
+		t.Fatalf("expected one gale skill node, got %d in %+v", skillCount, flow.Nodes)
+	}
+	if extraActionCount != 0 {
+		t.Fatalf("expected extra action marker merged into skill node, got %+v", flow.Nodes)
+	}
+	if skillNodeID == "" || !stringSliceContains(flow.Edges[0].NodeIDs, skillNodeID) {
+		t.Fatalf("expected skill node attached to attack edge node_ids, edge=%+v skill=%s", flow.Edges[0], skillNodeID)
+	}
+}
+
+func TestBuildTimelineReplayNotify_ActionFlowsGroupedByActionID(t *testing.T) {
+	room := NewRoom("TIMELINE_FLOW_REPLAY")
+	room.Engine = engine.NewGameEngine(room)
+	_ = room.Engine.AddPlayer("p1", "Alice", "sealer", model.BlueCamp)
+	_ = room.Engine.AddPlayer("p2", "Bob", "berserker", model.RedCamp)
+
+	record := func(payload timeline.Payload) {
+		notify := room.buildTimelineNotify(payload)
+		room.recordTimelineHistory(notify.Events)
+	}
+	record(timeline.Payload{
+		Type:      "timeline_marker",
+		PlayerID:  "p1",
+		Summary:   "法术激荡",
+		TargetIDs: []string{"p1"},
+		Trace: &model.NarrativeTracePayload{
+			NarrativeWindowID: "nw-t1-p1",
+			ActionID:          "nw-t1-p1-a1-skill",
+			NarrativeKind:     "extra_action_granted",
+			VisualKind:        "action_marker",
+			ExtraActionType:   "Attack",
+		},
+	})
+	record(timeline.Payload{
+		Type:       "card_revealed",
+		PlayerID:   "p1",
+		ActionType: "attack",
+		TargetIDs:  []string{"p2"},
+		Cards:      []model.Card{{ID: "extra-attack", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire}},
+		Trace: &model.NarrativeTracePayload{
+			NarrativeWindowID: "nw-t1-p1",
+			ActionID:          "nw-t1-p1-a2-attack",
+			NarrativeKind:     "card_played",
+			VisualKind:        "card",
+			CardRole:          "attack",
+		},
+	})
+
+	replay := room.buildTimelineReplayNotify()
+	if replay == nil {
+		t.Fatalf("expected replay payload")
+	}
+	if len(replay.ActionFlows) != 2 {
+		t.Fatalf("expected skill flow and extra attack flow, got %+v", replay.ActionFlows)
+	}
+	if replay.ActionFlows[0].ActionID != "nw-t1-p1-a1-skill" || replay.ActionFlows[1].ActionID != "nw-t1-p1-a2-attack" {
+		t.Fatalf("expected replay flows sorted by action id occurrence, got %+v", replay.ActionFlows)
+	}
+	if len(replay.ActionFlows[0].Nodes) != 1 || replay.ActionFlows[0].Nodes[0].Kind != "extra_action" {
+		t.Fatalf("expected extra action marker to stay in skill flow, got %+v", replay.ActionFlows[0])
+	}
+	if len(replay.ActionFlows[1].Edges) != 1 || replay.ActionFlows[1].Edges[0].Cards[0].ID != "extra-attack" {
+		t.Fatalf("expected extra action execution to create new attack flow, got %+v", replay.ActionFlows[1])
 	}
 }
 

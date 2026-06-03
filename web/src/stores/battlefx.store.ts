@@ -1,7 +1,7 @@
 import { defineStore, storeToRefs } from 'pinia'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import type { Card } from '../types/game'
-import type { TimelineEvent, TimelineNotifyPayload } from '../network/protocol'
+import type { ActionFlowDTO, TimelineEvent, TimelineNotifyPayload } from '../network/protocol'
 import { useSessionStore } from './session.store'
 import { useSnapshotStore } from './snapshot.store'
 import { useUiStore } from './ui.store'
@@ -161,6 +161,12 @@ export const useBattleFxStore = defineStore('battlefx', () => {
   const skillAnnouncementRemovalTimers = new Map<number, ReturnType<typeof setTimeout>>()
 
   const actionNarrative = ref<ActionNarrativeView | null>(null)
+  const actionFlowsById = ref<Record<string, ActionFlowDTO>>({})
+  const activeActionFlowId = ref('')
+  const latestActionFlow = computed(() => {
+    if (!activeActionFlowId.value) return null
+    return actionFlowsById.value[activeActionFlowId.value] ?? null
+  })
   const narrativePlayback = ref<NarrativePlaybackView | null>(null)
   let narrativeCardId = 0
   let narrativeLinkId = 0
@@ -669,6 +675,22 @@ export const useBattleFxStore = defineStore('battlefx', () => {
     narrativeTargetByActor.clear()
   }
 
+  function clearActionFlows() {
+    actionFlowsById.value = {}
+    activeActionFlowId.value = ''
+  }
+
+  function upsertActionFlows(flows: ActionFlowDTO[] = []) {
+    const validFlows = flows.filter(flow => !!flow?.flow_id)
+    if (!validFlows.length) return
+    const next = { ...actionFlowsById.value }
+    for (const flow of validFlows) {
+      next[flow.flow_id] = flow
+      activeActionFlowId.value = flow.flow_id
+    }
+    actionFlowsById.value = next
+  }
+
   function hasStructuredNarrative(events: TimelineEvent[] = []) {
     return events.some(event => !!event.narrative_kind || !!event.visual_kind || !!event.narrative_window_id)
   }
@@ -696,15 +718,33 @@ export const useBattleFxStore = defineStore('battlefx', () => {
   }
 
   function applyStructuredTimelineNarrative(payload: TimelineNotifyPayload) {
-    const events = [...(payload.events || [])]
-      .filter(event => !!event.narrative_kind || !!event.visual_kind || !!event.narrative_window_id)
+    const rawEvents = [...(payload.events || [])]
       .sort((a, b) => (a.event_id || 0) - (b.event_id || 0))
-    if (!events.length) return
+    const hasActionClosed = rawEvents.some(event => String(event.narrative_kind || '').trim() === 'action_closed')
+    const actionFlows = [...(payload.action_flows || [])]
 
     if (payload.is_replay) {
       clearActionNarrative()
+      clearActionFlows()
       structuredNarrativeEventIds.clear()
     }
+
+    if (actionFlows.length) {
+      clearActionNarrative()
+      upsertActionFlows(actionFlows)
+      if (hasActionClosed) {
+        clearActionFlows()
+      }
+      return
+    }
+
+    if (hasActionClosed) {
+      clearActionFlows()
+    }
+
+    const events = rawEvents
+      .filter(event => !!event.narrative_kind || !!event.visual_kind || !!event.narrative_window_id)
+    if (!events.length) return
 
     for (const event of events) {
       const eventId = Number(event.event_id || 0)
@@ -738,6 +778,7 @@ export const useBattleFxStore = defineStore('battlefx', () => {
 
       if (kind === 'action_closed') {
         clearActionNarrative()
+        clearActionFlows()
         continue
       }
 
@@ -1151,6 +1192,7 @@ export const useBattleFxStore = defineStore('battlefx', () => {
 
   function clearForGameEnd() {
     clearActionNarrative()
+    clearActionFlows()
     structuredNarrativeEventIds.clear()
     clearSkillAnnouncements()
     drawBursts.value = []
@@ -1167,6 +1209,7 @@ export const useBattleFxStore = defineStore('battlefx', () => {
 
   function reset() {
     clearActionNarrative()
+    clearActionFlows()
     structuredNarrativeEventIds.clear()
     clearSkillAnnouncements()
     drawBursts.value = []
@@ -1189,6 +1232,9 @@ export const useBattleFxStore = defineStore('battlefx', () => {
     damageEffects,
     skillAnnouncements,
     actionNarrative,
+    actionFlowsById,
+    activeActionFlowId,
+    latestActionFlow,
     narrativePlayback,
     beginActionNarrative,
     featureNarrativeActor,
@@ -1201,6 +1247,8 @@ export const useBattleFxStore = defineStore('battlefx', () => {
     hasStructuredNarrative,
     applyStructuredTimelineNarrative,
     clearActionNarrative,
+    clearActionFlows,
+    upsertActionFlows,
     startAttackInitiatorFocus,
     resolveAttackInitiatorFocus,
     startSkillInitiatorFocus,

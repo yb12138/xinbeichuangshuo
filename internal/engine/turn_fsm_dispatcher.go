@@ -323,19 +323,35 @@ func (e *GameEngine) driveCombatInteractionPhase(currentPid string, player *mode
 		return driveStop
 	}
 
+	if e.dispatchAttackRulebookTiming(model.TimingAttackResponse, attacker, target, combatReq.Card, attackInfoFromCombatRequest(combatReq, false), attackKind) {
+		return driveStop
+	}
+
+	if prompt := e.buildCombatInteractionPrompt(); prompt != nil {
+		e.NotifyPrompt(prompt)
+	}
+	return driveStop
+}
+
+func (e *GameEngine) buildCombatInteractionPrompt() *model.Prompt {
+	if !e.IsCombatInteractionWindow() {
+		return nil
+	}
+	combatReq, target, attacker, ok := e.peekCombatInteractionRequest()
+	if !ok || combatReq == nil || target == nil || combatReq.Card == nil {
+		return nil
+	}
+
 	shieldFallbackReady := e.HasUsableShieldForCombat(target, *combatReq)
 	counterTargets := e.buildCombatCounterTargets(combatReq.AttackerID)
 	options := e.buildCombatResponseOptions(combatReq, shieldFallbackReady, counterTargets)
 	hints := e.buildCombatInteractionHints(*combatReq, shieldFallbackReady)
-	if e.dispatchAttackRulebookTiming(model.TimingAttackResponse, attacker, target, combatReq.Card, attackInfoFromCombatRequest(combatReq, false), attackKind) {
-		return driveStop
-	}
 
 	attackerRole := combatReq.AttackerID
 	if attacker != nil {
 		attackerRole = attacker.Name
 	}
-	prompt := &model.Prompt{
+	return &model.Prompt{
 		Type:             model.PromptConfirm,
 		PlayerID:         combatReq.TargetID,
 		AttackerID:       combatReq.AttackerID,
@@ -349,8 +365,6 @@ func (e *GameEngine) driveCombatInteractionPhase(currentPid string, player *mode
 		Options:      options,
 		Presentation: &model.PromptPresentation{Kind: model.PresentationResponse, Layout: "inline"},
 	}
-	e.NotifyPrompt(prompt)
-	return driveStop
 }
 
 func (e *GameEngine) peekCombatInteractionRequest() (*model.CombatRequest, *model.Player, *model.Player, bool) {

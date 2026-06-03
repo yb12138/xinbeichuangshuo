@@ -396,6 +396,26 @@ const SEAL_FIELD_EFFECT_PROMPT_LABELS: Record<string, string> = {
   SealThunder: '雷之封印',
 }
 
+const BATTLE_STATUS_ICON_EFFECTS = new Set<string>([
+  'Shield',
+  'Poison',
+  'Weak',
+  'SealFire',
+  'SealWater',
+  'SealEarth',
+  'SealWind',
+  'SealThunder',
+  'FiveElementsBind',
+  'Stealth',
+  'PowerBlessing',
+  'SwiftBlessing',
+  'BardEternalMovement',
+  'RoseCourtyard',
+  'HeroTaunt',
+  'SoulLink',
+  'BloodSharedLife',
+])
+
 const myStatusMaxHand = computed(() => {
   const maxHand = myAreaPlayer.value?.max_hand
   return typeof maxHand === 'number' && maxHand >= 0 ? maxHand : 0
@@ -447,20 +467,25 @@ function fieldStatusItemsForPlayer(player: PlayerView) {
     .slice(0, 4)
 }
 
-function sealStatusItemsForPlayer(player: PlayerView) {
-  return (player.field || [])
-    .filter((fc) => fc.mode === 'Effect' && SEAL_FIELD_EFFECTS.has(fc.effect))
-    .map((fc, idx) => ({
-      key: `${fc.effect}-${fc.source_id || 'source'}-${idx}`,
-      effect: fc.effect,
-      label: SEAL_FIELD_EFFECT_PROMPT_LABELS[fc.effect] || PLAYER_STATUS_EFFECT_LABEL[fc.effect] || fc.effect,
-    }))
-    .slice(0, 5)
-}
-
-function latestSealStatusItemForPlayer(player: PlayerView) {
-  const seals = sealStatusItemsForPlayer(player)
-  return seals[seals.length - 1] ?? null
+function battleStatusItemsForPlayer(player: PlayerView) {
+  const items = new Map<string, { key: string; effect: string; label: string; count: number }>()
+  for (const fc of player.field || []) {
+    if (fc.mode !== 'Effect' || !fc.effect) continue
+    if (HIDDEN_MY_FIELD_EFFECTS.has(fc.effect) || !BATTLE_STATUS_ICON_EFFECTS.has(fc.effect)) continue
+    const label = SEAL_FIELD_EFFECT_PROMPT_LABELS[fc.effect] || PLAYER_STATUS_EFFECT_LABEL[fc.effect] || fc.effect
+    const existing = items.get(fc.effect)
+    if (existing) {
+      existing.count += 1
+    } else {
+      items.set(fc.effect, {
+        key: fc.effect,
+        effect: fc.effect,
+        label,
+        count: 1,
+      })
+    }
+  }
+  return [...items.values()]
 }
 
 function tokenItemsForPlayer(player: PlayerView) {
@@ -475,6 +500,7 @@ function tokenItemsForPlayer(player: PlayerView) {
 }
 
 const hoveredBattleSeatPlayerId = ref<string | null>(null)
+const hoveredStatusRailPlayerId = ref<string | null>(null)
 
 // 生成 15 个粒子的配置
 const particleList = computed(() => Array.from({ length: 15 }, (_, i) => i))
@@ -2406,29 +2432,30 @@ const fighterHundredDragonByPlayer = computed(() => {
                   @select="onTargetClick"
                 />
                 <div
-                  v-if="sealStatusItemsForPlayer(p).length"
-                  class="player-anchor-seal-effects"
-                  aria-label="封印效果"
+                  v-if="battleStatusItemsForPlayer(p).length"
+                  class="player-anchor-status-rail"
+                  :class="idx <= 2 ? 'player-anchor-status-rail--right' : 'player-anchor-status-rail--left'"
+                  aria-label="状态栏"
+                  @mouseenter="hoveredStatusRailPlayerId = p.id"
+                  @mouseleave="hoveredStatusRailPlayerId = null"
                 >
                   <div
-                    v-if="latestSealStatusItemForPlayer(p)"
-                    class="player-anchor-seal-pop"
+                    v-for="status in battleStatusItemsForPlayer(p)"
+                    :key="`anchor-status-${p.id}-${status.key}`"
+                    class="player-anchor-status-icon"
+                    :class="[
+                      `player-anchor-status-icon--${status.effect}`,
+                      SEAL_FIELD_EFFECTS.has(status.effect) ? 'player-anchor-status-icon--seal' : '',
+                    ]"
+                    :title="status.label"
+                    :aria-label="status.label"
+                    tabindex="0"
                   >
-                    受到{{ latestSealStatusItemForPlayer(p)?.label }}
-                  </div>
-                  <div class="player-anchor-seal-icons">
-                    <div
-                      v-for="seal in sealStatusItemsForPlayer(p)"
-                      :key="`anchor-seal-${p.id}-${seal.key}`"
-                      class="player-anchor-seal-icon"
-                      :title="seal.label"
-                    >
-                      <StatusEffectIcon :effect="seal.effect" />
-                    </div>
+                    <StatusEffectIcon :effect="status.effect" :count="status.count" />
                   </div>
                 </div>
                 <div
-                  v-if="hoveredBattleSeatPlayerId === p.id && portraitSrcForPlayer(p)"
+                  v-if="hoveredBattleSeatPlayerId === p.id && hoveredStatusRailPlayerId !== p.id && portraitSrcForPlayer(p)"
                   class="character-inspect-popout"
                   :class="[
                     idx <= 2 ? 'character-inspect-popout--from-left' : 'character-inspect-popout--from-right',
@@ -2608,7 +2635,7 @@ const fighterHundredDragonByPlayer = computed(() => {
               </template>
             </div>
             <div
-              class="hand-rail bottom-slot-hand rounded-lg sm:rounded-xl p-2 sm:p-2 min-h-0"
+              class="hand-rail bottom-slot-hand rounded-lg sm:rounded-xl min-h-0"
               :class="{
                 'hand-rail--prompt-guide': promptNeedsCardGuide,
                 'hand-rail--overflow-discard': promptNeedsOverflowDiscardGuide
@@ -2711,7 +2738,7 @@ const fighterHundredDragonByPlayer = computed(() => {
                   点击下方手牌完成选择
                 </div>
               </Transition>
-              <div class="overflow-x-auto hand-list pb-0.5">
+              <div class="overflow-x-auto hand-list">
                 <div class="hand-card-row">
                   <CardComponent
                     v-for="entry in myHandEntries"
@@ -3147,8 +3174,11 @@ const fighterHundredDragonByPlayer = computed(() => {
   margin: 0 auto;
   overflow: hidden;
   position: relative;
-  --battle-player-card-width: clamp(126px, 9.72vw, 140px);
-  --battle-player-card-height: clamp(122px, 9.38vw, 135px);
+  --battle-player-card-max-width: 355px;
+  --battle-player-card-max-height: 341px;
+  --battle-player-card-fit-height: min(30cqh, calc(54cqw / 1.04), var(--battle-player-card-max-height));
+  --battle-player-card-width: clamp(126px, calc(var(--battle-player-card-fit-height) * 1.04), var(--battle-player-card-max-width));
+  --battle-player-card-height: clamp(122px, var(--battle-player-card-fit-height), var(--battle-player-card-max-height));
   --battle-seat-edge-inset: clamp(22px, 2.78vw, 40px);
   --battle-seat-vertical-inset: clamp(12px, 2.95vh, 20px);
   --self-status-card-width: clamp(126px, 9.72vw, 140px);
@@ -3167,8 +3197,6 @@ const fighterHundredDragonByPlayer = computed(() => {
 
 @media (min-width: 1800px) {
   .board-shell {
-    --battle-player-card-width: 150px;
-    --battle-player-card-height: 145px;
     --self-status-card-width: 150px;
     --self-status-card-height: 224px;
     --active-popout-width: 204px;
@@ -3746,71 +3774,128 @@ const fighterHundredDragonByPlayer = computed(() => {
     0 12px 26px rgba(8, 22, 36, 0.4);
 }
 
-.player-anchor-seal-effects {
+.player-anchor-status-rail {
   position: absolute;
-  top: 50%;
-  right: -12px;
-  z-index: 8;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  pointer-events: none;
-  transform: translate(100%, -50%);
-}
-
-.player-anchor-seal-pop {
-  max-width: 116px;
-  overflow: hidden;
-  padding: 5px 8px;
-  border-radius: 999px;
-  border: 1px solid rgba(191, 219, 254, 0.46);
-  background: rgba(7, 18, 32, 0.86);
-  color: rgba(232, 244, 255, 0.96);
-  font-size: 12px;
-  font-weight: 900;
-  line-height: 1;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.86);
-  box-shadow: 0 0 16px rgba(125, 211, 252, 0.28);
-  animation: playerAnchorSealPopOut 1.16s ease-out both;
-}
-
-.player-anchor-seal-icons {
+  top: 4px;
+  bottom: 4px;
+  z-index: 160;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  opacity: 0;
-  animation: playerAnchorSealIconsIn 0.28s ease-out 0.86s both;
+  align-items: center;
+  gap: 5px;
+  width: 36px;
+  padding: 0;
+  border-radius: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+  pointer-events: none;
 }
 
-.player-anchor-seal-icon {
-  width: 26px;
-  height: 26px;
-  padding: 3px;
+.player-anchor-status-rail--right {
+  right: -4px;
+  transform: translateX(100%);
+  --status-preview-x: 8px;
+  --status-preview-origin: left center;
+}
+
+.player-anchor-status-rail--left {
+  left: -4px;
+  transform: translateX(-100%);
+  --status-preview-x: -8px;
+  --status-preview-origin: right center;
+}
+
+.player-anchor-status-icon {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  z-index: 1;
   border-radius: 999px;
-  border: 1px solid rgba(219, 234, 254, 0.54);
-  background: rgba(5, 14, 25, 0.8);
+  border: 1px solid rgba(219, 234, 254, 0.28);
+  background:
+    radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--anchor-status-color, #93c5fd), transparent 78%), transparent 62%),
+    rgba(7, 18, 32, 0.72);
   box-shadow:
-    0 0 12px rgba(147, 197, 253, 0.34),
-    0 8px 14px rgba(0, 0, 0, 0.34);
+    0 0 10px color-mix(in srgb, var(--anchor-status-color, #93c5fd), transparent 70%),
+    0 4px 8px rgba(0, 0, 0, 0.3);
+  transform-origin: var(--status-preview-origin, center);
+  transition:
+    transform 0.18s ease,
+    filter 0.18s ease,
+    opacity 0.18s ease;
+  will-change: transform;
+  pointer-events: auto;
 }
 
-.player-anchor-seal-icon :deep(.status-effect-icon) {
+.player-anchor-status-icon:hover,
+.player-anchor-status-icon:focus-within {
+  z-index: 30;
+  transform: translateX(var(--status-preview-x, 0)) scale(var(--status-preview-scale, 2.6));
+  filter: drop-shadow(0 0 12px color-mix(in srgb, var(--anchor-status-color, #93c5fd), transparent 42%));
+}
+
+.player-anchor-status-icon :deep(.status-effect-icon) {
   width: 100%;
   height: 100%;
 }
 
-@keyframes playerAnchorSealPopOut {
-  0% { opacity: 0; transform: translateX(8px) scale(0.92); }
-  18% { opacity: 1; transform: translateX(0) scale(1); }
-  72% { opacity: 1; transform: translateX(0) scale(1); }
-  100% { opacity: 0; transform: translateX(-5px) scale(0.96); }
+.player-anchor-status-icon--seal {
+  --status-preview-scale: 3;
+  width: 32px;
+  height: 32px;
+  flex-basis: 32px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
-@keyframes playerAnchorSealIconsIn {
-  from { opacity: 0; transform: translateX(7px) scale(0.76); }
-  to { opacity: 1; transform: translateX(0) scale(1); }
+.player-anchor-status-icon--SealFire {
+  --anchor-status-color: #fb6b5e;
+}
+
+.player-anchor-status-icon--SealWater {
+  --anchor-status-color: #7dd3fc;
+}
+
+.player-anchor-status-icon--SealEarth {
+  --anchor-status-color: #f0b06a;
+}
+
+.player-anchor-status-icon--SealWind {
+  --anchor-status-color: #86efac;
+}
+
+.player-anchor-status-icon--SealThunder {
+  --anchor-status-color: #fde047;
+}
+
+.player-anchor-status-icon--Shield,
+.player-anchor-status-icon--PowerBlessing {
+  --anchor-status-color: #facc15;
+}
+
+.player-anchor-status-icon--Poison,
+.player-anchor-status-icon--Stealth,
+.player-anchor-status-icon--RoseCourtyard {
+  --anchor-status-color: #86efac;
+}
+
+.player-anchor-status-icon--Weak,
+.player-anchor-status-icon--SoulLink,
+.player-anchor-status-icon--BardEternalMovement {
+  --anchor-status-color: #c4b5fd;
+}
+
+.player-anchor-status-icon--BloodSharedLife,
+.player-anchor-status-icon--HeroTaunt {
+  --anchor-status-color: #fb7185;
+}
+
+.player-anchor-status-icon--SwiftBlessing {
+  --anchor-status-color: #67e8f9;
 }
 
 .center-stage {
@@ -3988,6 +4073,7 @@ const fighterHundredDragonByPlayer = computed(() => {
   z-index: 7;
   display: block;
   pointer-events: none;
+  container-type: size;
 }
 
 .battle-table-seat {
@@ -4396,7 +4482,15 @@ const fighterHundredDragonByPlayer = computed(() => {
   min-width: 280px;
   max-width: none;
   height: var(--self-status-card-height);
+  min-height: 0;
   position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+  --hand-card-width: clamp(84px, 7.3vw, 112px);
+  --hand-card-height: clamp(126px, min(10.95vw, calc(var(--self-status-card-height) - 48px)), 168px);
+  --hand-card-row-gap: clamp(4px, 0.55vw, 8px);
   background:
     linear-gradient(180deg, rgba(12, 26, 42, 0.92), rgba(8, 18, 31, 0.95));
   border: 1px solid rgba(130, 170, 210, 0.15);
@@ -4408,6 +4502,8 @@ const fighterHundredDragonByPlayer = computed(() => {
 }
 
 .hand-rail--prompt-guide {
+  --hand-card-width: clamp(76px, 6.6vw, 102px);
+  --hand-card-height: clamp(108px, min(9.9vw, calc(var(--self-status-card-height) - 76px)), 153px);
   border-color: rgba(200, 171, 113, 0.52);
   box-shadow:
     inset 0 1px 0 rgba(244, 236, 216, 0.16),
@@ -4418,6 +4514,8 @@ const fighterHundredDragonByPlayer = computed(() => {
 }
 
 .hand-rail--overflow-discard {
+  --hand-card-width: clamp(72px, 6.2vw, 98px);
+  --hand-card-height: clamp(102px, min(9.3vw, calc(var(--self-status-card-height) - 86px)), 147px);
   border-color: rgba(217, 132, 93, 0.64);
   box-shadow:
     inset 0 1px 0 rgba(250, 233, 221, 0.16),
@@ -4768,11 +4866,14 @@ const fighterHundredDragonByPlayer = computed(() => {
 
 .hand-list {
   width: 100%;
-  height: 100%;
+  flex: 1 1 auto;
+  height: auto;
   min-width: 0;
+  min-height: 0;
+  overflow-y: hidden;
   /* 选中卡牌上移时预留顶部空间，避免在横向滚动容器内被裁切。 */
-  padding-top: 12px;
-  margin-top: -6px;
+  padding-top: clamp(6px, 0.9vh, 12px);
+  margin-top: -4px;
   scrollbar-width: thin;
   scrollbar-color: rgba(94, 138, 165, 0.74) rgba(7, 14, 22, 0.45);
 }
@@ -4782,8 +4883,38 @@ const fighterHundredDragonByPlayer = computed(() => {
   align-items: flex-end;
   width: max-content;
   min-width: 100%;
-  gap: 8px;
-  padding-right: 2px;
+  height: 100%;
+  gap: var(--hand-card-row-gap);
+  padding-right: 0;
+}
+
+.bottom-slot-hand :deep(.card-size-medium) {
+  width: var(--hand-card-width);
+  height: var(--hand-card-height);
+  max-width: min(var(--hand-card-width), 100%);
+  max-height: calc(100% - 1px);
+  font-size: clamp(10px, 0.92vw, 14px);
+}
+
+.bottom-slot-hand :deep(.card-size-medium .card-title-text) {
+  font-size: clamp(7.6px, 0.66vw, 10px) !important;
+}
+
+.bottom-slot-hand :deep(.card-size-medium .card-element-medal > span) {
+  font-size: clamp(6.8px, 0.59vw, 9px) !important;
+}
+
+.bottom-slot-hand :deep(.card-size-medium .card-ribbon-text) {
+  font-size: clamp(5.4px, 0.45vw, 7px) !important;
+}
+
+.bottom-slot-hand :deep(.card-size-medium .card-desc-btn) {
+  font-size: clamp(6px, 0.5vw, 7.5px) !important;
+  padding: clamp(1px, 0.18vw, 2px) clamp(3px, 0.32vw, 5px);
+}
+
+.bottom-slot-hand :deep(.card-size-medium .card-exclusive-corner) {
+  font-size: clamp(7px, 0.59vw, 9px) !important;
 }
 
 .exclusive-toggle-btn {
@@ -4934,7 +5065,7 @@ const fighterHundredDragonByPlayer = computed(() => {
 
 .bottom-hud {
   height: var(--bottom-hud-height);
-  padding: 0 var(--battle-seat-edge-inset) 20px;
+  padding: 0;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -5054,8 +5185,8 @@ const fighterHundredDragonByPlayer = computed(() => {
 /* 针对 1440x678 这类“宽屏但高度较矮”的桌面，收紧高度避免侧边座位互相压叠。 */
 @media (min-width: 1360px) and (max-width: 1599px) and (max-height: 760px) {
   .board-shell {
-    --battle-player-card-width: 126px;
-    --battle-player-card-height: 122px;
+    --battle-player-card-max-width: 190px;
+    --battle-player-card-max-height: 183px;
     --self-status-card-height: 200px;
     --active-popout-width: 158px;
     --active-popout-height: 224px;
@@ -5480,8 +5611,8 @@ const fighterHundredDragonByPlayer = computed(() => {
   }
 
   .board-shell {
-    --battle-player-card-width: clamp(102px, 14vw, 126px);
-    --battle-player-card-height: clamp(108px, 28vh, 124px);
+    --battle-player-card-max-width: 160px;
+    --battle-player-card-max-height: 154px;
     --battle-seat-edge-inset: clamp(4px, 0.8vw, 8px);
     --battle-seat-vertical-inset: clamp(2px, 0.6vh, 6px);
   }

@@ -302,6 +302,89 @@ describe('battlefx store focus side', () => {
     })
   })
 
+  it('stores backend action flows and clears them on action close', () => {
+    const battleFxStore = useBattleFxStore()
+
+    battleFxStore.applyStructuredTimelineNarrative({
+      room_id: 'ROOM1',
+      seq_start: 1,
+      seq_end: 2,
+      is_replay: false,
+      events: [
+        {
+          event_id: 1,
+          turn_id: 1,
+          chain_id: 'nw-t1-p1',
+          type: 'TimelineEffectResolved',
+          outcome: 'TimelineOutcomeSuccess',
+          visibility: 'TimelineVisibilityPublic',
+          narrative_window_id: 'nw-t1-p1',
+          action_id: 'nw-t1-p1-a1-attack',
+          narrative_kind: 'action_started',
+          visual_kind: 'action_marker',
+          actor_user_id: 'p1',
+          target_user_ids: ['p2'],
+          action_type: 'attack',
+        },
+      ],
+      action_flows: [
+        {
+          flow_id: 'nw-t1-p1-a1-attack',
+          action_id: 'nw-t1-p1-a1-attack',
+          narrative_window_id: 'nw-t1-p1',
+          actor_user_id: 'p1',
+          action_type: 'attack',
+          actors: [
+            { player_id: 'p1', order: 1 },
+            { player_id: 'p2', order: 2 },
+          ],
+          edges: [
+            {
+              id: 'edge-1',
+              order: 1,
+              from_user_id: 'p1',
+              to_user_id: 'p2',
+              phase: 'attack',
+              cards: [buildCard('火焰斩')],
+              outcome: 'pending',
+            },
+          ],
+          logs: [
+            { order: 1, text: '攻击 风之剑圣 -> 狂战士 | 火焰斩' },
+          ],
+        },
+      ],
+    })
+
+    expect(battleFxStore.latestActionFlow?.flow_id).toBe('nw-t1-p1-a1-attack')
+    expect(Object.keys(battleFxStore.actionFlowsById)).toEqual(['nw-t1-p1-a1-attack'])
+    expect(battleFxStore.actionNarrative).toBeNull()
+
+    battleFxStore.applyStructuredTimelineNarrative({
+      room_id: 'ROOM1',
+      seq_start: 3,
+      seq_end: 3,
+      is_replay: false,
+      events: [
+        {
+          event_id: 3,
+          turn_id: 1,
+          chain_id: 'nw-t1-p1',
+          type: 'TimelineChainClosed',
+          outcome: 'TimelineOutcomeSuccess',
+          visibility: 'TimelineVisibilityPublic',
+          narrative_window_id: 'nw-t1-p1',
+          action_id: 'nw-t1-p1-a1-attack',
+          narrative_kind: 'action_closed',
+          visual_kind: 'action_marker',
+        },
+      ],
+    })
+
+    expect(battleFxStore.latestActionFlow).toBeNull()
+    expect(Object.keys(battleFxStore.actionFlowsById)).toHaveLength(0)
+  })
+
   it('projects placed field effect cards without duplicate effect tokens', () => {
     const battleFxStore = useBattleFxStore()
 

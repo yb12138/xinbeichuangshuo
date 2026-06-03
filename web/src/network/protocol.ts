@@ -1,4 +1,7 @@
 import type {
+  ActionFlowDTO as GeneratedActionFlowDTO,
+  ActionFlowEdgeDTO as GeneratedActionFlowEdgeDTO,
+  ActionFlowNodeDTO as GeneratedActionFlowNodeDTO,
   ClientActionRequest as GeneratedClientActionRequest,
   ProtocolErrorPayload as GeneratedProtocolErrorPayload,
   RequireActionPayload as GeneratedRequireActionPayload,
@@ -20,6 +23,9 @@ export type WsMessage<T = unknown> = Omit<WSMessage, 'Data'> & {
 }
 
 export type WSCommand = GeneratedWSCommand
+export type ActionFlowDTO = GeneratedActionFlowDTO
+export type ActionFlowEdgeDTO = GeneratedActionFlowEdgeDTO
+export type ActionFlowNodeDTO = GeneratedActionFlowNodeDTO
 export type RoomActionType = GeneratedRoomActionType
 export type ClientActionRequest = GeneratedClientActionRequest
 export type RoomActionRequest = GeneratedRoomActionRequest

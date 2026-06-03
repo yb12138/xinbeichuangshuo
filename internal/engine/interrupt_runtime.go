@@ -147,6 +147,9 @@ func (e *GameEngine) GetCurrentPrompt() *model.Prompt {
 	if prompt != nil {
 		return e.decoratePromptForClient(prompt)
 	}
+	if prompt = e.buildCombatInteractionPrompt(); prompt != nil {
+		return e.decoratePromptForClient(prompt)
+	}
 	if prompt = e.buildStandardResponsePrompt(); prompt != nil {
 		return e.decoratePromptForClient(prompt)
 	}

@@ -745,7 +745,7 @@ function handleClick(e: MouseEvent) {
 }
 
 .player-area--compact {
-  height: 140px;
+  height: 100%;
 }
 
 .player-area--full {

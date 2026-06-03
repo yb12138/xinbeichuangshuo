@@ -12,6 +12,7 @@ import HeroTauntIcon from './HeroTauntIcon.vue'
 import BloodSharedLifeIcon from './BloodSharedLifeIcon.vue'
 import RoseCourtyardIcon from './RoseCourtyardIcon.vue'
 import BardEternalMovementIcon from './BardEternalMovementIcon.vue'
+import SoulLinkIcon from './SoulLinkIcon.vue'
 
 const props = defineProps<{
   effect: string
@@ -44,6 +45,8 @@ const iconComponent = computed(() => {
       return HeroTauntIcon
     case 'BloodSharedLife':
       return BloodSharedLifeIcon
+    case 'SoulLink':
+      return SoulLinkIcon
     case 'RoseCourtyard':
       return RoseCourtyardIcon
     case 'BardEternalMovement':

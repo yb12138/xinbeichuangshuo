@@ -10,6 +10,24 @@
 
 ## 使用方式
 
+### 标准进房入口
+
+前端测试需要进入真实游戏房间时，统一通过 `web/package.json` 中的测试对局脚本进入：
+
+```bash
+cd web
+npm run dev:battle
+```
+
+该命令会调用 `scripts/open-test-battle.mjs`，通过后端测试 API 创建一个已选定 6 个角色并自动开始的 3v3 测试对局，然后打开首个玩家的房间页面。后续前端手动测试、浏览器验证和需要真实房间态的 E2E 调试都默认使用这个入口。
+
+前置条件：
+
+```bash
+STARCUP_TEST_MODE=1 go run ./cmd/server
+cd web && npm run dev
+```
+
 ```typescript
 // 测试文件中使用
 test('死亡之触完整流程', async ({ page, testRoom, stateInject }) => {

@@ -66,6 +66,61 @@ export interface PromptPresentation {
   total_steps?: number
 }
 
+export interface ActionFlowActorDTO {
+  player_id: string
+  order: number
+}
+
+export interface ActionFlowDTO {
+  flow_id: string
+  action_id: string
+  narrative_window_id?: string
+  actor_user_id?: string
+  action_type: string
+  actors: ActionFlowActorDTO[]
+  nodes?: ActionFlowNodeDTO[]
+  edges?: ActionFlowEdgeDTO[]
+  logs?: ActionFlowLogDTO[]
+}
+
+export interface ActionFlowEdgeDTO {
+  id: string
+  order: number
+  from_user_id: string
+  to_user_id: string
+  phase: string
+  card_event_id?: number
+  cards?: Card[]
+  node_ids?: string[]
+  outcome?: string
+  damage?: number
+  damage_type?: string
+  label?: string
+}
+
+export interface ActionFlowLogDTO {
+  order: number
+  text: string
+}
+
+export interface ActionFlowNodeDTO {
+  id: string
+  order: number
+  kind: string
+  actor_user_id?: string
+  target_user_ids?: string[]
+  event_id?: number
+  anchor_edge_id?: string
+  skill_id?: string
+  skill_name?: string
+  effect_text?: string
+  cards?: Card[]
+  outcome?: string
+  damage?: number
+  damage_type?: string
+  label?: string
+}
+
 export interface ActionStepPayload {
   line: string
   kind: string
@@ -381,6 +436,7 @@ export interface TimelineNotifyPayload {
   seq_end: number
   is_replay: boolean
   events: TimelineEvent[]
+  action_flows?: ActionFlowDTO[]
 }
 
 export interface WSMessage {

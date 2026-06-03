@@ -48,14 +48,27 @@ func (r *Room) buildTimelineNotify(payload timeline.Payload) TimelineNotifyPaylo
 		Subflow:     subflow,
 		ChainID:     chainID,
 	}, payload)
+	actionFlows := buildLiveActionFlows(r.snapshotTimelineHistory(), event, r.timelineDisplayName)
 
 	return TimelineNotifyPayload{
-		RoomID:   r.Code,
-		SeqStart: eventID,
-		SeqEnd:   eventID,
-		IsReplay: false,
-		Events:   []TimelineEvent{event},
+		RoomID:      r.Code,
+		SeqStart:    eventID,
+		SeqEnd:      eventID,
+		IsReplay:    false,
+		Events:      []TimelineEvent{event},
+		ActionFlows: actionFlows,
 	}
+}
+
+func (r *Room) snapshotTimelineHistory() []TimelineEvent {
+	r.timelineMu.Lock()
+	defer r.timelineMu.Unlock()
+	if len(r.timelineHistory) == 0 {
+		return nil
+	}
+	out := make([]TimelineEvent, len(r.timelineHistory))
+	copy(out, r.timelineHistory)
+	return out
 }
 
 func (r *Room) inheritActiveNarrativeTrace() *model.NarrativeTracePayload {
@@ -115,10 +128,26 @@ func (r *Room) buildTimelineReplayNotify() *TimelineNotifyPayload {
 		return nil
 	}
 	return &TimelineNotifyPayload{
-		RoomID:   r.Code,
-		SeqStart: events[0].EventID,
-		SeqEnd:   events[len(events)-1].EventID,
-		IsReplay: true,
-		Events:   events,
+		RoomID:      r.Code,
+		SeqStart:    events[0].EventID,
+		SeqEnd:      events[len(events)-1].EventID,
+		IsReplay:    true,
+		Events:      events,
+		ActionFlows: buildReplayActionFlows(events, r.timelineDisplayName),
 	}
+}
+
+func (r *Room) timelineDisplayName(playerID, fallback string) string {
+	if r == nil || r.Engine == nil || r.Engine.State == nil || playerID == "" {
+		return fallback
+	}
+	player := r.Engine.State.Players[playerID]
+	if player == nil {
+		return fallback
+	}
+	name := model.GetPlayerDisplayName(player)
+	if name == "" || name == "?" {
+		return fallback
+	}
+	return name
 }

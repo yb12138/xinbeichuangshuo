@@ -11,8 +11,9 @@ import type {
   NarrativePlaybackStepStatus,
   NarrativePlaybackStepView,
 } from '../stores/battlefx.store'
+import type { ActionFlowDTO, ActionFlowEdgeDTO, ActionFlowNodeDTO } from '../network/protocol'
 import { useSnapshotStore } from '../stores/snapshot.store'
-import type { PlayerView } from '../types/game'
+import type { Card, PlayerView } from '../types/game'
 import CardComponent from './CardComponent.vue'
 import RoseCourtyardIcon from './StatusIcons/RoseCourtyardIcon.vue'
 
@@ -23,7 +24,7 @@ const props = defineProps<{
 
 const battleFxStore = useBattleFxStore()
 const snapshotStore = useSnapshotStore()
-const { actionNarrative, narrativePlayback, skillAnnouncements } = storeToRefs(battleFxStore)
+const { actionNarrative, latestActionFlow, narrativePlayback, skillAnnouncements } = storeToRefs(battleFxStore)
 const { characters, players } = storeToRefs(snapshotStore)
 
 const featuredSkillAnnouncement = computed(() =>
@@ -46,29 +47,110 @@ function isPlayerView(player: PlayerView | undefined): player is PlayerView {
   return !!player
 }
 
-const hasNarrativeLayer = computed(() => !!actionNarrative.value || hasRoseCourtyard.value)
+const hasNarrativeLayer = computed(() => !!latestActionFlow.value || !!actionNarrative.value || hasRoseCourtyard.value)
+
+const narrativeCards = computed(() => actionNarrative.value?.playedCards || [])
+const narrativeEvents = computed(() => actionNarrative.value?.events || [])
+const narrativeLinks = computed(() => actionNarrative.value?.links || [])
+
+function normalizedActionType(actionType?: string) {
+  return String(actionType || '').trim().toLowerCase()
+}
+
+function isCombatLoopActionType(actionType?: string) {
+  return ['attack', 'counter', 'defend', 'shield'].includes(normalizedActionType(actionType))
+}
+
+const narrativeLoopCardChain = computed(() => {
+  const hasNonCombatSkillEvent = narrativeEvents.value.some((event) => {
+    return event.kind === 'skill' && !String(event.label || '').includes('未命中')
+  })
+  if (hasNonCombatSkillEvent) return null
+
+  const cards = narrativeCards.value
+    .filter(card => isCombatLoopActionType(card.actionType) && !!card.targetId)
+    .sort((a, b) => a.createdAt - b.createdAt || a.id - b.id)
+  if (cards.length < 1) return null
+
+  const actorIds: string[] = []
+  const pushActor = (id?: string) => {
+    if (id && !actorIds.includes(id)) actorIds.push(id)
+  }
+
+  pushActor(cards[0]?.playerId)
+  for (const card of cards) {
+    pushActor(card.playerId)
+    pushActor(card.targetId)
+  }
+
+  if (actorIds.length < 2) return null
+  return {
+    actorIds,
+    cards,
+  }
+})
+
+const hasNarrativeCombatLoop = computed(() => !!latestActionFlow.value || !!narrativeLoopCardChain.value)
+
+const primaryCounterChainCards = computed(() => {
+  const attackCard = narrativeCards.value.find((card) => {
+    return normalizedActionType(card.actionType) === 'attack' && !!card.targetId
+  })
+  if (!attackCard?.targetId) return null
+
+  const counterCard = narrativeCards.value.find((card) => {
+    return normalizedActionType(card.actionType) === 'counter' &&
+      card.playerId === attackCard.targetId
+  })
+  if (!counterCard) return null
+
+  const missEvent = narrativeEvents.value.find((event) => {
+    return event.actorId === attackCard.playerId &&
+      event.targetId === attackCard.targetId &&
+      String(event.label || '').includes('未命中')
+  })
+
+  return {
+    sourceId: attackCard.playerId,
+    targetId: attackCard.targetId,
+    attackCard,
+    counterCard,
+    missEvent,
+  }
+})
+
+const primaryCounterChainActorIds = computed(() => {
+  const chain = primaryCounterChainCards.value
+  return new Set(chain ? [chain.sourceId, chain.targetId] : [])
+})
+
+function isPrimaryCounterChainActor(playerId?: string) {
+  return !!playerId && primaryCounterChainActorIds.value.has(playerId)
+}
 
 const featuredPlayer = computed(() => {
+  if (hasNarrativeCombatLoop.value) return undefined
   const id = actionNarrative.value?.featuredActorId
+  if (isPrimaryCounterChainActor(id)) return undefined
   return id ? players.value[id] : undefined
 })
 
 const opposedPlayers = computed(() =>
   (actionNarrative.value?.opposedActorIds || [])
+    .filter(() => !hasNarrativeCombatLoop.value)
+    .filter(id => !isPrimaryCounterChainActor(id))
     .map(id => players.value[id])
     .filter(isPlayerView)
 )
 
 const settledPlayers = computed(() =>
   (actionNarrative.value?.settledActorIds || [])
+    .filter(() => !hasNarrativeCombatLoop.value)
     .filter(id => id !== actionNarrative.value?.featuredActorId && !(actionNarrative.value?.opposedActorIds || []).includes(id))
+    .filter(id => !isPrimaryCounterChainActor(id))
     .map(id => players.value[id])
     .filter(isPlayerView)
 )
-
-const narrativeCards = computed(() => actionNarrative.value?.playedCards || [])
-const narrativeEvents = computed(() => actionNarrative.value?.events || [])
-const narrativeLinks = computed(() => actionNarrative.value?.links || [])
 
 type NarrativeSide = 'left' | 'right'
 type NarrativeRow = 'top' | 'middle' | 'bottom'
@@ -126,14 +208,146 @@ interface NarrativeMistSegment {
   particleSeeds: number[]
 }
 
+interface NarrativeLoopActor {
+  id: string
+  index: number
+  x: number
+  y: number
+}
+
+interface NarrativeLoopCard {
+  id: string
+  eventId?: number
+  card: Card
+}
+
+interface NarrativeLoopAction {
+  id: string
+  index: number
+  sourceId: string
+  targetId: string
+  actionKind: NarrativeLinkKind
+  actionType: string
+  tone: 'red' | 'gold'
+  path: string
+  startX: number
+  startY: number
+  controlX: number
+  controlY: number
+  endX: number
+  endY: number
+  cardX: number
+  cardY: number
+  labelX: number
+  labelY: number
+  normalX: number
+  normalY: number
+  cards: NarrativeLoopCard[]
+  cardView?: ActionNarrativeCardView
+  item?: NarrativeStackItem
+  damage?: number
+  damageType?: string
+  missed?: boolean
+  outcome?: string
+  label?: string
+  nodeIds: string[]
+}
+
+interface NarrativeLoopNode {
+  id: string
+  kind: string
+  actorId?: string
+  targetIds: string[]
+  anchorEdgeId?: string
+  x: number
+  y: number
+  title: string
+  detail?: string
+  outcome?: string
+  damage?: number
+  cards: NarrativeLoopCard[]
+  width?: number
+  height?: number
+  rect?: LoopLayoutRect
+  zIndex?: number
+}
+
+interface LoopLayoutSize {
+  width: number
+  height: number
+}
+
+interface LoopLayoutRect {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+type NarrativeLoopPacketMode = 'full' | 'compact' | 'marker'
+type NarrativeLoopNotePlacement = 'bottom' | 'side' | 'badge'
+
+interface NarrativeLoopPacket {
+  id: string
+  action: NarrativeLoopAction
+  cards: NarrativeLoopCard[]
+  visibleCards: NarrativeLoopCard[]
+  hiddenCardCount: number
+  mode: NarrativeLoopPacketMode
+  notePlacement: NarrativeLoopNotePlacement
+  x: number
+  y: number
+  rect: LoopLayoutRect
+  cardWidth: number
+  cardScale: number
+  noteTitle: string
+  noteDetail: string
+  noteResult: string
+  zIndex: number
+}
+
+interface NarrativeLoopPacketPlacement {
+  x: number
+  y: number
+  rect: LoopLayoutRect
+  score: number
+  mode: NarrativeLoopPacketMode
+  notePlacement: NarrativeLoopNotePlacement
+}
+
+type NarrativeLoopNodeCandidateTier = 'line' | 'primary' | 'extended' | 'fallback'
+
+interface NarrativeLoopNodePlacement {
+  x: number
+  y: number
+  rect: LoopLayoutRect
+  width: number
+  height: number
+  zIndex: number
+}
+
+interface NarrativeCombatLoopView {
+  actors: NarrativeLoopActor[]
+  actions: NarrativeLoopAction[]
+  nodes: NarrativeLoopNode[]
+  source: 'backend' | 'fallback'
+}
+
+interface NarrativeCombatLoopLayout extends NarrativeCombatLoopView {
+  packets: NarrativeLoopPacket[]
+}
+
 const narrativeLayerRef = ref<HTMLElement | null>(null)
+const narrativeLoopFieldRef = ref<HTMLElement | null>(null)
 const narrativeMistLayerRef = ref<SVGSVGElement | null>(null)
 const measuredNarrativeMistSegments = ref<NarrativeMistSegment[]>([])
 let narrativeMistResizeObserver: ResizeObserver | null = null
+let narrativeLoopFieldResizeObserver: ResizeObserver | null = null
 let narrativeMistMeasureFrame = 0
 let narrativeGsapContext: gsap.Context | null = null
 let narrativeGsapTimeline: gsap.core.Timeline | null = null
 let lastAnimatedNarrativeStepId = ''
+const narrativeLoopFieldSize = ref<LoopLayoutSize>({ width: 900, height: 360 })
 
 function roleNameForPlayer(playerId?: string) {
   if (!playerId) return ''
@@ -150,6 +364,20 @@ function portraitSrcForPlayer(playerId?: string) {
 
 function latestDamageForPlayer(playerId?: string) {
   if (!playerId) return null
+  const flowDamageEdge = [...(latestActionFlow.value?.edges || [])]
+    .reverse()
+    .find(edge => edge.to_user_id === playerId && (edge.damage || 0) > 0)
+  if (flowDamageEdge?.damage) {
+    return {
+      id: flowDamageEdge.id,
+      kind: 'damage' as const,
+      label: `造成 ${flowDamageEdge.damage} 点伤害`,
+      actorId: flowDamageEdge.from_user_id,
+      targetId: playerId,
+      damage: flowDamageEdge.damage,
+      createdAt: flowDamageEdge.order,
+    }
+  }
   return [...narrativeEvents.value].reverse().find(event => event.kind === 'damage' && event.targetId === playerId) ?? null
 }
 
@@ -173,6 +401,13 @@ function actorRowForSeat(index: number | null): NarrativeRow {
 
 function narrativeSideForPlayer(playerId?: string, fallback: NarrativeActorRole = 'featured') {
   return actorSideForSeat(actorSeatIndex(playerId), fallback)
+}
+
+function narrativeEndpointSideForPlayer(playerId?: string, fallback: NarrativeActorRole = 'featured') {
+  const chain = primaryCounterChainCards.value
+  if (chain && playerId === chain.sourceId) return 'left'
+  if (chain && playerId === chain.targetId) return 'right'
+  return narrativeSideForPlayer(playerId, fallback)
 }
 
 function narrativeRowForPlayer(playerId?: string) {
@@ -378,11 +613,1396 @@ const narrativeStackItems = computed<NarrativeStackItem[]>(() => {
     })
 })
 
+const primaryCounterChain = computed(() => {
+  const chain = primaryCounterChainCards.value
+  if (!chain) return null
+
+  const attackItem = narrativeStackItems.value.find((item) => {
+    return item.kind === 'card' && item.cardView?.id === chain.attackCard.id
+  })
+  const counterItem = narrativeStackItems.value.find((item) => {
+    return item.kind === 'card' && item.cardView?.id === chain.counterCard.id
+  })
+  const missItem = chain.missEvent
+    ? narrativeStackItems.value.find((item) => item.kind === 'skill' && item.eventView?.id === chain.missEvent?.id)
+    : undefined
+
+  if (!attackItem) return null
+  return {
+    ...chain,
+    attackItem,
+    counterItem,
+    missItem,
+  }
+})
+
+function loopAngleForIndex(index: number, total: number) {
+  return -90 + (360 / Math.max(total, 1)) * index
+}
+
+function loopPointForAngle(angle: number, scale = 1) {
+  const radians = angle * Math.PI / 180
+  return {
+    x: 50 + Math.cos(radians) * 31 * scale,
+    y: 52 + Math.sin(radians) * 32 * scale,
+  }
+}
+
+function loopPointForActor(index: number, total: number) {
+  if (total <= 1) {
+    return { x: 50, y: 52 }
+  }
+  return loopPointForAngle(loopAngleForIndex(index, total))
+}
+
+function loopClockwiseDiff(fromAngle: number, toAngle: number) {
+  let diff = toAngle - fromAngle
+  while (diff <= 0) diff += 360
+  return diff
+}
+
+function clampLoopCoord(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value))
+}
+
+function loopQuadraticPoint(
+  start: { x: number; y: number },
+  control: { x: number; y: number },
+  end: { x: number; y: number },
+  t: number,
+) {
+  const inverse = 1 - t
+  return {
+    x: inverse * inverse * start.x + 2 * inverse * t * control.x + t * t * end.x,
+    y: inverse * inverse * start.y + 2 * inverse * t * control.y + t * t * end.y,
+  }
+}
+
+function loopNormalForCurve(start: { x: number; y: number }, end: { x: number; y: number }) {
+  const dx = end.x - start.x
+  const dy = end.y - start.y
+  const length = Math.hypot(dx, dy) || 1
+  return {
+    x: -dy / length,
+    y: dx / length,
+  }
+}
+
+function loopActionGeometry(sourceIndex: number, targetIndex: number, total: number) {
+  const sourceAngle = loopAngleForIndex(sourceIndex, total)
+  const targetAngle = loopAngleForIndex(targetIndex, total)
+  const diff = loopClockwiseDiff(sourceAngle, targetAngle)
+  const midAngle = sourceAngle + diff / 2
+  const start = loopPointForAngle(sourceAngle, 0.9)
+  const end = loopPointForAngle(targetAngle, 0.9)
+  const control = loopPointForAngle(midAngle, 1.22)
+  const card = loopQuadraticPoint(start, control, end, 0.52)
+  const label = card
+  const normal = loopNormalForCurve(start, end)
+  return {
+    path: `M ${start.x.toFixed(2)} ${start.y.toFixed(2)} Q ${control.x.toFixed(2)} ${control.y.toFixed(2)} ${end.x.toFixed(2)} ${end.y.toFixed(2)}`,
+    startX: start.x,
+    startY: start.y,
+    controlX: control.x,
+    controlY: control.y,
+    endX: end.x,
+    endY: end.y,
+    cardX: clampLoopCoord(card.x, 8, 92),
+    cardY: clampLoopCoord(card.y, 12, 88),
+    labelX: clampLoopCoord(label.x, 8, 92),
+    labelY: clampLoopCoord(label.y, 12, 88),
+    normalX: normal.x,
+    normalY: normal.y,
+  }
+}
+
+function damageForLoopAction(card: ActionNarrativeCardView) {
+  const damageEvent = narrativeEvents.value
+    .filter(event =>
+      event.kind === 'damage' &&
+      event.actorId === card.playerId &&
+      event.targetId === card.targetId &&
+      event.createdAt >= card.createdAt
+    )
+    .sort((a, b) => a.createdAt - b.createdAt)[0]
+  return damageEvent?.damage ?? card.card.damage
+}
+
+function missForLoopAction(card: ActionNarrativeCardView) {
+  return narrativeEvents.value.some((event) => {
+    return event.actorId === card.playerId &&
+      event.targetId === card.targetId &&
+      event.createdAt >= card.createdAt &&
+      String(event.label || '').includes('未命中')
+  })
+}
+
+function pushUniqueActor(actorIds: string[], id?: string) {
+  const normalized = String(id || '').trim()
+  if (normalized && !actorIds.includes(normalized)) actorIds.push(normalized)
+}
+
+function flowActionKind(phase?: string): NarrativeLinkKind {
+  const normalized = normalizedActionType(phase)
+  if (normalized === 'counter' || normalized === 'defend' || normalized === 'shield') return 'respond'
+  if (normalized === 'magic' || normalized === 'skill' || normalized === 'effect') return 'skill'
+  if (normalized === 'take') return 'damage'
+  return 'attack'
+}
+
+function loopCardsFromFlow(cards: Card[] | undefined, prefix: string, eventId?: number): NarrativeLoopCard[] {
+  return (cards || []).map((card, index) => ({
+    id: `${prefix}-card-${eventId || 0}-${card.id || index}`,
+    eventId,
+    card,
+  }))
+}
+
+function loopCardIdentity(loopCard: NarrativeLoopCard) {
+  if (loopCard.eventId) return `event:${loopCard.eventId}:${loopCard.card.id || loopCard.card.name || loopCard.id}`
+  const cardKey = String(loopCard.card.id || loopCard.card.name || '').trim()
+  if (cardKey) return `card:${cardKey}`
+  return `card-instance:${loopCard.id}`
+}
+
+function appendUniqueLoopCards(target: NarrativeLoopCard[], cards: NarrativeLoopCard[]) {
+  const seen = new Set(target.map(loopCardIdentity))
+  for (const card of cards) {
+    const key = loopCardIdentity(card)
+    if (seen.has(key)) continue
+    seen.add(key)
+    target.push(card)
+  }
+}
+
+function edgeIdForFlowCardNode(node: ActionFlowNodeDTO, edges: ActionFlowEdgeDTO[]) {
+  if (node.anchor_edge_id) return node.anchor_edge_id
+
+  const nodeEdge = edges.find(edge => (edge.node_ids || []).includes(node.id))
+  if (nodeEdge) return nodeEdge.id
+
+  if (node.event_id) {
+    const eventEdge = edges.find(edge => edge.card_event_id === node.event_id)
+    if (eventEdge) return eventEdge.id
+  }
+
+  const targets = node.target_user_ids || []
+  const candidates = edges.filter(edge => {
+    if (edge.from_user_id !== node.actor_user_id) return false
+    return targets.length < 1 || targets.includes(edge.to_user_id)
+  })
+  if (candidates.length === 1) return candidates[0]?.id || ''
+
+  const emptyCandidate = candidates.find(edge => (edge.cards || []).length < 1)
+  if (emptyCandidate) return emptyCandidate.id
+
+  if (candidates.length > 1) {
+    const sortedByOrder = [...candidates].sort((a, b) => {
+      const aDistance = Math.abs((a.order || 0) - (node.order || 0))
+      const bDistance = Math.abs((b.order || 0) - (node.order || 0))
+      return aDistance - bDistance || a.order - b.order
+    })
+    return sortedByOrder[0]?.id || ''
+  }
+
+  return ''
+}
+
+function cardsForFlowEdge(edge: ActionFlowEdgeDTO, nodes: ActionFlowNodeDTO[], edges: ActionFlowEdgeDTO[]) {
+  const cards = loopCardsFromFlow(edge.cards, edge.id, edge.card_event_id)
+  const cardNodes = nodes.filter(node => normalizedActionType(node.kind) === 'card')
+  for (const node of cardNodes) {
+    if (edgeIdForFlowCardNode(node, edges) !== edge.id) continue
+    appendUniqueLoopCards(cards, loopCardsFromFlow(node.cards, node.id, node.event_id))
+  }
+  return cards
+}
+
+function edgeHasVisualPayload(
+  edge: ActionFlowEdgeDTO,
+  cards: NarrativeLoopCard[],
+  renderableNodeIds: Set<string>,
+) {
+  const outcome = normalizedActionType(edge.outcome)
+  const hasVisualOutcome = outcome !== '' && outcome !== 'pending' && outcome !== 'resolved'
+  return cards.length > 0 ||
+    (edge.damage || 0) > 0 ||
+    String(edge.damage_type || '').trim() !== '' ||
+    String(edge.label || '').trim() !== '' ||
+    hasVisualOutcome ||
+    (edge.node_ids || []).some(nodeId => renderableNodeIds.has(nodeId))
+}
+
+function shouldRenderFlowEdge(
+  edge: ActionFlowEdgeDTO,
+  cards: NarrativeLoopCard[],
+  edges: ActionFlowEdgeDTO[],
+  cardsByEdgeId: Map<string, NarrativeLoopCard[]>,
+  renderableNodeIds: Set<string>,
+) {
+  const phase = normalizedActionType(edge.phase)
+  if (phase !== 'attack') return true
+  if (edgeHasVisualPayload(edge, cards, renderableNodeIds)) return true
+
+  return !edges.some((candidate) => {
+    if (candidate.id === edge.id) return false
+    if (candidate.from_user_id !== edge.from_user_id || candidate.to_user_id !== edge.to_user_id) return false
+    const candidatePhase = normalizedActionType(candidate.phase)
+    if (!['counter', 'defend', 'shield'].includes(candidatePhase)) return false
+    return edgeHasVisualPayload(candidate, cardsByEdgeId.get(candidate.id) || [], renderableNodeIds)
+  })
+}
+
+function isResponseFlowPhase(phase: string) {
+  return ['counter', 'defend', 'shield'].includes(normalizedActionType(phase))
+}
+
+function isEmptyAttackResolutionEdge(
+  edge: ActionFlowEdgeDTO,
+  cardsByEdgeId: Map<string, NarrativeLoopCard[]>,
+  renderableNodeIds: Set<string>,
+) {
+  if (normalizedActionType(edge.phase) !== 'attack') return false
+  if ((cardsByEdgeId.get(edge.id) || []).length > 0) return false
+  if ((edge.node_ids || []).some(nodeId => renderableNodeIds.has(nodeId))) return false
+  const outcome = normalizedActionType(edge.outcome)
+  return outcome !== '' && outcome !== 'pending'
+}
+
+function mergeResponseResolutionEdges(
+  edges: ActionFlowEdgeDTO[],
+  cardsByEdgeId: Map<string, NarrativeLoopCard[]>,
+  renderableNodeIds: Set<string>,
+) {
+  const mergedEdges = edges.map(edge => ({
+    ...edge,
+    cards: [...(edge.cards || [])],
+    node_ids: [...(edge.node_ids || [])],
+  }))
+  const hiddenEdgeIds = new Set<string>()
+
+  for (const edge of mergedEdges) {
+    if (!isEmptyAttackResolutionEdge(edge, cardsByEdgeId, renderableNodeIds)) continue
+    const candidates = mergedEdges.filter(candidate =>
+      candidate.id !== edge.id &&
+      !hiddenEdgeIds.has(candidate.id) &&
+      candidate.from_user_id === edge.from_user_id &&
+      candidate.to_user_id === edge.to_user_id &&
+      isResponseFlowPhase(candidate.phase) &&
+      edgeHasVisualPayload(candidate, cardsByEdgeId.get(candidate.id) || [], renderableNodeIds)
+    )
+    if (candidates.length < 1) continue
+    candidates.sort((a, b) => Math.abs((a.order || 0) - (edge.order || 0)) - Math.abs((b.order || 0) - (edge.order || 0)))
+    const target = candidates[0]
+    if (!target) continue
+    if (edge.outcome && normalizedActionType(edge.outcome) !== 'pending') {
+      target.outcome = edge.outcome
+    }
+    if (edge.label && !target.label) {
+      target.label = edge.label
+    }
+    if ((edge.damage || 0) > 0 && !(target.damage || 0)) {
+      target.damage = edge.damage
+    }
+    if (edge.damage_type && !target.damage_type) {
+      target.damage_type = edge.damage_type
+    }
+    hiddenEdgeIds.add(edge.id)
+  }
+
+  return mergedEdges.filter(edge => !hiddenEdgeIds.has(edge.id))
+}
+
+function offsetLoopActionPoint(action: NarrativeLoopAction, amount: number): NarrativeLoopAction {
+  if (amount === 0) return action
+  const cardX = clampLoopCoord(action.cardX + action.normalX * amount, 8, 92)
+  const cardY = clampLoopCoord(action.cardY + action.normalY * amount, 12, 88)
+  return {
+    ...action,
+    cardX,
+    cardY,
+    labelX: cardX,
+    labelY: cardY,
+  }
+}
+
+function offsetLoopActionCurve(action: NarrativeLoopAction, amount: number): NarrativeLoopAction {
+  if (amount === 0) return action
+  const controlX = clampLoopCoord(action.controlX + action.normalX * amount, 4, 96)
+  const controlY = clampLoopCoord(action.controlY + action.normalY * amount, 6, 94)
+  const cardX = clampLoopCoord(action.cardX + action.normalX * amount * 0.72, 8, 92)
+  const cardY = clampLoopCoord(action.cardY + action.normalY * amount * 0.72, 12, 88)
+  return {
+    ...action,
+    controlX,
+    controlY,
+    cardX,
+    cardY,
+    labelX: cardX,
+    labelY: cardY,
+    path: `M ${action.startX.toFixed(2)} ${action.startY.toFixed(2)} Q ${controlX.toFixed(2)} ${controlY.toFixed(2)} ${action.endX.toFixed(2)} ${action.endY.toFixed(2)}`,
+  }
+}
+
+function withLoopActionLayoutLanes(actions: NarrativeLoopAction[]) {
+  const laneGroups = new Map<string, NarrativeLoopAction[]>()
+  for (const action of actions) {
+    const key = `${action.sourceId}->${action.targetId}`
+    laneGroups.set(key, [...(laneGroups.get(key) || []), action])
+  }
+  const laneOffsets = [0, -5, 5, -9, 9, -13, 13]
+  const laneOffsetById = new Map<string, number>()
+  for (const group of laneGroups.values()) {
+    if (group.length < 2) continue
+    group.forEach((action, index) => {
+      const cycle = Math.floor(index / laneOffsets.length)
+      const base = laneOffsets[index % laneOffsets.length] || 0
+      laneOffsetById.set(action.id, base + Math.sign(base) * cycle * 4)
+    })
+  }
+  const routedActions = laneOffsetById.size
+    ? actions.map(action => offsetLoopActionCurve(action, laneOffsetById.get(action.id) || 0))
+    : actions
+
+  const groups = new Map<string, NarrativeLoopAction[]>()
+  for (const action of routedActions) {
+    if (action.cards.length < 1) continue
+    const key = `${action.cardX.toFixed(1)}:${action.cardY.toFixed(1)}`
+    groups.set(key, [...(groups.get(key) || []), action])
+  }
+
+  const offsetByActionId = new Map<string, number>()
+  const offsets = [0, -5.5, 5.5, -9.5, 9.5]
+  for (const group of groups.values()) {
+    if (group.length < 2) continue
+    group.forEach((action, index) => {
+      const cycle = Math.floor(index / offsets.length)
+      const base = offsets[index % offsets.length] || 0
+      offsetByActionId.set(action.id, base + Math.sign(base) * cycle * 4)
+    })
+  }
+
+  if (offsetByActionId.size < 1) return routedActions
+  return routedActions.map(action => offsetLoopActionPoint(action, offsetByActionId.get(action.id) || 0))
+}
+
+function loopNodeTitle(node: ActionFlowNodeDTO) {
+  return String(node.skill_name || node.label || node.cards?.[0]?.name || node.kind || '结算').trim()
+}
+
+function loopNodeDetail(node: ActionFlowNodeDTO) {
+  const effectText = String(node.effect_text || '').trim()
+  if (normalizedActionType(node.kind) === 'skill') {
+    return /^额外\+\d+/.test(effectText) && effectText.includes('行动') ? effectText : ''
+  }
+  if (node.outcome === 'miss') return '未命中'
+  if (node.damage) return `伤害 ${node.damage}`
+  return effectText
+}
+
+function flowNodeDedupeKey(node: ActionFlowNodeDTO) {
+  const kind = normalizedActionType(node.kind)
+  if (kind !== 'skill') return `${node.id || node.event_id || node.order}`
+  const targets = [...(node.target_user_ids || [])].sort().join(',')
+  return [
+    kind,
+    node.actor_user_id || '',
+    node.skill_id || node.skill_name || node.label || '',
+    node.anchor_edge_id || '',
+    targets,
+  ].join('|')
+}
+
+function uniqueRenderableFlowNodes(nodes: ActionFlowNodeDTO[]) {
+  const seen = new Set<string>()
+  return nodes.filter((node) => {
+    if (!shouldRenderFlowNode(node)) return false
+    const key = flowNodeDedupeKey(node)
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+function nodePointForFlowNode(
+  node: ActionFlowNodeDTO,
+  actionById: Map<string, NarrativeLoopAction>,
+  actorIndexById: Map<string, number>,
+  total: number,
+) {
+  if (node.anchor_edge_id) {
+    const action = actionById.get(node.anchor_edge_id)
+    if (action) {
+      const offset = ((node.order || 1) % 3) - 1
+      return {
+        x: Math.max(8, Math.min(92, action.labelX + offset * 7)),
+        y: Math.max(12, Math.min(88, action.labelY + 10)),
+      }
+    }
+  }
+  const actorIndex = actorIndexById.get(node.actor_user_id || '')
+  if (actorIndex !== undefined) {
+    return loopPointForAngle(loopAngleForIndex(actorIndex, total), 0.64)
+  }
+  return { x: 50, y: 52 }
+}
+
+function buildBackendNarrativeLoop(flow: ActionFlowDTO): NarrativeCombatLoopView | null {
+  const actorIds: string[] = []
+  const sortedActors = [...(flow.actors || [])].sort((a, b) => a.order - b.order)
+  for (const actor of sortedActors) pushUniqueActor(actorIds, actor.player_id)
+  pushUniqueActor(actorIds, flow.actor_user_id)
+  for (const edge of flow.edges || []) {
+    pushUniqueActor(actorIds, edge.from_user_id)
+    pushUniqueActor(actorIds, edge.to_user_id)
+  }
+  for (const node of flow.nodes || []) {
+    pushUniqueActor(actorIds, node.actor_user_id)
+    for (const targetId of node.target_user_ids || []) pushUniqueActor(actorIds, targetId)
+  }
+  if (!actorIds.length) return null
+
+  const total = actorIds.length
+  const actorIndexById = new Map(actorIds.map((id, index) => [id, index]))
+  const actors = actorIds.map((id, index) => {
+    const point = loopPointForActor(index, total)
+    return {
+      id,
+      index,
+      x: point.x,
+      y: point.y,
+    }
+  })
+
+  const sortedEdges = [...(flow.edges || [])].sort((a, b) => a.order - b.order)
+  const flowNodes = flow.nodes || []
+  const renderableNodeIds = new Set(flowNodes.filter(shouldRenderFlowNode).map(node => node.id))
+  const cardsByEdgeId = new Map(sortedEdges.map(edge => [
+    edge.id,
+    cardsForFlowEdge(edge, flowNodes, sortedEdges),
+  ]))
+  const normalizedEdges = mergeResponseResolutionEdges(sortedEdges, cardsByEdgeId, renderableNodeIds)
+  const renderableEdges = normalizedEdges.filter(edge => shouldRenderFlowEdge(
+    edge,
+    cardsByEdgeId.get(edge.id) || [],
+    normalizedEdges,
+    cardsByEdgeId,
+    renderableNodeIds,
+  ))
+  const actions = withLoopActionLayoutLanes(renderableEdges
+    .map((edge: ActionFlowEdgeDTO, index): NarrativeLoopAction | null => {
+      const sourceIndex = actorIndexById.get(edge.from_user_id)
+      const targetIndex = actorIndexById.get(edge.to_user_id)
+      if (sourceIndex === undefined || targetIndex === undefined) return null
+      const actionType = normalizedActionType(edge.phase)
+      const missed = edge.outcome === 'miss' || String(edge.label || '').includes('未命中')
+      return {
+        id: edge.id,
+        index,
+        sourceId: edge.from_user_id,
+        targetId: edge.to_user_id,
+        actionKind: flowActionKind(actionType),
+        actionType,
+        tone: index === 0 && actionType === 'attack' ? 'red' : 'gold',
+        cards: cardsByEdgeId.get(edge.id) || [],
+        damage: missed ? undefined : edge.damage,
+        damageType: edge.damage_type,
+        missed,
+        outcome: edge.outcome,
+        label: edge.label,
+        nodeIds: edge.node_ids || [],
+        ...loopActionGeometry(sourceIndex, targetIndex, total),
+      }
+    })
+    .filter((action): action is NarrativeLoopAction => !!action))
+
+  const actionById = new Map(actions.map(action => [action.id, action]))
+  const nodes = uniqueRenderableFlowNodes(flowNodes)
+    .sort((a, b) => a.order - b.order)
+    .map((node): NarrativeLoopNode => {
+      const point = nodePointForFlowNode(node, actionById, actorIndexById, total)
+      return {
+        id: node.id,
+        kind: node.kind,
+        actorId: node.actor_user_id,
+        targetIds: node.target_user_ids || [],
+        anchorEdgeId: node.anchor_edge_id,
+        x: point.x,
+        y: point.y,
+        title: loopNodeTitle(node),
+        detail: loopNodeDetail(node),
+        outcome: node.outcome,
+        damage: node.damage,
+        cards: loopCardsFromFlow(node.cards, node.id, node.event_id),
+      }
+    })
+
+  if (actions.length < 1 && nodes.length < 1) return null
+  return {
+    actors,
+    actions,
+    nodes,
+    source: 'backend',
+  }
+}
+
+function shouldRenderFlowNode(node: ActionFlowNodeDTO): boolean {
+  const kind = normalizedActionType(node.kind)
+  if (kind === 'card') return false
+  if (kind === 'damage' || kind === 'resolution') return false
+  if (kind === 'effect' && node.anchor_edge_id) return false
+  return true
+}
+
+function buildFallbackNarrativeLoop(): NarrativeCombatLoopView | null {
+  const chain = narrativeLoopCardChain.value
+  if (!chain) return null
+
+  const actorIds = chain.actorIds
+  const total = actorIds.length
+  const actorIndexById = new Map(actorIds.map((id, index) => [id, index]))
+  const actors = actorIds.map((id, index) => {
+    const point = loopPointForActor(index, total)
+    return {
+      id,
+      index,
+      x: point.x,
+      y: point.y,
+    }
+  })
+
+  const actions = withLoopActionLayoutLanes(chain.cards
+    .map((cardView, index): NarrativeLoopAction | null => {
+      const sourceIndex = actorIndexById.get(cardView.playerId)
+      const targetId = cardView.targetId || ''
+      const targetIndex = actorIndexById.get(targetId)
+      if (sourceIndex === undefined || targetIndex === undefined) return null
+      const geometry = loopActionGeometry(sourceIndex, targetIndex, total)
+      const actionType = normalizedActionType(cardView.actionType)
+      const item = narrativeStackItems.value.find(candidate =>
+        candidate.kind === 'card' && candidate.cardView?.id === cardView.id
+      )
+      const missed = missForLoopAction(cardView)
+      return {
+        id: `loop-action-${cardView.id}`,
+        index,
+        sourceId: cardView.playerId,
+        targetId,
+        actionKind: linkKindForActionType(actionType),
+        actionType,
+        tone: index === 0 && actionType === 'attack' ? 'red' : 'gold',
+        cards: [{
+          id: `legacy-card-${cardView.id}`,
+          eventId: cardView.timelineEventId,
+          card: cardView.card,
+        }],
+        cardView,
+        item,
+        damage: missed ? undefined : damageForLoopAction(cardView),
+        missed,
+        outcome: missed ? 'miss' : undefined,
+        nodeIds: [],
+        ...geometry,
+      }
+    })
+    .filter((action): action is NarrativeLoopAction => !!action))
+
+  if (actors.length < 2 || actions.length < 1) return null
+  return {
+    actors,
+    actions,
+    nodes: [],
+    source: 'fallback',
+  }
+}
+
+const narrativeCombatLoop = computed<NarrativeCombatLoopView | null>(() => {
+  const backendLoop = latestActionFlow.value ? buildBackendNarrativeLoop(latestActionFlow.value) : null
+  return backendLoop || buildFallbackNarrativeLoop()
+})
+
+function percentToPx(point: { x: number; y: number }, size: LoopLayoutSize) {
+  return {
+    x: point.x / 100 * size.width,
+    y: point.y / 100 * size.height,
+  }
+}
+
+function pxToPercent(point: { x: number; y: number }, size: LoopLayoutSize) {
+  return {
+    x: size.width > 0 ? point.x / size.width * 100 : 50,
+    y: size.height > 0 ? point.y / size.height * 100 : 50,
+  }
+}
+
+function rectFromCenter(x: number, y: number, width: number, height: number): LoopLayoutRect {
+  return {
+    x: x - width / 2,
+    y: y - height / 2,
+    width,
+    height,
+  }
+}
+
+function inflateRect(rect: LoopLayoutRect, amount: number): LoopLayoutRect {
+  return {
+    x: rect.x - amount,
+    y: rect.y - amount,
+    width: rect.width + amount * 2,
+    height: rect.height + amount * 2,
+  }
+}
+
+function rectIntersects(a: LoopLayoutRect, b: LoopLayoutRect) {
+  return a.x < b.x + b.width &&
+    a.x + a.width > b.x &&
+    a.y < b.y + b.height &&
+    a.y + a.height > b.y
+}
+
+function rectHalfExtentAlongVector(rect: LoopLayoutRect, x: number, y: number) {
+  return Math.abs(x) * rect.width / 2 + Math.abs(y) * rect.height / 2
+}
+
+function rectCollisionCount(rect: LoopLayoutRect, obstacles: LoopLayoutRect[], padding = 4) {
+  const inflated = inflateRect(rect, padding)
+  return obstacles.filter(obstacle => rectIntersects(inflated, obstacle)).length
+}
+
+function rectOutOfBoundsPenalty(rect: LoopLayoutRect, size: LoopLayoutSize) {
+  const left = Math.max(0, -rect.x)
+  const top = Math.max(0, -rect.y)
+  const right = Math.max(0, rect.x + rect.width - size.width)
+  const bottom = Math.max(0, rect.y + rect.height - size.height)
+  return left + top + right + bottom
+}
+
+function clampRectCenter(x: number, y: number, width: number, height: number, size: LoopLayoutSize) {
+  return {
+    x: Math.max(width / 2 + 4, Math.min(size.width - width / 2 - 4, x)),
+    y: Math.max(height / 2 + 4, Math.min(size.height - height / 2 - 4, y)),
+  }
+}
+
+function loopLayoutProfile(size: LoopLayoutSize) {
+  const isSmall = size.width < 640 || size.height < 300
+  const isMedium = !isSmall && (size.width < 900 || size.height < 360)
+  if (isSmall) {
+    return {
+      mode: 'small' as const,
+      cardWidth: 52,
+      cardScale: 52 / 74,
+      noteWidth: 102,
+      noteHeight: 22,
+      compactNoteHeight: 22,
+      actorWidth: 66,
+      actorHeight: 92,
+      gap: 5,
+      laneStep: 34,
+      maxVisibleCards: 1,
+    }
+  }
+  if (isMedium) {
+    return {
+      mode: 'medium' as const,
+      cardWidth: 62,
+      cardScale: 62 / 74,
+      noteWidth: 132,
+      noteHeight: 34,
+      compactNoteHeight: 26,
+      actorWidth: 76,
+      actorHeight: 106,
+      gap: 6,
+      laneStep: 42,
+      maxVisibleCards: 2,
+    }
+  }
+  return {
+    mode: 'desktop' as const,
+    cardWidth: 74,
+    cardScale: 1,
+    noteWidth: 158,
+    noteHeight: 46,
+    compactNoteHeight: 30,
+    actorWidth: 90,
+    actorHeight: 122,
+    gap: 7,
+    laneStep: 52,
+    maxVisibleCards: 3,
+  }
+}
+
+function cardStackWidth(cardWidth: number, visibleCount: number, mode: NarrativeLoopPacketMode) {
+  if (visibleCount <= 1) return cardWidth
+  const overlap = mode === 'full' ? 18 : mode === 'compact' ? 13 : 8
+  return cardWidth + (visibleCount - 1) * overlap
+}
+
+function packetNoteText(action: NarrativeLoopAction) {
+  if (action.missed) return '未命中'
+  if (action.damage) return `伤害 ${action.damage}`
+  if (action.outcome === 'resolved') return '已结算'
+  if (action.label) return action.label
+  return ''
+}
+
+function packetRectForMode(
+  x: number,
+  y: number,
+  cardCount: number,
+  mode: NarrativeLoopPacketMode,
+  notePlacement: NarrativeLoopNotePlacement,
+  profile: ReturnType<typeof loopLayoutProfile>,
+) {
+  if (mode === 'marker') {
+    return rectFromCenter(x, y, 42, 24)
+  }
+  const visibleCount = Math.max(1, Math.min(cardCount, profile.maxVisibleCards))
+  const cardWidth = profile.cardWidth
+  const cardHeight = cardWidth * 1.5
+  const stackWidth = cardStackWidth(cardWidth, visibleCount, mode)
+  const noteHeight = mode === 'full' ? profile.noteHeight : profile.compactNoteHeight
+  if (notePlacement === 'side') {
+    return rectFromCenter(x, y, stackWidth + profile.gap + profile.noteWidth, Math.max(cardHeight, noteHeight))
+  }
+  if (notePlacement === 'badge') {
+    return rectFromCenter(x, y, Math.max(stackWidth, profile.noteWidth * 0.72), cardHeight + profile.gap + profile.compactNoteHeight)
+  }
+  return rectFromCenter(x, y, Math.max(stackWidth, profile.noteWidth), cardHeight + profile.gap + noteHeight)
+}
+
+function actionPointAt(action: NarrativeLoopAction, t: number, size: LoopLayoutSize) {
+  const start = percentToPx({ x: action.startX, y: action.startY }, size)
+  const control = percentToPx({ x: action.controlX, y: action.controlY }, size)
+  const end = percentToPx({ x: action.endX, y: action.endY }, size)
+  return loopQuadraticPoint(start, control, end, t)
+}
+
+function actionTangentAt(action: NarrativeLoopAction, t: number, size: LoopLayoutSize) {
+  const start = percentToPx({ x: action.startX, y: action.startY }, size)
+  const control = percentToPx({ x: action.controlX, y: action.controlY }, size)
+  const end = percentToPx({ x: action.endX, y: action.endY }, size)
+  const x = 2 * (1 - t) * (control.x - start.x) + 2 * t * (end.x - control.x)
+  const y = 2 * (1 - t) * (control.y - start.y) + 2 * t * (end.y - control.y)
+  const length = Math.hypot(x, y) || 1
+  return {
+    x: x / length,
+    y: y / length,
+  }
+}
+
+function actorObstacles(actors: NarrativeLoopActor[], size: LoopLayoutSize, profile: ReturnType<typeof loopLayoutProfile>) {
+  return actors.map(actor => {
+    const point = percentToPx(actor, size)
+    return inflateRect(rectFromCenter(point.x, point.y, profile.actorWidth, profile.actorHeight), 10)
+  })
+}
+
+function packetCandidatePoints(action: NarrativeLoopAction, size: LoopLayoutSize, profile: ReturnType<typeof loopLayoutProfile>) {
+  const curvedMid = actionPointAt(action, 0.5, size)
+  const straightMid = percentToPx({
+    x: (action.startX + action.endX) / 2,
+    y: (action.startY + action.endY) / 2,
+  }, size)
+  const hasStrongCurveBias = Math.hypot(curvedMid.x - straightMid.x, curvedMid.y - straightMid.y) > profile.laneStep * 0.55
+  const preferredT = action.index === 0 && action.actionKind === 'attack' && hasStrongCurveBias ? 0.4 : 0.5
+  const tValues = preferredT === 0.4
+    ? [0.4, 0.32, 0.3, 0.46, 0.34, 0.54, 0.28, 0.66, 0.72]
+    : [0.5, 0.38, 0.62, 0.28, 0.72]
+  const normalValues = [0, -1, 1, -2, 2, -3, 3]
+  const points: Array<{ x: number; y: number; score: number }> = []
+  for (const t of tValues) {
+    const base = actionPointAt(action, t, size)
+    for (const normalIndex of normalValues) {
+      points.push({
+        x: base.x + action.normalX * normalIndex * profile.laneStep,
+        y: base.y + action.normalY * normalIndex * profile.laneStep,
+        score: Math.abs(t - preferredT) * 120 + Math.abs(normalIndex) * 18,
+      })
+    }
+  }
+  if (preferredT === 0.4) {
+    for (const t of [0.29, 0.32]) {
+      const base = actionPointAt(action, t, size)
+      points.push({
+        x: base.x,
+        y: base.y - profile.laneStep * 0.55,
+        score: Math.abs(t - 0.3) * 80 + 4,
+      })
+    }
+  }
+  return points
+}
+
+function choosePacketPlacement(
+  action: NarrativeLoopAction,
+  cardCount: number,
+  index: number,
+  actionCount: number,
+  size: LoopLayoutSize,
+  obstacles: LoopLayoutRect[],
+  profile: ReturnType<typeof loopLayoutProfile>,
+) {
+  const forceMarker = profile.mode === 'small' && actionCount > 4 && index < actionCount - 1
+  const modeOptions: NarrativeLoopPacketMode[] = forceMarker
+    ? ['marker']
+    : profile.mode === 'desktop'
+      ? ['full', 'compact']
+      : ['compact', 'full']
+  const placementOptions: NarrativeLoopNotePlacement[] = profile.mode === 'small'
+    ? ['badge', 'side', 'bottom']
+    : size.height < 330
+      ? ['side', 'bottom', 'badge']
+      : ['bottom', 'side', 'badge']
+
+  let best: NarrativeLoopPacketPlacement | undefined
+
+  for (const mode of modeOptions) {
+    for (const notePlacement of placementOptions) {
+      for (const candidate of packetCandidatePoints(action, size, profile)) {
+        const rawRect = packetRectForMode(candidate.x, candidate.y, cardCount, mode, notePlacement, profile)
+        const center = clampRectCenter(candidate.x, candidate.y, rawRect.width, rawRect.height, size)
+        const rect = packetRectForMode(center.x, center.y, cardCount, mode, notePlacement, profile)
+        const collisionCount = obstacles.filter(obstacle => rectIntersects(inflateRect(rect, 4), obstacle)).length
+        const overflow = rectOutOfBoundsPenalty(rect, size)
+        const score = candidate.score +
+          collisionCount * 1000 +
+          overflow * 20 +
+          (mode === 'full' ? 0 : mode === 'compact' ? 120 : 260) +
+          (notePlacement === 'bottom' ? 0 : notePlacement === 'side' ? 28 : 66)
+        if (!best || score < best.score) {
+          best = {
+            x: center.x,
+            y: center.y,
+            rect,
+            score,
+            mode,
+            notePlacement,
+          }
+        }
+      }
+    }
+    if (best && best.score < 900) break
+  }
+
+  const fallback = actionPointAt(action, 0.5, size)
+  return best || {
+    x: fallback.x,
+    y: fallback.y,
+    rect: packetRectForMode(fallback.x, fallback.y, cardCount, 'compact', 'badge', profile),
+    score: 0,
+    mode: 'compact' as const,
+    notePlacement: 'badge' as const,
+  }
+}
+
+function separatePacketPlacement(
+  placement: NarrativeLoopPacketPlacement,
+  action: NarrativeLoopAction,
+  cardCount: number,
+  size: LoopLayoutSize,
+  profile: ReturnType<typeof loopLayoutProfile>,
+  packets: NarrativeLoopPacket[],
+) {
+  let next = placement
+  let attempt = 0
+  while (attempt < 8 && packets.some(packet => Math.hypot(
+    packet.rect.x + packet.rect.width / 2 - next.x,
+    packet.rect.y + packet.rect.height / 2 - next.y,
+  ) < Math.min(58, profile.laneStep))) {
+    attempt += 1
+    const direction = attempt % 2 === 0 ? 1 : -1
+    const distance = profile.laneStep * (1 + Math.floor((attempt - 1) / 2) * 0.45)
+    const rawX = placement.x + action.normalX * direction * distance
+    const rawY = placement.y + action.normalY * direction * distance
+    const rawRect = packetRectForMode(rawX, rawY, cardCount, placement.mode, placement.notePlacement, profile)
+    const center = clampRectCenter(rawX, rawY, rawRect.width, rawRect.height, size)
+    next = {
+      ...placement,
+      x: center.x,
+      y: center.y,
+      rect: packetRectForMode(center.x, center.y, cardCount, placement.mode, placement.notePlacement, profile),
+    }
+  }
+  return next
+}
+
+function buildActionPackets(loop: NarrativeCombatLoopView, size: LoopLayoutSize) {
+  const profile = loopLayoutProfile(size)
+  const obstacles = actorObstacles(loop.actors, size, profile)
+  const packets: NarrativeLoopPacket[] = []
+  for (const action of loop.actions) {
+    if (action.cards.length < 1) continue
+    const placement = separatePacketPlacement(
+      choosePacketPlacement(action, action.cards.length, action.index, loop.actions.length, size, obstacles, profile),
+      action,
+      action.cards.length,
+      size,
+      profile,
+      packets,
+    )
+    obstacles.push(inflateRect(placement.rect, 8))
+    const percent = pxToPercent({ x: placement.x, y: placement.y }, size)
+    const visibleLimit = placement.mode === 'marker' ? 0 : Math.min(action.cards.length, profile.maxVisibleCards)
+    const visibleCards = action.cards.slice(0, visibleLimit)
+    packets.push({
+      id: `packet-${action.id}`,
+      action,
+      cards: action.cards,
+      visibleCards,
+      hiddenCardCount: Math.max(0, action.cards.length - visibleCards.length),
+      mode: placement.mode,
+      notePlacement: placement.notePlacement,
+      x: percent.x,
+      y: percent.y,
+      rect: placement.rect,
+      cardWidth: profile.cardWidth,
+      cardScale: profile.cardScale,
+      noteTitle: `${narrativeLoopActionVerb(action)} ${action.index + 1}`,
+      noteDetail: `${roleNameForPlayer(action.sourceId)} → ${roleNameForPlayer(action.targetId)}`,
+      noteResult: packetNoteText(action),
+      zIndex: 48 + action.index,
+    })
+  }
+  return {
+    packets,
+    obstacles,
+    profile,
+  }
+}
+
+function nodeLayoutSizes(node: NarrativeLoopNode, profile: ReturnType<typeof loopLayoutProfile>) {
+  if (node.kind === 'skill') {
+    const fullWidth = profile.mode === 'desktop' ? 126 : profile.mode === 'medium' ? 112 : 96
+    const compactWidth = profile.mode === 'desktop' ? 92 : 84
+    const fullHeight = node.detail ? 42 : 34
+    const compactHeight = node.detail ? 38 : 30
+    return [
+      { width: fullWidth, height: fullHeight, compact: false },
+      { width: compactWidth, height: compactHeight, compact: true },
+    ]
+  }
+  return [{
+    width: node.cards.length ? 86 : 108,
+    height: node.cards.length ? 116 : node.detail ? 48 : 38,
+    compact: false,
+  }]
+}
+
+function edgeAnchoredNodeCandidates(
+  anchorAction: NarrativeLoopAction,
+  anchorPacket: NarrativeLoopPacket | undefined,
+  width: number,
+  height: number,
+  localAnchorIndex: number,
+  size: LoopLayoutSize,
+  profile: ReturnType<typeof loopLayoutProfile>,
+) {
+  const candidates: Array<{ x: number; y: number; score: number; tier: 'primary' | 'extended' }> = []
+  const tValues = [0.5, 0.42, 0.58, 0.34, 0.66]
+  const tangentOffsets = [0, -0.44, 0.44]
+  const sidePattern = [1, -1, 2, -2, 3, -3]
+  const preferredSide = sidePattern[localAnchorIndex % sidePattern.length] || 1
+  const packetNormalExtent = anchorPacket
+    ? rectHalfExtentAlongVector(anchorPacket.rect, anchorAction.normalX, anchorAction.normalY)
+    : 0
+  const baseClearance = packetNormalExtent + height / 2 + profile.gap + 14
+  const packetCenter = anchorPacket
+    ? {
+      x: anchorPacket.rect.x + anchorPacket.rect.width / 2,
+      y: anchorPacket.rect.y + anchorPacket.rect.height / 2,
+    }
+    : undefined
+
+  if (packetCenter) {
+    const tangent = actionTangentAt(anchorAction, 0.5, size)
+    const sideMagnitude = Math.max(1, Math.abs(preferredSide))
+    const directions = [
+      preferredSide,
+      -Math.sign(preferredSide || 1),
+      Math.sign(preferredSide || 1) * (sideMagnitude + 1),
+    ]
+    for (const [directionIndex, direction] of directions.entries()) {
+      const normalSign = Math.sign(direction || 1)
+      const normalDistance = baseClearance + (Math.abs(direction) - 1) * (height + profile.gap + 8)
+      for (const [offsetIndex, tangentOffset] of tangentOffsets.entries()) {
+        candidates.push({
+          x: packetCenter.x + anchorAction.normalX * normalSign * normalDistance + tangent.x * tangentOffset * width,
+          y: packetCenter.y + anchorAction.normalY * normalSign * normalDistance + tangent.y * tangentOffset * width,
+          score: directionIndex * 28 + Math.abs(tangentOffset) * 34,
+          tier: directionIndex === 0 && offsetIndex === 0 ? 'primary' : 'extended',
+        })
+      }
+    }
+  }
+
+  for (const [tIndex, t] of tValues.entries()) {
+    const point = actionPointAt(anchorAction, t, size)
+    const tangent = actionTangentAt(anchorAction, t, size)
+    const sideMagnitude = Math.max(1, Math.abs(preferredSide))
+    const directions = [
+      preferredSide,
+      -Math.sign(preferredSide || 1),
+      Math.sign(preferredSide || 1) * (sideMagnitude + 1),
+    ]
+    for (const [directionIndex, direction] of directions.entries()) {
+      const normalSign = Math.sign(direction || 1)
+      const normalDistance = baseClearance + (Math.abs(direction) - 1) * (height + profile.gap + 8)
+      for (const [offsetIndex, tangentOffset] of tangentOffsets.entries()) {
+        const tier = directionIndex === 0 && offsetIndex === 0 && tIndex < 3 ? 'primary' : 'extended'
+        candidates.push({
+          x: point.x + anchorAction.normalX * normalSign * normalDistance + tangent.x * tangentOffset * width,
+          y: point.y + anchorAction.normalY * normalSign * normalDistance + tangent.y * tangentOffset * width,
+          score: tIndex * 20 + directionIndex * 42 + Math.abs(tangentOffset) * 36,
+          tier,
+        })
+      }
+    }
+  }
+  return candidates
+}
+
+function edgeLineNodeCandidates(
+  anchorAction: NarrativeLoopAction,
+  width: number,
+  height: number,
+  localAnchorIndex: number,
+  size: LoopLayoutSize,
+  profile: ReturnType<typeof loopLayoutProfile>,
+) {
+  const candidates: Array<{ x: number; y: number; score: number; tier: NarrativeLoopNodeCandidateTier }> = []
+  const firstSlots = [0.24, 0.76, 0.16, 0.84, 0.34, 0.66, 0.44, 0.56, 0.2, 0.8]
+  const alternateSlots = [0.84, 0.66, 0.92, 0.76, 0.56, 0.44, 0.34, 0.24, 0.16, 0.8]
+  const tValues = localAnchorIndex % 2 === 0 ? firstSlots : alternateSlots
+  const tangentOffsets = [0, -0.45, 0.45, -0.9, 0.9]
+  const sidePattern = localAnchorIndex % 2 === 0
+    ? [0, -0.85, 0.85, -1.35, 1.35, -1.85, 1.85, -2.55, 2.55]
+    : [0, 0.85, -0.85, 1.35, -1.35, 1.85, -1.85, 2.55, -2.55]
+  const tangentUnit = Math.max(width, height) * 0.62
+  const normalUnit = Math.min(profile.laneStep, Math.max(width, height) * 0.42)
+
+  for (const [tIndex, t] of tValues.entries()) {
+    const point = actionPointAt(anchorAction, t, size)
+    const tangent = actionTangentAt(anchorAction, t, size)
+    for (const [normalIndex, normalOffset] of sidePattern.entries()) {
+      for (const [offsetIndex, tangentOffset] of tangentOffsets.entries()) {
+        candidates.push({
+          x: point.x + tangent.x * tangentOffset * tangentUnit + anchorAction.normalX * normalOffset * normalUnit,
+          y: point.y + tangent.y * tangentOffset * tangentUnit + anchorAction.normalY * normalOffset * normalUnit,
+          score: tIndex * 34 + normalIndex * 52 + Math.abs(tangentOffset) * 46 + offsetIndex * 2,
+          tier: 'line',
+        })
+      }
+    }
+  }
+  return candidates
+}
+
+function relatedPacketForNode(
+  node: NarrativeLoopNode,
+  anchorAction: NarrativeLoopAction | undefined,
+  packets: NarrativeLoopPacket[],
+) {
+  if (!anchorAction) return undefined
+  const targetIds = new Set(node.targetIds)
+  const sameEdgePacket = packets.find(packet => packet.action.id === anchorAction.id)
+  if (sameEdgePacket) return sameEdgePacket
+
+  const samePairPackets = packets.filter((packet) => {
+    if (packet.action.sourceId !== anchorAction.sourceId || packet.action.targetId !== anchorAction.targetId) return false
+    return packet.cards.length > 0
+  })
+  if (samePairPackets.length > 0) return samePairPackets[samePairPackets.length - 1]
+
+  const nodePairPackets = packets.filter((packet) => {
+    if (node.actorId && packet.action.sourceId !== node.actorId) return false
+    if (targetIds.size > 0 && !targetIds.has(packet.action.targetId)) return false
+    return packet.cards.length > 0
+  })
+  if (nodePairPackets.length > 0) return nodePairPackets[nodePairPackets.length - 1]
+
+  return undefined
+}
+
+function fallbackNodeCandidates(
+  node: NarrativeLoopNode,
+  actorById: Map<string, NarrativeLoopActor>,
+  anchorAction: NarrativeLoopAction | undefined,
+  anchorPacket: NarrativeLoopPacket | undefined,
+  size: LoopLayoutSize,
+) {
+  const candidates: Array<{ x: number; y: number; score: number; tier: 'fallback' }> = []
+  const actor = actorById.get(node.actorId || '')
+  if (actor) {
+    const point = percentToPx(actor, size)
+    const fallbackScore = anchorAction || anchorPacket ? 760 : 80
+    candidates.push(
+      { x: point.x, y: point.y + 88, score: fallbackScore, tier: 'fallback' },
+      { x: point.x + 104, y: point.y, score: fallbackScore + 24, tier: 'fallback' },
+      { x: point.x - 104, y: point.y, score: fallbackScore + 24, tier: 'fallback' },
+    )
+  }
+  const original = percentToPx(node, size)
+  candidates.push({
+    x: original.x,
+    y: original.y,
+    score: anchorAction || anchorPacket ? 820 : 120,
+    tier: 'fallback',
+  })
+  return candidates
+}
+
+function chooseNodePlacement(
+  node: NarrativeLoopNode,
+  packets: NarrativeLoopPacket[],
+  packetByEdgeId: Map<string, NarrativeLoopPacket>,
+  actorById: Map<string, NarrativeLoopActor>,
+  actionById: Map<string, NarrativeLoopAction>,
+  actions: NarrativeLoopAction[],
+  size: LoopLayoutSize,
+  obstacles: LoopLayoutRect[],
+  profile: ReturnType<typeof loopLayoutProfile>,
+  localAnchorIndex: number,
+) {
+  const anchorAction = node.anchorEdgeId
+    ? actionById.get(node.anchorEdgeId)
+    : actions.find(action =>
+      action.sourceId === node.actorId &&
+      (node.targetIds.length < 1 || node.targetIds.includes(action.targetId))
+    )
+  const directAnchorPacket = node.anchorEdgeId ? packetByEdgeId.get(node.anchorEdgeId) : undefined
+  const anchorPacket = directAnchorPacket || relatedPacketForNode(node, anchorAction, packets)
+  const sizes = nodeLayoutSizes(node, profile)
+  let overlapFallback: (NarrativeLoopNodePlacement & { score: number }) | undefined
+  const preferAttackLinePlacement = node.kind === 'skill' && anchorAction?.actionType === 'attack'
+
+  for (const [sizeIndex, nodeSize] of sizes.entries()) {
+    const lineCandidates = preferAttackLinePlacement && anchorAction
+      ? edgeLineNodeCandidates(anchorAction, nodeSize.width, nodeSize.height, localAnchorIndex, size, profile)
+      : []
+    const edgeCandidates = anchorAction
+      ? edgeAnchoredNodeCandidates(anchorAction, anchorPacket, nodeSize.width, nodeSize.height, localAnchorIndex, size, profile)
+      : []
+    const packetCandidates = !anchorAction && anchorPacket
+      ? edgeAnchoredNodeCandidates(anchorPacket.action, anchorPacket, nodeSize.width, nodeSize.height, localAnchorIndex, size, profile)
+      : []
+    const fallbackCandidates = fallbackNodeCandidates(node, actorById, anchorAction, anchorPacket, size)
+    const candidateBatches = [
+      lineCandidates,
+      edgeCandidates.filter(candidate => candidate.tier === 'primary'),
+      packetCandidates.filter(candidate => candidate.tier === 'primary'),
+      edgeCandidates.filter(candidate => candidate.tier === 'extended'),
+      packetCandidates.filter(candidate => candidate.tier === 'extended'),
+      fallbackCandidates,
+    ]
+
+    for (const [batchIndex, batch] of candidateBatches.entries()) {
+      let best: (NarrativeLoopNodePlacement & { score: number }) | undefined
+      for (const candidate of batch) {
+        const rawRect = rectFromCenter(candidate.x, candidate.y, nodeSize.width, nodeSize.height)
+        const center = clampRectCenter(candidate.x, candidate.y, nodeSize.width, nodeSize.height, size)
+        const rect = rectFromCenter(center.x, center.y, nodeSize.width, nodeSize.height)
+        const collisionCount = rectCollisionCount(rect, obstacles)
+        const overflow = rectOutOfBoundsPenalty(rawRect, size)
+        const score = candidate.score +
+          batchIndex * 140 +
+          sizeIndex * 260 +
+          overflow * 20 +
+          collisionCount * 2500
+        const placement = {
+          x: center.x,
+          y: center.y,
+          rect,
+          width: nodeSize.width,
+          height: nodeSize.height,
+          zIndex: 78 + localAnchorIndex,
+          score,
+        }
+        if (collisionCount === 0 && (!best || score < best.score)) {
+          best = placement
+        }
+        if (!overlapFallback || score < overlapFallback.score) {
+          overlapFallback = placement
+        }
+      }
+      if (best) return best
+    }
+  }
+
+  const fallback = overlapFallback || (() => {
+    const nodeSize = sizes[sizes.length - 1] || { width: 108, height: 38 }
+    const original = percentToPx(node, size)
+    const center = clampRectCenter(original.x, original.y, nodeSize.width, nodeSize.height, size)
+    return {
+      x: center.x,
+      y: center.y,
+      rect: rectFromCenter(center.x, center.y, nodeSize.width, nodeSize.height),
+      width: nodeSize.width,
+      height: nodeSize.height,
+      zIndex: 88 + localAnchorIndex,
+      score: Number.POSITIVE_INFINITY,
+    }
+  })()
+  return {
+    ...fallback,
+    zIndex: Math.max(fallback.zIndex, 88 + localAnchorIndex),
+  }
+}
+
+function resolveNodeCollisions(
+  loop: NarrativeCombatLoopView,
+  packets: NarrativeLoopPacket[],
+  obstacles: LoopLayoutRect[],
+  size: LoopLayoutSize,
+  profile: ReturnType<typeof loopLayoutProfile>,
+) {
+  const packetByEdgeId = new Map(packets.map(packet => [packet.action.id, packet]))
+  const actorById = new Map(loop.actors.map(actor => [actor.id, actor]))
+  const actionById = new Map(loop.actions.map(action => [action.id, action]))
+  const anchorCounts = new Map<string, number>()
+  return loop.nodes.map((node) => {
+    const anchorKey = node.anchorEdgeId || ''
+    const localAnchorIndex = anchorKey ? anchorCounts.get(anchorKey) || 0 : 0
+    if (anchorKey) anchorCounts.set(anchorKey, localAnchorIndex + 1)
+    const placement = chooseNodePlacement(node, packets, packetByEdgeId, actorById, actionById, loop.actions, size, obstacles, profile, localAnchorIndex)
+    obstacles.push(inflateRect(placement.rect, 8))
+    const point = pxToPercent({ x: placement.x, y: placement.y }, size)
+    return {
+      ...node,
+      x: point.x,
+      y: point.y,
+      width: placement.width,
+      height: placement.height,
+      rect: placement.rect,
+      zIndex: placement.zIndex,
+    }
+  })
+}
+
+const narrativeCombatLoopLayout = computed<NarrativeCombatLoopLayout | null>(() => {
+  const loop = narrativeCombatLoop.value
+  if (!loop) return null
+  const size = narrativeLoopFieldSize.value
+  const { packets, obstacles, profile } = buildActionPackets(loop, size)
+  return {
+    ...loop,
+    packets,
+    nodes: resolveNodeCollisions(loop, packets, obstacles, size, profile),
+  }
+})
+
+function narrativeLoopActorClasses(actor: NarrativeLoopActor) {
+  const player = players.value[actor.id]
+  return [
+    `narrative-loop-actor--${player?.camp === 'Red' ? 'red' : 'blue'}`,
+  ]
+}
+
+function narrativeLoopActorStyle(actor: NarrativeLoopActor) {
+  return {
+    '--loop-x': `${actor.x}%`,
+    '--loop-y': `${actor.y}%`,
+    zIndex: String(30 + actor.index),
+  }
+}
+
+function narrativeLoopActionClasses(action: NarrativeLoopAction) {
+  return [
+    `narrative-loop-action--${action.tone}`,
+    `narrative-loop-action--${action.actionKind}`,
+    `narrative-loop-action--phase-${action.actionType || 'unknown'}`,
+    action.outcome ? `narrative-loop-action--outcome-${action.outcome}` : '',
+    action.missed ? 'narrative-loop-action--missed' : '',
+    action.item?.stepStatus ? `narrative-loop-action--step-${action.item.stepStatus}` : '',
+  ]
+}
+
+function narrativeLoopPacketClasses(packet: NarrativeLoopPacket) {
+  return [
+    ...narrativeLoopActionClasses(packet.action),
+    `narrative-loop-packet--${packet.mode}`,
+    `narrative-loop-packet--note-${packet.notePlacement}`,
+  ]
+}
+
+function narrativeLoopPacketStyle(packet: NarrativeLoopPacket) {
+  return {
+    '--loop-packet-x': `${packet.x}%`,
+    '--loop-packet-y': `${packet.y}%`,
+    '--loop-card-width': `${packet.cardWidth}px`,
+    '--loop-card-scale': String(packet.cardScale),
+    '--loop-packet-width': `${packet.rect.width}px`,
+    '--loop-packet-height': `${packet.rect.height}px`,
+    zIndex: String(packet.zIndex),
+  }
+}
+
+function narrativeLoopPacketCardStyle(packet: NarrativeLoopPacket, cardIndex = 0) {
+  const visibleCount = Math.max(packet.visibleCards.length, 1)
+  const offsetStep = packet.mode === 'full' ? 18 : packet.mode === 'compact' ? 13 : 8
+  const offset = (cardIndex - (visibleCount - 1) / 2) * offsetStep
+  return {
+    '--loop-card-x': `${packet.x}%`,
+    '--loop-card-y': `${packet.y}%`,
+    '--loop-card-offset-x': `${offset}px`,
+    '--loop-card-rotate': `${(cardIndex - (visibleCount - 1) / 2) * 3}deg`,
+    zIndex: String(packet.zIndex + cardIndex),
+  }
+}
+
+function narrativeLoopPacketNoteStyle(packet: NarrativeLoopPacket) {
+  return {
+    '--loop-label-x': `${packet.x}%`,
+    '--loop-label-y': `${packet.y}%`,
+    zIndex: String(packet.zIndex + 20),
+  }
+}
+
+function narrativeLoopMarkerUrl(action: NarrativeLoopAction) {
+  return `url(#narrative-loop-arrow-${action.tone})`
+}
+
+function narrativeLoopActionVerb(action: NarrativeLoopAction) {
+  if (action.actionType === 'magic') return '法术'
+  if (action.actionType === 'skill') return '技能'
+  if (action.actionType === 'effect') return '效果'
+  if (action.actionType === 'take') return '承受'
+  if (action.actionType === 'defend') return '防御'
+  if (action.actionType === 'shield') return '圣盾'
+  if (action.index === 0 && action.actionType === 'attack') return '攻击'
+  return '应战'
+}
+
+function narrativeLoopNodeClasses(node: NarrativeLoopNode) {
+  return [
+    `narrative-loop-node--${node.kind}`,
+    node.outcome ? `narrative-loop-node--outcome-${node.outcome}` : '',
+    node.anchorEdgeId ? 'narrative-loop-node--anchored' : '',
+  ]
+}
+
+function narrativeLoopNodeStyle(node: NarrativeLoopNode) {
+  return {
+    '--loop-node-x': `${node.x}%`,
+    '--loop-node-y': `${node.y}%`,
+    '--loop-node-width': `${node.width || 108}px`,
+    '--loop-node-height': `${node.height || 38}px`,
+    zIndex: String(node.zIndex || 50 + (node.damage || 0)),
+  }
+}
+
+function isPrimaryCounterChainDetachedItem(item: NarrativeStackItem) {
+  const chain = primaryCounterChain.value
+  if (!chain) return false
+  return item.id === chain.attackItem.id || item.id === chain.missItem?.id
+}
+
 const narrativeStepGroups = computed<NarrativeStepGroup[]>(() => {
   const groups = new Map<string, NarrativeStepGroup>()
 
   for (const item of narrativeStackItems.value) {
     if (isSealFieldEffectItem(item)) continue
+    if (isPrimaryCounterChainDetachedItem(item)) continue
     const step = item.stepId ? narrativePlayback.value?.steps.find(entry => entry.id === item.stepId) : undefined
     const id = item.stepId || item.id
     const existing = groups.get(id)
@@ -421,7 +2041,7 @@ const narrativeSealFieldEffectItems = computed(() =>
 )
 
 function narrativeStackItemClasses(item: NarrativeStackItem) {
-  const sourceSide = narrativeSideForPlayer(item.sourcePlayerId)
+  const sourceSide = narrativeEndpointSideForPlayer(item.sourcePlayerId)
   return [
     `narrative-stack-item--${item.kind}`,
     `narrative-stack-item--${item.actionKind}`,
@@ -435,7 +2055,7 @@ function narrativeStackItemClasses(item: NarrativeStackItem) {
 
 function narrativeStackItemStyle(item: NarrativeStackItem) {
   return {
-    '--stack-enter-x': narrativeSideForPlayer(item.sourcePlayerId) === 'left' ? '-42px' : '42px',
+    '--stack-enter-x': narrativeEndpointSideForPlayer(item.sourcePlayerId) === 'left' ? '-42px' : '42px',
     '--stack-order': String(item.stackIndex),
     zIndex: String(20 + item.stackIndex),
   }
@@ -445,6 +2065,21 @@ function narrativeStepGroupClasses(group: NarrativeStepGroup) {
   return [
     `narrative-step-group--${group.kind}`,
     `narrative-step-group--${group.status}`,
+  ]
+}
+
+function narrativeCounterChainActorClasses(playerId: string, endpoint: 'source' | 'target') {
+  const player = players.value[playerId]
+  return [
+    `narrative-counter-chain__actor--${endpoint}`,
+    `narrative-counter-chain__actor--${player?.camp === 'Red' ? 'red' : 'blue'}`,
+  ]
+}
+
+function narrativeCounterChainMissClasses() {
+  const status = primaryCounterChain.value?.missItem?.stepStatus
+  return [
+    status ? `narrative-counter-chain__miss--${status}` : '',
   ]
 }
 
@@ -474,7 +2109,7 @@ function stackPointForToward(el: HTMLElement, layerRect: DOMRect, towardX: numbe
   }
 }
 
-function fallbackActorPoint(playerId: string, layerRect: DOMRect, targetSide = narrativeSideForPlayer(playerId)) {
+function fallbackActorPoint(playerId: string, layerRect: DOMRect, targetSide = narrativeEndpointSideForPlayer(playerId)) {
   const row = narrativeRowForPlayer(playerId)
   const xPercent = actorLineX(targetSide)
   return {
@@ -484,7 +2119,7 @@ function fallbackActorPoint(playerId: string, layerRect: DOMRect, targetSide = n
 }
 
 function fallbackTargetPoint(playerId: string, layerRect: DOMRect) {
-  const side = narrativeSideForPlayer(playerId, 'opposed')
+  const side = narrativeEndpointSideForPlayer(playerId, 'opposed')
   const row = narrativeRowForPlayer(playerId)
   return {
     x: layerRect.width * targetLineX(side) / 100,
@@ -521,8 +2156,9 @@ function latestStackItemForDamage(event: ActionNarrativeEventView) {
 const narrativeMistBlueprints = computed(() => {
   const segments: Array<Omit<NarrativeMistSegment, 'x1' | 'y1' | 'x2' | 'y2' | 'path' | 'damageX' | 'damageY' | 'particleSeeds'>> = []
   const visibleItems = narrativeStackItems.value.filter((item) => {
-    if (narrativePlayback.value?.isReview) return false
-    return !narrativePlayback.value || item.isActiveStep || item.isContextStep
+    if (isPrimaryCounterChainDetachedItem(item)) return false
+    if (narrativePlayback.value?.isReview) return true
+    return !narrativePlayback.value || item.stepStatus !== 'pending'
   })
 
   for (const item of visibleItems) {
@@ -582,7 +2218,7 @@ function pointForEndpoint(
   otherPoint?: { x: number; y: number },
 ) {
   if (endpointType === 'actor') {
-    const side = narrativeSideForPlayer(endpointId, 'opposed')
+    const side = narrativeEndpointSideForPlayer(endpointId, 'opposed')
     const element = findNarrativeElement('actor', endpointId)
     return element
       ? actorPointForSide(element, layerRect, side)
@@ -777,11 +2413,42 @@ watch(
   { flush: 'post' },
 )
 
+function measureNarrativeLoopField() {
+  const field = narrativeLoopFieldRef.value
+  if (!field) return
+  const rect = field.getBoundingClientRect()
+  if (rect.width >= 10 && rect.height >= 10) {
+    narrativeLoopFieldSize.value = {
+      width: rect.width,
+      height: rect.height,
+    }
+  }
+}
+
+function observeNarrativeLoopField(field: HTMLElement | null) {
+  narrativeLoopFieldResizeObserver?.disconnect()
+  narrativeLoopFieldResizeObserver = null
+  if (!field) return
+  measureNarrativeLoopField()
+  if (typeof ResizeObserver !== 'undefined') {
+    narrativeLoopFieldResizeObserver = new ResizeObserver(() => measureNarrativeLoopField())
+    narrativeLoopFieldResizeObserver.observe(field)
+  }
+}
+
+watch(
+  narrativeLoopFieldRef,
+  field => observeNarrativeLoopField(field),
+  { flush: 'post' },
+)
+
 onMounted(() => {
   if (typeof ResizeObserver !== 'undefined' && narrativeMistLayerRef.value) {
     narrativeMistResizeObserver = new ResizeObserver(() => scheduleNarrativeMistMeasure())
     narrativeMistResizeObserver.observe(narrativeMistLayerRef.value)
   }
+  observeNarrativeLoopField(narrativeLoopFieldRef.value)
+  window.addEventListener('resize', measureNarrativeLoopField)
   window.addEventListener('resize', scheduleNarrativeMistMeasure)
   scheduleNarrativeMistMeasure()
 })
@@ -793,10 +2460,13 @@ onBeforeUnmount(() => {
   }
   narrativeMistResizeObserver?.disconnect()
   narrativeMistResizeObserver = null
+  narrativeLoopFieldResizeObserver?.disconnect()
+  narrativeLoopFieldResizeObserver = null
   narrativeGsapTimeline?.kill()
   narrativeGsapTimeline = null
   narrativeGsapContext?.revert()
   narrativeGsapContext = null
+  window.removeEventListener('resize', measureNarrativeLoopField)
   window.removeEventListener('resize', scheduleNarrativeMistMeasure)
 })
 
@@ -821,7 +2491,171 @@ function narrativeMistPathDomId(segmentId: string) {
       class="action-narrative-layer"
       :class="{ 'action-narrative-layer--suspended': props.narrativeSuspended }"
     >
-      <div v-if="actionNarrative" class="narrative-actors">
+      <div
+        v-if="narrativeCombatLoopLayout"
+        class="narrative-loop-stage"
+        data-testid="narrative-combat-loop"
+      >
+        <div
+          ref="narrativeLoopFieldRef"
+          class="narrative-loop-field"
+        >
+          <svg
+            class="narrative-loop-svg"
+            viewBox="0 0 100 100"
+            preserveAspectRatio="none"
+            aria-hidden="true"
+          >
+            <defs>
+              <marker
+                id="narrative-loop-arrow-red"
+                markerWidth="8"
+                markerHeight="8"
+                refX="7"
+                refY="4"
+                orient="auto"
+                markerUnits="strokeWidth"
+              >
+                <path d="M 0 0 L 8 4 L 0 8 z" class="narrative-loop-arrow-head narrative-loop-arrow-head--red" />
+              </marker>
+              <marker
+                id="narrative-loop-arrow-gold"
+                markerWidth="8"
+                markerHeight="8"
+                refX="7"
+                refY="4"
+                orient="auto"
+                markerUnits="strokeWidth"
+              >
+                <path d="M 0 0 L 8 4 L 0 8 z" class="narrative-loop-arrow-head narrative-loop-arrow-head--gold" />
+              </marker>
+              <filter id="narrative-loop-glow" x="-30%" y="-70%" width="160%" height="240%">
+                <feGaussianBlur stdDeviation="1.4" />
+              </filter>
+            </defs>
+            <g
+              v-for="action in narrativeCombatLoopLayout.actions"
+              :key="`loop-link-${action.id}`"
+              class="narrative-loop-link"
+              :class="narrativeLoopActionClasses(action)"
+            >
+              <path
+                class="narrative-loop-link__aura"
+                :d="action.path"
+              />
+              <path
+                class="narrative-loop-link__flow"
+                :d="action.path"
+                :marker-end="narrativeLoopMarkerUrl(action)"
+              />
+            </g>
+          </svg>
+
+          <div
+            v-for="actor in narrativeCombatLoopLayout.actors"
+            :key="`loop-actor-${actor.id}`"
+            class="narrative-loop-actor"
+            :class="narrativeLoopActorClasses(actor)"
+            :style="narrativeLoopActorStyle(actor)"
+            :data-narrative-actor-id="actor.id"
+            :data-narrative-loop-actor-id="actor.id"
+          >
+            <img
+              v-if="portraitSrcForPlayer(actor.id)"
+              :src="portraitSrcForPlayer(actor.id)"
+              :alt="roleNameForPlayer(actor.id)"
+            >
+            <div class="narrative-loop-actor__name">
+              {{ roleNameForPlayer(actor.id) }}
+            </div>
+            <div
+              v-if="latestDamageForPlayer(actor.id)"
+              class="narrative-loop-actor__damage"
+            >
+              -{{ latestDamageForPlayer(actor.id)?.damage }}
+            </div>
+          </div>
+
+          <div
+            v-for="packet in narrativeCombatLoopLayout.packets"
+            :key="packet.id"
+            class="narrative-loop-packet"
+            :class="narrativeLoopPacketClasses(packet)"
+            :style="narrativeLoopPacketStyle(packet)"
+            :data-narrative-packet-id="packet.id"
+          >
+            <div
+              v-if="packet.mode === 'marker'"
+              class="narrative-loop-packet-marker"
+            >
+              {{ narrativeLoopActionVerb(packet.action) }}
+            </div>
+            <div
+              v-else
+              class="narrative-loop-card-stack"
+            >
+              <div
+                v-for="(loopCard, cardIndex) in packet.visibleCards"
+                :key="loopCard.id"
+                class="narrative-loop-card"
+                :class="narrativeLoopActionClasses(packet.action)"
+                :style="narrativeLoopPacketCardStyle(packet, cardIndex)"
+                :data-narrative-stack-id="packet.action.item?.id || loopCard.id"
+                :data-narrative-card-id="packet.action.cardView?.id || loopCard.id"
+              >
+                <div class="narrative-loop-card__label">
+                  {{ narrativeLoopActionVerb(packet.action) }}
+                </div>
+                <CardComponent :card="loopCard.card" battle-mini />
+              </div>
+              <div
+                v-if="packet.hiddenCardCount > 0"
+                class="narrative-loop-card-overflow"
+              >
+                +{{ packet.hiddenCardCount }}
+              </div>
+            </div>
+            <div
+              class="narrative-loop-note"
+              :class="narrativeLoopActionClasses(packet.action)"
+              :style="narrativeLoopPacketNoteStyle(packet)"
+            >
+              <strong>{{ packet.noteTitle }}</strong>
+              <span v-if="packet.mode === 'full'">{{ packet.noteDetail }}</span>
+              <small v-if="packet.noteResult">{{ packet.noteResult }}</small>
+            </div>
+          </div>
+
+          <div
+            v-for="node in narrativeCombatLoopLayout.nodes"
+            :key="`loop-node-${node.id}`"
+            class="narrative-loop-node"
+            :class="narrativeLoopNodeClasses(node)"
+            :style="narrativeLoopNodeStyle(node)"
+            :data-narrative-flow-node-id="node.id"
+          >
+            <template v-if="node.cards.length">
+              <template
+                v-for="loopCard in node.cards.slice(0, 1)"
+                :key="loopCard.id"
+              >
+                <div class="narrative-loop-node__label">
+                  {{ node.title }}
+                </div>
+                <CardComponent :card="loopCard.card" battle-mini />
+              </template>
+            </template>
+            <template v-else>
+              <strong>{{ node.title }}</strong>
+              <span v-if="node.detail">{{ node.detail }}</span>
+            </template>
+          </div>
+
+        </div>
+
+      </div>
+
+      <div v-if="actionNarrative && !narrativeCombatLoop" class="narrative-actors">
         <div
           v-if="featuredPlayer"
           class="narrative-actor-card narrative-actor-card--featured"
@@ -876,7 +2710,7 @@ function narrativeMistPathDomId(segmentId: string) {
       </div>
 
       <div
-        v-if="actionNarrative && narrativeSealFieldEffectItems.length"
+        v-if="actionNarrative && !narrativeCombatLoop && narrativeSealFieldEffectItems.length"
         class="narrative-seal-card-stage"
       >
         <div
@@ -899,9 +2733,81 @@ function narrativeMistPathDomId(segmentId: string) {
       </div>
 
       <div
-        v-if="actionNarrative && narrativeStepGroups.length"
+        v-if="actionNarrative && !narrativeCombatLoop && primaryCounterChainCards"
+        class="narrative-counter-chain"
+        data-testid="narrative-counter-chain"
+      >
+        <div class="narrative-counter-chain__track">
+          <div
+            class="narrative-counter-chain__actor"
+            :class="narrativeCounterChainActorClasses(primaryCounterChainCards.sourceId, 'source')"
+            :data-narrative-actor-id="primaryCounterChainCards.sourceId"
+          >
+            <img
+              v-if="portraitSrcForPlayer(primaryCounterChainCards.sourceId)"
+              :src="portraitSrcForPlayer(primaryCounterChainCards.sourceId)"
+              :alt="roleNameForPlayer(primaryCounterChainCards.sourceId)"
+            >
+            <span>{{ roleNameForPlayer(primaryCounterChainCards.sourceId) }}</span>
+          </div>
+
+          <div
+            class="narrative-counter-chain__line"
+            aria-hidden="true"
+          ></div>
+
+          <div
+            class="narrative-counter-chain__actor"
+            :class="narrativeCounterChainActorClasses(primaryCounterChainCards.targetId, 'target')"
+            :data-narrative-actor-id="primaryCounterChainCards.targetId"
+          >
+            <img
+              v-if="portraitSrcForPlayer(primaryCounterChainCards.targetId)"
+              :src="portraitSrcForPlayer(primaryCounterChainCards.targetId)"
+              :alt="roleNameForPlayer(primaryCounterChainCards.targetId)"
+            >
+            <span>{{ roleNameForPlayer(primaryCounterChainCards.targetId) }}</span>
+          </div>
+
+          <div
+            v-if="primaryCounterChain"
+            class="narrative-stack-item narrative-stack-item--chain-card"
+            :class="narrativeStackItemClasses(primaryCounterChain.attackItem)"
+            :style="narrativeStackItemStyle(primaryCounterChain.attackItem)"
+            :data-narrative-stack-id="primaryCounterChain.attackItem.id"
+            :data-narrative-card-id="primaryCounterChain.attackItem.cardView?.id"
+          >
+            <div class="narrative-counter-chain__card-label">
+              发起攻击
+            </div>
+            <div
+              v-if="primaryCounterChain.attackItem.cardView"
+              class="narrative-played-card"
+              :class="narrativePlayedCardClasses(primaryCounterChain.attackItem.cardView)"
+            >
+              <CardComponent :card="primaryCounterChain.attackItem.cardView.card" battle-mini />
+            </div>
+          </div>
+
+          <button
+            v-if="primaryCounterChain?.missItem || primaryCounterChainCards.missEvent"
+            type="button"
+            class="narrative-counter-chain__miss"
+            :class="narrativeCounterChainMissClasses()"
+            tabindex="-1"
+          >
+            未命中
+          </button>
+        </div>
+      </div>
+
+      <div
+        v-if="actionNarrative && !narrativeCombatLoop && narrativeStepGroups.length"
         class="narrative-stack-lane"
-        :class="{ 'narrative-stack-lane--review': narrativePlayback?.isReview }"
+        :class="{
+          'narrative-stack-lane--review': narrativePlayback?.isReview,
+          'narrative-stack-lane--with-counter-chain': primaryCounterChainCards,
+        }"
       >
         <div
           v-for="group in narrativeStepGroups"
@@ -964,7 +2870,7 @@ function narrativeMistPathDomId(segmentId: string) {
       </div>
 
       <svg
-        v-if="actionNarrative && narrativeMistBlueprints.length"
+        v-if="actionNarrative && !narrativeCombatLoop && narrativeMistBlueprints.length"
         ref="narrativeMistLayerRef"
         class="narrative-mist-layer"
         aria-hidden="true"
@@ -1014,7 +2920,7 @@ function narrativeMistPathDomId(segmentId: string) {
         </g>
       </svg>
 
-      <div v-if="actionNarrative" class="narrative-settled-row">
+      <div v-if="actionNarrative && !narrativeCombatLoop" class="narrative-settled-row">
         <div
           v-for="player in settledPlayers"
           :key="`settled-${player.id}`"
@@ -1097,7 +3003,7 @@ function narrativeMistPathDomId(segmentId: string) {
   z-index: 6;
   pointer-events: none;
   transition: opacity 0.18s ease, filter 0.18s ease;
-  --narrative-actor-card-edge: clamp(0px, 1.2vw, 16px);
+  --narrative-actor-card-edge: clamp(42px, 4.2vw, 72px);
   --narrative-actor-card-width: clamp(106px, 9.5vw, 142px);
   --narrative-actor-card-height: clamp(148px, 13.4vw, 198px);
 }
@@ -1252,6 +3158,395 @@ function narrativeMistPathDomId(segmentId: string) {
   animation: narrativeDamagePop 0.86s ease-out both;
 }
 
+.narrative-loop-stage {
+  position: absolute;
+  inset: 10px 18px 48px;
+  z-index: 14;
+  display: block;
+  pointer-events: none;
+}
+
+.narrative-loop-field {
+  position: relative;
+  min-width: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 260px;
+  isolation: isolate;
+}
+
+.narrative-loop-svg {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.narrative-loop-arrow-head--red {
+  fill: #ff7568;
+  filter: drop-shadow(0 0 4px rgba(255, 94, 82, 0.72));
+}
+
+.narrative-loop-arrow-head--gold {
+  fill: #ffe28a;
+  filter: drop-shadow(0 0 4px rgba(255, 214, 112, 0.72));
+}
+
+.narrative-loop-link {
+  --loop-flow: rgba(255, 225, 138, 0.94);
+  --loop-aura: rgba(255, 198, 88, 0.26);
+}
+
+.narrative-loop-action--red {
+  --loop-flow: rgba(255, 106, 92, 0.96);
+  --loop-aura: rgba(255, 80, 72, 0.28);
+}
+
+.narrative-loop-link__aura,
+.narrative-loop-link__flow {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.narrative-loop-link__aura {
+  stroke: var(--loop-aura);
+  stroke-width: 8px;
+  filter: url(#narrative-loop-glow);
+}
+
+.narrative-loop-link__flow {
+  stroke: var(--loop-flow);
+  stroke-width: 2.6px;
+  stroke-dasharray: 8 7;
+  filter: drop-shadow(0 0 7px var(--loop-flow));
+  animation: narrativeLoopCurrent 1.15s linear infinite;
+}
+
+.narrative-loop-actor {
+  position: absolute;
+  left: var(--loop-x);
+  top: var(--loop-y);
+  width: clamp(58px, 6.4vw, 82px);
+  height: clamp(82px, 9vw, 112px);
+  overflow: hidden;
+  border-radius: 8px;
+  border: 1px solid rgba(142, 183, 215, 0.48);
+  background: rgba(7, 17, 29, 0.88);
+  box-shadow:
+    inset 0 1px 0 rgba(240, 248, 255, 0.12),
+    0 0 18px rgba(255, 226, 150, 0.16),
+    0 12px 24px rgba(0, 0, 0, 0.42);
+  transform: translate(-50%, -50%);
+  animation: narrativeLoopActorIn 0.3s cubic-bezier(0.2, 0.86, 0.24, 1) both;
+}
+
+.narrative-loop-actor--blue {
+  border-color: rgba(82, 190, 250, 0.64);
+  box-shadow:
+    inset 0 1px 0 rgba(240, 248, 255, 0.12),
+    0 0 18px rgba(56, 189, 248, 0.24),
+    0 12px 24px rgba(0, 0, 0, 0.42);
+}
+
+.narrative-loop-actor--red {
+  border-color: rgba(248, 113, 113, 0.66);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 240, 240, 0.12),
+    0 0 18px rgba(248, 113, 113, 0.24),
+    0 12px 24px rgba(0, 0, 0, 0.42);
+}
+
+.narrative-loop-actor img {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+  object-position: 50% 12%;
+}
+
+.narrative-loop-actor__name {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow: hidden;
+  padding: 5px 4px;
+  color: rgba(240, 248, 255, 0.96);
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: linear-gradient(180deg, rgba(4, 10, 18, 0), rgba(4, 10, 18, 0.94) 38%);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.88);
+}
+
+.narrative-loop-actor__damage {
+  position: absolute;
+  left: 50%;
+  top: 44%;
+  z-index: 4;
+  color: #ffb199;
+  font-size: 28px;
+  font-weight: 950;
+  line-height: 1;
+  text-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.9),
+    0 0 16px rgba(248, 113, 113, 0.7);
+  transform: translate(-50%, -50%);
+  animation: narrativeDamagePop 0.86s ease-out both;
+}
+
+.narrative-loop-packet {
+  position: absolute;
+  left: var(--loop-packet-x);
+  top: var(--loop-packet-y);
+  width: var(--loop-packet-width);
+  height: var(--loop-packet-height);
+  min-width: 42px;
+  min-height: 24px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  transform: translate(-50%, -50%);
+  animation: narrativeLoopCardIn 0.32s cubic-bezier(0.2, 0.86, 0.24, 1) both;
+}
+
+.narrative-loop-packet--note-bottom,
+.narrative-loop-packet--note-badge {
+  flex-direction: column;
+}
+
+.narrative-loop-packet--note-side {
+  flex-direction: row;
+}
+
+.narrative-loop-card-stack {
+  position: relative;
+  width: 100%;
+  min-height: calc(var(--loop-card-width) * 1.5 + 14px);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.narrative-loop-card {
+  position: relative;
+  width: var(--loop-card-width);
+  flex: 0 0 auto;
+  margin-inline: calc(var(--loop-card-width) * -0.05);
+  transform:
+    translateX(var(--loop-card-offset-x, 0))
+    rotate(var(--loop-card-rotate, 0deg));
+  filter:
+    drop-shadow(0 12px 20px rgba(0, 0, 0, 0.46))
+    drop-shadow(0 0 11px rgba(255, 226, 150, 0.24));
+}
+
+.narrative-loop-card.narrative-loop-action--red {
+  filter:
+    drop-shadow(0 12px 20px rgba(0, 0, 0, 0.46))
+    drop-shadow(0 0 13px rgba(255, 106, 92, 0.34));
+}
+
+.narrative-loop-card :deep(.card-battle-mini) {
+  width: var(--loop-card-width) !important;
+  height: calc(var(--loop-card-width) * 1.5) !important;
+  transform: none !important;
+}
+
+.narrative-loop-card__label {
+  margin-bottom: 3px;
+  color: rgba(255, 239, 202, 0.96);
+  font-size: 11px;
+  font-weight: 950;
+  line-height: 1;
+  text-align: center;
+  text-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.9),
+    0 0 10px rgba(220, 166, 80, 0.28);
+}
+
+.narrative-loop-action--red .narrative-loop-card__label {
+  color: #ffd0bd;
+}
+
+.narrative-loop-card-overflow {
+  position: absolute;
+  right: 0;
+  bottom: 4px;
+  min-width: 24px;
+  padding: 2px 5px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 239, 202, 0.62);
+  background: rgba(5, 14, 25, 0.86);
+  color: #fff1bc;
+  font-size: 11px;
+  font-weight: 950;
+  line-height: 1;
+  text-align: center;
+  box-shadow: 0 0 10px rgba(255, 226, 150, 0.22);
+}
+
+.narrative-loop-packet-marker {
+  min-width: 42px;
+  padding: 5px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--loop-flow, rgba(255, 225, 138, 0.94));
+  background: rgba(4, 13, 24, 0.78);
+  color: rgba(255, 239, 202, 0.96);
+  font-size: 11px;
+  font-weight: 950;
+  line-height: 1;
+  text-align: center;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.88);
+  box-shadow: 0 0 12px var(--loop-aura, rgba(255, 198, 88, 0.26));
+}
+
+.narrative-loop-node {
+  position: absolute;
+  left: var(--loop-node-x);
+  top: var(--loop-node-y);
+  width: var(--loop-node-width);
+  height: var(--loop-node-height);
+  box-sizing: border-box;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 226, 150, 0.48);
+  background: rgba(5, 15, 27, 0.78);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 0 14px rgba(255, 219, 128, 0.2),
+    0 10px 18px rgba(0, 0, 0, 0.34);
+  color: rgba(241, 247, 255, 0.96);
+  text-align: center;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.88);
+  transform: translate(-50%, -50%);
+  animation: narrativeLoopCardIn 0.32s cubic-bezier(0.2, 0.86, 0.24, 1) both;
+}
+
+.narrative-loop-node--skill {
+  border-color: rgba(190, 219, 255, 0.52);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 0 16px rgba(125, 211, 252, 0.24),
+    0 10px 18px rgba(0, 0, 0, 0.34);
+}
+
+.narrative-loop-node--outcome-miss {
+  border-color: rgba(255, 118, 103, 0.68);
+  color: #ffd2bd;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 0 18px rgba(255, 99, 88, 0.34),
+    0 10px 18px rgba(0, 0, 0, 0.36);
+}
+
+.narrative-loop-node strong,
+.narrative-loop-node__label {
+  max-width: 100%;
+  overflow: hidden;
+  color: #fff1bc;
+  font-size: 12px;
+  font-weight: 950;
+  line-height: 1.05;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.narrative-loop-node span {
+  max-width: 100%;
+  overflow: hidden;
+  color: rgba(223, 235, 247, 0.9);
+  font-size: 10px;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.narrative-loop-node :deep(.card-battle-mini) {
+  width: 68px;
+  transform: none !important;
+}
+
+.narrative-loop-note {
+  position: relative;
+  width: max-content;
+  max-width: 158px;
+  padding: 5px 7px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-left: 2px solid var(--loop-flow, rgba(255, 225, 138, 0.94));
+  background: rgba(4, 13, 24, 0.76);
+  box-shadow:
+    inset 0 1px 0 rgba(235, 248, 255, 0.08),
+    0 8px 16px rgba(0, 0, 0, 0.28);
+  color: rgba(230, 242, 250, 0.94);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.88);
+}
+
+.narrative-loop-packet--note-badge .narrative-loop-note {
+  max-width: 118px;
+  padding: 4px 7px;
+  flex-direction: row;
+  align-items: center;
+}
+
+.narrative-loop-note strong {
+  color: #fff1bc;
+  font-size: 11px;
+  font-weight: 950;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.narrative-loop-note span,
+.narrative-loop-note small {
+  overflow: hidden;
+  font-size: 10px;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.narrative-loop-note small {
+  color: #ffd7a3;
+  font-weight: 800;
+}
+
+.narrative-loop-packet--compact .narrative-loop-note span,
+.narrative-loop-packet--marker .narrative-loop-note,
+.narrative-loop-packet--note-badge .narrative-loop-note span {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .narrative-loop-stage {
+    inset: 6px 8px 42px;
+  }
+
+  .narrative-loop-field {
+    min-height: 250px;
+  }
+
+  .narrative-loop-packet {
+    max-width: 132px;
+  }
+}
+
 .narrative-stack-lane {
   position: absolute;
   inset: 14px calc(var(--narrative-actor-card-edge) + var(--narrative-actor-card-width) + 18px) 54px;
@@ -1286,10 +3581,242 @@ function narrativeMistPathDomId(segmentId: string) {
   width: 82px;
 }
 
+.narrative-counter-chain {
+  position: absolute;
+  left: 50%;
+  top: 8px;
+  z-index: 12;
+  width: min(430px, calc(100% - 260px));
+  min-width: 310px;
+  height: 148px;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.narrative-counter-chain__track {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.narrative-counter-chain__line {
+  position: absolute;
+  left: 88px;
+  right: 88px;
+  top: 92px;
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    rgba(127, 211, 255, 0.28),
+    rgba(255, 232, 168, 0.9) 48%,
+    rgba(127, 211, 255, 0.28)
+  );
+  box-shadow:
+    0 0 14px rgba(125, 211, 252, 0.32),
+    0 0 18px rgba(255, 232, 168, 0.26);
+}
+
+.narrative-counter-chain__line::before,
+.narrative-counter-chain__line::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #fff2bc;
+  box-shadow: 0 0 12px rgba(255, 236, 184, 0.72);
+  transform: translate(-50%, -50%);
+}
+
+.narrative-counter-chain__line::before {
+  left: 0;
+}
+
+.narrative-counter-chain__line::after {
+  left: 100%;
+}
+
+.narrative-counter-chain__actor {
+  position: absolute;
+  top: 48px;
+  z-index: 2;
+  width: 64px;
+  height: 86px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: rgba(7, 17, 29, 0.86);
+  border: 1px solid rgba(132, 172, 207, 0.48);
+  box-shadow:
+    inset 0 1px 0 rgba(240, 248, 255, 0.12),
+    0 10px 20px rgba(1, 7, 14, 0.36);
+  animation: narrativeCounterActorIn 0.28s cubic-bezier(0.2, 0.86, 0.24, 1) both;
+}
+
+.narrative-counter-chain__actor--source {
+  left: 18px;
+}
+
+.narrative-counter-chain__actor--target {
+  right: 18px;
+}
+
+.narrative-counter-chain__actor--blue {
+  border-color: rgba(82, 190, 250, 0.66);
+  box-shadow:
+    inset 0 1px 0 rgba(240, 248, 255, 0.12),
+    0 0 18px rgba(56, 189, 248, 0.24),
+    0 10px 20px rgba(1, 7, 14, 0.36);
+}
+
+.narrative-counter-chain__actor--red {
+  border-color: rgba(248, 113, 113, 0.66);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 240, 240, 0.12),
+    0 0 18px rgba(248, 113, 113, 0.24),
+    0 10px 20px rgba(1, 7, 14, 0.36);
+}
+
+.narrative-counter-chain__actor img {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+  object-position: 50% 12%;
+}
+
+.narrative-counter-chain__actor span {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow: hidden;
+  padding: 4px 3px;
+  color: rgba(240, 248, 255, 0.96);
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: linear-gradient(180deg, rgba(4, 10, 18, 0), rgba(4, 10, 18, 0.92) 34%);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.86);
+}
+
+.narrative-counter-chain .narrative-stack-item--chain-card {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  z-index: 4;
+  width: 74px;
+  transform: translateX(-50%);
+  animation: narrativeCounterChainCardIn 0.32s cubic-bezier(0.2, 0.86, 0.24, 1) both;
+}
+
+.narrative-counter-chain .narrative-stack-item--chain-card .narrative-played-card {
+  width: 74px;
+}
+
+.narrative-counter-chain__card-label {
+  margin-bottom: 3px;
+  color: rgba(255, 239, 202, 0.96);
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+  text-align: center;
+  text-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.88),
+    0 0 10px rgba(220, 166, 80, 0.24);
+}
+
+.narrative-counter-chain__miss {
+  position: absolute;
+  left: 50%;
+  top: 106px;
+  z-index: 5;
+  appearance: none;
+  min-width: 74px;
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 232, 168, 0.74);
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(255, 246, 208, 0.34), transparent 52%),
+    rgba(8, 18, 30, 0.86);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    0 0 18px rgba(255, 226, 150, 0.34),
+    0 10px 20px rgba(0, 0, 0, 0.34);
+  color: #fff2bc;
+  cursor: default;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 950;
+  line-height: 1;
+  text-align: center;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.86);
+  transform: translateX(-50%);
+  animation: narrativeCounterMissIn 0.32s cubic-bezier(0.2, 0.86, 0.24, 1) both;
+}
+
+.narrative-counter-chain__miss--active {
+  border-color: rgba(255, 245, 190, 0.94);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 0 24px rgba(255, 232, 168, 0.48),
+    0 12px 22px rgba(0, 0, 0, 0.38);
+}
+
+@media (max-width: 820px) {
+  .narrative-counter-chain {
+    width: min(360px, calc(100% - 24px));
+    min-width: 0;
+  }
+
+  .narrative-counter-chain__actor {
+    top: 54px;
+    width: 54px;
+    height: 74px;
+  }
+
+  .narrative-counter-chain__actor--source {
+    left: 4px;
+  }
+
+  .narrative-counter-chain__actor--target {
+    right: 4px;
+  }
+
+  .narrative-counter-chain__line {
+    left: 62px;
+    right: 62px;
+    top: 91px;
+  }
+
+  .narrative-counter-chain .narrative-stack-item--chain-card,
+  .narrative-counter-chain .narrative-stack-item--chain-card .narrative-played-card {
+    width: 66px;
+  }
+
+  .narrative-counter-chain__miss {
+    top: 104px;
+  }
+}
+
 .narrative-stack-lane--review {
   align-content: flex-start;
   justify-content: center;
   padding: 8px 4px;
+}
+
+.narrative-stack-lane--with-counter-chain {
+  align-content: flex-start;
+  padding-top: 148px;
+}
+
+.narrative-stack-lane--review.narrative-stack-lane--with-counter-chain {
+  padding-top: 148px;
 }
 
 .narrative-step-group {
@@ -1300,22 +3827,17 @@ function narrativeMistPathDomId(segmentId: string) {
   align-items: center;
   gap: 5px;
   max-width: 192px;
-  padding: 6px 7px 7px;
-  border-radius: 10px;
-  border: 1px solid rgba(136, 173, 203, 0.2);
-  background: rgba(4, 12, 22, 0.34);
+  padding: 4px 6px 6px;
+  border: 0;
+  background: transparent;
   transition:
     opacity 0.24s ease,
     transform 0.24s ease,
-    filter 0.24s ease,
-    border-color 0.24s ease,
-    background 0.24s ease;
+    filter 0.24s ease;
 }
 
 .narrative-step-group--active {
   z-index: 4;
-  border-color: rgba(254, 226, 150, 0.58);
-  background: rgba(13, 25, 38, 0.58);
   filter:
     drop-shadow(0 12px 22px rgba(0, 0, 0, 0.4))
     drop-shadow(0 0 15px rgba(246, 220, 153, 0.2));
@@ -1338,21 +3860,23 @@ function narrativeMistPathDomId(segmentId: string) {
 .narrative-step-group__label {
   max-width: 100%;
   overflow: hidden;
-  padding: 3px 8px;
-  border-radius: 999px;
-  border: 1px solid rgba(177, 209, 235, 0.22);
-  background: rgba(3, 10, 19, 0.7);
-  color: rgba(231, 241, 249, 0.9);
-  font-size: 10px;
+  padding: 0 5px;
+  border: 0;
+  background: transparent;
+  color: rgba(255, 239, 202, 0.94);
+  font-size: 11px;
   font-weight: 900;
   line-height: 1;
   text-overflow: ellipsis;
   white-space: nowrap;
+  text-align: center;
+  text-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.88),
+    0 0 10px rgba(220, 166, 80, 0.22);
 }
 
 .narrative-step-group--active .narrative-step-group__label {
-  color: #ffe8a8;
-  border-color: rgba(251, 226, 153, 0.48);
+  color: #fff1bc;
 }
 
 .narrative-step-group__items {
@@ -1771,6 +4295,36 @@ function narrativeMistPathDomId(segmentId: string) {
     opacity: 1;
     transform: translateY(calc(var(--stack-order, 0) * -1px)) scale(1);
   }
+}
+
+@keyframes narrativeLoopCurrent {
+  from { stroke-dashoffset: 0; }
+  to { stroke-dashoffset: -30; }
+}
+
+@keyframes narrativeLoopActorIn {
+  from { opacity: 0; transform: translate(-50%, calc(-50% + 10px)) scale(0.88); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+@keyframes narrativeLoopCardIn {
+  from { opacity: 0; transform: translate(-50%, calc(-50% + 14px)) scale(0.84); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+@keyframes narrativeCounterActorIn {
+  from { opacity: 0; transform: translateY(-8px) scale(0.9); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes narrativeCounterChainCardIn {
+  from { opacity: 0; transform: translate(-50%, 16px) scale(0.86); }
+  to { opacity: 1; transform: translate(-50%, 0) scale(1); }
+}
+
+@keyframes narrativeCounterMissIn {
+  from { opacity: 0; transform: translate(-50%, -4px) scale(0.9); }
+  to { opacity: 1; transform: translate(-50%, 0) scale(1); }
 }
 
 @keyframes narrativeMistIn {
