@@ -2,6 +2,8 @@
 
 基于《星杯传说》完整规则 (v5.0) 的纯后端游戏引擎。
 
+完整可玩规则（给实现者/另一个 AI 用的规格说明书）见 [`docs/COMPLETE_GAME_RULES.md`](docs/COMPLETE_GAME_RULES.md)。
+
 ## 功能特性
 
 *   **纯后端逻辑**：Go 语言实现，无外部依赖。
