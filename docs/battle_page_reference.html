@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>星杯传说 · 对战页参考图</title>
+  <style>
+    :root {
+      --navy: #07111d;
+      --panel: rgba(10, 20, 34, 0.78);
+      --gold: #d7b56a;
+      --cyan: #7ec8d9;
+      --red: #c45b5b;
+      --blue: #4f8cb8;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      width: 1600px;
+      height: 900px;
+      overflow: hidden;
+      font-family: "WenQuanYi Micro Hei", "Droid Sans Fallback", "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: #e8f0f6;
+      background:
+        radial-gradient(980px 420px at 50% 42%, rgba(120, 195, 219, 0.16), transparent 72%),
+        radial-gradient(960px 460px at 50% 40%, rgba(42, 86, 132, 0.22), rgba(16, 27, 42, 0.55) 58%, rgba(8, 14, 24, 0.92) 100%),
+        #07111d;
+    }
+    .shell {
+      width: 1600px;
+      height: 900px;
+      padding: 16px 20px 14px;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+    .top-hud {
+      display: grid;
+      grid-template-columns: 1fr 168px 1fr;
+      gap: 16px;
+      align-items: center;
+      height: 72px;
+    }
+    .camp-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 18px;
+      border-radius: 14px;
+      border: 1px solid rgba(215, 181, 106, 0.22);
+      background: rgba(8, 16, 28, 0.72);
+    }
+    .camp-blue { box-shadow: inset 0 0 0 1px rgba(79, 140, 184, 0.35); }
+    .camp-red { box-shadow: inset 0 0 0 1px rgba(196, 91, 91, 0.38); }
+    .camp-name { font-size: 20px; font-weight: 700; letter-spacing: 1px; }
+    .camp-blue .camp-name { color: #8ec7e8; }
+    .camp-red .camp-name { color: #efb0b0; }
+    .metrics { display: flex; gap: 18px; font-size: 16px; }
+    .metrics b { color: #fff; margin-left: 4px; }
+    .deck {
+      height: 68px;
+      border-radius: 16px;
+      border: 1px solid rgba(126, 200, 217, 0.4);
+      background: rgba(12, 28, 42, 0.88);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .deck span { font-size: 12px; color: #9cc7d6; }
+    .deck strong { font-size: 28px; color: #fff; line-height: 1; }
+    .arena {
+      flex: 1;
+      position: relative;
+      margin: 10px 0 8px;
+    }
+    .table {
+      position: absolute;
+      inset: 28px 210px 18px;
+      border-radius: 50%;
+      border: 2px solid rgba(215, 181, 106, 0.28);
+      box-shadow:
+        inset 0 0 0 14px rgba(18, 36, 54, 0.55),
+        inset 0 0 80px rgba(80, 170, 200, 0.12);
+      background:
+        radial-gradient(circle at 50% 50%, rgba(36, 72, 96, 0.28), rgba(8, 14, 24, 0.2) 62%, transparent 70%);
+    }
+    .orb {
+      position: absolute;
+      left: 50%;
+      top: 46%;
+      transform: translate(-50%, -50%);
+      width: 126px;
+      height: 126px;
+      border-radius: 50%;
+      border: 2px solid rgba(215, 181, 106, 0.55);
+      background: radial-gradient(circle, rgba(46, 88, 118, 0.92), rgba(10, 18, 28, 0.95));
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 28px rgba(126, 200, 217, 0.25);
+    }
+    .orb small { color: #d7b56a; letter-spacing: 2px; font-size: 12px; }
+    .orb b { font-size: 22px; }
+    .combat-line {
+      position: absolute;
+      left: 26%;
+      right: 26%;
+      top: 46%;
+      height: 3px;
+      background: linear-gradient(90deg, transparent, #f0c36a 20%, #9b7dff 80%, transparent);
+      box-shadow: 0 0 16px #c9a35a;
+    }
+    .flying-card {
+      position: absolute;
+      left: 38%;
+      top: 28%;
+      width: 92px;
+      height: 128px;
+      border-radius: 10px;
+      border: 2px solid #c9a35a;
+      background: linear-gradient(180deg, #4a2d12, #1b140d);
+      transform: rotate(-8deg);
+      box-shadow: 0 10px 24px rgba(0,0,0,0.4);
+      padding: 8px;
+    }
+    .flying-card .el { color: #f3c56b; font-size: 12px; }
+    .flying-card .nm { margin-top: 28px; text-align: center; font-weight: 700; }
+    .narrate {
+      position: absolute;
+      left: 50%;
+      top: 18%;
+      transform: translateX(-50%);
+      padding: 6px 16px;
+      border-radius: 999px;
+      background: rgba(8, 16, 26, 0.72);
+      border: 1px solid rgba(215, 181, 106, 0.3);
+      font-size: 16px;
+    }
+    .seat {
+      position: absolute;
+      width: 168px;
+      height: 210px;
+      border-radius: 16px;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: #101820;
+      box-shadow: 0 10px 24px rgba(0,0,0,0.35);
+    }
+    .seat.red { outline: 2px solid rgba(196, 91, 91, 0.55); }
+    .seat.blue { outline: 2px solid rgba(79, 140, 184, 0.55); }
+    .seat.active { outline: 3px solid #d7b56a; box-shadow: 0 0 22px rgba(215,181,106,0.35); }
+    .seat.target { outline: 3px solid #7ec8d9; }
+    .seat.s0 { left: 18px; top: 8px; }
+    .seat.s1 { left: 18px; top: 236px; }
+    .seat.s2 { left: 18px; bottom: 8px; }
+    .seat.s3 { right: 18px; top: 8px; }
+    .seat.s4 { right: 18px; top: 236px; }
+    .seat.s5 { right: 18px; bottom: 8px; }
+    .portrait {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 56px;
+      font-weight: 800;
+      color: rgba(255,255,255,0.62);
+      letter-spacing: 2px;
+      background:
+        radial-gradient(circle at 50% 28%, rgba(255,255,255,0.16), transparent 46%),
+        linear-gradient(180deg, rgba(255,255,255,0.08), rgba(0,0,0,0.28));
+    }
+    .seat.red .portrait { background-color: #5a2a31; }
+    .seat.blue .portrait { background-color: #24506a; }
+    .meta {
+      position: absolute;
+      left: 8px;
+      right: 8px;
+      bottom: 8px;
+      padding: 8px;
+      border-radius: 10px;
+      background: rgba(6, 12, 20, 0.78);
+      font-size: 13px;
+    }
+    .role { font-weight: 700; font-size: 16px; }
+    .stats { display: flex; gap: 8px; margin-top: 4px; color: #c7d6e0; }
+    .badge {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      background: rgba(215,181,106,0.92);
+      color: #23180a;
+      font-weight: 700;
+    }
+    .badge.you { background: #7ec8d9; color: #102028; }
+    .badge.shield { right: 8px; left: auto; background: #c9a35a; }
+    .bottom {
+      height: 236px;
+      display: grid;
+      grid-template-columns: 220px 1fr 248px;
+      gap: 14px;
+    }
+    .me, .hand, .dock {
+      border-radius: 16px;
+      background: rgba(8, 16, 26, 0.72);
+      border: 1px solid rgba(215, 181, 106, 0.2);
+    }
+    .me { padding: 12px; display: flex; gap: 10px; }
+    .me-art {
+      width: 86px;
+      border-radius: 12px;
+      background: #3a1d22;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 34px;
+      font-weight: 800;
+      color: rgba(255,255,255,0.28);
+    }
+    .me h3 { margin: 0 0 6px; font-size: 18px; }
+    .tag { display: inline-block; padding: 2px 7px; border-radius: 999px; background: #d7b56a; color: #23180a; font-size: 12px; font-weight: 700; margin-right: 6px; }
+    .hand { padding: 10px 14px; }
+    .hand-top { display: flex; justify-content: space-between; color: #b9c9d4; font-size: 13px; margin-bottom: 8px; }
+    .cards { display: flex; gap: 12px; }
+    .card {
+      width: 118px;
+      height: 168px;
+      border-radius: 12px;
+      padding: 8px;
+      border: 1px solid rgba(255,255,255,0.16);
+      box-shadow: 0 8px 16px rgba(0,0,0,0.28);
+    }
+    .card.sel { outline: 3px solid #d7b56a; transform: translateY(-8px); }
+    .card.fire { background: linear-gradient(180deg, #5a2416, #1b100c); }
+    .card.thunder { background: linear-gradient(180deg, #3a2a63, #14101f); }
+    .card.magic { background: linear-gradient(180deg, #1f3b5a, #10161e); }
+    .card.earth { background: linear-gradient(180deg, #4a3a18, #17140d); }
+    .card .kind { font-size: 12px; color: #ecd59a; }
+    .card .title { margin-top: 36px; text-align: center; font-size: 20px; font-weight: 800; }
+    .card .dmg { margin-top: 16px; text-align: center; font-size: 13px; color: #d7e4ec; }
+    .dock { padding: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .btn {
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(18, 28, 40, 0.9);
+      color: #e8f0f6;
+      font-size: 18px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .btn.on { background: linear-gradient(180deg, #d7b56a, #9b7a38); color: #23180a; }
+    .watermark {
+      position: absolute;
+      right: 28px;
+      top: 96px;
+      font-size: 12px;
+      color: rgba(232,240,246,0.35);
+      letter-spacing: 1px;
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div class="top-hud">
+      <div class="camp-bar camp-blue">
+        <div class="camp-name">蓝阵营</div>
+        <div class="metrics">
+          <span>士气<b>15</b></span>
+          <span>星杯<b>1</b></span>
+          <span>宝石<b>2</b></span>
+          <span>水晶<b>1</b></span>
+        </div>
+      </div>
+      <div class="deck">
+        <span>公共牌堆</span>
+        <strong>126</strong>
+      </div>
+      <div class="camp-bar camp-red">
+        <div class="metrics">
+          <span>士气<b>13</b></span>
+          <span>星杯<b>2</b></span>
+          <span>宝石<b>3</b></span>
+          <span>水晶<b>0</b></span>
+        </div>
+        <div class="camp-name">红阵营</div>
+      </div>
+    </div>
+
+    <div class="arena">
+      <div class="table"></div>
+      <div class="combat-line"></div>
+      <div class="narrate">狂战士 对 暗杀者 发起 雷光斩</div>
+      <div class="flying-card">
+        <div class="el">雷 · 攻击</div>
+        <div class="nm">雷光斩</div>
+      </div>
+      <div class="orb"><small>TURN</small><b>攻击中</b></div>
+
+      <div class="seat blue s0">
+        <div class="portrait">天</div>
+        <div class="meta"><div class="role">天使 · 蓝</div><div class="stats"><span>治疗 1/2</span><span>手牌 4/6</span></div></div>
+      </div>
+      <div class="seat red s1 active">
+        <div class="badge">当前行动</div>
+        <div class="portrait">狂</div>
+        <div class="meta"><div class="role">狂战士 · 红</div><div class="stats"><span>治疗 0/2</span><span>手牌 4/6</span></div></div>
+      </div>
+      <div class="seat blue s2">
+        <div class="portrait">箭</div>
+        <div class="meta"><div class="role">神箭手 · 蓝</div><div class="stats"><span>治疗 0/2</span><span>手牌 5/6</span></div></div>
+      </div>
+      <div class="seat red s3">
+        <div class="portrait">圣</div>
+        <div class="meta"><div class="role">圣女 · 红</div><div class="stats"><span>治疗 2/2</span><span>手牌 3/6</span></div></div>
+      </div>
+      <div class="seat blue s4 target">
+        <div class="badge shield">圣盾</div>
+        <div class="portrait">刺</div>
+        <div class="meta"><div class="role">暗杀者 · 蓝</div><div class="stats"><span>治疗 0/2</span><span>手牌 4/6</span></div></div>
+      </div>
+      <div class="seat red s5">
+        <div class="portrait">魔</div>
+        <div class="meta"><div class="role">魔法少女 · 红</div><div class="stats"><span>治疗 0/2</span><span>手牌 6/6</span></div></div>
+      </div>
+    </div>
+
+    <div class="bottom">
+      <div class="me">
+        <div class="me-art">狂</div>
+        <div>
+          <div><span class="tag">你</span><span class="tag">当前行动</span></div>
+          <h3>狂战士 · 红</h3>
+          <div>治疗 0/2</div>
+          <div>手牌 4/6</div>
+          <div>能量 宝石 1</div>
+        </div>
+      </div>
+      <div class="hand">
+        <div class="hand-top"><span>手牌区</span><span>扩展区 专属 0 ｜ 盖牌 0</span></div>
+        <div class="cards">
+          <div class="card fire"><div class="kind">火 · 攻击</div><div class="title">火焰斩</div><div class="dmg">伤害 2</div></div>
+          <div class="card thunder sel"><div class="kind">雷 · 攻击</div><div class="title">雷光斩</div><div class="dmg">已选中</div></div>
+          <div class="card magic"><div class="kind">水 · 法术</div><div class="title">魔弹</div><div class="dmg">传递伤害</div></div>
+          <div class="card earth"><div class="kind">地 · 攻击</div><div class="title">地裂斩</div><div class="dmg">伤害 2</div></div>
+        </div>
+      </div>
+      <div class="dock">
+        <div class="btn on">攻击</div>
+        <div class="btn">法术</div>
+        <div class="btn">特殊</div>
+        <div class="btn">技能</div>
+        <div class="btn">无法行动</div>
+        <div class="btn">结束</div>
+      </div>
+    </div>
+    <div class="watermark">对战页布局参考 · 6人3v3</div>
+  </div>
+</body>
+</html>
