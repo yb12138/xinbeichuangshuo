@@ -18,6 +18,7 @@ import StatusEffectIcon from './StatusIcons/StatusEffectIcon.vue'
 import { useSubmitAction } from '../composables/useSubmitAction'
 import { useBattleInteractionState } from '../composables/useBattleInteractionState'
 import StageOverlay from './StageOverlay.vue'
+import { characterArtSrc } from '../constants/characterArt'
 import { useInteractionController } from '../composables/useInteractionController'
 import {
   hasBlazeWitchFlameElementOverride,
@@ -468,10 +469,7 @@ const myStatusRoleName = computed(() => {
   return characters.value[roleId]?.name || roleId
 })
 
-const myStatusPortraitSrc = computed(() => {
-  const roleId = String(myAreaPlayer.value?.role || sessionStore.myCharRole || '').trim()
-  return roleId ? `/characters/${roleId}.png` : ''
-})
+const myStatusPortraitSrc = computed(() => characterArtSrc(myAreaPlayer.value?.role || sessionStore.myCharRole))
 
 function portraitSrcForPlayer(player: PlayerView): string {
   const roleId = String(player.role || '').trim()

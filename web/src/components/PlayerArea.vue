@@ -8,6 +8,7 @@ import { useInterruptStore } from '../stores/interrupt.store'
 import { useUiStore } from '../stores/ui.store'
 import { useBattleInteractionState } from '../composables/useBattleInteractionState'
 import StatusEffectIcon from './StatusIcons/StatusEffectIcon.vue'
+import { characterArtSrc, characterFullCardSrc } from '../constants/characterArt'
 
 const battleFxStore = useBattleFxStore()
 const battleReviewStore = useBattleReviewStore()
@@ -46,18 +47,20 @@ const charInfo = computed(() => (props.player.role ? getCharacter(props.player.r
 const roleDisplayName = computed(() => getRoleDisplayName(props.player.role))
 const playerDisplayName = computed(() => props.player.name || props.player.id)
 
-// 立绘路径：/characters/{role}.png，role 与角色ID对应
-const characterImageSrc = computed(() => {
-  const role = props.player.role
-  if (!role) return ''
-  return `/characters/${role}.png`
-})
+// 座位用裁掉原卡框的插画；加载失败时先回退到完整卡图，再失败才显示占位
+const useFullCardFallback = ref(false)
+const characterImageSrc = computed(() => (useFullCardFallback.value ? characterFullCardSrc(props.player.role) : characterArtSrc(props.player.role)))
 
 const showCharacterImage = ref(true)
 watch(() => props.player.role, () => {
   showCharacterImage.value = true
+  useFullCardFallback.value = false
 })
 function onCharImageError() {
+  if (!useFullCardFallback.value) {
+    useFullCardFallback.value = true
+    return
+  }
   showCharacterImage.value = false
 }
 
@@ -856,7 +859,7 @@ function handleClick(e: MouseEvent) {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: center 15%;
+  object-position: center 22%;
   z-index: 1;
 }
 

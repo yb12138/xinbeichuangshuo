@@ -15,6 +15,7 @@ import type { ActionFlowDTO, ActionFlowEdgeDTO, ActionFlowNodeDTO } from '../net
 import { useSnapshotStore } from '../stores/snapshot.store'
 import type { Card, PlayerView } from '../types/game'
 import CardComponent from './CardComponent.vue'
+import { characterArtSrc } from '../constants/characterArt'
 import RoseCourtyardIcon from './StatusIcons/RoseCourtyardIcon.vue'
 
 const props = defineProps<{
@@ -385,8 +386,7 @@ function roleNameForPlayer(playerId?: string) {
 }
 
 function portraitSrcForPlayer(playerId?: string) {
-  const roleId = String(players.value[playerId || '']?.role || '').trim()
-  return roleId ? `/characters/${roleId}.png` : ''
+  return characterArtSrc(players.value[playerId || '']?.role)
 }
 
 function latestDamageForPlayer(playerId?: string) {

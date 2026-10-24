@@ -845,7 +845,7 @@ describe('GameBoard target picker', () => {
     expect(handRail?.compareDocumentPosition(actionDock as Node)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(statusPortrait).not.toBeNull()
     expect(statusPortrait?.alt).toBe('剑斗士')
-    expect(statusPortrait?.getAttribute('src')).toBe('/characters/fighter.png')
+    expect(statusPortrait?.getAttribute('src')).toBe('/characters/art/fighter.webp')
     expect(handRail?.querySelector('.my-status-portrait')).toBeNull()
     expect(statusStrip?.classList.contains('my-status-strip--active')).toBe(true)
     expect(actionDock?.classList.contains('right-action-dock--active')).toBe(true)
