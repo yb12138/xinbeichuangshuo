@@ -2247,7 +2247,8 @@ function elementName(el: string): string {
 .action-image-btn:disabled {
     cursor: not-allowed;
     transform: none !important;
-    filter: grayscale(0.62) saturate(0.66) brightness(0.76);
+    filter: none;
+    opacity: 0.7;
 }
 
 .action-image-btn:focus,
@@ -2257,7 +2258,7 @@ function elementName(el: string): string {
 }
 
 .action-image-btn--muted {
-    filter: grayscale(0.55) saturate(0.7) brightness(0.82);
+    opacity: 0.8;
 }
 
 .action-image-btn-fill {
@@ -2268,6 +2269,12 @@ function elementName(el: string): string {
     object-fit: cover;
     pointer-events: none;
     user-select: none;
+    filter: var(--bt-chrome-filter);
+}
+
+.action-image-btn:disabled .action-image-btn-fill,
+.action-image-btn--muted .action-image-btn-fill {
+    filter: var(--bt-chrome-filter-disabled);
 }
 
 .action-image-fallback-text {

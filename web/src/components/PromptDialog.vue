@@ -2190,6 +2190,11 @@ watch(autoResolveOptionId, (optionId) => {
   object-fit: cover;
   pointer-events: none;
   user-select: none;
+  filter: var(--bt-chrome-filter);
+}
+
+.action-image-btn:disabled .action-image-btn-fill {
+  filter: var(--bt-chrome-filter-disabled);
 }
 
 .prompt-inline-btn.action-image-btn .action-image-btn-fill {

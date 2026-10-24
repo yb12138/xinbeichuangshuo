@@ -40,6 +40,11 @@
   --bt-text-dim: #66707f;
   --bt-font-num: "Georgia", "Times New Roman", serif;
 
+  /* 把金色圆章素材（public/assets/ui/action_*.png、prompt_btn_*.png）转成冷调银色 */
+  --bt-chrome-filter: grayscale(0.9) sepia(0.15) hue-rotate(185deg) saturate(0.9) brightness(1.18) contrast(1.12);
+  /* 素材已是灰度，禁用态只能靠压暗区分 */
+  --bt-chrome-filter-disabled: grayscale(1) brightness(0.55) contrast(0.95);
+
   /* 形状 */
   --bt-radius: 8px;
   --bt-radius-sm: 5px;
