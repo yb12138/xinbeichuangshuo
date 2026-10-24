@@ -302,7 +302,167 @@ describe('createGameplayMessageHandlers', () => {
     expect(battleFxStore.initiatorFocus?.mode).toBe('response')
   })
 
-  it('replays NotifyTimeline payloads into timeline entries and battle effects', () => {
+  it('does not add detail action steps to action summaries', () => {
+    const { handlers, battleReviewStore } = buildHandlers()
+
+    handlers.handleGameplayEvent({
+      event_type: 'action_step',
+      line: '中间过程：Bob承受伤害',
+      kind: 'detail',
+    })
+
+    expect(battleReviewStore.actionSummaryLines).toEqual([])
+    expect(battleReviewStore.battleFeed).toEqual([])
+  })
+
+  it('adds summary action steps to action summaries and battle feed', () => {
+    const { handlers, battleReviewStore } = buildHandlers()
+
+    handlers.handleGameplayEvent({
+      event_type: 'action_step',
+      line: '回合1：Alice 使用攻击【火焰斩】 -> Bob；Bob 受到2点伤害',
+      kind: 'summary',
+    })
+
+    expect(battleReviewStore.actionSummaryLines).toEqual([
+      '回合1：Alice 使用攻击【火焰斩】 -> Bob；Bob 受到2点伤害',
+    ])
+    expect(battleReviewStore.battleFeed).toHaveLength(1)
+    expect(battleReviewStore.battleFeed[0]?.title).toBe(
+      '回合1：Alice 使用攻击【火焰斩】 -> Bob；Bob 受到2点伤害',
+    )
+  })
+
+  it('does not let skill-looking logs drive battle UI', () => {
+    const { handlers, battleFxStore, battleReviewStore, interruptStore, snapshotStore } = buildHandlers()
+    snapshotStore.updateGameState({
+      turn_stage: 'ActionExecution',
+      current_player: 'p1',
+      has_performed_startup: true,
+      players: {
+        p1: buildSyncPlayer('p1', 'Red'),
+        p2: buildSyncPlayer('p2', 'Blue'),
+      },
+      red_morale: 15,
+      blue_morale: 15,
+      red_cups: 0,
+      blue_cups: 0,
+      red_gems: 0,
+      blue_gems: 0,
+      red_crystals: 0,
+      blue_crystals: 0,
+      deck_count: 30,
+      discard_count: 0,
+      available_skills: [],
+    })
+
+    handlers.handleGameplayEvent({
+      event_type: 'log',
+      message: 'Alice 发动 [苍炎法典]，先对 Bob 后对自己各造成2点法术伤害',
+    })
+
+    expect(interruptStore.skillEffectToast).toBe('')
+    expect(battleFxStore.skillAnnouncements).toHaveLength(0)
+    expect(battleReviewStore.battleFeed).toHaveLength(0)
+    expect(battleReviewStore.logs).toEqual([
+      'Alice 发动 [苍炎法典]，先对 Bob 后对自己各造成2点法术伤害',
+    ])
+  })
+
+  it('uses skill_activated events for battle announcements', () => {
+    const { handlers, battleFxStore, battleReviewStore, snapshotStore } = buildHandlers()
+    snapshotStore.updateGameState({
+      turn_stage: 'ActionExecution',
+      current_player: 'p1',
+      has_performed_startup: true,
+      players: {
+        p1: buildSyncPlayer('p1', 'Red'),
+        p2: buildSyncPlayer('p2', 'Blue'),
+      },
+      red_morale: 15,
+      blue_morale: 15,
+      red_cups: 0,
+      blue_cups: 0,
+      red_gems: 0,
+      blue_gems: 0,
+      red_crystals: 0,
+      blue_crystals: 0,
+      deck_count: 30,
+      discard_count: 0,
+      available_skills: [],
+    })
+
+    handlers.handleGameplayEvent({
+      event_type: 'skill_activated',
+      player_id: 'p1',
+      player_name: 'Alice',
+      skill_id: 'sage_arcane_codex',
+      skill_name: '苍炎法典',
+      effect_text: '先对 Bob 后对自己各造成2点法术伤害',
+      target_ids: ['p2'],
+    })
+
+    expect(battleFxStore.skillAnnouncements).toHaveLength(1)
+    expect(battleFxStore.skillAnnouncements[0]).toMatchObject({
+      actorId: 'p1',
+      actorName: 'Alice',
+      skillName: '苍炎法典',
+      effectText: '先对 Bob 后对自己各造成2点法术伤害',
+      phase: 'featured',
+    })
+    expect(battleReviewStore.battleFeed[battleReviewStore.battleFeed.length - 1]).toMatchObject({
+      type: 'skill',
+      title: 'Alice 发动「苍炎法典」',
+      detail: '先对 Bob 后对自己各造成2点法术伤害',
+      actorId: 'p1',
+    })
+  })
+
+  it('records state_delta morale and resource changes without log hints', () => {
+    const { handlers, battleReviewStore } = buildHandlers()
+
+    handlers.handleGameplayEvent({
+      event_type: 'state_delta',
+      reason: 'DamageDealt',
+      deltas: [
+        {
+          type: 'morale',
+          scope: 'team',
+          camp: 'Red',
+          field: 'morale',
+          before: 15,
+          after: 13,
+          value: -2,
+          reason: 'DamageDealt',
+        },
+        {
+          type: 'team_gem',
+          scope: 'team',
+          camp: 'Blue',
+          field: 'gem',
+          before: 0,
+          after: 1,
+          value: 1,
+          reason: 'DamageDealt',
+        },
+      ],
+    })
+
+    expect(battleReviewStore.moraleChanges).toHaveLength(1)
+    expect(battleReviewStore.moraleChanges[0]).toMatchObject({
+      camp: 'Red',
+      before: 15,
+      after: 13,
+      delta: -2,
+      source: 'DamageDealt',
+    })
+    expect(battleReviewStore.battleFeed.map(entry => entry.title)).toEqual([
+      '红方士气 -2',
+      '蓝方阵营宝石 +1',
+    ])
+  })
+
+  it('replays damage timeline payloads into effects without adding battle feed entries', () => {
     const { handlers, timelineStore, battleFxStore } = buildHandlers()
 
     const payload: TimelineNotifyPayload = {
@@ -332,10 +492,461 @@ describe('createGameplayMessageHandlers', () => {
 
     handlers.handleNotifyTimeline(payload)
 
-    expect(timelineStore.entries).toHaveLength(1)
-    expect(timelineStore.entries[0]?.gameplayType).toBe('damage_dealt')
+    expect(timelineStore.entries).toHaveLength(0)
     expect(battleFxStore.damageEffects).toHaveLength(1)
     expect(battleFxStore.damageEffects[0]?.targetId).toBe('p2')
     expect(battleFxStore.damageEffects[0]?.damage).toBe(3)
+  })
+
+  it('drives the action narrative directly from real-time gameplay events', () => {
+    const { handlers, battleFxStore, sessionStore } = buildHandlers()
+    sessionStore.setRoomInfo('ROOM1', 'p1', 'Red', 'hero')
+
+    handlers.handleSyncState({
+      room_state: 'Playing',
+      turn_stage: 'ActionExecution',
+      turn_player_id: 'p1',
+      has_performed_startup: true,
+      morale_red: 15,
+      morale_blue: 15,
+      cups_red: 0,
+      cups_blue: 0,
+      stones_red: [0, 0],
+      stones_blue: [0, 0],
+      deck_count: 30,
+      discard_count: 0,
+      available_skills: [],
+      characters: [],
+      players: [
+        buildSyncPlayer('p1', 'Red'),
+        buildSyncPlayer('p2', 'Blue'),
+        buildSyncPlayer('p3', 'Blue'),
+      ],
+    })
+
+    expect(battleFxStore.actionNarrative?.currentActionPlayerId).toBe('p1')
+    expect(battleFxStore.actionNarrative?.featuredActorId).toBe('p1')
+
+    handlers.handleGameplayEvent({
+      event_type: 'combat_cue',
+      attacker_id: 'p1',
+      target_id: 'p2',
+      phase: 'attack',
+    })
+    handlers.handleGameplayEvent({
+      event_type: 'card_revealed',
+      player_id: 'p1',
+      player_name: 'Alice',
+      action_type: 'attack',
+      cards: [{
+        id: 'fire-slash',
+        name: '火焰斩',
+        type: 'Attack',
+        element: 'Fire',
+        damage: 2,
+        description: '',
+      }],
+      hidden: false,
+    })
+    handlers.handleGameplayEvent({
+      event_type: 'damage_dealt',
+      source_id: 'p1',
+      source_name: 'Alice',
+      target_id: 'p2',
+      target_name: 'Player2',
+      damage: 2,
+      damage_type: 'Attack',
+    })
+
+    expect(battleFxStore.actionNarrative?.opposedActorIds).toContain('p2')
+    expect(battleFxStore.actionNarrative?.playedCards[0]).toMatchObject({
+      playerId: 'p1',
+      targetId: 'p2',
+      actionType: 'attack',
+    })
+    expect(battleFxStore.actionNarrative?.events.map(event => event.label)).toEqual(
+      expect.arrayContaining(['行动回合', '攻击', '造成 2 点伤害']),
+    )
+    expect(battleFxStore.damageEffects).toHaveLength(1)
+  })
+
+  it('keeps the action narrative through non-action phases until the next player starts acting', () => {
+    const { handlers, battleFxStore, sessionStore } = buildHandlers()
+    sessionStore.setRoomInfo('ROOM1', 'p1', 'Red', 'hero')
+
+    const baseState = {
+      room_state: 'Playing' as const,
+      has_performed_startup: true,
+      morale_red: 15,
+      morale_blue: 15,
+      cups_red: 0,
+      cups_blue: 0,
+      stones_red: [0, 0] as [number, number],
+      stones_blue: [0, 0] as [number, number],
+      deck_count: 30,
+      discard_count: 0,
+      available_skills: [],
+      characters: [],
+      players: [
+        buildSyncPlayer('p1', 'Red'),
+        buildSyncPlayer('p2', 'Blue'),
+      ],
+    }
+
+    handlers.handleSyncState({
+      ...baseState,
+      turn_stage: 'ActionExecution',
+      turn_player_id: 'p1',
+    })
+    handlers.handleGameplayEvent({
+      event_type: 'skill_activated',
+      player_id: 'p1',
+      player_name: 'Alice',
+      skill_id: 'water_seal',
+      skill_name: '水之封印',
+      effect_text: '目标本回合无法使用水系牌',
+      target_ids: ['p2'],
+    })
+
+    expect(battleFxStore.actionNarrative?.events.map(event => event.label)).toContain('水之封印：目标本回合无法使用水系牌')
+
+    handlers.handleSyncState({
+      ...baseState,
+      turn_stage: 'Settlement',
+      turn_player_id: 'p1',
+      combat_stage: '',
+      subflow: '',
+    })
+
+    expect(battleFxStore.actionNarrative?.events.map(event => event.label)).toContain('水之封印：目标本回合无法使用水系牌')
+
+    handlers.handleSyncState({
+      ...baseState,
+      turn_stage: 'ActionExecution',
+      turn_player_id: 'p2',
+    })
+
+    expect(battleFxStore.actionNarrative?.currentActionPlayerId).toBe('p2')
+    expect(battleFxStore.actionNarrative?.events.map(event => event.label)).toContain('行动回合')
+    expect(battleFxStore.actionNarrative?.events.map(event => event.label)).not.toContain('水之封印：目标本回合无法使用水系牌')
+  })
+
+  it('projects structured timeline replay into the central narrative without replaying transient effects', () => {
+    const { handlers, battleFxStore, battleReviewStore } = buildHandlers()
+
+    const payload: TimelineNotifyPayload = {
+      room_id: 'ROOM1',
+      seq_start: 1,
+      seq_end: 5,
+      is_replay: true,
+      events: [
+        {
+          event_id: 1,
+          turn_id: 1,
+          chain_id: 'nw-t1-p1',
+          type: 'TimelineEffectResolved',
+          outcome: 'TimelineOutcomeSuccess',
+          visibility: 'TimelineVisibilityPublic',
+          narrative_window_id: 'nw-t1-p1',
+          action_id: 'nw-t1-p1-a1-attack',
+          narrative_kind: 'action_started',
+          visual_kind: 'action_marker',
+          actor_user_id: 'p1',
+          actor_name: 'Alice',
+          action_type: 'attack',
+        },
+        {
+          event_id: 2,
+          turn_id: 1,
+          chain_id: 'nw-t1-p1',
+          type: 'TimelineActionDeclared',
+          outcome: 'TimelineOutcomeSuccess',
+          visibility: 'TimelineVisibilityPublic',
+          narrative_window_id: 'nw-t1-p1',
+          action_id: 'nw-t1-p1-a1-attack',
+          combat_id: 'nw-t1-p1-c1-combat',
+          narrative_kind: 'combat_declared',
+          visual_kind: 'none',
+          actor_user_id: 'p1',
+          target_user_ids: ['p2'],
+          cue_phase: 'attack',
+          gameplay_type: 'combat_cue',
+        },
+        {
+          event_id: 3,
+          turn_id: 1,
+          chain_id: 'nw-t1-p1',
+          type: 'TimelineActionDeclared',
+          outcome: 'TimelineOutcomeSuccess',
+          visibility: 'TimelineVisibilityPublic',
+          narrative_window_id: 'nw-t1-p1',
+          action_id: 'nw-t1-p1-a1-attack',
+          combat_id: 'nw-t1-p1-c1-combat',
+          narrative_kind: 'card_played',
+          visual_kind: 'card',
+          card_role: 'attack',
+          actor_user_id: 'p1',
+          actor_name: 'Alice',
+          target_user_ids: ['p2'],
+          action_type: 'attack',
+          cards: [{
+            id: 'earth-slash',
+            name: '地裂斩',
+            type: 'Attack',
+            element: 'Earth',
+            damage: 2,
+            description: '',
+          }],
+          gameplay_type: 'card_revealed',
+        },
+        {
+          event_id: 4,
+          turn_id: 1,
+          chain_id: 'nw-t1-p1',
+          type: 'TimelineEffectResolved',
+          outcome: 'TimelineOutcomeSuccess',
+          visibility: 'TimelineVisibilityPublic',
+          narrative_window_id: 'nw-t1-p1',
+          action_id: 'nw-t1-p1-a2-skill',
+          narrative_kind: 'skill_declared',
+          visual_kind: 'skill_token',
+          skill_phase: 'declared',
+          actor_user_id: 'p3',
+          actor_name: '封印师',
+          target_user_ids: ['p2'],
+          skill_name: '水之封印',
+          effect_text: '放置水系封印',
+        },
+        {
+          event_id: 5,
+          turn_id: 1,
+          chain_id: 'nw-t1-p1',
+          type: 'TimelineCombatResolved',
+          outcome: 'TimelineOutcomeSuccess',
+          visibility: 'TimelineVisibilityPublic',
+          narrative_window_id: 'nw-t1-p1',
+          action_id: 'nw-t1-p1-a1-attack',
+          combat_id: 'nw-t1-p1-c1-combat',
+          narrative_kind: 'damage_dealt',
+          visual_kind: 'damage',
+          actor_user_id: 'p1',
+          target_user_ids: ['p2'],
+          damage: 2,
+          damage_type: 'Attack',
+          gameplay_type: 'damage_dealt',
+        },
+        {
+          event_id: 6,
+          turn_id: 1,
+          chain_id: 'nw-t1-p1',
+          type: 'TimelineEffectResolved',
+          outcome: 'TimelineOutcomeSuccess',
+          visibility: 'TimelineVisibilityPublic',
+          narrative_window_id: 'nw-t1-p1',
+          action_id: 'nw-t1-p1-a2-skill',
+          narrative_kind: 'field_effect_applied',
+          visual_kind: 'effect_token',
+          effect_type: 'SealWater',
+          actor_user_id: 'p3',
+          target_user_ids: ['p2'],
+          field_card: {
+            card: {
+              id: 'seal-card',
+              name: '水之封印',
+              type: 'Magic',
+              element: 'Water',
+              damage: 0,
+              description: '',
+            },
+            owner_id: 'p2',
+            source_id: 'p3',
+            mode: 'Effect',
+            effect: 'SealWater',
+            field_hook: 'OnBeforeAction',
+            locked: false,
+            duration: 0,
+          },
+        },
+      ],
+    }
+
+    handlers.handleNotifyTimeline(payload)
+
+    expect(battleFxStore.actionNarrative?.currentActionPlayerId).toBe('p1')
+    expect(battleFxStore.actionNarrative?.playedCards).toHaveLength(1)
+    expect(battleFxStore.actionNarrative?.playedCards[0]).toMatchObject({
+      playerId: 'p1',
+      targetId: 'p2',
+      actionType: 'attack',
+    })
+    expect(battleFxStore.actionNarrative?.events.map(event => event.label)).toEqual(
+      expect.arrayContaining(['水之封印：放置水系封印', '造成 2 点伤害']),
+    )
+    expect(battleFxStore.actionNarrative?.events.map(event => event.label)).not.toContain('效果：水之封印')
+    expect(battleFxStore.actionNarrative?.links.some(link => link.fromId === 'p3' && link.toPlayerId === 'p2')).toBe(true)
+    expect(battleFxStore.damageEffects).toHaveLength(0)
+    expect(battleReviewStore.battleFeed).toHaveLength(0)
+  })
+
+  it('backfills a structured card target when the combat cue arrives after the card reveal', () => {
+    const { handlers, battleFxStore } = buildHandlers()
+
+    handlers.handleNotifyTimeline({
+      room_id: 'ROOM1',
+      seq_start: 1,
+      seq_end: 3,
+      is_replay: false,
+      events: [
+        {
+          event_id: 1,
+          turn_id: 1,
+          chain_id: 'nw-t1-p1',
+          type: 'TimelineEffectResolved',
+          outcome: 'TimelineOutcomeSuccess',
+          visibility: 'TimelineVisibilityPublic',
+          narrative_window_id: 'nw-t1-p1',
+          action_id: 'nw-t1-p1-a1-attack',
+          narrative_kind: 'action_started',
+          visual_kind: 'action_marker',
+          actor_user_id: 'p1',
+          target_user_ids: ['p2'],
+          action_type: 'attack',
+        },
+        {
+          event_id: 2,
+          turn_id: 1,
+          chain_id: 'nw-t1-p1',
+          type: 'TimelineActionDeclared',
+          outcome: 'TimelineOutcomeSuccess',
+          visibility: 'TimelineVisibilityPublic',
+          narrative_window_id: 'nw-t1-p1',
+          action_id: 'nw-t1-p1-a1-attack',
+          narrative_kind: 'card_played',
+          visual_kind: 'card',
+          card_role: 'attack',
+          actor_user_id: 'p1',
+          cards: [{
+            id: 'earth-slash',
+            name: '地裂斩',
+            type: 'Attack',
+            element: 'Earth',
+            damage: 2,
+            description: '',
+          }],
+          gameplay_type: 'card_revealed',
+        },
+        {
+          event_id: 3,
+          turn_id: 1,
+          chain_id: 'nw-t1-p1',
+          type: 'TimelineActionDeclared',
+          outcome: 'TimelineOutcomeSuccess',
+          visibility: 'TimelineVisibilityPublic',
+          narrative_window_id: 'nw-t1-p1',
+          action_id: 'nw-t1-p1-a1-attack',
+          combat_id: 'nw-t1-p1-c1-combat',
+          narrative_kind: 'combat_declared',
+          visual_kind: 'none',
+          actor_user_id: 'p1',
+          target_user_ids: ['p2'],
+          cue_phase: 'attack',
+          gameplay_type: 'combat_cue',
+        },
+      ],
+    })
+
+    expect(battleFxStore.actionNarrative?.playedCards[0]).toMatchObject({
+      playerId: 'p1',
+      targetId: 'p2',
+      actionType: 'attack',
+    })
+    expect(battleFxStore.actionNarrative?.links.some(link => link.fromType === 'card' && link.toPlayerId === 'p2')).toBe(true)
+  })
+
+  it('projects public discard cards into narrative playback without revealing hidden discards', () => {
+    const { handlers, battleFxStore } = buildHandlers()
+
+    handlers.handleNotifyTimeline({
+      room_id: 'ROOM1',
+      seq_start: 1,
+      seq_end: 3,
+      is_replay: false,
+      events: [
+        {
+          event_id: 1,
+          turn_id: 1,
+          chain_id: 'nw-t1-p1',
+          type: 'TimelineEffectResolved',
+          outcome: 'TimelineOutcomeSuccess',
+          visibility: 'TimelineVisibilityPublic',
+          narrative_window_id: 'nw-t1-p1',
+          action_id: 'nw-t1-p1-a1-skill',
+          narrative_kind: 'action_started',
+          visual_kind: 'action_marker',
+          actor_user_id: 'p1',
+          action_type: 'skill',
+        },
+        {
+          event_id: 2,
+          turn_id: 1,
+          chain_id: 'nw-t1-p1',
+          type: 'TimelineActionDeclared',
+          outcome: 'TimelineOutcomeSuccess',
+          visibility: 'TimelineVisibilityPublic',
+          narrative_window_id: 'nw-t1-p1',
+          action_id: 'nw-t1-p1-a1-skill',
+          narrative_kind: 'card_played',
+          visual_kind: 'card',
+          card_role: 'discard',
+          actor_user_id: 'p1',
+          cards: [{
+            id: 'water-cost',
+            name: '水纹法术',
+            type: 'Magic',
+            element: 'Water',
+            damage: 0,
+            description: '',
+          }],
+          gameplay_type: 'card_revealed',
+        },
+        {
+          event_id: 3,
+          turn_id: 1,
+          chain_id: 'nw-t1-p1',
+          type: 'TimelineActionDeclared',
+          outcome: 'TimelineOutcomeSuccess',
+          visibility: 'TimelineVisibilityPublic',
+          narrative_window_id: 'nw-t1-p1',
+          action_id: 'nw-t1-p1-a1-skill',
+          narrative_kind: 'card_played',
+          visual_kind: 'none',
+          card_role: 'discard',
+          actor_user_id: 'p1',
+          hidden: true,
+          cards: [{
+            id: 'hidden-cost',
+            name: '隐藏法术',
+            type: 'Magic',
+            element: 'Fire',
+            damage: 0,
+            description: '',
+          }],
+          gameplay_type: 'card_revealed',
+        },
+      ],
+    })
+
+    expect(battleFxStore.actionNarrative?.playedCards).toHaveLength(1)
+    expect(battleFxStore.actionNarrative?.playedCards[0]).toMatchObject({
+      playerId: 'p1',
+      actionType: 'discard',
+      card: expect.objectContaining({ name: '水纹法术' }),
+    })
+    expect(battleFxStore.actionNarrative?.playedCards.map(card => card.card.name)).not.toContain('隐藏法术')
+    expect(battleFxStore.narrativePlayback?.steps[0]).toMatchObject({
+      kind: 'discard',
+      label: '弃牌',
+      itemIds: ['card-1'],
+    })
   })
 })

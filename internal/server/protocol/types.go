@@ -107,47 +107,128 @@ type RequireActionPayload struct {
 }
 
 type TimelineDelta struct {
-	Type         string `json:"type"`
-	TargetUserID string `json:"target_user_id,omitempty"`
-	Value        int    `json:"value,omitempty"`
+	Type          string           `json:"type"`
+	Scope         string           `json:"scope,omitempty"`
+	TargetUserID  string           `json:"target_user_id,omitempty"`
+	Camp          string           `json:"camp,omitempty"`
+	Field         string           `json:"field,omitempty"`
+	Before        int              `json:"before,omitempty"`
+	After         int              `json:"after,omitempty"`
+	Value         int              `json:"value,omitempty"`
+	Reason        string           `json:"reason,omitempty"`
+	SourceEventID string           `json:"source_event_id,omitempty"`
+	BeforeText    string           `json:"before_text,omitempty"`
+	AfterText     string           `json:"after_text,omitempty"`
+	FieldCard     *model.FieldCard `json:"field_card,omitempty"`
 }
 
 type TimelineEvent struct {
-	EventID       int64           `json:"event_id"`
-	TurnID        int             `json:"turn_id"`
-	TurnStage     string          `json:"turn_stage,omitempty"`
-	CombatStage   string          `json:"combat_stage,omitempty"`
-	Subflow       string          `json:"subflow,omitempty"`
-	Timing        string          `json:"timing,omitempty"`
-	ChainID       string          `json:"chain_id"`
-	ParentEventID *int64          `json:"parent_event_id,omitempty"`
-	Type          string          `json:"type"`
-	Outcome       string          `json:"outcome"`
-	Visibility    string          `json:"visibility"`
-	ActorUserID   string          `json:"actor_user_id,omitempty"`
-	ActorName     string          `json:"actor_name,omitempty"`
-	TargetUserIDs []string        `json:"target_user_ids,omitempty"`
-	TargetName    string          `json:"target_name,omitempty"`
-	ActionType    string          `json:"action_type,omitempty"`
-	SkillID       string          `json:"skill_id,omitempty"`
-	CardIDs       []string        `json:"card_ids,omitempty"`
-	Cards         []model.Card    `json:"cards,omitempty"`
-	Hidden        bool            `json:"hidden,omitempty"`
-	Damage        int             `json:"damage,omitempty"`
-	DamageType    string          `json:"damage_type,omitempty"`
-	DetailKind    string          `json:"detail_kind,omitempty"`
-	CuePhase      string          `json:"cue_phase,omitempty"`
-	DrawCount     int             `json:"draw_count,omitempty"`
-	Reason        string          `json:"reason,omitempty"`
-	Deltas        []TimelineDelta `json:"deltas,omitempty"`
-	Message       string          `json:"message,omitempty"`
-	GameplayType  string          `json:"gameplay_type,omitempty"`
+	EventID            int64            `json:"event_id"`
+	TurnID             int              `json:"turn_id"`
+	TurnStage          string           `json:"turn_stage,omitempty"`
+	CombatStage        string           `json:"combat_stage,omitempty"`
+	Subflow            string           `json:"subflow,omitempty"`
+	Timing             string           `json:"timing,omitempty"`
+	ChainID            string           `json:"chain_id"`
+	ParentEventID      *int64           `json:"parent_event_id,omitempty"`
+	SourceEventID      string           `json:"source_event_id,omitempty"`
+	NarrativeWindowID  string           `json:"narrative_window_id,omitempty"`
+	ActionID           string           `json:"action_id,omitempty"`
+	CombatID           string           `json:"combat_id,omitempty"`
+	NarrativeKind      string           `json:"narrative_kind,omitempty"`
+	VisualKind         string           `json:"visual_kind,omitempty"`
+	CardRole           string           `json:"card_role,omitempty"`
+	SkillPhase         string           `json:"skill_phase,omitempty"`
+	EffectType         string           `json:"effect_type,omitempty"`
+	ExtraActionType    string           `json:"extra_action_type,omitempty"`
+	ExtraActionElement string           `json:"extra_action_element,omitempty"`
+	FieldCard          *model.FieldCard `json:"field_card,omitempty"`
+	Type               string           `json:"type"`
+	Outcome            string           `json:"outcome"`
+	Visibility         string           `json:"visibility"`
+	ActorUserID        string           `json:"actor_user_id,omitempty"`
+	ActorName          string           `json:"actor_name,omitempty"`
+	TargetUserIDs      []string         `json:"target_user_ids,omitempty"`
+	TargetName         string           `json:"target_name,omitempty"`
+	ActionType         string           `json:"action_type,omitempty"`
+	SkillID            string           `json:"skill_id,omitempty"`
+	SkillName          string           `json:"skill_name,omitempty"`
+	EffectText         string           `json:"effect_text,omitempty"`
+	Summary            string           `json:"summary,omitempty"`
+	CardIDs            []string         `json:"card_ids,omitempty"`
+	Cards              []model.Card     `json:"cards,omitempty"`
+	Hidden             bool             `json:"hidden,omitempty"`
+	Damage             int              `json:"damage,omitempty"`
+	DamageType         string           `json:"damage_type,omitempty"`
+	DetailKind         string           `json:"detail_kind,omitempty"`
+	CuePhase           string           `json:"cue_phase,omitempty"`
+	DrawCount          int              `json:"draw_count,omitempty"`
+	Reason             string           `json:"reason,omitempty"`
+	Deltas             []TimelineDelta  `json:"deltas,omitempty"`
+	Message            string           `json:"message,omitempty"`
+	GameplayType       string           `json:"gameplay_type,omitempty"`
+}
+
+type ActionFlowActorDTO struct {
+	PlayerID string `json:"player_id"`
+	Order    int    `json:"order"`
+}
+
+type ActionFlowNodeDTO struct {
+	ID            string       `json:"id"`
+	Order         int          `json:"order"`
+	Kind          string       `json:"kind"`
+	ActorUserID   string       `json:"actor_user_id,omitempty"`
+	TargetUserIDs []string     `json:"target_user_ids,omitempty"`
+	EventID       int64        `json:"event_id,omitempty"`
+	AnchorEdgeID  string       `json:"anchor_edge_id,omitempty"`
+	SkillID       string       `json:"skill_id,omitempty"`
+	SkillName     string       `json:"skill_name,omitempty"`
+	EffectText    string       `json:"effect_text,omitempty"`
+	Cards         []model.Card `json:"cards,omitempty"`
+	Outcome       string       `json:"outcome,omitempty"`
+	Damage        int          `json:"damage,omitempty"`
+	DamageType    string       `json:"damage_type,omitempty"`
+	Label         string       `json:"label,omitempty"`
+}
+
+type ActionFlowEdgeDTO struct {
+	ID          string       `json:"id"`
+	Order       int          `json:"order"`
+	FromUserID  string       `json:"from_user_id"`
+	ToUserID    string       `json:"to_user_id"`
+	Phase       string       `json:"phase"`
+	CardEventID int64        `json:"card_event_id,omitempty"`
+	Cards       []model.Card `json:"cards,omitempty"`
+	NodeIDs     []string     `json:"node_ids,omitempty"`
+	Outcome     string       `json:"outcome,omitempty"`
+	Damage      int          `json:"damage,omitempty"`
+	DamageType  string       `json:"damage_type,omitempty"`
+	Label       string       `json:"label,omitempty"`
+}
+
+type ActionFlowLogDTO struct {
+	Order int    `json:"order"`
+	Text  string `json:"text"`
+}
+
+type ActionFlowDTO struct {
+	FlowID            string               `json:"flow_id"`
+	ActionID          string               `json:"action_id"`
+	NarrativeWindowID string               `json:"narrative_window_id,omitempty"`
+	ActorUserID       string               `json:"actor_user_id,omitempty"`
+	ActionType        string               `json:"action_type"`
+	Actors            []ActionFlowActorDTO `json:"actors"`
+	Nodes             []ActionFlowNodeDTO  `json:"nodes,omitempty"`
+	Edges             []ActionFlowEdgeDTO  `json:"edges,omitempty"`
+	Logs              []ActionFlowLogDTO   `json:"logs,omitempty"`
 }
 
 type TimelineNotifyPayload struct {
-	RoomID   string          `json:"room_id"`
-	SeqStart int64           `json:"seq_start"`
-	SeqEnd   int64           `json:"seq_end"`
-	IsReplay bool            `json:"is_replay"`
-	Events   []TimelineEvent `json:"events"`
+	RoomID      string          `json:"room_id"`
+	SeqStart    int64           `json:"seq_start"`
+	SeqEnd      int64           `json:"seq_end"`
+	IsReplay    bool            `json:"is_replay"`
+	Events      []TimelineEvent `json:"events"`
+	ActionFlows []ActionFlowDTO `json:"action_flows,omitempty"`
 }

@@ -169,12 +169,8 @@ func (h *CrimsonKnightCalmMindHandler) Execute(ctx *model.Context) error {
 		return fmt.Errorf("戒骄戒躁只支持攻击/法术行动结束后触发")
 	}
 
-	actionLabel := "攻击"
-	if actionType == model.ActionMagic {
-		actionLabel = "法术"
-	}
-	model.AppendExtraAction(ctx.User, "戒骄戒躁", string(actionType))
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [戒骄戒躁]，脱离热血沸腾形态并额外获得1次%s行动", ctx.User.Name, actionLabel))
+	model.AppendExtraAction(ctx.User, "戒骄戒躁", "")
+	ctx.Game.Log(fmt.Sprintf("%s 发动 [戒骄戒躁]，脱离热血沸腾形态并额外获得1次行动（可选择攻击或法术）", ctx.User.Name))
 	return nil
 }
 

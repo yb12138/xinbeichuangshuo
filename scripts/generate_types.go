@@ -42,6 +42,11 @@ var includeTypes = map[string]bool{
 	"CardRevealedPayload":   true,
 	"DamageDealtPayload":    true,
 	"ActionStepPayload":     true,
+	"ActionFlowActorDTO":    true,
+	"ActionFlowDTO":         true,
+	"ActionFlowEdgeDTO":     true,
+	"ActionFlowLogDTO":      true,
+	"ActionFlowNodeDTO":     true,
 	"CombatCuePayload":      true,
 	"DrawCardsPayload":      true,
 	"PlayerInfo":            true,
@@ -386,6 +391,9 @@ func emitGameplayEventUnion(out *bytes.Buffer) {
 	out.WriteString("  | ({ event_type: 'action_step'; line: ActionStepPayload['line']; kind: ActionStepPayload['kind'] })\n")
 	out.WriteString("  | ({ event_type: 'combat_cue'; attacker_id: CombatCuePayload['attacker_id']; target_id: CombatCuePayload['target_id']; phase: CombatCuePayload['phase'] })\n")
 	out.WriteString("  | ({ event_type: 'draw_cards'; player_id: DrawCardsPayload['player_id']; player_name: DrawCardsPayload['player_name']; draw_count: DrawCardsPayload['draw_count']; reason: DrawCardsPayload['reason'] })\n\n")
+	out.WriteString("  | { event_type: 'skill_activated'; player_id: string; player_name: string; skill_id: string; skill_name: string; effect_text: string; target_ids?: string[] }\n")
+	out.WriteString("  | { event_type: 'special_action'; player_id: string; player_name: string; action_type: string; target_ids?: string[]; summary: string }\n")
+	out.WriteString("  | { event_type: 'state_delta'; deltas: TimelineDelta[]; reason?: string }\n\n")
 }
 
 func selectorName(sel *ast.SelectorExpr) string {

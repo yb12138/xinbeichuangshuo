@@ -15,6 +15,7 @@ const props = defineProps<{
   faceDown?: boolean
   small?: boolean
   medium?: boolean
+  battleMini?: boolean
   effectiveElement?: string
   effectiveElementHint?: string
 }>()
@@ -175,7 +176,9 @@ function handleClick() {
     :data-testid="testId || (index !== undefined ? `hand-card-${index}` : undefined)"
     :class="[
       elementClass,
-      small
+      battleMini
+        ? 'w-[74px] h-[111px] text-xs card-size-battle-mini card-battle-mini'
+        : small
         ? 'w-[92px] h-[138px] text-sm card-size-small'
         : medium
           ? 'w-[112px] h-[168px] text-sm card-size-medium'
@@ -306,6 +309,11 @@ function handleClick() {
 .card-shell:not(.selectable):not(.selected) {
   opacity: 0.62;
   filter: saturate(0.76);
+}
+
+.card-shell.card-battle-mini:not(.selectable):not(.selected) {
+  opacity: 1;
+  filter: none;
 }
 
 .layer {
@@ -575,6 +583,10 @@ function handleClick() {
   font-size: 9px;
 }
 
+.card-size-battle-mini .card-title-text {
+  font-size: 7.5px;
+}
+
 .card-size-medium .card-title-text {
   font-size: 10px;
 }
@@ -585,6 +597,10 @@ function handleClick() {
 
 .card-size-small .card-element-medal > span {
   font-size: 8px;
+}
+
+.card-size-battle-mini .card-element-medal > span {
+  font-size: 6.5px;
 }
 
 .card-size-medium .card-element-medal > span {
@@ -599,6 +615,10 @@ function handleClick() {
   font-size: 6.5px;
 }
 
+.card-size-battle-mini .card-ribbon-text {
+  font-size: 5.5px;
+}
+
 .card-size-medium .card-ribbon-text {
   font-size: 7px;
 }
@@ -609,6 +629,11 @@ function handleClick() {
 
 .card-size-small .card-desc-btn {
   font-size: 7px;
+}
+
+.card-size-battle-mini .card-desc-btn {
+  font-size: 6px;
+  padding: 1px 3px;
 }
 
 .card-size-medium .card-desc-btn {

@@ -48,6 +48,18 @@ func (sd *SkillDispatcher) DispatchOrientationChanges(before any) {
 	}
 }
 
+func (sd *SkillDispatcher) SnapshotPendingActions(player *model.Player) any {
+	return snapshotPendingActions(player)
+}
+
+func (sd *SkillDispatcher) PublishPendingActionDiff(player *model.Player, before any, source string) {
+	if sd == nil || sd.engine == nil {
+		return
+	}
+	beforeMap, _ := before.(map[string]int)
+	sd.engine.publishPendingActionDiff(player, beforeMap, source)
+}
+
 func (sd *SkillDispatcher) SyncPendingDamageFromContext(ctx *model.Context) {
 	if sd == nil || sd.engine == nil {
 		return
@@ -60,6 +72,13 @@ func (sd *SkillDispatcher) RecordSkillUsage(playerID, title string, skillType mo
 		return
 	}
 	sd.engine.recordSkillUsage(playerID, title, skillType)
+}
+
+func (sd *SkillDispatcher) NotifySkillActivated(playerID, skillID, skillName, effectText string, targetIDs []string) {
+	if sd == nil || sd.engine == nil {
+		return
+	}
+	sd.engine.NotifySkillActivated(playerID, skillID, skillName, effectText, targetIDs)
 }
 
 func (sd *SkillDispatcher) ApplyHitCheckAugment(skillIDs []string, ctx *model.Context) []string {
@@ -191,7 +210,11 @@ func (sd *SkillDispatcher) ConsumeSkillEnergyCost(playerID string, gemCost, crys
 	if p == nil {
 		return false
 	}
-	return consumeSkillEnergyCost(p, gemCost, crystalCost)
+	if !consumeSkillEnergyCost(p, gemCost, crystalCost) {
+		return false
+	}
+	sd.engine.recordActionResourceDelta()
+	return true
 }
 
 // dropQueuedOverflowDiscardForPlayer 清理精灵密仪等确认后残留的爆牌弃牌中断。

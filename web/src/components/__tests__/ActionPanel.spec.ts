@@ -178,6 +178,56 @@ describe('ActionPanel skill availability', () => {
     expect(sharedLifeButton).toHaveTextContent('缺少可用于发动的「同生共死」独有技手牌')
   })
 
+  it('does not show the main action hub while reconnecting into a combat response snapshot', () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    useSessionStore().setRoomInfo('ROOM', 'p1', 'Red', 'blood_priestess')
+    useSnapshotStore().updateGameState(buildState({
+      combat_stage: 'CombatHitCheck',
+      subflow: '',
+      current_player: 'p1',
+    }))
+
+    render(ActionPanel, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          PromptDialog: true,
+        },
+      },
+    })
+
+    expect(screen.queryByTestId('action-attack')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('action-magic')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('action-special')).not.toBeInTheDocument()
+  })
+
+  it('does not show the main action hub while reconnecting into a response subflow', () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    useSessionStore().setRoomInfo('ROOM', 'p1', 'Red', 'blood_priestess')
+    useSnapshotStore().updateGameState(buildState({
+      combat_stage: '',
+      subflow: 'Response',
+      current_player: 'p1',
+    }))
+
+    render(ActionPanel, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          PromptDialog: true,
+        },
+      },
+    })
+
+    expect(screen.queryByTestId('action-attack')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('action-magic')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('action-special')).not.toBeInTheDocument()
+  })
+
   it('submits server-published targeted skills before backend prompt-driven target selection', async () => {
     const pinia = createPinia()
     setActivePinia(pinia)

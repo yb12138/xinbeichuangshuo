@@ -435,3 +435,62 @@ func TestAngelBlessing_ReceiverOverHandLimitTriggersOverflowDiscard(t *testing.T
 		t.Fatalf("expected hand size restored to max hand=%d after overflow discard, got %d", maxHand, got)
 	}
 }
+
+func TestAngelBlessing_ReceiverCanConfirmGiveCardsByCardIDs(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Angel", "angel", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p1.IsActive = true
+	p2.IsActive = false
+	p1.TurnState = model.NewPlayerTurnState()
+	p2.TurnState = model.NewPlayerTurnState()
+
+	p1.Hand = []model.Card{
+		{ID: "w-1", Name: "水牌", Type: model.CardTypeMagic, Element: model.ElementWater},
+	}
+	p2.Hand = []model.Card{
+		{ID: "g-1", Name: "给牌1", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 1},
+		{ID: "g-2", Name: "给牌2", Type: model.CardTypeAttack, Element: model.ElementWater, Damage: 1},
+	}
+
+	if err := game.HandleAction(model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSkill,
+		SkillID:    "angel_blessing",
+		TargetIDs:  []string{"p2"},
+		Selections: []int{0},
+	}); err != nil {
+		t.Fatalf("angel_blessing should succeed, got err=%v", err)
+	}
+	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptGiveCards {
+		t.Fatalf("expected give-cards interrupt, got %+v", game.State.PendingInterrupt)
+	}
+
+	if err := game.HandleAction(model.PlayerAction{
+		PlayerID: "p2",
+		Type:     model.CmdSelect,
+		CardIDs:  []string{"g-2", "g-1"},
+	}); err != nil {
+		t.Fatalf("giver should be able to confirm with card IDs, got err=%v", err)
+	}
+
+	if game.State.PendingInterrupt != nil {
+		t.Fatalf("expected give-cards interrupt to resolve without follow-up, got %+v", game.State.PendingInterrupt)
+	}
+	if got := len(p2.Hand); got != 0 {
+		t.Fatalf("expected giver hand to be emptied, got %d", got)
+	}
+	if got := len(p1.Hand); got <= 1 {
+		t.Fatalf("expected receiver to gain cards after card_id confirm, got %d", got)
+	}
+}

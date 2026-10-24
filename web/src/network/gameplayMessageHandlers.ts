@@ -1,6 +1,6 @@
 import type { GameEvent, GameStateUpdate, Prompt } from '../types/game'
 import { extractGameplayEventsFromTimeline } from './gameplayTimeline'
-import type { RequireActionPayload, SyncStatePayload, TimelineNotifyPayload } from './protocol'
+import type { RequireActionPayload, SyncStatePayload, TimelineDelta, TimelineNotifyPayload } from './protocol'
 import { buildGameStateUpdateFromSyncState } from './syncState'
 import { useBattleFxStore } from '../stores/battlefx.store'
 import { useBattleReviewStore, type MoraleCamp } from '../stores/battleReview.store'
@@ -34,23 +34,9 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
     matchLifecycleStore,
   } = deps
 
-  const playerByName = (name?: string) => {
-    if (!name) return undefined
-    return Object.values(snapshotStore.players).find(p => p.name === name)
-  }
-
   const playerNameById = (id?: string) => {
     if (!id) return ''
     return snapshotStore.players[id]?.name || id
-  }
-
-  const resolvePlayerIdByToken = (token?: string) => {
-    if (!token) return ''
-    const normalized = token.trim()
-    if (!normalized) return ''
-    if (snapshotStore.players[normalized]) return normalized
-    const byName = playerByName(normalized)
-    return byName?.id || ''
   }
 
   const normalizeCamp = (camp?: string): MoraleCamp | undefined => {
@@ -58,62 +44,74 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
     return undefined
   }
 
-  const parseMoraleHintFromLog = (line: string) => {
-    if (!line) return
-    const normalized = line.replace(/^\[[^\]]+\]\s*/, '').trim()
+  const campLabel = (camp?: string) => {
+    if (camp === 'Red') return '红方'
+    if (camp === 'Blue') return '蓝方'
+    return camp || ''
+  }
 
-    const discardLoss = line.match(/^\[System\]\s*(.+?)\s*丢弃了\s*(\d+)\s*张牌！士气\s*-(\d+)/)
-    if (discardLoss) {
-      const actorName = discardLoss[1]?.trim()
-      const loss = Number(discardLoss[3] || 0)
-      const actor = playerByName(actorName)
-      battleReviewStore.pushMoraleHint({
-        source: `${actorName} 爆牌弃牌`,
-        raw: normalized,
-        camp: normalizeCamp(actor?.camp),
-        loss,
-        actorName,
-      })
-      return
-    }
+  const signed = (value?: number) => {
+    const numeric = Number(value || 0)
+    if (numeric > 0) return `+${numeric}`
+    return String(numeric)
+  }
 
-    const cupLoss = line.match(/^\[Action\]\s*(.+?)\s*合成星杯！.*?(红方|蓝方)士气-(\d+)/)
-    if (cupLoss) {
-      const actorName = cupLoss[1]?.trim()
-      const targetCamp = cupLoss[2] === '红方' ? 'Red' : 'Blue'
-      const loss = Number(cupLoss[3] || 0)
-      battleReviewStore.pushMoraleHint({
-        source: `${actorName} 合成星杯`,
-        raw: normalized,
-        camp: targetCamp,
-        loss,
-        actorName,
-      })
-      return
-    }
+  const playerLabel = (playerId?: string) => {
+    if (!playerId) return ''
+    return playerNameById(playerId) || playerId
+  }
 
-    const campDelta = normalized.match(/(红方|蓝方)士气\s*([+-]\d+)/)
-    if (campDelta) {
-      const camp = campDelta[1] === '红方' ? 'Red' : 'Blue'
-      const delta = Number(campDelta[2] || 0)
-      battleReviewStore.pushMoraleHint({
-        source: '士气变化',
-        raw: normalized,
-        camp,
-        loss: delta < 0 ? Math.abs(delta) : undefined,
-      })
-      return
-    }
+  const fieldCardLabel = (delta: TimelineDelta) => {
+    return delta.field_card?.card?.name || delta.after_text || delta.before_text || '场上牌'
+  }
 
-    const genericDelta = normalized.match(/士气\s*([+-]\d+)/)
-    if (genericDelta) {
-      const delta = Number(genericDelta[1] || 0)
-      battleReviewStore.pushMoraleHint({
-        source: '士气变化',
-        raw: normalized,
-        loss: delta < 0 ? Math.abs(delta) : undefined,
-      })
+  const stateDeltaTitle = (delta: TimelineDelta) => {
+    const label = playerLabel(delta.target_user_id)
+    switch (delta.type) {
+      case 'morale':
+        return `${campLabel(delta.camp)}士气 ${signed(delta.value)}`
+      case 'team_gem':
+        return `${campLabel(delta.camp)}阵营宝石 ${signed(delta.value)}`
+      case 'team_crystal':
+        return `${campLabel(delta.camp)}阵营水晶 ${signed(delta.value)}`
+      case 'team_cup':
+        return `${campLabel(delta.camp)}星杯 ${signed(delta.value)}`
+      case 'player_gem':
+        return `${label} 宝石 ${signed(delta.value)}`
+      case 'player_crystal':
+        return `${label} 水晶 ${signed(delta.value)}`
+      case 'heal':
+        return `${label} 治疗 ${signed(delta.value)}`
+      case 'hand_count':
+        return `${label} 手牌数 ${signed(delta.value)}`
+      case 'discard_count':
+        return `弃牌堆 ${signed(delta.value)}`
+      case 'deck_count':
+        return `牌库 ${signed(delta.value)}`
+      case 'field_card_added':
+        return `${label} 放置 ${fieldCardLabel(delta)}`
+      case 'field_card_removed':
+        return `${label} 移除 ${fieldCardLabel(delta)}`
+      case 'field_card_changed':
+        return `${label} 场上牌变化`
+      case 'form':
+        return `${label} 形态：${delta.before_text || '默认'} -> ${delta.after_text || '默认'}`
+      case 'orientation':
+        return `${label} 朝向：${delta.before_text || 'Normal'} -> ${delta.after_text || 'Normal'}`
+      case 'token':
+      case 'status':
+        return `${label} ${delta.field || delta.type} ${signed(delta.value)}`
+      default:
+        return `${label || campLabel(delta.camp) || '状态'} ${delta.type} ${signed(delta.value)}`
     }
+  }
+
+  const battleFeedTypeForDelta = (delta: TimelineDelta) => {
+    if (delta.type === 'morale') return 'damage'
+    if (delta.type.includes('gem') || delta.type.includes('crystal') || delta.type.includes('cup') || delta.type.endsWith('_count')) {
+      return 'resource'
+    }
+    return 'system'
   }
 
   const deriveEndMessageFromState = (state?: GameStateUpdate) => {
@@ -185,31 +183,25 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
 
   function handleNotifyTimeline(payload: TimelineNotifyPayload) {
     timelineStore.push(payload)
+    const hasStructuredNarrative = battleFxStore.hasStructuredNarrative(payload.events || [])
+    if (hasStructuredNarrative) {
+      battleFxStore.applyStructuredTimelineNarrative(payload)
+    }
+    if (payload.is_replay) {
+      return
+    }
     for (const event of extractGameplayEventsFromTimeline(payload.events || [])) {
-      handleGameplayEvent(event)
+      handleGameplayEvent(event, { suppressNarrative: hasStructuredNarrative })
     }
   }
 
-  function handleGameplayEvent(event: GameEvent) {
+  function handleGameplayEvent(event: GameEvent, options: { suppressNarrative?: boolean } = {}) {
     console.log('Game event:', event)
 
     switch (event.event_type) {
       case 'log':
         if (event.message) {
           battleReviewStore.addLog(event.message)
-          parseMoraleHintFromLog(event.message)
-          const skillActorToken =
-            event.message.match(/^\[Skill\]\s*(.+?)\s*使用了技能[:：]/)?.[1] ||
-            event.message.match(/^(.+?)\s*发动\s*\[[^\]]+\]/)?.[1] ||
-            ''
-          const skillActorId = resolvePlayerIdByToken(skillActorToken)
-          if (skillActorId) {
-            battleFxStore.startSkillInitiatorFocus(skillActorId, 'skill')
-          }
-          const match = event.message.match(/发动\s*\[([^\]]+)\]/)
-          if (match) {
-            interruptStore.showSkillEffectToast(`${match[1]} 技能生效！`)
-          }
         }
         break
 
@@ -219,8 +211,6 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
             matchLifecycleStore.setGameStarted()
           }
           const prevCurrent = snapshotStore.currentPlayer
-          const prevRedMorale = snapshotStore.redMorale
-          const prevBlueMorale = snapshotStore.blueMorale
           battleFxStore.prepareForFlowUpdate(event.state.combat_stage, event.state.subflow)
           snapshotStore.updateGameState(event.state)
           interruptStore.syncAfterStateUpdate()
@@ -229,16 +219,6 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
             sessionStore.setSeat(me.camp || sessionStore.myCamp, me.role || sessionStore.myCharRole)
           }
           battleFxStore.syncInitiatorFocusWithState(event.state.combat_stage, event.state.subflow)
-          if (event.state.red_morale !== prevRedMorale) {
-            const delta = event.state.red_morale - prevRedMorale
-            const hint = battleReviewStore.consumeMoraleHint('Red', delta < 0 ? Math.abs(delta) : undefined)
-            battleReviewStore.recordMoraleChange('Red', prevRedMorale, event.state.red_morale, hint)
-          }
-          if (event.state.blue_morale !== prevBlueMorale) {
-            const delta = event.state.blue_morale - prevBlueMorale
-            const hint = battleReviewStore.consumeMoraleHint('Blue', delta < 0 ? Math.abs(delta) : undefined)
-            battleReviewStore.recordMoraleChange('Blue', prevBlueMorale, event.state.blue_morale, hint)
-          }
           if (uiStore.isGameEnded) {
             matchLifecycleStore.refreshGameEndSnapshot(uiStore.gameEndMessage || '游戏结束')
           }
@@ -248,7 +228,15 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
             battleReviewStore.addLog(`游戏结束: ${fallbackEndMsg}`)
           }
           const nextCurrent = event.state.current_player
+          const nextActionPlayerStarted =
+            !!nextCurrent &&
+            nextCurrent !== prevCurrent &&
+            event.state.turn_stage === 'ActionExecution'
+          if (nextActionPlayerStarted) {
+            battleFxStore.clearActionNarrative()
+          }
           if (nextCurrent && event.state.turn_stage === 'ActionExecution') {
+            battleFxStore.beginActionNarrative(nextCurrent)
             battleFxStore.startActingPlayerFocus(nextCurrent, 'turn')
           }
           if (nextCurrent && nextCurrent !== prevCurrent) {
@@ -321,15 +309,13 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
 
       case 'card_revealed':
         if (event.cards?.length && event.player_id) {
-          battleFxStore.addFlyingCards(
-            event.cards,
-            event.player_id,
-            event.player_name || event.player_id,
-            event.action_type || 'discard',
-            event.hidden,
-          )
           if (event.action_type === 'magic') {
             battleFxStore.startSkillInitiatorFocus(event.player_id, 'magic')
+          }
+          if (!event.hidden && !options.suppressNarrative) {
+            for (const card of event.cards) {
+              battleFxStore.addNarrativeCard(event.player_id, card, event.action_type || 'discard')
+            }
           }
         }
         break
@@ -342,14 +328,22 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
             event.damage,
             event.damage_type || 'Attack',
           )
+          if (!options.suppressNarrative) {
+            battleFxStore.addNarrativeDamage(
+              event.source_id,
+              event.target_id,
+              event.damage,
+              event.damage_type || 'Attack',
+            )
+          }
           battleFxStore.settleSkillInitiatorFocus(event.source_id)
         }
         break
 
       case 'action_step':
         if (event.line) {
-          battleReviewStore.addActionStep(event.line)
           if (event.kind === 'summary') {
+            battleReviewStore.addActionStep(event.line)
             battleReviewStore.addBattleFeed({
               type: 'system',
               title: event.line,
@@ -368,7 +362,9 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
             event.phase === 'counter' ||
             event.phase === 'shield')
         ) {
-          battleFxStore.addCombatCue(event.attacker_id, event.target_id, event.phase)
+          if (!options.suppressNarrative) {
+            battleFxStore.addCombatCue(event.attacker_id, event.target_id, event.phase)
+          }
         }
         break
 
@@ -376,6 +372,70 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
         if (event.player_id && event.draw_count && event.draw_count > 0) {
           const name = event.player_name || playerNameById(event.player_id) || event.player_id
           battleFxStore.addDrawBurst(event.player_id, name, event.draw_count)
+        }
+        break
+
+      case 'skill_activated':
+        if (event.player_id && event.skill_name) {
+          const actorName = event.player_name || playerNameById(event.player_id) || event.player_id
+          battleFxStore.startSkillInitiatorFocus(event.player_id, 'skill')
+          battleFxStore.addSkillAnnouncement(
+            event.player_id,
+            actorName,
+            event.skill_name,
+            event.effect_text || '技能效果生效',
+          )
+          if (!options.suppressNarrative) {
+            battleFxStore.addNarrativeSkill(
+              event.player_id,
+              event.skill_name,
+              event.effect_text || '技能效果生效',
+              event.target_ids || [],
+            )
+          }
+          battleReviewStore.addBattleFeed({
+            type: 'skill',
+            title: `${actorName} 发动「${event.skill_name}」`,
+            detail: event.effect_text || '技能效果生效',
+            actorId: event.player_id,
+            actorName,
+          })
+        }
+        break
+
+      case 'special_action':
+        if (event.player_id) {
+          const actorName = event.player_name || playerNameById(event.player_id) || event.player_id
+          battleReviewStore.addBattleFeed({
+            type: 'resource',
+            title: event.summary || `${actorName} 执行特殊行动`,
+            actorId: event.player_id,
+            actorName,
+          })
+        }
+        break
+
+      case 'state_delta':
+        for (const delta of event.deltas || []) {
+          if (delta.type === 'morale') {
+            const camp = normalizeCamp(delta.camp)
+            if (camp && delta.before !== undefined && delta.after !== undefined) {
+              battleReviewStore.recordMoraleChange(camp, delta.before, delta.after, {
+                id: 0,
+                timestamp: Date.now(),
+                source: delta.reason || '状态变化',
+                raw: stateDeltaTitle(delta),
+                camp,
+                loss: (delta.value || 0) < 0 ? Math.abs(delta.value || 0) : undefined,
+              })
+            }
+          }
+          battleReviewStore.addBattleFeed({
+            type: battleFeedTypeForDelta(delta),
+            title: stateDeltaTitle(delta),
+            targetId: delta.target_user_id,
+            targetName: playerLabel(delta.target_user_id),
+          })
         }
         break
     }

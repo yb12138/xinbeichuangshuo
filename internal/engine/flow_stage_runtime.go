@@ -143,6 +143,9 @@ func (e *GameEngine) enterActionExecutionStage() {
 	e.clearSubflow()
 	e.clearCombatStage()
 	e.setTurnStage(model.TurnStageActionExecution)
+	if len(e.State.PlayerOrder) > 0 && e.State.CurrentTurn >= 0 && e.State.CurrentTurn < len(e.State.PlayerOrder) {
+		e.ensureNarrativeWindow(e.State.PlayerOrder[e.State.CurrentTurn])
+	}
 }
 
 func (e *GameEngine) enterActionEndStage() {

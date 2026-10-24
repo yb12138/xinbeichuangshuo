@@ -84,9 +84,6 @@ func (e *GameEngine) HandleActionSelectionSpecialOrSkill(act model.PlayerAction,
 		if len(targetIDs) == 0 && act.TargetID != "" {
 			targetIDs = append(targetIDs, act.TargetID)
 		}
-		if err := e.UseSkill(act.PlayerID, act.SkillID, targetIDs, act.Selections); err != nil {
-			return fmt.Errorf("技能发动失败: %v", err)
-		}
 		skillTitle := act.SkillID
 		if player.Character != nil {
 			for _, s := range player.Character.Skills {
@@ -96,14 +93,12 @@ func (e *GameEngine) HandleActionSelectionSpecialOrSkill(act model.PlayerAction,
 				}
 			}
 		}
-		targets := []string{}
-		if act.TargetID != "" {
-			targets = append(targets, act.TargetID)
+		e.beginNarrativeAction("skill", player.ID)
+		e.BeginActionSummary("skill", player.ID, skillTitle, targetIDs)
+		if err := e.UseSkill(act.PlayerID, act.SkillID, targetIDs, act.Selections); err != nil {
+			e.clearActionSummary()
+			return fmt.Errorf("技能发动失败: %v", err)
 		}
-		if len(act.TargetIDs) > 0 {
-			targets = append(targets, act.TargetIDs...)
-		}
-		e.BeginActionSummary("skill", player.ID, skillTitle, targets)
 		if e.State.PendingInterrupt != nil {
 			return nil
 		}
@@ -121,11 +116,22 @@ func (e *GameEngine) HandleActionSelectionSpecialOrSkill(act model.PlayerAction,
 		specialName = "提炼"
 	}
 	if specialName != "" {
+		e.beginNarrativeAction(strings.ToLower(string(actionType)), player.ID)
+		e.publishTimelineMarker(model.TimelineMarkerPayload{
+			PlayerID:      player.ID,
+			PlayerName:    player.Name,
+			ActionType:    string(actionType),
+			Summary:       specialActionSummary(player.Name, actionType),
+			NarrativeKind: "action_started",
+			VisualKind:    "action_marker",
+			Timing:        "action.started",
+		})
 		e.BeginActionSummary("special", player.ID, specialName, nil)
 	}
 	if err := e.executeSpecialActionWithRuntime(player, actionType); err != nil {
 		return err
 	}
+	e.NotifySpecialAction(player.ID, actionType, specialActionSummary(player.Name, actionType), nil)
 	e.runPostSpecialActionRuntime(player, actionType)
 	player.TurnState.LastActionType = string(actionType)
 	player.TurnState.LastActionCard = nil
@@ -219,6 +225,17 @@ func (e *GameEngine) HandleActionSelectionAttackOrMagic(act model.PlayerAction, 
 	} else {
 		e.BeginActionSummary("magic", player.ID, card.Name, targets)
 	}
+	e.beginNarrativeAction(strings.ToLower(string(actionType)), player.ID)
+	e.publishTimelineMarker(model.TimelineMarkerPayload{
+		PlayerID:      player.ID,
+		PlayerName:    player.Name,
+		ActionType:    strings.ToLower(string(actionType)),
+		Summary:       card.Name,
+		TargetIDs:     targets,
+		NarrativeKind: "action_started",
+		VisualKind:    "action_marker",
+		Timing:        strings.ToLower(string(actionType)) + ".started",
+	})
 
 	if actionType == model.ActionAttack && validationResult.afterAttackAccepted != nil {
 		if err := validationResult.afterAttackAccepted(e, player, act); err != nil {
