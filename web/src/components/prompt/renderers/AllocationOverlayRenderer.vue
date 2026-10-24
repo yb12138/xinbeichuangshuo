@@ -100,13 +100,13 @@ function isValueDisabled(index: number, value: number): boolean {
   align-items: center;
   justify-content: center;
   padding: 1rem;
-  backdrop-filter: blur(3px);
+  background: rgba(5, 8, 15, 0.85);
 }
 
 .overlay-panel-root--decision {
   background:
     radial-gradient(380px 200px at 50% 46%, rgba(180, 140, 60, 0.12), transparent 70%),
-    rgba(0, 0, 0, 0.74);
+    rgba(5, 8, 15, 0.85);
 }
 
 .overlay-panel {

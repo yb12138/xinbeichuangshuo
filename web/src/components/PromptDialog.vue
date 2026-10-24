@@ -1395,6 +1395,30 @@ function resolveSkillTitleById(skillId: string): string | null {
   return skillTitleMap.value.get(skillId) ?? null
 }
 
+// 决策面板头部上下文："谁 → 你，用什么"（攻击者 / 攻击系别 / 触发技能）
+const promptContextText = computed(() => {
+  const current = prompt.value
+  if (!current) return ''
+  const attackerId = String(current.attacker_id || '').trim()
+  const attacker = attackerId && attackerId !== myPlayerId.value ? playerViews.value[attackerId] : undefined
+  let actorName = ''
+  if (attacker) {
+    const roleId = String(attacker.role || '').trim()
+    const roleName = roleId ? (snapshotStore.characters[roleId]?.name || '') : ''
+    const playerName = String(attacker.name || '').trim()
+    actorName = roleName && playerName && roleName !== playerName ? `${playerName}（${roleName}）` : (roleName || playerName || attackerId)
+  }
+  const element = promptAttackElementName(String(current.attack_element || ''))
+  const skillId = String(current.skill_id || '').trim()
+  const skillTitle = skillId ? resolveSkillTitleById(skillId) : null
+
+  const parts: string[] = []
+  if (actorName) parts.push(element ? `${actorName} 以${element}攻击 → 你` : `${actorName} → 你`)
+  else if (element) parts.push(`${element}攻击 → 你`)
+  if (skillTitle) parts.push(`【${skillTitle}】`)
+  return parts.join(' ')
+})
+
 const skillPromptEntries = computed<SkillPromptEntry[]>(() => {
   if (!isSkillChoicePrompt.value || inlinePrimaryButtons.value.length === 0) return []
   return inlinePrimaryButtons.value.map((option, index) => {
@@ -1700,6 +1724,7 @@ watch(autoResolveOptionId, (optionId) => {
   <Transition name="prompt-inline-pop">
     <div v-if="hasAnyInlineButton" class="prompt-inline-root" data-testid="prompt-dialog">
       <div class="prompt-inline-surface">
+        <div v-if="promptContextText" class="prompt-inline-context" data-testid="prompt-context">{{ promptContextText }}</div>
         <template v-if="isExtractPrompt && prompt?.options?.length">
           <ExtractPromptRenderer
             :visible="isExtractPrompt && extractPromptOptions.length > 0"
@@ -1908,6 +1933,7 @@ watch(autoResolveOptionId, (optionId) => {
   <DirectionPromptRenderer
     :visible="isVisible && isDirectionPrompt && directionPromptOptions.length > 0"
     :title="prompt?.message || '请选择方向'"
+    :context="promptContextText"
     :options="directionPromptOptions"
     @select="handleOptionClick"
   />
@@ -1923,6 +1949,7 @@ watch(autoResolveOptionId, (optionId) => {
     :inline-visible="false"
     :overlay-visible="isMultiSkillNameChoiceMode && skillBranchOptions.length > 0"
     :title="skillPromptTitle"
+    :context="promptContextText"
     :buttons="[]"
     :branches="skillBranchOptions"
     @select="handleOptionClick"
@@ -1932,6 +1959,7 @@ watch(autoResolveOptionId, (optionId) => {
   <DecisionOverlayRenderer
     :visible="showDecisionOverlay"
     :title="decisionOverlayTitle"
+    :context="promptContextText"
     :mode="decisionOverlayMode"
     :options="decisionOverlayOptions"
     :activation-hint="singleActivationCostConfirmHintText"
@@ -2011,6 +2039,20 @@ watch(autoResolveOptionId, (optionId) => {
 .prompt-inline-grid {
   display: grid;
   gap: 8px;
+}
+
+/* 决策上下文："谁 → 你，用什么" */
+.prompt-inline-context {
+  padding: 4px 8px;
+  border-radius: 8px;
+  border: 1px solid #26354f;
+  background: rgba(10, 16, 28, 0.85);
+  color: #f0c35a;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: center;
+  word-break: break-word;
 }
 
 .prompt-inline-entry {
@@ -2377,7 +2419,6 @@ watch(autoResolveOptionId, (optionId) => {
   align-items: center;
   justify-content: center;
   padding: 1rem;
-  backdrop-filter: blur(3px);
 }
 .overlay-panel-root--skill {
   background:

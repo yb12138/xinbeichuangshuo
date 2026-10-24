@@ -66,9 +66,7 @@ const emit = defineEmits<{
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(7, 14, 24, 0.38);
-  backdrop-filter: blur(7px) saturate(0.98);
-  -webkit-backdrop-filter: blur(7px) saturate(0.98);
+  background: rgba(5, 8, 15, 0.85);
   padding:
     max(16px, calc(var(--safe-top, 0px) + 8px))
     max(16px, calc(var(--safe-right, 0px) + 8px))

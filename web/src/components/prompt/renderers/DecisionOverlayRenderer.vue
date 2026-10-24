@@ -12,6 +12,7 @@ type DecisionOverlayOption = {
 const props = defineProps<{
   visible: boolean
   title: string
+  context?: string
   mode: DecisionOverlayMode
   options: DecisionOverlayOption[]
   activationHint?: string
@@ -47,6 +48,7 @@ function overlayDecisionOptionTitle(option: DecisionOverlayOption): string {
       >
         <div class="overlay-panel" @click.stop>
           <div class="overlay-panel-header overlay-panel-header--decision">
+            <div v-if="context" class="overlay-panel-context" data-testid="prompt-context">{{ context }}</div>
             <h2>{{ title }}</h2>
           </div>
 
@@ -124,17 +126,15 @@ function overlayDecisionOptionTitle(option: DecisionOverlayOption): string {
 
 <style scoped>
 .overlay-panel-root {
+  /* 停靠在右下角行动区，不遮挡、不模糊棋盘：能看清"谁 → 我，用什么" */
   position: fixed;
-  inset: 0;
+  right: max(12px, calc(var(--safe-right, 0px) + 8px));
+  bottom: max(12px, calc(var(--safe-bottom, 0px) + 8px));
   z-index: 13050;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1rem;
-  background:
-    radial-gradient(380px 200px at 50% 46%, rgba(180, 140, 60, 0.12), transparent 70%),
-    rgba(0, 0, 0, 0.74);
-  backdrop-filter: blur(3px);
+  align-items: flex-end;
+  justify-content: flex-end;
+  pointer-events: none;
 }
 
 .overlay-panel {
@@ -443,6 +443,55 @@ function overlayDecisionOptionTitle(option: DecisionOverlayOption): string {
   .overlay-numeric-tile {
     width: 52px;
     min-height: 52px;
+  }
+}
+
+/* 停靠面板：紧凑尺寸，金色强调当前待决策 */
+.overlay-panel-root .overlay-panel {
+  width: min(300px, calc(100vw - 24px));
+  max-height: min(62vh, 520px);
+  pointer-events: auto;
+  border-color: #26354f;
+  box-shadow:
+    0 0 0 1px rgba(240, 195, 90, 0.35),
+    0 14px 30px rgba(2, 8, 18, 0.6),
+    inset 0 1px 0 rgba(255, 240, 200, 0.08);
+}
+
+.overlay-panel-root .overlay-panel-header {
+  padding: 10px 14px 9px;
+}
+
+.overlay-panel-root .overlay-panel-body {
+  padding: 10px 12px;
+  gap: 8px;
+}
+
+.overlay-panel-root .overlay-panel-item {
+  padding: 10px 12px;
+}
+
+.overlay-panel-context {
+  margin-bottom: 3px;
+  color: #f0c35a;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: 0.02em;
+  word-break: break-word;
+}
+
+@media (max-width: 640px) {
+  .overlay-panel-root {
+    left: max(8px, calc(var(--safe-left, 0px) + 6px));
+    right: max(8px, calc(var(--safe-right, 0px) + 6px));
+    bottom: max(8px, calc(var(--safe-bottom, 0px) + 6px));
+    justify-content: center;
+  }
+
+  .overlay-panel-root .overlay-panel {
+    width: 100%;
+    max-height: 55vh;
   }
 }
 </style>
