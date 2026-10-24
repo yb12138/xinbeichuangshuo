@@ -466,3 +466,50 @@ describe('battlefx store focus side', () => {
     })
   })
 })
+
+describe('battleFx previous action snapshot & turn banner', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
+  it('snapshots narrative as 上一手 on clear and dismisses when new content arrives', () => {
+    const battleFxStore = useBattleFxStore()
+    battleFxStore.beginActionNarrative('p1')
+    battleFxStore.addNarrativeCard('p1', buildCard('c1'), 'attack', 'p2')
+
+    battleFxStore.clearActionNarrative()
+    expect(battleFxStore.actionNarrative).toBeNull()
+    expect(battleFxStore.previousActionSnapshot?.narrative?.playedCards).toHaveLength(1)
+    expect(battleFxStore.previousActionSnapshot?.playback?.isReview).toBe(true)
+
+    // 新回合占位事件不撤下上一手
+    battleFxStore.beginActionNarrative('p2')
+    expect(battleFxStore.previousActionSnapshot).not.toBeNull()
+
+    battleFxStore.addNarrativeCard('p2', buildCard('c2'), 'attack', 'p1')
+    expect(battleFxStore.previousActionSnapshot).toBeNull()
+  })
+
+  it('skips snapshot for empty narratives and on reset', () => {
+    const battleFxStore = useBattleFxStore()
+    battleFxStore.beginActionNarrative('p1')
+    battleFxStore.clearActionNarrative()
+    expect(battleFxStore.previousActionSnapshot).toBeNull()
+
+    battleFxStore.beginActionNarrative('p1')
+    battleFxStore.addNarrativeDamage('p1', 'p2', 2)
+    battleFxStore.clearActionNarrative()
+    expect(battleFxStore.previousActionSnapshot).not.toBeNull()
+    battleFxStore.reset()
+    expect(battleFxStore.previousActionSnapshot).toBeNull()
+  })
+
+  it('emits a fresh turn banner request each time', () => {
+    const battleFxStore = useBattleFxStore()
+    battleFxStore.showTurnBanner('红方 · 封印师 的回合', 'Red')
+    const first = battleFxStore.turnBannerRequest
+    expect(first).toMatchObject({ text: '红方 · 封印师 的回合', camp: 'Red' })
+    battleFxStore.showTurnBanner('红方 · 封印师 的回合', 'Red')
+    expect(battleFxStore.turnBannerRequest?.id).not.toBe(first?.id)
+  })
+})

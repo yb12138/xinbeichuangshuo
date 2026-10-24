@@ -117,6 +117,22 @@ export interface NarrativePlaybackView {
   startedAt: number
 }
 
+/** 上一手行动快照：回合切换/行动结束时保留，新行动产生内容后再撤下 */
+export interface PreviousActionSnapshot {
+  narrative: ActionNarrativeView | null
+  playback: NarrativePlaybackView | null
+  actionFlow: ActionFlowDTO | null
+  capturedAt: number
+}
+
+export type TurnBannerCamp = 'Red' | 'Blue' | ''
+
+export interface TurnBannerRequest {
+  id: number
+  text: string
+  camp: TurnBannerCamp
+}
+
 interface CombatCueQueueItem {
   attackerId: string
   targetId: string
@@ -168,6 +184,9 @@ export const useBattleFxStore = defineStore('battlefx', () => {
     return actionFlowsById.value[activeActionFlowId.value] ?? null
   })
   const narrativePlayback = ref<NarrativePlaybackView | null>(null)
+  const previousActionSnapshot = ref<PreviousActionSnapshot | null>(null)
+  const turnBannerRequest = ref<TurnBannerRequest | null>(null)
+  let turnBannerId = 0
   let narrativeCardId = 0
   let narrativeLinkId = 0
   let narrativeEventId = 0
@@ -544,6 +563,8 @@ export const useBattleFxStore = defineStore('battlefx', () => {
     const actorId = event.actorId || actionNarrative.value?.featuredActorId || actionNarrative.value?.currentActionPlayerId
     const current = ensureActionNarrative(actorId || event.targetId || '', event.kind === 'skill' ? 'skill' : 'turn')
     if (!current) return
+    // “行动回合”只是占位事件，不算新行动的实际内容
+    if (event.kind !== 'turn') dismissPreviousAction()
     narrativeEventId++
     const { createdAt, ...rest } = event
     actionNarrative.value = trimNarrative({
@@ -566,6 +587,7 @@ export const useBattleFxStore = defineStore('battlefx', () => {
     const current = ensureActionNarrative(playerId, normalizedActionType === 'magic' || normalizedActionType === 'field_effect' ? 'skill' : 'attack')
     if (!current) return
     const resolvedTargetId = targetId || narrativeTargetByActor.get(playerId)
+    dismissPreviousAction()
     narrativeCardId++
     const cardView: ActionNarrativeCardView = {
       id: narrativeCardId,
@@ -668,7 +690,53 @@ export const useBattleFxStore = defineStore('battlefx', () => {
     })
   }
 
-  function clearActionNarrative() {
+  function narrativeHasContent(narrative: ActionNarrativeView | null) {
+    if (!narrative) return false
+    return narrative.playedCards.length > 0 || narrative.events.some(event => event.kind !== 'turn')
+  }
+
+  function capturePreviousAction() {
+    const narrative = narrativeHasContent(actionNarrative.value) ? actionNarrative.value : null
+    const actionFlow = latestActionFlow.value
+    if (!narrative && !actionFlow) return
+    const playback = narrative ? narrativePlayback.value : null
+    previousActionSnapshot.value = {
+      narrative,
+      // 快照静态展示：所有步骤视为已完成，不再推进回放计时
+      playback: playback
+        ? {
+            ...playback,
+            steps: playback.steps.map(step => ({ ...step, status: 'completed' as const })),
+            activeStepId: undefined,
+            completedStepIds: playback.steps.map(step => step.id),
+            isReview: true,
+          }
+        : null,
+      actionFlow,
+      capturedAt: Date.now(),
+    }
+  }
+
+  function dismissPreviousAction() {
+    if (previousActionSnapshot.value) previousActionSnapshot.value = null
+  }
+
+  function showTurnBanner(text: string, camp: TurnBannerCamp = '') {
+    if (!text) return
+    turnBannerId++
+    turnBannerRequest.value = { id: turnBannerId, text, camp }
+  }
+
+  /**
+   * 清空当前行动叙事。默认先把有内容的叙事存为“上一手”快照；
+   * 重置/重放/对局结束等场景传 snapshot: false 直接清空。
+   */
+  function clearActionNarrative(options: { snapshot?: boolean } = {}) {
+    if (options.snapshot === false) {
+      dismissPreviousAction()
+    } else {
+      capturePreviousAction()
+    }
     actionNarrative.value = null
     narrativePlayback.value = null
     clearNarrativePlaybackTimer()
@@ -684,6 +752,7 @@ export const useBattleFxStore = defineStore('battlefx', () => {
     const validFlows = flows.filter(flow => !!flow?.flow_id)
     if (!validFlows.length) return
     const next = { ...actionFlowsById.value }
+    dismissPreviousAction()
     for (const flow of validFlows) {
       next[flow.flow_id] = flow
       activeActionFlowId.value = flow.flow_id
@@ -724,15 +793,16 @@ export const useBattleFxStore = defineStore('battlefx', () => {
     const actionFlows = [...(payload.action_flows || [])]
 
     if (payload.is_replay) {
-      clearActionNarrative()
+      clearActionNarrative({ snapshot: false })
       clearActionFlows()
       structuredNarrativeEventIds.clear()
     }
 
     if (actionFlows.length) {
-      clearActionNarrative()
+      clearActionNarrative({ snapshot: false })
       upsertActionFlows(actionFlows)
       if (hasActionClosed) {
+        capturePreviousAction()
         clearActionFlows()
       }
       return
@@ -1191,7 +1261,7 @@ export const useBattleFxStore = defineStore('battlefx', () => {
   }
 
   function clearForGameEnd() {
-    clearActionNarrative()
+    clearActionNarrative({ snapshot: false })
     clearActionFlows()
     structuredNarrativeEventIds.clear()
     clearSkillAnnouncements()
@@ -1208,7 +1278,8 @@ export const useBattleFxStore = defineStore('battlefx', () => {
   }
 
   function reset() {
-    clearActionNarrative()
+    clearActionNarrative({ snapshot: false })
+    turnBannerRequest.value = null
     clearActionFlows()
     structuredNarrativeEventIds.clear()
     clearSkillAnnouncements()
@@ -1236,6 +1307,10 @@ export const useBattleFxStore = defineStore('battlefx', () => {
     activeActionFlowId,
     latestActionFlow,
     narrativePlayback,
+    previousActionSnapshot,
+    turnBannerRequest,
+    dismissPreviousAction,
+    showTurnBanner,
     beginActionNarrative,
     featureNarrativeActor,
     settleNarrativeActor,

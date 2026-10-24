@@ -49,7 +49,33 @@ const {
   moraleChanges,
   moraleBurstRanking: rawMoraleBurstRanking,
 } = storeToRefs(battleReviewStore)
-const { drawBursts, initiatorFocus } = storeToRefs(battleFxStore)
+const { drawBursts, initiatorFocus, turnBannerRequest } = storeToRefs(battleFxStore)
+
+// 回合横幅：行动玩家切换时短暂显示“红方 · 封印师 的回合”
+const TURN_BANNER_DURATION_MS = 2000
+const turnBanner = ref<{ text: string; visible: boolean; camp: 'Red' | 'Blue' | ''; id: number }>({
+  text: '',
+  visible: false,
+  camp: '',
+  id: 0,
+})
+let turnBannerTimer: ReturnType<typeof setTimeout> | null = null
+const turnBannerTrigger = computed(() => turnBannerRequest.value)
+watch(turnBannerTrigger, (request) => {
+  if (turnBannerTimer) {
+    clearTimeout(turnBannerTimer)
+    turnBannerTimer = null
+  }
+  if (!request) {
+    turnBanner.value = { ...turnBanner.value, visible: false }
+    return
+  }
+  turnBanner.value = { text: request.text, visible: true, camp: request.camp, id: request.id }
+  turnBannerTimer = setTimeout(() => {
+    turnBanner.value = { ...turnBanner.value, visible: false }
+    turnBannerTimer = null
+  }, TURN_BANNER_DURATION_MS)
+})
 const { roomPlayers, myPlayerId, myCamp } = storeToRefs(sessionStore)
 const {
   players,
@@ -2193,6 +2219,10 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', handleResize)
+  if (turnBannerTimer) {
+    clearTimeout(turnBannerTimer)
+    turnBannerTimer = null
+  }
 })
 
 function leaveToLobby() {
@@ -2558,6 +2588,23 @@ const fighterHundredDragonByPlayer = computed(() => {
               :actor-seat-positions="battleSeatPositionByPlayerId"
             />
           </div>
+
+          <Transition name="turn-banner">
+            <div
+              v-if="turnBanner.visible"
+              :key="turnBanner.id"
+              class="turn-banner"
+              :class="{
+                'turn-banner--red': turnBanner.camp === 'Red',
+                'turn-banner--blue': turnBanner.camp === 'Blue',
+              }"
+              role="status"
+              aria-live="polite"
+              data-testid="turn-banner"
+            >
+              <span class="turn-banner__text">{{ turnBanner.text }}</span>
+            </div>
+          </Transition>
         </div>
 
         <div class="bottom-hud flex-shrink-0 min-h-0 mt-2">
@@ -3156,6 +3203,65 @@ const fighterHundredDragonByPlayer = computed(() => {
 
 .game-end-btn:active {
   transform: translateY(0);
+}
+
+/* 回合横幅：位于牌桌之上（seat 12 / 战斗区 5），低于提示/操作坞（24+）与连线层 */
+.turn-banner {
+  --turn-banner-color: rgba(212, 166, 74, 0.82);
+  position: absolute;
+  left: 50%;
+  top: 38%;
+  z-index: 20;
+  width: min(720px, 86%);
+  transform: translate(-50%, -50%);
+  padding: 12px 24px;
+  text-align: center;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent 0%, var(--turn-banner-color) 30%, var(--turn-banner-color) 70%, transparent 100%);
+}
+
+.turn-banner--red {
+  --turn-banner-color: rgba(220, 38, 38, 0.78);
+}
+
+.turn-banner--blue {
+  --turn-banner-color: rgba(37, 99, 235, 0.78);
+}
+
+.turn-banner__text {
+  color: #fff;
+  font-size: clamp(18px, 2.2vw, 28px);
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.55);
+  white-space: nowrap;
+}
+
+.turn-banner-enter-active,
+.turn-banner-leave-active {
+  transition: opacity 0.28s ease, transform 0.28s ease;
+}
+
+.turn-banner-enter-from {
+  opacity: 0;
+  transform: translate(-50%, -50%) scaleX(0.6);
+}
+
+.turn-banner-leave-to {
+  opacity: 0;
+  transform: translate(-50%, -50%) scaleX(1.08);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .turn-banner-enter-active,
+  .turn-banner-leave-active {
+    transition: opacity 0.2s ease;
+  }
+
+  .turn-banner-enter-from,
+  .turn-banner-leave-to {
+    transform: translate(-50%, -50%);
+  }
 }
 
 .toast-enter-active,

@@ -50,6 +50,16 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
     return camp || ''
   }
 
+  /** 回合横幅文案，如“红方 · 封印师 的回合”；角色未知时退回玩家名 */
+  const turnBannerText = (playerId: string) => {
+    const player = snapshotStore.players[playerId]
+    if (!player) return ''
+    const roleId = String(player.role || '').trim()
+    const roleName = (roleId && snapshotStore.characters[roleId]?.name) || roleId || player.name || playerId
+    const camp = campLabel(player.camp)
+    return camp ? `${camp} · ${roleName} 的回合` : `${roleName} 的回合`
+  }
+
   const signed = (value?: number) => {
     const numeric = Number(value || 0)
     if (numeric > 0) return `+${numeric}`
@@ -240,6 +250,10 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
             battleFxStore.startActingPlayerFocus(nextCurrent, 'turn')
           }
           if (nextCurrent && nextCurrent !== prevCurrent) {
+            const bannerText = turnBannerText(nextCurrent)
+            if (bannerText) {
+              battleFxStore.showTurnBanner(bannerText, normalizeCamp(snapshotStore.players[nextCurrent]?.camp) || '')
+            }
             if (prevCurrent) {
               const prevName = playerNameById(prevCurrent)
               battleReviewStore.addBattleFeed({

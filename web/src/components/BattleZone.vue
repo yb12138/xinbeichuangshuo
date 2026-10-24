@@ -24,7 +24,32 @@ const props = defineProps<{
 
 const battleFxStore = useBattleFxStore()
 const snapshotStore = useSnapshotStore()
-const { actionNarrative, latestActionFlow, narrativePlayback, skillAnnouncements } = storeToRefs(battleFxStore)
+const {
+  actionNarrative: liveActionNarrative,
+  latestActionFlow: liveActionFlow,
+  narrativePlayback: liveNarrativePlayback,
+  previousActionSnapshot,
+  skillAnnouncements,
+} = storeToRefs(battleFxStore)
+
+// 新行动尚未产生实际内容（仅有“行动回合”占位）时，继续展示上一手快照
+const liveNarrativeHasContent = computed(() => {
+  const narrative = liveActionNarrative.value
+  if (!narrative) return false
+  return narrative.playedCards.length > 0 || narrative.events.some(event => event.kind !== 'turn')
+})
+const showingPreviousAction = computed(() =>
+  !!previousActionSnapshot.value && !liveActionFlow.value && !liveNarrativeHasContent.value
+)
+const actionNarrative = computed(() =>
+  showingPreviousAction.value ? previousActionSnapshot.value?.narrative ?? null : liveActionNarrative.value
+)
+const latestActionFlow = computed(() =>
+  showingPreviousAction.value ? previousActionSnapshot.value?.actionFlow ?? null : liveActionFlow.value
+)
+const narrativePlayback = computed(() =>
+  showingPreviousAction.value ? previousActionSnapshot.value?.playback ?? null : liveNarrativePlayback.value
+)
 const { characters, players } = storeToRefs(snapshotStore)
 
 const featuredSkillAnnouncement = computed(() =>
@@ -2489,8 +2514,17 @@ function narrativeMistPathDomId(segmentId: string) {
       v-if="hasNarrativeLayer"
       ref="narrativeLayerRef"
       class="action-narrative-layer"
-      :class="{ 'action-narrative-layer--suspended': props.narrativeSuspended }"
+      :class="{
+        'action-narrative-layer--suspended': props.narrativeSuspended,
+        'action-narrative-layer--previous': showingPreviousAction,
+      }"
+      :data-testid="showingPreviousAction ? 'narrative-previous-action' : undefined"
     >
+      <span
+        v-if="actionNarrative || latestActionFlow"
+        class="narrative-action-tag"
+        :class="{ 'narrative-action-tag--previous': showingPreviousAction }"
+      >{{ showingPreviousAction ? '上一手' : '当前行动' }}</span>
       <div
         v-if="narrativeCombatLoopLayout"
         class="narrative-loop-stage"
@@ -3015,6 +3049,46 @@ function narrativeMistPathDomId(segmentId: string) {
 
 .action-narrative-layer--suspended * {
   animation-play-state: paused !important;
+}
+
+/* 上一手：降饱和、虚线描边，等待新行动内容替换 */
+.action-narrative-layer--previous {
+  filter: saturate(0.35) brightness(0.8);
+  border: 1px dashed rgba(148, 163, 184, 0.45);
+  border-radius: 12px;
+}
+
+.action-narrative-layer--previous.action-narrative-layer--suspended {
+  filter: saturate(0.3) brightness(0.65);
+}
+
+.action-narrative-layer--previous [class*='narrative-'] {
+  border-style: dashed;
+}
+
+.action-narrative-layer--previous * {
+  animation-play-state: paused !important;
+}
+
+.narrative-action-tag {
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 4;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 18px;
+  color: #f8fafc;
+  background: #d4a64a;
+}
+
+.narrative-action-tag--previous {
+  background: #6b7690;
+  border: 1px dashed rgba(226, 232, 240, 0.55);
 }
 
 .narrative-actors {
