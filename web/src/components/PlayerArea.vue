@@ -101,6 +101,19 @@ const maxHand = computed(() => {
 
 const isActive = computed(() => !!props.player.is_active)
 
+const isHandOver = computed(() => handCount.value > maxHand.value)
+
+const campLabel = computed(() => (props.player.camp === 'Red' ? '红方' : '蓝方'))
+
+// 治疗以心形点阵展示；上限超过 4 或为 0 时回退为 "x/y" 文本
+const HEAL_PIP_LIMIT = 4
+const healPips = computed<boolean[] | null>(() => {
+  const max = props.player.max_heal ?? 0
+  if (max <= 0 || max > HEAL_PIP_LIMIT) return null
+  const heal = props.player.heal ?? 0
+  return Array.from({ length: max }, (_, i) => i < heal)
+})
+
 type EffectOverlay = {
   gradient: string
   animation: string
@@ -480,7 +493,7 @@ function handleClick(e: MouseEvent) {
 
 <template>
   <div
-    class="player-area border transition-all duration-300 rounded-xl overflow-hidden relative"
+    class="player-area transition-all duration-300 overflow-hidden relative"
     :class="[
       compact
         ? 'player-area--compact min-w-[102px] max-w-[120px] sm:min-w-[116px] sm:max-w-[136px] 2xl:min-w-[128px] 2xl:max-w-[152px]'
@@ -497,93 +510,56 @@ function handleClick(e: MouseEvent) {
     :data-testid="`player-area-${player.id}${testIdSuffix ? `-${testIdSuffix}` : ''}`"
     @click="handleClick"
   >
-    <div class="player-state-badges">
-      <span v-if="isMe" class="player-state-badge player-state-badge--me">你</span>
-      <span v-if="isActive" class="player-state-badge player-state-badge--active">当前行动</span>
-      <span v-if="selectable" class="player-state-badge player-state-badge--targetable">可选</span>
-    </div>
-    <img
-      v-if="characterImageSrc && showCharacterImage"
-      :src="characterImageSrc"
-      :alt="charInfo?.name || player.name"
-      class="character-portrait-fill"
-      @error="onCharImageError"
-    >
-    <div
-      v-else
-      class="character-portrait-placeholder-fill"
-    >
-      {{ (charInfo?.name || player.name || '?').charAt(0) }}
-    </div>
-
-    <!-- 状态效果叠加层 -->
-    <div
-      v-for="(overlay, idx) in activeOverlays"
-      :key="'fx-' + idx"
-      class="effect-overlay-layer"
-      :style="{
-        background: overlay.gradient,
-        backgroundSize: overlay.backgroundSize || 'auto',
-        opacity: overlay.opacity,
-        'animation-name': overlay.animation,
-        'animation-duration': overlay.duration,
-      }"
-    />
-
-    <div v-if="portraitBadges.length" class="player-portrait-badges">
-      <div
-        v-for="badge in portraitBadges"
-        :key="badge.key"
-        class="player-portrait-badge"
-        :class="badge.cls"
-        :title="badge.title"
+    <!-- 立绘区：填满名牌条以上的空间 -->
+    <div class="seat-portrait">
+      <img
+        v-if="characterImageSrc && showCharacterImage"
+        :src="characterImageSrc"
+        :alt="charInfo?.name || player.name"
+        class="character-portrait-fill"
+        @error="onCharImageError"
       >
-        <StatusEffectIcon v-if="badge.icon" :effect="badge.icon" class="player-portrait-badge-icon" />
-        <span class="player-portrait-badge-text">{{ badge.text }}</span>
+      <div
+        v-else
+        class="character-portrait-placeholder-fill"
+      >
+        {{ (charInfo?.name || player.name || '?').charAt(0) }}
       </div>
-    </div>
 
-    <div v-if="formIndicator" class="form-badge" :class="formIndicator.cls" :title="formIndicator.label">
-      {{ formIndicator.label }}
-    </div>
+      <!-- 状态效果叠加层 -->
+      <div
+        v-for="(overlay, idx) in activeOverlays"
+        :key="'fx-' + idx"
+        class="effect-overlay-layer"
+        :style="{
+          background: overlay.gradient,
+          backgroundSize: overlay.backgroundSize || 'auto',
+          opacity: overlay.opacity,
+          'animation-name': overlay.animation,
+          'animation-duration': overlay.duration,
+        }"
+      />
 
-    <div class="player-overlay">
-      <div class="player-overlay-title-row">
-        <span class="text-sm" aria-hidden="true">{{ player.camp === 'Red' ? '🔴' : '🔵' }}</span>
-        <span class="player-overlay-role" :title="roleDisplayName">{{ roleDisplayName }}</span>
-        <button
-          v-if="charInfo?.skills?.length"
-          type="button"
-          class="btn-show-skills px-1 py-0.5 rounded text-[9px] bg-gray-700/80 hover:bg-gray-600 text-amber-400/90 hover:text-amber-300 shrink-0"
-          @click.stop="openSkillModal($event)"
+      <div class="player-state-badges">
+        <span v-if="isMe" class="player-state-badge player-state-badge--me">你</span>
+        <span v-if="isActive" class="player-state-badge player-state-badge--active">当前行动</span>
+        <span v-if="selectable" class="player-state-badge player-state-badge--targetable">可选</span>
+      </div>
+
+      <div v-if="portraitBadges.length" class="player-portrait-badges">
+        <div
+          v-for="badge in portraitBadges"
+          :key="badge.key"
+          class="player-portrait-badge"
+          :class="badge.cls"
+          :title="badge.title"
         >
-          技能
-        </button>
-      </div>
-
-      <div class="player-overlay-player" :title="`玩家：${playerDisplayName}`">
-        玩家：{{ playerDisplayName }}
-      </div>
-
-      <div class="player-overlay-stats">
-        <div class="player-overlay-stat">
-          <span aria-hidden="true">💖</span>
-          <span>{{ player.heal }}/{{ player.max_heal }}</span>
-        </div>
-        <div class="player-overlay-stat" :title="`手牌 ${handCount}/${maxHand}`">
-          <span aria-hidden="true">🃏</span>
-          <span>{{ handCount }}/{{ maxHand }}</span>
-        </div>
-        <div v-if="(player.gem || 0) + (player.crystal || 0) > 0" class="player-overlay-resource">
-          <span v-if="player.gem" class="flex items-center gap-0.5"><span aria-hidden="true" class="text-red-300">♦</span>{{ player.gem }}</span>
-          <span v-if="player.crystal" class="flex items-center gap-0.5"><span aria-hidden="true" class="text-blue-300">🔷</span>{{ player.crystal }}</span>
+          <StatusEffectIcon v-if="badge.icon" :effect="badge.icon" class="player-portrait-badge-icon" />
+          <span class="player-portrait-badge-text">{{ badge.text }}</span>
         </div>
       </div>
 
-      <div v-if="showStealthBlockedHint" class="text-[10px] text-gray-200/90 bg-black/35 border border-gray-400/30 rounded px-1 py-0.5 w-fit">
-        潜行状态无法选中
-      </div>
-
+      <!-- 完整模式下的状态图标列（紧凑模式由 GameBoard 状态栏负责） -->
       <div v-if="statusIconEffects.length" class="player-overlay-effects">
         <div
           v-for="(statusEffect, idx) in statusIconEffects"
@@ -597,18 +573,109 @@ function handleClick(e: MouseEvent) {
         </div>
       </div>
 
-      <div v-if="allIndicators.length" class="player-overlay-tokens">
+      <!-- 名牌条上沿的小型芯片：形态 / 宝石水晶 / 指示物 -->
+      <div
+        v-if="formIndicator || (player.gem || 0) + (player.crystal || 0) > 0 || allIndicators.length"
+        class="seat-chip-row"
+      >
+        <span v-if="formIndicator" class="seat-chip form-badge" :title="formIndicator.label">
+          {{ formIndicator.label }}
+        </span>
         <span
-          v-for="token in allIndicators"
-          :key="token.key"
-          class="inline-flex items-center gap-1 px-1 py-0.5 rounded border text-[9px] leading-none"
-          :class="token.cls"
-          :title="`${token.label}: ${token.value}`"
+          v-if="(player.gem || 0) + (player.crystal || 0) > 0"
+          class="player-overlay-resource"
         >
-          <span>{{ token.label }}</span>
-          <span class="font-bold">×{{ token.value }}</span>
+          <span v-if="player.gem" class="seat-chip seat-chip--gem" :title="`宝石 ${player.gem}`">
+            <span aria-hidden="true" class="seat-chip-gem-mark" />{{ player.gem }}
+          </span>
+          <span v-if="player.crystal" class="seat-chip seat-chip--crystal" :title="`水晶 ${player.crystal}`">
+            <span aria-hidden="true" class="seat-chip-crystal-mark" />{{ player.crystal }}
+          </span>
+        </span>
+        <span v-if="allIndicators.length" class="player-overlay-tokens">
+          <span
+            v-for="token in allIndicators"
+            :key="token.key"
+            class="seat-chip seat-chip--token"
+            :title="`${token.label}: ${token.value}`"
+          >
+            <span>{{ token.label }}</span>
+            <span class="seat-chip-value">×{{ token.value }}</span>
+          </span>
         </span>
       </div>
+    </div>
+
+    <div class="player-overlay">
+      <!-- 阵营色名牌条 -->
+      <div class="player-overlay-title-row">
+        <span class="sr-only">{{ campLabel }}</span>
+        <span class="player-overlay-role" :title="roleDisplayName">{{ roleDisplayName }}</span>
+        <button
+          v-if="charInfo?.skills?.length"
+          type="button"
+          class="btn-show-skills"
+          @click.stop="openSkillModal($event)"
+        >
+          技能
+        </button>
+      </div>
+
+      <div class="player-overlay-player" :title="`玩家：${playerDisplayName}`">
+        玩家：{{ playerDisplayName }}
+      </div>
+
+      <!-- 底栏：治疗 | 手牌 -->
+      <div class="player-overlay-stats">
+        <div
+          class="player-overlay-stat player-overlay-stat--heal"
+          :title="`治疗 ${player.heal}/${player.max_heal}`"
+          :aria-label="`治疗 ${player.heal}/${player.max_heal}`"
+        >
+          <template v-if="healPips">
+            <svg
+              v-for="(filled, i) in healPips"
+              :key="`heal-pip-${i}`"
+              class="seat-heal-pip"
+              :class="filled ? 'seat-heal-pip--filled' : ''"
+              viewBox="0 0 16 16"
+              aria-hidden="true"
+            >
+              <path d="M8 14s-5.5-3.4-5.5-7.2A3 3 0 0 1 8 4.6a3 3 0 0 1 5.5 2.2C13.5 10.6 8 14 8 14z" />
+            </svg>
+          </template>
+          <template v-else>
+            <svg class="seat-stat-icon" viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M8 14s-5.5-3.4-5.5-7.2A3 3 0 0 1 8 4.6a3 3 0 0 1 5.5 2.2C13.5 10.6 8 14 8 14z" />
+            </svg>
+            <span class="seat-stat-num">{{ player.heal }}/{{ player.max_heal }}</span>
+          </template>
+        </div>
+        <span class="seat-stat-divider" aria-hidden="true" />
+        <div
+          class="player-overlay-stat player-overlay-stat--hand"
+          :class="isHandOver ? 'player-overlay-stat--over' : ''"
+          :title="`手牌 ${handCount}/${maxHand}`"
+        >
+          <svg class="seat-stat-icon" viewBox="0 0 16 16" aria-hidden="true">
+            <rect x="2.5" y="3.5" width="7" height="10" rx="1.2" transform="rotate(-10 6 8.5)" />
+            <rect x="6.5" y="2.5" width="7" height="10" rx="1.2" transform="rotate(8 10 7.5)" />
+          </svg>
+          <span class="seat-stat-num">{{ handCount }}/{{ maxHand }}</span>
+        </div>
+      </div>
+
+      <div v-if="showStealthBlockedHint" class="seat-stealth-hint">
+        潜行状态无法选中
+      </div>
+    </div>
+
+    <!-- 镀铬细边框与四角饰件 -->
+    <div class="seat-frame" aria-hidden="true">
+      <span class="seat-corner seat-corner--tl" />
+      <span class="seat-corner seat-corner--tr" />
+      <span class="seat-corner seat-corner--bl" />
+      <span class="seat-corner seat-corner--br" />
     </div>
 
     <!-- 伤害暴血特效 overlay -->
@@ -626,122 +693,16 @@ function handleClick(e: MouseEvent) {
 </template>
 
 <style scoped>
-.player-area--selected {
-  transform: scale(1.05);
-  border-color: rgba(233, 196, 136, 0.9) !important;
-  box-shadow:
-    0 0 0 1px rgba(246, 224, 181, 0.7),
-    0 0 16px rgba(216, 173, 107, 0.48),
-    0 0 28px rgba(164, 124, 72, 0.32);
-  animation: frameGlowPulse 1.8s ease-in-out infinite;
-}
-
-.player-area--selected::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  border: 1px solid rgba(248, 222, 174, 0.68);
-  box-shadow: inset 0 0 12px rgba(216, 173, 107, 0.32);
-  pointer-events: none;
-}
-
-.player-area--me {
-  box-shadow:
-    inset 0 0 0 1px rgba(131, 204, 255, 0.44),
-    0 8px 22px rgba(16, 84, 142, 0.24);
-}
-
-.player-area--active {
-  border-color: rgba(255, 255, 255, 0.28);
-  box-shadow: 0 12px 28px rgba(3, 10, 20, 0.34);
-}
-
-.player-area--active.camp-blue {
-  border-color: #38bdf8 !important;
-  box-shadow:
-    0 0 20px rgba(56, 189, 248, 0.5),
-    inset 0 0 15px rgba(56, 189, 248, 0.3) !important;
-}
-
-.player-area--active.camp-red {
-  border-color: #f87171 !important;
-  box-shadow:
-    0 0 20px rgba(248, 113, 113, 0.5),
-    inset 0 0 15px rgba(248, 113, 113, 0.3) !important;
-}
-
-.player-area--targetable {
-  border-color: rgba(250, 218, 128, 0.82);
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 236, 168, 0.36),
-    0 0 0 1px rgba(236, 186, 89, 0.34),
-    0 0 18px rgba(238, 190, 91, 0.28);
-}
-
-.player-area--target-blocked {
-  filter: grayscale(0.35) saturate(0.72) brightness(0.82);
-}
-
-.player-state-badges {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  z-index: 6;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 3px;
-  pointer-events: none;
-}
-
-.player-state-badge {
-  min-height: 18px;
-  padding: 2px 6px;
-  border-radius: 999px;
-  border: 1px solid rgba(196, 215, 236, 0.5);
-  background: rgba(7, 16, 29, 0.82);
-  color: rgba(231, 241, 252, 0.96);
-  font-size: 9px;
-  font-weight: 900;
-  line-height: 1.2;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.72);
-  box-shadow: 0 3px 8px rgba(2, 8, 16, 0.34);
-}
-
-.player-state-badge--me {
-  border-color: rgba(125, 205, 255, 0.72);
-  background: linear-gradient(180deg, rgba(25, 87, 130, 0.92), rgba(12, 47, 78, 0.94));
-  color: #ddf4ff;
-}
-
-.player-state-badge--active {
-  border-color: rgba(238, 202, 121, 0.82);
-  background: linear-gradient(180deg, rgba(117, 82, 31, 0.94), rgba(78, 52, 20, 0.96));
-  color: #ffedbf;
-}
-
-.player-state-badge--targetable {
-  border-color: rgba(245, 221, 128, 0.82);
-  background: linear-gradient(180deg, rgba(128, 94, 29, 0.94), rgba(84, 60, 19, 0.96));
-  color: #fff1b8;
-}
-
+/* ===== 座位卡：黑漆底板 + 镀铬细边框（颜色只取 battle-theme.css 的 --bt-*） ===== */
 .player-area {
   padding: 0;
   isolation: isolate;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(9, 18, 30, 0.4);
-}
-
-.player-area::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(120% 88% at 50% 10%, rgba(241, 248, 255, 0.13), rgba(15, 24, 36, 0.22) 56%, rgba(8, 13, 22, 0.4) 100%);
-  pointer-events: none;
-  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--bt-hairline);
+  border-radius: var(--bt-radius);
+  background: var(--bt-bg-0);
+  box-shadow: 0 0 0 2px var(--bt-bg-0), 0 6px 18px var(--bt-panel);
 }
 
 .player-area--compact {
@@ -752,14 +713,148 @@ function handleClick(e: MouseEvent) {
   height: 256px;
 }
 
+/* 内侧第二道细线 + 四角饰件，压在立绘之上 */
+.seat-frame {
+  position: absolute;
+  inset: 2px;
+  z-index: 7;
+  border: 1px solid var(--bt-hairline-soft);
+  border-radius: var(--bt-radius-sm);
+  pointer-events: none;
+  transition: border-color 0.3s ease;
+}
+
+.seat-corner {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-color: var(--bt-chrome-hi);
+  border-style: solid;
+  border-width: 0;
+  filter: drop-shadow(0 0 1px var(--bt-bg-0));
+  transition: border-color 0.3s ease;
+}
+
+.seat-corner--tl { top: -2px; left: -2px; border-top-width: 1.5px; border-left-width: 1.5px; border-top-left-radius: 3px; }
+.seat-corner--tr { top: -2px; right: -2px; border-top-width: 1.5px; border-right-width: 1.5px; border-top-right-radius: 3px; }
+.seat-corner--bl { bottom: -2px; left: -2px; border-bottom-width: 1.5px; border-left-width: 1.5px; border-bottom-left-radius: 3px; }
+.seat-corner--br { bottom: -2px; right: -2px; border-bottom-width: 1.5px; border-right-width: 1.5px; border-bottom-right-radius: 3px; }
+
+/* ===== 状态：当前行动（金框）/ 可选（冷光）/ 选中 / 我 ===== */
+.player-area--me {
+  border-color: var(--bt-chrome);
+}
+
+/* GameBoard 会把 --active 座位的 box-shadow 清空，这里用 !important 保住金色光晕 */
+.player-area--active {
+  border-color: var(--bt-active) !important;
+  box-shadow:
+    0 0 0 1px var(--bt-active),
+    0 0 14px var(--bt-active-glow),
+    0 0 26px var(--bt-active-glow) !important;
+}
+
+.player-area--active .seat-frame {
+  border-color: var(--bt-active-glow);
+}
+
+.player-area--active .seat-corner {
+  border-color: var(--bt-active);
+}
+
+.player-area--targetable {
+  border-color: var(--bt-select);
+  box-shadow:
+    0 0 0 1px var(--bt-select-glow),
+    0 0 14px var(--bt-select-glow);
+}
+
+.player-area--targetable .seat-corner {
+  border-color: var(--bt-select);
+}
+
+.player-area--selected {
+  transform: scale(1.05);
+  border-color: var(--bt-select) !important;
+  box-shadow:
+    0 0 0 1px var(--bt-select),
+    0 0 16px var(--bt-select-glow),
+    0 0 28px var(--bt-select-glow);
+}
+
+.player-area--selected .seat-frame,
+.player-area--selected .seat-corner {
+  border-color: var(--bt-select);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .player-area--active {
+    animation: seatActiveGlow 2.4s ease-in-out infinite;
+  }
+
+  .player-area--selected {
+    animation: seatSelectGlow 1.8s ease-in-out infinite;
+  }
+}
+
+@keyframes seatActiveGlow {
+  0%, 100% {
+    box-shadow: 0 0 0 1px var(--bt-active), 0 0 10px var(--bt-active-glow), 0 0 20px var(--bt-active-glow);
+  }
+  50% {
+    box-shadow: 0 0 0 1px var(--bt-active), 0 0 18px var(--bt-active-glow), 0 0 32px var(--bt-active-glow);
+  }
+}
+
+@keyframes seatSelectGlow {
+  0%, 100% {
+    box-shadow: 0 0 0 1px var(--bt-select), 0 0 12px var(--bt-select-glow), 0 0 22px var(--bt-select-glow);
+  }
+  50% {
+    box-shadow: 0 0 0 1px var(--bt-select), 0 0 20px var(--bt-select-glow), 0 0 34px var(--bt-select-glow);
+  }
+}
+
+.player-area--target-blocked {
+  filter: grayscale(0.35) saturate(0.72) brightness(0.82);
+}
+
+/* 潜行整卡变灰 */
+.player-area--stealth {
+  filter: grayscale(0.7) brightness(0.85);
+}
+
+.player-area--active.player-area--target-blocked,
+.player-area--active.player-area--stealth {
+  filter: none;
+}
+
+/* ===== 立绘 ===== */
+.seat-portrait {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: var(--bt-radius-sm) var(--bt-radius-sm) 0 0;
+  background: var(--bt-bg-1);
+}
+
+/* 立绘底部压暗，保证芯片与名牌可读 */
+.seat-portrait::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 40%;
+  background: linear-gradient(180deg, transparent, var(--bt-panel));
+  pointer-events: none;
+  z-index: 2;
+}
+
 .character-portrait-fill {
   position: absolute;
-  top: 0;
-  left: 0;
+  inset: 0;
   width: 100%;
-  height: calc(100% - 46px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px 12px 0 0;
+  height: 100%;
   object-fit: cover;
   object-position: center 15%;
   z-index: 1;
@@ -771,17 +866,77 @@ function handleClick(e: MouseEvent) {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, rgba(47, 66, 84, 0.74), rgba(30, 47, 63, 0.9));
-  color: rgba(236, 202, 143, 0.88);
+  background: radial-gradient(circle at 50% 40%, var(--bt-panel-raised), var(--bt-bg-0));
+  color: var(--bt-chrome);
+  font-family: var(--bt-font-num);
   font-weight: 700;
   font-size: 28px;
   z-index: 1;
 }
 
+/* 状态效果叠加层 */
+.effect-overlay-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .effect-overlay-layer {
+    animation: none !important;
+  }
+}
+
+/* ===== 状态小徽章（你 / 当前行动 / 可选） ===== */
+.player-state-badges {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  pointer-events: none;
+}
+
+.player-state-badge {
+  min-height: 16px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--bt-hairline);
+  background: var(--bt-panel);
+  color: var(--bt-text);
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1.35;
+  letter-spacing: 0.04em;
+  box-shadow: 0 0 0 1px var(--bt-bg-0);
+}
+
+.player-state-badge--me {
+  border-color: var(--bt-chrome-hi);
+  color: var(--bt-chrome-hi);
+}
+
+.player-state-badge--active {
+  border-color: var(--bt-active);
+  color: var(--bt-active);
+}
+
+.player-state-badge--targetable {
+  border-color: var(--bt-select);
+  color: var(--bt-select);
+}
+
+/* ===== 立绘徽章（行动序号 / 灵魂链接 / 幻龙 / 同生共死） ===== */
 .player-portrait-badges {
   position: absolute;
-  top: 6px;
-  left: 6px;
+  top: 5px;
+  left: 5px;
   z-index: 5;
   max-width: calc(100% - 58px);
   display: flex;
@@ -796,15 +951,16 @@ function handleClick(e: MouseEvent) {
   gap: 4px;
   width: fit-content;
   max-width: 100%;
-  min-height: 18px;
-  padding: 2px 6px;
-  border-radius: 4px;
-  border: 1px solid rgba(167, 139, 250, 0.62);
+  min-height: 16px;
+  padding: 1px 6px;
+  border-radius: var(--bt-radius-sm);
+  border: 1px solid var(--bt-hairline);
+  background: var(--bt-panel);
+  color: var(--bt-text);
   font-size: 9px;
   font-weight: 800;
-  line-height: 1.25;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.72);
-  box-shadow: 0 3px 8px rgba(19, 12, 43, 0.34);
+  line-height: 1.3;
+  box-shadow: 0 0 0 1px var(--bt-bg-0);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -821,148 +977,127 @@ function handleClick(e: MouseEvent) {
   flex-shrink: 0;
 }
 
+/* 行动序号：镀铬圆章 + 衬线数字 */
 .player-portrait-badge--turn-order {
-  min-width: 24px;
+  min-width: 22px;
   justify-content: center;
-  border-color: rgba(235, 203, 144, 0.76);
-  background: linear-gradient(180deg, rgba(110, 78, 35, 0.92), rgba(71, 49, 21, 0.92));
-  color: #ffe8be;
+  border-radius: 999px;
+  border-color: var(--bt-chrome);
+  color: var(--bt-chrome-hi);
+  font-family: var(--bt-font-num);
+  font-size: 10px;
 }
 
 .player-portrait-badge--soul-link {
-  border-color: rgba(167, 139, 250, 0.62);
-  background: rgba(35, 28, 64, 0.88);
-  color: #ddd6fe;
+  border-color: var(--bt-violet);
 }
 
-.player-portrait-badge--fighter-hundred-dragon {
-  border-color: rgba(251, 146, 60, 0.78);
-  background: rgba(72, 28, 10, 0.9);
-  color: #ffedd5;
-}
-
-.player-portrait-badge--fighter-hundred-dragon-source {
-  box-shadow:
-    0 0 0 1px rgba(251, 146, 60, 0.2),
-    0 3px 8px rgba(19, 12, 43, 0.34),
-    0 0 12px rgba(249, 115, 22, 0.2);
-}
-
-.player-portrait-badge--fighter-hundred-dragon-bound {
-  border-style: dashed;
-  box-shadow:
-    0 0 0 1px rgba(251, 146, 60, 0.12),
-    0 3px 8px rgba(19, 12, 43, 0.34);
-}
-
+.player-portrait-badge--fighter-hundred-dragon,
 .player-portrait-badge--blood-shared-life {
-  border-color: rgba(251, 113, 133, 0.75);
-  background: rgba(83, 20, 33, 0.88);
-  color: #ffe4e6;
+  border-color: var(--bt-red);
 }
 
+.player-portrait-badge--fighter-hundred-dragon-source,
 .player-portrait-badge--blood-shared-life-source {
-  box-shadow:
-    0 0 0 1px rgba(251, 113, 133, 0.2),
-    0 3px 8px rgba(19, 12, 43, 0.34),
-    0 0 12px rgba(244, 63, 94, 0.22);
+  box-shadow: 0 0 0 1px var(--bt-bg-0), 0 0 8px var(--bt-red-soft);
 }
 
+.player-portrait-badge--fighter-hundred-dragon-bound,
 .player-portrait-badge--blood-shared-life-bound {
   border-style: dashed;
-  box-shadow:
-    0 0 0 1px rgba(251, 113, 133, 0.12),
-    0 3px 8px rgba(19, 12, 43, 0.34);
+}
+
+/* ===== 名牌上沿芯片 ===== */
+.seat-chip-row {
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  bottom: 3px;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap-reverse;
+  justify-content: center;
+  align-items: center;
+  gap: 2px 3px;
+  max-height: 34px;
+  overflow: hidden;
+  pointer-events: auto;
+}
+
+.seat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  border: 1px solid var(--bt-hairline-soft);
+  background: var(--bt-panel);
+  color: var(--bt-text-sub);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.seat-chip-value {
+  color: var(--bt-text);
+  font-family: var(--bt-font-num);
 }
 
 .form-badge {
+  border-color: var(--bt-violet);
+  color: var(--bt-text);
+}
+
+.player-overlay-resource,
+.player-overlay-tokens {
+  display: contents;
+}
+
+.seat-chip--gem,
+.seat-chip--crystal {
+  color: var(--bt-text);
+  font-family: var(--bt-font-num);
+}
+
+.seat-chip-gem-mark,
+.seat-chip-crystal-mark {
+  width: 6px;
+  height: 6px;
+  margin-right: 1px;
+  transform: rotate(45deg);
+  box-shadow: 0 0 0 1px var(--bt-bg-0);
+}
+
+.seat-chip-gem-mark {
+  background: var(--bt-red);
+}
+
+.seat-chip-crystal-mark {
+  background: var(--bt-blue);
+}
+
+/* ===== 完整模式状态图标列：内侧圆形镀铬徽章 ===== */
+.player-overlay-effects {
   position: absolute;
-  top: 6px;
-  right: 6px;
+  top: 28px;
+  right: 5px;
   z-index: 5;
-  padding: 1px 5px;
-  border-radius: 4px;
-  border-width: 1px;
-  border-style: solid;
-  font-size: 10px;
-  font-weight: 800;
-  line-height: 1.4;
-  text-align: center;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5), inset 0 1px 2px rgba(255, 255, 255, 0.2);
-  backdrop-filter: blur(2px);
-  animation: glowPulse 2s infinite ease-in-out;
-}
-
-@keyframes glowPulse {
-  0% { filter: brightness(1); }
-  50% { filter: brightness(1.2); }
-  100% { filter: brightness(1); }
-}
-
-.player-overlay {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 46px;
-  min-height: auto;
-  padding: 4px 8px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  justify-content: space-between;
-  background: rgba(12, 18, 30, 0.95) !important;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(2px);
-  z-index: 4;
-}
-
-.player-overlay-title-row {
-  display: flex;
-  align-items: center;
-  justify-content: center;
   gap: 4px;
-  min-height: 16px;
-}
-
-.player-overlay-role {
-  font-size: 11px;
-  line-height: 1.15;
-  font-weight: 700;
-  color: rgba(241, 247, 255, 0.96);
-  max-width: calc(100% - 38px);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  text-shadow: 0 1px 2px rgba(3, 10, 20, 0.68);
-}
-
-.player-overlay-player {
-  display: none;
-}
-
-.player-overlay-stats {
-  display: flex;
-  justify-content: space-between;
-  width: 100%;
-  gap: 6px;
-  font-size: 10px;
-  color: rgba(228, 237, 245, 0.92);
-}
-
-.player-overlay-stat {
-  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: 2px;
 }
 
-.player-overlay-resource {
-  grid-column: 1 / -1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
+.effect-icon-item {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  padding: 2px;
+  border-radius: 999px;
+  border: 1px solid var(--bt-chrome);
+  background: radial-gradient(circle at 50% 35%, var(--bt-panel-raised), var(--bt-bg-0));
+  box-shadow: 0 0 0 1px var(--bt-bg-0);
 }
 
 .player-area--compact .player-overlay-resource,
@@ -971,96 +1106,149 @@ function handleClick(e: MouseEvent) {
   display: none;
 }
 
-.player-overlay-effects {
+/* ===== 名牌条 + 底栏 ===== */
+.player-overlay {
+  position: relative;
+  flex: 0 0 auto;
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  z-index: 4;
+  background: var(--bt-bg-0);
+}
+
+.player-overlay-title-row {
+  display: flex;
+  align-items: center;
   justify-content: center;
   gap: 4px;
-  max-height: 32px;
-  overflow: hidden;
-  align-items: center;
+  min-height: 16px;
+  padding: 1px 6px;
+  border-top: 1px solid var(--bt-hairline);
+  border-bottom: 1px solid var(--bt-hairline-soft);
 }
 
-.effect-icon-item {
-  width: 24px;
-  height: 24px;
-  flex-shrink: 0;
+.camp-blue .player-overlay-title-row {
+  background: linear-gradient(180deg, var(--bt-blue), var(--bt-blue-soft));
 }
 
-.player-overlay-tokens {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 3px;
-  max-height: 32px;
-  overflow: hidden;
+.camp-red .player-overlay-title-row {
+  background: linear-gradient(180deg, var(--bt-red), var(--bt-red-soft));
 }
 
-.player-overlay-ml-status {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 3px 4px;
-  border: 1px solid rgba(148, 163, 184, 0.34);
-  border-radius: 6px;
-  background: rgba(15, 23, 42, 0.6);
-}
-
-.player-overlay-ml-line {
-  font-size: 10px;
-  line-height: 1.22;
-  color: rgba(226, 232, 240, 0.96);
-  text-align: left;
-}
-
-.player-overlay-ml-skills {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 3px 4px;
-  border: 1px solid rgba(217, 119, 6, 0.36);
-  border-radius: 6px;
-  background: rgba(35, 24, 12, 0.62);
-  max-height: 88px;
-  overflow-y: auto;
-}
-
-.player-overlay-ml-title {
-  font-size: 10px;
+.player-overlay-role {
+  min-width: 0;
+  font-size: 11px;
   line-height: 1.2;
   font-weight: 700;
-  color: rgba(253, 230, 138, 0.95);
-  text-align: left;
+  letter-spacing: 0.06em;
+  color: var(--bt-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-shadow: 0 1px 2px var(--bt-bg-0);
 }
 
-.player-overlay-ml-skill-item {
-  font-size: 9px;
-  line-height: 1.24;
-  text-align: left;
-  color: rgba(243, 244, 246, 0.95);
-}
-
-.player-overlay-ml-skill-name {
-  font-weight: 700;
-  color: rgba(251, 191, 36, 0.96);
-}
-
-.player-overlay-ml-skill-desc {
-  color: rgba(241, 245, 249, 0.93);
+.player-overlay-player {
+  display: none;
 }
 
 .btn-show-skills {
-  border: 1px solid rgba(223, 188, 124, 0.36);
-  background: rgba(79, 57, 30, 0.46);
-  color: rgba(248, 221, 171, 0.95);
-  transition: background-color 0.2s ease, transform 0.2s ease;
+  flex-shrink: 0;
+  padding: 0 4px;
+  border-radius: 3px;
+  border: 1px solid var(--bt-hairline);
+  background: var(--bt-panel);
+  color: var(--bt-chrome-hi);
+  font-size: 9px;
+  line-height: 1.4;
+  transition: border-color 0.2s ease, color 0.2s ease;
 }
 
-.btn-show-skills:hover {
-  background: rgba(103, 72, 38, 0.58);
-  transform: translateY(-1px);
+.btn-show-skills:hover,
+.btn-show-skills:focus-visible {
+  border-color: var(--bt-active);
+  color: var(--bt-active);
 }
 
+.btn-show-skills:focus-visible {
+  outline: 1px solid var(--bt-active);
+  outline-offset: 1px;
+}
+
+.player-overlay-stats {
+  display: flex;
+  align-items: center;
+  justify-content: space-evenly;
+  width: 100%;
+  min-height: 18px;
+  padding: 2px 6px;
+  font-size: 10px;
+  color: var(--bt-text);
+}
+
+.player-overlay-stat {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.seat-stat-divider {
+  width: 1px;
+  height: 11px;
+  background: var(--bt-hairline);
+}
+
+.seat-stat-icon {
+  width: 11px;
+  height: 11px;
+  flex-shrink: 0;
+  fill: var(--bt-chrome);
+  stroke: var(--bt-bg-0);
+  stroke-width: 0.6;
+}
+
+.seat-stat-num {
+  font-family: var(--bt-font-num);
+  font-size: 11px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.seat-heal-pip {
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+  fill: none;
+  stroke: var(--bt-chrome-mid);
+  stroke-width: 1.4;
+}
+
+.seat-heal-pip--filled {
+  fill: var(--bt-heal);
+  stroke: var(--bt-heal);
+}
+
+.player-overlay-stat--over {
+  color: var(--bt-danger);
+}
+
+.player-overlay-stat--over .seat-stat-icon {
+  fill: var(--bt-danger);
+}
+
+.seat-stealth-hint {
+  margin: 0 4px 3px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  border: 1px solid var(--bt-hairline-soft);
+  color: var(--bt-text-sub);
+  font-size: 9px;
+  text-align: center;
+}
+
+/* ===== 伤害暴血 ===== */
 .damage-burst-overlay {
   border-radius: inherit;
 }
@@ -1073,14 +1261,15 @@ function handleClick(e: MouseEvent) {
   z-index: 2;
   font-size: 1.4rem;
   font-weight: 900;
-  color: #ff9186;
-  text-shadow: 0 0 8px rgba(255, 128, 118, 0.68), 0 0 16px rgba(255, 80, 69, 0.45);
+  font-family: var(--bt-font-num);
+  color: var(--bt-danger);
+  text-shadow: 0 0 8px var(--bt-red-soft), 0 1px 2px var(--bt-bg-0);
   animation: numberPop 0.44s ease-out;
 }
 .damage-splash {
   position: absolute;
   inset: -16px;
-  background: radial-gradient(circle, rgba(255, 83, 83, 0.34) 0%, rgba(232, 59, 59, 0.2) 36%, transparent 72%);
+  background: radial-gradient(circle, var(--bt-red-soft) 0%, transparent 72%);
   border-radius: 50%;
   animation: splashExpand 0.54s ease-out forwards;
   transform: scale(0);
@@ -1100,21 +1289,12 @@ function handleClick(e: MouseEvent) {
   100% { transform: scale(1.2); opacity: 0; }
 }
 
-@keyframes frameGlowPulse {
-  0%, 100% {
-    box-shadow:
-      0 0 0 1px rgba(246, 224, 181, 0.64),
-      0 0 12px rgba(213, 171, 106, 0.44),
-      0 0 24px rgba(157, 117, 71, 0.3);
-  }
-  50% {
-    box-shadow:
-      0 0 0 1px rgba(249, 232, 200, 0.86),
-      0 0 22px rgba(226, 187, 124, 0.62),
-      0 0 34px rgba(172, 129, 81, 0.4);
-  }
+@keyframes effectSealRotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
+/* ===== 尺寸断点（保持原有高度） ===== */
 @media (min-width: 1800px) {
   .player-area--compact {
     height: 150px;
@@ -1134,16 +1314,10 @@ function handleClick(e: MouseEvent) {
     height: 236px;
   }
 
-  .player-overlay {
-    padding: 4px;
-    min-height: auto;
-  }
-
   .player-overlay-role {
     font-size: 10px;
   }
 
-  .player-overlay-player,
   .player-overlay-stats {
     font-size: 9px;
   }
@@ -1158,28 +1332,17 @@ function handleClick(e: MouseEvent) {
     height: 224px;
   }
 
-  .player-overlay {
-    padding: 4px 4px 5px;
-    gap: 2px;
-  }
-
   .player-overlay-role {
     font-size: 9px;
-    max-width: calc(100% - 34px);
   }
 
-  .player-overlay-player {
-    font-size: 8px;
+  .seat-stat-num {
+    font-size: 10px;
   }
 
-  .player-overlay-stats {
-    font-size: 8px;
-    gap: 1px 3px;
-  }
-
-  .player-overlay-effects {
-    max-height: 24px;
-    gap: 3px;
+  .seat-heal-pip {
+    width: 8px;
+    height: 8px;
   }
 
   .effect-icon-item {
@@ -1188,14 +1351,12 @@ function handleClick(e: MouseEvent) {
   }
 
   .player-portrait-badges {
-    top: 5px;
-    left: 5px;
     max-width: calc(100% - 50px);
   }
 
   .player-portrait-badge {
     font-size: 8px;
-    min-height: 16px;
+    min-height: 14px;
     padding: 1px 5px;
   }
 
@@ -1204,64 +1365,9 @@ function handleClick(e: MouseEvent) {
     height: 10px;
   }
 
-  .player-overlay-tokens {
-    max-height: 26px;
-  }
-
-  .player-overlay-ml-line,
-  .player-overlay-ml-title,
-  .player-overlay-ml-skill-item {
-    font-size: 8px;
-  }
-
-  .player-overlay-ml-skills {
-    max-height: 70px;
-  }
-
   .btn-show-skills {
     font-size: 8px;
-    padding: 1px 3px;
+    padding: 0 3px;
   }
-
-}
-
-/* 状态效果叠加层 */
-.effect-overlay-layer {
-  position: absolute;
-  inset: 0;
-  z-index: 3;
-  pointer-events: none;
-  animation-timing-function: ease-in-out;
-  animation-iteration-count: infinite;
-}
-
-/* 潜行整卡变灰 */
-.player-area--stealth {
-  filter: grayscale(0.7) brightness(0.85);
-}
-
-.player-area--active.player-area--target-blocked,
-.player-area--active.player-area--stealth {
-  filter: none;
-}
-
-@keyframes effectPoisonDrift {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-8px); }
-}
-
-@keyframes effectWeakPulse {
-  0%, 100% { transform: scale(0.95); }
-  50% { transform: scale(1.05); }
-}
-
-@keyframes effectShieldShimmer {
-  0% { background-position: -100% -100%; }
-  100% { background-position: 200% 200%; }
-}
-
-@keyframes effectSealRotate {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
 }
 </style>
