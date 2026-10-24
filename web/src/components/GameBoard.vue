@@ -1989,6 +1989,17 @@ function isCardSelectableForExclusiveSkillCard(idx: number): boolean {
   return cardMatchesExclusive(card, roleId, skill?.title || '')
 }
 
+// 正在从手牌里挑牌（攻击/法术选牌、技能弃牌、需要选牌的提示）时，不可选的牌才压暗；其余时候整手牌保持原色
+const isHandChoosing = computed(() =>
+  !isGameEnded.value && (
+    skillMode.value === 'choosing_discard' ||
+    skillMode.value === 'choosing_exclusive' ||
+    actionMode.value === 'attack' ||
+    (actionMode.value === 'magic' && magicSubChoice.value === 'card') ||
+    (isPromptForMe.value && myHandEntries.value.some(entry => promptCardSelectionState(entry.index).selectable))
+  )
+)
+
 function isCardSelectableForAction(idx: number): boolean {
   if (isGameEnded.value) return false
   if (skillMode.value === 'choosing_discard') return isCardSelectableForSkillDiscard(idx)
@@ -2877,7 +2888,11 @@ const fighterHundredDragonByPlayer = computed(() => {
                 </div>
               </Transition>
               <div class="overflow-x-auto hand-list">
-                <div class="hand-card-row hand-fan" :style="{ '--fan-n': myHandEntries.length }">
+                <div
+                  class="hand-card-row hand-fan"
+                  :class="{ 'hand-fan--crowded': myHandEntries.length >= 8, 'hand-fan--choosing': isHandChoosing }"
+                  :style="{ '--fan-n': myHandEntries.length }"
+                >
                   <div
                     v-for="(entry, fanIdx) in myHandEntries"
                     :key="entry.index"
@@ -5327,6 +5342,23 @@ const fighterHundredDragonByPlayer = computed(() => {
 
 .hand-fan-slot:first-child {
   margin-left: 0;
+}
+
+/* 不在挑牌时，取消 CardComponent 对不可选牌的压暗 */
+.hand-fan:not(.hand-fan--choosing) .hand-fan-slot :deep(.card-shell:not(.selectable):not(.selected)) {
+  opacity: 1;
+  filter: none;
+}
+
+/* 牌多重叠时，只有悬停/聚焦的那张显示底部信息条，避免标签互相压住 */
+.hand-fan--crowded .hand-fan-slot :deep(.card-text-panel) {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.hand-fan--crowded .hand-fan-slot:hover :deep(.card-text-panel),
+.hand-fan--crowded .hand-fan-slot:focus-within :deep(.card-text-panel) {
+  opacity: 1;
 }
 
 .hand-fan-slot:hover,
