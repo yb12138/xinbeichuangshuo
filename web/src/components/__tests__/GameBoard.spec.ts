@@ -313,9 +313,9 @@ describe('GameBoard target picker', () => {
     })
 
     const targetAnchor = container.querySelector('[data-player-anchor="p2"]')
-    expect(targetAnchor?.querySelector('.player-anchor-seal-effects')).not.toBeNull()
-    expect(targetAnchor?.querySelector('.player-anchor-seal-pop')?.textContent).toContain('受到水之封印')
-    expect(targetAnchor?.querySelector('.player-anchor-seal-icon')).not.toBeNull()
+    const sealIcon = targetAnchor?.querySelector('.player-anchor-status-icon--seal')
+    expect(sealIcon).not.toBeNull()
+    expect(sealIcon?.getAttribute('aria-label')).toContain('水之封印')
   })
 
   it('keeps rose courtyard ambient vfx while the field effect is active', async () => {
