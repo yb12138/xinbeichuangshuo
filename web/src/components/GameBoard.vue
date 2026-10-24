@@ -2363,13 +2363,53 @@ const fighterHundredDragonByPlayer = computed(() => {
     </button>
 
     <div class="top-hud">
+      <!-- 资源图标（银色镀铬风格），以 symbol 定义一次，两侧阵营条复用 -->
+      <svg class="top-hud-defs" aria-hidden="true" focusable="false">
+        <symbol id="bt-hud-icon-cup" viewBox="0 0 16 16">
+          <path d="M4.2 3.4H2.4v1.2a2.6 2.6 0 0 0 2.4 2.6M11.8 3.4h1.8v1.2a2.6 2.6 0 0 1-2.4 2.6" style="fill: none; stroke: var(--bt-chrome); stroke-width: 1.1" />
+          <path d="M4 1.6h8v3.6a4 4 0 0 1-8 0z" style="fill: var(--bt-chrome)" />
+          <path d="M4 1.6h4v7.6a4 4 0 0 1-4-4z" style="fill: var(--bt-chrome-hi)" />
+          <path d="M10.4 2.6v2.8a2.4 2.4 0 0 1-1.2 2.1" style="fill: none; stroke: var(--bt-chrome-lo); stroke-width: 0.9" />
+          <rect x="7.1" y="9.1" width="1.8" height="2.6" style="fill: var(--bt-chrome-mid)" />
+          <path d="M4.8 14.4l0.8-2.4h4.8l0.8 2.4z" style="fill: var(--bt-chrome)" />
+          <path d="M4.8 14.4l0.8-2.4H8v2.4z" style="fill: var(--bt-chrome-hi)" />
+        </symbol>
+        <symbol id="bt-hud-icon-gem" viewBox="0 0 16 16">
+          <polygon points="8,1 13.4,5.6 8,15 2.6,5.6" style="fill: var(--bt-red)" />
+          <polygon points="8,1 2.6,5.6 8,6.6" style="fill: var(--bt-chrome-hi); fill-opacity: 0.55" />
+          <polygon points="8,1 13.4,5.6 8,6.6" style="fill: var(--bt-chrome-hi); fill-opacity: 0.2" />
+          <polygon points="2.6,5.6 8,6.6 8,15" style="fill: var(--bt-chrome-hi); fill-opacity: 0.12" />
+          <polygon points="13.4,5.6 8,6.6 8,15" style="fill: var(--bt-bg-0); fill-opacity: 0.38" />
+          <polygon points="8,1 13.4,5.6 8,15 2.6,5.6" style="fill: none; stroke: var(--bt-chrome-hi); stroke-opacity: 0.72; stroke-width: 0.6; stroke-linejoin: round" />
+        </symbol>
+        <symbol id="bt-hud-icon-crystal" viewBox="0 0 16 16">
+          <polygon points="8,0.8 12.6,4.6 12.6,10.8 8,15.2 3.4,10.8 3.4,4.6" style="fill: var(--bt-blue)" />
+          <polygon points="8,0.8 3.4,4.6 8,5.8" style="fill: var(--bt-chrome-hi); fill-opacity: 0.6" />
+          <polygon points="8,0.8 12.6,4.6 8,5.8" style="fill: var(--bt-chrome-hi); fill-opacity: 0.25" />
+          <polygon points="3.4,4.6 8,5.8 8,15.2 3.4,10.8" style="fill: var(--bt-select); fill-opacity: 0.3" />
+          <polygon points="12.6,4.6 8,5.8 8,15.2 12.6,10.8" style="fill: var(--bt-bg-0); fill-opacity: 0.35" />
+          <polygon points="8,0.8 12.6,4.6 12.6,10.8 8,15.2 3.4,10.8 3.4,4.6" style="fill: none; stroke: var(--bt-chrome-hi); stroke-opacity: 0.75; stroke-width: 0.6; stroke-linejoin: round" />
+        </symbol>
+      </svg>
+
       <div class="camp-bar camp-blue-bar">
         <span class="camp-side-label camp-side-label-left">蓝阵营</span>
         <div class="camp-center-metrics">
-          <span class="camp-score">{{ blueMorale }}</span>
-          <span class="camp-cup">🏆 {{ blueCups }}</span>
-          <span class="camp-gem">♦ {{ blueGems }}</span>
-          <span class="camp-crystal">🔷 {{ blueCrystals }}</span>
+          <!-- :key 绑定数值，数值变化时重新挂载以触发 bump 动画 -->
+          <span :key="'blue-morale-' + blueMorale" class="camp-score" title="士气">{{ blueMorale }}</span>
+          <span class="camp-divider" aria-hidden="true"></span>
+          <span class="camp-cup" title="星杯">
+            <svg class="camp-icon" aria-hidden="true" focusable="false"><use href="#bt-hud-icon-cup" /></svg>
+            <span :key="'blue-cups-' + blueCups" class="camp-num">{{ blueCups }}</span>
+          </span>
+          <span class="camp-gem" title="宝石">
+            <svg class="camp-icon" aria-hidden="true" focusable="false"><use href="#bt-hud-icon-gem" /></svg>
+            <span :key="'blue-gems-' + blueGems" class="camp-num">{{ blueGems }}</span>
+          </span>
+          <span class="camp-crystal" title="水晶">
+            <svg class="camp-icon" aria-hidden="true" focusable="false"><use href="#bt-hud-icon-crystal" /></svg>
+            <span :key="'blue-crystals-' + blueCrystals" class="camp-num">{{ blueCrystals }}</span>
+          </span>
         </div>
       </div>
 
@@ -2380,16 +2420,26 @@ const fighterHundredDragonByPlayer = computed(() => {
         title="当前公共牌堆剩余卡牌"
       >
         <span class="top-deck-label">公共牌堆</span>
-        <span class="top-deck-count">{{ deckCount }}</span>
+        <span :key="'deck-' + deckCount" class="top-deck-count">{{ deckCount }}</span>
       </div>
 
       <div class="camp-bar camp-red-bar">
         <span class="camp-side-label camp-side-label-right">红阵营</span>
         <div class="camp-center-metrics">
-          <span class="camp-score">{{ redMorale }}</span>
-          <span class="camp-cup">🏆 {{ redCups }}</span>
-          <span class="camp-gem">♦ {{ redGems }}</span>
-          <span class="camp-crystal">🔷 {{ redCrystals }}</span>
+          <span :key="'red-morale-' + redMorale" class="camp-score" title="士气">{{ redMorale }}</span>
+          <span class="camp-divider" aria-hidden="true"></span>
+          <span class="camp-cup" title="星杯">
+            <svg class="camp-icon" aria-hidden="true" focusable="false"><use href="#bt-hud-icon-cup" /></svg>
+            <span :key="'red-cups-' + redCups" class="camp-num">{{ redCups }}</span>
+          </span>
+          <span class="camp-gem" title="宝石">
+            <svg class="camp-icon" aria-hidden="true" focusable="false"><use href="#bt-hud-icon-gem" /></svg>
+            <span :key="'red-gems-' + redGems" class="camp-num">{{ redGems }}</span>
+          </span>
+          <span class="camp-crystal" title="水晶">
+            <svg class="camp-icon" aria-hidden="true" focusable="false"><use href="#bt-hud-icon-crystal" /></svg>
+            <span :key="'red-crystals-' + redCrystals" class="camp-num">{{ redCrystals }}</span>
+          </span>
         </div>
       </div>
     </div>
@@ -3573,9 +3623,17 @@ const fighterHundredDragonByPlayer = computed(() => {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  gap: 20px;
+  gap: 18px;
   margin-bottom: 10px;
   padding: 0 var(--battle-seat-edge-inset);
+}
+
+/* 仅承载 <symbol> 定义，不参与布局 */
+.top-hud-defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
 }
 
 .disconnect-panel {
@@ -3629,44 +3687,71 @@ const fighterHundredDragonByPlayer = computed(() => {
   padding: 1px 7px;
 }
 
+/* 牌堆：圆形镀铬框徽章 */
 .top-deck-indicator {
-  min-width: 92px;
-  height: 44px;
-  border-radius: 999px;
-  border: 1px solid rgba(152, 183, 201, 0.52);
-  background: linear-gradient(138deg, rgba(14, 34, 53, 0.9), rgba(8, 20, 33, 0.92));
-  box-shadow:
-    inset 0 1px 0 rgba(242, 250, 255, 0.1),
-    0 8px 20px rgba(3, 10, 20, 0.34);
+  position: relative;
+  width: 64px;
+  height: 64px;
+  min-width: 64px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  background:
+    radial-gradient(circle at 50% 32%, var(--bt-panel-raised) 0%, var(--bt-bg-0) 78%) padding-box,
+    var(--bt-chrome-gradient) border-box;
+  box-shadow: var(--bt-frame-shadow), inset 0 0 0 1px var(--bt-hairline-soft);
   display: inline-flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 0 10px;
+  gap: 1px;
+  padding: 0;
   white-space: nowrap;
+}
+
+/* 两侧的镀铬短连接线，衔接左右阵营条 */
+.top-deck-indicator::before,
+.top-deck-indicator::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 16px;
+  height: 1px;
+  background: var(--bt-hairline);
+  pointer-events: none;
+}
+
+.top-deck-indicator::before {
+  right: 100%;
+}
+
+.top-deck-indicator::after {
+  left: 100%;
 }
 
 .top-deck-indicator--active {
   box-shadow:
-    inset 0 1px 0 rgba(242, 250, 255, 0.12),
-    0 10px 24px rgba(3, 10, 20, 0.42),
-    0 0 0 1px rgba(236, 203, 140, 0.34);
+    var(--bt-frame-shadow),
+    inset 0 0 0 1px var(--bt-hairline-soft),
+    0 0 14px var(--bt-select-glow);
   animation: deckPulse 0.52s ease-out;
 }
 
 .top-deck-label {
-  font-size: 11px;
-  letter-spacing: 0.05em;
-  color: rgba(181, 209, 226, 0.9);
+  font-size: 8px;
+  letter-spacing: 0.12em;
+  line-height: 1;
+  color: var(--bt-text-dim);
 }
 
 .top-deck-count {
-  font-family: var(--font-ui-title);
-  font-size: 24px;
-  font-weight: 800;
+  display: inline-block;
+  font-family: var(--bt-font-num);
+  font-size: 26px;
+  font-weight: 400;
   line-height: 1;
-  color: #f4e4c5;
-  text-shadow: 0 1px 3px rgba(2, 7, 17, 0.62);
+  color: var(--bt-chrome-hi);
+  text-shadow: 0 1px 3px var(--bt-bg-0);
+  animation: camp-num-bump 0.42s ease-out;
 }
 
 .draw-flight-layer {
@@ -3728,33 +3813,60 @@ const fighterHundredDragonByPlayer = computed(() => {
   }
 }
 
+/*
+ * 阵营条：两端切角的细长黑漆条。
+ * 外层底色 = 镀铬细边，::before 内缩 1px 作为面板，::after 为阵营色细下划线。
+ */
 .camp-bar {
-  height: 46px;
-  border-radius: 999px;
-  border: 1px solid rgba(143, 176, 195, 0.45);
+  --camp-chamfer: 16px;
+  --camp-accent: var(--bt-chrome);
+  --camp-accent-soft: var(--bt-hairline-soft);
+  height: 44px;
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 12px;
-  box-shadow:
-    inset 0 1px 0 rgba(247, 252, 255, 0.14),
-    0 8px 20px rgba(2, 8, 20, 0.32);
-  overflow: hidden;
+  padding: 0 calc(var(--camp-chamfer) + 8px);
+  color: var(--bt-text);
+  background: var(--bt-hairline);
+  clip-path: polygon(
+    var(--camp-chamfer) 0,
+    calc(100% - var(--camp-chamfer)) 0,
+    100% 50%,
+    calc(100% - var(--camp-chamfer)) 100%,
+    var(--camp-chamfer) 100%,
+    0 50%
+  );
 }
 
 .camp-bar::before {
   content: '';
   position: absolute;
-  inset: 0;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0) 45%);
+  inset: 1px;
+  background:
+    linear-gradient(180deg, var(--bt-panel-raised) 0%, var(--bt-panel) 55%, var(--bt-bg-0) 100%);
+  clip-path: inherit;
+  pointer-events: none;
+}
+
+.camp-bar::after {
+  content: '';
+  position: absolute;
+  left: calc(var(--camp-chamfer) + 4px);
+  right: calc(var(--camp-chamfer) + 4px);
+  bottom: 3px;
+  height: 2px;
+  border-radius: 1px;
+  background: linear-gradient(90deg, transparent 0%, var(--camp-accent) 18%, var(--camp-accent) 82%, transparent 100%);
+  box-shadow: 0 0 6px var(--camp-accent-soft);
   pointer-events: none;
 }
 
 .camp-center-metrics {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   justify-content: center;
   min-width: 0;
   z-index: 1;
@@ -3763,78 +3875,107 @@ const fighterHundredDragonByPlayer = computed(() => {
 .camp-side-label {
   position: absolute;
   top: 50%;
+  z-index: 1;
   transform: translateY(-50%);
   font-family: var(--font-ui-title);
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  opacity: 0.95;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: var(--bt-text-sub);
   white-space: nowrap;
   pointer-events: none;
-  text-shadow: 0 1px 3px rgba(4, 9, 17, 0.8);
+  text-shadow: 0 1px 2px var(--bt-bg-0);
 }
 
 .camp-side-label-left {
-  left: 14px;
+  left: calc(var(--camp-chamfer) + 6px);
 }
 
 .camp-side-label-right {
-  right: 14px;
+  right: calc(var(--camp-chamfer) + 6px);
 }
 
 .camp-score {
-  font-family: var(--font-ui-title);
-  font-size: 30px;
-  font-weight: 800;
+  display: inline-block;
+  font-family: var(--bt-font-num);
+  font-size: 32px;
+  font-weight: 400;
   line-height: 1;
-  color: #f8fbff;
-  min-width: 28px;
+  color: var(--bt-chrome-hi);
+  min-width: 26px;
   text-align: center;
-  text-shadow: 0 1px 5px rgba(2, 8, 18, 0.64);
+  text-shadow: 0 1px 0 var(--bt-chrome-lo), 0 2px 6px var(--bt-bg-0);
+  animation: camp-num-bump 0.42s ease-out;
+}
+
+.camp-divider {
+  width: 1px;
+  height: 20px;
+  background: var(--bt-hairline-soft);
+  flex: none;
 }
 
 .camp-gem,
 .camp-crystal,
 .camp-cup {
-  border-radius: 999px;
-  border: 1px solid rgba(151, 181, 200, 0.42);
-  font-size: 11px;
-  font-weight: 700;
-  padding: 3px 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
   line-height: 1;
   white-space: nowrap;
-  background: rgba(5, 13, 23, 0.42);
-  box-shadow: inset 0 1px 0 rgba(240, 247, 252, 0.08);
+  color: var(--bt-text);
 }
 
-.camp-gem {
-  color: #f4b3ab;
+.camp-icon {
+  width: 17px;
+  height: 17px;
+  flex: none;
+  filter: drop-shadow(0 1px 1px var(--bt-bg-0));
 }
 
-.camp-crystal {
-  color: #acd7ef;
-}
-
-.camp-cup {
-  color: #f8dd96;
+.camp-num {
+  display: inline-block;
+  min-width: 0.7em;
+  font-family: var(--bt-font-num);
+  font-variant-numeric: tabular-nums;
+  text-align: left;
+  animation: camp-num-bump 0.42s ease-out;
 }
 
 .camp-red-bar {
-  background: linear-gradient(132deg, rgba(112, 35, 31, 0.82), rgba(79, 27, 24, 0.86));
-  color: #f8d4ce;
-  border-color: rgba(198, 103, 93, 0.54);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 200, 190, 0.12),
-    0 8px 20px rgba(80, 15, 10, 0.25);
+  --camp-accent: var(--bt-red);
+  --camp-accent-soft: var(--bt-red-soft);
 }
 
 .camp-blue-bar {
-  background: linear-gradient(132deg, rgba(17, 60, 96, 0.84), rgba(13, 42, 68, 0.88));
-  color: #d9edfa;
-  border-color: rgba(106, 168, 205, 0.54);
-  box-shadow:
-    inset 0 1px 0 rgba(180, 220, 255, 0.12),
-    0 8px 20px rgba(5, 25, 50, 0.25);
+  --camp-accent: var(--bt-blue);
+  --camp-accent-soft: var(--bt-blue-soft);
+}
+
+/* 数值变化时的轻微上滚 + 放大 */
+@keyframes camp-num-bump {
+  0% {
+    transform: translateY(35%) scale(0.92);
+    opacity: 0.2;
+  }
+  60% {
+    transform: translateY(-6%) scale(1.08);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .camp-score,
+  .camp-num,
+  .top-deck-count,
+  .top-deck-indicator--active {
+    animation: none;
+  }
 }
 
 .main-grid {
@@ -5377,14 +5518,18 @@ const fighterHundredDragonByPlayer = computed(() => {
   }
 
   .top-deck-indicator {
-    min-width: 84px;
-    height: 36px;
-    gap: 5px;
-    padding: 0 8px;
+    width: 46px;
+    height: 46px;
+    min-width: 46px;
+  }
+
+  .top-deck-indicator::before,
+  .top-deck-indicator::after {
+    width: 6px;
   }
 
   .top-deck-label {
-    font-size: 10px;
+    display: none;
   }
 
   .top-deck-count {
@@ -5399,27 +5544,32 @@ const fighterHundredDragonByPlayer = computed(() => {
   }
 
   .camp-bar {
-    height: 38px;
-    padding: 0 8px;
+    --camp-chamfer: 11px;
+    height: 36px;
   }
 
   .camp-side-label {
-    font-size: 11px;
+    font-size: 10px;
   }
 
   .camp-score {
-    font-size: 23px;
+    font-size: 24px;
   }
 
   .camp-center-metrics {
-    gap: 4px;
+    gap: 6px;
   }
 
   .camp-gem,
   .camp-crystal,
   .camp-cup {
-    font-size: 10px;
-    padding: 2px 5px;
+    font-size: 11px;
+    gap: 2px;
+  }
+
+  .camp-icon {
+    width: 14px;
+    height: 14px;
   }
 
   .main-grid {
@@ -5602,10 +5752,14 @@ const fighterHundredDragonByPlayer = computed(() => {
   }
 
   .top-deck-indicator {
-    min-width: 74px;
-    height: 34px;
-    gap: 4px;
-    padding: 0 7px;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+  }
+
+  .top-deck-indicator::before,
+  .top-deck-indicator::after {
+    width: 5px;
   }
 
   .top-deck-label {
@@ -5633,36 +5787,32 @@ const fighterHundredDragonByPlayer = computed(() => {
   }
 
   .camp-bar {
-    height: 38px;
-    padding: 0 8px;
+    --camp-chamfer: 10px;
+    height: 36px;
   }
 
   .camp-side-label {
     font-size: 10px;
   }
 
-  .camp-side-label-left {
-    left: 9px;
-  }
-
-  .camp-side-label-right {
-    right: 9px;
-  }
-
-
   .camp-score {
     font-size: 22px;
   }
 
   .camp-center-metrics {
-    gap: 4px;
+    gap: 5px;
   }
 
   .camp-gem,
   .camp-crystal,
   .camp-cup {
     font-size: 10px;
-    padding: 2px 4px;
+    gap: 2px;
+  }
+
+  .camp-icon {
+    width: 13px;
+    height: 13px;
   }
 }
 
@@ -5678,15 +5828,23 @@ const fighterHundredDragonByPlayer = computed(() => {
   }
 
   .camp-score {
-    min-width: 24px;
+    min-width: 18px;
     font-size: 20px;
+  }
+
+  .camp-divider {
+    display: none;
   }
 
   .camp-gem,
   .camp-crystal,
   .camp-cup {
     font-size: 9px;
-    padding: 2px 3px;
+  }
+
+  .camp-icon {
+    width: 11px;
+    height: 11px;
   }
 }
 
