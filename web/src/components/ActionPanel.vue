@@ -1806,18 +1806,37 @@ function elementName(el: string): string {
     cursor: not-allowed;
 }
 
+/* 行动坞：上方是提示槽（回合状态/提示文本），下方一排镀铬圆形行动徽章 */
 .action-hub-desktop {
     width: 100%;
     max-width: 100%;
-    border-radius: 14px;
-    padding: 8px;
-    background:
-        linear-gradient(180deg, rgba(12, 28, 43, 0.96), rgba(7, 19, 31, 0.98)),
-        url('/assets/ui/panel-ornament.svg') center/cover no-repeat;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    border-radius: var(--bt-radius);
+    padding: 4px;
+    background: transparent;
     border: none !important;
+    box-shadow: none;
+}
+
+.action-hub-desktop::before {
+    /* 没有提示内容时也保留一条空的镀铬提示槽，与参考图一致 */
+    content: '';
+    order: -1;
+    display: block;
+    flex: 0 0 auto;
+    height: 26px;
+    border-radius: var(--bt-radius-sm);
+    background: linear-gradient(180deg, var(--bt-bg-0), var(--bt-bg-1));
     box-shadow:
-        inset 0 1px 0 rgba(242, 250, 255, 0.08),
-        0 10px 24px rgba(3, 12, 22, 0.42);
+        inset 0 0 0 1px var(--bt-hairline-soft),
+        inset 0 -1px 0 1px var(--bt-blue-soft);
+}
+
+.action-hub-desktop:has(.turn-state-indicators, .action-hub-desktop-notice)::before {
+    display: none;
 }
 
 .turn-state-indicators {
@@ -1825,17 +1844,21 @@ function elementName(el: string): string {
     flex-wrap: wrap;
     gap: 6px;
     justify-content: center;
-    margin-bottom: 6px;
+    margin-bottom: 0;
     padding: 4px;
+    min-height: 26px;
+    border-radius: var(--bt-radius-sm);
+    background: var(--bt-bg-0);
+    box-shadow: inset 0 0 0 1px var(--bt-hairline-soft);
 }
 
 .action-hub-desktop-notice,
 .action-panel-notice {
-    margin-bottom: 7px;
-    border-radius: 8px;
-    border: 1px solid rgba(245, 158, 11, 0.28);
-    background: rgba(120, 53, 15, 0.28);
-    color: #fde68a;
+    margin-bottom: 0;
+    border-radius: var(--bt-radius-sm);
+    border: 1px solid var(--bt-hairline-soft);
+    background: var(--bt-bg-0);
+    color: var(--bt-active);
     font-size: 11px;
     line-height: 1.35;
     padding: 5px 8px;
@@ -1847,9 +1870,96 @@ function elementName(el: string): string {
 }
 
 .action-hub-desktop-main {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 6px;
+    flex: 1 1 auto;
+    min-height: 0;
+    /* 一排排开：3 个主按钮时与参考一致，第 4 个（结束回合/无法行动）也挤在同一排 */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(6px, 0.8vw, 12px);
+    padding: 2px 2px 6px;
+}
+
+/*
+ * 主行动按钮（攻击/法术/特殊…）：镀铬圆环徽章。
+ * 外圈 = 镀铬渐变环 + 黑缝，内圈 = 原有按钮图（裁成圆形），悬停时外发蓝光。
+ */
+.action-hub-desktop-btn.action-image-btn {
+    flex: 1 1 0;
+    width: auto !important;
+    min-width: 0;
+    max-width: 76px;
+    border-radius: 999px !important;
+    padding: 3px !important;
+    background: var(--bt-chrome-gradient) !important;
+    box-shadow:
+        0 0 0 1px var(--bt-bg-0),
+        0 0 0 2px var(--bt-chrome-lo),
+        0 4px 10px var(--bt-bg-0) !important;
+    transition: transform 0.16s ease, filter 0.16s ease, box-shadow 0.16s ease;
+}
+
+.action-hub-desktop-btn.action-image-btn::after {
+    /* 内侧黑缝 + 内高光，压住图片边缘 */
+    content: '';
+    position: absolute;
+    inset: 3px;
+    border-radius: 999px;
+    box-shadow:
+        inset 0 0 0 1px var(--bt-bg-0),
+        inset 0 0 0 2px var(--bt-hairline-soft),
+        inset 0 -6px 12px var(--bt-bg-0);
+    pointer-events: none;
+}
+
+.action-hub-desktop-btn.action-image-btn .action-image-btn-fill {
+    inset: 3px;
+    width: calc(100% - 6px);
+    height: calc(100% - 6px);
+    border-radius: 999px;
+    background: var(--bt-bg-0);
+    /* 原始素材是带金边的圆章（四周留黑），放大裁掉外框只留中心图案 */
+    object-fit: cover;
+    transform: scale(1.18);
+}
+
+.action-hub-desktop-btn.action-image-btn .action-image-fallback-text {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    border-radius: 999px;
+    background: radial-gradient(circle at 50% 35%, var(--bt-blue-soft), var(--bt-bg-0) 72%);
+    color: var(--bt-chrome-hi);
+}
+
+.action-hub-desktop-btn.action-image-btn:not(:disabled):hover,
+.action-hub-desktop-btn.action-image-btn:focus-visible {
+    transform: translateY(-2px);
+    filter: brightness(1.08);
+    box-shadow:
+        0 0 0 1px var(--bt-bg-0),
+        0 0 0 2px var(--bt-select),
+        0 0 14px var(--bt-select-glow),
+        0 6px 12px var(--bt-bg-0) !important;
+}
+
+.action-hub-desktop-btn.action-image-btn:focus-visible {
+    outline: 2px solid var(--bt-select) !important;
+    outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .action-hub-desktop-btn.action-image-btn,
+    .action-image-btn {
+        transition: none;
+    }
+
+    .action-hub-desktop-btn.action-image-btn:not(:disabled):hover,
+    .action-hub-desktop-btn.action-image-btn:focus-visible {
+        transform: none;
+    }
 }
 
 .action-hub-desktop-btn {

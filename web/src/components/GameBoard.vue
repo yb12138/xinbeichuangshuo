@@ -2699,6 +2699,12 @@ const fighterHundredDragonByPlayer = computed(() => {
                     {{ (myStatusRoleName || '?').charAt(0) }}
                   </span>
                 </div>
+                <span
+                  class="my-status-emblem"
+                  :class="myAreaPlayer.camp === 'Red' ? 'my-status-emblem--red' : 'my-status-emblem--blue'"
+                  :title="myAreaPlayer.camp === 'Red' ? '红方' : '蓝方'"
+                  aria-hidden="true"
+                />
                 <div class="player-overlay my-status-overlay">
                   <div class="player-overlay-title-row">
                     <span class="text-sm" aria-hidden="true">{{ myAreaPlayer.camp === 'Red' ? '🔴' : '🔵' }}</span>
@@ -2728,6 +2734,21 @@ const fighterHundredDragonByPlayer = computed(() => {
                     </div>
                   </div>
 
+                  <div
+                    class="my-status-progress"
+                    :class="{ 'my-status-progress--over': myStatusMaxHand > 0 && myStatusHandCount > myStatusMaxHand }"
+                    role="progressbar"
+                    :aria-label="`手牌 ${myStatusHandCount}/${myStatusMaxHand}`"
+                    :aria-valuenow="myStatusHandCount"
+                    aria-valuemin="0"
+                    :aria-valuemax="myStatusMaxHand"
+                  >
+                    <span
+                      class="my-status-progress__fill"
+                      :style="{ width: `${myStatusMaxHand > 0 ? Math.min(100, Math.round((myStatusHandCount / myStatusMaxHand) * 100)) : 0}%` }"
+                    />
+                  </div>
+
                   <div v-if="myFieldStatusItems.length" class="player-overlay-effects">
                     <div
                       v-for="field in myFieldStatusItems"
@@ -2748,7 +2769,8 @@ const fighterHundredDragonByPlayer = computed(() => {
                 'hand-rail--overflow-discard': promptNeedsOverflowDiscardGuide
               }"
             >
-              <div class="exclusive-toggle-row mb-2">
+              <div class="expansion-tray">
+              <div class="exclusive-toggle-row">
                 <button
                   type="button"
                   class="exclusive-toggle-btn"
@@ -2768,7 +2790,7 @@ const fighterHundredDragonByPlayer = computed(() => {
                   </span>
                 </button>
     </div>
-              <div v-if="showExpansionCards && expansionCardCount > 0" class="expansion-zone mb-2">
+              <div v-if="showExpansionCards && expansionCardCount > 0" class="expansion-zone">
                 <div v-if="promptNeedsCocoonGuide" class="expansion-cocoon-guide">
                   <div class="expansion-cocoon-guide-text">{{ cocoonGuideText }}</div>
                   <button
@@ -2826,13 +2848,24 @@ const fighterHundredDragonByPlayer = computed(() => {
                   </div>
                 </div>
               </div>
+              </div>
               <Transition name="guide-hint" mode="out-in">
                 <div
                   v-if="promptNeedsOverflowDiscardGuide"
                   key="overflow-discard-guide"
                   class="overflow-discard-guide"
                 >
-                  <div class="overflow-discard-guide__title">爆牌弃牌阶段</div>
+                  <div class="overflow-discard-guide__head">
+                    <div class="overflow-discard-guide__title">爆牌弃牌阶段</div>
+                    <span
+                      class="overflow-discard-guide__counter"
+                      :class="{ 'overflow-discard-guide__counter--ready': overflowDiscardCount !== null && selectedHandIndexes.length === overflowDiscardCount }"
+                      data-testid="overflow-discard-counter"
+                      aria-live="polite"
+                    >
+                      已选 {{ selectedHandIndexes.length }}{{ overflowDiscardCount !== null ? ` / ${overflowDiscardCount}` : '' }}
+                    </span>
+                  </div>
                   <div class="overflow-discard-guide__desc">
                     {{ overflowDiscardGuideText }}
                   </div>
@@ -2846,10 +2879,14 @@ const fighterHundredDragonByPlayer = computed(() => {
                 </div>
               </Transition>
               <div class="overflow-x-auto hand-list">
-                <div class="hand-card-row">
-                  <CardComponent
-                    v-for="entry in myHandEntries"
+                <div class="hand-card-row hand-fan" :style="{ '--fan-n': myHandEntries.length }">
+                  <div
+                    v-for="(entry, fanIdx) in myHandEntries"
                     :key="entry.index"
+                    class="hand-fan-slot"
+                    :style="{ '--fan-t': fanIdx - (myHandEntries.length - 1) / 2 }"
+                  >
+                  <CardComponent
                     :card="entry.card"
                     :index="entry.index"
                     :effective-element="effectiveHandCardElement(entry.card)"
@@ -2859,14 +2896,18 @@ const fighterHundredDragonByPlayer = computed(() => {
                     :selected="selectedHandIndexes.includes(entry.index) || selectedHandIndexForAction === entry.index || skillDiscardHandIndexes.includes(entry.index)"
                     @click="onCardClick(entry.index)"
                   />
+                  </div>
               </div>
-          <div v-if="myHand.length === 0" class="text-gray-500 py-4 text-sm">没有手牌</div>
+          <div v-if="myHand.length === 0" class="hand-empty-text py-4 text-sm">没有手牌</div>
         </div>
+              <div class="hand-cradle" aria-hidden="true" />
       </div>
             <div
               class="right-action-dock"
               :class="{
-                'right-action-dock--active': isMyTurn || isPromptForMe
+                'right-action-dock--active': isMyTurn || isPromptForMe,
+                'right-action-dock--confirm-pulse': isPromptForMe && (promptNeedsOverflowDiscardGuide || promptNeedsCardGuide),
+                'right-action-dock--confirm-ready': promptNeedsOverflowDiscardGuide && overflowDiscardCount !== null && selectedHandIndexes.length === overflowDiscardCount
               }"
             >
               <ActionPanel />
@@ -3340,6 +3381,8 @@ const fighterHundredDragonByPlayer = computed(() => {
   max-width: 1760px;
   margin: 0 auto;
   overflow: hidden;
+  /* clip 而非仅 hidden：hidden 容器仍可被聚焦/点击滚动，扇形手牌的变换会把超出右侧的 ambient 层拉进视口 */
+  overflow: clip;
   position: relative;
   --battle-player-card-max-width: 355px;
   --battle-player-card-max-height: 341px;
@@ -4759,45 +4802,35 @@ const fighterHundredDragonByPlayer = computed(() => {
   height: var(--self-status-card-height);
   min-height: 0;
   position: relative;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+  /* 左：扩展区托盘；右上：提示条；右下：扇形手牌 + 镀铬弧形托架 */
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  column-gap: clamp(6px, 0.8vw, 12px);
+  overflow: visible;
   padding: 0;
   --hand-card-width: clamp(84px, 7.3vw, 112px);
-  --hand-card-height: clamp(126px, min(10.95vw, calc(var(--self-status-card-height) - 48px)), 168px);
-  --hand-card-row-gap: clamp(4px, 0.55vw, 8px);
-  background:
-    linear-gradient(180deg, rgba(12, 26, 42, 0.92), rgba(8, 18, 31, 0.95));
-  border: 1px solid rgba(130, 170, 210, 0.15);
-  border-radius: 12px;
-  box-shadow:
-    inset 0 1px 0 rgba(235, 245, 252, 0.1),
-    inset 0 0 20px rgba(20, 50, 90, 0.08),
-    0 8px 24px rgba(1, 8, 16, 0.4);
+  --hand-card-height: clamp(120px, min(10.6vw, calc(var(--self-status-card-height) - 52px)), 162px);
+  --hand-card-row-gap: 0px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.hand-rail > * {
+  grid-column: 2;
+  min-width: 0;
 }
 
 .hand-rail--prompt-guide {
   --hand-card-width: clamp(76px, 6.6vw, 102px);
-  --hand-card-height: clamp(108px, min(9.9vw, calc(var(--self-status-card-height) - 76px)), 153px);
-  border-color: rgba(200, 171, 113, 0.52);
-  box-shadow:
-    inset 0 1px 0 rgba(244, 236, 216, 0.16),
-    inset 0 0 20px rgba(164, 126, 72, 0.18),
-    0 10px 26px rgba(1, 8, 16, 0.45),
-    0 0 0 1px rgba(203, 169, 107, 0.24);
-  animation: handGuidePulse 1.8s ease-in-out infinite;
+  --hand-card-height: clamp(108px, min(9.9vw, calc(var(--self-status-card-height) - 84px)), 150px);
 }
 
 .hand-rail--overflow-discard {
   --hand-card-width: clamp(72px, 6.2vw, 98px);
-  --hand-card-height: clamp(102px, min(9.3vw, calc(var(--self-status-card-height) - 86px)), 147px);
-  border-color: rgba(217, 132, 93, 0.64);
-  box-shadow:
-    inset 0 1px 0 rgba(250, 233, 221, 0.16),
-    inset 0 0 24px rgba(178, 94, 61, 0.22),
-    0 10px 28px rgba(1, 8, 16, 0.48),
-    0 0 0 1px rgba(216, 139, 103, 0.32);
-  animation: overflowDiscardPulse 1.45s ease-in-out infinite;
+  --hand-card-height: clamp(102px, min(9.3vw, calc(var(--self-status-card-height) - 92px)), 144px);
 }
 
 .my-status-strip {
@@ -4813,23 +4846,82 @@ const fighterHundredDragonByPlayer = computed(() => {
   margin-bottom: 0;
   min-height: 0;
   padding: 8px;
-  border-radius: 10px;
-  border: 1px solid rgba(132, 172, 207, 0.28);
-  background: linear-gradient(180deg, rgba(18, 36, 54, 0.72), rgba(10, 23, 37, 0.82));
+  border-radius: var(--bt-radius);
+  border: 1px solid var(--bt-chrome-mid);
+  background: var(--bt-bg-1);
+  /* 双层镀铬框：内细线 + 黑缝 + 外细线 */
   box-shadow:
-    inset 0 1px 0 rgba(236, 247, 255, 0.08),
-    0 6px 14px rgba(2, 8, 16, 0.22);
+    inset 0 0 0 1px var(--bt-bg-0),
+    inset 0 0 0 2px var(--bt-hairline-soft),
+    0 0 0 1px var(--bt-bg-0),
+    0 0 0 2px var(--bt-hairline),
+    0 8px 18px var(--bt-bg-0);
   overflow: hidden;
   pointer-events: auto;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .my-status-strip--active {
-  border-color: rgba(241, 207, 133, 0.7);
+  border-color: var(--bt-active);
   box-shadow:
-    inset 0 1px 0 rgba(255, 241, 190, 0.18),
-    0 8px 18px rgba(2, 8, 16, 0.28),
-    0 0 0 1px rgba(234, 194, 107, 0.28),
-    0 0 22px rgba(216, 162, 74, 0.22);
+    inset 0 0 0 1px var(--bt-bg-0),
+    inset 0 0 0 2px var(--bt-active-glow),
+    0 0 0 1px var(--bt-bg-0),
+    0 0 0 2px var(--bt-active),
+    0 0 18px var(--bt-active-glow);
+}
+
+/* 右下角阵营徽记（参考图中的小盾形徽章） */
+.my-status-emblem {
+  position: absolute;
+  right: 6px;
+  top: 40%;
+  z-index: 3;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 50% 50%, var(--emblem-color) 0 34%, var(--bt-bg-0) 36% 58%, transparent 60%),
+    var(--bt-chrome-gradient);
+  box-shadow:
+    0 0 0 1px var(--bt-bg-0),
+    0 0 8px var(--emblem-soft);
+  pointer-events: none;
+}
+
+.my-status-emblem--blue {
+  --emblem-color: var(--bt-blue);
+  --emblem-soft: var(--bt-blue-soft);
+}
+
+.my-status-emblem--red {
+  --emblem-color: var(--bt-red);
+  --emblem-soft: var(--bt-red-soft);
+}
+
+/* 底部细进度条：手牌数 / 手牌上限 */
+.my-status-progress {
+  position: relative;
+  height: 5px;
+  margin: 2px 4px 0;
+  border-radius: 999px;
+  background: var(--bt-bg-0);
+  box-shadow: 0 0 0 1px var(--bt-hairline-soft);
+  overflow: hidden;
+}
+
+.my-status-progress__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--bt-blue), var(--bt-select));
+  box-shadow: 0 0 6px var(--bt-select-glow);
+  transition: width 0.3s ease;
+}
+
+.my-status-progress--over .my-status-progress__fill {
+  background: var(--bt-danger);
+  box-shadow: 0 0 6px var(--bt-red-soft);
 }
 
 .my-status-strip--empty {
@@ -5035,28 +5127,59 @@ const fighterHundredDragonByPlayer = computed(() => {
 }
 
 .overflow-discard-guide {
-  width: min(100%, 620px);
-  margin: 0 auto 8px;
-  padding: 7px 10px;
-  border-radius: 10px;
-  border: 1px solid rgba(217, 132, 93, 0.7);
-  background: linear-gradient(180deg, rgba(82, 36, 20, 0.92), rgba(56, 24, 14, 0.94));
-  box-shadow: 0 10px 18px rgba(22, 8, 3, 0.35);
+  width: min(100%, 560px);
+  /* 偏右对齐，靠近右侧操作坞里的确认按钮 */
+  margin: 0 0 6px auto;
+  padding: 5px 10px;
+  border-radius: var(--bt-radius-sm);
+  background: var(--bt-panel);
+  box-shadow:
+    0 0 0 1px var(--bt-danger),
+    0 0 0 3px var(--bt-bg-0),
+    0 0 14px var(--bt-red-soft);
+}
+
+.overflow-discard-guide__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .overflow-discard-guide__title {
-  color: #ffd8b9;
+  color: var(--bt-danger);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.02em;
   line-height: 1.3;
 }
 
+.overflow-discard-guide__counter {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--bt-hairline);
+  background: var(--bt-bg-0);
+  color: var(--bt-text);
+  font-family: var(--bt-font-num);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  transition: border-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.overflow-discard-guide__counter--ready {
+  border-color: var(--bt-heal);
+  color: var(--bt-heal);
+  box-shadow: 0 0 8px var(--bt-select-glow);
+}
+
 .overflow-discard-guide__desc {
-  margin-top: 3px;
-  color: rgba(255, 234, 220, 0.92);
+  margin-top: 2px;
+  color: var(--bt-text-sub);
   font-size: 11px;
-  line-height: 1.4;
+  line-height: 1.35;
 }
 
 .guide-hint-enter-active,
@@ -5139,28 +5262,139 @@ const fighterHundredDragonByPlayer = computed(() => {
   }
 }
 
-.hand-list {
-  width: 100%;
-  flex: 1 1 auto;
-  height: auto;
-  min-width: 0;
-  min-height: 0;
-  overflow-y: hidden;
-  /* 选中卡牌上移时预留顶部空间，避免在横向滚动容器内被裁切。 */
-  padding-top: clamp(6px, 0.9vh, 12px);
-  margin-top: -4px;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(94, 138, 165, 0.74) rgba(7, 14, 22, 0.45);
+.hand-rail > .hand-list {
+  grid-row: 2;
 }
 
-.hand-card-row {
+.hand-rail > .expansion-tray {
+  grid-column: 1;
+  grid-row: 1 / -1;
+}
+
+.hand-list {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  /* 扇形手牌靠重叠收纳，不再横向滚动；旋转/抬起的卡牌需要溢出可见。 */
+  overflow: visible !important;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding-top: 0;
+  margin-top: 0;
+}
+
+.hand-list > .hand-card-row.hand-fan {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
+}
+
+/*
+ * 扇形手牌：每张牌的 --fan-t 为相对中心的偏移（-k … 0 … +k），--fan-n 为张数。
+ *   旋转  = t × step，step 随张数增多而减小（总张角约 ±14°）
+ *   下沉  = t² × drop，沿抛物线近似圆弧，中间高两侧低（drop ∝ 1/n²，外沿下沉量恒定）
+ *   重叠  = 负 margin，张数越多重叠越深（≤5 张约 0.1 张牌宽，8 张 0.34，≥13 张封顶 0.62）
+ */
+.hand-card-row.hand-fan {
+  --fan-step: clamp(1.4deg, calc(28deg / var(--fan-n, 1)), 5deg);
+  /* 边缘下沉 ≈ drop × (n/2)² → 取 80px/n²，使最外侧牌恒定下沉约 16–20px */
+  --fan-drop: clamp(0px, calc(80px / (var(--fan-n, 1) * var(--fan-n, 1))), 6px);
+  --fan-overlap: clamp(0.1, calc((var(--fan-n, 1) - 4) * 0.06 + 0.1), 0.62);
   display: flex;
   align-items: flex-end;
-  width: max-content;
-  min-width: 100%;
+  justify-content: center;
+  width: 100%;
+  min-width: 0;
   height: 100%;
-  gap: var(--hand-card-row-gap);
-  padding-right: 0;
+  gap: 0;
+  /* 底部留白 ≥ 外沿下沉量，保证两端旋转的牌不出屏 */
+  padding: 0 calc(var(--hand-card-width) * 0.2) clamp(18px, 2.4vh, 26px);
+}
+
+.hand-fan-slot {
+  position: relative;
+  flex: 0 0 auto;
+  margin-left: calc(var(--hand-card-width) * var(--fan-overlap) * -1);
+  transform-origin: 50% 100%;
+  transform:
+    translateX(var(--fan-part, 0px))
+    translateY(calc(var(--fan-t) * var(--fan-t) * var(--fan-drop) + var(--fan-lift, 0px)))
+    rotate(calc(var(--fan-t) * var(--fan-step) * var(--fan-rot, 1)));
+  transition: transform 0.2s ease, margin 0.2s ease;
+}
+
+.hand-fan-slot:first-child {
+  margin-left: 0;
+}
+
+.hand-fan-slot:hover,
+.hand-fan-slot:focus-within {
+  z-index: 30;
+  --fan-lift: -18px;
+  --fan-rot: 0.35;
+}
+
+/*
+ * 悬停牌两侧整体向外让开（左侧全部左移、右侧全部右移），
+ * 保持其余牌之间的相对叠放不变，避免某张牌被挤到下一张下面而点不到。
+ * 选中牌不提升层级，只靠 CardComponent 自身上移，防止盖住相邻牌的点击区。
+ */
+.hand-fan-slot:hover ~ .hand-fan-slot {
+  --fan-part: calc(var(--hand-card-width) * 0.18);
+}
+
+.hand-fan-slot:has(~ .hand-fan-slot:hover) {
+  --fan-part: calc(var(--hand-card-width) * -0.18);
+}
+
+.hand-empty-text {
+  width: 100%;
+  text-align: center;
+  color: var(--bt-text-dim);
+}
+
+/* 扇形手牌下方的镀铬弧形托架 */
+.hand-cradle {
+  position: absolute;
+  grid-column: 2;
+  grid-row: 2;
+  left: 4%;
+  right: 4%;
+  bottom: 0;
+  height: clamp(26px, 3.4vh, 40px);
+  z-index: 0;
+  border-top: 2px solid var(--bt-chrome);
+  border-radius: 50% 50% 0 0 / 100% 100% 0 0;
+  background: linear-gradient(180deg, var(--bt-hairline-soft), transparent 70%);
+  box-shadow:
+    inset 0 2px 0 var(--bt-bg-0),
+    inset 0 3px 0 var(--bt-hairline-soft),
+    0 -1px 0 var(--bt-bg-0);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 14%, #000 86%, transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0%, #000 14%, #000 86%, transparent 100%);
+  pointer-events: none;
+}
+
+.hand-cradle::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: -6px;
+  width: 9px;
+  height: 9px;
+  transform: translateX(-50%) rotate(45deg);
+  background: var(--bt-bg-0);
+  box-shadow: 0 0 0 1px var(--bt-chrome);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hand-fan-slot {
+    transition: none;
+  }
 }
 
 .bottom-slot-hand :deep(.card-size-medium) {
@@ -5235,6 +5469,101 @@ const fighterHundredDragonByPlayer = computed(() => {
 .expansion-zone {
   max-width: 100%;
   min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--bt-chrome-lo) transparent;
+}
+
+/* 扩展区：扇形手牌左侧的小型镀铬托盘 */
+.expansion-tray {
+  align-self: end;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: max-content;
+  min-width: clamp(84px, 7vw, 104px);
+  max-width: clamp(150px, 26vw, 360px);
+  max-height: calc(var(--self-status-card-height) - 6px);
+  margin-bottom: 6px;
+  padding: 6px;
+  border-radius: var(--bt-radius);
+  background: var(--bt-panel);
+  box-shadow: var(--bt-frame-shadow), inset 0 1px 0 var(--bt-hairline-soft);
+  pointer-events: auto;
+}
+
+.expansion-tray .exclusive-toggle-btn {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 5px 7px;
+  border-radius: var(--bt-radius-sm);
+  border-color: var(--bt-hairline-soft);
+  background: var(--bt-bg-0);
+  color: var(--bt-text);
+  font-size: 11px;
+  line-height: 1.25;
+  text-align: left;
+}
+
+.expansion-tray .exclusive-toggle-btn:not(:disabled):hover {
+  border-color: var(--bt-hairline);
+  background: var(--bt-bg-1);
+}
+
+.expansion-tray .exclusive-toggle-btn:focus-visible {
+  outline: 2px solid var(--bt-select);
+  outline-offset: 1px;
+}
+
+.expansion-tray .exclusive-toggle-title {
+  color: var(--bt-chrome-hi);
+  letter-spacing: 0.12em;
+}
+
+.expansion-tray .exclusive-toggle-meta {
+  margin-left: 0;
+  color: var(--bt-text-sub);
+  font-size: 10px;
+}
+
+.expansion-tray .exclusive-toggle-arrow {
+  min-width: 0;
+  color: var(--bt-text-dim);
+  font-size: 10px;
+  text-align: left;
+}
+
+.expansion-tray .expansion-group-title {
+  color: var(--bt-text-sub);
+  font-size: 11px;
+}
+
+.expansion-tray .expansion-cover-tag {
+  background: var(--bt-bg-0);
+  border-color: var(--bt-hairline);
+  color: var(--bt-text);
+}
+
+.expansion-tray .expansion-cocoon-guide {
+  border-color: var(--bt-select);
+  background: var(--bt-bg-1);
+}
+
+.expansion-tray .expansion-cocoon-guide-text {
+  color: var(--bt-text);
+  font-size: 11px;
+}
+
+.expansion-tray .expansion-cocoon-confirm-btn {
+  border-color: var(--bt-active);
+  background: var(--bt-bg-0);
+  color: var(--bt-active);
+}
+
+.expansion-tray .expansion-zone-scroll {
+  scrollbar-color: var(--bt-chrome-lo) transparent;
 }
 
 .expansion-cocoon-guide {
@@ -5386,7 +5715,7 @@ const fighterHundredDragonByPlayer = computed(() => {
 
 .right-action-dock {
   grid-area: action;
-  position: static;
+  position: relative;
   width: 100%;
   z-index: 24;
   pointer-events: auto;
@@ -5395,20 +5724,73 @@ const fighterHundredDragonByPlayer = computed(() => {
   justify-self: stretch;
   min-height: var(--self-status-card-height);
   height: var(--self-status-card-height);
-  padding: 12px;
-  border-radius: 14px;
-  border: 1px solid rgba(130, 170, 210, 0.15);
-  background:
-    linear-gradient(180deg, rgba(12, 25, 42, 0.86), rgba(8, 18, 32, 0.92));
+  padding: 10px 12px 12px;
+  border-radius: var(--bt-radius);
+  border: 1px solid var(--bt-chrome-mid);
+  background: var(--bt-panel);
+  /* 双层镀铬框，与左下角头像框同款 */
   box-shadow:
-    inset 0 1px 0 rgba(235, 245, 252, 0.09),
-    0 10px 24px rgba(1, 8, 16, 0.36);
+    inset 0 0 0 1px var(--bt-bg-0),
+    inset 0 0 0 2px var(--bt-hairline-soft),
+    inset 0 1px 0 2px var(--bt-hairline-soft),
+    0 0 0 1px var(--bt-bg-0),
+    0 0 0 2px var(--bt-hairline),
+    0 8px 20px var(--bt-bg-0);
   overflow: hidden;
 }
 
+/* 底边中点的镀铬小菱形 */
+.right-action-dock::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 3px;
+  width: 7px;
+  height: 7px;
+  transform: translateX(-50%) rotate(45deg);
+  background: var(--bt-bg-0);
+  box-shadow: 0 0 0 1px var(--bt-chrome-mid);
+  pointer-events: none;
+}
+
 .right-action-dock--active {
-  filter: drop-shadow(0 8px 22px rgba(6, 30, 43, 0.42));
+  border-color: var(--bt-chrome);
   transform: translateY(-2px);
+}
+
+/* 选牌类提示进行中：坞内确认按钮呼吸闪烁，指引玩家选完牌后到这里确认 */
+.right-action-dock--confirm-pulse :deep([data-testid="prompt-confirm-btn"]:not(:disabled)),
+.right-action-dock--confirm-pulse :deep([data-testid="prompt-option-confirm"]:not(:disabled)) {
+  border-radius: 999px;
+  animation: dockConfirmPulse 1.4s ease-in-out infinite;
+}
+
+.right-action-dock--confirm-ready :deep([data-testid="prompt-confirm-btn"]:not(:disabled)),
+.right-action-dock--confirm-ready :deep([data-testid="prompt-option-confirm"]:not(:disabled)) {
+  animation-duration: 0.9s;
+}
+
+/* 按钮自身 box-shadow 被 PromptDialog 以 !important 清零，这里用 drop-shadow 发光 */
+@keyframes dockConfirmPulse {
+  0%,
+  100% {
+    filter: brightness(1) drop-shadow(0 0 0 var(--bt-active-glow));
+  }
+  50% {
+    filter: brightness(1.14) drop-shadow(0 0 10px var(--bt-active));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .right-action-dock--confirm-pulse :deep([data-testid="prompt-confirm-btn"]:not(:disabled)),
+  .right-action-dock--confirm-pulse :deep([data-testid="prompt-option-confirm"]:not(:disabled)) {
+    animation: none;
+    filter: drop-shadow(0 0 6px var(--bt-active));
+  }
+
+  .right-action-dock {
+    transition: none;
+  }
 }
 
 .right-action-dock :deep(.action-panel-root) {
