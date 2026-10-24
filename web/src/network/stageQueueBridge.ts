@@ -5,6 +5,7 @@ import {
   edgeResolveSteps,
   edgeStartSteps,
   flowLinkId,
+  isSelfResolveEdge,
   flowLogSteps,
   linkColorForPhase,
   nodeDamageSteps,
@@ -54,6 +55,7 @@ const MAX_REMEMBERED_FLOWS = 16
 
 /** Edges that wait for a response keep flowing until an outcome arrives. */
 function awaitsResponse(edge: ActionFlowEdgeDTO): boolean {
+  if (isSelfResolveEdge(edge)) return false
   const color = linkColorForPhase(edge.phase, edge.damage_type)
   return (color === 'attack' || color === 'magic') && !edgeEnd(edge) && !(edge.damage && edge.damage > 0)
 }

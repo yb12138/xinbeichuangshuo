@@ -17,6 +17,7 @@ import VfxLayer from './VfxLayer.vue'
 import StatusEffectIcon from './StatusIcons/StatusEffectIcon.vue'
 import { useSubmitAction } from '../composables/useSubmitAction'
 import { useBattleInteractionState } from '../composables/useBattleInteractionState'
+import StageOverlay from './StageOverlay.vue'
 import { useInteractionController } from '../composables/useInteractionController'
 import {
   hasBlazeWitchFlameElementOverride,
@@ -137,6 +138,14 @@ const myCoverCards = computed<CoverCardEntry[]>(() =>
 )
 const expansionCardCount = computed(() => myExclusiveCards.value.length + myCoverCards.value.length)
 const boardRootRef = ref<HTMLElement | null>(null)
+const stageOverlayEnabled = computed(() => uiStore.stageOverlayEnabled)
+
+function stageSeatLabel(playerId: string) {
+  const player = players.value?.[playerId]
+  if (!player) return ''
+  const roleName = characters.value?.[player.role || '']?.name || ''
+  return roleName ? `${roleName} · ${player.name}` : player.name
+}
 const deckCounterRef = ref<HTMLElement | null>(null)
 const showExpansionCards = ref(false)
 const ELF_BLESSING_EFFECT = 'ElfBlessing'
@@ -2584,6 +2593,7 @@ const fighterHundredDragonByPlayer = computed(() => {
           <div class="center-battle battle-field">
             <BattleZone
               class="battle-zone-fill"
+              :stage-overlay-active="stageOverlayEnabled"
               :narrative-suspended="!!hoveredBattleSeatPlayerId"
               :actor-seat-positions="battleSeatPositionByPlayerId"
             />
@@ -2943,6 +2953,7 @@ const fighterHundredDragonByPlayer = computed(() => {
       />
     </svg>
 
+    <StageOverlay v-if="stageOverlayEnabled" :root-el="boardRootRef" :player-label="stageSeatLabel" />
     <VfxLayer />
   </div>
 </template>
@@ -3332,7 +3343,7 @@ const fighterHundredDragonByPlayer = computed(() => {
   z-index: 0;
 }
 
-.board-shell > *:not(.link-lines-layer):not(.board-ambient):not(.rose-courtyard-vfx):not(.draw-flight-layer):not(.host-dissolve-btn):not(.right-action-dock) {
+.board-shell > *:not(.link-lines-layer):not(.stage-overlay):not(.board-ambient):not(.rose-courtyard-vfx):not(.draw-flight-layer):not(.host-dissolve-btn):not(.right-action-dock) {
   position: relative;
   z-index: 2;
 }

@@ -9,6 +9,10 @@ export const useUiStore = defineStore('ui', () => {
   const gameEndMessage = ref('')
   const gameEndSnapshot = ref<GameEndSnapshot | null>(null)
   const cinematicMode = ref(true)
+  // 新版座位连线舞台；URL 带 ?stage=legacy 可切回旧的中央叙事
+  const stageOverlayEnabled = ref(
+    typeof window === 'undefined' || new URLSearchParams(window.location.search).get('stage') !== 'legacy'
+  )
 
   function openSkillModal(characterId: string | null, anchor?: SkillModalAnchor | null) {
     skillModalCharacterId.value = characterId
@@ -41,6 +45,7 @@ export const useUiStore = defineStore('ui', () => {
     gameEndMessage,
     gameEndSnapshot,
     cinematicMode,
+    stageOverlayEnabled,
     openSkillModal,
     setGameEnded,
     setCinematicMode,

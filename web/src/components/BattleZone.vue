@@ -20,6 +20,8 @@ import RoseCourtyardIcon from './StatusIcons/RoseCourtyardIcon.vue'
 const props = defineProps<{
   narrativeSuspended?: boolean
   actorSeatPositions?: Record<string, number>
+  /** 新版座位连线舞台接管叙事与技能展示时，隐藏旧的中央叙事层和技能牌匾 */
+  stageOverlayActive?: boolean
 }>()
 
 const battleFxStore = useBattleFxStore()
@@ -2511,7 +2513,7 @@ function narrativeMistPathDomId(segmentId: string) {
 <template>
   <div class="battle-zone battle-zone-shell min-h-[90px]">
     <div
-      v-if="hasNarrativeLayer"
+      v-if="hasNarrativeLayer && !props.stageOverlayActive"
       ref="narrativeLayerRef"
       class="action-narrative-layer"
       :class="{
@@ -2989,7 +2991,7 @@ function narrativeMistPathDomId(segmentId: string) {
 
     <Transition name="skill-plaque-featured">
       <div
-        v-if="featuredSkillAnnouncement"
+        v-if="featuredSkillAnnouncement && !props.stageOverlayActive"
         :key="featuredSkillAnnouncement.id"
         class="skill-plaque skill-plaque--featured"
       >
@@ -3002,7 +3004,7 @@ function narrativeMistPathDomId(segmentId: string) {
       </div>
     </Transition>
 
-    <TransitionGroup name="skill-plaque-settled" tag="div" class="skill-plaque-stack">
+    <TransitionGroup v-if="!props.stageOverlayActive" name="skill-plaque-settled" tag="div" class="skill-plaque-stack">
       <div
         v-for="item in settledSkillAnnouncements"
         :key="item.id"

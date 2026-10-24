@@ -9,6 +9,8 @@ import { useMatchLifecycleStore } from '../stores/matchLifecycle.store'
 import { useSessionStore } from '../stores/session.store'
 import { useSnapshotStore } from '../stores/snapshot.store'
 import { useTimelineStore } from '../stores/timeline.store'
+import { useStageQueueStore } from '../stores/stageQueue.store'
+import { createStageQueueBridge } from './stageQueueBridge'
 import { useUiStore } from '../stores/ui.store'
 
 export interface GameplayMessageHandlerDeps {
@@ -38,6 +40,15 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
     if (!id) return ''
     return snapshotStore.players[id]?.name || id
   }
+
+  const stageBridge = createStageQueueBridge({
+    stageQueue: useStageQueueStore(),
+    playerName: (id: string) => playerNameById(id),
+    roleName: (id: string) => {
+      const role = snapshotStore.players[id]?.role || ''
+      return snapshotStore.characters[role]?.name || ''
+    },
+  })
 
   const normalizeCamp = (camp?: string): MoraleCamp | undefined => {
     if (camp === 'Red' || camp === 'Blue') return camp
@@ -193,6 +204,9 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
 
   function handleNotifyTimeline(payload: TimelineNotifyPayload) {
     timelineStore.push(payload)
+    if (uiStore.stageOverlayEnabled) {
+      stageBridge.onTimeline(payload)
+    }
     const hasStructuredNarrative = battleFxStore.hasStructuredNarrative(payload.events || [])
     if (hasStructuredNarrative) {
       battleFxStore.applyStructuredTimelineNarrative(payload)

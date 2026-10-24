@@ -68,13 +68,24 @@ describe('createStageQueueBridge', () => {
     expect(links[0]).toMatchObject({ linkId: 'f1:e2' })
     expect(added.every((step) => !('linkId' in step) || step.linkId === 'f1:e2')).toBe(true)
 
-    // Outcome set later on the original edge: only its end mark + chip.
+    // Outcome set later on the original edge: only its end mark (damage shown once, on the link).
     const before2 = queued().length
     bridge.onTimeline(payload([flow('f1', [attackEdge({ outcome: 'hit', damage: 2 }), defend])]))
     const added2 = queued().slice(before2)
-    expect(types(added2)).toEqual(['link-animate', 'link-end', 'value-chip'])
-    expect(added2[1]).toMatchObject({ linkId: 'f1:e1', style: 'hit' })
-    expect(added2[2]).toMatchObject({ playerId: 'p1', text: '-2' })
+    expect(types(added2)).toEqual(['link-animate', 'link-end'])
+    expect(added2[1]).toMatchObject({ linkId: 'f1:e1', style: 'hit', text: '2伤害' })
+  })
+
+  it('folds a "take" self-resolve edge into a narration row and a damage chip, without a link', () => {
+    const take = { id: 'e3', order: 3, from_user_id: 'p1', to_user_id: 'p1', phase: 'take' } as ActionFlowEdgeDTO
+    bridge.onTimeline(payload([flow('f1', [attackEdge(), take])]))
+    const before = queued().length
+    bridge.onTimeline(payload([flow('f1', [attackEdge(), { ...take, damage: 2 }])]))
+    const added = queued().slice(before)
+    const all = queued()
+    expect(all.filter((step) => step.type === 'link')).toHaveLength(1)
+    expect(all.some((step) => step.type === 'narration-row' && step.html.includes('承受'))).toBe(true)
+    expect(added).toEqual([{ type: 'value-chip', playerId: 'p1', text: '-2', color: 'damage' }])
   })
 
   it('enqueues mark-previous before the first step of a new flow_id', () => {

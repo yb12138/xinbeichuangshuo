@@ -533,6 +533,11 @@ export function edgeStartSteps(
   roleNameFn: (id: string) => string,
   cardImageFn?: (card: Card) => string | undefined,
 ): AtomicStep[] {
+  if (isSelfResolveEdge(edge)) {
+    // 承受结算只记一行叙事，不画线；结果（伤害数值）由 edgeResolveSteps 标到目标身上
+    const who = playerHtml(edge.to_user_id || edge.from_user_id, playerNameFn, roleNameFn)
+    return who ? [{ type: 'narration-row', html: `${who} ${phaseVerb(edge.phase)}`, tag: phaseVerb(edge.phase), tagColor: 'grey' }] : []
+  }
   const linkId = flowLinkId(flowId, edge.id)
   const color = linkColorForPhase(edge.phase, edge.damage_type)
   const verb = phaseVerb(edge.phase)
@@ -562,16 +567,29 @@ export function edgeStartSteps(
 }
 
 /** Steps that resolve an edge: stop flowing, result marker, damage/heal chip. */
+/** 承受/自身结算类边（from === to 或 phase=take）：不单独画线，结果标到目标身上。 */
+export function isSelfResolveEdge(edge: ActionFlowEdgeDTO): boolean {
+  return normalizePhase(edge.phase) === 'take' || (!!edge.from_user_id && edge.from_user_id === edge.to_user_id)
+}
+
+/**
+ * Steps that resolve an edge: stop flowing + result marker at the link end.
+ * Damage is shown once, as the end marker; a separate chip is only used when there is no
+ * link to anchor it on (self-resolve edges).
+ */
 export function edgeResolveSteps(flowId: string, edge: ActionFlowEdgeDTO): AtomicStep[] {
+  const damage = edge.damage ?? 0
+  const heal = (edge.damage_type || '').toLowerCase() === 'heal'
+  if (isSelfResolveEdge(edge)) {
+    if (damage > 0 && edge.to_user_id) {
+      return [{ type: 'value-chip', playerId: edge.to_user_id, text: heal ? `+${damage}` : `-${damage}`, color: heal ? 'heal' : 'damage' }]
+    }
+    return []
+  }
   const linkId = flowLinkId(flowId, edge.id)
   const steps: AtomicStep[] = [{ type: 'link-animate', linkId, active: false }]
   const end = edgeEnd(edge)
   if (end) steps.push({ type: 'link-end', linkId, text: end.text, style: end.style })
-  const damage = edge.damage ?? 0
-  if (damage > 0 && edge.to_user_id) {
-    const heal = (edge.damage_type || '').toLowerCase() === 'heal'
-    steps.push({ type: 'value-chip', playerId: edge.to_user_id, text: heal ? `+${damage}` : `-${damage}`, color: heal ? 'heal' : 'damage' })
-  }
   return steps
 }
 

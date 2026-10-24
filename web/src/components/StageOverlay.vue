@@ -185,7 +185,9 @@ const linkViews = computed<LinkView[]>(() => {
       const toward = height / 2 > a.y ? 1 : -1
       c = { x: (a.x + b.x) / 2, y: a.y + toward * 120 }
     } else {
-      c = { x: (a.x + b.x) / 2, y: Math.min(a.y, b.y) - 70 }
+      // Bulge upward in proportion to the horizontal span so long cross-board links arc
+      // above the centre narration card instead of running through it.
+      c = { x: (a.x + b.x) / 2, y: Math.max(16, Math.min(a.y, b.y) - Math.max(70, Math.abs(a.x - b.x) * 0.35)) }
     }
     const end = link.end ? END_STYLE[link.end.style] : null
     const nearEnd = quadAt(a, c, b, 0.82)
