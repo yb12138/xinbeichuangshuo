@@ -428,11 +428,13 @@ function phaseVerb(phase: string | undefined): string {
   return PHASE_VERB[normalizePhase(phase)] || '行动'
 }
 
-function playerLabel(id: string | undefined, playerNameFn: (id: string) => string, roleNameFn: (id: string) => string): string {
+/** Role name is the primary label; player name is secondary: "封印师（测试玩家5）". */
+export function playerLabel(id: string | undefined, playerNameFn: (id: string) => string, roleNameFn: (id: string) => string): string {
   if (!id) return ''
   const name = playerNameFn(id) || id
   const role = roleNameFn(id)
-  return role && role !== name ? `${name}(${role})` : name
+  if (!role || role === name) return name
+  return `${role}（${name}）`
 }
 
 function playerHtml(id: string | undefined, playerNameFn: (id: string) => string, roleNameFn: (id: string) => string): string {
@@ -444,7 +446,7 @@ function firstCardName(cards: Card[] | undefined): string {
   return cards?.find((card) => card?.name)?.name || ''
 }
 
-function edgeEnd(edge: ActionFlowEdgeDTO): { text: string; style: LinkEndStyle } | null {
+export function edgeEnd(edge: ActionFlowEdgeDTO): { text: string; style: LinkEndStyle } | null {
   const outcome = (edge.outcome || '').toLowerCase()
   const phase = normalizePhase(edge.phase)
   const damage = edge.damage ?? 0
@@ -455,7 +457,7 @@ function edgeEnd(edge: ActionFlowEdgeDTO): { text: string; style: LinkEndStyle }
   return null
 }
 
-function nodeSteps(
+export function nodeSteps(
   node: ActionFlowNodeDTO,
   playerNameFn: (id: string) => string,
   roleNameFn: (id: string) => string,
@@ -500,12 +502,85 @@ function nodeSteps(
   }
   // 'card' / 'action' nodes are represented by their edges; nothing extra to show.
 
+  steps.push(...nodeDamageSteps(node))
+  return steps
+}
+
+/** Damage / heal chips for a node's targets (empty when the node carries no damage). */
+export function nodeDamageSteps(node: ActionFlowNodeDTO): AtomicStep[] {
   const damage = node.damage ?? 0
-  if (damage > 0) {
-    const heal = (node.damage_type || '').toLowerCase() === 'heal'
-    for (const targetId of node.target_user_ids || []) {
-      steps.push({ type: 'value-chip', playerId: targetId, text: heal ? `+${damage}` : `-${damage}`, color: heal ? 'heal' : 'damage' })
-    }
+  if (damage <= 0) return []
+  const heal = (node.damage_type || '').toLowerCase() === 'heal'
+  return (node.target_user_ids || []).map(
+    (targetId): AtomicStep => ({
+      type: 'value-chip',
+      playerId: targetId,
+      text: heal ? `+${damage}` : `-${damage}`,
+      color: heal ? 'heal' : 'damage',
+    }),
+  )
+}
+
+export function flowLinkId(flowId: string, edgeId: string): string {
+  return `${flowId}:${edgeId}`
+}
+
+/** Steps that introduce an edge: link + flowing animation + narration row. */
+export function edgeStartSteps(
+  flowId: string,
+  edge: ActionFlowEdgeDTO,
+  playerNameFn: (id: string) => string,
+  roleNameFn: (id: string) => string,
+  cardImageFn?: (card: Card) => string | undefined,
+): AtomicStep[] {
+  const linkId = flowLinkId(flowId, edge.id)
+  const color = linkColorForPhase(edge.phase, edge.damage_type)
+  const verb = phaseVerb(edge.phase)
+  const cardName = firstCardName(edge.cards)
+  const firstCard = edge.cards?.[0]
+  const label = edge.label || (cardName ? `${verb}·${cardName}` : verb)
+
+  const link: AtomicStep = {
+    type: 'link',
+    linkId,
+    fromPlayerId: edge.from_user_id,
+    toPlayerId: edge.to_user_id,
+    color,
+    label,
+  }
+  const imageUrl = firstCard && cardImageFn ? cardImageFn(firstCard) : undefined
+  if (imageUrl) link.cardImageUrl = imageUrl
+
+  const from = playerHtml(edge.from_user_id, playerNameFn, roleNameFn)
+  const to = playerHtml(edge.to_user_id, playerNameFn, roleNameFn)
+  const cardHtml = cardName ? ` 【${escapeHtml(cardName)}】` : ''
+  return [
+    link,
+    { type: 'link-animate', linkId, active: true },
+    { type: 'narration-row', html: `${from} → ${to}${cardHtml}`, tag: verb, tagColor: color },
+  ]
+}
+
+/** Steps that resolve an edge: stop flowing, result marker, damage/heal chip. */
+export function edgeResolveSteps(flowId: string, edge: ActionFlowEdgeDTO): AtomicStep[] {
+  const linkId = flowLinkId(flowId, edge.id)
+  const steps: AtomicStep[] = [{ type: 'link-animate', linkId, active: false }]
+  const end = edgeEnd(edge)
+  if (end) steps.push({ type: 'link-end', linkId, text: end.text, style: end.style })
+  const damage = edge.damage ?? 0
+  if (damage > 0 && edge.to_user_id) {
+    const heal = (edge.damage_type || '').toLowerCase() === 'heal'
+    steps.push({ type: 'value-chip', playerId: edge.to_user_id, text: heal ? `+${damage}` : `-${damage}`, color: heal ? 'heal' : 'damage' })
+  }
+  return steps
+}
+
+/** Narration rows from flow logs; used only when edges/nodes produce no narration. */
+export function flowLogSteps(flow: ActionFlowDTO, logs: ActionFlowDTO['logs'] = flow.logs): AtomicStep[] {
+  const steps: AtomicStep[] = []
+  for (const log of [...(logs || [])].sort((a, b) => a.order - b.order)) {
+    if (!log.text?.trim()) continue
+    steps.push({ type: 'narration-row', html: escapeHtml(log.text), tag: phaseVerb(flow.action_type), tagColor: linkColorForPhase(flow.action_type) })
   }
   return steps
 }
@@ -518,8 +593,8 @@ function nodeSteps(
  * Unanchored nodes play after all edges. Flow logs are only used as a fallback when
  * edges/nodes produce no narration (the backend builds logs from the same edges/nodes).
  *
- * `cardImageFn` is optional: there is no shared card-image resolver yet, so links get
- * `cardImageUrl` only when the caller supplies one.
+ * `cardImageFn` is optional: links get `cardImageUrl` only when the caller supplies one.
+ * For incremental playback of re-sent flows see network/stageQueueBridge.ts.
  */
 export function actionFlowToSteps(
   flow: ActionFlowDTO,
@@ -543,64 +618,18 @@ export function actionFlowToSteps(
     }
   }
 
-  let narrationCount = 0
-  const pushAll = (items: AtomicStep[]) => {
-    for (const item of items) {
-      if (item.type === 'narration-row') narrationCount++
-      steps.push(item)
-    }
-  }
-
   for (const edge of edges) {
-    const linkId = `${flow.flow_id}:${edge.id}`
-    const color = linkColorForPhase(edge.phase, edge.damage_type)
-    const verb = phaseVerb(edge.phase)
-    const cardName = firstCardName(edge.cards)
-    const firstCard = edge.cards?.[0]
-    const label = edge.label || (cardName ? `${verb}·${cardName}` : verb)
-
-    const link: AtomicStep = {
-      type: 'link',
-      linkId,
-      fromPlayerId: edge.from_user_id,
-      toPlayerId: edge.to_user_id,
-      color,
-      label,
-    }
-    const imageUrl = firstCard && cardImageFn ? cardImageFn(firstCard) : undefined
-    if (imageUrl) link.cardImageUrl = imageUrl
-    steps.push(link, { type: 'link-animate', linkId, active: true })
-
-    const from = playerHtml(edge.from_user_id, playerNameFn, roleNameFn)
-    const to = playerHtml(edge.to_user_id, playerNameFn, roleNameFn)
-    const cardHtml = cardName ? ` 【${escapeHtml(cardName)}】` : ''
-    pushAll([{ type: 'narration-row', html: `${from} → ${to}${cardHtml}`, tag: verb, tagColor: color }])
-
+    steps.push(...edgeStartSteps(flow.flow_id, edge, playerNameFn, roleNameFn, cardImageFn))
     for (const node of anchoredNodes.get(edge.id) || []) {
-      pushAll(nodeSteps(node, playerNameFn, roleNameFn))
+      steps.push(...nodeSteps(node, playerNameFn, roleNameFn))
     }
-
-    steps.push({ type: 'link-animate', linkId, active: false })
-    const end = edgeEnd(edge)
-    if (end) steps.push({ type: 'link-end', linkId, text: end.text, style: end.style })
-
-    const damage = edge.damage ?? 0
-    if (damage > 0 && edge.to_user_id) {
-      const heal = (edge.damage_type || '').toLowerCase() === 'heal'
-      steps.push({ type: 'value-chip', playerId: edge.to_user_id, text: heal ? `+${damage}` : `-${damage}`, color: heal ? 'heal' : 'damage' })
-    }
+    steps.push(...edgeResolveSteps(flow.flow_id, edge))
   }
-
   for (const node of freeNodes) {
-    pushAll(nodeSteps(node, playerNameFn, roleNameFn))
+    steps.push(...nodeSteps(node, playerNameFn, roleNameFn))
   }
-
-  if (narrationCount === 0) {
-    const logs = [...(flow.logs || [])].sort((a, b) => a.order - b.order)
-    for (const log of logs) {
-      if (!log.text?.trim()) continue
-      steps.push({ type: 'narration-row', html: escapeHtml(log.text), tag: phaseVerb(flow.action_type), tagColor: linkColorForPhase(flow.action_type) })
-    }
+  if (!steps.some((step) => step.type === 'narration-row')) {
+    steps.push(...flowLogSteps(flow))
   }
 
   // Only the leading mark-previous: nothing to play.
