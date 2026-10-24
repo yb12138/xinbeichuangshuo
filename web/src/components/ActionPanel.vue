@@ -1194,8 +1194,8 @@ function elementName(el: string): string {
         <div v-if="interruptStore.actionMode !== 'none'" class="space-y-3 action-mode-panel">
             <!-- 法术行动：先选择 出牌 或 发动技能 -->
             <template v-if="interruptStore.actionMode === 'magic' && interruptStore.magicSubChoice === 'none'">
-                <div class="text-amber-400 text-sm font-bold">✨ 法术行动</div>
-                <div class="text-xs text-gray-400">发动法术有两种方式：打出法术牌或发动角色技能</div>
+                <div class="action-mode-title">✨ 法术行动</div>
+                <div class="action-mode-hint">发动法术有两种方式：打出法术牌或发动角色技能</div>
                 <div class="flex gap-3 justify-center mt-2">
                     <button class="action-image-btn w-[72px] sm:w-[88px]" title="打出法术牌" @click="interruptStore.setMagicSubChoice('card')">
                         <img v-if="isMainActionImageReady('card')" class="action-image-btn-fill" :src="mainActionButtonImage('card')" alt="" @error="onMainActionImageError('card')" />
@@ -1223,10 +1223,10 @@ function elementName(el: string): string {
             <!-- 攻击模式 或 法术已选「出牌」：选牌 + 选目标 -->
             <template v-else>
                 <div class="flex items-center justify-between">
-          <span class="text-amber-400 text-sm font-bold">
+          <span class="action-mode-title">
             {{ interruptStore.actionMode === 'attack' ? '⚔️ 攻击模式' : '✨ 法术模式' }}
           </span>
-                    <span class="step-indicator">
+                    <span class="action-mode-step">
             {{ interruptStore.selectedHandIndexForAction === null ? '步骤 1/2' : '步骤 2/2' }} · {{ interruptStore.selectedHandIndexForAction === null ? '选牌' : '选目标' }}
           </span>
                 </div>
@@ -1236,16 +1236,16 @@ function elementName(el: string): string {
                 <div v-if="interruptStore.selectedHandIndexForAction !== null" class="space-y-2">
                     <div
                         v-if="hasActionTargets"
-                        class="text-xs text-gray-400"
+                        class="action-mode-hint"
                     >
                         请直接点击战场角色立绘完成{{ interruptStore.actionMode === 'attack' ? '攻击' : '施法' }}。
                     </div>
-                    <div v-else class="text-xs text-gray-400">当前法术无需手动选目标，将按规则自动结算。</div>
-                    <div v-if="hasStealthBlockedAttackTarget" class="text-[11px] text-gray-400">
+                    <div v-else class="action-mode-hint">当前法术无需手动选目标，将按规则自动结算。</div>
+                    <div v-if="hasStealthBlockedAttackTarget" class="action-mode-hint">
                         潜行状态无法选中
                     </div>
                 </div>
-                <div v-else class="text-xs text-gray-400 py-1">
+                <div v-else class="action-mode-hint">
                     先在下方手牌选一张{{ interruptStore.actionMode === 'attack' ? '攻击' : '法术' }}牌
                 </div>
                 <div class="flex gap-3 justify-center mt-2">
@@ -1270,7 +1270,7 @@ function elementName(el: string): string {
 
         <!-- 技能发动流程：选择技能 -->
         <div v-else-if="interruptStore.skillMode === 'choosing_skill'" class="space-y-3 skill-select-panel" data-testid="skill-select-panel">
-            <div class="text-amber-400 text-sm font-bold">选择要发动的技能</div>
+            <div class="action-mode-title">选择要发动的技能</div>
             <div class="flex flex-col gap-2">
                 <button
                     v-for="skill in effectiveAvailableSkills"
@@ -1287,7 +1287,7 @@ function elementName(el: string): string {
                         <span class="text-[10px] opacity-70 ml-2 whitespace-nowrap">{{ skillCostText(skill) }}</span>
                     </div>
                     <span v-if="skill.description" class="block text-xs opacity-80 mt-0.5" :title="skill.description">{{ skill.description }}</span>
-                    <span v-if="!canSelectSkill(skill)" class="block text-[11px] text-gray-400 mt-1">{{ skillDisabledReason(skill) }}</span>
+                    <span v-if="!canSelectSkill(skill)" class="action-mode-hint action-mode-hint--sm" style="margin-top:4px">{{ skillDisabledReason(skill) }}</span>
                 </button>
             </div>
             <div class="flex gap-3 justify-center mt-2">
@@ -1302,16 +1302,16 @@ function elementName(el: string): string {
         <!-- 技能发动流程：选择独有技手牌 -->
         <div v-else-if="interruptStore.skillMode === 'choosing_exclusive' && interruptStore.selectedSkill" class="space-y-3 skill-discard-panel" data-testid="skill-exclusive-select-panel">
             <div class="flex items-center justify-between">
-                <span class="text-amber-400 text-sm font-bold">{{ interruptStore.selectedSkill.title }}</span>
+                <span class="action-mode-title">{{ interruptStore.selectedSkill.title }}</span>
                 <span class="step-indicator">
           {{ interruptStore.skillDiscardHandIndexes.length }}/1
         </span>
             </div>
-            <p v-if="interruptStore.selectedSkill.description" class="text-xs text-gray-400 whitespace-pre-wrap break-words">{{ interruptStore.selectedSkill.description }}</p>
-            <div class="text-xs text-gray-400">
+            <p v-if="interruptStore.selectedSkill.description" class="action-mode-hint" style="white-space:pre-wrap;word-break:break-word">{{ interruptStore.selectedSkill.description }}</p>
+            <div class="action-mode-hint">
                 请在手牌区选择对应的独有技手牌，然后点击确认。
             </div>
-            <div v-if="selectedExclusiveSkillCard" class="text-[11px] text-amber-300">
+            <div v-if="selectedExclusiveSkillCard" class="action-mode-accent">
                 已选独有技手牌：{{ selectedExclusiveSkillCard.name }}
             </div>
             <div class="flex gap-3 justify-center">
@@ -1338,16 +1338,16 @@ function elementName(el: string): string {
         <!-- 技能发动流程：选择弃牌 -->
         <div v-else-if="interruptStore.skillMode === 'choosing_discard' && interruptStore.selectedSkill" class="space-y-3 skill-discard-panel">
             <div class="flex items-center justify-between">
-                <span class="text-amber-400 text-sm font-bold">{{ interruptStore.selectedSkill.title }}</span>
+                <span class="action-mode-title">{{ interruptStore.selectedSkill.title }}</span>
                 <span class="step-indicator">
           {{ interruptStore.skillDiscardHandIndexes.length }}/{{ requiredDiscardCount(interruptStore.selectedSkill) }}
         </span>
             </div>
-            <div class="text-xs text-gray-400">
+            <div class="action-mode-hint">
                 {{ skillDiscardGuideText(interruptStore.selectedSkill) }}
-                <span class="text-amber-300">（已选 {{ interruptStore.skillDiscardHandIndexes.length }}/{{ requiredDiscardCount(interruptStore.selectedSkill) }}）</span>
+                <span class="action-mode-accent">（已选 {{ interruptStore.skillDiscardHandIndexes.length }}/{{ requiredDiscardCount(interruptStore.selectedSkill) }}）</span>
             </div>
-            <div class="text-[11px] text-gray-500">请在下方手牌区点击选择，选满后自动进入下一步</div>
+            <div class="action-mode-hint action-mode-hint--sm">请在下方手牌区点击选择，选满后自动进入下一步</div>
             <div class="flex gap-3 justify-center">
                 <button class="action-image-btn w-[72px] sm:w-[88px]" title="取消" @click="interruptStore.clearSkillMode()">
                     <img v-if="isMainActionImageReady('cancel')" class="action-image-btn-fill" :src="mainActionButtonImage('cancel')" alt="" @error="onMainActionImageError('cancel')" />
@@ -1360,13 +1360,13 @@ function elementName(el: string): string {
         <!-- 技能发动流程：选择目标 -->
         <div v-else-if="interruptStore.skillMode === 'choosing_target' && interruptStore.selectedSkill" class="space-y-3 skill-target-panel">
             <div class="flex items-center justify-between">
-                <span class="text-amber-400 text-sm font-bold">{{ interruptStore.selectedSkill.title }}</span>
+                <span class="action-mode-title">{{ interruptStore.selectedSkill.title }}</span>
                 <span class="step-indicator">
           {{ interruptStore.skillTargetIds.length }}/{{ (interruptStore.selectedSkill.max_targets > 0 ? interruptStore.selectedSkill.max_targets : 1) }}
         </span>
             </div>
-            <p v-if="interruptStore.selectedSkill.description" class="text-xs text-gray-400 whitespace-pre-wrap break-words">{{ interruptStore.selectedSkill.description }}</p>
-            <div class="text-xs text-gray-400">
+            <p v-if="interruptStore.selectedSkill.description" class="action-mode-hint" style="white-space:pre-wrap;word-break:break-word">{{ interruptStore.selectedSkill.description }}</p>
+            <div class="action-mode-hint">
                 <template v-if="isManualTargetConfirmSkillFlow">
                     点击角色头像选择目标，然后点击“确认发动”
                 </template>
@@ -1381,7 +1381,7 @@ function elementName(el: string): string {
                     </span>
                 </template>
             </div>
-            <div v-if="interruptStore.skillTargetIds.length > 0" class="text-[11px] text-amber-300">
+            <div v-if="interruptStore.skillTargetIds.length > 0" class="action-mode-accent">
                 已选目标：
                 {{ interruptStore.skillTargetIds.map((id) => snapshotStore.players[id]?.name || id).join('、') }}
             </div>
@@ -1407,7 +1407,7 @@ function elementName(el: string): string {
         </div>
 
         <!-- 等待提示 -->
-        <div v-else-if="interruptStore.waitingFor && !prompt" class="text-center py-2 sm:py-3 text-gray-400 text-sm">
+        <div v-else-if="interruptStore.waitingFor && !prompt" class="action-mode-hint" style="text-align:center;padding:8px 0">
             <div class="animate-pulse">等待 {{ waitingName || interruptStore.waitingFor }} 操作...</div>
         </div>
 
@@ -1540,7 +1540,7 @@ function elementName(el: string): string {
         </div>
 
         <!-- 非我的回合 -->
-        <div v-else class="text-center py-4 text-gray-400">
+        <div v-else class="action-mode-hint" style="text-align:center;padding:16px 0">
             等待其他玩家回合...
         </div>
 
@@ -2022,9 +2022,9 @@ function elementName(el: string): string {
     padding: 4px 10px;
     font-size: 12px;
     border-radius: 999px;
-    border: 1px solid rgba(148, 163, 184, 0.5);
-    background: rgba(15, 23, 42, 0.8);
-    color: #e2e8f0;
+    border: 1px solid var(--bt-hairline);
+    background: var(--bt-panel);
+    color: var(--bt-text-sub);
 }
 
 .debug-toggle-btn:hover {
@@ -2326,17 +2326,58 @@ function elementName(el: string): string {
 .skill-select-panel,
 .skill-discard-panel,
 .skill-target-panel {
-    background: rgba(7, 20, 33, 0.58);
-    border: 1px solid rgba(121, 156, 177, 0.24);
-    border-radius: 12px;
+    background: var(--bt-panel);
+    border: 1px solid var(--bt-hairline);
+    border-radius: var(--bt-radius);
     padding: 10px;
-    box-shadow: inset 0 1px 0 rgba(236, 247, 254, 0.06);
+    box-shadow: var(--bt-frame-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 .skill-discard-card-row {
     /* 与手牌区一致，给上移选中态留缓冲，避免顶部裁切。 */
     padding-top: 12px;
     margin-top: -6px;
+}
+
+.action-mode-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--bt-chrome-hi);
+    letter-spacing: 0.04em;
+}
+
+.action-mode-step {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--bt-text-sub);
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: rgba(185, 193, 205, 0.12);
+    border: 1px solid var(--bt-hairline-soft);
+}
+
+.action-mode-accent {
+    font-size: 12px;
+    color: var(--bt-active);
+}
+
+.action-mode-hint--sm {
+    font-size: 11px;
+}
+
+.action-mode-hint {
+    font-size: 12px;
+    color: var(--bt-text-sub);
+    line-height: 1.4;
+}
+
+.action-panel-notice {
+    font-size: 12px;
+    color: var(--bt-danger);
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: rgba(226, 82, 94, 0.12);
+    border: 1px solid rgba(226, 82, 94, 0.25);
 }
 
 .action-mode-panel {
@@ -2350,10 +2391,10 @@ function elementName(el: string): string {
 }
 
 .target-group-card {
-    border: 1px solid rgba(117, 154, 176, 0.3);
-    border-radius: 10px;
-    background: rgba(9, 22, 37, 0.66);
-    box-shadow: inset 0 1px 0 rgba(230, 244, 255, 0.05);
+    border: 1px solid var(--bt-hairline-soft);
+    border-radius: var(--bt-radius-sm);
+    background: var(--bt-panel-raised);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
     padding: 8px;
 }
 
@@ -2365,11 +2406,11 @@ function elementName(el: string): string {
 }
 
 .target-group-title--enemy {
-    color: rgba(251, 113, 133, 0.92);
+    color: var(--bt-red);
 }
 
 .target-group-title--ally {
-    color: rgba(125, 211, 252, 0.92);
+    color: var(--bt-blue);
 }
 
 .target-grid {
