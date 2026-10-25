@@ -635,6 +635,112 @@ describe('GameBoard target picker', () => {
     expect(submitSelectMock).not.toHaveBeenCalled()
   })
 
+  it('only lights up hand cards the engine listed for counter/defend', () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const me = buildPlayer({
+      id: 'p1',
+      name: '元素师',
+      camp: 'Red',
+      role: 'elementalist',
+      hand: [
+        buildCard({ id: 'thunder', name: '雷光斩', element: 'Thunder' }),
+        buildCard({ id: 'fire', name: '火焰斩', element: 'Fire' }),
+        // 前端按元素猜会认为暗灭/同系雷光斩都能应战；但引擎只列了 thunder（例如另一张被角色规则排除），以引擎为准
+        buildCard({ id: 'dark', name: '暗灭', element: 'Dark' }),
+        buildCard({ id: 'thunder-2', name: '雷光斩', element: 'Thunder' }),
+      ],
+      hand_count: 4,
+    })
+    const players = { p1: me }
+    useSessionStore().setRoomInfo('ROOM1', 'p1', 'Red', 'elementalist')
+    useSessionStore().updateRoomPlayers(Object.values(players).map(buildPlayerInfo), 'p1')
+    useSnapshotStore().updateGameState(buildState(players))
+    useInterruptStore().setPrompt({
+      type: 'confirm',
+      player_id: 'p1',
+      message: '需要响应攻击',
+      attack_element: 'Thunder',
+      counter_target_ids: ['p9'],
+      counter_card_ids: ['thunder'],
+      defend_card_ids: [],
+      options: [
+        { id: 'take', label: '承受伤害', button_label: '命中' },
+        { id: 'counter', label: '应战', button_label: '应战' },
+      ],
+      min: 1,
+      max: 1,
+      presentation: { kind: 'response', layout: 'inline', numeric_base: 0 },
+    } as unknown as Prompt)
+
+    const { container } = render(GameBoard, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          PlayerArea: PlayerAreaStub,
+          ActionPanel: true,
+          BattleZone: true,
+          SkillDetailModal: true,
+          VfxLayer: true,
+          ActionTimeline: true,
+          StatusEffectIcon: true,
+        },
+      },
+    })
+
+    const cards = container.querySelectorAll('.hand-card-row .card-shell')
+    expect(cards).toHaveLength(4)
+    expect(Array.from(cards).map((c) => c.classList.contains('selectable'))).toEqual([true, false, false, false])
+  })
+
+  it('lights up no hand card when only take is offered', () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const me = buildPlayer({
+      id: 'p1',
+      name: '元素师',
+      camp: 'Red',
+      role: 'elementalist',
+      hand: [buildCard({ id: 'fire', name: '火焰斩', element: 'Fire' })],
+      hand_count: 1,
+    })
+    const players = { p1: me }
+    useSessionStore().setRoomInfo('ROOM1', 'p1', 'Red', 'elementalist')
+    useSessionStore().updateRoomPlayers(Object.values(players).map(buildPlayerInfo), 'p1')
+    useSnapshotStore().updateGameState(buildState(players))
+    useInterruptStore().setPrompt({
+      type: 'confirm',
+      player_id: 'p1',
+      message: '需要响应攻击',
+      attack_element: 'Thunder',
+      options: [{ id: 'take', label: '承受伤害', button_label: '命中' }],
+      min: 1,
+      max: 1,
+      presentation: { kind: 'response', layout: 'inline', numeric_base: 0 },
+    } as unknown as Prompt)
+
+    const { container } = render(GameBoard, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          PlayerArea: PlayerAreaStub,
+          ActionPanel: true,
+          BattleZone: true,
+          SkillDetailModal: true,
+          VfxLayer: true,
+          ActionTimeline: true,
+          StatusEffectIcon: true,
+        },
+      },
+    })
+
+    const cards = container.querySelectorAll('.hand-card-row .card-shell')
+    expect(cards).toHaveLength(1)
+    expect(cards[0]?.classList.contains('selectable')).toBe(false)
+  })
+
   it('allows proxy card picker cards that map to my hand', async () => {
     const pinia = createPinia()
     setActivePinia(pinia)

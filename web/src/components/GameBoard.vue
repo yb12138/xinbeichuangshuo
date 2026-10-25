@@ -1561,14 +1561,6 @@ function isStealthedForWaterShadow(): boolean {
   return !!myAreaPlayer.value?.field?.some((fc) => fc.mode === 'Effect' && fc.effect === 'Stealth')
 }
 
-function canUseShadowRejectMagicResponse(): boolean {
-  const me = myAreaPlayer.value
-  if (!me) return false
-  if (isMyTurn.value) return false
-  if (me.role !== 'magic_swordsman') return false
-  return me.form === 'magic_swordsman_shadow_form'
-}
-
 type PromptCardSelectionState = {
   selectable: boolean
   reason: string
@@ -1614,49 +1606,25 @@ function promptCardSelectionState(idx: number): PromptCardSelectionState {
   const hasCounter = optionIds.has('counter')
   const hasDefend = optionIds.has('defend')
   const isMagicMissilePrompt = prompt.presentation?.kind === 'response' && prompt.presentation?.layout === 'magic_missile'
-  const allowShadowMagicCounter = canUseShadowRejectMagicResponse()
+  const isCombatResponse = prompt.presentation?.kind === 'response' && optionIds.has('take')
 
-  if (hasCounter || hasDefend) {
-    const validForCounter = hasCounter && (
-      isMagicMissilePrompt
-        ? playableCard.type === 'Magic' && playableCard.name === '魔弹'
-        : (
-          (playableCard.type === 'Attack' && (!prompt.attack_element || playableCard.element === prompt.attack_element || playableCard.element === 'Dark')) ||
-          (allowShadowMagicCounter && playableCard.type === 'Magic' && playableCard.name === '魔弹')
-        )
-    )
-    const validForDefend = hasDefend && playableCard.type === 'Magic' && playableCard.name === '圣光'
-    const counterOnlyHint = isMagicMissilePrompt
-      ? '请先选择一张【魔弹】进行传递'
-      : (allowShadowMagicCounter
-        ? '请先选择同系攻击牌/暗灭，或在暗影形态下选择【魔弹】进行应战'
-        : '请先选择同系攻击牌或暗灭进行应战')
-    const counterAndDefendHint = isMagicMissilePrompt
-      ? '应战请选择【魔弹】，防御请选择【圣光】'
-      : (allowShadowMagicCounter
-        ? '应战请选择同系攻击牌/暗灭（暗影形态下也可【魔弹】），防御请选择【圣光】'
-        : '应战请选择同系攻击牌或暗灭，防御请选择【圣光】')
-    if (validForCounter || validForDefend) {
+  // 应战/防御：只有引擎列出的牌可选（与提交校验同源，已含角色形态、暗影抗拒、命格应战等特例）
+  if (isCombatResponse || hasCounter || hasDefend) {
+    const cardID = String(playableCard.id || '').trim()
+    const counterIDs = new Set(prompt.counter_card_ids || [])
+    const defendIDs = new Set(prompt.defend_card_ids || [])
+    if ((hasCounter && counterIDs.has(cardID)) || (hasDefend && defendIDs.has(cardID))) {
       return { selectable: true, reason: 'prompt_counter_defend_valid' }
     }
-    if (hasCounter && hasDefend) {
-      return {
-        selectable: false,
-        reason: 'prompt_counter_defend_invalid',
-        error: counterAndDefendHint
-      }
+    if (!hasCounter && !hasDefend) {
+      return { selectable: false, reason: 'prompt_take_only', error: '没有可用于应战或防御的牌，只能承受' }
     }
-    if (hasCounter) {
-      return {
-        selectable: false,
-        reason: 'prompt_counter_invalid',
-        error: counterOnlyHint
-      }
-    }
+    const counterHint = isMagicMissilePrompt ? '传递只能使用【魔弹】' : '应战需同系攻击牌或暗灭'
+    const defendHint = '防御只能使用【圣光】（圣盾需提前放置）'
     return {
       selectable: false,
-      reason: 'prompt_defend_invalid',
-      error: '防御只能选择【圣光】（圣盾需提前放置）'
+      reason: 'prompt_counter_defend_invalid',
+      error: hasCounter && hasDefend ? `${counterHint}；${defendHint}` : (hasCounter ? counterHint : defendHint),
     }
   }
 

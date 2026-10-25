@@ -90,12 +90,6 @@ const hasCounterOrDefend = computed(() => {
   return hasCounterOption.value || hasDefendOption.value
 })
 
-const responsePromptUnrespondable = computed(() => {
-  if (!prompt.value || !hasCounterOrDefend.value) return false
-  const effectHints = Array.isArray(prompt.value.effect_hints) ? prompt.value.effect_hints : []
-  return effectHints.some((hint) => String(hint || '').includes('无法应战'))
-})
-
 type ResponseActionKind = 'take' | 'counter' | 'defend' | null
 
 const isResponsePrompt = computed(() => prompt.value?.presentation?.kind === 'response')
@@ -125,15 +119,21 @@ function promptAttackElementName(raw: string): string {
   return String(raw || '').trim()
 }
 
+const isAttackResponsePrompt = computed(() =>
+  !!prompt.value && prompt.value.presentation?.kind === 'response' &&
+  (prompt.value.options || []).some((option) => promptOptionResponseKind(option) === 'take') &&
+  !!String(prompt.value.attack_element || '').trim()
+)
+
 const responseAttackElementHintText = computed(() => {
-  if (!prompt.value || !hasCounterOrDefend.value) return ''
+  if (!prompt.value || !isAttackResponsePrompt.value) return ''
   const attackElement = String(prompt.value.attack_element || '').trim()
-  if (!attackElement) return ''
   const displayName = promptAttackElementName(attackElement)
   if (!displayName) return ''
-  if (responsePromptUnrespondable.value || !hasCounterOption.value) return `此次攻击系别：${displayName}（无法应战）`
   if (hasCounterOption.value) return `此次攻击系别：${displayName}（应战需同系或暗灭）`
-  return `此次攻击系别：${displayName}`
+  // 引擎只在有可用牌时才给出应战/防御；没有时说明原因，避免玩家以为漏了按钮
+  if (!hasCounterOrDefend.value) return `此次攻击系别：${displayName} · 没有可应战或防御的牌，只能承受`
+  return `此次攻击系别：${displayName}（无法应战）`
 })
 
 const isDarkAttackResponsePrompt = computed(() => {
