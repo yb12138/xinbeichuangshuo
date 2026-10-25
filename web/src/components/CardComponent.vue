@@ -2,6 +2,8 @@
 import { computed, ref, useAttrs, watch } from 'vue'
 import type { Card } from '../types/game'
 import ElementGlyph from './card/ElementGlyph.vue'
+import { cardArtSrc as resolveCardArtSrc } from '../constants/cardArt'
+
 
 defineOptions({
   inheritAttrs: false
@@ -33,20 +35,6 @@ const ELEMENT_LABEL_MAP: Record<string, string> = {
   Thunder: '雷',
   Light: '光',
   Dark: '暗'
-}
-
-const CARD_IMAGE_PINYIN_MAP: Record<string, string> = {
-  火焰斩: 'huoYanZhan',
-  水涟斩: 'shuiLianZhan',
-  地裂斩: 'diLieZhan',
-  风神斩: 'fengShenZhan',
-  雷光斩: 'leiGuangZhan',
-  暗灭: 'anMie',
-  魔弹: 'moDan',
-  圣光: 'shengGuang',
-  圣盾: 'shengDun',
-  虚弱: 'xuRuo',
-  中毒: 'zhongDu'
 }
 
 const imageLoadFailed = ref(false)
@@ -135,36 +123,7 @@ const displayDescription = computed(() => {
   return props.card.description
 })
 
-function fallbackPinyinByCard(card: Card): string {
-  if (card.type === 'Attack') {
-    if (card.name.includes('暗')) return 'anMie'
-    if (card.name.includes('火')) return 'huoYanZhan'
-    if (card.name.includes('水')) return 'shuiLianZhan'
-    if (card.name.includes('地')) return 'diLieZhan'
-    if (card.name.includes('风')) return 'fengShenZhan'
-    if (card.name.includes('雷')) return 'leiGuangZhan'
-    if (card.element === 'Fire') return 'huoYanZhan'
-    if (card.element === 'Water') return 'shuiLianZhan'
-    if (card.element === 'Earth') return 'diLieZhan'
-    if (card.element === 'Wind') return 'fengShenZhan'
-    if (card.element === 'Thunder') return 'leiGuangZhan'
-    if (card.element === 'Dark') return 'anMie'
-    return 'moRen'
-  }
-  if (card.name.includes('圣盾')) return 'shengDun'
-  if (card.name.includes('圣光')) return 'shengGuang'
-  if (card.name.includes('魔弹')) return 'moDan'
-  if (card.name.includes('中毒')) return 'zhongDu'
-  if (card.name.includes('虚弱')) return 'xuRuo'
-  return 'shiShuCard'
-}
-
-const cardArtFile = computed(() => {
-  if (imageLoadFailed.value) return props.card.type === 'Attack' ? 'moRen' : 'shiShuCard'
-  return CARD_IMAGE_PINYIN_MAP[props.card.name] ?? fallbackPinyinByCard(props.card)
-})
-
-const cardArtSrc = computed(() => `/image/${cardArtFile.value}.png`)
+const cardArtSrc = computed(() => resolveCardArtSrc(props.card, imageLoadFailed.value))
 const showDescModal = ref(false)
 const attrs = useAttrs()
 
