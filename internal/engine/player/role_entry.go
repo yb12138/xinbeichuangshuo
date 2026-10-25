@@ -142,6 +142,8 @@ type MagicBulletOps interface {
 	SetMagicBulletChain(chain *model.MagicBulletChain)
 	GetPlayableCardByIndex(player *model.Player, idx int) (model.Card, bool)
 	GetPlayableCardByCardID(player *model.Player, cardID string) (model.Card, bool)
+	// PlayableCards 列出可打出的牌：手牌 + 各角色登记的可打出盖牌（与 GetPlayableCardByCardID 查找范围一致）
+	PlayableCards(player *model.Player) []model.Card
 	PerformMagic(playerID, targetID string, cardIdx int) error
 	ExecuteMagicBullet(player *model.Player, reverse, isFusion bool, fusionCard *model.Card) error
 	FindNextMagicBulletTarget(playerID string) string

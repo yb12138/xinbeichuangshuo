@@ -82,3 +82,59 @@ func TestMagicWithoutTarget_StillRequiresTargetForNonMagicBullet(t *testing.T) {
 		t.Fatalf("non-magic-bullet without target should fail")
 	}
 }
+
+func magicMissilePromptOptionIDs(t *testing.T, game *engine.GameEngine) (map[string]bool, *model.Prompt) {
+	t.Helper()
+	prompt := game.GetCurrentPrompt()
+	if prompt == nil {
+		t.Fatalf("expected magic missile prompt")
+	}
+	ids := map[string]bool{}
+	for _, o := range prompt.Options {
+		ids[o.ID] = true
+	}
+	return ids, prompt
+}
+
+// 被魔弹击中但手里没有魔弹/圣光时，只能承受——不应出现传递/抵挡选项。
+func TestMagicMissilePrompt_NoUsableCards_OnlyTake(t *testing.T) {
+	game := buildMagicActionGame(t)
+	game.State.Players["p1"].Hand = []model.Card{
+		{ID: "mb", Name: "魔弹", Type: model.CardTypeMagic, Element: model.ElementWater, Damage: 2},
+	}
+	game.State.Players["p2"].Hand = []model.Card{
+		{ID: "fire", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2},
+		{ID: "shield", Name: "圣盾", Type: model.CardTypeMagic, Element: model.ElementLight},
+	}
+	if err := game.HandleAction(model.PlayerAction{PlayerID: "p1", Type: model.CmdMagic, CardID: "mb"}); err != nil {
+		t.Fatalf("cast magic bullet: %v", err)
+	}
+	ids, prompt := magicMissilePromptOptionIDs(t, game)
+	if !ids["take"] || ids["counter"] || ids["defend"] {
+		t.Fatalf("expected only take, got %+v", prompt.Options)
+	}
+}
+
+func TestMagicMissilePrompt_ListsBulletAndHolyLight(t *testing.T) {
+	game := buildMagicActionGame(t)
+	game.State.Players["p1"].Hand = []model.Card{
+		{ID: "mb", Name: "魔弹", Type: model.CardTypeMagic, Element: model.ElementWater, Damage: 2},
+	}
+	game.State.Players["p2"].Hand = []model.Card{
+		{ID: "mb2", Name: "魔弹", Type: model.CardTypeMagic, Element: model.ElementFire, Damage: 2},
+		{ID: "light", Name: "圣光", Type: model.CardTypeMagic, Element: model.ElementLight},
+	}
+	if err := game.HandleAction(model.PlayerAction{PlayerID: "p1", Type: model.CmdMagic, CardID: "mb"}); err != nil {
+		t.Fatalf("cast magic bullet: %v", err)
+	}
+	ids, prompt := magicMissilePromptOptionIDs(t, game)
+	if !ids["counter"] || !ids["defend"] {
+		t.Fatalf("expected counter+defend, got %+v", prompt.Options)
+	}
+	if len(prompt.CounterCardIDs) != 1 || prompt.CounterCardIDs[0] != "mb2" {
+		t.Fatalf("expected counter card mb2, got %v", prompt.CounterCardIDs)
+	}
+	if len(prompt.DefendCardIDs) != 1 || prompt.DefendCardIDs[0] != "light" {
+		t.Fatalf("expected defend card light, got %v", prompt.DefendCardIDs)
+	}
+}

@@ -459,6 +459,13 @@ func (r roleChoiceRuntime) GetPlayableCardByCardID(player *model.Player, cardID 
 	return card, ok
 }
 
+func (r roleChoiceRuntime) PlayableCards(player *model.Player) []model.Card {
+	if r.GameEngine == nil {
+		return nil
+	}
+	return r.GameEngine.playableResponseCards(player)
+}
+
 func (r roleChoiceRuntime) PerformMagic(playerID, targetID string, cardIdx int) error {
 	if r.GameEngine == nil {
 		return fmt.Errorf("engine not available")
