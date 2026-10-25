@@ -26,6 +26,8 @@ type PromptDTO struct {
 	AttackerID       string                    `json:"attacker_id,omitempty"`
 	CounterTargetIDs []string                  `json:"counter_target_ids,omitempty"`
 	AttackElement    string                    `json:"attack_element,omitempty"`
+	DefendCardIDs    []string                  `json:"defend_card_ids,omitempty"`
+	CounterCardIDs   []string                  `json:"counter_card_ids,omitempty"`
 }
 
 // PromptInteractionDTO 明确声明 Prompt 的前端交互与提交契约。
@@ -71,6 +73,8 @@ func ToPromptDTO(p *model.Prompt) *PromptDTO {
 		Max:              p.Max,
 		AttackerID:       p.AttackerID,
 		CounterTargetIDs: p.CounterTargetIDs,
+		DefendCardIDs:    append([]string(nil), p.DefendCardIDs...),
+		CounterCardIDs:   append([]string(nil), p.CounterCardIDs...),
 		AttackElement:    p.AttackElement,
 	}
 	// 转换 Options

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	engineplayer "starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
 )
 
@@ -392,24 +393,15 @@ func (e *GameEngine) handleCombatTakeResponse(player *model.Player, combatReq mo
 }
 
 func (e *GameEngine) handleCombatDefendResponse(act model.PlayerAction, player *model.Player, combatReq model.CombatRequest) error {
-	if !e.canUseHolyDefend(&combatReq) {
-		return errors.New("本次攻击受【一击无念】影响，不能使用【圣光】防御")
-	}
-	if res := e.applyAttackResponseDefendValidation(player, &combatReq); res != nil {
-		return res
+	if err := e.validateCombatDefendWindow(player, &combatReq); err != nil {
+		return err
 	}
 	card, ok := e.cardForPlayerAction(player, act)
 	if !ok {
 		return errors.New("无效的卡牌ID")
 	}
-	if card.Type != model.CardTypeMagic {
-		return errors.New("只能使用法术牌进行防御")
-	}
-	if card.Name == "圣盾" {
-		return errors.New("【圣盾】不能在防御时打出，请提前放置到场上触发")
-	}
-	if card.Name != "圣光" {
-		return errors.New("防御只能使用【圣光】；【圣盾】需提前放置到场上")
+	if err := validateCombatDefendCard(card); err != nil {
+		return err
 	}
 
 	e.dispatchCardTiming(player, model.TimingCardPlayedRevealed, "", card)
@@ -462,34 +454,13 @@ func (e *GameEngine) handleCombatCounterResponse(act model.PlayerAction, player 
 		return errors.New("此攻击无法被应战")
 	}
 
-	card, ok := e.cardForPlayerAction(player, act)
+	rawCard, ok := e.cardForPlayerAction(player, act)
 	if !ok {
 		return errors.New("无效的卡牌ID")
 	}
-	useSpecialCounterCard, counterCard, err := e.applyAttackResponseCounterCardPolicy(player, &combatReq, card)
+	card, useFactionCounter, err := e.validateCombatCounterCard(player, &combatReq, rawCard)
 	if err != nil {
 		return err
-	}
-	useFactionCounter := false
-
-	if useSpecialCounterCard {
-		card = counterCard
-	} else {
-		if card.Type != model.CardTypeAttack {
-			return errors.New("只能使用攻击牌进行应战（暗影抗拒下可在非自己行动阶段使用【魔弹】）")
-		}
-		card = e.transformAttackCard(player, card)
-		if combatReq.Card.Element == model.ElementDark {
-			return errors.New("暗灭无法被应战，只能承受伤害或使用圣光抵挡（场上圣盾会自动生效）")
-		}
-		if card.Element != combatReq.Card.Element && card.Element != model.ElementDark {
-			allowedByPolicy, useFaction := e.applyAttackResponseCounterElementPolicy(player, &combatReq, card)
-			if allowedByPolicy {
-				useFactionCounter = useFaction
-			} else {
-				return fmt.Errorf("应战必须使用同系攻击牌或暗灭，对方为 %s 系", combatReq.Card.Element)
-			}
-		}
 	}
 
 	targetID := act.TargetID
@@ -584,4 +555,104 @@ func (e *GameEngine) handleCombatCounterResponse(act model.PlayerAction, player 
 		e.enterDamageResolution(model.CombatStageHitCheck)
 	}
 	return nil
+}
+
+// ===== 应战 / 防御可用性：提示构建与提交校验共用同一套判定，避免"能看到选项却打不出"的情况 =====
+
+// validateCombatDefendWindow 校验本次攻击是否允许用【圣光】防御（与具体卡牌无关的部分）。
+func (e *GameEngine) validateCombatDefendWindow(player *model.Player, combatReq *model.CombatRequest) error {
+	if !e.canUseHolyDefend(combatReq) {
+		return errors.New("本次攻击受【一击无念】影响，不能使用【圣光】防御")
+	}
+	if res := e.applyAttackResponseDefendValidation(player, combatReq); res != nil {
+		return res
+	}
+	return nil
+}
+
+// validateCombatDefendCard 校验某张牌能否用于防御。
+func validateCombatDefendCard(card model.Card) error {
+	if card.Type != model.CardTypeMagic {
+		return errors.New("只能使用法术牌进行防御")
+	}
+	if card.Name == "圣盾" {
+		return errors.New("【圣盾】不能在防御时打出，请提前放置到场上触发")
+	}
+	if card.Name != "圣光" {
+		return errors.New("防御只能使用【圣光】；【圣盾】需提前放置到场上")
+	}
+	return nil
+}
+
+// validateCombatCounterCard 校验某张牌能否用于应战，返回实际结算用的牌（经角色转化）及是否按命格应战。
+// 只做判定，不改变状态。
+func (e *GameEngine) validateCombatCounterCard(player *model.Player, combatReq *model.CombatRequest, card model.Card) (model.Card, bool, error) {
+	useSpecialCounterCard, counterCard, err := e.applyAttackResponseCounterCardPolicy(player, combatReq, card)
+	if err != nil {
+		return model.Card{}, false, err
+	}
+	if useSpecialCounterCard {
+		return counterCard, false, nil
+	}
+	if card.Type != model.CardTypeAttack {
+		return model.Card{}, false, errors.New("只能使用攻击牌进行应战（暗影抗拒下可在非自己行动阶段使用【魔弹】）")
+	}
+	card = e.transformAttackCard(player, card)
+	if combatReq.Card != nil && combatReq.Card.Element == model.ElementDark {
+		return model.Card{}, false, errors.New("暗灭无法被应战，只能承受伤害或使用圣光抵挡（场上圣盾会自动生效）")
+	}
+	if combatReq.Card != nil && card.Element != combatReq.Card.Element && card.Element != model.ElementDark {
+		allowedByPolicy, useFaction := e.applyAttackResponseCounterElementPolicy(player, combatReq, card)
+		if !allowedByPolicy {
+			return model.Card{}, false, fmt.Errorf("应战必须使用同系攻击牌或暗灭，对方为 %s 系", combatReq.Card.Element)
+		}
+		return card, useFaction, nil
+	}
+	return card, false, nil
+}
+
+// CombatResponseEligibility 描述防御方此刻真正能用的响应方式与对应卡牌。
+type CombatResponseEligibility struct {
+	DefendCardIDs  []string
+	CounterCardIDs []string
+}
+
+// combatResponseEligibility 用与提交校验完全相同的判定，枚举手牌及可打出的盖牌，得出可防御 / 可应战的牌。
+func (e *GameEngine) combatResponseEligibility(player *model.Player, combatReq *model.CombatRequest, counterTargets []string) CombatResponseEligibility {
+	out := CombatResponseEligibility{}
+	if player == nil || combatReq == nil {
+		return out
+	}
+	candidates := e.playableResponseCards(player)
+	if e.validateCombatDefendWindow(player, combatReq) == nil {
+		for _, card := range candidates {
+			if validateCombatDefendCard(card) == nil {
+				out.DefendCardIDs = append(out.DefendCardIDs, card.ID)
+			}
+		}
+	}
+	if e.canUseCounter(combatReq) && len(counterTargets) > 0 {
+		for _, card := range candidates {
+			if _, _, err := e.validateCombatCounterCard(player, combatReq, card); err == nil {
+				out.CounterCardIDs = append(out.CounterCardIDs, card.ID)
+			}
+		}
+	}
+	return out
+}
+
+// playableResponseCards 列出可用于响应的牌：手牌 + 各角色登记的可打出盖牌（与 getPlayableCardByID 的查找范围一致）。
+func (e *GameEngine) playableResponseCards(p *model.Player) []model.Card {
+	if p == nil {
+		return nil
+	}
+	cards := append([]model.Card{}, p.Hand...)
+	for _, effect := range e.collectPlayableCoverEffects() {
+		for _, fc := range engineplayer.CoverCardsByEffect(p, effect) {
+			if fc != nil {
+				cards = append(cards, fc.Card)
+			}
+		}
+	}
+	return cards
 }

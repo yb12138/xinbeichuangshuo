@@ -72,6 +72,8 @@ func TestUIRegression_YellowSpring_HidesCounterOptionInResponsePrompt(t *testing
 	}
 	p2.Hand = []model.Card{
 		{ID: "counter_card", Name: "暗灭", Type: model.CardTypeAttack, Element: model.ElementDark, Damage: 1},
+		// 防御选项只在手里有圣光时出现
+		{ID: "light_card", Name: "圣光", Type: model.CardTypeMagic, Element: model.ElementLight},
 	}
 
 	game.State.CurrentTurn = 0

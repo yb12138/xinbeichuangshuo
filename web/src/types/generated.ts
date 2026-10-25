@@ -266,6 +266,8 @@ export interface PromptDTO {
   attacker_id?: string
   counter_target_ids?: string[]
   attack_element?: string
+  defend_card_ids?: string[]
+  counter_card_ids?: string[]
 }
 
 export interface PromptInteractionDTO {

@@ -55,6 +55,11 @@ func TestGetCurrentPrompt_RebuildsCombatInteractionPrompt(t *testing.T) {
 	}
 
 	card := model.Card{ID: "attack-1", Name: "水涟斩", Type: model.CardTypeAttack, Element: model.ElementWater, Damage: 2}
+	// 防御/应战选项只在有可用牌时出现：给防守方一张圣光和一张同系攻击牌
+	game.State.Players["p2"].Hand = []model.Card{
+		{ID: "light-1", Name: "圣光", Type: model.CardTypeMagic, Element: model.ElementLight},
+		{ID: "water-1", Name: "水涟斩", Type: model.CardTypeAttack, Element: model.ElementWater, Damage: 2},
+	}
 	game.State.CurrentTurn = 0
 	game.State.TurnStage = model.TurnStageActionExecution
 	game.State.CombatStage = model.CombatStageHitCheck
@@ -91,5 +96,11 @@ func TestGetCurrentPrompt_RebuildsCombatInteractionPrompt(t *testing.T) {
 		if !optionIDs[want] {
 			t.Fatalf("expected option %s in %+v", want, prompt.Options)
 		}
+	}
+	if len(prompt.DefendCardIDs) != 1 || prompt.DefendCardIDs[0] != "light-1" {
+		t.Fatalf("expected defend card light-1, got %v", prompt.DefendCardIDs)
+	}
+	if len(prompt.CounterCardIDs) != 1 || prompt.CounterCardIDs[0] != "water-1" {
+		t.Fatalf("expected counter card water-1, got %v", prompt.CounterCardIDs)
 	}
 }

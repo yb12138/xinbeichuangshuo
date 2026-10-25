@@ -344,7 +344,8 @@ func (e *GameEngine) buildCombatInteractionPrompt() *model.Prompt {
 
 	shieldFallbackReady := e.HasUsableShieldForCombat(target, *combatReq)
 	counterTargets := e.buildCombatCounterTargets(combatReq.AttackerID)
-	options := e.buildCombatResponseOptions(combatReq, shieldFallbackReady, counterTargets)
+	eligibility := e.combatResponseEligibility(target, combatReq, counterTargets)
+	options := e.buildCombatResponseOptions(combatReq, shieldFallbackReady, counterTargets, eligibility)
 	hints := e.buildCombatInteractionHints(*combatReq, shieldFallbackReady)
 
 	attackerRole := combatReq.AttackerID
@@ -357,6 +358,8 @@ func (e *GameEngine) buildCombatInteractionPrompt() *model.Prompt {
 		AttackerID:       combatReq.AttackerID,
 		CounterTargetIDs: counterTargets,
 		AttackElement:    e.promptAttackElementForCombatResponse(combatReq, attacker), // 应战须同系或暗灭
+		DefendCardIDs:    eligibility.DefendCardIDs,
+		CounterCardIDs:   eligibility.CounterCardIDs,
 		EffectHints:      hints,
 		Message: fmt.Sprintf("%s 需要响应来自 %s 的攻击 (%s)",
 			target.Name,
@@ -442,16 +445,18 @@ func (e *GameEngine) buildCombatCounterTargets(attackerID string) []string {
 	return counterTargets
 }
 
-func (e *GameEngine) buildCombatResponseOptions(combatReq *model.CombatRequest, shieldFallbackReady bool, counterTargets []string) []model.PromptOption {
+// buildCombatResponseOptions 只给出防御方此刻真正能用的响应方式：
+// 防御/应战需至少有一张通过提交校验的牌（见 combatResponseEligibility），否则不出现该选项。
+func (e *GameEngine) buildCombatResponseOptions(combatReq *model.CombatRequest, shieldFallbackReady bool, counterTargets []string, eligibility CombatResponseEligibility) []model.PromptOption {
 	takeLabel := "承受伤害"
 	if shieldFallbackReady {
 		takeLabel = "承受（将触发圣盾）"
 	}
 	options := []model.PromptOption{{ID: "take", Label: takeLabel}}
-	if e.canUseHolyDefend(combatReq) {
+	if e.canUseHolyDefend(combatReq) && len(eligibility.DefendCardIDs) > 0 {
 		options = append(options, model.PromptOption{ID: "defend", Label: "防御"})
 	}
-	if e.canUseCounter(combatReq) && len(counterTargets) > 0 {
+	if e.canUseCounter(combatReq) && len(counterTargets) > 0 && len(eligibility.CounterCardIDs) > 0 {
 		options = append(options, model.PromptOption{ID: "counter", Label: "应战"})
 	}
 	return options
