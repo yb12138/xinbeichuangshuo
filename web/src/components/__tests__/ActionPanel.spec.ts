@@ -504,3 +504,61 @@ describe('ActionPanel skill availability', () => {
     }
   })
 })
+
+describe('ActionPanel action hub notice and end-turn', () => {
+  function hubPrompt(message: string, optionIds: string[] = ['attack', 'magic', 'cannot_act']) {
+    return {
+      type: 'confirm',
+      player_id: 'p1',
+      choice_type: 'action_hub',
+      message,
+      options: optionIds.map((id) => ({ id, label: id, button_label: id })),
+      min: 1,
+      max: 1,
+      presentation: { kind: 'action_hub', numeric_base: 0 },
+    } as unknown as Parameters<ReturnType<typeof useInterruptStore>['setPrompt']>[0]
+  }
+
+  function renderHub(message: string, optionIds?: string[]) {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    useSessionStore().setRoomInfo('ROOM', 'p1', 'Red', 'blood_priestess')
+    useSnapshotStore().updateGameState(buildState())
+    useInterruptStore().setPrompt(hubPrompt(message, optionIds))
+    return render(ActionPanel, { global: { plugins: [pinia], stubs: { PromptDialog: true } } })
+  }
+
+  it('hides the default "请选择行动类型" notice', () => {
+    renderHub('请选择行动类型')
+    expect(screen.getByTestId('action-attack')).toBeInTheDocument()
+    expect(screen.queryByTestId('action-hub-notice')).toBeNull()
+  })
+
+  it('shows rule constraints as a warning without the trailing default sentence', () => {
+    renderHub('你的审判已达上限：本行动阶段必须发动【末日审判】。')
+    const notice = screen.getByTestId('action-hub-notice')
+    expect(notice).toHaveTextContent('必须发动【末日审判】')
+    expect(notice.className).toContain('dock-notice--rule')
+  })
+
+  it('moves the 充盈 bonus into a footer chip', () => {
+    renderHub('请选择行动类型（【充盈】下一次主动攻击伤害额外+2）')
+    expect(screen.queryByTestId('action-hub-notice')).toBeNull()
+    expect(screen.getByTestId('action-hub-fullness')).toHaveTextContent('+2')
+  })
+
+  it('never renders an end-turn button; cannot-act sits in the footer', () => {
+    renderHub('请选择行动类型')
+    expect(screen.queryByTestId('action-pass')).toBeNull()
+    expect(screen.queryByText('结束回合')).toBeNull()
+    const cannotAct = screen.getByTestId('action-cannot-act')
+    expect(cannotAct.closest('footer')).not.toBeNull()
+  })
+
+  it('labels cannot-act as giving up the extra action during an extra action', () => {
+    renderHub('当前为额外攻击行动，仅可执行攻击。请选择行动类型', ['attack', 'cannot_act'])
+    expect(screen.getByTestId('action-cannot-act')).toHaveTextContent('放弃额外行动')
+    expect(screen.queryByTestId('action-hub-notice')).toBeNull()
+    expect(screen.getByText('仅可攻击')).toBeInTheDocument()
+  })
+})

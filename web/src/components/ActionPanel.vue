@@ -14,6 +14,7 @@ import {
     skillSpecificDisabledReason,
 } from '../constants/skillDisplayRules'
 import type { AvailableSkill, PromptOption, PlayerView } from '../types/game'
+import { parseActionHubNotice } from '../constants/actionHubNotice'
 import { cardArtSrc } from '../constants/cardArt'
 import { characterArtSrc } from '../constants/characterArt'
 import PromptDialog from './PromptDialog.vue'
@@ -213,13 +214,13 @@ const actionHubPromptNotice = computed(() => {
     if (!message) return ''
     return message
 })
-function extractFullnessAttackHint(message: string): string {
-    return message.match(/【充盈】[^）)]+/)?.[0] || ''
-}
+/** 拆解后的行动提示：默认句不显示、额外行动进顶栏、规则约束做警示条、充盈做底栏标签 */
+const actionHubNotice = computed(() => parseActionHubNotice(actionHubPromptNotice.value))
 
 const attackActionPromptNotice = computed(() => {
     if (interruptStore.actionMode !== 'attack') return ''
-    return extractFullnessAttackHint(actionHubPromptNotice.value)
+    const bonus = actionHubNotice.value.fullnessBonus
+    return bonus > 0 ? `【充盈】下一次主动攻击伤害额外+${bonus}` : ''
 })
 
 const specialActionOptions = computed<PromptOption[]>(() => {
@@ -368,9 +369,6 @@ function invokeActionHubOption(optionId: string) {
         case 'cannot_act':
             actions.submitCannotAct()
             return
-        case 'pass':
-            openPassAction()
-            return
         case 'skill':
             openSkillAction()
             return
@@ -427,10 +425,6 @@ function openSynthesizeAction() {
 
 function openExtractAction() {
     actions.submitExtract()
-}
-
-function openPassAction() {
-    actions.submitPass()
 }
 
 watch(isActionHubContext, (isOpen) => {
@@ -1499,13 +1493,20 @@ function elementName(el: string): string {
             <header class="dock-hd">
                 <span class="dock-hd-left">
                     <i class="dock-dot-gold" aria-hidden="true" />
-                    <span v-if="isExtraActionPrompt" class="dock-title">额外{{ hasActionPromptOption('magic') && !hasActionPromptOption('attack') ? '法术' : '攻击' }}<template v-if="myPlayer?.current_extra_action"> · 来自【{{ myPlayer.current_extra_action }}】</template></span>
+                    <span v-if="isExtraActionPrompt" class="dock-title">额外{{ hasActionPromptOption('magic') && !hasActionPromptOption('attack') ? '法术' : (hasActionPromptOption('attack') && hasActionPromptOption('magic') ? '行动' : '攻击') }}</span>
                     <span v-else class="dock-title">你的回合 · 行动阶段</span>
+                    <span v-if="isExtraActionPrompt && actionHubNotice.extraLimit" class="dock-hd-meta">{{ actionHubNotice.extraLimit }}</span>
                 </span>
             </header>
             <div class="dock-bd">
-                <div v-if="actionHubPromptNotice" class="dock-notice dock-notice--gold">
-                    {{ actionHubPromptNotice }}
+                <div
+                    v-if="actionHubNotice.kind === 'rule' || actionHubNotice.kind === 'extra-none' || actionHubNotice.kind === 'other'"
+                    class="dock-notice"
+                    :class="actionHubNotice.kind === 'rule' ? 'dock-notice--rule' : 'dock-notice--gold'"
+                    data-testid="action-hub-notice"
+                >
+                    <img v-if="actionHubNotice.kind === 'rule'" class="dock-notice-ico" src="/assets/icons/overflow.webp" alt="" aria-hidden="true" />
+                    {{ actionHubNotice.text }}
                 </div>
                 <div class="dock-medal-row action-hub-desktop-main">
                     <button
@@ -1552,20 +1553,6 @@ function elementName(el: string): string {
                         </span>
                         <span class="dock-medal-label">{{ actionPromptLabel('special', '特殊') }}</span>
                     </button>
-                    <button
-                        v-if="isActionSelectionPrompt && !isExtraActionPrompt && hasActionPromptOption('cannot_act')"
-                        type="button"
-                        class="dock-medal dock-medal--dim"
-                        data-testid="action-cannot-act"
-                        :title="isExtraActionPrompt ? '跳过' : cannotActButtonLabel"
-                        :aria-label="isExtraActionPrompt ? '跳过' : cannotActButtonLabel"
-                        @click="invokeActionHubOption('cannot_act')"
-                    >
-                        <span class="dock-medal-ring">
-                            <img class="dock-medal-ico dock-medal-ico--img" src="/assets/icons/overflow.webp" alt="" aria-hidden="true" draggable="false" />
-                        </span>
-                        <span class="dock-medal-label">{{ isExtraActionPrompt ? '跳过' : cannotActButtonLabel }}</span>
-                    </button>
                 </div>
                 <div
                     v-if="isActionSelectionPrompt && !hasActionPromptOption('attack') && !hasActionPromptOption('magic') && !hasHubSpecialActions && !hasActionPromptOption('cannot_act')"
@@ -1575,7 +1562,7 @@ function elementName(el: string): string {
                 </div>
             </div>
             <footer class="dock-ft">
-                <span v-if="turnStateIndicators.length > 0" class="turn-state-indicators dock-ft-left">
+                <span v-if="turnStateIndicators.length > 0 || actionHubNotice.fullnessBonus > 0" class="turn-state-indicators dock-ft-left">
                     <span
                         v-for="indicator in turnStateIndicators"
                         :key="indicator.key"
@@ -1585,25 +1572,20 @@ function elementName(el: string): string {
                     >
                         {{ indicator.label }}
                     </span>
+                    <span v-if="actionHubNotice.fullnessBonus > 0" class="turn-chip turn-chip--fullness" data-testid="action-hub-fullness">
+                        充盈：下次攻击 +{{ actionHubNotice.fullnessBonus }}
+                    </span>
                 </span>
+                <!-- 规则上每个行动阶段必须执行一个行动，没有"结束回合"；只在引擎给出 cannot_act 时提供兜底 -->
                 <button
-                    v-if="!isActionSelectionPrompt"
-                    type="button"
-                    class="dock-btn dock-btn--dark dock-btn--right"
-                    data-testid="action-pass"
-                    title="结束回合"
-                    aria-label="结束回合"
-                    @click="invokeActionHubOption('pass')"
-                ><img class="dock-btn-ico" src="/assets/icons/end-turn.webp" alt="" aria-hidden="true" />结束回合</button>
-                <button
-                    v-else-if="isExtraActionPrompt"
+                    v-if="isActionSelectionPrompt && hasActionPromptOption('cannot_act')"
                     type="button"
                     class="dock-btn dock-btn--dark dock-btn--right"
                     data-testid="action-cannot-act"
-                    title="放弃额外行动"
-                    aria-label="放弃额外行动"
+                    :title="isExtraActionPrompt ? '放弃额外行动' : cannotActButtonLabel"
+                    :aria-label="isExtraActionPrompt ? '放弃额外行动' : cannotActButtonLabel"
                     @click="invokeActionHubOption('cannot_act')"
-                ><img class="dock-btn-ico" src="/assets/icons/skip-extra.webp" alt="" aria-hidden="true" />放弃额外行动</button>
+                ><img class="dock-btn-ico" :src="isExtraActionPrompt ? '/assets/icons/skip-extra.webp' : '/assets/icons/overflow.webp'" alt="" aria-hidden="true" />{{ isExtraActionPrompt ? '放弃额外行动' : cannotActButtonLabel }}</button>
             </footer>
         </div>
 
@@ -2185,6 +2167,31 @@ function elementName(el: string): string {
 .dock-btn--primary .dock-btn-ico {
     /* 金色主按钮上用深色图标更清楚 */
     filter: brightness(0.25) contrast(1.4);
+}
+
+.dock-notice.dock-notice--rule {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    text-align: left;
+    color: #ffd7d9;
+    background: rgba(192, 48, 60, 0.16);
+    border: 1px solid rgba(226, 82, 94, 0.55);
+    box-shadow: 0 0 12px rgba(226, 82, 94, 0.18);
+}
+
+.dock-notice-ico {
+    width: 16px;
+    height: 16px;
+    flex: none;
+    margin-top: 1px;
+    object-fit: contain;
+}
+
+.turn-chip--fullness {
+    color: var(--bt-active);
+    background: rgba(240, 195, 90, 0.12);
+    box-shadow: inset 0 0 0 1px rgba(240, 195, 90, 0.4);
 }
 
 .dock-medal-ico--img {
