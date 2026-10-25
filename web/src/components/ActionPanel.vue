@@ -1872,12 +1872,30 @@ function elementName(el: string): string {
 .action-hub-desktop-main {
     flex: 1 1 auto;
     min-height: 0;
-    /* 一排排开：3 个主按钮时与参考一致，第 4 个（结束回合/无法行动）也挤在同一排 */
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: clamp(6px, 0.8vw, 12px);
-    padding: 2px 2px 6px;
+    /*
+     * 行动按钮：最多 4 个（攻击/法术/特殊 + 结束回合或无法行动）。
+     * ≤3 个排一行；4 个排 2×2，保证每个徽章够大、文字可读。
+     */
+    display: grid;
+    grid-template-columns: repeat(var(--hub-cols, 3), minmax(0, 1fr));
+    align-content: center;
+    justify-items: center;
+    gap: clamp(6px, 0.8vh, 10px) clamp(8px, 0.9vw, 14px);
+    padding: 2px 4px 6px;
+}
+
+.action-hub-desktop-main:has(> :nth-child(4)) {
+    --hub-cols: 4;
+    --hub-btn-size: clamp(50px, 3.9vw, 64px);
+}
+
+.action-hub-desktop-main:not(:has(> :nth-child(3))) {
+    --hub-cols: 2;
+}
+
+/* 按钮 + 下方文字标签 */
+.action-hub-desktop-main > .action-hub-desktop-btn {
+    margin-bottom: 18px;
 }
 
 /*
@@ -1885,10 +1903,12 @@ function elementName(el: string): string {
  * 外圈 = 镀铬渐变环 + 黑缝，内圈 = 原有按钮图（裁成圆形），悬停时外发蓝光。
  */
 .action-hub-desktop-btn.action-image-btn {
-    flex: 1 1 0;
-    width: auto !important;
+    flex: none;
+    /* 3 个一排时尽量大；2×2 时按停靠区高度收缩，保证两行 + 标签放得下 */
+    width: var(--hub-btn-size, clamp(64px, 5.4vw, 88px)) !important;
     min-width: 0;
-    max-width: 76px;
+    max-width: none;
+    overflow: visible;
     border-radius: 999px !important;
     padding: 3px !important;
     background: var(--bt-chrome-gradient) !important;
@@ -1921,6 +1941,9 @@ function elementName(el: string): string {
     /* 原始素材是带金边的圆章（四周留黑），放大裁掉外框只留中心图案 */
     object-fit: cover;
     transform: scale(1.18);
+    border-radius: 999px;
+    /* 按钮改为 overflow: visible 以便标签外露，这里自己裁成圆：50% / 1.18 ≈ 42.4%，放大后正好贴合内圈 */
+    clip-path: circle(42.4% at 50% 50%);
 }
 
 .action-hub-desktop-btn.action-image-btn .action-image-fallback-text {
@@ -2229,9 +2252,31 @@ function elementName(el: string): string {
 }
 
 .action-hub-desktop-btn.action-image-btn {
-    width: 100%;
-    max-width: 100%;
     min-height: 0;
+}
+
+/* 主行动按钮的文字标签：显示在徽章下方（其余图片按钮仍只给读屏） */
+.action-hub-desktop-btn.action-image-btn .action-image-btn-label {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 50%;
+    transform: translateX(-50%);
+    width: auto;
+    height: auto;
+    margin: 0;
+    clip: auto;
+    overflow: visible;
+    white-space: nowrap;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--bt-chrome-hi);
+    text-shadow: 0 1px 2px var(--bt-bg-0);
+    pointer-events: none;
+}
+
+.action-hub-desktop-btn.action-image-btn:disabled .action-image-btn-label {
+    color: var(--bt-text-dim);
 }
 
 .action-image-btn:hover {
