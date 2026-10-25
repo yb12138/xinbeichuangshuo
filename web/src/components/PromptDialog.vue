@@ -85,9 +85,20 @@ const hasDefendOption = computed(() => {
   return prompt.value.options.some((option) => promptOptionResponseKind(option) === 'defend')
 })
 
+/**
+ * 战斗响应弹框（被攻击 / 魔弹传递）：以引擎声明的 presentation 为准，而不是"有没有应战/防御按钮"。
+ * 引擎只在有可用牌时才给出应战/防御，"只能承受"的提示也必须仍按响应弹框渲染（停靠在行动区内），
+ * 否则会掉进通用决策浮层，和行动区叠成两层。
+ */
+const isCombatResponsePrompt = computed(() => {
+  if (!prompt.value?.options?.length) return false
+  if (prompt.value.presentation?.kind !== 'response') return false
+  return prompt.value.options.some((option) => promptOptionResponseKind(option) !== null)
+})
+
 const hasCounterOrDefend = computed(() => {
   if (!prompt.value?.options?.length) return false
-  return hasCounterOption.value || hasDefendOption.value
+  return hasCounterOption.value || hasDefendOption.value || isCombatResponsePrompt.value
 })
 
 type ResponseActionKind = 'take' | 'counter' | 'defend' | null
@@ -132,7 +143,7 @@ const responseAttackElementHintText = computed(() => {
   if (!displayName) return ''
   if (hasCounterOption.value) return `此次攻击系别：${displayName}（应战需同系或暗灭）`
   // 引擎只在有可用牌时才给出应战/防御；没有时说明原因，避免玩家以为漏了按钮
-  if (!hasCounterOrDefend.value) return `此次攻击系别：${displayName} · 没有可应战或防御的牌，只能承受`
+  if (!hasCounterOption.value && !hasDefendOption.value) return `此次攻击系别：${displayName} · 没有可应战或防御的牌，只能承受`
   return `此次攻击系别：${displayName}（无法应战）`
 })
 
