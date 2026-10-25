@@ -113,7 +113,9 @@ func decideActionSelection(playerID string, state StateSnapshot, prompt *model.P
 		}
 	}
 
-	return model.PlayerAction{PlayerID: playerID, Type: model.CmdPass}, true
+	// 规则上每个行动阶段必须执行一个行动，引擎不接受 Pass；
+	// 实在无事可做时宣告【无法行动】（额外行动阶段则等价于放弃本次额外行动）。
+	return model.PlayerAction{PlayerID: playerID, Type: model.CmdCannotAct}, true
 }
 
 func pickBestAttack(playerID string, state StateSnapshot, me PlayerSnapshot, attackCards []int, hand []model.Card, campNeed, handPressure, enemyThreat float64, memory *Memory) (model.PlayerAction, float64) {
@@ -849,7 +851,8 @@ func BuildFallbackAction(playerID string, prompt *model.Prompt, state StateSnaps
 			}
 		}
 	}
-	return model.PlayerAction{PlayerID: playerID, Type: model.CmdPass}, true
+	// 引擎不接受 Pass（无效的行动类型），兜底改为宣告无法行动
+	return model.PlayerAction{PlayerID: playerID, Type: model.CmdCannotAct}, true
 }
 
 func collectCardIndices(hand []model.Card, t model.CardType) []int {
