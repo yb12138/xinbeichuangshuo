@@ -5754,37 +5754,15 @@ const fighterHundredDragonByPlayer = computed(() => {
   justify-self: stretch;
   min-height: var(--self-status-card-height);
   height: var(--self-status-card-height);
-  padding: 10px 12px 12px;
-  border-radius: var(--bt-radius);
-  border: 1px solid var(--bt-chrome-mid);
-  background: var(--bt-panel);
-  /* 双层镀铬框，与左下角头像框同款 */
-  box-shadow:
-    inset 0 0 0 1px var(--bt-bg-0),
-    inset 0 0 0 2px var(--bt-hairline-soft),
-    inset 0 1px 0 2px var(--bt-hairline-soft),
-    0 0 0 1px var(--bt-bg-0),
-    0 0 0 2px var(--bt-hairline),
-    0 8px 20px var(--bt-bg-0);
-  overflow: hidden;
-}
-
-/* 底边中点的镀铬小菱形 */
-.right-action-dock::after {
-  content: '';
-  position: absolute;
-  left: 50%;
-  bottom: 3px;
-  width: 7px;
-  height: 7px;
-  transform: translateX(-50%) rotate(45deg);
-  background: var(--bt-bg-0);
-  box-shadow: 0 0 0 1px var(--bt-chrome-mid);
-  pointer-events: none;
+  /* 只做定位槽位：边框、底板、角花都由 ActionPanel 的 .dock-panel 自己画，避免双层框 */
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
 }
 
 .right-action-dock--active {
-  border-color: var(--bt-chrome);
   transform: translateY(-2px);
 }
 
