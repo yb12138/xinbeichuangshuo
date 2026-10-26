@@ -344,6 +344,9 @@ type IGameEngine interface {
 	DrawCardsWithOptions(playerID string, amount int, opts DrawOptions)
 	DrawRawCards(amount int) ([]Card, bool)
 	NotifyCardRevealed(playerID string, cards []Card, actionType DamageType)
+	// NotifySkillActivated 发出 skill_activated 事件（前端据此播技能开场与目标效果）。
+	// 供被动/钩子/选择结算等不走 skill executor 的技能显式补发；executor 路径已自动发出，勿重复调用。
+	NotifySkillActivated(playerID, skillID, skillName, effectText string, targetIDs []string)
 	DiscardCard(card *FieldCard) error //丢弃指定牌
 	AppendToDiscard(cards []Card)
 	Heal(playerID string, amount int)
