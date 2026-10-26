@@ -49,7 +49,7 @@ export const STATUS_MARKS: Record<string, StatusMarkDef> = {
   SwiftBlessing: { label: '迅捷赐福', hint: '攻击或法术行动结束后可移除，额外+1攻击行动。', tone: 'buff', glyph: 'wing-arrow' },
   Mercy: { label: '怜悯', hint: '手牌上限恒定为7，并获得1水晶。', tone: 'buff', glyph: 'palm' },
   BloodSharedLife: { label: '同生共死', hint: '与血之巫女同生共死，伤害与治疗相互牵连。', tone: 'buff', glyph: 'twin-heart' },
-  Poison: { label: '中毒', hint: '行动阶段开始前承受1点法术伤害，然后移除。', tone: 'debuff', glyph: 'drop' },
+  Poison: { label: '中毒', hint: '行动阶段开始前承受1点法术伤害，然后移除。', tone: 'debuff', glyph: 'skull' },
   Weak: { label: '虚弱', hint: '行动阶段开始前选择：跳过行动阶段，或摸3张牌继续。', tone: 'debuff', glyph: 'broken-sword' },
   SealFire: { label: '火之封印', hint: '打出或展示火系牌时强制触发，承受3点法术伤害后移除。', tone: 'seal', glyph: 'seal-fire', accent: '#ff6a4a' },
   SealWater: { label: '水之封印', hint: '打出或展示水系牌时强制触发，承受3点法术伤害后移除。', tone: 'seal', glyph: 'seal-water', accent: '#4fb0ff' },
@@ -70,7 +70,7 @@ export const COVER_MARKS: Record<string, CoverMarkDef> = {
   MagicBowCharge: { label: '充能', hint: '魔弓的充能；主动攻击前可移除来增加伤害。', glyph: 'crystal', accent: '#6fa8ff' },
   SpiritCasterPower: { label: '妖力', hint: '灵符师发动灵符时盖放的妖力。', glyph: 'talisman', accent: '#e3c46a' },
   SwordSoul: { label: '剑魂', hint: '剑帝主动攻击未命中时留下的攻击牌；按能量单双视为天使之魂或恶魔之魂。', glyph: 'sword', accent: '#b9a4ff' },
-  MoonDarkMoon: { label: '暗月', hint: '月之女神的闇月；可在对手攻击或回合结束时移除发动效果。', glyph: 'crescent', accent: '#c7b8ff' },
+  MoonDarkMoon: { label: '暗月', hint: '月之女神的闇月；可在对手攻击或回合结束时移除发动效果。', glyph: 'eclipse', accent: '#8c79c2' },
   ButterflyCocoon: { label: '茧', hint: '蝶舞者的茧；移除时触发朝圣或毒粉。', glyph: 'cocoon', accent: '#d9dee8' },
   ElfBlessing: { label: '祝福区', hint: '精灵射手的祝福区；可像手牌一样打出。', glyph: 'laurel', accent: '#59d39a' },
 }
@@ -99,7 +99,7 @@ export const TOKEN_MARKS: Record<string, TokenMarkDef> = {
   judgment: { label: '审判', hint: '仲裁者每次承受伤害+1，上限4。', glyph: 'scale', accent: '#9fd4ff' },
   element: { label: '元素', hint: '元素师的元素指示物。', glyph: 'prism', accent: '#4fd6c4' },
   bw_rebirth: { label: '重生', hint: '苍炎魔女因法术伤害士气下降时+1，上限4。', glyph: 'phoenix', accent: '#f0a35a' },
-  hb_faith: { label: '信仰', hint: '圣弓以圣命格攻击命中时+1。', glyph: 'pray', accent: '#f0d27a' },
+  hb_faith: { label: '信仰', hint: '圣弓以圣命格攻击命中时+1。', glyph: 'holy-cross', accent: '#f0d27a' },
   hb_cannon: { label: '圣煌辉光炮', hint: '圣弓的圣煌辉光炮次数。', glyph: 'sun', accent: '#f0d27a' },
   elf_blessing_count: { label: '祝福', hint: '精灵射手祝福区的牌数。', glyph: 'laurel', accent: '#59d39a' },
   bs_beast_soul: { label: '兽魂', hint: '兽灵武士普通形态主动攻击命中时+1。', glyph: 'fang', accent: '#e39a4f' },
@@ -113,6 +113,7 @@ export const COVER_COUNT_TOKEN_KEYS = new Set([
   'mg_dark_moon_count',
   'se_sword_soul_count',
   'mb_charge_count',
+  'elf_blessing_count',
 ])
 
 export function statusRingColor(def: StatusMarkDef): string {
