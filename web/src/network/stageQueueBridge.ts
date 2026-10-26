@@ -1,6 +1,7 @@
 import type { Card } from '../types/game'
 import type { ActionFlowDTO, ActionFlowEdgeDTO, ActionFlowNodeDTO, TimelineNotifyPayload } from './protocol'
 import {
+  deltaSteps,
   edgeEnd,
   edgeResolveSteps,
   edgeStartSteps,
@@ -45,6 +46,8 @@ interface FlowMemory {
   /** node id -> damage already shown as chips. */
   nodes: Map<string, number>
   logOrders: Set<number>
+  /** Acting player of the flow; state deltas carry no actor, so status icons fly from here. */
+  actorId: string
   narrated: boolean
   /** True once the flow produced its first step (and its mark-previous was enqueued). */
   started: boolean
@@ -66,7 +69,7 @@ function endKeyOf(edge: ActionFlowEdgeDTO): string {
 }
 
 /** On replay, drop transient beats and zero every hold so the final state applies immediately. */
-const REPLAY_DROPPED: ReadonlySet<AtomicStep['type']> = new Set(['skill-bubble', 'value-chip', 'turn-banner'])
+const REPLAY_DROPPED: ReadonlySet<AtomicStep['type']> = new Set(['skill-bubble', 'value-chip', 'status-change', 'turn-banner'])
 
 function toReplaySteps(steps: AtomicStep[]): AtomicStep[] {
   return steps
@@ -82,7 +85,7 @@ export function createStageQueueBridge(deps: StageQueueBridgeDeps) {
   function memoryFor(flowId: string): FlowMemory {
     const existing = flows.get(flowId)
     if (existing) return existing
-    const memory: FlowMemory = { edges: new Map(), nodes: new Map(), logOrders: new Set(), narrated: false, started: false }
+    const memory: FlowMemory = { edges: new Map(), nodes: new Map(), logOrders: new Set(), actorId: '', narrated: false, started: false }
     flows.set(flowId, memory)
     while (flows.size > MAX_REMEMBERED_FLOWS) {
       const oldest = flows.keys().next().value
@@ -176,6 +179,7 @@ export function createStageQueueBridge(deps: StageQueueBridgeDeps) {
     for (const flow of payload.action_flows || []) {
       if (!flow?.flow_id) continue
       const memory = memoryFor(flow.flow_id)
+      if (flow.actor_user_id) memory.actorId = flow.actor_user_id
       const delta = flowDelta(flow, memory)
       if (delta.length === 0) continue
       // A new action: demote the current one to "上一手" before its first beat.
@@ -185,6 +189,15 @@ export function createStageQueueBridge(deps: StageQueueBridgeDeps) {
         currentFlowId = flow.flow_id
       }
       batch.push(...delta)
+    }
+    // Heal / status changes only arrive as state deltas; play them after the flow beats they follow.
+    if (!payload.is_replay) {
+      for (const event of payload.events || []) {
+        if (!event.deltas?.length) continue
+        const flowId = event.action_id || event.source_event_id || ''
+        const actorId = event.actor_user_id || (flowId ? flows.get(flowId)?.actorId : '') || ''
+        batch.push(...deltaSteps(event.deltas, actorId))
+      }
     }
     if (batch.length === 0) return
     stageQueue.enqueue(...(payload.is_replay ? toReplaySteps(batch) : batch))

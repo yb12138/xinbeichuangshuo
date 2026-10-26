@@ -45,6 +45,74 @@ describe('createStageQueueBridge', () => {
     expect(row && row.type === 'narration-row' && row.html).toContain('封印师（测试玩家5）')
   })
 
+  it('attaches structured chain data and the card element to edge steps', () => {
+    const card = { id: 'c1', name: '雷光斩', type: 'Attack', element: 'Thunder', damage: 2 } as NonNullable<ActionFlowEdgeDTO['cards']>[number]
+    bridge.onTimeline(payload([flow('f1', [attackEdge({ cards: [card] })])]))
+    const steps = queued()
+    const link = steps.find((step) => step.type === 'link')
+    expect(link && link.type === 'link' && link.element).toBe('Thunder')
+    const row = steps.find((step) => step.type === 'narration-row')
+    expect(row && row.type === 'narration-row' && row.chain).toMatchObject({
+      linkId: 'f1:e1',
+      fromPlayerId: 'p5',
+      toPlayerId: 'p1',
+      verb: '攻击',
+      card: { name: '雷光斩', element: 'Thunder' },
+    })
+  })
+
+  it('uses the skill animation map for the skill opening', () => {
+    bridge.onTimeline(
+      payload([
+        flow('f1', [{ id: 'e1', order: 1, from_user_id: 'p1', to_user_id: 'p1', phase: 'skill' } as ActionFlowEdgeDTO], {
+          action_type: 'skill',
+          nodes: [
+            { id: 'n1', order: 1, kind: 'skill', actor_user_id: 'p1', skill_id: 'healing_light', skill_name: '治愈之光', target_user_ids: ['p1', 'p5'], anchor_edge_id: 'e1' },
+            { id: 'n2', order: 2, kind: 'skill', actor_user_id: 'p1', skill_id: 'frost_prayer', skill_name: '冰霜祷言', target_user_ids: ['p1'], anchor_edge_id: 'e1' },
+          ],
+        }),
+      ]),
+    )
+    const steps = queued()
+    // A self skill edge is only an anchor: no "圣女 → 圣女" row and no link.
+    expect(steps.some((step) => step.type === 'link')).toBe(false)
+    const bubbles = steps.filter((step) => step.type === 'skill-bubble')
+    expect(bubbles).toMatchObject([
+      { skillName: '治愈之光', opening: 'active', effects: ['heal'], targetIds: ['p1', 'p5'] },
+      { skillName: '冰霜祷言', opening: 'trigger' },
+    ])
+    const rows = steps.filter((step) => step.type === 'narration-row')
+    expect(rows.map((row) => row.type === 'narration-row' && row.skill?.opening)).toEqual(['active', 'trigger'])
+  })
+
+  it('turns heal and status state deltas into heal numbers and flying status icons', () => {
+    bridge.onTimeline(payload([flow('f1', [attackEdge()], { actor_user_id: 'p5' })]))
+    const before = queued().length
+    bridge.onTimeline({
+      ...payload([flow('f1', [attackEdge()], { actor_user_id: 'p5' })]),
+      events: [
+        {
+          event_id: 9,
+          turn_id: 1,
+          chain_id: 'c',
+          type: 'TimelineEffectResolved',
+          outcome: '',
+          visibility: '',
+          action_id: 'f1',
+          deltas: [
+            { type: 'heal', target_user_id: 'p1', value: 1 },
+            { type: 'hand_count', target_user_id: 'p1', value: -1 },
+            { type: 'status', field: 'status:Poison', target_user_id: 'p1', value: 1 },
+          ],
+        },
+      ],
+    })
+    expect(queued().slice(before)).toEqual([
+      { type: 'value-chip', playerId: 'p1', text: '+1', color: 'heal' },
+      { type: 'status-change', playerId: 'p1', statusKey: 'Poison', added: true, fromPlayerId: 'p5' },
+    ])
+  })
+
   it('enqueues nothing new when identical action_flows are re-sent', () => {
     const flows = [flow('f1', [attackEdge()])]
     bridge.onTimeline(payload(flows))
@@ -68,12 +136,13 @@ describe('createStageQueueBridge', () => {
     expect(links[0]).toMatchObject({ linkId: 'f1:e2' })
     expect(added.every((step) => !('linkId' in step) || step.linkId === 'f1:e2')).toBe(true)
 
-    // Outcome set later on the original edge: only its end mark (damage shown once, on the link).
+    // Outcome set later on the original edge: end mark, then the impact number on the target.
     const before2 = queued().length
     bridge.onTimeline(payload([flow('f1', [attackEdge({ outcome: 'hit', damage: 2 }), defend])]))
     const added2 = queued().slice(before2)
-    expect(types(added2)).toEqual(['link-animate', 'link-end'])
+    expect(types(added2)).toEqual(['link-animate', 'link-end', 'value-chip'])
     expect(added2[1]).toMatchObject({ linkId: 'f1:e1', style: 'hit', text: '2伤害' })
+    expect(added2[2]).toMatchObject({ playerId: 'p1', text: '-2', color: 'damage' })
   })
 
   it('folds a "take" self-resolve edge into a narration row and a damage chip, without a link', () => {

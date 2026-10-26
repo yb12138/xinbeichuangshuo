@@ -1,7 +1,8 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import type { Card } from '../types/game'
-import type { ActionFlowDTO, ActionFlowEdgeDTO, ActionFlowNodeDTO } from '../network/protocol'
+import type { ActionFlowDTO, ActionFlowEdgeDTO, ActionFlowNodeDTO, TimelineDelta } from '../network/protocol'
+import { SKILL_ANIMATION_MAP, type SkillEffectTemplate, type SkillOpening } from '../constants/skillAnimationMap'
 
 /**
  * Unified battle-stage playback queue.
@@ -31,17 +32,53 @@ export type AtomicStep = StepTiming &
         color: LinkColor
         label: string
         cardImageUrl?: string
+        /** Element of the played card; drives the arc colour on the stage. */
+        element?: string
       }
     | { type: 'link-animate'; linkId: string; active: boolean }
     | { type: 'link-end'; linkId: string; text: string; style: LinkEndStyle }
-    | { type: 'skill-bubble'; playerId: string; skillName: string; effectText: string; duration: number }
+    | {
+        type: 'skill-bubble'
+        playerId: string
+        skillName: string
+        effectText: string
+        duration: number
+        /** 'active' = sigil + plaque + beams; 'trigger' = small capsule only. Defaults to 'active'. */
+        opening?: SkillOpening
+        skillId?: string
+        element?: string
+        effects?: SkillEffectTemplate[]
+        targetIds?: string[]
+      }
     | { type: 'value-chip'; playerId: string; text: string; color: ValueChipColor }
-    | { type: 'status-change'; playerId: string; statusKey: string; added: boolean }
+    | { type: 'status-change'; playerId: string; statusKey: string; added: boolean; fromPlayerId?: string }
     | { type: 'turn-banner'; text: string; duration: number }
     | { type: 'mark-previous' }
     | { type: 'clear-stage'; summary?: string }
-    | { type: 'narration-row'; html: string; tag: string; tagColor: LinkColor }
+    | { type: 'narration-row'; html: string; tag: string; tagColor: LinkColor; chain?: NarrationChain; skill?: NarrationSkill }
   )
+
+/** Structured form of a skill row, rendered as a skill node of the combat chain. */
+export interface NarrationSkill {
+  skillId: string
+  skillName: string
+  actorId: string
+  targetIds: string[]
+  opening: SkillOpening
+  element?: string
+  effects: SkillEffectTemplate[]
+  /** Link drawn for this skill (actor → first target), whose result the node shows. */
+  linkId?: string
+}
+
+/** Structured form of an edge row, rendered as one node of the combat chain. */
+export interface NarrationChain {
+  linkId: string
+  fromPlayerId: string
+  toPlayerId: string
+  verb: string
+  card?: Pick<Card, 'name' | 'element' | 'type'>
+}
 
 export type AtomicStepType = AtomicStep['type']
 
@@ -52,6 +89,7 @@ export interface LinkState {
   color: LinkColor
   label: string
   cardImageUrl?: string
+  element?: string
   animating: boolean
   end: { text: string; style: LinkEndStyle } | null
   /** True once the link belongs to the "上一手" layer (rendered dimmed + dashed). */
@@ -65,6 +103,19 @@ export interface SkillBubbleState {
   skillName: string
   effectText: string
   startedAt: number
+  expiresAt: number
+  skillId: string
+  element?: string
+  effects: SkillEffectTemplate[]
+  targetIds: string[]
+}
+
+/** Small "技能名 · 触发" capsule beside a seat (passive / response skills). */
+export interface SkillCapsuleState {
+  id: number
+  playerId: string
+  skillName: string
+  element?: string
   expiresAt: number
 }
 
@@ -81,6 +132,8 @@ export interface StatusChangeState {
   playerId: string
   statusKey: string
   added: boolean
+  /** Caster the status flies from; absent = the icon just pops on the target. */
+  fromPlayerId?: string
   expiresAt: number
 }
 
@@ -90,6 +143,8 @@ export interface NarrationRow {
   html: string
   tag: string
   tagColor: LinkColor
+  chain?: NarrationChain
+  skill?: NarrationSkill
 }
 
 export interface PreviousActionState {
@@ -100,9 +155,12 @@ export interface PreviousActionState {
 const PREVIOUS_LABEL = '上一手'
 const MAX_HISTORY_CHIPS = 20
 const AUTO_ACCELERATE_THRESHOLD = 3
-const VALUE_CHIP_LIFETIME_MS = 1400
-const STATUS_CHANGE_LIFETIME_MS = 1200
-const DEFAULT_SKILL_BUBBLE_MS = 1600
+const VALUE_CHIP_LIFETIME_MS = 2000
+const STATUS_CHANGE_LIFETIME_MS = 1600
+const DEFAULT_SKILL_BUBBLE_MS = 1900
+const SKILL_CAPSULE_LIFETIME_MS = 1600
+/** Trigger capsules don't hold the queue as long as a full active-skill opening. */
+const TRIGGER_HOLD_MS = 350
 const DEFAULT_TURN_BANNER_MS = 1200
 
 /** Default time the queue waits after applying a step, at 1x speed. */
@@ -111,8 +169,8 @@ const DEFAULT_HOLD_MS: Record<AtomicStepType, number> = {
   'link-animate': 450,
   'link-end': 400,
   'skill-bubble': 700,
-  'value-chip': 200,
-  'status-change': 150,
+  'value-chip': 450,
+  'status-change': 300,
   'turn-banner': DEFAULT_TURN_BANNER_MS,
   'mark-previous': 200,
   'clear-stage': 0,
@@ -124,6 +182,7 @@ function stepHoldMs(step: AtomicStep): number {
   if (step.type === 'turn-banner') return Math.max(0, step.duration)
   // Turning a link animation off is instant; only the "flowing" beat takes time.
   if (step.type === 'link-animate' && !step.active) return 0
+  if (step.type === 'skill-bubble' && step.opening === 'trigger') return TRIGGER_HOLD_MS
   return DEFAULT_HOLD_MS[step.type]
 }
 
@@ -144,6 +203,7 @@ export const useStageQueueStore = defineStore('stageQueue', () => {
   const queue = ref<AtomicStep[]>([])
   const activeLinks = ref<Map<string, LinkState>>(new Map())
   const activeSkillBubble = ref<SkillBubbleState | null>(null)
+  const skillCapsules = ref<SkillCapsuleState[]>([])
   const valueChips = ref<ValueChipState[]>([])
   const statusChanges = ref<StatusChangeState[]>([])
   const stageRows = ref<NarrationRow[]>([])
@@ -221,6 +281,7 @@ export const useStageQueueStore = defineStore('stageQueue', () => {
     stageRows.value = []
     activeLinks.value.clear()
     activeSkillBubble.value = null
+    skillCapsules.value = []
     valueChips.value = []
     statusChanges.value = []
   }
@@ -235,6 +296,7 @@ export const useStageQueueStore = defineStore('stageQueue', () => {
           color: step.color,
           label: step.label,
           cardImageUrl: step.cardImageUrl,
+          element: step.element,
           animating: false,
           end: null,
           previous: false,
@@ -255,6 +317,13 @@ export const useStageQueueStore = defineStore('stageQueue', () => {
         break
       }
       case 'skill-bubble': {
+        if (step.opening === 'trigger') {
+          skillCapsules.value = [
+            ...skillCapsules.value,
+            { id: ++seq, playerId: step.playerId, skillName: step.skillName, element: step.element, expiresAt: at + SKILL_CAPSULE_LIFETIME_MS * scale },
+          ]
+          break
+        }
         const duration = step.duration > 0 ? step.duration : DEFAULT_SKILL_BUBBLE_MS
         activeSkillBubble.value = {
           id: ++seq,
@@ -263,6 +332,10 @@ export const useStageQueueStore = defineStore('stageQueue', () => {
           effectText: step.effectText,
           startedAt: at,
           expiresAt: at + duration * scale,
+          skillId: step.skillId || '',
+          element: step.element,
+          effects: step.effects || [],
+          targetIds: step.targetIds || [],
         }
         break
       }
@@ -280,6 +353,7 @@ export const useStageQueueStore = defineStore('stageQueue', () => {
             playerId: step.playerId,
             statusKey: step.statusKey,
             added: step.added,
+            fromPlayerId: step.fromPlayerId,
             expiresAt: at + STATUS_CHANGE_LIFETIME_MS * scale,
           },
         ]
@@ -295,7 +369,10 @@ export const useStageQueueStore = defineStore('stageQueue', () => {
         clearStage(step.summary)
         break
       case 'narration-row':
-        stageRows.value = [...stageRows.value, { id: ++seq, html: step.html, tag: step.tag, tagColor: step.tagColor }]
+        stageRows.value = [
+          ...stageRows.value,
+          { id: ++seq, html: step.html, tag: step.tag, tagColor: step.tagColor, chain: step.chain, skill: step.skill },
+        ]
         break
     }
   }
@@ -303,6 +380,9 @@ export const useStageQueueStore = defineStore('stageQueue', () => {
   function expireTransient(at: number) {
     if (activeSkillBubble.value && at >= activeSkillBubble.value.expiresAt) {
       activeSkillBubble.value = null
+    }
+    if (skillCapsules.value.some((capsule) => at >= capsule.expiresAt)) {
+      skillCapsules.value = skillCapsules.value.filter((capsule) => at < capsule.expiresAt)
     }
     if (turnBanner.value && at >= turnBannerExpiresAt) {
       turnBanner.value = null
@@ -346,6 +426,7 @@ export const useStageQueueStore = defineStore('stageQueue', () => {
     queue.value = []
     activeLinks.value.clear()
     activeSkillBubble.value = null
+    skillCapsules.value = []
     valueChips.value = []
     statusChanges.value = []
     stageRows.value = []
@@ -362,6 +443,7 @@ export const useStageQueueStore = defineStore('stageQueue', () => {
     queue,
     activeLinks,
     activeSkillBubble,
+    skillCapsules,
     valueChips,
     statusChanges,
     stageRows,
@@ -473,6 +555,10 @@ export function nodeSteps(
 
   if (kind === 'skill') {
     const skillName = node.skill_name || node.label || '技能'
+    const skillId = node.skill_id || ''
+    const spec = skillId ? SKILL_ANIMATION_MAP[skillId] : undefined
+    const opening: SkillOpening = spec?.opening ?? 'active'
+    const targetIds = (node.target_user_ids || []).filter(Boolean)
     if (node.actor_user_id) {
       steps.push({
         type: 'skill-bubble',
@@ -480,6 +566,11 @@ export function nodeSteps(
         skillName,
         effectText: node.effect_text || '',
         duration: DEFAULT_SKILL_BUBBLE_MS,
+        opening,
+        skillId,
+        element: spec?.element,
+        effects: spec?.effects ?? [],
+        targetIds,
       })
     }
     const effect = node.effect_text ? `：${escapeHtml(node.effect_text)}` : ''
@@ -489,6 +580,15 @@ export function nodeSteps(
       html: `${actor} 发动【${escapeHtml(skillName)}】${toward}${effect}`.trim(),
       tag: '技能',
       tagColor: 'skill',
+      skill: {
+        skillId,
+        skillName,
+        actorId: node.actor_user_id || '',
+        targetIds,
+        opening,
+        element: spec?.element,
+        effects: spec?.effects ?? [],
+      },
     })
   } else if ((kind === 'effect' || kind === 'extra_action') && label) {
     const tag = kind === 'extra_action' ? '额外行动' : '效果'
@@ -526,6 +626,49 @@ export function flowLinkId(flowId: string, edgeId: string): string {
 }
 
 /** Steps that introduce an edge: link + flowing animation + narration row. */
+/** Status/field-card keys the stage can draw as a flying icon (matches StatusEffectIcon). */
+const STAGE_STATUS_KEYS = new Set([
+  'Shield', 'Poison', 'Weak', 'SealFire', 'SealWater', 'SealEarth', 'SealWind', 'SealThunder', 'FiveElementsBind',
+  'Stealth', 'PowerBlessing', 'SwiftBlessing', 'HeroTaunt', 'BloodSharedLife', 'SoulLink', 'RoseCourtyard',
+  'BardEternalMovement',
+])
+
+/**
+ * Public state deltas → stage beats: +N 治疗 lands as a heal number, a status / field-effect
+ * card flies from the acting player into the target's status bar. Other deltas (hand counts,
+ * gems, tokens) are left to the board itself.
+ */
+export function deltaSteps(deltas: TimelineDelta[], actorId?: string): AtomicStep[] {
+  const steps: AtomicStep[] = []
+  for (const delta of deltas) {
+    const target = delta.target_user_id || ''
+    if (!target) continue
+    const value = delta.value ?? 0
+    if (delta.type === 'heal' && value > 0) {
+      steps.push({ type: 'value-chip', playerId: target, text: `+${value}`, color: 'heal' })
+      continue
+    }
+    let statusKey = ''
+    let added = false
+    if (delta.type === 'field_card_added' || delta.type === 'field_card_removed') {
+      statusKey = delta.field_card?.effect || ''
+      added = delta.type === 'field_card_added'
+    } else if (delta.type === 'status' && delta.field?.startsWith('status:')) {
+      statusKey = delta.field.slice('status:'.length)
+      added = value > 0
+    }
+    if (!statusKey || !STAGE_STATUS_KEYS.has(statusKey)) continue
+    steps.push({
+      type: 'status-change',
+      playerId: target,
+      statusKey,
+      added,
+      ...(added && actorId && actorId !== target ? { fromPlayerId: actorId } : {}),
+    })
+  }
+  return steps
+}
+
 export function edgeStartSteps(
   flowId: string,
   edge: ActionFlowEdgeDTO,
@@ -534,6 +677,8 @@ export function edgeStartSteps(
   cardImageFn?: (card: Card) => string | undefined,
 ): AtomicStep[] {
   if (isSelfResolveEdge(edge)) {
+    // A self skill edge is only the anchor of the skill node, which narrates itself.
+    if (normalizePhase(edge.phase) === 'skill') return []
     // 承受结算只记一行叙事，不画线；结果（伤害数值）由 edgeResolveSteps 标到目标身上
     const who = playerHtml(edge.to_user_id || edge.from_user_id, playerNameFn, roleNameFn)
     return who ? [{ type: 'narration-row', html: `${who} ${phaseVerb(edge.phase)}`, tag: phaseVerb(edge.phase), tagColor: 'grey' }] : []
@@ -555,6 +700,7 @@ export function edgeStartSteps(
   }
   const imageUrl = firstCard && cardImageFn ? cardImageFn(firstCard) : undefined
   if (imageUrl) link.cardImageUrl = imageUrl
+  if (firstCard?.element) link.element = firstCard.element
 
   const from = playerHtml(edge.from_user_id, playerNameFn, roleNameFn)
   const to = playerHtml(edge.to_user_id, playerNameFn, roleNameFn)
@@ -562,7 +708,19 @@ export function edgeStartSteps(
   return [
     link,
     { type: 'link-animate', linkId, active: true },
-    { type: 'narration-row', html: `${from} → ${to}${cardHtml}`, tag: verb, tagColor: color },
+    {
+      type: 'narration-row',
+      html: `${from} → ${to}${cardHtml}`,
+      tag: verb,
+      tagColor: color,
+      chain: {
+        linkId,
+        fromPlayerId: edge.from_user_id,
+        toPlayerId: edge.to_user_id,
+        verb,
+        card: firstCard ? { name: firstCard.name, element: firstCard.element, type: firstCard.type } : undefined,
+      },
+    },
   ]
 }
 
@@ -573,9 +731,8 @@ export function isSelfResolveEdge(edge: ActionFlowEdgeDTO): boolean {
 }
 
 /**
- * Steps that resolve an edge: stop flowing + result marker at the link end.
- * Damage is shown once, as the end marker; a separate chip is only used when there is no
- * link to anchor it on (self-resolve edges).
+ * Steps that resolve an edge: stop flowing + result marker at the link end, then the
+ * damage/heal impact number on the target seat.
  */
 export function edgeResolveSteps(flowId: string, edge: ActionFlowEdgeDTO): AtomicStep[] {
   const damage = edge.damage ?? 0
@@ -590,6 +747,10 @@ export function edgeResolveSteps(flowId: string, edge: ActionFlowEdgeDTO): Atomi
   const steps: AtomicStep[] = [{ type: 'link-animate', linkId, active: false }]
   const end = edgeEnd(edge)
   if (end) steps.push({ type: 'link-end', linkId, text: end.text, style: end.style })
+  // The impact number lands on the target seat right after the strike resolves.
+  if (damage > 0 && edge.to_user_id && end && (end.style === 'hit' || end.style === 'heal')) {
+    steps.push({ type: 'value-chip', playerId: edge.to_user_id, text: heal ? `+${damage}` : `-${damage}`, color: heal ? 'heal' : 'damage' })
+  }
   return steps
 }
 

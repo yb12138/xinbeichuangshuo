@@ -11,6 +11,7 @@ import { useSnapshotStore } from '../stores/snapshot.store'
 import { useTimelineStore } from '../stores/timeline.store'
 import { useStageQueueStore } from '../stores/stageQueue.store'
 import { createStageQueueBridge } from './stageQueueBridge'
+import { cardArtSrc } from '../constants/cardArt'
 import { useUiStore } from '../stores/ui.store'
 
 export interface GameplayMessageHandlerDeps {
@@ -48,6 +49,7 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
       const role = snapshotStore.players[id]?.role || ''
       return snapshotStore.characters[role]?.name || ''
     },
+    cardImage: (card) => (card?.name ? cardArtSrc(card) : undefined),
   })
 
   const normalizeCamp = (camp?: string): MoraleCamp | undefined => {
