@@ -321,6 +321,7 @@ func handleIncantCard(rt engineplayer.ChoiceRuntime, ctxData map[string]interfac
 	user.Hand = append(user.Hand[:selectionIndex], user.Hand[selectionIndex+1:]...)
 	AddPowerCard(user, card)
 	rt.Log(fmt.Sprintf("%s 发动 [念咒]：将1张手牌盖放为妖力（当前妖力%d）", user.Name, PowerCount(user, "")))
+	engineplayer.NotifySkillActivated(rt, user, user.ID, "sc_incantation", user.ID)
 	rt.PopInterrupt()
 	return continueSpiritCasterResolution(rt, user, skillID, targetIDs)
 }

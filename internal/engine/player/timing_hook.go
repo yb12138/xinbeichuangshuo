@@ -212,6 +212,8 @@ type HookRuntime interface {
 	HasPendingDiscardFor(playerID string) bool
 	RecordMagicDamageTarget(sourceID, targetID string)
 	MagicDamageTargetCount(sourceID string) int
+	// NotifySkillActivated 为 hook 内直接生效的被动技能发出 skill_activated 事件。
+	NotifySkillActivated(playerID, skillID, skillName, effectText string, targetIDs []string)
 	BuildContext(user, target *model.Player, timing model.FlowTiming, eventCtx *model.EventContext) *model.Context
 	IsSkillStillUsable(skillID string, user *model.Player, ctx *model.Context) bool
 	IsMagicDamageType(damageType model.DamageType) bool

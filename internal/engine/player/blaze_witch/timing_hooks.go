@@ -87,6 +87,7 @@ func moraleLossHook(rt player.HookRuntime, ctx player.TimingHookContext) player.
 	}
 	if current != before {
 		rt.Log(fmt.Sprintf("%s 的 [永生银时计] 触发，重生+1（当前%d）", victim.Name, current))
+		player.NotifySkillActivated(rt, victim, victim.ID, "bw_rebirth_clock", victim.ID)
 	}
 	return player.TimingHookResult{}
 }

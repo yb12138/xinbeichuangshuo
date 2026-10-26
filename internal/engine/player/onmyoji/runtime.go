@@ -45,7 +45,8 @@ func MaybeDarkRitual(rt engineplayer.ChoiceRuntime, player *model.Player) bool {
 // ApplyFactionCounterBonuses 应用阴阳转换与式神转换效果。
 // 阴阳转换：鬼火+1；若处于式神形态则脱离式神形态；攻击伤害=当前鬼火数。
 // 式神转换：阴阳转换生效时自动触发，强制摸1张牌，然后+1鬼火。
-func ApplyFactionCounterBonuses(rt engineplayer.ChoiceRuntime, actor *model.Player, card *model.Card) {
+// attackerID 为被应战的原攻击者，作为阴阳转换 skill_activated 的目标。
+func ApplyFactionCounterBonuses(rt engineplayer.ChoiceRuntime, actor *model.Player, card *model.Card, attackerID string) {
 	if actor == nil || card == nil {
 		return
 	}
@@ -60,6 +61,11 @@ func ApplyFactionCounterBonuses(rt engineplayer.ChoiceRuntime, actor *model.Play
 		actor.Tokens["onmyoji_ghost_fire"] = 3
 	}
 	rt.Log(fmt.Sprintf("%s 的 [阴阳转换] 触发，鬼火+1", actor.Name))
+	var targetIDs []string
+	if attackerID != "" {
+		targetIDs = []string{attackerID}
+	}
+	engineplayer.NotifySkillActivated(rt, actor, actor.ID, "onmyoji_yinyang_shift", targetIDs...)
 
 	// 式神转换：阴阳转换生效时自动触发（无条件）
 	triggerShikigamiShift(rt, actor)

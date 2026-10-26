@@ -89,6 +89,7 @@ func postAttackHitHook(rt player.HookRuntime, ctx player.TimingHookContext) play
 		after := AddFaith(p, 1)
 		if after > before {
 			rt.Log(fmt.Sprintf("%s 的 [天之弓] 触发：信仰+1（当前%d）", p.Name, after))
+			player.NotifySkillActivated(rt, p, p.ID, "hb_heavenly_bow", p.ID)
 		}
 	}
 	return player.TimingHookResult{}

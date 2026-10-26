@@ -995,9 +995,11 @@ func handlePilgrimageOrPoisonPick(rt engineplayer.ChoiceRuntime, ctxData map[str
 			pd.Damage--
 		}
 		rt.Log(fmt.Sprintf("%s 发动 [朝圣]：移除1个茧，抵御1点伤害（剩余伤害=%d）", user.Name, pd.Damage))
+		engineplayer.NotifySkillActivated(rt, user, user.ID, "bt_pilgrimage", user.ID)
 	} else {
 		pd.Damage++
 		rt.Log(fmt.Sprintf("%s 发动 [毒粉]：移除1个茧，本次法术伤害+1（当前伤害=%d）", user.Name, pd.Damage))
+		engineplayer.NotifySkillActivated(rt, user, user.ID, "bt_poison_powder", pd.TargetID)
 	}
 
 	if removedCard.Type == model.CardTypeMagic {
@@ -1127,6 +1129,8 @@ func handleMirrorPair(rt engineplayer.ChoiceRuntime, ctxData map[string]interfac
 		DamageType: model.MagicAttack,
 	})
 
+	engineplayer.NotifySkillActivated(rt, user, user.ID, "bt_mirror", originTargetID)
+
 	for _, c := range removedCards {
 		if c.Type == model.CardTypeMagic {
 			queueWitherChoice(rt, user)
@@ -1219,6 +1223,7 @@ func handleWitherTarget(rt engineplayer.ChoiceRuntime, ctxData map[string]interf
 	})
 	engineplayer.EnsurePlayerSkillFlowState(user)
 	user.TurnState.SkillFlowState["bt_wither_active"] = 1
+	engineplayer.NotifySkillActivated(rt, user, user.ID, "bt_wither", targetID, user.ID)
 
 	if user.TurnState.SkillFlowState == nil {
 		user.TurnState.SkillFlowState = map[string]int{}

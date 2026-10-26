@@ -135,6 +135,7 @@ func handleParadiseAllyPick(rt engineplayer.ChoiceRuntime, playerID string, sele
 	}
 	rt.Log(fmt.Sprintf("[冒险者天堂] %s 选择队友 %s 代为提炼", playerID, ally.Name))
 	rt.PopInterrupt()
+	engineplayer.NotifySkillActivated(rt, rt.GetPlayers()[playerID], playerID, "adventurer_paradise", allyID)
 	rt.StartExtractForPlayer(allyID)
 	return true, nil
 }

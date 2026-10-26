@@ -154,6 +154,7 @@ func handleMilitaryGloryMode(rt engineplayer.ChoiceRuntime, selectionIndex int, 
 		rt.Heal(userID, 1)
 		leaveHeroicForm(user)
 		rt.Log(fmt.Sprintf("%s 选择军威神光选项1：+1治疗并脱离英灵形态", user.Name))
+		engineplayer.NotifySkillActivated(rt, user, user.ID, "valkyrie_military_glory", user.ID)
 		rt.PopInterrupt()
 		return nil
 	case 1:
@@ -242,6 +243,7 @@ func handleMilitaryGloryTarget(rt engineplayer.ChoiceRuntime, selectionIndex int
 	}
 	rt.Heal(targetID, x)
 	rt.Log(fmt.Sprintf("%s 选择军威神光选项2：移除%d星石并使 %s +%d治疗", user.Name, x, target.Name, x))
+	engineplayer.NotifySkillActivated(rt, user, user.ID, "valkyrie_military_glory", target.ID)
 	rt.PopInterrupt()
 	return nil
 }

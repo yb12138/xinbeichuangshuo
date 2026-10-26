@@ -450,7 +450,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		}
 
 		// Apply 阴阳转换 + 式神转换 bonuses (统一入口)
-		ApplyFactionCounterBonuses(rt, actor, &card)
+		ApplyFactionCounterBonuses(rt, actor, &card, onmyojiCounterAttackerID(rt, ctxData))
 
 		// Add card to discard pile
 		rt.AppendToDiscard([]model.Card{card})
@@ -527,7 +527,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		// Apply 阴阳转换 + 式神转换 bonuses (统一入口)
 		// 注意：selectedUseFaction 表示是否使用同命格应战（阴阳转换）
 		if selectedUseFaction {
-			ApplyFactionCounterBonuses(rt, actor, &card)
+			ApplyFactionCounterBonuses(rt, actor, &card, onmyojiCounterAttackerID(rt, ctxData))
 		}
 
 		// Add card to discard pile
@@ -714,10 +714,22 @@ func resolveOnmyojiDarkRitualTarget(rt engineplayer.ChoiceRuntime, ctxData map[s
 		DamageType: model.MagicAttack,
 	})
 	rt.Log(fmt.Sprintf("%s 的 [黑暗祭礼] 生效：对 %s 造成2点法术伤害", user.Name, target.Name))
+	engineplayer.NotifySkillActivated(rt, user, user.ID, "onmyoji_dark_ritual", targetID)
 	rt.PopInterrupt()
 	if rt.GetPendingInterrupt() == nil {
 		rt.ApplyChoiceResumePoint(model.TurnStageTurnEnd)
 		rt.EnterDamageResolution(nil)
 	}
 	return nil
+}
+
+// onmyojiCounterAttackerID 返回被阴阳师应战的原攻击者 ID（优先取中断上下文，回退到战斗栈顶）。
+func onmyojiCounterAttackerID(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}) string {
+	if id, _ := ctxData["attacker_id"].(string); id != "" {
+		return id
+	}
+	if stack := rt.GetCombatStack(); len(stack) > 0 {
+		return stack[len(stack)-1].AttackerID
+	}
+	return ""
 }

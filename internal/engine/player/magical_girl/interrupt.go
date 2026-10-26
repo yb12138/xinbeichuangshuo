@@ -439,7 +439,18 @@ func resolveMagicBulletDirectionAction(rt player.ChoiceRuntime, act model.Player
 		direction = "逆时针"
 		rt.Log(fmt.Sprintf("[Skill] %s 发动【魔弹掌控】，魔弹将%s传递！", p.Name, direction))
 	}
-	return rt.ExecuteMagicBullet(p, reverse, isFusion, fusionCard)
+	if err := rt.ExecuteMagicBullet(p, reverse, isFusion, fusionCard); err != nil {
+		return err
+	}
+	if reverse {
+		// 仅选择逆向传递才算发动魔弹掌控；目标为逆向后的首个魔弹目标。
+		var targetIDs []string
+		if chain := rt.GetMagicBulletChain(); chain != nil && chain.TargetID != "" {
+			targetIDs = []string{chain.TargetID}
+		}
+		player.NotifySkillActivated(rt, p, p.ID, "magic_bullet_control", targetIDs...)
+	}
+	return nil
 }
 
 func handleMagicBlastAction(rt player.ChoiceRuntime, act model.PlayerAction) (player.InterruptActionResult, error) {
