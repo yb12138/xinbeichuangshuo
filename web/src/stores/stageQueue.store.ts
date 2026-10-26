@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import type { Card } from '../types/game'
 import type { ActionFlowDTO, ActionFlowEdgeDTO, ActionFlowNodeDTO, TimelineDelta } from '../network/protocol'
 import { SKILL_ANIMATION_MAP, type SkillEffectTemplate, type SkillOpening } from '../constants/skillAnimationMap'
+import { COVER_MARKS, STATUS_MARKS, TOKEN_MARKS } from '../constants/battleMarks'
 
 /**
  * Unified battle-stage playback queue.
@@ -51,7 +52,17 @@ export type AtomicStep = StepTiming &
         targetIds?: string[]
       }
     | { type: 'value-chip'; playerId: string; text: string; color: ValueChipColor }
-    | { type: 'status-change'; playerId: string; statusKey: string; added: boolean; fromPlayerId?: string }
+    | {
+        type: 'status-change'
+        playerId: string
+        statusKey: string
+        added: boolean
+        fromPlayerId?: string
+        /** 'status' = 场上状态（默认）；'cover' = 盖牌；'token' = 指示物。 */
+        markKind?: MarkKind
+        /** 指示物增减量（显示为 +N / -N）。 */
+        amount?: number
+      }
     | { type: 'turn-banner'; text: string; duration: number }
     | { type: 'mark-previous' }
     | { type: 'clear-stage'; summary?: string }
@@ -127,11 +138,15 @@ export interface ValueChipState {
   expiresAt: number
 }
 
+export type MarkKind = 'status' | 'cover' | 'token'
+
 export interface StatusChangeState {
   id: number
   playerId: string
   statusKey: string
   added: boolean
+  markKind: MarkKind
+  amount?: number
   /** Caster the status flies from; absent = the icon just pops on the target. */
   fromPlayerId?: string
   expiresAt: number
@@ -353,6 +368,8 @@ export const useStageQueueStore = defineStore('stageQueue', () => {
             playerId: step.playerId,
             statusKey: step.statusKey,
             added: step.added,
+            markKind: step.markKind ?? 'status',
+            amount: step.amount,
             fromPlayerId: step.fromPlayerId,
             expiresAt: at + STATUS_CHANGE_LIFETIME_MS * scale,
           },
@@ -626,17 +643,10 @@ export function flowLinkId(flowId: string, edgeId: string): string {
 }
 
 /** Steps that introduce an edge: link + flowing animation + narration row. */
-/** Status/field-card keys the stage can draw as a flying icon (matches StatusEffectIcon). */
-const STAGE_STATUS_KEYS = new Set([
-  'Shield', 'Poison', 'Weak', 'SealFire', 'SealWater', 'SealEarth', 'SealWind', 'SealThunder', 'FiveElementsBind',
-  'Stealth', 'PowerBlessing', 'SwiftBlessing', 'HeroTaunt', 'BloodSharedLife', 'SoulLink', 'RoseCourtyard',
-  'BardEternalMovement',
-])
-
 /**
- * Public state deltas → stage beats: +N 治疗 lands as a heal number, a status / field-effect
- * card flies from the acting player into the target's status bar. Other deltas (hand counts,
- * gems, tokens) are left to the board itself.
+ * Public state deltas → stage beats: +N 治疗 lands as a heal number; a status, cover card or
+ * token change becomes a mark that flies from the acting player into the target's seat
+ * (or fades out of it when removed). Gems, hand counts etc. are left to the board itself.
  */
 export function deltaSteps(deltas: TimelineDelta[], actorId?: string): AtomicStep[] {
   const steps: AtomicStep[] = []
@@ -650,19 +660,35 @@ export function deltaSteps(deltas: TimelineDelta[], actorId?: string): AtomicSte
     }
     let statusKey = ''
     let added = false
+    let markKind: MarkKind = 'status'
+    let amount: number | undefined
     if (delta.type === 'field_card_added' || delta.type === 'field_card_removed') {
-      statusKey = delta.field_card?.effect || ''
+      const card = delta.field_card
+      statusKey = card?.effect || ''
       added = delta.type === 'field_card_added'
+      markKind = card?.mode === 'Cover' ? 'cover' : 'status'
+      if (markKind === 'status' && !STATUS_MARKS[statusKey]) continue
+      if (markKind === 'cover' && !COVER_MARKS[statusKey]) continue
     } else if (delta.type === 'status' && delta.field?.startsWith('status:')) {
       statusKey = delta.field.slice('status:'.length)
       added = value > 0
+      if (!STATUS_MARKS[statusKey]) continue
+    } else if (delta.type === 'token' && delta.field && value !== 0) {
+      // field = "token:<key>" or "indicator:<key>"
+      statusKey = delta.field.slice(delta.field.indexOf(':') + 1)
+      if (!TOKEN_MARKS[statusKey]) continue
+      markKind = 'token'
+      added = value > 0
+      amount = value
     }
-    if (!statusKey || !STAGE_STATUS_KEYS.has(statusKey)) continue
+    if (!statusKey) continue
     steps.push({
       type: 'status-change',
       playerId: target,
       statusKey,
       added,
+      ...(markKind !== 'status' ? { markKind } : {}),
+      ...(amount !== undefined ? { amount } : {}),
       ...(added && actorId && actorId !== target ? { fromPlayerId: actorId } : {}),
     })
   }

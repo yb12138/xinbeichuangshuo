@@ -4089,22 +4089,14 @@ const fighterHundredDragonByPlayer = computed(() => {
   --status-preview-origin: right center;
 }
 
-/* 状态栏图标：深色圆底 + 镀铬细圈，颜色只取 battle-theme.css 的 --bt-* */
+/* 状态栏图标：外框与类别色由 BattleMarkIcon 自带，这里只负责尺寸与悬停放大 */
 .player-anchor-status-icon {
   position: relative;
   width: 28px;
   height: 28px;
   flex: 0 0 28px;
   z-index: 1;
-  padding: 3px;
   border-radius: 999px;
-  border: 1px solid var(--bt-chrome);
-  background:
-    radial-gradient(circle at 50% 30%, var(--bt-panel-raised), var(--bt-bg-0) 72%);
-  box-shadow:
-    0 0 0 1px var(--bt-bg-0),
-    inset 0 1px 0 var(--bt-hairline-soft),
-    inset 0 0 0 1px var(--anchor-status-color, var(--bt-hairline-soft));
   transform-origin: var(--status-preview-origin, center);
   transition:
     transform 0.18s ease,
@@ -4118,7 +4110,6 @@ const fighterHundredDragonByPlayer = computed(() => {
 .player-anchor-status-icon:focus-within {
   z-index: 30;
   transform: translateX(var(--status-preview-x, 0)) scale(var(--status-preview-scale, 2.6));
-  border-color: var(--bt-chrome-hi);
   filter: drop-shadow(0 0 6px var(--bt-select-glow));
 }
 
@@ -4138,63 +4129,12 @@ const fighterHundredDragonByPlayer = computed(() => {
   height: 100%;
 }
 
-/* 叠层数：右下角小圆章 */
-.player-anchor-status-icon :deep(.effect-count) {
-  bottom: -5px;
-  right: -5px;
-  min-width: 13px;
-  padding: 1px 3px;
-  border-radius: 999px;
-  border: 1px solid var(--bt-chrome);
-  background: var(--bt-bg-0);
-  color: var(--bt-text);
-  font-family: var(--bt-font-num);
-  font-size: 9px;
-  line-height: 1;
-}
-
-/* 封印图标自带圆环，保留镀铬细圈但去掉内衬底 */
+/* 封印徽章略大一圈，便于区分五系 */
 .player-anchor-status-icon--seal {
   --status-preview-scale: 3;
-  width: 32px;
-  height: 32px;
-  flex-basis: 32px;
-  padding: 1px;
-}
-
-/* 内圈点缀色（仅主题变量） */
-.player-anchor-status-icon--SealFire,
-.player-anchor-status-icon--BloodSharedLife,
-.player-anchor-status-icon--HeroTaunt,
-.player-anchor-status-icon--RoseCourtyard {
-  --anchor-status-color: var(--bt-red-soft);
-}
-
-.player-anchor-status-icon--SealWater,
-.player-anchor-status-icon--SwiftBlessing {
-  --anchor-status-color: var(--bt-blue-soft);
-}
-
-.player-anchor-status-icon--Shield,
-.player-anchor-status-icon--PowerBlessing,
-.player-anchor-status-icon--SealEarth,
-.player-anchor-status-icon--SealThunder {
-  --anchor-status-color: var(--bt-active-glow);
-}
-
-.player-anchor-status-icon--Poison,
-.player-anchor-status-icon--SealWind {
-  --anchor-status-color: var(--bt-heal);
-}
-
-.player-anchor-status-icon--Weak,
-.player-anchor-status-icon--SoulLink,
-.player-anchor-status-icon--BardEternalMovement {
-  --anchor-status-color: var(--bt-violet);
-}
-
-.player-anchor-status-icon--Stealth {
-  --anchor-status-color: var(--bt-chrome-lo);
+  width: 30px;
+  height: 30px;
+  flex-basis: 30px;
 }
 
 .center-stage {

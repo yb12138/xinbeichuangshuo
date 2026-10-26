@@ -8,6 +8,8 @@ import { useInterruptStore } from '../stores/interrupt.store'
 import { useUiStore } from '../stores/ui.store'
 import { useBattleInteractionState } from '../composables/useBattleInteractionState'
 import StatusEffectIcon from './StatusIcons/StatusEffectIcon.vue'
+import BattleMarkIcon from './marks/BattleMarkIcon.vue'
+import { COVER_COUNT_TOKEN_KEYS, COVER_MARKS, TOKEN_MARKS } from '../constants/battleMarks'
 import { characterArtSrc, characterFullCardSrc } from '../constants/characterArt'
 
 const battleFxStore = useBattleFxStore()
@@ -410,17 +412,43 @@ const tokenIndicators = computed(() => {
     ...(props.player.indicators ?? {}),
   }
   const entries = Object.entries(indicatorSource)
-    .filter(([key, value]) => !HIDDEN_TOKEN_KEYS.has(key) && !FORM_TOKEN_KEYS.has(key) && typeof value === 'number' && value > 0)
+    .filter(
+      ([key, value]) =>
+        !HIDDEN_TOKEN_KEYS.has(key) &&
+        !FORM_TOKEN_KEYS.has(key) &&
+        // 与盖牌数量重复的计数键交给盖牌段，避免同一件事显示两遍
+        !(COVER_COUNT_TOKEN_KEYS.has(key) && coverMarks.value.length > 0) &&
+        typeof value === 'number' &&
+        value > 0,
+    )
     .map(([key, value]) => {
       const cfg = TOKEN_DISPLAY[key]
+      const mark = TOKEN_MARKS[key]
       return {
         key,
         value,
-        label: cfg?.label ?? key,
-        cls: cfg?.cls ?? 'bg-gray-700/70 text-gray-100 border-gray-500/40'
+        label: mark?.label ?? cfg?.label ?? key,
+        cls: cfg?.cls ?? 'bg-gray-700/70 text-gray-100 border-gray-500/40',
+        /** 有图标定义时画菱形徽章；否则保留文字胶囊（流程类提示，如"下次攻不可应战"）。 */
+        mark: !!mark,
+        cap: mark?.cap,
       }
-  })
+    })
   return entries
+})
+
+/** 盖牌：按种类合并为"牌背 + 数量"，对所有人可见（内容已由服务端遮蔽）。 */
+const coverMarks = computed(() => {
+  const counts = new Map<string, number>()
+  for (const fc of props.player.field ?? []) {
+    if (fc.mode !== 'Cover' || !fc.effect) continue
+    counts.set(fc.effect, (counts.get(fc.effect) ?? 0) + 1)
+  }
+  return [...counts.entries()].map(([effect, count]) => ({
+    key: effect,
+    count,
+    label: COVER_MARKS[effect]?.label ?? '盖牌',
+  }))
 })
 
 const allIndicators = computed(() => tokenIndicators.value)
@@ -578,7 +606,7 @@ function handleClick(e: MouseEvent) {
 
       <!-- 名牌条上沿的小型芯片：形态 / 宝石水晶 / 指示物 -->
       <div
-        v-if="formIndicator || (player.gem || 0) + (player.crystal || 0) > 0 || allIndicators.length"
+        v-if="formIndicator || (player.gem || 0) + (player.crystal || 0) > 0 || allIndicators.length || coverMarks.length"
         class="seat-chip-row"
       >
         <span v-if="formIndicator" class="seat-chip form-badge" :title="formIndicator.label">
@@ -595,16 +623,37 @@ function handleClick(e: MouseEvent) {
             <span aria-hidden="true" class="seat-chip-crystal-mark" />{{ player.crystal }}
           </span>
         </span>
-        <span v-if="allIndicators.length" class="player-overlay-tokens">
+        <span v-if="coverMarks.length" class="player-overlay-tokens">
           <span
-            v-for="token in allIndicators"
-            :key="token.key"
-            class="seat-chip seat-chip--token"
-            :title="`${token.label}: ${token.value}`"
+            v-for="cover in coverMarks"
+            :key="`cover-${cover.key}`"
+            class="seat-mark seat-mark--cover"
+            :title="`${cover.label}: ${cover.count}`"
+            :data-mark-key="cover.key"
           >
-            <span>{{ token.label }}</span>
-            <span class="seat-chip-value">×{{ token.value }}</span>
+            <span class="seat-mark-icon seat-mark-icon--cover"><BattleMarkIcon kind="cover" :mark-key="cover.key" /></span>
+            <span class="seat-chip-value">{{ cover.count }}</span>
           </span>
+        </span>
+        <span v-if="allIndicators.length" class="player-overlay-tokens">
+          <template v-for="token in allIndicators" :key="token.key">
+            <span
+              v-if="token.mark"
+              class="seat-mark seat-mark--token"
+              :title="`${token.label}: ${token.value}`"
+              :data-mark-key="token.key"
+            >
+              <span class="seat-mark-icon"><BattleMarkIcon kind="token" :mark-key="token.key" /></span>
+              <span v-if="token.cap" class="seat-mark-pips" aria-hidden="true">
+                <span v-for="n in token.cap" :key="n" class="seat-mark-pip" :class="{ 'seat-mark-pip--on': n <= token.value }" />
+              </span>
+              <span v-else class="seat-chip-value">{{ token.value }}</span>
+            </span>
+            <span v-else class="seat-chip seat-chip--token" :title="`${token.label}: ${token.value}`">
+              <span>{{ token.label }}</span>
+              <span class="seat-chip-value">×{{ token.value }}</span>
+            </span>
+          </template>
         </span>
       </div>
     </div>
@@ -1057,6 +1106,46 @@ function handleClick(e: MouseEvent) {
   display: contents;
 }
 
+/* 盖牌 / 指示物：图标 + 数量（或圆点格），图形与配色来自 BattleMarkIcon */
+.seat-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  padding: 0 3px 0 1px;
+  border-radius: 999px;
+  background: var(--bt-panel);
+  box-shadow: 0 0 0 1px var(--bt-hairline-soft);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+.seat-mark-icon {
+  display: inline-flex;
+  width: 15px;
+  height: 15px;
+  flex: none;
+}
+.seat-mark-icon--cover {
+  width: 11px;
+  height: 15px;
+}
+.seat-mark-pips {
+  display: inline-flex;
+  gap: 1.5px;
+  margin-left: 1px;
+}
+.seat-mark-pip {
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px var(--bt-chrome-mid);
+}
+.seat-mark-pip--on {
+  background: var(--bt-chrome-hi);
+  box-shadow: 0 0 3px var(--bt-select-glow);
+}
+
 .seat-chip--gem,
 .seat-chip--crystal {
   color: var(--bt-text);
@@ -1103,9 +1192,9 @@ function handleClick(e: MouseEvent) {
   box-shadow: 0 0 0 1px var(--bt-bg-0);
 }
 
+/* 紧凑座位：宝石水晶与状态图标由 GameBoard 状态栏负责；盖牌/指示物图标足够小，留在座位上 */
 .player-area--compact .player-overlay-resource,
-.player-area--compact .player-overlay-effects,
-.player-area--compact .player-overlay-tokens {
+.player-area--compact .player-overlay-effects {
   display: none;
 }
 

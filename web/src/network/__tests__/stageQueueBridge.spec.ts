@@ -3,6 +3,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { createStageQueueBridge } from '../stageQueueBridge'
 import { useStageQueueStore, type AtomicStep } from '../../stores/stageQueue.store'
 import type { ActionFlowDTO, ActionFlowEdgeDTO, TimelineNotifyPayload } from '../protocol'
+import type { FieldCard } from '../../types/game'
 
 const NAMES: Record<string, string> = { p1: '测试玩家1', p5: '测试玩家5' }
 const ROLES: Record<string, string> = { p1: '圣女', p5: '封印师' }
@@ -110,6 +111,48 @@ describe('createStageQueueBridge', () => {
     expect(queued().slice(before)).toEqual([
       { type: 'value-chip', playerId: 'p1', text: '+1', color: 'heal' },
       { type: 'status-change', playerId: 'p1', statusKey: 'Poison', added: true, fromPlayerId: 'p5' },
+    ])
+  })
+
+  it('animates token and cover-card deltas as marks, skipping unknown keys', () => {
+    bridge.onTimeline(payload([flow('f1', [attackEdge()], { actor_user_id: 'p5' })]))
+    const before = queued().length
+    bridge.onTimeline({
+      ...payload([flow('f1', [attackEdge()], { actor_user_id: 'p5' })]),
+      events: [
+        {
+          event_id: 9,
+          turn_id: 1,
+          chain_id: 'c',
+          type: 'TimelineEffectResolved',
+          outcome: '',
+          visibility: '',
+          action_id: 'f1',
+          deltas: [
+            { type: 'token', field: 'token:se_sword_qi', target_user_id: 'p5', value: 1 },
+            { type: 'token', field: 'token:internal_flag', target_user_id: 'p5', value: 1 },
+            {
+              type: 'field_card_added',
+              target_user_id: 'p5',
+              value: 1,
+              field_card: {
+                card: { id: 'x', name: '剑魂', type: 'Attack', element: 'Fire', damage: 0 } as FieldCard['card'],
+                owner_id: 'p5',
+                source_id: 'p5',
+                mode: 'Cover',
+                effect: 'SwordSoul',
+                field_hook: '',
+                locked: false,
+                duration: 0,
+              },
+            },
+          ],
+        },
+      ],
+    })
+    expect(queued().slice(before)).toEqual([
+      { type: 'status-change', playerId: 'p5', statusKey: 'se_sword_qi', added: true, markKind: 'token', amount: 1 },
+      { type: 'status-change', playerId: 'p5', statusKey: 'SwordSoul', added: true, markKind: 'cover' },
     ])
   })
 

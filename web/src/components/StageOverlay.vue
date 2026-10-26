@@ -8,7 +8,7 @@
  */
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import ElementGlyph from './card/ElementGlyph.vue'
-import StatusEffectIcon from './StatusIcons/StatusEffectIcon.vue'
+import BattleMarkIcon from './marks/BattleMarkIcon.vue'
 import { cardArtSrc } from '../constants/cardArt'
 import { characterArtSrc } from '../constants/characterArt'
 import { useSnapshotStore } from '../stores/snapshot.store'
@@ -20,6 +20,7 @@ import {
   type LinkColor,
   type LinkEndStyle,
   type LinkState,
+  type MarkKind,
   type NarrationChain,
   type NarrationRow,
   type NarrationSkill,
@@ -98,6 +99,8 @@ interface SeatBox {
 
 const size = ref({ width: 0, height: 0 })
 const seats = ref<Record<string, SeatBox>>({})
+/** Centre of a cover/token mark on a seat ("playerId|markKey"), so flying marks land on it. */
+const markAnchors = ref<Record<string, Point>>({})
 
 function involvedPlayerIds(): string[] {
   const ids = new Set<string>()
@@ -151,6 +154,21 @@ function measure() {
     next[id] = box
   }
   if (!sameSeats(seats.value, next)) seats.value = next
+
+  const anchors: Record<string, Point> = {}
+  for (const change of store.statusChanges) {
+    if (change.markKind === 'status') continue
+    const seat = root.querySelector<HTMLElement>(`[data-player-anchor="${CSS.escape(change.playerId)}"]`)
+    const mark = seat?.querySelector<HTMLElement>(`[data-mark-key="${CSS.escape(change.statusKey)}"] .seat-mark-icon`)
+    if (!mark) continue
+    const r = mark.getBoundingClientRect()
+    anchors[`${change.playerId}|${change.statusKey}`] = { x: r.left - originX + r.width / 2, y: r.top - originY + r.height / 2 }
+  }
+  const prev = markAnchors.value
+  const changed =
+    Object.keys(anchors).length !== Object.keys(prev).length ||
+    Object.entries(anchors).some(([k, p]) => !prev[k] || Math.abs(prev[k]!.x - p.x) > 0.5 || Math.abs(prev[k]!.y - p.y) > 0.5)
+  if (changed) markAnchors.value = anchors
 }
 
 function sameSeats(a: Record<string, SeatBox>, b: Record<string, SeatBox>): boolean {
@@ -419,24 +437,37 @@ const capsuleViews = computed(() => {
   return views
 })
 
-/** Status icons: fly from the caster along a short arc, then settle on the target's lower edge. */
+/**
+ * Mark changes (status / cover card / token): fly from the caster along a short arc and land on
+ * the target's lower edge; removals fade out in place. Tokens also show "+N" / "-N".
+ */
 const statusViews = computed(() => {
-  const views: { id: number; key: string; added: boolean; style: Record<string, string> }[] = []
+  const views: {
+    id: number
+    key: string
+    kind: MarkKind
+    added: boolean
+    amount: string
+    style: Record<string, string>
+  }[] = []
   const perPlayer = new Map<string, number>()
   for (const change of store.statusChanges) {
     const box = seats.value[change.playerId]
     if (!box) continue
     const index = perPlayer.get(change.playerId) ?? 0
     perPlayer.set(change.playerId, index + 1)
-    const end = { x: box.left + 22 + index * 30, y: box.bottom - 22 }
+    const end = markAnchors.value[`${change.playerId}|${change.statusKey}`] ?? { x: box.left + 22 + index * 30, y: box.bottom - 22 }
     const source = change.fromPlayerId ? seats.value[change.fromPlayerId] : undefined
     const start = source ? { x: source.cx, y: source.cy } : { x: end.x, y: end.y - 40 }
     const lift = source ? Math.max(50, Math.abs(end.x - start.x) * 0.25) : 0
     const c = { x: (start.x + end.x) / 2, y: Math.min(start.y, end.y) - lift }
+    const amount = change.amount ? (change.amount > 0 ? `+${change.amount}` : `${change.amount}`) : ''
     views.push({
       id: change.id,
       key: change.statusKey,
+      kind: change.markKind,
       added: change.added,
+      amount,
       style: {
         offsetPath: `path('M${start.x.toFixed(1)},${start.y.toFixed(1)} Q${c.x.toFixed(1)},${c.y.toFixed(1)} ${end.x.toFixed(1)},${end.y.toFixed(1)}')`,
         '--status-fly': source ? '0.7s' : '0s',
@@ -698,7 +729,7 @@ function observe(root: HTMLElement | null) {
 
 watch(() => props.rootEl, (root) => observe(root))
 watch(
-  () => involvedPlayerIds().join('|'),
+  () => `${involvedPlayerIds().join('|')}#${store.statusChanges.map((c) => c.id).join(',')}`,
   () => measure(),
   { flush: 'post' },
 )
@@ -852,7 +883,10 @@ onBeforeUnmount(() => {
       :style="status.style"
       data-testid="stage-status-fly"
     >
-      <StatusEffectIcon :effect="status.key" />
+      <span class="stage-status__icon" :class="`stage-status__icon--${status.kind}`">
+        <BattleMarkIcon :kind="status.kind" :mark-key="status.key" />
+      </span>
+      <span v-if="status.amount" class="stage-status__amount">{{ status.amount }}</span>
     </div>
 
     <div v-for="chip in chipLayers.chips" :key="chip.id" class="stage-chip" :style="chip.style">{{ chip.text }}</div>
@@ -1175,9 +1209,29 @@ onBeforeUnmount(() => {
   offset-rotate: 0deg;
   pointer-events: none;
 }
-.stage-status :deep(.status-effect-icon) {
+.stage-status__icon {
+  display: block;
   width: 100%;
   height: 100%;
+}
+.stage-status__icon--cover {
+  width: 20px;
+  height: 26px;
+  margin: -1px 0 0 3px;
+}
+.stage-status__amount {
+  position: absolute;
+  left: 100%;
+  top: -6px;
+  margin-left: 2px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--bt-text, #e8ecf4);
+  text-shadow: 0 0 4px #000, 0 0 8px var(--bt-select-glow, rgba(159, 212, 255, 0.45));
+  white-space: nowrap;
+}
+.stage-status--removed .stage-status__amount {
+  color: var(--bt-text-sub, #9aa4b5);
 }
 .stage-status--added {
   animation: stage-status-fly var(--status-fly) cubic-bezier(0.45, 0.05, 0.4, 1) both, stage-status-land 0.9s var(--status-fly) ease-out both;
