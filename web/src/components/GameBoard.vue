@@ -15,6 +15,8 @@ import SkillDetailModal from './SkillDetailModal.vue'
 import BattleZone from './BattleZone.vue'
 import VfxLayer from './VfxLayer.vue'
 import StatusEffectIcon from './StatusIcons/StatusEffectIcon.vue'
+import BattleMarkIcon from './marks/BattleMarkIcon.vue'
+import { seatCoverMarks, seatStatusMarks, seatTokenMarks } from '../constants/seatMarks'
 import { useSubmitAction } from '../composables/useSubmitAction'
 import { useBattleInteractionState } from '../composables/useBattleInteractionState'
 import StageOverlay from './StageOverlay.vue'
@@ -489,17 +491,6 @@ function maxHandForPlayer(player: PlayerView): number {
   return typeof player.max_hand === 'number' && player.max_hand >= 0 ? player.max_hand : handCountForPlayer(player)
 }
 
-function fieldStatusItemsForPlayer(player: PlayerView) {
-  return (player.field || [])
-    .filter((fc) => fc.mode === 'Effect' && fc.effect && !HIDDEN_MY_FIELD_EFFECTS.has(fc.effect))
-    .map((fc, idx) => ({
-      key: `${fc.effect}-${idx}`,
-      effect: fc.effect,
-      label: PLAYER_STATUS_EFFECT_LABEL[fc.effect] || fc.effect,
-    }))
-    .slice(0, 4)
-}
-
 function battleStatusItemsForPlayer(player: PlayerView) {
   const items = new Map<string, { key: string; effect: string; label: string; count: number }>()
   for (const fc of player.field || []) {
@@ -521,15 +512,28 @@ function battleStatusItemsForPlayer(player: PlayerView) {
   return [...items.values()]
 }
 
-function tokenItemsForPlayer(player: PlayerView) {
-  const source = {
-    ...(player.tokens ?? {}),
-    ...(player.indicators ?? {}),
+interface SeatMarkRow {
+  kind: 'status' | 'cover' | 'token'
+  key: string
+  label: string
+  hint: string
+  /** "×2" / "2/3"；单个场上状态不显示。 */
+  amount: string
+}
+
+/** 悬停展开面板：列出座位上全部标记的名称、数量与一句规则。 */
+function seatMarkRowsFor(player: PlayerView): SeatMarkRow[] {
+  const rows: SeatMarkRow[] = []
+  for (const m of seatStatusMarks(player, HIDDEN_MY_FIELD_EFFECTS)) {
+    rows.push({ kind: 'status', key: m.key, label: m.label, hint: m.hint, amount: m.count > 1 ? `×${m.count}` : '' })
   }
-  return Object.entries(source)
-    .filter(([, value]) => typeof value === 'number' && value > 0)
-    .map(([key, value]) => ({ key, value }))
-    .slice(0, 4)
+  for (const m of seatCoverMarks(player)) {
+    rows.push({ kind: 'cover', key: m.key, label: m.label, hint: m.hint, amount: `×${m.count}` })
+  }
+  for (const m of seatTokenMarks(player)) {
+    rows.push({ kind: 'token', key: m.key, label: m.label, hint: m.hint, amount: m.cap ? `${m.value}/${m.cap}` : `×${m.value}` })
+  }
+  return rows
 }
 
 const hoveredBattleSeatPlayerId = ref<string | null>(null)
@@ -2588,28 +2592,29 @@ const fighterHundredDragonByPlayer = computed(() => {
                         </div>
                       </div>
 
-                      <div v-if="fieldStatusItemsForPlayer(p).length" class="player-overlay-effects active-popout-effects">
-                        <div
-                          v-for="field in fieldStatusItemsForPlayer(p)"
-                          :key="`active-field-${p.id}-${field.key}`"
-                          class="effect-icon-item"
-                          :title="field.label"
+                      <ul
+                        v-if="seatMarkRowsFor(p).length"
+                        class="active-popout-marks"
+                        :class="{ 'active-popout-marks--dense': seatMarkRowsFor(p).length > 4 }"
+                        aria-label="标记明细"
+                      >
+                        <li
+                          v-for="row in seatMarkRowsFor(p)"
+                          :key="`popout-mark-${p.id}-${row.kind}-${row.key}`"
+                          class="active-popout-mark"
                         >
-                          <StatusEffectIcon :effect="field.effect" />
-                        </div>
-                      </div>
-
-                      <div v-if="tokenItemsForPlayer(p).length" class="active-popout-tokens">
-                        <span
-                          v-for="token in tokenItemsForPlayer(p)"
-                          :key="`active-token-${p.id}-${token.key}`"
-                          class="active-popout-token"
-                          :title="`${token.key}: ${token.value}`"
-                        >
-                          <span>{{ token.key }}</span>
-                          <span>×{{ token.value }}</span>
-                        </span>
-                      </div>
+                          <span class="active-popout-mark-icon" :class="`active-popout-mark-icon--${row.kind}`">
+                            <BattleMarkIcon :kind="row.kind" :mark-key="row.key" />
+                          </span>
+                          <span class="active-popout-mark-body">
+                            <span class="active-popout-mark-head">
+                              <span class="active-popout-mark-name">{{ row.label }}</span>
+                              <span v-if="row.amount" class="active-popout-mark-amount">{{ row.amount }}</span>
+                            </span>
+                            <span v-if="row.hint" class="active-popout-mark-hint">{{ row.hint }}</span>
+                          </span>
+                        </li>
+                      </ul>
                     </div>
                   </div>
                 </div>
@@ -4577,39 +4582,75 @@ const fighterHundredDragonByPlayer = computed(() => {
   z-index: 2;
 }
 
-.active-popout-effects {
-  max-height: 28px;
+.active-popout-marks {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 4px 0 0;
+  padding: 6px 6px 0;
+  list-style: none;
+  border-top: 1px solid var(--bt-hairline-soft);
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
 }
 
-.active-popout-effects .effect-icon-item {
+.active-popout-mark {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  text-align: left;
+}
+
+.active-popout-mark-icon {
   width: 22px;
   height: 22px;
+  flex: none;
 }
 
-.active-popout-tokens {
+.active-popout-mark-icon--cover {
+  width: 17px;
+  height: 22px;
+  margin: 0 2.5px;
+}
+
+.active-popout-mark-body {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 3px;
-  max-height: 36px;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.active-popout-mark-head {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.active-popout-mark-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--bt-text);
+}
+
+.active-popout-mark-amount {
+  font-family: var(--bt-font-num);
+  font-size: 11px;
+  color: var(--bt-active);
+}
+
+.active-popout-mark-hint {
+  font-size: 10px;
+  line-height: 1.3;
+  color: var(--bt-text-sub);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
-.active-popout-token {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  max-width: 100%;
-  padding: 2px 5px;
-  border-radius: 4px;
-  border: 1px solid rgba(148, 163, 184, 0.38);
-  background: rgba(15, 23, 42, 0.62);
-  color: rgba(226, 232, 240, 0.96);
-  font-size: 9px;
-  line-height: 1.1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+/* 标记较多时每条只留一行说明，保证全部条目都能放下 */
+.active-popout-marks--dense .active-popout-mark-hint {
+  -webkit-line-clamp: 1;
 }
 
 @keyframes popCardLeft {
