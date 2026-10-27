@@ -32,7 +32,37 @@ func (e *GameEngine) decoratePromptForClient(prompt *model.Prompt) *model.Prompt
 	if prompt.EffectHints != nil {
 		cp.EffectHints = append([]string{}, prompt.EffectHints...)
 	}
+	e.annotatePromptFlowProgress(&cp)
 	return &cp
+}
+
+// annotatePromptFlowProgress 为多步流程的提示补上"第几步/共几步"，前端据此显示进度点。
+// 当前步 = 已走过的步数 + 1；总步数取流程声明的步骤数。分支流程可能跳过某些步骤，
+// 所以总数是上限而非必经步数——宁可多显示一个空点，也不在走到最后一步前就显示已满。
+func (e *GameEngine) annotatePromptFlowProgress(prompt *model.Prompt) {
+	if e == nil || e.State == nil || prompt == nil || e.State.PendingInterrupt == nil {
+		return
+	}
+	ctx, ok := e.State.PendingInterrupt.Context.(map[string]interface{})
+	if !ok {
+		return
+	}
+	flow := model.PromptFlowFromContext(ctx)
+	if flow == nil || len(flow.StepSpecs) < 2 {
+		return
+	}
+	step := len(flow.History) + 1
+	total := len(flow.StepSpecs)
+	if step > total {
+		total = step
+	}
+	pres := model.PromptPresentation{}
+	if prompt.Presentation != nil {
+		pres = *prompt.Presentation
+	}
+	pres.StepIndex = step
+	pres.TotalSteps = total
+	prompt.Presentation = &pres
 }
 
 func (e *GameEngine) emitGameEvent(event model.GameEvent) {
