@@ -38,7 +38,32 @@ const docked = inject(DECISION_DOCKED, false)
             <div v-if="context" class="overlay-panel-context" data-testid="prompt-context">{{ context }}</div>
             <h2>{{ title }}</h2>
           </div>
-          <div class="overlay-panel-body overlay-panel-body--text">
+          <!-- 停靠模板 8：方向 —— 两个大按钮，环形箭头示意顺/逆时针 -->
+          <div v-if="docked" class="overlay-panel-body dir-docked">
+            <button
+              v-for="(option, idx) in options"
+              :key="option.id"
+              type="button"
+              class="dir-docked__btn"
+              :class="option.icon === 'arrow-left' ? 'dir-docked__btn--ccw' : 'dir-docked__btn--cw'"
+              :data-testid="`branch-option-${idx}`"
+              :disabled="!!option.disabled"
+              @click="emit('select', option.id)"
+            >
+              <svg class="dir-docked__ring" viewBox="0 0 48 48" aria-hidden="true">
+                <path d="M24 8a16 16 0 1 1-15.2 11" />
+                <path class="dir-docked__head" d="M4.5 13.5l4.3 5.6 5.6-4.3" />
+              </svg>
+              <span class="dir-docked__label" :data-testid="`prompt-option-${option.id}`">
+                <span :data-testid="`direction-option-${option.id}`">{{ option.label }}</span>
+              </span>
+              <span v-if="option.hint || option.description" class="dir-docked__desc" :data-testid="`direction-option-desc-${idx}`">
+                {{ option.hint || option.description }}
+              </span>
+            </button>
+          </div>
+
+          <div v-else class="overlay-panel-body overlay-panel-body--text">
             <button
               v-for="(option, idx) in options"
               :key="option.id"
@@ -293,5 +318,62 @@ const docked = inject(DECISION_DOCKED, false)
 .overlay-panel-root.overlay-panel-root--docked .overlay-panel-body {
   padding: 0 4px;
   background: none;
+}
+
+/* —— 停靠模板 8：方向选择 —— */
+.dir-docked {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding: 4px 0 0;
+}
+.dir-docked__btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px;
+  border: none;
+  border-radius: 10px;
+  color: var(--bt-text, #e8ecf4);
+  background: rgba(9, 14, 26, 0.85);
+  box-shadow: 0 0 0 1px var(--bt-chrome-mid, #7d8796);
+  cursor: pointer;
+  transition: box-shadow 0.15s ease;
+  --dir-accent: var(--bt-select, #9fd4ff);
+}
+.dir-docked__btn--ccw {
+  --dir-accent: #b48bff;
+}
+.dir-docked__btn:hover:not(:disabled) {
+  box-shadow: 0 0 0 2px var(--dir-accent), 0 0 16px color-mix(in srgb, var(--dir-accent) 40%, transparent);
+}
+.dir-docked__btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.dir-docked__ring {
+  width: 44px;
+  height: 44px;
+  fill: none;
+  stroke: var(--dir-accent);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--dir-accent) 60%, transparent));
+}
+/* 逆时针：把顺时针环镜像 */
+.dir-docked__btn--ccw .dir-docked__ring {
+  transform: scaleX(-1);
+}
+.dir-docked__label {
+  font-size: 15px;
+  font-weight: 800;
+}
+.dir-docked__desc {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--bt-text-sub, #9aa4b5);
+  text-align: center;
 }
 </style>

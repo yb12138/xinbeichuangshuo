@@ -55,7 +55,47 @@ const docked = inject(DECISION_DOCKED, false)
           <div class="overlay-panel-header overlay-panel-header--decision">
             <h2>{{ title }}</h2>
           </div>
-          <div class="overlay-panel-body overlay-saint-heal">
+          <!-- 停靠模板 7：总量条 + 每行 −/＋ 步进器 + 底部确认 -->
+          <div v-if="docked" class="overlay-panel-body alloc-docked">
+            <div class="alloc-docked__total" data-testid="allocation-summary">
+              <span>已分配 {{ total - remaining }}/{{ total }}</span>
+              <span class="alloc-docked__bar" aria-hidden="true">
+                <i :style="{ width: total > 0 ? `${((total - remaining) / total) * 100}%` : '0%' }" />
+              </span>
+            </div>
+            <div class="alloc-docked__rows">
+              <div v-for="(row, index) in rows" :key="row.id" class="alloc-docked__row">
+                <span class="alloc-docked__label">{{ row.label }}</span>
+                <span class="alloc-docked__stepper">
+                  <button
+                    type="button"
+                    class="alloc-docked__step"
+                    :data-testid="`allocation-dec-${index}`"
+                    :disabled="currentValue(index) <= 0"
+                    :aria-label="`${row.label} 减少`"
+                    @click="emit('change', index, currentValue(index) - 1)"
+                  >−</button>
+                  <span class="alloc-docked__value" :data-testid="`allocation-value-${index}`">{{ currentValue(index) }}</span>
+                  <button
+                    type="button"
+                    class="alloc-docked__step"
+                    :data-testid="`allocation-inc-${index}`"
+                    :disabled="remaining <= 0"
+                    :aria-label="`${row.label} 增加`"
+                    @click="emit('change', index, currentValue(index) + 1)"
+                  >+</button>
+                </span>
+              </div>
+            </div>
+            <div class="alloc-docked__actions">
+              <span />
+              <button type="button" class="alloc-docked__gold" data-testid="allocation-submit" :disabled="!canSubmit" @click="emit('submit')">
+                确认
+              </button>
+            </div>
+          </div>
+
+          <div v-else class="overlay-panel-body overlay-saint-heal">
             <div class="overlay-saint-heal-summary" data-testid="allocation-summary">
               {{ totalLabel }}：{{ remaining }} / {{ total }}
             </div>
@@ -292,5 +332,107 @@ const docked = inject(DECISION_DOCKED, false)
 .overlay-panel-root.overlay-panel-root--docked .overlay-panel-body {
   padding: 0 4px;
   background: none;
+}
+
+/* —— 停靠模板 7：分配数值 —— */
+.alloc-docked {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 2px 0 0;
+}
+.alloc-docked__total {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--bt-text, #e8ecf4);
+}
+.alloc-docked__bar {
+  flex: 1;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(9, 14, 26, 0.9);
+  box-shadow: inset 0 0 0 1px var(--bt-hairline-soft, rgba(185, 193, 205, 0.22));
+  overflow: hidden;
+}
+.alloc-docked__bar i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #7fb6ff, var(--bt-select, #9fd4ff));
+  transition: width 0.2s ease;
+}
+.alloc-docked__rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.alloc-docked__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(9, 14, 26, 0.75);
+  box-shadow: 0 0 0 1px var(--bt-hairline-soft, rgba(185, 193, 205, 0.22));
+}
+.alloc-docked__label {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--bt-text, #e8ecf4);
+}
+.alloc-docked__stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.alloc-docked__step {
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 6px;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--bt-chrome-hi, #e9edf3);
+  background: var(--bt-bg-0, #070b14);
+  box-shadow: 0 0 0 1px var(--bt-chrome-mid, #7d8796);
+  cursor: pointer;
+}
+.alloc-docked__step:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.alloc-docked__value {
+  min-width: 18px;
+  text-align: center;
+  font-family: var(--bt-font-num, Georgia, serif);
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--bt-select, #9fd4ff);
+}
+.alloc-docked__actions {
+  display: flex;
+  justify-content: space-between;
+  padding-top: 4px;
+}
+.alloc-docked__gold {
+  min-width: 88px;
+  padding: 7px 22px;
+  border: none;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #2a1d00;
+  background: linear-gradient(180deg, #ffe39a, #e0a93c);
+  box-shadow: 0 0 0 1px #fff3c4, 0 0 14px var(--bt-active-glow, rgba(240, 195, 90, 0.45));
+  cursor: pointer;
+}
+.alloc-docked__gold:disabled {
+  opacity: 0.45;
+  box-shadow: 0 0 0 1px var(--bt-chrome-mid, #7d8796);
+  cursor: not-allowed;
 }
 </style>
