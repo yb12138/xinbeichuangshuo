@@ -218,9 +218,15 @@ func buildCocoonOverflowDiscardPrompt(playerID string, player *model.Player, dat
 
 func buildReverseModePrompt(playerID string, data map[string]interface{}) *model.Prompt {
 	canBranch2 := runtimeutil.ToBoolContextValue(data["can_branch2"])
-	options := []model.PromptOption{{ID: "0", Label: "分支①：对目标造成1点不可治疗抵御的法术伤害"}}
-	if canBranch2 {
-		options = append(options, model.PromptOption{ID: "1", Label: "分支②：移除2个茧或自伤4，然后移除1个蛹"})
+	// 两个分支始终都列出；没有蛹时分支②灰掉并说明原因，而不是直接消失。
+	branch2 := model.PromptOption{ID: "1", Label: "分支②：移除2个茧或自伤4，然后移除1个蛹"}
+	if !canBranch2 {
+		branch2.Disabled = true
+		branch2.DisabledReason = "需要至少1个蛹"
+	}
+	options := []model.PromptOption{
+		{ID: "0", Label: "分支①：对目标造成1点不可治疗抵御的法术伤害"},
+		branch2,
 	}
 	return &model.Prompt{
 		Type:         model.PromptConfirm,
@@ -773,11 +779,8 @@ func handleReverseMode(rt engineplayer.ChoiceRuntime, ctxData map[string]interfa
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
-	canBranch2 := Pupa(user) > 0
-	modes := []string{"branch1"}
-	if canBranch2 {
-		modes = append(modes, "branch2")
-	}
+	// 选项固定为 [分支①, 分支②]，与 buildReverseModePrompt 一致；分支②无蛹时为禁用项。
+	modes := []string{"branch1", "branch2"}
 	if selectionIndex < 0 || selectionIndex >= len(modes) {
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}

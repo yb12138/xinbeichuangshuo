@@ -1010,3 +1010,42 @@ func TestButterflyChrysalis_CocoonOverflowDiscardSequential(t *testing.T) {
 		t.Fatalf("expected interrupt cleared after sequential discard, got %+v", game.State.PendingInterrupt)
 	}
 }
+
+func TestButterflyReverse_Branch2ListedButDisabledWithoutPupa(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Butterfly", "butterfly_dancer", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Crystal = 1
+	p1.Hand = []model.Card{
+		butterflyTestCard("h1", model.CardTypeAttack, model.ElementFire),
+		butterflyTestCard("h2", model.CardTypeMagic, model.ElementWater),
+	}
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSkill, SkillID: "bt_reverse_butterfly"})
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0, 1}})
+	testutils.RequireChoicePrompt(t, game, "p1", "bt_reverse_mode")
+
+	prompt := game.GetCurrentPrompt()
+	if prompt == nil || len(prompt.Options) != 2 {
+		t.Fatalf("expected both branches listed, got %+v", prompt)
+	}
+	if prompt.Options[0].Disabled {
+		t.Fatalf("branch ① must stay selectable: %+v", prompt.Options[0])
+	}
+	if !prompt.Options[1].Disabled || prompt.Options[1].DisabledReason == "" {
+		t.Fatalf("branch ② should be disabled with a reason when there is no 蛹: %+v", prompt.Options[1])
+	}
+
+	if err := game.HandleAction(model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{1}}); err == nil {
+		t.Fatal("picking the disabled branch ② must be rejected")
+	}
+	testutils.RequireChoicePrompt(t, game, "p1", "bt_reverse_mode")
+}

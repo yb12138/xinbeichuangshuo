@@ -252,6 +252,10 @@ type PromptOption struct {
 	TargetID    string `json:"target_id,omitempty"`    // 关联目标玩家/实体 ID（目标选择专用）
 	FieldIndex  *int   `json:"field_index,omitempty"`  // 场区索引（场牌/盖牌选择专用）
 	Element     string `json:"element,omitempty"`      // 结构化元素值（元素选择专用）
+	// Disabled 表示该选项本次不可选，但仍展示给玩家（灰掉并显示 DisabledReason），
+	// 让玩家知道还有这个分支以及为什么用不了。选择被禁用的选项会被服务端拒绝。
+	Disabled       bool   `json:"disabled,omitempty"`
+	DisabledReason string `json:"disabled_reason,omitempty"`
 }
 
 // Prompt 定义用户交互提示

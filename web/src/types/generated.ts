@@ -286,6 +286,8 @@ export interface PromptOptionDTO {
   target_id?: string
   field_index?: number
   element?: string
+  disabled?: boolean
+  disabled_reason?: string
 }
 
 export interface ProtocolErrorPayload {
