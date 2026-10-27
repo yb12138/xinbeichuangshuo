@@ -71,6 +71,12 @@ function pick(optionId: string) {
 function confirmPicked() {
   if (picked.value) emit('select', picked.value)
 }
+
+const pickedNumericHint = computed(() => {
+  if (!picked.value) return ''
+  const opt = props.options.find((o) => o.id === picked.value)
+  return opt?.hint || opt?.label || ''
+})
 </script>
 
 <template>
@@ -87,7 +93,62 @@ function confirmPicked() {
             <h2>{{ title }}</h2>
           </div>
 
-          <div v-if="mode === 'activation-cost'" class="overlay-panel-body overlay-panel-body--cost">
+          <!-- ══════ DOCKED: activation-cost → effect preview + 放弃/发动 footer ══════ -->
+          <template v-if="docked && mode === 'activation-cost'">
+            <div class="overlay-panel-body decision-effect-preview">
+              <div class="decision-effect-card">{{ activationHint }}</div>
+            </div>
+            <div class="decision-actions">
+              <button v-if="canCancel" type="button" class="decision-actions__ghost" data-testid="prompt-cancel-btn" @click="emit('cancel', cancelOptionId)">{{ cancelLabel || '放弃' }}</button>
+              <span v-else />
+              <button type="button" class="decision-actions__gold" data-testid="prompt-option-confirm" :disabled="!!activationDisabled" @click="emit('select', activationOptionId || '')">发动</button>
+            </div>
+          </template>
+
+          <!-- ══════ DOCKED: yes-no → 放弃/发动 footer (no cards needed) ══════ -->
+          <template v-else-if="docked && mode === 'yes-no'">
+            <div class="decision-actions">
+              <button
+                v-for="option in options"
+                :key="option.id"
+                type="button"
+                :class="option.id === '0' || option.id === 'yes' || /发动/.test(option.label) ? 'decision-actions__gold' : 'decision-actions__ghost'"
+                :data-testid="`prompt-option-${option.id}`"
+                :disabled="!!option.disabled"
+                @click="emit('select', option.id)"
+              >
+                {{ String(option.label || '').trim() }}
+              </button>
+            </div>
+          </template>
+
+          <!-- ══════ DOCKED: numeric → tiles + consequence line ══════ -->
+          <template v-else-if="docked && mode === 'numeric'">
+            <div class="overlay-panel-body decision-numeric">
+              <div class="decision-numeric__grid">
+                <button
+                  v-for="option in options"
+                  :key="option.id"
+                  type="button"
+                  class="decision-numeric__tile"
+                  :class="{ 'decision-numeric__tile--picked': picked === option.id }"
+                  :data-testid="`numeric-option-${option.buttonLabel}`"
+                  :disabled="!!option.disabled"
+                  @click="pick(option.id)"
+                >
+                  {{ option.buttonLabel }}
+                </button>
+              </div>
+              <div v-if="pickedNumericHint" class="decision-numeric__hint">{{ pickedNumericHint }}</div>
+            </div>
+            <div class="decision-actions">
+              <button v-if="canCancel" type="button" class="decision-actions__ghost" data-testid="prompt-cancel-btn" @click="emit('cancel', cancelOptionId)">{{ cancelLabel || '放弃' }}</button>
+              <span v-else />
+              <button type="button" class="decision-actions__gold" data-testid="decision-confirm-btn" :disabled="!picked" @click="confirmPicked">确认</button>
+            </div>
+          </template>
+
+          <div v-else-if="mode === 'activation-cost'" class="overlay-panel-body overlay-panel-body--cost">
             <div class="overlay-cost-card">
               <span class="overlay-cost-text">{{ activationHint }}</span>
             </div>
@@ -189,7 +250,7 @@ function confirmPicked() {
               确认
             </button>
           </div>
-          <div v-else-if="canCancel && mode !== 'yes-no'" class="overlay-panel-footer">
+          <div v-else-if="canCancel && mode !== 'yes-no' && !docked" class="overlay-panel-footer">
             <button class="overlay-panel-cancel" data-testid="prompt-cancel-btn" @click="emit('cancel', cancelOptionId)">
               {{ cancelLabel || '取消' }}
             </button>
@@ -708,5 +769,71 @@ function confirmPicked() {
   opacity: 0.45;
   box-shadow: 0 0 0 1px var(--bt-chrome-mid, #7d8796);
   cursor: not-allowed;
+}
+
+/* —— 停靠模板 2：是否发动 / 效果预览 —— */
+.decision-effect-preview {
+  padding: 4px 0 0;
+}
+.decision-effect-card {
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: rgba(9, 14, 26, 0.85);
+  box-shadow: 0 0 0 1px var(--bt-chrome-mid, #7d8796);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--bt-text, #e8ecf4);
+  text-align: center;
+}
+
+/* —— 停靠模板 6：选数字 —— */
+.decision-numeric {
+  padding: 4px 0 0;
+}
+.decision-numeric__grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+}
+.decision-numeric__tile {
+  width: 52px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 10px;
+  font-size: 22px;
+  font-weight: 800;
+  font-family: var(--bt-font-num, Georgia, serif);
+  color: var(--bt-text, #e8ecf4);
+  background: rgba(9, 14, 26, 0.85);
+  box-shadow: 0 0 0 1px var(--bt-chrome-mid, #7d8796);
+  cursor: pointer;
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+.decision-numeric__tile:hover:not(:disabled) {
+  box-shadow: 0 0 0 1px var(--bt-select, #9fd4ff);
+}
+.decision-numeric__tile--picked {
+  background: color-mix(in srgb, var(--bt-select, #9fd4ff) 18%, rgba(9, 14, 26, 0.85));
+  box-shadow: 0 0 0 2px var(--bt-select, #9fd4ff), 0 0 14px var(--bt-select-glow, rgba(159, 212, 255, 0.45));
+  transform: scale(1.08);
+}
+.decision-numeric__tile:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.decision-numeric__hint {
+  margin-top: 10px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: rgba(9, 14, 26, 0.7);
+  box-shadow: 0 0 0 1px var(--bt-hairline-soft, rgba(185, 193, 205, 0.22));
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--bt-text-sub, #9aa4b5);
+  text-align: center;
 }
 </style>

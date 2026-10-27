@@ -40,4 +40,63 @@ describe('DecisionOverlayRenderer (docked)', () => {
     await fireEvent.click(screen.getByTestId('branch-option-0'))
     expect(emitted().select).toEqual([['0']])
   })
+
+  it('yes-no: answers straight from the footer, 发动 is the gold button', async () => {
+    const { emitted } = render(DecisionOverlayRenderer, {
+      props: {
+        ...baseProps,
+        mode: 'yes-no' as const,
+        options: [
+          { id: '0', label: '发动', buttonLabel: '发动' },
+          { id: '1', label: '取消', buttonLabel: '取消' },
+        ],
+      },
+      global: { provide: { [DECISION_DOCKED as symbol]: true } },
+    })
+    const fire = screen.getByTestId('prompt-option-0')
+    expect(fire.className).toContain('decision-actions__gold')
+    expect(screen.getByTestId('prompt-option-1').className).toContain('decision-actions__ghost')
+    await fireEvent.click(fire)
+    expect(emitted().select).toEqual([['0']])
+  })
+
+  it('activation-cost: shows the effect and fires on 发动', async () => {
+    const { emitted } = render(DecisionOverlayRenderer, {
+      props: {
+        ...baseProps,
+        mode: 'activation-cost' as const,
+        options: [],
+        activationHint: '消耗1点水晶，对目标造成1点法术伤害',
+        activationOptionId: '0',
+        canCancel: true,
+        cancelOptionId: 'cancel',
+      },
+      global: { provide: { [DECISION_DOCKED as symbol]: true } },
+    })
+    expect(screen.getByText('消耗1点水晶，对目标造成1点法术伤害')).toBeTruthy()
+    await fireEvent.click(screen.getByTestId('prompt-option-confirm'))
+    expect(emitted().select).toEqual([['0']])
+    await fireEvent.click(screen.getByTestId('prompt-cancel-btn'))
+    expect(emitted().cancel).toEqual([['cancel']])
+  })
+
+  it('numeric: picking a tile shows its consequence, 确认 submits it', async () => {
+    const { emitted } = render(DecisionOverlayRenderer, {
+      props: {
+        ...baseProps,
+        mode: 'numeric' as const,
+        options: [
+          { id: '0', label: '消耗0点水晶', buttonLabel: '0' },
+          { id: '2', label: '消耗2点水晶，抵御2点士气下降', buttonLabel: '2' },
+        ],
+      },
+      global: { provide: { [DECISION_DOCKED as symbol]: true } },
+    })
+    await fireEvent.click(screen.getByTestId('numeric-option-2'))
+    expect(screen.getByText('消耗2点水晶，抵御2点士气下降')).toBeTruthy()
+    expect(emitted().select).toBeUndefined()
+    await fireEvent.click(screen.getByTestId('decision-confirm-btn'))
+    expect(emitted().select).toEqual([['2']])
+  })
 })
+
