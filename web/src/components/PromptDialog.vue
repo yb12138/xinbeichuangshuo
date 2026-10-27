@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, inject, ref, watch } from 'vue'
 import { useInterruptStore } from '../stores/interrupt.store'
 import { useInteractionController } from '../composables/useInteractionController'
 import { useSnapshotStore } from '../stores/snapshot.store'
@@ -16,6 +16,8 @@ import FraudElementRenderer from './prompt/renderers/FraudElementRenderer.vue'
 import ResponsePromptRenderer from './prompt/renderers/ResponsePromptRenderer.vue'
 import SkillChoicePromptRenderer from './prompt/renderers/SkillChoicePromptRenderer.vue'
 import TargetPickerPromptRenderer from './prompt/renderers/TargetPickerPromptRenderer.vue'
+import DockStripActions from './prompt/renderers/DockStripActions.vue'
+import { DECISION_DOCKED } from './prompt/dockContext'
 import { promptRendererUsesInlineSurface, selectPromptRenderer } from './prompt/rendererRegistry'
 import type { PromptOption } from '../types/game'
 
@@ -172,6 +174,35 @@ const promptEffectHints = computed(() =>
 )
 
 const promptInteraction = computed(() => prompt.value?.interaction ?? null)
+
+// —— 停靠窄条（规范图模板 3/4/5）：选目标 / 选手牌 / 选扩展区盖牌在棋盘上作答 ——
+const docked = inject(DECISION_DOCKED, false)
+
+/** 当前提示用到的选择数量（目标 / 手牌 / 扩展区）。 */
+const stripSelectedCount = computed(() => {
+  const p = prompt.value?.presentation
+  if (p?.kind === 'target_picker') return interruptStore.selectedTargets.length
+  if (p?.card_source === 'field') return interruptStore.selectedFieldOptionIndexes.length
+  return isNonHandChooseCardsMultiMode.value ? selectedInlineCardIDs.value.length : interruptStore.selectedHandIndexes.length
+})
+
+const dockStripVisible = computed(() => {
+  if (!docked || !isVisible.value || !prompt.value) return false
+  if (showDecisionOverlay.value || isSkillChoicePrompt.value || isExtractPrompt.value) return false
+  return promptRendererKey.value === 'target_picker' || promptRendererKey.value === 'card_picker' || isFieldCoverSelectionPrompt()
+})
+
+/** 窄条那一行优先用后端的原话（"请选择要弃置的1张手牌"），去掉已在来由条里的【技能名】。 */
+const dockStripMessage = computed(() => {
+  const own = String(prompt.value?.message || '').replace(/^【[^】]+】\s*[:：]?\s*/, '').trim()
+  if (own) return own
+  return promptRendererKey.value === 'target_picker' ? targetSelectionPromptMessage.value : cardPickerPromptMessage.value
+})
+
+/** 目标选择一般点一下就提交；只有多目标或需要手动确认时才显示确认按钮。 */
+const dockStripShowConfirm = computed(() =>
+  promptRendererKey.value === 'target_picker' ? promptRequiresManualTargetConfirm.value : true,
+)
 
 function promptSelectedCountForContract(): number {
   const contract = promptInteraction.value
@@ -1764,6 +1795,20 @@ watch(autoResolveOptionId, (optionId) => {
             @image-error="onSkillChoiceRendererImageError"
           />
 
+          <DockStripActions
+            v-else-if="dockStripVisible"
+            :message="dockStripMessage"
+            :rules="promptEffectHints"
+            :selected="stripSelectedCount"
+            :max="prompt?.max ?? 0"
+            :can-confirm="canConfirmPrompt"
+            :show-confirm="dockStripShowConfirm"
+            :show-cancel="canCancelPrompt"
+            :cancel-label="cancelDockButton.buttonLabel"
+            @confirm="confirmPromptAction"
+            @cancel="handleOptionClick(cancelDockButton.id)"
+          />
+
           <TargetPickerPromptRenderer
             v-else-if="promptRendererKey === 'target_picker'"
             :visible="showTargetSelectionHintRow"
@@ -1889,7 +1934,7 @@ watch(autoResolveOptionId, (optionId) => {
           </div>
 
           <CardPickerPromptRenderer
-            v-else-if="promptRendererKey === 'card_picker'"
+            v-else-if="promptRendererKey === 'card_picker' && !dockStripVisible"
             :visible="promptNeedsCardConfirm"
             :message="cardPickerPromptMessage"
             :effect-hints="promptEffectHints"
@@ -1911,7 +1956,7 @@ watch(autoResolveOptionId, (optionId) => {
         </template>
 
         <div
-          v-if="canCancelPrompt && !isSkillChoicePrompt && !showCardConfirmCancelRow && !singleActivationCostConfirmOption && !showDecisionOverlay"
+          v-if="canCancelPrompt && !isSkillChoicePrompt && !showCardConfirmCancelRow && !singleActivationCostConfirmOption && !showDecisionOverlay && !dockStripVisible"
           class="prompt-inline-entry"
         >
           <div v-if="cancelDockButton.hint" class="prompt-inline-hint">{{ cancelDockButton.hint }}</div>
