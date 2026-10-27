@@ -84,4 +84,22 @@ describe('DecisionDock', () => {
     expect(screen.queryByTestId('decision-dock-collapse')).toBeNull()
     expect(screen.queryByTestId('decision-dock-pill')).toBeNull()
   })
+
+  it('shows step progress dots for multi-step flows', () => {
+    useInterruptStore().setPrompt(
+      prompt({ presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0, step_index: 2, total_steps: 3 } }),
+    )
+    mount()
+    const steps = screen.getByTestId('decision-dock-steps')
+    expect(steps.textContent).toContain('第 2/3 步')
+    expect(steps.querySelectorAll('i')).toHaveLength(3)
+    expect(steps.querySelectorAll('i.is-current')).toHaveLength(1)
+  })
+
+  it('hides progress for single-step prompts', () => {
+    useInterruptStore().setPrompt(prompt())
+    mount()
+    expect(screen.queryByTestId('decision-dock-steps')).toBeNull()
+  })
 })
+

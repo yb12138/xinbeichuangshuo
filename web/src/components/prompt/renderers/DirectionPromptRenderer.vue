@@ -23,6 +23,12 @@ const emit = defineEmits<{
 }>()
 
 const docked = inject(DECISION_DOCKED, false)
+
+/** "默认方向（右手边，前一位对手）" → 标题"默认方向"，括号内容作为说明，避免大按钮里折行。 */
+function splitLabel(label: string): { title: string; detail: string } {
+  const m = String(label || '').match(/^(.+?)[（(]([^）)]+)[）)]\s*$/)
+  return m ? { title: m[1]!.trim(), detail: m[2]!.trim() } : { title: label, detail: '' }
+}
 </script>
 
 <template>
@@ -55,10 +61,14 @@ const docked = inject(DECISION_DOCKED, false)
                 <path class="dir-docked__head" d="M4.5 13.5l4.3 5.6 5.6-4.3" />
               </svg>
               <span class="dir-docked__label" :data-testid="`prompt-option-${option.id}`">
-                <span :data-testid="`direction-option-${option.id}`">{{ option.label }}</span>
+                <span :data-testid="`direction-option-${option.id}`">{{ splitLabel(option.label).title }}</span>
               </span>
-              <span v-if="option.hint || option.description" class="dir-docked__desc" :data-testid="`direction-option-desc-${idx}`">
-                {{ option.hint || option.description }}
+              <span
+                v-if="option.hint || option.description || splitLabel(option.label).detail"
+                class="dir-docked__desc"
+                :data-testid="`direction-option-desc-${idx}`"
+              >
+                {{ option.hint || option.description || splitLabel(option.label).detail }}
               </span>
             </button>
           </div>

@@ -144,6 +144,20 @@ const isActionSelectionPrompt = computed(() => {
     return (p.options || []).some((opt) => normalizeActionHubOptionId(opt) !== null)
 })
 
+/** 技能发动流程中需要在手牌 / 座位上作答的步骤。 */
+const isSkillStepMode = computed(() =>
+    !!interruptStore.selectedSkill &&
+    (interruptStore.skillMode === 'choosing_exclusive' ||
+        interruptStore.skillMode === 'choosing_discard' ||
+        interruptStore.skillMode === 'choosing_target')
+)
+
+/** 棋盘上有决策槽时才搬过去（单独渲染 ActionPanel 的测试里没有这个槽，原地显示）。 */
+const hasSkillSlot = computed(() => {
+    void interruptStore.skillMode
+    return typeof document !== 'undefined' && !!document.getElementById('decision-skill-slot')
+})
+
 const isActionHubContext = computed(() =>
     (isIdleMainTurnPanel.value || isActionSelectionPrompt.value) &&
     interruptStore.actionMode === 'none' &&
@@ -1281,148 +1295,160 @@ function elementName(el: string): string {
         </div>
 
         <!-- 技能发动流程：选择独有技手牌 -->
-        <div v-else-if="interruptStore.skillMode === 'choosing_exclusive' && interruptStore.selectedSkill" class="dock-panel skill-discard-panel" data-testid="skill-exclusive-select-panel">
-            <i class="dock-corner dock-corner--tl" aria-hidden="true" />
-            <i class="dock-corner dock-corner--tr" aria-hidden="true" />
-            <i class="dock-corner dock-corner--bl" aria-hidden="true" />
-            <i class="dock-corner dock-corner--br" aria-hidden="true" />
-            <header class="dock-hd">
-                <span class="dock-hd-left">
+        <!-- 技能发动的选牌 / 弃牌 / 选目标：搬到棋盘上方的决策槽（手牌上方），右下角只留指引 -->
+        <template v-else-if="isSkillStepMode">
+            <Teleport to="#decision-skill-slot" :disabled="!hasSkillSlot" defer>
+            <div v-if="interruptStore.skillMode === 'choosing_exclusive' && interruptStore.selectedSkill" class="dock-panel skill-discard-panel" data-testid="skill-exclusive-select-panel">
+                <i class="dock-corner dock-corner--tl" aria-hidden="true" />
+                <i class="dock-corner dock-corner--tr" aria-hidden="true" />
+                <i class="dock-corner dock-corner--bl" aria-hidden="true" />
+                <i class="dock-corner dock-corner--br" aria-hidden="true" />
+                <header class="dock-hd">
+                    <span class="dock-hd-left">
+                        <img class="dock-ico dock-ico--img" src="/assets/icons/skill.webp" alt="" aria-hidden="true" draggable="false" />
+                        <span class="dock-title">{{ interruptStore.selectedSkill.title }}</span>
+                    </span>
+                    <nav class="dock-steps" aria-hidden="true">
+                        <span class="on">① 选牌</span>
+                        <i class="dock-steps-sep">›</i>
+                        <span>② 选目标</span>
+                    </nav>
+                </header>
+                <div class="dock-bd">
+                    <p v-if="interruptStore.selectedSkill.description" class="dock-hint dock-hint--desc">{{ interruptStore.selectedSkill.description }}</p>
+                    <div class="dock-hint">
+                        请在手牌区选择对应的独有技手牌，然后点击确认。
+                    </div>
+                    <div class="dock-progress" aria-hidden="true">
+                        <i class="dock-dot" :class="{ 'dock-dot--on': interruptStore.skillDiscardHandIndexes.length > 0 }" />
+                    </div>
+                    <div v-if="selectedExclusiveSkillCard" class="dock-accent">
+                        已选独有技手牌：{{ selectedExclusiveSkillCard.name }}
+                    </div>
+                </div>
+                <footer class="dock-ft">
+                    <button type="button" class="dock-btn dock-btn--ghost" title="取消" @click="interruptStore.clearSkillMode()"><img class="dock-btn-ico" src="/assets/icons/cancel.webp" alt="" aria-hidden="true" />取消</button>
+                    <button
+                        type="button"
+                        class="dock-btn dock-btn--primary"
+                        :disabled="!canConfirmExclusiveSkillSelection"
+                        data-testid="skill-exclusive-confirm-btn"
+                        title="确认"
+                        @click="confirmExclusiveSkillSelection"
+                    ><img class="dock-btn-ico" src="/assets/icons/confirm.webp" alt="" aria-hidden="true" />确认</button>
+                </footer>
+            </div>
+
+            <!-- 技能发动流程：选择弃牌 -->
+            <div v-else-if="interruptStore.skillMode === 'choosing_discard' && interruptStore.selectedSkill" class="dock-panel skill-discard-panel">
+                <i class="dock-corner dock-corner--tl" aria-hidden="true" />
+                <i class="dock-corner dock-corner--tr" aria-hidden="true" />
+                <i class="dock-corner dock-corner--bl" aria-hidden="true" />
+                <i class="dock-corner dock-corner--br" aria-hidden="true" />
+                <header class="dock-hd">
+                    <span class="dock-hd-left">
+                        <img class="dock-ico dock-ico--img" src="/assets/icons/skill.webp" alt="" aria-hidden="true" draggable="false" />
+                        <span class="dock-title">{{ interruptStore.selectedSkill.title }}</span>
+                    </span>
+                    <nav class="dock-steps" aria-hidden="true">
+                        <span class="on">① 弃牌</span>
+                        <i class="dock-steps-sep">›</i>
+                        <span>② 选目标</span>
+                    </nav>
+                </header>
+                <div class="dock-bd">
+                    <div class="dock-hint">
+                        {{ skillDiscardGuideText(interruptStore.selectedSkill) }}
+                    </div>
+                    <div class="dock-progress" aria-hidden="true">
+                        <i
+                            v-for="n in requiredDiscardCount(interruptStore.selectedSkill)"
+                            :key="n"
+                            class="dock-dot"
+                            :class="{ 'dock-dot--on': n <= interruptStore.skillDiscardHandIndexes.length }"
+                        />
+                    </div>
+                    <div class="dock-hint dock-hint--sm">请在下方手牌区点击选择，选满后自动进入下一步</div>
+                </div>
+                <footer class="dock-ft">
+                    <button type="button" class="dock-btn dock-btn--ghost" title="取消" @click="interruptStore.clearSkillMode()"><img class="dock-btn-ico" src="/assets/icons/cancel.webp" alt="" aria-hidden="true" />取消</button>
+                    <span class="dock-ft-center">已选 {{ interruptStore.skillDiscardHandIndexes.length }} / {{ requiredDiscardCount(interruptStore.selectedSkill) }}</span>
+                </footer>
+            </div>
+
+            <!-- 技能发动流程：选择目标 -->
+            <div v-else-if="interruptStore.skillMode === 'choosing_target' && interruptStore.selectedSkill" class="dock-panel skill-target-panel">
+                <i class="dock-corner dock-corner--tl" aria-hidden="true" />
+                <i class="dock-corner dock-corner--tr" aria-hidden="true" />
+                <i class="dock-corner dock-corner--bl" aria-hidden="true" />
+                <i class="dock-corner dock-corner--br" aria-hidden="true" />
+                <header class="dock-hd">
+                    <span class="dock-hd-left">
+                        <img class="dock-ico dock-ico--img" src="/assets/icons/skill.webp" alt="" aria-hidden="true" draggable="false" />
+                        <span class="dock-title">{{ interruptStore.selectedSkill.title }}</span>
+                    </span>
+                    <nav v-if="interruptStore.selectedSkill.cost_discards > 0 || interruptStore.selectedSkill.require_exclusive" class="dock-steps" aria-hidden="true">
+                        <span class="done">① {{ interruptStore.selectedSkill.cost_discards > 0 ? '弃牌' : '选牌' }}</span>
+                        <i class="dock-steps-sep">›</i>
+                        <span class="on">② 选目标</span>
+                    </nav>
+                    <span v-else class="dock-hd-meta">选目标 {{ interruptStore.skillTargetIds.length }}/{{ interruptStore.selectedSkill.max_targets > 0 ? interruptStore.selectedSkill.max_targets : 1 }}</span>
+                </header>
+                <div class="dock-bd">
+                    <p v-if="interruptStore.selectedSkill.description" class="dock-hint dock-hint--desc">{{ interruptStore.selectedSkill.description }}</p>
+                    <div class="dock-hint">
+                        <template v-if="isManualTargetConfirmSkillFlow">
+                            点击角色头像选择目标，然后点击“确认发动”
+                        </template>
+                        <template v-else>
+                            请直接点击角色头像选择目标并自动发动
+                            <span v-if="(interruptStore.selectedSkill.max_targets || 1) === 1">（单目标：点击即发动）</span>
+                            <span v-else-if="(interruptStore.selectedSkill.min_targets || 0) >= (interruptStore.selectedSkill.max_targets || 1)">
+                                （选满 {{ interruptStore.selectedSkill.max_targets || 1 }} 个目标后自动发动）
+                            </span>
+                            <span v-else>
+                                （多目标：先点头像选择，再点击任一已选头像确认发动）
+                            </span>
+                        </template>
+                    </div>
+                    <div class="dock-progress" aria-hidden="true">
+                        <i
+                            v-for="n in (interruptStore.selectedSkill.max_targets > 0 ? interruptStore.selectedSkill.max_targets : 1)"
+                            :key="n"
+                            class="dock-dot"
+                            :class="{ 'dock-dot--on': n <= interruptStore.skillTargetIds.length }"
+                        />
+                    </div>
+                    <div v-if="interruptStore.skillTargetIds.length > 0" class="dock-accent">
+                        已选目标：
+                        {{ interruptStore.skillTargetIds.map((id) => snapshotStore.players[id]?.name || id).join('、') }}
+                    </div>
+                </div>
+                <footer class="dock-ft">
+                    <button type="button" class="dock-btn dock-btn--ghost" title="取消" @click="interruptStore.clearSkillMode()"><img class="dock-btn-ico" src="/assets/icons/cancel.webp" alt="" aria-hidden="true" />取消</button>
+                    <button
+                        v-if="isManualTargetConfirmSkillFlow"
+                        type="button"
+                        class="dock-btn dock-btn--primary"
+                        :disabled="!canConfirmSkill"
+                        title="确认发动"
+                        @click="confirmSkill()"
+                    >
+                        确认发动 ✓
+                    </button>
+                </footer>
+            </div>
+
+            <!-- 等待提示 -->
+            </Teleport>
+            <div v-if="hasSkillSlot" class="dock-panel dock-panel--waiting" data-testid="dock-skill-pointer">
+                <div class="dock-bd dock-bd--deferred">
                     <img class="dock-ico dock-ico--img" src="/assets/icons/skill.webp" alt="" aria-hidden="true" draggable="false" />
-                    <span class="dock-title">{{ interruptStore.selectedSkill.title }}</span>
-                </span>
-                <nav class="dock-steps" aria-hidden="true">
-                    <span class="on">① 选牌</span>
-                    <i class="dock-steps-sep">›</i>
-                    <span>② 选目标</span>
-                </nav>
-            </header>
-            <div class="dock-bd">
-                <p v-if="interruptStore.selectedSkill.description" class="dock-hint dock-hint--desc">{{ interruptStore.selectedSkill.description }}</p>
-                <div class="dock-hint">
-                    请在手牌区选择对应的独有技手牌，然后点击确认。
-                </div>
-                <div class="dock-progress" aria-hidden="true">
-                    <i class="dock-dot" :class="{ 'dock-dot--on': interruptStore.skillDiscardHandIndexes.length > 0 }" />
-                </div>
-                <div v-if="selectedExclusiveSkillCard" class="dock-accent">
-                    已选独有技手牌：{{ selectedExclusiveSkillCard.name }}
+                    <div class="dock-hint">正在发动【{{ interruptStore.selectedSkill?.title }}】，请在上方作答</div>
                 </div>
             </div>
-            <footer class="dock-ft">
-                <button type="button" class="dock-btn dock-btn--ghost" title="取消" @click="interruptStore.clearSkillMode()"><img class="dock-btn-ico" src="/assets/icons/cancel.webp" alt="" aria-hidden="true" />取消</button>
-                <button
-                    type="button"
-                    class="dock-btn dock-btn--primary"
-                    :disabled="!canConfirmExclusiveSkillSelection"
-                    data-testid="skill-exclusive-confirm-btn"
-                    title="确认"
-                    @click="confirmExclusiveSkillSelection"
-                ><img class="dock-btn-ico" src="/assets/icons/confirm.webp" alt="" aria-hidden="true" />确认</button>
-            </footer>
-        </div>
+        </template>
 
-        <!-- 技能发动流程：选择弃牌 -->
-        <div v-else-if="interruptStore.skillMode === 'choosing_discard' && interruptStore.selectedSkill" class="dock-panel skill-discard-panel">
-            <i class="dock-corner dock-corner--tl" aria-hidden="true" />
-            <i class="dock-corner dock-corner--tr" aria-hidden="true" />
-            <i class="dock-corner dock-corner--bl" aria-hidden="true" />
-            <i class="dock-corner dock-corner--br" aria-hidden="true" />
-            <header class="dock-hd">
-                <span class="dock-hd-left">
-                    <img class="dock-ico dock-ico--img" src="/assets/icons/skill.webp" alt="" aria-hidden="true" draggable="false" />
-                    <span class="dock-title">{{ interruptStore.selectedSkill.title }}</span>
-                </span>
-                <nav class="dock-steps" aria-hidden="true">
-                    <span class="on">① 弃牌</span>
-                    <i class="dock-steps-sep">›</i>
-                    <span>② 选目标</span>
-                </nav>
-            </header>
-            <div class="dock-bd">
-                <div class="dock-hint">
-                    {{ skillDiscardGuideText(interruptStore.selectedSkill) }}
-                </div>
-                <div class="dock-progress" aria-hidden="true">
-                    <i
-                        v-for="n in requiredDiscardCount(interruptStore.selectedSkill)"
-                        :key="n"
-                        class="dock-dot"
-                        :class="{ 'dock-dot--on': n <= interruptStore.skillDiscardHandIndexes.length }"
-                    />
-                </div>
-                <div class="dock-hint dock-hint--sm">请在下方手牌区点击选择，选满后自动进入下一步</div>
-            </div>
-            <footer class="dock-ft">
-                <button type="button" class="dock-btn dock-btn--ghost" title="取消" @click="interruptStore.clearSkillMode()"><img class="dock-btn-ico" src="/assets/icons/cancel.webp" alt="" aria-hidden="true" />取消</button>
-                <span class="dock-ft-center">已选 {{ interruptStore.skillDiscardHandIndexes.length }} / {{ requiredDiscardCount(interruptStore.selectedSkill) }}</span>
-            </footer>
-        </div>
-
-        <!-- 技能发动流程：选择目标 -->
-        <div v-else-if="interruptStore.skillMode === 'choosing_target' && interruptStore.selectedSkill" class="dock-panel skill-target-panel">
-            <i class="dock-corner dock-corner--tl" aria-hidden="true" />
-            <i class="dock-corner dock-corner--tr" aria-hidden="true" />
-            <i class="dock-corner dock-corner--bl" aria-hidden="true" />
-            <i class="dock-corner dock-corner--br" aria-hidden="true" />
-            <header class="dock-hd">
-                <span class="dock-hd-left">
-                    <img class="dock-ico dock-ico--img" src="/assets/icons/skill.webp" alt="" aria-hidden="true" draggable="false" />
-                    <span class="dock-title">{{ interruptStore.selectedSkill.title }}</span>
-                </span>
-                <nav v-if="interruptStore.selectedSkill.cost_discards > 0 || interruptStore.selectedSkill.require_exclusive" class="dock-steps" aria-hidden="true">
-                    <span class="done">① {{ interruptStore.selectedSkill.cost_discards > 0 ? '弃牌' : '选牌' }}</span>
-                    <i class="dock-steps-sep">›</i>
-                    <span class="on">② 选目标</span>
-                </nav>
-                <span v-else class="dock-hd-meta">选目标 {{ interruptStore.skillTargetIds.length }}/{{ interruptStore.selectedSkill.max_targets > 0 ? interruptStore.selectedSkill.max_targets : 1 }}</span>
-            </header>
-            <div class="dock-bd">
-                <p v-if="interruptStore.selectedSkill.description" class="dock-hint dock-hint--desc">{{ interruptStore.selectedSkill.description }}</p>
-                <div class="dock-hint">
-                    <template v-if="isManualTargetConfirmSkillFlow">
-                        点击角色头像选择目标，然后点击“确认发动”
-                    </template>
-                    <template v-else>
-                        请直接点击角色头像选择目标并自动发动
-                        <span v-if="(interruptStore.selectedSkill.max_targets || 1) === 1">（单目标：点击即发动）</span>
-                        <span v-else-if="(interruptStore.selectedSkill.min_targets || 0) >= (interruptStore.selectedSkill.max_targets || 1)">
-                            （选满 {{ interruptStore.selectedSkill.max_targets || 1 }} 个目标后自动发动）
-                        </span>
-                        <span v-else>
-                            （多目标：先点头像选择，再点击任一已选头像确认发动）
-                        </span>
-                    </template>
-                </div>
-                <div class="dock-progress" aria-hidden="true">
-                    <i
-                        v-for="n in (interruptStore.selectedSkill.max_targets > 0 ? interruptStore.selectedSkill.max_targets : 1)"
-                        :key="n"
-                        class="dock-dot"
-                        :class="{ 'dock-dot--on': n <= interruptStore.skillTargetIds.length }"
-                    />
-                </div>
-                <div v-if="interruptStore.skillTargetIds.length > 0" class="dock-accent">
-                    已选目标：
-                    {{ interruptStore.skillTargetIds.map((id) => snapshotStore.players[id]?.name || id).join('、') }}
-                </div>
-            </div>
-            <footer class="dock-ft">
-                <button type="button" class="dock-btn dock-btn--ghost" title="取消" @click="interruptStore.clearSkillMode()"><img class="dock-btn-ico" src="/assets/icons/cancel.webp" alt="" aria-hidden="true" />取消</button>
-                <button
-                    v-if="isManualTargetConfirmSkillFlow"
-                    type="button"
-                    class="dock-btn dock-btn--primary"
-                    :disabled="!canConfirmSkill"
-                    title="确认发动"
-                    @click="confirmSkill()"
-                >
-                    确认发动 ✓
-                </button>
-            </footer>
-        </div>
-
-        <!-- 等待提示 -->
         <div v-else-if="interruptStore.waitingFor && !prompt" class="dock-panel dock-panel--waiting">
             <i class="dock-corner dock-corner--tl" aria-hidden="true" />
             <i class="dock-corner dock-corner--tr" aria-hidden="true" />

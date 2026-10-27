@@ -3033,6 +3033,8 @@ const fighterHundredDragonByPlayer = computed(() => {
 
     <StageOverlay v-if="stageOverlayEnabled" :root-el="boardRootRef" :player-label="stageSeatLabel" />
     <DecisionDock />
+    <!-- 技能发动流程的选牌 / 选目标步骤由 ActionPanel 传送到这里（手牌上方） -->
+    <div id="decision-skill-slot" class="decision-skill-slot" />
     <VfxLayer />
   </div>
 </template>
@@ -3424,7 +3426,7 @@ const fighterHundredDragonByPlayer = computed(() => {
   z-index: 0;
 }
 
-.board-shell > *:not(.link-lines-layer):not(.stage-overlay):not(.board-ambient):not(.rose-courtyard-vfx):not(.draw-flight-layer):not(.host-dissolve-btn):not(.right-action-dock):not(.decision-dock-layer) {
+.board-shell > *:not(.link-lines-layer):not(.stage-overlay):not(.board-ambient):not(.rose-courtyard-vfx):not(.draw-flight-layer):not(.host-dissolve-btn):not(.right-action-dock):not(.decision-dock-layer):not(.decision-skill-slot) {
   position: relative;
   z-index: 2;
 }
@@ -4094,6 +4096,28 @@ const fighterHundredDragonByPlayer = computed(() => {
   transform: translateX(-100%);
   --status-preview-x: -8px;
   --status-preview-origin: right center;
+}
+
+/* 技能发动流程的步骤面板：浮在手牌上方中央，与决策面板窄条同一位置 */
+.decision-skill-slot {
+  position: absolute;
+  left: 50%;
+  bottom: 196px;
+  z-index: 40;
+  width: min(560px, calc(100% - 32px));
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  pointer-events: none;
+}
+
+.decision-skill-slot > * {
+  pointer-events: auto;
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.55), 0 18px 40px rgba(0, 0, 0, 0.6);
+}
+
+.decision-skill-slot:empty {
+  display: none;
 }
 
 /* 状态栏图标：外框与类别色由 BattleMarkIcon 自带，这里只负责尺寸与悬停放大 */

@@ -175,6 +175,19 @@ const promptEffectHints = computed(() =>
 
 const promptInteraction = computed(() => prompt.value?.interaction ?? null)
 
+/** 当前提示所属技能的完整描述：优先 skill_id，否则按文案里的【技能名】在角色数据中查找。 */
+const promptSkillDescription = computed(() => {
+  const p = prompt.value
+  if (!p) return ''
+  const skillId = String(p.skill_id || '').trim()
+  const title = (String(p.message || '').match(/【([^】]+)】/) || [])[1] || ''
+  for (const character of Object.values(snapshotStore.characters)) {
+    const skill = character.skills?.find((s) => (skillId && s.id === skillId) || (!skillId && title && s.title === title))
+    if (skill) return skill.description || ''
+  }
+  return ''
+})
+
 // —— 停靠窄条（规范图模板 3/4/5）：选目标 / 选手牌 / 选扩展区盖牌在棋盘上作答 ——
 const docked = inject(DECISION_DOCKED, false)
 
@@ -2025,6 +2038,7 @@ watch(autoResolveOptionId, (optionId) => {
     :cancel-label="cancelDockButton.buttonLabel || '取消'"
     :cancel-option-id="cancelDockButton.id"
     :hand-count="myHand.length"
+    :skill-description="promptSkillDescription"
     @select="handleOptionClick"
     @cancel="handleOptionClick"
   />

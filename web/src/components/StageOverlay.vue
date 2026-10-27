@@ -38,6 +38,12 @@ const snapshotStore = useSnapshotStore()
 const interruptStore = useInterruptStore()
 const sessionStore = useSessionStore()
 
+/** 决策面板是否打开（与 DecisionDock 一致：我的提示，且不是行动选择枢纽）。 */
+const decisionOpen = computed(() => {
+  const p = interruptStore.currentPrompt
+  return !!p && p.player_id === sessionStore.myPlayerId && p.presentation?.kind !== 'action_hub'
+})
+
 /** The waiting-for id is empty for the player holding the prompt, so fall back to "me". */
 function isAwaiting(playerId: string): boolean {
   if (interruptStore.waitingFor) return interruptStore.waitingFor === playerId
@@ -960,7 +966,11 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <div v-else-if="narration" class="stage-story" :class="{ 'stage-story--prev': narration.previous }">
+    <div
+      v-else-if="narration"
+      class="stage-story"
+      :class="{ 'stage-story--prev': narration.previous, 'stage-story--lifted': decisionOpen }"
+    >
       <div class="stage-story__head">
         <span class="stage-story__tag">{{ narration.previous ? '上一手' : '当前行动' }}</span>
       </div>
@@ -1304,7 +1314,11 @@ onBeforeUnmount(() => {
   background: rgba(9, 14, 26, 0.9);
   border: 1px solid #3b4d6e;
   padding: 10px 14px 8px;
-  transition: filter 0.5s, border-color 0.5s;
+  transition: filter 0.5s, border-color 0.5s, top 0.25s ease;
+}
+/* 决策面板打开时上移，避免与面板上下贴在一起 */
+.stage-story--lifted {
+  top: 18%;
 }
 .stage-story--prev {
   filter: saturate(0.35) brightness(0.8);

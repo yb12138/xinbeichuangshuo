@@ -7,7 +7,7 @@
  * - 可拖拽（位置跨对局记住），可收起成胶囊；别人回合打断我时强制展开并显示红色打断色带。
  * 布局依据：outimage/决策面板布局规范图.png，示意页 public/mockups/decision-dock-layout.html。
  */
-import { computed, onBeforeUnmount, provide, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue'
 import PromptDialog from './PromptDialog.vue'
 import { DECISION_DOCKED } from './prompt/dockContext'
 import { useInterruptStore } from '../stores/interrupt.store'
@@ -100,12 +100,37 @@ const header = computed(() => {
   }
 })
 
+/** 多步流程进度（后端在 presentation.step_index / total_steps 填写；单步提示不显示）。 */
+const steps = computed(() => {
+  const pres = prompt.value?.presentation
+  const total = pres?.total_steps ?? 0
+  const index = pres?.step_index ?? 0
+  return total > 1 && index > 0 ? { index: Math.min(index, total), total } : null
+})
+
+// —— 等待计时：后端没有决策超时，这里显示"已等待 N 秒"，提示玩家其他人在等 ——
+const waitStartedAt = ref(Date.now())
+const now = ref(Date.now())
+let clock: ReturnType<typeof setInterval> | null = null
+onMounted(() => {
+  clock = setInterval(() => {
+    now.value = Date.now()
+  }, 1000)
+})
+const waitedSeconds = computed(() => Math.max(0, Math.floor((now.value - waitStartedAt.value) / 1000)))
+/** 等待超过 20 秒才显示，避免每个决策一出现就带着数字。 */
+const waitLabel = computed(() => (waitedSeconds.value >= 20 ? `已等待 ${waitedSeconds.value} 秒` : ''))
+
 // —— 收起：每次出现新的提示都重新展开；打断时强制展开 ——
 const promptKey = computed(() => {
   const p = prompt.value
   return p ? `${p.choice_type || ''}|${p.skill_id || ''}|${p.message}|${(p.options || []).length}` : ''
 })
-watch(promptKey, () => uiStore.setDecisionDockCollapsed(false))
+watch(promptKey, () => {
+  uiStore.setDecisionDockCollapsed(false)
+  waitStartedAt.value = Date.now()
+  now.value = Date.now()
+})
 const collapsed = computed(() => uiStore.decisionDockCollapsed && !interrupted.value)
 
 function collapse() {
@@ -160,6 +185,7 @@ function resetPosition() {
 }
 onBeforeUnmount(() => {
   drag.value = null
+  if (clock) clearInterval(clock)
 })
 
 const dockStyle = computed(() => {
@@ -206,6 +232,15 @@ const dockStyle = computed(() => {
             <div class="decision-dock__title" data-testid="decision-dock-title">{{ header.title }}</div>
             <div v-if="header.message && !boardAnswered" class="decision-dock__message">{{ header.message }}</div>
           </div>
+          <div v-if="steps || waitLabel" class="decision-dock__meta">
+            <div v-if="steps" class="decision-dock__steps" data-testid="decision-dock-steps" :aria-label="`第 ${steps.index}/${steps.total} 步`">
+              <span class="decision-dock__dots" aria-hidden="true">
+                <i v-for="n in steps.total" :key="n" :class="{ 'is-done': n < steps.index, 'is-current': n === steps.index }" />
+              </span>
+              第 {{ steps.index }}/{{ steps.total }} 步
+            </div>
+            <div v-if="waitLabel" class="decision-dock__wait" data-testid="decision-dock-wait">{{ waitLabel }}</div>
+          </div>
           <button
             v-if="!interrupted"
             type="button"
@@ -238,7 +273,7 @@ const dockStyle = computed(() => {
         <img v-if="header?.avatar" class="decision-dock-pill__avatar" :src="header.avatar" alt="" />
         <span class="decision-dock-pill__text">
           <span class="decision-dock-pill__title">待决策：{{ header?.title }}</span>
-          <span class="decision-dock-pill__sub">点击展开</span>
+          <span class="decision-dock-pill__sub">{{ waitLabel ? `${waitLabel} · 点击展开` : '点击展开' }}</span>
         </span>
         <span class="decision-dock-pill__open" aria-hidden="true">▲</span>
       </button>
@@ -378,6 +413,43 @@ const dockStyle = computed(() => {
   font-size: 12px;
   line-height: 1.4;
   color: var(--bt-text-sub);
+}
+.decision-dock__meta {
+  flex: none;
+  align-self: flex-start;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--bt-text-sub);
+}
+.decision-dock__steps {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.decision-dock__dots {
+  display: inline-flex;
+  gap: 4px;
+}
+.decision-dock__dots i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px var(--bt-chrome-mid);
+}
+.decision-dock__dots i.is-done {
+  background: var(--bt-chrome-mid);
+}
+.decision-dock__dots i.is-current {
+  background: var(--bt-select);
+  box-shadow: 0 0 5px var(--bt-select-glow);
+}
+.decision-dock__wait {
+  white-space: nowrap;
+  color: var(--bt-active);
 }
 .decision-dock__tool {
   width: 28px;

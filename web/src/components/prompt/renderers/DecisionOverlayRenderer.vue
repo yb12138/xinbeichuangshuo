@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, inject, ref, watch } from 'vue'
 import { DECISION_DOCKED } from '../dockContext'
-import { optionPreview } from '../optionPreview'
+import { optionPreview, sharedConsequence } from '../optionPreview'
 import { MARK_GLYPHS } from '../../marks/markGlyphs'
 type DecisionOverlayMode = 'numeric' | 'text' | 'activation-cost' | 'yes-no'
 
@@ -27,6 +27,8 @@ const props = defineProps<{
   cancelOptionId: string
   /** 停靠时用于后果预览（"手牌 4→5"）。 */
   handCount?: number | null
+  /** 技能完整描述，用于在选项卡下方显示共同后果（"然后…"）。 */
+  skillDescription?: string
 }>()
 
 const emit = defineEmits<{
@@ -63,6 +65,8 @@ const cards = computed(() =>
     return { option, ...preview, path: MARK_GLYPHS[preview.glyph] || '' }
   }),
 )
+
+const shared = computed(() => (dockedCards.value ? sharedConsequence(props.skillDescription) : ''))
 
 function pick(optionId: string) {
   picked.value = picked.value === optionId ? '' : optionId
@@ -229,6 +233,7 @@ const pickedNumericHint = computed(() => {
             </button>
           </div>
 
+          <div v-if="dockedCards && shared" class="decision-shared" data-testid="decision-shared">{{ shared }}</div>
           <div v-if="dockedCards" class="decision-actions">
             <button
               v-if="canCancel"
@@ -769,6 +774,17 @@ const pickedNumericHint = computed(() => {
   opacity: 0.45;
   box-shadow: 0 0 0 1px var(--bt-chrome-mid, #7d8796);
   cursor: not-allowed;
+}
+
+.decision-shared {
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--bt-text-sub, #9aa4b5);
+  background: rgba(9, 14, 26, 0.7);
+  box-shadow: 0 0 0 1px var(--bt-hairline-soft, rgba(185, 193, 205, 0.22));
 }
 
 /* —— 停靠模板 2：是否发动 / 效果预览 —— */

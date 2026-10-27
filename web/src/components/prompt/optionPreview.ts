@@ -13,6 +13,9 @@ function split(label: string): { title: string; rest: string } {
   // "分支①：对目标造成1点法术伤害" → 标题"分支①"，说明为冒号后的内容
   const m = label.match(/^(.{1,8}?)[：:](.+)$/)
   if (m) return { title: m[1]!.trim(), rest: m[2]!.trim() }
+  // "默认方向（右手边，前一位对手）" → 括号内容作为说明
+  const paren = label.match(/^(.+?)[（(]([^）)]+)[）)]\s*$/)
+  if (paren) return { title: paren[1]!.trim(), rest: paren[2]!.trim() }
   return { title: label, rest: '' }
 }
 
@@ -46,4 +49,14 @@ export function optionPreview(label: string, hint: string | undefined, handCount
     glyph = 'skip'
   }
   return { title, desc, glyph, tone }
+}
+
+/**
+ * 技能描述里"选择…；然后…"的共同后果，例如舞动的"然后将牌库顶1张牌面朝下放置为茧"。
+ * 只取分号或句号之后以"然后"开头的那一句；没有就返回空字符串。
+ */
+export function sharedConsequence(skillDescription: string | undefined): string {
+  const text = String(skillDescription || '')
+  const m = text.match(/[；;。]\s*(然后[^；;。]+)/)
+  return m ? m[1]!.trim() : ''
 }
