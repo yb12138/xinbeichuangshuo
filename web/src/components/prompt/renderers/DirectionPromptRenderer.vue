@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { inject } from 'vue'
+import { DECISION_DOCKED } from '../dockContext'
 type DirectionPromptOption = {
   id: string
   label: string
@@ -19,14 +21,16 @@ defineProps<{
 const emit = defineEmits<{
   select: [optionId: string]
 }>()
+
+const docked = inject(DECISION_DOCKED, false)
 </script>
 
 <template>
-  <Teleport to="body">
+  <Teleport to="body" :disabled="docked">
     <Transition name="modal">
       <div
         v-if="visible"
-        class="overlay-panel-root overlay-panel-root--decision"
+        class="overlay-panel-root overlay-panel-root--decision" :class="{ 'overlay-panel-root--docked': docked }"
         data-testid="direction-prompt"
       >
         <div class="overlay-panel" data-testid="decision-overlay" @click.stop>
@@ -262,5 +266,32 @@ const emit = defineEmits<{
     width: 100%;
     max-height: 55vh;
   }
+}
+
+/* 停靠在决策面板内：原地渲染，去掉全屏遮罩与自身外框，由 DecisionDock 提供外壳 */
+.overlay-panel-root.overlay-panel-root--docked {
+  position: static;
+  inset: auto;
+  z-index: auto;
+  display: block;
+  padding: 0;
+  background: none;
+  pointer-events: auto;
+}
+.overlay-panel-root.overlay-panel-root--docked .overlay-panel {
+  width: 100%;
+  max-height: none;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+}
+.overlay-panel-root.overlay-panel-root--docked .overlay-panel-header {
+  /* 决策面板的来由条已经写明技能与问题，这里不再重复 */
+  display: none;
+}
+.overlay-panel-root.overlay-panel-root--docked .overlay-panel-body {
+  padding: 0 4px;
+  background: none;
 }
 </style>

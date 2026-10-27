@@ -18,10 +18,12 @@ import { parseActionHubNotice } from '../constants/actionHubNotice'
 import { cardArtSrc } from '../constants/cardArt'
 import { characterArtSrc } from '../constants/characterArt'
 import PromptDialog from './PromptDialog.vue'
+import { useUiStore } from '../stores/ui.store'
 
 const interruptStore = useInterruptStore()
 const sessionStore = useSessionStore()
 const snapshotStore = useSnapshotStore()
+const uiStore = useUiStore()
 const actions = useSubmitAction()
 const interaction = useInteractionController()
 const {
@@ -1479,8 +1481,16 @@ function elementName(el: string): string {
                     </div>
                 </div>
             </template>
-            <div v-else class="prompt-inline-host">
-                <PromptDialog />
+            <!-- 其余决策在棋盘上方的浮动决策面板（DecisionDock）作答，这里只留指引 -->
+            <div v-else class="dock-bd dock-bd--deferred" data-testid="dock-decision-pointer">
+                <img class="dock-ico dock-ico--img" src="/assets/icons/waiting.webp" alt="" aria-hidden="true" draggable="false" />
+                <div class="dock-hint">请在上方决策面板中作答</div>
+                <button
+                    v-if="uiStore.decisionDockCollapsed"
+                    type="button"
+                    class="dock-btn dock-btn--ghost"
+                    @click="uiStore.setDecisionDockCollapsed(false)"
+                >展开决策面板</button>
             </div>
         </div>
 
@@ -2667,6 +2677,22 @@ function elementName(el: string): string {
     min-height: 0;
     overflow-y: auto;
     padding: 6px;
+}
+
+.dock-bd--deferred {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    text-align: center;
+}
+
+.dock-bd--deferred .dock-ico {
+    width: 34px;
+    height: 34px;
+    opacity: 0.75;
 }
 
 .dock-bd--overflow .prompt-inline-host {

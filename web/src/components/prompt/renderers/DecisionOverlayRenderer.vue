@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import { computed, inject, ref, watch } from 'vue'
+import { DECISION_DOCKED } from '../dockContext'
+import { optionPreview } from '../optionPreview'
+import { MARK_GLYPHS } from '../../marks/markGlyphs'
 type DecisionOverlayMode = 'numeric' | 'text' | 'activation-cost' | 'yes-no'
 
 type DecisionOverlayOption = {
@@ -21,6 +25,8 @@ const props = defineProps<{
   canCancel: boolean
   cancelLabel: string
   cancelOptionId: string
+  /** 停靠时用于后果预览（"手牌 4→5"）。 */
+  handCount?: number | null
 }>()
 
 const emit = defineEmits<{
@@ -36,14 +42,43 @@ function overlayDecisionOptionTitle(option: DecisionOverlayOption): string {
   if (/^\d+$/.test(buttonLabel)) return label
   return buttonLabel
 }
+
+const docked = inject(DECISION_DOCKED, false)
+
+// —— 停靠模式（决策面板规范图模板 1）：选项卡先点选、再在底部操作条确认 ——
+const picked = ref('')
+watch(
+  () => props.options.map((o) => o.id).join('|'),
+  () => {
+    picked.value = ''
+  },
+)
+
+/** 文字分支在停靠时画成选项卡；其余模式沿用原有按钮。 */
+const dockedCards = computed(() => docked && props.mode === 'text')
+
+const cards = computed(() =>
+  props.options.map((option) => {
+    const preview = optionPreview(overlayDecisionOptionTitle(option), option.hint, props.handCount ?? null)
+    return { option, ...preview, path: MARK_GLYPHS[preview.glyph] || '' }
+  }),
+)
+
+function pick(optionId: string) {
+  picked.value = picked.value === optionId ? '' : optionId
+}
+
+function confirmPicked() {
+  if (picked.value) emit('select', picked.value)
+}
 </script>
 
 <template>
-  <Teleport to="body">
+  <Teleport to="body" :disabled="docked">
     <Transition name="modal">
       <div
         v-if="visible"
-        class="overlay-panel-root overlay-panel-root--decision"
+        class="overlay-panel-root overlay-panel-root--decision" :class="{ 'overlay-panel-root--docked': docked }"
         data-testid="decision-overlay"
       >
         <div class="overlay-panel" @click.stop>
@@ -96,6 +131,26 @@ function overlayDecisionOptionTitle(option: DecisionOverlayOption): string {
             </div>
           </div>
 
+          <div v-else-if="dockedCards" class="overlay-panel-body decision-cards" :class="{ 'decision-cards--many': cards.length > 2 }">
+            <button
+              v-for="(card, idx) in cards"
+              :key="card.option.id"
+              type="button"
+              class="decision-card"
+              :class="[`decision-card--${card.tone}`, { 'decision-card--picked': picked === card.option.id }]"
+              :data-testid="`branch-option-${idx}`"
+              :disabled="!!card.option.disabled"
+              :aria-pressed="picked === card.option.id"
+              @click="pick(card.option.id)"
+            >
+              <span class="decision-card__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path :d="card.path" /></svg>
+              </span>
+              <span class="decision-card__title" :data-testid="`prompt-option-${card.option.id}`">{{ card.title }}</span>
+              <span v-if="card.desc" class="decision-card__desc">{{ card.desc }}</span>
+            </button>
+          </div>
+
           <div v-else class="overlay-panel-body overlay-panel-body--text">
             <button
               v-for="(option, idx) in options"
@@ -113,7 +168,28 @@ function overlayDecisionOptionTitle(option: DecisionOverlayOption): string {
             </button>
           </div>
 
-          <div v-if="canCancel && mode !== 'yes-no'" class="overlay-panel-footer">
+          <div v-if="dockedCards" class="decision-actions">
+            <button
+              v-if="canCancel"
+              type="button"
+              class="decision-actions__ghost"
+              data-testid="prompt-cancel-btn"
+              @click="emit('cancel', cancelOptionId)"
+            >
+              {{ cancelLabel || '放弃' }}
+            </button>
+            <span v-else />
+            <button
+              type="button"
+              class="decision-actions__gold"
+              data-testid="decision-confirm-btn"
+              :disabled="!picked"
+              @click="confirmPicked"
+            >
+              确认
+            </button>
+          </div>
+          <div v-else-if="canCancel && mode !== 'yes-no'" class="overlay-panel-footer">
             <button class="overlay-panel-cancel" data-testid="prompt-cancel-btn" @click="emit('cancel', cancelOptionId)">
               {{ cancelLabel || '取消' }}
             </button>
@@ -493,5 +569,144 @@ function overlayDecisionOptionTitle(option: DecisionOverlayOption): string {
     width: 100%;
     max-height: 55vh;
   }
+}
+
+/* 停靠在决策面板内：原地渲染，去掉全屏遮罩与自身外框，由 DecisionDock 提供外壳 */
+.overlay-panel-root.overlay-panel-root--docked {
+  position: static;
+  inset: auto;
+  z-index: auto;
+  display: block;
+  padding: 0;
+  background: none;
+  pointer-events: auto;
+}
+.overlay-panel-root.overlay-panel-root--docked .overlay-panel {
+  width: 100%;
+  max-height: none;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+}
+.overlay-panel-root.overlay-panel-root--docked .overlay-panel-header {
+  /* 决策面板的来由条已经写明技能与问题，这里不再重复 */
+  display: none;
+}
+.overlay-panel-root.overlay-panel-root--docked .overlay-panel-body {
+  padding: 0 4px;
+  background: none;
+}
+
+/* —— 停靠模板 1：文字分支 → 横排选项卡 + 底部操作条 —— */
+.decision-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding: 4px 0 0;
+}
+.decision-cards--many {
+  grid-template-columns: 1fr;
+}
+.decision-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 10px;
+  color: var(--bt-text, #e8ecf4);
+  background: rgba(9, 14, 26, 0.85);
+  box-shadow: 0 0 0 1px var(--bt-chrome-mid, #7d8796);
+  cursor: pointer;
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+  --card-accent: var(--bt-select, #9fd4ff);
+}
+.decision-card--gain {
+  --card-accent: #7fb6ff;
+}
+.decision-card--loss {
+  --card-accent: #b48bff;
+}
+.decision-cards--many .decision-card {
+  flex-direction: row;
+  justify-content: flex-start;
+  gap: 12px;
+  padding: 10px 14px;
+  text-align: left;
+}
+.decision-card:hover:not(:disabled) {
+  box-shadow: 0 0 0 1px var(--card-accent);
+}
+.decision-card--picked {
+  background: color-mix(in srgb, var(--card-accent) 14%, rgba(9, 14, 26, 0.85));
+  box-shadow: 0 0 0 2px var(--card-accent), 0 0 18px color-mix(in srgb, var(--card-accent) 45%, transparent);
+}
+.decision-card:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.decision-card__icon {
+  width: 38px;
+  height: 38px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--card-accent) 22%, transparent), transparent 70%);
+  box-shadow: 0 0 0 1px var(--card-accent);
+}
+.decision-cards--many .decision-card__icon {
+  width: 34px;
+  height: 34px;
+}
+.decision-card__icon svg {
+  width: 22px;
+  height: 22px;
+  fill: var(--card-accent);
+}
+.decision-card__title {
+  font-size: 15px;
+  font-weight: 800;
+}
+.decision-card__desc {
+  font-size: 12px;
+  color: var(--bt-text-sub, #9aa4b5);
+}
+.decision-cards--many .decision-card__desc {
+  margin-left: auto;
+}
+.decision-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0 0;
+}
+.decision-actions__ghost,
+.decision-actions__gold {
+  min-width: 88px;
+  padding: 7px 22px;
+  border: none;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.decision-actions__ghost {
+  color: var(--bt-chrome, #b9c1cd);
+  background: var(--bt-bg-0, #070b14);
+  box-shadow: 0 0 0 1px var(--bt-chrome-mid, #7d8796);
+}
+.decision-actions__gold {
+  color: #2a1d00;
+  background: linear-gradient(180deg, #ffe39a, #e0a93c);
+  box-shadow: 0 0 0 1px #fff3c4, 0 0 14px var(--bt-active-glow, rgba(240, 195, 90, 0.45));
+}
+.decision-actions__gold:disabled {
+  opacity: 0.45;
+  box-shadow: 0 0 0 1px var(--bt-chrome-mid, #7d8796);
+  cursor: not-allowed;
 }
 </style>

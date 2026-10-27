@@ -1979,6 +1979,7 @@ watch(autoResolveOptionId, (optionId) => {
     :can-cancel="decisionOverlayCanCancel"
     :cancel-label="cancelDockButton.buttonLabel || '取消'"
     :cancel-option-id="cancelDockButton.id"
+    :hand-count="myHand.length"
     @select="handleOptionClick"
     @cancel="handleOptionClick"
   />

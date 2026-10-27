@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { DECISION_DOCKED } from '../dockContext'
+import { computed, inject } from 'vue'
 
 type AllocationRow = {
   id: string
@@ -38,14 +39,16 @@ function currentValue(index: number): number {
 function isValueDisabled(index: number, value: number): boolean {
   return value > currentValue(index) + props.remaining
 }
+
+const docked = inject(DECISION_DOCKED, false)
 </script>
 
 <template>
-  <Teleport to="body">
+  <Teleport to="body" :disabled="docked">
     <Transition name="modal">
       <div
         v-if="visible"
-        class="overlay-panel-root overlay-panel-root--decision"
+        class="overlay-panel-root overlay-panel-root--decision" :class="{ 'overlay-panel-root--docked': docked }"
         data-testid="allocation-overlay"
       >
         <div class="overlay-panel" @click.stop>
@@ -262,5 +265,32 @@ function isValueDisabled(index: number, value: number): boolean {
   border-color: rgba(255, 210, 120, 0.85);
   background: linear-gradient(180deg, rgba(140, 100, 35, 0.7), rgba(90, 65, 20, 0.85));
   color: #ffe9b8;
+}
+
+/* 停靠在决策面板内：原地渲染，去掉全屏遮罩与自身外框，由 DecisionDock 提供外壳 */
+.overlay-panel-root.overlay-panel-root--docked {
+  position: static;
+  inset: auto;
+  z-index: auto;
+  display: block;
+  padding: 0;
+  background: none;
+  pointer-events: auto;
+}
+.overlay-panel-root.overlay-panel-root--docked .overlay-panel {
+  width: 100%;
+  max-height: none;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+}
+.overlay-panel-root.overlay-panel-root--docked .overlay-panel-header {
+  /* 决策面板的来由条已经写明技能与问题，这里不再重复 */
+  display: none;
+}
+.overlay-panel-root.overlay-panel-root--docked .overlay-panel-body {
+  padding: 0 4px;
+  background: none;
 }
 </style>

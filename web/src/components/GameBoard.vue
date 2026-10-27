@@ -20,6 +20,7 @@ import { seatCoverMarks, seatStatusMarks, seatTokenMarks } from '../constants/se
 import { useSubmitAction } from '../composables/useSubmitAction'
 import { useBattleInteractionState } from '../composables/useBattleInteractionState'
 import StageOverlay from './StageOverlay.vue'
+import DecisionDock from './DecisionDock.vue'
 import { characterArtSrc } from '../constants/characterArt'
 import { useInteractionController } from '../composables/useInteractionController'
 import {
@@ -3031,6 +3032,7 @@ const fighterHundredDragonByPlayer = computed(() => {
     </svg>
 
     <StageOverlay v-if="stageOverlayEnabled" :root-el="boardRootRef" :player-label="stageSeatLabel" />
+    <DecisionDock />
     <VfxLayer />
   </div>
 </template>
@@ -3422,7 +3424,7 @@ const fighterHundredDragonByPlayer = computed(() => {
   z-index: 0;
 }
 
-.board-shell > *:not(.link-lines-layer):not(.stage-overlay):not(.board-ambient):not(.rose-courtyard-vfx):not(.draw-flight-layer):not(.host-dissolve-btn):not(.right-action-dock) {
+.board-shell > *:not(.link-lines-layer):not(.stage-overlay):not(.board-ambient):not(.rose-courtyard-vfx):not(.draw-flight-layer):not(.host-dissolve-btn):not(.right-action-dock):not(.decision-dock-layer) {
   position: relative;
   z-index: 2;
 }
