@@ -896,6 +896,7 @@ type RawDockOption = {
   hint?: string
   field_index?: number
   disabled?: boolean
+  disabled_reason?: string
   optionIndex?: number
 }
 
@@ -905,6 +906,8 @@ type DockButtonOption = {
   buttonLabel: string
   hint: string
   disabled?: boolean
+  /** 后端给出的不可选原因（如"需要至少1个蛹"），灰掉的选项上显示。 */
+  disabledReason?: string
   numeric: boolean
   optionIndex?: number
 }
@@ -1121,6 +1124,7 @@ function normalizeDockOption(option: RawDockOption): DockButtonOption {
     buttonLabel,
     hint,
     disabled: option.disabled,
+    disabledReason: String(option.disabled_reason || '').trim() || undefined,
     numeric: /^\d+$/.test(buttonLabel),
     optionIndex: option.optionIndex,
   }
@@ -1373,7 +1377,8 @@ const inlinePrimaryButtons = computed<DockButtonOption[]>(() => {
         button_label: option.button_label,
         hint: option.hint,
         optionIndex: prompt.value?.options.indexOf(option),
-        disabled: false
+        disabled: !!option.disabled,
+        disabled_reason: option.disabled_reason
       }))
     return buildDockButtons(options)
   }
@@ -1404,7 +1409,9 @@ const inlinePrimaryButtons = computed<DockButtonOption[]>(() => {
         hint: option.hint,
         field_index: option.field_index,
         optionIndex: prompt.value?.options.indexOf(option),
-        disabled: false
+        // 后端可以把选项标为禁用（展示但不可选，并给出原因）
+        disabled: !!option.disabled,
+        disabled_reason: option.disabled_reason
       }))
     return buildDockButtons(options)
   }
@@ -1678,6 +1685,7 @@ const decisionOverlayOptions = computed(() => {
     buttonLabel: option.buttonLabel,
     hint: option.hint,
     disabled: !!option.disabled,
+    disabledReason: option.disabledReason,
   }))
 })
 

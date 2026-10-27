@@ -98,5 +98,24 @@ describe('DecisionOverlayRenderer (docked)', () => {
     await fireEvent.click(screen.getByTestId('decision-confirm-btn'))
     expect(emitted().select).toEqual([['2']])
   })
+
+  it('shows a disabled branch greyed out with its reason and does not let it be picked', async () => {
+    render(DecisionOverlayRenderer, {
+      props: {
+        ...baseProps,
+        options: [
+          { id: '0', label: '分支①：对目标造成1点法术伤害', buttonLabel: '' },
+          { id: '1', label: '分支②：移除2个茧，然后移除1个蛹', buttonLabel: '', disabled: true, disabledReason: '需要至少1个蛹' },
+        ],
+      },
+      global: { provide: { [DECISION_DOCKED as symbol]: true } },
+    })
+    const branch2 = screen.getByTestId('branch-option-1') as HTMLButtonElement
+    expect(branch2.disabled).toBe(true)
+    expect(screen.getByTestId('decision-card-reason-1').textContent).toBe('需要至少1个蛹')
+    expect(screen.queryByTestId('decision-card-reason-0')).toBeNull()
+    await fireEvent.click(branch2)
+    expect((screen.getByTestId('decision-confirm-btn') as HTMLButtonElement).disabled).toBe(true)
+  })
 })
 

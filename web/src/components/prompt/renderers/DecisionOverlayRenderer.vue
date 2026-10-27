@@ -11,6 +11,7 @@ type DecisionOverlayOption = {
   buttonLabel: string
   hint?: string
   disabled?: boolean
+  disabledReason?: string
 }
 
 const props = defineProps<{
@@ -213,6 +214,11 @@ const pickedNumericHint = computed(() => {
               </span>
               <span class="decision-card__title" :data-testid="`prompt-option-${card.option.id}`">{{ card.title }}</span>
               <span v-if="card.desc" class="decision-card__desc">{{ card.desc }}</span>
+              <span
+                v-if="card.option.disabled && card.option.disabledReason"
+                class="decision-card__reason"
+                :data-testid="`decision-card-reason-${idx}`"
+              >{{ card.option.disabledReason }}</span>
             </button>
           </div>
 
@@ -710,8 +716,18 @@ const pickedNumericHint = computed(() => {
   box-shadow: 0 0 0 2px var(--card-accent), 0 0 18px color-mix(in srgb, var(--card-accent) 45%, transparent);
 }
 .decision-card:disabled {
-  opacity: 0.4;
+  opacity: 0.5;
+  filter: saturate(0.2);
   cursor: not-allowed;
+}
+.decision-card__reason {
+  margin-top: 2px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  color: var(--bt-text, #e8ecf4);
+  background: rgba(226, 82, 94, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(226, 82, 94, 0.5);
 }
 .decision-card__icon {
   width: 38px;

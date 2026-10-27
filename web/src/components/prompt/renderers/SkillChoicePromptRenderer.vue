@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { inject } from 'vue'
+import { computed, inject, ref, watch } from 'vue'
 import { DECISION_DOCKED } from '../dockContext'
 type SkillPromptButton = {
   id: string
@@ -19,7 +19,7 @@ type SkillBranchOption = {
   disabled: boolean
 }
 
-defineProps<{
+const props = defineProps<{
   inlineVisible: boolean
   overlayVisible: boolean
   title: string
@@ -38,10 +38,87 @@ function hasSkipBranch(branches: SkillBranchOption[]): boolean {
 }
 
 const docked = inject(DECISION_DOCKED, false)
+
+// —— 停靠模式：响应 / 启动技能按"是否发动"模板呈现 ——
+type DockedSkill = { id: string; title: string; description: string; cost: string; disabled: boolean }
+
+const isCancelId = (id: string) => id === 'skip' || id === 'cancel'
+
+/** 两条渲染路线（内联按钮 / 分支弹窗）统一成"可发动的技能 + 一个放弃选项"。 */
+const dockedModel = computed(() => {
+  if (!docked) return null
+  if (props.overlayVisible && props.branches.length > 0) {
+    const skills: DockedSkill[] = props.branches
+      .filter((b) => !isCancelId(b.id))
+      .map((b) => ({ id: b.id, title: b.title, description: b.description || '', cost: b.cost || '', disabled: b.disabled }))
+    const cancel = props.branches.find((b) => isCancelId(b.id))
+    return { skills, cancelId: cancel?.id || 'skip', cancelLabel: cancel?.description || '不发动' }
+  }
+  if (props.inlineVisible && props.buttons.length > 0) {
+    const skills: DockedSkill[] = props.buttons
+      .filter((b) => !b.cancel)
+      .map((b) => ({ id: b.id, title: b.label, description: '', cost: '', disabled: b.disabled }))
+    const cancel = props.buttons.find((b) => b.cancel)
+    return { skills, cancelId: cancel?.id || 'skip', cancelLabel: cancel?.label || '不发动' }
+  }
+  return null
+})
+
+const picked = ref('')
+watch(
+  () => dockedModel.value?.skills.map((s) => s.id).join('|'),
+  () => {
+    const only = dockedModel.value?.skills.length === 1 ? dockedModel.value.skills[0] : undefined
+    picked.value = only && !only.disabled ? only.id : ''
+  },
+  { immediate: true },
+)
+
+function pick(id: string) {
+  if ((dockedModel.value?.skills.length ?? 0) <= 1) return
+  picked.value = picked.value === id ? '' : id
+}
 </script>
 
 <template>
-  <div v-if="inlineVisible && buttons.length > 0" class="prompt-skill-list" data-testid="skill-choice-prompt">
+  <!-- ══════ 停靠：是否发动响应 / 启动技能 ══════ -->
+  <div v-if="dockedModel" class="skill-docked" data-testid="skill-choice-docked">
+    <div class="skill-docked__list" :class="{ 'skill-docked__list--many': dockedModel.skills.length > 1 }">
+      <button
+        v-for="(skill, idx) in dockedModel.skills"
+        :key="skill.id"
+        type="button"
+        class="skill-docked__card"
+        :class="{ 'skill-docked__card--picked': picked === skill.id, 'skill-docked__card--single': dockedModel.skills.length === 1 }"
+        :data-testid="`branch-option-${idx}`"
+        :disabled="skill.disabled"
+        :aria-pressed="picked === skill.id"
+        @click="pick(skill.id)"
+      >
+        <span class="skill-docked__head">
+          <span class="skill-docked__title" :data-testid="`prompt-option-${skill.id}`">{{ skill.title }}</span>
+          <span v-if="skill.cost" class="skill-docked__cost">{{ skill.cost }}</span>
+        </span>
+        <span v-if="skill.description" class="skill-docked__desc">{{ skill.description }}</span>
+      </button>
+    </div>
+    <div class="skill-docked__actions">
+      <button type="button" class="skill-docked__ghost" data-testid="prompt-option-skip" @click="emit('select', dockedModel.cancelId)">
+        {{ dockedModel.cancelLabel }}
+      </button>
+      <button
+        type="button"
+        class="skill-docked__gold"
+        data-testid="decision-confirm-btn"
+        :disabled="!picked"
+        @click="picked && emit('select', picked)"
+      >
+        发动
+      </button>
+    </div>
+  </div>
+
+  <div v-else-if="inlineVisible && buttons.length > 0" class="prompt-skill-list" data-testid="skill-choice-prompt">
     <div class="prompt-skill-row">
       <div class="prompt-skill-text" :title="title">{{ title }}</div>
       <div class="prompt-skill-actions">
@@ -75,7 +152,7 @@ const docked = inject(DECISION_DOCKED, false)
   <Teleport to="body" :disabled="docked">
     <Transition name="modal">
       <div
-        v-if="overlayVisible && branches.length > 0"
+        v-if="overlayVisible && branches.length > 0 && !dockedModel"
         class="overlay-panel-root overlay-panel-root--skill" :class="{ 'overlay-panel-root--docked': docked }"
         data-testid="skill-branch-overlay"
       >
@@ -432,5 +509,95 @@ const docked = inject(DECISION_DOCKED, false)
 .overlay-panel-root.overlay-panel-root--docked .overlay-panel-body {
   padding: 0 4px;
   background: none;
+}
+
+/* —— 停靠：是否发动技能 —— */
+.skill-docked {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.skill-docked__list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.skill-docked__card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border: none;
+  border-radius: 10px;
+  text-align: left;
+  color: var(--bt-text, #e8ecf4);
+  background: rgba(9, 14, 26, 0.85);
+  box-shadow: 0 0 0 1px var(--bt-chrome-mid, #7d8796);
+  cursor: pointer;
+  transition: box-shadow 0.15s ease;
+}
+/* 只有一个技能时它就是"效果说明"，不需要点选 */
+.skill-docked__card--single {
+  cursor: default;
+}
+.skill-docked__list--many .skill-docked__card:hover:not(:disabled) {
+  box-shadow: 0 0 0 1px var(--bt-select, #9fd4ff);
+}
+.skill-docked__card--picked:not(.skill-docked__card--single) {
+  background: color-mix(in srgb, var(--bt-select, #9fd4ff) 12%, rgba(9, 14, 26, 0.85));
+  box-shadow: 0 0 0 2px var(--bt-select, #9fd4ff), 0 0 16px var(--bt-select-glow, rgba(159, 212, 255, 0.45));
+}
+.skill-docked__card:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.skill-docked__head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.skill-docked__title {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--bt-active, #f0c35a);
+}
+.skill-docked__cost {
+  font-size: 11px;
+  color: var(--bt-select, #9fd4ff);
+}
+.skill-docked__desc {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--bt-text-sub, #9aa4b5);
+}
+.skill-docked__actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.skill-docked__ghost,
+.skill-docked__gold {
+  min-width: 88px;
+  padding: 7px 22px;
+  border: none;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.skill-docked__ghost {
+  color: var(--bt-chrome, #b9c1cd);
+  background: var(--bt-bg-0, #070b14);
+  box-shadow: 0 0 0 1px var(--bt-chrome-mid, #7d8796);
+}
+.skill-docked__gold {
+  color: #2a1d00;
+  background: linear-gradient(180deg, #ffe39a, #e0a93c);
+  box-shadow: 0 0 0 1px #fff3c4, 0 0 14px var(--bt-active-glow, rgba(240, 195, 90, 0.45));
+}
+.skill-docked__gold:disabled {
+  opacity: 0.45;
+  box-shadow: 0 0 0 1px var(--bt-chrome-mid, #7d8796);
+  cursor: not-allowed;
 }
 </style>
