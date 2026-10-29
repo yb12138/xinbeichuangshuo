@@ -119,6 +119,10 @@ func TestOnmyojiYinYangShift_InShikigamiForm(t *testing.T) {
 	if prompt.Options[0].ID != "0" || prompt.Options[0].CardID != "55" {
 		t.Fatalf("expected option index id with numeric card_id preserved, got %+v", prompt.Options[0])
 	}
+	// 选牌面板只写牌名 / 系别 / 命格，不带类型、伤害、独有技这类调试信息
+	if got, want := prompt.Options[0].Label, "水涟斩 · 水系 · 咏命格（阴阳转换：转为水系）"; got != want {
+		t.Fatalf("counter card label = %q, want %q", got, want)
+	}
 	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", CardIDs: []string{"55"}}); err != nil {
 		t.Fatalf("choose yinyang card failed: %v", err)
 	}
