@@ -177,6 +177,10 @@ func (e *GameEngine) enterTurnEndStage() {
 	e.clearSubflow()
 	e.clearCombatStage()
 	e.setTurnStage(model.TurnStageTurnEnd)
+	// 回合结束时的被动（自动填充等）是独立的一手，不能并入刚结束的行动。
+	if turn := e.State.CurrentTurn; turn >= 0 && turn < len(e.State.PlayerOrder) {
+		e.beginNarrativeAction("turn_end", e.State.PlayerOrder[turn])
+	}
 }
 
 func (e *GameEngine) setTurnStage(stage model.TurnStage) {
