@@ -1,4 +1,8 @@
 <script setup lang="ts">
+/**
+ * 响应攻击（按钮组件规范图 ②）：命中 / 应战·传递 / 防御 三种竖向选项卡，
+ * 色调区分后果（红 = 承受、紫 = 反击、金 = 抵挡），卡上直接写后果；不可选时灰化并写原因。
+ */
 type ResponseActionKind = 'take' | 'counter' | 'defend'
 
 type ResponsePromptOption = {
@@ -6,10 +10,12 @@ type ResponsePromptOption = {
   buttonLabel: string
   disabled: boolean
   kind: ResponseActionKind
-  imageSrc: string
-  imageReady: boolean
-  fallbackText: string
-  enlarged: boolean
+  /** 卡片标题；空 = 按 kind 取默认（命中 / 应战·传递 / 防御）。 */
+  title?: string
+  /** 后果一句话（"承受 2 点风系伤害"）。 */
+  consequence?: string
+  /** 不可选原因。 */
+  disabledReason?: string
 }
 
 defineProps<{
@@ -20,50 +26,52 @@ defineProps<{
 
 const emit = defineEmits<{
   select: [optionId: string]
-  imageError: [optionId: string]
 }>()
 
-function responseButtonClass(option: ResponsePromptOption): string {
-  if (option.kind === 'take') return 'prompt-response-btn--take'
-  if (option.kind === 'counter') return 'prompt-response-btn--counter'
-  return 'prompt-response-btn--defend'
+const DEFAULT_TITLE: Record<ResponseActionKind, string> = {
+  take: '命中',
+  counter: '应战 / 传递',
+  defend: '防御',
+}
+
+/** viewBox 0 0 24 24 单色剪影。 */
+const ICON: Record<ResponseActionKind, string> = {
+  // 碎裂的心
+  take: 'M12 20.5l-1.4-1.3C5.4 14.6 2 11.5 2 7.7 2 4.6 4.4 2.3 7.4 2.3c1.3 0 2.6.5 3.6 1.3l-1.6 3.6 3 2.2-1.5 3.9 3.6-4.6-2.9-2.1 1.2-2.4c.8-.5 1.7-.7 2.7-.7 3 0 5.5 2.3 5.5 5.4 0 3.8-3.4 6.9-8.6 11.5L12 20.5z',
+  // 交叉双剑 + 回旋
+  counter: 'M4.2 2.8l6.2 6.2-1.4 1.4L2.8 4.2V2.8h1.4zm15.6 0h1.4v1.4L9.6 15.8l1.6 1.6-1.4 1.4-1.6-1.6-2.4 2.4H3.6v-2.2L6 15l-1.6-1.6 1.4-1.4 1.6 1.6L19.8 2.8zM14.4 13l1.4-1.4 5.4 5.4v2.2H19l-5.3-5.3.7-.9zM17.5 7.6a5 5 0 011.4 5.1l1.8.6a6.9 6.9 0 00-2-7l1-1H16v3.7l1.5-1.4z',
+  // 盾徽
+  defend: 'M12 2l8 3v6.1c0 5-3.4 9.4-8 10.9-4.6-1.5-8-5.9-8-10.9V5l8-3zm0 2.2L6 6.4v4.7c0 3.9 2.5 7.4 6 8.7 3.5-1.3 6-4.8 6-8.7V6.4l-6-2.2zm0 2.6l3.8 1.4v2.9c0 2.5-1.5 4.7-3.8 5.8-2.3-1.1-3.8-3.3-3.8-5.8V8.2L12 6.8z',
+}
+
+function titleOf(option: ResponsePromptOption): string {
+  return option.title || DEFAULT_TITLE[option.kind]
 }
 </script>
 
 <template>
   <div v-if="visible && options.length > 0" class="prompt-response-root" data-testid="response-prompt">
-    <div v-if="hint" class="prompt-response-hint prompt-response-hint--attack-element">
-      {{ hint }}
-    </div>
-    <div class="prompt-response-grid">
-      <div
+    <div v-if="hint" class="dc-banner" data-testid="response-prompt-hint">{{ hint }}</div>
+    <div class="dc-tiles">
+      <button
         v-for="option in options"
         :key="option.id"
-        class="prompt-response-entry"
+        type="button"
+        class="dc-tile dc-tile--tall"
+        :class="`dc-tile--${option.kind}`"
+        :data-testid="`prompt-option-${option.id}`"
+        :data-kind="option.kind"
+        :disabled="option.disabled"
+        :aria-label="[titleOf(option), option.disabled ? option.disabledReason : option.consequence].filter(Boolean).join('：')"
+        @click="emit('select', option.id)"
       >
-        <button
-          class="prompt-response-btn"
-          :class="[
-            responseButtonClass(option),
-            option.enlarged ? 'prompt-response-btn--large' : '',
-            option.disabled ? 'prompt-response-btn--disabled' : ''
-          ]"
-          :data-testid="`prompt-option-${option.id}`"
-          :disabled="option.disabled"
-          :title="option.buttonLabel"
-          :aria-label="option.buttonLabel"
-          @click="emit('select', option.id)"
-        >
-          <img
-            v-if="option.imageReady"
-            class="action-image-btn-fill"
-            :src="option.imageSrc"
-            alt=""
-            @error="emit('imageError', option.id)"
-          />
-          <span v-else class="action-image-fallback-text">{{ option.fallbackText }}</span>
-        </button>
-      </div>
+        <span class="dc-tile__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path :d="ICON[option.kind]" /></svg>
+        </span>
+        <span class="dc-tile__title">{{ titleOf(option) }}</span>
+        <span v-if="option.disabled && option.disabledReason" class="dc-tile__desc dc-tile__reason">{{ option.disabledReason }}</span>
+        <span v-else-if="option.consequence" class="dc-tile__desc">{{ option.consequence }}</span>
+      </button>
     </div>
   </div>
 </template>
@@ -72,168 +80,5 @@ function responseButtonClass(option: ResponsePromptOption): string {
 .prompt-response-root {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-}
-
-.prompt-response-hint {
-  min-height: 18px;
-  padding: 0 4px;
-  text-align: center;
-  color: rgba(199, 219, 237, 0.88);
-  font-size: 11px;
-  line-height: 1.35;
-  letter-spacing: 0.01em;
-}
-
-.prompt-response-hint--attack-element {
-  min-height: 0;
-  margin: 0 0 6px;
-  padding: 4px 8px;
-  border-radius: 9px;
-  border: 1px solid rgba(132, 165, 187, 0.36);
-  background: linear-gradient(180deg, rgba(28, 43, 61, 0.72), rgba(17, 30, 45, 0.75));
-  color: rgba(223, 239, 250, 0.96);
-  font-size: 12px;
-  font-weight: 640;
-  letter-spacing: 0.01em;
-}
-
-.prompt-response-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  align-items: center;
-  justify-items: center;
-}
-
-.prompt-response-entry {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  align-items: center;
-}
-
-.prompt-response-btn {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 72px;
-  height: 72px;
-  min-height: 0;
-  max-width: 72px;
-  aspect-ratio: 1 / 1;
-  border: none;
-  border-radius: 12px;
-  background: transparent;
-  box-shadow: none;
-  padding: 0;
-  overflow: hidden;
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  justify-self: center;
-  flex-shrink: 0;
-  color: #f6ecda;
-  text-shadow: 0 1px 2px rgba(8, 8, 12, 0.65);
-  background-repeat: no-repeat;
-  background-size: cover;
-  background-position: center;
-  cursor: pointer;
-}
-
-.prompt-response-btn:focus,
-.prompt-response-btn:focus-visible {
-  outline: none;
-  box-shadow: none;
-}
-
-.prompt-response-btn--large {
-  width: 96px;
-  height: 96px;
-  max-width: 96px;
-  border-radius: 14px;
-}
-
-.prompt-response-btn--take {
-  border-color: rgba(205, 171, 113, 0.68);
-  --prompt-btn-image: url('/assets/ui/prompt_btn_take.png');
-}
-
-.prompt-response-btn--counter {
-  border-color: rgba(157, 141, 228, 0.56);
-  --prompt-btn-image: url('/assets/ui/prompt_btn_counter.png');
-}
-
-.prompt-response-btn--defend {
-  border-color: rgba(111, 170, 225, 0.6);
-  --prompt-btn-image: url('/assets/ui/prompt_btn_defend.png');
-}
-
-.prompt-response-btn--take::before,
-.prompt-response-btn--counter::before,
-.prompt-response-btn--defend::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: var(--prompt-btn-image) center / cover no-repeat;
-  filter: var(--bt-chrome-filter);
-  pointer-events: none;
-}
-
-.prompt-response-btn--disabled::before {
-  filter: var(--bt-chrome-filter-disabled);
-}
-
-.prompt-response-btn--disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-  transform: none;
-  filter: none;
-}
-
-.action-image-btn-fill {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  pointer-events: none;
-  user-select: none;
-  filter: var(--bt-chrome-filter);
-}
-
-.action-image-btn:disabled .action-image-btn-fill {
-  filter: var(--bt-chrome-filter-disabled);
-}
-
-.action-image-fallback-text {
-  position: relative;
-  z-index: 1;
-  font-size: 14px;
-  font-weight: 700;
-  color: #f2f8ff;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
-}
-
-@media (max-width: 900px) {
-  .prompt-response-btn--large {
-    width: 88px;
-    height: 88px;
-    max-width: 88px;
-  }
-}
-
-@media (max-width: 560px) {
-  .prompt-response-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .prompt-response-btn,
-  .prompt-response-btn--large {
-    width: 84px;
-    height: 84px;
-    max-width: 84px;
-  }
 }
 </style>

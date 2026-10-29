@@ -26,6 +26,7 @@ type PromptDTO struct {
 	AttackerID       string                    `json:"attacker_id,omitempty"`
 	CounterTargetIDs []string                  `json:"counter_target_ids,omitempty"`
 	AttackElement    string                    `json:"attack_element,omitempty"`
+	AttackFaction    string                    `json:"attack_faction,omitempty"`
 	DefendCardIDs    []string                  `json:"defend_card_ids,omitempty"`
 	CounterCardIDs   []string                  `json:"counter_card_ids,omitempty"`
 }
@@ -78,6 +79,7 @@ func ToPromptDTO(p *model.Prompt) *PromptDTO {
 		DefendCardIDs:    append([]string(nil), p.DefendCardIDs...),
 		CounterCardIDs:   append([]string(nil), p.CounterCardIDs...),
 		AttackElement:    p.AttackElement,
+		AttackFaction:    p.AttackFaction,
 	}
 	// 转换 Options
 	for _, o := range p.Options {

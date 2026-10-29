@@ -6,9 +6,6 @@ type SkillPromptButton = {
   label: string
   disabled: boolean
   cancel: boolean
-  imageSrc: string
-  imageReady: boolean
-  fallbackText: string
 }
 
 type SkillBranchOption = {
@@ -30,7 +27,6 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   select: [optionId: string]
-  imageError: [optionId: string]
 }>()
 
 function hasSkipBranch(branches: SkillBranchOption[]): boolean {
@@ -103,12 +99,12 @@ function pick(id: string) {
       </button>
     </div>
     <div class="skill-docked__actions">
-      <button type="button" class="skill-docked__ghost" data-testid="prompt-option-skip" @click="emit('select', dockedModel.cancelId)">
+      <button type="button" class="dc-pill skill-docked__ghost" data-testid="prompt-option-skip" @click="emit('select', dockedModel.cancelId)">
         {{ dockedModel.cancelLabel }}
       </button>
       <button
         type="button"
-        class="skill-docked__gold"
+        class="dc-pill dc-pill--gold skill-docked__gold"
         data-testid="decision-confirm-btn"
         :disabled="!picked"
         @click="picked && emit('select', picked)"
@@ -125,25 +121,18 @@ function pick(id: string) {
         <button
           v-for="option in buttons"
           :key="option.id"
-          class="prompt-skill-action action-image-btn"
+          type="button"
+          class="dc-pill prompt-skill-action"
           :class="[
-            option.cancel ? 'prompt-skill-action--cancel' : 'prompt-skill-action--success',
+            option.cancel ? 'prompt-skill-action--cancel' : 'dc-pill--gold prompt-skill-action--success',
             option.disabled ? 'prompt-skill-action--disabled' : ''
           ]"
           :disabled="option.disabled"
           :data-testid="`prompt-option-${option.id}`"
-          :title="option.label"
           :aria-label="option.label"
           @click="emit('select', option.id)"
         >
-          <img
-            v-if="option.imageReady"
-            class="action-image-btn-fill"
-            :src="option.imageSrc"
-            alt=""
-            @error="emit('imageError', option.id)"
-          />
-          <span v-else class="action-image-fallback-text">{{ option.fallbackText }}</span>
+          {{ option.cancel ? '放弃' : '发动' }}
         </button>
       </div>
     </div>
@@ -184,7 +173,7 @@ function pick(id: string) {
             </button>
           </div>
           <div v-if="!hasSkipBranch(branches)" class="overlay-panel-footer">
-            <button class="overlay-panel-cancel" data-testid="prompt-option-skip" @click="emit('select', 'skip')">
+            <button class="dc-pill overlay-panel-cancel" data-testid="prompt-option-skip" @click="emit('select', 'skip')">
               跳过
             </button>
           </div>
@@ -225,79 +214,6 @@ function pick(id: string) {
   text-align: center;
   white-space: normal;
   word-break: break-word;
-}
-
-.prompt-skill-action {
-  -webkit-appearance: none;
-  appearance: none;
-  justify-self: center;
-  width: 72px;
-  height: 72px;
-  min-height: 0;
-  max-width: 72px;
-  aspect-ratio: 1 / 1;
-  border: none;
-  border-radius: 12px;
-  background: transparent;
-  box-shadow: none;
-  padding: 0;
-  overflow: hidden;
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  color: #f6ecda;
-  text-shadow: 0 1px 2px rgba(8, 8, 12, 0.65);
-  background-repeat: no-repeat;
-  background-size: cover;
-  background-position: center;
-  cursor: pointer;
-}
-
-.prompt-skill-action:hover:not(:disabled) {
-  transform: translateY(-1px);
-  filter: brightness(1.08);
-}
-
-.prompt-skill-action:focus,
-.prompt-skill-action:focus-visible {
-  outline: none;
-  box-shadow: none;
-}
-
-.prompt-skill-action--success {
-  border-color: rgba(111, 185, 141, 0.52);
-}
-
-.prompt-skill-action--cancel {
-  border-color: rgba(196, 152, 102, 0.56);
-}
-
-.prompt-skill-action--disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-  transform: none !important;
-  filter: none !important;
-}
-
-.action-image-btn-fill {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  pointer-events: none;
-  user-select: none;
-}
-
-.action-image-fallback-text {
-  position: relative;
-  z-index: 1;
-  font-size: 14px;
-  font-weight: 700;
-  color: #f2f8ff;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
 }
 
 .overlay-panel-root {
@@ -405,30 +321,7 @@ function pick(id: string) {
   border-top: 1px solid rgba(149, 186, 204, 0.18);
 }
 
-.overlay-panel-cancel {
-  min-width: 96px;
-  padding: 8px 18px;
-  border-radius: 10px;
-  border: 1px solid rgba(196, 152, 102, 0.5);
-  background: rgba(54, 38, 28, 0.76);
-  color: #f4dfc1;
-  font-size: 0.9rem;
-  font-weight: 650;
-  cursor: pointer;
-  font-family: inherit;
-}
-
-.overlay-panel-cancel:hover {
-  border-color: rgba(255, 210, 120, 0.68);
-  background: rgba(76, 52, 34, 0.86);
-}
-
 @media (max-width: 900px) {
-  .prompt-skill-action {
-    width: 72px;
-    height: 72px;
-    max-width: 72px;
-  }
 
   .overlay-panel {
     width: min(94vw, 480px);
@@ -574,30 +467,5 @@ function pick(id: string) {
   display: flex;
   justify-content: space-between;
   align-items: center;
-}
-.skill-docked__ghost,
-.skill-docked__gold {
-  min-width: 88px;
-  padding: 7px 22px;
-  border: none;
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-}
-.skill-docked__ghost {
-  color: var(--bt-chrome, #b9c1cd);
-  background: var(--bt-bg-0, #070b14);
-  box-shadow: 0 0 0 1px var(--bt-chrome-mid, #7d8796);
-}
-.skill-docked__gold {
-  color: #2a1d00;
-  background: linear-gradient(180deg, #ffe39a, #e0a93c);
-  box-shadow: 0 0 0 1px #fff3c4, 0 0 14px var(--bt-active-glow, rgba(240, 195, 90, 0.45));
-}
-.skill-docked__gold:disabled {
-  opacity: 0.45;
-  box-shadow: 0 0 0 1px var(--bt-chrome-mid, #7d8796);
-  cursor: not-allowed;
 }
 </style>

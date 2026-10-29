@@ -102,6 +102,10 @@ func TestOnmyojiYinYangShift_InShikigamiForm(t *testing.T) {
 	if game.State.PendingInterrupt == nil || choiceTypeOf(game.State.PendingInterrupt) != "onmyoji_yinyang_confirm" {
 		t.Fatalf("expected onmyoji_yinyang_confirm prompt, got %+v", game.State.PendingInterrupt)
 	}
+	// 确认弹窗要写明攻击的系别与命格，否则玩家不知道可以用哪张牌应战
+	if confirm := game.BuildChoicePrompt(); confirm == nil || !strings.Contains(confirm.Message, "火系·咏命格") || !strings.Contains(confirm.Message, "咏命格攻击牌") {
+		t.Fatalf("yinyang confirm prompt should name the attack faction, got %+v", confirm)
+	}
 	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{0}}); err != nil {
 		t.Fatalf("confirm yinyang failed: %v", err)
 	}

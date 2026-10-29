@@ -1,0 +1,628 @@
+/*
+ * 决策面板按钮组件（规范图：outimage/决策面板按钮组件规范图.png）。
+ * 六类控件共用一套语言：深色玻璃底 + 细金属描边；悬停上浮并带色调外发光；
+ * 选中 = 金色描边发光；禁用 = 灰化 + 写明原因。各渲染器只挂这些类，不再各写一套。
+ */
+:root {
+  --dc-gold: #f0c35a;
+  --dc-gold-hi: #ffe7a6;
+  --dc-gold-glow: rgba(240, 195, 90, 0.5);
+  --dc-silver: #b9c1cd;
+  --dc-silver-hi: #e9edf3;
+  --dc-glass: linear-gradient(180deg, rgba(22, 30, 46, 0.92), rgba(9, 13, 22, 0.95));
+  --dc-disabled: #5b6372;
+  --dc-tone-take: #e2525e;
+  --dc-tone-counter: #8f7cff;
+  --dc-tone-defend: #f0c35a;
+  --dc-tone-neutral: #9fd4ff;
+  --dc-el-fire: #ff6a3d;
+  --dc-el-water: #4fb0ff;
+  --dc-el-wind: #4fd39a;
+  --dc-el-thunder: #a98bff;
+  --dc-el-earth: #d8a85a;
+  --dc-el-light: #f0d27a;
+  --dc-el-dark: #a07ce0;
+}
+
+/* ================= ① 底部操作：胶囊 ================= */
+.dc-pill {
+  --dc-pill-edge: var(--dc-silver);
+  --dc-pill-glow: rgba(185, 193, 205, 0.35);
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 96px;
+  height: 34px;
+  padding: 0 24px;
+  border: 0;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  color: var(--dc-silver-hi);
+  background: linear-gradient(180deg, rgba(20, 30, 50, 0.95), rgba(8, 12, 22, 0.98));
+  box-shadow:
+    inset 0 0 0 1px var(--dc-pill-edge),
+    inset 0 0 0 3px rgba(4, 8, 14, 0.9),
+    inset 0 0 0 4px color-mix(in srgb, var(--dc-pill-edge) 35%, transparent),
+    0 4px 10px rgba(0, 0, 0, 0.45);
+  transition: transform 0.14s ease, box-shadow 0.14s ease, filter 0.14s ease;
+}
+.dc-pill--gold {
+  --dc-pill-edge: var(--dc-gold);
+  --dc-pill-glow: var(--dc-gold-glow);
+  color: var(--dc-gold-hi);
+  background: linear-gradient(180deg, rgba(92, 64, 22, 0.95), rgba(40, 26, 8, 0.98));
+  text-shadow: 0 0 6px rgba(240, 195, 90, 0.45);
+}
+.dc-pill--danger {
+  --dc-pill-edge: var(--dc-tone-take);
+  --dc-pill-glow: rgba(226, 82, 94, 0.45);
+  color: #ffd9dc;
+  background: linear-gradient(180deg, rgba(90, 20, 28, 0.95), rgba(36, 8, 12, 0.98));
+}
+.dc-pill:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--dc-pill-edge) 70%, #fff),
+    inset 0 0 0 3px rgba(4, 8, 14, 0.9),
+    inset 0 0 0 4px color-mix(in srgb, var(--dc-pill-edge) 55%, transparent),
+    0 0 14px var(--dc-pill-glow),
+    0 6px 14px rgba(0, 0, 0, 0.5);
+}
+.dc-pill:active:not(:disabled) {
+  transform: translateY(0) scale(0.97);
+}
+.dc-pill:disabled {
+  cursor: not-allowed;
+  color: var(--dc-disabled);
+  text-shadow: none;
+  background: linear-gradient(180deg, rgba(26, 30, 38, 0.9), rgba(14, 16, 22, 0.95));
+  box-shadow: inset 0 0 0 1px rgba(91, 99, 114, 0.6), inset 0 0 0 3px rgba(4, 8, 14, 0.9);
+}
+.dc-pill:focus-visible,
+.dc-tile:focus-visible,
+.dc-num:focus-visible,
+.dc-dir:focus-visible,
+.dc-el:focus-visible,
+.dc-step:focus-visible {
+  outline: 2px solid var(--dc-gold);
+  outline-offset: 3px;
+}
+
+/* 底部操作行：放弃在左、主操作在右 */
+.dc-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding-top: 12px;
+}
+.dc-actions--end {
+  justify-content: flex-end;
+}
+.dc-actions--center {
+  justify-content: center;
+}
+
+/* ================= ②③ 选项卡（响应攻击 / 文字分支 / 技能分支） ================= */
+.dc-tiles {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+}
+.dc-tile {
+  --dc-tone: var(--dc-tone-neutral);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  flex: 1 1 0;
+  min-width: 104px;
+  max-width: 168px;
+  padding: 14px 10px 12px;
+  border: 0;
+  border-radius: 10px;
+  color: var(--bt-text, #e8ecf4);
+  text-align: center;
+  cursor: pointer;
+  background:
+    radial-gradient(120% 70% at 50% 0%, color-mix(in srgb, var(--dc-tone) 26%, transparent), transparent 70%),
+    var(--dc-glass);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--dc-tone) 75%, transparent),
+    inset 0 0 0 3px rgba(4, 8, 14, 0.85),
+    inset 0 0 0 4px color-mix(in srgb, var(--dc-tone) 25%, transparent),
+    0 6px 14px rgba(0, 0, 0, 0.45);
+  transition: transform 0.16s ease, box-shadow 0.16s ease, filter 0.16s ease;
+}
+/* 竖向卡（响应攻击）：更高，标题与后果分层 */
+.dc-tile--tall {
+  min-height: 168px;
+  padding-top: 16px;
+}
+/* 宽卡（文字分支）：两张并排时更宽 */
+.dc-tile--wide {
+  max-width: 220px;
+  min-height: 132px;
+}
+.dc-tile--take { --dc-tone: var(--dc-tone-take); }
+.dc-tile--counter { --dc-tone: var(--dc-tone-counter); }
+.dc-tile--defend { --dc-tone: var(--dc-tone-defend); }
+.dc-tile--gain { --dc-tone: #7fb6ff; }
+.dc-tile--loss { --dc-tone: #b48bff; }
+
+.dc-tile:hover:not(:disabled) {
+  transform: translateY(-3px);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--dc-tone) 90%, #fff),
+    inset 0 0 0 3px rgba(4, 8, 14, 0.85),
+    inset 0 0 0 4px color-mix(in srgb, var(--dc-tone) 45%, transparent),
+    0 0 18px color-mix(in srgb, var(--dc-tone) 45%, transparent),
+    0 10px 18px rgba(0, 0, 0, 0.5);
+}
+.dc-tile:active:not(:disabled) {
+  transform: translateY(-1px) scale(0.98);
+}
+.dc-tile--picked,
+.dc-tile--picked:hover:not(:disabled) {
+  background:
+    radial-gradient(120% 70% at 50% 0%, rgba(240, 195, 90, 0.28), transparent 70%),
+    var(--dc-glass);
+  box-shadow:
+    inset 0 0 0 1.5px var(--dc-gold),
+    inset 0 0 0 3px rgba(4, 8, 14, 0.85),
+    inset 0 0 0 4px rgba(240, 195, 90, 0.4),
+    0 0 20px var(--dc-gold-glow),
+    0 10px 18px rgba(0, 0, 0, 0.5);
+}
+.dc-tile:disabled {
+  --dc-tone: var(--dc-disabled);
+  cursor: not-allowed;
+  color: var(--dc-disabled);
+  filter: saturate(0.15);
+}
+
+.dc-tile__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 54px;
+  height: 54px;
+  flex: none;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--dc-tone) 30%, #0b0f16), #070a10 72%);
+  box-shadow:
+    0 0 0 1.5px color-mix(in srgb, var(--dc-tone) 85%, #fff),
+    0 0 0 4px rgba(4, 8, 14, 0.85),
+    0 0 0 5px color-mix(in srgb, var(--dc-tone) 35%, transparent),
+    0 0 14px color-mix(in srgb, var(--dc-tone) 40%, transparent);
+}
+.dc-tile__icon svg {
+  width: 28px;
+  height: 28px;
+  fill: color-mix(in srgb, var(--dc-tone) 80%, #fff);
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--dc-tone) 70%, transparent));
+}
+.dc-tile__title {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+.dc-tile:disabled .dc-tile__title {
+  color: var(--dc-disabled);
+}
+.dc-tile__desc {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--bt-text-sub, #9aa4b5);
+}
+.dc-tile--tall .dc-tile__desc,
+.dc-tile--wide .dc-tile__desc {
+  margin-top: auto;
+  padding-top: 6px;
+  border-top: 1px solid color-mix(in srgb, var(--dc-tone) 25%, transparent);
+  width: 100%;
+  color: var(--bt-text, #e8ecf4);
+}
+.dc-tile__reason {
+  font-size: 11px;
+  line-height: 1.4;
+  color: #c9a3a8;
+}
+.dc-tile__cost {
+  font-size: 11px;
+  color: var(--dc-gold-hi);
+}
+
+/* 选项卡按行排（选项多于 3 个时） */
+.dc-tiles--list {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+.dc-tiles--list .dc-tile {
+  flex-direction: row;
+  max-width: none;
+  min-height: 0;
+  gap: 12px;
+  padding: 10px 14px;
+  text-align: left;
+}
+.dc-tiles--list .dc-tile__icon {
+  width: 38px;
+  height: 38px;
+}
+.dc-tiles--list .dc-tile__icon svg {
+  width: 20px;
+  height: 20px;
+}
+.dc-tiles--list .dc-tile__title {
+  font-size: 15px;
+  letter-spacing: 0.04em;
+}
+.dc-tiles--list .dc-tile__desc {
+  margin-left: auto;
+  padding-top: 0;
+  border-top: 0;
+  width: auto;
+  text-align: right;
+}
+.dc-tiles--list .dc-tile__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* ================= ④ 数字格：菱形 ================= */
+.dc-nums {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 14px;
+  padding: 6px 0;
+}
+.dc-num {
+  position: relative;
+  width: 58px;
+  height: 58px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  color: var(--dc-silver-hi);
+  font-family: var(--bt-font-num, Georgia, serif);
+  font-size: 24px;
+  font-weight: 700;
+  transition: transform 0.14s ease, filter 0.14s ease;
+}
+.dc-num::before {
+  content: '';
+  position: absolute;
+  inset: 9px;
+  transform: rotate(45deg);
+  border-radius: 4px;
+  background: var(--dc-glass);
+  box-shadow:
+    inset 0 0 0 1px var(--dc-silver),
+    inset 0 0 0 3px rgba(4, 8, 14, 0.9),
+    inset 0 0 0 4px rgba(185, 193, 205, 0.3),
+    0 4px 10px rgba(0, 0, 0, 0.45);
+  transition: box-shadow 0.14s ease;
+}
+.dc-num > span {
+  position: relative;
+}
+.dc-num:hover:not(:disabled) {
+  transform: translateY(-2px);
+}
+.dc-num:hover:not(:disabled)::before {
+  box-shadow:
+    inset 0 0 0 1px var(--dc-silver-hi),
+    inset 0 0 0 3px rgba(4, 8, 14, 0.9),
+    inset 0 0 0 4px rgba(233, 237, 243, 0.45),
+    0 0 12px rgba(159, 212, 255, 0.35);
+}
+.dc-num--picked {
+  color: var(--dc-gold-hi);
+  text-shadow: 0 0 8px var(--dc-gold-glow);
+}
+.dc-num--picked::before,
+.dc-num--picked:hover:not(:disabled)::before {
+  background: radial-gradient(circle, rgba(240, 195, 90, 0.24), rgba(9, 13, 22, 0.95) 70%);
+  box-shadow:
+    inset 0 0 0 1.5px var(--dc-gold),
+    inset 0 0 0 3px rgba(4, 8, 14, 0.9),
+    inset 0 0 0 4px rgba(240, 195, 90, 0.45),
+    0 0 16px var(--dc-gold-glow);
+}
+.dc-num:disabled {
+  cursor: not-allowed;
+  color: var(--dc-disabled);
+}
+.dc-num:disabled::before {
+  box-shadow: inset 0 0 0 1px rgba(91, 99, 114, 0.6), inset 0 0 0 3px rgba(4, 8, 14, 0.9);
+}
+
+/* 代价 / 后果说明条（数字选择、是否发动下方） */
+.dc-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: rgba(9, 14, 26, 0.75);
+  box-shadow: inset 0 0 0 1px var(--bt-hairline-soft, rgba(185, 193, 205, 0.22));
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--bt-text, #e8ecf4);
+}
+.dc-note__label {
+  color: var(--dc-gold-hi);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* ================= ⑤ 分配数值：进度条 + 步进器 ================= */
+.dc-alloc-total {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--bt-text, #e8ecf4);
+}
+.dc-alloc-bar {
+  position: relative;
+  height: 8px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(4, 8, 14, 0.9);
+  box-shadow: inset 0 0 0 1px var(--bt-hairline, rgba(185, 193, 205, 0.55));
+}
+.dc-alloc-bar > i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #2f6fe0, #6fb6ff);
+  box-shadow: 0 0 10px rgba(111, 182, 255, 0.6);
+  transition: width 0.2s ease;
+}
+.dc-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 8px;
+  background: rgba(4, 8, 14, 0.9);
+  box-shadow: inset 0 0 0 1px var(--bt-hairline, rgba(185, 193, 205, 0.55));
+}
+.dc-stepper--active {
+  box-shadow: inset 0 0 0 1.5px var(--dc-gold), 0 0 10px var(--dc-gold-glow);
+}
+.dc-step {
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 50%;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--dc-silver-hi);
+  background: var(--dc-glass);
+  box-shadow: inset 0 0 0 1px var(--dc-silver);
+  cursor: pointer;
+  transition: box-shadow 0.14s ease, color 0.14s ease;
+}
+.dc-step:hover:not(:disabled) {
+  color: var(--dc-gold-hi);
+  box-shadow: inset 0 0 0 1px var(--dc-gold), 0 0 8px var(--dc-gold-glow);
+}
+.dc-step:disabled {
+  cursor: not-allowed;
+  color: var(--dc-disabled);
+  box-shadow: inset 0 0 0 1px rgba(91, 99, 114, 0.6);
+}
+.dc-step-value {
+  min-width: 30px;
+  text-align: center;
+  font-family: var(--bt-font-num, Georgia, serif);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--bt-text, #e8ecf4);
+}
+
+/* ================= ⑥ 方向：大圆图标按钮 ================= */
+.dc-dirs {
+  display: flex;
+  justify-content: center;
+  gap: 40px;
+  padding: 6px 0;
+}
+.dc-dir {
+  --dc-tone: #6fb6ff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  max-width: 160px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--bt-text, #e8ecf4);
+  cursor: pointer;
+  transition: transform 0.16s ease;
+}
+.dc-dir--cw {
+  --dc-tone: var(--dc-gold);
+}
+.dc-dir__ring {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--dc-tone) 22%, #0b0f16), #05080d 72%);
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--dc-tone) 85%, #fff),
+    0 0 0 5px rgba(4, 8, 14, 0.9),
+    0 0 0 6px color-mix(in srgb, var(--dc-tone) 35%, transparent),
+    0 0 18px color-mix(in srgb, var(--dc-tone) 45%, transparent);
+  transition: box-shadow 0.16s ease;
+}
+.dc-dir__ring svg {
+  width: 40px;
+  height: 40px;
+  fill: none;
+  stroke: color-mix(in srgb, var(--dc-tone) 80%, #fff);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--dc-tone) 70%, transparent));
+}
+.dc-dir:hover:not(:disabled) {
+  transform: translateY(-3px);
+}
+.dc-dir:hover:not(:disabled) .dc-dir__ring {
+  box-shadow:
+    0 0 0 2px #fff,
+    0 0 0 5px rgba(4, 8, 14, 0.9),
+    0 0 0 6px color-mix(in srgb, var(--dc-tone) 60%, transparent),
+    0 0 26px color-mix(in srgb, var(--dc-tone) 65%, transparent);
+}
+.dc-dir:disabled {
+  --dc-tone: var(--dc-disabled);
+  cursor: not-allowed;
+  color: var(--dc-disabled);
+}
+.dc-dir__label {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+.dc-dir__desc {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--bt-text-sub, #9aa4b5);
+  text-align: center;
+}
+
+/* ================= ⑥ 元素徽章卡 ================= */
+.dc-els {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(68px, 1fr));
+  gap: 8px;
+}
+.dc-el {
+  --dc-tone: var(--dc-silver);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 6px 10px;
+  border: 0;
+  border-radius: 8px;
+  color: #fff;
+  cursor: pointer;
+  background:
+    radial-gradient(100% 80% at 50% 20%, color-mix(in srgb, var(--dc-tone) 38%, transparent), transparent 75%),
+    linear-gradient(180deg, color-mix(in srgb, var(--dc-tone) 22%, #0b0f16), #070a10);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--dc-tone) 70%, transparent),
+    inset 0 0 0 3px rgba(4, 8, 14, 0.85),
+    0 6px 12px rgba(0, 0, 0, 0.45);
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
+}
+.dc-el--fire { --dc-tone: var(--dc-el-fire); }
+.dc-el--water { --dc-tone: var(--dc-el-water); }
+.dc-el--wind { --dc-tone: var(--dc-el-wind); }
+.dc-el--thunder { --dc-tone: var(--dc-el-thunder); }
+.dc-el--earth { --dc-tone: var(--dc-el-earth); }
+.dc-el--light { --dc-tone: var(--dc-el-light); }
+.dc-el--dark { --dc-tone: var(--dc-el-dark); }
+.dc-el:hover:not(:disabled) {
+  transform: translateY(-3px);
+  box-shadow:
+    inset 0 0 0 1.5px color-mix(in srgb, var(--dc-tone) 90%, #fff),
+    inset 0 0 0 3px rgba(4, 8, 14, 0.85),
+    0 0 16px color-mix(in srgb, var(--dc-tone) 55%, transparent),
+    0 10px 16px rgba(0, 0, 0, 0.5);
+}
+.dc-el--picked {
+  box-shadow:
+    inset 0 0 0 1.5px var(--dc-gold),
+    inset 0 0 0 3px rgba(4, 8, 14, 0.85),
+    0 0 16px var(--dc-gold-glow);
+}
+.dc-el:disabled {
+  --dc-tone: var(--dc-disabled);
+  cursor: not-allowed;
+  color: var(--dc-disabled);
+}
+.dc-el__glyph {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  font-size: 20px;
+  line-height: 1;
+  background: radial-gradient(circle, color-mix(in srgb, var(--dc-tone) 35%, transparent), transparent 72%);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--dc-tone) 80%, #fff);
+}
+.dc-el__glyph {
+  color: color-mix(in srgb, var(--dc-tone) 80%, #fff);
+}
+.dc-el__glyph svg {
+  width: 22px;
+  height: 22px;
+}
+.dc-el__label {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+/* 提示条（响应攻击的"此次攻击系别"等） */
+.dc-banner {
+  margin: 0 0 12px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--bt-text, #e8ecf4);
+  background: rgba(9, 14, 26, 0.75);
+  box-shadow: inset 0 0 0 1px var(--bt-hairline-soft, rgba(185, 193, 205, 0.22));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dc-pill,
+  .dc-tile,
+  .dc-num,
+  .dc-dir,
+  .dc-el {
+    transition: none;
+  }
+  .dc-pill:hover:not(:disabled),
+  .dc-tile:hover:not(:disabled),
+  .dc-num:hover:not(:disabled),
+  .dc-dir:hover:not(:disabled),
+  .dc-el:hover:not(:disabled) {
+    transform: none;
+  }
+}
