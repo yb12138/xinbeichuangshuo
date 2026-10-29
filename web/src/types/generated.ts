@@ -365,6 +365,7 @@ export interface SkillView {
   cost_discards: number
   discard_element?: string
   require_exclusive?: boolean
+  tags?: string[]
 }
 
 export interface SyncStatePayload {

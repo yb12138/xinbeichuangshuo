@@ -13,18 +13,19 @@ type CharacterView struct {
 
 // SkillView 技能摘要（含主动技元数据，供前端 fallback）
 type SkillView struct {
-	ID               string `json:"id"`
-	Title            string `json:"title"`
-	Description      string `json:"description"`
-	Type             int    `json:"type"`        // SkillType: 0=Passive, 1=Startup, 2=Action, 3=Response
-	MinTargets       int    `json:"min_targets"` // 仅主动技有效
-	MaxTargets       int    `json:"max_targets"` // 仅主动技有效
-	TargetType       int    `json:"target_type"` // 仅主动技有效
-	CostGem          int    `json:"cost_gem"`
-	CostCrystal      int    `json:"cost_crystal"`
-	CostDiscards     int    `json:"cost_discards"`
-	DiscardElement   string `json:"discard_element,omitempty"`
-	RequireExclusive bool   `json:"require_exclusive,omitempty"` // 是否必须使用独有牌
+	ID               string   `json:"id"`
+	Title            string   `json:"title"`
+	Description      string   `json:"description"`
+	Type             int      `json:"type"`        // SkillType: 0=Passive, 1=Startup, 2=Action, 3=Response
+	MinTargets       int      `json:"min_targets"` // 仅主动技有效
+	MaxTargets       int      `json:"max_targets"` // 仅主动技有效
+	TargetType       int      `json:"target_type"` // 仅主动技有效
+	CostGem          int      `json:"cost_gem"`
+	CostCrystal      int      `json:"cost_crystal"`
+	CostDiscards     int      `json:"cost_discards"`
+	DiscardElement   string   `json:"discard_element,omitempty"`
+	RequireExclusive bool     `json:"require_exclusive,omitempty"` // 是否必须使用独有牌
+	Tags             []string `json:"tags,omitempty"`              // 技能标签（Ultimate / TurnLimit / Force …）
 }
 
 // RoomEvent represents room-related events.
