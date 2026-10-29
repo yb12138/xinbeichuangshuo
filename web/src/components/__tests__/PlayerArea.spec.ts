@@ -240,4 +240,13 @@ describe('PlayerArea indicators', () => {
 
     expect(container.querySelectorAll('.effect-icon-item')).toHaveLength(3)
   })
+
+  it('renders a persistent effect as a glowing seat chip with its rule as tooltip (额外回合)', () => {
+    render(PlayerArea, {
+      props: { player: buildPlayer({ role: 'moon_goddess', indicators: { mg_extra_turn_pending: 1 } }) },
+    })
+    const chip = screen.getByTestId('seat-persistent-effect')
+    expect(chip.textContent).toContain('额外回合')
+    expect(chip.getAttribute('title')).toContain('苍白之月')
+  })
 })

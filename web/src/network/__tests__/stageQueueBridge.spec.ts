@@ -242,4 +242,41 @@ describe('createStageQueueBridge', () => {
     bridge.onTimeline(payload(flows))
     expect(queued()[0]).toEqual({ type: 'mark-previous' })
   })
+
+  it('updates a cause-backed skill node in place when its result arrives later', () => {
+    const skillNode = (deltas: NonNullable<ActionFlowDTO['nodes']>[number]['deltas']) => ({
+      id: 'n1',
+      order: 1,
+      kind: 'skill',
+      actor_user_id: 'p1',
+      skill_id: 'bt_chrysalis',
+      skill_name: '蛹化',
+      cause_id: 'c1',
+      deltas,
+    })
+    bridge.onTimeline(
+      payload([flow('f2', [], { action_type: 'skill', nodes: [skillNode([{ type: 'player_gem', target_user_id: 'p1', field: 'gem', value: -1 }])] })]),
+    )
+    const first = queued().find((step) => step.type === 'narration-row')
+    expect(first && first.type === 'narration-row' && first.skill?.cost).toBe('宝石 1')
+    expect(first && first.type === 'narration-row' && first.skill?.outcome).toBe('')
+
+    bridge.onTimeline(
+      payload([
+        flow('f2', [], {
+          action_type: 'skill',
+          nodes: [
+            skillNode([
+              { type: 'player_gem', target_user_id: 'p1', field: 'gem', value: -1 },
+              { type: 'token', target_user_id: 'p1', field: 'token:bt_pupa', value: 1 },
+            ]),
+          ],
+        }),
+      ]),
+    )
+    const update = queued().filter((step) => step.type === 'skill-result')
+    expect(update).toEqual([{ type: 'skill-result', causeId: 'c1', outcome: '蛹 +1', cost: '宝石 1' }])
+    // Only one skill row: the second notify must not add another node.
+    expect(queued().filter((step) => step.type === 'narration-row')).toHaveLength(1)
+  })
 })

@@ -10,6 +10,7 @@ import {
   flowLogSteps,
   linkColorForPhase,
   nodeDamageSteps,
+  nodeSkillResult,
   nodeSteps,
   type AtomicStep,
   type useStageQueueStore,
@@ -45,6 +46,8 @@ interface FlowMemory {
   edges: Map<string, EdgeMemory>
   /** node id -> damage already shown as chips. */
   nodes: Map<string, number>
+  /** node id -> skill result text already shown (cause-backed skill nodes). */
+  results: Map<string, string>
   logOrders: Set<number>
   /** Acting player of the flow; state deltas carry no actor, so status icons fly from here. */
   actorId: string
@@ -85,7 +88,7 @@ export function createStageQueueBridge(deps: StageQueueBridgeDeps) {
   function memoryFor(flowId: string): FlowMemory {
     const existing = flows.get(flowId)
     if (existing) return existing
-    const memory: FlowMemory = { edges: new Map(), nodes: new Map(), logOrders: new Set(), actorId: '', narrated: false, started: false }
+    const memory: FlowMemory = { edges: new Map(), nodes: new Map(), results: new Map(), logOrders: new Set(), actorId: '', narrated: false, started: false }
     flows.set(flowId, memory)
     while (flows.size > MAX_REMEMBERED_FLOWS) {
       const oldest = flows.keys().next().value
@@ -98,15 +101,22 @@ export function createStageQueueBridge(deps: StageQueueBridgeDeps) {
   function nodeDelta(node: ActionFlowNodeDTO, memory: FlowMemory): AtomicStep[] {
     const shownDamage = memory.nodes.get(node.id)
     const damage = node.damage ?? 0
+    const resultKey = node.cause_id ? JSON.stringify(nodeSkillResult(node, playerName, roleName)) : ''
     if (shownDamage === undefined) {
       memory.nodes.set(node.id, damage)
+      if (resultKey) memory.results.set(node.id, resultKey)
       return nodeSteps(node, playerName, roleName)
+    }
+    const steps: AtomicStep[] = []
+    if (resultKey && resultKey !== memory.results.get(node.id)) {
+      memory.results.set(node.id, resultKey)
+      steps.push({ type: 'skill-result', causeId: node.cause_id!, ...nodeSkillResult(node, playerName, roleName) })
     }
     if (damage > 0 && damage !== shownDamage) {
       memory.nodes.set(node.id, damage)
-      return nodeDamageSteps(node)
+      steps.push(...nodeDamageSteps(node))
     }
-    return []
+    return steps
   }
 
   function edgeResolveDelta(flowId: string, edge: ActionFlowEdgeDTO, edgeMemory: EdgeMemory): AtomicStep[] {

@@ -98,6 +98,12 @@ export interface ActionFlowEdgeDTO {
   label?: string
 }
 
+export interface ActionFlowEffectDTO {
+  kind: string
+  summary?: string
+  target_ids?: string[]
+}
+
 export interface ActionFlowLogDTO {
   order: number
   text: string
@@ -119,6 +125,11 @@ export interface ActionFlowNodeDTO {
   damage?: number
   damage_type?: string
   label?: string
+  cause_id?: string
+  parent_cause_id?: string
+  origin_cause_id?: string
+  deltas?: TimelineDelta[]
+  effects?: ActionFlowEffectDTO[]
 }
 
 export interface ActionStepPayload {
@@ -149,6 +160,15 @@ export interface CardRevealedPayload {
   cards: Card[]
   action_type: string
   hidden: boolean
+}
+
+export interface Cause {
+  id: string
+  skill_id?: string
+  skill_name?: string
+  owner_id?: string
+  parent_id?: string
+  origin_id?: string
 }
 
 export interface CharacterView {
@@ -432,6 +452,7 @@ export interface TimelineEvent {
   deltas?: TimelineDelta[]
   message?: string
   gameplay_type?: string
+  cause?: Cause
 }
 
 export interface TimelineNotifyPayload {

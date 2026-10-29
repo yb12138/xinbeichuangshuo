@@ -9,7 +9,9 @@ import { useUiStore } from '../stores/ui.store'
 import { useBattleInteractionState } from '../composables/useBattleInteractionState'
 import StatusEffectIcon from './StatusIcons/StatusEffectIcon.vue'
 import BattleMarkIcon from './marks/BattleMarkIcon.vue'
+import CoverCard from './card/CoverCard.vue'
 import { seatCoverMarks, seatTokenMarks } from '../constants/seatMarks'
+import { seatPersistentEffects } from '../constants/persistentEffects'
 import { characterArtSrc, characterFullCardSrc } from '../constants/characterArt'
 
 const battleFxStore = useBattleFxStore()
@@ -43,6 +45,8 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   select: [playerId: string]
+  /** 盖牌浮层开 / 关：外层据此暂停角色立绘预览，避免两者重叠。 */
+  'cover-preview': [open: boolean]
 }>()
 
 const charInfo = computed(() => (props.player.role ? getCharacter(props.player.role) : null))
@@ -307,7 +311,41 @@ const tokenIndicators = computed(() => seatTokenMarks(props.player))
 /** 盖牌：按种类合并为"牌背 + 数量"，对所有人可见（内容已由服务端遮蔽）。 */
 const coverMarks = computed(() => seatCoverMarks(props.player))
 
+/** 悬停某种盖牌标记时，在座位旁浮出该种盖牌（他人视角为牌背，自己视角为牌面）。 */
+const hoveredCoverKey = ref<string | null>(null)
+const coverPopoverStyle = ref<Record<string, string>>({})
+
+function showCoverPopover(key: string, event: Event) {
+  const el = event.currentTarget as HTMLElement | null
+  if (el) {
+    const rect = el.getBoundingClientRect()
+    // 左半屏的座位往右弹，右半屏的往左弹，都与标记垂直居中
+    const toRight = rect.left + rect.width / 2 < window.innerWidth / 2
+    coverPopoverStyle.value = {
+      top: `${rect.top + rect.height / 2}px`,
+      ...(toRight ? { left: `${rect.right + 10}px` } : { right: `${window.innerWidth - rect.left + 10}px` }),
+    }
+  }
+  hoveredCoverKey.value = key
+  emit('cover-preview', true)
+}
+
+function hideCoverPopover() {
+  hoveredCoverKey.value = null
+  emit('cover-preview', false)
+}
+const hoveredCoverCards = computed(() => {
+  const key = hoveredCoverKey.value
+  if (!key) return []
+  return (props.player.field ?? [])
+    .map((fc, fieldIndex) => ({ fc, fieldIndex }))
+    .filter(({ fc }) => fc?.mode === 'Cover' && fc.effect === key && !!fc.card)
+})
+const hoveredCoverLabel = computed(() => coverMarks.value.find((c) => c.key === hoveredCoverKey.value)?.label ?? '')
+
 const allIndicators = computed(() => tokenIndicators.value)
+/** 持续中的公开效果（凋零、额外回合、下击加伤……）：比普通指示物醒目，悬停看规则。 */
+const persistentEffects = computed(() => seatPersistentEffects(props.player))
 
 const formIndicator = computed(() => {
   const form = props.player.form
@@ -462,11 +500,22 @@ function handleClick(e: MouseEvent) {
 
       <!-- 名牌条上沿的小型芯片：形态 / 宝石水晶 / 指示物 -->
       <div
-        v-if="formIndicator || (player.gem || 0) + (player.crystal || 0) > 0 || allIndicators.length || coverMarks.length"
+        v-if="formIndicator || (player.gem || 0) + (player.crystal || 0) > 0 || allIndicators.length || coverMarks.length || persistentEffects.length"
         class="seat-chip-row"
       >
         <span v-if="formIndicator" class="seat-chip form-badge" :title="formIndicator.label">
           {{ formIndicator.label }}
+        </span>
+        <span
+          v-for="effect in persistentEffects"
+          :key="effect.key"
+          class="seat-chip seat-chip--effect"
+          :title="effect.hint"
+          :data-effect-key="effect.key"
+          data-testid="seat-persistent-effect"
+        >
+          <span>{{ effect.label }}</span>
+          <span v-if="effect.valueText" class="seat-chip-value">{{ effect.valueText }}</span>
         </span>
         <span
           v-if="(player.gem || 0) + (player.crystal || 0) > 0"
@@ -486,6 +535,11 @@ function handleClick(e: MouseEvent) {
             class="seat-mark seat-mark--cover"
             :title="`${cover.label}: ${cover.count}`"
             :data-mark-key="cover.key"
+            tabindex="0"
+            @mouseenter="showCoverPopover(cover.key, $event)"
+            @mouseleave="hideCoverPopover"
+            @focus="showCoverPopover(cover.key, $event)"
+            @blur="hideCoverPopover"
           >
             <span class="seat-mark-icon seat-mark-icon--cover"><BattleMarkIcon kind="cover" :mark-key="cover.key" /></span>
             <span class="seat-chip-value">{{ cover.count }}</span>
@@ -597,6 +651,30 @@ function handleClick(e: MouseEvent) {
         <div class="damage-splash" />
       </div>
     </div>
+    <!-- 悬停盖牌标记：浮出该种盖牌。他人视角牌面已由服务端遮蔽，画种类牌背 -->
+    <Teleport to="body">
+      <div
+        v-if="hoveredCoverKey && hoveredCoverCards.length"
+        class="seat-cover-popover"
+        :style="coverPopoverStyle"
+        role="tooltip"
+      >
+        <div class="seat-cover-popover__head">
+          {{ hoveredCoverLabel }}<span class="seat-cover-popover__count">×{{ hoveredCoverCards.length }}</span>
+          <span class="seat-cover-popover__sub">{{ isMe ? '牌面仅自己可见' : '盖牌（牌面不可见）' }}</span>
+        </div>
+        <div class="seat-cover-popover__cards">
+          <CoverCard
+            v-for="entry in hoveredCoverCards"
+            :key="`seat-cover-${entry.fieldIndex}`"
+            :card="entry.fc.card"
+            :effect="entry.fc.effect"
+            :index="entry.fieldIndex"
+            :face-up="!!isMe"
+          />
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -932,6 +1010,20 @@ function handleClick(e: MouseEvent) {
   pointer-events: auto;
 }
 
+/* 持续效果：金色描边 + 缓慢呼吸光，区别于静态计数指示物。 */
+.seat-chip--effect {
+  color: #fff3d0;
+  border-color: rgba(227, 196, 106, 0.7);
+  background: linear-gradient(180deg, rgba(92, 70, 24, 0.85), rgba(40, 30, 10, 0.9));
+  animation: seat-effect-glow 2.4s ease-in-out infinite;
+}
+@keyframes seat-effect-glow {
+  0%, 100% { box-shadow: 0 0 0 rgba(227, 196, 106, 0); }
+  50% { box-shadow: 0 0 8px rgba(227, 196, 106, 0.55); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .seat-chip--effect { animation: none; }
+}
 .seat-chip {
   display: inline-flex;
   align-items: center;
@@ -976,6 +1068,84 @@ function handleClick(e: MouseEvent) {
   line-height: 1;
   white-space: nowrap;
 }
+.seat-mark--cover {
+  cursor: default;
+}
+
+.seat-mark--cover:focus-visible {
+  outline: 2px solid var(--bt-select);
+  outline-offset: 1px;
+}
+
+.seat-cover-popover {
+  position: fixed;
+  z-index: 80;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 16px 12px;
+  transform: translateY(-50%);
+  pointer-events: none;
+  isolation: isolate;
+  animation: seatCoverIn 0.18s ease-out;
+}
+
+/* 羽化暗影衬底，与扩展区一致，不画面板框 */
+.seat-cover-popover::before {
+  content: '';
+  position: absolute;
+  inset: -14px -24px;
+  z-index: -1;
+  background: radial-gradient(closest-side, rgba(3, 7, 16, 0.92), rgba(3, 7, 16, 0.72) 60%, transparent);
+  filter: blur(4px);
+}
+
+@keyframes seatCoverIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .seat-cover-popover {
+    animation: none;
+  }
+}
+
+.seat-cover-popover__head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  color: #eef3fb;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+}
+
+.seat-cover-popover__count {
+  margin-left: -4px;
+  color: rgba(210, 225, 245, 0.85);
+  font-variant-numeric: tabular-nums;
+}
+
+.seat-cover-popover__sub {
+  color: rgba(170, 192, 222, 0.7);
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+}
+
+.seat-cover-popover__cards {
+  display: flex;
+  gap: 8px;
+  padding-bottom: 6px;
+}
+
 .seat-mark-icon {
   display: inline-flex;
   width: 15px;

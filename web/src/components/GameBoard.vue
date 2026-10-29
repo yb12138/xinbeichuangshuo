@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { campPersistentEffects } from '../constants/persistentEffects'
 import { storeToRefs } from 'pinia'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useBattleFxStore } from '../stores/battlefx.store'
@@ -11,12 +12,16 @@ import type { AvailableSkill, FieldCard, PlayerView, Prompt } from '../types/gam
 import PlayerArea from './PlayerArea.vue'
 import ActionPanel from './ActionPanel.vue'
 import CardComponent from './CardComponent.vue'
+import CoverCard from './card/CoverCard.vue'
+import ExpansionTypeTile from './card/ExpansionTypeTile.vue'
+import { EXCLUSIVE_GROUP_KEY, expansionGroupView } from '../constants/expansionZone'
 import SkillDetailModal from './SkillDetailModal.vue'
 import BattleZone from './BattleZone.vue'
 import VfxLayer from './VfxLayer.vue'
 import StatusEffectIcon from './StatusIcons/StatusEffectIcon.vue'
 import BattleMarkIcon from './marks/BattleMarkIcon.vue'
 import { seatCoverMarks, seatStatusMarks, seatTokenMarks } from '../constants/seatMarks'
+import { COVER_MARKS } from '../constants/battleMarks'
 import { useSubmitAction } from '../composables/useSubmitAction'
 import { useBattleInteractionState } from '../composables/useBattleInteractionState'
 import StageOverlay from './StageOverlay.vue'
@@ -110,6 +115,14 @@ const {
   skillTargetIds,
   skillDiscardHandIndexes,
 } = storeToRefs(interruptStore)
+/** 作用于整个阵营的持续效果（凋零：士气最低为 1），显示在该阵营士气旁。 */
+const blueCampEffects = computed(() => campPersistentEffects(players.value, 'Blue'))
+const redCampEffects = computed(() => campPersistentEffects(players.value, 'Red'))
+function campEffectTitle(effect: { hint: string; sourceId: string }): string {
+  const source = players.value[effect.sourceId]
+  const who = source ? characters.value[source.role || '']?.name || source.name : ''
+  return who ? `${effect.hint}（来源：${who}）` : effect.hint
+}
 const {
   skillModalCharacterId,
   skillModalAnchor,
@@ -140,7 +153,23 @@ const myCoverCards = computed<CoverCardEntry[]>(() =>
       fieldCard: entry.fc
     }))
 )
-const expansionCardCount = computed(() => myExclusiveCards.value.length + myCoverCards.value.length)
+
+type CoverGroup = { key: string; label: string; entries: CoverCardEntry[] }
+
+/** 盖牌按种类（effect）分组，保持首次出现的顺序。 */
+const myCoverGroups = computed<CoverGroup[]>(() => {
+  const groups = new Map<string, CoverGroup>()
+  for (const entry of myCoverCards.value) {
+    const key = entry.fieldCard.effect || 'Cover'
+    let group = groups.get(key)
+    if (!group) {
+      group = { key, label: COVER_MARKS[key]?.label ?? coverEffectLabel(entry.fieldCard.effect), entries: [] }
+      groups.set(key, group)
+    }
+    group.entries.push(entry)
+  }
+  return [...groups.values()]
+})
 const boardRootRef = ref<HTMLElement | null>(null)
 const stageOverlayEnabled = computed(() => uiStore.stageOverlayEnabled)
 
@@ -159,6 +188,99 @@ const COVER_EFFECT_LABEL: Record<string, string> = {
   SpiritCasterPower: '妖力',
   MoonDarkMoon: '暗月',
   ButterflyCocoon: '茧',
+}
+
+/**
+ * 扩展区：立绘旁按种类列出「图标 + 数量」，悬停某一种时向右展开该种的牌。
+ * 悬停为临时展开；点击图标固定；进入扩展区选牌时自动固定到可选的那一种。
+ */
+type ExpansionGroup = { key: string; label: string; count: number }
+
+const expansionGroups = computed<ExpansionGroup[]>(() => {
+  const groups: ExpansionGroup[] = []
+  if (myExclusiveCards.value.length > 0) {
+    groups.push({ key: EXCLUSIVE_GROUP_KEY, label: '专属牌', count: myExclusiveCards.value.length })
+  }
+  for (const group of myCoverGroups.value) {
+    groups.push({ key: group.key, label: group.label, count: group.entries.length })
+  }
+  return groups
+})
+
+const expansionHoverGroup = ref<string | null>(null)
+const expansionPinnedGroup = ref<string | null>(null)
+let expansionHoverCloseTimer: ReturnType<typeof setTimeout> | null = null
+
+/** 当前有可选盖牌的那一种（选牌时自动展开它）。 */
+const expansionChoosingGroupKey = computed(() =>
+  myCoverGroups.value.find((group) =>
+    group.entries.some((entry) => isCoverSelectable(entry.fieldIndex) || isCoverSelected(entry.fieldIndex))
+  )?.key ?? null
+)
+
+const expansionActiveGroupKey = computed<string | null>(() => {
+  const keys = new Set(expansionGroups.value.map((group) => group.key))
+  const pick = (key: string | null) => (key && keys.has(key) ? key : null)
+  return (
+    pick(expansionHoverGroup.value) ??
+    pick(expansionPinnedGroup.value) ??
+    (showExpansionCards.value ? pick(expansionChoosingGroupKey.value) ?? expansionGroups.value[0]?.key ?? null : null)
+  )
+})
+
+const expansionActiveGroup = computed(
+  () => expansionGroups.value.find((group) => group.key === expansionActiveGroupKey.value) ?? null
+)
+const expansionActiveCovers = computed(
+  () => myCoverGroups.value.find((group) => group.key === expansionActiveGroupKey.value)?.entries ?? []
+)
+const expansionOpen = computed(() => expansionActiveGroupKey.value !== null)
+const expansionIsPinned = computed(() => expansionPinnedGroup.value !== null || showExpansionCards.value)
+
+function clearExpansionHoverTimer() {
+  if (expansionHoverCloseTimer) {
+    clearTimeout(expansionHoverCloseTimer)
+    expansionHoverCloseTimer = null
+  }
+}
+
+function onExpansionChipPointerEnter(event: PointerEvent, key: string) {
+  // 触屏没有悬停，交给点击
+  if (event.pointerType !== 'mouse') return
+  clearExpansionHoverTimer()
+  expansionHoverGroup.value = key
+}
+
+function onExpansionPointerLeave(event: PointerEvent) {
+  if (event.pointerType !== 'mouse') return
+  clearExpansionHoverTimer()
+  // 稍作延迟：鼠标从图标移向展开的牌时会掠过一小段空隙
+  expansionHoverCloseTimer = setTimeout(() => {
+    expansionHoverGroup.value = null
+    expansionHoverCloseTimer = null
+  }, 220)
+}
+
+function onExpansionChipClick(key: string) {
+  if (expansionPinnedGroup.value === key || (showExpansionCards.value && expansionActiveGroupKey.value === key)) {
+    collapseExpansion()
+    return
+  }
+  expansionPinnedGroup.value = key
+}
+
+function collapseExpansion() {
+  clearExpansionHoverTimer()
+  showExpansionCards.value = false
+  expansionPinnedGroup.value = null
+  expansionHoverGroup.value = null
+}
+
+/** 专属牌可打出：当前可用技能里有需要该专属牌的技能。 */
+function isExclusivePlayable(card: { exclusive_skill1?: string; exclusive_skill2?: string }): boolean {
+  const titles = [card.exclusive_skill1, card.exclusive_skill2].filter(Boolean)
+  if (!titles.length) return false
+  return snapshotStore.availableSkills.some((skill) => skill.require_exclusive && titles.includes(skill.title))
 }
 
 function coverEffectLabel(effect?: string): string {
@@ -909,6 +1031,54 @@ const canConfirmCocoonSelection = computed(() => {
   const n = selectedCocoonFieldIndices.value.length
   return n >= ctx.min && n <= ctx.max
 })
+
+/** 扩展区选牌时的提示：茧/闇月/妖力/元素射击都在扩展区里选。 */
+const expansionChoosing = computed(() =>
+  promptNeedsCocoonGuide.value || promptNeedsSpiritCasterPowerGuide.value || promptNeedsElementalShotGuide.value
+)
+
+const expansionSelectionHeader = computed(() => {
+  if (!expansionChoosing.value) return null
+  const p = promptGuideContext.value
+  if (!p) return null
+  const skillId = String(p.skill_id || '').trim()
+  let title = ''
+  if (skillId) {
+    for (const character of Object.values(characters.value)) {
+      const skill = character.skills?.find((s) => s.id === skillId)
+      if (skill) {
+        title = skill.title
+        break
+      }
+    }
+  }
+  const bracket = (p.message || '').match(/【([^】]+)】/)?.[1] || ''
+  const promptMessage = String(p.message || '').replace(/^【[^】]+】\s*[:：]?\s*/, '').trim()
+  let selected = 0
+  let max = 0
+  let message = promptMessage
+  if (promptNeedsCocoonGuide.value) {
+    const ctx = cocoonPromptContext.value
+    max = ctx.mode === 'cards' ? ctx.max : 0
+    selected = selectedCocoonFieldIndices.value.length
+    message = promptMessage || cocoonGuideText.value
+  } else if (promptNeedsSpiritCasterPowerGuide.value) {
+    const ctx = spiritCasterPowerPromptContext.value
+    max = ctx.max > 1 ? ctx.max : 0
+    selected = selectedFieldOptionIndexes.value.length
+    message = promptMessage || spiritCasterPowerGuideText.value
+  } else {
+    message = promptMessage || '请点击手牌区或扩展区的法术牌/祝福牌完成元素射击消耗选择。'
+  }
+  return { title: title || bracket || '请选择', message, selected, max }
+})
+
+watch(
+  () => expansionChoosing.value,
+  (active, wasActive) => {
+    if (wasActive && !active) collapseExpansion()
+  }
+)
 
 watch(
   () => cocoonPromptContext.value.active,
@@ -2200,9 +2370,7 @@ function handleResize() {
   rebuildLinkLines()
 }
 
-function toggleExpansionCards() {
-  showExpansionCards.value = !showExpansionCards.value
-}
+onBeforeUnmount(clearExpansionHoverTimer)
 
 onMounted(() => {
   window.addEventListener('resize', handleResize)
@@ -2314,7 +2482,10 @@ const fighterHundredDragonByPlayer = computed(() => {
 </script>
 
 <template>
-  <div ref="boardRootRef" class="h-full w-full flex flex-col board-shell p-2 sm:p-3 md:p-4 min-h-0 relative" data-testid="game-board">
+  <div ref="boardRootRef" class="h-full w-full flex flex-col board-shell p-2 sm:p-3 md:p-4 min-h-0 relative"
+    :class="{ 'board-shell--xp-choosing': expansionOpen && expansionChoosing }"
+    data-testid="game-board"
+  >
     <div class="board-ambient board-ambient-left" />
     <div class="board-ambient board-ambient-right" />
     <div v-if="roseCourtyardActive" class="rose-courtyard-vfx" data-testid="rose-courtyard-vfx" aria-hidden="true">
@@ -2379,6 +2550,13 @@ const fighterHundredDragonByPlayer = computed(() => {
         <div class="camp-center-metrics">
           <!-- :key 绑定数值，数值变化时重新挂载以触发 bump 动画 -->
           <span :key="'blue-morale-' + blueMorale" class="camp-score" title="士气">{{ blueMorale }}</span>
+          <span
+            v-for="effect in blueCampEffects"
+            :key="effect.key + effect.sourceId"
+            class="camp-effect"
+            :title="campEffectTitle(effect)"
+            data-testid="camp-persistent-effect"
+          >{{ effect.label }}</span>
           <span class="camp-divider" aria-hidden="true"></span>
           <span class="camp-cup" title="星杯">
             <svg class="camp-icon" aria-hidden="true" focusable="false"><use href="#bt-hud-icon-cup" /></svg>
@@ -2409,6 +2587,13 @@ const fighterHundredDragonByPlayer = computed(() => {
         <span class="camp-side-label camp-side-label-right">红阵营</span>
         <div class="camp-center-metrics">
           <span :key="'red-morale-' + redMorale" class="camp-score" title="士气">{{ redMorale }}</span>
+          <span
+            v-for="effect in redCampEffects"
+            :key="effect.key + effect.sourceId"
+            class="camp-effect"
+            :title="campEffectTitle(effect)"
+            data-testid="camp-persistent-effect"
+          >{{ effect.label }}</span>
           <span class="camp-divider" aria-hidden="true"></span>
           <span class="camp-cup" title="星杯">
             <svg class="camp-icon" aria-hidden="true" focusable="false"><use href="#bt-hud-icon-cup" /></svg>
@@ -2501,6 +2686,7 @@ const fighterHundredDragonByPlayer = computed(() => {
                   :bloodSharedLifeRole="bloodSharedLifeByPlayer[p.id]?.role"
                   compact
                   @select="onTargetClick"
+                  @cover-preview="(open) => (hoveredStatusRailPlayerId = open ? p.id : null)"
                 />
                 <div
                   v-if="battleStatusItemsForPlayer(p).length"
@@ -2752,85 +2938,134 @@ const fighterHundredDragonByPlayer = computed(() => {
                 'hand-rail--overflow-discard': promptNeedsOverflowDiscardGuide
               }"
             >
-              <div class="expansion-tray">
-              <div class="exclusive-toggle-row">
-                <button
-                  type="button"
-                  class="exclusive-toggle-btn"
-                  :disabled="expansionCardCount === 0"
-                  @click="toggleExpansionCards"
-                >
-                  <span class="exclusive-toggle-title">扩展区</span>
-                  <span class="exclusive-toggle-meta">
-                    {{
-                      expansionCardCount > 0
-                        ? `专属 ${myExclusiveCards.length} ｜ 盖牌 ${myCoverCards.length}`
-                        : '暂无扩展牌'
-                    }}
-                  </span>
-                  <span v-if="expansionCardCount > 0" class="exclusive-toggle-arrow">
-                    {{ showExpansionCards ? '收起 ▲' : '展开 ▼' }}
-                  </span>
-                </button>
-    </div>
-              <div v-if="showExpansionCards && expansionCardCount > 0" class="expansion-zone">
-                <div v-if="promptNeedsCocoonGuide" class="expansion-cocoon-guide">
-                  <div class="expansion-cocoon-guide-text">{{ cocoonGuideText }}</div>
-                  <button
-                    v-if="cocoonPromptContext.mode === 'cards'"
-                    class="expansion-cocoon-confirm-btn"
-                    :class="{ 'expansion-cocoon-confirm-btn--disabled': !canConfirmCocoonSelection }"
-                    :disabled="!canConfirmCocoonSelection"
-                    @click="confirmCocoonSelection"
+              <div
+                v-if="expansionGroups.length > 0"
+                class="expansion-tray"
+                :class="{
+                  'expansion-tray--open': expansionOpen,
+                  'expansion-tray--choosing': expansionChoosing,
+                  'expansion-tray--pinned': expansionIsPinned
+                }"
+                @pointerenter="clearExpansionHoverTimer"
+                @pointerleave="onExpansionPointerLeave"
+              >
+                <!-- 立绘旁的种类标记：图标 + 名称 + 数量，无边框 -->
+                <ul class="expansion-chips" aria-label="扩展区">
+                  <li v-for="group in expansionGroups" :key="`chip-${group.key}`">
+                    <button
+                      type="button"
+                      class="expansion-chip"
+                      :class="{
+                        'expansion-chip--active': expansionActiveGroupKey === group.key,
+                        'expansion-chip--choosing': expansionChoosingGroupKey === group.key && expansionChoosing,
+                        'expansion-chip--exclusive': group.key === EXCLUSIVE_GROUP_KEY
+                      }"
+                      :style="{ '--xp-tint': expansionGroupView(group.key).tint }"
+                      :aria-label="`扩展区 ${group.label} ×${group.count}`"
+                      :aria-expanded="expansionActiveGroupKey === group.key"
+                      aria-controls="expansion-fan"
+                      @pointerenter="onExpansionChipPointerEnter($event, group.key)"
+                      @click="onExpansionChipClick(group.key)"
+                    >
+                      <ExpansionTypeTile :group-key="group.key" :active="expansionActiveGroupKey === group.key" />
+                      <span class="expansion-chip-text">
+                        <span class="expansion-chip-label">{{ group.label }}</span>
+                        <span class="expansion-chip-count">×{{ group.count }}</span>
+                      </span>
+                    </button>
+                  </li>
+                </ul>
+
+                <!-- 悬停 / 固定的那一种：牌从图标右侧依次滑出，浮在手牌上方 -->
+                <Transition name="xp-fan">
+                  <div
+                    v-if="expansionActiveGroup"
+                    id="expansion-fan"
+                    class="expansion-fan"
+                    :style="{ '--xp-tint': expansionGroupView(expansionActiveGroup.key).tint }"
+                    data-testid="expansion-drawer"
+                    :data-group="expansionActiveGroup.key"
                   >
-                    确认选择
-                  </button>
-    </div>
-                <div v-else-if="promptNeedsElementalShotGuide" class="expansion-cocoon-guide">
-                  <div class="expansion-cocoon-guide-text">
-                    请点击手牌区或扩展区的法术牌/祝福牌完成元素射击消耗选择。
-                  </div>
-                </div>
-                <div v-else-if="promptNeedsSpiritCasterPowerGuide" class="expansion-cocoon-guide">
-                  <div class="expansion-cocoon-guide-text">{{ spiritCasterPowerGuideText }}</div>
-                </div>
-                <div class="expansion-zone-scroll">
-                  <div class="expansion-zone-content">
-                    <div v-if="myExclusiveCards.length > 0" class="expansion-group">
-                      <div class="expansion-group-title">专属技能卡（{{ myExclusiveCards.length }}）</div>
-                      <div class="expansion-card-row">
-          <CardComponent
+                    <!-- 选择中：技能名与完整提示已在决策面板里，这里只留进度与确认 -->
+                    <div v-if="expansionSelectionHeader" class="expansion-select-head">
+                      <span class="expansion-select-title">{{ expansionSelectionHeader.title }}</span>
+                      <span
+                        v-if="expansionSelectionHeader.max > 0"
+                        class="expansion-select-progress"
+                        aria-live="polite"
+                      >
+                        已选 <b class="expansion-select-num">{{ expansionSelectionHeader.selected }}</b>/{{ expansionSelectionHeader.max }}
+                        <span class="expansion-select-bar" aria-hidden="true">
+                          <span
+                            class="expansion-select-bar__fill"
+                            :style="{ width: `${Math.min(100, (expansionSelectionHeader.selected / expansionSelectionHeader.max) * 100)}%` }"
+                          />
+                        </span>
+                      </span>
+                      <button
+                        v-if="promptNeedsCocoonGuide && cocoonPromptContext.mode === 'cards'"
+                        class="expansion-cocoon-confirm-btn"
+                        :class="{ 'expansion-cocoon-confirm-btn--disabled': !canConfirmCocoonSelection }"
+                        :disabled="!canConfirmCocoonSelection"
+                        @click="confirmCocoonSelection"
+                      >
+                        确认
+                      </button>
+                    </div>
+
+                    <div v-if="!expansionSelectionHeader" class="expansion-fan-head">
+                      <span class="expansion-fan-title">{{ expansionActiveGroup.label }}<span class="expansion-fan-count">×{{ expansionActiveGroup.count }}</span></span>
+                      <span class="expansion-fan-sub">
+                        {{ expansionActiveGroup.key === EXCLUSIVE_GROUP_KEY ? '正面可见 · 可像手牌一样打出' : '盖牌 · 牌面仅自己可见' }}
+                      </span>
+                      <button
+                        v-if="expansionIsPinned"
+                        type="button"
+                        class="expansion-fan-close"
+                        aria-label="收起扩展区"
+                        @click="collapseExpansion"
+                      >
+                        收起
+                      </button>
+                    </div>
+
+                    <!-- 换种类时重建，牌重新依次滑出 -->
+                    <div :key="expansionActiveGroup.key" class="expansion-fan-cards">
+                      <template v-if="expansionActiveGroup.key === EXCLUSIVE_GROUP_KEY">
+                        <div
                           v-for="(card, idx) in myExclusiveCards"
                           :key="`exclusive-${card.id || idx}`"
-            :card="card"
-                          medium
-                        />
-                      </div>
-                    </div>
-                    <div v-if="myCoverCards.length > 0" class="expansion-group">
-                      <div class="expansion-group-title">盖牌（{{ myCoverCards.length }}）</div>
-                      <div class="expansion-card-row">
-                        <div
-                          v-for="(cover, idx) in myCoverCards"
-                          :key="`cover-${cover.fieldCard.card.id || idx}`"
-                          class="expansion-cover-item"
+                          class="expansion-fan-card expansion-exclusive-item"
+                          :class="{ 'expansion-exclusive-item--playable': isExclusivePlayable(card) }"
+                          :style="{ '--i': idx }"
                         >
-                          <CardComponent
+                          <CardComponent :card="card" battle-mini />
+                          <span class="expansion-exclusive-tag">{{ isExclusivePlayable(card) ? '可打出' : '专属' }}</span>
+                        </div>
+                      </template>
+                      <template v-else>
+                        <div
+                          v-for="(cover, idx) in expansionActiveCovers"
+                          :key="`cover-${cover.fieldCard.card.id || cover.fieldIndex}`"
+                          class="expansion-fan-card"
+                          :style="{ '--i': idx }"
+                        >
+                          <CoverCard
                             :card="cover.fieldCard.card"
+                            :effect="cover.fieldCard.effect"
                             :index="cover.fieldIndex"
                             :test-id="`cover-card-${cover.fieldIndex}`"
-                            medium
                             :selectable="isCoverSelectable(cover.fieldIndex)"
                             :selected="isCoverSelected(cover.fieldIndex)"
+                            :choosing="expansionChoosing"
+                            face-up
                             @click="onCoverCardClick"
                           />
-                          <div class="expansion-cover-tag">{{ coverEffectLabel(cover.fieldCard.effect) }}</div>
                         </div>
-                      </div>
+                      </template>
                     </div>
                   </div>
-                </div>
-              </div>
+                </Transition>
               </div>
               <Transition name="guide-hint" mode="out-in">
                 <div
@@ -3928,6 +4163,26 @@ const fighterHundredDragonByPlayer = computed(() => {
   right: calc(var(--camp-chamfer) + 6px);
 }
 
+.camp-effect {
+  align-self: center;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #ffe9b0;
+  border: 1px solid rgba(227, 196, 106, 0.75);
+  background: rgba(60, 44, 12, 0.85);
+  white-space: nowrap;
+  animation: camp-effect-glow 2.4s ease-in-out infinite;
+}
+@keyframes camp-effect-glow {
+  0%, 100% { box-shadow: 0 0 0 rgba(227, 196, 106, 0); }
+  50% { box-shadow: 0 0 10px rgba(227, 196, 106, 0.55); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .camp-effect { animation: none; }
+}
 .camp-score {
   display: inline-block;
   font-family: var(--bt-font-num);
@@ -5431,245 +5686,375 @@ const fighterHundredDragonByPlayer = computed(() => {
   font-size: clamp(7px, 0.59vw, 9px) !important;
 }
 
-.exclusive-toggle-btn {
-  width: 100%;
-  border: 1px solid rgba(130, 170, 210, 0.2);
-  border-radius: 10px;
-  background: linear-gradient(180deg, rgba(16, 32, 48, 0.72), rgba(11, 22, 34, 0.86));
-  color: #dce7f5;
-  padding: 8px 10px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 12px;
-  transition: border-color 0.16s ease, background 0.16s ease;
-}
-
-.exclusive-toggle-btn:not(:disabled):hover {
-  border-color: rgba(180, 210, 239, 0.52);
-  background: linear-gradient(180deg, rgba(22, 44, 66, 0.76), rgba(12, 25, 39, 0.9));
-}
-
-.exclusive-toggle-btn:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-
-.exclusive-toggle-title {
-  color: rgba(255, 226, 156, 0.94);
-  font-weight: 600;
-}
-
-.exclusive-toggle-meta {
-  color: rgba(191, 214, 236, 0.8);
-  margin-left: auto;
-}
-
-.exclusive-toggle-arrow {
-  color: rgba(244, 226, 175, 0.95);
-  min-width: 56px;
-  text-align: right;
-}
-
-.expansion-zone {
-  max-width: 100%;
-  min-width: 0;
-  min-height: 0;
-  overflow: auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--bt-chrome-lo) transparent;
-}
-
-/* 扩展区：扇形手牌左侧的小型镀铬托盘 */
+/* 扩展区：贴在立绘右侧，无边框。
+ * 收起时只是一列「种类图标 + 名称 + 数量」；悬停某一种时，该种的牌从图标右侧依次滑出，
+ * 浮在手牌上方，底下垫一层羽化的暗影保证可读，不画面板框。 */
 .expansion-tray {
+  --xp-gold: rgba(232, 196, 120, 0.95);
+  --xp-gold-glow: rgba(232, 196, 120, 0.4);
+  --xp-line: rgba(120, 165, 225, 0.42);
+  --xp-line-soft: rgba(120, 165, 225, 0.18);
+  --xp-line-hi: rgba(160, 200, 255, 0.85);
+  --xp-glow: rgba(80, 150, 255, 0.35);
+  position: relative;
   align-self: end;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
   width: max-content;
-  min-width: clamp(84px, 7vw, 104px);
-  max-width: clamp(150px, 26vw, 360px);
-  max-height: calc(var(--self-status-card-height) - 6px);
-  margin-bottom: 6px;
-  padding: 6px;
-  border-radius: var(--bt-radius);
-  background: var(--bt-panel);
-  box-shadow: var(--bt-frame-shadow), inset 0 1px 0 var(--bt-hairline-soft);
+  margin-bottom: 8px;
   pointer-events: auto;
 }
 
-.expansion-tray .exclusive-toggle-btn {
+.expansion-chips {
+  display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  padding: 5px 7px;
-  border-radius: var(--bt-radius-sm);
-  border-color: var(--bt-hairline-soft);
-  background: var(--bt-bg-0);
-  color: var(--bt-text);
-  font-size: 11px;
-  line-height: 1.25;
-  text-align: left;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-.expansion-tray .exclusive-toggle-btn:not(:disabled):hover {
-  border-color: var(--bt-hairline);
-  background: var(--bt-bg-1);
+.expansion-chip {
+  --xp-tint: #9fb3cf;
+  --xp-tile-size: 28px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 10px 3px 3px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #e6edf8;
+  cursor: pointer;
+  transition: background 0.18s ease, transform 0.18s ease;
 }
 
-.expansion-tray .exclusive-toggle-btn:focus-visible {
+/* 悬停 / 当前展开：只在背后亮起一抹色调光，不加框 */
+.expansion-chip::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--xp-tint) 28%, transparent), transparent 85%);
+  opacity: 0;
+  transition: opacity 0.18s ease;
+  pointer-events: none;
+}
+
+.expansion-chip:hover::before,
+.expansion-chip--active::before {
+  opacity: 1;
+}
+
+.expansion-chip--active {
+  transform: translateX(2px);
+}
+
+.expansion-chip:focus-visible {
   outline: 2px solid var(--bt-select);
   outline-offset: 1px;
 }
 
-.expansion-tray .exclusive-toggle-title {
-  color: var(--bt-chrome-hi);
+.expansion-chip-text {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+  white-space: nowrap;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95), 0 0 8px rgba(0, 0, 0, 0.8);
+}
+
+.expansion-chip-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+.expansion-chip--exclusive .expansion-chip-label {
+  color: rgba(255, 226, 156, 0.96);
+}
+
+.expansion-chip-count {
+  color: rgba(210, 225, 245, 0.85);
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 需要从这一种里选牌：图标呼吸提示 */
+.expansion-chip--choosing :deep(.xp-tile) {
+  animation: xpChipPulse 1.6s ease-in-out infinite;
+}
+
+@keyframes xpChipPulse {
+  0%,
+  100% {
+    box-shadow: inset 0 0 0 1px var(--xp-tint), 0 0 4px color-mix(in srgb, var(--xp-tint) 40%, transparent);
+  }
+  50% {
+    box-shadow: inset 0 0 0 1px var(--xp-tint), 0 0 14px color-mix(in srgb, var(--xp-tint) 85%, transparent);
+  }
+}
+
+/* —— 展开的牌：从图标列右侧滑出，底边与图标列对齐 —— */
+.expansion-fan {
+  --xp-tint: #9fb3cf;
+  position: absolute;
+  left: calc(100% + 6px);
+  bottom: -4px;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: max-content;
+  max-width: min(900px, calc(100vw - 240px));
+  padding: 10px 18px 10px 14px;
+  isolation: isolate;
+}
+
+/* 羽化暗影：代替面板底色，边缘自然消散 */
+.expansion-fan::before {
+  content: '';
+  position: absolute;
+  inset: -18px -36px -14px -24px;
+  z-index: -1;
+  background:
+    radial-gradient(60% 70% at 30% 60%, color-mix(in srgb, var(--xp-tint) 14%, transparent), transparent 70%),
+    radial-gradient(closest-side, rgba(3, 7, 16, 0.9), rgba(3, 7, 16, 0.7) 60%, transparent);
+  filter: blur(4px);
+  pointer-events: none;
+}
+
+.expansion-fan-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding-left: 2px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+}
+
+.expansion-fan-title {
+  color: #eef3fb;
+  font-size: 13px;
+  font-weight: 700;
   letter-spacing: 0.12em;
 }
 
-.expansion-tray .exclusive-toggle-meta {
-  margin-left: 0;
-  color: var(--bt-text-sub);
+.expansion-fan-count {
+  margin-left: 4px;
+  color: color-mix(in srgb, var(--xp-tint) 60%, #ffffff);
+  font-variant-numeric: tabular-nums;
+}
+
+.expansion-fan-sub {
+  color: rgba(170, 192, 222, 0.7);
   font-size: 10px;
 }
 
-.expansion-tray .exclusive-toggle-arrow {
-  min-width: 0;
-  color: var(--bt-text-dim);
+.expansion-fan-close {
+  margin-left: auto;
+  padding: 1px 8px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(200, 218, 242, 0.85);
   font-size: 10px;
-  text-align: left;
 }
 
-.expansion-tray .expansion-group-title {
-  color: var(--bt-text-sub);
-  font-size: 11px;
+.expansion-fan-close:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #eef3fb;
 }
 
-.expansion-tray .expansion-cover-tag {
-  background: var(--bt-bg-0);
-  border-color: var(--bt-hairline);
-  color: var(--bt-text);
+.expansion-fan-close:focus-visible {
+  outline: 2px solid var(--bt-select);
+  outline-offset: 1px;
 }
 
-.expansion-tray .expansion-cocoon-guide {
-  border-color: var(--bt-select);
-  background: var(--bt-bg-1);
+.expansion-fan-cards {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  /* 给可选 / 已选牌的抬起与勾选角标留出空间 */
+  padding-top: 12px;
 }
 
-.expansion-tray .expansion-cocoon-guide-text {
-  color: var(--bt-text);
-  font-size: 11px;
+/* 牌依次滑出 */
+.expansion-fan-card {
+  position: relative;
+  animation: xpCardIn 0.26s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: calc(var(--i, 0) * 40ms);
 }
 
-.expansion-tray .expansion-cocoon-confirm-btn {
-  border-color: var(--bt-active);
-  background: var(--bt-bg-0);
-  color: var(--bt-active);
+@keyframes xpCardIn {
+  from {
+    opacity: 0;
+    transform: translateX(-14px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
-.expansion-tray .expansion-zone-scroll {
-  scrollbar-color: var(--bt-chrome-lo) transparent;
+.xp-fan-enter-active {
+  transition: opacity 0.18s ease;
 }
 
-.expansion-cocoon-guide {
+.xp-fan-leave-active {
+  transition: opacity 0.14s ease, transform 0.14s ease;
+  pointer-events: none;
+}
+
+.xp-fan-enter-from,
+.xp-fan-leave-to {
+  opacity: 0;
+}
+
+.xp-fan-leave-to {
+  transform: translateX(-8px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .expansion-fan-card,
+  .expansion-chip--choosing :deep(.xp-tile) {
+    animation: none;
+  }
+
+  .expansion-chip,
+  .xp-fan-enter-active,
+  .xp-fan-leave-active {
+    transition: none;
+  }
+}
+
+/* 扩展区选牌且已展开：决策面板整体上移，让出牌的区域 */
+.board-shell--xp-choosing {
+  --decision-dock-hand-clearance: calc(var(--self-status-card-height) + 40px);
+}
+
+/* 选择中：牌上方一行 技能名 · 已选 n/m · 确认 */
+.expansion-select-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 6px;
-  padding: 6px 8px;
-  border-radius: 10px;
-  border: 1px solid rgba(178, 206, 235, 0.36);
-  background: linear-gradient(180deg, rgba(22, 36, 55, 0.78), rgba(12, 23, 37, 0.88));
+  gap: 10px;
+  padding-left: 2px;
+  white-space: nowrap;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
 }
 
-.expansion-cocoon-guide-text {
-  font-size: 12px;
-  line-height: 1.35;
-  color: rgba(218, 234, 249, 0.96);
+.expansion-select-title {
+  color: #eef3fb;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+
+.expansion-select-progress {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+  position: relative;
+  padding-bottom: 4px;
+  color: rgba(200, 218, 242, 0.85);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.expansion-select-num {
+  color: #8fc2ff;
+  font-weight: 800;
+}
+
+.expansion-select-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: rgba(120, 165, 225, 0.2);
+  overflow: hidden;
+}
+
+.expansion-select-bar__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: linear-gradient(90deg, #4f9bff, #9fd0ff);
+  box-shadow: 0 0 6px rgba(80, 160, 255, 0.8);
+  transition: width 0.2s ease;
 }
 
 .expansion-cocoon-confirm-btn {
   flex-shrink: 0;
-  height: 30px;
+  height: 26px;
   padding: 0 12px;
   border-radius: 999px;
-  border: 1px solid rgba(228, 192, 128, 0.58);
-  background: linear-gradient(140deg, rgba(156, 102, 49, 0.92), rgba(109, 69, 30, 0.96));
-  color: rgba(255, 238, 209, 0.96);
+  border: 1px solid var(--xp-gold);
+  background: linear-gradient(180deg, rgba(90, 66, 30, 0.9), rgba(40, 28, 12, 0.95));
+  color: rgba(255, 234, 186, 0.98);
   font-size: 12px;
   font-weight: 700;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.04em;
+  box-shadow: 0 0 10px rgba(232, 196, 120, 0.25);
 }
 
 .expansion-cocoon-confirm-btn:not(:disabled):hover {
-  filter: brightness(1.06);
+  filter: brightness(1.12);
 }
 
 .expansion-cocoon-confirm-btn--disabled,
 .expansion-cocoon-confirm-btn:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: default;
   filter: none;
+  box-shadow: none;
 }
 
-.expansion-zone-scroll {
-  width: fit-content;
-  max-width: 100%;
-  min-width: 0;
-  overflow-x: auto;
-  overflow-y: hidden;
-  padding-bottom: 2px;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(94, 138, 165, 0.74) rgba(7, 14, 22, 0.45);
+/* 专属牌：金色细边 + 底部标签 */
+.expansion-exclusive-item {
+  padding-bottom: 8px;
 }
 
-.expansion-zone-content {
-  display: inline-flex;
-  flex-direction: column;
-  gap: 8px;
-  width: max-content;
-  min-width: max-content;
+.expansion-exclusive-item :deep(.card-shell) {
+  box-shadow:
+    0 0 0 1px rgba(232, 196, 120, 0.7),
+    0 0 0 2px rgba(0, 0, 0, 0.7),
+    0 8px 16px rgba(0, 0, 0, 0.6);
 }
 
-.expansion-group {
-  width: max-content;
-  min-width: 0;
+.expansion-exclusive-item--playable :deep(.card-shell) {
+  box-shadow:
+    0 0 0 1px var(--xp-gold),
+    0 0 0 2px rgba(0, 0, 0, 0.7),
+    0 0 16px var(--xp-gold-glow);
 }
 
-.expansion-group-title {
-  font-size: 12px;
-  line-height: 1.2;
-  color: rgba(255, 236, 189, 0.9);
-  letter-spacing: 0.4px;
-  margin-bottom: 4px;
-}
-
-.expansion-card-row {
-  display: flex;
-  align-items: flex-end;
-  gap: 6px;
-  width: max-content;
-  min-width: 0;
-  padding-right: 2px;
-}
-
-.expansion-cover-item {
-  position: relative;
-}
-
-.expansion-cover-tag {
+.expansion-exclusive-tag {
   position: absolute;
-  right: 6px;
-  bottom: 6px;
+  left: 50%;
+  bottom: 0;
+  z-index: 3;
+  transform: translateX(-50%);
+  padding: 1px 10px;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #4a3518, #22180b);
+  box-shadow: 0 0 0 1px rgba(232, 196, 120, 0.6);
+  color: rgba(255, 232, 178, 0.75);
   font-size: 10px;
-  line-height: 1;
-  padding: 4px 6px;
-  border-radius: 999px;
-  background: rgba(4, 12, 22, 0.82);
-  border: 1px solid rgba(174, 213, 252, 0.42);
-  color: rgba(214, 232, 255, 0.95);
+  font-weight: 700;
+  white-space: nowrap;
   pointer-events: none;
+}
+
+.expansion-exclusive-item--playable .expansion-exclusive-tag {
+  box-shadow: 0 0 0 1px var(--xp-gold), 0 0 8px var(--xp-gold-glow);
+  color: rgba(255, 236, 190, 0.98);
+}
+
+/* 扩展区里的专属牌保持原亮度（不当作"不可选"压暗） */
+.expansion-fan :deep(.card-shell:not(.selectable):not(.selected)) {
+  opacity: 1;
+  filter: none;
 }
 
 .bottom-hud {

@@ -21,6 +21,7 @@ function parseArgs(argv) {
     botsPaused: true,
     openPages: true,
     printJson: false,
+    extraFire: false,
   }
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -68,6 +69,8 @@ function parseArgs(argv) {
       options.openPages = false
     } else if (arg === '--json') {
       options.printJson = true
+    } else if (arg === '--extra-fire') {
+      options.extraFire = true
     } else if (arg === '--help' || arg === '-h') {
       printHelp()
       process.exit(0)
@@ -134,6 +137,7 @@ Options:
   --bots-live          不暂停 bot 行动
   --no-open            只打印 URL，不打开浏览器
   --json               输出机器可读 JSON
+  --extra-fire         给前两名真人各加 2 张火系手牌（测应战用；默认不加，开局 4 张）
 `)
 }
 
@@ -175,9 +179,12 @@ function scenarioPayload(options) {
     setup: {
       first_turn_player: options.firstTurn,
       bots_paused: options.botsPaused,
-      cheats: Array.from({ length: Math.min(options.humans, 2) }, (_, index) => (
-        { target: `human${index}`, command: 'card_element', args: ['Fire', '2'] }
-      )),
+      // 默认不加牌：开局手牌按规则是 4 张。需要测试应战时再用 --extra-fire 给前两名真人各加 2 张火系牌。
+      cheats: options.extraFire
+        ? Array.from({ length: Math.min(options.humans, 2) }, (_, index) => (
+          { target: `human${index}`, command: 'card_element', args: ['Fire', '2'] }
+        ))
+        : [],
     },
   }
 }

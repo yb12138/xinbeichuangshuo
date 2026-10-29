@@ -3,6 +3,7 @@
  */
 import type { PlayerView } from '../types/game'
 import { COVER_COUNT_TOKEN_KEYS, COVER_MARKS, STATUS_MARKS, TOKEN_MARKS } from './battleMarks'
+import { PERSISTENT_EFFECT_KEYS } from './persistentEffects'
 
 /** 形态类键：由形态徽章展示，不进指示物段。 */
 export const FORM_TOKEN_KEYS = new Set([
@@ -177,6 +178,8 @@ export function seatTokenMarks(player: PlayerView): SeatTokenMark[] {
       ([key, value]) =>
         !HIDDEN_TOKEN_KEYS.has(key) &&
         !FORM_TOKEN_KEYS.has(key) &&
+        // 持续效果由 seatPersistentEffects 单独展示
+        !PERSISTENT_EFFECT_KEYS.has(key) &&
         !(COVER_COUNT_TOKEN_KEYS.has(key) && hasCovers) &&
         typeof value === 'number' &&
         value > 0,

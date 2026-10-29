@@ -410,7 +410,8 @@ const castView = computed(() => {
     pointLeft: box.leftSide,
     avatar: characterArtSrc(snapshotStore.players[bubble.playerId]?.role),
     who: props.playerLabel ? props.playerLabel(bubble.playerId) : seatName(bubble.playerId),
-    hint: bubble.targetIds.length > 1 ? `${effectHint} · ${bubble.targetIds.length} 名角色` : effectHint,
+    // 副标题优先写实际结果；结果未到时退回技能类型。
+    hint: bubble.outcome || (bubble.targetIds.length > 1 ? `${effectHint} · ${bubble.targetIds.length} 名角色` : effectHint),
   }
 })
 
@@ -603,6 +604,10 @@ interface ChainNodeView {
   /** Extra targets beyond the one avatar shown ("+2"). */
   moreTargets: number
   triggers: { name: string; stroke: string }[]
+  /** Skill node: 消耗（"宝石 1"），小字显示在结果下。 */
+  cost: string
+  /** 悬停时显示的完整技能描述。 */
+  hint: string
 }
 
 function seatName(id: string): string {
@@ -627,15 +632,16 @@ const chainView = computed(() => {
     const last = !next
     const triggers = entry.triggers.map((t) => ({ name: t.skillName, stroke: strokeOf(t.element, 'skill') }))
     if (skill) {
-      const targets = skill.targetIds
-      const firstTarget = targets.find((id) => id !== skill.actorId) || targets[0] || ''
+      // 只作用于自身的技能不画“A › A”，目标名写“自身”。
+      const others = skill.targetIds.filter((id) => id !== skill.actorId)
+      const firstTarget = others[0] || ''
       return {
         id: row.id,
-        verb: '技能',
+        verb: skill.outcome || (skill.opening === 'trigger' ? '触发' : '发动'),
         fromAvatar: avatar(skill.actorId),
         toAvatar: firstTarget ? avatar(firstTarget) : '',
         fromName: seatName(skill.actorId),
-        toName: targets.length ? targets.map(seatName).join('、') : '',
+        toName: others.length ? others.map(seatName).join('、') : '自身',
         cardName: skill.skillName,
         cardArt: avatar(skill.actorId),
         element: skill.element || '',
@@ -644,8 +650,10 @@ const chainView = computed(() => {
         result: '',
         resultStyle: '',
         skill: true,
-        moreTargets: Math.max(0, targets.length - 1),
+        moreTargets: Math.max(0, others.length - 1),
         triggers,
+        cost: skill.cost || '',
+        hint: skill.effectText || '',
       }
     }
     const c = chain!
@@ -680,6 +688,8 @@ const chainView = computed(() => {
       skill: false,
       moreTargets: 0,
       triggers,
+      cost: '',
+      hint: '',
     }
   })
   // "X 承受" closes the chain: show it as the last card's result instead of a separate line.
@@ -953,11 +963,18 @@ onBeforeUnmount(() => {
               <span v-if="node.state === 'waiting'" class="stage-chain__timer" />
               <span v-if="node.result" class="stage-chain__result" :class="`stage-chain__result--${node.resultStyle}`">{{ node.result }}</span>
             </div>
-            <div class="stage-chain__verb">{{ node.state === 'waiting' ? '等待响应' : node.verb }}</div>
+            <div
+              class="stage-chain__verb"
+              :class="{ 'stage-chain__verb--outcome': node.skill && node.verb !== '发动' && node.verb !== '触发' }"
+              :title="node.hint || undefined"
+            >
+              {{ node.state === 'waiting' ? '等待响应' : node.verb }}
+            </div>
+            <div v-if="node.cost" class="stage-chain__cost">消耗 {{ node.cost }}</div>
             <div v-for="trigger in node.triggers" :key="trigger.name" class="stage-chain__trigger" :style="{ '--node-color': trigger.stroke }">
               ✦ {{ trigger.name }}
             </div>
-            <div class="stage-chain__names">{{ node.fromName }} → {{ node.toName }}</div>
+            <div class="stage-chain__names">{{ node.toName ? `${node.fromName} → ${node.toName}` : node.fromName }}</div>
           </div>
         </template>
       </div>
@@ -1665,6 +1682,20 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 .stage-chain__node--current .stage-chain__verb,
+/* 技能结果（"蛹 +1 · 茧 ×4"）替代通用的“技能”字样：用技能色描边，允许略宽。 */
+.stage-chain__verb--outcome {
+  color: #fff;
+  border-color: color-mix(in srgb, var(--node-color) 70%, transparent);
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.stage-chain__cost {
+  margin-top: 2px;
+  font-size: 10px;
+  color: var(--bt-text-muted, #8f9bb0);
+  white-space: nowrap;
+}
 .stage-chain__node--waiting .stage-chain__verb {
   color: #fff;
   border-color: var(--node-color);

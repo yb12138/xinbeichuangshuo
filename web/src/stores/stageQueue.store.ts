@@ -1,3 +1,4 @@
+import { skillResult, skillResultSummary } from './skillResult'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import type { Card } from '../types/game'
@@ -50,6 +51,8 @@ export type AtomicStep = StepTiming &
         element?: string
         effects?: SkillEffectTemplate[]
         targetIds?: string[]
+        outcome?: string
+        causeId?: string
       }
     | { type: 'value-chip'; playerId: string; text: string; color: ValueChipColor }
     | {
@@ -67,6 +70,8 @@ export type AtomicStep = StepTiming &
     | { type: 'mark-previous' }
     | { type: 'clear-stage'; summary?: string }
     | { type: 'narration-row'; html: string; tag: string; tagColor: LinkColor; chain?: NarrationChain; skill?: NarrationSkill }
+    /** 同一技能因果的结果后到（如茧在结算后才放置）：就地更新已有技能行。 */
+    | { type: 'skill-result'; causeId: string; outcome: string; cost: string }
   )
 
 /** Structured form of a skill row, rendered as a skill node of the combat chain. */
@@ -80,6 +85,14 @@ export interface NarrationSkill {
   effects: SkillEffectTemplate[]
   /** Link drawn for this skill (actor → first target), whose result the node shows. */
   linkId?: string
+  /** 结算结果短语（"蛹 +1 · 茧 ×4"、"伤害 +1"、"代为应战 → X"）；空串 = 尚无可见结果。 */
+  outcome?: string
+  /** 发动代价（"宝石 1"），与结果分开展示。 */
+  cost?: string
+  /** 完整技能描述，仅用于悬停提示。 */
+  effectText?: string
+  /** 同一因果的节点 ID：后续结果到达时就地更新同一节点。 */
+  causeId?: string
 }
 
 /** Structured form of an edge row, rendered as one node of the combat chain. */
@@ -119,6 +132,9 @@ export interface SkillBubbleState {
   element?: string
   effects: SkillEffectTemplate[]
   targetIds: string[]
+  /** 技能因果名下的结算结果（"蛹 +1 · 茧 ×4"）；结果后到时由 skill-result 更新。 */
+  outcome: string
+  causeId: string
 }
 
 /** Small "技能名 · 触发" capsule beside a seat (passive / response skills). */
@@ -187,6 +203,7 @@ const DEFAULT_HOLD_MS: Record<AtomicStepType, number> = {
   'value-chip': 450,
   'status-change': 300,
   'turn-banner': DEFAULT_TURN_BANNER_MS,
+  'skill-result': 0,
   'mark-previous': 200,
   'clear-stage': 0,
   'narration-row': 250,
@@ -351,6 +368,8 @@ export const useStageQueueStore = defineStore('stageQueue', () => {
           element: step.element,
           effects: step.effects || [],
           targetIds: step.targetIds || [],
+          outcome: step.outcome || '',
+          causeId: step.causeId || '',
         }
         break
       }
@@ -385,6 +404,18 @@ export const useStageQueueStore = defineStore('stageQueue', () => {
       case 'clear-stage':
         clearStage(step.summary)
         break
+      case 'skill-result': {
+        if (activeSkillBubble.value?.causeId === step.causeId) {
+          activeSkillBubble.value = { ...activeSkillBubble.value, outcome: step.outcome }
+        }
+        const index = stageRows.value.findIndex((row) => row.skill?.causeId === step.causeId)
+        if (index < 0) break
+        const row = stageRows.value[index]!
+        const next = stageRows.value.slice()
+        next[index] = { ...row, skill: { ...row.skill!, outcome: step.outcome, cost: step.cost } }
+        stageRows.value = next
+        break
+      }
       case 'narration-row':
         stageRows.value = [
           ...stageRows.value,
@@ -588,13 +619,18 @@ export function nodeSteps(
         element: spec?.element,
         effects: spec?.effects ?? [],
         targetIds,
+        outcome: nodeSkillResult(node, playerNameFn, roleNameFn).outcome,
+        causeId: node.cause_id || '',
       })
     }
-    const effect = node.effect_text ? `：${escapeHtml(node.effect_text)}` : ''
+    const result = skillResult(node, (id) => playerLabel(id, playerNameFn, roleNameFn))
+    const outcome = skillResultSummary(result)
+    const cost = result.costs.map((item) => item.text).join(' · ')
     const toward = targets ? ` → ${targets}` : ''
+    const detail = outcome ? `：${escapeHtml(outcome)}` : node.effect_text ? `：${escapeHtml(node.effect_text)}` : ''
     steps.push({
       type: 'narration-row',
-      html: `${actor} 发动【${escapeHtml(skillName)}】${toward}${effect}`.trim(),
+      html: `${actor} 发动【${escapeHtml(skillName)}】${toward}${detail}`.trim(),
       tag: '技能',
       tagColor: 'skill',
       skill: {
@@ -605,6 +641,10 @@ export function nodeSteps(
         opening,
         element: spec?.element,
         effects: spec?.effects ?? [],
+        outcome,
+        cost,
+        effectText: node.effect_text || '',
+        causeId: node.cause_id || '',
       },
     })
   } else if ((kind === 'effect' || kind === 'extra_action') && label) {
@@ -621,6 +661,16 @@ export function nodeSteps(
 
   steps.push(...nodeDamageSteps(node))
   return steps
+}
+
+/** 技能节点的结果文案（供结果后到时就地更新）。 */
+export function nodeSkillResult(
+  node: ActionFlowNodeDTO,
+  playerNameFn: (id: string) => string,
+  roleNameFn: (id: string) => string,
+): { outcome: string; cost: string } {
+  const result = skillResult(node, (id) => playerLabel(id, playerNameFn, roleNameFn))
+  return { outcome: skillResultSummary(result), cost: result.costs.map((item) => item.text).join(' · ') }
 }
 
 /** Damage / heal chips for a node's targets (empty when the node carries no damage). */
