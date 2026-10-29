@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/vue'
+import { fireEvent, render, screen, waitFor } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -7,6 +7,7 @@ import GameBoard from '../GameBoard.vue'
 import { useInterruptStore } from '../../stores/interrupt.store'
 import { useSessionStore } from '../../stores/session.store'
 import { useSnapshotStore } from '../../stores/snapshot.store'
+import { useUiStore } from '../../stores/ui.store'
 import type { AvailableSkill, Card, CharacterView, GameStateUpdate, PlayerInfo, PlayerView, Prompt } from '../../types/game'
 
 const submitSelectMock = vi.fn()
@@ -955,6 +956,40 @@ describe('GameBoard target picker', () => {
     expect(handRail?.querySelector('.my-status-portrait')).toBeNull()
     expect(statusStrip?.classList.contains('my-status-strip--active')).toBe(true)
     expect(actionDock?.classList.contains('right-action-dock--active')).toBe(true)
+  })
+
+  it('shows my own form, tokens and a skill button inside my status portrait', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const me = buildPlayer({
+      id: 'p1',
+      name: '玩家1',
+      camp: 'Red',
+      role: 'holy_bow',
+      form: 'holy_bow_holy_glory_form',
+      tokens: { hb_faith: 3 },
+    })
+    useSessionStore().setRoomInfo('ROOM1', 'p1', 'Red', 'holy_bow')
+    useSessionStore().updateRoomPlayers([buildPlayerInfo(me)], 'p1')
+    useSnapshotStore().updateGameState(buildState({ p1: me }, {
+      characters: [buildCharacter({ id: 'holy_bow', name: '圣弓', skills: [{ id: 'hb_auto_fill', title: '自动填充', description: '' } as any] })],
+    }))
+
+    render(GameBoard, {
+      global: {
+        plugins: [pinia],
+        stubs: { PlayerArea: PlayerAreaStub, ActionPanel: true, BattleZone: true, CardComponent: true, SkillDetailModal: true, VfxLayer: true, ActionTimeline: true, StatusEffectIcon: true },
+      },
+    })
+
+    const strip = screen.getByTestId('my-status-strip')
+    expect(strip.classList.contains('my-status-strip--in-form')).toBe(true)
+    const chips = screen.getByTestId('my-status-chips')
+    expect(chips.textContent).toContain('圣煌形态')
+    expect(chips.querySelector('[data-mark-key="hb_faith"]')?.textContent).toContain('3')
+
+    await fireEvent.click(screen.getByTestId('my-status-skill-btn'))
+    expect(useUiStore().skillModalCharacterId).toBe('holy_bow')
   })
 
   it('passes hundred dragon lock badges to source and target players without rendering a link line', () => {
