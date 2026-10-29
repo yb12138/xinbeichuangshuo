@@ -238,7 +238,7 @@ func (e GameEvent) Validate() error {
 		if hasOtherTypedPayload("timeline_marker") {
 			return fmt.Errorf("game event %s cannot carry other typed payloads", e.Type)
 		}
-	case EventLog, EventStateUpdate, EventError, EventGameEnd:
+	case EventLog, EventStateUpdate, EventError, EventGameEnd, EventCauseBoundary:
 		if hasAnyTypedPayload() {
 			return fmt.Errorf("game event %s cannot carry typed payloads", e.Type)
 		}

@@ -26,8 +26,8 @@ func RoleEntry() player.RoleEntry {
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
 		TimingHookSpecs: []player.TimingHookSpec{
 			{Timing: player.TimingPostActionEnd, Priority: 100, Hook: postActionEndBleedExitHook, RoleFilter: &player.HookRoleNone},
-			{Timing: player.TimingMoraleLossApplied, Priority: 100, Hook: moraleLossHook},
-			{Timing: player.TimingTurnStart, Priority: 100, Hook: turnStartBleedTickHook},
+			{Timing: player.TimingMoraleLossApplied, Priority: 100, Hook: moraleLossHook, SkillID: "bp_bleeding"},
+			{Timing: player.TimingTurnStart, Priority: 100, Hook: turnStartBleedTickHook, SkillID: "bp_bleeding"},
 		},
 	}
 }
@@ -87,12 +87,12 @@ func SkillEntries() []player.SkillEntry {
 // ChoiceRouteSpecs 导出角色 choice 路由声明。
 func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 	return map[string]types.ChoiceRouteSpec{
-		"bp_blood_curse_pick":    types.ChoiceRouteRole("blood_priestess"),
-		"bp_blood_sorrow_mode":   types.ChoiceRouteRole("blood_priestess"),
-		"bp_blood_sorrow_target": types.ChoiceRouteRole("blood_priestess"),
-		"bp_blood_wail_x":        types.ChoiceRouteRole("blood_priestess"),
-		"bp_curse_discard":       types.ChoiceRouteRole("blood_priestess"),
-		"bp_shared_life_pick":    types.ChoiceRouteRole("blood_priestess"),
-		"bp_shared_life_target":  types.ChoiceRouteRole("blood_priestess"),
+		"bp_blood_curse_pick":    types.ChoiceRouteRole("blood_priestess").WithSkill("bp_blood_curse"),
+		"bp_blood_sorrow_mode":   types.ChoiceRouteRole("blood_priestess").WithSkill("bp_blood_sorrow"),
+		"bp_blood_sorrow_target": types.ChoiceRouteRole("blood_priestess").WithSkill("bp_blood_sorrow"),
+		"bp_blood_wail_x":        types.ChoiceRouteRole("blood_priestess").WithSkill("bp_blood_wail"),
+		"bp_curse_discard":       types.ChoiceRouteRole("blood_priestess").WithSkill("bp_blood_curse"),
+		"bp_shared_life_pick":    types.ChoiceRouteRole("blood_priestess").WithSkill("bp_shared_life"),
+		"bp_shared_life_target":  types.ChoiceRouteRole("blood_priestess").WithSkill("bp_shared_life"),
 	}
 }

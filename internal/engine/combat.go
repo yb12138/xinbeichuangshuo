@@ -40,6 +40,7 @@ func (e *GameEngine) initCombat(attackerID, targetID string, card *model.Card, i
 		combatReq.SetInterceptTag(model.CombatInterceptUnrespondable)
 	}
 
+	combatReq.Cause = model.CloneCause(e.CurrentCause())
 	// 推入战斗栈
 	e.State.CombatStack = append(e.State.CombatStack, combatReq)
 }

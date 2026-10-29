@@ -14,6 +14,9 @@ type scheduledBotPrompt struct {
 
 // OnGameEvent implements model.GameObserver.
 func (r *Room) OnGameEvent(event model.GameEvent) {
+	// 本事件期间广播的时间线条目（含随后的公共状态差值）都归属事件发出时的因果。
+	r.eventCause = event.Cause
+	defer func() { r.eventCause = nil }()
 	scheduledBot := r.dispatchGameEvent(event)
 	if event.Type != model.EventStateDelta {
 		r.broadcastPublicStateDelta(string(event.Type))
@@ -261,6 +264,9 @@ func (r *Room) handleTimelineMarkerGameEvent(event model.GameEvent) {
 }
 
 func (r *Room) broadcastTimeline(payload timeline.Payload) {
+	if payload.Cause == nil {
+		payload.Cause = r.eventCause
+	}
 	notify := r.buildTimelineNotify(payload)
 	r.recordTimelineHistory(notify.Events)
 	r.broadcastHumans(CmdNotifyTimeline, notify)

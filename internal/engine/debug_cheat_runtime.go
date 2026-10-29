@@ -556,6 +556,7 @@ var cheatCommandHandlers = map[string]cheatCommandHandler{
 	"turn":           (*GameEngine).HandleCheatTurn,
 	"role":           (*GameEngine).HandleCheatRole,
 	"token":          (*GameEngine).HandleCheatToken,
+	"flow":           (*GameEngine).HandleCheatFlowState,
 	"set":            (*GameEngine).HandleCheatSet,
 	"effect":         (*GameEngine).HandleCheatEffect,
 	"card_exclusive": (*GameEngine).HandleCheatCardExclusive,
@@ -622,6 +623,27 @@ func (e *GameEngine) HandleCheatToken(act model.PlayerAction) error {
 	ensurePlayerTokensMap(player)
 	player.Tokens[tokenKey] = val
 	e.Log(fmt.Sprintf("[Cheat] %s 指示物 %s=%d", player.Name, tokenKey, val))
+	return nil
+}
+
+// HandleCheatFlowState 设置本回合技能流程状态（测试持续效果展示用）：cheat flow <pid> <key> <value>。
+func (e *GameEngine) HandleCheatFlowState(act model.PlayerAction) error {
+	if len(act.ExtraArgs) < 3 {
+		return fmt.Errorf("用法: cheat flow <pid> <key> <value>")
+	}
+	val, err := strconv.Atoi(act.ExtraArgs[2])
+	if err != nil {
+		return fmt.Errorf("数值无效: %s", act.ExtraArgs[2])
+	}
+	player, err := e.getCheatPlayer(act.ExtraArgs[0])
+	if err != nil {
+		return err
+	}
+	if player.TurnState.SkillFlowState == nil {
+		player.TurnState.SkillFlowState = map[string]int{}
+	}
+	player.TurnState.SkillFlowState[act.ExtraArgs[1]] = val
+	e.Log(fmt.Sprintf("[Cheat] %s 流程状态 %s=%d", player.Name, act.ExtraArgs[1], val))
 	return nil
 }
 

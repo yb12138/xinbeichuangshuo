@@ -13,6 +13,7 @@ type roleTimingHookEntry struct {
 	Priority   int
 	Hook       engineplayer.TimingHookFunc
 	RoleFilter *string // nil=按SourceID角色过滤, "none"=不过滤
+	SkillID    string
 }
 
 // mountRoleTimingHooks 从 RoleRegistry 收集 TimingHookSpecs，按 timing 分组并排序。
@@ -26,6 +27,7 @@ func mountRoleTimingHooks() map[engineplayer.TimingPoint][]roleTimingHookEntry {
 				Priority:   s.Priority,
 				Hook:       s.Hook,
 				RoleFilter: s.RoleFilter,
+				SkillID:    s.SkillID,
 			})
 		}
 	}
@@ -78,7 +80,7 @@ func (e *GameEngine) dispatchRoleTimingHook(
 		if !hookMatchesRole(entry, e, ctx) {
 			continue
 		}
-		result := entry.Hook(rt, ctx)
+		result := e.runRoleTimingHook(entry, rt, ctx)
 		if result.Handled || result.Interrupted || result.Blocked || result.SkipNextHook || result.ValidationError != nil {
 			return result
 		}
@@ -98,7 +100,7 @@ func (e *GameEngine) dispatchAllRoleTimingHooks(
 		if !hookMatchesRole(entry, e, ctx) {
 			continue
 		}
-		result := entry.Hook(rt, ctx)
+		result := e.runRoleTimingHook(entry, rt, ctx)
 		if result.Interrupted {
 			aggregated.Interrupted = true
 		}
@@ -136,4 +138,37 @@ func (e *GameEngine) dispatchAllRoleTimingHooks(
 		}
 	}
 	return aggregated
+}
+
+// runRoleTimingHook 执行单个 hook；声明了 SkillID 时在该技能因果下执行（持有者按角色匹配上下文玩家）。
+func (e *GameEngine) runRoleTimingHook(entry roleTimingHookEntry, rt engineplayer.HookRuntime, ctx engineplayer.TimingHookContext) engineplayer.TimingHookResult {
+	if entry.SkillID == "" {
+		return entry.Hook(rt, ctx)
+	}
+	ownerID := e.hookSkillOwner(entry.RoleID, ctx)
+	if ownerID == "" {
+		return entry.Hook(rt, ctx)
+	}
+	var result engineplayer.TimingHookResult
+	e.WithSkillCause(entry.SkillID, ownerID, func() {
+		result = entry.Hook(rt, ctx)
+	})
+	return result
+}
+
+// hookSkillOwner 在 hook 上下文涉及的玩家中找到该角色的持有者（Source → Target → Player）。
+func (e *GameEngine) hookSkillOwner(roleID string, ctx engineplayer.TimingHookContext) string {
+	candidates := []string{ctx.SourceID, ctx.TargetID}
+	if ctx.Player != nil {
+		candidates = append(candidates, ctx.Player.ID)
+	}
+	for _, pid := range candidates {
+		if pid == "" {
+			continue
+		}
+		if p := e.State.Players[pid]; p != nil && p.Character != nil && p.Character.ID == roleID {
+			return pid
+		}
+	}
+	return ""
 }

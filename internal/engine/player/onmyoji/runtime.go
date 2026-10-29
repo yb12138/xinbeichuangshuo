@@ -89,7 +89,9 @@ func triggerShikigamiShift(rt engineplayer.ChoiceRuntime, actor *model.Player) {
 	ctx.Flags["yinyang_counter_active"] = true
 	handler := &OnmyojiShikigamiShiftHandler{}
 	if handler.CanUse(ctx) {
-		handler.Execute(ctx)
+		rt.WithSkillCause("onmyoji_shikigami_shift", actor.ID, func() {
+			handler.Execute(ctx)
+		})
 	}
 }
 

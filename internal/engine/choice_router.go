@@ -49,6 +49,66 @@ func (e *GameEngine) applyInterruptChoiceSelect(playerID string, selectionIndex 
 }
 
 func (e *GameEngine) handleInterruptChoiceAction(act model.PlayerAction) (intr.ActionResult, error) {
+	var (
+		res intr.ActionResult
+		err error
+	)
+	skillID, ownerID := e.choiceSkillCause(act.PlayerID)
+	e.WithSkillCause(skillID, ownerID, func() {
+		res, err = e.handleInterruptChoiceActionInCause(act)
+	})
+	return res, err
+}
+
+// choiceSkillCause 返回当前选择声明的技能与其持有者（未声明时为空）。
+func (e *GameEngine) choiceSkillCause(actorID string) (skillID, ownerID string) {
+	if e.State.PendingInterrupt == nil {
+		return "", ""
+	}
+	data, ok := choiceCtxAsAnyMap(e.State.PendingInterrupt.Context)
+	if !ok {
+		return "", ""
+	}
+	ct, _ := data["choice_type"].(string)
+	spec, ok := choiceRouteSkillSpec(ct)
+	if !ok {
+		return "", ""
+	}
+	isOwner := func(pid string) bool {
+		p := e.State.Players[pid]
+		return p != nil && p.Character != nil && (spec.Role == "" || p.Character.ID == spec.Role)
+	}
+	candidates := []string{actorID}
+	for _, key := range []string{"user_id", "actor_id", "player_id", "source_id"} {
+		if v, ok := data[key].(string); ok {
+			candidates = append(candidates, v)
+		}
+	}
+	for _, pid := range candidates {
+		if pid != "" && isOwner(pid) {
+			return spec.SkillID, pid
+		}
+	}
+	return "", ""
+}
+
+// choiceRouteSkillSpec 在角色注册表中查找声明了技能归属的选择路由。
+func choiceRouteSkillSpec(choiceType string) (ChoiceRouteSpec, bool) {
+	if choiceType == "" || roleRegistry == nil {
+		return ChoiceRouteSpec{}, false
+	}
+	for _, entry := range roleRegistry.Entries() {
+		if route, ok := entry.ChoiceRoutes()[choiceType]; ok && route.SkillID != "" {
+			if route.Role == "" {
+				route.Role = entry.ID
+			}
+			return route, true
+		}
+	}
+	return ChoiceRouteSpec{}, false
+}
+
+func (e *GameEngine) handleInterruptChoiceActionInCause(act model.PlayerAction) (intr.ActionResult, error) {
 	if e.State.PendingInterrupt == nil {
 		return intr.ActionResult{}, fmt.Errorf("没有待处理的中断")
 	}
@@ -104,11 +164,15 @@ func (e *GameEngine) handleInterruptChoiceAction(act model.PlayerAction) (intr.A
 	if err != nil {
 		return intr.ActionResult{}, err
 	}
+	// AfterPop 可能在之后别的中断弹出时才执行：带上此刻的因果。
+	cause := model.CloneCause(e.CurrentCause())
 	return intr.ActionResult{
 		Consumed: result.ConsumedInterrupt,
 		AfterPop: func(_ intr.EngineInterface) {
 			if result.AfterConsume != nil {
-				result.AfterConsume(&choiceHostBridge{e: e})
+				e.withCause(cause, func() {
+					result.AfterConsume(&choiceHostBridge{e: e})
+				})
 			}
 		},
 	}, nil

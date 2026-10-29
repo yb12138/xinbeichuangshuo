@@ -16,8 +16,14 @@ func NewExecutor() *Executor {
 	return &Executor{}
 }
 
-// ExecuteSkill 执行单个技能。
+// ExecuteSkill 执行单个技能（在该技能的因果下）。
 func (x *Executor) ExecuteSkill(h Host, skill model.SkillDefinition, ctx *model.Context) {
+	h.RunInSkillCause(skill, ctx, func() {
+		x.executeSkill(h, skill, ctx)
+	})
+}
+
+func (x *Executor) executeSkill(h Host, skill model.SkillDefinition, ctx *model.Context) {
 	handler := skillhandlers.GetHandler(ResolveHandlerID(skill))
 	if handler == nil {
 		return

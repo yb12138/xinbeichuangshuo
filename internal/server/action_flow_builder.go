@@ -22,6 +22,7 @@ type actionFlowBuilder struct {
 	edgeMetaByID        map[string]actionFlowEdgeMeta
 	nodeIndexByID       map[string]int
 	skillNodeIndexByKey map[string]int
+	nodeIndexByCause    map[string]int
 	latestEdgeID        string
 	latestPendingEdgeID string
 	nodeSeq             int
@@ -118,6 +119,7 @@ func buildActionFlow(events []TimelineEvent, displayName func(string, string) st
 		edgeMetaByID:        map[string]actionFlowEdgeMeta{},
 		nodeIndexByID:       map[string]int{},
 		skillNodeIndexByKey: map[string]int{},
+		nodeIndexByCause:    map[string]int{},
 	}
 
 	for _, event := range events {
@@ -208,6 +210,25 @@ func (b *actionFlowBuilder) applyBackboneEvent(event TimelineEvent) {
 func (b *actionFlowBuilder) applySkillOrEffectEvent(event TimelineEvent) {
 	kind := strings.TrimSpace(event.NarrativeKind)
 	visualKind := strings.TrimSpace(event.VisualKind)
+
+	// 带技能因果的事件：宣言、结算与状态变化都并入该因果的技能节点，不再单独生成“效果”节点。
+	// 只有真正的结果才建节点——技能事件本身、公开状态变化、战斗语义结果；
+	// 技能推出的询问（玩家可能拒绝）或因果内其他技能的事件走原有路径。
+	if cause := event.Cause; cause != nil && cause.SkillID != "" && (event.SkillID == "" || event.SkillID == cause.SkillID) &&
+		(event.SkillID == cause.SkillID || len(event.Deltas) > 0 || isCombatEffectKind(kind)) {
+		index := b.ensureCauseNode(event)
+		if index < 0 {
+			return
+		}
+		node := &b.flow.Nodes[index]
+		if len(event.Deltas) > 0 {
+			node.Deltas = append(node.Deltas, event.Deltas...)
+		}
+		if isCombatEffectKind(kind) {
+			node.Effects = append(node.Effects, ActionFlowEffectDTO{Kind: kind, Summary: event.Summary, TargetIDs: uniqueFlowStrings(event.TargetUserIDs)})
+		}
+		return
+	}
 
 	switch {
 	case strings.HasPrefix(kind, "skill") || event.GameplayType == "skill_activated" || visualKind == "skill_token":
@@ -333,6 +354,74 @@ func (b *actionFlowBuilder) applySkillEvent(event TimelineEvent) {
 	b.attachNodeToEdge(anchorEdgeID, nodeID)
 }
 
+func isCombatEffectKind(kind string) bool {
+	switch kind {
+	case "attack_redirected", "attack_taken_over", "damage_modified", "damage_prevented":
+		return true
+	}
+	return false
+}
+
+// ensureCauseNode 返回（必要时创建）事件因果对应的技能节点下标。
+// 同一因果只有一个节点：主动技的宣言与结算、hook 内生效的被动技都落在这里，
+// 被动技即使没有显式 skill_activated 事件也会因为带因果的状态变化而出现。
+func (b *actionFlowBuilder) ensureCauseNode(event TimelineEvent) int {
+	cause := event.Cause
+	isSkillEvent := event.SkillID != "" && event.SkillID == cause.SkillID
+	targets := []string{}
+	if isSkillEvent {
+		targets = uniqueFlowStrings(event.TargetUserIDs)
+	}
+	if index, ok := b.nodeIndexByCause[cause.ID]; ok {
+		node := &b.flow.Nodes[index]
+		if isSkillEvent {
+			if node.EffectText == "" {
+				node.EffectText = event.EffectText
+			}
+			if node.EventID == 0 {
+				node.EventID = event.EventID
+			}
+			for _, id := range targets {
+				if !containsFlowString(node.TargetUserIDs, id) {
+					node.TargetUserIDs = append(node.TargetUserIDs, id)
+					b.addActor(id)
+				}
+			}
+		}
+		return index
+	}
+	ownerID := firstNonEmptyString(cause.OwnerID, event.ActorUserID)
+	skillName := firstNonEmptyString(cause.SkillName, event.SkillName, cause.SkillID)
+	anchorEdgeID := ""
+	if b.flow.ActionType == "skill" && ownerID != "" && len(targets) > 0 {
+		anchorEdgeID = b.ensureEdge(ownerID, targets[0], "skill", event.CombatID)
+	} else {
+		anchorEdgeID = b.findSkillTriggerEdge(TimelineEvent{ActorUserID: ownerID, CombatID: event.CombatID}, targets)
+	}
+	node := ActionFlowNodeDTO{
+		Kind:          "skill",
+		ActorUserID:   ownerID,
+		TargetUserIDs: targets,
+		AnchorEdgeID:  anchorEdgeID,
+		SkillID:       cause.SkillID,
+		SkillName:     skillName,
+		Outcome:       "resolved",
+		Label:         firstNonEmptyString(skillName, "技能"),
+		CauseID:       cause.ID,
+		ParentCauseID: cause.ParentID,
+		OriginCauseID: cause.OriginID,
+	}
+	if isSkillEvent {
+		node.EventID = event.EventID
+		node.EffectText = event.EffectText
+	}
+	nodeID := b.addNode(node)
+	index := b.nodeIndexByID[nodeID]
+	b.nodeIndexByCause[cause.ID] = index
+	b.attachNodeToEdge(anchorEdgeID, nodeID)
+	return index
+}
+
 func actionFlowSkillNodeKey(event TimelineEvent, targets []string, anchorEdgeID string) string {
 	sortedTargets := append([]string{}, uniqueFlowStrings(targets)...)
 	sort.Strings(sortedTargets)
@@ -405,7 +494,11 @@ func (b *actionFlowBuilder) applyEffectEvent(event TimelineEvent) {
 		})
 		return
 	}
-	label := firstNonEmptyString(timelineEventFieldCardName(event), event.Summary, event.EffectType, "效果")
+	label := firstNonEmptyString(timelineEventFieldCardName(event), event.Summary, event.EffectType)
+	if label == "" {
+		// 无名称、无归属的状态变化（如规则结算的资源差值）不构成可读的步骤；差值仍随事件下发。
+		return
+	}
 	nodeID := b.addNode(ActionFlowNodeDTO{
 		Kind:          "effect",
 		ActorUserID:   event.ActorUserID,

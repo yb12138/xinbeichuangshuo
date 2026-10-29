@@ -167,6 +167,8 @@ type TimelineEvent struct {
 	Deltas             []TimelineDelta  `json:"deltas,omitempty"`
 	Message            string           `json:"message,omitempty"`
 	GameplayType       string           `json:"gameplay_type,omitempty"`
+	// Cause 该条目归属的效果因果（技能 / 父因果 / 放置来源）；前端按它聚合与画触发链。
+	Cause *model.Cause `json:"cause,omitempty"`
 }
 
 type ActionFlowActorDTO struct {
@@ -190,6 +192,21 @@ type ActionFlowNodeDTO struct {
 	Damage        int          `json:"damage,omitempty"`
 	DamageType    string       `json:"damage_type,omitempty"`
 	Label         string       `json:"label,omitempty"`
+	// CauseID 技能节点对应的效果因果；同一因果的宣言、结算与状态变化合并到一个节点。
+	CauseID       string `json:"cause_id,omitempty"`
+	ParentCauseID string `json:"parent_cause_id,omitempty"` // 触发链：被哪个因果引起
+	OriginCauseID string `json:"origin_cause_id,omitempty"` // 延迟效果的放置来源（如封印）
+	// Deltas 该因果名下的公开状态变化（宝石 -1、蛹 +1、茧 ×4……），前端据此生成结果文案。
+	Deltas []TimelineDelta `json:"deltas,omitempty"`
+	// Effects 该因果名下的非公开战斗结果（攻击改向 / 代为应战 / 伤害修正 / 伤害抵消）。
+	Effects []ActionFlowEffectDTO `json:"effects,omitempty"`
+}
+
+// ActionFlowEffectDTO 技能对战斗的语义结果。Kind: attack_redirected / attack_taken_over / damage_modified / damage_prevented。
+type ActionFlowEffectDTO struct {
+	Kind      string   `json:"kind"`
+	Summary   string   `json:"summary,omitempty"`
+	TargetIDs []string `json:"target_ids,omitempty"`
 }
 
 type ActionFlowEdgeDTO struct {

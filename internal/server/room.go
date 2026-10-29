@@ -43,6 +43,8 @@ type Room struct {
 	activeNarrativeWindowID string
 	// publicTimelineSnapshot 是 timeline state_delta 的公共可见状态基线。
 	publicTimelineSnapshot *publicTimelineSnapshot
+	// eventCause 正在处理的引擎事件所带的因果，盖到本次广播的时间线条目上。
+	eventCause *model.Cause
 	// BotsPaused E2E 测试模式：暂停 bot 自动行动
 	BotsPaused bool
 	// actorLoopStarted 标记房间 Run 循环已启动，可用于将 gameplay 输入统一串行化到 inbox。

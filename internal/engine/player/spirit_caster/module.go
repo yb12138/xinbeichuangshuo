@@ -27,14 +27,14 @@ func ApplyDefaults(p *model.Player) {
 // ChoiceRouteSpecs 导出角色 choice 路由声明。
 func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 	return map[string]types.ChoiceRouteSpec{
-		"sc_hundred_night_exclude_pick": types.ChoiceRouteRole("spirit_caster"),
-		"sc_hundred_night_fire_reveal":  types.ChoiceRouteRole("spirit_caster"),
-		"sc_hundred_night_power":        types.ChoiceRouteRole("spirit_caster"),
-		"sc_hundred_night_target":       types.ChoiceRouteRole("spirit_caster"),
-		"sc_incant_card":                types.ChoiceRouteRole("spirit_caster"),
-		"sc_incant_confirm":             types.ChoiceRouteRole("spirit_caster"),
-		"sc_spiritual_collapse_confirm": types.ChoiceRouteRole("spirit_caster"),
-		"sc_talisman_wind_discard":      types.ChoiceRouteRole("spirit_caster"),
+		"sc_hundred_night_exclude_pick": types.ChoiceRouteRole("spirit_caster").WithSkill("sc_hundred_night"),
+		"sc_hundred_night_fire_reveal":  types.ChoiceRouteRole("spirit_caster").WithSkill("sc_hundred_night"),
+		"sc_hundred_night_power":        types.ChoiceRouteRole("spirit_caster").WithSkill("sc_hundred_night"),
+		"sc_hundred_night_target":       types.ChoiceRouteRole("spirit_caster").WithSkill("sc_hundred_night"),
+		"sc_incant_card":                types.ChoiceRouteRole("spirit_caster").WithSkill("sc_incantation"),
+		"sc_incant_confirm":             types.ChoiceRouteRole("spirit_caster").WithSkill("sc_incantation"),
+		"sc_spiritual_collapse_confirm": types.ChoiceRouteRole("spirit_caster").WithSkill("sc_spiritual_collapse"),
+		"sc_talisman_wind_discard":      types.ChoiceRouteRole("spirit_caster").WithSkill("sc_talisman_wind"),
 		"sc_talisman_pick":              types.ChoiceRouteRole("spirit_caster"),
 	}
 }

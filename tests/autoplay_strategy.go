@@ -47,6 +47,10 @@ type autoGameObserver struct {
 	endMessage            string
 	logs                  []string
 	skillInvocationCounts map[string]int
+	// attributedSkillTitles 出现在事件因果上的技能名（因果归属兜底统计）。
+	attributedSkillTitles map[string]int
+	// misattributed "日志技能 ≠ 因果技能" → 次数
+	misattributed map[string]int
 }
 
 var actionSkillCursor = map[string]int{}
@@ -56,6 +60,25 @@ var knownSkillTitlesOnce sync.Once
 var knownSkillTitles map[string]struct{}
 
 func (o *autoGameObserver) OnGameEvent(event model.GameEvent) {
+	if event.Cause != nil && event.Cause.SkillName != "" {
+		if o.attributedSkillTitles == nil {
+			o.attributedSkillTitles = make(map[string]int)
+		}
+		o.attributedSkillTitles[event.Cause.SkillName]++
+		// 日志写的是“X 发动 [技能A]”，事件因果却是技能 B：归属声明错了。
+		// “确认发动 / 可发动 / 等待选择”是询问，不是结算，可在外层因果下出现。
+		if event.Type == model.EventLog && strings.Contains(event.Message, "发动 [") &&
+			!strings.Contains(event.Message, "确认发动") && !strings.Contains(event.Message, "可发动") && !strings.Contains(event.Message, "等待选择") {
+			for _, name := range extractBracketSkillCandidates(event.Message) {
+				if isKnownSkillTitle(name) && name != event.Cause.SkillName && strings.Contains(event.Message, "发动 ["+name+"]") {
+					if o.misattributed == nil {
+						o.misattributed = make(map[string]int)
+					}
+					o.misattributed[name+" ≠ "+event.Cause.SkillName]++
+				}
+			}
+		}
+	}
 	switch event.Type {
 	case model.EventGameEnd:
 		o.gameEnded = true
@@ -183,6 +206,8 @@ func extractBracketSkillCandidates(msg string) []string {
 
 type autoGameResult struct {
 	skillBatch           map[string]int
+	attributedSkills     map[string]int
+	misattributed        map[string]int
 	expectedActionSkills map[string]struct{}
 	expectedAllSkills    map[string]struct{}
 	logs                 []string
@@ -439,6 +464,8 @@ func runAutoGameWithScenarioSeedTag(
 
 	return &autoGameResult{
 		skillBatch:           observer.skillInvocationCounts,
+		attributedSkills:     observer.attributedSkillTitles,
+		misattributed:        observer.misattributed,
 		expectedActionSkills: expectedActionSkills,
 		expectedAllSkills:    expectedAllSkills,
 		logs:                 append([]string{}, observer.logs...),

@@ -61,6 +61,14 @@ func (use *skillUseRequest) policyContext() types.PolicyContext {
 
 // UseSkill 使用技能
 func (e *GameEngine) UseSkill(playerID, skillID string, targetIDs []string, discardIndices []int) error {
+	var err error
+	e.WithSkillCause(skillID, playerID, func() {
+		err = e.useSkillInCause(playerID, skillID, targetIDs, discardIndices)
+	})
+	return err
+}
+
+func (e *GameEngine) useSkillInCause(playerID, skillID string, targetIDs []string, discardIndices []int) error {
 	use, err := e.prepareSkillUse(playerID, skillID, targetIDs, discardIndices)
 	if err != nil {
 		return err
@@ -106,6 +114,7 @@ func (e *GameEngine) UseSkill(playerID, skillID string, targetIDs []string, disc
 			skillID:        skillID,
 			targetIDs:      use.resolvedTargetIDs(),
 			discardedCards: discardedCards,
+			cause:          model.CloneCause(e.CurrentCause()),
 		}
 		e.routePendingDamageWithDefaultReturn(model.TurnStageExtraAction)
 		return nil

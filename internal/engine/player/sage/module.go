@@ -64,14 +64,14 @@ func SkillEntries() []player.SkillEntry {
 // ChoiceRouteSpecs 导出角色 choice 路由声明。
 func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 	return map[string]types.ChoiceRouteSpec{
-		"sage_magic_rebound_confirm": types.ChoiceRouteRole("sage"),
-		"sage_magic_rebound_element": types.ChoiceRouteRole("sage"),
-		"sage_magic_rebound_cards":   types.ChoiceRouteRole("sage"),
-		"sage_magic_rebound_target":  types.ChoiceRouteRole("sage"),
-		"sage_arcane_cards":          types.ChoiceRouteRole("sage"),
+		"sage_magic_rebound_confirm": types.ChoiceRouteRole("sage").WithSkill("sage_magic_rebound"),
+		"sage_magic_rebound_element": types.ChoiceRouteRole("sage").WithSkill("sage_magic_rebound"),
+		"sage_magic_rebound_cards":   types.ChoiceRouteRole("sage").WithSkill("sage_magic_rebound"),
+		"sage_magic_rebound_target":  types.ChoiceRouteRole("sage").WithSkill("sage_magic_rebound"),
+		"sage_arcane_cards":          types.ChoiceRouteRole("sage").WithSkill("sage_arcane_codex"),
 		"sage_arcane_target":         types.ChoiceRouteRole("sage"),
-		"sage_holy_cards":            types.ChoiceRouteRole("sage"),
-		"sage_holy_target_count":     types.ChoiceRouteRole("sage"),
-		"sage_holy_targets":          types.ChoiceRouteRole("sage"),
+		"sage_holy_cards":            types.ChoiceRouteRole("sage").WithSkill("sage_holy_codex"),
+		"sage_holy_target_count":     types.ChoiceRouteRole("sage").WithSkill("sage_holy_codex"),
+		"sage_holy_targets":          types.ChoiceRouteRole("sage").WithSkill("sage_holy_codex"),
 	}
 }

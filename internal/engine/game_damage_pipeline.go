@@ -10,6 +10,7 @@ import (
 
 // AddPendingDamage 将延迟伤害添加到队列
 func (e *GameEngine) AddPendingDamage(pd model.PendingDamage) {
+	e.stampPendingDamageCause(&pd)
 	e.State.PendingDamageQueue = append(e.State.PendingDamageQueue, pd)
 	e.Log(fmt.Sprintf("[System] 延迟伤害已添加: Source: %s, Target: %s, Damage: %d, Type: %s",
 		pd.SourceID, pd.TargetID, pd.Damage, pd.DamageType))
@@ -27,6 +28,7 @@ func (e *GameEngine) AddPendingDamage(pd model.PendingDamage) {
 
 // AddPendingDamageFront 将延迟伤害插入队列头部（用于“必须先结算”的伤害）。
 func (e *GameEngine) AddPendingDamageFront(pd model.PendingDamage) {
+	e.stampPendingDamageCause(&pd)
 	e.State.PendingDamageQueue = append([]model.PendingDamage{pd}, e.State.PendingDamageQueue...)
 	e.Log(fmt.Sprintf("[System] 延迟伤害已前插: Source: %s, Target: %s, Damage: %d, Type: %s",
 		pd.SourceID, pd.TargetID, pd.Damage, pd.DamageType))
@@ -46,36 +48,50 @@ func (e *GameEngine) AddPendingDamageFront(pd model.PendingDamage) {
 // 返回 true 如果产生了中断需要暂停 Drive
 func (e *GameEngine) ProcessPendingDamages() bool {
 	for len(e.State.PendingDamageQueue) > 0 {
-		// 伤害流水线固定顺序：
-		// 1) 攻击命中链 -> 2) 承伤前规则 -> 3) 承伤触发 -> 4) 扣血前规则 -> 5) 扣血 -> 6) 结算后规则。
-		pd := &e.State.PendingDamageQueue[0]
-
-		// 如果有待处理的中断，暂停处理等待中断完成
-		if e.State.PendingInterrupt != nil {
+		var stop, skip bool
+		e.withCause(e.State.PendingDamageQueue[0].Cause, func() {
+			stop, skip = e.processHeadPendingDamage()
+		})
+		if stop {
 			return true
 		}
-
-		if e.processPendingAttackHit(pd) {
-			return true
-		}
-		if e.removePendingDamageIfAttackMissed(pd) {
+		if skip {
 			continue
 		}
-		if e.processPendingDamageBeforeApply(pd) {
-			return true
-		}
+	}
+	return false
+}
 
-		resolved := e.applyAndPopPendingDamage(pd)
-		if e.applyDamageResolvedRules(&resolved) {
-			return true
-		}
-		// 结算后若产生新中断（如爆牌/后续技能选择），暂停 Drive。
-		if e.State.PendingInterrupt != nil {
-			return true
-		}
+// processHeadPendingDamage 结算队首伤害一步；stop=需暂停 Drive，skip=队首已移除继续下一条。
+func (e *GameEngine) processHeadPendingDamage() (stop, skip bool) {
+	// 伤害流水线固定顺序：
+	// 1) 攻击命中链 -> 2) 承伤前规则 -> 3) 承伤触发 -> 4) 扣血前规则 -> 5) 扣血 -> 6) 结算后规则。
+	pd := &e.State.PendingDamageQueue[0]
+
+	// 如果有待处理的中断，暂停处理等待中断完成
+	if e.State.PendingInterrupt != nil {
+		return true, false
 	}
 
-	return false
+	if e.processPendingAttackHit(pd) {
+		return true, false
+	}
+	if e.removePendingDamageIfAttackMissed(pd) {
+		return false, true
+	}
+	if e.processPendingDamageBeforeApply(pd) {
+		return true, false
+	}
+
+	resolved := e.applyAndPopPendingDamage(pd)
+	if e.applyDamageResolvedRules(&resolved) {
+		return true, false
+	}
+	// 结算后若产生新中断（如爆牌/后续技能选择），暂停 Drive。
+	if e.State.PendingInterrupt != nil {
+		return true, false
+	}
+	return false, false
 }
 
 func (e *GameEngine) removePendingDamageIfAttackMissed(pd *model.PendingDamage) bool {

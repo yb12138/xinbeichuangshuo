@@ -33,7 +33,7 @@ func RoleEntry() player.RoleEntry {
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
 		TimingHookSpecs: []player.TimingHookSpec{
 			{Timing: player.TimingActionStart, Priority: 200, Hook: beforeActionStealthReleaseHook},
-			{Timing: player.TimingDamageSourceDeal, Priority: 600, Hook: damageCalculateHook},
+			{Timing: player.TimingDamageSourceDeal, Priority: 600, Hook: damageCalculateHook, SkillID: "stealth"},
 			{Timing: player.TimingAttackNoResponse, Priority: 200, Hook: attackGatingHook},
 		},
 	}
@@ -51,6 +51,6 @@ func SkillEntries() []player.SkillEntry {
 // ChoiceRouteSpecs 导出角色 choice 路由声明。
 func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 	return map[string]types.ChoiceRouteSpec{
-		"assassin_stealth_draw": types.ChoiceRouteRole("assassin"),
+		"assassin_stealth_draw": types.ChoiceRouteRole("assassin").WithSkill("stealth"),
 	}
 }

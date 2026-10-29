@@ -28,12 +28,12 @@ func RoleEntry() player.RoleEntry {
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
 		TimingHookSpecs: []player.TimingHookSpec{
-			{Timing: player.TimingDamageSourceDeal, Priority: 500, Hook: damageCalculateHook},
+			{Timing: player.TimingDamageSourceDeal, Priority: 500, Hook: damageCalculateHook, SkillID: "hero_roar"},
 			{Timing: player.TimingAttackDeclare, Priority: 100, Hook: pendingDamageInitHook},
 			{Timing: player.TimingAttackNoResponse, Priority: 200, Hook: attackGatingHook},
-			{Timing: player.TimingAttackMiss, Priority: 100, Hook: attackMissHook},
-			{Timing: player.TimingPostActionEnd, Priority: 200, Hook: postActionEndHook},
-			{Timing: player.TimingActionStart, Priority: 100, Hook: turnStartExhaustionReleaseHook},
+			{Timing: player.TimingAttackMiss, Priority: 100, Hook: attackMissHook, SkillID: "hero_roar"},
+			{Timing: player.TimingPostActionEnd, Priority: 200, Hook: postActionEndHook, SkillID: "hero_calm_mind"},
+			{Timing: player.TimingActionStart, Priority: 100, Hook: turnStartExhaustionReleaseHook, SkillID: "hero_exhaustion"},
 			{Timing: player.TimingTurnStart, Priority: 200, Hook: turnStartTauntStartupHook, RoleFilter: &player.HookRoleNone},
 			{Timing: player.TimingActionStartOption, Priority: 200, Hook: beforeActionOptionHook, RoleFilter: &player.HookRoleNone},
 			{Timing: player.TimingActionStartValidation, Priority: 200, Hook: beforeActionValidationHook, RoleFilter: &player.HookRoleNone},
@@ -89,6 +89,6 @@ func SkillEntries() []player.SkillEntry {
 // ChoiceRouteSpecs 导出角色 choice 路由声明。
 func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 	return map[string]types.ChoiceRouteSpec{
-		"hero_roar_draw": types.ChoiceRouteRole("hero"),
+		"hero_roar_draw": types.ChoiceRouteRole("hero").WithSkill("hero_roar"),
 	}
 }

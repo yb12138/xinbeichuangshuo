@@ -38,4 +38,7 @@ type Host interface {
 	RestoreConfirmedResponseAfterPop(state any)
 
 	ConsumeSkillEnergyCost(playerID string, gemCost, crystalCost int) bool
+
+	// RunInSkillCause 在技能因果下执行 fn（场上牌技能以放置时的因果为 Origin）。
+	RunInSkillCause(skill model.SkillDefinition, ctx *model.Context, fn func())
 }

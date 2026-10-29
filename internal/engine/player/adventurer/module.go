@@ -30,6 +30,7 @@ func RoleEntry() player.RoleEntry {
 				return player.BuyRewardResult{
 					Handled:    true,
 					AddGems:    2,
+					SkillID:    "adventurer_underground_law",
 					LogMessage: fmt.Sprintf("[Skill] %s 使用了技能: 地下法则（购买改写：战绩区+2宝石）", p.Name),
 				}
 			},
@@ -59,11 +60,11 @@ func SkillEntries() []player.SkillEntry {
 // ChoiceRouteSpecs 导出角色 choice 路由声明。
 func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 	return map[string]types.ChoiceRouteSpec{
-		"adventurer_extract_paradise_check": types.ChoiceRouteRole("adventurer"),
-		"adventurer_fraud_attack_element":   types.ChoiceRouteRole("adventurer"),
-		"adventurer_fraud_pick":             types.ChoiceRouteRole("adventurer"),
-		"adventurer_fraud_target":           types.ChoiceRouteRole("adventurer"),
-		"adventurer_paradise_pick":          types.ChoiceRouteRole("adventurer"),
-		"adventurer_steal_sky_mode":         types.ChoiceRouteRole("adventurer"),
+		"adventurer_extract_paradise_check": types.ChoiceRouteRole("adventurer").WithSkill("adventurer_paradise"),
+		"adventurer_fraud_attack_element":   types.ChoiceRouteRole("adventurer").WithSkill("adventurer_fraud"),
+		"adventurer_fraud_pick":             types.ChoiceRouteRole("adventurer").WithSkill("adventurer_fraud"),
+		"adventurer_fraud_target":           types.ChoiceRouteRole("adventurer").WithSkill("adventurer_fraud"),
+		"adventurer_paradise_pick":          types.ChoiceRouteRole("adventurer").WithSkill("adventurer_paradise"),
+		"adventurer_steal_sky_mode":         types.ChoiceRouteRole("adventurer").WithSkill("adventurer_steal_sky"),
 	}
 }

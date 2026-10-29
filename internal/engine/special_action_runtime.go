@@ -52,15 +52,17 @@ func (e *GameEngine) handleBuy(p *model.Player) error {
 		}
 		result := entry.SpecialActionHook.BuyRewardOverride(p, campStones, 5)
 		if result.Handled {
-			if result.AddGems > 0 {
-				e.ModifyGem(string(p.Camp), result.AddGems)
-			}
-			if result.AddCrystals > 0 {
-				e.ModifyCrystal(string(p.Camp), result.AddCrystals)
-			}
-			if result.LogMessage != "" {
-				e.Log(result.LogMessage)
-			}
+			e.WithSkillCause(result.SkillID, p.ID, func() {
+				if result.AddGems > 0 {
+					e.ModifyGem(string(p.Camp), result.AddGems)
+				}
+				if result.AddCrystals > 0 {
+					e.ModifyCrystal(string(p.Camp), result.AddCrystals)
+				}
+				if result.LogMessage != "" {
+					e.Log(result.LogMessage)
+				}
+			})
 			return nil
 		}
 	}

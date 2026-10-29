@@ -341,7 +341,7 @@ func TestBlazeWitchFlameForm_ReleasesAtTurnStart(t *testing.T) {
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
 	p1.Form = model.FormBlazeWitchFlame
-	p1.TurnState.SkillFlowState["bw_flame_release_pending"] = 1
+	p1.Tokens["bw_flame_release_pending"] = 1
 	p1.Hand = makeBlazeWitchTestCards(5)
 
 	game.State.CurrentTurn = 0
@@ -352,7 +352,7 @@ func TestBlazeWitchFlameForm_ReleasesAtTurnStart(t *testing.T) {
 	if got := p1.Form; got != "" {
 		t.Fatalf("expected flame form released at turn start, got %q", got)
 	}
-	if got := p1.TurnState.SkillFlowState["bw_flame_release_pending"]; got != 0 {
+	if got := p1.Tokens["bw_flame_release_pending"]; got != 0 {
 		t.Fatalf("expected flame release flag cleared, got %d", got)
 	}
 	if got := game.State.TurnStage; got != model.TurnStageActionExecution {
@@ -497,5 +497,53 @@ func TestBlazeWitchConfig_MetadataAlignsWithDocument(t *testing.T) {
 	}
 	if manaInversion.TargetType != model.TargetEnemy || manaInversion.MinTargets != 1 || manaInversion.MaxTargets != 1 {
 		t.Fatalf("expected mana inversion target metadata enemy(1), got type=%v min=%d max=%d", manaInversion.TargetType, manaInversion.MinTargets, manaInversion.MaxTargets)
+	}
+}
+
+// 走真实换回合：魔女之怒在本回合进入烈焰形态 → 对手回合 → 回到魔女，行动前应转正。
+// 回归：释放标记曾放在 SkillFlowState，回合开始重置 TurnState 时被清掉，形态永远不会解除。
+func TestBlazeWitchFlameForm_ReleasesAfterRealTurnCycle(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Blaze", "blaze_witch", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	p1 := game.State.Players["p1"]
+	game.State.CurrentTurn = 0
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Hand = makeBlazeWitchTestCards(2)
+	game.State.TurnStage = model.TurnStageActionStart
+	game.Drive()
+	// 魔女之怒是启动技：在启动技中断里选择它。
+	intr := game.State.PendingInterrupt
+	if intr == nil || intr.Type != model.InterruptStartupSkill {
+		t.Fatalf("expected startup interrupt, got %+v", intr)
+	}
+	idx := -1
+	for i, id := range intr.SkillIDs {
+		if id == "bw_witch_wrath" {
+			idx = i
+		}
+	}
+	if idx < 0 {
+		t.Fatalf("bw_witch_wrath not offered: %v", intr.SkillIDs)
+	}
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{idx}})
+	if p1.Form != model.FormBlazeWitchFlame {
+		t.Fatalf("expected flame form after witch wrath, got %q", p1.Form)
+	}
+
+	game.State.PendingInterrupt = nil
+	game.State.InterruptQueue = nil
+	game.NextTurn() // → p2
+	game.NextTurn() // → p1
+	game.State.TurnStage = model.TurnStageTurnStart
+	game.Drive()
+
+	if p1.Form != "" {
+		t.Fatalf("expected flame form released at the witch's next turn, got %q", p1.Form)
 	}
 }

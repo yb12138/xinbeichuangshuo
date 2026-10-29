@@ -382,7 +382,9 @@ func (e *GameEngine) handleCombatTakeResponse(player *model.Player, combatReq mo
 		IsCounter:     combatReq.IsCounter,
 		IgnoreShield:  combatReq.IgnoreShield,
 		InterceptTags: model.CloneCombatInterceptTags(combatReq.InterceptTags),
+		Cause:         model.CloneCause(combatReq.Cause),
 	}
+	e.stampPendingDamageCause(&pd)
 	e.State.PendingDamageQueue = append([]model.PendingDamage{pd}, e.State.PendingDamageQueue...)
 	e.addActionResponse(fmt.Sprintf("%s 承受伤害", player.Name))
 	e.NotifyActionStep(fmt.Sprintf("%s承受伤害", model.GetPlayerDisplayName(player)))

@@ -21,7 +21,7 @@ func RoleEntry() player.RoleEntry {
 			{Timing: player.TimingDamageSourceDeal, Priority: 900, Hook: damageCalculateHook},
 			{Timing: player.TimingAttackStateReset, Priority: 100, Hook: attackStateResetHook},
 			{Timing: player.TimingAttackNoResponse, Priority: 300, Hook: attackGatingHook},
-			{Timing: player.TimingPostAttackHit, Priority: 200, Hook: postAttackHitHook},
+			{Timing: player.TimingPostAttackHit, Priority: 200, Hook: postAttackHitHook, SkillID: "bs_beast_soul_will"},
 			{Timing: player.TimingAttackMiss, Priority: 100, Hook: attackMissHook},
 			{Timing: player.TimingPostDamageResolved, Priority: 100, Hook: postDamageResolvedHook},
 			{Timing: player.TimingTurnEndPreExtra, Priority: 100, Hook: turnEndHook},
@@ -66,14 +66,14 @@ func SkillEntries() []player.SkillEntry {
 // ChoiceRouteSpecs 导出角色 choice 路由声明。
 func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 	return map[string]types.ChoiceRouteSpec{
-		"bs_alert_source_discard":        types.ChoiceRouteRole("beast_samurai"),
-		"bs_alert_target":                types.ChoiceRouteRole("beast_samurai"),
-		"bs_beast_return_self_discard":   types.ChoiceRouteRole("beast_samurai"),
-		"bs_beast_return_source_discard": types.ChoiceRouteRole("beast_samurai"),
-		"bs_beast_return_x":              types.ChoiceRouteRole("beast_samurai"),
-		"bs_iaijutsu_style_discard":      types.ChoiceRouteRole("beast_samurai"),
-		"bs_iaijutsu_style_mode":         types.ChoiceRouteRole("beast_samurai"),
-		"bs_reversal_target_discard":     types.ChoiceRouteRole("beast_samurai"),
-		"bs_reversal_x":                  types.ChoiceRouteRole("beast_samurai"),
+		"bs_alert_source_discard":        types.ChoiceRouteRole("beast_samurai").WithSkill("bs_beast_soul_alert"),
+		"bs_alert_target":                types.ChoiceRouteRole("beast_samurai").WithSkill("bs_beast_soul_alert"),
+		"bs_beast_return_self_discard":   types.ChoiceRouteRole("beast_samurai").WithSkill("bs_beast_return"),
+		"bs_beast_return_source_discard": types.ChoiceRouteRole("beast_samurai").WithSkill("bs_beast_return"),
+		"bs_beast_return_x":              types.ChoiceRouteRole("beast_samurai").WithSkill("bs_beast_return"),
+		"bs_iaijutsu_style_discard":      types.ChoiceRouteRole("beast_samurai").WithSkill("bs_iaijutsu_style"),
+		"bs_iaijutsu_style_mode":         types.ChoiceRouteRole("beast_samurai").WithSkill("bs_iaijutsu_style"),
+		"bs_reversal_target_discard":     types.ChoiceRouteRole("beast_samurai").WithSkill("bs_reversal_iaijutsu"),
+		"bs_reversal_x":                  types.ChoiceRouteRole("beast_samurai").WithSkill("bs_reversal_iaijutsu"),
 	}
 }

@@ -17,13 +17,13 @@ func RoleEntry() player.RoleEntry {
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
 		TimingHookSpecs: []player.TimingHookSpec{
-			{Timing: player.TimingDamageSourceDeal, Priority: 800, Hook: damageCalculateHook},
+			{Timing: player.TimingDamageSourceDeal, Priority: 800, Hook: damageCalculateHook, SkillID: "se_demon_soul"},
 			{Timing: player.TimingAttackStateReset, Priority: 100, Hook: attackStateResetHook},
 			{Timing: player.TimingAttackMiss, Priority: 500, Hook: attackMissHook},
-			{Timing: player.TimingAttackMiss, Priority: 510, Hook: angelSoulMissHook},
-			{Timing: player.TimingAttackMiss, Priority: 520, Hook: demonSoulMissHook},
+			{Timing: player.TimingAttackMiss, Priority: 510, Hook: angelSoulMissHook, SkillID: "se_angel_soul"},
+			{Timing: player.TimingAttackMiss, Priority: 520, Hook: demonSoulMissHook, SkillID: "se_demon_soul"},
 			{Timing: player.TimingAttackMiss, Priority: 900, Hook: attackMissCleanupHook},
-			{Timing: player.TimingDamageAfterTaken, Priority: 100, Hook: angelSoulHitHook},
+			{Timing: player.TimingDamageAfterTaken, Priority: 100, Hook: angelSoulHitHook, SkillID: "se_angel_soul"},
 		},
 	}
 }
@@ -55,8 +55,8 @@ func SkillEntries() []player.SkillEntry {
 func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 	return map[string]types.ChoiceRouteSpec{
 		"se_soul_pick":             types.ChoiceRouteRole("sword_emperor"),
-		"se_sword_qi_slash_target": types.ChoiceRouteRole("sword_emperor"),
-		"se_sword_qi_slash_x":      types.ChoiceRouteRole("sword_emperor"),
+		"se_sword_qi_slash_target": types.ChoiceRouteRole("sword_emperor").WithSkill("se_sword_qi_slash"),
+		"se_sword_qi_slash_x":      types.ChoiceRouteRole("sword_emperor").WithSkill("se_sword_qi_slash"),
 		"se_sword_rain_discard":    types.ChoiceRouteRole("sword_emperor"),
 		"se_sword_rain_target":     types.ChoiceRouteRole("sword_emperor"),
 	}

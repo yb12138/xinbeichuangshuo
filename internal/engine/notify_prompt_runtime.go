@@ -70,6 +70,9 @@ func (e *GameEngine) emitGameEvent(event model.GameEvent) {
 		trace := e.currentNarrativeTrace()
 		event.Narrative = &trace
 	}
+	if event.Cause == nil {
+		event.Cause = model.CloneCause(e.CurrentCause())
+	}
 	if err := event.Validate(); err != nil {
 		panic(err)
 	}
@@ -302,6 +305,14 @@ func (e *GameEngine) NotifySkillActivated(playerID, skillID, skillName, effectTe
 	if p != nil {
 		playerName = p.Name
 	}
+	// 手写的技能通知若不在该技能因果内（代码没有走声明式入口），至少让这条事件本身归属该技能。
+	// 已在同一技能因果内时 WithSkillCause 直接复用，不会生成新因果。
+	e.WithSkillCause(skillID, playerID, func() {
+		e.emitSkillActivated(playerID, playerName, skillID, skillName, effectText, targetIDs)
+	})
+}
+
+func (e *GameEngine) emitSkillActivated(playerID, playerName, skillID, skillName, effectText string, targetIDs []string) {
 	e.emitGameEvent(model.GameEvent{
 		Type: model.EventSkillActivated,
 		SkillActivated: &model.SkillActivatedPayload{

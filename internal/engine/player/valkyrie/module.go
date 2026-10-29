@@ -15,7 +15,7 @@ func RoleEntry() player.RoleEntry {
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
 		TimingHookSpecs: []player.TimingHookSpec{
-			{Timing: player.TimingTurnStart, Priority: 100, Hook: turnStartMilitaryGloryHook},
+			{Timing: player.TimingTurnStart, Priority: 100, Hook: turnStartMilitaryGloryHook, SkillID: "valkyrie_heroic_summon"},
 		},
 	}
 }
@@ -34,10 +34,10 @@ func SkillEntries() []player.SkillEntry {
 // ChoiceRouteSpecs 导出角色 choice 路由声明。
 func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 	return map[string]types.ChoiceRouteSpec{
-		"valkyrie_heroic_discard_card":   types.ChoiceRouteRole("valkyrie"),
-		"valkyrie_heroic_summon_pick":    types.ChoiceRouteRole("valkyrie"),
-		"valkyrie_military_glory_mode":   types.ChoiceRouteRole("valkyrie"),
-		"valkyrie_military_glory_target": types.ChoiceRouteRole("valkyrie"),
-		"valkyrie_military_glory_x":      types.ChoiceRouteRole("valkyrie"),
+		"valkyrie_heroic_discard_card":   types.ChoiceRouteRole("valkyrie").WithSkill("valkyrie_heroic_summon"),
+		"valkyrie_heroic_summon_pick":    types.ChoiceRouteRole("valkyrie").WithSkill("valkyrie_heroic_summon"),
+		"valkyrie_military_glory_mode":   types.ChoiceRouteRole("valkyrie").WithSkill("valkyrie_military_glory"),
+		"valkyrie_military_glory_target": types.ChoiceRouteRole("valkyrie").WithSkill("valkyrie_military_glory"),
+		"valkyrie_military_glory_x":      types.ChoiceRouteRole("valkyrie").WithSkill("valkyrie_military_glory"),
 	}
 }

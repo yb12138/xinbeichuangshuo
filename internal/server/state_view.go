@@ -119,35 +119,11 @@ func (r *Room) buildStateForPlayer(playerID string) GameStateUpdate {
 		for k, v := range p.Tokens {
 			view.Tokens[k] = v
 		}
-		setIndicator := func(key string, value int) {
-			if value > 0 {
-				view.Indicators[key] = value
-			}
-		}
-		setIndicator("elf_blessing_count", countElfBlessings(p))
-		setIndicator("mb_charge_count", countMagicBowCharges(p))
-		setIndicator("sc_power_count", countSpiritCasterPowers(p))
-		setIndicator("mg_dark_moon_count", countMoonDarkMoons(p))
-		setIndicator("bt_cocoon_count", countButterflyCocoons(p))
-		setIndicator("bp_shared_life_active", countBloodSharedLifeAsSource(state, p.ID))
-		setIndicator("bp_shared_life_bound", countBloodSharedLifeAsHolder(p))
-		setIndicator("se_sword_soul_count", countSwordEmperorSwordSouls(p))
-		setIndicator("ml_dark_release_next_attack_bonus", combatPolicyAttackBonusByModifierID(p, "ml_dark_release_next_attack_bonus"))
-		if hasRuleModifierWithModifierID(p, "ml_dark_release_lock_turn") {
-			view.Indicators["ml_dark_release_lock_turn"] = 1
-		}
+		view.Indicators = stateview.PublicIndicators(state, p)
 		// 清理不应暴露给前端的 Tokens 镜像
-		delete(view.Tokens, "elf_blessing_count")
-		delete(view.Tokens, "mb_charge_count")
-		delete(view.Tokens, "sc_power_count")
-		delete(view.Tokens, "mg_dark_moon_count")
-		delete(view.Tokens, "bt_cocoon_count")
-		delete(view.Tokens, "bp_shared_life_active")
-		delete(view.Tokens, "bp_shared_life_bound")
-		delete(view.Tokens, "css_blood_cap")
-		delete(view.Tokens, "ml_dark_release_next_attack_bonus")
-		delete(view.Tokens, "ml_dark_release_lock_turn")
-		delete(view.Tokens, "se_sword_soul_count")
+		for _, key := range stateview.DerivedIndicatorKeys {
+			delete(view.Tokens, key)
+		}
 		// 仅自己可见手牌具体内容，他人只能看到数量
 		if pid == playerID {
 			view.Hand = p.Hand

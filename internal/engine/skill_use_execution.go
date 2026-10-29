@@ -104,6 +104,7 @@ func (e *GameEngine) placeSkillFieldCard(use *skillUseRequest) error {
 		Hook:     use.skillDef.PlaceHook,
 		Meta:     buildFieldCardMeta(use, placedCard), // 【关键】封印会在这里记录绑定元素
 	}
+	e.stampFieldCardCause(fc)
 	fieldTarget.AddFieldCard(fc)
 	e.Log(fmt.Sprintf(
 		"[Skill] %s 在 %s 面前放置了场上牌: %s (效果: %s, 触发: %s)",

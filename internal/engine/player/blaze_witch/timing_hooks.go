@@ -18,13 +18,12 @@ func beforeActionFlameReleaseHook(rt player.HookRuntime, ctx player.TimingHookCo
 	if rt.HasUsedActionSkill(p) || !rt.HasForm(p, model.FormBlazeWitchFlame) {
 		return player.TimingHookResult{}
 	}
-	player.EnsurePlayerSkillFlowState(p)
-	if p.TurnState.SkillFlowState["bw_flame_release_pending"] <= 0 {
+	if player.GetToken(p, "bw_flame_release_pending") <= 0 {
 		return player.TimingHookResult{}
 	}
 	defer rt.PoseChangeGuard()
 	rt.ClearForm(p, model.FormBlazeWitchFlame)
-	p.TurnState.SkillFlowState["bw_flame_release_pending"] = 0
+	player.SetToken(p, "bw_flame_release_pending", 0)
 	rt.Log(fmt.Sprintf("%s 脱离烈焰形态并转正", p.Name))
 	return player.TimingHookResult{}
 }

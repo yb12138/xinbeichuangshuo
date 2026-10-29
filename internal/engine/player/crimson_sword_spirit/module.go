@@ -21,7 +21,7 @@ func RoleEntry() player.RoleEntry {
 		TimingHookSpecs: []player.TimingHookSpec{
 			{Timing: player.TimingDamageAfterApply, Priority: 100, Hook: afterApplyHook},
 			{Timing: player.TimingHealBefore, Priority: 100, Hook: healResistHook, RoleFilter: &player.HookRoleNone},
-			{Timing: player.TimingTurnEndFinal, Priority: 500, Hook: turnEndHook},
+			{Timing: player.TimingTurnEndFinal, Priority: 500, Hook: turnEndHook, SkillID: "css_rose_courtyard"},
 		},
 	}
 }
@@ -82,9 +82,9 @@ func SkillEntries() []player.SkillEntry {
 // ChoiceRouteSpecs 导出角色 choice 路由声明。
 func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 	return map[string]types.ChoiceRouteSpec{
-		"css_dance_mode":                    types.ChoiceRouteRole("crimson_sword_spirit"),
-		"css_rose_courtyard_pick":           types.ChoiceRouteRole("crimson_sword_spirit"),
-		"css_blood_rose_remove_heal_target": types.ChoiceRouteRole("crimson_sword_spirit"),
-		"css_blood_rose_gain_heal_target":   types.ChoiceRouteRole("crimson_sword_spirit"),
+		"css_dance_mode":                    types.ChoiceRouteRole("crimson_sword_spirit").WithSkill("css_dance"),
+		"css_rose_courtyard_pick":           types.ChoiceRouteRole("crimson_sword_spirit").WithSkill("css_rose_courtyard"),
+		"css_blood_rose_remove_heal_target": types.ChoiceRouteRole("crimson_sword_spirit").WithSkill("css_blood_rose"),
+		"css_blood_rose_gain_heal_target":   types.ChoiceRouteRole("crimson_sword_spirit").WithSkill("css_blood_rose"),
 	}
 }
