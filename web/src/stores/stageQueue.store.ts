@@ -1,6 +1,6 @@
 import { skillResult, skillResultSummary } from './skillResult'
 import { defineStore } from 'pinia'
-import { computed, ref } from 'vue'
+import { computed, ref, toRaw } from 'vue'
 import type { Card } from '../types/game'
 import type { ActionFlowDTO, ActionFlowEdgeDTO, ActionFlowNodeDTO, TimelineDelta } from '../network/protocol'
 import { SKILL_ANIMATION_MAP, type SkillEffectTemplate, type SkillOpening } from '../constants/skillAnimationMap'
@@ -226,6 +226,8 @@ export interface PreviousActionState {
 const PREVIOUS_LABEL = '上一手'
 const MAX_HISTORY_CHIPS = 20
 const AUTO_ACCELERATE_THRESHOLD = 3
+/** 切回标签页时，入队超过这么久的积压视为已过时，直接结算不再播放。 */
+const STALE_BACKLOG_MS = 3000
 const VALUE_CHIP_LIFETIME_MS = 2000
 const STATUS_CHANGE_LIFETIME_MS = 1600
 const DEFAULT_SKILL_BUBBLE_MS = 1900
@@ -326,8 +328,13 @@ export const useStageQueueStore = defineStore('stageQueue', () => {
     return first ? stripHtml(first.html) : ''
   }
 
+  /** 每个步骤的入队时间（按原始对象记录，出队后自动回收），用于判断切回标签页时哪些已过时。 */
+  const arrivedAt = new WeakMap<AtomicStep, number>()
+
   function enqueue(...steps: AtomicStep[]) {
     if (steps.length === 0) return
+    const t = now()
+    for (const step of steps) arrivedAt.set(toRaw(step), t)
     queue.value.push(...steps)
     isPlaying.value = true
   }
@@ -569,6 +576,39 @@ export const useStageQueueStore = defineStore('stageQueue', () => {
     isPlaying.value = true
   }
 
+  /**
+   * 跳过积压：标签页在后台时 rAF 暂停而 WebSocket 照常入队，切回来会把离开期间的动作逐个补播。
+   * 已过时（入队超过 staleMs）的步骤与最近一个动作之前的步骤立即结算：留场 / 连线 / 历史照常更新，
+   * 瞬时特效不播放。只有刚到达的最近一个动作留在队列里正常播放。
+   */
+  function fastForward(at: number = now(), staleMs: number = STALE_BACKLOG_MS) {
+    const items = queue.value
+    let lastMark = -1
+    for (let i = items.length - 1; i >= 0; i -= 1) {
+      if (items[i]!.type === 'mark-previous') {
+        lastMark = i
+        break
+      }
+    }
+    let firstFresh = items.length
+    for (let i = 0; i < items.length; i += 1) {
+      const arrived = arrivedAt.get(toRaw(items[i]!))
+      if (arrived === undefined || at - arrived < staleMs) {
+        firstFresh = i
+        break
+      }
+    }
+    const keepFrom = Math.max(lastMark, firstFresh)
+    if (keepFrom <= 0) return
+    const skipped = items.slice(0, keepFrom)
+    queue.value = items.slice(keepFrom)
+    // scale = 0：瞬时特效的过期时间就是 at，下面立即清掉，不会闪出来
+    for (const step of skipped) applyStep(step, at, 0)
+    expireTransient(at)
+    nextReadyAt = at
+    if (queue.value.length === 0) isPlaying.value = false
+  }
+
   function setSpeed(multiplier: number) {
     if (!Number.isFinite(multiplier) || multiplier <= 0) return
     speedMultiplier.value = multiplier
@@ -613,6 +653,7 @@ export const useStageQueueStore = defineStore('stageQueue', () => {
     pendingCount,
     enqueue,
     tick,
+    fastForward,
     archiveCurrentAction,
     reset,
     setSpeed,

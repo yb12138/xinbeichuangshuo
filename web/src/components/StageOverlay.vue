@@ -910,13 +910,20 @@ watch(
   { flush: 'post' },
 )
 
+// 后台标签页 rAF 暂停、消息照常入队；切回来只播最近一个动作，之前的直接结算进"上一手"/历史。
+function onVisibilityChange() {
+  if (document.visibilityState === 'visible') store.fastForward()
+}
+
 onMounted(() => {
   observe(props.rootEl)
   window.addEventListener('resize', measure)
+  document.addEventListener('visibilitychange', onVisibilityChange)
   rafId = requestAnimationFrame(frame)
 })
 
 onBeforeUnmount(() => {
+  document.removeEventListener('visibilitychange', onVisibilityChange)
   cancelAnimationFrame(rafId)
   observer?.disconnect()
   observer = null
